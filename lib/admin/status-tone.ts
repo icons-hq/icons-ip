@@ -55,6 +55,30 @@ const STATUS_TONES = {
   // [sales]
   // [cs]
   // [catalog]
+  /** 카드풀 운영 기간 */
+  cardPool: { scheduled: 'info', active: 'success', ended: 'neutral' },
+  /** 참여형 게임 */
+  game: { scheduled: 'info', active: 'success', ended: 'neutral', 'pool-unavailable': 'danger' },
+  /** 카드팩 발급 정책 */
+  rewardPolicy: { inactive: 'neutral', scheduled: 'info', active: 'success', ended: 'neutral', 'pool-unavailable': 'danger' },
+  /** 이벤트 — 화면 이름 그대로 저장된 값이다 */
+  event: { 예정: 'info', 예매중: 'success', 진행중: 'success', 종료: 'neutral' },
+  /** 티켓 회차 정원 */
+  ticketAllocation: { open: 'success', full: 'danger', empty: 'neutral' },
+  /** 상품공지사항 전시 */
+  goodsAnnouncement: { waiting: 'info', shown: 'success', stopped: 'neutral' },
+  /** 연관상품 편성 전시 */
+  goodsRelation: { scheduled: 'info', active: 'success', stopped: 'neutral', ended: 'neutral' },
+  /** 그룹상품 연결 */
+  goodsGroup: { active: 'success', archived: 'neutral' },
+  /** 카드팩 교환처 노출 */
+  coinOffer: { active: 'success', disabled: 'neutral' },
+  /** 상품 엑셀 검증 분류 */
+  goodsImport: { new: 'success', update: 'info', unchanged: 'neutral', error: 'danger' },
+  /** 사방넷 열 인식 */
+  sabangnetColumn: { confirmed: 'success', guessed: 'warning', remembered: 'neutral', known: 'neutral', unknown: 'warning', duplicate: 'warning', manual: 'neutral' },
+  /** 카테고리 일괄 등록 줄별 결과 */
+  categoryBulk: { created: 'success', skipped: 'neutral', failed: 'danger' },
   // [ops]
   /** 쿠폰 혜택상태(lib/admin/coupons couponPhase) — 중지는 coupon.archived(보관)와 같은 색이다. */
   couponPhase: { scheduled: 'info', live: 'success', ended: 'neutral', stopped: 'neutral' },

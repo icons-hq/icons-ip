@@ -3,7 +3,8 @@
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { useActionState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { Download } from 'lucide-react';
+import { ChevronDown, Download } from 'lucide-react';
+import { statusTone } from '@/lib/admin/status-tone';
 import { MarketingLinkIssuer } from '../marketing/MarketingLinkIssuer';
 import { AdminPageHeader, AdminSectionCard, AdminStatusBadge } from '../console/AdminKit';
 import { CategoryAssignmentField } from '../CategoryAssignmentField';
@@ -39,10 +40,21 @@ const FORM_BOX = 'flex min-w-0 flex-col gap-3 rounded-lg border p-4';
 const FIELD = 'flex min-w-0 flex-col gap-2 text-sm font-medium';
 const FIELD_GRID = 'grid gap-x-6 gap-y-4 sm:grid-cols-2';
 
+/* 자주 바꾸지 않는 설정·일괄 도구는 접어 카테고리 트리가 첫 화면에 보이게 한다. 안의 폼과 저장 동작은 그대로다. */
+function FoldCard({ title, badge, children }: { title: string; badge?: ReactNode; children: ReactNode }) {
+  return <details className="group/fold min-w-0 rounded-xl border bg-card text-sm text-card-foreground" data-category-screen="fold">
+    <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 rounded-xl px-4 py-3 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:px-5 [&::-webkit-details-marker]:hidden">
+      <span className="flex min-w-0 flex-wrap items-center gap-2"><span className="text-base leading-snug font-semibold text-foreground">{title}</span>{badge}</span>
+      <ChevronDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open/fold:rotate-180" />
+    </summary>
+    <div className="flex min-w-0 flex-col gap-4 border-t p-4 sm:p-5">{children}</div>
+  </details>;
+}
+
 function Notice({ state }: { state: AdminCategoryActionState }) {
   return <>
     {state.errors?.form ? <p className="text-sm text-destructive" role="alert">{state.errors.form}</p> : null}
-    {state.message ? <p className="text-sm text-[var(--wc-success)]" role="status">{state.message}</p> : null}
+    {state.message ? <p className="text-sm text-success" role="status">{state.message}</p> : null}
   </>;
 }
 
@@ -147,8 +159,8 @@ export function CategoryScreen({ data, legacyTypes = [], canManagePlatform = tru
   const mappings = new Map(data.mappings.map((mapping) => [mapping.categoryId, mapping]));
   return <section className="flex min-w-0 flex-col gap-4" data-admin-screen="categories">
     <AdminPageHeader title="고객 카테고리" description="최대 4단계 트리와 상품의 대표·추가 말단 분류를 관리합니다. 기존 유형과 미분류 상품은 계속 유지됩니다." actions={<Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={categoryExportHref()}><Download aria-hidden="true" />{canManagePlatform ? '분류·ERP CSV' : '분류 CSV'}</Link>} />
-    {canManagePlatform ? <AdminSectionCard title="활성화 상태"><div><AdminStatusBadge tone={data.activation.customerEnabled ? 'success' : 'neutral'}>{categoryActivationLabel(data.activation)}</AdminStatusBadge></div><ActivationForm activation={data.activation} /></AdminSectionCard> : null}
-    <AdminSectionCard title="카테고리 일괄 등록"><CategoryBulkCreatePanel /></AdminSectionCard>
+    {canManagePlatform ? <FoldCard title="활성화 상태" badge={<AdminStatusBadge tone={statusTone('display', data.activation.customerEnabled ? 'active' : 'inactive')}>{categoryActivationLabel(data.activation)}</AdminStatusBadge>}><ActivationForm activation={data.activation} /></FoldCard> : null}
+    <FoldCard title="카테고리 일괄 등록"><CategoryBulkCreatePanel /></FoldCard>
     <div className="grid items-start gap-4 lg:grid-cols-[minmax(15rem,0.35fr)_minmax(0,1fr)]" data-category-screen="master-detail">
       <AdminSectionCard title={`카테고리 트리 ${data.categories.length}개`}><CategoryTree categories={data.categories} /></AdminSectionCard>
       <div className="flex min-w-0 flex-col gap-4"><AdminSectionCard title="새 카테고리"><CategoryForm categories={data.categories} /></AdminSectionCard>{data.categories.map((category) => <AdminSectionCard key={category.id} title={`${category.name} · ${category.code}`}><CategoryForm category={category} categories={data.categories} /><ArchiveForm category={category} /><MarketingLinkIssuer source="category" targetIds={[category.id]} /></AdminSectionCard>)}</div>

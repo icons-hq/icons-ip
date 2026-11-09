@@ -1,6 +1,6 @@
 'use client';
 
-import { AdminFormGrid } from '@/components/admin/console/AdminKit';
+import { AdminFormGrid, AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import Link from 'next/link';
 import { useActionState, useId, useMemo, useState } from 'react';
 import {
@@ -15,7 +15,9 @@ import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { Label } from '@/components/admin/kit/ui/label';
 import { ErrorText, Field, FormShell, RecordList, SelectField } from '../fields';
-import { MasterDetail, SECTION_CARD, SECTION_NOTE, SECTION_WARNING, SectionHeading } from './SectionLayout';
+import { statusTone } from '@/lib/admin/status-tone';
+import { MasterDetail, SECTION_CARD, SectionHeading } from './SectionLayout';
+import { RecordStatusLabel } from './RecordStatusLabel';
 
 const emptyState: AdminCatalogActionState = {};
 const RARITIES: RarityKey[] = ['N', 'R', 'SR', 'SSR', 'HOLO'];
@@ -83,7 +85,7 @@ export function CardPoolSection({
           ariaLabel="카드풀 목록"
           emptyMessage="등록된 카드풀이 없습니다."
           items={records}
-          labelFor={(pool) => `${pool.name} · ${STATUS_LABELS[pool.status]}`}
+          labelFor={(pool) => <RecordStatusLabel name={pool.name} status={STATUS_LABELS[pool.status]} tone={statusTone('cardPool', pool.status)} title={`${pool.name} · ${STATUS_LABELS[pool.status]}`} />}
           onNew={() => onSelect(null)}
           onSelect={onSelect}
         />
@@ -177,7 +179,7 @@ function PoolForm({
           type="datetime-local"
         />
       </AdminFormGrid>
-      {noIps && <p className={SECTION_NOTE} role="status">먼저 IP를 등록해주세요.</p>}
+      {noIps && <AdminNotice role="status" tone="warning">먼저 IP를 등록해주세요.</AdminNotice>}
       <FormShell disabled={noIps} pending={pending} state={state} />
     </form>
   );
@@ -206,12 +208,8 @@ function OddsForm({
       <input name="operationId" type="hidden" value={operationId} />
       <input name="poolId" type="hidden" value={selected?.id ?? ''} />
       <SectionHeading description="퍼센트 합계가 정확히 100%여야 저장됩니다." title="등급별 발급 확률" />
-      {!selected && <div className={SECTION_NOTE} role="status">카드풀을 먼저 저장해주세요.</div>}
-      {selected && !selected.oddsConfigured && (
-        <div className={SECTION_WARNING} role="status">
-          등급별 발급 확률이 아직 설정되지 않았습니다.
-        </div>
-      )}
+      {!selected && <AdminNotice role="status" tone="info">카드풀을 먼저 저장해주세요.</AdminNotice>}
+      {selected && !selected.oddsConfigured && <AdminNotice role="status" tone="warning">등급별 발급 확률이 아직 설정되지 않았습니다.</AdminNotice>}
       <div className="grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-3 xl:grid-cols-5">
         {RARITIES.map((rarity) => {
           const name = `odds${rarity[0]}${rarity.slice(1).toLowerCase()}`;
@@ -242,15 +240,13 @@ function OddsForm({
       </div>
       <div
         aria-live="polite"
-        className={`text-sm font-semibold tabular-nums ${validTotal ? 'text-[var(--wc-success)]' : 'text-destructive'}`}
+        className={`text-sm font-semibold tabular-nums ${validTotal ? 'text-success' : 'text-destructive'}`}
         role="status"
       >
         {totalLabel}
       </div>
       <ErrorText>{state.errors?.oddsTotal}</ErrorText>
-      <div className={SECTION_NOTE}>
-        변경한 구성과 확률은 저장 즉시 적용되며, 이미 발급된 미사용 카드팩도 개봉 시점의 최신 구성과 확률을 사용합니다.
-      </div>
+      <AdminNotice tone="warning">변경한 구성과 확률은 저장 즉시 적용되며, 이미 발급된 미사용 카드팩도 개봉 시점의 최신 구성과 확률을 사용합니다.</AdminNotice>
       <FormShell disabled={!selected || !validTotal} pending={pending} state={state} />
     </form>
   );
@@ -283,16 +279,14 @@ function PoolCardRoster({
       {!selected && <p className="text-sm text-muted-foreground">카드풀을 선택해주세요.</p>}
       {selected && !cards.length && <p className="text-sm text-muted-foreground">연결된 카드가 없습니다.</p>}
       {missingRarities.map((rarity) => (
-        <div className={SECTION_WARNING} key={rarity} role="alert">
-          {rarity} 등급 카드가 없습니다.
-        </div>
+        <AdminNotice key={rarity} role="alert" tone="danger">{rarity} 등급 카드가 없습니다.</AdminNotice>
       ))}
       {cards.length ? (
         <ul className="flex flex-col divide-y rounded-lg border">
           {cards.map((card) => (
             <li className="flex flex-wrap items-center justify-between gap-3 px-3 py-2.5" key={card.id}>
               <div className="flex min-w-0 flex-col gap-0.5">
-                <span className="font-medium break-words">{card.archivedAt ? `[보관] ${card.name}` : card.name}</span>
+                <span className="flex flex-wrap items-center gap-1.5 font-medium break-words" title={card.archivedAt ? `[보관] ${card.name}` : undefined}>{card.name}{card.archivedAt ? <AdminStatusBadge tone={statusTone('publication', 'archived')}>보관</AdminStatusBadge> : null}</span>
                 <span className="text-xs text-muted-foreground tabular-nums">{card.rarity} · {card.id}</span>
               </div>
               <Link className={buttonVariants({ size: 'sm', variant: 'outline' })} data-slot="button" href={`/admin/catalog/cards?cardId=${encodeURIComponent(card.id)}`}>카드 편집</Link>

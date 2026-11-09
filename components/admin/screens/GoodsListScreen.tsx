@@ -3,15 +3,16 @@ import Link from 'next/link';
 import { ArrowUpRight, ChevronDown } from 'lucide-react';
 import { ShippingRegionExpiryNotice } from '../ShippingRegionExpiryNotice';
 import type { ShippingRegionExpiryState } from '@/lib/admin/shipping-regions';
-import { GOODS_READINESS_STATE_LABELS, unknownGoodsReadiness } from '@/lib/admin/goods-readiness';
+import { GOODS_READINESS_STATE_LABELS, unknownGoodsReadiness, type AdminGoodsReadiness } from '@/lib/admin/goods-readiness';
+import { statusTone, type AdminTone } from '@/lib/admin/status-tone';
 import { AdminStatusBadge } from '../console/AdminKit';
-import { AdminCountCard } from '../console/AdminCountCard';
+import { ADMIN_COUNT_CARD_GRID_CLASS, AdminCountCard } from '../console/AdminCountCard';
 import { MarketingLinksGoodsGrid } from '../marketing/MarketingLinksGoodsGrid';
 import { ConsolePagination } from '../console/ConsolePagination';
 import { buttonVariants } from '../kit/ui/button';
 import { GoodsListFiltersForm } from './GoodsListFiltersForm';
 import { CustomerServiceListSelect } from './CustomerServiceListControls';
-import { GOODS_LIST_PAGE_SIZE, GOODS_LIST_PAGE_SIZES, GOODS_LIST_SORT_OPTIONS, goodsListHref, goodEditorHref, goodPreviewHref, type AdminGoodsListData } from '@/lib/admin/goods-list';
+import { GOODS_LIST_PAGE_SIZE, GOODS_LIST_PAGE_SIZES, GOODS_LIST_SORT_OPTIONS, goodsListHref, goodEditorHref, goodPreviewHref, type AdminGoodSummary, type AdminGoodsListData } from '@/lib/admin/goods-list';
 import { goodDetailHref } from '@/lib/goods-display';
 import type { GoodsGroupIdentity } from '@/lib/admin/goods-groups';
 import { GoodsInlinePrice, GoodsInlineSale, GoodsInlineStock } from '../GoodsInlineEdit';
@@ -22,11 +23,28 @@ function priceLabel(min: number | null | undefined, max: number | null | undefin
   return min === max ? `${min!.toLocaleString('ko-KR')}원` : `${min!.toLocaleString('ko-KR')}~${max!.toLocaleString('ko-KR')}원`;
 }
 
-const STATUS_ITEMS = [{ label: '전체', status: 'all' }, { label: '임시저장', status: 'draft' }, { label: '전시중', status: 'published' }, { label: '보관', status: 'archived' }] as const;
+/* 기본 조회가 '보관 제외'라 그 칸도 둔다 — 어느 칸을 보고 있는지 항상 한 칸이 켜진다. */
+const STATUS_ITEMS = [{ label: '보관 제외', status: 'active' }, { label: '전체', status: 'all' }, { label: '임시저장', status: 'draft' }, { label: '전시중', status: 'published' }, { label: '보관', status: 'archived' }] as const;
+/* 재고 건수는 상태 건수처럼 서버가 함께 세어 주지 않아 숫자 없이 조회 링크로 둔다. 다시 누르면 재고 조건을 푼다. */
+const STOCK_ITEMS = [{ label: '품절 보기', stock: 'out_of_stock', tone: 'danger' }, { label: '소량 재고 보기', stock: 'low', tone: 'warning' }] as const;
 const SECONDARY = 'block text-xs leading-snug text-muted-foreground';
 /* 같은 칸의 바로 수정 덮개(R11) 위에 남아야 하는 보조 링크. */
 const SECONDARY_LINK = `${SECONDARY} relative z-[1] underline-offset-4 hover:text-foreground hover:underline`;
 const MENU_ITEM = 'flex items-center rounded-md px-2 py-1.5 text-sm outline-none hover:bg-accent focus-visible:bg-accent';
+
+/** 주 상태 배지 하나. 지금 고객이 살 수 있는지를 말하고, 전시·설정 준비 같은 세부는 `detail`로 내린다. */
+type GoodsSaleStatus = { label: string; tone: AdminTone; detail: string | null; showsSaleValue: boolean };
+function goodsSaleStatus(good: AdminGoodSummary, readiness: AdminGoodsReadiness): GoodsSaleStatus {
+  if (good.archivedAt) return { label: '보관', tone: statusTone('publication', 'archived'), detail: null, showsSaleValue: false };
+  if (!good.publishedAt) return { label: '임시저장', tone: statusTone('publication', 'draft'), detail: null, showsSaleValue: false };
+  if (good.stock === 'soldout') return { label: '판매중지', tone: statusTone('operation', 'stopped'), detail: '전시중', showsSaleValue: true };
+  if (readiness.state === 'ready' || readiness.state === 'review_required') {
+    return { label: '판매중', tone: statusTone('operation', 'active'), detail: `전시중 · ${GOODS_READINESS_STATE_LABELS[readiness.state]}`, showsSaleValue: true };
+  }
+  const blockers = readiness.reasons.filter(reason => reason.kind === 'blocking');
+  if (blockers.length === 1 && blockers[0].code === 'stock_unavailable') return { label: '품절', tone: statusTone('stock', 'soldout'), detail: '전시중', showsSaleValue: false };
+  return { label: GOODS_READINESS_STATE_LABELS[readiness.state], tone: statusTone('readiness', readiness.state), detail: '전시중', showsSaleValue: false };
+}
 
 export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingLinks = false, bulkIdentity }: { data: AdminGoodsListData; shippingRegionExpiry?: ShippingRegionExpiryState; canIssueMarketingLinks?: boolean; bulkIdentity?: GoodsGroupIdentity }) {
   const { filters, goods, total, counts } = data;
@@ -37,10 +55,11 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
   return <section className="flex min-w-0 flex-col gap-4" data-admin-screen="goods-list">
     {/* R21: 그룹상품 탭은 메뉴와 함께 숨겼다 — 전환할 탭이 하나뿐이라 탭 줄을 그리지 않는다(그룹상품 라우트·권한은 그대로). */}
     <ShippingRegionExpiryNotice state={shippingRegionExpiry} />
-    <div aria-label="상품 조회 현황" className="grid grid-cols-2 gap-2 sm:grid-cols-4" data-goods-list="status" role="group">
+    <div aria-label="상품 조회 현황" className={ADMIN_COUNT_CARD_GRID_CLASS} data-goods-list="status" role="group">
       {STATUS_ITEMS.map(item => {
         return <AdminCountCard active={filters.status === item.status} count={counts ? counts[item.status] : null} current="page" href={goodsListHref({ ...filters, status: item.status }, 1)} key={item.status} label={item.label} />;
       })}
+      {STOCK_ITEMS.map(item => <AdminCountCard active={filters.stock === item.stock} href={goodsListHref({ ...filters, stock: filters.stock === item.stock ? 'all' : item.stock }, 1)} key={item.stock} label={item.label} tone={item.tone} />)}
     </div>
     <GoodsListFiltersForm data={data} />
     <section aria-label="상품목록" className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground">
@@ -75,6 +94,15 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
         const readiness = good.readiness ?? unknownGoodsReadiness();
         const editable = Boolean(inlineIdentity) && !good.archivedAt;
         const qtyLabel = readiness.availableQty === null ? '확인 필요' : `${readiness.availableQty.toLocaleString('ko-KR')}개`;
+        const sale = goodsSaleStatus(good, readiness);
+        const saleBadge = <AdminStatusBadge tone={sale.tone}>{sale.label}</AdminStatusBadge>;
+        /* 수량 강조는 고객에게 팔고 있는 상품에만 둔다. 임시저장·보관 상품의 0개는 처리할 일이 아니다. */
+        const selling = Boolean(good.publishedAt && !good.archivedAt);
+        const soldOut = selling && readiness.availableQty === 0;
+        /* 안전재고 부족 경보(옵션 수량 기준)를 먼저, 없으면 소량 재고 표시를 쓴다 — 어휘는 '상세 재고'·판매상태 필터와 같다. */
+        const lowStockLabel = !selling || soldOut ? null : good.lowStockOptionCount > 0 ? `부족 ${good.lowStockOptionCount}개 옵션` : good.stock === 'low' ? '소량 재고' : null;
+        const qtyEmphasis = soldOut ? ' font-semibold text-destructive' : lowStockLabel ? ' font-semibold text-warning' : '';
+        const lowStockBadge = lowStockLabel ? <AdminStatusBadge tone={statusTone('stock', 'low')}>{lowStockLabel}</AdminStatusBadge> : null;
         const price = <span className="whitespace-nowrap tabular-nums">{priceLabel(good.priceMin, good.priceMax)}</span>;
         return { id: good.id, href: goodEditorHref(filters, good.id), cells: [
           <span className="flex min-w-[13.75rem] items-center gap-2.5 whitespace-normal" key="identity">
@@ -82,7 +110,7 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
             <span className="flex min-w-0 flex-col gap-0.5"><strong className="font-medium">{good.name}</strong><small className="text-xs font-normal text-muted-foreground">{good.code}</small></span>
           </span>,
           /* R15: 고객에게 보이는 상품은 고객 화면을 새 탭으로, 공개 전·보관·판매 제한 상품은 편집기 미리보기로 연다.
-             보조 문구는 같은 행의 상태 배지(임시저장·보관·전시중)와 같은 사유로 쓴다. 전시 중인데 안 보이면 판매 제한·IP 비공개다. */
+             보조 문구는 같은 행의 상태 칸(임시저장·보관·전시중)과 같은 사유로 쓴다. 전시 중인데 안 보이면 판매 제한·IP 비공개다. */
           good.customerVisible
             ? <a key="goodId" className="inline-flex items-center gap-0.5 font-medium underline-offset-4 hover:underline" data-goods-list="good-id" href={goodDetailHref(good.id)} target="_blank" rel="noopener noreferrer">{good.id}<span className="sr-only"> 고객 화면 새 탭으로 열기</span><ArrowUpRight aria-hidden="true" className="size-3.5 shrink-0" /></a>
             : <Link key="goodId" className="flex flex-col gap-0.5 font-medium underline-offset-4 hover:underline" data-goods-list="good-id" href={goodPreviewHref(filters, good.id)}>{good.id}<small className={SECONDARY}>{good.archivedAt ? '보관' : good.publishedAt ? '고객 화면 비노출' : '공개 전'} · 미리보기</small></Link>,
@@ -96,19 +124,20 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
                   ? <small className={SECONDARY}>즉시할인 진행·예정 중(~{new Date(good.activeDiscountEndsAt).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })}) · 할인을 중지한 뒤 판매가를 바꿀 수 있습니다</small>
                   : <Link className={SECONDARY_LINK} href={`${goodEditorHref(filters, good.id)}#good-section-price`}>상품 할인 중 · 판매가는 상품 수정에서 변경</Link>}</span>
               : <span key="price">{price}</span>,
-          <div key="readiness" className="flex min-w-[10.5rem] flex-col gap-1.5 whitespace-normal">
-            <div className="flex flex-wrap items-center gap-1.5"><AdminStatusBadge tone={good.publishedAt && !good.archivedAt ? 'success' : 'neutral'}>{good.archivedAt ? '보관' : good.publishedAt ? '전시중' : '임시저장'}</AdminStatusBadge>
-              <span className="text-sm">{GOODS_READINESS_STATE_LABELS[readiness.state]}</span></div>
-            {editable && inlineIdentity ? <GoodsInlineSale goodId={good.id} stopped={good.stock === 'soldout'} identity={inlineIdentity} /> : null}
+          /* 판매중·판매중지는 배지가 곧 값 버튼이고, 그 밖의 상태에서는 판매상태를 이름과 함께 보조 줄에 둔다(같은 값을 두 번 쓰지 않는다). */
+          <div key="readiness" className="flex min-w-[10.5rem] flex-col items-start gap-1 whitespace-normal" data-goods-list="sale-status">
+            {editable && inlineIdentity && sale.showsSaleValue ? <div className="-ml-1.5 w-full"><GoodsInlineSale goodId={good.id} stopped={good.stock === 'soldout'} identity={inlineIdentity} display={saleBadge} /></div> : saleBadge}
+            {sale.detail ? <small className={SECONDARY}>{sale.detail}</small> : null}
+            {editable && inlineIdentity && !sale.showsSaleValue ? <div className="-ml-1.5 w-full"><GoodsInlineSale goodId={good.id} stopped={good.stock === 'soldout'} identity={inlineIdentity} display={<span className="text-xs"><span className="text-muted-foreground">판매상태 </span>{good.stock === 'soldout' ? '판매중지' : '판매중'}</span>} /></div> : null}
             {readiness.reasons.slice(0, 2).map(reason => <Link className="text-sm underline-offset-4 hover:underline" key={reason.code} href={goodEditorHref(filters, good.id, reason.target)}>{reason.label} →</Link>)}
             {readiness.reasons.length > 2 ? <details className="text-sm"><summary className="cursor-pointer text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">사유 {readiness.reasons.length - 2}개 더 보기</summary><div className="mt-1.5 flex flex-col gap-1">{readiness.reasons.slice(2).map(reason => <Link className="underline-offset-4 hover:underline" key={reason.code} href={goodEditorHref(filters, good.id, reason.target)}>{reason.label} →</Link>)}</div></details> : null}
           </div>,
           editable && good.inlineStock
-            ? <span key="qty" className="grid justify-items-end gap-0.5 whitespace-normal"><GoodsInlineStock goodId={good.id} ipId={good.ipId} variantId={good.inlineStock.variantId} stockQty={good.inlineStock.stockQty} />
-              {qtyLabel !== `${good.inlineStock.stockQty.toLocaleString('ko-KR')}개` ? <small className={SECONDARY}>판매 가능 {qtyLabel}</small> : null}</span>
+            ? <span key="qty" className={`grid justify-items-end gap-0.5 whitespace-normal${qtyEmphasis}`}><GoodsInlineStock goodId={good.id} ipId={good.ipId} variantId={good.inlineStock.variantId} stockQty={good.inlineStock.stockQty} />
+              {qtyLabel !== `${good.inlineStock.stockQty.toLocaleString('ko-KR')}개` ? <small className={`${SECONDARY} font-normal`}>판매 가능 {qtyLabel}</small> : null}{lowStockBadge}</span>
             : editable && (good.activeVariantCount ?? 0) > 1
-              ? <span key="qty" className="grid justify-items-end gap-0.5 whitespace-normal">{qtyLabel}<Link className={SECONDARY_LINK} href={goodEditorHref(filters, good.id, 'variants')}>옵션별 재고 수정</Link></span>
-              : qtyLabel,
+              ? <span key="qty" className={`grid justify-items-end gap-0.5 whitespace-normal${qtyEmphasis}`}>{qtyLabel}{lowStockBadge}<Link className={`${SECONDARY_LINK} font-normal`} href={goodEditorHref(filters, good.id, 'variants')}>옵션별 재고 수정</Link></span>
+              : qtyEmphasis ? <span key="qty" className={`grid justify-items-end gap-0.5 whitespace-normal${qtyEmphasis}`}>{qtyLabel}{lowStockBadge}</span> : qtyLabel,
           <span key="category" className="flex flex-col gap-0.5">{good.ipTitle}<small className={SECONDARY}>{good.categoryName || '분류 미지정'}</small></span>,
           <span key="createdAt" className="tabular-nums">{good.createdAt ? new Date(good.createdAt).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' }) : '—'}</span>,
           <span key="updatedAt" className="tabular-nums">{good.updatedAt ? new Date(good.updatedAt).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' }) : '—'}</span>,

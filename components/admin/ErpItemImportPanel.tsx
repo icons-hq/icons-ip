@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { importErpItemsAction, readErpItemFileAction, type ErpItemFileResult, type ErpItemImportResult } from '@/app/admin/erp-item-actions';
-import { AdminSectionCard, AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { AdminNotice, AdminSectionCard, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { AdminSelect } from '@/components/admin/console/AdminSelect';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
@@ -290,9 +290,9 @@ export function ErpItemImportPanel() {
         </table>
       </div>
 
-      {[...source.warnings, ...plan.warnings].length ? <ul className="flex list-disc flex-col gap-1.5 rounded-lg border bg-muted/40 py-3 pr-4 pl-8 text-sm">
+      {[...source.warnings, ...plan.warnings].length ? <AdminNotice tone="warning"><ul className="flex list-disc flex-col gap-1.5 pl-4">
         {[...source.warnings, ...plan.warnings].map((warning) => <li key={warning}>{warning}</li>)}
-      </ul> : null}
+      </ul></AdminNotice> : null}
       {plan.blocking ? <p className="text-sm text-destructive" role="alert">{plan.blocking}</p> : null}
 
       {previewRows.length ? <div className={TABLE_REGION} role="region" aria-label="반입 미리보기" tabIndex={0}>

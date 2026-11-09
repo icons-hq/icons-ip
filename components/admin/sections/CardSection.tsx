@@ -13,10 +13,12 @@ import {
   type AdminCatalogArchiveFilter,
 } from '../../../lib/admin/catalog-archive';
 import { RARITY_META } from '@/lib/rarity';
+import { statusTone } from '@/lib/admin/status-tone';
 import { ArtworkUploadField } from '../ArtworkUploadField';
 import { CatalogArchiveControl, CatalogArchiveFilter } from '../CatalogArchiveControls';
 import { Field, FormShell, RecordList, SelectField } from '../fields';
 import { MasterDetail, ReadOnlyField, SECTION_CARD } from './SectionLayout';
+import { RecordStatusLabel } from './RecordStatusLabel';
 
 export function CardSection({
   action,
@@ -69,7 +71,7 @@ export function CardSection({
           <RecordList
             activeId={selected?.id ?? null}
             items={visibleRecords}
-            labelFor={(card) => formatAdminCatalogRecordLabel(`${card.id} · ${card.name}`, card.archivedAt)}
+            labelFor={(card) => <RecordStatusLabel name={`${card.id} · ${card.name}`} status={card.archivedAt ? '보관' : null} tone={statusTone('publication', 'archived')} title={formatAdminCatalogRecordLabel(`${card.id} · ${card.name}`, card.archivedAt)} />}
             onNew={() => onSelect(null)}
             onSelect={onSelect}
             thumbnailKind="card"

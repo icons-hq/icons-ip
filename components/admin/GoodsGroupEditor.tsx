@@ -14,7 +14,7 @@ import { TableBody, TableCell, TableHead, TableHeader, TableRow } from './kit/ui
 import { GoodsGroupProductPicker, GroupCompleted, GroupOperationStatus, GroupTable, useGoodsGroupOperation, useGoodsGroupSession } from './GoodsGroupOperation';
 
 /* 셸의 콘솔 전환과 같은 탭 모양(템플릿 룩, ADR-0028). */
-const TAB = 'inline-flex h-7 items-center rounded-md px-3 text-sm font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground aria-[current=page]:bg-background aria-[current=page]:text-foreground aria-[current=page]:shadow-sm';
+const TAB = 'inline-flex h-7 items-center rounded-md px-3 text-sm font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground aria-[current=page]:bg-background aria-[current=page]:text-primary-soft-foreground aria-[current=page]:shadow-sm';
 const CHECK = 'flex cursor-pointer items-center gap-2 text-sm';
 
 const valuesOf = (group: GoodsGroupSnapshot | null): GoodsGroupValues => group ? { name: group.name, optionNames: [...group.optionNames], members: group.members.map(row => ({ goodId: row.goodId, values: [...row.values] })) } : { name: '', optionNames: ['종류'], members: [] };

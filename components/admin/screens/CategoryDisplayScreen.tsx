@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, ExternalLink, RefreshCw } from 'lucide-react';
-import { AdminSectionCard } from '../console/AdminKit';
+import { AdminNotice, AdminSectionCard } from '../console/AdminKit';
 import { ConsolePagination } from '../console/ConsolePagination';
 import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
@@ -26,7 +26,7 @@ const FIELD = 'flex min-w-0 flex-col gap-1.5 text-sm font-medium';
 const CHECK = 'flex w-fit items-center gap-2 text-sm';
 const HELP = 'text-xs leading-relaxed text-muted-foreground [overflow-wrap:anywhere]';
 const FIELDSET = 'grid min-w-0 gap-3';
-const SEGMENT = 'h-7 rounded-md px-2.5 text-[0.8rem] text-muted-foreground hover:bg-transparent hover:text-foreground aria-pressed:bg-background aria-pressed:text-foreground aria-pressed:shadow-sm';
+const SEGMENT = 'h-7 rounded-md px-2.5 text-[0.8rem] text-muted-foreground hover:bg-transparent hover:text-foreground aria-pressed:bg-background aria-pressed:text-primary-soft-foreground aria-pressed:shadow-sm';
 function SelectedGoods({ ids, names, disabled, onChange }: { ids: string[]; names: Map<string, string>; disabled: boolean; onChange: (ids: string[]) => void }) {
   const [page, setPage] = useState(1), currentPage = Math.min(page, Math.max(1, Math.ceil(ids.length / 20)));
   function move(index: number, delta: number) { const next = [...ids], target = index + delta; if (target < 0 || target >= ids.length) return; [next[index], next[target]] = [next[target], next[index]]; onChange(next); }
@@ -122,12 +122,12 @@ function CategoryDisplayEditor({ directory, initial, actorId, sessionId }: { dir
     finally { if (alive.current && token === previewTicket.current) setPreviewBusy(false); }
   }
   return <div className="flex min-w-0 flex-col gap-4">
-    {blocked ? <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive" role="alert">로그인 상태가 바뀌었습니다. 이 화면을 새로 열어주세요.</p> : null}
+    {blocked ? <AdminNotice role="alert" tone="danger">로그인 상태가 바뀌었습니다. 이 화면을 새로 열어주세요.</AdminNotice> : null}
     <div className="grid items-start gap-5 xl:grid-cols-[minmax(360px,520px)_minmax(0,1fr)] print:block"><form className="flex min-w-0 flex-col gap-4" onSubmit={event => { event.preventDefault(); void save(); }}>
       <AdminSectionCard title={directory.categories.find(category => category.id === stored.category.id)?.name ?? stored.category.name}><fieldset className={FIELDSET} disabled={locked}>
         <label className={CHECK}><input type="checkbox" checked={values.enabled} onChange={event => change('enabled', event.target.checked)} /> 카테고리 전시 사용</label>
         <p className={HELP}>전시 목록만 바뀌며 상품의 카테고리·ERP 정보는 바뀌지 않습니다.</p>
-        {!directory.categories.find(category => category.id === stored.category.id)?.publicEnabled ? <p className="text-xs leading-relaxed text-[var(--wc-warning)]">고객 카테고리 활성 상태 또는 전시분류의 보관 상태 때문에 현재 공개되지 않습니다.</p> : null}
+        {!directory.categories.find(category => category.id === stored.category.id)?.publicEnabled ? <AdminNotice tone="warning">고객 카테고리 활성 상태 또는 전시분류의 보관 상태 때문에 현재 공개되지 않습니다.</AdminNotice> : null}
         <label className={FIELD}>상품 연결 방식<NativeSelect className="w-full" value={values.mode} onChange={event => change('mode', event.target.value as CategoryDisplayValues['mode'])}><option value="categories">카테고리 단위로 연결</option><option value="manual">개별상품 단위로 연결</option></NativeSelect></label>
         {values.mode === 'categories' ? <fieldset className="grid max-h-[300px] min-w-0 gap-2 overflow-y-auto rounded-lg border p-3"><legend className="float-left mb-1 w-full text-sm font-medium">연결할 상품분류 · 최대 10개</legend>{directory.sourceCategories.map(category => <label className={CHECK} key={category.id}><input type="checkbox" checked={values.categoryIds.includes(category.id)} disabled={!values.categoryIds.includes(category.id) && values.categoryIds.length >= 10}
           onChange={() => change('categoryIds', values.categoryIds.includes(category.id) ? values.categoryIds.filter(id => id !== category.id) : [...values.categoryIds, category.id])} />{category.name}</label>)}</fieldset>
@@ -154,13 +154,13 @@ function CategoryDisplayEditor({ directory, initial, actorId, sessionId }: { dir
         <p className="text-sm tabular-nums">후보 {values.recommendations.goodIds.length} / 100개</p><Button className="self-start" type="button" onClick={() => setPicker('recommend')} size="sm" variant="outline">추천상품 선택</Button>
         <SelectedGoods ids={values.recommendations.goodIds} names={names} disabled={locked} onChange={goodIds => change('recommendations', { ...values.recommendations, goodIds })} />
       </fieldset></AdminSectionCard>
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-card p-4 print:hidden">{message ? <p className={`w-full text-sm ${error ? 'text-destructive' : 'text-[var(--wc-success)]'}`} role={error ? 'alert' : 'status'}>{message}</p> : null}
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-card p-4 print:hidden">{message ? <p className={`w-full text-sm ${error ? 'text-destructive' : 'text-success'}`} role={error ? 'alert' : 'status'}>{message}</p> : null}
         <Button type="submit" disabled={pending || blocked || conflict || busy.pc || busy.mobile}>{pending ? '저장 중…' : uncertain ? '같은 요청 결과 확인' : '이 카테고리 전시 적용하기'}</Button>
         <Button type="button" disabled={pending || uncertain || blocked || busy.pc || busy.mobile} onClick={() => { void reload(); }} variant="outline">최신 저장본 불러오기</Button>
         <Link className={buttonVariants({ variant: 'ghost' })} data-slot="button" href={categoryDisplayHref(initial.category.id)} target="_blank">공개 전시 보기 <ExternalLink aria-hidden="true" /></Link>
       </div>
     </form><aside className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-sm"><h2 className="text-base font-medium">저장 전 미리보기</h2><p className="text-muted-foreground">현재 공개 가능한 상품의 첫 20개를 확인합니다. 입력을 바꾼 뒤 미리보기를 갱신해주세요.</p>
-      <div className="flex flex-wrap items-center gap-2 print:hidden"><Button type="button" disabled={blocked || previewBusy || busy.pc || busy.mobile} onClick={() => { void showPreview(); }} size="sm" variant="outline"><RefreshCw aria-hidden="true" />{previewBusy ? '불러오는 중…' : '미리보기 갱신'}</Button><div className="inline-flex items-center rounded-lg bg-muted p-0.5"><Button type="button" aria-pressed={mobile} className={SEGMENT} onClick={() => setMobile(true)} size="sm" variant="ghost">모바일</Button><Button type="button" aria-pressed={!mobile} className={SEGMENT} onClick={() => setMobile(false)} size="sm" variant="ghost">PC</Button></div></div>
+      <div className="flex flex-wrap items-center gap-2 print:hidden"><Button type="button" disabled={blocked || previewBusy || busy.pc || busy.mobile} onClick={() => { void showPreview(); }} size="sm" variant="soft"><RefreshCw aria-hidden="true" />{previewBusy ? '불러오는 중…' : '미리보기 갱신'}</Button><div className="inline-flex items-center rounded-lg bg-muted p-0.5"><Button type="button" aria-pressed={mobile} className={SEGMENT} onClick={() => setMobile(true)} size="sm" variant="ghost">모바일</Button><Button type="button" aria-pressed={!mobile} className={SEGMENT} onClick={() => setMobile(false)} size="sm" variant="ghost">PC</Button></div></div>
       {previewMessage ? <p className="text-muted-foreground" role="status">{previewMessage}</p> : null}{preview ? <CategoryDisplayPreview page={preview} mobile={mobile} onQueryChange={query => { void showPreview(query); }} /> : null}
     </aside></div>
     {picker ? <CategoryDisplayGoodsPicker key={picker} selected={picker === 'main' ? values.goodIds : picker === 'recommend' ? values.recommendations.goodIds : values.video.goodId ? [values.video.goodId] : []}

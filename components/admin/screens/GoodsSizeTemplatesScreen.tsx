@@ -8,7 +8,7 @@ import { kstDateTimeText } from '@/lib/admin/list-export';
 import { GoodSizeChart } from '@/components/shop/GoodSizeChart';
 import { Plus } from 'lucide-react';
 import { CustomerServiceDialog } from './CustomerServiceDialog';
-import { AdminPageHeader } from '../console/AdminKit';
+import { AdminNotice, AdminPageHeader } from '../console/AdminKit';
 import { AdminSelect } from '../console/AdminSelect';
 import { Button } from '../kit/ui/button';
 import { Input } from '../kit/ui/input';
@@ -67,7 +67,7 @@ function SizeTemplateEditor({ accountId, template, onClose, onSaved }: { account
       <p className="text-sm text-muted-foreground">내부 이름으로 표를 찾아 상품에 복사합니다. 이미 적용한 상품은 템플릿을 수정·보관해도 바뀌지 않습니다.</p>
       {local.unavailable ? <p className="text-sm text-muted-foreground" role="status">이 브라우저에서는 입력을 자동 보관할 수 없습니다.</p> : null}
       {local.invalidRecovery ? <p className="flex flex-wrap items-center gap-2 text-sm text-destructive" role="alert">이전에 보관한 표를 읽을 수 없습니다. <Button size="sm" variant="outline" type="button" onClick={local.discard}>읽을 수 없는 복구 기록 버리기</Button></p> : null}
-      {local.recovery ? <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 p-3 text-sm"><p className="basis-full">{recoveryBlocked ? '이전 저장 요청의 결과를 먼저 확인해주세요.' : '이 브라우저에 최대 7일 보관된 미저장 템플릿이 있습니다.'}</p><Button size="sm" type="button" disabled={pending} onClick={restore}>{recoveryBlocked ? '이전 저장 요청 결과 확인' : '템플릿 복구'}</Button>{!recoveryBlocked ? <Button size="sm" variant="outline" type="button" onClick={local.discard}>복구 기록 버리기</Button> : null}</div> : null}
+      {local.recovery ? <AdminNotice tone="warning"><p>{recoveryBlocked ? '이전 저장 요청의 결과를 먼저 확인해주세요.' : '이 브라우저에 최대 7일 보관된 미저장 템플릿이 있습니다.'}</p><div className="mt-2 flex flex-wrap items-center gap-2"><Button size="sm" type="button" disabled={pending} onClick={restore}>{recoveryBlocked ? '이전 저장 요청 결과 확인' : '템플릿 복구'}</Button>{!recoveryBlocked ? <Button size="sm" variant="outline" type="button" onClick={local.discard}>복구 기록 버리기</Button> : null}</div></AdminNotice> : null}
       <form className="flex min-w-0 flex-col gap-4" onSubmit={event => { event.preventDefault(); startTransition(() => save()); }}>
         <fieldset className="flex min-w-0 flex-col gap-3" disabled={locked}><legend className="sr-only">사이즈 템플릿 편집</legend>
           <label className="flex flex-col gap-2 text-sm font-medium">템플릿 이름<Input className="sm:max-w-md" value={name} onChange={event => change(event.target.value, chart)} /><small className="text-xs font-normal text-muted-foreground">{Array.from(name).length} / 50자 · 고객에게 표시하지 않습니다.</small></label>
@@ -121,7 +121,7 @@ export function GoodsSizeTemplatesScreen({ accountId, onSelect }: { accountId?: 
       </div>
       <ConsoleFilterActions>
         <Button variant="outline" type="button" disabled={pending} onClick={() => { setQuery(''); startTransition(() => load(1, '', false)); }}>초기화</Button>
-        <Button type="submit" disabled={pending}>검색</Button>
+        <Button type="submit" disabled={pending} variant="soft">검색</Button>
       </ConsoleFilterActions>
     </form>
     {message ? <p className="text-sm text-destructive" role="alert">{message}</p> : null}

@@ -1,6 +1,6 @@
 'use client';
 
-import { AdminFormGrid } from '@/components/admin/console/AdminKit';
+import { AdminFormGrid, AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import Link from 'next/link';
 import { useActionState } from 'react';
 import { ScanLine } from 'lucide-react';
@@ -11,14 +11,17 @@ import {
 } from '@/app/admin/actions';
 import type { AdminTicketTypeRecord } from '@/lib/admin/catalog.server';
 import { Field, FormShell, RecordList, SelectField } from '../fields';
-import { MasterDetail, ReadOnlyField, SECTION_CARD, SECTION_NOTE, SectionHeading } from './SectionLayout';
+import { statusTone } from '@/lib/admin/status-tone';
+import { MasterDetail, ReadOnlyField, SECTION_CARD, SectionHeading } from './SectionLayout';
+import { RecordStatusLabel } from './RecordStatusLabel';
 
 const emptyTicketState: AdminCatalogActionState = {};
 
-function allocationStatus(record: AdminTicketTypeRecord) {
-  if (record.capacity === 0) return '정원 0';
-  if (record.sold >= record.capacity) return '정원 마감';
-  return '잔여 있음';
+const ALLOCATION_LABELS = { empty: '정원 0', full: '정원 마감', open: '잔여 있음' } as const;
+
+function allocationState(record: AdminTicketTypeRecord): keyof typeof ALLOCATION_LABELS {
+  if (record.capacity === 0) return 'empty';
+  return record.sold >= record.capacity ? 'full' : 'open';
 }
 
 export function TicketSection({
@@ -43,7 +46,7 @@ export function TicketSection({
       <div className={SECTION_CARD}>
         <SectionHeading
           action={(
-            <Link className={buttonVariants()} data-slot="button" href="/admin/check-in">
+            <Link className={buttonVariants({ variant: 'soft' })} data-slot="button" href="/admin/check-in">
               <ScanLine aria-hidden="true" />현장 검표 화면 열기
             </Link>
           )}
@@ -58,7 +61,7 @@ export function TicketSection({
             ariaLabel="티켓 회차 목록"
             emptyMessage="등록된 티켓 회차가 없습니다."
             items={records}
-            labelFor={(record) => `${record.eventTitle} · ${record.name} · ${record.sold}/${record.capacity}`}
+            labelFor={(record) => <RecordStatusLabel name={`${record.eventTitle} · ${record.name} · ${record.sold}/${record.capacity}`} status={ALLOCATION_LABELS[allocationState(record)]} tone={statusTone('ticketAllocation', allocationState(record))} title={`${record.eventTitle} · ${record.name} · ${record.sold}/${record.capacity}`} />}
             onNew={() => onSelect(null)}
             onSelect={onSelect}
           />
@@ -105,18 +108,14 @@ function TicketForm({
 
       {selected && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border bg-muted/40 px-3 py-2.5 text-sm">
-          <strong className="font-semibold text-foreground">{allocationStatus(selected)}</strong>
+          <AdminStatusBadge tone={statusTone('ticketAllocation', allocationState(selected))}>{ALLOCATION_LABELS[allocationState(selected)]}</AdminStatusBadge>
           <span className="tabular-nums">할당 {selected.sold} / {selected.capacity}</span>
           <span className="tabular-nums">잔여 {Math.max(0, selected.capacity - selected.sold)}</span>
           <span className="text-xs text-muted-foreground">결제 대기 포함</span>
         </div>
       )}
 
-      {noEvents && !selected && (
-        <div className={SECTION_NOTE} role="status">
-          먼저 이벤트를 등록해주세요.
-        </div>
-      )}
+      {noEvents && !selected && <AdminNotice role="status" tone="warning">먼저 이벤트를 등록해주세요.</AdminNotice>}
 
       <AdminFormGrid>
         {metadataLocked && selected ? (

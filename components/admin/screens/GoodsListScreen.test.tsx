@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 import { GoodsListScreen } from './GoodsListScreen';
 import { GoodsListFiltersForm } from './GoodsListFiltersForm';
-import { GOODS_READINESS_REASONS, unknownGoodsReadiness } from '@/lib/admin/goods-readiness';
+import { GOODS_READINESS_REASONS, unknownGoodsReadiness, type GoodsReadinessReasonCode } from '@/lib/admin/goods-readiness';
 import { goodEditorHref, normalizeGoodsListFilters } from '@/lib/admin/goods-list';
 
 describe('goods list screen', () => {
@@ -133,6 +133,70 @@ describe('goods list screen', () => {
     // 전시 중이지만 판매 제한(성인)·IP 비공개 등으로 고객 상세가 열리지 않는 상품.
     expect(secondary('adult-good')).toBe('고객 화면 비노출 · 미리보기');
     expect(html.match(/공개 전 · 미리보기/g)).toHaveLength(1);
+  });
+  describe('상태 칸은 판매 가능 여부를 말하는 주 배지 하나와 보조 표기로 나뉜다', () => {
+    const identity = { actorId: 'b9000000-0000-4000-8000-000000000001', sessionId: 'b9000000-0000-4000-8000-000000000002' };
+    const base = { code: 'A', name: '상품', ipId: 'ip', ipTitle: 'IP', stock: 'ok' as const, stockQty: 3, activeStockQty: 3, lowStockOptionCount: 0, noticeComplete: true, archivedAt: null, publishedAt: '2026-10-01T00:00:00Z' };
+    const ready = { ...unknownGoodsReadiness(), state: 'ready' as const, publication: 'published' as const, operation: 'active' as const, availableQty: 3, reasons: [] };
+    const blocked = (code: GoodsReadinessReasonCode) => ({ ...ready, state: 'blocked' as const, availableQty: 0, reasons: [{ code, ...GOODS_READINESS_REASONS[code], kind: 'blocking' as const }] });
+    const goods = [
+      { ...base, id: 'selling', readiness: ready },
+      { ...base, id: 'stopped', stock: 'soldout' as const, readiness: blocked('stopped') },
+      { ...base, id: 'sold-out', readiness: blocked('stock_unavailable') },
+      { ...base, id: 'not-ready', readiness: blocked('image_missing') },
+      { ...base, id: 'draft', publishedAt: null, readiness: blocked('draft') },
+      { ...base, id: 'kept', archivedAt: '2026-10-20T00:00:00Z', readiness: blocked('archived') },
+    ];
+    const render = (props: Partial<Parameters<typeof GoodsListScreen>[0]> = {}) => renderToStaticMarkup(<GoodsListScreen data={{ filters: normalizeGoodsListFilters({}), total: goods.length, ips: [], goods }} {...props} />);
+    const row = (html: string, id: string) => html.split('<tr').find(part => part.includes(`>${id}<`)) ?? '';
+    it.each([
+      ['selling', '판매중', 'success'], ['stopped', '판매중지', 'danger'], ['sold-out', '품절', 'danger'],
+      ['not-ready', '판매 준비 중', 'warning'], ['draft', '임시저장', 'neutral'], ['kept', '보관', 'neutral'],
+    ] as const)('%s → %s(%s)', (id, label, tone) => {
+      const cell = row(render(), id).split('data-goods-list="sale-status"')[1] ?? '';
+      expect(cell).toMatch(new RegExp(`<span[^>]*data-tone="${tone}"[^>]*>${label}</span>`));
+      expect(cell.match(/data-tone=/g)).toHaveLength(1);
+    });
+    it('전시·설정 준비는 보조 줄로 내린다', () => {
+      expect(row(render(), 'selling')).toContain('전시중 · 설정 준비 완료');
+    });
+    it('판매중·판매중지는 배지가 값 버튼이고, 그 밖에는 판매상태를 이름과 함께 보조 줄에 둔다', () => {
+      const html = render({ canIssueMarketingLinks: true, bulkIdentity: identity });
+      expect(row(html, 'selling')).toMatch(/aria-label="판매상태 바로 수정"[^>]*>(?:(?!<\/button>)[\s\S])*data-tone="success"/);
+      expect(row(html, 'draft')).toMatch(/aria-label="판매상태 바로 수정"[^>]*>(?:(?!<\/button>)[\s\S])*판매상태 <\/span>판매중/);
+      expect(row(html, 'draft')).not.toMatch(/aria-label="판매상태 바로 수정"[^>]*>(?:(?!<\/button>)[\s\S])*data-tone=/);
+    });
+    it('판매 중인 상품의 품절·부족 수량은 눈에 띄고, 임시저장 상품의 0개는 강조하지 않는다', () => {
+      const html = renderToStaticMarkup(<GoodsListScreen data={{ filters: normalizeGoodsListFilters({}), total: 4, ips: [], goods: [
+        { ...base, id: 'alert', lowStockOptionCount: 2, readiness: ready },
+        { ...base, id: 'flagged', stock: 'low' as const, readiness: ready },
+        { ...base, id: 'sold-out', readiness: blocked('stock_unavailable') },
+        { ...base, id: 'draft', publishedAt: null, readiness: blocked('draft') },
+      ] }} />);
+      expect(row(html, 'alert')).toMatch(/text-warning[^>]*>3개<span[^>]*data-tone="warning"[^>]*>부족 2개 옵션<\/span>/);
+      expect(row(html, 'flagged')).toMatch(/data-tone="warning"[^>]*>소량 재고<\/span>/);
+      expect(row(html, 'sold-out')).toMatch(/text-destructive[^>]*>0개</);
+      expect(row(html, 'draft')).not.toMatch(/(font-semibold text-destructive|text-warning)[^>]*>0개</);
+    });
+  });
+  it('기본 조회인 보관 제외 칸이 켜져 있고, 품절·소량 재고는 조회 링크로 바로 찾는다', () => {
+    const counts = { all: 20, active: 15, draft: 3, published: 12, archived: 5 };
+    const render = (values: Record<string, string>) => renderToStaticMarkup(<GoodsListScreen data={{ filters: normalizeGoodsListFilters(values), goods: [], ips: [], total: 0, counts }} />);
+    expect(render({})).toMatch(/<a(?=[^>]*aria-current="page")(?=[^>]*aria-label="보관 제외 15건")/);
+    expect(render({})).toMatch(/<a(?=[^>]*aria-label="품절 보기")(?=[^>]*href="[^"]*stock=out_of_stock)/);
+    expect(render({})).toMatch(/<a(?=[^>]*aria-label="소량 재고 보기")(?=[^>]*href="[^"]*stock=low)/);
+    // 켜진 재고 칸을 다시 누르면 재고 조건을 푼다.
+    expect(render({ stock: 'out_of_stock' })).toMatch(/<a(?=[^>]*aria-current="true")(?=[^>]*aria-label="품절 보기")(?=[^>]*href="[^"]*stock=all)/);
+  });
+  it('자주 쓰지 않는 조건은 상세검색에 접혀도 같은 폼으로 제출되고, 걸려 있으면 펼친다', () => {
+    const render = (values: Record<string, string>) => renderToStaticMarkup(<GoodsListFiltersForm data={{ filters: normalizeGoodsListFilters(values), goods: [], ips: [], total: 0 }} />);
+    const html = render({});
+    const marker = html.indexOf('data-goods-search="advanced"');
+    for (const name of ['q', 'stock', 'salePeriod', 'readiness', 'categoryId', 'ipId']) expect(html.slice(0, marker)).toContain(`name="${name}"`);
+    for (const name of ['status', 'dateField', 'from', 'to']) expect(html.slice(marker)).toContain(`name="${name}"`);
+    expect(render({ from: '2026-10-01' })).toMatch(/<details[^>]*data-goods-search="advanced"[^>]*open=""/);
+    // 전시상태는 위 건수 칸이 현재 값을 보여 준다.
+    expect(render({ status: 'draft' })).not.toMatch(/<details[^>]*data-goods-search="advanced"[^>]*open=""/);
   });
   it('빈 상품 목록에서도 지역 배송 정책 만료를 알린다', () => {
     const html = renderToStaticMarkup(<GoodsListScreen data={{ filters: normalizeGoodsListFilters({}), goods: [], ips: [], total: 0 }}

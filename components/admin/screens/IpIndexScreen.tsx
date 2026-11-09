@@ -8,6 +8,8 @@ import { ConsoleGrid } from '../console/ConsoleGrid';
 import { ConsoleListCard } from '../console/ConsoleListCard';
 import { ConsolePagination } from '../console/ConsolePagination';
 import { IP_INDEX_PATH, IP_INDEX_PAGE_SIZE, ipIndexHref, ipWorkspaceHref, type AdminIpIndexData } from '@/lib/admin/ip-workspace';
+import { ADMIN_IP_PUBLISH_STATE_LABELS, adminIpPublishState } from '@/lib/admin/ip-publish';
+import { statusTone } from '@/lib/admin/status-tone';
 
 export function IpIndexScreen({ data }: { data: AdminIpIndexData }) {
   const { filters, ips, total, verticals } = data;
@@ -31,7 +33,7 @@ export function IpIndexScreen({ data }: { data: AdminIpIndexData }) {
       { key: 'status', label: '게시 상태' }, { key: 'featured', label: '피처드' }, { key: 'position', label: '순번', align: 'end' },
     ]} rows={ips.map((ip) => ({ id: ip.id, href: ipWorkspaceHref(ip.id), cells: [
       ip.title, ip.id, verticals.find((vertical) => vertical.key === ip.verticalKey)?.label ?? ip.verticalKey,
-      <AdminStatusBadge key="status" tone={ip.publishedAt && !ip.archivedAt ? 'success' : 'neutral'}>{ip.archivedAt ? '보관' : ip.publishedAt ? '공개' : '초안'}</AdminStatusBadge>,
+      <AdminStatusBadge key="status" tone={statusTone('publication', adminIpPublishState(ip))}>{ADMIN_IP_PUBLISH_STATE_LABELS[adminIpPublishState(ip)]}</AdminStatusBadge>,
       ip.featured ? '지정' : '—', ip.sortOrder,
     ] }))} />
     <ConsolePagination page={filters.page} pageSize={IP_INDEX_PAGE_SIZE} total={total} hrefForPage={(page) => ipIndexHref(filters, page)} />

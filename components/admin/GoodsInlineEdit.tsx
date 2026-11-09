@@ -47,8 +47,10 @@ export async function runSingleGoodBulk(identity: GoodsGroupIdentity, goodId: st
  * `fillCell`이면 버튼의 ::after 덮개가 칸 전체를 덮는다 — 감싼 칸(td)을 기준 상자로 세우는 것은
  * 감싸개의 `[td:has(&)]:relative`다(표 부품을 고치지 않고 이 칸에만). 인쇄에서는 덮개를 걷는다.
  */
-const INLINE_VALUE_CLASS = 'flex min-h-8 w-full min-w-0 cursor-pointer items-center justify-start gap-1.5 rounded-md border border-dashed border-transparent bg-transparent px-1.5 py-0.5 text-left text-inherit transition-colors outline-none hover:border-input hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 in-data-[align=end]:justify-end';
+const INLINE_VALUE_CLASS = 'group/inline flex min-h-8 w-full min-w-0 cursor-pointer items-center justify-start gap-1.5 rounded-md border border-dashed border-transparent bg-transparent px-1.5 py-0.5 text-left text-inherit transition-colors outline-none hover:border-input hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 in-data-[align=end]:justify-end';
 const INLINE_FILL_CLASS = 'after:absolute after:inset-0 print:after:hidden';
+/* 전체 수정은 '수정' 버튼 하나로 충분해 연필은 값에 커서·포커스가 닿을 때만 보인다(터치 기기는 커서가 없어 항상 보인다). */
+const INLINE_PENCIL_CLASS = 'size-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover/inline:opacity-100 group-focus-visible/inline:opacity-100 pointer-coarse:opacity-100';
 /** 같은 칸의 다른 조작(처리 결과 조회)은 덮개 위에 둔다. 틀고정 칸(z-10)보다는 아래다. */
 const INLINE_ABOVE_FILL_CLASS = 'relative z-1';
 const INLINE_INPUT_CLASS = `${GOOD_NUMBER_INPUT_CLASS} h-7 w-28 max-md:w-full`;
@@ -62,7 +64,7 @@ export function InlineEditor({ label, display, children, onSubmit, pending, erro
   const errorId = useId();
   function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); onSubmit(new FormData(event.currentTarget)); }
   if (!editing) return <span className={`grid w-full min-w-0 justify-items-stretch gap-1${fillCell ? ' [td:has(&)]:relative' : ''}`} data-inline-edit={fillCell ? 'cell' : 'value'}>
-    <button type="button" className={fillCell ? `${INLINE_VALUE_CLASS} ${INLINE_FILL_CLASS}` : INLINE_VALUE_CLASS} aria-label={`${label} 바로 수정`} onClick={() => setEditing(true)}>{display}<Pencil aria-hidden="true" className="size-3 shrink-0 text-muted-foreground" /></button>
+    <button type="button" className={fillCell ? `${INLINE_VALUE_CLASS} ${INLINE_FILL_CLASS}` : INLINE_VALUE_CLASS} aria-label={`${label} 바로 수정`} onClick={() => setEditing(true)}>{display}<Pencil aria-hidden="true" className={INLINE_PENCIL_CLASS} /></button>
     {error ? <small role="alert" className="text-xs text-destructive">{error}</small> : null}
     {recovery ? <button type="button" className={`${buttonVariants({ variant: 'outline', size: 'xs' })} ${INLINE_ABOVE_FILL_CLASS} justify-self-start in-data-[align=end]:justify-self-end`} data-slot="button" disabled={pending} onClick={onRecover}>처리 결과 조회</button> : null}
   </span>;
@@ -123,7 +125,8 @@ export function GoodsInlinePrice({ goodId, basePrice, display, identity, hasOpti
   </InlineEditor>;
 }
 
-export function GoodsInlineSale({ goodId, stopped, identity }: { goodId: string; stopped: boolean; identity: GoodsGroupIdentity }) {
+/** `display`: 값 버튼에 그릴 내용. 주지 않으면 판매상태 이름 글자다. 무엇을 그리든 누르면 판매중·판매중지를 고른다. */
+export function GoodsInlineSale({ goodId, stopped, identity, display }: { goodId: string; stopped: boolean; identity: GoodsGroupIdentity; display?: ReactNode }) {
   const state = useInlineState();
   const inputId = useId();
   function save(form: FormData) {
@@ -149,7 +152,7 @@ export function GoodsInlineSale({ goodId, stopped, identity }: { goodId: string;
       if (result.value.state === 'completed') state.router.refresh();
     });
   }
-  return <InlineEditor label="판매상태" display={stopped ? '판매중지' : '판매중'} onSubmit={save} pending={state.pending} error={state.error} recovery={Boolean(state.recovery)} onRecover={recover} editing={state.editing} setEditing={state.setEditing}>
+  return <InlineEditor label="판매상태" display={display ?? (stopped ? '판매중지' : '판매중')} onSubmit={save} pending={state.pending} error={state.error} recovery={Boolean(state.recovery)} onRecover={recover} editing={state.editing} setEditing={state.setEditing}>
     <label htmlFor={inputId} className="sr-only">판매상태</label>
     <NativeSelect id={inputId} name="sale" defaultValue={stopped ? 'stopped' : 'active'} autoFocus size="sm" className="w-28 max-md:w-full">
       <option value="active">판매중</option><option value="stopped">판매중지</option>

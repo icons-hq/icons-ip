@@ -6,7 +6,8 @@ import { saveAdminIpHallBannerAction, type AdminIpHallBannerActionState } from '
 import type { AdminIpRecord } from '@/lib/admin/catalog.server';
 import { adminFormRemountKey, preservedFormValues, resolveArtworkDefault, resolveFieldDefault } from '@/lib/admin/form-state';
 import { withLocalRecoveryValues } from '@/lib/admin/local-autosave';
-import { adminIpPublishState, formatAdminIpRecordLabel } from '@/lib/admin/ip-publish';
+import { ADMIN_IP_PUBLISH_STATE_LABELS, adminIpPublishState, formatAdminIpRecordLabel } from '@/lib/admin/ip-publish';
+import { statusTone } from '@/lib/admin/status-tone';
 import { publicMediaUrl } from '@/lib/media';
 import {
   adminCatalogArchiveCounts,
@@ -24,6 +25,7 @@ import { ActionNotice, ErrorText, Field, RecordList, SelectField, TextArea } fro
 import { AdminLocalDraftNotice } from '../AdminLocalDraftNotice';
 import { useAdminLocalAutosave } from '../useAdminLocalAutosave';
 import { MasterDetail, SECTION_CARD, SectionHeading } from './SectionLayout';
+import { RecordStatusLabel } from './RecordStatusLabel';
 
 const LOCAL_DRAFT_FIELDS = ['id', 'title', 'sub', 'verticalKey', 'tagline', 'glyph', 'synopsis', 'imagePath'] as const;
 const EMPTY_BANNER_STATE: AdminIpHallBannerActionState = {};
@@ -225,7 +227,7 @@ export function IpSection({
           <RecordList
             activeId={selected?.id ?? null}
             items={visibleRecords}
-            labelFor={(ip) => formatAdminIpRecordLabel(`${ip.id} · ${ip.title}`, ip)}
+            labelFor={(ip) => <RecordStatusLabel name={`${ip.id} · ${ip.title}`} status={ADMIN_IP_PUBLISH_STATE_LABELS[adminIpPublishState(ip)]} tone={statusTone('publication', adminIpPublishState(ip))} title={formatAdminIpRecordLabel(`${ip.id} · ${ip.title}`, ip)} />}
             onNew={() => onSelect(null)}
             onSelect={onSelect}
             thumbnailKind="ip"

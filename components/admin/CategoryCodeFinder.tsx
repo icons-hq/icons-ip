@@ -14,7 +14,7 @@ import { Input } from './kit/ui/input';
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from './kit/ui/table';
 
 /* 찾기 방식 전환(셸의 콘솔 전환과 같은 모양, 템플릿 룩). */
-const MODE = 'text-muted-foreground hover:bg-transparent aria-pressed:bg-background aria-pressed:text-foreground aria-pressed:shadow-sm';
+const MODE = 'text-muted-foreground hover:bg-transparent aria-pressed:bg-background aria-pressed:text-primary-soft-foreground aria-pressed:shadow-sm';
 
 export function CategoryCodeFinder({ onClose }: { onClose: () => void }) {
   const [categories, setCategories] = useState<AdminCategoryNode[] | null>(null);

@@ -1,6 +1,6 @@
 'use client';
 
-import { AdminFormGrid } from '@/components/admin/console/AdminKit';
+import { AdminFormGrid, AdminNotice } from '@/components/admin/console/AdminKit';
 import { useActionState, useMemo, useState } from 'react';
 import {
   upsertAdminRewardPolicyAction,
@@ -12,7 +12,9 @@ import type {
   AdminRewardPolicyRecord,
 } from '@/lib/admin/catalog.server';
 import { ErrorText, Field, FormShell, RecordList, SelectField } from '../fields';
-import { MasterDetail, SECTION_CARD, SECTION_NOTE, SECTION_STAT, SECTION_STATS, SectionHeading } from './SectionLayout';
+import { statusTone } from '@/lib/admin/status-tone';
+import { MasterDetail, SECTION_CARD, SECTION_STAT, SECTION_STATS, SectionHeading } from './SectionLayout';
+import { RecordStatusLabel } from './RecordStatusLabel';
 
 const emptyState: AdminCatalogActionState = {};
 
@@ -117,7 +119,7 @@ export function RewardPolicySection({
               ? (goodNames.get(policy.targetGoodId) ?? policy.targetGoodId)
               : `${ipTitles.get(policy.targetIpId) ?? policy.targetIpId} 전체 굿즈`;
             const pool = poolNames.get(policy.poolId) ?? policy.poolId;
-            return `${target} → ${pool} · ${POLICY_STATUS_LABELS[policy.status]}`;
+            return <RecordStatusLabel name={`${target} → ${pool}`} status={POLICY_STATUS_LABELS[policy.status]} tone={statusTone('rewardPolicy', policy.status)} title={`${target} → ${pool} · ${POLICY_STATUS_LABELS[policy.status]}`} />;
           }}
           newLabel="새 발급 정책"
           onNew={() => onSelect(null)}
@@ -303,11 +305,7 @@ function RewardPolicyForm({
         <span>정책 활성화</span>
       </label>
       <ErrorText id={state.errors?.active ? 'active-error' : undefined}>{state.errors?.active}</ErrorText>
-      {disabledReason && (
-        <p className="text-sm text-destructive" role={unavailableActivePool ? 'alert' : 'status'}>
-          {disabledReason}
-        </p>
-      )}
+      {disabledReason && <AdminNotice role={unavailableActivePool ? 'alert' : 'status'} tone={unavailableActivePool ? 'danger' : 'warning'}>{disabledReason}</AdminNotice>}
       <FormShell disabled={Boolean(disabledReason)} pending={pending} state={state} />
     </form>
   );
@@ -331,12 +329,8 @@ function RewardPolicySummary({ selected }: { selected: AdminRewardPolicyRecord |
           정책을 선택하거나 새 정책을 저장하면 발급 현황을 확인할 수 있습니다.
         </p>
       )}
-      <div className={SECTION_NOTE} role="status">
-        조건이 겹치는 활성 정책은 누적 적용됩니다.
-      </div>
-      <div className={SECTION_NOTE} role="status">
-        정책 연결 정보가 없는 기존 뽑기권은 집계에서 제외됩니다.
-      </div>
+      <AdminNotice role="status" tone="neutral">조건이 겹치는 활성 정책은 누적 적용됩니다.</AdminNotice>
+      <AdminNotice role="status" tone="neutral">정책 연결 정보가 없는 기존 뽑기권은 집계에서 제외됩니다.</AdminNotice>
     </section>
   );
 }

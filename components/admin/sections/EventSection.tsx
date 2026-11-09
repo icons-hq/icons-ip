@@ -6,6 +6,7 @@ import type { AdminCatalogActionState } from '@/app/admin/actions';
 import type { AdminEventRecord } from '@/lib/admin/catalog.server';
 import { adminFormRemountKey, resolveArtworkDefault, resolveFieldDefault } from '@/lib/admin/form-state';
 import { publicMediaUrl } from '@/lib/media';
+import { statusTone } from '@/lib/admin/status-tone';
 import {
   adminCatalogArchiveCounts,
   filterAdminCatalogRecords,
@@ -16,6 +17,7 @@ import { ArtworkUploadField } from '../ArtworkUploadField';
 import { CatalogArchiveControl, CatalogArchiveFilter } from '../CatalogArchiveControls';
 import { ColorField, Field, FormShell, RecordList, SelectField } from '../fields';
 import { MasterDetail, SECTION_CARD } from './SectionLayout';
+import { RecordStatusLabel } from './RecordStatusLabel';
 
 function dateTimeInput(value: string | null | undefined) {
   if (!value) return '';
@@ -80,7 +82,7 @@ export function EventSection({
           <RecordList
             activeId={selected?.id ?? null}
             items={visibleRecords}
-            labelFor={(event) => formatAdminCatalogRecordLabel(`${event.id} · ${event.title}`, event.archivedAt)}
+            labelFor={(event) => <RecordStatusLabel name={`${event.id} · ${event.title}`} status={event.archivedAt ? '보관' : event.status} tone={event.archivedAt ? statusTone('publication', 'archived') : statusTone('event', event.status)} title={formatAdminCatalogRecordLabel(`${event.id} · ${event.title}`, event.archivedAt)} />}
             onNew={() => onSelect(null)}
             onSelect={onSelect}
             thumbnailKind="event"

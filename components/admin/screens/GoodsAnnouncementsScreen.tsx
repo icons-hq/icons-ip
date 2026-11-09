@@ -3,6 +3,7 @@ import { Plus } from 'lucide-react';
 import { formatOrderDateTime } from '@/lib/orders';
 import { goodsAnnouncementHref, GOODS_ANNOUNCEMENTS_PATH, GOODS_ANNOUNCEMENT_CATEGORIES, GOODS_ANNOUNCEMENT_DEVICES, GOODS_ANNOUNCEMENT_STATES, type GoodsAnnouncementListData } from '@/lib/admin/goods-announcements';
 import { AdminPageHeader, AdminStatusBadge } from '../console/AdminKit';
+import { statusTone } from '@/lib/admin/status-tone';
 import { AdminSelect } from '../console/AdminSelect';
 import { ConsoleFilterField, ConsoleFilterPanel, ConsoleGrid, ConsolePagination } from '../console';
 import { buttonVariants } from '../kit/ui/button';
@@ -23,9 +24,9 @@ export function GoodsAnnouncementsScreen({ data }: { data: GoodsAnnouncementList
         { key: 'title', label: '공지 제목', width: '260px' }, { key: 'reference', label: '공지번호', width: '90px' }, { key: 'category', label: '분류' }, { key: 'state', label: '전시상태' },
         { key: 'device', label: '노출 화면' }, { key: 'goods', label: '적용 상품' }, { key: 'period', label: '전시 기간', width: '220px' }, { key: 'created', label: '등록일', width: '150px' }, { key: 'updated', label: '수정일', width: '150px' },
       ]} rows={rows.map(row => ({ id: row.id, href: `${href}&edit=${row.id}`, cells: [
-        <span key="title">{row.important ? <strong className="mr-2 inline-block text-xs font-medium text-destructive">중요</strong> : null}{row.title}</span>, row.reference,
+        <span key="title">{row.important ? <AdminStatusBadge className="mr-2 align-text-bottom" tone="danger">중요</AdminStatusBadge> : null}{row.title}</span>, row.reference,
         GOODS_ANNOUNCEMENT_CATEGORIES.find(item => item.value === row.category)?.label,
-        <AdminStatusBadge key="state" tone={row.state === 'shown' ? 'success' : row.state === 'waiting' ? 'warning' : 'neutral'}>{GOODS_ANNOUNCEMENT_STATES.find(item => item.value === row.state)?.label}</AdminStatusBadge>,
+        <AdminStatusBadge key="state" tone={statusTone('goodsAnnouncement', row.state)}>{GOODS_ANNOUNCEMENT_STATES.find(item => item.value === row.state)?.label}</AdminStatusBadge>,
         GOODS_ANNOUNCEMENT_DEVICES.find(item => item.value === row.device)?.label, row.allGoods ? '전체 상품' : `${row.goodCount}개 상품`,
         `${row.startsAt ? formatOrderDateTime(row.startsAt) : '제한 없음'} ~ ${row.endsAt ? formatOrderDateTime(row.endsAt) : '제한 없음'}`,
         row.createdAt ? formatOrderDateTime(row.createdAt) : '—', row.updatedAt ? formatOrderDateTime(row.updatedAt) : '—',

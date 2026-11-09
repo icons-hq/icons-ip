@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { goodsListHref, normalizeGoodsListFilters } from '@/lib/admin/goods-list';
 import type { AdminCategoryNode } from '@/lib/admin/category';
 import { AdminStatusBadge } from './console/AdminKit';
+import { statusTone } from '@/lib/admin/status-tone';
 
 export function CategoryTree({ categories }: { categories: AdminCategoryNode[] }) {
   const children = new Map<string | null, AdminCategoryNode[]>();
@@ -24,7 +25,7 @@ export function CategoryTree({ categories }: { categories: AdminCategoryNode[] }
           <code className="rounded bg-muted px-1 py-0.5 text-xs">{category.code}</code>
           <Link className="underline-offset-4 hover:underline" href={goodsListHref(normalizeGoodsListFilters({ categoryId: category.id }))}>{category.name} 상품 목록</Link>
           <span className="text-xs text-muted-foreground">{category.depth}/4 · 직접 연결 상품 {category.assignedGoodCount}개</span>
-          {category.archivedAt ? <AdminStatusBadge>보관</AdminStatusBadge> : null}
+          {category.archivedAt ? <AdminStatusBadge tone={statusTone('publication', 'archived')}>보관</AdminStatusBadge> : null}
         </div>
         {branch(category.id, depth + 1)}
       </li>)}

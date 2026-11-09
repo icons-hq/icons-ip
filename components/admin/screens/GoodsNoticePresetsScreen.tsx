@@ -27,7 +27,7 @@ export function GoodsNoticePresetsScreen({ data }: { data: GoodsNoticePresetPage
       </div>
       <ConsoleFilterActions>
         {filters.query ? <Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={GOODS_NOTICE_PRESETS_PATH}>전체 프리셋 보기</Link> : null}
-        <Button type="submit">검색</Button>
+        <Button type="submit" variant="soft">검색</Button>
       </ConsoleFilterActions>
     </form>
     <ConsoleListCard title="목록" total={total} unit="개" description="이름을 열어 7개 항목을 수정할 수 있습니다.">

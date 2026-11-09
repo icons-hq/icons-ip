@@ -1,6 +1,6 @@
 'use client';
 
-import { AdminFormGrid } from '@/components/admin/console/AdminKit';
+import { AdminFormGrid, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { useActionState, useState } from 'react';
 import {
   upsertAdminCoinExchangeOfferAction,
@@ -14,6 +14,7 @@ import {
 import type { AdminCardPoolRecord } from '@/lib/admin/catalog.server';
 import { Check } from 'lucide-react';
 import { Button } from '@/components/admin/kit/ui/button';
+import { statusTone } from '@/lib/admin/status-tone';
 import { Field, InlineNotice, SelectField } from '../fields';
 import { SECTION_CARD, SectionHeading } from './SectionLayout';
 
@@ -52,19 +53,21 @@ function OfferRow({
     <li className="flex min-w-0 flex-col gap-1">
       <Button
         aria-current={active ? 'true' : undefined}
-        className="h-auto w-full justify-start py-2 text-left whitespace-normal aria-[current=true]:border-primary aria-[current=true]:bg-muted"
+        className="h-auto w-full justify-start py-2 text-left whitespace-normal aria-[current=true]:border-primary aria-[current=true]:bg-primary-soft"
         onClick={onSelect}
         type="button"
         variant="outline"
       >
-        <span className="flex min-w-0 flex-col items-start gap-0.5">
-          <span className="text-sm font-medium">{offer.label}</span>
+        <span className="flex min-w-0 flex-col items-start gap-1">
+          <span className="flex flex-wrap items-center gap-1.5">
+            <span className="text-sm font-medium">{offer.label}</span>
+            <AdminStatusBadge tone={statusTone('coinOffer', offer.status)}>{ADMIN_COIN_OFFER_STATUS_LABELS[offer.status]}</AdminStatusBadge>
+            {pool && !pool.rewardReady ? <AdminStatusBadge tone="danger">개봉 준비 안 됨</AdminStatusBadge> : null}
+          </span>
           <span className="text-xs font-normal text-muted-foreground tabular-nums">
             {pool ? pool.name : '삭제된 카드풀'}
             {' · '}코인 {offer.coinCost.toLocaleString('ko-KR')}
             {' · '}카드팩 {offer.ticketCount}장
-            {' · '}{ADMIN_COIN_OFFER_STATUS_LABELS[offer.status]}
-            {pool && !pool.rewardReady ? ' · 개봉 준비 안 됨' : ''}
           </span>
         </span>
       </Button>

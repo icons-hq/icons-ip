@@ -10,6 +10,8 @@ import {
   parseCategoryBulkText,
   type CategoryBulkResult,
 } from '@/lib/admin/category-bulk';
+import { AdminStatusBadge } from './console/AdminKit';
+import { statusTone } from '@/lib/admin/status-tone';
 import { Button } from './kit/ui/button';
 import { Textarea } from './kit/ui/textarea';
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from './kit/ui/table';
@@ -70,7 +72,7 @@ export function CategoryBulkCreatePanel() {
           <TableHeader><TableRow className="bg-muted/50"><TableHead scope="col">번호</TableHead><TableHead scope="col">결과</TableHead><TableHead scope="col">사유</TableHead></TableRow></TableHeader>
           <TableBody>{result.lines.map((line) => <TableRow key={line.line}>
             <TableHead scope="row" className="font-normal whitespace-normal">{line.line} · {line.path}</TableHead>
-            <TableCell>{categoryBulkResultLabel(line.status)}</TableCell>
+            <TableCell><AdminStatusBadge tone={statusTone('categoryBulk', line.status)}>{categoryBulkResultLabel(line.status)}</AdminStatusBadge></TableCell>
             <TableCell className="whitespace-normal">{categoryBulkReason(line)}</TableCell>
           </TableRow>)}</TableBody>
         </table>
