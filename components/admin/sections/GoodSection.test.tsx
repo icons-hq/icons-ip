@@ -107,7 +107,7 @@ const good: AdminGoodRecord = {
 function renderGoodSection(
   selected: AdminGoodRecord | null,
   state: Parameters<typeof GoodSection>[0]['state'] = {},
-  options: Pick<Parameters<typeof GoodSection>[0],'initialQuery'|'initialIpId'|'variants'|'canSearchErp'|'ownership'|'accountId'|'cloneOperationId'|'canManageCosts'|'readiness'> = {},
+  options: Pick<Parameters<typeof GoodSection>[0],'initialQuery'|'initialIpId'|'variants'|'canSearchErp'|'ownership'|'accountId'|'cloneOperationId'|'canManageCosts'|'canManageMedia'|'readiness'> = {},
 ) {
   return renderToStaticMarkup(
     <GoodsKcTemplateProvider selectionKey={selected ? `good:${selected.id}` : 'create:any'}>
@@ -721,13 +721,26 @@ describe('GoodSection', () => {
     expect(bar).not.toContain('>임시저장 불러오기<');
     expect(bar).not.toContain('>새 임시저장으로 저장<');
     for (const label of ['미리보기', '저장하기', '취소']) expect(bar).toContain(label);
-    /* 탭이 하나뿐이면 탭 줄을 그리지 않고, 복사등록은 머리 줄의 버튼 하나다. */
+    /* 탭이 하나뿐이면 탭 줄을 그리지 않는다. */
     expect(create).not.toContain('data-good-editor-tabs');
-    expect(renderGoodSection(null, {}, { accountId: 'operator-1' })).toMatch(/data-good-editor-head=""[^]*?data-good-copy-entry=""[^]*?기존 상품으로 복사등록/);
-    /* 머리 줄에 놓을 것이 없으면 빈 줄을 그리지 않는다. */
-    expect(create).not.toContain('data-good-editor-head');
   });
 
+  /* 사람 눈 테스트 3라운드 — 목록·복사등록·동영상 링크가 한 줄씩 쌓여 입력이 늦게 시작했다. 다른 등록 화면처럼 제목 줄 오른쪽에 묶는다. */
+  it('목록·복사등록·동영상 관리는 화면 머리 오른쪽 한 줄에 묶는다', () => {
+    const header = (html: string) => html.slice(html.indexOf('data-admin-kit="page-header"'), html.indexOf('</header>', html.indexOf('data-admin-kit="page-header"')));
+    const create = header(renderGoodSection(null, {}, { accountId: 'operator-1', canManageMedia: true }));
+    expect(create).toContain('상품 등록');
+    expect(create).toMatch(/data-good-copy-entry=""[^]*?기존 상품으로 복사등록[^]*?href="\/admin\/catalog\/goods"[^]*?상품 목록으로/);
+    expect(create).not.toContain('동영상·숏클립 관리');
+    const edit = header(renderGoodSection(good, {}, { accountId: 'operator-1', canManageMedia: true }));
+    expect(edit).toContain(good.name);
+    expect(edit).toContain(`>${good.id}<`);
+    expect(edit).toContain('href="/admin/catalog/goods/media?goodId=g100"');
+    expect(edit).toContain('상품 목록으로');
+    expect(edit).not.toContain('data-good-copy-entry');
+    /* 동영상 관리 링크는 권한이 있을 때만 그린다. */
+    expect(header(renderGoodSection(good))).not.toContain('동영상·숏클립 관리');
+  });
 
   /* 사람 눈 테스트 2라운드 — 별표와 "(필수)"가 섞여 있었다. 카드의 "필수 N개 남음"과 같은 말인 "(필수)" 하나로 통일하고, 남은 수에 세는 칸에는 모두 붙인다. */
   it('필수 표시는 (필수) 하나로 통일하고 남은 수에 세는 칸에 모두 붙인다', () => {

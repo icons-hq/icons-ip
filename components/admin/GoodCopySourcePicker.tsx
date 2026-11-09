@@ -17,10 +17,10 @@ const LABEL_CLASS = 'text-sm leading-snug font-medium text-foreground';
 
 export function GoodCopySourcePicker({ accountId, disabledReason = '' }: { accountId: string; disabledReason?: string }) {
   const [open, setOpen] = useState(false);
-  /* 첫 화면을 필수 입력에 돌리려고 카드 대신 머리 줄의 버튼 하나로 둔다. 재고 0·KC 재검토 안내는 복사 팝업이 보여 준다. */
-  return <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm" aria-label="기존 상품으로 복사등록" data-good-copy-entry="" role="group">
-    <Button type="button" variant="outline" size="sm" disabled={Boolean(disabledReason)} onClick={() => setOpen(true)}><Copy aria-hidden="true" />기존 상품으로 복사등록</Button>
+  /* 첫 화면을 필수 입력에 돌리려고 카드 대신 화면 머리의 버튼 하나로 둔다. 머리 줄은 오른쪽으로 붙으므로 안내는 버튼 왼쪽에 나와 버튼을 밀지 않는다. 재고 0·KC 재검토 안내는 복사 팝업이 보여 준다. */
+  return <div className="flex min-w-0 flex-wrap items-center justify-end gap-2 text-sm" aria-label="기존 상품으로 복사등록" data-good-copy-entry="" role="group">
     {disabledReason ? <p className="text-xs text-muted-foreground" role="status">{disabledReason}</p> : null}
+    <Button type="button" variant="outline" size="sm" disabled={Boolean(disabledReason)} onClick={() => setOpen(true)}><Copy aria-hidden="true" />기존 상품으로 복사등록</Button>
     {open ? <GoodCopySourceDialog accountId={accountId} blocked={Boolean(disabledReason)} onClose={() => setOpen(false)} /> : null}
   </div>;
 }

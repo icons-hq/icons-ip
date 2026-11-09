@@ -186,7 +186,7 @@ const EDITOR_TAB_CLASS = 'inline-flex h-7 items-center rounded-md px-3 text-sm f
 const SAVE_BAR_BUTTON_CLASS = 'max-md:h-7 max-md:gap-1 max-md:px-1.5 max-md:text-[0.8rem]';
 const SHARED_QUANTITY_FIELDS = ['orderQuantityLimitEnabled','minOrderQty','maxOrderQty','memberPurchaseLimitEnabled','memberLifetimeQtyLimit'];
 
-function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, pending, selected, state, initialIpId, variants, origins, noticeDefaults, categories, shippingNoticeOptions, regionSummaries, formRef, onSubmitCapture, onApplyKcTemplate, onSaveLocalDraft, onLoadServerDraft, onEditingStateChange, onPublishOnSaveChange, canSearchErp = true, canActivatePreorders = false, listHref = '/admin/catalog/goods', readiness = null, kcSlot = null, headerAction = null, restoredFromBrowser = false }: {
+function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, pending, selected, state, initialIpId, variants, origins, noticeDefaults, categories, shippingNoticeOptions, regionSummaries, formRef, onSubmitCapture, onApplyKcTemplate, onSaveLocalDraft, onLoadServerDraft, onEditingStateChange, onPublishOnSaveChange, canSearchErp = true, canActivatePreorders = false, listHref = '/admin/catalog/goods', readiness = null, kcSlot = null, restoredFromBrowser = false }: {
   accountId: string; ownership?: GoodsEditorOwnership | null;
   action: (payload: FormData) => void; catalogIps: Ip[];
   ipOptions: { id: string; title: string; archivedAt: string | null }[];
@@ -206,8 +206,6 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
   readiness?: AdminGoodsReadiness | null;
   /** 고시 카드 안, 고시 입력 바로 아래에 놓일 KC 영역. */
   kcSlot?: ReactNode;
-  /** 머리 줄의 보조 동작(복사등록). */
-  headerAction?: ReactNode;
   /** 브라우저 자동복구로 되살린 입력이다(KC·예약판매는 복구되지 않는다). */
   restoredFromBrowser?: boolean;
 }) {
@@ -489,14 +487,11 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
   }
   const showTabs = groupGoodsEntryVisible() && !selected;
   return <>
-    {showTabs || headerAction ? <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2" data-good-editor-head="">
-      {/* R21(D9①): 그룹상품 등록은 메뉴 숨김과 짝으로 숨기고 라우트(/admin/catalog/groups/new)만 유지한다. 탭이 하나뿐이면 줄을 그리지 않는다. */}
-      {showTabs ? <nav aria-label="상품 등록 방식" data-good-editor-tabs=""><span className="inline-flex rounded-lg bg-muted p-0.5"><span aria-current="page" className={EDITOR_TAB_CLASS}>상품 등록</span>
+    {/* R21(D9①): 그룹상품 등록은 메뉴 숨김과 짝으로 숨기고 라우트(/admin/catalog/groups/new)만 유지한다. 탭이 하나뿐이면 줄을 그리지 않는다. */}
+    {showTabs ? <nav aria-label="상품 등록 방식" data-good-editor-tabs=""><span className="inline-flex rounded-lg bg-muted p-0.5"><span aria-current="page" className={EDITOR_TAB_CLASS}>상품 등록</span>
         <Link className={EDITOR_TAB_CLASS} href="/admin/catalog/groups/new?mode=assemble" aria-disabled={pending || draftBusy} onNavigate={event => {
           if (pending || draftBusy || dirty && !window.confirm('저장하지 않은 상품 입력을 두고 그룹상품 등록으로 이동할까요?')) event.preventDefault();
         }}>그룹상품 등록</Link></span></nav> : null}
-      {headerAction}
-    </div> : null}
     <GoodWorkspaceNavigation errors={goodErrorsByCard(errors)} remaining={showCardProgress ? remainingByCard : undefined} remainingTone={selected ? 'warning' : 'neutral'} />
     {/* 키보드로 옮긴 입력칸이 위 고정 섹션 내비·아래 고정 저장 영역에 가리지 않게 위아래 여백을 둔다(섹션 자체는 scroll-mt). */}
     <form action={action} className="flex min-w-0 flex-col gap-4 [&_:is(input,select,textarea,button,summary,a)]:scroll-my-32" data-good-workspace-form="" onInvalidCapture={showInvalidFields} onPointerDownCapture={closeSaveInfo} onSubmitCapture={submit} ref={attachForm}>

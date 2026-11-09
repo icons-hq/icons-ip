@@ -1,6 +1,8 @@
 'use client';
 import { goodsGroupCommonHref, goodsGroupHref, type GoodsEditorOwnership } from '@/lib/admin/goods-group-common';
 
+import Link from 'next/link';
+import { ArrowLeft } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import type { AdminCatalogActionState } from '@/app/admin/actions';
 import type { AdminGoodRecord } from '@/lib/admin/catalog.server';
@@ -16,7 +18,8 @@ import type { AdminGoodsReadiness } from '@/lib/admin/goods-readiness';
 import { goodSaleSettingsState } from '@/lib/admin/good-workspace';
 import { statusTone } from '@/lib/admin/status-tone';
 import { ADMIN_VOCABULARY, adminGoodsCopy } from '@/lib/admin/vocabulary';
-import { AdminNotice, AdminStatusBadge } from '../console/AdminKit';
+import { AdminNotice, AdminPageHeader, AdminStatusBadge } from '../console/AdminKit';
+import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { GOOD_INPUT_CLASS } from '../GoodEditorParts';
 import { RecordList } from '../fields';
 import { GoodEditor } from '../GoodEditor';
@@ -96,7 +99,7 @@ export function GoodSection({
   initialIpId,
   initialQuery='',
   hideRecordList=false, listHref='/admin/catalog/goods',
-  accountId='', origins=[], noticeDefaults, categories=[], shippingNoticeOptions=[], canManageCosts=false, canReadOrders=true, canManageSales=true, canSearchErp=true, cloneOperationId, readiness, regionSummaries = [],
+  accountId='', origins=[], noticeDefaults, categories=[], shippingNoticeOptions=[], canManageCosts=false, canReadOrders=true, canManageSales=true, canSearchErp=true, canManageMedia=false, cloneOperationId, readiness, regionSummaries = [],
 }: {
   action: (payload: FormData) => void;
   adjustmentId: string; ownership?: GoodsEditorOwnership | null;
@@ -112,7 +115,7 @@ export function GoodSection({
   initialQuery?: string;
   hideRecordList?: boolean; listHref?: string;
   accountId?: string; origins?: GoodsFulfillmentOrigin[]; noticeDefaults?: GoodNoticeDefaults;
-  categories?: AdminCategoryNode[]; shippingNoticeOptions?: GoodsShippingNoticeOption[]; canManageCosts?: boolean; canReadOrders?: boolean; canManageSales?: boolean; canSearchErp?: boolean; cloneOperationId?: string; readiness?: AdminGoodsReadiness | null; regionSummaries?: GoodShippingRegionSummary[];
+  categories?: AdminCategoryNode[]; shippingNoticeOptions?: GoodsShippingNoticeOption[]; canManageCosts?: boolean; canReadOrders?: boolean; canManageSales?: boolean; canSearchErp?: boolean; canManageMedia?: boolean; cloneOperationId?: string; readiness?: AdminGoodsReadiness | null; regionSummaries?: GoodShippingRegionSummary[];
 }) {
   const [archiveFilter, setArchiveFilter] = useState<AdminCatalogArchiveFilter>(
     selected?.archivedAt ? 'archived' : 'active',
@@ -217,6 +220,13 @@ export function GoodSection({
       </div>}
       {/* 아래 여백은 고정 저장 영역(GoodEditor)에 마지막 카드가 가리지 않게 한다. */}
       <div className="flex min-w-0 flex-col gap-4 pb-40 xl:pb-20">
+        {/* 다른 등록 화면처럼 보조 동작은 제목 줄 오른쪽에 한 줄로 묶어 입력이 바로 시작하게 한다. */}
+        <AdminPageHeader title={selected?.name ?? `${ADMIN_VOCABULARY.goods} 등록`} description={selected?.id} actions={<>
+          {!selected && accountId ? <GoodCopySourcePicker accountId={accountId} disabledReason={pending || editingState?.busy ? '현재 입력을 저장하는 중입니다.'
+            : editingState?.dirty ? '작성 중인 입력은 먼저 임시저장한 뒤 복사할 상품을 선택해주세요.' : ''} /> : null}
+          {selected && canManageMedia ? <Link className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" href={`/admin/catalog/goods/media?goodId=${encodeURIComponent(selected.id)}`}>동영상·숏클립 관리</Link> : null}
+          <Link className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" href={listHref}><ArrowLeft aria-hidden="true" />{ADMIN_VOCABULARY.goods} 목록으로</Link>
+        </>} />
         {ownership?.group ? <section data-good-lock=""><AdminNotice title={`${ownership.group.name} · 그룹상품`} tone="neutral">상품명과 옵션 구성은 <a className="underline underline-offset-4" href={goodsGroupHref(ownership.group.id)}>그룹 구성</a>에서, 카테고리·속성·IP·유형·고시·상세설명·A/S·사이즈는 <a className="underline underline-offset-4" href={goodsGroupCommonHref(ownership.group)}>공통정보 편집</a>에서 수정합니다.</AdminNotice></section> : null}
         {ownership && !ownership.aggregation.editable ? <AdminNotice tone="neutral">배송비·주문 수량·회원 누적 한도·복수구매 할인은 <a className="underline underline-offset-4" href={`/admin/catalog/goods?goodId=${encodeURIComponent(ownership.aggregation.ownerGoodId)}`}>합산 기준 상품</a>에서 관리합니다.</AdminNotice> : null}
         {/* 입력칸을 밀어내지 않게 상태는 한 줄, 처리할 일은 하나만 펼쳐 둔다. 긴 안내는 판매 준비 안내에 접혀 있다. */}
@@ -254,8 +264,6 @@ export function GoodSection({
           initialIpId={initialIpId}
           readiness={readiness}
           kcSlot={kcSlot}
-          headerAction={!selected && accountId ? <GoodCopySourcePicker accountId={accountId} disabledReason={pending || editingState?.busy ? '현재 입력을 저장하는 중입니다.'
-            : editingState?.dirty ? '작성 중인 입력은 먼저 임시저장한 뒤 복사할 상품을 선택해주세요.' : ''} /> : null}
         />
         </fieldset>
         {selected ? <section aria-labelledby="good-operation-hub-title" className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-sm text-card-foreground sm:p-5" data-good-operation-hub="saved">
