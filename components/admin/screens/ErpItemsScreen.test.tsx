@@ -54,6 +54,15 @@ describe('ERP 품목 화면', () => {
     expect(html).not.toMatch(/슬롯|가챠|충전/);
   });
 
+  it('품목 반입이 접혀 있으면 화면 머리의 주 행동 버튼이 펼치는 길이고, 펼쳐 있으면 외곽선으로 물러난다', () => {
+    const closed = renderToStaticMarkup(<ErpItemsScreen data={data()} />);
+    expect(closed).toMatch(/data-admin-kit="page-header"[\s\S]*?<button[^>]*bg-primary[^>]*>(?:<svg[\s\S]*?<\/svg>)?품목 반입<\/button>/);
+    expect(closed).toMatch(/<details(?![^>]*open)[^>]*id="erp-item-import"/);
+    const empty = renderToStaticMarkup(<ErpItemsScreen data={data({ page: { total: 0, items: [] } })} />);
+    expect(empty).toMatch(/<details[^>]*id="erp-item-import"[^>]*open=""/);
+    expect(empty).not.toMatch(/<button[^>]*bg-primary[^>]*>(?:<svg[\s\S]*?<\/svg>)?품목 반입<\/button>/);
+  });
+
   it('ERP 분류마다 활성 말단 경로를 고르고, 같은 경로 말단이 있으면 한 번에 연결하게 한다', () => {
     const html = renderToStaticMarkup(<ErpItemsScreen data={data()} />);
     expect(html).toContain('ERP 분류 3개 중 2개 연결됨');

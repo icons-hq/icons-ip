@@ -75,6 +75,12 @@ it('한 화면의 저장은 고르는 항목 하나다 — 새 등록·ERP 매�
   expect(html).toContain('트리를 다 만든 뒤 펼쳐서 켜주세요.');
 });
 
+it('고객 화면 미적용이면 접힌 줄에 켜는 곳을 버튼 모양으로 알리고, 적용 중이면 알리지 않는다', () => {
+  const render = (customerEnabled: boolean) => renderToStaticMarkup(<CategoryScreen data={{ categories, mappings: [], migrations: [], activation: { customerEnabled, erpEnabled: false, customerEvidence: null, erpEvidence: null, updatedAt: null } }} />);
+  expect(render(false)).toMatch(/<summary[^>]*>(?:(?!<\/summary>)[\s\S])*활성화 상태(?:(?!<\/summary>)[\s\S])*펼쳐서 켜기/);
+  expect(render(true)).not.toContain('펼쳐서 켜기');
+});
+
 it('카테고리가 없으면 새 등록 카드를 펼쳐 둔다', () => {
   const html = renderToStaticMarkup(<CategoryScreen data={{ categories: [], mappings: [], migrations: [], activation: { customerEnabled: false, erpEnabled: false, customerEvidence: null, erpEvidence: null, updatedAt: null } }} canManagePlatform={false} />);
   expect(html).toMatch(/<details[^>]*data-fold-card=""[^>]*open=""[^>]*><summary[^>]*>(?:(?!<\/summary>)[\s\S])*새 카테고리 등록/);

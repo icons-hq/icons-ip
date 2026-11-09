@@ -131,7 +131,7 @@ describe('CardSection', () => {
     expect(renderCard()).toContain('>청명 홀로 카드 수정</h3>');
   });
 
-  it('목록은 번호 순서로 등급·카드풀 연결을 보이고, 카드풀이 없는 카드는 건수 칩 하나로 모아 주의로 표시한다', () => {
+  it('목록은 번호 순서로 등급·카드풀 연결을 보이고, 카드풀이 없는 카드는 건수 칩과 줄의 주의 배지로 표시한다', () => {
     const unbound = { ...selected, id: 'c2', poolId: null, name: '미연결 카드', rarity: 'N' as const };
     const later = { ...selected, id: 'c10', name: '뒤 번호 카드' };
     const html = renderToStaticMarkup(
@@ -141,10 +141,21 @@ describe('CardSection', () => {
     expect(html).toContain('aria-label="카드 목록"');
     expect(html.indexOf('c2 · 미연결 카드')).toBeLessThan(html.indexOf('c10 · 뒤 번호 카드'));
     expect(html).toContain('HOLO · 화산강림 풀');
-    expect(html).toContain('N · 풀 미지정');
     expect(html).toMatch(/data-tone="warning"[^>]*>풀 미지정 1장</);
-    /* 줄마다 노란 표시를 반복하면 경고로 읽히지 않는다 — 주의색은 칩 하나다. */
-    expect(html.match(/data-tone="warning"/g)).toHaveLength(1);
+    /* 위 건수가 가리키는 줄이 바로 보여야 한다 — 미지정 줄에만 같은 말의 주의 배지가 붙고, 지정된 줄은 조용하다. */
+    expect(html).toMatch(/data-tone="warning"[^>]*>풀 미지정</);
+    expect(html.match(/data-tone="warning"/g)).toHaveLength(2);
+    const row = (code: string) => html.split('<button').find(part => part.includes(`>${code} ·`)) ?? '';
+    expect(row('c10')).not.toContain('data-tone');
+  });
+
+  it('보관된 카드는 카드풀이 없어도 풀 미지정으로 재촉하지 않는다', () => {
+    const archived = { ...selected, poolId: null, archivedAt: '2026-07-17T12:00:00.000Z' };
+    const html = renderToStaticMarkup(
+      <CardSection action={vi.fn()} ipOptions={[]} onSelect={vi.fn()} pending={false} poolOptions={[]} records={[archived]} selected={archived} state={{}} />,
+    );
+    expect(html).toMatch(/data-tone="neutral"[^>]*>보관</);
+    expect(html).not.toContain('data-tone="warning"');
   });
 
   it('아무것도 고르지 않으면 오른쪽은 안내만 보이고, 등록을 시작했거나 카드를 고르면 입력 칸이 열린다', () => {

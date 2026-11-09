@@ -53,6 +53,7 @@ export function IpHallBannerForm({ ip }: { ip: AdminIpRecord }) {
         label="PC 배너"
         name="hallBannerImagePath"
         showCropGuide={false}
+        showPath={Boolean(ip.hallBannerImagePath)}
       />
       <ErrorText>{state.errors?.imagePath}</ErrorText>
       <ArtworkUploadField
@@ -65,6 +66,7 @@ export function IpHallBannerForm({ ip }: { ip: AdminIpRecord }) {
         label="모바일 배너"
         name="hallBannerMobileImagePath"
         showCropGuide={false}
+        showPath={Boolean(ip.hallBannerMobileImagePath)}
       />
       <ErrorText>{state.errors?.mobileImagePath}</ErrorText>
       <ActionNotice state={state} />
@@ -165,11 +167,11 @@ export function IpSection({
             <Field defaultValue={field('tagline')} label="한 줄 소개 · 태그라인" name="tagline" />
             <TextArea
               defaultValue={field('glyph')}
-              label="크게 쓰는 글자 · 글리프 (줄바꿈 가능)"
+              label="크게 쓰는 글자 (줄바꿈 가능)"
               name="glyph"
               placeholder={'홍실\n퀘스트'}
             />
-            <TextArea defaultValue={field('synopsis')} label="소개 글 · 시놉시스" name="synopsis" />
+            <TextArea defaultValue={field('synopsis')} label="자세한 소개" name="synopsis" />
           </FormGroup>
           <FormGroup bare title="대표 이미지">
             {/* 배경 CSS 자유입력을 운영자 폼에서 뺐다 (#183). 아트워크가 없는 레거시
@@ -179,9 +181,10 @@ export function IpSection({
               autoUpload
               currentPath={artwork.currentPath}
               currentUrl={artwork.currentUrl}
-              helpText="IP 키아트는 가로형 이미지를 사용해주세요."
+              helpText="키아트는 IP를 대표하는 가로형 그림입니다. 온라인 팝업·홈·IP 카드에 쓰이니 가로형 이미지를 올려주세요."
               kind="ip"
               label="키아트 이미지"
+              showPath={Boolean(artwork.currentPath)}
             />
           </FormGroup>
         </div>

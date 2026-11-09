@@ -9,6 +9,7 @@ import { AdminNotice, AdminPageHeader } from '../console/AdminKit';
 import { AdminSelect } from '../console/AdminSelect';
 import { Button } from '../kit/ui/button';
 import { Input } from '../kit/ui/input';
+import { GoodsFlowSteps } from './GoodsFlowSteps';
 
 const TOOLBAR = 'flex flex-wrap items-end gap-2';
 const FIELD = 'flex min-w-0 flex-col gap-2 text-sm font-medium';
@@ -50,7 +51,7 @@ export function GoodsAttributeSchemaScreen({ categories }: { categories: AdminCa
     {/* 조회 전에는 고르고 누르는 일만 보인다. 정의를 바꿀 때 조심할 점은 불러온 뒤에 말한다. 칸을 안 골라도 버튼은 눌리고 이유를 알려 준다. */}
     <div className="flex flex-col gap-3 rounded-xl border bg-card p-4"><label className="text-sm font-medium" htmlFor="attribute-category">카테고리 (맨 아래 단계)</label><div className="flex flex-wrap items-start gap-2"><AdminSelect id="attribute-category" value={category} disabled={busy || dirty} onChange={event => { setCategory(event.target.value); setBase(null); setLatest(null); setFields([]); setError(''); }} wrapperClassName="w-full sm:w-80"><option value="">카테고리 선택</option>{leaves.map(row => <option key={row.id} value={row.id}>{categoryPath(categories,row.id).join(' > ')}</option>)}</AdminSelect><Button variant={base ? 'soft' : 'default'} type="button" disabled={busy} onClick={() => load()}>상품속성 조회</Button>{dirty ? <Button variant="ghost" type="button" disabled={busy} onClick={() => { setFields(base?.fields ?? []); setDirty(false); operation.current = null; setError(''); }}>내 변경 취소</Button> : null}</div>
       {base ? <AdminNotice tone="warning" title="저장하면 이렇게 적용됩니다"><ul className="flex list-disc flex-col gap-0.5 pl-4"><li>필수 항목을 추가해도 이미 공개한 상품은 숨겨지지 않고, 상품을 수정해 저장할 때 입력을 확인합니다.</li><li>항목을 지우거나 유형·단위를 바꾸면 맞지 않는 값은 공개 표에서 빠지고 상품 편집에만 남습니다.</li></ul></AdminNotice>
-        : <ol className="grid list-none gap-2 p-0 sm:grid-cols-3">{['카테고리를 고릅니다', '상품속성 조회를 누릅니다', '입력 항목을 추가·수정하고 저장합니다'].map((step, index) => <li className="flex items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2.5 text-sm" key={step}><span aria-hidden="true" className="grid size-5 shrink-0 place-items-center rounded-full bg-secondary text-xs font-semibold text-secondary-foreground tabular-nums">{index + 1}</span>{step}</li>)}</ol>}
+        : <GoodsFlowSteps current={category ? 1 : 0} steps={['카테고리 고르기', '상품속성 조회', '입력 항목 추가·수정 후 저장']} />}
     </div>
     {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}{message ? <p className="text-sm text-success" role="status">{message}</p> : null}
     {base ? <><div className={TOOLBAR}><strong className="text-sm font-medium tabular-nums">저장 버전 {base.revision} · {fields.length}/30개</strong><Button size="sm" variant="outline" type="button" disabled={busy || fields.length >= 30} onClick={() => edit([...fields,{id:crypto.randomUUID(),name:'',kind:'text',required:false,unit:'',options:[]}])}><Plus aria-hidden="true" />항목 추가</Button><Button size="sm" variant="outline" type="button" disabled={busy} onClick={() => load(true)}>최신 정의 비교</Button></div>

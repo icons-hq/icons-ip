@@ -88,13 +88,14 @@ export function CardSection({
             />
           )}
           headerAction={unboundCount ? (
-            /* 줄마다 노란 표시를 반복하지 않고 처리할 건수 하나로 모은다. 누르면 그 카드만 본다. */
+            /* 처리할 건수. 누르면 그 카드만 본다(어느 줄인지는 줄의 같은 배지가 말한다). */
             <button aria-pressed={showUnboundOnly} className="rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/50 aria-pressed:ring-1 aria-pressed:ring-warning" onClick={() => setUnboundOnly(!showUnboundOnly)} title="누르면 카드풀을 지정하지 않은 카드만 봅니다." type="button">
               <AdminStatusBadge tone="warning">풀 미지정 {unboundCount}장</AdminStatusBadge>
             </button>
           ) : undefined}
           items={visibleRecords}
-          labelFor={(card) => <RecordStatusLabel detail={`${card.rarity} · ${poolName(card.poolId)}`} name={`${card.id} · ${card.name}`} singleLine status={card.archivedAt ? '보관' : null} tone={statusTone('publication', 'archived')} title={formatAdminCatalogRecordLabel(`${card.id} · ${card.name}`, card.archivedAt)} />}
+          /* 위 건수와 같은 말·같은 색의 배지를 줄에도 달아 어느 카드인지 훑어 찾는다. 카드풀이 지정된 카드는 표시 없이 조용하다. */
+          labelFor={(card) => <RecordStatusLabel detail={isUnbound(card) ? card.rarity : `${card.rarity} · ${poolName(card.poolId)}`} name={`${card.id} · ${card.name}`} singleLine status={card.archivedAt ? '보관' : isUnbound(card) ? '풀 미지정' : null} tone={card.archivedAt ? statusTone('publication', 'archived') : 'warning'} title={formatAdminCatalogRecordLabel(`${card.id} · ${card.name}`, card.archivedAt)} />}
           onSelect={onSelect}
           searchTextFor={(card) => `${card.id} ${card.name}`}
           thumbnailKind="card"
@@ -166,6 +167,7 @@ export function CardSection({
             currentUrl={artwork.currentUrl}
             kind="card"
             label="이미지 파일"
+            showPath={Boolean(artwork.currentPath)}
           />
         </FormGroup>
         <FormShell pending={pending} state={state} />
