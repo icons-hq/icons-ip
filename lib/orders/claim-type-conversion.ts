@@ -37,17 +37,23 @@ export function parseClaimTypeReceipt(v: unknown): ClaimTypeReceipt | null {
   if (!history || !object(v) || !isUuid(v.orderId) || !integer(v.revision) || !isOrderClaimStage(v.stage) || typeof v.agreement !== 'string' || typeof v.accountSupplied !== 'boolean') return null;
   return { ...history[0], orderId: v.orderId, revision: v.revision, stage: v.stage, agreement: v.agreement, accountSupplied: v.accountSupplied };
 }
+/** 고객 합의 근거(2~500자, 제어문자 없음). 단건 전환과 목록 일괄 전환이 같은 규칙을 쓴다. */
+export function normalizeClaimTypeAgreement(v: unknown): string | null {
+  if (typeof v !== 'string' || controls.test(v)) return null;
+  const agreement = v.trim();
+  return agreement.length >= 2 && agreement.length <= 500 ? agreement : null;
+}
 export function normalizeClaimTypeRequest(v: unknown): ClaimTypeRequest | null {
+  const agreement = object(v) ? normalizeClaimTypeAgreement(v.agreement) : null;
   if (!object(v) || Object.keys(v).some(key => !['id','claimId','revision','toType','agreement','confirmed','refundAccount'].includes(key))
-    || !isUuid(v.id) || !isUuid(v.claimId) || !integer(v.revision) || !type(v.toType) || v.confirmed !== true
-    || typeof v.agreement !== 'string' || v.agreement.trim().length < 2 || v.agreement.trim().length > 500 || controls.test(v.agreement)) return null;
+    || !isUuid(v.id) || !isUuid(v.claimId) || !integer(v.revision) || !type(v.toType) || v.confirmed !== true || agreement === null) return null;
   if (v.refundAccount !== null && (!object(v.refundAccount) || Object.keys(v.refundAccount).some(key => !['bankName','accountNumber','accountHolder'].includes(key))
     || !['bankName','accountNumber','accountHolder'].every(key => typeof v.refundAccount === 'object' && v.refundAccount !== null && typeof (v.refundAccount as Record<string, unknown>)[key] === 'string'))) return null;
   const account = normalizeRefundAccount(v.refundAccount === null ? {} : {
     bankName: String(v.refundAccount.bankName), accountNumber: String(v.refundAccount.accountNumber), accountHolder: String(v.refundAccount.accountHolder),
   });
   if (!account.ok || account.value && (v.toType !== 'return' || Object.values(account.value).some(value => controls.test(value)))) return null;
-  return { id: v.id.toLowerCase(), claimId: v.claimId.toLowerCase(), revision: v.revision, toType: v.toType, agreement: v.agreement.trim(), confirmed: true, refundAccount: account.value };
+  return { id: v.id.toLowerCase(), claimId: v.claimId.toLowerCase(), revision: v.revision, toType: v.toType, agreement, confirmed: true, refundAccount: account.value };
 }
 export function claimTypeReceiptMatches(receipt: ClaimTypeReceipt, request: ClaimTypeRequest) {
   return receipt.id === request.id && receipt.claimId === request.claimId && receipt.revision === request.revision && receipt.toType === request.toType
@@ -64,4 +70,12 @@ export function claimTypeError(code?: string, message?: string): string {
     claim_conversion_finance_started: '결제 취소나 환급 처리가 시작되어 유형을 바꿀 수 없습니다.', claim_conversion_request_conflict: '처음 보낸 내용과 다른 요청입니다. 기존 결과를 확인해주세요.',
   };
   return known[message ?? ''] ?? '결과를 확인하지 못했습니다. 같은 요청의 저장 결과를 확인해주세요.';
+}
+/** DB가 전환을 거절했다고 확정해 준 오류 코드. 그 밖의 오류는 저장됐는지 알 수 없다. */
+export const CLAIM_TYPE_DEFINITE_ERROR_CODES: readonly string[] = ['PT409', '42501', '22023', '23514', 'P0002'];
+/** 목록 일괄 전환 결과표의 사유. 입력을 들고 있는 상세 전환 창과 달리 다음 행동을 목록 기준으로 적는다. */
+export function claimTypeBulkError(code?: string, message?: string): string {
+  if (code === 'PT409') return '다른 처리가 먼저 진행됐습니다. 최신 상태를 확인한 뒤 다시 실행해주세요.';
+  if (message === 'claim_conversion_account_required') return `${claimTypeError(undefined, message)} 요청번호를 눌러 상세에서 입력해주세요.`;
+  return CLAIM_TYPE_DEFINITE_ERROR_CODES.includes(code ?? '') ? claimTypeError(code, message) : '저장 결과를 확인하지 못했습니다. 요청번호를 눌러 현재 유형을 확인해주세요.';
 }
