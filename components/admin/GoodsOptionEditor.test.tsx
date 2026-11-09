@@ -89,14 +89,15 @@ describe('상품 옵션 ERP 식별자 입력', () => {
     expect(html).toContain('옵션목록 (총 2개)');
     const table = html.slice(html.indexOf('aria-label="옵션목록 편집표"'));
     const headers = [...table.slice(0, table.indexOf('</thead>')).matchAll(/<th[^>]*scope="col"[^>]*>(.*?)<\/th>/g)].map((match) => match[1].replace(/<[^>]+>/g, ''));
-    expect(headers).toEqual(['선택', '옵션명', '옵션가', '재고수량', '사용여부', '관리코드', '순서', '삭제']);
+    /* 관리코드는 옵션 상세 정보로 옮겼다(표 폭을 줄이는 복잡도 표 137행). */
+    expect(headers).toEqual(['선택', '옵션명', '옵션가', '재고수량', '사용여부', '순서', '삭제']);
     expect(html).toContain('판매 10,000원');
     expect(html).toContain('판매 11,000원');
     expect(html).toContain('옵션 재고수량 합계');
     expect(html).toContain('9개');
     expect(html).toContain('사용 중 옵션 4개');
     for (const label of ['선택목록 일괄수정', '선택삭제']) expect(html).toMatch(new RegExp(`<button type="button"[^>]*disabled=""[^>]*>${label}</button>`));
-    expect(html.indexOf('옵션목록 편집표')).toBeLessThan(html.indexOf('옵션 상세 정보 · ERP 품명·ERP 코드·바코드·안전재고'));
+    expect(html.indexOf('옵션목록 편집표')).toBeLessThan(html.indexOf('옵션 상세 정보 · 관리코드·ERP 품명·ERP 코드·바코드·안전재고'));
     expect(html).toContain('GOOD-01');
     expect(html).toContain(savedB);
     for (const legacy of ['기준 판매가', '추가금액', '옵션 판매가', '할당 재고', '조합 생성']) expect(html).not.toContain(legacy);

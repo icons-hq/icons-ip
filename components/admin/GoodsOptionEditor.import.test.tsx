@@ -15,7 +15,7 @@ function nodes(node: ReactNode): Element[] { return Children.toArray(node).flatM
 function text(node: ReactNode): string { return Children.toArray(node).map(value => isValidElement<Record<string, unknown>>(value) ? text(value.props.children as ReactNode) : String(value)).join(''); }
 let rows: GoodsOptionRow[];
 const applied = vi.fn();
-function render(blockedReason: string | null = null) { hooks.index = 0; return GoodsOptionEditor({ rows, baseline: [], basePrice: 5000, onRowsChange: (next: SetStateAction<GoodsOptionRow[]>) => { rows = typeof next === 'function' ? next(rows) : next; },
+function render(blockedReason: string | null = null, axisValues: Record<string, string> = { optionUsage: 'on' }) { hooks.index = 0; return GoodsOptionEditor({ rows, baseline: [], basePrice: 5000, axisValues, onRowsChange: (next: SetStateAction<GoodsOptionRow[]>) => { rows = typeof next === 'function' ? next(rows) : next; },
   optionImport: { accountId: 'operator', target: null, databaseVersion: 'new', pending: false, blockedReason, categories: [], onApplied: applied } }); }
 beforeEach(() => { vi.clearAllMocks(); hooks.states = []; hooks.index = 0; rows = [{ name: '기본 옵션', attributes: {}, code: '', extraPrice: 0, stockQty: 0 }]; });
 it('불러온 행·세 축·옵션 사용 상태를 같이 바꾸고 전체 초안 보관을 알린다', () => {
@@ -32,6 +32,10 @@ it('불러온 행·세 축·옵션 사용 상태를 같이 바꾸고 전체 초�
   const tree = render(), inputs = nodes(tree).find(node => Array.isArray(node.props.axes))!;
   expect(inputs.props.axes).toEqual([{ name: '색상', values: '빨강' }, { name: '크기', values: 'M' }, { name: '포장', values: '기본' }]);
   expect(nodes(tree).find(node => node.type === 'input' && node.props.name === 'optionUsage' && node.props.value === 'on')!.props.checked).toBe(true);
+});
+/* 복잡도 표 7행: 옵션 없이 파는 상품에는 필요 없는 버튼이라 옵션을 설정함으로 고른 뒤에만 보인다. */
+it('옵션 설정안함이면 다른 상품 옵션 불러오기를 보이지 않는다', () => {
+  expect(nodes(render(null, { optionUsage: 'off' })).find(node => node.type === 'button' && text(node) === '다른 상품 옵션 불러오기')).toBeUndefined();
 });
 it('공개·보관 대상은 불러오기 진입부터 잠근다', () => {
   const tree = render('상품을 비공개 초안으로 전환해주세요.');

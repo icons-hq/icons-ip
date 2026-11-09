@@ -112,9 +112,10 @@ it('편집기 안 선택 입력 영역도 키 밖 펼침 상태를 따르고 사
   expect(renderToStaticMarkup(preview)).toMatch(/^<details id="good-preview" class="admin-good-preview" open="" data-known-open="true">/);
 });
 
-it('등록 화면에서 펼쳐 둔 KC·예약판매는 저장 뒤 같은 자리 패널도 펼친 채로 기억한다', () => {
+it('등록 화면에서 펼쳐 둔 KC·입력이 있는 예약판매만 저장 뒤 같은 자리 패널도 펼친 채로 기억한다', () => {
   GoodOperationSection({ id: 'kc', title: 'KC', description: 'KC', mode: 'inline', defaultOpen: true });
-  GoodOperationSection({ id: 'prices', title: '기간 할인', description: '기간 할인', mode: 'placeholder' });
+  GoodOperationSection({ id: 'preorders', title: '예약판매', description: '조건 없음', mode: 'inline' });
+  GoodOperationSection({ id: 'prices', title: '기간 할인', description: '기간 할인' });
   for (const job of hooks.jobs.splice(0)) job();
   expect(setOpen.mock.calls).toEqual([['good-operation-kc', true]]);
 });

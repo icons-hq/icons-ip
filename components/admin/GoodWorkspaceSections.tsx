@@ -24,10 +24,10 @@ export function GoodWorkspaceKcCard({ serverError, disabled = false }: { serverE
   const workspace = useGoodWorkspaceSections();
   if (!workspace) return null;
   const { sections, setSections, optionRows, sectionErrors } = workspace;
-  const { models, attested } = sections.kc;
+  const { models, attested, productNotApplicable = false } = sections.kc;
   const variants = goodWorkspaceKcVariants(optionRows);
   /* 해당 없음을 체크하면 거기서 끝나 보이게 모델 칸을 그리지 않는다. 연결 옵션은 제출할 때 현재 옵션으로 다시 맞춘다. */
-  const notApplicable = attested && goodsKcSoleNotApplicable(models);
+  const notApplicable = productNotApplicable && attested && goodsKcSoleNotApplicable(models);
   const problems = !notApplicable && models.length ? goodsKcReviewProblems(models, variants) : [];
   const change = (next: GoodsKcModelInput[], nextAttested = false) => setSections((current) => ({ ...current, kc: { models: next, attested: nextAttested } }));
   const status = notApplicable ? 'KC 해당 없음 · 저장하면 검토 완료로 함께 저장됩니다.'
@@ -37,7 +37,8 @@ export function GoodWorkspaceKcCard({ serverError, disabled = false }: { serverE
   return <div className="flex min-w-0 flex-col gap-4 text-sm" data-good-workspace-kc="">
     <p className="font-medium" role="status">{status}</p>
     <ProductNotApplicable checkOnly checked={notApplicable} variants={variants} models={models} disabled={disabled}
-      onNoteChange={(publicNote) => change([{ ...models[0], publicNote }], attested)} onComplete={(next) => change(next, true)} onClear={() => change([])} />
+      onNoteChange={(publicNote) => setSections((current) => ({ ...current, kc: { ...current.kc, models: [{ ...current.kc.models[0], publicNote }] } }))}
+      onComplete={(next) => setSections((current) => ({ ...current, kc: { models: next, attested: true, productNotApplicable: true } }))} onClear={() => change([])} />
     {notApplicable ? null : <GoodWorkspaceDetails stateId="good-kc-models" className="min-w-0 rounded-lg border" data-good-kc-models="" forceOpen={models.length > 0}>
       <summary className="cursor-pointer rounded-lg px-3 py-2.5 text-sm font-medium outline-none select-none marker:text-muted-foreground focus-visible:ring-3 focus-visible:ring-ring/50">KC 대상 상품이면 모델·옵션별로 입력</summary>
       <div className="flex min-w-0 flex-col gap-4 border-t p-3">

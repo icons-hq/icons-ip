@@ -156,12 +156,14 @@ describe('m27 가이드 — 상품 등록·목록·카테고리·랜덤 판매(R
   const text = guide('goods-sales');
   const section = (id: string) => ADMIN_GUIDE_TOPICS['goods-sales'].sections.find((item) => item.id === id);
 
-  it('등록 화면 한 번에 저장과 자리표시 운영 섹션을 안내한다(R13·D6②)', () => {
+  it('등록 화면 한 번에 저장과 저장 뒤 이어서 설정 목록을 안내한다(R13·D6②)', () => {
     const editor = repoFile('components/admin/GoodEditor.tsx');
-    expect(editor).toContain('기본 상품·이미지·옵션·고시·배송·구매 제한·판매 조건과 아래 KC·예약판매 입력을 한 번에 저장합니다.');
-    expect(repoFile('components/admin/sections/GoodSection.tsx')).toContain("Placeholder id=\"prices\"");
+    expect(editor).toContain('기본 상품·이미지·옵션·고시·배송·구매 제한·판매 조건과 KC·예약판매 입력을 한 번에 저장합니다.');
+    /* 저장 전 운영 항목은 비활성 카드 18장이 아니라 이름 목록 한 장이다(자리표시 카드 제거). */
+    expect(repoFile('components/admin/sections/GoodSection.tsx')).toContain('저장하면 이어서 설정할 수 있어요');
     expect(text).toContain('KC·예약판매 입력을 한 번에 저장');
-    expect(text).toContain('자리표시');
+    expect(text).toContain('저장하면 이어서 설정할 수 있어요');
+    expect(text).not.toContain('자리표시');
     expect(text).not.toContain('초안 저장 → KC 검토 → 공개');
     expect(text).not.toContain('고정 저장 영역은 기본 상품·이미지·옵션·고시·배송·판매 조건만 저장합니다.');
   });
@@ -176,7 +178,7 @@ describe('m27 가이드 — 상품 등록·목록·카테고리·랜덤 판매(R
     for (const label of ['title="구매 제한"', 'legend="최소/최대 구매수량"', 'legend="1인 최대 구매수량"', '<legend>옵션별 구매 제한 (선택)</legend>', '최대 구매수량(주문당)']) {
       expect(fields).toContain(label);
     }
-    for (const label of ['구매 제한 카드', '최소/최대 구매수량', '1인 최대 구매수량', '옵션별 구매 제한', '최대 구매수량(주문당)']) {
+    for (const label of ['구매 제한 줄', '최소/최대 구매수량', '1인 최대 구매수량', '옵션별 구매 제한', '최대 구매수량(주문당)']) {
       expect(text).toContain(label);
     }
     expect(text).not.toContain('판매 조건의 주문당 수량 제한');

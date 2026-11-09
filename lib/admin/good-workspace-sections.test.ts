@@ -54,6 +54,15 @@ describe('등록 화면 원자 저장 섹션', () => {
     expect(missing).toMatchObject({ ok: false, field: 'workspaceKc', error: expect.stringContaining('파랑') });
   });
 
+  /* 해당 없음은 체크 한 번으로 끝난다. 체크 뒤 옵션을 바꿔도 사람이 다시 체크할 필요 없이 제출 때 현재 옵션에 연결한다. */
+  it('상품 전체 KC 해당 없음 체크는 제출 시점의 사용 옵션 전체로 다시 연결한다', () => {
+    const notApplicable = { ...emptyGoodsKcModel(), family: 'other' as const, scheme: 'not_applicable' as const, variantIds: [SAVED], publicNote: '고객 안내' };
+    const result = prepareGoodWorkspaceSections({ kc: { models: [notApplicable], attested: true, productNotApplicable: true }, preorders: [] }, rows, false);
+    expect(result).toMatchObject({ ok: true, value: { kc: { status: 'reviewed', attested: true, models: [{ scheme: 'not_applicable', publicNote: '고객 안내' }] } } });
+    if (!result.ok) throw new Error('prepared');
+    expect(result.value.kc?.models[0].variantRefs).toHaveLength(rows.filter((row) => row.isActive !== false).length);
+  });
+
   it('예약 활성화는 관리자만, 한 옵션에 하나, 활성화 조건을 모두 갖춰야 한다', () => {
     const active = { ...preorder, state: 'active' as const };
     expect(prepareGoodWorkspaceSections({ ...EMPTY_GOOD_WORKSPACE_SECTIONS, preorders: [active] }, rows, false))
