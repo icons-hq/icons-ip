@@ -71,7 +71,8 @@ export function ShoppingStoryBodyEditor({ accountId, value, onChange, disabled }
     } };
   }
   return <div className="flex min-w-0 flex-col gap-3">
-    <div className="flex flex-col divide-y rounded-lg border bg-muted/40">
+    {/* 감춘 이미지 패널이 마지막 자식이라 divide-y를 쓰면 도구 줄 아래에 선이 겹친다 — 뒤따르는 줄의 위쪽에만 선을 긋는다. */}
+    <div className="flex flex-col rounded-lg border bg-muted/40 [&>*+*]:border-t">
       <div className={TOOLBAR} role="group" aria-label="본문 서식">
         {([['h2', '제목'], ['p', '문단']] as const).map(([tag, label]) => <Button disabled={blocked} key={tag} type="button" onMouseDown={event => event.preventDefault()} onClick={() => format({ tag })} size="sm" variant="ghost">{label}</Button>)}
         <span aria-hidden="true" className={TOOL_DIVIDER} />
