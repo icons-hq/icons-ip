@@ -1,4 +1,5 @@
 'use client';
+import { AdminNotice } from '@/components/admin/console/AdminKit';
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { startTransition, useActionState, useState, type FormEvent } from 'react';
 import { findPurchaseRestrictionCustomerAction, registerPurchaseRestrictionAction, releasePurchaseRestrictionAction,
@@ -14,7 +15,7 @@ import { Textarea } from '@/components/admin/kit/ui/textarea';
 const FIELD = 'flex w-full min-w-0 flex-col gap-1.5 [&>span]:font-medium';
 
 function Result({ state }: { state: RestrictionActionState }) {
-  return <>{state.error ? <p role="alert" className="text-sm text-destructive">{state.error}</p> : null}{state.message ? <p className="text-sm text-[var(--wc-success)]" role="status">{state.message}</p> : null}</>;
+  return <>{state.error ? <p role="alert" className="text-sm text-destructive">{state.error}</p> : null}{state.message ? <p className="text-sm text-success" role="status">{state.message}</p> : null}</>;
 }
 function submitPreservingFields(event: FormEvent<HTMLFormElement>, action: (form: FormData) => void) {
   event.preventDefault();
@@ -44,12 +45,12 @@ export function PurchaseRestrictionRegister() {
   return <details className="group rounded-xl border bg-card px-4 py-3 text-card-foreground"><summary className="cursor-pointer font-medium">판매방해 고객 등록</summary>
     <form method="post" onSubmit={event => submitPreservingFields(event, action)} className="mt-4 flex flex-wrap items-center gap-2.5">
       <Label htmlFor="restriction-customer-query">고객 ID 또는 이메일</Label><Input className="w-72 max-w-full" id="restriction-customer-query" name="customerQuery" maxLength={254} required value={query} onChange={event => setQuery(event.target.value)} placeholder="고객 ID 또는 정확한 이메일 주소" />
-      <Button type="submit" variant="outline" disabled={pending}>{pending ? '조회 중…' : '고객 조회'}</Button>
+      <Button type="submit" variant="soft" disabled={pending}>{pending ? '조회 중…' : '고객 조회'}</Button>
     </form>
     {state.error ? <p role="alert" className="mt-2 text-sm text-destructive">{state.error}</p> : null}
     {state.customer ? <div className="mt-3.5 flex flex-col gap-2 border-t pt-3.5">
       <p><strong className="font-medium">{state.customer.nickname || '이름 없음'}</strong> · {state.customer.email || '이메일 없음'}</p><p className="text-xs text-muted-foreground tabular-nums">{state.customer.id}</p>
-      {!state.customer.eligible ? <p className="rounded-lg border bg-muted/40 px-3 py-2.5">일반 고객 계정만 구매제한을 등록할 수 있습니다.</p> : state.customer.activeRestrictionId ? <p className="rounded-lg border bg-muted/40 px-3 py-2.5">이미 구매제한 중인 고객입니다. 목록에서 기존 기록을 확인해주세요.</p>
+      {!state.customer.eligible ? <AdminNotice tone="warning">일반 고객 계정만 구매제한을 등록할 수 있습니다.</AdminNotice> : state.customer.activeRestrictionId ? <AdminNotice tone="warning">이미 구매제한 중인 고객입니다. 목록에서 기존 기록을 확인해주세요.</AdminNotice>
         : state.requestId ? <RegisterForm key={state.requestId} customer={state.customer} requestId={state.requestId} /> : null}
     </div> : null}
   </details>;

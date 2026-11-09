@@ -1,4 +1,6 @@
 'use client';
+import { AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { statusTone } from '@/lib/admin/status-tone';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ClaimContactSession, type ClaimContactIdentity, type ClaimContactScope } from '@/components/claim-contact/ClaimContactSession';
@@ -35,10 +37,10 @@ function Panel({ initial, identity, scope, canManage }: Props & { identity: Clai
   } catch { if (alive.current && scope.canApply(ticket)) { setUncertain(true); setMessage('저장 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.'); } }
   finally { busy.current = false; if (alive.current) setPending(false); }
  }
- if (!document) return <p className="rounded-lg border bg-muted/40 px-3 py-2.5 text-sm" role="status">주문제작 현황을 읽지 못했습니다. 화면을 새로고침해주세요.</p>;
+ if (!document) return <AdminNotice role="status" tone="danger">주문제작 현황을 읽지 못했습니다. 화면을 새로고침해주세요.</AdminNotice>;
  return <section className="flex min-w-0 flex-col items-start gap-3 rounded-xl border bg-card p-4 text-sm leading-relaxed text-card-foreground sm:p-5" aria-label="주문제작 처리"><h2 className="text-base font-medium text-foreground">주문제작 처리</h2><p className="text-muted-foreground">상품별 실제 제작 시작·완료를 기록합니다. 교환 제작은 전체 회수 확인 후 별도 이력으로 처리합니다. 제작 완료와 발송 완료는 각각 기록합니다.</p>
   <Button type="button" variant="outline" disabled={pending || uncertain} onClick={() => { void read(); }}>현재 제작 현황 다시 확인</Button>
-  <ul className="flex w-full flex-col gap-2.5">{document.jobs.map(job => <li className="flex flex-col gap-1 rounded-lg border p-3 wrap-anywhere" key={job.id}><strong className="font-medium">{job.goodName} · {job.quantity}개{job.claimId ? ' · 교환 제작' : ''}</strong><p>{PRODUCTION_STATE_LABELS[job.state]} · {productionLeadLabel(job.terms)} 내 발송 예정</p>
+  <ul className="flex w-full flex-col gap-2.5">{document.jobs.map(job => <li className="flex flex-col gap-1 rounded-lg border p-3 wrap-anywhere" key={job.id}><strong className="font-medium">{job.goodName} · {job.quantity}개{job.claimId ? ' · 교환 제작' : ''}</strong><p className="flex flex-wrap items-center gap-2"><AdminStatusBadge tone={statusTone('production', job.state)}>{PRODUCTION_STATE_LABELS[job.state]}</AdminStatusBadge> {productionLeadLabel(job.terms)} 내 발송 예정</p>
    <p className="text-muted-foreground">{job.basisAt ? `기준 시각 ${time(job.basisAt)}` : '결제 확인 대기'}{job.dueAt ? ` · 발송 예정 기한 ${time(job.dueAt)}` : ''}</p>
    {job.startedAt ? <p className="text-muted-foreground">제작 시작 {time(job.startedAt)}</p> : null}{job.completedAt ? <p className="text-muted-foreground">제작 완료 {time(job.completedAt)}</p> : null}
    {job.history.length ? <details className="mt-1"><summary className="cursor-pointer font-medium">제작 처리 이력 {job.history.length}건</summary><ul className="mt-2 flex list-disc flex-col gap-1 pl-5 text-muted-foreground">{job.history.map(event => <li key={event.id}>{event.kind === 'start' ? '시작' : '완료'} · {time(event.at)} · {event.evidence}</li>)}</ul></details> : null}

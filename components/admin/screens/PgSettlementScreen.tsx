@@ -93,7 +93,7 @@ export function PgSettlementScreen({ filters, report, connection, operationId, a
           <SalesSelect name="pageSize" label="목록 수" value={String(filters.pageSize)} options={[20, 50, 100].map(size => ({ value: String(size), label: `${size}개씩 보기` }))} />
         </SalesFilterField>
       </div>
-      <div className="flex flex-wrap justify-end gap-2 border-t pt-3"><Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={PG_SETTLEMENT_PATH}>초기화</Link><Button type="submit">검색</Button></div>
+      <div className="flex flex-wrap justify-end gap-2 border-t pt-3"><Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={PG_SETTLEMENT_PATH}>초기화</Link><Button type="submit" variant="soft">검색</Button></div>
     </form>
     {filters.rangeError ? <Alert variant="destructive"><AlertDescription className="text-destructive">{filters.rangeError}</AlertDescription></Alert>
       : !report ? <Alert variant="destructive"><AlertDescription className="text-destructive">정산 자료를 불러오지 못했습니다. 현재 권한과 연결 상태를 확인한 뒤 다시 조회해주세요.</AlertDescription></Alert>
@@ -126,7 +126,7 @@ export function PgSettlementScreen({ filters, report, connection, operationId, a
               rows={report.fees.map(row => ({ id: `${row.currency}:${row.kind}:${row.type}`, cells: [row.currency, PG_SETTLEMENT_KIND_LABELS[row.kind], PG_SETTLEMENT_FEE_LABELS[row.type] ?? `수수료 (${row.type})`, row.count.toLocaleString('ko-KR'), AMOUNT(row.fee)] }))} /> : null}
           </> : null}
           {report.jobs.length ? <details className="rounded-xl border bg-card px-4 py-3 text-card-foreground"><summary className="cursor-pointer font-medium">수집 이력 ({report.jobs.length}건)</summary><ul className="mt-3 flex flex-col divide-y border-t">{report.jobs.map(item => <li className="flex flex-wrap justify-between gap-x-5 gap-y-2 py-3" key={item.id}>
-            <span className="tabular-nums">{kstDateTimeText(item.startedAt)} · {item.recordCount.toLocaleString('ko-KR')}건 · {item.state === 'complete' ? '완료' : item.state === 'failed' ? '중단' : '진행 중'}</span>
+            <span className="flex flex-wrap items-center gap-2 tabular-nums">{kstDateTimeText(item.startedAt)} · {item.recordCount.toLocaleString('ko-KR')}건 <AdminStatusBadge tone={item.state === 'complete' ? 'success' : item.state === 'failed' ? 'danger' : 'info'}>{item.state === 'complete' ? '완료' : item.state === 'failed' ? '중단' : '진행 중'}</AdminStatusBadge></span>
             {item.state === 'complete' ? <Link className="underline underline-offset-4" href={pgSettlementHref(filters, { importId: item.id, page: 1 })}>이 자료 조회</Link> : null}
           </li>)}</ul></details> : null}
         </>}

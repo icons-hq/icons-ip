@@ -18,7 +18,7 @@ export function PurchaseRestrictionReleaseResult({ receipt }: { receipt: Purchas
     <p className="text-muted-foreground">처리 시각 {formatOrderDateTime(receipt.completedAt)} · 사유: {receipt.reason}</p>
     <ul className="flex flex-col gap-1 wrap-anywhere">{receipt.rows.map(row => <li key={row.id}>
       <span className="tabular-nums">{row.id}</span> · {row.outcome === 'released' ? '해제 완료' : row.outcome === 'already_released' ? '이미 해제된 기록' : '해당 기록 없음'}
-      {row.customerRestricted ? <strong className="font-medium text-[var(--wc-warning)]"> · 현재 다른 구매제한 기록이 있습니다.</strong> : null}
+      {row.customerRestricted ? <strong className="font-medium text-warning"> · 현재 다른 구매제한 기록이 있습니다.</strong> : null}
       {row.userId ? <> · <Link className="underline underline-offset-4" href={`/admin/customers/${row.userId}`}>고객 확인</Link></> : null}
     </li>)}</ul>
   </section>;

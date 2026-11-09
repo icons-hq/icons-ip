@@ -1,7 +1,8 @@
 import type { AdminRecentOrder } from '@/lib/admin/insights.server';
 import { ADMIN_ORDER_STATUS_LABELS, type AdminOrderStatus } from '@/lib/admin/orders';
 import type { TicketOrderStatus } from '@/lib/ticketing';
-import { Badge } from '@/components/admin/kit/ui/badge';
+import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { statusTone } from '@/lib/admin/status-tone';
 import { Card, CardContent, CardDescription, CardHeader } from '@/components/admin/kit/ui/card';
 import { formatKrwExact } from './format';
 
@@ -48,9 +49,9 @@ export function RecentOrders({ orders }: { orders: AdminRecentOrder[] }) {
               </div>
               <div className="flex shrink-0 flex-col items-end gap-1">
                 <span className="font-medium tabular-nums">{formatKrwExact(order.total)}</span>
-                <Badge data-status={status} variant={order.status === 'canceled' ? 'outline' : 'secondary'}>
+                <AdminStatusBadge data-status={status} tone={statusTone(order.kind === 'ticket' ? 'ticketOrder' : 'order', order.status)}>
                   {labels[order.status] ?? order.status}
-                </Badge>
+                </AdminStatusBadge>
               </div>
             </div>
           );

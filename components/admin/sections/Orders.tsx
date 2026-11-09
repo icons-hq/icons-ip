@@ -44,10 +44,10 @@ import {
   paymentStatusLabel,
   refundStatusLabel,
 } from '@/lib/orders';
-import { adminClaimReasonText } from '@/lib/admin/claims';
+import { adminClaimReasonText, adminClaimStageLabel } from '@/lib/admin/claims';
+import { statusTone } from '@/lib/admin/status-tone';
 import {
   isOpenOrderClaimStage,
-  ORDER_CLAIM_STAGE_LABELS,
   ORDER_CLAIM_TYPE_LABELS,
   ORDER_CLAIM_TYPE_SLUGS,
 } from '@/lib/orders/claims';
@@ -70,7 +70,7 @@ import { SalesFilterField, SalesFilterPanel, SalesGuide, SalesResultsHeader, Sal
 import { SellerClaimIntakeButton } from '@/components/admin/screens/SellerClaimIntakeForm';
 import { OrderViewTabs } from '@/components/admin/sales/OrderViewTabs';
 import { OrderStatusBadge } from '@/components/admin/sales/OrderStatusBadge';
-import { Badge } from '@/components/admin/kit/ui/badge';
+import { AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { Label } from '@/components/admin/kit/ui/label';
@@ -82,7 +82,7 @@ import { ChevronDown } from 'lucide-react';
  * 주문 통합검색 — 템플릿 룩(ADR-0028). 조회 조건·처리 동선·열 구성·확인 문구는 그대로이고, 화면을 kit 부품과
  * 유틸리티로 그린다. 옛 클래스(admin-order-*·admin-sales-*·btn·card)를 쓰지 않으며, 테스트가 찾는 자리는 data-* 표시다.
  */
-const FEEDBACK_CLASS = 'text-sm empty:hidden [&_[role=alert]]:text-destructive [&_[role=status]]:text-[var(--wc-success)]';
+const FEEDBACK_CLASS = 'text-sm empty:hidden [&_[role=alert]]:text-destructive [&_[role=status]]:text-success';
 const FIELD_ERROR_CLASS = 'text-xs text-destructive';
 const LINK_BUTTON = buttonVariants({ size: 'sm', variant: 'outline' });
 const FACTS_CLASS = 'grid grid-cols-1 gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-2';
@@ -131,14 +131,14 @@ function CancellationReasonBadge({
   request: Pick<AdminOrderCancellationRequestRecord, 'reasonType' | 'staffReasonCode'>;
 }) {
   return (
-    <Badge
-      className={`h-auto min-h-5 text-left whitespace-normal${request.reasonType === 'staff' ? ' border-transparent bg-[color-mix(in_oklab,var(--wc-warning)_12%,transparent)] text-[var(--wc-warning)]' : ''}`}
+    <AdminStatusBadge
+      className="h-auto min-h-5 text-left whitespace-normal"
       data-order-reason={request.reasonType}
       data-order-row-reason={row ? '' : undefined}
-      variant={request.reasonType === 'defect' ? 'destructive' : request.reasonType === 'staff' ? 'secondary' : 'outline'}
+      tone={request.reasonType === 'defect' ? 'danger' : request.reasonType === 'staff' ? 'warning' : 'neutral'}
     >
       {adminClaimReasonText(request.reasonType, request.staffReasonCode)}
-    </Badge>
+    </AdminStatusBadge>
   );
 }
 
@@ -335,9 +335,10 @@ function OrderCancellationResult({ orderId, state }: { orderId: string; state: O
   return (
     <div aria-live="polite">
       {state.orderId === orderId && hasCancellationResult(state) ? (
-        <section aria-label="취소 처리 결과" className="flex flex-col gap-1 rounded-lg border bg-muted/40 px-3 py-2.5">
-          <p className="font-medium">취소 처리 결과</p>
-          <CancellationResultBody state={state} />
+        <section aria-label="취소 처리 결과">
+          <AdminNotice title="취소 처리 결과" tone={state.errors?.form ? 'danger' : 'success'}>
+            <CancellationResultBody state={state} />
+          </AdminNotice>
         </section>
       ) : null}
     </div>
@@ -596,7 +597,7 @@ function RejectCancellationForm({
       {errors?.reason ? (
         <span className={FIELD_ERROR_CLASS} id={`admin-order-reject-error-${requestId}`} role="alert">{errors.reason}</span>
       ) : null}
-      <Button disabled={pending} size="sm" type="submit" variant="outline">
+      <Button disabled={pending} size="sm" type="submit" variant="destructive">
         {running ? '거절 중' : '요청 거절'}
       </Button>
     </form>
@@ -801,6 +802,7 @@ function ManualKorpayCancellationForm({
         disabled={pending}
         size="sm"
         type="submit"
+        variant="destructive"
       >
         {running ? '반영 중' : 'Korpay 전액 취소 반영'}
       </Button>
@@ -921,7 +923,7 @@ function OrderDetail({
       {order.address && (
         <section className={DETAIL_SECTION} aria-labelledby="admin-order-address-title">
           <h3 className={DETAIL_HEADING} id="admin-order-address-title">배송지</h3>
-          {order.addressNeedsReview && <p className="rounded-lg border bg-muted/40 px-3 py-2.5" role="status">주문 당시 주소 형식 확인이 필요합니다. 배송 처리 전 원본 기록과 수령 주소를 확인해주세요.</p>}
+          {order.addressNeedsReview && <AdminNotice role="status" tone="warning">주문 당시 주소 형식 확인이 필요합니다. 배송 처리 전 원본 기록과 수령 주소를 확인해주세요.</AdminNotice>}
           <address className="flex flex-col gap-0.5 not-italic wrap-anywhere">
             <strong className="font-medium">{order.address.recipientName}</strong>
             <span className="text-muted-foreground">{order.address.phone}</span>
@@ -937,14 +939,14 @@ function OrderDetail({
         <div className="flex flex-col gap-2">
           {order.payments.map((payment) => (
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border px-3 py-2.5" key={payment.id}>
-              <span>결제 · {paymentStatusLabel(payment.status)}</span>
+              <span className="flex items-center gap-1.5">결제 <AdminStatusBadge tone={statusTone('payment', payment.status)}>{paymentStatusLabel(payment.status)}</AdminStatusBadge></span>
               <span className="text-xs text-muted-foreground">{formatOrderDateTime(payment.createdAt)}</span>
               <strong className="ml-auto font-semibold tabular-nums">{formatKrwExact(payment.amount)}</strong>
             </div>
           ))}
           {order.refunds.map((refund) => (
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border px-3 py-2.5" key={refund.id}>
-              <span>환불 · {refundStatusLabel(refund.status)}</span>
+              <span className="flex items-center gap-1.5">환불 <AdminStatusBadge tone={statusTone('refund', refund.status)}>{refundStatusLabel(refund.status)}</AdminStatusBadge></span>
               <span className="text-xs text-muted-foreground">{formatOrderDateTime(refund.createdAt)}</span>
               <strong className="ml-auto font-semibold tabular-nums">{formatKrwExact(refund.amount)}</strong>
             </div>
@@ -954,14 +956,14 @@ function OrderDetail({
       </section> : null}
 
       {canManage && cancellationRequest ? (
-        <section className="flex flex-col gap-2.5 rounded-lg border border-[color-mix(in_oklab,var(--wc-warning)_40%,transparent)] bg-muted/40 p-4" aria-labelledby="admin-order-cancellation-title">
+        <section className="flex flex-col gap-2.5 rounded-lg border border-warning-border bg-muted/40 p-4" aria-labelledby="admin-order-cancellation-title">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="flex flex-col gap-1">
               {/* 유형과 절차 단계를 그대로 쓴다. status 투영만 보이면 수거 중인
                   반품이 "청약철회 요청 · 요청 접수"로 표시된다(#252). */}
-              <span className="text-xs font-medium text-[var(--wc-warning)]">{ORDER_CLAIM_TYPE_LABELS[cancellationRequest.claimType]} 요청</span>
+              <span className="text-xs font-medium text-warning">{ORDER_CLAIM_TYPE_LABELS[cancellationRequest.claimType]} 요청</span>
               <h3 className="text-base font-medium text-foreground" id="admin-order-cancellation-title">
-                {ORDER_CLAIM_STAGE_LABELS[cancellationRequest.stage]}
+                <AdminStatusBadge tone={statusTone('claim', cancellationRequest.stage)}>{adminClaimStageLabel(cancellationRequest.claimType, cancellationRequest.stage)}</AdminStatusBadge>
               </h3>
             </div>
             <time className="text-xs text-muted-foreground" dateTime={cancellationRequest.requestedAt}>
@@ -1149,7 +1151,7 @@ export function OrdersSection({ data, canManage = true }: { data: AdminOrderCons
       <span key="buyer">{order.buyerName}</span>, <span key="recipient">{order.address?.recipientName??'-'}</span>,
       <ul key="items" className="flex flex-col gap-0.5">{order.items.map(item=><li key={item.id}>{item.name}{item.variantName?` · ${item.variantName}`:''}<GoodsCustomInputsSummary selection={item.customInputs} /></li>)}</ul>,
       order.items.reduce((qty,item)=>qty+item.qty,0), formatKrwExact(order.total),
-      request?<div key="claim" className="flex flex-col items-start gap-1"><Link className="underline-offset-4 hover:underline" href={`/admin/sales/claims/${ORDER_CLAIM_TYPE_SLUGS[request.claimType]}/${request.id}`}>{ORDER_CLAIM_TYPE_LABELS[request.claimType]} · {ORDER_CLAIM_STAGE_LABELS[request.stage]}</Link><CancellationReasonBadge row request={request}/></div>:'-',
+      request?<div key="claim" className="flex flex-col items-start gap-1"><Link className="inline-flex flex-wrap items-center gap-1 underline-offset-4 hover:underline" href={`/admin/sales/claims/${ORDER_CLAIM_TYPE_SLUGS[request.claimType]}/${request.id}`}>{ORDER_CLAIM_TYPE_LABELS[request.claimType]} <AdminStatusBadge tone={statusTone('claim', request.stage)}>{adminClaimStageLabel(request.claimType, request.stage)}</AdminStatusBadge></Link><CancellationReasonBadge row request={request}/></div>:'-',
       <Link key="detail" className="font-medium underline-offset-4 hover:underline" aria-label={`주문 ${orderReferenceLabel(order.id, order.orderNumber)} 선택${request?` · ${cancellationReasonAccessibleName(request)}`:''}`} href={`${adminOrdersHref(data.filters,{orderId:order.id})}#sales-order-detail`}>{canManage ? '상세·처리' : '상세 보기'}</Link>,
     ]};
   });
@@ -1195,15 +1197,18 @@ export function OrdersSection({ data, canManage = true }: { data: AdminOrderCons
       <SalesGuide title="주문 검색과 주문별 결제·배송·요청 내역을 확인할 수 있습니다.">
         <p>{canManage ? '주문번호를 누르면 상세 정보를 새 탭으로 엽니다. 신규주문은 선택하여 발주확인할 수 있으며, 발송과 배송완료는 출고지별 배송건을 확인해 처리합니다.' : '주문번호를 누르면 주문과 배송 정보를 조회할 수 있습니다.'}</p>
       </SalesGuide>
-      <SalesStatusSummary label="주문 처리 단계" items={STATUS_OPTIONS.map(option=>({label:option.label,active:data.filters.status===option.value,
+      <SalesStatusSummary label="주문 처리 단계" items={STATUS_OPTIONS.map(option=>({label:option.label,active:data.filters.status===option.value,tone:option.value==='paid'?'warning' as const:undefined,
         count:option.value==='all'?(data.counts?Object.values(data.counts).reduce((sum,value)=>sum+value,0):undefined):data.counts?.[option.value],
         href:adminOrdersHref(data.filters,{status:option.value,page:1,orderId:null})}))}/>
       <OrderFilters filters={data.filters} />
       {canManage && resultOutsideList ? (
-        <section aria-label="취소 처리 결과" className="flex flex-col items-start gap-2 rounded-lg border bg-muted/40 px-3 py-2.5">
-          <p className="font-medium">주문 {orderReferenceLabel(resultOutsideList, cancellationState.orderNumber)} 취소 처리 결과 · 지금 검색 조건의 목록에는 없는 주문입니다.</p>
-          <CancellationResultBody state={cancellationState} />
-          <Link className={LINK_BUTTON} data-slot="button" href={adminOrderSearchHref(resultOutsideList)}>이 주문 열기</Link>
+        <section aria-label="취소 처리 결과">
+          <AdminNotice title={`주문 ${orderReferenceLabel(resultOutsideList, cancellationState.orderNumber)} 취소 처리 결과 · 지금 검색 조건의 목록에는 없는 주문입니다.`} tone={cancellationState.errors?.form ? 'danger' : 'success'}>
+            <div className="flex flex-col items-start gap-2">
+              <CancellationResultBody state={cancellationState} />
+              <Link className={LINK_BUTTON} data-slot="button" href={adminOrderSearchHref(resultOutsideList)}>이 주문 열기</Link>
+            </div>
+          </AdminNotice>
         </section>
       ) : null}
       <div className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground" data-sales-results="">
@@ -1217,7 +1222,8 @@ export function OrdersSection({ data, canManage = true }: { data: AdminOrderCons
             {canManage ? <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2 print:hidden" data-sales-workbar="">
               <span className="text-muted-foreground tabular-nums">{selectedIds.length}건 선택</span>
               <Button disabled={bulkPending||selectedIds.length===0} size="sm" type="submit">{bulkPending?'처리 중…':'선택 주문 발주확인'}</Button>
-              <Link className={LINK_BUTTON} data-slot="button" href="/admin/sales/dispatch">발송관리</Link><Link className={LINK_BUTTON} data-slot="button" href="/admin/sales/shipping">배송현황</Link>
+              <span className="text-xs text-muted-foreground">체크칸은 발주확인할 수 있는 신규주문에만 있습니다.</span>
+              <span className="ml-auto flex items-center gap-2"><Link className={LINK_BUTTON} data-slot="button" href="/admin/sales/dispatch">발송관리</Link><Link className={LINK_BUTTON} data-slot="button" href="/admin/sales/shipping">배송현황</Link></span>
             </div> : null}
           </ConsoleGrid>
           <ActionFeedback state={bulkState}/>
@@ -1229,18 +1235,20 @@ export function OrdersSection({ data, canManage = true }: { data: AdminOrderCons
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 font-medium [&::-webkit-details-marker]:hidden">주문 {orderReferenceLabel(selected.id, selected.orderNumber)} {canManage ? '상세·처리' : '상세 보기'}<ChevronDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" /></summary>
           <OrderDetail cancellation={cancellation} carriers={data.carriers} filters={data.filters} order={selected} canManage={canManage} />
         </details> : data.filters.orderId ? (
-          <div className="flex flex-col items-start gap-2 rounded-lg border bg-muted/40 px-3 py-2.5" role="status">
-            <p>선택한 주문은 현재 목록에 없습니다.</p>
-            <Link
-              className={LINK_BUTTON}
-              data-slot="button"
-              href={adminOrderDetailHref(data.filters.orderId, data.filters)}
-              rel="noopener noreferrer"
-              target="_blank"
-            >
-              지정한 주문 상세 열기 (새 탭)
-            </Link>
-          </div>
+          <AdminNotice role="status" tone="warning">
+            <div className="flex flex-col items-start gap-2">
+              <p>선택한 주문은 현재 목록에 없습니다.</p>
+              <Link
+                className={LINK_BUTTON}
+                data-slot="button"
+                href={adminOrderDetailHref(data.filters.orderId, data.filters)}
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                지정한 주문 상세 열기 (새 탭)
+              </Link>
+            </div>
+          </AdminNotice>
         ) : null}
     </section>
   );

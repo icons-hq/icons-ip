@@ -11,13 +11,16 @@ import { SalesFilterField, SalesFilterPanel, SalesGuide, SalesResultsHeader, Sal
 import { formatKrwExact } from '@/components/admin/format';
 import { Button } from '@/components/admin/kit/ui/button';
 import { OrderStatusBadge } from '@/components/admin/sales/OrderStatusBadge';
+import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { statusTone } from '@/lib/admin/status-tone';
+import { adminClaimStageLabel } from '@/lib/admin/claims';
 import { adminListExportHref } from '@/lib/admin/list-export';
 import { adminOrderItemsHref, selectedConfirmableOrderIds, type AdminOrderItemData } from '@/lib/admin/order-items';
 import type { OrderItemAllocation } from '@/lib/admin/item-allocation';
 import { adminOrderDetailHrefFromBack, ADMIN_ORDER_SEARCH_FIELDS, ADMIN_ORDER_STATUSES, ADMIN_ORDER_STATUS_LABELS } from '@/lib/admin/orders';
 import { SALES_DATE_FIELDS } from '@/lib/admin/sales-list';
 import { formatOrderDateTime, orderReferenceLabel } from '@/lib/orders';
-import { isOpenOrderClaimStage, ORDER_CLAIM_STAGE_LABELS, ORDER_CLAIM_TYPE_LABELS, ORDER_CLAIM_TYPE_SLUGS } from '@/lib/orders/claims';
+import { isOpenOrderClaimStage, ORDER_CLAIM_TYPE_LABELS, ORDER_CLAIM_TYPE_SLUGS } from '@/lib/orders/claims';
 
 const fields = [...ADMIN_ORDER_SEARCH_FIELDS, { value: 'item', label: '상품주문번호' }];
 const statuses = [{ value: 'all', label: '전체 상태' }, ...ADMIN_ORDER_STATUSES.map(value => ({ value, label: ADMIN_ORDER_STATUS_LABELS[value] }))];
@@ -65,7 +68,7 @@ export function OrderItemsScreen({ data, canManage }: { data: AdminOrderItemData
       <p>상품주문번호는 주문에 포함된 개별 품목의 고유 번호입니다. 같은 주문번호가 여러 행에 표시될 수 있습니다. 상품명·옵션은 주문 당시 기록이며 현재 상품 정보로 바뀌지 않습니다.</p>
       <p>상품금액은 주문 당시 단가 × 수량입니다. 주문 쿠폰·적립금·복수구매 할인은 거래확정 엑셀과 같은 규칙으로 품목에 나눠 배분 후 금액(배송비 제외)에 표시합니다. 주문 당시 기록이 없어 나눌 수 없으면 —로 둡니다. 취소·반품은 주문 전체·전액으로 처리합니다.</p>
     </SalesGuide>
-    <SalesStatusSummary label="상품주문 처리 단계" items={statuses.map(option => ({ label: option.label, active: filters.status === option.value,
+    <SalesStatusSummary label="상품주문 처리 단계" items={statuses.map(option => ({ label: option.label, active: filters.status === option.value, tone: option.value === 'paid' ? 'warning' as const : undefined,
       count: option.value === 'all' ? Object.values(data.counts).reduce((sum, value) => sum + value, 0) : data.counts[option.value as keyof typeof data.counts],
       href: adminOrderItemsHref(filters, { status: option.value as typeof filters.status, page: 1 }) }))} />
     <SalesFilterPanel currentHref={currentHref} resetHref="/admin/sales/orders?view=items" id="order-items"
@@ -92,15 +95,15 @@ export function OrderItemsScreen({ data, canManage }: { data: AdminOrderItemData
           row.qty, formatKrwExact(row.unitPrice), formatKrwExact(row.itemAmount),
           <OrderItemAllocationCell key="allocation" allocation={row.allocation} />, row.allocation ? formatKrwExact(row.allocation.paidGoodsTotal) : '—',
           row.buyerName, row.recipientName ?? '—',
-          <div key="shipment" className={META_CLASS}>{row.originName ?? '출고지 미연결'}<small>{({ ready: '발송대기', shipping: '배송중', delivered: '배송완료', canceled: '취소' } as Record<string, string>)[row.shipmentStatus ?? ''] ?? ''}</small><small>{row.carrierLabel} {row.trackingNumber}</small></div>,
-          row.claim ? (canManage ? <Link key="claim" className="underline-offset-4 hover:underline" href={`/admin/sales/claims/${ORDER_CLAIM_TYPE_SLUGS[row.claim.type]}/${row.claim.id}`}>{ORDER_CLAIM_TYPE_LABELS[row.claim.type]} · {ORDER_CLAIM_STAGE_LABELS[row.claim.stage]}</Link> : `${ORDER_CLAIM_TYPE_LABELS[row.claim.type]} · ${ORDER_CLAIM_STAGE_LABELS[row.claim.stage]}`) : '—',
+          <div key="shipment" className={META_CLASS}>{row.originName ?? '출고지 미연결'}{row.shipmentStatus ? <AdminStatusBadge tone={statusTone('shipment', row.shipmentStatus)}>{({ ready: '발송대기', shipping: '배송중', delivered: '배송완료', canceled: '취소' } as Record<string, string>)[row.shipmentStatus] ?? ''}</AdminStatusBadge> : null}<small>{row.carrierLabel} {row.trackingNumber}</small></div>,
+          row.claim ? (canManage ? <Link key="claim" className="inline-flex flex-wrap items-center gap-1 underline-offset-4 hover:underline" href={`/admin/sales/claims/${ORDER_CLAIM_TYPE_SLUGS[row.claim.type]}/${row.claim.id}`}>{ORDER_CLAIM_TYPE_LABELS[row.claim.type]} <AdminStatusBadge tone={statusTone('claim', row.claim.stage)}>{adminClaimStageLabel(row.claim.type, row.claim.stage)}</AdminStatusBadge></Link> : <span key="claim" className="inline-flex flex-wrap items-center gap-1">{ORDER_CLAIM_TYPE_LABELS[row.claim.type]} <AdminStatusBadge tone={statusTone('claim', row.claim.stage)}>{adminClaimStageLabel(row.claim.type, row.claim.stage)}</AdminStatusBadge></span>) : '—',
           <Link key="detail" className="font-medium underline-offset-4 hover:underline" href={adminOrderDetailHrefFromBack(row.orderId, currentHref)}>{canManage ? '전체 상세·처리' : '전체 상세'}</Link>,
         ] }))}>
         {canManage ? <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2 print:hidden" data-sales-workbar=""><span className="text-muted-foreground tabular-nums">{selection.length}개 상품주문 · {orderIds.length}개 주문 선택</span>
           <Button type="button" size="sm" disabled={pending || !orderIds.length} onClick={confirm}>선택 주문 전체 발주확인</Button>
-          <span className="text-xs text-muted-foreground">같은 주문의 다른 품목도 함께 처리됩니다.</span></div> : null}
+          <span className="text-xs text-muted-foreground">체크칸은 발주확인할 수 있는 신규주문에만 있습니다. 같은 주문의 다른 품목도 함께 처리됩니다.</span></div> : null}
       </ConsoleGrid>
-      {message ? <p className="text-[var(--wc-success)]" role="status">{message}</p> : null}{error ? <p className="text-destructive" role="alert">{error}</p> : null}
+      {message ? <p className="text-success" role="status">{message}</p> : null}{error ? <p className="text-destructive" role="alert">{error}</p> : null}
       <ConsolePagination label="상품주문 목록 페이지" page={filters.page} pageSize={pageSize} total={data.total} hrefForPage={page => adminOrderItemsHref(filters, { page })} />
     </div>
   </section>;

@@ -1,5 +1,5 @@
 import type { AdminOrderDownloads as Document } from '@/lib/admin/order-downloads';
-import { AdminSectionCard } from './console/AdminKit';
+import { AdminNotice, AdminSectionCard } from './console/AdminKit';
 import { formatOrderDateTime } from '@/lib/orders';
 
 /* 파일별 제공 기록(템플릿 룩, ADR-0028). 주문 상세의 사실 목록과 같은 두 칸 배치다. */
@@ -8,7 +8,7 @@ const TERM = 'text-muted-foreground';
 const VALUE = 'min-w-0 wrap-anywhere';
 
 export function AdminOrderDownloads({ document }: { document: Document | null }) {
- if (document === null) return <p className="rounded-lg border bg-muted/40 px-3 py-2.5 text-sm" role="status">디지털 파일 제공 기록을 읽지 못했습니다. 새로고침해주세요.</p>;
+ if (document === null) return <AdminNotice role="status" tone="danger">디지털 파일 제공 기록을 읽지 못했습니다. 새로고침해주세요.</AdminNotice>;
  if (!document.items.length) return null;
  return <AdminSectionCard title="디지털 파일 제공 기록">
   <p className="text-muted-foreground">구매 당시 파일별 제공 시작 기록입니다. 전송 완료나 고객의 열람을 의미하지 않습니다.</p>
