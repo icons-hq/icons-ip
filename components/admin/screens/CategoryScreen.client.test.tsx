@@ -45,9 +45,16 @@ function selectThrough(category: AdminCategoryNode) {
 beforeEach(() => { hooks.state = []; hooks.refs = []; vi.stubGlobal('window', { confirm: vi.fn(() => false) }); });
 
 it('수정 칸 값이 저장된 값과 같으면 변경 없음이고, 하나라도 다르면 변경 있음이다', () => {
-  expect(categoryFormChanged(form(saved), first)).toBe(false);
-  for (const change of [{ name: '생활잡화' }, { code: 'living' }, { parentId: second.id }, { sortOrder: '5' }]) expect(categoryFormChanged(form({ ...saved, ...change }), first)).toBe(true);
-  expect(categoryFormChanged(null, first)).toBe(false);
+  const categories = [first, second];
+  expect(categoryFormChanged(form(saved), first, categories)).toBe(false);
+  for (const change of [{ name: '생활잡화' }, { code: 'living' }, { parentId: second.id }, { sortOrder: '5' }]) expect(categoryFormChanged(form({ ...saved, ...change }), first, categories)).toBe(true);
+  expect(categoryFormChanged(null, first, categories)).toBe(false);
+});
+
+it('보관된 상위는 선택지에 없어 최상위로 보이는 것이라 바꾼 것으로 치지 않는다', () => {
+  const archivedParent = { ...second, archivedAt: '2026-10-01T00:00:00Z' };
+  const child = { ...first, parentId: archivedParent.id };
+  expect(categoryFormChanged(form({ ...saved, parentId: '' }), child, [child, archivedParent])).toBe(false);
 });
 
 it('수정 중인 입력이 있으면 다른 카테고리를 고를 때 묻고, 취소하면 고치던 항목에 머문다', () => {

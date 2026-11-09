@@ -55,12 +55,14 @@ function Labeled({ label, children }: { label: ReactNode; children: ReactNode })
 }
 
 /** 수정 중인 칸의 값이 저장된 값과 다른가. 입력이 비제어라 지금 값은 폼에서 읽는다. */
-export function categoryFormChanged(form: Pick<HTMLFormElement, 'elements'> | null, category: AdminCategoryNode | null) {
+export function categoryFormChanged(form: Pick<HTMLFormElement, 'elements'> | null, category: AdminCategoryNode | null, categories: readonly AdminCategoryNode[]) {
   if (!form || !category) return false;
   const current = (name: string) => (form.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement | null)?.value ?? '';
+  /* 보관된 상위는 선택지에 없어 칸이 '최상위'로 보인다 — 그 값은 사용자가 바꾼 것이 아니다. */
+  const shownParent = categoryParentOptions(categories, category.id).some((option) => option.id === category.parentId) ? category.parentId : '';
   return current('name') !== category.name
     || current('code') !== category.code
-    || current('parentId') !== (category.parentId ?? '')
+    || current('parentId') !== (shownParent ?? '')
     || current('sortOrder') !== String(category.sortOrder);
 }
 
@@ -166,7 +168,7 @@ export function CategoryScreen({ data, legacyTypes = [], canManagePlatform = tru
   /* 오른쪽 입력 묶음은 고른 항목마다 새로 그려져 저장 안 한 입력이 사라진다 — 말없이 잃지 않게 한 번 묻는다. */
   function selectCategory(category: AdminCategoryNode) {
     if (category.id === selected?.id) return;
-    if (categoryFormChanged(editForm.current, selected) && !window.confirm('저장하지 않은 변경이 있습니다. 다른 카테고리를 고르면 입력이 사라집니다. 이동할까요?')) return;
+    if (categoryFormChanged(editForm.current, selected, data.categories) && !window.confirm('저장하지 않은 변경이 있습니다. 다른 카테고리를 고르면 입력이 사라집니다. 이동할까요?')) return;
     setSelectedId(category.id);
   }
   return <section className="flex min-w-0 flex-col gap-4" data-admin-screen="categories">
