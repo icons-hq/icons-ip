@@ -12,7 +12,7 @@ vi.mock('@/app/admin/goods-group-actions', () => ({ previewGoodsGroupConversionA
   readGoodsGroupOperationAction: mocks.read, saveGoodsGroupAction: mocks.save, archiveGoodsGroupAction: mocks.archive, readGoodsGroupAction: vi.fn(), readGoodsGroupSourceAction: vi.fn(), searchGoodsGroupProductsAction: vi.fn() }));
 vi.mock('@/lib/supabase/client', () => ({ createClient: () => ({ auth: { onAuthStateChange: (callback: typeof mocks.auth) => { mocks.auth = callback; return { data: { subscription: { unsubscribe() {} } } }; } } }) }));
 import { GoodsGroupConversion } from './GoodsGroupConversion';
-import { GoodsGroupEditor } from './GoodsGroupEditor';
+import { GoodsGroupEditor, groupValueProblems } from './GoodsGroupEditor';
 import { GoodsGroupsScreen } from './screens/GoodsGroupsScreen';
 import { GroupCompleted, GroupOperationStatus, GroupTable } from './GoodsGroupOperation';
 import { AdminField, AdminFormGrid, AdminSectionCard, AdminStatusBadge } from './console/AdminKit';
@@ -154,6 +154,17 @@ describe('그룹 구성 화면', () => {
     for (const member of group.members) expect(render().some(node => node.props.href === `/admin/catalog/goods?goodId=${encodeURIComponent(member.goodId)}` && text(node) === member.name)).toBe(true);
     authenticate(id(99)); await flush();
     expect(render().some(node => typeof node.props.href === 'string' && node.props.href.startsWith('/admin/catalog/goods?goodId='))).toBe(false);
+  });
+  it('구성 확인이 막히면 어느 칸을 고칠지 칸마다 알려 준다', () => {
+    const problems = groupValueProblems({ name: '', optionNames: ['색상', '색상'], members: [
+      { goodId: 'good-a', values: ['빨강', ''] },
+      { goodId: 'good-b', values: ['빨강', ''] },
+    ] }, 2);
+    expect(problems.name).toBe('그룹상품명을 입력해주세요.');
+    expect(problems.optionNames).toEqual([undefined, '옵션명이 겹칩니다. 다른 이름을 입력해주세요.']);
+    expect(problems.values).toEqual({ 'good-a:1': '값을 입력해주세요.', 'good-b:1': '값을 입력해주세요.' });
+    expect(groupValueProblems({ name: '그룹', optionNames: ['색상'], members: [{ goodId: 'good-a', values: ['빨강'] }] }, 2).members).toBe('상품을 2개 이상 선택해주세요.');
+    expect(groupValueProblems({ name: '그룹', optionNames: ['색상'], members: [{ goodId: 'good-a', values: ['빨강'] }, { goodId: 'good-b', values: ['빨강'] }] }, 2).combination).toContain('같은 옵션값 조합');
   });
   it('구성 변경 확인 버튼은 폼 제출이다(kit 버튼의 기본 type은 button)', async () => {
     mode = 'editor'; remount(); await flush();
