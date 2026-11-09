@@ -3,6 +3,7 @@ import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { ChevronDown, ChevronRight, MessagesSquare, Star } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/admin/kit/ui/tabs';
+import { AdminNotice } from '../console/AdminKit';
 import type { AdminHomeAttention } from '@/lib/admin/home-attention';
 import { adminInquiryDetailHref, normalizeAdminInquiryFilters } from '@/lib/admin/inquiries';
 import { formatOrderDateTime } from '@/lib/orders';
@@ -28,7 +29,8 @@ const REVIEW_TABS = [
 const ROW_TARGET = 'min-w-0 [&>a]:block [&>a]:truncate [&>a]:text-sm [&>a]:underline-offset-4 [&>a]:hover:underline [&>button]:block [&>button]:w-full [&>button]:truncate [&>button]:text-left [&>button]:text-sm [&>button]:underline-offset-4 [&>button]:hover:underline';
 /* kit Tabs는 data-horizontal 변형에 기대지만 Base UI는 data-orientation만 단다 — 세로 쌓기·목록 높이를 여기서 직접 준다. */
 const TABS = 'flex-1 flex-col gap-3';
-const TAB_LIST = 'h-8 max-w-full justify-start overflow-x-auto [&_strong]:font-semibold [&_strong]:tabular-nums';
+/* 탭의 건수는 확인할 것이 있을 때만 주의색(낮은 평점은 위험색)이다 — 0건·집계 실패는 조용히 둔다. */
+const TAB_LIST = 'h-8 max-w-full justify-start overflow-x-auto [&_strong]:font-semibold [&_strong]:tabular-nums [&_[data-attention=warning]_strong]:text-warning [&_[data-attention=danger]_strong]:text-destructive';
 const TAB_PANEL = 'flex min-w-0 flex-col gap-3';
 const METRIC_LINK = 'inline-flex min-h-11 min-w-11 items-center justify-end gap-1 text-lg font-semibold tabular-nums underline-offset-4 hover:underline';
 
@@ -37,7 +39,7 @@ function AttentionColumn({ label, children }: { label: string; children: ReactNo
 }
 
 function Failure({ children }: { children: ReactNode }) {
-  return <p className="rounded-lg border px-3 py-2.5 text-muted-foreground" role="status">{children}</p>;
+  return <AdminNotice role="status" tone="warning">{children}</AdminNotice>;
 }
 
 function EmptyRows({ children }: { children: ReactNode }) {
@@ -58,6 +60,7 @@ export function HomeAttention({ data }: { data: AdminHomeAttention }) {
   const chatCounts = data.unreadChats?.counts;
   const reviewInsights = data.reviewInsights;
   const count = (value: { total: number } | null) => value ? value.total.toLocaleString('ko-KR') : '확인 필요';
+  const attention = (value: { total: number } | null, tone: 'warning' | 'danger' = 'warning') => value && value.total > 0 ? tone : undefined;
 
   const inquiryRows = (tab: typeof inquiryTab) => {
     const inquiries = data[tab];
@@ -89,7 +92,7 @@ export function HomeAttention({ data }: { data: AdminHomeAttention }) {
       <AttentionColumn label="확인 필요한 문의">
         <Tabs className={TABS} onValueChange={(value) => setInquiryTab(value as typeof inquiryTab)} value={inquiryTab}>
           <TabsList aria-label="문의 종류" className={TAB_LIST}>
-            {INQUIRY_TABS.map(tab => <TabsTrigger className="flex-none px-2.5" key={tab.value} value={tab.value}>{tab.label} <strong>{count(data[tab.value])}</strong></TabsTrigger>)}
+            {INQUIRY_TABS.map(tab => <TabsTrigger className="flex-none px-2.5" data-attention={attention(data[tab.value])} key={tab.value} value={tab.value}>{tab.label} <strong>{count(data[tab.value])}</strong></TabsTrigger>)}
           </TabsList>
           {INQUIRY_TABS.map(tab => <TabsContent className={TAB_PANEL} key={tab.value} value={tab.value}>
             {inquiryRows(tab.value)}
@@ -100,7 +103,7 @@ export function HomeAttention({ data }: { data: AdminHomeAttention }) {
       <AttentionColumn label="확인 필요한 리뷰">
         <Tabs className={TABS} onValueChange={(value) => setReviewTab(value as typeof reviewTab)} value={reviewTab}>
           <TabsList aria-label="리뷰 종류" className={TAB_LIST}>
-            {REVIEW_TABS.map(tab => <TabsTrigger className="flex-none px-2.5" key={tab.value} value={tab.value}>{tab.label} <strong>{count(data[tab.value])}</strong></TabsTrigger>)}
+            {REVIEW_TABS.map(tab => <TabsTrigger className="flex-none px-2.5" data-attention={attention(data[tab.value], tab.value === 'lowReviews' ? 'danger' : 'warning')} key={tab.value} value={tab.value}>{tab.label} <strong>{count(data[tab.value])}</strong></TabsTrigger>)}
           </TabsList>
           {REVIEW_TABS.map(tab => <TabsContent className={TAB_PANEL} key={tab.value} value={tab.value}>
             {reviewRows(tab.value)}
@@ -111,11 +114,11 @@ export function HomeAttention({ data }: { data: AdminHomeAttention }) {
     </div>
     <div className="grid gap-6 border-t p-4 md:grid-cols-2">
       <AttentionColumn label="상담 현황"><p className="-mt-2 text-xs text-muted-foreground">전체 기간 · 현재 대화 상태 기준</p>
-        {!chatCounts ? <Failure>상담 현황을 불러오지 못했습니다.</Failure> : <dl className="grid grid-cols-2 gap-x-6 gap-y-1 md:max-xl:grid-cols-1">{CHAT_STATUS_OPTIONS.map(option => <div className="flex min-h-11 items-center justify-between gap-4" key={option.value}><dt className="text-muted-foreground">{option.label}</dt><dd><Link aria-label={`${option.label} 상담 ${chatCounts[option.value].toLocaleString('ko-KR')}건`} className={METRIC_LINK} href={inquiryChatHref(ALL_CHAT_FILTERS, { status: option.value })} prefetch={false}>{chatCounts[option.value].toLocaleString('ko-KR')}<span className="text-sm font-normal text-muted-foreground">건</span></Link></dd></div>)}</dl>}
+        {!chatCounts ? <Failure>상담 현황을 불러오지 못했습니다.</Failure> : <dl className="grid grid-cols-2 gap-x-6 gap-y-1 md:max-xl:grid-cols-1">{CHAT_STATUS_OPTIONS.map(option => <div className="flex min-h-11 items-center justify-between gap-4" key={option.value}><dt className="text-muted-foreground">{option.label}</dt><dd><Link aria-label={`${option.label} 상담 ${chatCounts[option.value].toLocaleString('ko-KR')}건`} className={`${METRIC_LINK}${option.value === 'open' && chatCounts.open > 0 ? ' text-warning' : ''}`} href={inquiryChatHref(ALL_CHAT_FILTERS, { status: option.value })} prefetch={false}>{chatCounts[option.value].toLocaleString('ko-KR')}<span className="text-sm font-normal text-muted-foreground">건</span></Link></dd></div>)}</dl>}
         <MoreLink href={inquiryChatHref(ALL_CHAT_FILTERS)}>상담하기</MoreLink>
       </AttentionColumn>
       <AttentionColumn label="리뷰 인사이트 상품"><p className="-mt-2 text-xs text-muted-foreground">{data.reviewInsights ? `${data.reviewInsights.asOf} 기준 · 조건별 상품 수` : '상품별 리뷰 개선 항목'}</p>
-        {!reviewInsights ? <Failure>리뷰 분석을 불러오지 못했습니다.</Failure> : <dl className="grid grid-cols-2 gap-x-6 gap-y-1 md:max-xl:grid-cols-1">{REVIEW_INSIGHT_FOCUSES.filter(focus => focus !== 'all').map(focus => <div className="flex min-h-11 items-center justify-between gap-4" key={focus}><dt className="text-muted-foreground">{REVIEW_METRIC_LABELS[focus]}</dt><dd><Link aria-label={`${REVIEW_INSIGHT_LABELS[focus]} ${reviewInsights.counts[focus].toLocaleString('ko-KR')}개`} className={METRIC_LINK} href={reviewInsightHref(normalizeReviewInsightFilters({ focus }))} prefetch={false}>{reviewInsights.counts[focus].toLocaleString('ko-KR')}<span className="text-sm font-normal text-muted-foreground">개</span></Link></dd></div>)}</dl>}
+        {!reviewInsights ? <Failure>리뷰 분석을 불러오지 못했습니다.</Failure> : <dl className="grid grid-cols-2 gap-x-6 gap-y-1 md:max-xl:grid-cols-1">{REVIEW_INSIGHT_FOCUSES.filter(focus => focus !== 'all').map(focus => <div className="flex min-h-11 items-center justify-between gap-4" key={focus}><dt className="text-muted-foreground">{REVIEW_METRIC_LABELS[focus]}</dt><dd><Link aria-label={`${REVIEW_INSIGHT_LABELS[focus]} ${reviewInsights.counts[focus].toLocaleString('ko-KR')}개`} className={`${METRIC_LINK}${focus === 'rating' && reviewInsights.counts.rating > 0 ? ' text-destructive' : ''}`} href={reviewInsightHref(normalizeReviewInsightFilters({ focus }))} prefetch={false}>{reviewInsights.counts[focus].toLocaleString('ko-KR')}<span className="text-sm font-normal text-muted-foreground">개</span></Link></dd></div>)}</dl>}
         <MoreLink href="/admin/cs/review-insights">자세히 확인하기</MoreLink>
       </AttentionColumn>
     </div>

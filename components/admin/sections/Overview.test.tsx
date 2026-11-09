@@ -118,6 +118,29 @@ describe('OverviewSection', () => {
     expect(html).toMatch(/무통장 입금 대기<\/span><strong[^>]*bg-warning-soft[^>]*>5<\/strong>/);
   });
 
+  /* 칩은 지금 처리할 건수에만 쓴다(ADR-0029) — 상품·리뷰 패널은 품절·낮은 평점 같은 위험만 칩이고 나머지는 숫자다. */
+  it('처리할 업무·클레임 패널 밖에서는 위험한 건수만 칩으로 보인다', () => {
+    const workQueue: AdminWorkQueueData = {
+      checkedAt: '2026-11-05T00:00:00Z',
+      counts: {
+        orders: { state: 'ready', count: 1 }, ready: { state: 'ready', count: 2 }, delayed: { state: 'ready', count: 0 },
+        inquiries: { state: 'ready', count: 3 }, goods: { state: 'ready', count: 4 },
+        unpaid: { state: 'hidden', count: null }, refundTransfers: { state: 'hidden', count: null },
+      },
+      goodsReasons: [],
+    };
+    const html = renderToStaticMarkup(<OverviewSection insights={insights} reports={[]} workQueue={workQueue} days={7} summary={{
+      claims: { cancel: 1, return: 0, exchange: 0 }, goods: { published: 3, soldout: 2 }, reviews: { total: 5, lowRating: 1, awaitingReply: 4 },
+    }} />);
+    expect(html).toMatch(/신규주문<\/span><strong[^>]*bg-warning-soft[^>]*>1<\/strong>/);
+    expect(html).toMatch(/취소요청<\/span><strong[^>]*bg-warning-soft[^>]*>1<\/strong>/);
+    expect(html).toMatch(/품절 상품<\/span><strong[^>]*bg-danger-soft[^>]*>2<\/strong>/);
+    expect(html).toMatch(/낮은 평점 리뷰<\/span><strong[^>]*bg-danger-soft[^>]*>1<\/strong>/);
+    expect(html).toMatch(/발송 대기<\/span><strong class="shrink-0 text-lg font-semibold tabular-nums">2<\/strong>/);
+    expect(html).toMatch(/상품 검토 대기<\/span><strong class="shrink-0 text-lg font-semibold tabular-nums">4<\/strong>/);
+    expect(html).toMatch(/미답변 리뷰<\/span><strong class="shrink-0 text-lg font-semibold tabular-nums">4<\/strong>/);
+  });
+
   it('매출이 없는 기간에는 임의의 숫자 축 대신 빈 상태를 표시한다', () => {
     const empty = { ...insights, dailyRevenue: [{ date: '2026-08-18', goods: 0, tickets: 0 }] };
     const html = renderToStaticMarkup(<OverviewSection insights={empty} reports={[]} />);
