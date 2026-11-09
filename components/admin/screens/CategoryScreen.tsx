@@ -1,7 +1,7 @@
 'use client';
 
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
-import { useActionState, useState, type ReactNode } from 'react';
+import { useActionState, useRef, useState, type ReactNode, type RefObject } from 'react';
 import Link from 'next/link';
 import { Download } from 'lucide-react';
 import { statusTone } from '@/lib/admin/status-tone';
@@ -54,10 +54,20 @@ function Labeled({ label, children }: { label: ReactNode; children: ReactNode })
   return <label className={FIELD}>{label}{children}</label>;
 }
 
-function CategoryForm({ category, categories }: { category?: AdminCategoryNode; categories: AdminCategoryNode[] }) {
+/** 수정 중인 칸의 값이 저장된 값과 다른가. 입력이 비제어라 지금 값은 폼에서 읽는다. */
+export function categoryFormChanged(form: Pick<HTMLFormElement, 'elements'> | null, category: AdminCategoryNode | null) {
+  if (!form || !category) return false;
+  const current = (name: string) => (form.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement | null)?.value ?? '';
+  return current('name') !== category.name
+    || current('code') !== category.code
+    || current('parentId') !== (category.parentId ?? '')
+    || current('sortOrder') !== String(category.sortOrder);
+}
+
+function CategoryForm({ category, categories, formRef }: { category?: AdminCategoryNode; categories: AdminCategoryNode[]; formRef?: RefObject<HTMLFormElement | null> }) {
   const [state, action, pending] = useActionState(saveAdminCategoryAction, EMPTY);
   const options = categoryParentOptions(categories, category?.id ?? null);
-  return <form action={action} className={FORM_PLAIN}>
+  return <form action={action} className={FORM_PLAIN} ref={formRef}>
     <input name="id" type="hidden" value={category?.id ?? ''} />
     <input name="expectedUpdatedAt" type="hidden" value={category?.updatedAt ?? ''} />
     <input name="operationId" type="hidden" value="" />
@@ -152,15 +162,22 @@ export function CategoryScreen({ data, legacyTypes = [], canManagePlatform = tru
   /* 오른쪽 입력 묶음은 트리에서 고른 항목 하나다. 아직 안 골랐으면 트리 맨 위 항목을 연다. */
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = data.categories.find((category) => category.id === selectedId) ?? firstCategoryInTree(data.categories);
+  const editForm = useRef<HTMLFormElement>(null);
+  /* 오른쪽 입력 묶음은 고른 항목마다 새로 그려져 저장 안 한 입력이 사라진다 — 말없이 잃지 않게 한 번 묻는다. */
+  function selectCategory(category: AdminCategoryNode) {
+    if (category.id === selected?.id) return;
+    if (categoryFormChanged(editForm.current, selected) && !window.confirm('저장하지 않은 변경이 있습니다. 다른 카테고리를 고르면 입력이 사라집니다. 이동할까요?')) return;
+    setSelectedId(category.id);
+  }
   return <section className="flex min-w-0 flex-col gap-4" data-admin-screen="categories">
     <AdminPageHeader title="카테고리 관리" description="카테고리를 최대 4단계로 구성하고 상품에 대표·추가 분류로 연결합니다. 기존 유형과 미분류 상품은 그대로 유지됩니다." actions={<Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={categoryExportHref()}><Download aria-hidden="true" />{canManagePlatform ? '분류·ERP CSV' : '분류 CSV'}</Link>} />
-    {canManagePlatform ? <FoldCard title="활성화 상태" badge={<AdminStatusBadge tone={data.activation.customerEnabled ? statusTone('display', 'active') : 'warning'}>{data.activation.customerEnabled ? '고객 화면 적용 중' : '고객 화면 미적용'}</AdminStatusBadge>} summary={data.activation.customerEnabled ? categoryActivationLabel(data.activation) : '고객 화면에는 아직 기존 유형이 보입니다. 트리를 다 만든 뒤 펼쳐서 켜주세요.'}><ActivationForm activation={data.activation} /></FoldCard> : null}
+    {canManagePlatform ? <FoldCard title="활성화 상태" badge={<AdminStatusBadge tone={data.activation.customerEnabled ? statusTone('display', 'active') : 'warning'}>{data.activation.customerEnabled ? '고객 화면 적용 중' : '고객 화면 미적용'}</AdminStatusBadge>} cue={data.activation.customerEnabled ? undefined : '펼쳐서 켜기'} summary={data.activation.customerEnabled ? categoryActivationLabel(data.activation) : '고객 화면에는 아직 기존 유형이 보입니다. 트리를 다 만든 뒤 펼쳐서 켜주세요.'}><ActivationForm activation={data.activation} /></FoldCard> : null}
     <div className="grid items-start gap-4 lg:grid-cols-[minmax(17rem,0.45fr)_minmax(0,1fr)]" data-category-screen="master-detail">
-      <AdminSectionCard title={`카테고리 트리 ${data.categories.length}개`} summary="이름을 누르면 오른쪽에서 수정합니다."><CategoryTree activeId={selected?.id ?? null} categories={data.categories} onSelect={(category) => setSelectedId(category.id)} /></AdminSectionCard>
+      <AdminSectionCard title={`카테고리 트리 ${data.categories.length}개`} summary="이름을 누르면 오른쪽에서 수정합니다."><CategoryTree activeId={selected?.id ?? null} categories={data.categories} onSelect={selectCategory} /></AdminSectionCard>
       {/* 트리가 길어도 고르는 동안 입력 묶음이 함께 보이게 붙어 따라온다. 새 등록은 접어 저장 버튼이 한 화면에 하나만 보이게 한다. */}
       <div className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-16">
         {selected ? <AdminSectionCard key={selected.id} title={`${selected.name} 수정`}>
-          <CategoryForm category={selected} categories={data.categories} />
+          <CategoryForm category={selected} categories={data.categories} formRef={editForm} />
           <div className="flex flex-wrap items-center gap-2 border-t pt-3"><ArchiveForm category={selected} /><MarketingLinkIssuer size="sm" source="category" targetIds={[selected.id]} /></div>
         </AdminSectionCard> : null}
         <FoldCard open={!selected} title="새 카테고리 등록"><CategoryForm categories={data.categories} /></FoldCard>
