@@ -99,6 +99,18 @@ describe('ReviewConsoleScreen', () => {
     expect(html).not.toContain('그대로 굳습니다');
   });
 
+  /* 첫 화면을 리뷰가 차지한다 — 조회 조건은 접고, 메뉴와 겹치는 탭은 목록 아래로 내린다. */
+  it('조회 조건은 접고 탭은 목록 아래에 두며 답글·처리 칸을 앞쪽에 둔다', () => {
+    const html = render();
+    const openSearch = /<details(?=[^>]*data-cs-search="")(?=[^>]*\sopen="")/;
+    expect(html).not.toMatch(openSearch);
+    expect(render({ filters: { ...DEFAULT_ADMIN_REVIEW_FILTERS, query: '배송' } })).toMatch(openSearch);
+    expect(html.indexOf('data-slot="table"')).toBeLessThan(html.indexOf('aria-label="문의·리뷰 관리"'));
+    const head = html.slice(html.indexOf('<thead'), html.indexOf('</thead>'));
+    expect(head.indexOf('>처리<')).toBeGreaterThan(-1);
+    expect(head.indexOf('>처리<')).toBeLessThan(head.indexOf('>작성자<'));
+  });
+
   it('저평점 필터가 켜져 있으면 해제 링크로 바뀐다', () => {
     const html = render({ filters: { ...DEFAULT_ADMIN_REVIEW_FILTERS, lowRating: true } });
 

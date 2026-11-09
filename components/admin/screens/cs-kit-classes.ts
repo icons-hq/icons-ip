@@ -17,10 +17,10 @@ export function csChipTone(domain: AdminStatusDomain, status: string): AdminCoun
 }
 
 /** `<input data-slot="input">` — kit Input과 같은 모양. */
-export const KIT_INPUT_CLASS = 'h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base transition-colors outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm';
+export const KIT_INPUT_CLASS = 'h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base transition-colors outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-muted disabled:text-secondary-foreground disabled:opacity-100 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm';
 
 /** `<textarea data-slot="textarea">` — kit Textarea와 같은 모양. 높이(min-h-*)는 쓰는 곳이 정한다(겹치는 유틸리티를 만들지 않게). */
-export const KIT_TEXTAREA_CLASS = 'flex w-full rounded-lg border border-input bg-transparent px-2.5 py-2 text-base transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm';
+export const KIT_TEXTAREA_CLASS = 'flex w-full rounded-lg border border-input bg-transparent px-2.5 py-2 text-base transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:bg-muted disabled:text-secondary-foreground disabled:opacity-100 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm';
 
 /** 링크·버튼 구분 선택의 바탕. */
 export const KIT_SEGMENT_CLASS = 'inline-flex w-fit max-w-full flex-wrap items-center gap-0.5 rounded-lg bg-muted p-0.5';
@@ -30,6 +30,15 @@ export const KIT_SEGMENT_ITEM_CLASS = 'inline-flex h-7 items-center justify-cent
 
 /** 문의 1차 답변 기한(SLA) 톤. 톤은 data-sla-tone으로 남기고(테스트·색 외 단서) 그 값으로 강조한다. */
 export const INQUIRY_SLA_TONE_CLASS = 'data-[sla-tone=danger]:font-semibold data-[sla-tone=danger]:text-destructive data-[sla-tone=warning]:font-medium data-[sla-tone=warning]:text-warning data-[sla-tone=settled]:text-muted-foreground';
+
+/** 줄마다 반복되는 위험 버튼(숨김·회수)의 빨간 글자. kit outline 위에 얹어 화면에서 제일 튀지 않게 한다. 확인 팝업은 각 화면이 유지한다. */
+export const ROW_DANGER_BUTTON_CLASS = 'text-destructive hover:text-destructive aria-expanded:text-destructive';
+
+/*
+ * 실시간 연결 안내(components/screens/InquiryLiveUpdates)는 공개 화면과 함께 쓰는 부품이라 어드민이 감싸는 쪽에서 모양을 준다.
+ * 연결이 끊긴 안내(p)만 주의색 상자로 보이고, 새 메시지 알림(button)은 보조 버튼 모양이다. 비어 있으면 자리를 차지하지 않는다.
+ */
+export const INQUIRY_LIVE_CLASS = "[&_.inquiry-live:empty]:hidden [&_.inquiry-live]:flex [&_.inquiry-live]:flex-col [&_.inquiry-live]:gap-2 [&_.inquiry-live>p]:flex [&_.inquiry-live>p]:flex-wrap [&_.inquiry-live>p]:items-center [&_.inquiry-live>p]:gap-x-2 [&_.inquiry-live>p]:rounded-lg [&_.inquiry-live>p]:border [&_.inquiry-live>p]:border-warning-border [&_.inquiry-live>p]:bg-warning-soft [&_.inquiry-live>p]:px-3 [&_.inquiry-live>p]:py-2 [&_.inquiry-live>p]:text-sm [&_.inquiry-live>p]:font-medium [&_.inquiry-live>p]:text-foreground [&_.inquiry-live>p]:before:font-semibold [&_.inquiry-live>p]:before:text-warning [&_.inquiry-live>p]:before:content-['⚠'] [&_.inquiry-live_p_button]:cursor-pointer [&_.inquiry-live_p_button]:font-semibold [&_.inquiry-live_p_button]:text-warning [&_.inquiry-live_p_button]:underline [&_.inquiry-live_p_button]:underline-offset-4 [&_.inquiry-live>button]:h-7 [&_.inquiry-live>button]:w-fit [&_.inquiry-live>button]:cursor-pointer [&_.inquiry-live>button]:rounded-lg [&_.inquiry-live>button]:border [&_.inquiry-live>button]:border-primary/35 [&_.inquiry-live>button]:bg-primary-soft [&_.inquiry-live>button]:px-2.5 [&_.inquiry-live>button]:text-xs [&_.inquiry-live>button]:font-semibold [&_.inquiry-live>button]:text-primary-soft-foreground";
 
 /** 입력 위 라벨 글자(kit Label과 같은 크기·굵기). 네이티브 label이 입력을 감쌀 때 글자 span에 쓴다. */
 export const FIELD_LABEL_CLASS = 'text-sm leading-none font-medium text-foreground';

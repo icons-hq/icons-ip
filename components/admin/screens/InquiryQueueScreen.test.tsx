@@ -113,6 +113,16 @@ describe('InquiryQueueScreen', () => {
     expect(nextPage).toMatch(/data-tone="warning"[^>]*>6일 경과</);
   });
 
+  /* 1440 화면에서 답변처리가 잘리지 않게 앞에 두고, 경과일은 제목 길이에 따라 옮겨 다니지 않게 상태 아래에 고정한다. */
+  it('답변처리를 구매자 앞에 두고 경과일을 상태 칸 안에 그린다', () => {
+    const html = renderToStaticMarkup(<InquiryQueueScreen data={data()} now={NOW} />);
+    const head = html.slice(html.indexOf('<thead'), html.indexOf('</thead>'));
+    expect(head.indexOf('>처리<')).toBeGreaterThan(-1);
+    expect(head.indexOf('>처리<')).toBeLessThan(head.indexOf('>구매자<'));
+    expect(head.indexOf('>구매자<')).toBeLessThan(head.indexOf('>연결 주문<'));
+    expect(html).toMatch(/>미답변<\/span><span(?=[^>]*title="미답변 24시간 경과")[^>]*>2일 경과</);
+  });
+
   it('상태 칸과 건수 카드는 상태 표(status-tone)의 색을 따른다', () => {
     const html = renderToStaticMarkup(<InquiryQueueScreen data={data()} now={NOW} />);
     expect(html).toMatch(/data-tone="warning"[^>]*>미답변</);
