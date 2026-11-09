@@ -165,7 +165,7 @@ describe('IpSection', () => {
     );
 
     expect(html).toMatch(/<textarea[^>]*name="glyph"/);
-    expect(html).toContain('글리프 (줄바꿈 가능)');
+    expect(html).toContain('크게 쓰는 글자 (줄바꿈 가능)');
   });
 
   it('입력을 기본 정보·소개 글·대표 이미지로 나누고, 낯선 말의 뜻을 칸 이름에서 바로 말하며, 저장 줄은 오른쪽에 둔다', () => {
@@ -173,7 +173,10 @@ describe('IpSection', () => {
       <IpSection accountId="operator-a" action={vi.fn()} onSelect={vi.fn()} pending={false} records={[]} selected={null} state={{}} verticals={[]} />,
     );
     for (const group of ['기본 정보', '소개 글', '대표 이미지']) expect(html).toContain(`aria-label="${group}"`);
-    for (const label of ['한 줄 소개 · 태그라인', '크게 쓰는 글자 · 글리프', '소개 글 · 시놉시스', '키아트 이미지']) expect(html).toContain(label);
+    for (const label of ['한 줄 소개 · 태그라인', '크게 쓰는 글자', '자세한 소개', '키아트 이미지']) expect(html).toContain(label);
+    /* 글리프·시놉시스는 CONTEXT.md에 없는 말이라 칸 이름에 쓰지 않는다. 키아트는 도메인 용어라 유지하고 뜻을 설명한다. */
+    for (const word of ['글리프', '시놉시스']) expect(html).not.toContain(word);
+    expect(html).toContain('키아트는 IP를 대표하는 가로형 그림입니다.');
     expect(html).toMatch(/data-admin-savebar=""/);
     expect(html).toMatch(/class="[^"]*\bjustify-end\b[^"]*" data-admin-savebar=""/);
   });
@@ -346,7 +349,9 @@ describe('IpSection', () => {
       /* 목록 썸네일은 저장된 이미지를 계속 보여주지만, 폼의 미리보기는 제거된 상태를 따른다. */
       expect(html).not.toContain('alt="현재 아트워크 미리보기" src="https://cdn.test/stored.png"');
       expect(html).toContain('이미지 없음');
-      expect(html).toContain('현재 경로: 없음');
+      /* 저장소 경로가 없을 때 '현재 경로: 없음'이라고 쓰면 그림이 보이는 IP도 등록이 안 된 것처럼 읽힌다. */
+      expect(html).not.toContain('현재 경로');
+      expect(html).toMatch(/name="imagePath"[^>]*value=""/);
       expect(html).toContain('IP 이름을 입력해주세요.');
     });
 

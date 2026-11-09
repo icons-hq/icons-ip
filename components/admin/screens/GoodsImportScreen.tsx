@@ -30,7 +30,8 @@ import {
   type SabangnetColumnStatus,
   type SabangnetTarget,
 } from '@/lib/admin/sabangnet-goods-format';
-import { ChevronRight, Download, TriangleAlert } from 'lucide-react';
+import { Download, TriangleAlert } from 'lucide-react';
+import { GoodsFlowSteps } from './GoodsFlowSteps';
 import { statusTone } from '@/lib/admin/status-tone';
 import {
   AdminField,
@@ -70,15 +71,6 @@ const IMPORT_STEPS: Record<ImportFormat, string[]> = {
   icons: ['파일 올리기', '검증 결과 확인·적용'],
   sabangnet: ['파일 올리기', '열 연결·IP 선택', '검증 결과 확인·초안 만들기'],
 };
-function ImportSteps({ steps, current }: { steps: string[]; current: number }) {
-  return <ol aria-label="진행 순서" className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm" data-goods-import="steps">
-    {steps.map((step, index) => <li aria-current={index === current ? 'step' : undefined} className="flex items-center gap-2" key={step}>
-      {index ? <ChevronRight aria-hidden="true" className="size-4 text-muted-foreground" /> : null}
-      <span aria-hidden="true" className={`grid size-5 place-items-center rounded-full text-xs font-semibold tabular-nums ${index === current ? 'bg-primary text-primary-foreground' : index < current ? 'bg-primary-soft text-primary-soft-foreground' : 'bg-muted text-muted-foreground'}`}>{index + 1}</span>
-      <span className={index === current ? 'font-semibold text-foreground' : 'text-muted-foreground'}>{step}</span>
-    </li>)}
-  </ol>;
-}
 /**
  * storage-js sends a File/Blob as a multipart part typed by the Blob itself and ignores the
  * contentType option, and Storage checks that part type against the private bucket's allow-list
@@ -506,7 +498,7 @@ export function GoodsImportScreen({
       />
       {categoryFinder ? <CategoryCodeFinder onClose={() => setCategoryFinder(false)} /> : null}
       {countryFinder ? <CountryNamePicker mode="copy" onClose={() => setCountryFinder(false)} /> : null}
-      <ImportSteps steps={IMPORT_STEPS[view?.format ?? format]} current={view ? IMPORT_STEPS[view.format].length - 1 : inspection ? 1 : 0} />
+      <GoodsFlowSteps steps={IMPORT_STEPS[view?.format ?? format]} current={view ? IMPORT_STEPS[view.format].length - 1 : inspection ? 1 : 0} />
       <AdminSectionCard title="1. 파일 올리기">
         {/* 양식 내려받기가 올리기보다 먼저다 — 고른 양식 바로 옆에 둔다. */}
         <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
@@ -577,7 +569,7 @@ export function GoodsImportScreen({
         ) : (
           <>
             <AdminNotice tone="warning" title="상품코드가 같으면 기존 상품을 수정합니다.">
-              옵션을 모두 포함해주세요. 직접입력형 옵션과 A/S·사이즈 안내는 별도 시트에서 편집하며 기존 항목 ID와 버전을 유지합니다.
+              옵션을 모두 포함해주세요. 직접입력형 옵션과 A/S·사이즈 안내는 별도 시트에서 고치고, 내려받은 시트에 이미 채워진 번호 칸(ID·버전)은 그대로 두세요.
               안내 시트나 상품 행을 빼면 기존 안내를 보존합니다.
             </AdminNotice>
             <p className="text-sm text-muted-foreground">XLSX 2MB · 상품·옵션 최대 500행 · 이미지 ZIP 50MB</p>
