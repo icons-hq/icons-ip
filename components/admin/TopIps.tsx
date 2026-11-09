@@ -18,7 +18,7 @@ export function TopIps({ ips }: { ips: AdminTopIp[] }) {
               <li className="flex min-w-0 items-center justify-between gap-4 py-3 first:pt-0 last:pb-0" key={ip.ipId}>
                 <div className="flex min-w-0 flex-1 items-center gap-3">
                   <span
-                    className={`flex size-8 shrink-0 items-center justify-center rounded-lg border text-xs font-medium tabular-nums ${index === 0 ? 'border-transparent bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}
+                    className={`flex size-8 shrink-0 items-center justify-center rounded-lg border text-xs font-medium tabular-nums ${index === 0 ? 'bg-muted font-semibold text-foreground' : 'bg-muted text-muted-foreground'}`}
                   >
                     {index + 1}
                   </span>

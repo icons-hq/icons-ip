@@ -12,7 +12,8 @@ import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/admin/kit/ui/table';
-import { ACTIONS, ALERT_BOX, CHECK_LABEL, FIELD_HINT, FIELD_LABEL, INFO_PANEL, NOTE, STATUS_BOX, SUCCESS_BOX, TABLE_BOX } from '@/components/admin/settings-kit';
+import { ACTIONS, CHECK_LABEL, FIELD_HINT, FIELD_LABEL, INFO_PANEL, NOTE, TABLE_BOX } from '@/components/admin/settings-kit';
+import { AdminNotice } from '@/components/admin/console/AdminKit';
 
 const AMOUNT_PRESETS = [10000, 50000, 100000, 200000, 300000, 500000, 1000000];
 const COUNT_PRESETS = [1, 2, 3, 5, 10];
@@ -144,9 +145,9 @@ export function LoyaltyPolicyScreen({ data, rewards }: { data: LoyaltyPolicyData
           <TableCell className="align-top"><Button aria-label={`${tier.grade.toUpperCase()} 조건 수정`} disabled={locked || !tier.enabled} onClick={() => openEditor(index)} size="sm" type="button" variant="outline">수정</Button></TableCell>
         </TableRow>)}</TableBody>
       </Table></div>
-      <p className={STATUS_BOX}>저장만으로 고객 등급을 일괄 변경하거나 쿠폰을 발급하지 않습니다. 기존 수동 보정의 하한과 보유 쿠폰은 유지됩니다. 등급 사용을 꺼도 유효한 수동 보정 등급은 유지됩니다.</p>
-      {feedback.error ? <p role="alert" className={ALERT_BOX}>{feedback.error}</p> : null}
-      {feedback.message ? <p role="status" className={SUCCESS_BOX}>{feedback.message}</p> : null}
+      <AdminNotice tone="info">저장만으로 고객 등급을 일괄 변경하거나 쿠폰을 발급하지 않습니다. 기존 수동 보정의 하한과 보유 쿠폰은 유지됩니다. 등급 사용을 꺼도 유효한 수동 보정 등급은 유지됩니다.</AdminNotice>
+      {feedback.error ? <AdminNotice role="alert" tone="danger">{feedback.error}</AdminNotice> : null}
+      {feedback.message ? <AdminNotice role="status" tone="success">{feedback.message}</AdminNotice> : null}
       <div className={`${ACTIONS} border-t pt-4`}>
         <Button disabled={locked || reading} type="submit"><Check aria-hidden="true" />{busy ? '저장 중' : '등급 조건 저장'}</Button>
         {uncertain ? <Button disabled={busy} onClick={() => { void save(); }} type="button" variant="outline">같은 요청으로 저장 결과 확인</Button>
@@ -175,7 +176,7 @@ export function LoyaltyPolicyScreen({ data, rewards }: { data: LoyaltyPolicyData
         <div className={INFO_PANEL}><h3 className="font-medium">연결된 혜택 쿠폰</h3>
           {coupons.filter(coupon => coupon.grade === draft[editor.index].grade).length ? <ul className="flex list-disc flex-col gap-1 pl-5 text-muted-foreground">{coupons.filter(coupon => coupon.grade === draft[editor.index].grade).map(coupon => <li key={coupon.code}>{coupon.name} · {coupon.code}</li>)}</ul> : <p className="text-muted-foreground">연결된 쿠폰이 없습니다. 조건 적용 후 등급별 혜택에서 쿠폰을 등록할 수 있습니다.</p>}
         </div>
-        {editorError ? <p role="alert" className={ALERT_BOX}>{editorError}</p> : null}
+        {editorError ? <AdminNotice role="alert" tone="danger">{editorError}</AdminNotice> : null}
         <div className={`${ACTIONS} justify-end border-t pt-4`}><Button onClick={closeEditor} type="button" variant="outline">취소</Button><Button type="submit">조건 적용</Button></div>
         <p className="text-xs text-muted-foreground">조건 적용 후 전체 화면의 ‘등급 조건 저장’을 눌러야 저장됩니다.</p>
       </form>

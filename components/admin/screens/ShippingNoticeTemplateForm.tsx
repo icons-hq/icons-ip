@@ -7,7 +7,7 @@ import {
   saveShippingNoticeTemplateAction,
   type ShippingNoticeTemplateActionState,
 } from '@/app/admin/shipping-notice-template-actions';
-import { AdminField, AdminFormGrid } from '@/components/admin/console/AdminKit';
+import { AdminField, AdminFormGrid, AdminNotice } from '@/components/admin/console/AdminKit';
 import { useAdminCreateDialogBusy } from '@/components/admin/console/AdminCreateDialogButton';
 import {
   SHIPPING_NOTICE_TEMPLATE_CODE_MAX,
@@ -25,8 +25,6 @@ import { Check } from 'lucide-react';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
-import { ALERT_BOX, SUCCESS_BOX } from '@/components/admin/settings-kit';
-
 const EMPTY_STATE: ShippingNoticeTemplateActionState = {};
 
 export function ShippingNoticeTemplateForm({ template }: { template?: ShippingNoticeTemplate }) {
@@ -76,8 +74,8 @@ export function ShippingNoticeTemplateForm({ template }: { template?: ShippingNo
       </AdminFormGrid>
       <Button className="w-fit" type="submit"><Check aria-hidden="true" />{pending ? '저장 중…' : template ? '초안 수정 저장' : '새 초안 저장'}</Button>
     </fieldset>
-    {state.errors?.form ? <p className={ALERT_BOX} role="alert">{state.errors.form}</p> : null}
-    {state.message ? <p className={SUCCESS_BOX} role="status">{state.message}</p> : null}
+    {state.errors?.form ? <AdminNotice role="alert" tone="danger">{state.errors.form}</AdminNotice> : null}
+    {state.message ? <AdminNotice role="status" tone="success">{state.message}</AdminNotice> : null}
   </form>;
 }
 
@@ -94,8 +92,8 @@ export function ShippingNoticeTemplateActivationForm({ template }: { template: S
       </AdminField>
       <Button className="w-fit" type="submit">{pending ? '활성화 중…' : '활성화'}</Button>
     </fieldset>
-    {state.errors?.form ? <p className={ALERT_BOX} role="alert">{state.errors.form}</p> : null}
-    {state.message ? <p className={SUCCESS_BOX} role="status">{state.message}</p> : null}
+    {state.errors?.form ? <AdminNotice role="alert" tone="danger">{state.errors.form}</AdminNotice> : null}
+    {state.message ? <AdminNotice role="status" tone="success">{state.message}</AdminNotice> : null}
   </form>;
 }
 
@@ -108,6 +106,6 @@ export function ShippingNoticeTemplateApplyForm({ template, good }: { template: 
     <Button disabled={pending} size="sm" type="submit">{pending ? '적용 중…' : '이 템플릿 적용'}</Button>
     {state.errors?.form ? <p className="text-sm text-destructive" role="alert">{state.errors.form}</p> : null}
     {state.errors?.goodId ? <p className="text-sm text-destructive" role="alert">{state.errors.goodId}</p> : null}
-    {state.message ? <p className="text-sm font-medium text-[var(--wc-success)]" role="status">{state.message}</p> : null}
+    {state.message ? <p className="text-sm font-medium text-success" role="status">{state.message}</p> : null}
   </form>;
 }

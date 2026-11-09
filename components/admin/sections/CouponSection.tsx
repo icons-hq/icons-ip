@@ -8,7 +8,7 @@ import { CouponScheduleFields } from '@/components/admin/coupons/CouponScheduleF
 import { ConsoleGrid } from '@/components/admin/console/ConsoleGrid';
 import { SalesResultsHeader } from '@/components/admin/sales/SalesConsole';
 import { COUPON_PHASES, COUPON_SORTS, couponPhase, couponIssueEndsAt } from '@/lib/admin/coupons';
-import { AdminFormGrid } from '@/components/admin/console/AdminKit';
+import { AdminFormGrid, AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { CouponTargetingFields } from '@/components/admin/CouponTargetingFields';
 import { adminFormRemountKey } from '@/lib/admin/form-state';
 import { ConsolePagination } from '@/components/admin/console/ConsolePagination';
@@ -19,6 +19,7 @@ import {
   type AdminCouponFilters,
   type AdminCouponRecord,
 } from '@/lib/admin/coupons';
+import { statusTone } from '@/lib/admin/status-tone';
 import { LOYALTY_GRADES, isLoyaltyGrade, loyaltyBasisSummary, loyaltyGradeLabel } from '@/lib/loyalty';
 import type { ConfigurableGrade } from '@/lib/loyalty-policy';
 import { Field, FormShell, SelectField } from '../fields';
@@ -50,6 +51,11 @@ function dateTimeInput(value: string | null | undefined) {
   }).formatToParts(date);
   const get = (type: string) => parts.find((part) => part.type === type)?.value ?? '';
   return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`;
+}
+
+function CouponPhaseBadge({ coupon }: { coupon: AdminCouponRecord }) {
+  const phase = couponPhase(coupon);
+  return <AdminStatusBadge tone={statusTone('couponPhase', phase)}>{COUPON_PHASES.find(option => option.value === phase)?.label}</AdminStatusBadge>;
 }
 
 function CouponEditor({
@@ -284,8 +290,8 @@ export function CouponSection({
   const href = adminCouponListHref(filters);
   return <section className="flex min-w-0 flex-col gap-4">
     <CouponFilters key={href} filters={filters} />
-    {filters.inputError ? <p className="text-sm text-destructive" role="alert">{filters.inputError}</p> : null}
-    {filters.selectedCode ? <p className="text-sm text-destructive" role="alert">선택한 쿠폰을 찾을 수 없습니다.</p> : null}
+    {filters.inputError ? <AdminNotice role="alert" tone="danger">{filters.inputError}</AdminNotice> : null}
+    {filters.selectedCode ? <AdminNotice role="alert" tone="danger">선택한 쿠폰을 찾을 수 없습니다.</AdminNotice> : null}
     <div className="min-w-0 overflow-hidden rounded-xl border bg-card">
       <div className="px-4 pt-4">
         <SalesResultsHeader currentHref={href} total={total} pageSize={pageSize} pageSizes={[20,50,100]} sort={filters.sort ?? 'created_desc'} sortOptions={COUPON_SORTS}>
@@ -301,7 +307,7 @@ export function CouponSection({
         ]} rows={records.map(coupon => ({ id: coupon.id, cells: [
           coupon.code,
           <div key="actions" className="flex items-center gap-1 print:hidden"><CouponStatusAction key={`${coupon.code}-${coupon.termsRevision}-${coupon.status}`} coupon={coupon} /><Button type="button" size="xs" variant="outline" onClick={() => onSelect(coupon)}>수정</Button><Link className={buttonVariants({ size: 'xs', variant: 'outline' })} data-slot="button" href={`${ADMIN_COUPON_LIST_PATH}/new?copy=${encodeURIComponent(coupon.code)}`}>복사</Link><Link className={buttonVariants({ size: 'xs', variant: 'outline' })} data-slot="button" href={`${ADMIN_COUPON_LIST_PATH}/issue?couponCode=${encodeURIComponent(coupon.code)}`}>발급</Link></div>,
-          COUPON_PHASES.find(option => option.value === couponPhase(coupon))?.label,
+          <CouponPhaseBadge coupon={coupon} key="phase" />,
           coupon.name, coupon.issuanceMode === 'targeted' ? '지정 고객' : coupon.gradeBenefit ? `${loyaltyGradeLabel(isLoyaltyGrade(coupon.gradeBenefit) ? coupon.gradeBenefit : 'welcome')} 등급` : coupon.recipientSegment === 'first_purchase' ? '첫구매 고객' : coupon.recipientSegment === 'repeat_purchase' ? '재구매 고객' : '전체 고객',
           <span key="discount">{coupon.benefitKind === 'shipping' ? '배송비 ' : '상품 '}{coupon.discountValue.toLocaleString('ko-KR')}{coupon.discountType === 'percent' ? '%' : '원'}{coupon.maxDiscountAmount ? <small className="block text-[11px] text-muted-foreground">최대 {coupon.maxDiscountAmount.toLocaleString('ko-KR')}원</small> : null}</span>,
           <span className="tabular-nums" key="issuePeriod">{dateTimeInput(coupon.issueStartsAt ?? coupon.startsAt).replace('T',' ')}<small className="block text-[11px] text-muted-foreground">~ {couponIssueEndsAt(coupon) ? dateTimeInput(couponIssueEndsAt(coupon)).replace('T',' ') : '무기한'}</small></span>,

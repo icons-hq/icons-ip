@@ -5,7 +5,9 @@ import { useRouter } from 'next/navigation';
 import { startTransition, useActionState, useId, useMemo, useRef, useState, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from 'react';
 import { ArrowDown, ArrowUp, ExternalLink, Plus, X } from 'lucide-react';
 import { upsertAdminCurationAction } from '@/app/admin/curation-actions';
-import { AdminField } from '@/components/admin/console/AdminKit';
+import { AdminField, AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { AdminPageHeading } from '@/components/admin/console/admin-shell-title';
+import { statusTone } from '@/lib/admin/status-tone';
 import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
@@ -84,7 +86,7 @@ const DEFAULT_PREVIEW: CurationPublicPreview = { curation: emptyCurationPreview(
  * 모양만 kit 부품과 유틸리티로 그린다. 미리보기 iframe 안(공개 스토어프런트)은 공개 CSS 그대로다.
  */
 const SEGMENTED = 'inline-flex items-center rounded-lg bg-muted p-0.5';
-const SEGMENT = 'h-7 flex-1 rounded-md px-2.5 text-[0.8rem] text-muted-foreground hover:bg-transparent hover:text-foreground aria-pressed:bg-background aria-pressed:text-foreground aria-pressed:shadow-sm sm:flex-none';
+const SEGMENT = 'h-7 flex-1 rounded-md px-2.5 text-[0.8rem] text-muted-foreground hover:bg-transparent hover:text-foreground aria-pressed:bg-background aria-pressed:text-primary-soft-foreground aria-pressed:shadow-sm sm:flex-none';
 const FORM_SECTION = 'flex flex-col gap-4 border-b px-4 py-6 sm:px-5';
 const SECTION_TITLE = 'text-sm font-semibold text-foreground';
 const HELP = 'text-xs leading-relaxed text-muted-foreground';
@@ -155,9 +157,9 @@ export function CurationSection({
     else setView(next);
   }
 
-  return <section aria-label="스토어 전시 편집기" className="flex min-w-0 flex-col overflow-hidden rounded-xl border bg-card text-sm text-card-foreground" data-admin-store-editor="" data-full-preview={fullPreview}>
+  return <section aria-label="홈 전시 편집기" className="flex min-w-0 flex-col overflow-hidden rounded-xl border bg-card text-sm text-card-foreground" data-admin-store-editor="" data-full-preview={fullPreview}>
     <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-b px-4 py-3 sm:px-5 print:hidden">
-      <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1"><h2 className="text-lg leading-tight font-semibold tracking-tight">스토어 전시관리</h2><span className="text-xs text-muted-foreground">홈 큐레이션</span></div>
+      <AdminPageHeading title="홈 전시 관리" />
       <div aria-label="미리보기 기기" className={`${SEGMENTED} order-last w-full sm:order-none sm:w-auto`} role="group">
         <Button aria-pressed={device === 'mobile' && !fullPreview} className={SEGMENT} onClick={() => { setDevice('mobile'); setFullPreview(false); }} size="sm" type="button" variant="ghost">모바일</Button>
         <Button aria-pressed={device === 'desktop' && !fullPreview} className={SEGMENT} onClick={() => { setDevice('desktop'); setFullPreview(false); }} size="sm" type="button" variant="ghost">PC</Button>
@@ -172,8 +174,8 @@ export function CurationSection({
       <Button aria-pressed={view === 'content'} className={SEGMENT} onClick={() => requestView('content')} size="sm" type="button" variant="ghost">구성 편집</Button>
       <Button aria-pressed={view === 'layout'} className={SEGMENT} onClick={() => requestView('layout')} size="sm" type="button" variant="ghost">영역 순서·노출</Button>
     </nav></div> : null}
-    {savedMessage && view === 'content' ? <p className="border-b bg-muted/40 px-4 py-2.5 text-sm text-[var(--wc-success)] sm:px-5" role="status">{savedMessage}</p> : null}
-    {layoutSavedMessage && view === 'layout' ? <p className="border-b bg-muted/40 px-4 py-2.5 text-sm text-[var(--wc-success)] sm:px-5" role="status">{layoutSavedMessage}</p> : null}
+    {savedMessage && view === 'content' ? <p className="border-b bg-muted/40 px-4 py-2.5 text-sm text-success sm:px-5" role="status">{savedMessage}</p> : null}
+    {layoutSavedMessage && view === 'layout' ? <p className="border-b bg-muted/40 px-4 py-2.5 text-sm text-success sm:px-5" role="status">{layoutSavedMessage}</p> : null}
     {view === 'content' ? <div className={`grid grid-cols-1 xl:h-[max(780px,calc(100dvh-210px))] print:block print:h-auto${fullPreview ? '' : ' md:grid-cols-[210px_minmax(0,1fr)] xl:grid-cols-[210px_minmax(320px,400px)_minmax(250px,1fr)]'}`}>
       <aside className={`${fullPreview ? 'hidden' : 'flex'} min-h-0 min-w-0 flex-col border-b md:border-r md:border-b-0 print:hidden`} aria-label="홈 구성 목록">
         <div className="flex items-baseline justify-between gap-2 px-4 pt-5 pb-2"><h3 className="text-base font-medium">스토어 홈</h3><span className="text-xs text-muted-foreground tabular-nums">{records.length}개 구성</span></div>
@@ -184,14 +186,14 @@ export function CurationSection({
         </nav>
         <ul className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-2 max-md:max-h-[300px] md:max-xl:max-h-[580px]">
           {ordered.map((record) => <li key={record.id}>
-            <button aria-current={selected?.id === record.id ? 'true' : undefined} className="flex w-full min-w-0 flex-col gap-1 rounded-lg border border-transparent p-3 text-left transition-colors outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 aria-[current=true]:border-border aria-[current=true]:bg-muted" data-slot="button" onClick={() => requestSelection({ id: record.id })} type="button">
-              <span className="flex items-center justify-between gap-1.5"><strong className="text-sm font-medium">{CURATION_KIND_LABELS[record.kind]}</strong><span className="inline-flex items-center gap-1 text-[11px] whitespace-nowrap text-muted-foreground data-[active=true]:text-foreground" data-active={record.status === 'active'}>{record.status === 'active' ? <span aria-hidden="true" className="size-1.5 rounded-full bg-[var(--wc-success)]" /> : null}{CURATION_STATUS_LABELS[record.status]}</span></span>
+            <button aria-current={selected?.id === record.id ? 'true' : undefined} className="flex w-full min-w-0 flex-col gap-1 rounded-lg border border-transparent p-3 text-left transition-colors outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 aria-[current=true]:border-primary aria-[current=true]:bg-primary-soft aria-[current=true]:ring-1 aria-[current=true]:ring-primary" data-slot="button" onClick={() => requestSelection({ id: record.id })} type="button">
+              <span className="flex items-center justify-between gap-1.5"><strong className="text-sm font-medium">{CURATION_KIND_LABELS[record.kind]}</strong><AdminStatusBadge tone={statusTone('display', record.status)}>{CURATION_STATUS_LABELS[record.status]}</AdminStatusBadge></span>
               <span className="text-xs leading-normal [overflow-wrap:anywhere]">{record.title || '제목 없는 배너'}</span>
               <span className="block text-[11px] text-muted-foreground tabular-nums">순서 {record.displayOrder} · {curationKstInput(record.activeFrom).replace('T', ' ')} KST</span>
             </button>
           </li>)}
         </ul>
-        {records.length === 0 ? <p className={EMPTY_NOTE}>등록된 홈 큐레이션이 없습니다.</p> : null}
+        {records.length === 0 ? <p className={EMPTY_NOTE}>등록된 홈 전시 구성이 없습니다.</p> : null}
         <div className="flex flex-col gap-2 border-t p-3">
           <Button className="w-full" onClick={() => setAdding(true)} type="button" variant="secondary"><Plus aria-hidden="true" />구성 추가</Button>
           <ArchivedHeroBanners onRestored={() => setSavedMessage('배너 복구 요청을 처리했습니다. 현재 목록과 노출 설정을 확인해주세요.')} />
@@ -202,7 +204,7 @@ export function CurationSection({
         initialKind={initialKind} ipOptions={ipOptions} key={`${getCurationFormKey(selected, draftSeed.draftId)}:${draftVersion}`}
         onDirty={() => { setDirty(true); setSavedMessage(''); }}
         dirty={dirty} onDeleted={() => { setSavedMessage('배너 삭제 요청을 처리했습니다. 현재 목록을 확인해주세요.'); applySelection({ id: null }); }}
-        onSaved={(id) => { setDirty(false); setSavedMessage('홈 큐레이션을 저장했습니다.'); onSelect({ id }); }}
+        onSaved={(id) => { setDirty(false); setSavedMessage('홈 구성을 저장했습니다.'); onSelect({ id }); }}
         operationId={selected ? operationId : draftSeed.operationId} preview={preview} selected={selected} device={device} heroCount={heroCount} freeProductCount={freeProductCount}
         fullPreview={fullPreview}
       />
@@ -528,8 +530,9 @@ function CurationForm({
         </section>
       </fieldset>
       <footer className="grid gap-3 border-t p-4 sm:p-5 print:hidden"><ActionNotice state={state} />
-        {heroLimitReached ? <p className="text-sm text-destructive" role="alert">프로모션 배너는 비노출을 포함해 최대 10개까지 등록합니다. 기존 배너를 수정해주세요.</p> : null}
-        {freeProductLimitReached ? <p className="text-sm text-destructive" role="alert">자유상품은 모자이크·비노출·종료를 포함해 합계 5개까지 등록합니다. 기존 구성을 수정해주세요.</p> : null}
+        {heroLimitReached ? <AdminNotice role="alert" tone="danger">프로모션 배너는 비노출을 포함해 최대 10개까지 등록합니다. 기존 배너를 수정해주세요.</AdminNotice> : null}
+        {freeProductLimitReached ? <AdminNotice role="alert" tone="danger">자유상품은 모자이크·비노출·종료를 포함해 합계 5개까지 등록합니다. 기존 구성을 수정해주세요.</AdminNotice> : null}
+        {values.enabled ? <AdminNotice title="적용하면 고객 화면에 바로 나갑니다" tone="warning">새로 여는 화면부터 보이고, 노출 시작이 미래면 그 시각부터 보입니다.</AdminNotice> : <AdminNotice tone="neutral">노출안함으로 적용하면 고객 화면에 보이지 않습니다.</AdminNotice>}
         <Button disabled={pending || state.conflict || heroLimitReached || freeProductLimitReached} type="submit">{pending ? '적용 중…' : state.uncertain ? '같은 요청 결과 확인' : '이 구성 적용하기'}</Button>
         {state.conflict ? <Button onClick={() => router.refresh()} type="button" variant="outline">입력을 취소하고 최신 저장본 불러오기</Button> : null}
         {selected?.kind === 'hero' ? <HeroBannerDeleteButton target={selected} dirty={dirty}
@@ -538,7 +541,7 @@ function CurationForm({
     </form>
     <aside className={`flex h-[780px] min-h-0 min-w-0 flex-col border-t bg-muted/40 xl:h-auto print:hidden${fullPreview ? ' border-t-0' : ' md:col-span-2 xl:col-span-1 xl:border-t-0'}`} aria-label="스토어 미리보기">
       <header className="flex items-center gap-3 border-b bg-background px-4 py-3"><h3 className="text-sm font-medium whitespace-nowrap">미리보기</h3><NativeSelect aria-label="미리보기 범위" className="min-w-0 max-w-[180px] flex-1" onChange={(event) => setPreviewScope(event.target.value as 'draft' | 'public')} size="sm" value={previewScope}><option value="draft">편집 중인 구성</option><option value="public">현재 공개 홈</option></NativeSelect><span className="ml-auto text-xs text-muted-foreground tabular-nums">{device === 'mobile' ? '390px' : '1212px'}</span></header>
-      {previewScope === 'draft' ? <div className="grid gap-1.5 border-b bg-background px-4 py-3 text-xs text-muted-foreground [&_strong]:font-medium [&_strong]:text-[var(--wc-warning)]"><span>편집 중인 내용입니다. 적용하면 노출 설정에 따라 반영됩니다.</span>{!values.enabled ? <strong>현재 비노출로 설정되어 있습니다.</strong> : null}{draft.missingGoodIds.length && showManualProducts ? <strong>비노출 또는 없는 상품 {draft.missingGoodIds.length}개는 미리보기에 표시되지 않습니다.</strong> : null}{kind === 'benefit' && !preview.cardRewardsEnabled && isCardRewardDestination(values.linkPath) ? <strong>카드 리워드가 중지되어 카드팩·게임으로 가는 이 혜택 타일은 노출되지 않습니다. 다른 화면으로 가는 혜택 타일은 그대로 보입니다.</strong> : null}
+      {previewScope === 'draft' ? <div className="grid gap-1.5 border-b bg-background px-4 py-3 text-xs text-muted-foreground [&_strong]:font-medium [&_strong]:text-warning"><span>편집 중인 내용입니다. 적용하면 노출 설정에 따라 반영됩니다.</span>{!values.enabled ? <strong>현재 비노출로 설정되어 있습니다.</strong> : null}{draft.missingGoodIds.length && showManualProducts ? <strong>비노출 또는 없는 상품 {draft.missingGoodIds.length}개는 미리보기에 표시되지 않습니다.</strong> : null}{kind === 'benefit' && !preview.cardRewardsEnabled && isCardRewardDestination(values.linkPath) ? <strong>카드 리워드가 중지되어 카드팩·게임으로 가는 이 혜택 타일은 노출되지 않습니다. 다른 화면으로 가는 혜택 타일은 그대로 보입니다.</strong> : null}
         {kind === 'collection_banner' && !preview.cardRewardsEnabled && values.linkPath && isCardRewardDestination(values.linkPath) ? <strong>카드 리워드가 중지되어 카드팩·게임으로 가는 이 컬렉션 배너는 노출되지 않습니다. 배너가 없으면 컬렉션은 지금처럼 시작합니다.</strong> : null}
         {isShellNoticeKind(kind) && !values.pageTypes.includes('home') ? <strong>홈이 노출 화면에 없어 공개 홈에서는 보이지 않습니다. 미리보기는 모양만 보여줍니다.</strong> : null}
         {kind === 'sales_best' && !preview.productRankings?.salesAvailable ? <strong>판매량을 불러오지 못했습니다. 새로고침 후 다시 확인해주세요.</strong> : null}

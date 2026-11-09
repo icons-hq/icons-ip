@@ -3,7 +3,7 @@ import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { useActionState, useState } from 'react';
 import { Check } from 'lucide-react';
 import { saveStoreSettingsAction,saveShippingCarrierAction,saveInquiryAutoRepliesAction,type StoreSettingsActionState } from '@/app/admin/store-settings-actions';
-import { AdminField,AdminFormGrid } from '@/components/admin/console/AdminKit';
+import { AdminField,AdminFormGrid, AdminNotice } from '@/components/admin/console/AdminKit';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
@@ -16,7 +16,7 @@ const NOTE = 'text-sm text-muted-foreground';
 const CHECK_LABEL = 'flex w-fit items-center gap-2 text-sm';
 
 function Feedback({state}:{state:StoreSettingsActionState}) {
-  return <>{state.errors?.form?<p className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive" role="alert">{state.errors.form}</p>:null}{state.message?<p className="rounded-lg border bg-muted/40 px-3 py-2.5 text-sm font-medium text-[var(--wc-success)]" role="status">{state.message}</p>:null}</>;
+  return <>{state.errors?.form?<AdminNotice role="alert" tone="danger">{state.errors.form}</AdminNotice>:null}{state.message?<AdminNotice role="status" tone="success">{state.message}</AdminNotice>:null}</>;
 }
 function ReadOnlyNotice() {
   return <p className={NOTE}>현재 계정은 이 설정을 조회할 수 있습니다. 변경 권한이 있는 매니저에게 요청해주세요.</p>;

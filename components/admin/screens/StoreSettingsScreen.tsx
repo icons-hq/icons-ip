@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { AdminPageHeader,AdminSectionCard } from '@/components/admin/console/AdminKit';
+import { AdminPageHeader,AdminSectionCard,AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { statusTone } from '@/lib/admin/status-tone';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/admin/kit/ui/table';
 import { StoreSettingsForm,ShippingCarrierForm,InquiryAutoRepliesForm } from './StoreSettingsForm';
 import { CARRIER_SETTINGS_PATH,STORE_SETTINGS_PATH,storeSettingsHistoryRows,type EditableCarrier,type StoreSettingsAudit,type StoreSettingsSection,type StoreSettingsSnapshot } from '@/lib/admin/store-settings';
@@ -8,8 +9,13 @@ import { StoreBrandingForm } from './StoreBrandingForm';
 import { StoreNavigationForm } from './StoreNavigationForm';
 
 /* 설정 항목 전환(셸의 콘솔 전환과 같은 링크 탭, ADR-0028). */
-const SETTINGS_TAB = 'inline-flex h-7 items-center rounded-md px-2.5 text-[0.8rem] font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground aria-[current=page]:bg-background aria-[current=page]:text-foreground aria-[current=page]:shadow-sm';
+const SETTINGS_TAB = 'inline-flex h-7 items-center rounded-md px-2.5 text-[0.8rem] font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground aria-[current=page]:bg-background aria-[current=page]:text-primary-soft-foreground aria-[current=page]:shadow-sm';
 const SETTINGS_TABS = 'inline-flex w-fit max-w-full flex-wrap items-center rounded-lg bg-muted p-0.5';
+
+/** 택배사 카드 머리의 사용 상태. */
+function carrierStatus(active: boolean) {
+  return <AdminStatusBadge tone={statusTone('setting', active ? 'active' : 'inactive')}>{active ? '사용 중' : '비활성'}</AdminStatusBadge>;
+}
 
 function historyLabel(target: string) {
   return target.startsWith('shipping_carriers:')?'택배사 변경':target==='store_settings:business'?'사업자·CS 변경':target==='store_settings:bank_transfer'?'무통장 계좌 변경':target==='store_settings:inquiry_auto_replies'?'문의 자동 안내 변경':target==='store_settings:branding'?'스토어 브랜드·SNS 변경':target==='store_settings:navigation'?'공개 메뉴 변경':'배송·출고지 변경';
@@ -27,7 +33,7 @@ export function StoreSettingsScreen({settings,carriers,history,canEdit,section,c
       {canViewCarriers ? <Link className={SETTINGS_TAB} href={CARRIER_SETTINGS_PATH} aria-current={carrierMode?'page':undefined}>택배사</Link> : null}
     </nav>
     {carrierMode?<>
-      {carriers.map(carrier=><AdminSectionCard key={carrier.code} title={`${carrier.label} · ${carrier.active?'사용 중':'비활성'}`}><ShippingCarrierForm carrier={carrier} canEdit={canEdit}/></AdminSectionCard>)}
+      {carriers.map(carrier=><AdminSectionCard key={carrier.code} summary={carrierStatus(carrier.active)} title={carrier.label}><ShippingCarrierForm carrier={carrier} canEdit={canEdit}/></AdminSectionCard>)}
       {canEdit?<AdminSectionCard title="택배사 추가"><ShippingCarrierForm canEdit/></AdminSectionCard>:null}
     </>:section==='branding'?<AdminSectionCard title="스토어 브랜드·SNS"><StoreBrandingForm settings={settings} canEdit={canEdit} operationId={brandingOperationId}/></AdminSectionCard>:section==='navigation'?<AdminSectionCard title="메뉴 관리"><StoreNavigationForm settings={settings} canEdit={canEdit} operationId={navigationOperationId}/></AdminSectionCard>:section==='inquiry_auto_replies'?<AdminSectionCard title="문의 자동 안내"><InquiryAutoRepliesForm settings={settings} canEdit={canEdit}/></AdminSectionCard>:<AdminSectionCard title={section==='business'?'사업자·CS 연락처':'무통장 계좌 표시값'}><StoreSettingsForm key={section} section={section} settings={settings} canEdit={canEdit}/></AdminSectionCard>}
     <AdminSectionCard title="최근 변경 이력">
@@ -52,7 +58,7 @@ export function StoreSettingsScreen({settings,carriers,history,canEdit,section,c
 export function ShippingCarriersScreen({ carriers, history, canEdit }: { carriers: EditableCarrier[]; history: StoreSettingsAudit[]; canEdit: boolean }) {
   return <div className="flex min-w-0 flex-col gap-4" data-admin-screen="shipping-carriers">
     <AdminPageHeader title="택배사 관리" description="상품과 배송조회에 사용할 택배사를 확인합니다." />
-    {carriers.map(carrier => <AdminSectionCard key={carrier.code} title={`${carrier.label} · ${carrier.active ? '사용 중' : '비활성'}`}>
+    {carriers.map(carrier => <AdminSectionCard key={carrier.code} summary={carrierStatus(carrier.active)} title={carrier.label}>
       <ShippingCarrierForm carrier={carrier} canEdit={canEdit} />
     </AdminSectionCard>)}
     {canEdit ? <AdminSectionCard title="택배사 추가"><ShippingCarrierForm canEdit /></AdminSectionCard> : null}

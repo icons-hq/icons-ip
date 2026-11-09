@@ -12,7 +12,7 @@ describe('운영 설정 화면',()=>{
   });
   it('admin에게 택배사 편집·등록과 활성 상태를 보여준다',()=>{
     const html=renderToStaticMarkup(<StoreSettingsScreen {...props} canEdit carrierMode/>);
-    expect(html).toContain('연습택배 · 비활성');expect(html).toContain('택배사 등록');expect(html).toContain('{trackingNumber}');expect(html).toContain('기존 주문의 배송조회');
+    expect(html).toContain('연습택배');expect(html).toMatch(/data-tone="neutral"[^>]*>비활성</);expect(html).toContain('택배사 등록');expect(html).toContain('{trackingNumber}');expect(html).toContain('기존 주문의 배송조회');
   });
 });
 

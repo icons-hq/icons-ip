@@ -1,7 +1,8 @@
 'use client';
 
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
-import { AdminFormGrid } from '@/components/admin/console/AdminKit';
+import { AdminFormGrid, AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { statusTone } from '@/lib/admin/status-tone';
 import { useState } from 'react';
 import type { AdminCampaignActionState } from '@/app/admin/campaign-actions';
 import { CAMPAIGN_CTA_LABEL_MAX_LENGTH } from '@/lib/campaigns';
@@ -43,10 +44,9 @@ function campaignListLabel(campaign: AdminCampaignRecord) {
   return (
     <span className="flex min-w-0 flex-col gap-0.5 text-left">
       <strong className="truncate text-[13px] font-medium">{campaign.title}</strong>
-      <span className="text-[11px] text-muted-foreground">
+      <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-muted-foreground">
+        <AdminStatusBadge tone={statusTone('campaign', campaign.status)}>{ADMIN_CAMPAIGN_STATUS_LABELS[campaign.status]}</AdminStatusBadge>
         {ADMIN_CAMPAIGN_KIND_LABELS[campaign.kind]}
-        {' · '}
-        {ADMIN_CAMPAIGN_STATUS_LABELS[campaign.status]}
         {campaign.featuredOrder ? ` · 배너 ${campaign.featuredOrder}` : ''}
       </span>
       <span className="text-[11px] text-muted-foreground tabular-nums">{campaignPeriodLabel(campaign)}</span>

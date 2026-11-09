@@ -54,7 +54,7 @@ export function CurationMosaicFields({ title, subtitle, slots, imageUrls, option
         <Button type="button" aria-label={`${index + 1}번 상품 뒤로`} disabled={index === 7} onClick={() => move(index, 1)} size="sm" variant="outline"><ArrowDown aria-hidden="true" />뒤로</Button>
       </span></header>
       <p className="text-sm [overflow-wrap:anywhere]">{slot.good_id ? names.get(slot.good_id) ?? '현재 상품을 찾을 수 없습니다.' : '선택한 상품이 없습니다.'}</p>
-      {slot.good_id && !visibleIds.has(slot.good_id) ? <p className="text-xs text-[var(--wc-warning)]">비노출 또는 없는 상품입니다. 공개 모자이크에는 표시되지 않습니다.</p> : null}
+      {slot.good_id && !visibleIds.has(slot.good_id) ? <p className="text-xs text-warning">비노출 또는 없는 상품입니다. 공개 모자이크에는 표시되지 않습니다.</p> : null}
       <div className="flex flex-wrap gap-2"><Button type="button" onClick={() => setPicker(index)} size="sm" variant="outline">{slot.good_id ? '상품 변경' : '상품 선택'}</Button>
         <Button type="button" disabled={!slot.good_id} onClick={() => patch(keys[index], { good_id: null })} size="sm" variant="ghost">상품 해제</Button></div>
       <ArtworkUploadField allowRemove currentPath={slot.image_path} currentUrl={imageUrls[index]} fieldId={`mosaic-image-${keys[index]}`}
