@@ -400,18 +400,18 @@ protected-boundaries:
 
 1차 개편(S1~S9)의 단계·PR 구조는 [docs/research/linefriends-square/09-implementation-plan.md](docs/research/linefriends-square/09-implementation-plan.md)가 정본이고, 2026-09-01 main 전환(#333)으로 라이브됐다. 2차 패리티(2026-10)의 차이 목록과 단계는 [11-parity-audit-2026-10.md](docs/research/linefriends-square/11-parity-audit-2026-10.md)·[12-parity-plan-2026-10.md](docs/research/linefriends-square/12-parity-plan-2026-10.md)가 정본이다. 완료 조건: 각 표면이 §8 플레이북과 R-스펙 수치(11의 정정 포함)를 만족하고, §11 계약 테스트가 통과하며, `npm run lint`·`npm run build`·`npm run test` 통과 + preview 검수.
 
-## 어드민 콘솔 (ADR-0014 · ADR-0028)
+## 어드민 콘솔 (ADR-0014 · ADR-0028 · ADR-0029)
 
-- **룩(ADR-0028, 2026-11-06 전 화면 전환):** shadcn/ui base-nova·neutral 템플릿 기본값. 서체만 로컬 Pretendard 1.3.9(`admin-font.css`). 스마트스토어 기준은 룩이 아니라 업무 쪽 — 메뉴 IA·라벨 어휘·조회 조건·처리 동선·정책 — 에 남는다. 「판매자센터 기준(2026-10-16)」의 색(상단 `#2d3539`·좌측 `#475161`·초록 `#00c73c`)·크기(34·44px 입력)·표 밀도는 퇴역했다.
+- **룩(ADR-0028, 2026-11-06 전 화면 전환 · ADR-0029, 2026-11-09 색과 시각 위계):** shadcn/ui base-nova 부품 + 콘솔 전용 색 체계. 서체만 로컬 Pretendard 1.3.9(`admin-font.css`). 스마트스토어 기준은 룩이 아니라 업무 쪽 — 메뉴 IA·라벨 어휘·조회 조건·처리 동선·정책 — 에 남는다. 「판매자센터 기준(2026-10-16)」의 색(상단 `#2d3539`·좌측 `#475161`·초록 `#00c73c`)·크기(34·44px 입력)·표 밀도는 퇴역했다.
 - 범위: 셸·2단 IA·audited RPC·원장·테스트는 유지한다. 재설계 대상은 워크플로 표면 — 폼·목록·상세·설정.
 - 다섯 패턴이 합격 기준이다: 모든 자원에 전용 상세 페이지와 타임라인 / 모든 목록에 검색·필터·페이지·일괄 액션 / 초안→공개→보관 게시 상태와 실패에 살아남는 폼 / 설정 섹션(코드 상수→DB 설정) / 엑셀 가져오기·내보내기.
 - 라벨 어휘: 스마트스토어의 업무 어휘(상품 조회/수정·상품 등록·판매자상품코드·상품번호·관리코드·옵션)를 기준으로 한다. 카드·카드팩·티켓은 어드민 안에서도 "상품"이라 부르지 않는다(`CONTEXT.md` Flagged ambiguities). 템플릿의 영어 문구는 운영팀 어휘로 바꾼다.
 - 운영 합격 시나리오 S1~S5(일괄 등록 30종·입력값 소실 0·주문 100건 발송 클릭 10회 이내·이동 없는 문의 응대·배포 없는 설정 변경)는 ADR-0014에 기록돼 있다.
-- 토큰: `admin-kit.css`의 `.wc-admin`(shadcn neutral + 사이드바·차트 토큰). 의미색은 `--wc-success`·`--wc-warning`·`--wc-info`(`wc-admin.css`가 shadcn 토큰에 잇는다)를 `text-[var(--wc-success)]`처럼 쓰고 위험은 `destructive`. hex·초록 강조·각진 모서리를 쓰지 않는다.
+- 토큰(ADR-0029): `admin-kit.css`의 `.wc-admin`만 소유한다. 면 `--page`(앱 바탕 청회색)·`--card`(흰색), 주 색 `--primary`·`--primary-soft`·`--primary-soft-foreground`·`--ring`(값을 바꿀 때 이 넷만), 의미색 `--success`·`--warning`·`--info`·`--destructive`와 각 `-soft`·`-border`, 선 `--border`·`--border-strong`·`--input`(흰 바탕 3:1), 차트 `--chart-1..5`·`--chart-comparison`. 유틸리티는 `@theme inline`의 `bg-primary-soft`·`text-success`·`bg-warning-soft`·`bg-danger-soft` 등. 화면은 hex·oklch·팔레트 유틸리티(`text-green-600`)를 쓰지 않는다(계약 테스트). 색은 토큰과 공용 부품에서 해결하고 화면이 고르지 않는다. 주 색은 행동·현재 위치 전용, 의미색은 상태 전용이다. 같은 상태는 모든 화면에서 같은 색이며 상태→tone은 `lib/admin/status-tone.ts`가 진실원이다.
 
 ### 셸
 
-- 사이드바: kit Sidebar inset·아이콘 접힘(15.5rem / 3rem), 768px 미만은 왼쪽 시트. 접힘 상태는 `sidebar_state` 쿠키로 다음 화면에도 같다(⌘/Ctrl+B·가장자리 레일·상단 버튼). 머리(브랜드·역할·메뉴 검색) → 홈 → 즐겨찾기 → 대분류(lucide 그룹 아이콘, 접이식 — 현재 화면의 그룹은 항상 펼침, 접힘·즐겨찾기는 계정별 localStorage) → 사이트로 돌아가기.
+- 사이드바: 흰 면, 현재 메뉴는 주 색 옅은 바탕(`bg-primary-soft`)·주 색 글자, 현재 메뉴가 속한 그룹은 주 색 글자. kit Sidebar inset·아이콘 접힘(15.5rem / 3rem), 768px 미만은 왼쪽 시트. 접힘 상태는 `sidebar_state` 쿠키로 다음 화면에도 같다(⌘/Ctrl+B·가장자리 레일·상단 버튼). 머리(브랜드·역할·메뉴 검색) → 홈 → 즐겨찾기 → 대분류(lucide 그룹 아이콘, 접이식 — 현재 화면의 그룹은 항상 펼침, 접힘·즐겨찾기는 계정별 localStorage) → 사이트로 돌아가기.
 - 상단 막대: h-12 sticky(`data-admin-header`, `html` scroll-padding-top 48). 사이드바 버튼 · 현재 위치(홈 › 메뉴 › 화면) · 콘솔 전환(구분 선택) · 판매자 가이드·쇼핑몰 바로가기 · 업무 도구(알림·할 일·도움말 아이콘 → 오른쪽 비모달 시트 — 연 채로 본문을 조작하고, 패널의 닫기·Esc로 닫는다 — 상담하기 링크) · 계정 메뉴(이메일·권한·로그아웃). 768px 미만 메뉴 시트는 안쪽 닫기 버튼이 있다. ⌘/Ctrl+B는 입력칸·본문 편집기 안에서는 사이드바를 접지 않는다(굵게 등 편집 단축키 우선).
 - 본문: 회색 바탕 위 rounded-xl 흰 패널(SidebarInset, div), 안쪽 p-4 md:p-6. 본문 칸만 `<main>`이고 상단 막대는 그 밖의 banner다. 첫 줄이 화면 제목 h1(text-xl semibold, 홈·상담하기는 sr-only), 화면이 돌려준 덩어리 사이는 gap-4. 화면 머리(`AdminPageHeader`)의 h2가 셸 h1과 같은 이름이면 h2는 sr-only로 감추고 설명·동작만 보인다(`admin-shell-title.tsx`). 화면 하단 고정 바는 `--admin-content-left`·`--admin-content-inset`으로 패널에 맞춘다.
 - 인쇄: 상단 막대·사이드바·화면 제목을 숨기고 패널 여백·그림자를 뺀다. 상담하기는 선택한 대화만(목록·작성칸·상담 정보 제외) 높이 제한 없이, 문의·리뷰 팝업은 높이 제한·닫기 없이 인쇄한다.
@@ -421,14 +421,14 @@ protected-boundaries:
 
 | 요소 | 구조와 규율 |
 |---|---|
-| 버튼 | kit `Button`·`buttonVariants`: default(주 동작)·outline(보조)·destructive(위험)·secondary·ghost(아이콘). 크기 default h-8 · sm h-7 · xs h-6 · lg h-9 · icon size-8/7. form 제출 버튼은 `type="submit"`(kit 기본은 button). Link·label·summary 버튼은 `buttonVariants` + `data-slot="button"`. 아이콘만 있는 버튼은 aria-label. |
+| 버튼 | kit `Button`·`buttonVariants`: default(주 동작, 한 영역에 실선 주 색 하나)·soft(자주 쓰는 조회·적용)·outline(보조)·destructive(복구 가능한 위험)·danger(되돌릴 수 없는 위험의 주 행동 — 환불 실행 등, 실선 빨강)·secondary·ghost(아이콘). 크기 default h-8 · sm h-7 · xs h-6 · lg h-9 · icon size-8/7. form 제출 버튼은 `type="submit"`(kit 기본은 button). Link·label·summary 버튼은 `buttonVariants` + `data-slot="button"`. 아이콘만 있는 버튼은 aria-label. |
 | 입력 | kit Input·Textarea·NativeSelect·Label·Field, h-8 text-sm rounded-lg, 포커스 ring-3 ring/50, 오류 aria-invalid. 체크박스·라디오는 FormData·비제어 동작에 기대면 네이티브로 두고 `admin-kit-vocabulary.css`가 kit 모양을 입힌다. 숫자 입력 스피너 없음(R18, 휠은 AdminNumberWheelGuard). `AdminSelect`는 kit NativeSelect와 같은 폭 규칙(감싸개 기본 내용 폭, 화면이 준 폭은 셀렉트가 채움)이고, 긴 선택값은 실제 잘림에만 아래 도움말로 보인다. 파일 입력은 회색 "파일 선택" 버튼(kit Input), 색 입력은 둥근 견본. 네이티브 `details`의 기본 표시는 kit 화살표(`admin-kit-vocabulary.css`), fieldset 제목은 테두리 위가 아니라 상자 안(`float-left w-full`). 조회 줄은 위 기준 정렬(도움말이 달린 칸도 같은 높이). |
 | 화면 골격 | `AdminPageHeader`(h2 text-lg semibold·설명·동작), `AdminSectionCard`(kit Card, 제목 text-base medium·필수·상태 배지·오류 수·요약), `AdminFormGrid`(최대 2열, 16rem 미만이면 1열, gap-x-6 gap-y-5), `AdminField`(label→입력→도움말→오류, `${inputId}-hint`·`-error`), `AdminSidePanel`, `fields.tsx`(Field·TextArea·SelectField·ColorField·FormShell·RecordList). 템플릿 화면군(상품정보제공고시·이벤트·카테고리·A/S·사이즈·배송 안내·배송정보 템플릿)은 같은 골격이다 — 머리(셸 제목과 같은 h2는 감추고 설명을 보인다, 오른쪽에 kit 기본 크기 등록 버튼 — 서버 폼은 `AdminCreateDialogButton` 팝업) → 조회 카드 → 목록 카드. 주 버튼은 kit 기본 크기(h-8)이고 고정폭·lg를 쓰지 않는다(현장 검표의 48px 터치 버튼만 예외). 엑셀 내려받기 버튼은 Download 아이콘을 단다. |
 | 목록 | `ConsoleGrid`: kit 표 모양(머리 bg-muted text-xs, 행 hover·선택 bg-muted), 정렬 링크와 화살표 아이콘, 첫 셀 상세 링크, 선택 열 40px(칸 전체가 클릭 영역), 지정 열 너비는 최소 폭(좁으면 표만 가로 스크롤), 조회항목 설정(열 표시·순서·왼쪽 0~4열 고정, 계정별 저장), 인쇄에서 고정 칸 static, 칸 좌우 px-3. 빈 상태 문구는 표가 넓어도 보이는 폭 가운데(스크롤 영역 = 크기 질의 컨테이너, `sticky left-0 w-[100cqw]`). 가로 스크롤 영역(`role="region"` + tabIndex 0)은 스크롤하는 그 요소여야 화살표 키가 표를 옮긴다 — kit Table을 감쌀 때는 안쪽 컨테이너를 넘치게 둔다(`GOOD_TABLE_FRAME_CLASS`·`OPERATOR_TABLE`). `ConsoleFilterPanel`(카드, 라벨 위 입력, 기간 프리셋 구분 선택, 초기화·검색), `ConsoleFilterField`, `ConsoleCountChips`(건수 카드, 현재 상태 테두리·고리), `ConsoleBulkActionBar`(0건이면 숨김), `ConsolePagination`(범위 요약 + 이전·다음 아이콘 — URL 목록은 `hrefForPage` 링크, 화면 상태로 읽는 목록은 `onPageChange` 버튼, 처음·마지막·가운데 정렬 변형 없음). 조회 폼을 직접 그리는 화면도 `CONSOLE_FILTER_CARD_CLASS`·`ConsoleFilterActions`(구분선 아래 오른쪽 [초기화][검색], 왼쪽 `start`는 집계 기준·내보내기)로 같은 카드를 쓴다. 목록은 `ConsoleListCard`(흰 카드 안 머리 '제목 (총 N건)'·동작 → 표·항목 → 페이지 이동, 빈 목록도 카드 안 `py-10` 문구 — 셸 위에 바로 두거나 점선 상자로 그리지 않는다, 데이터분석의 `StatsSection`도 같은 카드), kit 표를 직접 그릴 때 머리는 `ConsoleTableHeader`(ConsoleGrid와 같은 bg-muted·text-xs·흐린 글자). 취소·반품·교환은 Dice data-table + `useConsoleTable`(열 머리 정렬·필터, 아래 ActionBar 일괄 처리, 스크롤 영역에 포커스·같은 빈 상태). 표의 URL은 화면의 기존 계약을 쓴다. |
 | 팝업 | kit Dialog·Sheet·AlertDialog·Popover·DropdownMenu·Tooltip은 `AdminKitPortalHost`의 `body > .wc-admin.admin-kit-portal`에 붙는다. 공용 `CustomerServiceDialog`는 네이티브 dialog 동작(처리 중 닫기 막기·Esc·포커스 복귀)을 유지하고 kit 모양(rounded-xl·머리·닫기)을 쓴다. |
-| 상태 | kit `Badge`(secondary·outline·destructive) 또는 `AdminStatusBadge`(neutral = secondary, success·warning = outline 배지 + 의미색 점, danger = destructive — 배지 바탕을 의미색으로 칠하지 않는다). 처리 기한·저평점은 `data-sla-tone`·`data-low-rating`. |
-| 안내·빈 상태 | kit Alert·Empty, 또는 `rounded-lg border bg-muted/40` 안내 상자와 `py-10 text-center text-muted-foreground` 빈 상태. 메뉴설명은 접는 `details`. |
-| 차트 | recharts 색 `var(--chart-1..5)`·격자 `var(--border)`·축 muted-foreground, 애니메이션 끔(캡처 환경 rAF 정지). |
+| 상태 | `AdminStatusBadge tone={statusTone(도메인, 값)}`: tone별 옅은 의미색 바탕 + 점 + 상태 이름 글자(ADR-0029). 화면은 kit `Badge` variant로 상태색을 고르지 않는다. 건수는 `AdminCountCard`(tone 아이콘 칸 + 숫자, 0건은 회색으로 조용히)·`ConsoleCountChips`·`SalesStatusSummary`. 처리 기한·저평점은 `data-sla-tone`·`data-low-rating`. |
+| 안내·빈 상태 | 상태를 말하는 안내는 `AdminNotice tone=...`(아이콘 + 색 + 글자). 단순 묶음은 카드 안 `rounded-lg border bg-muted/40` 상자. 빈 상태는 `py-10 text-center text-muted-foreground`. 메뉴설명은 접는 `details`이고 기본 접힘이다(ADR-0029). |
+| 차트 | recharts 범주색은 `var(--chart-1..5)`를 앞번호부터 고정 순서로(dataviz 검증 통과), 현재 vs 비교는 현재 `--chart-1`·비교 `--chart-comparison`(회색). 격자 `var(--border)`·축 muted-foreground, 글자는 텍스트 토큰, 애니메이션 끔(캡처 환경 rAF 정지). |
 
 ### CSS 소유
 
