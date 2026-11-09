@@ -85,6 +85,45 @@ describe('admin kit 경계 (ADR-0028)', () => {
     expect(outside.map((path) => relative('.', path))).toEqual([]);
   });
 
+  it('의미색 글자는 자기 옅은 바탕과 흰 바탕에서 WCAG AA(4.5:1)를 넘는다 — 토큰을 바꿀 때 계산으로 지킨다', () => {
+    const values = new Map<string, string>();
+    css.walkRules('.wc-admin', (rule) => rule.walkDecls((declaration) => values.set(declaration.prop, declaration.value)));
+    const oklch = (name: string): [number, number, number] => {
+      let value = values.get(name);
+      while (value?.startsWith('var(')) value = values.get(value.slice(4, -1));
+      const match = value?.match(/^oklch\(([\d.]+) ([\d.]+) ([\d.]+)\)$/);
+      expect(match, `${name}: ${value}`).toBeTruthy();
+      return [Number(match![1]), Number(match![2]), Number(match![3])];
+    };
+    const luminance = ([L, C, h]: [number, number, number]) => {
+      const a = C * Math.cos((h * Math.PI) / 180), b = C * Math.sin((h * Math.PI) / 180);
+      const l_ = L + 0.3963377774 * a + 0.2158037573 * b, m_ = L - 0.1055613458 * a - 0.0638541728 * b, s_ = L - 0.0894841775 * a - 1.291485548 * b;
+      const [l, m, s] = [l_ ** 3, m_ ** 3, s_ ** 3];
+      const [r, g, bl] = [4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s, -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s, -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s].map((v) => Math.min(1, Math.max(0, v)));
+      return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
+    };
+    const contrast = (x: [number, number, number], y: [number, number, number]) => {
+      const [high, low] = [luminance(x), luminance(y)].sort((p, q) => q - p);
+      return (high + 0.05) / (low + 0.05);
+    };
+    const white: [number, number, number] = [1, 0, 0];
+    for (const [text, soft] of [['--success', '--success-soft'], ['--warning', '--warning-soft'], ['--destructive', '--danger-soft'], ['--info', '--info-soft'], ['--primary-soft-foreground', '--primary-soft']]) {
+      expect(contrast(oklch(text), oklch(soft)), `${text} / ${soft}`).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(oklch(text), white), `${text} / white`).toBeGreaterThanOrEqual(4.5);
+    }
+    expect(contrast(oklch('--primary-foreground'), oklch('--primary')), 'primary 버튼 글자').toBeGreaterThanOrEqual(4.5);
+    expect(contrast(oklch('--muted-foreground'), oklch('--muted')), '보조 글자').toBeGreaterThanOrEqual(4.5);
+    expect(contrast(oklch('--input'), white), '입력 칸 경계').toBeGreaterThanOrEqual(3);
+  });
+
+  it('어드민 화면은 색을 직접 고르지 않는다 — 팔레트 유틸리티 대신 토큰·공용 부품을 쓴다(ADR-0029)', () => {
+    const palette = /\b(?:bg|text|border|ring|fill|stroke|from|to|via)-(?:red|green|blue|amber|yellow|orange|emerald|sky|indigo|violet|purple|pink|rose|lime|teal|cyan|slate|gray|zinc|stone|neutral)-\d{2,3}\b/;
+    const offenders = sources(join('components', 'admin'))
+      .filter((path) => !path.includes('.test.') && !path.includes('/kit/'))
+      .filter((path) => palette.test(read(path)));
+    expect(offenders.map((path) => relative('.', path))).toEqual([]);
+  });
+
   it('열 설정 버튼은 좁은 화면에서도 숨기지 않는다 — 열 머리글에서 숨긴 열을 되살릴 곳은 여기뿐이다', () => {
     for (const path of ['components/admin/kit/data-table/data-table-view-options.tsx', 'components/admin/kit/console-table-settings.tsx']) {
       expect(read(path), path).not.toMatch(/className="[^"]*\bhidden\b[^"]*"/);

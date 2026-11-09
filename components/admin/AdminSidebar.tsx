@@ -109,12 +109,13 @@ function NavLink({ onClick, ...props }: ComponentProps<typeof Link>) {
 }
 
 /** 그룹 펼치기 버튼. 아이콘 막대로 접힌 상태에서 누르면 사이드바를 펼치고 그 그룹을 연다. */
-function GroupToggle({ children, expanded, label, onClick, ...props }: ComponentProps<'button'> & { expanded: boolean; label: string; onClick: () => void }) {
+function GroupToggle({ children, expanded, label, onClick, current = false, ...props }: ComponentProps<'button'> & { expanded: boolean; label: string; onClick: () => void; current?: boolean }) {
   const { isMobile, setOpen, state } = useSidebar();
   return (
     <SidebarMenuButton
       {...props}
       aria-expanded={expanded}
+      className={current ? 'font-semibold text-primary-soft-foreground' : undefined}
       onClick={() => {
         if (state === 'collapsed' && !isMobile) {
           setOpen(true);
@@ -291,7 +292,7 @@ export function AdminSidebar({
             const groupPanelId = `admin-nav-group-${group.id}`;
             return (
               <SidebarMenuItem data-admin-nav-group={group.id} data-state={isExpanded ? 'open' : 'closed'} key={group.id}>
-                <GroupToggle aria-controls={groupPanelId} expanded={isExpanded} label={group.label} onClick={() => toggleGroup(group.id)}>
+                <GroupToggle aria-controls={groupPanelId} current={activeGroup?.id === group.id} expanded={isExpanded} label={group.label} onClick={() => toggleGroup(group.id)}>
                   <AdminNavGroupIcon groupId={group.id} />
                   <span>{group.label}</span>
                   <ChevronRight aria-hidden="true" className={`ml-auto transition-transform duration-200${isExpanded ? ' rotate-90' : ''}`} />

@@ -18,6 +18,8 @@ const buttonVariantClasses = cva(
           "hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50",
         destructive:
           "border-danger-border bg-danger-soft text-destructive hover:bg-destructive/15 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
+        /* ICONS: 되돌릴 수 없는 위험 행동의 실선 빨강(ADR-0029) — 환불 실행·삭제 확정처럼 그 화면의 주 행동이 위험할 때만 쓴다. */
+        danger: "bg-destructive text-white hover:bg-destructive/90 focus-visible:border-destructive/40 focus-visible:ring-destructive/20",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
