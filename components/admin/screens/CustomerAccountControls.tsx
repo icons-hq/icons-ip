@@ -15,6 +15,15 @@ const FORM_CLASS = 'flex flex-col gap-4';
 function Feedback({ state }: { state: AdminMemberMutationActionState }) {
   return <>{state.errors?.form ? <p className="bg-transparent text-sm text-destructive" role="alert">{state.errors.form}</p> : null}{state.message ? <p className="text-sm text-success" role="status">{state.message}</p> : null}</>;
 }
+/** 회원번호는 내부 식별자라 앞부분만 보이고, 대조가 필요하면 전체를 복사한다(전체 값은 마우스를 올려도 보인다). */
+export function CustomerIdCopy({ id }: { id: string }) {
+  const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle');
+  async function copy() {
+    try { await navigator.clipboard.writeText(id); setState('copied'); } catch { setState('failed'); }
+  }
+  return <span className="inline-flex items-center gap-1" title={id}>회원번호 · {id.slice(0, 8)}…<Button aria-label="회원번호 전체 복사" onClick={copy} size="xs" type="button" variant="ghost">{state === 'copied' ? '복사됨' : state === 'failed' ? '복사 실패' : '복사'}</Button></span>;
+}
+
 export function CustomerSuspensionControl({ actor, customer }: { actor: { id: string; role: AdminMemberRole }; customer: AdminMemberDetail }) {
   const [suspendState, suspend, suspending] = useActionState(suspendAdminMemberAction, EMPTY);
   const [unsuspendState, unsuspend, unsuspending] = useActionState(unsuspendAdminMemberAction, EMPTY);

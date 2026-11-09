@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useActionState } from 'react';
 import { RotateCw } from 'lucide-react';
 import { resendOrderEmailAction, type AdminOrderActionState } from '@/app/admin/order-actions';
@@ -19,10 +20,15 @@ import { ConsoleListCard } from '../console/ConsoleListCard';
 
 const EMPTY_ACTION_STATE: AdminOrderActionState = {};
 
+/* 다른 문의·주문 화면과 같은 날짜 표기(한국 시각, 24시간제). */
 const dateTimeFormatter = new Intl.DateTimeFormat('ko-KR', {
-  dateStyle: 'medium',
-  timeStyle: 'short',
   timeZone: 'Asia/Seoul',
+  year: 'numeric',
+  month: 'numeric',
+  day: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
 });
 
 function formatAttemptedAt(value: string) {
@@ -81,13 +87,14 @@ export function EmailDeliverySection({ deliveries }: { deliveries: EmailDelivery
   const pending = deliveries.filter((delivery) => delivery.status === 'pending');
   /* 처리할 실패 건을 위로 — 같은 상태 안의 최신순은 서버가 정한 그대로다. */
   const ordered = [...failed, ...deliveries.filter((delivery) => delivery.status !== 'failed')];
-  const failedConfirmation = failed.some((delivery) => delivery.template === 'order_confirmation');
+  const resendableFailed = failed.filter((delivery) => delivery.resendable);
+  const failedConfirmation = resendableFailed.some((delivery) => delivery.template === 'order_confirmation');
 
   return (
     <section className="flex min-w-0 flex-col gap-4">
       <AdminPageHeader
         title="메일 발송 이력"
-        description="주문 확인·배송 시작·문의 답변 메일 중 발송에 실패했거나 결과를 확인하지 못한 건입니다. 이미 발송된 건은 다시 보내도 중복 발송되지 않습니다."
+        description="발송에 실패했거나 결과를 확인하지 못한 메일입니다. 이미 발송된 건은 다시 보내도 중복으로 가지 않습니다."
       />
 
       {deliveries.length ? (
@@ -95,14 +102,20 @@ export function EmailDeliverySection({ deliveries }: { deliveries: EmailDelivery
           <div className={ADMIN_COUNT_CARD_GRID_CLASS}>
             <AdminCountCard count={failed.length} label="발송 실패" tone="danger" />
             <AdminCountCard count={pending.length} label="발송 확인 중" tone="info" />
+            <AdminCountCard count={resendableFailed.length} icon={RotateCw} label="지금 다시 보낼 수 있음" tone="warning" />
           </div>
           <p className="text-xs text-muted-foreground">최근 {deliveries.length.toLocaleString('ko-KR')}건 기준입니다. 실패한 건을 먼저 보여줍니다.</p>
         </div>
       ) : null}
 
+      {/* 누를 버튼이 있을 때만 누르라고 말한다. 버튼이 하나도 없으면 없다고 먼저 말한다. */}
       {failedConfirmation ? (
         <AdminNotice tone="warning" title="주문 확인 메일은 전자상거래법상 계약내용에 관한 서면입니다.">
           실패한 건은 줄의 다시 보내기로 다시 보내주세요.
+        </AdminNotice>
+      ) : failed.length && !resendableFailed.length ? (
+        <AdminNotice tone="neutral" title="지금 이 화면에서 다시 보낼 수 있는 메일이 없습니다.">
+          아래 실패 기록은 줄마다 적힌 이유로 여기서 다시 보낼 수 없습니다.
         </AdminNotice>
       ) : null}
 
@@ -116,32 +129,29 @@ export function EmailDeliverySection({ deliveries }: { deliveries: EmailDelivery
       ) : (
         <ul className="flex flex-col divide-y">
           {ordered.map((delivery) => (
-            <li className="flex min-w-0 flex-col gap-3 py-4 text-sm first:pt-0 last:pb-0" key={delivery.dedupeKey}>
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <strong className="text-base leading-snug font-medium text-foreground">{delivery.templateLabel}</strong>
-                <span className="flex items-center gap-2 text-xs text-muted-foreground">
+            <li className="flex min-w-0 flex-wrap items-start justify-between gap-x-6 gap-y-3 py-3.5 text-sm first:pt-0 last:pb-0" key={delivery.dedupeKey}>
+              <div className="flex min-w-0 flex-1 basis-96 flex-col gap-1.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <strong className="text-base leading-snug font-medium text-foreground">{delivery.templateLabel}</strong>
                   <AdminStatusBadge tone={statusTone('emailDelivery', delivery.status)}>{statusLabel(delivery.status)}</AdminStatusBadge>
-                  <span className="tabular-nums">{delivery.attemptCount}회 시도</span>
-                </span>
-              </div>
-              <div className="flex min-w-0 flex-col gap-1">
+                  <span className="text-xs text-muted-foreground tabular-nums">{delivery.attemptCount}회 시도</span>
+                </div>
                 {isProtectedValue(delivery.subject) ? null : <span className="text-sm break-words">{delivery.subject}</span>}
                 <span className="text-xs break-all text-muted-foreground tabular-nums">
-                  {delivery.orderId ? <><span title={delivery.orderId}>주문 {delivery.orderId.slice(0, 8)}…</span> · </> : null}
+                  {delivery.orderId ? <><Link className="font-medium text-foreground underline underline-offset-4" href={`/admin/sales/orders/${delivery.orderId}`} title={delivery.orderId}>주문 {delivery.orderId.slice(0, 8)}…</Link> · </> : null}
                   {isProtectedValue(delivery.recipient) ? null : <>받는 사람 {delivery.recipient} · </>}
                   마지막 시도 {formatAttemptedAt(delivery.claimedAt)}
+                  {!delivery.orderId && isProtectedValue(delivery.recipient) ? ' · 주문·받는 사람이 보관되지 않은 기록' : ''}
                 </span>
+                {/* 원문을 지운 기록은 사유를 모르는 것이지 사유가 아니다 — 빨간 글자로 적지 않는다. */}
                 {delivery.lastError ? (
-                  <span className="text-xs break-words text-destructive">
-                    실패 사유: {failureReason(delivery.lastError)}
-                  </span>
+                  isProtectedValue(delivery.lastError)
+                    ? <span className="text-xs text-muted-foreground">{failureReason(delivery.lastError)}</span>
+                    : <span className="text-xs break-words text-destructive">실패 사유: {failureReason(delivery.lastError)}</span>
                 ) : null}
+                {delivery.resendable ? null : <span className="text-xs text-muted-foreground">{notResendableReason(delivery)}</span>}
               </div>
-              {delivery.resendable ? (
-                <ResendForm delivery={delivery} />
-              ) : (
-                <span className="text-sm text-muted-foreground">{notResendableReason(delivery)}</span>
-              )}
+              {delivery.resendable ? <ResendForm delivery={delivery} /> : null}
             </li>
           ))}
         </ul>
