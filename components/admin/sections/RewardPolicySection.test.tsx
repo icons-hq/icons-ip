@@ -190,7 +190,7 @@ describe('RewardPolicySection', () => {
     expect(html).toContain('value="66666666-6666-4666-8666-666666666666"');
     expect(html).toContain('name="trigger"');
     expect(html).toContain('value="order_paid"');
-    expect(html).toContain('전체 상품(IP 결제 합계)');
+    expect(html).toContain('전체 굿즈(IP 결제 합계)');
     expect(html).toContain('name="minAmount"');
     expect(html).toContain('min="0"');
     expect(html).toContain('step="1"');

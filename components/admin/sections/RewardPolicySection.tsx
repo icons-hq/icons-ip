@@ -114,7 +114,7 @@ export function RewardPolicySection({
   const policyName = (policy: AdminRewardPolicyRecord) => {
     const target = policy.targetGoodId
       ? (goodNames.get(policy.targetGoodId) ?? policy.targetGoodId)
-      : `${ipTitles.get(policy.targetIpId) ?? policy.targetIpId} 전체 상품`;
+      : `${ipTitles.get(policy.targetIpId) ?? policy.targetIpId} 전체 굿즈`;
     return `${target} → ${poolNames.get(policy.poolId) ?? policy.poolId}`;
   };
 
@@ -242,12 +242,12 @@ function RewardPolicyForm({
         <SelectField
           disabled={!targetIpId}
           error={state.errors?.targetGoodId}
-          label="대상 상품"
+          label="대상 굿즈"
           name="targetGoodId"
           onChange={(event) => setTargetGoodId(event.target.value)}
           value={targetGoodId}
         >
-          <option value="">전체 상품(IP 결제 합계)</option>
+          <option value="">전체 굿즈(IP 결제 합계)</option>
           {targetGoods.map((good) => (
             <option
               disabled={Boolean(good.archivedAt && good.id !== selected?.targetGoodId)}
