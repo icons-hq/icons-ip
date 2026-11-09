@@ -71,6 +71,14 @@ describe('SettledScreen', () => {
     expect(html).toContain('판매대금 지급 완료나 반품·교환 권리의 소멸을 뜻하지 않습니다.');
   });
 
+  /* 사람 눈 판정(3라운드): 긴 닉네임이 '@ / 메이플20년차모험가 / _민지'로 세 줄로 깨졌고 @는 주문통합검색에 없는 표기였다. */
+  it('구매자는 @ 없이 한 줄로 자르고 전체 값을 title에 둔다', () => {
+    const buyerName = '메이플20년차모험가_민지';
+    const html = renderToStaticMarkup(<SettledScreen now={NOW} data={data({ rows: [{ ...data().rows[0], buyerName }] })} />);
+    expect(html).toMatch(new RegExp(`class="block [^"]*truncate" title="${buyerName}">${buyerName}<`));
+    expect(html).not.toContain(`@${buyerName}`);
+  });
+
   /* 사람 눈 판정: 화면의 유일한 색이 줄마다 똑같은 '가능 · N일 남음'이라 볼 필요 적은 정보가 제일 튀었다. */
   it('하자 요청 기한은 7일 이내로 임박한 건에만 색을 입힌다', () => {
     const line = (deliveredAt: string) => renderToStaticMarkup(<SettledScreen now={NOW} data={data({ rows: [{ ...data().rows[0], deliveredAt }] })} />);

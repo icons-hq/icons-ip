@@ -82,7 +82,7 @@ import { Ban, BadgeCheck, ChevronDown, ClipboardCheck, Hourglass, ListChecks, Pa
  * 주문 통합검색 — 템플릿 룩(ADR-0028). 조회 조건·처리 동선·열 구성·확인 문구는 그대로이고, 화면을 kit 부품과
  * 유틸리티로 그린다. 옛 클래스(admin-order-*·admin-sales-*·btn·card)를 쓰지 않으며, 테스트가 찾는 자리는 data-* 표시다.
  */
-const FEEDBACK_CLASS = 'text-sm font-medium empty:hidden [&_[role=alert]]:text-destructive [&_[role=status]]:text-success';
+const FEEDBACK_CLASS = 'text-sm font-medium empty:hidden [&_[role=alert]]:text-destructive [&_[role=status]]:text-success [&_[role=status][data-unfinished]]:text-warning';
 const FIELD_ERROR_CLASS = 'text-xs text-destructive';
 const LINK_BUTTON = buttonVariants({ size: 'sm', variant: 'outline' });
 const FACTS_CLASS = 'grid grid-cols-1 gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-2';
@@ -141,14 +141,17 @@ function CancellationReasonBadge({
   row?: boolean;
   request: Pick<AdminOrderCancellationRequestRecord, 'reasonType' | 'staffReasonCode'>;
 }) {
+  const label = adminClaimReasonText(request.reasonType, request.staffReasonCode);
   return (
     <AdminStatusBadge
-      className="h-auto min-h-5 text-left whitespace-normal"
+      className={row ? 'max-w-30' : 'h-auto min-h-5 text-left whitespace-normal'}
       data-order-reason={request.reasonType}
       data-order-row-reason={row ? '' : undefined}
+      title={row ? label : undefined}
       tone={request.reasonType === 'defect' ? 'danger' : request.reasonType === 'staff' ? 'warning' : 'neutral'}
     >
-      {adminClaimReasonText(request.reasonType, request.staffReasonCode)}
+      {/* 목록에서는 한 줄로 자른다 — 사유가 길어도 줄 높이가 튀지 않는다. */}
+      {row ? <span className="truncate">{label}</span> : label}
     </AdminStatusBadge>
   );
 }
@@ -171,11 +174,18 @@ function confirmAction(event: React.FormEvent<HTMLFormElement>, message: string)
   if (!window.confirm(message)) event.preventDefault();
 }
 
+/*
+ * 일부 주문만 처리됐거나 결제 취소가 아직 진행 중인 결과. 서버 액션은 이것을 별도 값 없이 문구로만 돌려주므로
+ * 문구는 그대로 쓰고 초록 완료로 보이지 않게 색만 나눈다(app/admin/order-actions.ts의 일괄 발주확인·취소 결과 문구).
+ */
+const UNFINISHED_RESULT = /처리하지 못한 [\d,]+건|아직 끝나지 않았습니다/;
+const isUnfinishedResult = (message: string | undefined) => UNFINISHED_RESULT.test(message ?? '');
+
 function ActionFeedback({ state }: { state: AdminOrderActionState }) {
   return (
     <div aria-live="polite" className={FEEDBACK_CLASS}>
       {state.errors?.form ? <span role="alert">{state.errors.form}</span> : null}
-      {state.message ? <span role="status">{state.message}</span> : null}
+      {state.message ? <span data-unfinished={isUnfinishedResult(state.message) || undefined} role="status">{state.message}</span> : null}
     </div>
   );
 }
@@ -328,13 +338,19 @@ function CancellationIntentFields({ intent, orderId }: { intent: OrderCancellati
   );
 }
 
+/* 상자의 색·아이콘이 결과를 말하므로 글자는 본문색이다 — 주의 상자 안에 초록 글자가 남지 않게 한다. */
 function CancellationResultBody({ state }: { state: OrderCancellationActionState }) {
   return (
-    <div className={FEEDBACK_CLASS}>
+    <div className="text-sm font-medium empty:hidden [&_[role=alert]]:text-destructive">
       {state.errors?.form ? <span role="alert">{state.errors.form}</span> : null}
       {state.message ? <span role="status">{state.message}</span> : null}
     </div>
   );
+}
+
+function cancellationResultTone(state: OrderCancellationActionState) {
+  if (state.errors?.form) return 'danger' as const;
+  return isUnfinishedResult(state.message) ? 'warning' as const : 'success' as const;
 }
 
 function hasCancellationResult(state: OrderCancellationActionState) {
@@ -347,7 +363,7 @@ function OrderCancellationResult({ orderId, state }: { orderId: string; state: O
     <div aria-live="polite">
       {state.orderId === orderId && hasCancellationResult(state) ? (
         <section aria-label="취소 처리 결과">
-          <AdminNotice title="취소 처리 결과" tone={state.errors?.form ? 'danger' : 'success'}>
+          <AdminNotice title="취소 처리 결과" tone={cancellationResultTone(state)}>
             <CancellationResultBody state={state} />
           </AdminNotice>
         </section>
@@ -914,7 +930,7 @@ function OrderDetail({
       </header>
 
       <dl className={FACTS_CLASS}>
-        <div className={FACT_CLASS}><dt className={FACT_TERM}>구매자</dt><dd className={FACT_VALUE}>@{order.buyerName}</dd></div>
+        <div className={FACT_CLASS}><dt className={FACT_TERM}>구매자</dt><dd className={FACT_VALUE}>{order.buyerName}</dd></div>
         <div className={FACT_CLASS}><dt className={FACT_TERM}>이메일</dt><dd className={FACT_VALUE}>{order.buyerEmail ?? '미등록'}</dd></div>
         <div className={FACT_CLASS}><dt className={FACT_TERM}>주문 시각</dt><dd className={FACT_VALUE}>{formatOrderDateTime(order.createdAt)}</dd></div>
         <div className={FACT_CLASS}><dt className={FACT_TERM}>최근 변경</dt><dd className={FACT_VALUE}>{formatOrderDateTime(order.updatedAt)}</dd></div>
@@ -1143,7 +1159,7 @@ function OrderItemsCell({ items }: { items: AdminOrderRecord['items'] }) {
   const [first, ...others] = items;
   if (!first) return <span className="text-muted-foreground">-</span>;
   const line = (item: AdminOrderRecord['items'][number]) => `${item.name}${item.variantName ? ` · ${item.variantName}` : ''}`;
-  return <div className="flex min-w-48 items-baseline gap-1.5" title={items.map(line).join('\n')}>
+  return <div className="flex min-w-36 items-baseline gap-1.5" title={items.map(line).join('\n')}>
     <span className="line-clamp-2 min-w-0 flex-1">{line(first)}</span>
     {others.length ? <span aria-hidden="true" className="shrink-0 text-xs whitespace-nowrap text-muted-foreground">외 {others.length}건</span> : null}
     <ul className="sr-only">
@@ -1162,14 +1178,14 @@ export function OrdersSection({ data, canManage = true }: { data: AdminOrderCons
   const currentHref = adminOrdersHref(data.filters);
   const eligible = new Set(data.items.filter((order) => canManage && order.status === 'paid' && !openCancellationRequest(order)).map((order) => order.id));
   const selectedIds = selection.filter((id) => eligible.has(id));
-  /* 1440 화면(표 폭 약 1,100px)에 진행 중인 요청까지 잘리지 않고 들어오게 나눈다. 수취인명은 조회항목 설정에서 켠다. */
+  /* 1440 화면(표 폭 1,100px)에 진행 중인 요청까지 잘리지 않고 들어오게 나눈다. 진행 중인 요청 칸은 '취소 결제확인필요'가 한 줄에 들어가는 폭이고, 상품 칸이 남는 자리를 받는다. 수취인명은 조회항목 설정에서 켠다. */
   const columns: ConsoleGridColumn[] = [
     {key:'reference',label:'주문번호',width:'164px'}, {key:'status',label:'주문상태',width:'98px'},
     {key:'items',label:'상품명 / 옵션'},
-    {key:'total',label:'결제금액',width:'100px',align:'end'}, {key:'qty',label:'수량',width:'52px',align:'end'},
-    {key:'ordered',label:'주문일시',width:'150px'}, {key:'buyer',label:'구매자명',width:'88px'},
-    {key:'detail',label:canManage?'주문 처리':'주문 상세',width:'80px'},
-    {key:'claim',label:'취소·반품·교환',width:'104px'},
+    {key:'total',label:'결제금액',width:'92px',align:'end'}, {key:'qty',label:'수량',width:'50px',align:'end'},
+    {key:'ordered',label:'주문일시',width:'144px'}, {key:'buyer',label:'구매자명',width:'104px'},
+    {key:'detail',label:canManage?'주문 처리':'주문 상세',width:'78px'},
+    {key:'claim',label:'취소·반품·교환',width:'146px'},
     {key:'recipient',label:'수취인명',width:'80px',defaultVisible:false},
   ];
   const rows = data.items.map((order) => {
@@ -1181,7 +1197,7 @@ export function OrdersSection({ data, canManage = true }: { data: AdminOrderCons
       <OrderItemsCell items={order.items} key="items" />,
       formatKrwExact(order.total), order.items.reduce((qty,item)=>qty+item.qty,0),
       <time key="created" className="tabular-nums whitespace-nowrap" dateTime={order.createdAt}>{formatOrderDateTime(order.createdAt)}</time>,
-      <span key="buyer">{order.buyerName}</span>,
+      <span key="buyer" className="block max-w-20 truncate" title={order.buyerName}>{order.buyerName}</span>,
       <Link key="detail" className="font-medium underline-offset-4 hover:underline" aria-label={`${canManage ? '상세·처리' : '상세 보기'} 주문 ${orderReferenceLabel(order.id, order.orderNumber)}${request?` · ${cancellationReasonAccessibleName(request)}`:''}`} href={`${adminOrdersHref(data.filters,{orderId:order.id})}#sales-order-detail`}>{canManage ? '상세·처리' : '상세 보기'}</Link>,
       request?<div key="claim" className="flex flex-col items-start gap-1"><Link className="inline-flex flex-wrap items-center gap-1 underline-offset-4 hover:underline" href={`/admin/sales/claims/${ORDER_CLAIM_TYPE_SLUGS[request.claimType]}/${request.id}`}>{ORDER_CLAIM_TYPE_LABELS[request.claimType]} <AdminStatusBadge tone={statusTone('claim', request.stage)}>{adminClaimStageLabel(request.claimType, request.stage)}</AdminStatusBadge></Link><CancellationReasonBadge row request={request}/></div>:'-',
       <span key="recipient">{order.address?.recipientName??'-'}</span>,
@@ -1240,7 +1256,7 @@ export function OrdersSection({ data, canManage = true }: { data: AdminOrderCons
       <OrderFilters filters={data.filters} />
       {canManage && resultOutsideList ? (
         <section aria-label="취소 처리 결과">
-          <AdminNotice title={`주문 ${orderReferenceLabel(resultOutsideList, cancellationState.orderNumber)} 취소 처리 결과 · 지금 검색 조건의 목록에는 없는 주문입니다.`} tone={cancellationState.errors?.form ? 'danger' : 'success'}>
+          <AdminNotice title={`주문 ${orderReferenceLabel(resultOutsideList, cancellationState.orderNumber)} 취소 처리 결과 · 지금 검색 조건의 목록에는 없는 주문입니다.`} tone={cancellationResultTone(cancellationState)}>
             <div className="flex flex-col items-start gap-2">
               <CancellationResultBody state={cancellationState} />
               <Link className={LINK_BUTTON} data-slot="button" href={adminOrderSearchHref(resultOutsideList)}>이 주문 열기</Link>
@@ -1259,7 +1275,7 @@ export function OrdersSection({ data, canManage = true }: { data: AdminOrderCons
             {canManage ? <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2 print:hidden" data-sales-workbar="">
               <span className="text-muted-foreground tabular-nums">{selectedIds.length}건 선택</span>
               <Button disabled={bulkPending||selectedIds.length===0} size="sm" title={selectedIds.length===0?'왼쪽 체크칸에서 신규주문을 고르면 누를 수 있습니다.':undefined} type="submit">{bulkPending?'처리 중…':'선택 주문 발주확인'}</Button>
-              <span className="text-xs text-muted-foreground">체크칸은 발주확인할 수 있는 신규주문에만 있습니다.</span>
+              <span className="text-xs text-muted-foreground">체크칸은 진행 중인 취소·반품·교환 요청이 없는 신규주문에만 있습니다.</span>
               <ActionFeedback state={bulkState}/>
               <span className="ml-auto flex items-center gap-2"><Link className={LINK_BUTTON} data-slot="button" href="/admin/sales/dispatch">발송관리</Link><Link className={LINK_BUTTON} data-slot="button" href="/admin/sales/shipping">배송현황</Link></span>
             </div> : null}

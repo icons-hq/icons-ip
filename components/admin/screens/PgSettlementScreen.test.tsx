@@ -31,6 +31,14 @@ describe('settlement screen', () => {
     expect(html).toContain('2026. 10. 14.');
     expect(html).not.toContain('>2026-10-14<');
   });
+  /* 사람 눈 판정(3라운드): 노란 '연결 꺼짐' 바로 아래 초록 '수집 완료'가 있어 어느 쪽을 믿어야 할지 망설였다. */
+  it('연결이 꺼져 있으면 받아 둔 자료를 저장된 자료로 부르고 초록 완료로 칠하지 않는다', () => {
+    const off = render('daily');
+    expect(off).toMatch(/data-tone="neutral"[^>]*>저장된 자료</);
+    expect(off).not.toMatch(/data-tone="success"[^>]*>수집 완료</);
+    const on = renderToStaticMarkup(<PgSettlementScreen filters={{ ...filters, tab: 'daily' }} report={report} connection={{ enabled: true, mode: 'test' }} operationId={report.snapshot!.operationId} />);
+    expect(on).toMatch(/data-tone="success"[^>]*>수집 완료</);
+  });
   it('shows transaction evidence and expandable fee details without raw identifiers', () => {
     const html = render('transactions'); expect(html).toContain('287B949D'); expect(html).toContain('상세 보기'); expect(html).toContain('수집 시점의 결제'); expect(html).toContain('기본 수수료');
     expect(render('fees')).toContain('수수료 합계');

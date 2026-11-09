@@ -20,7 +20,8 @@ const EXCHANGE_STEP_CAPTION: Record<ExchangeStepState, string> = { done: '완료
 export function ClaimExchangeSteps({ claim }: Pick<AdminClaimDetail, 'claim'>) {
   if (claim.stage === 'rejected' || claim.stage === 'withdrawn') return null;
   const effective = orderClaimEffectiveStage(claim.stage, claim.heldFrom);
-  const current = claim.stage === 'completed' ? EXCHANGE_STEPS.length
+  /* 재출고만 하면 요청은 처리완료가 된다. 고객 도착은 따로 기록하므로, 기록이 없으면 '도착 확인'을 완료로 칠하지 않는다. */
+  const current = claim.stage === 'completed' ? (claim.reshipDeliveredAt ? EXCHANGE_STEPS.length : 3)
     : effective === 'requested' || effective === 'in_review' ? 0
       : effective === 'collecting' || !claim.collectionComplete ? 1
         : !claim.reshippedAt ? 2 : 3;

@@ -12,8 +12,10 @@ import { CLAIM_STEP_MARK_CLASS } from './ClaimProgressSummary';
  */
 const STEP_BUTTON_CLASS = 'flex min-h-12 items-center gap-2 rounded-lg border bg-background px-2.5 py-1.5 text-left text-sm text-muted-foreground transition-colors outline-none hover:bg-muted hover:text-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 data-[step-state=current]:border-primary data-[step-state=current]:bg-primary-soft data-[step-state=current]:text-primary-soft-foreground data-[step-state=done]:text-foreground data-[step-state=optional]:border-dashed forced-colors:aria-[current=step]:outline-2 forced-colors:aria-[current=step]:outline-[Highlight]';
 const STEP_MARK_CLASS = CLAIM_STEP_MARK_CLASS;
-/* 접힌 단계도 인쇄에서는 내용이 보이게 한다. */
-const STEP_SECTION_CLASS = 'group/section min-w-0 rounded-lg border data-[step-state=current]:border-primary/50 data-[step-state=current]:bg-primary-soft/25 print:[&::details-content]:[content-visibility:visible]';
+/* 강조 테두리는 지금 단계 칸 한 겹이다 — 바깥 처리 칸과 안쪽 묶음에는 겹치지 않는다. 접힌 단계도 인쇄에서는 내용이 보이게 한다. */
+const STEP_SECTION_CLASS = 'group/section min-w-0 rounded-lg border data-[step-state=current]:border-primary print:[&::details-content]:[content-visibility:visible]';
+/* 지금 할 일이 있으면 위 단계 칸이 유일한 이동 수단이고 아래에는 펼친 단계만 남긴다 — 같은 이름의 접이 줄이 네 개 더 있으면 어느 쪽을 눌러야 할지 망설인다. 인쇄에는 전부 나온다. */
+const STEP_SECTION_FOCUS_CLASS = '[&:not([open])]:hidden print:[&:not([open])]:block';
 
 export interface ReturnClaimProgress {
   stage: OrderClaimStage;
@@ -90,7 +92,8 @@ export function ReturnClaimWorkspace({ progress, review, collection, hold, refun
     <header className="flex min-w-0 flex-col gap-3">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <h3 className="text-base leading-snug font-medium">반품 단계별 처리</h3>
-        <p className={`min-w-0 break-words ${nextStep ? 'font-medium text-primary-soft-foreground' : 'text-muted-foreground'}`} role="status">{closed ? '요청 처리가 종료됐습니다. 기존 증빙과 환불 기록을 확인하세요.'
+        {/* 다음 할 일은 바로 아래 단계 칸이 '지금 할 일'로 말한다. 같은 말을 또 적지 않고 화면 낭독기로만 읽는다. */}
+        <p className={nextStep ? 'sr-only' : 'min-w-0 break-words text-muted-foreground'} role="status">{closed ? '요청 처리가 종료됐습니다. 기존 증빙과 환불 기록을 확인하세요.'
           : nextStep ? `다음 확인: ${nextStep.title}` : '반품과 환불 완료 기록을 확인했습니다.'}</p>
       </div>
       <nav aria-label="반품 처리 단계" className="grid grid-cols-2 gap-2 sm:grid-cols-4 print:hidden">
@@ -108,19 +111,21 @@ export function ReturnClaimWorkspace({ progress, review, collection, hold, refun
         })}
       </nav>
     </header>
-    {/* 지금 단계만 펼친다. 끝난 단계는 한 줄로 접혀 지금 할 일이 첫 화면에 오고, 접어도 입력은 DOM에 남는다. */}
+    {/* 지금 단계만 펼친다. 다른 단계는 위 단계 칸을 누르면 펼쳐지고, 접어도 입력은 DOM에 남는다. 할 일이 끝난 요청은 기록을 찾아보도록 접이 줄을 모두 둔다. */}
     <div className="flex min-w-0 flex-col gap-2">
       {steps.map(step => {
         const state = stateOf(step.id);
-        return <details key={step.id} className={STEP_SECTION_CLASS} data-step-state={state} open={state === 'current'}>
-          <summary className="flex cursor-pointer list-none items-center gap-2 rounded-lg px-3 py-2.5 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
+        /* 지금 단계 칸은 접지 않는다 — 접으면 위 단계 칸 말고는 아무것도 남지 않는다. */
+        const pinned = state === 'current';
+        return <details key={step.id} className={`${STEP_SECTION_CLASS}${next ? ` ${STEP_SECTION_FOCUS_CLASS}` : ''}`} data-step-state={state} open={pinned}>
+          <summary className={`flex list-none items-center gap-2 rounded-lg px-3 py-2.5 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden ${pinned ? 'cursor-default' : 'cursor-pointer'}`} onClick={pinned ? event => event.preventDefault() : undefined} tabIndex={pinned ? -1 : undefined}>
             <h4 className="flex min-w-0 flex-1 scroll-mt-16 flex-wrap items-center gap-x-2 gap-y-0.5 rounded-sm text-sm font-medium outline-none focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
               id={`return-${step.id}`} tabIndex={-1} ref={node => { headings.current[step.id] = node; }}>
               <span aria-hidden="true" className={STEP_MARK_CLASS} data-step-state={state}>{state === 'done' ? <Check className="size-3.5" /> : step.number ?? '–'}</span>
               {step.title}
               <span className="min-w-0 text-xs font-normal break-words text-muted-foreground">{step.summary}</span>
             </h4>
-            <ChevronDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open/section:rotate-180" />
+            {pinned ? null : <ChevronDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open/section:rotate-180" />}
           </summary>
           <div className="flex min-w-0 flex-col gap-4 border-t px-3 py-3">{step.content}</div>
         </details>;

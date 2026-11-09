@@ -234,7 +234,7 @@ export function OrderDetailScreen({
       </section>
       <div className="flex flex-wrap items-center gap-2">
         <Link href={backHref} className={buttonVariants({ variant: 'outline' })} data-slot="button">{backLabel}</Link>
-        {canManage ? <Link href={consoleHref} className={buttonVariants({ variant: nextStep ? 'default' : 'outline' })} data-slot="button">{nextStep ? `주문 처리 · ${nextStep}` : canceled ? '주문 통합검색에서 보기' : '주문 처리'}</Link> : null}
+        {canManage ? <Link href={trackingMissing ? `${consoleHref}#sales-order-detail` : consoleHref} className={buttonVariants({ variant: nextStep ? 'default' : 'outline' })} data-slot="button">{nextStep ? `주문 처리 · ${nextStep}` : canceled ? '주문 통합검색에서 보기' : '주문 처리'}</Link> : null}
         {/* 끝난 주문의 배송지는 바꿀 일이 없다. 바뀐 이력은 아래 타임라인에 남아 있다. */}
         {canManage && !addressNotRequired && !canceled ? <OrderAddressButton orderId={order.id} /> : null}
         {canManage && ['shipping', 'delivered', 'done'].includes(order.status) ? <SellerClaimIntakeButton orderId={order.id} /> : null}
@@ -251,9 +251,9 @@ export function OrderDetailScreen({
         </div>
       </AdminNotice>
     </div> : null}
-    {/* 운송장이 빠졌다는 경고와 등록 버튼은 눌러야 할 일이라 머리 바로 아래에 둔다. */}
+    {/* 운송장이 빠졌다는 경고는 눌러야 할 일이라 머리 바로 아래에 둔다. 등록은 바로 위 주 버튼 하나로 간다 — 같은 일을 하는 버튼이 둘이면 다른 일인지 망설인다. */}
     {trackingMissing ? <AdminNotice role="status" tone="warning" title={`배송 중인데 운송장이 없는 배송 건이 ${trackingMissing}건 있습니다`}>
-      <div className="flex flex-wrap items-center justify-between gap-2"><span>배송완료로 처리하기 전에 택배사와 운송장번호를 등록해주세요.</span>{canManage ? <Link className={buttonVariants({ size: 'sm', variant: 'soft' })} data-slot="button" href={`${consoleHref}#sales-order-detail`}>운송장 등록</Link> : null}</div>
+      배송완료로 처리하기 전에 택배사와 운송장번호를 등록해주세요.
     </AdminNotice> : null}
     {actorId && production !== undefined ? <OrderProductionPanel initial={production} actorId={actorId} canManage={canManage} /> : null}
     {/* 무엇을 샀는지가 주문을 읽는 출발점이라 맨 위에 표로 둔다. */}

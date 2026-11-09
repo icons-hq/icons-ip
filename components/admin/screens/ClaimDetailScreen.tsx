@@ -180,15 +180,17 @@ export function ClaimDetailScreen({
   /* 아직 끝나지 않은 요청만 처리 박스를 강조한다 — 종결된 요청에서 눈을 끌 이유가 없다. */
   const awaitsOperator = isOpenOrderClaimStage(claim.stage);
 
-  const collectionContact = actorId && claim.claimType !== 'cancel' ? <Card>
-    <CardContent className="flex min-w-0 flex-col gap-4">
-      <ClaimCollectionPlan actorId={actorId} claimId={claim.id} operator carriers={carriers} />
-      <ClaimContactOperations actorId={actorId} orderId={claim.orderId} claimId={claim.id}
-        canReship={claim.claimType === 'exchange' && claim.stage === 'collected' && claim.collectionPolicy !== null && claim.collectionComplete}
-        carriers={carriers} reshipItems={order?.items ?? []} />
-      <ClaimContactHistory actorId={actorId} orderId={claim.orderId} claimId={claim.id} operator />
-    </CardContent>
-  </Card> : null;
+  const collectionContactBody = actorId && claim.claimType !== 'cancel' ? <>
+    <ClaimCollectionPlan actorId={actorId} claimId={claim.id} operator carriers={carriers} />
+    <ClaimContactOperations actorId={actorId} orderId={claim.orderId} claimId={claim.id}
+      canReship={claim.claimType === 'exchange' && claim.stage === 'collected' && claim.collectionPolicy !== null && claim.collectionComplete}
+      carriers={carriers} reshipItems={order?.items ?? []} />
+    <ClaimContactHistory actorId={actorId} orderId={claim.orderId} claimId={claim.id} operator />
+  </> : null;
+  /* 반품은 이 내용이 단계 칸 안에 들어간다. 카드 안의 카드로 겹치지 않게 구분선으로만 나눈다(강조 테두리는 지금 단계 한 겹이다). */
+  const collectionContact = claim.claimType === 'return'
+    ? collectionContactBody ? <div className="flex min-w-0 flex-col gap-4 border-t pt-4">{collectionContactBody}</div> : null
+    : collectionContactBody ? <Card><CardContent className="flex min-w-0 flex-col gap-4">{collectionContactBody}</CardContent></Card> : null;
   /* 교환에서 가장 먼저 보는 정보다. 바꿀 옵션을 따로 받는 칸은 없어 고객이 남긴 요청 글과 지금 주문의 상품·옵션을 처리 칸 맨 위에 함께 보인다. */
   const exchangeRequest = claim.claimType === 'exchange' ? <section aria-label="교환 요청 내용" className="flex min-w-0 flex-col gap-1.5 rounded-lg border bg-muted/40 p-3" data-claim-exchange-request="">
     <h4 className="text-xs font-medium text-muted-foreground">고객이 남긴 교환 요청</h4>
@@ -198,9 +200,7 @@ export function ClaimDetailScreen({
       {order.items.map(item => <li className="break-words" key={item.id}>지금 주문 · {item.name}{item.variantName ? ` · ${item.variantName}` : ''} × {item.qty}</li>)}
     </ul> : null}
   </section> : null;
-  const refundSummary = <Card id="claim-refund" tabIndex={-1} className="scroll-mt-16 outline-none">
-    <CardHeading>카드팩 · 환불</CardHeading>
-    <CardContent className="flex flex-col gap-3">
+  const refundSummaryBody = <>
       <div>
         <Row
           label="카드팩 발급"
@@ -255,8 +255,10 @@ export function ClaimDetailScreen({
           </p>
         </div>
       ) : null}
-    </CardContent>
-  </Card>;
+  </>;
+  const refundSummary = claim.claimType === 'return'
+    ? <section aria-label="카드팩 · 환불" className="flex min-w-0 scroll-mt-16 flex-col gap-3 border-t pt-4 outline-none" id="claim-refund" tabIndex={-1}><h4 className="font-medium">카드팩 · 환불</h4>{refundSummaryBody}</section>
+    : <Card id="claim-refund" tabIndex={-1} className="scroll-mt-16 outline-none"><CardHeading>카드팩 · 환불</CardHeading><CardContent className="flex flex-col gap-3">{refundSummaryBody}</CardContent></Card>;
 
   return (
     <section className="flex min-w-0 flex-col gap-4 text-sm text-foreground" data-admin-kit="claim-detail">
@@ -385,8 +387,8 @@ export function ClaimDetailScreen({
           <ClaimOperationalFeePanel claimId={claim.id} claimType={claim.claimType} fee={claim.operationalFee} />
         </div>
         <div className="flex min-w-0 flex-col gap-4">
-          {/* 승인·거부가 이 화면의 본론이다 — 처리 박스를 오른쪽 맨 위에 두고 진행 중인 요청은 주 색 테두리로 표시한다. */}
-          <Card id="claim-process" tabIndex={-1} className={`scroll-mt-16 outline-none${awaitsOperator ? ' ring-2 ring-primary/40' : ''}`}>
+          {/* 승인·거부가 이 화면의 본론이다 — 처리 박스를 오른쪽 맨 위에 두고 진행 중인 요청은 주 색 테두리로 표시한다. 반품은 안쪽의 지금 단계 칸이 그 표시라 바깥 테두리를 겹치지 않는다. */}
+          <Card id="claim-process" tabIndex={-1} className={`scroll-mt-16 outline-none${awaitsOperator && claim.claimType !== 'return' ? ' ring-2 ring-primary/40' : ''}`}>
             <CardContent className="flex min-w-0 flex-col gap-4">
               <ClaimActionPanel
                 actorId={actorId}

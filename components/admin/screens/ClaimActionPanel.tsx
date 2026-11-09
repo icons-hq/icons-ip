@@ -567,12 +567,19 @@ export function ClaimActionPanel({
           <input name="claimType" type="hidden" value={claimType} />
           <input name="decision" type="hidden" value="reject" />
           <ClaimRejectionReasonField claimType={claimType} id="claim-reject-note" label="거부 사유 (10~200자, 구매자에게 전달됩니다)" />
-          <Button className="w-fit" disabled={pending} size="sm" type="submit" variant="destructive">
+          {/* 승인이 이 칸의 주 행동이다. 거부까지 빨강이면 둘 다 위험 표시로 읽혀 멈칫한다. */}
+          <Button className="w-fit" disabled={pending} size="sm" type="submit" variant="outline">
             거부
           </Button>
         </form>
       ) : null}
   </>;
+
+  /* 지금 할 일이 아닌 거부는 펼쳐서 쓰는 다른 길로 둔다(반품·교환 공통). 입력은 접어도 DOM에 남는다. */
+  const rejectionFold = canReject ? <details className="group/reject min-w-0" data-claim-reject-fold="">
+    <summary className={`${buttonVariants({ size: 'sm', variant: 'outline' })} cursor-pointer list-none text-destructive [&::-webkit-details-marker]:hidden`} data-slot="button">거부하기<ChevronDown aria-hidden="true" className="transition-transform group-open/reject:rotate-180" /></summary>
+    <div className="mt-2 rounded-lg border p-3">{rejectionForm}</div>
+  </details> : null;
 
   if (claimType === 'return') return <>
     <div aria-live="polite" className="flex flex-col gap-1" data-claim-action-result=""><Feedback state={result} /></div>
@@ -595,15 +602,11 @@ export function ClaimActionPanel({
       ? '보류를 해제한 뒤 돌아온 단계에서 회수·환불을 별도로 확인해주세요.'
       : '추가 확인이 필요한 경우에만 보류합니다. 보류할 사유가 없으면 다음 작업을 진행하세요.'}</p></>}
     refund={<>{stage !== 'withdrawn' ? refundControls : null}{returnRefundSummary}</>}
-    exception={canReject && !canApprove ? rejectionForm : null}
+    exception={canReject && !canApprove ? rejectionFold : null}
   /></>;
 
   /* 교환은 '지금 할 일'을 맨 위에 둔다. 승인 전에는 승인이 먼저라 회수 안내를 그 아래로 내리고, 거부는 승인과 나란한 선택이 아니라 펼쳐서 쓰는 다른 길로 둔다. 보류·유형 전환·사유 정정은 필요할 때만 쓰는 일이라 한 줄로 묶는다. */
   if (claimType === 'exchange') {
-    const rejectionFold = canReject ? <details className="group/reject min-w-0" data-claim-reject-fold="">
-      <summary className={`${buttonVariants({ size: 'sm', variant: 'outline' })} cursor-pointer list-none text-destructive [&::-webkit-details-marker]:hidden`} data-slot="button">거부하기<ChevronDown aria-hidden="true" className="transition-transform group-open/reject:rotate-180" /></summary>
-      <div className="mt-2 rounded-lg border p-3">{rejectionForm}</div>
-    </details> : null;
     return <div className="flex min-w-0 flex-col gap-4" data-claim-actions="">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <h3 className="text-base leading-snug font-medium">{panelTitle}</h3>
@@ -612,12 +615,13 @@ export function ClaimActionPanel({
       {exchangeSteps}
       <div aria-live="polite" className="flex flex-col gap-1" data-claim-action-result=""><Feedback state={result} /></div>
       {requestSummary}
-      {/* 보류 중이면 보류 해제가 지금 할 일이다. */}
-      {canResume ? holdControl : null}
-      {canApprove ? <>{decisionForm}{rejectionFold}{originCollection}{legacyCollection}{refundControls}{exchangeShipping}</> : <>{originCollection}{legacyCollection}{refundControls}{exchangeShipping}{rejectionFold}</>}
-      {canHold || secondaryActions ? <section aria-label="필요할 때만 쓰는 처리" className="flex min-w-0 flex-col gap-2 border-t pt-3" data-claim-secondary-actions="">
-        <h4 className="text-xs font-medium text-muted-foreground">필요할 때만</h4>
-        <div className="flex min-w-0 flex-wrap items-start gap-2 [&>section]:w-full">{canHold ? holdControl : null}{secondaryActions}</div>
+      {/* 보류 설정과 해제는 한 부품의 두 상태다. 보류 직후 다시 마운트되면 완료 문구와 포커스가 사라지므로 트리의 자리는 아래 묶음 하나로 두고, 보류 중일 때만 CSS order로 위로 올린다(보류 해제가 지금 할 일이다). */}
+      <div className={`flex min-w-0 flex-col gap-4 ${canResume ? 'order-2' : 'order-1'}`}>
+        {canApprove ? <>{decisionForm}{rejectionFold}{originCollection}{legacyCollection}{refundControls}{exchangeShipping}</> : <>{originCollection}{legacyCollection}{refundControls}{exchangeShipping}{rejectionFold}</>}
+      </div>
+      {canHold || canResume || secondaryActions ? <section aria-label={canResume ? '보류 해제와 그 밖의 처리' : '필요할 때만 쓰는 처리'} className={`flex min-w-0 flex-col gap-2 ${canResume ? 'order-1' : 'order-2 border-t pt-3'}`} data-claim-secondary-actions="">
+        <h4 className="text-xs font-medium text-muted-foreground">{canResume ? '보류 중' : '필요할 때만'}</h4>
+        <div className="flex min-w-0 flex-wrap items-start gap-2 [&>section]:w-full">{holdControl}{secondaryActions}</div>
       </section> : null}
     </div>;
   }

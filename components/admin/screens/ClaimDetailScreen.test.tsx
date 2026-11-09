@@ -316,6 +316,26 @@ describe('ClaimDetailScreen', () => {
     expect(html).toContain('<option value="bank_transfer"');
   });
 
+  /* 코드 리뷰: 재출고하면 요청은 처리완료가 되는데 고객 도착 기록이 없어도 '도착 확인'이 완료로 칠해졌다. */
+  it('재출고만 끝난 교환은 도착 확인을 지금 할 일로 남기고 도착 기록이 있어야 모두 완료로 칠한다', () => {
+    const exchanged = { ...detail().claim, claimType: 'exchange' as const, stage: 'completed' as const, collectionComplete: true,
+      reshippedAt: '2026-09-09T00:00:00Z', reshipDeliveredAt: null };
+    const steps = (html: string) => { const at = html.indexOf('data-claim-exchange-steps'); return html.slice(at, html.indexOf('</ol>', at)); };
+    expect(steps(render({ claim: exchanged }))).toMatch(/aria-current="step"(?:(?!<\/li>)[\s\S])*도착 확인/);
+    const delivered = steps(render({ claim: { ...exchanged, reshipDeliveredAt: '2026-09-09T01:00:00Z' } }));
+    expect(delivered).not.toContain('aria-current="step"');
+    expect(delivered.match(/data-step-state="done"/g)?.length).toBeGreaterThanOrEqual(4);
+  });
+
+  /* 사람 눈 판정(3라운드): 파란 테두리 칸 안에 파란 테두리 줄, 김포 상자, 회수 방법 상자로 겹겹이라 어디까지가 한 묶음인지 헷갈렸다. */
+  it('반품 처리 칸은 지금 단계 칸 한 겹만 강조하고 안쪽은 카드로 겹치지 않는다', () => {
+    const html = render({ claim: { ...detail().claim, stage: 'collecting', collectedAt: null, collectionComplete: false } });
+    expect(html).not.toMatch(/id="claim-process"[^>]*ring-primary|ring-primary[^>]*id="claim-process"/);
+    expect(html).toMatch(/<section[^>]*id="claim-refund"/);
+    const workspace = html.slice(html.indexOf('data-claim-workspace="return"'));
+    expect(workspace.slice(0, workspace.indexOf('id="claim-refund"'))).not.toContain('data-slot="card"');
+  });
+
   it('교환 재출고 뒤에는 배송완료 근거를 별도로 확인하고 기록한 뒤 잠근다', () => {
     const exchanged = { ...detail().claim, claimType: 'exchange' as const, stage: 'completed' as const,
       reshipCarrier: 'hanjin', reshipTrackingNumber: 'QA4530000001', reshippedAt: '2026-09-09T00:00:00Z',

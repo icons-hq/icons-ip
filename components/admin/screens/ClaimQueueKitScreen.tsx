@@ -27,7 +27,7 @@ import {
 } from '@/lib/orders/claims';
 import { AdminCountCard, type AdminCountTone } from '@/components/admin/console/AdminCountCard';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
-import { SalesGuide } from '@/components/admin/sales/SalesConsole';
+import { SalesGuide, kstDayDiff } from '@/components/admin/sales/SalesConsole';
 import { statusTone } from '@/lib/admin/status-tone';
 import { ClaimQueueKitTable, type ClaimKitRow } from './ClaimQueueKitTable';
 
@@ -59,7 +59,7 @@ const NEXT_ACTION_STAGES: Record<OrderClaimType, OrderClaimStage[]> = {
   return: ['needs_review', 'requested', 'collected'],
   exchange: ['needs_review', 'requested', 'collected'],
 };
-/* 끝난 단계는 처리할 일이 아니라서 카드로 세우지 않고 글자 링크로 물러난다 — 진행 단계 카드가 한 줄에 서고 표가 그만큼 올라온다. */
+/* 끝난 단계는 처리할 일이 아니라서 건수 카드로 세우지 않는다. 카드 줄 끝의 조용한 칸 하나에 이름과 건수로 모아 진행 단계 카드가 한 줄에 서고 표가 그만큼 올라온다. */
 const CLOSED_STAGES: OrderClaimStage[] = ['completed', 'rejected'];
 const STAGE_GRID_CLASS: Record<OrderClaimType, string> = {
   cancel: 'grid min-w-0 flex-1 grid-cols-2 gap-2 sm:grid-cols-5',
@@ -85,8 +85,8 @@ export function ClaimQueueKitScreen({
   /* 오래 기다린 건부터 처리하는 것이 이 화면의 주 행동이다. 이미 그 조건이면 버튼 대신 맨 위부터 처리하라고 말한다. */
   const nextStage = NEXT_ACTION_STAGES[claimType].find((stage) => (counts[stage] ?? 0) > 0) ?? null;
   const onNextStage = nextStage !== null && filters.stage === nextStage && filters.sort === 'oldest';
-  /* 표에 며칠째인지 칸이 없어 이 목록에서 가장 오래 기다린 요청을 여기서 말한다. 읽어 온 줄로만 세므로 다음 쪽이 있으면 이 페이지 기준이라고 밝힌다. */
-  const longestWait = rows.filter((row) => isOpenOrderClaimStage(row.stage)).reduce((days, row) => Math.max(days, Math.floor((now.getTime() - Date.parse(row.requestedAt)) / 86_400_000)), 0);
+  /* 표에 며칠째인지 칸이 없어 이 목록에서 가장 오래 기다린 요청을 여기서 말한다. 읽어 온 줄로만 세므로 다음 쪽이 있으면 이 페이지 기준이라고 도움말로 밝힌다. */
+  const longestWait = rows.filter((row) => isOpenOrderClaimStage(row.stage)).reduce((days, row) => Math.max(days, kstDayDiff(Date.parse(row.requestedAt), now.getTime())), 0);
 
   const kitRows: ClaimKitRow[] = rows.map((row) => {
     const sla = orderClaimSlaState({ claimType: row.claimType, stage: row.stage, collectedAt: row.collectedAt, completedAt: row.completedAt }, now);
@@ -132,12 +132,12 @@ export function ClaimQueueKitScreen({
             return <AdminCountCard active={active} count={count} href={adminClaimHref(claimType, filters, { page: 1, stage })} key={stage} label={adminClaimStageLabel(claimType, stage)} tone={CLAIM_STAGE_CARD_TONE(stage)} />;
           })}
         </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 px-1 xl:flex-col xl:flex-nowrap xl:items-start xl:justify-center">
+        <div className="flex shrink-0 flex-wrap items-center gap-x-5 gap-y-0.5 rounded-xl border bg-card px-3 py-1.5 xl:flex-col xl:flex-nowrap xl:items-stretch xl:justify-center" data-claim-closed-stages="">
           {CLOSED_STAGES.map((stage) => {
             const count = counts[stage] ?? 0;
             const label = adminClaimStageLabel(claimType, stage);
             const active = filters.stage === stage;
-            return <Link aria-current={active ? 'true' : undefined} aria-label={`${label} ${count.toLocaleString('ko-KR')}건`} className={`inline-flex min-h-6 items-center text-xs whitespace-nowrap underline-offset-4 hover:underline ${active ? 'font-semibold text-primary' : 'text-muted-foreground hover:text-foreground'}`} href={adminClaimHref(claimType, filters, { page: 1, stage })} key={stage}>{label} <span className="tabular-nums">{count.toLocaleString('ko-KR')}</span>건</Link>;
+            return <Link aria-current={active ? 'true' : undefined} aria-label={`${label} ${count.toLocaleString('ko-KR')}건`} className={`flex min-h-6 items-center justify-between gap-3 rounded-sm text-xs whitespace-nowrap underline-offset-4 hover:underline ${active ? 'font-semibold text-primary' : 'text-muted-foreground hover:text-foreground'}`} href={adminClaimHref(claimType, filters, { page: 1, stage })} key={stage}><span>{label}</span><span className="tabular-nums"><strong className={`font-semibold${active ? '' : ' text-foreground'}`}>{count.toLocaleString('ko-KR')}</strong>건</span></Link>;
           })}
         </div>
       </nav>
@@ -146,14 +146,16 @@ export function ClaimQueueKitScreen({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
             <p className="shrink-0 whitespace-nowrap">총 <strong className="tabular-nums">{total.toLocaleString('ko-KR')}</strong>건{stageFilterLabel ? <span className="text-muted-foreground"> · {stageFilterLabel}</span> : null}</p>
+            {/* 검색 버튼은 위 줄이고 조건은 아래 줄이라, 조건을 바꾼 뒤 검색을 눌러야 하는지 망설인다. */}
+            <p className="min-w-0 text-xs text-muted-foreground">사유·처리상태·기간은 고르면 바로 적용되고, 검색 버튼은 검색어에만 씁니다.</p>
           </div>
           <AdminListExportButton href={adminListExportHref(adminListExportClaimScreenId(claimType), currentHref)} total={total} />
         </div>
         {/* 눌러야 할 것을 글이 아니라 버튼으로 먼저 보인다. 처리 막대는 체크한 뒤에야 화면 아래에 뜨므로 표 위에 말해 둔다. */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border bg-muted/40 px-3 py-2" data-claim-next-action="">
           {nextStage !== null && !onNextStage ? <Link className={buttonVariants({ size: 'sm' })} data-slot="button" href={adminClaimHref(claimType, filters, { page: 1, sort: 'oldest', stage: nextStage })}>{adminClaimStageLabel(claimType, nextStage)} {(counts[nextStage] ?? 0).toLocaleString('ko-KR')}건 오래된 순으로 처리</Link> : null}
-          {longestWait >= 1 ? <span className="font-medium whitespace-nowrap">{total > rows.length ? '이 페이지 ' : ''}최장 대기 {longestWait}일째</span> : null}
-          <p className="text-muted-foreground">{onNextStage ? '맨 위 요청부터 ' : ''}요청번호를 누르면 이 자리에서 상세가 열려 처리합니다. 처리할 요청을 체크하면 화면 아래에 승인·검토중·거부 버튼이 나타납니다.</p>
+          {longestWait >= 1 ? <span className="font-medium whitespace-nowrap" title={total > rows.length ? '이 페이지에서 가장 오래 기다린 요청 기준입니다.' : undefined}>최장 대기 {longestWait}일째</span> : null}
+          <p className="text-xs text-muted-foreground">{onNextStage ? '맨 위 요청부터 ' : ''}요청번호를 누르면 이 자리에서 상세가 열려 처리합니다. 처리할 요청을 체크하면 화면 아래에 승인·검토중·거부 버튼이 나타납니다.</p>
         </div>
         <ClaimQueueKitTable
           claimType={claimType}

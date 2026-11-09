@@ -77,6 +77,15 @@ describe('UnpaidScreen', () => {
     expect(html.match(/data-tone="warning"/g)).toHaveLength(1);
   });
 
+  /* 사람 눈 판정(3라운드): 기한이 끝났거나 결제 확인이 필요한 줄에도 같은 모양의 '입금 확인'이 있어 눌러도 되는지 망설였다. */
+  it('기한 종료·결제 확인 필요 줄의 입금 확인은 평상 줄보다 낮춘다', () => {
+    const data = consoleData();
+    const link = (row: typeof data.rows[number]) => renderToStaticMarkup(<UnpaidScreen data={{ ...data, rows: [row] }} now={now} />).match(/<a[^>]*#unpaid-actions"[^>]*>입금 확인<\/a>/)?.[0] ?? '';
+    expect(link(data.rows[0])).toContain('bg-primary-soft');
+    expect(link({ ...data.rows[0], expiresAt: '2026-08-17T23:00:00.000Z' })).not.toContain('bg-primary-soft');
+    expect(link({ ...data.rows[0], attemptState: 'needs_review' })).not.toContain('bg-primary-soft');
+  });
+
   /* 사람 눈 판정: 제일 급한 기한 종료가 보통 글씨로 지나갔다. */
   it('기한이 끝난 주문은 위험 표시로, 처리는 행마다 버튼으로 연다', () => {
     const data = consoleData();

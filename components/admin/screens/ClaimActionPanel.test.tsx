@@ -228,6 +228,29 @@ describe('ClaimActionPanel 확인과 취소 안내', () => {
     expect(html).toContain('수거를 승인하면 출고지별 반송 주소와 상품이 표시됩니다.');
   });
 
+  /* 코드 리뷰: 보류 뒤 canHold→canResume으로 렌더 자리가 바뀌어 부품이 다시 마운트되면서 완료 문구와 포커스가 사라졌다. */
+  it('교환의 보류 설정과 해제는 같은 묶음에 그리고, 보류 중에만 화면 위치를 올린다', async () => {
+    const base = { claimType: 'exchange', collectionPolicy: 'origin', collectionComplete: false } as const;
+    const group = (html: string) => html.slice(html.indexOf('data-claim-secondary-actions'));
+    const collecting = await render({ ...base, stage: 'collecting' });
+    expect(group(collecting)).toContain('교환 보류 설정');
+    expect(collecting.indexOf('교환 보류 설정')).toBeGreaterThan(collecting.indexOf('data-claim-secondary-actions'));
+    const held = await render({ ...base, stage: 'on_hold', heldFrom: 'collecting' });
+    expect(group(held)).toContain('교환 보류 해제');
+    expect(held.indexOf('교환 보류 해제')).toBeGreaterThan(held.indexOf('data-claim-secondary-actions'));
+    expect(held.match(/<section[^>]*data-claim-secondary-actions=""/)?.[0]).toContain('order-1');
+    expect(collecting.match(/<section[^>]*data-claim-secondary-actions=""/)?.[0]).toContain('order-2');
+  });
+
+  /* 사람 눈 판정(3라운드): 승인은 진한 빨강, 거부는 연한 빨강이라 둘 다 위험 표시처럼 보였다. */
+  it('거부는 승인보다 낮은 테두리 버튼이다', async () => {
+    const html = await render({ stage: 'requested', paymentProvider: 'toss', collectionPolicy: 'origin', collections: [] });
+    expect(html).toMatch(/<button[^>]*bg-destructive[^>]*>승인하고/);
+    const reject = html.match(/<button[^>]*>거부<\/button>/)?.[0] ?? '';
+    expect(reject).toContain('border-border-strong');
+    expect(reject).not.toContain('bg-danger-soft');
+  });
+
   /* kit 버튼은 type을 주지 않으면 type="button"이 된다(Base UI). 양식의 처리 버튼은 모두 제출이어야 한다. */
   it('처리 양식의 kit 버튼은 제출 버튼이고, 양식 복사만 제출하지 않는다', async () => {
     const button = (html: string, label: string) => html.match(new RegExp(`<button[^>]*>${label.replace(/[()]/g, '\\$&')}</button>`))?.[0] ?? '';
