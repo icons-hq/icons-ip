@@ -21,6 +21,16 @@ describe('고객 상세 작업 공간', () => {
     /* 정지·등급 보정·재산정은 각자의 폼을 제출한다(kit Button은 type을 주지 않으면 button이 된다). */
     for (const label of ['계정 정지', '등급 보정', '실적으로 재산정']) expect(html).toMatch(new RegExp(`<button(?=[^>]*type="submit")[^>]*>${label}</button>`));
   });
+  /* 고객을 보러 들어온 화면이다 — 정지·등급 보정은 접어 두고 건수와 동의 상태를 먼저 보인다. */
+  it('개요는 건수 카드를 먼저 보이고 정지·보정 입력은 접어 둔다', () => {
+    const html = render();
+    expect(html).not.toContain(`customer@example.test · ${USER}`);
+    expect(html).toContain(`회원번호 · ${USER.slice(0, 8)}…`);
+    expect(html).toMatch(/aria-label="상품 주문 25건"/);
+    expect(html).toMatch(/<details(?![^>]*\sopen)[^>]*>[\s\S]*?계정 정지 처리/);
+    expect(html).toMatch(/data-tone="neutral"[^>]*>미동의</);
+  });
+
   it('주문 탭은 지정 주문 상세와 고객 안의 다음 페이지로 이어진다', () => {
     const html = render({ ...detail, tab: 'orders', total: 25, items: [{ id: 'order-1', title: '주문 당시 상품', status: 'paid', amount: 12800, createdAt: '2026-09-01T00:00:00Z' }] });
     expect(html).toContain('/admin/sales/orders/order-1');

@@ -1,7 +1,7 @@
 'use client';
 
-import { useActionState, useId } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { useActionState, useId, useRef } from 'react';
+import { ChevronDown, Plus, X } from 'lucide-react';
 import { deleteFaqAction, saveFaqAction, type FaqActionState } from '@/app/admin/faq-actions';
 import { FAQ_CATEGORIES, FAQ_QUESTION_MAX_LENGTH, FAQ_ANSWER_MAX_LENGTH, type FaqEntry } from '@/lib/faq';
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
@@ -9,6 +9,7 @@ import { AdminSelect } from '@/components/admin/console/AdminSelect';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
+import { DIALOG_BODY, DIALOG_HEADER, DIALOG_TITLE, NATIVE_DIALOG } from '@/components/admin/settings-kit';
 import { FIELD_LABEL_CLASS } from './cs-kit-classes';
 
 const EMPTY: FaqActionState = {};
@@ -41,6 +42,17 @@ export function FaqEntryForm({ entry }: { entry?: FaqEntry }) {
     {error('form')}
     {state.message ? <p className="text-sm text-success" role="status">{state.message}</p> : null}
   </form>;
+}
+/** 화면 머리의 등록 버튼 + 등록 팝업. 폼은 그대로 등록 저장을 하고, 저장 후에는 안내를 보이며 다음 등록을 받는다. */
+export function FaqCreateDialog() {
+  const dialog = useRef<HTMLDialogElement>(null);
+  return <>
+    <Button onClick={() => dialog.current?.showModal()} type="button"><Plus aria-hidden="true" />새 FAQ 등록</Button>
+    <dialog aria-label="새 FAQ 등록" className={NATIVE_DIALOG} ref={dialog}>
+      <header className={DIALOG_HEADER}><h2 className={DIALOG_TITLE}>새 FAQ 등록</h2><Button aria-label="새 FAQ 등록 닫기" onClick={() => dialog.current?.close()} size="icon-sm" type="button" variant="ghost"><X /></Button></header>
+      <div className={DIALOG_BODY}><FaqEntryForm /></div>
+    </dialog>
+  </>;
 }
 export function FaqDeleteForm({ entry }: { entry: FaqEntry }) {
   const [state, action, pending] = useActionState(deleteFaqAction, EMPTY);
