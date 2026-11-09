@@ -247,7 +247,7 @@ function CampaignEditor({
       <details className="group/advanced border-t pt-4" open={advancedOpen}>
       <summary className="flex cursor-pointer list-none items-center gap-3 [&::-webkit-details-marker]:hidden">
         <span className="text-[15px] font-semibold text-foreground">이미지·랜딩 구성</span>
-        <span className="text-xs text-muted-foreground tabular-nums">이미지 {filledImages}/3 · 구성 블록 {blockCount}개 · 담당자 입력</span>
+        <span className="text-xs text-muted-foreground tabular-nums">이미지 {filledImages}/3 · 구성 블록 {blockCount}개 · 개발 담당자 입력</span>
         <ChevronDown aria-hidden="true" className="ml-auto size-4 text-muted-foreground transition-transform group-open/advanced:rotate-180" />
       </summary>
       <div className="mt-3 flex min-w-0 flex-col gap-4">

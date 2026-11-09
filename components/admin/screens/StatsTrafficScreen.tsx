@@ -38,11 +38,11 @@ function changeRatio(current:number|null|undefined,previous:number|null|undefine
 /* 칸마다 단위가 다르면(-70·-918,815원) 크기를 견줄 수 없다 — 전환율은 %p, 나머지는 변화율로 맞춘다. 실제 차이는 title에 둔다. */
 function tileChange(key:TrafficMetric,current:number|null|undefined,previous:number|null|undefined){if(key==='conversionRate'||current==null||previous==null)return trafficDifference(current??null,previous??null,key==='conversionRate');return adminStatsChange(current,previous);}
 function NoticeTrafficSection({report}:{report:NoticeTrafficReport|null}){
+ const heading=<h3 className="flex flex-wrap items-baseline gap-2 text-base font-medium" id="traffic-notices-title">상단 공지 노출·클릭 {report?<small className="text-xs font-normal text-muted-foreground tabular-nums">{report.rows.length.toLocaleString('ko-KR')}개</small>:null}</h3>;
  return <section aria-labelledby="traffic-notices-title" className={LIST_CARD} data-console-list="">
-  <h3 className="flex flex-wrap items-baseline gap-2 text-base font-medium" id="traffic-notices-title">상단 공지 노출·클릭 {report?<small className="text-xs font-normal text-muted-foreground tabular-nums">{report.rows.length.toLocaleString('ko-KR')}개</small>:null}</h3>
-  {report===null?<AdminNotice role="alert" tone="danger">공지 노출·클릭 집계를 불러오지 못했습니다. 새로고침해주세요.</AdminNotice>
+  {report===null?<>{heading}<AdminNotice role="alert" tone="danger">공지 노출·클릭 집계를 불러오지 못했습니다. 새로고침해주세요.</AdminNotice></>
    :<ConsoleGrid caption="상단 공지 노출·클릭" preferencesKey="traffic-notices" columns={NOTICE_COLUMNS} emptyLabel="이 기간에 집계된 공지 노출이 없습니다."
-    rows={report.rows.map(row=>({id:`${row.curationId}:${row.placement}`,cells:[noticeTrafficTitle(row),NOTICE_PLACEMENT_LABELS[row.placement]??row.placement,trafficNumber(row.impressions),trafficNumber(row.impressionSessions),trafficNumber(row.clicks),trafficNumber(row.clickSessions),row.clickRate===null?'계산 불가':trafficNumber(row.clickRate,'%')]}))}/>}
+    rows={report.rows.map(row=>({id:`${row.curationId}:${row.placement}`,cells:[noticeTrafficTitle(row),NOTICE_PLACEMENT_LABELS[row.placement]??row.placement,trafficNumber(row.impressions),trafficNumber(row.impressionSessions),trafficNumber(row.clicks),trafficNumber(row.clickSessions),row.clickRate===null?'계산 불가':trafficNumber(row.clickRate,'%')]}))}>{heading}</ConsoleGrid>}
   <p className={STATS_NOTE}>방문 통계에 동의한 공개 화면 방문에서 공지가 절반 이상 보인 횟수와 버튼·배너를 누른 횟수입니다. 한 화면에서는 공지마다 한 번만 세고, 클릭은 같은 방문에서 노출된 뒤에만 셉니다. 클릭률은 노출 대비 클릭입니다.</p>
  </section>;
 }

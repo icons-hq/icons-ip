@@ -174,8 +174,7 @@ export function ShippingRegionsScreen({ policies: initialPolicies, adoptions, or
   const uncovered = origins.filter((origin) => adoptions.some((row) => row.originId === origin.id) && !policies.some((policy) => policy.originId === origin.id && policy.status === 'active'));
   const hasUnregistered = origins.some((origin) => !adoptions.some((row) => row.originId === origin.id) && !policies.some((policy) => policy.originId === origin.id && policy.status !== 'draft'));
   return <div className="flex min-w-0 flex-col gap-4" data-admin-screen="shipping-regions">
-    <AdminPageHeader title="지역별 추가배송비 관리" description="실제 물류사 회신을 출고지·계약 택배사·적용 기간별로 관리합니다. 확정된 정책만 배송지별 견적과 주문에 적용합니다." />
-    <StoreSettingsRelatedLinks label="배송 설정" links={[{ href: '/admin/settings/origins', label: '출고지·배송비' }, { href: '/admin/settings/carriers', label: '택배사' }]} />
+    <AdminPageHeader title="지역별 추가배송비 관리" description="실제 물류사 회신을 출고지·계약 택배사·적용 기간별로 관리합니다. 확정된 정책만 배송지별 견적과 주문에 적용합니다." actions={<StoreSettingsRelatedLinks label="배송 설정" links={[{ href: '/admin/settings/origins', label: '출고지·배송비' }, { href: '/admin/settings/carriers', label: '택배사' }]} />} />
     {message ? <AdminNotice role="status" tone="success">{message}</AdminNotice> : null}
     <AdminSectionCard title="출고지별 등록 상태">
       <ul className="flex flex-col divide-y">{origins.map((origin) => {

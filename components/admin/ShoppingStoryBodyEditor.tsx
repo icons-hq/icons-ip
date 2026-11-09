@@ -91,6 +91,8 @@ export function ShoppingStoryBodyEditor({ accountId, value, onChange, disabled }
         <Button disabled={blocked} type="button" onMouseDown={event => event.preventDefault()} onClick={() => { const selected = editor.current ? storyEditorSelectedHtml(editor.current, storyEditorRange(editor.current, remembered.current)) : ''; insert(`<blockquote data-icons-quote="${quote}">${selected || '인용할 내용'}</blockquote>`); }} size="sm" variant="outline">인용 넣기</Button>
         <label className={TOOL_LABEL}>구분선 모양<NativeSelect disabled={blocked} value={divider} onPointerDown={remember} onChange={event => setDivider(event.target.value as ContentDividerStyle)} size="sm">{CONTENT_DIVIDER_STYLES.map((style, index) => <option key={style} value={style}>{['긴 선', '짧은 선', '굵은 선', '꺾쇠', '다이아몬드', '점선', '사선', '세로선'][index]}</option>)}</NativeSelect></label>
         <Button disabled={blocked} type="button" onMouseDown={event => event.preventDefault()} onClick={() => insert(`<hr data-icons-divider="${divider}">`)} size="sm" variant="outline">구분선 넣기</Button>
+        {/* 버튼 하나가 줄을 혼자 차지하지 않게 넣기 도구 줄 끝에 둔다. */}
+        <div className="ml-auto min-w-0"><BodyTemplateTools accountId={accountId} surface="story" disabled={blocked} captureEditor={captureEditor} /></div>
       </div>
       {/* 접어도 고른 파일이 남도록 닫을 때 없애지 않고 감춘다. */}
       <div className="flex-col gap-3 p-3 data-[open=true]:flex" data-open={imageOpen} hidden={!imageOpen}><ArtworkUploadField key={uploadKey} kind="curation" currentPath={null} currentUrl={null} fieldId={`story-image-${uploadKey}`} name="storyImage" label="본문 이미지" showCropGuide={false} showPath={false} onPathChange={setPath} />
@@ -98,7 +100,6 @@ export function ShoppingStoryBodyEditor({ accountId, value, onChange, disabled }
         <Button className="self-start" type="button" disabled={blocked || !path} onClick={() => { if (insert(`<figure><img src="${path}" alt="${escape(alt)}"></figure>`)) { setPath(''); setAlt(''); setUploadKey(key => key + 1); setImageOpen(false); } }} variant="outline">업로드한 이미지 본문에 넣기</Button>
       </div>
     </div>
-    <BodyTemplateTools accountId={accountId} surface="story" disabled={blocked} captureEditor={captureEditor} />
     <div ref={editor} role="textbox" aria-label="스토리 본문" aria-multiline="true" contentEditable={!blocked} suppressContentEditableWarning className="wc-shopping-story__body max-h-[650px] min-h-80 overflow-y-auto rounded-lg border bg-background p-5 font-normal outline-none [overflow-wrap:anywhere] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50" onInput={readEditor} onKeyUp={remember} onMouseUp={remember} onBlur={remember}
       onDrop={event => { event.preventDefault(); insert(event.dataTransfer.getData('text/html') || `<p>${escape(event.dataTransfer.getData('text/plain'))}</p>`); }}
       onPaste={event => { event.preventDefault(); insert(event.clipboardData.getData('text/html') || `<p>${escape(event.clipboardData.getData('text/plain')).replaceAll('\n', '<br>')}</p>`); }} />
