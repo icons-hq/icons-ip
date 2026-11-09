@@ -2,6 +2,7 @@ import { CustomerServiceTabs, CustomerServiceResultsHeader } from './CustomerSer
 import { CUSTOMER_SERVICE_PAGE_SIZES } from '@/lib/admin/customer-service-list';
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import Link from 'next/link';
+import type { ReactNode } from 'react';
 import { ChevronDown, ListFilter } from 'lucide-react';
 import { InquiryLiveUpdates } from '@/components/screens/InquiryLiveUpdates';
 import { InquiryPreviewLink } from './InquiryPreviewLink';
@@ -78,10 +79,13 @@ function inquiryOverdueDays(inquiry: { status: string; waitingSince: string | nu
 export function InquiryQueueScreen({
   data,
   now = new Date(),
+  pendingBadge,
 }: {
   data: AdminInquiryConsoleData;
   /** SLA·경과시간 기준 시각. 테스트 주입용. */
   now?: Date;
+  /** 미답변 바로가기. 혼자 한 줄을 차지하지 않게 목록 제목 옆에 둔다. */
+  pendingBadge?: ReactNode;
 }) {
   const { counts, filters, pageSize, rows, total } = data;
   const satisfactionPercent = data.satisfactionSummary ? inquirySatisfactionPercent(data.satisfactionSummary) : null;
@@ -142,7 +146,7 @@ export function InquiryQueueScreen({
   return (
     <div className="flex min-w-0 flex-col gap-4" data-cs-console="inquiries">
       <section aria-label="고객문의 목록" className="flex min-w-0 flex-col gap-4 rounded-xl border bg-card p-4 text-card-foreground">
-        <CustomerServiceResultsHeader title="고객문의 목록" total={total} pageSize={pageSize} pageSizeOptions={CUSTOMER_SERVICE_PAGE_SIZES.map(size => ({ value: String(size), label: `${size}개씩`, href: adminInquiryHref(filters, { pageSize: size, page: 1 }) }))} />
+        <CustomerServiceResultsHeader aside={pendingBadge} title="고객문의 목록" total={total} pageSize={pageSize} pageSizeOptions={CUSTOMER_SERVICE_PAGE_SIZES.map(size => ({ value: String(size), label: `${size}개씩`, href: adminInquiryHref(filters, { pageSize: size, page: 1 }) }))} />
         <details className="group/search" data-cs-search="" open={hasSearch}>
           <summary className={`${buttonVariants({ size: 'sm', variant: 'outline' })} w-fit list-none [&::-webkit-details-marker]:hidden`} data-slot="button"><ListFilter aria-hidden="true" />검색 조건 <ChevronDown aria-hidden="true" className="transition-transform group-open/search:rotate-180" /></summary>
           <ConsoleFilterPanel
