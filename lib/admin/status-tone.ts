@@ -20,7 +20,7 @@ const STATUS_TONES = {
   /** 결제 상태 */
   payment: { pending: 'warning', paid: 'success', canceled: 'danger', failed: 'danger', refunded: 'neutral' },
   /** 클레임 단계 — lib/orders/claims ORDER_CLAIM_STAGE_LABELS */
-  claim: { requested: 'warning', in_review: 'info', collecting: 'info', collected: 'info', on_hold: 'warning', processing: 'info', needs_review: 'danger', completed: 'success', rejected: 'neutral', withdrawn: 'neutral' },
+  claim: { requested: 'warning', in_review: 'info', collecting: 'info', collected: 'warning', on_hold: 'neutral', processing: 'info', needs_review: 'danger', completed: 'success', rejected: 'neutral', withdrawn: 'neutral' },
   /** 고객문의 */
   inquiry: { open: 'warning', answered: 'success', closed: 'neutral' },
   /** 상품문의 */
@@ -63,8 +63,8 @@ const STATUS_TONES = {
   unpaid: { prepared: 'neutral', confirming: 'info', needs_review: 'danger', unknown: 'danger', missing: 'danger' },
   /** 반품·교환 배송비 청구 — lib/orders/claim-fees */
   claimFee: { unpaid: 'warning', reported: 'warning', paid: 'success', waived: 'neutral', voided: 'neutral', refund_due: 'danger', refunded: 'success' },
-  /** 정기구매 신청 — lib/subscriptions/model */
-  subscription: { draft: 'neutral', awaiting_first_payment: 'info', active: 'success', paused: 'neutral', needs_confirmation: 'warning', canceled: 'danger' },
+  /** 정기구매 신청 — lib/subscriptions/model. 해지는 이미 끝난 건이라 조용히 두고 처리할 '변경 내용 확인 필요'만 띄운다 */
+  subscription: { draft: 'neutral', awaiting_first_payment: 'info', active: 'success', paused: 'neutral', needs_confirmation: 'warning', canceled: 'neutral' },
   /** 정기구매 회차 결제 */
   subscriptionCycle: { draft: 'neutral', ready: 'info', prepared: 'info', dispatching: 'info', unknown: 'warning', needs_review: 'danger', approved: 'success', declined: 'danger', canceled: 'danger', skipped: 'neutral' },
   /** 배송 건별 지연 안내 결과 — lib/admin/shipment-delay-notice */
@@ -82,6 +82,8 @@ const STATUS_TONES = {
   /** PG 정산 수집 시점 대조 — lib/settlements/report */
   pgSettlementMatch: { matched: 'success', unlinked: 'warning', mismatch: 'danger' },
   // [cs]
+  /** 상담하기 대화 상태 — lib/admin/inquiry-chat CHAT_STATUS_OPTIONS. 답변 뒤 대화가 이어지는 '진행중'은 진행 색이고, 고객문의의 '답변 완료'와 뜻이 달라 별도 줄이다 */
+  inquiryChat: { open: 'warning', answered: 'info', closed: 'neutral' },
   /** 고객문의 답변 만족도 — lib/inquiry-satisfaction */
   inquirySatisfaction: { satisfied: 'success', dissatisfied: 'danger', unrated: 'neutral' },
   /** 상품문의 노출 */
@@ -111,8 +113,8 @@ const STATUS_TONES = {
   game: { scheduled: 'info', active: 'success', ended: 'neutral', 'pool-unavailable': 'danger' },
   /** 카드팩 발급 정책 */
   rewardPolicy: { inactive: 'neutral', scheduled: 'info', active: 'success', ended: 'neutral', 'pool-unavailable': 'danger' },
-  /** 이벤트 — 화면 이름 그대로 저장된 값이다. 열리기 전(예정·예매중)은 파랑, 진행중만 초록이다 */
-  event: { 예정: 'info', 예매중: 'info', 진행중: 'success', 종료: 'neutral' },
+  /** 이벤트 — 화면 이름 그대로 저장된 값이다. 아직 안 연 것(예정)은 파랑, 지금 팔거나 열려 있는 것(예매중·진행중)은 초록이다 */
+  event: { 예정: 'info', 예매중: 'success', 진행중: 'success', 종료: 'neutral' },
   /** 티켓 회차 정원 */
   ticketAllocation: { open: 'success', full: 'danger', empty: 'neutral' },
   /** 상품공지사항 전시 */

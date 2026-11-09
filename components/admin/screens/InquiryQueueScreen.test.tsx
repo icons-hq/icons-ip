@@ -98,19 +98,27 @@ describe('InquiryQueueScreen', () => {
     expect(html.includes('미답변 24시간 경과')).toBe(overdue);
   });
 
-  /* 모든 줄을 같은 빨강으로 칠하면 급한 정도가 사라진다 — 경과 일수를 글자로 보이고 위험색은 첫 페이지의 최장 대기에만 쓴다. */
-  it('24시간을 넘긴 미답변은 경과 일수를 보이고 위험색은 최장 대기에만 쓴다', () => {
+  /* 비슷한 숫자 둘이 함께 빨가면 어느 것이 기준인지 망설인다 — 위험색은 1차 답변 기한 칸에만 쓰고, 경과 일수는 회색 글자다. */
+  it('24시간을 넘긴 미답변은 경과 일수를 회색 글자로 보이고 위험색은 기한 칸에만 쓴다', () => {
     const source = data();
     const rows = [
       { ...source.rows[0], id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1', waitingSince: '2026-08-14T05:00:00.000Z' },
       { ...source.rows[0], id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2', waitingSince: '2026-08-18T05:00:00.000Z' },
     ];
-    const firstPage = renderToStaticMarkup(<InquiryQueueScreen data={{ ...source, rows }} now={NOW} />);
-    expect(firstPage).toMatch(/data-tone="danger"[^>]*>6일 경과</);
-    expect(firstPage).toMatch(/data-tone="warning"[^>]*>2일 경과</);
-    const nextPage = renderToStaticMarkup(<InquiryQueueScreen data={{ ...source, rows, filters: { ...source.filters, page: 2 } }} now={NOW} />);
-    expect(nextPage).not.toMatch(/data-tone="danger"[^>]*>\d+일 경과</);
-    expect(nextPage).toMatch(/data-tone="warning"[^>]*>6일 경과</);
+    const html = renderToStaticMarkup(<InquiryQueueScreen data={{ ...source, rows }} now={NOW} />);
+    expect(html).toContain('6일 경과');
+    expect(html).toContain('2일 경과');
+    expect(html).not.toMatch(/data-tone="(?:danger|warning)"[^>]*>\d+일 경과</);
+    expect(html).toContain('data-sla-tone="danger"');
+  });
+
+  /* 첫 화면을 문의가 차지한다 — 기본 미답변 큐에서는 조회 조건을 접고, 조건이 걸리면 펼쳐서 보인다. */
+  it('기본 큐는 조회 조건을 접고 조건이 있으면 펼친다', () => {
+    const openSearch = /<details(?=[^>]*data-cs-search="")(?=[^>]*\sopen="")/;
+    expect(renderToStaticMarkup(<InquiryQueueScreen data={data()} now={NOW} />)).not.toMatch(openSearch);
+    const source = data();
+    expect(renderToStaticMarkup(<InquiryQueueScreen data={{ ...source, filters: { ...source.filters, query: '배송' } }} now={NOW} />)).toMatch(openSearch);
+    expect(renderToStaticMarkup(<InquiryQueueScreen data={{ ...source, filters: { ...source.filters, status: 'answered' } }} now={NOW} />)).toMatch(openSearch);
   });
 
   /* 1440 화면에서 답변처리가 잘리지 않게 앞에 두고, 경과일은 제목 길이에 따라 옮겨 다니지 않게 상태 아래에 고정한다. */

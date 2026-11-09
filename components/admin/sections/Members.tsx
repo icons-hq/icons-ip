@@ -2,7 +2,7 @@
 
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import Link from 'next/link';
-import { useActionState, useState, type FormEvent } from 'react';
+import { Fragment, useActionState, useState, type FormEvent } from 'react';
 import {
   adjustMemberLoyaltyAction,
   loadAdminMemberDetailAction,
@@ -22,6 +22,7 @@ import { Check, RefreshCw, Search, ShieldBan, User } from 'lucide-react';
 import { Button } from '@/components/admin/kit/ui/button';
 import { statusTone } from '@/lib/admin/status-tone';
 import { Input } from '@/components/admin/kit/ui/input';
+import { Table, TableBody, TableCell, TableHead, TableRow } from '@/components/admin/kit/ui/table';
 import {
   LOYALTY_GRADES,
   isLoyaltyGrade,
@@ -30,9 +31,10 @@ import {
 } from '@/lib/loyalty';
 import { ErrorText, InlineNotice, SelectField, TextArea } from '../fields';
 import { CONSOLE_FILTER_CARD_CLASS, CONSOLE_FILTER_FIELDS_CLASS, ConsoleFilterActions, ConsoleFilterField } from '../console/ConsoleFilterPanel';
-import { ConsoleListCard } from '../console/ConsoleListCard';
+import { CONSOLE_TABLE_FRAME_CLASS, ConsoleListCard, ConsoleTableHeader } from '../console/ConsoleListCard';
 import { AdminNotice, AdminStatusBadge } from '../console/AdminKit';
 import { ADMIN_COUNT_CARD_GRID_CLASS, AdminCountCard } from '../console/AdminCountCard';
+import { ROW_DANGER_BUTTON_CLASS } from '../screens/cs-kit-classes';
 
 const emptyMutationState: AdminMemberMutationActionState = {};
 const dateFormatter = new Intl.DateTimeFormat('ko-KR', {
@@ -294,12 +296,13 @@ export function MembersSection({
     ? detailState.member
     : null;
   const suspendedCount = searchState.members.filter((member) => member.suspendedAt).length;
+  /* 지금 읽은 목록만 거른다(서버 재조회·URL 변경 없음). 정지 회원이 없는 검색 결과로 바뀌면 자동으로 풀린다. */
+  const [suspendedOnly, setSuspendedOnly] = useState(false);
+  const showingSuspended = suspendedOnly && suspendedCount > 0;
+  const visibleMembers = showingSuspended ? searchState.members.filter((member) => member.suspendedAt) : searchState.members;
 
   return (
     <section className="flex min-w-0 flex-col gap-4" data-members-section="">
-      <p className="text-sm text-muted-foreground">
-        목록의 이메일은 마스킹됩니다. 전체 이메일과 운영 정보는 상세 조회 시에만 표시됩니다.
-      </p>
       <form
         action={searchAction}
         className={CONSOLE_FILTER_CARD_CLASS}
@@ -343,38 +346,38 @@ export function MembersSection({
         </ConsoleFilterActions>
       </form>
 
-      {/* 검색 결과 상한이 있어 전체 회원 수가 아니라 지금 보이는 건수를 말한다. */}
+      {/* 검색 결과 상한이 있어 전체 회원 수가 아니라 지금 보이는 건수를 말한다. 정지 건수는 누르면 그 회원만 남기는 버튼이다. */}
       <ConsoleListCard
-        actions={suspendedCount ? <AdminStatusBadge tone={statusTone('member', 'suspended')}>정지 {suspendedCount.toLocaleString('ko-KR')}명</AdminStatusBadge> : undefined}
+        actions={suspendedCount ? <Button aria-pressed={showingSuspended} className={ROW_DANGER_BUTTON_CLASS} onClick={() => setSuspendedOnly((value) => !value)} size="sm" type="button" variant="outline">{showingSuspended ? '전체 회원 보기' : `정지 ${suspendedCount.toLocaleString('ko-KR')}명만 보기`}</Button> : undefined}
         aria-label="회원 검색 결과"
+        description="이메일은 일부만 보입니다. 전체 이메일과 운영 정보는 상세 보기에서 확인합니다."
         title={<>회원 목록 <span className="text-sm font-normal text-muted-foreground tabular-nums">{searchState.members.length.toLocaleString('ko-KR')}명 표시</span></>}
       >
-        {searchState.members.length ? <div className="flex flex-col divide-y">
-        {searchState.members.map((member) => (
-          <article key={member.id} className="flex min-w-0 flex-col gap-3 py-3 first:pt-0 last:pb-0">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex min-w-0 flex-col gap-1">
-                <div className="flex flex-wrap items-center gap-2">
+        {searchState.members.length ? <div aria-label="회원 목록 가로 스크롤" className={`${CONSOLE_TABLE_FRAME_CLASS} [&>[data-slot=table-container]]:overflow-visible`} role="region" tabIndex={0}><Table className="min-w-[44rem]"><caption className="sr-only">회원 목록</caption>
+          {/* 한 사람이 한 줄이다 — 이메일·가입일을 위아래로 나란히 훑어본다. */}
+          <ConsoleTableHeader><TableRow className="hover:bg-transparent"><TableHead className="px-3">닉네임</TableHead><TableHead className="px-3">이메일</TableHead><TableHead className="px-3">가입일</TableHead><TableHead className="px-3">계정 상태</TableHead><TableHead className="px-3 text-right">운영 정보</TableHead></TableRow></ConsoleTableHeader>
+          <TableBody>{visibleMembers.map((member) => (
+            <Fragment key={member.id}>
+              <TableRow>
+                <TableCell className="px-3 whitespace-normal">
                   {/* 닉네임은 고객 상세(주문·문의 이력)로 간다. 줄 오른쪽 버튼은 이 화면에서 펼치는 회원 운영 정보 하나뿐이다. */}
-                  <Link className="text-sm font-semibold text-primary underline-offset-4 hover:underline" href={`/admin/customers/${member.id}`}>@{member.nickname}</Link>
-                  {member.role !== 'user' ? <MemberRoleBadge role={member.role} /> : null}
-                  {member.suspendedAt && <AdminStatusBadge tone={statusTone('member', 'suspended')}>정지</AdminStatusBadge>}
-                </div>
-                <span className="text-xs tabular-nums">{member.maskedEmail}</span>
-                <span className="text-xs text-muted-foreground tabular-nums">가입 {formatDate(member.createdAt)}</span>
-              </div>
-              <form action={detailAction} onSubmit={() => setSelectedProfileId(member.id)}>
-                <input name="profileId" type="hidden" value={member.id} />
-                <Button aria-expanded={activeDetail?.id === member.id} className={TOUCH_TARGET_CLASS} disabled={detailPending} size="sm" type="submit" variant="outline">
-                  <User aria-hidden="true" /> {detailPending ? '불러오는 중' : '상세 보기'}
-                </Button>
-              </form>
-            </div>
-            {/* 상세는 누른 줄 바로 아래에 연다 — 목록이 길어도 화면 밖에 생기지 않는다. */}
-            {activeDetail?.id === member.id ? <MemberDetail actor={actor} member={activeDetail} /> : null}
-          </article>
-        ))}
-        </div> : (
+                  <span className="flex flex-wrap items-center gap-2"><Link className="font-semibold underline-offset-4 hover:underline" href={`/admin/customers/${member.id}`}>@{member.nickname}</Link>{member.role !== 'user' ? <MemberRoleBadge role={member.role} /> : null}</span>
+                </TableCell>
+                <TableCell className="px-3 tabular-nums">{member.maskedEmail}</TableCell>
+                <TableCell className="px-3 text-muted-foreground tabular-nums">{formatDate(member.createdAt)}</TableCell>
+                {/* 평상 상태는 글자로 물러나고 정지만 배지로 세운다 — 줄마다 초록을 깔면 정지가 묻힌다. */}
+                <TableCell className="px-3">{member.suspendedAt ? <AdminStatusBadge tone={statusTone('member', 'suspended')}>정지</AdminStatusBadge> : <span className="text-muted-foreground">이용 중</span>}</TableCell>
+                <TableCell className="px-3 text-right"><form action={detailAction} onSubmit={() => setSelectedProfileId(member.id)}>
+                  <input name="profileId" type="hidden" value={member.id} />
+                  <Button aria-expanded={activeDetail?.id === member.id} className={TOUCH_TARGET_CLASS} disabled={detailPending} size="sm" type="submit" variant="outline">
+                    <User aria-hidden="true" /> {detailPending ? '불러오는 중' : '상세 보기'}
+                  </Button>
+                </form></TableCell>
+              </TableRow>
+              {/* 상세는 누른 줄 바로 아래에 연다 — 목록이 길어도 화면 밖에 생기지 않는다. */}
+              {activeDetail?.id === member.id ? <TableRow className="hover:bg-transparent"><TableCell className="bg-muted/30 p-3 whitespace-normal" colSpan={5}><MemberDetail actor={actor} member={activeDetail} /></TableCell></TableRow> : null}
+            </Fragment>
+          ))}</TableBody></Table></div> : (
           <div className="py-10 text-center">
             <div className="text-sm font-semibold">검색 결과가 없습니다.</div>
             <p className="mt-1.5 text-sm text-muted-foreground">다른 이메일 또는 닉네임으로 검색해주세요.</p>

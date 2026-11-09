@@ -15,7 +15,7 @@ import { adminClaimReasonText } from '@/lib/admin/claims';
 import Link from 'next/link';
 import type { AdminClaimDetail } from '@/lib/admin/claims.server';
 import { adminClaimStageLabel } from '@/lib/admin/claims';
-import { adminOrderSearchHref } from '@/lib/admin/orders';
+import { ADMIN_WITHDRAWAL_RETURN_SHIPPING_LABELS, adminOrderSearchHref } from '@/lib/admin/orders';
 import { krw } from '@/lib/format';
 import { statusTone } from '@/lib/admin/status-tone';
 import {
@@ -40,7 +40,7 @@ import { ClaimPreviewFullScreenLink } from './ClaimPreviewDialog';
 import { ClaimOperationalFeePanel } from './ClaimOperationalFeePanel';
 import { ClaimReshipmentDelivery } from './ClaimReshipmentDelivery';
 import { SellerClaimIntakeEvidence } from './SellerClaimIntakeEvidence';
-import { ClaimProgressSummary } from './ClaimProgressSummary';
+import { ClaimExchangeSteps, ClaimProgressSummary } from './ClaimProgressSummary';
 import { ClaimContactOperations } from '@/components/admin/ClaimContactOperations';
 import { ClaimContactHistory } from '@/components/claim-contact/ClaimContactHistory';
 
@@ -193,6 +193,7 @@ export function ClaimDetailScreen({
   const exchangeRequest = claim.claimType === 'exchange' ? <section aria-label="교환 요청 내용" className="flex min-w-0 flex-col gap-1.5 rounded-lg border bg-muted/40 p-3" data-claim-exchange-request="">
     <h4 className="text-xs font-medium text-muted-foreground">고객이 남긴 교환 요청</h4>
     <p className="font-medium break-words whitespace-pre-wrap">{claim.reason}</p>
+    <p className="text-muted-foreground">접수 사유 {adminClaimReasonText(claim.reasonType, claim.staffReasonCode)}{claim.reasonType !== 'staff' ? ` · ${ADMIN_WITHDRAWAL_RETURN_SHIPPING_LABELS[claim.reasonType]}` : ''}</p>
     {order?.items.length ? <ul className="flex flex-col gap-0.5 text-muted-foreground">
       {order.items.map(item => <li className="break-words" key={item.id}>지금 주문 · {item.name}{item.variantName ? ` · ${item.variantName}` : ''} × {item.qty}</li>)}
     </ul> : null}
@@ -202,7 +203,7 @@ export function ClaimDetailScreen({
     <CardContent className="flex flex-col gap-3">
       <div>
         <Row
-          label="뽑기권 발급"
+          label="카드팩 발급"
           value={cardPacks.issued === 0
             ? '없음'
             : `${cardPacks.issued}개 (개봉 ${cardPacks.consumed} · 회수 ${cardPacks.revoked})`}
@@ -412,11 +413,19 @@ export function ClaimDetailScreen({
                 refundLedgerOpen={Boolean(refund)}
                 reshipItems={order?.items}
                 stage={claim.stage}
+                exchangeSteps={claim.claimType === 'exchange' ? <ClaimExchangeSteps claim={claim} /> : undefined}
+                exchangeShipping={claim.claimType === 'exchange' ? <ClaimReshipmentDelivery claim={claim} /> : undefined}
+                secondaryActions={claim.claimType === 'exchange' ? <>
+                  <ClaimWithdrawal claimId={claim.id} stage={claim.stage} operator />
+                  <ClaimTypeConversion embedded={embedded} key={`${claim.id}-${claim.claimType}`} claimId={claim.id} />
+                  <ClaimReasonChange key={`reason-${claim.id}`} claimId={claim.id} />
+                </> : undefined}
               />
-              <ClaimReshipmentDelivery claim={claim} />
-              <ClaimWithdrawal claimId={claim.id} stage={claim.stage} operator />
-              {claim.claimType !== 'cancel' ? <ClaimTypeConversion embedded={embedded} key={`${claim.id}-${claim.claimType}`} claimId={claim.id} /> : null}
-              {claim.claimType === 'exchange' ? <ClaimReasonChange key={`reason-${claim.id}`} claimId={claim.id} /> : null}
+              {claim.claimType !== 'exchange' ? <>
+                <ClaimReshipmentDelivery claim={claim} />
+                <ClaimWithdrawal claimId={claim.id} stage={claim.stage} operator />
+                {claim.claimType !== 'cancel' ? <ClaimTypeConversion embedded={embedded} key={`${claim.id}-${claim.claimType}`} claimId={claim.id} /> : null}
+              </> : null}
             </CardContent>
           </Card>
           {claim.claimType !== 'return' ? <>{collectionContact}{refundSummary}</> : null}

@@ -71,6 +71,16 @@ describe('SettledScreen', () => {
     expect(html).toContain('판매대금 지급 완료나 반품·교환 권리의 소멸을 뜻하지 않습니다.');
   });
 
+  /* 사람 눈 판정: 화면의 유일한 색이 줄마다 똑같은 '가능 · N일 남음'이라 볼 필요 적은 정보가 제일 튀었다. */
+  it('하자 요청 기한은 7일 이내로 임박한 건에만 색을 입힌다', () => {
+    const line = (deliveredAt: string) => renderToStaticMarkup(<SettledScreen now={NOW} data={data({ rows: [{ ...data().rows[0], deliveredAt }] })} />);
+    const imminent = line('2026-05-25T06:00:00.000Z');
+    expect(imminent).toMatch(/data-tone="warning"[^>]*data-claim-open="true"|data-claim-open="true"[^>]*data-tone="warning"/);
+    const quiet = line(NOW.toISOString());
+    expect(quiet).toContain('data-claim-open="true"');
+    expect(quiet).not.toMatch(/data-claim-open="true"[^>]*data-tone=/);
+  });
+
   it('3개월이 지난 주문은 기한 종료로 표기한다', () => {
     const html = renderToStaticMarkup(
       <SettledScreen data={data()} now={new Date('2026-10-01T06:00:00.000Z')} />,
@@ -116,8 +126,9 @@ describe('SettledScreen', () => {
     expect(html).toContain('목록 엑셀 다운로드');
     /* 보존 기록 생성은 서버 액션 폼 제출이다 — kit Button은 type이 없으면 button이 된다. */
     expect(html).toMatch(/<button[^>]*type="submit"[^>]*>(?:<svg[\s\S]*?<\/svg>)?목록 엑셀 다운로드</);
-    /* 다른 주문·배송 목록처럼 필터 바로 아래, 안내 문단보다 앞에 둔다. */
-    expect(html.indexOf('목록 엑셀 다운로드')).toBeLessThan(html.indexOf('자동 확정은 기본 꺼짐'));
+    /* 다른 주문·배송 목록처럼 목록 머리에 둔다. 표 위의 안내 문단은 메뉴설명으로 접혀 표를 밀지 않는다. */
+    expect(html.indexOf('목록 엑셀 다운로드')).toBeLessThan(html.indexOf('<thead'));
+    expect(html.indexOf('자동 확정은 기본 꺼짐')).toBeLessThan(html.indexOf('data-sales-filters'));
     expect(html).toContain('현재 조회 조건의 전체 페이지');
     expect(html).toContain('name="from" value="2026-09-01"');
     expect(html).toContain('name="query" value="0000"');

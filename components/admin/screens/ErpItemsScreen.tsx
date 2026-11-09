@@ -52,24 +52,22 @@ export function ErpItemsScreen({ data }: { data: ErpItemsWorkspaceData }) {
   return <section className="flex min-w-0 flex-col gap-4" data-admin-screen="erp-items">
     <AdminPageHeader
       title="ERP 품목"
-      description="ERP '품목 생성' 데이터(품번·품명·카테고리, 있으면 판매가·바코드)를 반입해 두면, 상품 옵션에 ERP 품명을 입력할 때 ERP 코드·바코드·고객 카테고리·판매가를 제안합니다. ERP와 자동으로 연동되지 않으니 신제품이 생기면 다시 반입해주세요."
+      description="반입해 둔 품목은 상품 옵션에 ERP 품명을 입력할 때 코드·바코드·카테고리·판매가로 제안됩니다. ERP와 자동으로 연동되지 않으니 신제품이 생기면 다시 반입해주세요."
     />
 
-    <ErpItemImportPanel />
+    <ErpItemImportPanel defaultOpen={page.total === 0 && !filters.query} />
 
     {/* 반입 결과 목록을 먼저 보이고 분류 연결(설정)은 그 아래에 둔다. */}
     <AdminSectionCard
       title="반입된 품목"
       id="erp-item-list"
-      summary={`총 ${page.total.toLocaleString('ko-KR')}건 · ERP 코드 순. 잘못 반입했거나 단종된 품목은 골라서 지웁니다.`}
+      summary={`총 ${page.total.toLocaleString('ko-KR')}건 · ERP 코드 순. 지울 품목은 줄 왼쪽 칸을 체크하면 삭제 버튼이 나타납니다.`}
     >
-      <form action={ERP_ITEMS_PATH} className="flex flex-col gap-2" role="search">
-        <label className="text-sm font-medium" htmlFor="erp-item-query">ERP 코드·품명 검색</label>
-        <div className="flex flex-wrap items-center gap-2">
-          <Input className="w-full sm:w-80" id="erp-item-query" name="q" type="search" defaultValue={filters.query} maxLength={ERP_ITEM_SEARCH_QUERY_MAX} placeholder="예: 000123, 아크릴 키링" />
-          <Button variant="soft" type="submit">검색</Button>
-          {filters.query ? <Link className="text-sm underline underline-offset-4" href={ERP_ITEMS_PATH}>전체 품목 보기</Link> : null}
-        </div>
+      <form action={ERP_ITEMS_PATH} className="flex flex-wrap items-center gap-2" role="search">
+        <label className="text-sm font-medium whitespace-nowrap" htmlFor="erp-item-query">ERP 코드·품명 검색</label>
+        <Input className="w-full sm:w-80" id="erp-item-query" name="q" type="search" defaultValue={filters.query} maxLength={ERP_ITEM_SEARCH_QUERY_MAX} placeholder="예: 000123, 아크릴 키링" />
+        <Button variant="soft" type="submit">검색</Button>
+        {filters.query ? <Link className="text-sm underline underline-offset-4" href={ERP_ITEMS_PATH}>전체 품목 보기</Link> : null}
       </form>
       <ErpItemListGrid
         columns={COLUMNS}

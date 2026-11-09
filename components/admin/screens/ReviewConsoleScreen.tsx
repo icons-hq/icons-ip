@@ -2,7 +2,7 @@ import { CustomerServiceTabs, CustomerServiceResultsHeader } from './CustomerSer
 import { CustomerServiceListSelect } from './CustomerServiceListControls';
 import { CUSTOMER_SERVICE_PAGE_SIZES } from '@/lib/admin/customer-service-list';
 import Link from 'next/link';
-import { ChevronDown, Flag, ListFilter, MessageSquareText } from 'lucide-react';
+import { Award, ChevronDown, ExternalLink, Flag, ListFilter, MessageSquareText } from 'lucide-react';
 import { REVIEW_KIND_LABELS, REVIEW_KIND_OPTIONS, REVIEW_REPEAT_OPTIONS } from '@/lib/review-types';
 import { ReviewTypePolicyPanel } from '../ReviewTypePolicyPanel';
 import {
@@ -54,16 +54,16 @@ import { csChipTone } from './cs-kit-classes';
  * 저평점(1~2점) 바로가기는 결과 목록 위에 유지한다. 검색 조건과 결과를 분리하되
  * 낮은 별점을 바로 좁히는 동작과 실제 집계 건수는 함께 남긴다. */
 
-/* 1440 화면에서 답글을 달 때 보는 칸(상품·평점·내용·답글·처리)이 스크롤 없이 보이게 앞에 두고, 참고 칸은 뒤로 뺐다. */
+/* 1440 화면(표 폭 약 1100px)에서 답글을 달 때 보는 칸이 상태까지 잘리지 않게 폭을 나눴다. 참고 칸(신고~BEST)은 그 뒤로 넘어간다. */
 const COLUMNS: ConsoleGridColumn[] = [
   { key: 'createdAt', label: '작성일', width: '108px' },
-  { key: 'good', label: '상품', width: '160px' },
+  { key: 'good', label: '상품', width: '170px' },
   { key: 'rating', label: '평점', width: '88px' },
-  { key: 'body', label: '리뷰 내용', width: '280px' },
-  { key: 'reply', label: '답글', width: '100px' },
-  { key: 'action', label: '처리', width: '132px' },
-  { key: 'author', label: '작성자', width: '120px' },
-  { key: 'status', label: '상태', width: '90px' },
+  { key: 'body', label: '리뷰 내용', width: '268px' },
+  { key: 'reply', label: '답글', width: '96px' },
+  { key: 'action', label: '처리', width: '128px' },
+  { key: 'author', label: '작성자', width: '110px' },
+  { key: 'status', label: '상태', width: '92px' },
   { key: 'reports', label: '신고', align: 'end', width: '108px' },
   { key: 'kind', label: '리뷰 구분', width: '112px' },
   { key: 'photo', label: '사진', align: 'end', width: '52px' },
@@ -71,10 +71,10 @@ const COLUMNS: ConsoleGridColumn[] = [
   { key: 'best', label: 'BEST 리뷰', width: '110px' },
 ];
 
-/** 별점 셀. 별 문자만 두면 스크린리더가 "검은 별 검은 별..."을 읽는다. */
+/** 별점 셀. 별 문자만 두면 스크린리더가 "검은 별 검은 별..."을 읽는다. 보통 별은 회색으로 물러나 저평점의 빨간 별만 표에서 찾힌다. */
 function ratingCell(row: AdminReviewRow) {
   return (
-    <span className="relative tracking-tight whitespace-nowrap data-[low-rating=true]:font-semibold data-[low-rating=true]:text-destructive" data-low-rating={isLowReviewRating(row.rating) ? 'true' : undefined} key="rating">
+    <span className="relative tracking-tight whitespace-nowrap text-muted-foreground data-[low-rating=true]:font-semibold data-[low-rating=true]:text-destructive" data-low-rating={isLowReviewRating(row.rating) ? 'true' : undefined} key="rating">
       <span aria-hidden="true">{'★'.repeat(row.rating)}{'☆'.repeat(5 - row.rating)}</span>
       <span className="sr-only">{reviewRatingLabel(row.rating)}</span>
     </span>
@@ -92,12 +92,15 @@ export function ReviewConsoleScreen({
   now = new Date(),
   initialDetail,
   accountId='',
+  dateRangeInvalid = false,
 }: {
   data: AdminReviewConsoleData;
   /** 기간 프리셋 기준 시각. 테스트 주입용. */
   now?: Date;
   initialDetail?:string|null;
   accountId?:string;
+  /** 시작일이 종료일보다 늦어 날짜 조건을 버린 조회인가. 말없이 전체 기간이 나오지 않게 알린다. */
+  dateRangeInvalid?: boolean;
 }) {
   const { counts, filters, pageSize, rows, total } = data;
   const hasSearch = Boolean(filters.from || filters.to || filters.query)
@@ -111,7 +114,8 @@ export function ReviewConsoleScreen({
         <time className="tabular-nums" dateTime={row.createdAt}>{formatReviewDateTime(row.createdAt)}</time>
         {row.editedAt ? <><br /><span className="text-xs text-muted-foreground">수정됨</span></> : null}
       </span>,
-      <Link className={TEXT_LINK_CLASS} href={goodReviewsHref(row.goodId)} key="good">{row.goodName}</Link>,
+      /* 긴 상품명이 줄 높이를 늘리지 않게 두 줄까지만 보이고, 공개 상품 화면은 새 창으로 연다. */
+      <Link className={`${TEXT_LINK_CLASS} inline-flex items-start gap-1`} href={goodReviewsHref(row.goodId)} key="good" rel="noopener noreferrer" target="_blank" title={`${row.goodName} · 쇼핑몰 상품 화면을 새 창으로 엽니다`}><span className="line-clamp-2">{row.goodName}</span><ExternalLink aria-hidden="true" className="mt-0.5 size-3 shrink-0" /></Link>,
       ratingCell(row),
       <span key="body">{reviewBodyPreview(row.body, 70)}</span>,
       row.adminReply
@@ -123,7 +127,7 @@ export function ReviewConsoleScreen({
         )
         : <AdminStatusBadge key="reply" tone={replyTone(false)}>미등록</AdminStatusBadge>,
       <ReviewActionPanel accountId={accountId} key="action" review={row} />,
-      <span className="block max-w-28 truncate" key="author" title={`@${row.authorName}`}>@{row.authorName}</span>,
+      <span className="block max-w-[5.375rem] truncate" key="author" title={`@${row.authorName}`}>@{row.authorName}</span>,
       <AdminStatusBadge data-review-status={row.status} key="status" tone={statusTone('review', row.status)}>
         {ADMIN_REVIEW_STATUS_LABELS[row.status]}
       </AdminStatusBadge>,
@@ -152,8 +156,12 @@ export function ReviewConsoleScreen({
     <div className="flex min-w-0 flex-col gap-4" data-cs-console="reviews">
       <section aria-label="리뷰 목록" className="flex min-w-0 flex-col gap-4 rounded-xl border bg-card p-4 text-card-foreground">
         <CustomerServiceResultsHeader title="리뷰 목록" total={total} pageSize={pageSize} pageSizeOptions={CUSTOMER_SERVICE_PAGE_SIZES.map(size => ({ value: String(size), label: `${size}개씩`, href: adminReviewHref(filters, { pageSize: size, page: 1 }) }))}>
+          {/* 표 위 층을 줄이려고 전시 설정·엑셀을 목록 머리로 모았다. */}
+          <Link className={buttonVariants({ size: 'sm', variant: 'outline' })} data-slot="button" href="/admin/display/detail/reviews"><Award aria-hidden="true" />BEST 리뷰 전시 설정</Link>
+          <ReviewExportDownloadButton accountId={accountId} href={reviewExportHref(reviewExportFilters(filters))} total={total} />
           <CustomerServiceListSelect label="리뷰 정렬" value={filters.sort} options={ADMIN_REVIEW_SORT_OPTIONS.map(option => ({ ...option, href: adminReviewHref(filters, { sort: option.value, page: 1 }) }))} />
         </CustomerServiceResultsHeader>
+        {dateRangeInvalid ? <AdminNotice role="alert" tone="danger">시작일은 종료일보다 늦을 수 없습니다. 날짜 조건을 빼고 전체 기간을 보여줍니다.</AdminNotice> : null}
         {/* 조회 조건은 접어 두어 첫 화면을 리뷰가 차지한다(조건이 걸려 있으면 펼친다). 건수 카드로 고른 답글·상태는 카드가 표시한다. */}
         <details className="group/search" data-cs-search="" open={hasSearch}>
           <summary className={`${buttonVariants({ size: 'sm', variant: 'outline' })} w-fit list-none [&::-webkit-details-marker]:hidden`} data-slot="button"><ListFilter aria-hidden="true" />검색 조건 <ChevronDown aria-hidden="true" className="transition-transform group-open/search:rotate-180" /></summary>
@@ -217,10 +225,12 @@ export function ReviewConsoleScreen({
             </ConsoleFilterField>
           </ConsoleFilterPanel>
         </details>
-        <div className="flex min-w-0 flex-col gap-3">
-          {/* 저평점 바로가기와 집계는 결과 목록 바로 위에서 유지한다. */}
+        {/* 현황 구역 — 위아래 선으로 검색 조건·표와 나눈다. */}
+        <div className="flex min-w-0 flex-col gap-3 border-t pt-4">
+          {/* 저평점 바로가기와 집계는 결과 목록 바로 위에서 유지한다. 안내는 한 줄로 줄여 표를 밀지 않는다. */}
           <div className="flex min-w-0 flex-wrap items-center gap-3" data-cs-pinned="">
-            <AdminNotice className="min-w-[min(100%,18rem)] flex-1" title={<span className="tabular-nums">저평점 리뷰 {counts.lowRating.toLocaleString('ko-KR')}건</span>} tone={counts.lowRating > 0 ? 'danger' : 'neutral'}>
+            <AdminNotice className="min-w-[min(100%,18rem)] flex-1" tone={counts.lowRating > 0 ? 'danger' : 'neutral'}>
+              <strong className={`mr-2 font-semibold tabular-nums ${counts.lowRating > 0 ? 'text-destructive' : ''}`}>저평점 리뷰 {counts.lowRating.toLocaleString('ko-KR')}건</strong>
               {LOW_REVIEW_RATING_MAX}점 이하 리뷰입니다. 빨리 답글을 달면 다른 고객도 판매자의 대응을 함께 봅니다.
             </AdminNotice>
             <Link
@@ -242,7 +252,6 @@ export function ReviewConsoleScreen({
             </AdminNotice>
           ) : null}
 
-          <p className="text-xs text-muted-foreground">스토어 전체 리뷰 현황 · 검색 조건을 적용하지 않은 건수입니다.</p>
           <ConsoleCountChips
             chips={[
               /* 전체는 아무것도 거르지 않은 평상 상태라 강조하지 않는다 — 고른 조건만 강조된다. */
@@ -291,11 +300,9 @@ export function ReviewConsoleScreen({
             ]}
             label="리뷰 상태별 건수"
           />
+          <p className="text-xs text-muted-foreground">건수는 검색 조건을 적용하지 않은 스토어 전체 기준입니다.</p>
         </div>
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-          <Link className="text-sm font-medium text-foreground underline underline-offset-4" href="/admin/display/detail/reviews">BEST 리뷰 전시 설정</Link>
-          <ReviewExportDownloadButton accountId={accountId} href={reviewExportHref(reviewExportFilters(filters))} total={total} />
-        </div>
+        <div className="border-t pt-4">
         <ReviewBulkGrid key={accountId}
           columns={COLUMNS}
           rows={rowsForGrid}
@@ -305,6 +312,7 @@ export function ReviewConsoleScreen({
             previousPageHref:filters.page>1?adminReviewHref(filters,{page:filters.page-1}):null,
             nextPageHref:filters.page*pageSize<total?adminReviewHref(filters,{page:filters.page+1}):null}}
         />
+        </div>
 
         <ConsolePagination
           hrefForPage={(page) => adminReviewHref(filters, { page })}

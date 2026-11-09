@@ -22,27 +22,34 @@ const ARCHIVE_WARNINGS: Record<AdminCatalogArchiveKind, string> = {
 };
 
 export function CatalogArchiveFilter({
+  compact = false,
   counts,
   filter,
   onChange,
 }: {
+  /** 목록 상자 안의 검색칸 옆에 놓을 때. 보이는 이름 없이 선택칸만 그린다(aria-label은 그대로다). */
+  compact?: boolean;
   counts: Record<ArchiveFilter, number>;
   filter: ArchiveFilter;
   onChange: (filter: ArchiveFilter) => void;
 }) {
+  const select = (
+    <AdminSelect
+      aria-label="보관 상태"
+      onChange={(event) => onChange(event.target.value as ArchiveFilter)}
+      value={filter}
+      wrapperClassName={compact ? 'w-32 shrink-0' : 'w-full'}
+    >
+      <option value="active">운영 중 {counts.active}</option>
+      <option value="archived">보관됨 {counts.archived}</option>
+      <option value="all">전체 {counts.all}</option>
+    </AdminSelect>
+  );
+  if (compact) return select;
   return (
     <label className="flex min-w-0 flex-col gap-1.5">
       <span className="text-xs font-medium text-muted-foreground">보관 상태</span>
-      <AdminSelect
-        aria-label="보관 상태"
-        onChange={(event) => onChange(event.target.value as ArchiveFilter)}
-        value={filter}
-        wrapperClassName="w-full"
-      >
-        <option value="active">운영 중 {counts.active}</option>
-        <option value="archived">보관됨 {counts.archived}</option>
-        <option value="all">전체 {counts.all}</option>
-      </AdminSelect>
+      {select}
     </label>
   );
 }

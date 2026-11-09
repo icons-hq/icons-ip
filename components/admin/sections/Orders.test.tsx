@@ -262,6 +262,17 @@ describe('OrdersSection', () => {
     expect(html).toContain('체크칸은 발주확인할 수 있는 신규주문에만 있습니다.');
   });
 
+  /* 사람 눈 판정: 품목 수에 따라 줄 높이가 4~5줄로 들쭉날쭉했고, 단계 카드가 전부 같은 동그라미라 진행·완료·취소가 구분되지 않았다. */
+  it('상품 칸은 대표 상품 한 줄과 외 N건으로 줄 높이를 맞추고, 단계 카드는 모양으로 나눈다', () => {
+    const items = ['첫째 상품', '둘째 상품', '셋째 상품'].map((name, index) => ({ ...orderData().items[0].items[0], id: `item-${index}`, name }));
+    const html = renderToStaticMarkup(<OrdersSection data={{ ...orderData({ items }), counts: { pending: 1, paid: 2, confirmed: 3, shipping: 4, delivered: 5, done: 6, canceled: 7 } }} />);
+    expect(html).toContain('>외 2건<');
+    expect(html).toMatch(/title="첫째 상품&#10;둘째 상품&#10;셋째 상품"|title="첫째 상품\n둘째 상품\n셋째 상품"/);
+    for (const name of ['둘째 상품', '셋째 상품']) expect(html).toMatch(new RegExp(`<ul class="sr-only">[\\s\\S]*${name}`));
+    const icon = (label: string) => html.slice(html.indexOf(`aria-label="${label}`)).match(/lucide-[a-z-]+/)?.[0];
+    expect(new Set(['배송중 4건', '배송완료 5건', '취소 7건', '거래확정 6건'].map(icon)).size).toBe(4);
+  });
+
   it('renders staff-safe order detail and the paid-to-confirmed action without provider secrets', () => {
     const html = renderToStaticMarkup(<OrdersSection data={orderData()} />);
 
@@ -600,7 +611,7 @@ describe('OrdersSection', () => {
     })} />);
 
     expect(html).toContain('data-order-row-reason');
-    expect(html).toContain(`aria-label="주문 ${ORDER_ID.slice(0, 8)} 선택 · 청약철회 상품 하자·오배송"`);
+    expect(html).toContain(`aria-label="상세·처리 주문 ${ORDER_ID.slice(0, 8)} · 청약철회 상품 하자·오배송"`);
     expect(html).toContain('상품 하자·오배송');
     expect(html).toContain('data-order-reason="defect"');
     expect(html).toContain('공급받은 날부터 3개월');
@@ -634,7 +645,7 @@ describe('OrdersSection', () => {
 
     expect(html).toContain('운영자 전액 취소 · 품절·출고 불가');
     expect(html).toContain('data-order-reason="staff"');
-    expect(html).toContain(`aria-label="주문 ${ORDER_ID.slice(0, 8)} 선택 · 운영자 전액 취소 · 품절·출고 불가"`);
+    expect(html).toContain(`aria-label="상세·처리 주문 ${ORDER_ID.slice(0, 8)} · 운영자 전액 취소 · 품절·출고 불가"`);
     expect(html).not.toContain('단순 변심');
     expect(html).not.toContain('공급받은 날부터 7일');
     expect(html).toContain('운영자가 시작한 발송 전 전액 취소');
@@ -698,7 +709,7 @@ describe('OrdersSection', () => {
     })} />);
 
     expect(html).not.toContain('data-order-row-reason');
-    expect(html).toContain(`aria-label="주문 ${ORDER_ID.slice(0, 8)} 선택"`);
+    expect(html).toContain(`aria-label="상세·처리 주문 ${ORDER_ID.slice(0, 8)}"`);
     // 상세에는 남는다 — 어떤 사유로 종결됐는지는 사후에도 필요하다.
     expect(html).toContain('data-order-reason="defect"');
   });

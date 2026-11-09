@@ -94,6 +94,25 @@ describe('EmailDeliverySection · 주문에 매이지 않는 메일', () => {
     expect(html).not.toContain('다시 보내기');
   });
 
+  /* 줄에 버튼이 없는데 '줄의 다시 보내기로 보내라'고 하면 운영자는 버튼을 찾아 헤맨다. */
+  it('다시 보낼 수 있는 건이 없으면 누르라고 하지 않고 없다고 말한다', () => {
+    const legacy: EmailDeliveryRecord = { ...failedDelivery, dedupeKey: 'order_confirmation:legacy-key', orderId: null, recipient: 'masked', subject: 'legacy_order_confirmation', lastError: 'legacy_unverified', resendable: false };
+    const html = renderToStaticMarkup(<EmailDeliverySection deliveries={[legacy]} />);
+
+    expect(html).toContain('지금 이 화면에서 다시 보낼 수 있는 메일이 없습니다.');
+    expect(html).not.toContain('줄의 다시 보내기로');
+    expect(html).toContain('주문·받는 사람이 보관되지 않은 기록');
+    expect(html).not.toMatch(/text-destructive[^>]*>실패 사유: 상세 사유/);
+  });
+
+  it('다시 보낼 수 있는 건은 주문으로 가는 링크와 건수를 보인다', () => {
+    const html = renderToStaticMarkup(<EmailDeliverySection deliveries={[failedDelivery]} />);
+
+    expect(html).toContain(`href="/admin/sales/orders/${ORDER_ID}"`);
+    expect(html).toContain('지금 다시 보낼 수 있음');
+    expect(html).toContain('줄의 다시 보내기로');
+  });
+
   it('실패 건수를 위에 보이고 실패한 건을 먼저 보여준다', () => {
     const pending: EmailDeliveryRecord = { ...failedDelivery, dedupeKey: `order_shipped:${ORDER_ID}`, template: 'order_shipped', templateLabel: '배송 시작', status: 'pending', lastError: null, claimedAt: '2026-08-08T02:30:00.000Z' };
     const html = renderToStaticMarkup(<EmailDeliverySection deliveries={[pending, failedDelivery]} />);

@@ -88,7 +88,7 @@ describe('배송 건 콘솔',()=>{
   expect(incoming).toContain(`aria-label="배송 건 ${row.id.slice(-8).toUpperCase()} 선택"`);expect(incoming).toContain('발주확인');
  });
  it('배송 상태와 처리할 신규주문을 색으로 구분한다',()=>{
-  const html=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,surface:'shipping',counts:{...base.counts,new:3},filters:{...base.filters,tab:'transit'},rows:[{...row,status:'shipping',carrier:'hanjin',trackingNumber:'12345678',shippedAt:'2026-09-08T02:00:00Z'}]}}/>);
+  const html=renderToStaticMarkup(<ShipmentConsoleScreen now={new Date('2026-09-09T02:00:00Z')} data={{...base,surface:'shipping',counts:{...base.counts,new:3},filters:{...base.filters,tab:'transit'},rows:[{...row,status:'shipping',carrier:'hanjin',trackingNumber:'12345678',shippedAt:'2026-09-08T02:00:00Z'}]}}/>);
   expect(html).toMatch(/data-tone="info"[^>]*>배송 중</);
   const dispatch=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,counts:{...base.counts,new:3},rows:[row]}}/>);
   expect(dispatch).toMatch(/aria-label="신규주문 3건"[^>]*data-tone="warning"/);
@@ -113,6 +113,29 @@ describe('배송 건 콘솔',()=>{
   expect(html).toContain('7일째 배송 중');
   const icon=(label:string)=>html.slice(html.indexOf(`aria-label="${label}`)).match(/lucide-[a-z-]+/)?.[0];
   expect(icon('배송중 1건')).not.toBe(icon('배송완료 1건'));
+ });
+ /* 사람 눈 판정: 전부 같은 회색 '내보내기 전'이라 며칠 묵은 주문이 안 띄었고, 위에 지연 건수가 있어도 표에서 어느 건인지 몰랐다. */
+ it('묵은 신규주문과 발송 지연 건을 표에서 바로 구분한다',()=>{
+  const now=new Date('2026-09-15T02:00:00Z');
+  const fresh={...row,createdAt:'2026-09-15T01:00:00Z',confirmedAt:null};
+  const stale={...row,id:'60000000-0000-4000-8000-000000000002',createdAt:'2026-09-08T00:00:00Z',confirmedAt:null};
+  const incoming=renderToStaticMarkup(<ShipmentConsoleScreen now={now} data={{...base,filters:{...base.filters,tab:'new'},rows:[fresh,stale]}}/>);
+  expect(incoming).toMatch(/data-tone="warning"[^>]*>7일째 대기</);expect(incoming).toContain('>오늘 주문<');expect(incoming).not.toContain('내보내기 전');
+  expect(incoming).toContain('발주확인 전');
+  const late=renderToStaticMarkup(<ShipmentConsoleScreen now={now} data={{...base,rows:[row]}}/>);
+  expect(late).toMatch(/data-tone="danger"[^>]*>발송 지연 · 7일째</);
+  const onTime=renderToStaticMarkup(<ShipmentConsoleScreen now={new Date('2026-09-09T02:00:00Z')} data={{...base,rows:[row]}}/>);
+  expect(onTime).not.toContain('발송 지연 ·');
+ });
+ it('오래 배송 중인 건수를 카드로 세우고 운송장 번호를 한 줄로 둔다',()=>{
+  const transit={...row,status:'shipping' as const,carrier:'hanjin',trackingNumber:'12345678',shippedAt:'2026-09-08T02:00:00Z'};
+  const html=renderToStaticMarkup(<ShipmentConsoleScreen now={new Date('2026-09-15T02:00:00Z')} data={{...base,surface:'shipping',total:1,counts:{...base.counts,transit:1},filters:{...base.filters,tab:'transit'},rows:[transit]}}/>);
+  expect(html).toContain('5일 이상 배송');expect(html).toMatch(/data-tone="warning"[^>]*>7일째 배송 중</);expect(html).toMatch(/tabular-nums whitespace-nowrap"[^>]*>한진택배 12345678</);
+ });
+ it('운송장 가져오기는 목록 머리의 버튼으로 두어 표를 밀지 않고 신규주문 탭에서는 표 아래에 둔다',()=>{
+  const ready=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[row]}}/>);
+  const heading=ready.slice(ready.indexOf('data-sales-results-heading'),ready.indexOf('<thead'));
+  expect(heading).toMatch(/<summary[^>]*data-slot="button"[^>]*>운송장 가져오기 · 창고 회신 등록/);
  });
  it('운송장 가져오기는 목록과 분리된 접힌 작업으로 열고 닫아도 입력 상태를 보존한다',()=>{
   const html=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[row]}}/>);

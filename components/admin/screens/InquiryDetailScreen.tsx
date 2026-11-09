@@ -17,7 +17,7 @@ import {
   inquiryReferenceLabel,
   inquirySlaState,
 } from '@/lib/inquiries';
-import { orderReferenceLabel } from '@/lib/orders';
+import { orderReferenceLabel, paymentStatusLabel } from '@/lib/orders';
 import { isAdminInquiryOverdue, type AdminInquiryNavigation } from '@/lib/admin/inquiries';
 import { InquiryAssignmentPanel, InquiryInternalNotesPanel } from './InquiryWorkspacePanel';
 import { InquiryReplyPanel } from './InquiryReplyPanel';
@@ -65,17 +65,18 @@ const PAYMENT_PROVIDER_LABELS: Record<string, string> = {
 
 const CONTEXT_LINK_CLASS = `${buttonVariants({ size: 'sm', variant: 'outline' })} self-start`;
 
+/* 배송 건 정보(ShipmentDetails)와 같은 칸 나누기다 — 라벨 8rem·값 왼쪽 맞춤으로 카드 안 값의 시작선을 맞춘다. */
 function ContextRow({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="flex items-baseline justify-between gap-3 text-sm">
-      <span className="shrink-0 text-xs text-muted-foreground">{label}</span>
-      <span className="min-w-0 text-right wrap-anywhere">{value}</span>
+    <div className="grid grid-cols-[8rem_minmax(0,1fr)] items-baseline gap-3 text-sm max-sm:grid-cols-[6.5rem_minmax(0,1fr)]">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="min-w-0 wrap-anywhere">{value}</span>
     </div>
   );
 }
 
 function ContextCard({ title, children }: { title: string; children: ReactNode }) {
-  return <section className="flex min-w-0 flex-col gap-2 rounded-xl border bg-card p-4 text-card-foreground">
+  return <section className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground">
     <h3 className="text-sm font-medium text-foreground">{title}</h3>
     {children}
   </section>;
@@ -91,6 +92,7 @@ export function InquiryDetailScreen({
   accountId = '',
   navigation,
   embedded = false,
+  pendingBadge,
 }: {
   backHref: string;
   detail: AdminInquiryDetail;
@@ -101,6 +103,8 @@ export function InquiryDetailScreen({
   accountId?: string;
   navigation?: AdminInquiryNavigation;
   embedded?: boolean;
+  /** 전체 미답변 수 바로가기. 머리 줄 오른쪽에 둔다(독립 상세 화면만). */
+  pendingBadge?: ReactNode;
 }) {
   const { buyer, inquiry, messages, order, staffOptions, notes } = detail;
   const sla = inquirySlaState(
@@ -112,13 +116,13 @@ export function InquiryDetailScreen({
     accountId={accountId}
     category={inquiry.category}
     closed={inquiry.status === 'closed'}
+    answered={inquiry.status === 'answered'}
     inquiryId={inquiry.id}
   />;
   const navLink = buttonVariants({ size: 'sm', variant: 'outline' });
 
   return (
     <div className={`@container/inquiry flex min-w-0 flex-col gap-4 ${INQUIRY_LIVE_CLASS}`} data-inquiry-detail={embedded ? 'embedded' : 'page'}>
-      <InquiryLiveUpdates inquiryId={inquiry.id} audience="staff" />
       {/* 목록 조건 밖의 문의(position null)는 이전·다음이 없다 — 눌러지지 않는 줄을 두지 않아 제목이 위로 올라온다. */}
       {navigation && navigation.position !== null ? <nav className="flex items-center justify-between gap-3 rounded-lg border bg-muted/40 px-3 py-2 text-sm" aria-label="고객문의 상세 이동">
         {navigation.previousHref ? <Link className={navLink} data-slot="button" href={navigation.previousHref} scroll={false}><ChevronLeft aria-hidden="true" />이전 문의</Link> : <Button disabled size="sm" type="button" variant="outline"><ChevronLeft aria-hidden="true" />이전 문의</Button>}
@@ -127,7 +131,10 @@ export function InquiryDetailScreen({
       </nav> : null}
       <header className="flex min-w-0 flex-col gap-1.5">
         {/* 팝업(embedded) 안에서는 닫기와 같다 — X·Esc처럼 목록 스크롤을 두고 기록을 바꿔 쓰고, 패널이 기다리는 동안에는 누를 수 없다(R4). */}
-        {embedded ? <InquiryPreviewBackLink href={backHref} /> : <Link className="w-fit text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" href={backHref}>← 문의 목록</Link>}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          {embedded ? <InquiryPreviewBackLink href={backHref} /> : <Link className="w-fit text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" href={backHref}>← 문의 목록</Link>}
+          {pendingBadge}
+        </div>
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
           <span className="font-medium tabular-nums">{inquiryReferenceLabel(inquiry.reference)}</span>
           <span aria-hidden="true" className="text-muted-foreground">·</span>
@@ -144,6 +151,9 @@ export function InquiryDetailScreen({
           {inquiry.assigneeName ? ` · 담당자 @${inquiry.assigneeName}` : ' · 담당자 미배정'}
         </span>
       </header>
+
+      {/* 연결 안내는 이 문의의 일이 아니다 — 문의 제목 아래로 물러난다. 비어 있으면 자리를 차지하지 않는다. */}
+      <InquiryLiveUpdates inquiryId={inquiry.id} audience="staff" />
 
       <div className={`grid min-w-0 items-start gap-4 ${embedded ? '@3xl/inquiry:grid-cols-2 @3xl/inquiry:gap-6' : '@4xl/inquiry:grid-cols-[minmax(0,1.6fr)_minmax(16rem,0.9fr)]'}`}>
         <div className="flex min-w-0 flex-col gap-3.5">
@@ -203,7 +213,7 @@ export function InquiryDetailScreen({
                 {canManageSales ? <ContextRow
                   label="결제"
                   value={order.payment
-                    ? `${PAYMENT_PROVIDER_LABELS[order.payment.provider ?? ''] ?? order.payment.provider ?? '확인 필요'} · ${order.payment.status}`
+                    ? `${PAYMENT_PROVIDER_LABELS[order.payment.provider ?? ''] ?? order.payment.provider ?? '확인 필요'} · ${paymentStatusLabel(order.payment.status)}`
                     : '결제 내역 없음'}
                 /> : null}
                 <ShipmentDetails admin shipments={order.shipments} />
@@ -213,7 +223,8 @@ export function InquiryDetailScreen({
                     <ul className="flex flex-col gap-1">
                       {order.claims.map((claim) => (
                         <li className="flex flex-wrap items-center gap-1.5 text-sm" key={`${claim.requestedAt}-${claim.status}`}>
-                          <AdminStatusBadge tone={statusTone('claim', claim.status)}>{CLAIM_STATUS_LABELS[claim.status] ?? claim.status}</AdminStatusBadge>
+                          {/* 끝난 클레임은 지나간 이력이다 — 위 주문상태(취소=빨강)와 초록으로 엇갈리지 않게 조용히 둔다. */}
+                          <AdminStatusBadge tone={claim.status === 'completed' ? 'neutral' : statusTone('claim', claim.status)}>{CLAIM_STATUS_LABELS[claim.status] ?? claim.status}</AdminStatusBadge>
                           <span className="text-muted-foreground tabular-nums">{formatInquiryDateTime(claim.requestedAt)}</span>
                         </li>
                       ))}

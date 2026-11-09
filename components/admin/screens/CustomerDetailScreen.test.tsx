@@ -25,10 +25,23 @@ describe('고객 상세 작업 공간', () => {
   it('개요는 건수 카드를 먼저 보이고 정지·보정 입력은 접어 둔다', () => {
     const html = render();
     expect(html).not.toContain(`customer@example.test · ${USER}`);
+    /* 내부 식별자라 앞부분만 보이고, 대조가 필요하면 복사한다. */
     expect(html).toContain(`회원번호 · ${USER.slice(0, 8)}…`);
+    expect(html).toContain(`title="${USER}"`);
+    expect(html).toContain('aria-label="회원번호 전체 복사"');
+    expect(html).toMatch(/<h2[^>]*>상담 고객<\/h2>/);
     expect(html).toMatch(/aria-label="상품 주문 25건"/);
     expect(html).toMatch(/<details(?![^>]*\sopen)[^>]*>[\s\S]*?계정 정지 처리/);
     expect(html).toMatch(/data-tone="neutral"[^>]*>미동의</);
+  });
+
+  /* 같은 상태는 같은 색이다 — 필수 동의가 비어 있어도 미동의는 회색이고, 필수·선택은 글자로 나눈다. */
+  it('미동의는 필수·선택과 관계없이 같은 색이고 글자로 구분한다', () => {
+    const html = render({ ...detail, customer: { ...detail.customer, consents: { terms: false, privacy: false, marketing: false } } });
+    expect(html.match(/data-tone="neutral"[^>]*>미동의</g)).toHaveLength(3);
+    expect(html).not.toMatch(/data-tone="warning"[^>]*>미동의</);
+    expect(html).toContain('필수');
+    expect(html).toContain('선택');
   });
 
   it('주문 탭은 지정 주문 상세와 고객 안의 다음 페이지로 이어진다', () => {

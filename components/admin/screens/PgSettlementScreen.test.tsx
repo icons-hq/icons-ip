@@ -11,9 +11,9 @@ function render(tab: 'daily' | 'transactions' | 'fees') { return renderToStaticM
 describe('settlement screen', () => {
   it('separates source payout values, snapshot time, environment and actual bank deposits', () => {
     const html = render('daily');
-    expect(html).toContain('일별 정산내역'); expect(html).toContain('테스트'); expect(html).toContain('지급액 원문');
+    expect(html).toContain('일별 정산내역'); expect(html).toContain('테스트'); expect(html).toContain('>지급액<');
     expect(html).toContain('12,684.55'); expect(html).toContain('315.45'); expect(html).toContain('수집 완료 2026. 10. 13. 22:05');
-    expect(html).toContain('PG 정산 연결 꺼짐'); expect(html).toContain('실제 입금 완료를 확인한 내역은 아닙니다');
+    expect(html).toContain('결제사 정산 연결 꺼짐'); expect(html).toContain('실제 입금 완료를 확인한 내역은 아닙니다');
     expect(html).toContain(`import=${report.snapshot!.id}`); expect(html).not.toMatch(/paymentKey|scopeHash|secretKey/);
     /* 조회 조건은 GET 폼 제출이다 — kit Button은 type이 없으면 button이 된다. */
     expect(html).toMatch(/<button[^>]*type="submit"[^>]*>검색</);
@@ -25,7 +25,7 @@ describe('settlement screen', () => {
     expect(totals).toBeGreaterThan(0);
     expect(totals).toBeLessThan(html.indexOf('caption class="sr-only">일별 정산내역'));
     expect(html.slice(totals)).toContain('기간 합계');
-    expect(html).toMatch(/data-admin-notice="warning"(?:(?!<\/section>)[\s\S])*PG 정산 연결 꺼짐/);
+    expect(html).toMatch(/data-admin-notice="warning"(?:(?!<\/section>)[\s\S])*결제사 정산 연결 꺼짐/);
     expect(html).toMatch(/data-tone="neutral"[^>]*>승인</);
     /* 날짜는 다른 화면과 같은 표기다. */
     expect(html).toContain('2026. 10. 14.');
@@ -33,7 +33,10 @@ describe('settlement screen', () => {
   });
   it('shows transaction evidence and expandable fee details without raw identifiers', () => {
     const html = render('transactions'); expect(html).toContain('287B949D'); expect(html).toContain('상세 보기'); expect(html).toContain('수집 시점의 결제'); expect(html).toContain('기본 수수료');
-    expect(render('fees')).toContain('수수료 원문 합계');
+    expect(render('fees')).toContain('수수료 합계');
+    /* 운영팀이 읽는 화면이라 '원문'·'PG' 같은 개발 말은 쓰지 않는다. 표는 제목이 있는 구역 안에 둔다. */
+    for (const tab of ['daily', 'transactions', 'fees'] as const) expect(render(tab)).not.toMatch(/원문|조회 환경|대조 전체/);
+    expect(render('daily')).toMatch(/data-console-list=""[\s\S]*<h3[^>]*>일별 정산내역<\/h3>/);
   });
   it('does not turn missing or failed source reads into a zero-amount statement or download', () => {
     const html = renderToStaticMarkup(<PgSettlementScreen filters={filters} report={{ ...report, coverage: 'uncollected', snapshot: null, transactions: [], totals: [], daily: [], fees: [], pagination: { ...report.pagination, total: 0 } }} connection={{ enabled: false, mode: null }} operationId={report.snapshot!.operationId} />);

@@ -3,7 +3,8 @@
 import { useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { importErpItemsAction, readErpItemFileAction, type ErpItemFileResult, type ErpItemImportResult } from '@/app/admin/erp-item-actions';
-import { AdminNotice, AdminSectionCard, AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { FoldCard } from '@/components/admin/sections/SectionLayout';
 import { AdminSelect } from '@/components/admin/console/AdminSelect';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
@@ -88,8 +89,9 @@ function IssueTable({ caption, issues }: { caption: string; issues: ErpImportIss
 /**
  * ERP '품목 생성' 데이터 반입: 붙여넣기·파일 → 열 짝짓기 미리보기 → 반입 → 결과 요약.
  * 미리보기와 열 변경은 브라우저에서 하고, 반입 행은 서버 액션이 다시 검증한다.
+ * 가끔 쓰는 도구라 접어 두어 매일 보는 품목 표가 첫 화면에 들어오게 한다(반입한 품목이 없으면 펼친다).
  */
-export function ErpItemImportPanel() {
+export function ErpItemImportPanel({ defaultOpen = false }: { defaultOpen?: boolean } = {}) {
   const router = useRouter();
   const fileInput = useRef<HTMLInputElement>(null);
   const [pasted, setPasted] = useState('');
@@ -200,10 +202,11 @@ export function ErpItemImportPanel() {
   const previewRows = plan?.rows.slice(0, ERP_ITEM_PREVIEW_ROWS) ?? [];
   const headerOptions = source ? source.table.slice(0, ERP_ITEM_HEADER_SCAN_ROWS) : [];
 
-  return <AdminSectionCard
-    title="품목 반입"
+  return <FoldCard
     id="erp-item-import"
-    summary={`ERP '품목 생성' 화면의 표를 엑셀에서 복사해 붙여넣거나 XLSX·CSV 파일로 올립니다. 한 번에 ${ERP_ITEM_IMPORT_ROW_LIMIT.toLocaleString('ko-KR')}행까지, ERP 코드(품번)가 같으면 새 값으로 바꿉니다.`}
+    open={defaultOpen}
+    summary={`엑셀 표 붙여넣기·파일 · 한 번에 ${ERP_ITEM_IMPORT_ROW_LIMIT.toLocaleString('ko-KR')}행까지 · ERP 코드(품번)가 같으면 새 값으로 바꿉니다.`}
+    title="품목 반입"
   >
     <div className="grid gap-x-6 gap-y-5 [grid-template-columns:repeat(auto-fit,minmax(min(100%,20rem),1fr))] print:hidden" data-erp-items="sources">
       <div className="flex min-w-0 flex-col gap-2">
@@ -324,5 +327,5 @@ export function ErpItemImportPanel() {
         <Button variant="ghost" type="button" disabled={busy} onClick={reset}>처음부터 다시</Button>
       </div>
     </div> : null}
-  </AdminSectionCard>;
+  </FoldCard>;
 }

@@ -1,9 +1,9 @@
 'use client';
-import { useState, useTransition, type FormEvent } from 'react';
+import { useState, useTransition, type FormEvent, type ReactNode } from 'react';
 import { executeStoreCreditBatchAction, findStoreCreditCustomersAction, importStoreCreditTargetsAction, previewStoreCreditBatchAction, readStoreCreditBatchAction } from '@/app/admin/store-credit-console-actions';
 import { parseStoreCreditTargets, storeCreditBatchError, type StoreCreditBatch, type StoreCreditCustomer } from '@/lib/admin/store-credit-console';
 import { formatOrderDateTime } from '@/lib/orders';
-import { ChevronDown, Download, Plus, Search } from 'lucide-react';
+import { ChevronDown, Download, Plus, Search, X } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
@@ -28,6 +28,17 @@ export function StoreCreditBatchResult({ batch }: { batch: StoreCreditBatch }) {
     <p className="text-xs text-muted-foreground [overflow-wrap:anywhere]">작업 ID: {batch.id}</p>
     <details className="rounded-lg border bg-background"><summary className="cursor-pointer px-3 py-2 font-medium">대상별 검증 내역 {batch.rows.length}명</summary><div className={`${TABLE_SCROLL} m-3 mt-0`}><Table className="min-w-[40rem]"><TableHeader className="bg-muted/50"><TableRow className="hover:bg-transparent"><TableHead>고객</TableHead><TableHead>고객 ID</TableHead><TableHead className="text-right">확인 당시 사용 가능</TableHead><TableHead className="text-right">상계액</TableHead><TableHead>검증</TableHead></TableRow></TableHeader><TableBody>{batch.rows.map((row,index) => <TableRow key={`${row.target}-${index}`}><TableCell className="whitespace-normal [overflow-wrap:anywhere]">{row.nickname || row.target}</TableCell><TableCell className="text-xs text-muted-foreground">{row.userId || '—'}</TableCell><TableCell className="text-right tabular-nums">{row.error ? '—' : won(row.balance.available)}</TableCell><TableCell className="text-right tabular-nums">{row.error ? '—' : won(row.offset)}</TableCell><TableCell className="whitespace-normal">{row.error ? storeCreditBatchError(row.error) : batch.status === 'completed' ? '지급 완료' : batch.status === 'failed' ? '미지급' : '지급 가능'}</TableCell></TableRow>)}</TableBody></Table></div></details>
   </section>;
+}
+/**
+ * 탭 줄 오른쪽의 주 행동 버튼과 그 아래에 펼쳐지는 지급 등록. 이 화면에서 제일 많이 하는 일이라 접힌 줄이 아니라 진짜 버튼으로 시작한다.
+ * 닫아도 입력이 남도록 폼은 없애지 않고 감춘다.
+ */
+export function StoreCreditRegisterArea({ enabled, validityDays, tabs }: { enabled: boolean; validityDays: number | null; tabs: ReactNode }) {
+  const [open,setOpen] = useState(false);
+  return <>
+    <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">{tabs}<Button aria-expanded={open} onClick={() => setOpen(value => !value)} type="button" variant={open ? 'outline' : 'default'}>{open ? <X aria-hidden="true" /> : <Plus aria-hidden="true" />}{open ? '등록 닫기' : '적립금 지급 등록'}</Button></div>
+    <div hidden={!open}><StoreCreditBatchForm enabled={enabled} validityDays={validityDays} /></div>
+  </>;
 }
 export function StoreCreditBatchForm({ enabled, validityDays }: { enabled: boolean; validityDays: number | null }) {
   const [pending,start] = useTransition(); const [targets,setTargets] = useState(''); const [query,setQuery] = useState('');
@@ -55,8 +66,8 @@ export function StoreCreditBatchForm({ enabled, validityDays }: { enabled: boole
     start(async () => { const result = await readStoreCreditBatchAction(batch.id); if (result.error) setError(result.error); else if (result.batch) { setBatch(result.batch); setError(''); if (['completed','failed'].includes(result.batch.status)) setUncertain(false); } });
   }
   const done = batch?.status === 'completed' || batch?.status === 'failed';
-  return <details className="group/register min-w-0 rounded-xl border bg-card text-sm text-card-foreground" data-credit-register=""><summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-xl px-4 py-3 font-medium [&::-webkit-details-marker]:hidden"><span className={buttonVariants({ variant: 'soft' })} data-slot="button"><Plus aria-hidden="true" />적립금 지급 등록</span><ChevronDown aria-hidden="true" className="size-4 text-muted-foreground transition-transform group-open/register:rotate-180" /></summary>
-    <div className="flex min-w-0 flex-col gap-4 border-t p-4">
+  return <section aria-label="적립금 지급 등록" className="min-w-0 rounded-xl border bg-card text-sm text-card-foreground" data-credit-register="">
+    <div className="flex min-w-0 flex-col gap-4 p-4">
     {!enabled ? <AdminNotice tone="warning">적립금 정책이 비활성 상태입니다. 정책 설정을 완료한 뒤 지급할 수 있습니다.</AdminNotice> : null}
     <form method="post" onSubmit={preview}>
       <fieldset disabled={pending || uncertain || done || !enabled} className="m-0 flex min-w-0 flex-col gap-3 border-0 p-0">
@@ -84,11 +95,12 @@ export function StoreCreditBatchForm({ enabled, validityDays }: { enabled: boole
     {done ? <Button className="w-fit" onClick={() => { invalidate(); setTargets(''); }} type="button" variant="outline"><Plus aria-hidden="true" />새 지급 준비</Button> : null}
     {pending ? <p className={NOTE} role="status">처리 중…</p> : null}
     </div>
-  </details>;
+  </section>;
 }
-export function StoreCreditBatchInspect({ id }: { id: string }) {
+/** 저장된 지급 작업 보기. 평소에는 표의 다른 링크와 같은 글자이고, 지급 전 확인이 남은 줄(attention)만 처리 버튼으로 올린다. */
+export function StoreCreditBatchInspect({ id, attention = false }: { id: string; attention?: boolean }) {
   const [batch,setBatch] = useState<StoreCreditBatch | null>(null); const [error,setError] = useState(''); const [pending,start] = useTransition(); const [confirmed,setConfirmed] = useState(false);
-  return <details className="min-w-0 text-sm" data-credit-inspect=""><summary className="cursor-pointer font-medium underline-offset-4 hover:underline" onClick={() => { if (!batch) start(async () => { const result = await readStoreCreditBatchAction(id); if (result.error) setError(result.error); else if (result.batch) setBatch(result.batch); }); }}>상세 / 결과 조회</summary>
+  return <details className="group/inspect min-w-0 text-sm" data-credit-inspect=""><summary className={attention ? `${buttonVariants({ variant: 'soft', size: 'xs' })} cursor-pointer list-none [&::-webkit-details-marker]:hidden` : 'flex w-fit cursor-pointer list-none items-center gap-1 font-medium text-primary underline-offset-4 hover:underline [&::-webkit-details-marker]:hidden'} data-slot={attention ? 'button' : undefined} onClick={() => { if (!batch) start(async () => { const result = await readStoreCreditBatchAction(id); if (result.error) setError(result.error); else if (result.batch) setBatch(result.batch); }); }}>{attention ? '확인 후 지급' : '상세 / 결과 조회'}<ChevronDown aria-hidden="true" className="size-3.5 transition-transform group-open/inspect:rotate-180" /></summary>
     <div className="mt-2 flex min-w-0 flex-col gap-2 whitespace-normal">{error ? <AdminNotice role="alert" tone="danger">{error}</AdminNotice> : null}{batch ? <StoreCreditBatchResult batch={batch} /> : null}
     {batch?.status === 'prepared' && batch.canExecute ? <><label className={CHECK_LABEL_TOP}><input className="mt-0.5" type="checkbox" checked={confirmed} disabled={pending} onChange={event => setConfirmed(event.target.checked)} />대상 {batch.count}명 · 총 {won(batch.gross)} 지급을 확인했습니다.</label><Button className="w-fit" disabled={pending || !confirmed} size="sm" type="button" onClick={() => start(async () => { const form = new FormData(); form.set('id',id); form.set('confirmed','yes'); const result = await executeStoreCreditBatchAction(form); if (result.error) setError(result.error); else if (result.batch) { setBatch(result.batch); setError(''); } })}>이 작업으로 지급 / 재시도</Button></> : null}
     {batch?.status === 'prepared' && !batch.canExecute ? <p className={NOTE}>이 작업을 검증한 관리자만 지급을 실행할 수 있습니다.</p> : null}

@@ -8,7 +8,8 @@ import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { PURCHASE_RESTRICTION_REASONS, type PurchaseRestrictionReason } from '@/lib/admin/purchase-restrictions';
 import { PURCHASE_RESTRICTION_BATCH_INPUT_MAX, purchaseRestrictionBatchHref, purchaseRestrictionBatchStatus, type PurchaseRestrictionBatch, type PurchaseRestrictionBatchMode } from '@/lib/admin/purchase-restriction-batches';
 import { formatOrderDateTime } from '@/lib/orders';
-import { Button } from '@/components/admin/kit/ui/button';
+import { ChevronDown } from 'lucide-react';
+import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
 import { Label } from '@/components/admin/kit/ui/label';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/admin/kit/ui/table';
@@ -54,9 +55,10 @@ export function PurchaseRestrictionBatchForm({ initialBatch = null, currentHref 
     invalidate(); setTargets(retry); setUncertain(false);
   }
   const fieldError = (name: string) => fieldErrors[name] ? <span role="alert" className="text-xs font-normal text-destructive" id={`restriction-batch-${name}-error`}>{fieldErrors[name]}</span> : null;
-  return <details className="group rounded-xl border bg-card px-4 py-3 text-sm leading-relaxed text-card-foreground" open={initialBatch ? true : undefined}>
-    <summary className="cursor-pointer font-medium">판매방해 고객 복수등록</summary>
-    <p className="mt-3 text-muted-foreground">회원 ID·정확한 이메일 또는 전체 주문번호를 줄바꿈이나 쉼표로 구분해 최대 100개까지 확인합니다. 같은 고객은 한 번만 등록하며, 주문번호로 조회하면 해당 주문을 등록 근거로 남깁니다.</p>
+  return <details className="group min-w-0 text-sm leading-relaxed open:basis-full" open={initialBatch ? true : undefined}>
+    <summary className={`${buttonVariants({ variant: 'outline' })} cursor-pointer list-none [&::-webkit-details-marker]:hidden`} data-slot="button">판매방해 고객 복수등록<ChevronDown aria-hidden="true" className="transition-transform group-open:rotate-180" /></summary>
+    <div className="mt-2 rounded-lg border p-4">
+    <p className="text-muted-foreground">회원 ID·정확한 이메일 또는 전체 주문번호를 줄바꿈이나 쉼표로 구분해 최대 100개까지 확인합니다. 같은 고객은 한 번만 등록하며, 주문번호로 조회하면 해당 주문을 등록 근거로 남깁니다.</p>
     <form onSubmit={preview} className="mt-3.5 flex flex-col gap-3.5">
       <fieldset disabled={locked} className="m-0 grid min-w-0 gap-x-5 gap-y-3.5 border-0 p-0 md:grid-cols-2">
         <div className={FIELD}><Label htmlFor="restriction-batch-mode">입력 방식</Label><NativeSelect className="w-full" id="restriction-batch-mode" name="mode" value={mode} onChange={event => { invalidate(); setMode(event.target.value as PurchaseRestrictionBatchMode); }}><option value="customer">회원 ID 또는 정확한 이메일</option><option value="order">전체 주문번호</option></NativeSelect></div>
@@ -84,5 +86,6 @@ export function PurchaseRestrictionBatchForm({ initialBatch = null, currentHref 
       </div>
     </section> : null}
     {error ? <p className="mt-3 text-destructive" role="alert">{error}</p> : null}{fieldError('form')}{readMessage ? <p className="mt-3" role="status">{readMessage}</p> : null}
+    </div>
   </details>;
 }

@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
     role: 'user' | 'staff' | 'admin' | null;
     isStaff: boolean;
   },
-  screen: vi.fn(() => null),
+  screen: vi.fn(({ pendingBadge }: { pendingBadge?: React.ReactNode }) => pendingBadge ?? null),
   inquiries: vi.fn(async () => ({ rows: [], counts: { open: 0, answered: 0, closed: 0 } })),
   detail: vi.fn(async (): Promise<unknown> => null),
   navigation: vi.fn(async () => undefined),
