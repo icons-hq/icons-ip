@@ -55,7 +55,7 @@ export function StatsRangeTabs({ base, filters, now = new Date(), exportDisabled
         {!filters.rangeError ? exportDisabledReason ? <p className="text-sm text-muted-foreground" role="status">{exportDisabledReason}</p> : <a className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" href={`${exportHref}${exportHref.includes('?') ? '&' : '?'}report=${screen}`}><Download aria-hidden="true" />엑셀 다운로드</a> : null}
       </>}>
         <Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={base}>초기화</Link>
-        <button className={buttonVariants()} data-slot="button" type="submit">조회</button>
+        <button className={buttonVariants({ variant: 'soft' })} data-slot="button" type="submit">조회</button>
       </ConsoleFilterActions>
     </form>
   </div>;

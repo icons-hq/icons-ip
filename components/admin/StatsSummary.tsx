@@ -1,4 +1,7 @@
 import type { ReactNode } from 'react';
+import { Minus, TrendingDown, TrendingUp } from 'lucide-react';
+import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import type { AdminTone } from '@/lib/admin/status-tone';
 
 /*
  * 데이터분석 화면의 공통 모양(ADR-0028 템플릿 룩). 판매·클레임·고객·시간대·유입 분석이 같은 요약 카드,
@@ -9,12 +12,51 @@ import type { ReactNode } from 'react';
 export const STATS_SEGMENTED = 'inline-flex w-fit max-w-full flex-wrap items-center rounded-lg bg-muted p-0.5';
 const SEGMENT_ITEM = 'inline-flex h-7 items-center rounded-md px-2.5 text-[0.8rem] font-medium whitespace-nowrap text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50';
 /** 링크 탭 항목. 현재 항목은 aria-current(page·true)로 고른다. */
-export const STATS_SEGMENT_LINK = `${SEGMENT_ITEM} aria-[current=page]:bg-background aria-[current=page]:text-foreground aria-[current=page]:shadow-sm aria-[current=true]:bg-background aria-[current=true]:text-foreground aria-[current=true]:shadow-sm`;
+export const STATS_SEGMENT_LINK = `${SEGMENT_ITEM} aria-[current=page]:bg-background aria-[current=page]:text-primary-soft-foreground aria-[current=page]:shadow-sm aria-[current=true]:bg-background aria-[current=true]:text-primary-soft-foreground aria-[current=true]:shadow-sm`;
 /** 화면 안 상태로 고르는 버튼 항목(aria-pressed). */
-export const STATS_SEGMENT_BUTTON = `${SEGMENT_ITEM} cursor-pointer aria-pressed:bg-background aria-pressed:text-foreground aria-pressed:shadow-sm`;
+export const STATS_SEGMENT_BUTTON = `${SEGMENT_ITEM} cursor-pointer aria-pressed:bg-background aria-pressed:text-primary-soft-foreground aria-pressed:shadow-sm`;
 
 /** 안내 문단(보조 글자). */
 export const STATS_NOTE = 'text-sm text-muted-foreground';
+
+/** 저장값 'YYYY-MM-DD'를 조회기간 입력칸과 같은 표기('2026. 10. 13.')로 읽는다. 월별 묶음('2026-10')은 '2026. 10.'이다. */
+export function statsDateLabel(value: string) {
+  return value.split('-').map(part => `${part}.`).join(' ');
+}
+
+/** 차트 가로축의 짧은 날짜('10. 13.'). 연도는 조회기간 칸과 툴팁이 말한다. 월별 묶음은 연도까지 그대로 읽는다. */
+export function statsDateTick(value: string) {
+  const parts = value.split('-');
+  return parts.length === 3 ? `${parts[1]}. ${parts[2]}.` : statsDateLabel(value);
+}
+
+export type StatsChangeDirection = 'up' | 'down' | 'flat';
+/** 오를수록 좋은 지표(higher), 줄수록 좋은 지표(lower), 좋고 나쁨이 없는 지표(none). */
+export type StatsChangePolarity = 'higher' | 'lower' | 'none';
+
+const CHANGE_ICONS = { up: TrendingUp, down: TrendingDown, flat: Minus } as const;
+
+function changeTone(direction: StatsChangeDirection, polarity: StatsChangePolarity): AdminTone {
+  if (direction === 'flat' || polarity === 'none') return 'neutral';
+  return (direction === 'up') === (polarity === 'higher') ? 'success' : 'danger';
+}
+
+/** 증감 방향. 어느 한쪽 값이 없으면(비교 불가) 방향이 없다. */
+export function statsChangeDirection(current: number | null | undefined, previous: number | null | undefined): StatsChangeDirection {
+  if (current == null || previous == null || current === previous) return 'flat';
+  return current > previous ? 'up' : 'down';
+}
+
+/**
+ * 증감 배지. 나아짐은 success, 나빠짐은 danger, 변동 없음·비교 불가는 neutral이고, 아이콘과 부호 있는 글자로도 읽는다.
+ * 기본은 오를수록 좋은 지표이고, 클레임처럼 줄수록 좋은 지표는 polarity로 색을 뒤집는다.
+ */
+export function StatsChangeBadge({ direction, polarity = 'higher', title, className = '', children }: {
+  direction: StatsChangeDirection; polarity?: StatsChangePolarity; title?: string; className?: string; children: ReactNode;
+}) {
+  const Icon = CHANGE_ICONS[direction];
+  return <AdminStatusBadge className={`tabular-nums before:hidden ${className}`} title={title} tone={changeTone(direction, polarity)}><Icon aria-hidden="true" />{children}</AdminStatusBadge>;
+}
 
 export function StatsSummaryGrid({ children, className = '' }: { children: ReactNode; className?: string }) {
   return <div className={`grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 md:grid-cols-[repeat(auto-fit,minmax(11rem,1fr))] ${className}`} data-stats-summary="">{children}</div>;

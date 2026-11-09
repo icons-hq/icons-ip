@@ -1,11 +1,12 @@
 import Link from 'next/link';
 import { RefreshCw } from 'lucide-react';
 import { StatsSalesHourlyTrend } from '@/components/admin/charts/StatsSalesHourlyTrend';
+import { AdminNotice } from '@/components/admin/console/AdminKit';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { StatsFilterControl, StatsFilterRow } from '@/components/admin/StatsRangeTabs';
+import { StatsRateChange } from '@/components/admin/StatsComparison';
 import { StatsSummaryTile } from '@/components/admin/StatsSummary';
-import { adminStatsChange } from '@/lib/admin/stats';
 import { ADMIN_SALES_HOURLY_PATH, adminSalesHourlyHref, adminSalesHourlyTime, type AdminSalesHourlyFilters, type AdminSalesHourlyReport } from '@/lib/admin/stats-hourly';
 import { krw } from '@/lib/format';
 import { StatsSalesViews } from './StatsSalesScreen';
@@ -21,12 +22,12 @@ export function StatsSalesHourlyControls({ filters, report, error }: { filters: 
         <StatsFilterControl htmlFor="admin-sales-hourly-ip" label="IP 필터 (상품 TOP10)"><Input className="w-40" defaultValue={filters.ipId} id="admin-sales-hourly-ip" maxLength={64} name="ip" placeholder="IP 코드" /></StatsFilterControl>
       </StatsFilterRow>
       <StatsFilterRow label="오늘 현황">
-        <button className={buttonVariants()} data-slot="button" type="submit"><RefreshCw aria-hidden="true" />조회·갱신</button>
+        <button className={buttonVariants({ variant: 'soft' })} data-slot="button" type="submit"><RefreshCw aria-hidden="true" />조회·갱신</button>
         <Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={ADMIN_SALES_HOURLY_PATH}>초기화</Link>
         <p className="text-xs text-muted-foreground">비교일 미선택 시 7일 전 · 오늘의 완료된 시간대까지 조회</p>
       </StatsFilterRow>
     </form>
-    {error ? <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive" role="alert">{error} <Link className="font-medium underline underline-offset-4" href={adminSalesHourlyHref({ ipId: filters.ipId })}>최신 현황 조회</Link></p> : null}
+    {error ? <AdminNotice role="alert" tone="danger">{error} <Link className="font-medium underline underline-offset-4" href={adminSalesHourlyHref({ ipId: filters.ipId })}>최신 현황 조회</Link></AdminNotice> : null}
   </>;
 }
 
@@ -36,8 +37,8 @@ export function StatsSalesHourlyScreen({ report, filters }: { report: AdminSales
     <StatsSalesHourlyControls filters={filters} report={report} />
     <div className="flex flex-col gap-0.5 rounded-lg border bg-muted/40 px-4 py-3 text-xs leading-relaxed text-muted-foreground [overflow-wrap:anywhere]"><p>조회시각(KST): {adminSalesHourlyTime(report.asOf)}</p><p>오늘 집계 마감(KST): {adminSalesHourlyTime(report.cutoff)} 직전 · 완료 {report.completedHours}시간</p><p>주문 생성시각 기준이며 조회 시점에 결제가 유지되는 주문만 포함합니다. IP 조건은 상품 TOP10에만 적용됩니다.</p></div>
     <div className="grid grid-cols-1 gap-3 md:grid-cols-2" data-stats-summary="">
-      <StatsSummaryTile label="오늘 집계 주문매출" value={current ? krw(current.revenue) : '—'}><small className="text-xs text-muted-foreground tabular-nums">비교일 동일 시간: {comparison ? krw(comparison.revenue) : '—'}</small><small className="text-xs text-muted-foreground tabular-nums">{current && comparison ? adminStatsChange(current.revenue, comparison.revenue) : '집계 마감까지 완료된 시간대가 없습니다.'}</small></StatsSummaryTile>
-      <StatsSummaryTile label="오늘 집계 주문수" value={current ? `${current.orderCount.toLocaleString('ko-KR')}건` : '—'}><small className="text-xs text-muted-foreground tabular-nums">비교일 동일 시간: {comparison ? `${comparison.orderCount.toLocaleString('ko-KR')}건` : '—'}</small><small className="text-xs text-muted-foreground tabular-nums">{current && comparison ? adminStatsChange(current.orderCount, comparison.orderCount) : '집계 마감까지 완료된 시간대가 없습니다.'}</small></StatsSummaryTile>
+      <StatsSummaryTile label="오늘 집계 주문매출" value={current ? krw(current.revenue) : '—'}><small className="text-xs text-muted-foreground tabular-nums">비교일 동일 시간: {comparison ? krw(comparison.revenue) : '—'}</small>{current && comparison ? <StatsRateChange current={current.revenue} previous={comparison.revenue} /> : <small className="text-xs text-muted-foreground">집계 마감까지 완료된 시간대가 없습니다.</small>}</StatsSummaryTile>
+      <StatsSummaryTile label="오늘 집계 주문수" value={current ? `${current.orderCount.toLocaleString('ko-KR')}건` : '—'}><small className="text-xs text-muted-foreground tabular-nums">비교일 동일 시간: {comparison ? `${comparison.orderCount.toLocaleString('ko-KR')}건` : '—'}</small>{current && comparison ? <StatsRateChange current={current.orderCount} previous={comparison.orderCount} /> : <small className="text-xs text-muted-foreground">집계 마감까지 완료된 시간대가 없습니다.</small>}</StatsSummaryTile>
     </div>
     <details className="rounded-lg border bg-muted/40 px-4 py-3 text-sm"><summary className="cursor-pointer font-medium">집계 기준 확인</summary><ul className="mt-2 flex list-disc flex-col gap-1.5 pl-5 text-xs leading-relaxed text-muted-foreground">
       <li>현재 진행 중인 시간을 제외한 한국시간 정시 구간입니다. 비교일도 같은 완료 시간까지만 집계합니다. 00시에는 오늘 완료된 시간대가 없으며 직전 1시간은 전날 23시부터 오늘 00시 직전입니다.</li>

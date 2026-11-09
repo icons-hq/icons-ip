@@ -6,8 +6,8 @@ import { Card, CardAction, CardContent, CardDescription, CardHeader } from '@/co
 import { formatKrw } from '../format';
 import { CHART_AXIS_TICK, CHART_GRID_STROKE, CHART_TOOLTIP_STYLE } from './chart-theme';
 
-/* kit 차트 토큰(ADR-0028). 두 계열은 명도로 구분하고 범례·툴팁이 이름을 붙인다. */
-const GOODS_COLOR = 'var(--chart-4)';
+/* 상품·티켓은 비교가 아니라 범주다 — 범주색을 앞번호부터 쓰고 범례·툴팁이 이름을 붙인다(ADR-0029). */
+const GOODS_COLOR = 'var(--chart-1)';
 const TICKETS_COLOR = 'var(--chart-2)';
 
 function dayLabel(date: string) {
