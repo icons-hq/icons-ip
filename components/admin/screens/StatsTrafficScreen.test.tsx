@@ -32,6 +32,19 @@ describe('두 화면의 구분', () => {
   });
 });
 
+describe('요약 카드의 증감 색', () => {
+  const compared: TrafficMetrics = { ...metrics, sessions: 100, productViews: 90, orders: 10, conversionRate: 2, grossAmount: 1000, netAmount: 950 };
+  const current: TrafficMetrics = { ...metrics, sessions: 90, productViews: 85, orders: 9, conversionRate: 1.9, grossAmount: 500, netAmount: 480 };
+
+  it('여섯 칸이 모두 줄어도 가장 크게 변한 칸 하나만 위험색이고 나머지는 회색이다', () => {
+    const html = renderToStaticMarkup(<StatsTrafficScreen filters={filters} report={{ ...report, summary: current, comparison: compared }} />);
+    expect(html.match(/data-tone="danger"/g)).toHaveLength(1);
+    expect(html).toMatch(/data-tone="danger"[^>]*><svg[^>]*lucide-trending-down[\s\S]*?-50\.0%/);
+    expect(html).toContain('환불 차감 후 금액');
+    expect(html).not.toContain('>환불 차감금액<');
+  });
+});
+
 describe('방문·유입 분석의 상단 공지 노출·클릭', () => {
   it('공지별 노출·클릭·세션·클릭률을 같은 기간 표로 보이고 삭제된 공지를 이름으로 숨기지 않는다', () => {
     const html = renderToStaticMarkup(<StatsTrafficScreen filters={filters} noticeReport={notices} report={report} />);
