@@ -23,8 +23,8 @@ import { CHECK_LABEL, CHECK_LABEL_TOP, FIELD_LABEL, NOTE, TABLE_BOX, TSV_TEXTARE
 import { StoreSettingsRelatedLinks } from './StoreSettingsRelatedLinks';
 
 const POLICY_EDITOR_ID = 'shipping-region-policy-editor';
-/* 저장·확정 버튼 줄. 입력이 길어도 화면 바닥에 남아 초안을 끝내는 길이 보인다. */
-const STICKY_ACTIONS = 'sticky bottom-0 z-10 flex flex-col gap-3 rounded-lg border bg-card p-3 shadow-sm';
+/* 저장·확정 버튼 줄. 입력이 길어도 화면 바닥에 남아 초안을 끝내는 길이 보인다. 카드 폭 그대로 바닥에 붙어야 입력칸 위에 뜬 상자로 보이지 않는다. */
+const STICKY_ACTIONS = 'sticky bottom-0 z-10 -mx-4 -mb-4 flex flex-col gap-2 rounded-b-xl border-t bg-card px-4 py-3 sm:-mx-5 sm:-mb-5 sm:px-5';
 
 function koreaInput(value: string | null): string { return value ? new Date(Date.parse(value) + 9 * 3600000).toISOString().slice(0, 16) : ''; }
 function fromKoreaInput(value: string): string | null { return value ? new Date(`${value}:00+09:00`).toISOString() : null; }
@@ -123,11 +123,12 @@ function ShippingRegionEditor({ policy, initialCopy, origins, carriers, canEdit,
         {parsed.rules.length > 50 ? <p className="border-t px-3 py-2 text-xs text-muted-foreground">앞의 50행을 표시합니다. 저장·서버 검증은 전체 {parsed.rules.length}행에 적용합니다.</p> : null}</div> : <p className={`mt-2 ${NOTE}`}>입력된 지역표가 없습니다.</p>}
     </details>
     {!readOnly && problems.length > 0 ? <AdminNotice title="활성화 전 확인" tone="warning"><ul className="flex list-disc flex-col gap-1 pl-5">{problems.map((problem, index) => <li key={index}>{problem}</li>)}</ul></AdminNotice> : null}
+    {!readOnly && error ? <AdminNotice role="alert" tone="danger">{error}</AdminNotice> : null}
     {!readOnly ? <div className={STICKY_ACTIONS} data-admin-savebar="">
       {policy && <label className={CHECK_LABEL_TOP}><input className="mt-0.5" type="checkbox" checked={attested} disabled={pending || dirty || problems.length > 0}
         onChange={(event) => setAttested(event.target.checked)} /><span>저장된 정책이 실제 물류사 원본·적용 기간·지역·요금·무료/묶음 기준과 일치함을 확인했습니다.</span></label>}
-      {policy && dirty ? <p className={NOTE}>수정한 내용을 먼저 초안으로 저장해주세요.</p> : null}
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {policy && dirty ? <p className={`mr-auto ${NOTE}`}>수정한 내용을 먼저 초안으로 저장해주세요.</p> : null}
         {/* 저장된 초안이 있으면 그 화면의 주 행동은 확정이고, 저장은 보조다. */}
         <Button disabled={pending} onClick={save} type="button" variant={policy ? 'outline' : 'default'}>초안 저장</Button>
         {policy && <Button disabled={pending || dirty || problems.length > 0 || !attested} onClick={() => setStatus('active')} type="button">저장된 정책 활성화</Button>}
@@ -138,7 +139,7 @@ function ShippingRegionEditor({ policy, initialCopy, origins, carriers, canEdit,
         <span>정책을 중단하면 적용할 다른 정책이 없는 출고지의 신규 주문이 차단됩니다. 기존 주문의 배송비는 그대로 보존됨을 확인했습니다.</span></label>
       <Button className="w-fit" disabled={pending || !attested} onClick={() => setStatus('retired')} type="button" variant="destructive">정책 중단</Button>
     </> : null}
-    {error ? <AdminNotice role="alert" tone="danger">{error}</AdminNotice> : null}
+    {readOnly && error ? <AdminNotice role="alert" tone="danger">{error}</AdminNotice> : null}
   </div>;
 }
 
@@ -148,17 +149,30 @@ export function ShippingRegionsScreen({ policies: initialPolicies, adoptions, or
 }) {
   const [policies, setPolicies] = useState(initialPolicies); const [selectedId, setSelectedId] = useState<string | null>(null);
   const [copy, setCopy] = useState<ShippingRegionPolicyInput | null>(null); const [editorKey, setEditorKey] = useState(0);
+  /* 정책이 있으면 첫 화면은 현황과 버전 목록이다 — 빈 입력칸은 '새 정책 초안'을 눌렀을 때 연다. 첫 정책은 쓸 곳이 입력뿐이라 열어 둔다. */
+  const [composing, setComposing] = useState(initialPolicies.length === 0);
   const [message, setMessage] = useState<string | null>(null);
   const selected = policies.find((policy) => policy.id === selectedId) ?? null;
+  const editorOpen = Boolean(selected) || (canEdit && (composing || copy !== null));
+  const firstDraftId = canEdit ? policies.find((policy) => policy.status === 'draft')?.id ?? null : null;
+  /* 편집 카드는 목록 아래에 있어 눌러도 변화가 안 보인다 — 열린 카드로 데려간다. */
+  function showEditor() { requestAnimationFrame(() => document.getElementById(POLICY_EDITOR_ID)?.scrollIntoView({ block: 'start' })); }
   function openPolicy(id: string) {
-    setSelectedId(id); setCopy(null); setEditorKey((key) => key + 1); setMessage(null);
-    /* 편집 카드는 목록 아래에 있어 눌러도 변화가 안 보인다 — 열린 카드로 데려간다. */
-    requestAnimationFrame(() => document.getElementById(POLICY_EDITOR_ID)?.scrollIntoView({ block: 'start' }));
+    setSelectedId(id); setCopy(null); setEditorKey((key) => key + 1); setMessage(null); setComposing(false);
+    showEditor();
   }
+  function startDraft() {
+    setSelectedId(null); setCopy(null); setEditorKey((key) => key + 1); setMessage(null); setComposing(true);
+    showEditor();
+  }
+  function closeEditor() { setSelectedId(null); setCopy(null); setComposing(false); setMessage(null); }
   function saved(policy: ShippingRegionPolicy, success: string) {
     setPolicies((current) => current.some((row) => row.id === policy.id) ? current.map((row) => row.id === policy.id ? policy : row) : [...current, policy]);
-    setSelectedId(policy.id); setCopy(null); setEditorKey((key) => key + 1); setMessage(success);
+    setSelectedId(policy.id); setCopy(null); setEditorKey((key) => key + 1); setMessage(success); setComposing(false);
   }
+  /* 정책을 도입했는데 지금 적용 중인 정책이 없는 출고지 — 이때만 경고한다. 늘 떠 있는 노란 상자는 지금 문제가 있다는 뜻으로 읽히지 않는다. */
+  const uncovered = origins.filter((origin) => adoptions.some((row) => row.originId === origin.id) && !policies.some((policy) => policy.originId === origin.id && policy.status === 'active'));
+  const hasUnregistered = origins.some((origin) => !adoptions.some((row) => row.originId === origin.id) && !policies.some((policy) => policy.originId === origin.id && policy.status !== 'draft'));
   return <div className="flex min-w-0 flex-col gap-4" data-admin-screen="shipping-regions">
     <AdminPageHeader title="지역별 추가배송비 관리" description="실제 물류사 회신을 출고지·계약 택배사·적용 기간별로 관리합니다. 확정된 정책만 배송지별 견적과 주문에 적용합니다." />
     <StoreSettingsRelatedLinks label="배송 설정" links={[{ href: '/admin/settings/origins', label: '출고지·배송비' }, { href: '/admin/settings/carriers', label: '택배사' }]} />
@@ -176,28 +190,36 @@ export function ShippingRegionsScreen({ policies: initialPolicies, adoptions, or
             : { tone: 'neutral', label: '지역표 미등록', detail: '기존 배송비로 주문 확정' } as const;
         return <li className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 first:pt-0 last:pb-0" key={origin.id}><span className="font-medium">{origin.name}</span><AdminStatusBadge tone={state.tone}>{state.label}</AdminStatusBadge><span className="text-muted-foreground">{state.detail}</span></li>;
       })}</ul>
-      <p className={NOTE}>지역표 미등록은 계약 추가료가 0원이라는 뜻이 아닙니다. 현재 표시된 배송비로 주문이 확정되며, 이미 확정된 주문에 지역료를 뒤늦게 더하지 않습니다.</p>
-      <AdminNotice title="신규 주문이 차단될 수 있습니다" tone="warning">지역 정책을 도입한 출고지는 정책 만료·중단·택배사 불일치 시 신규 주문을 차단합니다.</AdminNotice>
+      {hasUnregistered ? <p className={NOTE}>지역표 미등록은 계약 추가료가 0원이라는 뜻이 아닙니다. 현재 표시된 배송비로 주문이 확정되며, 이미 확정된 주문에 지역료를 뒤늦게 더하지 않습니다.</p> : null}
+      {uncovered.length ? <AdminNotice title="신규 주문이 차단될 수 있습니다" tone="warning">{uncovered.map((origin) => origin.name).join('·')}에 적용 중인 정책이 없습니다. 지역 정책을 도입한 출고지는 정책 만료·중단·택배사 불일치 시 신규 주문을 차단합니다.</AdminNotice>
+        : <p className={NOTE}>지역 정책을 도입한 출고지는 정책 만료·중단·택배사 불일치 시 신규 주문을 차단합니다.</p>}
     </AdminSectionCard>
-    <AdminSectionCard title="정책 버전" summary="줄을 누르면 아래에서 내용을 보고, 초안은 확정할 수 있습니다.">
-      {policies.length ? <div className="flex flex-col gap-1.5">{policies.map((policy) => <Button className="h-auto min-h-9 justify-start py-1.5 text-left whitespace-normal [overflow-wrap:anywhere] aria-pressed:border-primary aria-pressed:bg-primary-soft" key={policy.id} type="button" variant="outline"
-        aria-pressed={selectedId === policy.id} onClick={() => openPolicy(policy.id)}>
-        <span className="min-w-0 flex-1">{origins.find((origin) => origin.id === policy.originId)?.name} · {policy.name || '이름 미입력'} · 버전 {policy.version}</span>
-        <AdminStatusBadge className="shrink-0" tone={statusTone('regionPolicy', policy.status)}>{STATUS_LABELS[policy.status]}</AdminStatusBadge>
-        {canEdit && policy.status === 'draft' ? <span className="shrink-0 text-xs font-semibold text-primary">확정하기</span> : <span className="shrink-0 text-xs font-normal text-muted-foreground">내용 보기</span>}
-        <ChevronRight aria-hidden="true" className="text-muted-foreground" />
-      </Button>)}</div> : <p className={NOTE}>등록한 지역 정책이 없습니다. 실제 회신을 확보한 출고지부터 초안을 작성해주세요.</p>}
-      {canEdit && <Button className="w-fit" onClick={() => { setSelectedId(null); setCopy(null); setEditorKey((key) => key + 1); }} type="button" variant="outline">새 정책 초안</Button>}
+    <AdminSectionCard title="정책 버전" summary={firstDraftId ? '초안은 내용을 확인한 뒤 확정해야 실제 배송비에 적용됩니다.' : undefined}>
+      {policies.length ? <ul className="flex flex-col gap-1.5">{policies.map((policy) => {
+        const pressed = selectedId === policy.id;
+        return <li className="flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border px-3 py-1.5 data-[selected=true]:border-primary data-[selected=true]:bg-primary-soft" data-selected={pressed || undefined} key={policy.id}>
+          <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{origins.find((origin) => origin.id === policy.originId)?.name} · {policy.name || '이름 미입력'} · 버전 {policy.version}</span>
+          <AdminStatusBadge className="shrink-0" tone={statusTone('regionPolicy', policy.status)}>{STATUS_LABELS[policy.status]}</AdminStatusBadge>
+          {/* 실제 배송비를 바꾸는 일이라 확정은 진짜 버튼이다. 여러 초안이 있어도 실선은 맨 앞 하나뿐이다. */}
+          {canEdit && policy.status === 'draft'
+            ? <Button aria-pressed={pressed} onClick={() => openPolicy(policy.id)} size="sm" type="button" variant={policy.id === firstDraftId ? 'default' : 'soft'}>확정하기</Button>
+            : <Button aria-pressed={pressed} onClick={() => openPolicy(policy.id)} size="sm" type="button" variant="ghost">내용 보기<ChevronRight aria-hidden="true" /></Button>}
+        </li>;
+      })}</ul> : <p className={NOTE}>등록한 지역 정책이 없습니다. 실제 회신을 확보한 출고지부터 초안을 작성해주세요.</p>}
+      {canEdit && <Button className="w-fit" onClick={startDraft} type="button" variant={firstDraftId ? 'outline' : 'default'}>새 정책 초안</Button>}
     </AdminSectionCard>
-    {(selected || canEdit) && <AdminSectionCard id={POLICY_EDITOR_ID} summary={selected ? <AdminStatusBadge tone={statusTone('regionPolicy', selected.status)}>{STATUS_LABELS[selected.status]}</AdminStatusBadge> : undefined} title={selected ? `${selected.name || '지역 정책'} · 버전 ${selected.version}` : '새 정책 초안'}>
+    {editorOpen && <AdminSectionCard id={POLICY_EDITOR_ID} summary={selected ? <AdminStatusBadge tone={statusTone('regionPolicy', selected.status)}>{STATUS_LABELS[selected.status]}</AdminStatusBadge> : undefined} title={selected ? `${selected.name || '지역 정책'} · 버전 ${selected.version}` : '새 정책 초안'}>
       {selected?.confirmedAt ? <p className={NOTE}>원본 확인: {selected.confirmedBy} · {formatOrderDateTime(selected.confirmedAt)}</p> : null}
-      {canEdit && selected && <Button className="w-fit" type="button" variant="outline" onClick={() => {
-        const source = parseShippingRegionPolicyInput(selected)!;
-        setCopy({ ...source, startsAt: null, endsAt: null, openEnded: null, rules: source.rules.map((rule) => ({ ...rule, id: null })) });
-        setSelectedId(null); setEditorKey((key) => key + 1); setMessage(null);
-      }}>이 정책으로 새 버전 초안 만들기</Button>}
-      <ShippingRegionEditor key={editorKey} policy={selected} initialCopy={copy} origins={origins} carriers={carriers} canEdit={canEdit} onSaved={saved} />
       {copy ? <AdminNotice tone="info">이전 정책의 원본을 기준으로 새 정책을 입력해주세요. 실제 계약과 기간을 다시 확인해야 합니다.</AdminNotice> : null}
+      <div className="flex flex-wrap items-center gap-2">
+        {canEdit && selected && <Button type="button" variant="outline" onClick={() => {
+          const source = parseShippingRegionPolicyInput(selected)!;
+          setCopy({ ...source, startsAt: null, endsAt: null, openEnded: null, rules: source.rules.map((rule) => ({ ...rule, id: null })) });
+          setSelectedId(null); setEditorKey((key) => key + 1); setMessage(null); setComposing(true);
+        }}>이 정책으로 새 버전 초안 만들기</Button>}
+        {policies.length ? <Button className="ml-auto" onClick={closeEditor} type="button" variant="ghost">닫기</Button> : null}
+      </div>
+      <ShippingRegionEditor key={editorKey} policy={selected} initialCopy={copy} origins={origins} carriers={carriers} canEdit={canEdit} onSaved={saved} />
     </AdminSectionCard>}
   </div>;
 }
