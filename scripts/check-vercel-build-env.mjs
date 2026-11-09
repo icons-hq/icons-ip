@@ -178,6 +178,10 @@ export function validateVercelBuildEnvironment(environment) {
     && !/^[A-Za-z0-9_-]{16,128}$/.test(environment.PAYMENT_RECONCILIATION_SECRET)) {
     throw new Error(`Invalid Vercel ${target} PAYMENT_RECONCILIATION_SECRET: use 16-128 URL-safe characters`);
   }
+  if (isPresent(environment.ERP_SYNC_SECRET)
+    && !/^[A-Za-z0-9_-]{16,128}$/.test(environment.ERP_SYNC_SECRET)) {
+    throw new Error(`Invalid Vercel ${target} ERP_SYNC_SECRET: use 16-128 URL-safe characters`);
+  }
 
   const korpayOrderCanaryConfigured = isPresent(environment.KORPAY_ORDER_CANARY_USER_ID);
   const korpayTicketCanaryConfigured = isPresent(environment.KORPAY_TICKET_CANARY_USER_ID);
