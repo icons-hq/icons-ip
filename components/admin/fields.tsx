@@ -212,7 +212,7 @@ export function InlineNotice({ state }: { state: AdminCatalogActionState }) {
     return <span className="text-sm font-medium text-destructive" role="alert">{state.errors.form}</span>;
   }
   if (state.message) {
-    return <span className="text-sm font-medium text-[var(--wc-success)]" role="status">{state.message}</span>;
+    return <span className="text-sm font-medium text-success" role="status">{state.message}</span>;
   }
   return null;
 }
@@ -303,7 +303,7 @@ export function RecordList<T extends { id: string }>({
               key={item.id}
               aria-current={activeId === item.id ? 'true' : undefined}
               className={[
-                'flex min-h-9 w-full items-center justify-start gap-2.5 overflow-hidden rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 aria-[current=true]:bg-muted aria-[current=true]:font-medium',
+                'flex min-h-9 w-full items-center justify-start gap-2.5 overflow-hidden rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 aria-[current=true]:bg-primary-soft aria-[current=true]:font-medium aria-[current=true]:text-primary-soft-foreground',
                 itemClassName,
               ].filter(Boolean).join(' ')}
               data-slot="button"
