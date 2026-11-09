@@ -8,17 +8,18 @@ import { Input } from '@/components/admin/kit/ui/input';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import type { FulfillmentOrigin } from '@/lib/admin/fulfillment-origins';
 import type { EditableCarrier } from '@/lib/admin/store-settings';
-import { SettingsFormGroup } from './StoreSettingsFormGroup';
+import { SettingsFormGroup, SettingsSaveBar } from './StoreSettingsFormGroup';
+import { WonInput } from './StoreSettingsWonInput';
 
-/** 새 주문 사용 여부. 끄면 이 출고지 상품이 새 주문을 못 받으므로 안내를 경고 상자로 두고, 끄는 쪽을 고르면 위험색으로 올린다. */
+/** 새 주문 사용 여부. 켜져 있는 동안의 안내는 조용한 글자로 두고(늘 떠 있는 노란 상자는 지금 문제가 있는 줄 안다), 끄는 쪽을 고르면 그때 상자로 올린다. */
 function OriginActiveField({ id, initial, wasActive }: { id: string; initial: string; wasActive: boolean }) {
   const [value, setValue] = useState(initial);
   const off = value === 'false';
   return <div className="flex min-w-0 flex-col gap-3">
-    <AdminField inputId={id} label="새 주문 사용">
+    <AdminField hint={off ? undefined : '비활성으로 바꾸면 이 출고지의 상품은 새 주문을 받을 수 없습니다. 기존 주문의 배송비는 바뀌지 않습니다.'} inputId={id} label="새 주문 사용">
       <NativeSelect className="w-full" id={id} name="active" onChange={event => setValue(event.target.value)} value={value}><option value="false">비활성</option><option value="true">사용</option></NativeSelect>
     </AdminField>
-    <AdminNotice role={off && wasActive ? 'status' : undefined} title={off ? '이 출고지는 새 주문을 받지 않습니다' : undefined} tone={off && wasActive ? 'danger' : 'warning'}>비활성으로 바꾸면 이 출고지의 상품은 새 주문을 받을 수 없습니다. 기존 주문의 배송비는 바뀌지 않습니다.</AdminNotice>
+    {off ? <AdminNotice role={wasActive ? 'status' : undefined} title="이 출고지는 새 주문을 받지 않습니다" tone={wasActive ? 'danger' : 'warning'}>이 출고지의 상품은 새 주문을 받을 수 없습니다. 기존 주문의 배송비는 바뀌지 않습니다.</AdminNotice> : null}
   </div>;
 }
 
@@ -34,10 +35,12 @@ export function FulfillmentOriginForm({ origin, carriers, canEdit }: { origin?: 
   const prefix = `origin-${origin?.id ?? 'new'}`;
   function input(name: string, label: string, type = 'text', hint?: string) {
     const id = `${prefix}-${name}`;
+    const invalid = Boolean(state.errors?.[name]);
+    const describedBy = invalid ? `${id}-error` : hint ? `${id}-hint` : undefined;
     return <AdminField key={name} inputId={id} label={label} hint={hint} error={state.errors?.[name]}>
-      <Input className={name === 'code' && origin ? 'border-dashed bg-muted' : undefined} id={id} name={name} type={type} defaultValue={field(name)} readOnly={name === 'code' && Boolean(origin)}
-        aria-invalid={Boolean(state.errors?.[name])} aria-describedby={state.errors?.[name] ? `${id}-error` : hint ? `${id}-hint` : undefined}
-        {...(type === 'number' ? { min: 0, step: 1 } : {})} />
+      {type === 'won' ? <WonInput aria-describedby={describedBy} aria-invalid={invalid} defaultValue={field(name)} id={id} name={name} />
+        : <Input className={name === 'code' && origin ? 'border-dashed bg-muted' : undefined} id={id} name={name} type={type} defaultValue={field(name)} readOnly={name === 'code' && Boolean(origin)}
+          aria-invalid={invalid} aria-describedby={describedBy} />}
     </AdminField>;
   }
   return <form action={action}>
@@ -60,8 +63,8 @@ export function FulfillmentOriginForm({ origin, carriers, canEdit }: { origin?: 
       </SettingsFormGroup>
       <SettingsFormGroup title="배송비">
         <AdminFormGrid>
-          {input('baseFee', '기본 배송비 (원)', 'number')}
-          {input('freeThreshold', '무료 배송 기준 (원)', 'number', '기간 할인 후, 쿠폰·적립금 차감 전 정책 적용 상품 소계 기준입니다. 비우면 금액별 무료배송을 적용하지 않습니다.')}
+          {input('baseFee', '기본 배송비 (원)', 'won')}
+          {input('freeThreshold', '무료 배송 기준 (원)', 'won', '기간 할인 후, 쿠폰·적립금 차감 전 정책 적용 상품 소계 기준입니다. 비우면 금액별 무료배송을 적용하지 않습니다.')}
         </AdminFormGrid>
       </SettingsFormGroup>
       <SettingsFormGroup title="반품">
@@ -77,9 +80,11 @@ export function FulfillmentOriginForm({ origin, carriers, canEdit }: { origin?: 
           <OriginActiveField id={`${prefix}-active`} initial={field('active')} wasActive={origin?.active ?? false} />
         </AdminFormGrid>
       </SettingsFormGroup>
-      {state.errors?.form ? <AdminNotice role="alert" tone="danger">{state.errors.form}</AdminNotice> : null}
-      {state.message ? <AdminNotice role="status" tone="success">{state.message}</AdminNotice> : null}
-      {canEdit ? <Button className="w-fit" type="submit"><Check aria-hidden="true" />{pending ? '저장 중…' : '출고지 저장'}</Button> : null}
+      {canEdit ? <SettingsSaveBar lastInCard={false}>
+        {state.errors?.form ? <AdminNotice className="flex-1" role="alert" tone="danger">{state.errors.form}</AdminNotice> : null}
+        {state.message ? <AdminNotice className="flex-1" role="status" tone="success">{state.message}</AdminNotice> : null}
+        <Button type="submit"><Check aria-hidden="true" />{pending ? '저장 중…' : '출고지 저장'}</Button>
+      </SettingsSaveBar> : <>{state.errors?.form ? <AdminNotice role="alert" tone="danger">{state.errors.form}</AdminNotice> : null}{state.message ? <AdminNotice role="status" tone="success">{state.message}</AdminNotice> : null}</>}
     </fieldset>
   </form>;
 }

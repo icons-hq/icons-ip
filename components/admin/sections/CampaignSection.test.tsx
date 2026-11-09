@@ -29,10 +29,11 @@ function idInputTag(markup: string) {
   return markup.match(/<input[^>]*name="id"[^>]*>/i)?.[0] ?? '';
 }
 
-function render(selected: AdminCampaignRecord | null, records = [campaign()]) {
+function render(selected: AdminCampaignRecord | null, records = [campaign()], initialCreating = false) {
   return renderToStaticMarkup(
     <CampaignSection
       action={() => {}}
+      initialCreating={initialCreating}
       onSelect={() => {}}
       pending={false}
       records={records}
@@ -61,11 +62,21 @@ describe('CampaignSection', () => {
     expect(idInputTag(markup)).toMatch(/readonly/i);
   });
 
-  it('신규 등록에서는 ID 를 열어 두고 previousId 를 비운다', () => {
+  /* 진행 중인 캠페인을 보러 들어왔는데 등록 화면처럼 보이지 않게 — 입력칸은 새 캠페인을 눌렀을 때 연다. */
+  it('처음 들어오면 목록만 보이고 입력칸은 열려 있지 않다', () => {
     const markup = render(null);
+
+    expect(markup).toContain('새 캠페인');
+    expect(markup).toContain('/events/autumn-attendance');
+    expect(markup).not.toContain('name="previousId"');
+  });
+
+  it('신규 등록에서는 ID 를 열어 두고 previousId 를 비운다', () => {
+    const markup = render(null, [campaign()], true);
 
     expect(markup).toContain('name="previousId" value=""');
     expect(idInputTag(markup)).not.toMatch(/readonly/i);
+    expect(markup).toContain('캠페인 주소는 등록 후 바꿀 수 없습니다');
   });
 
   it('기간 입력을 KST 값으로 되돌려 그린다', () => {

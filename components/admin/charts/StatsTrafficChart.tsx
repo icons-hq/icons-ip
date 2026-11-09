@@ -22,7 +22,7 @@ export function StatsTrafficChart({rows,comparison}:{rows:TrafficTrend[];compari
   <div aria-label="추이 지표" className={STATS_SEGMENTED} role="group">{OPTIONS.map(option=><button aria-pressed={metric===option.key} className={STATS_SEGMENT_BUTTON} key={option.key} onClick={()=>setMetric(option.key)} type="button">{option.label}</button>)}</div>
   {/* 좁은 화면에서는 차트를 줄이지 않고 가로로 넘겨 본다 — 축 글자가 읽히는 크기를 지킨다. 관측 자료가 없으면 차트 대신 문구를 보이는 폭에 둔다. */}
   {empty?<p className="flex h-48 items-center justify-center rounded-md bg-muted/40 text-sm text-muted-foreground">관측 자료가 없습니다</p>:<div aria-label="추이 차트 가로 스크롤" className="min-w-0 overflow-x-auto rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50" role="region" tabIndex={0}>
-  <svg aria-label={`${label} 추이. 실선은 조회 기간, 점선은 비교 기간. 미측정은 선을 잇지 않습니다.`} className="block max-h-72 w-full min-w-[720px]" role="img" viewBox="0 0 940 210">
+  <svg aria-label={`${label} 추이. 실선은 조회 기간, 점선은 비교 기간. 데이터가 없는 날은 선을 잇지 않습니다.`} className="block max-h-72 w-full min-w-[720px]" role="img" viewBox="0 0 940 210">
    {Y_STEPS.map(step=>{const y=170-step*145;return <g key={step}><line x1="40" x2="910" y1={y} y2={y} stroke={GRID}/><text x="36" y={y+4} fontSize="11" fill={MUTED} textAnchor="end">{(maximum*step).toLocaleString('ko-KR',{maximumFractionDigits:metric==='conversionRate'?2:0})}</text></g>;})}
    {paths(comparison,metric,maximum,count).map((path,index)=><path key={`c${index}`} d={path} fill="none" stroke={COMPARISON} strokeWidth="2" strokeDasharray="5 5"/>)}
    {paths(rows,metric,maximum,count).map((path,index)=><path key={`r${index}`} d={path} fill="none" stroke={CURRENT} strokeWidth="3"/>)}
@@ -30,7 +30,7 @@ export function StatsTrafficChart({rows,comparison}:{rows:TrafficTrend[];compari
    {rows.map((row,index)=>index%xStep===0||index===rows.length-1?<text key={row.date} x={40+index*860/Math.max(count-1,1)} y="198" fontSize="12" fill={MUTED} textAnchor={index===0?'start':index===rows.length-1?'end':'middle'}>{statsDateTick(row.date)}</text>:null)}
   </svg>
   </div>}
-  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground"><span><span aria-hidden="true" style={{color:CURRENT}}>●</span> 조회 기간</span>{comparison.length>0?<span><span aria-hidden="true" style={{color:COMPARISON}}>┄</span> 비교 기간</span>:null}<span>빈 구간은 미측정</span></div>
+  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground"><span><span aria-hidden="true" style={{color:CURRENT}}>●</span> 조회 기간</span>{comparison.length>0?<span><span aria-hidden="true" style={{color:COMPARISON}}>┄</span> 비교 기간</span>:null}<span>빈 구간은 데이터 없음</span></div>
   <div className="flex flex-wrap items-center gap-2"><label className="text-sm text-muted-foreground" htmlFor={selectId}>날짜별 수치</label><NativeSelect className="w-44" id={selectId} value={selected??''} onChange={event=>setSelected(event.target.value===''?null:Number(event.target.value))}><option value="">날짜 선택</option>{rows.map((row,index)=><option key={row.date} value={index}>{statsDateLabel(row.date)}</option>)}</NativeSelect></div>
   {selection?<p className="text-sm" role="status">{statsDateLabel(selection.date)} · {label} {trafficNumber(selection.metrics[metric],metric==='conversionRate'?'%':'')} · {selection.states.map(state=>TRAFFIC_STATE_LABELS[state]||state).join(', ')}{selection.archived?' · 보존 합계':''}</p>:null}
  </div>;

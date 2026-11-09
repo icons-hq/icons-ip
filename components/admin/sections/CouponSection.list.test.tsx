@@ -32,11 +32,19 @@ it('혜택상태는 같은 상태 같은 색의 배지로 보인다', () => {
   expect(html).toMatch(/data-tone="(success|info|neutral)"[^>]*>(적용중|대기중|완료|중지)<\/span>/);
 });
 
-it('혜택 이름이 앞 열이고 줄마다 있는 중지는 테두리 버튼이다', () => {
+/* 줄마다 반복되던 빨간 중지가 표에서 제일 튀었다 — 줄에는 수정·발급만 두고 복사·중지는 더보기로 넣는다. 확인 창은 그대로다. */
+it('혜택 이름이 앞 열이고 줄에는 빨간 중지 대신 더보기가 있다', () => {
   const html = render();
   expect(html.indexOf('혜택 이름')).toBeLessThan(html.indexOf('쿠폰 코드'));
-  expect(html).toMatch(/<button[^>]*text-destructive[^>]*>중지<\/button>/);
-  expect(html).not.toMatch(/<button[^>]*bg-danger-soft[^>]*>중지<\/button>/);
+  expect(html).not.toMatch(/<button[^>]*>중지<\/button>/);
+  expect(html).toMatch(/<button[^>]*aria-label="웰컴 쿠폰 더보기"/);
+  expect(html).toMatch(/<a[^>]*data-slot="button"[^>]*href="[^"]*issue\?couponCode=WELCOME10"[^>]*>발급<\/a>/);
+});
+
+it('기간은 다른 화면과 같은 표기로 한 줄씩 보인다', () => {
+  const html = render();
+  expect(html).toContain('2026. 11. 1. 09:00');
+  expect(html).toContain('~ 무기한');
 });
 
 it('혜택 중지 확인은 대상 코드·약관 개정·다음 상태를 담아 제출한다', () => {
