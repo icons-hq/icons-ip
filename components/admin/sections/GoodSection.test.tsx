@@ -374,6 +374,11 @@ describe('GoodSection', () => {
       expect(bar(html)).toContain('KC 검토를 마치면 공개할 수 있습니다.');
       /* 고칠 입력이 없으면 주 색은 위쪽 다음 할 일 하나다. */
       expect(button(bar(html), '저장하기')).not.toContain('bg-primary');
+      /* 사람 눈 테스트 3라운드 — KC 일 하나에 노랑·빨강이 섞였다. 이동 띠도 주의색이고, 남은 것이 KC뿐이면 저장 막대는 문장 하나로 말한다. */
+      const nav = html.slice(html.indexOf('data-good-workspace-nav'), html.indexOf('</nav>', html.indexOf('data-good-workspace-nav')));
+      expect(nav).toMatch(/data-good-card-remaining="1"[^>]*data-tone="warning"|data-tone="warning"[^>]*data-good-card-remaining="1"/);
+      expect(nav).not.toContain('data-tone="danger"');
+      expect(bar(html)).not.toContain('data-good-publish-remaining');
     });
 
     it('실제로 막는 항목만 주의색이다: 초안만으로는 판매 설정을 확인 필요로 보이지 않는다', () => {
@@ -443,7 +448,7 @@ describe('GoodSection', () => {
       expect(button(card(html), 'KC 정보 확인하기')).not.toContain('bg-primary');
       expect(tone(html, '공개 검토 · 기존 공개 · KC 미기록')).toBe('warning');
       /* 기존 공개 · KC 미기록과 품절은 미입력이 아니다. */
-      const count = (id: string) => html.match(new RegExp(`id="good-section-${id}"[^]*?data-good-card-remaining="(\\d+)"`))?.[1];
+      const count = (id: string) => html.match(new RegExp(`href="#good-section-${id}"[^]*?data-good-card-remaining="(\\d+)"`))?.[1];
       expect(count('notice')).toBe('0');
       expect(count('price')).toBe('0');
     });
@@ -668,12 +673,13 @@ describe('GoodSection', () => {
   });
 
   /*
-   * 복잡도 측정(카드 36개·필수 12개가 첫 화면에 0개)의 후속 — 카드마다 남은 필수 입력, 저장 막대에 공개까지 남은 수를 보인다.
+   * 복잡도 측정(카드 36개·필수 12개가 첫 화면에 0개)의 후속 — 카드별 남은 필수 입력과 저장 막대의 공개까지 남은 수를 보인다.
    * 사람 눈 테스트 2라운드: 저장된 상품에도 같은 입력 완료 표시를 보이고, 공개까지 남은 수만 초안에 둔다.
+   * 3라운드: 빈 화면의 빨간 "N개 남음"이 7곳이라 오류처럼 보였다. 진행은 이동 띠 한 곳에 조용히 두고, 빨강은 저장에 실패한 칸에만 쓴다.
    */
-  it('카드와 저장 막대에 공개까지 남은 필수 입력을 보이고, 공개 뒤에는 입력 완료 표시만 같게 남는다', () => {
+  it('이동 띠 한 곳에 남은 필수 입력을 조용히 보이고, 공개 뒤에는 입력 완료 표시만 같게 남는다', () => {
     const create = renderGoodSection(null);
-    const count = (html: string, id: string) => html.match(new RegExp(`id="good-section-${id}"[^]*?data-good-card-remaining="(\\d+)"`))?.[1];
+    const count = (html: string, id: string) => html.match(new RegExp(`href="#good-section-${id}"[^]*?data-good-card-remaining="(\\d+)"`))?.[1];
     expect(count(create, 'basic')).toBe('3');
     expect(count(create, 'images')).toBe('1');
     expect(create).toMatch(/data-good-publish-remaining="\d+"[^>]*>공개까지 필수 \d+개 남음/);
@@ -681,6 +687,23 @@ describe('GoodSection', () => {
     /* 숫자만 두면 오류 수로 읽힌다 — 이동 띠도 남은 수임을 글자로 말한다. */
     const nav = create.slice(create.indexOf('data-good-workspace-nav'), create.indexOf('</nav>'));
     expect(nav).toContain('>3개 남음<');
+    /* 입력 전에는 잘못한 것이 없다: 이동 띠·저장 막대 어디에도 빨강이 없고, 카드 머리에는 진행 표시를 되풀이하지 않는다. */
+    expect(create).not.toContain('data-tone="danger"');
+    expect(nav).toContain('data-tone="neutral"');
+    expect(create.slice(create.indexOf('id="good-section-basic"'))).not.toContain('data-good-card-remaining');
+    const remainingButton = create.match(/<button[^>]*data-good-publish-remaining="\d+"[^>]*>/)?.[0] ?? '';
+    expect(remainingButton).toContain('text-muted-foreground');
+    expect(remainingButton).not.toContain('text-destructive');
+    /* 필수 항목이 없는 카드는 끝난 건지 선택인지 모호하지 않게 선택이라고 쓰고, 지금 보는 카드에 현재 위치를 표시한다. */
+    const links = [...nav.matchAll(/<a [^]*?<\/a>/g)].map(([link]) => link);
+    expect(links.map((link) => link.includes('>선택<'))).toEqual([false, false, false, true, false, false, true]);
+    expect(links.map((link) => link.includes('aria-current="location"'))).toEqual([true, false, false, false, false, false, false]);
+    /* 저장에 실패한 칸만 빨강이다. 다른 카드의 남은 표시는 조용한 채로 둔다. */
+    const failed = renderGoodSection(null, { errors: { regularPrice: '판매가를 입력해주세요.', name: '상품명을 입력해주세요.' } });
+    const failedNav = failed.slice(failed.indexOf('data-good-workspace-nav'), failed.indexOf('</nav>'));
+    expect(failedNav.match(/data-tone="danger"/g)).toHaveLength(2);
+    expect(failedNav).toContain('>1개 확인<');
+    expect(failedNav).toContain('data-tone="neutral"');
     /* 공개 중인 상품의 공개까지 남은 수는 숨기고(공개 조건은 이미 서버가 확인했다), 입력 완료 표시는 초안과 같다. */
     const published = renderGoodSection(good);
     expect(published).not.toContain('data-good-publish-remaining');
@@ -704,6 +727,7 @@ describe('GoodSection', () => {
     /* 머리 줄에 놓을 것이 없으면 빈 줄을 그리지 않는다. */
     expect(create).not.toContain('data-good-editor-head');
   });
+
 
   /* 사람 눈 테스트 2라운드 — 별표와 "(필수)"가 섞여 있었다. 카드의 "필수 N개 남음"과 같은 말인 "(필수)" 하나로 통일하고, 남은 수에 세는 칸에는 모두 붙인다. */
   it('필수 표시는 (필수) 하나로 통일하고 남은 수에 세는 칸에 모두 붙인다', () => {

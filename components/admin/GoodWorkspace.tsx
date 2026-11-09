@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ComponentProps, type Dispatch, type ReactNode, type SetStateAction, type SyntheticEvent } from 'react';
 import { Check, ChevronDown, ChevronRight } from 'lucide-react';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
-import { GOOD_EDITOR_CARDS, GOOD_EDITOR_SECTIONS, goodFieldSection, orderedGoodErrors, type GoodEditorCardKey } from '@/lib/admin/good-workspace';
+import { GOOD_EDITOR_CARDS, GOOD_EDITOR_SECTIONS, goodCurrentCard, goodFieldSection, orderedGoodErrors, type GoodEditorCardKey } from '@/lib/admin/good-workspace';
 import { EMPTY_GOOD_WORKSPACE_SECTIONS, GOOD_WORKSPACE_ERROR_SECTIONS, type GoodWorkspaceErrorField, type GoodWorkspaceSectionsDraft } from '@/lib/admin/good-workspace-sections';
 import { initialGoodsOptionRows, type GoodsOptionRow } from '@/lib/admin/goods-option-editor';
 import type { AdminGoodsKc, GoodsKcModelInput } from '@/lib/admin/goods-kc';
@@ -161,13 +161,71 @@ const SECTION_SUMMARY_CLASS = 'flex min-h-14 cursor-pointer list-none items-cent
 const SECTION_BODY_CLASS = 'flex min-w-0 flex-col gap-5 border-t px-4 py-4 sm:px-5 sm:py-5';
 const SECTION_CHEVRON = <ChevronDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open/section:rotate-180 motion-reduce:transition-none" />;
 
-/** 카드별 남은 필수 입력: 남았으면 "N개 남음"(위험색), 끝났으면 체크. 숫자만 두면 오류 수로 읽혀 글자로 말한다. 서버 판정을 대신하지 않는 안내다. */
-function GoodCardProgressMark({ remaining }: { remaining: number }) {
-  if (remaining > 0) return <AdminStatusBadge className="ml-1.5 tabular-nums" tone="danger"><span className="sr-only">필수 입력 남음 {remaining}개</span><span aria-hidden="true">{remaining}개 남음</span></AdminStatusBadge>;
-  return <span className="ml-1 inline-flex items-center text-success"><Check aria-hidden="true" className="size-3.5" /><span className="sr-only">필수 입력 완료</span></span>;
+interface GoodWorkspaceStripProps {
+  /** 카드별 남은 필수 입력 수. 없으면(보관 상품) 진행 표시를 그리지 않는다. 키가 없는 카드는 필수 항목이 없는 선택 카드다. */
+  remaining?: Partial<Record<GoodEditorCardKey, number>>;
+  /** 저장에 실패한 칸 수(카드별). */
+  errors?: Partial<Record<GoodEditorCardKey, number>>;
+  /** 남은 표시의 색. 저장 전에는 잘못한 것이 없어 조용하고, 저장된 초안이면 공개를 막는 일이라 주의색이다. */
+  remainingTone?: 'neutral' | 'warning';
 }
 
-export function GoodWorkspaceNavigation({ remaining }: { remaining?: Partial<Record<GoodEditorCardKey, number>> } = {}) {
+/**
+ * 필수 입력 진행이 보이는 유일한 자리다(카드 머리에 되풀이하지 않는다). 숫자만 두면 오류 수로 읽혀 글자로 말하고,
+ * 빨강은 저장에 실패한 칸에만 쓴다. 서버 판정을 대신하지 않는 안내다.
+ */
+function GoodCardProgressMark({ remaining, errors = 0, tone }: { remaining?: number; errors?: number; tone: 'neutral' | 'warning' }) {
+  if (errors > 0) return <AdminStatusBadge className="ml-1.5 tabular-nums" tone="danger"><span className="sr-only">저장 오류 {errors}개</span><span aria-hidden="true">{errors}개 확인</span></AdminStatusBadge>;
+  if (remaining === undefined) return <span className="ml-1.5 text-xs font-normal">선택</span>;
+  if (remaining > 0) return <AdminStatusBadge className="ml-1.5 tabular-nums" data-good-card-remaining={remaining} tone={tone}><span className="sr-only">필수 입력 남음 {remaining}개</span><span aria-hidden="true">{remaining}개 남음</span></AdminStatusBadge>;
+  return <span className="ml-1 inline-flex items-center text-success" data-good-card-remaining="0"><Check aria-hidden="true" className="size-3.5" /><span className="sr-only">필수 입력 완료</span></span>;
+}
+
+/** 띠 아래로 이만큼 내려온 선을 지난 카드를 지금 보는 카드로 친다. */
+const GOOD_STRIP_READING_OFFSET = 120;
+/** 띠를 눌러 옮긴 직후의 스크롤은 그 카드를 덮어쓰지 않는다(짧은 카드는 읽는 선까지 올라오지 못한다). */
+const GOOD_STRIP_CLICK_HOLD_MS = 300;
+
+/* 셸 상단바(h-12) 바로 아래에 붙는 띠(콘텐츠 여백 p-4·md:p-6만큼 양옆으로 넓힌다). 좁은 화면에서는 한 줄로 가로 이동하고, 넓은 화면에서는 줄을 바꾼다. */
+function GoodWorkspaceStrip({ remaining, errors, remainingTone = 'neutral' }: GoodWorkspaceStripProps) {
+  const strip = useRef<HTMLElement | null>(null);
+  const holdUntil = useRef(0);
+  const [current, setCurrent] = useState<GoodEditorCardKey | null>(GOOD_EDITOR_CARDS[0].key);
+  useEffect(() => {
+    let frame = 0;
+    const measure = () => {
+      frame = 0;
+      if (performance.now() < holdUntil.current) return;
+      const boxes = GOOD_EDITOR_CARDS.flatMap((card) => {
+        const box = document.getElementById(card.anchor)?.getBoundingClientRect();
+        return box ? [{ key: card.key, top: box.top, bottom: box.bottom }] : [];
+      });
+      setCurrent(goodCurrentCard(boxes, (strip.current?.getBoundingClientRect().bottom ?? 0) + GOOD_STRIP_READING_OFFSET));
+    };
+    const schedule = () => { frame ||= requestAnimationFrame(measure); };
+    schedule();
+    window.addEventListener('scroll', schedule, { passive: true });
+    window.addEventListener('resize', schedule);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener('scroll', schedule);
+      window.removeEventListener('resize', schedule);
+    };
+  }, []);
+  /* 좁은 화면의 띠는 가로로 넘친다 — 지금 보는 카드가 띠 안에 보이게 맞춘다. */
+  useEffect(() => {
+    const link = strip.current?.querySelector<HTMLElement>('[aria-current]');
+    if (strip.current && link && strip.current.scrollWidth > strip.current.clientWidth) strip.current.scrollTo({ left: link.offsetLeft - 16 });
+  }, [current]);
+  return <nav aria-label="상품 작성 섹션" className="sticky top-12 z-20 -mx-4 flex min-w-0 gap-1 overflow-x-auto border-b bg-background/95 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:-mx-6 md:px-6 xl:flex-wrap xl:overflow-visible print:hidden" data-good-workspace-nav="" ref={strip}>
+    {GOOD_EDITOR_CARDS.map((card, index) => <a aria-current={current === card.key ? 'location' : undefined} className="inline-flex h-7 shrink-0 items-center rounded-md px-2.5 text-sm whitespace-nowrap text-muted-foreground transition-colors outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 aria-[current=location]:bg-primary-soft aria-[current=location]:font-medium aria-[current=location]:text-primary-soft-foreground" key={card.key} href={`#${card.anchor}`} onClick={(event) => {
+      event.preventDefault(); holdUntil.current = performance.now() + GOOD_STRIP_CLICK_HOLD_MS; setCurrent(card.key);
+      focusGoodWorkspaceTarget(card.anchor, 'field' in card ? card.field : undefined);
+    }}>{index + 1}. {card.label}{remaining ? <GoodCardProgressMark errors={errors?.[card.key]} remaining={remaining[card.key]} tone={remainingTone} /> : null}</a>)}
+  </nav>;
+}
+
+export function GoodWorkspaceNavigation(props: GoodWorkspaceStripProps = {}) {
   useEffect(() => {
     const openHash = () => {
       const id = window.location.hash.slice(1);
@@ -178,12 +236,7 @@ export function GoodWorkspaceNavigation({ remaining }: { remaining?: Partial<Rec
     window.addEventListener('hashchange', openHash);
     return () => window.removeEventListener('hashchange', openHash);
   }, []);
-  /* 셸 상단바(h-12) 바로 아래에 붙는 띠(콘텐츠 여백 p-4·md:p-6만큼 양옆으로 넓힌다). 좁은 화면에서는 한 줄로 가로 이동하고, 넓은 화면에서는 줄을 바꾼다. */
-  return <nav aria-label="상품 작성 섹션" className="sticky top-12 z-20 -mx-4 flex min-w-0 gap-1 overflow-x-auto border-b bg-background/95 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:-mx-6 md:px-6 xl:flex-wrap xl:overflow-visible print:hidden" data-good-workspace-nav="">
-    {GOOD_EDITOR_CARDS.map((card, index) => { const left = remaining?.[card.key]; return <a className="inline-flex h-7 shrink-0 items-center rounded-md px-2.5 text-sm whitespace-nowrap text-muted-foreground transition-colors outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50" key={card.key} href={`#${card.anchor}`} onClick={(event) => {
-      event.preventDefault(); focusGoodWorkspaceTarget(card.anchor, 'field' in card ? card.field : undefined);
-    }}>{index + 1}. {card.label}{left === undefined ? null : <GoodCardProgressMark remaining={left} />}</a>; })}
-  </nav>;
+  return <GoodWorkspaceStrip {...props} />;
 }
 
 export function GoodWorkspaceErrors({ errors }: { errors?: Record<string, string | undefined> }) {
@@ -302,19 +355,14 @@ export function GoodFoldedRow({ id, title, summary, errorCount = 0, isDefault = 
 }
 
 /** Native details keep every named input mounted when a section is folded. */
-export function GoodEditorSection({ id, title, requirement, remaining, summary, errorCount = 0, children, defaultOpen = true }: {
+export function GoodEditorSection({ id, title, requirement, summary, errorCount = 0, children, defaultOpen = true }: {
   id?: string; title: string; requirement?: string;
-  /** 이 카드의 남은 필수 입력 수. undefined면 필수 항목이 없는 카드다. */
-  remaining?: number;
   summary?: ReactNode; errorCount?: number; children: ReactNode; defaultOpen?: boolean;
 }) {
   const openProps = useSectionOpen(id, defaultOpen, errorCount > 0);
   return <details id={id} className={SECTION_CLASS} aria-label={title} data-good-section="" tabIndex={-1} {...openProps}>
     <summary className={SECTION_SUMMARY_CLASS}>
       <span className="shrink-0 text-base leading-snug font-medium text-foreground" data-good-section-title="">{title}</span>
-      {remaining === undefined ? null : remaining > 0
-        ? <AdminStatusBadge className="shrink-0 tabular-nums" data-good-card-remaining={remaining} tone="danger">필수 {remaining}개 남음</AdminStatusBadge>
-        : <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-success" data-good-card-remaining="0"><Check aria-hidden="true" className="size-3.5" />필수 입력 완료</span>}
       <span className="ml-auto max-w-[55%] min-w-0 text-right text-xs text-muted-foreground wrap-anywhere sm:max-w-[60%] sm:text-sm" data-good-section-summary="">{errorCount ? <strong className="font-medium text-destructive">{errorCount}개 확인 필요</strong> : summary}</span>
       {SECTION_CHEVRON}
     </summary>

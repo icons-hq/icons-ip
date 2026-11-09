@@ -91,6 +91,24 @@ export function goodRemainingByCard(requirements: readonly GoodPublishRequiremen
   return remaining;
 }
 
+/** 저장에 실패한 칸을 카드별로 센다. 섹션 이동 띠의 빨간 표시는 이 값에서만 나온다. 등록 화면 KC 입력은 고시 카드 안에 있어 그 카드로 센다. */
+export function goodErrorsByCard(errors: Record<string, string | undefined>): Partial<Record<GoodEditorCardKey, number>> {
+  const result: Partial<Record<GoodEditorCardKey, number>> = {};
+  for (const card of GOOD_EDITOR_CARDS) {
+    const fields = GOOD_EDITOR_SECTIONS.filter((section) => (card.sections as readonly string[]).includes(section.key)).flatMap((section) => section.fields as readonly string[]);
+    const count = fields.filter((field) => errors[field]).length + (card.key === 'notice' && errors.workspaceKc ? 1 : 0);
+    if (count) result[card.key] = count;
+  }
+  return result;
+}
+
+/** 지금 보는 카드: 읽는 선을 지난 마지막 카드다. 첫 카드보다 위면 첫 카드이고, 마지막 카드를 다 지나면 없다. */
+export function goodCurrentCard(boxes: readonly { key: GoodEditorCardKey; top: number; bottom: number }[], line: number): GoodEditorCardKey | null {
+  const last = boxes.at(-1);
+  if (!last || last.bottom < line) return null;
+  return boxes.filter((box) => box.top <= line).at(-1)?.key ?? boxes[0].key;
+}
+
 /* 유형 이름을 그대로 쓰지 않는 흔한 카테고리 이름. 값 목록은 DB CHECK(GOOD_TYPES)이고 여기서는 제안만 한다. */
 const GOOD_TYPE_ALIASES: Record<string, GoodType> = { 열쇠고리: '키링', 키홀더: '키링', 봉제: '인형', 스태츄: '피규어', 스티커: '문구', 엽서: '문구', 포스터: '문구', 노트: '문구', 다이어리: '문구', 베개: '쿠션' };
 

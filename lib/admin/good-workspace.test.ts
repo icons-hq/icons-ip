@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GOOD_EDITOR_CARDS, GOOD_EDITOR_SECTIONS, goodFieldSection, goodKcContextChanged, goodPublishRequirements, goodReadinessAction, goodReadinessPlan, goodReadinessReasonAnchor, goodRemainingByCard, goodSaleSettingsState, goodTypeSuggestion, orderedGoodErrors } from './good-workspace';
+import { GOOD_EDITOR_CARDS, GOOD_EDITOR_SECTIONS, goodCurrentCard, goodErrorsByCard, goodFieldSection, goodKcContextChanged, goodPublishRequirements, goodReadinessAction, goodReadinessPlan, goodReadinessReasonAnchor, goodRemainingByCard, goodSaleSettingsState, goodTypeSuggestion, orderedGoodErrors } from './good-workspace';
 import { GOODS_READINESS_REASONS, unknownGoodsReadiness, type AdminGoodsReadiness, type GoodsReadinessReasonCode } from './goods-readiness';
 
 const values = { name: '상품', ipId: 'ip', type: '키링', imagePath: 'path', originId: 'origin', noticeMaker: 'a', noticeOrigin: 'b', noticeMaterial: 'c', noticeSize: 'd', noticeMadeOn: 'e', noticeAsManager: 'f', noticeAsContact: 'g' };
@@ -33,6 +33,26 @@ describe('상품 등록 카드와 필수 입력 안내', () => {
     /* 필수 항목이 없는 카드는 표시하지 않는다. */
     expect(goodRemainingByCard(missing).description).toBeUndefined();
     expect(missing.find((item) => item.key === 'kc')?.anchor).toBe('good-operation-kc');
+  });
+
+  it('저장에 실패한 칸을 카드별로 세고 카드에 속하지 않는 오류는 세지 않는다', () => {
+    expect(goodErrorsByCard({})).toEqual({});
+    expect(goodErrorsByCard({ name: 'n', ipId: undefined, categoryId: 'c', regularPrice: 'p', maxOrderQty: 'l', originId: 'o', badge: 'b', form: '폼 오류' })).toEqual({ basic: 2, sales: 2, delivery: 1, additional: 1 });
+    /* 등록 화면 KC는 고시 카드 안의 입력이고, 예약판매는 카드 밖 이어서 설정에 있다. */
+    expect(goodErrorsByCard({ workspaceKc: 'k', noticeMaker: 'n', workspacePreorders: 'p' })).toEqual({ notice: 2 });
+  });
+
+  it('지금 보는 카드는 읽는 선을 지난 마지막 카드다', () => {
+    const boxes = [{ key: 'basic', top: 200, bottom: 700 }, { key: 'sales', top: 716, bottom: 1400 }, { key: 'additional', top: 1416, bottom: 1472 }] as const;
+    /* 첫 카드에 닿기 전에도 첫 카드를 표시한다. */
+    expect(goodCurrentCard(boxes, 100)).toBe('basic');
+    expect(goodCurrentCard(boxes, 300)).toBe('basic');
+    expect(goodCurrentCard(boxes, 708)).toBe('basic');
+    expect(goodCurrentCard(boxes, 716)).toBe('sales');
+    expect(goodCurrentCard(boxes, 1450)).toBe('additional');
+    /* 마지막 카드를 다 지나면(이어서 설정·미리보기) 어느 단계도 아니다. */
+    expect(goodCurrentCard(boxes, 1500)).toBeNull();
+    expect(goodCurrentCard([], 100)).toBeNull();
   });
 
   describe('판매 준비 주 행동(판정은 서버가 한다)', () => {
