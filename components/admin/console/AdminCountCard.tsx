@@ -15,7 +15,7 @@ const TONE_ICON: Record<AdminCountTone, LucideIcon> = {
 
 /* 건수가 있을 때만 색이 켜진다 — 0건은 회색으로 물러나 처리할 것만 눈에 띈다(ADR-0029). */
 const TONE_ICON_CLASS: Record<AdminCountTone, string> = {
-  default: 'bg-primary-soft text-primary-soft-foreground',
+  default: 'bg-muted text-muted-foreground',
   info: 'bg-info-soft text-info',
   success: 'bg-success-soft text-success',
   warning: 'bg-warning-soft text-warning',

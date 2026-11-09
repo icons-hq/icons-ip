@@ -107,7 +107,7 @@ function DataTableLayout<TData extends RowData>({
     <table.Subscribe selector={selectLayoutState}>
       {() => (
         <div className="relative w-full">
-        {overflowMore ? <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 z-30 w-10 bg-gradient-to-l from-foreground/15 to-transparent print:hidden" data-console-grid-more="" /> : null}
+        {overflowMore ? <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 z-30 w-10 bg-gradient-to-l from-foreground/10 to-transparent print:hidden" data-console-grid-more="" /> : null}
         <div
           aria-label={regionLabel}
           aria-labelledby={regionLabel ? undefined : props["aria-labelledby"]}

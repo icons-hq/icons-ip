@@ -223,11 +223,14 @@ export function ConsoleGrid({
    */
   return (
     <div className={`${className ? `${className} ` : ''}flex min-w-0 flex-col gap-2`} data-console-grid="">
-      {children}
-      {configurable ? <div className="flex justify-end"><ConsoleTableSettings columns={columns} onSave={save} preferences={preferences} /></div> : null}
+      {/* 작업 막대와 조회항목 설정을 한 줄에 둔다 — 설정 버튼 혼자 한 줄을 차지해 표가 밀리지 않게. */}
+      {children || configurable ? <div className="flex min-w-0 flex-wrap items-center gap-2">
+        {children ? <div className="min-w-0 flex-1 basis-96">{children}</div> : <div className="flex-1" />}
+        {configurable ? <ConsoleTableSettings columns={columns} onSave={save} preferences={preferences} /> : null}
+      </div> : null}
       <div className="relative min-w-0">
       {/* 표가 영역보다 넓으면 오른쪽 끝을 흐리게 해 옆으로 더 있다는 것을 보인다(ADR-0029, 잘린 열 지적). */}
-      {overflowMore ? <div aria-hidden="true" className="pointer-events-none absolute inset-y-px right-px z-20 w-10 rounded-r-lg bg-gradient-to-l from-foreground/15 to-transparent print:hidden" data-console-grid-more="" /> : null}
+      {overflowMore ? <div aria-hidden="true" className="pointer-events-none absolute inset-y-px right-px z-20 w-10 rounded-r-lg bg-gradient-to-l from-foreground/10 to-transparent print:hidden" data-console-grid-more="" /> : null}
       <div aria-label={`${caption} 가로 스크롤`} className="@container relative min-w-0 overflow-x-auto rounded-lg border bg-card outline-none focus-visible:ring-3 focus-visible:ring-ring/50" ref={overflowRef} role="region" tabIndex={0}>
         <table className="w-full caption-bottom text-sm" data-slot="table" ref={tableRef}>
           <caption className="sr-only">{caption}</caption>
