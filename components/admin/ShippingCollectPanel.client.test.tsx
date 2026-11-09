@@ -11,6 +11,8 @@ vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>
 }));
 vi.mock('@/app/admin/shipping-collect-event-actions', () => ({ readShippingCollectEventsAction: mocks.read, saveShippingCollectEventAction: mocks.save, readShippingCollectEventOperationAction: mocks.operation, sealShippingCollectOperationAction: mocks.seal }));
 vi.mock('@/lib/supabase/config', () => ({ getSupabaseConfig: () => ({ isConfigured: true }) }));
+/* 이 파일은 컴포넌트 함수를 직접 불러 트리를 편다 — Base UI 기반 kit Badge는 실제 렌더러 밖에서 훅을 쓸 수 없어 글자만 남기는 대역으로 둔다. */
+vi.mock('@/components/admin/kit/ui/badge', () => ({ Badge: (props: { children?: ReactNode }) => <span>{props.children}</span> }));
 vi.mock('@/lib/supabase/client', () => ({ createClient: () => ({ auth: { onAuthStateChange: (callback: typeof mocks.auth) => { mocks.auth = callback;return { data: { subscription: { unsubscribe() {} } } }; } } }) }));
 import { ShippingCollectPanel } from './ShippingCollectPanel';
 import { shippingCollectRequest as request, shippingCollectReceipt } from '@/test/fixtures/shipping-collect';

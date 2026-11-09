@@ -13,26 +13,30 @@ import { adminUnpaidAttemptStateLabel, adminUnpaidHref, type AdminUnpaidConsoleD
 import { ADMIN_VOCABULARY } from '@/lib/admin/vocabulary';
 import { SALES_SORT_OPTIONS } from '@/lib/admin/sales-list';
 import { SalesFilterField, SalesFilterPanel, SalesGuide, SalesResultsHeader, SalesSelect } from '@/components/admin/sales/SalesConsole';
-import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { statusTone } from '@/lib/admin/status-tone';
 import { krw } from '@/lib/format';
 import { formatOrderDateTime } from '@/lib/orders';
+import { buttonVariants } from '@/components/admin/kit/ui/button';
 import {
   bankTransferDeadlineImminent,
   bankTransferDeadlineLabel,
+  bankTransferDeadlinePassed,
   bankTransferDepositNameWithCode,
 } from '@/lib/payments/bank-transfer';
 
 const COLUMNS: ConsoleGridColumn[] = [
-  { key: 'code', label: '입금확인코드', width: '110px' },
-  { key: 'buyer', label: '구매자', width: '130px' },
+  { key: 'code', label: '입금확인코드', width: '102px' },
+  { key: 'buyer', label: '구매자', width: '100px' },
   /* 안내한 입금자명을 그대로 실어 둔다 — 통장 화면과 이 열을 나란히 두고 눈으로
      맞추는 것이 수동 대조의 실제 동작이다. */
-  { key: 'depositName', label: '안내된 입금자명', width: '160px' },
+  { key: 'depositName', label: '안내된 입금자명', width: '136px' },
+  /* 품목은 폭을 비워 남는 자리를 모두 받는다 — 좁으면 한 건이 여섯 줄까지 꺾인다. */
   { key: 'items', label: '품목' },
-  { key: 'createdAt', label: '주문일시', width: '150px' },
-  { key: 'deadline', label: '남은 기한', width: '140px' },
-  { key: 'state', label: '상태', width: '110px' },
-  { key: 'total', label: '입금액', align: 'end', width: '110px' },
+  { key: 'deadline', label: '남은 기한 / 주문일시', width: '150px' },
+  { key: 'state', label: '상태', width: '108px' },
+  { key: 'total', label: '입금액', align: 'end', width: '100px' },
+  { key: 'action', label: '처리', width: '96px', required: true },
 ];
 
 /**
@@ -57,30 +61,28 @@ export function UnpaidScreen({
   const currentHref = adminUnpaidHref(filters);
 
   const gridRows: ConsoleGridRow[] = rows.map((row) => {
-    const imminent = bankTransferDeadlineImminent(row.expiresAt, now.getTime());
+    const deadline = `${bankTransferDeadlineLabel(row.expiresAt, now.getTime())}${row.extendedAt ? ' · 연장됨' : ''}`;
+    /* 끝났거나 임박한 기한만 강조한다 — 모든 행이 주의색이면 신호가 죽는다. */
+    const deadlineTone = row.expiresAt && bankTransferDeadlinePassed(row.expiresAt, now.getTime()) ? 'danger' as const
+      : bankTransferDeadlineImminent(row.expiresAt, now.getTime()) ? 'warning' as const : null;
+    const actionHref = `${adminUnpaidHref({ ...filters, selectedOrderId: row.id })}#unpaid-actions`;
     return {
       id: row.id,
-      href: adminUnpaidHref({ ...filters, selectedOrderId: row.id }),
+      href: actionHref,
       cells: [
         <span className="font-medium tabular-nums" key="code">{row.depositCode}</span>,
         row.buyerName,
         <span className="tabular-nums" key="depositName">
           {bankTransferDepositNameWithCode(row.recipientName, row.depositCode)}
         </span>,
-        row.itemSummary || '품목 정보 없음',
-        formatOrderDateTime(row.createdAt),
-        /* 임박한 기한만 강조한다 — 모든 행이 주의색이면 신호가 죽는다. */
-        imminent ? <AdminStatusBadge key="deadline" tone="warning">
-          {bankTransferDeadlineLabel(row.expiresAt, now.getTime())}
-          {row.extendedAt ? ' · 연장됨' : ''}
-        </AdminStatusBadge> : <span key="deadline">
-          {bankTransferDeadlineLabel(row.expiresAt, now.getTime())}
-          {row.extendedAt ? ' · 연장됨' : ''}
+        <span className="block min-w-48" key="items">{row.itemSummary || '품목 정보 없음'}</span>,
+        <span className="flex flex-col items-start gap-0.5" key="deadline">
+          {deadlineTone ? <AdminStatusBadge tone={deadlineTone}>{deadline}</AdminStatusBadge> : <span>{deadline}</span>}
+          <small className="text-xs text-muted-foreground tabular-nums">{formatOrderDateTime(row.createdAt)}</small>
         </span>,
-        row.attemptState === 'prepared'
-          ? <span key="state">{adminUnpaidAttemptStateLabel(row.attemptState)}</span>
-          : <AdminStatusBadge key="state" tone="warning">{adminUnpaidAttemptStateLabel(row.attemptState)}</AdminStatusBadge>,
+        <AdminStatusBadge key="state" tone={statusTone('unpaid', row.attemptState ?? 'missing')}>{adminUnpaidAttemptStateLabel(row.attemptState)}</AdminStatusBadge>,
         <span className="tabular-nums" key="total">{krw(row.total)}</span>,
+        <Link aria-label={`입금확인코드 ${row.depositCode} 입금 확인·기한 연장·취소 처리 열기`} className={buttonVariants({ size: 'sm', variant: 'soft' })} data-slot="button" href={actionHref} key="action">입금 확인</Link>,
       ],
     };
   });
@@ -127,10 +129,10 @@ export function UnpaidScreen({
       <BankDepositQueue deposits={deposits} />
 
       {filters.selectedOrderId && !selected && (
-        <p className="rounded-lg border bg-muted/40 px-3 py-2.5" role="status">
+        <AdminNotice role="status" tone="warning">
           고른 주문이 목록에 없습니다. 이미 처리됐을 수 있어요.{' '}
           <Link className="font-medium underline underline-offset-4" href={adminUnpaidHref({ ...filters, selectedOrderId: null })}>목록으로</Link>
-        </p>
+        </AdminNotice>
       )}
     </div>
   );

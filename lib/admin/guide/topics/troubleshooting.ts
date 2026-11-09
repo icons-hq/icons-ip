@@ -138,7 +138,7 @@ const PUBLISH_CASES: AdminGuideErrorCase[] = [
 
 const CLAIM_CASES: AdminGuideErrorCase[] = [
   {
-    quote: '결제 취소 정합화가 끝나지 않았습니다. 재고 복원과 카드팩 회수가 확인된 뒤에만 환불 완료를 기록할 수 있습니다.',
+    quote: '결제 취소 확인이 끝나지 않았습니다. 재고 복원과 카드팩 회수가 확인된 뒤에만 환불 완료를 기록할 수 있습니다.',
     sourceFile: 'app/admin/claim-actions.ts',
     cause: '결제사 취소가 아직 시스템에서 확인되지 않은 상태에서 환불 완료를 먼저 기록하려 했습니다.',
     fix: '화면의 결제 취소 확인 절차를 먼저 마칩니다. Korpay 건의 수동 확정은 admin에게 요청합니다.',

@@ -22,7 +22,7 @@ export function CustomerNoteForm({ userId, initialOperationId }: { userId: strin
         aria-invalid={Boolean(state.error)} aria-describedby={`customer-note-body-hint${state.error ? ' customer-note-body-error' : ''}`}
         value={body} onChange={(event) => { setBody(event.target.value); setOperationId(crypto.randomUUID()); }} />
     </AdminField>
-    {state.message ? <p className="text-sm text-[var(--wc-success)]" role="status">{state.message}</p> : null}
+    {state.message ? <p className="text-sm text-success" role="status">{state.message}</p> : null}
     <Button className="self-start" disabled={pending} type="submit">{pending ? '저장 중' : '내부 메모 저장'}</Button>
   </form>;
 }

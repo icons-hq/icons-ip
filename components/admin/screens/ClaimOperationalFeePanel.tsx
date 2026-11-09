@@ -10,7 +10,10 @@ import {
   ADMIN_CLAIM_OPERATIONAL_FEE_KINDS,
   type AdminClaimOperationalFee,
 } from '@/lib/admin/claims';
+import { krw } from '@/lib/format';
 import type { OrderClaimType } from '@/lib/orders/claims';
+import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { SalesDisclosureCard } from '@/components/admin/sales/SalesConsole';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { Label } from '@/components/admin/kit/ui/label';
@@ -37,8 +40,10 @@ export function ClaimOperationalFeePanel({
   const [state, action, pending] = useActionState(recordOrderClaimOperationalFeeAction, EMPTY_STATE);
   useClaimPreviewBusy(pending); /* 목록 위 클레임 팝업(R8)에서 기다리는 동안 팝업이 닫히지 않게 알린다. 팝업 밖에서는 아무 일도 하지 않는다. */
   const values = preservedFormValues(state, claimId, { scopeKey: 'claimId' });
-  return <section aria-label="운영 확인액 기록" className="flex min-w-0 flex-col gap-3 text-sm" data-claim-operational-fee="">
-    <h3 className="text-base leading-snug font-medium">운영 확인액</h3>
+  /* 승인 전에 채우는 칸이 아니다 — 선택 입력임을 제목 옆에 밝히고 접어 둔다. 기록이 있으면 접힌 줄에서 금액을 본다. */
+  return <SalesDisclosureCard closeLabel="접기" openLabel="펼치기" status={<AdminStatusBadge tone="neutral">{fee.amount !== null ? '기록됨' : '선택 입력'}</AdminStatusBadge>}
+    summary={fee.amount !== null ? `${fee.kind ? `${KIND_LABELS[fee.kind]} · ` : ''}${krw(fee.amount)}` : '실제로 확인한 비용이 있을 때만 기록합니다.'} title="운영 확인액">
+    <section aria-label="운영 확인액 기록" className="flex min-w-0 flex-col gap-3 text-sm" data-claim-operational-fee="">
     <p className="text-muted-foreground">
       CS가 실제로 확인한 금액과 근거만 기록합니다. 이 기록은 고객에게 추가 청구하거나 환불액에서 차감하지 않으며, 클레임 접수를 막지 않습니다.
       금액을 모르면 비워 두고 저장하세요. 0원은 확인된 무료 비용으로 구분됩니다.
@@ -74,5 +79,6 @@ export function ClaimOperationalFeePanel({
       {state.message ? <p className="text-muted-foreground" role="status">{state.message}</p> : null}
       </fieldset>
     </form>
-  </section>;
+    </section>
+  </SalesDisclosureCard>;
 }

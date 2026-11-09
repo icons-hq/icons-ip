@@ -255,6 +255,13 @@ describe('OrdersSection', () => {
     expect(html).not.toContain('계약종료 택배');
   });
 
+  it('처리할 신규주문 칸을 주의색으로 켜고 체크칸이 있는 줄의 이유를 알린다', () => {
+    const html = renderToStaticMarkup(<OrdersSection data={{ ...orderData(), counts: { pending: 1, paid: 2, confirmed: 3, shipping: 0, delivered: 0, done: 0, canceled: 0 } }} />);
+    expect(html).toMatch(/aria-label="신규주문 2건"[^>]*data-tone="warning"/);
+    expect(html).toMatch(/aria-label="발주확인 3건"[^>]*data-tone="default"/);
+    expect(html).toContain('체크칸은 발주확인할 수 있는 신규주문에만 있습니다.');
+  });
+
   it('renders staff-safe order detail and the paid-to-confirmed action without provider secrets', () => {
     const html = renderToStaticMarkup(<OrdersSection data={orderData()} />);
 
@@ -437,7 +444,7 @@ describe('OrdersSection', () => {
       overrides: {
         cancellationRequest: cancellationRequest({ stage: 'withdrawn', status: 'rejected' }),
       },
-      visible: ['발주확인', '요청 철회', 'aria-label="운영자 전액 취소"'],
+      visible: ['발주확인', '취소철회', 'aria-label="운영자 전액 취소"'],
       hidden: ['청약철회 승인', '요청 거절', '상태 다시 확인', '취소·반품·교환 관리에서 처리'],
     },
     {
@@ -446,7 +453,7 @@ describe('OrdersSection', () => {
         status: 'confirmed' as const,
         cancellationRequest: cancellationRequest({ stage: 'withdrawn', status: 'rejected' }),
       },
-      visible: ['배송 건별 운송장 등록', '요청 철회', 'aria-label="운영자 전액 취소"'],
+      visible: ['배송 건별 운송장 등록', '취소철회', 'aria-label="운영자 전액 취소"'],
       hidden: ['청약철회 승인', '요청 거절', '상태 다시 확인', '취소·반품·교환 관리에서 처리'],
     },
     {
@@ -455,7 +462,7 @@ describe('OrdersSection', () => {
         status: 'shipping' as const,
         cancellationRequest: cancellationRequest({ claimType: 'return', stage: 'withdrawn', status: 'rejected' }),
       },
-      visible: ['배송 건별 배송완료 처리', '요청 철회'],
+      visible: ['배송 건별 배송완료 처리', '반품철회'],
       hidden: ['청약철회 승인', '요청 거절', '상태 다시 확인', '취소·반품·교환 관리에서 처리', 'aria-label="운영자 전액 취소"'],
     },
     {
@@ -467,7 +474,7 @@ describe('OrdersSection', () => {
           decidedAt: '2026-07-14T08:00:00.000Z',
         }),
       },
-      visible: ['처리완료'],
+      visible: ['취소완료'],
       hidden: [
         '발주확인', '발송처리', '배송완료', '청약철회 승인', '요청 거절', '상태 다시 확인',
         '취소·반품·교환 관리에서 처리',
@@ -491,7 +498,7 @@ describe('OrdersSection', () => {
         status: 'delivered' as const,
         cancellationRequest: cancellationRequest({ claimType: 'exchange', stage: 'collected' }),
       },
-      visible: ['취소·반품·교환 관리에서 처리', '교환 요청', '입고완료'],
+      visible: ['취소·반품·교환 관리에서 처리', '교환 요청', '수거완료'],
       hidden: ['청약철회 승인', '요청 거절'],
     },
     {
@@ -634,7 +641,7 @@ describe('OrdersSection', () => {
   });
 
   /* 2026-10-12 QA-10: 결제확인필요 요청의 원인 코드는 주문 패널에서도 보인다. */
-  it('결제확인필요 요청의 정합화 오류 코드를 취소 요청 영역에 보여준다', () => {
+  it('결제확인필요 요청의 결제사 확인 오류 코드를 취소 요청 영역에 보여준다', () => {
     const html = renderToStaticMarkup(<OrdersSection data={orderData({
       cancellationRequest: cancellationRequest({
         status: 'needs_review',
@@ -645,11 +652,11 @@ describe('OrdersSection', () => {
       }),
     })} />);
 
-    expect(html).toMatch(/정합화 오류 · <code[^>]*>provider_unavailable<\/code>/);
+    expect(html).toMatch(/결제사 확인 오류 · <code[^>]*>provider_unavailable<\/code>/);
     expect(html).toContain('상태 다시 확인');
   });
 
-  it('종결된 요청에는 지난 정합화 오류 코드를 다시 띄우지 않는다', () => {
+  it('종결된 요청에는 지난 결제사 확인 오류 코드를 다시 띄우지 않는다', () => {
     const html = renderToStaticMarkup(<OrdersSection data={orderData({
       status: 'canceled',
       cancellationRequest: cancellationRequest({ status: 'completed', stage: 'completed', lastErrorCode: 'provider_unavailable' }),
@@ -813,6 +820,8 @@ describe('OrdersSection', () => {
         useRef: () => ({ current: { focus } }),
       };
     });
+    /* 이 목은 모든 effect를 렌더 중에 돌린다 — 공용 표의 잘림 표시(스크롤 측정)는 이 시험의 관심사가 아니므로 뺀다. */
+    vi.doMock('@/components/admin/console/useHorizontalOverflow', () => ({ useHorizontalOverflow: () => ({ ref: { current: null }, more: false }) }));
 
     try {
       const { OrdersSection: ErroredOrdersSection } = await import('./Orders');
@@ -839,6 +848,7 @@ describe('OrdersSection', () => {
       expect(focus).toHaveBeenCalledOnce();
     } finally {
       vi.doUnmock('react');
+      vi.doUnmock('@/components/admin/console/useHorizontalOverflow');
       vi.resetModules();
     }
   });

@@ -25,7 +25,7 @@ function Feedback({ state }: { state: AdminInquiryActionState }) {
   return <>
     {state.errors?.form ? <span className="text-sm text-destructive" role="alert">{state.errors.form}</span> : null}
     {state.errors?.body ? <span className="text-sm text-destructive" role="alert">{state.errors.body}</span> : null}
-    {state.message ? <span className="text-sm text-muted-foreground" role="status">{state.message}</span> : null}
+    {state.message ? <span className="text-sm text-success" role="status">{state.message}</span> : null}
   </>;
 }
 
@@ -73,7 +73,7 @@ export function InquiryAssignmentPanel({ inquiryId, assigneeId, assigneeName, st
         <Textarea id={`${id}-reason`} maxLength={500} name="reason" onChange={(event) => setReason(event.target.value)} required rows={2} value={reason} />
       </div>
       <Feedback state={state} />
-      <Button className="self-start" disabled={pending} size="sm" type="submit">{pending ? '변경 중' : '담당자 변경'}</Button>
+      <Button className="self-start" disabled={pending} size="sm" type="submit" variant="outline">{pending ? '변경 중' : '담당자 변경'}</Button>
     </form>
   </section>;
 }
@@ -109,7 +109,7 @@ export function InquiryInternalNotesPanel({ inquiryId, notes, accountId = '', fr
         <Textarea className="min-h-24" disabled={busy} id={`${id}-body`} maxLength={MAX_INQUIRY_BODY_LENGTH} name="body" onChange={(event) => setBody(event.target.value)} required rows={4} value={body} />
       </div>
       <Feedback state={state} />
-      <Button className="self-start" disabled={busy} size="sm" type="submit">{pending ? '저장 중' : '내부 메모 저장'}</Button>
+      <Button className="self-start" disabled={busy} size="sm" type="submit" variant="outline">{pending ? '저장 중' : '내부 메모 저장'}</Button>
     </form>
   </section>;
 }

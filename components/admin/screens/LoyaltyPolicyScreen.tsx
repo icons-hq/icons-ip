@@ -13,7 +13,7 @@ import { Input } from '@/components/admin/kit/ui/input';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/admin/kit/ui/table';
 import { ACTIONS, CHECK_LABEL, FIELD_HINT, FIELD_LABEL, INFO_PANEL, NOTE, TABLE_BOX } from '@/components/admin/settings-kit';
-import { AdminNotice } from '@/components/admin/console/AdminKit';
+import { AdminNotice, AdminPageHeader, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 
 const AMOUNT_PRESETS = [10000, 50000, 100000, 200000, 300000, 500000, 1000000];
 const COUNT_PRESETS = [1, 2, 3, 5, 10];
@@ -36,6 +36,7 @@ function criterionText(tier: LoyaltyCriterion) {
   return [tier.amount === null ? null : `${tier.amount.toLocaleString('ko-KR')}원 이상`, tier.itemCount === null ? null : `상품 주문 항목 ${tier.itemCount.toLocaleString('ko-KR')}건 이상`].filter(Boolean).join(' 또는 ');
 }
 function savedTime(value: string) { return new Date(value).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', hour12: false }); }
+const sameCriteria = (a: LoyaltyCriterion[], b: LoyaltyCriterion[]) => a.length === b.length && a.every((tier, index) => tier.grade === b[index].grade && tier.enabled === b[index].enabled && tier.amount === b[index].amount && tier.itemCount === b[index].itemCount);
 
 export function LoyaltyPolicyScreen({ data, rewards }: { data: LoyaltyPolicyData; rewards?: CustomerRewardPolicy }) {
   const [base, setBase] = useState(data.policy);
@@ -52,6 +53,8 @@ export function LoyaltyPolicyScreen({ data, rewards }: { data: LoyaltyPolicyData
   const [editorError, setEditorError] = useState('');
   const locked = busy || uncertain;
   const parsed = criteria(draft);
+  /* 줄의 '수정'은 초안만 바꾼다 — 저장 전인 변경이 있으면 저장 버튼 옆에 말해 둘의 차이가 보이게 한다. */
+  const unsaved = !parsed || !sameCriteria(parsed, base.tiers);
   const sampleReady = [sample.amount, sample.itemCount].every(value => /^\d+$/.test(value) && Number.isSafeInteger(Number(value)));
   const estimated = parsed && sampleReady ? [...parsed].reverse().find(tier => tier.enabled
     && ((tier.amount !== null && Number(sample.amount) >= tier.amount) || (tier.itemCount !== null && Number(sample.itemCount) >= tier.itemCount)))?.grade ?? 'welcome' : null;
@@ -120,29 +123,27 @@ export function LoyaltyPolicyScreen({ data, rewards }: { data: LoyaltyPolicyData
   }
 
   return <div className="flex min-w-0 flex-col gap-4" data-admin-screen="loyalty-policy">
-    <header className="flex flex-wrap items-start justify-between gap-3">
-      <div className="flex min-w-0 flex-col gap-1"><h2 className="text-lg leading-tight font-semibold tracking-tight">고객등급 설정</h2><p className="max-w-prose text-sm text-muted-foreground">WELCOME은 기본 등급입니다. 최근 90일의 결제 확정·취소 제외 실적으로 SILVER, GOLD, PLATINUM을 산정합니다.</p></div>
-      <p className="text-xs text-muted-foreground tabular-nums">저장 버전 {base.revision} · {savedTime(base.updatedAt)} KST</p>
-    </header>
+    <AdminPageHeader title="고객등급 관리" description="WELCOME은 기본 등급입니다. 최근 90일의 결제 확정·취소 제외 실적으로 SILVER, GOLD, PLATINUM을 산정합니다." actions={<p className="text-xs text-muted-foreground tabular-nums">저장 버전 {base.revision} · {savedTime(base.updatedAt)} KST</p>} />
     <form onSubmit={save} className="flex min-w-0 flex-col gap-4 rounded-xl border bg-card p-4 text-card-foreground sm:p-5">
-      <div className="flex flex-col gap-1"><h3 className="text-base font-medium">등급별 승급 조건</h3>
-        <p className={NOTE}>금액과 상품 주문 항목 수를 모두 입력하면 둘 중 하나만 충족해도 승급합니다. 사용하지 않을 조건은 비워두세요.</p>
-        <p className={NOTE}>상품 주문 항목은 주문서의 상품·옵션별 한 줄이며, 구매 수량의 합계와 다릅니다.</p>
-        <p className={NOTE}>등급은 SILVER부터 순서대로 사용하며, 상위 등급의 금액·항목 수는 하위 등급보다 커야 합니다.</p>
+      <div className="flex flex-col gap-1"><h3 className="text-base font-semibold">등급별 승급 조건</h3>
+        <p className={NOTE}>금액과 상품 주문 항목 수를 모두 입력하면 둘 중 하나만 충족해도 승급합니다.</p>
+        <details className="text-sm"><summary className="cursor-pointer text-muted-foreground hover:text-foreground">조건 입력 규칙</summary>
+          <ul className="mt-1.5 flex list-disc flex-col gap-1 pl-5 text-muted-foreground"><li>사용하지 않을 조건은 비워두세요.</li><li>상품 주문 항목은 주문서의 상품·옵션별 한 줄이며, 구매 수량의 합계와 다릅니다.</li><li>등급은 SILVER부터 순서대로 사용하며, 상위 등급의 금액·항목 수는 하위 등급보다 커야 합니다.</li></ul>
+        </details>
       </div>
       <div className={TABLE_BOX}><Table className="min-w-[47.5rem] table-fixed"><caption className="sr-only">등급별 사용 여부, 승급 조건과 혜택 설정</caption>
         <colgroup><col style={{ width: '12%' }} /><col style={{ width: '15%' }} /><col style={{ width: '31%' }} /><col style={{ width: '30%' }} /><col style={{ width: '12%' }} /></colgroup>
         <TableHeader className="bg-muted/50"><TableRow className="hover:bg-transparent"><TableHead scope="col">사용 여부</TableHead><TableHead scope="col">등급명</TableHead><TableHead scope="col">등급 조건</TableHead><TableHead scope="col">등급별 혜택</TableHead><TableHead scope="col">수정</TableHead></TableRow></TableHeader>
         <TableBody>{draft.map((tier, index) => <TableRow className="hover:bg-transparent" key={tier.grade}>
           <TableCell className="align-top whitespace-normal" data-label="사용 여부"><label className={CHECK_LABEL}><input type="checkbox" checked={tier.enabled} disabled={locked} onChange={event => edit(index, { enabled: event.target.checked })} aria-label={`${tier.grade.toUpperCase()} 등급 사용`} />{tier.enabled ? '사용' : '사용 안 함'}</label></TableCell>
-          <TableHead className="h-auto py-3 align-top" scope="row"><Badge data-grade={tier.grade} variant="outline">{tier.grade.toUpperCase()}</Badge></TableHead>
+          <TableHead className="h-auto bg-transparent py-3 align-top" scope="row"><Badge data-grade={tier.grade} variant="outline">{tier.grade.toUpperCase()}</Badge></TableHead>
           <TableCell className="align-top whitespace-normal" data-label="등급 조건">{criterionText({ grade: tier.grade, enabled: tier.enabled, amount: tier.amount ? Number(tier.amount) : null, itemCount: tier.itemCount ? Number(tier.itemCount) : null }) || '조건을 설정해주세요.'}</TableCell>
           <TableCell className="align-top whitespace-normal" data-label="등급별 혜택"><div className="flex min-w-0 flex-col gap-1.5"><ul className="flex flex-col gap-1">{coupons.filter(coupon => coupon.grade === tier.grade).map(coupon => <li key={coupon.code}><Link className="font-medium underline-offset-4 hover:underline" href={`/admin/sales/coupons?couponCode=${encodeURIComponent(coupon.code)}`}>{coupon.name}<small className={`block ${FIELD_HINT}`}>{coupon.code} · {{ active: '활성', paused: '중지', archived: '중지' }[coupon.status] ?? coupon.status}</small></Link></li>)}</ul>
             {rewards ? <p className="text-xs text-muted-foreground">주문 적립: {rewards.gradeEnabled && rewards.baseCreditEnabled ? `${(rewards.gradeRates[tier.grade] ?? 0) / 100}%` : '기본 적립금 정책 적용'} · <Link className="font-medium text-foreground underline underline-offset-4" href="/admin/settings/store-credits#customer-rewards">적립률 설정</Link></p> : null}
             {!coupons.some(coupon => coupon.grade === tier.grade) ? <p className="text-xs text-muted-foreground">연결된 쿠폰이 없습니다.</p> : null}
             <Link className={`${buttonVariants({ variant: 'outline', size: 'xs' })} w-fit`} data-slot="button" href={`/admin/sales/coupons/new?grade=${tier.grade}`}><Plus aria-hidden="true" />혜택 쿠폰 등록<span className="sr-only"> · {tier.grade.toUpperCase()}</span></Link>
           </div></TableCell>
-          <TableCell className="align-top"><Button aria-label={`${tier.grade.toUpperCase()} 조건 수정`} disabled={locked || !tier.enabled} onClick={() => openEditor(index)} size="sm" type="button" variant="outline">수정</Button></TableCell>
+          <TableCell className="align-top"><Button aria-label={`${tier.grade.toUpperCase()} 조건 수정`} disabled={locked || !tier.enabled} onClick={() => openEditor(index)} size="xs" type="button" variant="ghost">수정</Button></TableCell>
         </TableRow>)}</TableBody>
       </Table></div>
       <AdminNotice tone="info">저장만으로 고객 등급을 일괄 변경하거나 쿠폰을 발급하지 않습니다. 기존 수동 보정의 하한과 보유 쿠폰은 유지됩니다. 등급 사용을 꺼도 유효한 수동 보정 등급은 유지됩니다.</AdminNotice>
@@ -150,6 +151,7 @@ export function LoyaltyPolicyScreen({ data, rewards }: { data: LoyaltyPolicyData
       {feedback.message ? <AdminNotice role="status" tone="success">{feedback.message}</AdminNotice> : null}
       <div className={`${ACTIONS} border-t pt-4`}>
         <Button disabled={locked || reading} type="submit"><Check aria-hidden="true" />{busy ? '저장 중' : '등급 조건 저장'}</Button>
+        {unsaved && !uncertain ? <AdminStatusBadge tone="warning">저장하지 않은 변경 있음</AdminStatusBadge> : null}
         {uncertain ? <Button disabled={busy} onClick={() => { void save(); }} type="button" variant="outline">같은 요청으로 저장 결과 확인</Button>
           : <Button disabled={busy || reading} onClick={() => { void readLatest(); }} type="button" variant="outline">{reading ? '조회 중' : '최신 정책과 비교'}</Button>}
       </div>

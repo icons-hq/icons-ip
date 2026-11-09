@@ -363,7 +363,7 @@ export async function reconcileAdminOrderCancellationAction(
   revalidateOrderSurfaces();
   if (!result.ok) return { errors: { form: reviewRequiredMessage(result.code) } };
   if (result.status === 'in_progress') return { message: PAYMENT_RECONCILIATION_IN_PROGRESS };
-  return { message: '결제 취소 상태를 정합화했습니다.' };
+  return { message: '결제 취소 상태를 확인했습니다.' };
 }
 
 /** DB가 던지는 운영자 전액 취소 거절 코드를 운영자 문구로 옮긴다. 원문은 노출하지 않는다. */
@@ -471,7 +471,7 @@ export async function recoverAdminGoodsPaymentAction(
     if (result.outcome === 'in_progress') {
       return { errors: { form: '다른 운영 확인이 진행 중입니다. 잠시 뒤 최신 상태를 확인해주세요.' } };
     }
-    return { message: 'Korpay 전액 취소 확인을 주문 정합화에 반영했습니다.' };
+    return { message: 'Korpay 전액 취소 확인을 주문에 반영했습니다.' };
   } catch {
     return { errors: { form: 'Korpay 수동 취소 상태를 반영하지 못했습니다. 최신 상태를 확인해주세요.' } };
   }

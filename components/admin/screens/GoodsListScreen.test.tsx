@@ -188,6 +188,16 @@ describe('goods list screen', () => {
     // 켜진 재고 칸을 다시 누르면 재고 조건을 푼다.
     expect(render({ stock: 'out_of_stock' })).toMatch(/<a(?=[^>]*aria-current="true")(?=[^>]*aria-label="품절 보기")(?=[^>]*href="[^"]*stock=all)/);
   });
+  it('품절·소량 재고 칸은 숫자가 없어도 의미색이고, 준비 사유는 주의색이며, 주 색 링크는 첫 칸 하나다', () => {
+    const base = { code: 'A', name: '상품', ipId: 'ip', ipTitle: 'IP', stock: 'ok' as const, stockQty: 3, activeStockQty: 3, lowStockOptionCount: 0, noticeComplete: true, archivedAt: null, publishedAt: null, customerVisible: false };
+    const readiness = { ...unknownGoodsReadiness(), state: 'blocked' as const, reasons: [{ code: 'image_missing' as const, ...GOODS_READINESS_REASONS.image_missing, kind: 'blocking' as const }] };
+    const html = renderToStaticMarkup(<GoodsListScreen data={{ filters: normalizeGoodsListFilters({}), total: 1, ips: [], goods: [{ ...base, id: 'long-good-id-1234567890', readiness }] }} />);
+    expect(html).toMatch(/<a(?=[^>]*data-tone="danger")(?=[^>]*aria-label="품절 보기")/);
+    expect(html).toMatch(/<a(?=[^>]*data-tone="warning")(?=[^>]*aria-label="소량 재고 보기")/);
+    expect(html).toMatch(/<a class="[^"]*\btext-warning\b[^"]*" href="[^"]*">(?:<svg[\s\S]*?<\/svg>)?대표 이미지 미입력 →<\/a>/);
+    const idLink = /<a class="([^"]*)" title="long-good-id-1234567890" data-goods-list="good-id"/.exec(html)?.[1] ?? '';
+    expect(idLink.split(' ')).toEqual(expect.arrayContaining(['truncate', 'text-muted-foreground']));
+  });
   it('자주 쓰지 않는 조건은 상세검색에 접혀도 같은 폼으로 제출되고, 걸려 있으면 펼친다', () => {
     const render = (values: Record<string, string>) => renderToStaticMarkup(<GoodsListFiltersForm data={{ filters: normalizeGoodsListFilters(values), goods: [], ips: [], total: 0 }} />);
     const html = render({});

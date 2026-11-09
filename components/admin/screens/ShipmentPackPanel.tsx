@@ -1,10 +1,12 @@
 'use client';
+import { AdminNotice } from '@/components/admin/console/AdminKit';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ClaimContactSession, type ClaimContactIdentity, type ClaimContactScope } from '@/components/claim-contact/ClaimContactSession';
 import { changeShipmentPackAction, readShipmentPacksAction } from '@/app/admin/shipment-pack-actions';
 import type { ShipmentPackDocument } from '@/lib/admin/shipment-packs';
 import { orderReferenceLabel } from '@/lib/orders';
+import { krw } from '@/lib/format';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 /* 합포장 관리 카드(템플릿 룩, ADR-0028). */
@@ -47,9 +49,9 @@ function Panel({ ids, onClose, identity, scope }: Props & { identity: ClaimConta
   <Button type="button" variant="outline" disabled={pending || uncertain} onClick={() => { void read(); }}>{document ? '최신 합포장 정보 확인' : '선택 건 합포장 조건 확인'}</Button>
   {document ? <>
    <ul className="grid w-full gap-3 [grid-template-columns:repeat(auto-fit,minmax(min(100%,16rem),1fr))]">{document.rows.map(row => <li className="rounded-lg border p-3 wrap-anywhere" key={row.id}><strong className="font-medium">주문 {orderReferenceLabel(row.orderId, row.orderNumber)}</strong> · 배송 {row.shipmentNumber ?? row.id.slice(-8).toUpperCase()}<br />
-    {row.buyerName} → {row.recipientName ?? '수취인 미기록'} · {row.originName}<br /><span className="tabular-nums">선결제 배송비 {row.shippingFee.toLocaleString('ko-KR')}원 · 착불 {row.collectFee.toLocaleString('ko-KR')}원</span>
-    {row.pack ? <p className="mt-1 text-muted-foreground">합포장 {row.pack.id.slice(-8).toUpperCase()} · {row.pack.count}건 · 묶음 착불 합계 {row.pack.collectFee.toLocaleString('ko-KR')}원</p> : null}</li>)}</ul>
-   {!document.canCreate && !releasable ? <p className="rounded-lg border bg-muted/40 px-3 py-2.5">현재 선택은 새 합포장 또는 해제가 불가능합니다. 출고지시 전달 전인지, 같은 배송 조건인지 확인해주세요.</p> : null}
+    {row.buyerName} → {row.recipientName ?? '수취인 미기록'} · {row.originName}<br /><span className="tabular-nums">선결제 배송비 {krw(row.shippingFee)} · 착불 {krw(row.collectFee)}</span>
+    {row.pack ? <p className="mt-1 text-muted-foreground">합포장 {row.pack.id.slice(-8).toUpperCase()} · {row.pack.count}건 · 묶음 착불 합계 {krw(row.pack.collectFee)}</p> : null}</li>)}</ul>
+   {!document.canCreate && !releasable ? <AdminNotice tone="warning">현재 선택은 새 합포장 또는 해제가 불가능합니다. 출고지시 전달 전인지, 같은 배송 조건인지 확인해주세요.</AdminNotice> : null}
    {document.canCreate || releasable || uncertain ? <form className="flex w-full flex-col items-start gap-3" onSubmit={event => { event.preventDefault(); void save(dispatched.current?.kind ?? (document.canCreate ? 'create' : 'release')); }}>
     <fieldset className="m-0 flex w-full min-w-0 flex-col gap-3 rounded-lg border p-3.5" disabled={pending || uncertain}><legend className="float-left w-full p-0 font-medium">{document.canCreate ? '합포장 생성' : '합포장 해제'}</legend>
      <label className="flex min-w-0 flex-col gap-1.5"><span className="font-medium">처리 사유</span><Input value={reason} onChange={event => setReason(event.target.value)} required minLength={2} maxLength={500} placeholder="포장 확인 또는 해제 사유. 개인정보는 입력하지 마세요." /></label>
@@ -58,6 +60,6 @@ function Panel({ ids, onClose, identity, scope }: Props & { identity: ClaimConta
     <Button type="submit" disabled={pending || !confirmed || reason.trim().length < 2}>{uncertain ? '같은 요청으로 저장 결과 확인' : document.canCreate ? '합포장 저장' : '합포장 해제'}</Button>
    </form> : null}
   </> : null}
-  {pending ? <p className="text-muted-foreground" role="status">합포장 정보를 처리하고 있습니다.</p> : null}{error ? <p className="text-destructive" role="alert">{error}</p> : null}{message ? <p className="text-[var(--wc-success)]" role="status">{message}</p> : null}
+  {pending ? <p className="text-muted-foreground" role="status">합포장 정보를 처리하고 있습니다.</p> : null}{error ? <p className="text-destructive" role="alert">{error}</p> : null}{message ? <p className="text-success" role="status">{message}</p> : null}
  </section>;
 }

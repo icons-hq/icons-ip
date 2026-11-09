@@ -30,7 +30,7 @@ export function OrderNoteForm({ orderId, initialOperationId }: { orderId: string
           onChange={(event) => { setBody(event.target.value); setOperationId(crypto.randomUUID()); }} />
       </AdminField>
     </div>
-    {state.message ? <p className="text-sm text-[var(--wc-success)]" role="status">{state.message}</p> : null}
+    {state.message ? <p className="text-sm text-success" role="status">{state.message}</p> : null}
     <Button disabled={pending} type="submit">{pending ? '저장 중' : '운영자 메모 저장'}</Button>
   </form>;
 }

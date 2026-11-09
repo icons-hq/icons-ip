@@ -13,7 +13,7 @@ import type {
 } from '@/lib/admin/catalog.server';
 import { ErrorText, Field, FormShell, RecordList, SelectField } from '../fields';
 import { statusTone } from '@/lib/admin/status-tone';
-import { MasterDetail, SECTION_CARD, SECTION_STAT, SECTION_STATS, SectionHeading } from './SectionLayout';
+import { MasterDetail, RecordFormHeading, SECTION_CARD, SECTION_STAT, SECTION_STATS, SectionHeading } from './SectionLayout';
 import { RecordStatusLabel } from './RecordStatusLabel';
 
 const emptyState: AdminCatalogActionState = {};
@@ -105,6 +105,12 @@ export function RewardPolicySection({
     () => new Map(pools.map((pool) => [pool.id, pool.name])),
     [pools],
   );
+  const policyName = (policy: AdminRewardPolicyRecord) => {
+    const target = policy.targetGoodId
+      ? (goodNames.get(policy.targetGoodId) ?? policy.targetGoodId)
+      : `${ipTitles.get(policy.targetIpId) ?? policy.targetIpId} 전체 굿즈`;
+    return `${target} → ${poolNames.get(policy.poolId) ?? policy.poolId}`;
+  };
 
   return (
     <MasterDetail
@@ -114,13 +120,7 @@ export function RewardPolicySection({
           ariaLabel="발급 정책 목록"
           emptyMessage="등록된 발급 정책이 없습니다."
           items={records}
-          labelFor={(policy) => {
-            const target = policy.targetGoodId
-              ? (goodNames.get(policy.targetGoodId) ?? policy.targetGoodId)
-              : `${ipTitles.get(policy.targetIpId) ?? policy.targetIpId} 전체 굿즈`;
-            const pool = poolNames.get(policy.poolId) ?? policy.poolId;
-            return <RecordStatusLabel name={`${target} → ${pool}`} status={POLICY_STATUS_LABELS[policy.status]} tone={statusTone('rewardPolicy', policy.status)} title={`${target} → ${pool} · ${POLICY_STATUS_LABELS[policy.status]}`} />;
-          }}
+          labelFor={(policy) => <RecordStatusLabel name={policyName(policy)} status={POLICY_STATUS_LABELS[policy.status]} tone={statusTone('rewardPolicy', policy.status)} title={`${policyName(policy)} · ${POLICY_STATUS_LABELS[policy.status]}`} />}
           newLabel="새 발급 정책"
           onNew={() => onSelect(null)}
           onSelect={onSelect}
@@ -130,6 +130,7 @@ export function RewardPolicySection({
       <RewardPolicyForm
         draftActiveFrom={draftActiveFrom}
         draftId={draftId}
+        editing={selected ? policyName(selected) : null}
         goods={goods}
         ipOptions={ipOptions}
         key={getRewardPolicyFormKey(selected, draftId, operationId)}
@@ -145,6 +146,7 @@ export function RewardPolicySection({
 function RewardPolicyForm({
   draftActiveFrom,
   draftId,
+  editing,
   goods,
   ipOptions,
   operationId,
@@ -153,6 +155,7 @@ function RewardPolicyForm({
 }: {
   draftActiveFrom: string;
   draftId: string;
+  editing: string | null;
   goods: AdminGoodRecord[];
   ipOptions: { id: string; title: string; archivedAt: string | null }[];
   operationId: string;
@@ -195,7 +198,9 @@ function RewardPolicyForm({
       <input name="operationId" type="hidden" value={operationId} />
       <input name="id" type="hidden" value={selected?.id ?? draftId} />
       <input name="trigger" type="hidden" value="order_paid" />
-      <SectionHeading description="결제 완료된 주문이 아래 조건을 충족하면 카드팩을 발급합니다." title="주문 결제 완료 발급" />
+      <RecordFormHeading description="결제 완료된 주문이 아래 조건을 충족하면 카드팩을 발급합니다." editing={editing} noun="발급 정책" />
+      {/* 새 정책은 대상 IP·카드풀이 첫 항목으로 미리 골라져 있다 — 고른 적 없는 값으로 저장되지 않게 먼저 알린다. */}
+      {!selected && !disabledReason ? <AdminNotice tone="warning">대상 IP와 발급 카드풀은 첫 항목으로 미리 골라 둔 값입니다. 저장 전에 맞는지 확인해주세요.</AdminNotice> : null}
       <AdminFormGrid>
         <SelectField
           disabled={noIps}
@@ -329,7 +334,7 @@ function RewardPolicySummary({ selected }: { selected: AdminRewardPolicyRecord |
           정책을 선택하거나 새 정책을 저장하면 발급 현황을 확인할 수 있습니다.
         </p>
       )}
-      <AdminNotice role="status" tone="neutral">조건이 겹치는 활성 정책은 누적 적용됩니다.</AdminNotice>
+      <AdminNotice role="status" tone="warning">조건이 겹치는 활성 정책은 누적 적용됩니다.</AdminNotice>
       <AdminNotice role="status" tone="neutral">정책 연결 정보가 없는 기존 뽑기권은 집계에서 제외됩니다.</AdminNotice>
     </section>
   );

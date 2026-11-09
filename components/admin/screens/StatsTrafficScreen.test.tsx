@@ -20,6 +20,18 @@ const notices: NoticeTrafficReport = {
 };
 const filters = trafficFilters({ from: '2026-10-23', to: '2026-10-23' }, false, new Date('2026-10-23T03:00:00Z'));
 
+describe('두 화면의 구분', () => {
+  it('조회 기간이 프리셋과 같으면 현재로 표시하고, 마케팅 링크 성과는 링크 유입을 앞에 세운다', () => {
+    const now = new Date('2026-10-23T03:00:00Z');
+    const seven = trafficFilters({ days: '7' }, true, now);
+    const html = renderToStaticMarkup(<StatsTrafficScreen filters={seven} marketing now={now} report={{ ...report, dimension: 'link' }} />);
+    expect(html).toMatch(/<a aria-current="true"[^>]*>최근 7일<\/a>/);
+    expect(html.indexOf('>링크 유입<')).toBeLessThan(html.indexOf('>방문 세션<'));
+    const traffic = renderToStaticMarkup(<StatsTrafficScreen filters={filters} now={now} report={report} />);
+    expect(traffic).not.toContain('>링크 유입</span>');
+  });
+});
+
 describe('방문·유입 분석의 상단 공지 노출·클릭', () => {
   it('공지별 노출·클릭·세션·클릭률을 같은 기간 표로 보이고 삭제된 공지를 이름으로 숨기지 않는다', () => {
     const html = renderToStaticMarkup(<StatsTrafficScreen filters={filters} noticeReport={notices} report={report} />);

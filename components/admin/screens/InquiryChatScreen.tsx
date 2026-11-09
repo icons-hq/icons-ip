@@ -6,7 +6,7 @@ import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { ADMIN_INQUIRY_CHAT_PAGE_SIZE, ADMIN_INQUIRY_CHAT_PATH, CHAT_STATUS_OPTIONS, inquiryChatHref, type InquiryChatContext, type InquiryChatData, type InquiryChatFilters } from '@/lib/admin/inquiry-chat';
 import type { AdminInquiryDetail } from '@/lib/admin/inquiries.server';
-import { formatInquiryDateTime, INQUIRY_CATEGORY_LABELS, inquiryReferenceLabel } from '@/lib/inquiries';
+import { formatInquiryDateTime, INQUIRY_CATEGORY_LABELS, inquiryElapsedLabel, inquiryReferenceLabel } from '@/lib/inquiries';
 import { orderReferenceLabel } from '@/lib/orders';
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { InquiryChatControls } from './InquiryChatControls';
@@ -14,7 +14,9 @@ import { InquiryChatConversation } from './InquiryChatConversation';
 import { InquiryAssignmentPanel, InquiryInternalNotesPanel } from './InquiryWorkspacePanel';
 import { CustomerHistoryPanel } from './CustomerHistoryPanel';
 import { InquiryChatTags } from './InquiryChatTags';
-import { CHAT_CONTEXT_CARD_CLASS } from './cs-kit-classes';
+import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { statusTone } from '@/lib/admin/status-tone';
+import { CHAT_CONTEXT_CARD_CLASS, INQUIRY_LIVE_CLASS } from './cs-kit-classes';
 import type { CustomerHistoryState } from '@/app/admin/customer-actions';
 
 type PurchaseHistory = NonNullable<CustomerHistoryState['history']>;
@@ -30,13 +32,15 @@ const TEXT_LINK_CLASS = 'font-medium text-foreground underline underline-offset-
  * - 중간(42~56rem): 대화 목록 | (대화 + 아래 상담 정보) — 오른쪽 칸이 함께 스크롤한다.
  * - 좁을 때(~42rem): 한 칸. 대화를 고르면 목록 대신 대화가 화면 높이를 채우고 상담 정보는 그 아래에 온다.
  * 어느 폭에서도 대화 목록은 안에서 스크롤하고 입력창은 대화 아래에 고정된다. */
-export function InquiryChatScreen({ accountId, filters, data, detail, chatContext, selected, canReadOrders, canViewCustomer, purchaseHistory, purchaseHistoryError = false }: {
+export function InquiryChatScreen({ accountId, filters, data, detail, chatContext, selected, canReadOrders, canViewCustomer, purchaseHistory, purchaseHistoryError = false, now = new Date() }: {
   accountId: string; filters: InquiryChatFilters; data: InquiryChatData; detail: AdminInquiryDetail | null;
   chatContext?: InquiryChatContext | null;
   selected: boolean; canReadOrders: boolean; canViewCustomer: boolean;
   purchaseHistory?: PurchaseHistory | null; purchaseHistoryError?: boolean;
+  /** 대기 시간 기준 시각. 테스트 주입용. */
+  now?: Date;
 }) {
-  return <section className="@container/chat group/chat flex h-full min-h-0 min-w-0 flex-col bg-background text-sm print:h-auto [&>.inquiry-live:not(:empty)]:border-b [&>.inquiry-live:not(:empty)]:bg-muted/50 [&>.inquiry-live:not(:empty)]:px-3 [&>.inquiry-live:not(:empty)]:py-1" data-selected={selected ? 'true' : 'false'} aria-label="ICONS 실시간 상담">
+  return <section className={`@container/chat group/chat flex h-full min-h-0 min-w-0 flex-col bg-background text-sm print:h-auto ${INQUIRY_LIVE_CLASS} [&>.inquiry-live:not(:empty)]:border-b [&>.inquiry-live:not(:empty)]:p-2`} data-selected={selected ? 'true' : 'false'} aria-label="ICONS 실시간 상담">
     <div className="sr-only"><strong>ICONS 고객 상담</strong><span>문의 내용과 답변은 ICONS 고객에게 표시됩니다.</span></div>
     <InquiryLiveUpdates audience="staff" />
     <div className={`flex min-h-0 flex-1 flex-col print:block! print:overflow-visible! @max-2xl/chat:group-data-[selected=true]/chat:overflow-y-auto @2xl/chat:grid @2xl/chat:grid-cols-[16rem_minmax(0,1fr)] @2xl/chat:grid-rows-[minmax(0,1fr)] @2xl/chat:overflow-hidden ${detail ? '@4xl/chat:grid-cols-[17.875rem_minmax(0,1fr)_18rem]' : '@4xl/chat:grid-cols-[17.875rem_minmax(0,1fr)]'}`}>
@@ -45,21 +49,22 @@ export function InquiryChatScreen({ accountId, filters, data, detail, chatContex
           <input type="hidden" name="status" value={filters.status} /><input type="hidden" name="period" value={filters.period} />
           <input type="hidden" name="read" value={filters.read} /><input type="hidden" name="assignee" value={filters.assignee} /><input type="hidden" name="sort" value={filters.sort} />
           <Input type="search" name="query" maxLength={100} defaultValue={filters.query} key={filters.query} aria-label="대화 검색" placeholder="대화내용, 닉네임, 태그 검색" />
-          <Button aria-label="대화 검색하기" size="icon" type="submit" variant="outline"><Search aria-hidden="true" /></Button>
+          <Button aria-label="대화 검색하기" size="icon" type="submit" variant="soft"><Search aria-hidden="true" /></Button>
         </form>
         <nav className="grid shrink-0 grid-cols-4 border-b" aria-label="상담 상태">{CHAT_STATUS_OPTIONS.map(option => <Link key={option.value} href={inquiryChatHref(filters, { status: option.value, page: 1 })}
           scroll={false} aria-current={filters.status === option.value ? 'page' : undefined}
-          className="-mb-px flex min-h-14 flex-col items-center justify-center gap-0.5 border-b-2 border-transparent px-1 py-2 text-xs text-muted-foreground transition-colors hover:text-foreground aria-[current=page]:border-foreground aria-[current=page]:font-medium aria-[current=page]:text-foreground"><span>{option.label}</span><strong className="text-base font-semibold text-foreground tabular-nums">{data.counts[option.value].toLocaleString('ko-KR')}</strong></Link>)}</nav>
+          className="-mb-px flex min-h-14 flex-col items-center justify-center gap-0.5 border-b-2 border-transparent px-1 py-2 text-xs text-muted-foreground transition-colors hover:text-foreground aria-[current=page]:border-primary aria-[current=page]:font-medium aria-[current=page]:text-primary-soft-foreground"><span>{option.label}</span><strong className="text-base font-semibold text-foreground tabular-nums">{data.counts[option.value].toLocaleString('ko-KR')}</strong></Link>)}</nav>
         <InquiryChatControls filters={filters} staffOptions={data.staffOptions} />
-        <Link className="mx-3 my-2 flex shrink-0 items-center justify-center rounded-lg border bg-muted/50 px-3 py-2 text-xs font-medium text-foreground transition-colors hover:bg-muted" href={inquiryChatHref(filters, { read: 'unread', status: 'all', page: 1 })} scroll={false}>안읽은 메시지 {data.unreadMessages.toLocaleString('ko-KR')}개 전체 보기</Link>
+        <Link className={`mx-3 my-2 flex shrink-0 items-center justify-center rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${data.unreadMessages > 0 ? 'border-warning-border bg-warning-soft text-warning hover:bg-warning/15' : 'bg-muted/50 text-foreground hover:bg-muted'}`} href={inquiryChatHref(filters, { read: 'unread', status: 'all', page: 1 })} scroll={false}>안읽은 메시지 {data.unreadMessages.toLocaleString('ko-KR')}개 전체 보기</Link>
         <ul className="min-h-0 flex-1 overflow-y-auto border-t">{data.rows.map(row => <li className="border-b" key={row.id}>
-          <Link className="flex items-start gap-2.5 px-3 py-3.5 transition-colors hover:bg-muted/50 aria-[current=page]:bg-muted aria-[current=page]:shadow-[inset_3px_0_var(--primary)]" href={inquiryChatHref(filters, {}, row.id)} scroll={false} aria-current={detail?.inquiry.id === row.id ? 'page' : undefined}>
+          <Link className="flex items-start gap-2.5 px-3 py-3.5 transition-colors hover:bg-muted/50 aria-[current=page]:bg-primary-soft aria-[current=page]:shadow-[inset_3px_0_var(--primary)]" href={inquiryChatHref(filters, {}, row.id)} scroll={false} aria-current={detail?.inquiry.id === row.id ? 'page' : undefined}>
             <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-full border bg-muted text-sm font-semibold text-foreground" aria-hidden="true">{row.buyerName.slice(0, 1)}</span>
             <div className="flex min-w-0 flex-1 flex-col gap-1"><div className="flex min-w-0 items-baseline gap-1.5"><strong className="max-w-24 truncate font-medium text-foreground">{row.buyerName}</strong><span className="max-w-20 truncate rounded-full bg-muted px-1.5 py-px text-[0.65rem] text-muted-foreground" title={row.tags?.join(' · ')}>{row.tags?.[0] ?? adminGoodsCopy(INQUIRY_CATEGORY_LABELS[row.category])}</span></div>
-              <p className="truncate text-xs text-foreground">{row.previewAuthor === 'staff' ? '운영자: ' : row.previewAuthor === 'system' ? '자동 안내: ' : ''}{row.preview || '첨부 파일'}</p>
-              <small className="truncate text-xs text-muted-foreground">{row.title}</small></div>
-            <div className="flex min-w-8 shrink-0 flex-col items-end gap-2.5 text-[0.65rem] text-muted-foreground"><time className="tabular-nums" dateTime={row.lastMessageAt}>{new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric' }).format(new Date(row.lastMessageAt))}</time>
-              {row.unreadCount > 0 ? <span className="inline-flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-destructive px-1 text-[0.65rem] font-semibold text-primary-foreground tabular-nums" aria-label={`안읽은 메시지 ${row.unreadCount}개`}>{row.unreadCount > 99 ? '99+' : row.unreadCount}</span> : null}</div>
+              <p className="truncate text-xs font-medium text-foreground">{row.title}</p>
+              {/* 고객 문의 제목을 먼저, 마지막 메시지는 그 아래 상태와 함께 보인다. */}
+              <p className="flex min-w-0 items-center gap-1.5"><AdminStatusBadge className="shrink-0" tone={statusTone('inquiry', row.status)}>{CHAT_STATUS_OPTIONS.find(option => option.value === row.status)?.label ?? '대기'}</AdminStatusBadge><span className="truncate text-xs text-muted-foreground">{row.previewAuthor === 'staff' ? '운영자: ' : row.previewAuthor === 'system' ? '자동 안내: ' : ''}{row.preview || '첨부 파일'}</span></p></div>
+            <div className="flex min-w-8 shrink-0 flex-col items-end gap-2.5 text-[0.65rem] text-muted-foreground"><time className="whitespace-nowrap tabular-nums" dateTime={row.lastMessageAt}>{row.status === 'open' ? `${inquiryElapsedLabel(row.lastMessageAt, now)} 전` : new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric' }).format(new Date(row.lastMessageAt))}</time>
+              {row.unreadCount > 0 ? <span className="inline-flex h-4.5 min-w-4.5 items-center justify-center rounded-full border border-warning-border bg-warning-soft px-1 text-[0.65rem] font-semibold text-warning tabular-nums" aria-label={`안읽은 메시지 ${row.unreadCount}개`}>{row.unreadCount > 99 ? '99+' : row.unreadCount}</span> : null}</div>
           </Link>
         </li>)}</ul>
         {!data.rows.length ? <div className="flex flex-col items-center gap-2 px-3 py-6 text-center text-sm text-muted-foreground"><p>조건에 맞는 대화가 없습니다.</p><Link className={TEXT_LINK_CLASS} href={inquiryChatHref(filters, { status: 'all', assignee: 'all', period: 'all', read: 'all', query: '', page: 1 })}>전체 대화 보기</Link></div> : null}

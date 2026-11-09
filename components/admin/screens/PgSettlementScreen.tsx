@@ -1,19 +1,23 @@
 import Link from 'next/link';
 import { settlementAccountKey, settlementAccountLabel, type SettlementAccountOption } from '@/lib/settlements/accounts';
 import { AdminStatusBadge } from '../console/AdminKit';
+import { statusTone } from '@/lib/admin/status-tone';
+import { formatOrderDateTime } from '@/lib/orders';
 import { ConsoleGrid, ConsolePagination, type ConsoleGridColumn } from '../console';
-import { SalesFilterField, SalesSelect, SalesGuide } from '../sales/SalesConsole';
+import { SalesFilterField, SalesSelect, SalesGuide, formatSalesDay } from '../sales/SalesConsole';
 import { PgSettlementImportControl } from '../PgSettlementImportControl';
 import { PG_SETTLEMENT_PATH, pgSettlementHref, type PgSettlementFilters } from '@/lib/settlements/console';
 import { formatSettlementDecimal } from '@/lib/settlements/decimal';
-import { PG_SETTLEMENT_FEE_LABELS, PG_SETTLEMENT_KIND_LABELS, PG_SETTLEMENT_MATCH_LABELS, type PgSettlementReport, type PgSettlementTransaction } from '@/lib/settlements/report';
+import { PG_SETTLEMENT_FEE_LABELS, PG_SETTLEMENT_KIND_LABELS, PG_SETTLEMENT_MATCH_LABELS, type PgSettlementKind, type PgSettlementReport, type PgSettlementTransaction } from '@/lib/settlements/report';
 import type { SettlementMode } from '@/lib/settlements/types';
-import { kstDateTimeText } from '@/lib/admin/list-export';
 import { Alert, AlertDescription } from '@/components/admin/kit/ui/alert';
 import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 
 const AMOUNT = (value: string) => <span className="tabular-nums">{formatSettlementDecimal(value)}</span>;
+const STRONG_AMOUNT = (value: string) => <span className="font-semibold tabular-nums">{formatSettlementDecimal(value)}</span>;
+/* 승인과 취소를 글자가 아니라 표시로도 구분한다 — 취소 줄이 승인 줄에 묻히지 않게 한다. */
+const KIND_BADGE = (kind: PgSettlementKind) => <AdminStatusBadge tone={statusTone('pgSettlementKind', kind)}>{PG_SETTLEMENT_KIND_LABELS[kind]}</AdminStatusBadge>;
 /* PG 정산 대조(템플릿 룩, ADR-0028). 조회 조건 카드·건수·표는 판매관리 공용 조각과 같은 모양이다. */
 const TAB_CLASS = 'inline-flex h-7 items-center rounded-md px-3 text-sm font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground aria-[current=page]:bg-background aria-[current=page]:text-foreground aria-[current=page]:shadow-sm';
 const DETAIL_ROW = 'grid grid-cols-[minmax(5.3rem,1fr)_minmax(6.25rem,1.4fr)] gap-2.5';
@@ -33,16 +37,21 @@ const DAILY_COLUMNS: ConsoleGridColumn[] = [
   { key: 'fee', label: '수수료 원문', align: 'end', width: '140px' }, { key: 'supply', label: '수수료 공급가', align: 'end', width: '130px' },
   { key: 'vat', label: '수수료 부가세', align: 'end', width: '130px' }, { key: 'payout', label: '지급액 원문', align: 'end', width: '150px' },
 ];
+/* 1440 화면(표 폭 약 1,100px)에 금액 열까지 들어오게 나눈다. 수수료 상세는 펼쳐서 보므로 접힌 폭만 잡는다. */
 const TRANSACTION_COLUMNS: ConsoleGridColumn[] = [
-  { key: 'order', label: '주문번호', width: '125px' }, { key: 'kind', label: '구분 / 통화', width: '100px' },
-  { key: 'match', label: '수집 시점 대조', width: '190px' }, { key: 'date', label: '정산 매출일 / 지급일', width: '165px' },
-  { key: 'method', label: '결제수단', width: '105px' }, { key: 'amount', label: '거래금액 원문', align: 'end', width: '145px' },
-  { key: 'payout', label: '지급액 원문', align: 'end', width: '145px' }, { key: 'detail', label: '수수료·거래 상세', width: '290px' },
+  { key: 'order', label: '주문번호', width: '170px' }, { key: 'kind', label: '구분 / 통화', width: '92px' },
+  { key: 'match', label: '수집 시점 대조', width: '168px' }, { key: 'date', label: '정산 매출일 / 지급일', width: '132px' },
+  { key: 'method', label: '결제수단', width: '84px' }, { key: 'amount', label: '거래금액 원문', align: 'end', width: '116px' },
+  { key: 'payout', label: '지급액 원문', align: 'end', width: '116px' }, { key: 'detail', label: '수수료·거래 상세', width: '220px' },
+];
+const TOTAL_COLUMNS: ConsoleGridColumn[] = [
+  { key: 'kind', label: '거래 구분', width: '100px' }, { key: 'currency', label: '통화', width: '80px' }, { key: 'count', label: '거래수', align: 'end', width: '90px' },
+  { key: 'amount', label: '거래금액 원문', align: 'end' }, { key: 'fee', label: '수수료 원문', align: 'end' }, { key: 'payout', label: '지급액 원문', align: 'end' },
 ];
 function TransactionDetails({ row }: { row: PgSettlementTransaction }) {
   return <details className="min-w-50 text-xs"><summary className="cursor-pointer underline-offset-4 hover:underline">상세 보기</summary><dl className="mt-3 grid gap-2">
-    <div className={DETAIL_ROW}><dt className={DETAIL_TERM}>승인 시각</dt><dd className={DETAIL_VALUE}>{kstDateTimeText(row.approvedAt)}</dd></div>
-    {row.canceledAt ? <div className={DETAIL_ROW}><dt className={DETAIL_TERM}>취소 시각</dt><dd className={DETAIL_VALUE}>{kstDateTimeText(row.canceledAt)}</dd></div> : null}
+    <div className={DETAIL_ROW}><dt className={DETAIL_TERM}>승인 시각</dt><dd className={DETAIL_VALUE}>{formatOrderDateTime(row.approvedAt)}</dd></div>
+    {row.canceledAt ? <div className={DETAIL_ROW}><dt className={DETAIL_TERM}>취소 시각</dt><dd className={DETAIL_VALUE}>{formatOrderDateTime(row.canceledAt)}</dd></div> : null}
     {row.cancelAmount !== null ? <div className={DETAIL_ROW}><dt className={DETAIL_TERM}>취소금액 원문</dt><dd className={DETAIL_VALUE}>{AMOUNT(row.cancelAmount)}</dd></div> : null}
     <div className={DETAIL_ROW}><dt className={DETAIL_TERM}>할부 수수료</dt><dd className={DETAIL_VALUE}>{AMOUNT(row.interestFee)}</dd></div>
     {row.fees.map((fee, index) => <div className={DETAIL_ROW} key={`${fee.type}-${index}`}><dt className={DETAIL_TERM}>{PG_SETTLEMENT_FEE_LABELS[fee.type] ?? `수수료 (${fee.type})`}</dt><dd className={DETAIL_VALUE}>{AMOUNT(fee.fee)}</dd></div>)}
@@ -92,8 +101,9 @@ export function PgSettlementScreen({ filters, report, connection, operationId, a
           <label className="flex items-center gap-2">통화<Input className="w-20" name="currency" aria-label="통화 코드" maxLength={3} pattern="[A-Z]{3}|" defaultValue={filters.currency} placeholder="전체" /></label>
           <SalesSelect name="pageSize" label="목록 수" value={String(filters.pageSize)} options={[20, 50, 100].map(size => ({ value: String(size), label: `${size}개씩 보기` }))} />
         </SalesFilterField>
+        {/* 조회 버튼을 입력과 같은 줄 끝에 둔다 — 버튼만의 줄이 처리할 목록을 한 줄씩 밀어낸다. */}
+        <div className="ml-auto flex items-center gap-2 self-end"><Link className={buttonVariants({ variant: 'ghost' })} data-slot="button" href={PG_SETTLEMENT_PATH}>초기화</Link><Button type="submit" variant="soft">검색</Button></div>
       </div>
-      <div className="flex flex-wrap justify-end gap-2 border-t pt-3"><Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={PG_SETTLEMENT_PATH}>초기화</Link><Button type="submit">검색</Button></div>
     </form>
     {filters.rangeError ? <Alert variant="destructive"><AlertDescription className="text-destructive">{filters.rangeError}</AlertDescription></Alert>
       : !report ? <Alert variant="destructive"><AlertDescription className="text-destructive">정산 자료를 불러오지 못했습니다. 현재 권한과 연결 상태를 확인한 뒤 다시 조회해주세요.</AlertDescription></Alert>
@@ -102,31 +112,39 @@ export function PgSettlementScreen({ filters, report, connection, operationId, a
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border bg-card px-4 py-3 text-card-foreground" data-pg-settlement-snapshot="">
             <AdminStatusBadge tone={snapshot ? 'success' : 'warning'}>{report.coverage === 'uncollected' ? '미수집' : report.coverage === 'empty' ? '수집 완료 · 0건' : '수집 완료'}</AdminStatusBadge>
             <strong className="font-medium">{filters.mode === 'live' ? '실거래' : '테스트'} · 토스페이먼츠{snapshot ? ` · ${settlementAccountLabel(snapshot)}` : ''}</strong>
-            {snapshot ? <span className="text-muted-foreground tabular-nums">수집 완료 {kstDateTimeText(snapshot.completedAt)} · 전체 {snapshot.recordCount.toLocaleString('ko-KR')}건</span> : <span className="text-muted-foreground">이 기간의 완료 자료가 없습니다.</span>}
+            {snapshot ? <span className="text-muted-foreground tabular-nums">수집 완료 {snapshot.completedAt ? formatOrderDateTime(snapshot.completedAt) : ''} · 전체 {snapshot.recordCount.toLocaleString('ko-KR')}건</span> : <span className="text-muted-foreground">이 기간의 완료 자료가 없습니다.</span>}
             {snapshot ? <a className={`${buttonVariants({ variant: 'outline', size: 'sm' })} sm:ml-auto print:hidden`} data-slot="button" href={exportHref}>엑셀 다운로드</a> : null}
             {filters.importId ? <Link className="underline underline-offset-4" href={pgSettlementHref(filters, { importId: null, page: 1 })}>최신 수집 자료 조회</Link> : null}
           </div>
           {filters.mode === 'test' ? <p className={NOTE}>토스 테스트 환경은 정산 기록을 제공하지 않습니다. 실제 PG 정산 내역은 실거래 환경에서 조회합니다.</p> : null}
           {snapshot ? <>
-            <p className={NOTE}>현재 검색 결과 {report.pagination.total.toLocaleString('ko-KR')}건 · 금액은 통화별 원본 값이며 수수료의 소수 자릿수를 보존합니다.</p>
+            {/* 정산에서 제일 먼저 보는 숫자다. 승인·취소와 통화를 나눠 원문 그대로 보이고 순입금액으로 계산하지 않는다. */}
+            {report.totals.length ? <section aria-label="기간 합계" className="flex min-w-0 flex-col gap-2 rounded-xl border bg-card p-4 text-card-foreground" data-pg-settlement-totals="">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+                <h3 className="flex flex-wrap items-baseline gap-x-2 text-base font-semibold text-foreground">기간 합계 <span className="text-sm font-normal text-muted-foreground tabular-nums">{formatSalesDay(filters.startDate)} ~ {formatSalesDay(filters.endDate)} · 검색 조건 기준</span></h3>
+                <p className={NOTE}>검색 결과 {report.pagination.total.toLocaleString('ko-KR')}건 · 통화별 원본 값이며 수수료의 소수 자릿수를 보존합니다.</p>
+              </div>
+              <ConsoleGrid caption="기간 합계" configurable={false} columns={TOTAL_COLUMNS} rows={report.totals.map(row => ({ id: `${row.currency}:${row.kind}`, cells: [KIND_BADGE(row.kind), row.currency, row.count.toLocaleString('ko-KR'), STRONG_AMOUNT(row.amount), AMOUNT(row.feeAmount), STRONG_AMOUNT(row.payOutAmount)] }))} />
+            </section> : null}
+            {report.totals.length ? null : <p className={NOTE}>현재 검색 결과 {report.pagination.total.toLocaleString('ko-KR')}건 · 금액은 통화별 원본 값이며 수수료의 소수 자릿수를 보존합니다.</p>}
             {filters.tab === 'daily' ? <ConsoleGrid caption="일별 정산내역" preferencesKey="pg-settlement-daily" columns={DAILY_COLUMNS}
-              emptyLabel="조건에 맞는 일별 정산 내역이 없습니다." rows={report.daily.map(row => ({ id: `${row.date}:${row.currency}:${row.kind}`, cells: [row.date, PG_SETTLEMENT_KIND_LABELS[row.kind], row.currency, row.count.toLocaleString('ko-KR'), AMOUNT(row.amount), AMOUNT(row.feeAmount), AMOUNT(row.supplyAmount), AMOUNT(row.vat), AMOUNT(row.payOutAmount)] }))} /> : null}
+              emptyLabel="조건에 맞는 일별 정산 내역이 없습니다." rows={report.daily.map(row => ({ id: `${row.date}:${row.currency}:${row.kind}`, cells: [<span className="tabular-nums" key="date">{formatSalesDay(row.date)}</span>, KIND_BADGE(row.kind), row.currency, row.count.toLocaleString('ko-KR'), AMOUNT(row.amount), AMOUNT(row.feeAmount), AMOUNT(row.supplyAmount), AMOUNT(row.vat), AMOUNT(row.payOutAmount)] }))} /> : null}
             {filters.tab === 'transactions' ? <>
               <ConsoleGrid caption="건별 정산내역" preferencesKey="pg-settlement-transactions" columns={TRANSACTION_COLUMNS} emptyLabel="조건에 맞는 거래가 없습니다."
                 rows={report.transactions.map(row => ({ id: row.id, cells: [
                   row.referenceId && row.purpose === 'order' ? <Link key="order" className="font-medium tabular-nums underline-offset-4 hover:underline" href={`/admin/sales/orders/${row.referenceId}`}>{row.orderNumber}</Link> : row.orderNumber ?? '미연결',
-                  `${PG_SETTLEMENT_KIND_LABELS[row.kind]} · ${row.currency}`,
-                  <span key="match" className="flex flex-col items-start gap-1"><AdminStatusBadge tone={row.matchState === 'matched' ? 'success' : 'warning'}>{PG_SETTLEMENT_MATCH_LABELS[row.matchState]}</AdminStatusBadge><small className={NOTE}>{row.matchReason ? MATCH_REASON[row.matchReason] ?? '추가 확인 필요' : '추가 확인 필요'}</small></span>,
-                  <span key="date" className="flex flex-col tabular-nums">{row.soldDate}<small className={NOTE}>{row.paidOutDate}</small></span>, row.method, AMOUNT(row.amount), AMOUNT(row.payOutAmount), <TransactionDetails key="details" row={row} />,
+                  <span key="kind" className="inline-flex flex-wrap items-center gap-1">{KIND_BADGE(row.kind)} {row.currency}</span>,
+                  <span key="match" className="flex flex-col items-start gap-1"><AdminStatusBadge tone={statusTone('pgSettlementMatch', row.matchState)}>{PG_SETTLEMENT_MATCH_LABELS[row.matchState]}</AdminStatusBadge><small className={NOTE}>{row.matchReason ? MATCH_REASON[row.matchReason] ?? '추가 확인 필요' : '추가 확인 필요'}</small></span>,
+                  <span key="date" className="flex flex-col tabular-nums">{formatSalesDay(row.soldDate)}<small className={NOTE}>{formatSalesDay(row.paidOutDate)}</small></span>, row.method, AMOUNT(row.amount), AMOUNT(row.payOutAmount), <TransactionDetails key="details" row={row} />,
                 ] }))} />
               <ConsolePagination label="건별 정산내역 페이지" page={filters.page} pageSize={filters.pageSize} total={report.pagination.total} hrefForPage={page => pgSettlementHref(filters, { page })} />
             </> : null}
             {filters.tab === 'fees' ? <ConsoleGrid caption="수수료 내역" preferencesKey="pg-settlement-fees" emptyLabel="조건에 맞는 수수료 내역이 없습니다."
               columns={[{ key: 'currency', label: '통화', width: '80px' }, { key: 'kind', label: '거래 구분', width: '100px' }, { key: 'type', label: '수수료 항목' }, { key: 'count', label: '거래수', align: 'end', width: '100px' }, { key: 'fee', label: '수수료 원문 합계', align: 'end', width: '180px' }]}
-              rows={report.fees.map(row => ({ id: `${row.currency}:${row.kind}:${row.type}`, cells: [row.currency, PG_SETTLEMENT_KIND_LABELS[row.kind], PG_SETTLEMENT_FEE_LABELS[row.type] ?? `수수료 (${row.type})`, row.count.toLocaleString('ko-KR'), AMOUNT(row.fee)] }))} /> : null}
+              rows={report.fees.map(row => ({ id: `${row.currency}:${row.kind}:${row.type}`, cells: [row.currency, KIND_BADGE(row.kind), PG_SETTLEMENT_FEE_LABELS[row.type] ?? `수수료 (${row.type})`, row.count.toLocaleString('ko-KR'), AMOUNT(row.fee)] }))} /> : null}
           </> : null}
           {report.jobs.length ? <details className="rounded-xl border bg-card px-4 py-3 text-card-foreground"><summary className="cursor-pointer font-medium">수집 이력 ({report.jobs.length}건)</summary><ul className="mt-3 flex flex-col divide-y border-t">{report.jobs.map(item => <li className="flex flex-wrap justify-between gap-x-5 gap-y-2 py-3" key={item.id}>
-            <span className="tabular-nums">{kstDateTimeText(item.startedAt)} · {item.recordCount.toLocaleString('ko-KR')}건 · {item.state === 'complete' ? '완료' : item.state === 'failed' ? '중단' : '진행 중'}</span>
+            <span className="flex flex-wrap items-center gap-2 tabular-nums">{formatOrderDateTime(item.startedAt)} · {item.recordCount.toLocaleString('ko-KR')}건 <AdminStatusBadge tone={item.state === 'complete' ? 'success' : item.state === 'failed' ? 'danger' : 'info'}>{item.state === 'complete' ? '완료' : item.state === 'failed' ? '중단' : '진행 중'}</AdminStatusBadge></span>
             {item.state === 'complete' ? <Link className="underline underline-offset-4" href={pgSettlementHref(filters, { importId: item.id, page: 1 })}>이 자료 조회</Link> : null}
           </li>)}</ul></details> : null}
         </>}

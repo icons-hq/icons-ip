@@ -99,6 +99,18 @@ describe('ReviewConsoleScreen', () => {
     expect(html).not.toContain('그대로 굳습니다');
   });
 
+  /* 첫 화면을 리뷰가 차지한다 — 조회 조건은 접고, 메뉴와 겹치는 탭은 목록 아래로 내린다. */
+  it('조회 조건은 접고 탭은 목록 아래에 두며 답글·처리 칸을 앞쪽에 둔다', () => {
+    const html = render();
+    const openSearch = /<details(?=[^>]*data-cs-search="")(?=[^>]*\sopen="")/;
+    expect(html).not.toMatch(openSearch);
+    expect(render({ filters: { ...DEFAULT_ADMIN_REVIEW_FILTERS, query: '배송' } })).toMatch(openSearch);
+    expect(html.indexOf('data-slot="table"')).toBeLessThan(html.indexOf('aria-label="문의·리뷰 관리"'));
+    const head = html.slice(html.indexOf('<thead'), html.indexOf('</thead>'));
+    expect(head.indexOf('>처리<')).toBeGreaterThan(-1);
+    expect(head.indexOf('>처리<')).toBeLessThan(head.indexOf('>작성자<'));
+  });
+
   it('저평점 필터가 켜져 있으면 해제 링크로 바뀐다', () => {
     const html = render({ filters: { ...DEFAULT_ADMIN_REVIEW_FILTERS, lowRating: true } });
 
@@ -117,6 +129,15 @@ describe('ReviewConsoleScreen', () => {
     expect(html).toContain('답글 미등록');
     expect(html).toContain('블라인드');
     expect(html).toContain('조건에 맞는 리뷰가 없습니다.');
+  });
+
+  /* 같은 상태는 모든 화면에서 같은 색이다 — 건수 카드도 상태 표를 따른다(블라인드는 조용한 상태라 기본 모양이다). */
+  it('건수 카드와 상태 칸의 색은 상태 표(status-tone)를 따른다', () => {
+    const html = render();
+    expect(html).toMatch(/<a(?=[^>]*aria-label="블라인드 1건")(?=[^>]*data-tone="default")/);
+    expect(html).toMatch(/<a(?=[^>]*aria-label="미처리 신고 2건")(?=[^>]*data-tone="warning")/);
+    expect(html).toMatch(/<a(?=[^>]*aria-label="저평점\(2점 이하\) 3건")(?=[^>]*data-tone="danger")/);
+    expect(html).toMatch(/data-tone="success"[^>]*data-review-status="visible"|data-review-status="visible"[^>]*data-tone="success"/);
   });
 
   it('요구된 그리드 칸을 모두 그린다', () => {

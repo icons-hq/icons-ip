@@ -1,4 +1,6 @@
+import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import type { AdminInquiryDetail } from '@/lib/admin/inquiries.server';
+import { statusTone } from '@/lib/admin/status-tone';
 import { INQUIRY_SATISFACTION_LABELS } from '@/lib/inquiry-satisfaction';
 import { formatInquiryDateTime } from '@/lib/inquiries';
 
@@ -6,7 +8,7 @@ export function InquirySatisfactionContext({ result }: { result: AdminInquiryDet
   return <section className="flex min-w-0 flex-col gap-2 rounded-xl border bg-card p-4 text-sm text-card-foreground" aria-label="답변 만족도">
     <h3 className="text-sm font-medium text-foreground">답변 만족도</h3>
     {result?.ok ? <>
-      <span className="font-medium">{INQUIRY_SATISFACTION_LABELS[result.value.current.value ?? 'unrated']}</span>
+      <AdminStatusBadge tone={statusTone('inquirySatisfaction', result.value.current.value ?? 'unrated')}>{INQUIRY_SATISFACTION_LABELS[result.value.current.value ?? 'unrated']}</AdminStatusBadge>
       <small className="text-xs text-muted-foreground">{result.value.current.answerCreatedAt ? `평가 대상: ${formatInquiryDateTime(result.value.current.answerCreatedAt)} 답변` : '현재 평가할 운영자 답변 없음'}</small>
       {result.value.current.ratedAt ? <small className="text-xs text-muted-foreground">평가 {formatInquiryDateTime(result.value.current.ratedAt)}</small> : null}
       <p className="text-xs leading-relaxed text-muted-foreground">고객이 직접 남긴 평가입니다. 새 운영자 답변이 등록되면 현재 평가는 미평가로 시작합니다.</p>

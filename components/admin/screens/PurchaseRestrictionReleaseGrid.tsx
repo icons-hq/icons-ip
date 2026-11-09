@@ -6,6 +6,7 @@ import { ConsoleGrid, type ConsoleGridColumn, type ConsoleGridRow } from '@/comp
 import { readRestrictionReleaseAction, releaseRestrictionsAction } from '@/app/admin/purchase-restriction-release-actions';
 import { normalizeRestrictionRelease, type PurchaseRestrictionReleaseReceipt } from '@/lib/admin/purchase-restriction-release';
 import { formatOrderDateTime } from '@/lib/orders';
+import { ShortId } from '@/components/admin/sales/SalesConsole';
 import { CustomerServiceDialog } from './CustomerServiceDialog';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
@@ -17,8 +18,8 @@ export function PurchaseRestrictionReleaseResult({ receipt }: { receipt: Purchas
     <h3 className="text-base font-medium text-foreground">선택 해제 결과</h3><p role="status">해제 {count('released')}건 · 이미 해제 {count('already_released')}건 · 기록 없음 {count('not_found')}건</p>
     <p className="text-muted-foreground">처리 시각 {formatOrderDateTime(receipt.completedAt)} · 사유: {receipt.reason}</p>
     <ul className="flex flex-col gap-1 wrap-anywhere">{receipt.rows.map(row => <li key={row.id}>
-      <span className="tabular-nums">{row.id}</span> · {row.outcome === 'released' ? '해제 완료' : row.outcome === 'already_released' ? '이미 해제된 기록' : '해당 기록 없음'}
-      {row.customerRestricted ? <strong className="font-medium text-[var(--wc-warning)]"> · 현재 다른 구매제한 기록이 있습니다.</strong> : null}
+      <ShortId value={row.id} /> · {row.outcome === 'released' ? '해제 완료' : row.outcome === 'already_released' ? '이미 해제된 기록' : '해당 기록 없음'}
+      {row.customerRestricted ? <strong className="font-medium text-warning"> · 현재 다른 구매제한 기록이 있습니다.</strong> : null}
       {row.userId ? <> · <Link className="underline underline-offset-4" href={`/admin/customers/${row.userId}`}>고객 확인</Link></> : null}
     </li>)}</ul>
   </section>;

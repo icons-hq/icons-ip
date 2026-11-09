@@ -1,4 +1,5 @@
-import { AdminPageHeader, AdminSectionCard } from '@/components/admin/console/AdminKit';
+import { AdminPageHeader, AdminSectionCard, AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { statusTone } from '@/lib/admin/status-tone';
 import { StoreCreditPolicyForm } from '@/components/admin/screens/StoreCreditForms';
 import { requireAdminScreenAccess } from '@/lib/admin/guard.server';
 import { loadAdminStoreCreditPolicy } from '@/lib/admin/store-credits.server';
@@ -14,7 +15,7 @@ export default async function Page() {
   const sessionId = session.data.session?.user.id === auth.user.id ? inquiryDraftSessionId(session.data.session.access_token) : null;
   return <div className="flex min-w-0 flex-col gap-4">
     <AdminPageHeader title="적립금 정책" description="주문 할인용 적립금의 지급·사용·만료·환불 기준을 설정합니다. 정책 변경과 단건 조정은 관리자만 할 수 있습니다." />
-    <AdminSectionCard title={policy.enabled ? '활성 정책' : '비활성 정책'}><StoreCreditPolicyForm policy={policy} operationId={crypto.randomUUID()} /></AdminSectionCard>
+    <AdminSectionCard summary={<AdminStatusBadge tone={statusTone('setting', policy.enabled ? 'active' : 'inactive')}>{policy.enabled ? '사용 중' : '비활성'}</AdminStatusBadge>} title={policy.enabled ? '활성 정책' : '비활성 정책'}><StoreCreditPolicyForm policy={policy} operationId={crypto.randomUUID()} /></AdminSectionCard>
     <AdminSectionCard title="등급·리뷰 보상"><CustomerRewardPolicyForm key={`${auth.user.id}:${sessionId}`} initial={rewards} actorId={auth.user.id} sessionId={sessionId} /></AdminSectionCard>
   </div>;
 }

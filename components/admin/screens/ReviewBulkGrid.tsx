@@ -8,6 +8,7 @@ import { parseReviewBatchRequest, reviewBatchFailureLabel, REVIEW_BATCH_MAX, typ
 import { CustomerServiceDialog } from './CustomerServiceDialog';
 import { CustomerServiceRecordProvider, type CustomerServiceRecordNavigationProps } from './CustomerServiceRecordNavigation';
 import { CsReplyTemplateTools } from './CsReplyTemplateTools';
+import { AdminNotice } from '@/components/admin/console/AdminKit';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Label } from '@/components/admin/kit/ui/label';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
@@ -49,14 +50,14 @@ export function ReviewBulkGrid({columns,rows,reviews,accountId='',navigation}:{c
     <ConsoleGrid caption="리뷰 목록" preferencesKey="cs-reviews" columns={columns} rows={rows} emptyLabel="조건에 맞는 리뷰가 없습니다."
       selectable selectedIds={selected} onSelectionChange={ids=>setSelection({page:pageKey,ids})}>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border bg-muted/40 px-3 py-2 text-sm" data-review-bulk=""><span className="tabular-nums">선택 {selected.length}건 · 최대 {REVIEW_BATCH_MAX}건</span>
-        <Button disabled={!request&&(selected.length<1||selected.length>REVIEW_BATCH_MAX)} onClick={launch} size="sm" type="button" variant="outline">{request&&!result?'이전 일괄답글 결과 확인':'일괄 답글 작성'}</Button>
+        <Button disabled={!request&&(selected.length<1||selected.length>REVIEW_BATCH_MAX)} onClick={launch} size="sm" type="button" variant="soft">{request&&!result?'이전 일괄답글 결과 확인':'일괄 답글 작성'}</Button>
         {selected.length>REVIEW_BATCH_MAX&&<span className="text-destructive" role="alert">리뷰는 최대 {REVIEW_BATCH_MAX}개까지 선택해주세요.</span>}
       </div>
     </ConsoleGrid>
     {open&&<CustomerServiceDialog title="판매자 일괄 답글 작성" busy={pending} onClose={()=>setOpen(false)} wide>
       <div className="flex min-w-0 flex-col gap-4 text-sm">
       {result?<>
-        <p className="font-medium" role="status">등록 {result.items.filter(item=>item.status==='saved').length}건 · 같은 내용 {result.items.filter(item=>item.status==='unchanged').length}건 · 실패 {failures.length}건</p>
+        <AdminNotice role="status" title={`등록 ${result.items.filter(item=>item.status==='saved').length}건 · 같은 내용 ${result.items.filter(item=>item.status==='unchanged').length}건 · 실패 ${failures.length}건`} tone={failures.length?'warning':'success'} />
         <ul className="flex max-h-60 flex-col gap-2 overflow-y-auto rounded-lg border p-3">{result.items.map(item=><li className="wrap-anywhere" key={item.reviewId}><code className="rounded bg-muted px-1 py-0.5 text-xs">{item.reviewId}</code> — {item.status==='saved'?'등록 완료':item.status==='unchanged'?'이미 같은 답글이 있습니다.':reviewBatchFailureLabel(item.code)}</li>)}</ul>
         <p className="text-muted-foreground">완료된 항목에는 답글을 다시 등록하지 않습니다. 실패 항목은 최신 원문과 답글을 확인한 뒤 새로 선택해주세요.</p>
         <Button className="self-start" onClick={()=>{setSelection({page:pageKey,ids:failures.map(item=>item.reviewId).filter(id=>reviews.some(review=>review.id===id))});setFrozen(null);setResult(null);setReply('');setOpen(false);}} size="sm" type="button">결과 확인</Button>

@@ -1,11 +1,13 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { ChevronDown, type LucideIcon } from 'lucide-react';
 import { ConsoleFilterField } from '@/components/admin/console';
 import { ADMIN_COUNT_CARD_GRID_CLASS, AdminCountCard, type AdminCountTone } from '@/components/admin/console/AdminCountCard';
 import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { SALES_PAGE_SIZES, SALES_SORT_OPTIONS, salesListHiddenFields } from '@/lib/admin/sales-list';
+import { formatOrderDate } from '@/lib/orders';
 import { SalesDateRange } from './SalesDateRange';
 
 /*
@@ -16,14 +18,48 @@ import { SalesDateRange } from './SalesDateRange';
 
 type Option = { value: string; label: string };
 
-/** 접는 메뉴설명(기준 화면 ClaimQueueKitScreen과 같은 모양). 처음에는 펼쳐 둔다. */
+/**
+ * 접는 메뉴설명. 매일 쓰는 화면의 목록을 밀어내지 않도록 처음에는 접어 두고(ADR-0029),
+ * 카드가 아니라 제목 아래 한 줄로 그린다 — 같은 모양의 안내 상자가 화면마다 표 한 줄 자리를 차지하지 않게 한다.
+ */
 export function SalesGuide({ title, children }: { title: string; children: ReactNode }) {
-  return <details className="group rounded-xl border bg-card px-4 py-3 text-sm" data-sales-guide="" open>
-    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-medium [&::-webkit-details-marker]:hidden">
-      <strong className="min-w-0 font-medium">{title}</strong>
-      <span className="shrink-0 text-xs font-normal text-muted-foreground"><span className="hidden group-open:inline">메뉴설명 접기</span><span className="group-open:hidden">메뉴설명 보기</span></span>
+  return <details className="group text-sm" data-sales-guide="">
+    <summary className="flex cursor-pointer list-none flex-wrap items-baseline gap-x-2 gap-y-0.5 rounded-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
+      <span className="min-w-0">{title}</span>
+      <span className="shrink-0 text-xs underline underline-offset-4"><span className="hidden group-open:inline">메뉴설명 접기</span><span className="group-open:hidden">메뉴설명 보기</span></span>
     </summary>
-    <div className="mt-2 flex flex-col gap-1 text-muted-foreground [&_a]:font-medium [&_a]:text-foreground [&_a]:underline [&_a]:underline-offset-4 [&_ol]:flex [&_ol]:list-decimal [&_ol]:flex-col [&_ol]:gap-1 [&_ol]:pl-5">{children}</div>
+    <div className="mt-2 flex flex-col gap-1 rounded-lg bg-muted/40 px-3 py-2.5 text-muted-foreground [&_a]:font-medium [&_a]:text-foreground [&_a]:underline [&_a]:underline-offset-4 [&_ol]:flex [&_ol]:list-decimal [&_ol]:flex-col [&_ol]:gap-1 [&_ol]:pl-5">{children}</div>
+  </details>;
+}
+
+/** 긴 식별값(UUID)을 앞 8자 + …로 줄여 보이고 전체 값은 title에 둔다. 검색·링크에 쓰는 값은 그대로다. */
+export function ShortId({ value, className }: { value: string; className?: string }) {
+  return <span className={`tabular-nums${className ? ` ${className}` : ''}`} title={value}>{value.length > 12 ? `${value.slice(0, 8)}…` : value}</span>;
+}
+
+/** `YYYY-MM-DD` 달력 날짜를 화면 공통 표기(2026. 11. 9.)로 보인다. */
+export function formatSalesDay(day: string) {
+  return formatOrderDate(`${day}T12:00:00+09:00`);
+}
+
+/**
+ * 접히는 카드. 접힌 한 줄에 제목·상태·요약을 보이고 설명과 입력은 펼쳐서 본다 — 설정 카드가 처리할 목록을 밀어내지 않게 한다.
+ * 닫아도 내용은 DOM에 남아 입력값과 양식 제출이 그대로다.
+ */
+export function SalesDisclosureCard({ title, status, summary, children, openLabel = '설정 펼치기', closeLabel = '설정 접기', id }: {
+  title: string; status?: ReactNode; summary?: ReactNode; children: ReactNode; openLabel?: string; closeLabel?: string; id?: string;
+}) {
+  return <details className="group min-w-0 scroll-mt-16 rounded-xl border bg-card text-sm text-card-foreground" data-sales-disclosure="" id={id}>
+    <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 rounded-xl px-4 py-3 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
+      <h3 className="text-sm leading-snug font-semibold text-foreground">{title}</h3>
+      {status}
+      {summary ? <span className="min-w-0 text-muted-foreground">{summary}</span> : null}
+      <span className="ml-auto flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+        <span className="group-open:hidden">{openLabel}</span><span className="hidden group-open:inline">{closeLabel}</span>
+        <ChevronDown aria-hidden="true" className="size-4 transition-transform group-open:rotate-180" />
+      </span>
+    </summary>
+    <div className="flex min-w-0 flex-col gap-4 border-t p-4 sm:p-5">{children}</div>
   </details>;
 }
 
@@ -73,10 +109,11 @@ export function SalesFilterPanel({
         {searchHint && <small className="text-xs text-muted-foreground wrap-anywhere" id={`${id}-query-hint`}>{searchHint}</small>}
       </ConsoleFilterField>
       {children}
-    </div>
-    <div className="flex flex-wrap justify-end gap-2 border-t pt-3">
-      <Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={resetHref ?? action}>초기화</Link>
-      <Button type="submit" variant="soft">검색</Button>
+      {/* 조회 버튼을 입력과 같은 줄 끝에 둔다 — 버튼만의 줄이 처리할 목록을 한 줄씩 밀어낸다. */}
+      <div className="ml-auto flex items-center gap-2 self-end">
+        <Link className={buttonVariants({ variant: 'ghost' })} data-slot="button" href={resetHref ?? action}>초기화</Link>
+        <Button type="submit" variant="soft">검색</Button>
+      </div>
     </div>
   </form>;
 }
@@ -94,7 +131,7 @@ export function SalesResultsHeader({
       {Object.entries(hidden).map(([name, value]) => <input key={name} type="hidden" name={name} value={value} />)}
       <SalesSelect name="sort" value={sort} options={sortOptions} label="목록 정렬" size="sm" />
       <SalesSelect name="pageSize" value={String(pageSize)} options={pageSizes.map((size) => ({ value: String(size), label: `${size}개씩 보기` }))} label="목록 수" size="sm" />
-      <Button size="sm" type="submit" variant="outline">적용</Button>
+      <Button size="sm" type="submit" variant="soft">적용</Button>
     </form>
     {children}
   </div>;
@@ -106,14 +143,21 @@ export function SalesResultsTitle({ total, unit = '건' }: { total: number; unit
 }
 
 /** 처리 단계별 건수 카드(기준 화면의 단계 카드 모양). 건수를 모르면 0으로 꾸미지 않고 숫자를 비워 둔다. */
-export function SalesStatusSummary({ items, label }: {
-  items: readonly { label: string; href: string; count?: number; active: boolean; urgent?: boolean; tone?: AdminCountTone }[];
+export function SalesStatusSummary({ items, label, aside }: {
+  items: readonly { label: string; href: string; count?: number; active: boolean; urgent?: boolean; tone?: AdminCountTone; icon?: LucideIcon }[];
   label: string;
+  /** 단계 이름 줄의 오른쪽 끝에 붙는 상태 표시. 첫 화면의 높이를 늘리지 않는다. */
+  aside?: ReactNode;
 }) {
+  /* 8칸은 넓은 화면에서 한 줄에 세운다 — 마지막 칸만 둘째 줄에 남으면 표가 한 줄 밀린다. */
+  const grid = items.length === 8 ? 'grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-8' : ADMIN_COUNT_CARD_GRID_CLASS;
   return <nav aria-label={label} className="flex flex-col gap-2" data-sales-summary="">
-    <p className="text-xs font-medium text-muted-foreground">{label}</p>
-    <div className={ADMIN_COUNT_CARD_GRID_CLASS}>
-      {items.map((item) => <AdminCountCard active={item.active} count={item.count} current="page" href={item.href} key={item.href} label={item.label} tone={item.urgent ? 'danger' : item.tone ?? 'default'} />)}
+    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      {aside}
+    </div>
+    <div className={grid}>
+      {items.map((item) => <AdminCountCard active={item.active} count={item.count} current="page" href={item.href} icon={item.icon} key={item.href} label={item.label} tone={item.urgent ? 'danger' : item.tone ?? 'default'} />)}
     </div>
   </nav>;
 }

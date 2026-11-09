@@ -7,20 +7,20 @@
  * - neutral: 끝났거나 조용한 상태(초안·종결·보관·거래확정)
  * - info: 진행 중(배송중·검토중·예약)
  * - success: 정상 완료(배송완료·답변 완료·공개)
- * - warning: 사람이 곧 처리해야 함(입금 대기·미답변·임박)
+ * - warning: 우리가 곧 처리해야 함(신규주문·미답변·임박). 고객을 기다리는 상태(입금 대기·선물 수락 대기)는 neutral이다
  * - danger: 문제·중단(취소·거부·품절·실패)
  */
 export type AdminTone = 'neutral' | 'info' | 'success' | 'warning' | 'danger';
 
 const STATUS_TONES = {
   /** 주문 상태 — lib/admin/orders ADMIN_ORDER_STATUS_LABELS */
-  order: { pending: 'warning', paid: 'warning', confirmed: 'info', shipping: 'info', delivered: 'success', done: 'neutral', canceled: 'danger' },
+  order: { pending: 'neutral', paid: 'warning', confirmed: 'info', shipping: 'info', delivered: 'success', done: 'neutral', canceled: 'danger' },
   /** 티켓 예매 상태 */
   ticketOrder: { pending: 'warning', paid: 'success', canceled: 'danger' },
   /** 결제 상태 */
   payment: { pending: 'warning', paid: 'success', canceled: 'danger', failed: 'danger', refunded: 'neutral' },
   /** 클레임 단계 — lib/orders/claims ORDER_CLAIM_STAGE_LABELS */
-  claim: { requested: 'warning', in_review: 'info', collecting: 'info', collected: 'info', on_hold: 'warning', processing: 'info', needs_review: 'danger', completed: 'success', rejected: 'danger', withdrawn: 'neutral' },
+  claim: { requested: 'warning', in_review: 'info', collecting: 'info', collected: 'info', on_hold: 'warning', processing: 'info', needs_review: 'danger', completed: 'success', rejected: 'neutral', withdrawn: 'neutral' },
   /** 고객문의 */
   inquiry: { open: 'warning', answered: 'success', closed: 'neutral' },
   /** 상품문의 */
@@ -46,14 +46,64 @@ const STATUS_TONES = {
   /** 마케팅 메시지 */
   marketing: { draft: 'neutral', queued: 'info', processing: 'info', completed: 'success', blocked: 'warning', canceled: 'neutral', expired: 'warning' },
   /** 선물 */
-  gift: { awaiting_acceptance: 'warning', accepted: 'info', ordered: 'success', declined: 'neutral', expired: 'neutral', canceled: 'danger' },
+  gift: { awaiting_acceptance: 'neutral', accepted: 'info', ordered: 'success', declined: 'neutral', expired: 'neutral', canceled: 'danger' },
   /** 티켓 */
   ticket: { valid: 'success', used: 'neutral', refunded: 'neutral' },
   /** 판매 준비 */
   readiness: { ready: 'success', blocked: 'warning', review_required: 'warning', unknown: 'warning' },
   /* 화면군별 상태. 새 상태는 자기 화면군 줄 아래에만 더한다(병렬 작업 합칠 때 겹치지 않게). */
   // [sales]
+  /** 배송 건 — lib/orders/shipments ShipmentStatus */
+  shipment: { ready: 'info', shipping: 'info', delivered: 'success', canceled: 'danger' },
+  /** 환불 원장 — lib/orders refundStatusLabel */
+  refund: { requested: 'warning', awaiting_transfer: 'warning', done: 'success', failed: 'danger' },
+  /** 무통장 환불 송금 단계 — lib/admin/bank-transfer-refund phase */
+  refundTransfer: { not_confirmed: 'warning', awaiting_transfer: 'warning', completed: 'success' },
+  /** 미결제 무통장의 결제 시도. 입금 대기는 이 목록의 평상 상태라 조용히 둔다(전 행이 주의색이면 기한 임박 신호가 죽는다). missing은 원장이 없는 주문 */
+  unpaid: { prepared: 'neutral', confirming: 'info', needs_review: 'danger', unknown: 'danger', missing: 'danger' },
+  /** 반품·교환 배송비 청구 — lib/orders/claim-fees */
+  claimFee: { unpaid: 'warning', reported: 'warning', paid: 'success', waived: 'neutral', voided: 'neutral', refund_due: 'danger', refunded: 'success' },
+  /** 정기구매 신청 — lib/subscriptions/model */
+  subscription: { draft: 'neutral', awaiting_first_payment: 'info', active: 'success', paused: 'neutral', needs_confirmation: 'warning', canceled: 'danger' },
+  /** 정기구매 회차 결제 */
+  subscriptionCycle: { draft: 'neutral', ready: 'info', prepared: 'info', dispatching: 'info', unknown: 'warning', needs_review: 'danger', approved: 'success', declined: 'danger', canceled: 'danger', skipped: 'neutral' },
+  /** 배송 건별 지연 안내 결과 — lib/admin/shipment-delay-notice */
+  delayNotice: { sent: 'success', partial_failed: 'warning', pending: 'info', unknown: 'warning', not_sent: 'neutral' },
+  /** 지연 안내 채널별 결과 — lib/admin/order-delay-notices */
+  delayNoticeChannel: { prepared: 'neutral', queued: 'info', processing: 'info', sent: 'success', failed: 'danger', unknown: 'warning', suppressed: 'neutral' },
+  /** 배송 안내 메일 작업 */
+  shipmentEmail: { pending: 'info', processing: 'info', completed: 'success', review: 'danger' },
+  /** 착불 배송비 수납 — lib/admin/shipping-collect-events */
+  shippingCollect: { planned: 'info', collected: 'success', void: 'neutral', refund_review: 'warning', refunded: 'neutral', mismatch: 'danger' },
+  /** 주문제작 — lib/order-production */
+  production: { pending: 'warning', started: 'info', completed: 'success', canceled: 'danger' },
+  /** PG 정산 거래 구분 — lib/settlements/report. 승인은 평상 상태라 조용히 두고 취소 줄만 구분한다 */
+  pgSettlementKind: { approval: 'neutral', cancel: 'danger' },
+  /** PG 정산 수집 시점 대조 — lib/settlements/report */
+  pgSettlementMatch: { matched: 'success', unlinked: 'warning', mismatch: 'danger' },
   // [cs]
+  /** 고객문의 답변 만족도 — lib/inquiry-satisfaction */
+  inquirySatisfaction: { satisfied: 'success', dissatisfied: 'danger', unrated: 'neutral' },
+  /** 상품문의 노출 */
+  questionVisibility: { visible: 'success', hidden: 'neutral' },
+  /** BEST 리뷰 선정 — lib/review-best */
+  reviewBest: { selected: 'success', not_selected: 'neutral', needs_review: 'warning' },
+  /** BEST 리뷰 적립금 보상 — lib/admin/customer-rewards */
+  reviewBestReward: { none: 'neutral', disabled: 'neutral', pending: 'info', paid: 'success', revoked: 'neutral', capped: 'warning', skipped: 'neutral' },
+  /** 리뷰이벤트 — lib/review-events */
+  reviewEvent: { scheduled: 'info', active: 'success', closed: 'warning', ready: 'warning', announced: 'neutral', archived: 'neutral' },
+  /** 회원 계정 */
+  member: { active: 'success', suspended: 'danger' },
+  /** 회원 권한(profiles.role). 관리자만 눈에 띄게 한다 */
+  memberRole: { admin: 'info', staff: 'neutral', user: 'neutral' },
+  /** 매니저 역할 — lib/admin/access MANAGER_ROLES. 통합 매니저만 눈에 띄게 한다 */
+  managerRole: { owner: 'info', primary: 'neutral', deputy: 'neutral', influencer: 'neutral', agency: 'neutral', logistics: 'neutral' },
+  /** 메일 발송 — lib/email/dedupe */
+  emailDelivery: { pending: 'info', sent: 'success', failed: 'danger' },
+  /** 매니저 초대 — lib/admin/operator-invitations */
+  operatorInvitation: { pending: 'warning', accepted: 'success', cancelled: 'neutral', replaced: 'neutral', expired: 'neutral' },
+  /** 매니저 초대 메일 — invitationEmailLabel이 돌려주는 상태 이름 */
+  operatorInvitationEmail: { '전달 완료': 'success', '발송 접수': 'info', '발송 처리 중': 'info', '발송 대기': 'neutral', '전달 지연': 'warning', '재초대 필요': 'warning', '결과 확인 필요': 'warning', '발송 설정 확인 필요': 'warning', '발송 실패': 'danger' },
   // [catalog]
   /** 카드풀 운영 기간 */
   cardPool: { scheduled: 'info', active: 'success', ended: 'neutral' },
@@ -61,8 +111,8 @@ const STATUS_TONES = {
   game: { scheduled: 'info', active: 'success', ended: 'neutral', 'pool-unavailable': 'danger' },
   /** 카드팩 발급 정책 */
   rewardPolicy: { inactive: 'neutral', scheduled: 'info', active: 'success', ended: 'neutral', 'pool-unavailable': 'danger' },
-  /** 이벤트 — 화면 이름 그대로 저장된 값이다 */
-  event: { 예정: 'info', 예매중: 'success', 진행중: 'success', 종료: 'neutral' },
+  /** 이벤트 — 화면 이름 그대로 저장된 값이다. 열리기 전(예정·예매중)은 파랑, 진행중만 초록이다 */
+  event: { 예정: 'info', 예매중: 'info', 진행중: 'success', 종료: 'neutral' },
   /** 티켓 회차 정원 */
   ticketAllocation: { open: 'success', full: 'danger', empty: 'neutral' },
   /** 상품공지사항 전시 */
@@ -86,8 +136,8 @@ const STATUS_TONES = {
   couponIssue: { prepared: 'info', invalid: 'warning', completed: 'success', failed: 'danger' },
   /** 설정 항목(출고지·배송비 묶음그룹·템플릿 등)의 사용 상태 */
   setting: { active: 'success', inactive: 'neutral', archived: 'neutral' },
-  /** 지역 추가 배송비 정책 버전 */
-  regionPolicy: { draft: 'neutral', active: 'success', retired: 'neutral' },
+  /** 지역 추가 배송비 정책 버전. 중단은 신규 주문 차단과 이어져 확인이 필요하다(초안과 다른 색이다). */
+  regionPolicy: { draft: 'neutral', active: 'success', retired: 'warning' },
   /** 적립금 일괄 지급 작업 */
   creditBatch: { prepared: 'warning', invalid: 'warning', completed: 'success', failed: 'danger' },
 } as const satisfies Record<string, Record<string, AdminTone>>;

@@ -120,4 +120,13 @@ describe('TicketSection', () => {
     expect(html).toContain('aria-label="티켓 회차 목록"');
     expect(html).toContain('등록된 티켓 회차가 없습니다.');
   });
+
+  it('목록은 회차명을 먼저 보이고 남은 수량을 숫자로 말하며, 입력 묶음 맨 위에 등록·수정 제목을 둔다', () => {
+    const html = renderTicketSection(ticketType);
+
+    expect(html).toMatch(/<span class="line-clamp-2[^"]*">7월 25일 1회차<\/span>/);
+    expect(html).toMatch(/data-tone="success"[^>]*>잔여 68</);
+    expect(html).toContain('>7월 25일 1회차 수정</h3>');
+    expect(renderTicketSection(null)).toContain('>새 티켓 회차 등록</h3>');
+  });
 });

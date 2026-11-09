@@ -11,6 +11,8 @@ import {
   bankDepositConfidenceLabel,
   bankDepositNeedsSecondLook,
 } from '../../lib/payments/bank-deposit-feed';
+import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { krw } from '@/lib/format';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 
@@ -23,7 +25,7 @@ const LABEL_CLASS = 'flex w-full min-w-0 flex-col gap-1.5 [&>span]:text-sm [&>sp
 function ActionResult({ state }: { state: AdminUnpaidActionState }) {
   return <>
     {state.error && <p className="text-sm text-destructive" role="alert">{state.error}</p>}
-    {state.message && <p className="text-sm text-[var(--wc-success)]" role="status">{state.message}</p>}
+    {state.message && <p className="text-sm text-success" role="status">{state.message}</p>}
   </>;
 }
 
@@ -51,7 +53,7 @@ function DepositCard({ deposit }: { deposit: AdminBankDepositRow }) {
   return (
     <li className="flex flex-col gap-3 rounded-lg border p-3">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <strong className="text-base font-semibold tabular-nums">{deposit.amount.toLocaleString('ko-KR')}원</strong>
+        <strong className="text-base font-semibold tabular-nums">{krw(deposit.amount)}</strong>
         <span>{deposit.depositorName}</span>
         <span className="text-xs text-muted-foreground tabular-nums">{deposit.source} · {deposit.externalId}</span>
       </div>
@@ -61,12 +63,11 @@ function DepositCard({ deposit }: { deposit: AdminBankDepositRow }) {
         <form action={confirmAction} className={FORM_CLASS}>
           <input name="depositId" type="hidden" value={deposit.id} />
           <input name="orderId" type="hidden" value={suggested} />
-          <p className={bankDepositNeedsSecondLook(deposit.suggestedConfidence) ? 'text-[var(--wc-warning)]' : 'text-muted-foreground'}>
+          <p className={`flex flex-wrap items-center gap-1.5 ${bankDepositNeedsSecondLook(deposit.suggestedConfidence) ? 'text-warning' : 'text-muted-foreground'}`}>
             제안: 주문 <strong className="font-medium text-foreground tabular-nums">{deposit.suggestedOrderCode}</strong>
-            {' · '}
-            {bankDepositConfidenceLabel(deposit.suggestedConfidence)}
+            <AdminStatusBadge tone={bankDepositNeedsSecondLook(deposit.suggestedConfidence) ? 'warning' : 'info'}>{bankDepositConfidenceLabel(deposit.suggestedConfidence)}</AdminStatusBadge>
             {bankDepositNeedsSecondLook(deposit.suggestedConfidence)
-              && ' — 금액이 다릅니다. 부분 입금인지 먼저 확인해주세요.'}
+              && <span>금액이 다릅니다. 부분 입금인지 먼저 확인해주세요.</span>}
           </p>
           <label className={LABEL_CLASS}>
             <span>입금 근거</span>

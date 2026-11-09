@@ -17,8 +17,8 @@ const CHOICE = 'inline-flex min-h-7 cursor-pointer items-center gap-2 text-sm';
 const SELECT = 'w-full sm:w-40';
 
 function SearchRow({ label, children }: { label: ReactNode; children: ReactNode }) {
-  return <div className="grid gap-2 border-b py-3 sm:grid-cols-[8.5rem_minmax(0,1fr)] sm:gap-4" data-goods-search="row">
-    <div className="text-sm font-medium sm:pt-1.5">{label}</div>
+  return <div className="grid gap-2 border-b py-2.5 sm:grid-cols-[8.5rem_minmax(0,1fr)] sm:items-center sm:gap-4" data-goods-search="row">
+    <div className="text-sm font-medium">{label}</div>
     <div className="min-w-0">{children}</div>
   </div>;
 }
@@ -31,12 +31,12 @@ export function GoodsListFiltersForm({ data }: { data: AdminGoodsListData }) {
     <input type="hidden" name="sort" value={filters.sort ?? 'created_desc'} />
     <input type="hidden" name="pageSize" value={data.pageSize ?? filters.pageSize ?? 20} />
     <SearchRow label={<label htmlFor="goods-list-query">검색어</label>}>
-      <div className="flex flex-col gap-2">
-        <fieldset className="flex flex-wrap gap-x-5 gap-y-1"><legend className="sr-only">검색 대상</legend>
+      {/* 넓은 화면에서는 검색 대상과 입력 칸이 한 줄이다 — 첫 화면에 상품이 더 보인다. */}
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+        <fieldset className="flex flex-wrap gap-x-4 gap-y-1"><legend className="sr-only">검색 대상</legend>
           {GOODS_LIST_SEARCH_FIELDS.map(item => <label className={CHOICE} key={item.value}><input type="radio" name="field" value={item.value} defaultChecked={(filters.field ?? 'all') === item.value} />{item.label}</label>)}
         </fieldset>
-        <Input className="sm:max-w-xl" id="goods-list-query" type="search" name="q" maxLength={100} defaultValue={filters.query} aria-describedby="goods-list-query-hint" placeholder="상품명, 상품번호, 판매자상품코드, ERP 코드" />
-        <p className="text-xs leading-relaxed text-muted-foreground" id="goods-list-query-hint">상품번호는 쉼표나 공백으로 구분해 여러 개를 조회할 수 있습니다. 전체 검색에는 영문명·검색 키워드도 포함됩니다.</p>
+        <Input className="min-w-60 flex-1 basis-60 sm:max-w-xl" id="goods-list-query" type="search" name="q" maxLength={100} defaultValue={filters.query} aria-describedby="goods-list-query-hint" placeholder="상품명, 상품번호, 판매자상품코드, ERP 코드" />
       </div>
     </SearchRow>
     {/* 자주 쓰는 조건만 첫 화면에 둔다(판매상태·카테고리 한 줄). 나머지는 아래 상세검색에 접혀 있어도 같은 폼으로 제출된다. */}
@@ -70,7 +70,9 @@ export function GoodsListFiltersForm({ data }: { data: AdminGoodsListData }) {
       </div></div>
       </div>
     </details>
-    <div className="absolute top-1.5 right-0 flex gap-2"><Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={GOODS_LIST_PATH}>초기화</Link><Button type="submit" variant="soft">검색</Button></div>
+    {/* 검색어 안내는 버튼 줄의 빈자리에 둔다 — 안내 한 줄만큼 목록이 위로 올라온다. 좁은 화면에서는 입력 칸의 설명으로만 남는다. */}
+    <p className="absolute top-3.5 right-44 left-28 hidden truncate text-xs text-muted-foreground lg:block" id="goods-list-query-hint">상품번호는 쉼표나 공백으로 구분해 여러 개를 조회할 수 있습니다. 전체 검색에는 영문명·검색 키워드도 포함됩니다.</p>
+    <div className="absolute top-1.5 right-0 flex gap-2"><Link className={buttonVariants({ variant: 'ghost' })} data-slot="button" href={GOODS_LIST_PATH}>초기화</Link><Button type="submit" variant="soft">검색</Button></div>
     </div>
   </form>;
 }

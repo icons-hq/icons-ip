@@ -535,7 +535,7 @@ describe('getAdminOrderRecords', () => {
     };
   }
 
-  it('운영자 전액 취소의 운영 사유와 정합화 오류 코드를 싣는다', async () => {
+  it('운영자 전액 취소의 운영 사유와 결제사 확인 오류 코드를 싣는다', async () => {
     mocks.client = createClient({ records: [], rpc: vi.fn(), rpcRows: [staffRow({})] });
 
     const result = await getAdminOrderRecords(filters);

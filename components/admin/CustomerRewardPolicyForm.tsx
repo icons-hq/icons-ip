@@ -3,12 +3,12 @@ import { useState, useTransition } from 'react';
 import { Check, RotateCcw } from 'lucide-react';
 import { readCustomerRewardPolicyAction, saveCustomerRewardPolicyAction } from '@/app/admin/customer-reward-actions';
 import { REWARD_GRADES, rewardPercentBps, type CustomerRewardPolicy } from '@/lib/admin/customer-rewards';
-import { AdminField } from './console/AdminKit';
+import { AdminField, AdminNotice } from './console/AdminKit';
 import { Button } from './kit/ui/button';
 import { Input } from './kit/ui/input';
 import { NativeSelect } from './kit/ui/native-select';
 import { Textarea } from './kit/ui/textarea';
-import { ACTIONS, ALERT_BOX, CHECK_LABEL, NOTE, STATUS_BOX } from './settings-kit';
+import { ACTIONS, CHECK_LABEL, NOTE } from './settings-kit';
 import { useGoodsGroupSession } from './GoodsGroupOperation';
 
 const FIELDSET = 'm-0 flex min-w-0 flex-col gap-3 rounded-lg border p-4';
@@ -39,7 +39,7 @@ export function CustomerRewardPolicyForm({ initial, actorId, sessionId }: { init
     else setMessage(result.error ?? '현재 저장본을 조회하지 못했습니다.'); }); }
   return <form className="flex min-w-0 scroll-mt-16 flex-col gap-4" id="customer-rewards" onSubmit={event => { event.preventDefault(); save(); }}>
     <p className={NOTE}>기본 적립금의 지급 상한·최대 보유액·환불 회수 기준을 함께 적용합니다. 자동 지급은 초기에는 꺼져 있습니다.</p>
-    {!initial.baseCreditEnabled ? <p className={STATUS_BOX}>기본 적립금 정책을 활성화한 뒤 자동 보상을 켤 수 있습니다.</p> : null}
+    {!initial.baseCreditEnabled ? <AdminNotice tone="warning">기본 적립금 정책을 활성화한 뒤 자동 보상을 켤 수 있습니다.</AdminNotice> : null}
     <fieldset className={FIELDSET} disabled={blocked}><legend className={LEGEND}>등급별 주문 적립</legend><label className={CHECK_LABEL}><input type="checkbox" checked={draft.gradeEnabled} onChange={event => setDraft({ ...draft, gradeEnabled: event.target.checked })} /> 등급별 최종 적립률 사용</label>
       <p className={NOTE}>기본 지급률·고정액을 아래 최종 적립률로 대체합니다. 주문 생성 시 등급과 적립률을 고정하고 거래확정 때 지급합니다. 배송비와 사용한 적립금은 적립 기준에서 제외합니다.</p>
       <div className={GRID}>{REWARD_GRADES.map(grade => <AdminField key={grade} label={`${grade.toUpperCase()} 최종 적립률 (%)`} inputId={`reward-rate-${grade}`}><Input id={`reward-rate-${grade}`} type="number" min="0" max="100" step="0.01" value={draft.rates[grade]} onChange={event => setDraft({ ...draft, rates: { ...draft.rates, [grade]: event.target.value } })} /></AdminField>)}</div>
@@ -54,6 +54,6 @@ export function CustomerRewardPolicyForm({ initial, actorId, sessionId }: { init
     <AdminField label="정책 근거·운영 메모" inputId="customer-reward-evidence"><Textarea id="customer-reward-evidence" disabled={blocked} rows={3} maxLength={2000} value={draft.evidence} onChange={event => setDraft({ ...draft, evidence: event.target.value })} /></AdminField>
     <label className={CHECK_LABEL}><input type="checkbox" disabled={blocked} checked={draft.acknowledged} onChange={event => setDraft({ ...draft, acknowledged: event.target.checked })} /> 적용 시점·지급 상한·보상 회수 정책을 확인했습니다.</label>
     <div className={ACTIONS}><Button disabled={blocked || !draft.acknowledged} type="submit"><Check aria-hidden="true" />등급·리뷰 보상 정책 저장</Button><Button disabled={pending || session.blocked} onClick={read} type="button" variant="outline"><RotateCcw aria-hidden="true" />현재 저장본 다시 불러오기</Button></div>
-    {message ? <p className={STATUS_BOX} role="status">{message}</p> : null}{session.blocked ? <p className={ALERT_BOX} role="alert">로그인 상태가 바뀌었습니다. 현재 계정으로 다시 열어주세요.</p> : null}
+    {message ? <AdminNotice role="status" tone="neutral">{message}</AdminNotice> : null}{session.blocked ? <AdminNotice role="alert" tone="danger">로그인 상태가 바뀌었습니다. 현재 계정으로 다시 열어주세요.</AdminNotice> : null}
   </form>;
 }

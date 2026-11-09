@@ -42,6 +42,8 @@ import type { SalesListSort } from '@/lib/admin/sales-list';
 import { adminClaimCopy } from '@/lib/admin/vocabulary';
 import { ORDER_CLAIM_TYPE_LABELS, type OrderClaimType } from '@/lib/orders/claims';
 import { X } from 'lucide-react';
+import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { statusTone } from '@/lib/admin/status-tone';
 import { ClaimPreviewLink } from './ClaimPreviewDialog';
 
 /*
@@ -219,6 +221,8 @@ function buildColumns(claimType: OrderClaimType, dateLabel: string): ColumnDef<D
       enableSorting: false,
       header: ({ column }) => <DataTableColumnHeader column={column} label="상태" />,
       meta: { label: `${typeLabel}처리상태`, variant: 'select', options: stageOptions },
+      /* 행은 표시 문구만 들고 오므로 이 열의 보기표로 단계를 되찾아 색을 정한다(같은 표를 쓰는 문구라 어긋나지 않는다). */
+      cell: ({ row }) => <AdminStatusBadge tone={statusTone('claim', stageOptions.find((option) => option.label === row.original.stage)?.value)}>{row.original.stage}</AdminStatusBadge>,
       size: 110,
     },
     { id: 'buyer', accessorKey: 'buyer', enableSorting: false, header: '구매자', meta: { label: '구매자' }, cell: ({ row }) => <>@{row.original.buyer}</> },
@@ -289,7 +293,7 @@ function ClaimSearchBox({ field, fieldOptions, onSearch, pending, query, typeLab
       placeholder="주문번호 · 요청번호 · 구매자 · 수취인 · 상품번호"
       value={draft}
     />
-    <Button disabled={pending} type="submit">검색</Button>
+    <Button disabled={pending} type="submit" variant="soft">검색</Button>
   </form>;
 }
 

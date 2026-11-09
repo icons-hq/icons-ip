@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { Fragment, useRef, useState, useTransition } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { Archive, Boxes, ChevronDown, Eye, FilePen } from 'lucide-react';
 import { searchGoodsGroupConsoleAction } from '@/app/admin/goods-group-actions';
 import { GOODS_GROUPS_PATH, goodsGroupConversionHref, goodsGroupHref, type GoodsGroupPage, type GoodsGroupSnapshot } from '@/lib/admin/goods-groups';
 import { formatWon } from '@/lib/admin/goods-price-editor';
@@ -23,6 +23,7 @@ const CHOICE = 'inline-flex min-h-7 cursor-pointer items-center gap-2 text-sm';
 const ROW = 'grid gap-2 border-b py-3 sm:grid-cols-[8.5rem_minmax(0,1fr)] sm:gap-4';
 const ROW_LABEL = 'text-sm font-medium sm:pt-1.5';
 const PRESET = 'inline-flex h-7 items-center rounded-md px-2.5 text-[0.8rem] font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-50';
+const STATUS_ICONS = { all: Boxes, published: Eye, draft: FilePen, archived: Archive } as const;
 
 export function GoodsGroupsScreen({ initialPage, initialGroup, initialQuery = '', initialConsole, initialFilters, categories = [], origins = [], actorId, sessionId }: {
   initialPage: GoodsGroupPage | null; initialGroup: GoodsGroupSnapshot | null; initialQuery?: string; actorId: string; sessionId: string | null;
@@ -71,7 +72,7 @@ export function GoodsGroupsScreen({ initialPage, initialGroup, initialQuery = ''
     {/* 조회가 화면 상태라 칸이 링크가 아니라 버튼이다 — 눌림·포커스·호버는 버튼이, 모양은 공용 건수 칸이 맡는다. */}
     <div className={ADMIN_COUNT_CARD_GRID_CLASS} data-goods-groups="status">{GROUP_STATUSES.map(status => <button type="button" key={status.value} disabled={pending} aria-pressed={applied.status === status.value} onClick={() => load({ ...applied, status: status.value, page: 1 })}
       className="min-w-0 rounded-xl text-left outline-none hover:[&>span]:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50">
-      <AdminCountCard active={applied.status === status.value} count={consoleData?.counts[status.value] ?? null} label={status.label} /></button>)}</div>
+      <AdminCountCard active={applied.status === status.value} count={consoleData?.counts[status.value] ?? null} icon={STATUS_ICONS[status.value]} label={status.label} /></button>)}</div>
     <form className="flex min-w-0 flex-col rounded-xl border bg-card px-4 text-card-foreground" role="search" onSubmit={event => { event.preventDefault(); if (filters.from && filters.to && filters.from > filters.to) { setError('시작일은 종료일보다 늦을 수 없습니다.'); return; } load(); }}>
       <div className={ROW}><label className={ROW_LABEL} htmlFor="group-query">검색어</label><div className="flex min-w-0 flex-col gap-2">
         <fieldset className="flex flex-wrap gap-x-5 gap-y-1"><legend className="sr-only">검색 항목</legend>{GROUP_SEARCH_FIELDS.map(field => <label className={CHOICE} key={field.value}><input type="radio" name="group-field" value={field.value} checked={filters.field === field.value} disabled={pending} onChange={() => change('field', field.value)} />{field.label}</label>)}</fieldset>
@@ -90,19 +91,19 @@ export function GoodsGroupsScreen({ initialPage, initialGroup, initialQuery = ''
         <AdminSelect aria-label="출고지" value={filters.originId} disabled={pending} onChange={event => change('originId', event.target.value)}><option value="">출고지 전체</option>{origins.map(row => <option key={row.id} value={row.id}>{row.name}</option>)}</AdminSelect>
         <AdminSelect aria-label="배송비" value={filters.shippingFee} disabled={pending} onChange={event => change('shippingFee', event.target.value as GoodsGroupFilters['shippingFee'])}><option value="all">배송비 전체</option><option value="free">무료배송 상품 포함</option><option value="paid">배송비 설정 상품 포함</option></AdminSelect>
       </div></div></div></details>
-      <div className="absolute top-1.5 right-0 flex gap-2"><Button variant="outline" type="button" disabled={pending} onClick={() => load({ ...DEFAULT_GROUP_FILTERS })}>초기화</Button><Button type="submit" disabled={pending} variant="soft">{pending ? '조회 중…' : '검색'}</Button></div></div>
+      <div className="absolute top-1.5 right-0 flex gap-2"><Button variant="ghost" type="button" disabled={pending} onClick={() => load({ ...DEFAULT_GROUP_FILTERS })}>초기화</Button><Button type="submit" disabled={pending} variant="soft">{pending ? '조회 중…' : '검색'}</Button></div></div>
     </form>
     {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}{page ? <div className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground"><div className="flex flex-wrap items-center justify-between gap-3"><h3 className="text-base leading-snug font-medium">그룹목록 <span className="text-sm font-normal text-muted-foreground">(총 <strong className="font-semibold text-foreground tabular-nums">{page.total.toLocaleString('ko-KR')}</strong>개)</span></h3><div className="flex flex-wrap items-center gap-2">
       <AdminSelect aria-label="그룹상품 정렬" disabled={pending} value={applied.sort} onChange={event => load({ ...applied, sort: event.target.value as GoodsGroupFilters['sort'], page: 1 })}>{GROUP_SORTS.map(row => <option key={row.value} value={row.value}>{row.label}</option>)}</AdminSelect>
       <AdminSelect aria-label="그룹상품 목록수" disabled={pending} value={page.pageSize} onChange={event => load({ ...applied, pageSize: Number(event.target.value), page: 1 })}>{[20, 50, 100].map(size => <option key={size} value={size}>{size}개씩</option>)}</AdminSelect></div></div>
-      <div className="flex flex-wrap items-center gap-2"><Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={goodsGroupConversionHref()}>선택형 옵션에서 그룹 전환</Link><Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={`${GOODS_GROUPS_PATH}/new?mode=assemble`}>기존 상품으로 그룹 구성</Link><p className="text-sm text-muted-foreground">그룹상품명을 눌러 구성·공통정보 수정 또는 그룹 해제를 진행할 수 있습니다.</p></div>
+      <div className="flex flex-wrap items-center gap-2"><Link className={buttonVariants()} data-slot="button" href={`${GOODS_GROUPS_PATH}/new?mode=assemble`}>기존 상품으로 그룹 구성</Link><Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={goodsGroupConversionHref()}>선택형 옵션에서 그룹 전환</Link><p className="text-sm text-muted-foreground">그룹상품명을 눌러 구성·공통정보 수정 또는 그룹 해제를 진행할 수 있습니다.</p></div>
       {identity ? <GoodsBulkToolbar kind="groups" identity={identity} selectedIds={selected} disabled={pending}
         shippingGoodIds={[...new Set(page.rows.filter(group => selected.includes(group.id)).flatMap(group => group.members.map(member => member.goodId)))]}
         onCompleted={() => load(applied, true)}
         selectionActions={selected.length ? <Button size="sm" variant="ghost" type="button" disabled={pending} onClick={() => setSelected([])}>선택 해제</Button> : undefined} /> : null}
       <GroupTable label="그룹상품 목록" className="min-w-[960px]"><TableHeader><TableRow className="bg-muted/50"><TableHead className="relative w-10 min-w-10 p-0">{/* 칸 전체가 클릭 영역이다(ConsoleGrid와 같다). */}<label className="absolute inset-0 flex cursor-pointer items-center justify-center"><input type="checkbox" aria-label="현재 페이지 그룹상품 전체 선택" disabled={pending || !selectableRows.length} checked={selectableRows.length > 0 && selectableRows.every(group => selected.includes(group.id))}
         onChange={event => setSelected(event.target.checked ? selectableRows.map(group => group.id) : [])} /></label></TableHead><TableHead>그룹상품</TableHead><TableHead>옵션명</TableHead><TableHead className="text-right">판매옵션</TableHead><TableHead className="text-right">공개 상품</TableHead><TableHead>상태</TableHead><TableHead>카테고리</TableHead><TableHead>그룹상품등록일</TableHead><TableHead>그룹상품수정일</TableHead></TableRow></TableHeader><TableBody>
-      {page.rows.map(group => <Fragment key={group.id}><TableRow data-state={selected.includes(group.id) ? 'selected' : undefined}><TableCell className="relative w-10 min-w-10 p-0"><label className="absolute inset-0 flex cursor-pointer items-center justify-center"><input type="checkbox" aria-label={`${group.name} 선택`} disabled={pending || Boolean(group.archivedAt)} checked={selected.includes(group.id)} onChange={event => setSelected(current => event.target.checked ? [...current, group.id] : current.filter(id => id !== group.id))} /></label></TableCell><TableCell className="whitespace-normal"><Link className="font-medium underline-offset-4 hover:underline" href={goodsGroupHref(group.id)}>{group.name}</Link><small className="block text-xs text-muted-foreground">{group.id}</small>
+      {page.rows.map(group => <Fragment key={group.id}><TableRow data-state={selected.includes(group.id) ? 'selected' : undefined}><TableCell className="relative w-10 min-w-10 p-0"><label className="absolute inset-0 flex cursor-pointer items-center justify-center"><input type="checkbox" aria-label={`${group.name} 선택`} disabled={pending || Boolean(group.archivedAt)} checked={selected.includes(group.id)} onChange={event => setSelected(current => event.target.checked ? [...current, group.id] : current.filter(id => id !== group.id))} /></label></TableCell><TableCell className="whitespace-normal"><Link className="font-medium underline-offset-4 hover:underline" href={goodsGroupHref(group.id)}>{group.name}</Link><small className="block text-xs text-muted-foreground tabular-nums" title={group.id}>{group.id.length > 8 ? `${group.id.slice(0, 8)}…` : group.id}</small>
         {group.members.length ? <div className="mt-1.5"><Button size="xs" variant="outline" type="button" disabled={pending} aria-expanded={expanded.has(group.id)} aria-controls={`group-members-${group.id}`}
           aria-label={`${group.name} 판매옵션 ${expanded.has(group.id) ? '접기' : '펼치기'}`} onClick={() => {
             if (!session.current()) return;
@@ -114,7 +115,8 @@ export function GoodsGroupsScreen({ initialPage, initialGroup, initialQuery = ''
           {group.members.map(member => <TableRow key={member.goodId}><TableCell className="whitespace-normal"><Link className="font-medium underline-offset-4 hover:underline" href={`/admin/catalog/goods?goodId=${encodeURIComponent(member.goodId)}`}>{member.name}</Link><small className="block text-xs text-muted-foreground">{member.code ?? member.goodId}</small></TableCell>
             <TableCell className="whitespace-normal">{member.values.join(' / ')}</TableCell><TableCell className="text-right tabular-nums">{formatWon(member.price)}</TableCell><TableCell className="text-right tabular-nums">{member.stockQty.toLocaleString('ko-KR')}개</TableCell><TableCell><AdminStatusBadge tone={statusTone('publication', member.archivedAt ? 'archived' : member.publishedAt ? 'published' : 'draft')}>{member.archivedAt ? '보관' : member.publishedAt ? '공개' : '미공개'}</AdminStatusBadge></TableCell></TableRow>)}
         </TableBody></GroupTable></TableCell></TableRow> : null}</Fragment>)}
-      {!page.rows.length ? <TableRow><TableCell className="h-24 text-center text-muted-foreground" colSpan={9}>검색 조건에 맞는 그룹상품이 없습니다.</TableCell></TableRow> : null}</TableBody></GroupTable>
+      {/* 하나도 없는 것과 검색에 안 걸린 것은 다른 안내다 — 처음이면 위 주 버튼으로 시작하게 한다. */}
+      {!page.rows.length ? <TableRow><TableCell className="h-24 text-center whitespace-normal text-muted-foreground" colSpan={9}>{consoleData?.counts.all === 0 ? '아직 등록한 그룹상품이 없습니다. 위의 기존 상품으로 그룹 구성을 눌러 첫 그룹상품을 만들어주세요.' : '검색 조건에 맞는 그룹상품이 없습니다.'}</TableCell></TableRow> : null}</TableBody></GroupTable>
       <GroupPager {...page} disabled={pending} onChange={number => load({ ...applied, page: number })} /></div> : <p className="text-sm text-muted-foreground" role="status">목록을 조회해주세요.</p>}
   </section>;
 }

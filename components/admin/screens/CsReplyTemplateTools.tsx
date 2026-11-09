@@ -127,7 +127,7 @@ export function CsReplyTemplateTools({ surface, body, onInsert, disabled = false
         <label className="flex w-36 min-w-0 flex-col gap-1.5"><span className={FIELD_LABEL_CLASS}>유형</span><AdminSelect disabled={locked} value={category} onChange={event => setCategory(event.target.value)}><option value="">전체</option>{CS_REPLY_TEMPLATE_CATEGORIES.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</AdminSelect></label>
         <label className="flex min-w-[min(100%,12rem)] flex-1 flex-col gap-1.5"><span className={FIELD_LABEL_CLASS}>제목</span><input className={KIT_INPUT_CLASS} data-slot="input" disabled={locked} value={query} onChange={event => setQuery(event.target.value)} maxLength={100} /></label>
         <label className="flex h-8 items-center gap-2 text-sm"><input disabled={locked} type="checkbox" checked={archived} onChange={event => setArchived(event.target.checked)} /> 삭제한 템플릿</label>
-        <Button disabled={locked} size="sm" type="submit">검색</Button>
+        <Button disabled={locked} size="sm" type="submit" variant="soft">검색</Button>
         <Button disabled={locked} onClick={newDraft} size="sm" type="button" variant="outline">템플릿 등록</Button>
       </form>
       <p aria-live="polite" className="text-sm text-muted-foreground">총 {data.total.toLocaleString('ko-KR')}개{pending ? ' · 처리 중' : ''}</p>
@@ -137,17 +137,17 @@ export function CsReplyTemplateTools({ surface, body, onInsert, disabled = false
         <header className="flex flex-wrap items-center gap-2"><Badge variant="secondary">{CS_REPLY_TEMPLATE_CATEGORIES.find(option => option.value === template.category)?.label}</Badge><strong className="font-medium text-foreground">{template.title}</strong><small className="text-xs text-muted-foreground">버전 {template.revision}</small></header>
         <p className={TEMPLATE_BODY_CLASS}>{template.body}</p>
         <div className="flex flex-wrap justify-end gap-2">
-          {!template.archivedAt ? <><Button disabled={locked} onClick={() => insert(template)} size="sm" type="button">불러오기</Button><Button disabled={locked} onClick={() => edit(template)} size="sm" type="button" variant="outline">수정</Button></> : null}
+          {!template.archivedAt ? <><Button disabled={locked} onClick={() => insert(template)} size="sm" type="button" variant="soft">불러오기</Button><Button disabled={locked} onClick={() => edit(template)} size="sm" type="button" variant="outline">수정</Button></> : null}
           <Button disabled={locked} onClick={() => run(async () => {
             const result = await archiveCsReplyTemplateAction({ id: template.id, revision: template.revision, archived: !template.archivedAt });
             if (!result.ok) { setError(result.error); return; }
             await load(data.page); setMessage(template.archivedAt ? '템플릿을 복구했습니다. 편집 초안은 유지됩니다.' : '템플릿을 삭제했습니다. 편집 초안은 유지되며 삭제된 템플릿은 복구 후 수정할 수 있습니다.');
-          })} size="sm" type="button" variant={template.archivedAt ? 'outline' : 'ghost'}>{template.archivedAt ? '복구' : '삭제'}</Button>
+          })} size="sm" type="button" variant={template.archivedAt ? 'outline' : 'destructive'}>{template.archivedAt ? '복구' : '삭제'}</Button>
         </div>
       </article>) : <p className="py-6 text-center text-sm text-muted-foreground">조건에 맞는 템플릿이 없습니다.</p>}</div>
       <ConsolePagination className="border-t pt-4" label="답변 템플릿 목록 페이지" page={data.page} pageSize={CS_REPLY_TEMPLATE_PAGE_SIZE} total={data.total} unit="개" disabled={locked} onPageChange={page => run(() => load(page))} />
       {draft ? <form className={TEMPLATE_EDITOR_CLASS} data-cs-template="editor" onSubmit={event => { event.preventDefault(); void save(); }}>
-        <h3 className="text-base font-medium text-foreground">{draft.revision ? '템플릿 수정' : '템플릿 등록'}</h3>
+        <h3 className="text-base font-semibold text-foreground">{draft.revision ? '템플릿 수정' : '템플릿 등록'}</h3>
         <label className="flex flex-col gap-1.5"><span className={FIELD_LABEL_CLASS}>편집 유형</span><AdminSelect disabled={locked} value={draft.category} onChange={event => changeDraft({ ...draft, category: event.target.value as CsReplyTemplateCategory })}>{CS_REPLY_TEMPLATE_CATEGORIES.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</AdminSelect></label>
         <label className="flex flex-col gap-1.5"><span className={FIELD_LABEL_CLASS}>템플릿 제목</span><input className={KIT_INPUT_CLASS} data-slot="input" required disabled={locked} maxLength={70} value={draft.title} onChange={event => changeDraft({ ...draft, title: [...event.target.value].slice(0, 35).join('') })} /></label>
         <small className={COUNTER_CLASS}>{[...draft.title].length} / 35자</small>

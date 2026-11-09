@@ -12,12 +12,24 @@ describe('settlement screen', () => {
   it('separates source payout values, snapshot time, environment and actual bank deposits', () => {
     const html = render('daily');
     expect(html).toContain('일별 정산내역'); expect(html).toContain('테스트'); expect(html).toContain('지급액 원문');
-    expect(html).toContain('12,684.55'); expect(html).toContain('315.45'); expect(html).toContain('수집 완료 2026-10-13 22:05');
+    expect(html).toContain('12,684.55'); expect(html).toContain('315.45'); expect(html).toContain('수집 완료 2026. 10. 13. 22:05');
     expect(html).toContain('PG 정산 연결 꺼짐'); expect(html).toContain('실제 입금 완료를 확인한 내역은 아닙니다');
     expect(html).toContain(`import=${report.snapshot!.id}`); expect(html).not.toMatch(/paymentKey|scopeHash|secretKey/);
     /* 조회 조건은 GET 폼 제출이다 — kit Button은 type이 없으면 button이 된다. */
     expect(html).toMatch(/<button[^>]*type="submit"[^>]*>검색</);
     for (const name of ['account', 'dateField', 'from', 'to', 'query', 'kind', 'match', 'mode', 'currency', 'pageSize']) expect(html).toContain(`name="${name}"`);
+  });
+  it('기간 합계를 표 위에 승인·취소로 나눠 보이고 꺼진 연결은 주의 상자로 말한다', () => {
+    const html = render('daily');
+    const totals = html.indexOf('data-pg-settlement-totals');
+    expect(totals).toBeGreaterThan(0);
+    expect(totals).toBeLessThan(html.indexOf('caption class="sr-only">일별 정산내역'));
+    expect(html.slice(totals)).toContain('기간 합계');
+    expect(html).toMatch(/data-admin-notice="warning"(?:(?!<\/section>)[\s\S])*PG 정산 연결 꺼짐/);
+    expect(html).toMatch(/data-tone="neutral"[^>]*>승인</);
+    /* 날짜는 다른 화면과 같은 표기다. */
+    expect(html).toContain('2026. 10. 14.');
+    expect(html).not.toContain('>2026-10-14<');
   });
   it('shows transaction evidence and expandable fee details without raw identifiers', () => {
     const html = render('transactions'); expect(html).toContain('287B949D'); expect(html).toContain('상세 보기'); expect(html).toContain('수집 시점의 결제'); expect(html).toContain('기본 수수료');

@@ -33,7 +33,7 @@ export function CardPoolScreen({
   const { selected, select } = useSelectedRecord(records);
 
   return (
-    <div className="flex min-w-0 flex-col gap-6"><AdminPageHeader title="카드풀 구성" description="카드 구성과 개봉 준비 상태를 확인합니다." />
+    <div className="flex min-w-0 flex-col gap-6"><AdminPageHeader title="카드풀" description="카드 구성과 개봉 준비 상태를 확인합니다." />
     <CardPoolSection
       cards={cards}
       draftActiveFrom={draftActiveFrom}

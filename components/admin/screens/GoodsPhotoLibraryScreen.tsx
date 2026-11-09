@@ -96,15 +96,13 @@ export function GoodsPhotoLibraryScreen({ initial = emptyPage, onSelect }: { ini
     {/* 머리(설명·업로드) → 안내 → 조회 카드([초기화][조회]) → 목록 카드(사진·페이지 이동). 상품 사진 선택 팝업은 머리·업로드 없이 쓴다. */}
     {!onSelect ? <AdminPageHeader title="사진 보관함" description={`${GOODS_PHOTO_LIBRARY_PURPOSE} 스태프와 관리자가 함께 씁니다.`}
       actions={<label className={`${buttonVariants()} relative cursor-pointer focus-within:ring-3 focus-within:ring-ring/50 has-[input:disabled]:pointer-events-none has-[input:disabled]:opacity-50`} data-slot="button"><Upload aria-hidden="true" />사진 업로드<input className="absolute inset-0 size-full cursor-pointer opacity-0" aria-label="사진 업로드" type="file" accept={ADMIN_ARTWORK_ACCEPT} multiple disabled={busy} onChange={upload} /></label>} /> : null}
-    <div className="flex flex-col gap-1 text-sm text-muted-foreground"><p>보관해도 파일은 유지됩니다. 사용 중인 사진은 먼저 연결을 해제해주세요.</p>
-      {!onSelect ? <p>한 번에 최대 {GOODS_PHOTO_UPLOAD_LIMIT}장. {ADMIN_ARTWORK_ERROR}</p> : null}</div>
     <div className={CONSOLE_FILTER_CARD_CLASS}>
       <div className={CONSOLE_FILTER_FIELDS_CLASS}>
         <label className={`${CONSOLE_FILTER_LABEL_CLASS} w-full sm:w-64`}>사진 이름<Input aria-label="사진 이름 검색" value={query} maxLength={100} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if(event.key==='Enter') { event.preventDefault(); void search(); } }} /></label>
         {!onSelect ? <label className={CONSOLE_FILTER_LABEL_CLASS}>표시<AdminSelect aria-label="사진 표시 상태" value={archived ? 'archived' : 'active'} disabled={busy} onChange={event => { void search(1,event.target.value==='archived'); }} wrapperClassName="w-44"><option value="active">사용 가능한 사진</option><option value="archived">보관한 사진</option></AdminSelect></label> : null}
       </div>
-      <ConsoleFilterActions>
-        <Button variant="outline" type="button" disabled={busy} onClick={() => { setQuery(''); void search(1, false, ''); }}>초기화</Button>
+      <ConsoleFilterActions start={<p className="text-xs text-muted-foreground">보관해도 파일은 유지됩니다.{!onSelect ? ` 업로드는 한 번에 최대 ${GOODS_PHOTO_UPLOAD_LIMIT}장, ${ADMIN_ARTWORK_ERROR}` : ''}</p>}>
+        <Button variant="ghost" type="button" disabled={busy} onClick={() => { setQuery(''); void search(1, false, ''); }}>초기화</Button>
         <Button type="button" disabled={busy} onClick={() => { void search(); }} variant="soft">조회</Button>
       </ConsoleFilterActions>
     </div>
@@ -117,11 +115,12 @@ export function GoodsPhotoLibraryScreen({ initial = emptyPage, onSelect }: { ini
           크기는 CSS(w-full·aspect-square)가 정한다 — height 속성은 정사각 비율보다 먼저 높이를 고정한다. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img className="aspect-square w-full rounded-md bg-muted object-contain" alt={photo.name} src={publicMediaUrl(photo.imagePath) ?? ''} loading="lazy" decoding="async" />
-      <span className="flex flex-wrap items-center gap-1.5"><strong className="text-sm font-medium wrap-anywhere">{photo.name}</strong>{photo.archived ? <AdminStatusBadge tone={statusTone('publication', 'archived')}>보관</AdminStatusBadge> : null}</span><span className="text-xs text-muted-foreground">{recent.includes(photo.id) ? '방금 올림 · ' : ''}버전 {photo.revision} · 연결 {photo.references.length}건</span>
+      <span className="flex flex-wrap items-center gap-1.5"><strong className="text-sm font-medium wrap-anywhere">{photo.name}</strong>{photo.archived ? <AdminStatusBadge tone={statusTone('publication', 'archived')}>보관</AdminStatusBadge> : null}</span><span className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">{recent.includes(photo.id) ? '방금 올림 · ' : ''}버전 {photo.revision}<AdminStatusBadge tone={photo.references.length ? 'success' : 'neutral'}>{photo.references.length ? `연결 ${photo.references.length}건` : '연결 없음'}</AdminStatusBadge></span>
       {photo.references.length ? <details className="text-sm wrap-anywhere"><summary className="cursor-pointer text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">사용처 확인</summary><ul className="mt-1.5 list-disc space-y-1 pl-5">{photo.references.map(ref => <li key={`${ref.kind}:${ref.id}`}>{goodsPhotoReferenceLabel(ref.kind)} · {ref.kind==='good' ? <Link className="underline underline-offset-4" href={`/admin/catalog/goods?goodId=${encodeURIComponent(ref.id)}`}>{ref.name}</Link> : ref.name}</li>)}</ul></details> : null}
       <div className="mt-auto flex flex-wrap gap-1.5">{onSelect ? <Button size="sm" type="button" disabled={busy || photo.archived} onClick={() => onSelect(photo)} variant="soft">이 사진 선택</Button> : <>
         <Button size="sm" variant="outline" type="button" disabled={busy} onClick={() => { setEdit(photo); setName(photo.name); setError(''); }}>이름 수정</Button>
         <Button size="sm" variant="outline" type="button" disabled={busy || (!photo.archived && photo.references.length>0)} onClick={() => { void save(photo,photo.name,!photo.archived); }}>{photo.archived ? '복구' : '보관'}</Button>
+        {!photo.archived && photo.references.length ? <small className="basis-full text-xs text-muted-foreground">연결을 해제해야 보관할 수 있습니다.</small> : null}
       </>}</div>
     </li>)}</ul>
     {!data.rows.length ? <p className={CONSOLE_LIST_EMPTY_CLASS}>조건에 맞는 사진이 없습니다.</p> : null}

@@ -87,7 +87,7 @@ describe('admin kit 경계 (ADR-0028)', () => {
 
   it('의미색 글자는 자기 옅은 바탕과 흰 바탕에서 WCAG AA(4.5:1)를 넘는다 — 토큰을 바꿀 때 계산으로 지킨다', () => {
     const values = new Map<string, string>();
-    css.walkRules('.wc-admin', (rule) => rule.walkDecls((declaration) => values.set(declaration.prop, declaration.value)));
+    css.walkRules('.wc-admin', (rule) => { rule.walkDecls((declaration) => { values.set(declaration.prop, declaration.value); }); });
     const oklch = (name: string): [number, number, number] => {
       let value = values.get(name);
       while (value?.startsWith('var(')) value = values.get(value.slice(4, -1));
@@ -114,6 +114,7 @@ describe('admin kit 경계 (ADR-0028)', () => {
     expect(contrast(oklch('--primary-foreground'), oklch('--primary')), 'primary 버튼 글자').toBeGreaterThanOrEqual(4.5);
     expect(contrast(oklch('--muted-foreground'), oklch('--muted')), '보조 글자').toBeGreaterThanOrEqual(4.5);
     expect(contrast(oklch('--input'), white), '입력 칸 경계').toBeGreaterThanOrEqual(3);
+    expect(contrast(oklch('--placeholder'), white), '입력 예시 글자').toBeGreaterThanOrEqual(4.5);
   });
 
   it('어드민 화면은 색을 직접 고르지 않는다 — 팔레트 유틸리티 대신 토큰·공용 부품을 쓴다(ADR-0029)', () => {

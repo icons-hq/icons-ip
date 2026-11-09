@@ -24,7 +24,7 @@ describe('반품·교환 배송비 정책 폼 (kit)', () => {
     const html = render();
     expect(html).toMatch(/<input[^>]*data-slot="input"[^>]*value="3000"/);
     expect(html).toContain('합성 정책 근거');
-    expect(html).toContain('입금 받을 계좌: 미등록');
+    expect(html).toMatch(/입금 받을 계좌 <span[^>]*data-tone="warning"[^>]*>미등록</);
     expect(html).not.toMatch(/class="[^"]*\bclaim-fees\b/);
   });
 });

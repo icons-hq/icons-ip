@@ -4,9 +4,11 @@ import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import Link from 'next/link';
 import { InquiryLiveUpdates } from '@/components/screens/InquiryLiveUpdates';
 import { InquiryPreviewLink } from './InquiryPreviewLink';
-import { INQUIRY_SLA_TONE_CLASS } from './cs-kit-classes';
+import { INQUIRY_LIVE_CLASS, INQUIRY_SLA_TONE_CLASS, csChipTone } from './cs-kit-classes';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
+import { AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { AdminSelect } from '@/components/admin/console/AdminSelect';
+import { statusTone } from '@/lib/admin/status-tone';
 import {
   ConsoleCountChips,
   ConsoleFilterField,
@@ -49,25 +51,28 @@ import { INQUIRY_SATISFACTION_LABELS, inquirySatisfactionPercent } from '@/lib/i
  *
  * 템플릿 룩(ADR-0028): 조회 조건 카드 → 결과 카드(목록·페이지·상태별 집계·만족도) → 안내 순서는 그대로다. */
 
+/* 1440 화면에서 처리에 필요한 칸(제목·상태·답변처리·접수·기한)이 스크롤 없이 보이게 앞에 두고, 참고 칸은 뒤로 뺐다. */
 const COLUMNS: ConsoleGridColumn[] = [
-  { key: 'reference', label: '문의번호', width: '92px' },
-  { key: 'category', label: '유형', width: '110px' },
-  { key: 'title', label: '제목', width: '320px' },
+  { key: 'reference', label: '문의번호', width: '72px' },
+  { key: 'category', label: '유형', width: '100px' },
+  { key: 'title', label: '제목', width: '250px' },
+  { key: 'status', label: '상태', width: '100px' },
+  { key: 'action', label: '처리', width: '100px' },
   { key: 'buyer', label: '구매자', width: '130px' },
-  { key: 'order', label: '연결 주문', width: '110px' },
-  { key: 'status', label: '상태', width: '90px' },
-  { key: 'satisfaction', label: '답변 만족도', width: '110px' },
-  { key: 'times', label: '접수 · 최근', width: '160px' },
-  { key: 'sla', label: '1차 답변 기한', align: 'end', width: '130px' },
+  { key: 'times', label: '접수 · 최근', width: '156px' },
+  { key: 'sla', label: '1차 답변 기한', align: 'end', width: '110px' },
+  { key: 'order', label: '연결 주문', width: '164px' },
   { key: 'handler', label: '담당자', width: '110px' },
-  { key: 'action', label: '처리', width: '120px' },
+  { key: 'satisfaction', label: '답변 만족도', width: '88px' },
 ];
 
-const CHIP_TONES = {
-  open: 'warning',
-  answered: 'info',
-  closed: 'default',
-} as const;
+const DAY_MS = 86_400_000;
+
+/** 24시간을 넘긴 미답변 문의의 실제 대기 일수. 그 밖에는 null. */
+function inquiryOverdueDays(inquiry: { status: string; waitingSince: string | null }, now: Date) {
+  if (!isAdminInquiryOverdue(inquiry, now)) return null;
+  return Math.floor((now.getTime() - Date.parse(inquiry.waitingSince as string)) / DAY_MS);
+}
 
 export function InquiryQueueScreen({
   data,
@@ -79,12 +84,15 @@ export function InquiryQueueScreen({
 }) {
   const { counts, filters, pageSize, rows, total } = data;
   const satisfactionPercent = data.satisfactionSummary ? inquirySatisfactionPercent(data.satisfactionSummary) : null;
+  /* 큐는 오래 기다린 순이다. 모든 줄을 빨갛게 칠하면 급한 정도가 사라지므로 경과 일수를 글자로 보이고, 위험색은 첫 페이지의 최장 대기에만 쓴다. */
+  const longestOverdueDays = Math.max(0, ...rows.map((row) => inquiryOverdueDays(row, now) ?? 0));
 
   const rowsForGrid: ConsoleGridRow[] = rows.map((row) => {
     const sla = inquirySlaState(
       { answeredAt: row.answeredAt, createdAt: row.createdAt, status: row.status },
       now,
     );
+    const overdueDays = inquiryOverdueDays(row, now);
 
     return {
       id: row.id,
@@ -92,21 +100,21 @@ export function InquiryQueueScreen({
       cells: [
         <span className="tabular-nums" key="reference">{inquiryReferenceLabel(row.reference)}</span>,
         <span key="category">{adminGoodsCopy(INQUIRY_CATEGORY_LABELS[row.category])}</span>,
-        <span className="inline-block min-w-70" key="title">
-          <InquiryPreviewLink className="font-medium text-foreground underline-offset-4 hover:underline" href={adminInquiryPreviewHref(row.id, filters)}>{row.title}</InquiryPreviewLink>
-          {isAdminInquiryOverdue(row, now) ? <span className={INQUIRY_SLA_TONE_CLASS} data-sla-tone="danger"> · 미답변 24시간 경과</span> : null}
+        <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1" key="title">
+          <InquiryPreviewLink className="font-medium text-primary underline-offset-4 hover:underline" href={adminInquiryPreviewHref(row.id, filters)}>{row.title}</InquiryPreviewLink>
           {row.messageCount > 1 ? (
-            <span className="text-muted-foreground"> · {row.messageCount}건</span>
+            <span className="text-muted-foreground">· {row.messageCount}건</span>
           ) : null}
         </span>,
-        <span key="buyer">@{row.buyerName}</span>,
-        row.orderId ? (
-          <span className="tabular-nums" key="order">{orderReferenceLabel(row.orderId, row.orderNumber)}</span>
-        ) : (
-          <span className="text-muted-foreground" key="order">-</span>
-        ),
-        <span key="status">{ADMIN_INQUIRY_STATUS_LABELS[row.status]}</span>,
-        <span key="satisfaction">{row.satisfaction === undefined ? '확인 불가' : INQUIRY_SATISFACTION_LABELS[row.satisfaction ?? 'unrated']}</span>,
+        /* 경과일은 제목 길이에 따라 옮겨 다니지 않게 상태 바로 아래 한 자리에 둔다. */
+        <span className="flex flex-col items-start gap-1" key="status">
+          <AdminStatusBadge tone={statusTone('inquiry', row.status)}>{ADMIN_INQUIRY_STATUS_LABELS[row.status]}</AdminStatusBadge>
+          {overdueDays !== null ? (
+            <AdminStatusBadge title="미답변 24시간 경과" tone={filters.page === 1 && overdueDays === longestOverdueDays ? 'danger' : 'warning'}>{overdueDays}일 경과</AdminStatusBadge>
+          ) : null}
+        </span>,
+        <InquiryPreviewLink button className={buttonVariants({ size: 'xs', variant: row.status === 'open' ? 'soft' : 'ghost' })} href={adminInquiryPreviewHref(row.id, filters)} key="action">답변처리</InquiryPreviewLink>,
+        <span className="block max-w-32 truncate" key="buyer" title={`@${row.buyerName}`}>@{row.buyerName}</span>,
         <span key="times">
           <time className="tabular-nums" dateTime={row.createdAt}>{formatInquiryDateTime(row.createdAt)}</time>
           <br />
@@ -114,10 +122,18 @@ export function InquiryQueueScreen({
         </span>,
         /* SLA는 운영자가 가장 먼저 보는 값이라 톤을 데이터 속성으로 남기고 그 값으로 강조한다. */
         <span className={INQUIRY_SLA_TONE_CLASS} data-sla-tone={sla.tone} key="sla">{sla.label}</span>,
+        row.orderId ? (
+          <span className="tabular-nums" key="order">{orderReferenceLabel(row.orderId, row.orderNumber)}</span>
+        ) : (
+          <span className="text-muted-foreground" key="order">-</span>
+        ),
         row.assigneeName
           ? <span key="handler">@{row.assigneeName}</span>
           : <span className="text-muted-foreground" key="handler">미배정</span>,
-        <InquiryPreviewLink button className={buttonVariants({ size: 'xs', variant: 'outline' })} href={adminInquiryPreviewHref(row.id, filters)} key="action">답변처리</InquiryPreviewLink>,
+        /* 평가가 없는 줄은 글자로 물러나고, 고객이 남긴 평가만 배지로 보인다. */
+        row.satisfaction
+          ? <AdminStatusBadge key="satisfaction" tone={statusTone('inquirySatisfaction', row.satisfaction)}>{INQUIRY_SATISFACTION_LABELS[row.satisfaction]}</AdminStatusBadge>
+          : <span className="text-muted-foreground" key="satisfaction">{row.satisfaction === undefined ? '확인 불가' : INQUIRY_SATISFACTION_LABELS.unrated}</span>,
       ],
     };
   });
@@ -189,7 +205,7 @@ export function InquiryQueueScreen({
           pageSize={pageSize}
           total={total}
         />
-        <div className="flex min-w-0 flex-col gap-3 border-t pt-4">
+        <div className={`flex min-w-0 flex-col gap-3 border-t pt-4 ${INQUIRY_LIVE_CLASS}`}>
           <CustomerServiceTabs active="inquiries" />
           <InquiryLiveUpdates audience="staff" />
           <ConsoleCountChips
@@ -198,18 +214,18 @@ export function InquiryQueueScreen({
               count: counts[status] ?? 0,
               href: adminInquiryHref(filters, { page: 1, status }),
               label: ADMIN_INQUIRY_STATUS_LABELS[status],
-              tone: CHIP_TONES[status],
+              tone: csChipTone('inquiry', status),
             }))}
             label="상태별 건수"
           />
 
-          <section aria-label="답변 만족도 요약" className="flex flex-wrap items-baseline gap-x-4 gap-y-1 rounded-lg border bg-muted/40 px-3 py-2.5 text-sm">
-            {data.satisfactionSummary ? <>
+          {data.satisfactionSummary ? (
+            <section aria-label="답변 만족도 요약" className="flex flex-wrap items-baseline gap-x-4 gap-y-1 rounded-lg border bg-muted/40 px-3 py-2.5 text-sm">
               <strong className="font-semibold text-foreground">평가 응답 중 만족 비율 {satisfactionPercent === null ? '—' : `${satisfactionPercent.toLocaleString('ko-KR')}%`}</strong>
               <span className="text-muted-foreground tabular-nums">만족 {data.satisfactionSummary.satisfied.toLocaleString('ko-KR')} · 불만족 {data.satisfactionSummary.dissatisfied.toLocaleString('ko-KR')} · 미평가 {data.satisfactionSummary.unrated.toLocaleString('ko-KR')}</span>
               <small className="basis-full text-xs text-muted-foreground">{satisfactionPercent === null ? '평가 응답 없음 · ' : ''}만족도 선택을 제외한 현재 조회 조건 기준입니다. 만족·불만족 응답만 비율에 포함합니다.</small>
-            </> : <p className="bg-transparent text-destructive" role="alert">만족도 요약을 불러오지 못했습니다.</p>}
-          </section>
+            </section>
+          ) : <AdminNotice role="alert" tone="danger">만족도 요약을 불러오지 못했습니다.</AdminNotice>}
         </div>
       </section>
 

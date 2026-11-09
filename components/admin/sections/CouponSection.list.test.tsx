@@ -32,6 +32,13 @@ it('혜택상태는 같은 상태 같은 색의 배지로 보인다', () => {
   expect(html).toMatch(/data-tone="(success|info|neutral)"[^>]*>(적용중|대기중|완료|중지)<\/span>/);
 });
 
+it('혜택 이름이 앞 열이고 줄마다 있는 중지는 테두리 버튼이다', () => {
+  const html = render();
+  expect(html.indexOf('혜택 이름')).toBeLessThan(html.indexOf('쿠폰 코드'));
+  expect(html).toMatch(/<button[^>]*text-destructive[^>]*>중지<\/button>/);
+  expect(html).not.toMatch(/<button[^>]*bg-danger-soft[^>]*>중지<\/button>/);
+});
+
 it('혜택 중지 확인은 대상 코드·약관 개정·다음 상태를 담아 제출한다', () => {
   const html = render();
   const dialog = html.match(/<dialog[^>]*aria-label="혜택 상태 변경"[^>]*>(.*?)<\/dialog>/s)?.[1] ?? '';

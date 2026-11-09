@@ -141,6 +141,13 @@ describe('InquiryDetailScreen', () => {
     expect(html).toContain('담당자 변경');
   });
 
+  it('답변 작성이 내부 메모보다 먼저 오고, 목록 밖 문의에는 이전·다음 줄을 두지 않는다', () => {
+    const html = renderToStaticMarkup(<InquiryDetailScreen backHref="/admin/cs/inquiries" detail={detail()} now={NOW} navigation={{ position: null, total: 3, previousHref: null, nextHref: null }} />);
+    expect(html.indexOf('답변 작성')).toBeLessThan(html.indexOf('내부 메모 · 고객 비노출'));
+    expect(html).not.toContain('고객문의 상세 이동');
+    expect(html.indexOf('연결 주문')).toBeLessThan(html.indexOf('문의 담당자'));
+  });
+
   it('각 답변에 실제 답변자의 표시명을 보여준다', () => {
     const html = render(detail({ messages: [
       { id: 'staff-a', author: 'staff', authorName: '수민', body: '확인했습니다.', imageUrls: [], createdAt: '2026-08-20T01:00:00Z' },

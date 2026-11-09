@@ -10,6 +10,8 @@ import {EXPORT_PASSWORD_HINT,EXPORT_PASSWORD_MAX_LENGTH,EXPORT_PASSWORD_MIN_LENG
 import {ShipmentPackPanel} from './ShipmentPackPanel';
 import {OrderDelayNoticePanel} from './OrderDelayNoticePanel';
 import {CustomerServiceDialog} from './CustomerServiceDialog';
+import {commerceReferenceLabel} from '@/lib/commerce-number';
+import {AdminNotice} from '@/components/admin/console/AdminKit';
 import {Button} from '@/components/admin/kit/ui/button';
 import {Input} from '@/components/admin/kit/ui/input';
 import {Label} from '@/components/admin/kit/ui/label';
@@ -17,7 +19,7 @@ import {NativeSelect} from '@/components/admin/kit/ui/native-select';
 /* 배송 건 처리 막대·출고지시 팝업(템플릿 룩, ADR-0028). 처리 순서·확인·양식 선택 계약은 그대로다. */
 const WORKBAR='flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2 print:hidden';
 const CONTROL='flex min-w-0 max-w-full items-center gap-1.5';
-const WARNING='text-[var(--wc-warning)]';
+const WARNING='text-warning';
 const FIELD='flex min-w-0 flex-col gap-1.5 [&>span]:font-medium';
 type ExportRequest={format:'xlsx'|'csv';layout:ShipmentExportLayout}&({kind:'selection';ids:string[]}|{kind:'origin';origin:ShipmentConsoleOrigin});
 function download(file:{base64:string;mime:string;name:string}){
@@ -207,7 +209,7 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
     </div>
    </form>
   </CustomerServiceDialog>:null}
-  {message?<p className="rounded-lg border bg-muted/40 px-3 py-2.5" role="status">{message}</p>:null}{error&&!exportRequest?<p role="alert" className="text-destructive">{error}</p>:null}
-  {failures.length?<ul className="flex list-disc flex-col gap-1 pl-5 text-destructive">{failures.map(row=><li key={row.id}><span className="tabular-nums">{row.id}</span>: {row.reason}</li>)}</ul>:null}
+  {message?<AdminNotice role="status" tone="success">{message}</AdminNotice>:null}{error&&!exportRequest?<AdminNotice role="alert" tone="danger">{error}</AdminNotice>:null}
+  {failures.length?<ul className="flex list-disc flex-col gap-1 pl-5 text-destructive">{failures.map(row=><li key={row.id}><span className="tabular-nums">{commerceReferenceLabel(row.id,rows.find(item=>item.id===row.id)?.shipmentNumber)}</span>: {row.reason}</li>)}</ul>:null}
  </div>;
 }

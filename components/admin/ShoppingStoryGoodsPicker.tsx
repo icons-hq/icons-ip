@@ -67,7 +67,7 @@ export function ShoppingStoryGoodsPicker({ existingIds, sectionCount, onAdd, onC
         <label className={FIELD}>최고 가격 (원)<Input type="number" min={0} max={100000000} step={1} value={filters.maxPrice ?? ''} onChange={event => change('maxPrice', event.target.value === '' ? null : Number(event.target.value))} /></label>
         <label className={FIELD}>정렬<NativeSelect className="w-full" value={filters.sort} onChange={event => change('sort', event.target.value as StoryGoodFilters['sort'])}>{Object.entries(STORY_GOOD_SORTS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</NativeSelect></label>
         <div className="flex items-center gap-3 sm:col-span-2 lg:col-span-1"><label className={CHECK}><input type="checkbox" checked={filters.discounted} onChange={event => change('discounted', event.target.checked)} />할인 상품</label><label className={CHECK}><input type="checkbox" checked={filters.freeShipping} onChange={event => change('freeShipping', event.target.checked)} />무료배송</label></div>
-        <div className="flex items-center justify-end gap-2 sm:col-span-2"><Button type="button" onClick={() => { setQuery(''); setFilters(DEFAULT_STORY_GOOD_FILTERS); void search(1, { query: '', filters: DEFAULT_STORY_GOOD_FILTERS }); }} variant="outline">초기화</Button><Button type="submit" variant="soft">검색</Button></div>
+        <div className="flex items-center justify-end gap-2 sm:col-span-2"><Button type="button" onClick={() => { setQuery(''); setFilters(DEFAULT_STORY_GOOD_FILTERS); void search(1, { query: '', filters: DEFAULT_STORY_GOOD_FILTERS }); }} variant="ghost">초기화</Button><Button type="submit" variant="soft">검색</Button></div>
       </fieldset>
     </form>
     <GoodUrlAddField disabled={pending} onAdd={async id => {

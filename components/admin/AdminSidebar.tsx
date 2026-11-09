@@ -313,7 +313,7 @@ export function AdminSidebar({
                     return (
                       <SidebarMenuSubItem key={screen.id}>
                         <SidebarMenuSubButton
-                          className="pr-7"
+                          className="h-auto min-h-7 py-1 pr-7 [&>span:last-child]:whitespace-normal"
                           isActive={active}
                           render={<NavLink
                             aria-current={active ? 'page' : undefined}
@@ -335,6 +335,14 @@ export function AdminSidebar({
                       </SidebarMenuSubItem>
                     );
                   })}
+                  {/* 메뉴에서만 숨긴 화면(선물·정기구매·그룹상품 등)으로 들어오면 현재 위치를 잃지 않게 이 그룹 아래에 잠깐 보인다. */}
+                  {activeScreen?.navHidden && activeGroup?.id === group.id ? (
+                    <SidebarMenuSubItem key={activeScreen.id}>
+                      <SidebarMenuSubButton aria-current="page" isActive render={<span title={activeScreen.label} />}>
+                        <span>{activeScreen.label}</span>
+                      </SidebarMenuSubButton>
+                    </SidebarMenuSubItem>
+                  ) : null}
                 </SidebarMenuSub>
               </SidebarMenuItem>
             );
@@ -346,6 +354,8 @@ export function AdminSidebar({
 
   return (
     <Sidebar collapsible="icon" variant="inset">
+      {/* 사이드바 전체가 탐색 랜드마크다(모든 콘텐츠가 랜드마크 안에 있도록 — axe region). */}
+      <nav aria-label={consoleId === 'content' ? '콘텐츠 운영 메뉴' : '판매자센터 메뉴'} className="flex min-h-0 flex-1 flex-col">
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
@@ -435,6 +445,7 @@ export function AdminSidebar({
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
+      </nav>
       <SidebarRail />
     </Sidebar>
   );

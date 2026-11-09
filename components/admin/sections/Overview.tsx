@@ -19,6 +19,7 @@ import { RevenueTrend } from '../charts/RevenueTrend';
 import { formatKrwExact, metricChange } from '../format';
 import { reportTargetLabels } from '@/lib/admin/moderation';
 import { statusTone } from '@/lib/admin/status-tone';
+import { ADMIN_REPORT_STATUS_LABELS } from '@/lib/admin/moderation';
 import { AdminNotice, AdminStatusBadge } from '../console/AdminKit';
 
 /* 셸의 콘솔 전환과 같은 구분 선택(링크 탭). */
@@ -143,7 +144,7 @@ export function OverviewSection({
                     {new Date(report.createdAt).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })}
                   </span>
                 </div>
-                <AdminStatusBadge tone={statusTone('report', report.status)}>{report.status}</AdminStatusBadge>
+                <AdminStatusBadge tone={statusTone('report', report.status)}>{ADMIN_REPORT_STATUS_LABELS[report.status] ?? report.status}</AdminStatusBadge>
               </li>
             ))}
           </ul> : <p className="text-sm text-muted-foreground">{reports ? '접수된 신고가 없습니다.' : '신고 목록을 불러오지 못했습니다.'}</p>}

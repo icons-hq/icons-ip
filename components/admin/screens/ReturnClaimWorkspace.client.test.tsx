@@ -17,13 +17,14 @@ beforeEach(() => { hooks.headings.current = {}; });
 
 it('마운트와 서버 상태 갱신은 활성 입력의 포커스를 바꾸지 않고 명시적인 보기 클릭만 제목으로 이동한다', () => {
   const nodes = all(render());
-  const holdHeading = { focus: vi.fn(), scrollIntoView: vi.fn() };
-  const refundHeading = { focus: vi.fn(), scrollIntoView: vi.fn() };
+  const holdHeading = { focus: vi.fn(), scrollIntoView: vi.fn(), closest: () => null };
+  const refundHeading = { focus: vi.fn(), scrollIntoView: vi.fn(), closest: () => null };
   nodes.find(node => node.props.id === 'return-hold')!.props.ref!(holdHeading);
   nodes.find(node => node.props.id === 'return-refund')!.props.ref!(refundHeading);
   const refreshed = all(render({ ...base, stage: 'collected' }));
   expect(holdHeading.focus).not.toHaveBeenCalled(); expect(refundHeading.focus).not.toHaveBeenCalled();
-  const next = refreshed.find(node => node.type === 'button' && text(node) === '다음 작업 보기')!;
+  /* 지금 단계는 단계 표시 바로 아래에 펼쳐져 있어 '다음 작업 보기' 버튼이 없다. 이동은 단계 버튼을 눌렀을 때만 일어난다. */
+  const next = refreshed.find(node => node.type === 'button' && text(node).endsWith('. 환불 처리'))!;
   expect(next.props.type).toBe('button');
   next.props.onClick!();
   expect(refundHeading.focus).toHaveBeenCalledOnce();
@@ -31,9 +32,11 @@ it('마운트와 서버 상태 갱신은 활성 입력의 포커스를 바꾸지
   expect(holdHeading.focus).not.toHaveBeenCalled();
 });
 
-it('단계 보기 버튼은 제출 없이 해당 제목을 직접 선택한다', () => {
-  const nodes = all(render()); const heading = { focus: vi.fn(), scrollIntoView: vi.fn() };
+it('단계 보기 버튼은 제출 없이 접힌 단계를 펼치고 해당 제목을 직접 선택한다', () => {
+  const section = { open: false };
+  const nodes = all(render()); const heading = { focus: vi.fn(), scrollIntoView: vi.fn(), closest: () => section };
   nodes.find(node => node.props.id === 'return-collection')!.props.ref!(heading);
   const button = nodes.find(node => node.type === 'button' && text(node).endsWith('. 회수 확인'))!;
-  expect(button.props.type).toBe('button'); button.props.onClick!(); expect(heading.focus).toHaveBeenCalledOnce();
+  expect(button.props.type).toBe('button'); button.props.onClick!();
+  expect(section.open).toBe(true); expect(heading.focus).toHaveBeenCalledOnce();
 });

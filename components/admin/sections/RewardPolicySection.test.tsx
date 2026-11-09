@@ -285,6 +285,15 @@ describe('RewardPolicySection', () => {
     );
   });
 
+  it('새 정책은 제목으로 등록임을 말하고 미리 골라 둔 값을 확인하게 하며, 고른 정책은 어떤 정책을 고치는지 보인다', () => {
+    const creating = renderPolicySection();
+    expect(creating).toContain('>새 발급 정책 등록</h3>');
+    expect(creating).toMatch(/data-admin-notice="warning"[\s\S]*?미리 골라 둔 값입니다/);
+    const editing = renderPolicySection({ records: [selectedPolicy], selected: selectedPolicy });
+    expect(editing).toContain(`>화산 키링 → ${endedPool.name} 수정</h3>`);
+    expect(editing).not.toContain('미리 골라 둔 값입니다');
+  });
+
   it('includes scheduled ready pools and only the selected unavailable pool', () => {
     expect(getRewardPolicyPoolOptions(
       [readyPoolA, scheduledPoolB, endedPool, unreadyPool],

@@ -12,7 +12,7 @@ import {
 import type { AdminTicketTypeRecord } from '@/lib/admin/catalog.server';
 import { Field, FormShell, RecordList, SelectField } from '../fields';
 import { statusTone } from '@/lib/admin/status-tone';
-import { MasterDetail, ReadOnlyField, SECTION_CARD, SectionHeading } from './SectionLayout';
+import { MasterDetail, ReadOnlyField, RecordFormHeading, SECTION_CARD } from './SectionLayout';
 import { RecordStatusLabel } from './RecordStatusLabel';
 
 const emptyTicketState: AdminCatalogActionState = {};
@@ -43,16 +43,11 @@ export function TicketSection({
 
   return (
     <div className="flex min-w-0 flex-col gap-6">
-      <div className={SECTION_CARD}>
-        <SectionHeading
-          action={(
-            <Link className={buttonVariants({ variant: 'soft' })} data-slot="button" href="/admin/check-in">
-              <ScanLine aria-hidden="true" />현장 검표 화면 열기
-            </Link>
-          )}
-          description="모바일 카메라나 현장 스캐너로 입장 티켓을 확인합니다."
-          title="현장 티켓 검표"
-        />
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-xl border bg-card px-4 py-3 text-sm text-card-foreground sm:px-5">
+        <p className="min-w-0"><strong className="font-semibold">현장 티켓 검표</strong> <span className="text-muted-foreground">· 모바일 카메라나 현장 스캐너로 입장 티켓을 확인합니다.</span></p>
+        <Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href="/admin/check-in">
+          <ScanLine aria-hidden="true" />현장 검표 화면 열기
+        </Link>
       </div>
       <MasterDetail
         list={(
@@ -61,7 +56,7 @@ export function TicketSection({
             ariaLabel="티켓 회차 목록"
             emptyMessage="등록된 티켓 회차가 없습니다."
             items={records}
-            labelFor={(record) => <RecordStatusLabel name={`${record.eventTitle} · ${record.name} · ${record.sold}/${record.capacity}`} status={ALLOCATION_LABELS[allocationState(record)]} tone={statusTone('ticketAllocation', allocationState(record))} title={`${record.eventTitle} · ${record.name} · ${record.sold}/${record.capacity}`} />}
+            labelFor={(record) => <RecordStatusLabel detail={record.eventTitle} name={record.name} status={allocationState(record) === 'open' ? `잔여 ${(record.capacity - record.sold).toLocaleString('ko-KR')}` : ALLOCATION_LABELS[allocationState(record)]} tone={statusTone('ticketAllocation', allocationState(record))} title={`${record.eventTitle} · ${record.name} · ${record.sold}/${record.capacity}`} />}
             onNew={() => onSelect(null)}
             onSelect={onSelect}
           />
@@ -105,6 +100,7 @@ function TicketForm({
     >
       <input name="operationId" type="hidden" value={operationId} />
       <input name="id" type="hidden" value={id} />
+      <RecordFormHeading editing={selected?.name ?? null} noun="티켓 회차" />
 
       {selected && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border bg-muted/40 px-3 py-2.5 text-sm">
@@ -173,11 +169,7 @@ function TicketForm({
         />
       </AdminFormGrid>
 
-      {metadataLocked && (
-        <p className="text-sm text-muted-foreground">
-          예매 이력이 있어 이벤트·회차명·가격은 잠겼습니다. 정원만 현재 할당 수량 이상으로 조정할 수 있습니다.
-        </p>
-      )}
+      {metadataLocked && <AdminNotice tone="info">예매 이력이 있어 이벤트·회차명·가격은 잠겼습니다. 정원만 현재 할당 수량 이상으로 조정할 수 있습니다.</AdminNotice>}
       <FormShell disabled={noEvents && !selected} pending={pending} state={state} />
     </form>
   );

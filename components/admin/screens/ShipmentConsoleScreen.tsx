@@ -3,7 +3,8 @@ import { GoodsCustomInputsSummary } from '@/components/shop/GoodsCustomInputs';
 import {FULFILLMENT_METHODS,FULFILLMENT_METHOD_LABELS} from '@/lib/goods-fulfillment';
 import Link from 'next/link';
 import {ConsolePagination,type ConsoleGridColumn} from '@/components/admin/console';
-import {AdminStatusBadge} from '@/components/admin/console/AdminKit';
+import {AdminNotice,AdminStatusBadge} from '@/components/admin/console/AdminKit';
+import {statusTone} from '@/lib/admin/status-tone';
 import {SHIPMENT_CONSOLE_TABS,SHIPMENT_SEARCH_FIELDS,isParcelShipment,shipmentConsoleHref,shipmentConsoleSelectable,type ShipmentConsoleData} from '@/lib/admin/shipment-dispatch';
 import {adminOrderDetailHrefFromBack} from '@/lib/admin/orders';
 import {formatOrderDateTime,orderReferenceLabel} from '@/lib/orders';
@@ -19,24 +20,36 @@ import {SALES_DATE_FIELDS,SHIPMENT_PAGE_SIZES} from '@/lib/admin/sales-list';
 import {SalesFilterField,SalesFilterPanel,SalesGuide,SalesResultsHeader,SalesSelect,SalesStatusSummary} from '@/components/admin/sales/SalesConsole';
 import {SHIPMENT_DELAY_NOTICE_OPTIONS,shipmentDelayNoticeLabel} from '@/lib/admin/shipment-delay-notice';
 import {ORDER_DELAY_STATUS_LABELS} from '@/lib/admin/order-delay-notices';
-import {ChevronDown} from 'lucide-react';
+import {ChevronDown,PackageCheck,Truck} from 'lucide-react';
+import type {ReactNode} from 'react';
 /* 발주확인·발송관리와 배송현황 — 템플릿 룩(ADR-0028). 조회 조건·처리 단계·열 구성·처리 순서는 그대로이고 셀 보조 줄은 유틸리티다. */
 const CELL_STACK='flex flex-col items-start gap-0.5';
 const CELL_NOTE='text-xs text-muted-foreground';
 const CELL_LINK='underline underline-offset-4';
-export function ShipmentConsoleScreen({data,registeredCount,actorId}:{data:ShipmentConsoleData;registeredCount?:number|null;actorId?:string}){
+/* 이 날수를 넘겨 배송 중인 건은 표에서 눈에 띄게 적는다. 상태를 바꾸는 판정이 아니라 눈으로 찾기 위한 표시다. */
+const LONG_TRANSIT_DAYS=5;
+export function ShipmentConsoleScreen({data,registeredCount,actorId,summaryAside,now=new Date()}:{data:ShipmentConsoleData;registeredCount?:number|null;actorId?:string;
+ /** 단계 이름 줄 오른쪽에 둘 상태 표시(자동 발주확인 켜짐·꺼짐). */
+ summaryAside?:ReactNode;
+ /** 배송 경과일 기준 시각. 테스트 주입용. */
+ now?:Date}){
  const {surface,filters,rows,origins,carriers}=data;const isDispatch=surface==='dispatch';
  const hasParcelRows=!rows.length||rows.some(isParcelShipment);
  const currentHref=shipmentConsoleHref(surface,filters);
- const columns:ConsoleGridColumn[]=[{key:'reference',label:'배송건번호 / 주문번호',width:'210px'},{key:'origin',label:'출고지',width:'100px'},
-  {key:'method',label:'배송 방식',width:'110px'},
-  {key:'buyer',label:'구매자명',width:'130px'},
-  {key:'recipient',label:'수취인',width:'110px'},{key:'items',label:'상품 · 옵션'},{key:'time',label:isDispatch?'주문 / 발주확인':'발송 / 배송완료',width:'210px'},
-  {key:'tracking',label:isDispatch?'발송·인계':'배송·수령 확인',width:'180px'},...(isDispatch?[{key:'notice',label:'지연 안내 결과',width:'210px'}]:[]),...(filters.tab==='delayed'?[{key:'delay',label:'지연 메모',width:'260px'}]:[])];
+ /* 1440 화면(표 폭 약 1,100px)에 주요 열이 들어오게 나눈다. 상품·옵션은 폭을 비워 남는 자리를 모두 받고, 거의 '택배'인 배송 방식은 뒤로 보낸다.
+    지연 안내 결과는 지연 탭이나 그 조건으로 찾을 때만 기본으로 보인다(조회항목 설정에서 언제든 켤 수 있다). */
+ const showDelayNotice=isDispatch&&(filters.tab==='delayed'||Boolean(filters.delayNotice));
+ const columns:ConsoleGridColumn[]=[{key:'reference',label:'배송건번호 / 주문번호',width:'176px'},{key:'items',label:'상품 · 옵션'},
+  {key:'origin',label:'출고지',width:'72px'},
+  {key:'buyer',label:'구매자명',width:'88px'},
+  {key:'recipient',label:'수취인',width:'76px'},{key:'time',label:isDispatch?'주문 / 발주확인':'발송 / 배송완료',width:'156px'},
+  {key:'tracking',label:isDispatch?'발송·인계':'배송·수령 확인',width:isDispatch?'124px':'190px'},...(isDispatch?[{key:'notice',label:'지연 안내 결과',width:'128px',required:showDelayNotice,defaultVisible:showDelayNotice}]:[]),...(filters.tab==='delayed'?[{key:'delay',label:'지연 메모',width:'260px'}]:[]),
+  {key:'method',label:'배송 방식',width:'84px'}];
  const gridRows=rows.map(row=>{
   const parcel=isParcelShipment(row);const tracking=parcel?orderShipment(carriers,row.carrier,row.trackingNumber):null;
   const methodLabel=row.delivery?DELIVERY_METHOD_LABELS[row.delivery.method]:parcel?'택배':'확인 필요';
   const detailHref=adminOrderDetailHrefFromBack(row.orderId,shipmentConsoleHref(surface,filters));
+  const transitDays=!isDispatch&&row.status==='shipping'&&row.shippedAt?Math.floor((now.getTime()-Date.parse(row.shippedAt))/86_400_000):0;
   return {id:row.id,selectable:filters.tab==='delayed'||shipmentConsoleSelectable(row,filters.tab),selectLabel:`배송 건 ${commerceReferenceLabel(row.id, row.shipmentNumber)} 선택`,cells:[
    <div key="id" className={CELL_STACK}><Link
     aria-label={`주문 ${orderReferenceLabel(row.orderId, row.orderNumber)} 상세 열기 (새 탭)`}
@@ -44,27 +57,34 @@ export function ShipmentConsoleScreen({data,registeredCount,actorId}:{data:Shipm
     href={adminOrderDetailHrefFromBack(row.orderId,shipmentConsoleHref(surface,filters))}
     rel="noopener noreferrer"
     target="_blank"
-   >{commerceReferenceLabel(row.id, row.shipmentNumber)}</Link><small className={`${CELL_NOTE} tabular-nums`}>주문 {orderReferenceLabel(row.orderId, row.orderNumber)}</small>{row.pack?<AdminStatusBadge tone="neutral">합포장 {row.pack.id.slice(-8).toUpperCase()} · {row.pack.count}건</AdminStatusBadge>:null}</div>,
-   <span key="origin">{row.originName}</span>,<span key="method">{methodLabel}</span>,<span key="buyer">{row.buyerName}</span>,<span key="recipient">{row.recipientName||'미기록'}</span>,
-   <ul key="items" className="flex flex-col gap-0.5">{row.items.map(item=><li key={item.id}>{item.name}{item.variantName?` · ${item.variantName}`:''} × {item.qty}<GoodsCustomInputsSummary selection={item.customInputs} /></li>)}</ul>,
-   <div key="time" className={`${CELL_STACK} tabular-nums`}>{formatOrderDateTime(isDispatch?row.createdAt:row.shippedAt??row.createdAt)}<small className={CELL_NOTE}>{(isDispatch?row.confirmedAt:row.deliveredAt)?formatOrderDateTime((isDispatch?row.confirmedAt:row.deliveredAt)!):'미기록'}</small></div>,
-   !parcel?<div key="method-action" className={CELL_STACK}><span>{row.delivery?deliveryStatusLabel(row.delivery.method,row.status):'배송 방식 확인 필요'}</span>
+   >{commerceReferenceLabel(row.id, row.shipmentNumber)}</Link><small className={`${CELL_NOTE} tabular-nums whitespace-nowrap`}>주문 {orderReferenceLabel(row.orderId, row.orderNumber)}</small>{row.pack?<AdminStatusBadge tone="neutral">합포장 {row.pack.id.slice(-8).toUpperCase()} · {row.pack.count}건</AdminStatusBadge>:null}</div>,
+   <ul key="items" className="flex min-w-44 flex-col gap-0.5">{row.items.map(item=><li key={item.id}>{item.name}{item.variantName?` · ${item.variantName}`:''} <span className="whitespace-nowrap">× {item.qty}</span><GoodsCustomInputsSummary selection={item.customInputs} /></li>)}</ul>,
+   <span key="origin">{row.originName}</span>,<span key="buyer">{row.buyerName}</span>,<span key="recipient">{row.recipientName||'미기록'}</span>,
+   <div key="time" className={`${CELL_STACK} tabular-nums whitespace-nowrap`}>{formatOrderDateTime(isDispatch?row.createdAt:row.shippedAt??row.createdAt)}<small className={CELL_NOTE}>{(isDispatch?row.confirmedAt:row.deliveredAt)?formatOrderDateTime((isDispatch?row.confirmedAt:row.deliveredAt)!):'미기록'}</small></div>,
+   !parcel?<div key="method-action" className={CELL_STACK}>{row.delivery?<AdminStatusBadge tone={statusTone('shipment',row.status)}>{deliveryStatusLabel(row.delivery.method,row.status)}</AdminStatusBadge>:<AdminStatusBadge tone="warning">배송 방식 확인 필요</AdminStatusBadge>}
     <Link className={CELL_LINK} href={detailHref} target="_blank" rel="noopener noreferrer">{row.delivery?.method==='digital'?'디지털 파일 제공 이력':`${methodLabel} 인계·수령 확인`}</Link></div>:
     isDispatch?<div key="export" className={CELL_STACK}><AdminStatusBadge tone={row.exportedAt?'success':'neutral'}>{row.exportedAt?'출고지시 전달':'내보내기 전'}</AdminStatusBadge>
-      {row.preorderReady===false?<p className={CELL_NOTE}>예약 재고 할당 필요</p>:null}{row.production&&row.production.count>0?<p><Link className={CELL_LINK} href={detailHref}>주문제작 {row.production.completed}/{row.production.count}건 완료{row.production.ready?'':' · 제작 완료 전 발송 불가'}</Link></p>:null}</div>:
-    <div key="tracking" className={CELL_STACK}><span>{shipmentStatusLabel(row.status)}</span>{tracking?<a className={`${CELL_LINK} tabular-nums`} href={tracking.trackingUrl} target="_blank" rel="noreferrer noopener">{tracking.carrierLabel} {tracking.trackingNumber}</a>:'운송장 확인 필요'}</div>,
-   ...(isDispatch?[<div key="notice" className={CELL_STACK}><strong className="font-medium">{shipmentDelayNoticeLabel(row.delayNotice?.status)}</strong>
+      {row.preorderReady===false?<AdminStatusBadge tone="warning">예약 재고 할당 필요</AdminStatusBadge>:null}{row.production&&row.production.count>0?<p><Link className={CELL_LINK} href={detailHref}>주문제작 {row.production.completed}/{row.production.count}건 완료{row.production.ready?'':' · 제작 완료 전 발송 불가'}</Link></p>:null}</div>:
+    <div key="tracking" className={CELL_STACK}><AdminStatusBadge tone={statusTone('shipment',row.status)}>{shipmentStatusLabel(row.status)}</AdminStatusBadge>{transitDays>=LONG_TRANSIT_DAYS?<small className="text-xs font-medium text-warning">{transitDays}일째 배송 중</small>:null}{tracking?<a className={`${CELL_LINK} tabular-nums`} href={tracking.trackingUrl} target="_blank" rel="noreferrer noopener">{tracking.carrierLabel} {tracking.trackingNumber}</a>:<AdminStatusBadge tone="warning">운송장 확인 필요</AdminStatusBadge>}</div>,
+   ...(isDispatch?[<div key="notice" className={CELL_STACK}><AdminStatusBadge tone={row.delayNotice?statusTone('delayNotice',row.delayNotice.status):'warning'}>{shipmentDelayNoticeLabel(row.delayNotice?.status)}</AdminStatusBadge>
     {row.delayNotice?.requestedAt?<><small className={CELL_NOTE}>앱 {ORDER_DELAY_STATUS_LABELS[row.delayNotice.inAppStatus??'prepared']} · 이메일 {ORDER_DELAY_STATUS_LABELS[row.delayNotice.emailStatus??'unknown']}</small><small className={`${CELL_NOTE} tabular-nums`}>{formatOrderDateTime(row.delayNotice.requestedAt)}</small></>:null}</div>]:[]),
    ...(filters.tab==='delayed'?[<DispatchDelayNoteForm key="delay" orderId={row.orderId} reference={orderReferenceLabel(row.orderId, row.orderNumber)} note={row.delayReason?{reason:row.delayReason,expectedShipDate:row.expectedShipDate,updatedAt:row.updatedAt}:null}/>]:[]),
+   <span key="method">{methodLabel}</span>,
   ]};
  });
+ /* 운송장 회신은 발송 대기·지연·배송중 탭의 일이다. 신규주문·배송완료 탭에서는 표 아래로 비켜 표가 먼저 보이게 한다. 표가 100행까지 길어져 어느 탭이든 표 위·아래 한쪽에만 고정하지 않는다. */
+ const importFirst=filters.tab==='ready'||filters.tab==='delayed'||filters.tab==='transit';
+ const trackingImport=<details className="group rounded-lg border" data-shipment-import="">
+   <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2.5 font-medium [&::-webkit-details-marker]:hidden">운송장 가져오기 · 창고 회신 등록<ChevronDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"/></summary>
+   <DispatchTrackingImportPanel carriers={carriers} originId={filters.originId} shippingHref={shipmentConsoleHref('shipping',filters,{tab:'transit',page:1})}/>
+  </details>;
  return <section className="flex min-w-0 flex-col gap-4 text-sm" data-shipment-console={surface}>
   <SalesGuide title={isDispatch?'신규주문 확인부터 출고지별 발송까지 처리할 수 있습니다.':'발송한 배송 건과 실제 배송완료 상태를 확인할 수 있습니다.'}>
    <p>{isDispatch&&hasParcelRows?'순서: 대상 선택 → 출고지시 내보내기 → 창고 회신 → 운송장 등록. 출고지별 배송 건을 확인하며, 퀵·직접배송·화물배송·방문수령·배송없음은 주문 상세에서 실제 인계와 수령을 확인합니다.':isDispatch?'택배 외 배송 방식은 주문 상세에서 확인합니다. 디지털 파일은 구매자의 다운로드 제공 이력으로 처리 상태를 확인합니다.':'택배의 실제 도착을 확인해 배송완료로 처리합니다. 택배 외 실물 상품은 주문 상세에서 수령 확인값과 인계 근거를 기록합니다. 디지털 파일은 다운로드 제공 이력으로 확인합니다.'}</p>
    {isDispatch?<p>지연 안내 결과는 배송 건별 최근 발송 요청의 앱 알림과 이메일 기록입니다. 미리보기만 저장한 안내는 제외합니다. 발송 처리는 앱 알림 기록과 이메일 공급자 접수·발송 상태이며 고객의 수신·열람을 뜻하지 않습니다. 채널별 실패와 결과 불명은 안내 이력에서 확인합니다.</p>:null}
   </SalesGuide>
-  <SalesStatusSummary label="배송 처리 단계" items={SHIPMENT_CONSOLE_TABS[surface].map(tab=>({active:tab.id===filters.tab,label:tab.label,count:data.counts[tab.id],urgent:tab.id==='delayed'&&data.counts.delayed>0,href:shipmentConsoleHref(surface,filters,{tab:tab.id,page:1})}))}/>
-  {!isDispatch&&registeredCount?<p role="status" className="rounded-lg border bg-muted/40 px-3 py-2.5">운송장 {registeredCount.toLocaleString('ko-KR')}건을 등록했습니다. 배송 메일은 대기열에서 처리됩니다.</p>:null}
+  <SalesStatusSummary aside={summaryAside} label="배송 처리 단계 · 배송 건 기준" items={SHIPMENT_CONSOLE_TABS[surface].map(tab=>({active:tab.id===filters.tab,label:tab.label,count:data.counts[tab.id],urgent:tab.id==='delayed'&&data.counts.delayed>0,tone:tab.id==='new'?'warning' as const:undefined,icon:tab.id==='transit'?Truck:tab.id==='delivered'?PackageCheck:undefined,href:shipmentConsoleHref(surface,filters,{tab:tab.id,page:1})}))}/>
+  {!isDispatch&&registeredCount?<AdminNotice role="status" tone="success">운송장 {registeredCount.toLocaleString('ko-KR')}건을 등록했습니다. 배송 메일은 대기열에서 처리됩니다.</AdminNotice>:null}
   <SalesFilterPanel currentHref={currentHref} id={`sales-${surface}`}
    hiddenFieldExclusions={['delayNotice']}
    date={{from:filters.from,to:filters.to,field:filters.dateField??'ordered',options:SALES_DATE_FIELDS.filter(option=>option.value!=='settled')}}
@@ -85,13 +105,11 @@ export function ShipmentConsoleScreen({data,registeredCount,actorId}:{data:Shipm
   <SalesResultsHeader currentHref={currentHref} total={data.total} pageSize={data.pageSize} pageSizes={SHIPMENT_PAGE_SIZES} sort={filters.sort??'oldest'} unit="개 배송 건">
    <AdminListExportButton href={adminListExportHref(surface,currentHref)} total={data.total}/>
   </SalesResultsHeader>
-  <details className="group rounded-lg border" data-shipment-import="">
-   <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2.5 font-medium [&::-webkit-details-marker]:hidden">운송장 가져오기 · 창고 회신 등록<ChevronDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"/></summary>
-   <DispatchTrackingImportPanel carriers={carriers} originId={filters.originId} shippingHref={shipmentConsoleHref('shipping',filters,{tab:'transit',page:1})}/>
-  </details>
+  {importFirst?trackingImport:null}
   <ShipmentConsoleGrid actorId={actorId} rows={rows} columns={columns} gridRows={gridRows} tab={filters.tab} origins={isDispatch?origins:[]} originId={filters.originId}
    currentHref={shipmentConsoleHref(surface,filters)} readyHref={shipmentConsoleHref('dispatch',filters,{tab:'ready',page:1})}/>
   <ConsolePagination label="배송 건 페이지" page={filters.page} pageSize={data.pageSize} total={data.total} hrefForPage={page=>shipmentConsoleHref(surface,filters,{page})}/>
+  {importFirst?null:trackingImport}
   </div>
  </section>;
 }

@@ -1,14 +1,12 @@
 'use client';
-import Link from 'next/link';
 import { useRef, useState } from 'react';
 import { AdminPageHeader, AdminSectionCard, AdminNotice } from '@/components/admin/console/AdminKit';
 import { Button } from '@/components/admin/kit/ui/button';
 import { saveGoodsMediaSettingsAction, type MediaSettingsSaveResult } from '@/app/admin/goods-media-actions';
+import { StoreSettingsRelatedLinks } from './StoreSettingsRelatedLinks';
 import type { GoodsMediaSettings, GoodsMediaSettingsSnapshot } from '@/lib/goods-media';
 
-/* 대표미디어 전시 설정(템플릿 룩, ADR-0028). 다른 상품상세 설정으로 가는 링크는 링크 탭과 같은 모양이다. */
-const LINKS = 'inline-flex max-w-full items-center self-start overflow-x-auto rounded-lg bg-muted p-0.5';
-const LINK = 'inline-flex h-7 shrink-0 items-center rounded-md px-2.5 text-[0.8rem] font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground';
+/* 대표미디어 전시 설정(템플릿 룩, ADR-0028). */
 const CHOICE = 'flex w-fit items-center gap-2 text-sm';
 
 export function DetailMediaScreen({ initial }: { initial: GoodsMediaSettingsSnapshot }) {
@@ -25,7 +23,7 @@ export function DetailMediaScreen({ initial }: { initial: GoodsMediaSettingsSnap
   }
   return <section className="flex min-w-0 flex-col gap-4">
     <AdminPageHeader title="대표미디어 전시 설정" description="상품에 등록한 이미지·동영상·숏클립의 첫 화면을 선택합니다." />
-    <nav aria-label="상품상세 추가 설정" className={LINKS}><Link className={LINK} href="/admin/display/detail">띠배너·리뷰·추천</Link><Link className={LINK} href="/admin/display/detail/experience">구매·탐색 설정</Link><Link className={LINK} href="/admin/display/detail/reviews">BEST 리뷰 설정</Link><Link className={LINK} href="/admin/catalog/goods">상품별 영상 등록</Link></nav>
+    <StoreSettingsRelatedLinks label="상품상세 추가 설정" links={[{ href: '/admin/display/detail', label: '띠배너·리뷰·추천' }, { href: '/admin/display/detail/experience', label: '구매·탐색 설정' }, { href: '/admin/display/detail/reviews', label: 'BEST 리뷰 설정' }, { href: '/admin/catalog/goods', label: '상품별 영상 등록' }]} />
     {initial.unavailable ? <AdminNotice role="alert" tone="danger">현재 설정을 불러오지 못했습니다. 새로고침 후 다시 확인해주세요.</AdminNotice> : null}
     <form className="flex min-w-0 flex-col gap-4" onSubmit={event => { event.preventDefault(); void save(); }}>
       <AdminSectionCard title="대표미디어 전시 우선순위"><fieldset className="grid min-w-0 gap-3" disabled={pending || uncertain || initial.unavailable}>

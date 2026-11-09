@@ -11,7 +11,7 @@ import { Input } from '@/components/admin/kit/ui/input';
 const subscribeOrigin = () => () => {};
 const readOrigin = () => window.location.origin;
 const emptyOrigin = () => '';
-export function MarketingLinkCopy({ rows }: { rows: MarketingLinkRow[] }) {
+export function MarketingLinkCopy({ rows, hideAvailability = false }: { rows: MarketingLinkRow[]; hideAvailability?: boolean }) {
   const [message, setMessage] = useState('');
   const origin = useSyncExternalStore(subscribeOrigin, readOrigin, emptyOrigin);
   async function copy(selected: MarketingLinkRow[]) {
@@ -20,8 +20,8 @@ export function MarketingLinkCopy({ rows }: { rows: MarketingLinkRow[] }) {
   }
   return <div className="grid min-w-0 gap-3">
     {rows.length > 1 ? <Button className="justify-self-start" type="button" variant="outline" onClick={() => void copy(rows)}><Copy aria-hidden="true" />전체 링크 복사 ({rows.length}개)</Button> : null}
-    {rows.map(row => <div className="grid min-w-0 gap-2.5" key={row.id}><div className="flex min-w-0 flex-wrap items-center gap-2.5"><strong className="font-medium [overflow-wrap:anywhere]">{row.title}</strong><span className={`text-xs ${row.available ? 'text-success' : 'text-muted-foreground'}`}>{row.available ? '이동 가능' : '현재 비공개 · 이동 불가'}</span></div>
-      <div className="flex min-w-0 flex-wrap items-center gap-2"><Input aria-label={`${row.title} 마케팅 링크`} className="min-w-40 flex-1 basis-full sm:basis-0" readOnly value={`${origin}${marketingLinkPath(row.token)}`} onFocus={event => event.currentTarget.select()} /><Button type="button" variant="outline" onClick={() => void copy([row])}>복사</Button><a className={buttonVariants({ variant: 'ghost' })} data-slot="button" href={marketingLinkPath(row.token)} target="_blank" rel="noreferrer">확인 <ExternalLink aria-hidden="true" /></a></div></div>)}
+    {rows.map(row => <div className="grid min-w-0 gap-2.5" key={row.id}><div className="flex min-w-0 flex-wrap items-center gap-2.5"><strong className="font-medium [overflow-wrap:anywhere]">{row.title}</strong>{hideAvailability ? null : <span className={`text-xs ${row.available ? 'text-success' : 'text-muted-foreground'}`}>{row.available ? '이동 가능' : '현재 비공개 · 이동 불가'}</span>}</div>
+      <div className="flex min-w-0 flex-wrap items-center gap-2"><Input aria-label={`${row.title} 마케팅 링크`} className="min-w-40 flex-1 basis-full sm:basis-0" readOnly value={`${origin}${marketingLinkPath(row.token)}`} onFocus={event => event.currentTarget.select()} /><Button type="button" variant="soft" onClick={() => void copy([row])}><Copy aria-hidden="true" />이 링크 복사</Button><a className={buttonVariants({ variant: 'ghost' })} data-slot="button" href={marketingLinkPath(row.token)} target="_blank" rel="noreferrer">확인 <ExternalLink aria-hidden="true" /></a></div></div>)}
     {message ? <p className="text-sm text-muted-foreground" role="status">{message}</p> : null}
   </div>;
 }
