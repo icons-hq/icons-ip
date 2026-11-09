@@ -5,6 +5,7 @@ import { ConsolePagination } from '@/components/admin/console/ConsolePagination'
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { CUSTOMER_TABS, CUSTOMER_TAB_LABELS, customerDetailHref, type AdminCustomerDetail } from '@/lib/admin/customer-detail';
 import type { AdminMemberRole } from '@/lib/admin/members';
+import { statusTone } from '@/lib/admin/status-tone';
 import { isLoyaltyGrade, loyaltyGradeLabel } from '@/lib/loyalty';
 import { CustomerLoyaltyControl, CustomerSuspensionControl } from './CustomerAccountControls';
 import { CustomerNoteForm } from './CustomerNoteForm';
@@ -21,11 +22,11 @@ export function CustomerDetailScreen({ detail, actor, noteOperationId, canManage
     <AdminPageHeader title={customer.nickname} description={`${customer.email} · ${customer.id}`}
       actions={<Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href="/admin/community/members"><Users aria-hidden="true" />회원 목록</Link>} />
     <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">{canManageCredits && <Link className={buttonVariants({ size: 'sm', variant: 'outline' })} data-slot="button" href={`/admin/customers/${encodeURIComponent(customer.id)}/store-credits`}><Coins aria-hidden="true" />적립금 잔액·조정</Link>}<AdminStatusBadge>{isLoyaltyGrade(customer.loyaltyGrade) ? loyaltyGradeLabel(customer.loyaltyGrade) : '등급 확인 필요'}</AdminStatusBadge>
-      <AdminStatusBadge tone={customer.suspendedAt ? 'danger' : 'neutral'}>{customer.suspendedAt ? '정지' : '이용 중'}</AdminStatusBadge>
+      <AdminStatusBadge tone={statusTone('member', customer.suspendedAt ? 'suspended' : 'active')}>{customer.suspendedAt ? '정지' : '이용 중'}</AdminStatusBadge>
       <span className="tabular-nums">가입 · {customerDateTime(customer.createdAt)}</span>
     </div>
     <nav aria-label="고객 상세 탭" className="flex flex-wrap gap-x-5 gap-y-1 border-b">{CUSTOMER_TABS.map((entry) =>
-      <Link className="-mb-px inline-flex min-h-10 items-center gap-2 border-b-2 border-transparent text-sm text-muted-foreground transition-colors hover:text-foreground aria-[current=page]:border-foreground aria-[current=page]:font-medium aria-[current=page]:text-foreground" key={entry} href={customerDetailHref(customer.id, entry)} aria-current={entry === tab ? 'page' : undefined}>
+      <Link className="-mb-px inline-flex min-h-10 items-center gap-2 border-b-2 border-transparent text-sm text-muted-foreground transition-colors hover:text-foreground aria-[current=page]:border-primary aria-[current=page]:font-medium aria-[current=page]:text-primary-soft-foreground" key={entry} href={customerDetailHref(customer.id, entry)} aria-current={entry === tab ? 'page' : undefined}>
         {CUSTOMER_TAB_LABELS[entry]}{entry !== 'overview' ? <span className="rounded-full bg-muted px-1.5 text-xs font-normal text-muted-foreground tabular-nums">{counts[entry].toLocaleString('ko-KR')}</span> : null}
       </Link>)}</nav>
     {tab === 'overview' ? <>

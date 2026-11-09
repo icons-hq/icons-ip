@@ -4,9 +4,9 @@ import { useActionState } from 'react';
 import { RotateCw } from 'lucide-react';
 import { resendOrderEmailAction, type AdminOrderActionState } from '@/app/admin/order-actions';
 import type { EmailDeliveryRecord } from '@/lib/email/deliveries.server';
-import { Badge } from '@/components/admin/kit/ui/badge';
 import { Button } from '@/components/admin/kit/ui/button';
-import { AdminPageHeader } from '../console/AdminKit';
+import { statusTone } from '@/lib/admin/status-tone';
+import { AdminPageHeader, AdminStatusBadge } from '../console/AdminKit';
 import { ConsoleListCard } from '../console/ConsoleListCard';
 
 /* 트랜잭션 메일 발송 이력(#180 범위 5).
@@ -41,7 +41,7 @@ function ResendForm({ delivery }: { delivery: EmailDeliveryRecord }) {
   return (
     <form action={action} className="flex flex-wrap items-center gap-x-3 gap-y-2">
       <input name="dedupeKey" type="hidden" value={delivery.dedupeKey} />
-      <Button disabled={pending} size="sm" type="submit">
+      <Button disabled={pending} size="sm" type="submit" variant="soft">
         <RotateCw aria-hidden="true" /> {pending ? '보내는 중' : '다시 보내기'}
       </Button>
       {state.errors?.form ? (
@@ -76,7 +76,7 @@ export function EmailDeliverySection({ deliveries }: { deliveries: EmailDelivery
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <strong className="text-base leading-snug font-medium text-foreground">{delivery.templateLabel}</strong>
                 <span className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Badge variant={delivery.status === 'failed' ? 'destructive' : 'secondary'}>{statusLabel(delivery.status)}</Badge>
+                  <AdminStatusBadge tone={statusTone('emailDelivery', delivery.status)}>{statusLabel(delivery.status)}</AdminStatusBadge>
                   <span className="tabular-nums">{delivery.attemptCount}회 시도</span>
                 </span>
               </div>

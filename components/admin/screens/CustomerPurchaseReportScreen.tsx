@@ -2,11 +2,11 @@ import { CustomerPurchaseFilters } from '@/components/admin/CustomerPurchaseFilt
 import { CustomerPurchaseTrend } from '@/components/admin/CustomerPurchaseTrend';
 import { CustomerPurchaseDataTable } from '@/components/admin/CustomerPurchaseDataTable';
 import { ConsoleGrid } from '@/components/admin/console';
+import { AdminNotice } from '@/components/admin/console/AdminKit';
 import { CUSTOMER_PURCHASE_GROUP_LABEL, customerPurchaseShare, customerPurchaseValue as value, type CustomerPurchaseFilters as Filters, type CustomerPurchaseReport } from '@/lib/admin/customer-purchase-report';
 import { adminStatsChange } from '@/lib/admin/stats';
 
 const NOTE_CLASS = 'text-sm leading-relaxed text-muted-foreground';
-const STATUS_NOTE_CLASS = 'rounded-lg border bg-muted/40 px-3 py-2.5 text-sm text-foreground';
 
 /* 템플릿 룩(ADR-0028): 조회 조건 카드 → 요약 카드 → 유형별 비중 카드 → 기간 상세 표 → 추이 → 데이터 표 → 집계 기준. */
 export function CustomerPurchaseReportScreen({ filters, data, now }: { filters: Filters; data: CustomerPurchaseReport | null; now: Date }) {
@@ -22,9 +22,9 @@ export function CustomerPurchaseReportScreen({ filters, data, now }: { filters: 
         ['상품 판매금액', all.productSalesAmount, priorAll?.productSalesAmount, '원'],
         ['객단가', all.averagePerCustomer, priorAll?.averagePerCustomer, '원'],
       ] as const).map(([label, amount, previous, unit]) => <div className="flex min-w-0 flex-col gap-1 rounded-xl border bg-card p-4 text-card-foreground" key={label}><span className="text-xs text-muted-foreground">{label}</span><strong className="text-2xl font-semibold text-foreground tabular-nums">{value(amount, label === '객단가' ? 2 : 0)}{amount === null ? '' : unit}</strong>{data.comparison ? <small className="text-xs text-muted-foreground tabular-nums">비교기간 {value(previous ?? null, 2)}{previous === null || previous === undefined ? '' : unit} · {amount === null || previous === null || previous === undefined ? '비교 불가' : adminStatsChange(amount, previous)}</small> : null}</div>)}</div>
-      {all.monetaryIssueOrderCount > 0 ? <p className={STATUS_NOTE_CLASS} role="status">주문 금액 확인이 필요한 결제 {value(all.monetaryIssueOrderCount)}건이 포함되어 상품 금액과 객단가를 표시하지 않습니다. 결제고객수·주문수는 포함됩니다.</p> : null}
-      {data.current.unknownPaidAtCount > 0 ? <p className={STATUS_NOTE_CLASS} role="status">조회기간 내 생성된 결제 완료 이력 주문 중 승인·입금 시각 미확인 {value(data.current.unknownPaidAtCount)}건은 분석에서 제외되었습니다.</p> : null}
-      <section aria-label="고객 유형별 비중" className="flex min-w-0 flex-col rounded-xl border bg-card text-card-foreground"><h3 className="border-b px-4 py-3 text-base font-medium text-foreground">고객 유형별 비중</h3><div className="grid divide-y sm:grid-cols-2 sm:divide-x sm:divide-y-0">{data.current.rows.filter(row => row.group !== 'all').map(row => {
+      {all.monetaryIssueOrderCount > 0 ? <AdminNotice role="status" tone="warning">주문 금액 확인이 필요한 결제 {value(all.monetaryIssueOrderCount)}건이 포함되어 상품 금액과 객단가를 표시하지 않습니다. 결제고객수·주문수는 포함됩니다.</AdminNotice> : null}
+      {data.current.unknownPaidAtCount > 0 ? <AdminNotice role="status" tone="warning">조회기간 내 생성된 결제 완료 이력 주문 중 승인·입금 시각 미확인 {value(data.current.unknownPaidAtCount)}건은 분석에서 제외되었습니다.</AdminNotice> : null}
+      <section aria-label="고객 유형별 비중" className="flex min-w-0 flex-col rounded-xl border bg-card text-card-foreground"><h3 className="border-b px-4 py-3 text-base font-semibold text-foreground">고객 유형별 비중</h3><div className="grid divide-y sm:grid-cols-2 sm:divide-x sm:divide-y-0">{data.current.rows.filter(row => row.group !== 'all').map(row => {
         const share = customerPurchaseShare(row.customerCount, all.customerCount);
         const salesShare = row.productSalesAmount === null || all.productSalesAmount === null ? null : customerPurchaseShare(row.productSalesAmount, all.productSalesAmount);
         return <article className="flex min-w-0 flex-col gap-3 p-4" key={row.group}><h4 className="text-sm font-semibold text-foreground">{CUSTOMER_PURCHASE_GROUP_LABEL[row.group]} 고객</h4><dl className="grid gap-2.5 text-sm">
@@ -33,7 +33,7 @@ export function CustomerPurchaseReportScreen({ filters, data, now }: { filters: 
           <div className="flex flex-wrap justify-between gap-2"><dt className="text-muted-foreground">객단가</dt><dd className="text-right tabular-nums">{value(row.averagePerCustomer, 2)}{row.averagePerCustomer === null ? '' : '원'}</dd></div>
         </dl></article>;
       })}</div><p className="border-t px-4 py-3 text-xs leading-relaxed text-muted-foreground">각 결제 직전 180일 안에 이전 결제가 있으면 재구매입니다. 기간 중 신규에서 재구매로 바뀐 고객은 두 유형에 포함되어 고객 비중 합계가 100%를 넘을 수 있습니다.</p></section>
-      <h3 className="text-base font-medium text-foreground">조회·비교 기간 상세</h3>
+      <h3 className="text-base font-semibold text-foreground">조회·비교 기간 상세</h3>
       <ConsoleGrid caption="고객 구매 분석 기간별 요약" columns={[
         { key: 'period', label: '기간(KST)', width: '230px' }, { key: 'group', label: '고객분류', width: '100px' },
         { key: 'customers', label: '결제고객수', align: 'end', width: '110px' }, { key: 'orders', label: '결제 주문수', align: 'end', width: '110px' },

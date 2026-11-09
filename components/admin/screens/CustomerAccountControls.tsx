@@ -1,7 +1,7 @@
 'use client';
 import { useActionState, useState } from 'react';
 import { adjustMemberLoyaltyAction, recalculateMemberLoyaltyAction, suspendAdminMemberAction, unsuspendAdminMemberAction, type AdminMemberMutationActionState } from '@/app/admin/member-actions';
-import { AdminField, AdminSectionCard } from '@/components/admin/console/AdminKit';
+import { AdminField, AdminNotice, AdminSectionCard } from '@/components/admin/console/AdminKit';
 import { AdminSelect } from '@/components/admin/console/AdminSelect';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
@@ -11,7 +11,7 @@ import { isLoyaltyGrade, LOYALTY_GRADES, loyaltyBasisSummary, loyaltyGradeLabel 
 const EMPTY: AdminMemberMutationActionState = {};
 const FORM_CLASS = 'flex flex-col gap-4';
 function Feedback({ state }: { state: AdminMemberMutationActionState }) {
-  return <>{state.errors?.form ? <p className="bg-transparent text-sm text-destructive" role="alert">{state.errors.form}</p> : null}{state.message ? <p className="text-sm text-[var(--wc-success)]" role="status">{state.message}</p> : null}</>;
+  return <>{state.errors?.form ? <p className="bg-transparent text-sm text-destructive" role="alert">{state.errors.form}</p> : null}{state.message ? <p className="text-sm text-success" role="status">{state.message}</p> : null}</>;
 }
 export function CustomerSuspensionControl({ actor, customer }: { actor: { id: string; role: AdminMemberRole }; customer: AdminMemberDetail }) {
   const [suspendState, suspend, suspending] = useActionState(suspendAdminMemberAction, EMPTY);
@@ -19,8 +19,9 @@ export function CustomerSuspensionControl({ actor, customer }: { actor: { id: st
   const [reason, setReason] = useState('');
   const allowed = canModerateAdminMember({ actorId: actor.id, memberId: customer.id, moderation: customer.moderation });
   return <AdminSectionCard title="계정 상태">
-    <p className="text-sm">{customer.suspendedAt ? '정지된 계정입니다.' : '이용 중인 계정입니다.'}</p>
-    {customer.suspensionReason ? <p className="text-sm text-muted-foreground wrap-anywhere">내부 사유 · {customer.suspensionReason}</p> : null}
+    {customer.suspendedAt
+      ? <AdminNotice title="정지된 계정입니다." tone="danger">{customer.suspensionReason ? <span className="wrap-anywhere">내부 사유 · {customer.suspensionReason}</span> : null}</AdminNotice>
+      : <p className="text-sm">이용 중인 계정입니다.</p>}
     {!allowed ? <p className="text-sm text-muted-foreground">이 계정은 현재 권한으로 제재할 수 없습니다.</p> : customer.suspendedAt ?
       <form action={unsuspend} className={FORM_CLASS}><input type="hidden" name="profileId" value={customer.id} />
         <Button className="self-start" disabled={unsuspending} type="submit" variant="outline">{unsuspending ? '처리 중' : '정지 해제'}</Button><Feedback state={unsuspendState} />

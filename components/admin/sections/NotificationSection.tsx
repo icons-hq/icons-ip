@@ -11,7 +11,8 @@ import { Label } from '@/components/admin/kit/ui/label';
 import { NativeSelect, NativeSelectOption } from '@/components/admin/kit/ui/native-select';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
 import { ErrorText } from '../fields';
-import { SECTION_CARD, SECTION_WARNING, SectionHeading } from './SectionLayout';
+import { AdminNotice } from '../console/AdminKit';
+import { SECTION_CARD, SectionHeading } from './SectionLayout';
 import type {
   AdminNotificationActionState,
   AdminNotificationAudience,
@@ -229,22 +230,20 @@ export function NotificationSection({
           </div>
 
           {!audience?.canSend && (
-            <p className={SECTION_WARNING} role="status">
+            <AdminNotice role="status" tone="warning">
               현재 대상에게 발송할 수 없습니다. 수신자가 1명 이상인지 확인해주세요.
-            </p>
+            </AdminNotice>
           )}
 
           {state.errors?.form && (
-            <p className={SECTION_WARNING} role="alert">{state.errors.form}</p>
+            <AdminNotice role="alert" tone="danger">{state.errors.form}</AdminNotice>
           )}
           {state.message && state.recipientCount !== undefined && (
-            <p className="flex items-center gap-1.5 rounded-lg border bg-muted/40 px-3 py-2.5 text-sm font-medium text-[var(--wc-success)]" role="status">
-              <Check aria-hidden="true" className="size-4 shrink-0" /> 실제 {recipientNumber.format(state.recipientCount)}명에게 발송했습니다.
-            </p>
+            <AdminNotice role="status" tone="success">실제 {recipientNumber.format(state.recipientCount)}명에게 발송했습니다.</AdminNotice>
           )}
 
           {confirmed ? (
-            <div aria-label="즉시 발송 최종 확인" className="flex flex-col gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3" role="group">
+            <div aria-label="즉시 발송 최종 확인" className="flex flex-col gap-3 rounded-lg border border-danger-border bg-danger-soft p-3" role="group">
               <p className="text-sm font-medium text-destructive">
                 예상 {recipientNumber.format(audience?.recipientCount ?? 0)}명에게 즉시 발송하며 회수할 수 없습니다.
               </p>
@@ -277,19 +276,19 @@ export function NotificationSection({
         <aside aria-labelledby="notification-preview-heading" className={`${SECTION_CARD} lg:sticky lg:top-16`}>
           <SectionHeading id="notification-preview-heading" title="사용자 알림 미리보기" />
           <article className="relative flex items-start gap-3 overflow-hidden rounded-lg border bg-background py-4 pr-4 pl-5" data-notification-preview="">
-            <span aria-hidden className="absolute inset-y-0 left-0 w-1 bg-[var(--wc-info)]" />
-            <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-lg border bg-muted text-[var(--wc-info)]">
+            <span aria-hidden className="absolute inset-y-0 left-0 w-1 bg-info" />
+            <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-lg border bg-muted text-info">
               <Bell className="size-5" />
             </span>
             <span className="flex min-w-0 flex-1 flex-col gap-1">
               <span className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                <span className="font-medium text-[var(--wc-info)]">공지</span>
+                <span className="font-medium text-info">공지</span>
                 <time>방금 전</time>
               </span>
               <strong className="text-sm leading-snug font-semibold break-words text-foreground">{title.trim() || '제목을 입력하면 여기에 보여요.'}</strong>
               <span className="text-sm break-words text-muted-foreground">{body.trim() || '본문을 입력하면 사용자가 받을 알림 모양을 확인할 수 있어요.'}</span>
             </span>
-            <span aria-hidden className="mt-1.5 size-2 shrink-0 rounded-full bg-[var(--wc-info)] max-sm:hidden" />
+            <span aria-hidden className="mt-1.5 size-2 shrink-0 rounded-full bg-info max-sm:hidden" />
           </article>
           <p className="text-xs text-muted-foreground">링크는 알림함(<code className="rounded bg-muted px-1 py-0.5 font-mono">/notifications</code>)으로 고정됩니다.</p>
         </aside>

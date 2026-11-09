@@ -21,6 +21,7 @@ import {
 import { Check, RefreshCw, Search, ShieldBan, User } from 'lucide-react';
 import { Badge } from '@/components/admin/kit/ui/badge';
 import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
+import { statusTone } from '@/lib/admin/status-tone';
 import { Input } from '@/components/admin/kit/ui/input';
 import {
   LOYALTY_GRADES,
@@ -31,6 +32,8 @@ import {
 import { ErrorText, InlineNotice, SelectField, TextArea } from '../fields';
 import { CONSOLE_FILTER_CARD_CLASS, CONSOLE_FILTER_FIELDS_CLASS, ConsoleFilterActions, ConsoleFilterField } from '../console/ConsoleFilterPanel';
 import { ConsoleListCard } from '../console/ConsoleListCard';
+import { AdminNotice, AdminStatusBadge } from '../console/AdminKit';
+import { ADMIN_COUNT_CARD_GRID_CLASS, AdminCountCard } from '../console/AdminCountCard';
 
 const emptyMutationState: AdminMemberMutationActionState = {};
 const dateFormatter = new Intl.DateTimeFormat('ko-KR', {
@@ -74,30 +77,26 @@ function MemberSuspensionControl({
   });
 
   if (!canModerate) {
-    return (
-      <div className="rounded-lg border bg-muted/40 px-4 py-3">
-        <span className="text-sm text-muted-foreground">
-          이 계정은 현재 권한으로 제재할 수 없습니다.
-        </span>
-      </div>
-    );
+    return <AdminNotice tone="neutral">이 계정은 현재 권한으로 제재할 수 없습니다.</AdminNotice>;
   }
 
   if (suspendState.message || unsuspendState.message) {
     const state = suspendState.message ? suspendState : unsuspendState;
     return (
-      <div className="flex flex-col gap-1.5 rounded-lg border bg-muted/40 px-4 py-3">
-        <InlineNotice state={state} />
-        <span className="text-xs text-muted-foreground">
-          변경된 상태에서 추가 작업이 필요하면 회원을 다시 검색해 상세를 열어주세요.
-        </span>
-      </div>
+      <AdminNotice tone="success">
+        <div className="flex flex-col gap-1.5">
+          <InlineNotice state={state} />
+          <span className="text-xs text-muted-foreground">
+            변경된 상태에서 추가 작업이 필요하면 회원을 다시 검색해 상세를 열어주세요.
+          </span>
+        </div>
+      </AdminNotice>
     );
   }
 
   if (member.suspendedAt) {
     return (
-      <div className="flex flex-col gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+      <div className="flex flex-col gap-3 rounded-lg border border-danger-border bg-danger-soft p-4">
         <div className="flex flex-col gap-1">
           <strong className="text-sm font-semibold text-destructive">정지된 계정</strong>
           <span className="text-xs text-muted-foreground tabular-nums">
@@ -142,7 +141,7 @@ function MemberSuspensionControl({
 }
 
 function ConsentValue({ value }: { value: boolean }) {
-  return <strong className={value ? 'font-semibold text-[var(--wc-success)]' : 'font-semibold text-muted-foreground'}>{value ? '동의' : '미동의'}</strong>;
+  return <strong className={value ? 'font-semibold text-success' : 'font-semibold text-muted-foreground'}>{value ? '동의' : '미동의'}</strong>;
 }
 
 /*
@@ -168,7 +167,7 @@ function MemberLoyaltyPanel({ member }: { member: AdminMemberDetail }) {
     <section className="flex flex-col gap-3 border-t pt-4">
       <div className="flex flex-wrap items-center gap-2">
         <strong className="text-sm font-semibold text-foreground">회원 등급</strong>
-        <Badge variant="secondary">{gradeLabel}</Badge>
+        <AdminStatusBadge>{gradeLabel}</AdminStatusBadge>
       </div>
       <p className="text-xs leading-relaxed text-muted-foreground">
         {loyaltyBasisSummary()} 보정 이력은 등급 이력·감사 로그에 남습니다.
@@ -230,7 +229,7 @@ function MemberDetail({
         <div className="flex flex-wrap items-center gap-2">
           <strong className="text-base font-semibold text-foreground">@{member.nickname}</strong>
           <Badge variant="outline">{member.role}</Badge>
-          {member.suspendedAt && <Badge variant="destructive">정지</Badge>}
+          {member.suspendedAt && <AdminStatusBadge tone={statusTone('member', 'suspended')}>정지</AdminStatusBadge>}
         </div>
         <span className="text-sm tabular-nums wrap-anywhere">{member.email}</span>
         <span className="text-xs text-muted-foreground tabular-nums">
@@ -249,13 +248,8 @@ function MemberDetail({
 
       <section className="flex flex-col gap-2">
         <strong className="text-sm font-semibold text-foreground">운영 집계</strong>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {counts.map(([label, count]) => (
-            <div key={label} className="flex flex-col gap-1 rounded-lg border bg-muted/30 p-3">
-              <span className="text-xs text-muted-foreground">{label}</span>
-              <strong className="text-lg font-semibold text-foreground tabular-nums">{count}</strong>
-            </div>
-          ))}
+        <div className={ADMIN_COUNT_CARD_GRID_CLASS}>
+          {counts.map(([label, count]) => <AdminCountCard count={count} key={label} label={label} tone={label === '받은 신고' ? 'warning' : 'default'} />)}
         </div>
       </section>
 
@@ -336,7 +330,7 @@ export function MembersSection({
           >
             초기화
           </Button>
-          <Button className={TOUCH_TARGET_CLASS} disabled={searchPending} type="submit">
+          <Button className={TOUCH_TARGET_CLASS} disabled={searchPending} type="submit" variant="soft">
             <Search aria-hidden="true" /> {searchPending ? '검색 중' : '검색'}
           </Button>
         </ConsoleFilterActions>
@@ -350,7 +344,7 @@ export function MembersSection({
               <div className="flex flex-wrap items-center gap-2">
                 <strong className="text-sm font-semibold text-foreground">@{member.nickname}</strong>
                 <Badge variant="outline">{member.role}</Badge>
-                {member.suspendedAt && <Badge variant="destructive">정지</Badge>}
+                {member.suspendedAt && <AdminStatusBadge tone={statusTone('member', 'suspended')}>정지</AdminStatusBadge>}
               </div>
               <span className="text-xs tabular-nums">{member.maskedEmail}</span>
               <span className="text-xs text-muted-foreground tabular-nums">가입 {formatDate(member.createdAt)}</span>
@@ -359,7 +353,7 @@ export function MembersSection({
               <Link className={`${buttonVariants({ size: 'sm', variant: 'outline' })} ${TOUCH_TARGET_CLASS}`} data-slot="button" href={`/admin/customers/${member.id}`}>고객 상세 열기</Link>
               <form action={detailAction} onSubmit={() => setSelectedProfileId(member.id)}>
                 <input name="profileId" type="hidden" value={member.id} />
-                <Button className={TOUCH_TARGET_CLASS} disabled={detailPending} size="sm" type="submit">
+                <Button className={TOUCH_TARGET_CLASS} disabled={detailPending} size="sm" type="submit" variant="soft">
                   <User aria-hidden="true" /> {detailPending ? '불러오는 중' : '상세 보기'}
                 </Button>
               </form>
