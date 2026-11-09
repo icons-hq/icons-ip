@@ -63,8 +63,8 @@ const STATUS_TONES = {
   unpaid: { prepared: 'neutral', confirming: 'info', needs_review: 'danger', unknown: 'danger', missing: 'danger' },
   /** 반품·교환 배송비 청구 — lib/orders/claim-fees */
   claimFee: { unpaid: 'warning', reported: 'warning', paid: 'success', waived: 'neutral', voided: 'neutral', refund_due: 'danger', refunded: 'success' },
-  /** 정기구매 신청 — lib/subscriptions/model */
-  subscription: { draft: 'neutral', awaiting_first_payment: 'info', active: 'success', paused: 'neutral', needs_confirmation: 'warning', canceled: 'danger' },
+  /** 정기구매 신청 — lib/subscriptions/model. 해지는 이미 끝난 건이라 조용히 두고 처리할 '변경 내용 확인 필요'만 띄운다 */
+  subscription: { draft: 'neutral', awaiting_first_payment: 'info', active: 'success', paused: 'neutral', needs_confirmation: 'warning', canceled: 'neutral' },
   /** 정기구매 회차 결제 */
   subscriptionCycle: { draft: 'neutral', ready: 'info', prepared: 'info', dispatching: 'info', unknown: 'warning', needs_review: 'danger', approved: 'success', declined: 'danger', canceled: 'danger', skipped: 'neutral' },
   /** 배송 건별 지연 안내 결과 — lib/admin/shipment-delay-notice */

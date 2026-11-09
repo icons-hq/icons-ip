@@ -27,6 +27,8 @@ const COLUMNS: ConsoleGridColumn[] = [
   { key: 'claim', label: '하자 요청' },
   { key: 'total', label: '결제금액', align: 'end', width: '110px' },
 ];
+/* 남은 기한이 이 날수 이하인 건만 색을 입힌다 — 전 행이 같은 색이면 볼 필요 적은 정보가 화면에서 제일 튄다. */
+const DEFECT_CLAIM_IMMINENT_DAYS = 7;
 
 /** 구매확정 이력과 배송일 기준의 별도 반품·교환 자격을 조회한다. */
 export function SettledScreen({
@@ -71,9 +73,9 @@ export function SettledScreen({
         row.doneAt
           ? <time className="tabular-nums" dateTime={row.doneAt} key="doneAt">{formatOrderDateTime(row.doneAt)}</time>
           : <span className="text-muted-foreground" key="doneAt">미기록</span>,
-        <AdminStatusBadge data-claim-open={claim.open ? 'true' : 'false'} key="claim" tone={claim.daysRemaining === null ? 'warning' : claim.open ? 'info' : 'neutral'}>
-          {adminDefectClaimLabel(claim)}
-        </AdminStatusBadge>,
+        claim.daysRemaining === null || (claim.open && claim.daysRemaining <= DEFECT_CLAIM_IMMINENT_DAYS)
+          ? <AdminStatusBadge data-claim-open={claim.open ? 'true' : 'false'} key="claim" tone="warning">{adminDefectClaimLabel(claim)}</AdminStatusBadge>
+          : <span className="text-muted-foreground tabular-nums" data-claim-open={claim.open ? 'true' : 'false'} key="claim">{adminDefectClaimLabel(claim)}</span>,
         <span className="tabular-nums" key="total">₩{row.total.toLocaleString('ko-KR')}</span>,
       ],
     };
@@ -83,6 +85,7 @@ export function SettledScreen({
     <section className="flex min-w-0 flex-col gap-4 text-sm" data-admin-settled="">
       <SalesGuide title="거래확정된 주문과 결제 내역을 조회할 수 있습니다.">
         <p>거래확정 주문의 품목·결제 근거를 엑셀로 보존할 수 있습니다. PG의 판매대금 지급 내역은 포함하지 않습니다.</p>
+        <p><span className="font-medium text-foreground underline decoration-dotted underline-offset-4" data-admin-tooltip={ADMIN_VOCABULARY.settledHint} title={ADMIN_VOCABULARY.settledHint} tabIndex={0}>{ADMIN_VOCABULARY.settled}</span>은 구매자 직접 확정 또는 설정된 자동 정책으로 처리됩니다. 자동 확정은 기본 꺼짐입니다. 확정 이후에도 반품·교환은 배송일과 사유별 신청 기한을 적용합니다.</p>
         <Link href="/admin/sales/settled/policy">구매확정 정책 설정</Link>
       </SalesGuide>
       <SalesFilterPanel
@@ -99,20 +102,18 @@ export function SettledScreen({
       />
 
       <div className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground" data-sales-results="">
-      <SalesResultsHeader currentHref={currentHref} total={total} pageSize={pageSize} sort={filters.sort ?? 'newest'}>
-        {exportRequestId ? <SettledExportForm key={`settled-export:${currentHref}`} filters={filters} requestId={exportRequestId} initialReceiptId={exportReceiptId} /> : null}
-      </SalesResultsHeader>
-      <p className="text-muted-foreground">
-        <span className="font-medium text-foreground underline decoration-dotted underline-offset-4" data-admin-tooltip={ADMIN_VOCABULARY.settledHint} title={ADMIN_VOCABULARY.settledHint} tabIndex={0}>{ADMIN_VOCABULARY.settled}</span>은 구매자 직접 확정 또는 설정된 자동 정책으로 처리됩니다. 자동 확정은 기본 꺼짐입니다. 확정 이후에도 반품·교환은 배송일과 사유별 신청 기한을 적용합니다.
-      </p>
-
+      {/* 목록 머리를 표 도구줄에 올려 조회항목 설정이 혼자 한 줄을 차지하지 않게 한다. */}
       <ConsoleGrid
         caption={`${ADMIN_VOCABULARY.settled} 주문 목록`}
         preferencesKey="sales-settled"
         columns={COLUMNS}
         emptyLabel={`${ADMIN_VOCABULARY.settled}된 주문이 없습니다.`}
         rows={rowsForGrid}
-      />
+      >
+        <SalesResultsHeader currentHref={currentHref} total={total} pageSize={pageSize} sort={filters.sort ?? 'newest'}>
+          {exportRequestId ? <SettledExportForm key={`settled-export:${currentHref}`} filters={filters} requestId={exportRequestId} initialReceiptId={exportReceiptId} /> : null}
+        </SalesResultsHeader>
+      </ConsoleGrid>
 
       <ConsolePagination
         hrefForPage={(page) => adminSettledHref(filters, { page })}

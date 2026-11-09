@@ -36,10 +36,12 @@ export function PurchaseRestrictionsScreen({ data, initialBatch = null, batchMis
     </SalesFilterPanel>
     {batchMissing ? <AdminNotice role="alert" tone="danger">등록 요청을 찾을 수 없습니다. 목록에서 구매제한 상태를 확인해주세요.</AdminNotice> : null}
     {releaseMissing ? <AdminNotice role="alert" tone="danger">이 요청으로 저장된 해제 결과가 없습니다. 목록에서 최신 구매제한 상태를 확인해주세요.</AdminNotice> : null}
-    <PurchaseRestrictionRegister />
-    <PurchaseRestrictionBatchForm key={initialBatch?.id ?? 'new'} initialBatch={initialBatch} currentHref={currentHref} />
     <div className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground" data-sales-results="">
-      <div className="flex flex-wrap items-center gap-2" data-sales-results-heading=""><SalesResultsTitle total={total} /><span className="text-muted-foreground">최근 등록순 · 해제 이력 포함 조회 가능</span></div>
+      <div className="flex flex-wrap items-center gap-2" data-sales-results-heading="">
+        <div className="mr-auto flex flex-wrap items-baseline gap-x-3 gap-y-1"><SalesResultsTitle total={total} /><span className="text-xs text-muted-foreground">최근 등록순 · 해제 이력 포함 조회 가능</span></div>
+        <PurchaseRestrictionRegister />
+        <PurchaseRestrictionBatchForm key={initialBatch?.id ?? 'new'} initialBatch={initialBatch} currentHref={currentHref} />
+      </div>
       <PurchaseRestrictionReleaseGrid key={currentHref + (initialRelease?.id ?? '')} columns={COLUMNS} currentHref={currentHref} initialReceipt={initialRelease}
         rows={data.rows.map(row => ({ id: row.id, selectable: row.releasedAt === null, selectLabel: `${row.nickname || row.userId} 구매제한 선택`, cells: [
           <AdminStatusBadge key="state" tone={row.releasedAt ? 'neutral' : 'warning'}>{row.releasedAt ? '해제' : '구매제한 중'}</AdminStatusBadge>,

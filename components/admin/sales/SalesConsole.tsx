@@ -7,8 +7,10 @@ import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { SALES_PAGE_SIZES, SALES_SORT_OPTIONS, salesListHiddenFields } from '@/lib/admin/sales-list';
+import { commerceReferenceLabel } from '@/lib/commerce-number';
 import { formatOrderDate } from '@/lib/orders';
 import { SalesDateRange } from './SalesDateRange';
+import { SalesFilterFold } from './SalesFilterFold';
 
 /*
  * 판매관리 목록의 공용 조각 — 템플릿 룩(ADR-0028). 조회 조건의 종류·이름·URL 계약과 기간 프리셋이 입력값만
@@ -32,9 +34,12 @@ export function SalesGuide({ title, children }: { title: string; children: React
   </details>;
 }
 
-/** 긴 식별값(UUID)을 앞 8자 + …로 줄여 보이고 전체 값은 title에 둔다. 검색·링크에 쓰는 값은 그대로다. */
+/**
+ * 긴 식별값(UUID)은 주문·배송 번호가 없을 때 쓰는 것과 같은 끝 8자로 줄여 보이고 전체 값은 title에 둔다.
+ * 앞자리는 줄마다 같아 보이는 일이 있어 끝자리로 구분한다. 검색·링크에 쓰는 값은 그대로다.
+ */
 export function ShortId({ value, className }: { value: string; className?: string }) {
-  return <span className={`tabular-nums${className ? ` ${className}` : ''}`} title={value}>{value.length > 12 ? `${value.slice(0, 8)}…` : value}</span>;
+  return <span className={`tabular-nums${className ? ` ${className}` : ''}`} title={value}>{value.length > 12 ? commerceReferenceLabel(value) : value}</span>;
 }
 
 /** `YYYY-MM-DD` 달력 날짜를 화면 공통 표기(2026. 11. 9.)로 보인다. */
@@ -79,13 +84,17 @@ export function SalesSelect({ id, name, value, options, label, className, size }
 }
 
 export function SalesFilterPanel({
-  currentHref, id, date, search, children, resetHref, now, hiddenFieldExclusions = [],
+  currentHref, id, date, search, children, more, moreActive = false, resetHref, now, hiddenFieldExclusions = [],
 }: {
   currentHref: string;
   id: string;
   date?: { from: string | null; to: string | null; field: string; options: readonly Option[] };
   search: { value: string; name?: string; field?: string; options?: readonly Option[]; placeholder: string };
   children?: ReactNode;
+  /** 매일 쓰지 않는 조건. 접어 두어 표가 첫 화면에 들어오게 하고, 접어도 검색할 때 값이 함께 간다. */
+  more?: ReactNode;
+  /** 접힌 조건에 지금 값이 걸려 있으면 펼쳐서 보인다. */
+  moreActive?: boolean;
   resetHref?: string;
   now?: Date;
   hiddenFieldExclusions?: readonly string[];
@@ -93,28 +102,35 @@ export function SalesFilterPanel({
   const action = currentHref.split('?')[0];
   const searchHint = ['검색어 입력', '검색어를 입력하세요'].includes(search.placeholder.trim()) ? null : search.placeholder;
   const hidden = salesListHiddenFields(currentHref, ['from', 'to', 'dateField', 'query', 'q', 'field', 'status', 'stage', 'reasonType', 'originId', 'method', 'paymentMethod', 'state', 'tab', ...hiddenFieldExclusions]);
+  /* 조회 버튼을 입력과 같은 줄 끝에 둔다 — 버튼만의 줄이 처리할 목록을 한 줄씩 밀어낸다. */
+  const actions = <>
+    <Link className={buttonVariants({ variant: 'ghost' })} data-slot="button" href={resetHref ?? action}>초기화</Link>
+    <Button type="submit" variant="soft">검색</Button>
+  </>;
+  const fields = <>
+    {date ? <SalesFilterField label="조회기간" htmlFor={`${id}-date-field`}>
+      <SalesSelect id={`${id}-date-field`} name="dateField" value={date.field} options={date.options} />
+      <SalesDateRange key={currentHref} id={id} from={date.from} to={date.to} now={now} />
+    </SalesFilterField> : null}
+    <ConsoleFilterField className={`${more ? 'min-w-[min(100%,17rem)]' : 'min-w-[min(100%,20rem)]'} flex-1`} htmlFor={`${id}-query`} label="상세조건">
+      <div className="flex min-w-0 gap-2">
+        {search.options ? <SalesSelect className="shrink-0" name="field" value={search.field} options={search.options} label="검색 유형" /> : null}
+        <Input className="min-w-0 flex-1" id={`${id}-query`} type="search" name={search.name ?? 'query'} maxLength={100}
+          defaultValue={search.value} placeholder="검색어를 입력하세요" title={more && searchHint ? searchHint : undefined} aria-describedby={searchHint ? `${id}-query-hint` : undefined} />
+      </div>
+      {/* 접는 조건이 있는 화면은 한 줄로 끝나도록 안내를 눈에서 감추고 입력칸 도움말로 둔다. */}
+      {searchHint && <small className={more ? 'sr-only' : 'text-xs text-muted-foreground wrap-anywhere'} id={`${id}-query-hint`}>{searchHint}</small>}
+    </ConsoleFilterField>
+    {children}
+  </>;
   return <form action={action} className="flex flex-col gap-3 rounded-xl border bg-card p-4 text-sm text-card-foreground print:hidden" data-sales-filters="" method="get" key={currentHref}>
     {Object.entries(hidden).map(([name, value]) => <input key={name} type="hidden" name={name} value={value} />)}
-    <div className="flex flex-wrap items-start gap-x-5 gap-y-3">
-      {date ? <SalesFilterField label="조회기간" htmlFor={`${id}-date-field`}>
-        <SalesSelect id={`${id}-date-field`} name="dateField" value={date.field} options={date.options} />
-        <SalesDateRange key={currentHref} id={id} from={date.from} to={date.to} now={now} />
-      </SalesFilterField> : null}
-      <ConsoleFilterField className="min-w-[min(100%,20rem)] flex-1" htmlFor={`${id}-query`} label="상세조건">
-        <div className="flex min-w-0 gap-2">
-          {search.options ? <SalesSelect className="shrink-0" name="field" value={search.field} options={search.options} label="검색 유형" /> : null}
-          <Input className="min-w-0 flex-1" id={`${id}-query`} type="search" name={search.name ?? 'query'} maxLength={100}
-            defaultValue={search.value} placeholder="검색어를 입력하세요" aria-describedby={searchHint ? `${id}-query-hint` : undefined} />
-        </div>
-        {searchHint && <small className="text-xs text-muted-foreground wrap-anywhere" id={`${id}-query-hint`}>{searchHint}</small>}
-      </ConsoleFilterField>
-      {children}
-      {/* 조회 버튼을 입력과 같은 줄 끝에 둔다 — 버튼만의 줄이 처리할 목록을 한 줄씩 밀어낸다. */}
-      <div className="ml-auto flex items-center gap-2 self-end">
-        <Link className={buttonVariants({ variant: 'ghost' })} data-slot="button" href={resetHref ?? action}>초기화</Link>
-        <Button type="submit" variant="soft">검색</Button>
-      </div>
-    </div>
+    {more
+      ? <SalesFilterFold actions={actions} defaultOpen={moreActive} fields={fields} id={id} more={more} />
+      : <div className="flex flex-wrap items-start gap-x-5 gap-y-3">
+        {fields}
+        <div className="ml-auto flex items-center gap-2 self-end">{actions}</div>
+      </div>}
   </form>;
 }
 
@@ -143,21 +159,26 @@ export function SalesResultsTitle({ total, unit = '건' }: { total: number; unit
 }
 
 /** 처리 단계별 건수 카드(기준 화면의 단계 카드 모양). 건수를 모르면 0으로 꾸미지 않고 숫자를 비워 둔다. */
-export function SalesStatusSummary({ items, label, aside }: {
+export function SalesStatusSummary({ items, label, aside, extra, hideLabel = false }: {
   items: readonly { label: string; href: string; count?: number; active: boolean; urgent?: boolean; tone?: AdminCountTone; icon?: LucideIcon }[];
   label: string;
-  /** 단계 이름 줄의 오른쪽 끝에 붙는 상태 표시. 첫 화면의 높이를 늘리지 않는다. */
+  /** 카드 줄 오른쪽 끝에 붙는 상태 표시. 첫 화면의 높이를 늘리지 않는다. */
   aside?: ReactNode;
+  /** 필터 링크가 없는 참고 건수 카드. 단계 카드 뒤에 같은 줄로 선다. */
+  extra?: ReactNode;
+  /** 카드만으로 뜻이 분명하면 단계 이름 줄을 눈으로는 감춘다(화면 낭독기는 aria-label로 읽는다). */
+  hideLabel?: boolean;
 }) {
   /* 8칸은 넓은 화면에서 한 줄에 세운다 — 마지막 칸만 둘째 줄에 남으면 표가 한 줄 밀린다. */
   const grid = items.length === 8 ? 'grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-8' : ADMIN_COUNT_CARD_GRID_CLASS;
   return <nav aria-label={label} className="flex flex-col gap-2" data-sales-summary="">
-    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+    {hideLabel ? null : <p className="text-xs font-medium text-muted-foreground">{label}</p>}
+    <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
+      <div className={`${grid} min-w-0 flex-1 basis-96`}>
+        {items.map((item) => <AdminCountCard active={item.active} count={item.count} current="page" href={item.href} icon={item.icon} key={item.href} label={item.label} tone={item.urgent ? 'danger' : item.tone ?? 'default'} />)}
+        {extra}
+      </div>
       {aside}
-    </div>
-    <div className={grid}>
-      {items.map((item) => <AdminCountCard active={item.active} count={item.count} current="page" href={item.href} icon={item.icon} key={item.href} label={item.label} tone={item.urgent ? 'danger' : item.tone ?? 'default'} />)}
     </div>
   </nav>;
 }
