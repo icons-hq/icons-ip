@@ -115,7 +115,7 @@ export function Header({
             ))}
           </nav>
         ) : null}
-        <nav aria-label="판매자 바로가기" className="hidden items-center gap-1 md:flex">
+        <nav aria-label="판매자 바로가기" className="hidden items-center gap-1 lg:flex">
           <Link className={buttonVariants({ variant: 'ghost', size: 'sm' })} href="/admin/guide">
             <BookOpen aria-hidden="true" />
             판매자 가이드

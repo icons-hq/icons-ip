@@ -125,7 +125,7 @@ describe('CurationSection', () => {
     expect(html).toContain('여름 신작');
     expect(html).toContain('노출 중');
     expect(html).toContain('순서 2');
-    expect(html).toContain('2026-07-15 09:00 KST');
+    expect(html).toContain('2026-07-15 09:00');
     expect(html).toContain('모바일');
     expect(html).toContain('PC');
     expect(html).toContain('전체보기');

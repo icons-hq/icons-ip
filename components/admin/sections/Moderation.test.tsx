@@ -75,7 +75,7 @@ describe('ModerationSection', () => {
     expect(html).toContain('최근 신고 2건 기준');
     expect(html).toMatch(/aria-pressed="false"[^>]*>[\s\S]*?접수/);
     expect(html.indexOf('신고된 댓글 원문')).toBeLessThan(html.indexOf('처리 끝난 원문'));
-    expect(html).toMatch(/<button(?=[^>]*text-destructive)(?=[^>]*border-border-strong)[^>]*>(?:<svg[\s\S]*?<\/svg>)? 댓글 숨김<\/button>/);
+    expect(html).toMatch(/<button(?=[^>]*hover:text-destructive)[^>]*>(?:<svg[\s\S]*?<\/svg>)? 댓글 숨김<\/button>/);
   });
 
   /* 숨김을 누르면 신고도 함께 끝난다는 것을 그 자리에서 말하고, 사유와 문제의 글에 이름표를 단다. */

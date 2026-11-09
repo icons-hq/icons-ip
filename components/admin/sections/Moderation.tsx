@@ -20,7 +20,7 @@ import { statusTone } from '@/lib/admin/status-tone';
 import { ConsoleListCard } from '../console/ConsoleListCard';
 import { AdminStatusBadge } from '../console/AdminKit';
 import { AdminCountCard, type AdminCountTone } from '../console/AdminCountCard';
-import { ROW_DANGER_BUTTON_CLASS, csChipTone } from '../screens/cs-kit-classes';
+import { csChipTone } from '../screens/cs-kit-classes';
 
 const emptyState: AdminCatalogActionState = {};
 const reportStatuses: CommunityReportStatus[] = ['open', 'reviewing', 'resolved', 'dismissed'];
@@ -35,8 +35,8 @@ type ReportFilter = 'all' | CommunityReportStatus;
 /* 다른 문의·리뷰 화면과 같은 날짜 표기(한국 시각, 초 없음). */
 const reportTimeFormatter = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
 const isActiveReport = (report: AdminReportRecord) => report.status === 'open' || report.status === 'reviewing';
-/* 숨김 버튼은 댓글·포스트 모두 같은 규칙이다 — 처리할 신고는 빨간 글자 테두리 버튼, 끝난 신고는 같은 테두리에 회색 글자다. 꺼진 버튼처럼 보이지 않게 테두리는 언제나 둔다. */
-const hideButtonClass = (report: AdminReportRecord) => `${TOUCH_TARGET} ${isActiveReport(report) ? ROW_DANGER_BUTTON_CLASS : 'text-muted-foreground hover:text-destructive'}`;
+/* 숨김 버튼은 댓글·포스트 모두 같은 모양이다. 카드마다 빨간 버튼이 쌓이면 신고 내용보다 버튼이 먼저 보여, 평소에는 보통 글자의 테두리 버튼이고 끝난 신고만 흐리다. 되돌리기 어려운 일은 확인창이 지킨다. */
+const hideButtonClass = (report: AdminReportRecord) => `${TOUCH_TARGET} hover:text-destructive ${isActiveReport(report) ? '' : 'text-muted-foreground'}`;
 
 /** 건수 카드를 누르면 이미 읽은 목록을 그 상태로 거른다(서버 재조회·URL 변경 없음). */
 function ReportFilterCard({ active, count, icon, label, onSelect, tone, quiet = false }: { active: boolean; count: number; icon?: LucideIcon; label: string; onSelect: () => void; tone?: AdminCountTone; quiet?: boolean }) {

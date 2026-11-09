@@ -189,7 +189,7 @@ export function CurationSection({
             <button aria-current={selected?.id === record.id ? 'true' : undefined} className="flex w-full min-w-0 flex-col gap-1 rounded-lg border border-transparent p-3 text-left transition-colors outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 aria-[current=true]:border-primary aria-[current=true]:bg-primary-soft aria-[current=true]:ring-1 aria-[current=true]:ring-primary" data-slot="button" onClick={() => requestSelection({ id: record.id })} type="button">
               <span className="flex items-center justify-between gap-1.5"><strong className="text-sm font-medium">{CURATION_KIND_LABELS[record.kind]}</strong><AdminStatusBadge tone={statusTone('display', record.status)}>{CURATION_STATUS_LABELS[record.status]}</AdminStatusBadge></span>
               <span className="text-xs leading-normal [overflow-wrap:anywhere]">{record.title || '제목 없는 배너'}</span>
-              <span className="block text-xs text-muted-foreground tabular-nums">순서 {record.displayOrder} · {curationKstInput(record.activeFrom).replace('T', ' ')} KST</span>
+              <span className="block text-xs whitespace-nowrap text-muted-foreground tabular-nums" title="노출 시작(KST)">순서 {record.displayOrder} · {curationKstInput(record.activeFrom).replace('T', ' ')}</span>
             </button>
           </li>)}
         </ul>
