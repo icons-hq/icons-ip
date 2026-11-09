@@ -8,6 +8,7 @@ import {
   type AdminCatalogArchiveKind,
 } from '../../app/admin/archive-actions';
 import type { AdminCatalogArchiveFilter as ArchiveFilter } from '../../lib/admin/catalog-archive';
+import { AdminNotice } from './console/AdminKit';
 import { AdminSelect } from './console/AdminSelect';
 import { Button } from './kit/ui/button';
 
@@ -63,25 +64,14 @@ export function CatalogArchiveControl({
 
   return (
     <section className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground" data-catalog-archive="">
-      <div className="flex flex-col gap-1">
-        <span className="text-xs font-medium tracking-wide text-muted-foreground">CATALOG VISIBILITY</span>
-        <h2 className="text-base leading-snug font-medium">{archived ? '보관 복원' : '카탈로그 보관'}</h2>
-      </div>
+      <h2 className="text-base leading-snug font-medium">{archived ? '보관 복원' : '카탈로그 보관'}</h2>
       <p className="text-sm text-muted-foreground">
         {archived
           ? (kind === 'ip' || kind === 'good' ? '초안으로 복원합니다. 다시 노출하려면 내용을 확인한 뒤 공개로 전환해주세요.' : '보관된 항목을 공개 카탈로그로 복원합니다.')
           : ARCHIVE_WARNINGS[kind]}
       </p>
-      {state.errors?.form && (
-        <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive" role="alert">
-          {state.errors.form}
-        </div>
-      )}
-      {state.message && (
-        <div className="rounded-lg border bg-muted/40 px-3 py-2.5 text-sm text-[var(--wc-success)]" role="status">
-          {state.message}
-        </div>
-      )}
+      {state.errors?.form && <AdminNotice role="alert" tone="danger">{state.errors.form}</AdminNotice>}
+      {state.message && <AdminNotice role="status" tone="success">{state.message}</AdminNotice>}
       <form action={formAction}>
         <input name="kind" readOnly type="hidden" value={kind} />
         <input name="id" readOnly type="hidden" value={id} />

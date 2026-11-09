@@ -59,7 +59,7 @@ export function IpIdentityForm({ identity }: { identity: AdminIpIdentity }) {
         </div>
         {state.errors?.id ? <p className="text-sm text-destructive" role="alert">{state.errors.id}</p> : null}
         {state.errors?.form ? <p className="text-sm text-destructive" role="alert">{state.errors.form}</p> : null}
-        {state.message ? <p aria-live="polite" className="text-sm font-medium text-[var(--wc-success)]" role="status">{state.message}</p> : null}
+        {state.message ? <p aria-live="polite" className="text-sm font-medium text-success" role="status">{state.message}</p> : null}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <Button disabled={pending} type="submit">
             {pending ? '저장 중' : '공개 URL 저장'}

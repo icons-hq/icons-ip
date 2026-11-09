@@ -1,6 +1,6 @@
 'use client';
 
-import { AdminFormGrid } from '@/components/admin/console/AdminKit';
+import { AdminFormGrid, AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { useActionState, useState } from 'react';
 import {
   endAdminGameAction,
@@ -20,7 +20,9 @@ import {
   RecordList,
   SelectField,
 } from '../fields';
+import { statusTone } from '@/lib/admin/status-tone';
 import { MasterDetail, ReadOnlyField, SECTION_CARD, SECTION_STAT, SECTION_STATS, SectionHeading } from './SectionLayout';
+import { RecordStatusLabel } from './RecordStatusLabel';
 
 const emptyState: AdminCatalogActionState = {};
 
@@ -116,10 +118,10 @@ export function GameSection({
           ariaLabel="게임 목록"
           emptyMessage="등록된 게임이 없습니다."
           items={records}
-          labelFor={(game) => (
-            `${game.title} · ${GAME_STATUS_LABELS[game.status]}`
-            + (game.variantKind === 'card' ? '' : ' · 읽기 전용')
-          )}
+          labelFor={(game) => {
+            const readOnly = game.variantKind === 'card' ? '' : ' · 읽기 전용';
+            return <RecordStatusLabel name={`${game.title}${readOnly}`} status={GAME_STATUS_LABELS[game.status]} tone={statusTone('game', game.status)} title={`${game.title} · ${GAME_STATUS_LABELS[game.status]}${readOnly}`} />;
+          }}
           newLabel="새 게임 등록"
           onNew={() => onSelect(null)}
           onSelect={onSelect}
@@ -295,11 +297,7 @@ function GameForm({
           플레이 이력이 있어 slug·보상 카드풀·연결 이벤트는 변경할 수 없습니다.
         </p>
       ) : null}
-      {noEligiblePool ? (
-        <p className="text-sm text-destructive" role="status">
-          확률과 카드 구성이 완료된 운영 예정/운영 중 카드풀을 먼저 준비해주세요.
-        </p>
-      ) : null}
+      {noEligiblePool ? <AdminNotice role="status" tone="warning">확률과 카드 구성이 완료된 운영 예정/운영 중 카드풀을 먼저 준비해주세요.</AdminNotice> : null}
       <FormShell disabled={noEligiblePool} pending={pending} state={state} />
     </form>
   );
@@ -331,7 +329,7 @@ function GameSummary({ selected }: { selected: AdminGameRecord | null }) {
       <SectionHeading id="game-summary-title" title="게임 현황" />
       {selected ? (
         <ul className={SECTION_STATS} data-admin-summary="game">
-          <li className={SECTION_STAT}>상태 {GAME_STATUS_LABELS[selected.status]}</li>
+          <li className={`${SECTION_STAT} flex items-center gap-2`}>상태 <AdminStatusBadge tone={statusTone('game', selected.status)}>{GAME_STATUS_LABELS[selected.status]}</AdminStatusBadge></li>
           <li className={SECTION_STAT}>유형 {variantLabel(selected)}</li>
           <li className={SECTION_STAT}>IP {selected.ipTitle ?? selected.ipId ?? '없음'}</li>
           <li className={SECTION_STAT}>카드풀 {selected.rewardPoolName ?? '없음'}</li>
@@ -374,6 +372,7 @@ function EndGameForm({ gameId, operationId }: { gameId: string; operationId: str
         className="min-w-36 self-start"
         disabled={pending}
         type="submit"
+        variant="destructive"
       >
         {pending ? '종료 중' : '지금 종료'}
       </Button>

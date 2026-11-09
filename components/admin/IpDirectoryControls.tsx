@@ -40,7 +40,7 @@ export function IpDirectoryControls({ id, directory }: { id: string; directory: 
         </div>
       </fieldset>
       {state.errors?.form ? <p className="text-sm text-destructive" role="alert">{state.errors.form}</p> : null}
-      {state.message ? <p className="text-sm font-medium text-[var(--wc-success)]" role="status">{state.message}</p> : null}
+      {state.message ? <p className="text-sm font-medium text-success" role="status">{state.message}</p> : null}
     </form>
   </AdminSectionCard>;
 }

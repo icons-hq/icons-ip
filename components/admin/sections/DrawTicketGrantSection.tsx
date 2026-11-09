@@ -1,6 +1,6 @@
 'use client';
 
-import { AdminFormGrid } from '@/components/admin/console/AdminKit';
+import { AdminFormGrid, AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { useActionState, useMemo, useState } from 'react';
 import {
   grantAdminDrawTicketsAction,
@@ -17,13 +17,12 @@ import {
 } from '@/lib/admin/draw-ticket-grants';
 import type { AdminMemberSummary } from '@/lib/admin/members';
 import { Check, Search, UserCheck, UserRound } from 'lucide-react';
-import { Badge } from '@/components/admin/kit/ui/badge';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { Label } from '@/components/admin/kit/ui/label';
 import { ErrorText, Field, InlineNotice, SelectField, TextArea } from '../fields';
 import { getRewardPolicyPoolOptions } from './RewardPolicySection';
-import { SECTION_CARD, SECTION_NOTE, SectionHeading } from './SectionLayout';
+import { SECTION_CARD, SectionHeading } from './SectionLayout';
 
 /* 수동 카드팩(뽑기권) 발급 콘솔(#185).
  * 발급 정책(자동)과 화면을 나눈 이유는 감사 단위가 다르기 때문이다 — 정책은 조건을 세우고,
@@ -74,12 +73,9 @@ export function DrawTicketGrantSection({
       <div className="grid min-w-0 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,0.8fr)]">
         <div className="flex min-w-0 flex-col gap-4">
           {!poolOptions.length ? (
-            <div className={`${SECTION_NOTE} flex flex-col gap-1`} role="status">
-              <strong className="font-medium text-foreground">발급할 수 있는 카드풀이 없습니다.</strong>
-              <span>
-                카드풀 관리에서 운영 기간과 등급별 확률을 채우고 카드를 바인딩한 뒤 다시 시도해주세요.
-              </span>
-            </div>
+            <AdminNotice role="status" title="발급할 수 있는 카드풀이 없습니다." tone="warning">
+              카드풀 관리에서 운영 기간과 등급별 확률을 채우고 카드를 바인딩한 뒤 다시 시도해주세요.
+            </AdminNotice>
           ) : (
             <>
               <MemberPicker
@@ -147,7 +143,7 @@ function MemberPicker({
               name="query"
               placeholder="이메일 또는 닉네임"
             />
-            <Button disabled={pending} type="submit">
+            <Button disabled={pending} type="submit" variant="soft">
               <Search aria-hidden="true" /> {pending ? '검색 중' : '검색'}
             </Button>
           </div>
@@ -163,7 +159,7 @@ function MemberPicker({
               <div className="flex min-w-0 flex-col gap-0.5">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm font-medium break-all">@{member.nickname}</span>
-                  {member.suspendedAt && <Badge variant="destructive">정지</Badge>}
+                  {member.suspendedAt && <AdminStatusBadge tone="danger">정지</AdminStatusBadge>}
                 </div>
                 <span className="text-xs text-muted-foreground">{member.maskedEmail}</span>
               </div>
@@ -202,9 +198,7 @@ function GrantForm({
 }) {
   if (!selected) {
     return (
-      <div className={SECTION_NOTE} role="status">
-        발급 대상을 검색해 선택하면 발급 폼이 열립니다.
-      </div>
+      <AdminNotice role="status" tone="info">발급 대상을 검색해 선택하면 발급 폼이 열립니다.</AdminNotice>
     );
   }
 

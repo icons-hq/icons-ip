@@ -8,9 +8,11 @@ import { IpDirectoryControls } from '../IpDirectoryControls';
 import { IpIdentityForm } from '../IpIdentityForm';
 import { IP_INDEX_PATH, IP_WORKSPACE_TABS, ipWorkspaceHref, newGoodForIpHref, type AdminIpWorkspaceData } from '@/lib/admin/ip-workspace';
 import { ADMIN_VOCABULARY } from '@/lib/admin/vocabulary';
+import { ADMIN_IP_PUBLISH_STATE_LABELS, adminIpPublishState } from '@/lib/admin/ip-publish';
+import { statusTone } from '@/lib/admin/status-tone';
 
 /* 작업 탭은 셸의 콘솔 전환과 같은 모양(muted 바탕 위 현재 탭만 흰 바탕)이다. */
-const TAB_CLASS = 'inline-flex h-7 shrink-0 items-center rounded-md px-3 text-sm font-medium whitespace-nowrap text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 aria-[current=page]:bg-background aria-[current=page]:text-foreground aria-[current=page]:shadow-sm';
+const TAB_CLASS = 'inline-flex h-7 shrink-0 items-center rounded-md px-3 text-sm font-medium whitespace-nowrap text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 aria-[current=page]:bg-background aria-[current=page]:text-primary-soft-foreground aria-[current=page]:shadow-sm';
 
 export function IpWorkspaceScreen({ data, children }: { data: AdminIpWorkspaceData; children?: ReactNode }) {
   const { ip, tab, related, relatedTotal } = data;
@@ -18,7 +20,7 @@ export function IpWorkspaceScreen({ data, children }: { data: AdminIpWorkspaceDa
   const relatedHref = tab === 'goods' ? `/admin/catalog/goods?ipId=${encodeURIComponent(ip.id)}` : tab === 'pools' ? '/admin/catalog/pools' : '/admin/catalog/events';
   return <section className="flex min-w-0 flex-col gap-6">
     <Link className="w-fit text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" href={`${IP_INDEX_PATH}?vertical=${encodeURIComponent(ip.verticalKey)}`}>← 같은 버티컬의 IP 목록</Link>
-    <AdminPageHeader title={ip.title} description={ip.id} actions={<AdminStatusBadge tone={ip.publishedAt && !ip.archivedAt ? 'success' : 'neutral'}>{ip.archivedAt ? '보관' : ip.publishedAt ? '공개' : '초안'}</AdminStatusBadge>} />
+    <AdminPageHeader title={ip.title} description={ip.id} actions={<AdminStatusBadge tone={statusTone('publication', adminIpPublishState(ip))}>{ADMIN_IP_PUBLISH_STATE_LABELS[adminIpPublishState(ip)]}</AdminStatusBadge>} />
     <nav aria-label="IP 작업 탭" className="flex w-fit max-w-full items-center overflow-x-auto rounded-lg bg-muted p-0.5">
       {IP_WORKSPACE_TABS.map((entry) => <Link key={entry.id} href={ipWorkspaceHref(ip.id, entry.id)}
         className={TAB_CLASS} aria-current={tab === entry.id ? 'page' : undefined}>
