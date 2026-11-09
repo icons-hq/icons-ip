@@ -8,9 +8,10 @@ import { loadAdminShippingCarriers } from '@/lib/admin/store-settings.server';
 
 export default async function Page() {
   const auth = await requireAdminScreenAccess(SHIPPING_REGIONS_PATH);
+  const now = new Date();
   const [regions, origins, carriers] = await Promise.all([
     loadAdminShippingRegionPolicies(), loadGoodsFulfillmentOptions(), loadAdminShippingCarriers(),
   ]);
   return <ShippingRegionsScreen policies={regions.policies} adoptions={regions.adoptions} origins={origins}
-    carriers={carriers} canEdit={canAccessAdminScreen(auth, null, { capability: 'platform.manage', adminOnly: true })} />;
+    carriers={carriers} now={now} canEdit={canAccessAdminScreen(auth, null, { capability: 'platform.manage', adminOnly: true })} />;
 }

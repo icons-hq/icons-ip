@@ -9,8 +9,7 @@ import type { GoodsFulfillmentOrigin } from '@/lib/admin/fulfillment-origins';
 import type { EditableCarrier } from '@/lib/admin/store-settings';
 import {
   emptyShippingRegionPolicy, parseShippingRegionPolicyInput, parseShippingRegionRulesTsv, REGION_DISPOSITION_LABELS, shippingRegionPolicyProblems,
-  shippingRegionRulesTsv, type ShippingRegionPolicy, type ShippingRegionPolicyInput,
-} from '@/lib/admin/shipping-regions';
+  shippingRegionRulesTsv, type ShippingRegionPolicy, type ShippingRegionPolicyInput, shippingRegionPolicyInEffect } from '@/lib/admin/shipping-regions';
 import type { ShippingRegionAdoption } from '@/lib/admin/shipping-regions.server';
 import { formatOrderDateTime } from '@/lib/orders';
 import { krw } from '@/lib/format';
@@ -143,9 +142,11 @@ function ShippingRegionEditor({ policy, initialCopy, origins, carriers, canEdit,
   </div>;
 }
 
-export function ShippingRegionsScreen({ policies: initialPolicies, adoptions, origins, carriers, canEdit }: {
+export function ShippingRegionsScreen({ policies: initialPolicies, adoptions, origins, carriers, canEdit, now = new Date() }: {
   policies: ShippingRegionPolicy[]; adoptions: ShippingRegionAdoption[]; origins: GoodsFulfillmentOrigin[];
   carriers: EditableCarrier[]; canEdit: boolean;
+  /** 서버가 요청 시각을 넘긴다. 정책 적용 판정에 쓴다. */
+  now?: Date;
 }) {
   const [policies, setPolicies] = useState(initialPolicies); const [selectedId, setSelectedId] = useState<string | null>(null);
   const [copy, setCopy] = useState<ShippingRegionPolicyInput | null>(null); const [editorKey, setEditorKey] = useState(0);
@@ -171,7 +172,9 @@ export function ShippingRegionsScreen({ policies: initialPolicies, adoptions, or
     setSelectedId(policy.id); setCopy(null); setEditorKey((key) => key + 1); setMessage(success); setComposing(false);
   }
   /* 정책을 도입했는데 지금 적용 중인 정책이 없는 출고지 — 이때만 경고한다. 늘 떠 있는 노란 상자는 지금 문제가 있다는 뜻으로 읽히지 않는다. */
-  const uncovered = origins.filter((origin) => adoptions.some((row) => row.originId === origin.id) && !policies.some((policy) => policy.originId === origin.id && policy.status === 'active'));
+  /* 활성이어도 기간 밖이거나 다른 택배사 정책이면 신규 주문이 막힌다 — 견적 판정(`apply_shipping_region_quote`)과 같은 조건으로 말한다. */
+  const inEffect = (origin: GoodsFulfillmentOrigin) => carriers.some((carrier) => carrier.code === origin.defaultCarrier && carrier.active) && policies.some((policy) => shippingRegionPolicyInEffect(policy, origin, now.getTime()));
+  const uncovered = origins.filter((origin) => adoptions.some((row) => row.originId === origin.id) && !inEffect(origin));
   const hasUnregistered = origins.some((origin) => !adoptions.some((row) => row.originId === origin.id) && !policies.some((policy) => policy.originId === origin.id && policy.status !== 'draft'));
   return <div className="flex min-w-0 flex-col gap-4" data-admin-screen="shipping-regions">
     <AdminPageHeader title="지역별 추가배송비 관리" description="실제 물류사 회신을 출고지·계약 택배사·적용 기간별로 관리합니다. 확정된 정책만 배송지별 견적과 주문에 적용합니다." actions={<StoreSettingsRelatedLinks label="배송 설정" links={[{ href: '/admin/settings/origins', label: '출고지·배송비' }, { href: '/admin/settings/carriers', label: '택배사' }]} />} />
@@ -182,9 +185,9 @@ export function ShippingRegionsScreen({ policies: initialPolicies, adoptions, or
         const originPolicies = policies.filter((policy) => policy.originId === origin.id);
         const newlyActive = originPolicies.some((policy) => policy.status !== 'draft');
         const state = adoption
-          ? originPolicies.some((policy) => policy.status === 'active')
+          ? inEffect(origin)
             ? { tone: 'success', label: '지역 정책 적용', detail: `${formatOrderDateTime(adoption.managedFrom)}부터 지역 정책 필수` } as const
-            : { tone: 'warning', label: '활성 정책 없음', detail: `${formatOrderDateTime(adoption.managedFrom)}부터 지역 정책 필수` } as const
+            : { tone: 'warning', label: '적용 중인 정책 없음', detail: `${formatOrderDateTime(adoption.managedFrom)}부터 지역 정책 필수` } as const
           : newlyActive ? { tone: 'info', label: '지역 정책 도입', detail: '적용 기간을 확인해주세요' } as const
             : { tone: 'neutral', label: '지역표 미등록', detail: '기존 배송비로 주문 확정' } as const;
         return <li className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 first:pt-0 last:pb-0" key={origin.id}><span className="font-medium">{origin.name}</span><AdminStatusBadge tone={state.tone}>{state.label}</AdminStatusBadge><span className="text-muted-foreground">{state.detail}</span></li>;
