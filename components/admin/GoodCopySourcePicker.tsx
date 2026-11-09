@@ -3,9 +3,10 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Copy, Search } from 'lucide-react';
+import { Copy, Search } from 'lucide-react';
 import { searchGoodsOptionImportAction } from '@/app/admin/goods-option-import-actions';
 import type { GoodsOptionImportFilters, GoodsOptionImportPage } from '@/lib/admin/goods-option-import';
+import { ConsolePagination } from '@/components/admin/console/ConsolePagination';
 import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { CustomerServiceDialog } from './screens/CustomerServiceDialog';
@@ -50,7 +51,7 @@ export function GoodCopySourceDialog({ accountId, blocked, onClose }: { accountI
     } catch { if (mounted.current && sequence.current === version) setError('상품을 불러오지 못했습니다. 현재 목록은 유지됩니다.'); }
     finally { lane.current = false; if (mounted.current && sequence.current === version) setBusy(false); }
   }
-  const locked = busy || blocked || authChanged, pages = Math.max(1, Math.ceil((data?.total ?? 0) / 20));
+  const locked = busy || blocked || authChanged;
   return <CustomerServiceDialog title="복사할 상품 선택" onClose={onClose} wide>
     <div className="flex min-w-0 flex-col gap-4 text-sm" data-good-copy-picker="">
       <p className="text-muted-foreground">보관하지 않은 상품을 등록일 최신순으로 20개씩 조회합니다. 선택하면 해당 상품의 복사 설정으로 이동하며, ‘새 초안으로 복사’를 눌러야 새 상품이 생성됩니다.</p>
@@ -67,7 +68,7 @@ export function GoodCopySourceDialog({ accountId, blocked, onClose }: { accountI
       </li>)}</ul>
       {!busy && data?.total === 0 ? <p className="py-6 text-center text-muted-foreground">조건에 맞는 상품이 없습니다.</p> : null}
       {error ? <p className="text-destructive" role="alert">{error}</p> : null}{busy ? <p className="text-muted-foreground" role="status">상품을 불러오고 있습니다.</p> : null}
-      <nav className="flex items-center justify-center gap-3" aria-label="복사 상품 페이지"><Button type="button" variant="outline" size="sm" disabled={locked || !data || data.page <= 1} onClick={() => void search({ ...applied, page: (data?.page ?? 1) - 1 })}><ChevronLeft aria-hidden="true" />이전</Button><span className="tabular-nums">{data?.page ?? 1} / {pages}</span><Button type="button" variant="outline" size="sm" disabled={locked || !data || data.page >= pages} onClick={() => void search({ ...applied, page: (data?.page ?? 1) + 1 })}>다음<ChevronRight aria-hidden="true" /></Button></nav>
+      <ConsolePagination label="복사 상품 페이지" page={data?.page ?? 1} pageSize={20} total={data?.total ?? 0} unit="개" disabled={locked || !data} onPageChange={page => void search({ ...applied, page })} />
     </div>
   </CustomerServiceDialog>;
 }

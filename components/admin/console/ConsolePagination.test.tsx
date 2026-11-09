@@ -92,6 +92,15 @@ describe('ConsolePagination', () => {
     expect(locked.match(/disabled=""/g)).toHaveLength(2);
   });
 
+  /* 대화 목록처럼 목록이 제자리에서 바뀌는 화면은 페이지를 옮겨도 스크롤을 맨 위로 보내지 않는다. */
+  it('링크 모드는 scroll을 next/link에 그대로 넘긴다', () => {
+    const element = ConsolePagination({ hrefForPage, page: 2, pageSize: 20, total: 41, scroll: false });
+    const links = element.props.children[1].props.children as { props: { href: string; scroll?: boolean } }[];
+    expect(links.map(link => [link.props.href, link.props.scroll])).toEqual([['/admin/orders?page=1', false], ['/admin/orders?page=3', false]]);
+    const defaults = ConsolePagination({ hrefForPage, page: 2, pageSize: 20, total: 41 }).props.children[1].props.children as { props: { scroll?: boolean } }[];
+    expect(defaults.map(link => link.props.scroll)).toEqual([undefined, undefined]);
+  });
+
   it('전체 건수를 한국어 천 단위로 끊는다', () => {
     const html = renderToStaticMarkup(
       <ConsolePagination hrefForPage={hrefForPage} page={2} pageSize={50} total={12345} />,

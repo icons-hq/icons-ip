@@ -1,9 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { ConsoleGrid } from '@/components/admin/console';
-import { Button } from '@/components/admin/kit/ui/button';
+import { ConsoleGrid, ConsolePagination } from '@/components/admin/console';
 import { CUSTOMER_PURCHASE_GROUP_LABEL, customerPurchaseShare, customerPurchaseValue as value, type CustomerPurchaseGrain, type CustomerPurchasePeriod } from '@/lib/admin/customer-purchase-report';
 
 export function CustomerPurchaseDataTable({ periods, grain }: { periods: CustomerPurchasePeriod[]; grain: CustomerPurchaseGrain }) {
@@ -26,6 +24,6 @@ export function CustomerPurchaseDataTable({ periods, grain }: { periods: Custome
       const salesShare = row.group === 'all' || row.productSalesAmount === null || all.productSalesAmount === null ? null : customerPurchaseShare(row.productSalesAmount, all.productSalesAmount);
       return { id: `${period.from}-${row.group}`, cells: [<span className="whitespace-nowrap tabular-nums" key="period">{period.from} ~ {period.to}</span>, CUSTOMER_PURCHASE_GROUP_LABEL[row.group], value(row.customerCount), share === null ? '—' : `${value(share, 1)}%`, value(row.orderCount), value(row.productSalesAmount), salesShare === null ? '—' : `${value(salesShare, 1)}%`, value(row.averagePerCustomer, 2), value(row.storeCreditAmount), value(row.cashProductAmount), row.monetaryIssueOrderCount ? `${value(row.monetaryIssueOrderCount)}건` : '—'] };
     })} />
-    <nav className="flex items-center justify-center gap-3 text-sm" aria-label="고객 분석 데이터 페이지"><Button disabled={current === 1} onClick={() => setPage(current - 1)} size="sm" type="button" variant="outline"><ChevronLeft aria-hidden="true" />이전</Button><span className="text-muted-foreground tabular-nums" aria-live="polite">{current} / {pages} 페이지</span><Button disabled={current === pages} onClick={() => setPage(current + 1)} size="sm" type="button" variant="outline">다음<ChevronRight aria-hidden="true" /></Button></nav>
+    <ConsolePagination label="고객 분석 데이터 페이지" page={current} pageSize={20} total={flat.length} unit="행" onPageChange={setPage} />
   </section>;
 }

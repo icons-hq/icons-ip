@@ -39,6 +39,13 @@ describe('ICONS 상담 콘솔', () => {
     expect(html).toContain('상담이 완료되었습니다.'); expect(html).not.toContain('data-chat-composer');
     expect(render({ detail, selected: true })).toContain('data-chat-composer');
   });
+  /* 대화 목록 페이지 이동은 공용 ConsolePagination(링크 모드)이다 — 조회 조건을 유지한 채 page만 바꾼다. */
+  it('대화 목록 페이지 이동은 범위 요약과 조건을 유지한 이전·다음 링크를 둔다', () => {
+    const html = render({ data: { ...data, total: 61 }, filters: normalizeInquiryChatFilters({ status: 'open', page: '2' }) });
+    expect(html).toMatch(/<nav aria-label="대화 목록 페이지"[^>]*><span[^>]*>31–60 \/ 전체 61건 · 2 \/ 3 페이지<\/span>/);
+    expect(html).toMatch(/<a aria-label="이전 페이지"[^>]*href="\/admin\/cs\/chat\?status=open"/);
+    expect(html).toMatch(/<a aria-label="다음 페이지"[^>]*href="\/admin\/cs\/chat\?status=open&amp;page=3"/);
+  });
   it('정상 빈 목록과 존재하지 않는 선택 대화를 구분한다', () => {
     const html = render({ selected: true });
     expect(html).toContain('대화를 찾을 수 없습니다.'); expect(html).not.toContain('상담할 대화를 선택해 주세요');
@@ -48,7 +55,8 @@ describe('ICONS 상담 콘솔', () => {
     const purchaseHistory = { userId, tab: 'orders' as const, page: 1, pageSize: 20, total: 1,
       items: [{ id: 'a20c0000-0000-4000-8000-000000000401', title: '합성 키링', status: 'paid', amount: 12000, createdAt: '2026-10-19T01:00:00Z', itemCount: 1 }] };
     const html = render({ detail, selected: true, canReadOrders: true, purchaseHistory });
-    expect(html).toContain('전체 구매이력'); expect(html).toContain('합성 키링'); expect(html).toContain('1 / 1 · 1건');
+    expect(html).toContain('전체 구매이력'); expect(html).toContain('합성 키링');
+    expect(html).toMatch(/<nav aria-label="고객 이력 페이지"[^>]*><span[^>]*>1–1 \/ 전체 1건 · 1 \/ 1 페이지<\/span>/);
     expect(html).not.toContain('전체 구매이력 보기'); expect(html).not.toMatch(/<button(?=[^>]*name="tab")/);
     const other = render({ detail, selected: true, canReadOrders: true, purchaseHistory: { ...purchaseHistory, userId: 'a20c0000-0000-4000-8000-000000000009' } });
     expect(other).not.toContain('합성 키링'); expect(other).toMatch(/<button(?=[^>]*name="tab")(?=[^>]*value="orders")/);

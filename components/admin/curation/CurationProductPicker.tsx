@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { X } from 'lucide-react';
+import { ConsolePagination } from '@/components/admin/console/ConsolePagination';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/admin/kit/ui/table';
@@ -100,11 +101,7 @@ export function CurationProductPicker({ options, goods, selectedIds, limit, onAp
       </Table>
       {rows.length === 0 ? <p className="px-5 py-8 text-center text-sm text-muted-foreground">조회된 상품이 없습니다.</p> : null}
     </div>
-    <nav aria-label="상품 선택 페이지" className="flex items-center justify-center gap-3 px-5 py-3.5 text-xs">
-      <Button disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)} size="sm" type="button" variant="outline">이전</Button>
-      <span className="tabular-nums">{currentPage} / {pageCount}</span>
-      <Button disabled={currentPage >= pageCount} onClick={() => setPage(currentPage + 1)} size="sm" type="button" variant="outline">다음</Button>
-    </nav>
+    <div className="px-5 py-3.5"><ConsolePagination label="상품 선택 페이지" page={currentPage} pageSize={20} total={matches.length} unit="개" onPageChange={setPage} /></div>
     <footer><Button onClick={onClose} type="button" variant="outline">취소</Button><Button onClick={() => onApply(selection)} type="button">선택 완료</Button></footer>
   </CurationEditorDialog>;
 }

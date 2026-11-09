@@ -7,6 +7,7 @@ import type { ShoppingStoryGoodOption } from '@/lib/admin/shopping-stories';
 import { CustomerServiceDialog } from './screens/CustomerServiceDialog';
 import { findGoodById, GOOD_URL_ERRORS } from '@/lib/admin/good-url';
 import { GoodUrlAddField } from './GoodUrlAddField';
+import { ConsolePagination } from '@/components/admin/console/ConsolePagination';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
@@ -88,7 +89,7 @@ export function ShoppingStoryGoodsPicker({ existingIds, sectionCount, onAdd, onC
       return <li className="flex items-center gap-3 border-t py-3 text-xs" key={good.id}><input type="checkbox" aria-label={`${good.name} 선택`} checked={already || selected} disabled={pending || already || (!selected && picked.length >= capacity)} onChange={() => toggle(good)} />{good.imageUrl ? <img className="block size-10 shrink-0 rounded-md bg-muted object-cover sm:size-12" src={good.imageUrl} alt="" /> : <span className="block size-10 shrink-0 rounded-md bg-muted sm:size-12" />}<div className="min-w-0 flex-1"><strong className="font-medium [overflow-wrap:anywhere]">{good.name}</strong><small className="mt-0.5 block leading-relaxed text-muted-foreground">{good.code} · {good.price.toLocaleString('ko-KR')}원{good.priceMax && good.priceMax > good.price ? '~' : ''} · {good.published ? good.soldOut ? '품절' : '공개' : '공개 제외'}{good.discounted ? ' · 할인' : ''}{good.freeShipping ? ' · 무료배송' : ''}{good.saleType === 'preorder' ? ' · 예약 판매' : ''}</small><small className="block leading-relaxed text-muted-foreground">찜 {good.wishCount.toLocaleString('ko-KR')} · 최근 30일 판매 {good.salesQuantity.toLocaleString('ko-KR')} · 리뷰 {good.reviewCount.toLocaleString('ko-KR')}{good.ratingAverage !== null ? ` · 평점 ${good.ratingAverage.toFixed(2)}` : ''}</small></div>{already ? <span className="shrink-0 text-[11px] text-muted-foreground">선택됨</span> : null}</li>;
     })}</ul>
     {!pending && data && !data.rows.length ? <p className="py-6 text-center text-sm text-muted-foreground">조건에 맞는 상품이 없습니다. 검색 조건을 변경해주세요.</p> : null}
-    {data ? <nav className="flex items-center justify-center gap-3 text-xs" aria-label="상품 검색 페이지"><Button disabled={pending || data.page <= 1} type="button" onClick={() => void search(data.page - 1, applied)} size="sm" variant="outline">이전</Button><span className="tabular-nums">{data.page} / {Math.max(1, Math.ceil(data.total / data.pageSize))}</span><Button disabled={pending || data.page * data.pageSize >= data.total} type="button" onClick={() => void search(data.page + 1, applied)} size="sm" variant="outline">다음</Button></nav> : null}
+    {data ? <ConsolePagination label="상품 검색 페이지" page={data.page} pageSize={data.pageSize} total={data.total} unit="개" disabled={pending} onPageChange={page => void search(page, applied)} /> : null}
     <div className="sticky bottom-0 flex flex-col gap-3 border-t bg-popover py-4 text-xs sm:flex-row sm:items-center sm:justify-between"><p className="text-muted-foreground">페이지와 검색 조건을 바꿔도 선택이 유지됩니다.</p><Button disabled={!picked.length || pending || picked.length > capacity} type="button" onClick={() => onAdd(picked)}>선택한 {picked.length}개 상품 추가</Button></div>
   </div></CustomerServiceDialog>;
 }

@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useRef, useState } from 'react';
 import { saveDetailPresentationAction, type DetailSaveResult } from '@/app/admin/product-detail-presentation-actions';
 import { AdminPageHeader, AdminSectionCard } from '../console/AdminKit';
+import { ConsolePagination } from '../console/ConsolePagination';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { DETAIL_MODULE_KEYS, PRODUCT_DETAIL_PRESENTATION_PATH, type DetailBanner, type DetailModules, type DetailPresentation, type DetailPresentationSnapshot, type DetailSection } from '@/lib/product-detail-presentation';
@@ -113,7 +114,7 @@ function DetailTargetPicker({ name, options, selected, limit, onChange }: { name
     <label className="flex min-w-0 flex-col gap-2 text-sm font-medium">{name} 검색<Input aria-label={`${name} 대상 검색`} value={query} onChange={event => { setQuery(event.target.value); setPage(1); }} placeholder="이름 또는 코드" /></label>
     <p className="text-sm text-muted-foreground tabular-nums">조회 {matches.length}개 · 선택 {selected.length} / {limit}개</p>
     <div className="max-h-[300px] overflow-auto rounded-lg border">{rows.map(option => <label className="flex items-start gap-2.5 border-b p-2.5 text-sm last:border-b-0 [&>input]:mt-0.5" key={option.id}><input type="checkbox" aria-label={`${option.title} 대상 선택`} checked={selected.includes(option.id)} disabled={!selected.includes(option.id) && (selected.length >= limit || option.archived)} onChange={() => onChange(selected.includes(option.id) ? selected.filter(id => id !== option.id) : [...selected, option.id])} /><span className="min-w-0 [overflow-wrap:anywhere]">{option.title}{option.archived ? ' (보관)' : ''}<small className="mt-1 block text-[11px] text-muted-foreground">{option.id}</small></span></label>)}{!rows.length ? <p className="p-4 text-center text-sm text-muted-foreground">조회된 {name}이 없습니다.</p> : null}</div>
-    <nav className="flex items-center justify-center gap-3 text-xs" aria-label={`${name} 선택 페이지`}><Button type="button" onClick={() => setPage(currentPage - 1)} disabled={currentPage <= 1} size="sm" variant="outline">이전</Button><span className="tabular-nums">{currentPage} / {pageCount}</span><Button type="button" onClick={() => setPage(currentPage + 1)} disabled={currentPage >= pageCount} size="sm" variant="outline">다음</Button></nav>
+    <ConsolePagination label={`${name} 선택 페이지`} page={currentPage} pageSize={20} total={matches.length} unit="개" onPageChange={setPage} />
     {selected.length ? <details className="rounded-lg border px-3 py-2.5 text-sm"><summary className="cursor-pointer font-medium">선택한 {name} {selected.length}개</summary><ul className="mt-2 max-h-60 overflow-auto">{selected.map(id => <li className="flex items-center justify-between gap-2.5 py-1.5 [overflow-wrap:anywhere]" key={id}><span className="min-w-0">{options.find(option => option.id === id)?.title ?? id}</span><Button className="shrink-0" type="button" aria-label={`${options.find(option => option.id === id)?.title ?? id} 대상 해제`} onClick={() => onChange(selected.filter(current => current !== id))} size="xs" variant="outline">해제</Button></li>)}</ul></details> : null}
   </section>;
 }

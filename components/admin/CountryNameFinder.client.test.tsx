@@ -17,6 +17,7 @@ vi.mock('react', async () => {
 vi.mock('react-dom', () => ({ createPortal: hooks.portal }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ replace: vi.fn() }) }));
 import { CountryNameFinder, CountryNamePicker, GoodsOriginField } from './CountryNameFinder';
+import { ConsolePagination } from './console/ConsolePagination';
 import { Field } from './fields';
 import { NativeSelect } from './kit/ui/native-select';
 
@@ -28,6 +29,7 @@ const apply = vi.fn(), close = vi.fn();
 function render() { hooks.index = 0; hooks.refIndex = 0; return CountryNameFinder(props); }
 function button(name: string) { return nodes(render()).find(node => node.type === 'button' && text(node.props.children as ReactNode) === name)!; }
 function click(name: string) { (button(name).props.onClick as () => void)(); }
+function pagination() { return nodes(render()).find(node => node.type === ConsolePagination) as unknown as ReactElement<{ page: number; pageSize: number; total: number; disabled?: boolean; onPageChange: (page: number) => void }>; }
 function search(query: string) { (nodes(render()).find(node => node.type === 'input' && node.props.type === 'search')!.props.onChange as (event: unknown) => void)({ target: { value: query } }); }
 function select(code: string) { (nodes(render()).find(node => node.type === 'input' && node.props.type === 'radio' && node.props.value === code)!.props.onChange as () => void)(); }
 /** 라벨(htmlFor)로 이어진 시·도/시·군·구 select를 찾아 고른다. */
@@ -62,9 +64,12 @@ it('적용 대상이 사라지거나 읽기 전용이 되면 창을 닫지 않�
   expect(close).not.toHaveBeenCalled(); expect(text(render())).toContain('현재 입력을 바꿀 수 없습니다');
 });
 it('20개씩 페이지를 이동하고 새 검색은 이전 선택과 페이지를 초기화한다', () => {
-  expect(nodes(render()).filter(node => node.props.name === 'countryNameChoice')).toHaveLength(20); click('다음');
-  expect(text(render())).toContain('2 / 13'); search('Hong Kong'); select('HK');
-  expect(text(render())).toContain('1 / 1'); search('없는국가');
+  expect(nodes(render()).filter(node => node.props.name === 'countryNameChoice')).toHaveLength(20);
+  /* 페이지 이동은 공용 ConsolePagination(버튼 모드)이다 — 얕은 렌더는 부품을 펼치지 않으므로 그 요소의 onPageChange를 직접 부른다. */
+  expect(pagination().props).toMatchObject({ page: 1, pageSize: 20, disabled: false }); pagination().props.onPageChange(2);
+  expect(pagination().props.page).toBe(2); expect(Math.ceil(pagination().props.total / pagination().props.pageSize)).toBe(13);
+  search('Hong Kong'); select('HK');
+  expect(pagination().props).toMatchObject({ page: 1, total: 1 }); search('없는국가');
   expect(button('현재 입력에 적용').props.disabled).toBe(true); expect(text(render())).toContain('직접 입력할 수도');
 });
 it('국내 시도·일반구는 최종 문구를 확인한 뒤 한 번만 기존 입력에 적용한다', () => {
