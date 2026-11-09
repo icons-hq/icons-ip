@@ -5,6 +5,7 @@ import { INQUIRY_FILE_ACCEPT, INQUIRY_FILE_FORMATS, INQUIRY_FILE_LIBRARY_LIMIT, 
 import { INQUIRY_IMAGE_ACCEPT } from '@/lib/inquiries';
 import { uploadInquiryFile } from '@/lib/inquiry-files-upload.client';
 import { Download, FolderOpen, ImagePlus } from 'lucide-react';
+import { AdminNotice } from '@/components/admin/console/AdminKit';
 import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
 import { CustomerServiceDialog } from './CustomerServiceDialog';
 import { FIELD_LABEL_CLASS, KIT_INPUT_CLASS } from './cs-kit-classes';
@@ -85,15 +86,15 @@ function InquiryChatFileLibrary({ disabled, onClose, onSelect }: { disabled: boo
       <div className="grid gap-4 sm:grid-cols-2"><label className="flex min-w-0 flex-col gap-1.5"><span className={FIELD_LABEL_CLASS}>파일명 검색</span><input className={KIT_INPUT_CLASS} data-slot="input" value={query} onChange={event => setQuery(event.target.value)} type="search" /></label>
         <label className="flex min-w-0 flex-col gap-1.5"><span className={FIELD_LABEL_CLASS}>파일 등록</span><input className={KIT_INPUT_CLASS} data-slot="input" aria-label="보관함 파일 등록" type="file" accept={INQUIRY_FILE_ACCEPT} disabled={busy || disabled || !!upload}
           onChange={event => { const file = event.target.files?.[0]; if (file) void save({ id: crypto.randomUUID(), file }); event.target.value = ''; }} /></label></div>
-      {upload ? <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2"><span className="mr-auto min-w-0 wrap-anywhere">{upload.file.name} {busy ? '확인 중' : '등록을 완료하지 못했습니다.'}</span>
-        {!busy ? <><Button onClick={() => void save(upload)} size="sm" type="button" variant="outline">같은 파일 다시 시도</Button><Button onClick={() => { setUpload(undefined); setError(''); }} size="sm" type="button" variant="ghost">등록 취소</Button></> : null}</div> : null}
+      {upload ? <AdminNotice tone={busy ? 'info' : 'warning'}><div className="flex flex-wrap items-center gap-2"><span className="min-w-0 wrap-anywhere">{upload.file.name} {busy ? '확인 중' : '등록을 완료하지 못했습니다.'}</span>
+        {!busy ? <><Button onClick={() => void save(upload)} size="sm" type="button" variant="outline">같은 파일 다시 시도</Button><Button onClick={() => { setUpload(undefined); setError(''); }} size="sm" type="button" variant="ghost">등록 취소</Button></> : null}</div></AdminNotice> : null}
       {error ? <p className="flex flex-wrap items-center gap-2 bg-transparent text-destructive" role="alert">{error} <Button disabled={busy} onClick={() => void load()} size="xs" type="button" variant="outline">목록 다시 불러오기</Button></p> : null}
       {notice ? <p className="text-muted-foreground" role="status">{notice}</p> : null}
       <p className="text-xs text-muted-foreground tabular-nums">{files ? `${files.length}/${INQUIRY_FILE_LIBRARY_LIMIT}개` : error ? '보관함 목록을 확인하지 못했습니다.' : '보관함을 불러오는 중입니다.'}</p>
       <ul className="flex max-h-[45vh] flex-col divide-y overflow-y-auto rounded-lg border px-3">{files?.filter(file => file.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())).map(file => <li className="flex flex-wrap items-center gap-2 py-3" key={file.id}>
         <div className="flex min-w-0 flex-[1_1_11rem] flex-col gap-0.5 wrap-anywhere"><strong className="font-medium text-foreground">{file.name}</strong><small className="text-xs text-muted-foreground tabular-nums">{inquiryFileSize(file.size)}</small></div>
         <a className={buttonVariants({ size: 'sm', variant: 'outline' })} data-slot="button" href={inquiryFileUrl(file.id)} download><Download aria-hidden="true" />다운로드</a>
-        <Button disabled={busy || disabled} onClick={() => { if (onSelect(file)) onClose(); }} size="sm" type="button">첨부</Button>
+        <Button disabled={busy || disabled} onClick={() => { if (onSelect(file)) onClose(); }} size="sm" type="button" variant="soft">첨부</Button>
         <Button aria-label={`${file.name} 보관함에서 삭제`} disabled={busy || disabled} size="sm" type="button" variant="destructive" onClick={async () => {
           setBusy(true);
           try {

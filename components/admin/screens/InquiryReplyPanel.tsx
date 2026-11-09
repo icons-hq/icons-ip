@@ -3,6 +3,7 @@
 import { useActionState, useId, useRef } from 'react';
 import { Send } from 'lucide-react';
 import { useInquiryDraft } from '@/components/admin/useInquiryDraft';
+import { AdminNotice } from '@/components/admin/console/AdminKit';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Label } from '@/components/admin/kit/ui/label';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
@@ -82,19 +83,16 @@ export function InquiryReplyPanel({
 
   if (closed) {
     return (
-      <section className="flex flex-col gap-1.5 rounded-xl border bg-muted/40 p-4">
-        <strong className="text-sm font-medium">종결된 문의입니다.</strong>
-        <span className="text-sm text-muted-foreground">
-          종결 후에도 기록은 남습니다. 구매자가 이어서 물으려면 새 문의를 접수해야 합니다.
-        </span>
-      </section>
+      <AdminNotice title="종결된 문의입니다." tone="neutral">
+        종결 후에도 기록은 남습니다. 구매자가 이어서 물으려면 새 문의를 접수해야 합니다.
+      </AdminNotice>
     );
   }
 
   return (
     <section className="flex min-w-0 flex-col gap-4 rounded-xl border bg-card p-4 text-card-foreground sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-base font-medium text-foreground">답변 작성</h3>
+        <h3 className="text-base font-semibold text-foreground">답변 작성</h3>
         <InquiryReplyTemplateTools accountId={accountId} body={body} onInsert={insertTemplate} disabled={busy} />
       </div>
       <InquiryDraftNotice draft={draft} pending={busy} />

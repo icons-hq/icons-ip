@@ -54,6 +54,24 @@ const STATUS_TONES = {
   /* 화면군별 상태. 새 상태는 자기 화면군 줄 아래에만 더한다(병렬 작업 합칠 때 겹치지 않게). */
   // [sales]
   // [cs]
+  /** 고객문의 답변 만족도 — lib/inquiry-satisfaction */
+  inquirySatisfaction: { satisfied: 'success', dissatisfied: 'danger', unrated: 'neutral' },
+  /** 상품문의 노출 */
+  questionVisibility: { visible: 'success', hidden: 'neutral' },
+  /** BEST 리뷰 선정 — lib/review-best */
+  reviewBest: { selected: 'success', not_selected: 'neutral', needs_review: 'warning' },
+  /** BEST 리뷰 적립금 보상 — lib/admin/customer-rewards */
+  reviewBestReward: { none: 'neutral', disabled: 'neutral', pending: 'info', paid: 'success', revoked: 'neutral', capped: 'warning', skipped: 'neutral' },
+  /** 리뷰이벤트 — lib/review-events */
+  reviewEvent: { scheduled: 'info', active: 'success', closed: 'info', ready: 'warning', announced: 'neutral', archived: 'neutral' },
+  /** 회원 계정 */
+  member: { active: 'success', suspended: 'danger' },
+  /** 메일 발송 — lib/email/dedupe */
+  emailDelivery: { pending: 'info', sent: 'success', failed: 'danger' },
+  /** 매니저 초대 — lib/admin/operator-invitations */
+  operatorInvitation: { pending: 'warning', accepted: 'success', cancelled: 'neutral', replaced: 'neutral', expired: 'neutral' },
+  /** 매니저 초대 메일 — invitationEmailLabel이 돌려주는 상태 이름 */
+  operatorInvitationEmail: { '전달 완료': 'success', '발송 접수': 'info', '발송 처리 중': 'info', '발송 대기': 'neutral', '전달 지연': 'warning', '재초대 필요': 'warning', '결과 확인 필요': 'warning', '발송 설정 확인 필요': 'warning', '발송 실패': 'danger' },
   // [catalog]
   // [ops]
 } as const satisfies Record<string, Record<string, AdminTone>>;

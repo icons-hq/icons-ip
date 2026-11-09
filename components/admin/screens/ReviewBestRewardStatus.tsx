@@ -2,6 +2,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { readBestReviewRewardAction } from '@/app/admin/customer-reward-actions';
 import { BEST_REWARD_LABELS, type ReviewBestReward } from '@/lib/admin/customer-rewards';
+import { statusTone } from '@/lib/admin/status-tone';
+import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { Button } from '@/components/admin/kit/ui/button';
 
 export function ReviewBestRewardStatus({ reviewId, process, disabled }: { reviewId: string; process: boolean; disabled: boolean }) {
@@ -26,9 +28,9 @@ export function ReviewBestRewardStatus({ reviewId, process, disabled }: { review
     finally { if (sequence.current === current) setPending(false); }
   }
   return <div className="flex flex-col items-start gap-2 rounded-lg bg-muted/50 p-3 text-sm" role="group" aria-label="BEST 보상 처리 상태">
-    <p>적립금 보상: {reward ? BEST_REWARD_LABELS[reward.state] : '조회 중…'}{reward && reward.grantedAt ? ` · ${reward.amount.toLocaleString('ko-KR')}원 / 예정 ${reward.plannedAmount.toLocaleString('ko-KR')}원` : ''}</p>
+    <p className="flex flex-wrap items-center gap-1.5">적립금 보상: {reward ? <AdminStatusBadge tone={statusTone('reviewBestReward', reward.state)}>{BEST_REWARD_LABELS[reward.state]}</AdminStatusBadge> : '조회 중…'}{reward && reward.grantedAt ? <span className="tabular-nums">{reward.amount.toLocaleString('ko-KR')}원 / 예정 {reward.plannedAmount.toLocaleString('ko-KR')}원</span> : null}</p>
     {reward?.expiresAt ? <p className="text-xs text-muted-foreground">유효기간: {new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', dateStyle: 'medium', timeStyle: 'short' }).format(new Date(reward.expiresAt))}</p> : null}
     <Button disabled={disabled || pending} onClick={() => void refresh()} size="sm" type="button" variant="outline">{pending ? '확인 중…' : '보상 처리 결과 확인'}</Button>
-    {error ? <p className="text-xs text-[var(--wc-warning)]" role="status">{error}</p> : null}
+    {error ? <p className="text-xs text-warning" role="status">{error}</p> : null}
   </div>;
 }

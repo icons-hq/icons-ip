@@ -39,9 +39,11 @@ import { ReviewBulkGrid } from './ReviewBulkGrid';
 import { REVIEW_BEST_LABELS } from '@/lib/review-best';
 import { reviewExportFilters, reviewExportHref } from '@/lib/admin/review-export';
 import { ReviewExportDownloadButton } from '../ReviewExportDownloadButton';
-import { CircleAlert } from 'lucide-react';
+import { AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { AdminSelect } from '@/components/admin/console/AdminSelect';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
+import { statusTone } from '@/lib/admin/status-tone';
+import { csChipTone } from './cs-kit-classes';
 
 /* 어드민 리뷰 관리 콘솔(#254).
  *
@@ -51,20 +53,21 @@ import { buttonVariants } from '@/components/admin/kit/ui/button';
  * 저평점(1~2점) 바로가기는 결과 목록 위에 유지한다. 검색 조건과 결과를 분리하되
  * 낮은 별점을 바로 좁히는 동작과 실제 집계 건수는 함께 남긴다. */
 
+/* 리뷰 내용이 좁게 꺾이지 않도록 본문 칸에 폭을 주고, 짧은 값 칸(사진·도움수·처리)을 줄였다. */
 const COLUMNS: ConsoleGridColumn[] = [
-  { key: 'createdAt', label: '작성일', width: '140px' },
+  { key: 'createdAt', label: '작성일', width: '116px' },
   { key: 'good', label: '상품', width: '150px' },
-  { key: 'kind', label: '리뷰 구분', width: '120px' },
+  { key: 'kind', label: '리뷰 구분', width: '112px' },
   { key: 'rating', label: '평점', width: '92px' },
-  { key: 'body', label: '리뷰 내용' },
-  { key: 'photo', label: '사진', align: 'end', width: '70px' },
-  { key: 'helpful', label: '리뷰도움수', align: 'end', width: '100px' },
+  { key: 'body', label: '리뷰 내용', width: '320px' },
+  { key: 'photo', label: '사진', align: 'end', width: '52px' },
+  { key: 'helpful', label: '리뷰도움수', align: 'end', width: '84px' },
   { key: 'author', label: '작성자', width: '130px' },
-  { key: 'reports', label: '신고', align: 'end', width: '80px' },
+  { key: 'reports', label: '신고', align: 'end', width: '108px' },
   { key: 'status', label: '상태', width: '90px' },
   { key: 'reply', label: '답글', width: '110px' },
   { key: 'best', label: 'BEST 리뷰', width: '110px' },
-  { key: 'action', label: '처리', width: '210px' },
+  { key: 'action', label: '처리', width: '150px' },
 ];
 
 /** 별점 셀. 별 문자만 두면 스크린리더가 "검은 별 검은 별..."을 읽는다. */
@@ -77,7 +80,11 @@ function ratingCell(row: AdminReviewRow) {
   );
 }
 
-const TEXT_LINK_CLASS = 'font-medium text-foreground underline-offset-4 hover:underline';
+const TEXT_LINK_CLASS = 'font-medium text-primary underline-offset-4 hover:underline';
+
+function replyTone(replied: boolean) {
+  return statusTone('question', replied ? 'answered' : 'awaiting');
+}
 
 export function ReviewConsoleScreen({
   data,
@@ -108,28 +115,31 @@ export function ReviewConsoleScreen({
         ? <span key="photo">{row.imageCount}장</span>
         : <span className="text-muted-foreground" key="photo">-</span>,
       <span key="helpful">{row.helpfulCount.toLocaleString('ko-KR')}</span>,
-      <span key="author">@{row.authorName}</span>,
+      <span className="block max-w-28 truncate" key="author" title={`@${row.authorName}`}>@{row.authorName}</span>,
       /* 신고가 0건인 리뷰와 "신고는 있었지만 다 처리된" 리뷰는 다른 상황이다.
          미처리 건수를 앞에 두되 총 건수도 함께 남긴다. */
       row.reportCount > 0
         ? (
-          <Link className={`font-medium underline-offset-4 hover:underline ${row.openReportCount > 0 ? 'text-destructive' : 'text-foreground'}`} href="/admin/community/moderation" key="reports">
+          <AdminStatusBadge key="reports" render={<Link href="/admin/community/moderation" />} tone={statusTone('report', row.openReportCount > 0 ? 'open' : 'resolved')}>
             {row.openReportCount > 0 ? `${row.openReportCount}건 미처리` : `${row.reportCount}건 처리됨`}
-          </Link>
+          </AdminStatusBadge>
         )
         : <span className="text-muted-foreground" key="reports">-</span>,
-      <span className="data-[review-status=hidden]:font-semibold data-[review-status=hidden]:text-muted-foreground" data-review-status={row.status} key="status">
+      <AdminStatusBadge data-review-status={row.status} key="status" tone={statusTone('review', row.status)}>
         {ADMIN_REVIEW_STATUS_LABELS[row.status]}
-      </span>,
+      </AdminStatusBadge>,
       row.adminReply
         ? (
-          <span key="reply">
-            등록됨
-            {row.replyAuthorName ? <><br /><span className="text-xs text-muted-foreground">@{row.replyAuthorName}</span></> : null}
+          <span className="flex flex-col items-start gap-0.5" key="reply">
+            <AdminStatusBadge tone={replyTone(true)}>등록됨</AdminStatusBadge>
+            {row.replyAuthorName ? <span className="text-xs text-muted-foreground">@{row.replyAuthorName}</span> : null}
           </span>
         )
-        : <span className="text-muted-foreground" key="reply">미등록</span>,
-      <span key="best">{row.best ? REVIEW_BEST_LABELS[row.best.state] : '확인 불가'}</span>,
+        : <AdminStatusBadge key="reply" tone={replyTone(false)}>미등록</AdminStatusBadge>,
+      /* 미선정은 대부분의 리뷰가 갖는 기본값이라 글자로 물러나고, 선정·재확인만 배지로 보인다. */
+      row.best && row.best.state !== 'not_selected'
+        ? <AdminStatusBadge key="best" tone={statusTone('reviewBest', row.best.state)}>{REVIEW_BEST_LABELS[row.best.state]}</AdminStatusBadge>
+        : <span className="text-muted-foreground" key="best">{row.best ? REVIEW_BEST_LABELS[row.best.state] : '확인 불가'}</span>,
       <ReviewActionPanel accountId={accountId} key="action" review={row} />,
     ],
   }));
@@ -194,7 +204,6 @@ export function ReviewConsoleScreen({
           </AdminSelect>
         </ConsoleFilterField>
       </ConsoleFilterPanel>
-      {accountId ? <ReviewTypePolicyPanel accountId={accountId} /> : null}
 
       <section aria-label="리뷰 목록" className="flex min-w-0 flex-col gap-4 rounded-xl border bg-card p-4 text-card-foreground">
         <CustomerServiceResultsHeader title="리뷰 목록" total={total} pageSize={pageSize} pageSizeOptions={CUSTOMER_SERVICE_PAGE_SIZES.map(size => ({ value: String(size), label: `${size}개씩`, href: adminReviewHref(filters, { pageSize: size, page: 1 }) }))}>
@@ -203,19 +212,13 @@ export function ReviewConsoleScreen({
         <div className="flex min-w-0 flex-col gap-3">
           <CustomerServiceTabs active="reviews" />
           {/* 저평점 바로가기와 집계는 결과 목록 바로 위에서 유지한다. */}
-          <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/40 px-4 py-3" data-cs-pinned="">
-            <div className="flex min-w-0 items-start gap-2.5">
-              <CircleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-destructive" />
-              <div className="flex min-w-0 flex-col gap-1">
-                <strong className="text-sm font-semibold text-foreground tabular-nums">저평점 리뷰 {counts.lowRating.toLocaleString('ko-KR')}건</strong>
-                <span className="text-xs text-muted-foreground">
-                  {LOW_REVIEW_RATING_MAX}점 이하 리뷰입니다. 빨리 답글을 달면 다른 고객도 판매자의 대응을 함께 봅니다.
-                </span>
-              </div>
-            </div>
+          <div className="flex min-w-0 flex-wrap items-center gap-3" data-cs-pinned="">
+            <AdminNotice className="min-w-[min(100%,18rem)] flex-1" title={<span className="tabular-nums">저평점 리뷰 {counts.lowRating.toLocaleString('ko-KR')}건</span>} tone={counts.lowRating > 0 ? 'danger' : 'neutral'}>
+              {LOW_REVIEW_RATING_MAX}점 이하 리뷰입니다. 빨리 답글을 달면 다른 고객도 판매자의 대응을 함께 봅니다.
+            </AdminNotice>
             <Link
               aria-current={filters.lowRating ? 'true' : undefined}
-              className={buttonVariants({ size: 'sm', variant: filters.lowRating ? 'default' : 'outline' })}
+              className={buttonVariants({ size: 'sm', variant: filters.lowRating ? 'outline' : 'soft' })}
               data-slot="button"
               href={adminReviewHref(filters, { lowRating: !filters.lowRating, page: 1, reviewId: null })}
             >
@@ -226,10 +229,10 @@ export function ReviewConsoleScreen({
           {filters.reviewId ? (
             /* 모더레이션 큐에서 넘어온 딥링크. 한 건만 보이는 이유를 말하지 않으면
                운영자는 목록이 비었다고 읽는다. */
-            <p className="rounded-lg border bg-muted/40 px-3 py-2.5 text-sm">
+            <AdminNotice tone="info">
               신고된 리뷰 한 건만 보고 있습니다.{' '}
               <Link className="font-medium text-foreground underline underline-offset-4" href={adminReviewHref(filters, { page: 1, reviewId: null })}>전체 목록으로 돌아가기</Link>
-            </p>
+            </AdminNotice>
           ) : null}
 
           <p className="text-xs text-muted-foreground">스토어 전체 리뷰 현황 · 검색 조건을 적용하지 않은 건수입니다.</p>
@@ -259,14 +262,14 @@ export function ReviewConsoleScreen({
                 count: counts.awaitingReply,
                 href: adminReviewHref(filters, { page: 1, reply: 'without', reviewId: null }),
                 label: '답글 미등록',
-                tone: 'warning',
+                tone: csChipTone('question', 'awaiting'),
               },
               {
                 active: filters.status === 'hidden',
                 count: counts.hidden,
                 href: adminReviewHref(filters, { page: 1, reviewId: null, status: 'hidden' }),
                 label: '블라인드',
-                tone: 'info',
+                tone: csChipTone('review', 'hidden'),
               },
               /* 신고 건수는 리뷰 필터로 좁힐 수 없다(신고는 별도 테이블이다).
                  칩을 읽기 전용으로 두고 처리는 모더레이션 큐로 보낸다. */
@@ -274,7 +277,7 @@ export function ReviewConsoleScreen({
                 count: counts.reported,
                 href: '/admin/community/moderation',
                 label: '미처리 신고',
-                tone: 'danger',
+                tone: csChipTone('report', 'open'),
               },
             ]}
             label="리뷰 상태별 건수"
@@ -302,6 +305,9 @@ export function ReviewConsoleScreen({
           total={total}
         />
       </section>
+
+      {/* 설정은 목록을 밀지 않게 아래에 둔다 — 첫 화면은 처리할 리뷰가 차지한다. */}
+      {accountId ? <ReviewTypePolicyPanel accountId={accountId} /> : null}
 
       <p className="text-sm leading-relaxed text-muted-foreground">
         일반 리뷰는 배송완료된 주문의 구매자가 주문·상품당 한 번, 배송완료 후 90일까지 작성합니다. 한달사용 리뷰는 설정된 기간에 별도로 한 번 작성합니다.

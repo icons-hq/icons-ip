@@ -13,8 +13,9 @@ import type { AdminInquiryDetail } from '@/lib/admin/inquiries.server';
 import { InquiryReplyTemplateTools } from './InquiryReplyTemplateTools';
 import { InquiryDraftNotice } from './InquiryDraftNotice';
 import { CircleCheck, Send } from 'lucide-react';
-import { Badge } from '@/components/admin/kit/ui/badge';
+import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { Button } from '@/components/admin/kit/ui/button';
+import { statusTone } from '@/lib/admin/status-tone';
 
 const EMPTY: AdminInquiryActionState = {};
 
@@ -23,8 +24,8 @@ function Feedback({ state }: { state: AdminInquiryActionState }) {
     {state.message ? <p className="text-sm text-muted-foreground" role="status">{state.message}</p> : null}</>;
 }
 
-/** 메시지 말풍선. 운영자 답변은 템플릿의 기본(primary) 면, 자동 안내는 muted 면이다. 첨부 파일 목록(공용 부품)도 말풍선 안에서 정돈한다. */
-const BUBBLE_CLASS = 'rounded-2xl border bg-background px-3.5 py-2.5 text-sm text-foreground wrap-anywhere group-data-[author=staff]/message:border-transparent group-data-[author=staff]/message:bg-primary group-data-[author=staff]/message:text-primary-foreground group-data-[author=system]/message:bg-muted group-data-[author=system]/message:text-xs [&_.inquiry-message-files]:mt-2 [&_.inquiry-message-files]:grid [&_.inquiry-message-files]:list-none [&_.inquiry-message-files]:gap-2 [&_.inquiry-message-files]:p-0 [&_.inquiry-message-files_a]:underline [&_.inquiry-message-files_a]:underline-offset-2 [&_.inquiry-message-files_img]:max-h-55 [&_.inquiry-message-files_img]:rounded-md';
+/** 메시지 말풍선. 운영자 답변은 주 색의 옅은 면(실선 주 색은 전송 버튼의 몫이다), 자동 안내는 muted 면이다. 첨부 파일 목록(공용 부품)도 말풍선 안에서 정돈한다. */
+const BUBBLE_CLASS = 'rounded-2xl border bg-background px-3.5 py-2.5 text-sm text-foreground wrap-anywhere group-data-[author=staff]/message:border-transparent group-data-[author=staff]/message:bg-primary-soft group-data-[author=system]/message:bg-muted group-data-[author=system]/message:text-xs [&_.inquiry-message-files]:mt-2 [&_.inquiry-message-files]:grid [&_.inquiry-message-files]:list-none [&_.inquiry-message-files]:gap-2 [&_.inquiry-message-files]:p-0 [&_.inquiry-message-files_a]:underline [&_.inquiry-message-files_a]:underline-offset-2 [&_.inquiry-message-files_img]:max-h-55 [&_.inquiry-message-files_img]:rounded-md';
 
 /** Exact IDs from this rendered thread close the fetch/read race without consuming later arrivals. */
 export function InquiryChatReadReceipt({ accountId, inquiryId, messageIds }: { accountId: string; inquiryId: string; messageIds: string[] }) {
@@ -55,7 +56,7 @@ export function InquiryChatReadReceipt({ accountId, inquiryId, messageIds }: { a
     document.addEventListener('visibilitychange', save);
     return () => { active = false; controller.abort(); document.removeEventListener('visibilitychange', save); };
   }, [accountId, inquiryId, retry, router, signature]);
-  return error ? <p className="flex shrink-0 flex-wrap items-center gap-2 border-b bg-muted/60 px-4 py-2 text-sm" role="status">읽음 상태를 저장하지 못했습니다. <Button onClick={() => setRetry(value => value + 1)} size="xs" type="button" variant="outline">다시 시도</Button></p> : null;
+  return error ? <p className="flex shrink-0 flex-wrap items-center gap-2 border-b border-warning-border bg-warning-soft px-4 py-2 text-sm" role="status">읽음 상태를 저장하지 못했습니다. <Button onClick={() => setRetry(value => value + 1)} size="xs" type="button" variant="outline">다시 시도</Button></p> : null;
 }
 
 export function InquiryChatConversation({ accountId, detail }: { accountId: string; detail: AdminInquiryDetail }) {
@@ -113,9 +114,9 @@ export function InquiryChatConversation({ accountId, detail }: { accountId: stri
       <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-full border bg-muted text-sm font-semibold text-foreground @max-2xl/chat:hidden" aria-hidden="true">{inquiry.buyerName.slice(0, 1)}</span>
       <div className="min-w-0 flex-1"><strong className="block truncate font-medium text-foreground">{inquiry.buyerName}</strong><p className="truncate text-xs text-muted-foreground" title={inquiry.title}>{inquiry.title}</p></div>
       <span className="max-w-24 truncate text-xs text-muted-foreground @max-2xl/chat:max-w-18">{inquiry.assigneeName ?? '담당자 미배정'}</span>
-      {inquiry.status !== 'closed' ? <Button className="print:hidden" disabled={busy} onClick={() => setCloseRequested(true)} size="sm" type="button" variant="outline"><CircleCheck aria-hidden="true" />상담완료</Button> : <Badge variant="secondary">상담완료</Badge>}
+      {inquiry.status !== 'closed' ? <Button className="print:hidden" disabled={busy} onClick={() => setCloseRequested(true)} size="sm" type="button" variant="outline"><CircleCheck aria-hidden="true" />상담완료</Button> : <AdminStatusBadge tone={statusTone('inquiry', 'closed')}>상담완료</AdminStatusBadge>}
     </header>
-    {closeRequested && inquiry.status !== 'closed' ? <div className="flex shrink-0 flex-col gap-2 border-b bg-muted/60 px-4 py-2.5" role="group" aria-label="상담완료 확인">
+    {closeRequested && inquiry.status !== 'closed' ? <div className="flex shrink-0 flex-col gap-2 border-b border-warning-border bg-warning-soft px-4 py-2.5" role="group" aria-label="상담완료 확인">
       <p className="text-sm">상담을 완료하면 이 대화에 추가 답변을 보낼 수 없습니다. 완료할까요?</p>
       <form action={closeAction} className="flex flex-wrap gap-2"><input type="hidden" name="inquiryId" value={inquiry.id} />
         <Button disabled={busy} size="sm" type="submit">{closePending ? '완료 처리 중' : '상담완료 확인'}</Button>

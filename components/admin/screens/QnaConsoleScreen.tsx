@@ -3,9 +3,10 @@ import { CustomerServiceListSelect, CustomerServiceListView } from './CustomerSe
 import { CUSTOMER_SERVICE_PAGE_SIZES } from '@/lib/admin/customer-service-list';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ChevronDown, CircleAlert, ListFilter } from 'lucide-react';
-import { Badge } from '@/components/admin/kit/ui/badge';
+import { ChevronDown, ListFilter } from 'lucide-react';
+import { AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
+import { statusTone } from '@/lib/admin/status-tone';
 import {
   ConsoleCountChips,
   ConsoleFilterPanel,
@@ -28,6 +29,7 @@ import {
 import { goodQuestionsHref } from '@/lib/product-questions';
 import { QnaActionPanel } from './QnaActionPanel';
 import { CustomerServiceRecordProvider } from './CustomerServiceRecordNavigation';
+import { csChipTone } from './cs-kit-classes';
 
 /* 어드민 상품 Q&A 콘솔 (S8 #330).
  *
@@ -50,12 +52,15 @@ const COLUMNS: ConsoleGridColumn[] = [
   { key: 'action', label: '처리', width: '210px' },
 ];
 
-const TEXT_LINK_CLASS = 'font-medium text-foreground underline-offset-4 hover:underline';
-const QUESTION_STATUS_CLASS = 'text-muted-foreground data-[question-status=hidden]:font-semibold';
+const TEXT_LINK_CLASS = 'font-medium text-primary underline-offset-4 hover:underline';
 
 /** 비밀글(MD-0023)은 콘솔에서 원문이 보이므로, 공개 화면에서는 가려진다는 것을 문구로 표시한다. */
 function SecretBadge() {
-  return <Badge data-secret-badge="" variant="outline">비밀글</Badge>;
+  return <AdminStatusBadge data-secret-badge="" tone="neutral">비밀글</AdminStatusBadge>;
+}
+
+function answerTone(answered: boolean) {
+  return statusTone('question', answered ? 'answered' : 'awaiting');
 }
 
 export function QnaConsoleScreen({ data, now = new Date(), initialDetail, accountId='' }: { data: AdminProductQuestionConsoleData; now?: Date; initialDetail?:string|null; accountId?:string }) {
@@ -74,20 +79,20 @@ export function QnaConsoleScreen({ data, now = new Date(), initialDetail, accoun
       <span key="body">{productQuestionBodyPreview(row.body, 70)}</span>,
       <span key="author">@{row.authorName}</span>,
       <span className="flex flex-col items-start gap-1" key="status">
-        <span className={QUESTION_STATUS_CLASS} data-question-status={row.hidden ? 'hidden' : 'visible'}>{row.hidden ? '비노출' : '공개'}</span>
+        <AdminStatusBadge data-question-status={row.hidden ? 'hidden' : 'visible'} tone={statusTone('questionVisibility', row.hidden ? 'hidden' : 'visible')}>{row.hidden ? '비노출' : '공개'}</AdminStatusBadge>
         {row.secret ? <SecretBadge /> : null}
       </span>,
       row.answerBody
         ? (
-          <span key="answer">
-            등록됨
-            {row.answeredByName ? <><br /><span className="text-xs text-muted-foreground">@{row.answeredByName}</span></> : null}
+          <span className="flex flex-col items-start gap-0.5" key="answer">
+            <AdminStatusBadge tone={answerTone(true)}>등록됨</AdminStatusBadge>
+            {row.answeredByName ? <span className="text-xs text-muted-foreground">@{row.answeredByName}</span> : null}
             {row.answeredAt
-              ? <><br /><span className="text-xs text-muted-foreground tabular-nums">{formatAdminProductQuestionDateTime(row.answeredAt)}</span></>
+              ? <span className="text-xs text-muted-foreground tabular-nums">{formatAdminProductQuestionDateTime(row.answeredAt)}</span>
               : null}
           </span>
         )
-        : <span className="text-muted-foreground" key="answer">미등록</span>,
+        : <AdminStatusBadge key="answer" tone={answerTone(false)}>미등록</AdminStatusBadge>,
       <QnaActionPanel accountId={accountId} key="action" question={row} />,
     ],
   }));
@@ -134,7 +139,8 @@ export function QnaConsoleScreen({ data, now = new Date(), initialDetail, accoun
             {row.goodImageUrl ? <Link className="block size-18 overflow-hidden rounded-lg border bg-muted sm:size-27.5" href={goodQuestionsHref(row.goodId)}><Image className="size-full object-contain" src={row.goodImageUrl} alt={row.goodName} width={110} height={110} unoptimized /></Link> : null}
             {/* 좁은 화면에서 답변을 펼치면(aria-expanded) 본문 칸이 사진 칸까지 넓어진다. */}
             <div className="flex min-w-0 flex-col gap-2 max-sm:has-[[aria-expanded=true]]:col-span-full">
-              <header className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm"><Badge variant={row.answerBody ? 'secondary' : 'outline'}>{row.answerBody ? '답변 등록됨' : '답변 미등록'}</Badge><Link className={TEXT_LINK_CLASS} href={goodQuestionsHref(row.goodId)}>{row.goodName}</Link><span className={`text-xs ${QUESTION_STATUS_CLASS}`} data-question-status={row.hidden ? 'hidden' : 'visible'}>{row.hidden ? '비노출' : '공개'}</span>{row.secret ? <SecretBadge /> : null}</header>
+              {/* 답변 상태가 이 줄의 주인공이다. 공개는 기본 상태라 글자로 물러나고, 비노출만 배지로 보인다. */}
+              <header className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm"><AdminStatusBadge tone={answerTone(Boolean(row.answerBody))}>{row.answerBody ? '답변 등록됨' : '답변 미등록'}</AdminStatusBadge><Link className={TEXT_LINK_CLASS} href={goodQuestionsHref(row.goodId)}>{row.goodName}</Link>{row.hidden ? <AdminStatusBadge data-question-status="hidden" tone={statusTone('questionVisibility', 'hidden')}>비노출</AdminStatusBadge> : <span className="text-xs text-muted-foreground" data-question-status="visible">공개</span>}{row.secret ? <SecretBadge /> : null}</header>
               <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground [&>*+*]:border-l [&>*+*]:pl-3"><span className="tabular-nums">상품번호 {row.goodId}</span><span>@{row.authorName}</span><time className="tabular-nums" dateTime={row.createdAt}>{formatAdminProductQuestionDateTime(row.createdAt)}</time></p>
               <p className="text-sm leading-relaxed text-foreground wrap-anywhere">{productQuestionBodyPreview(row.body, 180)}</p>
               {/* 행 안에서 펼친 답변 패널(section)은 줄 전체를 쓰고 답변자 표시 뒤로 간다. */}
@@ -159,21 +165,13 @@ export function QnaConsoleScreen({ data, now = new Date(), initialDetail, accoun
         <div className="flex min-w-0 flex-col gap-3 border-t pt-4">
           <CustomerServiceTabs active="qna" />
           {/* 목록 표시 방식과 무관하게 미답변 집계와 바로가기를 유지한다. */}
-          <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/40 px-4 py-3" data-cs-pinned="">
-            <div className="flex min-w-0 items-start gap-2.5">
-              <CircleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-[var(--wc-warning)]" />
-              <div className="flex min-w-0 flex-col gap-1">
-                <strong className="text-sm font-semibold text-foreground tabular-nums">
-                  답변 미등록 {counts.unanswered.toLocaleString('ko-KR')}건
-                </strong>
-                <span className="text-xs text-muted-foreground">
-                  구매 전 질문입니다. 답이 늦으면 그대로 이탈로 남습니다.
-                </span>
-              </div>
-            </div>
+          <div className="flex min-w-0 flex-wrap items-center gap-3" data-cs-pinned="">
+            <AdminNotice className="min-w-[min(100%,18rem)] flex-1" title={<span className="tabular-nums">답변 미등록 {counts.unanswered.toLocaleString('ko-KR')}건</span>} tone={counts.unanswered > 0 ? 'warning' : 'neutral'}>
+              구매 전 질문입니다. 답이 늦으면 그대로 이탈로 남습니다.
+            </AdminNotice>
             <Link
               aria-current={filters.status === 'unanswered' ? 'true' : undefined}
-              className={buttonVariants({ size: 'sm', variant: filters.status === 'unanswered' ? 'default' : 'outline' })}
+              className={buttonVariants({ size: 'sm', variant: filters.status === 'unanswered' ? 'outline' : 'soft' })}
               data-slot="button"
               href={adminProductQuestionHref(filters, {
                 page: 1,
@@ -197,21 +195,21 @@ export function QnaConsoleScreen({ data, now = new Date(), initialDetail, accoun
                 count: counts.unanswered,
                 href: adminProductQuestionHref(filters, { page: 1, status: 'unanswered' }),
                 label: '답변 미등록',
-                tone: 'warning',
+                tone: csChipTone('question', 'awaiting'),
               },
               {
                 active: filters.status === 'answered',
                 count: counts.answered,
                 href: adminProductQuestionHref(filters, { page: 1, status: 'answered' }),
                 label: '답변 완료',
-                tone: 'success',
+                tone: csChipTone('question', 'answered'),
               },
               {
                 active: filters.status === 'hidden',
                 count: counts.hidden,
                 href: adminProductQuestionHref(filters, { page: 1, status: 'hidden' }),
                 label: '비노출',
-                tone: 'info',
+                tone: csChipTone('question', 'hidden'),
               },
             ]}
             label="상품 Q&A 상태별 건수"
