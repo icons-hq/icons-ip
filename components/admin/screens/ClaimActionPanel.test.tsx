@@ -85,7 +85,7 @@ describe('ClaimActionPanel 처리 결과', () => {
 
     expect(html).toContain(message);
     expect(occurrences(html, message)).toBe(1);
-    expect(html).toContain('현재 단계: 처리중');
+    expect(html).toMatch(/현재 단계 <span[^>]*data-tone="info"[^>]*>처리중</);
     // 이 건을 닫는 유일한 버튼(주문 패널 재확인)을 항상 보이는 문구가 가리킨다.
     expect(html).toContain(`[${ADMIN_CANCELLATION_RECHECK_LABELS.processing}]으로 닫습니다`);
     expect(html).toContain(`href="/admin/sales/orders?query=${ORDER_ID}"`);
@@ -96,7 +96,7 @@ describe('ClaimActionPanel 처리 결과', () => {
     const error = '취소는 승인했지만 주문 취소를 확정하지 못했습니다(provider_rejected). 주문과 재고는 그대로 유지됩니다.';
     const html = await renderAfterDecision({ error }, { stage: 'needs_review' });
 
-    expect(html).toContain('현재 단계: 결제확인필요');
+    expect(html).toMatch(/현재 단계 <span[^>]*data-tone="danger"[^>]*>결제확인필요</);
     expect(html).toContain(`role="alert"`);
     expect(html).toContain('provider_rejected');
     expect(occurrences(html, 'provider_rejected')).toBe(1);
@@ -176,6 +176,25 @@ describe('ClaimActionPanel 확인과 취소 안내', () => {
 
     expect(html).toMatch(/data-confirm="취소를 승인하고 토스 전액 취소를 발행할까요\? 되돌릴 수 없고[^"]*"[^>]*value="approve"/);
     expect(html).not.toMatch(/data-confirm="[^"]*"[^>]*value="review"/);
+  });
+
+  /* MD 판정: 돈이 나가는 승인이 옆의 일반 버튼과 같은 크기·색이면 안 된다. 승인 전에 읽도록 경고 상자가 버튼 위에 온다. */
+  it('결제사 전액 취소가 바로 나가는 승인만 위험 버튼과 경고 상자로 구분한다', async () => {
+    const tag = (html: string, value: string) => html.match(new RegExp(`<button[^>]*value="${value}"[^>]*>`))?.[0] ?? '';
+    const toss = await render({ stage: 'requested', paymentProvider: 'toss', collectionPolicy: 'origin' });
+    expect(tag(toss, 'approve')).toContain('text-destructive');
+    expect(tag(toss, 'approve')).not.toBe(tag(toss, 'review'));
+    expect(toss.indexOf('data-admin-notice="warning"')).toBeLessThan(toss.indexOf('value="approve"'));
+    /* 수거부터 시작하는 반품 승인은 돈이 나가지 않는다 — 일반 승인(주 색)이고 경고 상자가 없다. */
+    const refundReturn = await render({ claimType: 'return', stage: 'requested', paymentProvider: 'toss', collectionPolicy: 'origin' });
+    expect(tag(refundReturn, 'approve')).not.toContain('text-destructive');
+    expect(refundReturn).not.toContain('data-admin-notice');
+  });
+
+  it('처리 패널은 목록·머리와 같은 단계 이름을 쓴다', async () => {
+    const html = await render({ stage: 'requested', paymentProvider: 'toss', collectionPolicy: 'origin' });
+    expect(html).toMatch(/현재 단계 <span[^>]*data-tone="warning"[^>]*>취소요청</);
+    expect(html).not.toContain('현재 단계: 접수');
   });
 
   it('환불 완료 확정 양식은 토스 전액 취소 발행 확인 문구를 갖는다', async () => {

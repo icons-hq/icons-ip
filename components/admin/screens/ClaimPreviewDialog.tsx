@@ -47,7 +47,7 @@ function ClaimPreviewPendingHint() {
 export function ClaimPreviewLink({ children, href, label }: { children: ReactNode; href: string; label: string }) {
   return <Link
     aria-label={label}
-    className="inline-flex items-baseline gap-1.5 font-semibold text-foreground no-underline underline-offset-4 hover:underline"
+    className="inline-flex items-baseline gap-1.5 font-semibold text-primary no-underline underline-offset-4 hover:underline"
     data-claim-preview-link=""
     href={href}
     prefetch={false}

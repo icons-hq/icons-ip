@@ -7,7 +7,8 @@ import {
   claimHoldReceiptMatches, normalizeClaimHoldRequest,
   type ClaimHoldContext, type ClaimHoldReceipt, type ClaimHoldRequest,
 } from '@/lib/orders/claim-hold';
-import { ORDER_CLAIM_STAGE_LABELS, ORDER_CLAIM_TYPE_LABELS, ORDER_CLAIM_TYPE_SLUGS, type OrderClaimType } from '@/lib/orders/claims';
+import { adminClaimStageLabel } from '@/lib/admin/claims';
+import { ORDER_CLAIM_TYPE_LABELS, ORDER_CLAIM_TYPE_SLUGS, type OrderClaimType } from '@/lib/orders/claims';
 import { formatOrderDateTime } from '@/lib/orders';
 import { useClaimPreviewBusy } from '@/components/admin/screens/ClaimPreviewDialog';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
@@ -112,16 +113,16 @@ export function ClaimHoldPanel({ initial, onClose }: { initial: ClaimHoldContext
 
   return <section className="flex min-w-0 flex-col gap-3 rounded-lg border bg-muted/30 p-4 text-sm break-words" aria-label="요청 보류 및 해제" data-claim-panel="hold">
     <h4 className="text-base leading-snug font-medium">{typeLabel} {decisionLabel}</h4>
-    {!receipt ? <p>현재 상태: {ORDER_CLAIM_STAGE_LABELS[context.stage]}. 주문 전체의 요청을 처리합니다.</p> : null}
+    {!receipt ? <p>현재 상태: {adminClaimStageLabel(context.claimType, context.stage)}. 주문 전체의 요청을 처리합니다.</p> : null}
     {context.holdReason ? <p>기존 보류 사유: {context.holdReason}</p> : null}
-    {receipt ? <p role="status">{receipt.decision === 'hold' ? '보류를 설정했습니다.' : '보류를 해제했습니다.'} 현재 처리 결과: {ORDER_CLAIM_STAGE_LABELS[receipt.stage]} · {formatOrderDateTime(receipt.createdAt)}</p>
+    {receipt ? <p role="status">{receipt.decision === 'hold' ? '보류를 설정했습니다.' : '보류를 해제했습니다.'} 현재 처리 결과: {adminClaimStageLabel(context.claimType, receipt.stage)} · {formatOrderDateTime(receipt.createdAt)}</p>
       : !available ? <p className="text-muted-foreground" role="status">이미 종결된 요청은 보류하거나 보류를 해제할 수 없습니다.</p>
         : <form className="flex min-w-0 flex-col gap-3" onSubmit={event => { event.preventDefault(); void save(); }}>
           <fieldset className="m-0 flex min-w-0 flex-col gap-3 border-0 p-0" disabled={locked}>
             <legend className="mb-1 font-medium">{decisionLabel} 확인</legend>
             {decision === 'hold' ? <label className={FIELD}><span className="font-medium">보류 사유 (10~200자, 구매자에게 전달됩니다)</span>
               <input className="w-full" value={note} minLength={10} maxLength={200} required onChange={event => { if (editable()) setNote(event.target.value); }} />
-            </label> : <p>보류 전 단계인 {ORDER_CLAIM_STAGE_LABELS[context.heldFrom ?? 'requested']}로 돌아갑니다. 환불·재출고는 해당 단계에서 별도로 확인합니다.</p>}
+            </label> : <p>보류 전 단계인 {adminClaimStageLabel(context.claimType, context.heldFrom ?? 'requested')}로 돌아갑니다. 환불·재출고는 해당 단계에서 별도로 확인합니다.</p>}
             <label className={CHECK}><input className="mt-0.5" type="checkbox" checked={confirmed} required onChange={event => { if (editable()) setConfirmed(event.target.checked); }} /><span>현재 {typeLabel} 요청의 {decisionLabel} 내용을 확인했습니다.</span></label>
           </fieldset>
           <div className="flex flex-wrap gap-2">

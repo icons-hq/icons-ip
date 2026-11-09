@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import { ConsoleCountChips, ConsoleGrid, ConsolePagination, type ConsoleGridColumn } from '@/components/admin/console';
+import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { statusTone } from '@/lib/admin/status-tone';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { cn } from 'cn';
 import { CLAIM_FEE_FILTERS, claimFeeQueueHref, type ClaimFeeFilter, type ClaimFeeQueue } from '@/lib/admin/claim-fees';
@@ -16,7 +18,7 @@ const GUIDE_LINK = 'underline underline-offset-4';
 export function ClaimFeesScreen({ data }: { data: ClaimFeeQueue }) {
  const count = (state: string) => state === 'all' ? Object.values(data.counts).reduce((a, b) => a + (b ?? 0), 0) : state === 'open' ? (data.counts.unpaid ?? 0) + (data.counts.reported ?? 0) + (data.counts.refund_due ?? 0) : data.counts[state as keyof typeof data.counts] ?? 0;
  return <section className="flex min-w-0 flex-col gap-4 text-sm text-foreground" aria-label="반품·교환 배송비 청구" data-admin-kit="claim-fees">
-  <details className="group rounded-lg border bg-muted/40 px-4 py-3" open>
+  <details className="group rounded-lg border bg-muted/40 px-4 py-3">
    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-medium">
     반품·교환 배송비 청구와 반환을 확인하세요.
     <span className="shrink-0 text-xs text-muted-foreground group-open:hidden">메뉴설명 보기</span>
@@ -28,14 +30,14 @@ export function ClaimFeesScreen({ data }: { data: ClaimFeeQueue }) {
    </ul>
   </details>
   <ConsoleCountChips label="배송비 처리 상태" chips={Object.entries(CLAIM_FEE_FILTERS).map(([state, label]) => ({ label, active: data.state === state, count: count(state),
-   tone: state === 'refund_due' ? 'danger' as const : 'default' as const, href: claimFeeQueueHref(state as ClaimFeeFilter) }))} />
+   tone: state === 'refund_due' ? 'danger' as const : state === 'reported' ? 'warning' as const : 'default' as const, href: claimFeeQueueHref(state as ClaimFeeFilter) }))} />
   <div className="flex flex-wrap items-center justify-between gap-2">
    <h2 className="text-lg font-semibold tracking-tight">{CLAIM_FEE_FILTERS[data.state]} <span className="text-sm font-normal text-muted-foreground">(총 <strong className="font-medium text-foreground tabular-nums">{data.total.toLocaleString('ko-KR')}</strong>건)</span></h2>
    <Link className={cn(buttonVariants({ size: 'sm', variant: 'outline' }))} data-slot="button" href={claimFeeQueueHref(data.state, data.page)}>새로고침</Link>
   </div>
   <ConsoleGrid caption="반품 교환 배송비 청구 목록" preferencesKey="sales-claim-fees" columns={columns} emptyLabel="조건에 맞는 배송비 청구가 없습니다." rows={data.rows.map(row => ({ id: row.id,
    href: `/admin/sales/claims/${row.claimType === 'exchange' ? 'exchanges' : 'returns'}/${row.claimId}`,
-   cells: [<span className="tabular-nums" key="invoice">{row.id.slice(-8).toUpperCase()}</span>, <span className="tabular-nums" key="order">{orderReferenceLabel(row.orderId, row.orderNumber)}</span>, row.claimType === 'exchange' ? '교환' : '반품', CLAIM_FEE_STATES[row.state],
+   cells: [<span className="tabular-nums" key="invoice">{row.id.slice(-8).toUpperCase()}</span>, <span className="tabular-nums" key="order">{orderReferenceLabel(row.orderId, row.orderNumber)}</span>, row.claimType === 'exchange' ? '교환' : '반품', <AdminStatusBadge key="state" tone={statusTone('claimFee', row.state)}>{CLAIM_FEE_STATES[row.state]}</AdminStatusBadge>,
     <span className="tabular-nums" key="amount">{krw(row.amount)}</span>, row.payerRole === 'buyer' ? '원 주문 구매자' : '반품·교환 요청자', formatOrderDateTime(row.issuedAt), row.receivedAt ? formatOrderDateTime(row.receivedAt) : '미확인', row.refundedAt ? formatOrderDateTime(row.refundedAt) : '미완료'],
   }))} />
   <ConsolePagination label="배송비 청구 목록 페이지" page={data.page} pageSize={data.pageSize} total={data.total} hrefForPage={page => claimFeeQueueHref(data.state, page)} />

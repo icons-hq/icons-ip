@@ -9,6 +9,8 @@ import { INQUIRY_DRAFT_SIGN_OUT_EVENT } from '@/lib/admin/inquiry-draft-lifecycl
 import { createGoodsDescriptionToolScope } from '@/lib/admin/goods-description-tools';
 import { formatOrderDateTime } from '@/lib/orders';
 import { useClaimPreviewBusy } from '@/components/admin/screens/ClaimPreviewDialog';
+import { AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { statusTone } from '@/lib/admin/status-tone';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { cn } from 'cn';
 import {
@@ -161,8 +163,8 @@ function RefundPanel({ identity, scope }: { identity: BankRefundIdentity; scope:
   return <section aria-label="무통장 환불 처리" className="flex min-w-0 flex-col gap-3 rounded-lg border bg-muted/30 p-4 text-sm break-words" data-claim-panel="bank-refund">
     <h4 className="text-base leading-snug font-medium">무통장 환불</h4>
     <p className="text-muted-foreground">취소 확정과 실제 송금 완료를 따로 기록합니다. 환불 수단은 계좌 송금이며, 이 화면에서 은행 송금을 실행하지 않습니다.</p>
-    {context ? <><p><strong className="font-semibold tabular-nums">환불 전액: {context.amount.toLocaleString('ko-KR')}원</strong> · {context.phase === 'completed' ? '송금 완료' : context.phase === 'awaiting_transfer' ? '송금대기' : '취소 확정 전'}</p>
-      {context.gift ? <p className="text-[var(--wc-warning)]">선물의 결제한 분에게 환불합니다. 선물 받는 분의 요청과 환급 대상을 구분해주세요.</p> : null}
+    {context ? <><p className="flex flex-wrap items-center gap-2"><strong className="font-semibold tabular-nums">환불 전액: {context.amount.toLocaleString('ko-KR')}원</strong> <AdminStatusBadge tone={statusTone('refundTransfer', context.phase)}>{context.phase === 'completed' ? '송금 완료' : context.phase === 'awaiting_transfer' ? '송금대기' : '취소 확정 전'}</AdminStatusBadge></p>
+      {context.gift ? <AdminNotice tone="warning">선물의 결제한 분에게 환불합니다. 선물 받는 분의 요청과 환급 대상을 구분해주세요.</AdminNotice> : null}
       {context.confirmedAt ? <p>취소 확정 {formatOrderDateTime(context.confirmedAt)} · 접수 {context.filedAt ? formatOrderDateTime(context.filedAt) : '미접수'}</p> : null}
       {context.maskedAccount ? <p>등록된 환불계좌: {context.maskedAccount} · {context.maskedHolder}</p> : null}
     </> : !error ? <p className="text-muted-foreground" role="status">현재 환불 상태를 확인하고 있습니다.</p> : null}
