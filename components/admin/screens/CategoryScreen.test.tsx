@@ -40,6 +40,15 @@ it('basic category managers keep CRUD and assignment without platform configurat
   for (const text of ['ERP 매핑 저장', '활성화 상태 저장', '이관 메모 저장', '기존 유형 이관 메모', '분류·ERP CSV']) expect(html).not.toContain(text);
 });
 
+it('트리에서 고치는 항목 하나만 오른쪽에 열고 트리에 주 색으로 표시한다', () => {
+  const html = renderToStaticMarkup(<CategoryScreen data={{ categories, mappings: [], migrations: [], activation: { customerEnabled: false, erpEnabled: false, customerEvidence: null, erpEvidence: null, updatedAt: null } }} canManagePlatform={false} />);
+  expect(html.match(/<button aria-current="true"/g)).toHaveLength(1);
+  expect(html).toContain('생활 수정');
+  expect(html).not.toContain('문구 수정');
+  // 저장·추가는 각자 묶음의 주 행동이다.
+  for (const label of ['저장', '카테고리 추가']) expect(html).toMatch(new RegExp(`<button(?=[^>]*bg-primary)[^>]*>${label}</button>`));
+});
+
 it('카테고리 관리에서 `대>중>소` 경로를 붙여넣어 일괄 등록할 수 있다', () => {
   const html = renderToStaticMarkup(<CategoryScreen data={{ categories, mappings: [], migrations: [], activation: { customerEnabled: false, erpEnabled: false, customerEvidence: null, erpEvidence: null, updatedAt: null } }} canManagePlatform={false} />);
   expect(html).toContain('카테고리 일괄 등록');

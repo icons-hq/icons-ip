@@ -1,7 +1,7 @@
 'use client';
 
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
-import { useActionState, type ReactNode } from 'react';
+import { useActionState, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { ChevronDown, Download } from 'lucide-react';
 import { statusTone } from '@/lib/admin/status-tone';
@@ -9,7 +9,7 @@ import { MarketingLinkIssuer } from '../marketing/MarketingLinkIssuer';
 import { AdminPageHeader, AdminSectionCard, AdminStatusBadge } from '../console/AdminKit';
 import { CategoryAssignmentField } from '../CategoryAssignmentField';
 import { CategoryBulkCreatePanel } from '../CategoryBulkCreatePanel';
-import { CategoryTree } from '../CategoryTree';
+import { CategoryTree, firstCategoryInTree } from '../CategoryTree';
 import { AdminSelect } from '../console/AdminSelect';
 import { Button, buttonVariants } from '../kit/ui/button';
 import { Input } from '../kit/ui/input';
@@ -39,6 +39,8 @@ const EMPTY: AdminCategoryActionState = {};
 const FORM_BOX = 'flex min-w-0 flex-col gap-3 rounded-lg border p-4';
 const FIELD = 'flex min-w-0 flex-col gap-2 text-sm font-medium';
 const FIELD_GRID = 'grid gap-x-6 gap-y-4 sm:grid-cols-2';
+/* 카드 하나에 입력 묶음 하나뿐인 폼은 안쪽 테두리 없이 카드를 그대로 쓴다. */
+const FORM_PLAIN = 'flex min-w-0 flex-col gap-3';
 
 /* 자주 바꾸지 않는 설정·일괄 도구는 접어 카테고리 트리가 첫 화면에 보이게 한다. 안의 폼과 저장 동작은 그대로다. */
 function FoldCard({ title, badge, children }: { title: string; badge?: ReactNode; children: ReactNode }) {
@@ -65,7 +67,7 @@ function Labeled({ label, children }: { label: ReactNode; children: ReactNode })
 function CategoryForm({ category, categories }: { category?: AdminCategoryNode; categories: AdminCategoryNode[] }) {
   const [state, action, pending] = useActionState(saveAdminCategoryAction, EMPTY);
   const options = categoryParentOptions(categories, category?.id ?? null);
-  return <form action={action} className={FORM_BOX}>
+  return <form action={action} className={FORM_PLAIN}>
     <input name="id" type="hidden" value={category?.id ?? ''} />
     <input name="expectedUpdatedAt" type="hidden" value={category?.updatedAt ?? ''} />
     <input name="operationId" type="hidden" value="" />
@@ -76,7 +78,7 @@ function CategoryForm({ category, categories }: { category?: AdminCategoryNode; 
       <Labeled label="순서"><Input className="tabular-nums" defaultValue={category?.sortOrder ?? 0} min={0} name="sortOrder" type="number" /></Labeled>
     </div>
     <Notice state={state} />
-    <Button className="self-start" variant={category ? 'outline' : 'default'} disabled={pending} type="submit">{pending ? '저장 중' : category ? '저장' : '카테고리 추가'}</Button>
+    <Button className="self-start" disabled={pending} type="submit">{pending ? '저장 중' : category ? '저장' : '카테고리 추가'}</Button>
   </form>;
 }
 
@@ -157,14 +159,24 @@ function AssignmentForm({ categories }: { categories: AdminCategoryNode[] }) {
 export function CategoryScreen({ data, legacyTypes = [], canManagePlatform = true }: { data: { categories: AdminCategoryNode[]; mappings: AdminCategoryErpMapping[]; migrations: AdminCategoryMigration[]; activation: AdminCategoryActivation }; legacyTypes?: string[]; canManagePlatform?: boolean }) {
   const activeLeaves = data.categories.filter((category) => !category.archivedAt && category.childCount === 0);
   const mappings = new Map(data.mappings.map((mapping) => [mapping.categoryId, mapping]));
+  /* 오른쪽 입력 묶음은 트리에서 고른 항목 하나다. 아직 안 골랐으면 트리 맨 위 항목을 연다. */
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selected = data.categories.find((category) => category.id === selectedId) ?? firstCategoryInTree(data.categories);
   return <section className="flex min-w-0 flex-col gap-4" data-admin-screen="categories">
-    <AdminPageHeader title="고객 카테고리" description="최대 4단계 트리와 상품의 대표·추가 말단 분류를 관리합니다. 기존 유형과 미분류 상품은 계속 유지됩니다." actions={<Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={categoryExportHref()}><Download aria-hidden="true" />{canManagePlatform ? '분류·ERP CSV' : '분류 CSV'}</Link>} />
-    {canManagePlatform ? <FoldCard title="활성화 상태" badge={<AdminStatusBadge tone={statusTone('display', data.activation.customerEnabled ? 'active' : 'inactive')}>{categoryActivationLabel(data.activation)}</AdminStatusBadge>}><ActivationForm activation={data.activation} /></FoldCard> : null}
-    <FoldCard title="카테고리 일괄 등록"><CategoryBulkCreatePanel /></FoldCard>
-    <div className="grid items-start gap-4 lg:grid-cols-[minmax(15rem,0.35fr)_minmax(0,1fr)]" data-category-screen="master-detail">
-      <AdminSectionCard title={`카테고리 트리 ${data.categories.length}개`}><CategoryTree categories={data.categories} /></AdminSectionCard>
-      <div className="flex min-w-0 flex-col gap-4"><AdminSectionCard title="새 카테고리"><CategoryForm categories={data.categories} /></AdminSectionCard>{data.categories.map((category) => <AdminSectionCard key={category.id} title={`${category.name} · ${category.code}`}><CategoryForm category={category} categories={data.categories} /><ArchiveForm category={category} /><MarketingLinkIssuer source="category" targetIds={[category.id]} /></AdminSectionCard>)}</div>
+    <AdminPageHeader title="카테고리 관리" description="최대 4단계 트리와 상품의 대표·추가 말단 분류를 관리합니다. 기존 유형과 미분류 상품은 계속 유지됩니다." actions={<Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={categoryExportHref()}><Download aria-hidden="true" />{canManagePlatform ? '분류·ERP CSV' : '분류 CSV'}</Link>} />
+    {canManagePlatform ? <FoldCard title="활성화 상태" badge={<><AdminStatusBadge tone={data.activation.customerEnabled ? statusTone('display', 'active') : 'warning'}>{data.activation.customerEnabled ? '고객 화면 적용 중' : '고객 화면 미적용'}</AdminStatusBadge><span className="text-sm text-muted-foreground">{categoryActivationLabel(data.activation)}</span></>}><ActivationForm activation={data.activation} /></FoldCard> : null}
+    <div className="grid items-start gap-4 lg:grid-cols-[minmax(17rem,0.45fr)_minmax(0,1fr)]" data-category-screen="master-detail">
+      <AdminSectionCard title={`카테고리 트리 ${data.categories.length}개`}><CategoryTree activeId={selected?.id ?? null} categories={data.categories} onSelect={(category) => setSelectedId(category.id)} /></AdminSectionCard>
+      {/* 트리가 길어도 고르는 동안 입력 묶음이 함께 보이게 붙어 따라온다. */}
+      <div className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-16">
+        {selected ? <AdminSectionCard key={selected.id} title={`${selected.name} 수정`} summary={selected.code}>
+          <CategoryForm category={selected} categories={data.categories} />
+          <div className="flex flex-wrap items-center gap-2 border-t pt-3"><ArchiveForm category={selected} /><MarketingLinkIssuer size="sm" source="category" targetIds={[selected.id]} /></div>
+        </AdminSectionCard> : null}
+        <AdminSectionCard title="새 카테고리 등록"><CategoryForm categories={data.categories} /></AdminSectionCard>
+      </div>
     </div>
+    <FoldCard title="카테고리 일괄 등록"><CategoryBulkCreatePanel /></FoldCard>
     {canManagePlatform ? <AdminSectionCard title={`ERP 분류 매핑 ${activeLeaves.length}개 말단`}><p className="text-sm text-muted-foreground">실제 ERP 코드·품명·출처·검증 시각이 없는 매핑은 활성화하지 않습니다. 미매핑은 export에서 미설정으로 표시합니다.</p>{activeLeaves.map((category) => <MappingForm category={category} key={category.id} mapping={mappings.get(category.id)} />)}</AdminSectionCard> : null}
     {canManagePlatform ? <AdminSectionCard title="기존 유형 이관 메모"><p className="text-sm text-muted-foreground">유사 이름으로 자동 이관하지 않습니다. 확인된 항목만 선택적으로 기록하며, 전체 category 기능의 활성화 조건은 아닙니다.</p><MigrationForm categories={data.categories} types={legacyTypes} />{data.migrations.length ? <ul className="list-disc space-y-1 pl-5 text-sm">{data.migrations.map((migration) => <li key={migration.type}>{migration.type} · {migration.status} · {migration.categoryId ?? '미설정'}</li>)}</ul> : null}</AdminSectionCard> : null}
     <AdminSectionCard title={adminGoodsCopy("굿즈 기본 카테고리 적용")}><p className="text-sm text-muted-foreground">대표 분류 하나를 바로 변경합니다. 추가 분류는 상품 편집에서 확인하고 저장하며 ERP는 대표 분류를 사용합니다.</p><AssignmentForm categories={data.categories} /></AdminSectionCard>

@@ -219,7 +219,8 @@ export function ErpItemImportPanel() {
           onChange={(event) => setPasted(event.target.value)}
         />
         <p className={HINT} id="erp-item-paste-hint">머리글 행까지 함께 복사하면 열을 자동으로 짝짓습니다. 선행 0이 있는 품번·바코드는 그대로 보존합니다.</p>
-        <div><Button variant="outline" type="button" disabled={busy} onClick={readPasted}>붙여넣은 표 확인</Button></div>
+        {/* 미리보기가 열리면 주 행동은 아래 'N건 반입'이다 — 이 카드의 실선 버튼은 한 번에 하나다. */}
+        <div><Button variant={source ? 'outline' : 'default'} type="button" disabled={busy} onClick={readPasted}>붙여넣은 표 확인</Button></div>
       </div>
       <div className="flex min-w-0 flex-col gap-2">
         <label className="text-sm leading-snug font-medium" htmlFor="erp-item-file">또는 파일 선택</label>

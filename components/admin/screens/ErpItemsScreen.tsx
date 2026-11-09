@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { AdminPageHeader, AdminSectionCard } from '@/components/admin/console/AdminKit';
+import { AdminPageHeader, AdminSectionCard, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import type { ConsoleGridColumn } from '@/components/admin/console/ConsoleGrid';
@@ -43,7 +43,8 @@ export function ErpItemsScreen({ data }: { data: ErpItemsWorkspaceData }) {
       item.category ?? <span className="text-muted-foreground">없음</span>,
       categoryLabel(item.mappedCategoryId),
       formatErpSalePrice(item.salePrice),
-      item.barcode ? <span className="font-mono text-xs tabular-nums" key="barcode">{item.barcode}</span> : <span className="text-muted-foreground">없음</span>,
+      /* 바코드가 없으면 물류에서 막히는 품목이다 — 값이 비어 있는 것이 아니라 처리할 일로 보인다. */
+      item.barcode ? <span className="font-mono text-xs tabular-nums" key="barcode">{item.barcode}</span> : <AdminStatusBadge key="barcode" tone="warning">없음</AdminStatusBadge>,
       <time className="tabular-nums" dateTime={item.importedAt} key="importedAt">{kstDay(new Date(item.importedAt))}</time>,
     ],
   }));
