@@ -48,6 +48,19 @@ describe('return workspace evidence and navigation', () => {
     expect(complete).toContain('반품과 환불 완료 기록을 확인했습니다');
     expect(complete).not.toContain('다음 작업 보기');
   });
+  /* 사람 눈 판정: 지금 할 일이 끝난 단계에 밀려 첫 화면 맨 아래에 있었고, 끝난·지금·남은 단계가 구분되지 않았다. */
+  it('지금 단계만 펼치고 끝난 단계·지금 단계·남은 단계를 표시와 글자로 나눈다', () => {
+    const html = render({ stage: 'collecting', collectionComplete: false, collectedAt: null, collectedCount: 0 });
+    expect(html.match(/<details[^>]*\bopen=""/g)).toHaveLength(1);
+    expect(html).toMatch(/<details[^>]*data-step-state="current"[^>]*open=""[^>]*><summary[^>]*><h4[^>]*id="return-collection"/);
+    expect(html).toMatch(/aria-current="step"[^>]*data-step-state="current"/);
+    expect(html.match(/<button[^>]*data-step-state="done"/g)).toHaveLength(1);
+    expect(html.match(/<button[^>]*data-step-state="todo"/g)).toHaveLength(1);
+    expect(html.match(/<button[^>]*data-step-state="optional"/g)).toHaveLength(1);
+    for (const caption of ['>완료<', '>지금 할 일<', '>남은 단계<', '>필요 시<']) expect(html).toContain(caption);
+    /* 지금 할 일이 바로 아래에 펼쳐지므로 이동 버튼을 따로 두지 않는다. */
+    expect(html).not.toContain('다음 작업 보기');
+  });
   it.each(['withdrawn', 'rejected'] as const)('%s는 다음 작업 버튼 없이 종결과 증빙 확인을 안내한다', stage => {
     const html = render({ stage });
     expect(html).toContain('요청 처리가 종료됐습니다');
