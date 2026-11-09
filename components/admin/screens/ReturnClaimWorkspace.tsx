@@ -53,7 +53,7 @@ export function ReturnClaimWorkspace({ progress, review, collection, hold, refun
       : '현재 보류 중인 요청이 아닙니다.', content: hold },
     { id: 'refund', title: '환불 처리', summary: progress.refundCompleted ? '환불 완료 시각 기록됨'
       : progress.refundLedgerOpen ? progress.refundFiled ? '환불 접수 기록 있음 · 완료 시각 없음' : '환불 원장 열림 · 완료 시각 없음'
-        : '환불 원장 없음', content: refund },
+        : '환불 기록 없음', content: refund },
   ];
   const nextStep = steps.find(step => step.id === next);
   function focusStep(id: StepId) {

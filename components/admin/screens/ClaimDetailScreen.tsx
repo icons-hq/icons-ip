@@ -212,7 +212,7 @@ export function ClaimDetailScreen({
 
       {refund ? (
         <div className="border-t pt-1">
-          <Row label="환불 원장" value={<span className={ROW_INLINE}><AdminStatusBadge tone={statusTone('refund', refund.status)}>{refundStatusLabel(refund.status)}</AdminStatusBadge><span className="tabular-nums">{krw(refund.amount)}</span></span>} />
+          <Row label="환불 기록" value={<span className={ROW_INLINE}><AdminStatusBadge tone={statusTone('refund', refund.status)}>{refundStatusLabel(refund.status)}</AdminStatusBadge><span className="tabular-nums">{krw(refund.amount)}</span></span>} />
           <Row
             label="환불 수단"
             value={refund.method ? ORDER_CLAIM_REFUND_METHOD_LABELS[refund.method] : '미접수'}
@@ -229,8 +229,8 @@ export function ClaimDetailScreen({
       ) : (
         <p className="border-t pt-3 text-muted-foreground">
           {claim.claimType === 'exchange'
-            ? '교환에는 환불 원장이 없습니다.'
-            : '아직 환불 원장이 열리지 않았습니다.'}
+            ? '교환에는 환불 기록이 없습니다.'
+            : '아직 환불 기록이 열리지 않았습니다.'}
         </p>
       )}
 
@@ -336,7 +336,7 @@ export function ClaimDetailScreen({
                 {claim.decisionNote ? <Row label="거부 사유" value={claim.decisionNote} /> : null}
                 {claim.holdReason ? <Row label="보류 사유" value={claim.holdReason} /> : null}
                 {claim.lastErrorCode ? (
-                  <Row label="정합화 오류" value={claim.lastErrorCode} />
+                  <Row label="결제사 확인 오류" value={claim.lastErrorCode} />
                 ) : null}
                 {claim.reshipTrackingNumber ? (
                   <Row

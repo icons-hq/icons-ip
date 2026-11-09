@@ -106,8 +106,8 @@ export function adminUnpaidHref(filters: Partial<AdminUnpaidFilters>) {
 const ATTEMPT_STATE_LABELS: Record<string, string> = {
   prepared: '입금 대기',
   confirming: '확정 처리중',
-  needs_review: '정합화 필요',
-  unknown: '정합화 필요',
+  needs_review: '결제 확인 필요',
+  unknown: '결제 확인 필요',
 };
 
 export function adminUnpaidAttemptStateLabel(state: string | null) {

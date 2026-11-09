@@ -17,9 +17,9 @@ import { SalesDateRange } from './SalesDateRange';
 
 type Option = { value: string; label: string };
 
-/** 접는 메뉴설명(기준 화면 ClaimQueueKitScreen과 같은 모양). 처음에는 펼쳐 둔다. */
+/** 접는 메뉴설명. 매일 쓰는 화면의 목록을 밀어내지 않도록 처음에는 접어 둔다(ADR-0029). */
 export function SalesGuide({ title, children }: { title: string; children: ReactNode }) {
-  return <details className="group rounded-xl border bg-card px-4 py-3 text-sm" data-sales-guide="" open>
+  return <details className="group rounded-xl border bg-card px-4 py-3 text-sm" data-sales-guide="">
     <summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-medium [&::-webkit-details-marker]:hidden">
       <strong className="min-w-0 font-medium">{title}</strong>
       <span className="shrink-0 text-xs font-normal text-muted-foreground"><span className="hidden group-open:inline">메뉴설명 접기</span><span className="group-open:hidden">메뉴설명 보기</span></span>

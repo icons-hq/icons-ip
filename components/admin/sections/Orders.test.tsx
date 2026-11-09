@@ -641,7 +641,7 @@ describe('OrdersSection', () => {
   });
 
   /* 2026-10-12 QA-10: 결제확인필요 요청의 원인 코드는 주문 패널에서도 보인다. */
-  it('결제확인필요 요청의 정합화 오류 코드를 취소 요청 영역에 보여준다', () => {
+  it('결제확인필요 요청의 결제사 확인 오류 코드를 취소 요청 영역에 보여준다', () => {
     const html = renderToStaticMarkup(<OrdersSection data={orderData({
       cancellationRequest: cancellationRequest({
         status: 'needs_review',
@@ -652,11 +652,11 @@ describe('OrdersSection', () => {
       }),
     })} />);
 
-    expect(html).toMatch(/정합화 오류 · <code[^>]*>provider_unavailable<\/code>/);
+    expect(html).toMatch(/결제사 확인 오류 · <code[^>]*>provider_unavailable<\/code>/);
     expect(html).toContain('상태 다시 확인');
   });
 
-  it('종결된 요청에는 지난 정합화 오류 코드를 다시 띄우지 않는다', () => {
+  it('종결된 요청에는 지난 결제사 확인 오류 코드를 다시 띄우지 않는다', () => {
     const html = renderToStaticMarkup(<OrdersSection data={orderData({
       status: 'canceled',
       cancellationRequest: cancellationRequest({ status: 'completed', stage: 'completed', lastErrorCode: 'provider_unavailable' }),

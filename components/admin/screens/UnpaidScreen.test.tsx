@@ -93,7 +93,7 @@ describe('UnpaidScreen', () => {
       />,
     );
 
-    expect(html).toContain('정합화 필요');
+    expect(html).toContain('결제 확인 필요');
   });
 
   it('주문을 고르기 전에는 처리 폼을 열지 않는다', () => {

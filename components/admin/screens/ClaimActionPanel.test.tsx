@@ -130,7 +130,7 @@ describe('ClaimActionPanel 처리 결과', () => {
   it('반품처럼 취소가 아닌 유형의 원장 부재 안내는 결제 내역 확인을 그대로 안내한다', async () => {
     const html = await renderAfterDecision({}, { claimType: 'return', stage: 'processing' });
 
-    expect(html).toContain('환불 원장이 없어 완료를 기록할 수 없습니다');
+    expect(html).toContain('환불 기록이 없어 완료를 기록할 수 없습니다');
     expect(html).not.toContain('href="/admin/sales/orders?query=');
   });
 });
@@ -182,12 +182,12 @@ describe('ClaimActionPanel 확인과 취소 안내', () => {
   it('결제사 전액 취소가 바로 나가는 승인만 위험 버튼과 경고 상자로 구분한다', async () => {
     const tag = (html: string, value: string) => html.match(new RegExp(`<button[^>]*value="${value}"[^>]*>`))?.[0] ?? '';
     const toss = await render({ stage: 'requested', paymentProvider: 'toss', collectionPolicy: 'origin' });
-    expect(tag(toss, 'approve')).toContain('text-destructive');
+    expect(tag(toss, 'approve')).toContain('bg-destructive');
     expect(tag(toss, 'approve')).not.toBe(tag(toss, 'review'));
     expect(toss.indexOf('data-admin-notice="warning"')).toBeLessThan(toss.indexOf('value="approve"'));
     /* 수거부터 시작하는 반품 승인은 돈이 나가지 않는다 — 일반 승인(주 색)이고 경고 상자가 없다. */
     const refundReturn = await render({ claimType: 'return', stage: 'requested', paymentProvider: 'toss', collectionPolicy: 'origin' });
-    expect(tag(refundReturn, 'approve')).not.toContain('text-destructive');
+    expect(tag(refundReturn, 'approve')).not.toContain('bg-destructive');
     expect(refundReturn).not.toContain('data-admin-notice');
   });
 

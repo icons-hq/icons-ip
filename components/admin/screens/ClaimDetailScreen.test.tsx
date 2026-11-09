@@ -288,7 +288,7 @@ describe('ClaimDetailScreen', () => {
     expect(html).toContain('1 / 2개 출고지 확인');
     expect(html).toContain('전체 회수 확인 전');
     expect(html).toContain('두 번째 출고지 확인 중');
-    expect(html).toContain('환불 원장 없음');
+    expect(html).toContain('환불 기록 없음');
     expect(html).not.toContain('<form');
     expect(html).not.toContain('<button');
   });
@@ -363,7 +363,7 @@ describe('ClaimDetailScreen', () => {
     });
 
     expect(html).toContain('교환은 카드팩을 회수하지 않습니다');
-    expect(html).toContain('교환에는 환불 원장이 없습니다');
+    expect(html).toContain('교환에는 환불 기록이 없습니다');
     expect(html).not.toContain('name="variant:00000000-0000-4000-8000-000000044041"');
     expect(html).not.toContain('재출고 등록하고 교환 종결');
   });
@@ -466,7 +466,7 @@ describe('ClaimDetailScreen', () => {
     });
 
     expect(html).not.toContain('환불 완료 확정');
-    expect(html).toContain('환불 원장이 없어 완료를 기록할 수 없습니다');
+    expect(html).toContain('환불 기록이 없어 완료를 기록할 수 없습니다');
   });
 
   /* 거부는 durable claim과 환불 intent가 열리기 전까지만 가능하다. processing에서

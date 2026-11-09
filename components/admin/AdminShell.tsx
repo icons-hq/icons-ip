@@ -2,7 +2,7 @@
 
 import { usePathname, useSearchParams } from 'next/navigation';
 import type { CSSProperties, ReactNode } from 'react';
-import { ADMIN_CONSOLES, adminConsoleHomeHref, adminGroupConsoles, adminGroupForPath, adminScreenForPath, type AdminConsoleId } from '@/lib/admin/navigation';
+import { ADMIN_CONSOLES, adminConsoleHomeHref, adminDetailTitleForPath, adminGroupConsoles, adminGroupForPath, adminScreenForPath, type AdminConsoleId } from '@/lib/admin/navigation';
 import { SidebarInset, SidebarProvider } from '@/components/admin/kit/ui/sidebar';
 import { TooltipProvider } from '@/components/admin/kit/ui/tooltip';
 import { AdminSidebar } from './AdminSidebar';
@@ -51,7 +51,7 @@ export function AdminShell({
   /* 콘텐츠 콘솔은 경로 첫 칸이 콘솔 이름이라, 그 콘솔 전용 메뉴 그룹(IP·콘텐츠 운영)을 다시 적지 않는다. */
   const groupLabel = group && consoleId !== 'commerce' && adminGroupConsoles(group).every((id) => id === consoleId) ? undefined : group?.label;
   const title = pathname === '/admin/catalog/goods' && searchParams.get('create') !== '1' && searchParams.get('goodId')
-    ? '상품 수정' : screen?.label ?? '판매자센터';
+    ? '상품 수정' : adminDetailTitleForPath(pathname) ?? screen?.label ?? '판매자센터';
   const accountId = admin.id || admin.email || admin.role;
 
   return (

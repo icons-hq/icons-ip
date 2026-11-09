@@ -43,7 +43,7 @@ describe('return workspace evidence and navigation', () => {
     expect(incomplete).toContain('다음 확인: 환불 처리');
     expect(incomplete).not.toContain('반품과 환불 완료 기록을 확인했습니다');
     const missing = render({ stage: 'completed', refundLedgerOpen: false });
-    expect(missing).toContain('환불 원장 없음');
+    expect(missing).toContain('환불 기록 없음');
     const complete = render({ stage: 'completed', refundCompleted: true });
     expect(complete).toContain('반품과 환불 완료 기록을 확인했습니다');
     expect(complete).not.toContain('다음 작업 보기');

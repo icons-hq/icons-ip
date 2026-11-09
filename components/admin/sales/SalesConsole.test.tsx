@@ -51,9 +51,10 @@ describe('sales filter and result forms', () => {
     expect(html).toMatch(/<button[^>]*type="submit"[^>]*>적용</);
   });
 
-  it('keeps the operational guide expanded without submitting or loading any action', () => {
+  it('keeps the operational guide folded by default without submitting or loading any action', () => {
     const html = renderToStaticMarkup(<SalesGuide title="반품 처리 안내"><p>회수 근거를 확인한 뒤 처리합니다.</p></SalesGuide>);
-    expect(html).toMatch(/<details [^>]*data-sales-guide=""[^>]*open=""/);
+    expect(html).toMatch(/<details [^>]*data-sales-guide=""/);
+    expect(html).not.toMatch(/<details [^>]*data-sales-guide=""[^>]*open=""/);
     expect(html).toContain('회수 근거를 확인한 뒤 처리합니다.');
     expect(html).toContain('메뉴설명 접기');
     expect(html).toContain('메뉴설명 보기');

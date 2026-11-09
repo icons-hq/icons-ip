@@ -82,7 +82,7 @@ import { ChevronDown } from 'lucide-react';
  * 주문 통합검색 — 템플릿 룩(ADR-0028). 조회 조건·처리 동선·열 구성·확인 문구는 그대로이고, 화면을 kit 부품과
  * 유틸리티로 그린다. 옛 클래스(admin-order-*·admin-sales-*·btn·card)를 쓰지 않으며, 테스트가 찾는 자리는 data-* 표시다.
  */
-const FEEDBACK_CLASS = 'text-sm empty:hidden [&_[role=alert]]:text-destructive [&_[role=status]]:text-success';
+const FEEDBACK_CLASS = 'text-sm font-medium empty:hidden [&_[role=alert]]:text-destructive [&_[role=status]]:text-success';
 const FIELD_ERROR_CLASS = 'text-xs text-destructive';
 const LINK_BUTTON = buttonVariants({ size: 'sm', variant: 'outline' });
 const FACTS_CLASS = 'grid grid-cols-1 gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-2';
@@ -995,7 +995,7 @@ function OrderDetail({
           {cancellationRequest.lastErrorCode
             && (cancellationRequest.status === 'needs_review' || cancellationRequest.status === 'processing') ? (
             <p className="text-muted-foreground wrap-anywhere">
-              정합화 오류 · <code className="rounded bg-muted px-1 font-mono text-xs text-foreground">{cancellationRequest.lastErrorCode}</code>
+              결제사 확인 오류 · <code className="rounded bg-muted px-1 font-mono text-xs text-foreground">{cancellationRequest.lastErrorCode}</code>
               {' · 코드별 조치는 어드민 가이드 "클레임 처리"에 있습니다.'}
             </p>
           ) : null}
@@ -1223,10 +1223,10 @@ export function OrdersSection({ data, canManage = true }: { data: AdminOrderCons
               <span className="text-muted-foreground tabular-nums">{selectedIds.length}건 선택</span>
               <Button disabled={bulkPending||selectedIds.length===0} size="sm" type="submit">{bulkPending?'처리 중…':'선택 주문 발주확인'}</Button>
               <span className="text-xs text-muted-foreground">체크칸은 발주확인할 수 있는 신규주문에만 있습니다.</span>
+              <ActionFeedback state={bulkState}/>
               <span className="ml-auto flex items-center gap-2"><Link className={LINK_BUTTON} data-slot="button" href="/admin/sales/dispatch">발송관리</Link><Link className={LINK_BUTTON} data-slot="button" href="/admin/sales/shipping">배송현황</Link></span>
             </div> : null}
           </ConsoleGrid>
-          <ActionFeedback state={bulkState}/>
         </form>
         <ConsolePagination label="주문 목록 페이지" page={data.filters.page} pageSize={data.pageSize} total={data.total}
           hrefForPage={page=>adminOrdersHref(data.filters,{page,orderId:null})}/>

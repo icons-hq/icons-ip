@@ -362,7 +362,7 @@ export function ClaimActionPanel({
                 name="decision"
                 type="submit"
                 value="approve"
-                variant={approvalMovesMoney ? 'destructive' : 'default'}
+                variant={approvalMovesMoney ? 'danger' : 'default'}
               >
                 {claimType !== 'cancel'
                   ? '승인하고 수거 시작'
@@ -493,7 +493,7 @@ export function ClaimActionPanel({
                 : '결제사 원장에서 전액 취소를 확인한 뒤 눌러주세요. 확인되지 않으면 주문과 재고는 그대로 유지됩니다.'}
             </AdminNotice>
           ) : null}
-          <Button className="h-auto min-h-7 w-fit max-w-full py-1 whitespace-normal" disabled={pending} size="sm" type="submit" variant={refundFinalizationPending ? 'destructive' : 'default'}>
+          <Button className="h-auto min-h-7 w-fit max-w-full py-1 whitespace-normal" disabled={pending} size="sm" type="submit" variant={refundFinalizationPending ? 'danger' : 'default'}>
             {!refundFinalizationPending
               ? '환불 완료를 원장에 기록'
               : autoCancelLabel
@@ -510,7 +510,7 @@ export function ClaimActionPanel({
 
       {refundLedgerMissing && orderPanelRecheckLabel ? (
         <p className="text-muted-foreground">
-          이 주문에는 환불 원장이 없어 [환불 완료 확정]을 쓸 수 없습니다. 결제 내역이
+          이 주문에는 환불 기록이 없어 [환불 완료 확정]을 쓸 수 없습니다. 결제 내역이
           없는 주문(결제창만 열렸거나 결제 결과가 정해지기 전)의 취소는{' '}
           <Link className="text-foreground underline underline-offset-4" href={adminOrderSearchHref(orderId)}>주문 통합검색에서 이 주문을 열어</Link>
           {' '}[{orderPanelRecheckLabel}]으로 닫습니다. Korpay 결제창 주문은 그 자리의
@@ -518,7 +518,7 @@ export function ClaimActionPanel({
         </p>
       ) : refundLedgerMissing ? (
         <p className="text-muted-foreground">
-          이 주문에는 환불 원장이 없어 완료를 기록할 수 없습니다. 결제 내역을 먼저
+          이 주문에는 환불 기록이 없어 완료를 기록할 수 없습니다. 결제 내역을 먼저
           확인해주세요.
         </p>
       ) : null}
