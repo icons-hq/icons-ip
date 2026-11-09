@@ -1,5 +1,6 @@
 'use client';
 
+import { AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { useEffect, useRef, useState, useTransition, type FormEvent } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { readDeliveryPoliciesAction, saveDeliveryPolicyAction } from '@/app/admin/shipment-delivery-actions';
@@ -96,10 +97,10 @@ export function DeliveryPoliciesPanel({ originId, canEdit = false }: { originId:
   return <section aria-labelledby={`delivery-policies-${originId}`} className="flex min-w-0 flex-col gap-3 border-t pt-4" data-delivery-policies="">
     <h4 className="text-sm font-medium" id={`delivery-policies-${originId}`}>배송·직접전달 운영 조건</h4>
     <p className="text-sm text-muted-foreground">상품에서 허용한 방식은 주문서에서 선택할 수 있습니다. 결제 이후에는 고객 요청과 기존 비용 유지 동의를 기록해 변경합니다. 활성 정책의 조건은 보존되며, 변경은 새 버전으로 등록합니다.</p>
-    {notice?.originId === originId && <p className="rounded-lg border bg-muted/40 px-3 py-2.5 text-sm font-medium text-[var(--wc-success)]" role="status">{notice.text}</p>}
+    {notice?.originId === originId && <AdminNotice role="status" tone="success">{notice.text}</AdminNotice>}
     {!visible ? <p className="text-sm text-muted-foreground" role="status">운영 조건을 불러오는 중입니다…</p> : visible.error ? <p className={ALERT} role="alert">{visible.error}</p> : <>
       {visible.policies?.length ? visible.policies.map((policy) => <details className={DETAILS} key={`${policy.id}:${policy.revision}`}>
-        <summary className={DETAILS_SUMMARY}>{DELIVERY_METHOD_LABELS[policy.method]} · {policy.state === 'draft' ? '초안' : policy.state === 'active' ? '활성' : '새 선택 중지'} · 버전 {policy.revision}</summary>
+        <summary className={DETAILS_SUMMARY}>{DELIVERY_METHOD_LABELS[policy.method]} <AdminStatusBadge className="mx-1 align-middle" tone={policy.state === 'active' ? 'success' : policy.state === 'draft' ? 'neutral' : 'warning'}>{policy.state === 'draft' ? '초안' : policy.state === 'active' ? '활성' : '새 선택 중지'}</AdminStatusBadge> 버전 {policy.revision}</summary>
         {policy.state === 'draft' && canEdit ? <PolicyForm originId={originId} policy={policy} onSaved={saved} /> : <SavedPolicy policy={policy} canEdit={canEdit} onSaved={saved} />}
       </details>) : <p className="text-sm text-muted-foreground">등록된 운영 조건이 없습니다. 택배 외 배송 방식은 선택할 수 없습니다.</p>}
       {canEdit ? <details className={DETAILS} key={`new-${key}`}><summary className={DETAILS_SUMMARY}>새 운영 조건 등록</summary><PolicyForm originId={originId} onSaved={saved} /></details> : <small className="text-xs text-muted-foreground">운영 조건 등록과 활성화는 관리자가 처리합니다.</small>}

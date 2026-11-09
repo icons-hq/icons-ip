@@ -14,6 +14,7 @@ import {
 import { adminOrderDetailHrefFromBack } from '@/lib/admin/orders';
 import { formatOrderDateTime, orderReferenceLabel } from '@/lib/orders';
 import { ADMIN_VOCABULARY } from '@/lib/admin/vocabulary';
+import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { SettledExportForm } from './SettledExportForm';
 import { SALES_DATE_FIELDS, SALES_ORDER_SEARCH_FIELDS } from '@/lib/admin/sales-list';
 import { SalesFilterPanel, SalesGuide, SalesResultsHeader } from '@/components/admin/sales/SalesConsole';
@@ -70,9 +71,9 @@ export function SettledScreen({
         row.doneAt
           ? <time className="tabular-nums" dateTime={row.doneAt} key="doneAt">{formatOrderDateTime(row.doneAt)}</time>
           : <span className="text-muted-foreground" key="doneAt">미기록</span>,
-        <span data-claim-open={claim.open ? 'true' : 'false'} key="claim">
+        <AdminStatusBadge data-claim-open={claim.open ? 'true' : 'false'} key="claim" tone={claim.daysRemaining === null ? 'warning' : claim.open ? 'info' : 'neutral'}>
           {adminDefectClaimLabel(claim)}
-        </span>,
+        </AdminStatusBadge>,
         <span className="tabular-nums" key="total">₩{row.total.toLocaleString('ko-KR')}</span>,
       ],
     };

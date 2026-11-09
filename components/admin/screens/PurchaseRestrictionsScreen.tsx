@@ -6,7 +6,7 @@ import { ConsolePagination, type ConsoleGridColumn } from '@/components/admin/co
 import type { PurchaseRestrictionReleaseReceipt } from '@/lib/admin/purchase-restriction-release';
 import { PurchaseRestrictionReleaseGrid } from './PurchaseRestrictionReleaseGrid';
 import { SalesGuide, SalesFilterField, SalesFilterPanel, SalesResultsTitle, SalesSelect } from '@/components/admin/sales/SalesConsole';
-import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 /* 구매제한 관리 — 템플릿 룩(ADR-0028). 셀 보조 줄은 유틸리티다. */
 const CELL_STACK = 'flex flex-col items-start gap-0.5 [&_small]:text-xs [&_small]:text-muted-foreground';
 import { PURCHASE_RESTRICTION_REASONS, purchaseRestrictionsHref, type PurchaseRestrictionData } from '@/lib/admin/purchase-restrictions';
@@ -33,8 +33,8 @@ export function PurchaseRestrictionsScreen({ data, initialBatch = null, batchMis
       <SalesFilterField label="처리상태" htmlFor="purchase-restriction-state"><SalesSelect id="purchase-restriction-state" name="state" value={filters.state} options={[{ value: 'active', label: '구매제한 중' }, { value: 'released', label: '해제' }, { value: 'all', label: '전체' }]} /></SalesFilterField>
       <SalesFilterField label="목록 수" htmlFor="purchase-restriction-size"><SalesSelect id="purchase-restriction-size" name="pageSize" value={String(filters.pageSize)} options={[20,50,100].map(size => ({ value: String(size), label: `${size}개씩 보기` }))} /></SalesFilterField>
     </SalesFilterPanel>
-    {batchMissing ? <p role="alert" className="rounded-lg border border-destructive/30 bg-card px-3 py-2.5 text-destructive">등록 요청을 찾을 수 없습니다. 목록에서 구매제한 상태를 확인해주세요.</p> : null}
-    {releaseMissing ? <p role="alert" className="rounded-lg border border-destructive/30 bg-card px-3 py-2.5 text-destructive">이 요청으로 저장된 해제 결과가 없습니다. 목록에서 최신 구매제한 상태를 확인해주세요.</p> : null}
+    {batchMissing ? <AdminNotice role="alert" tone="danger">등록 요청을 찾을 수 없습니다. 목록에서 구매제한 상태를 확인해주세요.</AdminNotice> : null}
+    {releaseMissing ? <AdminNotice role="alert" tone="danger">이 요청으로 저장된 해제 결과가 없습니다. 목록에서 최신 구매제한 상태를 확인해주세요.</AdminNotice> : null}
     <PurchaseRestrictionRegister />
     <PurchaseRestrictionBatchForm key={initialBatch?.id ?? 'new'} initialBatch={initialBatch} currentHref={currentHref} />
     <div className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground" data-sales-results="">

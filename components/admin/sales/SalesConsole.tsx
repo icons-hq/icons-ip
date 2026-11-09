@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { ChevronDown } from 'lucide-react';
 import { ConsoleFilterField } from '@/components/admin/console';
 import { ADMIN_COUNT_CARD_GRID_CLASS, AdminCountCard, type AdminCountTone } from '@/components/admin/console/AdminCountCard';
 import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
@@ -24,6 +25,27 @@ export function SalesGuide({ title, children }: { title: string; children: React
       <span className="shrink-0 text-xs font-normal text-muted-foreground"><span className="hidden group-open:inline">메뉴설명 접기</span><span className="group-open:hidden">메뉴설명 보기</span></span>
     </summary>
     <div className="mt-2 flex flex-col gap-1 text-muted-foreground [&_a]:font-medium [&_a]:text-foreground [&_a]:underline [&_a]:underline-offset-4 [&_ol]:flex [&_ol]:list-decimal [&_ol]:flex-col [&_ol]:gap-1 [&_ol]:pl-5">{children}</div>
+  </details>;
+}
+
+/**
+ * 접히는 카드. 접힌 한 줄에 제목·상태·요약을 보이고 설명과 입력은 펼쳐서 본다 — 설정 카드가 처리할 목록을 밀어내지 않게 한다.
+ * 닫아도 내용은 DOM에 남아 입력값과 양식 제출이 그대로다.
+ */
+export function SalesDisclosureCard({ title, status, summary, children, openLabel = '설정 펼치기', closeLabel = '설정 접기' }: {
+  title: string; status?: ReactNode; summary?: ReactNode; children: ReactNode; openLabel?: string; closeLabel?: string;
+}) {
+  return <details className="group min-w-0 rounded-xl border bg-card text-sm text-card-foreground" data-sales-disclosure="">
+    <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 rounded-xl px-4 py-3 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
+      <h3 className="text-sm leading-snug font-semibold text-foreground">{title}</h3>
+      {status}
+      {summary ? <span className="min-w-0 text-muted-foreground">{summary}</span> : null}
+      <span className="ml-auto flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+        <span className="group-open:hidden">{openLabel}</span><span className="hidden group-open:inline">{closeLabel}</span>
+        <ChevronDown aria-hidden="true" className="size-4 transition-transform group-open:rotate-180" />
+      </span>
+    </summary>
+    <div className="flex min-w-0 flex-col gap-4 border-t p-4 sm:p-5">{children}</div>
   </details>;
 }
 
@@ -73,10 +95,11 @@ export function SalesFilterPanel({
         {searchHint && <small className="text-xs text-muted-foreground wrap-anywhere" id={`${id}-query-hint`}>{searchHint}</small>}
       </ConsoleFilterField>
       {children}
-    </div>
-    <div className="flex flex-wrap justify-end gap-2 border-t pt-3">
-      <Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={resetHref ?? action}>초기화</Link>
-      <Button type="submit" variant="soft">검색</Button>
+      {/* 조회 버튼을 입력과 같은 줄 끝에 둔다 — 버튼만의 줄이 처리할 목록을 한 줄씩 밀어낸다. */}
+      <div className="ml-auto flex items-center gap-2 self-end">
+        <Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={resetHref ?? action}>초기화</Link>
+        <Button type="submit" variant="soft">검색</Button>
+      </div>
     </div>
   </form>;
 }
@@ -94,7 +117,7 @@ export function SalesResultsHeader({
       {Object.entries(hidden).map(([name, value]) => <input key={name} type="hidden" name={name} value={value} />)}
       <SalesSelect name="sort" value={sort} options={sortOptions} label="목록 정렬" size="sm" />
       <SalesSelect name="pageSize" value={String(pageSize)} options={pageSizes.map((size) => ({ value: String(size), label: `${size}개씩 보기` }))} label="목록 수" size="sm" />
-      <Button size="sm" type="submit" variant="outline">적용</Button>
+      <Button size="sm" type="submit" variant="soft">적용</Button>
     </form>
     {children}
   </div>;

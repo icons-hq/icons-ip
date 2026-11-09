@@ -1,4 +1,5 @@
 'use client';
+import { AdminNotice } from '@/components/admin/console/AdminKit';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
@@ -73,7 +74,7 @@ export function PurchaseRestrictionBatchForm({ initialBatch = null, currentHref 
       {batch.status === 'expired' ? <p className="text-destructive" role="alert">대상 확인 유효시간이 지났습니다. 등록 대상 확인부터 다시 진행해주세요.</p> : null}
       {batch.status === 'prepared' ? <>
         <p className="text-muted-foreground">제외된 행은 등록하지 않습니다. 실행 사이에 상태가 바뀐 고객은 제외 또는 미등록으로 표시하고, 나머지 대상의 결과를 각각 남깁니다.</p>
-        {!batch.canExecute ? <p className="rounded-lg border bg-muted/40 px-3 py-2.5">대상을 확인한 운영자만 이 요청을 등록할 수 있습니다.</p> : null}
+        {!batch.canExecute ? <AdminNotice tone="warning">대상을 확인한 운영자만 이 요청을 등록할 수 있습니다.</AdminNotice> : null}
         <label className="flex items-start gap-2"><input className="mt-1" type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} disabled={pending || uncertain || !batch.canExecute || batch.readyCount === 0} /><span>{adminGoodsCopy('등록 가능한 고객에게 공통 사유가 적용되며, 신규 굿즈 주문만 제한하고 기존 주문은 정상 처리해야 함을 확인했습니다.')}</span></label>
       </> : null}
       <div className="flex flex-wrap items-center gap-2">

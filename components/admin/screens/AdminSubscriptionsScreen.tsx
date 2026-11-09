@@ -3,6 +3,8 @@ import Link from 'next/link';
 import { ConsoleGrid, ConsolePagination, type ConsoleGridColumn } from '@/components/admin/console';
 import { EncryptedWorkbookDownloadButton } from '@/components/admin/EncryptedWorkbookDownloadButton';
 import { SalesFilterField, SalesFilterPanel, SalesGuide, SalesResultsTitle, SalesSelect } from '@/components/admin/sales/SalesConsole';
+import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { statusTone } from '@/lib/admin/status-tone';
 import { adminSubscriptionsHref, subscriptionScheduleLabel, type AdminSubscriptionData } from '@/lib/admin/subscriptions';
 import { SUBSCRIPTION_PLAN_STATES, SUBSCRIPTION_PLAN_LABELS } from '@/lib/subscriptions/model';
 import { formatKrwExact } from '@/components/admin/format';
@@ -28,7 +30,7 @@ export function AdminSubscriptionsScreen({ data }: { data: AdminSubscriptionData
     </div>
     <ConsoleGrid caption="정기구매 신청 목록" preferencesKey="sales-subscriptions" columns={columns} emptyLabel="검색 조건에 맞는 정기구매가 없습니다."
       rows={data.rows.map(row => ({ id: row.id, cells: [<Link key="id" className="font-medium tabular-nums underline-offset-4 hover:underline" href={`/admin/sales/subscriptions/${row.id}`}>{row.id}</Link>,
-        SUBSCRIPTION_PLAN_LABELS[row.state], row.buyerName, row.goodsLabel, subscriptionScheduleLabel(row.schedule), row.nextRunAt ? formatOrderDateTime(row.nextRunAt) : '—',
+        <AdminStatusBadge key="state" tone={statusTone('subscription', row.state)}>{SUBSCRIPTION_PLAN_LABELS[row.state]}</AdminStatusBadge>, row.buyerName, row.goodsLabel, subscriptionScheduleLabel(row.schedule), row.nextRunAt ? formatOrderDateTime(row.nextRunAt) : '—',
         formatKrwExact(row.renewalOnlineTotal), formatKrwExact(row.renewalCollectTotal), row.paidCycleCount, formatKrwExact(row.paidOnlineTotal), formatOrderDateTime(row.updatedAt)] }))} />
     <ConsolePagination label="정기구매 목록 페이지" page={data.page} pageSize={data.pageSize} total={data.total} hrefForPage={page => adminSubscriptionsHref(filters, page)} />
     <p className="text-muted-foreground">현재 검색 조건의 전체 신청을 받습니다. 최대 10,000건이며 내려받은 기록이 남습니다.</p></div>

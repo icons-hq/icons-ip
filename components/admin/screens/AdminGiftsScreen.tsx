@@ -3,7 +3,9 @@ import Link from 'next/link';
 import { ConsoleGrid, ConsolePagination, type ConsoleGridColumn } from '@/components/admin/console';
 import { EncryptedWorkbookDownloadButton } from '@/components/admin/EncryptedWorkbookDownloadButton';
 import { SalesFilterField, SalesFilterPanel, SalesGuide, SalesResultsTitle, SalesSelect } from '@/components/admin/sales/SalesConsole';
+import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { Button } from '@/components/admin/kit/ui/button';
+import { statusTone } from '@/lib/admin/status-tone';
 import { ADMIN_GIFT_STATES, ADMIN_GIFT_STATE_LABELS, adminGiftsHref, adminGiftsQuery, type AdminGiftData } from '@/lib/admin/gifts';
 import { formatOrderDateTime } from '@/lib/orders';
 
@@ -27,11 +29,11 @@ export function AdminGiftsScreen({ data }: { data: AdminGiftData }) {
       <form method="get" action="/admin/sales/gifts" className="flex flex-wrap items-center gap-1.5 print:hidden" key={currentHref}>
         {[...query].map(([name, value]) => <input key={name} type="hidden" name={name} value={value} />)}
         <SalesSelect name="pageSize" value={String(filters.pageSize)} options={[50, 100, 200].map(size => ({ value: String(size), label: `${size}개씩 보기` }))} label="목록 수" size="sm" />
-        <Button size="sm" type="submit" variant="outline">적용</Button></form>
+        <Button size="sm" type="submit" variant="soft">적용</Button></form>
       <EncryptedWorkbookDownloadButton href={`/api/admin/gifts/export${query.size ? `?${query}` : ''}`} label="암호화 엑셀 다운로드" disabled={data.total > 10000} />
     </div>
     <ConsoleGrid caption="선물 수락 목록" preferencesKey="sales-gifts" columns={columns} emptyLabel="검색 조건에 맞는 선물이 없습니다."
-      rows={data.rows.map(row => ({ id: row.id, cells: [<span key="id" className="tabular-nums">{row.id}</span>, ADMIN_GIFT_STATE_LABELS[row.state],
+      rows={data.rows.map(row => ({ id: row.id, cells: [<span key="id" className="tabular-nums">{row.id}</span>, <AdminStatusBadge key="state" tone={statusTone('gift', row.state)}>{ADMIN_GIFT_STATE_LABELS[row.state]}</AdminStatusBadge>,
         row.senderName, row.recipientName ?? '수락 전', row.goodsLabel, row.quantity, formatOrderDateTime(row.createdAt), formatOrderDateTime(row.expiresAt),
         row.acceptedAt ? formatOrderDateTime(row.acceptedAt) : '—', row.orderId ? <Link key="order" className="tabular-nums underline-offset-4 hover:underline" href={`/admin/sales/orders/${row.orderId}`}>{row.orderId}</Link> : '주문 전'] }))} />
     <ConsolePagination label="선물 목록 페이지" page={data.page} pageSize={data.pageSize} total={data.total} hrefForPage={page => adminGiftsHref(filters, page)} />

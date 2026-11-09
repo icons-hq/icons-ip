@@ -124,12 +124,31 @@ describe('ClaimDetailScreen', () => {
     expect(html.match(/id="claim-refund"/g)).toHaveLength(1);
     expect(html.match(/id="claim-process"/g)).toHaveLength(1);
     expect(html.includes('반품 단계별 처리')).toBe(claimType === 'return');
-    expect(html.indexOf('id="claim-process"') < html.indexOf('id="claim-refund"')).toBe(claimType === 'return');
+    /* 처리 박스가 먼저다(승인·거부가 이 화면의 본론). 환불 요약이 작업 구역 안으로 들어가는 것은 반품뿐이다. */
+    expect(html.indexOf('id="claim-process"')).toBeLessThan(html.indexOf('id="claim-refund"'));
+    const workspace = html.indexOf('data-claim-workspace="return"');
+    expect(workspace >= 0 && workspace < html.indexOf('id="claim-refund"')).toBe(claimType === 'return');
     const forms = html.match(/<\/?form\b[^>]*>/g) ?? [];
     let depth = 0;
     for (const form of forms) { depth += form.startsWith('</') ? -1 : 1; expect(depth).toBeGreaterThanOrEqual(0); expect(depth).toBeLessThanOrEqual(1); }
     expect(depth).toBe(0);
   });
+  it('머리에 단계 배지와 처리 바로가기를 두고 진행 중인 요청의 처리 박스를 강조한다', () => {
+    const open = render({ claim: { ...detail().claim, claimType: 'cancel', stage: 'requested', collectedAt: null } });
+    expect(open).toMatch(/data-tone="warning"[^>]*>취소요청<\/span>/);
+    expect(open).toMatch(/<a[^>]*href="#claim-process"[^>]*>처리하기<\/a>/);
+    expect(open).toMatch(/id="claim-process"[^>]*ring-primary|ring-primary[^>]*id="claim-process"/);
+    /* 끝난 요청에는 눌러 갈 일이 없다. */
+    const closed = render({ claim: { ...detail().claim, claimType: 'cancel', stage: 'completed', completedAt: NOW.toISOString() } });
+    expect(closed).not.toContain('처리하기');
+  });
+
+  it('운영 확인액은 선택 입력임을 밝히고 접은 채로 그린다', () => {
+    const html = render();
+    expect(html).toMatch(/운영 확인액<\/h3><span[^>]*>선택 입력</);
+    expect(html.indexOf('id="claim-order"')).toBeLessThan(html.indexOf('운영 확인액</h3>'));
+  });
+
   it('재출고 이력에는 구매 당시 이름과 실제 출고상품 이름을 구분하고 확인 전 출고 폼은 내리지 않는다', () => {
     const value = detail();
     value.claim.claimType = 'exchange';
@@ -204,7 +223,8 @@ describe('ClaimDetailScreen', () => {
         collectingAt: null,
       },
     });
-    expect(html).toContain('결제확인필요 · 운영자 전액 취소 · 테스트 결제 정리');
+    expect(html).toMatch(/data-tone="danger"[^>]*>결제확인필요<\/span>/);
+    expect(html).toContain('운영자 전액 취소 · 테스트 결제 정리 · 접수 ');
     expect(html).not.toContain('단순 변심');
     expect(html).toContain('운영 메모');
     expect(html).toContain('심사 창 테스트 결제');

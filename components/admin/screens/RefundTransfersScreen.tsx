@@ -1,4 +1,5 @@
 import { ConsoleGrid, ConsoleListCard, ConsolePagination, type ConsoleGridColumn } from '@/components/admin/console';
+import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { cn } from 'cn';
 import { formatKrwExact } from '@/components/admin/format';
@@ -21,7 +22,7 @@ const columns: ConsoleGridColumn[] = [
 
 export function RefundTransfersScreen({ data }: { data: RefundTransferPage }) {
   return <section className="flex min-w-0 flex-col gap-4 text-sm text-foreground" aria-label="환불 송금 대기" data-admin-kit="refund-transfers">
-    <details className="group rounded-lg border bg-muted/40 px-4 py-3" open>
+    <details className="group rounded-lg border bg-muted/40 px-4 py-3">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-medium">
         실제 송금이 남은 무통장 환불을 확인하세요.
         <span className="shrink-0 text-xs text-muted-foreground group-open:hidden">메뉴설명 보기</span>
@@ -40,7 +41,7 @@ export function RefundTransfersScreen({ data }: { data: RefundTransferPage }) {
         cells: [<span className="tabular-nums" key="claim">{orderClaimReferenceLabel(row.reference)}</span>,
           <span className="tabular-nums" key="order">{orderReferenceLabel(row.orderId, row.orderNumber)}</span>,
           `${row.gift ? '선물 · ' : ''}${row.claimType === 'cancel' ? '취소' : '반품'}`, row.payerName || '이름 미등록', row.requesterName || '이름 미등록',
-          <span className="tabular-nums" key="amount">{formatKrwExact(row.amount)}</span>, formatOrderDateTime(row.confirmedAt), row.filedAt ? formatOrderDateTime(row.filedAt) : '미접수'],
+          <span className="tabular-nums" key="amount">{formatKrwExact(row.amount)}</span>, formatOrderDateTime(row.confirmedAt), row.filedAt ? formatOrderDateTime(row.filedAt) : <AdminStatusBadge key="filed" tone="warning">미접수</AdminStatusBadge>],
       }))} />
     <ConsolePagination label="환불 송금 대기 목록 페이지" page={data.page} pageSize={data.pageSize} total={data.total} hrefForPage={refundTransfersHref} />
     </ConsoleListCard>

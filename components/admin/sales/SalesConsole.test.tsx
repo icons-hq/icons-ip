@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { SalesFilterField, SalesFilterPanel, SalesGuide, SalesResultsHeader, SalesSelect, SalesStatusSummary } from './SalesConsole';
+import { SalesDisclosureCard, SalesFilterField, SalesFilterPanel, SalesGuide, SalesResultsHeader, SalesSelect, SalesStatusSummary } from './SalesConsole';
 import { SalesDateRange } from './SalesDateRange';
 
 describe('sales filter and result forms', () => {
@@ -58,6 +58,15 @@ describe('sales filter and result forms', () => {
     expect(html).toContain('메뉴설명 접기');
     expect(html).toContain('메뉴설명 보기');
     expect(html).not.toContain('<form');
+  });
+
+  it('접히는 카드는 닫힌 채로 그리고 안의 입력을 DOM에 남긴다', () => {
+    const html = renderToStaticMarkup(<SalesDisclosureCard title="자동 발주확인" status={<b>켜짐</b>} summary="매일 16:30"><input name="runTime" /></SalesDisclosureCard>);
+    expect(html).toMatch(/<details (?:(?!open)[^>])*data-sales-disclosure=""(?:(?!open)[^>])*>/);
+    expect(html).toContain('자동 발주확인');
+    expect(html).toContain('매일 16:30');
+    expect(html).toContain('name="runTime"');
+    expect(html).toContain('설정 펼치기');
   });
 
   it('preserves all nine claim-stage links and counts when arranging the summary', () => {

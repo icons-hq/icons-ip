@@ -13,7 +13,8 @@ import { adminUnpaidAttemptStateLabel, adminUnpaidHref, type AdminUnpaidConsoleD
 import { ADMIN_VOCABULARY } from '@/lib/admin/vocabulary';
 import { SALES_SORT_OPTIONS } from '@/lib/admin/sales-list';
 import { SalesFilterField, SalesFilterPanel, SalesGuide, SalesResultsHeader, SalesSelect } from '@/components/admin/sales/SalesConsole';
-import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { statusTone } from '@/lib/admin/status-tone';
 import { krw } from '@/lib/format';
 import { formatOrderDateTime } from '@/lib/orders';
 import {
@@ -77,9 +78,7 @@ export function UnpaidScreen({
           {bankTransferDeadlineLabel(row.expiresAt, now.getTime())}
           {row.extendedAt ? ' · 연장됨' : ''}
         </span>,
-        row.attemptState === 'prepared'
-          ? <span key="state">{adminUnpaidAttemptStateLabel(row.attemptState)}</span>
-          : <AdminStatusBadge key="state" tone="warning">{adminUnpaidAttemptStateLabel(row.attemptState)}</AdminStatusBadge>,
+        <AdminStatusBadge key="state" tone={statusTone('unpaid', row.attemptState ?? 'missing')}>{adminUnpaidAttemptStateLabel(row.attemptState)}</AdminStatusBadge>,
         <span className="tabular-nums" key="total">{krw(row.total)}</span>,
       ],
     };
@@ -127,10 +126,10 @@ export function UnpaidScreen({
       <BankDepositQueue deposits={deposits} />
 
       {filters.selectedOrderId && !selected && (
-        <p className="rounded-lg border bg-muted/40 px-3 py-2.5" role="status">
+        <AdminNotice role="status" tone="warning">
           고른 주문이 목록에 없습니다. 이미 처리됐을 수 있어요.{' '}
           <Link className="font-medium underline underline-offset-4" href={adminUnpaidHref({ ...filters, selectedOrderId: null })}>목록으로</Link>
-        </p>
+        </AdminNotice>
       )}
     </div>
   );

@@ -57,7 +57,7 @@ export function ShipmentPreorderPromisePanel({ shipmentId, orderId }: { shipment
   const promise = visible?.promise;
   return <section className="flex min-w-0 flex-col items-start gap-3 rounded-xl border bg-card p-4 text-sm leading-relaxed text-card-foreground" aria-labelledby={`shipment-promise-${shipmentId}`}>
     <h3 className="text-base font-medium text-foreground" id={`shipment-promise-${shipmentId}`}>예약 발송 일정</h3>
-    {notice?.shipmentId === shipmentId && <p className="text-[var(--wc-success)]" role="status">{notice.message}</p>}
+    {notice?.shipmentId === shipmentId && <p className="text-success" role="status">{notice.message}</p>}
     {!visible ? <p className="text-muted-foreground" role="status">발송 일정을 불러오는 중입니다…</p> : visible.error ? <p className="text-destructive" role="alert">{visible.error}</p> : promise ? <>
       {promise.originalExpectedShipDate ? <>
         <p>주문 당시: {goodsShipDateLabel(promise.originalExpectedShipDate)}<br />현재: {goodsShipDateLabel(promise.expectedShipDate)}</p>

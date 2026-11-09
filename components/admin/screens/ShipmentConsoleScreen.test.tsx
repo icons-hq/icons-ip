@@ -87,6 +87,12 @@ describe('배송 건 콘솔',()=>{
   const incoming=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,filters:{...base.filters,tab:'new'},rows:[held]}}/>);
   expect(incoming).toContain(`aria-label="배송 건 ${row.id.slice(-8).toUpperCase()} 선택"`);expect(incoming).toContain('발주확인');
  });
+ it('배송 상태와 처리할 신규주문을 색으로 구분한다',()=>{
+  const html=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,surface:'shipping',counts:{...base.counts,new:3},filters:{...base.filters,tab:'transit'},rows:[{...row,status:'shipping',carrier:'hanjin',trackingNumber:'12345678',shippedAt:'2026-09-08T02:00:00Z'}]}}/>);
+  expect(html).toMatch(/data-tone="info"[^>]*>배송 중</);
+  const dispatch=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,counts:{...base.counts,new:3},rows:[row]}}/>);
+  expect(dispatch).toMatch(/aria-label="신규주문 3건"[^>]*data-tone="warning"/);
+ });
  it('운송장 가져오기는 목록과 분리된 접힌 작업으로 열고 닫아도 입력 상태를 보존한다',()=>{
   const html=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[row]}}/>);
   /* 접힌 채로 그린다 — 운송장 가져오기 disclosure에는 open이 없다. */

@@ -1,5 +1,7 @@
 'use client';
 
+import { AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { statusTone } from '@/lib/admin/status-tone';
 import {useRef,useState,useTransition,type FormEvent} from 'react';
 import {listOrderDelayNoticesAction,prepareOrderDelayNoticeAction,readOrderDelayNoticeAction,requestOrderDelayNoticeAction,retryOrderDelayNoticeAction} from '@/app/admin/order-delay-actions';
 import {ORDER_DELAY_ERROR_LABELS,ORDER_DELAY_STATUS_LABELS,type OrderDelayNoticeActionResult,type OrderDelayNoticeSummary} from '@/lib/admin/order-delay-notices';
@@ -63,16 +65,16 @@ export function OrderDelayNoticePanel({shipmentIds,onClose}:{shipmentIds:string[
   {notice?<>
    <p><strong className="font-medium">{notice.requestedAt?'발송 요청 결과':'발송 전 미리보기'}</strong> · 주문 {new Set(notice.targets.map(target=>target.orderId)).size}건 · 수신자 {notice.targets.length}명 · {notice.expectedShipDate?`발송 예정일 ${notice.expectedShipDate} 확정`:'발송 예정일 확인 중'}</p>
    <p className="text-xs text-muted-foreground tabular-nums">안내번호 {notice.id} · {formatOrderDateTime(notice.createdAt)}</p>
-   {!emailReady?<p role="status" className="text-destructive">{!notice.emailEnabled?'지연 안내 이메일 발송 설정이 꺼져 있습니다.': '이메일 공급자 또는 발송 서명 설정이 준비되지 않았습니다.'} 두 채널의 준비가 완료되어야 발송을 요청할 수 있습니다.</p>:null}
-   {!notice.requestedAt&&notice.targets.some(target=>target.errorCode==='recipient_missing')?<p className="rounded-lg border bg-muted/40 px-3 py-2.5">이메일을 확인할 수 없는 주문은 이메일 발송에서 제외되며 앱 알림만 발행됩니다. 아래 수신자와 채널별 제외 사유를 확인해주세요.</p>:null}
+   {!emailReady?<AdminNotice role="status" tone="danger">{!notice.emailEnabled?'지연 안내 이메일 발송 설정이 꺼져 있습니다.': '이메일 공급자 또는 발송 서명 설정이 준비되지 않았습니다.'} 두 채널의 준비가 완료되어야 발송을 요청할 수 있습니다.</AdminNotice>:null}
+   {!notice.requestedAt&&notice.targets.some(target=>target.errorCode==='recipient_missing')?<AdminNotice tone="warning">이메일을 확인할 수 없는 주문은 이메일 발송에서 제외되며 앱 알림만 발행됩니다. 아래 수신자와 채널별 제외 사유를 확인해주세요.</AdminNotice>:null}
    <h4 className="text-sm font-medium text-foreground">{notice.title}</h4>
    <div className="w-full rounded-lg border">
     <Table className="min-w-[45rem]"><caption className="caption-top border-b px-2 py-2 text-left text-sm font-medium text-foreground">주문별 수신자·고객 문구·채널 결과</caption><TableHeader><TableRow className="bg-muted/50"><TableHead scope="col">주문·구매자</TableHead><TableHead scope="col">안내 대상·고객 문구</TableHead><TableHead scope="col">앱 알림</TableHead><TableHead scope="col">이메일</TableHead></TableRow></TableHeader>
      <TableBody>{notice.targets.map(target=><TableRow key={target.id}>
       <TableCell className="align-top whitespace-normal">{orderReferenceLabel(target.orderId, target.orderNumber)}<br/>{target.buyerName} · {target.audience==='recipient'?'선물 받는 분':'구매자'}<br/><small className="text-xs text-muted-foreground">{target.recipientEmail||'수신자 이메일 없음'}</small></TableCell>
       <TableCell className="align-top whitespace-normal"><ul className="flex flex-col gap-0.5">{target.shipmentLabels.map((label,index)=><li key={target.shipmentIds[index]}>{label}</li>)}</ul><p className="mt-1 whitespace-pre-wrap wrap-anywhere">{target.messageBody}</p></TableCell>
-      <TableCell className="align-top whitespace-normal">{ORDER_DELAY_STATUS_LABELS[target.inAppStatus]}</TableCell>
-      <TableCell className="align-top whitespace-normal">{target.emailStatus==='sent'&&target.emailProviderState==='accepted'?'공급자 접수':ORDER_DELAY_STATUS_LABELS[target.emailStatus]}
+      <TableCell className="align-top whitespace-normal"><AdminStatusBadge tone={statusTone('delayNoticeChannel',target.inAppStatus)}>{ORDER_DELAY_STATUS_LABELS[target.inAppStatus]}</AdminStatusBadge></TableCell>
+      <TableCell className="align-top whitespace-normal"><AdminStatusBadge tone={statusTone('delayNoticeChannel',target.emailStatus)}>{target.emailStatus==='sent'&&target.emailProviderState==='accepted'?'공급자 접수':ORDER_DELAY_STATUS_LABELS[target.emailStatus]}</AdminStatusBadge>
        {target.emailProviderState==='delivered'?<small className="text-xs text-muted-foreground"> · 수신 서버 전달</small>:null}
        {target.errorCode?<p className="mt-1 text-destructive">{ORDER_DELAY_ERROR_LABELS[target.errorCode]||'발송 상태를 확인해주세요.'}</p>:null}
        {target.retryable?<small className="text-xs text-muted-foreground">실패 건 재시도 가능</small>:null}

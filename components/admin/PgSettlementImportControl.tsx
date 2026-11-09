@@ -1,4 +1,5 @@
 'use client';
+import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { advancePgSettlementImportAction, readPgSettlementImportAction, startPgSettlementImportAction } from '@/app/admin/pg-settlement-actions';
@@ -61,9 +62,9 @@ export function PgSettlementImportControl({ query, enabled, connectedMode, initi
       <p className="text-muted-foreground">{enabled ? `토스페이먼츠 ${connectedMode === 'live' ? '실거래' : '테스트'} 연결` : 'PG 정산 연결 꺼짐'} · {query.startDate} ~ {query.endDate}</p>
       <p className="text-muted-foreground">각 페이지를 두 번 조회해 거래 내역을 대조합니다. 창을 닫아도 저장된 지점부터 다시 시작할 수 있습니다.</p>
     </div>
-    {job ? <p className="tabular-nums" aria-live="polite">
-      {job.state === 'complete' ? '수집 완료' : job.state === 'failed' ? '수집 중단' : job.scan === 2 ? '자료 대조 중' : '자료 수집 중'}
-      {' · '}{job.recordCount.toLocaleString('ko-KR')}건{unfinished ? ` · ${job.nextPage}페이지 대기` : ''}
+    {job ? <p className="flex flex-wrap items-center gap-2 tabular-nums" aria-live="polite">
+      <AdminStatusBadge tone={job.state === 'complete' ? 'success' : job.state === 'failed' ? 'danger' : 'info'}>{job.state === 'complete' ? '수집 완료' : job.state === 'failed' ? '수집 중단' : job.scan === 2 ? '자료 대조 중' : '자료 수집 중'}</AdminStatusBadge>
+      {job.recordCount.toLocaleString('ko-KR')}건{unfinished ? ` · ${job.nextPage}페이지 대기` : ''}
     </p> : null}
     <div className="flex flex-wrap items-center gap-2">
       <Button disabled={running || !canCollect || recoveryRequired || Boolean(completedOrFailed)} type="button" onClick={() => void run()}>

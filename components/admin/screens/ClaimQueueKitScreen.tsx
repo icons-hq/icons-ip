@@ -93,7 +93,7 @@ export function ClaimQueueKitScreen({
      kit 부품을 덮지 않는다. */
   return (
     <div className="flex min-w-0 flex-col gap-4 text-sm text-foreground" data-admin-kit="claims" data-claim-type={claimType}>
-      <details className="group rounded-xl border bg-card px-4 py-3" open>
+      <details className="group rounded-xl border bg-card px-4 py-3">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-medium">
           {typeLabel} 요청과 처리상태를 확인할 수 있습니다.
           <span className="shrink-0 text-xs text-muted-foreground group-open:hidden">메뉴설명 보기</span>
@@ -114,20 +114,23 @@ export function ClaimQueueKitScreen({
           return <AdminCountCard active={active} count={count} href={adminClaimHref(claimType, filters, { page: 1, stage })} key={stage} label={adminClaimStageLabel(claimType, stage)} tone={CLAIM_STAGE_CARD_TONE(stage)} />;
         })}
       </nav>
-      <div className="flex items-center justify-between gap-2">
-        <p className="shrink-0 whitespace-nowrap">총 <strong className="tabular-nums">{total.toLocaleString('ko-KR')}</strong>건</p>
-        <AdminListExportButton href={adminListExportHref(adminListExportClaimScreenId(claimType), currentHref)} total={total} />
+      {/* 건수·검색·표를 판매관리 목록과 같은 카드 한 구역으로 묶는다. */}
+      <div className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground" data-sales-results="">
+        <div className="flex items-center justify-between gap-2">
+          <p className="shrink-0 whitespace-nowrap">총 <strong className="tabular-nums">{total.toLocaleString('ko-KR')}</strong>건</p>
+          <AdminListExportButton href={adminListExportHref(adminListExportClaimScreenId(claimType), currentHref)} total={total} />
+        </div>
+        <ClaimQueueKitTable
+          claimType={claimType}
+          dateFieldOptions={ADMIN_CLAIM_DATE_FIELDS}
+          filters={filters}
+          key={claimType}
+          pageSize={pageSize}
+          rows={kitRows}
+          searchFieldOptions={ADMIN_CLAIM_SEARCH_FIELDS}
+          total={total}
+        />
       </div>
-      <ClaimQueueKitTable
-        claimType={claimType}
-        dateFieldOptions={ADMIN_CLAIM_DATE_FIELDS}
-        filters={filters}
-        key={claimType}
-        pageSize={pageSize}
-        rows={kitRows}
-        searchFieldOptions={ADMIN_CLAIM_SEARCH_FIELDS}
-        total={total}
-      />
       {collects ? <p className="text-muted-foreground">
         환급 기한은 약관 제16조의 &ldquo;굿즈를 반환받은 날부터 3영업일&rdquo;입니다. 기산점은 입고
         확인 시점이며, 회수가 없는 취소 요청에는 기산점이 없습니다. {typeLabel} 요청은 주문 단위 전액으로만

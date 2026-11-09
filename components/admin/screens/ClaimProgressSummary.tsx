@@ -1,8 +1,12 @@
 import type { AdminClaimDetail } from '@/lib/admin/claims.server';
 import { adminClaimStageLabel } from '@/lib/admin/claims';
 import { formatOrderDateTime, refundStatusLabel } from '@/lib/orders';
+import { statusTone } from '@/lib/admin/status-tone';
+import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { LARGE_STATUS_BADGE_CLASS } from '@/components/admin/sales/OrderStatusBadge';
+import type { ReactNode } from 'react';
 
-type Fact = { label: string; value: string; detail: string; href: string; link: string };
+type Fact = { label: string; value: ReactNode; detail: string; href: string; link: string };
 type Props = Pick<AdminClaimDetail, 'claim' | 'refund'>;
 
 /** Read the existing evidence independently. A closed claim is not proof of a refund or delivery. */
@@ -40,7 +44,7 @@ export function ClaimProgressSummary({ claim, refund }: Props) {
     };
   const facts: Fact[] = [
     {
-      label: '현재 처리 단계', value: adminClaimStageLabel(claim.claimType, claim.stage),
+      label: '현재 처리 단계', value: <AdminStatusBadge className={LARGE_STATUS_BADGE_CLASS} tone={statusTone('claim', claim.stage)}>{adminClaimStageLabel(claim.claimType, claim.stage)}</AdminStatusBadge>,
       detail: claim.stage === 'on_hold'
         ? `보류 전 ${claim.heldFrom ? adminClaimStageLabel(claim.claimType, claim.heldFrom) : '단계 확인 필요'}`
         : `최근 변경 ${formatOrderDateTime(claim.updatedAt)}`,

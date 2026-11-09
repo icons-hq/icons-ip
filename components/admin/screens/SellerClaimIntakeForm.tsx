@@ -8,7 +8,8 @@ import { SELLER_CLAIM_COLLECTION_METHODS, SELLER_CLAIM_SOURCES, sellerClaimBlock
   sellerClaimReceiptMatchesInput,
   type SellerClaimAddress, type SellerClaimContext, type SellerClaimInput, type SellerClaimReceipt } from '@/lib/admin/seller-claim-intake';
 import { formatOrderDateTime, ORDER_WITHDRAWAL_REASON_LABELS, orderReferenceLabel } from '@/lib/orders';
-import { ORDER_CLAIM_BUYER_REASON_TYPES, ORDER_CLAIM_STAGE_LABELS, ORDER_CLAIM_TYPE_SLUGS, ORDER_CLAIM_TYPE_LABELS } from '@/lib/orders/claims';
+import { ORDER_CLAIM_BUYER_REASON_TYPES, ORDER_CLAIM_TYPE_SLUGS, ORDER_CLAIM_TYPE_LABELS } from '@/lib/orders/claims';
+import { adminClaimStageLabel } from '@/lib/admin/claims';
 import { selectableShippingCarriers, type ShippingCarrierRegistry } from '@/lib/orders/shipment';
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { formatKrwExact } from '@/components/admin/format';
@@ -107,7 +108,7 @@ export function SellerClaimIntakeForm({ context, carriers, onClose }: {
       <p className="text-muted-foreground">{cancellation ? '고객과 확인한 주문 전체의 취소 요청을 접수합니다. 승인과 결제 취소·환급은 접수 후 별도로 진행합니다.' : '고객과 확인한 주문 전체의 요청을 접수합니다. 승인·수거완료·환급·재배송은 접수 후 별도로 진행합니다.'}</p>
       {receipt ? <div className="flex flex-wrap items-center gap-2 rounded-lg border p-4" role="status">
         <h3 className="basis-full text-base leading-snug font-medium">{ORDER_CLAIM_TYPE_LABELS[receipt.claimType]} 요청을 저장했습니다.</h3>
-        <p className="basis-full">접수번호 #{receipt.reference} · 현재 단계 {ORDER_CLAIM_STAGE_LABELS[receipt.stage]}</p>
+        <p className="basis-full">접수번호 #{receipt.reference} · 현재 단계 {adminClaimStageLabel(receipt.claimType, receipt.stage)}</p>
         <p className="basis-full text-muted-foreground">접수 시각 {formatOrderDateTime(receipt.requestedAt)} · 담당자 {receipt.actorName || receipt.actorId}</p>
         <Link className={PRIMARY} data-slot="button" href={sellerClaimReceiptHref(receipt)}>접수 내용과 후속 처리 열기</Link>
         <button className={OUTLINE} data-slot="button" type="button" onClick={close}>닫기</button>
@@ -186,7 +187,7 @@ export function SellerClaimIntakeButton({ orderId, mode = 'return-exchange' }: {
     finally { setPending(false); }
   }
   return <div className="flex min-w-0 flex-col items-start gap-2" data-seller-claim-intake-entry="">
-    <button className={cn(buttonVariants({ size: 'sm', variant: 'outline' }))} data-slot="button" type="button" disabled={pending} onClick={() => { void open(); }}>{pending ? '접수 가능 여부 확인 중…' : mode === 'cancel' ? '판매자 직접 취소 접수' : '판매자 직접 반품·교환 접수'}</button>
+    <button className={cn(buttonVariants({ size: 'sm', variant: mode === 'cancel' ? 'destructive' : 'outline' }))} data-slot="button" type="button" disabled={pending} onClick={() => { void open(); }}>{pending ? '접수 가능 여부 확인 중…' : mode === 'cancel' ? '판매자 직접 취소 접수' : '판매자 직접 반품·교환 접수'}</button>
     {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
     {context ? <SellerClaimIntakeForm key={context.orderId} context={context} carriers={context.carriers} onClose={() => setContext(null)} /> : null}
   </div>;

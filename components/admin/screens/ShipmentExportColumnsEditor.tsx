@@ -46,7 +46,7 @@ export function ShipmentExportColumnsEditor({origin,canEdit}:{origin:Fulfillment
     </div>
     {canEdit?<Button type="submit">{pending?'저장 중…':'출고지시 양식 저장'}</Button>:null}
    </fieldset>
-   {feedback.error?<p className="text-destructive" role="alert">{feedback.error}</p>:null}{feedback.message?<p className="text-[var(--wc-success)]" role="status">{feedback.message}</p>:null}
+   {feedback.error?<p className="text-destructive" role="alert">{feedback.error}</p>:null}{feedback.message?<p className="text-success" role="status">{feedback.message}</p>:null}
   </form>
  </details>;
 }
