@@ -64,7 +64,7 @@ export function ShoppingStoryEditorScreen({ accountId, draftId, initial }: { acc
   return <section className="flex min-w-0 flex-col gap-4">
     {/* 셸 제목이 메뉴 이름(쇼핑스토리)이다 — 머리는 이 글의 이름과 전시 상태를 나란히 읽히게 한다. */}
     <header className="flex flex-wrap items-center gap-2" data-admin-kit="page-header">
-      <AdminPageHeading title={initial?.title || '쇼핑스토리 등록'} />
+      <AdminPageHeading title={initial ? initial.title || '쇼핑스토리 수정' : '쇼핑스토리 등록'} />
       {initial ? <AdminStatusBadge tone={statusTone('story', initial.state)}>{SHOPPING_STORY_STATE_LABELS[initial.state]}</AdminStatusBadge> : null}
       <Link className={`${buttonVariants({ size: 'sm', variant: 'outline' })} ml-auto`} data-slot="button" href={ADMIN_SHOPPING_STORIES_PATH}><ArrowLeft aria-hidden="true" />목록으로</Link>
     </header>
