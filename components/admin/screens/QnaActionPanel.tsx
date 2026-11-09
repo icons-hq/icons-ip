@@ -49,7 +49,7 @@ export function QnaActionPanel({ question, triggerLabel, accountId = '', inline 
   const Panel = inline ? CustomerServiceInlinePanel : CustomerServiceDialog;
 
   return <>
-    <Button aria-expanded={inline ? open : undefined} disabled={inline && busy} onClick={() => setOpen(inline ? !open : true)} size={inline ? 'sm' : 'xs'} type="button" variant={answered ? 'outline' : 'soft'}>{triggerLabel ?? (answered ? '상세 · 답변 수정' : '상세 · 답변 등록')}</Button>
+    <Button aria-expanded={inline ? open : undefined} className={answered ? 'text-muted-foreground' : undefined} disabled={inline && busy} onClick={() => setOpen(inline ? !open : true)} size={inline ? 'sm' : 'xs'} type="button" variant={answered ? 'ghost' : 'soft'}>{triggerLabel ?? (answered ? '상세 · 답변 수정' : '상세 · 답변 등록')}</Button>
     {open ? <Panel title="상품 문의 상세" busy={busy} onClose={() => setOpen(false)}>
       <div className="flex min-w-0 flex-col gap-5 text-sm">
         <dl className={RECORD_META_CLASS}>

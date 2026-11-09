@@ -19,8 +19,7 @@ import {
   type AdminMemberSummary,
 } from '@/lib/admin/members';
 import { Check, RefreshCw, Search, ShieldBan, User } from 'lucide-react';
-import { Badge } from '@/components/admin/kit/ui/badge';
-import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
+import { Button } from '@/components/admin/kit/ui/button';
 import { statusTone } from '@/lib/admin/status-tone';
 import { Input } from '@/components/admin/kit/ui/input';
 import {
@@ -50,6 +49,13 @@ export function confirmMemberSuspension(event: FormEvent<HTMLFormElement>) {
     '이 회원을 정지하면 포스트·댓글 작성, 구매·예매, 카드팩 개봉, 게임 플레이를 새로 진행할 수 없습니다. 계속할까요?',
   );
   if (!confirmed) event.preventDefault();
+}
+
+/** 권한 값(user·staff·admin)은 DB 계약이고 화면은 운영팀 말로 보인다. */
+const MEMBER_ROLE_LABELS: Record<AdminMemberRole, string> = { user: '일반 회원', staff: '직원', admin: '관리자' };
+
+function MemberRoleBadge({ role }: { role: AdminMemberRole }) {
+  return <AdminStatusBadge tone={statusTone('memberRole', role)}>{MEMBER_ROLE_LABELS[role]}</AdminStatusBadge>;
 }
 
 /* 터치 화면에서는 운영 동작을 44px 이상으로 둔다(마우스에서는 kit 기본 크기). */
@@ -228,7 +234,7 @@ function MemberDetail({
       <div className="flex min-w-0 flex-col gap-1.5">
         <div className="flex flex-wrap items-center gap-2">
           <strong className="text-base font-semibold text-foreground">@{member.nickname}</strong>
-          <Badge variant="outline">{member.role}</Badge>
+          <MemberRoleBadge role={member.role} />
           {member.suspendedAt && <AdminStatusBadge tone={statusTone('member', 'suspended')}>정지</AdminStatusBadge>}
         </div>
         <span className="text-sm tabular-nums wrap-anywhere">{member.email}</span>
@@ -287,6 +293,7 @@ export function MembersSection({
     && searchState.members.some((member) => member.id === selectedProfileId)
     ? detailState.member
     : null;
+  const suspendedCount = searchState.members.filter((member) => member.suspendedAt).length;
 
   return (
     <section className="flex min-w-0 flex-col gap-4" data-members-section="">
@@ -336,28 +343,35 @@ export function MembersSection({
         </ConsoleFilterActions>
       </form>
 
-      <ConsoleListCard aria-label="회원 검색 결과">
+      {/* 검색 결과 상한이 있어 전체 회원 수가 아니라 지금 보이는 건수를 말한다. */}
+      <ConsoleListCard
+        actions={suspendedCount ? <AdminStatusBadge tone={statusTone('member', 'suspended')}>정지 {suspendedCount.toLocaleString('ko-KR')}명</AdminStatusBadge> : undefined}
+        aria-label="회원 검색 결과"
+        title={<>회원 목록 <span className="text-sm font-normal text-muted-foreground tabular-nums">{searchState.members.length.toLocaleString('ko-KR')}명 표시</span></>}
+      >
         {searchState.members.length ? <div className="flex flex-col divide-y">
         {searchState.members.map((member) => (
-          <article key={member.id} className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
-            <div className="flex min-w-0 flex-col gap-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <strong className="text-sm font-semibold text-foreground">@{member.nickname}</strong>
-                <Badge variant="outline">{member.role}</Badge>
-                {member.suspendedAt && <AdminStatusBadge tone={statusTone('member', 'suspended')}>정지</AdminStatusBadge>}
+          <article key={member.id} className="flex min-w-0 flex-col gap-3 py-3 first:pt-0 last:pb-0">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex min-w-0 flex-col gap-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* 닉네임은 고객 상세(주문·문의 이력)로 간다. 줄 오른쪽 버튼은 이 화면에서 펼치는 회원 운영 정보 하나뿐이다. */}
+                  <Link className="text-sm font-semibold text-primary underline-offset-4 hover:underline" href={`/admin/customers/${member.id}`}>@{member.nickname}</Link>
+                  {member.role !== 'user' ? <MemberRoleBadge role={member.role} /> : null}
+                  {member.suspendedAt && <AdminStatusBadge tone={statusTone('member', 'suspended')}>정지</AdminStatusBadge>}
+                </div>
+                <span className="text-xs tabular-nums">{member.maskedEmail}</span>
+                <span className="text-xs text-muted-foreground tabular-nums">가입 {formatDate(member.createdAt)}</span>
               </div>
-              <span className="text-xs tabular-nums">{member.maskedEmail}</span>
-              <span className="text-xs text-muted-foreground tabular-nums">가입 {formatDate(member.createdAt)}</span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Link className={`${buttonVariants({ size: 'sm', variant: 'outline' })} ${TOUCH_TARGET_CLASS}`} data-slot="button" href={`/admin/customers/${member.id}`}>고객 상세 열기</Link>
               <form action={detailAction} onSubmit={() => setSelectedProfileId(member.id)}>
                 <input name="profileId" type="hidden" value={member.id} />
-                <Button className={TOUCH_TARGET_CLASS} disabled={detailPending} size="sm" type="submit" variant="soft">
+                <Button aria-expanded={activeDetail?.id === member.id} className={TOUCH_TARGET_CLASS} disabled={detailPending} size="sm" type="submit" variant="outline">
                   <User aria-hidden="true" /> {detailPending ? '불러오는 중' : '상세 보기'}
                 </Button>
               </form>
             </div>
+            {/* 상세는 누른 줄 바로 아래에 연다 — 목록이 길어도 화면 밖에 생기지 않는다. */}
+            {activeDetail?.id === member.id ? <MemberDetail actor={actor} member={activeDetail} /> : null}
           </article>
         ))}
         </div> : (
@@ -366,10 +380,8 @@ export function MembersSection({
             <p className="mt-1.5 text-sm text-muted-foreground">다른 이메일 또는 닉네임으로 검색해주세요.</p>
           </div>
         )}
+        <InlineNotice state={detailState} />
       </ConsoleListCard>
-
-      <InlineNotice state={detailState} />
-      {activeDetail && <MemberDetail actor={actor} member={activeDetail} />}
     </section>
   );
 }

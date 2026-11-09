@@ -8,13 +8,15 @@ import { AdminNotice, AdminPageHeader, AdminSectionCard, AdminStatusBadge } from
 import { AdminCountCard } from '../console/AdminCountCard';
 import { ConsolePagination } from '../console/ConsolePagination';
 import { ConsoleTableHeader } from '../console/ConsoleListCard';
-import { Star } from 'lucide-react';
+import { Footprints, Heart, Repeat, ShoppingBag, Star, UserPlus, type LucideIcon } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { Table, TableBody, TableCell, TableHead, TableRow } from '@/components/admin/kit/ui/table';
 /* 타겟 세그먼트 목록(템플릿 룩, ADR-0028). 고객군 카드는 콘솔 건수 카드와 같은 모양이고 조회 키(group·target·kind·q·favorite·pageSize)는 그대로다. */
 const FIELD = 'flex min-w-0 flex-col gap-1.5 text-sm font-medium';
+/* 고객군마다 다른 그림으로 다섯 칸을 구분한다. */
+const GROUP_ICONS: Record<(typeof SEGMENT_GROUPS)[number], LucideIcon> = { potential: UserPlus, visitor: Footprints, interested: Heart, buyer: ShoppingBag, loyal: Repeat };
 const number = (v: number | null | undefined) => v === null || v === undefined ? '미집계' : v.toLocaleString('ko-KR');
 const time = (v: string) => new Date(v).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
 export function CustomerSegmentsScreen({ data, overview }: { data: SegmentList; overview: SegmentOverview }) {
@@ -27,20 +29,20 @@ export function CustomerSegmentsScreen({ data, overview }: { data: SegmentList; 
       else { setSelected([]); setConfirm(false); setUncertain(false); archiveRequest.current = null; setError(''); router.refresh(); } }); }
   return <section className="flex min-w-0 flex-col gap-5">
     <AdminPageHeader title="타겟 세그먼트" description="고객의 관심과 구매 이력을 조건으로 저장하고 필요할 때 다시 확인합니다." actions={<Link className={buttonVariants()} data-slot="button" href={`${CUSTOMER_SEGMENTS_PATH}/new`}>새 세그먼트 만들기</Link>} />
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">{SEGMENT_GROUPS.map(group => <div className="flex min-w-0 flex-col gap-1" key={group}><AdminCountCard active={filters.group === group} count={overview.groups[group]} current="page" href={customerSegmentsHref({ ...filters, group, target: 'all' },1)} label={SEGMENT_GROUP_LABELS[group]} unit="명" /><small className="px-1 text-xs leading-relaxed text-muted-foreground">{group === 'potential' ? '30일 관측 가능 회원 중 미방문' : group === 'visitor' ? '별도 동의 회원의 최근 30일 방문' : group === 'interested' ? '현재 관심 행동 있음' : group === 'buyer' ? '유효한 구매 이력 있음' : '유효한 주문 2회 이상'}</small></div>)}</div>
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">{SEGMENT_GROUPS.map(group => <div className="flex min-w-0 flex-col gap-1" key={group}><AdminCountCard active={filters.group === group} count={overview.groups[group]} current="page" href={customerSegmentsHref({ ...filters, group, target: 'all' },1)} icon={GROUP_ICONS[group]} label={SEGMENT_GROUP_LABELS[group]} unit="명" /><small className="px-1 text-xs leading-relaxed text-muted-foreground">{group === 'potential' ? '30일 관측 가능 회원 중 미방문' : group === 'visitor' ? '별도 동의 회원의 최근 30일 방문' : group === 'interested' ? '현재 관심 행동 있음' : group === 'buyer' ? '유효한 구매 이력 있음' : '유효한 주문 2회 이상'}</small></div>)}</div>
     <p className="-mt-2 text-xs leading-relaxed text-muted-foreground">{time(overview.checkedAt)} 기준 · 가입 회원 중 첫구매 대상 {number(overview.firstPurchaseMembers)}명 · 고객군은 서로 겹칠 수 있습니다.</p>
-    <AdminSectionCard title={`즐겨찾기 ${favorites.length}/3`} summary="운영자 개인별로 자주 쓰는 세그먼트를 최대 3개 보관합니다.">
-      <div className="grid gap-3 lg:grid-cols-3">{favorites.length ? favorites.map(row => <article className="grid grid-cols-[1fr_auto] items-start gap-2.5 rounded-lg border p-4" key={row.id}><Link className="flex min-w-0 flex-col gap-1.5 hover:underline" href={`${CUSTOMER_SEGMENTS_PATH}/${row.id}`}><span className="text-xs text-muted-foreground">{SEGMENT_TARGET_LABELS[row.target]}</span><strong className="font-medium [overflow-wrap:anywhere]">{row.name}</strong></Link><Button type="button" size="icon" variant="ghost" disabled={pending || uncertain} onClick={() => favorite(row.id,false)} aria-label={`${row.name} 즐겨찾기 해제`}><Star aria-hidden="true" className="fill-current text-warning" /></Button><p className="col-span-2 text-xs text-muted-foreground tabular-nums">최근 확인 {number(row.estimate?.matchedCount)}{row.estimate ? '명' : ''}</p></article>) : <p className="text-sm text-muted-foreground">목록의 별표를 눌러 즐겨찾기에 추가해주세요.</p>}</div>
-    </AdminSectionCard>
-    <AdminSectionCard title="세그먼트 목록">
-      <form action={CUSTOMER_SEGMENTS_PATH} className="grid grid-cols-1 items-end gap-3 rounded-lg border bg-muted/40 p-4 sm:grid-cols-2 lg:grid-cols-3">
+    {/* 즐겨찾기가 없으면 빈 카드로 목록을 밀지 않고 목록 머리에 한 줄로 안내한다. */}
+    {favorites.length ? <AdminSectionCard title={`즐겨찾기 ${favorites.length}/3`} summary="운영자 개인별로 자주 쓰는 세그먼트를 최대 3개 보관합니다.">
+      <div className="grid gap-3 lg:grid-cols-3">{favorites.map(row => <article className="grid grid-cols-[1fr_auto] items-start gap-2.5 rounded-lg border p-4" key={row.id}><Link className="flex min-w-0 flex-col gap-1.5 hover:underline" href={`${CUSTOMER_SEGMENTS_PATH}/${row.id}`}><span className="text-xs text-muted-foreground">{SEGMENT_TARGET_LABELS[row.target]}</span><strong className="font-medium [overflow-wrap:anywhere]">{row.name}</strong></Link><Button type="button" size="icon" variant="ghost" disabled={pending || uncertain} onClick={() => favorite(row.id,false)} aria-label={`${row.name} 즐겨찾기 해제`}><Star aria-hidden="true" className="fill-current text-warning" /></Button><p className="col-span-2 text-xs text-muted-foreground tabular-nums">최근 확인 {number(row.estimate?.matchedCount)}{row.estimate ? '명' : ''}</p></article>)}</div>
+    </AdminSectionCard> : null}
+    <AdminSectionCard title="세그먼트 목록" summary={favorites.length ? undefined : '자주 쓰는 세그먼트는 목록의 별표를 눌러 최대 3개까지 즐겨찾기에 보관합니다.'}>
+      <form action={CUSTOMER_SEGMENTS_PATH} className="grid grid-cols-1 items-end gap-3 rounded-lg border bg-muted/40 p-4 sm:grid-cols-2 lg:grid-cols-6">
         <label className={FIELD}>고객군<NativeSelect className="w-full" name="group" defaultValue={filters.group}><option value="all">전체</option>{SEGMENT_GROUPS.map(g => <option key={g} value={g}>{SEGMENT_GROUP_LABELS[g]}</option>)}</NativeSelect></label>
         <label className={FIELD}>상세 타겟<NativeSelect className="w-full" name="target" defaultValue={filters.target}><option value="all">전체</option>{SEGMENT_TARGETS.map(t => <option key={t} value={t}>{SEGMENT_TARGET_LABELS[t]}</option>)}</NativeSelect></label>
         <label className={FIELD}>구분<NativeSelect className="w-full" name="kind" defaultValue={filters.kind}><option value="all">전체</option><option value="preset">기본</option><option value="custom">직접 만든 세그먼트</option></NativeSelect></label>
-        <label className={FIELD}>이름·ID 검색<Input name="q" defaultValue={filters.query} maxLength={100} placeholder="세그먼트명 또는 CSG 번호" /></label>
-        <label className="flex h-8 items-center gap-2 text-sm"><input type="checkbox" name="favorite" value="1" defaultChecked={filters.favoriteOnly} />즐겨찾기만</label>
+        <label className={`${FIELD} lg:col-span-2`}>이름·ID 검색<Input name="q" defaultValue={filters.query} maxLength={100} placeholder="세그먼트명 또는 CSG 번호" /></label>
         <label className={FIELD}>표시 개수<NativeSelect className="w-full" name="pageSize" defaultValue={filters.pageSize}><option value="20">20개</option><option value="50">50개</option><option value="100">100개</option></NativeSelect></label>
-        <div className="flex flex-wrap justify-end gap-2 sm:col-span-2 lg:col-span-3"><Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={CUSTOMER_SEGMENTS_PATH}>초기화</Link><Button type="submit" variant="soft">조회</Button></div>
+        <div className="flex flex-wrap items-center justify-between gap-2 sm:col-span-2 lg:col-span-6"><label className="flex h-8 items-center gap-2 text-sm"><input type="checkbox" name="favorite" value="1" defaultChecked={filters.favoriteOnly} />즐겨찾기만</label><div className="flex flex-wrap gap-2"><Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={CUSTOMER_SEGMENTS_PATH}>초기화</Link><Button type="submit" variant="soft">조회</Button></div></div>
       </form>
       <div className="flex flex-wrap items-center justify-between gap-3 text-sm"><p>총 <strong className="font-semibold tabular-nums">{number(total)}</strong>개 · 선택 <span className="tabular-nums">{selected.length}</span>개</p><Button type="button" variant="destructive" disabled={!selected.length || pending || uncertain} onClick={() => { setConfirm(true); setError(''); }}>선택 삭제</Button></div>
       {error && <AdminNotice role="alert" tone="danger">{error}</AdminNotice>}

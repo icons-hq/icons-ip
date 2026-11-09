@@ -67,6 +67,17 @@ describe('ModerationSection', () => {
     expect(html).toContain('신고된 댓글 원문');
   });
 
+  /* 줄마다 반복되는 숨김은 화면에서 제일 튀지 않게 outline + 빨간 글자로 둔다. 확인 팝업은 그대로다. */
+  it('처리할 신고 건수를 위에 보이고 숨김 버튼은 조용한 위험 버튼으로 그린다', () => {
+    const resolved = { ...commentReport('visible'), id: '44444444-4444-4444-8444-444444444444', status: 'resolved' as const, targetLabel: '처리 끝난 원문' };
+    const html = renderToStaticMarkup(<ModerationSection reports={[resolved, commentReport('visible')]} />);
+
+    expect(html).toContain('최근 신고 2건 기준');
+    expect(html).toMatch(/aria-pressed="false"[^>]*>[\s\S]*?접수/);
+    expect(html.indexOf('신고된 댓글 원문')).toBeLessThan(html.indexOf('처리 끝난 원문'));
+    expect(html).toMatch(/<button(?=[^>]*text-destructive)(?=[^>]*border-border-strong)[^>]*>(?:<svg[\s\S]*?<\/svg>)? 댓글 숨김<\/button>/);
+  });
+
   it('cancels submission when the operator declines the irreversible comment hide', () => {
     const confirm = vi.fn(() => false);
     const preventDefault = vi.fn();

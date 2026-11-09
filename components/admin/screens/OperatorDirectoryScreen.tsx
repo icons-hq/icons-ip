@@ -17,6 +17,7 @@ import { ASSIGNABLE_MANAGER_ROLES, OPERATOR_DIRECTORY_PATH, OPERATOR_DUTIES, can
 import { MANAGER_ROLES, MANAGER_ROLE_LABELS, type ManagerRole } from '@/lib/admin/access';
 import type { OperatorInvitationList } from '@/lib/admin/operator-invitations';
 import { OperatorInvitationConsole } from './OperatorInvitationConsole';
+import { ROW_DANGER_BUTTON_CLASS } from './cs-kit-classes';
 
 
 function DutyEditor({ profile }: { profile: OperatorRecord }) {
@@ -81,6 +82,8 @@ function ManagerSetup({ data, actorId }: { data: OperatorDirectoryData; actorId:
   const request = useOperatorRequest(() => router.refresh());
   const assignments = data.setupCandidates.map(profile => ({ profileId: profile.id, managerRole: roles[profile.id] === 'none' ? null : roles[profile.id] })) as OperatorSetupAssignment[];
   const owner = data.setupCandidates.find(profile => roles[profile.id] === 'owner');
+  /* 하나도 고르지 않았을 때만 막는다. 일부만 고른 경우는 눌러야 어떤 조건이 빠졌는지 안내를 볼 수 있다. */
+  const noneChosen = !data.setupCandidates.some(profile => roles[profile.id]);
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (!request.uncertain && (!confirmed || !validateOperatorSetup(assignments, data.setupCandidates, actorId))) {
@@ -91,10 +94,11 @@ function ManagerSetup({ data, actorId }: { data: OperatorDirectoryData; actorId:
   }
   return <section className={OPERATOR_CARD} data-operator-setup="">
     <header className={RESULT_HEADING}><h2 className="text-base font-semibold">매니저 역할 설정</h2></header>
-    <div className={OPERATOR_GUIDE}><p>기존 운영자 {data.setupCandidates.length}명의 역할을 모두 선택하면 새 권한을 적용합니다. 통합 매니저는 이용 중인 기존 관리자 중 한 명을 직접 지정해주세요.</p><p>설정하는 본인은 통합 매니저 또는 계정 주매니저로 유지합니다. 권한 회수를 고른 계정은 일반 회원으로 전환됩니다.</p></div>
+    <div className={OPERATOR_GUIDE}><p>기존 운영자 {data.setupCandidates.length}명의 역할을 모두 선택하면 새 권한을 적용합니다. 통합 매니저는 이용 중인 기존 관리자 중 한 명을 직접 지정해주세요. 설정하는 본인은 통합 매니저 또는 계정 주매니저로 유지합니다.</p></div>
+    <AdminNotice className="mx-4" tone="warning">권한 회수를 고른 계정은 일반 회원으로 전환됩니다.</AdminNotice>
     <form className="flex min-w-0 flex-col gap-3" onSubmit={submit}>
       <div className={OPERATOR_TABLE} tabIndex={0} role="region" aria-label="기존 운영자 역할 배정"><Table className="min-w-[48.75rem]"><ConsoleTableHeader><TableRow className="hover:bg-transparent"><TableHead>운영자</TableHead><TableHead>이메일</TableHead><TableHead>현재 권한</TableHead><TableHead>새 매니저 역할</TableHead></TableRow></ConsoleTableHeader><TableBody>
-        {data.setupCandidates.map(profile => <TableRow key={profile.id}><TableCell className="font-medium">{profile.nickname}{profile.id === actorId ? ' (본인)' : ''}{profile.suspendedAt ? ' · 정지' : ''}</TableCell><TableCell className="text-muted-foreground">{profile.maskedEmail}</TableCell><TableCell>{profile.role === 'admin' ? '관리자' : '직원'}</TableCell><TableCell><NativeSelect aria-label={`${profile.nickname} 새 매니저 역할`} className="w-full min-w-48" value={roles[profile.id] ?? ''} disabled={request.pending || request.uncertain} onChange={event => { const value = event.target.value; if (value === '' || value === 'none' || isManagerRole(value)) { setRoles(current => ({ ...current, [profile.id]: value })); setConfirmed(false); setInputError(''); } }}>
+        {data.setupCandidates.map(profile => <TableRow key={profile.id}><TableCell className="font-medium">{profile.nickname}{profile.id === actorId ? ' (본인)' : ''}{profile.suspendedAt ? ' · 정지' : ''}</TableCell><TableCell className="text-muted-foreground">{profile.maskedEmail}</TableCell><TableCell><AdminStatusBadge tone={statusTone('memberRole', profile.role)}>{profile.role === 'admin' ? '관리자' : '직원'}</AdminStatusBadge></TableCell><TableCell><NativeSelect aria-label={`${profile.nickname} 새 매니저 역할`} className="w-full min-w-48" value={roles[profile.id] ?? ''} disabled={request.pending || request.uncertain} onChange={event => { const value = event.target.value; if (value === '' || value === 'none' || isManagerRole(value)) { setRoles(current => ({ ...current, [profile.id]: value })); setConfirmed(false); setInputError(''); } }}>
           <option value="">역할 선택</option>
           {!profile.suspendedAt ? MANAGER_ROLES.filter(role => role !== 'owner' || profile.role === 'admin').filter(role => profile.id !== actorId || role === 'owner' || role === 'primary').map(role => <option key={role} value={role}>{MANAGER_ROLE_LABELS[role]}</option>) : null}
           {profile.id !== actorId ? <option value="none">권한 회수 (일반 회원)</option> : null}
@@ -103,7 +107,7 @@ function ManagerSetup({ data, actorId }: { data: OperatorDirectoryData; actorId:
       <div className="flex flex-col gap-3 px-4"><p>통합 매니저: <strong className="font-semibold">{owner?.nickname ?? '미선택'}</strong> · 권한 회수: {assignments.filter(item => item.managerRole === null).length}명</p>
         <label className={CHECK_LABEL_TOP}><input className="mt-0.5" type="checkbox" checked={confirmed} disabled={request.pending || request.uncertain} onChange={event => setConfirmed(event.target.checked)} />역할별 권한과 위 배정을 확인했습니다.</label>
         {inputError || request.error ? <AdminNotice role="alert" tone="danger">{inputError || request.error}</AdminNotice> : null}
-        <Button className="w-fit" disabled={request.pending} type="submit">{request.pending ? '적용 중' : request.uncertain ? '같은 요청으로 결과 확인' : '매니저 역할 적용'}</Button>
+        <Button className="w-fit" disabled={request.pending || (!request.uncertain && noneChosen)} type="submit">{request.pending ? '적용 중' : request.uncertain ? '같은 요청으로 결과 확인' : '매니저 역할 적용'}</Button>
       </div>
     </form>
   </section>;
@@ -132,7 +136,7 @@ function ManagerRoleEditor({ profile, data, actorId }: { profile: OperatorRecord
   }
   return <div className="flex flex-wrap gap-1.5">
     {changeAllowed && !profile.suspendedAt ? <Button aria-label={`${profile.nickname} 권한 변경`} onClick={() => open('change')} size="xs" type="button" variant="outline">변경</Button> : null}
-    {revokeAllowed ? <Button aria-label={`${profile.nickname} 권한 회수`} onClick={() => open('revoke')} size="xs" type="button" variant="destructive">권한 회수</Button> : null}
+    {revokeAllowed ? <Button aria-label={`${profile.nickname} 권한 회수`} className={ROW_DANGER_BUTTON_CLASS} onClick={() => open('revoke')} size="xs" type="button" variant="outline">권한 회수</Button> : null}
     {transferAllowed ? <Button aria-label={`${profile.nickname} 통합 매니저 승계`} onClick={() => open('transfer')} size="xs" type="button" variant="outline">통합 매니저 승계</Button> : null}
     {!changeAllowed && !revokeAllowed && !transferAllowed ? <span className="text-muted-foreground">{profile.id === actorId ? '본인' : profile.managerRole === 'owner' ? '통합 매니저' : '—'}</span> : null}
     <dialog ref={dialog} className={NATIVE_DIALOG} aria-label={title} onCancel={event => { if (request.pending) event.preventDefault(); }}>
@@ -164,7 +168,7 @@ export function OperatorDirectoryScreen({ data, adminId, invitations }: { data: 
     <section className={OPERATOR_CARD} data-operator-list=""><header className={RESULT_HEADING}><h2 className="flex flex-wrap items-baseline gap-2 text-base font-semibold">매니저 목록 <strong className="font-semibold tabular-nums">{data.total.toLocaleString('ko-KR')}명</strong></h2></header>
       <div className={OPERATOR_GUIDE}><p>통합 매니저와 계정 주매니저가 다른 매니저의 역할을 관리합니다. 계정 주매니저는 다른 주매니저의 권한을 직접 회수할 수 없습니다.</p><p>본인의 역할과 통합 매니저의 역할은 일반 변경할 수 없습니다. 담당업무는 접근 권한을 추가하지 않으며 통합 매니저는 대표로 표시됩니다.</p></div>
       <div className={OPERATOR_TABLE} tabIndex={0} role="region" aria-label="매니저 목록 표"><Table className="min-w-[67.5rem]"><ConsoleTableHeader><TableRow className="hover:bg-transparent"><TableHead>닉네임 / 회원번호</TableHead><TableHead>이메일</TableHead><TableHead>현재 권한</TableHead><TableHead>담당업무</TableHead><TableHead>계정 상태</TableHead><TableHead>가입일</TableHead><TableHead>권한 변경</TableHead></TableRow></ConsoleTableHeader><TableBody>
-        {data.rows.map(profile => <TableRow key={profile.id}><TableCell className="align-top"><Link className="font-medium underline-offset-4 hover:underline" href={`/admin/customers/${profile.id}`}>{profile.nickname}</Link>{profile.id === adminId ? ' (본인)' : null}<small className={`mt-1 block ${FIELD_HINT}`} title={profile.id}>{profile.id.slice(0, 8)}</small></TableCell><TableCell className="align-top text-muted-foreground">{profile.maskedEmail}</TableCell><TableCell className="align-top">{profile.managerRole ? MANAGER_ROLE_LABELS[profile.managerRole] : data.mode === 'legacy' && profile.role !== 'user' ? `기존 ${profile.role === 'admin' ? '관리자' : '직원'}` : '일반 회원'}</TableCell><TableCell className="align-top">{profile.managerRole === 'owner' ? '대표' : profile.managerRole || (data.mode === 'legacy' && profile.role !== 'user') ? <DutyEditor key={`${profile.id}:${profile.dutyRevision}`} profile={profile} /> : '—'}</TableCell><TableCell className="align-top"><AdminStatusBadge tone={statusTone('member', profile.suspendedAt ? 'suspended' : 'active')}>{profile.suspendedAt ? '정지' : '이용 중'}</AdminStatusBadge></TableCell><TableCell className="align-top tabular-nums">{dateLabel(profile.createdAt)}</TableCell><TableCell className="min-w-64 align-top">{data.mode === 'configured' ? <ManagerRoleEditor key={`${profile.id}:${profile.membershipRevision}`} profile={profile} data={data} actorId={adminId} /> : <span className="text-muted-foreground">역할 설정 후 변경 가능</span>}</TableCell></TableRow>)}
+        {data.rows.map(profile => <TableRow key={profile.id}><TableCell className="align-top"><Link className="font-medium underline-offset-4 hover:underline" href={`/admin/customers/${profile.id}`}>{profile.nickname}</Link>{profile.id === adminId ? ' (본인)' : null}<small className={`mt-1 block ${FIELD_HINT}`} title={profile.id}>{profile.id.slice(0, 8)}…</small></TableCell><TableCell className="align-top text-muted-foreground">{profile.maskedEmail}</TableCell><TableCell className="align-top">{profile.managerRole ? <AdminStatusBadge tone={statusTone('managerRole', profile.managerRole)}>{MANAGER_ROLE_LABELS[profile.managerRole]}</AdminStatusBadge> : data.mode === 'legacy' && profile.role !== 'user' ? <AdminStatusBadge tone={statusTone('memberRole', profile.role)}>{`기존 ${profile.role === 'admin' ? '관리자' : '직원'}`}</AdminStatusBadge> : <span className="text-muted-foreground">일반 회원</span>}</TableCell><TableCell className="align-top">{profile.managerRole === 'owner' ? '대표' : profile.managerRole || (data.mode === 'legacy' && profile.role !== 'user') ? <DutyEditor key={`${profile.id}:${profile.dutyRevision}`} profile={profile} /> : '—'}</TableCell><TableCell className="align-top"><AdminStatusBadge tone={statusTone('member', profile.suspendedAt ? 'suspended' : 'active')}>{profile.suspendedAt ? '정지' : '이용 중'}</AdminStatusBadge></TableCell><TableCell className="align-top tabular-nums">{dateLabel(profile.createdAt)}</TableCell><TableCell className="min-w-64 align-top">{data.mode === 'configured' ? <ManagerRoleEditor key={`${profile.id}:${profile.membershipRevision}`} profile={profile} data={data} actorId={adminId} /> : <span className="text-muted-foreground">역할 설정 후 변경 가능</span>}</TableCell></TableRow>)}
         {!data.rows.length ? <TableRow className="hover:bg-transparent"><TableCell className="h-24 text-center text-muted-foreground" colSpan={7}>조회 조건에 맞는 계정이 없습니다.</TableCell></TableRow> : null}
       </TableBody></Table></div>
       <ConsolePagination className="px-4" page={filters.page} pageSize={filters.pageSize} total={data.total} hrefForPage={page => operatorDirectoryHref(filters, page)} />

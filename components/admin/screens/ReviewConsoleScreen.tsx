@@ -2,6 +2,7 @@ import { CustomerServiceTabs, CustomerServiceResultsHeader } from './CustomerSer
 import { CustomerServiceListSelect } from './CustomerServiceListControls';
 import { CUSTOMER_SERVICE_PAGE_SIZES } from '@/lib/admin/customer-service-list';
 import Link from 'next/link';
+import { ChevronDown, Flag, ListFilter, MessageSquareText } from 'lucide-react';
 import { REVIEW_KIND_LABELS, REVIEW_KIND_OPTIONS, REVIEW_REPEAT_OPTIONS } from '@/lib/review-types';
 import { ReviewTypePolicyPanel } from '../ReviewTypePolicyPanel';
 import {
@@ -53,21 +54,21 @@ import { csChipTone } from './cs-kit-classes';
  * 저평점(1~2점) 바로가기는 결과 목록 위에 유지한다. 검색 조건과 결과를 분리하되
  * 낮은 별점을 바로 좁히는 동작과 실제 집계 건수는 함께 남긴다. */
 
-/* 리뷰 내용이 좁게 꺾이지 않도록 본문 칸에 폭을 주고, 짧은 값 칸(사진·도움수·처리)을 줄였다. */
+/* 1440 화면에서 답글을 달 때 보는 칸(상품·평점·내용·답글·처리)이 스크롤 없이 보이게 앞에 두고, 참고 칸은 뒤로 뺐다. */
 const COLUMNS: ConsoleGridColumn[] = [
-  { key: 'createdAt', label: '작성일', width: '116px' },
-  { key: 'good', label: '상품', width: '150px' },
+  { key: 'createdAt', label: '작성일', width: '108px' },
+  { key: 'good', label: '상품', width: '160px' },
+  { key: 'rating', label: '평점', width: '88px' },
+  { key: 'body', label: '리뷰 내용', width: '280px' },
+  { key: 'reply', label: '답글', width: '100px' },
+  { key: 'action', label: '처리', width: '132px' },
+  { key: 'author', label: '작성자', width: '120px' },
+  { key: 'status', label: '상태', width: '90px' },
+  { key: 'reports', label: '신고', align: 'end', width: '108px' },
   { key: 'kind', label: '리뷰 구분', width: '112px' },
-  { key: 'rating', label: '평점', width: '92px' },
-  { key: 'body', label: '리뷰 내용', width: '320px' },
   { key: 'photo', label: '사진', align: 'end', width: '52px' },
   { key: 'helpful', label: '리뷰도움수', align: 'end', width: '84px' },
-  { key: 'author', label: '작성자', width: '130px' },
-  { key: 'reports', label: '신고', align: 'end', width: '108px' },
-  { key: 'status', label: '상태', width: '90px' },
-  { key: 'reply', label: '답글', width: '110px' },
   { key: 'best', label: 'BEST 리뷰', width: '110px' },
-  { key: 'action', label: '처리', width: '150px' },
 ];
 
 /** 별점 셀. 별 문자만 두면 스크린리더가 "검은 별 검은 별..."을 읽는다. */
@@ -99,6 +100,9 @@ export function ReviewConsoleScreen({
   accountId?:string;
 }) {
   const { counts, filters, pageSize, rows, total } = data;
+  const hasSearch = Boolean(filters.from || filters.to || filters.query)
+    || filters.rating !== 'all' || filters.photo !== 'all'
+    || (filters.best ?? 'all') !== 'all' || (filters.kind ?? 'all') !== 'all' || (filters.repeat ?? 'all') !== 'all';
 
   const rowsForGrid: ConsoleGridRow[] = rows.map((row) => ({
     id: row.id,
@@ -108,14 +112,21 @@ export function ReviewConsoleScreen({
         {row.editedAt ? <><br /><span className="text-xs text-muted-foreground">수정됨</span></> : null}
       </span>,
       <Link className={TEXT_LINK_CLASS} href={goodReviewsHref(row.goodId)} key="good">{row.goodName}</Link>,
-      <span key="kind">{REVIEW_KIND_LABELS[row.kind ?? 'ordinary']}<br /><span className="text-xs text-muted-foreground">{row.repeatPurchase === true ? '재구매' : row.repeatPurchase === null ? '이력 미확인' : ''}</span></span>,
       ratingCell(row),
       <span key="body">{reviewBodyPreview(row.body, 70)}</span>,
-      row.imageCount > 0
-        ? <span key="photo">{row.imageCount}장</span>
-        : <span className="text-muted-foreground" key="photo">-</span>,
-      <span key="helpful">{row.helpfulCount.toLocaleString('ko-KR')}</span>,
+      row.adminReply
+        ? (
+          <span className="flex flex-col items-start gap-0.5" key="reply">
+            <AdminStatusBadge tone={replyTone(true)}>등록됨</AdminStatusBadge>
+            {row.replyAuthorName ? <span className="text-xs text-muted-foreground">@{row.replyAuthorName}</span> : null}
+          </span>
+        )
+        : <AdminStatusBadge key="reply" tone={replyTone(false)}>미등록</AdminStatusBadge>,
+      <ReviewActionPanel accountId={accountId} key="action" review={row} />,
       <span className="block max-w-28 truncate" key="author" title={`@${row.authorName}`}>@{row.authorName}</span>,
+      <AdminStatusBadge data-review-status={row.status} key="status" tone={statusTone('review', row.status)}>
+        {ADMIN_REVIEW_STATUS_LABELS[row.status]}
+      </AdminStatusBadge>,
       /* 신고가 0건인 리뷰와 "신고는 있었지만 다 처리된" 리뷰는 다른 상황이다.
          미처리 건수를 앞에 두되 총 건수도 함께 남긴다. */
       row.reportCount > 0
@@ -125,92 +136,88 @@ export function ReviewConsoleScreen({
           </AdminStatusBadge>
         )
         : <span className="text-muted-foreground" key="reports">-</span>,
-      <AdminStatusBadge data-review-status={row.status} key="status" tone={statusTone('review', row.status)}>
-        {ADMIN_REVIEW_STATUS_LABELS[row.status]}
-      </AdminStatusBadge>,
-      row.adminReply
-        ? (
-          <span className="flex flex-col items-start gap-0.5" key="reply">
-            <AdminStatusBadge tone={replyTone(true)}>등록됨</AdminStatusBadge>
-            {row.replyAuthorName ? <span className="text-xs text-muted-foreground">@{row.replyAuthorName}</span> : null}
-          </span>
-        )
-        : <AdminStatusBadge key="reply" tone={replyTone(false)}>미등록</AdminStatusBadge>,
+      <span key="kind">{REVIEW_KIND_LABELS[row.kind ?? 'ordinary']}<br /><span className="text-xs text-muted-foreground">{row.repeatPurchase === true ? '재구매' : row.repeatPurchase === null ? '이력 미확인' : ''}</span></span>,
+      row.imageCount > 0
+        ? <span key="photo">{row.imageCount}장</span>
+        : <span className="text-muted-foreground" key="photo">-</span>,
+      <span key="helpful">{row.helpfulCount.toLocaleString('ko-KR')}</span>,
       /* 미선정은 대부분의 리뷰가 갖는 기본값이라 글자로 물러나고, 선정·재확인만 배지로 보인다. */
       row.best && row.best.state !== 'not_selected'
         ? <AdminStatusBadge key="best" tone={statusTone('reviewBest', row.best.state)}>{REVIEW_BEST_LABELS[row.best.state]}</AdminStatusBadge>
         : <span className="text-muted-foreground" key="best">{row.best ? REVIEW_BEST_LABELS[row.best.state] : '확인 불가'}</span>,
-      <ReviewActionPanel accountId={accountId} key="action" review={row} />,
     ],
   }));
 
   return (
     <div className="flex min-w-0 flex-col gap-4" data-cs-console="reviews">
-      <ConsoleFilterPanel
-        action="/admin/cs/reviews"
-        dateRange={{
-          from: filters.from,
-          label: '작성일',
-          presetHref: (range) => adminReviewHref(filters, {
-            from: range.from,
-            page: 1,
-            to: range.to,
-          }),
-          to: filters.to,
-        }}
-        hiddenFields={{
-          pageSize: String(pageSize),
-          sort: filters.sort,
-          ...(filters.lowRating ? { low: '1' } : {}),
-          ...(filters.reviewId ? { reviewId: filters.reviewId } : {}),
-        }}
-        now={now}
-        resetHref={adminReviewResetHref()}
-        search={{
-          fields: ADMIN_REVIEW_SEARCH_FIELDS,
-          fieldName: 'field',
-          fieldValue: filters.field,
-          placeholder: '상품명 · 작성자 · 리뷰 내용',
-          value: filters.query,
-        }}
-        statusFilter={{ options: ADMIN_REVIEW_STATUS_OPTIONS, value: filters.status }}
-      >
-        <ConsoleFilterField htmlFor="review-kind" label="리뷰 구분"><AdminSelect id="review-kind" name="kind" defaultValue={filters.kind ?? 'all'} wrapperClassName="w-40">{REVIEW_KIND_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</AdminSelect></ConsoleFilterField>
-        <ConsoleFilterField htmlFor="review-repeat" label="재구매"><AdminSelect id="review-repeat" name="repeat" defaultValue={filters.repeat ?? 'all'} wrapperClassName="w-44">{REVIEW_REPEAT_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</AdminSelect></ConsoleFilterField>
-        <ConsoleFilterField htmlFor="admin-review-rating" label="평점">
-          <AdminSelect defaultValue={filters.rating} id="admin-review-rating" name="rating" wrapperClassName="w-36">
-            {ADMIN_REVIEW_RATING_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </AdminSelect>
-        </ConsoleFilterField>
-        <ConsoleFilterField htmlFor="admin-review-photo" label="사진">
-          <AdminSelect defaultValue={filters.photo} id="admin-review-photo" name="photo" wrapperClassName="w-36">
-            {ADMIN_REVIEW_PHOTO_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </AdminSelect>
-        </ConsoleFilterField>
-        <ConsoleFilterField htmlFor="admin-review-reply" label="답글">
-          <AdminSelect defaultValue={filters.reply} id="admin-review-reply" name="reply" wrapperClassName="w-36">
-            {ADMIN_REVIEW_REPLY_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </AdminSelect>
-        </ConsoleFilterField>
-        <ConsoleFilterField htmlFor="admin-review-best" label="BEST 리뷰">
-          <AdminSelect defaultValue={filters.best ?? 'all'} id="admin-review-best" name="best" wrapperClassName="w-36">
-            {ADMIN_REVIEW_BEST_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-          </AdminSelect>
-        </ConsoleFilterField>
-      </ConsoleFilterPanel>
-
       <section aria-label="리뷰 목록" className="flex min-w-0 flex-col gap-4 rounded-xl border bg-card p-4 text-card-foreground">
         <CustomerServiceResultsHeader title="리뷰 목록" total={total} pageSize={pageSize} pageSizeOptions={CUSTOMER_SERVICE_PAGE_SIZES.map(size => ({ value: String(size), label: `${size}개씩`, href: adminReviewHref(filters, { pageSize: size, page: 1 }) }))}>
           <CustomerServiceListSelect label="리뷰 정렬" value={filters.sort} options={ADMIN_REVIEW_SORT_OPTIONS.map(option => ({ ...option, href: adminReviewHref(filters, { sort: option.value, page: 1 }) }))} />
         </CustomerServiceResultsHeader>
+        {/* 조회 조건은 접어 두어 첫 화면을 리뷰가 차지한다(조건이 걸려 있으면 펼친다). 건수 카드로 고른 답글·상태는 카드가 표시한다. */}
+        <details className="group/search" data-cs-search="" open={hasSearch}>
+          <summary className={`${buttonVariants({ size: 'sm', variant: 'outline' })} w-fit list-none [&::-webkit-details-marker]:hidden`} data-slot="button"><ListFilter aria-hidden="true" />검색 조건 <ChevronDown aria-hidden="true" className="transition-transform group-open/search:rotate-180" /></summary>
+          <ConsoleFilterPanel
+            action="/admin/cs/reviews"
+            className="mt-3"
+            dateRange={{
+              from: filters.from,
+              label: '작성일',
+              presetHref: (range) => adminReviewHref(filters, {
+                from: range.from,
+                page: 1,
+                to: range.to,
+              }),
+              to: filters.to,
+            }}
+            hiddenFields={{
+              pageSize: String(pageSize),
+              sort: filters.sort,
+              ...(filters.lowRating ? { low: '1' } : {}),
+              ...(filters.reviewId ? { reviewId: filters.reviewId } : {}),
+            }}
+            now={now}
+            resetHref={adminReviewResetHref()}
+            search={{
+              fields: ADMIN_REVIEW_SEARCH_FIELDS,
+              fieldName: 'field',
+              fieldValue: filters.field,
+              placeholder: '상품명 · 작성자 · 리뷰 내용',
+              value: filters.query,
+            }}
+            statusFilter={{ options: ADMIN_REVIEW_STATUS_OPTIONS, value: filters.status }}
+          >
+            <ConsoleFilterField htmlFor="review-kind" label="리뷰 구분"><AdminSelect id="review-kind" name="kind" defaultValue={filters.kind ?? 'all'} wrapperClassName="w-40">{REVIEW_KIND_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</AdminSelect></ConsoleFilterField>
+            <ConsoleFilterField htmlFor="review-repeat" label="재구매"><AdminSelect id="review-repeat" name="repeat" defaultValue={filters.repeat ?? 'all'} wrapperClassName="w-44">{REVIEW_REPEAT_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</AdminSelect></ConsoleFilterField>
+            <ConsoleFilterField htmlFor="admin-review-rating" label="평점">
+              <AdminSelect defaultValue={filters.rating} id="admin-review-rating" name="rating" wrapperClassName="w-36">
+                {ADMIN_REVIEW_RATING_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </AdminSelect>
+            </ConsoleFilterField>
+            <ConsoleFilterField htmlFor="admin-review-photo" label="사진">
+              <AdminSelect defaultValue={filters.photo} id="admin-review-photo" name="photo" wrapperClassName="w-36">
+                {ADMIN_REVIEW_PHOTO_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </AdminSelect>
+            </ConsoleFilterField>
+            <ConsoleFilterField htmlFor="admin-review-reply" label="답글">
+              <AdminSelect defaultValue={filters.reply} id="admin-review-reply" name="reply" wrapperClassName="w-36">
+                {ADMIN_REVIEW_REPLY_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </AdminSelect>
+            </ConsoleFilterField>
+            <ConsoleFilterField htmlFor="admin-review-best" label="BEST 리뷰">
+              <AdminSelect defaultValue={filters.best ?? 'all'} id="admin-review-best" name="best" wrapperClassName="w-36">
+                {ADMIN_REVIEW_BEST_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </AdminSelect>
+            </ConsoleFilterField>
+          </ConsoleFilterPanel>
+        </details>
         <div className="flex min-w-0 flex-col gap-3">
-          <CustomerServiceTabs active="reviews" />
           {/* 저평점 바로가기와 집계는 결과 목록 바로 위에서 유지한다. */}
           <div className="flex min-w-0 flex-wrap items-center gap-3" data-cs-pinned="">
             <AdminNotice className="min-w-[min(100%,18rem)] flex-1" title={<span className="tabular-nums">저평점 리뷰 {counts.lowRating.toLocaleString('ko-KR')}건</span>} tone={counts.lowRating > 0 ? 'danger' : 'neutral'}>
@@ -218,7 +225,7 @@ export function ReviewConsoleScreen({
             </AdminNotice>
             <Link
               aria-current={filters.lowRating ? 'true' : undefined}
-              className={buttonVariants({ size: 'sm', variant: filters.lowRating ? 'outline' : 'soft' })}
+              className={buttonVariants({ variant: filters.lowRating ? 'outline' : 'soft' })}
               data-slot="button"
               href={adminReviewHref(filters, { lowRating: !filters.lowRating, page: 1, reviewId: null })}
             >
@@ -238,8 +245,8 @@ export function ReviewConsoleScreen({
           <p className="text-xs text-muted-foreground">스토어 전체 리뷰 현황 · 검색 조건을 적용하지 않은 건수입니다.</p>
           <ConsoleCountChips
             chips={[
+              /* 전체는 아무것도 거르지 않은 평상 상태라 강조하지 않는다 — 고른 조건만 강조된다. */
               {
-                active: !filters.lowRating && filters.status === 'all' && filters.reply === 'all',
                 count: counts.total,
                 href: adminReviewHref(filters, {
                   lowRating: false,
@@ -261,6 +268,7 @@ export function ReviewConsoleScreen({
                 active: filters.reply === 'without',
                 count: counts.awaitingReply,
                 href: adminReviewHref(filters, { page: 1, reply: 'without', reviewId: null }),
+                icon: MessageSquareText,
                 label: '답글 미등록',
                 tone: csChipTone('question', 'awaiting'),
               },
@@ -276,6 +284,7 @@ export function ReviewConsoleScreen({
               {
                 count: counts.reported,
                 href: '/admin/community/moderation',
+                icon: Flag,
                 label: '미처리 신고',
                 tone: csChipTone('report', 'open'),
               },
@@ -283,8 +292,8 @@ export function ReviewConsoleScreen({
             label="리뷰 상태별 건수"
           />
         </div>
-        <div className="flex flex-wrap items-start justify-between gap-3 border-t pt-4">
-          <p className="text-sm text-muted-foreground">상세에서 원문을 확인하고 답글·BEST 선정을 관리합니다. <Link className="font-medium text-foreground underline underline-offset-4" href="/admin/display/detail/reviews">BEST 리뷰 전시 설정</Link></p>
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <Link className="text-sm font-medium text-foreground underline underline-offset-4" href="/admin/display/detail/reviews">BEST 리뷰 전시 설정</Link>
           <ReviewExportDownloadButton accountId={accountId} href={reviewExportHref(reviewExportFilters(filters))} total={total} />
         </div>
         <ReviewBulkGrid key={accountId}
@@ -304,6 +313,10 @@ export function ReviewConsoleScreen({
           pageSize={pageSize}
           total={total}
         />
+        {/* 다른 문의·리뷰 메뉴로 가는 바로가기는 상품 문의·고객문의처럼 목록 아래에 둔다. */}
+        <div className="flex min-w-0 flex-col gap-3 border-t pt-4">
+          <CustomerServiceTabs active="reviews" />
+        </div>
       </section>
 
       {/* 설정은 목록을 밀지 않게 아래에 둔다 — 첫 화면은 처리할 리뷰가 차지한다. */}

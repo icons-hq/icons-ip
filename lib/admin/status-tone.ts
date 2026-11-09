@@ -87,9 +87,13 @@ const STATUS_TONES = {
   /** BEST 리뷰 적립금 보상 — lib/admin/customer-rewards */
   reviewBestReward: { none: 'neutral', disabled: 'neutral', pending: 'info', paid: 'success', revoked: 'neutral', capped: 'warning', skipped: 'neutral' },
   /** 리뷰이벤트 — lib/review-events */
-  reviewEvent: { scheduled: 'info', active: 'success', closed: 'info', ready: 'warning', announced: 'neutral', archived: 'neutral' },
+  reviewEvent: { scheduled: 'info', active: 'success', closed: 'warning', ready: 'warning', announced: 'neutral', archived: 'neutral' },
   /** 회원 계정 */
   member: { active: 'success', suspended: 'danger' },
+  /** 회원 권한(profiles.role). 관리자만 눈에 띄게 한다 */
+  memberRole: { admin: 'info', staff: 'neutral', user: 'neutral' },
+  /** 매니저 역할 — lib/admin/access MANAGER_ROLES. 통합 매니저만 눈에 띄게 한다 */
+  managerRole: { owner: 'info', primary: 'neutral', deputy: 'neutral', influencer: 'neutral', agency: 'neutral', logistics: 'neutral' },
   /** 메일 발송 — lib/email/dedupe */
   emailDelivery: { pending: 'info', sent: 'success', failed: 'danger' },
   /** 매니저 초대 — lib/admin/operator-invitations */

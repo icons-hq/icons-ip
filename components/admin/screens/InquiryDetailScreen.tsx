@@ -25,7 +25,7 @@ import { InquiryPreviewBackLink } from './CustomerServiceDialog';
 import { CustomerHistoryPanel } from './CustomerHistoryPanel';
 import { InquiryLiveUpdates } from '@/components/screens/InquiryLiveUpdates';
 import { InquirySatisfactionContext } from './InquirySatisfactionContext';
-import { INQUIRY_SLA_TONE_CLASS } from './cs-kit-classes';
+import { INQUIRY_LIVE_CLASS, INQUIRY_SLA_TONE_CLASS } from './cs-kit-classes';
 
 /* 어드민 문의 상세(#253).
  *
@@ -117,11 +117,12 @@ export function InquiryDetailScreen({
   const navLink = buttonVariants({ size: 'sm', variant: 'outline' });
 
   return (
-    <div className="@container/inquiry flex min-w-0 flex-col gap-4" data-inquiry-detail={embedded ? 'embedded' : 'page'}>
+    <div className={`@container/inquiry flex min-w-0 flex-col gap-4 ${INQUIRY_LIVE_CLASS}`} data-inquiry-detail={embedded ? 'embedded' : 'page'}>
       <InquiryLiveUpdates inquiryId={inquiry.id} audience="staff" />
-      {navigation ? <nav className="flex items-center justify-between gap-3 rounded-lg border bg-muted/40 px-3 py-2 text-sm" aria-label="고객문의 상세 이동">
+      {/* 목록 조건 밖의 문의(position null)는 이전·다음이 없다 — 눌러지지 않는 줄을 두지 않아 제목이 위로 올라온다. */}
+      {navigation && navigation.position !== null ? <nav className="flex items-center justify-between gap-3 rounded-lg border bg-muted/40 px-3 py-2 text-sm" aria-label="고객문의 상세 이동">
         {navigation.previousHref ? <Link className={navLink} data-slot="button" href={navigation.previousHref} scroll={false}><ChevronLeft aria-hidden="true" />이전 문의</Link> : <Button disabled size="sm" type="button" variant="outline"><ChevronLeft aria-hidden="true" />이전 문의</Button>}
-        <span className="text-center text-muted-foreground tabular-nums">{navigation.position === null ? '현재 목록 조건에 없는 문의' : `${navigation.position} / ${navigation.total} · 현재 조회 순서`}</span>
+        <span className="text-center text-muted-foreground tabular-nums">{`${navigation.position} / ${navigation.total} · 현재 조회 순서`}</span>
         {navigation.nextHref ? <Link className={navLink} data-slot="button" href={navigation.nextHref} scroll={false}>다음 문의<ChevronRight aria-hidden="true" /></Link> : <Button disabled size="sm" type="button" variant="outline">다음 문의<ChevronRight aria-hidden="true" /></Button>}
       </nav> : null}
       <header className="flex min-w-0 flex-col gap-1.5">
@@ -179,14 +180,13 @@ export function InquiryDetailScreen({
             ))}
           </ol>
 
-          <InquiryInternalNotesPanel key={`${accountId}:${inquiry.id}:note`} accountId={accountId} inquiryId={inquiry.id} notes={notes} />
-
+          {/* 답변이 이 화면의 주 작업이다. 내부 메모는 그 아래 참고 칸이다(팝업에서는 답변이 옆 칸에 있다). */}
           {!embedded ? replyPanel : null}
+
+          <InquiryInternalNotesPanel key={`${accountId}:${inquiry.id}:note`} accountId={accountId} inquiryId={inquiry.id} notes={notes} />
         </div>
         {embedded ? <section className="flex min-w-0 flex-col gap-3.5" aria-label="판매자 답변 처리"><h3 className="border-b pb-2 text-sm font-medium text-muted-foreground">판매자 답변 처리</h3>{replyPanel}</section> : null}
         <aside aria-label="문의 컨텍스트" className={`grid min-w-0 content-start gap-3 ${embedded ? '@3xl/inquiry:col-span-2 @3xl/inquiry:grid-cols-2' : ''}`}>
-          <InquirySatisfactionContext result={detail.satisfaction} />
-          <InquiryAssignmentPanel assigneeId={inquiry.assigneeId} assigneeName={inquiry.assigneeName} inquiryId={inquiry.id} staffOptions={staffOptions} />
           {canReadOrders ? <ContextCard title="연결 주문">
             {order ? (
               <>
@@ -256,6 +256,8 @@ export function InquiryDetailScreen({
               고객 상세 열기
             </Link> : null}
           </ContextCard>
+          <InquiryAssignmentPanel assigneeId={inquiry.assigneeId} assigneeName={inquiry.assigneeName} inquiryId={inquiry.id} staffOptions={staffOptions} />
+          <InquirySatisfactionContext result={detail.satisfaction} />
           {canReadOrders ? <CustomerHistoryPanel key={buyer.id} userId={buyer.id} canReadClaims={canManageSales} /> : null}
         </aside>
       </div>

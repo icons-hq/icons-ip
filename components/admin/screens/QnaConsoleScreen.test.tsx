@@ -60,6 +60,19 @@ describe('QnaConsoleScreen', () => {
     expect(markup).toContain('미답변만 보기');
   });
 
+  it('밀린 건수는 목록 위에도 보이고 0건이면 그리지 않는다', () => {
+    const markup = render();
+    expect(markup.indexOf('답변 미등록 상품 문의')).toBeLessThan(markup.indexOf('data-cs-question-list'));
+    expect(markup).toContain('status=unanswered');
+    expect(render({ counts: { total: 3, unanswered: 0, answered: 3, hidden: 0 } })).not.toContain('답변 미등록 상품 문의');
+  });
+
+  it('24시간을 넘긴 미등록 질문에 대기 일수를 보인다', () => {
+    const markup = renderToStaticMarkup(<QnaConsoleScreen data={data()} now={new Date('2026-09-03T03:00:00.000Z')} />);
+    expect(markup).toMatch(/data-tone="warning"[^>]*>3일 경과</);
+    expect(renderToStaticMarkup(<QnaConsoleScreen data={data({ rows: [row({ answerBody: '완료' })] })} now={new Date('2026-09-03T03:00:00.000Z')} />)).not.toContain('일 경과');
+  });
+
   it('실제 문의 정보를 기본 목록형으로 보여주고 답변 진입점은 한 개만 렌더한다', () => {
     const markup = render();
     expect(markup).toContain('data-cs-question-list');
