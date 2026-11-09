@@ -26,7 +26,7 @@ export function GameScreen({
   const { selected, select } = useSelectedRecord(records);
 
   return (
-    <div className="flex min-w-0 flex-col gap-6"><AdminPageHeader title="참여형 게임" description="공개 상태와 무상 리워드 구성을 관리합니다." />
+    <div className="flex min-w-0 flex-col gap-6"><AdminPageHeader title="게임" description="공개 상태와 무상 리워드 구성을 관리합니다." />
     <GameSection
       endOperationId={endOperationId}
       events={events}

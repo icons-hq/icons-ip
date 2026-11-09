@@ -136,19 +136,20 @@ export function IpSection({
         unavailable={localDraft.unavailable}
       />
       <form action={action} className={SECTION_CARD} key={formKey} onSubmitCapture={onSubmitCapture} ref={formRef}>
-        <div className="flex flex-wrap items-center gap-2">
+        {/* IP 작업 화면은 머리에 같은 게시 상태 배지가 있어 폼 맨 위에 다시 두지 않는다. */}
+        {selected && hideRecordList ? null : <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-medium">게시 상태</span>
           <IpPublishStateBadge state={publishState} />
           {!selected && (
             <span className="text-sm text-muted-foreground">새 IP는 초안으로 시작합니다. 공개 전까지는 어디에도 노출되지 않습니다.</span>
           )}
-        </div>
+        </div>}
         <input name="previousId" type="hidden" value={selected?.id ?? ''} />
         <AdminFormGrid>
-          <Field defaultValue={field('id')} error={state.errors?.id} label="ID" name="id" placeholder="rilakkuma" readOnly={Boolean(selected)} />
-          <Field defaultValue={field('title')} error={state.errors?.title} label="IP 이름" name="title" placeholder="리락쿠마" />
+          <Field defaultValue={field('id')} error={state.errors?.id} label="ID (필수)" name="id" placeholder="rilakkuma" readOnly={Boolean(selected)} />
+          <Field defaultValue={field('title')} error={state.errors?.title} label="IP 이름 (필수)" name="title" placeholder="리락쿠마" />
           <Field defaultValue={field('sub')} label="보조 설명" name="sub" placeholder="San-X · 캐릭터 IP" />
-          <SelectField defaultValue={field('verticalKey')} error={state.errors?.verticalKey} label="버티컬" name="verticalKey">
+          <SelectField defaultValue={field('verticalKey')} error={state.errors?.verticalKey} label="IP 분류 (필수)" name="verticalKey">
             <option value="">선택</option>
             {verticals.map((vertical) => (
               <option key={vertical.key} value={vertical.key}>{vertical.label}</option>
@@ -164,6 +165,7 @@ export function IpSection({
           <input name="featured" type="hidden" value={field('featured')} />
         </AdminFormGrid>
         <TextArea defaultValue={field('synopsis')} label="시놉시스" name="synopsis" />
+        <p className="text-sm text-muted-foreground">태그라인(한 줄 소개)·시놉시스(소개 글)·글리프(크게 쓰는 글자)는 선택이며 공개 IP관 화면의 소개에 쓰입니다.</p>
         {/* 배경 CSS 자유입력을 운영자 폼에서 뺐다 (#183). 아트워크가 없는 레거시
             레코드는 이 값으로 렌더되므로 그대로 실어 보내 보존한다. */}
         <input name="bg" type="hidden" value={field('bg')} />
@@ -174,7 +176,8 @@ export function IpSection({
           kind="ip"
         />
         <ActionNotice state={state} />
-        <div className="flex flex-wrap items-center gap-2">
+        {/* 입력 칸이 많아 저장 버튼이 첫 화면 밖으로 밀린다 — 폼을 보는 동안 카드 아래쪽에 붙어 따라온다. */}
+        <div className="sticky bottom-0 z-10 -mx-4 -mb-4 flex flex-wrap items-center gap-2 rounded-b-xl border-t bg-card px-4 py-3 sm:-mx-5 sm:-mb-5 sm:px-5">
           {offersPublish ? (
             <>
               <Button className="min-w-36" disabled={pending} name="intent" type="submit" value="draft" variant="outline">
@@ -226,6 +229,7 @@ export function IpSection({
           />
           <RecordList
             activeId={selected?.id ?? null}
+            ariaLabel="IP 목록"
             items={visibleRecords}
             labelFor={(ip) => <RecordStatusLabel name={`${ip.id} · ${ip.title}`} status={ADMIN_IP_PUBLISH_STATE_LABELS[adminIpPublishState(ip)]} tone={statusTone('publication', adminIpPublishState(ip))} title={formatAdminIpRecordLabel(`${ip.id} · ${ip.title}`, ip)} />}
             onNew={() => onSelect(null)}

@@ -29,7 +29,7 @@ export function TicketTypeScreen({
   const { selected, select } = useSelectedRecord(records);
 
   return (
-    <div className="flex min-w-0 flex-col gap-6"><AdminPageHeader title="티켓 종류" description="이벤트별 티켓 가격과 정원을 관리합니다." />
+    <div className="flex min-w-0 flex-col gap-6"><AdminPageHeader title="티켓 회차" description="이벤트별 티켓 가격과 정원을 관리합니다." />
     <TicketSection
       draftId={draftId}
       eventOptions={eventOptions}

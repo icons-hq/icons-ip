@@ -22,7 +22,7 @@ export function EventScreen({
   const { selected, select } = useSelectedRecord(records);
 
   return (
-    <div className="flex min-w-0 flex-col gap-6"><AdminPageHeader title="이벤트·회차" description="이벤트 정보와 예매 회차를 관리합니다." />
+    <div className="flex min-w-0 flex-col gap-6"><AdminPageHeader title="이벤트" description="이벤트 정보와 예매 회차를 관리합니다." />
     <EventSection
       action={action}
       ipOptions={ipOptions}

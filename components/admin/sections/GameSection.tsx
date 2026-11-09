@@ -1,6 +1,7 @@
 'use client';
 
 import { AdminFormGrid, AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import Link from 'next/link';
 import { useActionState, useState } from 'react';
 import {
   endAdminGameAction,
@@ -21,7 +22,7 @@ import {
   SelectField,
 } from '../fields';
 import { statusTone } from '@/lib/admin/status-tone';
-import { MasterDetail, ReadOnlyField, SECTION_CARD, SECTION_STAT, SECTION_STATS, SectionHeading } from './SectionLayout';
+import { MasterDetail, ReadOnlyField, RecordFormHeading, SECTION_CARD, SECTION_STAT, SECTION_STATS, SectionHeading } from './SectionLayout';
 import { RecordStatusLabel } from './RecordStatusLabel';
 
 const emptyState: AdminCatalogActionState = {};
@@ -139,7 +140,7 @@ export function GameSection({
       ) : (
         <ReadOnlyVariantNotice selected={selected} />
       )}
-      <GameSummary selected={selected} />
+      {selected ? <GameSummary selected={selected} /> : null}
       {canEnd ? (
         <EndGameForm
           gameId={selected.id}
@@ -184,7 +185,8 @@ function GameForm({
     >
       <input name="operationId" type="hidden" value={operationId} />
       <input name="previousGameId" type="hidden" value={selected?.id ?? ''} />
-      <SectionHeading description="마블 룰렛 · 카드 보상형 · 구슬 10개" title={selected ? '게임 설정' : '카드 보상형 게임 등록'} />
+      <RecordFormHeading description="마블 룰렛 · 카드 보상형 · 구슬 10개" editing={selected?.title ?? null} noun="게임" />
+      {selected?.status === 'pool-unavailable' ? <AdminNotice role="status" title="연결한 카드풀을 지금 쓸 수 없습니다." tone="danger"><Link className="underline underline-offset-4" href="/admin/catalog/pools">카드풀</Link> 화면에서 운영 기간과 등급별 확률·소속 카드를 확인해주세요.</AdminNotice> : null}
       <AdminFormGrid>
         <Field
           defaultValue={selected?.id}
@@ -293,9 +295,7 @@ function GameForm({
         />
       </AdminFormGrid>
       {fieldsLocked ? (
-        <p className="text-sm text-muted-foreground" id={lockReasonId}>
-          플레이 이력이 있어 slug·보상 카드풀·연결 이벤트는 변경할 수 없습니다.
-        </p>
+        <div id={lockReasonId}><AdminNotice tone="info">플레이 이력이 있어 slug·보상 카드풀·연결 이벤트는 변경할 수 없습니다.</AdminNotice></div>
       ) : null}
       {noEligiblePool ? <AdminNotice role="status" tone="warning">확률과 카드 구성이 완료된 운영 예정/운영 중 카드풀을 먼저 준비해주세요.</AdminNotice> : null}
       <FormShell disabled={noEligiblePool} pending={pending} state={state} />
@@ -320,29 +320,23 @@ function ReadOnlyVariantNotice({ selected }: { selected: AdminGameRecord }) {
   );
 }
 
-function GameSummary({ selected }: { selected: AdminGameRecord | null }) {
+function GameSummary({ selected }: { selected: AdminGameRecord }) {
   return (
     <section
       aria-labelledby="game-summary-title"
       className={SECTION_CARD}
     >
       <SectionHeading id="game-summary-title" title="게임 현황" />
-      {selected ? (
-        <ul className={SECTION_STATS} data-admin-summary="game">
-          <li className={`${SECTION_STAT} flex items-center gap-2`}>상태 <AdminStatusBadge tone={statusTone('game', selected.status)}>{GAME_STATUS_LABELS[selected.status]}</AdminStatusBadge></li>
-          <li className={SECTION_STAT}>유형 {variantLabel(selected)}</li>
-          <li className={SECTION_STAT}>IP {selected.ipTitle ?? selected.ipId ?? '없음'}</li>
-          <li className={SECTION_STAT}>카드풀 {selected.rewardPoolName ?? '없음'}</li>
-          <li className={SECTION_STAT}>이벤트 {selected.eventTitle ?? '없음'}</li>
-          <li className={SECTION_STAT}>구슬 {selected.marbleCount ?? '알 수 없음'}개</li>
-          <li className={SECTION_STAT}>플레이 {selected.playCount.toLocaleString('ko-KR')}회</li>
-          <li className={SECTION_STAT}>최근 플레이 {formatKstDateTime(selected.lastPlayedAt)}</li>
-        </ul>
-      ) : (
-        <p className="text-sm text-muted-foreground" role="status">
-          게임을 선택하거나 새 카드 보상형 게임을 등록하면 운영 현황을 확인할 수 있습니다.
-        </p>
-      )}
+      <ul className={SECTION_STATS} data-admin-summary="game">
+        <li className={`${SECTION_STAT} flex items-center gap-2`}>상태 <AdminStatusBadge tone={statusTone('game', selected.status)}>{GAME_STATUS_LABELS[selected.status]}</AdminStatusBadge></li>
+        <li className={SECTION_STAT}>유형 {variantLabel(selected)}</li>
+        <li className={SECTION_STAT}>IP {selected.ipTitle ?? selected.ipId ?? '없음'}</li>
+        <li className={SECTION_STAT}>카드풀 {selected.rewardPoolName ?? '없음'}</li>
+        <li className={SECTION_STAT}>이벤트 {selected.eventTitle ?? '없음'}</li>
+        <li className={SECTION_STAT}>구슬 {selected.marbleCount ?? '알 수 없음'}개</li>
+        <li className={SECTION_STAT}>플레이 {selected.playCount.toLocaleString('ko-KR')}회</li>
+        <li className={SECTION_STAT}>최근 플레이 {formatKstDateTime(selected.lastPlayedAt)}</li>
+      </ul>
     </section>
   );
 }
