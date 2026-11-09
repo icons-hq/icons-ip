@@ -11,12 +11,13 @@ import {
 import type { AdminCardPoolRecord, AdminCardRecord } from '@/lib/admin/catalog.server';
 import { adminFormRemountKey, resolveFieldDefault } from '@/lib/admin/form-state';
 import type { RarityKey } from '@/lib/rarity';
-import { buttonVariants } from '@/components/admin/kit/ui/button';
+import { Check } from 'lucide-react';
+import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { Label } from '@/components/admin/kit/ui/label';
-import { ErrorText, Field, FormShell, RecordList, SelectField } from '../fields';
+import { ActionNotice, ErrorText, Field, RecordList, SelectField } from '../fields';
 import { statusTone } from '@/lib/admin/status-tone';
-import { MasterDetail, SECTION_CARD, SectionHeading } from './SectionLayout';
+import { MasterDetail, RecordFormHeading, SECTION_CARD, SectionHeading } from './SectionLayout';
 import { RecordStatusLabel } from './RecordStatusLabel';
 
 const emptyState: AdminCatalogActionState = {};
@@ -49,6 +50,16 @@ const STATUS_LABELS: Record<AdminCardPoolRecord['status'], string> = {
   active: '운영 중',
   ended: '운영 종료',
 };
+
+/* 카드풀 정보와 확률은 저장 대상이 달라 같은 화면의 두 저장 버튼을 이름으로 구분한다. */
+function SaveAction({ disabled, label, pending, state }: { disabled: boolean; label: string; pending: boolean; state: AdminCatalogActionState }) {
+  return (
+    <>
+      <ActionNotice state={state} />
+      <Button className="self-start" disabled={disabled || pending} type="submit"><Check aria-hidden="true" /> {pending ? '저장 중' : label}</Button>
+    </>
+  );
+}
 
 export function CardPoolSection({
   cards,
@@ -137,6 +148,7 @@ function PoolForm({
     <form action={action} className={SECTION_CARD} key={adminFormRemountKey(state, defaults)}>
       <input name="operationId" type="hidden" value={operationId} />
       <input name="id" type="hidden" value={selected?.id ?? draftId} />
+      <RecordFormHeading editing={selected?.name ?? null} noun="카드풀" />
       <AdminFormGrid>
         <SelectField
           defaultValue={field('ipId')}
@@ -180,7 +192,7 @@ function PoolForm({
         />
       </AdminFormGrid>
       {noIps && <AdminNotice role="status" tone="warning">먼저 IP를 등록해주세요.</AdminNotice>}
-      <FormShell disabled={noIps} pending={pending} state={state} />
+      <SaveAction disabled={noIps} label="카드풀 저장" pending={pending} state={state} />
     </form>
   );
 }
@@ -240,14 +252,14 @@ function OddsForm({
       </div>
       <div
         aria-live="polite"
-        className={`text-sm font-semibold tabular-nums ${validTotal ? 'text-success' : 'text-destructive'}`}
+        className={`text-sm font-semibold tabular-nums ${validTotal ? 'text-success' : total === 0 ? 'text-muted-foreground' : 'text-destructive'}`}
         role="status"
       >
         {totalLabel}
       </div>
       <ErrorText>{state.errors?.oddsTotal}</ErrorText>
       <AdminNotice tone="warning">변경한 구성과 확률은 저장 즉시 적용되며, 이미 발급된 미사용 카드팩도 개봉 시점의 최신 구성과 확률을 사용합니다.</AdminNotice>
-      <FormShell disabled={!selected || !validTotal} pending={pending} state={state} />
+      <SaveAction disabled={!selected || !validTotal} label="확률 저장" pending={pending} state={state} />
     </form>
   );
 }
@@ -275,7 +287,7 @@ function PoolCardRoster({
 
   return (
     <section aria-label="선택한 카드풀 소속 카드" className={SECTION_CARD}>
-      <SectionHeading description="카드 편집 화면에서 풀 바인딩을 변경합니다." title="소속 카드" />
+      <SectionHeading description="카드 화면에서 카드풀 연결을 변경합니다." title="소속 카드" />
       {!selected && <p className="text-sm text-muted-foreground">카드풀을 선택해주세요.</p>}
       {selected && !cards.length && <p className="text-sm text-muted-foreground">연결된 카드가 없습니다.</p>}
       {missingRarities.map((rarity) => (

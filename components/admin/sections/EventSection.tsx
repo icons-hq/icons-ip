@@ -16,7 +16,7 @@ import {
 import { ArtworkUploadField } from '../ArtworkUploadField';
 import { CatalogArchiveControl, CatalogArchiveFilter } from '../CatalogArchiveControls';
 import { ColorField, Field, FormShell, RecordList, SelectField } from '../fields';
-import { MasterDetail, SECTION_CARD } from './SectionLayout';
+import { MasterDetail, RecordFormHeading, SECTION_CARD } from './SectionLayout';
 import { RecordStatusLabel } from './RecordStatusLabel';
 
 function dateTimeInput(value: string | null | undefined) {
@@ -81,6 +81,7 @@ export function EventSection({
           />
           <RecordList
             activeId={selected?.id ?? null}
+            ariaLabel="이벤트 목록"
             items={visibleRecords}
             labelFor={(event) => <RecordStatusLabel name={`${event.id} · ${event.title}`} status={event.archivedAt ? '보관' : event.status} tone={event.archivedAt ? statusTone('publication', 'archived') : statusTone('event', event.status)} title={formatAdminCatalogRecordLabel(`${event.id} · ${event.title}`, event.archivedAt)} />}
             onNew={() => onSelect(null)}
@@ -94,6 +95,7 @@ export function EventSection({
       <form action={action} className={SECTION_CARD} key={adminFormRemountKey(state, selected)}>
         <input name="previousId" type="hidden" value={selected?.id ?? ''} />
         <input name="previousIpId" type="hidden" value={selected?.ipId ?? ''} />
+        <RecordFormHeading editing={selected?.title ?? null} noun="이벤트" />
         <AdminFormGrid>
           <Field defaultValue={field('id')} error={state.errors?.id} label="ID" name="id" placeholder="e100" readOnly={Boolean(selected)} />
           <SelectField defaultValue={field('ipId')} error={state.errors?.ipId} label="연결 IP" name="ipId">

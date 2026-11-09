@@ -198,7 +198,7 @@ function GrantForm({
 }) {
   if (!selected) {
     return (
-      <AdminNotice role="status" tone="info">발급 대상을 검색해 선택하면 발급 폼이 열립니다.</AdminNotice>
+      <AdminNotice role="status" tone="info">발급 대상을 검색해 선택하면 카드풀·수량·사유를 입력할 수 있습니다.</AdminNotice>
     );
   }
 
@@ -267,8 +267,10 @@ function GrantHistory({ grants }: { grants: AdminDrawTicketGrantRecord[] }) {
                 </span>
                 <span className="text-xs text-muted-foreground tabular-nums">{formatGrantedAt(grant.grantedAt)}</span>
               </div>
-              <span className="text-xs text-muted-foreground tabular-nums">
-                {grant.poolName} · 개봉 {grant.openedCount.toLocaleString('ko-KR')} · 회수 {grant.revokedCount.toLocaleString('ko-KR')}
+              <span className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                {grant.poolName}
+                <AdminStatusBadge tone={grant.openedCount ? 'success' : 'neutral'}>개봉 {grant.openedCount.toLocaleString('ko-KR')}</AdminStatusBadge>
+                <AdminStatusBadge tone={grant.revokedCount ? 'warning' : 'neutral'}>회수 {grant.revokedCount.toLocaleString('ko-KR')}</AdminStatusBadge>
               </span>
               <span className="text-sm break-words">사유: {grant.reason}</span>
               <span className="text-xs text-muted-foreground">실행자 @{grant.actorNickname}</span>

@@ -53,9 +53,10 @@ export function IpPublishControl({
           ? '보관된 IP는 게시 상태를 바꿀 수 없습니다. 복원하면 초안이 됩니다. 다시 노출하려면 공개로 전환해주세요.'
           : publishing
             ? '공개하면 온라인 팝업 디렉토리·IP관·홈 특집·검색에 바로 노출됩니다.'
-            : '초안으로 되돌리면 IP와 소속 상품·카드가 공개 목록·검색에서 제외됩니다. 이미 담긴 상품은 장바구니에 판매 종료로 표시되고 결제할 수 없습니다. 연결된 이벤트 상세는 찾을 수 없는 페이지(404)가 됩니다. 기존 주문·보유 카드 이력은 유지됩니다.'}
+            : undefined}
         title={state === 'archived' ? '게시 상태' : publishing ? '공개로 전환' : '초안으로 되돌리기'}
       />
+      {state === 'published' ? <AdminNotice tone="warning">초안으로 되돌리면 IP와 소속 상품·카드가 공개 목록·검색에서 제외됩니다. 이미 담긴 상품은 장바구니에 판매 종료로 표시되고 결제할 수 없습니다. 연결된 이벤트 상세는 찾을 수 없는 페이지(404)가 됩니다. 기존 주문·보유 카드 이력은 유지됩니다.</AdminNotice> : null}
       {actionState.errors?.form && <AdminNotice role="alert" tone="danger">{actionState.errors.form}</AdminNotice>}
       {actionState.errors?.id && <AdminNotice role="alert" tone="danger">{actionState.errors.id}</AdminNotice>}
       {actionState.message && <AdminNotice role="status" tone="success">{actionState.message}</AdminNotice>}

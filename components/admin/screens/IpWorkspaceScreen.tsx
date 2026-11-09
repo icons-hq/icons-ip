@@ -19,7 +19,7 @@ export function IpWorkspaceScreen({ data, children }: { data: AdminIpWorkspaceDa
   const label = tab === 'goods' ? ADMIN_VOCABULARY.goods : tab === 'pools' ? '카드풀' : '이벤트';
   const relatedHref = tab === 'goods' ? `/admin/catalog/goods?ipId=${encodeURIComponent(ip.id)}` : tab === 'pools' ? '/admin/catalog/pools' : '/admin/catalog/events';
   return <section className="flex min-w-0 flex-col gap-6">
-    <Link className="w-fit text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" href={`${IP_INDEX_PATH}?vertical=${encodeURIComponent(ip.verticalKey)}`}>← 같은 버티컬의 IP 목록</Link>
+    <Link className="w-fit text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" href={`${IP_INDEX_PATH}?vertical=${encodeURIComponent(ip.verticalKey)}`}>← IP 목록</Link>
     <AdminPageHeader title={ip.title} description={ip.id} actions={<AdminStatusBadge tone={statusTone('publication', adminIpPublishState(ip))}>{ADMIN_IP_PUBLISH_STATE_LABELS[adminIpPublishState(ip)]}</AdminStatusBadge>} />
     <nav aria-label="IP 작업 탭" className="flex w-fit max-w-full items-center overflow-x-auto rounded-lg bg-muted p-0.5">
       {IP_WORKSPACE_TABS.map((entry) => <Link key={entry.id} href={ipWorkspaceHref(ip.id, entry.id)}

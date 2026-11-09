@@ -18,6 +18,13 @@ describe('상태 → tone 단일 표 (ADR-0029)', () => {
     expect(statusTone('stock', 'low')).toBe('warning');
   });
 
+  it('이벤트는 열리기 전(예정·예매중)과 진행중을 다른 색으로 구분한다', () => {
+    expect(statusTone('event', '예정')).toBe('info');
+    expect(statusTone('event', '예매중')).toBe('info');
+    expect(statusTone('event', '진행중')).toBe('success');
+    expect(statusTone('event', '종료')).toBe('neutral');
+  });
+
   it('표에 없는 상태는 눈에 띄지 않는 neutral이다', () => {
     expect(statusTone('order', 'not-a-status')).toBe('neutral');
     expect(statusTone('claim', null)).toBe('neutral');

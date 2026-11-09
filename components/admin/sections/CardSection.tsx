@@ -1,6 +1,6 @@
 'use client';
 
-import { AdminFormGrid } from '@/components/admin/console/AdminKit';
+import { AdminFormGrid, AdminNotice } from '@/components/admin/console/AdminKit';
 import { useState } from 'react';
 import type { AdminCatalogActionState } from '@/app/admin/actions';
 import type { AdminCardRecord } from '@/lib/admin/catalog.server';
@@ -17,7 +17,7 @@ import { statusTone } from '@/lib/admin/status-tone';
 import { ArtworkUploadField } from '../ArtworkUploadField';
 import { CatalogArchiveControl, CatalogArchiveFilter } from '../CatalogArchiveControls';
 import { Field, FormShell, RecordList, SelectField } from '../fields';
-import { MasterDetail, ReadOnlyField, SECTION_CARD } from './SectionLayout';
+import { MasterDetail, ReadOnlyField, RecordFormHeading, SECTION_CARD } from './SectionLayout';
 import { RecordStatusLabel } from './RecordStatusLabel';
 
 export function CardSection({
@@ -54,7 +54,9 @@ export function CardSection({
   );
   const pooled = Boolean(selected?.poolId);
   const matchingPools = poolOptions.filter((pool) => pool.ipId === ipId);
-  const visibleRecords = filterAdminCatalogRecords(records, archiveFilter);
+  /* c1, c2, … c10 처럼 번호 순서로 보인다(서버 정렬은 c1, c10, c2…). */
+  const visibleRecords = [...filterAdminCatalogRecords(records, archiveFilter)].sort((left, right) => left.id.localeCompare(right.id, 'en', { numeric: true }));
+  const poolName = (id: string | null) => poolOptions.find((pool) => pool.id === id)?.name ?? '풀 미지정';
 
   return (
     <MasterDetail
@@ -70,8 +72,9 @@ export function CardSection({
           />
           <RecordList
             activeId={selected?.id ?? null}
+            ariaLabel="카드 목록"
             items={visibleRecords}
-            labelFor={(card) => <RecordStatusLabel name={`${card.id} · ${card.name}`} status={card.archivedAt ? '보관' : null} tone={statusTone('publication', 'archived')} title={formatAdminCatalogRecordLabel(`${card.id} · ${card.name}`, card.archivedAt)} />}
+            labelFor={(card) => <RecordStatusLabel detail={`${card.rarity} · ${poolName(card.poolId)}`} name={`${card.id} · ${card.name}`} status={card.archivedAt ? '보관' : card.poolId ? null : '풀 미지정'} tone={card.archivedAt ? statusTone('publication', 'archived') : 'warning'} title={formatAdminCatalogRecordLabel(`${card.id} · ${card.name}`, card.archivedAt)} />}
             onNew={() => onSelect(null)}
             onSelect={onSelect}
             thumbnailKind="card"
@@ -83,6 +86,7 @@ export function CardSection({
       <form action={action} className={SECTION_CARD} key={formKey}>
         <input name="previousId" type="hidden" value={selected?.id ?? ''} />
         <input name="previousIpId" type="hidden" value={selected?.ipId ?? ''} />
+        <RecordFormHeading editing={selected?.name ?? null} noun="카드" />
         <AdminFormGrid>
           <Field defaultValue={field('id')} error={state.errors?.id} label="ID" name="id" placeholder="c100" readOnly={Boolean(selected)} />
           {pooled && selected ? (
@@ -129,11 +133,7 @@ export function CardSection({
             ))}
           </SelectField>
         </AdminFormGrid>
-        {pooled && (
-          <p className="text-sm text-muted-foreground">
-            풀에 연결된 카드는 먼저 풀을 해제한 뒤 IP·등급을 변경할 수 있습니다.
-          </p>
-        )}
+        {pooled && <AdminNotice tone="info">풀에 연결된 카드는 먼저 풀을 해제한 뒤 IP·등급을 변경할 수 있습니다.</AdminNotice>}
         {/* 배경 CSS 자유입력을 운영자 폼에서 뺐다 (#183). 아트워크가 없는 레거시
             레코드는 이 값으로 렌더되므로 그대로 실어 보내 보존한다. */}
         <input name="bg" type="hidden" value={field('bg')} />

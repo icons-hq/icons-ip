@@ -44,7 +44,7 @@ export default async function Page({
             {exported.parts.map((ids, index) => (
               <li key={index}>
                 <a
-                  className={buttonVariants({ variant: 'outline' })}
+                  className={buttonVariants({ variant: exported.parts.length === 1 ? 'default' : 'soft' })}
                   data-slot="button"
                   href={`/api/admin/goods-workbook?mode=export&part=${index + 1}&${query}`}
                 >

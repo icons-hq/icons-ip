@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
-import { Camera, CircleAlert, CircleCheck, QrCode, TriangleAlert } from 'lucide-react';
+import { Camera, CircleAlert, CircleCheck, QrCode, ScanLine, TriangleAlert } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { Label } from '@/components/admin/kit/ui/label';
@@ -344,10 +344,13 @@ export function TicketCheckIn() {
               <Button className="mt-3 h-11 w-full text-base sm:w-auto sm:self-start" onClick={() => void startCamera()} size="lg" type="button" variant="outline">다시 스캔</Button>
             </div>
           ) : (
-            /* 대기는 결과처럼 보이지 않게 작고 조용한 한 줄이다. */
-            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 rounded-xl border border-dashed px-4 py-3 text-muted-foreground" data-check-in-result="idle">
-              <h2 className="text-sm font-medium">검표 대기 중</h2>
-              <p className="text-sm">결과에는 이벤트와 티켓 종류만 표시됩니다.</p>
+            /* 대기는 결과와 같은 크기로 멀리서도 읽히고, 의미색 없는 점선 상자라 결과로 착각하지 않는다. */
+            <div className="flex flex-col gap-1 rounded-xl border-2 border-dashed bg-card p-5 sm:p-7" data-check-in-result="idle">
+              <h2 className={`${RESULT_TITLE} text-foreground`}>
+                <ScanLine aria-hidden="true" className="size-7 shrink-0 text-muted-foreground" />
+                검표 대기 중
+              </h2>
+              <p className="text-sm text-muted-foreground">결과에는 이벤트와 티켓 종류만 표시됩니다.</p>
             </div>
           )}
         </section>

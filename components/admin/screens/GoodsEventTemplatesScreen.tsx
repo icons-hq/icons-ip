@@ -5,7 +5,8 @@ import type { GoodsEventTemplate, GoodsEventTemplatePage } from '@/lib/goods-ben
 import { kstDateTimeText } from '@/lib/admin/list-export';
 import { Plus } from 'lucide-react';
 import { CustomerServiceDialog } from './CustomerServiceDialog';
-import { AdminPageHeader } from '../console/AdminKit';
+import { AdminPageHeader, AdminStatusBadge } from '../console/AdminKit';
+import { statusTone } from '@/lib/admin/status-tone';
 import { AdminSelect } from '../console/AdminSelect';
 import { CONSOLE_FILTER_CARD_CLASS, CONSOLE_FILTER_FIELDS_CLASS, CONSOLE_FILTER_LABEL_CLASS, ConsoleFilterActions } from '../console/ConsoleFilterPanel';
 import { CONSOLE_TABLE_FRAME_CLASS, ConsoleListCard, ConsoleTableEmptyRow, ConsoleTableHeader } from '../console/ConsoleListCard';
@@ -84,9 +85,9 @@ export function GoodsEventTemplatesScreen({ onSelect }: { onSelect?: (template: 
     </form>
     {message ? <p className="text-sm text-destructive" role="alert">{message}</p> : null}
     {data ? <ConsoleListCard headingLevel={3} title="조회 결과" total={data.total}>
-      <div className={CONSOLE_TABLE_FRAME_CLASS} role="region" aria-label="이벤트 템플릿 목록 가로 스크롤" tabIndex={0}><table className="w-full min-w-[480px] caption-bottom text-sm" data-slot="table"><caption className="sr-only">이벤트 템플릿 목록</caption><ConsoleTableHeader><TableRow className="hover:bg-transparent"><TableHead>이벤트 문구</TableHead><TableHead>등록일</TableHead><TableHead className="w-24">{onSelect ? '선택' : '관리'}</TableHead></TableRow></ConsoleTableHeader><TableBody>
-        {data.rows.map(row => <TableRow key={row.id}><TableCell className="whitespace-normal">{row.eventText}</TableCell><TableCell className="tabular-nums">{kstDateTimeText(row.createdAt)}</TableCell><TableCell><Button size="xs" variant="outline" type="button" onClick={() => onSelect ? onSelect(row) : setEditor({ template: row })}>{onSelect ? '선택' : '수정'}</Button></TableCell></TableRow>)}
-        {!data.rows.length ? <ConsoleTableEmptyRow colSpan={3}>등록된 이벤트 템플릿이 없습니다.</ConsoleTableEmptyRow> : null}
+      <div className={CONSOLE_TABLE_FRAME_CLASS} role="region" aria-label="이벤트 템플릿 목록 가로 스크롤" tabIndex={0}><table className="w-full min-w-[480px] caption-bottom text-sm" data-slot="table"><caption className="sr-only">이벤트 템플릿 목록</caption><ConsoleTableHeader><TableRow className="hover:bg-transparent"><TableHead>이벤트 문구</TableHead><TableHead>등록일</TableHead>{!onSelect ? <TableHead>상태</TableHead> : null}<TableHead className="w-24">{onSelect ? '선택' : '관리'}</TableHead></TableRow></ConsoleTableHeader><TableBody>
+        {data.rows.map(row => <TableRow key={row.id}><TableCell className="whitespace-normal">{row.eventText}</TableCell><TableCell className="tabular-nums">{kstDateTimeText(row.createdAt)}</TableCell>{!onSelect ? <TableCell><AdminStatusBadge tone={statusTone('setting', row.archived ? 'archived' : 'active')}>{row.archived ? '보관됨' : '사용 중'}</AdminStatusBadge></TableCell> : null}<TableCell><Button size="xs" variant="outline" type="button" onClick={() => onSelect ? onSelect(row) : setEditor({ template: row })}>{onSelect ? '선택' : '수정'}</Button></TableCell></TableRow>)}
+        {!data.rows.length ? <ConsoleTableEmptyRow colSpan={onSelect ? 3 : 4}>등록된 이벤트 템플릿이 없습니다.</ConsoleTableEmptyRow> : null}
       </TableBody></table></div>
       <ConsolePagination label="이벤트 템플릿 페이지" page={data.page} pageSize={20} total={data.total} disabled={pending} onPageChange={page => void load(page)} />
     </ConsoleListCard> : <p className="text-sm text-muted-foreground" role="status">{message ? '조회 후에 템플릿을 관리할 수 있습니다.' : '템플릿을 불러오는 중…'}</p>}

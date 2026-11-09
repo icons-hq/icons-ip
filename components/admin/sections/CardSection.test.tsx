@@ -125,4 +125,22 @@ describe('CardSection', () => {
     expect(html).toContain('보관 복원');
     expect(html).toContain('value="card"');
   });
+
+  it('입력 묶음 맨 위 제목이 새 등록과 수정을 가른다', () => {
+    expect(renderCard(null)).toContain('>새 카드 등록</h3>');
+    expect(renderCard()).toContain('>청명 홀로 카드 수정</h3>');
+  });
+
+  it('목록은 번호 순서로 등급·카드풀 연결을 보이고, 카드풀이 없는 카드를 주의로 표시한다', () => {
+    const unbound = { ...selected, id: 'c2', poolId: null, name: '미연결 카드', rarity: 'N' as const };
+    const later = { ...selected, id: 'c10', name: '뒤 번호 카드' };
+    const html = renderToStaticMarkup(
+      <CardSection action={vi.fn()} ipOptions={[]} onSelect={vi.fn()} pending={false}
+        poolOptions={[{ id: selected.poolId as string, ipId: 'hwasan', name: '화산강림 풀' }]} records={[later, unbound]} selected={null} state={{}} />,
+    );
+    expect(html).toContain('aria-label="카드 목록"');
+    expect(html.indexOf('c2 · 미연결 카드')).toBeLessThan(html.indexOf('c10 · 뒤 번호 카드'));
+    expect(html).toContain('HOLO · 화산강림 풀');
+    expect(html).toMatch(/data-tone="warning"[^>]*>풀 미지정</);
+  });
 });

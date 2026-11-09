@@ -36,7 +36,7 @@ export function CardScreen({
   const { selected, select } = useSelectedRecord(records, initialSelectedId);
 
   return (
-    <div className="flex min-w-0 flex-col gap-6"><AdminPageHeader title="카드 편집" description="카드를 선택해 연결 IP·카드풀과 표시 정보를 관리합니다." />
+    <div className="flex min-w-0 flex-col gap-6"><AdminPageHeader title="카드" description="카드를 선택해 연결 IP·카드풀과 표시 정보를 관리합니다." />
     <CardSection
       action={action}
       ipOptions={ipOptions}
