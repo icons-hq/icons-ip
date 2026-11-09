@@ -141,7 +141,7 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
           <Link key="edit" className={buttonVariants({ variant: 'outline', size: 'xs' })} data-slot="button" href={goodEditorHref(filters, good.id)}>수정</Link>,
           editable && inlineIdentity && typeof good.basePrice === 'number' && good.compareAtPrice == null && !good.activeDiscountEndsAt
             ? <GoodsInlinePrice key="price" goodId={good.id} basePrice={good.basePrice} identity={inlineIdentity} hasOptions={(good.activeVariantCount ?? 0) !== 1}
-              display={price} />
+              display={price} valueText={priceLabel(good.priceMin, good.priceMax)} />
             : editable && typeof good.basePrice === 'number' && (good.compareAtPrice != null || good.activeDiscountEndsAt)
               ? <span key="price" className="grid justify-items-end gap-0.5 whitespace-normal">{price}
                 {good.activeDiscountEndsAt
@@ -151,9 +151,9 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
           /* 판매중·판매중지는 배지가 곧 값 버튼이고, 그 밖의 상태에서는 판매 값을 보조 줄에 둔다(임시저장은 아직 안 파는 상품이라 공개 시 값이라고 말한다).
              준비 사유는 하나면 바로 링크로, 여럿이면 건수 한 줄로 접어 줄 높이를 지킨다. */
           <div key="readiness" className="flex min-w-[9rem] flex-col items-start gap-0.5 whitespace-normal" data-goods-list="sale-status">
-            {editable && inlineIdentity && sale.showsSaleValue ? <div className="-ml-1.5 w-full"><GoodsInlineSale compact goodId={good.id} stopped={good.stock === 'soldout'} identity={inlineIdentity} display={saleBadge} /></div> : saleBadge}
+            {editable && inlineIdentity && sale.showsSaleValue ? <div className="-ml-1.5 w-full"><GoodsInlineSale compact goodId={good.id} stopped={good.stock === 'soldout'} identity={inlineIdentity} display={saleBadge} valueText={sale.label} /></div> : saleBadge}
             {sale.detail ? <small className={SECONDARY}>{sale.detail}</small> : null}
-            {editable && inlineIdentity && !sale.showsSaleValue ? <div className="-ml-1.5 w-full"><GoodsInlineSale compact goodId={good.id} stopped={good.stock === 'soldout'} identity={inlineIdentity} display={<span className="text-xs"><span className="text-muted-foreground">{good.publishedAt ? '판매상태 ' : '공개 시 '}</span>{good.stock === 'soldout' ? '판매중지' : '판매중'}</span>} /></div> : null}
+            {editable && inlineIdentity && !sale.showsSaleValue ? <div className="-ml-1.5 w-full"><GoodsInlineSale compact goodId={good.id} stopped={good.stock === 'soldout'} identity={inlineIdentity} valueText={`${good.publishedAt ? '판매상태 ' : '공개 시 '}${good.stock === 'soldout' ? '판매중지' : '판매중'}`} display={<span className="text-xs"><span className="text-muted-foreground">{good.publishedAt ? '판매상태 ' : '공개 시 '}</span>{good.stock === 'soldout' ? '판매중지' : '판매중'}</span>} /></div> : null}
             {reasons.length === 1 ? reasonLink(reasons[0]) : null}
             {reasons.length > 1 ? <details className="group/reasons text-[0.8rem] leading-snug" data-goods-list="reasons"><summary className="inline-flex cursor-pointer list-none items-center gap-1 font-medium text-warning underline-offset-4 hover:underline [&::-webkit-details-marker]:hidden"><TriangleAlert aria-hidden="true" className="size-3.5 shrink-0" />준비할 항목 {reasons.length}개<ChevronDown aria-hidden="true" className="size-3 shrink-0 transition-transform group-open/reasons:rotate-180" /></summary><div className="mt-1.5 flex flex-col gap-1">{reasons.map(reasonLink)}</div></details> : null}
           </div>,
