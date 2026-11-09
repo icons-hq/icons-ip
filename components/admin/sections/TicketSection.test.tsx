@@ -121,6 +121,23 @@ describe('TicketSection', () => {
     expect(html).toContain('등록된 티켓 회차가 없습니다.');
   });
 
+  it('처음 열면 목록과 안내만 보이고, 왼쪽의 새로 등록 없이 등록을 시작했거나 회차를 고르면 입력 칸이 열린다', () => {
+    const idle = renderTicketSection(null);
+    expect(idle).toContain('목록에서 티켓 회차를 고르면 여기에서 수정합니다.');
+    expect(idle).toMatch(/<div class="hidden" data-record-detail="form"><form/);
+    expect(idle).not.toContain('새로 등록');
+    expect(renderTicketSection(ticketType)).toMatch(/<div class="contents" data-record-detail="form"><form/);
+  });
+
+  it('새 회차는 첫 이벤트가 미리 골라진 그대로 두되 저장 전에 확인하라고 주의를 준다', () => {
+    const html = renderTicketSection(null);
+    expect(html).toContain('value="e100" selected=""');
+    expect(html).toMatch(/data-admin-notice="warning"[^>]*>(?:(?!<\/div>)[\s\S])*연결 이벤트가 목록의 첫 이벤트로 미리 선택되어 있습니다/);
+    expect(renderTicketSection(ticketType)).not.toContain('미리 선택되어');
+    /* 고를 이벤트가 없으면 '먼저 이벤트를 등록' 안내만 보인다. */
+    expect(renderTicketSection(null, [])).not.toContain('미리 선택되어');
+  });
+
   it('목록은 회차명을 먼저 보이고 남은 수량을 숫자로 말하며, 입력 묶음 맨 위에 등록·수정 제목을 둔다', () => {
     const html = renderTicketSection(ticketType);
 

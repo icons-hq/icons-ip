@@ -3,8 +3,8 @@
 import { AdminPageHeader } from '@/components/admin/console/AdminKit';
 import { useMemo } from 'react';
 import { TicketSection } from '@/components/admin/sections/TicketSection';
+import { RecordNewButton, useRecordDetail } from '@/components/admin/sections/RecordMasterList';
 import type { AdminCatalogRecords } from '@/lib/admin/catalog.server';
-import { useSelectedRecord } from './record-selection';
 
 /*
  * 티켓 회차 화면 래퍼.
@@ -26,17 +26,19 @@ export function TicketTypeScreen({
     () => events.map((event) => ({ id: event.id, title: event.title, archivedAt: event.archivedAt })),
     [events],
   );
-  const { selected, select } = useSelectedRecord(records);
+  const detail = useRecordDetail(records);
 
   return (
-    <div className="flex min-w-0 flex-col gap-6"><AdminPageHeader title="티켓 회차" description="이벤트별 티켓 가격과 정원을 관리합니다." />
+    <div className="flex min-w-0 flex-col gap-6"><AdminPageHeader title="티켓 회차" description="이벤트별 티켓 가격과 정원을 관리합니다." actions={<RecordNewButton label="티켓 회차 등록" onClick={detail.startNew} open={detail.open} />} />
     <TicketSection
+      creating={detail.creating}
       draftId={draftId}
       eventOptions={eventOptions}
-      onSelect={select}
+      onClose={detail.close}
+      onSelect={detail.select}
       operationId={operationId}
       records={records}
-      selected={selected}
+      selected={detail.selected}
     /></div>
   );
 }
