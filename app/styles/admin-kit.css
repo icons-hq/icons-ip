@@ -60,6 +60,7 @@
   --color-primary-soft: var(--primary-soft);
   --color-primary-soft-foreground: var(--primary-soft-foreground);
   --color-border-strong: var(--border-strong);
+  --color-placeholder: var(--placeholder);
   --color-success: var(--success);
   --color-success-soft: var(--success-soft);
   --color-success-border: var(--success-border);
@@ -122,6 +123,8 @@
   --secondary-foreground: oklch(0.3 0.02 268);
   --muted: oklch(0.965 0.006 268);
   --muted-foreground: oklch(0.47 0.02 268);
+  /* 입력 예시 글자 — 실제 값(foreground)보다 확실히 옅지만 흰 바탕 AA(4.5:1)를 지킨다. */
+  --placeholder: oklch(0.56 0.015 268);
   --accent: oklch(0.955 0.007 268);
   --accent-foreground: oklch(0.25 0.02 268);
   --destructive: oklch(0.5 0.19 27);
