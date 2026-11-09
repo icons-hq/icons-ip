@@ -229,7 +229,7 @@ export function FormShell({
   return (
     <>
       <ActionNotice state={state} />
-      <button className={`${buttonVariants()} min-w-28 justify-self-start self-start`} data-slot="button" disabled={disabled || pending}>
+      <button className={`${buttonVariants()} justify-self-start self-start`} data-slot="button" disabled={disabled || pending}>
         <Check aria-hidden="true" /> {pending ? '저장 중' : '저장'}
       </button>
     </>

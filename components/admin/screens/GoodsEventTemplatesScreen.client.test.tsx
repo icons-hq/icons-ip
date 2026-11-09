@@ -9,6 +9,7 @@ vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>
 }));
 vi.mock('@/app/admin/goods-benefit-actions', () => ({ listGoodsEventTemplatesAction: mocks.list, saveGoodsEventTemplateAction: vi.fn() }));
 import { GoodsEventTemplatesScreen } from './GoodsEventTemplatesScreen';
+import { ConsolePagination } from '../console/ConsolePagination';
 import { AdminSelect } from '../console/AdminSelect';
 import { Button } from '../kit/ui/button';
 import { Input } from '../kit/ui/input';
@@ -16,6 +17,7 @@ type Element = ReactElement<{ children?: ReactNode; onClick?: () => void; onChan
 function all(node: ReactNode): Element[] { return Array.isArray(node) ? node.flatMap(all) : isValidElement(node) ? [node as Element, ...all((node.props as { children?: ReactNode }).children)] : []; }
 function text(node: ReactNode): string { return Array.isArray(node) ? node.map(text).join('') : isValidElement(node) ? text((node.props as { children?: ReactNode }).children) : typeof node === 'string' || typeof node === 'number' ? String(node) : ''; }
 function render() { hooks.index = 0; hooks.refIndex = 0; hooks.effects = []; return GoodsEventTemplatesScreen({}); }
+function pagination(node: ReactNode) { return all(node).find(item => item.type === ConsolePagination) as unknown as ReactElement<{ page: number; total: number; pageSize: number; onPageChange: (page: number) => void }>; }
 async function settle() { for (let i = 0; i < 18; i++) await Promise.resolve(); }
 const active = { id: '93800000-0000-4000-8000-000000000501', eventText: '사용 중 첫 목록', archived: false, revision: 1, createdAt: '2026-10-13T14:00:00Z' };
 const archived = { ...active, id: '93800000-0000-4000-8000-000000000502', eventText: '보관된 최신 목록', archived: true };
@@ -54,9 +56,10 @@ it('returns to page one when another operator has archived every remaining row',
     .mockResolvedValueOnce({ ok: true, value: { rows: [], total: 0, page: 2, pageSize: 20 } })
     .mockResolvedValueOnce({ ok: true, value: { rows: [], total: 0, page: 1, pageSize: 20 } });
   render(); hooks.effects[0](); await settle();
-  all(render()).find(item => (item.type === 'button' || item.type === Button) && text(item) === '다음')?.props.onClick?.(); await settle();
+  /* 페이지 이동은 공용 ConsolePagination(버튼 모드)이다 — 다음 페이지 요청을 그 부품의 onPageChange로 보낸다. */
+  pagination(render()).props.onPageChange(2); await settle();
   expect(mocks.list.mock.calls).toEqual([['', false, 1], ['', false, 2], ['', false, 1]]);
-  expect(text(render())).toContain('1 / 1 페이지');
+  expect(pagination(render()).props).toMatchObject({ page: 1, total: 0, pageSize: 20 });
 });
 
 it('검색은 폼 제출이다(kit 버튼의 기본 type은 button)', () => {

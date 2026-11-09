@@ -25,8 +25,10 @@ export function MarketingLinkCopy({ rows }: { rows: MarketingLinkRow[] }) {
     {message ? <p className="text-sm text-muted-foreground" role="status">{message}</p> : null}
   </div>;
 }
-export function MarketingLinkIssuer({ source, targetIds, label = '마케팅 링크 생성/복사', disabled = false, refreshOnIssue = false }: {
+export function MarketingLinkIssuer({ source, targetIds, label = '마케팅 링크 생성/복사', disabled = false, refreshOnIssue = false, size = 'default' }: {
   source: MarketingLinkSource; targetIds: string[]; label?: string; disabled?: boolean; refreshOnIssue?: boolean;
+  /** 함께 놓이는 버튼 줄의 크기(일괄 변경 막대는 sm). */
+  size?: 'default' | 'sm';
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false), [open, setOpen] = useState(false), [error, setError] = useState('');
@@ -44,7 +46,7 @@ export function MarketingLinkIssuer({ source, targetIds, label = '마케팅 링�
     finally { setPending(false); }
   }
   return <>
-    <Button disabled={pending || disabled || (!retry && (targetIds.length < 1 || targetIds.length > 100))} type="button" variant="outline" onClick={() => void issue()}>{retry ? '링크 생성 결과 다시 확인' : label}</Button>
+    <Button disabled={pending || disabled || (!retry && (targetIds.length < 1 || targetIds.length > 100))} size={size} type="button" variant="outline" onClick={() => void issue()}>{retry ? '링크 생성 결과 다시 확인' : label}</Button>
     {open ? <CustomerServiceDialog title="마케팅 링크" busy={pending} onClose={() => { setOpen(false); setRows([]); }}>
       <div className="flex flex-col gap-3">
         <p className="text-muted-foreground">같은 대상의 링크는 계속 유지됩니다. 원본을 비공개로 바꾸면 이동할 수 없으며 다시 공개하면 기존 링크를 사용할 수 있습니다.</p>

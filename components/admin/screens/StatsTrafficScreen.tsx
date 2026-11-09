@@ -1,7 +1,7 @@
 import Link from 'next/link';
-import { ChevronLeft, ChevronRight, Download, Search } from 'lucide-react';
+import { Download, Search } from 'lucide-react';
 import { AdminPageHeader } from '@/components/admin/console/AdminKit';
-import { ConsoleGrid, type ConsoleGridColumn } from '@/components/admin/console';
+import { CONSOLE_FILTER_CARD_CLASS, ConsoleFilterActions, ConsoleGrid, ConsolePagination, type ConsoleGridColumn } from '@/components/admin/console';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
@@ -19,8 +19,10 @@ const DETAILS_LIST='mt-2 flex list-disc flex-col gap-1.5 pl-5 text-muted-foregro
 function coverageText(value:TrafficCoverage){return `정상 관측 ${value.observed_days}일 · 일부/진행 중 ${value.partial_days}일 · 미측정 ${value.missing_days}일${value.archived_days?` · 보존 합계 ${value.archived_days}일`:''}`;}
 function dateTime(value:string|null){return value?new Date(value).toLocaleString('ko-KR',{timeZone:'Asia/Seoul'}):'없음';}
 /* 상단 공지(텍스트 공지 바·띠배너) 노출·클릭. undefined = 이 화면에서 다루지 않음(마케팅 링크 성과), null = 읽기 실패. */
+/* 데이터분석 목록 카드(StatsSection·ConsoleListCard와 같은 흰 카드). */
+const LIST_CARD='flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground';
 function NoticeTrafficSection({report}:{report:NoticeTrafficReport|null}){
- return <section aria-labelledby="traffic-notices-title" className="flex min-w-0 flex-col gap-2">
+ return <section aria-labelledby="traffic-notices-title" className={LIST_CARD} data-console-list="">
   <h3 className="flex flex-wrap items-baseline gap-2 text-base font-medium" id="traffic-notices-title">상단 공지 노출·클릭 {report?<small className="text-xs font-normal text-muted-foreground tabular-nums">{report.rows.length.toLocaleString('ko-KR')}개</small>:null}</h3>
   {report===null?<p className={ALERT} role="alert">공지 노출·클릭 집계를 불러오지 못했습니다. 새로고침해주세요.</p>
    :<ConsoleGrid caption="상단 공지 노출·클릭" preferencesKey="traffic-notices" columns={NOTICE_COLUMNS} emptyLabel="이 기간에 집계된 공지 노출이 없습니다."
@@ -33,12 +35,12 @@ export function StatsTrafficScreen({report,filters,marketing=false,noticeReport}
  const dimensionFinancial=filters.dimension==='channel'||filters.dimension==='link';
  const title=marketing?'마케팅 링크 성과':'방문·유입 분석';
  const idPrefix=marketing?'marketing-traffic':'traffic';
- const totalPages=report?Math.max(1,Math.ceil(report.total/20)):1;
  return <div className="flex min-w-0 flex-col gap-4" data-stats-screen={marketing?'marketing':'traffic'}>
   <AdminPageHeader title={title} description="선택 동의한 공개 화면 방문과 실제 결제 전환을 확인합니다."
    actions={marketing?<Link className={OUTLINE_SM} data-slot="button" href="/admin/marketing/links">마케팅 링크 관리</Link>:<Link className={OUTLINE_SM} data-slot="button" href="/admin/stats/marketing">마케팅 링크 성과</Link>}/>
   <nav aria-label="빠른 조회 기간" className={STATS_SEGMENTED}>{[1,7,30].map(days=><Link className={STATS_SEGMENT_LINK} key={days} href={`${base}?days=${days}&dimension=${filters.dimension}&compare=${filters.compare}&grain=${filters.grain}`}>{days===1?'오늘':`최근 ${days}일`}</Link>)}</nav>
-  <form action={base} className="flex flex-wrap items-end gap-x-4 gap-y-3 rounded-xl border bg-card p-4 text-card-foreground">
+  <form action={base} className={CONSOLE_FILTER_CARD_CLASS}>
+   <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
    <div className="flex flex-wrap items-end gap-1.5">
     <div className="flex flex-col gap-1.5"><label className="text-sm leading-none font-medium" htmlFor={`${idPrefix}-from`}>시작일</label><Input className="w-40" defaultValue={filters.from} id={`${idPrefix}-from`} name="from" required type="date"/></div>
     <span aria-hidden="true" className="pb-1.5 text-muted-foreground">~</span>
@@ -46,8 +48,9 @@ export function StatsTrafficScreen({report,filters,marketing=false,noticeReport}
    </div>
    <div className="flex flex-col gap-1.5"><label className="text-sm leading-none font-medium" htmlFor={`${idPrefix}-compare`}>비교</label><NativeSelect defaultValue={filters.compare} id={`${idPrefix}-compare`} name="compare"><option value="previous">직전 같은 기간</option><option value="year">전년 같은 기간</option><option value="none">비교 안 함</option></NativeSelect></div>
    <div className="flex flex-col gap-1.5"><label className="text-sm leading-none font-medium" htmlFor={`${idPrefix}-grain`}>추이 단위</label><NativeSelect defaultValue={filters.grain} id={`${idPrefix}-grain`} name="grain"><option value="day">일별</option><option value="week">주별</option><option value="month">월별</option></NativeSelect></div>
+   </div>
    <input type="hidden" name="dimension" value={filters.dimension}/>{filters.key?<input type="hidden" name="key" value={filters.key}/>:null}
-   <button className={buttonVariants()} data-slot="button" type="submit">조회</button>
+   <ConsoleFilterActions><Link className={buttonVariants({variant:'outline'})} data-slot="button" href={base}>초기화</Link><button className={buttonVariants()} data-slot="button" type="submit">조회</button></ConsoleFilterActions>
   </form>
   {filters.error?<p className={ALERT} role="alert">{filters.error}</p>:null}
   {!report?null:<>
@@ -61,7 +64,7 @@ export function StatsTrafficScreen({report,filters,marketing=false,noticeReport}
    {report.comparisonCoverage?<p className={STATS_NOTE}>비교 기간 {report.comparisonFrom} ~ {report.comparisonTo}: {coverageText(report.comparisonCoverage)}</p>:null}
    <StatsTrafficChart rows={report.trend} comparison={report.comparisonTrend}/>
    {!marketing?<nav aria-label="분석 기준" className={STATS_SEGMENTED}>{Object.entries(TRAFFIC_DIMENSIONS).filter(([key])=>key!=='link').map(([key,label])=><Link aria-current={filters.dimension===key?'page':undefined} className={STATS_SEGMENT_LINK} key={key} href={trafficHref(base,filters,{dimension:key as TrafficFilters['dimension'],key:'',query:'',page:1})}>{label}</Link>)}</nav>:null}
-   <section aria-labelledby={`${idPrefix}-results-title`} className="flex min-w-0 flex-col gap-2">
+   <section aria-labelledby={`${idPrefix}-results-title`} className={LIST_CARD} data-console-list="">
     <div className="flex flex-wrap items-center gap-2">
      <h3 className="mr-auto flex flex-wrap items-baseline gap-2 text-base font-medium" id={`${idPrefix}-results-title`}>{TRAFFIC_DIMENSIONS[filters.dimension]}별 결과 <small className="text-xs font-normal text-muted-foreground tabular-nums">{report.total.toLocaleString('ko-KR')}개</small></h3>
      <form action={base} className="flex w-full min-w-0 gap-1.5 sm:w-auto"><input type="hidden" name="from" value={filters.from}/><input type="hidden" name="to" value={filters.to}/><input type="hidden" name="dimension" value={filters.dimension}/><input type="hidden" name="compare" value={filters.compare}/><input type="hidden" name="grain" value={filters.grain}/>{filters.key?<input type="hidden" name="key" value={filters.key}/>:null}<Input aria-label="통계 항목 검색" className="min-w-0 flex-1 sm:w-52 sm:flex-none" defaultValue={filters.query} maxLength={100} name="q" placeholder="항목명·번호 검색"/><button className={buttonVariants({variant:'outline'})} data-slot="button" type="submit"><Search aria-hidden="true"/>검색</button></form>
@@ -69,7 +72,7 @@ export function StatsTrafficScreen({report,filters,marketing=false,noticeReport}
     </div>
     <ConsoleGrid caption={`${title} 분석 항목`} preferencesKey={`traffic-${filters.dimension}`} columns={COLUMNS} emptyLabel={report.summary.sessions===null?'수집 전이거나 관측 자료가 없어 수치를 표시할 수 없습니다.':'조건에 맞는 관측 항목이 없습니다.'}
      rows={report.rows.map(row=>({id:row.key,cells:[<Link className="font-medium underline-offset-4 hover:underline" key="label" href={trafficHref(base,filters,{key:row.key,page:1})}>{trafficLabel(filters.dimension,row.key,row.label)}</Link>,trafficNumber(row.metrics.sessions),trafficNumber(row.metrics.pageViews),trafficNumber(row.metrics.productViews),trafficNumber(row.metrics.linkLandings),trafficNumber(row.metrics.orders),trafficNumber(row.metrics.conversionRate,'%'),row.comparison?trafficDifference(row.metrics.sessions,row.comparison.sessions):'비교 없음',dimensionFinancial?trafficNumber(row.metrics.grossAmount,'원'):'배분 안 함',dimensionFinancial?trafficNumber(row.metrics.refundAmount,'원'):'배분 안 함',dimensionFinancial?trafficNumber(row.metrics.netAmount,'원'):'배분 안 함',row.archived?`보존 합계 · ${dateTime(row.observedUntil)}`:row.metrics.sessions===null?'미측정':'관측 자료']}))}/>
-    <nav aria-label="분석 결과 페이지" className="flex items-center justify-center gap-3 text-sm">{filters.page>1?<Link className={OUTLINE_SM} data-slot="button" href={trafficHref(base,filters,{page:filters.page-1})}><ChevronLeft aria-hidden="true"/>이전</Link>:null}<span className="text-muted-foreground tabular-nums">{filters.page} / {totalPages}</span>{filters.page*20<report.total?<Link className={OUTLINE_SM} data-slot="button" href={trafficHref(base,filters,{page:filters.page+1})}>다음<ChevronRight aria-hidden="true"/></Link>:null}</nav>
+    <ConsolePagination label="분석 결과 페이지" page={filters.page} pageSize={20} total={report.total} unit="개" hrefForPage={page=>trafficHref(base,filters,{page})}/>
    </section>
    {!marketing&&noticeReport!==undefined?<NoticeTrafficSection report={noticeReport}/>:null}
    <details className={DETAILS}><summary className={DETAILS_SUMMARY}>지표 정의와 집계 범위</summary><ul className={DETAILS_LIST}>

@@ -7,7 +7,6 @@ import { GOODS_GROUPS_PATH, validGoodsGroupGoodId } from '@/lib/admin/goods-grou
 import { loadGoodsGroupSource } from '@/lib/admin/goods-groups.server';
 import { GoodsGroupConversion } from '@/components/admin/GoodsGroupConversion';
 import { GoodsGroupEditor } from '@/components/admin/GoodsGroupEditor';
-import { AdminPageHeader } from '@/components/admin/console/AdminKit';
 
 export default async function NewGoodsGroupPage({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
   const auth = await requireAdminScreenAccess(`${GOODS_GROUPS_PATH}/new`, { capability: 'catalog.manage' });
@@ -18,7 +17,7 @@ export default async function NewGoodsGroupPage({ searchParams }: { searchParams
   const [source, session] = await Promise.all([!assemble && sourceGoodId ? loadGoodsGroupSource(sourceGoodId) : Promise.resolve(null), client.auth.getSession()]);
   if (!assemble && sourceGoodId && !source) notFound();
   const sessionId = session.data.session?.user.id === auth.user.id ? inquiryDraftSessionId(session.data.session.access_token) : null;
-  return <><AdminPageHeader title={assemble ? '기존 상품으로 그룹 구성' : '선택형 옵션에서 그룹 전환'} />
-    {assemble ? <GoodsGroupEditor key={`new:${auth.user.id}:${sessionId}`} initial={null} newGroupId={randomUUID()} actorId={auth.user.id} sessionId={sessionId} />
-      : <GoodsGroupConversion key={`${sourceGoodId ?? 'new'}:${auth.user.id}:${sessionId}`} initialSource={source} actorId={auth.user.id} sessionId={sessionId} />}</>;
+  /* 화면 머리(제목·설명·관련 화면)는 각 화면이 등록 방식 탭 아래에 그린다. */
+  return assemble ? <GoodsGroupEditor key={`new:${auth.user.id}:${sessionId}`} title="기존 상품으로 그룹 구성" initial={null} newGroupId={randomUUID()} actorId={auth.user.id} sessionId={sessionId} />
+    : <GoodsGroupConversion key={`${sourceGoodId ?? 'new'}:${auth.user.id}:${sessionId}`} title="선택형 옵션에서 그룹 전환" initialSource={source} actorId={auth.user.id} sessionId={sessionId} />;
 }

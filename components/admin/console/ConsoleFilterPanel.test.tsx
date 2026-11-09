@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { ConsoleFilterPanel } from './ConsoleFilterPanel';
+import { ConsoleFilterActions, ConsoleFilterPanel } from './ConsoleFilterPanel';
 
 /** KST 2026-08-18 정오. 프리셋 기준일을 고정한다. */
 const NOW = new Date('2026-08-18T03:00:00.000Z');
@@ -171,5 +171,26 @@ describe('ConsoleFilterPanel', () => {
 
     expect(html.indexOf('추가 컨트롤')).toBeLessThan(html.indexOf('>초기화<'));
     expect(html).toContain('조회');
+  });
+});
+
+describe('ConsoleFilterActions', () => {
+  /* 조회 폼을 직접 그리는 화면도 같은 바닥 줄(구분선 아래 오른쪽 [초기화][검색])을 쓴다. */
+  it('구분선 아래 오른쪽에 버튼을 둔 순서 그대로 놓는다', () => {
+    const html = renderToStaticMarkup(
+      <ConsoleFilterActions><a href="/admin/x">초기화</a><button type="submit">검색</button></ConsoleFilterActions>,
+    );
+
+    expect(html).toContain('border-t pt-3 justify-end');
+    expect(html.indexOf('초기화')).toBeLessThan(html.indexOf('검색'));
+  });
+
+  it('왼쪽 안내(start)가 있으면 양끝으로 벌린다', () => {
+    const html = renderToStaticMarkup(
+      <ConsoleFilterActions start={<p>한국시간 기준</p>}><button type="submit">조회</button></ConsoleFilterActions>,
+    );
+
+    expect(html).toContain('justify-between');
+    expect(html.indexOf('한국시간 기준')).toBeLessThan(html.indexOf('조회'));
   });
 });

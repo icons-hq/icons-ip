@@ -19,14 +19,16 @@ import {
 } from '../shipping-charge-groups/useShippingChargeGroupOperation';
 import { CustomerServiceDialog } from './CustomerServiceDialog';
 import { ShippingChargeGroupAssignmentDialog } from '../shipping-charge-groups/ShippingChargeGroupAssignmentDialog';
-import { ChevronLeft, ChevronRight, Plus, Search } from 'lucide-react';
+import { Plus, Search } from 'lucide-react';
+import { CONSOLE_LIST_EMPTY_CLASS, CONSOLE_TABLE_FRAME_CLASS, ConsoleListCard, ConsoleTableHeader } from '@/components/admin/console/ConsoleListCard';
+import { ConsolePagination } from '@/components/admin/console/ConsolePagination';
 import { Badge } from '@/components/admin/kit/ui/badge';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/admin/kit/ui/table';
-import { ACTIONS, ALERT_BOX, CHECK_LABEL, CHECK_LABEL_TOP, EMPTY, FIELD_HINT, FIELD_LABEL, INFO_PANEL, NOTE, RESULT_HEADING, STATUS_BOX, TABLE_BOX, TSV_TEXTAREA } from '@/components/admin/settings-kit';
+import { ACTIONS, ALERT_BOX, CHECK_LABEL, CHECK_LABEL_TOP, FIELD_HINT, FIELD_LABEL, INFO_PANEL, NOTE, STATUS_BOX, TABLE_BOX, TSV_TEXTAREA } from '@/components/admin/settings-kit';
 
 const WARN_BOX = 'rounded-lg border border-[color-mix(in_oklab,var(--wc-warning)_35%,transparent)] bg-[color-mix(in_oklab,var(--wc-warning)_6%,transparent)] px-3 py-2.5 text-sm';
 
@@ -241,7 +243,8 @@ export function ShippingChargeGroupEditor({ start, identity, scope, origins, car
   </CustomerServiceDialog>;
 }
 
-function GroupsWorkspace({ identity, scope, origins, carriers, canEdit, canManageRegional }: {
+/** 묶음그룹 조회·목록·편집 작업 영역. 세션이 확인된 뒤 ShippingChargeGroupsPanel이 그린다(테스트는 직접 그린다). */
+export function GroupsWorkspace({ identity, scope, origins, carriers, canEdit, canManageRegional }: {
   identity: ShippingChargeGroupIdentity; scope: ShippingChargeGroupScope; origins: GoodsFulfillmentOrigin[]; carriers: EditableCarrier[];
   canEdit: boolean; canManageRegional: boolean;
 }) {
@@ -255,10 +258,16 @@ function GroupsWorkspace({ identity, scope, origins, carriers, canEdit, canManag
     const ticket = scope.capture(); if (!ticket || lane.current) return;
     lane.current = true; setBusy(true); setError('');
     try {
-      const result = await listShippingChargeGroupsAction(next, { expectedActorId, expectedSessionId });
+      let request = next, result = await listShippingChargeGroupsAction(request, { expectedActorId, expectedSessionId });
+      /* 보관·사용 안 함으로 마지막 페이지가 비면(같은 페이지를 다시 읽을 때) 마지막 유효 페이지를 다시 읽는다 —
+         빈 페이지에 남으면 공용 페이지 이동은 범위 안으로 보정해 그리므로 돌아갈 '이전'이 없다. */
+      if (!('error' in result) && alive.current && scope.canApply(ticket)) {
+        const lastPage = Math.max(1, Math.ceil(result.data.total / result.data.pageSize));
+        if (request.page > lastPage) { request = { ...request, page: lastPage }; result = await listShippingChargeGroupsAction(request, { expectedActorId, expectedSessionId }); }
+      }
       if (!alive.current || !scope.canApply(ticket)) return;
       if ('error' in result) { setData(null); setError(result.error); if (result.authChanged) scope.authenticate(null, null); }
-      else { setData(result.data); setApplied(next); }
+      else { setData(result.data); setApplied(request); }
     } catch { if (alive.current && scope.canApply(ticket)) { setData(null); setError('배송비 묶음그룹을 불러오지 못했습니다. 조회 조건은 유지됩니다.'); } }
     finally { lane.current = false; if (alive.current && scope.canApply(ticket)) setBusy(false); }
   }, [scope, expectedActorId, expectedSessionId]);
@@ -290,22 +299,18 @@ function GroupsWorkspace({ identity, scope, origins, carriers, canEdit, canManag
     {message ? <p className={STATUS_BOX} role="status">{message}</p> : null}
     {error ? <p className={ALERT_BOX} role="alert">{error}</p> : null}
     {!editor && !assignment ? pending.map(context => <OperationRecovery key={context.operationId} context={context} identity={identity} scope={scope} canEdit={canEdit} onReceipt={receiptReceived} />) : null}
-    <div aria-busy={busy} className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card text-card-foreground" data-charge-groups-results="">
-      <div className={RESULT_HEADING}><h3 className="flex flex-wrap items-baseline gap-2 text-base font-medium">조회 결과 <span className="text-xs font-normal text-muted-foreground tabular-nums">총 {data?.total.toLocaleString('ko-KR') ?? '—'}개</span></h3>
-        {canEdit ? <Button disabled={locked || !data} onClick={() => { if (!locked && data) { setMessage(''); setEditor({ id: crypto.randomUUID(), data: null, originId: applied.originId ?? '' }); } }} size="sm" type="button"><Plus aria-hidden="true" />묶음그룹 추가</Button> : <span className="text-xs text-muted-foreground">읽기 전용</span>}
-      </div>
-      {busy ? <p className="px-4 text-sm text-muted-foreground" role="status">묶음그룹을 불러오고 있습니다.</p> : null}
-      <div className="min-w-0 overflow-auto px-4"><Table className="min-w-[46.25rem]"><caption className="sr-only">배송비 묶음그룹 목록</caption><TableHeader><TableRow className="hover:bg-transparent"><TableHead>그룹명</TableHead><TableHead>출고지</TableHead><TableHead>계산 방식</TableHead><TableHead>지역 추가료</TableHead><TableHead>배정 원상품</TableHead><TableHead>사용 상태</TableHead><TableHead>버전·수정일</TableHead><TableHead>관리</TableHead></TableRow></TableHeader>
+    <ConsoleListCard aria-busy={busy} data-charge-groups-results="" headingLevel={3} title="조회 결과" total={data?.total ?? null} unit="개"
+      actions={canEdit ? <Button disabled={locked || !data} onClick={() => { if (!locked && data) { setMessage(''); setEditor({ id: crypto.randomUUID(), data: null, originId: applied.originId ?? '' }); } }} type="button"><Plus aria-hidden="true" />묶음그룹 추가</Button> : <span className="text-xs text-muted-foreground">읽기 전용</span>}>
+      {busy ? <p className="text-sm text-muted-foreground" role="status">묶음그룹을 불러오고 있습니다.</p> : null}
+      <div aria-label="배송비 묶음그룹 목록 가로 스크롤" className={`${CONSOLE_TABLE_FRAME_CLASS} [&>[data-slot=table-container]]:overflow-visible`} role="region" tabIndex={0}><Table className="min-w-[46.25rem]"><caption className="sr-only">배송비 묶음그룹 목록</caption><ConsoleTableHeader><TableRow className="hover:bg-transparent"><TableHead>그룹명</TableHead><TableHead>출고지</TableHead><TableHead>계산 방식</TableHead><TableHead>지역 추가료</TableHead><TableHead>배정 원상품</TableHead><TableHead>사용 상태</TableHead><TableHead>버전·수정일</TableHead><TableHead>관리</TableHead></TableRow></ConsoleTableHeader>
         <TableBody>{data?.groups.map(group => <TableRow key={group.id}><TableHead className="h-auto py-3 align-top whitespace-normal [overflow-wrap:anywhere]" scope="row">{group.name}{group.isDefault ? <small className="mt-1 block"><Badge variant="secondary">기본 그룹</Badge></small> : null}<small className={`mt-1 block ${FIELD_HINT}`}>그룹번호 {group.id}</small></TableHead>
           <TableCell className="align-top whitespace-normal">{origins.find(origin => origin.id === group.originId)?.name ?? '출고지 확인 필요'}</TableCell><TableCell className="align-top">{group.calculationMode === 'min' ? '최소 부과' : '최대 부과'}<small className={`mt-1 block ${FIELD_HINT}`}>유효 무료 조건 우선</small></TableCell>
           <TableCell className="align-top">{group.regional.mode === 'inherit' ? '출고지 정책 상속' : '그룹 지역표 1회'}{group.regional.mode === 'override' ? <small className={`mt-1 block ${FIELD_HINT}`}>{group.regional.policy.rules.length.toLocaleString('ko-KR')}개 주소 구간</small> : null}</TableCell>
           <TableCell className="align-top"><Button aria-label={`${group.name} 연결 원상품 ${group.assignedCount}개 조회`} className="tabular-nums" disabled={locked} onClick={() => { if (!locked) setAssignment(group); }} size="xs" type="button" variant="outline">{group.assignedCount.toLocaleString('ko-KR')}개</Button></TableCell><TableCell className="align-top">{group.archived ? '보관' : group.enabled ? '사용' : '사용 안 함'}</TableCell><TableCell className="align-top tabular-nums">버전 {group.revision}<small className={`mt-1 block ${FIELD_HINT}`}>{formatOrderDateTime(group.updatedAt)}</small></TableCell>
           <TableCell className="align-top"><div className="flex flex-nowrap items-center gap-1.5"><Button disabled={locked} onClick={() => { void edit(group); }} size="xs" type="button" variant="outline">{canEdit ? '조회/수정' : '조회'}</Button>
-            {canEdit ? <Button disabled={locked} onClick={() => { if (!locked) setAssignment(group); }} size="xs" type="button" variant="outline">상품 배정</Button> : null}</div></TableCell></TableRow>)}</TableBody></Table></div>
-      {!busy && data && !data.groups.length ? <p className={EMPTY}>{applied.query || applied.originId || applied.status !== 'all' ? '조회 조건에 맞는 묶음그룹이 없습니다.' : '등록한 배송비 묶음그룹이 없습니다. 기존 상품은 현재 배송비 규칙을 유지합니다.'}</p> : null}
-      <div className="flex items-center justify-center gap-3 px-4 pb-3 text-sm"><Button disabled={busy || !data || data.page <= 1} onClick={() => { void load({ ...applied, page: (data?.page ?? 1) - 1 }); }} size="sm" type="button" variant="outline"><ChevronLeft aria-hidden="true" />이전</Button>
-        <span className="text-muted-foreground tabular-nums">{data?.page ?? 1} / {data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1}</span><Button disabled={busy || !data || data.page * data.pageSize >= data.total} onClick={() => { void load({ ...applied, page: (data?.page ?? 1) + 1 }); }} size="sm" type="button" variant="outline">다음<ChevronRight aria-hidden="true" /></Button></div>
-    </div>
+            {canEdit ? <Button disabled={locked} onClick={() => { if (!locked) setAssignment(group); }} size="xs" type="button" variant="outline">상품 배정</Button> : null}</div></TableCell></TableRow>)}</TableBody></Table>{!busy && data && !data.groups.length ? <p className={CONSOLE_LIST_EMPTY_CLASS}>{applied.query || applied.originId || applied.status !== 'all' ? '조회 조건에 맞는 묶음그룹이 없습니다.' : '등록한 배송비 묶음그룹이 없습니다. 기존 상품은 현재 배송비 규칙을 유지합니다.'}</p> : null}</div>
+      <ConsolePagination label="배송비 묶음그룹 목록 페이지" page={data?.page ?? 1} pageSize={data?.pageSize ?? 20} total={data?.total ?? 0} disabled={busy || !data} onPageChange={page => { void load({ ...applied, page }); }} />
+    </ConsoleListCard>
     <p className={NOTE}>같은 주문·출고지의 배송비만 묶습니다. 전시 그룹상품·구매 합산군과 구분하며, 기본 그룹 변경으로 기존 상품을 자동 재배정하지 않습니다.</p>
     {editor && data ? <ShippingChargeGroupEditor key={`${identity.expectedActorId}:${identity.expectedSessionId}:${editor.id}`} start={editor} identity={identity} scope={scope} origins={origins} carriers={carriers}
       canEdit={canEdit} canManageRegional={canManageRegional} initialList={data} otherPending={pending.some(context => context.groupId !== editor.id || context.command !== 'save')} onClose={() => setEditor(null)} onSaved={receiptReceived} /> : null}

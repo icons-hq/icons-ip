@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { Download } from 'lucide-react';
+import { ConsoleFilterActions } from '@/components/admin/console/ConsoleFilterPanel';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
@@ -41,18 +42,21 @@ export function StatsRangeTabs({ base, filters, now = new Date(), exportDisabled
           <span aria-hidden="true" className="text-muted-foreground">~</span>
           <Input aria-label="조회 종료일" className="w-36" defaultValue={dates.to} name="to" required type="date" />
         </div>
-        <button className={buttonVariants()} data-slot="button" type="submit">조회</button>
       </StatsFilterRow>
       <StatsFilterRow label="조회기준">
         {screen !== 'claims' ? <StatsFilterControl htmlFor={`${idPrefix}-bucket`} label="단위"><NativeSelect defaultValue={filters.bucket ?? 'day'} id={`${idPrefix}-bucket`} name="bucket"><option value="day">일별</option><option value="week">주별</option><option value="month">월별</option></NativeSelect></StatsFilterControl> : null}
         <StatsFilterControl htmlFor={`${idPrefix}-compare`} label="비교"><NativeSelect defaultValue={comparisonMode} id={`${idPrefix}-compare`} name="compare"><option value="none">비교 없음</option><option value="previous">직전 동일 기간</option><option value="year">전년 동일 날짜</option></NativeSelect></StatsFilterControl>
         {screen === 'sales' ? <StatsFilterControl htmlFor={`${idPrefix}-ip`} label="IP 필터 (상품 순위)"><Input className="w-40" defaultValue={filters.ipId} id={`${idPrefix}-ip`} maxLength={64} name="ip" placeholder="IP 코드" /></StatsFilterControl> : null}
       </StatsFilterRow>
+      {/* 조회 카드 바닥 줄(콘솔 조회 카드와 같다): 왼쪽에 집계 기준·내보내기, 오른쪽에 [초기화][조회]. */}
+      <ConsoleFilterActions start={<>
+        <div className="flex flex-col gap-0.5 text-xs text-muted-foreground"><p>한국시간 기준 · 최대 366일 · 주별은 월요일 시작</p>
+          {comparisonMode === 'year' ? <p>{ADMIN_STATS_YEAR_COMPARISON_NOTE}</p> : null}</div>
+        {!filters.rangeError ? exportDisabledReason ? <p className="text-sm text-muted-foreground" role="status">{exportDisabledReason}</p> : <a className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" href={`${exportHref}${exportHref.includes('?') ? '&' : '?'}report=${screen}`}><Download aria-hidden="true" />엑셀 다운로드</a> : null}
+      </>}>
+        <Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={base}>초기화</Link>
+        <button className={buttonVariants()} data-slot="button" type="submit">조회</button>
+      </ConsoleFilterActions>
     </form>
-    <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3">
-      <div className="flex flex-col gap-0.5 text-xs text-muted-foreground"><p>한국시간 기준 · 최대 366일 · 주별은 월요일 시작</p>
-        {comparisonMode === 'year' ? <p>{ADMIN_STATS_YEAR_COMPARISON_NOTE}</p> : null}</div>
-      {!filters.rangeError ? exportDisabledReason ? <p className="text-sm text-muted-foreground" role="status">{exportDisabledReason}</p> : <a className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" href={`${exportHref}${exportHref.includes('?') ? '&' : '?'}report=${screen}`}><Download aria-hidden="true" />엑셀 다운로드</a> : null}
-    </div>
   </div>;
 }

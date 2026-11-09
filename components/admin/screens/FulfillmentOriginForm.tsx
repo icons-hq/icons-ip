@@ -54,7 +54,7 @@ export function FulfillmentOriginForm({ origin, carriers, canEdit }: { origin?: 
       </AdminFormGrid>
       {state.errors?.form ? <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive" role="alert">{state.errors.form}</p> : null}
       {state.message ? <p className="rounded-lg border bg-muted/40 px-3 py-2.5 text-sm font-medium text-[var(--wc-success)]" role="status">{state.message}</p> : null}
-      {canEdit ? <Button className="w-fit min-w-28" type="submit"><Check aria-hidden="true" />{pending ? '저장 중…' : '출고지 저장'}</Button> : null}
+      {canEdit ? <Button className="w-fit" type="submit"><Check aria-hidden="true" />{pending ? '저장 중…' : '출고지 저장'}</Button> : null}
     </fieldset>
   </form>;
 }
