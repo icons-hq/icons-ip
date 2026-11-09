@@ -160,7 +160,7 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
             : editable && typeof good.basePrice === 'number' && (good.compareAtPrice != null || good.activeDiscountEndsAt)
               ? <span key="price" className="grid justify-items-end gap-0.5 whitespace-normal">{price}
                 {good.activeDiscountEndsAt
-                  ? <small className={SECONDARY} title={`즉시할인 진행·예정 중(~${tableDate(good.activeDiscountEndsAt)}) · 할인을 중지한 뒤 판매가를 바꿀 수 있습니다`}>즉시할인 중</small>
+                  ? <small className={SECONDARY} title={`즉시할인 진행·예정 중(~${tableDate(good.activeDiscountEndsAt)}) · 할인을 중지한 뒤 판매가를 바꿀 수 있습니다`}>할인 진행·예정</small>
                   : <Link className={SECONDARY_LINK} href={`${goodEditorHref(filters, good.id)}#good-section-price`} title="상품 할인 중 · 판매가는 상품 수정에서 변경">상품 할인 중</Link>}</span>
               : <span key="price">{price}</span>,
           /* 칸은 두 줄이다. 첫 줄은 주 배지(판매중·판매중지는 배지가 곧 값 버튼)와, 그 밖의 상태의 판매 값(임시저장은 아직 안 파는 상품이라 공개 시 값이라고 말한다).

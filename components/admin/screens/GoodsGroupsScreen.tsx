@@ -15,7 +15,6 @@ import { Input } from '../kit/ui/input';
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '../kit/ui/table';
 import { GoodsGroupEditor } from '../GoodsGroupEditor';
 import { GoodsBulkToolbar } from '../GoodsBulkToolbar';
-import { GoodsGroupsMenuNote } from './GoodsGroupsMenuNote';
 import { GroupPager, GroupTable, useGoodsGroupSession } from '../GoodsGroupOperation';
 import { DEFAULT_GROUP_FILTERS, GROUP_SEARCH_FIELDS, GROUP_SORTS, GROUP_STATUSES, goodsGroupConsoleHref, type GoodsGroupConsole, type GoodsGroupFilters } from '@/lib/admin/goods-group-console';
 
@@ -70,7 +69,7 @@ export function GoodsGroupsScreen({ initialPage, initialGroup, initialQuery = ''
   /* 접힌 조건이 걸려 있으면 펼쳐 둔다. 입력 중 값이 아니라 적용한 값으로 정해 고르는 동안 접히지 않는다. */
   const advancedApplied = Boolean(applied.from || applied.to || applied.stock !== 'all' || applied.originId || applied.shippingFee !== 'all');
   return <section className="flex min-w-0 flex-col gap-4" aria-busy={pending} data-admin-screen="goods-groups">
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1"><nav className="inline-flex w-fit rounded-lg bg-muted p-0.5" aria-label="상품 목록"><Link className={TAB} href="/admin/catalog/goods">전체 상품 조회/수정</Link><span aria-current="page" className={TAB}>그룹상품 조회/수정</span></nav><GoodsGroupsMenuNote /></div>
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1"><nav className="inline-flex w-fit rounded-lg bg-muted p-0.5" aria-label="상품 목록"><Link className={TAB} href="/admin/catalog/goods">전체 상품 조회/수정</Link><span aria-current="page" className={TAB}>그룹상품 조회/수정</span></nav></div>
     {/* 조회가 화면 상태라 칸이 링크가 아니라 버튼이다 — 눌림·포커스·호버는 버튼이, 모양은 공용 건수 칸이 맡는다. */}
     <div className={ADMIN_COUNT_CARD_GRID_CLASS} data-goods-groups="status">{GROUP_STATUSES.map(status => <button type="button" key={status.value} disabled={pending} aria-pressed={applied.status === status.value} onClick={() => load({ ...applied, status: status.value, page: 1 })}
       className="min-w-0 rounded-xl text-left outline-none hover:[&>span]:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50">

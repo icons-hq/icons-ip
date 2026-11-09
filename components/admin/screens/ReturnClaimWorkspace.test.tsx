@@ -83,6 +83,6 @@ describe('return workspace evidence and navigation', () => {
     const html = render({ stage });
     expect(html).toContain('요청 처리가 종료됐습니다');
     expect(html).not.toContain('다음 작업 보기');
-    expect(html).toContain('환불 원장 열림 · 완료 시각 없음');
+    expect(html).toContain('환불 확인 전 · 완료 시각 없음');
   });
 });

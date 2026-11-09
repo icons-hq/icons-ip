@@ -139,7 +139,7 @@ function ignoreUnconfirmedClaimSubmit() {}
 /** 취소 승인 확인 문구. 결제마다 승인 뒤 일어나는 일이 다르다. */
 export function claimCancelApprovalConfirmation(paymentProvider: string | null) {
   if (providerCancelsAutomatically(paymentProvider)) {
-    return `취소를 승인하고 ${automatedCancelProviderLabel(paymentProvider)} 전액 취소를 발행할까요? 되돌릴 수 없고, 확인되면 주문 취소·재고 복원·카드팩 회수와 환불 원장 기록이 함께 끝납니다.`;
+    return `취소를 승인하고 ${automatedCancelProviderLabel(paymentProvider)} 결제 전액을 취소할까요? 되돌릴 수 없고, 취소가 확인되면 주문 취소·재고 복원·카드팩 회수까지 함께 끝납니다.`;
   }
   if (paymentProvider === 'korpay') return '취소를 승인할까요? 승인 뒤 Korpay 취소 접수와 환불 완료 확정으로 진행합니다.';
   if (paymentProvider === 'bank_transfer') return '취소를 승인할까요? 승인 뒤 환불계좌 송금 절차로 진행합니다.';
@@ -153,7 +153,7 @@ export function claimCancelApprovalConfirmation(paymentProvider: string | null) 
 export function claimRefundCompletionConfirmation(finalizationPending: boolean, autoCancelLabel: string | null) {
   if (!finalizationPending) return '환불 완료를 원장에 기록할까요?';
   return autoCancelLabel
-    ? `${autoCancelLabel} 전액 취소를 발행하고 주문 취소·재고 복원·카드팩 회수를 확정할까요? 되돌릴 수 없습니다.`
+    ? `${autoCancelLabel} 결제 전액을 취소하고 주문 취소·재고 복원·카드팩 회수를 확정할까요? 되돌릴 수 없습니다.`
     : '결제사 원장에서 전액 취소를 확인했나요? 확정하면 주문 취소·재고 복원·카드팩 회수가 진행되고 되돌릴 수 없습니다.';
 }
 
@@ -382,7 +382,7 @@ export function ClaimActionPanel({
           {/* 누르기 전에 읽도록 버튼 위에 둔다. 돈이 바로 나가는 승인만 경고 상자를 쓴다. */}
           {approvalMovesMoney ? (
             <AdminNotice title="승인하면 되돌릴 수 없습니다" tone="warning">
-              {`승인하면 바로 ${autoCancelLabel} 전액 취소를 발행하고 결제사 조회로 결과를 확인합니다. 확인되면 주문 취소·재고 복원·카드팩 회수와 환불 원장 기록이 함께 끝납니다.`}
+              {`승인하면 바로 ${autoCancelLabel} 결제 전액을 취소하고 결제사에 결과를 확인합니다. 취소가 확인되면 주문 취소·재고 복원·카드팩 회수까지 함께 끝납니다.`}
             </AdminNotice>
           ) : null}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -521,7 +521,7 @@ export function ClaimActionPanel({
           {refundFinalizationPending ? (
             <AdminNotice title="확정하면 되돌릴 수 없습니다" tone="warning">
               {autoCancelLabel
-                ? `누르면 ${autoCancelLabel} 전액 취소를 발행하고 결제사 조회로 결과를 확인합니다. 이미 취소된 결제면 확인만 합니다. 확인되지 않으면 주문과 재고는 그대로 유지되고 정합화 오류가 남습니다.`
+                ? `누르면 ${autoCancelLabel} 결제 전액을 취소하고 결제사에 결과를 확인합니다. 이미 취소된 결제면 확인만 합니다. 확인되지 않으면 주문과 재고는 그대로 두고 결제확인필요로 남습니다.`
                 : '결제사 원장에서 전액 취소를 확인한 뒤 눌러주세요. 확인되지 않으면 주문과 재고는 그대로 유지됩니다.'}
             </AdminNotice>
           ) : null}
@@ -531,13 +531,13 @@ export function ClaimActionPanel({
               {!refundFinalizationPending
                 ? '환불 완료를 원장에 기록'
                 : autoCancelLabel
-                  ? `환불 완료 확정 (${autoCancelLabel} 전액 취소 발행 · 재고 복원 · 카드팩 회수)`
+                  ? `환불 완료 확정 (${autoCancelLabel} 전액 취소)`
                   : '환불 완료 확정 (재고 복원 · 카드팩 회수 포함)'}
             </Button>
           </div>
           {!refundFinalizationPending ? (
             <p className={HINT_CLASS}>
-              {`이 ${V.claimRequest}은 이미 종결됐습니다. 주문 취소·재고 복원·카드팩 회수는 끝났고, 여기서는 환불 원장에 완료 기록만 남깁니다.`}
+              {`이 ${V.claimRequest}은 이미 종결됐습니다. 주문 취소·재고 복원·카드팩 회수는 끝났고, 여기서는 환불 완료 기록만 남깁니다.`}
             </p>
           ) : null}
         </form>

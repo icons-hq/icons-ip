@@ -72,7 +72,7 @@ export function ReturnClaimWorkspace({ progress, review, collection, hold, refun
     { id: 'review', number: 1, title: '검토·승인', label: '검토·승인', summary: evidence.review ? '승인 완료' : `현재 단계: ${adminClaimStageLabel('return', progress.stage)}`, content: review },
     { id: 'collection', number: 2, title: '회수 확인', label: '회수 확인', summary: collectionSummary, content: collection },
     { id: 'refund', number: 3, title: '환불 처리', label: '환불 처리', summary: progress.refundCompleted ? '환불 완료 시각 기록됨'
-      : progress.refundLedgerOpen ? progress.refundFiled ? '환불 접수 기록 있음 · 완료 시각 없음' : '환불 원장 열림 · 완료 시각 없음'
+      : progress.refundLedgerOpen ? progress.refundFiled ? '환불 접수 기록 있음 · 완료 시각 없음' : '환불 확인 전 · 완료 시각 없음'
         : '환불 기록 없음', content: refund },
     { id: 'hold', number: null, title: '보류 상태 · 필요 시 처리', label: '보류', summary: progress.stage === 'on_hold'
       ? `보류 중 · 보류 전 ${progress.heldFrom ? adminClaimStageLabel('return', progress.heldFrom) : '단계 확인 필요'}`

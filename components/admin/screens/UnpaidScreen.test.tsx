@@ -77,13 +77,16 @@ describe('UnpaidScreen', () => {
     expect(html.match(/data-tone="warning"/g)).toHaveLength(1);
   });
 
-  /* 사람 눈 판정(3라운드): 기한이 끝났거나 결제 확인이 필요한 줄에도 같은 모양의 '입금 확인'이 있어 눌러도 되는지 망설였다. */
-  it('기한 종료·결제 확인 필요 줄의 입금 확인은 평상 줄보다 낮춘다', () => {
+  /* 사람 눈 판정(3·4라운드): 색만 다르면 흰 버튼이 못 누르는 것처럼 보이고, 같은 말이면 눌러도 되는지 망설였다. 모양은 같게, 말로 구분한다. */
+  it('기한 종료·결제 확인 필요 줄은 같은 버튼이고 말만 "확인·처리"로 다르다', () => {
     const data = consoleData();
-    const link = (row: typeof data.rows[number]) => renderToStaticMarkup(<UnpaidScreen data={{ ...data, rows: [row] }} now={now} />).match(/<a[^>]*#unpaid-actions"[^>]*>입금 확인<\/a>/)?.[0] ?? '';
+    const link = (row: typeof data.rows[number]) => renderToStaticMarkup(<UnpaidScreen data={{ ...data, rows: [row] }} now={now} />).match(/<a[^>]*#unpaid-actions"[^>]*>[^<]*<\/a>/)?.[0] ?? '';
     expect(link(data.rows[0])).toContain('bg-primary-soft');
-    expect(link({ ...data.rows[0], expiresAt: '2026-08-17T23:00:00.000Z' })).not.toContain('bg-primary-soft');
-    expect(link({ ...data.rows[0], attemptState: 'needs_review' })).not.toContain('bg-primary-soft');
+    expect(link(data.rows[0])).toContain('>입금 확인<');
+    for (const row of [{ ...data.rows[0], expiresAt: '2026-08-17T23:00:00.000Z' }, { ...data.rows[0], attemptState: 'needs_review' as const }]) {
+      expect(link(row)).toContain('bg-primary-soft');
+      expect(link(row)).toContain('>확인·처리<');
+    }
   });
 
   /* 사람 눈 판정: 제일 급한 기한 종료가 보통 글씨로 지나갔다. */
@@ -91,7 +94,7 @@ describe('UnpaidScreen', () => {
     const data = consoleData();
     const html = renderToStaticMarkup(<UnpaidScreen data={{ ...data, rows: [{ ...data.rows[0], expiresAt: '2026-08-17T23:00:00.000Z' }] }} now={now} />);
     expect(html).toMatch(/data-tone="danger"[^>]*>기한 종료</);
-    expect(html).toMatch(/<a[^>]*href="\/admin\/sales\/unpaid\?order=[^"]*#unpaid-actions"[^>]*>입금 확인<\/a>/);
+    expect(html).toMatch(/<a[^>]*href="\/admin\/sales\/unpaid\?order=[^"]*#unpaid-actions"[^>]*>확인·처리<\/a>/);
   });
 
   /*

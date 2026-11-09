@@ -42,6 +42,7 @@ import { ClaimReshipmentDelivery } from './ClaimReshipmentDelivery';
 import { SellerClaimIntakeEvidence } from './SellerClaimIntakeEvidence';
 import { ClaimExchangeSteps, ClaimProgressSummary } from './ClaimProgressSummary';
 import { ClaimContactOperations } from '@/components/admin/ClaimContactOperations';
+import { adminPaymentCancelErrorLabel } from '@/lib/admin/payment-cancel-error';
 import { ClaimContactHistory } from '@/components/claim-contact/ClaimContactHistory';
 
 /* 어드민 클레임 상세(#252) — 템플릿 룩 kit Card(ADR-0028).
@@ -352,7 +353,7 @@ export function ClaimDetailScreen({
                 {claim.decisionNote ? <Row label="거부 사유" value={claim.decisionNote} /> : null}
                 {claim.holdReason ? <Row label="보류 사유" value={claim.holdReason} /> : null}
                 {claim.lastErrorCode ? (
-                  <Row label="결제사 확인 오류" value={claim.lastErrorCode} />
+                  <Row label="결제사 확인 오류" value={adminPaymentCancelErrorLabel(claim.lastErrorCode)} />
                 ) : null}
                 {claim.reshipTrackingNumber ? (
                   <Row

@@ -181,6 +181,11 @@ function OneLine({ value }: { value: string }) {
  * 1440 화면(표 폭 1,100px)에 유형을 뺀 열이 모두 들어오는 폭이다(합계 1,096px). 번호·금액·날짜는 값이 잘리지 않는 최소 폭이고,
  * 이름·사유처럼 긴 값만 잘린다. 유형은 세 목록 모두 값이 한 가지라(유형별 조회) 기본으로 숨긴다.
  */
+/** 환급 기한은 반품의 약관 기한이다. 취소·교환에서는 같은 칸이 처리 진행을 말한다. */
+function claimDeadlineLabel(claimType: OrderClaimType): string {
+  return claimType === 'return' ? '환급 기한' : '처리 기한';
+}
+
 function buildColumns(claimType: OrderClaimType, dateLabel: string): ColumnDef<DataTableFeatures, ClaimKitRow>[] {
   const typeLabel = ORDER_CLAIM_TYPE_LABELS[claimType];
   const { reason: reasonOptions, stage: stageOptions } = claimKitFilterOptions(claimType);
@@ -253,19 +258,29 @@ function buildColumns(claimType: OrderClaimType, dateLabel: string): ColumnDef<D
       meta: { label: dateLabel, variant: 'date', filter: 'range' },
       size: 140,
     },
-    { id: 'sla', accessorKey: 'slaLabel', enableSorting: false, header: '환급 기한', meta: { label: '환급 기한' }, cell: ({ row }) => <span className={SLA_TONE_CLASS} data-sla-tone={row.original.slaTone}>{row.original.slaLabel}</span>, size: 90 },
+    { id: 'sla', accessorKey: 'slaLabel', enableSorting: false, header: claimDeadlineLabel(claimType), meta: { label: claimDeadlineLabel(claimType) }, cell: ({ row }) => <span className={SLA_TONE_CLASS} data-sla-tone={row.original.slaTone}>{row.original.slaLabel}</span>, size: 90 },
     { id: 'refund', accessorKey: 'refund', enableSorting: false, header: '환불 수단', meta: { label: '환불 수단' }, cell: ({ row }) => row.original.refund ?? <span className="text-muted-foreground">미접수</span>, size: 86 },
     { id: 'handler', accessorKey: 'handler', enableSorting: false, header: '처리자', meta: { label: '처리자' }, cell: ({ row }) => row.original.handler ? <OneLine value={row.original.handler} /> : <span className="text-muted-foreground">미배정</span>, size: 76 },
   ];
 }
 
 /* 조회항목 설정의 열. 키는 기존 표(ClaimQueueScreen)와 같아, 같은 저장 키에서 운영자가 저장한 배치가 이어진다. */
-const PREFERENCE_COLUMNS: readonly ConsoleTableSettingsColumn[] = [
-  { key: 'reference', label: '요청번호' }, { key: 'order', label: '주문번호' }, { key: 'type', label: '유형', defaultVisible: false },
-  { key: 'reason', label: '사유' }, { key: 'stage', label: '상태' }, { key: 'buyer', label: '구매자' },
-  { key: 'amount', label: '주문금액' }, { key: 'requested', label: '접수일' }, { key: 'sla', label: '환급 기한' },
-  { key: 'refund', label: '환불 수단' }, { key: 'handler', label: '처리자' },
-];
+function preferenceColumnsFor(claimType: OrderClaimType): readonly ConsoleTableSettingsColumn[] {
+  return [
+    { key: 'reference', label: '요청번호' }, { key: 'order', label: '주문번호' }, { key: 'type', label: '유형', defaultVisible: false },
+    { key: 'reason', label: '사유' }, { key: 'stage', label: '상태' }, { key: 'buyer', label: '구매자' },
+    { key: 'amount', label: '주문금액' }, { key: 'requested', label: '접수일' },
+    /* 취소는 회수가 없어 기한 칸이 전부 '회수 없음'이고, 교환에는 환불이 없다 — 그 목록에서는 기본으로 숨긴다(조회항목 설정에서 켠다). */
+    { key: 'sla', label: claimDeadlineLabel(claimType), ...(claimType === 'cancel' ? { defaultVisible: false } : {}) },
+    { key: 'refund', label: '환불 수단', ...(claimType === 'exchange' ? { defaultVisible: false } : {}) },
+    { key: 'handler', label: '처리자' },
+  ];
+}
+const PREFERENCE_COLUMNS_BY_TYPE: Record<OrderClaimType, readonly ConsoleTableSettingsColumn[]> = {
+  cancel: preferenceColumnsFor('cancel'),
+  return: preferenceColumnsFor('return'),
+  exchange: preferenceColumnsFor('exchange'),
+};
 
 /**
  * 검색어는 조합이 끝난 뒤에만 확정한다. Dice UI의 텍스트 필터는 입력할 때마다 값을 올려 보내
@@ -395,7 +410,7 @@ export function ClaimQueueKitTable({
     hrefFor: (next) => adminClaimHref(claimType, claimKitFiltersFor(filters, next)),
     onRowSelectionChange: setSelection,
     pageCount: Math.max(1, Math.ceil(total / pageSize)),
-    preferenceColumns: PREFERENCE_COLUMNS,
+    preferenceColumns: PREFERENCE_COLUMNS_BY_TYPE[claimType],
     preferencesKey: `sales-claims-${claimType}`,
     rowSelection: selection,
     state: claimKitStateFor(filters, pageSize),
@@ -492,7 +507,7 @@ export function ClaimQueueKitTable({
           <KitDatePresets disabled={busy} from={filters.from} onSelect={onDatePreset} to={filters.to} />
         </>}
         table={table}
-        viewOptions={<ConsoleTableSettings columns={PREFERENCE_COLUMNS} onSave={savePreferences} preferences={preferences} />}
+        viewOptions={<ConsoleTableSettings columns={PREFERENCE_COLUMNS_BY_TYPE[claimType]} onSave={savePreferences} preferences={preferences} />}
       />
     </DataTable>
 

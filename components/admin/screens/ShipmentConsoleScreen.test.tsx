@@ -126,7 +126,7 @@ describe('배송 건 콘솔',()=>{
   /* 사람 눈 판정(3라운드): 위 카드는 빨간 지연인데 표는 전부 노란 'N일째 대기'라 어느 줄이 지연인지 몰랐다. 색은 카드와 같은 판정인 줄에만 쓰고 나머지 대기는 글자로 둔다. */
   expect(incoming).not.toMatch(/data-tone="[a-z]+"[^>]*>7일째 대기</);expect(incoming).toContain('>7일째 대기<');expect(incoming).toContain('>오늘 주문<');expect(incoming).not.toContain('내보내기 전');
   /* 진짜 상태인 발주확인 전은 날짜 밑 작은 글자가 아니라 상태로 보인다. */
-  expect(incoming).toMatch(/data-tone="neutral"[^>]*>발주확인 전</);
+  expect(incoming).toMatch(/data-tone="warning"[^>]*>발주확인 전</);
   const late=renderToStaticMarkup(<ShipmentConsoleScreen now={now} data={{...base,rows:[row]}}/>);
   expect(late).toMatch(/data-tone="danger"[^>]*>발송 지연 · 7일째</);
   const onTime=renderToStaticMarkup(<ShipmentConsoleScreen now={new Date('2026-09-09T02:00:00Z')} data={{...base,rows:[row]}}/>);

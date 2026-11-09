@@ -26,6 +26,7 @@ import {
   type OrderClaimType,
 } from '@/lib/orders/claims';
 import { AdminCountCard, type AdminCountTone } from '@/components/admin/console/AdminCountCard';
+import { Badge } from '@/components/admin/kit/ui/badge';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { SalesGuide, kstDayDiff } from '@/components/admin/sales/SalesConsole';
 import { statusTone } from '@/lib/admin/status-tone';
@@ -153,9 +154,9 @@ export function ClaimQueueKitScreen({
         </div>
         {/* 눌러야 할 것을 글이 아니라 버튼으로 먼저 보인다. 처리 막대는 체크한 뒤에야 화면 아래에 뜨므로 표 위에 말해 둔다. */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border bg-muted/40 px-3 py-2" data-claim-next-action="">
-          {nextStage !== null && !onNextStage ? <Link className={buttonVariants({ size: 'sm' })} data-slot="button" href={adminClaimHref(claimType, filters, { page: 1, sort: 'oldest', stage: nextStage })}>{adminClaimStageLabel(claimType, nextStage)} {(counts[nextStage] ?? 0).toLocaleString('ko-KR')}건 오래된 순으로 처리</Link> : null}
+          {nextStage !== null && !onNextStage ? <Link className={buttonVariants({ size: 'sm' })} data-slot="button" href={adminClaimHref(claimType, filters, { page: 1, sort: 'oldest', stage: nextStage })}>{adminClaimStageLabel(claimType, nextStage)} {(counts[nextStage] ?? 0).toLocaleString('ko-KR')}건 오래된 순으로 보기</Link> : null}
           {longestWait >= 1 ? <span className="font-medium whitespace-nowrap" title={total > rows.length ? '이 페이지에서 가장 오래 기다린 요청 기준입니다.' : undefined}>최장 대기 {longestWait}일째</span> : null}
-          <p className="text-xs text-muted-foreground">{onNextStage ? '맨 위 요청부터 ' : ''}요청번호를 누르면 이 자리에서 상세가 열려 처리합니다. 처리할 요청을 체크하면 화면 아래에 승인·검토중·거부 버튼이 나타납니다.</p>
+          <p className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground">{onNextStage ? '맨 위 요청부터 ' : ''}요청번호를 누르면 이 자리에서 상세가 열려 처리합니다. 여러 건은 체크하면 화면 아래에 {(['승인', '검토중', '거부'] as const).map((label) => <Badge key={label} variant="outline">{label}</Badge>)} 버튼이 나타납니다.</p>
         </div>
         <ClaimQueueKitTable
           claimType={claimType}
