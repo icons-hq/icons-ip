@@ -4,13 +4,14 @@ import { useRef, type ReactNode } from 'react';
 import { Check, ChevronDown } from 'lucide-react';
 import { adminClaimStageLabel } from '@/lib/admin/claims';
 import { orderClaimEffectiveStage, type OrderClaimStage } from '@/lib/orders/claims';
+import { CLAIM_STEP_MARK_CLASS } from './ClaimProgressSummary';
 
 /*
  * 단계 표시. 끝난 단계(초록 체크)·지금 단계(주 색)·남은 단계(회색 번호)를 모양과 글자로 나눈다.
  * 고대비 모드에서는 지금 단계가 윤곽선으로 남는다.
  */
 const STEP_BUTTON_CLASS = 'flex min-h-12 items-center gap-2 rounded-lg border bg-background px-2.5 py-1.5 text-left text-sm text-muted-foreground transition-colors outline-none hover:bg-muted hover:text-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 data-[step-state=current]:border-primary data-[step-state=current]:bg-primary-soft data-[step-state=current]:text-primary-soft-foreground data-[step-state=done]:text-foreground data-[step-state=optional]:border-dashed forced-colors:aria-[current=step]:outline-2 forced-colors:aria-[current=step]:outline-[Highlight]';
-const STEP_MARK_CLASS = 'inline-grid size-6 shrink-0 place-items-center rounded-full border text-xs font-semibold tabular-nums data-[step-state=current]:border-primary data-[step-state=current]:bg-primary data-[step-state=current]:text-primary-foreground data-[step-state=done]:border-success-border data-[step-state=done]:bg-success-soft data-[step-state=done]:text-success';
+const STEP_MARK_CLASS = CLAIM_STEP_MARK_CLASS;
 /* 접힌 단계도 인쇄에서는 내용이 보이게 한다. */
 const STEP_SECTION_CLASS = 'group/section min-w-0 rounded-lg border data-[step-state=current]:border-primary/50 data-[step-state=current]:bg-primary-soft/25 print:[&::details-content]:[content-visibility:visible]';
 

@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { SalesDisclosureCard, SalesFilterField, SalesFilterPanel, SalesGuide, SalesResultsHeader, SalesSelect, SalesStatusSummary } from './SalesConsole';
+import { SalesDisclosureCard, SalesFilterField, SalesFilterPanel, SalesGuide, SalesResultsHeader, SalesSelect, SalesStatusSummary, ShortId } from './SalesConsole';
 import { SalesDateRange } from './SalesDateRange';
 
 describe('sales filter and result forms', () => {
@@ -51,6 +51,22 @@ describe('sales filter and result forms', () => {
     expect(html).toMatch(/<button[^>]*type="submit"[^>]*>적용</);
   });
 
+  it('긴 식별값은 줄마다 달라지는 끝 8자를 보이고 전체 값은 title에 둔다', () => {
+    const html = renderToStaticMarkup(<ShortId value="c0000054-0000-4000-8000-00000000a1b2" />);
+    expect(html).toContain('>0000A1B2<');
+    expect(html).toContain('title="c0000054-0000-4000-8000-00000000a1b2"');
+  });
+  it('자주 쓰지 않는 조건은 접어 두되 값이 걸려 있으면 펼치고, 접혀도 입력은 검색에 함께 간다', () => {
+    const panel = (moreActive: boolean) => renderToStaticMarkup(<SalesFilterPanel currentHref="/admin/sales/orders" id="f" search={{ value: '', placeholder: '번호 · 이름' }} moreActive={moreActive} more={<SalesFilterField label="결제수단" htmlFor="pay"><SalesSelect id="pay" name="paymentMethod" options={[{ value: '', label: '전체' }]} /></SalesFilterField>} />);
+    const closed = panel(false);
+    expect(closed).toContain('name="paymentMethod"');
+    expect(closed).toMatch(/class="hidden"[^>]*data-sales-more-filters=""/);
+    expect(closed).toContain('aria-expanded="false"');
+    expect(panel(true)).toContain('aria-expanded="true"');
+    /* 한 줄로 끝나도록 입력칸 아래 안내는 눈에서 감추고 도움말로 둔다. */
+    expect(closed).toMatch(/class="sr-only"[^>]*>번호 · 이름</);
+    expect(closed).toContain('title="번호 · 이름"');
+  });
   it('keeps the operational guide folded by default without submitting or loading any action', () => {
     const html = renderToStaticMarkup(<SalesGuide title="반품 처리 안내"><p>회수 근거를 확인한 뒤 처리합니다.</p></SalesGuide>);
     expect(html).toMatch(/<details [^>]*data-sales-guide=""/);

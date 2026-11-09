@@ -32,11 +32,12 @@ import {
 import type { ShippingCarrierRegistry } from '@/lib/orders/shipment';
 import type { AdminClaimCollection, AdminClaimReshipItem } from '@/lib/admin/claims.server';
 import { AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
-import { Button } from '@/components/admin/kit/ui/button';
+import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { Label } from '@/components/admin/kit/ui/label';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
+import { ChevronDown } from 'lucide-react';
 import { ClaimOriginCollection } from './ClaimOriginCollection';
 import { ClaimHoldControl } from '@/components/admin/ClaimHoldControl';
 import { BankTransferRefund } from '@/components/admin/BankTransferRefund';
@@ -258,6 +259,12 @@ export interface ClaimActionPanelProps {
   refundAmount?: number | null;
   /** 처리 제목 바로 아래에 둘 요청 요약(교환이 무엇으로 바꾸려는지). */
   requestSummary?: ReactNode;
+  /** 교환: 처리 제목 아래의 단계 표시. */
+  exchangeSteps?: ReactNode;
+  /** 교환: 지금 할 일 다음에 이어지는 재출고·배송완료 처리. */
+  exchangeShipping?: ReactNode;
+  /** 교환: 필요할 때만 쓰는 처리(보류와 함께 맨 아래에 묶는다). */
+  secondaryActions?: ReactNode;
 }
 
 export function ClaimActionPanel({
@@ -282,6 +289,9 @@ export function ClaimActionPanel({
   returnRefundSummary,
   refundAmount = null,
   requestSummary = null,
+  exchangeSteps = null,
+  exchangeShipping = null,
+  secondaryActions = null,
 }: ClaimActionPanelProps) {
   const [result, panelAction, pending] = useActionState(runClaimPanelAction, EMPTY_STATE);
   /* 목록 위 팝업(R8)에서는 결제사 취소·환불 완료 확정을 기다리는 동안 팝업이 닫히지 않게 한다. */
@@ -346,14 +356,16 @@ export function ClaimActionPanel({
   const fixedRefundMethod = recordedRefundMethod ?? orderClaimRefundMethodForProvider(paymentProvider);
   const panelTitle = `${ORDER_CLAIM_TYPE_LABELS[claimType]} 처리`;
   const amountAtStake = refundAmount === null ? null : krw(refundAmount);
-  if (stage === 'withdrawn' && claimType !== 'return') return <div className="flex flex-col gap-2"><h3 className="text-base font-medium">{panelTitle}</h3><p>요청 철회로 처리가 종료됐습니다. 주문과 결제는 유지됩니다.</p></div>;
+  if (stage === 'withdrawn' && claimType !== 'return') return <div className="flex flex-col gap-2"><h3 className="text-base font-medium">{panelTitle}</h3><p>요청 철회로 처리가 종료됐습니다. 주문과 결제는 유지됩니다.</p>{secondaryActions ? <div className="flex min-w-0 flex-wrap items-start gap-2 [&>section]:w-full">{secondaryActions}</div> : null}</div>;
 
   const originCollection = <>
     {cancellationWithoutCollection ? <p className="text-muted-foreground">상품 회수가 필요하지 않은 취소입니다.</p> : collectionPolicy === 'origin' ? <section aria-label="출고지별 회수 확인" className="flex min-w-0 flex-col gap-3">
         <h4 className={SECTION_TITLE_CLASS}>출고지별 회수 확인</h4>
         <p>{collectionComplete && collections.length > 0
           ? '모든 출고지의 회수를 확인했습니다.'
-          : '모든 출고지의 상품과 수량을 회수 확인한 뒤 환불·재출고를 진행합니다.'}</p>
+          : claimType === 'exchange' && canApprove
+            ? '승인하면 아래 출고지에서 수거를 시작합니다. 상품이 돌아오면 출고지별로 회수를 확인한 뒤 재출고합니다.'
+            : '모든 출고지의 상품과 수량을 회수 확인한 뒤 환불·재출고를 진행합니다.'}</p>
         {collections.length ? collections.map((collection) => <ClaimOriginCollection
           key={collection.shipmentId} claimId={claimId} claimType={claimType}
           collection={collection} canRecord={canRecordOrigin} />)
@@ -585,6 +597,30 @@ export function ClaimActionPanel({
     refund={<>{stage !== 'withdrawn' ? refundControls : null}{returnRefundSummary}</>}
     exception={canReject && !canApprove ? rejectionForm : null}
   /></>;
+
+  /* 교환은 '지금 할 일'을 맨 위에 둔다. 승인 전에는 승인이 먼저라 회수 안내를 그 아래로 내리고, 거부는 승인과 나란한 선택이 아니라 펼쳐서 쓰는 다른 길로 둔다. 보류·유형 전환·사유 정정은 필요할 때만 쓰는 일이라 한 줄로 묶는다. */
+  if (claimType === 'exchange') {
+    const rejectionFold = canReject ? <details className="group/reject min-w-0" data-claim-reject-fold="">
+      <summary className={`${buttonVariants({ size: 'sm', variant: 'outline' })} cursor-pointer list-none text-destructive [&::-webkit-details-marker]:hidden`} data-slot="button">거부하기<ChevronDown aria-hidden="true" className="transition-transform group-open/reject:rotate-180" /></summary>
+      <div className="mt-2 rounded-lg border p-3">{rejectionForm}</div>
+    </details> : null;
+    return <div className="flex min-w-0 flex-col gap-4" data-claim-actions="">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <h3 className="text-base leading-snug font-medium">{panelTitle}</h3>
+        <p className="flex flex-wrap items-center gap-1.5 text-muted-foreground">현재 단계 <AdminStatusBadge tone={statusTone('claim', stage)}>{adminClaimStageLabel(claimType, stage)}</AdminStatusBadge></p>
+      </div>
+      {exchangeSteps}
+      <div aria-live="polite" className="flex flex-col gap-1" data-claim-action-result=""><Feedback state={result} /></div>
+      {requestSummary}
+      {/* 보류 중이면 보류 해제가 지금 할 일이다. */}
+      {canResume ? holdControl : null}
+      {canApprove ? <>{decisionForm}{rejectionFold}{originCollection}{legacyCollection}{refundControls}{exchangeShipping}</> : <>{originCollection}{legacyCollection}{refundControls}{exchangeShipping}{rejectionFold}</>}
+      {canHold || secondaryActions ? <section aria-label="필요할 때만 쓰는 처리" className="flex min-w-0 flex-col gap-2 border-t pt-3" data-claim-secondary-actions="">
+        <h4 className="text-xs font-medium text-muted-foreground">필요할 때만</h4>
+        <div className="flex min-w-0 flex-wrap items-start gap-2 [&>section]:w-full">{canHold ? holdControl : null}{secondaryActions}</div>
+      </section> : null}
+    </div>;
+  }
 
   return <div className="flex min-w-0 flex-col gap-4" data-claim-actions="">
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">

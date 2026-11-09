@@ -5,7 +5,8 @@ import { startTransition, useActionState, useState, type FormEvent } from 'react
 import { findPurchaseRestrictionCustomerAction, registerPurchaseRestrictionAction, releasePurchaseRestrictionAction,
   type RestrictionActionState, type RestrictionLookupState } from '@/app/admin/purchase-restriction-actions';
 import { PURCHASE_RESTRICTION_REASONS, type PurchaseRestrictionCustomer } from '@/lib/admin/purchase-restrictions';
-import { Button } from '@/components/admin/kit/ui/button';
+import { ChevronDown } from 'lucide-react';
+import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { Label } from '@/components/admin/kit/ui/label';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
@@ -42,8 +43,10 @@ function RegisterForm({ customer, requestId }: { customer: PurchaseRestrictionCu
 export function PurchaseRestrictionRegister() {
   const [state, action, pending] = useActionState<RestrictionLookupState, FormData>(findPurchaseRestrictionCustomerAction, {});
   const [query, setQuery] = useState('');
-  return <details className="group rounded-xl border bg-card px-4 py-3 text-card-foreground"><summary className="cursor-pointer font-medium">판매방해 고객 등록</summary>
-    <form method="post" onSubmit={event => submitPreservingFields(event, action)} className="mt-4 flex flex-wrap items-center gap-2.5">
+  /* 등록은 이 화면의 주 행동이라 목록 머리의 버튼으로 둔다. 펼치면 그 아래 줄을 다 차지한다. */
+  return <details className="group min-w-0 open:basis-full"><summary className={`${buttonVariants()} cursor-pointer list-none [&::-webkit-details-marker]:hidden`} data-slot="button">판매방해 고객 등록<ChevronDown aria-hidden="true" className="transition-transform group-open:rotate-180" /></summary>
+    <div className="mt-2 rounded-lg border p-4">
+    <form method="post" onSubmit={event => submitPreservingFields(event, action)} className="flex flex-wrap items-center gap-2.5">
       <Label htmlFor="restriction-customer-query">고객 ID 또는 이메일</Label><Input className="w-72 max-w-full" id="restriction-customer-query" name="customerQuery" maxLength={254} required value={query} onChange={event => setQuery(event.target.value)} placeholder="고객 ID 또는 정확한 이메일 주소" />
       <Button type="submit" variant="soft" disabled={pending}>{pending ? '조회 중…' : '고객 조회'}</Button>
     </form>
@@ -53,12 +56,14 @@ export function PurchaseRestrictionRegister() {
       {!state.customer.eligible ? <AdminNotice tone="warning">일반 고객 계정만 구매제한을 등록할 수 있습니다.</AdminNotice> : state.customer.activeRestrictionId ? <AdminNotice tone="warning">이미 구매제한 중인 고객입니다. 목록에서 기존 기록을 확인해주세요.</AdminNotice>
         : state.requestId ? <RegisterForm key={state.requestId} customer={state.customer} requestId={state.requestId} /> : null}
     </div> : null}
+    </div>
   </details>;
 }
 export function PurchaseRestrictionRelease({ restrictionId, customerName }: { restrictionId: string; customerName: string }) {
   const [state, action, pending] = useActionState(releasePurchaseRestrictionAction, {});
   const [reason, setReason] = useState('');
-  return <details className="text-sm"><summary className="cursor-pointer font-medium underline underline-offset-4">해제</summary>
+  /* 작은 글자 링크로 보이면 눌렀을 때 바로 풀리는지 알 수 없었다. 사유를 적는 칸이 펼쳐진다는 것을 화살표로 말한다. */
+  return <details className="group text-sm"><summary className={`${buttonVariants({ size: 'sm', variant: 'outline' })} cursor-pointer list-none [&::-webkit-details-marker]:hidden`} data-slot="button">해제<ChevronDown aria-hidden="true" className="transition-transform group-open:rotate-180" /></summary>
     <form method="post" onSubmit={event => submitPreservingFields(event, action)} className="mt-2 flex min-w-40 flex-col items-start gap-2">
       <input type="hidden" name="restrictionId" value={restrictionId} />
       <label className={FIELD}><span>해제 사유</span><Textarea name="reason" required maxLength={200} rows={2} value={reason} onChange={event => setReason(event.target.value)} aria-label={`${customerName} 구매제한 해제 사유`} /></label>

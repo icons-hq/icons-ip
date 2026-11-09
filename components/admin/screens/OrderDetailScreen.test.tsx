@@ -75,6 +75,41 @@ describe('주문 상세', () => {
     expect(html).toContain('결제 대기 주문 자동 취소 (재주문·장바구니 복귀)');
     expect(html).toContain('장바구니 보류 해제 (결제 확인 필요 주문)');
   });
+  /* 사람 눈 판정: 뭘 샀는지가 화면 아래 글머리 한 줄이었고, 금액은 나열만 돼 최종 결제금액 줄이 없었다. */
+  it('주문 상품을 맨 위 표로 보이고 금액 칸은 최종 결제금액으로 끝난다', () => {
+    const html = renderToStaticMarkup(<OrderDetailScreen detail={detail} noteOperationId="operation" />);
+    expect(html.indexOf('>주문 상품<')).toBeLessThan(html.indexOf('>주문 정보<'));
+    expect(html).toMatch(/<th[^>]*>상품명<\/th><th[^>]*>옵션<\/th>/);
+    const facts = html.slice(html.indexOf('>주문 정보<'), html.indexOf('>배송 정보<'));
+    expect(facts).toContain('상품 금액'); expect(facts).toContain('−₩200');
+    expect(facts.indexOf('적립금 사용')).toBeLessThan(facts.indexOf('최종 결제금액'));
+    /* 품목 합과 맞지 않으면 틀린 상품 금액을 지어내지 않는다. */
+    expect(renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, order: { ...detail.order, total: 9999 } }} noteOperationId="operation" />)).not.toContain('상품 금액');
+  });
+  /* 사람 눈 판정: 운송장이 없다고 경고하면서 제일 눈에 띄는 버튼은 배송완료였다. */
+  it('운송장이 빠진 배송 건이 있으면 주 버튼과 경고가 운송장 등록을 말한다', () => {
+    const html = renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, shipments: [shipmentFixture({ status: 'shipping', trackingNumber: null } as never)] }} noteOperationId="operation" />);
+    expect(html).toContain('주문 처리 · 운송장 등록'); expect(html).not.toContain('주문 처리 · 배송완료');
+    const notice = html.slice(html.indexOf('data-admin-notice="warning"'));
+    expect(notice).toMatch(/운송장이 없는 배송 건이 1건/); expect(notice).toMatch(/<a[^>]*#sales-order-detail"[^>]*>운송장 등록</);
+    expect(html.indexOf('data-admin-notice="warning"')).toBeLessThan(html.indexOf('>주문 상품<'));
+  });
+  /* 사람 눈 판정: 취소 건에서 제일 궁금한 돈 이야기가 회색 작은 글씨였다. */
+  it('취소 주문은 머리 아래에 환불 상태와 취소 경위를 말한다', () => {
+    const canceled = { ...detail.order, status: 'canceled' as const };
+    const payment = (status: string) => ({ id: 'pay', source: 'payment' as const, occurredAt: '2026-09-01T00:30:00Z', action: 'recorded', status, amount: 12800 });
+    const cancelLog = { id: 'log', source: 'status' as const, occurredAt: '2026-09-02T01:00:00Z', action: 'admin.order.cancellation_completed', actorName: '지우', toStatus: 'canceled' };
+    const render = (timeline: AdminOrderDetail['timeline']) => renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, order: canceled, timeline }} noteOperationId="operation" />);
+    const unpaid = render([]);
+    expect(unpaid).toContain('결제 전에 취소된 주문이라 환불할 금액이 없습니다');
+    expect(unpaid).toMatch(/data-admin-notice="neutral"/); expect(unpaid).toContain('>주문금액<');
+    const paid = render([payment('paid')]);
+    expect(paid).toMatch(/data-admin-notice="warning"[\s\S]*결제 기록은 있는데 환불 기록이 없습니다/); expect(paid).toContain('>결제금액<');
+    expect(render([payment('canceled')])).toContain('결제가 취소된 주문입니다');
+    expect(render([payment('paid'), cancelLog])).toContain('취소 2026. 9. 2. 10:00 · 지우');
+    /* 끝난 주문에는 배송지 수정 버튼을 두지 않는다. */
+    expect(unpaid).not.toContain('배송지 수정');
+  });
   /* MD 판정: 현재 상태가 작은 회색 글자였고, '주문 처리'가 무슨 동작인지 알 수 없었다. */
   it('머리에 현재 상태 배지를 두고 주문 처리 버튼이 지금 이어서 할 일을 말한다', () => {
     const paid = renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, order: { ...detail.order, status: 'paid' } }} noteOperationId="operation" />);

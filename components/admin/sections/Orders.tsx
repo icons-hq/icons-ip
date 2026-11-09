@@ -76,7 +76,7 @@ import { Input } from '@/components/admin/kit/ui/input';
 import { Label } from '@/components/admin/kit/ui/label';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
-import { ChevronDown } from 'lucide-react';
+import { Ban, BadgeCheck, ChevronDown, ClipboardCheck, Hourglass, ListChecks, PackageCheck, Truck, type LucideIcon } from 'lucide-react';
 
 /*
  * 주문 통합검색 — 템플릿 룩(ADR-0028). 조회 조건·처리 동선·열 구성·확인 문구는 그대로이고, 화면을 kit 부품과
@@ -102,6 +102,17 @@ const STATUS_OPTIONS: Array<{ value: AdminOrderFilters['status']; label: string 
     label: ADMIN_ORDER_STATUS_LABELS[status],
   })),
 ];
+
+/* 건수 카드는 색을 아끼는 대신 모양으로 단계를 나눈다. 신규주문만 주의색 카드의 기본 아이콘을 쓴다. */
+const STATUS_CARD_ICONS: Partial<Record<AdminOrderFilters['status'], LucideIcon>> = {
+  all: ListChecks,
+  pending: Hourglass,
+  confirmed: ClipboardCheck,
+  shipping: Truck,
+  delivered: PackageCheck,
+  done: BadgeCheck,
+  canceled: Ban,
+};
 
 const EMPTY_ACTION_STATE: AdminOrderActionState = {};
 
@@ -823,15 +834,17 @@ function OrderFilters({ filters }: { filters: AdminOrderFilters }) {
   return (
     <SalesFilterPanel currentHref={adminOrdersHref(filters)} id="sales-orders"
       date={{ from: filters.from, to: filters.to, field: filters.dateField ?? 'ordered', options: SALES_DATE_FIELDS }}
-      search={{ value: filters.query, field: filters.field, options: ADMIN_ORDER_SEARCH_FIELDS, placeholder: '검색어 입력' }}>
-      <SalesFilterField label="주문상태" htmlFor="sales-orders-status">
-        <SalesSelect id="sales-orders-status" name="status" value={filters.status} options={STATUS_OPTIONS} />
-      </SalesFilterField>
-      <SalesFilterField label="결제수단" htmlFor="sales-orders-payment">
-        <SalesSelect id="sales-orders-payment" name="paymentMethod" value={filters.paymentMethod ?? ''}
-          options={[{value:'',label:'전체'},{value:'card',label:'카드'},{value:'bank_transfer',label:'무통장 입금'}]} />
-      </SalesFilterField>
-    </SalesFilterPanel>
+      search={{ value: filters.query, field: filters.field, options: ADMIN_ORDER_SEARCH_FIELDS, placeholder: '검색어 입력' }}
+      moreActive={Boolean(filters.paymentMethod)}
+      more={<>
+        <SalesFilterField label="주문상태" htmlFor="sales-orders-status">
+          <SalesSelect id="sales-orders-status" name="status" value={filters.status} options={STATUS_OPTIONS} />
+        </SalesFilterField>
+        <SalesFilterField label="결제수단" htmlFor="sales-orders-payment">
+          <SalesSelect id="sales-orders-payment" name="paymentMethod" value={filters.paymentMethod ?? ''}
+            options={[{value:'',label:'전체'},{value:'card',label:'카드'},{value:'bank_transfer',label:'무통장 입금'}]} />
+        </SalesFilterField>
+      </>} />
   );
 }
 
@@ -1125,6 +1138,21 @@ function OrderDetail({
   );
 }
 
+/** 상품 칸은 대표 상품(두 줄까지) + 외 N건이다 — 품목 수에 따라 줄 높이가 들쭉날쭉하면 목록을 훑을 수 없다. 전체 품목은 title과 화면 낭독기로 읽는다. */
+function OrderItemsCell({ items }: { items: AdminOrderRecord['items'] }) {
+  const [first, ...others] = items;
+  if (!first) return <span className="text-muted-foreground">-</span>;
+  const line = (item: AdminOrderRecord['items'][number]) => `${item.name}${item.variantName ? ` · ${item.variantName}` : ''}`;
+  return <div className="flex min-w-48 items-baseline gap-1.5" title={items.map(line).join('\n')}>
+    <span className="line-clamp-2 min-w-0 flex-1">{line(first)}</span>
+    {others.length ? <span aria-hidden="true" className="shrink-0 text-xs whitespace-nowrap text-muted-foreground">외 {others.length}건</span> : null}
+    <ul className="sr-only">
+      {others.map((item) => <li key={item.id}>{line(item)}</li>)}
+      {items.map((item) => <li key={`inputs-${item.id}`}><GoodsCustomInputsSummary selection={item.customInputs} /></li>)}
+    </ul>
+  </div>;
+}
+
 export function OrdersSection({ data, canManage = true }: { data: AdminOrderConsoleData; canManage?: boolean }) {
   const [selection, setSelection] = useState<string[]>([]);
   const [bulkState, bulkAction, bulkPending] = useActionState(bulkConfirmAdminOrdersAction, EMPTY_ACTION_STATE);
@@ -1134,15 +1162,15 @@ export function OrdersSection({ data, canManage = true }: { data: AdminOrderCons
   const currentHref = adminOrdersHref(data.filters);
   const eligible = new Set(data.items.filter((order) => canManage && order.status === 'paid' && !openCancellationRequest(order)).map((order) => order.id));
   const selectedIds = selection.filter((id) => eligible.has(id));
-  /* 1440 화면(표 폭 약 1,100px)에 상품명·금액·처리 링크까지 들어오게 나눈다. 진행 중인 요청과 수취인명은 맨 뒤로 보낸다. */
+  /* 1440 화면(표 폭 약 1,100px)에 진행 중인 요청까지 잘리지 않고 들어오게 나눈다. 수취인명은 조회항목 설정에서 켠다. */
   const columns: ConsoleGridColumn[] = [
     {key:'reference',label:'주문번호',width:'164px'}, {key:'status',label:'주문상태',width:'98px'},
     {key:'items',label:'상품명 / 옵션'},
     {key:'total',label:'결제금액',width:'100px',align:'end'}, {key:'qty',label:'수량',width:'52px',align:'end'},
     {key:'ordered',label:'주문일시',width:'150px'}, {key:'buyer',label:'구매자명',width:'88px'},
     {key:'detail',label:canManage?'주문 처리':'주문 상세',width:'80px'},
-    {key:'claim',label:'취소·반품·교환',width:'116px'},
-    {key:'recipient',label:'수취인명',width:'80px'},
+    {key:'claim',label:'취소·반품·교환',width:'104px'},
+    {key:'recipient',label:'수취인명',width:'80px',defaultVisible:false},
   ];
   const rows = data.items.map((order) => {
     const request = canManage ? openCancellationRequest(order) : null;
@@ -1150,11 +1178,11 @@ export function OrdersSection({ data, canManage = true }: { data: AdminOrderCons
       <Link key="reference" className="font-medium tabular-nums underline-offset-4 hover:underline" href={adminOrderDetailHref(order.id,data.filters)} target="_blank" rel="noopener noreferrer"
         aria-label={`주문 ${orderReferenceLabel(order.id, order.orderNumber)} 상세 열기 (새 탭)`}>{orderReferenceLabel(order.id, order.orderNumber)}</Link>,
       <OrderStatusBadge key="status" status={order.status} title={order.status==='done'?ADMIN_VOCABULARY.settledHint:undefined} />,
-      <ul key="items" className="flex min-w-68 flex-col gap-0.5">{order.items.map(item=><li key={item.id}>{item.name}{item.variantName?` · ${item.variantName}`:''}<GoodsCustomInputsSummary selection={item.customInputs} /></li>)}</ul>,
+      <OrderItemsCell items={order.items} key="items" />,
       formatKrwExact(order.total), order.items.reduce((qty,item)=>qty+item.qty,0),
       <time key="created" className="tabular-nums whitespace-nowrap" dateTime={order.createdAt}>{formatOrderDateTime(order.createdAt)}</time>,
       <span key="buyer">{order.buyerName}</span>,
-      <Link key="detail" className="font-medium underline-offset-4 hover:underline" aria-label={`주문 ${orderReferenceLabel(order.id, order.orderNumber)} 선택${request?` · ${cancellationReasonAccessibleName(request)}`:''}`} href={`${adminOrdersHref(data.filters,{orderId:order.id})}#sales-order-detail`}>{canManage ? '상세·처리' : '상세 보기'}</Link>,
+      <Link key="detail" className="font-medium underline-offset-4 hover:underline" aria-label={`${canManage ? '상세·처리' : '상세 보기'} 주문 ${orderReferenceLabel(order.id, order.orderNumber)}${request?` · ${cancellationReasonAccessibleName(request)}`:''}`} href={`${adminOrdersHref(data.filters,{orderId:order.id})}#sales-order-detail`}>{canManage ? '상세·처리' : '상세 보기'}</Link>,
       request?<div key="claim" className="flex flex-col items-start gap-1"><Link className="inline-flex flex-wrap items-center gap-1 underline-offset-4 hover:underline" href={`/admin/sales/claims/${ORDER_CLAIM_TYPE_SLUGS[request.claimType]}/${request.id}`}>{ORDER_CLAIM_TYPE_LABELS[request.claimType]} <AdminStatusBadge tone={statusTone('claim', request.stage)}>{adminClaimStageLabel(request.claimType, request.stage)}</AdminStatusBadge></Link><CancellationReasonBadge row request={request}/></div>:'-',
       <span key="recipient">{order.address?.recipientName??'-'}</span>,
     ]};
@@ -1197,11 +1225,16 @@ export function OrdersSection({ data, canManage = true }: { data: AdminOrderCons
 
   return (
     <section className="flex min-w-0 flex-col gap-4 text-sm" data-admin-orders="">
-      <OrderViewTabs filters={data.filters} view="orders" />
-      <SalesGuide title="주문 검색과 주문별 결제·배송·요청 내역을 확인할 수 있습니다.">
-        <p>{canManage ? '주문번호를 누르면 상세 정보를 새 탭으로 엽니다. 신규주문은 선택하여 발주확인할 수 있으며, 발송과 배송완료는 출고지별 배송건을 확인해 처리합니다.' : '주문번호를 누르면 주문과 배송 정보를 조회할 수 있습니다.'}</p>
-      </SalesGuide>
-      <SalesStatusSummary label="주문 처리 단계" items={STATUS_OPTIONS.map(option=>({label:option.label,active:data.filters.status===option.value,tone:option.value==='paid'?'warning' as const:undefined,
+      {/* 조회 단위와 메뉴설명을 한 줄에 두어 표가 첫 화면에 더 들어오게 한다. */}
+      <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
+        <OrderViewTabs filters={data.filters} view="orders" />
+        <div className="min-w-0 flex-1 basis-80">
+          <SalesGuide title="주문 검색과 주문별 결제·배송·요청 내역을 확인할 수 있습니다.">
+            <p>{canManage ? '주문번호를 누르면 상세 정보를 새 탭으로 엽니다. 신규주문은 선택하여 발주확인할 수 있으며, 발송과 배송완료는 출고지별 배송건을 확인해 처리합니다.' : '주문번호를 누르면 주문과 배송 정보를 조회할 수 있습니다.'}</p>
+          </SalesGuide>
+        </div>
+      </div>
+      <SalesStatusSummary hideLabel label="주문 처리 단계" items={STATUS_OPTIONS.map(option=>({label:option.label,active:data.filters.status===option.value,tone:option.value==='paid'?'warning' as const:undefined,icon:STATUS_CARD_ICONS[option.value],
         count:option.value==='all'?(data.counts?Object.values(data.counts).reduce((sum,value)=>sum+value,0):undefined):data.counts?.[option.value],
         href:adminOrdersHref(data.filters,{status:option.value,page:1,orderId:null})}))}/>
       <OrderFilters filters={data.filters} />
@@ -1225,7 +1258,7 @@ export function OrdersSection({ data, canManage = true }: { data: AdminOrderCons
             selectedIds={selectedIds} onSelectionChange={setSelection} emptyLabel="조건에 맞는 주문이 없습니다.">
             {canManage ? <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2 print:hidden" data-sales-workbar="">
               <span className="text-muted-foreground tabular-nums">{selectedIds.length}건 선택</span>
-              <Button disabled={bulkPending||selectedIds.length===0} size="sm" type="submit">{bulkPending?'처리 중…':'선택 주문 발주확인'}</Button>
+              <Button disabled={bulkPending||selectedIds.length===0} size="sm" title={selectedIds.length===0?'왼쪽 체크칸에서 신규주문을 고르면 누를 수 있습니다.':undefined} type="submit">{bulkPending?'처리 중…':'선택 주문 발주확인'}</Button>
               <span className="text-xs text-muted-foreground">체크칸은 발주확인할 수 있는 신규주문에만 있습니다.</span>
               <ActionFeedback state={bulkState}/>
               <span className="ml-auto flex items-center gap-2"><Link className={LINK_BUTTON} data-slot="button" href="/admin/sales/dispatch">발송관리</Link><Link className={LINK_BUTTON} data-slot="button" href="/admin/sales/shipping">배송현황</Link></span>

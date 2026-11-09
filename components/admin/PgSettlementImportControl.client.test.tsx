@@ -43,8 +43,9 @@ it('offers a full server reload after a confirmed conflict even when the lost cr
   expect(mocks.start.mock.calls[1]).toEqual(mocks.start.mock.calls[0]); expect(mocks.advance).not.toHaveBeenCalled();
 });
 it('stops before the next page when requested and never fetches with a disabled connection', async () => {
-  const disconnected = all(render(false)).find(isButton); expect(disconnected?.props.disabled).toBe(true);
-  disconnected?.props.onClick?.(); await settle(); expect(mocks.start).not.toHaveBeenCalled();
+  /* 연결이 꺼져 있으면 누를 버튼 자체를 그리지 않는다(화면에서 켤 수 없으므로 안내 문구로 대신한다). */
+  expect(all(render(false)).find(isButton)).toBeUndefined();
+  expect(mocks.start).not.toHaveBeenCalled();
   let finish!: (result: unknown) => void;
   mocks.start.mockResolvedValue({ ok: true, kind: 'created', job }); mocks.advance.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
   button('자료 가져오기').props.onClick?.(); await settle();

@@ -182,6 +182,48 @@ describe('ClaimDetailScreen', () => {
     expect(render()).not.toContain('data-claim-exchange-request');
   });
 
+  /* 사람 눈 판정: '회수 확인한 뒤'라는 글 바로 밑이 '승인하고 수거 시작'이라 무엇이 먼저인지 망설였고, 보류·전환·정정이 같은 버튼으로 쌓여 전부 해야 하는 일처럼 보였다. */
+  describe('교환 처리 칸', () => {
+    const requested = { ...detail().claim, claimType: 'exchange' as const, stage: 'requested' as const, collectedAt: null, collectionPolicy: 'origin' as const, collectionComplete: false,
+      collections: [{ shipmentId: 'ship', originId: 'origin', originName: '김포', returnAddress: '김포시', items: [{ orderItemId: 'item', name: '아크릴 블록', qty: 2 }], collectedAt: null, collectedBy: null, collectorName: null, evidence: null }] };
+    it('승인이 먼저임을 순서와 문구로 보이고 지금 단계를 표시한다', () => {
+      const html = render({ claim: requested });
+      const panel = html.slice(html.indexOf('id="claim-process"'));
+      expect(panel).toContain('data-claim-exchange-steps');
+      expect(panel).toMatch(/aria-current="step"[^>]*>(?:(?!<\/li>)[\s\S])*지금 할 일(?:(?!<\/li>)[\s\S])*검토·승인/);
+      expect(panel.indexOf('value="approve"')).toBeLessThan(panel.indexOf('출고지별 회수 확인'));
+      expect(panel).toContain('승인하면 아래 출고지에서 수거를 시작합니다.');
+    });
+    it('거부는 펼쳐서 쓰고 보류·전환·정정은 필요할 때만 묶음으로 뺀다', () => {
+      const panel = render({ claim: requested });
+      expect(panel).toMatch(/<details[^>]*data-claim-reject-fold=""/);
+      const secondary = panel.slice(panel.indexOf('data-claim-secondary-actions'));
+      for (const label of ['교환 보류 설정', '반품·교환 전환 및 이력', '교환 사유 정정 및 이력']) expect(secondary).toContain(label);
+      expect(panel.indexOf('value="approve"')).toBeLessThan(panel.indexOf('data-claim-secondary-actions'));
+    });
+    it('고객 글과 접수 사유가 달라도 반송비를 누가 내는지 처리 칸에서 읽는다', () => {
+      const box = render({ claim: requested });
+      expect(box.slice(box.indexOf('data-claim-exchange-request'))).toContain('접수 사유 단순 변심 · 반송비 이용자 부담');
+    });
+    it('회수를 기다리는 단계에서는 회수 확인이 먼저고, 끝난 단계는 체크로 보인다', () => {
+      const panel = render({ claim: { ...requested, stage: 'collecting' } });
+      expect(panel).toMatch(/aria-current="step"[^>]*>(?:(?!<\/li>)[\s\S])*회수 확인/);
+      expect(panel).toMatch(/data-step-state="done"(?:(?!<\/li>)[\s\S])*검토·승인/);
+    });
+    it('철회된 교환에도 이력 진입은 그대로 남는다', () => {
+      const panel = render({ claim: { ...requested, stage: 'withdrawn' } });
+      expect(panel).toContain('요청 철회로 처리가 종료');
+      expect(panel).toContain('교환 사유 정정 및 이력');
+      expect(panel).not.toContain('data-claim-exchange-steps');
+    });
+    it.each(['cancel', 'return'] as const)('%s 처리 칸의 모양은 바꾸지 않는다', (claimType) => {
+      const html = render({ claim: { ...requested, claimType } });
+      expect(html).not.toContain('data-claim-exchange-steps');
+      expect(html).not.toContain('data-claim-reject-fold');
+      expect(html).not.toContain('data-claim-secondary-actions');
+    });
+  });
+
   it('운영 확인액은 선택 입력임을 밝히고 접은 채로 그린다', () => {
     const html = render();
     expect(html).toMatch(/운영 확인액<\/h3><span[^>]*>선택 입력</);
@@ -391,7 +433,7 @@ describe('ClaimDetailScreen', () => {
   it('이미 개봉된 카드팩이 회수되지 않는다는 사실을 알린다', () => {
     const html = render();
 
-    expect(html).toContain('뽑기권 발급');
+    expect(html).toContain('카드팩 발급'); /* 뽑기권의 화면 표기는 카드팩이다(CONTEXT.md). */
     expect(html).toContain('회수되지 않습니다');
   });
 
