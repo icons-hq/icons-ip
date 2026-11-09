@@ -2,14 +2,15 @@
 
 import Link from 'next/link';
 import { useActionState } from 'react';
-import { RotateCw } from 'lucide-react';
+import { ArrowRight, RotateCw } from 'lucide-react';
 import { resendOrderEmailAction, type AdminOrderActionState } from '@/app/admin/order-actions';
 import type { EmailDeliveryRecord } from '@/lib/email/deliveries.server';
 import { Button } from '@/components/admin/kit/ui/button';
+import { Table, TableBody, TableCell, TableHead, TableRow } from '@/components/admin/kit/ui/table';
 import { statusTone } from '@/lib/admin/status-tone';
 import { AdminNotice, AdminPageHeader, AdminStatusBadge } from '../console/AdminKit';
-import { ADMIN_COUNT_CARD_GRID_CLASS, AdminCountCard } from '../console/AdminCountCard';
-import { ConsoleListCard } from '../console/ConsoleListCard';
+import { AdminCountCard } from '../console/AdminCountCard';
+import { CONSOLE_TABLE_FRAME_CLASS, ConsoleListCard, ConsoleTableHeader } from '../console/ConsoleListCard';
 
 /* 트랜잭션 메일 발송 이력(#180 범위 5).
  *
@@ -44,23 +45,26 @@ function statusLabel(status: EmailDeliveryRecord['status']) {
 
 /*
  * 제목·받는 사람·실패 사유 원문은 개인정보 보호로 DB가 돌려주지 않는다(legacy_*·masked, 20260813240000).
- * 코드를 그대로 내보이지 않고, 값이 있을 때만 보인다. 메일 종류는 줄 제목(templateLabel)이 말한다.
+ * 코드를 그대로 내보이지 않고, 값이 있을 때만 보인다. 제목이 없으면 그 메일이 무슨 안내인지로 칸을 채운다.
  */
 const isProtectedValue = (value: string) => value === 'masked' || value.startsWith('legacy_');
 
-function failureReason(lastError: string) {
-  return isProtectedValue(lastError) ? '상세 사유는 개인정보 보호로 저장하지 않습니다.' : lastError;
-}
+const TEMPLATE_SUMMARY: Record<EmailDeliveryRecord['template'], string> = {
+  order_confirmation: '주문 접수·계약내용 안내',
+  order_shipped: '상품 발송 안내',
+  inquiry_answered: '문의 답변 등록 안내',
+  restock_alert: '재입고 안내',
+};
+
+/** 문의 답변 메일이 실패한 줄 — 버튼 없이 사람이 직접 처리할 일이 있는 유일한 경우다(재발송 경로는 답변을 다시 등록하는 것이다). */
+const needsInquiryReply = (delivery: EmailDeliveryRecord) => !delivery.resendable && delivery.status === 'failed' && delivery.template === 'inquiry_answered';
 
 /** 다시 보낼 수 없는 이유 — 메일 종류마다 다르다. */
 function notResendableReason(delivery: EmailDeliveryRecord) {
-  if (delivery.template === 'inquiry_answered') {
-    /* 문의 답변 메일은 주문 상태로 사실성을 판정할 수 없어 게이트가 거절한다. 재발송 경로는 답변을 다시 등록하는 것이다. */
-    return '이 메일은 발송 이력에서 다시 보낼 수 없습니다. 1:1 문의 화면에서 답변을 다시 등록해주세요.';
-  }
-  if (delivery.template === 'restock_alert') return '재입고 알림 메일은 발송 이력에서 다시 보낼 수 없습니다.';
+  if (delivery.template === 'inquiry_answered') return '발송 결과를 확인하는 중입니다';
+  if (delivery.template === 'restock_alert') return '재입고 알림 메일은 다시 보낼 수 없습니다';
   /* 주문 메일인데 대상 주문을 키에서 되찾지 못한 기록. 엉뚱한 주문으로 보내지 않도록 버튼을 만들지 않는다. */
-  return '이 기록은 대상 주문을 확인할 수 없어 발송 이력에서 다시 보낼 수 없습니다.';
+  return '대상 주문을 확인할 수 없어 다시 보낼 수 없습니다';
 }
 
 function ResendForm({ delivery }: { delivery: EmailDeliveryRecord }) {
@@ -69,7 +73,7 @@ function ResendForm({ delivery }: { delivery: EmailDeliveryRecord }) {
   return (
     <form action={action} className="flex flex-wrap items-center gap-x-3 gap-y-2">
       <input name="dedupeKey" type="hidden" value={delivery.dedupeKey} />
-      <Button disabled={pending} size="sm" type="submit" variant="soft">
+      <Button disabled={pending} size="sm" type="submit" variant={delivery.status === 'failed' ? 'soft' : 'outline'}>
         <RotateCw aria-hidden="true" /> {pending ? '보내는 중' : '다시 보내기'}
       </Button>
       {state.errors?.form ? (
@@ -82,6 +86,20 @@ function ResendForm({ delivery }: { delivery: EmailDeliveryRecord }) {
   );
 }
 
+/** 다음 행동 칸. 사람이 할 일이 있는 줄만 주의색으로 세우고, 할 수 있는 일이 없는 줄은 이유만 조용히 적는다 — 실패 건을 보고 뭘 할지 바로 잡히게. */
+function NextAction({ delivery }: { delivery: EmailDeliveryRecord }) {
+  if (delivery.resendable) return <ResendForm delivery={delivery} />;
+  /* 대상 문의를 찾을 식별값(메시지 id뿐)이 없어 링크를 만들지 않는다 — 문구로만 안내한다. */
+  if (needsInquiryReply(delivery)) {
+    return (
+      <span className="inline-flex items-start gap-1.5 font-semibold text-warning">
+        <ArrowRight aria-hidden="true" className="mt-0.5 size-4 shrink-0" />1:1 문의 화면에서 답변을 다시 등록해주세요
+      </span>
+    );
+  }
+  return <span className="text-muted-foreground">{notResendableReason(delivery)}</span>;
+}
+
 export function EmailDeliverySection({ deliveries }: { deliveries: EmailDeliveryRecord[] }) {
   const failed = deliveries.filter((delivery) => delivery.status === 'failed');
   const pending = deliveries.filter((delivery) => delivery.status === 'pending');
@@ -89,6 +107,9 @@ export function EmailDeliverySection({ deliveries }: { deliveries: EmailDelivery
   const ordered = [...failed, ...deliveries.filter((delivery) => delivery.status !== 'failed')];
   const resendableFailed = failed.filter((delivery) => delivery.resendable);
   const failedConfirmation = resendableFailed.some((delivery) => delivery.template === 'order_confirmation');
+  /* 줄마다 되풀이하던 안내는 표 위에 한 번만 둔다. 해당하는 기록이 있을 때만 말한다. */
+  const redactedReason = deliveries.some((delivery) => delivery.lastError !== null && isProtectedValue(delivery.lastError));
+  const detachedRecord = deliveries.some((delivery) => !delivery.orderId && isProtectedValue(delivery.recipient));
 
   return (
     <section className="flex min-w-0 flex-col gap-4">
@@ -98,13 +119,11 @@ export function EmailDeliverySection({ deliveries }: { deliveries: EmailDelivery
       />
 
       {deliveries.length ? (
-        <div className="flex flex-col gap-1.5" data-email-delivery-summary="">
-          <div className={ADMIN_COUNT_CARD_GRID_CLASS}>
-            <AdminCountCard count={failed.length} label="발송 실패" tone="danger" />
-            <AdminCountCard count={pending.length} label="발송 확인 중" tone="info" />
-            <AdminCountCard count={resendableFailed.length} icon={RotateCw} label="지금 다시 보낼 수 있음" tone="warning" />
-          </div>
-          <p className="text-xs text-muted-foreground">최근 {deliveries.length.toLocaleString('ko-KR')}건 기준입니다. 실패한 건을 먼저 보여줍니다.</p>
+        /* 세 칸이 화면을 나눠 가져 긴 이름도 잘리지 않는다(좁은 화면에서는 긴 이름의 마지막 카드만 한 줄을 쓴다). */
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 max-sm:[&>:last-child]:col-span-2" data-email-delivery-summary="">
+          <AdminCountCard count={failed.length} label="발송 실패" tone="danger" />
+          <AdminCountCard count={pending.length} label="발송 확인 중" tone="info" />
+          <AdminCountCard count={resendableFailed.length} icon={RotateCw} label="지금 다시 보낼 수 있음" tone="warning" />
         </div>
       ) : null}
 
@@ -115,46 +134,65 @@ export function EmailDeliverySection({ deliveries }: { deliveries: EmailDelivery
         </AdminNotice>
       ) : failed.length && !resendableFailed.length ? (
         <AdminNotice tone="neutral" title="지금 이 화면에서 다시 보낼 수 있는 메일이 없습니다.">
-          아래 실패 기록은 줄마다 적힌 이유로 여기서 다시 보낼 수 없습니다.
+          {failed.some(needsInquiryReply) ? '표의 다음 행동 칸에 주황색으로 적힌 일만 직접 처리해주세요.' : '표의 다음 행동 칸에 이유를 적었습니다. 지금 처리할 일은 없습니다.'}
         </AdminNotice>
       ) : null}
 
-      {/* 발송 이력 목록 카드(콘솔 목록 카드) — 한 건이 한 줄이고, 빈 목록도 카드 안에 보인다. */}
-      <ConsoleListCard aria-label="메일 발송 이력 목록">
+      {/* 발송 이력 목록 카드 — 한 건이 표 한 줄이라 유형·상태·다음 행동을 위아래로 훑어 비교한다. */}
+      <ConsoleListCard
+        aria-label="메일 발송 이력 목록"
+        description={deliveries.length ? <>최근 {deliveries.length.toLocaleString('ko-KR')}건 기준이며 실패한 건을 먼저 보여줍니다.{redactedReason ? ' 상세 사유는 개인정보 보호로 저장하지 않습니다.' : ''}{detachedRecord ? ' 주문·받는 사람이 보관되지 않은 기록은 메일 종류만 보입니다.' : ''}</> : undefined}
+      >
       {!deliveries.length ? (
         <div className="py-10 text-center" role="status">
           <p className="text-sm font-medium">다시 보낼 메일이 없습니다.</p>
           <p className="mt-1.5 text-sm text-muted-foreground">실패했거나 결과를 확인하지 못한 발송이 생기면 여기에 쌓입니다.</p>
         </div>
       ) : (
-        <ul className="flex flex-col divide-y">
-          {ordered.map((delivery) => (
-            <li className="flex min-w-0 flex-wrap items-start justify-between gap-x-6 gap-y-3 py-3.5 text-sm first:pt-0 last:pb-0" key={delivery.dedupeKey}>
-              <div className="flex min-w-0 flex-1 basis-96 flex-col gap-1.5">
-                <div className="flex flex-wrap items-center gap-2">
-                  <strong className="text-base leading-snug font-medium text-foreground">{delivery.templateLabel}</strong>
-                  <AdminStatusBadge tone={statusTone('emailDelivery', delivery.status)}>{statusLabel(delivery.status)}</AdminStatusBadge>
-                  <span className="text-xs text-muted-foreground tabular-nums">{delivery.attemptCount}회 시도</span>
-                </div>
-                {isProtectedValue(delivery.subject) ? null : <span className="text-sm break-words">{delivery.subject}</span>}
-                <span className="text-xs break-all text-muted-foreground tabular-nums">
-                  {delivery.orderId ? <><Link className="font-medium text-foreground underline underline-offset-4" href={`/admin/sales/orders/${delivery.orderId}`} title={delivery.orderId}>주문 {delivery.orderId.slice(0, 8)}…</Link> · </> : null}
-                  {isProtectedValue(delivery.recipient) ? null : <>받는 사람 {delivery.recipient} · </>}
-                  마지막 시도 {formatAttemptedAt(delivery.claimedAt)}
-                  {!delivery.orderId && isProtectedValue(delivery.recipient) ? ' · 주문·받는 사람이 보관되지 않은 기록' : ''}
-                </span>
-                {/* 원문을 지운 기록은 사유를 모르는 것이지 사유가 아니다 — 빨간 글자로 적지 않는다. */}
-                {delivery.lastError ? (
-                  isProtectedValue(delivery.lastError)
-                    ? <span className="text-xs text-muted-foreground">{failureReason(delivery.lastError)}</span>
-                    : <span className="text-xs break-words text-destructive">실패 사유: {failureReason(delivery.lastError)}</span>
-                ) : null}
-                {delivery.resendable ? null : <span className="text-xs text-muted-foreground">{notResendableReason(delivery)}</span>}
-              </div>
-              {delivery.resendable ? <ResendForm delivery={delivery} /> : null}
-            </li>
-          ))}
-        </ul>
+        <div aria-label="발송 기록 가로 스크롤" className={`${CONSOLE_TABLE_FRAME_CLASS} [&>[data-slot=table-container]]:overflow-visible`} role="region" tabIndex={0}>
+          <Table className="min-w-[50rem]">
+            <caption className="sr-only">발송 기록</caption>
+            <ConsoleTableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="w-24 px-3">유형</TableHead>
+                <TableHead className="px-3">제목·요약</TableHead>
+                <TableHead className="w-28 px-3">상태</TableHead>
+                <TableHead className="w-44 px-3">마지막 시도</TableHead>
+                <TableHead className="w-[21rem] px-3">다음 행동</TableHead>
+              </TableRow>
+            </ConsoleTableHeader>
+            <TableBody>
+              {ordered.map((delivery) => {
+                const subject = isProtectedValue(delivery.subject) ? null : delivery.subject;
+                const recipient = isProtectedValue(delivery.recipient) ? null : delivery.recipient;
+                /* 원문을 지운 기록은 사유를 모르는 것이지 사유가 아니다 — 빨간 글자로 적지 않는다(표 위 안내 한 번). */
+                const error = delivery.lastError && !isProtectedValue(delivery.lastError) ? delivery.lastError : null;
+                return (
+                  <TableRow className={needsInquiryReply(delivery) ? 'bg-warning-soft/50 hover:bg-warning-soft' : undefined} key={delivery.dedupeKey}>
+                    <TableCell className="px-3 font-medium">{delivery.templateLabel}</TableCell>
+                    <TableCell className="px-3">
+                      <span className="block max-w-[22rem] truncate" title={subject ?? undefined}>{subject ?? TEMPLATE_SUMMARY[delivery.template]}</span>
+                      {delivery.orderId || recipient ? (
+                        <span className="mt-0.5 block max-w-[22rem] truncate text-xs text-muted-foreground tabular-nums" title={recipient ?? undefined}>
+                          {delivery.orderId ? <Link className="font-medium underline-offset-4 hover:underline" href={`/admin/sales/orders/${delivery.orderId}`} title={delivery.orderId}>주문 {delivery.orderId.slice(0, 8)}…</Link> : null}
+                          {delivery.orderId && recipient ? ' · ' : null}
+                          {recipient ? <>받는 사람 {recipient}</> : null}
+                        </span>
+                      ) : null}
+                      {error ? <span className="mt-0.5 block max-w-[22rem] truncate text-xs text-destructive" title={error}>실패 사유: {error}</span> : null}
+                    </TableCell>
+                    <TableCell className="px-3"><AdminStatusBadge tone={statusTone('emailDelivery', delivery.status)}>{statusLabel(delivery.status)}</AdminStatusBadge></TableCell>
+                    <TableCell className="px-3 tabular-nums">
+                      {formatAttemptedAt(delivery.claimedAt)}
+                      <span className="mt-0.5 block text-xs text-muted-foreground">{delivery.attemptCount}회 시도</span>
+                    </TableCell>
+                    <TableCell className="px-3 whitespace-normal"><NextAction delivery={delivery} /></TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
       )}
       </ConsoleListCard>
     </section>
