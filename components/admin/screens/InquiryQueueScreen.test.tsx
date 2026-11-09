@@ -112,6 +112,26 @@ describe('InquiryQueueScreen', () => {
     expect(html).toContain('data-sla-tone="danger"');
   });
 
+  /* '16일 경과'·'최근 16일 전'·'기한 초과 13일'처럼 같은 뜻의 시간 글씨가 한 줄에 세 번 나오지 않게 한다. */
+  it('경과일을 보이는 줄에는 최근 시각을 되풀이하지 않고 그 밖의 줄은 그대로 보인다', () => {
+    const source = data();
+    const overdue = renderToStaticMarkup(<InquiryQueueScreen data={{ ...source, rows: [{ ...source.rows[0], waitingSince: '2026-08-14T05:00:00.000Z' }] }} now={NOW} />);
+    expect(overdue).toContain('6일 경과');
+    expect(overdue).not.toContain('최근 2일 전');
+    const answered = renderToStaticMarkup(<InquiryQueueScreen data={{ ...source, rows: [source.rows[1]] }} now={NOW} />);
+    expect(answered).not.toContain('일 경과');
+    expect(answered).toContain('최근 1시간 전');
+  });
+
+  /* 표가 카드 끝에서 잘린 듯 끝나면 오른쪽에 칸이 더 있는지 모른다 — 담당자가 마지막 칸으로 들어오게 참고 칸을 기본에서 뺀다. */
+  it('담당자가 기본 표의 마지막 칸이고 답변 만족도 칸은 조회항목 설정으로 켠다', () => {
+    const html = renderToStaticMarkup(<InquiryQueueScreen data={data()} now={NOW} />);
+    const head = html.slice(html.indexOf('<thead'), html.indexOf('</thead>'));
+    expect(head).toMatch(/>담당자<\/th><\/tr>$/);
+    expect(head).not.toContain('답변 만족도');
+    expect(html).toContain('name="satisfaction"');
+  });
+
   /* 첫 화면을 문의가 차지한다 — 기본 미답변 큐에서는 조회 조건을 접고, 조건이 걸리면 펼쳐서 보인다. */
   it('기본 큐는 조회 조건을 접고 조건이 있으면 펼친다', () => {
     const openSearch = /<details(?=[^>]*data-cs-search="")(?=[^>]*\sopen="")/;
