@@ -12,7 +12,8 @@ import { ShoppingStoryBodyEditor } from '../ShoppingStoryBodyEditor';
 import { ShoppingStoryGoodsPicker } from '../ShoppingStoryGoodsPicker';
 import { ArrowDown, ArrowLeft, ArrowUp, ExternalLink, Plus, Search } from 'lucide-react';
 import { CustomerServiceDialog } from './CustomerServiceDialog';
-import { AdminPageHeader, AdminNotice, AdminStatusBadge } from '../console/AdminKit';
+import { AdminNotice, AdminStatusBadge } from '../console/AdminKit';
+import { AdminPageHeading } from '../console/admin-shell-title';
 import { statusTone } from '@/lib/admin/status-tone';
 import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
@@ -61,7 +62,12 @@ export function ShoppingStoryEditorScreen({ accountId, draftId, initial }: { acc
     });
   }
   return <section className="flex min-w-0 flex-col gap-4">
-    <AdminPageHeader title={initial ? '쇼핑스토리 수정' : '쇼핑스토리 등록'} actions={<>{initial ? <AdminStatusBadge tone={statusTone('story', initial.state)}>{SHOPPING_STORY_STATE_LABELS[initial.state]}</AdminStatusBadge> : null}<Link className={buttonVariants({ size: 'sm', variant: 'outline' })} data-slot="button" href={ADMIN_SHOPPING_STORIES_PATH}><ArrowLeft aria-hidden="true" />목록으로</Link></>} />
+    {/* 셸 제목이 메뉴 이름(쇼핑스토리)이다 — 머리는 이 글의 이름과 전시 상태를 나란히 읽히게 한다. */}
+    <header className="flex flex-wrap items-center gap-2" data-admin-kit="page-header">
+      <AdminPageHeading title={initial?.title || '쇼핑스토리 등록'} />
+      {initial ? <AdminStatusBadge tone={statusTone('story', initial.state)}>{SHOPPING_STORY_STATE_LABELS[initial.state]}</AdminStatusBadge> : null}
+      <Link className={`${buttonVariants({ size: 'sm', variant: 'outline' })} ml-auto`} data-slot="button" href={ADMIN_SHOPPING_STORIES_PATH}><ArrowLeft aria-hidden="true" />목록으로</Link>
+    </header>
     <fieldset disabled={blocked} className="flex min-w-0 flex-col gap-4">
       <section className={PANEL}><h2 className={PANEL_TITLE}>기본 정보</h2><label className={FIELD}><span>스토리 제목 <span className="text-xs font-normal text-muted-foreground tabular-nums">{storyCharacterLength(values.title)} / 50</span></span><Input value={values.title} onChange={event => setValues(current => ({ ...current, title: event.target.value }))} placeholder="쇼핑스토리 제목을 입력하세요" aria-required="true" /></label>
         <div className="flex flex-col gap-4 sm:flex-row sm:gap-6 [&>label]:flex-1"><label className={FIELD}>전시 시작일시 (한국 시각)<Input type="datetime-local" value={start} onChange={event => setStart(event.target.value)} /></label><label className={FIELD}>전시 종료일시 (한국 시각)<Input type="datetime-local" value={end} onChange={event => setEnd(event.target.value)} /></label></div><p className={HELP}>시작을 비우면 즉시, 종료를 비우면 무기한 전시됩니다. 전시를 중지하려면 종료 시각을 지정하세요.</p>
@@ -82,7 +88,8 @@ export function ShoppingStoryEditorScreen({ accountId, draftId, initial }: { acc
     </fieldset>
     {error ? <AdminNotice role="alert" tone="danger">{error}</AdminNotice> : null}{notice ? <AdminNotice role="status" tone="success">{notice}</AdminNotice> : null}
     {latest ? <aside className="flex flex-col items-start gap-2 rounded-xl border bg-muted/40 p-5 text-sm"><h2 className={PANEL_TITLE}>최신 저장 내용 확인</h2><p>현재 저장된 제목: {latest.title} · 버전 {latest.revision}</p><Link className="inline-flex items-center gap-1 underline underline-offset-4" href={`${ADMIN_SHOPPING_STORIES_PATH}/${draftId}`} target="_blank" rel="noopener noreferrer">저장 내용 별도 창에서 확인 <ExternalLink aria-hidden="true" className="size-3.5" /></Link><Button className="mt-1" type="button" onClick={() => { setRevision(latest.revision); setLatest(null); setError('현재 입력을 유지했습니다. 최신 내용을 확인했다면 저장해주세요.'); }} variant="outline">최신 버전 기준으로 현재 입력 유지</Button></aside> : null}
-    <div className="sticky bottom-0 z-10 flex flex-wrap justify-center gap-2 rounded-xl border bg-background p-3 shadow-sm sm:gap-2.5 sm:p-4 [&>button]:flex-1 sm:[&>button]:flex-none" data-admin-savebar=""><Button type="button" onClick={() => setPreview('desktop')} variant="outline">PC 미리보기</Button><Button type="button" onClick={() => setPreview('mobile')} variant="outline">모바일 미리보기</Button><Button type="button" disabled={pending || !!latest} onClick={save}>{pending ? '저장 중…' : retry ? '같은 요청으로 저장 결과 확인' : '저장'}</Button></div>
+    {/* 저장은 다른 입력 화면과 같이 바닥 오른쪽 끝이다. */}
+    <div className="sticky bottom-0 z-10 flex flex-wrap justify-end gap-2 rounded-xl border bg-card p-3 shadow-sm sm:gap-2.5 [&>button]:flex-1 sm:[&>button]:flex-none" data-admin-savebar=""><Button type="button" onClick={() => setPreview('desktop')} variant="outline">PC 미리보기</Button><Button type="button" onClick={() => setPreview('mobile')} variant="outline">모바일 미리보기</Button><Button type="button" disabled={pending || !!latest} onClick={save}>{pending ? '저장 중…' : retry ? '같은 요청으로 저장 결과 확인' : '저장'}</Button></div>
     {preview !== 'off' ? <CustomerServiceDialog title={`${preview === 'mobile' ? '모바일' : 'PC'} 스토리 미리보기`} onClose={() => setPreview('off')} wide><div className="flex flex-col gap-3"><p className={HELP}>현재 입력 기준입니다. 상품의 판매가·공개 상태는 불러온 시점 기준이며 공개 요청마다 다시 확인합니다.</p><div className="mx-auto w-full max-w-[848px] rounded-lg border bg-background p-4 data-[device=mobile]:w-[375px] data-[device=mobile]:max-w-full" data-device={preview} data-story-preview=""><ShoppingStoryContent title={values.title} bodyHtml={values.bodyHtml} imagePaths={content.imagePaths} sections={previewSections} /></div></div></CustomerServiceDialog> : null}
     {searchSection ? <ShoppingStoryGoodsPicker existingIds={values.sections.flatMap(section => section.goodIds)} sectionCount={values.sections.find(section => section.id === searchSection)?.goodIds.length ?? 0} onAdd={addGoods} onClose={() => setSearchSection(null)} /> : null}
   </section>;
