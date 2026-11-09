@@ -79,7 +79,7 @@ export function GoodsEventTemplatesScreen({ onSelect }: { onSelect?: (template: 
       </div>
       <ConsoleFilterActions>
         <Button variant="outline" type="button" disabled={pending} onClick={() => { setQuery(''); void load(1, '', false); }}>초기화</Button>
-        <Button type="submit" disabled={pending}>검색</Button>
+        <Button type="submit" disabled={pending} variant="soft">검색</Button>
       </ConsoleFilterActions>
     </form>
     {message ? <p className="text-sm text-destructive" role="alert">{message}</p> : null}

@@ -31,9 +31,11 @@ import {
   type SabangnetTarget,
 } from '@/lib/admin/sabangnet-goods-format';
 import { Download, TriangleAlert } from 'lucide-react';
+import { statusTone } from '@/lib/admin/status-tone';
 import {
   AdminField,
   AdminFormGrid,
+  AdminNotice,
   AdminPageHeader,
   AdminSectionCard,
   AdminStatusBadge,
@@ -44,7 +46,7 @@ import { Input } from '../kit/ui/input';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '../kit/ui/table';
 type ImportView = ReturnType<typeof goodsImportView>;
 /* 검증 경고는 긴 문장이라 배지 대신 경고색 줄로 보인다(배지는 한 줄로 잘린다). */
-const WARNING = 'flex items-start gap-1.5 text-sm text-[var(--wc-warning)]';
+const WARNING = 'flex items-start gap-1.5 text-sm text-warning';
 const labels = {
   new: '신규',
   update: '수정',
@@ -53,14 +55,14 @@ const labels = {
 };
 type ImportFormat = 'icons' | 'sabangnet';
 type ColumnState = SabangnetColumnStatus | 'manual';
-const COLUMN_STATES: Record<ColumnState, { label: string; tone: 'neutral' | 'success' | 'warning' }> = {
-  confirmed: { label: '자동 인식', tone: 'success' },
-  guessed: { label: '추정 · 확인 필요', tone: 'warning' },
-  remembered: { label: '지난번 선택', tone: 'neutral' },
-  known: { label: '사방넷 열 · 기본 제외', tone: 'neutral' },
-  unknown: { label: '인식 못 함 · 직접 선택', tone: 'warning' },
-  duplicate: { label: '앞 열과 같은 항목', tone: 'warning' },
-  manual: { label: '직접 고름', tone: 'neutral' },
+const COLUMN_LABELS: Record<ColumnState, string> = {
+  confirmed: '자동 인식',
+  guessed: '추정 · 확인 필요',
+  remembered: '지난번 선택',
+  known: '사방넷 열 · 기본 제외',
+  unknown: '인식 못 함 · 직접 선택',
+  duplicate: '앞 열과 같은 항목',
+  manual: '직접 고름',
 };
 const XLSX_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 /**
@@ -177,8 +179,8 @@ export function SabangnetMappingStep({
                   </AdminSelect>
                 </TableCell>
                 <TableCell>
-                  <AdminStatusBadge tone={COLUMN_STATES[columnStates[index]].tone}>
-                    {COLUMN_STATES[columnStates[index]].label}
+                  <AdminStatusBadge tone={statusTone('sabangnetColumn', columnStates[index])}>
+                    {COLUMN_LABELS[columnStates[index]]}
                   </AdminStatusBadge>
                 </TableCell>
               </TableRow>
@@ -607,11 +609,7 @@ export function GoodsImportScreen({
           onPreview={previewSabangnet}
         />
       ) : null}
-      {error ? (
-        <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive">
-          {error}
-        </p>
-      ) : null}
+      {error ? <AdminNotice role="alert" tone="danger">{error}</AdminNotice> : null}
       {/* 빈 상태 알림도 접근성 트리에 남긴다(sr-only) — 내용이 생기면 읽히고 보인다. */}
       <p role="status" aria-live="polite" className="text-sm text-muted-foreground empty:sr-only">
         {status}
@@ -628,6 +626,13 @@ export function GoodsImportScreen({
             {view.fileName} · {view.groups.length}개 상품 ·{' '}
             {view.groups.reduce((count, group) => count + group.rows.length, 0)}
             행
+          </p>
+          {/* 긴 표를 내리기 전에 오류 건수를 먼저 보이게 한다. */}
+          <p className="flex flex-wrap gap-1.5">
+            {(['error', 'new', 'update', 'unchanged'] as const).map((kind) => {
+              const count = view.groups.filter((group) => group.kind === kind).length;
+              return count ? <AdminStatusBadge key={kind} tone={statusTone('goodsImport', kind)}>{labels[kind]} {count}</AdminStatusBadge> : null;
+            })}
           </p>
           {view.format === 'sabangnet' ? (
             <p className="text-sm text-muted-foreground">
@@ -718,15 +723,7 @@ export function GoodsImportScreen({
                       </small>
                     </TableCell>
                     <TableCell className="align-top">
-                      <AdminStatusBadge
-                        tone={
-                          group.kind === 'error'
-                            ? 'danger'
-                            : group.kind === 'new'
-                              ? 'success'
-                              : 'neutral'
-                        }
-                      >
+                      <AdminStatusBadge tone={statusTone('goodsImport', group.kind)}>
                         {labels[group.kind]}
                       </AdminStatusBadge>
                     </TableCell>
@@ -744,7 +741,7 @@ export function GoodsImportScreen({
                           </p>
                         ))}
                         {group.result ? (
-                          <p className="text-sm">
+                          <p className={`text-sm ${group.result.status === 'success' ? 'text-success' : group.result.status === 'unchanged' ? 'text-muted-foreground' : 'text-destructive'}`}>
                             {group.result.status === 'success'
                               ? view.format === 'sabangnet'
                                 ? '초안 저장 완료'

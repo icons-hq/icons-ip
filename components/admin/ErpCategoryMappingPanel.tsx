@@ -11,6 +11,7 @@ import {
   type ErpCategoryMappingRow,
   type ErpCategorySuggestion,
 } from '@/lib/admin/erp-items';
+import { AdminStatusBadge } from './console/AdminKit';
 import { AdminSelect } from './console/AdminSelect';
 import { Button } from './kit/ui/button';
 import { Input } from './kit/ui/input';
@@ -63,6 +64,8 @@ function MappingRow({ row, options, categories, categoryErpMappings }: {
     <TableCell className="text-right align-top tabular-nums">{row.itemCount.toLocaleString('ko-KR')}</TableCell>
     <TableCell className="align-top whitespace-normal">
       <div className="flex min-w-[16rem] flex-col items-start gap-1.5">
+        {/* 연결 칸에서 처리할 분류만 표시한다. 자동으로 이어지는 분류는 표시하지 않는다. */}
+        {!saved && !fallback ? <AdminStatusBadge tone="warning">연결 필요</AdminStatusBadge> : null}
         <AdminSelect aria-label={`${row.erpCategory} 고객 카테고리`} value={selected} disabled={pending} wrapperClassName="w-full"
           onChange={(event) => setSelected(event.target.value)}>
           <option value="">연결 안 함</option>
@@ -74,7 +77,7 @@ function MappingRow({ row, options, categories, categoryErpMappings }: {
             ? <>같은 경로의 ‘{pathOf(fallback)}’ 카테고리에 자동으로 연결됩니다. 다른 카테고리를 쓰려면 골라 저장해주세요.</>
             : <>고객 카테고리의 ERP 분류 매핑에 따라 ‘{pathOf(fallback)}’ 카테고리를 제안합니다. 다른 카테고리를 쓰려면 골라 저장해주세요.</>}
         </p> : null}
-        {conflict ? <p className="text-xs text-[var(--wc-warning)]" role="status">
+        {conflict ? <p className="text-xs text-warning" role="status">
           고른 카테고리는 고객 카테고리 화면에서 다른 ERP 분류(‘{conflict.erpName}’, {conflict.erpCode})에 매핑돼 있습니다. 맞는 카테고리인지 확인해주세요.
         </p> : null}
         {suggestion ? <Button className="h-auto min-h-7 py-1 text-left whitespace-normal" size="sm" variant="ghost" type="button" disabled={pending}
@@ -90,7 +93,7 @@ function MappingRow({ row, options, categories, categoryErpMappings }: {
         {saved || selected || pending ? <Button size="sm" variant="outline" type="button" disabled={pending || selected === saved} onClick={() => save(selected)}>
           {pending ? '저장 중' : selected ? '연결 저장' : '연결 해제'}
         </Button> : null}
-        <span aria-live="polite" className={`text-xs ${status?.tone === 'error' ? 'text-destructive' : 'text-muted-foreground'}`}>{status?.text ?? ''}</span>
+        <span aria-live="polite" className={`text-xs ${status?.tone === 'error' ? 'text-destructive' : 'text-success'}`}>{status?.text ?? ''}</span>
       </div>
     </TableCell>
   </TableRow>;
@@ -117,7 +120,7 @@ export function ErpCategoryMappingPanel({ rows, categories, categoryErpMappings 
     return <p className="text-sm text-muted-foreground">반입한 품목에 ERP 분류가 없습니다. 반입할 때 ERP 분류 열을 골라주세요.</p>;
   }
   return <div className="flex min-w-0 flex-col gap-3" data-erp-items="mapping">
-    <p className="text-sm text-muted-foreground">ERP 분류 {rows.length.toLocaleString('ko-KR')}개 중 {linked.toLocaleString('ko-KR')}개 연결됨 · 연결 필요 {(rows.length - linked).toLocaleString('ko-KR')}개. 연결은 상품에 바로 적용되지 않고, 옵션에서 ERP 품목을 고를 때 카테고리 제안으로만 쓰입니다.</p>
+    <p className="text-sm text-muted-foreground">ERP 분류 {rows.length.toLocaleString('ko-KR')}개 중 {linked.toLocaleString('ko-KR')}개 연결됨 · {rows.length > linked ? <strong className="font-semibold text-warning">연결 필요 {(rows.length - linked).toLocaleString('ko-KR')}개</strong> : '연결 필요 0개'}. 연결은 상품에 바로 적용되지 않고, 옵션에서 ERP 품목을 고를 때 카테고리 제안으로만 쓰입니다.</p>
     <p className="text-sm text-muted-foreground">여기서 연결하지 않은 분류는 고객 카테고리 화면의 ERP 분류 매핑에서 이름이나 코드가 똑같은 말단이 하나뿐이면 그 말단을, 없으면 ‘대&gt;중&gt;소’ 전체 경로가 같은 고객 카테고리 말단을 자동으로 연결합니다. 말단 이름만 같은 다른 경로는 연결하지 않습니다. 여기서 연결하면 이 연결이 먼저입니다.</p>
     {!options.length ? <p className="text-sm text-destructive" role="alert">연결할 고객 카테고리 말단이 없습니다. 고객 카테고리 화면에서 먼저 만들어주세요.</p> : null}
     <div className="flex flex-wrap items-center gap-x-3 gap-y-2">

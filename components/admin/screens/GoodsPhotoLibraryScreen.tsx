@@ -8,7 +8,8 @@ import { GOODS_PHOTO_UPLOAD_LIMIT, goodsPhotoNameFromFileName, goodsPhotoReferen
 import { publicMediaUrl } from '@/lib/media';
 import { CustomerServiceDialog } from './CustomerServiceDialog';
 import { Upload } from 'lucide-react';
-import { AdminPageHeader } from '../console/AdminKit';
+import { AdminPageHeader, AdminStatusBadge } from '../console/AdminKit';
+import { statusTone } from '@/lib/admin/status-tone';
 import { AdminSelect } from '../console/AdminSelect';
 import { CONSOLE_FILTER_CARD_CLASS, CONSOLE_FILTER_FIELDS_CLASS, CONSOLE_FILTER_LABEL_CLASS, ConsoleFilterActions } from '../console/ConsoleFilterPanel';
 import { CONSOLE_LIST_EMPTY_CLASS, ConsoleListCard } from '../console/ConsoleListCard';
@@ -104,7 +105,7 @@ export function GoodsPhotoLibraryScreen({ initial = emptyPage, onSelect }: { ini
       </div>
       <ConsoleFilterActions>
         <Button variant="outline" type="button" disabled={busy} onClick={() => { setQuery(''); void search(1, false, ''); }}>초기화</Button>
-        <Button type="button" disabled={busy} onClick={() => { void search(); }}>조회</Button>
+        <Button type="button" disabled={busy} onClick={() => { void search(); }} variant="soft">조회</Button>
       </ConsoleFilterActions>
     </div>
     {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
@@ -116,9 +117,9 @@ export function GoodsPhotoLibraryScreen({ initial = emptyPage, onSelect }: { ini
           크기는 CSS(w-full·aspect-square)가 정한다 — height 속성은 정사각 비율보다 먼저 높이를 고정한다. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img className="aspect-square w-full rounded-md bg-muted object-contain" alt={photo.name} src={publicMediaUrl(photo.imagePath) ?? ''} loading="lazy" decoding="async" />
-      <strong className="text-sm font-medium wrap-anywhere">{photo.name}</strong><span className="text-xs text-muted-foreground">{recent.includes(photo.id) ? '방금 올림 · ' : ''}버전 {photo.revision} · 연결 {photo.references.length}건</span>
+      <span className="flex flex-wrap items-center gap-1.5"><strong className="text-sm font-medium wrap-anywhere">{photo.name}</strong>{photo.archived ? <AdminStatusBadge tone={statusTone('publication', 'archived')}>보관</AdminStatusBadge> : null}</span><span className="text-xs text-muted-foreground">{recent.includes(photo.id) ? '방금 올림 · ' : ''}버전 {photo.revision} · 연결 {photo.references.length}건</span>
       {photo.references.length ? <details className="text-sm wrap-anywhere"><summary className="cursor-pointer text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">사용처 확인</summary><ul className="mt-1.5 list-disc space-y-1 pl-5">{photo.references.map(ref => <li key={`${ref.kind}:${ref.id}`}>{goodsPhotoReferenceLabel(ref.kind)} · {ref.kind==='good' ? <Link className="underline underline-offset-4" href={`/admin/catalog/goods?goodId=${encodeURIComponent(ref.id)}`}>{ref.name}</Link> : ref.name}</li>)}</ul></details> : null}
-      <div className="mt-auto flex flex-wrap gap-1.5">{onSelect ? <Button size="sm" type="button" disabled={busy || photo.archived} onClick={() => onSelect(photo)}>이 사진 선택</Button> : <>
+      <div className="mt-auto flex flex-wrap gap-1.5">{onSelect ? <Button size="sm" type="button" disabled={busy || photo.archived} onClick={() => onSelect(photo)} variant="soft">이 사진 선택</Button> : <>
         <Button size="sm" variant="outline" type="button" disabled={busy} onClick={() => { setEdit(photo); setName(photo.name); setError(''); }}>이름 수정</Button>
         <Button size="sm" variant="outline" type="button" disabled={busy || (!photo.archived && photo.references.length>0)} onClick={() => { void save(photo,photo.name,!photo.archived); }}>{photo.archived ? '복구' : '보관'}</Button>
       </>}</div>

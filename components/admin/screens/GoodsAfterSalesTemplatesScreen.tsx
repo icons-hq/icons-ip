@@ -86,7 +86,7 @@ export function GoodsAfterSalesTemplatesScreen({ onSelect }: { onSelect?: (templ
       </div>
       <ConsoleFilterActions>
         <button className={buttonVariants({ variant: 'outline' })} data-slot="button" type="button" disabled={pending} onClick={() => { setQuery(''); void load(1, '', false); }}>초기화</button>
-        <button className={buttonVariants()} data-slot="button" disabled={pending}>검색</button>
+        <button className={buttonVariants({ variant: 'soft' })} data-slot="button" disabled={pending}>검색</button>
       </ConsoleFilterActions>
     </form>
     {message ? <p className="text-destructive" role="alert">{message}</p> : null}

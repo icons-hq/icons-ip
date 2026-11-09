@@ -56,15 +56,7 @@ export function ErpItemsScreen({ data }: { data: ErpItemsWorkspaceData }) {
 
     <ErpItemImportPanel />
 
-    <AdminSectionCard
-      title="ERP 분류 ↔ 고객 카테고리 연결"
-      id="erp-category-mapping"
-      summary="ERP 분류마다 고객 카테고리 말단을 하나 연결합니다. 연결은 나중에 바꿀 수 있고, 상품 화면에서 제안된 카테고리도 MD가 바꿀 수 있습니다."
-    >
-      <ErpCategoryMappingPanel rows={data.erpCategories} categories={categories} categoryErpMappings={data.categoryErpMappings} />
-      <p className="text-sm text-muted-foreground"><Link className="text-foreground underline underline-offset-4" href={CATEGORY_PATH}>고객 카테고리</Link>에서 말단을 만들거나 보관합니다.</p>
-    </AdminSectionCard>
-
+    {/* 반입 결과 목록을 먼저 보이고 분류 연결(설정)은 그 아래에 둔다. */}
     <AdminSectionCard
       title="반입된 품목"
       id="erp-item-list"
@@ -74,7 +66,7 @@ export function ErpItemsScreen({ data }: { data: ErpItemsWorkspaceData }) {
         <label className="text-sm font-medium" htmlFor="erp-item-query">ERP 코드·품명 검색</label>
         <div className="flex flex-wrap items-center gap-2">
           <Input className="w-full sm:w-80" id="erp-item-query" name="q" type="search" defaultValue={filters.query} maxLength={ERP_ITEM_SEARCH_QUERY_MAX} placeholder="예: 000123, 아크릴 키링" />
-          <Button variant="outline" type="submit">검색</Button>
+          <Button variant="soft" type="submit">검색</Button>
           {filters.query ? <Link className="text-sm underline underline-offset-4" href={ERP_ITEMS_PATH}>전체 품목 보기</Link> : null}
         </div>
       </form>
@@ -84,6 +76,15 @@ export function ErpItemsScreen({ data }: { data: ErpItemsWorkspaceData }) {
         emptyLabel={filters.query ? '조건에 맞는 ERP 품목이 없습니다.' : '아직 반입한 ERP 품목이 없습니다. 위에서 품목 생성 데이터를 반입해주세요.'}
       />
       <ConsolePagination page={filters.page} pageSize={ERP_ITEMS_PAGE_SIZE} total={page.total} hrefForPage={(next) => erpItemsHref(filters, next)} label="ERP 품목 페이지" />
+    </AdminSectionCard>
+
+    <AdminSectionCard
+      title="ERP 분류 ↔ 고객 카테고리 연결"
+      id="erp-category-mapping"
+      summary="ERP 분류마다 고객 카테고리 말단을 하나 연결합니다. 연결은 나중에 바꿀 수 있고, 상품 화면에서 제안된 카테고리도 MD가 바꿀 수 있습니다."
+    >
+      <ErpCategoryMappingPanel rows={data.erpCategories} categories={categories} categoryErpMappings={data.categoryErpMappings} />
+      <p className="text-sm text-muted-foreground"><Link className="text-foreground underline underline-offset-4" href={CATEGORY_PATH}>고객 카테고리</Link>에서 말단을 만들거나 보관합니다.</p>
     </AdminSectionCard>
   </section>;
 }

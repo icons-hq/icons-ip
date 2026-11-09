@@ -58,6 +58,6 @@ export function ErpItemListGrid({ columns, rows, emptyLabel }: {
         actions={[{ label: pending ? '지우는 중' : '선택 삭제', name: 'delete', variant: 'danger', disabled: pending }]}
       />
     </ConsoleGrid>
-    <p aria-live="polite" className={`text-sm empty:sr-only ${status?.tone === 'error' ? 'text-destructive' : 'text-muted-foreground'}`}>{status?.text ?? ''}</p>
+    <p aria-live="polite" className={`text-sm empty:sr-only ${status?.tone === 'error' ? 'text-destructive' : 'text-success'}`}>{status?.text ?? ''}</p>
   </form>;
 }

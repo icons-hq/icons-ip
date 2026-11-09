@@ -3,6 +3,7 @@ import { Plus } from 'lucide-react';
 import { formatOrderDateTime } from '@/lib/orders';
 import { GOODS_RELATIONS_PATH, GOODS_RELATION_KINDS, GOODS_RELATION_STATES, goodsRelationHref, type GoodsRelationList } from '@/lib/admin/goods-relations';
 import { AdminPageHeader, AdminStatusBadge } from '../console/AdminKit';
+import { statusTone } from '@/lib/admin/status-tone';
 import { AdminSelect } from '../console/AdminSelect';
 import { ConsoleFilterField, ConsoleFilterPanel, ConsoleGrid, ConsolePagination } from '../console';
 import { buttonVariants } from '../kit/ui/button';
@@ -24,7 +25,7 @@ export function GoodsRelationsScreen({ data }: { data: GoodsRelationList }) {
       <ConsoleGrid caption="연관상품 편성 목록" className="[&_table]:min-w-[1100px]" preferencesKey="goods-relations" columns={[{ key: 'title', label: '노출 제목', width: '180px' }, { key: 'kind', label: '유형', width: '180px' }, { key: 'representative', label: '대표 상품', width: '250px' }, { key: 'state', label: '전시상태' }, { key: 'goods', label: '구성 상품' }, { key: 'period', label: '노출 기간', width: '270px' }, { key: 'updated', label: '수정일', width: '160px' }]}
         rows={rows.map(row => ({ id: row.id, href: `${href}&edit=${row.id}`, cells: [row.title, `${GOODS_RELATION_KINDS.find(kind => kind.value === row.kind)?.label}${row.visual && row.kind === 'together' ? ' · 이미지형' : ''}`,
           row.goods.find(good => good.id === row.representativeGoodId)?.name,
-          <AdminStatusBadge key="state" tone={row.state === 'active' ? 'success' : row.state === 'scheduled' ? 'warning' : 'neutral'}>{GOODS_RELATION_STATES.find(state => state.value === row.state)?.label}</AdminStatusBadge>,
+          <AdminStatusBadge key="state" tone={statusTone('goodsRelation', row.state)}>{GOODS_RELATION_STATES.find(state => state.value === row.state)?.label}</AdminStatusBadge>,
           `${row.goods.length}개 · 공개 ${row.goods.filter(good => good.public).length}개`, `${row.startsAt ? formatOrderDateTime(row.startsAt) : '제한 없음'} ~ ${row.endsAt ? formatOrderDateTime(row.endsAt) : '제한 없음'}`, row.updatedAt ? formatOrderDateTime(row.updatedAt) : '—'] }))} />
       <ConsolePagination page={filters.page} total={total} pageSize={filters.pageSize} hrefForPage={page => goodsRelationHref(filters, page)} />
     </section><p className="text-sm text-muted-foreground">전시중이고 공개 가능한 상품이 2개 이상일 때 표시됩니다. 다른 구성은 대표 상품이 비공개여도 공개 상품끼리 표시하며, 다른 유형은 대표 상품도 공개되어야 합니다. 추가구성상품과 별도로 관리하며 구매 수량·장바구니에는 영향을 주지 않습니다.</p>

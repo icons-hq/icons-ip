@@ -37,7 +37,7 @@ export function GoodsAnnouncementProductPicker({ value, onApply, onClose }: {
     <div className="flex min-w-0 flex-col gap-4">
       <div className="flex flex-col gap-2"><label className="text-sm font-medium" htmlFor="announcement-good-query">상품명·상품코드·상품번호</label>
         <div className="flex gap-2"><Input className="min-w-0 flex-1" id="announcement-good-query" value={query} maxLength={100} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); void search(1); } }} />
-          <Button disabled={pending} onClick={() => { void search(1); }} type="button">검색</Button></div>
+          <Button disabled={pending} onClick={() => { void search(1); }} type="button" variant="soft">검색</Button></div>
       </div>
       <p className="text-sm tabular-nums">선택 {selected.length.toLocaleString('ko-KR')}개 / 최대 {GOODS_ANNOUNCEMENT_GOOD_LIMIT}개 · 조회 {result?.total.toLocaleString('ko-KR') ?? '—'}개</p>
       {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}

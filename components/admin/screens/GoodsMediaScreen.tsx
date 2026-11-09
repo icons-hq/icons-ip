@@ -41,7 +41,7 @@ export function GoodsMediaScreen({ initial }: { initial: GoodMediaSnapshot }) {
           </div>)}
         </fieldset>
       </AdminSectionCard>
-      <div className="flex flex-wrap items-center justify-end gap-4 rounded-xl border bg-card p-4">{message ? <p className={`text-sm${error ? ' text-destructive' : ' text-[var(--wc-success)]'}`} role={error ? 'alert' : 'status'}>{message}</p> : null}<button className={buttonVariants()} data-slot="button" type="submit" disabled={pending || busy.video || busy.shortclip || Boolean(initial.unavailable)}>{pending ? '저장 중…' : uncertain ? '같은 요청 결과 확인' : '영상 구성 저장'}</button></div>
+      <div className="flex flex-wrap items-center justify-end gap-4 rounded-xl border bg-card p-4">{message ? <p className={`text-sm${error ? ' text-destructive' : ' text-success'}`} role={error ? 'alert' : 'status'}>{message}</p> : null}<button className={buttonVariants()} data-slot="button" type="submit" disabled={pending || busy.video || busy.shortclip || Boolean(initial.unavailable)}>{pending ? '저장 중…' : uncertain ? '같은 요청 결과 확인' : '영상 구성 저장'}</button></div>
     </form>
   </section>;
 }
