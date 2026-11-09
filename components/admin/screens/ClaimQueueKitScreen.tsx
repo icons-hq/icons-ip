@@ -124,7 +124,7 @@ export function ClaimQueueKitScreen({
             const count = counts[stage] ?? 0;
             const label = adminClaimStageLabel(claimType, stage);
             const active = filters.stage === stage;
-            return <Link aria-current={active ? 'true' : undefined} aria-label={`${label} ${count.toLocaleString('ko-KR')}건`} className={`text-xs whitespace-nowrap underline-offset-4 hover:underline ${active ? 'font-semibold text-primary' : 'text-muted-foreground hover:text-foreground'}`} href={adminClaimHref(claimType, filters, { page: 1, stage })} key={stage}>{label} <span className="tabular-nums">{count.toLocaleString('ko-KR')}</span>건</Link>;
+            return <Link aria-current={active ? 'true' : undefined} aria-label={`${label} ${count.toLocaleString('ko-KR')}건`} className={`inline-flex min-h-6 items-center text-xs whitespace-nowrap underline-offset-4 hover:underline ${active ? 'font-semibold text-primary' : 'text-muted-foreground hover:text-foreground'}`} href={adminClaimHref(claimType, filters, { page: 1, stage })} key={stage}>{label} <span className="tabular-nums">{count.toLocaleString('ko-KR')}</span>건</Link>;
           })}
         </div>
       </nav>
