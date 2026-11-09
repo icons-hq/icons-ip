@@ -44,7 +44,8 @@ export function CustomerDetailScreen({ detail, actor, noteOperationId, canManage
     </section>
     <nav aria-label="고객 상세 탭" className="flex flex-wrap gap-x-5 gap-y-1 border-b">{CUSTOMER_TABS.map((entry) =>
       <Link className="-mb-px inline-flex min-h-10 items-center gap-2 border-b-2 border-transparent text-sm text-muted-foreground transition-colors hover:text-foreground aria-[current=page]:border-primary aria-[current=page]:font-medium aria-[current=page]:text-primary-soft-foreground" key={entry} href={customerDetailHref(customer.id, entry)} aria-current={entry === tab ? 'page' : undefined}>
-        {CUSTOMER_TAB_LABELS[entry]}{entry !== 'overview' ? <span className="rounded-full bg-muted px-1.5 text-xs font-normal text-muted-foreground tabular-nums">{counts[entry].toLocaleString('ko-KR')}</span> : null}
+        {/* 개요에서는 바로 아래 건수 카드가 같은 숫자를 보이므로 탭에 되풀이하지 않는다. */}
+        {CUSTOMER_TAB_LABELS[entry]}{entry !== 'overview' && tab !== 'overview' ? <span className="rounded-full bg-muted px-1.5 text-xs font-normal text-muted-foreground tabular-nums">{counts[entry].toLocaleString('ko-KR')}</span> : null}
       </Link>)}</nav>
     {tab === 'overview' ? <>
       <div aria-label="고객 활동 건수" className="grid grid-cols-2 gap-2 sm:grid-cols-5" role="group">

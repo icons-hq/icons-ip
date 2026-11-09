@@ -230,7 +230,7 @@ export function ReviewConsoleScreen({
           {/* 저평점 바로가기와 집계는 결과 목록 바로 위에서 유지한다. 안내는 한 줄로 줄여 표를 밀지 않는다. */}
           <div className="flex min-w-0 flex-wrap items-center gap-3" data-cs-pinned="">
             <AdminNotice className="min-w-[min(100%,18rem)] flex-1" tone={counts.lowRating > 0 ? 'danger' : 'neutral'}>
-              <strong className="mr-2 font-semibold tabular-nums">저평점 리뷰 {counts.lowRating.toLocaleString('ko-KR')}건</strong>
+              <strong className={`mr-2 font-semibold tabular-nums ${counts.lowRating > 0 ? 'text-destructive' : ''}`}>저평점 리뷰 {counts.lowRating.toLocaleString('ko-KR')}건</strong>
               {LOW_REVIEW_RATING_MAX}점 이하 리뷰입니다. 빨리 답글을 달면 다른 고객도 판매자의 대응을 함께 봅니다.
             </AdminNotice>
             <Link
