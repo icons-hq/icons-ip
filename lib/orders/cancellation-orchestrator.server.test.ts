@@ -93,7 +93,7 @@ function dependencies(
     loadContext: vi.fn(async () => context()),
     preflightReconciliation: vi.fn(async () => 'allowed' as const),
     reconcileExpiredPreparedGoods: vi.fn(async () => 'not_applicable' as const),
-    refundTossPayment: vi.fn(async () => approvedRefund()),
+    refundProviderPayment: vi.fn(async () => approvedRefund()),
     completeRequest: vi.fn(async () => undefined),
     markNeedsReview: vi.fn(async () => undefined),
     ...override,
@@ -128,7 +128,7 @@ describe('reconcileOrderCancellation', () => {
   });
 
   it('default 조회는 카드 provider 원장을 읽고, 게이트웨이가 닫혀 있으면 수동 검토로 승격한다', async () => {
-    // TOSS env가 없는 테스트 환경 — default refundTossPayment는 attempt 부재로
+    // TOSS env가 없는 테스트 환경 — default refundProviderPayment는 attempt 부재로
     // throw하고, 오케스트레이터는 추측 종결 없이 수동 검토로 넘긴다.
     await expect(reconcileOrderCancellation({
       requestId: REQUEST_ID,
@@ -138,7 +138,7 @@ describe('reconcileOrderCancellation', () => {
     expect(defaultMocks.filters).toContainEqual({
       table: 'payments',
       column: 'provider',
-      value: ['toss', 'korpay'],
+      value: ['toss', 'korpay', 'nicepay'],
     });
     expect(defaultMocks.rpc).toHaveBeenCalledWith(
       'mark_order_cancellation_needs_review',
@@ -203,7 +203,7 @@ describe('reconcileOrderCancellation', () => {
       deps,
     )).resolves.toEqual({ ok: false, code: 'request_not_ready' });
 
-    expect(deps.refundTossPayment).not.toHaveBeenCalled();
+    expect(deps.refundProviderPayment).not.toHaveBeenCalled();
     expect(deps.completeRequest).not.toHaveBeenCalled();
     expect(deps.reconcileExpiredPreparedGoods).not.toHaveBeenCalled();
     expect(deps.markNeedsReview).not.toHaveBeenCalled();
@@ -220,7 +220,7 @@ describe('reconcileOrderCancellation', () => {
 
     expect(result).toEqual({ ok: false, code: 'local_state_unavailable' });
     expect(JSON.stringify(result)).not.toContain(PAYMENT_KEY);
-    expect(deps.refundTossPayment).not.toHaveBeenCalled();
+    expect(deps.refundProviderPayment).not.toHaveBeenCalled();
     expect(deps.completeRequest).not.toHaveBeenCalled();
     expect(deps.reconcileExpiredPreparedGoods).not.toHaveBeenCalled();
     expect(deps.markNeedsReview).not.toHaveBeenCalled();
@@ -235,7 +235,7 @@ describe('reconcileOrderCancellation', () => {
       { requestId: REQUEST_ID, actorId: ACTOR_ID }, deps,
     )).resolves.toEqual({ ok: true, status: 'already_completed' });
 
-    expect(deps.refundTossPayment).not.toHaveBeenCalled();
+    expect(deps.refundProviderPayment).not.toHaveBeenCalled();
     expect(deps.completeRequest).not.toHaveBeenCalled();
     expect(deps.reconcileExpiredPreparedGoods).not.toHaveBeenCalled();
     expect(deps.markNeedsReview).not.toHaveBeenCalled();
@@ -337,7 +337,7 @@ describe('reconcileOrderCancellation', () => {
       deps,
     )).resolves.toEqual({ ok: true, status: 'in_progress' });
 
-    expect(deps.refundTossPayment).not.toHaveBeenCalled();
+    expect(deps.refundProviderPayment).not.toHaveBeenCalled();
     expect(deps.completeRequest).not.toHaveBeenCalled();
     expect(deps.markNeedsReview).not.toHaveBeenCalled();
   });
@@ -352,7 +352,7 @@ describe('reconcileOrderCancellation', () => {
       deps,
     )).resolves.toEqual({ ok: true, status: 'completed' });
 
-    expect(deps.refundTossPayment).not.toHaveBeenCalled();
+    expect(deps.refundProviderPayment).not.toHaveBeenCalled();
     expect(deps.completeRequest).not.toHaveBeenCalled();
   });
 
@@ -367,7 +367,7 @@ describe('reconcileOrderCancellation', () => {
       deps,
     )).resolves.toEqual({ ok: false, code: 'request_not_ready' });
 
-    expect(deps.refundTossPayment).not.toHaveBeenCalled();
+    expect(deps.refundProviderPayment).not.toHaveBeenCalled();
     expect(deps.completeRequest).not.toHaveBeenCalled();
   });
 
@@ -379,10 +379,12 @@ describe('reconcileOrderCancellation', () => {
       deps,
     )).resolves.toEqual({ ok: true, status: 'completed' });
 
-    expect(deps.refundTossPayment).toHaveBeenCalledWith({
+    expect(deps.refundProviderPayment).toHaveBeenCalledWith({
       paymentId: 'payment-1',
+      provider: 'toss',
       amount: 42000,
       reason: 'ICONS 주문 취소',
+      paymentKey: PAYMENT_KEY,
     });
     expect(deps.completeRequest).toHaveBeenCalledWith({
       requestId: REQUEST_ID,
@@ -404,7 +406,7 @@ describe('reconcileOrderCancellation', () => {
           bankTransferRefundFiled: false,
         }],
       })),
-      refundTossPayment: vi.fn(async () => approvedRefund({
+      refundProviderPayment: vi.fn(async () => approvedRefund({
         reasonCode: 'provider_already_fully_canceled',
       })),
     });
@@ -413,6 +415,70 @@ describe('reconcileOrderCancellation', () => {
       { requestId: REQUEST_ID, actorId: ACTOR_ID },
       deps,
     )).resolves.toEqual({ ok: true, status: 'completed' });
+  });
+
+  it('nicepay 유상 캡처도 원장 TID로 자동 취소하고 검증 키로 완료한다', async () => {
+    const deps = dependencies({
+      loadContext: vi.fn(async () => context({
+        payments: [{
+          id: 'payment-1',
+          provider: 'nicepay',
+          status: 'paid',
+          amount: 42000,
+          paymentKey: PAYMENT_KEY,
+          bankTransferRefundFiled: false,
+        }],
+      })),
+      refundProviderPayment: vi.fn(async () => approvedRefund({ provider: 'nicepay' })),
+    });
+
+    await expect(reconcileOrderCancellation(
+      { requestId: REQUEST_ID, actorId: ACTOR_ID },
+      deps,
+    )).resolves.toEqual({ ok: true, status: 'completed' });
+
+    expect(deps.refundProviderPayment).toHaveBeenCalledWith({
+      paymentId: 'payment-1',
+      provider: 'nicepay',
+      amount: 42000,
+      reason: 'ICONS 주문 취소',
+      paymentKey: PAYMENT_KEY,
+    });
+    expect(deps.completeRequest).toHaveBeenCalledWith({
+      requestId: REQUEST_ID,
+      actorId: ACTOR_ID,
+      verifiedPaymentKeys: [PAYMENT_KEY],
+    });
+  });
+
+  it('default nicepay 환불은 정기결제 binding 조회 없이 원장 키를 게이트웨이에 넘긴다', async () => {
+    defaultMocks.payments = [{
+      id: 'payment-1',
+      provider: 'nicepay',
+      status: 'paid',
+      amount: 42000,
+      payment_key: PAYMENT_KEY,
+    }];
+    defaultMocks.attempt = {
+      id: '44444444-4444-4444-8444-444444444444',
+      provider: 'nicepay', purpose: 'order', ref_id: ORDER_ID, amount: 42000, currency: 'KRW',
+      idempotency_key: 'approved-order-attempt', provider_order_id: 'approved-order',
+      provider_product_code: 'goods', expires_at: '2026-09-01T00:00:00.000Z',
+    };
+    defaultMocks.gatewayRefund.mockResolvedValue(approvedRefund({ provider: 'nicepay' }));
+
+    await expect(reconcileOrderCancellation({
+      requestId: REQUEST_ID, actorId: ACTOR_ID,
+    })).resolves.toEqual({ ok: true, status: 'completed' });
+
+    expect(defaultMocks.gatewayRefund).toHaveBeenCalledWith(expect.objectContaining({
+      attempt: expect.objectContaining({ provider: 'nicepay' }),
+      amount: 42000,
+      providerPaymentKey: PAYMENT_KEY,
+    }));
+    expect((defaultMocks.rpc.mock.calls as Array<[string]>).map(([name]) => name)).not.toContain(
+      'service_get_payment_gateway_binding',
+    );
   });
 
   it('korpay 유상 캡처는 자동 취소 없이 수동 검토(수동 복구 seam 경로)로 승격한다', async () => {
@@ -434,13 +500,13 @@ describe('reconcileOrderCancellation', () => {
       deps,
     )).resolves.toEqual({ ok: false, code: 'provider_unavailable' });
 
-    expect(deps.refundTossPayment).not.toHaveBeenCalled();
+    expect(deps.refundProviderPayment).not.toHaveBeenCalled();
     expect(deps.completeRequest).not.toHaveBeenCalled();
   });
 
   it('취소 거절·모호 결과는 게이트웨이 사유 코드를 그대로 needs_review 사유로 남긴다', async () => {
     const rejected = dependencies({
-      refundTossPayment: vi.fn(async () => approvedRefund({
+      refundProviderPayment: vi.fn(async () => approvedRefund({
         outcome: 'needs_review',
         reasonCode: 'provider_cancel_rejected',
         refundedAmount: undefined,
@@ -458,7 +524,7 @@ describe('reconcileOrderCancellation', () => {
     });
 
     const ambiguous = dependencies({
-      refundTossPayment: vi.fn(async () => approvedRefund({
+      refundProviderPayment: vi.fn(async () => approvedRefund({
         outcome: 'unknown',
         reasonCode: 'provider_cancel_ambiguous',
         refundedAmount: undefined,
@@ -484,7 +550,7 @@ describe('reconcileOrderCancellation', () => {
       'provider_cancellation_incomplete',
     ]) {
       const deps = dependencies({
-        refundTossPayment: vi.fn(async () => approvedRefund({
+        refundProviderPayment: vi.fn(async () => approvedRefund({
           outcome: 'needs_review',
           reasonCode,
           refundedAmount: undefined,
@@ -517,7 +583,7 @@ describe('reconcileOrderCancellation', () => {
       ['unknown', 'NETWORK_ERROR', 'provider_unavailable'],
     ] as const) {
       const deps = dependencies({
-        refundTossPayment: vi.fn(async () => approvedRefund({
+        refundProviderPayment: vi.fn(async () => approvedRefund({
           outcome,
           reasonCode,
           refundedAmount: undefined,
@@ -576,7 +642,7 @@ describe('reconcileOrderCancellation', () => {
 
   it('approved여도 provider 증거 키가 로컬 원장 키와 다르면 완료 RPC를 부르지 않는다', async () => {
     const deps = dependencies({
-      refundTossPayment: vi.fn(async () => approvedRefund({
+      refundProviderPayment: vi.fn(async () => approvedRefund({
         evidence: { providerPaymentKey: 'other-provider-payment-key' },
       })),
     });
@@ -597,7 +663,7 @@ describe('reconcileOrderCancellation', () => {
   it('approved에 provider 증거 키가 아예 없으면 일치의 근거가 없으므로 격리한다', async () => {
     for (const evidence of [undefined, { resultCode: 'CANCELED' }]) {
       const deps = dependencies({
-        refundTossPayment: vi.fn(async () => approvedRefund({ evidence })),
+        refundProviderPayment: vi.fn(async () => approvedRefund({ evidence })),
       });
 
       await expect(reconcileOrderCancellation(
@@ -628,7 +694,7 @@ describe('reconcileOrderCancellation', () => {
       deps,
     )).resolves.toEqual({ ok: false, code: 'bank_transfer_refund_filed' });
 
-    expect(deps.refundTossPayment).not.toHaveBeenCalled();
+    expect(deps.refundProviderPayment).not.toHaveBeenCalled();
     expect(deps.completeRequest).not.toHaveBeenCalled();
     expect(deps.markNeedsReview).toHaveBeenCalledWith({
       requestId: REQUEST_ID,
@@ -677,7 +743,7 @@ describe('reconcileOrderCancellation', () => {
       }));
       defaultMocks.refunds = refunds;
 
-      // TOSS env가 없어 default refundTossPayment는 throw한다 — 게이트를 통과해
+      // TOSS env가 없어 default refundProviderPayment는 throw한다 — 게이트를 통과해
       // 취소 발행까지 갔다는 뜻이다(bank_transfer_refund_filed가 아니다).
       await expect(reconcileOrderCancellation({
         requestId: REQUEST_ID,
@@ -688,7 +754,7 @@ describe('reconcileOrderCancellation', () => {
 
   it('approved여도 환불 금액이 캡처 금액과 다르면 완료하지 않는다', async () => {
     const deps = dependencies({
-      refundTossPayment: vi.fn(async () => approvedRefund({ refundedAmount: 41000 })),
+      refundProviderPayment: vi.fn(async () => approvedRefund({ refundedAmount: 41000 })),
     });
 
     await expect(reconcileOrderCancellation(
@@ -701,7 +767,7 @@ describe('reconcileOrderCancellation', () => {
 
   it('refund 경로 자체가 throw하면(attempt 부재 등) 수동 검토로 승격하고 상세를 노출하지 않는다', async () => {
     const deps = dependencies({
-      refundTossPayment: vi.fn(async () => {
+      refundProviderPayment: vi.fn(async () => {
         throw new Error(`private detail ${PAYMENT_KEY}`);
       }),
     });
@@ -734,7 +800,7 @@ describe('reconcileOrderCancellation', () => {
       deps,
     )).resolves.toEqual({ ok: false, code: 'payment_evidence_invalid' });
 
-    expect(deps.refundTossPayment).not.toHaveBeenCalled();
+    expect(deps.refundProviderPayment).not.toHaveBeenCalled();
     expect(deps.completeRequest).not.toHaveBeenCalled();
   });
 
@@ -752,7 +818,7 @@ describe('reconcileOrderCancellation', () => {
       deps,
     )).resolves.toEqual({ ok: true, status: 'completed' });
 
-    expect(deps.refundTossPayment).not.toHaveBeenCalled();
+    expect(deps.refundProviderPayment).not.toHaveBeenCalled();
     expect(deps.completeRequest).toHaveBeenCalledWith({
       requestId: REQUEST_ID,
       actorId: ACTOR_ID,
@@ -775,9 +841,11 @@ describe('reconcileOrderCancellation', () => {
       deps,
     )).resolves.toEqual({ ok: true, status: 'completed' });
 
-    expect(deps.refundTossPayment).toHaveBeenCalledTimes(1);
-    expect(deps.refundTossPayment).toHaveBeenCalledWith({
+    expect(deps.refundProviderPayment).toHaveBeenCalledTimes(1);
+    expect(deps.refundProviderPayment).toHaveBeenCalledWith({
       paymentId: 'payment-2',
+      provider: 'toss',
+      paymentKey: PAYMENT_KEY,
       amount: 42000,
       reason: 'ICONS 주문 취소',
     });

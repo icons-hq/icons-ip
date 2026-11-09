@@ -128,7 +128,7 @@ describe('POST /api/internal/payments/goods/reconcile', () => {
     ['코페이 굿즈 attempt(#208 수동 큐)', { provider: 'korpay', purpose: 'order' }],
     ['토스 티켓 attempt', { provider: 'toss', purpose: 'ticket' }],
     ['무통장 attempt', { provider: 'bank_transfer', purpose: 'order' }],
-  ])('토스 굿즈 attempt가 아니면 claim 없이 422로 거절한다 — 상태를 바꾸지 않는다: %s', async (_label, row) => {
+  ])('토스·나이스페이 굿즈 attempt가 아니면 claim 없이 422로 거절한다 — 상태를 바꾸지 않는다: %s', async (_label, row) => {
     mocks.attemptRow = row;
 
     const response = await POST(request());
@@ -200,13 +200,27 @@ describe('POST /api/internal/payments/goods/reconcile', () => {
     expect(mocks.reconcile).not.toHaveBeenCalled();
   });
 
-  it('토스 자격 증명·service가 닫혀 있으면 503이고 domain을 부르지 않는다', async () => {
+  it('토스·나이스페이 자격 증명·service가 모두 닫혀 있으면 503이고 domain을 부르지 않는다', async () => {
     mocks.available = false;
     const response = await POST(request());
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toEqual({ error: 'payment_unavailable' });
-    expect(mocks.availabilityProvider).toBe('toss');
+    expect(mocks.availabilityProvider).toBe('nicepay');
     expect(mocks.reconcile).not.toHaveBeenCalled();
+  });
+
+  it('나이스페이 굿즈 attempt는 nicepay 조립으로 재정합한다', async () => {
+    mocks.attemptRow = { provider: 'nicepay', purpose: 'order' };
+    mocks.reconcile.mockResolvedValueOnce({ attemptId, provider: 'nicepay', outcome: 'needs_review' });
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(202);
+    expect(mocks.checkoutProvider).toBe('nicepay');
+    expect(mocks.availabilityProvider).toBe('nicepay');
+    const text = await response.text();
+    expect(JSON.parse(text)).toEqual({ attemptId, outcome: 'needs_review' });
+    expect(text).not.toContain('nicepay');
   });
 
   it.each([

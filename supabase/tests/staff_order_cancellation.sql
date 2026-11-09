@@ -7,7 +7,7 @@ begin;
 --
 -- 이 스모크가 DB 안에 고정하는 것:
 --   · 시작 RPC는 staff 세션 전용이고 구매자·익명·service_role은 실행할 수 없다
---   · 모든 배송 건이 발송 전인 paid·confirmed 토스 결제 주문만 열린다
+--   · 모든 배송 건이 발송 전인 paid·confirmed 토스·나이스페이 결제 주문만 열린다(Korpay·무통장은 거절)
 --   · 출고지시가 나간 배송 건이 있으면 창고 출고 중단 확인을 요구한다
 --   · 사유·메모·운영자·확인 여부가 요청과 감사 로그에 남고, 구매자에게 알린다
 --   · 고객 취소와 같은 원장 구조를 만들고 같은 완료 RPC로 재고·결제를 정확히 한 번 닫는다
@@ -68,7 +68,9 @@ values
   -- C: 고객 취소 클레임이 이미 진행 중
   ('61000000-0000-4000-8000-0000000c5d05', '00000000-0000-4000-8000-0000000c5d01', 'paid', 10000, '{}'::jsonb, null),
   -- N: 발주확인 주문 — 고객 직접 취소는 계속 닫혀 있어야 한다
-  ('61000000-0000-4000-8000-0000000c5d06', '00000000-0000-4000-8000-0000000c5d01', 'confirmed', 10000, '{}'::jsonb, now() - interval '1 hour');
+  ('61000000-0000-4000-8000-0000000c5d06', '00000000-0000-4000-8000-0000000c5d01', 'confirmed', 10000, '{}'::jsonb, now() - interval '1 hour'),
+  -- V: 나이스페이 결제 paid — 취소 API가 있어 토스처럼 운영자 전액 취소를 연다(2026-11-06)
+  ('61000000-0000-4000-8000-0000000c5d07', '00000000-0000-4000-8000-0000000c5d01', 'paid', 10000, '{}'::jsonb, null);
 
 insert into public.order_items (order_id, good_id, qty, unit_price, good_name_snapshot, good_type_snapshot, good_ip_id_snapshot, variant_id)
 select o.id, 'staff-cancel-goods', 1, 10000, '운영자 취소 굿즈', '문구', 'staff-cancel-ip',
@@ -97,7 +99,8 @@ values
   ('62000000-0000-4000-8000-0000000c5d03', '00000000-0000-4000-8000-0000000c5d01', 'order', '61000000-0000-4000-8000-0000000c5d03', 10000, 'paid', 'pk_staff_cancel_s', 'idem_staff_cancel_s', 'toss'),
   ('62000000-0000-4000-8000-0000000c5d04', '00000000-0000-4000-8000-0000000c5d01', 'order', '61000000-0000-4000-8000-0000000c5d04', 10000, 'paid', 'pk_staff_cancel_k', 'idem_staff_cancel_k', 'korpay'),
   ('62000000-0000-4000-8000-0000000c5d05', '00000000-0000-4000-8000-0000000c5d01', 'order', '61000000-0000-4000-8000-0000000c5d05', 10000, 'paid', 'pk_staff_cancel_c', 'idem_staff_cancel_c', 'toss'),
-  ('62000000-0000-4000-8000-0000000c5d06', '00000000-0000-4000-8000-0000000c5d01', 'order', '61000000-0000-4000-8000-0000000c5d06', 10000, 'paid', 'pk_staff_cancel_n', 'idem_staff_cancel_n', 'toss');
+  ('62000000-0000-4000-8000-0000000c5d06', '00000000-0000-4000-8000-0000000c5d01', 'order', '61000000-0000-4000-8000-0000000c5d06', 10000, 'paid', 'pk_staff_cancel_n', 'idem_staff_cancel_n', 'toss'),
+  ('62000000-0000-4000-8000-0000000c5d07', '00000000-0000-4000-8000-0000000c5d01', 'order', '61000000-0000-4000-8000-0000000c5d07', 10000, 'paid', 'staffcancelnicepay0000000000v7', 'idem_staff_cancel_v', 'nicepay');
 
 -- C: 고객이 이미 하자 취소를 접수해 운영 판단 대기 중이다.
 set local role service_role;
@@ -436,5 +439,37 @@ select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-0000000c5d01
 select 1 / case when (public.order_claim_eligibility('61000000-0000-4000-8000-0000000c5d06')->>'cancel')::boolean = false
   then 1 else 0 end as assert_customer_eligibility_after_confirmation_is_closed;
 reset role;
+
+-- ---------------------------------------------------------------------------
+-- V: 나이스페이 결제는 Korpay와 달리 시작을 받는다 — 오케스트레이터가 취소 API로 닫는다
+-- ---------------------------------------------------------------------------
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-0000000c5d02', true);
+select public.admin_start_order_cancellation(
+  '61000000-0000-4000-8000-0000000c5d07', 'customer_request', null, false
+) as staff_request_v \gset
+reset role;
+
+select 1 / case when (
+  select r.origin = 'staff' and r.stage = 'processing' and r.status = 'processing'
+    and (select count(*) = 1 from public.refunds f where f.cancellation_request_id = r.id and f.status = 'requested')
+  from public.order_cancellation_requests r where r.id = :'staff_request_v'
+) then 1 else 0 end as assert_staff_start_accepts_a_nicepay_capture;
+
+-- 오케스트레이터가 나이스페이 취소를 검증한 키로 완료하면 결제사 취소 환불로 기록된다.
+-- (재고 단언 뒤에 둔다 — 같은 굿즈를 하나 더 되돌린다.)
+set local role service_role;
+select public.complete_order_cancellation_request(
+  :'staff_request_v', array['staffcancelnicepay0000000000v7'], '00000000-0000-4000-8000-0000000c5d02'
+);
+reset role;
+
+select 1 / case when (
+  select r.status = 'completed'
+    and (select f.method = 'pg_cancel' and f.completed_at is not null
+         from public.refunds f where f.cancellation_request_id = r.id)
+  from public.order_cancellation_requests r where r.id = :'staff_request_v'
+) then 1 else 0 end as assert_nicepay_cancellation_completes_as_pg_cancel;
 
 rollback;

@@ -277,7 +277,7 @@ export function CheckoutOrder({
               </div>
               {/* 판매 제한(19금) 상품 포함 주문은 전용 PG로 파생된다(#392).
                   서버 prepare의 파생 결과가 진실원이라 provider로 판별한다. */}
-              {prepareState.prepared.provider === 'korpay' && (
+              {prepareState.prepared.provider === 'nicepay' && (
                 <p className="money-caption" role="status">
                   19금 굿즈가 포함된 주문은 결제수단이 신용카드로 제한됩니다.
                 </p>

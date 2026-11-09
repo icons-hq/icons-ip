@@ -48,7 +48,7 @@ export default async function Page({ searchParams }: PageProps) {
   ]);
 
   /* 카드 결제 가능 여부는 서버 카트 구성으로 파생한 provider의 gate다 — 19금 굿즈가
-     섞이면 코페이다. 주문 액션이 실제 카트로 다시 판정하고, DB prepare가 최종 강제한다. */
+     섞이면 나이스페이다. 주문 액션이 실제 카트로 다시 판정하고, DB prepare가 최종 강제한다. */
   const cardProvider = await deriveUserCartProvider(auth.user.id).catch(() => 'toss' as const);
   const paymentAvailable = goodsCheckoutPaymentsEnabled(auth.user.id, cardProvider);
 
@@ -67,7 +67,7 @@ export default async function Page({ searchParams }: PageProps) {
       catalog={{ goods: catalog.goods, ips: catalog.ips }}
       addressPrefill={addressPrefill}
       resumeOrderId={resumeOrderId}
-      /* 위에서 서버 카트 구성으로 파생한 provider의 gate다(19금 굿즈가 섞이면 코페이).
+      /* 위에서 서버 카트 구성으로 파생한 provider의 gate다(19금 굿즈가 섞이면 나이스페이).
          주문 액션이 실제 카트로 다시 판정하고, 서버 prepare가 최종 gate다. */
       paymentAvailable={paymentAvailable}
       bankTransferAvailable={await bankTransferCheckoutEnabled()}

@@ -128,7 +128,7 @@ function TimelineEntry({ entry, digital = false }: { entry: AdminOrderTimelineEn
     </div>
     <h4 className="mt-2.5 mb-1 text-sm font-medium text-foreground wrap-anywhere">{digital && entry.source === 'shipment' && entry.action === 'delivered' ? '파일 제공 시작' : entryTitle(entry)}</h4>
     {entry.fromStatus && entry.toStatus ? <p className={EVENT_TEXT}>{stateLabel(entry.fromStatus)} → {stateLabel(entry.toStatus)}</p> : null}
-    {entry.amount != null ? <p className={`${EVENT_TEXT} tabular-nums`}>{money(entry.amount)}{entry.provider ? ` · ${entry.provider === 'korpay' ? 'Korpay' : entry.provider === 'toss' ? 'Toss' : '결제사'}` : ''}</p> : null}
+    {entry.amount != null ? <p className={`${EVENT_TEXT} tabular-nums`}>{money(entry.amount)}{entry.provider ? ` · ${entry.provider === 'korpay' ? 'Korpay' : entry.provider === 'toss' ? 'Toss' : entry.provider === 'nicepay' ? 'NICEPAY' : '결제사'}` : ''}</p> : null}
     {status ? <p className={`${EVENT_TEXT} text-muted-foreground`}>현재 상태 · {status}</p> : null}
     {entry.shipmentId ? <p className={EVENT_TEXT}>{entry.originName ?? '배송 건'} · {entry.shipmentId}</p> : null}
     {entry.trackingNumber ? <p className={EVENT_TEXT}>운송장 · {entry.carrier} {entry.trackingNumber}</p> : null}
