@@ -18,7 +18,7 @@ ICONS는 서브컬처 팬덤을 위한 슈퍼앱 프로토타입이다. 공식 �
 - 검색은 Supabase 환경변수가 있으면 Postgres `search_public_content` RPC로 IP, 굿즈, 카드, visible 포스트, 태그를 그룹 검색하고, 로컬 fallback에서는 mock 데이터를 사용한다.
 - `/admin`은 통합 매니저·계정 주매니저·계정 부매니저·인플루언서·대행사·물류출고관리의 현재 DB 권한으로 메뉴·조회·변경을 제한한다. 상품·주문·문의·전시·마케팅·분석과 IP·카드·게임 운영을 각각 검사하며, 기존 `profiles.role` 값만으로 접근을 허용하지 않는다. 기존 게임 `goods` variant는 운영 콘솔에서 읽기 전용이고, mock 연출은 실제 경품·구매권을 만들지 않으며 신규 실물 판매에 쓰지 않는다.
 - Google, Kakao, Apple 버튼은 Supabase 관리형 OAuth Server Action에 연결되어 있고 production Supabase provider도 모두 활성화되어 있다. Google은 production 공개 상태이며 Apple App ID·Services ID·callback·서명 키 구성이 완료됐다. Kakao는 `(주) 아이콘스` 비즈 앱, 로그인용 client secret, `account_email` 필수 동의·계정 정보 수집까지 설정했고 Supabase의 이메일 없는 사용자 허용은 꺼져 있다. 코드가 production에 배포된 뒤 controlled login smoke가 남아 있다.
-- 굿즈와 티켓 checkout은 provider-neutral attempt/claim/finalizer와 `PaymentGateway` 경계 위에서 **토스페이먼츠 주문서형 v2**를 기본 provider로 쓴다(prepare→위젯 SDK→경로 세그먼트 nonce callback→서버 승인, ADR-0013). **판매 제한 상품**(성인(19금))이 담긴 주문만 서버가 주문 단위로 코페이를 파생하며 관리자가 PG를 고르지 않는다. 목적별 rollout gate의 기본값은 OFF이고 토스 gate 둘과 canary 둘은 모두 닫혀 있다 — 개방은 심사 트랙(`docs/runbooks/toss-production-rollout.md`)을 따른다. 2026-08-18 공개 ON으로 열어 둔 코페이 굿즈 gate는 폐쇄 실행 대기다.
+- 굿즈와 티켓 checkout은 provider-neutral attempt/claim/finalizer와 `PaymentGateway` 경계 위에서 **토스페이먼츠 주문서형 v2**를 기본 provider로 쓴다(prepare→위젯 SDK→경로 세그먼트 nonce callback→서버 승인, ADR-0013). **판매 제한 상품**(성인(19금))이 담긴 굿즈 주문만 서버가 주문 단위로 나이스페이(웹표준 인증결제)를 파생하며 관리자가 PG를 고르지 않는다(2026-11-06 코페이 대체 — 코페이는 진행 중 결제 drain 전용, `docs/runbooks/nicepay-production-rollout.md`). 목적별 rollout gate의 기본값은 OFF이고 토스 gate 둘과 canary 둘은 모두 닫혀 있다 — 개방은 심사 트랙(`docs/runbooks/toss-production-rollout.md`)을 따른다. 2026-08-18 공개 ON으로 열어 둔 코페이 굿즈 gate는 폐쇄 실행 대기다.
 - 범용 온라인 팝업 운영 레이어와 Expo webview 호스트는 현 로드맵에 없다. 19+ 꽝 없는 유한 실물 쿠지는 기존 카드·게임과 분리된 `prize_sale`로 설계하며 [#212](https://github.com/icons-hq/icons-ip/issues/212)·[#213](https://github.com/icons-hq/icons-ip/issues/213)이 별도 추적한다.
 
 운영자는 [설정 런북](./docs/runbooks/admin-store-settings.md)에서 사업자·CS, 무통장 계좌 표시값과 택배사 변경 절차를 확인할 수 있습니다.
@@ -81,14 +81,16 @@ TOSS_TICKET_CHECKOUT_ENABLED=false
 # Optional Production-only UUID for one authenticated canary actor; leave unset by default.
 TOSS_ORDER_CANARY_USER_ID=
 TOSS_TICKET_CANARY_USER_ID=
-# Korpay (sale-restricted goods only): Production only; never put these in Preview/CI or NEXT_PUBLIC_*.
+# NICEPAY (sale-restricted goods only, web-standard MID + MerchantKey): Production only;
+# never put these in Preview/CI or NEXT_PUBLIC_*. There is no ticket gate.
+NICEPAY_MID=
+NICEPAY_MERCHANT_KEY=
+NICEPAY_ORDER_CHECKOUT_ENABLED=false
+# Optional Production-only UUID for one authenticated canary actor (card review account); leave unset by default.
+NICEPAY_ORDER_CANARY_USER_ID=
+# Korpay (retired: in-flight callback drain only): Production only. Checkout gates/canaries are no longer read.
 KORPAY_MID=
 KORPAY_KEY=
-KORPAY_ORDER_CHECKOUT_ENABLED=false
-KORPAY_TICKET_CHECKOUT_ENABLED=false
-# Optional Production-only UUID for one authenticated canary actor; leave unset by default.
-KORPAY_ORDER_CANARY_USER_ID=
-KORPAY_TICKET_CANARY_USER_ID=
 # NHN KCP mobile identity verification (adult verification). Production uses production mode;
 # Preview/local use test mode only. Never commit the site code, web site id or ENC_KEY.
 KCP_CERT_MODE=
@@ -105,7 +107,7 @@ ADULT_VERIFICATION_CANARY_USER_ID=
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`: legacy Supabase anon public key. `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`가 없을 때 fallback으로만 사용한다.
 - `ICONS_CATALOG_SOURCE`: 서버 전용 catalog/search source override. 값은 `mock` 또는 `supabase`만 허용한다. 비워두면 Vercel Preview는 `mock`, Supabase 환경변수가 있는 production/local은 `supabase`, Supabase 환경변수가 없으면 `mock`을 쓴다. GitHub Actions의 PR preview는 선택된 shared/isolated Supabase 자격 증명과 함께 `supabase`를 강제한다.
 - `AUTH_SIGNUP_RESEND_SECRET`: 회원가입 확인 메일 재전송 상태, 인증 `next`, 비밀번호 재설정 요청 제한 쿠키를 domain-separated HMAC으로 서명하는 서버 전용 secret. 긴 랜덤 값을 사용하고 `NEXT_PUBLIC_` prefix를 붙이지 않는다.
-- `SITE_URL`: secret이 아닌 서버 전용 canonical public origin이다. Production은 정확히 `https://iconsip.com`을 사용하며 토스 `successUrl`·`failUrl`과 코페이 `returnUrl` callback이 모두 이 origin 아래에서 생성된다. Preview/CI는 필요하면 각 환경의 일반 서버 origin을 둘 수 있지만 Korpay 실자격 증명과 canary actor는 두지 않고 목적별 gate를 닫는다. `SITE_URL`만으로 live checkout이 열리지는 않는다.
+- `SITE_URL`: secret이 아닌 서버 전용 canonical public origin이다. Production은 정확히 `https://iconsip.com`을 사용하며 토스 `successUrl`·`failUrl`, 나이스페이 `ReturnURL`, 코페이 `returnUrl` callback이 모두 이 origin 아래에서 생성된다. Preview/CI는 필요하면 각 환경의 일반 서버 origin을 둘 수 있지만 Korpay·NICEPAY 실자격 증명과 canary actor는 두지 않고 목적별 gate를 닫는다. `SITE_URL`만으로 live checkout이 열리지는 않는다.
 - `CRON_SECRET`: production Vercel Cron이 만료된 관리자 아트워크 staging 객체를 정리할 때 쓰는 서버 전용 bearer secret. 16~128자의 URL-safe 랜덤 값을 사용하고 preview에는 필요하지 않다.
 - `SUPABASE_SEND_EMAIL_HOOK_SECRET`·`RESEND_WEBHOOK_SECRET`: #191 Hook/webhook의 raw body 서명 검증용 서버 secret이다.
 - `EMAIL_DISPATCH_HMAC_SECRET`: recipient·source·provider reference를 목적 분리 keyed HMAC으로 투영하는 32자 이상 서버 secret이다.
