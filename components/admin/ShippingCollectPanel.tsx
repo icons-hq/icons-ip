@@ -1,4 +1,6 @@
 'use client';
+import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { statusTone } from '@/lib/admin/status-tone';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { sealShippingCollectOperationAction, readShippingCollectEventOperationAction, readShippingCollectEventsAction, saveShippingCollectEventAction } from '@/app/admin/shipping-collect-event-actions';
 import { SHIPPING_COLLECT_STATE_LABEL, SHIPPING_COLLECT_WRITE_EVENTS, shippingCollectEventReceiptMatches, parseShippingCollectRecovery, shippingCollectRecoveryKey,
@@ -140,7 +142,7 @@ function VerifiedShippingCollectPanel({ orderId, expectedActorId, canManage, sco
     {!visible || visible.key !== key ? <p className="text-muted-foreground" role="status">착불 수납 내역을 확인하는 중입니다…</p> : null}
     {visible?.error ? <><p className="text-destructive" role="alert">{visible.error}</p><button className={`${PRIMARY} w-fit`} data-slot="button" type="button" onClick={reload}>다시 불러오기</button></> : null}
     {visible?.rows?.map(obligation => <article className="flex min-w-0 flex-col gap-3 rounded-lg border p-3" key={`${contextKey}:${obligation.shipmentId}`}>
-        <h4 className="font-medium">{obligation.originName} · <span className="tabular-nums">{krw(obligation.amount)}</span></h4><p>{SHIPPING_COLLECT_STATE_LABEL[obligation.state]} · 기록 {obligation.revision}</p>
+        <h4 className="font-medium">{obligation.originName} · <span className="tabular-nums">{krw(obligation.amount)}</span></h4><p className="flex flex-wrap items-center gap-2"><AdminStatusBadge tone={statusTone('shippingCollect', obligation.state)}>{SHIPPING_COLLECT_STATE_LABEL[obligation.state]}</AdminStatusBadge> 기록 {obligation.revision}</p>
         <details className="rounded-lg bg-muted/40 px-3 py-2"><summary className="cursor-pointer font-medium">수납·환급 이력 {obligation.events.length}건</summary><ol className="mt-2 flex flex-col gap-2 border-l pl-4">{obligation.events.map(event => <li key={event.operationId}>
           <strong className="font-medium">{event.event === 'correction' ? '증빙 정정' : SHIPPING_COLLECT_STATE_LABEL[event.event]}</strong> · {krw(event.amount)} · 기록 {formatOrderDateTime(event.recordedAt)}
           {event.occurredAt ? <p>발생 {formatOrderDateTime(event.occurredAt)}</p> : null}{event.party ? <p>수납·반환 주체: {event.party}</p> : null}{event.reversesOperationId ? <p>정정 대상: {event.reversesOperationId}</p> : null}{event.reference ? <p>{event.reference}</p> : null}{event.note ? <p className="text-muted-foreground">{event.note}</p> : null}

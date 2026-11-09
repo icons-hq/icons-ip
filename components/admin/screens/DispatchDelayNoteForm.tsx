@@ -65,7 +65,7 @@ export function DispatchDelayNoteForm({
       <Button disabled={pending} size="xs" type="submit" variant="outline">
         {pending ? '저장 중' : '메모 저장'}
       </Button>
-      <div aria-live="polite" className="basis-full text-xs empty:hidden [&_[role=alert]]:text-destructive [&_[role=status]]:text-[var(--wc-success)]">
+      <div aria-live="polite" className="basis-full text-xs empty:hidden [&_[role=alert]]:text-destructive [&_[role=status]]:text-success">
         {fieldError ? <span role="alert">{fieldError}</span> : null}
         {state.message ? <span role="status">{state.message}</span> : null}
       </div>

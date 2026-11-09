@@ -53,6 +53,30 @@ const STATUS_TONES = {
   readiness: { ready: 'success', blocked: 'warning', review_required: 'warning', unknown: 'warning' },
   /* 화면군별 상태. 새 상태는 자기 화면군 줄 아래에만 더한다(병렬 작업 합칠 때 겹치지 않게). */
   // [sales]
+  /** 배송 건 — lib/orders/shipments ShipmentStatus */
+  shipment: { ready: 'info', shipping: 'info', delivered: 'success', canceled: 'danger' },
+  /** 환불 원장 — lib/orders refundStatusLabel */
+  refund: { requested: 'warning', awaiting_transfer: 'warning', done: 'success', failed: 'danger' },
+  /** 무통장 환불 송금 단계 — lib/admin/bank-transfer-refund phase */
+  refundTransfer: { not_confirmed: 'warning', awaiting_transfer: 'warning', completed: 'success' },
+  /** 미결제 무통장의 결제 시도. 입금 대기는 이 목록의 평상 상태라 조용히 둔다(전 행이 주의색이면 기한 임박 신호가 죽는다). missing은 원장이 없는 주문 */
+  unpaid: { prepared: 'neutral', confirming: 'info', needs_review: 'danger', unknown: 'danger', missing: 'danger' },
+  /** 반품·교환 배송비 청구 — lib/orders/claim-fees */
+  claimFee: { unpaid: 'warning', reported: 'warning', paid: 'success', waived: 'neutral', voided: 'neutral', refund_due: 'danger', refunded: 'success' },
+  /** 정기구매 신청 — lib/subscriptions/model */
+  subscription: { draft: 'neutral', awaiting_first_payment: 'info', active: 'success', paused: 'neutral', needs_confirmation: 'warning', canceled: 'danger' },
+  /** 정기구매 회차 결제 */
+  subscriptionCycle: { draft: 'neutral', ready: 'info', prepared: 'info', dispatching: 'info', unknown: 'warning', needs_review: 'danger', approved: 'success', declined: 'danger', canceled: 'danger', skipped: 'neutral' },
+  /** 배송 건별 지연 안내 결과 — lib/admin/shipment-delay-notice */
+  delayNotice: { sent: 'success', partial_failed: 'warning', pending: 'info', unknown: 'warning', not_sent: 'neutral' },
+  /** 지연 안내 채널별 결과 — lib/admin/order-delay-notices */
+  delayNoticeChannel: { prepared: 'neutral', queued: 'info', processing: 'info', sent: 'success', failed: 'danger', unknown: 'warning', suppressed: 'neutral' },
+  /** 배송 안내 메일 작업 */
+  shipmentEmail: { pending: 'info', processing: 'info', completed: 'success', review: 'danger' },
+  /** 착불 배송비 수납 — lib/admin/shipping-collect-events */
+  shippingCollect: { planned: 'info', collected: 'success', void: 'neutral', refund_review: 'warning', refunded: 'neutral', mismatch: 'danger' },
+  /** 주문제작 — lib/order-production */
+  production: { pending: 'warning', started: 'info', completed: 'success', canceled: 'danger' },
   // [cs]
   // [catalog]
   // [ops]

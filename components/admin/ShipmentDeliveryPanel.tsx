@@ -1,5 +1,7 @@
 'use client';
 
+import { AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { statusTone } from '@/lib/admin/status-tone';
 import { useEffect, useId, useRef, useState, useTransition, type FormEvent } from 'react';
 import { readShipmentDeliveryAction, recordShipmentDeliveryAction, selectShipmentDeliveryMethodAction } from '@/app/admin/shipment-delivery-actions';
 import { DELIVERY_METHOD_LABELS, deliveryIsHandoff, deliveryStatusLabel, type AdminShipmentDelivery, type DeliveryMethod, type DeliveryOperation } from '@/lib/shipment-delivery';
@@ -53,7 +55,7 @@ function MethodSelection({ shipment, onSaved }: { shipment: AdminShipmentDeliver
         <option value="">활성 운영 조건을 선택해주세요</option>
         {policies.map((policy) => <option key={policy.id} value={policy.id}>버전 {policy.revision} · {policy.contactName} · {policy.handoffLocation}</option>)}
       </NativeSelect></div> : null}
-      {method !== 'parcel' && !policies.length ? <p className="rounded-lg border bg-muted/40 px-3 py-2.5 text-sm" role="status">이 출고지의 활성 운영 조건이 없습니다. 실제 운영 조건을 등록한 뒤 선택할 수 있습니다.</p> : null}
+      {method !== 'parcel' && !policies.length ? <AdminNotice role="status" tone="warning">이 출고지의 활성 운영 조건이 없습니다. 실제 운영 조건을 등록한 뒤 선택할 수 있습니다.</AdminNotice> : null}
       <label className={FIELD_CLASS}><span className={LABEL_TEXT}>고객의 방식 변경 요청 근거</span><Textarea name="customerRequestReference" rows={2} maxLength={2000} required /></label>
       <label className={FIELD_CLASS}><span className={LABEL_TEXT}>기존 배송비 유지 동의 근거</span><Textarea name="feeConsentReference" rows={2} maxLength={2000} required /></label>
       <label className="flex items-start gap-2 text-sm"><input className="mt-0.5" type="checkbox" name="feeUnchanged" required /><span>고객과 확인한 기존 배송비 {krw(shipment.shippingFee)}를 유지합니다.</span></label>
@@ -101,7 +103,7 @@ function HandoffForm({ shipment, onSaved }: { shipment: AdminShipmentDelivery; o
         <small className={NOTE_CLASS}>주문자는 주문 화면에서 10분 동안 유효한 확인값을 발급합니다. 5회 틀리거나 재발급하면 이전 값은 사용할 수 없습니다.</small>
       </>}
     </fieldset>
-    {!shipment.preorderReady ? <p className="rounded-lg border bg-muted/40 px-3 py-2.5 text-sm" role="status">예약 품목에 실제 입고 물량을 먼저 할당해주세요.</p> : null}
+    {!shipment.preorderReady ? <AdminNotice role="status" tone="warning">예약 품목에 실제 입고 물량을 먼저 할당해주세요.</AdminNotice> : null}
     {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
     <Button type="submit" disabled={pending || !shipment.preorderReady}>{pending ? '확인 중…' : deliveryIsHandoff(kind) ? '배송 인계 확인' : '수령 완료 확인'}</Button>
   </form>;
@@ -125,9 +127,9 @@ export function ShipmentDeliveryPanel({ shipmentId, shipmentNumber, orderId, ori
       <h3 className="text-base font-medium text-foreground" id={`shipment-delivery-${shipmentId}`}>{originName ? `${originName} · ` : ''}배송 방식·인계 확인</h3>
       <small className={`${NOTE_CLASS} tabular-nums`}>배송 건 {commerceReferenceLabel(shipmentId, shipmentNumber)}</small>
     </div>
-    {notice?.shipmentId === shipmentId && <p className="text-[var(--wc-success)]" role="status">{notice.text}</p>}
+    {notice?.shipmentId === shipmentId && <p className="text-success" role="status">{notice.text}</p>}
     {!visible ? <p className="text-muted-foreground" role="status">배송 인계 정보를 불러오는 중입니다…</p> : visible.error ? <p className="text-destructive" role="alert">{visible.error}</p> : shipment ? <>
-      <p>{DELIVERY_METHOD_LABELS[shipment.summary.method]} · {deliveryStatusLabel(shipment.summary.method, shipment.status)} · 기존 배송비 {krw(shipment.shippingFee)}</p>
+      <p className="flex flex-wrap items-center gap-2">{DELIVERY_METHOD_LABELS[shipment.summary.method]} <AdminStatusBadge tone={statusTone('shipment', shipment.status)}>{deliveryStatusLabel(shipment.summary.method, shipment.status)}</AdminStatusBadge> 기존 배송비 {krw(shipment.shippingFee)}</p>
       {shipment.summary.policy ? <p className="whitespace-pre-wrap text-muted-foreground">저장된 인계 조건: {shipment.summary.policy.handoffLocation}<br />
         {shipment.summary.policy.handoffInstructions}<br />{shipment.summary.policy.completionInstructions}</p> : null}
       {shipment.canSelect ? <details className="w-full rounded-lg border px-3 py-2.5"><summary className={SUMMARY_CLASS}>고객 요청으로 방식 변경</summary><MethodSelection key={`select-${shipment.updatedAt}`} shipment={shipment} onSaved={saved} /></details>
