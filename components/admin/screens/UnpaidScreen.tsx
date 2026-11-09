@@ -84,7 +84,7 @@ export function UnpaidScreen({
         </span>,
         <AdminStatusBadge key="state" tone={statusTone('unpaid', row.attemptState ?? 'missing')}>{adminUnpaidAttemptStateLabel(row.attemptState)}</AdminStatusBadge>,
         <span className="tabular-nums" key="total">{krw(row.total)}</span>,
-        <Link aria-label={`입금확인코드 ${row.depositCode} 입금 확인·기한 연장·취소 처리 열기`} className={buttonVariants({ size: 'sm', variant: 'soft' })} data-slot="button" href={actionHref} key="action">{needsCare ? '확인·처리' : '입금 확인'}</Link>,
+        <Link aria-label={`${needsCare ? '확인·처리' : '입금 확인'} · 입금확인코드 ${row.depositCode} 입금 확인·기한 연장·취소 처리 열기`} className={buttonVariants({ size: 'sm', variant: 'soft' })} data-slot="button" href={actionHref} key="action">{needsCare ? '확인·처리' : '입금 확인'}</Link>,
       ],
     };
   });

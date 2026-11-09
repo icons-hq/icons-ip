@@ -38,7 +38,7 @@ export function CategoryTree({ categories, activeId, onSelect }: { categories: A
               <strong className={`text-sm font-medium ${active ? 'text-primary-soft-foreground' : ''}`}>{category.name}</strong>
               {category.archivedAt ? <AdminStatusBadge tone={statusTone('publication', 'archived')}>보관</AdminStatusBadge> : null}
             </button>
-            <Link aria-label={`${category.name} 상품 목록`} className="shrink-0 text-xs whitespace-nowrap text-muted-foreground tabular-nums underline-offset-4 hover:text-foreground hover:underline" href={goodsListHref(normalizeGoodsListFilters({ categoryId: category.id }))} title="이 카테고리에 직접 연결된 상품 수입니다. 누르면 하위 카테고리 상품까지 함께 봅니다.">상품 {category.assignedGoodCount.toLocaleString('ko-KR')}개</Link>
+            <Link aria-label={`상품 ${category.assignedGoodCount.toLocaleString('ko-KR')}개 · ${category.name} 상품 목록`} className="shrink-0 text-xs whitespace-nowrap text-muted-foreground tabular-nums underline-offset-4 hover:text-foreground hover:underline" href={goodsListHref(normalizeGoodsListFilters({ categoryId: category.id }))} title="이 카테고리에 직접 연결된 상품 수입니다. 누르면 하위 카테고리 상품까지 함께 봅니다.">상품 {category.assignedGoodCount.toLocaleString('ko-KR')}개</Link>
           </div>
           {branch(category.id, depth + 1)}
         </li>;

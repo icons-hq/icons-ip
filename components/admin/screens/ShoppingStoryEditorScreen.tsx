@@ -61,7 +61,7 @@ export function ShoppingStoryEditorScreen({ accountId, draftId, initial }: { acc
       if (!initial) router.replace(`${ADMIN_SHOPPING_STORIES_PATH}/${draftId}`); router.refresh();
     });
   }
-  return <section className="flex min-w-0 flex-col gap-4">
+  return <section className="flex min-w-0 flex-col gap-4 [&_:is(input,select,textarea,button,summary,a)]:scroll-mb-24">
     {/* 셸 제목은 메뉴 이름(쇼핑스토리)이라 목록과 같다 — 머리가 수정·등록 화면임을 말하고, 어느 글인지와 전시 상태를 옆에 둔다. */}
     <header className="flex flex-wrap items-center gap-2" data-admin-kit="page-header">
       <AdminPageHeading title={initial ? '쇼핑스토리 수정' : '쇼핑스토리 등록'} />

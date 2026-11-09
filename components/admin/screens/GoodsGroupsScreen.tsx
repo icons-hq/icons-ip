@@ -117,7 +117,7 @@ export function GoodsGroupsScreen({ initialPage, initialGroup, initialQuery = ''
             <TableCell className="whitespace-normal">{member.values.join(' / ')}</TableCell><TableCell className="text-right tabular-nums">{formatWon(member.price)}</TableCell><TableCell className="text-right tabular-nums">{member.stockQty.toLocaleString('ko-KR')}개</TableCell><TableCell><AdminStatusBadge tone={statusTone('publication', member.archivedAt ? 'archived' : member.publishedAt ? 'published' : 'draft')}>{member.archivedAt ? '보관' : member.publishedAt ? '공개' : '미공개'}</AdminStatusBadge></TableCell></TableRow>)}
         </TableBody></GroupTable></TableCell></TableRow> : null}</Fragment>)}
       {/* 하나도 없는 것과 검색에 안 걸린 것은 다른 안내다 — 처음이면 위 주 버튼으로 시작하게 한다. */}
-      {!page.rows.length ? <TableRow><TableCell className="h-24 text-center whitespace-normal text-muted-foreground" colSpan={9}>{consoleData?.counts.all === 0 ? '아직 등록한 그룹상품이 없습니다. 위의 기존 상품으로 그룹 구성을 눌러 첫 그룹상품을 만들어주세요.' : '검색 조건에 맞는 그룹상품이 없습니다.'}</TableCell></TableRow> : null}</TableBody></GroupTable>
+      {!page.rows.length ? <TableRow><TableCell className="h-24 text-center whitespace-normal text-muted-foreground" colSpan={9}>{consoleData?.counts.all === 0 && !(applied.query || applied.categoryId || applied.from || applied.to || applied.stock !== 'all' || applied.originId || applied.shippingFee !== 'all') ? '아직 등록한 그룹상품이 없습니다. 위의 기존 상품으로 그룹 구성을 눌러 첫 그룹상품을 만들어주세요.' : '검색 조건에 맞는 그룹상품이 없습니다.'}</TableCell></TableRow> : null}</TableBody></GroupTable>
       <GroupPager {...page} disabled={pending} onChange={number => load({ ...applied, page: number })} /></div> : <p className="text-sm text-muted-foreground" role="status">목록을 조회해주세요.</p>}
   </section>;
 }

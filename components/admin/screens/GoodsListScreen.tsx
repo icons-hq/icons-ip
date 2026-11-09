@@ -13,7 +13,7 @@ import { ConsolePagination } from '../console/ConsolePagination';
 import { buttonVariants } from '../kit/ui/button';
 import { GoodsListFiltersForm } from './GoodsListFiltersForm';
 import { CustomerServiceListSelect } from './CustomerServiceListControls';
-import { GOODS_LIST_PAGE_SIZE, GOODS_LIST_PAGE_SIZES, GOODS_LIST_SORT_OPTIONS, goodsListHref, goodEditorHref, goodPreviewHref, type AdminGoodSummary, type AdminGoodsListData } from '@/lib/admin/goods-list';
+import { GOODS_LIST_PAGE_SIZE, GOODS_LIST_PAGE_SIZES, GOODS_LIST_SORT_OPTIONS, goodsListHref, goodsListIsNarrowed, goodEditorHref, goodPreviewHref, type AdminGoodSummary, type AdminGoodsListData } from '@/lib/admin/goods-list';
 import { goodDetailHref } from '@/lib/goods-display';
 import type { GoodsGroupIdentity } from '@/lib/admin/goods-groups';
 import { GoodsInlinePrice, GoodsInlineSale, GoodsInlineStock } from '../GoodsInlineEdit';
@@ -111,7 +111,7 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
           넓은 화면의 도구 줄: 뿌리를 contents로 풀어 작업 막대 줄(조회항목 설정을 직접 품은 div)이 목록 제목 옆으로 오고, 표는 다음 줄 전체를 쓴다.
           '한 번에 최대 100개'는 일괄 변경 팝업에서도 말하므로 이 줄에서는 스크린리더에만 남긴다. 선택하면 생기는 '선택 해제' 자리는 조회항목 설정을 잠시 비켜 만든다 — 체크 순간 줄이 두 단이 되어 표가 밀리지 않게. */}
       <MarketingLinksGoodsGrid key={`${goodsListHref(filters)}:${bulkIdentity?.actorId}:${bulkIdentity?.sessionId}`} canIssue={canIssueMarketingLinks} bulkIdentity={bulkIdentity} caption="상품 목록" preferencesKey="catalog-goods" className="[&_table]:min-w-[1088px] [&_thead_th:first-child]:min-w-10 [&_td[data-align]]:px-2 [&_th[data-align]]:px-2 [&_[data-inline-edit=cell]_button]:min-h-6 xl:contents xl:[&>.relative]:w-full xl:[&>div:has(>[data-admin-kit=table-settings])]:flex-auto xl:[&_[data-goods-bulk]>div>small]:sr-only xl:[&_[data-admin-kit=table-settings]_button]:h-7 xl:[&_[data-admin-kit=table-settings]_button]:text-[0.8rem] xl:max-2xl:[&:has(tr[data-state=selected])_[data-admin-kit=table-settings]]:hidden"
-        emptyLabel={counts?.all === 0 ? '아직 등록한 상품이 없습니다. 위의 상품 등록을 눌러 첫 상품을 등록해주세요.' : '검색 조건에 맞는 상품이 없습니다.'}
+        emptyLabel={counts?.all === 0 && !goodsListIsNarrowed(filters) ? '아직 등록한 상품이 없습니다. 위의 상품 등록을 눌러 첫 상품을 등록해주세요.' : '검색 조건에 맞는 상품이 없습니다.'}
         /* 1440 화면에서 끝 열까지 들어오는 폭이다. 긴 영문이 많은 상품번호는 맨 뒤로 뺐고(앞부분은 읽히는 폭), 상세 재고는 재고수량 칸 안에 접어 둔다. */
         columns={[
         { key: 'name', label: '상품명 · 판매자상품코드', width: '208px' }, { key: 'edit', label: '수정', width: '56px' }, { key: 'price', label: '판매가', align: 'end', width: '104px' },
@@ -139,7 +139,7 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
         const reasons = readiness.reasons.filter(reason => !REASONS_SAID_BY_BADGE.has(reason.code));
         const reasonLink = (reason: AdminGoodsReadiness['reasons'][number]) => <Link className={REASON_LINK} key={reason.code} href={goodEditorHref(filters, good.id, reason.target)}><TriangleAlert aria-hidden="true" className="size-3.5 shrink-0" />{reason.label} →</Link>;
         /* 상세 재고는 값 수정 덮개가 있는 칸에 함께 있어 덮개 위에 세운다. */
-        const stockDetails = (extra?: ReactNode) => <details className="relative z-[1] text-xs font-normal" data-goods-list="stock-details"><summary className="cursor-pointer whitespace-nowrap text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">상세 재고</summary><dl className="mt-2 grid min-w-[9rem] gap-1 text-left text-sm whitespace-normal text-foreground">
+        const stockDetails = (extra?: ReactNode) => <details className="relative z-[1] text-xs font-normal" data-goods-list="stock-details"><summary className="inline-flex min-h-6 cursor-pointer items-center justify-end whitespace-nowrap text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">상세 재고</summary><dl className="mt-2 grid min-w-[9rem] gap-1 text-left text-sm whitespace-normal text-foreground">
           <dt className="text-xs text-muted-foreground">전체 할당 재고</dt><dd className="mb-1.5 tabular-nums">{good.stockQty.toLocaleString('ko-KR')}개</dd>
           <dt className="text-xs text-muted-foreground">사용 옵션 재고</dt><dd className="mb-1.5 tabular-nums">{good.activeStockQty.toLocaleString('ko-KR')}개</dd>
           <dt className="text-xs text-muted-foreground">안전재고</dt><dd className="mb-1.5">{good.lowStockOptionCount > 0 ? `부족 ${good.lowStockOptionCount}개 옵션` : '부족 경보 없음'}</dd>
