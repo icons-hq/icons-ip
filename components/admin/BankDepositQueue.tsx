@@ -12,6 +12,7 @@ import {
   bankDepositNeedsSecondLook,
 } from '../../lib/payments/bank-deposit-feed';
 import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { krw } from '@/lib/format';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 
@@ -52,7 +53,7 @@ function DepositCard({ deposit }: { deposit: AdminBankDepositRow }) {
   return (
     <li className="flex flex-col gap-3 rounded-lg border p-3">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <strong className="text-base font-semibold tabular-nums">{deposit.amount.toLocaleString('ko-KR')}원</strong>
+        <strong className="text-base font-semibold tabular-nums">{krw(deposit.amount)}</strong>
         <span>{deposit.depositorName}</span>
         <span className="text-xs text-muted-foreground tabular-nums">{deposit.source} · {deposit.externalId}</span>
       </div>

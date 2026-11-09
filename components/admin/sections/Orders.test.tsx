@@ -820,6 +820,8 @@ describe('OrdersSection', () => {
         useRef: () => ({ current: { focus } }),
       };
     });
+    /* 이 목은 모든 effect를 렌더 중에 돌린다 — 공용 표의 잘림 표시(스크롤 측정)는 이 시험의 관심사가 아니므로 뺀다. */
+    vi.doMock('@/components/admin/console/useHorizontalOverflow', () => ({ useHorizontalOverflow: () => ({ ref: { current: null }, more: false }) }));
 
     try {
       const { OrdersSection: ErroredOrdersSection } = await import('./Orders');
@@ -846,6 +848,7 @@ describe('OrdersSection', () => {
       expect(focus).toHaveBeenCalledOnce();
     } finally {
       vi.doUnmock('react');
+      vi.doUnmock('@/components/admin/console/useHorizontalOverflow');
       vi.resetModules();
     }
   });

@@ -2,19 +2,20 @@
 import Link from 'next/link';
 import { ConsoleGrid, ConsolePagination, type ConsoleGridColumn } from '@/components/admin/console';
 import { EncryptedWorkbookDownloadButton } from '@/components/admin/EncryptedWorkbookDownloadButton';
-import { SalesFilterField, SalesFilterPanel, SalesGuide, SalesResultsTitle, SalesSelect } from '@/components/admin/sales/SalesConsole';
+import { SalesFilterField, SalesFilterPanel, SalesGuide, SalesResultsTitle, SalesSelect, ShortId } from '@/components/admin/sales/SalesConsole';
 import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { Button } from '@/components/admin/kit/ui/button';
 import { statusTone } from '@/lib/admin/status-tone';
 import { ADMIN_GIFT_STATES, ADMIN_GIFT_STATE_LABELS, adminGiftsHref, adminGiftsQuery, type AdminGiftData } from '@/lib/admin/gifts';
 import { formatOrderDateTime } from '@/lib/orders';
 
+/* 1440 화면(표 폭 약 1,100px)에 기한·연결 주문까지 들어오게 나눈다. 상품·옵션은 폭을 비워 남는 자리를 받고, 대부분 비어 있는 수락일은 맨 뒤로 보낸다. */
 const columns: ConsoleGridColumn[] = [
-  { key: 'id', label: '선물번호', width: '190px', required: true }, { key: 'state', label: '상태', width: '160px' },
-  { key: 'sender', label: '보낸 사람', width: '120px' }, { key: 'recipient', label: '받는 사람', width: '120px' },
-  { key: 'goods', label: '상품·옵션', width: '300px' }, { key: 'quantity', label: '총 수량', width: '90px', align: 'end' },
-  { key: 'created', label: '선물 생성일', width: '170px' }, { key: 'expires', label: '수락·주문 기한', width: '170px' },
-  { key: 'accepted', label: '수락일', width: '170px' }, { key: 'order', label: '연결 주문', width: '190px' },
+  { key: 'id', label: '선물번호', width: '104px', required: true }, { key: 'state', label: '상태', width: '100px' },
+  { key: 'sender', label: '보낸 사람', width: '100px' }, { key: 'recipient', label: '받는 사람', width: '100px' },
+  { key: 'goods', label: '상품·옵션' }, { key: 'quantity', label: '총 수량', width: '64px', align: 'end' },
+  { key: 'created', label: '선물 생성일', width: '146px' }, { key: 'expires', label: '수락·주문 기한', width: '146px' },
+  { key: 'order', label: '연결 주문', width: '100px' }, { key: 'accepted', label: '수락일', width: '146px' },
 ];
 export function AdminGiftsScreen({ data }: { data: AdminGiftData }) {
   const filters = data.filters, query = adminGiftsQuery(filters, false), currentHref = adminGiftsHref(filters);
@@ -33,9 +34,10 @@ export function AdminGiftsScreen({ data }: { data: AdminGiftData }) {
       <EncryptedWorkbookDownloadButton href={`/api/admin/gifts/export${query.size ? `?${query}` : ''}`} label="암호화 엑셀 다운로드" disabled={data.total > 10000} />
     </div>
     <ConsoleGrid caption="선물 수락 목록" preferencesKey="sales-gifts" columns={columns} emptyLabel="검색 조건에 맞는 선물이 없습니다."
-      rows={data.rows.map(row => ({ id: row.id, cells: [<span key="id" className="tabular-nums">{row.id}</span>, <AdminStatusBadge key="state" tone={statusTone('gift', row.state)}>{ADMIN_GIFT_STATE_LABELS[row.state]}</AdminStatusBadge>,
-        row.senderName, row.recipientName ?? '수락 전', row.goodsLabel, row.quantity, formatOrderDateTime(row.createdAt), formatOrderDateTime(row.expiresAt),
-        row.acceptedAt ? formatOrderDateTime(row.acceptedAt) : '—', row.orderId ? <Link key="order" className="tabular-nums underline-offset-4 hover:underline" href={`/admin/sales/orders/${row.orderId}`}>{row.orderId}</Link> : '주문 전'] }))} />
+      rows={data.rows.map(row => ({ id: row.id, cells: [<ShortId className="text-muted-foreground" key="id" value={row.id} />, <AdminStatusBadge key="state" tone={statusTone('gift', row.state)}>{ADMIN_GIFT_STATE_LABELS[row.state]}</AdminStatusBadge>,
+        row.senderName, row.recipientName ?? '수락 전', <span className="block min-w-48" key="goods">{row.goodsLabel}</span>, row.quantity, formatOrderDateTime(row.createdAt), formatOrderDateTime(row.expiresAt),
+        row.orderId ? <Link key="order" className="underline-offset-4 hover:underline" href={`/admin/sales/orders/${row.orderId}`}><ShortId value={row.orderId} /></Link> : '주문 전',
+        row.acceptedAt ? formatOrderDateTime(row.acceptedAt) : '—'] }))} />
     <ConsolePagination label="선물 목록 페이지" page={data.page} pageSize={data.pageSize} total={data.total} hrefForPage={page => adminGiftsHref(filters, page)} />
     <p className="text-muted-foreground">현재 검색 조건의 전체 선물을 받습니다. 최대 10,000건이며 내려받은 기록이 남습니다.</p></div>
   </section>;

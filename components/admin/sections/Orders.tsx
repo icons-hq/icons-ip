@@ -66,7 +66,7 @@ import { adminListExportHref } from '@/lib/admin/list-export';
 import { AdminListExportButton } from '@/components/admin/AdminListExportButton';
 import { ConsoleGrid, ConsolePagination, type ConsoleGridColumn } from '@/components/admin/console';
 import { SALES_DATE_FIELDS } from '@/lib/admin/sales-list';
-import { SalesFilterField, SalesFilterPanel, SalesGuide, SalesResultsHeader, SalesSelect, SalesStatusSummary } from '@/components/admin/sales/SalesConsole';
+import { SalesFilterField, SalesFilterPanel, SalesGuide, SalesResultsHeader, SalesSelect, SalesStatusSummary, ShortId } from '@/components/admin/sales/SalesConsole';
 import { SellerClaimIntakeButton } from '@/components/admin/screens/SellerClaimIntakeForm';
 import { OrderViewTabs } from '@/components/admin/sales/OrderViewTabs';
 import { OrderStatusBadge } from '@/components/admin/sales/OrderStatusBadge';
@@ -886,7 +886,7 @@ function OrderDetail({
               tabIndex={0}><OrderStatusBadge label={statusLabel} status={order.status} /></span>
           ) : <OrderStatusBadge label={statusLabel} status={order.status} />}
           <h2 className="text-lg font-semibold tracking-tight text-foreground" id="admin-order-detail-title">주문 {orderReferenceLabel(order.id, order.orderNumber)}</h2>
-          <p className="text-xs text-muted-foreground tabular-nums wrap-anywhere">{order.id}</p>
+          <ShortId className="text-xs text-muted-foreground" value={order.id} />
           <Link
             className={LINK_BUTTON}
             data-slot="button"
@@ -1134,12 +1134,15 @@ export function OrdersSection({ data, canManage = true }: { data: AdminOrderCons
   const currentHref = adminOrdersHref(data.filters);
   const eligible = new Set(data.items.filter((order) => canManage && order.status === 'paid' && !openCancellationRequest(order)).map((order) => order.id));
   const selectedIds = selection.filter((id) => eligible.has(id));
+  /* 1440 화면(표 폭 약 1,100px)에 상품명·금액·처리 링크까지 들어오게 나눈다. 진행 중인 요청과 수취인명은 맨 뒤로 보낸다. */
   const columns: ConsoleGridColumn[] = [
-    {key:'reference',label:'주문번호',width:'190px'}, {key:'status',label:'주문상태',width:'110px'},
-    {key:'ordered',label:'주문일시',width:'160px'}, {key:'buyer',label:'구매자명',width:'130px'},
-    {key:'recipient',label:'수취인명',width:'110px'}, {key:'items',label:'상품명 / 옵션',width:'300px'},
-    {key:'qty',label:'수량',width:'65px',align:'end'}, {key:'total',label:'결제금액',width:'120px',align:'end'},
-    {key:'claim',label:'취소·반품·교환',width:'140px'}, {key:'detail',label:canManage?'주문 처리':'주문 상세',width:'105px'},
+    {key:'reference',label:'주문번호',width:'164px'}, {key:'status',label:'주문상태',width:'98px'},
+    {key:'items',label:'상품명 / 옵션'},
+    {key:'total',label:'결제금액',width:'100px',align:'end'}, {key:'qty',label:'수량',width:'52px',align:'end'},
+    {key:'ordered',label:'주문일시',width:'150px'}, {key:'buyer',label:'구매자명',width:'88px'},
+    {key:'detail',label:canManage?'주문 처리':'주문 상세',width:'80px'},
+    {key:'claim',label:'취소·반품·교환',width:'116px'},
+    {key:'recipient',label:'수취인명',width:'80px'},
   ];
   const rows = data.items.map((order) => {
     const request = canManage ? openCancellationRequest(order) : null;
@@ -1147,12 +1150,13 @@ export function OrdersSection({ data, canManage = true }: { data: AdminOrderCons
       <Link key="reference" className="font-medium tabular-nums underline-offset-4 hover:underline" href={adminOrderDetailHref(order.id,data.filters)} target="_blank" rel="noopener noreferrer"
         aria-label={`주문 ${orderReferenceLabel(order.id, order.orderNumber)} 상세 열기 (새 탭)`}>{orderReferenceLabel(order.id, order.orderNumber)}</Link>,
       <OrderStatusBadge key="status" status={order.status} title={order.status==='done'?ADMIN_VOCABULARY.settledHint:undefined} />,
-      <time key="created" className="tabular-nums" dateTime={order.createdAt}>{formatOrderDateTime(order.createdAt)}</time>,
-      <span key="buyer">{order.buyerName}</span>, <span key="recipient">{order.address?.recipientName??'-'}</span>,
-      <ul key="items" className="flex flex-col gap-0.5">{order.items.map(item=><li key={item.id}>{item.name}{item.variantName?` · ${item.variantName}`:''}<GoodsCustomInputsSummary selection={item.customInputs} /></li>)}</ul>,
-      order.items.reduce((qty,item)=>qty+item.qty,0), formatKrwExact(order.total),
-      request?<div key="claim" className="flex flex-col items-start gap-1"><Link className="inline-flex flex-wrap items-center gap-1 underline-offset-4 hover:underline" href={`/admin/sales/claims/${ORDER_CLAIM_TYPE_SLUGS[request.claimType]}/${request.id}`}>{ORDER_CLAIM_TYPE_LABELS[request.claimType]} <AdminStatusBadge tone={statusTone('claim', request.stage)}>{adminClaimStageLabel(request.claimType, request.stage)}</AdminStatusBadge></Link><CancellationReasonBadge row request={request}/></div>:'-',
+      <ul key="items" className="flex min-w-68 flex-col gap-0.5">{order.items.map(item=><li key={item.id}>{item.name}{item.variantName?` · ${item.variantName}`:''}<GoodsCustomInputsSummary selection={item.customInputs} /></li>)}</ul>,
+      formatKrwExact(order.total), order.items.reduce((qty,item)=>qty+item.qty,0),
+      <time key="created" className="tabular-nums whitespace-nowrap" dateTime={order.createdAt}>{formatOrderDateTime(order.createdAt)}</time>,
+      <span key="buyer">{order.buyerName}</span>,
       <Link key="detail" className="font-medium underline-offset-4 hover:underline" aria-label={`주문 ${orderReferenceLabel(order.id, order.orderNumber)} 선택${request?` · ${cancellationReasonAccessibleName(request)}`:''}`} href={`${adminOrdersHref(data.filters,{orderId:order.id})}#sales-order-detail`}>{canManage ? '상세·처리' : '상세 보기'}</Link>,
+      request?<div key="claim" className="flex flex-col items-start gap-1"><Link className="inline-flex flex-wrap items-center gap-1 underline-offset-4 hover:underline" href={`/admin/sales/claims/${ORDER_CLAIM_TYPE_SLUGS[request.claimType]}/${request.id}`}>{ORDER_CLAIM_TYPE_LABELS[request.claimType]} <AdminStatusBadge tone={statusTone('claim', request.stage)}>{adminClaimStageLabel(request.claimType, request.stage)}</AdminStatusBadge></Link><CancellationReasonBadge row request={request}/></div>:'-',
+      <span key="recipient">{order.address?.recipientName??'-'}</span>,
     ]};
   });
   const [cancellationState, cancellationAction, cancellationPending] = useActionState(

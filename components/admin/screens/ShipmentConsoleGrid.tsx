@@ -10,6 +10,7 @@ import {EXPORT_PASSWORD_HINT,EXPORT_PASSWORD_MAX_LENGTH,EXPORT_PASSWORD_MIN_LENG
 import {ShipmentPackPanel} from './ShipmentPackPanel';
 import {OrderDelayNoticePanel} from './OrderDelayNoticePanel';
 import {CustomerServiceDialog} from './CustomerServiceDialog';
+import {commerceReferenceLabel} from '@/lib/commerce-number';
 import {AdminNotice} from '@/components/admin/console/AdminKit';
 import {Button} from '@/components/admin/kit/ui/button';
 import {Input} from '@/components/admin/kit/ui/input';
@@ -209,6 +210,6 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
    </form>
   </CustomerServiceDialog>:null}
   {message?<AdminNotice role="status" tone="success">{message}</AdminNotice>:null}{error&&!exportRequest?<AdminNotice role="alert" tone="danger">{error}</AdminNotice>:null}
-  {failures.length?<ul className="flex list-disc flex-col gap-1 pl-5 text-destructive">{failures.map(row=><li key={row.id}><span className="tabular-nums">{row.id}</span>: {row.reason}</li>)}</ul>:null}
+  {failures.length?<ul className="flex list-disc flex-col gap-1 pl-5 text-destructive">{failures.map(row=><li key={row.id}><span className="tabular-nums">{commerceReferenceLabel(row.id,rows.find(item=>item.id===row.id)?.shipmentNumber)}</span>: {row.reason}</li>)}</ul>:null}
  </div>;
 }

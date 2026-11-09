@@ -8,6 +8,7 @@ import {
   adminClaimPreviewHref,
   adminClaimReasonText,
   adminClaimStageLabel,
+  adminClaimStageOptions,
   type AdminClaimConsoleData,
 } from '@/lib/admin/claims';
 import { adminListExportClaimScreenId, adminListExportHref } from '@/lib/admin/list-export';
@@ -23,7 +24,8 @@ import {
   type OrderClaimStage,
   type OrderClaimType,
 } from '@/lib/orders/claims';
-import { ADMIN_COUNT_CARD_GRID_CLASS, AdminCountCard, type AdminCountTone } from '@/components/admin/console/AdminCountCard';
+import { AdminCountCard, type AdminCountTone } from '@/components/admin/console/AdminCountCard';
+import { SalesGuide } from '@/components/admin/sales/SalesConsole';
 import { statusTone } from '@/lib/admin/status-tone';
 import { ClaimQueueKitTable, type ClaimKitRow } from './ClaimQueueKitTable';
 
@@ -37,19 +39,25 @@ import { ClaimQueueKitTable, type ClaimKitRow } from './ClaimQueueKitTable';
  * 실제로 원장에 적힌 것을 보여준다.
  */
 
-/* 목록에 뜨는 단계 칩. completed·rejected는 종료라 맨 뒤로 민다. 취소에는 회수가 없어 수거 단계가 없다. */
 /* 단계 → 카드 색은 상태 표(status-tone)를 따른다. 완료·철회는 조용히 둔다. */
 const CLAIM_STAGE_CARD_TONE = (stage: OrderClaimStage): AdminCountTone => {
   const tone = statusTone('claim', stage);
   return tone === 'warning' || tone === 'danger' ? tone : 'default';
 };
 
+/* 목록 위에 카드로 세우는 진행 단계. 취소에는 회수가 없어 수거 단계가 없다. */
 const CHIP_STAGES: Record<OrderClaimType, OrderClaimStage[]> = {
-  cancel: ['requested', 'in_review', 'on_hold', 'processing', 'needs_review', 'completed', 'rejected'],
-  return: ['requested', 'in_review', 'collecting', 'collected', 'on_hold', 'processing', 'needs_review', 'completed', 'rejected'],
-  exchange: ['requested', 'in_review', 'collecting', 'collected', 'on_hold', 'processing', 'needs_review', 'completed', 'rejected'],
+  cancel: ['requested', 'in_review', 'on_hold', 'processing', 'needs_review'],
+  return: ['requested', 'in_review', 'collecting', 'collected', 'on_hold', 'processing', 'needs_review'],
+  exchange: ['requested', 'in_review', 'collecting', 'collected', 'on_hold', 'processing', 'needs_review'],
 };
-/* 칩 수에 맞춘 열 수. 넓은 화면에서는 한 줄에 모든 단계가 선다. */
+/* 끝난 단계는 처리할 일이 아니라서 카드로 세우지 않고 글자 링크로 물러난다 — 진행 단계 카드가 한 줄에 서고 표가 그만큼 올라온다. */
+const CLOSED_STAGES: OrderClaimStage[] = ['completed', 'rejected'];
+const STAGE_GRID_CLASS: Record<OrderClaimType, string> = {
+  cancel: 'grid min-w-0 flex-1 grid-cols-2 gap-2 sm:grid-cols-5',
+  return: 'grid min-w-0 flex-1 grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7',
+  exchange: 'grid min-w-0 flex-1 grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7',
+};
 
 export function ClaimQueueKitScreen({
   canViewRefundTransfers = false,
@@ -65,6 +73,7 @@ export function ClaimQueueKitScreen({
   const typeLabel = ORDER_CLAIM_TYPE_LABELS[claimType];
   const currentHref = adminClaimHref(claimType, filters);
   const collects = claimType !== 'cancel';
+  const stageFilterLabel = filters.stage === 'all' ? null : adminClaimStageOptions(claimType).find((option) => option.value === filters.stage)?.label ?? null;
 
   const kitRows: ClaimKitRow[] = rows.map((row) => {
     const sla = orderClaimSlaState({ claimType: row.claimType, stage: row.stage, collectedAt: row.collectedAt, completedAt: row.completedAt }, now);
@@ -93,31 +102,40 @@ export function ClaimQueueKitScreen({
      kit 부품을 덮지 않는다. */
   return (
     <div className="flex min-w-0 flex-col gap-4 text-sm text-foreground" data-admin-kit="claims" data-claim-type={claimType}>
-      <details className="group rounded-xl border bg-card px-4 py-3">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-medium">
-          {typeLabel} 요청과 처리상태를 확인할 수 있습니다.
-          <span className="shrink-0 text-xs text-muted-foreground group-open:hidden">메뉴설명 보기</span>
-          <span className="hidden shrink-0 text-xs text-muted-foreground group-open:inline">메뉴설명 접기</span>
-        </summary>
-        <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
-          {collects ? <li>별도 배송비 청구는 <Link className="underline underline-offset-4" href="/admin/sales/claims/returns/fee-policy">반품·교환 배송비 정책</Link>을 설정한 뒤 각 요청 상세에서 처리합니다. <Link className="underline underline-offset-4" href="/admin/sales/claims/returns/fees">배송비 입금·반환 대기 목록</Link></li> : null}
-          {canViewRefundTransfers && claimType !== 'exchange' ? <li>실제 송금이 남은 무통장 환불은 <a className="underline underline-offset-4" href={REFUND_TRANSFERS_PATH}>환불 송금 대기</a>에서 확인합니다.</li> : null}
+      <SalesGuide title={`${typeLabel} 요청과 처리상태를 확인할 수 있습니다.`}>
+        <ul className="list-disc space-y-1 pl-5">
+          {collects ? <li>별도 배송비 청구는 <Link href="/admin/sales/claims/returns/fee-policy">반품·교환 배송비 정책</Link>을 설정한 뒤 각 요청 상세에서 처리합니다. <Link href="/admin/sales/claims/returns/fees">배송비 입금·반환 대기 목록</Link></li> : null}
+          {canViewRefundTransfers && claimType !== 'exchange' ? <li>실제 송금이 남은 무통장 환불은 <a href={REFUND_TRANSFERS_PATH}>환불 송금 대기</a>에서 확인합니다.</li> : null}
           <li>요청번호를 누르면 목록 위에 상세가 열리고 그 자리에서 {typeLabel} 처리를 진행합니다.{collects ? ' 회수·결제사 확인이 필요한 단계는 해당 근거를 확인해야 완료할 수 있습니다.' : ''}</li>
           <li>여러 건을 선택하면 아래에 처리 막대가 뜨고 승인·검토중·거부를 한 번에 처리합니다(최대 50건). 결제사 취소가 겹치지 않게 한 건씩 순서대로 처리하고, 건별 결과를 표로 보여 줍니다.{collects ? ' 회수 확인·재출고·환불 확정과 반품·교환 전환은 상세에서 한 건씩 처리합니다.' : ''}</li>
           <li>수취인명과 번호는 입력한 내용이 포함된 요청을 찾습니다. 상품주문번호는 주문 품목, 상품번호는 등록 상품의 식별값입니다. 품목으로 찾아도 처리와 엑셀은 요청 주문 전체를 대상으로 합니다.</li>
         </ul>
-      </details>
-      <nav aria-label="단계별 건수" className={ADMIN_COUNT_CARD_GRID_CLASS}>
-        {CHIP_STAGES[claimType].map((stage) => {
-          const count = counts[stage] ?? 0;
-          const active = filters.stage === stage;
-          return <AdminCountCard active={active} count={count} href={adminClaimHref(claimType, filters, { page: 1, stage })} key={stage} label={adminClaimStageLabel(claimType, stage)} tone={CLAIM_STAGE_CARD_TONE(stage)} />;
-        })}
+      </SalesGuide>
+      <nav aria-label="단계별 건수" className="flex min-w-0 flex-col gap-2 xl:flex-row xl:items-stretch">
+        <div className={STAGE_GRID_CLASS[claimType]}>
+          {CHIP_STAGES[claimType].map((stage) => {
+            const count = counts[stage] ?? 0;
+            const active = filters.stage === stage;
+            return <AdminCountCard active={active} count={count} href={adminClaimHref(claimType, filters, { page: 1, stage })} key={stage} label={adminClaimStageLabel(claimType, stage)} tone={CLAIM_STAGE_CARD_TONE(stage)} />;
+          })}
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 px-1 xl:flex-col xl:flex-nowrap xl:items-start xl:justify-center">
+          {CLOSED_STAGES.map((stage) => {
+            const count = counts[stage] ?? 0;
+            const label = adminClaimStageLabel(claimType, stage);
+            const active = filters.stage === stage;
+            return <Link aria-current={active ? 'true' : undefined} aria-label={`${label} ${count.toLocaleString('ko-KR')}건`} className={`text-xs whitespace-nowrap underline-offset-4 hover:underline ${active ? 'font-semibold text-primary' : 'text-muted-foreground hover:text-foreground'}`} href={adminClaimHref(claimType, filters, { page: 1, stage })} key={stage}>{label} <span className="tabular-nums">{count.toLocaleString('ko-KR')}</span>건</Link>;
+          })}
+        </div>
       </nav>
       {/* 건수·검색·표를 판매관리 목록과 같은 카드 한 구역으로 묶는다. */}
       <div className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground" data-sales-results="">
-        <div className="flex items-center justify-between gap-2">
-          <p className="shrink-0 whitespace-nowrap">총 <strong className="tabular-nums">{total.toLocaleString('ko-KR')}</strong>건</p>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
+            <p className="shrink-0 whitespace-nowrap">총 <strong className="tabular-nums">{total.toLocaleString('ko-KR')}</strong>건{stageFilterLabel ? <span className="text-muted-foreground"> · {stageFilterLabel}</span> : null}</p>
+            {/* 처리 막대는 체크한 뒤에야 화면 아래에 뜬다. 체크칸만 보고 다음 동작을 찾지 않게 표 위에 말해 둔다. */}
+            <p className="text-xs text-muted-foreground">처리할 요청을 체크하면 화면 아래에 승인·검토중·거부 버튼이 나타납니다.</p>
+          </div>
           <AdminListExportButton href={adminListExportHref(adminListExportClaimScreenId(claimType), currentHref)} total={total} />
         </div>
         <ClaimQueueKitTable
