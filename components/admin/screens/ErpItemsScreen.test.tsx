@@ -82,6 +82,16 @@ describe('ERP 품목 화면', () => {
     expect(html).toContain('href="/admin/catalog/erp-items?page=2"');
   });
 
+  it('품목 반입은 접어 두어 매일 보는 표가 첫 화면에 들어오고, 반입한 품목이 없을 때만 펼친다', () => {
+    const fold = /<details[^>]*id="erp-item-import"[^>]*>/;
+    expect(fold.exec(renderToStaticMarkup(<ErpItemsScreen data={data()} />))?.[0]).not.toContain('open=');
+    expect(fold.exec(renderToStaticMarkup(<ErpItemsScreen data={data({ page: { total: 0, items: [] } })} />))?.[0]).toContain('open=');
+    // 찾는 품목이 없다고 반입 칸을 열지는 않는다.
+    expect(fold.exec(renderToStaticMarkup(<ErpItemsScreen data={data({ filters: { query: '없는 품목', page: 1 }, page: { total: 0, items: [] } })} />))?.[0]).not.toContain('open=');
+    // 삭제 버튼은 고른 뒤에 나타나므로 그 방법을 말한다.
+    expect(renderToStaticMarkup(<ErpItemsScreen data={data()} />)).toContain('체크하면 삭제 버튼이 나타납니다');
+  });
+
   it('빈 목록과 분류 없음 상태를 안내한다', () => {
     const empty = renderToStaticMarkup(<ErpItemsScreen data={data({ page: { total: 0, items: [] }, erpCategories: [] })} />);
     expect(empty).toContain('아직 반입한 ERP 품목이 없습니다. 위에서 품목 생성 데이터를 반입해주세요.');

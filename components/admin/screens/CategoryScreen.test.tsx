@@ -63,3 +63,19 @@ it('카테고리가 없을 때 이 화면의 기본 카테고리 적용 카드�
   expect(html).not.toMatch(/href="\/admin\/catalog\/categories"[^>]*target="_blank"/);
   expect(html).toContain('등록된 카테고리가 없습니다. 위 카테고리 일괄 등록이나 새 카테고리에서 먼저 등록하세요.');
 });
+
+it('한 화면의 저장은 고르는 항목 하나다 — 새 등록·ERP 매핑·이관 메모는 접혀 있고, 트리 한 줄에는 단계 분수 대신 상품 수만 있다', () => {
+  const html = renderToStaticMarkup(<CategoryScreen data={{ categories, mappings: [], migrations: [], activation: { customerEnabled: false, erpEnabled: false, customerEvidence: null, erpEvidence: null, updatedAt: null } }} />);
+  for (const title of ['새 카테고리 등록', 'ERP 분류 매핑', '기존 유형 이관 메모', '활성화 상태']) expect(html).toMatch(new RegExp(`<details[^>]*data-fold-card=""(?![^>]*open)[^>]*><summary[^>]*>(?:(?!</summary>)[\\s\\S])*${title}`));
+  expect(html).toContain('>상품 2개</a>');
+  expect(html).not.toMatch(/\d\/4/);
+  // 영어 내부어 대신 운영팀 말로 쓴다.
+  for (const word of ['고객 category', 'ERP mapping', '유효 tree', '기존 type', '제안 category']) expect(html).not.toContain(word);
+  // 고객 화면 미적용은 무엇을 해야 하는지 함께 말한다.
+  expect(html).toContain('트리를 다 만든 뒤 펼쳐서 켜주세요.');
+});
+
+it('카테고리가 없으면 새 등록 카드를 펼쳐 둔다', () => {
+  const html = renderToStaticMarkup(<CategoryScreen data={{ categories: [], mappings: [], migrations: [], activation: { customerEnabled: false, erpEnabled: false, customerEvidence: null, erpEvidence: null, updatedAt: null } }} canManagePlatform={false} />);
+  expect(html).toMatch(/<details[^>]*data-fold-card=""[^>]*open=""[^>]*><summary[^>]*>(?:(?!<\/summary>)[\s\S])*새 카테고리 등록/);
+});
