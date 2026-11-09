@@ -11,17 +11,22 @@ import { planStoryEditorFormat, planStoryEditorInsertion, renderStoryEditorHtml,
 import type { BodyTemplateEditorTarget } from '@/lib/admin/body-templates';
 import { BodyTemplateTools } from './BodyTemplateTools';
 import { ArtworkUploadField } from './ArtworkUploadField';
-import { ImagePlus } from 'lucide-react';
+import { Bold, ImagePlus, Italic, Strikethrough, Underline } from 'lucide-react';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
 
 /* 쇼핑스토리 본문 편집기(템플릿 룩, ADR-0028). 서식 도구 막대는 kit 버튼·선택, 입력면은 공개 본문(.wc-shopping-story__body) 모양 그대로다. */
-const TOOLBAR = 'flex flex-wrap items-end gap-1.5 p-2.5';
-const TOOL_LABEL = 'flex flex-col gap-1 text-xs font-medium text-muted-foreground';
+/* 도구 줄은 한 줄·한 모양이다 — 버튼과 선택칸 모두 높이 28px, 같은 테두리·글자 크기다. 선택칸 이름은 위에 따로 붙이지 않고 첫 항목과 aria-label이 말한다. */
+const TOOLBAR = 'flex flex-wrap items-center gap-1 p-2';
+const TOOL_GROUP = 'flex flex-wrap items-center gap-1';
+const TOOL_SELECT = '[&_select]:rounded-[min(var(--radius-md),12px)] [&_select]:border-border-strong [&_select]:bg-background [&_select]:pr-6 [&_select]:pl-2 [&_select]:text-[0.8rem] [&_select]:font-medium [&>svg]:right-1.5 [&>svg]:size-3.5';
+/* 공유 부품(개인 본문 템플릿)의 버튼도 이 줄에서는 같은 높이로 선다. */
+const TOOL_TEMPLATE = 'ml-auto min-w-0 [&_[data-slot=button]]:h-7 [&_[data-slot=button]]:gap-1 [&_[data-slot=button]]:rounded-[min(var(--radius-md),12px)] [&_[data-slot=button]]:text-[0.8rem]';
 /* 글자 모양을 바꾸는 도구와 무언가를 넣는 도구를 세로 금으로 가른다. */
-const TOOL_DIVIDER = 'mx-1 h-6 w-px self-center bg-border';
+const TOOL_DIVIDER = 'mx-0.5 h-5 w-px bg-border';
+const EMPHASIS_TOOLS = [['strong', '굵게', Bold], ['em', '기울임', Italic], ['u', '밑줄', Underline], ['s', '취소선', Strikethrough]] as const;
 const FIELD = 'flex min-w-0 flex-col gap-1.5 text-sm font-medium';
 const DISCLOSURE = 'rounded-lg border px-4 py-3 text-sm [&[open]>summary]:mb-4';
 
@@ -73,27 +78,27 @@ export function ShoppingStoryBodyEditor({ accountId, value, onChange, disabled }
   return <div className="flex min-w-0 flex-col gap-3">
     {/* 감춘 이미지 패널이 마지막 자식이라 divide-y를 쓰면 도구 줄 아래에 선이 겹친다 — 뒤따르는 줄의 위쪽에만 선을 긋는다. */}
     <div className="flex flex-col rounded-lg border bg-muted/40 [&>*+*]:border-t">
-      <div className={TOOLBAR} role="group" aria-label="본문 서식">
-        {([['h2', '제목'], ['p', '문단']] as const).map(([tag, label]) => <Button disabled={blocked} key={tag} type="button" onMouseDown={event => event.preventDefault()} onClick={() => format({ tag })} size="sm" variant="ghost">{label}</Button>)}
+      <div className={TOOLBAR}>
+        <div className={TOOL_GROUP} role="group" aria-label="본문 서식">
+          {([['h2', '제목'], ['p', '문단']] as const).map(([tag, label]) => <Button disabled={blocked} key={tag} type="button" onMouseDown={event => event.preventDefault()} onClick={() => format({ tag })} size="sm" variant="outline">{label}</Button>)}
+          <span aria-hidden="true" className={TOOL_DIVIDER} />
+          {EMPHASIS_TOOLS.map(([emphasis, label, Icon]) => <Button aria-label={label} disabled={blocked} key={emphasis} title={label} type="button" onMouseDown={event => event.preventDefault()} onClick={() => format({ emphasis })} size="icon-sm" variant="outline"><Icon aria-hidden="true" /></Button>)}
+          <span aria-hidden="true" className={TOOL_DIVIDER} />
+          <NativeSelect aria-label="본문 정렬" className={TOOL_SELECT} defaultValue="" disabled={blocked} onPointerDown={remember} onChange={event => { format({ attribute: 'data-icons-align', value: event.target.value }); event.target.value = ''; }} size="sm"><option value="" disabled>정렬</option><option value="left">왼쪽</option><option value="center">가운데</option><option value="right">오른쪽</option></NativeSelect>
+          <NativeSelect aria-label="본문 글자 크기" className={TOOL_SELECT} defaultValue="" disabled={blocked} onPointerDown={remember} onChange={event => { format({ attribute: 'data-icons-size', value: event.target.value }); event.target.value = ''; }} size="sm"><option value="" disabled>글자 크기</option>{CONTENT_FONT_SIZES.map(size => <option key={size} value={size}>{size}px</option>)}</NativeSelect>
+        </div>
         <span aria-hidden="true" className={TOOL_DIVIDER} />
-        {([['strong', '굵게'], ['em', '기울임'], ['u', '밑줄'], ['s', '취소선']] as const).map(([emphasis, label]) => <Button disabled={blocked} key={emphasis} type="button" onMouseDown={event => event.preventDefault()} onClick={() => format({ emphasis })} size="sm" variant="ghost">{label}</Button>)}
-        <span aria-hidden="true" className={TOOL_DIVIDER} />
-        <label className={TOOL_LABEL}>정렬<NativeSelect aria-label="본문 정렬" defaultValue="" disabled={blocked} onPointerDown={remember} onChange={event => { format({ attribute: 'data-icons-align', value: event.target.value }); event.target.value = ''; }} size="sm"><option value="" disabled>선택</option><option value="left">왼쪽</option><option value="center">가운데</option><option value="right">오른쪽</option></NativeSelect></label>
-        <label className={TOOL_LABEL}>글자 크기<NativeSelect aria-label="본문 글자 크기" defaultValue="" disabled={blocked} onPointerDown={remember} onChange={event => { format({ attribute: 'data-icons-size', value: event.target.value }); event.target.value = ''; }} size="sm"><option value="" disabled>선택</option>{CONTENT_FONT_SIZES.map(size => <option key={size} value={size}>{size}px</option>)}</NativeSelect></label>
-      </div>
-      <div className={TOOLBAR} role="group" aria-label="본문에 넣기">
-        {/* 본문에 제일 많이 넣는 것이 사진이다 — 도구 줄 맨 앞에서 바로 찾는다. */}
-        <Button aria-expanded={imageOpen} disabled={blocked} onClick={() => setImageOpen(open => !open)} onMouseDown={event => event.preventDefault()} size="sm" type="button" variant="soft"><ImagePlus aria-hidden="true" />이미지 넣기</Button>
-        <span aria-hidden="true" className={TOOL_DIVIDER} />
-        <Button disabled={blocked} type="button" onMouseDown={event => event.preventDefault()} onClick={() => insert('<ul><li>목록 항목</li></ul>')} size="sm" variant="outline">목록</Button>
-        <Button disabled={blocked} type="button" onMouseDown={event => event.preventDefault()} onClick={() => insert('<table><tbody><tr><th>항목</th><th>내용</th></tr><tr><td>항목</td><td>내용</td></tr></tbody></table>')} size="sm" variant="outline">표</Button>
-        <span aria-hidden="true" className={TOOL_DIVIDER} />
-        <label className={TOOL_LABEL}>인용 모양<NativeSelect disabled={blocked} value={quote} onPointerDown={remember} onChange={event => setQuote(event.target.value as ContentQuoteStyle)} size="sm">{CONTENT_QUOTE_STYLES.map((style, index) => <option key={style} value={style}>{['세로선', '따옴표', '말풍선', '메모', '모서리'][index]}</option>)}</NativeSelect></label>
-        <Button disabled={blocked} type="button" onMouseDown={event => event.preventDefault()} onClick={() => { const selected = editor.current ? storyEditorSelectedHtml(editor.current, storyEditorRange(editor.current, remembered.current)) : ''; insert(`<blockquote data-icons-quote="${quote}">${selected || '인용할 내용'}</blockquote>`); }} size="sm" variant="outline">인용 넣기</Button>
-        <label className={TOOL_LABEL}>구분선 모양<NativeSelect disabled={blocked} value={divider} onPointerDown={remember} onChange={event => setDivider(event.target.value as ContentDividerStyle)} size="sm">{CONTENT_DIVIDER_STYLES.map((style, index) => <option key={style} value={style}>{['긴 선', '짧은 선', '굵은 선', '꺾쇠', '다이아몬드', '점선', '사선', '세로선'][index]}</option>)}</NativeSelect></label>
-        <Button disabled={blocked} type="button" onMouseDown={event => event.preventDefault()} onClick={() => insert(`<hr data-icons-divider="${divider}">`)} size="sm" variant="outline">구분선 넣기</Button>
-        {/* 버튼 하나가 줄을 혼자 차지하지 않게 넣기 도구 줄 끝에 둔다. */}
-        <div className="ml-auto min-w-0"><BodyTemplateTools accountId={accountId} surface="story" disabled={blocked} captureEditor={captureEditor} /></div>
+        <div className={TOOL_GROUP} role="group" aria-label="본문에 넣기">
+          <Button aria-expanded={imageOpen} disabled={blocked} onClick={() => setImageOpen(open => !open)} onMouseDown={event => event.preventDefault()} size="sm" type="button" variant="outline"><ImagePlus aria-hidden="true" />이미지 넣기</Button>
+          <Button disabled={blocked} type="button" onMouseDown={event => event.preventDefault()} onClick={() => insert('<ul><li>목록 항목</li></ul>')} size="sm" variant="outline">목록</Button>
+          <Button disabled={blocked} type="button" onMouseDown={event => event.preventDefault()} onClick={() => insert('<table><tbody><tr><th>항목</th><th>내용</th></tr><tr><td>항목</td><td>내용</td></tr></tbody></table>')} size="sm" variant="outline">표</Button>
+          <span aria-hidden="true" className={TOOL_DIVIDER} />
+          <NativeSelect aria-label="인용 모양" className={TOOL_SELECT} disabled={blocked} title="인용 모양" value={quote} onPointerDown={remember} onChange={event => setQuote(event.target.value as ContentQuoteStyle)} size="sm">{CONTENT_QUOTE_STYLES.map((style, index) => <option key={style} value={style}>{['세로선', '따옴표', '말풍선', '메모', '모서리'][index]}</option>)}</NativeSelect>
+          <Button disabled={blocked} type="button" onMouseDown={event => event.preventDefault()} onClick={() => { const selected = editor.current ? storyEditorSelectedHtml(editor.current, storyEditorRange(editor.current, remembered.current)) : ''; insert(`<blockquote data-icons-quote="${quote}">${selected || '인용할 내용'}</blockquote>`); }} size="sm" variant="outline">인용 넣기</Button>
+          <NativeSelect aria-label="구분선 모양" className={`ml-1 ${TOOL_SELECT}`} disabled={blocked} title="구분선 모양" value={divider} onPointerDown={remember} onChange={event => setDivider(event.target.value as ContentDividerStyle)} size="sm">{CONTENT_DIVIDER_STYLES.map((style, index) => <option key={style} value={style}>{['긴 선', '짧은 선', '굵은 선', '꺾쇠', '다이아몬드', '점선', '사선', '세로선'][index]}</option>)}</NativeSelect>
+          <Button disabled={blocked} type="button" onMouseDown={event => event.preventDefault()} onClick={() => insert(`<hr data-icons-divider="${divider}">`)} size="sm" variant="outline">구분선 넣기</Button>
+        </div>
+        <div className={TOOL_TEMPLATE}><BodyTemplateTools accountId={accountId} surface="story" disabled={blocked} captureEditor={captureEditor} /></div>
       </div>
       {/* 접어도 고른 파일이 남도록 닫을 때 없애지 않고 감춘다. */}
       <div className="flex-col gap-3 p-3 data-[open=true]:flex" data-open={imageOpen} hidden={!imageOpen}><ArtworkUploadField key={uploadKey} kind="curation" currentPath={null} currentUrl={null} fieldId={`story-image-${uploadKey}`} name="storyImage" label="본문 이미지" showCropGuide={false} showPath={false} onPathChange={setPath} />
