@@ -103,13 +103,13 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
           좁은 화면에서는 열이 짜부라지지 않게 표가 1050px 아래로 줄지 않고 가로로 스크롤한다.
           칸 전체가 클릭 영역인 체크박스 열은 내용이 절대배치라 최소 폭을 준다.
           넓은 화면에서는 조회항목 설정을 일괄 변경 줄 오른쪽으로 올려 첫 화면에 상품이 더 보이게 한다. */}
-      <MarketingLinksGoodsGrid key={`${goodsListHref(filters)}:${bulkIdentity?.actorId}:${bulkIdentity?.sessionId}`} canIssue={canIssueMarketingLinks} bulkIdentity={bulkIdentity} caption="상품 목록" preferencesKey="catalog-goods" className="[&_table]:min-w-[1080px] [&_thead_th:first-child]:min-w-10 xl:flex-row xl:flex-wrap xl:items-center xl:[&>.relative]:w-full xl:[&>[data-goods-bulk]]:min-w-0 xl:[&>[data-goods-bulk]]:flex-1 xl:[&>div:has(>[data-admin-kit=table-settings])]:ml-auto"
+      <MarketingLinksGoodsGrid key={`${goodsListHref(filters)}:${bulkIdentity?.actorId}:${bulkIdentity?.sessionId}`} canIssue={canIssueMarketingLinks} bulkIdentity={bulkIdentity} caption="상품 목록" preferencesKey="catalog-goods" className="[&_table]:min-w-[1088px] [&_thead_th:first-child]:min-w-10 xl:flex-row xl:flex-wrap xl:items-center xl:[&>.relative]:w-full xl:[&>[data-goods-bulk]]:min-w-0 xl:[&>[data-goods-bulk]]:flex-1 xl:[&>div:has(>[data-admin-kit=table-settings])]:ml-auto"
         emptyLabel={counts?.all === 0 ? '아직 등록한 상품이 없습니다. 위의 상품 등록을 눌러 첫 상품을 등록해주세요.' : '검색 조건에 맞는 상품이 없습니다.'}
         /* 1440 화면에서 끝 열까지 들어오는 폭이다. 긴 영문이 많은 상품번호는 맨 뒤로 뺐고, 상세 재고는 재고수량 칸 안에 접어 둔다. */
         columns={[
-        { key: 'name', label: '상품명 · 판매자상품코드', width: '224px' }, { key: 'edit', label: '수정', width: '56px' }, { key: 'price', label: '판매가', align: 'end', width: '96px' },
-        { key: 'readiness', label: '전시상태 · 판매 준비', width: '168px' }, { key: 'qty', label: '재고수량', align: 'end', width: '84px' },
-        { key: 'ip', label: 'IP · 카테고리', width: '116px' }, { key: 'createdAt', label: '상품등록일', width: '100px' }, { key: 'updatedAt', label: '상품수정일', width: '100px' }, { key: 'goodId', label: '상품번호', width: '96px' },
+        { key: 'name', label: '상품명 · 판매자상품코드', width: '216px' }, { key: 'edit', label: '수정', width: '64px' }, { key: 'price', label: '판매가', align: 'end', width: '112px' },
+        { key: 'readiness', label: '전시상태 · 판매 준비', width: '168px' }, { key: 'qty', label: '재고수량', align: 'end', width: '92px' },
+        { key: 'ip', label: 'IP · 카테고리', width: '108px' }, { key: 'createdAt', label: '상품등록일', width: '100px' }, { key: 'updatedAt', label: '상품수정일', width: '100px' }, { key: 'goodId', label: '상품번호', width: '88px' },
       ]} rows={goods.map(good => {
         const readiness = good.readiness ?? unknownGoodsReadiness();
         const editable = Boolean(inlineIdentity) && !good.archivedAt;
@@ -134,7 +134,7 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
           <dt className="text-xs text-muted-foreground">운영 상태</dt><dd>{readiness.operation === 'stopped' ? '판매 중지' : readiness.operation === 'active' ? '운영 중' : '확인 필요'}</dd>
         </dl></details>;
         return { id: good.id, href: goodEditorHref(filters, good.id), cells: [
-          <span className="flex min-w-[12.5rem] items-center gap-2.5 whitespace-normal" key="identity">
+          <span className="flex min-w-[12rem] items-center gap-2.5 whitespace-normal" key="identity">
             {good.imageUrl ? <Image className="size-[52px] shrink-0 rounded-md border object-cover" src={good.imageUrl} alt="" width={52} height={52} unoptimized /> : <span className="grid size-[52px] shrink-0 place-content-center rounded-md bg-muted text-center text-[11px] leading-tight font-normal text-muted-foreground" aria-label="대표 이미지 없음">이미지<br />없음</span>}
             <span className="flex min-w-0 flex-col gap-0.5"><strong className="line-clamp-2 font-medium">{good.name}</strong><small className="truncate text-xs font-normal text-muted-foreground">{good.code}</small></span>
           </span>,
@@ -170,8 +170,8 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
              보조 문구는 같은 행의 상태 칸(임시저장·보관·전시중)과 같은 사유로 쓴다. 전시 중인데 안 보이면 판매 제한·IP 비공개다.
              상품번호는 긴 영문 값이라 앞부분만 줄여 보이고 전체 값은 말풍선에 둔다(복사·브라우저 찾기는 전체 값 그대로). 주 색 링크는 첫 칸 하나만이라 흐린 글자다. */
           good.customerVisible
-            ? <span key="goodId" className="inline-flex max-w-full items-center gap-0.5 text-muted-foreground"><a className={`${GOOD_ID_LINK} max-w-14`} title={good.id} data-goods-list="good-id" href={goodDetailHref(good.id)} target="_blank" rel="noopener noreferrer">{good.id}<span className="sr-only"> 고객 화면 새 탭으로 열기</span></a><ArrowUpRight aria-hidden="true" className="size-3.5 shrink-0" /></span>
-            : <Link key="goodId" className={`${GOOD_ID_LINK} max-w-[4.5rem]`} title={good.id} data-goods-list="good-id" href={goodPreviewHref(filters, good.id)}>{good.id}<small className={`${SECONDARY} mt-0.5 whitespace-normal`}>{good.archivedAt ? '보관' : good.publishedAt ? '고객 화면 비노출' : '공개 전'} · 미리보기</small></Link>,
+            ? <span key="goodId" className="inline-flex max-w-full items-center gap-0.5 text-muted-foreground"><a className={`${GOOD_ID_LINK} max-w-12`} title={good.id} data-goods-list="good-id" href={goodDetailHref(good.id)} target="_blank" rel="noopener noreferrer">{good.id}<span className="sr-only"> 고객 화면 새 탭으로 열기</span></a><ArrowUpRight aria-hidden="true" className="size-3.5 shrink-0" /></span>
+            : <Link key="goodId" className={`${GOOD_ID_LINK} max-w-16`} title={good.id} data-goods-list="good-id" href={goodPreviewHref(filters, good.id)}>{good.id}<small className={`${SECONDARY} mt-0.5 whitespace-normal`}>{good.archivedAt ? '보관' : good.publishedAt ? '고객 화면 비노출' : '공개 전'} · 미리보기</small></Link>,
         ] };
       })} />
       <ConsolePagination page={filters.page} pageSize={pageSize} total={total} hrefForPage={page => goodsListHref(filters, page)} />
