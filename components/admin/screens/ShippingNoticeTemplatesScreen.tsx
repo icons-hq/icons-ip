@@ -31,11 +31,11 @@ export function ShippingNoticeTemplatesScreen({ data }: { data: ShippingNoticeTe
   return <div className="flex min-w-0 flex-col gap-4" data-admin-screen="shipping-notices">
     <AdminPageHeader
       title="배송 안내 템플릿 관리"
-      description="배송·교환/반품 안내와 고객센터 연락처를 버전으로 저장합니다. 실제 운임과 반송 주소는 출고지 설정이 소유하며, 창고 출고지시 양식과 분리됩니다."
+      description="상품 상세에 보이는 배송·교환/반품 안내문과 고객센터 연락처를 템플릿으로 관리합니다."
       actions={<AdminCreateDialogButton label="새 배송 안내 템플릿 등록" title="새 배송 안내 템플릿 등록" wide><ShippingNoticeTemplateForm /></AdminCreateDialogButton>}
     />
     <AdminNotice tone="info">
-      배송비 유형·출고지·반품 조건은 <Link className="font-medium underline underline-offset-4" href="/admin/settings/shipping-templates">배송정보 템플릿 관리</Link>에서 적용합니다. 이 안내 템플릿은 초안으로 저장되고 필수 안내와 확인 근거가 있어야 활성화됩니다. <strong className="font-semibold">활성 버전은 수정할 수 없으며 새 버전으로 등록합니다.</strong>
+      <strong className="font-semibold">활성 템플릿은 고칠 수 없으니, 바꾸려면 새 버전으로 등록해주세요.</strong> 필수 안내와 확인 근거를 채우면 활성화할 수 있습니다. 배송비·출고지·반품 조건은 <Link className="font-medium underline underline-offset-4" href="/admin/settings/shipping-templates">배송정보 템플릿 관리</Link>에서 정합니다.
     </AdminNotice>
     <form action={SHIPPING_NOTICE_TEMPLATES_PATH} className={CONSOLE_FILTER_CARD_CLASS}>
       <div className={CONSOLE_FILTER_FIELDS_CLASS}>
@@ -60,7 +60,8 @@ export function ShippingNoticeTemplatesScreen({ data }: { data: ShippingNoticeTe
             {/* 이름 길이와 상관없이 상태가 세로로 맞도록 이름이 남는 폭을 다 쓴다. */}
             <strong className="min-w-0 flex-1 font-medium">{template.name}</strong>
             <AdminStatusBadge tone={template.status === 'active' ? 'success' : 'neutral'}>{template.status === 'active' ? '활성' : '초안'}</AdminStatusBadge>
-            <span className="w-40 text-right text-xs text-muted-foreground tabular-nums">{template.code} v{template.version}</span>
+            <span className="text-right text-xs text-muted-foreground tabular-nums" title={`템플릿 코드 ${template.code}`}>버전 {template.version}</span>
+            <span className="text-xs font-medium text-primary group-open:hidden">내용 보기</span>
             <ChevronDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
           </summary>
           <div className="flex min-w-0 flex-col gap-4 border-t p-4">

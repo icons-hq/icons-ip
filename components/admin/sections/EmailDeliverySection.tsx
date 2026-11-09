@@ -59,9 +59,13 @@ const TEMPLATE_SUMMARY: Record<EmailDeliveryRecord['template'], string> = {
 /** 문의 답변 메일이 실패한 줄 — 버튼 없이 사람이 직접 처리할 일이 있는 유일한 경우다(재발송 경로는 답변을 다시 등록하는 것이다). */
 const needsInquiryReply = (delivery: EmailDeliveryRecord) => !delivery.resendable && delivery.status === 'failed' && delivery.template === 'inquiry_answered';
 
+/** 시도 뒤 이만큼 지나도 결과가 없으면 기다려도 오지 않는다(결과 기록이 끊긴 건). 다음 행동을 사람에게 넘긴다. */
+const PENDING_STUCK_MS = 60 * 60 * 1000;
+
 /** 다시 보낼 수 없는 이유 — 메일 종류마다 다르다. */
-function notResendableReason(delivery: EmailDeliveryRecord) {
-  if (delivery.template === 'inquiry_answered') return '발송 결과를 확인하는 중입니다';
+function notResendableReason(delivery: EmailDeliveryRecord, nowMs: number) {
+  /* nowMs는 서버가 요청 시각을 넘긴다(렌더 중 시계를 읽지 않는다). 0이면 판단하지 않는다. */
+  if (delivery.template === 'inquiry_answered') return nowMs > 0 && nowMs - new Date(delivery.claimedAt).getTime() > PENDING_STUCK_MS ? '결과가 오지 않았습니다. 고객에게 수신 여부를 확인해주세요' : '발송 결과를 확인하는 중입니다';
   if (delivery.template === 'restock_alert') return '재입고 알림 메일은 다시 보낼 수 없습니다';
   /* 주문 메일인데 대상 주문을 키에서 되찾지 못한 기록. 엉뚱한 주문으로 보내지 않도록 버튼을 만들지 않는다. */
   return '대상 주문을 확인할 수 없어 다시 보낼 수 없습니다';
@@ -87,7 +91,7 @@ function ResendForm({ delivery }: { delivery: EmailDeliveryRecord }) {
 }
 
 /** 다음 행동 칸. 사람이 할 일이 있는 줄만 주의색으로 세우고, 할 수 있는 일이 없는 줄은 이유만 조용히 적는다 — 실패 건을 보고 뭘 할지 바로 잡히게. */
-function NextAction({ delivery }: { delivery: EmailDeliveryRecord }) {
+function NextAction({ delivery, nowMs }: { delivery: EmailDeliveryRecord; nowMs: number }) {
   if (delivery.resendable) return <ResendForm delivery={delivery} />;
   /* 대상 문의를 찾을 식별값(메시지 id뿐)이 없어 링크를 만들지 않는다 — 문구로만 안내한다. */
   if (needsInquiryReply(delivery)) {
@@ -97,10 +101,10 @@ function NextAction({ delivery }: { delivery: EmailDeliveryRecord }) {
       </span>
     );
   }
-  return <span className="text-muted-foreground">{notResendableReason(delivery)}</span>;
+  return <span className="text-muted-foreground">{notResendableReason(delivery, nowMs)}</span>;
 }
 
-export function EmailDeliverySection({ deliveries }: { deliveries: EmailDeliveryRecord[] }) {
+export function EmailDeliverySection({ deliveries, nowMs = 0 }: { deliveries: EmailDeliveryRecord[]; nowMs?: number }) {
   const failed = deliveries.filter((delivery) => delivery.status === 'failed');
   const pending = deliveries.filter((delivery) => delivery.status === 'pending');
   /* 처리할 실패 건을 위로 — 같은 상태 안의 최신순은 서버가 정한 그대로다. */
@@ -186,7 +190,7 @@ export function EmailDeliverySection({ deliveries }: { deliveries: EmailDelivery
                       {formatAttemptedAt(delivery.claimedAt)}
                       <span className="mt-0.5 block text-xs text-muted-foreground">{delivery.attemptCount}회 시도</span>
                     </TableCell>
-                    <TableCell className="px-3 whitespace-normal"><NextAction delivery={delivery} /></TableCell>
+                    <TableCell className="px-3 whitespace-normal"><NextAction delivery={delivery} nowMs={nowMs} /></TableCell>
                   </TableRow>
                 );
               })}

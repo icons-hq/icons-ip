@@ -33,15 +33,17 @@ function comparisonNote(current: number | null, history: ReviewRatingHistoryResu
 }
 
 /** 내 스토어 전체 값보다 낮은 상품의 수치. 색은 숫자에만 쓰고, 색만으로 말하지 않도록 기준값을 글자로 함께 붙인다. */
-function BelowAverage({ value, base, children }: { value: number | null; base: number | null; children: string }) {
-  const below = value !== null && base !== null && value < base;
+function BelowAverage({ value, base, children, emphasize }: { value: number | null; base: number | null; children: string; emphasize: boolean }) {
+  /* 지금 고른 진단 탭의 지표만 주의색으로 — 전체 탭에서 네 칸이 다 주황이면 평점 위험이 안 보인다. */
+  const below = emphasize && value !== null && base !== null && value < base;
   return <><span className={`font-semibold tabular-nums ${below ? 'text-warning' : ''}`}>{children}</span>{below ? <small className="mt-0.5 block text-xs font-normal text-muted-foreground">평균 {rate(base)} 미만</small> : null}</>;
 }
 
 /** 평점 칸. 기준 미만이면 숫자가 주의색이고, 같은 줄에 기준을 글자로 말한다. */
 function RatingValue({ value, reviewCount }: { value: number | null; reviewCount: number }) {
   const low = value !== null && value < LOW_RATING_THRESHOLD;
-  return <><span className={`font-semibold ${low ? 'text-warning' : ''}`}>{rating(value)}</span><small className="mt-0.5 block text-xs text-muted-foreground">리뷰 {reviewCount.toLocaleString('ko-KR')}개{low ? ` · ${LOW_RATING_THRESHOLD} 미만` : ''}</small></>;
+  const veryLow = value !== null && value <= 3;
+  return <><span className={`font-semibold ${veryLow ? 'text-destructive' : low ? 'text-warning' : ''}`}>{rating(value)}</span><small className="mt-0.5 block text-xs text-muted-foreground">리뷰 {reviewCount.toLocaleString('ko-KR')}개{low ? ` · ${LOW_RATING_THRESHOLD} 미만` : ''}</small></>;
 }
 
 /* 템플릿 룩(ADR-0028): 스토어 현황 카드 → 상품 목록 카드(진단 주제 탭·표) → 집계 기준(접기). 조회 키(focus·q·sort·size·page)는 그대로다. */
@@ -63,12 +65,12 @@ export function ReviewInsightsScreen({ data,filters,history = { kind: 'error' } 
         <form action={REVIEW_INSIGHTS_PATH} className="flex flex-wrap items-end gap-2" method="get"><input type="hidden" name="focus" value={filters.focus}/><label className="flex w-48 min-w-0 flex-col gap-1.5"><span className={FIELD_LABEL_CLASS}>상품명·상품번호</span><Input name="q" defaultValue={filters.query} maxLength={100}/></label><label className="flex min-w-0 flex-col gap-1.5"><span className={FIELD_LABEL_CLASS}>정렬</span><NativeSelect className="max-w-full" name="sort" defaultValue={filters.sort}><option value="analysis">분석 결과순</option><option value="reviews">리뷰 많은순</option><option value="rating">평점 낮은순</option></NativeSelect></label><label className="flex min-w-0 flex-col gap-1.5"><span className={FIELD_LABEL_CLASS}>목록수</span><NativeSelect className="max-w-full" name="size" defaultValue={String(filters.pageSize)}><option value="20">20개씩</option><option value="50">50개씩</option><option value="100">100개씩</option></NativeSelect></label><Button type="submit" variant="soft">검색</Button></form></header>
       {/* 진단 주제는 숫자 카드가 아니라 목록을 거르는 탭이다 — 위 현황 숫자와 역할을 나눈다. 문제 건수가 있는 탭만 주의색이고 '전체 상품'은 건수일 뿐이다. */}
       <nav aria-label="리뷰 분석 주제" className={KIT_SEGMENT_CLASS}>{REVIEW_INSIGHT_FOCUSES.map(focus => <Link aria-current={filters.focus === focus ? 'page' : undefined} aria-label={`${REVIEW_INSIGHT_LABELS[focus]} ${data.counts[focus].toLocaleString('ko-KR')}개`} className={KIT_SEGMENT_ITEM_CLASS} href={reviewInsightHref(filters,{focus,page:1})} key={focus}>{REVIEW_INSIGHT_LABELS[focus]}<span className={`tabular-nums ${focus !== 'all' && data.counts[focus] > 0 ? 'font-semibold text-warning' : ''}`}>{data.counts[focus].toLocaleString('ko-KR')}개</span></Link>)}</nav>
-      <p className="text-xs text-muted-foreground">미답글이 있는 상품부터 답글을 달아주세요. 주황색은 기준 미달입니다 — 평점은 {LOW_RATING_THRESHOLD} 미만, 사진 비중·작성률은 내 스토어 평균 미만.</p>
+      <p className="text-xs text-muted-foreground">평점이 낮은 상품부터 확인해주세요. 평점은 3점 이하가 빨강, {LOW_RATING_THRESHOLD} 미만이 주황입니다. 사진 비중·작성률은 해당 탭을 고르면 내 스토어 평균 미만이 주황으로 표시됩니다.</p>
       {!data.rows.length ? <p className="py-16 text-center text-sm text-muted-foreground">조건에 맞는 상품이 없습니다.</p> : <div aria-label="리뷰 관리가 필요한 상품 가로 스크롤" className={`${CONSOLE_TABLE_FRAME_CLASS} [&>[data-slot=table-container]]:overflow-visible`} role="region" tabIndex={0}><Table className="min-w-[56rem]"><caption className="sr-only">리뷰 관리가 필요한 상품</caption><ConsoleTableHeader><TableRow className="hover:bg-transparent"><TableHead className="px-3">상품</TableHead><TableHead className="px-3 text-right">평점 · 리뷰</TableHead><TableHead className="px-3 text-right">사진 리뷰 비중</TableHead><TableHead className="px-3 text-right">배송완료 대비 작성률</TableHead><TableHead className="px-3 text-right">미작성 상품주문</TableHead><TableHead className="px-3 text-right">미답글 리뷰</TableHead><TableHead className="px-3 text-right">관리</TableHead></TableRow></ConsoleTableHeader><TableBody>{data.rows.map(row=><TableRow key={row.id}>
         <TableCell className="max-w-80 px-3 whitespace-normal"><div className="flex min-w-0 items-center gap-3"><div className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-lg border bg-muted text-muted-foreground">{row.imagePath ? <img className="size-full object-contain" src={publicMediaUrl(row.imagePath) ?? ''} alt=""/> : <ImageIcon aria-hidden="true" className="size-5" />}</div><div className="flex min-w-0 flex-col gap-0.5"><Link className="line-clamp-1 font-medium underline-offset-4 hover:underline" href={`/admin/catalog/goods?goodId=${encodeURIComponent(row.id)}`} title={row.name}>{row.name}</Link><small className="text-xs text-muted-foreground tabular-nums">{row.id} · ₩{row.price.toLocaleString('ko-KR')}</small></div></div></TableCell>
         <TableCell className="px-3 text-right tabular-nums"><RatingValue reviewCount={row.reviewCount} value={row.averageRating} /></TableCell>
-        <TableCell className="px-3 text-right"><BelowAverage base={data.summary.photoRate} value={row.photoRate}>{rate(row.photoRate)}</BelowAverage></TableCell>
-        <TableCell className="px-3 text-right"><BelowAverage base={data.summary.coverageRate} value={row.coverageRate}>{rate(row.coverageRate)}</BelowAverage></TableCell>
+        <TableCell className="px-3 text-right"><BelowAverage base={data.summary.photoRate} emphasize={filters.focus === 'photo'} value={row.photoRate}>{rate(row.photoRate)}</BelowAverage></TableCell>
+        <TableCell className="px-3 text-right"><BelowAverage base={data.summary.coverageRate} emphasize={filters.focus === 'coverage'} value={row.coverageRate}>{rate(row.coverageRate)}</BelowAverage></TableCell>
         <TableCell className="px-3 text-right font-semibold tabular-nums">{(row.deliveredCount-row.reviewedCount).toLocaleString('ko-KR')}건</TableCell>
         {/* 미답글은 거의 모든 줄에 있어 색으로는 안 갈린다 — 숫자는 보통 글자이고, 처리할 줄은 오른쪽 버튼이 말한다. */}
         <TableCell className={`px-3 text-right tabular-nums ${row.unansweredCount > 0 ? 'font-semibold' : 'text-muted-foreground'}`}>{row.unansweredCount.toLocaleString('ko-KR')}건</TableCell>

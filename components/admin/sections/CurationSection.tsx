@@ -353,7 +353,7 @@ function CurationForm({
       <input name="expectedUpdatedAt" type="hidden" value={selected?.updatedAt ?? ''} />
       <input name="originalTitle" type="hidden" value={selected?.kind === 'hero' ? selected.title : ''} />
       <input name="originalSubtitle" type="hidden" value={selected?.kind === 'hero' && typeof selected.payload?.subtitle === 'string' ? encodeURIComponent(selected.payload.subtitle) : ''} />
-      <header className={PANEL_HEADER}><h3 className="text-base font-medium">{CURATION_KIND_LABELS[kind]} {selected ? '관리' : '추가'}</h3><p className={HELP}>{KIND_HELP[kind]}</p></header>
+      <header className={PANEL_HEADER}><h3 className="text-base font-medium">{CURATION_KIND_LABELS[kind]} {selected ? '관리' : '추가'}{selected ? null : <small className="ml-2 text-xs font-normal text-muted-foreground">기존 구성은 왼쪽 목록에서 고릅니다</small>}</h3><p className={HELP}>{KIND_HELP[kind]}</p></header>
       <fieldset disabled={pending || state.uncertain || state.conflict} className="min-h-0 min-w-0 flex-1 overflow-y-auto print:overflow-visible">
         <section className={FORM_SECTION}>
           <h4 className={SECTION_TITLE}>기본 설정</h4>
@@ -534,7 +534,7 @@ function CurationForm({
       <footer className="grid gap-3 border-t p-4 sm:p-5 print:hidden"><ActionNotice state={state} />
         {heroLimitReached ? <AdminNotice role="alert" tone="danger">프로모션 배너는 비노출을 포함해 최대 10개까지 등록합니다. 기존 배너를 수정해주세요.</AdminNotice> : null}
         {freeProductLimitReached ? <AdminNotice role="alert" tone="danger">자유상품은 모자이크·비노출·종료를 포함해 합계 5개까지 등록합니다. 기존 구성을 수정해주세요.</AdminNotice> : null}
-        {values.enabled ? <AdminNotice title="적용하면 고객 화면에 바로 나갑니다" tone="warning">이 구성 하나만 바뀌고, 새로 여는 화면부터 보입니다. 노출 시작이 미래면 그 시각부터 보입니다.</AdminNotice> : <AdminNotice tone="neutral">노출안함으로 적용하면 고객 화면에 보이지 않습니다.</AdminNotice>}
+        {values.enabled ? <AdminNotice tone="warning">적용하면 고객 화면에 바로 나갑니다(이 구성만, 노출 시작이 미래면 그 시각부터).</AdminNotice> : <AdminNotice tone="neutral">노출안함으로 적용하면 고객 화면에 보이지 않습니다.</AdminNotice>}
         <Button disabled={pending || state.conflict || heroLimitReached || freeProductLimitReached} type="submit">{pending ? '적용 중…' : state.uncertain ? '같은 요청 결과 확인' : '이 구성 적용하기'}</Button>
         {state.conflict ? <Button onClick={() => router.refresh()} type="button" variant="outline">입력을 취소하고 최신 저장본 불러오기</Button> : null}
         {selected?.kind === 'hero' ? <HeroBannerDeleteButton target={selected} dirty={dirty}
