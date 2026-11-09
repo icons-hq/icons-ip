@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { startTransition, useActionState, useId, useMemo, useRef, useState, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from 'react';
-import { ArrowDown, ArrowUp, ExternalLink, Plus, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpRight, ExternalLink, Plus, X } from 'lucide-react';
 import { upsertAdminCurationAction } from '@/app/admin/curation-actions';
 import { AdminField, AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { AdminPageHeading } from '@/components/admin/console/admin-shell-title';
@@ -534,12 +534,12 @@ function CurationForm({
       <footer className="grid gap-3 border-t p-4 sm:p-5 print:hidden"><ActionNotice state={state} />
         {heroLimitReached ? <AdminNotice role="alert" tone="danger">프로모션 배너는 비노출을 포함해 최대 10개까지 등록합니다. 기존 배너를 수정해주세요.</AdminNotice> : null}
         {freeProductLimitReached ? <AdminNotice role="alert" tone="danger">자유상품은 모자이크·비노출·종료를 포함해 합계 5개까지 등록합니다. 기존 구성을 수정해주세요.</AdminNotice> : null}
-        {values.enabled ? <AdminNotice title="적용하면 고객 화면에 바로 나갑니다" tone="warning">새로 여는 화면부터 보이고, 노출 시작이 미래면 그 시각부터 보입니다.</AdminNotice> : <AdminNotice tone="neutral">노출안함으로 적용하면 고객 화면에 보이지 않습니다.</AdminNotice>}
+        {values.enabled ? <AdminNotice title="적용하면 고객 화면에 바로 나갑니다" tone="warning">이 구성 하나만 바뀌고, 새로 여는 화면부터 보입니다. 노출 시작이 미래면 그 시각부터 보입니다.</AdminNotice> : <AdminNotice tone="neutral">노출안함으로 적용하면 고객 화면에 보이지 않습니다.</AdminNotice>}
         <Button disabled={pending || state.conflict || heroLimitReached || freeProductLimitReached} type="submit">{pending ? '적용 중…' : state.uncertain ? '같은 요청 결과 확인' : '이 구성 적용하기'}</Button>
         {state.conflict ? <Button onClick={() => router.refresh()} type="button" variant="outline">입력을 취소하고 최신 저장본 불러오기</Button> : null}
         {selected?.kind === 'hero' ? <HeroBannerDeleteButton target={selected} dirty={dirty}
           disabled={pending || Boolean(state.uncertain) || Boolean(state.conflict)} onDeleted={onDeleted} /> : null}
-        <Link className="text-center text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" href="/admin/messaging/notifications">인앱 공지 발송</Link></footer>
+        <Link className={`${buttonVariants({ size: 'sm', variant: 'outline' })} justify-self-center`} data-slot="button" href="/admin/messaging/notifications">인앱 공지 발송 화면으로<ArrowUpRight aria-hidden="true" /></Link></footer>
     </form>
     <aside className={`flex h-[780px] min-h-0 min-w-0 flex-col border-t bg-muted/40 xl:h-auto print:hidden${fullPreview ? ' border-t-0' : ' md:col-span-2 xl:col-span-1 xl:border-t-0'}`} aria-label="스토어 미리보기">
       <header className="flex items-center gap-3 border-b bg-background px-4 py-3"><h3 className="text-sm font-medium whitespace-nowrap">미리보기</h3><NativeSelect aria-label="미리보기 범위" className="min-w-0 max-w-[180px] flex-1" onChange={(event) => setPreviewScope(event.target.value as 'draft' | 'public')} size="sm" value={previewScope}><option value="draft">편집 중인 구성</option><option value="public">현재 공개 홈</option></NativeSelect><span className="ml-auto text-xs text-muted-foreground tabular-nums">{device === 'mobile' ? '390px' : '1212px'}</span></header>

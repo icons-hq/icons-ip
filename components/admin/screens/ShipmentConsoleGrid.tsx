@@ -42,6 +42,8 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
  // 운영자가 양식을 고르기 전에는 출고지 기본 양식을 쓴다. 남양주(서원)는 서원 원형 송장양식이 기본이다.
  const [layoutChoice,setLayout]=useState<ShipmentExportLayout|null>(null);
  const [failures,setFailures]=useState<{id:string;reason:string}[]>([]);
+ // 일부 건만 처리된 결과다. 서버 문구는 그대로 쓰되 초록 완료 상자로 보이지 않게 주의 상자로 그린다.
+ const [partial,setPartial]=useState(false);
  const [packSelection,setPackSelection]=useState<string[]|null>(null);
  const [noticeSelection,setNoticeSelection]=useState<string[]|null>(null);
  const [completion,setCompletion]=useState<{ids:string[];total:number;acknowledged:boolean}|null>(null);
@@ -115,14 +117,14 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
   const targetIds=kind==='complete'?completion?.ids:exportBatch?.kind==='selection'?exportBatch.ids:ids;
   if(pending||(kind==='export'?!exportBatch:!targetIds?.length))return;
   if(kind==='complete'&&!completion?.acknowledged)return;
-  setMessage('');setError('');setFailures([]);
+  setMessage('');setError('');setFailures([]);setPartial(false);
   startTransition(async()=>{
    try{
     if(kind==='confirm'){
      const form=new FormData();orderIds.forEach(id=>form.append('orderIds',id));const result=await bulkConfirmAdminOrdersAction({},form);
      if(result.errors?.form)setError(result.errors.form);
      else{
-      setMessage(result.message??'발주확인했습니다.');
+      setMessage(result.message??'발주확인했습니다.');setPartial((result.confirmedOrderIds?.length??0)<orderIds.length);
       const confirmedOrders=new Set(result.confirmedOrderIds??[]);
       const confirmedIds=rows.filter(row=>ids.includes(row.id)&&confirmedOrders.has(row.orderId)&&isParcelShipment(row)&&row.preorderReady!==false).map(row=>row.id);
       if(confirmedOrders.size){
@@ -131,7 +133,7 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
       }
      }
     }else if(kind==='complete'){
-     const result=await completeShipmentsAction(targetIds!);if(result.error)setError(result.error);else{setMessage(result.message??'');setFailures(result.failed??[]);setSelected((result.failed??[]).map(row=>row.id));}setCompletion(null);
+     const result=await completeShipmentsAction(targetIds!);if(result.error)setError(result.error);else{setMessage(result.message??'');setFailures(result.failed??[]);setPartial(Boolean(result.failed?.length));setSelected((result.failed??[]).map(row=>row.id));}setCompletion(null);
     }else{
      const request=exportBatch!;
      const result=request.kind==='origin'
@@ -212,7 +214,7 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
     </div>
    </form>
   </CustomerServiceDialog>:null}
-  {message?<AdminNotice role="status" tone="success">{message}</AdminNotice>:null}{error&&!exportRequest?<AdminNotice role="alert" tone="danger">{error}</AdminNotice>:null}
+  {message?<AdminNotice role="status" tone={partial?'warning':'success'}>{message}</AdminNotice>:null}{error&&!exportRequest?<AdminNotice role="alert" tone="danger">{error}</AdminNotice>:null}
   {failures.length?<ul className="flex list-disc flex-col gap-1 pl-5 text-destructive">{failures.map(row=><li key={row.id}><span className="tabular-nums">{commerceReferenceLabel(row.id,rows.find(item=>item.id===row.id)?.shipmentNumber)}</span>: {row.reason}</li>)}</ul>:null}
  </div>;
 }

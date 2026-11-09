@@ -62,9 +62,10 @@ export function ShoppingStoryEditorScreen({ accountId, draftId, initial }: { acc
     });
   }
   return <section className="flex min-w-0 flex-col gap-4">
-    {/* 셸 제목이 메뉴 이름(쇼핑스토리)이다 — 머리는 이 글의 이름과 전시 상태를 나란히 읽히게 한다. */}
+    {/* 셸 제목은 메뉴 이름(쇼핑스토리)이라 목록과 같다 — 머리가 수정·등록 화면임을 말하고, 어느 글인지와 전시 상태를 옆에 둔다. */}
     <header className="flex flex-wrap items-center gap-2" data-admin-kit="page-header">
-      <AdminPageHeading title={initial ? initial.title || '쇼핑스토리 수정' : '쇼핑스토리 등록'} />
+      <AdminPageHeading title={initial ? '쇼핑스토리 수정' : '쇼핑스토리 등록'} />
+      {initial?.title ? <span className="min-w-0 truncate text-sm text-muted-foreground" title={initial.title}>{initial.title}</span> : null}
       {initial ? <AdminStatusBadge tone={statusTone('story', initial.state)}>{SHOPPING_STORY_STATE_LABELS[initial.state]}</AdminStatusBadge> : null}
       <Link className={`${buttonVariants({ size: 'sm', variant: 'outline' })} ml-auto`} data-slot="button" href={ADMIN_SHOPPING_STORIES_PATH}><ArrowLeft aria-hidden="true" />목록으로</Link>
     </header>
@@ -88,8 +89,8 @@ export function ShoppingStoryEditorScreen({ accountId, draftId, initial }: { acc
     </fieldset>
     {error ? <AdminNotice role="alert" tone="danger">{error}</AdminNotice> : null}{notice ? <AdminNotice role="status" tone="success">{notice}</AdminNotice> : null}
     {latest ? <aside className="flex flex-col items-start gap-2 rounded-xl border bg-muted/40 p-5 text-sm"><h2 className={PANEL_TITLE}>최신 저장 내용 확인</h2><p>현재 저장된 제목: {latest.title} · 버전 {latest.revision}</p><Link className="inline-flex items-center gap-1 underline underline-offset-4" href={`${ADMIN_SHOPPING_STORIES_PATH}/${draftId}`} target="_blank" rel="noopener noreferrer">저장 내용 별도 창에서 확인 <ExternalLink aria-hidden="true" className="size-3.5" /></Link><Button className="mt-1" type="button" onClick={() => { setRevision(latest.revision); setLatest(null); setError('현재 입력을 유지했습니다. 최신 내용을 확인했다면 저장해주세요.'); }} variant="outline">최신 버전 기준으로 현재 입력 유지</Button></aside> : null}
-    {/* 저장은 다른 입력 화면과 같이 바닥 오른쪽 끝이다. */}
-    <div className="sticky bottom-0 z-10 flex flex-wrap justify-end gap-2 rounded-xl border bg-card p-3 shadow-sm sm:gap-2.5 [&>button]:flex-1 sm:[&>button]:flex-none" data-admin-savebar=""><Button type="button" onClick={() => setPreview('desktop')} variant="outline">PC 미리보기</Button><Button type="button" onClick={() => setPreview('mobile')} variant="outline">모바일 미리보기</Button><Button type="button" disabled={pending || !!latest} onClick={save}>{pending ? '저장 중…' : retry ? '같은 요청으로 저장 결과 확인' : '저장'}</Button></div>
+    {/* 저장은 상품 수정과 같이 바닥 오른쪽 끝이다 — 셸 여백까지 밀어 폭 전체에 붙이고 윗선 하나로 본문과 가른다(둥근 상자가 본문 칸 모서리에 겹치지 않는다). */}
+    <div className="sticky bottom-0 z-10 -mx-4 -mb-4 flex flex-wrap justify-end gap-2 border-t bg-background px-4 py-2 sm:gap-2.5 md:-mx-6 md:-mb-6 md:px-6 md:py-3 print:hidden [&>button]:flex-1 sm:[&>button]:flex-none" data-admin-savebar=""><Button type="button" onClick={() => setPreview('desktop')} variant="outline">PC 미리보기</Button><Button type="button" onClick={() => setPreview('mobile')} variant="outline">모바일 미리보기</Button><Button type="button" disabled={pending || !!latest} onClick={save}>{pending ? '저장 중…' : retry ? '같은 요청으로 저장 결과 확인' : '저장'}</Button></div>
     {preview !== 'off' ? <CustomerServiceDialog title={`${preview === 'mobile' ? '모바일' : 'PC'} 스토리 미리보기`} onClose={() => setPreview('off')} wide><div className="flex flex-col gap-3"><p className={HELP}>현재 입력 기준입니다. 상품의 판매가·공개 상태는 불러온 시점 기준이며 공개 요청마다 다시 확인합니다.</p><div className="mx-auto w-full max-w-[848px] rounded-lg border bg-background p-4 data-[device=mobile]:w-[375px] data-[device=mobile]:max-w-full" data-device={preview} data-story-preview=""><ShoppingStoryContent title={values.title} bodyHtml={values.bodyHtml} imagePaths={content.imagePaths} sections={previewSections} /></div></div></CustomerServiceDialog> : null}
     {searchSection ? <ShoppingStoryGoodsPicker existingIds={values.sections.flatMap(section => section.goodIds)} sectionCount={values.sections.find(section => section.id === searchSection)?.goodIds.length ?? 0} onAdd={addGoods} onClose={() => setSearchSection(null)} /> : null}
   </section>;

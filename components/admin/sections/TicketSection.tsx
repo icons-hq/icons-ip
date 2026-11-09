@@ -10,9 +10,10 @@ import {
   type AdminCatalogActionState,
 } from '@/app/admin/actions';
 import type { AdminTicketTypeRecord } from '@/lib/admin/catalog.server';
-import { Field, FormShell, RecordList, SelectField } from '../fields';
+import { Field, FormShell, SelectField } from '../fields';
 import { statusTone } from '@/lib/admin/status-tone';
-import { MasterDetail, ReadOnlyField, RecordFormHeading, SECTION_CARD } from './SectionLayout';
+import { MasterDetail, ReadOnlyField, RecordDetailPane, RecordFormHeading, SECTION_CARD } from './SectionLayout';
+import { RecordMasterList } from './RecordMasterList';
 import { RecordStatusLabel } from './RecordStatusLabel';
 
 const emptyTicketState: AdminCatalogActionState = {};
@@ -25,15 +26,20 @@ function allocationState(record: AdminTicketTypeRecord): keyof typeof ALLOCATION
 }
 
 export function TicketSection({
+  creating = false,
   draftId,
   eventOptions,
+  onClose,
   onSelect,
   operationId,
   records,
   selected,
 }: {
+  /** 새 회차 입력 칸을 연 상태. 고른 회차도 없고 이 값도 꺼져 있으면 오른쪽은 안내만 보인다. */
+  creating?: boolean;
   draftId: string;
   eventOptions: { id: string; title: string; archivedAt: string | null }[];
+  onClose?: () => void;
   onSelect: (record: AdminTicketTypeRecord | null) => void;
   operationId: string;
   records: AdminTicketTypeRecord[];
@@ -49,26 +55,29 @@ export function TicketSection({
           <ScanLine aria-hidden="true" />현장 검표 화면 열기
         </Link>
       </div>
+      {/* 처음 열면 왼쪽 목록과 안내만 보이고 주 행동은 화면 머리의 등록 버튼 하나다(카드·이벤트와 같은 배치). */}
       <MasterDetail
         list={(
-          <RecordList
+          <RecordMasterList
             activeId={selected?.id ?? null}
             ariaLabel="티켓 회차 목록"
             emptyMessage="등록된 티켓 회차가 없습니다."
             items={records}
             labelFor={(record) => <RecordStatusLabel detail={record.eventTitle} name={record.name} status={allocationState(record) === 'open' ? `잔여 ${(record.capacity - record.sold).toLocaleString('ko-KR')}` : ALLOCATION_LABELS[allocationState(record)]} tone={statusTone('ticketAllocation', allocationState(record))} title={`${record.eventTitle} · ${record.name} · ${record.sold}/${record.capacity}`} />}
-            onNew={() => onSelect(null)}
             onSelect={onSelect}
           />
         )}
       >
-        <TicketForm
-          draftId={draftId}
-          eventOptions={eventOptions}
-          key={`${id}-${operationId}-${selected?.updatedAt ?? 'new'}`}
-          operationId={operationId}
-          selected={selected}
-        />
+        <RecordDetailPane hint="새 티켓 회차는 오른쪽 위 티켓 회차 등록 버튼으로 만듭니다." open={Boolean(selected) || creating} prompt="목록에서 티켓 회차를 고르면 여기에서 수정합니다.">
+          <TicketForm
+            draftId={draftId}
+            eventOptions={eventOptions}
+            key={`${id}-${operationId}-${selected?.updatedAt ?? 'new'}`}
+            onClose={onClose}
+            operationId={operationId}
+            selected={selected}
+          />
+        </RecordDetailPane>
       </MasterDetail>
     </div>
   );
@@ -77,11 +86,13 @@ export function TicketSection({
 function TicketForm({
   draftId,
   eventOptions,
+  onClose,
   operationId,
   selected,
 }: {
   draftId: string;
   eventOptions: { id: string; title: string; archivedAt: string | null }[];
+  onClose?: () => void;
   operationId: string;
   selected: AdminTicketTypeRecord | null;
 }) {
@@ -100,7 +111,7 @@ function TicketForm({
     >
       <input name="operationId" type="hidden" value={operationId} />
       <input name="id" type="hidden" value={id} />
-      <RecordFormHeading editing={selected?.name ?? null} noun="티켓 회차" />
+      <RecordFormHeading editing={selected?.name ?? null} noun="티켓 회차" onClose={onClose} />
 
       {selected && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border bg-muted/40 px-3 py-2.5 text-sm">
@@ -170,6 +181,8 @@ function TicketForm({
       </AdminFormGrid>
 
       {metadataLocked && <AdminNotice tone="info">예매 이력이 있어 이벤트·회차명·가격은 잠겼습니다. 정원만 현재 할당 수량 이상으로 조정할 수 있습니다.</AdminNotice>}
+      {/* 새 회차의 연결 이벤트는 목록 첫 이벤트가 미리 골라져 있다(기본값은 그대로). 예매가 시작되면 이벤트를 못 바꾸므로 저장 직전에 확인시킨다. */}
+      {!selected && !noEvents && <AdminNotice tone="warning">연결 이벤트가 목록의 첫 이벤트로 미리 선택되어 있습니다. 예매가 시작되면 바꿀 수 없으니 저장 전에 맞는 이벤트인지 확인해주세요.</AdminNotice>}
       <FormShell disabled={noEvents && !selected} pending={pending} state={state} />
     </form>
   );

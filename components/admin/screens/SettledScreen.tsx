@@ -21,7 +21,7 @@ import { SalesFilterPanel, SalesGuide, SalesResultsHeader } from '@/components/a
 
 const COLUMNS: ConsoleGridColumn[] = [
   { key: 'reference', label: '주문번호', width: '190px' },
-  { key: 'buyer', label: '구매자', width: '140px' },
+  { key: 'buyer', label: '구매자', width: '180px' },
   { key: 'deliveredAt', label: '배송완료', width: '160px' },
   { key: 'doneAt', label: '확정일', width: '160px' },
   { key: 'claim', label: '하자 요청' },
@@ -62,7 +62,7 @@ export function SettledScreen({
         >
           <span className="tabular-nums">{orderReferenceLabel(row.id, row.orderNumber)}</span>
         </Link>,
-        <span key="buyer">@{row.buyerName}</span>,
+        <span className="block max-w-39 truncate" key="buyer" title={row.buyerName}>{row.buyerName}</span>,
         row.deliveredAt
           ? (
             <time className="tabular-nums" dateTime={row.deliveredAt} key="deliveredAt">

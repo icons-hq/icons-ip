@@ -20,6 +20,12 @@ describe('purchase restrictions screen',()=>{
  expect(html).toMatch(/<button[^>]*type="submit"[^>]*>고객 조회</);
  expect(html).toMatch(/<button[^>]*type="submit"[^>]*>등록 대상 확인</);
  });
+ /* 사람 눈 판정(3라운드): '선택건 해제하기'가 체크를 푸는 건지 구매제한을 푸는 건지 알 수 없었다. */
+ it('일괄 해제 버튼은 구매제한을 푼다고 말한다',()=>{
+  const active={id:'restriction-2',userId:'user-2',nickname:'합성 고객',maskedEmail:'f***@example.test',reasonCode:'other',reasonDetail:'등록 근거',evidenceOrderId:null,createdAt:'2026-10-11T00:00:00Z',createdBy:'합성 담당자',releasedAt:null,releasedBy:null,releaseReason:null} as const;
+  const html=renderToStaticMarkup(<PurchaseRestrictionsScreen data={{filters:{query:'',state:'active',page:1,pageSize:20},rows:[active],total:1}}/>);
+  expect(html).toContain('>선택건 구매제한 해제<');expect(html).not.toContain('선택건 해제하기');
+ });
  /* 사람 눈 판정: 등록이 버튼이 아니라 접힌 줄이라 못 찾을 뻔했고, 해제는 바로 풀리는지 펼쳐지는지 알 수 없었다. */
  it('등록은 목록 머리의 주 버튼으로, 해제는 펼치는 버튼으로 보인다',()=>{
   const active={id:'restriction-2',userId:'user-2',nickname:'합성 고객',maskedEmail:'f***@example.test',reasonCode:'other',reasonDetail:'등록 근거',evidenceOrderId:null,createdAt:'2026-10-11T00:00:00Z',createdBy:'합성 담당자',releasedAt:null,releasedBy:null,releaseReason:null} as const;

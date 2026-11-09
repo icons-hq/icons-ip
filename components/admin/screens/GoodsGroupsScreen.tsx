@@ -5,6 +5,7 @@ import { Archive, Boxes, ChevronDown, Eye, FilePen } from 'lucide-react';
 import { searchGoodsGroupConsoleAction } from '@/app/admin/goods-group-actions';
 import { GOODS_GROUPS_PATH, goodsGroupConversionHref, goodsGroupHref, type GoodsGroupPage, type GoodsGroupSnapshot } from '@/lib/admin/goods-groups';
 import { formatWon } from '@/lib/admin/goods-price-editor';
+import { kstDay } from '@/lib/admin/kst';
 import { AdminPageHeader, AdminStatusBadge } from '../console/AdminKit';
 import { ADMIN_COUNT_CARD_GRID_CLASS, AdminCountCard } from '../console/AdminCountCard';
 import { statusTone } from '@/lib/admin/status-tone';
@@ -14,6 +15,7 @@ import { Input } from '../kit/ui/input';
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '../kit/ui/table';
 import { GoodsGroupEditor } from '../GoodsGroupEditor';
 import { GoodsBulkToolbar } from '../GoodsBulkToolbar';
+import { GoodsGroupsMenuNote } from './GoodsGroupsMenuNote';
 import { GroupPager, GroupTable, useGoodsGroupSession } from '../GoodsGroupOperation';
 import { DEFAULT_GROUP_FILTERS, GROUP_SEARCH_FIELDS, GROUP_SORTS, GROUP_STATUSES, goodsGroupConsoleHref, type GoodsGroupConsole, type GoodsGroupFilters } from '@/lib/admin/goods-group-console';
 
@@ -68,7 +70,7 @@ export function GoodsGroupsScreen({ initialPage, initialGroup, initialQuery = ''
   /* 접힌 조건이 걸려 있으면 펼쳐 둔다. 입력 중 값이 아니라 적용한 값으로 정해 고르는 동안 접히지 않는다. */
   const advancedApplied = Boolean(applied.from || applied.to || applied.stock !== 'all' || applied.originId || applied.shippingFee !== 'all');
   return <section className="flex min-w-0 flex-col gap-4" aria-busy={pending} data-admin-screen="goods-groups">
-    <nav className="inline-flex w-fit rounded-lg bg-muted p-0.5" aria-label="상품 목록"><Link className={TAB} href="/admin/catalog/goods">전체 상품 조회/수정</Link><span aria-current="page" className={TAB}>그룹상품 조회/수정</span></nav>
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1"><nav className="inline-flex w-fit rounded-lg bg-muted p-0.5" aria-label="상품 목록"><Link className={TAB} href="/admin/catalog/goods">전체 상품 조회/수정</Link><span aria-current="page" className={TAB}>그룹상품 조회/수정</span></nav><GoodsGroupsMenuNote /></div>
     {/* 조회가 화면 상태라 칸이 링크가 아니라 버튼이다 — 눌림·포커스·호버는 버튼이, 모양은 공용 건수 칸이 맡는다. */}
     <div className={ADMIN_COUNT_CARD_GRID_CLASS} data-goods-groups="status">{GROUP_STATUSES.map(status => <button type="button" key={status.value} disabled={pending} aria-pressed={applied.status === status.value} onClick={() => load({ ...applied, status: status.value, page: 1 })}
       className="min-w-0 rounded-xl text-left outline-none hover:[&>span]:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50">
@@ -110,7 +112,7 @@ export function GoodsGroupsScreen({ initialPage, initialGroup, initialQuery = ''
             setExpanded(current => { const next = new Set(current); if (next.has(group.id)) next.delete(group.id); else next.add(group.id); return next; });
           }}>{expanded.has(group.id) ? '판매옵션 접기' : '판매옵션 펼치기'}</Button></div> : null}</TableCell><TableCell className="whitespace-normal">{group.optionNames.join(' / ')}</TableCell>
         <TableCell className="text-right tabular-nums">{group.members.length}개</TableCell><TableCell className="text-right tabular-nums">{group.members.filter(member => member.publishedAt && !member.archivedAt).length}개</TableCell><TableCell><AdminStatusBadge tone={statusTone('goodsGroup', group.archivedAt ? 'archived' : 'active')}>{group.archivedAt ? '연결 해제' : '사용 중'}</AdminStatusBadge></TableCell>
-        <TableCell className="whitespace-normal">{consoleData?.metadata[group.id]?.category ?? '미지정'}</TableCell>{(['createdAt', 'updatedAt'] as const).map(key => <TableCell className="tabular-nums" key={key}>{consoleData?.metadata[group.id]?.[key] ? new Date(consoleData.metadata[group.id][key]).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '—'}</TableCell>)}</TableRow>
+        <TableCell className="whitespace-normal">{consoleData?.metadata[group.id]?.category ?? '미지정'}</TableCell>{(['createdAt', 'updatedAt'] as const).map(key => <TableCell className="tabular-nums" key={key}>{consoleData?.metadata[group.id]?.[key] ? kstDay(new Date(consoleData.metadata[group.id][key])).replaceAll('-', '.') : '—'}</TableCell>)}</TableRow>
         {expanded.has(group.id) ? <TableRow className="hover:bg-transparent" id={`group-members-${group.id}`}><TableCell className="bg-muted/30" colSpan={9}><GroupTable label={`${group.name} 개별 상품`} className="min-w-[640px]"><TableHeader><TableRow><TableHead>상품·판매자상품코드</TableHead><TableHead>판매옵션</TableHead><TableHead className="text-right">판매가</TableHead><TableHead className="text-right">재고수량</TableHead><TableHead>공개 상태</TableHead></TableRow></TableHeader><TableBody>
           {group.members.map(member => <TableRow key={member.goodId}><TableCell className="whitespace-normal"><Link className="font-medium underline-offset-4 hover:underline" href={`/admin/catalog/goods?goodId=${encodeURIComponent(member.goodId)}`}>{member.name}</Link><small className="block text-xs text-muted-foreground">{member.code ?? member.goodId}</small></TableCell>
             <TableCell className="whitespace-normal">{member.values.join(' / ')}</TableCell><TableCell className="text-right tabular-nums">{formatWon(member.price)}</TableCell><TableCell className="text-right tabular-nums">{member.stockQty.toLocaleString('ko-KR')}개</TableCell><TableCell><AdminStatusBadge tone={statusTone('publication', member.archivedAt ? 'archived' : member.publishedAt ? 'published' : 'draft')}>{member.archivedAt ? '보관' : member.publishedAt ? '공개' : '미공개'}</AdminStatusBadge></TableCell></TableRow>)}

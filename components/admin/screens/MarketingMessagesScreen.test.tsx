@@ -10,7 +10,7 @@ import { MarketingMessagesScreen } from './MarketingMessagesScreen';
    조회 키(state·q·start·end)가 그대로인지 지킨다. */
 it('메시지 이력 조회는 같은 조회 키로 GET 폼을 제출한다', () => {
   const html = renderToStaticMarkup(<MarketingMessagesScreen data={{ rows: [], total: 0, page: 1, pageSize: 20, filters: normalizeMarketingFilters({ q: '가을', state: 'draft' }) }} />);
-  expect(html).toMatch(/<button[^>]*type="submit"[^>]*>조회<\/button>/);
+  expect(html).toMatch(/<button[^>]*type="submit"[^>]*>검색<\/button>/);
   for (const name of ['state', 'q', 'start', 'end']) expect(html).toContain(`name="${name}"`);
   expect(html).toContain('value="가을"');
   expect(html).toMatch(/<button[^>]*type="button"[^>]*disabled=""[^>]*>조회 결과 엑셀 다운로드<\/button>/);

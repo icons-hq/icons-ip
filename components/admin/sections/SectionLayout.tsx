@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { ArrowLeft, ChevronDown } from 'lucide-react';
-import { Button } from '../kit/ui/button';
+import { Button, buttonVariants } from '../kit/ui/button';
 
 /*
  * IP·콘텐츠 운영 화면이 함께 쓰는 배치·카드 모양(템플릿 룩, ADR-0028).
@@ -101,9 +101,11 @@ export function FormGroup({ bare = false, children, hint, title }: { bare?: bool
 }
 
 /** 자주 쓰지 않는 입력·도구를 접어 두는 카드. 접혀도 안의 폼은 DOM에 있고 저장 동작은 그대로다. */
-export function FoldCard({ badge, children, id, open, summary, title }: {
+export function FoldCard({ badge, children, cue, id, open, summary, title }: {
   badge?: ReactNode;
   children: ReactNode;
+  /** 접힌 줄 오른쪽에 버튼 모양으로 보이는 글자. 이 줄을 펼쳐야 할 일을 할 수 있을 때 그 일을 말한다. 펼치면 사라진다. */
+  cue?: string;
   id?: string;
   open?: boolean;
   /** 접혔을 때 제목 옆에 보이는 한 줄. */
@@ -117,7 +119,10 @@ export function FoldCard({ badge, children, id, open, summary, title }: {
         {badge}
         {summary ? <span className="text-sm text-muted-foreground">{summary}</span> : null}
       </span>
-      <ChevronDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open/fold:rotate-180" />
+      <span className="flex shrink-0 items-center gap-2">
+        {cue ? <span className={`${buttonVariants({ variant: 'outline', size: 'sm' })} group-open/fold:hidden`} data-slot="button">{cue}</span> : null}
+        <ChevronDown aria-hidden="true" className="size-4 text-muted-foreground transition-transform group-open/fold:rotate-180" />
+      </span>
     </summary>
     <div className="flex min-w-0 flex-col gap-4 border-t p-4 sm:p-5">{children}</div>
   </details>;

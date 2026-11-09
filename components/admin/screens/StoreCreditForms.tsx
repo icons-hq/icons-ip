@@ -52,7 +52,8 @@ export function StoreCreditPolicyForm({ policy, operationId }: { policy: StoreCr
         : <Input id={`credit-${key}`} name={key} type="number" min={key === 'validityDays' ? '1' : '0'} step="1" value={values[key]} onChange={event => set(key, event.target.value)} />}
     </AdminField>;
   }
-  return <form action={action} className="flex min-w-0 flex-col gap-4" onReset={event => event.preventDefault()}>
+  /* 칸이 잘못되면 hidden 값이 비어 기존 적립률이 빈 값으로 덮인다 — 칸 아래 안내를 고칠 때까지 제출을 막는다(엔터 제출 포함). */
+  return <form action={action} className="flex min-w-0 flex-col gap-4" onReset={event => event.preventDefault()} onSubmit={event => { if (rateInvalid) event.preventDefault(); }}>
     <input type="hidden" name="operationId" value={state.operationId ?? operationId} />
     <input type="hidden" name="version" value={state.policy?.version ?? policy.version} />
     {/* 돈이 걸린 화면이다 — 저장하면 무엇이 언제 바뀌는지를 입력칸보다 먼저 말한다. */}
@@ -100,7 +101,7 @@ export function StoreCreditPolicyForm({ policy, operationId }: { policy: StoreCr
     </SettingsFormGroup>
     <SettingsSaveBar>
       {state.error ? <AdminNotice className="flex-1" role="alert" tone="danger">{state.error}</AdminNotice> : null}{state.message ? <AdminNotice className="flex-1" role="status" tone="success">{state.message}</AdminNotice> : null}
-      <Button disabled={pending} type="submit"><Check aria-hidden="true" />{pending ? '저장 중…' : '정책 저장'}</Button>
+      <Button disabled={pending || rateInvalid} type="submit"><Check aria-hidden="true" />{pending ? '저장 중…' : '정책 저장'}</Button>
     </SettingsSaveBar>
   </form>;
 }

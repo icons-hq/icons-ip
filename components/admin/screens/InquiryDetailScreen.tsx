@@ -63,6 +63,9 @@ const PAYMENT_PROVIDER_LABELS: Record<string, string> = {
   korpay: 'Korpay',
 };
 
+/* 글쓴이 역할을 이름 앞에 글자로 붙인다(색·위치만으로 말하지 않게). 자동 안내는 이름 자리가 이미 역할이다. */
+const MESSAGE_ROLE_LABELS: Partial<Record<AdminInquiryDetail['messages'][number]['author'], string>> = { user: '고객', staff: '운영자' };
+
 const CONTEXT_LINK_CLASS = `${buttonVariants({ size: 'sm', variant: 'outline' })} self-start`;
 
 /* 배송 건 정보(ShipmentDetails)와 같은 칸 나누기다 — 라벨 8rem·값 왼쪽 맞춤으로 카드 안 값의 시작선을 맞춘다. */
@@ -158,34 +161,38 @@ export function InquiryDetailScreen({
       <div className={`grid min-w-0 items-start gap-4 ${embedded ? '@3xl/inquiry:grid-cols-2 @3xl/inquiry:gap-6' : '@4xl/inquiry:grid-cols-[minmax(0,1.6fr)_minmax(16rem,0.9fr)]'}`}>
         <div className="flex min-w-0 flex-col gap-3.5">
           {embedded ? <h3 className="border-b pb-2 text-sm font-medium text-muted-foreground">고객문의 내용 보기</h3> : null}
-          <ol className="flex flex-col gap-2.5">
+          {/* 상담하기와 같은 대화 모양이다 — 고객은 왼쪽 흰 말풍선, 운영자 답변은 오른쪽 옅은 주 색 말풍선, 자동 안내는 가운데다. 이름을 읽지 않아도 누가 쓴 글인지 보인다. */}
+          <ol className="flex flex-col gap-3">
             {messages.map((message) => (
               <li
-                className="flex min-w-0 flex-col gap-2 rounded-xl border bg-card p-3.5 text-card-foreground data-[author=staff]:bg-muted/50 data-[author=system]:border-dashed"
+                className="group/message flex max-w-[92%] min-w-0 flex-col items-start gap-1 self-start data-[author=staff]:items-end data-[author=staff]:self-end data-[author=system]:items-center data-[author=system]:self-center"
                 data-author={message.author}
                 key={message.id}
               >
                 <span className="text-xs text-muted-foreground tabular-nums">
+                  {MESSAGE_ROLE_LABELS[message.author] ? <span className="font-medium text-foreground">{MESSAGE_ROLE_LABELS[message.author]} </span> : null}
                   {inquiryMessageAuthorLabel(message.author,message.authorName,`@${inquiry.buyerName}`)}
                   {' · '}
                   {formatInquiryDateTime(message.createdAt)}
                 </span>
-                <p className="text-sm leading-relaxed whitespace-pre-wrap wrap-anywhere">
-                  <InquiryMessageBody body={message.body} automatic={message.author==='system'}/>
-                </p>
-                {message.imageUrls.length ? (
-                  <div className="flex flex-wrap gap-2">
-                    {message.imageUrls.map((url, index) => (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        alt={`첨부 이미지 ${index + 1}`}
-                        className="max-h-50 max-w-full rounded-lg border object-contain"
-                        key={url}
-                        src={url}
-                      />
-                    ))}
-                  </div>
-                ) : null}
+                <div className="flex min-w-0 flex-col gap-2 rounded-2xl border bg-card px-3.5 py-2.5 text-card-foreground group-data-[author=staff]/message:border-transparent group-data-[author=staff]/message:bg-primary-soft group-data-[author=system]/message:border-dashed group-data-[author=system]/message:bg-muted">
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap wrap-anywhere">
+                    <InquiryMessageBody body={message.body} automatic={message.author==='system'}/>
+                  </p>
+                  {message.imageUrls.length ? (
+                    <div className="flex flex-wrap gap-2">
+                      {message.imageUrls.map((url, index) => (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          alt={`첨부 이미지 ${index + 1}`}
+                          className="max-h-50 max-w-full rounded-lg border object-contain"
+                          key={url}
+                          src={url}
+                        />
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
               </li>
             ))}
           </ol>

@@ -116,7 +116,8 @@ export function PgSettlementScreen({ filters, report, connection, operationId, a
         : <>
           <PgSettlementImportControl key={`${filters.account}:${filters.mode}:${filters.dateType}:${filters.startDate}:${filters.endDate}`} query={collectionQuery} enabled={connection.enabled} connectedMode={connection.mode} initialJob={job} operationId={operationId} />
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border bg-card px-4 py-3 text-card-foreground" data-pg-settlement-snapshot="">
-            <AdminStatusBadge tone={snapshot ? 'success' : 'warning'}>{report.coverage === 'uncollected' ? '미수집' : report.coverage === 'empty' ? '수집 완료 · 0건' : '수집 완료'}</AdminStatusBadge>
+            {/* 연결이 꺼져 있으면 지금 수집이 끝난 게 아니라 전에 받아 둔 자료다. 바로 위 주의 상자와 부딪히지 않게 초록 '완료'로 부르지 않는다. */}
+            <AdminStatusBadge tone={!snapshot ? 'warning' : connection.enabled ? 'success' : 'neutral'}>{report.coverage === 'uncollected' ? '미수집' : `${connection.enabled ? '수집 완료' : '저장된 자료'}${report.coverage === 'empty' ? ' · 0건' : ''}`}</AdminStatusBadge>
             <strong className="font-medium">{filters.mode === 'live' ? '실거래' : '테스트'} · 토스페이먼츠{snapshot ? ` · ${settlementAccountLabel(snapshot)}` : ''}</strong>
             {snapshot ? <span className="text-muted-foreground tabular-nums">수집 완료 {snapshot.completedAt ? formatOrderDateTime(snapshot.completedAt) : ''} · 전체 {snapshot.recordCount.toLocaleString('ko-KR')}건</span> : <span className="text-muted-foreground">이 기간의 완료 자료가 없습니다.</span>}
             {snapshot ? <a className={`${buttonVariants({ variant: 'outline', size: 'sm' })} sm:ml-auto print:hidden`} data-slot="button" href={exportHref}>엑셀 다운로드</a> : null}

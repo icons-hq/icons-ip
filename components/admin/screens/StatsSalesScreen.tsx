@@ -91,7 +91,7 @@ export function StatsSalesScreen({
       </StatsSummaryGrid>
 
       {comparison ? <StatsComparison filters={filters} now={now} rows={[
-        { label: '매출', current: totalRevenue, previous: previousRevenue, unit: '원' },
+        { label: '매출', current: totalRevenue, previous: previousRevenue, format: krw },
         { label: '주문수', current: totalOrders, previous: previousOrders, unit: '건' },
       ]} /> : null}
       <StatsSalesTrend rows={trend} />

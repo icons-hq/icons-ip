@@ -31,9 +31,9 @@ const COLUMNS: ConsoleGridColumn[] = [
   /* 안내한 입금자명을 그대로 실어 둔다 — 통장 화면과 이 열을 나란히 두고 눈으로
      맞추는 것이 수동 대조의 실제 동작이다. */
   { key: 'depositName', label: '안내된 입금자명', width: '136px' },
-  /* 품목은 폭을 비워 남는 자리를 모두 받는다 — 좁으면 한 건이 여섯 줄까지 꺾인다. */
+  /* 품목은 폭을 비워 남는 자리를 모두 받고 한 줄로 자른다(전체는 title) — 품목 수에 따라 줄 높이가 튀면 입금 대조하며 훑기 어렵다. */
   { key: 'items', label: '품목' },
-  { key: 'deadline', label: '남은 기한 / 주문일시', width: '150px' },
+  { key: 'deadline', label: '남은 기한 / 주문일시', width: '184px' },
   { key: 'state', label: '상태', width: '108px' },
   { key: 'total', label: '입금액', align: 'end', width: '100px' },
   { key: 'action', label: '처리', width: '96px', required: true },
@@ -66,23 +66,25 @@ export function UnpaidScreen({
     const deadlineTone = row.expiresAt && bankTransferDeadlinePassed(row.expiresAt, now.getTime()) ? 'danger' as const
       : bankTransferDeadlineImminent(row.expiresAt, now.getTime()) ? 'warning' as const : null;
     const actionHref = `${adminUnpaidHref({ ...filters, selectedOrderId: row.id })}#unpaid-actions`;
+    /* 기한이 끝났거나 결제 확인이 필요한 줄은 그냥 눌러 끝낼 일이 아니다 — 입금을 대조할 줄(연한 파랑)과 모양을 나눈다. */
+    const needsCare = deadlineTone === 'danger' || statusTone('unpaid', row.attemptState ?? 'missing') === 'danger';
     return {
       id: row.id,
       href: actionHref,
       cells: [
         <span className="font-medium tabular-nums" key="code">{row.depositCode}</span>,
-        row.buyerName,
+        <span className="block max-w-19 truncate" key="buyer" title={row.buyerName}>{row.buyerName}</span>,
         <span className="tabular-nums" key="depositName">
           {bankTransferDepositNameWithCode(row.recipientName, row.depositCode)}
         </span>,
-        <span className="block min-w-48" key="items">{row.itemSummary || '품목 정보 없음'}</span>,
+        <span className="line-clamp-1 min-w-48 break-all" key="items" title={row.itemSummary || undefined}>{row.itemSummary || '품목 정보 없음'}</span>,
         <span className="flex flex-col items-start gap-0.5" key="deadline">
-          {deadlineTone ? <AdminStatusBadge tone={deadlineTone}>{deadline}</AdminStatusBadge> : <span>{deadline}</span>}
+          {deadlineTone ? <AdminStatusBadge tone={deadlineTone}>{deadline}</AdminStatusBadge> : <span className="whitespace-nowrap">{deadline}</span>}
           <small className="text-xs text-muted-foreground tabular-nums">{formatOrderDateTime(row.createdAt)}</small>
         </span>,
         <AdminStatusBadge key="state" tone={statusTone('unpaid', row.attemptState ?? 'missing')}>{adminUnpaidAttemptStateLabel(row.attemptState)}</AdminStatusBadge>,
         <span className="tabular-nums" key="total">{krw(row.total)}</span>,
-        <Link aria-label={`입금확인코드 ${row.depositCode} 입금 확인·기한 연장·취소 처리 열기`} className={buttonVariants({ size: 'sm', variant: 'soft' })} data-slot="button" href={actionHref} key="action">입금 확인</Link>,
+        <Link aria-label={`입금확인코드 ${row.depositCode} 입금 확인·기한 연장·취소 처리 열기`} className={buttonVariants({ size: 'sm', variant: needsCare ? 'outline' : 'soft' })} data-slot="button" href={actionHref} key="action">입금 확인</Link>,
       ],
     };
   });

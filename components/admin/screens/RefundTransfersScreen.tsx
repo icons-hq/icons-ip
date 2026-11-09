@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { ConsoleGrid, ConsoleListCard, ConsolePagination, type ConsoleGridColumn } from '@/components/admin/console';
 import { AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
-import { SalesGuide } from '@/components/admin/sales/SalesConsole';
+import { SalesGuide, kstDayDiff } from '@/components/admin/sales/SalesConsole';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { cn } from 'cn';
 import { formatKrwExact } from '@/components/admin/format';
@@ -29,7 +29,8 @@ const columns: ConsoleGridColumn[] = [
   { key: 'requester', label: '요청자', width: '92px' },
 ];
 
-const waitingDays = (confirmedAt: string, now: Date) => Math.max(0, Math.floor((now.getTime() - Date.parse(confirmedAt)) / 86_400_000));
+/* 한국 달력으로 센다. 어제 밤에 확정된 요청이 '오늘'로 보이면 하루 묵은 송금을 놓친다. */
+const waitingDays = (confirmedAt: string, now: Date) => Math.max(0, kstDayDiff(Date.parse(confirmedAt), now.getTime()));
 
 export function RefundTransfersScreen({ data, now = new Date() }: {
   data: RefundTransferPage;

@@ -14,7 +14,8 @@ import {
   type AdminCatalogArchiveFilter,
 } from '../../../lib/admin/catalog-archive';
 import { ArtworkUploadField } from '../ArtworkUploadField';
-import { CatalogArchiveControl, CatalogArchiveFilter } from '../CatalogArchiveControls';
+import { CatalogArchiveControl } from '../CatalogArchiveControls';
+import { AdminSelect } from '../console/AdminSelect';
 import { ColorField, Field, FormShell, SelectField } from '../fields';
 import { FormGroup, MasterDetail, RecordDetailPane, RecordFormHeading, SECTION_CARD } from './SectionLayout';
 import { RecordMasterList } from './RecordMasterList';
@@ -72,6 +73,7 @@ export function EventSection({
     selected?.archivedAt ? 'archived' : 'active',
   );
   const visibleRecords = filterAdminCatalogRecords(records, archiveFilter);
+  const archiveCounts = adminCatalogArchiveCounts(records);
 
   return (
     <MasterDetail
@@ -80,15 +82,21 @@ export function EventSection({
           activeId={selected?.id ?? null}
           ariaLabel="이벤트 목록"
           filters={(
-            <CatalogArchiveFilter
-              compact
-              counts={adminCatalogArchiveCounts(records)}
-              filter={archiveFilter}
-              onChange={(filter) => {
+            /* 이벤트에는 진행 상태(예정·예매중·진행중·종료)가 따로 있다 — '운영 중'이라고 쓰면 끝난 이벤트가 섞여 보이는 것처럼 읽혀 보관 여부로 말한다. */
+            <AdminSelect
+              aria-label="보관 상태"
+              onChange={(event) => {
+                const filter = event.target.value as AdminCatalogArchiveFilter;
                 setArchiveFilter(filter);
                 if (selected && !filterAdminCatalogRecords([selected], filter).length) onSelect(null);
               }}
-            />
+              value={archiveFilter}
+              wrapperClassName="w-32 shrink-0"
+            >
+              <option value="active">보관 제외 {archiveCounts.active}</option>
+              <option value="archived">보관됨 {archiveCounts.archived}</option>
+              <option value="all">전체 {archiveCounts.all}</option>
+            </AdminSelect>
           )}
           items={visibleRecords}
           labelFor={(event) => <RecordStatusLabel name={`${event.id} · ${event.title}`} status={event.archivedAt ? '보관' : event.status} tone={event.archivedAt ? statusTone('publication', 'archived') : statusTone('event', event.status)} title={formatAdminCatalogRecordLabel(`${event.id} · ${event.title}`, event.archivedAt)} />}
@@ -151,6 +159,7 @@ export function EventSection({
             helpText="이미지는 잘리지 않게 전체가 표시되며, 비율에 따라 여백이 생길 수 있습니다."
             kind="event"
             label="이미지 파일"
+            showPath={Boolean(artwork.currentPath)}
           />
         </FormGroup>
         <FormShell pending={pending} state={state} />

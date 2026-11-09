@@ -68,6 +68,32 @@ describe('ClaimQueueKitScreen (admin kit)', () => {
     expect(html).toContain('최장 대기 1일째');
   });
 
+  /* 사람 눈 판정: 검색은 위 줄, 조건은 아래 줄이라 조건을 바꾼 뒤 검색을 눌러야 하는지 몰랐다. */
+  it('사유·처리상태·기간은 바로 적용된다고 목록 머리에서 말한다', () => {
+    const html = renderToStaticMarkup(<ClaimQueueKitScreen data={data()} now={NOW} />);
+    expect(html).toContain('사유·처리상태·기간은 고르면 바로 적용되고, 검색 버튼은 검색어에만 씁니다.');
+    expect(html.indexOf('고르면 바로 적용')).toBeLessThan(html.indexOf('data-claim-next-action'));
+  });
+
+  /* 사람 눈 판정: 세 목록 중 취소에만 '이 페이지'가 붙었다. 말은 같게 두고 페이지 기준은 도움말로 밝힌다. */
+  it('다음 쪽이 있어도 최장 대기라고 쓰고 이 페이지 기준임은 도움말로 둔다', () => {
+    const paged = renderToStaticMarkup(<ClaimQueueKitScreen data={data({ total: 45 })} now={NOW} />);
+    expect(paged).not.toContain('이 페이지 최장 대기');
+    expect(paged).toMatch(/title="이 페이지에서 가장 오래 기다린 요청 기준입니다\."[^>]*>최장 대기 1일째</);
+    expect(renderToStaticMarkup(<ClaimQueueKitScreen data={data()} now={NOW} />)).not.toContain('title="이 페이지에서');
+  });
+
+  /* 사람 눈 판정: 완료·거부 건수가 카드 밖에 띄어쓰기 없이 매달려 있었다. */
+  it('끝난 단계는 카드 줄 끝의 조용한 칸 하나에 이름과 건수로 모은다', () => {
+    const html = renderToStaticMarkup(<ClaimQueueKitScreen data={data()} now={NOW} />);
+    const closed = html.slice(html.indexOf('data-claim-closed-stages'), html.indexOf('</nav>'));
+    expect(closed).toMatch(/aria-label="취소완료 1건"[^>]*href="[^"]*stage=completed/);
+    expect(closed).toMatch(/<span>취소완료<\/span><span[^>]*><strong[^>]*>1<\/strong>건<\/span>/);
+    expect(closed).toContain('aria-label="취소거부 0건"');
+    /* 카드와 같은 틀(테두리·바탕)이고 색은 쓰지 않는다. */
+    expect(html.match(/<div class="([^"]*)" data-claim-closed-stages/)?.[1]).toContain('rounded-xl border bg-card');
+  });
+
   /* 사람 눈 판정: 체크칸은 있는데 체크하고 누를 버튼이 보이지 않아 체크해야 나오는 건지 알 수 없었다. */
   it('표 위에 체크하면 처리 버튼이 나온다고 말하고 지금 걸린 단계 조건을 적는다', () => {
     const html = renderToStaticMarkup(<ClaimQueueKitScreen data={data({ filters: { ...FILTERS, stage: 'open' } })} now={NOW} />);
@@ -234,11 +260,15 @@ describe('ClaimQueueKitScreen — 반품·교환 목록', () => {
   it('이슈가 요구한 그리드 컬럼을 순서대로 보여준다', () => {
     const html = renderToStaticMarkup(<ClaimQueueKitScreen data={returns()} now={RETURN_NOW} />);
     const header = html.slice(html.indexOf('<thead'), html.indexOf('</thead>'));
-    const order = ['요청번호', '주문번호', '유형', '사유', '상태', '구매자', '주문금액', '접수일', '환급 기한', '환불 수단', '처리자'].map((column) => header.indexOf(`>${column}<`));
+    /* 사람 눈 판정: 유형은 목록마다 값이 하나뿐이라 자리만 차지하고 그 탓에 환급 기한이 1440 화면에서 잘렸다. 기본으로 숨기고 조회항목 설정에서 켠다. */
+    expect(header).not.toContain('>유형<');
+    const order = ['요청번호', '주문번호', '사유', '상태', '구매자', '주문금액', '접수일', '환급 기한', '환불 수단', '처리자'].map((column) => header.indexOf(`>${column}<`));
     expect(order.every((at) => at > 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
     expect(html).toContain('C00012');
-    expect(html).toContain('@maple_fan');
+    /* 구매자 표기는 주문통합검색과 같다(앞에 @를 붙이지 않는다). 긴 이름은 한 줄로 자르고 전체를 title에 둔다. */
+    expect(html).toMatch(/class="block truncate" title="maple_fan">maple_fan</);
+    expect(html).not.toContain('@maple_fan');
     expect(html).toContain('₩43,000');
     expect(html).toContain('단순 변심');
     expect(html).toContain('상품 하자·오배송');

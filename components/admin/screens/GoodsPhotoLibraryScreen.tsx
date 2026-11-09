@@ -93,7 +93,7 @@ export function GoodsPhotoLibraryScreen({ initial = emptyPage, onSelect }: { ini
     finally { operation.current = false; setBusy(false); }
   }
   return <section className="flex min-w-0 flex-col gap-4" aria-label={onSelect ? '상품 사진 선택' : '사진 보관함'} data-admin-screen="photo-library">
-    {/* 머리(설명·업로드) → 안내 → 조회 카드([초기화][조회]) → 목록 카드(사진·페이지 이동). 상품 사진 선택 팝업은 머리·업로드 없이 쓴다. */}
+    {/* 머리(설명·업로드) → 안내 → 조회 카드([초기화][검색]) → 목록 카드(사진·페이지 이동). 상품 사진 선택 팝업은 머리·업로드 없이 쓴다. */}
     {!onSelect ? <AdminPageHeader title="사진 보관함" description={`${GOODS_PHOTO_LIBRARY_PURPOSE} 스태프와 관리자가 함께 씁니다.`}
       actions={<label className={`${buttonVariants()} relative cursor-pointer focus-within:ring-3 focus-within:ring-ring/50 has-[input:disabled]:pointer-events-none has-[input:disabled]:opacity-50`} data-slot="button"><Upload aria-hidden="true" />사진 업로드<input className="absolute inset-0 size-full cursor-pointer opacity-0" aria-label="사진 업로드" type="file" accept={ADMIN_ARTWORK_ACCEPT} multiple disabled={busy} onChange={upload} /></label>} /> : null}
     <div className={CONSOLE_FILTER_CARD_CLASS}>
@@ -103,7 +103,7 @@ export function GoodsPhotoLibraryScreen({ initial = emptyPage, onSelect }: { ini
       </div>
       <ConsoleFilterActions start={<p className="text-xs text-muted-foreground">보관해도 파일은 유지됩니다.{!onSelect ? ` 연결된 사진은 연결을 해제해야 보관할 수 있습니다. 업로드는 한 번에 ${GOODS_PHOTO_UPLOAD_LIMIT}장, 장당 5MB 이하 JPEG·PNG·WebP.` : ''}</p>}>
         <Button variant="ghost" type="button" disabled={busy} onClick={() => { setQuery(''); void search(1, false, ''); }}>초기화</Button>
-        <Button type="button" disabled={busy} onClick={() => { void search(); }} variant="soft">조회</Button>
+        <Button type="button" disabled={busy} onClick={() => { void search(); }} variant="soft">검색</Button>
       </ConsoleFilterActions>
     </div>
     {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}

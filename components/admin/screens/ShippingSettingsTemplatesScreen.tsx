@@ -12,7 +12,7 @@ import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { Table, TableBody, TableCell, TableHead, TableRow } from '@/components/admin/kit/ui/table';
-import { ACTIONS, FIELD_HINT, INFO_PANEL, NOTE } from '@/components/admin/settings-kit';
+import { ACTIONS, FIELD_HINT, INFO_PANEL } from '@/components/admin/settings-kit';
 import type { GoodsFulfillmentOrigin } from '@/lib/admin/fulfillment-origins';
 import type { GoodShippingRegionSummary } from '@/lib/admin/good-shipping-summary';
 import { SHIPPING_SETTINGS_PATH, shippingSettingsFeeLabel, shippingSettingsHref, type ShippingSettingsIdentity, type ShippingSettingsListData, type ShippingSettingsOperationContext, type ShippingSettingsOperationReceipt, type ShippingSettingsTemplate } from '@/lib/admin/shipping-settings-templates';
@@ -67,12 +67,12 @@ export function ShippingSettingsTemplatesScreen({ data, origins, regions, accoun
             : <span className="font-medium">{shippingSettingsFeeLabel(template.settings)}</span>}
             {template.settings.fulfillment?.mode === 'replace' ? <ShippingSettingsFulfillmentDirective value={template.settings.fulfillment} /> : null}
             {template.settings.chargeGroup && template.settings.chargeGroup.mode !== 'preserve' ? <small className={`mt-1 block ${FIELD_HINT}`}>묶음그룹 {template.settings.chargeGroup.mode === 'assign' ? '지정' : '배정 해제'}</small> : null}</TableCell>
-          <TableCell className="align-top tabular-nums">{template.revision}</TableCell><TableCell className="align-top"><div className="flex flex-nowrap items-center gap-1.5"><Button disabled={!canEdit} onClick={() => { if (canEdit) setEditor({ owner: identityKey, template }); }} size="xs" type="button" variant="outline">조회/수정</Button><Button disabled={!template.enabled || !canEdit} onClick={() => { if (canEdit && template.enabled) setApplying({ owner: identityKey, template }); }} size="xs" type="button" variant="soft">상품 적용</Button></div></TableCell></TableRow>)}</TableBody></Table>
+          <TableCell className="align-top tabular-nums">{template.revision}</TableCell><TableCell className="align-top"><div className="flex flex-nowrap items-center gap-1.5"><Button disabled={!canEdit} onClick={() => { if (canEdit) setEditor({ owner: identityKey, template }); }} size="xs" type="button" variant="outline">수정</Button><Button disabled={!template.enabled || !canEdit} onClick={() => { if (canEdit && template.enabled) setApplying({ owner: identityKey, template }); }} size="xs" type="button" variant={initialGoodIds.length ? 'soft' : 'outline'}>상품 적용</Button></div></TableCell></TableRow>)}</TableBody></Table>
         {!data.rows.length ? <p className={CONSOLE_LIST_EMPTY_CLASS}>{data.filters.query || data.filters.state !== 'all' ? '조건에 맞는 템플릿이 없습니다.' : '등록된 템플릿이 없습니다. 배송 설정을 등록해주세요.'}</p> : null}
       </div>
       <ConsolePagination page={data.filters.page} pageSize={20} total={data.total} hrefForPage={page => withSelection(shippingSettingsHref(data.filters, page))} />
     </ConsoleListCard>
-    <p className={NOTE}>템플릿 수정은 이미 적용한 상품에 자동 반영되지 않습니다. 현재 출고지 정책을 확인하고 적용 미리보기에서 변경 전·후를 비교해주세요.</p>
+    <AdminNotice title="템플릿 수정은 이미 적용한 상품에 자동 반영되지 않습니다" tone="warning">현재 출고지 정책을 확인하고 적용 미리보기에서 변경 전·후를 비교해주세요.</AdminNotice>
     {identity && editor?.owner === identityKey ? <ShippingSettingsTemplateForm key={`${identityKey}:${editor.template?.id ?? editor.newId}`} {...editor} identity={identity} scope={scope} origins={origins} regions={regions} onClose={() => setEditor(null)} onSaved={saved => { setEditor(null); setMessage(`‘${saved.name}’ 버전 ${saved.revision} 저장을 완료했습니다.`); router.refresh(); }} /> : null}
     {identity && applying?.owner === identityKey ? <ShippingSettingsApplyDialog key={`${identityKey}:${applying.template.id}`} template={applying.template} identity={identity} scope={scope} origins={origins} initialGoodIds={initialGoodIds} onClose={() => setApplying(null)} onApplied={count => { setApplying(null); setMessage(`${count}개 상품에 배송정보를 적용했습니다.`); router.refresh(); }} /> : null}
   </div>;

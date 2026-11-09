@@ -53,19 +53,20 @@ import { INQUIRY_SATISFACTION_LABELS, inquirySatisfactionPercent } from '@/lib/i
  *
  * 템플릿 룩(ADR-0028): 결과 카드 안에 머리 → 조회 조건(접기) → 목록 → 페이지 → 상태별 집계·만족도, 그 아래 안내 순서다. */
 
-/* 1440 화면(표 폭 약 1100px)에서 담당자까지 잘리지 않게 폭을 나눴다. 주문번호(16자리)가 다 보이는 폭이 기준이고, 참고 칸(답변 만족도)만 옆으로 넘긴다. */
+/* 1440 화면(표 폭 약 1100px)에서 담당자가 카드 끝에 잘리지 않게 폭을 나눴다(합 1094px). 주문번호(16자리)가 다 보이는 폭이 기준이다.
+   미답변 큐에서는 전부 미평가인 참고 칸(답변 만족도)은 기본으로 빼고, 조회항목 설정에서 켠다 — 만족도 필터·요약은 그대로다. */
 const COLUMNS: ConsoleGridColumn[] = [
   { key: 'reference', label: '문의번호', width: '72px' },
   { key: 'category', label: '유형', width: '88px' },
-  { key: 'title', label: '제목', width: '160px' },
+  { key: 'title', label: '제목', width: '156px' },
   { key: 'status', label: '상태', width: '96px' },
-  { key: 'action', label: '처리', width: '84px' },
-  { key: 'buyer', label: '구매자', width: '100px' },
-  { key: 'times', label: '접수 · 최근', width: '156px' },
-  { key: 'sla', label: '1차 답변 기한', align: 'end', width: '110px' },
-  { key: 'order', label: '연결 주문', width: '150px' },
+  { key: 'action', label: '처리', width: '88px' },
+  { key: 'buyer', label: '구매자', width: '96px' },
+  { key: 'times', label: '접수 · 최근', width: '154px' },
+  { key: 'sla', label: '1차 답변 기한', align: 'end', width: '120px' },
+  { key: 'order', label: '연결 주문', width: '140px' },
   { key: 'handler', label: '담당자', width: '84px' },
-  { key: 'satisfaction', label: '답변 만족도', width: '88px' },
+  { key: 'satisfaction', label: '답변 만족도', width: '88px', defaultVisible: false },
 ];
 
 const DAY_MS = 86_400_000;
@@ -105,10 +106,11 @@ export function InquiryQueueScreen({
       cells: [
         <span className="tabular-nums" key="reference">{inquiryReferenceLabel(row.reference)}</span>,
         <span key="category">{adminGoodsCopy(INQUIRY_CATEGORY_LABELS[row.category])}</span>,
-        <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1" key="title">
-          <InquiryPreviewLink className="font-medium text-primary underline-offset-4 hover:underline" href={adminInquiryPreviewHref(row.id, filters)}>{row.title}</InquiryPreviewLink>
+        /* 긴 제목은 두 줄에서 자른다(줄 높이를 고르게, 전체는 title). */
+        <span className="line-clamp-2" key="title">
+          <InquiryPreviewLink className="font-medium text-primary underline-offset-4 hover:underline" href={adminInquiryPreviewHref(row.id, filters)} title={row.title}>{row.title}</InquiryPreviewLink>
           {row.messageCount > 1 ? (
-            <span className="text-muted-foreground">· {row.messageCount}건</span>
+            <span className="ml-1.5 text-muted-foreground">· {row.messageCount}건</span>
           ) : null}
         </span>,
         /* 위험색은 기준이 되는 1차 답변 기한 칸 하나에만 쓴다. 실제 대기 일수는 상태 아래 회색 글자로 물러나 비슷한 숫자 둘이 다투지 않는다. */
@@ -119,21 +121,21 @@ export function InquiryQueueScreen({
           ) : null}
         </span>,
         <InquiryPreviewLink button className={buttonVariants({ size: 'xs', variant: row.status === 'open' ? 'soft' : 'ghost' })} href={adminInquiryPreviewHref(row.id, filters)} key="action">답변처리</InquiryPreviewLink>,
-        <span className="block max-w-[4.75rem] truncate" key="buyer" title={`@${row.buyerName}`}>@{row.buyerName}</span>,
+        <span className="block max-w-[4.5rem] truncate" key="buyer" title={`@${row.buyerName}`}>@{row.buyerName}</span>,
+        /* 기한이 지난 줄은 상태 칸의 경과일이 대기 시간을 이미 말한다 — 같은 뜻의 '최근 N일 전'을 또 적지 않는다. */
         <span key="times">
           <time className="tabular-nums" dateTime={row.createdAt}>{formatInquiryDateTime(row.createdAt)}</time>
-          <br />
-          <span className="text-xs text-muted-foreground">최근 {inquiryElapsedLabel(row.lastMessageAt, now)} 전</span>
+          {overdueDays === null ? <span className="block text-xs text-muted-foreground">최근 {inquiryElapsedLabel(row.lastMessageAt, now)} 전</span> : null}
         </span>,
         /* SLA는 운영자가 가장 먼저 보는 값이라 톤을 데이터 속성으로 남기고 그 값으로 강조한다. */
-        <span className={INQUIRY_SLA_TONE_CLASS} data-sla-tone={sla.tone} key="sla">{sla.label}</span>,
+        <span className={`whitespace-nowrap ${INQUIRY_SLA_TONE_CLASS}`} data-sla-tone={sla.tone} key="sla">{sla.label}</span>,
         row.orderId ? (
-          <span className="tabular-nums whitespace-nowrap" key="order">{orderReferenceLabel(row.orderId, row.orderNumber)}</span>
+          <span className="text-xs tabular-nums whitespace-nowrap" key="order">{orderReferenceLabel(row.orderId, row.orderNumber)}</span>
         ) : (
           <span className="text-muted-foreground" key="order">-</span>
         ),
         row.assigneeName
-          ? <span key="handler">@{row.assigneeName}</span>
+          ? <span className="block max-w-[3.75rem] truncate" key="handler" title={`@${row.assigneeName}`}>@{row.assigneeName}</span>
           : <span className="text-muted-foreground" key="handler">미배정</span>,
         /* 평가가 없는 줄은 글자로 물러나고, 고객이 남긴 평가만 배지로 보인다. */
         row.satisfaction

@@ -22,7 +22,7 @@ it('혜택 조회 조건은 GET 폼으로 제출되고 빠른 기간 선택은 �
   const form = html.match(/<form[^>]*action="\/admin\/sales\/coupons"[^>]*method="get"[^>]*>(.*?)<\/form>/s)?.[1] ?? '';
   expect(form).toContain('name="q"');
   expect(form).toContain('value="웰컴"');
-  expect(form).toMatch(/<button[^>]*type="submit"[^>]*>조회<\/button>/);
+  expect(form).toMatch(/<button[^>]*type="submit"[^>]*>검색<\/button>/);
   expect(form).toMatch(/<button[^>]*type="button"[^>]*>6개월<\/button>/);
   expect(form).not.toMatch(/<button[^>]*type="submit"[^>]*>6개월<\/button>/);
 });

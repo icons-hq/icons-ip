@@ -9,6 +9,7 @@ import type {
 import { StatsClaimsScreen } from './StatsClaimsScreen';
 import { StatsCustomersScreen } from './StatsCustomersScreen';
 import { StatsSalesScreen } from './StatsSalesScreen';
+import { statsChangeTone } from '@/components/admin/StatsSummary';
 
 const filters: AdminStatsFilters = { days: 30, ipId: '' };
 
@@ -169,20 +170,32 @@ describe('StatsClaimsScreen', () => {
 });
 
 describe('비교기간 대비 증감', () => {
-  it('요약 숫자에 오름·내림을 아이콘과 색으로 보인다', () => {
+  it('요약 숫자에 오름·내림을 화살표와 색으로 보인다', () => {
     const html = renderToStaticMarkup(<StatsSalesScreen comparison={{ ...sales, daily: [{ date: '2026-07-01', orderCount: 3, revenue: 138000, averageOrderValue: 46000 }] }} goods={goodsPage} data={sales} filters={filters} />);
-    expect(html).toMatch(/data-tone="danger"[^>]*><svg[^>]*lucide-trending-down[\s\S]*?-50\.0%/);
+    expect(html).toMatch(/data-tone="danger"[^>]*><span aria-hidden="true"[^>]*>▼<\/span>-50\.0%/);
+  });
+
+  /* 값의 크기로 고르면 같은 하락인데 한 칸만 빨갛게 되어 규칙 없이 보인다 — 색은 방향만 본다. */
+  it('색은 방향만 보고 오르면 나쁜 지표만 뒤집는다', () => {
+    expect([statsChangeTone('up'), statsChangeTone('down'), statsChangeTone('flat')]).toEqual(['success', 'danger', 'neutral']);
+    expect([statsChangeTone('up', 'lower'), statsChangeTone('down', 'lower'), statsChangeTone('flat', 'lower')]).toEqual(['danger', 'success', 'neutral']);
+  });
+
+  it('비교 줄의 금액은 요약 카드와 같은 ₩ 표기다', () => {
+    const html = renderToStaticMarkup(<StatsSalesScreen comparison={{ ...sales, daily: [{ date: '2026-07-01', orderCount: 3, revenue: 138000, averageOrderValue: 46000 }] }} goods={goodsPage} data={sales} filters={{ ...filters, compare: true }} />);
+    expect(html).toContain('₩138,000 → ₩69,000');
+    expect(html).not.toContain('138,000원');
   });
 
   /* 클레임은 줄수록 좋은 지표다. 늘어난 클레임이 초록으로 보이면 거꾸로 읽는다. */
   it('줄수록 좋은 지표는 오름을 위험색으로 보인다', () => {
     const html = renderToStaticMarkup(<StatsClaimsScreen comparison={{ ...claims, claimCount: 1 }} data={claims} filters={filters} />);
-    expect(html).toMatch(/data-tone="danger"[^>]*><svg[^>]*lucide-trending-up[\s\S]*?\+100\.0%/);
+    expect(html).toMatch(/data-tone="danger"[^>]*><span aria-hidden="true"[^>]*>▲<\/span>\+100\.0%/);
   });
 
   it('비교기간 실적이 없으면 방향 없이 말한다', () => {
     const html = renderToStaticMarkup(<StatsClaimsScreen comparison={{ ...claims, claimCount: 0 }} data={claims} filters={filters} />);
-    expect(html).toMatch(/data-tone="neutral"[^>]*><svg[^>]*lucide-minus[\s\S]*?비교기간 실적 없음/);
+    expect(html).toMatch(/data-tone="neutral"[^>]*><span aria-hidden="true"[^>]*>–<\/span>비교기간 실적 없음/);
   });
 });
 

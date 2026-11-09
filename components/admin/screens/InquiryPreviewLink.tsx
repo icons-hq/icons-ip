@@ -12,6 +12,6 @@ function OpeningHint() {
 }
 
 /** `button`이면 버튼 모양 링크(className에 kit buttonVariants)라는 표시(data-slot)를 단다. */
-export function InquiryPreviewLink({ href, className, children, button = false }: { href: string; className?: string; children: ReactNode; button?: boolean }) {
-  return <Link className={className} data-slot={button ? 'button' : undefined} href={href} scroll={false}>{children}<OpeningHint /></Link>;
+export function InquiryPreviewLink({ href, className, children, button = false, title }: { href: string; className?: string; children: ReactNode; button?: boolean; title?: string }) {
+  return <Link className={className} data-slot={button ? 'button' : undefined} href={href} scroll={false} title={title}>{children}<OpeningHint /></Link>;
 }

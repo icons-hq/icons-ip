@@ -91,7 +91,10 @@ describe('주문 상세', () => {
     const html = renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, shipments: [shipmentFixture({ status: 'shipping', trackingNumber: null } as never)] }} noteOperationId="operation" />);
     expect(html).toContain('주문 처리 · 운송장 등록'); expect(html).not.toContain('주문 처리 · 배송완료');
     const notice = html.slice(html.indexOf('data-admin-notice="warning"'));
-    expect(notice).toMatch(/운송장이 없는 배송 건이 1건/); expect(notice).toMatch(/<a[^>]*#sales-order-detail"[^>]*>운송장 등록</);
+    expect(notice).toMatch(/운송장이 없는 배송 건이 1건/);
+    /* 사람 눈 판정: 머리의 주 버튼과 경고 안 버튼이 같은 일을 해서 어느 쪽을 눌러야 할지 망설였다. 등록은 주 버튼 하나로 간다. */
+    expect(notice).not.toMatch(/>운송장 등록</);
+    expect(html).toMatch(/<a[^>]*href="[^"]*#sales-order-detail"[^>]*>주문 처리 · 운송장 등록</);
     expect(html.indexOf('data-admin-notice="warning"')).toBeLessThan(html.indexOf('>주문 상품<'));
   });
   /* 사람 눈 판정: 취소 건에서 제일 궁금한 돈 이야기가 회색 작은 글씨였다. */

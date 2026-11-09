@@ -157,6 +157,18 @@ describe('InquiryDetailScreen', () => {
     expect(html).toContain('지우');
   });
 
+  /* 같은 모양에 바탕색만 다르면 이름을 읽어야 누가 쓴 글인지 안다 — 상담하기처럼 고객·운영자를 위치와 글자로 가른다. */
+  it('고객 글과 운영자 답변을 양쪽 말풍선으로 나누고 역할을 글자로 말한다', () => {
+    const html = render(detail({ messages: [
+      { id: 'user-a', author: 'user', authorName: null, body: '언제 오나요', imageUrls: [], createdAt: '2026-08-20T01:00:00Z' },
+      { id: 'staff-a', author: 'staff', authorName: '수민', body: '확인했습니다.', imageUrls: [], createdAt: '2026-08-20T02:00:00Z' },
+    ] }));
+    expect(html).toMatch(/data-author="user"[^>]*>[\s\S]*?고객 <\/span>@maple_fan/);
+    expect(html).toMatch(/data-author="staff"[^>]*>[\s\S]*?운영자 <\/span>수민/);
+    expect(html).toContain('data-[author=staff]:self-end');
+    expect(html).toContain('group-data-[author=staff]/message:bg-primary-soft');
+  });
+
   /* 컨텍스트 패널이 이 화면의 존재 이유다 — 없으면 CS가 주문 콘솔을 오간다. */
   it('연결 주문의 상태·결제·운송장·클레임 이력을 한 화면에 싣는다', () => {
     const html = render();

@@ -62,7 +62,7 @@ export function PurchaseRestrictionReleaseGrid({ columns, rows, currentHref, ini
     <ConsoleGrid caption="판매방해 고객 구매제한 목록" preferencesKey="sales-purchase-restrictions" columns={columns} rows={rows}
       emptyLabel="검색 조건에 맞는 구매제한 기록이 없습니다." selectable selectedIds={ids} onSelectionChange={next => { if (!operation) setSelected(next); }}>
       <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2 print:hidden" data-sales-workbar=""><span className="text-muted-foreground tabular-nums">{ids.length}건 선택</span>
-        <Button type="button" size="sm" variant="outline" disabled={!ids.length || pending} onClick={open}>선택건 해제하기</Button>
+        <Button type="button" size="sm" variant="outline" disabled={!ids.length || pending} onClick={open}>선택건 구매제한 해제</Button>
       </div>
     </ConsoleGrid>
     {receipt ? <><PurchaseRestrictionReleaseResult receipt={receipt} /><Link className="self-start text-sm underline underline-offset-4" href={`${currentHref}&releaseBatch=${receipt.id}`}>이 해제 결과 다시 열기</Link></> : null}

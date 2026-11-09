@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { AdminPageHeader,AdminSectionCard,AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { statusTone } from '@/lib/admin/status-tone';
 import { ChevronDown, Plus } from 'lucide-react';
+import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/admin/kit/ui/table';
 import { StoreSettingsForm,ShippingCarrierForm,InquiryAutoRepliesForm } from './StoreSettingsForm';
 import { CARRIER_SETTINGS_PATH,STORE_SETTINGS_PATH,storeSettingsHistoryRows,type EditableCarrier,type StoreSettingsAudit,type StoreSettingsSection,type StoreSettingsSnapshot } from '@/lib/admin/store-settings';
@@ -20,7 +21,7 @@ function carrierStatus(active: boolean) {
 }
 
 /* 택배사 목록의 칸 나누기. 머리 줄과 각 줄이 같은 틀을 쓴다. */
-const CARRIER_ROW = 'grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 px-3 md:grid-cols-[minmax(7rem,11rem)_5.5rem_7rem_minmax(0,1fr)_3.5rem]';
+const CARRIER_ROW = 'grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 px-3 md:grid-cols-[minmax(7rem,11rem)_5.5rem_7rem_minmax(0,1fr)_4.25rem]';
 
 /**
  * 택배사를 표처럼 한 줄씩 본다. 줄을 펼치면 그 택배사의 입력 폼이 열린다 — 같은 입력 카드가 세로로 반복되지 않고,
@@ -36,7 +37,8 @@ function CarrierList({carriers,canEdit}:{carriers:EditableCarrier[];canEdit:bool
           {carrierStatus(carrier.active)}
           <code className="hidden min-w-0 truncate font-mono text-xs text-muted-foreground md:block">{carrier.code}</code>
           <span className="hidden min-w-0 truncate text-xs text-muted-foreground md:block" title={carrier.trackingUrlTemplate}>{carrier.trackingUrlTemplate}</span>
-          <span className="inline-flex items-center justify-end gap-0.5 text-xs font-medium text-primary">{canEdit?'수정':'보기'}<ChevronDown aria-hidden="true" className="size-3.5 transition-transform group-open:rotate-180"/></span>
+          {/* 줄 전체가 펼치는 자리다(버튼을 겹치지 않는다) — 다른 목록의 수정 버튼과 같은 모양만 입힌다. */}
+          <span className={`${buttonVariants({size:'xs',variant:'outline'})} justify-self-end`} data-slot="button">{canEdit?'수정':'보기'}<ChevronDown aria-hidden="true" className="transition-transform group-open:rotate-180"/></span>
         </summary>
         <div className="border-t bg-muted/30 p-4"><ShippingCarrierForm carrier={carrier} canEdit={canEdit}/></div>
       </details>)}

@@ -131,24 +131,23 @@ export function InquiryReplyPanel({
     </form>
   </>;
 
+  /* 문의 상태는 실시간으로 뒤집힌다(고객 추가 문의·다른 담당자 답변). 작성칸은 상태와 무관하게 같은 자리에 두고
+     감추기만 한다 — 자리가 바뀌면 다시 그려져 고른 첨부와 포커스가 사라지고, 문구만 남아 첨부 없이 발송될 수 있다. */
   return (
     <section className="flex min-w-0 flex-col gap-4 rounded-xl border bg-card p-4 text-card-foreground sm:p-5">
-      {answered ? <>
-        <AdminNotice title="답변을 보낸 문의입니다." tone="success">더 안내할 내용이 있을 때만 추가 답변을 보내주세요.</AdminNotice>
-        <details className="group/compose" onToggle={(event) => setToggled(event.currentTarget.open)} open={composeOpen}>
-          <summary className={`${buttonVariants({ size: 'sm', variant: 'outline' })} w-fit list-none [&::-webkit-details-marker]:hidden`} data-slot="button">추가 답변 작성 <ChevronDown aria-hidden="true" className="transition-transform group-open/compose:rotate-180" /></summary>
-          <div className="mt-3 flex flex-col gap-4">
-            <div className="flex justify-end">{tools}</div>
-            {composer}
+      {answered ? <AdminNotice title="답변을 보낸 문의입니다." tone="success">더 안내할 내용이 있을 때만 추가 답변을 보내주세요.</AdminNotice> : null}
+      {answered ? <details className="group/compose" onToggle={(event) => setToggled(event.currentTarget.open)} open={composeOpen}>
+        <summary aria-controls={`${id}-composer`} className={`${buttonVariants({ size: 'sm', variant: 'outline' })} w-fit list-none [&::-webkit-details-marker]:hidden`} data-slot="button">추가 답변 작성 <ChevronDown aria-hidden="true" className="transition-transform group-open/compose:rotate-180" /></summary>
+      </details> : null}
+      <div hidden={answered && !composeOpen} id={`${id}-composer`}>
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            {answered ? null : <h3 className="text-base font-semibold text-foreground">답변 작성</h3>}
+            <div className="ml-auto">{tools}</div>
           </div>
-        </details>
-      </> : <>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-base font-semibold text-foreground">답변 작성</h3>
-          {tools}
+          {composer}
         </div>
-        {composer}
-      </>}
+      </div>
 
       <form action={closeAction} className="flex flex-col gap-2 border-t pt-4">
         <input name="inquiryId" type="hidden" value={inquiryId} />

@@ -172,6 +172,15 @@ export function claimKitFilterOptions(claimType: OrderClaimType): { stage: Optio
   };
 }
 
+/* 긴 값은 한 줄로 자르고 전체 값은 title에 둔다. 칸이 overflow-hidden이라 그냥 두면 말없이 글자가 잘린다. */
+function OneLine({ value }: { value: string }) {
+  return <span className="block truncate" title={value}>{value}</span>;
+}
+
+/*
+ * 1440 화면(표 폭 1,100px)에 유형을 뺀 열이 모두 들어오는 폭이다(합계 1,096px). 번호·금액·날짜는 값이 잘리지 않는 최소 폭이고,
+ * 이름·사유처럼 긴 값만 잘린다. 유형은 세 목록 모두 값이 한 가지라(유형별 조회) 기본으로 숨긴다.
+ */
 function buildColumns(claimType: OrderClaimType, dateLabel: string): ColumnDef<DataTableFeatures, ClaimKitRow>[] {
   const typeLabel = ORDER_CLAIM_TYPE_LABELS[claimType];
   const { reason: reasonOptions, stage: stageOptions } = claimKitFilterOptions(claimType);
@@ -201,9 +210,9 @@ function buildColumns(claimType: OrderClaimType, dateLabel: string): ColumnDef<D
       cell: ({ row }) => <ClaimPreviewLink href={row.original.previewHref} label={`요청 ${row.original.reference} 상세 열기`}>
         <span className="tabular-nums">{row.original.reference}</span>
       </ClaimPreviewLink>,
-      size: 110,
+      size: 80,
     },
-    { id: 'order', accessorKey: 'order', enableSorting: false, header: '주문번호', meta: { label: '주문번호' }, cell: ({ row }) => <span className="tabular-nums">{row.original.order}</span>, size: 190 },
+    { id: 'order', accessorKey: 'order', enableSorting: false, header: '주문번호', meta: { label: '주문번호' }, cell: ({ row }) => <span className="tabular-nums">{row.original.order}</span>, size: 156 },
     { id: 'type', accessorKey: 'type', enableSorting: false, header: '유형', meta: { label: '유형' }, size: 70 },
     {
       id: 'reason',
@@ -212,7 +221,8 @@ function buildColumns(claimType: OrderClaimType, dateLabel: string): ColumnDef<D
       enableSorting: false,
       header: ({ column }) => <DataTableColumnHeader column={column} label="사유" />,
       meta: { label: `${typeLabel}사유`, variant: 'select', options: reasonOptions },
-      size: 150,
+      cell: ({ row }) => <OneLine value={row.original.reason} />,
+      size: 112,
     },
     {
       id: 'stage',
@@ -223,16 +233,16 @@ function buildColumns(claimType: OrderClaimType, dateLabel: string): ColumnDef<D
       meta: { label: `${typeLabel}처리상태`, variant: 'select', options: stageOptions },
       /* 행은 표시 문구만 들고 오므로 이 열의 보기표로 단계를 되찾아 색을 정한다(같은 표를 쓰는 문구라 어긋나지 않는다). */
       cell: ({ row }) => <AdminStatusBadge tone={statusTone('claim', stageOptions.find((option) => option.label === row.original.stage)?.value)}>{row.original.stage}</AdminStatusBadge>,
-      size: 110,
+      size: 120,
     },
-    { id: 'buyer', accessorKey: 'buyer', enableSorting: false, header: '구매자', meta: { label: '구매자' }, cell: ({ row }) => <>@{row.original.buyer}</> },
+    { id: 'buyer', accessorKey: 'buyer', enableSorting: false, header: '구매자', meta: { label: '구매자' }, cell: ({ row }) => <OneLine value={row.original.buyer} />, size: 96 },
     {
       id: 'amount',
       accessorKey: 'amount',
       header: ({ column }) => <DataTableColumnHeader column={column} label="주문금액" />,
       meta: { label: '주문금액' },
       cell: ({ row }) => <span className="tabular-nums">{row.original.amountLabel}</span>,
-      size: 120,
+      size: 100,
     },
     {
       id: 'requested',
@@ -241,17 +251,17 @@ function buildColumns(claimType: OrderClaimType, dateLabel: string): ColumnDef<D
       header: ({ column }) => <DataTableColumnHeader column={column} label="접수일" />,
       cell: ({ row }) => <time dateTime={row.original.requestedAt}>{row.original.requestedLabel}</time>,
       meta: { label: dateLabel, variant: 'date', filter: 'range' },
-      size: 150,
+      size: 140,
     },
-    { id: 'sla', accessorKey: 'slaLabel', enableSorting: false, header: '환급 기한', meta: { label: '환급 기한' }, cell: ({ row }) => <span className={SLA_TONE_CLASS} data-sla-tone={row.original.slaTone}>{row.original.slaLabel}</span>, size: 116 },
-    { id: 'refund', accessorKey: 'refund', enableSorting: false, header: '환불 수단', meta: { label: '환불 수단' }, cell: ({ row }) => row.original.refund ?? <span className="text-muted-foreground">미접수</span>, size: 110 },
-    { id: 'handler', accessorKey: 'handler', enableSorting: false, header: '처리자', meta: { label: '처리자' }, cell: ({ row }) => row.original.handler ? <>@{row.original.handler}</> : <span className="text-muted-foreground">미배정</span>, size: 104 },
+    { id: 'sla', accessorKey: 'slaLabel', enableSorting: false, header: '환급 기한', meta: { label: '환급 기한' }, cell: ({ row }) => <span className={SLA_TONE_CLASS} data-sla-tone={row.original.slaTone}>{row.original.slaLabel}</span>, size: 90 },
+    { id: 'refund', accessorKey: 'refund', enableSorting: false, header: '환불 수단', meta: { label: '환불 수단' }, cell: ({ row }) => row.original.refund ?? <span className="text-muted-foreground">미접수</span>, size: 86 },
+    { id: 'handler', accessorKey: 'handler', enableSorting: false, header: '처리자', meta: { label: '처리자' }, cell: ({ row }) => row.original.handler ? <OneLine value={row.original.handler} /> : <span className="text-muted-foreground">미배정</span>, size: 76 },
   ];
 }
 
 /* 조회항목 설정의 열. 키는 기존 표(ClaimQueueScreen)와 같아, 같은 저장 키에서 운영자가 저장한 배치가 이어진다. */
 const PREFERENCE_COLUMNS: readonly ConsoleTableSettingsColumn[] = [
-  { key: 'reference', label: '요청번호' }, { key: 'order', label: '주문번호' }, { key: 'type', label: '유형' },
+  { key: 'reference', label: '요청번호' }, { key: 'order', label: '주문번호' }, { key: 'type', label: '유형', defaultVisible: false },
   { key: 'reason', label: '사유' }, { key: 'stage', label: '상태' }, { key: 'buyer', label: '구매자' },
   { key: 'amount', label: '주문금액' }, { key: 'requested', label: '접수일' }, { key: 'sla', label: '환급 기한' },
   { key: 'refund', label: '환불 수단' }, { key: 'handler', label: '처리자' },

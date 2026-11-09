@@ -156,7 +156,7 @@ export function NotificationSection({
               <NativeSelect
                 aria-describedby={state.errors?.ipId ? 'notification-ip-error' : undefined}
                 aria-invalid={Boolean(state.errors?.ipId)}
-                className="w-full"
+                className="w-full [&_select:disabled]:border-border"
                 disabled={scope === 'all' || pending}
                 id="notification-ip"
                 name="ipId"
@@ -285,7 +285,7 @@ export function NotificationSection({
             </span>
             <span aria-hidden className="mt-1.5 size-2 shrink-0 rounded-full bg-info max-sm:hidden" />
           </article>
-          <p className="text-xs text-muted-foreground">링크는 알림함(<code className="rounded bg-muted px-1 py-0.5 font-mono">/notifications</code>)으로 고정됩니다.</p>
+          <p className="text-xs text-muted-foreground">알림을 누르면 알림함으로 이동합니다.</p>
         </aside>
       </div>
 

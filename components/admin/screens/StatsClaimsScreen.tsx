@@ -63,14 +63,14 @@ export function StatsClaimsScreen({
         <StatsSummaryTile label="확정 주문" value={data.orderCount.toLocaleString('ko-KR')}>{comparison ? <StatsRateChange current={data.orderCount} previous={comparison.orderCount} /> : null}</StatsSummaryTile>
         <StatsSummaryTile label={`${V.claimRequest} 접수`} value={data.claimCount.toLocaleString('ko-KR')}>{comparison ? <StatsRateChange current={data.claimCount} polarity="lower" previous={comparison.claimCount} /> : null}</StatsSummaryTile>
         <StatsSummaryTile label="진행중" tone={openTotal > 0 ? 'warning' : undefined} value={openTotal.toLocaleString('ko-KR')} />
-        <StatsSummaryTile label="환불 완료" value={data.refunds.completedCount.toLocaleString('ko-KR')}>{comparison ? <StatsRateChange current={data.refunds.completedCount} polarity="none" previous={comparison.refunds.completedCount} /> : null}</StatsSummaryTile>
+        <StatsSummaryTile label="환불 완료" value={data.refunds.completedCount.toLocaleString('ko-KR')}>{comparison ? <StatsRateChange current={data.refunds.completedCount} polarity="lower" previous={comparison.refunds.completedCount} /> : null}</StatsSummaryTile>
         <StatsSummaryTile label="접수→환불 평균" value={data.refunds.averageHours === null ? '—' : `${data.refunds.averageHours}시간`}>{comparison && data.refunds.averageHours !== null && comparison.refunds.averageHours !== null ? <StatsRateChange current={data.refunds.averageHours} polarity="lower" previous={comparison.refunds.averageHours} /> : null}</StatsSummaryTile>
         <StatsSummaryTile label="72시간 내 환불" value={`${data.refunds.within72h.toLocaleString('ko-KR')}건`}>{comparison ? <StatsRateChange current={data.refunds.within72h} previous={comparison.refunds.within72h} /> : null}</StatsSummaryTile>
       </StatsSummaryGrid>
 
       {comparison ? <StatsComparison filters={filters} now={now} rows={[
         { label: '클레임 접수', current: data.claimCount, previous: comparison.claimCount, unit: '건', polarity: 'lower' },
-        { label: '환불 완료', current: data.refunds.completedCount, previous: comparison.refunds.completedCount, unit: '건', polarity: 'none' },
+        { label: '환불 완료', current: data.refunds.completedCount, previous: comparison.refunds.completedCount, unit: '건', polarity: 'lower' },
       ]} /> : null}
       <StatsSection title={`유형별 접수와 ${V.claimRate}`}>
         <ConsoleGrid

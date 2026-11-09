@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { ConsoleGrid, ConsolePagination, type ConsoleGridColumn } from '@/components/admin/console';
 import { EncryptedWorkbookDownloadButton } from '@/components/admin/EncryptedWorkbookDownloadButton';
-import { SalesFilterField, SalesFilterPanel, SalesGuide, SalesResultsTitle, SalesSelect, ShortId } from '@/components/admin/sales/SalesConsole';
+import { SalesFilterField, SalesFilterPanel, SalesGuide, SalesResultsTitle, SalesSelect, ShortId, kstDayDiff } from '@/components/admin/sales/SalesConsole';
 import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { Button } from '@/components/admin/kit/ui/button';
 import { statusTone } from '@/lib/admin/status-tone';
@@ -17,11 +17,10 @@ const columns: ConsoleGridColumn[] = [
   { key: 'created', label: '선물 생성일', width: '146px' }, { key: 'expires', label: '수락·주문 기한', width: '150px' },
   { key: 'order', label: '연결 주문', width: '92px' }, { key: 'accepted', label: '수락일', width: '146px', defaultVisible: false },
 ];
-const DAY_MS = 86_400_000, KST_MS = 9 * 3_600_000;
 /* 기한을 지키려면 받는 사람·보낸 사람이 움직여야 하는 상태. 끝난 선물에는 남은 날을 적지 않는다. */
 const isOpenGift = (state: AdminGiftState) => state === 'awaiting_acceptance' || state === 'accepted';
 /** 조회 시각 기준(서버 값이라 다시 그려도 같다) 한국 달력으로 며칠 남았는가. */
-const daysLeft = (expiresAt: string, asOf: string) => Math.floor((Date.parse(expiresAt) + KST_MS) / DAY_MS) - Math.floor((Date.parse(asOf) + KST_MS) / DAY_MS);
+const daysLeft = (expiresAt: string, asOf: string) => kstDayDiff(Date.parse(asOf), Date.parse(expiresAt));
 /* 오늘·내일 끝나는 건만 색을 입힌다 — 전 행이 같은 회색이라 급한 건을 찾을 수 없었다. */
 function DeadlineCell({ row, asOf }: { row: AdminGiftRow; asOf: string }) {
   const left = daysLeft(row.expiresAt, asOf);
@@ -35,7 +34,7 @@ export function AdminGiftsScreen({ data }: { data: AdminGiftData }) {
   const filters = data.filters, query = adminGiftsQuery(filters, false), currentHref = adminGiftsHref(filters);
   const closing = data.rows.filter(row => isOpenGift(row.state) && daysLeft(row.expiresAt, data.asOf) <= 1).length;
   const gridRows = data.rows.map(row => ({ id: row.id, cells: [<ShortId key="id" value={row.id} />, <AdminStatusBadge key="state" tone={statusTone('gift', row.state)}>{ADMIN_GIFT_STATE_LABELS[row.state]}</AdminStatusBadge>,
-    row.senderName, row.recipientName ?? '수락 전', <span className="block min-w-48" key="goods">{row.goodsLabel}</span>, row.quantity, formatOrderDateTime(row.createdAt), <DeadlineCell asOf={data.asOf} key="expires" row={row} />,
+    <span className="block max-w-19 truncate" key="sender" title={row.senderName}>{row.senderName}</span>, <span className="block max-w-19 truncate" key="recipient" title={row.recipientName ?? undefined}>{row.recipientName ?? '수락 전'}</span>, <span className="block min-w-48" key="goods">{row.goodsLabel}</span>, row.quantity, formatOrderDateTime(row.createdAt), <DeadlineCell asOf={data.asOf} key="expires" row={row} />,
     row.orderId ? <Link key="order" className="underline-offset-4 hover:underline" href={`/admin/sales/orders/${row.orderId}`}><ShortId value={row.orderId} /></Link> : '주문 전',
     row.acceptedAt ? formatOrderDateTime(row.acceptedAt) : '—'] }));
   return <section aria-label="선물 수락 대기" className="flex min-w-0 flex-col gap-4 text-sm" data-admin-gifts="">
@@ -52,7 +51,7 @@ export function AdminGiftsScreen({ data }: { data: AdminGiftData }) {
       <form method="get" action="/admin/sales/gifts" className="flex flex-wrap items-center gap-1.5 print:hidden" key={currentHref}>
         {[...query].map(([name, value]) => <input key={name} type="hidden" name={name} value={value} />)}
         <SalesSelect name="pageSize" value={String(filters.pageSize)} options={[50, 100, 200].map(size => ({ value: String(size), label: `${size}개씩 보기` }))} label="목록 수" size="sm" />
-        <Button size="sm" type="submit" variant="soft">적용</Button></form>
+        <Button size="sm" type="submit" variant="outline">적용</Button></form>
       <EncryptedWorkbookDownloadButton href={`/api/admin/gifts/export${query.size ? `?${query}` : ''}`} label="암호화 엑셀 다운로드" disabled={data.total > 10000} />
     </div></ConsoleGrid>
     <ConsolePagination label="선물 목록 페이지" page={data.page} pageSize={data.pageSize} total={data.total} hrefForPage={page => adminGiftsHref(filters, page)} />

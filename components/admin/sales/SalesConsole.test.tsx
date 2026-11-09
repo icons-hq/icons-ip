@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { SalesDisclosureCard, SalesFilterField, SalesFilterPanel, SalesGuide, SalesResultsHeader, SalesSelect, SalesStatusSummary, ShortId } from './SalesConsole';
+import { SalesDisclosureCard, SalesFilterField, SalesFilterPanel, SalesGuide, SalesResultsHeader, SalesSelect, SalesStatusSummary, ShortId, kstDayDiff } from './SalesConsole';
 import { SalesDateRange } from './SalesDateRange';
 
 describe('sales filter and result forms', () => {
@@ -49,6 +49,15 @@ describe('sales filter and result forms', () => {
     expect(html).not.toContain('name="order"');
     expect(html).toContain('<option value="50" selected="">50개씩 보기</option>');
     expect(html).toMatch(/<button[^>]*type="submit"[^>]*>적용</);
+  });
+
+  it('날짜 차이는 24시간 단위가 아니라 한국 달력으로 센다', () => {
+    const at = (iso: string) => Date.parse(iso);
+    /* 2026-11-09 23:30 KST → 2026-11-10 00:30 KST: 1시간 뒤지만 다음 날이다. */
+    expect(kstDayDiff(at('2026-11-09T14:30:00Z'), at('2026-11-09T15:30:00Z'))).toBe(1);
+    /* 2026-11-09 00:10 KST → 2026-11-09 23:50 KST: 거의 24시간이지만 같은 날이다. */
+    expect(kstDayDiff(at('2026-11-08T15:10:00Z'), at('2026-11-09T14:50:00Z'))).toBe(0);
+    expect(kstDayDiff(at('2026-11-10T00:00:00Z'), at('2026-11-09T00:00:00Z'))).toBe(-1);
   });
 
   it('긴 식별값은 줄마다 달라지는 끝 8자를 보이고 전체 값은 title에 둔다', () => {

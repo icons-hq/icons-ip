@@ -19,6 +19,7 @@ vi.mock('react', async () => ({
   useEffect: (effect: () => void | (() => void)) => { mocks.effects.push(effect); },
 }));
 import { ConsoleGrid } from '@/components/admin/console';
+import { AdminNotice } from '@/components/admin/console/AdminKit';
 import { bulkConfirmAdminOrdersAction } from '@/app/admin/order-actions';
 import { CustomerServiceDialog } from './CustomerServiceDialog';
 import { ShipmentConsoleGrid } from './ShipmentConsoleGrid';
@@ -205,6 +206,35 @@ it('방금 발주확인해 다른 페이지로 밀린 배송 건도 바코드 �
  await Promise.all([...mocks.gaps.mock.results,...mocks.originGaps.mock.results].map(result=>result.value));await new Promise(resolve=>setTimeout(resolve,0));
  expect(mocks.gaps).toHaveBeenLastCalledWith([confirmedId]);
  expect(text(ready())).toContain('바코드가 없는 옵션 1개 — 파일의 바코드 칸이 비어 있습니다.');
+});
+
+/* 코드 리뷰: 일부만 처리된 결과가 초록 완료 상자로 나왔다. 서버 문구는 그대로 두고 주의 상자로 그린다. */
+it('일부 주문만 발주확인됐거나 일부 배송완료가 실패하면 주의 상자로, 모두 끝나면 완료 상자로 알린다',async()=>{
+ const [first,second]=[ids[0],ids[1]];
+ const notice=(render:()=>ReturnType<typeof ShipmentConsoleGrid>)=>nodes(render()).find(node=>node.type===AdminNotice&&node.props.role==='status');
+ const fresh=()=>{mocks.index=0;return ShipmentConsoleGrid({...props,tab:'new',rows:[{...row,id:first,orderId:first,pack:null},{...row,id:second,orderId:second,pack:null}]});};
+ (nodes(fresh()).find(node=>node.type===ConsoleGrid)!.props.onSelectionChange as (value:string[])=>void)([first,second]);
+ vi.mocked(bulkConfirmAdminOrdersAction).mockResolvedValue({message:'1건을 발주확인했습니다. 처리하지 못한 1건: 00000002 — 주문 상세에서 취소 요청 여부와 현재 상태를 확인해주세요.',confirmedOrderIds:[first]} as never);
+ (nodes(fresh()).find(node=>isButton(node)&&text(node.props.children as ReactNode)==='선택 주문 2건 발주확인')!.props.onClick as ()=>void)();await Promise.all(mocks.work);
+ expect(notice(fresh)?.props.tone).toBe('warning');
+ expect(text(notice(fresh)?.props.children as ReactNode)).toContain('처리하지 못한 1건');
+ mocks.states=[];mocks.work=[];
+ vi.mocked(bulkConfirmAdminOrdersAction).mockResolvedValue({message:'2건을 발주확인했습니다.',confirmedOrderIds:[first,second]} as never);
+ (nodes(fresh()).find(node=>node.type===ConsoleGrid)!.props.onSelectionChange as (value:string[])=>void)([first,second]);
+ (nodes(fresh()).find(node=>isButton(node)&&text(node.props.children as ReactNode)==='선택 주문 2건 발주확인')!.props.onClick as ()=>void)();await Promise.all(mocks.work);
+ expect(notice(fresh)?.props.tone).toBe('success');
+ mocks.states=[];mocks.work=[];
+ mocks.complete.mockResolvedValue({message:'1건을 배송완료로 변경했습니다.',failed:[{id:ids[2],reason:'배송 건을 찾을 수 없습니다.'}]});
+ select([ids[2]]);click('선택 배송완료');
+ const check=nodes(render()).find(node=>node.type==='input'&&node.props.type==='checkbox')!;(check.props.onChange as (event:unknown)=>void)({target:{checked:true}});
+ click('1건 배송완료 처리');await Promise.all(mocks.work);
+ expect(notice(render)?.props.tone).toBe('warning');
+ mocks.states=[];mocks.work=[];
+ mocks.complete.mockResolvedValue({message:'1건을 배송완료로 변경했습니다.',failed:[]});
+ select([ids[2]]);click('선택 배송완료');
+ const again=nodes(render()).find(node=>node.type==='input'&&node.props.type==='checkbox')!;(again.props.onChange as (event:unknown)=>void)({target:{checked:true}});
+ click('1건 배송완료 처리');await Promise.all(mocks.work);
+ expect(notice(render)?.props.tone).toBe('success');
 });
 
 it('데이터를 바꾼 처리가 끝나면 이전 바코드 경고를 거두고 다시 조회한다(실패한 내보내기 포함)',async()=>{

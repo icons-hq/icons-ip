@@ -259,7 +259,8 @@ describe('OrdersSection', () => {
     const html = renderToStaticMarkup(<OrdersSection data={{ ...orderData(), counts: { pending: 1, paid: 2, confirmed: 3, shipping: 0, delivered: 0, done: 0, canceled: 0 } }} />);
     expect(html).toMatch(/aria-label="신규주문 2건"[^>]*data-tone="warning"/);
     expect(html).toMatch(/aria-label="발주확인 3건"[^>]*data-tone="default"/);
-    expect(html).toContain('체크칸은 발주확인할 수 있는 신규주문에만 있습니다.');
+    /* 사람 눈 판정: 처리 중인 요청이 있는 신규주문 줄에는 체크칸이 없어 '신규주문에만 있다'는 안내와 어긋났다. */
+    expect(html).toContain('체크칸은 진행 중인 취소·반품·교환 요청이 없는 신규주문에만 있습니다.');
   });
 
   /* 사람 눈 판정: 품목 수에 따라 줄 높이가 4~5줄로 들쭉날쭉했고, 단계 카드가 전부 같은 동그라미라 진행·완료·취소가 구분되지 않았다. */
@@ -978,6 +979,15 @@ describe('주문 패널 취소 처리 결과', () => {
     expect(numbered).toContain('주문 2026102710000042 취소 처리 결과');
   });
 
+  it('결제 취소가 아직 진행 중이면 서버 문구 그대로 주의 상자로, 끝났으면 완료 상자로 그린다', async () => {
+    const inProgress = '결제 상태 처리가 아직 끝나지 않았습니다. 주문과 재고는 그대로 유지됩니다.';
+    const pending = await renderAfterStaffCancellation({ intent: 'staffCancel', orderId: ORDER_ID, message: inProgress }, orderData({ cancellationRequest: cancellationRequest({ status: 'processing', stage: 'processing' }) }));
+    expect(pending).toMatch(/data-admin-notice="warning"(?:(?!<\/section>)[\s\S])*결제 상태 처리가 아직 끝나지 않았습니다/);
+    expect(pending).not.toContain('data-admin-notice="success"');
+    const done = await renderAfterStaffCancellation({ intent: 'staffCancel', orderId: ORDER_ID, message: success }, orderData({ status: 'canceled', cancellationRequest: cancellationRequest({ status: 'completed', stage: 'completed' }) }));
+    expect(done).toMatch(/data-admin-notice="success"(?:(?!<\/section>)[\s\S])*토스 전액 취소를 확인하고/);
+  });
+
   it('목록에 있지만 선택하지 않은 다른 주문의 결과는 지금 패널에 그리지 않는다', async () => {
     const data = orderData();
     const otherId = '55555555-5555-4555-8555-555555555555';
@@ -985,6 +995,25 @@ describe('주문 패널 취소 처리 결과', () => {
     const html = await renderAfterStaffCancellation({ intent: 'staffCancel', orderId: otherId, message: success }, data);
 
     expect(html).not.toContain(success);
+  });
+
+  /* 코드 리뷰: 일괄 발주확인이 일부만 처리됐는데 초록 글자로 나왔다. 서버 문구는 그대로 두고 색만 나눈다. */
+  it('일괄 발주확인이 일부만 처리되면 결과를 주의 글자로 그린다', async () => {
+    vi.resetModules();
+    const partial = '1건을 발주확인했습니다. 처리하지 못한 1건: 00000002 — 주문 상세에서 취소 요청 여부와 현재 상태를 확인해주세요.';
+    vi.doMock('react', async () => {
+      const actual = await vi.importActual<typeof import('react')>('react');
+      return { ...actual, useActionState: (fn: unknown, initial: unknown) => [fn === orderActions.bulkConfirmAdminOrdersAction ? { message: partial } : initial, () => {}, false] };
+    });
+    try {
+      const { OrdersSection: ResultOrdersSection } = await import('./Orders');
+      const html = renderToStaticMarkup(<ResultOrdersSection data={orderData()} />);
+      expect(html).toMatch(/<span data-unfinished="true" role="status">1건을 발주확인했습니다\. 처리하지 못한 1건/);
+      expect(html).toContain('[&amp;_[role=status][data-unfinished]]:text-warning');
+    } finally {
+      vi.doUnmock('react');
+      vi.resetModules();
+    }
   });
 
   it('다른 액션의 필드 오류는 엉뚱한 양식에 붙이지 않는다', async () => {

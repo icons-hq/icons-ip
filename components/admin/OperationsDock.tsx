@@ -57,7 +57,7 @@ export function OperationsDock({ accountId, access, inquiryNotifications = false
         aria-controls="admin-operations-panel"
         aria-expanded={section === id}
         aria-label={id === 'alerts' && badgeEnabled && badge ? `알림 ${badge}건` : label}
-        className="relative"
+        className="relative xl:w-auto xl:gap-1 xl:px-2"
         key={id}
         onClick={() => setSection(section === id ? null : id)}
         ref={element => { buttonRefs.current[id] = element; }}
@@ -67,16 +67,18 @@ export function OperationsDock({ accountId, access, inquiryNotifications = false
         variant="ghost"
       >
         <Icon aria-hidden="true" />
+        <span className="hidden xl:inline">{label}</span>
         {id === 'alerts' && showBadge ? <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-muted-foreground px-1 text-[10px] leading-none font-semibold text-primary-foreground tabular-nums">{badge > 99 ? '99+' : badge}</span> : null}
       </Button>)}
       {hasAdminCapability(access, 'cs.manage') ? <Link
         aria-current={pathname === '/admin/cs/chat' ? 'page' : undefined}
         aria-label="상담하기"
-        className={`${buttonVariants({ variant: 'ghost', size: 'icon-sm' })} aria-[current=page]:bg-muted`}
+        className={`${buttonVariants({ variant: 'ghost', size: 'icon-sm' })} aria-[current=page]:bg-muted xl:w-auto xl:gap-1 xl:px-2`}
         href="/admin/cs/chat"
         title="상담하기"
       >
         <MessagesSquare aria-hidden="true" />
+        <span className="hidden xl:inline">상담하기</span>
       </Link> : null}
     </div>
     {/* 비모달: 도움말·할 일을 펼친 채 본문을 조작한다(옛 업무 도구 패널과 같다). 닫기는 패널의 닫기 버튼과 Esc. */}

@@ -47,6 +47,17 @@ export function formatSalesDay(day: string) {
   return formatOrderDate(`${day}T12:00:00+09:00`);
 }
 
+const KST_OFFSET_MS = 9 * 3_600_000;
+const DAY_MS = 86_400_000;
+
+/**
+ * 두 시각의 한국 달력 날짜 차이(to − from, ms). '오늘'·'N일째'는 달력으로 센다 — 24시간 단위로 세면 어젯밤 주문이
+ * '오늘'이 되고 자정을 넘긴 건의 날수가 하루 늦는다.
+ */
+export function kstDayDiff(from: number, to: number) {
+  return Math.floor((to + KST_OFFSET_MS) / DAY_MS) - Math.floor((from + KST_OFFSET_MS) / DAY_MS);
+}
+
 /**
  * 접히는 카드. 접힌 한 줄에 제목·상태·요약을 보이고 설명과 입력은 펼쳐서 본다 — 설정 카드가 처리할 목록을 밀어내지 않게 한다.
  * 닫아도 내용은 DOM에 남아 입력값과 양식 제출이 그대로다.
@@ -147,7 +158,8 @@ export function SalesResultsHeader({
       {Object.entries(hidden).map(([name, value]) => <input key={name} type="hidden" name={name} value={value} />)}
       <SalesSelect name="sort" value={sort} options={sortOptions} label="목록 정렬" size="sm" />
       <SalesSelect name="pageSize" value={String(pageSize)} options={pageSizes.map((size) => ({ value: String(size), label: `${size}개씩 보기` }))} label="목록 수" size="sm" />
-      <Button size="sm" type="submit" variant="soft">적용</Button>
+      {/* 목록이 바뀌는 검색은 조회 조건의 '검색'이다 — 정렬·목록 수 적용은 그보다 낮춘다. */}
+      <Button size="sm" type="submit" variant="outline">적용</Button>
     </form>
     {children}
   </div>;
