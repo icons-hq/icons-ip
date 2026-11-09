@@ -1,8 +1,13 @@
 'use client';
 
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
-import { AdminFormGrid, AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { AdminFormGrid, AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { ConsoleGrid, type ConsoleGridColumn } from '@/components/admin/console/ConsoleGrid';
+import { ConsoleListCard } from '@/components/admin/console/ConsoleListCard';
+import { Button } from '@/components/admin/kit/ui/button';
 import { statusTone } from '@/lib/admin/status-tone';
+import { formatOrderDateTime } from '@/lib/orders';
+import { ChevronDown, Plus } from 'lucide-react';
 import { useState } from 'react';
 import type { AdminCampaignActionState } from '@/app/admin/campaign-actions';
 import { CAMPAIGN_CTA_LABEL_MAX_LENGTH } from '@/lib/campaigns';
@@ -36,9 +41,12 @@ import { SettingsFormGroup } from '../screens/StoreSettingsFormGroup';
  */
 
 function campaignPeriodLabel(campaign: AdminCampaignRecord) {
-  const starts = adminCampaignDateTimeInput(campaign.startsAt).replace('T', ' ');
-  const ends = adminCampaignDateTimeInput(campaign.endsAt).replace('T', ' ');
-  return `${starts} ~ ${ends}`;
+  return `${formatOrderDateTime(campaign.startsAt)} ~ ${formatOrderDateTime(campaign.endsAt)}`;
+}
+
+/* 작성 중과 종료는 둘 다 조용한 회색이다(같은 상태 같은 색) — 작성 중은 점선 테두리로 아직 끝나지 않은 것임을 모양으로 가른다. */
+function CampaignStatusBadge({ status }: { status: AdminCampaignRecord['status'] }) {
+  return <AdminStatusBadge className={status === 'draft' ? 'border-dashed border-border-strong bg-transparent' : undefined} tone={statusTone('campaign', status)}>{ADMIN_CAMPAIGN_STATUS_LABELS[status]}</AdminStatusBadge>;
 }
 
 function campaignListLabel(campaign: AdminCampaignRecord) {
@@ -47,7 +55,7 @@ function campaignListLabel(campaign: AdminCampaignRecord) {
       {/* 작성 중과 종료는 같은 회색 배지다 — 끝난 캠페인은 제목까지 물러나 준비 중인 것과 갈린다. */}
       <strong className={`truncate text-[13px] font-medium${campaign.status === 'ended' ? ' text-muted-foreground' : ''}`}>{campaign.title}</strong>
       <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-muted-foreground">
-        <AdminStatusBadge tone={statusTone('campaign', campaign.status)}>{ADMIN_CAMPAIGN_STATUS_LABELS[campaign.status]}</AdminStatusBadge>
+        <CampaignStatusBadge status={campaign.status} />
         {ADMIN_CAMPAIGN_KIND_LABELS[campaign.kind]}
         {campaign.featuredOrder ? ` · 배너 ${campaign.featuredOrder}` : ''}
       </span>
@@ -70,7 +78,7 @@ function SectionSchemaHelp() {
           최상위는 블록 배열이고 최대 {ADMIN_CAMPAIGN_MAX_SECTIONS}개까지입니다. 모든 블록은
           {' '}<code>type</code>이 필수이고 <code>anchor</code>(1~20자, 상세 목차 링크)를 선택으로
           받습니다. 목록에 없는 키는 저장되지 않습니다 — 오타는 조용히 통과하는 대신 거절됩니다.
-          이 화면은 블록 편집기가 아니라 JSON 직접 편집이 v1 계약입니다.
+          블록을 고르는 편집 화면은 아직 없어 이 코드를 직접 입력합니다.
         </p>
         <ul className="list-disc space-y-1 pl-5 text-xs leading-relaxed text-muted-foreground">
           {ADMIN_CAMPAIGN_SECTION_SPECS.map((spec) => (
@@ -116,11 +124,13 @@ function SectionSchemaHelp() {
 
 function CampaignEditor({
   action,
+  onClose,
   pending,
   selected,
   state,
 }: {
   action: (formData: FormData) => void;
+  onClose: () => void;
   pending: boolean;
   selected: AdminCampaignRecord | null;
   state: AdminCampaignActionState;
@@ -129,6 +139,10 @@ function CampaignEditor({
      서버 응답으로 확인하는 왕복은 편집을 포기하게 만든다. */
   const [sectionsError, setSectionsError] = useState<string | null>(null);
   const sectionsMessage = sectionsError ?? state.errors?.sections;
+  const filledImages = [selected?.heroImagePath, selected?.cardImagePath, selected?.bannerImagePath].filter(Boolean).length;
+  const blockCount = selected?.sections.length ?? 0;
+  /* 경로·코드 입력은 담당자 몫이라 접어 둔다. 값이 있거나 오류가 있으면 펴서 보인다. */
+  const advancedOpen = Boolean(filledImages || blockCount || sectionsMessage || state.errors?.heroImagePath || state.errors?.cardImagePath || state.errors?.bannerImagePath);
 
   return (
     <form
@@ -149,12 +163,11 @@ function CampaignEditor({
       {/* 오른쪽이 새로 만드는 중인지 고치는 중인지 첫눈에 읽히게 한다. */}
       <header className="flex min-w-0 flex-wrap items-center gap-2">
         <h3 className="min-w-0 truncate text-base font-semibold text-foreground">{selected ? selected.title : '새 캠페인'}</h3>
-        {selected
-          ? <AdminStatusBadge tone={statusTone('campaign', selected.status)}>{ADMIN_CAMPAIGN_STATUS_LABELS[selected.status]}</AdminStatusBadge>
-          : <AdminStatusBadge tone="info">새로 등록</AdminStatusBadge>}
-        <span className="ml-auto text-xs text-muted-foreground">{selected ? '선택한 캠페인을 수정합니다.' : '왼쪽 목록에서 고르면 수정할 수 있습니다.'}</span>
+        {selected ? <CampaignStatusBadge status={selected.status} /> : <AdminStatusBadge tone="info">새로 등록</AdminStatusBadge>}
+        <Button className="ml-auto" onClick={onClose} size="sm" type="button" variant="ghost">목록으로</Button>
       </header>
-      <SettingsFormGroup description="캠페인 주소는 등록 후 바꿀 수 없고, 이벤트 카탈로그의 오프라인 팝업 예매 주소와 겹칠 수 없습니다." title="기본 정보">
+      <SettingsFormGroup title="기본 정보">
+      {!selected ? <AdminNotice title="캠페인 주소는 등록 후 바꿀 수 없습니다" tone="warning">고객이 보는 이벤트 페이지 주소(/events/입력값)가 됩니다. 이미 쓰고 있는 이벤트 주소와 겹칠 수 없습니다.</AdminNotice> : null}
       <AdminFormGrid>
         <Field
           defaultValue={selected?.id ?? ''}
@@ -192,7 +205,7 @@ function CampaignEditor({
         />
       </AdminFormGrid>
       </SettingsFormGroup>
-      <SettingsFormGroup title="공개 설정">
+      <SettingsFormGroup description="상태를 종료로 바꾸면 고객 화면의 진행 중 목록에서 내려갑니다." title="공개 설정">
       <AdminFormGrid>
         <SelectField
           defaultValue={selected?.status ?? 'draft'}
@@ -231,7 +244,14 @@ function CampaignEditor({
         />
       </AdminFormGrid>
       </SettingsFormGroup>
-      <SettingsFormGroup title="이미지">
+      <details className="group/advanced border-t pt-4" open={advancedOpen}>
+      <summary className="flex cursor-pointer list-none items-center gap-3 [&::-webkit-details-marker]:hidden">
+        <span className="text-[15px] font-semibold text-foreground">이미지·랜딩 구성</span>
+        <span className="text-xs text-muted-foreground tabular-nums">이미지 {filledImages}/3 · 구성 블록 {blockCount}개 · 담당자 입력</span>
+        <ChevronDown aria-hidden="true" className="ml-auto size-4 text-muted-foreground transition-transform group-open/advanced:rotate-180" />
+      </summary>
+      <div className="mt-3 flex min-w-0 flex-col gap-4">
+      <SettingsFormGroup description="이미지 파일을 저장소에 올린 뒤 그 경로를 입력합니다." title="이미지">
       <AdminFormGrid>
         <Field
           defaultValue={selected?.heroImagePath ?? ''}
@@ -271,12 +291,14 @@ function CampaignEditor({
         <SectionSchemaHelp />
       </div>
       </SettingsFormGroup>
+      </div>
+      </details>
 
       {/* 폼이 화면보다 길어도 저장은 늘 첫 화면 바닥에 있다. */}
       <div className="sticky bottom-0 z-10 -mx-4 -mb-4 flex flex-wrap items-center justify-end gap-3 rounded-b-xl border-t bg-card px-4 py-3 sm:-mx-5 sm:-mb-5 sm:px-5 [&>[role]]:mr-auto" data-admin-savebar="">
         {selected && (
           <p className="mr-auto text-xs text-muted-foreground">
-            블록 {selected.sections.length}개 · 최근 수정 {adminCampaignDateTimeInput(selected.updatedAt).replace('T', ' ')} (한국 시각)
+            블록 {selected.sections.length}개 · 최근 수정 {formatOrderDateTime(selected.updatedAt)}
           </p>
         )}
         <FormShell pending={pending} state={state} />
@@ -285,8 +307,35 @@ function CampaignEditor({
   );
 }
 
+const LIST_COLUMNS: ConsoleGridColumn[] = [
+  { key: 'title', label: '캠페인' },
+  { key: 'status', label: '상태', width: '150px' },
+  { key: 'kind', label: '종류', width: '72px' },
+  { key: 'period', label: '노출 기간', width: '330px' },
+  { key: 'banner', label: '목록 배너', width: '88px' },
+  { key: 'edit', label: '관리', width: '76px' },
+];
+
+/** 들어왔을 때의 첫 화면 — 지금 무엇이 나가고 있는지를 넓게 보여 주고, 새로 만드는 일은 버튼 하나로 시작한다. */
+function CampaignList({ onNew, onSelect, records }: { onNew: () => void; onSelect: (record: AdminCampaignRecord) => void; records: AdminCampaignRecord[] }) {
+  return <ConsoleListCard actions={<Button onClick={onNew} type="button"><Plus aria-hidden="true" />새 캠페인</Button>} headingLevel={3} title="캠페인 목록" total={records.length}>
+    <ConsoleGrid caption="캠페인 목록" columns={LIST_COLUMNS} configurable={false} emptyLabel="등록된 캠페인이 없습니다." rows={records.map(campaign => ({ id: campaign.id, cells: [
+      <span className="flex min-w-0 flex-col gap-0.5" key="title">
+        <button className={`w-fit text-left font-medium underline-offset-4 hover:underline ${campaign.status === 'ended' ? 'text-muted-foreground' : 'text-primary'}`} onClick={() => onSelect(campaign)} type="button">{campaign.title}</button>
+        <small className="text-xs text-muted-foreground [overflow-wrap:anywhere]">/events/{campaign.id}</small>
+      </span>,
+      <CampaignStatusBadge key="status" status={campaign.status} />,
+      ADMIN_CAMPAIGN_KIND_LABELS[campaign.kind],
+      <span className="text-[13px] whitespace-nowrap tabular-nums" key="period">{campaignPeriodLabel(campaign)}</span>,
+      campaign.featuredOrder ? `배너 ${campaign.featuredOrder}` : '—',
+      <Button aria-label={`${campaign.title} 수정`} key="edit" onClick={() => onSelect(campaign)} size="xs" type="button" variant="outline">수정</Button>,
+    ] }))} />
+  </ConsoleListCard>;
+}
+
 export function CampaignSection({
   action,
+  initialCreating = false,
   onSelect,
   pending,
   records,
@@ -294,38 +343,40 @@ export function CampaignSection({
   state,
 }: {
   action: (formData: FormData) => void;
+  /** 새 캠페인 입력칸을 연 채로 시작한다. 기본은 닫혀 있다 — 들어오자마자 등록 화면처럼 보이지 않게. */
+  initialCreating?: boolean;
   onSelect: (record: { id: string } | null) => void;
   pending: boolean;
   records: AdminCampaignRecord[];
   selected: AdminCampaignRecord | null;
   state: AdminCampaignActionState;
 }) {
+  const [creating, setCreating] = useState(initialCreating);
+  function startNew() { onSelect(null); setCreating(true); }
+  function pick(record: AdminCampaignRecord) { setCreating(false); onSelect(record); }
+  function close() { setCreating(false); onSelect(null); }
+  if (!selected && !creating) return <CampaignList onNew={startNew} onSelect={pick} records={records} />;
   return (
-    <div className="flex min-w-0 flex-col gap-4">
-      <p className={NOTE}>
-        캠페인은 고객 화면의 이벤트 목록과 상세 페이지에 노출됩니다.
-        상태를 <strong className="font-medium text-foreground">종료</strong>로 바꾸면 진행 중 목록에서 내려갑니다.
-      </p>
-      <div className="grid items-start gap-4 lg:grid-cols-[minmax(240px,0.34fr)_minmax(0,1fr)] [&>*]:min-w-0">
-        <RecordList
-          activeId={selected?.id ?? null}
-          ariaLabel="캠페인 목록"
-          emptyMessage="등록된 캠페인이 없습니다."
-          itemClassName="aria-[current=true]:ring-1 aria-[current=true]:ring-primary"
-          items={records}
-          labelFor={campaignListLabel}
-          newLabel="새 캠페인"
-          onNew={() => onSelect(null)}
-          onSelect={onSelect}
-        />
-        <CampaignEditor
-          action={action}
-          key={selected ? `${selected.id}:${selected.updatedAt}` : 'new-campaign'}
-          pending={pending}
-          selected={selected}
-          state={state}
-        />
-      </div>
+    <div className="grid items-start gap-4 lg:grid-cols-[minmax(240px,0.34fr)_minmax(0,1fr)] [&>*]:min-w-0">
+      <RecordList
+        activeId={selected?.id ?? null}
+        ariaLabel="캠페인 목록"
+        emptyMessage="등록된 캠페인이 없습니다."
+        itemClassName="aria-[current=true]:ring-1 aria-[current=true]:ring-primary"
+        items={records}
+        labelFor={campaignListLabel}
+        newLabel="새 캠페인"
+        onNew={startNew}
+        onSelect={pick}
+      />
+      <CampaignEditor
+        action={action}
+        key={selected ? `${selected.id}:${selected.updatedAt}` : 'new-campaign'}
+        onClose={close}
+        pending={pending}
+        selected={selected}
+        state={state}
+      />
     </div>
   );
 }
