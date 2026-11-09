@@ -111,8 +111,8 @@ const STATUS_TONES = {
   game: { scheduled: 'info', active: 'success', ended: 'neutral', 'pool-unavailable': 'danger' },
   /** 카드팩 발급 정책 */
   rewardPolicy: { inactive: 'neutral', scheduled: 'info', active: 'success', ended: 'neutral', 'pool-unavailable': 'danger' },
-  /** 이벤트 — 화면 이름 그대로 저장된 값이다. 열리기 전(예정·예매중)은 파랑, 진행중만 초록이다 */
-  event: { 예정: 'info', 예매중: 'info', 진행중: 'success', 종료: 'neutral' },
+  /** 이벤트 — 화면 이름 그대로 저장된 값이다. 아직 안 연 것(예정)은 파랑, 지금 팔거나 열려 있는 것(예매중·진행중)은 초록이다 */
+  event: { 예정: 'info', 예매중: 'success', 진행중: 'success', 종료: 'neutral' },
   /** 티켓 회차 정원 */
   ticketAllocation: { open: 'success', full: 'danger', empty: 'neutral' },
   /** 상품공지사항 전시 */

@@ -18,11 +18,11 @@ import {
   ActionNotice,
   Field,
   FormShell,
-  RecordList,
   SelectField,
 } from '../fields';
 import { statusTone } from '@/lib/admin/status-tone';
-import { MasterDetail, ReadOnlyField, RecordFormHeading, SECTION_CARD, SECTION_STAT, SECTION_STATS, SectionHeading } from './SectionLayout';
+import { FormGroup, MasterDetail, ReadOnlyField, RecordDetailPane, RecordFormHeading, SECTION_CARD, SECTION_FIELDS_3, SECTION_STAT, SECTION_STATS, SectionHeading } from './SectionLayout';
+import { RecordMasterList } from './RecordMasterList';
 import { RecordStatusLabel } from './RecordStatusLabel';
 
 const emptyState: AdminCatalogActionState = {};
@@ -81,21 +81,26 @@ function formatKstDateTime(value: string | null) {
 
 function variantLabel(game: AdminGameRecord) {
   if (game.variantKind === 'card') return '카드 보상형';
-  if (game.variantKind === 'goods') return '굿즈 variant';
-  return '지원하지 않는 variant';
+  if (game.variantKind === 'goods') return '굿즈 보상형';
+  return '지원하지 않는 유형';
 }
 
 export function GameSection({
+  creating = false,
   endOperationId,
   events,
+  onClose,
   onSelect,
   operationId,
   pools,
   records,
   selected,
 }: {
+  /** 새 게임 입력 칸을 연 상태. 고른 게임도 없고 이 값도 꺼져 있으면 오른쪽은 안내만 보인다. */
+  creating?: boolean;
   endOperationId: string;
   events: AdminEventRecord[];
+  onClose?: () => void;
   onSelect: (game: AdminGameRecord | null) => void;
   operationId: string;
   pools: AdminCardPoolRecord[];
@@ -114,25 +119,27 @@ export function GameSection({
   return (
     <MasterDetail
       list={(
-        <RecordList
+        <RecordMasterList
           activeId={selected?.id ?? null}
           ariaLabel="게임 목록"
           emptyMessage="등록된 게임이 없습니다."
           items={records}
           labelFor={(game) => {
-            const readOnly = game.variantKind === 'card' ? '' : ' · 읽기 전용';
-            return <RecordStatusLabel name={`${game.title}${readOnly}`} status={GAME_STATUS_LABELS[game.status]} tone={statusTone('game', game.status)} title={`${game.title} · ${GAME_STATUS_LABELS[game.status]}${readOnly}`} />;
+            /* 읽기 전용 게임은 운영 상태보다 고칠 수 없다는 사실이 먼저다. 상태 색을 쓰지 않아 운영 중인 게임과 섞이지 않는다. */
+            const readOnly = game.variantKind !== 'card';
+            const status = readOnly ? '읽기 전용' : GAME_STATUS_LABELS[game.status];
+            return <RecordStatusLabel detail={!readOnly && game.status === 'pool-unavailable' ? '카드풀 확인 필요 · 눌러서 보기' : null} name={game.title} status={status} tone={readOnly ? 'neutral' : statusTone('game', game.status)} title={`${game.title} · ${status}`} />;
           }}
-          newLabel="새 게임 등록"
-          onNew={() => onSelect(null)}
           onSelect={onSelect}
         />
       )}
     >
+      <RecordDetailPane hint="새 게임은 오른쪽 위 게임 등록을 누릅니다." open={Boolean(selected) || creating} prompt="목록에서 게임을 고르면 여기에서 수정합니다.">
       {editable ? (
         <GameForm
           events={events}
           key={formKey}
+          onClose={onClose}
           operationId={operationId}
           pools={pools}
           selected={selected}
@@ -148,17 +155,20 @@ export function GameSection({
           operationId={endOperationId}
         />
       ) : null}
+      </RecordDetailPane>
     </MasterDetail>
   );
 }
 
 function GameForm({
   events,
+  onClose,
   operationId,
   pools,
   selected,
 }: {
   events: AdminEventRecord[];
+  onClose?: () => void;
   operationId: string;
   pools: AdminCardPoolRecord[];
   selected: AdminGameRecord | null;
@@ -185,14 +195,16 @@ function GameForm({
     >
       <input name="operationId" type="hidden" value={operationId} />
       <input name="previousGameId" type="hidden" value={selected?.id ?? ''} />
-      <RecordFormHeading description="마블 룰렛 · 카드 보상형 · 구슬 10개" editing={selected?.title ?? null} noun="게임" />
+      <RecordFormHeading description="마블 룰렛 · 카드 보상형 · 구슬 10개" editing={selected?.title ?? null} noun="게임" onClose={onClose} />
       {selected?.status === 'pool-unavailable' ? <AdminNotice role="status" title="연결한 카드풀을 지금 쓸 수 없습니다." tone="danger"><Link className="underline underline-offset-4" href="/admin/catalog/pools">카드풀</Link> 화면에서 운영 기간과 등급별 확률·소속 카드를 확인해주세요.</AdminNotice> : null}
+      <FormGroup title="기본 정보">
       <AdminFormGrid>
         <Field
           defaultValue={selected?.id}
           error={state.errors?.id}
           label="게임 주소 이름 (영문 소문자·숫자·하이픈)"
           name="id"
+          placeholder="예: maple-roulette"
           readOnly={fieldsLocked}
           required
         />
@@ -267,35 +279,40 @@ function GameForm({
             ))}
           </SelectField>
         )}
-        <Field
-          defaultValue={selected?.perUserDailyLimit ?? 1}
-          error={state.errors?.perUserDailyLimit}
-          label="사용자별 일일 한도"
-          max={100}
-          min={1}
-          name="perUserDailyLimit"
-          required
-          step={1}
-          type="number"
-        />
-        <Field
-          defaultValue={toKstDateTimeInput(selected?.activeFrom ?? null)}
-          error={state.errors?.activeFrom}
-          label="운영 시작 (KST)"
-          name="activeFrom"
-          required
-          type="datetime-local"
-        />
-        <Field
-          defaultValue={toKstDateTimeInput(selected?.activeTo ?? null)}
-          error={state.errors?.activeTo}
-          label="운영 종료 (KST, 선택)"
-          name="activeTo"
-          type="datetime-local"
-        />
       </AdminFormGrid>
+      </FormGroup>
+      <FormGroup title="운영 기간·한도">
+        <div className={SECTION_FIELDS_3}>
+          <Field
+            defaultValue={selected?.perUserDailyLimit ?? 1}
+            error={state.errors?.perUserDailyLimit}
+            label="사용자별 일일 한도"
+            max={100}
+            min={1}
+            name="perUserDailyLimit"
+            required
+            step={1}
+            type="number"
+          />
+          <Field
+            defaultValue={toKstDateTimeInput(selected?.activeFrom ?? null)}
+            error={state.errors?.activeFrom}
+            label="운영 시작 (KST)"
+            name="activeFrom"
+            required
+            type="datetime-local"
+          />
+          <Field
+            defaultValue={toKstDateTimeInput(selected?.activeTo ?? null)}
+            error={state.errors?.activeTo}
+            label="운영 종료 (KST, 선택)"
+            name="activeTo"
+            type="datetime-local"
+          />
+        </div>
+      </FormGroup>
       {fieldsLocked ? (
-        <div id={lockReasonId}><AdminNotice tone="info">플레이 이력이 있어 slug·보상 카드풀·연결 이벤트는 변경할 수 없습니다.</AdminNotice></div>
+        <div id={lockReasonId}><AdminNotice tone="info">플레이 이력이 있어 게임 주소 이름·보상 카드풀·연결 이벤트는 변경할 수 없습니다.</AdminNotice></div>
       ) : null}
       {noEligiblePool ? <AdminNotice role="status" tone="warning">확률과 카드 구성이 완료된 운영 예정/운영 중 카드풀을 먼저 준비해주세요.</AdminNotice> : null}
       <FormShell disabled={noEligiblePool} pending={pending} state={state} />
@@ -314,7 +331,7 @@ function ReadOnlyVariantNotice({ selected }: { selected: AdminGameRecord }) {
         {variantLabel(selected)}은 이 콘솔에서 등록하거나 편집할 수 없습니다.
       </p>
       <p className="text-sm text-muted-foreground">
-        legacy 굿즈 variant는 현 로드맵에서 활성화하지 않으며 신규 실물 쿠지에 재사용하지 않습니다.
+        이전 굿즈 보상형 게임은 현 로드맵에서 활성화하지 않으며 신규 실물 쿠지에 재사용하지 않습니다.
       </p>
     </section>
   );
