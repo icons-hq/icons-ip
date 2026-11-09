@@ -155,7 +155,7 @@ export function ClaimQueueKitScreen({
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border bg-muted/40 px-3 py-2" data-claim-next-action="">
           {nextStage !== null && !onNextStage ? <Link className={buttonVariants({ size: 'sm' })} data-slot="button" href={adminClaimHref(claimType, filters, { page: 1, sort: 'oldest', stage: nextStage })}>{adminClaimStageLabel(claimType, nextStage)} {(counts[nextStage] ?? 0).toLocaleString('ko-KR')}건 오래된 순으로 보기</Link> : null}
           {longestWait >= 1 ? <span className="font-medium whitespace-nowrap" title={total > rows.length ? '이 페이지에서 가장 오래 기다린 요청 기준입니다.' : undefined}>최장 대기 {longestWait}일째</span> : null}
-          <p className="text-xs text-muted-foreground">{onNextStage ? '맨 위 요청부터 ' : ''}요청번호를 누르면 이 자리에서 상세가 열려 처리합니다. 여러 건은 왼쪽 체크칸을 고른 뒤 화면 아래 막대에서 처리합니다.</p>
+          <p className="text-xs text-muted-foreground">{onNextStage ? '맨 위 요청부터 ' : ''}요청번호를 누르면 이 자리에서 상세가 열려 처리합니다.</p>
         </div>
         <ClaimQueueKitTable
           claimType={claimType}

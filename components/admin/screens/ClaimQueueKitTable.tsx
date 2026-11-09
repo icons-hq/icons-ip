@@ -270,8 +270,8 @@ function preferenceColumnsFor(claimType: OrderClaimType): readonly ConsoleTableS
     { key: 'reference', label: '요청번호' }, { key: 'order', label: '주문번호' }, { key: 'type', label: '유형', defaultVisible: false },
     { key: 'reason', label: '사유' }, { key: 'stage', label: '상태' }, { key: 'buyer', label: '구매자' },
     { key: 'amount', label: '주문금액' }, { key: 'requested', label: '접수일' },
-    /* 취소는 회수가 없어 기한 칸이 전부 '회수 없음'이고, 교환에는 환불이 없다 — 그 목록에서는 기본으로 숨긴다(조회항목 설정에서 켠다). */
-    { key: 'sla', label: claimDeadlineLabel(claimType), ...(claimType === 'cancel' ? { defaultVisible: false } : {}) },
+    /* 취소·교환의 기한 칸은 '회수 없음'·'재출고 대기'뿐이고, 교환에는 환불이 없다 — 그 목록에서는 기본으로 숨긴다(조회항목 설정에서 켠다). */
+    { key: 'sla', label: claimDeadlineLabel(claimType), ...(claimType !== 'return' ? { defaultVisible: false } : {}) },
     { key: 'refund', label: '환불 수단', ...(claimType === 'exchange' ? { defaultVisible: false } : {}) },
     { key: 'handler', label: '처리자' },
   ];
@@ -480,16 +480,23 @@ export function ClaimQueueKitTable({
   const error = clientError || state.error;
   const busy = pending || searching;
 
-  return <div className="flex min-w-0 flex-col gap-3 pb-14" data-admin-kit="claims-table" data-pending={busy ? 'true' : undefined}>
-    <ClaimSearchBox
-      field={filters.field ?? 'all'}
-      fieldOptions={searchFieldOptions}
-      key={`${filters.field ?? 'all'}:${filters.query}`}
-      onSearch={onSearch}
-      pending={busy}
-      query={filters.query}
-      typeLabel={typeLabel}
-    />
+  return <div className="flex min-w-0 flex-col gap-3" data-admin-kit="claims-table" data-pending={busy ? 'true' : undefined}>
+    <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+      <ClaimSearchBox
+        field={filters.field ?? 'all'}
+        fieldOptions={searchFieldOptions}
+        key={`${filters.field ?? 'all'}:${filters.query}`}
+        onSearch={onSearch}
+        pending={busy}
+        query={filters.query}
+        typeLabel={typeLabel}
+      />
+      {/* 처리 막대는 체크하면 화면 아래에 뜬다. 체크 전에는 같은 버튼을 흐리게 보여 어디서 처리하는지 알린다(발주 화면의 '선택 주문 0건'과 같은 약속). */}
+      {selectedIds.length === 0 ? <div aria-label="일괄 처리(요청을 체크하면 쓸 수 있습니다)" className="flex flex-wrap items-center gap-1.5" data-claims-bulk-idle="" role="group">
+        <span className="text-xs text-muted-foreground">0건 선택</span>
+        {(['approve', 'review', 'reject'] as const).map((decision) => <Button disabled key={decision} size="sm" title="왼쪽 체크칸에서 요청을 고르면 화면 아래 막대에서 처리합니다" variant="outline">{ADMIN_CLAIM_BULK_ACTION_LABELS[decision]}</Button>)}
+      </div> : null}
+    </div>
     <DataTable
       aria-label={`${typeLabel} 요청 목록`}
       emptyLabel={`조건에 맞는 ${typeLabel} 요청이 없습니다.`}
@@ -514,23 +521,23 @@ export function ClaimQueueKitTable({
     <ActionBar
       aria-label="선택 건 일괄 처리"
       onOpenChange={(open) => { if (!open && !deciding) setSelection({}); }}
-      /* 선택 전에도 처리 버튼이 있다는 것을 흐린 버튼으로 보여 준다(발주 화면의 '선택 주문 0건'과 같은 약속). */
-      open
+      open={selectedIds.length > 0}
     >
       <ActionBarSelection>
         {selectedIds.length}건 선택 · 최대 {ADMIN_CLAIM_BULK_LIMIT}건
-        {selectedIds.length ? <><ActionBarSeparator /><ActionBarClose aria-label="선택 해제"><X /></ActionBarClose></> : null}
+        <ActionBarSeparator />
+        <ActionBarClose aria-label="선택 해제"><X /></ActionBarClose>
       </ActionBarSelection>
       <ActionBarSeparator />
       <ActionBarGroup>
         {(['approve', 'review'] as const).map((decision) => <ActionBarItem
-          disabled={deciding || overLimit || selectedIds.length === 0}
+          disabled={deciding || overLimit}
           key={decision}
           onSelect={(event) => { event.preventDefault(); decide(decision); }}
           variant={decision === 'approve' ? 'default' : 'secondary'}
         >{ADMIN_CLAIM_BULK_ACTION_LABELS[decision]}</ActionBarItem>)}
         <Popover onOpenChange={setRejectOpen} open={rejectOpen}>
-          <PopoverTrigger render={<ActionBarItem disabled={deciding || overLimit || selectedIds.length === 0} onSelect={(event) => event.preventDefault()} variant="destructive" />}>
+          <PopoverTrigger render={<ActionBarItem disabled={deciding || overLimit} onSelect={(event) => event.preventDefault()} variant="destructive" />}>
             {ADMIN_CLAIM_BULK_ACTION_LABELS.reject}
           </PopoverTrigger>
           <PopoverContent className="w-96" side="top">
