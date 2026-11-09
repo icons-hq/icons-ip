@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { AdminGoodRecord } from '@/lib/admin/catalog.server';
+import { GOODS_READINESS_REASONS, type AdminGoodsReadiness, type GoodsReadinessReasonCode } from '@/lib/admin/goods-readiness';
 import type { Ip } from '@/lib/data';
 import { GOODS_HTML_MAX_LENGTH, sanitizeGoodsDescription } from '@/lib/goods-description';
 import { GOODS_NOTICE_FIELDS } from '@/lib/goods-notice';
@@ -106,7 +107,7 @@ const good: AdminGoodRecord = {
 function renderGoodSection(
   selected: AdminGoodRecord | null,
   state: Parameters<typeof GoodSection>[0]['state'] = {},
-  options: Pick<Parameters<typeof GoodSection>[0],'initialQuery'|'initialIpId'|'variants'|'canSearchErp'|'ownership'|'accountId'|'cloneOperationId'|'canManageCosts'> = {},
+  options: Pick<Parameters<typeof GoodSection>[0],'initialQuery'|'initialIpId'|'variants'|'canSearchErp'|'ownership'|'accountId'|'cloneOperationId'|'canManageCosts'|'readiness'> = {},
 ) {
   return renderToStaticMarkup(
     <GoodsKcTemplateProvider selectionKey={selected ? `good:${selected.id}` : 'create:any'}>
@@ -347,6 +348,107 @@ describe('GoodSection', () => {
     expect(readiness).toContain('공개로 전환');
   });
 
+  /*
+   * 사람 눈 테스트 2라운드 — 공개 버튼이 두 개라 차이를 몰랐고, 저장 후 공개를 눌러도 초안으로만 저장돼 이름과 결과가 달랐다.
+   * 주 행동은 하나다: 막는 항목이 남으면 다음 할 일, 없으면 공개로 전환, 저장할 입력이 있으면 저장 막대의 저장 후 공개. 저장 계약(intent)은 그대로다.
+   */
+  describe('판매 준비 카드의 주 행동', () => {
+    const reason = (code: GoodsReadinessReasonCode, kind: 'blocking' | 'review' = 'blocking') => ({ code, ...GOODS_READINESS_REASONS[code], kind });
+    const ready: AdminGoodsReadiness = { state: 'review_required', checkedAt: '2026-11-09T06:20:51.000Z', publication: 'draft', operation: 'active', availableQty: 40, publicReview: 'current', saleSettings: 'blocked', reviewRequired: true, reasons: [reason('draft')] };
+    const kcBlocked: AdminGoodsReadiness = { ...ready, publicReview: 'required', reasons: [reason('draft'), reason('kc_required', 'review')] };
+    const live: AdminGoodsReadiness = { ...ready, state: 'ready', publication: 'published', saleSettings: 'ready', reviewRequired: false, availableQty: 55, reasons: [] };
+    const draft = { ...good, publishedAt: null, firstPublishedAt: null, imagePath: 'public-media/catalog/good/main.webp', originId: '11111111-1111-4111-8111-111111111111' };
+    const card = (html: string) => html.slice(html.indexOf('data-good-readiness=""'), html.indexOf('data-good-workspace-nav'));
+    const bar = (html: string) => html.slice(html.indexOf('aria-label="기본 상품 저장"'), html.indexOf('</form>', html.indexOf('aria-label="기본 상품 저장"')));
+    const tone = (html: string, label: string) => html.match(new RegExp(`data-tone="([a-z]+)"[^>]*>${label}`))?.[1];
+    const button = (html: string, label: string) => html.match(new RegExp(`<(?:a|button)\\b[^>]*>${label}<`))?.[0] ?? '';
+
+    it('KC가 막으면 공개 버튼 대신 KC 검토하기가 주 행동이고 저장 후 공개는 보이지 않는다', () => {
+      const html = renderGoodSection(draft, {}, { readiness: kcBlocked });
+      expect(card(html)).toContain('다음 할 일 · KC 검토 필요');
+      expect(button(card(html), 'KC 검토하기')).toContain('bg-primary');
+      expect(button(card(html), 'KC 검토하기')).toContain('href="#good-operation-kc"');
+      expect(button(card(html), '공개로 전환')).toBe('');
+      expect(bar(html)).not.toContain('value="publish"');
+      expect(bar(html)).not.toContain('저장 후 공개');
+      expect(bar(html)).toContain('KC 검토를 마치면 공개할 수 있습니다.');
+      /* 고칠 입력이 없으면 주 색은 위쪽 다음 할 일 하나다. */
+      expect(button(bar(html), '저장하기')).not.toContain('bg-primary');
+    });
+
+    it('실제로 막는 항목만 주의색이다: 초안만으로는 판매 설정을 확인 필요로 보이지 않는다', () => {
+      const html = renderGoodSection(draft, {}, { readiness: kcBlocked });
+      expect(tone(html, '게시 · 초안')).toBe('neutral');
+      expect(tone(html, '판매 설정 · 준비 완료')).toBe('success');
+      expect(tone(html, '공개 검토 · KC 검토 필요')).toBe('warning');
+      const stopped = renderGoodSection(draft, {}, { readiness: { ...kcBlocked, operation: 'stopped', reasons: [reason('draft'), reason('stopped'), reason('kc_required', 'review')] } });
+      expect(tone(stopped, '운영 · 판매 중지')).toBe('danger');
+      expect(tone(stopped, '판매 설정 · 확인 필요')).toBe('warning');
+      /* 서버가 막는 항목이 다른 확인 항목보다 먼저다. */
+      expect(card(stopped)).toContain('다음 할 일 · KC 검토 필요');
+      expect(card(stopped)).toContain('운영자가 판매 중지</a>');
+    });
+
+    it('막는 항목이 없으면 공개로 전환이 주 행동 하나다', () => {
+      const html = renderGoodSection(draft, {}, { readiness: ready });
+      expect(card(html)).toContain('공개할 수 있습니다');
+      expect(button(card(html), '공개로 전환')).toContain('bg-primary');
+      expect(bar(html)).not.toContain('value="publish"');
+      expect(button(bar(html), '저장하기')).not.toContain('bg-primary');
+      expect(bar(html)).toContain('화면 맨 위 판매 준비에서 공개할 수 있습니다.');
+    });
+
+    it('공개는 되지만 고객이 살 수 없는 항목이면 다음 할 일을 앞세우고 공개는 보조로 남긴다', () => {
+      const html = renderGoodSection(draft, {}, { readiness: { ...ready, availableQty: 0, reasons: [reason('draft'), reason('stock_unavailable')] } });
+      expect(button(card(html), '재고 확인하기')).toContain('bg-primary');
+      expect(button(card(html), '공개로 전환')).not.toContain('bg-primary');
+      expect(button(card(html), '공개로 전환')).toContain('data-slot="button"');
+    });
+
+    it('저장할 입력이 있고 공개 조건을 채웠을 때만 저장 후 공개가 보이고 저장하기가 주 행동이다', () => {
+      const values = { previousId: draft.id, name: draft.name, type: draft.type, ipId: draft.ipId, imagePath: draft.imagePath, regularPrice: '26000', price: '22000', originId: '11111111-1111-4111-8111-111111111111', noticeMaker: '주식회사 아이콘스', noticeOrigin: '대한민국', noticeMaterial: '아크릴', noticeSize: '80 x 60 x 20mm · 90g', noticeMadeOn: '2026-07', noticeAsManager: '아이콘스 고객센터', noticeAsContact: '02-000-0000' };
+      const variants = [{ id: '11111111-1111-4111-8111-111111111111', goodId: draft.id, name: '기본 옵션', code: 'HW-0100-01', price: draft.price, stockQty: 12, isDefault: true, archivedAt: null, attributes: {} }];
+      const dirty = renderGoodSection(draft, { attempt: 1, values }, { readiness: ready, variants });
+      expect(button(bar(dirty), '저장 후 공개')).toContain('value="publish"');
+      expect(button(bar(dirty), '저장하기')).toContain('bg-primary');
+      expect(bar(dirty)).toContain('저장 후 공개를 누르면 수정한 내용까지 고객 화면에 공개됩니다.');
+      /* 이번 저장이 KC 검토를 되돌리면 초안으로만 저장되므로 버튼을 내고 이유를 말한다. */
+      const context = renderGoodSection(draft, { attempt: 1, values: { ...values, name: '바꾼 상품명' } }, { readiness: ready, variants });
+      expect(bar(context)).not.toContain('value="publish"');
+      expect(bar(context)).toContain('KC를 다시 검토해야 공개할 수 있습니다.');
+      /* 필수 칸이 비면 저장 후 공개는 없다. */
+      expect(bar(renderGoodSection(draft, { attempt: 1, values: { ...values, noticeMaker: '' } }, { readiness: ready, variants }))).not.toContain('value="publish"');
+    });
+
+    it('공개 중인 상품은 초록 상태로 보이고 내리는 작업은 위험 표시와 함께 접힌 줄이다', () => {
+      const html = renderGoodSection(good, {}, { readiness: live });
+      expect(tone(html, '게시 · 공개')).toBe('success');
+      expect(tone(html, '운영 · 정상')).toBe('success');
+      expect(tone(html, '판매 설정 · 준비 완료')).toBe('success');
+      expect(tone(html, '공개 검토 · KC 검토 완료')).toBe('success');
+      const fold = card(html).slice(card(html).indexOf('<details'));
+      expect(fold.slice(0, fold.indexOf('>'))).toContain('id="good-operation-publish"');
+      expect(fold.slice(0, fold.indexOf('>'))).not.toContain('open=""');
+      expect(fold).toMatch(/<summary[^>]*text-destructive[^>]*>[^]*?초안으로 되돌리기<\/summary>/);
+      expect(button(fold, '초안으로 되돌리기')).toContain('text-destructive');
+      expect(card(html)).not.toContain('data-good-readiness-next');
+      /* 입력칸을 밀어내던 긴 안내와 내부 용어는 첫 화면에 없다. */
+      expect(card(html)).not.toMatch(/서버|미저장|기본 폼/);
+      expect(card(html)).toContain('판매 가능 재고 55개');
+    });
+
+    it('공개 중 상품의 확인 항목은 주 색을 쓰지 않는다', () => {
+      const html = renderGoodSection(good, {}, { readiness: { ...live, publicReview: 'legacy_unrecorded', reasons: [reason('kc_legacy_unrecorded', 'review')] } });
+      expect(card(html)).toContain('확인 필요 · 기존 공개 · KC 미기록');
+      expect(button(card(html), 'KC 정보 확인하기')).not.toContain('bg-primary');
+      expect(tone(html, '공개 검토 · 기존 공개 · KC 미기록')).toBe('warning');
+      /* 기존 공개 · KC 미기록과 품절은 미입력이 아니다. */
+      const count = (id: string) => html.match(new RegExp(`id="good-section-${id}"[^]*?data-good-card-remaining="(\\d+)"`))?.[1];
+      expect(count('notice')).toBe('0');
+      expect(count('price')).toBe('0');
+    });
+  });
+
   /* 저장 뒤 운영 패널 18개는 접이식 5그룹으로 묶는다. 각 패널의 id·별도 저장 계약은 그대로다. */
   it('저장 뒤 운영 패널을 판매 운영·가격·혜택·배송·수령·상세 콘텐츠·관리 5그룹으로 접어 둔다', () => {
     const saved = renderGoodSection({ ...good, publishedAt: null }, {}, { accountId: 'operator-1', cloneOperationId: '33333333-3333-4333-8333-333333333333', canManageCosts: true });
@@ -565,18 +667,27 @@ describe('GoodSection', () => {
     expect(renderGoodSection(good).match(/<textarea[^>]*name="description"[^>]*>/)?.[0]).toContain('maxLength="2000"');
   });
 
-  /* 복잡도 측정(카드 36개·필수 12개가 첫 화면에 0개)의 후속 — 카드마다 남은 필수 입력, 저장 막대에 공개까지 남은 수를 보인다. */
-  it('카드와 저장 막대에 공개까지 남은 필수 입력을 보이고, 공개 뒤에는 보이지 않는다', () => {
+  /*
+   * 복잡도 측정(카드 36개·필수 12개가 첫 화면에 0개)의 후속 — 카드마다 남은 필수 입력, 저장 막대에 공개까지 남은 수를 보인다.
+   * 사람 눈 테스트 2라운드: 저장된 상품에도 같은 입력 완료 표시를 보이고, 공개까지 남은 수만 초안에 둔다.
+   */
+  it('카드와 저장 막대에 공개까지 남은 필수 입력을 보이고, 공개 뒤에는 입력 완료 표시만 같게 남는다', () => {
     const create = renderGoodSection(null);
     const count = (html: string, id: string) => html.match(new RegExp(`id="good-section-${id}"[^]*?data-good-card-remaining="(\\d+)"`))?.[1];
     expect(count(create, 'basic')).toBe('3');
     expect(count(create, 'images')).toBe('1');
     expect(create).toMatch(/data-good-publish-remaining="\d+"[^>]*>공개까지 필수 \d+개 남음/);
     expect(create).toContain('필수 입력 남음');
-    /* 공개 중인 상품에는 남은 수를 보이지 않는다(공개 조건은 이미 서버가 확인했다). */
+    /* 숫자만 두면 오류 수로 읽힌다 — 이동 띠도 남은 수임을 글자로 말한다. */
+    const nav = create.slice(create.indexOf('data-good-workspace-nav'), create.indexOf('</nav>'));
+    expect(nav).toContain('>3개 남음<');
+    /* 공개 중인 상품의 공개까지 남은 수는 숨기고(공개 조건은 이미 서버가 확인했다), 입력 완료 표시는 초안과 같다. */
     const published = renderGoodSection(good);
     expect(published).not.toContain('data-good-publish-remaining');
-    expect(published).not.toContain('data-good-card-remaining');
+    expect(count(published, 'basic')).toBe('0');
+    expect(published.slice(published.indexOf('data-good-workspace-nav'), published.indexOf('</nav>'))).toContain('필수 입력 완료');
+    /* 보관 상품은 고칠 수 없어 진행 표시를 두지 않는다. */
+    expect(renderGoodSection({ ...good, archivedAt: '2026-10-01T00:00:00Z' })).not.toContain('data-good-card-remaining');
   });
 
   it('저장 막대는 저장하기·미리보기·임시저장 메뉴·취소로 줄이고 불러오기는 메뉴에 묶는다', () => {
@@ -589,9 +700,17 @@ describe('GoodSection', () => {
     for (const label of ['미리보기', '저장하기', '취소']) expect(bar).toContain(label);
     /* 탭이 하나뿐이면 탭 줄을 그리지 않고, 복사등록은 머리 줄의 버튼 하나다. */
     expect(create).not.toContain('data-good-editor-tabs');
-    const head = create.slice(create.indexOf('data-good-editor-head'), create.indexOf('data-good-workspace-nav'));
     expect(renderGoodSection(null, {}, { accountId: 'operator-1' })).toMatch(/data-good-editor-head=""[^]*?data-good-copy-entry=""[^]*?기존 상품으로 복사등록/);
-    expect(head).toContain('필수항목');
+    /* 머리 줄에 놓을 것이 없으면 빈 줄을 그리지 않는다. */
+    expect(create).not.toContain('data-good-editor-head');
+  });
+
+  /* 사람 눈 테스트 2라운드 — 별표와 "(필수)"가 섞여 있었다. 카드의 "필수 N개 남음"과 같은 말인 "(필수)" 하나로 통일하고, 남은 수에 세는 칸에는 모두 붙인다. */
+  it('필수 표시는 (필수) 하나로 통일하고 남은 수에 세는 칸에 모두 붙인다', () => {
+    const create = renderGoodSection(null);
+    expect(create).not.toContain('aria-label="필수"');
+    expect(create).not.toContain('필수항목');
+    for (const label of ['상품명 (필수)', '연결 IP (필수)', '상품 유형 (필수)', '판매가 (필수)', '재고수량 (필수)', '대표이미지 (필수)', '출고지 (필수)', ...GOODS_NOTICE_FIELDS.map((field) => `${field.label} (필수)`)]) expect(create).toContain(label);
   });
 
   /* 10/27 회의 R21(D9①) — 그룹상품 등록은 메뉴·탭에서 숨기고 라우트만 유지한다. */

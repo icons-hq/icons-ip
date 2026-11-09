@@ -1,5 +1,7 @@
 import { GOODS_NOTICE_FIELDS } from '@/lib/goods-notice';
 import { GOOD_TYPES, type GoodType } from '@/lib/goods-taxonomy';
+import type { GoodsOptionRow } from './goods-option-editor';
+import { goodsReadinessAnchor, type AdminGoodsReadiness, type GoodsReadinessReasonCode } from './goods-readiness';
 
 /**
  * 옵션별 구매 제한 표(D7②)의 입력은 옵션 행 JSON(`variants`)으로 제출돼 자기 이름이 없다. 브라우저 검증 오류를
@@ -111,4 +113,66 @@ export const GOOD_PUBLISHED_LOCKS = {
 export function changedGoodLockedFields(initial: Record<string, string>, current: Record<string, string>) {
   return Object.entries(GOOD_PUBLISHED_LOCKS).filter(([key]) => (initial[key] ?? '').trim() !== (current[key] ?? '').trim())
     .map(([key, label]) => [key, `${label} 항목은 공개 중에 잠겨 있습니다. 초안으로 전환 후 수정해주세요.`] as const);
+}
+
+type GoodKcOptionRow = Pick<GoodsOptionRow, 'id' | 'name' | 'attributes'>;
+const goodKcOptionIdentity = (row: GoodKcOptionRow) => JSON.stringify([row.name.trim(), Object.entries(row.attributes).sort(([a], [b]) => a.localeCompare(b))]);
+
+/**
+ * 이 입력을 저장하면 완료된 KC 검토가 미검토로 돌아가는가. DB 가드(private.guard_goods_kc·guard_goods_variant_kc)와 같은 기준의 안내용 판정이다.
+ * 저장 후 공개가 초안으로만 저장될 경우를 미리 가려 버튼 이름과 결과를 맞춘다. 사용 중지는 검토를 무효화하지 않아 세지 않는다.
+ */
+export function goodKcContextChanged(savedValues: Record<string, string>, currentValues: Record<string, string>, savedRows: readonly GoodKcOptionRow[], currentRows: readonly GoodKcOptionRow[]): boolean {
+  if (changedGoodLockedFields(savedValues, currentValues).length) return true;
+  const saved = new Map(savedRows.filter((row) => row.id).map((row) => [row.id, goodKcOptionIdentity(row)]));
+  const current = new Set(currentRows.map((row) => row.id));
+  return currentRows.some((row) => !row.id || saved.get(row.id) !== goodKcOptionIdentity(row)) || [...saved.keys()].some((id) => !current.has(id));
+}
+
+type GoodReadinessReason = AdminGoodsReadiness['reasons'][number];
+
+/** 판매 준비 링크의 도착지. 사유 표의 대상은 공용 판정(goods-readiness)이고, 입력이 옮겨 간 두 항목만 새 자리로 보낸다. */
+export function goodReadinessReasonAnchor(reason: Pick<GoodReadinessReason, 'code' | 'target'>): string {
+  return reason.code === 'stopped' ? 'good-section-information' : reason.code === 'image_missing' ? 'good-section-images' : goodsReadinessAnchor(reason.target);
+}
+
+const GOOD_READINESS_ACTIONS: Partial<Record<GoodsReadinessReasonCode, string>> = {
+  kc_required: 'KC 검토하기', kc_legacy_unrecorded: 'KC 정보 확인하기', type_missing: '상품 유형 선택하기', image_missing: '대표 이미지 등록하기', notice_missing: '고시정보 입력하기',
+  no_active_options: '옵션 확인하기', stock_unavailable: '재고 확인하기', shipping_unavailable: '출고지 확인하기', payment_disabled: '결제수단 확인하기', restricted_sale: '판매 제한 확인하기',
+  ip_unpublished: '연결 IP 확인하기', ip_archived: '연결 IP 확인하기', stopped: '판매상태 확인하기',
+};
+/** 판매 준비 다음 할 일 버튼의 이름. */
+export function goodReadinessAction(code: GoodsReadinessReasonCode): string { return GOOD_READINESS_ACTIONS[code] ?? '확인하기'; }
+
+/** 서버가 공개를 거절하는 사유(private.set_good_published·KC 가드). 나머지 사유는 공개는 되지만 고객이 보지 못하거나 사지 못한다. */
+const GOOD_PUBLISH_GATES: ReadonlySet<GoodsReadinessReasonCode> = new Set<GoodsReadinessReasonCode>(['type_missing', 'image_missing', 'notice_missing', 'no_active_options', 'kc_required']);
+/* 게시 상태 자체를 말하는 사유. 위쪽 게시 배지가 말하므로 할 일로 세지 않는다. 판정을 못 읽은 경우는 추정하지 않고 공개를 보조 버튼으로 둔다. */
+const GOOD_READINESS_STATUS_ONLY: ReadonlySet<GoodsReadinessReasonCode> = new Set<GoodsReadinessReasonCode>(['draft', 'archived', 'readiness_unknown']);
+
+export interface GoodReadinessPlan {
+  /** 먼저 처리할 항목(공개를 막는 항목 우선). 없으면 null이다. */
+  next: GoodReadinessReason | null;
+  /** next 다음에 확인할 항목. */
+  others: GoodReadinessReason[];
+  /** 공개 버튼. primary면 주 행동, secondary면 보조, null이면 서버가 거절하므로 그리지 않는다. */
+  publish: 'primary' | 'secondary' | null;
+}
+
+/** 초안의 판매 준비 카드가 보일 주 행동. 공개 판정은 서버가 하고, 이 계획은 무엇을 먼저 할지 보여 주기만 한다. */
+export function goodReadinessPlan(readiness: AdminGoodsReadiness | null | undefined): GoodReadinessPlan {
+  if (!readiness) return { next: null, others: [], publish: 'secondary' };
+  const items = readiness.reasons.filter((reason) => !GOOD_READINESS_STATUS_ONLY.has(reason.code));
+  const gates = items.filter((reason) => GOOD_PUBLISH_GATES.has(reason.code));
+  const [next = null, ...others] = [...gates, ...items.filter((reason) => !GOOD_PUBLISH_GATES.has(reason.code))];
+  const unknown = readiness.reasons.some((reason) => reason.code === 'readiness_unknown');
+  return { next, others, publish: gates.length ? null : next || unknown ? 'secondary' : 'primary' };
+}
+
+/**
+ * 판매 설정 배지의 상태. 서버는 초안·보관도 판매 불가('blocked')로 세지만 그건 게시 배지가 말하는 내용이다.
+ * 설정을 실제로 막는 사유가 있을 때만 확인 필요로 보여, 뭘 먼저 할지 흐리지 않는다.
+ */
+export function goodSaleSettingsState(readiness: AdminGoodsReadiness): AdminGoodsReadiness['saleSettings'] {
+  if (readiness.saleSettings !== 'blocked') return readiness.saleSettings;
+  return readiness.reasons.some((reason) => reason.kind === 'blocking' && !GOOD_READINESS_STATUS_ONLY.has(reason.code)) ? 'blocked' : 'ready';
 }

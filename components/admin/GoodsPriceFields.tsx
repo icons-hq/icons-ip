@@ -33,7 +33,7 @@ export function GoodsPriceFields({ draft, onDraftChange, result, errors }: {
   const discountError = result.discountError ?? errors.discountValue ?? (draft.discountEnabled ? errors.compareAtPrice : undefined);
 
   return <div className="flex min-w-0 flex-col gap-5" data-good-price-editor="">
-    <AdminField inputId="goods-regular-price" label={ADMIN_VOCABULARY.salePrice} hint="할인 전 가격입니다. 옵션가는 이 금액(할인하면 할인가)에 더합니다." error={regularError}>
+    <AdminField inputId="goods-regular-price" label={`${ADMIN_VOCABULARY.salePrice} (필수)`} hint="할인 전 가격입니다. 옵션가는 이 금액(할인하면 할인가)에 더합니다." error={regularError}>
       <GoodAmountField unit="원">
         <input ref={regularRef} className={GOOD_NUMBER_INPUT_CLASS} data-slot="input" id="goods-regular-price" name="regularPrice" type="number" min={0} max={2147483647} step={1} inputMode="numeric" placeholder="0"
           aria-describedby={`goods-regular-price-hint${regularError ? ' goods-regular-price-error' : ''}`} aria-invalid={regularError ? 'true' : undefined}

@@ -15,7 +15,7 @@ export function GoodsFulfillmentFields({ origins, value, errors = {}, regionSumm
   const origin = origins.find((item) => item.id === originId);
   const won = (amount: number) => `${amount.toLocaleString('ko-KR')}원`;
   return <AdminFormGrid>
-    <AdminField inputId="good-origin" label="출고지" error={errors.originId}>
+    <AdminField inputId="good-origin" label="출고지 (필수)" error={errors.originId}>
       <NativeSelect className="w-full" id="good-origin" name="originId" value={originId} onChange={(event) => setOriginId(event.target.value)} aria-invalid={Boolean(errors.originId)} aria-describedby={errors.originId ? "good-origin-error" : undefined}>
         <option value="">설정 전</option>
         {origins.map((origin) => <option key={origin.id} value={origin.id} disabled={!origin.active && origin.id !== originId}>{origin.name}{origin.active ? '' : ' · 비활성'}</option>)}

@@ -161,9 +161,9 @@ const SECTION_SUMMARY_CLASS = 'flex min-h-14 cursor-pointer list-none items-cent
 const SECTION_BODY_CLASS = 'flex min-w-0 flex-col gap-5 border-t px-4 py-4 sm:px-5 sm:py-5';
 const SECTION_CHEVRON = <ChevronDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open/section:rotate-180 motion-reduce:transition-none" />;
 
-/** 카드별 남은 필수 입력: 남았으면 숫자(위험색), 끝났으면 체크. 서버 판정을 대신하지 않는 안내다. */
+/** 카드별 남은 필수 입력: 남았으면 "N개 남음"(위험색), 끝났으면 체크. 숫자만 두면 오류 수로 읽혀 글자로 말한다. 서버 판정을 대신하지 않는 안내다. */
 function GoodCardProgressMark({ remaining }: { remaining: number }) {
-  if (remaining > 0) return <span className="ml-1 inline-flex min-w-4 items-center justify-center rounded-full bg-danger-soft px-1 text-xs font-medium text-destructive tabular-nums"><span className="sr-only">필수 입력 남음 </span>{remaining}</span>;
+  if (remaining > 0) return <AdminStatusBadge className="ml-1.5 tabular-nums" tone="danger"><span className="sr-only">필수 입력 남음 {remaining}개</span><span aria-hidden="true">{remaining}개 남음</span></AdminStatusBadge>;
   return <span className="ml-1 inline-flex items-center text-success"><Check aria-hidden="true" className="size-3.5" /><span className="sr-only">필수 입력 완료</span></span>;
 }
 
@@ -302,8 +302,8 @@ export function GoodFoldedRow({ id, title, summary, errorCount = 0, isDefault = 
 }
 
 /** Native details keep every named input mounted when a section is folded. */
-export function GoodEditorSection({ id, title, requirement, required = false, remaining, summary, errorCount = 0, children, defaultOpen = true }: {
-  id?: string; title: string; requirement?: string; required?: boolean;
+export function GoodEditorSection({ id, title, requirement, remaining, summary, errorCount = 0, children, defaultOpen = true }: {
+  id?: string; title: string; requirement?: string;
   /** 이 카드의 남은 필수 입력 수. undefined면 필수 항목이 없는 카드다. */
   remaining?: number;
   summary?: ReactNode; errorCount?: number; children: ReactNode; defaultOpen?: boolean;
@@ -311,7 +311,7 @@ export function GoodEditorSection({ id, title, requirement, required = false, re
   const openProps = useSectionOpen(id, defaultOpen, errorCount > 0);
   return <details id={id} className={SECTION_CLASS} aria-label={title} data-good-section="" tabIndex={-1} {...openProps}>
     <summary className={SECTION_SUMMARY_CLASS}>
-      <span className="shrink-0 text-base leading-snug font-medium text-foreground" data-good-section-title="">{title}{required ? <span className="ml-0.5 text-destructive" aria-label="필수">*</span> : null}</span>
+      <span className="shrink-0 text-base leading-snug font-medium text-foreground" data-good-section-title="">{title}</span>
       {remaining === undefined ? null : remaining > 0
         ? <AdminStatusBadge className="shrink-0 tabular-nums" data-good-card-remaining={remaining} tone="danger">필수 {remaining}개 남음</AdminStatusBadge>
         : <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-success" data-good-card-remaining="0"><Check aria-hidden="true" className="size-3.5" />필수 입력 완료</span>}

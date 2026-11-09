@@ -12,15 +12,17 @@ import type { AdminCategoryNode } from '@/lib/admin/category';
 import type { GoodsShippingNoticeOption } from '../GoodsShippingNoticeField';
 import type { Ip } from '@/lib/data';
 import { adminCatalogArchiveCounts, filterAdminCatalogRecords, formatAdminCatalogRecordLabel, type AdminCatalogArchiveFilter } from '@/lib/admin/catalog-archive';
-import { goodsReadinessAnchor, type AdminGoodsReadiness } from '@/lib/admin/goods-readiness';
+import type { AdminGoodsReadiness } from '@/lib/admin/goods-readiness';
+import { goodSaleSettingsState } from '@/lib/admin/good-workspace';
+import { statusTone } from '@/lib/admin/status-tone';
 import { ADMIN_VOCABULARY, adminGoodsCopy } from '@/lib/admin/vocabulary';
-import { AdminStatusBadge } from '../console/AdminKit';
-import { GOOD_INPUT_CLASS, GOOD_NOTE_CLASS } from '../GoodEditorParts';
+import { AdminNotice, AdminStatusBadge } from '../console/AdminKit';
+import { GOOD_INPUT_CLASS } from '../GoodEditorParts';
 import { RecordList } from '../fields';
 import { GoodEditor } from '../GoodEditor';
 import { CatalogArchiveControl, CatalogArchiveFilter } from '../CatalogArchiveControls';
 import { GoodsListingColorsPanel } from '../GoodsListingColorsPanel';
-import { GOOD_OPERATION_PLACEHOLDER_COPY, GOOD_UNSAVED_BASE_COPY, GoodOperationDisabledNotice, GoodOperationGroup, GoodOperationSection, GoodWorkspaceProvider, focusGoodWorkspaceTarget } from '../GoodWorkspace';
+import { GOOD_OPERATION_PLACEHOLDER_COPY, GOOD_UNSAVED_BASE_COPY, GoodOperationDisabledNotice, GoodOperationGroup, GoodOperationSection, GoodWorkspaceProvider } from '../GoodWorkspace';
 import { GoodWorkspaceKcCard, GoodWorkspacePreorderRow } from '../GoodWorkspaceSections';
 import { VariantStockAdjustmentForm } from '../VariantStockAdjustmentForm';
 import { GoodVariantsPanel } from '../GoodVariantsPanel';
@@ -63,7 +65,7 @@ const OPERATION = {
   production: ['주문 후 제작', '상품별 제작 여부와 발송 예정 기간·휴무일을 저장합니다.'],
   'option-sale-mode': ['판매 방식', '고객이 옵션을 고르는 판매와 랜덤 판매 중 판매 방식만 별도로 저장합니다.'],
   preorders: ['예약판매', '예약판매 설정과 물량을 별도로 저장합니다.'],
-  clone: ['상품 복사', '서버에 저장된 상품으로 새로운 초안을 만듭니다.'],
+  clone: ['상품 복사', '저장된 상품으로 새로운 초안을 만듭니다.'],
   archive: ['상품 보관·복원', '게시와 보관 상태만 변경합니다.'],
 } as const;
 type OperationId = keyof typeof OPERATION;
@@ -117,6 +119,7 @@ export function GoodSection({
   );
   const [query,setQuery]=useState(initialQuery);
   const [editingState, setEditingState] = useState<{ goodId: string | null; dirty: boolean; busy: boolean } | null>(null);
+  const [publishOnSave, setPublishOnSave] = useState(false);
   const [transactionBusy, setTransactionBusy] = useState(false);
   const [subscriptionBusy, setSubscriptionBusy] = useState(false);
   const [chargeBusy, setChargeBusy] = useState(false);
@@ -144,8 +147,7 @@ export function GoodSection({
     || variants.some((variant)=>variant.goodId===good.id && `${variant.code} ${variant.erpCode ?? ''} ${variant.erpName ?? ''} ${variant.barcode ?? ''}`.toLocaleLowerCase().includes(normalizedQuery)));
   /* 저장에 성공한 시도. 등록 화면의 KC·예약판매 입력은 서버로 들어갔으므로 provider가 비우고 작업 ID를 새로 만든다. */
   const completedKey = state.savedGoodId && !state.errors ? `${state.savedGoodId}:${state.attempt ?? 0}` : null;
-  /* 판매 준비 링크의 도착지. 사유 표의 대상은 공용 판정(goods-readiness)이고, 입력이 옮겨 간 두 항목만 새 자리로 보낸다. */
-  const readinessReasonAnchor = (reason: AdminGoodsReadiness['reasons'][number]) => reason.code === 'stopped' ? 'good-section-information' : reason.code === 'image_missing' ? 'good-section-images' : goodsReadinessAnchor(reason.target);
+  const saleSettings = readiness ? goodSaleSettingsState(readiness) : null;
   /* 고시 입력 바로 아래 놓일 KC 영역. 저장 전에는 기본 입력과 함께 저장하고, 저장 뒤에는 KC만 따로 저장한다. */
   const kcSlot: ReactNode = selected
     ? (selected.archivedAt ? null : <GoodOperationSection id="kc" title={OPERATION.kc[0]} description={OPERATION.kc[1]} separateLabel defaultOpen={kcStartsOpen}><GoodsKcPanel goodId={selected.id} refreshKey={state.attempt ?? 0} templateRequest={kcTemplate.request} onTemplateApplied={kcTemplate.consume} key={`kc-${selected.id}-${selected.publishedAt}-${selected.archivedAt}`} /></GoodOperationSection>)
@@ -215,28 +217,28 @@ export function GoodSection({
       </div>}
       {/* 아래 여백은 고정 저장 영역(GoodEditor)에 마지막 카드가 가리지 않게 한다. */}
       <div className="flex min-w-0 flex-col gap-4 pb-40 xl:pb-20">
-        {ownership?.group ? <section className={`${GOOD_NOTE_CLASS} flex flex-col gap-1`} data-good-lock=""><strong className="font-medium">{ownership.group.name} · 그룹상품</strong><p className="text-muted-foreground">상품명과 옵션 구성은 <a className="text-foreground underline underline-offset-4" href={goodsGroupHref(ownership.group.id)}>그룹 구성</a>에서, 카테고리·속성·IP·유형·고시·상세설명·A/S·사이즈는 <a className="text-foreground underline underline-offset-4" href={goodsGroupCommonHref(ownership.group)}>공통정보 편집</a>에서 수정합니다.</p></section> : null}
-        {ownership && !ownership.aggregation.editable ? <p className={`${GOOD_NOTE_CLASS} text-muted-foreground`}>배송비·주문 수량·회원 누적 한도·복수구매 할인은 <a className="text-foreground underline underline-offset-4" href={`/admin/catalog/goods?goodId=${encodeURIComponent(ownership.aggregation.ownerGoodId)}`}>합산 기준 상품</a>에서 관리합니다.</p> : null}
-        {selected && <section aria-label="서버 판매 준비 상태" className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-sm text-card-foreground sm:p-5" data-good-readiness="">
-          <h3 className="text-base leading-snug font-medium">저장된 상품의 판매 준비</h3>
-          <p className="text-muted-foreground">게시·판매 설정·KC 검토는 별도 조건입니다. 이 요약은 결제사 승인이나 실제 구매 성공을 보증하지 않습니다.</p>
-          {readiness ? <><div className="flex flex-wrap items-center gap-2">
-            <AdminStatusBadge>게시 · {{ draft: '초안', published: '공개', archived: '보관', unknown: '확인 필요' }[readiness.publication]}</AdminStatusBadge>
-            <AdminStatusBadge>운영 · {{ active: '정상', stopped: '판매 중지', unknown: '확인 필요' }[readiness.operation]}</AdminStatusBadge>
-            <AdminStatusBadge tone={readiness.saleSettings === 'ready' ? 'success' : 'warning'}>판매 설정 · {readiness.saleSettings === 'ready' ? '준비 완료' : '확인 필요'}</AdminStatusBadge>
-            <AdminStatusBadge>공개 검토 · {{ current: 'KC 검토 완료', required: 'KC 검토 필요', legacy_unrecorded: '기존 공개 · KC 미기록', unknown: '확인 필요' }[readiness.publicReview]}</AdminStatusBadge>
-            <span className="text-sm tabular-nums">판매 가능 재고 {readiness.availableQty === null ? '확인 필요' : `${readiness.availableQty.toLocaleString('ko-KR')}개`}</span>
+        {ownership?.group ? <section data-good-lock=""><AdminNotice title={`${ownership.group.name} · 그룹상품`} tone="neutral">상품명과 옵션 구성은 <a className="underline underline-offset-4" href={goodsGroupHref(ownership.group.id)}>그룹 구성</a>에서, 카테고리·속성·IP·유형·고시·상세설명·A/S·사이즈는 <a className="underline underline-offset-4" href={goodsGroupCommonHref(ownership.group)}>공통정보 편집</a>에서 수정합니다.</AdminNotice></section> : null}
+        {ownership && !ownership.aggregation.editable ? <AdminNotice tone="neutral">배송비·주문 수량·회원 누적 한도·복수구매 할인은 <a className="underline underline-offset-4" href={`/admin/catalog/goods?goodId=${encodeURIComponent(ownership.aggregation.ownerGoodId)}`}>합산 기준 상품</a>에서 관리합니다.</AdminNotice> : null}
+        {/* 입력칸을 밀어내지 않게 상태는 한 줄, 처리할 일은 하나만 펼쳐 둔다. 긴 안내는 판매 준비 안내에 접혀 있다. */}
+        {selected && <section aria-label="판매 준비 상태" className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-sm text-card-foreground sm:p-5" data-good-readiness="">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
+            <h3 className="text-base leading-snug font-medium">판매 준비</h3>
+            {readiness ? <>
+              <AdminStatusBadge tone={statusTone('publication', readiness.publication)}>게시 · {{ draft: '초안', published: '공개', archived: '보관', unknown: '확인 필요' }[readiness.publication]}</AdminStatusBadge>
+              <AdminStatusBadge tone={statusTone('operation', readiness.operation)}>운영 · {{ active: '정상', stopped: '판매 중지', unknown: '확인 필요' }[readiness.operation]}</AdminStatusBadge>
+              <AdminStatusBadge tone={statusTone('readiness', saleSettings)}>판매 설정 · {saleSettings === 'ready' ? '준비 완료' : '확인 필요'}</AdminStatusBadge>
+              <AdminStatusBadge tone={statusTone('readiness', { current: 'ready', required: 'review_required', legacy_unrecorded: 'review_required', unknown: 'unknown' }[readiness.publicReview])}>공개 검토 · {{ current: 'KC 검토 완료', required: 'KC 검토 필요', legacy_unrecorded: '기존 공개 · KC 미기록', unknown: '확인 필요' }[readiness.publicReview]}</AdminStatusBadge>
+              <span className="ml-auto text-sm tabular-nums">판매 가능 재고 {readiness.availableQty === null ? '확인 필요' : `${readiness.availableQty.toLocaleString('ko-KR')}개`}</span>
+            </> : null}
           </div>
-            {readiness.publication === 'draft' ? <p className="font-medium text-foreground" data-good-readiness-next="">{readiness.reasons.some((reason) => reason.code !== 'draft' && reason.kind !== 'info') ? '다음 할 일: 아래 항목을 처리한 뒤 공개로 전환을 누르세요.' : '다음 할 일: 공개로 전환을 누르세요.'}</p> : null}
-            <ul className="flex list-disc flex-col gap-1 pl-5">{readiness.reasons.map((reason) => { const anchor = readinessReasonAnchor(reason); return <li key={reason.code}><a className="underline underline-offset-4" href={`#${anchor}`} onClick={(event) => { event.preventDefault(); focusGoodWorkspaceTarget(anchor); }}>{reason.label}</a> · {reason.detail}</li>; })}</ul>
-            <small className="text-xs text-muted-foreground">확인 시각 {readiness.checkedAt ? new Date(readiness.checkedAt).toLocaleString('ko-KR') : '확인 필요'} · 미저장 입력은 판정에 포함되지 않습니다.</small></> : <p className="text-muted-foreground">판매 준비 정보를 확인하지 못했습니다. 다시 불러와 확인해주세요.</p>}
-          {/* 공개는 저장 뒤 가장 잦은 동작이라 접지 않고 판매 준비 바로 아래에 둔다. `#good-operation-publish` 링크의 도착지다. */}
-          <div className="min-w-0 scroll-mt-24 outline-none" id="good-operation-publish" tabIndex={-1}><GoodPublishControls id={selected.id} publishedAt={selected.publishedAt} archivedAt={selected.archivedAt} key={`publish-${selected.id}-${selected.publishedAt}-${selected.archivedAt}`}/></div>
+          {readiness ? null : <AdminNotice tone="warning">판매 준비 정보를 확인하지 못했습니다. 다시 불러와 확인해주세요.</AdminNotice>}
+          <GoodPublishControls id={selected.id} publishedAt={selected.publishedAt} archivedAt={selected.archivedAt} readiness={readiness} unsaved={policyUnsaved} publishOnSave={publishOnSave} key={`publish-${selected.id}-${selected.publishedAt}-${selected.archivedAt}`}/>
         </section>}
         <fieldset className="m-0 flex min-w-0 flex-col gap-4 border-0 p-0" disabled={transactionBusy || subscriptionBusy || chargeBusy}>
         <GoodEditor
           ownership={ownership}
           onEditingStateChange={setEditingState}
+          onPublishOnSaveChange={setPublishOnSave}
           listHref={listHref}
           canSearchErp={canSearchErp}
           canActivatePreorders={canManageCosts}

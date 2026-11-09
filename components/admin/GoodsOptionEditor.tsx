@@ -291,7 +291,7 @@ function SingleStock({ row, basePrice, update, structureLocked }: {
   /* 사용여부도 같다. 중지된 기본 옵션만 남은 상품은 여기서 되돌린다. */
   const [activeVisible, setActiveVisible] = useState(false);
   return <div className="grid min-w-0 items-start gap-x-6 gap-y-5 sm:grid-cols-2 xl:grid-cols-3">
-    <AdminField inputId="goods-single-stock" label="재고수량">
+    <AdminField inputId="goods-single-stock" label="재고수량 (필수)">
       <GoodAmountField unit="개">
         <input className={GOOD_NUMBER_INPUT_CLASS} data-slot="input" id="goods-single-stock" aria-describedby="goods-option-stock-guidance" value={row.stockQty} min={0} step={1} type="number" onChange={(event) => update(key, { stockQty: wholeNumber(event.target.value) })} />
       </GoodAmountField>
