@@ -102,7 +102,7 @@ export function GoodsPhotoLibraryScreen({ initial = emptyPage, onSelect }: { ini
         {!onSelect ? <label className={CONSOLE_FILTER_LABEL_CLASS}>표시<AdminSelect aria-label="사진 표시 상태" value={archived ? 'archived' : 'active'} disabled={busy} onChange={event => { void search(1,event.target.value==='archived'); }} wrapperClassName="w-44"><option value="active">사용 가능한 사진</option><option value="archived">보관한 사진</option></AdminSelect></label> : null}
       </div>
       <ConsoleFilterActions start={<p className="text-xs text-muted-foreground">보관해도 파일은 유지됩니다.{!onSelect ? ` 업로드는 한 번에 최대 ${GOODS_PHOTO_UPLOAD_LIMIT}장, ${ADMIN_ARTWORK_ERROR}` : ''}</p>}>
-        <Button variant="outline" type="button" disabled={busy} onClick={() => { setQuery(''); void search(1, false, ''); }}>초기화</Button>
+        <Button variant="ghost" type="button" disabled={busy} onClick={() => { setQuery(''); void search(1, false, ''); }}>초기화</Button>
         <Button type="button" disabled={busy} onClick={() => { void search(); }} variant="soft">조회</Button>
       </ConsoleFilterActions>
     </div>

@@ -50,7 +50,7 @@ export function ShippingSettingsTemplatesScreen({ data, origins, regions, accoun
         <ConsoleFilterField className="min-w-[min(100%,18rem)] flex-1" htmlFor="shipping-template-query" label="템플릿 이름"><Input id="shipping-template-query" name="q" defaultValue={data.filters.query} maxLength={80} type="search" placeholder="템플릿 이름을 입력해주세요" /></ConsoleFilterField>
         <ConsoleFilterField htmlFor="shipping-template-state" label="사용 여부"><NativeSelect className="w-36" id="shipping-template-state" name="state" defaultValue={data.filters.state}><option value="all">전체</option><option value="enabled">사용</option><option value="disabled">사용 안 함</option></NativeSelect></ConsoleFilterField>
       </div>
-      <ConsoleFilterActions><Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={withSelection(SHIPPING_SETTINGS_PATH)}>초기화</Link><button className={buttonVariants({ variant: 'soft' })} data-slot="button" type="submit">검색</button></ConsoleFilterActions>
+      <ConsoleFilterActions><Link className={buttonVariants({ variant: 'ghost' })} data-slot="button" href={withSelection(SHIPPING_SETTINGS_PATH)}>초기화</Link><button className={buttonVariants({ variant: 'soft' })} data-slot="button" type="submit">검색</button></ConsoleFilterActions>
     </form>
     {message ? <AdminNotice role="status" tone="neutral">{message}</AdminNotice> : null}
     {blocked ? <AdminNotice role="alert" tone="danger">로그인 계정 또는 세션이 바뀌었습니다. 현재 계정으로 이 화면을 다시 열어주세요.</AdminNotice> : null}

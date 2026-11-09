@@ -86,7 +86,7 @@ export function GoodsAfterSalesTemplatesScreen({ onSelect }: { onSelect?: (templ
         {!onSelect ? <div className="flex min-w-0 flex-col gap-1.5"><Label htmlFor={ARCHIVED_SELECT_ID}>보관 상태</Label><NativeSelect className="w-full sm:w-32" id={ARCHIVED_SELECT_ID} value={archived ? 'archived' : 'active'} onChange={event => void load(1, search, event.target.value === 'archived')} disabled={pending}><option value="active">사용 중</option><option value="archived">보관됨</option></NativeSelect></div> : null}
       </div>
       <ConsoleFilterActions>
-        <button className={buttonVariants({ variant: 'outline' })} data-slot="button" type="button" disabled={pending} onClick={() => { setQuery(''); void load(1, '', false); }}>초기화</button>
+        <button className={buttonVariants({ variant: 'ghost' })} data-slot="button" type="button" disabled={pending} onClick={() => { setQuery(''); void load(1, '', false); }}>초기화</button>
         <button className={buttonVariants({ variant: 'soft' })} data-slot="button" disabled={pending}>검색</button>
       </ConsoleFilterActions>
     </form>

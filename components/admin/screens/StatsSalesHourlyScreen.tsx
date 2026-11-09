@@ -23,7 +23,7 @@ export function StatsSalesHourlyControls({ filters, report, error }: { filters: 
       </StatsFilterRow>
       <StatsFilterRow label="오늘 현황">
         <button className={buttonVariants({ variant: 'soft' })} data-slot="button" type="submit"><RefreshCw aria-hidden="true" />조회·갱신</button>
-        <Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={ADMIN_SALES_HOURLY_PATH}>초기화</Link>
+        <Link className={buttonVariants({ variant: 'ghost' })} data-slot="button" href={ADMIN_SALES_HOURLY_PATH}>초기화</Link>
         <p className="text-xs text-muted-foreground">비교일 미선택 시 7일 전 · 오늘의 완료된 시간대까지 조회</p>
       </StatsFilterRow>
     </form>

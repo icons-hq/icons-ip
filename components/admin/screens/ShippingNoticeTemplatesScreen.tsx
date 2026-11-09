@@ -47,7 +47,7 @@ export function ShippingNoticeTemplatesScreen({ data }: { data: ShippingNoticeTe
         </ConsoleFilterField>
       </div>
       <ConsoleFilterActions>
-        {filters.query || filters.goodQuery ? <Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={SHIPPING_NOTICE_TEMPLATES_PATH}>검색 초기화</Link> : null}
+        {filters.query || filters.goodQuery ? <Link className={buttonVariants({ variant: 'ghost' })} data-slot="button" href={SHIPPING_NOTICE_TEMPLATES_PATH}>검색 초기화</Link> : null}
         <button className={buttonVariants({ variant: 'soft' })} data-slot="button" type="submit">검색</button>
       </ConsoleFilterActions>
     </form>

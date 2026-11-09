@@ -51,7 +51,7 @@ export function CustomerPurchaseFilters({ filters, now }: { filters: Filters; no
           <Button onClick={previous} type="button" variant="outline">직전 동일 기간</Button></> : null}
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3"><p className="text-xs text-muted-foreground">한국시간 기준 · 마감된 월요일~일요일 / 월 첫날~말일 · 각 기간 최대 366일</p>
-        <div className="flex gap-2"><a className={buttonVariants({ variant: 'outline' })} data-slot="button" href="/admin/stats/customers?view=purchase">초기화</a>
+        <div className="flex gap-2"><a className={buttonVariants({ variant: 'ghost' })} data-slot="button" href="/admin/stats/customers?view=purchase">초기화</a>
           <Button type="submit" variant="soft">조회</Button></div></div>
     </form>
     <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3"><p className="text-xs text-muted-foreground">기간·단위 변경 후 조회하면 결과에 적용됩니다.</p>

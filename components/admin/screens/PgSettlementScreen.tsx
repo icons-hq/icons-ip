@@ -102,7 +102,7 @@ export function PgSettlementScreen({ filters, report, connection, operationId, a
           <SalesSelect name="pageSize" label="목록 수" value={String(filters.pageSize)} options={[20, 50, 100].map(size => ({ value: String(size), label: `${size}개씩 보기` }))} />
         </SalesFilterField>
         {/* 조회 버튼을 입력과 같은 줄 끝에 둔다 — 버튼만의 줄이 처리할 목록을 한 줄씩 밀어낸다. */}
-        <div className="ml-auto flex items-center gap-2 self-end"><Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={PG_SETTLEMENT_PATH}>초기화</Link><Button type="submit" variant="soft">검색</Button></div>
+        <div className="ml-auto flex items-center gap-2 self-end"><Link className={buttonVariants({ variant: 'ghost' })} data-slot="button" href={PG_SETTLEMENT_PATH}>초기화</Link><Button type="submit" variant="soft">검색</Button></div>
       </div>
     </form>
     {filters.rangeError ? <Alert variant="destructive"><AlertDescription className="text-destructive">{filters.rangeError}</AlertDescription></Alert>

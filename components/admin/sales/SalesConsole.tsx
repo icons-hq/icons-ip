@@ -111,7 +111,7 @@ export function SalesFilterPanel({
       {children}
       {/* 조회 버튼을 입력과 같은 줄 끝에 둔다 — 버튼만의 줄이 처리할 목록을 한 줄씩 밀어낸다. */}
       <div className="ml-auto flex items-center gap-2 self-end">
-        <Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={resetHref ?? action}>초기화</Link>
+        <Link className={buttonVariants({ variant: 'ghost' })} data-slot="button" href={resetHref ?? action}>초기화</Link>
         <Button type="submit" variant="soft">검색</Button>
       </div>
     </div>

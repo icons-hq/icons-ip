@@ -72,7 +72,7 @@ export function GoodsListFiltersForm({ data }: { data: AdminGoodsListData }) {
     </details>
     {/* 검색어 안내는 버튼 줄의 빈자리에 둔다 — 안내 한 줄만큼 목록이 위로 올라온다. 좁은 화면에서는 입력 칸의 설명으로만 남는다. */}
     <p className="absolute top-3.5 right-44 left-28 hidden truncate text-xs text-muted-foreground lg:block" id="goods-list-query-hint">상품번호는 쉼표나 공백으로 구분해 여러 개를 조회할 수 있습니다. 전체 검색에는 영문명·검색 키워드도 포함됩니다.</p>
-    <div className="absolute top-1.5 right-0 flex gap-2"><Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={GOODS_LIST_PATH}>초기화</Link><Button type="submit" variant="soft">검색</Button></div>
+    <div className="absolute top-1.5 right-0 flex gap-2"><Link className={buttonVariants({ variant: 'ghost' })} data-slot="button" href={GOODS_LIST_PATH}>초기화</Link><Button type="submit" variant="soft">검색</Button></div>
     </div>
   </form>;
 }

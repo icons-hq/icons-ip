@@ -66,7 +66,7 @@ export function CurationProductPicker({ options, goods, selectedIds, limit, onAp
   return <CurationEditorDialog title="전시 상품 선택" onClose={onClose}>
     <div className="flex flex-wrap items-end gap-2 bg-muted/40 px-5 py-5">
       <label className="flex min-w-0 flex-1 flex-col gap-2 text-sm font-medium">상품명 / 상품코드<Input onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="상품명 또는 상품코드를 입력하세요" value={query} /></label>
-      <Button onClick={() => { setQuery(''); setPage(1); }} type="button" variant="outline">초기화</Button>
+      <Button onClick={() => { setQuery(''); setPage(1); }} type="button" variant="ghost">초기화</Button>
     </div>
     <div className="px-5"><GoodUrlAddField onAdd={(id) => {
       const option = options.find((candidate) => candidate.id === id && !candidate.archivedAt);

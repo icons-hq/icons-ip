@@ -31,7 +31,7 @@ export function ReviewEventListScreen({ data }: { data: ReviewEventList }) {
         <label className={LABEL_CLASS}><span className={FIELD_LABEL_CLASS}>시작 날짜</span><Input type="date" name="from" defaultValue={filters.from} /></label><label className={LABEL_CLASS}><span className={FIELD_LABEL_CLASS}>종료 날짜</span><Input type="date" name="to" defaultValue={filters.to} /></label>
         <label className={LABEL_CLASS}><span className={FIELD_LABEL_CLASS}>목록 수</span><AdminSelect name="pageSize" defaultValue={filters.pageSize}>{[20, 50, 100].map(size => <option key={size} value={size}>{size}개씩</option>)}</AdminSelect></label>
       </div>
-      <div className="flex flex-wrap justify-end gap-2 border-t pt-3"><Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={REVIEW_EVENTS_ADMIN_PATH}>초기화</Link><Button type="submit" variant="soft">검색</Button></div>
+      <div className="flex flex-wrap justify-end gap-2 border-t pt-3"><Link className={buttonVariants({ variant: 'ghost' })} data-slot="button" href={REVIEW_EVENTS_ADMIN_PATH}>초기화</Link><Button type="submit" variant="soft">검색</Button></div>
     </form>
     <section aria-label="리뷰이벤트 목록" className="flex min-w-0 flex-col gap-4 rounded-xl border bg-card p-4 text-card-foreground">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">

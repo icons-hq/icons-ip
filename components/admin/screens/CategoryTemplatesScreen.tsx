@@ -87,7 +87,7 @@ export function CategoryTemplatesScreen({ categories = [], onSelect, selectionHi
       {!onSelect ? <label className={CONSOLE_FILTER_LABEL_CLASS}>보관 상태<AdminSelect value={archived ? 'archived' : 'active'} disabled={locked} onChange={event => void load(1, search, event.target.value === 'archived')} wrapperClassName="w-40"><option value="active">사용 중</option><option value="archived">보관됨</option></AdminSelect></label> : null}
     </div>
     <ConsoleFilterActions>
-      <Button variant="outline" type="button" disabled={locked} onClick={() => { setQuery(''); void load(1, '', false); }}>초기화</Button>
+      <Button variant="ghost" type="button" disabled={locked} onClick={() => { setQuery(''); void load(1, '', false); }}>초기화</Button>
       <Button type={onSelect ? 'button' : 'submit'} disabled={locked} onClick={onSelect ? () => void load(1, query, archived) : undefined} variant="soft">검색</Button>
     </ConsoleFilterActions>
   </>;

@@ -79,7 +79,7 @@ export function GoodsEventTemplatesScreen({ onSelect }: { onSelect?: (template: 
         {!onSelect ? <label className={CONSOLE_FILTER_LABEL_CLASS}>보관 상태<AdminSelect value={archived ? 'archived' : 'active'} onChange={event => void load(1, search, event.target.value === 'archived')} disabled={pending} wrapperClassName="w-40"><option value="active">사용 중</option><option value="archived">보관됨</option></AdminSelect></label> : null}
       </div>
       <ConsoleFilterActions>
-        <Button variant="outline" type="button" disabled={pending} onClick={() => { setQuery(''); void load(1, '', false); }}>초기화</Button>
+        <Button variant="ghost" type="button" disabled={pending} onClick={() => { setQuery(''); void load(1, '', false); }}>초기화</Button>
         <Button type="submit" disabled={pending} variant="soft">검색</Button>
       </ConsoleFilterActions>
     </form>

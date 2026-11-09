@@ -27,6 +27,6 @@ export function CustomerDemographicFilters({ filters, now }: { filters: Demograp
     <div className="flex min-w-0 flex-col gap-1.5"><label className={LABEL} htmlFor={`${id}-from`}>결제 시작일</label><Input className="w-40" id={`${id}-from`} type="date" name="from" disabled={!purchases} min="2010-01-01" max={latest.to} value={from} onChange={event => setFrom(event.target.value)} required={purchases} /></div>
     <div className="flex min-w-0 flex-col gap-1.5"><label className={LABEL} htmlFor={`${id}-to`}>결제 종료일</label><Input className="w-40" id={`${id}-to`} type="date" name="to" disabled={!purchases} min="2010-01-01" max={latest.to} value={to} onChange={event => setTo(event.target.value)} required={purchases} /></div>
     </div>
-    <ConsoleFilterActions><a className={buttonVariants({ variant: 'outline' })} data-slot="button" href="/admin/stats/customers?view=demographics">초기화</a><button className={buttonVariants({ variant: 'soft' })} data-slot="button" type="submit">조회</button></ConsoleFilterActions>
+    <ConsoleFilterActions><a className={buttonVariants({ variant: 'ghost' })} data-slot="button" href="/admin/stats/customers?view=demographics">초기화</a><button className={buttonVariants({ variant: 'soft' })} data-slot="button" type="submit">조회</button></ConsoleFilterActions>
   </form>;
 }
