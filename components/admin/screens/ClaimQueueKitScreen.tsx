@@ -19,12 +19,14 @@ import { formatOrderDateTime, orderReferenceLabel } from '@/lib/orders';
 import {
   ORDER_CLAIM_REFUND_METHOD_LABELS,
   ORDER_CLAIM_TYPE_LABELS,
+  isOpenOrderClaimStage,
   orderClaimReferenceLabel,
   orderClaimSlaState,
   type OrderClaimStage,
   type OrderClaimType,
 } from '@/lib/orders/claims';
 import { AdminCountCard, type AdminCountTone } from '@/components/admin/console/AdminCountCard';
+import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { SalesGuide } from '@/components/admin/sales/SalesConsole';
 import { statusTone } from '@/lib/admin/status-tone';
 import { ClaimQueueKitTable, type ClaimKitRow } from './ClaimQueueKitTable';
@@ -51,6 +53,12 @@ const CHIP_STAGES: Record<OrderClaimType, OrderClaimStage[]> = {
   return: ['requested', 'in_review', 'collecting', 'collected', 'on_hold', 'processing', 'needs_review'],
   exchange: ['requested', 'in_review', 'collecting', 'collected', 'on_hold', 'processing', 'needs_review'],
 };
+/* 지금 먼저 처리할 단계의 순서. 결제 확인이 막힌 건, 새 요청, 수거가 끝나 다음 처리를 기다리는 건 순이다. */
+const NEXT_ACTION_STAGES: Record<OrderClaimType, OrderClaimStage[]> = {
+  cancel: ['needs_review', 'requested'],
+  return: ['needs_review', 'requested', 'collected'],
+  exchange: ['needs_review', 'requested', 'collected'],
+};
 /* 끝난 단계는 처리할 일이 아니라서 카드로 세우지 않고 글자 링크로 물러난다 — 진행 단계 카드가 한 줄에 서고 표가 그만큼 올라온다. */
 const CLOSED_STAGES: OrderClaimStage[] = ['completed', 'rejected'];
 const STAGE_GRID_CLASS: Record<OrderClaimType, string> = {
@@ -74,6 +82,11 @@ export function ClaimQueueKitScreen({
   const currentHref = adminClaimHref(claimType, filters);
   const collects = claimType !== 'cancel';
   const stageFilterLabel = filters.stage === 'all' ? null : adminClaimStageOptions(claimType).find((option) => option.value === filters.stage)?.label ?? null;
+  /* 오래 기다린 건부터 처리하는 것이 이 화면의 주 행동이다. 이미 그 조건이면 버튼 대신 맨 위부터 처리하라고 말한다. */
+  const nextStage = NEXT_ACTION_STAGES[claimType].find((stage) => (counts[stage] ?? 0) > 0) ?? null;
+  const onNextStage = nextStage !== null && filters.stage === nextStage && filters.sort === 'oldest';
+  /* 표에 며칠째인지 칸이 없어 이 목록에서 가장 오래 기다린 요청을 여기서 말한다. 읽어 온 줄로만 세므로 다음 쪽이 있으면 이 페이지 기준이라고 밝힌다. */
+  const longestWait = rows.filter((row) => isOpenOrderClaimStage(row.stage)).reduce((days, row) => Math.max(days, Math.floor((now.getTime() - Date.parse(row.requestedAt)) / 86_400_000)), 0);
 
   const kitRows: ClaimKitRow[] = rows.map((row) => {
     const sla = orderClaimSlaState({ claimType: row.claimType, stage: row.stage, collectedAt: row.collectedAt, completedAt: row.completedAt }, now);
@@ -133,10 +146,14 @@ export function ClaimQueueKitScreen({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
             <p className="shrink-0 whitespace-nowrap">총 <strong className="tabular-nums">{total.toLocaleString('ko-KR')}</strong>건{stageFilterLabel ? <span className="text-muted-foreground"> · {stageFilterLabel}</span> : null}</p>
-            {/* 처리 막대는 체크한 뒤에야 화면 아래에 뜬다. 체크칸만 보고 다음 동작을 찾지 않게 표 위에 말해 둔다. */}
-            <p className="text-xs text-muted-foreground">처리할 요청을 체크하면 화면 아래에 승인·검토중·거부 버튼이 나타납니다.</p>
           </div>
           <AdminListExportButton href={adminListExportHref(adminListExportClaimScreenId(claimType), currentHref)} total={total} />
+        </div>
+        {/* 눌러야 할 것을 글이 아니라 버튼으로 먼저 보인다. 처리 막대는 체크한 뒤에야 화면 아래에 뜨므로 표 위에 말해 둔다. */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border bg-muted/40 px-3 py-2" data-claim-next-action="">
+          {nextStage !== null && !onNextStage ? <Link className={buttonVariants({ size: 'sm' })} data-slot="button" href={adminClaimHref(claimType, filters, { page: 1, sort: 'oldest', stage: nextStage })}>{adminClaimStageLabel(claimType, nextStage)} {(counts[nextStage] ?? 0).toLocaleString('ko-KR')}건 오래된 순으로 처리</Link> : null}
+          {longestWait >= 1 ? <span className="font-medium whitespace-nowrap">{total > rows.length ? '이 페이지 ' : ''}최장 대기 {longestWait}일째</span> : null}
+          <p className="text-muted-foreground">{onNextStage ? '맨 위 요청부터 ' : ''}요청번호를 누르면 이 자리에서 상세가 열려 처리합니다. 처리할 요청을 체크하면 화면 아래에 승인·검토중·거부 버튼이 나타납니다.</p>
         </div>
         <ClaimQueueKitTable
           claimType={claimType}

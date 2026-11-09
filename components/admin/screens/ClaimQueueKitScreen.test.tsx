@@ -54,6 +54,20 @@ describe('ClaimQueueKitScreen (admin kit)', () => {
     }
   });
 
+  /* 사람 눈 판정: 무엇을 눌러야 하는지 바로 안 보였다. 지금 먼저 처리할 건으로 가는 버튼을 표 위에 둔다. */
+  it('먼저 처리할 단계를 오래된 순으로 여는 주 버튼을 보이고, 이미 그 조건이면 거둔다', () => {
+    const counts = { requested: 2, in_review: 0, collecting: 0, collected: 0, on_hold: 0, processing: 0, needs_review: 1, completed: 0, rejected: 0, withdrawn: 0 };
+    const html = renderToStaticMarkup(<ClaimQueueKitScreen data={data({ counts })} now={NOW} />);
+    const strip = html.slice(html.indexOf('data-claim-next-action'), html.indexOf('<thead'));
+    expect(strip).toMatch(/<a[^>]*data-slot="button"[^>]*>결제확인필요 1건 오래된 순으로 처리</);
+    expect(strip).toContain('sort=oldest'); expect(strip).toContain('stage=needs_review');
+    /* 결제 확인 건이 없으면 새 요청이 먼저다. */
+    expect(renderToStaticMarkup(<ClaimQueueKitScreen data={data({ counts: { ...counts, needs_review: 0 } })} now={NOW} />)).toContain('취소요청 2건 오래된 순으로 처리');
+    const onIt = renderToStaticMarkup(<ClaimQueueKitScreen data={data({ counts, filters: { ...FILTERS, stage: 'needs_review', sort: 'oldest' } })} now={NOW} />);
+    expect(onIt).not.toContain('오래된 순으로 처리'); expect(onIt).toContain('맨 위 요청부터 요청번호를 누르면');
+    expect(html).toContain('최장 대기 1일째');
+  });
+
   /* 사람 눈 판정: 체크칸은 있는데 체크하고 누를 버튼이 보이지 않아 체크해야 나오는 건지 알 수 없었다. */
   it('표 위에 체크하면 처리 버튼이 나온다고 말하고 지금 걸린 단계 조건을 적는다', () => {
     const html = renderToStaticMarkup(<ClaimQueueKitScreen data={data({ filters: { ...FILTERS, stage: 'open' } })} now={NOW} />);

@@ -1,5 +1,7 @@
 import type { AdminClaimDetail } from '@/lib/admin/claims.server';
 import { adminClaimStageLabel } from '@/lib/admin/claims';
+import { orderClaimEffectiveStage } from '@/lib/orders/claims';
+import { Check } from 'lucide-react';
 import { formatOrderDateTime, refundStatusLabel } from '@/lib/orders';
 import { statusTone } from '@/lib/admin/status-tone';
 import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
@@ -7,6 +9,31 @@ import type { ReactNode } from 'react';
 
 type Fact = { label: string; value: ReactNode; detail: string; href: string; link: string };
 type Props = Pick<AdminClaimDetail, 'claim' | 'refund'>;
+
+/** 단계 표시의 동그란 번호(반품 처리 칸과 같은 모양). 끝난 단계는 초록 체크, 지금 단계는 주 색이다. */
+export const CLAIM_STEP_MARK_CLASS = 'inline-grid size-6 shrink-0 place-items-center rounded-full border text-xs font-semibold tabular-nums data-[step-state=current]:border-primary data-[step-state=current]:bg-primary data-[step-state=current]:text-primary-foreground data-[step-state=done]:border-success-border data-[step-state=done]:bg-success-soft data-[step-state=done]:text-success';
+const EXCHANGE_STEPS = ['검토·승인', '회수 확인', '재출고', '도착 확인'] as const;
+type ExchangeStepState = 'done' | 'current' | 'todo';
+const EXCHANGE_STEP_CAPTION: Record<ExchangeStepState, string> = { done: '완료', current: '지금 할 일', todo: '남은 단계' };
+
+/** 교환 처리 칸의 단계 표시. 반품 칸과 같은 말(완료·지금 할 일·남은 단계)로 어디까지 왔는지 보인다. 저장된 처리 기록에서만 읽고 아무것도 바꾸지 않는다. */
+export function ClaimExchangeSteps({ claim }: Pick<AdminClaimDetail, 'claim'>) {
+  if (claim.stage === 'rejected' || claim.stage === 'withdrawn') return null;
+  const effective = orderClaimEffectiveStage(claim.stage, claim.heldFrom);
+  const current = claim.stage === 'completed' ? EXCHANGE_STEPS.length
+    : effective === 'requested' || effective === 'in_review' ? 0
+      : effective === 'collecting' || !claim.collectionComplete ? 1
+        : !claim.reshippedAt ? 2 : 3;
+  return <ol aria-label="교환 처리 단계" className="grid grid-cols-2 gap-2 sm:grid-cols-4" data-claim-exchange-steps="">
+    {EXCHANGE_STEPS.map((label, index) => {
+      const state: ExchangeStepState = index < current ? 'done' : index === current ? 'current' : 'todo';
+      return <li aria-current={state === 'current' ? 'step' : undefined} className="flex min-w-0 items-center gap-2 rounded-lg border bg-background px-2.5 py-1.5 text-muted-foreground data-[step-state=current]:border-primary data-[step-state=current]:bg-primary-soft data-[step-state=current]:text-primary-soft-foreground data-[step-state=done]:text-foreground" data-step-state={state} key={label}>
+        <span aria-hidden="true" className={CLAIM_STEP_MARK_CLASS} data-step-state={state}>{state === 'done' ? <Check className="size-3.5" /> : index + 1}</span>
+        <span className="flex min-w-0 flex-col"><span className="text-xs font-normal">{EXCHANGE_STEP_CAPTION[state]}</span><span className="font-medium">{label}</span></span>
+      </li>;
+    })}
+  </ol>;
+}
 
 /** Read the existing evidence independently. A closed claim is not proof of a refund or delivery. */
 export function ClaimProgressSummary({ claim, refund }: Props) {
