@@ -136,7 +136,7 @@ export function GroupCompleted({ receipt, children }: { receipt: Extract<GoodsGr
     <div className="flex flex-wrap items-center gap-2"><Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={goodsGroupHref(receipt.group.id)}>그룹상품 열기</Link>{children}</div>
   </AdminSectionCard>;
 }
-export function GoodsGroupProductPicker({ identity, disabled, onSelect }: { identity: GoodsGroupIdentity | null; disabled: boolean; onSelect: (source: GoodsGroupSource) => void }) {
+export function GoodsGroupProductPicker({ identity, disabled, onSelect, title = '상품 선택' }: { identity: GoodsGroupIdentity | null; disabled: boolean; onSelect: (source: GoodsGroupSource) => void; title?: string }) {
   const [query, setQuery] = useState(''), [applied, setApplied] = useState(''), [page, setPage] = useState<GoodsGroupCandidates | null>(null), [error, setError] = useState('');
   const [pending, startTransition] = useTransition(); const ticket = useRef(0), alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; ticket.current += 1; }; }, []);
@@ -156,7 +156,7 @@ export function GoodsGroupProductPicker({ identity, disabled, onSelect }: { iden
       } catch { if (alive.current && sequence === ticket.current) setError('상품과 옵션을 불러오지 못했습니다. 다시 선택해주세요.'); }
     });
   }
-  return <AdminSectionCard title="상품 선택"><div className="flex flex-wrap items-end gap-2" role="search">
+  return <AdminSectionCard title={title}><div className="flex flex-wrap items-end gap-2" role="search">
     <div className="min-w-[min(100%,20rem)] flex-1"><AdminField label="상품명·판매자상품코드·상품번호" inputId="group-product-search"><Input id="group-product-search" type="search" value={query} maxLength={100} disabled={disabled || pending}
       onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); search(); } }} /></AdminField></div>
     <Button variant="soft" type="button" disabled={disabled || pending || !identity} onClick={() => search()}>상품 검색</Button>
