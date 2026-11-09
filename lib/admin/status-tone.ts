@@ -20,7 +20,7 @@ const STATUS_TONES = {
   /** 결제 상태 */
   payment: { pending: 'warning', paid: 'success', canceled: 'danger', failed: 'danger', refunded: 'neutral' },
   /** 클레임 단계 — lib/orders/claims ORDER_CLAIM_STAGE_LABELS */
-  claim: { requested: 'warning', in_review: 'info', collecting: 'info', collected: 'info', on_hold: 'warning', processing: 'info', needs_review: 'danger', completed: 'success', rejected: 'neutral', withdrawn: 'neutral' },
+  claim: { requested: 'warning', in_review: 'info', collecting: 'info', collected: 'warning', on_hold: 'neutral', processing: 'info', needs_review: 'danger', completed: 'success', rejected: 'neutral', withdrawn: 'neutral' },
   /** 고객문의 */
   inquiry: { open: 'warning', answered: 'success', closed: 'neutral' },
   /** 상품문의 */
