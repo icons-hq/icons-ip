@@ -25,6 +25,7 @@ import { LOYALTY_GRADES, isLoyaltyGrade, loyaltyBasisSummary, loyaltyGradeLabel 
 import type { ConfigurableGrade } from '@/lib/loyalty-policy';
 import { Field, FormShell, SelectField } from '../fields';
 import { useAdminLeaveGuard } from '../useAdminLeaveGuard';
+import { confirmAdminLeave } from '@/lib/admin/leave-guard';
 import { ArrowLeft, ArrowRight, Plus } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
 
@@ -301,9 +302,11 @@ export function CouponSection({
   copySource?: AdminCouponRecord | null;
   initialGrade?: ConfigurableGrade;
 }) {
+  /* 취소·목록으로는 링크가 아니라 router.replace로 떠나 공용 경고가 클릭을 가로채지 못한다. 같은 확인을 직접 거친다. */
+  const leaveEditor = () => { if (confirmAdminLeave()) onSelect(null); };
   if (selected || mode === 'create') return <section className="flex min-w-0 flex-col gap-3">
-    {selected || copySource ? <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card px-4 py-3.5 sm:px-6"><h2 className="text-lg font-semibold tracking-tight">{copySource ? '복사한 혜택 설정' : '혜택 정보'}</h2><Button type="button" variant="outline" onClick={() => onSelect(null)}>목록으로</Button></div> : null}
-    <CouponEditor action={action} draft={draft} pending={pending} selected={selected} copySource={copySource} initialGrade={initialGrade} state={state} onCancel={() => onSelect(null)} />
+    {selected || copySource ? <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card px-4 py-3.5 sm:px-6"><h2 className="text-lg font-semibold tracking-tight">{copySource ? '복사한 혜택 설정' : '혜택 정보'}</h2><Button type="button" variant="outline" onClick={leaveEditor}>목록으로</Button></div> : null}
+    <CouponEditor action={action} draft={draft} pending={pending} selected={selected} copySource={copySource} initialGrade={initialGrade} state={state} onCancel={leaveEditor} />
     {selected ? <Link className={buttonVariants({ variant: 'outline', className: 'self-start' })} data-slot="button" href={`${ADMIN_COUPON_LIST_PATH}/issue?couponCode=${encodeURIComponent(selected.code)}`}>지정 고객·세그먼트 발급</Link> : null}
   </section>;
   const href = adminCouponListHref(filters);
