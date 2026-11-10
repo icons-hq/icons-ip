@@ -198,7 +198,8 @@ it('로그인 만료 같은 Next 리디렉션은 삼키지 않는다', async () 
 
 /* 10/27 회의 14:52 · MD-0032·0033: 체크한 건을 목록에서 바로 반품↔교환으로 바꾼다. */
 describe('반품↔교환 일괄 전환', () => {
-  const labels = (claimType: OrderClaimType) => all(render(claimType)).filter((element) => element.props.children === adminClaimBulkConversionLabel(claimType as 'return'));
+  /* 처리 막대의 전환 항목. 체크 전 흐린 버튼(kit Button)은 아래 별도 테스트가 본다. */
+  const labels = (claimType: OrderClaimType) => all(render(claimType)).filter((element) => element.type !== Button && element.props.children === adminClaimBulkConversionLabel(claimType as 'return'));
   const fields = (claimType: OrderClaimType) => all(render(claimType)).find((element) => typeof element.props.onAgreement === 'function');
   const runButton = (claimType: OrderClaimType) => all(render(claimType)).find((element) => element.type === Button && text(element).endsWith(' 전환'));
   function fill(claimType: OrderClaimType, agreement: string, confirmed: boolean) {
