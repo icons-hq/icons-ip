@@ -4,6 +4,7 @@ import { Subscribe, type ColumnDef, type RowSelectionState, type SortingState, t
 import { unstable_rethrow, useRouter } from 'next/navigation';
 import { startTransition, useActionState, useId, useMemo, useRef, useState, useTransition, type FormEvent } from 'react';
 import { bulkDecideOrderClaimsAction } from '@/app/admin/claim-actions';
+import { bulkConvertClaimTypesAction } from '@/app/admin/claim-type-conversion-actions';
 import { DataTable } from '@/components/admin/kit/data-table/data-table';
 import { DataTableColumnHeader } from '@/components/admin/kit/data-table/data-table-column-header';
 import { DataTablePagination } from '@/components/admin/kit/data-table/data-table-pagination';
@@ -23,8 +24,12 @@ import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, Tabl
 import { useConsoleTable, type ConsoleTableState } from '@/components/admin/kit/use-console-table';
 import {
   ADMIN_CLAIM_BULK_ACTION_LABELS,
+  ADMIN_CLAIM_BULK_CONVERT,
   ADMIN_CLAIM_BULK_LIMIT,
   ADMIN_CLAIM_BULK_OUTCOME_LABELS,
+  adminClaimBulkConversionLabel,
+  adminClaimBulkConversionTarget,
+  normalizeAdminClaimBulkConversionForm,
   planAdminClaimBulkSubmit,
   type AdminClaimBulkDecision,
   type AdminClaimBulkState,
@@ -51,7 +56,8 @@ import { ClaimPreviewLink } from './ClaimPreviewDialog';
  * 세 유형이 같은 표를 쓰고, 유형마다 다른 것은 문구·단계·사유 선택지뿐이다.
  *
  * 판정은 바뀌지 않는다: 조회는 서버가 `admin_search_order_claims_console`로, 처리는
- * `bulkDecideOrderClaimsAction`이 한 건씩 기존 단건 경로로 한다. 이 파일은 화면만 바꾼다.
+ * `bulkDecideOrderClaimsAction`과 `bulkConvertClaimTypesAction`이 한 건씩 기존 단건 경로로 한다.
+ * 이 파일은 화면만 바꾼다.
  *
  * 목록 조건은 기존 URL 계약(`adminClaimHref`)을 그대로 쓴다. 표가 바꾼 페이지·정렬·필터는
  * `hrefFor`가 그 계약의 href로 옮기고 서버가 다시 그린다(components/admin/kit/use-console-table.ts).
@@ -368,6 +374,41 @@ function KitRejectionReasonField({ claimType, onChange, value }: { claimType: Or
   </div>;
 }
 
+/**
+ * 반품↔교환 일괄 전환 입력(10/27 회의 14:52 · MD-0032·0033). 상세의 전환 창과 같은 고객 합의 근거·동의를
+ * 받는다. 환불계좌는 건마다 달라 여기서 받지 않는다 — 계좌가 필요한 건은 결과표에 남고 상세에서 입력한다.
+ */
+function KitConversionFields({ agreement, confirmed, count, needsAccountNotice, onAgreement, onConfirmed, targetLabel }: {
+  agreement: string;
+  confirmed: boolean;
+  count: number;
+  needsAccountNotice: boolean;
+  onAgreement: (value: string) => void;
+  onConfirmed: (value: boolean) => void;
+  targetLabel: string;
+}) {
+  const inputId = useId();
+  return <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-1.5">
+      <Label htmlFor={inputId}>고객 합의 근거</Label>
+      <Input
+        id={inputId}
+        maxLength={500}
+        onChange={(event) => onAgreement(event.target.value)}
+        onKeyDown={(event) => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) event.preventDefault(); }}
+        placeholder="상담 일시, 참조번호와 합의한 내용을 적어주세요."
+        value={agreement}
+      />
+      <p className="text-xs text-muted-foreground">선택한 건 모두에 같은 내용으로 기록합니다. 기존 접수일, 수거 내역, 보류 사유와 배송비 기록은 유지됩니다. 배송비 차액은 고객과 별도로 확인해주세요.</p>
+      {needsAccountNotice ? <p className="text-xs text-muted-foreground">환불계좌가 없는 무통장 주문은 전환되지 않고 결과표에 남습니다. 요청번호를 눌러 상세에서 입력해주세요.</p> : null}
+    </div>
+    <label className="flex items-start gap-2 text-sm leading-relaxed">
+      <Checkbox checked={confirmed} className="mt-0.5" onCheckedChange={(value) => onConfirmed(!!value)} />
+      <span>선택한 {count}건 모두 고객과 {targetLabel} 전환 및 배송비 처리에 합의했습니다.</span>
+    </label>
+  </div>;
+}
+
 export function ClaimQueueKitTable({
   claimType,
   dateFieldOptions,
@@ -391,7 +432,12 @@ export function ClaimQueueKitTable({
   const [note, setNote] = useState('');
   const [clientError, setClientError] = useState('');
   const [rejectOpen, setRejectOpen] = useState(false);
+  const [convertOpen, setConvertOpen] = useState(false);
+  const [agreement, setAgreement] = useState('');
+  const [convertConfirmed, setConvertConfirmed] = useState(false);
   const typeLabel = ORDER_CLAIM_TYPE_LABELS[claimType];
+  const convertFrom = claimType === 'cancel' ? null : claimType;
+  const convertTo = convertFrom ? adminClaimBulkConversionTarget(convertFrom) : null;
   const dateField = filters.dateField ?? 'requested';
   const dateLabel = dateFieldOptions.find((option) => option.value === dateField)?.label ?? '요청일';
   /*
@@ -419,13 +465,18 @@ export function ClaimQueueKitTable({
   const [state, run, deciding] = useActionState(async (previous: AdminClaimBulkState, formData: FormData) => {
     let next: AdminClaimBulkState;
     try {
-      next = await bulkDecideOrderClaimsAction(previous, formData);
+      next = formData.get('decision') === ADMIN_CLAIM_BULK_CONVERT
+        ? await bulkConvertClaimTypesAction(previous, formData)
+        : await bulkDecideOrderClaimsAction(previous, formData);
     } catch (error) {
       unstable_rethrow(error);
       return { error: BULK_RESULT_LOST };
     }
     if (next.results) {
-      setSelection(Object.fromEntries(next.results.filter((result) => result.outcome === 'skipped').map((result) => [result.claimId, true])));
+      const skipped = next.results.filter((result) => result.outcome === 'skipped');
+      setSelection(Object.fromEntries(skipped.map((result) => [result.claimId, true])));
+      /* 합의 근거는 고른 고객들의 것이다. 남은 건을 다시 실행할 때만 두고, 다음 선택으로 넘기지 않는다. */
+      if (skipped.length === 0) setAgreement('');
     }
     return next;
   }, EMPTY_STATE);
@@ -446,6 +497,23 @@ export function ClaimQueueKitTable({
     formData.set('decision', plan.decision);
     formData.set('note', note);
     setRejectOpen(false);
+    startTransition(() => run(formData));
+  }
+
+  function convert() {
+    if (deciding || !convertFrom) return;
+    const formData = new FormData();
+    formData.set('claimType', convertFrom);
+    for (const id of selectedIds) formData.append('claimIds', id);
+    formData.set('decision', ADMIN_CLAIM_BULK_CONVERT);
+    formData.set('agreement', agreement);
+    formData.set('confirmed', convertConfirmed ? 'true' : 'false');
+    const checked = normalizeAdminClaimBulkConversionForm(formData);
+    if (!checked.ok) { setClientError(checked.error); return; }
+    setClientError('');
+    setConvertOpen(false);
+    /* 동의는 실행마다 새로 받는다. 시간 예산으로 남은 건을 다시 실행할 때도 다시 체크한다. */
+    setConvertConfirmed(false);
     startTransition(() => run(formData));
   }
 
@@ -494,7 +562,12 @@ export function ClaimQueueKitTable({
       {/* 처리 막대는 체크하면 화면 아래에 뜬다. 체크 전에는 같은 버튼을 흐리게 보여 어디서 처리하는지 알린다(발주 화면의 '선택 주문 0건'과 같은 약속). */}
       {selectedIds.length === 0 ? <div aria-label="일괄 처리(요청을 체크하면 쓸 수 있습니다)" className="flex flex-wrap items-center gap-1.5" data-claims-bulk-idle="" role="group">
         <span className="text-xs text-muted-foreground">0건 선택</span>
-        {(['approve', 'review', 'reject'] as const).map((decision) => <Button disabled key={decision} size="sm" title="왼쪽 체크칸에서 요청을 고르면 화면 아래 막대에서 처리합니다" variant="outline">{ADMIN_CLAIM_BULK_ACTION_LABELS[decision]}</Button>)}
+        {[
+          ADMIN_CLAIM_BULK_ACTION_LABELS.approve,
+          ADMIN_CLAIM_BULK_ACTION_LABELS.review,
+          ...(convertFrom ? [adminClaimBulkConversionLabel(convertFrom)] : []),
+          ADMIN_CLAIM_BULK_ACTION_LABELS.reject,
+        ].map((label) => <Button disabled key={label} size="sm" title="왼쪽 체크칸에서 요청을 고르면 화면 아래 막대에서 처리합니다" variant="outline">{label}</Button>)}
       </div> : null}
     </div>
     <DataTable
@@ -520,6 +593,7 @@ export function ClaimQueueKitTable({
 
     <ActionBar
       aria-label="선택 건 일괄 처리"
+      className="w-max max-w-[calc(100vw-1rem)] flex-wrap justify-center"
       onOpenChange={(open) => { if (!open && !deciding) setSelection({}); }}
       open={selectedIds.length > 0}
     >
@@ -529,14 +603,32 @@ export function ClaimQueueKitTable({
         <ActionBarClose aria-label="선택 해제"><X /></ActionBarClose>
       </ActionBarSelection>
       <ActionBarSeparator />
-      <ActionBarGroup>
+      <ActionBarGroup className="flex-wrap justify-center">
         {(['approve', 'review'] as const).map((decision) => <ActionBarItem
           disabled={deciding || overLimit}
           key={decision}
           onSelect={(event) => { event.preventDefault(); decide(decision); }}
           variant={decision === 'approve' ? 'default' : 'secondary'}
         >{ADMIN_CLAIM_BULK_ACTION_LABELS[decision]}</ActionBarItem>)}
-        <Popover onOpenChange={setRejectOpen} open={rejectOpen}>
+        {convertFrom && convertTo ? <Popover onOpenChange={(open) => { setClientError(''); setConvertOpen(open); }} open={convertOpen}>
+          <PopoverTrigger render={<ActionBarItem disabled={deciding || overLimit} onSelect={(event) => event.preventDefault()} variant="secondary" />}>
+            {adminClaimBulkConversionLabel(convertFrom)}
+          </PopoverTrigger>
+          <PopoverContent className="w-96 max-w-[calc(100vw-1rem)]" side="top">
+            <KitConversionFields
+              agreement={agreement}
+              confirmed={convertConfirmed}
+              count={selectedIds.length}
+              needsAccountNotice={convertTo === 'return'}
+              onAgreement={setAgreement}
+              onConfirmed={setConvertConfirmed}
+              targetLabel={ORDER_CLAIM_TYPE_LABELS[convertTo]}
+            />
+            {clientError ? <p className="text-sm text-destructive" role="alert">{clientError}</p> : null}
+            <Button disabled={deciding || !convertConfirmed} onClick={convert}>선택 {selectedIds.length}건 {ORDER_CLAIM_TYPE_LABELS[convertTo]} 전환</Button>
+          </PopoverContent>
+        </Popover> : null}
+        <Popover onOpenChange={(open) => { setClientError(''); setRejectOpen(open); }} open={rejectOpen}>
           <PopoverTrigger render={<ActionBarItem disabled={deciding || overLimit} onSelect={(event) => event.preventDefault()} variant="destructive" />}>
             {ADMIN_CLAIM_BULK_ACTION_LABELS.reject}
           </PopoverTrigger>
@@ -551,7 +643,7 @@ export function ClaimQueueKitTable({
     </ActionBar>
 
     {overLimit ? <p className="text-sm text-destructive" role="alert">한 번에 {ADMIN_CLAIM_BULK_LIMIT}건까지 처리할 수 있습니다. 선택을 줄여주세요.</p> : null}
-    {error && !rejectOpen ? <p className="text-sm text-destructive" role="alert">{adminClaimCopy(error)}</p> : null}
+    {error && !rejectOpen && !convertOpen ? <p className="text-sm text-destructive" role="alert">{adminClaimCopy(error)}</p> : null}
     <ClaimKitBulkResult previewHrefBase={currentHref} state={state} />
   </div>;
 }

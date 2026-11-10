@@ -1,6 +1,6 @@
 import { isValidElement, type ReactElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { beforeEach, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /*
  * R8 일괄 처리 화면 쪽 규칙(취소·반품·교환 kit 목록 공통): 지금 페이지에서 처리할 수 있는 선택만 보내고,
@@ -15,7 +15,7 @@ const hooks = vi.hoisted(() => ({
   actionState: {} as unknown,
   table: null as null | Record<string, unknown>,
 }));
-const mocks = vi.hoisted(() => ({ run: vi.fn(), bulk: vi.fn(), confirm: vi.fn(), push: vi.fn() }));
+const mocks = vi.hoisted(() => ({ run: vi.fn(), bulk: vi.fn(), convert: vi.fn(), confirm: vi.fn(), push: vi.fn() }));
 vi.mock('react', async () => {
   const actual = await vi.importActual<typeof import('react')>('react');
   return {
@@ -37,6 +37,7 @@ vi.mock('react', async () => {
 /* 로그인 만료 같은 Next 리디렉션은 진짜 unstable_rethrow로 다시 던져야 한다. 이동만 대역으로 바꾼다. */
 vi.mock('next/navigation', async () => ({ ...await vi.importActual<typeof import('next/navigation')>('next/navigation'), useRouter: () => ({ push: mocks.push }) }));
 vi.mock('@/app/admin/claim-actions', () => ({ bulkDecideOrderClaimsAction: mocks.bulk }));
+vi.mock('@/app/admin/claim-type-conversion-actions', () => ({ bulkConvertClaimTypesAction: mocks.convert }));
 vi.mock('@/components/admin/kit/use-console-table', () => ({
   useConsoleTable: (options: Record<string, unknown>) => {
     hooks.table = options;
@@ -46,13 +47,15 @@ vi.mock('@/components/admin/kit/use-console-table', () => ({
 
 import { ActionBarItem } from '@/components/admin/kit/ui/action-bar';
 import { Button } from '@/components/admin/kit/ui/button';
-import { ADMIN_CLAIM_BULK_ACTION_LABELS } from '@/lib/admin/claim-bulk';
+import { ADMIN_CLAIM_BULK_ACTION_LABELS, ADMIN_CLAIM_BULK_CONVERT, adminClaimBulkConversionLabel } from '@/lib/admin/claim-bulk';
 import { ADMIN_CLAIM_DATE_FIELDS, ADMIN_CLAIM_SEARCH_FIELDS, type AdminClaimFilters } from '@/lib/admin/claims';
+import type { OrderClaimType } from '@/lib/orders/claims';
 import { ClaimKitBulkResult, ClaimQueueKitTable, type ClaimKitRow } from './ClaimQueueKitTable';
 
 const A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const C = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+const AGREEMENT = '11/9 전화 상담으로 고객과 합의';
 const FILTERS: AdminClaimFilters = { from: null, page: 1, query: '', reasonType: 'all', stage: 'open', to: null };
 
 type Element = ReactElement<Record<string, unknown> & { children?: ReactNode }>;
@@ -71,10 +74,10 @@ function row(id: string, reference: string, selectable = true): ClaimKitRow {
   };
 }
 
-function render() {
+function render(claimType: OrderClaimType = 'cancel') {
   hooks.index = 0;
   return ClaimQueueKitTable({
-    claimType: 'cancel',
+    claimType,
     dateFieldOptions: ADMIN_CLAIM_DATE_FIELDS,
     filters: FILTERS,
     pageSize: 20,
@@ -193,6 +196,86 @@ it('로그인 만료 같은 Next 리디렉션은 삼키지 않는다', async () 
   await expect(hooks.action?.({}, new FormData())).rejects.toBe(redirect);
 });
 
+/* 10/27 회의 14:52 · MD-0032·0033: 체크한 건을 목록에서 바로 반품↔교환으로 바꾼다. */
+describe('반품↔교환 일괄 전환', () => {
+  /* 처리 막대의 전환 항목. 체크 전 흐린 버튼(kit Button)은 아래 별도 테스트가 본다. */
+  const labels = (claimType: OrderClaimType) => all(render(claimType)).filter((element) => element.type !== Button && element.props.children === adminClaimBulkConversionLabel(claimType as 'return'));
+  const fields = (claimType: OrderClaimType) => all(render(claimType)).find((element) => typeof element.props.onAgreement === 'function');
+  const runButton = (claimType: OrderClaimType) => all(render(claimType)).find((element) => element.type === Button && text(element).endsWith(' 전환'));
+  function fill(claimType: OrderClaimType, agreement: string, confirmed: boolean) {
+    hooks.index = 0;
+    render(claimType);
+    (hooks.table!.onRowSelectionChange as (value: unknown) => void)({ [A]: true, [B]: true, [C]: true });
+    (fields(claimType)?.props.onAgreement as (value: string) => void)(agreement);
+    (fields(claimType)?.props.onConfirmed as (value: boolean) => void)(confirmed);
+  }
+
+  it('반품 목록은 교환으로, 교환 목록은 반품으로 바꾸는 버튼이 있고 취소 목록에는 없다', () => {
+    expect(adminClaimBulkConversionLabel('return')).toBe('선택 건 교환 전환');
+    expect(adminClaimBulkConversionLabel('exchange')).toBe('선택 건 반품 전환');
+    expect(labels('return')).toHaveLength(1);
+    expect(labels('exchange')).toHaveLength(1);
+    expect(fields('cancel')).toBeUndefined();
+    expect(all(render('cancel')).some((element) => text(element).endsWith(' 전환'))).toBe(false);
+  });
+
+  it('합의 확인 전에는 실행 버튼이 잠기고, 무통장 계좌 안내는 반품으로 바꿀 때만 보인다', () => {
+    fill('return', AGREEMENT, false);
+    expect(runButton('return')?.props.disabled).toBe(true);
+    expect(fields('return')?.props.needsAccountNotice).toBe(false);
+    expect(fields('exchange')?.props.needsAccountNotice).toBe(true);
+    (fields('return')?.props.onConfirmed as (value: boolean) => void)(true);
+    expect(runButton('return')?.props.disabled).toBe(false);
+  });
+
+  it('합의 근거가 짧으면 보내지 않고 입력 칸 옆에 사유를 보여 준다', () => {
+    fill('return', '한', true);
+    (runButton('return')?.props.onClick as () => void)();
+    expect(mocks.run).not.toHaveBeenCalled();
+    expect(text(all(render('return')).find((element) => element.props.role === 'alert'))).toBe('고객 합의 근거를 2자 이상 500자 이하로 입력해주세요.');
+  });
+
+  it('처리할 수 있는 선택만 합의 근거와 함께 보내고, 동의는 실행마다 다시 받는다', () => {
+    fill('exchange', AGREEMENT, true);
+    (runButton('exchange')?.props.onClick as () => void)();
+    expect(mocks.run).toHaveBeenCalledTimes(1);
+    const sent = mocks.run.mock.calls[0][0] as FormData;
+    expect(sent.getAll('claimIds')).toEqual([A, B]);
+    expect(sent.get('claimType')).toBe('exchange');
+    expect(sent.get('decision')).toBe(ADMIN_CLAIM_BULK_CONVERT);
+    expect(sent.get('agreement')).toBe(AGREEMENT);
+    expect(sent.get('confirmed')).toBe('true');
+    /* window.confirm 대신 팝오버의 합의 확인을 쓴다. */
+    expect(mocks.confirm).not.toHaveBeenCalled();
+    expect(fields('exchange')?.props.confirmed).toBe(false);
+    expect(fields('exchange')?.props.agreement).toBe(AGREEMENT);
+  });
+
+  it('전환은 전환 액션으로, 그 밖의 처리는 결정 액션으로 보내고 남은 건이 없으면 합의 근거를 비운다', async () => {
+    fill('return', AGREEMENT, true);
+    const form = new FormData();
+    form.set('decision', ADMIN_CLAIM_BULK_CONVERT);
+    mocks.convert.mockResolvedValue({ summary: '처리됨 1건 · 실패 0건', results: [{ claimId: A, reference: 'C00001', outcome: 'done', message: '교환 요청으로 전환했습니다.' }] });
+    await hooks.action?.({}, form);
+    expect(mocks.convert).toHaveBeenCalledTimes(1);
+    expect(mocks.bulk).not.toHaveBeenCalled();
+    expect(fields('return')?.props.agreement).toBe('');
+  });
+
+  it('시간 예산으로 남은 건은 선택과 합의 근거를 남겨 다시 실행할 수 있게 한다', async () => {
+    fill('return', AGREEMENT, true);
+    const form = new FormData();
+    form.set('decision', ADMIN_CLAIM_BULK_CONVERT);
+    mocks.convert.mockResolvedValue({ summary: '처리됨 1건', results: [
+      { claimId: A, reference: 'C00001', outcome: 'done', message: '교환 요청으로 전환했습니다.' },
+      { claimId: B, reference: 'C00002', outcome: 'skipped', message: '처리 시간이 길어 처리하지 않았습니다. 다시 실행하세요.' },
+    ] });
+    await hooks.action?.({}, form);
+    expect(selected()).toEqual([B]);
+    expect(fields('return')?.props.agreement).toBe(AGREEMENT);
+  });
+});
+
 it('결과표는 번호·결과·사유 세 열이고 요청번호가 같은 목록 위 팝업을 연다', () => {
   const html = renderToStaticMarkup(<ClaimKitBulkResult previewHrefBase="/admin/sales/claims/returns?stage=open&page=1" state={{
     summary: '처리됨 1건 · 실패 1건',
@@ -219,4 +302,15 @@ it('체크 전에는 표 위에 흐린 처리 버튼을 보이고, 체크하면 
   expect(buttons.map((button) => button.props.disabled)).toEqual([true, true, true]);
   select([A]);
   expect(idle()).toBeUndefined();
+});
+
+/* 10/27 회의·MD-0032·0033: 체크 전에도 반품↔교환 전환이 있다는 것이 처리 막대와 같은 순서로 보여야 한다. */
+it('체크 전 흐린 버튼에 반품·교환 목록은 전환을 함께 보이고 취소 목록에는 넣지 않는다', () => {
+  const labels = (claimType: OrderClaimType) => {
+    const idle = all(render(claimType)).find((element) => (element.props as Record<string, unknown>)['data-claims-bulk-idle'] === '');
+    return all(idle!.props.children as ReactNode).filter((element) => element.type === Button).map((button) => button.props.children);
+  };
+  expect(labels('return')).toEqual(['선택 건 승인', '선택 건 검토중', '선택 건 교환 전환', '선택 건 거부']);
+  expect(labels('exchange')).toEqual(['선택 건 승인', '선택 건 검토중', '선택 건 반품 전환', '선택 건 거부']);
+  expect(labels('cancel')).toEqual(['선택 건 승인', '선택 건 검토중', '선택 건 거부']);
 });

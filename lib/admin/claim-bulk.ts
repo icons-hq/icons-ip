@@ -1,4 +1,5 @@
-import type { OrderClaimStage, OrderClaimType } from '@/lib/orders/claims';
+import { normalizeClaimTypeAgreement, type ConvertibleClaimType } from '@/lib/orders/claim-type-conversion';
+import { ORDER_CLAIM_TYPE_LABELS, type OrderClaimStage, type OrderClaimType } from '@/lib/orders/claims';
 
 /**
  * 클레임 일괄 처리(10/27 회의 R8 · 결정 D8).
@@ -29,6 +30,11 @@ export const ADMIN_CLAIM_BULK_DEADLINE_MS = 55_000;
 export const ADMIN_CLAIM_BULK_PROVIDER_ITEM_RESERVE_MS = 30_000;
 /** DB 결정만 하는 한 건(검토중·거부·반품·교환 승인)의 최악 시간(문장 제한 시간 8초 + 왕복). */
 export const ADMIN_CLAIM_BULK_DB_ITEM_RESERVE_MS = 10_000;
+/** 반품↔교환 전환 한 건의 최악 시간. 최신 요청 읽기와 전환 저장, DB 호출이 둘이다. */
+export const ADMIN_CLAIM_BULK_CONVERT_ITEM_RESERVE_MS = ADMIN_CLAIM_BULK_DB_ITEM_RESERVE_MS * 2;
+
+/** 목록 일괄 전환을 일괄 결정과 구분하는 값. 화면이 어느 서버 액션을 부를지 이 값으로 고른다. */
+export const ADMIN_CLAIM_BULK_CONVERT = 'convert';
 
 export const ADMIN_CLAIM_BULK_DECISIONS = ['approve', 'reject', 'review'] as const;
 export type AdminClaimBulkDecision = (typeof ADMIN_CLAIM_BULK_DECISIONS)[number];
@@ -106,11 +112,7 @@ function readString(formData: FormData, name: string) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
-export function normalizeAdminClaimBulkForm(
-  formData: FormData,
-):
-  | { ok: true; value: { claimIds: string[]; decision: AdminClaimBulkDecision; note: string | null } }
-  | { ok: false; error: string } {
+function readClaimIds(formData: FormData): { ok: true; claimIds: string[] } | { ok: false; error: string } {
   const claimIds: string[] = [];
   for (const raw of formData.getAll('claimIds')) {
     const id = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
@@ -123,6 +125,17 @@ export function normalizeAdminClaimBulkForm(
   if (claimIds.length > ADMIN_CLAIM_BULK_LIMIT) {
     return { ok: false, error: `한 번에 ${ADMIN_CLAIM_BULK_LIMIT}건까지 처리할 수 있습니다. 선택을 줄여 다시 실행해주세요.` };
   }
+  return { ok: true, claimIds };
+}
+
+export function normalizeAdminClaimBulkForm(
+  formData: FormData,
+):
+  | { ok: true; value: { claimIds: string[]; decision: AdminClaimBulkDecision; note: string | null } }
+  | { ok: false; error: string } {
+  const ids = readClaimIds(formData);
+  if (!ids.ok) return ids;
+  const { claimIds } = ids;
 
   const decision = readString(formData, 'decision');
   if (!(ADMIN_CLAIM_BULK_DECISIONS as readonly string[]).includes(decision)) {
@@ -137,6 +150,31 @@ export function normalizeAdminClaimBulkForm(
     return { ok: false, error: '거부 사유를 10자 이상 200자 이하로 입력해주세요.' };
   }
   return { ok: true, value: { claimIds, decision: 'reject', note } };
+}
+
+/* 반품↔교환 일괄 전환(10/27 회의 14:52 · MD-0032·0033). 단건 전환과 같은 RPC를 건별로 탄다. */
+export function adminClaimBulkConversionTarget(fromType: ConvertibleClaimType): ConvertibleClaimType {
+  return fromType === 'return' ? 'exchange' : 'return';
+}
+
+export function adminClaimBulkConversionLabel(fromType: ConvertibleClaimType) {
+  return `선택 건 ${ORDER_CLAIM_TYPE_LABELS[adminClaimBulkConversionTarget(fromType)]} 전환`;
+}
+
+/** 일괄 전환 입력을 확인한다. 화면의 사전 확인과 서버 액션이 같은 규칙을 쓴다. */
+export function normalizeAdminClaimBulkConversionForm(
+  formData: FormData,
+):
+  | { ok: true; value: { claimIds: string[]; fromType: ConvertibleClaimType; agreement: string } }
+  | { ok: false; error: string } {
+  const fromType = readString(formData, 'claimType');
+  if (fromType !== 'return' && fromType !== 'exchange') return { ok: false, error: '반품과 교환 요청만 서로 전환할 수 있습니다.' };
+  const ids = readClaimIds(formData);
+  if (!ids.ok) return ids;
+  const agreement = normalizeClaimTypeAgreement(formData.get('agreement'));
+  if (agreement === null) return { ok: false, error: '고객 합의 근거를 2자 이상 500자 이하로 입력해주세요.' };
+  if (formData.get('confirmed') !== 'true') return { ok: false, error: '선택한 건 모두 고객과 합의했는지 확인해주세요.' };
+  return { ok: true, value: { claimIds: ids.claimIds, fromType, agreement } };
 }
 
 /**

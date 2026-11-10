@@ -355,7 +355,8 @@ describe('ClaimQueueKitScreen — 반품·교환 목록', () => {
     const html = renderToStaticMarkup(<ClaimQueueKitScreen canViewRefundTransfers data={returns()} now={RETURN_NOW} />);
     expect(html).toContain('href="/admin/sales/claims/returns/fee-policy"');
     expect(html).toContain('href="/admin/sales/claims/returns/fees"');
-    expect(html).toContain('회수 확인·재출고·환불 확정과 반품·교환 전환은 상세에서 한 건씩 처리합니다.');
+    expect(html).toContain('반품·교환 전환도 처리 막대에서 고객 합의 근거를 한 번 입력해 한 번에 처리합니다.');
+    expect(html).toContain('회수 확인·재출고·환불 확정과 환불계좌를 새로 받아야 하는 무통장 건의 전환은 상세에서 한 건씩 처리합니다.');
     expect(html).toContain('환불 송금 대기');
     /* 교환에는 환불이 없어 송금 대기 안내를 하지 않는다. 취소에는 배송비 청구가 없다. */
     const exchange = renderToStaticMarkup(<ClaimQueueKitScreen canViewRefundTransfers data={returns({ claimType: 'exchange', rows: [], total: 0 })} now={RETURN_NOW} />);
