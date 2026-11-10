@@ -276,21 +276,49 @@ describe('goods list screen', () => {
       expect(html).toContain('aria-label="판매가 12,900~15,900원 바로 수정"');
     });
   });
-  it('기본 조회인 보관 제외 칸이 켜져 있고, 품절·소량 재고는 조회 링크로 바로 찾는다', () => {
+  it('기본 조회인 보관 제외 칸이 켜져 있고, 품절·소량 재고는 건수와 함께 조회 링크로 바로 찾는다', () => {
     const counts = { all: 20, active: 15, draft: 3, published: 12, archived: 5 };
-    const render = (values: Record<string, string>) => renderToStaticMarkup(<GoodsListScreen data={{ filters: normalizeGoodsListFilters(values), goods: [], ips: [], total: 0, counts }} />);
+    const stockCounts = { out_of_stock: 4, low: 1234 };
+    const render = (values: Record<string, string>) => renderToStaticMarkup(<GoodsListScreen data={{ filters: normalizeGoodsListFilters(values), goods: [], ips: [], total: 0, counts, stockCounts }} />);
     expect(render({})).toMatch(/<a(?=[^>]*aria-current="page")(?=[^>]*aria-label="보관 제외 15건")/);
-    expect(render({})).toMatch(/<a(?=[^>]*aria-label="품절 보기")(?=[^>]*href="[^"]*stock=out_of_stock)/);
-    expect(render({})).toMatch(/<a(?=[^>]*aria-label="소량 재고 보기")(?=[^>]*href="[^"]*stock=low)/);
+    expect(render({})).toMatch(/<a(?=[^>]*aria-label="품절 보기 4건")(?=[^>]*href="[^"]*stock=out_of_stock)/);
+    expect(render({})).toMatch(/<a(?=[^>]*aria-label="소량 재고 보기 1,234건")(?=[^>]*href="[^"]*stock=low)/);
     // 켜진 재고 칸을 다시 누르면 재고 조건을 푼다.
-    expect(render({ stock: 'out_of_stock' })).toMatch(/<a(?=[^>]*aria-current="true")(?=[^>]*aria-label="품절 보기")(?=[^>]*href="[^"]*stock=all)/);
+    expect(render({ stock: 'out_of_stock' })).toMatch(/<a(?=[^>]*aria-current="true")(?=[^>]*aria-label="품절 보기 4건")(?=[^>]*href="[^"]*stock=all)/);
+    expect(render({ stock: 'out_of_stock' })).not.toMatch(/<a(?=[^>]*aria-current="true")(?=[^>]*aria-label="소량 재고 보기 1,234건")/);
+    // 재고 칸은 나머지 검색 조건을 그대로 들고 간다.
+    expect(render({ status: 'published', q: '키링', ipId: 'maple' })).toMatch(/<a(?=[^>]*aria-label="소량 재고 보기 1,234건")(?=[^>]*href="[^"]*status=published[^"]*stock=low[^"]*q=%ED%82%A4%EB%A7%81[^"]*ipId=maple)/);
   });
-  it('품절·소량 재고 칸은 숫자가 없어도 의미색이고, 준비 사유는 주의색이며, 주 색 링크는 첫 칸 하나다', () => {
+  it('재고 칸 아래에 품절·소량 재고의 기준을 글자로 보이고, 소량 재고에 수량 기준이 없다는 것을 밝힌다', () => {
+    const html = renderToStaticMarkup(<GoodsListScreen data={{ filters: normalizeGoodsListFilters({}), goods: [], ips: [], total: 0, stockCounts: { out_of_stock: 1, low: 2 } }} />);
+    expect(html).toMatch(/<div(?=[^>]*aria-describedby="goods-list-stock-basis")(?=[^>]*role="group")/);
+    const basis = /<p[^>]*id="goods-list-stock-basis"[^>]*>([^<]*)<\/p>/.exec(html)?.[1] ?? '';
+    expect(basis).toContain('품절: 판매중지가 아닌 상품 중 사용 옵션 재고 0개');
+    expect(basis).toContain('소량 재고: 판매상태를 소량 재고로 지정하고 재고가 남은 상품');
+    expect(basis).toContain('수량으로 자동 분류하지 않습니다');
+    expect(html).toContain('옵션별 안전재고 기준 이하 경고는 재고수량 칸에 부족 N개 옵션으로 표시되고 소량 재고 건수에는 들어가지 않습니다');
+    expect(html).toContain('품절·소량 재고 건수는 재고 조건과 페이지를 제외한 같은 검색 조건으로 계산합니다');
+  });
+  it('재고 건수를 읽지 못하면 칸은 조회 링크로 남고 집계 없음으로 말한다', () => {
+    for (const stockCounts of [null, undefined]) {
+      const html = renderToStaticMarkup(<GoodsListScreen data={{ filters: normalizeGoodsListFilters({}), goods: [], ips: [], total: 0, stockCounts }} />);
+      expect(html).toMatch(/<a(?=[^>]*aria-label="품절 보기 집계 없음")(?=[^>]*href="[^"]*stock=out_of_stock)/);
+      expect(html).toMatch(/<a(?=[^>]*aria-label="소량 재고 보기 집계 없음")(?=[^>]*href="[^"]*stock=low)/);
+    }
+  });
+  it('품절·소량 재고 칸은 건수가 있을 때만 의미색이고, 준비 사유는 주의색이며, 주 색 링크는 첫 칸 하나다', () => {
     const base = { code: 'A', name: '상품', ipId: 'ip', ipTitle: 'IP', stock: 'ok' as const, stockQty: 3, activeStockQty: 3, lowStockOptionCount: 0, noticeComplete: true, archivedAt: null, publishedAt: null, customerVisible: false };
     const readiness = { ...unknownGoodsReadiness(), state: 'blocked' as const, reasons: [{ code: 'image_missing' as const, ...GOODS_READINESS_REASONS.image_missing, kind: 'blocking' as const }] };
-    const html = renderToStaticMarkup(<GoodsListScreen data={{ filters: normalizeGoodsListFilters({}), total: 1, ips: [], goods: [{ ...base, id: 'long-good-id-1234567890', readiness }] }} />);
-    expect(html).toMatch(/<a(?=[^>]*data-tone="danger")(?=[^>]*aria-label="품절 보기")/);
-    expect(html).toMatch(/<a(?=[^>]*data-tone="warning")(?=[^>]*aria-label="소량 재고 보기")/);
+    const html = renderToStaticMarkup(<GoodsListScreen data={{ filters: normalizeGoodsListFilters({}), total: 1, ips: [], goods: [{ ...base, id: 'long-good-id-1234567890', readiness }], stockCounts: { out_of_stock: 3, low: 1 } }} />);
+    const card = (source: string, label: string) => new RegExp(`<a(?=[^>]*aria-label="${label}")[^>]*>[\\s\\S]*?</a>`).exec(source)?.[0] ?? '';
+    expect(html).toMatch(/<a(?=[^>]*data-tone="danger")(?=[^>]*aria-label="품절 보기 3건")/);
+    expect(html).toMatch(/<a(?=[^>]*data-tone="warning")(?=[^>]*aria-label="소량 재고 보기 1건")/);
+    expect(card(html, '품절 보기 3건')).toContain('text-destructive');
+    expect(card(html, '소량 재고 보기 1건')).toContain('text-warning');
+    // 0건은 처리할 것이 없으니 회색으로 물러난다(ADR-0029).
+    const empty = renderToStaticMarkup(<GoodsListScreen data={{ filters: normalizeGoodsListFilters({}), total: 0, ips: [], goods: [], stockCounts: { out_of_stock: 0, low: 0 } }} />);
+    expect(card(empty, '품절 보기 0건')).not.toContain('text-destructive');
+    expect(card(empty, '소량 재고 보기 0건')).not.toContain('text-warning');
     expect(html).toMatch(/<a class="[^"]*\btext-warning\b[^"]*" href="[^"]*">(?:<svg[\s\S]*?<\/svg>)?대표 이미지 미입력 →<\/a>/);
     const idLink = /<a class="([^"]*)" title="long-good-id-1234567890" data-goods-list="good-id"/.exec(html)?.[1] ?? '';
     expect(idLink.split(' ')).toEqual(expect.arrayContaining(['truncate', 'text-muted-foreground']));
