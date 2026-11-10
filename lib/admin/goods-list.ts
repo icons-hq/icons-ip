@@ -90,12 +90,16 @@ export interface AdminGoodSummary {
   /** 고객 상세(`/shop/<id>`)가 열리는 상품(전시·미보관·판매 제한 없음·IP 공개). 아니면 상품번호가 편집기 미리보기로 간다(R15). */
   customerVisible?: boolean;
 }
+/** 품절 보기·소량 재고 보기 칸의 건수. 키는 판매상태 필터 값이고, 재고 조건만 뺀 같은 검색 조건에서 센다 — 숫자가 곧 그 칸을 눌렀을 때의 목록 개수다. */
+export type GoodsListStockCounts = Record<'out_of_stock' | 'low', number>;
 export interface AdminGoodsListData {
   filters: GoodsListFilters;
   goods: AdminGoodSummary[];
   total: number;
   pageSize?: number;
   counts?: Record<GoodsListStatus, number>;
+  /** 없으면(`null`) 건수를 읽지 못한 상태다. 목록은 그대로 보이고 칸만 '집계 없음'이 된다. */
+  stockCounts?: GoodsListStockCounts | null;
   origins?: { id: string; name: string; active: boolean }[];
   checkedAt?: string;
   categories?: { id: string; name: string; depth: number; archivedAt: string | null }[];
@@ -148,6 +152,14 @@ export function normalizeGoodsListFilters(values: Record<string, string | string
     salePeriod: ['scheduled', 'ended'].includes(salePeriod) ? salePeriod as 'scheduled' | 'ended' : 'all',
   };
 }
+/** 검색어·조건으로 좁힌 목록인가. 0건일 때 "아직 등록한 상품이 없다"고 잘못 말하지 않게 한다(건수는 조건을 탄다). */
+export function goodsListIsNarrowed(filters: GoodsListFilters): boolean {
+  return Boolean(filters.query || filters.ipId || filters.categoryId || filters.from || filters.to || filters.originId)
+    || filters.stock !== 'all' || filters.readiness !== 'all'
+    || (filters.payment ?? 'all') !== 'all' || (filters.saleType ?? 'all') !== 'all' || (filters.image ?? 'all') !== 'all'
+    || (filters.restriction ?? 'all') !== 'all' || (filters.salePeriod ?? 'all') !== 'all';
+}
+
 export function goodsListHref(filters: GoodsListFilters, page = filters.page): string {
   const params = new URLSearchParams({ status: filters.status, stock: filters.stock, page: String(page) });
   if (filters.query) params.set('q', filters.query);

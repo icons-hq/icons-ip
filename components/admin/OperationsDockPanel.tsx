@@ -4,7 +4,11 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { setAdminOperationAlertBadgeAction, updateAdminOperationAlertsAction } from '@/app/admin/operations-dock-actions';
 import { ADMIN_ALERT_CATEGORIES, type AdminAlertCategory, type AdminAlertFilterState, type AdminAlertPage, type AdminHelpResult, type AdminOperationTask } from '@/lib/admin/operations-dock';
-import { Icon } from '@/components/ui/Icon';
+import { RefreshCw, Settings, X } from 'lucide-react';
+import { Badge } from '@/components/admin/kit/ui/badge';
+import { Button } from '@/components/admin/kit/ui/button';
+import { Input } from '@/components/admin/kit/ui/input';
+import { NativeSelect, NativeSelectOption } from '@/components/admin/kit/ui/native-select';
 import type { OperationsDockSection } from './OperationsDock';
 import { InquiryNotificationToggle } from './AdminInquiryNotifier';
 
@@ -67,35 +71,42 @@ export function OperationsDockPanel({ section, pathname, onClose, onAlertRead, c
     });
   }
   const title = section === 'alerts' ? '알림' : section === 'tasks' ? '할 일' : '도움말';
-  return <section className="admin-operations-panel" id="admin-operations-panel" role="region" aria-labelledby="admin-operations-title" aria-busy={loading || pending}>
-    <header><h2 id="admin-operations-title" ref={heading} tabIndex={-1}>{title}</h2><div>{section === 'alerts' ? <button type="button" aria-label="알림 설정" aria-expanded={settings} onClick={() => setSettings(!settings)}><Icon name="settings" size={19} /></button> : null}<button type="button" aria-label="업무 도구 닫기" onClick={onClose}><Icon name="close" size={20} /></button></div></header>
-    <div className="admin-operations-body">
-      {error ? <p role="alert" className="admin-operations-error">{error}</p> : null}
-      <div className="admin-operations-refresh"><button type="button" disabled={loading || pending} onClick={reload}>새로고침</button></div>
+  const linkClass = 'font-medium text-foreground underline-offset-4 hover:underline';
+  return <section className="flex h-full min-h-0 flex-col" id="admin-operations-panel" role="region" aria-labelledby="admin-operations-title" aria-busy={loading || pending}>
+    <header className="flex shrink-0 items-center justify-between gap-2 border-b px-4 py-3">
+      <h2 className="text-base font-semibold text-foreground outline-none" id="admin-operations-title" ref={heading} tabIndex={-1}>{title}</h2>
+      <div className="flex items-center gap-1">
+        {section === 'alerts' ? <Button aria-expanded={settings} aria-label="알림 설정" onClick={() => setSettings(!settings)} size="icon-sm" type="button" variant="ghost"><Settings /></Button> : null}
+        <Button aria-label="업무 도구 닫기" onClick={onClose} size="icon-sm" type="button" variant="ghost"><X /></Button>
+      </div>
+    </header>
+    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain p-4 text-sm">
+      {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
+      <div className="flex justify-end"><Button disabled={loading || pending} onClick={reload} size="sm" type="button" variant="outline"><RefreshCw />새로고침</Button></div>
       {section === 'alerts' ? <>
         {inquiryNotificationAccountId ? <InquiryNotificationToggle accountId={inquiryNotificationAccountId} /> : null}
-        {settings && alerts ? <form className="admin-operations-settings" onSubmit={event => { event.preventDefault(); const enabled = new FormData(event.currentTarget).get('badge') === 'on'; startTransition(async () => { try { const result = await setAdminOperationAlertBadgeAction(enabled); if (result.error) setError(result.error); else { setSettings(false); reload(); } } catch { setError('알림 설정을 저장하지 못했습니다.'); } }); }}>
-          <h3>알림 설정</h3><label><input name="badge" type="checkbox" defaultChecked={alerts.badgeEnabled} /> 새 알림 건수 표시</label><p>현재 계정에 적용됩니다. 알림 목록은 계속 보관됩니다.</p><div><button disabled={pending} type="submit">저장</button><button type="button" onClick={() => setSettings(false)}>취소</button></div>
+        {settings && alerts ? <form className="flex flex-col gap-3 rounded-lg border bg-muted/40 p-3" onSubmit={event => { event.preventDefault(); const enabled = new FormData(event.currentTarget).get('badge') === 'on'; startTransition(async () => { try { const result = await setAdminOperationAlertBadgeAction(enabled); if (result.error) setError(result.error); else { setSettings(false); reload(); } } catch { setError('알림 설정을 저장하지 못했습니다.'); } }); }}>
+          <h3 className="text-sm font-medium">알림 설정</h3><label className="flex items-center gap-2"><input name="badge" type="checkbox" defaultChecked={alerts.badgeEnabled} /> 새 알림 건수 표시</label><p className="text-xs text-muted-foreground">현재 계정에 적용됩니다. 알림 목록은 계속 보관됩니다.</p><div className="flex gap-2"><Button disabled={pending} size="sm" type="submit">저장</Button><Button onClick={() => setSettings(false)} size="sm" type="button" variant="outline">취소</Button></div>
         </form> : null}
-        <nav aria-label="알림 유형" className="admin-operations-categories">{categories.map(([key, label]) => <button type="button" key={key} disabled={pending} aria-pressed={category === key} onClick={() => { if (key !== category) { setCategory(key); setLoading(true); } }}>{label}</button>)}</nav>
-        <div className="admin-operations-alert-tools"><select aria-label="알림 상태" disabled={pending} value={state} onChange={event => { setState(event.target.value as AdminAlertFilterState); setLoading(true); }}><option value="all">전체알림</option><option value="unread">안읽은알림</option><option value="hidden">숨긴알림</option></select>
-          <button type="button" disabled={!alerts || loading || pending || state === 'hidden'} onClick={() => update('read', null)}>전체읽음</button><button type="button" disabled={!alerts || loading || pending} onClick={() => update(state === 'hidden' ? 'restore' : 'hide', null)}>{state === 'hidden' ? '전체복원' : '전체숨김'}</button></div>
-        <p className="admin-operations-note">최근 90일 · 기능 적용 후 발생한 알림 · 읽음/숨김은 현재 계정에만 적용됩니다.</p>
-        {!loading && alerts?.items.length === 0 ? <p className="admin-operations-empty">표시할 알림이 없습니다.</p> : null}
-        {!loading && alerts ? <ul className="admin-operations-alert-list">{alerts.items.map(item => <li key={item.id} data-unread={!item.readAt || undefined}>
-          <div><span>{ADMIN_ALERT_CATEGORIES.find(([key]) => key === item.category)?.[1]}</span><time dateTime={item.createdAt}>{new Date(item.createdAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</time></div>
-          <Link href={item.href} onClick={event => { if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return; event.preventDefault(); update('read', [item.id], item.href); }}>{item.title}</Link>
-          <button type="button" disabled={pending} onClick={() => update(item.hiddenAt ? 'restore' : 'hide', [item.id])}>{item.hiddenAt ? '복원' : '숨김'}</button>
+        <nav aria-label="알림 유형" className="flex flex-wrap gap-1">{categories.map(([key, label]) => <Button aria-pressed={category === key} disabled={pending} key={key} onClick={() => { if (key !== category) { setCategory(key); setLoading(true); } }} size="xs" type="button" variant={category === key ? 'default' : 'outline'}>{label}</Button>)}</nav>
+        <div className="flex flex-wrap items-center gap-1.5"><NativeSelect aria-label="알림 상태" className="w-32" disabled={pending} onChange={event => { setState(event.target.value as AdminAlertFilterState); setLoading(true); }} size="sm" value={state}><NativeSelectOption value="all">전체알림</NativeSelectOption><NativeSelectOption value="unread">안읽은알림</NativeSelectOption><NativeSelectOption value="hidden">숨긴알림</NativeSelectOption></NativeSelect>
+          <Button disabled={!alerts || loading || pending || state === 'hidden'} onClick={() => update('read', null)} size="sm" type="button" variant="outline">전체읽음</Button><Button disabled={!alerts || loading || pending} onClick={() => update(state === 'hidden' ? 'restore' : 'hide', null)} size="sm" type="button" variant="outline">{state === 'hidden' ? '전체복원' : '전체숨김'}</Button></div>
+        <p className="text-xs text-muted-foreground">최근 90일 · 기능 적용 후 발생한 알림 · 읽음/숨김은 현재 계정에만 적용됩니다.</p>
+        {!loading && alerts?.items.length === 0 ? <p className="py-6 text-center text-muted-foreground">표시할 알림이 없습니다.</p> : null}
+        {!loading && alerts?.items.length ? <ul className="flex flex-col divide-y rounded-lg border">{alerts.items.map(item => <li className="flex flex-col gap-1.5 p-3 data-[unread]:bg-info-soft" key={item.id} data-unread={!item.readAt || undefined}>
+          <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground"><Badge variant="outline">{ADMIN_ALERT_CATEGORIES.find(([key]) => key === item.category)?.[1]}</Badge><time dateTime={item.createdAt}>{new Date(item.createdAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</time></div>
+          <div className="flex items-start justify-between gap-2"><Link className={linkClass} href={item.href} onClick={event => { if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return; event.preventDefault(); update('read', [item.id], item.href); }}>{item.title}</Link>
+          <Button className="shrink-0" disabled={pending} onClick={() => update(item.hiddenAt ? 'restore' : 'hide', [item.id])} size="xs" type="button" variant="ghost">{item.hiddenAt ? '복원' : '숨김'}</Button></div>
         </li>)}</ul> : null}
-        {!loading && alerts?.hasMore ? <button className="admin-operations-more" disabled={pending} type="button" onClick={more}>더보기</button> : null}
+        {!loading && alerts?.hasMore ? <Button disabled={pending} onClick={more} type="button" variant="outline">더보기</Button> : null}
       </> : null}
-      {section === 'tasks' && !loading && tasks ? <><p className="admin-operations-note">현재 처리 상태 기준 · 건수를 누르면 해당 조건의 목록으로 이동합니다.</p><ul className="admin-operations-task-list">{tasks.map(task => <li key={task.id}><Link href={task.href} onClick={onClose}><span>{task.label}</span><strong>{task.count.toLocaleString('ko-KR')}건</strong></Link></li>)}</ul>{tasks.every(task => task.count === 0) ? <p className="admin-operations-empty">지금은 처리할 업무가 없습니다.</p> : null}</> : null}
+      {section === 'tasks' && !loading && tasks ? <><p className="text-xs text-muted-foreground">현재 처리 상태 기준 · 건수를 누르면 해당 조건의 목록으로 이동합니다.</p><ul className="flex flex-col gap-1.5">{tasks.map(task => <li key={task.id}><Link className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5 transition-colors hover:bg-muted" href={task.href} onClick={onClose}><span>{task.label}</span><strong className={`font-semibold tabular-nums ${task.count > 0 ? 'text-warning' : 'text-muted-foreground'}`}>{task.count.toLocaleString('ko-KR')}건</strong></Link></li>)}</ul>{tasks.every(task => task.count === 0) ? <p className="py-6 text-center text-muted-foreground">지금은 처리할 업무가 없습니다.</p> : null}</> : null}
       {section === 'help' ? <>
-        <form role="search" onSubmit={event => { event.preventDefault(); setSearch(query.trim()); setLoading(true); if (query.trim() === search) setRefresh(value => value + 1); }}><input aria-label="도움말 검색어" placeholder="도움말 검색" value={query} maxLength={100} onChange={event => setQuery(event.target.value)} /><button type="submit">검색</button></form>
-        <Link className="admin-operations-guide-link" href="/admin/guide" onClick={onClose}>전체 가이드 보기 ›</Link>
-        {!loading && help ? <><h3>{search ? `검색 결과 ${help.total}개` : '현재 화면 도움말'}</h3>{help.entries.length === 0 ? <p className="admin-operations-empty">일치하는 도움말이 없습니다.</p> : null}<div className="admin-operations-help-list">{help.entries.map(entry => <details key={entry.id}><summary><span>{entry.topic}</span>{entry.title}</summary><div>{entry.paragraphs.map((text, index) => <p key={index}>{text}</p>)}<Link href={entry.href} onClick={onClose}>가이드에서 보기 ›</Link>{entry.links.map(link => <Link href={link.href} key={link.href} onClick={onClose}>{link.label} ›</Link>)}</div></details>)}</div>{help.total > help.entries.length ? <p className="admin-operations-note">상위 {help.entries.length}개를 표시합니다. 검색어를 구체적으로 입력해주세요.</p> : null}</> : null}
+        <form className="flex gap-2" role="search" onSubmit={event => { event.preventDefault(); setSearch(query.trim()); setLoading(true); if (query.trim() === search) setRefresh(value => value + 1); }}><Input aria-label="도움말 검색어" maxLength={100} onChange={event => setQuery(event.target.value)} placeholder="도움말 검색" value={query} /><Button type="submit" variant="soft">검색</Button></form>
+        <Link className={`${linkClass} self-start text-sm`} href="/admin/guide" onClick={onClose}>전체 가이드 보기 ›</Link>
+        {!loading && help ? <><h3 className="text-sm font-medium">{search ? `검색 결과 ${help.total}개` : '현재 화면 도움말'}</h3>{help.entries.length === 0 ? <p className="py-6 text-center text-muted-foreground">일치하는 도움말이 없습니다.</p> : null}<div className="flex flex-col gap-2">{help.entries.map(entry => <details className="group rounded-lg border px-3 py-2.5" key={entry.id}><summary className="flex cursor-pointer list-none flex-col gap-0.5"><span className="text-xs text-muted-foreground">{entry.topic}</span><span className="font-medium">{entry.title}</span></summary><div className="mt-2 flex flex-col gap-2 text-muted-foreground">{entry.paragraphs.map((text, index) => <p key={index}>{text}</p>)}<Link className={linkClass} href={entry.href} onClick={onClose}>가이드에서 보기 ›</Link>{entry.links.map(link => <Link className={linkClass} href={link.href} key={link.href} onClick={onClose}>{link.label} ›</Link>)}</div></details>)}</div>{help.total > help.entries.length ? <p className="text-xs text-muted-foreground">상위 {help.entries.length}개를 표시합니다. 검색어를 구체적으로 입력해주세요.</p> : null}</> : null}
       </> : null}
-      {loading ? <p role="status" className="admin-operations-empty">불러오는 중입니다.</p> : null}
+      {loading ? <p role="status" className="py-6 text-center text-muted-foreground">불러오는 중입니다.</p> : null}
     </div>
   </section>;
 }

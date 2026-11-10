@@ -75,8 +75,9 @@ describe('KC 모델 검토 화면', () => {
     expect(html).not.toContain('>해당 없음으로 검토 완료</button>');
     expect(html).not.toContain('aria-label="해당 없음 고객 안내"');
     // 모델 상세·내부 근거·검토 버튼은 닫힌 '모델 상세 보기·고치기' 안에 있다.
-    const details = html.match(/<details( open="")?><summary>모델 상세 보기·고치기<\/summary>/);
-    expect(details?.[1]).toBeUndefined();
+    const details = html.match(/<details([^>]*)><summary[^>]*>모델 상세 보기·고치기<\/summary>/);
+    expect(details?.[1]).toContain('data-kc-model-details=""');
+    expect(details?.[1]).not.toContain('open=""');
     const folded = html.slice(html.indexOf('모델 상세 보기·고치기'));
     for (const text of ['모델 1 고객 안내 (선택)', '내부 검토 근거', 'KC 인증 대상이 아닌 상품입니다.', '>미검토로 저장</button>']) {
       expect(html.indexOf(text), text).toBeGreaterThan(html.indexOf('모델 상세 보기·고치기'));
@@ -91,7 +92,9 @@ describe('KC 모델 검토 화면', () => {
       reviewedAt: '2026-10-07T00:00:00Z', reviewerName: '합성 검토자', models: [goodsKcProductNotApplicableModel([variant])] }} onSaved={() => {}}
       templateRequest={{ id: 'preset-request', template: { family: 'living', scheme: 'safety_confirmation', publicNote: '' } }} />);
     expect(html).toContain('<p role="status">KC 미검토 초안 · 미저장');
-    expect(html).toContain('<details open=""><summary>모델 상세 보기·고치기</summary>');
+    const details = html.match(/<details([^>]*)><summary[^>]*>모델 상세 보기·고치기<\/summary>/);
+    expect(details?.[1]).toContain('data-kc-model-details=""');
+    expect(details?.[1]).toContain('open=""');
     expect(html).toContain('모델 2 모델명');
   });
   it('해당 없음 단독이 아닌 검토 완료와 미검토 해당 없음은 기존처럼 모델을 펼쳐 둔다', () => {

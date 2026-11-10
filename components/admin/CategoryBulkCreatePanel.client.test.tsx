@@ -11,13 +11,16 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: mocks.refresh }
 vi.mock('@/app/admin/category-actions', () => ({ bulkCreateAdminCategoriesAction: mocks.bulk }));
 
 import { CategoryBulkCreatePanel } from './CategoryBulkCreatePanel';
+import { Button } from './kit/ui/button';
+import { Textarea } from './kit/ui/textarea';
+import { TableCell, TableHead, TableRow } from './kit/ui/table';
 
 type Element = ReactElement<{ children?: ReactNode; onClick?: () => void; onChange?: (event: unknown) => void; disabled?: boolean; value?: string; 'aria-label'?: string }>;
 function all(node: ReactNode): Element[] { return Array.isArray(node) ? node.flatMap(all) : isValidElement(node) ? [node as Element, ...all((node.props as { children?: ReactNode }).children)] : []; }
 function text(node: ReactNode): string { return Array.isArray(node) ? node.map(text).join('') : isValidElement(node) ? text((node.props as { children?: ReactNode }).children) : typeof node === 'string' || typeof node === 'number' ? String(node) : ''; }
 function render() { hooks.index = 0; hooks.refIndex = 0; return CategoryBulkCreatePanel(); }
-function type(value: string) { all(render()).find(item => item.type === 'textarea')?.props.onChange?.({ target: { value } }); }
-function submit() { const node = all(render()).find(item => item.type === 'button'); if (!node) throw new Error('button'); return node; }
+function type(value: string) { all(render()).find(item => item.type === 'textarea' || item.type === Textarea)?.props.onChange?.({ target: { value } }); }
+function submit() { const node = all(render()).find(item => item.type === 'button' || item.type === Button); if (!node) throw new Error('button'); return node; }
 async function settle() { for (let i = 0; i < 20; i++) await Promise.resolve(); }
 
 const result = {
@@ -48,9 +51,9 @@ it('결과를 번호·결과·사유 표로 보이고 목록을 새로 고친다
   expect(mocks.bulk).toHaveBeenCalledOnce();
   expect(mocks.bulk.mock.calls[0][0]).toMatchObject({ text: '문구>노트>스프링노트\n문구>메모/수첩>메모지\n\n문구>노트>스프링노트\n가>나>다>라>마' });
   const tree = render();
-  const headers = all(tree).filter(item => item.type === 'th' && (item.props as { scope?: string }).scope === 'col').map(text);
+  const headers = all(tree).filter(item => (item.type === 'th' || item.type === TableHead) && (item.props as { scope?: string }).scope === 'col').map(text);
   expect(headers).toEqual(['번호', '결과', '사유']);
-  const rows = all(tree).filter(item => item.type === 'tr').slice(1).map(row => all(row.props.children).filter(cell => cell.type === 'th' || cell.type === 'td').map(text));
+  const rows = all(tree).filter(item => item.type === 'tr' || item.type === TableRow).slice(1).map(row => all(row.props.children).filter(cell => cell.type === 'th' || cell.type === 'td' || cell.type === TableHead || cell.type === TableCell).map(text));
   expect(rows).toEqual([
     ['1 · 문구>노트>스프링노트', '처리됨', '새 카테고리 3개를 만들었습니다.'],
     ['2 · 문구>메모/수첩>메모지', '처리됨', '새 카테고리 2개를 만들었습니다.'],

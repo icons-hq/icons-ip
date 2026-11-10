@@ -203,7 +203,8 @@ describe('RewardPolicySection', () => {
   });
 
   it('filters target goods by IP while keeping eligible reward pools IP-independent', () => {
-    const html = renderPolicySection();
+    const targeting = { ...selectedPolicy, poolId: readyPoolA.id, status: 'active' as const };
+    const html = renderPolicySection({ records: [targeting], selected: targeting });
 
     expect(html).toContain('화산 키링');
     expect(html).not.toContain('루멘 포스터');
@@ -247,7 +248,7 @@ describe('RewardPolicySection', () => {
     expect(html).toContain('회수 1');
     expect(html).toContain('주문 6');
     expect(html).toContain('최근 발급 2026-07-15 11:00 KST');
-    expect(html).toContain('class="admin-form-grid mono"');
+    expect(html).toContain('data-admin-summary="reward-policy"');
     expect(html).toContain('조건이 겹치는 활성 정책은 누적 적용');
     expect(html).toContain('정책 연결 정보가 없는 기존 뽑기권은 집계에서 제외');
   });
@@ -257,12 +258,13 @@ describe('RewardPolicySection', () => {
     const noPoolHtml = renderPolicySection({ pools: [endedPool, unreadyPool] });
 
     expect(noIpHtml).toContain('먼저 IP를 등록해주세요.');
-    expect(noIpHtml).toMatch(/<button[^>]*disabled=""[^>]*>[^<]*(?:<[^>]+>[^<]*<\/[^>]+>)?\s*저장<\/button>/);
+    expect(noIpHtml).toMatch(/<button[^>]*disabled=""[^>]*>(?:<svg[\s\S]*?<\/svg>)?\s*저장<\/button>/);
     expect(noPoolHtml).toContain('확률과 카드 구성이 완료된 운영 예정/운영 중 카드풀을 먼저 준비해주세요.');
-    expect(noPoolHtml).toMatch(/<button[^>]*disabled=""[^>]*>[^<]*(?:<[^>]+>[^<]*<\/[^>]+>)?\s*저장<\/button>/);
+    expect(noPoolHtml).toMatch(/<button[^>]*disabled=""[^>]*>(?:<svg[\s\S]*?<\/svg>)?\s*저장<\/button>/);
   });
 
-  it('defaults a new policy to the first active IP when an archived IP sorts first', () => {
+  /* 첫 항목을 미리 고르면 서로 안 맞는 IP와 카드풀이 그대로 저장된다 — 새 정책은 직접 고르게 한다. */
+  it('새 정책은 대상 IP·발급 카드풀을 미리 고르지 않고, 보관 IP는 고를 수 없다', () => {
     const html = renderPolicySection({
       ips: [
         { id: 'archived', title: '보관 IP', archivedAt: '2026-07-17T12:00:00.000Z' },
@@ -271,7 +273,19 @@ describe('RewardPolicySection', () => {
     });
 
     expect(html).toContain('disabled="" value="archived">[보관] 보관 IP');
-    expect(html).toContain('value="ip-a" selected="">화산강림');
+    expect(html).toMatch(/name="targetIpId"[^>]*><option value="" selected="">선택<\/option>/);
+    expect(html).toMatch(/name="poolId"[^>]*><option value="" selected="">선택<\/option>/);
+    expect(html).not.toMatch(/value="(ip-a|11111111-1111-4111-8111-111111111111)" selected=""/);
+    /* 고르지 않은 것은 저장을 막는 사유가 아니라 필수 입력이다(빈 선택으로 카드풀 사용 불가가 뜨지 않는다). */
+    expect(html).not.toContain('현재 카드풀을 사용할 수 없습니다');
+    expect(html).toMatch(/<button(?![^>]*disabled="")[^>]*>(?:<svg[\s\S]*?<\/svg>)?\s*저장<\/button>/);
+  });
+
+  it('대상 IP와 다른 IP의 카드풀을 고른 정책만 저장 전에 확인하게 한다', () => {
+    const matching = { ...selectedPolicy, poolId: readyPoolA.id, status: 'active' as const };
+    const crossed = { ...selectedPolicy, poolId: scheduledPoolB.id, status: 'active' as const };
+    expect(renderPolicySection({ records: [matching], selected: matching })).not.toContain('다른 IP의 카드풀입니다');
+    expect(renderPolicySection({ records: [crossed], selected: crossed })).toMatch(/data-admin-notice="warning"[\s\S]*?대상 IP\(화산강림\)와 다른 IP의 카드풀입니다/);
   });
 
   it('resets an out-of-scope good and uses a semantic remount key', () => {
@@ -283,6 +297,16 @@ describe('RewardPolicySection', () => {
     expect(getRewardPolicyFormKey(null, 'draft-id', 'operation-id')).toBe(
       JSON.stringify(['draft-id', null, 'operation-id']),
     );
+  });
+
+  it('새 정책은 제목으로 등록임을 말하고 빈 발급 현황을 띄우지 않으며, 고른 정책은 어떤 정책을 고치는지 보인다', () => {
+    const creating = renderPolicySection();
+    expect(creating).toContain('>새 발급 정책 등록</h3>');
+    expect(creating).not.toContain('미리 골라 둔 값입니다');
+    expect(creating).not.toContain('reward-policy-summary-title');
+    const editing = renderPolicySection({ records: [selectedPolicy], selected: selectedPolicy });
+    expect(editing).toContain(`>화산 키링 → ${endedPool.name} 수정</h3>`);
+    expect(editing).toContain('reward-policy-summary-title');
   });
 
   it('includes scheduled ready pools and only the selected unavailable pool', () => {

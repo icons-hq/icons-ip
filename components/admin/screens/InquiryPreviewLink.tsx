@@ -8,9 +8,10 @@ import type { ReactNode } from 'react';
    알림 자리는 항상 그려 두고 내용만 바꾼다(레이아웃 흔들림 방지, Next 16 useLinkStatus 권고). */
 function OpeningHint() {
   const { pending } = useLinkStatus();
-  return <span className="admin-cs-open__pending" aria-live="polite" data-pending={pending ? 'true' : undefined}>{pending ? '여는 중' : ''}</span>;
+  return <span className="text-xs font-normal text-muted-foreground not-empty:ml-1.5" aria-live="polite" data-pending={pending ? 'true' : undefined}>{pending ? '여는 중' : ''}</span>;
 }
 
-export function InquiryPreviewLink({ href, className, children }: { href: string; className?: string; children: ReactNode }) {
-  return <Link className={className} href={href} scroll={false}>{children}<OpeningHint /></Link>;
+/** `button`이면 버튼 모양 링크(className에 kit buttonVariants)라는 표시(data-slot)를 단다. */
+export function InquiryPreviewLink({ href, className, children, button = false, title }: { href: string; className?: string; children: ReactNode; button?: boolean; title?: string }) {
+  return <Link className={className} data-slot={button ? 'button' : undefined} href={href} scroll={false} title={title}>{children}<OpeningHint /></Link>;
 }

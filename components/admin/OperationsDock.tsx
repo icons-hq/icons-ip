@@ -4,14 +4,24 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { Icon } from '@/components/ui/Icon';
+import { Bell, CircleHelp, ListTodo, MessagesSquare } from 'lucide-react';
 import { allowedAdminAlertCategories, type AdminAlertPage } from '@/lib/admin/operations-dock';
 import { hasAdminCapability, type OperatorAccess } from '@/lib/admin/access';
+import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
+import { Sheet, SheetContent } from '@/components/admin/kit/ui/sheet';
 
 const Panel = dynamic(() => import('./OperationsDockPanel').then(module => module.OperationsDockPanel), { ssr: false });
 export type OperationsDockSection = 'alerts' | 'tasks' | 'help';
-const tools = [{ id: 'alerts', label: '알림', icon: 'bell' }, { id: 'tasks', label: '할 일', icon: 'check' }, { id: 'help', label: '도움말', icon: 'help' }] as const;
+const tools = [
+  { id: 'alerts', label: '알림', Icon: Bell },
+  { id: 'tasks', label: '할 일', Icon: ListTodo },
+  { id: 'help', label: '도움말', Icon: CircleHelp },
+] as const;
 
+/*
+ * 판매자 업무 도구(알림·할 일·도움말·상담하기). 상단 막대의 아이콘 버튼으로 열고, 내용은 오른쪽 시트에
+ * 그린다(ADR-0028 템플릿 룩). 알림 배지는 1분마다·탭으로 돌아올 때 다시 센다.
+ */
 export function OperationsDock({ accountId, access, inquiryNotifications = false }: {
   accountId: string; access?: OperatorAccess;
   /** 커머스 콘솔 cs.manage 운영자에게 '알림' 패널 안 '새 1:1 문의 PC 알림' 켜기·끄기를 보인다(R2). */
@@ -40,21 +50,42 @@ export function OperationsDock({ accountId, access, inquiryNotifications = false
     return () => { controller.abort(); clearInterval(interval); document.removeEventListener('visibilitychange', refresh); };
   }, [accountId, access?.revision]);
   function close() { if (section) buttonRefs.current[section]?.focus(); setSection(null); }
-  useEffect(() => {
-    if (!section) return;
-    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') { buttonRefs.current[section]?.focus(); setSection(null); } };
-    document.addEventListener('keydown', onKey); return () => document.removeEventListener('keydown', onKey);
-  }, [section]);
+  const showBadge = badgeEnabled && badge !== null && badge > 0;
   return <>
-    <aside className="admin-operations-rail" aria-label="판매자 업무 도구">
-      {tools.map(tool => <button key={tool.id} ref={element => { buttonRefs.current[tool.id] = element; }} type="button" aria-label={tool.id === 'alerts' && badgeEnabled && badge ? `알림 ${badge}건` : tool.label} aria-expanded={section === tool.id} aria-controls="admin-operations-panel" onClick={() => setSection(section === tool.id ? null : tool.id)}>
-        <span className={`admin-operations-rail-icon admin-operations-rail-icon-${tool.id}`}><Icon name={tool.icon} size={23} /></span><span>{tool.label}</span>
-        {tool.id === 'alerts' && badgeEnabled && badge !== null && badge > 0 ? <b>{badge > 99 ? '99+' : badge}</b> : null}
-      </button>)}
-      {hasAdminCapability(access, 'cs.manage') ? <Link href="/admin/cs/chat" aria-current={pathname === '/admin/cs/chat' ? 'page' : undefined}>
-        <span className="admin-operations-rail-icon admin-operations-rail-icon-chat"><Icon name="chat" size={23} /></span><span>상담하기</span>
+    <div aria-label="판매자 업무 도구" className="flex items-center gap-0.5" role="group">
+      {tools.map(({ id, label, Icon }) => <Button
+        aria-controls="admin-operations-panel"
+        aria-expanded={section === id}
+        aria-label={id === 'alerts' && badgeEnabled && badge ? `알림 ${badge}건` : label}
+        className="relative xl:w-auto xl:gap-1 xl:px-2"
+        key={id}
+        onClick={() => setSection(section === id ? null : id)}
+        ref={element => { buttonRefs.current[id] = element; }}
+        size="icon-sm"
+        title={label}
+        type="button"
+        variant="ghost"
+      >
+        <Icon aria-hidden="true" />
+        <span className="hidden xl:inline">{label}</span>
+        {id === 'alerts' && showBadge ? <span className="absolute -top-1 -right-1 flex h-4 min-w-4 xl:static xl:ml-0.5 items-center justify-center rounded-full bg-muted-foreground px-1 text-[10px] leading-none font-semibold text-primary-foreground tabular-nums">{badge > 99 ? '99+' : badge}</span> : null}
+      </Button>)}
+      {hasAdminCapability(access, 'cs.manage') ? <Link
+        aria-current={pathname === '/admin/cs/chat' ? 'page' : undefined}
+        aria-label="상담하기"
+        className={`${buttonVariants({ variant: 'ghost', size: 'icon-sm' })} aria-[current=page]:bg-muted xl:w-auto xl:gap-1 xl:px-2`}
+        href="/admin/cs/chat"
+        title="상담하기"
+      >
+        <MessagesSquare aria-hidden="true" />
+        <span className="hidden xl:inline">상담하기</span>
       </Link> : null}
-    </aside>
-    {section ? <Panel key={`${accountId}:${access?.revision}:${section}`} section={section} pathname={pathname} categories={allowedAdminAlertCategories(access)} inquiryNotificationAccountId={inquiryNotifications && accountId ? accountId : undefined} onClose={close} onAlertRead={page => { setBadge(page.unreadCount); setBadgeEnabled(page.badgeEnabled); }} /> : null}
+    </div>
+    {/* 비모달: 도움말·할 일을 펼친 채 본문을 조작한다(옛 업무 도구 패널과 같다). 닫기는 패널의 닫기 버튼과 Esc. */}
+    <Sheet disablePointerDismissal modal={false} onOpenChange={(open) => { if (!open) close(); }} open={section !== null}>
+      <SheetContent className="w-full gap-0 p-0 sm:max-w-md" showCloseButton={false} showOverlay={false} side="right">
+        {section ? <Panel key={`${accountId}:${access?.revision}:${section}`} section={section} pathname={pathname} categories={allowedAdminAlertCategories(access)} inquiryNotificationAccountId={inquiryNotifications && accountId ? accountId : undefined} onClose={close} onAlertRead={page => { setBadge(page.unreadCount); setBadgeEnabled(page.badgeEnabled); }} /> : null}
+      </SheetContent>
+    </Sheet>
   </>;
 }

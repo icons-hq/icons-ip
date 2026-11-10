@@ -4,6 +4,16 @@ import { useEffect, useState, useTransition, type FormEvent } from 'react';
 import { listGoodsPricePeriodsAction, saveGoodsPricePeriodAction } from '@/app/admin/goods-price-period-actions';
 import { toKstDateTimeInput, type AdminGoodsPricePeriod } from '@/lib/admin/goods-price-periods';
 import type { AdminGoodsVariant } from '@/lib/admin/goods-variants';
+import { ChevronRight } from 'lucide-react';
+import { Button } from '@/components/admin/kit/ui/button';
+import { NativeSelect } from '@/components/admin/kit/ui/native-select';
+import { GOOD_INPUT_CLASS, GOOD_NUMBER_INPUT_CLASS } from './GoodEditorParts';
+
+/* 템플릿 룩(ADR-0028). 초안·새 기간 할인은 접는 묶음(details)이라 펼치기 전에는 입력을 그리지 않은 것처럼 보인다. */
+const FIELD_LABEL_CLASS = 'flex min-w-0 flex-col gap-1.5 text-sm font-medium text-foreground';
+const DISCLOSURE_CLASS = 'group/period min-w-0 rounded-lg border';
+const DISCLOSURE_SUMMARY_CLASS = 'flex cursor-pointer list-none items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium outline-none select-none group-open/period:rounded-b-none focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden';
+const DISCLOSURE_CHEVRON = <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open/period:rotate-90 motion-reduce:transition-none" />;
 
 function PeriodEditor({ goodId, variants, period, onSaved }: {
   goodId: string;
@@ -27,39 +37,42 @@ function PeriodEditor({ goodId, variants, period, onSaved }: {
       if (result.ok) { setError(null); onSaved(result.message); } else setError(result.error);
     });
   }
-  return <form className="wc-admin-kit col" onSubmit={save} style={{ gap: 12 }}>
+  const idPrefix = `price-period-${goodId}-${period?.id ?? 'new'}`;
+  return <form className="flex min-w-0 flex-col gap-3" onSubmit={save}>
     <input type="hidden" name="goodId" value={goodId} />
     <input type="hidden" name="variantId" value={variantId} />
     <input type="hidden" name="periodId" value={period?.id ?? ''} />
     <input type="hidden" name="revision" value={period?.revision ?? ''} />
     <input type="hidden" name="period" value={JSON.stringify({ state, discountPrice, startsAt, endsAt })} />
-    <label>대상 옵션
-      <select value={variantId} onChange={(event) => setVariantId(event.target.value)} disabled={Boolean(period) || pending} required>
+    <div className={FIELD_LABEL_CLASS}>
+      <label htmlFor={`${idPrefix}-variant`}>대상 옵션</label>
+      <NativeSelect className="w-full" id={`${idPrefix}-variant`} value={variantId} onChange={(event) => setVariantId(event.target.value)} disabled={Boolean(period) || pending} required>
         {variants.map((option) => <option key={option.id} value={option.id}>{option.name} · {option.code}{option.archivedAt ? ' (사용 중지)' : ''}</option>)}
-      </select>
-    </label>
-    <p className="muted" style={{ margin: 0 }}>현재 옵션 판매가: {variant ? `${variant.price.toLocaleString('ko-KR')}원` : '옵션 선택 필요'}</p>
-    <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 12 }}>
-      <label>기간 할인가 (원)
-        <input type="number" min={1} max={variant ? variant.price - 1 : 2147483647} step={1} value={discountPrice}
+      </NativeSelect>
+    </div>
+    <p className="text-sm text-muted-foreground tabular-nums">현재 옵션 판매가: {variant ? `${variant.price.toLocaleString('ko-KR')}원` : '옵션 선택 필요'}</p>
+    <div className="grid min-w-0 gap-3 [grid-template-columns:repeat(auto-fit,minmax(min(100%,11.25rem),1fr))]">
+      <label className={FIELD_LABEL_CLASS}>기간 할인가 (원)
+        <input className={GOOD_NUMBER_INPUT_CLASS} data-slot="input" type="number" min={1} max={variant ? variant.price - 1 : 2147483647} step={1} value={discountPrice}
           onChange={(event) => setDiscountPrice(event.target.value)} required={state === 'active'} disabled={pending} />
       </label>
-      <label>시작 (한국 시간)
-        <input type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} required={state === 'active'} disabled={pending} />
+      <label className={FIELD_LABEL_CLASS}>시작 (한국 시간)
+        <input className={GOOD_INPUT_CLASS} data-slot="input" type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} required={state === 'active'} disabled={pending} />
       </label>
-      <label>종료 (한국 시간)
-        <input type="datetime-local" value={endsAt} onChange={(event) => setEndsAt(event.target.value)} required={state === 'active'} disabled={pending} />
+      <label className={FIELD_LABEL_CLASS}>종료 (한국 시간)
+        <input className={GOOD_INPUT_CLASS} data-slot="input" type="datetime-local" value={endsAt} onChange={(event) => setEndsAt(event.target.value)} required={state === 'active'} disabled={pending} />
       </label>
     </div>
-    <label>사용 상태
-      <select value={state} onChange={(event) => setState(event.target.value as 'draft' | 'active')} disabled={pending}>
+    <div className={FIELD_LABEL_CLASS}>
+      <label htmlFor={`${idPrefix}-state`}>사용 상태</label>
+      <NativeSelect className="w-full sm:w-fit" id={`${idPrefix}-state`} value={state} onChange={(event) => setState(event.target.value as 'draft' | 'active')} disabled={pending}>
         <option value="draft">초안 · 가격 미반영</option>
         <option value="active">활성 · 기간 할인 적용</option>
-      </select>
-    </label>
-    <p className="muted" style={{ fontSize: 12, margin: 0 }}>종료 시각부터 현재 옵션 판매가로 돌아갑니다. 같은 옵션의 활성 기간은 겹칠 수 없습니다.</p>
-    {error && <p role="alert">{error}</p>}
-    <button className="btn" type="submit" disabled={pending || !variantId}>{pending ? '저장 중…' : period ? '할인 초안 저장' : '기간 할인 추가'}</button>
+      </NativeSelect>
+    </div>
+    <p className="text-xs text-muted-foreground">종료 시각부터 현재 옵션 판매가로 돌아갑니다. 같은 옵션의 활성 기간은 겹칠 수 없습니다.</p>
+    {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
+    <Button className="self-start" type="submit" disabled={pending || !variantId}>{pending ? '저장 중…' : period ? '할인 초안 저장' : '기간 할인 추가'}</Button>
   </form>;
 }
 
@@ -78,14 +91,14 @@ function PeriodReceipt({ period, variant, onSaved }: { period: AdminGoodsPricePe
     });
   }
   const at = (value: string | null) => value ? new Date(value).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '미설정';
-  return <div className="col" style={{ gap: 8 }}>
-    <strong>{variant?.name ?? '이전 옵션'} · {period.state === 'active' ? '활성' : '중지'}</strong>
-    <span>{period.regularPrice.toLocaleString('ko-KR')}원 → {period.discountPrice?.toLocaleString('ko-KR') ?? '미설정'}원</span>
-    <span className="muted">{at(period.startsAt)} ~ {at(period.endsAt)} (한국 시간)</span>
-    {period.state === 'active' && <button className="btn btn-ghost" type="button" onClick={stop} disabled={pending}>
+  return <div className="flex min-w-0 flex-col items-start gap-1.5">
+    <strong className="font-medium">{variant?.name ?? '이전 옵션'} · <span className={period.state === 'active' ? 'text-[var(--wc-success)]' : 'text-muted-foreground'}>{period.state === 'active' ? '활성' : '중지'}</span></strong>
+    <span className="tabular-nums">{period.regularPrice.toLocaleString('ko-KR')}원 → {period.discountPrice?.toLocaleString('ko-KR') ?? '미설정'}원</span>
+    <span className="text-xs text-muted-foreground">{at(period.startsAt)} ~ {at(period.endsAt)} (한국 시간)</span>
+    {period.state === 'active' && <Button className="mt-1" size="sm" type="button" variant="outline" onClick={stop} disabled={pending}>
       {pending ? '중지 중…' : '기간 할인 중지'}
-    </button>}
-    {error && <p role="alert">{error}</p>}
+    </Button>}
+    {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
   </div>;
 }
 
@@ -108,27 +121,27 @@ export function GoodsPricePeriodsPanel({ goodId, variants }: { goodId: string; v
   const visible = loaded?.goodId === goodId ? loaded : null;
   const reload = () => setRefresh((value) => value + 1);
   const saved = (message: string) => { setNotice({ goodId, message }); reload(); };
-  return <section className="card col wc-admin-kit" aria-labelledby={`price-periods-${goodId}`} style={{ gap: 18, padding: 18 }}>
-    <div>
-      <h2 id={`price-periods-${goodId}`} style={{ fontSize: 18, margin: 0 }}>기간 할인</h2>
-      <p className="muted" style={{ fontSize: 12, lineHeight: 1.6 }}>저장된 옵션에 기간 할인을 설정합니다. 미설정 초안은 가격에 반영되지 않습니다.
+  return <section className="flex min-w-0 flex-col gap-4 rounded-lg border p-4 text-sm" aria-labelledby={`price-periods-${goodId}`} data-good-price-periods="">
+    <div className="flex flex-col gap-1">
+      <h2 id={`price-periods-${goodId}`} className="text-base leading-snug font-medium">기간 할인</h2>
+      <p className="text-sm text-muted-foreground">저장된 옵션에 기간 할인을 설정합니다. 미설정 초안은 가격에 반영되지 않습니다.
         활성화한 할인은 중지 후 새로 등록해 변경합니다. 옵션 판매가 변경 전에도 남은 활성 기간을 먼저 중지해주세요.</p>
     </div>
-    {notice?.goodId === goodId && <p role="status">{notice.message}</p>}
-    {!visible ? <p role="status">기간 할인을 불러오는 중입니다…</p> : visible.error ? <div>
-      <p role="alert">{visible.error}</p><button className="btn btn-ghost" type="button" onClick={reload}>다시 불러오기</button>
+    {notice?.goodId === goodId && <p className="text-sm text-[var(--wc-success)]" role="status">{notice.message}</p>}
+    {!visible ? <p className="text-sm text-muted-foreground" role="status">기간 할인을 불러오는 중입니다…</p> : visible.error ? <div className="flex flex-col items-start gap-2">
+      <p className="text-sm text-destructive" role="alert">{visible.error}</p><Button size="sm" type="button" variant="outline" onClick={reload}>다시 불러오기</Button>
     </div> : <>
-      {visible.periods?.map((period) => <div key={`${period.id}:${period.revision}`} style={{ borderBottom: '1px solid var(--line)', paddingBottom: 18 }}>
+      {visible.periods?.map((period) => <div key={`${period.id}:${period.revision}`} className="min-w-0 border-b pb-4">
         {period.state === 'draft'
-          ? <details><summary>할인 초안 · {selectedVariants.find((variant) => variant.id === period.variantId)?.name ?? '옵션'}</summary>
-            <PeriodEditor goodId={goodId} variants={selectedVariants} period={period} onSaved={saved} /></details>
+          ? <details className={DISCLOSURE_CLASS}><summary className={DISCLOSURE_SUMMARY_CLASS}>{DISCLOSURE_CHEVRON}할인 초안 · {selectedVariants.find((variant) => variant.id === period.variantId)?.name ?? '옵션'}</summary>
+            <div className="border-t p-3"><PeriodEditor goodId={goodId} variants={selectedVariants} period={period} onSaved={saved} /></div></details>
           : <PeriodReceipt period={period} variant={selectedVariants.find((variant) => variant.id === period.variantId)} onSaved={saved} />}
       </div>)}
-      {!visible.periods?.length && <p className="muted" style={{ margin: 0 }}>등록된 기간 할인이 없습니다.</p>}
-      <details><summary>새 기간 할인</summary>
-        <PeriodEditor key={`${goodId}:${refresh}`} goodId={goodId} variants={selectedVariants} onSaved={saved} />
+      {!visible.periods?.length && <p className="text-sm text-muted-foreground">등록된 기간 할인이 없습니다.</p>}
+      <details className={DISCLOSURE_CLASS}><summary className={DISCLOSURE_SUMMARY_CLASS}>{DISCLOSURE_CHEVRON}새 기간 할인</summary>
+        <div className="border-t p-3"><PeriodEditor key={`${goodId}:${refresh}`} goodId={goodId} variants={selectedVariants} onSaved={saved} /></div>
       </details>
-      <button type="button" className="btn btn-ghost" onClick={reload}>기간 할인 목록 새로고침</button>
+      <Button className="self-start" type="button" variant="outline" onClick={reload}>기간 할인 목록 새로고침</Button>
     </>}
   </section>;
 }

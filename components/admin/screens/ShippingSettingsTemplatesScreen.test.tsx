@@ -14,7 +14,7 @@ it('배송 설정 템플릿과 안내 문구의 진입점을 구분하고 비활
     settings: { originId: '00000000-0000-4000-8000-000000042201', feeType: 'free', individualFee: 3000, claimPolicy: { returnAllowed: null, exchangeAllowed: null, restrictionReason: null, returnFee: null, returnFreeShippingFee: null, exchangeFee: null } },
   }] }} />);
   expect(html).toContain('배송정보 템플릿 관리'); expect(html).toContain('배송 안내 템플릿 관리'); expect(html).toContain('무료배송');
-  expect(html).toMatch(/disabled="">상품 적용/); expect(html).toContain('이미 적용한 상품에 자동 반영되지 않습니다');
+  expect(html).toMatch(/<button[^>]*\sdisabled=""[^>]*>상품 적용<\/button>/); expect(html).toContain('이미 적용한 상품에 자동 반영되지 않습니다');
   expect(html).not.toContain('배송비 차감');
 });
 it('기존 템플릿은 수량·착불 정책 유지가 기본이며 명시적 적용과 구별한다', () => {
@@ -29,6 +29,9 @@ it('템플릿의 3구간·선불/착불 선택은 기존 공용 입력 필드를
     identity={shippingIdentity} scope={createGoodsDescriptionToolScope(shippingIds.actor)} origins={[]} regions={[]} onClose={() => {}} onSaved={() => {}} />);
   for (const label of ['2구간 배송비', '3구간 배송비', '두 번째 수량 한도', '두 번째 한도 초과 추가금', '구매자 선택 · 선결제 또는 착불']) expect(html).toContain(label);
   expect(html).toContain('value="4"'); expect(html).toContain('기존 확장 배송비를 명시적으로 비활성화'); expect(html).not.toContain('복수구매 할인 상태');
+  /* kit 버튼의 기본 type은 button이다 — 새 버전 저장만 폼 제출이고 불러오기·취소는 제출하지 않는다. */
+  expect(html).toMatch(/<button[^>]*type="submit"[^>]*>새 버전 저장<\/button>/);
+  expect(html).toMatch(/<button[^>]*type="button"[^>]*>최신 저장본 불러오기<\/button>/);
 });
 it('사용 중인 수량 운임을 무료라는 기본 설정과 혼동하지 않는다', () => {
   const { effective } = shippingFixtures(); const html = renderToStaticMarkup(<ShippingSettingsDeliverySummary effective={effective} />);

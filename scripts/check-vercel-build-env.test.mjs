@@ -115,6 +115,9 @@ describe('validateVercelBuildEnvironment', () => {
       tossTicketCheckoutEnabled: false,
       tossOrderCanaryConfigured: false,
       tossTicketCanaryConfigured: false,
+      nicepayConfigured: false,
+      nicepayOrderCheckoutEnabled: false,
+      nicepayOrderCanaryConfigured: false,
     });
   });
 
@@ -187,6 +190,9 @@ describe('validateVercelBuildEnvironment', () => {
       tossTicketCheckoutEnabled: false,
       tossOrderCanaryConfigured: false,
       tossTicketCanaryConfigured: false,
+      nicepayConfigured: false,
+      nicepayOrderCheckoutEnabled: false,
+      nicepayOrderCanaryConfigured: false,
     });
   });
 
@@ -404,12 +410,14 @@ describe('validateVercelBuildEnvironment', () => {
 
   it('allows strict purpose-specific canary UUIDs only in production', () => {
     const orderCanary = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
+    // 코페이 canary는 은퇴해 신규 결제를 열지 않는다 — 형식 검증과 경고만 남는다.
     expect(validateVercelBuildEnvironment(productionEnvironment({
       KORPAY_ORDER_CANARY_USER_ID: orderCanary,
     }))).toMatchObject({
-      newCheckoutEnabled: true,
+      newCheckoutEnabled: false,
       korpayOrderCanaryConfigured: true,
       korpayTicketCanaryConfigured: false,
+      warnings: [expect.stringContaining('Korpay checkout gates and canaries are retired')],
     });
 
     expect(() => validateVercelBuildEnvironment(productionEnvironment({
@@ -436,9 +444,75 @@ describe('validateVercelBuildEnvironment', () => {
       korpayConfigured: true,
       korpayOrderCheckoutEnabled: true,
       korpayTicketCheckoutEnabled: false,
-      newCheckoutEnabled: true,
+      newCheckoutEnabled: false,
+      warnings: [expect.stringContaining('Korpay checkout gates and canaries are retired')],
     });
     expect(JSON.stringify(result)).not.toContain(validKorpayEnvironment.KORPAY_MID);
     expect(JSON.stringify(result)).not.toContain(validKorpayEnvironment.KORPAY_KEY);
+  });
+  describe('NICEPAY', () => {
+    // 형식만 맞춘 가짜 값이다. 실제 MID·MerchantKey는 저장소에 두지 않는다.
+    const nicepay = {
+      NICEPAY_MID: 'iconst000m',
+      NICEPAY_MERCHANT_KEY: 'c2VydmVyLW9ubHktbmljZXBheS1rZXktZml4dHVyZS0yMDI2',
+    };
+    const canary = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
+
+    it('MID·KEY 발급 전에는 production 빌드를 막지 않는다', () => {
+      expect(validateVercelBuildEnvironment(productionEnvironment())).toMatchObject({
+        checked: true,
+        nicepayConfigured: false,
+        nicepayOrderCheckoutEnabled: false,
+        nicepayOrderCanaryConfigured: false,
+      });
+    });
+
+    it('production에서 형식이 맞는 자격 증명과 단일 canary를 받되 값은 결과에 싣지 않는다', () => {
+      const result = validateVercelBuildEnvironment(productionEnvironment({
+        ...nicepay,
+        NICEPAY_ORDER_CANARY_USER_ID: canary,
+      }));
+      expect(result).toMatchObject({
+        nicepayConfigured: true,
+        nicepayOrderCheckoutEnabled: false,
+        nicepayOrderCanaryConfigured: true,
+        newCheckoutEnabled: true,
+      });
+      expect(JSON.stringify(result)).not.toContain(nicepay.NICEPAY_MERCHANT_KEY);
+      expect(JSON.stringify(result)).not.toContain(nicepay.NICEPAY_MID);
+    });
+
+    it('하나라도 놓인 자격 증명은 둘 다 형식이 맞아야 한다', () => {
+      expect(() => validateVercelBuildEnvironment(productionEnvironment({ NICEPAY_MID: nicepay.NICEPAY_MID })))
+        .toThrow('Invalid Vercel production NICEPAY_MERCHANT_KEY');
+      expect(() => validateVercelBuildEnvironment(productionEnvironment({ ...nicepay, NICEPAY_MID: 'short' })))
+        .toThrow('Invalid Vercel production NICEPAY_MID');
+    });
+
+    it('자격 증명 없이 gate나 canary를 켜면 빌드에서 멈춘다', () => {
+      expect(() => validateVercelBuildEnvironment(productionEnvironment({ NICEPAY_ORDER_CHECKOUT_ENABLED: 'true' })))
+        .toThrow('Invalid Vercel production NICEPAY configuration');
+      expect(() => validateVercelBuildEnvironment(productionEnvironment({ NICEPAY_ORDER_CANARY_USER_ID: canary })))
+        .toThrow('Invalid Vercel production NICEPAY configuration');
+      expect(() => validateVercelBuildEnvironment(productionEnvironment({
+        ...nicepay,
+        NICEPAY_ORDER_CANARY_USER_ID: 'not-a-uuid',
+      }))).toThrow('Invalid Vercel production NICEPAY_ORDER_CANARY_USER_ID');
+      expect(() => validateVercelBuildEnvironment(productionEnvironment({
+        ...nicepay,
+        NICEPAY_ORDER_CHECKOUT_ENABLED: 'TRUE',
+      }))).toThrow('Invalid Vercel production NICEPAY_ORDER_CHECKOUT_ENABLED');
+    });
+
+    it('preview에는 자격 증명·gate·canary를 두지 않는다', () => {
+      expect(() => validateVercelBuildEnvironment({ ...baseEnvironment, NICEPAY_MID: nicepay.NICEPAY_MID }))
+        .toThrow('Invalid Vercel preview NICEPAY_MID: NICEPAY credentials are production-only');
+      expect(() => validateVercelBuildEnvironment({ ...baseEnvironment, NICEPAY_MERCHANT_KEY: nicepay.NICEPAY_MERCHANT_KEY }))
+        .toThrow('Invalid Vercel preview NICEPAY_MERCHANT_KEY: NICEPAY credentials are production-only');
+      expect(() => validateVercelBuildEnvironment({ ...baseEnvironment, NICEPAY_ORDER_CHECKOUT_ENABLED: 'true' }))
+        .toThrow('Invalid Vercel preview NICEPAY_ORDER_CHECKOUT_ENABLED: checkout must remain disabled');
+      expect(() => validateVercelBuildEnvironment({ ...baseEnvironment, NICEPAY_ORDER_CANARY_USER_ID: canary }))
+        .toThrow('Invalid Vercel preview NICEPAY_ORDER_CANARY_USER_ID: canary users are production-only');
+    });
   });
 });

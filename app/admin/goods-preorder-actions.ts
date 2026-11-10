@@ -10,7 +10,7 @@ import { unstable_rethrow } from 'next/navigation';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
 import {
-  parseAdminGoodsPreorders, parseAdminPreorderReservations, parseGoodsPreorderInput, preorderMutationError,
+  ADMIN_PREORDER_RESERVATION_PAGE_SIZE, parseAdminGoodsPreorders, parseAdminPreorderReservations, parseGoodsPreorderInput, preorderMutationError,
   type AdminGoodsPreorder, type AdminPreorderReservationPage,
 } from '@/lib/admin/goods-preorders';
 
@@ -87,7 +87,7 @@ export async function listGoodsPreorderReservationsAction(goodIdValue: unknown, 
   }
   try {
     const client = await createClient();
-    const { data, error } = await client.rpc('admin_list_goods_preorder_reservations', { p_good_id: goodId, p_state: state, p_limit: 100, p_offset: (page - 1) * 100 });
+    const { data, error } = await client.rpc('admin_list_goods_preorder_reservations', { p_good_id: goodId, p_state: state, p_limit: ADMIN_PREORDER_RESERVATION_PAGE_SIZE, p_offset: (page - 1) * ADMIN_PREORDER_RESERVATION_PAGE_SIZE });
     const reservations = error ? null : parseAdminPreorderReservations(data);
     return reservations ? { ok: true, reservations } : { ok: false, error: '예약 주문을 불러오지 못했습니다.' };
   } catch (error) { unstable_rethrow(error); return { ok: false, error: '예약 주문을 불러오지 못했습니다.' }; }

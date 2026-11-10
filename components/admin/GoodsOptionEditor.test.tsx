@@ -44,7 +44,7 @@ describe('상품 옵션 ERP 식별자 입력', () => {
     />);
 
     expect(html).toContain('data-option-mode="single"');
-    expect(html).toContain('<label class="wc-admin-kit__field-label" for="goods-single-stock">재고수량</label>');
+    expect(html).toMatch(/<label class="[^"]*" for="goods-single-stock">재고수량 \(필수\)<\/label>/);
     expect(html).toContain('ICONS에서 판매할 수량이며 주문하면 차감됩니다. 안전재고는 부족 알림 기준입니다.');
     expect(html).toMatch(/<input type="radio" name="optionUsage" checked="" value="off"\/>설정안함/);
     expect(html).toContain('aria-label="기본 옵션명"');
@@ -61,7 +61,7 @@ describe('상품 옵션 ERP 식별자 입력', () => {
       rows={[{ id: savedA, name: '기본 옵션', code: 'GOOD-0001', attributes: {}, extraPrice: 0, stockQty: 8, isActive: false }]}
       baseline={[savedA]} basePrice={10000} />);
     expect(html).toContain('for="goods-single-active">기본 옵션 사용여부</label>');
-    expect(html).toMatch(/<select id="goods-single-active"[^>]*>/);
+    expect(html).toMatch(/<select[^>]*id="goods-single-active"[^>]*>/);
     expect(html).toContain('<option value="stopped" selected="">중지</option>');
     expect(html).toContain('모든 옵션이 사용 중지되어 고객이 구매할 수 없습니다.');
   });
@@ -88,15 +88,16 @@ describe('상품 옵션 ERP 식별자 입력', () => {
     expect(html).toMatch(/<input type="radio" name="optionUsage" checked="" value="on"\/>설정함/);
     expect(html).toContain('옵션목록 (총 2개)');
     const table = html.slice(html.indexOf('aria-label="옵션목록 편집표"'));
-    const headers = [...table.slice(0, table.indexOf('</thead>')).matchAll(/<th scope="col">(.*?)<\/th>/g)].map((match) => match[1].replace(/<[^>]+>/g, ''));
-    expect(headers).toEqual(['선택', '옵션명', '옵션가', '재고수량', '사용여부', '관리코드', '순서', '삭제']);
+    const headers = [...table.slice(0, table.indexOf('</thead>')).matchAll(/<th[^>]*scope="col"[^>]*>(.*?)<\/th>/g)].map((match) => match[1].replace(/<[^>]+>/g, ''));
+    /* 관리코드는 옵션 상세 정보로 옮겼다(표 폭을 줄이는 복잡도 표 137행). */
+    expect(headers).toEqual(['선택', '옵션명', '옵션가', '재고수량', '사용여부', '순서', '삭제']);
     expect(html).toContain('판매 10,000원');
     expect(html).toContain('판매 11,000원');
     expect(html).toContain('옵션 재고수량 합계');
     expect(html).toContain('9개');
     expect(html).toContain('사용 중 옵션 4개');
-    for (const label of ['선택목록 일괄수정', '선택삭제']) expect(html).toMatch(new RegExp(`<button type="button" class="btn btn-ghost" disabled="">${label}</button>`));
-    expect(html.indexOf('옵션목록 편집표')).toBeLessThan(html.indexOf('옵션 상세 정보 · ERP 품명·ERP 코드·바코드·안전재고'));
+    for (const label of ['선택목록 일괄수정', '선택삭제']) expect(html).toMatch(new RegExp(`<button type="button"[^>]*disabled=""[^>]*>${label}</button>`));
+    expect(html.indexOf('옵션목록 편집표')).toBeLessThan(html.indexOf('옵션 상세 정보 · 관리코드·ERP 품명·ERP 코드·바코드·안전재고'));
     expect(html).toContain('GOOD-01');
     expect(html).toContain(savedB);
     for (const legacy of ['기준 판매가', '추가금액', '옵션 판매가', '할당 재고', '조합 생성']) expect(html).not.toContain(legacy);
@@ -132,6 +133,7 @@ describe('상품 옵션 ERP 식별자 입력', () => {
     expect(html).toContain('name="optionAxisValues0" value="빨강, 파랑"');
     expect(html).toContain('옵션목록으로 적용');
     expect(html).toContain('옵션목록 (총 0개)');
-    expect(html).not.toMatch(/<section class="goods-option-inputs"[^>]*hidden/);
+    expect(html).toMatch(/<section[^>]*data-good-option-inputs=""/);
+    expect(html).not.toMatch(/<section[^>]*data-good-option-inputs=""[^>]*hidden/);
   });
 });

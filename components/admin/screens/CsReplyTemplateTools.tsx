@@ -8,8 +8,14 @@ import { CS_TEMPLATE_DRAFT_LIMIT, EMPTY_CS_TEMPLATE_WORKSPACE, parseQuestionTemp
 import { CS_REPLY_SURFACE_LABELS, CS_REPLY_TEMPLATE_CATEGORIES, CS_REPLY_TEMPLATE_PAGE_SIZE, csReplyBodyLimit, applyCsReplyTemplate,
   type CsReplySurface, type CsReplyTemplate, type CsReplyTemplateCategory, type CsReplyTemplateList } from '@/lib/admin/cs-reply-tools';
 import { REPLY_TEMPLATE_REPLACE_CONFIRM, REPLY_TEMPLATE_REPLACE_HINT } from '@/lib/admin/inquiry-reply-templates';
+import { FileText } from 'lucide-react';
+import { AdminSelect } from '@/components/admin/console/AdminSelect';
+import { ConsolePagination } from '@/components/admin/console/ConsolePagination';
+import { Badge } from '@/components/admin/kit/ui/badge';
+import { Button } from '@/components/admin/kit/ui/button';
 import { CustomerServiceDialog } from './CustomerServiceDialog';
 import { CsEditorDraftNotice, CsTemplateDraftList } from './CsEditorDraftNotice';
+import { COUNTER_CLASS, FIELD_LABEL_CLASS, KIT_INPUT_CLASS, KIT_TEXTAREA_CLASS, LATEST_CLASS, TEMPLATE_BODY_CLASS, TEMPLATE_EDITOR_CLASS, TEMPLATE_ROW_CLASS, TEMPLATE_SEARCH_CLASS } from './cs-kit-classes';
 
 export function CsReplyTemplateTools({ surface, body, onInsert, disabled = false, accountId = '' }: {
   surface: CsReplySurface; body: string; onInsert: (body: string) => void; disabled?: boolean; accountId?: string;
@@ -36,7 +42,12 @@ export function CsReplyTemplateTools({ surface, body, onInsert, disabled = false
   }
   async function load(page = 1) {
     const result = await listCsReplyTemplatesAction({ surface, query, category, archived, page });
-    if (result.ok) setData(result.data); else setError(result.error);
+    if (!result.ok) { setError(result.error); return; }
+    /* 삭제·복구로 건수가 줄어 보던 페이지가 범위를 벗어나면 마지막 페이지를 다시 읽는다.
+       공용 페이지 이동은 범위 밖 번호를 마지막 페이지로 보정해 보여 주므로 목록도 그 페이지여야 한다. */
+    const last = Math.max(1, Math.ceil(result.data.total / CS_REPLY_TEMPLATE_PAGE_SIZE));
+    if (page > last) { await load(last); return; }
+    setData(result.data);
   }
   function run(work: () => Promise<void>) {
     startTransition(async () => { setError(''); setMessage(''); try { await work(); } catch { setError('처리 결과를 확인하지 못했습니다. 작성 중인 문구는 유지됩니다.'); } });
@@ -105,57 +116,55 @@ export function CsReplyTemplateTools({ surface, body, onInsert, disabled = false
   }
 
   return <>
-    <button className="btn btn-sm btn-ghost" disabled={disabled} type="button" onClick={() => { setOpen(true); run(() => load()); }}>답변 템플릿 불러오기</button>
+    <Button disabled={disabled} onClick={() => { setOpen(true); run(() => load()); }} size="sm" type="button" variant="outline"><FileText aria-hidden="true" />답변 템플릿 불러오기</Button>
     {open ? <CustomerServiceDialog title={`${CS_REPLY_SURFACE_LABELS[surface]} 답변 템플릿`} busy={pending || uncertain} onClose={() => setOpen(false)} wide>
-      <p className="muted">상품 상세에 공개할 답변을 준비합니다. {REPLY_TEMPLATE_REPLACE_HINT}</p>
+      <div className="flex flex-col gap-4">
+      <p className="text-sm text-muted-foreground">상품 상세에 공개할 답변을 준비합니다. {REPLY_TEMPLATE_REPLACE_HINT}</p>
       <CsEditorDraftNotice draft={recovery} pending={pending} onRestore={restore} onDiscard={discard} discardLabel="보관 초안 모두 버리기"
         discardDisabled={uncertain || Boolean(recovery.recovery?.pending)} />
       <CsTemplateDraftList drafts={workspace.drafts} disabled={locked} onSelect={id => { setSelected(id); setLatest(null); setError(''); setMessage(''); }} />
-      <form className="admin-cs-template__search" onSubmit={event => { event.preventDefault(); run(() => load()); }}>
-        <label>유형<select disabled={locked} value={category} onChange={event => setCategory(event.target.value)}><option value="">전체</option>{CS_REPLY_TEMPLATE_CATEGORIES.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-        <label>제목<input disabled={locked} value={query} onChange={event => setQuery(event.target.value)} maxLength={100} /></label>
-        <label className="admin-cs-template__archive"><input disabled={locked} type="checkbox" checked={archived} onChange={event => setArchived(event.target.checked)} /> 삭제한 템플릿</label>
-        <button type="submit" className="btn btn-sm" disabled={locked}>검색</button>
-        <button type="button" className="btn btn-sm btn-ghost" disabled={locked} onClick={newDraft}>템플릿 등록</button>
+      <form className={TEMPLATE_SEARCH_CLASS} data-cs-template="search" onSubmit={event => { event.preventDefault(); run(() => load()); }}>
+        <label className="flex w-36 min-w-0 flex-col gap-1.5"><span className={FIELD_LABEL_CLASS}>유형</span><AdminSelect disabled={locked} value={category} onChange={event => setCategory(event.target.value)}><option value="">전체</option>{CS_REPLY_TEMPLATE_CATEGORIES.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</AdminSelect></label>
+        <label className="flex min-w-[min(100%,12rem)] flex-1 flex-col gap-1.5"><span className={FIELD_LABEL_CLASS}>제목</span><input className={KIT_INPUT_CLASS} data-slot="input" disabled={locked} value={query} onChange={event => setQuery(event.target.value)} maxLength={100} /></label>
+        <label className="flex h-8 items-center gap-2 text-sm"><input disabled={locked} type="checkbox" checked={archived} onChange={event => setArchived(event.target.checked)} /> 삭제한 템플릿</label>
+        <Button disabled={locked} size="sm" type="submit" variant="soft">검색</Button>
+        <Button disabled={locked} onClick={newDraft} size="sm" type="button" variant="outline">템플릿 등록</Button>
       </form>
-      <p aria-live="polite">총 {data.total.toLocaleString('ko-KR')}개{pending ? ' · 처리 중' : ''}</p>
-      {error ? <p className="admin-form-error" role="alert">{error}</p> : null}{message ? <p role="status">{message}</p> : null}
-      {uncertain ? <button type="button" className="btn btn-sm" disabled={pending || recovery.blocked} onClick={readLatest}>이전 저장 결과 · 최신 저장본 확인</button> : null}
-      <div className="admin-cs-template__list">{data.rows.length ? data.rows.map(template => <article key={template.id}>
-        <header><span>{CS_REPLY_TEMPLATE_CATEGORIES.find(option => option.value === template.category)?.label}</span><strong>{template.title}</strong><small>버전 {template.revision}</small></header>
-        <p>{template.body}</p>
-        <div className="admin-cs-template__actions">
-          {!template.archivedAt ? <><button type="button" className="btn btn-sm" disabled={locked} onClick={() => insert(template)}>불러오기</button><button type="button" className="btn btn-sm btn-ghost" disabled={locked} onClick={() => edit(template)}>수정</button></> : null}
-          <button type="button" className="btn btn-sm btn-ghost" disabled={locked} onClick={() => run(async () => {
+      <p aria-live="polite" className="text-sm text-muted-foreground">총 {data.total.toLocaleString('ko-KR')}개{pending ? ' · 처리 중' : ''}</p>
+      {error ? <p className="bg-transparent text-sm text-destructive" role="alert">{error}</p> : null}{message ? <p className="text-sm text-muted-foreground" role="status">{message}</p> : null}
+      {uncertain ? <Button className="self-start" disabled={pending || recovery.blocked} onClick={readLatest} size="sm" type="button">이전 저장 결과 · 최신 저장본 확인</Button> : null}
+      <div className="flex flex-col gap-3">{data.rows.length ? data.rows.map(template => <article className={TEMPLATE_ROW_CLASS} key={template.id}>
+        <header className="flex flex-wrap items-center gap-2"><Badge variant="secondary">{CS_REPLY_TEMPLATE_CATEGORIES.find(option => option.value === template.category)?.label}</Badge><strong className="font-medium text-foreground">{template.title}</strong><small className="text-xs text-muted-foreground">버전 {template.revision}</small></header>
+        <p className={TEMPLATE_BODY_CLASS}>{template.body}</p>
+        <div className="flex flex-wrap justify-end gap-2">
+          {!template.archivedAt ? <><Button disabled={locked} onClick={() => insert(template)} size="sm" type="button" variant="soft">불러오기</Button><Button disabled={locked} onClick={() => edit(template)} size="sm" type="button" variant="outline">수정</Button></> : null}
+          <Button disabled={locked} onClick={() => run(async () => {
             const result = await archiveCsReplyTemplateAction({ id: template.id, revision: template.revision, archived: !template.archivedAt });
             if (!result.ok) { setError(result.error); return; }
             await load(data.page); setMessage(template.archivedAt ? '템플릿을 복구했습니다. 편집 초안은 유지됩니다.' : '템플릿을 삭제했습니다. 편집 초안은 유지되며 삭제된 템플릿은 복구 후 수정할 수 있습니다.');
-          })}>{template.archivedAt ? '복구' : '삭제'}</button>
+          })} size="sm" type="button" variant={template.archivedAt ? 'outline' : 'destructive'}>{template.archivedAt ? '복구' : '삭제'}</Button>
         </div>
-      </article>) : <p className="muted">조건에 맞는 템플릿이 없습니다.</p>}</div>
-      <nav className="admin-cs-record-nav" aria-label="답변 템플릿 목록 페이지">
-        <button type="button" className="btn btn-sm btn-ghost" disabled={locked || data.page <= 1} onClick={() => run(() => load(data.page - 1))}>이전</button>
-        <span>{data.page} / {Math.max(1, Math.ceil(data.total / CS_REPLY_TEMPLATE_PAGE_SIZE))}</span>
-        <button type="button" className="btn btn-sm btn-ghost" disabled={locked || data.page * CS_REPLY_TEMPLATE_PAGE_SIZE >= data.total} onClick={() => run(() => load(data.page + 1))}>다음</button>
-      </nav>
-      {draft ? <form className="admin-cs-template__editor" onSubmit={event => { event.preventDefault(); void save(); }}>
-        <h3>{draft.revision ? '템플릿 수정' : '템플릿 등록'}</h3>
-        <label>편집 유형<select disabled={locked} value={draft.category} onChange={event => changeDraft({ ...draft, category: event.target.value as CsReplyTemplateCategory })}>{CS_REPLY_TEMPLATE_CATEGORIES.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-        <label>템플릿 제목<input required disabled={locked} maxLength={70} value={draft.title} onChange={event => changeDraft({ ...draft, title: [...event.target.value].slice(0, 35).join('') })} /></label>
-        <small>{[...draft.title].length} / 35자</small>
-        <label>템플릿 내용<textarea required disabled={locked} rows={6} maxLength={limit * 2} value={draft.body} onChange={event => changeDraft({ ...draft, body: [...event.target.value].slice(0, limit).join('') })} /></label>
-        <small>{[...draft.body].length} / {limit.toLocaleString('ko-KR')}자</small>
-        <div className="admin-cs-template__actions"><button type="submit" className="btn btn-sm" disabled={locked}>템플릿 저장</button><button type="button" className="btn btn-sm btn-ghost" disabled={locked} onClick={() => setSelected(null)}>편집 닫기 · 문구 보존</button>
-          {draft.revision ? <button type="button" className="btn btn-sm btn-ghost" disabled={locked} onClick={readLatest}>최신 저장본 비교</button> : null}
+      </article>) : <p className="py-6 text-center text-sm text-muted-foreground">조건에 맞는 템플릿이 없습니다.</p>}</div>
+      <ConsolePagination className="border-t pt-4" label="답변 템플릿 목록 페이지" page={data.page} pageSize={CS_REPLY_TEMPLATE_PAGE_SIZE} total={data.total} unit="개" disabled={locked} onPageChange={page => run(() => load(page))} />
+      {draft ? <form className={TEMPLATE_EDITOR_CLASS} data-cs-template="editor" onSubmit={event => { event.preventDefault(); void save(); }}>
+        <h3 className="text-base font-semibold text-foreground">{draft.revision ? '템플릿 수정' : '템플릿 등록'}</h3>
+        <label className="flex flex-col gap-1.5"><span className={FIELD_LABEL_CLASS}>편집 유형</span><AdminSelect disabled={locked} value={draft.category} onChange={event => changeDraft({ ...draft, category: event.target.value as CsReplyTemplateCategory })}>{CS_REPLY_TEMPLATE_CATEGORIES.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</AdminSelect></label>
+        <label className="flex flex-col gap-1.5"><span className={FIELD_LABEL_CLASS}>템플릿 제목</span><input className={KIT_INPUT_CLASS} data-slot="input" required disabled={locked} maxLength={70} value={draft.title} onChange={event => changeDraft({ ...draft, title: [...event.target.value].slice(0, 35).join('') })} /></label>
+        <small className={COUNTER_CLASS}>{[...draft.title].length} / 35자</small>
+        <label className="flex flex-col gap-1.5"><span className={FIELD_LABEL_CLASS}>템플릿 내용</span><textarea className={`${KIT_TEXTAREA_CLASS} min-h-36`} data-slot="textarea" required disabled={locked} rows={6} maxLength={limit * 2} value={draft.body} onChange={event => changeDraft({ ...draft, body: [...event.target.value].slice(0, limit).join('') })} /></label>
+        <small className={COUNTER_CLASS}>{[...draft.body].length} / {limit.toLocaleString('ko-KR')}자</small>
+        <div className="flex flex-wrap justify-end gap-2"><Button disabled={locked} size="sm" type="submit">템플릿 저장</Button><Button disabled={locked} onClick={() => setSelected(null)} size="sm" type="button" variant="outline">편집 닫기 · 문구 보존</Button>
+          {draft.revision ? <Button disabled={locked} onClick={readLatest} size="sm" type="button" variant="outline">최신 저장본 비교</Button> : null}
         </div>
-        {latest && latest.id === draft.id ? <section className="admin-cs-record__content" aria-label="최신 템플릿 저장본">
-          <h3>최신 저장본 · 버전 {latest.revision}{latest.archivedAt ? ' · 삭제됨' : ''}</h3><strong>{latest.title}</strong><p>{latest.body}</p>
-          <p className="muted">작성 문구를 유지했습니다. 아래 버튼을 누를 때만 최신 저장본으로 바꿉니다.</p>
-          <button type="button" className="btn btn-sm btn-ghost" disabled={locked || Boolean(latest.archivedAt)} onClick={() => {
+        {latest && latest.id === draft.id ? <section className={LATEST_CLASS} aria-label="최신 템플릿 저장본">
+          <h3 className="text-sm font-medium text-foreground">최신 저장본 · 버전 {latest.revision}{latest.archivedAt ? ' · 삭제됨' : ''}</h3><strong className="font-medium text-foreground">{latest.title}</strong><p className={TEMPLATE_BODY_CLASS}>{latest.body}</p>
+          <p className="text-xs text-muted-foreground">작성 문구를 유지했습니다. 아래 버튼을 누를 때만 최신 저장본으로 바꿉니다.</p>
+          <Button className="self-start" disabled={locked || Boolean(latest.archivedAt)} onClick={() => {
             if (!keep(without(latest.id))) return; setCleanDrafts(previous => ({ ...previous, [latest.id]: latest })); setLatest(null);
-          }}>편집 문구를 최신 저장본으로 바꾸기</button>
+          }} size="sm" type="button" variant="outline">편집 문구를 최신 저장본으로 바꾸기</Button>
         </section> : null}
       </form> : null}
+      </div>
     </CustomerServiceDialog> : null}
   </>;
 }

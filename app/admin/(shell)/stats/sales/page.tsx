@@ -16,7 +16,7 @@ export default async function AdminStatsSalesPage({
   const query = await searchParams;
 
   const filters = normalizeAdminStatsFilters(query);
-  if (filters.rangeError) return <section className="admin-stats wc-admin-kit"><StatsRangeTabs base="/admin/stats/sales" filters={filters} /><p role="alert">{filters.rangeError}</p></section>;
+  if (filters.rangeError) return <div className="flex min-w-0 flex-col gap-4"><StatsRangeTabs base="/admin/stats/sales" filters={filters} /><p className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive" role="alert">{filters.rangeError}</p></div>;
   const now = new Date();
   const comparisonFilters = adminStatsComparisonFilters(filters, now);
   const [data, comparison, goods, comparisonGoods] = await Promise.all([

@@ -1,8 +1,15 @@
 'use client';
 import Link from 'next/link';
 import { useEffect, useRef, useState, useTransition } from 'react';
-import { AdminSectionCard } from './console/AdminKit';
+import { AdminSectionCard, AdminStatusBadge } from './console/AdminKit';
+import { statusTone } from '@/lib/admin/status-tone';
+import { AdminSelect } from './console/AdminSelect';
+import { Button } from './kit/ui/button';
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from './kit/ui/empty';
+import { Input } from './kit/ui/input';
+import { FolderTree } from 'lucide-react';
 import { CategoryDisplayArtwork } from './CategoryDisplayArtwork';
+import { useAdminLeaveGuard } from './useAdminLeaveGuard';
 import { reloadCategoryDisplayTreeAction, updateCategoryDisplayNodeImageAction, updateCategoryDisplayTreeAction, type CategoryDisplayTreeResult } from '@/app/admin/category-display-actions';
 import { CATEGORY_DISPLAY_ADMIN_PATH, categoryDisplayParentChoices, type CategoryDisplayDirectory, type CategoryDisplayTreeChange } from '@/lib/category-display';
 import { createClient } from '@/lib/supabase/client';
@@ -33,18 +40,7 @@ export function CategoryDisplayTree({ initial, selectedId, actorId, sessionId }:
     }).data.subscription;
     return () => { alive.current = false; subscription.unsubscribe(); };
   }, [actorId, sessionId]);
-  useEffect(() => {
-    if (!dirty && !uncertain && !imageUncertain) return;
-    const prevent = (event: BeforeUnloadEvent) => event.preventDefault();
-    const navigate = (event: MouseEvent) => {
-      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-      const link = event.target instanceof Element ? event.target.closest('a[href]') as HTMLAnchorElement | null : null;
-      if (!link || link.target === '_blank' || link.hasAttribute('download')) return;
-      if (!window.confirm('저장하지 않은 전시분류 입력을 두고 이동할까요?')) { event.preventDefault(); event.stopPropagation(); }
-    };
-    window.addEventListener('beforeunload', prevent); document.addEventListener('click', navigate, true);
-    return () => { window.removeEventListener('beforeunload', prevent); document.removeEventListener('click', navigate, true); };
-  }, [dirty, uncertain, imageUncertain]);
+  useAdminLeaveGuard({ dirty: dirty || uncertain || imageUncertain, message: '저장하지 않은 전시분류 입력을 두고 이동할까요?' });
   function applyImage(imagePath: string | null) {
     if (!selected || blockedRef.current) return;
     /* 다른 전시분류 작업이 진행 중이거나 충돌로 멈춘 동안 도착한 아이콘은 적용하지 않는다 — 조용히 버리지 않고 다시 올리게 안내한다. */
@@ -127,35 +123,40 @@ export function CategoryDisplayTree({ initial, selectedId, actorId, sessionId }:
   const peerIndex = selected ? directory.categories.filter(node => node.parentId === selected.parentId).findIndex(node => node.id === selected.id) : -1;
   const peerCount = selected ? directory.categories.filter(node => node.parentId === selected.parentId).length : 0;
   return <AdminSectionCard title="전시분류">
-    <p>상품분류와 별도로 이름·계층·순서를 구성합니다. 새 분류는 3단계까지, 최상위 19개·각 하위 15개까지 만들 수 있습니다. 기존 분류와 상품 연결은 유지됩니다.</p>
-    {blocked ? <p role="alert">로그인 상태가 바뀌었습니다. 이 화면을 새로 열어주세요.</p> : null}
-    <div className="admin-category-display__tree-layout">
-      <nav className="admin-category-display__tree" aria-label="전시분류 목록">{directory.categories.map(node => <Link key={node.id} href={`${CATEGORY_DISPLAY_ADMIN_PATH}?id=${node.id}`} aria-current={node.id === selectedId ? 'page' : undefined}
-        style={{ paddingInlineStart: `${12 + (node.depth - 1) * 18}px` }}><span>{node.name}</span>{node.archivedAt ? <small>보관됨</small> : null}</Link>)}{!directory.categories.length ? <p>첫 전시분류를 만들어주세요.</p> : null}</nav>
-      <form className="admin-category-display__tree-form" onSubmit={event => { event.preventDefault(); save(); }}>
-        <div className="admin-category-display__tree-actions"><button type="button" disabled={locked || creating} onClick={() => { if (dirty && !window.confirm('현재 전시분류 입력을 버리고 새 분류를 만들까요?')) return; setCreating(true); setName(''); setParentId(''); setMessage(''); }}>새 전시분류</button>
-          {selected ? <button type="button" disabled={locked || !creating} onClick={() => { if (dirty && !window.confirm('새 전시분류 입력을 버릴까요?')) return; setCreating(false); setName(selected.name); setParentId(selected.parentId ?? ''); setMessage(''); }}>선택한 분류 편집</button> : null}</div>
-        <fieldset disabled={locked}><legend>{creating ? '새 전시분류 만들기' : '선택한 전시분류 설정'}</legend>
-          <label>전시분류명 · 20자<input value={name} onChange={event => setName(event.target.value)} maxLength={Math.max(40, selected?.name.length ?? 0)} required /></label>
-          <label>상위 전시분류<select value={parentId} onChange={event => setParentId(event.target.value)}><option value="">최상위</option>{parents.map(node => <option key={node.id} value={node.id}>{'　'.repeat(node.depth - 1)}{node.name}</option>)}
-            {parentId && !parents.some(node => node.id === parentId) ? <option value={parentId}>{directory.categories.find(node => node.id === parentId)?.name ?? '기존 상위 분류'} (기존 계층 유지)</option> : null}</select></label>
-          {!creating && selected?.depth === 4 ? <p>기존 4단계 분류는 보존됩니다. 다른 상위 분류로 옮길 때는 하위 분류를 포함해 3단계 이내여야 합니다.</p> : null}
-          {!creating && selected?.archivedAt ? <p>보관 중에는 이 분류와 하위 분류의 공개 전시가 숨겨집니다. 상품 연결과 상단 콘텐츠는 보존됩니다.</p> : null}
+    <p className="text-sm text-muted-foreground">상품분류와 별도로 이름·계층·순서를 구성합니다. 새 분류는 3단계까지, 최상위 19개·각 하위 15개까지 만들 수 있습니다. 기존 분류와 상품 연결은 유지됩니다.</p>
+    {blocked ? <p className="text-sm text-destructive" role="alert">로그인 상태가 바뀌었습니다. 이 화면을 새로 열어주세요.</p> : null}
+    {/* 분류가 없을 때는 왼쪽 빈 안내가 오른쪽 입력 칸과 같은 높이로 선다. */}
+    <div className={`grid gap-5 md:grid-cols-[minmax(12.5rem,18.75rem)_minmax(0,1fr)] ${directory.categories.length ? 'items-start' : 'items-stretch'}`} data-category-display="tree-layout">
+      {/* 전시분류 화면 상자의 옛 nav 규칙(flex-wrap 등)이 닿아도 세로 목록이 되도록 배치 속성을 모두 적는다. */}
+      <nav className="flex max-h-[380px] flex-col flex-nowrap items-stretch gap-0 overflow-y-auto rounded-lg border" aria-label="전시분류 목록">{directory.categories.map(node => <Link key={node.id} href={`${CATEGORY_DISPLAY_ADMIN_PATH}?id=${node.id}`} aria-current={node.id === selectedId ? 'page' : undefined}
+        className="flex items-center gap-2 border-b py-2.5 pr-3 text-sm wrap-anywhere text-muted-foreground transition-colors last:border-b-0 hover:bg-muted hover:text-foreground aria-[current=page]:bg-primary-soft aria-[current=page]:font-medium aria-[current=page]:text-primary-soft-foreground aria-[current=page]:shadow-[inset_3px_0_var(--primary)]"
+        style={{ paddingInlineStart: `${12 + (node.depth - 1) * 18}px` }}><span>{node.name}</span>{node.archivedAt ? <AdminStatusBadge tone={statusTone('publication', 'archived')}>보관됨</AdminStatusBadge> : null}</Link>)}{!directory.categories.length ? <Empty className="rounded-none border-0"><EmptyHeader><EmptyMedia variant="icon"><FolderTree aria-hidden="true" /></EmptyMedia><EmptyTitle>아직 전시분류가 없습니다</EmptyTitle><EmptyDescription>오른쪽에서 첫 전시분류를 만들면 이곳에 목록이 쌓입니다.</EmptyDescription></EmptyHeader></Empty> : null}</nav>
+      <form className="flex min-w-0 flex-col gap-3.5" onSubmit={event => { event.preventDefault(); save(); }}>
+        {/* 지금 누를 수 없는 전환 버튼을 흐리게 남기지 않는다 — 입력 칸 제목과 말이 겹쳐 제목처럼 보인다. */}
+        {!creating || selected ? <div className="flex flex-wrap gap-2">{!creating ? <Button variant="outline" type="button" disabled={locked} onClick={() => { if (dirty && !window.confirm('현재 전시분류 입력을 버리고 새 분류를 만들까요?')) return; setCreating(true); setName(''); setParentId(''); setMessage(''); }}>새 전시분류</Button> : null}
+          {selected && creating ? <Button variant="outline" type="button" disabled={locked} onClick={() => { if (dirty && !window.confirm('새 전시분류 입력을 버릴까요?')) return; setCreating(false); setName(selected.name); setParentId(selected.parentId ?? ''); setMessage(''); }}>선택한 분류 편집</Button> : null}</div> : null}
+        <fieldset className="flex min-w-0 flex-col gap-3" disabled={locked}><legend className="float-left w-full p-0 text-sm font-medium">{creating ? '새 전시분류 만들기' : '선택한 전시분류 설정'}</legend>
+          <label className="flex flex-col gap-2 text-sm font-medium">전시분류명 · 20자<Input value={name} onChange={event => setName(event.target.value)} maxLength={Math.max(40, selected?.name.length ?? 0)} required /></label>
+          <label className="flex flex-col gap-2 text-sm font-medium">상위 전시분류<AdminSelect value={parentId} onChange={event => setParentId(event.target.value)} wrapperClassName="w-full"><option value="">최상위</option>{parents.map(node => <option key={node.id} value={node.id}>{'　'.repeat(node.depth - 1)}{node.name}</option>)}
+            {parentId && !parents.some(node => node.id === parentId) ? <option value={parentId}>{directory.categories.find(node => node.id === parentId)?.name ?? '기존 상위 분류'} (기존 계층 유지)</option> : null}</AdminSelect></label>
+          {!creating && selected?.depth === 4 ? <p className="text-sm text-muted-foreground">기존 4단계 분류는 보존됩니다. 다른 상위 분류로 옮길 때는 하위 분류를 포함해 3단계 이내여야 합니다.</p> : null}
+          {!creating && selected?.archivedAt ? <p className="text-sm text-muted-foreground">보관 중에는 이 분류와 하위 분류의 공개 전시가 숨겨집니다. 상품 연결과 상단 콘텐츠는 보존됩니다.</p> : null}
         </fieldset>
-        <div className="admin-category-display__tree-actions"><button type="submit" disabled={pending || conflict || blocked || imageUncertain || imageBusy}>{pending ? '저장 중…' : uncertain ? '같은 요청 결과 확인' : creating ? '전시분류 만들기' : '이름·상위 분류 저장'}</button>
-          {!creating && selected ? <><button type="button" disabled={locked || dirty || peerIndex <= 0} onClick={() => move(-1)}>위로</button><button type="button" disabled={locked || dirty || peerIndex >= peerCount - 1} onClick={() => move(1)}>아래로</button>
-            <button type="button" disabled={locked || dirty} onClick={() => { if (selected.archivedAt || window.confirm('이 전시분류와 하위 공개 전시를 숨길까요? 상품 연결과 상단 콘텐츠는 보존됩니다.')) submit({ action: selected.archivedAt ? 'restore' : 'archive', id: selected.id }); }}>{selected.archivedAt ? '보관 해제' : '보관'}</button></> : null}
-          <button type="button" disabled={pending || uncertain || blocked || imageBusy} onClick={reload}>최신 분류 불러오기</button></div>
-        {message ? <p role={error ? 'alert' : 'status'}>{message}</p> : null}
-        {createdId ? <Link href={`${CATEGORY_DISPLAY_ADMIN_PATH}?id=${createdId}`}>새 전시분류의 상품·상단 콘텐츠 구성하기</Link> : null}
+        <div className="flex flex-wrap gap-2"><Button type="submit" disabled={pending || conflict || blocked || imageUncertain || imageBusy}>{pending ? '저장 중…' : uncertain ? '같은 요청 결과 확인' : creating ? '전시분류 만들기' : '이름·상위 분류 저장'}</Button>
+          {!creating && selected ? <><Button variant="outline" type="button" disabled={locked || dirty || peerIndex <= 0} onClick={() => move(-1)}>위로</Button><Button variant="outline" type="button" disabled={locked || dirty || peerIndex >= peerCount - 1} onClick={() => move(1)}>아래로</Button>
+            <Button variant="outline" type="button" disabled={locked || dirty} onClick={() => { if (selected.archivedAt || window.confirm('이 전시분류와 하위 공개 전시를 숨길까요? 상품 연결과 상단 콘텐츠는 보존됩니다.')) submit({ action: selected.archivedAt ? 'restore' : 'archive', id: selected.id }); }}>{selected.archivedAt ? '보관 해제' : '보관'}</Button></> : null}
+          <Button variant="ghost" type="button" disabled={pending || uncertain || blocked || imageBusy} onClick={reload}>최신 분류 불러오기</Button></div>
+        {message ? <p className={`text-sm${error ? ' text-destructive' : ''}`} role={error ? 'alert' : 'status'}>{message}</p> : null}
+        {createdId ? <Link className="text-sm underline underline-offset-4" href={`${CATEGORY_DISPLAY_ADMIN_PATH}?id=${createdId}`}>새 전시분류의 상품·상단 콘텐츠 구성하기</Link> : null}
         {!creating && selected ? (
-          <section className="admin-category-display__node-image" aria-label="카테고리 아이콘">
-            <h3>카테고리 아이콘</h3>
-            <p>모바일 카테고리 시트의 아이콘 칸(60px 정사각)에 맞춰 보입니다. 투명 배경의 정사각 PNG를 권장합니다. 올리면 바로 적용되고, 비우면 이름 첫 글자로 표시합니다.</p>
-            {dirty ? <p>이름·상위 분류를 저장하거나 되돌린 뒤 아이콘을 바꿀 수 있습니다.</p> : null}
-            <CategoryDisplayArtwork key={`${selected.id}:${selected.imagePath ?? 'none'}`} label="아이콘 이미지" actorId={actorId} path={selected.imagePath}
+          /* 아이콘 미리보기는 모바일 시트의 60px 정사각 칸과 같은 모양으로 보인다(이미지 부품의 icon 모양). */
+          <section className="flex flex-col gap-2 border-t pt-3.5" aria-label="카테고리 아이콘">
+            <h3 className="text-sm font-medium">카테고리 아이콘</h3>
+            <p className="text-sm text-muted-foreground">모바일 카테고리 시트의 아이콘 칸(60px 정사각)에 맞춰 보입니다. 투명 배경의 정사각 PNG를 권장합니다. 올리면 바로 적용되고, 비우면 이름 첫 글자로 표시합니다.</p>
+            {dirty ? <p className="text-sm text-muted-foreground">이름·상위 분류를 저장하거나 되돌린 뒤 아이콘을 바꿀 수 있습니다.</p> : null}
+            <CategoryDisplayArtwork key={`${selected.id}:${selected.imagePath ?? 'none'}`} label="아이콘 이미지" variant="icon" actorId={actorId} path={selected.imagePath}
               disabled={locked || dirty} onChange={path => latestApplyImage.current(path)} onBusy={setImageBusy} />
-            {imageUncertain ? <button type="button" disabled={pending || blocked} onClick={retryImage}>아이콘 같은 요청 결과 확인</button> : null}
+            {imageUncertain ? <Button className="self-start" variant="outline" type="button" disabled={pending || blocked} onClick={retryImage}>아이콘 같은 요청 결과 확인</Button> : null}
           </section>
         ) : null}
       </form>

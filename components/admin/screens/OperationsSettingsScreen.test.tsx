@@ -31,6 +31,8 @@ it('관리자는 실제 입력 화면과 출고지별 저장 폼을 사용하며
   expect(html).toContain('담당자 정보 미입력');
   expect(html).toContain('정보 입력 3/4');
   expect(html.match(/>담당자 정보 저장</g)).toHaveLength(2);
+  /* kit 버튼의 기본 type은 button이다 — 출고지별 저장 버튼은 모두 제출 버튼이어야 한다. */
+  expect(html.match(/<button[^>]*type="submit"[^>]*>(?:(?!<\/button>)[\s\S])*담당자 정보 저장<\/button>/g)).toHaveLength(2);
   expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
   expect(html).not.toContain('<script>alert(1)</script>');
 });

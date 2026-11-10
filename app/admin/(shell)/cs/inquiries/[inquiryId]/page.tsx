@@ -28,8 +28,6 @@ export default async function AdminCsInquiryDetailPage({
   if (!detail) notFound();
   const navigation = await getAdminInquiryNavigation(inquiryId, data, 'detail');
 
-  return <>
-    <AdminOpenInquiryBadge count={data.counts.open} />
-    <InquiryDetailScreen key={`${auth.user.id}:${inquiryId}`} accountId={auth.user.id} navigation={navigation} backHref={adminInquiryBackHref(query.back)} detail={detail} {...access} canViewCustomer={canViewCustomer} />
-  </>;
+  /* 이 문의와 별개인 전체 미답변 수라 제목 위가 아니라 머리 줄 오른쪽에 둔다. */
+  return <InquiryDetailScreen key={`${auth.user.id}:${inquiryId}`} accountId={auth.user.id} navigation={navigation} backHref={adminInquiryBackHref(query.back)} detail={detail} {...access} canViewCustomer={canViewCustomer} pendingBadge={<AdminOpenInquiryBadge count={data.counts.open} />} />;
 }

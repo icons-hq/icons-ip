@@ -54,6 +54,15 @@ describe('ERP 품목 화면', () => {
     expect(html).not.toMatch(/슬롯|가챠|충전/);
   });
 
+  it('품목 반입이 접혀 있으면 화면 머리의 주 행동 버튼이 펼치는 길이고, 펼쳐 있으면 외곽선으로 물러난다', () => {
+    const closed = renderToStaticMarkup(<ErpItemsScreen data={data()} />);
+    expect(closed).toMatch(/data-admin-kit="page-header"[\s\S]*?<button[^>]*bg-primary[^>]*>(?:<svg[\s\S]*?<\/svg>)?품목 반입<\/button>/);
+    expect(closed).toMatch(/<details(?![^>]*open)[^>]*id="erp-item-import"/);
+    const empty = renderToStaticMarkup(<ErpItemsScreen data={data({ page: { total: 0, items: [] } })} />);
+    expect(empty).toMatch(/<details[^>]*id="erp-item-import"[^>]*open=""/);
+    expect(empty).not.toMatch(/<button[^>]*bg-primary[^>]*>(?:<svg[\s\S]*?<\/svg>)?품목 반입<\/button>/);
+  });
+
   it('ERP 분류마다 활성 말단 경로를 고르고, 같은 경로 말단이 있으면 한 번에 연결하게 한다', () => {
     const html = renderToStaticMarkup(<ErpItemsScreen data={data()} />);
     expect(html).toContain('ERP 분류 3개 중 2개 연결됨');
@@ -74,8 +83,22 @@ describe('ERP 품목 화면', () => {
     expect(html).toContain('총 51건');
     expect(html).toContain('aria-label="000123 아크릴 키링 선택"');
     expect(html).toContain('aria-label="전체 선택"');
+    // 체크박스 label은 칸을 덮는 절대 배치라 내용 폭이 없다 — 좁은 화면에서 칸이 0px로 접히지 않게 머리칸 최소 폭을 준다.
+    expect(html).toMatch(/<div class="[^"]*\[&amp;_thead_th:first-child\]:min-w-10[^"]*" data-console-grid="">/);
     expect(html).toContain('action="/admin/catalog/erp-items"');
+    // 품목 검색은 GET 폼 제출이다(kit 버튼의 기본 type은 button).
+    expect(html).toMatch(/<button(?=[^>]*type="submit")[^>]*>검색<\/button>/);
     expect(html).toContain('href="/admin/catalog/erp-items?page=2"');
+  });
+
+  it('품목 반입은 접어 두어 매일 보는 표가 첫 화면에 들어오고, 반입한 품목이 없을 때만 펼친다', () => {
+    const fold = /<details[^>]*id="erp-item-import"[^>]*>/;
+    expect(fold.exec(renderToStaticMarkup(<ErpItemsScreen data={data()} />))?.[0]).not.toContain('open=');
+    expect(fold.exec(renderToStaticMarkup(<ErpItemsScreen data={data({ page: { total: 0, items: [] } })} />))?.[0]).toContain('open=');
+    // 찾는 품목이 없다고 반입 칸을 열지는 않는다.
+    expect(fold.exec(renderToStaticMarkup(<ErpItemsScreen data={data({ filters: { query: '없는 품목', page: 1 }, page: { total: 0, items: [] } })} />))?.[0]).not.toContain('open=');
+    // 삭제 버튼은 고른 뒤에 나타나므로 그 방법을 말한다.
+    expect(renderToStaticMarkup(<ErpItemsScreen data={data()} />)).toContain('체크하면 삭제 버튼이 나타납니다');
   });
 
   it('빈 목록과 분류 없음 상태를 안내한다', () => {

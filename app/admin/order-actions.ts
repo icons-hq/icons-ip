@@ -363,7 +363,7 @@ export async function reconcileAdminOrderCancellationAction(
   revalidateOrderSurfaces();
   if (!result.ok) return { errors: { form: reviewRequiredMessage(result.code) } };
   if (result.status === 'in_progress') return { message: PAYMENT_RECONCILIATION_IN_PROGRESS };
-  return { message: '결제 취소 상태를 정합화했습니다.' };
+  return { message: '결제 취소 상태를 확인했습니다.' };
 }
 
 /** DB가 던지는 운영자 전액 취소 거절 코드를 운영자 문구로 옮긴다. 원문은 노출하지 않는다. */
@@ -381,7 +381,7 @@ function staffCancellationError(message: string | null | undefined) {
   }
   if (value.includes('payment_reconciliation_required')) return '결제 결과가 아직 확정되지 않았습니다. 결제 상태를 먼저 확인해주세요.';
   if (value.includes('staff_cancellation_toss_only')) {
-    return '토스 결제 주문만 이 화면에서 전액 취소할 수 있습니다. Korpay·무통장 주문은 기존 수동 절차를 따릅니다.';
+    return '토스·나이스페이 결제 주문만 이 화면에서 전액 취소할 수 있습니다. Korpay·무통장 주문은 기존 수동 절차를 따릅니다.';
   }
   if (value.includes('invalid_staff_cancellation_note')) return '기타 사유는 메모를 5자 이상 입력해주세요(최대 500자).';
   if (value.includes('invalid_staff_cancellation_reason')) return '취소 사유를 선택해주세요.';
@@ -471,7 +471,7 @@ export async function recoverAdminGoodsPaymentAction(
     if (result.outcome === 'in_progress') {
       return { errors: { form: '다른 운영 확인이 진행 중입니다. 잠시 뒤 최신 상태를 확인해주세요.' } };
     }
-    return { message: 'Korpay 전액 취소 확인을 주문 정합화에 반영했습니다.' };
+    return { message: 'Korpay 전액 취소 확인을 주문에 반영했습니다.' };
   } catch {
     return { errors: { form: 'Korpay 수동 취소 상태를 반영하지 못했습니다. 최신 상태를 확인해주세요.' } };
   }

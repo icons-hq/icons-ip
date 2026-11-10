@@ -1,11 +1,15 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { ClaimContactSession, type ClaimContactIdentity, type ClaimContactScope } from '@/components/claim-contact/ClaimContactSession';
 import { readGoodsFulfillmentAction, saveGoodsFulfillmentAction, prepareDigitalAssetAction, verifyDigitalAssetAction } from '@/app/admin/goods-fulfillment-actions';
 import { createClient } from '@/lib/supabase/client';
 import { DIGITAL_BUCKET, DIGITAL_MIME_EXTENSIONS, FULFILLMENT_METHOD_LABELS, parseDigitalFile, type DigitalFile, type FulfillmentMethod, type GoodsFulfillmentSettings } from '@/lib/goods-fulfillment';
 import { krw } from '@/lib/format';
-import '@/app/styles/admin-goods-fulfillment.css';
+import { buttonVariants } from '@/components/admin/kit/ui/button';
+import { NativeSelect } from '@/components/admin/kit/ui/native-select';
+import { GOOD_INPUT_CLASS, GOOD_NOTE_CLASS, GOOD_NUMBER_INPUT_CLASS } from './GoodEditorParts';
+const FIELD_LABEL_CLASS = 'flex min-w-0 flex-col gap-2 text-sm font-medium text-foreground';
+const CHECK_LABEL_CLASS = 'flex cursor-pointer items-start gap-2 text-sm [&>input]:mt-0.5';
 const shippingMethods = ['parcel', 'quick', 'pickup', 'direct', 'freight'] as const;
 const draftOf = (s: GoodsFulfillmentSettings) => ({ mode: s.mode, methods: shippingMethods.map(method => { const terms = s.methods.find(m => m.method === method); return { method, enabled: Boolean(terms), amount: terms?.feeAmount?.toString() ?? '0', basis: terms?.feeBasis ?? 'per_order', installation: terms?.installationFee.toString() ?? '0' }; }), files: s.files, publicNote: s.publicNote, evidence: '', confirmed: false });
 type Draft = ReturnType<typeof draftOf>;
@@ -15,6 +19,7 @@ export function GoodsFulfillmentPanel(props: Props) { return <ClaimContactSessio
 function Panel({ goodId, disabledReason, showDisabledReason = true, identity, scope }: Props & { identity: ClaimContactIdentity; scope: ClaimContactScope }) {
  const [settings, setSettings] = useState<GoodsFulfillmentSettings | null>(null), [draft, setDraft] = useState<Draft | null>(null), [pending, setPending] = useState(false), [uncertain, setUncertain] = useState(false), [message, setMessage] = useState(''), [pendingFile, setPendingFile] = useState<DigitalFile | null>(null);
  const alive = useRef(true), busy = useRef(false), dispatched = useRef<{ values: unknown; revision: number; operation: string } | null>(null);
+ const fieldId = useId();
  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
  async function read() {
   if (busy.current || uncertain || pendingFile) return; const ticket = scope.capture(); if (!ticket) return; busy.current = true; setPending(true);
@@ -61,26 +66,27 @@ function Panel({ goodId, disabledReason, showDisabledReason = true, identity, sc
   finally { busy.current = false; if (alive.current) setPending(false); }
  }
  function methodValue(method: FulfillmentMethod, patch: Partial<Draft['methods'][number]>) { setDraft(d => d ? { ...d, methods: d.methods.map(m => m.method === method ? { ...m, ...patch } : m) } : d); }
- return <div className="admin-goods-fulfillment"><p>고객이 주문서에서 선택할 수령 방식과 선결제 비용을 설정합니다. 택배 운임은 기존 배송비 정책을 사용하며 설치비는 별도로 선결제합니다.</p>
-  <button type="button" className="wc-admin-kit__button" disabled={pending || uncertain || Boolean(pendingFile)} onClick={() => { void read(); }}>현재 배송·제공 설정 불러오기</button>
-  {draft ? <form onSubmit={e => { e.preventDefault(); void save(); }}><fieldset disabled={pending || uncertain || Boolean(pendingFile) || Boolean(disabledReason)}><legend>상품 제공 방식</legend>
-   <label>제공 구분<select value={draft.mode} onChange={e => setDraft({ ...draft, mode: e.target.value as Draft['mode'] })}><option value="shipping">배송 또는 방문수령</option><option value="no_delivery">배송없음 · 직접전달</option><option value="digital">디지털 파일 다운로드</option></select></label>
-   {draft.mode === 'shipping' ? <div className="admin-goods-fulfillment__methods">{draft.methods.map(m => <div className="admin-goods-fulfillment__method" key={m.method}>
-    <label className="admin-goods-fulfillment__check"><input type="checkbox" checked={m.enabled} onChange={e => methodValue(m.method, { enabled: e.target.checked })} />{FULFILLMENT_METHOD_LABELS[m.method]}</label>
-    {m.enabled && <>{m.method !== 'parcel' && m.method !== 'pickup' ? <><label>선결제 배송비 (원)<input inputMode="numeric" value={m.amount} onChange={e => methodValue(m.method, { amount: e.target.value })} required /></label><label>배송비 계산 단위<select value={m.basis} onChange={e => methodValue(m.method, { basis: e.target.value as 'per_order' | 'per_item' })}><option value="per_order">이 상품 주문당 1회</option><option value="per_item">수량 1개마다</option></select></label></> : <p>{m.method === 'parcel' ? '기존 택배 기본료·무료 기준·수량별·지역 추가료·선불/착불 조건을 적용합니다.' : '방문수령의 배송비는 0원입니다.'}</p>}
-     {m.method !== 'pickup' ? <label>수량 1개당 선결제 설치비 (원)<input inputMode="numeric" value={m.installation} onChange={e => methodValue(m.method, { installation: e.target.value })} required /></label> : null}</>}
-   </div>)}</div> : draft.mode === 'digital' ? <div><p>파일은 결제가 확인된 로그인 구매자에게 제공합니다. 환불 후 새 다운로드를 차단하며, 다운로드를 시작한 주문의 취소는 담당자가 검토합니다. 기존 주문은 구매 당시 파일을 유지합니다.</p>
-    <label>제공 파일 · 최대 10개, 개당 50MB<input type="file" accept={Object.keys(DIGITAL_MIME_EXTENSIONS).join(',')} disabled={draft.files.length >= 10} onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; void upload(file); }} /></label>
-    <ul>{draft.files.map(f => <li key={f.id}>{f.name} · {(f.size / 1024).toFixed(1)}KB <button type="button" onClick={() => setDraft({ ...draft, files: draft.files.filter(item => item.id !== f.id) })}>새 주문에서 제외</button></li>)}</ul>
-    <p>PDF·ZIP·PNG·JPG·MP3·MP4·TXT 파일을 개당 50MB, 최대 10개까지 등록할 수 있습니다. 구매자에게 제공할 원본 파일을 선택해주세요.</p>
-   </div> : <p>배송비 0원으로 주문하며 실제 직접전달 후 주문자의 일회 수령 확인값과 전달 근거를 기록합니다.</p>}
-   {draft.mode !== 'digital' ? <p>택배 이외 수령 방식은 배송정보 관리에서 해당 출고지의 연락처·인계 장소·수령 절차를 먼저 활성화해야 주문할 수 있습니다. 추가 배송비는 설정한 금액으로 선결제하며 현장 추가 청구는 없습니다.</p> : null}
-   <label>고객 안내<input maxLength={1000} value={draft.publicNote} onChange={e => setDraft({ ...draft, publicNote: e.target.value })} /></label>
-   <label>설정 근거<input minLength={2} maxLength={1000} required value={draft.evidence} onChange={e => setDraft({ ...draft, evidence: e.target.value })} /></label>
-   <label className="admin-goods-fulfillment__check"><input type="checkbox" checked={draft.confirmed} onChange={e => setDraft({ ...draft, confirmed: e.target.checked })} required />수령 방식·금액·파일 제공 조건을 확인했습니다.</label>
-  </fieldset><button type="submit" className="wc-admin-kit__button wc-admin-kit__button--primary" disabled={pending || !draft.confirmed || Boolean(pendingFile) || Boolean(disabledReason)}>{uncertain ? '같은 요청으로 저장 결과 확인' : '배송·제공 설정 저장'}</button></form> : null}
-  {pendingFile ? <p role="status">{pendingFile.name}의 전송·검증 결과를 확인해주세요. <button type="button" className="wc-admin-kit__button" disabled={pending} onClick={() => { void verify(); }}>같은 업로드 결과 확인</button></p> : null}
-  {settings ? <p>저장된 방식: {settings.methods.map(m => `${FULFILLMENT_METHOD_LABELS[m.method]}${m.feeAmount === null ? '' : ` ${krw(m.feeAmount)}`}`).join(', ')}</p> : null}
-  {showDisabledReason && disabledReason ? <p role="status">{disabledReason}</p> : null}{message ? <p role="status">{message}</p> : null}
+ return <div className="flex min-w-0 flex-col gap-4" data-goods-fulfillment=""><p className="text-sm text-muted-foreground">고객이 주문서에서 선택할 수령 방식과 선결제 비용을 설정합니다. 택배 운임은 기존 배송비 정책을 사용하며 설치비는 별도로 선결제합니다.</p>
+  <button type="button" className={`${buttonVariants({ variant: 'outline' })} self-start`} data-slot="button" disabled={pending || uncertain || Boolean(pendingFile)} onClick={() => { void read(); }}>현재 배송·제공 설정 불러오기</button>
+  {draft ? <form className="flex min-w-0 flex-col gap-4" onSubmit={e => { e.preventDefault(); void save(); }}><fieldset className="m-0 flex min-w-0 flex-col gap-4 rounded-lg border p-4" disabled={pending || uncertain || Boolean(pendingFile) || Boolean(disabledReason)}><legend className="float-left w-full p-0 text-sm font-medium text-foreground">상품 제공 방식</legend>
+   {/* NativeSelect는 div로 감싸므로 라벨로 감싸지 않고 htmlFor로 잇는다. */}
+   <div className="flex min-w-0 flex-col gap-2 sm:max-w-xs"><label className="text-sm font-medium text-foreground" htmlFor={`${fieldId}-mode`}>제공 구분</label><NativeSelect className="w-full" id={`${fieldId}-mode`} value={draft.mode} onChange={e => setDraft({ ...draft, mode: e.target.value as Draft['mode'] })}><option value="shipping">배송 또는 방문수령</option><option value="no_delivery">배송없음 · 직접전달</option><option value="digital">디지털 파일 다운로드</option></NativeSelect></div>
+   {draft.mode === 'shipping' ? <div className="grid min-w-0 gap-4 sm:grid-cols-2">{draft.methods.map(m => <div className="flex min-w-0 flex-col gap-3 rounded-lg border p-3" data-fulfillment-method={m.method} key={m.method}>
+    <label className={`${CHECK_LABEL_CLASS} font-medium`}><input type="checkbox" checked={m.enabled} onChange={e => methodValue(m.method, { enabled: e.target.checked })} />{FULFILLMENT_METHOD_LABELS[m.method]}</label>
+    {m.enabled && <>{m.method !== 'parcel' && m.method !== 'pickup' ? <><label className={FIELD_LABEL_CLASS}>선결제 배송비 (원)<input className={GOOD_NUMBER_INPUT_CLASS} data-slot="input" inputMode="numeric" value={m.amount} onChange={e => methodValue(m.method, { amount: e.target.value })} required /></label><div className="flex min-w-0 flex-col gap-2"><label className="text-sm font-medium text-foreground" htmlFor={`${fieldId}-${m.method}-basis`}>배송비 계산 단위</label><NativeSelect className="w-full" id={`${fieldId}-${m.method}-basis`} value={m.basis} onChange={e => methodValue(m.method, { basis: e.target.value as 'per_order' | 'per_item' })}><option value="per_order">이 상품 주문당 1회</option><option value="per_item">수량 1개마다</option></NativeSelect></div></> : <p className="text-sm text-muted-foreground">{m.method === 'parcel' ? '기존 택배 기본료·무료 기준·수량별·지역 추가료·선불/착불 조건을 적용합니다.' : '방문수령의 배송비는 0원입니다.'}</p>}
+     {m.method !== 'pickup' ? <label className={FIELD_LABEL_CLASS}>수량 1개당 선결제 설치비 (원)<input className={GOOD_NUMBER_INPUT_CLASS} data-slot="input" inputMode="numeric" value={m.installation} onChange={e => methodValue(m.method, { installation: e.target.value })} required /></label> : null}</>}
+   </div>)}</div> : draft.mode === 'digital' ? <div className="flex min-w-0 flex-col gap-3"><p className="text-sm text-muted-foreground">파일은 결제가 확인된 로그인 구매자에게 제공합니다. 환불 후 새 다운로드를 차단하며, 다운로드를 시작한 주문의 취소는 담당자가 검토합니다. 기존 주문은 구매 당시 파일을 유지합니다.</p>
+    <label className={FIELD_LABEL_CLASS}>제공 파일 · 최대 10개, 개당 50MB<input className={`${GOOD_INPUT_CLASS} file:mr-3 file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground`} data-slot="input" type="file" accept={Object.keys(DIGITAL_MIME_EXTENSIONS).join(',')} disabled={draft.files.length >= 10} onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; void upload(file); }} /></label>
+    <ul className="flex min-w-0 flex-col gap-1.5 text-sm">{draft.files.map(f => <li className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 wrap-anywhere" key={f.id}>{f.name} · <span className="tabular-nums">{(f.size / 1024).toFixed(1)}KB</span> <button type="button" className={buttonVariants({ variant: 'outline', size: 'xs' })} data-slot="button" onClick={() => setDraft({ ...draft, files: draft.files.filter(item => item.id !== f.id) })}>새 주문에서 제외</button></li>)}</ul>
+    <p className="text-sm text-muted-foreground">PDF·ZIP·PNG·JPG·MP3·MP4·TXT 파일을 개당 50MB, 최대 10개까지 등록할 수 있습니다. 구매자에게 제공할 원본 파일을 선택해주세요.</p>
+   </div> : <p className="text-sm text-muted-foreground">배송비 0원으로 주문하며 실제 직접전달 후 주문자의 일회 수령 확인값과 전달 근거를 기록합니다.</p>}
+   {draft.mode !== 'digital' ? <p className="text-sm text-muted-foreground">택배 이외 수령 방식은 배송정보 관리에서 해당 출고지의 연락처·인계 장소·수령 절차를 먼저 활성화해야 주문할 수 있습니다. 추가 배송비는 설정한 금액으로 선결제하며 현장 추가 청구는 없습니다.</p> : null}
+   <label className={FIELD_LABEL_CLASS}>고객 안내<input className={GOOD_INPUT_CLASS} data-slot="input" maxLength={1000} value={draft.publicNote} onChange={e => setDraft({ ...draft, publicNote: e.target.value })} /></label>
+   <label className={FIELD_LABEL_CLASS}>설정 근거<input className={GOOD_INPUT_CLASS} data-slot="input" minLength={2} maxLength={1000} required value={draft.evidence} onChange={e => setDraft({ ...draft, evidence: e.target.value })} /></label>
+   <label className={CHECK_LABEL_CLASS}><input type="checkbox" checked={draft.confirmed} onChange={e => setDraft({ ...draft, confirmed: e.target.checked })} required />수령 방식·금액·파일 제공 조건을 확인했습니다.</label>
+  </fieldset><button type="submit" className={`${buttonVariants()} self-start`} data-slot="button" disabled={pending || !draft.confirmed || Boolean(pendingFile) || Boolean(disabledReason)}>{uncertain ? '같은 요청으로 저장 결과 확인' : '배송·제공 설정 저장'}</button></form> : null}
+  {pendingFile ? <p className={`${GOOD_NOTE_CLASS} flex flex-wrap items-center gap-2`} role="status">{pendingFile.name}의 전송·검증 결과를 확인해주세요. <button type="button" className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" disabled={pending} onClick={() => { void verify(); }}>같은 업로드 결과 확인</button></p> : null}
+  {settings ? <p className="text-sm text-muted-foreground wrap-anywhere">저장된 방식: {settings.methods.map(m => `${FULFILLMENT_METHOD_LABELS[m.method]}${m.feeAmount === null ? '' : ` ${krw(m.feeAmount)}`}`).join(', ')}</p> : null}
+  {showDisabledReason && disabledReason ? <p className={GOOD_NOTE_CLASS} role="status">{disabledReason}</p> : null}{message ? <p className="text-sm font-medium" role="status">{message}</p> : null}
  </div>;
 }

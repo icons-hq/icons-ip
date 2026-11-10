@@ -8,6 +8,8 @@ describe('복수 고객 등록 화면', () => {
     const html = renderToStaticMarkup(<PurchaseRestrictionBatchForm currentHref="/admin/sales/purchase-restrictions?state=active" />);
     expect(html).toContain('최대 100개'); expect(html).toContain('줄바꿈이나 쉼표'); expect(html).toContain('전체 주문번호');
     expect(html).toContain('등록 대상 확인'); expect(html).toContain('공통 상세 사유'); expect(html).not.toContain('type="file"');
+    /* 대상 확인은 양식 제출(onSubmit)로 간다 — kit Button은 type이 없으면 button이 된다. */
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>등록 대상 확인</);
     expect(html).not.toContain('구매제한 등록</button>');
   });
   it('미리보기에서 제외 사유와 명시 확인·결과 재조회·다시 열기를 제공한다', () => {
@@ -16,6 +18,6 @@ describe('복수 고객 등록 화면', () => {
       rows: [{ rowNumber: 1, input: 'missing@example.test', userId: null, nickname: null, maskedEmail: null, evidenceOrderId: null, status: 'not_found', duplicateOf: null, restrictionId: null, outcome: null, error: null, currentState: null, releasedAt: null }],
     }} />);
     expect(html).toContain('조회되지 않음'); expect(html).toContain('등록 결과 재조회'); expect(html).toContain('이 요청 다시 열기');
-    expect(html).toContain('신규 상품 주문만 제한'); expect(html).toContain('disabled="">등록 가능 0명 구매제한 등록');
+    expect(html).toContain('신규 상품 주문만 제한'); expect(html).toMatch(/<button[^>]*disabled=""[^>]*>등록 가능 0명 구매제한 등록/);
   });
 });

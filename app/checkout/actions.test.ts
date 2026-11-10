@@ -14,8 +14,10 @@ const mocks = vi.hoisted(() => ({
   paymentAvailable: true,
   availabilityUserIds: [] as Array<string | undefined>,
   availabilityProviders: [] as Array<string | undefined>,
-  derivedProvider: 'toss' as 'toss' | 'korpay',
+  derivedProvider: 'toss' as 'toss' | 'nicepay',
   deriveProvider: vi.fn(),
+  derivedCartProvider: 'toss' as 'toss' | 'nicepay',
+  deriveCartProvider: vi.fn(),
   runtimeProviders: [] as Array<string | undefined>,
   prepare: vi.fn(),
   rpc: vi.fn(),
@@ -34,6 +36,10 @@ vi.mock('@/lib/payments/goods-sale-restriction.server', () => ({
   deriveGoodsOrderProvider: (orderId: string) => {
     mocks.deriveProvider(orderId);
     return Promise.resolve(mocks.derivedProvider);
+  },
+  deriveGoodsCartProvider: (goodIds: string[]) => {
+    mocks.deriveCartProvider(goodIds);
+    return Promise.resolve(mocks.derivedCartProvider);
   },
 }));
 vi.mock('@/lib/payments/goods-checkout.runtime.server', () => ({
@@ -213,6 +219,33 @@ describe('placeOrderAction', () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
+  it('19금 굿즈가 섞인 카트의 카드 주문은 카트 구성으로 파생한 나이스페이 gate를 본다(ADR-0024)', async () => {
+    mocks.availabilityProviders = [];
+    mocks.deriveCartProvider.mockReset();
+    mocks.derivedCartProvider = 'nicepay';
+    mocks.paymentAvailable = false;
+
+    await expect(placeOrderAction(address, checkoutKey)).resolves.toEqual({ ok: false, error: 'payment_unavailable' });
+    expect(mocks.deriveCartProvider).toHaveBeenCalledWith(['g1']);
+    expect(mocks.availabilityProviders).toEqual(['nicepay']);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+
+    mocks.derivedCartProvider = 'toss';
+  });
+
+  it('카트 구성 조회가 실패하면 주문을 만들지 않는다', async () => {
+    mocks.deriveCartProvider.mockReset();
+    mocks.deriveCartProvider.mockImplementationOnce(() => { throw new Error('lookup failed'); });
+
+    await expect(placeOrderAction(address, checkoutKey)).resolves.toEqual({ ok: false, error: 'unavailable' });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('DB의 성인 인증 요구를 주문서 오류로 알린다', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'adult verification required: g1' } });
+    await expect(placeOrderAction(address, checkoutKey)).resolves.toEqual({ ok: false, error: 'adult_verification_required' });
+  });
+
   it('rejects a suspended account before validating or reserving an order', async () => {
     mocks.auth = {
       ...onboardedAuth(),
@@ -306,13 +339,13 @@ describe('prepareGoodsPaymentAction', () => {
     await expect(prepareGoodsPaymentAction({}, formData())).resolves.toEqual({ error: 'goods_sale_not_open' });
   });
 
-  it('판매 제한 상품 포함 주문은 korpay로 파생돼 korpay gate·조립을 탄다', async () => {
-    mocks.derivedProvider = 'korpay';
+  it('판매 제한 상품 포함 주문은 nicepay로 파생돼 nicepay gate·조립을 탄다', async () => {
+    mocks.derivedProvider = 'nicepay';
 
     await expect(prepareGoodsPaymentAction({}, formData())).resolves.toEqual({ prepared });
 
-    expect(mocks.availabilityProviders).toEqual(['korpay']);
-    expect(mocks.runtimeProviders).toEqual(['korpay']);
+    expect(mocks.availabilityProviders).toEqual(['nicepay']);
+    expect(mocks.runtimeProviders).toEqual(['nicepay']);
   });
 
   it('비로그인·foreign 주문·provider OFF는 attempt를 만들지 않는다', async () => {

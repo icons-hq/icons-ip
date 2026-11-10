@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { SidebarProvider } from '@/components/admin/kit/ui/sidebar';
 import { AdminSidebar } from './AdminSidebar';
 
 const mocks = vi.hoisted(() => ({ pathname: '/admin' }));
@@ -8,7 +9,7 @@ vi.mock('next/navigation', () => ({ usePathname: () => mocks.pathname }));
 
 function render(role = 'staff', consoleId: 'commerce' | 'content' = 'commerce') {
   return renderToStaticMarkup(
-    <AdminSidebar collapsed={false} onCollapsedChange={() => {}} role={role} console={consoleId} />,
+    <SidebarProvider><AdminSidebar role={role} console={consoleId} /></SidebarProvider>,
   );
 }
 
@@ -20,18 +21,19 @@ describe('AdminSidebar 2단 메뉴', () => {
   it('대분류 헤딩과 소분류 항목을 함께 보여준다', () => {
     const html = render();
 
-    expect(html).toContain('판매관리');
+    expect(html).toContain('주문관리');
     expect(html).toContain('상품관리');
     expect(html).toContain('주문통합검색');
     expect(html).toContain('href="/admin/catalog/goods"');
   });
 
-  /* 대분류 순서가 뒤집히면 운영자가 익힌 메뉴 위치가 매번 달라진다. */
+  /* 대분류 순서가 뒤집히면 운영자가 익힌 메뉴 위치가 매번 달라진다. 2026-11-05 IA 재정의: 매일 쓰는 업무가 위, 설정 구역이 아래. */
   it('대분류를 정해진 순서로 세운다', () => {
-    const html = render();
-
-    expect(html.indexOf('상품관리')).toBeLessThan(html.indexOf('판매관리'));
-    expect(html.indexOf('판매관리')).toBeLessThan(html.indexOf('데이터분석'));
+    const html = render('admin');
+    const order = ['주문관리', '취소·반품·교환', '상품관리', '문의/리뷰관리', '고객관리', '스토어 전시관리', '혜택/마케팅', '데이터분석',
+      '정산관리', '배송관리', '템플릿 관리', '판매자 정보'].map((label) => html.indexOf(`>${label}<`));
+    expect(order.every((index) => index >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
   });
 
   it('현재 화면만 aria-current를 단다', () => {
@@ -57,21 +59,23 @@ describe('AdminSidebar 2단 메뉴', () => {
     expect(content).toContain('aria-label="콘텐츠 운영 메뉴"');
   });
 
-  it('홈 링크와 즐겨찾기를 검색 위 바로가기에 유지한다', () => {
+  it('홈 링크와 즐겨찾기를 메뉴 그룹 위 바로가기에 유지한다', () => {
     const html = render();
 
     expect(html.match(/aria-current="page"/g)).toHaveLength(1);
     expect(html).toMatch(/aria-current="page"[^>]*data-admin-nav-screen="overview"/);
     expect(html).toContain('aria-label="홈 즐겨찾기 추가"');
-    expect(html.indexOf('data-admin-nav-screen="overview"')).toBeLessThan(html.indexOf('aria-label="어드민 메뉴 검색"'));
+    /* 메뉴 검색은 사이드바 머리(브랜드 아래)에 있고, 홈은 메뉴 맨 위 — 어느 그룹보다 먼저 선다. */
+    expect(html.indexOf('aria-label="어드민 메뉴 검색"')).toBeLessThan(html.indexOf('data-admin-nav-screen="overview"'));
+    expect(html.indexOf('data-admin-nav-screen="overview"')).toBeLessThan(html.indexOf('data-admin-nav-group="sales"'));
     expect(html).not.toContain('id="admin-nav-group-home"');
   });
 
-  it('접기 제어는 메뉴 스크롤 영역 밖에서 상태를 알린다', () => {
+  it('접기 제어는 메뉴 스크롤 영역 밖(가장자리 레일)에 있고, 메뉴는 헤더 버튼이 가리키는 id를 가진다', () => {
     const html = render();
 
-    expect(html.indexOf('aria-label="사이드바 접기"')).toBeGreaterThan(html.indexOf('</aside>'));
-    expect(html).toContain('aria-expanded="true" aria-controls="admin-mobile-navigation" aria-label="사이드바 접기"');
+    expect(html.indexOf('data-sidebar="rail"')).toBeGreaterThan(html.indexOf('</nav>'));
+    expect(html).toContain('id="admin-navigation"');
   });
 
   it('상품 일괄등록에서는 상위 상품 조회 메뉴를 동시에 활성화하지 않는다', () => {

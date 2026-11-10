@@ -99,7 +99,7 @@ describe('m27 가이드 — 고객문의·상담·리뷰(R1~R6)', () => {
     expect(lib).toContain('적립금 정책: 켜짐 · 보유 상한');
     expect(lib).toContain('적립금 정책: 꺼짐');
     expect(repoFile('lib/admin/navigation.ts')).toContain("label: '적립금 정책', href: '/admin/settings/store-credits', status: 'ready', adminOnly: true");
-    expect(text).toContain('혜택/마케팅 → 적립금 정책');
+    expect(text).toContain('판매자 정보 → 적립금 정책');
     expect(text).toContain('보유 상한');
   });
 
@@ -117,7 +117,7 @@ describe('m27 가이드 — 클레임(R7·R8)', () => {
   const text = guide('claims');
 
   it('요청번호는 목록 위 팝업을 열고, 전체 화면 상세는 팝업 버튼으로 연다(R8)', () => {
-    expect(repoFile('components/admin/screens/ClaimQueueScreen.tsx')).toContain('요청번호를 누르면 목록 위에 상세가 열리고');
+    expect(repoFile('components/admin/screens/ClaimQueueKitScreen.tsx')).toContain('요청번호를 누르면 목록 위에 상세가 열리고');
     expect(repoFile('components/admin/screens/ClaimPreviewDialog.tsx')).toContain('전체 화면으로 열기');
     expect(text).toContain('요청번호를 누르면 목록 위');
     expect(text).toContain('"전체 화면으로 열기"');
@@ -130,16 +130,15 @@ describe('m27 가이드 — 클레임(R7·R8)', () => {
     expect(text).toContain('한 건씩 순서대로');
   });
 
-  it('일괄 거부 사유 칸의 위치를 화면 그대로(목록 위, 일괄 처리 버튼 바로 아래) 적는다(R8·ADM-5)', () => {
-    const bulk = repoFile('components/admin/screens/ClaimQueueBulk.tsx');
-    /* 일괄 처리 버튼 줄과 거부 사유 칸은 ConsoleGrid의 children이고, ConsoleGrid는 children을 표보다 먼저 그린다. */
-    const grid = bulk.slice(bulk.indexOf('<ConsoleGrid'), bulk.indexOf('</ConsoleGrid>'));
-    expect(grid.indexOf('admin-claim-bulk-bar')).toBeGreaterThan(-1);
-    expect(grid.indexOf('admin-claim-bulk-reason')).toBeGreaterThan(grid.indexOf('admin-claim-bulk-bar'));
-    const consoleGrid = repoFile('components/admin/console/ConsoleGrid.tsx');
-    expect(consoleGrid.indexOf('{children}')).toBeLessThan(consoleGrid.indexOf('<table className="admin-console-grid-table"'));
-    expect(text).toContain('목록 위 일괄 처리 버튼 바로 아래의 거부 사유 칸');
+  it('일괄 거부 사유 칸의 위치를 화면 그대로(아래 처리 막대의 거부 버튼이 여는 칸) 적는다(R8·ADM-5)', () => {
+    /* ADR-0028: 취소·반품·교환 목록이 모두 kit 화면이다 — 아래 처리 막대의 거부 버튼이 거부 사유 팝오버를 연다. */
+    expect(text).not.toContain('목록 위 일괄 처리 버튼 바로 아래의 거부 사유 칸');
     expect(text).not.toContain('목록 아래 거부 사유 칸');
+    const kit = repoFile('components/admin/screens/ClaimQueueKitTable.tsx');
+    const actionBar = kit.slice(kit.indexOf('<ActionBar'), kit.indexOf('</ActionBar>'));
+    expect(actionBar.indexOf('ADMIN_CLAIM_BULK_ACTION_LABELS.reject')).toBeGreaterThan(-1);
+    expect(actionBar.indexOf('<KitRejectionReasonField')).toBeGreaterThan(actionBar.indexOf('<PopoverContent'));
+    expect(text).toContain(`취소·반품·교환 관리 모두 아래 처리 막대의 "${ADMIN_CLAIM_BULK_ACTION_LABELS.reject}"를 누르면 뜨는 거부 사유 칸`);
   });
 
   it('거부 사유 프리셋과 유형별 사유, 운영자 철회 버튼 제거를 안내한다(R7)', () => {
@@ -157,12 +156,14 @@ describe('m27 가이드 — 상품 등록·목록·카테고리·랜덤 판매(R
   const text = guide('goods-sales');
   const section = (id: string) => ADMIN_GUIDE_TOPICS['goods-sales'].sections.find((item) => item.id === id);
 
-  it('등록 화면 한 번에 저장과 자리표시 운영 섹션을 안내한다(R13·D6②)', () => {
+  it('등록 화면 한 번에 저장과 저장 뒤 이어서 설정 목록을 안내한다(R13·D6②)', () => {
     const editor = repoFile('components/admin/GoodEditor.tsx');
-    expect(editor).toContain('기본 상품·이미지·옵션·고시·배송·구매 제한·판매 조건과 아래 KC·예약판매 입력을 한 번에 저장합니다.');
-    expect(repoFile('components/admin/sections/GoodSection.tsx')).toContain("Placeholder id=\"prices\"");
+    expect(editor).toContain('기본 상품·이미지·옵션·고시·배송·구매 제한·판매 조건과 KC·예약판매 입력을 한 번에 저장합니다.');
+    /* 저장 전 운영 항목은 비활성 카드 18장이 아니라 이름 목록 한 장이다(자리표시 카드 제거). */
+    expect(repoFile('components/admin/sections/GoodSection.tsx')).toContain('저장하면 이어서 설정할 수 있어요');
     expect(text).toContain('KC·예약판매 입력을 한 번에 저장');
-    expect(text).toContain('자리표시');
+    expect(text).toContain('저장하면 이어서 설정할 수 있어요');
+    expect(text).not.toContain('자리표시');
     expect(text).not.toContain('초안 저장 → KC 검토 → 공개');
     expect(text).not.toContain('고정 저장 영역은 기본 상품·이미지·옵션·고시·배송·판매 조건만 저장합니다.');
   });
@@ -177,7 +178,7 @@ describe('m27 가이드 — 상품 등록·목록·카테고리·랜덤 판매(R
     for (const label of ['title="구매 제한"', 'legend="최소/최대 구매수량"', 'legend="1인 최대 구매수량"', '<legend>옵션별 구매 제한 (선택)</legend>', '최대 구매수량(주문당)']) {
       expect(fields).toContain(label);
     }
-    for (const label of ['구매 제한 카드', '최소/최대 구매수량', '1인 최대 구매수량', '옵션별 구매 제한', '최대 구매수량(주문당)']) {
+    for (const label of ['구매 제한 줄', '최소/최대 구매수량', '1인 최대 구매수량', '옵션별 구매 제한', '최대 구매수량(주문당)']) {
       expect(text).toContain(label);
     }
     expect(text).not.toContain('판매 조건의 주문당 수량 제한');
@@ -256,6 +257,13 @@ describe('m27 가이드 — 상품 등록·목록·카테고리·랜덤 판매(R
     expect(text).toContain('고객 화면에는 둘 다 품절로 보입니다');
   });
 
+  it('품절·소량 재고 칸의 건수 범위와 소량 재고 기준을 화면과 같게 안내한다', () => {
+    expect(text).toContain('재고 조건과 페이지를 제외한 같은 검색 조건으로 계산');
+    expect(text).toContain('수량으로 자동 분류하지 않습니다');
+    expect(text).toContain('소량 재고 건수에는 들어가지 않습니다');
+    expect(repoFile('components/admin/screens/GoodsListScreen.tsx')).toContain('수량으로 자동 분류하지 않습니다');
+  });
+
   it('판매 방식(랜덤 판매) 절이 패널의 선택지·고객 은닉 범위·조건과 같다(R24·D5②)', () => {
     const panel = repoFile('components/admin/GoodsOptionSaleModePanel.tsx').replace(/&apos;/g, "'").replace(/\s+/g, ' ');
     const hidden = "고객의 상품·장바구니·주문·메일·리뷰에는 '랜덤'으로 보이고 옵션별 재고도 보이지 않습니다. 교환으로 다시 보내는 상품은 보내는 옵션이 고객에게 안내됩니다.";
@@ -289,13 +297,16 @@ describe('m27 가이드 — 메뉴·배송정보·출고 파일(R21~R23·R26·R2
   it('배송정보·템플릿 화면을 새 대분류 경로로 부른다(R21·R22)', () => {
     const group = (href: string) => ADMIN_NAV_GROUPS.find((item) => item.screens.some((screen) => screen.href === href))?.label;
     expect(group('/admin/settings/origins')).toBe('배송관리');
-    expect(group('/admin/settings/shipping-templates')).toBe('템플릿 관리');
-    expect(group('/admin/settings/shipping-notices')).toBe('템플릿 관리');
+    /* 2026-11-05 IA 재정의: 배송 템플릿 두 화면은 배송관리로 모았다. */
+    expect(group('/admin/settings/shipping-templates')).toBe('배송관리');
+    expect(group('/admin/settings/shipping-notices')).toBe('배송관리');
+    expect(group('/admin/catalog/notice-presets')).toBe('템플릿 관리');
     const all = Object.values(ADMIN_GUIDE_TOPICS).map(plainText).join('\n');
     for (const stale of ['상품관리 → 배송정보', '상품관리 → 배송 안내', '상품관리의 배송 안내']) expect(all).not.toContain(stale);
     expect(guide('store-settings')).toContain('배송관리 → 배송정보 관리');
-    expect(guide('orders-shipping')).toContain('템플릿 관리 → 배송정보 템플릿 관리');
-    expect(guide('orders-shipping')).toContain('템플릿 관리 → 배송 안내 템플릿 관리');
+    expect(guide('orders-shipping')).toContain('배송관리 → 배송정보 템플릿 관리');
+    expect(guide('orders-shipping')).toContain('배송관리 → 배송 안내 템플릿 관리');
+    for (const stale of ['템플릿 관리 → 배송정보', '템플릿 관리 → 배송 안내', '템플릿 관리의 배송 안내']) expect(all).not.toContain(stale);
     expect(repoFile('components/admin/screens/FulfillmentOriginsScreen.tsx')).toContain('>출고지 추가</Link>');
     expect(guide('store-settings')).toContain('출고지 추가');
   });

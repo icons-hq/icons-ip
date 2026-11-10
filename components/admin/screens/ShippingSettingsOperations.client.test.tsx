@@ -24,6 +24,8 @@ import { GoodsDeliveryPricingFields } from '@/components/admin/GoodsTransactionT
 import { createGoodsDescriptionToolScope } from '@/lib/admin/goods-description-tools';
 import { shippingFixtures, shippingIdentity as identity, shippingIds as ids } from '@/test/fixtures/shipping-settings';
 import type { GoodsTermsDraft } from '@/lib/admin/goods-transaction-terms';
+import { Button } from '@/components/admin/kit/ui/button';
+import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 
 type Element = ReactElement<Record<string, unknown>>;
 const all = (node: ReactNode): Element[] => Children.toArray(node).flatMap(value => isValidElement<Record<string, unknown>>(value) ? [value, ...all(value.props.children as ReactNode)] : []);
@@ -47,7 +49,10 @@ const operation = () => render() as ReturnType<typeof useShippingSettingsOperati
 const node = () => render() as ReactElement;
 function effects() { for (const index of hooks.changed.splice(0)) { const item = hooks.effects[index]; item.cleanup?.(); item.cleanup = item.effect() || undefined; } }
 async function flush() { for (let i = 0; i < 7; i++) { await Promise.resolve(); render(); effects(); } }
-function button(label: string) { return all(node()).find(item => item.type === 'button' && text(item) === label)!; }
+/* 화면은 kit Button·NativeSelect(ADR-0028)를 쓴다. 이 얕은 렌더는 kit 부품을 펼치지 않으므로 그 요소를 그대로 찾는다 — kit 부품은 onClick·disabled·onChange를 네이티브 요소에 그대로 넘긴다. */
+const isButton = (item: Element) => item.type === 'button' || item.type === Button;
+const isSelect = (item: Element) => item.type === 'select' || item.type === NativeSelect;
+function button(label: string) { return all(node()).find(item => isButton(item) && text(item) === label)!; }
 function click(label: string) { const item = button(label); expect(item).toBeDefined(); expect(item.props.disabled).not.toBe(true); (item.props.onClick as () => void)(); }
 function authenticate(actor = ids.actor, session = ids.session) { mocks.auth?.('SIGNED_IN', { user: { id: actor }, access_token: `x.${Buffer.from(JSON.stringify({ session_id: session })).toString('base64url')}.x` }); }
 beforeEach(() => {
@@ -169,7 +174,7 @@ it('폼의 명시적 적용은 공용 parser로 3구간·구매자 선택 정책
   const NativeFormData = FormData;
   vi.stubGlobal('FormData', class extends NativeFormData { constructor(source?: FormData) { super(); source?.forEach((value, key) => this.append(key, value)); } });
   mode = 'form'; render(); effects();
-  const modeField = all(node()).find(item => item.type === 'select' && item.props.id === 'shipping-settings-deliveryMode')!;
+  const modeField = all(node()).find(item => isSelect(item) && item.props.id === 'shipping-settings-deliveryMode')!;
   (modeField.props.onChange as (event: unknown) => void)({ target: { value: 'replace' } });
   const delivery = all(node()).find(item => item.type === GoodsDeliveryPricingFields)!;
   (delivery.props.onChange as (draft: GoodsTermsDraft['delivery']) => void)({ status: 'active', fields: { kind: 'tier3', baseFee: '3000', interval: '7', firstLimit: '2', secondLimit: '4', extra1: '1000', extra2: '2000', paymentMode: 'buyer_choice' } });

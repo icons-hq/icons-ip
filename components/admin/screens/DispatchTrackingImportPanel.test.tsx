@@ -34,6 +34,8 @@ describe('운송장 업로드 후속 동선', () => {
     expect(html).not.toContain('<details');
     expect(html).toContain('type="file"');
     expect(html).toContain('일괄 등록');
+    /* kit Button은 type이 없으면 button이 된다 — 일괄 등록은 양식을 제출한다. */
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>일괄 등록</);
     expect(html).not.toContain('배송현황에서 결과 확인');
   });
 

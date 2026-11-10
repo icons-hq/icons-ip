@@ -10,7 +10,7 @@ vi.mock('react', async () => {
   return { ...await vi.importActual<typeof import('react')>('react'),
     useState: (value: unknown) => { const i = hooks.stateIndex++; if (!(i in hooks.states)) hooks.states[i] = typeof value === 'function' ? value() : value; return [hooks.states[i], (next: unknown) => { hooks.states[i] = typeof next === 'function' ? next(hooks.states[i]) : next; }]; },
     useMemo: (fn: () => unknown, deps: unknown[]) => { const i = hooks.memoIndex++; if (!hooks.memos[i] || deps.some((dep, n) => dep !== hooks.memos[i].deps[n])) hooks.memos[i] = { value: fn(), deps }; return hooks.memos[i].value; },
-    useSyncExternalStore: (_subscribe: unknown, read: () => unknown) => read(), useEffect: effect, useLayoutEffect: effect,
+    useSyncExternalStore: (_subscribe: unknown, read: () => unknown) => read(), useRef: (current: unknown) => ({ current }), useEffect: effect, useLayoutEffect: effect,
   };
 });
 vi.mock('react-dom', () => ({ createPortal: mocks.portal }));
@@ -35,7 +35,7 @@ async function flush() { for (let i = 0; i < 8; i++) await Promise.resolve(); re
 function auth(actor = 'actor', session = '99000000-0000-4000-8000-000000000010') { mocks.auth?.('SIGNED_IN', { user: { id: actor }, access_token: `x.${Buffer.from(JSON.stringify({ session_id: session })).toString('base64url')}.x` }); }
 beforeEach(() => {
   hooks.states = []; hooks.memos = []; hooks.effects = []; hooks.changed = []; vi.clearAllMocks();
-  vi.stubGlobal('window', new EventTarget()); vi.stubGlobal('document', { body: {} });
+  vi.stubGlobal('window', new EventTarget()); vi.stubGlobal('document', Object.assign(new EventTarget(), { body: {} }));
   mocks.list.mockResolvedValue({ ok: true, value: { rows: [row], total: 1, archivedCount: 0, limit: 50 } }); mocks.read.mockResolvedValue({ ok: true, value: row }); mocks.save.mockResolvedValue({ ok: true, value: { ...row, revision: 2 } });
   body = '<p>현재 본문</p><img src="https://example.com/image.png">';
   apply = vi.fn<BodyTemplateEditorTarget['apply']>((html, mode) => { body = mode === 'insert' ? body + html : html; return { ok: true, bodyHtml: body }; });

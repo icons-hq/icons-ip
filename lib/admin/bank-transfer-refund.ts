@@ -96,7 +96,7 @@ export function bankRefundError(code?: string, message?: string): BankRefundFail
     bank_refund_payment_unavailable: '전액 무통장 결제 1건이 확인되지 않아 처리할 수 없습니다.',
     bank_refund_gift_parties_invalid: '선물 구매자와 요청자 기록을 확인해야 합니다.',
     bank_refund_claim_unavailable: '현재 요청 단계에서는 처리할 수 없습니다. 최신 상태를 확인해주세요.',
-    bank_refund_ledger_unavailable: '환불 원장의 금액·수단·요청 연결을 확인해야 합니다.',
+    bank_refund_ledger_unavailable: '환불 기록의 금액·수단·요청 연결을 확인해야 합니다.',
     bank_refund_confirmation_required: '먼저 취소를 확정하고 재고 복원을 확인해주세요.',
     bank_refund_filing_required: '먼저 계좌 송금 접수를 기록해주세요.',
     bank_refund_approval_required: '승인된 취소 요청이 필요합니다.',

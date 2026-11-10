@@ -38,6 +38,8 @@ vi.mock('react', async () => {
 });
 
 const { ErpItemImportPanel } = await import('./ErpItemImportPanel');
+const { AdminSelect } = await import('./console/AdminSelect');
+const { Button } = await import('./kit/ui/button');
 
 type Props = {
   children?: ReactNode;
@@ -72,8 +74,8 @@ function text(node: ReactNode): string {
   return isValidElement<Props>(node) ? text(node.props.children) : '';
 }
 
-const button = (tree: ReactNode, label: string) => find(tree, (element) => element.type === 'button' && text(element).includes(label))[0];
-const select = (tree: ReactNode, label: string) => find(tree, (element) => element.type === 'select' && element.props['aria-label'] === label)[0];
+const button = (tree: ReactNode, label: string) => find(tree, (element) => (element.type === 'button' || element.type === Button) && text(element).includes(label))[0];
+const select = (tree: ReactNode, label: string) => find(tree, (element) => (element.type === 'select' || element.type === AdminSelect) && element.props['aria-label'] === label)[0];
 async function settle() {
   await Promise.all(hooks.pending.splice(0));
 }

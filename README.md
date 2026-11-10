@@ -18,7 +18,7 @@ ICONS는 서브컬처 팬덤을 위한 슈퍼앱 프로토타입이다. 공식 �
 - 검색은 Supabase 환경변수가 있으면 Postgres `search_public_content` RPC로 IP, 굿즈, 카드, visible 포스트, 태그를 그룹 검색하고, 로컬 fallback에서는 mock 데이터를 사용한다.
 - `/admin`은 통합 매니저·계정 주매니저·계정 부매니저·인플루언서·대행사·물류출고관리의 현재 DB 권한으로 메뉴·조회·변경을 제한한다. 상품·주문·문의·전시·마케팅·분석과 IP·카드·게임 운영을 각각 검사하며, 기존 `profiles.role` 값만으로 접근을 허용하지 않는다. 기존 게임 `goods` variant는 운영 콘솔에서 읽기 전용이고, mock 연출은 실제 경품·구매권을 만들지 않으며 신규 실물 판매에 쓰지 않는다.
 - Google, Kakao, Apple 버튼은 Supabase 관리형 OAuth Server Action에 연결되어 있고 production Supabase provider도 모두 활성화되어 있다. Google은 production 공개 상태이며 Apple App ID·Services ID·callback·서명 키 구성이 완료됐다. Kakao는 `(주) 아이콘스` 비즈 앱, 로그인용 client secret, `account_email` 필수 동의·계정 정보 수집까지 설정했고 Supabase의 이메일 없는 사용자 허용은 꺼져 있다. 코드가 production에 배포된 뒤 controlled login smoke가 남아 있다.
-- 굿즈와 티켓 checkout은 provider-neutral attempt/claim/finalizer와 `PaymentGateway` 경계 위에서 **토스페이먼츠 주문서형 v2**를 기본 provider로 쓴다(prepare→위젯 SDK→경로 세그먼트 nonce callback→서버 승인, ADR-0013). **판매 제한 상품**(성인(19금))이 담긴 주문만 서버가 주문 단위로 코페이를 파생하며 관리자가 PG를 고르지 않는다. 목적별 rollout gate의 기본값은 OFF이고 토스 gate 둘과 canary 둘은 모두 닫혀 있다 — 개방은 심사 트랙(`docs/runbooks/toss-production-rollout.md`)을 따른다. 2026-08-18 공개 ON으로 열어 둔 코페이 굿즈 gate는 폐쇄 실행 대기다.
+- 굿즈와 티켓 checkout은 provider-neutral attempt/claim/finalizer와 `PaymentGateway` 경계 위에서 **토스페이먼츠 주문서형 v2**를 기본 provider로 쓴다(prepare→위젯 SDK→경로 세그먼트 nonce callback→서버 승인, ADR-0013). **판매 제한 상품**(성인(19금))이 담긴 굿즈 주문만 서버가 주문 단위로 나이스페이(웹표준 인증결제)를 파생하며 관리자가 PG를 고르지 않는다(2026-11-06 코페이 대체 — 코페이는 진행 중 결제 drain 전용, `docs/runbooks/nicepay-production-rollout.md`). 목적별 rollout gate의 기본값은 OFF이고 토스 gate 둘과 canary 둘은 모두 닫혀 있다 — 개방은 심사 트랙(`docs/runbooks/toss-production-rollout.md`)을 따른다. 2026-08-18 공개 ON으로 열어 둔 코페이 굿즈 gate는 폐쇄 실행 대기다.
 - 범용 온라인 팝업 운영 레이어와 Expo webview 호스트는 현 로드맵에 없다. 19+ 꽝 없는 유한 실물 쿠지는 기존 카드·게임과 분리된 `prize_sale`로 설계하며 [#212](https://github.com/icons-hq/icons-ip/issues/212)·[#213](https://github.com/icons-hq/icons-ip/issues/213)이 별도 추적한다.
 
 운영자는 [설정 런북](./docs/runbooks/admin-store-settings.md)에서 사업자·CS, 무통장 계좌 표시값과 택배사 변경 절차를 확인할 수 있습니다.
@@ -72,6 +72,7 @@ RESEND_WEBHOOK_SECRET=
 # Optional Resend-compatible endpoint override; normally leave empty.
 RESEND_API_ENDPOINT=
 PAYMENT_RECONCILIATION_SECRET=
+ERP_SYNC_SECRET=
 # Toss (default PG) keys: Production only. Client/secret must share one mode.
 NEXT_PUBLIC_TOSS_CLIENT_KEY=
 TOSS_SECRET_KEY=
@@ -80,14 +81,25 @@ TOSS_TICKET_CHECKOUT_ENABLED=false
 # Optional Production-only UUID for one authenticated canary actor; leave unset by default.
 TOSS_ORDER_CANARY_USER_ID=
 TOSS_TICKET_CANARY_USER_ID=
-# Korpay (sale-restricted goods only): Production only; never put these in Preview/CI or NEXT_PUBLIC_*.
+# NICEPAY (sale-restricted goods only, web-standard MID + MerchantKey): Production only;
+# never put these in Preview/CI or NEXT_PUBLIC_*. There is no ticket gate.
+NICEPAY_MID=
+NICEPAY_MERCHANT_KEY=
+NICEPAY_ORDER_CHECKOUT_ENABLED=false
+# Optional Production-only UUID for one authenticated canary actor (card review account); leave unset by default.
+NICEPAY_ORDER_CANARY_USER_ID=
+# Korpay (retired: in-flight callback drain only): Production only. Checkout gates/canaries are no longer read.
 KORPAY_MID=
 KORPAY_KEY=
-KORPAY_ORDER_CHECKOUT_ENABLED=false
-KORPAY_TICKET_CHECKOUT_ENABLED=false
-# Optional Production-only UUID for one authenticated canary actor; leave unset by default.
-KORPAY_ORDER_CANARY_USER_ID=
-KORPAY_TICKET_CANARY_USER_ID=
+# NHN KCP mobile identity verification (adult verification). Production uses production mode;
+# Preview/local use test mode only. Never commit the site code, web site id or ENC_KEY.
+KCP_CERT_MODE=
+KCP_CERT_SITE_CODE=
+KCP_CERT_ENC_KEY=
+KCP_CERT_WEB_SITE_ID=
+ADULT_VERIFICATION_DIGEST_SECRET=
+ADULT_VERIFICATION_ENABLED=false
+ADULT_VERIFICATION_CANARY_USER_ID=
 ```
 
 - `NEXT_PUBLIC_SUPABASE_URL`: Supabase 프로젝트 URL.
@@ -95,13 +107,14 @@ KORPAY_TICKET_CANARY_USER_ID=
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`: legacy Supabase anon public key. `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`가 없을 때 fallback으로만 사용한다.
 - `ICONS_CATALOG_SOURCE`: 서버 전용 catalog/search source override. 값은 `mock` 또는 `supabase`만 허용한다. 비워두면 Vercel Preview는 `mock`, Supabase 환경변수가 있는 production/local은 `supabase`, Supabase 환경변수가 없으면 `mock`을 쓴다. GitHub Actions의 PR preview는 선택된 shared/isolated Supabase 자격 증명과 함께 `supabase`를 강제한다.
 - `AUTH_SIGNUP_RESEND_SECRET`: 회원가입 확인 메일 재전송 상태, 인증 `next`, 비밀번호 재설정 요청 제한 쿠키를 domain-separated HMAC으로 서명하는 서버 전용 secret. 긴 랜덤 값을 사용하고 `NEXT_PUBLIC_` prefix를 붙이지 않는다.
-- `SITE_URL`: secret이 아닌 서버 전용 canonical public origin이다. Production은 정확히 `https://iconsip.com`을 사용하며 토스 `successUrl`·`failUrl`과 코페이 `returnUrl` callback이 모두 이 origin 아래에서 생성된다. Preview/CI는 필요하면 각 환경의 일반 서버 origin을 둘 수 있지만 Korpay 실자격 증명과 canary actor는 두지 않고 목적별 gate를 닫는다. `SITE_URL`만으로 live checkout이 열리지는 않는다.
+- `SITE_URL`: secret이 아닌 서버 전용 canonical public origin이다. Production은 정확히 `https://iconsip.com`을 사용하며 토스 `successUrl`·`failUrl`, 나이스페이 `ReturnURL`, 코페이 `returnUrl` callback이 모두 이 origin 아래에서 생성된다. Preview/CI는 필요하면 각 환경의 일반 서버 origin을 둘 수 있지만 Korpay·NICEPAY 실자격 증명과 canary actor는 두지 않고 목적별 gate를 닫는다. `SITE_URL`만으로 live checkout이 열리지는 않는다.
 - `CRON_SECRET`: production Vercel Cron이 만료된 관리자 아트워크 staging 객체를 정리할 때 쓰는 서버 전용 bearer secret. 16~128자의 URL-safe 랜덤 값을 사용하고 preview에는 필요하지 않다.
 - `SUPABASE_SEND_EMAIL_HOOK_SECRET`·`RESEND_WEBHOOK_SECRET`: #191 Hook/webhook의 raw body 서명 검증용 서버 secret이다.
 - `EMAIL_DISPATCH_HMAC_SECRET`: recipient·source·provider reference를 목적 분리 keyed HMAC으로 투영하는 32자 이상 서버 secret이다.
 - `RESEND_API_KEY`·`RESEND_FROM`·`RESEND_REPLY_TO`: durable EmailDispatcher의 Resend HTTP 발송 설정이다. 전용 provider 설정과 `RESEND_API_ENDPOINT`를 모두 생략하면 기존 앱의 `EMAIL_PROVIDER_API_KEY`·`EMAIL_FROM`·`EMAIL_REPLY_TO`를 사용한다. 일부 전용 값과 기존 계정 값을 섞지 않으며 자세한 조건은 [이메일 운영](docs/transactional-email.md)을 따른다. Preview·CI에는 실값을 두지 않는다.
 - `RESEND_API_ENDPOINT`: 호환성 검증에만 쓰는 선택적 endpoint override다. 일반 운영에서는 비워 둔다.
 - `PAYMENT_RECONCILIATION_SECRET`: 검토된 단일 결제·환급 건을 명시적으로 재조회하는 내부 route(티켓 `/api/internal/payments/tickets/reconcile` — `operation: payment | refund`, 굿즈 `/api/internal/payments/goods/reconcile` — 환불 reconcile seam이 없어 `operation: payment`만) 전용 bearer secret. `CRON_SECRET`과 공유하지 않는다. #206 dark deploy에서는 미설정이 정상이며 route가 401로 닫힌다. 활성화 시 별도 승인 절차로 Production에만 16~128자의 URL-safe 랜덤 값을 두고 Preview/CI에는 넣지 않는다. 요청은 이메일 등 PII가 아닌 opaque URL-safe `caseRef`만 받으며 actor는 서버가 `payment_reconciliation_service_v1`으로 고정한다.
+- `ERP_SYNC_SECRET`: AX 서버(ERPNext 연동)가 몰 업무 표를 읽는 내부 route `/api/internal/erp/data`(본문 `service_erp_read`) 전용 bearer secret. 다른 secret과 공유하지 않는다. 미설정이면 route가 401로 닫힌다. 16~128자 URL-safe 랜덤 값을 Production에만 두고 Preview/CI에는 넣지 않는다. `table` 이 없으면 읽을 수 있는 표·칸 목록(public·private 업무 표 + `auth.users` 회원 칸), 있으면 그 표의 줄 — `columns`(칸 고르기)·`where`(`{칸: [값]}`, 칸마다 1,000개)·`after`(앞 응답의 `next`)·`limit`(1~1,000). GET 은 `table`·`columns`·`limit` 만 받고, 값이 실리는 `after`·`where` 는 쿼리가 접근 로그에 남으므로 POST 본문으로만 받는다. 이어 읽기는 진행 중 트랜잭션 뒤의 줄을 잠시 숨기는 안전 경계(응답 `settled_before`)를 쓰고, `settled: false` 는 하루 전수 대사용이다. 끝은 `next` 가 null 인지로 판단한다(응답 크기 때문에 줄이 `limit` 보다 적어도 이어질 수 있다). 비밀 표(빌링 자격 증명·선물 링크 토큰·운영자 초대·내부 계약·성인 인증 세션·원본 결제·메일 증거·시험 도구·이 읽기의 접근 기록)와 비밀 칸(토큰·비밀번호·해시·다이제스트·논스·서명·자격 증명·결제 키·원본 결제 응답 `payments.raw`)은 함수가 막고, 개인정보 칸(주소·연락처·메일·환불 계좌 등)은 보낸다 — AX 가 따로 두고 열람 명단만 본다. 읽기마다 표·칸·거른 칸 이름·돌려준 줄 수·거절·실패가 `private.erp_read_access_log` 에 남고(값은 저장하지 않으며, 기록 실패는 읽기 실패다) 줄 없는 이어 읽기와 인증 실패는 집계만 한다. 2년 보관.
 - `NEXT_PUBLIC_TOSS_CLIENT_KEY`·`TOSS_SECRET_KEY`: 토스페이먼츠 주문서형 v2 위젯 키 쌍이다. 형식은 `(test|live)_gck_…`/`(test|live)_gsk_…`이고 **두 키의 모드가 같아야 한다** — 테스트 클라이언트 키로 띄운 결제를 라이브 시크릿 키로 승인하는 반쪽 전환을 빌드와 런타임이 함께 막는다. API 개별연동 `test_sk_…` 계열은 형식에서 거절한다. 클라이언트 키만 `NEXT_PUBLIC_`이고 시크릿 키는 server-only 모듈 밖으로 나가지 않는다. Vercel Production에만 sensitive 값으로 두고, 심사 기간에는 테스트 키가 물린다.
 - `TOSS_ORDER_CHECKOUT_ENABLED`·`TOSS_TICKET_CHECKOUT_ENABLED`: 신규 굿즈·티켓 토스 provider session을 목적별로 여는 정확한 `true`/`false` gate다. 기본값은 `false`이고 개방은 [`docs/runbooks/toss-production-rollout.md`](./docs/runbooks/toss-production-rollout.md)의 심사 트랙을 따른다. gate를 내려도 이미 durable하게 준비된 known order+nonce callback은 계속 drain한다.
 - `TOSS_SETTLEMENT_SYNC_ENABLED`·`TOSS_SETTLEMENT_MID`: 정산 조회 연결의 선택 설정이다. 기본 OFF이며 활성화하려면 계약 MID와 기존 토스 키 쌍의 모드·범위가 일치해야 한다. 실거래 연결은 Production에서만 허용하고, Preview/로컬에는 실키를 복제하지 않는다. `/admin/settlements`의 저장된 완료 자료는 연결 OFF에서도 조회·내보내기 가능하다. 실제 PG 수집·계좌 대사와 활성화는 [정산 런북](./docs/runbooks/pg-settlement-reconciliation.md)을 따른다.
@@ -109,6 +122,9 @@ KORPAY_TICKET_CANARY_USER_ID=
 - `KORPAY_MID`·`KORPAY_KEY`: 판매 제한 상품 전용 PG인 코페이의 운영 자격 증명이다. Vercel Production에만 sensitive 값으로 두고 Preview/CI에는 만들지 않는다. 두 변수 모두 서버 환경변수이며 `NEXT_PUBLIC_` 접두사를 쓰지 않는다. MKEY인 `KORPAY_KEY`는 브라우저로 보내지 않는다. `KORPAY_MID`는 정적 클라이언트 설정이 아니라 서버가 hash를 포함해 만든 일회성 SDK payload의 provider 필드로만 전달한다.
 - `KORPAY_ORDER_CHECKOUT_ENABLED`·`KORPAY_TICKET_CHECKOUT_ENABLED`: 신규 굿즈·티켓 코페이 provider session을 목적별로 여는 정확한 `true`/`false` gate다. 기본값은 `false`이고, 기본 PG 지위가 토스로 넘어간 뒤에는 판매 제한 상품 트랙에서 재개방될 때까지 닫아 둔다. gate를 내려도 이미 durable하게 준비된 known order+nonce callback은 계속 drain한다.
 - `KORPAY_ORDER_CANARY_USER_ID`·`KORPAY_TICKET_CANARY_USER_ID`: public gate가 `false`인 동안 목적별로 인증된 단일 UUID actor만 허용하는 선택적 Production canary allowlist다. 기본값은 미설정이고 Preview/CI에는 두지 않는다. 현재 provision됐다고 가정하지 않는다.
+- `KCP_CERT_MODE`·`KCP_CERT_SITE_CODE`·`KCP_CERT_ENC_KEY`·`KCP_CERT_WEB_SITE_ID`: 성인 인증용 NHN KCP 휴대폰 본인확인 V2 설정이다. Production은 `production` 모드·계약 사이트코드·상점관리자에서 발급한 인증키·웹사이트코드(필수)만, Preview/로컬은 `test` 모드만 받는다 — 짝이 어긋나거나 하나라도 비면 인증 전체가 닫힌다. 공개 저장소이므로 값은 문서·이슈·PR에 남기지 않는다. 테스트 인증키는 KCP 샘플에서 읽어 저장소 밖 env에만 둔다.
+- `ADULT_VERIFICATION_DIGEST_SECRET`: DI(중복가입확인정보)와 KCP 거래번호를 HMAC으로 바꾸는 32자 이상 서버 secret이다. 바꾸면 1명의 1계정 판정이 이어지지 않으므로 Production 값은 회전하지 않는다(ADR-0024).
+- `ADULT_VERIFICATION_ENABLED`·`ADULT_VERIFICATION_CANARY_USER_ID`: 새 성인 인증 시작을 여는 정확한 `true` gate와 단일 UUID canary다. 기본은 닫힘이고, KCP 콜백 처리는 gate가 아니라 설정 여부를 본다. 개방 순서·선행 조건(개인정보처리방침 개정, 상점관리자 V2 전환·인증키)은 [`docs/runbooks/kcp-adult-verification.md`](./docs/runbooks/kcp-adult-verification.md)를 따른다.
 
 #191 코드는 dark deploy 상태다. DB gate는 기본 OFF이고 Supabase Send Email Hook도 사람이 운영 증거를 확인하기 전에는 활성화하지 않는다. 기존 Supabase custom SMTP와 주문 메일 경로는 실제 Auth 흐름 canary와 direct SMTP 0 증거가 끝날 때까지 유지한다. 상세 순서는 [`docs/transactional-email.md`](./docs/transactional-email.md)에 있다.
 
@@ -241,6 +257,8 @@ GitHub Actions의 `CI/CD Pipeline`은 PR 검증(lint/typecheck/test/build/Supaba
 
 CI의 HTTP DB 검증용 PostgREST v14.14는 ECR의 비인증 다운로드 한도 영향을 피하도록 Supabase 공식 GHCR 이미지에서 받는다. 동일 이미지를 기존 HTTP fixture가 확인하는 ECR 이름으로 로컬 태그하며, 검증 항목과 운영 DB·앱 버전은 바꾸지 않는다. DB 샤드는 run마다 각자 로컬 DB 이미지를 받으므로 `SUPABASE_INTERNAL_IMAGE_REGISTRY=ghcr.io`로 Supabase CLI가 같은 GHCR 미러만 쓰게 한다.
 
+CLI는 `supabase/setup-cli` 대신 로컬 action `.github/actions/setup-supabase-cli`가 GitHub release tarball을 직접 받아 설치한다. 요청마다 60초 상한과 20초 정체 감지를 두고 180초 안에서 다시 받으며, 받은 tarball은 workflow env `SUPABASE_CLI_SHA256`과 대조한다. `setup-cli` v2가 쓰는 Bun 1.3.10에서는 응답 본문이 멈추면 다운로드가 끝없이 기다려 main 배포가 6시간 멈췄다(run 41991138701). CLI 버전을 올릴 때는 두 workflow의 `SUPABASE_CLI_VERSION`과 release `checksums.txt`의 `supabase_<version>_linux_amd64.tar.gz` 값을 함께 바꾼다.
+
 두 workflow는 Supabase CLI `2.109.1`을 사용한다. 이전 `2.101.0`의 로컬 DB 이미지
 `17.6.1.106`에는 함수 실행 권한 거절 시 DB 연결이 비정상 종료되는
 [upstream 결함](https://github.com/supabase/postgres/issues/2112)이 있었다. 권한 테스트나
@@ -253,9 +271,9 @@ GRANT를 완화하지 않고 수정된 이미지가 포함된 CLI로 검증한�
 기존 migration의 누락된 명시적 GRANT를 별도 보완해야 한다. hosted `config.toml` 전체를
 push하는 설정은 아니다.
 
-`validate`는 검사 결과를 모으는 집계 job이다. `validate-plan`이 main 재사용 증거와 수동 재배포 출처를 먼저 확인한 뒤 `validate-app`(lint·typecheck·test·build)과 DB 샤드 `validate-db` 5개가 병렬로 돈다. 각 DB 샤드는 새 러너에서 로컬 Supabase를 띄우고 migration만 적용한 빈 DB에서 시작하므로 샤드 사이에 상태를 공유하지 않는다. 샤드별 실행 목록과 순서는 `scripts/database-test-shards.mjs` 매니페스트가 소유한다. 새 DB 테스트는 이 매니페스트의 한 샤드에 등록하고, 샤드 균형은 각 샤드 step summary의 검사별 소요 시간 표를 보고 맞춘다. `validate`는 두 검사 job이 모두 성공했거나 main 재사용으로 건너뛰었을 때만 성공하고, deploy job은 이 집계 결과만 본다.
+`validate`는 검사 결과를 모으는 집계 job이다. `validate-plan`이 main 재사용 증거와 수동 재배포 출처를 먼저 확인한 뒤 `validate-app`(lint·typecheck·test·build)과 DB 샤드 `validate-db` 5개가 병렬로 돈다. 각 DB 샤드는 새 러너에서 로컬 Supabase를 띄우고 migration만 적용한 빈 DB에서 시작하므로 샤드 사이에 상태를 공유하지 않는다. 샤드별 실행 목록과 순서는 `scripts/database-test-shards.mjs` 매니페스트가 소유한다. 새 DB 테스트는 이 매니페스트의 한 샤드에 등록하고, 샤드 균형은 각 샤드 step summary의 검사별 소요 시간 표를 보고 맞춘다. `validate`는 두 검사 job이 모두 성공했거나 main 재사용으로 건너뛰었을 때만 성공하고, production deploy job은 이 집계 결과만 본다. PR preview 배포는 이 결과를 기다리지 않고 검사 job과 병렬로 시작하므로, 검사가 실패한 PR에도 preview가 생길 수 있다(PR check는 실패로 남는다).
 
-- `pull_request`: open·commit 갱신·reopen, base branch retarget, 제목·본문 변경에서 `validate`를 실행하고, 같은 repo 브랜치의 코드·base 변경 PR이면 preview DB mode를 고른다. 제목·본문만 편집한 `edited` 이벤트는 다시 배포하거나 실행 중인 Preview run을 취소하지 않는다. `main` 대상은 merge-base 기준 전체 diff를 rename 비탐지로 읽고, Supabase 배포 변경이 없을 때만 base SHA의 main→shared sync 성공 증거(`deploy-supabase`·`sync-supabase-preview-main` job 성공이며, 뒤따르는 `deploy-staging`까지 run 전체가 끝나기를 기다리지 않는다)를 확인한 뒤 shared main을 변경 없이 사용한다. shared Vercel 배포 직전에도 원격 `main`이 검증한 base SHA와 같은지 다시 확인하며, 달라졌으면 새 base run을 기다리도록 실패한다. 통합 브랜치 대상 PR은 선행 stage의 누적 DB 상태를 놓치지 않도록 앱 전용 diff여도 항상 isolated다. isolated head는 현재 `main`을 포함해야 하며, 무데이터 `pr-<number>` branch를 재생성한 직후에도 `main` ancestry를 다시 확인해 동시 main sync 경쟁을 차단한다. 그 뒤 migration·custom roles·seed·repo Edge Functions·baseline 검증을 마치고 Vercel preview와 recovery template를 순서대로 배포한다. Hosted `config.toml` 전체 push는 이 경로가 소유하지 않는다. fork PR은 secret 경계 때문에 preview 배포 없이 검증만 실행한다.
+- `pull_request`: open·commit 갱신·reopen, base branch retarget, 제목·본문 변경에서 `validate`를 실행하고, 같은 repo 브랜치의 코드·base 변경 PR이면 `validate`와 병렬로 preview DB mode를 고른다. 제목·본문만 편집한 `edited` 이벤트는 다시 배포하거나 실행 중인 Preview run을 취소하지 않는다. `main` 대상은 merge-base 기준 전체 diff를 rename 비탐지로 읽고, Supabase 배포 변경이 없을 때만 base SHA의 main→shared sync 성공 증거(`deploy-supabase`·`sync-supabase-preview-main` job 성공이며, 뒤따르는 `deploy-staging`까지 run 전체가 끝나기를 기다리지 않는다)를 확인한 뒤 shared main을 변경 없이 사용한다. shared Vercel 배포 직전에도 원격 `main`이 검증한 base SHA와 같은지 다시 확인하며, 달라졌으면 새 base run을 기다리도록 실패한다. 통합 브랜치 대상 PR은 선행 stage의 누적 DB 상태를 놓치지 않도록 앱 전용 diff여도 항상 isolated다. isolated head는 현재 `main`을 포함해야 하며, 무데이터 `pr-<number>` branch를 재생성한 직후에도 `main` ancestry를 다시 확인해 동시 main sync 경쟁을 차단한다. 그 뒤 migration·custom roles·seed·repo Edge Functions·baseline 검증을 마치고 Vercel preview와 recovery template를 순서대로 배포한다. Hosted `config.toml` 전체 push는 이 경로가 소유하지 않는다. fork PR은 secret 경계 때문에 preview 배포 없이 검증만 실행한다.
 - `pull_request: closed`: 최종 base와 무관하게 Preview pipeline과 같은 per-PR concurrency key에서 대기한 뒤 non-default `pr-<number>` branch가 있으면 삭제한다.
 - `merge_group`: `validate` job만 실행한다.
 - PR·`merge_group`의 `validate`가 모든 검사를 통과하면 검증한 merge commit의 tree를 `validated-tree-<tree>` 아티팩트(14일 보관)로 남긴다.
@@ -282,13 +300,15 @@ VERCEL_PROJECT_ID
 CRON_SECRET
 ```
 
-- PR에서는 `npm run lint`, `npm run typecheck`, `npm run test`, `npm run build`, local Supabase migration reset/lint 후 Vercel preview를 배포한다.
+- PR에서는 `npm run lint`, `npm run typecheck`, `npm run test`, `npm run build`, local Supabase migration reset/lint를 실행하고, 같은 시각부터 Supabase·Vercel preview를 배포한다.
 - production의 DB→앱 배포는 `main` push에서만 실행한다. 설정만 바뀐 앱 재배포는 동일 SHA의
   성공한 Production source run을 기계적으로 확인한 위 `workflow_dispatch` 경로만 사용한다.
 - GitHub Actions의 앱 빌드는 Node 26을 사용한다. Vercel project/runtime Node.js Version은 Vercel production Functions 공식 지원 범위인 24.x로 유지한다.
 - deployment secret 검사는 각 deploy job 안에서 수행한다. 누락 시 job이 즉시 실패하며, 필요한 GitHub Secret을 설정한 뒤 rerun해야 한다.
+- 모든 job에는 `timeout-minutes`가 있다(5~40분). 상한을 넘긴 job은 `cancelled`로, 재시도로도 받지 못한 Supabase CLI 설치 step은 늦어도 5분 상한에서 `failure`로 끝나고 뒤따르는 배포 job은 건너뛴다. 이렇게 끝난 run이 아직 최신 main run이면 `gh run rerun <run-id> --failed`로 실패·취소된 job과 그 뒤 job만 다시 실행한다. 더 새 main run이 있으면 옛 run을 재실행하지 않는다 — `deploy-vercel`은 현재 main 여부를 확인하지 않아 옛 앱을 운영에 되돌린다.
 - `.vercel/` 연결 파일은 commit하지 않고, workflow가 `VERCEL_ORG_ID`와 `VERCEL_PROJECT_ID`로 Vercel 원격 build/deploy를 요청한다.
 - `.vercelignore`가 로컬 제작 산출물 `outputs/`를 명시적으로 제외한다. Preview job은 Vercel dry-run manifest에서 `outputs/`, 900MB 이상, 15,000개 이상 source를 실제 업로드 전에 거부한다. 원본·실험·반복 렌더는 deploy context에 넣지 않고 최종 runtime asset만 repo의 공개 asset 경로로 배포한다.
+- Vercel이 원격에서 의존성 설치·build를 하고 업로드에서 `node_modules`를 빼므로 `deploy-vercel`·`deploy-vercel-preview`·`deploy-staging`은 `npm ci`를 하지 않는다. 이 job들이 실행하는 node 스크립트는 Node 내장 모듈만 import해야 한다(`scripts/pipeline-deploy-speed.test.mjs`가 확인).
 - Vercel 환경변수는 sensitive 상태로 각 환경에 둔다. production deploy job은 기존 관리자 아트워크용 GitHub `CRON_SECRET`만 Vercel production에 동기화한다. Toss 키 페어·Korpay credential·optional canary actor는 Vercel Production에만 별도 등록하고 GitHub, Preview, CI에는 복제하지 않는다. public 목적별 gate의 기본값은 `false`이며 현재 Production에서 `true`인 것은 폐쇄 대기 중인 코페이 굿즈 gate 하나뿐이고 토스 gate 둘은 심사 트랙 전까지 `false`다. 결제 재조정 secret은 workflow가 provision/mutate하지 않으며, 값이 이미 있으면 원격 `prebuild` guard가 형식만 검증한다. Preview에는 구 v1 Toss 환경변수 잔여가 있지만 실 게이트웨이는 `VERCEL_ENV=production`에서만 생성되고 형식이 어긋난 키는 런타임이 거절한다. development 환경변수는 별도 요청 전까지 추가하지 않는다.
 
 ## 프리뷰 환경

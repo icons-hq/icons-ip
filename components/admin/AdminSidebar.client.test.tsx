@@ -11,14 +11,15 @@ vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>
 vi.mock('next/navigation', () => ({ usePathname: () => mocks.pathname }));
 import { AdminSidebar } from './AdminSidebar';
 
-type Element = ReactElement<{ children?: ReactNode; 'aria-controls'?: string; 'aria-expanded'?: boolean; onClick?: () => void }>;
+type Element = ReactElement<{ children?: ReactNode; 'aria-controls'?: string; expanded?: boolean; onClick?: () => void }>;
 function all(node: ReactNode): Element[] { return Array.isArray(node) ? node.flatMap(all) : isValidElement(node) ? [node as Element, ...all((node.props as { children?: ReactNode }).children)] : []; }
 function render(pathname: string, consoleId: 'commerce' | 'content') {
   mocks.pathname = pathname;
-  return AdminSidebar({ accountId: 'operator-a', collapsed: false, onCollapsedChange: () => {}, role: 'staff', console: consoleId }) as ReactNode;
+  return AdminSidebar({ accountId: 'operator-a', role: 'staff', console: consoleId }) as ReactNode;
 }
-const toggle = (tree: ReactNode, groupId: string) => all(tree).find(element => element.type === 'button' && element.props['aria-controls'] === `admin-nav-group-${groupId}`);
-const expanded = (tree: ReactNode, groupId: string) => toggle(tree, groupId)?.props['aria-expanded'];
+/* 그룹 펼치기 버튼(GroupToggle)은 aria-controls로 패널을 가리키고 expanded로 상태를 받는다. */
+const toggle = (tree: ReactNode, groupId: string) => all(tree).find(element => element.props['aria-controls'] === `admin-nav-group-${groupId}`);
+const expanded = (tree: ReactNode, groupId: string) => toggle(tree, groupId)?.props.expanded;
 
 beforeEach(() => {
   mocks.storage.clear();

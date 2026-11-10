@@ -18,12 +18,14 @@ function browserStorage(): Storage | null {
 }
 
 /** Supply a stable, explicit allowlist of public catalog fields; never attach this to customer or account forms. */
-export function useAdminLocalAutosave({ scope, fields, serverState, passiveInitializationFields = NO_PASSIVE_FIELDS }: {
+export function useAdminLocalAutosave({ scope, fields, serverState, passiveInitializationFields = NO_PASSIVE_FIELDS, ignoreEditsWithin }: {
   scope: AdminLocalDraftScope;
   fields: readonly string[];
   serverState: SaveResult;
   /** Hidden fields populated by a read on mount, without a user edit. Other hidden changes remain edits. */
   passiveInitializationFields?: readonly string[];
+  /** 이 선택자 안의 입력은 사용자 수정으로 세지 않는다(복구 대상이 아닌 묶음). */
+  ignoreEditsWithin?: string;
 }) {
   const { accountId, formId, recordId } = scope;
   const store = useMemo(() => createAdminLocalAutosave({
@@ -61,7 +63,11 @@ export function useAdminLocalAutosave({ scope, fields, serverState, passiveIniti
         readForm();
       }, 0);
     };
-    const capture = () => scheduleCapture(true);
+    /* 복구 대상이 아닌 입력(name 없는 칸 등)은 사용자 수정으로 세지 않는다. 복구 안내를 지우거나 유령 기록을 만들지 않는다. */
+    const capture = (event: Event) => {
+      if (ignoreEditsWithin && event.target instanceof Element && event.target.closest(ignoreEditsWithin)) return;
+      scheduleCapture(true);
+    };
     const flush = () => {
       if (captureTimer !== undefined) {
         clearTimeout(captureTimer);
@@ -100,7 +106,7 @@ export function useAdminLocalAutosave({ scope, fields, serverState, passiveIniti
       document.removeEventListener('visibilitychange', visibility);
       flush();
     };
-  }, [store, passiveInitializationFields]);
+  }, [store, passiveInitializationFields, ignoreEditsWithin]);
 
   const onSubmitCapture = useCallback((event: FormEvent<HTMLFormElement>) => {
     const data = readAdminFormData(event.currentTarget);

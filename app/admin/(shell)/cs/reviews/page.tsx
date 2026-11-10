@@ -17,5 +17,8 @@ export default async function AdminCsReviewsPage({
 
   const data = await getAdminReviewConsoleData(normalizeAdminReviewFilters(query));
 
-  return <ReviewConsoleScreen data={data} accountId={auth.user.id} initialDetail={typeof query.detail==='string'?query.detail:null} />;
+  /* 뒤집힌 기간은 정규화가 조건을 버린다. 오류 없이 전체 기간이 나오면 운영자는 조회가 맞다고 읽는다. */
+  const dateRangeInvalid = typeof query.from === 'string' && typeof query.to === 'string' && query.from !== '' && query.to !== '' && query.from > query.to;
+
+  return <ReviewConsoleScreen data={data} accountId={auth.user.id} initialDetail={typeof query.detail==='string'?query.detail:null} dateRangeInvalid={dateRangeInvalid} />;
 }

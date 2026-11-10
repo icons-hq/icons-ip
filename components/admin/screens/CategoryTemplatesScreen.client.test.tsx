@@ -9,14 +9,17 @@ vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>
 }));
 vi.mock('@/app/admin/category-template-actions', () => ({ listCategoryTemplatesAction: mocks.list, saveCategoryTemplatesAction: mocks.save }));
 import { CategoryTemplatesScreen } from './CategoryTemplatesScreen';
+import { AdminSelect } from '../console/AdminSelect';
+import { Button } from '../kit/ui/button';
 const id = '94700000-0000-4000-8000-000000000101';
 const row = { categoryId: id, code: 'stationery', name: '문구', path: ['문구'], usable: true, archived: false, revision: 1, createdAt: '2026-10-14T00:00:00Z' };
 const page = { rows: [row], total: 1, page: 1, pageSize: 20 };
 type Element = ReactElement<{ children?: ReactNode; onClick?: () => void; onSubmit?: (event: { preventDefault: () => void }) => void; onChange?: (event: { target: { checked?: boolean; value?: string } }) => void; disabled?: boolean; value?: string; type?: string; 'aria-label'?: string }>;
-function all(node: ReactNode): Element[] { return Array.isArray(node) ? node.flatMap(all) : isValidElement(node) ? [node as Element, ...all((node.props as { children?: ReactNode }).children)] : []; }
+/* 목록 카드 머리 동작(ConsoleListCard actions)도 화면이 그리는 요소다. */
+function all(node: ReactNode): Element[] { return Array.isArray(node) ? node.flatMap(all) : isValidElement(node) ? [node as Element, ...all((node.props as { actions?: ReactNode }).actions), ...all((node.props as { children?: ReactNode }).children)] : []; }
 function text(node: ReactNode): string { return Array.isArray(node) ? node.map(text).join('') : isValidElement(node) ? text((node.props as { children?: ReactNode }).children) : typeof node === 'string' || typeof node === 'number' ? String(node) : ''; }
 function render() { hooks.index = 0; hooks.refIndex = 0; hooks.effects = []; return CategoryTemplatesScreen({}); }
-function button(label: string) { const node = all(render()).find(item => item.type === 'button' && text(item) === label); if (!node) throw new Error(label); return node; }
+function button(label: string) { const node = all(render()).find(item => (item.type === 'button' || item.type === Button) && text(item) === label); if (!node) throw new Error(label); return node; }
 function choose() { all(render()).find(item => item.type === 'input' && item.props['aria-label'] === '문구 선택')?.props.onChange?.({ target: { checked: true } }); }
 async function settle() { for (let i = 0; i < 18; i++) await Promise.resolve(); }
 beforeEach(() => { vi.clearAllMocks(); hooks.state = [page]; hooks.refs = []; hooks.effects = []; mocks.list.mockResolvedValue({ ok: true, value: page }); });
@@ -41,7 +44,7 @@ it('ignores an initial response that arrives after a newer archived-list search'
   const archived = { ...page, rows: [{ ...row, archived: true, revision: 2 }] };
   mocks.list.mockImplementationOnce(() => new Promise(resolve => { initial = resolve; })).mockResolvedValueOnce({ ok: true, value: archived });
   render(); hooks.effects[0]();
-  all(render()).find(item => item.type === 'select')?.props.onChange?.({ target: { value: 'archived' } }); await settle();
+  all(render()).find(item => item.type === 'select' || item.type === AdminSelect)?.props.onChange?.({ target: { value: 'archived' } }); await settle();
   initial({ ok: true, value: page }); await settle();
   expect(hooks.state[0]).toEqual(archived); expect(hooks.state[3]).toBe(true);
 });

@@ -52,7 +52,7 @@ it('목록 라우트도 결제사 취소 예산(60초)을 가진다', () => {
 it('claimId가 없으면 상세를 읽지 않는다', async () => {
   const tree = await Page({ params: Promise.resolve({ claimType: 'returns' }), searchParams: Promise.resolve({ stage: 'open' }) } as never);
   expect(mocks.workspace).not.toHaveBeenCalled();
-  expect(named(tree, 'ClaimPreviewDialog')).toBeUndefined();
+  expect(named(tree, 'ClaimPreviewKitDialog')).toBeUndefined();
 });
 
 it('claimId가 있으면 상세 라우트와 같은 로더로 읽어 팝업 안에 embedded 상세를 그린다', async () => {
@@ -63,7 +63,7 @@ it('claimId가 있으면 상세 라우트와 같은 로더로 읽어 팝업 안�
   } as never);
 
   expect(mocks.workspace).toHaveBeenCalledWith(CLAIM_ID);
-  const dialog = named(tree, 'ClaimPreviewDialog');
+  const dialog = named(tree, 'ClaimPreviewKitDialog');
   expect(dialog?.props.closeHref).toBe('/admin/sales/claims/returns?stage=open&page=2');
   expect(dialog?.props.title).toBe('반품 C00012 상세 · 처리');
   const screen = named(tree, 'ClaimDetailScreen');
@@ -86,8 +86,10 @@ it('다른 유형으로 바뀐 요청은 그 유형의 목록 팝업으로 보�
 it('찾을 수 없는 요청은 팝업 안에서 알린다', async () => {
   mocks.workspace.mockResolvedValue(null);
   const tree = await Page({ params: Promise.resolve({ claimType: 'cancels' }), searchParams: Promise.resolve({ claimId: CLAIM_ID }) } as never);
-  const dialog = named(tree, 'ClaimPreviewDialog');
+  /* 세 목록 모두 템플릿 룩 kit 화면·팝업이다(ADR-0028). */
+  const dialog = named(tree, 'ClaimPreviewKitDialog');
   expect(dialog).toBeDefined();
+  expect(named(tree, 'ClaimQueueKitScreen')).toBeDefined();
   expect(named(tree, 'ClaimDetailScreen')).toBeUndefined();
   expect(JSON.stringify(dialog?.props.children)).toContain('요청을 찾을 수 없습니다');
 });
@@ -95,4 +97,13 @@ it('찾을 수 없는 요청은 팝업 안에서 알린다', async () => {
 it('형식이 아닌 claimId는 무시한다', async () => {
   await Page({ params: Promise.resolve({ claimType: 'cancels' }), searchParams: Promise.resolve({ claimId: 'x' }) } as never);
   expect(mocks.workspace).not.toHaveBeenCalled();
+});
+
+it.each(['cancels', 'returns', 'exchanges'])('ADR-0028: %s 목록은 kit 화면·kit 팝업이고, 비교용 기존 화면 스위치는 없다', async (slug) => {
+  mocks.workspace.mockResolvedValue(null);
+  const tree = await Page({ params: Promise.resolve({ claimType: slug }), searchParams: Promise.resolve({ claimId: CLAIM_ID, ui: 'classic' }) } as never);
+  expect(named(tree, 'ClaimQueueKitScreen')).toBeDefined();
+  expect(named(tree, 'ClaimPreviewKitDialog')).toBeDefined();
+  expect(named(tree, 'ClaimQueueScreen')).toBeUndefined();
+  expect(named(tree, 'ClaimPreviewDialog')).toBeUndefined();
 });

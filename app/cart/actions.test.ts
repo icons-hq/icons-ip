@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   auth: { isConfigured: true, user: null, profile: null, isStaff: false } as CurrentAuthState,
   rpc: vi.fn(),
   variantQuery: vi.fn(),
+  adultGoods: 'hidden' as 'hidden' | 'masked' | 'full',
   variantRows: { data: [{ id: '00000000-0000-4000-8000-000000000001', good_id: 'g1' }], error: null } as { data: {id:string;good_id:string}[]; error: {message:string}|null },
   from: vi.fn(),
   cartRows: { data: [{ good_id: 'g1', variant_id: '00000000-0000-4000-8000-000000000001', qty: 4 }], error: null } as {
@@ -35,6 +36,7 @@ const mocks = vi.hoisted(() => ({
   randomGoodsRows: { data: [], error: null } as { data: { id: string; random_option: unknown }[]; error: { message: string } | null },
 }));
 
+vi.mock('@/lib/adult-goods-access.server', () => ({ getAdultGoodsAccess: async () => mocks.adultGoods }));
 vi.mock('@/lib/auth/server', () => ({
   getCurrentAuthState: () => mocks.auth,
 }));
@@ -266,9 +268,29 @@ describe('cart Server Actions', () => {
     expect(mocks.rpc).toHaveBeenCalledWith('merge_cart_items', { p_items: [{ good_id: 'g1', variant_id: VARIANT_ID, qty: 5 }] });
     expect(mocks.variantQuery).toHaveBeenCalledWith('goods.published_at', 'is', null);
     expect(mocks.variantQuery).toHaveBeenCalledWith('goods.archived_at', null);
-    expect(mocks.variantQuery).toHaveBeenCalledWith('goods.sale_restriction', 'none');
+    expect(mocks.variantQuery).toHaveBeenCalledWith('goods.sale_restriction', ['none']);
     expect(mocks.variantQuery).toHaveBeenCalledWith('goods.ips.published_at', 'is', null);
     expect(mocks.variantQuery).toHaveBeenCalledWith('goods.ips.archived_at', null);
+  });
+
+  it('19금 굿즈의 기본 옵션은 인증 성인에게만 찾는다(ADR-0024)', async () => {
+    mocks.adultGoods = 'full';
+    await syncCartAction([{ goodId: 'g1', qty: 2 }]);
+    expect(mocks.variantQuery).toHaveBeenCalledWith('goods.sale_restriction', ['none', 'adult']);
+
+    mocks.variantQuery.mockClear();
+    mocks.adultGoods = 'masked';
+    await syncCartAction([{ goodId: 'g1', qty: 2 }]);
+    expect(mocks.variantQuery).toHaveBeenCalledWith('goods.sale_restriction', ['none']);
+    mocks.adultGoods = 'hidden';
+  });
+
+  it('DB의 성인 인증 요구를 담기 오류 문구로 바꾼다', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'adult_verification_required' } });
+    await expect(setCartItemQuantityAction('g1', 1, VARIANT_ID)).resolves.toMatchObject({
+      ok: false,
+      error: '19금 굿즈는 성인 인증을 마친 회원만 담을 수 있어요. 마이 > 성인 인증에서 인증해주세요.',
+    });
   });
 
   it('옛 장바구니의 랜덤 판매 굿즈는 숨겨진 옵션 행 대신 공개 랜덤 한 줄의 키로 옮긴다', async () => {

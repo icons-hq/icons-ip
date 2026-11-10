@@ -31,7 +31,7 @@ beforeEach(() => {
 });
 
 type DialogElement = ReactElement<{ onCancel: (event: unknown) => void; onClose: (event: unknown) => void; children?: ReactNode }>;
-type NativeDialog = { open: boolean; isConnected: boolean; showModal: ReturnType<typeof vi.fn> };
+type NativeDialog = { open: boolean; isConnected: boolean; contains: ReturnType<typeof vi.fn>; focus: ReturnType<typeof vi.fn>; showModal: ReturnType<typeof vi.fn> };
 
 function cancel(dialog: DialogElement, target: object, currentTarget: object, cancelable?: boolean) {
   const event = { target, currentTarget, cancelable, preventDefault: vi.fn() };
@@ -40,7 +40,7 @@ function cancel(dialog: DialogElement, target: object, currentTarget: object, ca
 }
 
 function nativeDialog(state: Partial<NativeDialog> = {}): NativeDialog {
-  return { open: false, isConnected: true, showModal: vi.fn(), ...state };
+  return { open: false, isConnected: true, contains: vi.fn(() => true), focus: vi.fn(), showModal: vi.fn(), ...state };
 }
 
 function close(dialog: DialogElement, target: object, currentTarget: NativeDialog) {
@@ -85,7 +85,7 @@ describe('CustomerServiceDialog Esc 닫기', () => {
 describe('CustomerServiceDialog native close 동기화', () => {
   it('처리 중에는 × 닫기 버튼도 누를 수 없다', () => {
     const dialog = CustomerServiceDialog({ title: '선택 건 처리', onClose: vi.fn(), busy: true, children: null }) as DialogElement;
-    const button = all(dialog).find((element) => element.type === 'button' && element.props['aria-label'] === '닫기');
+    const button = all(dialog).find((element) => element.props['aria-label'] === '닫기');
     expect(button?.props.disabled).toBe(true);
   });
 
@@ -166,5 +166,16 @@ describe('CustomerServiceDialog native close 동기화', () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+});
+
+/* 작성자 display 유틸리티는 UA의 dialog:not([open]) 숨김을 이긴다. 닫힌 팝업이 SSR 직후·강제 닫힘 뒤에 목록 아래 펼쳐지면 안 된다. */
+describe('CustomerServiceDialog 닫힌 상태', () => {
+  it('닫힌 dialog는 hidden이고 열렸을 때만 flex로 배치한다', () => {
+    const dialog = CustomerServiceDialog({ title: '고객문의 상세 · 답변', onClose: vi.fn(), children: null }) as DialogElement;
+    const classes = String((dialog.props as { className?: string }).className).split(/\s+/);
+    expect(classes).toContain('hidden');
+    expect(classes).toContain('open:flex');
+    expect(classes).not.toContain('flex');
   });
 });

@@ -21,11 +21,13 @@ vi.mock('react', async () => ({
   useTransition: () => [false, (work: () => Promise<void>) => { mocks.work.push(work()); }],
 }));
 import { GoodsBulkToolbar } from '../GoodsBulkToolbar';
+import { Button } from '../kit/ui/button';
 import { GoodsGroupsScreen } from './GoodsGroupsScreen';
 import { DEFAULT_GROUP_FILTERS } from '@/lib/admin/goods-group-console';
 import type { GoodsGroupSnapshot } from '@/lib/admin/goods-groups';
 type Element = ReactElement<Record<string, unknown>>;
-function nodes(value: ReactNode): Element[] { return Children.toArray(value).flatMap(node => isValidElement<Record<string, unknown>>(node) ? [node, ...nodes(node.props.children as ReactNode)] : []); }
+/* 일괄 변경 막대의 선택 동작 자리(selectionActions)도 이 화면이 그리는 요소다. */
+function nodes(value: ReactNode): Element[] { return Children.toArray(value).flatMap(node => isValidElement<Record<string, unknown>>(node) ? [node, ...nodes(node.props.selectionActions as ReactNode), ...nodes(node.props.children as ReactNode)] : []); }
 function text(value: ReactNode): string { return Children.toArray(value).map(node => isValidElement<Record<string, unknown>>(node) ? text(node.props.children as ReactNode) : String(node)).join(''); }
 const group = (id: string, archivedAt: string | null = null) => ({ id, name: `그룹 ${id}`, optionNames: ['색상'], members: [], archivedAt }) as unknown as GoodsGroupSnapshot;
 const page = (rows: GoodsGroupSnapshot[]) => ({ rows, total: rows.length, page: 1, pageSize: 20, counts: { all: rows.length, active: rows.length, archived: 0 }, metadata: {} });
@@ -51,14 +53,16 @@ it('그룹 일괄 변경을 확정해도 선택을 유지하고, 다시 읽은 �
 });
 
 it('선택 해제 버튼이 선택을 비우고, 검색·페이지 이동은 지금처럼 선택을 비운다', async () => {
-  expect(nodes(render()).some(node => node.type === 'button' && text(node.props.children as ReactNode) === '선택 해제')).toBe(false);
+  expect(nodes(render()).some(node => (node.type === 'button' || node.type === Button) && text(node.props.children as ReactNode) === '선택 해제')).toBe(false);
   check('그룹 a 선택');
-  const clear = nodes(render()).find(node => node.type === 'button' && text(node.props.children as ReactNode) === '선택 해제')!;
+  const clear = nodes(render()).find(node => (node.type === 'button' || node.type === Button) && text(node.props.children as ReactNode) === '선택 해제')!;
   (clear.props.onClick as () => void)();
   expect(toolbar().props.selectedIds).toEqual([]);
   check('그룹 b 선택');
   mocks.search.mockResolvedValue({ value: page([group('a'), group('b')]) });
   const form = nodes(render()).find(node => node.type === 'form')!;
+  // 검색은 폼 제출이다(kit 버튼의 기본 type은 button).
+  expect(nodes(form.props.children as ReactNode).find(node => node.type === Button && text(node.props.children as ReactNode) === '검색')?.props.type).toBe('submit');
   (form.props.onSubmit as (event: unknown) => void)({ preventDefault: vi.fn() }); await Promise.all(mocks.work);
   expect(toolbar().props.selectedIds).toEqual([]);
 });

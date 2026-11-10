@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe,expect,it,vi } from 'vitest';
 vi.mock('@/app/admin/store-settings-actions',()=>({saveStoreSettingsAction:vi.fn(),saveShippingCarrierAction:vi.fn(),saveInquiryAutoRepliesAction:vi.fn()}));
 vi.mock('@/app/admin/store-branding-actions',()=>({saveStoreBrandingAction:vi.fn()}));
-import { StoreSettingsScreen } from './StoreSettingsScreen';
+import { ShippingCarriersScreen, StoreSettingsScreen } from './StoreSettingsScreen';
 import { DEFAULT_STORE_BRANDING } from '@/lib/store-branding';
 const props={settings:{business:{companyName:'연습회사',phone:'',email:'cs@example.test'},bankTransfer:null,inquiryAutoReplies:{order:{enabled:false,body:''},claim:{enabled:false,body:''},good:{enabled:false,body:''},account:{enabled:false,body:''},etc:{enabled:false,body:''}},updatedAt:'2026-09-08T01:00:00Z'},carriers:[{code:'demo',label:'연습택배',trackingUrlTemplate:'https://carrier.example.test/{trackingNumber}',active:false,updatedAt:'2026-09-08T01:00:00Z'}],history:[{id:'audit',actorName:'관리자',action:'admin.store_settings.updated',target:'store_settings:business',createdAt:'2026-09-08T01:00:00Z',diff:{before:{},after:{companyName:'연습회사'}}}],section:'business' as const};
 describe('운영 설정 화면',()=>{
@@ -12,8 +12,13 @@ describe('운영 설정 화면',()=>{
   });
   it('admin에게 택배사 편집·등록과 활성 상태를 보여준다',()=>{
     const html=renderToStaticMarkup(<StoreSettingsScreen {...props} canEdit carrierMode/>);
-    expect(html).toContain('연습택배 · 비활성');expect(html).toContain('택배사 등록');expect(html).toContain('{trackingNumber}');expect(html).toContain('기존 주문의 배송조회');
+    expect(html).toContain('연습택배');expect(html).toMatch(/data-tone="neutral"[^>]*>비활성</);expect(html).toContain('택배사 등록');expect(html).toContain('{trackingNumber}');expect(html).toContain('기존 주문의 배송조회');
   });
+});
+
+it('택배사는 한 줄씩 보고 펼쳐서 고치며 등록된 코드는 바꿀 수 없다고 말한다',()=>{
+  const html=renderToStaticMarkup(<ShippingCarriersScreen carriers={props.carriers} history={[]} canEdit/>);
+  expect(html).toContain('data-carrier-list');expect(html).toMatch(/<details[^>]*>\s*<summary[^>]*><strong[^>]*>연습택배<\/strong>/);expect(html).toContain('등록 후 바꿀 수 없습니다.');expect(html).toContain('택배사 추가');
 });
 
 it('브랜드·SNS 설정과 기본값을 보여주고 staff의 업로드·저장을 차단한다',()=>{
@@ -38,4 +43,6 @@ it('문의 자동 안내는 다섯 유형을 제공하고 staff의 변경을 막
   expect(html).not.toContain('>문의 자동 안내 저장<');
   const admin = renderToStaticMarkup(<StoreSettingsScreen {...props} settings={settings} section="inquiry_auto_replies" canEdit/>);
   expect(admin).toContain('>문의 자동 안내 저장<');
+  /* kit 버튼의 기본 type은 button이다 — 폼 저장 버튼은 제출 버튼이어야 한다. */
+  expect(admin).toMatch(/<button[^>]*type="submit"[^>]*>(?:(?!<\/button>)[\s\S])*문의 자동 안내 저장<\/button>/);
 });

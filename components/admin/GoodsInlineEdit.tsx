@@ -1,8 +1,12 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useId, useRef, useState, useTransition, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, useTransition, type FormEvent, type ReactNode } from 'react';
+import { Pencil } from 'lucide-react';
 import { adjustAdminStockAction } from '@/app/admin/actions';
+import { buttonVariants } from '@/components/admin/kit/ui/button';
+import { NativeSelect } from '@/components/admin/kit/ui/native-select';
+import { GOOD_NUMBER_INPUT_CLASS } from './GoodEditorParts';
 import { commitGoodsBulkAction, previewGoodsBulkAction, readGoodsBulkAction } from '@/app/admin/goods-bulk-actions';
 import { goodsBulkError, parseGoodsBulkRequest, type GoodsBulkCommand, type GoodsBulkGood } from '@/lib/admin/goods-bulk';
 import type { GoodsGroupIdentity } from '@/lib/admin/goods-groups';
@@ -38,29 +42,57 @@ export async function runSingleGoodBulk(identity: GoodsGroupIdentity, goodId: st
   return { ok: false, message: goodsBulkError(receipt.value.error) };
 }
 
-/** `fillCell`: 그 칸의 주 내용이면 셀 어디를 눌러도 수정이 열린다(R11). 다른 링크와 한 칸을 쓰면 그 줄만 채운다. */
-function InlineEditor({ label, display, children, onSubmit, pending, error, recovery, onRecover, editing, setEditing, fillCell = false }: {
-  label: string; display: ReactNode; children: ReactNode; onSubmit: (form: FormData) => void; pending: boolean; error: string;
-  recovery: boolean; onRecover: () => void; editing: boolean; setEditing: (value: boolean) => void; fillCell?: boolean;
+/*
+ * 값 버튼(R11). 칸 폭을 채우고, 오른쪽 정렬 칸(ConsoleGrid의 td[data-align=end])에서는 값을 오른쪽에 둔다.
+ * `fillCell`이면 버튼의 ::after 덮개가 칸 전체를 덮는다 — 감싼 칸(td)을 기준 상자로 세우는 것은
+ * 감싸개의 `[td:has(&)]:relative`다(표 부품을 고치지 않고 이 칸에만). 인쇄에서는 덮개를 걷는다.
+ */
+const INLINE_VALUE_CLASS = 'group/inline flex w-full min-w-0 cursor-pointer items-center justify-start gap-1.5 rounded-md border border-dashed border-transparent bg-transparent px-1.5 py-0.5 text-left text-inherit transition-colors outline-none hover:border-input hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 in-data-[align=end]:justify-end';
+const INLINE_FILL_CLASS = 'after:absolute after:inset-0 print:after:hidden';
+/* 전체 수정은 '수정' 버튼 하나로 충분해 연필은 값에 커서·포커스가 닿을 때만 보인다(터치 기기는 커서가 없어 항상 보인다). */
+const INLINE_PENCIL_CLASS = 'size-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover/inline:opacity-100 group-focus-visible/inline:opacity-100 pointer-coarse:opacity-100';
+/** 같은 칸의 다른 조작(처리 결과 조회)은 덮개 위에 둔다. 틀고정 칸(z-10)보다는 아래다. */
+const INLINE_ABOVE_FILL_CLASS = 'relative z-1';
+const INLINE_INPUT_CLASS = `${GOOD_NUMBER_INPUT_CLASS} h-7 w-28 max-md:w-full`;
+
+/**
+ * `fillCell`: 그 칸의 주 내용이면 셀 어디를 눌러도 수정이 열린다(R11). 다른 링크와 한 칸을 쓰면 그 줄만 채운다.
+ * `compact`: 한 칸에 여러 줄이 쌓일 때 값 버튼 높이를 줄여 표 줄 높이를 지킨다.
+ * `valueText`: 값 버튼에 보이는 글자. 접근 가능한 이름에 넣어 음성 명령으로도 누를 수 있게 한다(글자 `display`면 주지 않아도 된다).
+ */
+export function InlineEditor({ label, display, valueText, children, onSubmit, pending, error, recovery, onRecover, editing, setEditing, fillCell = false, compact = false }: {
+  label: string; display: ReactNode; valueText?: string; children: ReactNode; onSubmit: (form: FormData) => void; pending: boolean; error: string;
+  recovery: boolean; onRecover: () => void; editing: boolean; setEditing: (value: boolean) => void; fillCell?: boolean; compact?: boolean;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const errorId = useId();
+  const valueRef = useRef<HTMLButtonElement>(null);
+  const returnFocus = useRef(false);
+  /* Esc·취소로 닫으면 포커스가 사라지지 않게 값 버튼으로 돌려준다. 저장으로 닫힐 때는 화면을 새로 읽으니 옮기지 않는다. */
+  useEffect(() => {
+    if (editing || !returnFocus.current) return;
+    returnFocus.current = false;
+    valueRef.current?.focus();
+  }, [editing]);
+  function cancel() { returnFocus.current = true; setEditing(false); }
   function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); onSubmit(new FormData(event.currentTarget)); }
-  if (!editing) return <span className={fillCell ? 'admin-goods-inline admin-goods-inline--cell' : 'admin-goods-inline'}>
-    <button type="button" className="admin-goods-inline__value" aria-label={`${label} 바로 수정`} onClick={() => setEditing(true)}>{display}<span aria-hidden="true" className="admin-goods-inline__pen">✎</span></button>
-    {error ? <small role="alert" className="admin-goods-inline__error">{error}</small> : null}
-    {recovery ? <button type="button" className="admin-goods-inline__link" disabled={pending} onClick={onRecover}>처리 결과 조회</button> : null}
+  const valueClass = `${INLINE_VALUE_CLASS} ${compact ? 'min-h-6' : 'min-h-8'}${fillCell ? ` ${INLINE_FILL_CLASS}` : ''}`;
+  const shownValue = valueText ?? (typeof display === 'string' ? display : '');
+  if (!editing) return <span className={`grid w-full min-w-0 justify-items-stretch gap-1${fillCell ? ' [td:has(&)]:relative' : ''}`} data-inline-edit={fillCell ? 'cell' : 'value'}>
+    <button type="button" ref={valueRef} className={valueClass} aria-label={`${label}${shownValue ? ` ${shownValue}` : ''} 바로 수정`} onClick={() => setEditing(true)}>{display}<Pencil aria-hidden="true" className={INLINE_PENCIL_CLASS} /></button>
+    {error ? <small role="alert" className="text-xs text-destructive">{error}</small> : null}
+    {recovery ? <button type="button" className={`${buttonVariants({ variant: 'outline', size: 'xs' })} ${INLINE_ABOVE_FILL_CLASS} justify-self-start in-data-[align=end]:justify-self-end`} data-slot="button" disabled={pending} onClick={onRecover}>처리 결과 조회</button> : null}
   </span>;
-  return <form ref={formRef} className="admin-goods-inline admin-goods-inline--editing" onSubmit={submit} aria-busy={pending}
-    onKeyDown={event => { if (event.key === 'Escape' && !pending) { event.preventDefault(); setEditing(false); } }}>
-    <fieldset disabled={pending}><legend className="sr-only">{label} 수정</legend>
+  return <form ref={formRef} className="grid w-full min-w-0 gap-1 in-data-[align=end]:justify-items-end" data-inline-edit="editing" onSubmit={submit} aria-busy={pending}
+    onKeyDown={event => { if (event.key === 'Escape' && !pending) { event.preventDefault(); cancel(); } }}>
+    <fieldset className="m-0 grid min-w-0 gap-1 border-0 p-0 in-data-[align=end]:justify-items-end" disabled={pending}><legend className="sr-only">{label} 수정</legend>
       {children}
-      <span className="admin-goods-inline__actions">
-        <button type="submit" className="admin-goods-inline__save">{pending ? '저장 중' : '저장'}</button>
-        <button type="button" className="admin-goods-inline__link" onClick={() => setEditing(false)}>취소</button>
+      <span className="flex gap-1.5">
+        <button type="submit" className={buttonVariants({ size: 'xs' })} data-slot="button">{pending ? '저장 중' : '저장'}</button>
+        <button type="button" className={buttonVariants({ variant: 'outline', size: 'xs' })} data-slot="button" onClick={cancel}>취소</button>
       </span>
     </fieldset>
-    {error ? <small id={errorId} role="alert" className="admin-goods-inline__error">{error}</small> : null}
+    {error ? <small id={errorId} role="alert" className="text-xs text-destructive">{error}</small> : null}
   </form>;
 }
 
@@ -71,8 +103,8 @@ function useInlineState() {
   return { router, editing, setEditing: (value: boolean) => { setEditing(value); if (value) setError(''); }, error, setError, recovery, setRecovery, pending, start };
 }
 
-export function GoodsInlinePrice({ goodId, basePrice, display, identity, hasOptions }: {
-  goodId: string; basePrice: number; display: ReactNode; identity: GoodsGroupIdentity; hasOptions: boolean;
+export function GoodsInlinePrice({ goodId, basePrice, display, valueText, identity, hasOptions }: {
+  goodId: string; basePrice: number; display: ReactNode; valueText?: string; identity: GoodsGroupIdentity; hasOptions: boolean;
 }) {
   const state = useInlineState();
   const inputId = useId();
@@ -101,14 +133,15 @@ export function GoodsInlinePrice({ goodId, basePrice, display, identity, hasOpti
       if (result.value.state === 'completed') state.router.refresh();
     });
   }
-  return <InlineEditor fillCell label="판매가" display={display} onSubmit={save} pending={state.pending} error={state.error} recovery={Boolean(state.recovery)} onRecover={recover} editing={state.editing} setEditing={state.setEditing}>
+  return <InlineEditor fillCell label="판매가" display={display} valueText={valueText} onSubmit={save} pending={state.pending} error={state.error} recovery={Boolean(state.recovery)} onRecover={recover} editing={state.editing} setEditing={state.setEditing}>
     <label htmlFor={inputId} className="sr-only">기본 판매가 (원)</label>
-    <input id={inputId} name="price" inputMode="numeric" defaultValue={basePrice} autoFocus className="admin-goods-inline__input" />
-    <small>{hasOptions ? '기본 판매가 · 옵션 추가금 유지' : '판매가'}</small>
+    <input id={inputId} name="price" inputMode="numeric" defaultValue={basePrice} autoFocus className={INLINE_INPUT_CLASS} data-slot="input" />
+    <small className="text-xs text-muted-foreground">{hasOptions ? '기본 판매가 · 옵션 추가금 유지' : '판매가'}</small>
   </InlineEditor>;
 }
 
-export function GoodsInlineSale({ goodId, stopped, identity }: { goodId: string; stopped: boolean; identity: GoodsGroupIdentity }) {
+/** `display`: 값 버튼에 그릴 내용. 주지 않으면 판매상태 이름 글자다. 무엇을 그리든 누르면 판매중·판매중지를 고른다. */
+export function GoodsInlineSale({ goodId, stopped, identity, display, valueText, compact = false }: { goodId: string; stopped: boolean; identity: GoodsGroupIdentity; display?: ReactNode; valueText?: string; compact?: boolean }) {
   const state = useInlineState();
   const inputId = useId();
   function save(form: FormData) {
@@ -134,11 +167,11 @@ export function GoodsInlineSale({ goodId, stopped, identity }: { goodId: string;
       if (result.value.state === 'completed') state.router.refresh();
     });
   }
-  return <InlineEditor label="판매상태" display={stopped ? '판매중지' : '판매중'} onSubmit={save} pending={state.pending} error={state.error} recovery={Boolean(state.recovery)} onRecover={recover} editing={state.editing} setEditing={state.setEditing}>
+  return <InlineEditor label="판매상태" compact={compact} display={display ?? (stopped ? '판매중지' : '판매중')} valueText={valueText} onSubmit={save} pending={state.pending} error={state.error} recovery={Boolean(state.recovery)} onRecover={recover} editing={state.editing} setEditing={state.setEditing}>
     <label htmlFor={inputId} className="sr-only">판매상태</label>
-    <select id={inputId} name="sale" defaultValue={stopped ? 'stopped' : 'active'} autoFocus className="admin-goods-inline__input">
+    <NativeSelect id={inputId} name="sale" defaultValue={stopped ? 'stopped' : 'active'} autoFocus size="sm" className="w-28 max-md:w-full">
       <option value="active">판매중</option><option value="stopped">판매중지</option>
-    </select>
+    </NativeSelect>
   </InlineEditor>;
 }
 
@@ -170,7 +203,7 @@ export function GoodsInlineStock({ goodId, ipId, variantId, stockQty }: {
   }
   return <InlineEditor fillCell label="재고수량" display={`${stockQty.toLocaleString('ko-KR')}개`} onSubmit={save} pending={state.pending} error={state.error} recovery={false} onRecover={() => undefined} editing={state.editing} setEditing={state.setEditing}>
     <label htmlFor={inputId} className="sr-only">재고수량 (개)</label>
-    <input id={inputId} name="stockQty" inputMode="numeric" defaultValue={stockQty} autoFocus className="admin-goods-inline__input" />
-    <small>실재고 조정 기록이 남습니다.</small>
+    <input id={inputId} name="stockQty" inputMode="numeric" defaultValue={stockQty} autoFocus className={INLINE_INPUT_CLASS} data-slot="input" />
+    <small className="text-xs text-muted-foreground">실재고 조정 기록이 남습니다.</small>
   </InlineEditor>;
 }

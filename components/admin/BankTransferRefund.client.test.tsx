@@ -9,9 +9,11 @@ vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>
   useRef: (initial: unknown) => { const f = hooks.frames.get(hooks.current)!, i = hooks.index++; return f.values[i] ??= { current: initial }; },
   useMemo: (work: () => unknown, deps: unknown[]) => { const f = hooks.frames.get(hooks.current)!, i = hooks.index++, old = f.values[i] as { value: unknown; deps: unknown[] } | undefined; if (!old || deps.some((dep, n) => dep !== old.deps[n])) f.values[i] = { value: work(), deps }; return (f.values[i] as { value: unknown }).value; },
   useSyncExternalStore: (_subscribe: unknown, read: () => unknown) => read(),
-  useEffect: (work: () => void | (() => void), deps: unknown[] = []) => { const f = hooks.frames.get(hooks.current)!, i = hooks.index++, old = f.effects.get(i); if (!old || deps.some((dep, n) => dep !== old.deps[n])) { f.effects.set(i, { deps, cleanup: old?.cleanup }); f.jobs.push(() => { old?.cleanup?.(); f.effects.get(i)!.cleanup = work() || undefined; }); } },
+  useEffect: (work: () => void | (() => void), deps: unknown[] = []) => { const f = hooks.frames.get(hooks.current)!, i = hooks.index++, old = f.effects.get(i); if (!old || deps.some((dep, n) => dep !== old.deps[n])) { f.effects.set(i, { deps, cleanup: old?.cleanup }); f.jobs.push(() => { const effect = f.effects.get(i)!; effect.cleanup?.(); effect.cleanup = work() || undefined; }); } },
 }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: mocks.refresh }) }));
+/* 이 파일은 컴포넌트 함수를 직접 불러 트리를 편다 — Base UI 기반 kit Badge는 실제 렌더러 밖에서 훅을 쓸 수 없어 글자만 남기는 대역으로 둔다. */
+vi.mock('@/components/admin/kit/ui/badge', () => ({ Badge: (props: { children?: ReactNode }) => <span>{props.children}</span> }));
 vi.mock('@/app/admin/bank-transfer-refund-actions', () => ({ loadBankRefundContextAction: mocks.load, recordBankRefundAction: mocks.save, readBankRefundAction: mocks.read }));
 const busy = vi.hoisted(() => vi.fn());
 vi.mock('@/components/admin/screens/ClaimPreviewDialog', () => ({ useClaimPreviewBusy: busy }));

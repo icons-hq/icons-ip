@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { AdminShell } from '@/components/admin/AdminShell';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
+import { adminSidebarDefaultOpen } from '@/lib/admin/sidebar-state.server';
 
 export const metadata = {
   robots: { index: false, follow: false },
@@ -25,7 +26,7 @@ export const metadata = {
  * 센 수는 금방 낡고, 상품 등록·주문 화면에는 보이지 않아야 한다.
  */
 export default async function AdminShellLayout({ children }: { children: ReactNode }) {
-  const auth = await getCurrentAdminAuthState();
+  const [auth, sidebarDefaultOpen] = await Promise.all([getCurrentAdminAuthState(), adminSidebarDefaultOpen()]);
 
   if (auth.user && !auth.isStaff) {
     notFound();
@@ -33,6 +34,7 @@ export default async function AdminShellLayout({ children }: { children: ReactNo
 
   return (
     <AdminShell
+      sidebarDefaultOpen={sidebarDefaultOpen}
       console="commerce"
       admin={{ id: auth.user?.id ?? '', email: auth.user?.email ?? null, role: auth.role ?? 'staff', operatorAccess: auth.operatorAccess }}
     >
