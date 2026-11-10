@@ -89,7 +89,7 @@ select 1 / case when exists (
   from storage.buckets
   where id = 'public-media'
     and public
-    and file_size_limit = 5 * 1024 * 1024
+    and file_size_limit = 20 * 1024 * 1024
     and allowed_mime_types = array['image/jpeg', 'image/png', 'image/webp']::text[]
 ) then 1 else 0 end as assert_public_media_bucket_contract;
 
@@ -98,7 +98,7 @@ select 1 / case when exists (
   from storage.buckets
   where id = 'admin-artwork-staging'
     and not public
-    and file_size_limit = 5 * 1024 * 1024
+    and file_size_limit = 20 * 1024 * 1024
     and allowed_mime_types = array['image/jpeg', 'image/png', 'image/webp']::text[]
 ) then 1 else 0 end as assert_private_staging_bucket_contract;
 
@@ -223,6 +223,49 @@ select 1 / case when public.service_prepare_admin_artwork_upload(
   'catalog/event/99999999-9999-4999-8999-999999999999.webp',
   'event', 'image/webp', 10, now() + interval '10 minutes'
 ) = false then 1 else 0 end as assert_suspended_staff_claim_rejected;
+
+-- 상품 이미지만 20MB·30,000px까지 받고, 다른 종류는 5MB·8192px 그대로다(MD-0002).
+select 1 / case when public.service_prepare_admin_artwork_upload(
+  '00000000-0000-4000-8000-000000011202',
+  'catalog/good/77777777-7777-4777-8777-777777777778.jpg',
+  'good', 'image/jpeg', 20 * 1024 * 1024, now() + interval '10 minutes'
+) then 1 else 0 end as assert_good_claim_accepts_20mb;
+
+select 1 / case when public.service_prepare_admin_artwork_upload(
+  '00000000-0000-4000-8000-000000011202',
+  'catalog/good/77777777-7777-4777-8777-777777777779.jpg',
+  'good', 'image/jpeg', 20 * 1024 * 1024 + 1, now() + interval '10 minutes'
+) = false then 1 else 0 end as assert_good_claim_rejects_over_20mb;
+
+select 1 / case when public.service_prepare_admin_artwork_upload(
+  '00000000-0000-4000-8000-000000011202',
+  'catalog/ip/77777777-7777-4777-8777-77777777777a.jpg',
+  'ip', 'image/jpeg', 5 * 1024 * 1024 + 1, now() + interval '10 minutes'
+) = false then 1 else 0 end as assert_other_kinds_keep_5mb;
+
+select public.service_begin_admin_artwork_verification(
+  '00000000-0000-4000-8000-000000011202',
+  'catalog/good/77777777-7777-4777-8777-777777777778.jpg'
+);
+
+select 1 / case when public.service_verify_admin_artwork_upload(
+  '00000000-0000-4000-8000-000000011202',
+  'catalog/good/77777777-7777-4777-8777-777777777778.jpg',
+  18 * 1024 * 1024, 900, 30001
+) = false then 1 else 0 end as assert_good_verify_rejects_over_30000px;
+
+select 1 / case when public.service_verify_admin_artwork_upload(
+  '00000000-0000-4000-8000-000000011202',
+  'catalog/good/77777777-7777-4777-8777-777777777778.jpg',
+  18 * 1024 * 1024, 900, 30000
+) then 1 else 0 end as assert_good_verify_accepts_long_detail_image;
+
+delete from public.admin_artwork_upload_claims
+where path in (
+  'catalog/good/77777777-7777-4777-8777-777777777778.jpg',
+  'catalog/good/77777777-7777-4777-8777-777777777779.jpg',
+  'catalog/ip/77777777-7777-4777-8777-77777777777a.jpg'
+);
 
 -- 굿즈 폼은 업로드 칸이 11개다(대표 1 + 추가 이미지 9 + 상세 1, 20261007160000). 동시 활성 클레임 예산은
 -- 그 폼 한 장을 채우고 한 번 갈아끼울 수 있어야 한다(20260807140003).

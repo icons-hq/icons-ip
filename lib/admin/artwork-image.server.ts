@@ -2,9 +2,10 @@ import 'server-only';
 
 import sharp from 'sharp';
 import {
-  ADMIN_ARTWORK_MAX_BYTES,
-  ADMIN_ARTWORK_MAX_DIMENSION,
   ADMIN_ARTWORK_OUTPUT_MAX_EDGE,
+  GOODS_ARTWORK_MAX_DIMENSION,
+  adminArtworkLimits,
+  type AdminArtworkKind,
   type AdminArtworkMimeType,
 } from './artwork';
 
@@ -38,9 +39,10 @@ export function adminArtworkOutputBox(width: number, height: number): { width: n
   const shortEdge = Math.min(width, height);
   if (longEdge > shortEdge * STRIP_ASPECT_RATIO) {
     if (shortEdge <= ADMIN_ARTWORK_OUTPUT_MAX_EDGE) return null;
+    // 긴 변은 종류별 한도로 이미 검사했다. 상자가 그보다 작으면 긴 상세 이미지의 폭까지 줄어든다.
     return width < height
-      ? { width: ADMIN_ARTWORK_OUTPUT_MAX_EDGE, height: ADMIN_ARTWORK_MAX_DIMENSION }
-      : { width: ADMIN_ARTWORK_MAX_DIMENSION, height: ADMIN_ARTWORK_OUTPUT_MAX_EDGE };
+      ? { width: ADMIN_ARTWORK_OUTPUT_MAX_EDGE, height: GOODS_ARTWORK_MAX_DIMENSION }
+      : { width: GOODS_ARTWORK_MAX_DIMENSION, height: ADMIN_ARTWORK_OUTPUT_MAX_EDGE };
   }
   if (longEdge <= ADMIN_ARTWORK_OUTPUT_MAX_EDGE) return null;
   return { width: ADMIN_ARTWORK_OUTPUT_MAX_EDGE, height: ADMIN_ARTWORK_OUTPUT_MAX_EDGE };
@@ -49,8 +51,10 @@ export function adminArtworkOutputBox(width: number, height: number): { width: n
 export async function normalizeAdminArtworkImage(
   bytes: Uint8Array,
   mimeType: AdminArtworkMimeType,
+  kind: AdminArtworkKind,
 ): Promise<NormalizedAdminArtworkImage | null> {
-  if (bytes.byteLength < 1 || bytes.byteLength > ADMIN_ARTWORK_MAX_BYTES) return null;
+  const { maxBytes, maxDimension } = adminArtworkLimits(kind);
+  if (bytes.byteLength < 1 || bytes.byteLength > maxBytes) return null;
 
   try {
     const image = sharp(bytes, {
@@ -66,8 +70,8 @@ export async function normalizeAdminArtworkImage(
       metadata.format !== SHARP_FORMAT_BY_MIME[mimeType]
       || width < 1
       || height < 1
-      || width > ADMIN_ARTWORK_MAX_DIMENSION
-      || height > ADMIN_ARTWORK_MAX_DIMENSION
+      || width > maxDimension
+      || height > maxDimension
       || width * height > ADMIN_ARTWORK_MAX_PIXELS
       || (metadata.pages ?? 1) !== 1
     ) {
@@ -87,9 +91,9 @@ export async function normalizeAdminArtworkImage(
 
     if (
       output.data.byteLength < 1
-      || output.data.byteLength > ADMIN_ARTWORK_MAX_BYTES
-      || output.info.width > ADMIN_ARTWORK_MAX_DIMENSION
-      || output.info.height > ADMIN_ARTWORK_MAX_DIMENSION
+      || output.data.byteLength > maxBytes
+      || output.info.width > maxDimension
+      || output.info.height > maxDimension
       || output.info.width * output.info.height > ADMIN_ARTWORK_MAX_PIXELS
     ) {
       return null;

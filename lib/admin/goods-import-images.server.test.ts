@@ -155,14 +155,14 @@ describe('import image source boundary', () => {
     ).rejects.toThrow('내부');
   });
   it('enforces header and streamed size and requires supported image signatures', async () => {
-    response(200, { 'content-type': 'image/png', 'content-length': String(6 * 1024 * 1024) });
+    response(200, { 'content-type': 'image/png', 'content-length': String(21 * 1024 * 1024) });
     await expect(
       fetchGoodsImportImage('https://example.test/a.png'),
-    ).rejects.toThrow('5MB');
-    response(200, { 'content-type': 'image/png' }, Buffer.concat([PNG, Buffer.alloc(6 * 1024 * 1024)]));
+    ).rejects.toThrow('20MB');
+    response(200, { 'content-type': 'image/png' }, Buffer.concat([PNG, Buffer.alloc(21 * 1024 * 1024)]));
     await expect(
       fetchGoodsImportImage('https://example.test/a.png'),
-    ).rejects.toThrow('5MB');
+    ).rejects.toThrow('20MB');
     expect(imageMime(Buffer.from('<svg></svg>'))).toBeNull();
     expect(imageMime(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))).toBe(
       'image/png',
