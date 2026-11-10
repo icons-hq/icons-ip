@@ -23,6 +23,14 @@ import { EMPTY_GOODS_CUSTOM_INPUTS, parseGoodsCustomInputConfig } from '@/lib/go
 export type GoodNoticeDefaults = { asManager: string; asContact: string };
 export const GOOD_LOCAL_DRAFT_FIELDS = ['serverDraftId', 'serverDraftRevision', 'id', 'ipId', 'name', 'nameEn', 'searchKeywords', 'displayOrder', 'categoryId', 'additionalCategoryIds', 'shippingNoticeTemplate', 'type', 'code', 'defaultVariantCode', 'price', 'compareAtPrice', 'showDiscountRate', 'badge', 'stock', 'description', 'descriptionFormat', 'descriptionUploadPath', 'descriptionImageAlt', 'imagePath', 'detailImagePath', 'originId', 'shippingFeeType', 'individualFee', 'variants', 'variantBaseline', 'customInputs', 'customInputsExpectedRevision', 'productAttributes', 'productAttributeDraft', 'optionUsage', 'optionAxisName0', 'optionAxisValues0', 'optionAxisName1', 'optionAxisValues1', 'optionAxisName2', 'optionAxisValues2', ...GOODS_SALE_PERIOD_FIELDS, ...GOODS_PRICE_DRAFT_FIELDS, ...GOODS_SALE_POLICY_FIELDS, ...GOODS_CLAIM_POLICY_FIELDS,
   ...GOODS_NOTICE_FIELDS.map((field) => field.formName), ...Array.from({ length: GOODS_GALLERY_MAX }, (_, i) => `galleryPath${i}`)];
+/**
+ * 복구 안내를 두고 옵션 행이나 카테고리를 고치면 딸린 칸도 화면 값을 쓴다. 옵션 행과 축·동시편집 기준,
+ * 카테고리와 그 상품속성은 이전 기록과 섞이면 맞지 않는다. 축이나 사용 여부만 고칠 때는 이전 옵션 행을 남긴다.
+ */
+export const GOOD_LOCAL_DRAFT_LINKED_FIELDS = {
+  variants: ['variantBaseline', 'optionUsage', 'optionAxisName0', 'optionAxisValues0', 'optionAxisName1', 'optionAxisValues1', 'optionAxisName2', 'optionAxisValues2'],
+  categoryId: ['productAttributes', 'productAttributeDraft'],
+} as const;
 /** Failure/recovery owns even empty values; business defaults apply only to untouched new goods. */
 export function goodEditorValues(selected: AdminGoodRecord | null, state: AdminFormValuesState, initialIpId = '', noticeDefaults?: GoodNoticeDefaults): Record<string, string> {
   const values: Record<string, string> = {

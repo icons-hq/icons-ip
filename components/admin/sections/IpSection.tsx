@@ -107,7 +107,7 @@ export function IpSection({
     selected?.archivedAt ? 'archived' : 'active',
   );
   const visibleRecords = filterAdminCatalogRecords(records, archiveFilter);
-  const { snapshot: localDraft, formRef, onSubmitCapture, restore, discard, scopeKey } = useAdminLocalAutosave({
+  const { snapshot: localDraft, formRef, onSubmitCapture, restore, discardRecovery, scopeKey } = useAdminLocalAutosave({
     scope: { accountId, formId: 'ip', recordId: selected?.id ?? null },
     fields: LOCAL_DRAFT_FIELDS,
     serverState: state,
@@ -145,7 +145,7 @@ export function IpSection({
   const detail = (
     <>
       <AdminLocalDraftNotice
-        onDiscard={discard}
+        onDiscard={discardRecovery}
         onRestore={restore}
         pending={pending}
         recovery={Boolean(localDraft.recovery) && !preservedFormValues(state, selected?.id)}

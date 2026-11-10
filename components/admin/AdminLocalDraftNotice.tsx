@@ -14,7 +14,7 @@ export function AdminLocalDraftNotice({ recovery, unavailable = false, pending, 
   </div>;
   if (!recovery) return null;
   return <AdminSectionCard title="저장되지 않은 입력 복구">
-    <p className="text-sm text-muted-foreground" role="status">이 브라우저에 최대 7일 동안 보관된 입력이 있습니다. 복구한 뒤 저장해 주세요.</p>
+    <p className="text-sm text-muted-foreground" role="status">이 브라우저에 최대 7일 동안 보관된 입력이 있습니다. 복구한 뒤 저장해 주세요. 복구하거나 버려도 이 화면에서 새로 입력한 칸은 그대로 유지됩니다.</p>
     <div className="flex flex-wrap gap-2">
       <button className={buttonVariants({ size: 'sm' })} data-slot="button" disabled={pending} onClick={onRestore} type="button">복구</button>
       <button className={buttonVariants({ size: 'sm', variant: 'outline' })} data-slot="button" disabled={pending} onClick={onDiscard} type="button">버리기</button>
