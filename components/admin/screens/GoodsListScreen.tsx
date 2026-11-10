@@ -27,11 +27,10 @@ function priceLabel(min: number | null | undefined, max: number | null | undefin
 
 /* 기본 조회가 '보관 제외'라 그 칸도 둔다 — 어느 칸을 보고 있는지 항상 한 칸이 켜진다. */
 const STATUS_ITEMS = [{ label: '전체', status: 'all', icon: Boxes }, { label: '보관 제외', status: 'active', icon: Package }, { label: '임시저장', status: 'draft', icon: FilePen }, { label: '전시중', status: 'published', icon: Eye }, { label: '보관', status: 'archived', icon: Archive }] as const;
-/* 재고 건수는 상태 건수처럼 서버가 함께 세어 주지 않아 숫자 없이 조회 링크로 둔다. 다시 누르면 재고 조건을 푼다.
-   MD가 매일 먼저 보는 칸이라 숫자가 없어도 항상 의미색으로 보인다(건수 카드는 숫자가 있을 때만 색이 켜진다). */
+/* 재고 칸의 숫자는 재고 조건만 뺀 같은 검색 조건에서 서버가 센 값이라, 그 칸을 눌렀을 때의 목록 개수와 같다. 켜진 칸을 다시 누르면 재고 조건을 푼다. */
 const STOCK_ITEMS = [
-  { label: '품절 보기', stock: 'out_of_stock', tone: 'danger', Icon: PackageX, box: 'border-danger-border hover:bg-danger-soft', icon: 'bg-danger-soft text-destructive', text: 'text-destructive' },
-  { label: '소량 재고 보기', stock: 'low', tone: 'warning', Icon: PackageMinus, box: 'border-warning-border hover:bg-warning-soft', icon: 'bg-warning-soft text-warning', text: 'text-warning' },
+  { label: '품절 보기', stock: 'out_of_stock', tone: 'danger', icon: PackageX },
+  { label: '소량 재고 보기', stock: 'low', tone: 'warning', icon: PackageMinus },
 ] as const;
 /* 준비 사유는 고쳐야 할 일이다 — 파란 링크가 아니라 주의색으로 말한다. */
 const REASON_LINK = 'inline-flex items-center gap-1 text-[0.8rem] leading-snug font-medium text-warning underline-offset-4 hover:underline';
@@ -64,7 +63,7 @@ function goodsSaleStatus(good: AdminGoodSummary, readiness: AdminGoodsReadiness)
 const tableDate = (value: string | null | undefined) => value ? kstDay(new Date(value)).replaceAll('-', '.') : '—';
 
 export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingLinks = false, bulkIdentity }: { data: AdminGoodsListData; shippingRegionExpiry?: ShippingRegionExpiryState; canIssueMarketingLinks?: boolean; bulkIdentity?: GoodsGroupIdentity }) {
-  const { filters, goods, total, counts } = data;
+  const { filters, goods, total, counts, stockCounts } = data;
   const pageSize = data.pageSize ?? filters.pageSize ?? GOODS_LIST_PAGE_SIZE;
   /* 바로 수정과 IP 전체 할인은 상품 관리 권한과 현재 로그인 세션이 확인된 경우에만 연다. */
   const inlineIdentity = canIssueMarketingLinks ? bulkIdentity : undefined;
@@ -84,17 +83,18 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
       </details>
     </div>
     <ShippingRegionExpiryNotice state={shippingRegionExpiry} />
-    <div aria-label="상품 조회 현황" className={`${ADMIN_COUNT_CARD_GRID_CLASS} [&>*]:py-1.5`} data-goods-list="status" role="group">
-      {STATUS_ITEMS.map(item => {
-        return <AdminCountCard active={filters.status === item.status} count={counts ? counts[item.status] : null} current="page" href={goodsListHref({ ...filters, status: item.status }, 1)} icon={item.icon} key={item.status} label={item.label} />;
-      })}
-      {STOCK_ITEMS.map(item => {
-        const active = filters.stock === item.stock;
-        return <Link aria-current={active ? 'true' : undefined} aria-label={item.label} className={`flex min-w-0 items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-colors ${active ? 'border-primary bg-primary-soft ring-1 ring-primary' : `bg-card ${item.box}`}`} data-active={active || undefined} data-tone={item.tone} href={goodsListHref({ ...filters, stock: active ? 'all' : item.stock }, 1)} key={item.stock}>
-          <span aria-hidden="true" className={`grid size-8 shrink-0 place-items-center rounded-lg ${item.icon}`}><item.Icon className="size-4" /></span>
-          <span className={`truncate text-sm font-semibold ${item.text}`}>{item.label}</span>
-        </Link>;
-      })}
+    <div className="flex min-w-0 flex-col gap-1.5">
+      <div aria-describedby="goods-list-stock-basis" aria-label="상품 조회 현황" className={`${ADMIN_COUNT_CARD_GRID_CLASS} [&>*]:py-1.5`} data-goods-list="status" role="group">
+        {STATUS_ITEMS.map(item => {
+          return <AdminCountCard active={filters.status === item.status} count={counts ? counts[item.status] : null} current="page" href={goodsListHref({ ...filters, status: item.status }, 1)} icon={item.icon} key={item.status} label={item.label} />;
+        })}
+        {STOCK_ITEMS.map(item => {
+          const active = filters.stock === item.stock;
+          return <AdminCountCard active={active} count={stockCounts ? stockCounts[item.stock] : null} href={goodsListHref({ ...filters, stock: active ? 'all' : item.stock }, 1)} icon={item.icon} key={item.stock} label={item.label} tone={item.tone} />;
+        })}
+      </div>
+      {/* 소량 재고에는 수량 임계치가 없다(판매상태 값, goods.stock). 몇 개부터 소량인지 묻기 전에 답하도록 칸 바로 아래에 둔다. */}
+      <p className="text-xs leading-snug text-muted-foreground" data-goods-list="stock-basis" id="goods-list-stock-basis">품절: 판매중지가 아닌 상품 중 사용 옵션 재고 0개 · 소량 재고: 판매상태를 소량 재고로 지정하고 재고가 남은 상품(수량으로 자동 분류하지 않습니다)</p>
     </div>
     <GoodsListFiltersForm data={data} />
     {/* 넓은 화면에서는 목록 제목·정렬과 일괄 변경·조회항목 설정이 한 줄이다(표 ConsoleGrid의 뿌리를 contents로 풀어 이 줄에 참여시킨다). 폭이 모자라면 두 줄로 내려간다. */}
@@ -198,7 +198,7 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
       <ConsolePagination page={filters.page} pageSize={pageSize} total={total} hrefForPage={page => goodsListHref(filters, page)} />
       <details className="group/help rounded-lg border bg-muted/40 px-4 py-3 text-sm" data-goods-list="help">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-medium [&::-webkit-details-marker]:hidden">목록 사용·재고수량·판매 준비 안내<ChevronDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open/help:rotate-180" /></summary>
-        <p className="mt-2 leading-relaxed text-muted-foreground">상품번호는 쉼표나 공백으로 구분해 여러 개를 조회할 수 있고, 전체 검색에는 영문명·검색 키워드도 포함됩니다. 상품명 또는 수정 버튼을 눌러 상품 정보를 변경할 수 있습니다.{inlineIdentity ? ' 판매가·재고수량·판매상태는 목록에서 값을 눌러 바로 고칠 수 있습니다.' : ''} 표시한 수량은 예약판매 물량을 포함한 판매 가용 수량입니다. 판매상태 필터의 품절은 판매중지가 아닌 상품 중 사용 옵션의 할당 재고가 0인 상품이고, 판매중지는 수량과 관계없이 판매상태를 판매중지로 바꾼 상품입니다. 고객 화면에는 둘 다 품절로 보입니다. 설정 준비 완료는 실제 결제 성공을 보증하지 않습니다.{data.checkedAt ? <> 확인 시각: <time dateTime={data.checkedAt}>{new Date(data.checkedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}</time>.</> : null}</p>
+        <p className="mt-2 leading-relaxed text-muted-foreground">상품번호는 쉼표나 공백으로 구분해 여러 개를 조회할 수 있고, 전체 검색에는 영문명·검색 키워드도 포함됩니다. 상품명 또는 수정 버튼을 눌러 상품 정보를 변경할 수 있습니다.{inlineIdentity ? ' 판매가·재고수량·판매상태는 목록에서 값을 눌러 바로 고칠 수 있습니다.' : ''} 표시한 수량은 예약판매 물량을 포함한 판매 가용 수량입니다. 판매상태 필터의 품절은 판매중지가 아닌 상품 중 사용 옵션의 할당 재고가 0인 상품이고, 판매중지는 수량과 관계없이 판매상태를 판매중지로 바꾼 상품입니다. 고객 화면에는 둘 다 품절로 보입니다. 소량 재고는 판매상태를 소량 재고로 지정하고 재고가 남은 상품이며, 수량으로 자동 분류하지 않습니다. 옵션별 안전재고 기준 이하 경고는 재고수량 칸에 부족 N개 옵션으로 표시되고 소량 재고 건수에는 들어가지 않습니다. 품절·소량 재고 건수는 재고 조건과 페이지를 제외한 같은 검색 조건으로 계산합니다. 설정 준비 완료는 실제 결제 성공을 보증하지 않습니다.{data.checkedAt ? <> 확인 시각: <time dateTime={data.checkedAt}>{new Date(data.checkedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}</time>.</> : null}</p>
       </details>
       </div>
     </section>

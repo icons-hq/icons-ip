@@ -90,12 +90,16 @@ export interface AdminGoodSummary {
   /** 고객 상세(`/shop/<id>`)가 열리는 상품(전시·미보관·판매 제한 없음·IP 공개). 아니면 상품번호가 편집기 미리보기로 간다(R15). */
   customerVisible?: boolean;
 }
+/** 품절 보기·소량 재고 보기 칸의 건수. 키는 판매상태 필터 값이고, 재고 조건만 뺀 같은 검색 조건에서 센다 — 숫자가 곧 그 칸을 눌렀을 때의 목록 개수다. */
+export type GoodsListStockCounts = Record<'out_of_stock' | 'low', number>;
 export interface AdminGoodsListData {
   filters: GoodsListFilters;
   goods: AdminGoodSummary[];
   total: number;
   pageSize?: number;
   counts?: Record<GoodsListStatus, number>;
+  /** 없으면(`null`) 건수를 읽지 못한 상태다. 목록은 그대로 보이고 칸만 '집계 없음'이 된다. */
+  stockCounts?: GoodsListStockCounts | null;
   origins?: { id: string; name: string; active: boolean }[];
   checkedAt?: string;
   categories?: { id: string; name: string; depth: number; archivedAt: string | null }[];

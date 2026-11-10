@@ -76,6 +76,24 @@ describe('goods workspace server boundary', () => {
     expect(result.filters).toMatchObject({ page: 1, readiness: 'review_required' });
     expect(result.goods).toHaveLength(1);
   });
+  it('returns stock card counts from the same response as the list', async () => {
+    mocks.rpc.mockResolvedValue({ data: { statusCounts: counts, stockCounts: { out_of_stock: 3, low: 0, ignored: 9 }, rows: [row], total: 1 }, error: null });
+    expect((await loadAdminGoodsList(normalizeGoodsListFilters({ stock: 'low' }))).stockCounts).toEqual({ out_of_stock: 3, low: 0 });
+  });
+  it.each([
+    ['missing (app deployed before the DB)', undefined],
+    ['null', null],
+    ['not an object', 'x'],
+    ['missing key', { out_of_stock: 1 }],
+    ['negative', { out_of_stock: -1, low: 0 }],
+    ['fractional', { out_of_stock: 1.5, low: 0 }],
+    ['string', { out_of_stock: '1', low: 0 }],
+  ])('keeps the list open and reports no stock counts when they are %s', async (_label, stockCounts) => {
+    mocks.rpc.mockResolvedValue({ data: { statusCounts: counts, stockCounts, rows: [row], total: 1 }, error: null });
+    const result = await loadAdminGoodsList(normalizeGoodsListFilters({}));
+    expect(result.stockCounts).toBeNull();
+    expect(result.goods).toHaveLength(1);
+  });
   it('does not report an infrastructure failure or missing count as a successful empty list', async () => {
     for (const value of [{ data: null, error: { message: 'private diagnostic' } }, { data: { rows: [] }, error: null }, { data: { rows: [], total: null }, error: null }]) {
       mocks.rpc.mockResolvedValueOnce(value);

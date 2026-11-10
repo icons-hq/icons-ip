@@ -257,6 +257,13 @@ describe('m27 가이드 — 상품 등록·목록·카테고리·랜덤 판매(R
     expect(text).toContain('고객 화면에는 둘 다 품절로 보입니다');
   });
 
+  it('품절·소량 재고 칸의 건수 범위와 소량 재고 기준을 화면과 같게 안내한다', () => {
+    expect(text).toContain('재고 조건과 페이지를 제외한 같은 검색 조건으로 계산');
+    expect(text).toContain('수량으로 자동 분류하지 않습니다');
+    expect(text).toContain('소량 재고 건수에는 들어가지 않습니다');
+    expect(repoFile('components/admin/screens/GoodsListScreen.tsx')).toContain('수량으로 자동 분류하지 않습니다');
+  });
+
   it('판매 방식(랜덤 판매) 절이 패널의 선택지·고객 은닉 범위·조건과 같다(R24·D5②)', () => {
     const panel = repoFile('components/admin/GoodsOptionSaleModePanel.tsx').replace(/&apos;/g, "'").replace(/\s+/g, ' ');
     const hidden = "고객의 상품·장바구니·주문·메일·리뷰에는 '랜덤'으로 보이고 옵션별 재고도 보이지 않습니다. 교환으로 다시 보내는 상품은 보내는 옵션이 고객에게 안내됩니다.";

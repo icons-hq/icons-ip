@@ -75,7 +75,7 @@ function goodsData(): AdminGoodsListData {
   const goods = query
     ? FIXTURE_GOODS.filter((good) => `${good.name} ${good.code} ${good.id}`.toLocaleLowerCase('ko-KR').includes(query))
     : FIXTURE_GOODS;
-  return { filters, goods, total: goods.length, ips: FIXTURE_IPS, checkedAt: '2026-10-12T06:00:00Z', counts: { all: 6, active: 5, draft: 2, published: 3, archived: 1 }, origins: [{ id: '00000000-0000-4000-8000-000000000011', name: '기본 출고지', active: true }], categories: [{ id: '00000000-0000-4000-8000-000000000012', name: '수집품', depth: 1, archivedAt: null }] };
+  return { filters, goods, total: goods.length, ips: FIXTURE_IPS, checkedAt: '2026-10-12T06:00:00Z', counts: { all: 6, active: 5, draft: 2, published: 3, archived: 1 }, stockCounts: { out_of_stock: 0, low: 1 }, origins: [{ id: '00000000-0000-4000-8000-000000000011', name: '기본 출고지', active: true }], categories: [{ id: '00000000-0000-4000-8000-000000000012', name: '수집품', depth: 1, archivedAt: null }] };
 }
 
 function RouteSwitcher({ active }: { active: FixtureView }) {
