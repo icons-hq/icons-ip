@@ -145,11 +145,20 @@ describe('배송 건 콘솔',()=>{
   /* 같은 날 안에서는 23시간이 지나도 오늘이다. */
   expect(renderToStaticMarkup(<ShipmentConsoleScreen now={new Date('2026-09-14T14:30:00Z')} data={{...base,filters:{...base.filters,tab:'new'},rows:[{...row,createdAt:'2026-09-13T15:10:00Z',confirmedAt:null}]}}/>)).toContain('>오늘 주문<');
  });
- it('긴 이름과 상품명은 한 줄로 자르고 전체 값을 title에 둔다',()=>{
+ it('긴 구매자·수취인 이름은 한 줄로 자르고 전체 값을 title에 둔다',()=>{
   const name='메이플20년차모험가_민지';
-  const html=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[{...row,buyerName:name,recipientName:name,items:[{id:'item-1',name:'아주 긴 상품 이름',variantName:'파랑',qty:2}]}]}}/>);
+  const html=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[{...row,buyerName:name,recipientName:name}]}}/>);
   expect(html.match(new RegExp(`class="block truncate [^"]*" title="${name}"`,'g'))).toHaveLength(2);
-  expect(html).toMatch(/line-clamp-1[^>]*>아주 긴 상품 이름 · 파랑</);expect(html).toContain('× 2');
+ });
+ it('상품 · 옵션 칸은 품목을 줄이지 않고 옵션과 수량을 모두 보여주며 긴 이름은 줄바꿈한다',()=>{
+  const items=[1,2,3,4].map(index=>({id:`item-${index}`,name:`아주 긴 상품 이름 ${index}`,variantName:`옵션 ${index}`,qty:index+1}));
+  const html=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[{...row,items}]}}/>);
+  for(const item of items){
+   expect(html).toMatch(new RegExp(`wrap-anywhere[^>]*>${item.name} · ${item.variantName}<`));
+   expect(html).toContain(`× ${item.qty}`);
+  }
+  expect(html).not.toMatch(/외 \d+건/);
+  expect(html).not.toMatch(/line-clamp-1[^>]*>아주 긴 상품 이름/);
  });
  it('오래 배송 중인 건수를 카드로 세우고 운송장 번호를 한 줄로 둔다',()=>{
   const transit={...row,status:'shipping' as const,carrier:'hanjin',trackingNumber:'12345678',shippedAt:'2026-09-08T02:00:00Z'};
