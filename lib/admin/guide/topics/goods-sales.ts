@@ -1,7 +1,7 @@
 import {
-  ADMIN_ARTWORK_MAX_BYTES,
-  ADMIN_ARTWORK_MAX_DIMENSION,
   ADMIN_ARTWORK_OUTPUT_MAX_EDGE,
+  GOODS_ARTWORK_MAX_BYTES,
+  GOODS_ARTWORK_MAX_DIMENSION,
 } from '@/lib/admin/artwork';
 import { GOODS_NOTICE_FIELDS } from '@/lib/goods-notice';
 import { GOOD_TYPES } from '@/lib/goods-taxonomy';
@@ -16,7 +16,7 @@ import { RANDOM_OPTION_NOTICE } from '@/lib/goods-option-sale-mode';
 import type { AdminGuideTopic } from '../types';
 
 /* 규격 수치는 검증 코드의 상수에서 파생한다 — 제한이 바뀌면 가이드가 따라온다. */
-const ARTWORK_MAX_MB = ADMIN_ARTWORK_MAX_BYTES / (1024 * 1024);
+const ARTWORK_MAX_MB = GOODS_ARTWORK_MAX_BYTES / (1024 * 1024);
 const ERP_ITEM_FILE_KB = ERP_ITEM_FILE_BYTES_LIMIT / 1024;
 
 export const GOODS_SALES_TOPIC: AdminGuideTopic = {
@@ -566,7 +566,7 @@ export const GOODS_SALES_TOPIC: AdminGuideTopic = {
       id: 'images',
       heading: '이미지 올리기',
       paragraphs: [
-        `이미지 규격 — JPEG·PNG·WebP, 파일당 최대 ${ARTWORK_MAX_MB}MB, 가로·세로 최대 ${ADMIN_ARTWORK_MAX_DIMENSION}px, 애니메이션 이미지 제외.`,
+        `이미지 규격 — JPEG·PNG·WebP, 파일당 최대 ${ARTWORK_MAX_MB}MB, 가로·세로 최대 ${GOODS_ARTWORK_MAX_DIMENSION.toLocaleString('ko-KR')}px, 애니메이션 이미지 제외.`,
         `큰 사진은 업로드할 때 긴 변 ${ADMIN_ARTWORK_OUTPUT_MAX_EDGE}px로 줄여 저장합니다. 한 변이 다른 변의 2배를 넘는 긴 상세 이미지·가로 배너는 짧은 변만 ${ADMIN_ARTWORK_OUTPUT_MAX_EDGE}px까지 두고 길이는 그대로입니다.`,
         '대표 이미지와 추가 이미지는 1000×1000(1:1) 원본을 권장합니다. 상품 카드·목록·장바구니·위시리스트와 모바일·데스크톱 상세 모두 1:1 칸에 올린 원본 비율 그대로, 잘리지 않고 표시됩니다. 정사각이 아닌 이미지는 가운데에 놓이고 남는 부분은 회색 배경입니다.',
         '상품 이미지 칸에서 대표 이미지 1장과 추가 이미지 최대 9장을 작은 타일로 함께 관리합니다. 추가 이미지는 여러 장을 한 번에 골라 넣을 수 있고 9장이 차면 이미지 추가 타일이 사라집니다. 추가 이미지는 타일 순서대로 상품 상세 상단 이미지에서 대표 이미지 다음에 표시되며 빈 자리는 뒤로 모입니다. 긴 상세 이미지 1장은 상세 본문 아래에서 원래 비율을 유지합니다.',

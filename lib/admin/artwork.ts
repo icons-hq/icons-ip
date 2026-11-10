@@ -4,6 +4,12 @@ export type AdminArtworkMimeType = 'image/jpeg' | 'image/png' | 'image/webp';
 export const ADMIN_ARTWORK_ACCEPT = 'image/jpeg,image/png,image/webp';
 export const ADMIN_ARTWORK_MAX_BYTES = 5 * 1024 * 1024;
 export const ADMIN_ARTWORK_MAX_DIMENSION = 8192;
+/**
+ * 상품 이미지는 세로로 긴 통이미지 상세페이지를 받아야 해서 한도가 따로 크다(MD-0002).
+ * DB·스토리지 한도(20261110110000)와 같은 값이다. 총 픽셀 상한은 모든 종류에 공통이다.
+ */
+export const GOODS_ARTWORK_MAX_BYTES = 20 * 1024 * 1024;
+export const GOODS_ARTWORK_MAX_DIMENSION = 30_000;
 /** 공개 원본의 사진형 긴 변·띠형 짧은 변 상한(artwork-image.server.ts의 adminArtworkOutputBox). */
 export const ADMIN_ARTWORK_OUTPUT_MAX_EDGE = 2560;
 /**
@@ -13,6 +19,14 @@ export const ADMIN_ARTWORK_OUTPUT_MAX_EDGE = 2560;
 export const ADMIN_ARTWORK_VERIFICATIONS_PER_MINUTE = 22;
 export const ADMIN_ARTWORK_ERROR =
   '이미지는 JPEG, PNG, WebP 형식의 5MB 이하, 가로·세로 8192px 이하 파일만 업로드할 수 있습니다.';
+export const GOODS_ARTWORK_ERROR =
+  '이미지는 JPEG, PNG, WebP 형식의 20MB 이하, 가로·세로 30,000px 이하 파일만 업로드할 수 있습니다.';
+
+export function adminArtworkLimits(kind: AdminArtworkKind): { maxBytes: number; maxDimension: number } {
+  return kind === 'good'
+    ? { maxBytes: GOODS_ARTWORK_MAX_BYTES, maxDimension: GOODS_ARTWORK_MAX_DIMENSION }
+    : { maxBytes: ADMIN_ARTWORK_MAX_BYTES, maxDimension: ADMIN_ARTWORK_MAX_DIMENSION };
+}
 
 /**
  * 운영자별 업로드 한도에 걸린 이유(DB service_admin_artwork_upload_block_reason, 20261103120000).
@@ -94,9 +108,9 @@ export function normalizeAdminArtworkMetadata(input: {
     || typeof input.size !== 'number'
     || !Number.isInteger(input.size)
     || input.size < 1
-    || input.size > ADMIN_ARTWORK_MAX_BYTES
+    || input.size > adminArtworkLimits(input.kind).maxBytes
   ) {
-    return { ok: false, error: ADMIN_ARTWORK_ERROR };
+    return { ok: false, error: input.kind === 'good' ? GOODS_ARTWORK_ERROR : ADMIN_ARTWORK_ERROR };
   }
 
   return {

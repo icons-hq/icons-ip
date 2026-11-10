@@ -289,6 +289,7 @@ export async function verifyAndPromoteAdminArtwork(
           normalized = await normalizeAdminArtworkImage(
             new Uint8Array(await blob.arrayBuffer()),
             input.mimeType,
+            input.kind,
           );
         }
       }

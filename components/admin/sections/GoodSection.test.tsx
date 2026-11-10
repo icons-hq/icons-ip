@@ -657,7 +657,7 @@ describe('GoodSection', () => {
     /* 이미지 제약은 공유 업로드 계약(ADMIN_ARTWORK_ACCEPT)을 그대로 따른다. */
     expect(html.match(/accept="image\/jpeg,image\/png,image\/webp"/g)).toHaveLength(4);
     /* 그리드 안내 1회 + HTML 이미지 업로드 자체 안내 1회 */
-    expect(html.match(/최대 5MB · 가로·세로 최대 8192px/g)).toHaveLength(2);
+    expect(html.match(/최대 20MB · 가로·세로 최대 30,000px/g)).toHaveLength(2);
   });
 
   /* 리뷰 재현: HTML 이미지 업로드가 그리드의 1:1(1000×1000) 권장을 설명으로 읽었다 — 긴 세로 상세 이미지에는 틀린 안내다. */

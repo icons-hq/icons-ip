@@ -2,7 +2,7 @@ import 'server-only';
 import { lookup } from 'node:dns/promises';
 import { request } from 'node:https';
 import ipaddr from 'ipaddr.js';
-import { ADMIN_ARTWORK_MAX_BYTES, type AdminArtworkMimeType } from './artwork';
+import { GOODS_ARTWORK_MAX_BYTES, type AdminArtworkMimeType } from './artwork';
 import { normalizeRemoteImageUrl } from './remote-image-url';
 
 export { normalizeRemoteImageUrl };
@@ -53,7 +53,7 @@ const MESSAGES = {
   redirect: '이미지 주소가 너무 여러 번 다른 주소로 넘어갑니다.',
   status: '이미지 URL에서 파일을 내려받지 못했습니다.',
   type: '이미지 URL의 응답이 JPEG·PNG·WebP 이미지가 아닙니다.',
-  size: '이미지는 5MB 이하여야 합니다.',
+  size: '이미지는 20MB 이하여야 합니다.',
   timeout: '이미지 URL 응답 시간이 초과됐습니다.',
 } as const;
 
@@ -242,7 +242,7 @@ export async function fetchRemoteImage(
   options: { timeoutMs?: number; idleTimeoutMs?: number; maxBytes?: number } = {},
 ): Promise<RemoteImage> {
   const deadline = Date.now() + (options.timeoutMs ?? REMOTE_IMAGE_TIMEOUT_MS);
-  const maxBytes = options.maxBytes ?? ADMIN_ARTWORK_MAX_BYTES;
+  const maxBytes = options.maxBytes ?? GOODS_ARTWORK_MAX_BYTES;
   let current = normalizeRemoteImageUrl(source);
   for (let hops = 0; ; hops++) {
     if (!current) throw new Error(MESSAGES.url);

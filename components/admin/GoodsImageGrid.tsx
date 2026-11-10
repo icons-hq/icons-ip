@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ChangeEvent, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react';
-import { ADMIN_ARTWORK_ACCEPT, ADMIN_ARTWORK_ERROR, normalizeAdminArtworkMetadata, parseAdminArtworkPath } from '@/lib/admin/artwork';
+import { ADMIN_ARTWORK_ACCEPT, GOODS_ARTWORK_ERROR, normalizeAdminArtworkMetadata, parseAdminArtworkPath } from '@/lib/admin/artwork';
 // 상대 경로는 ArtworkUploadField와 같은 모듈 지정자다 — 시각 fixture가 이 지정자로 합성 업로드를 끼운다.
 import { uploadAdminArtwork } from '../../lib/admin/artwork-upload.client';
 import { createAdminArtworkPreviewUrl } from '@/lib/admin/artwork-preview.client';
@@ -26,7 +26,7 @@ import {
 } from '@/lib/admin/goods-image-grid';
 import { cn } from 'cn';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
-import { COMMON_ARTWORK_GUIDANCE } from './ArtworkUploadField';
+import { GOODS_ARTWORK_GUIDANCE } from './ArtworkUploadField';
 import { ErrorText } from './fields';
 import { GoodsPhotoPicker } from './screens/GoodsPhotoLibraryScreen';
 import { normalizePublicMediaPath, publicMediaUrl } from '@/lib/media';
@@ -254,7 +254,7 @@ export function GoodsImageGrid({ errors = {}, initialPaths, initialUrls, onPrevi
       started.push(tile);
     });
     const messages = [
-      rejected ? `형식·크기 조건에 맞지 않는 파일 ${rejected}개는 넣지 않았습니다. ${ADMIN_ARTWORK_ERROR}` : '',
+      rejected ? `형식·크기 조건에 맞지 않는 파일 ${rejected}개는 넣지 않았습니다. ${GOODS_ARTWORK_ERROR}` : '',
       overflow ? `추가 이미지는 최대 ${GOODS_GALLERY_MAX}장입니다. 선택한 파일 중 ${overflow}개는 넣지 않았습니다.` : '',
     ].filter(Boolean);
     setNotice(messages.join(' '));
@@ -527,7 +527,7 @@ export function GoodsImageGrid({ errors = {}, initialPaths, initialUrls, onPrevi
 
   return <fieldset className="m-0 flex min-w-0 flex-col gap-3 rounded-lg border p-4" data-image-grid="">
     <legend className="float-left w-full p-0 text-sm font-medium text-foreground">상품 이미지 · 대표 이미지 1장 + 추가 이미지 최대 {GOODS_GALLERY_MAX}장</legend>
-    <p className="text-sm wrap-anywhere" id={GOODS_IMAGE_GUIDANCE_ID}>{GOODS_IMAGE_RATIO_GUIDANCE} 공통 파일 규격: {COMMON_ARTWORK_GUIDANCE}.</p>
+    <p className="text-sm wrap-anywhere" id={GOODS_IMAGE_GUIDANCE_ID}>{GOODS_IMAGE_RATIO_GUIDANCE} 공통 파일 규격: {GOODS_ARTWORK_GUIDANCE}.</p>
     <p className="text-xs text-muted-foreground">이미지를 누르면 다른 파일로 바꿉니다. 추가 이미지는 왼쪽 위 손잡이(⋮⋮)를 끌거나 ←·→ 키로 순서를 바꾸며(마우스는 이미지를 바로 끌어도 됩니다), 이 순서대로 상품 상세 상단 이미지에서 대표 이미지 다음에 표시됩니다. 파일은 고르는 즉시 업로드되며, 상품 저장 후 공개 화면에 반영됩니다. {GOODS_IMAGE_LIBRARY_NOTICE}</p>
     <button type="button" className={cn(buttonVariants({ variant: 'outline' }), 'self-start')} data-slot="button" disabled={slots.every(Boolean)} onClick={() => setPhotoPicker(true)}>사진 보관함에서 선택</button>
     {photoPicker ? <GoodsPhotoPicker onClose={() => setPhotoPicker(false)} onSelect={photo => {

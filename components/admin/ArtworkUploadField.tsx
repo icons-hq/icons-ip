@@ -17,6 +17,7 @@ const SELECTED_PREVIEW_ALT = '선택한 아트워크 미리보기';
 const UPLOADED_PREVIEW_ALT = '업로드된 아트워크 미리보기';
 const UPLOAD_VALIDITY_MESSAGE = '이미지를 먼저 업로드해주세요.';
 export const COMMON_ARTWORK_GUIDANCE = 'JPEG, PNG, WebP · 최대 5MB · 가로·세로 최대 8192px · 총 4,000만 픽셀 이하 · 애니메이션 제외';
+export const GOODS_ARTWORK_GUIDANCE = 'JPEG, PNG, WebP · 최대 20MB · 가로·세로 최대 30,000px · 총 4,000만 픽셀 이하 · 애니메이션 제외';
 
 /* 템플릿 룩(ADR-0028). 업로드 상태(data-upload-state)는 미리보기 테두리와 상태 글자 색으로 보인다. */
 const FILE_INPUT_CLASS = `${GOOD_INPUT_CLASS} cursor-pointer text-muted-foreground file:mr-3 file:inline-flex file:h-6 file:cursor-pointer file:items-center file:rounded-md file:border-0 file:bg-muted file:px-2 file:text-sm file:font-medium file:text-foreground`;
@@ -361,7 +362,7 @@ export function ArtworkUploadField({
               type="file"
             />
           </label>
-          {showGuidance && <span className="text-xs text-muted-foreground" id={helpId}>{COMMON_ARTWORK_GUIDANCE}</span>}
+          {showGuidance && <span className="text-xs text-muted-foreground" id={helpId}>{kind === 'good' ? GOODS_ARTWORK_GUIDANCE : COMMON_ARTWORK_GUIDANCE}</span>}
           {helpText && <span className="text-sm text-muted-foreground" id={guidanceId}>{helpText}</span>}
           <div className="flex flex-wrap items-center justify-start gap-2" data-artwork-actions="">
             {(!autoUpload || Boolean(file && error)) && <button
