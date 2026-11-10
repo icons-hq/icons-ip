@@ -13,22 +13,17 @@ import {
   type AdminIpPublishState,
 } from '../../lib/admin/ip-publish';
 import { Button } from '@/components/admin/kit/ui/button';
-import { AdminStatusBadge } from './console/AdminKit';
-import { SECTION_CARD, SECTION_WARNING, SectionHeading } from './sections/SectionLayout';
+import { AdminNotice, AdminStatusBadge } from './console/AdminKit';
+import { statusTone } from '@/lib/admin/status-tone';
+import { SECTION_CARD, SectionHeading } from './sections/SectionLayout';
 
 const initialState: AdminIpPublishActionState = {};
-
-const STATE_TONES = {
-  draft: 'warning',
-  published: 'success',
-  archived: 'neutral',
-} as const satisfies Record<AdminIpPublishState, 'neutral' | 'success' | 'warning'>;
 
 /** 폼 머리와 목록이 쓰는 게시 상태 배지. 어휘는 게시 상태 이름이고, 색은 상태 톤이다. */
 export function IpPublishStateBadge({ state }: { state: AdminIpPublishState }) {
   return (
     <span className="inline-flex" data-publish-state={state}>
-      <AdminStatusBadge tone={STATE_TONES[state]}>{ADMIN_IP_PUBLISH_STATE_LABELS[state]}</AdminStatusBadge>
+      <AdminStatusBadge tone={statusTone('publication', state)}>{ADMIN_IP_PUBLISH_STATE_LABELS[state]}</AdminStatusBadge>
     </span>
   );
 }
@@ -52,30 +47,19 @@ export function IpPublishControl({
   const [actionState, formAction, pending] = useActionState(action, initialState);
 
   return (
-    <section className={SECTION_CARD} data-ip-publish-control={state}>
+    <section className={`${SECTION_CARD} scroll-mt-16`} data-ip-publish-control={state} id="ip-publish">
       <SectionHeading
         description={state === 'archived'
           ? '보관된 IP는 게시 상태를 바꿀 수 없습니다. 복원하면 초안이 됩니다. 다시 노출하려면 공개로 전환해주세요.'
           : publishing
             ? '공개하면 온라인 팝업 디렉토리·IP관·홈 특집·검색에 바로 노출됩니다.'
-            : '초안으로 되돌리면 IP와 소속 상품·카드가 공개 목록·검색에서 제외됩니다. 이미 담긴 상품은 장바구니에 판매 종료로 표시되고 결제할 수 없습니다. 연결된 이벤트 상세는 찾을 수 없는 페이지(404)가 됩니다. 기존 주문·보유 카드 이력은 유지됩니다.'}
+            : undefined}
         title={state === 'archived' ? '게시 상태' : publishing ? '공개로 전환' : '초안으로 되돌리기'}
       />
-      {actionState.errors?.form && (
-        <div className={SECTION_WARNING} role="alert">
-          {actionState.errors.form}
-        </div>
-      )}
-      {actionState.errors?.id && (
-        <div className={SECTION_WARNING} role="alert">
-          {actionState.errors.id}
-        </div>
-      )}
-      {actionState.message && (
-        <div className="rounded-lg border bg-muted/40 px-3 py-2.5 text-sm font-medium text-[var(--wc-success)]" role="status">
-          {actionState.message}
-        </div>
-      )}
+      {state === 'published' ? <AdminNotice tone="warning">초안으로 되돌리면 IP와 소속 상품·카드가 공개 목록·검색에서 제외됩니다. 이미 담긴 상품은 장바구니에 판매 종료로 표시되고 결제할 수 없습니다. 연결된 이벤트 상세는 찾을 수 없는 페이지(404)가 됩니다. 기존 주문·보유 카드 이력은 유지됩니다.</AdminNotice> : null}
+      {actionState.errors?.form && <AdminNotice role="alert" tone="danger">{actionState.errors.form}</AdminNotice>}
+      {actionState.errors?.id && <AdminNotice role="alert" tone="danger">{actionState.errors.id}</AdminNotice>}
+      {actionState.message && <AdminNotice role="status" tone="success">{actionState.message}</AdminNotice>}
       {state !== 'archived' && (
         <form action={formAction} className="flex flex-col items-start gap-3">
           <input name="id" readOnly type="hidden" value={id} />
@@ -85,7 +69,7 @@ export function IpPublishControl({
               <span>초안 전환의 영향을 확인했습니다</span>
             </label>
           )}
-          <Button disabled={pending} type="submit" variant={publishing ? 'default' : 'outline'}>
+          <Button disabled={pending} type="submit" variant={publishing ? 'default' : 'destructive'}>
             {pending ? '처리 중' : publishing ? '공개로 전환' : '초안으로 되돌리기'}
           </Button>
         </form>

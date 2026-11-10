@@ -4,9 +4,9 @@ import { useState } from 'react';
 import { AdminSelect } from '@/components/admin/console/AdminSelect';
 import { CUSTOMER_PURCHASE_METRIC_LABEL, customerPurchaseValue, type CustomerPurchaseGrain, type CustomerPurchaseMetric, type CustomerPurchasePeriod, type CustomerPurchaseRow } from '@/lib/admin/customer-purchase-report';
 
-/* 계열 색은 kit 차트 토큰이다(neutral 팔레트의 중간·짙은 회색). 범례 칸이 같은 색을 보여 주고, 정확한 값은 막대 제목과 데이터 표에 있다. */
-const BAR_CLASS = { new: 'relative w-[42%] rounded-t-sm bg-chart-2', repeat: 'relative w-[42%] rounded-t-sm bg-chart-5' } as const;
-const SWATCH_CLASS = { new: 'size-2.5 shrink-0 rounded-sm bg-chart-2', repeat: 'size-2.5 shrink-0 rounded-sm bg-chart-5' } as const;
+/* 범주색은 --chart-1부터 표시 순서대로 쓴다(신규·재구매는 비교 계열이 아니라 두 범주다, ADR-0029). 범례 칸이 같은 색을 보여 주고, 정확한 값은 막대 제목과 데이터 표에 있다. */
+const BAR_CLASS = { new: 'relative w-[42%] rounded-t-sm bg-chart-1', repeat: 'relative w-[42%] rounded-t-sm bg-chart-2' } as const;
+const SWATCH_CLASS = { new: 'size-2.5 shrink-0 rounded-sm bg-chart-1', repeat: 'size-2.5 shrink-0 rounded-sm bg-chart-2' } as const;
 
 /** Grouped bars keep overlapping customer counts separate. Every value is also in the table. */
 export function CustomerPurchaseTrend({ periods, grain }: { periods: CustomerPurchasePeriod[]; grain: CustomerPurchaseGrain }) {
@@ -17,7 +17,7 @@ export function CustomerPurchaseTrend({ periods, grain }: { periods: CustomerPur
   const label = (period: CustomerPurchasePeriod, row: CustomerPurchaseRow) => `${period.from} ~ ${period.to} ${row.group === 'new' ? '신규' : '재구매'} ${row[metric] === null ? row.monetaryIssueOrderCount > 0 ? '금액 확인 필요' : '결제고객 없음' : `${customerPurchaseValue(row[metric], 2)}${unit}`}`;
   const trendLabel = grain === 'week' ? '최근 13주 주간 추이' : '최근 13개월 월간 추이';
   return <section className="flex min-w-0 flex-col rounded-xl border bg-card text-card-foreground" data-grain={grain} aria-label={trendLabel}>
-    <header className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3"><h3 className="text-base font-medium text-foreground">신규/재구매 · {trendLabel}</h3>
+    <header className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3"><h3 className="text-base font-semibold text-foreground">신규/재구매 · {trendLabel}</h3>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <label className="flex items-center gap-2 text-sm">분석 지표 <AdminSelect value={metric} onChange={e => setMetric(e.target.value as CustomerPurchaseMetric)} wrapperClassName="w-40">{Object.entries(CUSTOMER_PURCHASE_METRIC_LABEL).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</AdminSelect></label>
         <div className="flex gap-4 text-sm"><label className="flex items-center gap-2"><input type="checkbox" checked={newVisible} onChange={e => setNewVisible(e.target.checked)} /><span aria-hidden="true" className={SWATCH_CLASS.new} />신규</label><label className="flex items-center gap-2"><input type="checkbox" checked={repeatVisible} onChange={e => setRepeatVisible(e.target.checked)} /><span aria-hidden="true" className={SWATCH_CLASS.repeat} />재구매</label></div>

@@ -50,7 +50,7 @@ export function GoodClonePanel({
           <label className={FIELD_CLASS}><span className="font-medium">새 상품 이름 (선택)</span><input className={GOOD_INPUT_CLASS} data-slot="input" defaultValue={value('newName')} disabled={pending || completed} name="newName" placeholder="비우면 원본 이름에 복사본을 붙입니다" /></label>
         </div>
         <div className={`${GOOD_NOTE_CLASS} flex flex-col gap-1.5`}>
-          <strong className="font-medium">복사 행렬</strong>
+          <strong className="font-medium">복사 범위</strong>
           <ul className="m-0 flex list-disc flex-col gap-1 pl-5 text-muted-foreground">{goodCloneMatrixRows().map((row) => <li key={row.label}><strong className="font-medium text-foreground">{row.label}:</strong> {row.value}</li>)}</ul>
         </div>
         {state.errors?.sourceGoodId ? <p className="text-destructive" role="alert">{state.errors.sourceGoodId}</p> : null}

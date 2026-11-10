@@ -11,7 +11,7 @@ import { MarketingLinksScreen } from './MarketingLinksScreen';
 it('링크 조회는 종류·목록 수를 함께 실어 GET 폼을 제출한다', () => {
   const filters = normalizeMarketingLinkFilters({ source: 'good', q: '키링' });
   const html = renderToStaticMarkup(<MarketingLinksScreen canIssueHome={false} data={{ filters, rows: [], total: 0 }} />);
-  expect(html).toMatch(/<button[^>]*type="submit"[^>]*>조회<\/button>/);
+  expect(html).toMatch(/<button[^>]*type="submit"[^>]*>검색<\/button>/);
   expect(html).toContain('type="hidden" name="source" value="good"');
   expect(html).toContain(`type="hidden" name="pageSize" value="${filters.pageSize}"`);
   expect(html).toContain('name="q" value="키링"');

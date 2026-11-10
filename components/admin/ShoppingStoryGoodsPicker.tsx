@@ -11,6 +11,7 @@ import { ConsolePagination } from '@/components/admin/console/ConsolePagination'
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
+import { AdminNotice } from '@/components/admin/console/AdminKit';
 
 /* 관련상품 찾기 팝업(템플릿 룩, ADR-0028). 조회 조건·선택 유지·추가 한도 계약은 그대로다. */
 const FIELD = 'flex min-w-0 flex-col gap-1.5 text-sm font-medium';
@@ -66,7 +67,7 @@ export function ShoppingStoryGoodsPicker({ existingIds, sectionCount, onAdd, onC
         <label className={FIELD}>최고 가격 (원)<Input type="number" min={0} max={100000000} step={1} value={filters.maxPrice ?? ''} onChange={event => change('maxPrice', event.target.value === '' ? null : Number(event.target.value))} /></label>
         <label className={FIELD}>정렬<NativeSelect className="w-full" value={filters.sort} onChange={event => change('sort', event.target.value as StoryGoodFilters['sort'])}>{Object.entries(STORY_GOOD_SORTS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</NativeSelect></label>
         <div className="flex items-center gap-3 sm:col-span-2 lg:col-span-1"><label className={CHECK}><input type="checkbox" checked={filters.discounted} onChange={event => change('discounted', event.target.checked)} />할인 상품</label><label className={CHECK}><input type="checkbox" checked={filters.freeShipping} onChange={event => change('freeShipping', event.target.checked)} />무료배송</label></div>
-        <div className="flex items-center justify-end gap-2 sm:col-span-2"><Button type="button" onClick={() => { setQuery(''); setFilters(DEFAULT_STORY_GOOD_FILTERS); void search(1, { query: '', filters: DEFAULT_STORY_GOOD_FILTERS }); }} variant="outline">초기화</Button><Button type="submit">검색</Button></div>
+        <div className="flex items-center justify-end gap-2 sm:col-span-2"><Button type="button" onClick={() => { setQuery(''); setFilters(DEFAULT_STORY_GOOD_FILTERS); void search(1, { query: '', filters: DEFAULT_STORY_GOOD_FILTERS }); }} variant="ghost">초기화</Button><Button type="submit" variant="soft">검색</Button></div>
       </fieldset>
     </form>
     <GoodUrlAddField disabled={pending} onAdd={async id => {
@@ -82,7 +83,7 @@ export function ShoppingStoryGoodsPicker({ existingIds, sectionCount, onAdd, onC
       return { ok: true, message: `'${good.name}' 상품을 선택했습니다. 선택한 상품 추가를 눌러 반영해주세요.` };
     }} />
     <details className="rounded-lg border px-3.5 py-2.5 text-xs leading-relaxed text-muted-foreground [&>p]:mt-2"><summary className="cursor-pointer font-medium text-foreground">검색·정렬 기준</summary><p>카테고리는 하위·추가 카테고리를 포함합니다. 가격은 현재 최저 옵션 판매가이며 할인은 현재 할인 옵션 또는 판매가보다 높은 비교가격이 있는 상품입니다. 무료배송은 최저 판매가 옵션 1개의 기본배송비 0원 기준입니다. 지역 추가배송비와 주문 전체 배송비는 주문 시 다시 계산합니다.</p><p>인기순은 찜 수, 판매순은 최근 30일 결제 승인 근거가 확인된 판매 수량이며 취소·반품 완료 주문을 제외합니다. 두 정렬은 서로의 지표를 동률 보조 기준으로 씁니다. 리뷰 수와 평점은 공개 리뷰 기준이며 동률이면 서로의 지표를 확인합니다. 마지막 동률은 등록일 최신순, 내부 ID순으로 표시합니다.</p></details>
-    {error ? <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-3.5 py-3 text-sm leading-relaxed text-destructive" role="alert">{error}</p> : null}
+    {error ? <AdminNotice role="alert" tone="danger">{error}</AdminNotice> : null}
     <div className="flex flex-wrap items-center gap-2.5 text-xs"><span className="min-w-60 flex-1" aria-live="polite">{pending ? '상품을 찾고 있습니다…' : `${data?.total.toLocaleString('ko-KR') ?? 0}개 검색됨`} · {picked.length}개 선택 / 추가 가능 {capacity}개</span><Button type="button" disabled={pending || !selectable.length} onClick={() => setPicked(current => pageSelected ? current.filter(good => !selectable.some(row => row.id === good.id)) : [...current, ...selectable.filter(good => !current.some(row => row.id === good.id)).slice(0, Math.max(0, capacity - current.length))])} size="sm" variant="outline">{pageSelected ? '현재 페이지 선택 해제' : '현재 페이지 선택'}</Button><Button disabled={!picked.length} type="button" onClick={() => setPicked([])} size="sm" variant="ghost">선택 비우기</Button></div>
     <ul className="flex flex-col" aria-busy={pending}>{data?.rows.map(good => {
       const already = existing.has(good.id), selected = picked.some(item => item.id === good.id);

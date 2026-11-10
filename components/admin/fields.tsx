@@ -7,8 +7,8 @@ import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { adminArtworkAspectRatio, type AdminArtworkKind } from '@/lib/admin/artwork';
 
 /* kit Input · Textarea와 같은 모양(ADR-0028). 폼 제출·기본값·검증 속성은 네이티브 그대로다. */
-const CONTROL_CLASS = 'h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 read-only:border-dashed read-only:bg-muted/50 read-only:text-muted-foreground aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20';
-const TEXTAREA_CLASS = 'flex min-h-16 w-full rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20';
+const CONTROL_CLASS = 'h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm transition-colors outline-none placeholder:text-placeholder focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-muted disabled:text-secondary-foreground disabled:opacity-100 read-only:border-dashed read-only:bg-muted/50 read-only:text-muted-foreground aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20';
+const TEXTAREA_CLASS = 'flex min-h-16 w-full rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm transition-colors outline-none placeholder:text-placeholder focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:bg-muted disabled:text-secondary-foreground disabled:opacity-100 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20';
 
 export function ErrorText({ children, id }: { children?: string; id?: string }) {
   if (!children) return null;
@@ -192,14 +192,14 @@ export function SelectField({
 export function ActionNotice({ state }: { state: AdminCatalogActionState }) {
   if (state.errors?.form) {
     return (
-      <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm font-medium text-destructive" role="alert">
+      <div className="rounded-lg border border-danger-border bg-danger-soft px-3 py-2.5 text-sm font-medium text-destructive" role="alert">
         {state.errors.form}
       </div>
     );
   }
   if (state.message) {
     return (
-      <div className="rounded-lg border bg-muted/40 px-3 py-2.5 text-sm font-medium text-[var(--wc-success)]" role="status">
+      <div className="rounded-lg border border-success-border bg-success-soft px-3 py-2.5 text-sm font-medium text-success" role="status">
         {state.message}
       </div>
     );
@@ -212,7 +212,7 @@ export function InlineNotice({ state }: { state: AdminCatalogActionState }) {
     return <span className="text-sm font-medium text-destructive" role="alert">{state.errors.form}</span>;
   }
   if (state.message) {
-    return <span className="text-sm font-medium text-[var(--wc-success)]" role="status">{state.message}</span>;
+    return <span className="text-sm font-medium text-success" role="status">{state.message}</span>;
   }
   return null;
 }
@@ -303,7 +303,7 @@ export function RecordList<T extends { id: string }>({
               key={item.id}
               aria-current={activeId === item.id ? 'true' : undefined}
               className={[
-                'flex min-h-9 w-full items-center justify-start gap-2.5 overflow-hidden rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 aria-[current=true]:bg-muted aria-[current=true]:font-medium',
+                'flex min-h-9 w-full shrink-0 items-center justify-start gap-2.5 overflow-hidden rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 aria-[current=true]:bg-primary-soft aria-[current=true]:font-medium aria-[current=true]:text-primary-soft-foreground',
                 itemClassName,
               ].filter(Boolean).join(' ')}
               data-slot="button"

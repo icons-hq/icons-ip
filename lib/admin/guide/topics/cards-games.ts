@@ -30,7 +30,7 @@ export const CARDS_GAMES_TOPIC: AdminGuideTopic = {
       heading: '카드풀 만들기',
       steps: [
         {
-          text: '카드풀 화면에서 연결 IP, 카드풀 이름, 운영 시작(KST)을 입력해 저장합니다. 운영 종료는 선택입니다.',
+          text: '카드풀 화면 오른쪽 위 등록 버튼을 누른 뒤 연결 IP, 카드풀 이름, 운영 시작(KST)을 입력해 저장합니다. 운영 종료는 선택입니다.',
           screenHref: '/admin/catalog/pools',
           detail: [
             '운영 기간이 끝나면 신규 발급만 멈춥니다. 이미 발급된 미개봉 카드팩은 계속 개봉할 수 있습니다.',

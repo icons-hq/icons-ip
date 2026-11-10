@@ -105,13 +105,40 @@ describe('OverviewSection', () => {
     expect(html).toContain('href="/admin/sales/unpaid"');
     expect(html).toContain('aria-label="환불 송금 대기 확인 필요"');
     expect(html).toContain('href="/admin/sales/claims/refund-transfers"');
-    const panel = (id: string) => `data-home-panel="${id}"`;
-    expect(html).toContain(panel('claims'));
-    const claims = html.slice(html.indexOf(panel('claims')), html.indexOf(panel('work')));
-    expect(claims).toContain('환불 송금 대기');
-    expect(html.slice(html.indexOf(panel('work')), html.indexOf(panel('goods')))).toContain('무통장 입금 대기');
-    /* 처리할 건수가 0보다 크면 의미색 하나(destructive)로 보인다. */
-    expect(html).toMatch(/무통장 입금 대기<\/span><strong[^>]*text-destructive[^>]*>5<\/strong>/);
+    /* 패널은 다음 패널 표시까지의 조각으로 읽는다 — 카드 순서는 처리할 업무를 앞세우려고 바뀔 수 있다(ADR-0029). */
+    const panel = (id: string) => {
+      const start = html.indexOf(`data-home-panel="${id}"`);
+      expect(start, id).toBeGreaterThanOrEqual(0);
+      const next = html.indexOf('data-home-panel=', start + 1);
+      return html.slice(start, next < 0 ? undefined : next);
+    };
+    expect(panel('claims')).toContain('환불 송금 대기');
+    expect(panel('work')).toContain('무통장 입금 대기');
+    /* 처리할 건수가 0보다 크면 의미색 칩으로 보인다. */
+    expect(html).toMatch(/무통장 입금 대기<\/span><strong[^>]*bg-warning-soft[^>]*>5<\/strong>/);
+  });
+
+  /* 칩은 지금 처리할 건수에만 쓴다(ADR-0029) — 상품·리뷰 패널은 품절·낮은 평점 같은 위험만 칩이고 나머지는 숫자다. */
+  it('처리할 업무·클레임 패널 밖에서는 위험한 건수만 칩으로 보인다', () => {
+    const workQueue: AdminWorkQueueData = {
+      checkedAt: '2026-11-05T00:00:00Z',
+      counts: {
+        orders: { state: 'ready', count: 1 }, ready: { state: 'ready', count: 2 }, delayed: { state: 'ready', count: 0 },
+        inquiries: { state: 'ready', count: 3 }, goods: { state: 'ready', count: 4 },
+        unpaid: { state: 'hidden', count: null }, refundTransfers: { state: 'hidden', count: null },
+      },
+      goodsReasons: [],
+    };
+    const html = renderToStaticMarkup(<OverviewSection insights={insights} reports={[]} workQueue={workQueue} days={7} summary={{
+      claims: { cancel: 1, return: 0, exchange: 0 }, goods: { published: 3, soldout: 2 }, reviews: { total: 5, lowRating: 1, awaitingReply: 4 },
+    }} />);
+    expect(html).toMatch(/신규주문<\/span><strong[^>]*bg-warning-soft[^>]*>1<\/strong>/);
+    expect(html).toMatch(/취소요청<\/span><strong[^>]*bg-warning-soft[^>]*>1<\/strong>/);
+    expect(html).toMatch(/품절 상품<\/span><strong[^>]*bg-danger-soft[^>]*>2<\/strong>/);
+    expect(html).toMatch(/낮은 평점 리뷰<\/span><strong[^>]*bg-danger-soft[^>]*>1<\/strong>/);
+    expect(html).toMatch(/발송 대기<\/span><strong class="shrink-0 text-lg font-semibold tabular-nums">2<\/strong>/);
+    expect(html).toMatch(/상품 검토 대기<\/span><strong class="shrink-0 text-lg font-semibold tabular-nums">4<\/strong>/);
+    expect(html).toMatch(/미답변 리뷰<\/span><strong class="shrink-0 text-lg font-semibold tabular-nums">4<\/strong>/);
   });
 
   it('매출이 없는 기간에는 임의의 숫자 축 대신 빈 상태를 표시한다', () => {

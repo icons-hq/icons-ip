@@ -120,4 +120,21 @@ describe('TicketCheckIn presentation', () => {
     expect(html).not.toContain(QR_TOKEN);
     expect(html).not.toMatch(/qrToken|paymentKey|attendee|email/i);
   });
+
+  it('결과 자리는 스캔 위치와 상관없이 보이도록 입력 패널 위에 있고, 대기는 멀리서 읽히는 크기이되 결과의 의미색은 쓰지 않는다', () => {
+    const html = renderToStaticMarkup(<TicketCheckIn />);
+
+    expect(html.indexOf('data-check-in-result="idle"')).toBeLessThan(html.indexOf('id="camera-heading"'));
+    expect(html).toMatch(/<h2 class="[^"]*\btext-2xl\b[^"]*">(?:<svg[\s\S]*?<\/svg>)?검표 대기 중<\/h2>/);
+    expect(/<div class="([^"]*)" data-check-in-result="idle"/.exec(html)?.[1]).not.toMatch(/bg-(?:success|warning|danger|info)-soft/);
+  });
+
+  it('카메라 시작이 주 행동이고 검표하기는 보조 행동이다(둘 다 48px 터치 영역)', () => {
+    const html = renderToStaticMarkup(<TicketCheckIn />);
+    const classOf = (label: string) => new RegExp(`<button[^>]*class="([^"]*)"[^>]*>(?:<svg[\\s\\S]*?</svg>)?${label}</button>`).exec(html)?.[1].split(/\s+/) ?? [];
+
+    expect(classOf('카메라 시작')).toContain('bg-primary');
+    expect(classOf('검표하기')).toContain('bg-primary-soft');
+    expect(classOf('검표하기')).not.toContain('bg-primary');
+  });
 });

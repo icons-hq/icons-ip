@@ -9,7 +9,11 @@ const alertVariants = cva(
       variant: {
         default: "bg-card text-card-foreground",
         destructive:
-          "bg-card text-destructive *:data-[slot=alert-description]:text-destructive/90 *:[svg]:text-current",
+          "border-danger-border bg-danger-soft text-destructive *:data-[slot=alert-description]:text-destructive/90 *:[svg]:text-current",
+        /* ICONS: 안내·주의·완료 안내(ADR-0029). */
+        info: "border-info-border bg-info-soft text-info *:data-[slot=alert-description]:text-foreground *:[svg]:text-current",
+        warning: "border-warning-border bg-warning-soft text-warning *:data-[slot=alert-description]:text-foreground *:[svg]:text-current",
+        success: "border-success-border bg-success-soft text-success *:data-[slot=alert-description]:text-foreground *:[svg]:text-current",
       },
     },
     defaultVariants: {

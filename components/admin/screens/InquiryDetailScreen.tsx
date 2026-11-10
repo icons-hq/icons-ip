@@ -5,7 +5,9 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { InquiryMessageBody } from '@/components/screens/InquiryMessageBody';
+import { AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
+import { statusTone } from '@/lib/admin/status-tone';
 import { inquiryMessageAuthorLabel } from '@/lib/inquiries';
 import type { AdminInquiryDetail } from '@/lib/admin/inquiries.server';
 import {
@@ -15,7 +17,7 @@ import {
   inquiryReferenceLabel,
   inquirySlaState,
 } from '@/lib/inquiries';
-import { orderReferenceLabel } from '@/lib/orders';
+import { orderReferenceLabel, paymentStatusLabel } from '@/lib/orders';
 import { isAdminInquiryOverdue, type AdminInquiryNavigation } from '@/lib/admin/inquiries';
 import { InquiryAssignmentPanel, InquiryInternalNotesPanel } from './InquiryWorkspacePanel';
 import { InquiryReplyPanel } from './InquiryReplyPanel';
@@ -23,7 +25,7 @@ import { InquiryPreviewBackLink } from './CustomerServiceDialog';
 import { CustomerHistoryPanel } from './CustomerHistoryPanel';
 import { InquiryLiveUpdates } from '@/components/screens/InquiryLiveUpdates';
 import { InquirySatisfactionContext } from './InquirySatisfactionContext';
-import { INQUIRY_SLA_TONE_CLASS } from './cs-kit-classes';
+import { INQUIRY_LIVE_CLASS, INQUIRY_SLA_TONE_CLASS } from './cs-kit-classes';
 
 /* 어드민 문의 상세(#253).
  *
@@ -61,19 +63,23 @@ const PAYMENT_PROVIDER_LABELS: Record<string, string> = {
   korpay: 'Korpay',
 };
 
+/* 글쓴이 역할을 이름 앞에 글자로 붙인다(색·위치만으로 말하지 않게). 자동 안내는 이름 자리가 이미 역할이다. */
+const MESSAGE_ROLE_LABELS: Partial<Record<AdminInquiryDetail['messages'][number]['author'], string>> = { user: '고객', staff: '운영자' };
+
 const CONTEXT_LINK_CLASS = `${buttonVariants({ size: 'sm', variant: 'outline' })} self-start`;
 
-function ContextRow({ label, value }: { label: string; value: string }) {
+/* 배송 건 정보(ShipmentDetails)와 같은 칸 나누기다 — 라벨 8rem·값 왼쪽 맞춤으로 카드 안 값의 시작선을 맞춘다. */
+function ContextRow({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="flex items-baseline justify-between gap-3 text-sm">
-      <span className="shrink-0 text-xs text-muted-foreground">{label}</span>
-      <span className="min-w-0 text-right wrap-anywhere">{value}</span>
+    <div className="grid grid-cols-[8rem_minmax(0,1fr)] items-baseline gap-3 text-sm max-sm:grid-cols-[6.5rem_minmax(0,1fr)]">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="min-w-0 wrap-anywhere">{value}</span>
     </div>
   );
 }
 
 function ContextCard({ title, children }: { title: string; children: ReactNode }) {
-  return <section className="flex min-w-0 flex-col gap-2 rounded-xl border bg-card p-4 text-card-foreground">
+  return <section className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground">
     <h3 className="text-sm font-medium text-foreground">{title}</h3>
     {children}
   </section>;
@@ -89,6 +95,7 @@ export function InquiryDetailScreen({
   accountId = '',
   navigation,
   embedded = false,
+  pendingBadge,
 }: {
   backHref: string;
   detail: AdminInquiryDetail;
@@ -99,6 +106,8 @@ export function InquiryDetailScreen({
   accountId?: string;
   navigation?: AdminInquiryNavigation;
   embedded?: boolean;
+  /** 전체 미답변 수 바로가기. 머리 줄 오른쪽에 둔다(독립 상세 화면만). */
+  pendingBadge?: ReactNode;
 }) {
   const { buyer, inquiry, messages, order, staffOptions, notes } = detail;
   const sla = inquirySlaState(
@@ -110,32 +119,34 @@ export function InquiryDetailScreen({
     accountId={accountId}
     category={inquiry.category}
     closed={inquiry.status === 'closed'}
+    answered={inquiry.status === 'answered'}
     inquiryId={inquiry.id}
   />;
   const navLink = buttonVariants({ size: 'sm', variant: 'outline' });
 
   return (
-    <div className="@container/inquiry flex min-w-0 flex-col gap-4" data-inquiry-detail={embedded ? 'embedded' : 'page'}>
-      <InquiryLiveUpdates inquiryId={inquiry.id} audience="staff" />
-      {navigation ? <nav className="flex items-center justify-between gap-3 rounded-lg border bg-muted/40 px-3 py-2 text-sm" aria-label="고객문의 상세 이동">
+    <div className={`@container/inquiry flex min-w-0 flex-col gap-4 ${INQUIRY_LIVE_CLASS}`} data-inquiry-detail={embedded ? 'embedded' : 'page'}>
+      {/* 목록 조건 밖의 문의(position null)는 이전·다음이 없다 — 눌러지지 않는 줄을 두지 않아 제목이 위로 올라온다. */}
+      {navigation && navigation.position !== null ? <nav className="flex items-center justify-between gap-3 rounded-lg border bg-muted/40 px-3 py-2 text-sm" aria-label="고객문의 상세 이동">
         {navigation.previousHref ? <Link className={navLink} data-slot="button" href={navigation.previousHref} scroll={false}><ChevronLeft aria-hidden="true" />이전 문의</Link> : <Button disabled size="sm" type="button" variant="outline"><ChevronLeft aria-hidden="true" />이전 문의</Button>}
-        <span className="text-center text-muted-foreground tabular-nums">{navigation.position === null ? '현재 목록 조건에 없는 문의' : `${navigation.position} / ${navigation.total} · 현재 조회 순서`}</span>
+        <span className="text-center text-muted-foreground tabular-nums">{`${navigation.position} / ${navigation.total} · 현재 조회 순서`}</span>
         {navigation.nextHref ? <Link className={navLink} data-slot="button" href={navigation.nextHref} scroll={false}>다음 문의<ChevronRight aria-hidden="true" /></Link> : <Button disabled size="sm" type="button" variant="outline">다음 문의<ChevronRight aria-hidden="true" /></Button>}
       </nav> : null}
       <header className="flex min-w-0 flex-col gap-1.5">
         {/* 팝업(embedded) 안에서는 닫기와 같다 — X·Esc처럼 목록 스크롤을 두고 기록을 바꿔 쓰고, 패널이 기다리는 동안에는 누를 수 없다(R4). */}
-        {embedded ? <InquiryPreviewBackLink href={backHref} /> : <Link className="w-fit text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" href={backHref}>← 문의 목록</Link>}
-        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          {embedded ? <InquiryPreviewBackLink href={backHref} /> : <Link className="w-fit text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" href={backHref}>← 문의 목록</Link>}
+          {pendingBadge}
+        </div>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
           <span className="font-medium tabular-nums">{inquiryReferenceLabel(inquiry.reference)}</span>
           <span aria-hidden="true" className="text-muted-foreground">·</span>
           <span className="text-muted-foreground">{adminGoodsCopy(INQUIRY_CATEGORY_LABELS[inquiry.category])}</span>
-          <span aria-hidden="true" className="text-muted-foreground">·</span>
-          <span>{ADMIN_INQUIRY_STATUS_LABELS[inquiry.status]}</span>
-          <span aria-hidden="true" className="text-muted-foreground">·</span>
+          <AdminStatusBadge tone={statusTone('inquiry', inquiry.status)}>{ADMIN_INQUIRY_STATUS_LABELS[inquiry.status]}</AdminStatusBadge>
           <span className={INQUIRY_SLA_TONE_CLASS} data-sla-tone={sla.tone}>{sla.label}</span>
         </div>
         <h2 className="text-lg leading-snug font-semibold tracking-tight text-foreground wrap-anywhere">{inquiry.title}</h2>
-        {isAdminInquiryOverdue(inquiry, now) ? <span className={`w-fit ${INQUIRY_SLA_TONE_CLASS}`} data-sla-tone="danger">미답변 24시간 경과</span> : null}
+        {isAdminInquiryOverdue(inquiry, now) ? <AdminStatusBadge data-sla-tone="danger" tone="danger">미답변 24시간 경과</AdminStatusBadge> : null}
         <span className="text-sm text-muted-foreground wrap-anywhere">
           @{inquiry.buyerName}
           {inquiry.buyerEmail ? ` · ${inquiry.buyerEmail}` : ''}
@@ -144,54 +155,60 @@ export function InquiryDetailScreen({
         </span>
       </header>
 
+      {/* 연결 안내는 이 문의의 일이 아니다 — 문의 제목 아래로 물러난다. 비어 있으면 자리를 차지하지 않는다. */}
+      <InquiryLiveUpdates inquiryId={inquiry.id} audience="staff" />
+
       <div className={`grid min-w-0 items-start gap-4 ${embedded ? '@3xl/inquiry:grid-cols-2 @3xl/inquiry:gap-6' : '@4xl/inquiry:grid-cols-[minmax(0,1.6fr)_minmax(16rem,0.9fr)]'}`}>
         <div className="flex min-w-0 flex-col gap-3.5">
           {embedded ? <h3 className="border-b pb-2 text-sm font-medium text-muted-foreground">고객문의 내용 보기</h3> : null}
-          <ol className="flex flex-col gap-2.5">
+          {/* 상담하기와 같은 대화 모양이다 — 고객은 왼쪽 흰 말풍선, 운영자 답변은 오른쪽 옅은 주 색 말풍선, 자동 안내는 가운데다. 이름을 읽지 않아도 누가 쓴 글인지 보인다. */}
+          <ol className="flex flex-col gap-3">
             {messages.map((message) => (
               <li
-                className="flex min-w-0 flex-col gap-2 rounded-xl border bg-card p-3.5 text-card-foreground data-[author=staff]:bg-muted/50 data-[author=system]:border-dashed"
+                className="group/message flex max-w-[92%] min-w-0 flex-col items-start gap-1 self-start data-[author=staff]:items-end data-[author=staff]:self-end data-[author=system]:items-center data-[author=system]:self-center"
                 data-author={message.author}
                 key={message.id}
               >
                 <span className="text-xs text-muted-foreground tabular-nums">
+                  {MESSAGE_ROLE_LABELS[message.author] ? <span className="font-medium text-foreground">{MESSAGE_ROLE_LABELS[message.author]} </span> : null}
                   {inquiryMessageAuthorLabel(message.author,message.authorName,`@${inquiry.buyerName}`)}
                   {' · '}
                   {formatInquiryDateTime(message.createdAt)}
                 </span>
-                <p className="text-sm leading-relaxed whitespace-pre-wrap wrap-anywhere">
-                  <InquiryMessageBody body={message.body} automatic={message.author==='system'}/>
-                </p>
-                {message.imageUrls.length ? (
-                  <div className="flex flex-wrap gap-2">
-                    {message.imageUrls.map((url, index) => (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        alt={`첨부 이미지 ${index + 1}`}
-                        className="max-h-50 max-w-full rounded-lg border object-contain"
-                        key={url}
-                        src={url}
-                      />
-                    ))}
-                  </div>
-                ) : null}
+                <div className="flex min-w-0 flex-col gap-2 rounded-2xl border bg-card px-3.5 py-2.5 text-card-foreground group-data-[author=staff]/message:border-transparent group-data-[author=staff]/message:bg-primary-soft group-data-[author=system]/message:border-dashed group-data-[author=system]/message:bg-muted">
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap wrap-anywhere">
+                    <InquiryMessageBody body={message.body} automatic={message.author==='system'}/>
+                  </p>
+                  {message.imageUrls.length ? (
+                    <div className="flex flex-wrap gap-2">
+                      {message.imageUrls.map((url, index) => (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          alt={`첨부 이미지 ${index + 1}`}
+                          className="max-h-50 max-w-full rounded-lg border object-contain"
+                          key={url}
+                          src={url}
+                        />
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
               </li>
             ))}
           </ol>
 
-          <InquiryInternalNotesPanel key={`${accountId}:${inquiry.id}:note`} accountId={accountId} inquiryId={inquiry.id} notes={notes} />
-
+          {/* 답변이 이 화면의 주 작업이다. 내부 메모는 그 아래 참고 칸이다(팝업에서는 답변이 옆 칸에 있다). */}
           {!embedded ? replyPanel : null}
+
+          <InquiryInternalNotesPanel key={`${accountId}:${inquiry.id}:note`} accountId={accountId} inquiryId={inquiry.id} notes={notes} />
         </div>
         {embedded ? <section className="flex min-w-0 flex-col gap-3.5" aria-label="판매자 답변 처리"><h3 className="border-b pb-2 text-sm font-medium text-muted-foreground">판매자 답변 처리</h3>{replyPanel}</section> : null}
         <aside aria-label="문의 컨텍스트" className={`grid min-w-0 content-start gap-3 ${embedded ? '@3xl/inquiry:col-span-2 @3xl/inquiry:grid-cols-2' : ''}`}>
-          <InquirySatisfactionContext result={detail.satisfaction} />
-          <InquiryAssignmentPanel assigneeId={inquiry.assigneeId} assigneeName={inquiry.assigneeName} inquiryId={inquiry.id} staffOptions={staffOptions} />
           {canReadOrders ? <ContextCard title="연결 주문">
             {order ? (
               <>
                 <ContextRow label="주문번호" value={orderReferenceLabel(order.id, order.orderNumber)} />
-                <ContextRow label="주문상태" value={ORDER_STATUS_LABELS[order.status] ?? order.status} />
+                <ContextRow label="주문상태" value={<AdminStatusBadge tone={statusTone('order', order.status)}>{ORDER_STATUS_LABELS[order.status] ?? order.status}</AdminStatusBadge>} />
                 <ContextRow label="주문일시" value={formatInquiryDateTime(order.createdAt)} />
                 <ContextRow
                   label="상품"
@@ -203,19 +220,19 @@ export function InquiryDetailScreen({
                 {canManageSales ? <ContextRow
                   label="결제"
                   value={order.payment
-                    ? `${PAYMENT_PROVIDER_LABELS[order.payment.provider ?? ''] ?? order.payment.provider ?? '확인 필요'} · ${order.payment.status}`
+                    ? `${PAYMENT_PROVIDER_LABELS[order.payment.provider ?? ''] ?? order.payment.provider ?? '확인 필요'} · ${paymentStatusLabel(order.payment.status)}`
                     : '결제 내역 없음'}
                 /> : null}
                 <ShipmentDetails admin shipments={order.shipments} />
                 {canManageSales ? <div className="flex flex-col gap-1">
                   <span className="text-xs text-muted-foreground">클레임 이력</span>
                   {order.claims.length ? (
-                    <ul className="flex flex-col gap-0.5">
+                    <ul className="flex flex-col gap-1">
                       {order.claims.map((claim) => (
-                        <li className="text-sm" key={`${claim.requestedAt}-${claim.status}`}>
-                          {CLAIM_STATUS_LABELS[claim.status] ?? claim.status}
-                          {' · '}
-                          {formatInquiryDateTime(claim.requestedAt)}
+                        <li className="flex flex-wrap items-center gap-1.5 text-sm" key={`${claim.requestedAt}-${claim.status}`}>
+                          {/* 끝난 클레임은 지나간 이력이다 — 위 주문상태(취소=빨강)와 초록으로 엇갈리지 않게 조용히 둔다. */}
+                          <AdminStatusBadge tone={claim.status === 'completed' ? 'neutral' : statusTone('claim', claim.status)}>{CLAIM_STATUS_LABELS[claim.status] ?? claim.status}</AdminStatusBadge>
+                          <span className="text-muted-foreground tabular-nums">{formatInquiryDateTime(claim.requestedAt)}</span>
                         </li>
                       ))}
                     </ul>
@@ -251,14 +268,14 @@ export function InquiryDetailScreen({
               value={`총 ${buyer.inquiryCount}건 · 진행 중 ${buyer.openInquiryCount}건`}
             />
             {buyer.suspendedAt ? (
-              <span className="text-sm text-destructive" role="alert">
-                정지된 계정입니다 ({formatInquiryDateTime(buyer.suspendedAt)}).
-              </span>
+              <AdminNotice role="alert" tone="danger">정지된 계정입니다 ({formatInquiryDateTime(buyer.suspendedAt)}).</AdminNotice>
             ) : null}
             {canViewCustomer ? <Link className={CONTEXT_LINK_CLASS} data-slot="button" href={`/admin/customers/${buyer.id}`}>
               고객 상세 열기
             </Link> : null}
           </ContextCard>
+          <InquiryAssignmentPanel assigneeId={inquiry.assigneeId} assigneeName={inquiry.assigneeName} inquiryId={inquiry.id} staffOptions={staffOptions} />
+          <InquirySatisfactionContext result={detail.satisfaction} />
           {canReadOrders ? <CustomerHistoryPanel key={buyer.id} userId={buyer.id} canReadClaims={canManageSales} /> : null}
         </aside>
       </div>

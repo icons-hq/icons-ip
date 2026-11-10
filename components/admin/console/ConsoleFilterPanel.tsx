@@ -160,7 +160,7 @@ export function ConsoleFilterPanel({
    * 모양만 kit 부품(Input · 버튼)과 유틸리티로 그린다. 화면 고유 CSS가 닿지 않게 옛 클래스 이름을 쓰지 않는다 —
    * 화면이 children으로 더하는 조건도 `ConsoleFilterField`로 같은 칸 모양을 쓴다.
    */
-  const presetBase = 'inline-flex h-7 items-center rounded-md px-2.5 text-[0.8rem] font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground aria-[current=true]:bg-background aria-[current=true]:text-foreground aria-[current=true]:shadow-sm';
+  const presetBase = 'inline-flex h-7 items-center rounded-md px-2.5 text-[0.8rem] font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground aria-[current=true]:bg-background aria-[current=true]:text-primary-soft-foreground aria-[current=true]:shadow-sm';
   return (
     <form
       action={action}
@@ -260,7 +260,7 @@ export function ConsoleFilterPanel({
         <Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={resetHref ?? buildHref(action, hiddenFields, {})}>
           초기화
         </Link>
-        <button className={buttonVariants()} data-slot="button" type="submit">{submitLabel}</button>
+        <button className={buttonVariants({ variant: 'soft' })} data-slot="button" type="submit">{submitLabel}</button>
       </ConsoleFilterActions>
     </form>
   );

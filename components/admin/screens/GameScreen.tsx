@@ -2,8 +2,8 @@
 
 import { AdminPageHeader } from '@/components/admin/console/AdminKit';
 import { GameSection } from '@/components/admin/sections/GameSection';
+import { RecordNewButton, useRecordDetail } from '@/components/admin/sections/RecordMasterList';
 import type { AdminCatalogRecords } from '@/lib/admin/catalog.server';
-import { useSelectedRecord } from './record-selection';
 
 /*
  * 게임 화면 래퍼.
@@ -23,18 +23,20 @@ export function GameScreen({
   pools: AdminCatalogRecords['cardPools'];
   records: AdminCatalogRecords['games'];
 }) {
-  const { selected, select } = useSelectedRecord(records);
+  const detail = useRecordDetail(records);
 
   return (
-    <div className="flex min-w-0 flex-col gap-6"><AdminPageHeader title="참여형 게임" description="공개 상태와 무상 리워드 구성을 관리합니다." />
+    <div className="flex min-w-0 flex-col gap-6"><AdminPageHeader title="게임" description="공개 상태와 무상 리워드 구성을 관리합니다." actions={<RecordNewButton label="게임 등록" onClick={detail.startNew} open={detail.open} />} />
     <GameSection
+      creating={detail.creating}
       endOperationId={endOperationId}
       events={events}
-      onSelect={select}
+      onClose={detail.close}
+      onSelect={detail.select}
       operationId={operationId}
       pools={pools}
       records={records}
-      selected={selected}
+      selected={detail.selected}
     /></div>
   );
 }

@@ -5,6 +5,7 @@ import {
   changeShipmentPreorderDateAction, readShipmentPreorderPromiseAction, type ShipmentPreorderPromise,
 } from '@/app/admin/preorder-shipment-actions';
 import { goodsShipDateLabel } from '@/lib/goods-preorders';
+import { formatOrderDateTime } from '@/lib/orders';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
@@ -57,7 +58,7 @@ export function ShipmentPreorderPromisePanel({ shipmentId, orderId }: { shipment
   const promise = visible?.promise;
   return <section className="flex min-w-0 flex-col items-start gap-3 rounded-xl border bg-card p-4 text-sm leading-relaxed text-card-foreground" aria-labelledby={`shipment-promise-${shipmentId}`}>
     <h3 className="text-base font-medium text-foreground" id={`shipment-promise-${shipmentId}`}>예약 발송 일정</h3>
-    {notice?.shipmentId === shipmentId && <p className="text-[var(--wc-success)]" role="status">{notice.message}</p>}
+    {notice?.shipmentId === shipmentId && <p className="text-success" role="status">{notice.message}</p>}
     {!visible ? <p className="text-muted-foreground" role="status">발송 일정을 불러오는 중입니다…</p> : visible.error ? <p className="text-destructive" role="alert">{visible.error}</p> : promise ? <>
       {promise.originalExpectedShipDate ? <>
         <p>주문 당시: {goodsShipDateLabel(promise.originalExpectedShipDate)}<br />현재: {goodsShipDateLabel(promise.expectedShipDate)}</p>
@@ -66,7 +67,7 @@ export function ShipmentPreorderPromisePanel({ shipmentId, orderId }: { shipment
         {promise.changes.length ? <ol className="flex list-decimal flex-col gap-2.5 pl-5">
           {promise.changes.map((change) => <li key={change.id}>
             <span className="tabular-nums">{change.fromDate} → {change.toDate}</span><p className="my-1 whitespace-pre-wrap wrap-anywhere">{change.reason}</p>
-            <small className="text-xs text-muted-foreground">{new Date(change.changedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })} · {change.actorName ?? '운영자'}</small>
+            <small className="text-xs text-muted-foreground">{formatOrderDateTime(change.changedAt)} · {change.actorName ?? '운영자'}</small>
           </li>)}
         </ol> : <p className="text-muted-foreground">기록된 일정 변경이 없습니다.</p>}
       </> : <p className="text-muted-foreground">이 배송 건에는 예약 상품이 없습니다.</p>}

@@ -10,6 +10,16 @@ describe('FAQ 운영 화면', () => {
     expect(html).toMatch(/<summary[^>]*><span[^>]*>상품<\/span>/);
     expect(html).toMatch(/<strong[^>]*>굿즈 교환이 가능한가요\?<\/strong>/);
   });
+  it('새 FAQ 등록은 화면 머리의 버튼이고 게시 상태는 공개·비공개가 색으로 갈린다', () => {
+    const entry = { id: 'faq-1', category: 'order', question: '배송 확인', answer: '주문 상세', sortOrder: 3, updatedAt: '2026-09-08T00:00:00Z' } as const;
+    const html = renderToStaticMarkup(<FaqScreen data={{ total: 2, filters: normalizeFaqFilters({}), entries: [{ ...entry, published: true }, { ...entry, id: 'faq-2', published: false }] }} />);
+    expect(html).toMatch(/<button(?=[^>]*type="button")[^>]*>(?:<svg[\s\S]*?<\/svg>)?새 FAQ 등록<\/button>/);
+    expect(html).not.toContain('group/create');
+    expect(html).toContain('<dialog');
+    expect(html).toMatch(/data-tone="neutral"[^>]*>비공개</);
+    expect(html).toMatch(/data-tone="success"[^>]*>공개</);
+  });
+
   it('검색·카테고리·게시 필터와 등록·수정·삭제 확인을 연결한다', () => {
     const html = renderToStaticMarkup(<FaqScreen data={{ total: 1, filters: normalizeFaqFilters({}), entries: [{ id: 'faq-1', category: 'order', question: '배송 확인', answer: '주문 상세', sortOrder: 3, published: false, updatedAt: '2026-09-08T00:00:00Z' }] }} />);
     expect(html).toContain('새 FAQ 등록');

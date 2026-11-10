@@ -46,6 +46,15 @@ describe('ICONS 상담 콘솔', () => {
     expect(html).toMatch(/<a aria-label="이전 페이지"[^>]*href="\/admin\/cs\/chat\?status=open"/);
     expect(html).toMatch(/<a aria-label="다음 페이지"[^>]*href="\/admin\/cs\/chat\?status=open&amp;page=3"/);
   });
+  /* 처리할 숫자(대기)만 주의색이다 — 안읽음 표시는 회색으로 물러나 대기와 섞이지 않고, 진행중은 진행 색이다. */
+  it('대기 건수만 강조하고 빈 화면에서 대기 상담으로 안내한다', () => {
+    const html = render({ data: { ...data, rows: [{ ...data.rows[0], status: 'answered', unreadCount: 2 }], counts: { all: 3, open: 2, answered: 1, closed: 0 } } });
+    expect(html).toMatch(/text-warning[^>]*>2<\/strong>/);
+    expect(html).toMatch(/data-tone="info"[^>]*>진행중</);
+    expect(html).toMatch(/<a(?=[^>]*href="\/admin\/cs\/chat\?status=open")[^>]*>대기 상담 2건 보기<\/a>/);
+    expect(html).not.toMatch(/border-warning-border[^>]*aria-label="안읽은 메시지/);
+    expect(render({ filters: normalizeInquiryChatFilters({ status: 'open' }) })).not.toContain('대기 상담 1건 보기');
+  });
   it('정상 빈 목록과 존재하지 않는 선택 대화를 구분한다', () => {
     const html = render({ selected: true });
     expect(html).toContain('대화를 찾을 수 없습니다.'); expect(html).not.toContain('상담할 대화를 선택해 주세요');

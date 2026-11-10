@@ -125,7 +125,7 @@ describe('CurationSection', () => {
     expect(html).toContain('여름 신작');
     expect(html).toContain('노출 중');
     expect(html).toContain('순서 2');
-    expect(html).toContain('2026-07-15 09:00 KST');
+    expect(html).toContain('2026-07-15 09:00');
     expect(html).toContain('모바일');
     expect(html).toContain('PC');
     expect(html).toContain('전체보기');
@@ -153,6 +153,16 @@ describe('CurationSection', () => {
     const html = renderSection();
     expect(html).toMatch(/<button[^>]*type="submit"[^>]*>이 구성 적용하기<\/button>/);
     expect(html).toMatch(/<button[^>]*type="button"[^>]*>전체보기<\/button>/);
+  });
+
+  /* 적용은 곧 공개다 — 고객 화면에 바로 나간다는 걸 버튼 앞에서 말하고, 화면 이름은 메뉴 라벨 하나로 쓴다. */
+  it('적용이 고객 화면에 바로 나간다고 알리고 목록에 노출 상태 배지를 둔다', () => {
+    const html = renderSection();
+    expect(html).toContain('적용하면 고객 화면에 바로 나갑니다');
+    expect(html).toMatch(/data-tone="[a-z]+"[^>]*>(노출 중|노출 예정|종료|비노출)<\/span>/);
+    expect(html).toContain('>홈 전시 관리</h2>');
+    expect(html).not.toContain('홈 큐레이션');
+    expect(html).not.toContain('스토어 전시관리');
   });
 
   it('이동 대상에 실재 상품을 표시하고 보관 상품을 새 선택지에서 제외한다', () => {

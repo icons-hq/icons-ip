@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { AdminPageHeader, AdminSectionCard } from '../console/AdminKit';
+import { AdminNotice, AdminPageHeader, AdminSectionCard, AdminStatusBadge } from '../console/AdminKit';
+import { statusTone } from '@/lib/admin/status-tone';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/admin/kit/ui/table';
 import { ShipmentExportColumnsEditor } from './ShipmentExportColumnsEditor';
@@ -10,12 +11,27 @@ import { formatOrderDateTime } from '@/lib/orders';
 import { DeliveryPoliciesPanel } from '@/components/admin/DeliveryPoliciesPanel';
 import { ShippingCollectContractPanel } from '@/components/admin/ShippingCollectContractPanel';
 import { NEW_FULFILLMENT_ORIGIN_TAB, fulfillmentOriginTabHref, selectedFulfillmentOriginTab } from '@/lib/admin/fulfillment-origin-tabs';
+import { StoreSettingsRelatedLinks } from './StoreSettingsRelatedLinks';
 export { selectedFulfillmentOriginTab };
 
 /* 출고지 탭(셸의 콘솔 전환과 같은 링크 탭, ADR-0028). */
 const ORIGIN_TABS = 'inline-flex w-fit max-w-full flex-wrap items-center rounded-lg bg-muted p-0.5';
-const ORIGIN_TAB = 'inline-flex h-7 items-center gap-1 rounded-md px-2.5 text-[0.8rem] font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground aria-[current=page]:bg-background aria-[current=page]:text-foreground aria-[current=page]:shadow-sm';
-const RELATED_LINK = buttonVariants({ variant: 'outline', size: 'sm' });
+const ORIGIN_TAB = 'inline-flex h-7 items-center gap-1 rounded-md px-2.5 text-[0.8rem] font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground aria-[current=page]:bg-background aria-[current=page]:text-primary-soft-foreground aria-[current=page]:shadow-sm';
+/* 출고지 전환 탭과 갈리도록 별도 행동(추가)은 탭 묶음 밖의 작은 버튼이다. */
+const ADD_ORIGIN = `${buttonVariants({ variant: 'outline', size: 'sm' })} before:mr-0.5 before:content-['+'] aria-[current=page]:border-primary aria-[current=page]:bg-primary-soft aria-[current=page]:text-primary-soft-foreground`;
+
+/** 출고지 카드 머리의 사용 상태. */
+function OriginStatus({ active }: { active: boolean }) {
+  return <AdminStatusBadge tone={statusTone('setting', active ? 'active' : 'inactive')}>{active ? '사용 중' : '비활성'}</AdminStatusBadge>;
+}
+
+/** 카드 머리에 자주 보는 값(기본 배송비·무료 배송 기준·출고 마감)을 한 줄로 모은다. */
+function OriginFacts({ origin }: { origin: FulfillmentOrigin }) {
+  return <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+    <OriginStatus active={origin.active} />
+    <span className="tabular-nums">기본 배송비 {origin.baseFee.toLocaleString('ko-KR')}원 · {origin.freeThreshold === null ? '금액별 무료배송 없음' : `${origin.freeThreshold.toLocaleString('ko-KR')}원 이상 무료 배송`}{origin.cutoff ? ` · 출고 마감 ${origin.cutoff}` : ''}</span>
+  </span>;
+}
 
 /**
  * 배송정보 관리. 출고지마다 링크형 탭(R22, `?origin=<코드>`)으로 한 번에 한 출고지만 보인다 — 새로고침·주소 공유에도 유지되고
@@ -25,13 +41,15 @@ export function FulfillmentOriginsScreen({ origins, carriers, history, canEdit, 
   const tab = selected === undefined ? selectedFulfillmentOriginTab(origins, undefined, canEdit) : selected;
   const origin = origins.find(item => item.code === tab);
   return <div className="flex min-w-0 flex-col gap-4" data-admin-screen="fulfillment-origins">
-    <AdminPageHeader title="출고지·배송 정책" description="출고지별 기본 배송비와 운영 조건을 관리합니다. 상품별 배송비·수량 조건과 지역 추가 배송비는 주문서에서 함께 확인합니다." />
-    <nav aria-label="설정 항목" className="flex flex-wrap gap-2"><Link className={RELATED_LINK} data-slot="button" href={STORE_SETTINGS_PATH}>사업자·결제 표시 설정</Link><Link className={RELATED_LINK} data-slot="button" href={CARRIER_SETTINGS_PATH}>택배사</Link><Link className={RELATED_LINK} data-slot="button" href="/admin/settings/shipping-regions">지역 추가 배송비</Link></nav>
-    {origins.length || canEdit ? <nav aria-label="출고지" className={ORIGIN_TABS}>
-      {origins.map(item => <Link key={item.id} aria-current={tab === item.code ? 'page' : undefined} className={ORIGIN_TAB} href={fulfillmentOriginTabHref(item.code)}>{item.name}{item.active ? '' : ' · 비활성'}</Link>)}
-      {canEdit ? <Link aria-current={tab === NEW_FULFILLMENT_ORIGIN_TAB ? 'page' : undefined} className={ORIGIN_TAB} href={fulfillmentOriginTabHref(NEW_FULFILLMENT_ORIGIN_TAB)}>출고지 추가</Link> : null}
-    </nav> : null}
-    {origin ? <AdminSectionCard key={origin.id} title={`${origin.name} · ${origin.active ? '사용 중' : '비활성'}`}>
+    <AdminPageHeader title="배송정보 관리" description="출고지별 기본 배송비와 운영 조건을 관리합니다. 상품별 배송비·수량 조건과 지역 추가 배송비는 주문서에서 함께 확인합니다." />
+    <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2">
+      {origins.length || canEdit ? <nav aria-label="출고지" className="flex min-w-0 flex-wrap items-center gap-2">
+        {origins.length ? <span className={ORIGIN_TABS}>{origins.map(item => <Link key={item.id} aria-current={tab === item.code ? 'page' : undefined} className={ORIGIN_TAB} href={fulfillmentOriginTabHref(item.code)}>{item.name}{item.active ? '' : ' · 비활성'}</Link>)}</span> : null}
+        {canEdit ? <Link aria-current={tab === NEW_FULFILLMENT_ORIGIN_TAB ? 'page' : undefined} className={ADD_ORIGIN} data-slot="button" href={fulfillmentOriginTabHref(NEW_FULFILLMENT_ORIGIN_TAB)}>출고지 추가</Link> : null}
+      </nav> : <span />}
+      <StoreSettingsRelatedLinks label="설정 항목" links={[{ href: STORE_SETTINGS_PATH, label: '사업자·결제 표시 설정' }, { href: CARRIER_SETTINGS_PATH, label: '택배사' }, { href: '/admin/settings/shipping-regions', label: '지역 추가 배송비' }]} />
+    </div>
+    {origin ? <AdminSectionCard key={origin.id} summary={<OriginFacts origin={origin} />} title={origin.name}>
       <FulfillmentOriginForm origin={origin} carriers={carriers} canEdit={canEdit} />
       <ShipmentExportColumnsEditor origin={origin} canEdit={canEdit} />
       <DeliveryPoliciesPanel originId={origin.id} canEdit={canEdit} />
@@ -49,11 +67,12 @@ export function FulfillmentOriginsScreen({ origins, carriers, history, canEdit, 
 
 export function GoodsOriginSummaryScreen({ origins }: { origins: GoodsFulfillmentOrigin[] }) {
   return <div className="flex min-w-0 flex-col gap-4" data-admin-screen="goods-origins">
-    <AdminPageHeader title="출고지·배송 정책" description="상품에 적용할 출고지와 고객 배송 정보를 확인합니다." />
-    {origins.map(origin => <AdminSectionCard key={origin.id} title={`${origin.name} · ${origin.active ? '사용 중' : '비활성'}`}>
+    <AdminPageHeader title="배송정보 관리" description="상품에 적용할 출고지와 고객 배송 정보를 확인합니다." />
+    {origins.map(origin => <AdminSectionCard key={origin.id} summary={<OriginStatus active={origin.active} />} title={origin.name}>
       <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2"><div className="flex flex-col gap-0.5"><dt className="text-xs text-muted-foreground">기본 배송비</dt><dd className="tabular-nums">{origin.baseFee.toLocaleString('ko-KR')}원</dd></div>
         <div className="flex flex-col gap-0.5"><dt className="text-xs text-muted-foreground">무료배송 기준</dt><dd className="tabular-nums">{origin.freeThreshold === null ? '미설정' : `${origin.freeThreshold.toLocaleString('ko-KR')}원 이상`}</dd></div>
         <div className="flex flex-col gap-0.5"><dt className="text-xs text-muted-foreground">기본 택배사</dt><dd>{origin.defaultCarrier ?? '미설정'}</dd></div><div className="flex flex-col gap-0.5"><dt className="text-xs text-muted-foreground">반품 주소</dt><dd className="[overflow-wrap:anywhere]">{origin.returnAddress || '미설정'}</dd></div></dl>
+      {origin.returnAddress ? null : <AdminNotice tone="warning">반품 주소가 없으면 이 출고지 상품의 반품을 진행할 수 없습니다.</AdminNotice>}
     </AdminSectionCard>)}
   </div>;
 }

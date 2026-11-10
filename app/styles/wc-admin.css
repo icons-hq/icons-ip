@@ -25,10 +25,10 @@
     --wc-accent: var(--primary);
     --wc-accent-border: var(--primary);
     --wc-accent-tint: var(--accent);
-    --wc-success: oklch(0.527 0.154 150.069);
-    --wc-info: oklch(0.488 0.243 264.376);
+    --wc-success: var(--success);
+    --wc-info: var(--info);
     --wc-danger: var(--destructive);
-    --wc-warning: oklch(0.555 0.163 48.998);
+    --wc-warning: var(--warning);
     --wc-focus: var(--ring);
     --wc-dim: rgba(0,0,0,.7);
     --wc-scrim: rgba(0,0,0,.5);

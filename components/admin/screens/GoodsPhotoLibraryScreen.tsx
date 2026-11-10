@@ -2,13 +2,14 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import Link from 'next/link';
 import { findGoodsPhotosAction, finishGoodsPhotoUploadsAction, saveGoodsPhotoAction } from '@/app/admin/goods-photo-library-actions';
-import { ADMIN_ARTWORK_ACCEPT, ADMIN_ARTWORK_ERROR } from '@/lib/admin/artwork';
+import { ADMIN_ARTWORK_ACCEPT } from '@/lib/admin/artwork';
 import { uploadAdminArtwork } from '@/lib/admin/artwork-upload.client';
 import { GOODS_PHOTO_UPLOAD_LIMIT, goodsPhotoNameFromFileName, goodsPhotoReferenceLabel, type GoodsPhoto, type GoodsPhotoPage } from '@/lib/admin/goods-photo-library';
 import { publicMediaUrl } from '@/lib/media';
 import { CustomerServiceDialog } from './CustomerServiceDialog';
 import { Upload } from 'lucide-react';
-import { AdminPageHeader } from '../console/AdminKit';
+import { AdminPageHeader, AdminStatusBadge } from '../console/AdminKit';
+import { statusTone } from '@/lib/admin/status-tone';
 import { AdminSelect } from '../console/AdminSelect';
 import { CONSOLE_FILTER_CARD_CLASS, CONSOLE_FILTER_FIELDS_CLASS, CONSOLE_FILTER_LABEL_CLASS, ConsoleFilterActions } from '../console/ConsoleFilterPanel';
 import { CONSOLE_LIST_EMPTY_CLASS, ConsoleListCard } from '../console/ConsoleListCard';
@@ -92,35 +93,34 @@ export function GoodsPhotoLibraryScreen({ initial = emptyPage, onSelect }: { ini
     finally { operation.current = false; setBusy(false); }
   }
   return <section className="flex min-w-0 flex-col gap-4" aria-label={onSelect ? '상품 사진 선택' : '사진 보관함'} data-admin-screen="photo-library">
-    {/* 머리(설명·업로드) → 안내 → 조회 카드([초기화][조회]) → 목록 카드(사진·페이지 이동). 상품 사진 선택 팝업은 머리·업로드 없이 쓴다. */}
+    {/* 머리(설명·업로드) → 안내 → 조회 카드([초기화][검색]) → 목록 카드(사진·페이지 이동). 상품 사진 선택 팝업은 머리·업로드 없이 쓴다. */}
     {!onSelect ? <AdminPageHeader title="사진 보관함" description={`${GOODS_PHOTO_LIBRARY_PURPOSE} 스태프와 관리자가 함께 씁니다.`}
       actions={<label className={`${buttonVariants()} relative cursor-pointer focus-within:ring-3 focus-within:ring-ring/50 has-[input:disabled]:pointer-events-none has-[input:disabled]:opacity-50`} data-slot="button"><Upload aria-hidden="true" />사진 업로드<input className="absolute inset-0 size-full cursor-pointer opacity-0" aria-label="사진 업로드" type="file" accept={ADMIN_ARTWORK_ACCEPT} multiple disabled={busy} onChange={upload} /></label>} /> : null}
-    <div className="flex flex-col gap-1 text-sm text-muted-foreground"><p>보관해도 파일은 유지됩니다. 사용 중인 사진은 먼저 연결을 해제해주세요.</p>
-      {!onSelect ? <p>한 번에 최대 {GOODS_PHOTO_UPLOAD_LIMIT}장. {ADMIN_ARTWORK_ERROR}</p> : null}</div>
     <div className={CONSOLE_FILTER_CARD_CLASS}>
       <div className={CONSOLE_FILTER_FIELDS_CLASS}>
         <label className={`${CONSOLE_FILTER_LABEL_CLASS} w-full sm:w-64`}>사진 이름<Input aria-label="사진 이름 검색" value={query} maxLength={100} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if(event.key==='Enter') { event.preventDefault(); void search(); } }} /></label>
         {!onSelect ? <label className={CONSOLE_FILTER_LABEL_CLASS}>표시<AdminSelect aria-label="사진 표시 상태" value={archived ? 'archived' : 'active'} disabled={busy} onChange={event => { void search(1,event.target.value==='archived'); }} wrapperClassName="w-44"><option value="active">사용 가능한 사진</option><option value="archived">보관한 사진</option></AdminSelect></label> : null}
       </div>
-      <ConsoleFilterActions>
-        <Button variant="outline" type="button" disabled={busy} onClick={() => { setQuery(''); void search(1, false, ''); }}>초기화</Button>
-        <Button type="button" disabled={busy} onClick={() => { void search(); }}>조회</Button>
+      <ConsoleFilterActions start={<p className="text-xs text-muted-foreground">보관해도 파일은 유지됩니다.{!onSelect ? ` 연결된 사진은 연결을 해제해야 보관할 수 있습니다. 업로드는 한 번에 ${GOODS_PHOTO_UPLOAD_LIMIT}장, 장당 5MB 이하 JPEG·PNG·WebP.` : ''}</p>}>
+        <Button variant="ghost" type="button" disabled={busy} onClick={() => { setQuery(''); void search(1, false, ''); }}>초기화</Button>
+        <Button type="button" disabled={busy} onClick={() => { void search(); }} variant="soft">검색</Button>
       </ConsoleFilterActions>
     </div>
     {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
     <p className="text-sm empty:sr-only" aria-live="polite" role="status">{busy ? message || '불러오는 중…' : message}</p>
     {uploadFailures.length ? <ul className="list-disc space-y-1 pl-5 text-sm text-destructive" role="alert">{uploadFailures.map((failure,index) => <li key={index}>{failure}</li>)}</ul> : null}
     <ConsoleListCard headingLevel={3} title="목록" total={data.total} unit="장">
-    <ul className="m-0 grid list-none grid-cols-2 gap-2.5 p-0 sm:grid-cols-[repeat(auto-fill,minmax(180px,1fr))] sm:gap-4">{pinRecentGoodsPhotos(data.rows, recent).map(photo => <li className="flex min-w-0 flex-col gap-2.5 rounded-xl border bg-card p-3 text-card-foreground" key={photo.id}>
+    {/* 사진마다 이름 한 줄 · 연결 한 줄 · 버튼 한 줄로 줄여 첫 화면에 사진이 더 들어오게 한다. 같은 안내를 사진마다 반복하지 않고 조회 카드에 한 번만 둔다. */}
+    <ul className="m-0 grid list-none grid-cols-2 gap-2.5 p-0 sm:grid-cols-[repeat(auto-fill,minmax(160px,1fr))] sm:gap-3">{pinRecentGoodsPhotos(data.rows, recent).map(photo => <li className="flex min-w-0 flex-col gap-2 rounded-xl border bg-card p-2.5 text-card-foreground" key={photo.id}>
       {/* 원본 이미지라 화면에 들어올 때만 내려받고, 디코딩은 메인 스레드를 막지 않게 한다.
           크기는 CSS(w-full·aspect-square)가 정한다 — height 속성은 정사각 비율보다 먼저 높이를 고정한다. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img className="aspect-square w-full rounded-md bg-muted object-contain" alt={photo.name} src={publicMediaUrl(photo.imagePath) ?? ''} loading="lazy" decoding="async" />
-      <strong className="text-sm font-medium wrap-anywhere">{photo.name}</strong><span className="text-xs text-muted-foreground">{recent.includes(photo.id) ? '방금 올림 · ' : ''}버전 {photo.revision} · 연결 {photo.references.length}건</span>
-      {photo.references.length ? <details className="text-sm wrap-anywhere"><summary className="cursor-pointer text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">사용처 확인</summary><ul className="mt-1.5 list-disc space-y-1 pl-5">{photo.references.map(ref => <li key={`${ref.kind}:${ref.id}`}>{goodsPhotoReferenceLabel(ref.kind)} · {ref.kind==='good' ? <Link className="underline underline-offset-4" href={`/admin/catalog/goods?goodId=${encodeURIComponent(ref.id)}`}>{ref.name}</Link> : ref.name}</li>)}</ul></details> : null}
-      <div className="mt-auto flex flex-wrap gap-1.5">{onSelect ? <Button size="sm" type="button" disabled={busy || photo.archived} onClick={() => onSelect(photo)}>이 사진 선택</Button> : <>
-        <Button size="sm" variant="outline" type="button" disabled={busy} onClick={() => { setEdit(photo); setName(photo.name); setError(''); }}>이름 수정</Button>
-        <Button size="sm" variant="outline" type="button" disabled={busy || (!photo.archived && photo.references.length>0)} onClick={() => { void save(photo,photo.name,!photo.archived); }}>{photo.archived ? '복구' : '보관'}</Button>
+      <span className="flex min-w-0 items-center gap-1.5"><strong className="min-w-0 truncate text-sm font-medium" title={`${photo.name} · 버전 ${photo.revision}`}>{photo.name}</strong>{photo.archived ? <AdminStatusBadge className="shrink-0" tone={statusTone('publication', 'archived')}>보관</AdminStatusBadge> : null}</span>
+      <div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 text-xs text-muted-foreground">{recent.includes(photo.id) ? <span className="font-medium text-foreground">방금 올림</span> : null}{photo.references.length ? <details className="min-w-0 wrap-anywhere"><summary className="cursor-pointer underline-offset-4 hover:text-foreground hover:underline"><AdminStatusBadge tone="success">연결 {photo.references.length}건</AdminStatusBadge> 사용처 보기</summary><ul className="mt-1.5 list-disc space-y-1 pl-4 text-sm text-foreground">{photo.references.map(ref => <li key={`${ref.kind}:${ref.id}`}>{goodsPhotoReferenceLabel(ref.kind)} · {ref.kind==='good' ? <Link className="underline underline-offset-4" href={`/admin/catalog/goods?goodId=${encodeURIComponent(ref.id)}`}>{ref.name}</Link> : ref.name}</li>)}</ul></details> : <AdminStatusBadge tone="neutral">연결 없음</AdminStatusBadge>}</div>
+      <div className="mt-auto flex flex-wrap gap-1.5">{onSelect ? <Button size="sm" type="button" disabled={busy || photo.archived} onClick={() => onSelect(photo)} variant="soft">이 사진 선택</Button> : <>
+        <Button size="xs" variant="outline" type="button" disabled={busy} onClick={() => { setEdit(photo); setName(photo.name); setError(''); }}>이름 수정</Button>
+        <span className="inline-flex" title={!photo.archived && photo.references.length ? '연결을 해제해야 보관할 수 있습니다.' : undefined}><Button size="xs" variant="outline" type="button" disabled={busy || (!photo.archived && photo.references.length>0)} onClick={() => { void save(photo,photo.name,!photo.archived); }}>{photo.archived ? '복구' : '보관'}</Button></span>
       </>}</div>
     </li>)}</ul>
     {!data.rows.length ? <p className={CONSOLE_LIST_EMPTY_CLASS}>조건에 맞는 사진이 없습니다.</p> : null}

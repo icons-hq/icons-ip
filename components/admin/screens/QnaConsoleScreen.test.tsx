@@ -60,6 +60,28 @@ describe('QnaConsoleScreen', () => {
     expect(markup).toContain('미답변만 보기');
   });
 
+  it('밀린 건수는 목록 위에도 보이고 0건이면 그리지 않는다', () => {
+    const markup = render();
+    expect(markup.indexOf('답변 미등록 상품 문의')).toBeLessThan(markup.indexOf('data-cs-question-list'));
+    expect(markup).toContain('status=unanswered');
+    expect(render({ counts: { total: 3, unanswered: 0, answered: 3, hidden: 0 } })).not.toContain('답변 미등록 상품 문의');
+  });
+
+  /* 질문이 줄의 주인공이다 — 상품명은 그 뒤 회색 줄로 물러나고 처리 버튼은 줄 오른쪽 한 자리에 온다. */
+  it('목록형은 고객 질문을 상품명보다 먼저 두고 미등록 줄을 표시한다', () => {
+    const markup = render();
+    const list = markup.slice(markup.indexOf('data-cs-question-list'));
+    expect(list.indexOf('사이즈가 궁금해요')).toBeLessThan(list.indexOf('아크릴 블록'));
+    expect(list).toContain('inset_2px_0_var(--warning)');
+    expect(render({ rows: [row({ answerBody: '완료' })] }).slice(markup.indexOf('data-cs-question-list'))).not.toContain('inset_2px_0_var(--warning)');
+  });
+
+  it('24시간을 넘긴 미등록 질문에 대기 일수를 보인다', () => {
+    const markup = renderToStaticMarkup(<QnaConsoleScreen data={data()} now={new Date('2026-09-03T03:00:00.000Z')} />);
+    expect(markup).toMatch(/data-tone="warning"[^>]*>3일 경과</);
+    expect(renderToStaticMarkup(<QnaConsoleScreen data={data({ rows: [row({ answerBody: '완료' })] })} now={new Date('2026-09-03T03:00:00.000Z')} />)).not.toContain('일 경과');
+  });
+
   it('실제 문의 정보를 기본 목록형으로 보여주고 답변 진입점은 한 개만 렌더한다', () => {
     const markup = render();
     expect(markup).toContain('data-cs-question-list');

@@ -8,7 +8,8 @@ import { questionReplySourceVersion } from '@/lib/admin/cs-reply-sources';
 import { answerProductQuestionAction, setProductQuestionVisibilityAction, type AdminQnaActionState } from '@/app/admin/qna-actions';
 import { formatAdminProductQuestionDateTime, type AdminProductQuestionRow } from '@/lib/admin/product-questions';
 import { goodQuestionsHref } from '@/lib/product-questions';
-import { Badge } from '@/components/admin/kit/ui/badge';
+import { statusTone } from '@/lib/admin/status-tone';
+import { AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Label } from '@/components/admin/kit/ui/label';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
@@ -48,7 +49,7 @@ export function QnaActionPanel({ question, triggerLabel, accountId = '', inline 
   const Panel = inline ? CustomerServiceInlinePanel : CustomerServiceDialog;
 
   return <>
-    <Button aria-expanded={inline ? open : undefined} disabled={inline && busy} onClick={() => setOpen(inline ? !open : true)} size={inline ? 'sm' : 'xs'} type="button" variant="outline">{triggerLabel ?? (answered ? '상세 · 답변 수정' : '상세 · 답변 등록')}</Button>
+    <Button aria-expanded={inline ? open : undefined} className={answered ? 'text-muted-foreground' : undefined} disabled={inline && busy} onClick={() => setOpen(inline ? !open : true)} size={inline ? 'sm' : 'xs'} type="button" variant={answered ? 'ghost' : 'soft'}>{triggerLabel ?? (answered ? '상세 · 답변 수정' : '상세 · 답변 등록')}</Button>
     {open ? <Panel title="상품 문의 상세" busy={busy} onClose={() => setOpen(false)}>
       <div className="flex min-w-0 flex-col gap-5 text-sm">
         <dl className={RECORD_META_CLASS}>
@@ -56,7 +57,7 @@ export function QnaActionPanel({ question, triggerLabel, accountId = '', inline 
           <div className={RECORD_META_ITEM_CLASS}><dt>상품번호</dt><dd className="tabular-nums">{question.goodId}</dd></div>
           <div className={RECORD_META_ITEM_CLASS}><dt>작성자</dt><dd>@{question.authorName}</dd></div>
           <div className={RECORD_META_ITEM_CLASS}><dt>작성일</dt><dd className="tabular-nums">{formatAdminProductQuestionDateTime(question.createdAt)}</dd></div>
-          <div className={RECORD_META_ITEM_CLASS}><dt>노출 상태</dt><dd className="flex flex-wrap items-center gap-1.5">{hidden ? '비노출' : '공개'}{question.secret ? <Badge data-secret-badge="" variant="outline">비밀글</Badge> : null}</dd></div>
+          <div className={RECORD_META_ITEM_CLASS}><dt>노출 상태</dt><dd className="flex flex-wrap items-center gap-1.5"><AdminStatusBadge tone={statusTone('questionVisibility', hidden ? 'hidden' : 'visible')}>{hidden ? '비노출' : '공개'}</AdminStatusBadge>{question.secret ? <AdminStatusBadge data-secret-badge="" tone="neutral">비밀글</AdminStatusBadge> : null}</dd></div>
           <div className={RECORD_META_ITEM_CLASS}><dt>답변 등록일</dt><dd className="tabular-nums">{draft.source.replyAt ? formatAdminProductQuestionDateTime(draft.source.replyAt) : '미등록'}</dd></div>
         </dl>
         <section className={RECORD_SECTION_CLASS}><h3>문의 내용</h3><p>{draft.source.body}</p></section>
@@ -64,7 +65,7 @@ export function QnaActionPanel({ question, triggerLabel, accountId = '', inline 
         {draft.sourceError ? <p className="bg-transparent text-destructive" role="alert">{draft.sourceError}</p> : null}
         {draft.value !== null || draft.sourceError ? <Button className="self-start" disabled={busy || draft.blocked} onClick={draft.refreshSource} size="sm" type="button" variant="outline">최신 저장본 다시 확인</Button> : null}
         {changedSource ? <section className={RECORD_CHANGED_CLASS} aria-label="현재 저장된 답변 비교">
-          <p className="bg-transparent font-medium text-[var(--wc-warning)]" role="alert">초안 작성 이후 답변 또는 문의 상태가 바뀌었습니다. 현재 저장본과 문의 원문을 확인한 뒤 작성 문구를 다시 검토해주세요.</p>
+          <p className="bg-transparent font-medium text-warning" role="alert">초안 작성 이후 답변 또는 문의 상태가 바뀌었습니다. 현재 저장본과 문의 원문을 확인한 뒤 작성 문구를 다시 검토해주세요.</p>
           <h3>현재 저장된 답변</h3><p>{draft.source.reply || '아직 등록된 답변이 없습니다.'}</p>
           <Button className="self-start" disabled={editingLocked} onClick={draft.acknowledge} size="sm" type="button" variant="outline">현재 저장본 확인 · 작성 문구 유지</Button>
         </section> : null}
@@ -76,10 +77,12 @@ export function QnaActionPanel({ question, triggerLabel, accountId = '', inline 
           <span className="-mt-1.5 self-end text-xs text-muted-foreground tabular-nums">{[...answer].length.toLocaleString('ko-KR')} / {ANSWER_MAX_LENGTH.toLocaleString('ko-KR')}자</span>
           <p className="text-xs text-muted-foreground">답변 저장 시 작성자에게 알림이 발송됩니다.</p>
           <Feedback state={answerState} />
-          {draft.hasUnresolvedOperation && draft.recovery === null ? <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-background px-3 py-2" role="status">
-            <p className="mr-auto">앞선 저장 결과를 확인하기 전까지 작성 문구를 유지합니다.</p>
-            <Button disabled={busy || draft.blocked} onClick={draft.retry} size="sm" type="button" variant="outline">같은 요청으로 결과 확인</Button>
-          </div> : null}
+          {draft.hasUnresolvedOperation && draft.recovery === null ? <AdminNotice role="status" tone="warning">
+            <div className="flex flex-wrap items-center gap-2">
+              <p>앞선 저장 결과를 확인하기 전까지 작성 문구를 유지합니다.</p>
+              <Button disabled={busy || draft.blocked} onClick={draft.retry} size="sm" type="button" variant="outline">같은 요청으로 결과 확인</Button>
+            </div>
+          </AdminNotice> : null}
           <div className="flex flex-wrap justify-center gap-2">
             <Button disabled={editingLocked || changedSource || answer.trim() === (draft.source.reply ?? '').trim()} size="sm" type="submit">{answerPending ? '저장 중' : answered ? '답변 수정 (알림 재발송)' : '답변 등록'}</Button>
             <Button disabled={busy} onClick={() => setOpen(false)} size="sm" type="button" variant="outline">닫기</Button>

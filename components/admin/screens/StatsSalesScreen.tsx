@@ -2,11 +2,11 @@ import Link from 'next/link';
 import { StatsSalesGoods } from './StatsSalesGoods';
 import { adminSalesHourlyHref } from '@/lib/admin/stats-hourly';
 import { adminSalesGoodsExportDisabledReason, type AdminSalesGoodsPage } from '@/lib/admin/stats-sales-goods';
-import { StatsComparison } from '@/components/admin/StatsComparison';
+import { StatsComparison, StatsRateChange } from '@/components/admin/StatsComparison';
 import { StatsSalesTrend } from '@/components/admin/charts/StatsSalesTrend';
 import { adminSalesTrend } from '@/lib/admin/stats';
 import { StatsRangeTabs } from '@/components/admin/StatsRangeTabs';
-import { STATS_NOTE, STATS_SEGMENTED, STATS_SEGMENT_LINK, StatsSection, StatsSummaryGrid, StatsSummaryTile } from '@/components/admin/StatsSummary';
+import { STATS_NOTE, STATS_SEGMENTED, STATS_SEGMENT_LINK, StatsSection, StatsSummaryGrid, StatsSummaryTile, statsDateLabel } from '@/components/admin/StatsSummary';
 import { ConsoleGrid, type ConsoleGridColumn } from '@/components/admin/console';
 import {
   adminPaymentMethodLabel,
@@ -74,6 +74,10 @@ export function StatsSalesScreen({
   const periodLabel = filters.bucket === 'week' ? '주별 매출' : filters.bucket === 'month' ? '월별 매출' : '일별 매출';
   const totalRevenue = data.daily.reduce((sum, row) => sum + row.revenue, 0);
   const totalOrders = data.daily.reduce((sum, row) => sum + row.orderCount, 0);
+  const averageOrder = totalOrders > 0 ? Math.floor(totalRevenue / totalOrders) : 0;
+  const previousRevenue = comparison?.daily.reduce((sum, row) => sum + row.revenue, 0) ?? 0;
+  const previousOrders = comparison?.daily.reduce((sum, row) => sum + row.orderCount, 0) ?? 0;
+  const previousAverageOrder = previousOrders > 0 ? Math.floor(previousRevenue / previousOrders) : 0;
 
   return (
     <div className="flex min-w-0 flex-col gap-4" data-stats-screen="sales">
@@ -81,14 +85,14 @@ export function StatsSalesScreen({
       <StatsRangeTabs base="/admin/stats/sales" filters={filters} now={now} exportDisabledReason={adminSalesGoodsExportDisabledReason(goods.totalCount, comparisonGoodsTotal)} />
 
       <StatsSummaryGrid>
-        <StatsSummaryTile label="기간 매출" value={krw(totalRevenue)} />
-        <StatsSummaryTile label="주문수" value={totalOrders.toLocaleString('ko-KR')} />
-        <StatsSummaryTile label="객단가" value={krw(totalOrders > 0 ? Math.floor(totalRevenue / totalOrders) : 0)} />
+        <StatsSummaryTile label="기간 매출" value={krw(totalRevenue)}>{comparison ? <StatsRateChange current={totalRevenue} previous={previousRevenue} /> : null}</StatsSummaryTile>
+        <StatsSummaryTile label="주문수" value={totalOrders.toLocaleString('ko-KR')}>{comparison ? <StatsRateChange current={totalOrders} previous={previousOrders} /> : null}</StatsSummaryTile>
+        <StatsSummaryTile label="객단가" value={krw(averageOrder)}>{comparison ? <StatsRateChange current={averageOrder} previous={previousAverageOrder} /> : null}</StatsSummaryTile>
       </StatsSummaryGrid>
 
       {comparison ? <StatsComparison filters={filters} now={now} rows={[
-        { label: '매출', current: totalRevenue, previous: comparison.daily.reduce((sum, row) => sum + row.revenue, 0), unit: '원' },
-        { label: '주문수', current: totalOrders, previous: comparison.daily.reduce((sum, row) => sum + row.orderCount, 0), unit: '건' },
+        { label: '매출', current: totalRevenue, previous: previousRevenue, format: krw },
+        { label: '주문수', current: totalOrders, previous: previousOrders, unit: '건' },
       ]} /> : null}
       <StatsSalesTrend rows={trend} />
       <StatsSection title="결제수단별 비중">
@@ -119,7 +123,7 @@ export function StatsSalesScreen({
           rows={trend.map((row) => ({
             id: row.date,
             cells: [
-              <span className="tabular-nums" key="date">{row.date}</span>,
+              <span className="tabular-nums" key="date">{statsDateLabel(row.date)}</span>,
               row.orderCount.toLocaleString('ko-KR'),
               krw(row.revenue),
               krw(row.averageOrderValue),

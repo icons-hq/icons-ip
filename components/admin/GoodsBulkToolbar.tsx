@@ -1,6 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { useEffect, useRef, useState, useTransition, type ReactNode } from 'react';
+import { ChevronDown } from 'lucide-react';
 import { previewGoodsBulkAction, commitGoodsBulkAction, readGoodsBulkAction } from '@/app/admin/goods-bulk-actions';
 import { GOODS_BULK_IP_LIMIT, GOODS_BULK_LABELS, goodsBulkError, goodsBulkShippingHref, goodsBulkSkipLabel, parseGoodsBulkRequest, type GoodsBulkCommand, type GoodsBulkKind, type GoodsBulkPreview, type GoodsBulkReceipt, type GoodsBulkSkipped } from '@/lib/admin/goods-bulk';
 import { isUuid } from '@/lib/uuid';
@@ -8,6 +9,7 @@ import { parseGoodsPricePeriodInput } from '@/lib/admin/goods-price-periods';
 import type { GoodsGroupIdentity, GoodsGroupResult } from '@/lib/admin/goods-groups';
 import { CustomerServiceDialog } from './screens/CustomerServiceDialog';
 import { GroupTable, useGoodsGroupSession } from './GoodsGroupOperation';
+import { AdminNotice } from './console/AdminKit';
 import { AdminSelect } from './console/AdminSelect';
 import { Button, buttonVariants } from './kit/ui/button';
 import { Input } from './kit/ui/input';
@@ -34,6 +36,7 @@ function after(row: GoodsBulkPreview['goods'][number], command: GoodsBulkCommand
 const FIELD = 'flex min-w-0 flex-col gap-2 text-sm font-medium';
 const NOTE = 'text-sm text-muted-foreground';
 const CHECK = 'flex cursor-pointer items-center gap-2 text-sm';
+const MENU_ITEM = 'flex w-full items-center rounded-md px-2 py-1.5 text-left text-sm outline-none hover:bg-accent focus-visible:bg-accent disabled:pointer-events-none disabled:opacity-50';
 /* kind="ip"는 IP 필터 결과 전체(보관 제외, 최대 1,000개)에 즉시할인만 적용한다(A10). 기간이 겹치는
    상품은 비교 단계에서 건너뛰기로 고정되고, 저장 후 건너뛴 목록을 그대로 보여 준다. */
 /** `selectionActions`: 같은 선택에 거는 다른 동작(선택 해제·마케팅 링크 등). 선택 개수는 이 막대에서 한 번만 보인다. */
@@ -46,7 +49,7 @@ export function GoodsBulkToolbar({ kind, selectedIds, shippingGoodIds = selected
   const [message, setMessage] = useState(''), [acknowledged, setAcknowledged] = useState(false), [recovery, setRecovery] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false), [storageBroken, setStorageBroken] = useState(false), [pending, startTransition] = useTransition();
   const [skipped, setSkipped] = useState<GoodsBulkSkipped[]>([]);
-  const busy = useRef(false), alive = useRef(true);
+  const busy = useRef(false), alive = useRef(true), moreMenu = useRef<HTMLDetailsElement>(null);
   const prefix = `icons:goods-bulk:v1:${identity.actorId}:${identity.sessionId}:${kind}:`;
   function savedOperation() {
     const keys: string[] = [];
@@ -73,6 +76,18 @@ export function GoodsBulkToolbar({ kind, selectedIds, shippingGoodIds = selected
     const prevent = (event: BeforeUnloadEvent) => event.preventDefault();
     window.addEventListener('beforeunload', prevent); return () => window.removeEventListener('beforeunload', prevent);
   }, [recovery]);
+  /* '더보기'는 details 메뉴다 — 바깥을 누르거나 Esc를 누르면 닫는다. */
+  useEffect(() => {
+    const dismiss = (event: PointerEvent | KeyboardEvent) => {
+      const menu = moreMenu.current;
+      if (!menu?.open) return;
+      if (event instanceof KeyboardEvent) { if (event.key !== 'Escape') return; menu.querySelector('summary')?.focus(); }
+      else if (event.target instanceof Node && menu.contains(event.target)) return;
+      menu.open = false;
+    };
+    document.addEventListener('pointerdown', dismiss); document.addEventListener('keydown', dismiss);
+    return () => { document.removeEventListener('pointerdown', dismiss); document.removeEventListener('keydown', dismiss); };
+  }, []);
   const locked = disabled || pending || !initialized || storageBroken || session.blocked || Boolean(recovery);
   function open(command: GoodsBulkCommand) {
     if (locked || !selectedIds.length || selectedIds.length > 100 || !session.current()) return;
@@ -134,20 +149,34 @@ export function GoodsBulkToolbar({ kind, selectedIds, shippingGoodIds = selected
       finally { busy.current = false; }
     });
   }
-  const resultStatus = <>{message ? <p className="text-sm" role="status">{message}</p> : null}{skipped.length ? <details className="rounded-lg border bg-muted/40 px-3 py-2 text-sm" open><summary className="cursor-pointer font-medium">건너뛴 상품 {skipped.length}개</summary>
-    <ul className="mt-2 flex max-h-60 list-disc flex-col gap-1 overflow-auto pl-5">{skipped.map(row => <li key={row.id}>{row.name}<small className="block text-xs text-muted-foreground">{row.code ?? row.id} · {goodsBulkSkipLabel(row.reason)}</small></li>)}</ul></details> : null}{recovery ? <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2.5 text-sm" role="alert"><p className="basis-full">처리 결과 확인이 남아 있습니다. 재실행하지 않고 저장된 결과를 확인합니다.</p>
+  const resultStatus = <>{message ? <p className="text-sm" role="status">{message}</p> : null}{skipped.length ? <details className="rounded-lg border border-warning-border bg-warning-soft px-3 py-2 text-sm" open><summary className="cursor-pointer font-medium">건너뛴 상품 {skipped.length}개</summary>
+    <ul className="mt-2 flex max-h-60 list-disc flex-col gap-1 overflow-auto pl-5">{skipped.map(row => <li key={row.id}>{row.name}<small className="block text-xs text-muted-foreground">{row.code ?? row.id} · {goodsBulkSkipLabel(row.reason)}</small></li>)}</ul></details> : null}{recovery ? <AdminNotice role="alert" title="처리 결과 확인이 남아 있습니다." tone="warning"><p>재실행하지 않고 저장된 결과를 확인합니다.</p><div className="mt-2 flex flex-wrap items-center gap-2">
     <Button size="sm" type="button" disabled={pending || session.blocked} onClick={() => recover()}>처리 결과 조회</Button>
-    <Button size="sm" variant="outline" type="button" disabled={pending || session.blocked} onClick={() => recover(true)}>미처리 요청 종료</Button></div> : null}</>;
+    <Button size="sm" variant="outline" type="button" disabled={pending || session.blocked} onClick={() => recover(true)}>미처리 요청 종료</Button></div></AdminNotice> : null}</>;
   const appliedCount = preview ? preview.goods.filter(row => !row.skip).length : 0;
+  const unavailable = locked || !selectedIds.length || selectedIds.length > 100;
+  /* 자주 쓰는 네 가지는 바로 누르고, 나머지는 '더보기'에 둔다 — 줄이 짧아져 선택 동작(마케팅 링크 등)을 찾기 쉽다. */
+  const commonCommands: [GoodsBulkCommand, string][] = [['publish', '전시 변경'], ['start', '판매 변경'], ['price', '판매가 변경'], ['discount', '즉시할인']];
+  const moreCommands: [GoodsBulkCommand, string][] = [['period', '판매기간 변경'], ['archive', '선택 보관'], ['restore', '선택 복원'], ...(kind === 'groups' ? [['dissolve', '그룹 해제'] as [GoodsBulkCommand, string]] : [])];
+  function chooseMore(command: GoodsBulkCommand) {
+    /* 팝업이 닫힐 때 포커스가 돌아올 자리를 메뉴 버튼으로 둔 뒤 메뉴를 닫는다(항목은 접히면 사라진다). */
+    const menu = moreMenu.current; menu?.querySelector('summary')?.focus(); if (menu) menu.open = false;
+    open(command);
+  }
   return <div className="flex min-w-0 flex-col gap-2" data-goods-bulk={kind}>
     {kind === 'ip' ? <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2"><strong className="mr-1 text-sm font-semibold whitespace-nowrap">IP 전체 · {ipTitle ?? selectedIds[0]}</strong>
       <Button size="sm" variant="outline" type="button" disabled={locked || selectedIds.length !== 1} onClick={() => open('discount')}>IP 전체 즉시할인</Button>
       <small className="text-xs text-muted-foreground">선택과 관계없이 이 IP의 보관하지 않은 전체 상품(최대 {GOODS_BULK_IP_LIMIT.toLocaleString('ko-KR')}개)에 적용합니다.</small>
     </div> : <div className="flex flex-wrap items-center gap-1.5"><strong className="mr-1 text-sm font-semibold whitespace-nowrap tabular-nums">{selectedIds.length}개 선택</strong>
-      {([['publish', '전시 변경'], ['start', '판매 변경'], ['price', '판매가 변경'], ['discount', '즉시할인'], ['period', '판매기간 변경'], ['archive', '선택 보관'], ['restore', '선택 복원'], ...(kind === 'groups' ? [['dissolve', '그룹 해제']] : [])] as [GoodsBulkCommand, string][]).map(([command, label]) =>
-        <Button key={command} size="sm" variant="outline" type="button" disabled={locked || !selectedIds.length || selectedIds.length > 100} onClick={() => open(command)}>{label}</Button>)}
-      {shippingGoodIds.length > 0 && shippingGoodIds.length <= 100 && !locked ? <Link className={buttonVariants({ size: 'sm', variant: 'outline' })} data-slot="button" href={goodsBulkShippingHref(shippingGoodIds)}>배송 변경</Link>
-        : <Button size="sm" variant="outline" type="button" disabled>배송 변경</Button>}
+      {commonCommands.map(([command, label]) =>
+        <Button key={command} size="sm" variant="outline" type="button" disabled={unavailable} onClick={() => open(command)}>{label}</Button>)}
+      {unavailable ? <Button size="sm" variant="outline" type="button" disabled>더보기<ChevronDown aria-hidden="true" /></Button> : <details className="group/more relative" data-goods-bulk-more="" ref={moreMenu}>
+        <summary className={`${buttonVariants({ size: 'sm', variant: 'outline' })} cursor-pointer list-none [&::-webkit-details-marker]:hidden`} data-slot="button">더보기<ChevronDown aria-hidden="true" className="transition-transform group-open/more:rotate-180" /></summary>
+        <div className="z-20 mt-1 flex w-36 flex-col gap-0.5 rounded-lg border bg-popover p-1 text-popover-foreground shadow-md sm:absolute sm:top-full sm:left-0">
+          {moreCommands.map(([command, label]) => <button className={MENU_ITEM} data-slot="button" key={command} type="button" onClick={() => chooseMore(command)}>{label}</button>)}
+          {shippingGoodIds.length > 0 && shippingGoodIds.length <= 100 ? <Link className={MENU_ITEM} data-slot="button" href={goodsBulkShippingHref(shippingGoodIds)}>배송 변경</Link> : <button className={MENU_ITEM} data-slot="button" type="button" disabled>배송 변경</button>}
+        </div>
+      </details>}
       {selectionActions ? <><span aria-hidden="true" className="mx-1 h-5 w-px bg-border" />{selectionActions}</> : null}
     </div>}
     {session.blocked ? <p className="text-sm text-destructive" role="alert">로그인 계정 또는 세션이 변경되었습니다. 화면을 다시 열어주세요.</p> : null}

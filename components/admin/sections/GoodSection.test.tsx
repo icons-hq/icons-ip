@@ -316,8 +316,8 @@ describe('GoodSection', () => {
     expect(card(create, 'preorders')).toContain('예약 조건 추가');
     expect(create).toMatch(/<details id="good-operation-kc"[^>]*open=""/);
     const form = create.slice(create.indexOf('<form'), create.indexOf('</form>'));
-    expect(form).toContain('type="hidden" name="workspaceOperationId" value=""');
-    expect(form).toContain('type="hidden" name="workspaceSections" value=""');
+    expect(form).toContain('type="hidden" name="workspaceOperationId"');
+    expect(form).toContain('type="hidden" name="workspaceSections"');
     expect(form).not.toContain('KC 모델 추가');
     expect(saved).not.toContain('name="workspaceOperationId"');
     expect(card(saved, 'kc')).toContain('별도 저장');

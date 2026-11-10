@@ -176,7 +176,7 @@ export function ClaimContactOperationPanel({ identity, scope, orderId, claimId, 
   const locked = pending || Boolean(recovery) || !context?.allowed || !context.address || !context.signedContext;
   const patch = (value: Partial<Draft>) => setDraft(previous => ({ ...previous, ...value }));
   return <section aria-label="회수·재배송 연락처 처리" className="flex min-w-0 flex-col gap-3 text-sm break-words" data-claim-contact="">
-    <h3 className="text-base leading-snug font-medium">회수·재배송 연락처</h3>
+    <h3 className="text-sm leading-snug font-medium text-foreground">회수·재배송 연락처</h3>
     <p className="text-muted-foreground">수거·재배송을 시작하기 전에 받는 분, 연락처와 주소 전체를 수정합니다. 지역 요금이 달라지거나 요금 근거를 확인할 수 없는 변경은 저장하지 않습니다.</p>
     <div className="flex flex-wrap gap-2">
       <button className={OUTLINE} data-slot="button" type="button" disabled={pending || Boolean(recovery)} onClick={() => { void load('collection', 'change'); }}>회수지 연락처 확인</button>

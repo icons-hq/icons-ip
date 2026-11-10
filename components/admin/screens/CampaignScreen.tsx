@@ -30,7 +30,7 @@ export function CampaignScreen({
   const { selected, select } = useSelectedRecord(records);
 
   return (
-    <><AdminPageHeader title="캠페인 운영" description={canManageOffers ? '캠페인 노출과 무상 카드팩 교환처를 관리합니다.' : '캠페인 노출과 콘텐츠를 관리합니다.'} />
+    <><AdminPageHeader title="캠페인 관리" description={canManageOffers ? '캠페인 노출과 무상 카드팩 교환처를 관리합니다.' : '캠페인 노출과 콘텐츠를 관리합니다.'} />
     <div className="flex min-w-0 flex-col gap-5">
       <CampaignSection
         action={action}

@@ -7,6 +7,8 @@ import { krw } from '@/lib/format';
 import { findGoodById, GOOD_URL_ERRORS } from '@/lib/admin/good-url';
 import { GoodUrlAddField } from './GoodUrlAddField';
 import { ConsolePagination } from '@/components/admin/console/ConsolePagination';
+import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { statusTone } from '@/lib/admin/status-tone';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
@@ -43,7 +45,7 @@ export function CategoryDisplayGoodsPicker({ selected, limit, onlyPublished = fa
       <form className="grid items-end gap-2.5 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]" onSubmit={event => { event.preventDefault(); void search(1, { query, categoryId }); }}>
         <label className="flex min-w-0 flex-col gap-1.5 text-sm font-medium">상품명 / 상품코드<Input value={query} maxLength={100} onChange={event => setQuery(event.target.value)} autoFocus /></label>
         <label className="flex min-w-0 flex-col gap-1.5 text-sm font-medium">상품 카테고리<NativeSelect className="w-full" value={categoryId} onChange={event => setCategoryId(event.target.value)}><option value="">전체</option>{data?.categories.map(category => <option key={category.id} value={category.id}>{category.path}</option>)}</NativeSelect></label>
-        <Button type="submit" disabled={pending}>검색</Button>
+        <Button type="submit" disabled={pending} variant="soft">검색</Button>
       </form>
       <GoodUrlAddField disabled={pending} onAdd={async id => {
         if (picked.includes(id)) return { ok: false, message: GOOD_URL_ERRORS.exists };
@@ -62,7 +64,7 @@ export function CategoryDisplayGoodsPicker({ selected, limit, onlyPublished = fa
       {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
       <div className="overflow-hidden rounded-lg border [&>[data-slot=table-container]]:max-h-[400px]"><Table className="min-w-[520px] text-xs"><caption className="sr-only">전시할 상품 선택</caption><TableHeader className="sticky top-0 z-10 bg-muted"><TableRow className="hover:bg-transparent"><TableHead>선택</TableHead><TableHead>상품명 / 상품코드</TableHead><TableHead className="text-right">판매가</TableHead><TableHead>노출 상태</TableHead></TableRow></TableHeader>
         <TableBody>{data?.rows.map(row => <TableRow data-state={picked.includes(row.id) ? 'selected' : undefined} key={row.id}><TableCell><input type="checkbox" aria-label={`${row.name} 선택`} checked={picked.includes(row.id)} disabled={pending || !picked.includes(row.id) && picked.length >= limit}
-          onChange={() => setPicked(current => current.includes(row.id) ? current.filter(id => id !== row.id) : [...current, row.id])} /></TableCell><TableCell className="whitespace-normal"><strong className="block font-medium [overflow-wrap:anywhere]">{row.name}</strong><small className="block text-[11px] text-muted-foreground">{row.code}</small></TableCell><TableCell className="text-right tabular-nums">{krw(row.price)}</TableCell><TableCell>{row.published ? row.soldOut ? '품절' : '노출 중' : '비노출'}</TableCell></TableRow>)}</TableBody></Table></div>
+          onChange={() => setPicked(current => current.includes(row.id) ? current.filter(id => id !== row.id) : [...current, row.id])} /></TableCell><TableCell className="whitespace-normal"><strong className="block font-medium [overflow-wrap:anywhere]">{row.name}</strong><small className="block text-[11px] text-muted-foreground">{row.code}</small></TableCell><TableCell className="text-right tabular-nums">{krw(row.price)}</TableCell><TableCell><AdminStatusBadge tone={!row.published ? statusTone('display', 'inactive') : row.soldOut ? statusTone('stock', 'soldout') : statusTone('display', 'active')}>{row.published ? row.soldOut ? '품절' : '노출 중' : '비노출'}</AdminStatusBadge></TableCell></TableRow>)}</TableBody></Table></div>
       {data && !data.rows.length ? <p className="py-6 text-center text-sm text-muted-foreground">조회된 상품이 없습니다.</p> : null}
       <ConsolePagination label="상품 선택 페이지" page={data?.page ?? 1} pageSize={20} total={data?.total ?? 0} unit="개" disabled={pending || !data} onPageChange={page => { if (data) void search(page); }} />
       <footer className="flex flex-wrap justify-end gap-2 border-t pt-4"><Button type="button" onClick={onClose} variant="outline">취소</Button><Button type="button" disabled={pending} onClick={() => onApply(picked, [...known.current.values()])}>선택 완료</Button></footer>

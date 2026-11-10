@@ -20,7 +20,7 @@ export const ALERT_BOX = 'rounded-lg border border-destructive/30 bg-destructive
 /** 일반 안내·진행 상자(role="status"). */
 export const STATUS_BOX = 'rounded-lg border bg-muted/40 px-3 py-2.5 text-sm';
 /** 저장 완료 안내 상자(role="status"). */
-export const SUCCESS_BOX = 'rounded-lg border bg-muted/40 px-3 py-2.5 text-sm font-medium text-[var(--wc-success)]';
+export const SUCCESS_BOX = 'rounded-lg border border-success-border bg-success-soft px-3 py-2.5 text-sm font-medium text-success';
 /** 회색 정보 상자(현재 설정·복구 안내 등). */
 export const INFO_PANEL = 'flex min-w-0 flex-col gap-1.5 rounded-lg border bg-muted/40 p-3 text-sm [overflow-wrap:anywhere]';
 /** 버튼 줄. */
@@ -50,7 +50,7 @@ export const DIALOG_BODY = 'flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p
 export const DIALOG_FOOTER = 'flex shrink-0 flex-wrap justify-end gap-2 border-t bg-muted/50 px-4 py-3';
 /** 링크 탭 묶음과 항목(셸의 콘솔 전환과 같은 모양). */
 export const SEGMENTED = 'inline-flex w-fit max-w-full flex-wrap items-center rounded-lg bg-muted p-0.5';
-export const SEGMENT_LINK = 'inline-flex h-7 items-center rounded-md px-2.5 text-[0.8rem] font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground aria-[current=page]:bg-background aria-[current=page]:text-foreground aria-[current=page]:shadow-sm aria-[current=true]:bg-background aria-[current=true]:text-foreground aria-[current=true]:shadow-sm';
+export const SEGMENT_LINK = 'inline-flex h-7 items-center rounded-md px-2.5 text-[0.8rem] font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground aria-[current=page]:bg-background aria-[current=page]:text-primary-soft-foreground aria-[current=page]:shadow-sm aria-[current=true]:bg-background aria-[current=true]:text-foreground aria-[current=true]:shadow-sm';
 
 /** 매니저 목록·초대 내역의 카드·안내·표 상자. */
 export const OPERATOR_CARD = 'flex min-w-0 flex-col gap-3 rounded-xl border bg-card pb-3 text-card-foreground';

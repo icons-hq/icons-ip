@@ -67,7 +67,7 @@ describe('AdminMessagingEmailsPage', () => {
     const screen = await AdminMessagingEmailsPage();
 
     expect(screen.type).toBe(mocks.emailSection);
-    expect(screen.props).toEqual({ deliveries: [{ id: 'delivery-1' }] });
+    expect(screen.props).toEqual({ deliveries: [{ id: 'delivery-1' }], nowMs: expect.any(Number) });
   });
 
   it('다른 화면의 로더는 부르지 않는다', async () => {

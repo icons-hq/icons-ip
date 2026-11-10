@@ -29,6 +29,8 @@ export function CustomerServiceDialog({ title, children, onClose, busy = false, 
     const overflow = document.body.style.overflow;
     closingRef.current = false;
     dialog.showModal();
+    /* 열자마자 안쪽에 포커스 줄 곳이 없으면 body에 남는다 — 키보드 사용자가 팝업 안에서 시작하게 팝업 자체로 옮긴다. */
+    if (!dialog.contains(document.activeElement)) dialog.focus({ preventScroll: true });
     document.body.style.overflow = 'hidden';
     return () => {
       closingRef.current = true;
@@ -39,6 +41,7 @@ export function CustomerServiceDialog({ title, children, onClose, busy = false, 
   }, []);
 
   return <dialog
+    tabIndex={-1}
     aria-labelledby={titleId}
     className={`admin-cs-dialog m-auto hidden max-h-[calc(100svh-2rem)] w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-xl border-0 bg-popover p-0 text-sm text-popover-foreground shadow-lg ring-1 ring-foreground/10 outline-none backdrop:bg-black/50 open:flex print:static print:max-h-none print:w-full print:max-w-none print:shadow-none print:ring-0 forced-colors:border forced-colors:border-[CanvasText] ${wide ? 'max-w-5xl' : 'max-w-xl'}`}
     data-wide={wide || undefined}
@@ -144,7 +147,7 @@ export function CustomerServiceInlinePanel({ title, children, onClose, busy = fa
   return <section aria-labelledby={titleId} className="admin-cs-inline flex flex-col gap-3 rounded-xl border bg-card p-4 text-sm text-card-foreground" onKeyDown={event => {
     if (event.key === 'Escape' && !busy) { event.preventDefault(); event.stopPropagation(); onClose(); }
   }}>
-    <header className="flex items-center justify-between gap-3"><h3 className="text-base font-medium text-foreground outline-none" id={titleId} ref={heading} tabIndex={-1}>{title}</h3><Button disabled={busy} onClick={onClose} size="sm" type="button" variant="outline">답변 접기</Button></header>
+    <header className="flex items-center justify-between gap-3"><h3 className="text-base font-semibold text-foreground outline-none" id={titleId} ref={heading} tabIndex={-1}>{title}</h3><Button disabled={busy} onClick={onClose} size="sm" type="button" variant="outline">답변 접기</Button></header>
     <div className="admin-cs-inline__body flex flex-col gap-3">{children}</div>
   </section>;
 }

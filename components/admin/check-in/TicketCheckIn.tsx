@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
-import { Camera, CircleAlert, CircleCheck, QrCode, TriangleAlert } from 'lucide-react';
+import { Camera, CircleAlert, CircleCheck, QrCode, ScanLine, TriangleAlert } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { Label } from '@/components/admin/kit/ui/label';
@@ -164,18 +164,19 @@ const ERROR_PRESENTATIONS: Record<TicketCheckInErrorCode, { body: string; title:
   },
 };
 
-/* 결과 카드의 톤. 의미색은 콘솔 토큰만 쓴다. */
+/* 결과 카드의 톤. 현장에서 한눈에 갈리도록 카드 전체가 의미색이다(색 + 아이콘 + 큰 글자). 의미색은 콘솔 토큰만 쓴다. */
 const RESULT_TONE = {
-  success: { card: 'border-[var(--wc-success)]', title: 'text-[var(--wc-success)]', Icon: CircleCheck },
-  warning: { card: 'border-[var(--wc-warning)]', title: 'text-[var(--wc-warning)]', Icon: TriangleAlert },
-  danger: { card: 'border-destructive', title: 'text-destructive', Icon: CircleAlert },
+  success: { card: 'border-success-border bg-success-soft', title: 'text-success', Icon: CircleCheck },
+  warning: { card: 'border-warning-border bg-warning-soft', title: 'text-warning', Icon: TriangleAlert },
+  danger: { card: 'border-danger-border bg-danger-soft', title: 'text-destructive', Icon: CircleAlert },
 } as const;
 
 /* 현장 태블릿·휴대폰에서 누르기 쉬운 큰 터치 영역(kit lg 크기를 44~48px로 키운다). */
 const PANEL = 'flex min-w-0 flex-col gap-4 rounded-xl border bg-card p-4 text-card-foreground sm:p-6';
-const RESULT_CARD = 'flex flex-col gap-2 rounded-xl border bg-card p-5 text-card-foreground sm:p-7';
+const RESULT_CARD = 'flex flex-col gap-2 rounded-xl border-2 p-5 text-foreground sm:p-7';
+const RESULT_TITLE = 'flex items-center gap-2 text-2xl leading-tight font-semibold sm:text-3xl';
 const TOUCH_BUTTON = 'h-12 w-full text-base';
-const CORNER = 'absolute size-7 border-[var(--wc-info)]';
+const CORNER = 'absolute size-7 border-info';
 
 type FlowState =
   | { kind: 'idle' | 'scanning' | 'starting' | 'submitting' }
@@ -306,7 +307,8 @@ export function TicketCheckIn() {
 
   /*
    * 셸 없는 전체 화면(현장 태블릿·휴대폰). 루트 `check-in-shell wc-admin`이 콘솔 토큰을 연다.
-   * 카메라 스캔 → 수동 입력 → 결과 카드 흐름과 문구는 그대로이고, 모양만 kit 부품과 유틸리티다.
+   * 카메라 스캔·수동 입력의 흐름과 문구는 그대로이고, 모양만 kit 부품과 유틸리티다.
+   * 결과는 스캔 위치에 관계없이 바로 보이도록 입력 패널 위에 둔다(세로 태블릿·휴대폰에서는 패널이 한 화면을 넘는다).
    * 검표 진행 중에는 주변 자동 모션을 두지 않는다(DESIGN.md).
    */
   return (
@@ -320,6 +322,39 @@ export function TicketCheckIn() {
           <Link className={`${buttonVariants({ size: 'lg', variant: 'outline' })} h-11 w-full sm:w-auto`} data-slot="button" href="/admin">관리자 홈</Link>
         </header>
 
+        <section aria-atomic="true" aria-live="polite" role="status">
+          {flow.kind === 'submitting' ? (
+            <div className={`${RESULT_CARD} border-info-border bg-info-soft`} data-check-in-result="processing">
+              <h2 className={`${RESULT_TITLE} text-info`}>티켓 상태를 확인하고 있습니다</h2>
+              <p className="text-sm">중복 요청 없이 서버 원장을 확인합니다.</p>
+            </div>
+          ) : flow.kind === 'result' && resultPresentation ? (
+            <ResultCard
+              onRescan={() => void startCamera()}
+              presentation={resultPresentation}
+              value={flow.value}
+            />
+          ) : flow.kind === 'error' && errorPresentation ? (
+            <div className={`${RESULT_CARD} border-danger-border bg-danger-soft`} data-check-in-result="error" role="alert">
+              <h2 className={`${RESULT_TITLE} text-destructive`}>
+                <CircleAlert aria-hidden="true" className="size-7 shrink-0" />
+                {errorPresentation.title}
+              </h2>
+              <p className="text-sm">{errorPresentation.body}</p>
+              <Button className="mt-3 h-11 w-full text-base sm:w-auto sm:self-start" onClick={() => void startCamera()} size="lg" type="button" variant="outline">다시 스캔</Button>
+            </div>
+          ) : (
+            /* 대기는 결과와 같은 크기로 멀리서도 읽히고, 의미색 없는 점선 상자라 결과로 착각하지 않는다. */
+            <div className="flex flex-col gap-1 rounded-xl border-2 border-dashed bg-card p-5 sm:p-7" data-check-in-result="idle">
+              <h2 className={`${RESULT_TITLE} text-foreground`}>
+                <ScanLine aria-hidden="true" className="size-7 shrink-0 text-muted-foreground" />
+                검표 대기 중
+              </h2>
+              <p className="text-sm text-muted-foreground">결과에는 이벤트와 티켓 종류만 표시됩니다.</p>
+            </div>
+          )}
+        </section>
+
         <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(18.75rem,0.85fr)]">
           <section aria-labelledby="camera-heading" className={PANEL}>
             <div className="flex flex-col gap-1">
@@ -327,7 +362,7 @@ export function TicketCheckIn() {
               <p className="text-sm text-muted-foreground">카메라는 버튼을 누른 뒤에만 켜지며, 인식 즉시 종료됩니다.</p>
             </div>
             <div
-              className={`relative aspect-square w-full overflow-hidden rounded-lg border bg-muted sm:aspect-[4/3] ${flow.kind === 'scanning' ? 'border-[var(--wc-info)]' : ''}`}
+              className={`relative aspect-square w-full overflow-hidden rounded-lg border bg-muted sm:aspect-[4/3] ${flow.kind === 'scanning' ? 'border-info' : ''}`}
               data-scanning={flow.kind === 'scanning' || undefined}
             >
               <video aria-label="티켓 QR 카메라 화면" className="block size-full object-cover" muted playsInline ref={videoRef} />
@@ -388,41 +423,12 @@ export function TicketCheckIn() {
                 value={manualValue}
               />
               <p className="text-sm text-muted-foreground" id="ticket-check-in-help">입력값은 제출 즉시 화면에서 지워지며 저장되지 않습니다.</p>
-              <Button className={`${TOUCH_BUTTON} mt-2`} disabled={flow.kind === 'submitting'} size="lg" type="submit">
+              <Button className={`${TOUCH_BUTTON} mt-2`} disabled={flow.kind === 'submitting'} size="lg" type="submit" variant="soft">
                 {flow.kind === 'submitting' ? '검표 확인 중' : '검표하기'}
               </Button>
             </form>
           </section>
         </div>
-
-        <section aria-atomic="true" aria-live="polite" role="status">
-          {flow.kind === 'submitting' ? (
-            <div className={`${RESULT_CARD} border-[var(--wc-info)]`} data-check-in-result="processing">
-              <h2 className="text-2xl leading-tight font-semibold text-foreground sm:text-3xl">티켓 상태를 확인하고 있습니다</h2>
-              <p className="text-sm text-muted-foreground">중복 요청 없이 서버 원장을 확인합니다.</p>
-            </div>
-          ) : flow.kind === 'result' && resultPresentation ? (
-            <ResultCard
-              onRescan={() => void startCamera()}
-              presentation={resultPresentation}
-              value={flow.value}
-            />
-          ) : flow.kind === 'error' && errorPresentation ? (
-            <div className={`${RESULT_CARD} border-destructive`} data-check-in-result="error" role="alert">
-              <h2 className="flex items-center gap-2 text-2xl leading-tight font-semibold text-destructive sm:text-3xl">
-                <CircleAlert aria-hidden="true" className="size-7 shrink-0" />
-                {errorPresentation.title}
-              </h2>
-              <p className="text-sm text-muted-foreground">{errorPresentation.body}</p>
-              <Button className="mt-3 h-11 w-full text-base sm:w-auto sm:self-start" onClick={() => void startCamera()} size="lg" type="button" variant="outline">다시 스캔</Button>
-            </div>
-          ) : (
-            <div className={RESULT_CARD} data-check-in-result="idle">
-              <h2 className="text-2xl leading-tight font-semibold text-foreground sm:text-3xl">검표 대기 중</h2>
-              <p className="text-sm text-muted-foreground">결과에는 이벤트와 티켓 종류만 표시됩니다.</p>
-            </div>
-          )}
-        </section>
       </div>
     </main>
   );
@@ -440,11 +446,11 @@ function ResultCard({
   const tone = RESULT_TONE[presentation.tone];
   return (
     <div className={`${RESULT_CARD} ${tone.card}`} data-check-in-result={presentation.tone}>
-      <h2 className={`flex items-center gap-2 text-2xl leading-tight font-semibold sm:text-3xl ${tone.title}`}>
+      <h2 className={`${RESULT_TITLE} ${tone.title}`}>
         <tone.Icon aria-hidden="true" className="size-7 shrink-0" />
         {presentation.title}
       </h2>
-      <p className="text-sm text-muted-foreground">{presentation.body}</p>
+      <p className="text-sm">{presentation.body}</p>
       <dl className="mt-3 grid gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-3">
         <div className="min-w-0 bg-card p-3"><dt className="text-xs text-muted-foreground">이벤트</dt><dd className="mt-1 text-sm font-semibold break-words">{value.event.title}</dd></div>
         <div className="min-w-0 bg-card p-3"><dt className="text-xs text-muted-foreground">티켓</dt><dd className="mt-1 text-sm font-semibold break-words">{value.ticketType.name}</dd></div>

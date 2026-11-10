@@ -3,7 +3,8 @@
 import { useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { importErpItemsAction, readErpItemFileAction, type ErpItemFileResult, type ErpItemImportResult } from '@/app/admin/erp-item-actions';
-import { AdminSectionCard, AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { FoldCard } from '@/components/admin/sections/SectionLayout';
 import { AdminSelect } from '@/components/admin/console/AdminSelect';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
@@ -88,8 +89,9 @@ function IssueTable({ caption, issues }: { caption: string; issues: ErpImportIss
 /**
  * ERP '품목 생성' 데이터 반입: 붙여넣기·파일 → 열 짝짓기 미리보기 → 반입 → 결과 요약.
  * 미리보기와 열 변경은 브라우저에서 하고, 반입 행은 서버 액션이 다시 검증한다.
+ * 가끔 쓰는 도구라 접어 두어 매일 보는 품목 표가 첫 화면에 들어오게 한다(반입한 품목이 없으면 펼친다).
  */
-export function ErpItemImportPanel() {
+export function ErpItemImportPanel({ defaultOpen = false }: { defaultOpen?: boolean } = {}) {
   const router = useRouter();
   const fileInput = useRef<HTMLInputElement>(null);
   const [pasted, setPasted] = useState('');
@@ -200,10 +202,11 @@ export function ErpItemImportPanel() {
   const previewRows = plan?.rows.slice(0, ERP_ITEM_PREVIEW_ROWS) ?? [];
   const headerOptions = source ? source.table.slice(0, ERP_ITEM_HEADER_SCAN_ROWS) : [];
 
-  return <AdminSectionCard
-    title="품목 반입"
+  return <FoldCard
     id="erp-item-import"
-    summary={`ERP '품목 생성' 화면의 표를 엑셀에서 복사해 붙여넣거나 XLSX·CSV 파일로 올립니다. 한 번에 ${ERP_ITEM_IMPORT_ROW_LIMIT.toLocaleString('ko-KR')}행까지, ERP 코드(품번)가 같으면 새 값으로 바꿉니다.`}
+    open={defaultOpen}
+    summary={`엑셀 표 붙여넣기·파일 · 한 번에 ${ERP_ITEM_IMPORT_ROW_LIMIT.toLocaleString('ko-KR')}행까지 · ERP 코드(품번)가 같으면 새 값으로 바꿉니다.`}
+    title="품목 반입"
   >
     <div className="grid gap-x-6 gap-y-5 [grid-template-columns:repeat(auto-fit,minmax(min(100%,20rem),1fr))] print:hidden" data-erp-items="sources">
       <div className="flex min-w-0 flex-col gap-2">
@@ -219,7 +222,8 @@ export function ErpItemImportPanel() {
           onChange={(event) => setPasted(event.target.value)}
         />
         <p className={HINT} id="erp-item-paste-hint">머리글 행까지 함께 복사하면 열을 자동으로 짝짓습니다. 선행 0이 있는 품번·바코드는 그대로 보존합니다.</p>
-        <div><Button variant="outline" type="button" disabled={busy} onClick={readPasted}>붙여넣은 표 확인</Button></div>
+        {/* 미리보기가 열리면 주 행동은 아래 'N건 반입'이다 — 이 카드의 실선 버튼은 한 번에 하나다. */}
+        <div><Button variant={source ? 'outline' : 'default'} type="button" disabled={busy} onClick={readPasted}>붙여넣은 표 확인</Button></div>
       </div>
       <div className="flex min-w-0 flex-col gap-2">
         <label className="text-sm leading-snug font-medium" htmlFor="erp-item-file">또는 파일 선택</label>
@@ -290,9 +294,9 @@ export function ErpItemImportPanel() {
         </table>
       </div>
 
-      {[...source.warnings, ...plan.warnings].length ? <ul className="flex list-disc flex-col gap-1.5 rounded-lg border bg-muted/40 py-3 pr-4 pl-8 text-sm">
+      {[...source.warnings, ...plan.warnings].length ? <AdminNotice tone="warning"><ul className="flex list-disc flex-col gap-1.5 pl-4">
         {[...source.warnings, ...plan.warnings].map((warning) => <li key={warning}>{warning}</li>)}
-      </ul> : null}
+      </ul></AdminNotice> : null}
       {plan.blocking ? <p className="text-sm text-destructive" role="alert">{plan.blocking}</p> : null}
 
       {previewRows.length ? <div className={TABLE_REGION} role="region" aria-label="반입 미리보기" tabIndex={0}>
@@ -323,5 +327,5 @@ export function ErpItemImportPanel() {
         <Button variant="ghost" type="button" disabled={busy} onClick={reset}>처음부터 다시</Button>
       </div>
     </div> : null}
-  </AdminSectionCard>;
+  </FoldCard>;
 }

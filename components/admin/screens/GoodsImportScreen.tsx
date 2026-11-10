@@ -31,9 +31,12 @@ import {
   type SabangnetTarget,
 } from '@/lib/admin/sabangnet-goods-format';
 import { Download, TriangleAlert } from 'lucide-react';
+import { GoodsFlowSteps } from './GoodsFlowSteps';
+import { statusTone } from '@/lib/admin/status-tone';
 import {
   AdminField,
   AdminFormGrid,
+  AdminNotice,
   AdminPageHeader,
   AdminSectionCard,
   AdminStatusBadge,
@@ -44,7 +47,7 @@ import { Input } from '../kit/ui/input';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '../kit/ui/table';
 type ImportView = ReturnType<typeof goodsImportView>;
 /* 검증 경고는 긴 문장이라 배지 대신 경고색 줄로 보인다(배지는 한 줄로 잘린다). */
-const WARNING = 'flex items-start gap-1.5 text-sm text-[var(--wc-warning)]';
+const WARNING = 'flex items-start gap-1.5 text-sm text-warning';
 const labels = {
   new: '신규',
   update: '수정',
@@ -53,16 +56,21 @@ const labels = {
 };
 type ImportFormat = 'icons' | 'sabangnet';
 type ColumnState = SabangnetColumnStatus | 'manual';
-const COLUMN_STATES: Record<ColumnState, { label: string; tone: 'neutral' | 'success' | 'warning' }> = {
-  confirmed: { label: '자동 인식', tone: 'success' },
-  guessed: { label: '추정 · 확인 필요', tone: 'warning' },
-  remembered: { label: '지난번 선택', tone: 'neutral' },
-  known: { label: '사방넷 열 · 기본 제외', tone: 'neutral' },
-  unknown: { label: '인식 못 함 · 직접 선택', tone: 'warning' },
-  duplicate: { label: '앞 열과 같은 항목', tone: 'warning' },
-  manual: { label: '직접 고름', tone: 'neutral' },
+const COLUMN_LABELS: Record<ColumnState, string> = {
+  confirmed: '자동 인식',
+  guessed: '추정 · 확인 필요',
+  remembered: '지난번 선택',
+  known: '사방넷 열 · 기본 제외',
+  unknown: '인식 못 함 · 직접 선택',
+  duplicate: '앞 열과 같은 항목',
+  manual: '직접 고름',
 };
 const XLSX_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+/* 몇 단계 중 어디인지 보이는 순서 표시. 단계 이름은 아래 카드 제목과 같은 말이다. */
+const IMPORT_STEPS: Record<ImportFormat, string[]> = {
+  icons: ['파일 올리기', '검증 결과 확인·적용'],
+  sabangnet: ['파일 올리기', '열 연결·IP 선택', '검증 결과 확인·초안 만들기'],
+};
 /**
  * storage-js sends a File/Blob as a multipart part typed by the Blob itself and ignores the
  * contentType option, and Storage checks that part type against the private bucket's allow-list
@@ -177,8 +185,8 @@ export function SabangnetMappingStep({
                   </AdminSelect>
                 </TableCell>
                 <TableCell>
-                  <AdminStatusBadge tone={COLUMN_STATES[columnStates[index]].tone}>
-                    {COLUMN_STATES[columnStates[index]].label}
+                  <AdminStatusBadge tone={statusTone('sabangnetColumn', columnStates[index])}>
+                    {COLUMN_LABELS[columnStates[index]]}
                   </AdminStatusBadge>
                 </TableCell>
               </TableRow>
@@ -476,20 +484,12 @@ export function GoodsImportScreen({
   return (
     <section className="flex min-w-0 flex-col gap-4" data-admin-screen="goods-import">
       <AdminPageHeader
-        title="상품 엑셀 등록·수정"
+        title="상품 일괄등록"
         description="옵션마다 한 행을 작성합니다. 검증 결과를 확인한 뒤 상품별로 적용합니다."
         actions={
           <>
             <Button variant="outline" type="button" onClick={() => setCategoryFinder(true)}>카테고리 찾기</Button>
             <Button variant="outline" type="button" onClick={() => setCountryFinder(true)}>제조국 찾기</Button>
-            <a
-              className={buttonVariants({ variant: 'outline' })}
-              data-slot="button"
-              href="/api/admin/goods-workbook?mode=template"
-            >
-              <Download aria-hidden="true" />
-              양식 내려받기
-            </a>
             <Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href="/admin/catalog/goods">
               상품 목록
             </Link>
@@ -498,32 +498,48 @@ export function GoodsImportScreen({
       />
       {categoryFinder ? <CategoryCodeFinder onClose={() => setCategoryFinder(false)} /> : null}
       {countryFinder ? <CountryNamePicker mode="copy" onClose={() => setCountryFinder(false)} /> : null}
+      <GoodsFlowSteps steps={IMPORT_STEPS[view?.format ?? format]} current={view ? IMPORT_STEPS[view.format].length - 1 : inspection ? 1 : 0} />
       <AdminSectionCard title="1. 파일 올리기">
-        <AdminField
-          label="양식"
-          inputId="goods-import-format"
-          hint={
-            format === 'sabangnet'
-              ? '사방넷에서 내려받은 상품 엑셀을 그대로 올립니다. 모든 상품은 초안으로 만듭니다.'
-              : 'ICONS 양식을 내려받아 작성한 파일을 올립니다.'
-          }
-        >
-          <AdminSelect
-            id="goods-import-format"
-            value={format}
-            onChange={(event) => {
-              setFormat(event.target.value as ImportFormat);
-              setInspection(null);
-              setError('');
-            }}
-            disabled={busy}
-            aria-describedby="goods-import-format-hint"
-            wrapperClassName="w-full sm:max-w-sm"
-          >
-            <option value="icons">ICONS 자체 양식</option>
-            <option value="sabangnet">사방넷 상품 양식</option>
-          </AdminSelect>
-        </AdminField>
+        {/* 양식 내려받기가 올리기보다 먼저다 — 고른 양식 바로 옆에 둔다. */}
+        <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
+          <div className="min-w-0 flex-1 basis-72 sm:max-w-sm">
+            <AdminField
+              label="양식"
+              inputId="goods-import-format"
+              hint={
+                format === 'sabangnet'
+                  ? '사방넷에서 내려받은 상품 엑셀을 그대로 올립니다. 모든 상품은 초안으로 만듭니다.'
+                  : 'ICONS 양식을 내려받아 작성한 파일을 올립니다.'
+              }
+            >
+              <AdminSelect
+                id="goods-import-format"
+                value={format}
+                onChange={(event) => {
+                  setFormat(event.target.value as ImportFormat);
+                  setInspection(null);
+                  setError('');
+                }}
+                disabled={busy}
+                aria-describedby="goods-import-format-hint"
+                wrapperClassName="w-full"
+              >
+                <option value="icons">ICONS 자체 양식</option>
+                <option value="sabangnet">사방넷 상품 양식</option>
+              </AdminSelect>
+            </AdminField>
+          </div>
+          {format === 'sabangnet' ? null : (
+            <a
+              className={`${buttonVariants({ variant: 'soft' })} sm:mt-7`}
+              data-slot="button"
+              href="/api/admin/goods-workbook?mode=template"
+            >
+              <Download aria-hidden="true" />
+              양식 내려받기
+            </a>
+          )}
+        </div>
         {format === 'sabangnet' ? (
           <>
             <p className="text-sm text-muted-foreground">
@@ -552,11 +568,11 @@ export function GoodsImportScreen({
           </>
         ) : (
           <>
-            <p className="text-sm text-muted-foreground">
-              XLSX 2MB · 상품·옵션 최대 500행 · 이미지 ZIP 50MB. 상품코드가 같으면 기존 상품을
-              수정합니다. 옵션을 모두 포함해주세요. 직접입력형 옵션은 별도 시트에서 편집하며 기존 항목 ID와 정의 버전을 유지합니다.
-              A/S·사이즈 안내도 별도 시트에서 편집하며 안내 버전을 유지합니다. 안내 시트나 상품 행을 빼면 기존 안내를 보존합니다.
-            </p>
+            <AdminNotice tone="warning" title="상품코드가 같으면 기존 상품을 수정합니다.">
+              옵션을 모두 포함해주세요. 직접입력형 옵션과 A/S·사이즈 안내는 별도 시트에서 고치고, 내려받은 시트에 이미 채워진 번호 칸(ID·버전)은 그대로 두세요.
+              안내 시트나 상품 행을 빼면 기존 안내를 보존합니다.
+            </AdminNotice>
+            <p className="text-sm text-muted-foreground">XLSX 2MB · 상품·옵션 최대 500행 · 이미지 ZIP 50MB</p>
             <AdminFormGrid>
               <AdminField label="상품 XLSX" inputId="goods-workbook">
                 <Input
@@ -607,11 +623,7 @@ export function GoodsImportScreen({
           onPreview={previewSabangnet}
         />
       ) : null}
-      {error ? (
-        <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive">
-          {error}
-        </p>
-      ) : null}
+      {error ? <AdminNotice role="alert" tone="danger">{error}</AdminNotice> : null}
       {/* 빈 상태 알림도 접근성 트리에 남긴다(sr-only) — 내용이 생기면 읽히고 보인다. */}
       <p role="status" aria-live="polite" className="text-sm text-muted-foreground empty:sr-only">
         {status}
@@ -628,6 +640,13 @@ export function GoodsImportScreen({
             {view.fileName} · {view.groups.length}개 상품 ·{' '}
             {view.groups.reduce((count, group) => count + group.rows.length, 0)}
             행
+          </p>
+          {/* 긴 표를 내리기 전에 오류 건수를 먼저 보이게 한다. */}
+          <p className="flex flex-wrap gap-1.5">
+            {(['error', 'new', 'update', 'unchanged'] as const).map((kind) => {
+              const count = view.groups.filter((group) => group.kind === kind).length;
+              return count ? <AdminStatusBadge key={kind} tone={statusTone('goodsImport', kind)}>{labels[kind]} {count}</AdminStatusBadge> : null;
+            })}
           </p>
           {view.format === 'sabangnet' ? (
             <p className="text-sm text-muted-foreground">
@@ -718,15 +737,7 @@ export function GoodsImportScreen({
                       </small>
                     </TableCell>
                     <TableCell className="align-top">
-                      <AdminStatusBadge
-                        tone={
-                          group.kind === 'error'
-                            ? 'danger'
-                            : group.kind === 'new'
-                              ? 'success'
-                              : 'neutral'
-                        }
-                      >
+                      <AdminStatusBadge tone={statusTone('goodsImport', group.kind)}>
                         {labels[group.kind]}
                       </AdminStatusBadge>
                     </TableCell>
@@ -744,7 +755,7 @@ export function GoodsImportScreen({
                           </p>
                         ))}
                         {group.result ? (
-                          <p className="text-sm">
+                          <p className={`text-sm ${group.result.status === 'success' ? 'text-success' : group.result.status === 'unchanged' ? 'text-muted-foreground' : 'text-destructive'}`}>
                             {group.result.status === 'success'
                               ? view.format === 'sabangnet'
                                 ? '초안 저장 완료'

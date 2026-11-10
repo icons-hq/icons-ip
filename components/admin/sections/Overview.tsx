@@ -9,7 +9,6 @@ import Link from 'next/link';
 import { ArrowRight, ChevronDown, LayoutGrid, TrendingUp } from 'lucide-react';
 import type { AdminInsights } from '@/lib/admin/insights.server';
 import type { AdminReportRecord } from '@/lib/admin/moderation.server';
-import { Badge } from '@/components/admin/kit/ui/badge';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { Card, CardAction, CardContent, CardDescription, CardHeader } from '@/components/admin/kit/ui/card';
 import { MetricCard } from '../MetricCard';
@@ -19,9 +18,12 @@ import { OrderPipeline } from '../charts/OrderPipeline';
 import { RevenueTrend } from '../charts/RevenueTrend';
 import { formatKrwExact, metricChange } from '../format';
 import { reportTargetLabels } from '@/lib/admin/moderation';
+import { statusTone } from '@/lib/admin/status-tone';
+import { ADMIN_REPORT_STATUS_LABELS } from '@/lib/admin/moderation';
+import { AdminNotice, AdminStatusBadge } from '../console/AdminKit';
 
 /* 셸의 콘솔 전환과 같은 구분 선택(링크 탭). */
-const SEGMENT_LINK = 'inline-flex h-7 items-center rounded-md px-3 text-[0.8rem] font-medium text-muted-foreground transition-colors hover:text-foreground aria-[current=page]:bg-background aria-[current=page]:text-foreground aria-[current=page]:shadow-sm';
+const SEGMENT_LINK = 'inline-flex h-7 items-center rounded-md px-3 text-[0.8rem] font-medium text-muted-foreground transition-colors hover:text-foreground aria-[current=page]:bg-background aria-[current=page]:text-primary-soft-foreground aria-[current=page]:shadow-sm';
 const OUTLINE_SM = buttonVariants({ variant: 'outline', size: 'sm' });
 
 export function OverviewSection({
@@ -43,11 +45,6 @@ export function OverviewSection({
 
   return (
     <div className="flex min-w-0 flex-col gap-4" data-admin-home="overview">
-      <aside aria-label="판매자센터 안내" className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border bg-muted/40 px-3 py-2.5 text-sm">
-        <Badge variant="secondary">안내</Badge>
-        <Link className="min-w-0 font-medium underline-offset-4 hover:underline" href="/admin/guide">판매자센터 운영 가이드</Link>
-        {workQueue?.checkedAt ? <time className="text-xs text-muted-foreground tabular-nums sm:ml-auto" dateTime={workQueue.checkedAt}>업무 집계 {new Date(workQueue.checkedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })} 기준</time> : null}
-      </aside>
       <SellerOverviewSummary insights={insights} workQueue={workQueue} summary={summary} days={days} />
       {attention ? <HomeAttention data={attention} /> : null}
       <details className="group/performance min-w-0 rounded-xl bg-card text-sm text-card-foreground ring-1 ring-foreground/10" data-admin-home="performance" open>
@@ -115,13 +112,13 @@ export function OverviewSection({
               <RecentOrders orders={insights.recentOrders} />
               <TopIps ips={insights.topIps} />
             </div>
-          </> : <p className="rounded-lg border px-3 py-2.5 text-muted-foreground" role="status">성과 통계를 불러오지 못했습니다. 새로고침 후 다시 확인해주세요.</p>}
+          </> : <AdminNotice role="status" tone="warning">성과 통계를 불러오지 못했습니다. 새로고침 후 다시 확인해주세요.</AdminNotice>}
         </div>
       </details>
 
       {workQueue?.goodsReasons.length ? <section aria-labelledby="admin-home-diagnosis-title" className="min-w-0 rounded-xl bg-card text-sm text-card-foreground ring-1 ring-foreground/10" data-admin-home="diagnosis">
         <header className="flex items-center gap-2 px-4 py-3"><LayoutGrid aria-hidden="true" className="size-4 text-muted-foreground" /><h2 className="text-base font-medium" id="admin-home-diagnosis-title">상품 진단</h2></header>
-        <ul aria-label="상품 검토 사유별 건수" className="flex flex-wrap gap-2 border-t p-4">{workQueue.goodsReasons.map((reason) => <li key={reason.code}><Link className="inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" href={reason.href} prefetch={false}>{GOODS_READINESS_REASONS[reason.code].label}<strong className={`font-semibold tabular-nums${reason.count > 0 ? ' text-destructive' : ' text-foreground'}`}>{reason.count.toLocaleString('ko-KR')}개</strong></Link></li>)}</ul>
+        <ul aria-label="상품 검토 사유별 건수" className="flex flex-wrap gap-2 border-t p-4">{workQueue.goodsReasons.map((reason) => <li key={reason.code}><Link className="inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" href={reason.href} prefetch={false}>{GOODS_READINESS_REASONS[reason.code].label}<strong className={`font-semibold tabular-nums${reason.count > 0 ? ' text-warning' : ' text-foreground'}`}>{reason.count.toLocaleString('ko-KR')}개</strong></Link></li>)}</ul>
       </section> : null}
 
       <Card aria-labelledby="admin-recent-reports-title" className="min-w-0" data-admin-home="reports" role="region">
@@ -147,12 +144,17 @@ export function OverviewSection({
                     {new Date(report.createdAt).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })}
                   </span>
                 </div>
-                <Badge variant="secondary">{report.status}</Badge>
+                <AdminStatusBadge tone={statusTone('report', report.status)}>{ADMIN_REPORT_STATUS_LABELS[report.status] ?? report.status}</AdminStatusBadge>
               </li>
             ))}
           </ul> : <p className="text-sm text-muted-foreground">{reports ? '접수된 신고가 없습니다.' : '신고 목록을 불러오지 못했습니다.'}</p>}
         </CardContent>
       </Card>
+
+      {/* 가이드는 매일 보는 숫자의 자리를 차지하지 않게 맨 아래 작은 링크로 둔다. */}
+      <aside aria-label="판매자센터 안내" className="flex justify-end px-1 text-xs text-muted-foreground">
+        <Link className="underline-offset-4 hover:text-foreground hover:underline" href="/admin/guide">판매자센터 운영 가이드</Link>
+      </aside>
     </div>
   );
 }

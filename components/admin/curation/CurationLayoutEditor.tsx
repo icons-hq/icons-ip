@@ -12,6 +12,7 @@ import type { AdminHomeLayout, AdminHomeLayoutActionState } from '@/lib/admin/ho
 import { resolveHomeLayoutBlocks, type HomeBlockKey, type HomeRankingBlockKey } from '@/lib/home-layout';
 import { CurationPreview, type CurationPreviewDevice } from './CurationPreview';
 import { buildHomeProductCollectionBand, isHomeProductCollectionTitle, parseHomeProductCollectionPayload } from '@/lib/home-product-collection';
+import { AdminNotice } from '@/components/admin/console/AdminKit';
 
 const LABELS: Record<string, string> = { hero: '프로모션 배너', editor_picks: '추천 콘텐츠', category_best: '카테고리 BEST', popular: '인기템', benefits: '혜택', stories: '쇼핑스토리' };
 
@@ -84,6 +85,7 @@ export function CurationLayoutEditor({ layout, operationId, preview, records, de
         <div className="flex flex-col gap-2 px-4 py-6 text-xs leading-relaxed text-muted-foreground sm:px-5"><p>구성의 개별 노출 기간·노출 설정도 함께 적용됩니다. 상품이나 콘텐츠가 없는 영역은 표시하지 않습니다.</p><p>새 개별 구성은 마지막에 추가됩니다. 상단 띠배너는 스토어 상단에 고정됩니다.</p></div>
       </fieldset>
       <footer className="grid gap-3 border-t p-4 sm:p-5 print:hidden"><ActionNotice state={{ errors: state.errors }} />
+        <AdminNotice title="적용하면 고객 화면에 바로 나갑니다" tone="warning">새로 여는 화면부터 보입니다.</AdminNotice>
         {state.conflict ? <Button onClick={() => router.refresh()} type="button" variant="outline">최신 구성 다시 불러오기</Button> : null}
         <Button disabled={pending} type="submit">{pending ? '적용 중…' : '전체 순서·노출 적용하기'}</Button>
       </footer>

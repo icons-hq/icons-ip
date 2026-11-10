@@ -1,7 +1,7 @@
-import { StatsComparison } from '@/components/admin/StatsComparison';
+import { StatsComparison, StatsRateChange } from '@/components/admin/StatsComparison';
 import { adminSalesTrend } from '@/lib/admin/stats';
 import { StatsRangeTabs } from '@/components/admin/StatsRangeTabs';
-import { STATS_NOTE, StatsSection, StatsSummaryGrid, StatsSummaryTile } from '@/components/admin/StatsSummary';
+import { STATS_NOTE, StatsChangeBadge, StatsSection, StatsSummaryGrid, StatsSummaryTile, statsChangeDirection, statsDateLabel } from '@/components/admin/StatsSummary';
 import { ConsoleGrid, type ConsoleGridColumn } from '@/components/admin/console';
 import {
   adminPercentLabel,
@@ -37,15 +37,18 @@ export function StatsCustomersScreen({
   now?: Date;
   comparison?: AdminCustomerReport | null;
 }) {
+  const repeatRate = adminRepeatRate(data.repeatBuyerCount, data.buyerCount);
+  const previousRepeatRate = comparison ? adminRepeatRate(comparison.repeatBuyerCount, comparison.buyerCount) : null;
+  const repeatRateChange = repeatRate !== null && previousRepeatRate !== null ? Math.round((repeatRate - previousRepeatRate) * 10) / 10 : null;
   return (
     <div className="flex min-w-0 flex-col gap-4" data-stats-screen="customers">
       <StatsRangeTabs base="/admin/stats/customers" filters={filters} now={now} />
 
       <StatsSummaryGrid>
-        <StatsSummaryTile label="신규 가입" value={data.signupTotal.toLocaleString('ko-KR')} />
-        <StatsSummaryTile label="구매 고객" value={data.buyerCount.toLocaleString('ko-KR')} />
-        <StatsSummaryTile label="기간 내 재구매" value={data.repeatBuyerCount.toLocaleString('ko-KR')} />
-        <StatsSummaryTile label="기간 내 재구매율" value={adminPercentLabel(adminRepeatRate(data.repeatBuyerCount, data.buyerCount))} />
+        <StatsSummaryTile label="신규 가입" value={data.signupTotal.toLocaleString('ko-KR')}>{comparison ? <StatsRateChange current={data.signupTotal} previous={comparison.signupTotal} /> : null}</StatsSummaryTile>
+        <StatsSummaryTile label="구매 고객" value={data.buyerCount.toLocaleString('ko-KR')}>{comparison ? <StatsRateChange current={data.buyerCount} previous={comparison.buyerCount} /> : null}</StatsSummaryTile>
+        <StatsSummaryTile label="기간 내 재구매" value={data.repeatBuyerCount.toLocaleString('ko-KR')}>{comparison ? <StatsRateChange current={data.repeatBuyerCount} previous={comparison.repeatBuyerCount} /> : null}</StatsSummaryTile>
+        <StatsSummaryTile label="기간 내 재구매율" value={adminPercentLabel(repeatRate)}>{repeatRateChange === null ? null : <StatsChangeBadge direction={statsChangeDirection(repeatRateChange, 0)}>{`${repeatRateChange > 0 ? '+' : ''}${repeatRateChange.toFixed(1)}%p`}</StatsChangeBadge>}</StatsSummaryTile>
       </StatsSummaryGrid>
 
       {comparison ? <StatsComparison filters={filters} now={now} rows={[
@@ -56,7 +59,7 @@ export function StatsCustomersScreen({
       <StatsSection title="문의">
         <StatsSummaryGrid>
           <StatsSummaryTile label="접수" value={data.inquiries.total.toLocaleString('ko-KR')} />
-          <StatsSummaryTile label="미답변" value={data.inquiries.unanswered.toLocaleString('ko-KR')} />
+          <StatsSummaryTile href={data.inquiries.unanswered > 0 ? '/admin/cs/inquiries?status=open' : undefined} label="미답변" tone={data.inquiries.unanswered > 0 ? 'warning' : undefined} value={data.inquiries.unanswered.toLocaleString('ko-KR')} />
           <StatsSummaryTile label="평균 1차 응답" value={data.inquiries.averageFirstResponseHours === null
             ? '—'
             : `${data.inquiries.averageFirstResponseHours}시간`} />
@@ -66,7 +69,7 @@ export function StatsCustomersScreen({
       <StatsSection title="리뷰">
         <StatsSummaryGrid>
           <StatsSummaryTile label="작성" value={data.reviews.total.toLocaleString('ko-KR')} />
-          <StatsSummaryTile label="답글 없음" value={data.reviews.unanswered.toLocaleString('ko-KR')} />
+          <StatsSummaryTile href={data.reviews.unanswered > 0 ? '/admin/cs/reviews?reply=without&status=visible' : undefined} label="답글 없음" tone={data.reviews.unanswered > 0 ? 'warning' : undefined} value={data.reviews.unanswered.toLocaleString('ko-KR')} />
           <StatsSummaryTile label="평균 평점" value={data.reviews.averageRating === null ? '—' : data.reviews.averageRating.toFixed(2)} />
         </StatsSummaryGrid>
 
@@ -76,14 +79,16 @@ export function StatsCustomersScreen({
           <ul className="flex flex-col divide-y rounded-lg border bg-card">
             {[5, 4, 3, 2, 1].map((score) => {
               const count = data.reviews.distribution[score - 1] ?? 0;
+              const share = adminRatingShare(count, data.reviews.total);
+              const unhappy = score <= 2;
               return (
-                <li className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-4 gap-y-1 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto]" key={score}>
+                <li className="grid grid-cols-[2.5rem_minmax(0,1fr)_3rem_3.5rem_2.5rem] items-center gap-x-3 px-4 py-2.5" key={score}>
                   <span className="font-medium">{score}점</span>
-                  <strong className="font-semibold tabular-nums">{count.toLocaleString('ko-KR')}</strong>
-                  <span className="text-muted-foreground tabular-nums">
-                    {adminPercentLabel(adminRatingShare(count, data.reviews.total))}
-                  </span>
-                  <span className="text-xs text-muted-foreground sm:text-right">{score === 1 || score === 2 ? '불만' : score === 3 ? '보통' : '만족'}</span>
+                  {/* 숫자만으로는 비율이 안 들어온다. 불만 구간만 색을 켠다. */}
+                  <span aria-hidden="true" className="h-2 min-w-0 overflow-hidden rounded-full bg-muted"><span className={`block h-full rounded-full ${unhappy ? 'bg-destructive' : 'bg-muted-foreground/40'}`} style={{ width: `${share ?? 0}%` }} /></span>
+                  <strong className="text-right font-semibold tabular-nums">{count.toLocaleString('ko-KR')}</strong>
+                  <span className="text-right text-muted-foreground tabular-nums">{adminPercentLabel(share)}</span>
+                  <span className={`text-right text-xs ${unhappy ? 'font-semibold text-destructive' : 'text-muted-foreground'}`}>{unhappy ? '불만' : score === 3 ? '보통' : '만족'}</span>
                 </li>
               );
             })}
@@ -99,7 +104,7 @@ export function StatsCustomersScreen({
           rows={adminSalesTrend(data.signups.map(row => ({ date: row.date, orderCount: row.total, revenue: 0, averageOrderValue: 0 })), filters, now).map((row) => ({
             id: row.date,
             cells: [
-              <span className="tabular-nums" key="date">{row.date}</span>,
+              <span className="tabular-nums" key="date">{statsDateLabel(row.date)}</span>,
               row.orderCount.toLocaleString('ko-KR'),
             ],
           }))}

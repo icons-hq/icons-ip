@@ -39,5 +39,11 @@ describe('manager directory controls', () => {
     expect(html).toContain('미선택');
     expect(html).not.toContain('value="owner" selected');
     expect(html).toMatch(/<button[^>]*type="submit"[^>]*>매니저 역할 적용<\/button>/);
+    /* 아무 역할도 고르지 않은 처음에는 적용을 누를 수 없고, 권한 회수 결과는 주의 상자로 말한다. */
+    expect(html).toMatch(/<button(?=[^>]*disabled="")[^>]*>매니저 역할 적용<\/button>/);
+    expect(html).toMatch(/data-admin-notice="warning"[^>]*>[\s\S]*권한 회수를 고른 계정은 일반 회원으로 전환됩니다\./);
+    /* 흐린 버튼 옆에서 무엇이 남았는지 말하고, 빈 칸이 지금 권한을 뜻하지 않는다는 것을 알린다. */
+    expect(html).toContain('1명의 새 역할을 더 고르면 적용할 수 있습니다.');
+    expect(html).toContain('적용하기 전까지 지금 권한은 그대로');
   });
 });

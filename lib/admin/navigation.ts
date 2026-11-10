@@ -263,6 +263,26 @@ export const ADMIN_SCREENS: AdminScreen[] = ADMIN_NAV_GROUPS.flatMap((group) => 
  * pathname이 어느 화면인지. 정확 일치를 먼저 보고, 없으면 가장 긴 접두 일치를 쓴다.
  * `/admin`이 모든 경로의 접두라서 접두만으로 고르면 전부 개요로 떨어진다.
  */
+/**
+ * 레코드 상세 화면의 셸 제목. 상세 경로는 목록 화면으로 판정되므로 목록 이름이 h1이 되어 현재 위치를 잃는다.
+ * 경로의 다음 칸이 레코드 id인 상세만 여기서 이름을 준다(등록·`new` 경로는 제외).
+ */
+const ADMIN_DETAIL_TITLES: readonly (readonly [RegExp, string])[] = [
+  [/^\/admin\/sales\/orders\/(?!new$)[^/]+$/, '주문 상세'],
+  [/^\/admin\/sales\/claims\/cancels\/[^/]+$/, '취소 상세'],
+  [/^\/admin\/sales\/claims\/returns\/(?!fees$|fee-policy$)[^/]+$/, '반품 상세'],
+  [/^\/admin\/sales\/claims\/exchanges\/[^/]+$/, '교환 상세'],
+  [/^\/admin\/sales\/subscriptions\/[^/]+$/, '정기구매 상세'],
+  [/^\/admin\/cs\/inquiries\/[^/]+$/, '고객문의 상세'],
+  [/^\/admin\/customers\/[^/]+$/, '고객 상세'],
+  [/^\/admin\/catalog\/goods\/export$/, '상품 엑셀 내보내기'],
+  [/^\/admin\/catalog\/ips\/[^/]+$/, 'IP 상세'],
+];
+
+export function adminDetailTitleForPath(pathname: string): string | null {
+  return ADMIN_DETAIL_TITLES.find(([pattern]) => pattern.test(pathname))?.[1] ?? null;
+}
+
 export function adminScreenForPath(pathname: string): AdminScreen | null {
   const path = pathname.split(/[?#]/, 1)[0];
   const normalized = path.length > 1 && path.endsWith('/') ? path.slice(0, -1) : path;

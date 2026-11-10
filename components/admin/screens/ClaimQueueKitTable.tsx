@@ -42,6 +42,8 @@ import type { SalesListSort } from '@/lib/admin/sales-list';
 import { adminClaimCopy } from '@/lib/admin/vocabulary';
 import { ORDER_CLAIM_TYPE_LABELS, type OrderClaimType } from '@/lib/orders/claims';
 import { X } from 'lucide-react';
+import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { statusTone } from '@/lib/admin/status-tone';
 import { ClaimPreviewLink } from './ClaimPreviewDialog';
 
 /*
@@ -170,6 +172,20 @@ export function claimKitFilterOptions(claimType: OrderClaimType): { stage: Optio
   };
 }
 
+/* 긴 값은 한 줄로 자르고 전체 값은 title에 둔다. 칸이 overflow-hidden이라 그냥 두면 말없이 글자가 잘린다. */
+function OneLine({ value }: { value: string }) {
+  return <span className="block truncate" title={value}>{value}</span>;
+}
+
+/*
+ * 1440 화면(표 폭 1,100px)에 유형을 뺀 열이 모두 들어오는 폭이다(합계 1,096px). 번호·금액·날짜는 값이 잘리지 않는 최소 폭이고,
+ * 이름·사유처럼 긴 값만 잘린다. 유형은 세 목록 모두 값이 한 가지라(유형별 조회) 기본으로 숨긴다.
+ */
+/** 환급 기한은 반품의 약관 기한이다. 취소·교환에서는 같은 칸이 처리 진행을 말한다. */
+function claimDeadlineLabel(claimType: OrderClaimType): string {
+  return claimType === 'return' ? '환급 기한' : '처리 기한';
+}
+
 function buildColumns(claimType: OrderClaimType, dateLabel: string): ColumnDef<DataTableFeatures, ClaimKitRow>[] {
   const typeLabel = ORDER_CLAIM_TYPE_LABELS[claimType];
   const { reason: reasonOptions, stage: stageOptions } = claimKitFilterOptions(claimType);
@@ -199,9 +215,9 @@ function buildColumns(claimType: OrderClaimType, dateLabel: string): ColumnDef<D
       cell: ({ row }) => <ClaimPreviewLink href={row.original.previewHref} label={`요청 ${row.original.reference} 상세 열기`}>
         <span className="tabular-nums">{row.original.reference}</span>
       </ClaimPreviewLink>,
-      size: 110,
+      size: 80,
     },
-    { id: 'order', accessorKey: 'order', enableSorting: false, header: '주문번호', meta: { label: '주문번호' }, cell: ({ row }) => <span className="tabular-nums">{row.original.order}</span>, size: 190 },
+    { id: 'order', accessorKey: 'order', enableSorting: false, header: '주문번호', meta: { label: '주문번호' }, cell: ({ row }) => <span className="tabular-nums">{row.original.order}</span>, size: 156 },
     { id: 'type', accessorKey: 'type', enableSorting: false, header: '유형', meta: { label: '유형' }, size: 70 },
     {
       id: 'reason',
@@ -210,7 +226,8 @@ function buildColumns(claimType: OrderClaimType, dateLabel: string): ColumnDef<D
       enableSorting: false,
       header: ({ column }) => <DataTableColumnHeader column={column} label="사유" />,
       meta: { label: `${typeLabel}사유`, variant: 'select', options: reasonOptions },
-      size: 150,
+      cell: ({ row }) => <OneLine value={row.original.reason} />,
+      size: 112,
     },
     {
       id: 'stage',
@@ -219,16 +236,18 @@ function buildColumns(claimType: OrderClaimType, dateLabel: string): ColumnDef<D
       enableSorting: false,
       header: ({ column }) => <DataTableColumnHeader column={column} label="상태" />,
       meta: { label: `${typeLabel}처리상태`, variant: 'select', options: stageOptions },
-      size: 110,
+      /* 행은 표시 문구만 들고 오므로 이 열의 보기표로 단계를 되찾아 색을 정한다(같은 표를 쓰는 문구라 어긋나지 않는다). */
+      cell: ({ row }) => <AdminStatusBadge tone={statusTone('claim', stageOptions.find((option) => option.label === row.original.stage)?.value)}>{row.original.stage}</AdminStatusBadge>,
+      size: 120,
     },
-    { id: 'buyer', accessorKey: 'buyer', enableSorting: false, header: '구매자', meta: { label: '구매자' }, cell: ({ row }) => <>@{row.original.buyer}</> },
+    { id: 'buyer', accessorKey: 'buyer', enableSorting: false, header: '구매자', meta: { label: '구매자' }, cell: ({ row }) => <OneLine value={row.original.buyer} />, size: 96 },
     {
       id: 'amount',
       accessorKey: 'amount',
       header: ({ column }) => <DataTableColumnHeader column={column} label="주문금액" />,
       meta: { label: '주문금액' },
       cell: ({ row }) => <span className="tabular-nums">{row.original.amountLabel}</span>,
-      size: 120,
+      size: 100,
     },
     {
       id: 'requested',
@@ -237,21 +256,31 @@ function buildColumns(claimType: OrderClaimType, dateLabel: string): ColumnDef<D
       header: ({ column }) => <DataTableColumnHeader column={column} label="접수일" />,
       cell: ({ row }) => <time dateTime={row.original.requestedAt}>{row.original.requestedLabel}</time>,
       meta: { label: dateLabel, variant: 'date', filter: 'range' },
-      size: 150,
+      size: 140,
     },
-    { id: 'sla', accessorKey: 'slaLabel', enableSorting: false, header: '환급 기한', meta: { label: '환급 기한' }, cell: ({ row }) => <span className={SLA_TONE_CLASS} data-sla-tone={row.original.slaTone}>{row.original.slaLabel}</span>, size: 116 },
-    { id: 'refund', accessorKey: 'refund', enableSorting: false, header: '환불 수단', meta: { label: '환불 수단' }, cell: ({ row }) => row.original.refund ?? <span className="text-muted-foreground">미접수</span>, size: 110 },
-    { id: 'handler', accessorKey: 'handler', enableSorting: false, header: '처리자', meta: { label: '처리자' }, cell: ({ row }) => row.original.handler ? <>@{row.original.handler}</> : <span className="text-muted-foreground">미배정</span>, size: 104 },
+    { id: 'sla', accessorKey: 'slaLabel', enableSorting: false, header: claimDeadlineLabel(claimType), meta: { label: claimDeadlineLabel(claimType) }, cell: ({ row }) => <span className={SLA_TONE_CLASS} data-sla-tone={row.original.slaTone}>{row.original.slaLabel}</span>, size: 90 },
+    { id: 'refund', accessorKey: 'refund', enableSorting: false, header: '환불 수단', meta: { label: '환불 수단' }, cell: ({ row }) => row.original.refund ?? <span className="text-muted-foreground">미접수</span>, size: 86 },
+    { id: 'handler', accessorKey: 'handler', enableSorting: false, header: '처리자', meta: { label: '처리자' }, cell: ({ row }) => row.original.handler ? <OneLine value={row.original.handler} /> : <span className="text-muted-foreground">미배정</span>, size: 76 },
   ];
 }
 
 /* 조회항목 설정의 열. 키는 기존 표(ClaimQueueScreen)와 같아, 같은 저장 키에서 운영자가 저장한 배치가 이어진다. */
-const PREFERENCE_COLUMNS: readonly ConsoleTableSettingsColumn[] = [
-  { key: 'reference', label: '요청번호' }, { key: 'order', label: '주문번호' }, { key: 'type', label: '유형' },
-  { key: 'reason', label: '사유' }, { key: 'stage', label: '상태' }, { key: 'buyer', label: '구매자' },
-  { key: 'amount', label: '주문금액' }, { key: 'requested', label: '접수일' }, { key: 'sla', label: '환급 기한' },
-  { key: 'refund', label: '환불 수단' }, { key: 'handler', label: '처리자' },
-];
+function preferenceColumnsFor(claimType: OrderClaimType): readonly ConsoleTableSettingsColumn[] {
+  return [
+    { key: 'reference', label: '요청번호' }, { key: 'order', label: '주문번호' }, { key: 'type', label: '유형', defaultVisible: false },
+    { key: 'reason', label: '사유' }, { key: 'stage', label: '상태' }, { key: 'buyer', label: '구매자' },
+    { key: 'amount', label: '주문금액' }, { key: 'requested', label: '접수일' },
+    /* 취소·교환의 기한 칸은 '회수 없음'·'재출고 대기'뿐이고, 교환에는 환불이 없다 — 그 목록에서는 기본으로 숨긴다(조회항목 설정에서 켠다). */
+    { key: 'sla', label: claimDeadlineLabel(claimType), ...(claimType !== 'return' ? { defaultVisible: false } : {}) },
+    { key: 'refund', label: '환불 수단', ...(claimType === 'exchange' ? { defaultVisible: false } : {}) },
+    { key: 'handler', label: '처리자' },
+  ];
+}
+const PREFERENCE_COLUMNS_BY_TYPE: Record<OrderClaimType, readonly ConsoleTableSettingsColumn[]> = {
+  cancel: preferenceColumnsFor('cancel'),
+  return: preferenceColumnsFor('return'),
+  exchange: preferenceColumnsFor('exchange'),
+};
 
 /**
  * 검색어는 조합이 끝난 뒤에만 확정한다. Dice UI의 텍스트 필터는 입력할 때마다 값을 올려 보내
@@ -289,7 +318,7 @@ function ClaimSearchBox({ field, fieldOptions, onSearch, pending, query, typeLab
       placeholder="주문번호 · 요청번호 · 구매자 · 수취인 · 상품번호"
       value={draft}
     />
-    <Button disabled={pending} type="submit">검색</Button>
+    <Button disabled={pending} type="submit" variant="soft">검색</Button>
   </form>;
 }
 
@@ -381,7 +410,7 @@ export function ClaimQueueKitTable({
     hrefFor: (next) => adminClaimHref(claimType, claimKitFiltersFor(filters, next)),
     onRowSelectionChange: setSelection,
     pageCount: Math.max(1, Math.ceil(total / pageSize)),
-    preferenceColumns: PREFERENCE_COLUMNS,
+    preferenceColumns: PREFERENCE_COLUMNS_BY_TYPE[claimType],
     preferencesKey: `sales-claims-${claimType}`,
     rowSelection: selection,
     state: claimKitStateFor(filters, pageSize),
@@ -452,15 +481,22 @@ export function ClaimQueueKitTable({
   const busy = pending || searching;
 
   return <div className="flex min-w-0 flex-col gap-3" data-admin-kit="claims-table" data-pending={busy ? 'true' : undefined}>
-    <ClaimSearchBox
-      field={filters.field ?? 'all'}
-      fieldOptions={searchFieldOptions}
-      key={`${filters.field ?? 'all'}:${filters.query}`}
-      onSearch={onSearch}
-      pending={busy}
-      query={filters.query}
-      typeLabel={typeLabel}
-    />
+    <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+      <ClaimSearchBox
+        field={filters.field ?? 'all'}
+        fieldOptions={searchFieldOptions}
+        key={`${filters.field ?? 'all'}:${filters.query}`}
+        onSearch={onSearch}
+        pending={busy}
+        query={filters.query}
+        typeLabel={typeLabel}
+      />
+      {/* 처리 막대는 체크하면 화면 아래에 뜬다. 체크 전에는 같은 버튼을 흐리게 보여 어디서 처리하는지 알린다(발주 화면의 '선택 주문 0건'과 같은 약속). */}
+      {selectedIds.length === 0 ? <div aria-label="일괄 처리(요청을 체크하면 쓸 수 있습니다)" className="flex flex-wrap items-center gap-1.5" data-claims-bulk-idle="" role="group">
+        <span className="text-xs text-muted-foreground">0건 선택</span>
+        {(['approve', 'review', 'reject'] as const).map((decision) => <Button disabled key={decision} size="sm" title="왼쪽 체크칸에서 요청을 고르면 화면 아래 막대에서 처리합니다" variant="outline">{ADMIN_CLAIM_BULK_ACTION_LABELS[decision]}</Button>)}
+      </div> : null}
+    </div>
     <DataTable
       aria-label={`${typeLabel} 요청 목록`}
       emptyLabel={`조건에 맞는 ${typeLabel} 요청이 없습니다.`}
@@ -478,7 +514,7 @@ export function ClaimQueueKitTable({
           <KitDatePresets disabled={busy} from={filters.from} onSelect={onDatePreset} to={filters.to} />
         </>}
         table={table}
-        viewOptions={<ConsoleTableSettings columns={PREFERENCE_COLUMNS} onSave={savePreferences} preferences={preferences} />}
+        viewOptions={<ConsoleTableSettings columns={PREFERENCE_COLUMNS_BY_TYPE[claimType]} onSave={savePreferences} preferences={preferences} />}
       />
     </DataTable>
 

@@ -3,12 +3,12 @@
 import Link from 'next/link';
 import { useRef, useState } from 'react';
 import { CouponFilters } from '@/components/admin/coupons/CouponFilters';
-import { CouponStatusAction } from '@/components/admin/coupons/CouponStatusAction';
+import { CouponRowActions } from '@/components/admin/coupons/CouponRowActions';
 import { CouponScheduleFields } from '@/components/admin/coupons/CouponScheduleFields';
 import { ConsoleGrid } from '@/components/admin/console/ConsoleGrid';
 import { SalesResultsHeader } from '@/components/admin/sales/SalesConsole';
 import { COUPON_PHASES, COUPON_SORTS, couponPhase, couponIssueEndsAt } from '@/lib/admin/coupons';
-import { AdminFormGrid } from '@/components/admin/console/AdminKit';
+import { AdminFormGrid, AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { CouponTargetingFields } from '@/components/admin/CouponTargetingFields';
 import { adminFormRemountKey } from '@/lib/admin/form-state';
 import { ConsolePagination } from '@/components/admin/console/ConsolePagination';
@@ -19,10 +19,12 @@ import {
   type AdminCouponFilters,
   type AdminCouponRecord,
 } from '@/lib/admin/coupons';
+import { statusTone } from '@/lib/admin/status-tone';
+import { formatOrderDateTime } from '@/lib/orders';
 import { LOYALTY_GRADES, isLoyaltyGrade, loyaltyBasisSummary, loyaltyGradeLabel } from '@/lib/loyalty';
 import type { ConfigurableGrade } from '@/lib/loyalty-policy';
 import { Field, FormShell, SelectField } from '../fields';
-import { ArrowLeft, Plus } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Plus } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
 
 /*
@@ -50,6 +52,16 @@ function dateTimeInput(value: string | null | undefined) {
   }).formatToParts(date);
   const get = (type: string) => parts.find((part) => part.type === type)?.value ?? '';
   return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`;
+}
+
+/** 기간 칸 — 시작과 끝을 한 줄씩(두 줄 고정)만 쓴다. 다른 화면과 같은 날짜 표기다. */
+function CouponPeriod({ from, to }: { from: string; to: string | null | undefined }) {
+  return <span className="block text-xs whitespace-nowrap tabular-nums">{formatOrderDateTime(from)}<span className="block text-muted-foreground">~ {to ? formatOrderDateTime(to) : '무기한'}</span></span>;
+}
+
+function CouponPhaseBadge({ coupon }: { coupon: AdminCouponRecord }) {
+  const phase = couponPhase(coupon);
+  return <AdminStatusBadge tone={statusTone('couponPhase', phase)}>{COUPON_PHASES.find(option => option.value === phase)?.label}</AdminStatusBadge>;
 }
 
 function CouponEditor({
@@ -112,16 +124,21 @@ function CouponEditor({
       <input name="expectedRevision" type="hidden" value={value('expectedRevision', selected?.termsRevision)} />
       <fieldset disabled={pending} className="flex min-w-0 flex-col">
         <legend className="sr-only">쿠폰 정보</legend>
-      <div className="p-4 sm:p-6"><AdminFormGrid>
+      {!selected ? <ol aria-label="혜택 등록 단계" className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b px-4 py-3 text-sm sm:px-6" data-coupon-steps="">
+        {['대상 설정', '할인·발급 조건'].map((label, index) => <li aria-current={step === index + 1 ? 'step' : undefined} className="group/step flex items-center gap-2 text-muted-foreground aria-[current=step]:font-semibold aria-[current=step]:text-primary-soft-foreground" key={label}>
+          <span aria-hidden="true" className="grid size-5 place-items-center rounded-full bg-muted text-xs tabular-nums group-aria-[current=step]/step:bg-primary group-aria-[current=step]/step:text-primary-foreground">{index + 1}</span>{label}
+        </li>)}
+      </ol> : null}
+      <div className="p-4 sm:p-6"><div className="max-w-xl"><AdminFormGrid>
         <Field
           defaultValue={value('name', defaults?.name)}
           error={state.errors?.name}
           label="혜택 이름"
           name="name"
-          placeholder="가을 프로모션 3천원"
+          placeholder="예: 가을 프로모션 3천원"
           required
         />
-      </AdminFormGrid></div>
+      </AdminFormGrid></div></div>
       <CouponTargetingFields
         recipientSegment={String(value('recipientSegment', defaults?.recipientSegment ?? 'all'))}
         goodsScope={String(value('goodsScope', defaults?.goodsScope ?? 'all'))}
@@ -145,7 +162,7 @@ function CouponEditor({
           error={state.errors?.code}
           label="코드 (대문자·숫자·하이픈)"
           name="code"
-          placeholder="WELCOME-3000"
+          placeholder="예: WELCOME-3000"
           readOnly={Boolean(selected)}
           required
         />
@@ -237,7 +254,7 @@ function CouponEditor({
       )}
       {stepError ? <p className="border-t px-4 pt-3 text-sm text-destructive sm:px-6" role="alert">{stepError}</p> : null}
       {step === 1 ? <div className="flex flex-wrap justify-center gap-3 border-t p-4 sm:p-5">
-        <Button type="button" disabled={pending} onClick={next}>확인</Button>
+        <Button type="button" disabled={pending} onClick={next}>다음: 할인·발급 조건<ArrowRight aria-hidden="true" /></Button>
         <Button type="button" variant="outline" disabled={pending} onClick={onCancel}>취소</Button>
       </div> : <div className="flex flex-wrap items-start justify-center gap-3 border-t p-4 sm:p-5">
         {!selected ? <Button type="button" variant="outline" disabled={pending} onClick={() => { setStep(1); form.current?.scrollIntoView({ block: 'start' }); }}><ArrowLeft aria-hidden="true" />대상 설정으로</Button> : null}
@@ -284,30 +301,31 @@ export function CouponSection({
   const href = adminCouponListHref(filters);
   return <section className="flex min-w-0 flex-col gap-4">
     <CouponFilters key={href} filters={filters} />
-    {filters.inputError ? <p className="text-sm text-destructive" role="alert">{filters.inputError}</p> : null}
-    {filters.selectedCode ? <p className="text-sm text-destructive" role="alert">선택한 쿠폰을 찾을 수 없습니다.</p> : null}
+    {filters.inputError ? <AdminNotice role="alert" tone="danger">{filters.inputError}</AdminNotice> : null}
+    {filters.selectedCode ? <AdminNotice role="alert" tone="danger">선택한 쿠폰을 찾을 수 없습니다.</AdminNotice> : null}
     <div className="min-w-0 overflow-hidden rounded-xl border bg-card">
-      <div className="px-4 pt-4">
-        <SalesResultsHeader currentHref={href} total={total} pageSize={pageSize} pageSizes={[20,50,100]} sort={filters.sort ?? 'created_desc'} sortOptions={COUPON_SORTS}>
-          <Link className={buttonVariants()} data-slot="button" href={`${ADMIN_COUPON_LIST_PATH}/new`}><Plus aria-hidden="true" />새 고객혜택 등록</Link>
-        </SalesResultsHeader>
-      </div>
       <div className="flex min-w-0 flex-col gap-3 p-4">
         <ConsoleGrid caption="혜택 목록" preferencesKey="coupons" columns={[
-          { key: 'code', label: '쿠폰 코드', width: '170px' }, { key: 'actions', label: '관리', width: '170px', required: true },
-          { key: 'phase', label: '혜택상태', width: '100px' }, { key: 'name', label: '혜택 이름', width: '220px' },
-          { key: 'target', label: '타겟팅 대상', width: '140px' }, { key: 'discount', label: '할인설정', width: '130px' },
-          { key: 'issuePeriod', label: '혜택 발급기간', width: '210px' }, { key: 'period', label: '사용기간', width: '210px' }, { key: 'counts', label: '발급 / 사용', width: '130px', align: 'end' },
-        ]} rows={records.map(coupon => ({ id: coupon.id, cells: [
+          { key: 'name', label: '혜택 이름', width: '170px' }, { key: 'phase', label: '혜택상태', width: '80px' },
+          { key: 'code', label: '쿠폰 코드', width: '104px' }, { key: 'actions', label: '관리', width: '136px', required: true },
+          { key: 'target', label: '타겟팅 대상', width: '96px' }, { key: 'discount', label: '할인설정', width: '120px' },
+          { key: 'issuePeriod', label: '혜택 발급기간', width: '148px' }, { key: 'period', label: '사용기간', width: '148px' }, { key: 'counts', label: '발급 / 사용', width: '84px', align: 'end' },
+        ]} rows={records.map(coupon => ({ id: coupon.id, href: adminCouponListHref(filters, { selectedCode: coupon.id }), cells: [
+          coupon.name,
+          <CouponPhaseBadge coupon={coupon} key="phase" />,
           coupon.code,
-          <div key="actions" className="flex items-center gap-1 print:hidden"><CouponStatusAction key={`${coupon.code}-${coupon.termsRevision}-${coupon.status}`} coupon={coupon} /><Button type="button" size="xs" variant="outline" onClick={() => onSelect(coupon)}>수정</Button><Link className={buttonVariants({ size: 'xs', variant: 'outline' })} data-slot="button" href={`${ADMIN_COUPON_LIST_PATH}/new?copy=${encodeURIComponent(coupon.code)}`}>복사</Link><Link className={buttonVariants({ size: 'xs', variant: 'outline' })} data-slot="button" href={`${ADMIN_COUPON_LIST_PATH}/issue?couponCode=${encodeURIComponent(coupon.code)}`}>발급</Link></div>,
-          COUPON_PHASES.find(option => option.value === couponPhase(coupon))?.label,
-          coupon.name, coupon.issuanceMode === 'targeted' ? '지정 고객' : coupon.gradeBenefit ? `${loyaltyGradeLabel(isLoyaltyGrade(coupon.gradeBenefit) ? coupon.gradeBenefit : 'welcome')} 등급` : coupon.recipientSegment === 'first_purchase' ? '첫구매 고객' : coupon.recipientSegment === 'repeat_purchase' ? '재구매 고객' : '전체 고객',
-          <span key="discount">{coupon.benefitKind === 'shipping' ? '배송비 ' : '상품 '}{coupon.discountValue.toLocaleString('ko-KR')}{coupon.discountType === 'percent' ? '%' : '원'}{coupon.maxDiscountAmount ? <small className="block text-[11px] text-muted-foreground">최대 {coupon.maxDiscountAmount.toLocaleString('ko-KR')}원</small> : null}</span>,
-          <span className="tabular-nums" key="issuePeriod">{dateTimeInput(coupon.issueStartsAt ?? coupon.startsAt).replace('T',' ')}<small className="block text-[11px] text-muted-foreground">~ {couponIssueEndsAt(coupon) ? dateTimeInput(couponIssueEndsAt(coupon)).replace('T',' ') : '무기한'}</small></span>,
-          <span className="tabular-nums" key="period">{coupon.validDays ? `발급일로부터 ${coupon.validDays}일 후까지` : <>{dateTimeInput(coupon.startsAt).replace('T',' ')}<small className="block text-[11px] text-muted-foreground">~ {coupon.endsAt ? dateTimeInput(coupon.endsAt).replace('T',' ') : '무기한'}</small></>}</span>,
+          <CouponRowActions key={`${coupon.code}-${coupon.termsRevision}-${coupon.status}`} copyHref={`${ADMIN_COUPON_LIST_PATH}/new?copy=${encodeURIComponent(coupon.code)}`} coupon={coupon} issueHref={`${ADMIN_COUPON_LIST_PATH}/issue?couponCode=${encodeURIComponent(coupon.code)}`} onEdit={() => onSelect(coupon)} />,
+          coupon.issuanceMode === 'targeted' ? '지정 고객' : coupon.gradeBenefit ? `${loyaltyGradeLabel(isLoyaltyGrade(coupon.gradeBenefit) ? coupon.gradeBenefit : 'welcome')} 등급` : coupon.recipientSegment === 'first_purchase' ? '첫구매 고객' : coupon.recipientSegment === 'repeat_purchase' ? '재구매 고객' : '전체 고객',
+          <span key="discount">{coupon.benefitKind === 'shipping' ? '배송비 ' : '상품 '}{coupon.discountValue.toLocaleString('ko-KR')}{coupon.discountType === 'percent' ? '%' : '원'}{coupon.maxDiscountAmount ? <small className="block text-xs text-muted-foreground">최대 {coupon.maxDiscountAmount.toLocaleString('ko-KR')}원</small> : null}</span>,
+          <CouponPeriod from={coupon.issueStartsAt ?? coupon.startsAt} key="issuePeriod" to={couponIssueEndsAt(coupon)} />,
+          coupon.validDays ? <span className="text-xs" key="period">발급일로부터 {coupon.validDays}일 후까지</span> : <CouponPeriod from={coupon.startsAt} key="period" to={coupon.endsAt} />,
           `${coupon.issuedCount.toLocaleString('ko-KR')} / ${coupon.usedCount.toLocaleString('ko-KR')}`,
-        ] }))} emptyLabel="조건에 맞는 혜택이 없습니다." />
+        ] }))} emptyLabel="조건에 맞는 혜택이 없습니다.">
+          {/* 머리와 조회항목 설정을 한 줄에 둔다 — 설정 버튼 혼자 한 줄을 차지하면 표가 밀린다. */}
+          <SalesResultsHeader currentHref={href} total={total} pageSize={pageSize} pageSizes={[20,50,100]} sort={filters.sort ?? 'created_desc'} sortOptions={COUPON_SORTS}>
+            <Link className={buttonVariants()} data-slot="button" href={`${ADMIN_COUPON_LIST_PATH}/new`}><Plus aria-hidden="true" />새 고객혜택 등록</Link>
+          </SalesResultsHeader>
+        </ConsoleGrid>
         <ConsolePagination label="혜택 목록 페이지" page={filters.page} pageSize={pageSize} total={total} hrefForPage={page => adminCouponListHref(filters, { page })} />
       </div>
     </div>

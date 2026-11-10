@@ -439,7 +439,8 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
       <input name="published" type="hidden" value={String(Boolean(selected?.publishedAt))} />
       <input name="bg" type="hidden" value={selected?.bg ?? ''} />
       {!selected && draftIdentity ? <><input type="hidden" name="serverDraftId" value={draftIdentity.id}/><input type="hidden" name="serverDraftRevision" value={draftIdentity.revision}/></> : null}
-      {atomicSections ? <><input type="hidden" name={GOOD_WORKSPACE_OPERATION_FIELD} defaultValue="" /><input type="hidden" name={GOOD_WORKSPACE_SECTIONS_FIELD} defaultValue="" /></> : null}
+      {/* 제출 capture 단계에서 값을 쓴다. defaultValue를 주면 그 사이 재렌더가(실제 클릭은 capture와 bubble 사이에 마이크로태스크가 돈다) value 속성을 다시 비워 FormData에 빈 값이 실린다. */}
+      {atomicSections ? <><input type="hidden" name={GOOD_WORKSPACE_OPERATION_FIELD} /><input type="hidden" name={GOOD_WORKSPACE_SECTIONS_FIELD} /></> : null}
       <GoodWorkspaceErrors errors={errors} />
       <GoodEditorSection title="카테고리" id="good-section-category" summary={categories.find((category) => category.id === categoryId)?.name || '선택 안 함'} errorCount={errorCount('category')}>
           <OwnedFields locked={groupOwned} fields={['categoryId','additionalCategoryIds']} values={initial}><CategoryAssignmentField categories={categories} value={initial.categoryId} primary={categoryId} onPrimaryChange={setCategoryId} error={errors.categoryId} additionalValue={initial.additionalCategoryIds} additionalError={errors.additionalCategoryIds} /></OwnedFields>

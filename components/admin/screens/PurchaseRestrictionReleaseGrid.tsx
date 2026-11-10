@@ -6,6 +6,7 @@ import { ConsoleGrid, type ConsoleGridColumn, type ConsoleGridRow } from '@/comp
 import { readRestrictionReleaseAction, releaseRestrictionsAction } from '@/app/admin/purchase-restriction-release-actions';
 import { normalizeRestrictionRelease, type PurchaseRestrictionReleaseReceipt } from '@/lib/admin/purchase-restriction-release';
 import { formatOrderDateTime } from '@/lib/orders';
+import { ShortId } from '@/components/admin/sales/SalesConsole';
 import { CustomerServiceDialog } from './CustomerServiceDialog';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
@@ -17,8 +18,8 @@ export function PurchaseRestrictionReleaseResult({ receipt }: { receipt: Purchas
     <h3 className="text-base font-medium text-foreground">선택 해제 결과</h3><p role="status">해제 {count('released')}건 · 이미 해제 {count('already_released')}건 · 기록 없음 {count('not_found')}건</p>
     <p className="text-muted-foreground">처리 시각 {formatOrderDateTime(receipt.completedAt)} · 사유: {receipt.reason}</p>
     <ul className="flex flex-col gap-1 wrap-anywhere">{receipt.rows.map(row => <li key={row.id}>
-      <span className="tabular-nums">{row.id}</span> · {row.outcome === 'released' ? '해제 완료' : row.outcome === 'already_released' ? '이미 해제된 기록' : '해당 기록 없음'}
-      {row.customerRestricted ? <strong className="font-medium text-[var(--wc-warning)]"> · 현재 다른 구매제한 기록이 있습니다.</strong> : null}
+      <ShortId value={row.id} /> · {row.outcome === 'released' ? '해제 완료' : row.outcome === 'already_released' ? '이미 해제된 기록' : '해당 기록 없음'}
+      {row.customerRestricted ? <strong className="font-medium text-warning"> · 현재 다른 구매제한 기록이 있습니다.</strong> : null}
       {row.userId ? <> · <Link className="underline underline-offset-4" href={`/admin/customers/${row.userId}`}>고객 확인</Link></> : null}
     </li>)}</ul>
   </section>;
@@ -61,7 +62,7 @@ export function PurchaseRestrictionReleaseGrid({ columns, rows, currentHref, ini
     <ConsoleGrid caption="판매방해 고객 구매제한 목록" preferencesKey="sales-purchase-restrictions" columns={columns} rows={rows}
       emptyLabel="검색 조건에 맞는 구매제한 기록이 없습니다." selectable selectedIds={ids} onSelectionChange={next => { if (!operation) setSelected(next); }}>
       <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2 print:hidden" data-sales-workbar=""><span className="text-muted-foreground tabular-nums">{ids.length}건 선택</span>
-        <Button type="button" size="sm" variant="outline" disabled={!ids.length || pending} onClick={open}>선택건 해제하기</Button>
+        <Button type="button" size="sm" variant="outline" disabled={!ids.length || pending} onClick={open}>선택건 구매제한 해제</Button>
       </div>
     </ConsoleGrid>
     {receipt ? <><PurchaseRestrictionReleaseResult receipt={receipt} /><Link className="self-start text-sm underline underline-offset-4" href={`${currentHref}&releaseBatch=${receipt.id}`}>이 해제 결과 다시 열기</Link></> : null}

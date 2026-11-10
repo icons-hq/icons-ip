@@ -2,8 +2,7 @@
 
 import { useActionState, useState } from 'react';
 import { sendAdminNotificationAction } from '@/app/admin/notification-actions';
-import { Bell, Check, Info } from 'lucide-react';
-import { Alert, AlertDescription } from '@/components/admin/kit/ui/alert';
+import { Bell, Check } from 'lucide-react';
 import { Badge } from '@/components/admin/kit/ui/badge';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
@@ -11,7 +10,8 @@ import { Label } from '@/components/admin/kit/ui/label';
 import { NativeSelect, NativeSelectOption } from '@/components/admin/kit/ui/native-select';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
 import { ErrorText } from '../fields';
-import { SECTION_CARD, SECTION_WARNING, SectionHeading } from './SectionLayout';
+import { AdminNotice, AdminPageHeader, AdminStatusBadge } from '../console/AdminKit';
+import { SECTION_CARD, SectionHeading } from './SectionLayout';
 import type {
   AdminNotificationActionState,
   AdminNotificationAudience,
@@ -93,21 +93,17 @@ export function NotificationSection({
    * kit 모양으로 그린다(공개 미리보기 부품이 아니다).
    */
   return (
-    <section aria-labelledby="admin-notification-heading" className="flex min-w-0 flex-col gap-6">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-col gap-1">
-          <h2 className="text-lg leading-tight font-semibold tracking-tight text-foreground" id="admin-notification-heading">공지·알림 발송</h2>
-          <p className="max-w-prose text-sm text-muted-foreground">전체 사용자 또는 특정 IP 팔로워에게 운영 공지를 보냅니다.</p>
-        </div>
-        <Badge variant="outline">인앱 전용</Badge>
-      </header>
+    <section aria-label="공지 발송" className="flex min-w-0 flex-col gap-6">
+      <AdminPageHeader
+        actions={<Badge variant="outline">인앱 전용</Badge>}
+        description="전체 사용자 또는 특정 IP 팔로워에게 운영 공지를 보냅니다."
+        title="공지 발송"
+      />
 
-      <Alert role="note">
-        <Info aria-hidden="true" />
-        <AlertDescription>
-          인앱 알림함에 즉시 발송됩니다. 이메일·푸시는 발송하지 않습니다. 수신자 수는 현재 기준 추정치이며 실제 수신자는 발송 시점에 확정됩니다.
-        </AlertDescription>
-      </Alert>
+      {/* 바로 나가고 되돌릴 수 없는 발송이라 일반 안내가 아니라 주의로 둔다. */}
+      <AdminNotice role="note" tone="warning">
+        인앱 알림함에 즉시 발송됩니다. 이메일·푸시는 발송하지 않습니다. 수신자 수는 현재 기준 추정치이며 실제 수신자는 발송 시점에 확정됩니다.
+      </AdminNotice>
 
       <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(17.5rem,0.72fr)]">
         <form
@@ -160,7 +156,7 @@ export function NotificationSection({
               <NativeSelect
                 aria-describedby={state.errors?.ipId ? 'notification-ip-error' : undefined}
                 aria-invalid={Boolean(state.errors?.ipId)}
-                className="w-full"
+                className="w-full [&_select:disabled]:border-border"
                 disabled={scope === 'all' || pending}
                 id="notification-ip"
                 name="ipId"
@@ -229,22 +225,20 @@ export function NotificationSection({
           </div>
 
           {!audience?.canSend && (
-            <p className={SECTION_WARNING} role="status">
+            <AdminNotice role="status" tone="warning">
               현재 대상에게 발송할 수 없습니다. 수신자가 1명 이상인지 확인해주세요.
-            </p>
+            </AdminNotice>
           )}
 
           {state.errors?.form && (
-            <p className={SECTION_WARNING} role="alert">{state.errors.form}</p>
+            <AdminNotice role="alert" tone="danger">{state.errors.form}</AdminNotice>
           )}
           {state.message && state.recipientCount !== undefined && (
-            <p className="flex items-center gap-1.5 rounded-lg border bg-muted/40 px-3 py-2.5 text-sm font-medium text-[var(--wc-success)]" role="status">
-              <Check aria-hidden="true" className="size-4 shrink-0" /> 실제 {recipientNumber.format(state.recipientCount)}명에게 발송했습니다.
-            </p>
+            <AdminNotice role="status" tone="success">실제 {recipientNumber.format(state.recipientCount)}명에게 발송했습니다.</AdminNotice>
           )}
 
           {confirmed ? (
-            <div aria-label="즉시 발송 최종 확인" className="flex flex-col gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3" role="group">
+            <div aria-label="즉시 발송 최종 확인" className="flex flex-col gap-3 rounded-lg border border-danger-border bg-danger-soft p-3" role="group">
               <p className="text-sm font-medium text-destructive">
                 예상 {recipientNumber.format(audience?.recipientCount ?? 0)}명에게 즉시 발송하며 회수할 수 없습니다.
               </p>
@@ -277,21 +271,21 @@ export function NotificationSection({
         <aside aria-labelledby="notification-preview-heading" className={`${SECTION_CARD} lg:sticky lg:top-16`}>
           <SectionHeading id="notification-preview-heading" title="사용자 알림 미리보기" />
           <article className="relative flex items-start gap-3 overflow-hidden rounded-lg border bg-background py-4 pr-4 pl-5" data-notification-preview="">
-            <span aria-hidden className="absolute inset-y-0 left-0 w-1 bg-[var(--wc-info)]" />
-            <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-lg border bg-muted text-[var(--wc-info)]">
+            <span aria-hidden className="absolute inset-y-0 left-0 w-1 bg-info" />
+            <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-lg border bg-muted text-info">
               <Bell className="size-5" />
             </span>
             <span className="flex min-w-0 flex-1 flex-col gap-1">
               <span className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                <span className="font-medium text-[var(--wc-info)]">공지</span>
+                <span className="font-medium text-info">공지</span>
                 <time>방금 전</time>
               </span>
               <strong className="text-sm leading-snug font-semibold break-words text-foreground">{title.trim() || '제목을 입력하면 여기에 보여요.'}</strong>
               <span className="text-sm break-words text-muted-foreground">{body.trim() || '본문을 입력하면 사용자가 받을 알림 모양을 확인할 수 있어요.'}</span>
             </span>
-            <span aria-hidden className="mt-1.5 size-2 shrink-0 rounded-full bg-[var(--wc-info)] max-sm:hidden" />
+            <span aria-hidden className="mt-1.5 size-2 shrink-0 rounded-full bg-info max-sm:hidden" />
           </article>
-          <p className="text-xs text-muted-foreground">링크는 알림함(<code className="rounded bg-muted px-1 py-0.5 font-mono">/notifications</code>)으로 고정됩니다.</p>
+          <p className="text-xs text-muted-foreground">알림을 누르면 알림함으로 이동합니다.</p>
         </aside>
       </div>
 
@@ -309,7 +303,7 @@ export function NotificationSection({
             {data.history.slice(0, 20).map((record) => (
               <li className="flex min-w-0 flex-col gap-1.5 px-4 py-3" key={record.operationId}>
                 <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-                  <span className="font-medium text-foreground">{audienceLabel(record)}</span>
+                  <span className="flex flex-wrap items-center gap-2"><span className="font-medium text-foreground">{audienceLabel(record)}</span><AdminStatusBadge tone="success">발송 완료</AdminStatusBadge></span>
                   <time className="tabular-nums" dateTime={record.sentAt}>{historyDate.format(new Date(record.sentAt))}</time>
                 </div>
                 <strong className="text-sm font-semibold break-words text-foreground">{record.title}</strong>

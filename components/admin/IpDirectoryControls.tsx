@@ -19,7 +19,7 @@ export function IpDirectoryControls({ id, directory }: { id: string; directory: 
   const featured = state.values ? state.values.featured === 'on' : selected.featured;
   return <AdminSectionCard title="디렉토리 노출">
     <div className="flex flex-col gap-1 text-sm text-muted-foreground">
-      <p>피처드 IP <span className="tabular-nums">{directory.filter((ip) => ip.featured).length}/{IP_FEATURED_LIMIT}</span>개 · 최대 {IP_FEATURED_LIMIT}개를 지정할 수 있습니다.</p>
+      <p>추천 IP <span className="tabular-nums">{directory.filter((ip) => ip.featured).length}/{IP_FEATURED_LIMIT}</span>개 · 최대 {IP_FEATURED_LIMIT}개를 지정할 수 있습니다.</p>
       <p>순번은 모든 IP 기준입니다. 초안·보관 IP는 공개 디렉토리에 표시되지 않습니다.</p>
     </div>
     <form action={action} className="flex flex-col gap-4">
@@ -28,7 +28,7 @@ export function IpDirectoryControls({ id, directory }: { id: string; directory: 
         <input name="expectedOrder" type="hidden" value={state.values?.expectedOrder ?? JSON.stringify(currentOrder)} />
         <input name="expectedFeatured" type="hidden" value={state.values?.expectedFeatured ?? String(selected.featured)} />
         <label className="flex w-fit items-center gap-2 text-sm font-medium">
-          <input name="featured" type="checkbox" defaultChecked={featured} disabled={Boolean(selected.archivedAt && !selected.featured)} /> 피처드 IP로 노출
+          <input name="featured" type="checkbox" defaultChecked={featured} disabled={Boolean(selected.archivedAt && !selected.featured)} /> 추천 IP로 노출
         </label>
         <AdminField label="디렉토리 순번" inputId={inputId} hint={`1~${directory.length} 사이의 순번을 입력해주세요.`}>
           <Input className="w-32 tabular-nums" id={inputId} name="position" type="number" min={1} max={directory.length} step={1} defaultValue={position} required aria-describedby={`${inputId}-hint`} />
@@ -40,7 +40,7 @@ export function IpDirectoryControls({ id, directory }: { id: string; directory: 
         </div>
       </fieldset>
       {state.errors?.form ? <p className="text-sm text-destructive" role="alert">{state.errors.form}</p> : null}
-      {state.message ? <p className="text-sm font-medium text-[var(--wc-success)]" role="status">{state.message}</p> : null}
+      {state.message ? <p className="text-sm font-medium text-success" role="status">{state.message}</p> : null}
     </form>
   </AdminSectionCard>;
 }

@@ -1,17 +1,14 @@
-import { Badge } from '@/components/admin/kit/ui/badge';
+import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { ADMIN_ORDER_STATUS_LABELS, type AdminOrderStatus } from '@/lib/admin/orders';
+import { statusTone } from '@/lib/admin/status-tone';
+
+/** 상세 화면 머리의 큰 상태 배지 크기. 표 안의 배지는 기본 크기를 쓴다. */
+export const LARGE_STATUS_BADGE_CLASS = 'h-7 px-3 text-sm';
 
 /*
- * 주문 상태 배지(kit Badge, ADR-0028). 의미색은 토큰만 쓴다 — 결제 대기는 주의, 취소는 위험, 나머지는 중립이다.
+ * 주문 상태 배지. 색은 lib/admin/status-tone이 정한다(ADR-0029).
  * 화면·테스트가 상태를 찾는 자리는 data-order-status다.
  */
-const WARNING = 'border-transparent bg-[color-mix(in_oklab,var(--wc-warning)_12%,transparent)] text-[var(--wc-warning)]';
-
-export function OrderStatusBadge({ status, label, title }: { status: AdminOrderStatus; label?: string; title?: string }) {
-  return <Badge
-    className={status === 'pending' ? WARNING : undefined}
-    data-order-status={status}
-    title={title}
-    variant={status === 'canceled' ? 'destructive' : status === 'done' ? 'outline' : 'secondary'}
-  >{label ?? ADMIN_ORDER_STATUS_LABELS[status]}</Badge>;
+export function OrderStatusBadge({ status, label, title, className }: { status: AdminOrderStatus; label?: string; title?: string; className?: string }) {
+  return <AdminStatusBadge className={className} data-order-status={status} title={title} tone={statusTone('order', status)}>{label ?? ADMIN_ORDER_STATUS_LABELS[status]}</AdminStatusBadge>;
 }

@@ -1,7 +1,8 @@
 'use client';
 import Link from 'next/link';
 import { useRef, useState } from 'react';
-import { AdminPageHeader, AdminSectionCard } from '../console/AdminKit';
+import { AdminPageHeader, AdminSectionCard, AdminNotice } from '../console/AdminKit';
+import { StoreSettingsRelatedLinks } from './StoreSettingsRelatedLinks';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { saveDetailExperienceAction, type ExperienceSaveResult } from '@/app/admin/product-detail-experience-actions';
@@ -9,7 +10,7 @@ import { PRODUCT_DETAIL_EXPERIENCE_PATH, type DetailExperienceSnapshot, type Det
 
 /* 상품상세 구매·탐색 설정(템플릿 룩, ADR-0028). 링크 탭은 셸의 콘솔 전환과 같은 모양이다. */
 const TABS = 'inline-flex max-w-full items-center self-start overflow-x-auto rounded-lg bg-muted p-0.5';
-const TAB = 'inline-flex h-7 shrink-0 items-center rounded-md px-2.5 text-[0.8rem] font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground aria-[current=page]:bg-background aria-[current=page]:text-foreground aria-[current=page]:shadow-sm';
+const TAB = 'inline-flex h-7 shrink-0 items-center rounded-md px-2.5 text-[0.8rem] font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground aria-[current=page]:bg-background aria-[current=page]:text-primary-soft-foreground aria-[current=page]:shadow-sm';
 const CHECK = 'flex items-start gap-2.5 text-[13px] leading-relaxed [&>input]:mt-1';
 const HINT = 'mt-1 block text-xs text-muted-foreground';
 const NUMBER = 'ml-6.5 flex flex-wrap items-center gap-2.5 text-[13px]';
@@ -18,12 +19,13 @@ const NOTE = 'text-xs leading-relaxed text-muted-foreground';
 export function DetailExperienceScreen({ snapshot, section }: { snapshot: DetailExperienceSnapshot; section: ExperienceSection }) {
   return <section className="flex min-w-0 flex-col gap-4">
     <AdminPageHeader title="상품상세 구매·탐색 설정" description="실제 구매 실적과 배송비, 본인의 관심상품을 상품상세에 연결합니다." />
-    <nav aria-label="상품상세 추가 설정" className={TABS}>
-      <Link className={TAB} href={PRODUCT_DETAIL_EXPERIENCE_PATH} aria-current={section === 'messages' ? 'page' : undefined}>구매유도 메시지</Link>
-      <Link className={TAB} href={`${PRODUCT_DETAIL_EXPERIENCE_PATH}?tab=discovery`} aria-current={section === 'discovery' ? 'page' : undefined}>배송비·관심상품</Link>
-      <Link className={TAB} href="/admin/display/detail">띠배너·리뷰·추천</Link>
-      <Link className={TAB} href="/admin/display/detail/media">대표미디어 설정</Link>
-    </nav>
+    <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2">
+      <nav aria-label="상품상세 추가 설정" className={TABS}>
+        <Link className={TAB} href={PRODUCT_DETAIL_EXPERIENCE_PATH} aria-current={section === 'messages' ? 'page' : undefined}>구매유도 메시지</Link>
+        <Link className={TAB} href={`${PRODUCT_DETAIL_EXPERIENCE_PATH}?tab=discovery`} aria-current={section === 'discovery' ? 'page' : undefined}>배송비·관심상품</Link>
+      </nav>
+      <StoreSettingsRelatedLinks label="상품상세 다른 설정" links={[{ href: '/admin/display/detail', label: '띠배너·리뷰·추천' }, { href: '/admin/display/detail/media', label: '대표미디어 설정' }]} />
+    </div>
     <ExperienceForm key={section} snapshot={snapshot} section={section} />
   </section>;
 }
@@ -44,7 +46,7 @@ function ExperienceForm({ snapshot, section }: { snapshot: DetailExperienceSnaps
     else { setValues(current => ({ ...current, [section]: result.values })); setRevision(result.revision); request.current = null; setUncertain(false); setError(false); setMessage('저장했습니다. 상품상세에 적용되었습니다.'); }
   }
   return <form className="flex min-w-0 flex-col gap-4" onSubmit={event => { event.preventDefault(); void save(); }}>
-    {snapshot.unavailable ? <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive" role="alert">현재 설정을 불러오지 못했습니다. 새로고침 후 다시 확인해주세요.</p> : null}
+    {snapshot.unavailable ? <AdminNotice role="alert" tone="danger">현재 설정을 불러오지 못했습니다. 새로고침 후 다시 확인해주세요.</AdminNotice> : null}
     <AdminSectionCard title={section === 'messages' ? '구매유도 메시지' : '배송비·관심상품'}>
       <fieldset disabled={pending || uncertain || snapshot.unavailable} className="grid min-w-0 gap-5">
         {section === 'messages' ? <>
@@ -63,6 +65,6 @@ function ExperienceForm({ snapshot, section }: { snapshot: DetailExperienceSnaps
         </>}
       </fieldset>
     </AdminSectionCard>
-    <div className="flex flex-col items-stretch justify-end gap-3 sm:flex-row sm:items-center">{message ? <p className={`text-sm sm:mr-auto ${error ? 'text-destructive' : 'text-[var(--wc-success)]'}`} role={error ? 'alert' : 'status'}>{message}</p> : null}<Button type="submit" disabled={pending || Boolean(snapshot.unavailable)}>{pending ? '저장 중…' : uncertain ? '같은 요청 결과 확인' : '설정 저장'}</Button></div>
+    <div className="flex flex-col items-stretch justify-end gap-3 sm:flex-row sm:items-center">{message ? <p className={`text-sm sm:mr-auto ${error ? 'text-destructive' : 'text-success'}`} role={error ? 'alert' : 'status'}>{message}</p> : null}<Button type="submit" disabled={pending || Boolean(snapshot.unavailable)}>{pending ? '저장 중…' : uncertain ? '같은 요청 결과 확인' : '설정 저장'}</Button></div>
   </form>;
 }

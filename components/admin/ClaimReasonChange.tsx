@@ -6,6 +6,7 @@ import { claimReasonError, claimReasonReceiptMatches, normalizeClaimReasonReques
 import { formatOrderDateTime, ORDER_WITHDRAWAL_REASON_LABELS, ORDER_WITHDRAWAL_REASON_TYPES, type OrderWithdrawalReasonType } from '@/lib/orders';
 import { ORDER_CLAIM_TYPE_SLUGS } from '@/lib/orders/claims';
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
+import { krw } from '@/lib/format';
 import { useClaimPreviewBusy } from '@/components/admin/screens/ClaimPreviewDialog';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { cn } from 'cn';
@@ -82,7 +83,7 @@ export function ClaimReasonChangePanel({ initial, onClose }: { initial: ClaimRea
     <p>원래 접수일 {formatOrderDateTime(context.requestedAt)} · 최초 사유: {adminGoodsCopy(ORDER_WITHDRAWAL_REASON_LABELS[context.originalReasonType])} / {context.originalReason}</p>
     <p>현재 사유: {adminGoodsCopy(ORDER_WITHDRAWAL_REASON_LABELS[receipt?.toReasonType ?? context.reasonType])} / {receipt?.toReason ?? context.reason}</p>
     <p className="text-muted-foreground">고객과 확인한 실제 사유를 기록합니다. 최초 접수일과 수거·보류·비용 기록은 유지되며, 새 분류의 기한도 원래 접수일 기준입니다.</p>
-    {context.fee ? <p>기존 비용: {context.fee.amount.toLocaleString('ko-KR')}원 · {context.fee.note} · {formatOrderDateTime(context.fee.confirmedAt)}</p> : null}
+    {context.fee ? <p>기존 비용: {krw(context.fee.amount)} · {context.fee.note} · {formatOrderDateTime(context.fee.confirmedAt)}</p> : null}
     {context.history.length ? <details className="rounded-lg border bg-background px-3 py-2"><summary className="cursor-pointer font-medium">사유 정정 이력 {context.history.length}건</summary><ol className="mt-2 flex flex-col gap-2 border-l pl-4">{context.history.map(row => <li key={row.id}>
       <time className="text-muted-foreground tabular-nums" dateTime={row.createdAt}>{formatOrderDateTime(row.createdAt)}</time> · {adminGoodsCopy(ORDER_WITHDRAWAL_REASON_LABELS[row.fromReasonType])} → {adminGoodsCopy(ORDER_WITHDRAWAL_REASON_LABELS[row.toReasonType])}
       <p>정정 전: {row.fromReason}</p><p>정정 후: {row.toReason}</p><p className="text-muted-foreground">내부 협의 근거: {row.agreement}</p>

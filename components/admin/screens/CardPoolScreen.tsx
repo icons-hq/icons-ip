@@ -3,8 +3,9 @@
 import { AdminPageHeader } from '@/components/admin/console/AdminKit';
 import { useMemo } from 'react';
 import { CardPoolSection } from '@/components/admin/sections/CardPoolSection';
+import { RecordNewButton, useRecordDetail } from '@/components/admin/sections/RecordMasterList';
 import type { AdminCatalogRecords } from '@/lib/admin/catalog.server';
-import { toRecordOptions, useSelectedRecord } from './record-selection';
+import { toRecordOptions } from './record-selection';
 
 /*
  * 카드풀 화면 래퍼.
@@ -30,20 +31,22 @@ export function CardPoolScreen({
   records: AdminCatalogRecords['cardPools'];
 }) {
   const ipOptions = useMemo(() => toRecordOptions(ips), [ips]);
-  const { selected, select } = useSelectedRecord(records);
+  const detail = useRecordDetail(records);
 
   return (
-    <div className="flex min-w-0 flex-col gap-6"><AdminPageHeader title="카드풀 구성" description="카드 구성과 개봉 준비 상태를 확인합니다." />
+    <div className="flex min-w-0 flex-col gap-6"><AdminPageHeader title="카드풀" description="카드 구성과 개봉 준비 상태를 확인합니다." actions={<RecordNewButton label="카드풀 등록" onClick={detail.startNew} open={detail.open} />} />
     <CardPoolSection
       cards={cards}
+      creating={detail.creating}
       draftActiveFrom={draftActiveFrom}
       draftId={draftId}
       ipOptions={ipOptions}
       oddsOperationId={oddsOperationId}
-      onSelect={select}
+      onClose={detail.close}
+      onSelect={detail.select}
       operationId={operationId}
       records={records}
-      selected={selected}
+      selected={detail.selected}
     /></div>
   );
 }

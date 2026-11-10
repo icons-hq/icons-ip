@@ -1,4 +1,5 @@
 'use client';
+import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { readClaimFeePolicyAction, saveClaimFeePolicyAction } from '@/app/admin/claim-fee-policy-actions';
@@ -28,7 +29,7 @@ export function ClaimFeePolicyForm({ initial, actorId, sessionId }: { initial: C
  return <form className="flex min-w-0 flex-col gap-4 text-sm" data-claim-fee-policy="" onSubmit={e => { e.preventDefault(); save(); }}>
   <p><Link className={LINK} href="/admin/sales/claims/returns/fees">배송비 청구·입금·반환 목록</Link></p>
   <p className="text-muted-foreground">기본 꺼짐입니다. 켠 뒤에도 고객과 합의한 요청에만 담당자가 직접 청구합니다. 기본 안내 금액은 입력을 돕는 값이며 자동 청구되지 않습니다.</p>
-  <p>입금 받을 계좌: {policy.accountReady ? '등록됨' : '미등록'} · <Link className={LINK} href="/admin/settings/store?section=bank_transfer">법인계좌 설정</Link></p>
+  <p className="flex flex-wrap items-center gap-2">입금 받을 계좌 <AdminStatusBadge tone={policy.accountReady ? 'success' : 'warning'}>{policy.accountReady ? '등록됨' : '미등록'}</AdminStatusBadge> <Link className={LINK} href="/admin/settings/store?section=bank_transfer">법인계좌 설정</Link></p>
   <fieldset className="m-0 flex min-w-0 flex-col gap-4 rounded-lg border p-4" disabled={disabled}><legend className="float-left w-full p-0 font-medium">반품·교환 배송비 청구</legend>
    <label className={CHECK}><input className="mt-0.5" type="checkbox" checked={draft.enabled} onChange={e => setDraft({ ...draft, enabled: e.target.checked })} /><span>새 배송비 청구 사용</span></label>
    <div className="grid gap-4 sm:grid-cols-2">

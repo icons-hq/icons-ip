@@ -7,6 +7,7 @@ import { adminClaimCopy } from '@/lib/admin/vocabulary';
 import { adminFormRemountKey, preservedFormValues } from '@/lib/admin/form-state';
 import { formatOrderDateTime } from '@/lib/orders';
 import type { OrderClaimType } from '@/lib/orders/claims';
+import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Label } from '@/components/admin/kit/ui/label';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
@@ -22,8 +23,9 @@ export function ClaimOriginCollection({ claimId, claimType, collection, canRecor
   useClaimPreviewBusy(pending); /* 목록 위 클레임 팝업(R8)에서 기다리는 동안 팝업이 닫히지 않게 알린다. 팝업 밖에서는 아무 일도 하지 않는다. */
   const restored = preservedFormValues(state, collection.shipmentId, { scopeKey: 'shipmentId' });
   const evidenceId = `claim-collection-${collection.shipmentId}`;
-  return <section className="flex min-w-0 flex-col gap-2 rounded-lg border bg-muted/30 p-3 text-sm" aria-label={`${collection.originName} 회수 현황`} data-claim-origin-collection="">
-    <h4 className="font-medium">{collection.originName} · {collection.collectedAt ? '회수 확인 완료' : '회수 대기'}</h4>
+  /* 처리 칸 안의 또 다른 상자로 그리지 않는다 — 출고지 사이는 구분선과 여백으로 나눈다. */
+  return <section className="flex min-w-0 flex-col gap-2 border-t pt-3 text-sm" aria-label={`${collection.originName} 회수 현황`} data-claim-origin-collection="">
+    <h4 className="flex flex-wrap items-center gap-2 font-medium">{collection.originName} <AdminStatusBadge tone={collection.collectedAt ? 'success' : 'warning'}>{collection.collectedAt ? '회수 확인 완료' : '회수 대기'}</AdminStatusBadge></h4>
     <div>
       <p className="text-xs text-muted-foreground">반송 주소</p>
       <p className="break-words whitespace-pre-wrap">{collection.returnAddress || '출고지 설정에서 반송 주소를 등록해주세요.'}</p>

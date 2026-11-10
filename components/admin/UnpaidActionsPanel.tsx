@@ -20,7 +20,7 @@ const LABEL_CLASS = 'flex w-full min-w-0 flex-col gap-1.5 [&>span]:text-sm [&>sp
 function ActionResult({ state }: { state: AdminUnpaidActionState }) {
   return <>
     {state.error && <p className="text-sm text-destructive" role="alert">{state.error}</p>}
-    {state.message && <p className="text-sm text-[var(--wc-success)]" role="status">{state.message}</p>}
+    {state.message && <p className="text-sm text-success" role="status">{state.message}</p>}
   </>;
 }
 
@@ -46,7 +46,7 @@ export function UnpaidActionsPanel({ order }: { order: AdminUnpaidOrderRow }) {
   );
 
   return (
-    <section className="flex min-w-0 flex-col gap-4 rounded-xl border bg-card p-4 text-sm text-card-foreground sm:p-5" aria-label="미입금 주문 처리">
+    <section className="flex min-w-0 scroll-mt-16 flex-col gap-4 rounded-xl border bg-card p-4 text-sm text-card-foreground sm:p-5" aria-label="미입금 주문 처리" id="unpaid-actions">
       <header className="flex flex-col gap-1">
         <h3 className="text-base font-medium text-foreground">주문 {order.depositCode} 처리</h3>
         <p className="text-muted-foreground tabular-nums">{order.buyerName} · {order.itemSummary || '품목 정보 없음'}</p>

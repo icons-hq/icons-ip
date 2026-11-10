@@ -8,7 +8,8 @@ import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { Label } from '@/components/admin/kit/ui/label';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableRow } from '@/components/admin/kit/ui/table';
-import { AdminPageHeader } from '@/components/admin/console/AdminKit';
+import { AdminPageHeader, AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { statusTone } from '@/lib/admin/status-tone';
 import { CONSOLE_FILTER_CARD_CLASS, CONSOLE_FILTER_FIELDS_CLASS, CONSOLE_FILTER_LABEL_CLASS, ConsoleFilterActions } from '@/components/admin/console/ConsoleFilterPanel';
 import { CONSOLE_TABLE_FRAME_CLASS, ConsoleListCard, ConsoleTableEmptyRow, ConsoleTableHeader } from '@/components/admin/console/ConsoleListCard';
 import { ConsolePagination } from '@/components/admin/console/ConsolePagination';
@@ -85,15 +86,15 @@ export function GoodsAfterSalesTemplatesScreen({ onSelect }: { onSelect?: (templ
         {!onSelect ? <div className="flex min-w-0 flex-col gap-1.5"><Label htmlFor={ARCHIVED_SELECT_ID}>보관 상태</Label><NativeSelect className="w-full sm:w-32" id={ARCHIVED_SELECT_ID} value={archived ? 'archived' : 'active'} onChange={event => void load(1, search, event.target.value === 'archived')} disabled={pending}><option value="active">사용 중</option><option value="archived">보관됨</option></NativeSelect></div> : null}
       </div>
       <ConsoleFilterActions>
-        <button className={buttonVariants({ variant: 'outline' })} data-slot="button" type="button" disabled={pending} onClick={() => { setQuery(''); void load(1, '', false); }}>초기화</button>
-        <button className={buttonVariants()} data-slot="button" disabled={pending}>검색</button>
+        <button className={buttonVariants({ variant: 'ghost' })} data-slot="button" type="button" disabled={pending} onClick={() => { setQuery(''); void load(1, '', false); }}>초기화</button>
+        <button className={buttonVariants({ variant: 'soft' })} data-slot="button" disabled={pending}>검색</button>
       </ConsoleFilterActions>
     </form>
     {message ? <p className="text-destructive" role="alert">{message}</p> : null}
     {data ? <ConsoleListCard headingLevel={3} title="조회 결과" total={data.total}>
-      <div className={`${CONSOLE_TABLE_FRAME_CLASS} [&>[data-slot=table-container]]:overflow-visible`} role="region" aria-label="A/S 템플릿 목록 가로 스크롤" tabIndex={0}><Table className="min-w-[35rem]"><TableCaption className="sr-only">A/S 템플릿 목록</TableCaption><ConsoleTableHeader><TableRow className="hover:bg-transparent"><TableHead className="px-3">A/S 전화번호</TableHead><TableHead className="px-3">A/S 안내</TableHead><TableHead className="px-3">판매자 특이사항</TableHead><TableHead className="px-3">등록일</TableHead><TableHead className="px-3">{onSelect ? '선택' : '관리'}</TableHead></TableRow></ConsoleTableHeader><TableBody>
-        {data.rows.map(row => <TableRow key={row.id}><TableCell className="px-3 align-top tabular-nums">{row.phone}</TableCell><TableCell className="px-3 align-top whitespace-normal"><span className={EXCERPT_CLASS}>{row.guide}</span></TableCell><TableCell className="px-3 align-top whitespace-normal"><span className={EXCERPT_CLASS}>{row.sellerSpecialNotes || '—'}</span></TableCell><TableCell className="px-3 align-top text-muted-foreground tabular-nums">{kstDateTimeText(row.createdAt)}</TableCell><TableCell className="px-3 align-top"><button type="button" className={buttonVariants({ variant: 'outline', size: 'xs' })} data-slot="button" onClick={() => onSelect ? onSelect(row) : setEditor({ template: row })}>{onSelect ? '선택' : '수정'}</button></TableCell></TableRow>)}
-        {!data.rows.length ? <ConsoleTableEmptyRow colSpan={5}>등록된 A/S 템플릿이 없습니다.</ConsoleTableEmptyRow> : null}
+      <div className={`${CONSOLE_TABLE_FRAME_CLASS} [&>[data-slot=table-container]]:overflow-visible`} role="region" aria-label="A/S 템플릿 목록 가로 스크롤" tabIndex={0}><Table className="min-w-[35rem]"><TableCaption className="sr-only">A/S 템플릿 목록</TableCaption><ConsoleTableHeader><TableRow className="hover:bg-transparent"><TableHead className="px-3">A/S 전화번호</TableHead><TableHead className="px-3">A/S 안내</TableHead><TableHead className="px-3">판매자 특이사항</TableHead><TableHead className="px-3">등록일</TableHead>{!onSelect ? <TableHead className="px-3">상태</TableHead> : null}<TableHead className="px-3">{onSelect ? '선택' : '관리'}</TableHead></TableRow></ConsoleTableHeader><TableBody>
+        {data.rows.map(row => <TableRow key={row.id}><TableCell className="px-3 align-top tabular-nums">{row.phone}</TableCell><TableCell className="px-3 align-top whitespace-normal"><span className={EXCERPT_CLASS}>{row.guide}</span></TableCell><TableCell className="px-3 align-top whitespace-normal"><span className={EXCERPT_CLASS}>{row.sellerSpecialNotes || '—'}</span></TableCell><TableCell className="px-3 align-top text-muted-foreground tabular-nums">{kstDateTimeText(row.createdAt).replaceAll('-', '.')}</TableCell>{!onSelect ? <TableCell className="px-3 align-top"><AdminStatusBadge tone={statusTone('setting', row.archived ? 'archived' : 'active')}>{row.archived ? '보관됨' : '사용 중'}</AdminStatusBadge></TableCell> : null}<TableCell className="px-3 align-top"><button type="button" className={buttonVariants({ variant: 'outline', size: 'xs' })} data-slot="button" onClick={() => onSelect ? onSelect(row) : setEditor({ template: row })}>{onSelect ? '선택' : '수정'}</button></TableCell></TableRow>)}
+        {!data.rows.length ? <ConsoleTableEmptyRow colSpan={onSelect ? 5 : 6}>등록된 A/S 템플릿이 없습니다.</ConsoleTableEmptyRow> : null}
       </TableBody></Table></div>
       <ConsolePagination label="A/S 템플릿 페이지" page={data.page} pageSize={20} total={data.total} disabled={pending} onPageChange={page => void load(page)} />
     </ConsoleListCard> : <p className="py-10 text-center text-muted-foreground" role="status">{message ? '조회 후에 템플릿을 관리할 수 있습니다.' : '템플릿을 불러오는 중…'}</p>}

@@ -77,7 +77,7 @@ async function finalizationResult(
   return {
     error: `입금 기록은 남았지만 주문이 결제완료로 확정되지 않았습니다(결과: ${
       typeof outcome === 'string' ? outcome : 'unknown'
-    }). 결제 원장을 확인한 뒤 수동 정합화가 필요합니다.`,
+    }). 결제 내역을 확인한 뒤 수동 확인이 필요합니다.`,
   };
 }
 

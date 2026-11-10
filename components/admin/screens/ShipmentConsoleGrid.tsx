@@ -10,6 +10,8 @@ import {EXPORT_PASSWORD_HINT,EXPORT_PASSWORD_MAX_LENGTH,EXPORT_PASSWORD_MIN_LENG
 import {ShipmentPackPanel} from './ShipmentPackPanel';
 import {OrderDelayNoticePanel} from './OrderDelayNoticePanel';
 import {CustomerServiceDialog} from './CustomerServiceDialog';
+import {commerceReferenceLabel} from '@/lib/commerce-number';
+import {AdminNotice} from '@/components/admin/console/AdminKit';
 import {Button} from '@/components/admin/kit/ui/button';
 import {Input} from '@/components/admin/kit/ui/input';
 import {Label} from '@/components/admin/kit/ui/label';
@@ -17,8 +19,9 @@ import {NativeSelect} from '@/components/admin/kit/ui/native-select';
 /* 배송 건 처리 막대·출고지시 팝업(템플릿 룩, ADR-0028). 처리 순서·확인·양식 선택 계약은 그대로다. */
 const WORKBAR='flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2 print:hidden';
 const CONTROL='flex min-w-0 max-w-full items-center gap-1.5';
-const WARNING='text-[var(--wc-warning)]';
+const WARNING='text-warning';
 const FIELD='flex min-w-0 flex-col gap-1.5 [&>span]:font-medium';
+const SELECT_FIRST='왼쪽 체크칸에서 배송 건을 고르면 누를 수 있습니다.';
 type ExportRequest={format:'xlsx'|'csv';layout:ShipmentExportLayout}&({kind:'selection';ids:string[]}|{kind:'origin';origin:ShipmentConsoleOrigin});
 function download(file:{base64:string;mime:string;name:string}){
  const bytes=Uint8Array.from(atob(file.base64),c=>c.charCodeAt(0));const url=URL.createObjectURL(new Blob([bytes],{type:file.mime}));
@@ -39,6 +42,8 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
  // 운영자가 양식을 고르기 전에는 출고지 기본 양식을 쓴다. 남양주(서원)는 서원 원형 송장양식이 기본이다.
  const [layoutChoice,setLayout]=useState<ShipmentExportLayout|null>(null);
  const [failures,setFailures]=useState<{id:string;reason:string}[]>([]);
+ // 일부 건만 처리된 결과다. 서버 문구는 그대로 쓰되 초록 완료 상자로 보이지 않게 주의 상자로 그린다.
+ const [partial,setPartial]=useState(false);
  const [packSelection,setPackSelection]=useState<string[]|null>(null);
  const [noticeSelection,setNoticeSelection]=useState<string[]|null>(null);
  const [completion,setCompletion]=useState<{ids:string[];total:number;acknowledged:boolean}|null>(null);
@@ -112,14 +117,14 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
   const targetIds=kind==='complete'?completion?.ids:exportBatch?.kind==='selection'?exportBatch.ids:ids;
   if(pending||(kind==='export'?!exportBatch:!targetIds?.length))return;
   if(kind==='complete'&&!completion?.acknowledged)return;
-  setMessage('');setError('');setFailures([]);
+  setMessage('');setError('');setFailures([]);setPartial(false);
   startTransition(async()=>{
    try{
     if(kind==='confirm'){
      const form=new FormData();orderIds.forEach(id=>form.append('orderIds',id));const result=await bulkConfirmAdminOrdersAction({},form);
      if(result.errors?.form)setError(result.errors.form);
      else{
-      setMessage(result.message??'발주확인했습니다.');
+      setMessage(result.message??'발주확인했습니다.');setPartial((result.confirmedOrderIds?.length??0)<orderIds.length);
       const confirmedOrders=new Set(result.confirmedOrderIds??[]);
       const confirmedIds=rows.filter(row=>ids.includes(row.id)&&confirmedOrders.has(row.orderId)&&isParcelShipment(row)&&row.preorderReady!==false).map(row=>row.id);
       if(confirmedOrders.size){
@@ -128,7 +133,7 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
       }
      }
     }else if(kind==='complete'){
-     const result=await completeShipmentsAction(targetIds!);if(result.error)setError(result.error);else{setMessage(result.message??'');setFailures(result.failed??[]);setSelected((result.failed??[]).map(row=>row.id));}setCompletion(null);
+     const result=await completeShipmentsAction(targetIds!);if(result.error)setError(result.error);else{setMessage(result.message??'');setFailures(result.failed??[]);setPartial(Boolean(result.failed?.length));setSelected((result.failed??[]).map(row=>row.id));}setCompletion(null);
     }else{
      const request=exportBatch!;
      const result=request.kind==='origin'
@@ -152,8 +157,8 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
    {tab!=='delivered'&&hasBatchActions?<div className={WORKBAR} data-sales-workbar="">
     <span className="text-muted-foreground tabular-nums">{ids.length}개 배송 건 선택</span>
     {retainedOffPage>0?<span className="flex flex-wrap items-center gap-1.5">방금 발주확인한 다른 페이지의 {retainedOffPage}건 포함 <Button type="button" size="xs" variant="outline" onClick={()=>select([])}>선택 해제</Button></span>:null}
-    {tab==='new'?<Button type="button" size="sm" disabled={pending||!ids.length} onClick={()=>run('confirm')}>선택 주문 {orderIds.length}건 발주확인</Button>:tab==='transit'?
-     <Button type="button" size="sm" disabled={pending||!ids.length} onClick={reviewCompletion}>선택 배송완료</Button>:
+    {tab==='new'?<Button type="button" size="sm" disabled={pending||!ids.length} title={ids.length?undefined:SELECT_FIRST} onClick={()=>run('confirm')}>선택 주문 {orderIds.length}건 발주확인</Button>:tab==='transit'?
+     <Button type="button" size="sm" disabled={pending||!ids.length} title={ids.length?undefined:SELECT_FIRST} onClick={reviewCompletion}>선택 배송완료</Button>:
      <><span className={CONTROL}><Label className="shrink-0 whitespace-nowrap" htmlFor="shipment-export-layout">엑셀 양식</Label><NativeSelect className="max-w-full" id="shipment-export-layout" size="sm" value={layoutChoice??'auto'} disabled={pending} onChange={event=>setLayout(event.target.value==='auto'?null:event.target.value as ShipmentExportLayout)}><option value="auto">출고지 기본 양식 (남양주만 고르면 서원 송장양식 · 그 밖·여러 출고지는 스마트스토어 74열)</option><option value="smartstore">스마트스토어 양식 (74열)</option><option value="warehouse">기존 창고 양식</option></NativeSelect></span>
      <span className={CONTROL}><Label className="shrink-0 whitespace-nowrap" htmlFor="shipment-export-format">파일 형식</Label><NativeSelect id="shipment-export-format" size="sm" value={format} disabled={pending} onChange={event=>setFormat(event.target.value as 'xlsx'|'csv')}><option value="xlsx">Excel (.xlsx)</option><option value="csv">CSV</option></NativeSelect></span>
      {seowonCsvNote}
@@ -162,6 +167,8 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
      <Button type="button" size="sm" disabled={pending||!exportEligible} onClick={requestExport}>출고지시 내보내기</Button></>}
     {actorId&&(tab==='ready'||tab==='delayed')?<Button type="button" size="sm" variant="outline" disabled={pending||ids.length<1||ids.length>100} onClick={()=>setPackSelection([...ids])}>합포장 관리</Button>:null}
     {tab==='delayed'?<Button type="button" size="sm" variant="outline" disabled={pending||!ids.length} onClick={()=>setNoticeSelection([...ids])}>선택 주문 {orderIds.length}건 고객 지연 안내</Button>:null}
+    {/* 비활성 버튼이 고장처럼 보이지 않게 언제 눌리는지 말한다. */}
+    {!ids.length&&!pending&&(tab==='new'||tab==='transit')?<span className="text-xs text-muted-foreground">{SELECT_FIRST}</span>:null}
     {pending?<span className="text-muted-foreground" role="status">처리 중…</span>:null}
    </div>:null}
    {exportOrigins.length?<div className="flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2" role="group" aria-label="출고지별 새 출고지시 내려받기">
@@ -207,7 +214,7 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
     </div>
    </form>
   </CustomerServiceDialog>:null}
-  {message?<p className="rounded-lg border bg-muted/40 px-3 py-2.5" role="status">{message}</p>:null}{error&&!exportRequest?<p role="alert" className="text-destructive">{error}</p>:null}
-  {failures.length?<ul className="flex list-disc flex-col gap-1 pl-5 text-destructive">{failures.map(row=><li key={row.id}><span className="tabular-nums">{row.id}</span>: {row.reason}</li>)}</ul>:null}
+  {message?<AdminNotice role="status" tone={partial?'warning':'success'}>{message}</AdminNotice>:null}{error&&!exportRequest?<AdminNotice role="alert" tone="danger">{error}</AdminNotice>:null}
+  {failures.length?<ul className="flex list-disc flex-col gap-1 pl-5 text-destructive">{failures.map(row=><li key={row.id}><span className="tabular-nums">{commerceReferenceLabel(row.id,rows.find(item=>item.id===row.id)?.shipmentNumber)}</span>: {row.reason}</li>)}</ul>:null}
  </div>;
 }

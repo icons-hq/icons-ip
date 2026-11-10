@@ -53,8 +53,8 @@ describe('주문 상세', () => {
   });
   it('할인 주문은 품목별 쿠폰·적립금 배분과 배분 후 금액을 보여주고, 나눌 수 없으면 그렇다고 적는다', () => {
     const allocated = renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, itemAllocations: { item: { source: 'legacy', volumeDiscount: 0, couponDiscount: 200, storeCreditDiscount: 0, paidGoodsTotal: 9800 } } }} noteOperationId="operation" />);
-    expect(allocated).toContain('쿠폰 −200원 · 적립금 −0원');
-    expect(allocated).toContain('배분 후 9,800원 · 배송비 제외');
+    expect(allocated).toContain('쿠폰 −₩200 · 적립금 −₩0');
+    expect(allocated).toContain('배분 후 ₩9,800 · 배송비 제외');
     expect(renderToStaticMarkup(<OrderDetailScreen detail={detail} noteOperationId="operation" />)).toContain('주문 당시 기록이 없어 나누지 않았습니다');
     // 배분 조회 실패는 기록이 없다고 안내하지 않는다.
     const unavailable = renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, itemAllocations: {}, itemAllocationsUnavailable: true }} noteOperationId="operation" />);
@@ -75,6 +75,63 @@ describe('주문 상세', () => {
     expect(html).toContain('결제 대기 주문 자동 취소 (재주문·장바구니 복귀)');
     expect(html).toContain('장바구니 보류 해제 (결제 확인 필요 주문)');
   });
+  /* 사람 눈 판정: 뭘 샀는지가 화면 아래 글머리 한 줄이었고, 금액은 나열만 돼 최종 결제금액 줄이 없었다. */
+  it('주문 상품을 맨 위 표로 보이고 금액 칸은 최종 결제금액으로 끝난다', () => {
+    const html = renderToStaticMarkup(<OrderDetailScreen detail={detail} noteOperationId="operation" />);
+    expect(html.indexOf('>주문 상품<')).toBeLessThan(html.indexOf('>주문 정보<'));
+    expect(html).toMatch(/<th[^>]*>상품명<\/th><th[^>]*>옵션<\/th>/);
+    const facts = html.slice(html.indexOf('>주문 정보<'), html.indexOf('>배송 정보<'));
+    expect(facts).toContain('상품 금액'); expect(facts).toContain('−₩200');
+    expect(facts.indexOf('적립금 사용')).toBeLessThan(facts.indexOf('최종 결제금액'));
+    /* 품목 합과 맞지 않으면 틀린 상품 금액을 지어내지 않는다. */
+    expect(renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, order: { ...detail.order, total: 9999 } }} noteOperationId="operation" />)).not.toContain('상품 금액');
+  });
+  /* 사람 눈 판정: 운송장이 없다고 경고하면서 제일 눈에 띄는 버튼은 배송완료였다. */
+  it('운송장이 빠진 배송 건이 있으면 주 버튼과 경고가 운송장 등록을 말한다', () => {
+    const html = renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, shipments: [shipmentFixture({ status: 'shipping', trackingNumber: null } as never)] }} noteOperationId="operation" />);
+    expect(html).toContain('주문 처리 · 운송장 등록'); expect(html).not.toContain('주문 처리 · 배송완료');
+    const notice = html.slice(html.indexOf('data-admin-notice="warning"'));
+    expect(notice).toMatch(/운송장이 없는 배송 건이 1건/);
+    /* 사람 눈 판정: 머리의 주 버튼과 경고 안 버튼이 같은 일을 해서 어느 쪽을 눌러야 할지 망설였다. 등록은 주 버튼 하나로 간다. */
+    expect(notice).not.toMatch(/>운송장 등록</);
+    expect(html).toMatch(/<a[^>]*href="[^"]*#sales-order-detail"[^>]*>주문 처리 · 운송장 등록</);
+    expect(html.indexOf('data-admin-notice="warning"')).toBeLessThan(html.indexOf('>주문 상품<'));
+  });
+  /* 사람 눈 판정: 취소 건에서 제일 궁금한 돈 이야기가 회색 작은 글씨였다. */
+  it('취소 주문은 머리 아래에 환불 상태와 취소 경위를 말한다', () => {
+    const canceled = { ...detail.order, status: 'canceled' as const };
+    const payment = (status: string) => ({ id: 'pay', source: 'payment' as const, occurredAt: '2026-09-01T00:30:00Z', action: 'recorded', status, amount: 12800 });
+    const cancelLog = { id: 'log', source: 'status' as const, occurredAt: '2026-09-02T01:00:00Z', action: 'admin.order.cancellation_completed', actorName: '지우', toStatus: 'canceled' };
+    const render = (timeline: AdminOrderDetail['timeline']) => renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, order: canceled, timeline }} noteOperationId="operation" />);
+    const unpaid = render([]);
+    expect(unpaid).toContain('결제 전에 취소된 주문이라 환불할 금액이 없습니다');
+    expect(unpaid).toMatch(/data-admin-notice="neutral"/); expect(unpaid).toContain('>주문금액<');
+    const paid = render([payment('paid')]);
+    expect(paid).toMatch(/data-admin-notice="warning"[\s\S]*결제 기록은 있는데 환불 기록이 없습니다/); expect(paid).toContain('>결제금액<');
+    expect(render([payment('canceled')])).toContain('결제가 취소된 주문입니다');
+    expect(render([payment('paid'), cancelLog])).toContain('취소 2026. 9. 2. 10:00 · 지우');
+    /* 끝난 주문에는 배송지 수정 버튼을 두지 않는다. */
+    expect(unpaid).not.toContain('배송지 수정');
+  });
+  /* MD 판정: 현재 상태가 작은 회색 글자였고, '주문 처리'가 무슨 동작인지 알 수 없었다. */
+  it('머리에 현재 상태 배지를 두고 주문 처리 버튼이 지금 이어서 할 일을 말한다', () => {
+    const paid = renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, order: { ...detail.order, status: 'paid' } }} noteOperationId="operation" />);
+    expect(paid.slice(paid.indexOf('data-order-status-strip'))).toMatch(/data-order-status="paid"/);
+    expect(paid).toContain('주문 처리 · 발주확인');
+    /* 위험한 대리 취소는 일반 버튼과 구분한다. */
+    expect(paid).toMatch(/<button[^>]*text-destructive[^>]*>판매자 직접 취소 접수</);
+    const shipping = renderToStaticMarkup(<OrderDetailScreen detail={detail} noteOperationId="operation" />);
+    expect(shipping).toContain('주문 처리 · 배송완료');
+    /* 진행 중인 요청이 있으면 콘솔에서도 그 요청을 먼저 처리한다. */
+    const claiming = renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, order: { ...detail.order, status: 'paid' }, timeline: [
+      { id: 'claim', source: 'claim', occurredAt: '2026-09-01T01:00:00Z', action: 'created', status: 'requested', claimType: 'cancel', relatedId: '40000000-0000-4000-8000-000000004142' },
+    ] }} noteOperationId="operation" />);
+    expect(claiming).toContain('주문 처리 · 요청 확인');
+    expect(claiming).toContain('현재 상태 · 취소요청');
+    const finished = renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, order: { ...detail.order, status: 'done' } }} noteOperationId="operation" />);
+    expect(finished).toContain('>주문 처리<');
+  });
+
   it('배송완료 주문에서 별도 대리 접수 진입점을 제공한다', () => {
     const html = renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, order: { ...detail.order, status: 'delivered' } }} noteOperationId="operation" />);
     expect(html).toContain('판매자 직접 반품·교환 접수');
@@ -82,7 +139,7 @@ describe('주문 상세', () => {
   });
   it('주문 당시 상품·정확한 금액·배송 정보와 출처별 시간순 이력을 보여준다', () => {
     const html = renderToStaticMarkup(<OrderDetailScreen detail={detail} noteOperationId="operation" />);
-    for (const value of ['주문 당시 상품명', '12,800원', '수령자', '101호', '결제', '상태 변경', '신규주문', '발주확인', '수민', '지우', '운영자 메모', '물류팀 확인 필요']) expect(html).toContain(value);
+    for (const value of ['주문 당시 상품명', '₩12,800', '수령자', '101호', '결제', '상태 변경', '신규주문', '발주확인', '수민', '지우', '운영자 메모', '물류팀 확인 필요']) expect(html).toContain(value);
     expect(html.indexOf('2026-09-01T01')).toBeGreaterThan(-1);
     expect(html.indexOf('2026-09-01T01')).toBeLessThan(html.indexOf('2026-09-01T04'));
     expect(html).toContain('/admin/cs/inquiries/40000000-0000-4000-8000-000000004141');

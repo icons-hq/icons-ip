@@ -1,4 +1,5 @@
 'use client';
+import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { readShippingCollectContractAction, readShippingCollectOperationAction, saveShippingCollectContractAction } from '@/app/admin/shipping-collect-contract-actions';
 import { SHIPPING_COLLECT_FIELDS, SHIPPING_COLLECT_LABELS, parseShippingCollectPending, parseShippingCollectRequest, sameShippingCollectDocument, sameShippingCollectValues,
@@ -133,7 +134,7 @@ export function ShippingCollectContractPanel({ originId, accountId, canEdit }: {
       {error && <p className="text-destructive" role="alert">{error}</p>}{message && <p className="text-muted-foreground" role="status">{message}</p>}
       {storageUnavailable && <p className="text-muted-foreground" role="status">요청 확인 정보를 이 탭에 보관할 수 없습니다. 결과를 확인할 때까지 화면을 유지해주세요.</p>}
       {!edit ? <button type="button" className={`${OUTLINE} w-fit`} data-slot="button" disabled={busy} onClick={() => void refresh()}>착불 운영 조건 다시 읽기</button> : <>
-        <p>현재 저장 상태: {statusLabel(edit.base.status)} · 버전 {edit.base.revision}</p>
+        <p className="flex flex-wrap items-center gap-2">현재 저장 상태 <AdminStatusBadge tone={edit.base.status === 'active' ? 'success' : 'neutral'}>{statusLabel(edit.base.status)}</AdminStatusBadge> 버전 {edit.base.revision}</p>
         {edit.pending && <div className="flex flex-col gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3" role="alert"><p className="text-destructive">이전 저장 결과를 확인해야 합니다. 연락처와 계약 내용은 브라우저 저장소에 보관하지 않았습니다.</p>
           <div className="flex flex-wrap gap-2"><button type="button" className={PRIMARY} data-slot="button" disabled={busy} onClick={() => void checkOperation()}>이전 저장 결과 확인</button>
           {edit.retry && <button type="button" className={OUTLINE} data-slot="button" disabled={busy} onClick={() => void save(edit.retry!)}>같은 입력으로 결과 확인</button>}</div></div>}

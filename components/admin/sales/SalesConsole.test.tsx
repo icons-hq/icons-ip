@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { SalesFilterField, SalesFilterPanel, SalesGuide, SalesResultsHeader, SalesSelect, SalesStatusSummary } from './SalesConsole';
+import { SalesDisclosureCard, SalesFilterField, SalesFilterPanel, SalesGuide, SalesResultsHeader, SalesSelect, SalesStatusSummary, ShortId, kstDayDiff } from './SalesConsole';
 import { SalesDateRange } from './SalesDateRange';
 
 describe('sales filter and result forms', () => {
@@ -51,13 +51,48 @@ describe('sales filter and result forms', () => {
     expect(html).toMatch(/<button[^>]*type="submit"[^>]*>적용</);
   });
 
-  it('keeps the operational guide expanded without submitting or loading any action', () => {
+  it('날짜 차이는 24시간 단위가 아니라 한국 달력으로 센다', () => {
+    const at = (iso: string) => Date.parse(iso);
+    /* 2026-11-09 23:30 KST → 2026-11-10 00:30 KST: 1시간 뒤지만 다음 날이다. */
+    expect(kstDayDiff(at('2026-11-09T14:30:00Z'), at('2026-11-09T15:30:00Z'))).toBe(1);
+    /* 2026-11-09 00:10 KST → 2026-11-09 23:50 KST: 거의 24시간이지만 같은 날이다. */
+    expect(kstDayDiff(at('2026-11-08T15:10:00Z'), at('2026-11-09T14:50:00Z'))).toBe(0);
+    expect(kstDayDiff(at('2026-11-10T00:00:00Z'), at('2026-11-09T00:00:00Z'))).toBe(-1);
+  });
+
+  it('긴 식별값은 줄마다 달라지는 끝 8자를 보이고 전체 값은 title에 둔다', () => {
+    const html = renderToStaticMarkup(<ShortId value="c0000054-0000-4000-8000-00000000a1b2" />);
+    expect(html).toContain('>0000A1B2<');
+    expect(html).toContain('title="c0000054-0000-4000-8000-00000000a1b2"');
+  });
+  it('자주 쓰지 않는 조건은 접어 두되 값이 걸려 있으면 펼치고, 접혀도 입력은 검색에 함께 간다', () => {
+    const panel = (moreActive: boolean) => renderToStaticMarkup(<SalesFilterPanel currentHref="/admin/sales/orders" id="f" search={{ value: '', placeholder: '번호 · 이름' }} moreActive={moreActive} more={<SalesFilterField label="결제수단" htmlFor="pay"><SalesSelect id="pay" name="paymentMethod" options={[{ value: '', label: '전체' }]} /></SalesFilterField>} />);
+    const closed = panel(false);
+    expect(closed).toContain('name="paymentMethod"');
+    expect(closed).toMatch(/class="hidden"[^>]*data-sales-more-filters=""/);
+    expect(closed).toContain('aria-expanded="false"');
+    expect(panel(true)).toContain('aria-expanded="true"');
+    /* 한 줄로 끝나도록 입력칸 아래 안내는 눈에서 감추고 도움말로 둔다. */
+    expect(closed).toMatch(/class="sr-only"[^>]*>번호 · 이름</);
+    expect(closed).toContain('title="번호 · 이름"');
+  });
+  it('keeps the operational guide folded by default without submitting or loading any action', () => {
     const html = renderToStaticMarkup(<SalesGuide title="반품 처리 안내"><p>회수 근거를 확인한 뒤 처리합니다.</p></SalesGuide>);
-    expect(html).toMatch(/<details [^>]*data-sales-guide=""[^>]*open=""/);
+    expect(html).toMatch(/<details [^>]*data-sales-guide=""/);
+    expect(html).not.toMatch(/<details [^>]*data-sales-guide=""[^>]*open=""/);
     expect(html).toContain('회수 근거를 확인한 뒤 처리합니다.');
     expect(html).toContain('메뉴설명 접기');
     expect(html).toContain('메뉴설명 보기');
     expect(html).not.toContain('<form');
+  });
+
+  it('접히는 카드는 닫힌 채로 그리고 안의 입력을 DOM에 남긴다', () => {
+    const html = renderToStaticMarkup(<SalesDisclosureCard title="자동 발주확인" status={<b>켜짐</b>} summary="매일 16:30"><input name="runTime" /></SalesDisclosureCard>);
+    expect(html).toMatch(/<details (?:(?!open)[^>])*data-sales-disclosure=""(?:(?!open)[^>])*>/);
+    expect(html).toContain('자동 발주확인');
+    expect(html).toContain('매일 16:30');
+    expect(html).toContain('name="runTime"');
+    expect(html).toContain('설정 펼치기');
   });
 
   it('preserves all nine claim-stage links and counts when arranging the summary', () => {

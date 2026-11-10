@@ -191,6 +191,41 @@ describe('MembersSection', () => {
     expect(searchPendingHtml).not.toContain('name="reason"');
   });
 
+  /* 같은 말로 보이는 버튼을 두지 않는다 — 고객 상세는 닉네임 링크, 줄의 버튼은 이 화면의 상세 보기 하나다. */
+  it('줄마다 버튼은 하나만 두고 권한은 운영자 말로 보인다', () => {
+    const html = renderToStaticMarkup(
+      <MembersSection actor={{ id: 'staff-a', role: 'staff' }} initialMembers={summaries} />,
+    );
+
+    expect(html).not.toContain('고객 상세 열기');
+    expect(html.match(/ 상세 보기<\/button>/g)).toHaveLength(2);
+    expect(html).toMatch(new RegExp(`<a[^>]*href="/admin/customers/${summaries[0].id}"[^>]*>@팬일호</a>`));
+    expect(html).toMatch(/data-tone="neutral"[^>]*>직원</);
+    expect(html).not.toMatch(/>(?:user|staff|admin)</);
+    expect(html).toContain('2명 표시');
+  });
+
+  /* 한 사람이 한 줄이고, 정지 회원은 줄의 배지와 버튼으로 찾는다. '이용 중'은 고객 상세와 같은 배지다(같은 상태는 같은 모양). */
+  it('회원을 표 한 줄로 보이고 정지 건수는 거르는 버튼이다', () => {
+    const html = renderToStaticMarkup(
+      <MembersSection actor={{ id: 'staff-a', role: 'staff' }} initialMembers={summaries} />,
+    );
+
+    expect(html).toContain('data-slot="table"');
+    expect(html).toMatch(/<button(?=[^>]*aria-pressed="false")[^>]*>정지 1명만 보기<\/button>/);
+    expect(html).toMatch(/data-tone="danger"[^>]*>정지</);
+    expect(html).toMatch(/data-tone="success"[^>]*>이용 중</);
+  });
+
+  it('상세는 누른 줄 바로 아래에 연다', () => {
+    hooks.detailState = { member: detail };
+    const html = renderToStaticMarkup(
+      <MembersSection actor={{ id: 'staff-a', role: 'staff' }} initialMembers={summaries} />,
+    );
+
+    expect(html.indexOf('fan@example.test')).toBeLessThan(html.indexOf('@운영이호'));
+  });
+
   it('운영자가 영향 확인을 거절하면 정지 제출을 취소한다', () => {
     const preventDefault = vi.fn();
     const confirm = vi.fn(() => false);

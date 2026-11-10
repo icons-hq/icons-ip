@@ -19,7 +19,7 @@ it('checks route access before any settings read', async () => {
 it('keeps legacy staff read-only and forwards only origin history', async () => {
   mocks.history.mockResolvedValue([{ action: 'admin.fulfillment_origin.saved', id: 'origin' }, { action: 'admin.store_settings.saved', id: 'store' }]);
   const result = await Page();
-  const [groups, origins] = result.props.children;
+  const [origins, groups] = result.props.children;
   expect(mocks.guard).toHaveBeenCalledWith('/admin/settings/origins');
   expect(origins.props.canEdit).toBe(false);
   expect(origins.props.accountId).toBe('91000000-0000-4000-8000-000000000001');
@@ -29,7 +29,7 @@ it('keeps legacy staff read-only and forwards only origin history', async () => 
 it('?origin=을 출고지 탭으로 넘기고 모르는 값은 첫 출고지로 돌린다', async () => {
   mocks.guard.mockResolvedValue({ role: 'admin', user: { id: '91000000-0000-4000-8000-000000000001' }, operatorAccess: legacyOperatorAccessFixture('admin') });
   mocks.origins.mockResolvedValue([{ id: 'a', code: 'gimpo', name: '김포' }, { id: 'b', code: 'namyangju', name: '남양주' }]);
-  const tab = async (origin?: string) => (await Page({ searchParams: Promise.resolve(origin === undefined ? {} : { origin }) })).props.children[1].props.selected;
+  const tab = async (origin?: string) => (await Page({ searchParams: Promise.resolve(origin === undefined ? {} : { origin }) })).props.children[0].props.selected;
   expect(await tab('namyangju')).toBe('namyangju');
   expect(await tab('_new')).toBe('_new');
   expect(await tab('new')).toBe('gimpo');
@@ -41,5 +41,5 @@ it('configured deputy loads shipping options without warehouse settings or audit
   const result = await Page();
   expect(mocks.options).toHaveBeenCalledOnce(); expect(mocks.origins).not.toHaveBeenCalled();
   expect(mocks.carriers).toHaveBeenCalledOnce(); expect(mocks.history).not.toHaveBeenCalled();
-  expect(result.props.children[0].props.canManageRegional).toBe(false);
+  expect(result.props.children[1].props.canManageRegional).toBe(false);
 });

@@ -10,6 +10,8 @@ import { replyToReviewAction, setReviewStatusAction, type AdminReviewActionState
 import type { AdminReviewRow } from '@/lib/admin/reviews';
 import { ADMIN_REVIEW_STATUS_LABELS, formatReviewDateTime, goodReviewsHref, reviewRatingLabel } from '@/lib/reviews';
 import { orderReferenceLabel } from '@/lib/orders';
+import { statusTone } from '@/lib/admin/status-tone';
+import { AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { Label } from '@/components/admin/kit/ui/label';
@@ -54,7 +56,7 @@ export function ReviewActionPanel({ review, triggerLabel, accountId = '' }: { re
   const imageUrls = draft.source.imageUrls ?? review.imageUrls;
 
   return <>
-    <Button onClick={() => setOpen(true)} size="xs" type="button" variant="outline">{triggerLabel ?? (review.adminReply ? '상세 · 답글 수정' : '상세 · 답글 등록')}</Button>
+    <Button className={review.adminReply ? 'text-muted-foreground' : undefined} onClick={() => setOpen(true)} size="xs" type="button" variant={review.adminReply ? 'ghost' : 'soft'}>{triggerLabel ?? (review.adminReply ? '상세 · 답글 수정' : '상세 · 답글 등록')}</Button>
     {open ? <CustomerServiceDialog title="리뷰 상세" busy={busy} onClose={() => setOpen(false)}>
       <div className="flex min-w-0 flex-col gap-5 text-sm">
         <dl className={RECORD_META_CLASS}>
@@ -64,7 +66,7 @@ export function ReviewActionPanel({ review, triggerLabel, accountId = '' }: { re
           <div className={RECORD_META_ITEM_CLASS}><dt>작성자</dt><dd>@{review.authorName}</dd></div>
           <div className={RECORD_META_ITEM_CLASS}><dt>작성일</dt><dd className="tabular-nums">{formatReviewDateTime(review.createdAt)}</dd></div>
           <div className={RECORD_META_ITEM_CLASS}><dt>주문번호</dt><dd><Link className={RECORD_LINK_CLASS} href={`/admin/sales/orders/${review.orderId}`}>{orderReferenceLabel(review.orderId, review.orderNumber)}</Link></dd></div>
-          <div className={RECORD_META_ITEM_CLASS}><dt>리뷰 상태</dt><dd>{ADMIN_REVIEW_STATUS_LABELS[draft.source.status]}</dd></div>
+          <div className={RECORD_META_ITEM_CLASS}><dt>리뷰 상태</dt><dd><AdminStatusBadge tone={statusTone('review', draft.source.status)}>{ADMIN_REVIEW_STATUS_LABELS[draft.source.status]}</AdminStatusBadge></dd></div>
           <div className={RECORD_META_ITEM_CLASS}><dt>평점</dt><dd>{reviewRatingLabel(draft.source.rating ?? review.rating)}</dd></div>
           <div className={RECORD_META_ITEM_CLASS}><dt>리뷰도움수</dt><dd className="tabular-nums">{review.helpfulCount.toLocaleString('ko-KR')}</dd></div>
           <div className={RECORD_META_ITEM_CLASS}><dt>답글 등록일</dt><dd className="tabular-nums">{draft.source.replyAt ? formatReviewDateTime(draft.source.replyAt) : '미등록'}</dd></div>
@@ -84,7 +86,7 @@ export function ReviewActionPanel({ review, triggerLabel, accountId = '' }: { re
         {draft.sourceError ? <p className="bg-transparent text-destructive" role="alert">{draft.sourceError}</p> : null}
         {draft.value !== null || draft.sourceError ? <Button className="self-start" disabled={busy || draft.blocked} onClick={draft.refreshSource} size="sm" type="button" variant="outline">최신 저장본 다시 확인</Button> : null}
         {changedSource ? <section className={RECORD_CHANGED_CLASS} aria-label="현재 저장된 답글 비교">
-          <p className="bg-transparent font-medium text-[var(--wc-warning)]" role="alert">초안 작성 이후 답글 또는 리뷰 원문·상태가 바뀌었습니다. 현재 저장본과 리뷰 원문을 확인한 뒤 작성 문구를 다시 검토해주세요.</p>
+          <p className="bg-transparent font-medium text-warning" role="alert">초안 작성 이후 답글 또는 리뷰 원문·상태가 바뀌었습니다. 현재 저장본과 리뷰 원문을 확인한 뒤 작성 문구를 다시 검토해주세요.</p>
           <h3>현재 저장된 답글</h3><p>{draft.source.reply || '아직 등록된 답글이 없습니다.'}</p>
           <Button className="self-start" disabled={editingLocked} onClick={draft.acknowledge} size="sm" type="button" variant="outline">현재 저장본 확인 · 작성 문구 유지</Button>
         </section> : null}
@@ -95,10 +97,12 @@ export function ReviewActionPanel({ review, triggerLabel, accountId = '' }: { re
           <Textarea className="max-h-[50vh] min-h-40 bg-background" disabled={editingLocked} id={`review-reply-${review.id}`} maxLength={2000} minLength={2} name="reply" onChange={(event) => setReply([...event.target.value].slice(0,1000).join(''))} required rows={6} value={reply} />
           <span className="-mt-1.5 self-end text-xs text-muted-foreground tabular-nums">{[...reply].length.toLocaleString('ko-KR')} / 1,000자 · 2자 이상</span>
           <Feedback state={replyState} />
-          {draft.hasUnresolvedOperation && draft.recovery === null ? <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-background px-3 py-2" role="status">
-            <p className="mr-auto">앞선 저장 결과를 확인하기 전까지 작성 문구를 유지합니다.</p>
-            <Button disabled={busy || draft.blocked} onClick={draft.retry} size="sm" type="button" variant="outline">같은 요청으로 결과 확인</Button>
-          </div> : null}
+          {draft.hasUnresolvedOperation && draft.recovery === null ? <AdminNotice role="status" tone="warning">
+            <div className="flex flex-wrap items-center gap-2">
+              <p>앞선 저장 결과를 확인하기 전까지 작성 문구를 유지합니다.</p>
+              <Button disabled={busy || draft.blocked} onClick={draft.retry} size="sm" type="button" variant="outline">같은 요청으로 결과 확인</Button>
+            </div>
+          </AdminNotice> : null}
           <div className="flex flex-wrap justify-center gap-2">
             <Button disabled={editingLocked || changedSource || reply.trim() === (draft.source.reply ?? '').trim()} size="sm" type="submit">{replyPending ? '저장 중' : draft.source.reply ? '답글 수정' : '답글 등록'}</Button>
             <Button disabled={busy} onClick={() => setOpen(false)} size="sm" type="button" variant="outline">닫기</Button>

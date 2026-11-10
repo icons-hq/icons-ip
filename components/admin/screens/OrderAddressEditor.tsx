@@ -1,4 +1,5 @@
 'use client';
+import { AdminNotice } from '@/components/admin/console/AdminKit';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { changeOrderAddressAction, loadOrderAddressContextAction, readOrderAddressChangeAction } from '@/app/admin/order-address-actions';
@@ -80,7 +81,7 @@ export function OrderAddressEditor({ initial, onClose }: { initial: OrderAddress
       <p><strong className="font-medium">주문 {orderReferenceLabel(context.orderId, context.orderNumber)}</strong> · 연결 배송건 {context.shipmentCount}개 전체에 적용합니다.</p>
       <p className="text-muted-foreground">출고지시 전달·발송 전 주문만 수정합니다. 배송 지역이 바뀌면 배송 가능 여부와 각 배송비를 대조하며, 결제금액이 달라지는 변경은 저장할 수 없습니다.</p>
       <div className="flex flex-col gap-1 rounded-lg border bg-muted/40 p-3.5 wrap-anywhere"><strong className="font-medium">{receipt ? '변경 전 배송 정보' : '현재 배송 정보'}</strong><p>{addressText(context.address)}</p></div>
-      {!context.allowed ? <p className="rounded-lg border bg-muted/40 px-3 py-2.5" role="status">{orderAddressError(undefined, context.blocker ?? '')}</p> : null}
+      {!context.allowed ? <AdminNotice role="status" tone="warning">{orderAddressError(undefined, context.blocker ?? '')}</AdminNotice> : null}
       {receipt ? <section className="flex flex-col items-start gap-1.5 rounded-lg border p-3.5" role="status"><h3 className="text-base font-medium">배송 정보를 저장했습니다.</h3><p className="wrap-anywhere">{addressText(receipt.address)}</p><p className="text-muted-foreground">{formatOrderDateTime(receipt.changedAt)} · {receipt.reason}</p>
         {!receipt.currentMatches ? <p>이후 다른 변경이 있습니다. 주문 상세의 최신 배송지를 확인해주세요.</p> : null}<Button className="mt-1" type="button" onClick={close}>닫기</Button></section>
         : <form className="flex flex-col gap-4" onSubmit={event => { event.preventDefault(); void save(); }}>

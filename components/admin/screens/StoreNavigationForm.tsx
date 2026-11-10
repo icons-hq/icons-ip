@@ -77,7 +77,7 @@ export function StoreNavigationForm({ settings, canEdit, operationId }: { settin
               <Input id={`store-menu-${entry.id}`} value={entry.label} required aria-describedby={`store-menu-${entry.id}-hint`}
                 onChange={event => change(previous => previous.map(item => item.id === entry.id ? { ...item, label: event.target.value } : item))} />
               <small className="text-xs text-muted-foreground [overflow-wrap:anywhere]" id={`store-menu-${entry.id}-hint`}>{[...entry.label].length} / {STORE_MENU_LABEL_LIMIT}자 · {hrefFor(entry.id)}</small>
-              {unavailable ? <small className="text-xs text-[var(--wc-warning)]">{unavailable}</small> : null}
+              {unavailable ? <small className="text-xs text-warning">{unavailable}</small> : null}
             </div>
             <label className="col-start-2 inline-flex min-h-9 w-fit items-center gap-2 text-sm lg:col-start-auto"><input type="checkbox" checked={entry.visible} disabled={entry.id === 'shop'}
               onChange={event => change(previous => previous.map(item => item.id === entry.id ? { ...item, visible: event.target.checked } : item))} />
@@ -103,7 +103,7 @@ export function StoreNavigationForm({ settings, canEdit, operationId }: { settin
       <p className="text-sm text-muted-foreground">모바일 전체 메뉴의 스토어 항목도 이 순서로 표시됩니다. 카테고리의 하위 메뉴와 계정·주문·법정 안내는 각 페이지에서 관리합니다.</p>
     </section>
     {state.error ? <p role="alert" className="text-sm text-destructive">{state.error}</p> : null}
-    {state.message ? <p role="status" className="text-sm text-[var(--wc-success)]">{state.message}</p> : null}
+    {state.message ? <p role="status" className="text-sm text-success">{state.message}</p> : null}
     {canEdit ? <Button className="self-start" type="submit" disabled={pending}>{pending ? '저장 중…' : '공개 메뉴 저장'}</Button> : <p className="text-sm text-muted-foreground">관리자(admin)만 메뉴 설정을 저장할 수 있습니다.</p>}
   </form>;
 }

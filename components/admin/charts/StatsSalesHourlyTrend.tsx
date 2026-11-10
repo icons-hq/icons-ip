@@ -5,8 +5,8 @@ import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, X
 import { ConsoleGrid, type ConsoleGridColumn } from '@/components/admin/console';
 import { adminSalesHourRange, adminSalesHourState, adminSalesHourlyTime, type AdminSalesHourlyReport } from '@/lib/admin/stats-hourly';
 import { krw } from '@/lib/format';
-import { STATS_SEGMENTED, STATS_SEGMENT_BUTTON } from '../StatsSummary';
-import { CHART_AXIS_TICK, CHART_GRID_STROKE, CHART_TOOLTIP_STYLE } from './chart-theme';
+import { STATS_SEGMENTED, STATS_SEGMENT_BUTTON, statsDateLabel } from '../StatsSummary';
+import { CHART_AXIS_TICK, CHART_COMPARISON, CHART_CURRENT, CHART_GRID_STROKE, CHART_TOOLTIP_STYLE } from './chart-theme';
 
 const columns: ConsoleGridColumn[] = [
   { key: 'hour', label: '시간대(KST)', width: '150px' }, { key: 'state', label: '집계 상태', width: '110px' },
@@ -41,11 +41,11 @@ export function StatsSalesHourlyTrend({ report }: { report: AdminSalesHourlyRepo
       <div className="h-64 px-2 pt-4 pb-1 sm:h-80 sm:px-3"><ResponsiveContainer width="100%" height="100%"><LineChart data={rows} margin={{ top: 12, right: 20, bottom: 10, left: 10 }}>
         <CartesianGrid stroke={CHART_GRID_STROKE} vertical={false} />
         <XAxis axisLine={{ stroke: CHART_GRID_STROKE }} dataKey="label" tick={CHART_AXIS_TICK} tickLine={false} minTickGap={24} />
-        <YAxis tick={CHART_AXIS_TICK} tickFormatter={value => Number(value).toLocaleString('ko-KR')} width={80} axisLine={false} tickLine={false} />
-        <Tooltip formatter={(value, name) => [value === undefined || value === null ? '미집계' : `${Number(value).toLocaleString('ko-KR')}${metric === 'revenue' ? '원' : '건'}`, name]} contentStyle={CHART_TOOLTIP_STYLE.content} itemStyle={CHART_TOOLTIP_STYLE.item} labelStyle={CHART_TOOLTIP_STYLE.label} />
+        <YAxis tick={CHART_AXIS_TICK} tickFormatter={value => metric === 'revenue' ? krw(Number(value)) : `${Number(value).toLocaleString('ko-KR')}건`} width={92} axisLine={false} tickLine={false} />
+        <Tooltip formatter={(value, name) => [value === undefined || value === null ? '미집계' : metric === 'revenue' ? krw(Number(value)) : `${Number(value).toLocaleString('ko-KR')}건`, name]} contentStyle={CHART_TOOLTIP_STYLE.content} itemStyle={CHART_TOOLTIP_STYLE.item} labelStyle={CHART_TOOLTIP_STYLE.label} />
         <Legend formatter={(value) => <span style={{ color: 'var(--muted-foreground)' }}>{value}</span>} wrapperStyle={{ fontSize: 12 }} />
-        <Line name={`오늘 ${report.date}`} dataKey="current" stroke="var(--chart-4)" strokeWidth={2} dot connectNulls={false} isAnimationActive={false} />
-        <Line name={`비교일 ${report.comparisonDate}`} dataKey="comparison" stroke="var(--chart-2)" strokeWidth={2} strokeDasharray="5 4" dot connectNulls={false} isAnimationActive={false} />
+        <Line name={`오늘 ${statsDateLabel(report.date)}`} dataKey="current" stroke={CHART_CURRENT} strokeWidth={2} dot connectNulls={false} isAnimationActive={false} />
+        <Line name={`비교일 ${statsDateLabel(report.comparisonDate)}`} dataKey="comparison" stroke={CHART_COMPARISON} strokeWidth={2} strokeDasharray="5 4" dot connectNulls={false} isAnimationActive={false} />
       </LineChart></ResponsiveContainer></div>
       <p className={`${CARD_NOTE} border-t`}>{cumulative ? '누적값은 완료된 시간대만 합산합니다. ' : ''}집계 마감 이후 값은 아직 관측하지 않았으며, 주문이 없었던 완료 시간의 0과 구분합니다.</p>
     </section>

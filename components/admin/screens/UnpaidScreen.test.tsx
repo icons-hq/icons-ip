@@ -77,6 +77,26 @@ describe('UnpaidScreen', () => {
     expect(html.match(/data-tone="warning"/g)).toHaveLength(1);
   });
 
+  /* 사람 눈 판정(3·4라운드): 색만 다르면 흰 버튼이 못 누르는 것처럼 보이고, 같은 말이면 눌러도 되는지 망설였다. 모양은 같게, 말로 구분한다. */
+  it('기한 종료·결제 확인 필요 줄은 같은 버튼이고 말만 "확인·처리"로 다르다', () => {
+    const data = consoleData();
+    const link = (row: typeof data.rows[number]) => renderToStaticMarkup(<UnpaidScreen data={{ ...data, rows: [row] }} now={now} />).match(/<a[^>]*#unpaid-actions"[^>]*>[^<]*<\/a>/)?.[0] ?? '';
+    expect(link(data.rows[0])).toContain('bg-primary-soft');
+    expect(link(data.rows[0])).toContain('>입금 확인<');
+    for (const row of [{ ...data.rows[0], expiresAt: '2026-08-17T23:00:00.000Z' }, { ...data.rows[0], attemptState: 'needs_review' as const }]) {
+      expect(link(row)).toContain('bg-primary-soft');
+      expect(link(row)).toContain('>확인·처리<');
+    }
+  });
+
+  /* 사람 눈 판정: 제일 급한 기한 종료가 보통 글씨로 지나갔다. */
+  it('기한이 끝난 주문은 위험 표시로, 처리는 행마다 버튼으로 연다', () => {
+    const data = consoleData();
+    const html = renderToStaticMarkup(<UnpaidScreen data={{ ...data, rows: [{ ...data.rows[0], expiresAt: '2026-08-17T23:00:00.000Z' }] }} now={now} />);
+    expect(html).toMatch(/data-tone="danger"[^>]*>기한 종료</);
+    expect(html).toMatch(/<a[^>]*href="\/admin\/sales\/unpaid\?order=[^"]*#unpaid-actions"[^>]*>확인·처리<\/a>/);
+  });
+
   /*
    * finalizer가 needs_review를 내면 그 주문은 확인도 취소도 특별 경로로만 풀린다.
    * 목록에서 눈에 띄지 않으면 재고를 문 채 조용히 남는다.
@@ -93,7 +113,7 @@ describe('UnpaidScreen', () => {
       />,
     );
 
-    expect(html).toContain('정합화 필요');
+    expect(html).toContain('결제 확인 필요');
   });
 
   it('주문을 고르기 전에는 처리 폼을 열지 않는다', () => {

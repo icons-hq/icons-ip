@@ -45,7 +45,8 @@ describe('상품 목록 바로 수정 (A9)', () => {
       <GoodsInlineSale goodId="good-a" stopped identity={identity} />
       <GoodsInlineStock goodId="good-a" ipId="ip-a" variantId="b9000000-0000-4000-8000-000000000010" stockQty={7} />
     </>);
-    for (const label of ['판매가 바로 수정', '판매상태 바로 수정', '재고수량 바로 수정']) expect(html).toContain(`aria-label="${label}"`);
+    // 접근 가능한 이름에 보이는 값을 넣어 음성 명령으로도 누를 수 있다(WCAG 2.5.3).
+    for (const label of ['판매가 10,000원 바로 수정', '판매상태 판매중지 바로 수정', '재고수량 7개 바로 수정']) expect(html).toContain(`aria-label="${label}"`);
     expect(html).toContain('판매중지'); expect(html).toContain('7개');
   });
   it('판매가·재고수량은 셀 전체가 수정 버튼이고, 다른 링크와 함께 있는 판매상태는 그 줄을 채운다', () => {
@@ -60,9 +61,9 @@ describe('상품 목록 바로 수정 (A9)', () => {
   it('칸 전체 덮개는 감싼 칸을 기준 상자로 세우고, 값은 칸 폭을 채우며 오른쪽 정렬 칸에서 오른쪽에 선다', () => {
     const price = renderToStaticMarkup(<GoodsInlinePrice goodId="good-a" basePrice={10000} identity={identity} hasOptions={false} display="10,000원" />);
     expect(classesOf(price, /<span class="([^"]*)" data-inline-edit="cell">/)).toContain('[td:has(&)]:relative');
-    expect(classesOf(price, /<button(?=[^>]*aria-label="판매가 바로 수정")[^>]*class="([^"]*)"/)).toEqual(expect.arrayContaining(['w-full', 'after:absolute', 'after:inset-0', 'print:after:hidden', 'in-data-[align=end]:justify-end']));
+    expect(classesOf(price, /<button(?=[^>]*aria-label="판매가 [^"]*바로 수정")[^>]*class="([^"]*)"/)).toEqual(expect.arrayContaining(['w-full', 'after:absolute', 'after:inset-0', 'print:after:hidden', 'in-data-[align=end]:justify-end']));
     const sale = renderToStaticMarkup(<GoodsInlineSale goodId="good-a" stopped identity={identity} />);
-    expect(classesOf(sale, /<button(?=[^>]*aria-label="판매상태 바로 수정")[^>]*class="([^"]*)"/)).toEqual(expect.arrayContaining(['w-full', 'in-data-[align=end]:justify-end']));
+    expect(classesOf(sale, /<button(?=[^>]*aria-label="판매상태 [^"]*바로 수정")[^>]*class="([^"]*)"/)).toEqual(expect.arrayContaining(['w-full', 'in-data-[align=end]:justify-end']));
     expect(sale).not.toContain('after:absolute');
     expect(sale).not.toContain('[td:has(&)]:relative');
   });

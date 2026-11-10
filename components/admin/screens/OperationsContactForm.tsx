@@ -3,7 +3,7 @@
 import { useActionState, useState } from 'react';
 import { Check } from 'lucide-react';
 import { saveOperationsContactAction, type OperationsContactActionState } from '@/app/admin/operations-contact-actions';
-import { AdminField, AdminFormGrid } from '@/components/admin/console/AdminKit';
+import { AdminField, AdminFormGrid, AdminNotice } from '@/components/admin/console/AdminKit';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { OPERATIONS_CONTACT_FIELDS, operationsContactValues, type OperationsContact, type OperationsContactValues } from '@/lib/admin/operations-contacts';
@@ -29,8 +29,8 @@ export function OperationsContactForm({ contact, canEdit }: { contact: Operation
           aria-invalid={Boolean(state.errors?.[key])} aria-describedby={`${inputId}-hint${state.errors?.[key] ? ` ${inputId}-error` : ''}`}/>
       </AdminField>;
     })}</AdminFormGrid>
-    {state.errors?.form ? <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive" role="alert">{state.errors.form}</p> : null}
-    {state.message ? <p className="rounded-lg border bg-muted/40 px-3 py-2.5 text-sm font-medium text-[var(--wc-success)]" role="status">{state.message}</p> : null}
+    {state.errors?.form ? <AdminNotice role="alert" tone="danger">{state.errors.form}</AdminNotice> : null}
+    {state.message ? <AdminNotice role="status" tone="success">{state.message}</AdminNotice> : null}
     {canEdit ? <Button className="w-fit" disabled={pending} type="submit"><Check aria-hidden="true"/>{pending ? '저장 중…' : '담당자 정보 저장'}</Button> : null}
   </form>;
 }

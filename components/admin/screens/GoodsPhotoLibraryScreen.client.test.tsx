@@ -118,7 +118,7 @@ it('직접 다시 조회하면 방금 올린 사진 고정을 풀고 검색 결�
   input('사진 업로드').props.onChange?.({ currentTarget: { files: [new File(['c'], 'c.png')], value: '' } });
   await settle();
   expect(all(render()).filter(item => item.type === 'img')[0].props.alt).toBe('c.png');
-  all(render()).find(item => (item.type === 'button' || item.type === Button) && text(item) === '조회')?.props.onClick?.();
+  all(render()).find(item => (item.type === 'button' || item.type === Button) && text(item) === '검색')?.props.onClick?.();
   await settle();
   expect(all(render()).filter(item => item.type === 'img')[0].props.alt).toBe('최신');
 });

@@ -119,7 +119,7 @@ export function DispatchTrackingImportPanel({ carriers, originId, shippingHref =
         </Button>
       </form>
 
-      <div aria-live="polite" className="text-sm empty:hidden [&_[role=alert]]:text-destructive [&_[role=status]]:text-[var(--wc-success)]">
+      <div aria-live="polite" className="text-sm empty:hidden [&_[role=alert]]:text-destructive [&_[role=status]]:text-success">
         {state.errors?.form ? <span role="alert">{state.errors.form}</span> : null}
         {state.message ? <span role="status">{state.message}</span> : null}
       </div>

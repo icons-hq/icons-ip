@@ -1,6 +1,6 @@
 'use client';
 
-import { AdminFormGrid } from '@/components/admin/console/AdminKit';
+import { AdminFormGrid, AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { useActionState, useMemo, useState } from 'react';
 import {
   grantAdminDrawTicketsAction,
@@ -15,15 +15,15 @@ import {
   DRAW_TICKET_GRANT_MAX_QUANTITY,
   type AdminDrawTicketGrantRecord,
 } from '@/lib/admin/draw-ticket-grants';
+import { kstDateTimeText } from '@/lib/admin/list-export';
 import type { AdminMemberSummary } from '@/lib/admin/members';
 import { Check, Search, UserCheck, UserRound } from 'lucide-react';
-import { Badge } from '@/components/admin/kit/ui/badge';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { Label } from '@/components/admin/kit/ui/label';
 import { ErrorText, Field, InlineNotice, SelectField, TextArea } from '../fields';
 import { getRewardPolicyPoolOptions } from './RewardPolicySection';
-import { SECTION_CARD, SECTION_NOTE, SectionHeading } from './SectionLayout';
+import { SECTION_CARD, SectionHeading } from './SectionLayout';
 
 /* 수동 카드팩(뽑기권) 발급 콘솔(#185).
  * 발급 정책(자동)과 화면을 나눈 이유는 감사 단위가 다르기 때문이다 — 정책은 조건을 세우고,
@@ -32,15 +32,9 @@ import { SECTION_CARD, SECTION_NOTE, SectionHeading } from './SectionLayout';
 
 const emptyGrantState: AdminDrawTicketGrantActionState = {};
 
-const dateTimeFormatter = new Intl.DateTimeFormat('ko-KR', {
-  dateStyle: 'medium',
-  timeStyle: 'short',
-  timeZone: 'Asia/Seoul',
-});
-
+/* 어드민 표의 날짜와 같은 표기다(2026.11.06 17:40, 한국 시각). */
 function formatGrantedAt(value: string) {
-  const parsed = Date.parse(value);
-  return Number.isNaN(parsed) ? '시각 기록 없음' : dateTimeFormatter.format(new Date(parsed));
+  return kstDateTimeText(value).replaceAll('-', '.') || '시각 기록 없음';
 }
 
 export function DrawTicketGrantSection({
@@ -74,12 +68,9 @@ export function DrawTicketGrantSection({
       <div className="grid min-w-0 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,0.8fr)]">
         <div className="flex min-w-0 flex-col gap-4">
           {!poolOptions.length ? (
-            <div className={`${SECTION_NOTE} flex flex-col gap-1`} role="status">
-              <strong className="font-medium text-foreground">발급할 수 있는 카드풀이 없습니다.</strong>
-              <span>
-                카드풀 관리에서 운영 기간과 등급별 확률을 채우고 카드를 바인딩한 뒤 다시 시도해주세요.
-              </span>
-            </div>
+            <AdminNotice role="status" title="발급할 수 있는 카드풀이 없습니다." tone="warning">
+              카드풀 관리에서 운영 기간과 등급별 확률을 채우고 카드를 바인딩한 뒤 다시 시도해주세요.
+            </AdminNotice>
           ) : (
             <>
               <MemberPicker
@@ -147,7 +138,7 @@ function MemberPicker({
               name="query"
               placeholder="이메일 또는 닉네임"
             />
-            <Button disabled={pending} type="submit">
+            <Button disabled={pending} type="submit" variant="soft">
               <Search aria-hidden="true" /> {pending ? '검색 중' : '검색'}
             </Button>
           </div>
@@ -163,7 +154,7 @@ function MemberPicker({
               <div className="flex min-w-0 flex-col gap-0.5">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm font-medium break-all">@{member.nickname}</span>
-                  {member.suspendedAt && <Badge variant="destructive">정지</Badge>}
+                  {member.suspendedAt && <AdminStatusBadge tone="danger">정지</AdminStatusBadge>}
                 </div>
                 <span className="text-xs text-muted-foreground">{member.maskedEmail}</span>
               </div>
@@ -202,9 +193,7 @@ function GrantForm({
 }) {
   if (!selected) {
     return (
-      <div className={SECTION_NOTE} role="status">
-        발급 대상을 검색해 선택하면 발급 폼이 열립니다.
-      </div>
+      <AdminNotice role="status" tone="info">발급 대상을 검색해 선택하면 카드풀·수량·사유를 입력할 수 있습니다.</AdminNotice>
     );
   }
 
@@ -273,8 +262,10 @@ function GrantHistory({ grants }: { grants: AdminDrawTicketGrantRecord[] }) {
                 </span>
                 <span className="text-xs text-muted-foreground tabular-nums">{formatGrantedAt(grant.grantedAt)}</span>
               </div>
-              <span className="text-xs text-muted-foreground tabular-nums">
-                {grant.poolName} · 개봉 {grant.openedCount.toLocaleString('ko-KR')} · 회수 {grant.revokedCount.toLocaleString('ko-KR')}
+              <span className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                {grant.poolName}
+                <AdminStatusBadge tone={grant.openedCount ? 'success' : 'neutral'}>개봉 {grant.openedCount.toLocaleString('ko-KR')}</AdminStatusBadge>
+                <AdminStatusBadge tone={grant.revokedCount ? 'warning' : 'neutral'}>회수 {grant.revokedCount.toLocaleString('ko-KR')}</AdminStatusBadge>
               </span>
               <span className="text-sm break-words">사유: {grant.reason}</span>
               <span className="text-xs text-muted-foreground">실행자 @{grant.actorNickname}</span>

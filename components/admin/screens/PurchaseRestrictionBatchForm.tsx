@@ -1,4 +1,5 @@
 'use client';
+import { AdminNotice } from '@/components/admin/console/AdminKit';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
@@ -7,7 +8,8 @@ import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { PURCHASE_RESTRICTION_REASONS, type PurchaseRestrictionReason } from '@/lib/admin/purchase-restrictions';
 import { PURCHASE_RESTRICTION_BATCH_INPUT_MAX, purchaseRestrictionBatchHref, purchaseRestrictionBatchStatus, type PurchaseRestrictionBatch, type PurchaseRestrictionBatchMode } from '@/lib/admin/purchase-restriction-batches';
 import { formatOrderDateTime } from '@/lib/orders';
-import { Button } from '@/components/admin/kit/ui/button';
+import { ChevronDown } from 'lucide-react';
+import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
 import { Label } from '@/components/admin/kit/ui/label';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/admin/kit/ui/table';
@@ -53,9 +55,10 @@ export function PurchaseRestrictionBatchForm({ initialBatch = null, currentHref 
     invalidate(); setTargets(retry); setUncertain(false);
   }
   const fieldError = (name: string) => fieldErrors[name] ? <span role="alert" className="text-xs font-normal text-destructive" id={`restriction-batch-${name}-error`}>{fieldErrors[name]}</span> : null;
-  return <details className="group rounded-xl border bg-card px-4 py-3 text-sm leading-relaxed text-card-foreground" open={initialBatch ? true : undefined}>
-    <summary className="cursor-pointer font-medium">판매방해 고객 복수등록</summary>
-    <p className="mt-3 text-muted-foreground">회원 ID·정확한 이메일 또는 전체 주문번호를 줄바꿈이나 쉼표로 구분해 최대 100개까지 확인합니다. 같은 고객은 한 번만 등록하며, 주문번호로 조회하면 해당 주문을 등록 근거로 남깁니다.</p>
+  return <details className="group min-w-0 text-sm leading-relaxed open:basis-full" open={initialBatch ? true : undefined}>
+    <summary className={`${buttonVariants({ variant: 'outline' })} cursor-pointer list-none [&::-webkit-details-marker]:hidden`} data-slot="button">판매방해 고객 복수등록<ChevronDown aria-hidden="true" className="transition-transform group-open:rotate-180" /></summary>
+    <div className="mt-2 rounded-lg border p-4">
+    <p className="text-muted-foreground">회원 ID·정확한 이메일 또는 전체 주문번호를 줄바꿈이나 쉼표로 구분해 최대 100개까지 확인합니다. 같은 고객은 한 번만 등록하며, 주문번호로 조회하면 해당 주문을 등록 근거로 남깁니다.</p>
     <form onSubmit={preview} className="mt-3.5 flex flex-col gap-3.5">
       <fieldset disabled={locked} className="m-0 grid min-w-0 gap-x-5 gap-y-3.5 border-0 p-0 md:grid-cols-2">
         <div className={FIELD}><Label htmlFor="restriction-batch-mode">입력 방식</Label><NativeSelect className="w-full" id="restriction-batch-mode" name="mode" value={mode} onChange={event => { invalidate(); setMode(event.target.value as PurchaseRestrictionBatchMode); }}><option value="customer">회원 ID 또는 정확한 이메일</option><option value="order">전체 주문번호</option></NativeSelect></div>
@@ -73,7 +76,7 @@ export function PurchaseRestrictionBatchForm({ initialBatch = null, currentHref 
       {batch.status === 'expired' ? <p className="text-destructive" role="alert">대상 확인 유효시간이 지났습니다. 등록 대상 확인부터 다시 진행해주세요.</p> : null}
       {batch.status === 'prepared' ? <>
         <p className="text-muted-foreground">제외된 행은 등록하지 않습니다. 실행 사이에 상태가 바뀐 고객은 제외 또는 미등록으로 표시하고, 나머지 대상의 결과를 각각 남깁니다.</p>
-        {!batch.canExecute ? <p className="rounded-lg border bg-muted/40 px-3 py-2.5">대상을 확인한 운영자만 이 요청을 등록할 수 있습니다.</p> : null}
+        {!batch.canExecute ? <AdminNotice tone="warning">대상을 확인한 운영자만 이 요청을 등록할 수 있습니다.</AdminNotice> : null}
         <label className="flex items-start gap-2"><input className="mt-1" type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} disabled={pending || uncertain || !batch.canExecute || batch.readyCount === 0} /><span>{adminGoodsCopy('등록 가능한 고객에게 공통 사유가 적용되며, 신규 굿즈 주문만 제한하고 기존 주문은 정상 처리해야 함을 확인했습니다.')}</span></label>
       </> : null}
       <div className="flex flex-wrap items-center gap-2">
@@ -83,5 +86,6 @@ export function PurchaseRestrictionBatchForm({ initialBatch = null, currentHref 
       </div>
     </section> : null}
     {error ? <p className="mt-3 text-destructive" role="alert">{error}</p> : null}{fieldError('form')}{readMessage ? <p className="mt-3" role="status">{readMessage}</p> : null}
+    </div>
   </details>;
 }

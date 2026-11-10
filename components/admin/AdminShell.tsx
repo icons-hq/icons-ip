@@ -2,13 +2,14 @@
 
 import { usePathname, useSearchParams } from 'next/navigation';
 import type { CSSProperties, ReactNode } from 'react';
-import { ADMIN_CONSOLES, adminConsoleHomeHref, adminGroupConsoles, adminGroupForPath, adminScreenForPath, type AdminConsoleId } from '@/lib/admin/navigation';
+import { ADMIN_CONSOLES, adminConsoleHomeHref, adminDetailTitleForPath, adminGroupConsoles, adminGroupForPath, adminScreenForPath, type AdminConsoleId } from '@/lib/admin/navigation';
 import { SidebarInset, SidebarProvider } from '@/components/admin/kit/ui/sidebar';
 import { TooltipProvider } from '@/components/admin/kit/ui/tooltip';
 import { AdminSidebar } from './AdminSidebar';
 import { Header } from './Header';
 import { AdminPreferencesProvider } from './console/AdminPreferences';
 import { AdminShellTitleProvider } from './console/admin-shell-title';
+import { useAdminDocumentTitle } from './console/useAdminDocumentTitle';
 import { AdminKitPortalHost } from './kit/portal-container';
 import { OperationsDock } from './OperationsDock';
 import { AdminInquiryNotifier } from './AdminInquiryNotifier';
@@ -51,14 +52,20 @@ export function AdminShell({
   /* 콘텐츠 콘솔은 경로 첫 칸이 콘솔 이름이라, 그 콘솔 전용 메뉴 그룹(IP·콘텐츠 운영)을 다시 적지 않는다. */
   const groupLabel = group && consoleId !== 'commerce' && adminGroupConsoles(group).every((id) => id === consoleId) ? undefined : group?.label;
   const title = pathname === '/admin/catalog/goods' && searchParams.get('create') !== '1' && searchParams.get('goodId')
-    ? '상품 수정' : screen?.label ?? '판매자센터';
+    ? '상품 수정'
+    : pathname === '/admin/catalog/ips' && searchParams.get('create') === '1' ? 'IP 등록'
+      : adminDetailTitleForPath(pathname) ?? screen?.label ?? '판매자센터';
   const accountId = admin.id || admin.email || admin.role;
+  /* WCAG 2.4.2 — 탭 제목으로 화면을 구분한다(서버 메타데이터 없이 셸 제목 하나를 쓴다). */
+  useAdminDocumentTitle(title);
 
   return (
     <AdminPreferencesProvider accountId={accountId}>
     <AdminKitPortalHost>
     <TooltipProvider delay={300}>
     <div className={`admin-shell wc-admin${isChat ? ' admin-shell--chat' : ''}`} data-admin-console={consoleId}>
+      {/* WCAG 2.4.1 — 메뉴를 건너뛰어 본문으로 간다. 키보드 포커스를 받을 때만 보인다. */}
+      <a className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-lg focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:font-semibold focus:text-primary-foreground" href="#admin-main">본문으로 건너뛰기</a>
       <SidebarProvider defaultOpen={sidebarDefaultOpen} style={{ '--sidebar-width': '15.5rem' } as CSSProperties}>
         <AdminSidebar
           accountId={accountId}
@@ -79,10 +86,10 @@ export function AdminShell({
             tools={<OperationsDock accountId={admin.id} access={admin.operatorAccess} inquiryNotifications={inquiryNotifications} />}
           />
           {/* 본문만 main 랜드마크다(상단 막대는 그 밖의 banner). */}
-          <main className={`admin-content flex min-w-0 flex-1 flex-col ${isChat ? 'min-h-0 overflow-hidden print:overflow-visible' : 'gap-4 p-4 md:p-6 print:p-0'}`}>
+          <main id="admin-main" tabIndex={-1} className={`admin-content flex min-w-0 flex-1 flex-col outline-none ${isChat ? 'min-h-0 overflow-hidden print:overflow-visible' : 'gap-4 p-4 md:p-6 print:p-0'}`}>
             {isChat || isHome ? <h1 className="sr-only">{title}</h1> : (
               <div className="admin-page-context flex flex-wrap items-end justify-between gap-2 print:hidden">
-                <h1 className="text-xl font-semibold tracking-tight text-foreground">{title}</h1>
+                <h1 className="text-2xl font-bold tracking-tight text-foreground">{title}</h1>
               </div>
             )}
             {/* key로 화면 전환마다 진입 애니메이션을 다시 태운다 */}
