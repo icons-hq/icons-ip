@@ -54,6 +54,14 @@ describe('ERP 품목 화면', () => {
     expect(html).not.toMatch(/슬롯|가챠|충전/);
   });
 
+  /* 2026-11-10 사람 눈 시험: 두 화면의 ERP 연결 이름이 비슷해 어디서 해야 하는지 헷갈렸다. */
+  it('이 연결이 쓰이는 곳과 카테고리 관리에서 하는 일을 구분해 알려 준다', () => {
+    const html = renderToStaticMarkup(<ErpItemsScreen data={data()} />);
+    expect(html).toContain('상품 옵션에서 ERP 품목을 고를 때 연결된 카테고리를 제안하는 데만 씁니다.');
+    expect(html).toContain('href="/admin/catalog/categories#category-erp-mapping"');
+    expect(html).toContain('카테고리마다 ERP 코드·품명을 적어 CSV로 내보내는 일도');
+  });
+
   it('품목 반입이 접혀 있으면 화면 머리의 주 행동 버튼이 펼치는 길이고, 펼쳐 있으면 외곽선으로 물러난다', () => {
     const closed = renderToStaticMarkup(<ErpItemsScreen data={data()} />);
     expect(closed).toMatch(/data-admin-kit="page-header"[\s\S]*?<button[^>]*bg-primary[^>]*>(?:<svg[\s\S]*?<\/svg>)?품목 반입<\/button>/);
