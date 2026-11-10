@@ -12,6 +12,7 @@ import type { ShippingCarrierRegistry } from '@/lib/orders/shipment';
 import { formatOrderDateTime } from '@/lib/orders';
 import { useClaimPreviewBusy } from '@/components/admin/screens/ClaimPreviewDialog';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
+import { useAdminLeaveGuard } from '@/components/admin/useAdminLeaveGuard';
 import { cn } from 'cn';
 
 /* 템플릿 룩(ADR-0028). 입력은 네이티브 그대로이고(어휘 CSS가 kit 모양을 입힌다), 버튼은 kit 버튼 모양이다. */
@@ -19,7 +20,7 @@ const PRIMARY = cn(buttonVariants({ size: 'sm' }));
 const OUTLINE = cn(buttonVariants({ size: 'sm', variant: 'outline' }));
 const FIELD = 'flex min-w-0 flex-col gap-1.5';
 const FIELD_LABEL = 'font-medium';
-const CHECK = 'flex items-start gap-2 leading-relaxed';
+const CHECK ='flex items-start gap-2 leading-relaxed';
 
 type Props = { actorId: string; orderId: string; claimId: string; canReship: boolean; carriers: ShippingCarrierRegistry; reshipItems: readonly AdminClaimReshipItem[] };
 type Draft = { recipientName: string; phone: string; postalCode: string; address1: string; address2: string; agreement: string; customerConfirmed: boolean; handoffConfirmed: boolean;
@@ -73,20 +74,7 @@ export function ClaimContactOperationPanel({ identity, scope, orderId, claimId, 
     const timeout = window.setTimeout(() => { setContext(null); setDraft(blank()); setError('주소 확인 시간이 지났습니다. 최신 주소를 다시 확인해주세요.'); }, Math.max(0, Date.parse(context.expiresAt) - Date.now()));
     return () => window.clearTimeout(timeout);
   }, [context?.expiresAt, recovery]);
-  useEffect(() => {
-    if (!dirty) return;
-    const unload = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
-    const navigate = (event: MouseEvent) => {
-      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
-      const anchor = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>('a[href]') : null;
-      if (!anchor || anchor.hasAttribute('download') || anchor.target && anchor.target !== '_self') return;
-      const destination = new URL(anchor.href, location.href);
-      if (destination.origin === location.origin && destination.pathname === location.pathname && destination.search === location.search) return;
-      if (!window.confirm('입력한 연락처는 보관하지 않습니다. 미확정 요청은 다시 열어 처리 결과를 확인할 수 있습니다. 이동할까요?')) { event.preventDefault(); event.stopPropagation(); }
-    };
-    window.addEventListener('beforeunload', unload); document.addEventListener('click', navigate, true);
-    return () => { window.removeEventListener('beforeunload', unload); document.removeEventListener('click', navigate, true); };
-  }, [dirty]);
+  useAdminLeaveGuard({ dirty, message: '입력한 연락처는 보관하지 않습니다. 미확정 요청은 다시 열어 처리 결과를 확인할 수 있습니다. 이동할까요?' });
 
   function begin() {
     const ticket = scope.capture(); if (busy.current || !ticket) return null;

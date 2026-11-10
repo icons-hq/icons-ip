@@ -13,6 +13,7 @@ import { useClaimPreviewBusy } from '@/components/admin/screens/ClaimPreviewDial
 import { AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { statusTone } from '@/lib/admin/status-tone';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
+import { useAdminLeaveGuard } from '@/components/admin/useAdminLeaveGuard';
 import { cn } from 'cn';
 import {
   BANK_REFUND_LABELS, BANK_REFUND_RECOVERY_PREFIX, bankRefundError, bankRefundMetadata, bankRefundReceiptMatches,
@@ -85,20 +86,7 @@ function RefundPanel({ identity, scope }: { identity: BankRefundIdentity; scope:
     });
     return () => { active = false; };
   }, [identity, reload, scope]);
-  useEffect(() => {
-    if (!dirty) return;
-    const unload = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
-    const navigate = (event: MouseEvent) => {
-      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-      const anchor = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>('a[href]') : null;
-      if (!anchor || anchor.hasAttribute('download') || anchor.target && anchor.target !== '_self') return;
-      const destination = new URL(anchor.href, location.href);
-      if (destination.origin === location.origin && destination.pathname === location.pathname && destination.search === location.search) return;
-      if (!window.confirm('입력 중인 증빙은 보관하지 않습니다. 화면을 이동할까요?')) { event.preventDefault(); event.stopPropagation(); }
-    };
-    window.addEventListener('beforeunload', unload); document.addEventListener('click', navigate, true);
-    return () => { window.removeEventListener('beforeunload', unload); document.removeEventListener('click', navigate, true); };
-  }, [dirty]);
+  useAdminLeaveGuard({ dirty, message: '입력 중인 증빙은 보관하지 않습니다. 화면을 이동할까요?' });
 
   function clearRecovery() { try { sessionStorage.removeItem(key); } catch {} setRecovery(null); dispatched.current = null; setCanRetry(false); }
   function accept(receipt: BankRefundReceipt, original: BankRefundRecovery) {

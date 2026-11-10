@@ -1,9 +1,10 @@
 'use client';
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { saveStorePresentationAction, type StorePresentationSaveResult } from '@/app/admin/store-presentation-actions';
 import { Search } from 'lucide-react';
 import { AdminNotice, AdminPageHeader, AdminSectionCard } from '../console/AdminKit';
+import { useAdminLeaveGuard } from '../useAdminLeaveGuard';
 import { Button } from '@/components/admin/kit/ui/button';
 import { STORE_PRESENTATION_PATH, STORE_THEME_COLORS, storeThemeForeground,
   type StorePresentation, type StorePresentationSection, type StorePresentationSnapshot } from '@/lib/store-presentation';
@@ -45,20 +46,7 @@ function PresentationForm({ snapshot, section }: { snapshot: StorePresentationSn
   const themedHeader = common.headerStyle === 'color', themeInk = storeThemeForeground(common.themeColor);
   const themed = themedHeader ? { backgroundColor: common.themeColor, color: themeInk } : undefined;
   const dirty = JSON.stringify(values[section]) !== JSON.stringify(savedValues);
-  useEffect(() => {
-    if (!dirty && !uncertain) return;
-    const prevent = (event: BeforeUnloadEvent) => event.preventDefault();
-    const navigate = (event: MouseEvent) => {
-      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-      const link = event.target instanceof Element ? event.target.closest('a[href]') as HTMLAnchorElement | null : null;
-      if (!link || link.hasAttribute('download') || link.target && link.target !== '_self') return;
-      const destination = new URL(link.href, window.location.href);
-      if (destination.origin === window.location.origin && destination.pathname === window.location.pathname && destination.search === window.location.search) return;
-      if (!window.confirm('저장하지 않은 전시 설정을 두고 이동할까요?')) { event.preventDefault(); event.stopPropagation(); }
-    };
-    window.addEventListener('beforeunload', prevent); document.addEventListener('click', navigate, true);
-    return () => { window.removeEventListener('beforeunload', prevent); document.removeEventListener('click', navigate, true); };
-  }, [dirty, uncertain]);
+  useAdminLeaveGuard({ dirty: dirty || uncertain, message: '저장하지 않은 전시 설정을 두고 이동할까요?' });
   function changeCommon<K extends keyof typeof common>(key: K, value: typeof common[K]) { setValues(current => ({ ...current, common: { ...current.common, [key]: value } })); }
   function changeListing<K extends keyof typeof listing>(key: K, value: typeof listing[K]) { setValues(current => ({ ...current, listing: { ...current.listing, [key]: value } })); }
   async function save() {

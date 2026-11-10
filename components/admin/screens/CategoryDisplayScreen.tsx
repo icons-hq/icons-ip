@@ -10,6 +10,7 @@ import { CategoryDisplayGoodsPicker } from '../CategoryDisplayGoodsPicker';
 import { CategoryDisplayArtwork } from '../CategoryDisplayArtwork';
 import { CategoryDisplayPreview } from '../CategoryDisplayPreview';
 import { CategoryDisplayTree } from '../CategoryDisplayTree';
+import { useAdminLeaveGuard } from '../useAdminLeaveGuard';
 import { previewCategoryDisplayAction, reloadCategoryDisplayAction, saveCategoryDisplayAction, type CategoryDisplaySaveResult } from '@/app/admin/category-display-actions';
 import { parseCategoryDisplayValues, type CategoryDisplayDirectory, type CategoryDisplayPage, type CategoryDisplaySnapshot, type CategoryDisplayValues } from '@/lib/category-display';
 import type { StoryGoodCandidate } from '@/lib/admin/shopping-story-picker';
@@ -62,20 +63,7 @@ function CategoryDisplayEditor({ directory, initial, actorId, sessionId }: { dir
     }).data.subscription;
     return () => { alive.current = false; previewTicket.current += 1; subscription.unsubscribe(); };
   }, [actorId, sessionId]);
-  useEffect(() => {
-    if (!dirty && !uncertain) return;
-    const prevent = (event: BeforeUnloadEvent) => event.preventDefault();
-    const navigate = (event: MouseEvent) => {
-      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-      const link = event.target instanceof Element ? event.target.closest('a[href]') as HTMLAnchorElement | null : null;
-      if (!link || link.hasAttribute('download') || link.target && link.target !== '_self') return;
-      const destination = new URL(link.href, window.location.href);
-      if (destination.pathname === window.location.pathname && destination.search === window.location.search && destination.origin === window.location.origin) return;
-      if (!window.confirm('저장하지 않은 입력을 두고 이동할까요?')) { event.preventDefault(); event.stopPropagation(); }
-    };
-    window.addEventListener('beforeunload', prevent); document.addEventListener('click', navigate, true);
-    return () => { window.removeEventListener('beforeunload', prevent); document.removeEventListener('click', navigate, true); };
-  }, [dirty, uncertain]);
+  useAdminLeaveGuard({ dirty: dirty || uncertain, message: '저장하지 않은 입력을 두고 이동할까요?' });
   function change<K extends keyof CategoryDisplayValues>(key: K, value: CategoryDisplayValues[K]) { if (!locked && !blockedRef.current) setValues(current => ({ ...current, [key]: value })); }
   function banner<K extends keyof CategoryDisplayValues['banner']>(key: K, value: CategoryDisplayValues['banner'][K]) { if (!locked && !blockedRef.current) setValues(current => ({ ...current, banner: { ...current.banner, [key]: value } })); }
   function choose(ids: string[], rows: StoryGoodCandidate[]) {

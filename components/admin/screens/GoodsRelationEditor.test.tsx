@@ -10,6 +10,7 @@ vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>
     if (!(index in hooks.values)) hooks.values[index] = typeof initial === 'function' ? initial() : initial;
     return [hooks.values[index], (next: unknown) => { hooks.values[index] = typeof next === 'function' ? next(hooks.values[index]) : next; }];
   },
+  useRef: (current: unknown) => ({ current }),
   useEffect: () => {},
   useTransition: () => [hooks.pending, (action: () => Promise<void>) => { hooks.pending = true; void action().finally(() => { hooks.pending = false; }); }],
 }));
