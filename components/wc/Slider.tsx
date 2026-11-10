@@ -6,6 +6,8 @@ export interface SliderProps {
   label: string;
   children: ReactNode;
   showControls?: boolean;
+  /** 위치 표시 방식. 기본은 '‹ 1 / N ›', 'dots' 는 위치마다 점 버튼(모바일 피처드 IP — R-03 §3.2 · 11 IP-04). */
+  indicator?: 'fraction' | 'dots';
   className?: string;
 }
 
@@ -30,7 +32,7 @@ function positionsOf(track: HTMLElement) {
   return Math.round(maxScroll / strideOf(track)) + 1;
 }
 
-export function Slider({ children, className, label, showControls = true }: SliderProps) {
+export function Slider({ children, className, indicator = 'fraction', label, showControls = true }: SliderProps) {
   const trackRef = useRef<HTMLDivElement>(null);
   const childCount = Children.count(children);
   /* SSR 에서는 DOM 을 잴 수 없어 자식 수를 근사값으로 쓰고, 마운트 뒤 실측으로 바꾼다. */
@@ -85,7 +87,22 @@ export function Slider({ children, className, label, showControls = true }: Slid
       className={`wc-slider${className ? ` ${className}` : ''}`}
     >
       <div className="wc-slider__track" ref={trackRef}>{children}</div>
-      {showControls && total > 1 ? (
+      {showControls && total > 1 && indicator === 'dots' ? (
+        /* 점은 장식이 아니라 위치 이동 버튼이다 — 현재 위치는 aria-current 가 말한다(DESIGN §10 캐러셀 현재 위치). */
+        <div aria-label={`${label} 위치`} className="wc-slider__dots" role="group">
+          {Array.from({ length: total }, (_, index) => (
+            <button
+              key={index}
+              aria-current={index === current ? 'true' : undefined}
+              aria-label={`${index + 1} / ${total}`}
+              className={`wc-slider__dot${index === current ? ' is-active' : ''}`}
+              onClick={() => goTo(index)}
+              type="button"
+            />
+          ))}
+        </div>
+      ) : null}
+      {showControls && total > 1 && indicator === 'fraction' ? (
         <div className="wc-slider__controls">
           <button
             aria-label="이전"

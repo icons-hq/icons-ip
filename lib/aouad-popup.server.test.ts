@@ -1,3 +1,4 @@
+const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -23,7 +24,7 @@ afterEach(() => vi.unstubAllEnvs());
 describe('AOUAD 프레젠테이션 서버 권한', () => {
   it('공개되지 않은 시연은 staff/admin만 열 수 있다', async () => {
     await expect(canViewAouadPopup()).resolves.toBe(false);
-    mocks.auth.mockResolvedValue({ isStaff: true });
+    mocks.auth.mockResolvedValue({ isStaff: true, operatorAccess: legacyOperatorAccessFixture() });
     await expect(canViewAouadPopup()).resolves.toBe(true);
   });
 

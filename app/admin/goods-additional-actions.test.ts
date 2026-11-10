@@ -1,3 +1,4 @@
+const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ auth: vi.fn(), rpc: vi.fn(), revalidate: vi.fn() }));
 vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: mocks.auth }));
@@ -7,7 +8,7 @@ vi.mock('next/navigation', () => ({ unstable_rethrow: vi.fn() }));
 import { readGoodsAdditionalAction, searchGoodsAdditionalAction, saveGoodsAdditionalAction } from './goods-additional-actions';
 beforeEach(() => {
   vi.resetAllMocks();
-  mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'staff1' }, isStaff: true, role: 'staff' });
+  mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'staff1' }, isStaff: true, operatorAccess: legacyOperatorAccessFixture(), role: 'staff' });
 });
 describe('additional goods staff actions', () => {
   it('requires current staff permission on every read and write', async () => {

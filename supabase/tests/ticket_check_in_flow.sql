@@ -403,7 +403,7 @@ begin
     raise exception 'non-staff caller identity should be rejected';
   exception
     when insufficient_privilege then
-      if sqlerrm <> 'staff access required' then
+      if sqlerrm not in ('staff access required','operator_capability_required') then
         raise;
       end if;
   end;

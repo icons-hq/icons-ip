@@ -58,6 +58,35 @@ export interface TossWidgetDeps {
   readonly loadTossPayments?: (clientKey: string) => Promise<TossPaymentsSDK>;
 }
 
+/*
+ * requestPayment() reject 사유별 안내. 코드와 메시지는 토스 SDK 에러 코드 문서(문서 44
+ * "주문서형, 결제창형 에러")와 SDK 2.8.1 타입의 requestPayment @throws 목록을 따른다.
+ * reject 객체의 `code`로 구분한다(문서 57 예시 `error.code === 'USER_CANCEL'`).
+ * 위젯이 자체 안내를 띄우는지는 문서에 명시되지 않았으므로 우리 문구를 함께 둔다.
+ * 구매자가 결제창을 닫은 USER_CANCEL은 오류가 아니라서 안내하지 않는다. 표 밖 코드는
+ * 공통 문구로 덮어 SDK 원문이 화면에 새지 않게 한다.
+ */
+const TOSS_REQUEST_ERROR_COPY = new Map<string, string>([
+  ['NOT_SELECTED_PAYMENT_METHOD', '결제수단을 선택해주세요.'],
+  ['NEED_CARD_PAYMENT_DETAIL', '카드사와 할부 기간을 선택해주세요.'],
+  ['NEED_AGREEMENT_WITH_REQUIRED_TERMS', '필수 약관에 동의해주세요.'],
+  ['PROVIDER_STATUS_UNHEALTHY', '카드사·은행 등 결제 기관에 일시적인 문제가 있어요. 다른 결제수단을 선택해주세요.'],
+  ['UNSUPPORTED_TEST_PHASE_PAYMENT_METHOD', '지금은 이 결제수단을 쓸 수 없어요. 다른 결제수단을 선택해주세요.'],
+  ['INVALID_METHOD_TRANSACTION', '이미 결제 요청을 처리하고 있어요. 잠시 후 다시 시도해주세요.'],
+  ['NETWORK_ERROR', '네트워크 연결을 확인한 뒤 다시 시도해주세요.'],
+]);
+const TOSS_REQUEST_ERROR_FALLBACK = '결제창을 열지 못했습니다. 잠시 후 다시 시도해주세요.';
+
+/** reject 값을 안내 문구로. 구매자 취소면 null(안내 없음). */
+export function tossRequestPaymentErrorCopy(error: unknown): string | null {
+  const code = typeof error === 'object' && error !== null && 'code' in error
+    ? (error as { code?: unknown }).code
+    : undefined;
+  if (code === 'USER_CANCEL') return null;
+  return (typeof code === 'string' ? TOSS_REQUEST_ERROR_COPY.get(code) : undefined)
+    ?? TOSS_REQUEST_ERROR_FALLBACK;
+}
+
 function isSafeRedirectUrl(value: string) {
   try {
     const url = new URL(value);
@@ -196,9 +225,11 @@ export function TossWidgetCheckout({ payload }: TossWidgetCheckoutProps) {
   const failUrl = parsed?.failUrl ?? null;
   const amount = parsed?.amount ?? 0;
 
+  // 마운트 실패 뒤 "다시 불러오기"가 올리는 회차. 키에 넣어 같은 payload로 재마운트한다.
+  const [mountRound, setMountRound] = useState(0);
   // 위젯을 다시 띄워야 하는 축(금액 제외). 마운트 결과를 이 키와 함께 들고 있어
   // payload가 바뀌면 effect에서 상태를 되돌리지 않고도 '불러오는 중'으로 돌아간다.
-  const mountKey = `${clientKey}|${orderId}|${orderName}|${currency}|${successUrl}|${failUrl}`;
+  const mountKey = `${mountRound}|${clientKey}|${orderId}|${orderName}|${currency}|${successUrl}|${failUrl}`;
 
   const controllerRef = useRef<TossWidgetController | null>(null);
   // 마운트 effect는 금액을 deps에 넣지 않는다(금액 변경은 재렌더가 아니라
@@ -210,7 +241,7 @@ export function TossWidgetCheckout({ payload }: TossWidgetCheckoutProps) {
     readonly agreed: boolean;
   } | null>(null);
   const [requesting, setRequesting] = useState(false);
-  const [requestFailed, setRequestFailed] = useState(false);
+  const [requestError, setRequestError] = useState<string | null>(null);
 
   const current = mounted !== null && mounted.key === mountKey ? mounted : null;
   const mountState = current?.state ?? 'loading';
@@ -288,12 +319,12 @@ export function TossWidgetCheckout({ payload }: TossWidgetCheckoutProps) {
     const controller = controllerRef.current;
     if (!controller) return;
     setRequesting(true);
-    setRequestFailed(false);
+    setRequestError(null);
     // Redirect 방식이라 성공하면 이 페이지를 떠난다. reject는 사용자가 결제창을
-    // 닫았거나 요청이 실패한 경우뿐이므로 버튼을 다시 열어준다.
-    void controller.requestPayment().catch(() => {
+    // 닫았거나 요청이 실패한 경우뿐이므로 버튼을 다시 열고 사유를 알려준다.
+    void controller.requestPayment().catch((error: unknown) => {
       setRequesting(false);
-      setRequestFailed(true);
+      setRequestError(tossRequestPaymentErrorCopy(error));
     });
   }
 
@@ -305,9 +336,16 @@ export function TossWidgetCheckout({ payload }: TossWidgetCheckoutProps) {
         <p role="status">결제 위젯을 불러오는 중입니다.</p>
       ) : null}
       {mountState === 'failed' ? (
-        <p className="checkout-error" role="alert">
-          결제 화면을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.
-        </p>
+        <div role="alert">
+          <p className="checkout-error">결제 화면을 불러오지 못했습니다.</p>
+          <button
+            className="btn btn-ghost"
+            onClick={() => setMountRound((round) => round + 1)}
+            type="button"
+          >
+            결제 화면 다시 불러오기
+          </button>
+        </div>
       ) : null}
       <button
         className="btn btn-holo checkout-submit"
@@ -320,10 +358,8 @@ export function TossWidgetCheckout({ payload }: TossWidgetCheckoutProps) {
       {mountState === 'ready' && !agreedRequiredTerms ? (
         <p role="status">필수 약관에 동의하면 결제할 수 있습니다.</p>
       ) : null}
-      {requestFailed ? (
-        <p className="checkout-error" role="alert">
-          결제창을 열지 못했습니다. 잠시 후 다시 시도해주세요.
-        </p>
+      {requestError ? (
+        <p className="checkout-error" role="alert">{requestError}</p>
       ) : null}
     </div>
   );

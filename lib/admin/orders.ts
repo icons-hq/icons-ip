@@ -1,16 +1,26 @@
 import { isUuid } from '@/lib/uuid';
 import type { ShipmentRecord } from '@/lib/orders/shipments';
 import type { OrderWithdrawalReasonType } from '@/lib/orders';
-import type { OrderClaimStage, OrderClaimType } from '@/lib/orders/claims';
+import type { GoodsOptionSaleMode } from '@/lib/goods-option-sale-mode';
+import {
+  ORDER_STAFF_CANCELLATION_REASON_CODES,
+  ORDER_STAFF_CANCELLATION_REASON_LABELS,
+  type OrderClaimReasonType,
+  type OrderClaimStage,
+  type OrderClaimType,
+  type OrderStaffCancellationReasonCode,
+} from '@/lib/orders/claims';
 import { adminSettledHref, normalizeAdminSettledFilters } from './settled';
 import { normalizeShipmentFilters, shipmentConsoleHref } from './shipment-dispatch';
 import { ADMIN_VOCABULARY } from './vocabulary';
+import { appendSalesListOptions, normalizeSalesListOptions, salesDateField, salesPage, salesParam, SALES_ORDER_SEARCH_FIELDS, type SalesDateField, type SalesListOptions, type SalesOrderSearchField } from './sales-list';
 import {
   isSelectableShippingCarrier,
   isTrackingNumber,
   normalizeTrackingNumber,
   type ShippingCarrierRegistry,
 } from '@/lib/orders/shipment';
+import { providerCancelsAutomatically } from '@/lib/payments/provider-capabilities';
 
 // DB의 order_status enum과 같은 순서를 유지한다 — 상태 필터의 표시 순서가
 // 사다리 순서 그 자체다(#250).
@@ -27,22 +37,8 @@ export type AdminOrderStatus = (typeof ADMIN_ORDER_STATUSES)[number];
 export type AdminOrderStatusFilter = AdminOrderStatus | 'all';
 
 /** 주문 통합검색에서 검색할 원장을 고른다. 기본값은 기존 전체 검색이다. */
-export type AdminOrderSearchField =
-  | 'all'
-  | 'order'
-  | 'nickname'
-  | 'email'
-  | 'recipient'
-  | 'tracking';
-
-export const ADMIN_ORDER_SEARCH_FIELDS: { value: AdminOrderSearchField; label: string }[] = [
-  { value: 'all', label: '전체' },
-  { value: 'order', label: '주문번호' },
-  { value: 'nickname', label: '닉네임' },
-  { value: 'email', label: '이메일' },
-  { value: 'recipient', label: '수취인' },
-  { value: 'tracking', label: '운송장번호' },
-];
+export type AdminOrderSearchField = SalesOrderSearchField;
+export const ADMIN_ORDER_SEARCH_FIELDS = SALES_ORDER_SEARCH_FIELDS;
 
 /**
  * 상태 표기의 단일 진실원.
@@ -91,7 +87,7 @@ export const ORDER_CANCELLATION_REQUEST_STATUSES = [
 ] as const;
 export type OrderCancellationRequestStatus = (typeof ORDER_CANCELLATION_REQUEST_STATUSES)[number];
 
-export interface AdminOrderFilters {
+export interface AdminOrderFilters extends SalesListOptions {
   from: string | null;
   orderId: string | null;
   page: number;
@@ -99,6 +95,8 @@ export interface AdminOrderFilters {
   field: AdminOrderSearchField;
   status: AdminOrderStatusFilter;
   to: string | null;
+  dateField?: SalesDateField;
+  paymentMethod?: 'card' | 'bank_transfer';
 }
 
 export interface AdminOrderAddress {
@@ -111,9 +109,16 @@ export interface AdminOrderAddress {
 }
 
 export interface AdminOrderItemRecord {
+  productOrderNumber?: string;
   variantId: string;
   variantName?: string | null;
+  customInputs?: import('@/lib/goods-custom-inputs').GoodsCustomInputSelection | null;
   variantCode?: string | null;
+  /**
+   * 판매 방식(D5②). 'random'이면 고객이 고른 옵션이 아니라 주문 생성 때 DB가 재고 비례로 무작위 배정한 옵션이다.
+   * variantId·variantName·variantCode는 배정된 옵션 그대로다. 주문 상세(admin_order_detail)만 싣는다.
+   */
+  optionSaleMode?: GoodsOptionSaleMode;
   id: string;
   name: string;
   type: string;
@@ -123,6 +128,7 @@ export interface AdminOrderItemRecord {
 
 export interface AdminOrderPaymentRecord {
   id: string;
+  provider: string | null;
   amount: number;
   status: string;
   createdAt: string;
@@ -158,10 +164,18 @@ export interface AdminOrderCancellationRequestRecord {
    */
   claimType: OrderClaimType;
   stage: OrderClaimStage;
-  reasonType: OrderWithdrawalReasonType;
+  /** 구매자 사유 또는 운영자 전액 취소('staff', ADR-0018). */
+  reasonType: OrderClaimReasonType;
+  /** 운영자 전액 취소의 운영 사유. 구매자 요청은 null이다. */
+  staffReasonCode: OrderStaffCancellationReasonCode | null;
   requestedAt: string;
   decidedAt: string | null;
   decisionNote: string | null;
+  /**
+   * 최근 정합화 오류 코드(order_cancellation_requests.last_error_code). 결제확인필요
+   * 요청의 원인을 주문 패널에서 바로 보고 런북의 코드별 조치를 찾게 한다(QA-10).
+   */
+  lastErrorCode: string | null;
 }
 
 /** 레거시 주문 콘솔이 직접 처리할 수 있는 클레임. 나머지는 클레임 콘솔의 몫이다. */
@@ -182,6 +196,9 @@ export const ADMIN_WITHDRAWAL_RETURN_SHIPPING_LABELS: Record<OrderWithdrawalReas
 };
 
 export interface AdminOrderRecord {
+  orderNumber?: string;
+  isGift?: boolean;
+  transaction?: import('@/lib/goods-transaction').GoodsTransactionDisplay;
   id: string;
   userId: string;
   buyerName: string;
@@ -189,6 +206,7 @@ export interface AdminOrderRecord {
   status: AdminOrderStatus;
   total: number;
   address: AdminOrderAddress | null;
+  addressNeedsReview?: boolean;
   createdAt: string;
   updatedAt: string;
   items: AdminOrderItemRecord[];
@@ -210,6 +228,7 @@ export interface AdminOrderConsoleData {
    * 다시 두면 레지스트리와 갈라진다.
    */
   carriers: ShippingCarrierRegistry;
+  counts?: Record<AdminOrderStatus, number>;
 }
 
 export type AdminOrderFieldErrors = Record<string, string>;
@@ -228,7 +247,7 @@ const SEARCH_FIELDS = new Set<string>(ADMIN_ORDER_SEARCH_FIELDS.map((field) => f
  * 어드민 상태 폼이 직접 밀 수 있는 전이 대상(#250).
  *
  * `admin_update_order_status`가 받는 값과 같아야 한다 — `paid`는 결제 웹훅이,
- * `done`은 자동 거래확정 잡이, `canceled`는 청약철회 경로가 각각 소유하므로
+ * `done`은 구매자 확정·자동 정책 경로가, `canceled`는 청약철회 경로가 각각 소유하므로
  * 운영자 폼이 손댈 수 있는 것은 사다리 중간 세 칸뿐이다.
  */
 const SHIPPING_STATUS_SET = new Set<string>(['confirmed', 'shipping', 'delivered']);
@@ -273,8 +292,8 @@ export function normalizeAdminOrderFilters(searchParams: AdminOrderSearchParams)
     to = null;
   }
 
-  const rawPage = Number(singleParam(searchParams.page));
-  const page = Number.isSafeInteger(rawPage) && rawPage > 0 ? rawPage : 1;
+  const listOptions = normalizeSalesListOptions(searchParams);
+  const page = salesPage(searchParams.page, listOptions.pageSize ?? 20);
   const rawQuery = singleParam(searchParams.query).trim();
   const query = rawQuery.length <= 100 ? rawQuery : '';
   const rawField = singleParam(searchParams.field);
@@ -282,6 +301,10 @@ export function normalizeAdminOrderFilters(searchParams: AdminOrderSearchParams)
   const status = ORDER_STATUS_SET.has(rawStatus) ? rawStatus as AdminOrderStatus : 'all';
 
   return {
+    ...listOptions,
+    ...(salesDateField(searchParams) ? { dateField: salesDateField(searchParams) } : {}),
+    ...(['card', 'bank_transfer'].includes(salesParam(searchParams, 'paymentMethod'))
+      ? { paymentMethod: salesParam(searchParams, 'paymentMethod') as 'card' | 'bank_transfer' } : {}),
     field: SEARCH_FIELDS.has(rawField) ? rawField as AdminOrderSearchField : 'all',
     from,
     orderId: normalizedUuid(searchParams.order),
@@ -422,6 +445,97 @@ export function normalizeAdminCancellationDecisionForm(
   return { ok: true, value: { requestId } };
 }
 
+/**
+ * 주문 통합검색 주문 패널의 결제 취소 재확인 버튼 이름(ReconcileCancellationForm).
+ *
+ * 같은 재정합 액션이지만 요청 단계에 따라 이름이 다르다. 서버 액션의 재시도 안내는
+ * 이 이름을 그대로 가리킨다 — 화면에 없는 버튼을 안내하지 않도록 한 곳에서 정한다.
+ */
+export const ADMIN_CANCELLATION_RECHECK_LABELS = {
+  processing: '처리 상태 확인',
+  needsReview: '상태 다시 확인',
+  preparedKorpay: 'Korpay 만료·취소 처리',
+} as const;
+
+/**
+ * 운영자 전액 취소 사유(ADR-0018). 값과 표기는 lib/orders/claims의 한 목록에서 온다 —
+ * DB `admin_start_order_cancellation`의 허용 목록과 같아야 하고, 클레임 목록·상세·통계가
+ * 같은 표기로 운영 사유를 보여준다.
+ */
+export const ADMIN_STAFF_CANCELLATION_REASONS = ORDER_STAFF_CANCELLATION_REASON_CODES.map((value) => ({
+  value,
+  label: ORDER_STAFF_CANCELLATION_REASON_LABELS[value],
+}));
+export type AdminStaffCancellationReason = OrderStaffCancellationReasonCode;
+const STAFF_CANCELLATION_REASON_SET = new Set<string>(ADMIN_STAFF_CANCELLATION_REASONS.map((reason) => reason.value));
+export const ADMIN_STAFF_CANCELLATION_NOTE_LIMIT = 500;
+
+/**
+ * 운영자 전액 취소를 시작할 수 있는 주문인가(ADR-0018).
+ *
+ * 화면에 버튼을 그릴지만 정한다. 판정의 진실원은 DB가 주문·배송 건 잠금 아래에서
+ * 다시 하는 검사다(진행 중 결제 포함). 결제 조건은 DB `admin_start_order_cancellation`의
+ * `staff_cancellation_toss_only`와 같게 맞춘다 — 실패가 아닌 결제가 하나 이상이고
+ * 모두 취소 API가 있는 카드 결제사(토스·나이스페이)·결제완료일 때만 그린다. Korpay·무통장
+ * 주문에 버튼을 그리면 누를 때마다
+ * 거절되는 버튼이 된다. 출고지시 파일이 나간 배송 건이 있으면 창고의 출고 중단 확인을
+ * 함께 받는다.
+ */
+export function adminStaffCancellationAvailability(
+  order: AdminOrderRecord,
+): { available: false } | { available: true; requiresWarehouseStop: boolean } {
+  if (order.status !== 'paid' && order.status !== 'confirmed') return { available: false };
+  const livePayments = order.payments.filter((payment) => payment.status !== 'failed');
+  if (!livePayments.length) return { available: false };
+  if (livePayments.some((payment) => !providerCancelsAutomatically(payment.provider) || payment.status !== 'paid')) {
+    return { available: false };
+  }
+  const request = order.cancellationRequest;
+  if (request && !['completed', 'rejected', 'withdrawn'].includes(request.stage)) return { available: false };
+  if (order.shipments.some((shipment) => (
+    (shipment.status !== 'ready' && shipment.status !== 'canceled')
+    || Boolean(shipment.shippedAt)
+    || Boolean(shipment.deliveredAt)
+  ))) {
+    return { available: false };
+  }
+  return {
+    available: true,
+    requiresWarehouseStop: order.shipments.some((shipment) => shipment.status === 'ready' && Boolean(shipment.exportedAt)),
+  };
+}
+
+export function normalizeAdminStaffCancellationForm(
+  formData: FormData,
+): AdminOrderFormResult<{
+  orderId: string;
+  reasonCode: AdminStaffCancellationReason;
+  note: string | null;
+  warehouseStopConfirmed: boolean;
+}> {
+  const orderId = readFormString(formData, 'orderId').toLowerCase();
+  const reasonCode = readFormString(formData, 'reasonCode');
+  const note = readFormString(formData, 'note');
+  const errors: AdminOrderFieldErrors = {};
+  if (!UUID_PATTERN.test(orderId)) errors.orderId = '주문을 찾을 수 없습니다.';
+  if (!STAFF_CANCELLATION_REASON_SET.has(reasonCode)) errors.reasonCode = '취소 사유를 선택해주세요.';
+  if (note.length > ADMIN_STAFF_CANCELLATION_NOTE_LIMIT) {
+    errors.note = `메모는 ${ADMIN_STAFF_CANCELLATION_NOTE_LIMIT}자 이내로 입력해주세요.`;
+  } else if (reasonCode === 'other' && note.length < 5) {
+    errors.note = '기타 사유는 메모를 5자 이상 입력해주세요.';
+  }
+  if (Object.keys(errors).length) return { ok: false, errors };
+  return {
+    ok: true,
+    value: {
+      orderId,
+      reasonCode: reasonCode as AdminStaffCancellationReason,
+      note: note.length ? note : null,
+      warehouseStopConfirmed: formData.get('warehouseStopConfirmed') === 'confirmed',
+    },
+  };
+}
+
 export function normalizeAdminGoodsManualRecoveryForm(
   formData: FormData,
 ): AdminOrderFormResult<{
@@ -463,10 +577,13 @@ export function normalizeAdminGoodsManualRecoveryForm(
  */
 export function adminOrdersHref(
   filters: AdminOrderFilters,
-  overrides: Partial<Pick<AdminOrderFilters, 'orderId' | 'page'>> = {},
+  overrides: Partial<AdminOrderFilters> = {},
 ) {
   const next = { ...filters, ...overrides };
   const params = new URLSearchParams();
+  appendSalesListOptions(params, next);
+  if (next.dateField) params.set('dateField', next.dateField);
+  if (next.paymentMethod) params.set('paymentMethod', next.paymentMethod);
   if (next.status !== 'all') params.set('status', next.status);
   if (next.from) params.set('from', next.from);
   if (next.to) params.set('to', next.to);
@@ -491,15 +608,23 @@ export function adminOrderDetailHref(orderId: string, filters?: AdminOrderFilter
   return `${base}?back=${encodeURIComponent(adminOrdersHref(filters))}`;
 }
 
+/**
+ * 주문 통합검색에서 한 주문의 주문 패널을 여는 링크. 취소 재확인([처리 상태 확인]·
+ * [상태 다시 확인])과 운영자 전액 취소는 이 패널에만 있다("상세 열기" 새 탭 화면에는 없다).
+ */
+export function adminOrderSearchHref(orderId: string) {
+  return `/admin/sales/orders?query=${encodeURIComponent(orderId)}`;
+}
+
 /** 거래확정 목록처럼 주문 콘솔이 아닌 화면에서도 같은 상세 링크를 쓴다. */
 export function adminOrderDetailHrefFromBack(orderId: string, backHref?: string) {
   const base = `/admin/sales/orders/${orderId}`;
   return backHref ? `${base}?back=${encodeURIComponent(backHref)}` : base;
 }
 
-const ORDER_DETAIL_BACK_FIELDS = ['status', 'from', 'to', 'query', 'field', 'page', 'order'] as const;
-const SETTLED_DETAIL_BACK_FIELDS = ['from', 'to', 'query', 'page'] as const;
-const SHIPMENT_DETAIL_BACK_FIELDS = ['tab', 'originId', 'from', 'to', 'query', 'page'] as const;
+const ORDER_DETAIL_BACK_FIELDS = ['status', 'from', 'to', 'query', 'field', 'page', 'order', 'dateField', 'paymentMethod', 'sort', 'pageSize'] as const;
+const SETTLED_DETAIL_BACK_FIELDS = ['from', 'to', 'query', 'field', 'page', 'dateField', 'sort', 'pageSize'] as const;
+const SHIPMENT_DETAIL_BACK_FIELDS = ['tab', 'originId', 'from', 'to', 'query', 'page', 'field', 'dateField', 'method', 'paymentMethod', 'sort', 'pageSize', 'delayNotice'] as const;
 const ADMIN_BACK_ORIGIN = 'https://icons-admin.invalid';
 
 /**
@@ -523,7 +648,15 @@ export function adminOrderBackHref(back: unknown) {
       const value = source.searchParams.get(key);
       if (value) known[key] = value;
     }
-    return adminOrdersHref(normalizeAdminOrderFilters(known));
+    const normalized = adminOrdersHref(normalizeAdminOrderFilters(known));
+    if (source.searchParams.get('view') === 'items') {
+      const items = new URL(normalized, ADMIN_BACK_ORIGIN);
+      items.searchParams.set('view', 'items');
+      items.searchParams.delete('order');
+      if (known.field === 'item') items.searchParams.set('field', 'item');
+      return items.pathname + items.search;
+    }
+    return normalized;
   }
 
   if (source.pathname === '/admin/sales/settled') {

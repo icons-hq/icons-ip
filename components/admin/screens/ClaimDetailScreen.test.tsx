@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { AdminClaimDetail } from '@/lib/admin/claims.server';
 import { ClaimDetailScreen } from './ClaimDetailScreen';
+import { ClaimProgressSummary } from './ClaimProgressSummary';
 
 const NOW = new Date('2026-08-20T06:00:00.000Z');
 const ORDER_ID = '11111111-1111-4111-8111-111111111111';
@@ -28,6 +29,9 @@ function detail(overrides: Partial<AdminClaimDetail> = {}): AdminClaimDetail {
       status: 'requested',
       reason: '단순 변심 반품',
       reasonType: 'change_of_mind',
+      origin: 'customer',
+      staffReasonCode: null,
+      staffNote: null,
       decisionNote: null,
       holdReason: null,
       heldAt: null,
@@ -115,11 +119,230 @@ function render(overrides: Partial<AdminClaimDetail> = {}, cancellationForm: str
 }
 
 describe('ClaimDetailScreen', () => {
+  it.each(['return', 'cancel', 'exchange'] as const)('%s 상세는 기존 입력과 원장을 중복하지 않고 반품에서만 작업 구역으로 옮긴다', claimType => {
+    const html = render({ claim: { ...detail().claim, claimType } });
+    expect(html.match(/id="claim-refund"/g)).toHaveLength(1);
+    expect(html.match(/id="claim-process"/g)).toHaveLength(1);
+    expect(html.includes('반품 단계별 처리')).toBe(claimType === 'return');
+    /* 처리 박스가 먼저다(승인·거부가 이 화면의 본론). 환불 요약이 작업 구역 안으로 들어가는 것은 반품뿐이다. */
+    expect(html.indexOf('id="claim-process"')).toBeLessThan(html.indexOf('id="claim-refund"'));
+    const workspace = html.indexOf('data-claim-workspace="return"');
+    expect(workspace >= 0 && workspace < html.indexOf('id="claim-refund"')).toBe(claimType === 'return');
+    const forms = html.match(/<\/?form\b[^>]*>/g) ?? [];
+    let depth = 0;
+    for (const form of forms) { depth += form.startsWith('</') ? -1 : 1; expect(depth).toBeGreaterThanOrEqual(0); expect(depth).toBeLessThanOrEqual(1); }
+    expect(depth).toBe(0);
+  });
+  it('머리에 단계 배지와 처리 바로가기를 두고 진행 중인 요청의 처리 박스를 강조한다', () => {
+    const open = render({ claim: { ...detail().claim, claimType: 'cancel', stage: 'requested', collectedAt: null } });
+    expect(open).toMatch(/data-tone="warning"[^>]*>취소요청<\/span>/);
+    expect(open).toMatch(/<a[^>]*href="#claim-process"[^>]*>처리하기<\/a>/);
+    expect(open).toMatch(/id="claim-process"[^>]*ring-primary|ring-primary[^>]*id="claim-process"/);
+    /* 끝난 요청에는 눌러 갈 일이 없다. */
+    const closed = render({ claim: { ...detail().claim, claimType: 'cancel', stage: 'completed', completedAt: NOW.toISOString() } });
+    expect(closed).not.toContain('처리하기');
+  });
+
+  /* 사람 눈 판정: '환급 기한 재출고 대기'가 버튼처럼 보였고, 교환에 환급이 나오는 것이 이상했다. */
+  it('실제 기한이 계산된 때만 환급 기한을 글자로 적고 알약·버튼 모양을 쓰지 않는다', () => {
+    const exchange = render({ claim: { ...detail().claim, claimType: 'exchange', stage: 'requested', collectedAt: null } });
+    expect(exchange).not.toContain('환급 기한');
+    const cancel = render({ claim: { ...detail().claim, claimType: 'cancel', stage: 'requested', collectedAt: null } });
+    expect(cancel).not.toContain('환급 기한');
+    const counted = render().match(/<span[^>]*data-sla-tone="[a-z]+"[^>]*>/)?.[0] ?? '';
+    expect(counted).not.toBe('');
+    expect(counted).not.toContain('data-slot="badge"');
+  });
+
+  it('처리 칸은 유형을 붙여 부르고 이동 탭도 같은 이름을 쓴다', () => {
+    const html = render({ claim: { ...detail().claim, claimType: 'cancel', stage: 'requested', collectedAt: null } });
+    expect(html).toMatch(/<a[^>]*href="#claim-process"[^>]*>취소 처리<\/a>/);
+    expect(html).toMatch(/<h3[^>]*>취소 처리<\/h3>/);
+    /* 처리 칸이 옆에 보이는 넓은 화면에서는 처리하기 버튼을 겹쳐 두지 않는다. */
+    expect(html.match(/<a[^>]*>처리하기<\/a>/)?.[0]).toContain('lg:hidden');
+  });
+
+  it('돈이 나가는 승인·확정 버튼 바로 앞에 금액을 적는다', () => {
+    const toss = { ...detail().payment!, provider: 'toss' };
+    const approve = render({ payment: toss, refund: null, claim: { ...detail().claim, claimType: 'cancel', stage: 'requested', collectedAt: null } });
+    expect(approve).toMatch(/data-claim-money-at-stake=""[^>]*>(?:(?!<button)[\s\S])*취소 금액(?:(?!<button)[\s\S])*₩43,000/);
+    expect(approve.indexOf('data-claim-money-at-stake')).toBeLessThan(approve.indexOf('value="approve"'));
+    const complete = render({ payment: toss, claim: { ...detail().claim, stage: 'processing', status: 'processing' } });
+    expect(complete).toMatch(/환불 금액(?:(?!<button)[\s\S])*₩43,000/);
+    /* 돈이 나가지 않는 승인에는 금액을 붙이지 않는다. */
+    expect(render({ payment: toss, claim: { ...detail().claim, stage: 'requested', collectedAt: null } })).not.toContain('data-claim-money-at-stake');
+  });
+
+  it('교환은 고객이 남긴 요청과 지금 주문의 옵션을 처리 칸 맨 위에 보이고 다른 유형에는 두지 않는다', () => {
+    const exchange = render({ claim: { ...detail().claim, claimType: 'exchange', stage: 'requested', reason: 'M 대신 S로 바꿔주세요', collectedAt: null } });
+    const box = exchange.indexOf('data-claim-exchange-request');
+    expect(box).toBeGreaterThan(exchange.indexOf('id="claim-process"'));
+    expect(exchange.slice(box)).toContain('M 대신 S로 바꿔주세요');
+    expect(exchange.slice(box)).toContain('아크릴 블록 · 파랑 × 2');
+    expect(render()).not.toContain('data-claim-exchange-request');
+  });
+
+  /* 사람 눈 판정: '회수 확인한 뒤'라는 글 바로 밑이 '승인하고 수거 시작'이라 무엇이 먼저인지 망설였고, 보류·전환·정정이 같은 버튼으로 쌓여 전부 해야 하는 일처럼 보였다. */
+  describe('교환 처리 칸', () => {
+    const requested = { ...detail().claim, claimType: 'exchange' as const, stage: 'requested' as const, collectedAt: null, collectionPolicy: 'origin' as const, collectionComplete: false,
+      collections: [{ shipmentId: 'ship', originId: 'origin', originName: '김포', returnAddress: '김포시', items: [{ orderItemId: 'item', name: '아크릴 블록', qty: 2 }], collectedAt: null, collectedBy: null, collectorName: null, evidence: null }] };
+    it('승인이 먼저임을 순서와 문구로 보이고 지금 단계를 표시한다', () => {
+      const html = render({ claim: requested });
+      const panel = html.slice(html.indexOf('id="claim-process"'));
+      expect(panel).toContain('data-claim-exchange-steps');
+      expect(panel).toMatch(/aria-current="step"[^>]*>(?:(?!<\/li>)[\s\S])*지금 할 일(?:(?!<\/li>)[\s\S])*검토·승인/);
+      expect(panel.indexOf('value="approve"')).toBeLessThan(panel.indexOf('출고지별 회수 확인'));
+      expect(panel).toContain('승인하면 아래 출고지에서 수거를 시작합니다.');
+    });
+    it('거부는 펼쳐서 쓰고 보류·전환·정정은 필요할 때만 묶음으로 뺀다', () => {
+      const panel = render({ claim: requested });
+      expect(panel).toMatch(/<details[^>]*data-claim-reject-fold=""/);
+      const secondary = panel.slice(panel.indexOf('data-claim-secondary-actions'));
+      for (const label of ['교환 보류 설정', '반품·교환 전환 및 이력', '교환 사유 정정 및 이력']) expect(secondary).toContain(label);
+      expect(panel.indexOf('value="approve"')).toBeLessThan(panel.indexOf('data-claim-secondary-actions'));
+    });
+    it('고객 글과 접수 사유가 달라도 반송비를 누가 내는지 처리 칸에서 읽는다', () => {
+      const box = render({ claim: requested });
+      expect(box.slice(box.indexOf('data-claim-exchange-request'))).toContain('접수 사유 단순 변심 · 반송비 이용자 부담');
+    });
+    it('회수를 기다리는 단계에서는 회수 확인이 먼저고, 끝난 단계는 체크로 보인다', () => {
+      const panel = render({ claim: { ...requested, stage: 'collecting' } });
+      expect(panel).toMatch(/aria-current="step"[^>]*>(?:(?!<\/li>)[\s\S])*회수 확인/);
+      expect(panel).toMatch(/data-step-state="done"(?:(?!<\/li>)[\s\S])*검토·승인/);
+    });
+    it('철회된 교환에도 이력 진입은 그대로 남는다', () => {
+      const panel = render({ claim: { ...requested, stage: 'withdrawn' } });
+      expect(panel).toContain('요청 철회로 처리가 종료');
+      expect(panel).toContain('교환 사유 정정 및 이력');
+      expect(panel).not.toContain('data-claim-exchange-steps');
+    });
+    it.each(['cancel', 'return'] as const)('%s 처리 칸의 모양은 바꾸지 않는다', (claimType) => {
+      const html = render({ claim: { ...requested, claimType } });
+      expect(html).not.toContain('data-claim-exchange-steps');
+      expect(html).not.toContain('data-claim-reject-fold');
+      expect(html).not.toContain('data-claim-secondary-actions');
+    });
+  });
+
+  it('운영 확인액은 선택 입력임을 밝히고 접은 채로 그린다', () => {
+    const html = render();
+    expect(html).toMatch(/운영 확인액<\/h3><span[^>]*>선택 입력</);
+    expect(html.indexOf('id="claim-order"')).toBeLessThan(html.indexOf('운영 확인액</h3>'));
+  });
+
+  it('재출고 이력에는 구매 당시 이름과 실제 출고상품 이름을 구분하고 확인 전 출고 폼은 내리지 않는다', () => {
+    const value = detail();
+    value.claim.claimType = 'exchange';
+    value.claim.reshippedItems = [{ orderItemId: 'old-line', goodId: 'replacement', originalGoodId: 'original', name: '실제 교환 파랑 상품', variantId: 'new-variant', variantName: '기본', variantCode: 'NEW-BLUE', qty: 2 }];
+    value.order!.items[0].options = [{ id: 'new-variant', goodId: 'replacement', goodName: '실제 교환 파랑 상품', name: '기본', code: 'NEW-BLUE', stockQty: 3 }];
+    value.order!.items[0].currentVariantId = 'new-variant';
+    const html = renderToStaticMarkup(<ClaimDetailScreen detail={value} carriers={CARRIERS} now={NOW} backHref="/admin/sales/claims/exchanges" cancellationForm={null} />);
+    expect(html).toContain('아크릴 블록 × 2');
+    expect(html).toContain('재출고 상품');
+    expect(html).toContain('실제 교환 파랑 상품 · 기본 · NEW-BLUE');
+    expect(html).not.toContain('value="new-variant" selected=""');
+  });
+
+  it.each(['exchange', 'return', 'cancel'] as const)('%s 상세의 사유 정정 진입은 교환에만 제공한다', (claimType) => {
+    const html = render({ claim: { ...detail().claim, claimType } });
+    expect(html.includes('교환 사유 정정 및 이력')).toBe(claimType === 'exchange');
+  });
+  it('사유 정정 감사 이력을 업무 용어로 표시한다', () => {
+    const html = render({ timeline: [{ action: 'admin.order.claim_reason_changed', createdAt: NOW.toISOString(), actorName: 'cs_lead', diff: {} }] });
+    expect(html).toContain('교환 사유 정정');
+    expect(html).not.toContain('admin.order.claim_reason_changed');
+  });
+  // 2026-10-12 점검 REF-2·REF-8: 토스 결제의 [환불 완료 확정]은 토스 전액 취소를 직접
+  // 발행한다. "결제사 원장에서 먼저 확인하라"는 안내와 계좌 송금 선택지는 사실과 다르다.
+  const tossPayment = { ...detail().payment!, provider: 'toss' };
+  it('토스 결제의 환불 완료 확정은 결제사 취소를 발행한다고 안내하고 수단을 고르게 하지 않는다', () => {
+    const html = render({
+      payment: tossPayment,
+      claim: { ...detail().claim, stage: 'processing', status: 'processing' },
+      refund: { ...detail().refund!, method: null, filedAt: null },
+    });
+    expect(html).toContain('환불 완료 확정 (토스 전액 취소)');
+    expect(html).toContain('누르면 토스 결제 전액을 취소하고 결제사에 결과를 확인합니다.');
+    expect(html).not.toContain('결제사 원장에서 전액 취소를 확인한 뒤 눌러주세요');
+    expect(html).toContain('결제사 취소 (토스 전액 취소)');
+    expect(html).toContain('type="hidden" name="method" value="pg_cancel"');
+    expect(html).not.toContain('<option value="bank_transfer"');
+  });
+
+  it('토스 결제의 환불 접수는 접수만 기록하고 취소는 완료 확정에서 나간다고 알린다', () => {
+    const html = render({ payment: tossPayment, refund: { ...detail().refund!, method: null, filedAt: null } });
+    expect(html).toContain('환불 접수 완료로 기록');
+    expect(html).toContain('토스 전액 취소는 아래 [환불 완료 확정]을 누를 때 발행됩니다.');
+    expect(html).not.toContain('<option value="bank_transfer"');
+  });
+
+  it('토스 결제 취소 클레임의 승인 버튼은 승인과 동시에 전액 취소가 나간다고 말한다', () => {
+    const html = render({
+      payment: tossPayment,
+      claim: { ...detail().claim, claimType: 'cancel', stage: 'requested', collectedAt: null, collectingAt: null },
+      refund: null,
+    });
+    expect(html).toContain('승인하고 토스 전액 취소');
+    expect(html).toContain('승인하면 바로 토스 결제 전액을 취소하고 결제사에 결과를 확인합니다.');
+  });
+
+  /* 2026-10-12 QA-4: 운영자 전액 취소의 헤더는 단순 변심이 아니라 운영 사유다. */
+  it('운영자 전액 취소는 헤더에 운영 사유를, 요청 내용에 운영 메모를 보여준다', () => {
+    const html = render({
+      payment: tossPayment,
+      claim: {
+        ...detail().claim,
+        claimType: 'cancel',
+        stage: 'needs_review',
+        status: 'needs_review',
+        reason: '운영자 전액 취소 · 테스트 결제 정리',
+        reasonType: 'staff',
+        origin: 'staff',
+        staffReasonCode: 'test_payment_cleanup',
+        staffNote: '심사 창 테스트 결제',
+        collectedAt: null,
+        collectingAt: null,
+      },
+    });
+    expect(html).toMatch(/data-tone="danger"[^>]*>결제확인필요<\/span>/);
+    expect(html).toContain('운영자 전액 취소 · 테스트 결제 정리 · 접수 ');
+    expect(html).not.toContain('단순 변심');
+    expect(html).toContain('운영 메모');
+    expect(html).toContain('심사 창 테스트 결제');
+  });
+
+  it('Korpay처럼 수단이 정해지지 않은 결제는 운영자가 고른다', () => {
+    const html = render({ refund: { ...detail().refund!, method: null } });
+    expect(html).toContain('<option value="bank_transfer"');
+  });
+
+  /* 코드 리뷰: 재출고하면 요청은 처리완료가 되는데 고객 도착 기록이 없어도 '도착 확인'이 완료로 칠해졌다. */
+  it('재출고만 끝난 교환은 도착 확인을 지금 할 일로 남기고 도착 기록이 있어야 모두 완료로 칠한다', () => {
+    const exchanged = { ...detail().claim, claimType: 'exchange' as const, stage: 'completed' as const, collectionComplete: true,
+      reshippedAt: '2026-09-09T00:00:00Z', reshipDeliveredAt: null };
+    const steps = (html: string) => { const at = html.indexOf('data-claim-exchange-steps'); return html.slice(at, html.indexOf('</ol>', at)); };
+    expect(steps(render({ claim: exchanged }))).toMatch(/aria-current="step"(?:(?!<\/li>)[\s\S])*도착 확인/);
+    const delivered = steps(render({ claim: { ...exchanged, reshipDeliveredAt: '2026-09-09T01:00:00Z' } }));
+    expect(delivered).not.toContain('aria-current="step"');
+    expect(delivered.match(/data-step-state="done"/g)?.length).toBeGreaterThanOrEqual(4);
+  });
+
+  /* 사람 눈 판정(3라운드): 파란 테두리 칸 안에 파란 테두리 줄, 김포 상자, 회수 방법 상자로 겹겹이라 어디까지가 한 묶음인지 헷갈렸다. */
+  it('반품 처리 칸은 지금 단계 칸 한 겹만 강조하고 안쪽은 카드로 겹치지 않는다', () => {
+    const html = render({ claim: { ...detail().claim, stage: 'collecting', collectedAt: null, collectionComplete: false } });
+    expect(html).not.toMatch(/id="claim-process"[^>]*ring-primary|ring-primary[^>]*id="claim-process"/);
+    expect(html).toMatch(/<section[^>]*id="claim-refund"/);
+    const workspace = html.slice(html.indexOf('data-claim-workspace="return"'));
+    expect(workspace.slice(0, workspace.indexOf('id="claim-refund"'))).not.toContain('data-slot="card"');
+  });
+
   it('교환 재출고 뒤에는 배송완료 근거를 별도로 확인하고 기록한 뒤 잠근다', () => {
     const exchanged = { ...detail().claim, claimType: 'exchange' as const, stage: 'completed' as const,
       reshipCarrier: 'hanjin', reshipTrackingNumber: 'QA4530000001', reshippedAt: '2026-09-09T00:00:00Z',
       reshipDeliveredAt: null, reshipDeliveredBy: null, reshipDeliveredByName: null, reshipDeliveryEvidence: null };
     expect(render({ claim: exchanged })).toContain('교환품 배송완료 확인</button>');
+    /* kit 버튼은 type을 주지 않으면 type="button"이다 — 기록 버튼은 양식을 제출해야 한다. */
+    expect(render({ claim: exchanged })).toMatch(/<button[^>]*type="submit"[^>]*>교환품 배송완료 확인<\/button>/);
     const completed = render({ claim: { ...exchanged, reshipDeliveredAt: '2026-09-09T01:00:00Z',
       reshipDeliveredBy: 'staff-1', reshipDeliveredByName: '배송담당', reshipDeliveryEvidence: '배송 조회 D-001: 전체 수령 확인' } });
     expect(completed).toContain('배송 조회 D-001: 전체 수령 확인');
@@ -135,6 +358,62 @@ describe('ClaimDetailScreen', () => {
       collectedAt: null, collectedBy: null, collectorName: null, evidence: null },
   ];
 
+  it('처리 완료 단계만으로 환불 완료를 표시하지 않는다', () => {
+    const base = detail();
+    const html = renderToStaticMarkup(<ClaimProgressSummary claim={{ ...base.claim, stage: 'completed' }}
+      refund={{ ...base.refund!, status: 'done', completedAt: null }} />);
+    expect(html).toContain('반품완료');
+    expect(html).toContain('환불 완료 시각 미기록');
+    expect(html).toContain('완료 시각 없음');
+    expect(html).not.toContain('환불 완료 기록됨');
+    expect(html).toContain('href="#claim-refund"');
+    expect(render()).toContain('id="claim-refund" tabindex="-1"');
+  });
+
+  it('교환 재출고와 실제 배송완료 기록을 분리한다', () => {
+    const claim = { ...detail().claim, claimType: 'exchange' as const, stage: 'completed' as const, reshippedAt: NOW.toISOString() };
+    const pending = renderToStaticMarkup(<ClaimProgressSummary claim={claim} refund={null} />);
+    expect(pending).toContain('재출고 기록됨');
+    expect(pending).toContain('배송완료 미확인');
+    expect(pending).not.toContain('배송완료 확인</strong>');
+    const delivered = renderToStaticMarkup(<ClaimProgressSummary claim={{ ...claim, reshipDeliveredAt: NOW.toISOString() }} refund={null} />);
+    expect(delivered).toContain('배송완료 확인');
+    expect(delivered).not.toContain('환불 기록');
+  });
+
+  it('출고지 확인 수와 서버의 전체 회수 판정을 구분하고 보류 이유를 보존한다', () => {
+    const claim = { ...detail().claim, stage: 'on_hold' as const, heldFrom: 'collecting' as const, holdReason: '두 번째 출고지 확인 중', collectionPolicy: 'origin' as const, collectionComplete: false, collections };
+    const html = renderToStaticMarkup(<ClaimProgressSummary claim={claim} refund={null} />);
+    expect(html).toContain('반품보류');
+    expect(html).toContain('보류 전 수거중');
+    expect(html).toContain('1 / 2개 출고지 확인');
+    expect(html).toContain('전체 회수 확인 전');
+    expect(html).toContain('두 번째 출고지 확인 중');
+    expect(html).toContain('환불 기록 없음');
+    expect(html).not.toContain('<form');
+    expect(html).not.toContain('<button');
+  });
+
+  it('회수 기준 미확인을 취소의 회수 불필요로 바꾸지 않는다', () => {
+    const claim = { ...detail().claim, claimType: 'cancel' as const, collectionPolicy: null, collectionComplete: true, collections: [] };
+    const html = renderToStaticMarkup(<ClaimProgressSummary claim={claim} refund={null} />);
+    expect(html).toContain('회수 기준 확인 필요');
+    expect(html).not.toContain('회수 대상 없음');
+    const known = renderToStaticMarkup(<ClaimProgressSummary claim={{ ...claim, collectionPolicy: 'origin' }} refund={null} />);
+    expect(known).toContain('회수 대상 없음');
+  });
+
+  it.each(['return', 'exchange'] as const)('이전 회수 방식의 %s는 전체 게이트 통과만으로 입고 완료라 표시하지 않는다', claimType => {
+    const claim = { ...detail().claim, claimType, stage: 'collecting' as const, collectionPolicy: 'legacy' as const, collectionComplete: true, collectedAt: null };
+    const waiting = renderToStaticMarkup(<ClaimProgressSummary claim={claim} refund={null} />);
+    expect(waiting).toContain('회수 미확인');
+    expect(waiting).toContain('입고 확인 기록 없음');
+    expect(waiting).not.toContain('회수 확인 완료');
+    const received = renderToStaticMarkup(<ClaimProgressSummary claim={{ ...claim, collectedAt: NOW.toISOString() }} refund={null} />);
+    expect(received).toContain('회수 확인 완료');
+    expect(received).not.toContain('입고 확인 기록 없음');
+  });
+
   it('각 출고지의 회수 주소·품목·근거를 보여주고 미회수 건만 확인한다', () => {
     const html = render({ claim: { ...detail().claim, stage: 'collecting', collectionPolicy: 'origin',
       collectionComplete: false, collections } });
@@ -143,6 +422,7 @@ describe('ClaimDetailScreen', () => {
     expect(html).toContain('창고 회신 G-001, 수량 2개 확인');
     expect(html).toContain('김담당');
     expect(html).toContain('서원 회수 확인');
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>서원 회수 확인<\/button>/);
     expect(html).not.toContain('김포 회수 확인</button>');
     expect(html).not.toContain('환불 완료 확정');
     expect(html).not.toContain('반송 상품 입고 확인');
@@ -173,7 +453,7 @@ describe('ClaimDetailScreen', () => {
   it('이미 개봉된 카드팩이 회수되지 않는다는 사실을 알린다', () => {
     const html = render();
 
-    expect(html).toContain('뽑기권 발급');
+    expect(html).toContain('카드팩 발급'); /* 뽑기권의 화면 표기는 카드팩이다(CONTEXT.md). */
     expect(html).toContain('회수되지 않습니다');
   });
 
@@ -184,10 +464,18 @@ describe('ClaimDetailScreen', () => {
     });
 
     expect(html).toContain('교환은 카드팩을 회수하지 않습니다');
-    expect(html).toContain('교환에는 환불 원장이 없습니다');
-    expect(html).toContain('name="variant:00000000-0000-4000-8000-000000044041"');
-    expect(html).toContain('빨강 · A02');
-    expect(html).toContain('선택한 옵션으로 주문 수량 전체를 재출고');
+    expect(html).toContain('교환에는 환불 기록이 없습니다');
+    expect(html).not.toContain('name="variant:00000000-0000-4000-8000-000000044041"');
+    expect(html).not.toContain('재출고 등록하고 교환 종결');
+  });
+
+  it('연락처 원문과 실제 재출고 폼은 현재 운영자 세션과 주소를 확인한 뒤에만 연다', () => {
+    const value = detail(); value.claim.claimType = 'exchange';
+    const html = renderToStaticMarkup(<ClaimDetailScreen actorId="00000000-0000-4000-8000-000000000001" detail={value}
+      carriers={CARRIERS} now={NOW} backHref="/admin/sales/claims/exchanges" cancellationForm={null} />);
+    expect(html).toContain('연락처 정보를 확인하기 위해 로그인 상태를 확인');
+    expect(html).not.toContain('재출고 등록하고 교환 종결');
+    expect(html).not.toContain('name="trackingNumber"');
   });
 
   it('완료한 교환의 재출고 옵션 스냅샷을 보여준다', () => {
@@ -204,7 +492,7 @@ describe('ClaimDetailScreen', () => {
     expect(html).toContain('국민은행 ***********7890');
     expect(html).toContain('홍**');
     expect(html).not.toContain('1234-567890');
-    expect(html).toContain('30일 뒤 원문은 자동 파기');
+    expect(html).toContain('요청 종결 또는 교환 전환 후 30일이 지나면 원문을 파기');
   });
 
   it('입고 확인 뒤에는 환급 기한이 계산된다', () => {
@@ -228,6 +516,22 @@ describe('ClaimDetailScreen', () => {
 
     expect(html).toContain('승인');
     expect(html).toContain('@cs_lead');
+  });
+
+  /* 2026-10-12 QA-1: 결제 가능 시간이 지난 결제 대기 주문을 구매자가 취소하면 결제 준비 건이
+     결제 없이 닫힌다. 그 감사 행이 액션 코드 그대로 보이지 않게 이름을 붙인다. */
+  it('구매자 취소가 닫은 결제 준비 건을 타임라인에서 이름으로 보여준다', () => {
+    const html = render({
+      timeline: [{
+        action: 'order.prepared_goods_cancellation_completed',
+        createdAt: '2026-08-18T02:00:00.000Z',
+        actorName: 'buyer',
+        diff: { outcome: 'expired_no_capture', trigger: 'customer_cancel_request' },
+      }],
+    });
+
+    expect(html).toContain('결제 준비 건 취소 완료 (구매자 취소)');
+    expect(html).not.toContain('order.prepared_goods_cancellation_completed');
   });
 
   it('부분 환불을 약속하지 않는다', () => {
@@ -263,7 +567,7 @@ describe('ClaimDetailScreen', () => {
     });
 
     expect(html).not.toContain('환불 완료 확정');
-    expect(html).toContain('환불 원장이 없어 완료를 기록할 수 없습니다');
+    expect(html).toContain('환불 기록이 없어 완료를 기록할 수 없습니다');
   });
 
   /* 거부는 durable claim과 환불 intent가 열리기 전까지만 가능하다. processing에서
@@ -287,9 +591,67 @@ describe('ClaimDetailScreen', () => {
     expect(held('processing')).not.toContain('거부 사유');
   });
 
+  /* R7: 거부 사유는 유형에 맞는 확정 프리셋을 고르면 채워지고 고쳐 쓸 수 있다. */
+  it('거부 사유 프리셋을 요청 유형에 맞게 보인다', () => {
+    const returns = render({ claim: { ...detail().claim, stage: 'requested' } });
+    expect(returns).toContain('자주 쓰는 거부 사유');
+    expect(returns).toContain('<option value="반품 가능 기간이 지났습니다.">반품 가능 기간이 지났습니다.</option>');
+    expect(returns).not.toContain('이미 발송되어 취소할 수 없습니다.');
+    /* 사유 칸: 빈 값으로 시작하는 200자 입력이고, 폼에는 note로 실린다. 속성 순서는 보지 않는다. */
+    const rejectInput = returns.match(/<input[^>]*\bid="claim-reject-note"[^>]*\/>/)?.[0] ?? '';
+    for (const attribute of ['maxLength="200"', 'type="text"', 'name="note"', 'value=""']) expect(rejectInput).toContain(attribute);
+    const cancel = render({ claim: { ...detail().claim, claimType: 'cancel', stage: 'requested' } });
+    expect(cancel).toContain('<option value="이미 발송되어 취소할 수 없습니다.">이미 발송되어 취소할 수 없습니다.</option>');
+  });
+
+  /* R7: 철회는 구매자 몫이다(스마트스토어 기준). 운영자 화면에는 철회 버튼을 두지 않고 이력만 본다. */
+  it('운영자 화면에 고객 요청 철회 버튼을 두지 않고 철회 이력은 남긴다', () => {
+    const open = render({ claim: { ...detail().claim, stage: 'requested' } });
+    expect(open).not.toContain('고객 요청으로 철회');
+    expect(open).not.toContain('요청 철회하기');
+    const withdrawn = render({ claim: { ...detail().claim, stage: 'withdrawn' } });
+    expect(withdrawn).toContain('요청 철회 이력');
+  });
+
   it('목록으로 돌아가는 링크를 남긴다', () => {
     const html = render();
 
     expect(html).toContain('/admin/sales/claims/returns');
+    /* 버튼 모양 링크(outline)는 테두리 색이 남는다 — buttonVariants를 cn으로 합치지 않으면 기본의 border-transparent가 이긴다. */
+    const back = html.match(/<a[^>]*>← 목록으로<\/a>/)?.[0] ?? '';
+    expect(back).toContain('border-border');
+    expect(back).not.toContain('border-transparent');
   });
+
+  /* R8: 목록 위 팝업에서는 대화상자가 제목·닫기를 맡는다. 같은 처리 패널을 그대로 쓴다. */
+  it('팝업(embedded)에서는 뒤로가기·제목 대신 전체 화면 링크를 두고 처리 패널은 그대로 그린다', () => {
+    const html = renderToStaticMarkup(
+      <ClaimDetailScreen
+        backHref="/admin/sales/claims/returns?stage=open&page=1"
+        cancellationForm={null}
+        carriers={CARRIERS}
+        detail={detail()}
+        detailHref={`/admin/sales/claims/returns/${CLAIM_ID}?back=stage%3Dopen`}
+        embedded
+        now={NOW}
+      />,
+    );
+    expect(html).not.toContain('← 목록으로');
+    expect(html).not.toContain('<h2>');
+    expect(html).toContain(`href="/admin/sales/claims/returns/${CLAIM_ID}?back=stage%3Dopen"`);
+    expect(html).toContain('전체 화면으로 열기');
+    expect(html).toContain('id="claim-process"');
+    expect(html).toContain('반품 단계별 처리');
+    expect(html).toContain('반품·교환 전환 및 이력');
+  });
+});
+
+it('shows the actual gift requester and separate COD without suggesting a recipient refund', async () => {
+  const { transactionDisplay } = await import('@/test/fixtures/cart-transaction');
+  const base = detail();
+  const html = renderToStaticMarkup(<ClaimDetailScreen backHref="/admin?tab=returns" carriers={CARRIERS} cancellationForm={null}
+    detail={{ ...base, gift: { giftId: ORDER_ID, requesterRole: 'recipient', requesterName: '받는분 별명' },
+      order: { ...base.order!, total: 16000, transaction: transactionDisplay } }} now={NOW} />);
+  expect(html).toContain('받는분 별명 · 선물 받는 분'); expect(html).toContain('구매자의 결제수단');
+  expect(html).toContain('계약상 착불 배송비'); expect(html).toContain('온라인 환불금액에 포함되지 않음');
 });

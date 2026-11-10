@@ -1,8 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadOrderDetail, loadOrders } from './orders.server';
+import { myOrderItemsFixture } from './orders/my-order-items.fixture';
 
-const mocks = vi.hoisted(() => ({ client: null as unknown }));
+const mocks = vi.hoisted(() => ({ client: null as unknown, gift: vi.fn(), giftList: vi.fn(), giftDetail: vi.fn() }));
 
+vi.mock('./gifts-order.server', () => ({ loadGiftCheckoutOrder: mocks.gift }));
+vi.mock('./gifts-order-detail.server', () => ({ loadGiftOrderList: mocks.giftList, loadGiftOrderDetail: mocks.giftDetail }));
+beforeEach(() => { mocks.gift.mockReset().mockResolvedValue({ kind: 'ordinary' }); mocks.giftList.mockReset().mockResolvedValue([]); mocks.giftDetail.mockReset(); });
 vi.mock('@/lib/supabase/server', () => ({ createClient: () => mocks.client }));
 /* 택배사 레지스트리는 DB(`public.shipping_carriers`)에서 온다(#251). 앱에 상수
    목록이 없으므로 테스트도 고정 레지스트리를 주입한다 — 여기서 확인하려는 것은
@@ -23,15 +27,18 @@ vi.mock('@/lib/orders/shipment.server', () => {
 
 
 type Row = Record<string, unknown>;
-type QueryResult = { data: Row[] | Row | null; error: { message: string } | null };
+type QueryResult = { data: Row[] | Row | null; error: { message: string } | null; count?:number|null };
 
 interface QueryRecord {
   table: string;
+  /** 마스킹 RPC(my_order_items)로 읽었으면 그 이름. */
+  rpc?: string;
   select?: string;
   eq: [string, unknown][];
   in: [string, unknown[]][];
   order: [string, { ascending?: boolean } | undefined][];
   limit?: number;
+  afterId?:string;
   maybeSingle: boolean;
 }
 
@@ -43,13 +50,17 @@ interface ClientOptions {
   rows: Record<string, Row[]>;
 }
 
-function createQuery(table: string, options: ClientOptions) {
+/* 고객 세션에서 order_items 를 직접 읽으면 랜덤 배정 행은 restrictive RLS(random_items_private_read)로 빠진다.
+   마스킹 RPC(my_order_items)는 랜덤 행을 주문·굿즈 한 줄로 합치고 옵션을 가린다 — 이 흉내가 그 차이를 재현한다. */
+
+function createQuery(table: string, options: ClientOptions, initial: Partial<QueryRecord> = {}) {
   const record: QueryRecord = {
     table,
     eq: [],
     in: [],
     order: [],
     maybeSingle: false,
+    ...initial,
   };
   options.records.push(record);
 
@@ -57,7 +68,10 @@ function createQuery(table: string, options: ClientOptions) {
     const message = options.errors?.[table];
     if (message) return { data: null, error: { message } };
 
-    let rows = [...(options.rows[table] ?? [])];
+    let rows = (options.rows[table] ?? []).map((row,index)=>table==='order_items'?{...row,id:row.id??String(index).padStart(12,'0')}:row);
+    if (table === 'order_items') {
+      rows = record.rpc === 'my_order_items' ? myOrderItemsFixture(rows) : rows.filter((row) => row.option_sale_mode_snapshot !== 'random');
+    }
     for (const [column, value] of record.eq) rows = rows.filter((row) => row[column] === value);
     for (const [column, values] of record.in) rows = rows.filter((row) => values.includes(row[column]));
     for (const [column, settings] of record.order) {
@@ -66,9 +80,11 @@ function createQuery(table: string, options: ClientOptions) {
         return direction * String(left[column] ?? '').localeCompare(String(right[column] ?? ''));
       });
     }
-    if (record.limit !== undefined) rows = rows.slice(0, record.limit);
+    rows=rows.filter(row=>record.afterId===undefined||String(row.id)>record.afterId);
+    const count=rows.length;
+    rows=rows.slice(0,Math.min(record.limit??1000,1000));
 
-    return { data: record.maybeSingle ? rows[0] ?? null : rows, error: null };
+    return { data: record.maybeSingle ? rows[0] ?? null : rows, error: null, count };
   };
 
   const query = {
@@ -88,6 +104,7 @@ function createQuery(table: string, options: ClientOptions) {
       record.order.push([column, settings]);
       return query;
     },
+    gt(_column:string,value:string){record.afterId=value;return query;},
     limit(value: number) {
       record.limit = value;
       return query;
@@ -109,10 +126,11 @@ function createQuery(table: string, options: ClientOptions) {
 
 function createClient(options: ClientOptions) {
   return {
-    rpc: vi.fn().mockResolvedValue({
-      data: options.claimEligibility ?? null,
-      error: options.eligibilityError ? { message: 'unavailable' } : null,
-    }),
+    rpc: vi.fn().mockImplementation((name: string, args?: { p_order_ids?: string[] }) => name === 'my_order_items'
+      ? createQuery('order_items', options, { rpc: name, in: [['order_id', args?.p_order_ids ?? []]] })
+      : Promise.resolve(name === 'get_my_order_claim_reshipment_items'
+        ? { data: [], error: null }
+        : { data: options.claimEligibility ?? null, error: options.eligibilityError ? { message: 'unavailable' } : null })),
     from(table: string) {
       return createQuery(table, options);
     },
@@ -135,6 +153,12 @@ describe('loadOrders', () => {
     expect(await loadOrders(userId,{includePending:true})).toMatchObject([{id:orderId,status:'pending'}]);
     expect(await loadOrders(userId)).toEqual([]);
   });
+  it('무통장 입금 대기 주문은 접수 = 주문 완료라 기본 목록에도 보인다(ADR-0026)', async () => {
+    mocks.client=createClient({records:[],rows:{orders:[
+      {id:orderId,user_id:userId,status:'pending',total:10000,created_at:'2026-09-28T00:00:00Z',payment_method:'bank_transfer'},
+    ],order_items:[]}});
+    expect(await loadOrders(userId)).toMatchObject([{id:orderId,status:'pending',paymentMethod:'bank_transfer'}]);
+  });
   it('loads only the viewer visible history and summarizes immutable item snapshots', async () => {
     const records: QueryRecord[] = [];
     mocks.client = createClient({
@@ -156,16 +180,18 @@ describe('loadOrders', () => {
       itemLabel: '아크릴 스탠드 외 1건',
       itemCount: 3,
       paymentMethod: 'card',
+      claim: null,
     }]);
 
     expect(records.find((record) => record.table === 'orders')).toMatchObject({
-      select: 'id,user_id,status,total,created_at,payment_method',
+      select: 'id,order_number,user_id,status,total,created_at,payment_method',
       eq: [['user_id', userId]],
-      in: [['status', ['paid', 'confirmed', 'shipping', 'delivered', 'done', 'canceled']]],
+      in: [['status', ['pending', 'paid', 'confirmed', 'shipping', 'delivered', 'done', 'canceled']]],
       order: [['created_at', { ascending: false }], ['id', { ascending: false }]],
     });
     expect(records.find((record) => record.table === 'order_items')).toMatchObject({
-      select: 'order_id,qty,good_name_snapshot',
+      rpc: 'my_order_items',
+      select: 'id,order_id,good_id,qty,unit_price,good_name_snapshot,option_sale_mode',
       in: [['order_id', [orderId]]],
     });
   });
@@ -185,7 +211,7 @@ describe('loadOrders', () => {
           { id: orderId, user_id: userId, status: 'paid', total: 54000, created_at: '2026-07-14T06:00:00.000Z' },
           { id: pendingOrderId, user_id: userId, status: 'pending', total: 32000, created_at: '2026-07-14T07:00:00.000Z' },
         ],
-        order_cancellation_requests: [{ order_id: pendingOrderId }],
+        order_cancellation_requests: [{ order_id: pendingOrderId, claim_type: 'cancel', stage: 'requested', requested_at: '2026-07-14T07:01:00.000Z' }],
         order_items: [
           { order_id: orderId, qty: 1, good_name_snapshot: '완료 주문 굿즈' },
           { order_id: pendingOrderId, qty: 1, good_name_snapshot: '취소 확인 중 굿즈' },
@@ -202,6 +228,7 @@ describe('loadOrders', () => {
         itemLabel: '취소 확인 중 굿즈',
         itemCount: 1,
         paymentMethod: 'card',
+        claim: { claimType: 'cancel', stage: 'requested' },
       },
       {
         id: orderId,
@@ -211,11 +238,58 @@ describe('loadOrders', () => {
         itemLabel: '완료 주문 굿즈',
         itemCount: 1,
         paymentMethod: 'card',
+        claim: null,
       },
     ]);
     expect(records.find((record) => record.table === 'order_cancellation_requests')).toMatchObject({
-      select: 'order_id',
+      select: 'order_id,claim_type,stage',
+      in: [['order_id', [pendingOrderId, orderId]]],
+      order: [['requested_at', { ascending: false }], ['id', { ascending: false }]],
     });
+  });
+
+  /* 운영자 계정은 RLS로 전체 클레임을 읽을 수 있다. 자기 /orders는 자기 주문 id의 클레임만 읽고,
+     운영자가 접수한 클레임도 요청자와 무관하게 보인다(requested_by 필터 없음). */
+  it('reads claims only for the viewer order ids without filtering by requester', async () => {
+    const records: QueryRecord[] = [];
+    const pendingOrderId = '8be5d078-4e59-4f8b-a776-75842bd44073';
+    mocks.client = createClient({
+      records,
+      rows: {
+        orders: [
+          { id: orderId, user_id: userId, status: 'paid', total: 54000, created_at: '2026-07-14T06:00:00.000Z' },
+          { id: pendingOrderId, user_id: userId, status: 'pending', total: 1000, created_at: '2026-07-14T05:00:00.000Z' },
+          { id: 'someone-else', user_id: 'other-user', status: 'paid', total: 1000, created_at: '2026-07-14T07:00:00.000Z' },
+        ],
+        order_cancellation_requests: [
+          { order_id: orderId, claim_type: 'cancel', stage: 'requested', requested_by: 'staff-id', requested_at: '2026-07-14T06:10:00.000Z' },
+          { order_id: 'someone-else', claim_type: 'cancel', stage: 'requested', requested_at: '2026-07-14T07:10:00.000Z' },
+        ],
+        order_items: [{ order_id: orderId, qty: 1, good_name_snapshot: '굿즈' }],
+      },
+    });
+
+    await expect(loadOrders(userId)).resolves.toMatchObject([{ id: orderId, claim: { claimType: 'cancel', stage: 'requested' } }]);
+    const claimQuery = records.find((record) => record.table === 'order_cancellation_requests');
+    expect(claimQuery?.in.map(([column, ids]) => [column, [...ids].sort()])).toEqual([['order_id', [orderId, pendingOrderId].sort()]]);
+    expect(claimQuery?.eq).toEqual([]);
+  });
+
+  /* 10/14 회의 S20 — 목록 배지는 상세와 같은 기준(가장 최근 클레임)으로 진행 중 클레임을 말한다. */
+  it('carries the latest claim of each order so the list badge matches the detail header', async () => {
+    mocks.client = createClient({
+      records: [],
+      rows: {
+        orders: [{ id: orderId, user_id: userId, status: 'paid', total: 54000, created_at: '2026-07-14T06:00:00.000Z' }],
+        order_cancellation_requests: [
+          { order_id: orderId, claim_type: 'cancel', stage: 'rejected', requested_at: '2026-07-14T06:10:00.000Z' },
+          { order_id: orderId, claim_type: 'cancel', stage: 'processing', requested_at: '2026-07-14T06:20:00.000Z' },
+        ],
+        order_items: [{ order_id: orderId, qty: 1, good_name_snapshot: '굿즈' }],
+      },
+    });
+
+    await expect(loadOrders(userId)).resolves.toMatchObject([{ id: orderId, claim: { claimType: 'cancel', stage: 'processing' } }]);
   });
 });
 
@@ -362,7 +436,7 @@ describe('loadOrderDetail', () => {
     expect(JSON.stringify(result)).not.toMatch(/must-not-leak|payment_key|idempotency_key|raw|last_error_code/);
 
     expect(records.find((record) => record.table === 'orders')).toMatchObject({
-      select: 'id,user_id,status,total,shipping_fee,discount_total,store_credit_total,address,created_at,delivered_at,payment_method,expires_at',
+      select: 'id,order_number,user_id,status,total,shipping_fee,discount_total,store_credit_total,address,created_at,delivered_at,payment_method,expires_at,calculation_version,volume_discount_total,shipping_collect_total',
       eq: [['id', orderId], ['user_id', userId]],
       in: [['status', ['pending', 'paid', 'confirmed', 'shipping', 'delivered', 'done', 'canceled']]],
       maybeSingle: true,
@@ -437,5 +511,78 @@ describe('loadOrderDetail', () => {
 
     await expect(loadOrderDetail(userId, orderId)).resolves.toBeNull();
     expect(records.map((record) => record.table)).toEqual(['orders']);
+  });
+});
+
+it('1001행 주문을 고객 주문 상세와 주문 목록 수량 요약에서 모두 읽는다',async()=>{
+  const records:QueryRecord[]=[];
+  const rows={orders:[{id:orderId,user_id:userId,status:'paid',total:1001000,address:{},created_at:'2026-10-12T00:00:00Z',payment_method:'card'}],
+    order_items:Array.from({length:1001},(_,index)=>({id:String(index).padStart(12,'0'),order_id:orderId,good_id:'g1',qty:1,unit_price:1000,good_name_snapshot:'각인 상품',good_type_snapshot:'문구',variant_id:'00000000-0000-4000-8000-000000000001',
+      custom_inputs_snapshot:{revision:1,fields:[{id:'00000000-0000-4000-8000-000000063311',name:'문구',value:`입력 ${index}`}]}}))};
+  mocks.client=createClient({records,rows});
+  const detail=await loadOrderDetail(userId,orderId);
+  expect(detail?.items).toHaveLength(1001);
+  expect(detail?.items.at(-1)?.customInputs?.fields[0].value).toBe('입력 1000');
+  expect((await loadOrders(userId))[0]?.itemCount).toBe(1001);
+});
+
+describe('랜덤 판매 굿즈(D5②) 고객 은닉', () => {
+  const randomRows = [
+    { id: '00000000-0000-4000-8000-0000000000a1', order_id: orderId, good_id: 'random-good', qty: 2, unit_price: 5000, good_name_snapshot: '랜덤 포토카드',
+      good_type_snapshot: '포토카드', variant_id: '00000000-0000-4000-8000-00000000000b', variant_name_snapshot: '배정옵션-비밀', variant_code_snapshot: 'SECRET-CODE',
+      option_sale_mode_snapshot: 'random', cart_variant_id: '00000000-0000-4000-8000-00000000000a' },
+    { id: '00000000-0000-4000-8000-0000000000a2', order_id: orderId, good_id: 'random-good', qty: 1, unit_price: 5000, good_name_snapshot: '랜덤 포토카드',
+      good_type_snapshot: '포토카드', variant_id: '00000000-0000-4000-8000-00000000000c', variant_name_snapshot: '다른배정-비밀', variant_code_snapshot: 'SECRET-CODE-2',
+      option_sale_mode_snapshot: 'random', cart_variant_id: '00000000-0000-4000-8000-00000000000a' },
+    { id: '00000000-0000-4000-8000-0000000000a3', order_id: orderId, good_id: 'plain-good', qty: 1, unit_price: 3000, good_name_snapshot: '틴케이스',
+      good_type_snapshot: '문구', variant_id: '00000000-0000-4000-8000-00000000000d', variant_name_snapshot: '파랑', variant_code_snapshot: 'BLUE' },
+  ];
+
+  it('주문 목록 요약은 직접 읽기에서 빠지는 랜덤 행까지 마스킹 RPC로 센다', async () => {
+    const records: QueryRecord[] = [];
+    mocks.client = createClient({ records, rows: {
+      orders: [{ id: orderId, user_id: userId, status: 'paid', total: 18000, created_at: '2026-10-28T00:00:00Z', payment_method: 'card' }],
+      order_items: randomRows,
+    } });
+    await expect(loadOrders(userId)).resolves.toMatchObject([{ id: orderId, itemCount: 4, itemLabel: '랜덤 포토카드 외 1건' }]);
+    expect(records.filter((record) => record.table === 'order_items').every((record) => record.rpc === 'my_order_items')).toBe(true);
+  });
+
+  it('주문 상세는 랜덤 행을 장바구니 키·옵션명 랜덤 한 줄로만 보이고 배정 옵션·나뉜 개수를 싣지 않는다', async () => {
+    mocks.client = createClient({ records: [], rows: {
+      orders: [{ id: orderId, user_id: userId, status: 'pending', total: 18000, address: null, created_at: '2026-10-28T00:00:00Z', payment_method: 'card' }],
+      order_items: randomRows,
+    } });
+    const detail = await loadOrderDetail(userId, orderId);
+    expect(detail?.items).toHaveLength(2);
+    expect(detail?.items.filter((item) => item.goodId === 'random-good')).toEqual([
+      expect.objectContaining({ id: '00000000-0000-4000-8000-0000000000a1', variantId: '00000000-0000-4000-8000-00000000000a', variantName: '랜덤', variantCode: null, qty: 3 }),
+    ]);
+    expect(detail?.items.find((item) => item.goodId === 'plain-good')).toMatchObject({ variantName: '파랑', variantCode: 'BLUE' });
+    expect(JSON.stringify(detail)).not.toMatch(/비밀|SECRET|00000000000b|00000000000c/);
+  });
+
+  it('주문 상세는 RPC가 합친 줄을 그대로 쓰고 상세 열에 배송 건을 함께 읽는다', async () => {
+    const records: QueryRecord[] = [];
+    mocks.client = createClient({ records, rows: {
+      orders: [{ id: orderId, user_id: userId, status: 'pending', total: 18000, address: null, created_at: '2026-10-28T00:00:00Z', payment_method: 'card' }],
+      order_items: randomRows,
+    } });
+    await loadOrderDetail(userId, orderId);
+    expect(records.find((record) => record.table === 'order_items')).toMatchObject({ rpc: 'my_order_items' });
+    expect(records.find((record) => record.table === 'order_items')?.select?.split(',')).toContain('shipment_id');
+  });
+
+  /* 고객은 배송 건 품목(order_shipment_items)의 랜덤 배정 행을 읽지 못한다(restrictive RLS) — 배송 건 대응은 my_order_items.shipment_id. */
+  it('배송 건 품목에서 빠진 랜덤 줄을 my_order_items 의 배송 건에 붙인다', async () => {
+    mocks.client = createClient({ records: [], rows: {
+      orders: [{ id: orderId, user_id: userId, status: 'paid', total: 18000, address: null, created_at: '2026-10-28T00:00:00Z', payment_method: 'card' }],
+      order_items: randomRows.map((row) => ({ ...row, shipment_id: 'shipment-1' })),
+      order_shipments: [{ id: 'shipment-1', order_id: orderId, origin_id: 'origin', origin_name_snapshot: '김포', shipping_fee: 3000, status: 'ready',
+        carrier: null, tracking_number: null, shipped_at: null, delivered_at: null, exported_at: null,
+        order_shipment_items: [{ order_item_id: '00000000-0000-4000-8000-0000000000a3' }] }],
+    } });
+    const detail = await loadOrderDetail(userId, orderId);
+    expect(detail?.shipments?.[0]?.orderItemIds).toEqual(['00000000-0000-4000-8000-0000000000a3', '00000000-0000-4000-8000-0000000000a1']);
   });
 });

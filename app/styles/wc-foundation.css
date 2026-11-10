@@ -1,6 +1,6 @@
 /* White Catalog v4 foundation. DESIGN.md §2–5 is canonical.
- * Tokens remain on .wc-root so the three retained public surfaces can keep
- * their own typography and canvas. Admin surfaces share this same foundation;
+ * Tokens remain on .wc-root so the retained public surface (/about, about-legacy.css)
+ * can keep its own typography and canvas. Admin surfaces share this same foundation;
  * wc-admin.css and wc-admin-surfaces.css own their scoped controls and layout. */
 
 /* ------------------------------------------------------------------
@@ -17,8 +17,11 @@
   --wc-ink-tertiary: #616161;
   --wc-ink-disabled: #BBBBBB;
   --wc-hairline: #EBEDEE;
+  --wc-hairline-soft: #F0F2F4;
   --wc-hairline-dark: rgba(17,17,17,.1);
   --wc-line-control: #C8CACC;
+  /* 목록 VIEW MORE 의 옅은 컨트롤 선(R-03 §0 "#DCDEE0(컨트롤)" · 11 CL-07). */
+  --wc-line-control-soft: #DCDEE0;
   --wc-line-divider: #A0A0A0;
   --wc-accent: #78BB53;
   --wc-accent-tint: rgba(120,187,83,.12);
@@ -150,10 +153,12 @@
   color: #FFFFFF;
 }
 
+/* 액센트 면 + 잉크 글자. brand-green 위 흰 글자는 2.3:1 로 AA 미달이고, 흰 글자는 잉크 면 위에만 쓴다(DESIGN §2) —
+   잉크 글자는 8.1:1 이다. */
 .wc-btn.accent {
   background: var(--wc-accent);
   border-color: var(--wc-accent);
-  color: #FFFFFF;
+  color: var(--wc-ink);
 }
 
 .wc-btn:disabled,
@@ -247,9 +252,11 @@
   color: inherit;
 }
 
+/* 굿즈 이미지는 1:1 프레임에 원본 비율 그대로(잘림 없이) 놓는다 — 2026-10-07 MD 요청: 웹팀 썸네일
+   1000×1000 원본 유지. 축약값의 cover→contain 변환은 lib/goods-image.ts 가 맡는다. */
 .wc-product-card__media {
   position: relative;
-  aspect-ratio: 3 / 4;
+  aspect-ratio: 1 / 1;
   overflow: hidden;
   background: var(--wc-surface-grey-2);
 }
@@ -281,6 +288,46 @@
   letter-spacing: .5px;
   background: var(--wc-scrim);
   color: #FFFFFF;
+}
+
+/* 19금 굿즈 가림 표지(ADR-0024) — 성인 인증 전 방문자에게 이미지 대신 보인다. 장바구니 줄과
+   위시리스트의 미디어 자리도 같은 표지를 쓴다. 숫자와 테두리로 읽히므로 색에만 기대지 않는다. */
+.wc-product-card__adult-cover {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background: var(--wc-surface-grey);
+}
+
+.wc-product-card__adult-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 3px solid var(--wc-danger);
+  border-radius: 50%;
+  background: var(--wc-surface);
+  color: var(--wc-danger);
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.wc-product-card__adult-note {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--wc-ink-tertiary);
+}
+
+@media (forced-colors: active) {
+  .wc-product-card__adult-mark {
+    border-color: CanvasText;
+    color: CanvasText;
+  }
 }
 
 .wc-product-card__action {
@@ -466,7 +513,8 @@
 }
 
 /* ------------------------------------------------------------------
-   더 보기
+   더 보기 — 목록 VIEW MORE 문법(1px 옅은 컨트롤 선 · r5, R-03 §1.6 · 11 CL-07).
+   컬렉션(wc-catalog)은 그리드 폭 896×48 로, 이벤트 허브 더보기(wc-campaign)는 기본 폭으로 쓴다.
    ------------------------------------------------------------------ */
 
 .wc-view-more {
@@ -479,15 +527,17 @@
   font-family: inherit;
   font-size: 14px;
   font-weight: 700;
-  border: 1.5px solid var(--wc-ink);
-  border-radius: var(--wc-radius-form);
+  border: 1px solid var(--wc-line-control-soft);
+  border-radius: 5px;
   background: var(--wc-surface);
   color: var(--wc-ink);
   cursor: pointer;
 }
 
+/* 비활성(불러오는 중)은 활성보다 약해야 한다 — 활성 선을 옅은 컨트롤 선(#DCDEE0)으로 내린 뒤에도 비활성이
+   예전 line.control(#C8CACC)이면 위계가 뒤집힌다. 한 단계 더 옅은 헤어라인 선에 비활성 글자색을 쓴다. */
 .wc-view-more:disabled {
-  border-color: var(--wc-line-control);
+  border-color: var(--wc-hairline);
   color: var(--wc-ink-disabled);
   cursor: default;
 }
@@ -629,7 +679,7 @@
 }
 
 .wc-loading__media {
-  aspect-ratio: 3 / 4;
+  aspect-ratio: 1 / 1;
 }
 
 .wc-loading__line {

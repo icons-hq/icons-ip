@@ -24,8 +24,11 @@ select 1 / case when (select export_columns->0->>'key' from public.fulfillment_o
 select public.admin_import_shipment_tracking_batch('[{"line":1,"reference":"60000000-0000-4000-8000-000000000001","carrier":"hanjin","trackingNumber":"100000001"},{"line":2,"reference":"50000000-0000-4000-8000-000000000001","carrier":"hanjin","trackingNumber":"100000002"},{"line":3,"reference":"missing","carrier":"hanjin","trackingNumber":"100000003"}]') as partial_report \gset
 select 1 / case when :'partial_report'::jsonb->0->>'ok'='true' and :'partial_report'::jsonb->1->>'error'='duplicate_shipment_reference' and :'partial_report'::jsonb->2->>'ok'='false' then 1 else 0 end as assert_row_partial_success_and_alias_collision;
 select public.admin_import_shipment_tracking_batch((select jsonb_agg(jsonb_build_object('line',n,'reference','60000000-0000-4000-8000-'||lpad(n::text,12,'0'),'carrier','hanjin','trackingNumber',lpad(n::text,12,'0'))) from generate_series(1,1000) n)) as batch_result \gset
+-- Shipment 1 was dispatched above with another waybill; a bulk file never overwrites it.
 select 1 / case when jsonb_array_length(:'batch_result'::jsonb)=1000
- and not exists(select 1 from jsonb_array_elements(:'batch_result'::jsonb) where value->>'ok'<>'true')
+ and (select count(*) from jsonb_array_elements(:'batch_result'::jsonb) where value->>'ok'<>'true')=1
+ and :'batch_result'::jsonb->0->>'error'='shipment_tracking_conflict'
+ and (select tracking_number from public.order_shipments where id='60000000-0000-4000-8000-000000000001')='100000001'
  and (select count(*) from public.order_shipments where id::text like '60000000-%' and status='shipping')=1000
  then 1 else 0 end as assert_thousand_tracking_rows;
 select public.admin_complete_shipments(array(select id from public.order_shipments where id::text like '60000000-%')) as complete_result \gset

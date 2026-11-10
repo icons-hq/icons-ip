@@ -36,7 +36,7 @@ async function run(
 export async function prepareOrderDelayNoticeAction(
   input: PrepareOrderDelayNotice,
 ): Promise<OrderDelayNoticeActionResult> {
-  if (!(await requireAdminActionAccess('/admin/sales/dispatch'))) return { error: '직원 권한이 필요합니다.' };
+  if (!(await requireAdminActionAccess('/admin/sales/dispatch', { capability: 'sales.manage' }))) return { error: '직원 권한이 필요합니다.' };
   if (
     !input ||
     typeof input.requestId !== 'string' ||
@@ -76,7 +76,7 @@ export async function prepareOrderDelayNoticeAction(
 export async function readOrderDelayNoticeAction(
   id: string,
 ): Promise<OrderDelayNoticeActionResult> {
-  if (!(await requireAdminActionAccess('/admin/sales/dispatch'))) return { error: '직원 권한이 필요합니다.' };
+  if (!(await requireAdminActionAccess('/admin/sales/dispatch', { capability: 'sales.manage' }))) return { error: '직원 권한이 필요합니다.' };
   if (typeof id !== 'string' || !isUuid(id))
     return { error: orderDelayNoticeError('delay_notice_not_found') };
   return run('admin_get_order_delay_notice', { target_notice: id });
@@ -86,7 +86,7 @@ async function mutate(
   id: string,
   name: string,
 ): Promise<OrderDelayNoticeActionResult> {
-  if (!(await requireAdminActionAccess('/admin/sales/dispatch'))) return { error: '직원 권한이 필요합니다.' };
+  if (!(await requireAdminActionAccess('/admin/sales/dispatch', { capability: 'sales.manage' }))) return { error: '직원 권한이 필요합니다.' };
   if (typeof id !== 'string' || !isUuid(id))
     return { error: orderDelayNoticeError('delay_notice_not_found') };
   // Read first so a committed request can always be recovered even if the provider was subsequently disabled.
@@ -124,7 +124,7 @@ export async function listOrderDelayNoticesAction(): Promise<{
   notices?: OrderDelayNoticeSummary[];
   error?: string;
 }> {
-  if (!(await requireAdminActionAccess('/admin/sales/dispatch'))) return { error: '직원 권한이 필요합니다.' };
+  if (!(await requireAdminActionAccess('/admin/sales/dispatch', { capability: 'sales.manage' }))) return { error: '직원 권한이 필요합니다.' };
   try {
     const client = await createClient();
     const { data, error } = await client.rpc('admin_list_order_delay_notices', {

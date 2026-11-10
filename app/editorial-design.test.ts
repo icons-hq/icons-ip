@@ -3,17 +3,37 @@ import { describe, expect, it } from 'vitest';
 import postcss from 'postcss';
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
-const retained = ['about-legacy.css', 'offline-popups-legacy.css', 'legal-doc.css'];
+/* /about 만 구 홈 콘텐츠를 보존 전시한다(ADR-0011 · 12 §4 LD-11). 오프라인 팝업·법적 문서는
+   L10(2026-10)에서 White Catalog로 재조판돼 격리 CSS 를 지웠다. */
+const retained = ['about-legacy.css'];
+const retiredRetainedSurfaces = ['offline-popups-legacy.css', 'legal-doc.css'];
 
 /** Historical filename retained for ADR links; no shared editorial cascade survives #433. */
 describe('retained public surface boundaries after admin cutover', () => {
   it('never revives a retired shared editorial layer', () => {
-    for (const file of ['editorial-shell.css', 'editorial-public.css', 'editorial-account-commerce.css', 'editorial-home.css', 'editorial-foundation.css', 'editorial-admin.css', 'admin-console.css']) {
+    for (const file of ['editorial-shell.css', 'editorial-public.css', 'editorial-account-commerce.css', 'editorial-home.css', 'editorial-foundation.css', 'editorial-admin.css', 'admin-console.css', ...retiredRetainedSurfaces]) {
       expect(existsSync(new URL(`./styles/${file}`, import.meta.url)), file).toBe(false);
       expect(read('./layout.tsx')).not.toContain(`'./styles/${file}'`);
     }
     expect(read('./layout.tsx')).toContain('<CartProvider>');
     expect(read('./layout.tsx')).toContain('<AuthPresenceProvider>');
+  });
+
+  /* DESIGN.md frontmatter 가 CSS 소유의 정본이다(target-code·retained-legacy-surfaces).
+     지운 격리 파일이 문서에 남거나, 문서의 보존 목록과 이 테스트의 보존 목록이 갈리면 둘 중
+     하나가 거짓이다 — /about 만 보존 표면으로 남는다(LD-11). */
+  it('keeps the DESIGN frontmatter CSS map in sync with the stylesheets on disk', () => {
+    const design = read('../DESIGN.md');
+    const frontmatter = design.slice(design.indexOf('---') + 3, design.indexOf('\n---', 4));
+    const paths = [...frontmatter.matchAll(/app\/(?:styles\/[\w-]+\.css|globals\.css)/g)].map((match) => match[0]);
+    expect(paths.length).toBeGreaterThan(0);
+    for (const path of paths) expect(existsSync(new URL(`../${path}`, import.meta.url)), path).toBe(true);
+
+    const retainedBlock = frontmatter.slice(
+      frontmatter.indexOf('retained-legacy-surfaces:'),
+      frontmatter.indexOf('route-map:'),
+    );
+    expect([...retainedBlock.matchAll(/app\/styles\/([\w-]+\.css)/g)].map((match) => match[1])).toEqual(retained);
   });
 
   it('keeps retained surfaces after the WC foundation without styling the admin', () => {

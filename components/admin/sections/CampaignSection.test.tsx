@@ -29,10 +29,11 @@ function idInputTag(markup: string) {
   return markup.match(/<input[^>]*name="id"[^>]*>/i)?.[0] ?? '';
 }
 
-function render(selected: AdminCampaignRecord | null, records = [campaign()]) {
+function render(selected: AdminCampaignRecord | null, records = [campaign()], initialCreating = false) {
   return renderToStaticMarkup(
     <CampaignSection
       action={() => {}}
+      initialCreating={initialCreating}
       onSelect={() => {}}
       pending={false}
       records={records}
@@ -61,11 +62,21 @@ describe('CampaignSection', () => {
     expect(idInputTag(markup)).toMatch(/readonly/i);
   });
 
-  it('신규 등록에서는 ID 를 열어 두고 previousId 를 비운다', () => {
+  /* 진행 중인 캠페인을 보러 들어왔는데 등록 화면처럼 보이지 않게 — 입력칸은 새 캠페인을 눌렀을 때 연다. */
+  it('처음 들어오면 목록만 보이고 입력칸은 열려 있지 않다', () => {
     const markup = render(null);
+
+    expect(markup).toContain('새 캠페인');
+    expect(markup).toContain('/events/autumn-attendance');
+    expect(markup).not.toContain('name="previousId"');
+  });
+
+  it('신규 등록에서는 ID 를 열어 두고 previousId 를 비운다', () => {
+    const markup = render(null, [campaign()], true);
 
     expect(markup).toContain('name="previousId" value=""');
     expect(idInputTag(markup)).not.toMatch(/readonly/i);
+    expect(markup).toContain('캠페인 주소는 등록 후 바꿀 수 없습니다');
   });
 
   it('기간 입력을 KST 값으로 되돌려 그린다', () => {
@@ -87,17 +98,28 @@ describe('CampaignSection', () => {
   it('배너 순서 칸이 비면 미노출임을 라벨로 말한다', () => {
     const markup = render(campaign({ featuredOrder: null }));
 
-    expect(markup).toContain('허브 배너 미노출');
+    expect(markup).toContain('이벤트 목록 배너 미노출');
   });
 
   /* 블록 JSON 직접 편집이 v1 계약이라 계약서가 화면 안에 있어야 한다. */
-  it('랜딩 구성 JSON 스키마를 8종 전부 안내한다', () => {
+  it('랜딩 구성 JSON 스키마를 9종 전부 안내한다', () => {
     const markup = render(campaign());
 
-    for (const type of ['intro', 'image', 'text', 'attendance', 'exchange', 'coupon', 'goods', 'notice']) {
+    for (const type of ['intro', 'image', 'text', 'attendance', 'exchange', 'coupon', 'goods', 'notice', 'cta']) {
       expect(markup).toContain(`<code>${type}</code>`);
     }
+    expect(markup).toContain('블록 9종');
     expect(markup).toContain('offer_id');
+  });
+
+  /* LD-18 — 이동 버튼은 ICONS 내부 경로만 받는다. 저장 전에 운영자가 그 규칙을 화면에서 읽어야 한다. */
+  it('이동 버튼 블록이 내부 경로만 받는다는 규칙을 안내한다', () => {
+    const markup = render(campaign());
+
+    expect(markup).toContain('<code>cta</code> — 이동 버튼');
+    expect(markup).toContain('ICONS 내부 경로');
+    expect(markup).toContain('외부 주소');
+    expect(markup).toContain('&quot;type&quot;: &quot;cta&quot;');
   });
 
   it('저장된 블록을 들여쓴 JSON 으로 프리필한다', () => {

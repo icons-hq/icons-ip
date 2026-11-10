@@ -75,7 +75,8 @@ describe('createReviewAction', () => {
   it('자격 판정을 RPC에 맡기고 값만 넘긴다', async () => {
     await expect(createReviewAction({}, createForm())).rejects.toThrow('NEXT_REDIRECT:/my/reviews');
 
-    expect(mocks.rpc).toHaveBeenCalledWith('create_good_review', {
+    expect(mocks.rpc).toHaveBeenCalledWith('create_good_review_v2', {
+      target_kind: 'ordinary',
       target_body: '마감이 깔끔하고 배송도 빨랐습니다',
       target_good_id: 'g13',
       target_image_paths: [],

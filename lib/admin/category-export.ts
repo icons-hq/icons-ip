@@ -6,10 +6,10 @@ export interface CategoryExportRow {
   depth: number;
   status: string;
   assignedGoods: number;
-  erpCode: string;
-  erpName: string;
-  erpSource: string;
-  erpVerifiedAt: string;
+  erpCode?: string;
+  erpName?: string;
+  erpSource?: string;
+  erpVerifiedAt?: string;
 }
 
 const HEADERS = [
@@ -31,7 +31,7 @@ function csvCell(value: string | number): string {
   return `"${safe.replaceAll('"', '""')}"`;
 }
 
-export function categoryExportCsv(rows: readonly CategoryExportRow[]): string {
+export function categoryExportCsv(rows: readonly CategoryExportRow[], includeErp = true): string {
   const values = rows.map((row) => [
     row.code,
     row.name,
@@ -39,10 +39,7 @@ export function categoryExportCsv(rows: readonly CategoryExportRow[]): string {
     row.depth,
     row.status,
     row.assignedGoods,
-    row.erpCode,
-    row.erpName,
-    row.erpSource,
-    row.erpVerifiedAt,
+    ...(includeErp ? [row.erpCode ?? '', row.erpName ?? '', row.erpSource ?? '', row.erpVerifiedAt ?? ''] : []),
   ] satisfies readonly (string | number)[]);
-  return `\uFEFF${[HEADERS, ...values].map((row) => row.map(csvCell).join(',')).join('\r\n')}`;
+  return `\uFEFF${[includeErp ? HEADERS : HEADERS.slice(0, 6), ...values].map((row) => row.map(csvCell).join(',')).join('\r\n')}`;
 }

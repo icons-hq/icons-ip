@@ -1,5 +1,12 @@
 import type { CatalogPostPreview, CatalogSnapshot } from './catalog';
 import type { Card, FandomEvent, Good, Ip } from './data';
+import type { GoodsReviewSummary } from './goods-review-summary';
+import type { HomeBlockKey } from './home-layout';
+import type { HomeMosaicBand } from './home-mosaic';
+import type { HomeProductCollectionBand } from './home-product-collection';
+import type { HomeReviewBestBand, HomeSalesBestBand } from './home-ranking';
+import type { PublicShoppingStorySummary } from './shopping-stories';
+import type { HomeHeroImageDim, HomeHeroTextColor } from './home-hero';
 
 export const MAX_HOME_PICKER_IPS = 5;
 
@@ -73,15 +80,38 @@ export function isCardRewardDestination(href: string): boolean {
   }
 }
 
-/** 게이트가 꺼진 화면이 카드 리워드 목적지 큐레이션을 통째로 걸러낼 때 쓴다. */
+/**
+ * 게이트가 꺼진 화면이 카드 리워드 목적지 큐레이션을 걸러낼 때 쓴다.
+ * 혜택 타일도 다른 큐레이션처럼 목적지 기준이다 — 카드팩·게임으로 가는 타일만 빠지고 쿠폰·이벤트 같은
+ * 혜택 타일은 게이트와 무관하게 남는다(12 LD-15, 11 DT-11). 예전에는 밴드를 통째로 비웠다.
+ */
 export function withoutCardRewardCurations(curation: HomeCurationSnapshot): HomeCurationSnapshot {
   return {
     ...curation,
-    heroSlides: curation.heroSlides.filter((slide) => !isCardRewardDestination(slide.href)),
+    heroSlides: curation.heroSlides.filter((slide) => slide.href === null || !isCardRewardDestination(slide.href)),
     editorPicks: curation.editorPicks.filter((pick) => !isCardRewardDestination(pick.href)),
     goodsBands: curation.goodsBands.filter((band) => !isCardRewardDestination(band.href)),
-    benefitTiles: [],
+    benefitTiles: curation.benefitTiles.filter((tile) => !isCardRewardDestination(tile.href)),
   };
+}
+
+/** 혜택 타일 아이콘(`components/ui/Icon` 이름). 레퍼런스 아이콘 대신 ICONS 아이콘 세트에서 목적지로 고른다(11 HM-07). */
+export type HomeBenefitIcon = 'card' | 'spark' | 'event' | 'shop' | 'ip' | 'star';
+
+export function benefitTileIcon(href: string): HomeBenefitIcon {
+  let pathname: string;
+  try {
+    pathname = decodeURIComponent(new URL(href, 'https://icons.local').pathname);
+  } catch {
+    return 'star';
+  }
+  const under = (root: string) => pathname === root || pathname.startsWith(`${root}/`);
+  if (under('/packs')) return 'card';
+  if (under('/games')) return 'spark';
+  if (under('/events') || under('/review-events') || under('/offline-popups')) return 'event';
+  if (under('/shop')) return 'shop';
+  if (under('/ip')) return 'ip';
+  return 'star';
 }
 
 /* 커뮤니티가 임시 비공개인 동안 커뮤니티로 가는 큐레이션 배너를 걸러낸다. 어드민 타깃 목록에서
@@ -96,13 +126,18 @@ export function isCommunityDestination(href: string): boolean {
   }
 }
 
-/** 커뮤니티가 닫힌 화면이 커뮤니티 목적지 큐레이션을 통째로 걸러낼 때 쓴다. */
+/**
+ * 커뮤니티가 닫힌 화면이 커뮤니티 목적지 큐레이션을 통째로 걸러낼 때 쓴다.
+ * 혜택 타일도 같다 — 카드 리워드 게이트가 혜택 밴드를 통째로 비우던 동안에는 게이트 OFF 화면에서 이 구멍이
+ * 가려졌지만, 목적지 기준 게이트(12 LD-15)로 바뀐 뒤에는 커뮤니티로 가는 혜택 타일이 남아 404 로 떨어진다.
+ */
 export function withoutCommunityCurations(curation: HomeCurationSnapshot): HomeCurationSnapshot {
   return {
     ...curation,
-    heroSlides: curation.heroSlides.filter((slide) => !isCommunityDestination(slide.href)),
+    heroSlides: curation.heroSlides.filter((slide) => slide.href === null || !isCommunityDestination(slide.href)),
     editorPicks: curation.editorPicks.filter((pick) => !isCommunityDestination(pick.href)),
     goodsBands: curation.goodsBands.filter((band) => !isCommunityDestination(band.href)),
+    benefitTiles: curation.benefitTiles.filter((tile) => !isCommunityDestination(tile.href)),
   };
 }
 
@@ -112,7 +147,10 @@ export interface HomeHeroSlide {
   subtitle: string | null;
   imageUrl: string;
   mobileImageUrl: string | null;
-  href: string;
+  href: string | null;
+  imageAlt?: string;
+  imageDim?: HomeHeroImageDim;
+  textColor?: HomeHeroTextColor;
 }
 
 export interface HomeEditorPick {
@@ -127,6 +165,7 @@ export interface HomeEditorPick {
 /* 홈 밴드가 그리는 상품 카드 뷰모델 — 서버에서 카탈로그와 조인을 끝내 내려보낸다.
    존재하지 않는 굿즈 id 는 서버 resolve 단계에서 걸러지므로 화면은 목록만 그린다. */
 export interface HomeGoodsCard {
+  salePeriod?: Good['salePeriod'];
   priceMax?: number;
   id: string;
   name: string;
@@ -136,6 +175,8 @@ export interface HomeGoodsCard {
   imageBg: string;
   href: string;
   soldOut: boolean;
+  /** 목록 카드 별점(CL-02) — 공개 리뷰가 있을 때만. */
+  reviewSummary?: GoodsReviewSummary;
 }
 
 export interface HomeGoodsBand {
@@ -161,6 +202,14 @@ export interface HomeBenefitTile {
 }
 
 export interface HomeCurationSnapshot {
+  shoppingStories?: PublicShoppingStorySummary[];
+  storiesNextChangeAt?: string | null;
+  shoppingStoriesUnavailable?: boolean;
+  mosaicBands?: HomeMosaicBand[];
+  productCollections?: HomeProductCollectionBand[];
+  layoutOrder?: HomeBlockKey[] | null;
+  salesBestBands?: HomeSalesBestBand[];
+  reviewBestBands?: HomeReviewBestBand[];
   hero: HomeBanner | null;
   announcement: HomeBanner | null;
   featuredIpIds: string[];
@@ -174,10 +223,45 @@ export interface HomeCurationSnapshot {
 
 export const HOME_GOODS_BAND_LIMIT = 4;
 export const HOME_BEST_TAB_GOODS_LIMIT = 12;
+export const HOME_LATEST_GOODS_MIN = 3;
+export const HOME_LATEST_GOODS_MAX = 10;
+
+export type HomeGoodsSelection =
+  | { mode: 'manual'; goodIds: string[] }
+  | { mode: 'latest'; count: number };
+
+/** Old good_ids records stay manual; malformed automatic rules are never guessed. */
+export function readHomeGoodsSelection(payload: Record<string, unknown> | null): HomeGoodsSelection | null {
+  if (payload?.selection_mode === 'latest') {
+    const count = payload.item_count;
+    if (typeof count !== 'number' || !Number.isInteger(count)
+      || count < HOME_LATEST_GOODS_MIN || count > HOME_LATEST_GOODS_MAX
+      || 'good_ids' in payload) return null;
+    return { mode: 'latest', count };
+  }
+  if (payload && ('selection_mode' in payload || 'item_count' in payload)) return null;
+  const ids = payload?.good_ids;
+  return { mode: 'manual', goodIds: Array.isArray(ids) ? ids.filter(
+    (id): id is string => typeof id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(id),
+  ) : [] };
+}
+
+/** Only the public catalog is eligible. Undated mock/legacy rows cannot claim to be newest. */
+export function resolveHomeLatestGoodsCards(
+  catalog: Pick<CatalogSnapshot, 'ips' | 'goods' | 'reviewSummaries'>,
+  count: number,
+): HomeGoodsCard[] {
+  if (!Number.isInteger(count) || count < HOME_LATEST_GOODS_MIN || count > HOME_LATEST_GOODS_MAX) return [];
+  const latest = catalog.goods.flatMap((good) => {
+    const createdAt = Date.parse(good.createdAt ?? '');
+    return Number.isFinite(createdAt) ? [{ id: good.id, createdAt }] : [];
+  }).sort((a, b) => b.createdAt - a.createdAt || a.id.localeCompare(b.id, 'en'));
+  return resolveHomeGoodsCards(catalog, latest.map((good) => good.id), count);
+}
 
 /** 큐레이션이 참조한 굿즈 id 목록을 카드 뷰모델로 바꾼다 — 없는 id·중복은 버리고 순서를 지킨다. */
 export function resolveHomeGoodsCards(
-  catalog: Pick<CatalogSnapshot, 'ips' | 'goods'>,
+  catalog: Pick<CatalogSnapshot, 'ips' | 'goods' | 'reviewSummaries'>,
   goodIds: readonly string[],
   limit: number,
 ): HomeGoodsCard[] {
@@ -201,6 +285,8 @@ export function resolveHomeGoodsCards(
       imageBg: good.img,
       href: `/shop/${good.id}`,
       soldOut: good.stock === 'soldout',
+      ...(good.salePeriod ? { salePeriod: good.salePeriod } : {}),
+      ...(catalog.reviewSummaries?.[good.id] ? { reviewSummary: catalog.reviewSummaries[good.id] } : {}),
     });
     if (cards.length === limit) break;
   }

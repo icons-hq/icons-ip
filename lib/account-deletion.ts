@@ -2,6 +2,13 @@ export const ACCOUNT_DELETION_CONFIRMATION = '회원 탈퇴를 신청합니다';
 
 const blockerContracts = {
   active_order: '/orders',
+  active_received_gift: '/gifts',
+  active_shipping_collect: '/orders',
+  active_claim_fee: '/orders',
+  subscription_active: '/my/subscriptions',
+  subscription_payment_pending: '/my/subscriptions',
+  billing_registration_pending: '/my/subscriptions',
+  billing_card_cleanup: '/my/subscriptions',
   active_cancellation: '/orders',
   active_order_payment: '/orders',
   active_ticket_payment: '/tickets',
@@ -24,7 +31,7 @@ const ACCOUNT_DELETION_BLOCKER_CODES: readonly string[] = Object.keys(blockerCon
 export interface AccountDeletionBlocker {
   code: AccountDeletionBlockerCode;
   count: number;
-  path: '/orders' | '/tickets' | '/settings';
+  path: '/orders' | '/tickets' | '/settings' | '/gifts' | '/my/subscriptions';
 }
 
 export interface AccountDeletionPreview {
@@ -36,7 +43,7 @@ export interface AccountDeletionPreview {
 export interface AccountDeletionStatus {
   status: 'not_requested' | 'blocked' | 'processing';
   phase: 'none' | 'fenced' | 'awaiting_notification';
-  nextAction: '/orders' | '/tickets' | '/settings' | 'retry_later';
+  nextAction: '/orders' | '/tickets' | '/settings' | '/gifts' | '/my/subscriptions' | 'retry_later';
   blockers: AccountDeletionBlocker[];
 }
 
@@ -116,7 +123,7 @@ export function normalizeAccountDeletionStatus(value: unknown): AccountDeletionS
       && blockers.length === 0
   ) || (
     status === 'blocked' && phase === 'fenced'
-      && (nextAction === '/orders' || nextAction === '/tickets' || nextAction === '/settings')
+      && (nextAction === '/orders' || nextAction === '/tickets' || nextAction === '/settings' || nextAction === '/gifts' || nextAction === '/my/subscriptions')
       && blockers.length > 0
   ) || (
     status === 'processing' && phase === 'awaiting_notification'

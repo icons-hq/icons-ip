@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 import {
   DEFAULT_ADMIN_PRODUCT_QUESTION_FILTERS,
   type AdminProductQuestionConsoleData,
@@ -24,6 +25,7 @@ function row(overrides: Partial<AdminProductQuestionRow> = {}): AdminProductQues
     authorName: 'fan_777777',
     body: '사이즈가 궁금해요',
     hidden: false,
+    secret: false,
     answerBody: null,
     answeredAt: null,
     answeredByName: null,
@@ -50,14 +52,58 @@ function render(overrides: Partial<AdminProductQuestionConsoleData> = {}) {
 }
 
 describe('QnaConsoleScreen', () => {
-  /* 구매 전 질문은 답이 늦으면 그대로 이탈이 된다 — 미답변 건수가 다른 조건
-     사이에 섞여 있으면 "찾아서 거는" 필터가 된다. */
-  it('미답변 건수를 목록 맨 위에 고정한다', () => {
+  it('미답변 건수와 바로가기를 결과 영역에 보존한다', () => {
     const markup = render();
 
-    expect(markup).toContain('admin-console-pinned-filter');
+    expect(markup).toContain('data-cs-pinned');
     expect(markup).toContain('답변 미등록 5건');
     expect(markup).toContain('미답변만 보기');
+  });
+
+  it('밀린 건수는 목록 위에도 보이고 0건이면 그리지 않는다', () => {
+    const markup = render();
+    expect(markup.indexOf('답변 미등록 상품 문의')).toBeLessThan(markup.indexOf('data-cs-question-list'));
+    expect(markup).toContain('status=unanswered');
+    expect(render({ counts: { total: 3, unanswered: 0, answered: 3, hidden: 0 } })).not.toContain('답변 미등록 상품 문의');
+  });
+
+  /* 질문이 줄의 주인공이다 — 상품명은 그 뒤 회색 줄로 물러나고 처리 버튼은 줄 오른쪽 한 자리에 온다. */
+  it('목록형은 고객 질문을 상품명보다 먼저 두고 미등록 줄을 표시한다', () => {
+    const markup = render();
+    const list = markup.slice(markup.indexOf('data-cs-question-list'));
+    expect(list.indexOf('사이즈가 궁금해요')).toBeLessThan(list.indexOf('아크릴 블록'));
+    expect(list).toContain('inset_2px_0_var(--warning)');
+    expect(render({ rows: [row({ answerBody: '완료' })] }).slice(markup.indexOf('data-cs-question-list'))).not.toContain('inset_2px_0_var(--warning)');
+  });
+
+  it('24시간을 넘긴 미등록 질문에 대기 일수를 보인다', () => {
+    const markup = renderToStaticMarkup(<QnaConsoleScreen data={data()} now={new Date('2026-09-03T03:00:00.000Z')} />);
+    expect(markup).toMatch(/data-tone="warning"[^>]*>3일 경과</);
+    expect(renderToStaticMarkup(<QnaConsoleScreen data={data({ rows: [row({ answerBody: '완료' })] })} now={new Date('2026-09-03T03:00:00.000Z')} />)).not.toContain('일 경과');
+  });
+
+  it('실제 문의 정보를 기본 목록형으로 보여주고 답변 진입점은 한 개만 렌더한다', () => {
+    const markup = render();
+    expect(markup).toContain('data-cs-question-list');
+    expect(markup).toContain('aria-pressed="true">목록형');
+    expect(markup).toContain('aria-pressed="false">표형');
+    expect(markup.match(/data-testid="action-/g)).toHaveLength(1);
+    expect(markup).not.toContain('<img');
+  });
+
+  it('공개 스토리지의 상품 이미지를 원격 최적화 설정 없이 표시한다', () => {
+    const image = 'https://fixture.supabase.co/storage/v1/object/public/media/goods/product.webp';
+    const markup = render({ rows: [row({ goodImageUrl: image })] });
+    expect(markup).toContain(`src="${image}"`);
+    expect(markup).not.toContain('/_next/image');
+  });
+
+  it('검색 조건이 없으면 접고 활성 조건이 있으면 처음부터 펼친다', () => {
+    const openSearch = /<details(?=[^>]*data-cs-search="")(?=[^>]*\sopen="")/;
+    expect(render()).toContain('data-cs-search=""');
+    expect(render()).not.toMatch(openSearch);
+    expect(render({ filters: { ...DEFAULT_ADMIN_PRODUCT_QUESTION_FILTERS, query: '상품 질문' } })).toMatch(openSearch);
+    expect(render({ filters: { ...DEFAULT_ADMIN_PRODUCT_QUESTION_FILTERS, status: 'unanswered' } })).toMatch(openSearch);
   });
 
   it('미답변 필터가 걸려 있으면 해제 링크로 바뀐다', () => {
@@ -106,6 +152,16 @@ describe('QnaConsoleScreen', () => {
 
     expect(markup).toContain('data-question-status="hidden"');
     expect(markup).toContain('비노출');
+  });
+
+  /* 비밀글(MD-0023)은 콘솔에서 원문이 보인다. 공개 화면에서는 가려진다는 것을 같은 줄에서 문구로 알린다. */
+  it('비밀글 질문에 비밀글 표시를 붙이고 원문은 그대로 보여 준다', () => {
+    const markup = render({ rows: [row({ secret: true, body: '배송지를 바꿀 수 있나요?' })] });
+
+    expect(markup).toContain('data-secret-badge');
+    expect(markup).toContain('>비밀글<');
+    expect(markup).toContain('배송지를 바꿀 수 있나요?');
+    expect(render()).not.toContain('data-secret-badge');
   });
 
   it('조건에 맞는 질문이 없으면 그 사실을 말한다', () => {

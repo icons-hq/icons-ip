@@ -183,7 +183,7 @@ begin
     perform public.admin_estimate_notification_recipients('all', null);
   exception
     when insufficient_privilege then
-      if sqlerrm = 'forbidden' then
+      if sqlerrm in ('forbidden','operator_capability_required') then
         return;
       end if;
       raise;
@@ -204,7 +204,7 @@ begin
     );
   exception
     when insufficient_privilege then
-      if sqlerrm = 'forbidden' then
+      if sqlerrm in ('forbidden','operator_capability_required') then
         return;
       end if;
       raise;
@@ -219,7 +219,7 @@ begin
     perform public.admin_list_notification_history(20, 0);
   exception
     when insufficient_privilege then
-      if sqlerrm = 'forbidden' then
+      if sqlerrm in ('forbidden','operator_capability_required') then
         return;
       end if;
       raise;

@@ -1,0 +1,124 @@
+import { isValidElement, type ReactElement, type ReactNode } from 'react';
+import { beforeEach, expect, it, vi } from 'vitest';
+
+const hooks = vi.hoisted(() => ({ state: [] as unknown[], index: 0, refs: [] as { current: unknown }[], refIndex: 0 }));
+const mocks = vi.hoisted(() => ({ find: vi.fn(), finish: vi.fn(), save: vi.fn(), upload: vi.fn() }));
+vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>('react'),
+  useEffect: () => {},
+  useRef: (initial: unknown) => { const index = hooks.refIndex++; hooks.refs[index] ??= { current: initial }; return hooks.refs[index]; },
+  useState: (initial: unknown) => { const index = hooks.index++; if (!(index in hooks.state)) hooks.state[index] = typeof initial === 'function' ? (initial as () => unknown)() : initial; return [hooks.state[index], (next: unknown) => { hooks.state[index] = typeof next === 'function' ? (next as (value: unknown) => unknown)(hooks.state[index]) : next; }]; },
+}));
+vi.mock('@/app/admin/goods-photo-library-actions', () => ({ findGoodsPhotosAction: mocks.find, finishGoodsPhotoUploadsAction: mocks.finish, saveGoodsPhotoAction: mocks.save }));
+vi.mock('@/lib/admin/artwork-upload.client', () => ({ uploadAdminArtwork: mocks.upload }));
+vi.mock('./CustomerServiceDialog', () => ({ CustomerServiceDialog: ({ children }: { children: ReactNode }) => children }));
+
+import { GoodsPhotoLibraryScreen } from './GoodsPhotoLibraryScreen';
+import { Button } from '../kit/ui/button';
+import { Input } from '../kit/ui/input';
+
+type Element = ReactElement<{ children?: ReactNode; onClick?: () => void; onChange?: (event: unknown) => void; onKeyDown?: (event: unknown) => void; 'aria-label'?: string; value?: string; loading?: string; src?: string; alt?: string }>;
+/* 화면 머리(AdminPageHeader)의 설명·동작 자리도 이 화면이 그리는 요소다. */
+type Slots = { description?: ReactNode; actions?: ReactNode; children?: ReactNode };
+function all(node: ReactNode): Element[] { return Array.isArray(node) ? node.flatMap(all) : isValidElement(node) ? [node as Element, ...all((node.props as Slots).description), ...all((node.props as Slots).actions), ...all((node.props as Slots).children)] : []; }
+function text(node: ReactNode): string { return Array.isArray(node) ? node.map(text).join('') : isValidElement(node) ? [(node.props as Slots).description, (node.props as Slots).actions, (node.props as Slots).children].map(text).join('') : typeof node === 'string' || typeof node === 'number' ? String(node) : ''; }
+function photo(id: string, name: string, references: { id: string; name: string; kind: string }[] = []) {
+  return { id: `00000000-0000-4000-8000-0000000713${id}`, name, imagePath: `public-media/catalog/good/00000000-0000-4000-8000-0000000714${id}.webp`, revision: 1, archived: false, createdAt: '2026-10-28T00:00:00Z', references };
+}
+const older = photo('01', '노트 표지', [{ id: 't1', name: '운영자 테스트 메시지', kind: 'marketing_test' }, { id: 'x', name: '새 화면', kind: 'future_surface' }]);
+const page = { rows: [older], total: 1, page: 1, pageSize: 20 as const };
+function render(onSelect?: () => void) { hooks.index = 0; hooks.refIndex = 0; return GoodsPhotoLibraryScreen({ initial: page, onSelect }); }
+function input(label: string) { const node = all(render()).find(item => (item.type === 'input' || item.type === Input) && item.props['aria-label'] === label); if (!node) throw new Error(label); return node; }
+async function settle() { for (let i = 0; i < 30; i++) await Promise.resolve(); }
+
+beforeEach(() => { vi.clearAllMocks(); hooks.state = []; hooks.refs = []; });
+
+it('보관함 상단에 용도와 상품 이미지 타일 업로드도 자동 등록된다는 안내를 보인다', () => {
+  const tree = render();
+  expect(text(tree)).toContain('여러 상품에 다시 쓸 사진을 모아 두는 곳입니다. 상품 편집기의 상품 이미지 타일에 올린 사진도 여기에 자동으로 등록됩니다.');
+  expect(text(tree)).not.toContain('자동으로 등록되지 않습니다');
+  /* 상품 편집기의 선택 팝업에는 보관함 용도 안내를 다시 보이지 않는다. */
+  expect(text(render(() => {}))).not.toContain('여러 상품에 다시 쓸 사진을');
+});
+
+it('사용처에 참조 종류를 붙이고 모르는 종류는 기타 참조로 표시한다', () => {
+  const tree = text(render());
+  expect(tree).toContain('고객 안내 메시지 테스트 발송 · 운영자 테스트 메시지');
+  expect(tree).toContain('기타 참조 · 새 화면');
+});
+
+it('목록 썸네일은 화면에 들어올 때 불러온다', () => {
+  const image = all(render()).find(item => item.type === 'img');
+  expect(image?.props.loading).toBe('lazy');
+});
+
+/*
+ * 리뷰 재현(T3B-RV-7): height={180} 속성이 CSS의 aspect-ratio:1보다 먼저 높이를 정해, 칸이 180px보다 넓은
+ * 데스크톱 그리드에서 정사각 썸네일이 213x180 직사각형이 됐다. 크기는 CSS(width:100%·aspect-ratio:1)만 정한다.
+ */
+it('목록 썸네일에 높이 속성을 두지 않아 CSS의 정사각 비율을 따른다', () => {
+  const image = all(render()).find(item => item.type === 'img') as ReactElement<Record<string, unknown>> | undefined;
+  expect(image).toBeDefined();
+  expect(image?.props).not.toHaveProperty('height');
+  expect(image?.props).not.toHaveProperty('width');
+});
+
+/* MD-0025: 검색어가 남은 채 업로드하면 새 사진이 검색 조건에 걸러져 '사라진' 것처럼 보였다. */
+it('업로드 뒤 검색어를 비우고 전체 목록을 다시 읽어 새 사진을 맨 앞에 보인다', async () => {
+  const first = photo('11', 'a.png');
+  const second = photo('12', 'b.png');
+  mocks.upload.mockResolvedValueOnce({ ok: true, imagePath: first.imagePath }).mockResolvedValueOnce({ ok: true, imagePath: second.imagePath });
+  let saved = 0;
+  mocks.save.mockImplementation(async (value: { id: string }) => { saved++; if (saved === 1) first.id = value.id; else second.id = value.id; return { id: value.id, revision: 1 }; });
+  /* 다른 운영자가 같은 순간에 올린 사진이 더 최신이어도 내가 방금 올린 사진이 앞에 온다. */
+  const someoneElse = photo('13', '다른 운영자 사진');
+  mocks.find.mockImplementation(async () => ({ data: { rows: [someoneElse, second, first, older], total: 4, page: 1, pageSize: 20 } }));
+
+  input('사진 이름 검색').props.onChange?.({ target: { value: '노트' } });
+  expect(input('사진 이름 검색').props.value).toBe('노트');
+  input('사진 업로드').props.onChange?.({ currentTarget: { files: [new File(['a'], 'a.png'), new File(['b'], 'b.png')], value: 'C:\\fakepath\\a.png' } });
+  await settle();
+
+  expect(mocks.find).toHaveBeenCalledWith('', false, 1);
+  expect(input('사진 이름 검색').props.value).toBe('');
+  const names = all(render()).filter(item => item.type === 'img').map(item => item.props.alt);
+  expect(names.slice(0, 2).sort()).toEqual(['a.png', 'b.png']);
+  expect(names).toContain('다른 운영자 사진');
+  expect(text(render())).toContain('2장 저장');
+  /* R19: 사진마다 서버 화면 전체를 다시 그리지 않고 마지막에 한 번만 갱신한다. */
+  expect(mocks.save.mock.calls.map(([, options]) => options)).toEqual([{ revalidate: false }, { revalidate: false }]);
+  expect(mocks.finish).toHaveBeenCalledOnce();
+  expect(mocks.finish.mock.invocationCallOrder[0]).toBeGreaterThan(Math.max(...mocks.save.mock.invocationCallOrder));
+});
+
+/* R20: macOS는 한글 파일 이름을 NFD로 넘겨 NFC 검색어에 걸리지 않았다. */
+it('파일 이름을 NFC로 바꿔 저장하고, 저장한 사진이 없으면 화면 갱신을 부르지 않는다', async () => {
+  const nfd = '메이플 키링.png'.normalize('NFD');
+  mocks.upload.mockResolvedValueOnce({ ok: true, imagePath: photo('31', 'x').imagePath }).mockResolvedValueOnce({ ok: false, error: '1분에 올릴 수 있는 사진 수를 넘었습니다. 잠시 뒤 다시 시도해주세요.' });
+  mocks.save.mockImplementation(async (value: { id: string }) => ({ id: value.id, revision: 1 }));
+  mocks.find.mockResolvedValue({ data: page });
+  input('사진 업로드').props.onChange?.({ currentTarget: { files: [new File(['a'], nfd), new File(['b'], 'b.png')], value: '' } });
+  await settle();
+  expect(mocks.save).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ name: '메이플 키링.png'.normalize('NFC') }), { revalidate: false });
+  expect(text(render())).toContain('b.png: 1분에 올릴 수 있는 사진 수를 넘었습니다.');
+
+  vi.clearAllMocks(); hooks.state = []; hooks.refs = [];
+  mocks.upload.mockResolvedValue({ ok: false, error: '다른 사진을 올리는 중입니다. 끝난 뒤 다시 시도해주세요.' });
+  mocks.find.mockResolvedValue({ data: page });
+  input('사진 업로드').props.onChange?.({ currentTarget: { files: [new File(['c'], 'c.png')], value: '' } });
+  await settle();
+  expect(mocks.finish).not.toHaveBeenCalled();
+});
+
+it('직접 다시 조회하면 방금 올린 사진 고정을 풀고 검색 결과 순서를 그대로 보인다', async () => {
+  const fresh = photo('21', 'c.png');
+  mocks.upload.mockResolvedValueOnce({ ok: true, imagePath: fresh.imagePath });
+  mocks.save.mockImplementation(async (value: { id: string }) => { fresh.id = value.id; return { id: value.id, revision: 1 }; });
+  const latest = photo('22', '최신');
+  mocks.find.mockResolvedValue({ data: { rows: [latest, fresh, older], total: 3, page: 1, pageSize: 20 } });
+  input('사진 업로드').props.onChange?.({ currentTarget: { files: [new File(['c'], 'c.png')], value: '' } });
+  await settle();
+  expect(all(render()).filter(item => item.type === 'img')[0].props.alt).toBe('c.png');
+  all(render()).find(item => (item.type === 'button' || item.type === Button) && text(item) === '검색')?.props.onClick?.();
+  await settle();
+  expect(all(render()).filter(item => item.type === 'img')[0].props.alt).toBe('최신');
+});

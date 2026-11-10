@@ -44,6 +44,10 @@ cleanup_fixtures() {
 delete from public.audit_log
 where actor_id = '${admin_id}'::uuid
   and action = 'admin.order.prepared_goods_cancellation_completed';
+-- The expiry sweep audits the request it closes (system actor, 20261013110400) and
+-- stock restoration audits the order. The order id is reused by later SQL smokes
+-- that assert this target has no system audit, so drop every row for the fixture.
+delete from public.audit_log where target = 'order:${order_id}';
 delete from public.order_cancellation_claims where order_id = '${order_id}'::uuid;
 delete from public.order_cancellation_requests where order_id = '${order_id}'::uuid;
 delete from public.payment_attempts where ref_id = '${order_id}'::uuid;

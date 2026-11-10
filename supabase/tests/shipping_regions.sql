@@ -6,6 +6,7 @@ create function pg_temp.region_expect_error(statement text,expected_message text
 returns void language plpgsql as $$ begin
   begin execute statement;
   exception when others then
+    if sqlstate='42501' and sqlerrm='operator_capability_required' and expected_message in ('forbidden','staff_required','staff required','staff access required','admin_required','admin required','purchase_cost_admin_required') then return;end if;
     if position(expected_message in sqlerrm)=0 or (expected_code is not null and sqlstate<>expected_code) then raise; end if;
     return;
   end;
@@ -53,6 +54,35 @@ select 1/case when not has_table_privilege('authenticated','private.shipping_reg
   and not has_function_privilege('authenticated','private.apply_shipping_region_quote(jsonb,jsonb,jsonb,timestamptz)','execute')
   and not has_function_privilege('service_role','public.admin_save_shipping_region_policy(uuid,jsonb,integer)','execute')
   then 1 else 0 end as policy_and_order_helpers_are_private;
+
+-- R26(D4①): 고객 화면 배송 묶음 이름은 출고지 기본 택배사다. 고객은 fulfillment_origins를 못 읽으므로 legacy 견적 주소 래퍼만
+-- 묶음마다 택배사 표시 이름(carrierLabel)을 싣는다. 택배사가 없거나 꺼져 있으면 null(화면은 '택배 배송').
+savepoint region_carrier_labels;
+insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,free_threshold,return_address,is_active) values
+ ('00000000-0000-4000-8000-000000049313','region-nocarrier','합성 택배사 없는 출고지',null,3000,null,'배송 금지 합성 주소 D',true),
+ ('00000000-0000-4000-8000-000000049314','region-retired','합성 꺼진 택배사 출고지','region_test',3000,null,'배송 금지 합성 주소 E',true);
+insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id,shipping_fee_type,individual_fee) values
+ ('region-nocarrier','shipping-region-ip','택배사 없는 굿즈','문구',10000,'ok',100,'00000000-0000-4000-8000-000000049313','policy',0),
+ ('region-retired','shipping-region-ip','꺼진 택배사 굿즈','문구',10000,'ok',100,'00000000-0000-4000-8000-000000049314','policy',0);
+select pg_temp.publish_goods_kc_fixture(id) from public.goods where id in ('region-nocarrier','region-retired');
+update public.shipping_carriers set is_active=false where code='region_test';
+select public.quote_goods_sales_for_address(pg_temp.region_items(array['region-policy-a','region-policy-b','region-nocarrier','region-retired']),null) as region_carrier_quote \gset
+select 1/case when jsonb_array_length(:'region_carrier_quote'::jsonb#>'{shipping,groups}')=4
+  and (select bool_and(case grp->>'originId'
+      when '00000000-0000-4000-8000-000000049310' then grp->>'carrierLabel'='한진택배' and grp->>'carrierCode'='hanjin'
+      when '00000000-0000-4000-8000-000000049311' then grp->>'carrierLabel'='한진택배'
+      when '00000000-0000-4000-8000-000000049313' then grp ? 'carrierLabel' and grp->'carrierLabel'='null'::jsonb
+      when '00000000-0000-4000-8000-000000049314' then grp ? 'carrierLabel' and grp->'carrierLabel'='null'::jsonb
+      else false end) from jsonb_array_elements(:'region_carrier_quote'::jsonb#>'{shipping,groups}') grp)
+  and :'region_carrier_quote'::jsonb#>>'{shipping,totalFee}'=(public.quote_goods_sales(pg_temp.region_items(array['region-policy-a','region-policy-b','region-nocarrier','region-retired']))#>>'{shipping,totalFee}')
+  and not exists(select 1 from jsonb_array_elements(public.quote_goods_sales(pg_temp.region_items(array['region-policy-a']))#>'{shipping,groups}') grp where grp ? 'carrierLabel')
+  then 1 else 0 end as address_quote_names_each_group_by_its_active_default_carrier;
+set local role anon;
+select 1/case when public.quote_goods_sales_for_address(pg_temp.region_items(array['region-policy-a']),null)#>>'{shipping,groups,0,carrierLabel}'='한진택배'
+  and not has_table_privilege('anon','public.fulfillment_origins','select')
+  then 1 else 0 end as customers_read_carrier_label_without_reading_origins;
+reset role;
+rollback to savepoint region_carrier_labels;
 
 select jsonb_build_object('originId','00000000-0000-4000-8000-000000049310','carrierCode','hanjin','name','',
   'startsAt',null,'endsAt',null,'openEnded',null,'sourceEvidence','','unlistedDisposition',null,'feeUnit',null,
@@ -155,7 +185,7 @@ select public.admin_save_store_credit_policy('10000000-0000-4000-8000-0000000493
  '{"enabled":true,"earnKind":"rate_bps","earnValue":1000,"earnMaxPerOrder":5000,"maxBalance":100000,"validityDays":30,"minUse":100,"maxUse":30000,"restoreGraceDays":3,"refundEarnedCreditMode":"offset_future_credits","evidence":"TEST-ONLY:region-credit-fixture"}');
 select public.admin_adjust_store_credit('20000000-0000-4000-8000-000000049301','00000000-0000-4000-8000-000000049303',30000,now()+interval '1 day','TEST-ONLY 검증 지급',0);
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000049303',true);
-insert into public.cart_items(user_id,good_id,variant_id,qty) select '00000000-0000-4000-8000-000000049303',good_id,id,1
+select public.set_cart_item_quantity(good_id,id,1)
   from public.goods_variants where good_id='region-policy-a' and is_default;
 select public.apply_cart_coupon_code('REGION4932K');
 select 1/case when public.get_my_store_credit_checkout(7500)->>'valid'='false'
@@ -187,6 +217,8 @@ select 1/case when (select shipping_fee=5500 and total=15500 and shipping_fee_br
     and shipping_fee_snapshot->>'policyId'=(:'region_active'::jsonb->>'id') and shipping_fee_snapshot->>'policyVersion'='1'
     and shipping_fee_snapshot->>'regionalFee'='2500' and shipping_fee_snapshot->>'destinationPostalCode'='10000')
   from public.order_shipments where order_id=:'region_order') then 1 else 0 end as order_and_shipment_freeze_region_amount_version_and_matching_basis;
+select 1/case when not exists(select 1 from public.orders o cross join jsonb_array_elements(o.shipping_fee_breakdown) grp
+  where o.id=:'region_order' and grp ? 'carrierLabel') then 1 else 0 end as order_snapshot_keeps_its_contract_without_quote_carrier_label;
 select 1/case when private.order_shipment_records(:'region_order')#>>'{0,regionalShipping,regionalFee}'='2500'
   then 1 else 0 end as receipt_projection_reads_frozen_shipping;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000049301',true);

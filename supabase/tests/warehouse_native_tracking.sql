@@ -158,10 +158,10 @@ do $$ begin
  raise exception 'inactive default carrier accepted';
 exception when check_violation then if sqlerrm<>'inactive_shipping_carrier' then raise; end if; end $$;
 
--- Defensive ambiguity check, despite the production unique(order_id,origin_id).
--- Only this rollback transaction suspends that constraint for a synthetic case.
+-- Defensive ambiguity check below the normal partition uniqueness contract.
+-- Only this rollback transaction suspends that constraint for the synthetic case.
 reset role;
-alter table public.order_shipments drop constraint order_shipments_order_id_origin_id_key;
+alter table public.order_shipments drop constraint shipment_order_origin_partition_key;
 insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot)
 values('62000000-0000-4000-8000-000000042975','50000000-0000-4000-8000-000000042975','00000000-0000-4000-8000-000000042971','합성 중복',5000,'{}');
 set local role authenticated;

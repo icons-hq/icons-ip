@@ -440,7 +440,38 @@ begin
     -- uuid 형식 아님
     '[{"type":"exchange","offer_id":"not-a-uuid"}]'::jsonb,
     -- anchor 길이 초과
-    ('[{"type":"attendance","anchor":"' || repeat('x', 21) || '"}]')::jsonb
+    ('[{"type":"attendance","anchor":"' || repeat('x', 21) || '"}]')::jsonb,
+    -- 이동 버튼(cta): ICONS 내부 경로만(LD-18) — 외부 주소·스킴·프로토콜 상대 주소
+    '[{"type":"cta","label":"보러 가기","href":"https://evil.example/shop"}]'::jsonb,
+    '[{"type":"cta","label":"보러 가기","href":"javascript:alert(1)"}]'::jsonb,
+    '[{"type":"cta","label":"보러 가기","href":"//evil.example"}]'::jsonb,
+    -- 브라우저가 \ 를 / 로 바꾸고 탭·줄바꿈을 지워 //evil.example 이 되는 우회
+    '[{"type":"cta","label":"보러 가기","href":"/\\evil.example"}]'::jsonb,
+    '[{"type":"cta","label":"보러 가기","href":"/\t/evil.example"}]'::jsonb,
+    '[{"type":"cta","label":"보러 가기","href":"/shop\nx"}]'::jsonb,
+    '[{"type":"cta","label":"보러 가기","href":"/sh op"}]'::jsonb,
+    -- 정규화된 pathname 이 // 로 시작하게 되는 경로 조각(. / .. / %2e)
+    '[{"type":"cta","label":"보러 가기","href":"/..//evil.example"}]'::jsonb,
+    '[{"type":"cta","label":"보러 가기","href":"/.//evil.example"}]'::jsonb,
+    '[{"type":"cta","label":"보러 가기","href":"/%2E%2e//evil.example"}]'::jsonb,
+    '[{"type":"cta","label":"보러 가기","href":"/shop/.."}]'::jsonb,
+    -- 공백만 든 버튼 문구(JS trim 과 같은 공백 집합 — 유니코드 공백 포함)
+    '[{"type":"cta","label":"   ","href":"/shop"}]'::jsonb,
+    '[{"type":"cta","label":"\u3000","href":"/shop"}]'::jsonb,
+    '[{"type":"cta","label":"\u00a0\ufeff","href":"/shop"}]'::jsonb,
+    -- 깨진 퍼센트 인코딩(% 뒤 16진수 두 자리가 아님)
+    '[{"type":"cta","label":"보러 가기","href":"/events/%E0%A4%A"}]'::jsonb,
+    '[{"type":"cta","label":"보러 가기","href":"/%zz"}]'::jsonb,
+    -- 상대 경로·빈 값·타입 오류
+    '[{"type":"cta","label":"보러 가기","href":"shop"}]'::jsonb,
+    '[{"type":"cta","label":"보러 가기","href":""}]'::jsonb,
+    '[{"type":"cta","label":"보러 가기","href":42}]'::jsonb,
+    -- 필수 키 누락·모르는 키·길이 초과
+    '[{"type":"cta","href":"/shop"}]'::jsonb,
+    '[{"type":"cta","label":"보러 가기"}]'::jsonb,
+    '[{"type":"cta","label":"보러 가기","href":"/shop","target":"_blank"}]'::jsonb,
+    ('[{"type":"cta","label":"' || repeat('가', 31) || '","href":"/shop"}]')::jsonb,
+    ('[{"type":"cta","label":"보러 가기","href":"/' || repeat('a', 300) || '"}]')::jsonb
   ]
   loop
     begin
@@ -468,12 +499,42 @@ begin
 end;
 $$;
 
+-- 이동 버튼 거절 사유는 어느 블록의 href 인지 DETAIL 로 알린다(어드민 오류 번역이 그대로 붙인다).
+do $$
+declare
+  v_detail text;
+begin
+  begin
+    perform public.admin_upsert_campaign(
+      target_id => 'cmp-cta-detail',
+      target_kind => 'event',
+      target_title => '외부 링크 버튼',
+      target_subtitle => null,
+      target_status => 'draft',
+      target_starts_at => now(),
+      target_ends_at => now() + interval '1 day',
+      target_hero_image_path => null,
+      target_card_image_path => null,
+      target_banner_image_path => null,
+      target_featured_order => null,
+      target_sections => '[{"type":"intro","copy":"소개"},{"type":"cta","label":"보러 가기","href":"https://evil.example"}]'::jsonb,
+      target_previous_id => null
+    );
+    raise exception 'external cta href should be rejected';
+  exception
+    when invalid_parameter_value then
+      get stacked diagnostics v_detail = pg_exception_detail;
+      if sqlerrm <> 'invalid_sections' or v_detail not like 'sections[1].href:%' then raise; end if;
+  end;
+end;
+$$;
+
 -- 거부된 본문은 행을 남기지 않는다.
 select 1 / case when not exists (
   select 1 from public.campaigns where id = 'cmp-sections-probe'
 ) then 1 else 0 end as assert_invalid_sections_left_no_row;
 
--- 8종 블록이 모두 통과한다.
+-- 9종 블록이 모두 통과한다(cta 는 내부 경로 두 가지 — 쿼리·해시가 붙은 경로와 루트).
 select public.admin_upsert_campaign(
   target_id => 'cmp-allblocks',
   target_kind => 'drop',
@@ -494,14 +555,23 @@ select public.admin_upsert_campaign(
     {"type":"exchange","offer_id":"00000000-0000-4000-8000-0000000008aa"},
     {"type":"coupon","coupon_code":"CMPWELCOME","description":"첫 구매 할인"},
     {"type":"goods","good_ids":["cmp-g1"]},
-    {"type":"notice","items":["안내 1"]}
+    {"type":"notice","items":["안내 1"]},
+    {"type":"cta","label":"굿즈 보러 가기","href":"/shop?ip=cmp-ip#list","anchor":"굿즈"},
+    {"type":"cta","label":"홈으로","href":"/"}
   ]'::jsonb,
   target_previous_id => null
 );
 
 select 1 / case when (
-  select jsonb_array_length(sections) = 8 from public.campaigns where id = 'cmp-allblocks'
+  select jsonb_array_length(sections) = 10 from public.campaigns where id = 'cmp-allblocks'
 ) then 1 else 0 end as assert_all_block_types_accepted;
+
+select 1 / case when (
+  select sections -> 8 ->> 'href' = '/shop?ip=cmp-ip#list'
+    and sections -> 8 ->> 'label' = '굿즈 보러 가기'
+    and sections -> 9 ->> 'href' = '/'
+  from public.campaigns where id = 'cmp-allblocks'
+) then 1 else 0 end as assert_cta_internal_paths_stored;
 
 -- ── coupon 블록의 코드는 실재해야 한다 ─────────────────────────────────────
 -- jsonb 안이라 FK를 걸 수 없다. 오타 코드가 통과하면 랜딩에는 멀쩡한 경품으로

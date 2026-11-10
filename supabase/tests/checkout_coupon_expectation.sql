@@ -18,8 +18,7 @@ select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000005091'
 set local role authenticated;
 select public.apply_cart_coupon_code('EXPECT-A');
 select set_config('test.expected_coupon_a',(select user_coupon_id::text from public.cart_coupon_selections where user_id='00000000-0000-4000-8000-000000005091'),true);
-insert into public.cart_items(user_id,good_id,variant_id,qty)
-select '00000000-0000-4000-8000-000000005091','coupon-expect-good',id,1 from public.goods_variants where good_id='coupon-expect-good' and is_default;
+select public.set_cart_item_quantity('coupon-expect-good',id,1) from public.goods_variants where good_id='coupon-expect-good' and is_default;
 -- Another tab changes the selected coupon after this checkout displayed A.
 select public.apply_cart_coupon_code('EXPECT-B');
 select set_config('test.expected_coupon_b',(select user_coupon_id::text from public.cart_coupon_selections where user_id='00000000-0000-4000-8000-000000005091'),true);
@@ -66,8 +65,7 @@ do $$ begin
 end $$;
 reset role;
 set local role authenticated;
-insert into public.cart_items(user_id,good_id,variant_id,qty)
-select '00000000-0000-4000-8000-000000005091','coupon-expect-good',id,1 from public.goods_variants where good_id='coupon-expect-good' and is_default;
+select public.set_cart_item_quantity('coupon-expect-good',id,1) from public.goods_variants where good_id='coupon-expect-good' and is_default;
 reset role;
 set local role service_role;
 select public.place_order_with_store_credits('00000000-0000-4000-8000-000000005091','{"recipientName":"선택 검증","phone":"01012345678","postalCode":"12345","address1":"합성 주소"}',

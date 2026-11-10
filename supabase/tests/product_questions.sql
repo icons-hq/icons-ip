@@ -151,7 +151,8 @@ select 1 / case when exists (
 ) then 1 else 0 end as assert_author_delete_policy_exists;
 
 select 1 / case when not has_function_privilege('anon', 'public.admin_answer_product_question(uuid, text)', 'execute')
-  and has_function_privilege('authenticated', 'public.admin_answer_product_question(uuid, text)', 'execute')
+  and not has_function_privilege('authenticated', 'public.admin_answer_product_question(uuid, text)', 'execute')
+  and has_function_privilege('authenticated', 'public.admin_save_cs_reply(uuid,uuid,text,uuid,text,bigint)', 'execute')
   and not has_function_privilege('service_role', 'public.admin_answer_product_question(uuid, text)', 'execute')
   and not has_function_privilege('anon', 'public.admin_set_product_question_visibility(uuid, boolean)', 'execute')
   and has_function_privilege('authenticated', 'public.admin_set_product_question_visibility(uuid, boolean)', 'execute')
@@ -339,10 +340,8 @@ select 1 / case when (
 
 -- ── 운영 답변과 알림 ────────────────────────────────────────────────────────
 
-select public.admin_answer_product_question(
-  :'question_id'::uuid,
-  '다음 주 재입고 예정입니다.'
-);
+select public.admin_save_cs_reply(gen_random_uuid(),auth.uid(),'product_question',:'question_id'::uuid,
+  '다음 주 재입고 예정입니다.',(select reply_source_revision from public.product_questions where id=:'question_id'::uuid));
 
 select 1 / case when (
   select answer_body = '다음 주 재입고 예정입니다.'
@@ -380,10 +379,8 @@ where user_id = '00000000-0000-4000-8000-000000000821'
 
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000823', true);
 set local role authenticated;
-select public.admin_answer_product_question(
-  :'question_id'::uuid,
-  '재고가 확보돼 이번 주에 입고됩니다.'
-);
+select public.admin_save_cs_reply(gen_random_uuid(),auth.uid(),'product_question',:'question_id'::uuid,
+  '재고가 확보돼 이번 주에 입고됩니다.',(select reply_source_revision from public.product_questions where id=:'question_id'::uuid));
 
 reset role;
 
@@ -413,14 +410,12 @@ set local role authenticated;
 do $$
 begin
   begin
-    perform public.admin_answer_product_question(
-      current_setting('test.question_id')::uuid,
-      '탈취 답변'
-    );
+    perform public.admin_save_cs_reply(gen_random_uuid(),auth.uid(),'product_question',
+      current_setting('test.question_id')::uuid,'탈취 답변',0);
     raise exception 'non-staff answer should be rejected';
   exception
     when insufficient_privilege then
-      if sqlerrm <> 'forbidden' then raise; end if;
+      if sqlerrm not in ('forbidden','operator_capability_required') then raise; end if;
   end;
 
   begin
@@ -431,7 +426,7 @@ begin
     raise exception 'non-staff visibility change should be rejected';
   exception
     when insufficient_privilege then
-      if sqlerrm <> 'forbidden' then raise; end if;
+      if sqlerrm not in ('forbidden','operator_capability_required') then raise; end if;
   end;
 end;
 $$;
@@ -456,14 +451,12 @@ select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000823
 do $$
 begin
   begin
-    perform public.admin_answer_product_question(
-      '00000000-0000-4000-8000-0000000008ff'::uuid,
-      '유령 답변'
-    );
+    perform public.admin_save_cs_reply(gen_random_uuid(),auth.uid(),'product_question',
+      '00000000-0000-4000-8000-0000000008ff'::uuid,'유령 답변',0);
     raise exception 'answering a missing question should be rejected';
   exception
     when no_data_found then
-      if sqlerrm <> 'question_not_found' then raise; end if;
+      if sqlerrm <> 'cs_reply_target_not_found' then raise; end if;
   end;
 end;
 $$;

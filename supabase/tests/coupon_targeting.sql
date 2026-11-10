@@ -40,7 +40,7 @@ do $$ begin
  begin perform public.apply_cart_coupon_code('TARGETREPEAT'); raise exception 'unpaid user received repeat coupon';
  exception when check_violation then if sqlerrm<>'coupon_repeat_purchase_only' then raise; end if; end;
 end $$;
-insert into public.cart_items(user_id,good_id,variant_id,qty) select '00000000-0000-4000-8000-000000004872',good_id,id,1 from public.goods_variants where good_id in ('coupon-target-one','coupon-target-two') and is_default;
+select public.set_cart_item_quantity(good_id,id,1) from public.goods_variants where good_id in ('coupon-target-one','coupon-target-two') and is_default;
 select 1/case when (public.quote_goods_sales((select jsonb_agg(jsonb_build_object('goodId',good_id,'variantId',variant_id,'qty',qty)) from public.cart_items where user_id='00000000-0000-4000-8000-000000004872'))->'coupon'->>'discount')::bigint=5000
  then 1 else 0 end as mixed_basket_discounts_only_target_amount;
 reset role;
@@ -53,7 +53,7 @@ select 1/case when (select total=28000 and discount_total=5000 and shipping_fee=
 -- An active first benefit prevents another payable order from becoming the
 -- actual first valid payment. Once canceled, both coupon and claim are released.
 set local role authenticated;
-insert into public.cart_items(user_id,good_id,variant_id,qty) select '00000000-0000-4000-8000-000000004872','coupon-target-two',id,1 from public.goods_variants where good_id='coupon-target-two' and is_default;
+select public.set_cart_item_quantity(good_id,id,1) from public.goods_variants where good_id='coupon-target-two' and is_default;
 reset role;
 set local role service_role;
 do $$ begin
@@ -66,7 +66,7 @@ set local role authenticated;
 select public.apply_cart_coupon_code('TARGETFIRST');
 select 1/case when (public.quote_goods_sales((select jsonb_agg(jsonb_build_object('goodId',good_id,'variantId',variant_id,'qty',qty)) from public.cart_items where user_id='00000000-0000-4000-8000-000000004872'))->'coupon'->>'reason')='coupon_no_eligible_goods'
  then 1 else 0 end as coupon_restores_without_discounting_other_goods;
-insert into public.cart_items(user_id,good_id,variant_id,qty) select '00000000-0000-4000-8000-000000004872','coupon-target-one',id,1 from public.goods_variants where good_id='coupon-target-one' and is_default;
+select public.set_cart_item_quantity(good_id,id,1) from public.goods_variants where good_id='coupon-target-one' and is_default;
 reset role;
 set local role service_role;
 select public.place_order_with_store_credits('00000000-0000-4000-8000-000000004872','{"recipientName":"쿠폰 검증","phone":"01012345678","postalCode":"12345","address1":"합성 주소"}','10000000-0000-4000-8000-000000004875','card',0) as paid_order_id \gset

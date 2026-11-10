@@ -2,9 +2,9 @@ import 'server-only';
 
 import { kstDay } from '@/lib/admin/kst';
 import { createClient } from '@/lib/supabase/server';
+import { adminInsightPeriod, type AdminInsightPeriod } from './home-summary';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const WINDOW_DAYS = 30;
 const RECENT_ORDER_LIMIT = 5;
 const TOP_IP_LIMIT = 5;
 
@@ -125,17 +125,18 @@ async function fetchAllRows<T>(
   }
 }
 
-export async function getAdminInsights(): Promise<AdminInsights> {
+export async function getAdminInsights(period: AdminInsightPeriod = 30): Promise<AdminInsights> {
   const supabase = await createClient();
   const now = Date.now();
+  const windowDays = adminInsightPeriod(period);
 
   // 윈도우 경계를 일별 버킷과 같은 KST 자정 기준으로 정렬 — 차트 30일 합계 = 매출 카드
   const dayKeys: string[] = [];
-  for (let i = WINDOW_DAYS - 1; i >= 0; i -= 1) {
+  for (let i = windowDays - 1; i >= 0; i -= 1) {
     dayKeys.push(kstDay(new Date(now - i * DAY_MS)));
   }
   const windowStartMs = Date.parse(`${dayKeys[0]}T00:00:00+09:00`);
-  const prevWindowStartMs = windowStartMs - WINDOW_DAYS * DAY_MS;
+  const prevWindowStartMs = windowStartMs - windowDays * DAY_MS;
   const windowStart = new Date(windowStartMs).toISOString();
   const prevWindowStart = new Date(prevWindowStartMs).toISOString();
 

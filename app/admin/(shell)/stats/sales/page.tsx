@@ -1,6 +1,9 @@
+import { normalizeAdminSalesGoodsPagination } from '@/lib/admin/stats-sales-goods';
+import { getAdminSalesGoodsPage } from '@/lib/admin/stats-sales-goods.server';
+import { StatsRangeTabs } from '@/components/admin/StatsRangeTabs';
 import { StatsSalesScreen } from '@/components/admin/screens/StatsSalesScreen';
 import { requireAdminScreenAccess } from '@/lib/admin/guard.server';
-import { normalizeAdminStatsFilters } from '@/lib/admin/stats';
+import { adminStatsComparisonFilters, normalizeAdminStatsFilters } from '@/lib/admin/stats';
 import { getAdminSalesReport } from '@/lib/admin/stats.server';
 
 export default async function AdminStatsSalesPage({
@@ -13,7 +16,15 @@ export default async function AdminStatsSalesPage({
   const query = await searchParams;
 
   const filters = normalizeAdminStatsFilters(query);
-  const data = await getAdminSalesReport(filters);
+  if (filters.rangeError) return <div className="flex min-w-0 flex-col gap-4"><StatsRangeTabs base="/admin/stats/sales" filters={filters} /><p className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive" role="alert">{filters.rangeError}</p></div>;
+  const now = new Date();
+  const comparisonFilters = adminStatsComparisonFilters(filters, now);
+  const [data, comparison, goods, comparisonGoods] = await Promise.all([
+    getAdminSalesReport(filters, now),
+    comparisonFilters ? getAdminSalesReport(comparisonFilters, now) : null,
+    getAdminSalesGoodsPage(filters, normalizeAdminSalesGoodsPagination(query), now),
+    comparisonFilters ? getAdminSalesGoodsPage(comparisonFilters, { page: 1, pageSize: 20 }, now) : null,
+  ]);
 
-  return <StatsSalesScreen data={data} filters={filters} />;
+  return <StatsSalesScreen comparisonGoodsTotal={comparisonGoods?.totalCount} goods={goods} data={data} filters={filters} comparison={comparison} now={now} />;
 }

@@ -1,3 +1,4 @@
+const { configuredOperatorAccessFixture, legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AdminDisplayCampaignsPage from './page';
 
@@ -6,12 +7,12 @@ const mocks = vi.hoisted(() => ({
     isConfigured: true,
     user: { id: '11111111-1111-4111-8111-111111111111', email: 'staff@icons.gg' },
     role: 'staff',
-    isStaff: true,
+    isStaff: true, operatorAccess: legacyOperatorAccessFixture(),
   } as {
     isConfigured: boolean;
     user: { id: string; email: string | null } | null;
     role: 'user' | 'staff' | 'admin' | null;
-    isStaff: boolean;
+    isStaff: boolean; operatorAccess?: ReturnType<typeof legacyOperatorAccessFixture>;
   },
   screen: vi.fn(() => null),
   campaigns: vi.fn(async () => ({
@@ -48,7 +49,7 @@ describe('AdminDisplayCampaignsPage', () => {
       isConfigured: true,
       user: { id: '11111111-1111-4111-8111-111111111111', email: 'staff@icons.gg' },
       role: 'staff',
-      isStaff: true,
+      isStaff: true, operatorAccess: legacyOperatorAccessFixture(),
     };
     mocks.screen.mockClear();
     mocks.campaigns.mockClear();
@@ -99,4 +100,13 @@ describe('AdminDisplayCampaignsPage', () => {
     expect(mocks.catalogRecords).toHaveBeenCalledWith({ include: ['cardPools'] });
     expect(mocks.curations).not.toHaveBeenCalled();
   });
+  it('프로모션 역할은 카드풀과 교환처 관리 데이터를 조회하지 않는다', async () => {
+    mocks.authState.operatorAccess = configuredOperatorAccessFixture('deputy');
+    const screen = await AdminDisplayCampaignsPage();
+    expect(mocks.campaigns).toHaveBeenCalledWith({ includeOffers: false });
+    expect(mocks.catalogRecords).not.toHaveBeenCalled();
+    expect(screen.props.canManageOffers).toBe(false);
+    expect(screen.props.pools).toEqual([]);
+  });
+
 });

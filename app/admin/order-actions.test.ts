@@ -1,3 +1,4 @@
+import { configuredOperatorAccessFixture, legacyOperatorAccessFixture } from '@/lib/admin/access.test-fixtures';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   approveAdminOrderCancellationAction,
@@ -28,6 +29,7 @@ const mocks = vi.hoisted(() => ({
     isStaff: boolean;
   },
   rpc: vi.fn(),
+  orderNumbers: [] as { id: string; order_number: string | null }[],
   reconcile: vi.fn(),
   recoverGoodsPayment: vi.fn(),
   revalidatePath: vi.fn(),
@@ -58,7 +60,7 @@ vi.mock('@/lib/email/transactional.server', () => ({
 }));
 
 vi.mock('@/lib/auth/admin', () => ({
-  getCurrentAdminAuthState: () => mocks.adminState,
+  getCurrentAdminAuthState: () => ({ ...mocks.adminState, operatorAccess: 'operatorAccess' in mocks.adminState && mocks.adminState.operatorAccess || legacyOperatorAccessFixture() }),
 }));
 vi.mock('@/lib/orders/cancellation-orchestrator.server', () => ({
   reconcileOrderCancellation: mocks.reconcile,
@@ -67,7 +69,7 @@ vi.mock('@/lib/payments/goods-manual-recovery.server', () => ({
   recoverGoodsPaymentManually: mocks.recoverGoodsPayment,
 }));
 vi.mock('@/lib/supabase/server', () => ({
-  createClient: () => ({ rpc: mocks.rpc }),
+  createClient: () => ({ rpc: mocks.rpc, from: () => ({ select: () => ({ in: async () => ({ data: mocks.orderNumbers, error: null }) }) }) }),
 }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock('next/navigation', () => ({
@@ -112,6 +114,7 @@ describe('admin order actions', () => {
     };
     mocks.rpc.mockReset();
     mocks.rpc.mockResolvedValue({ data: null, error: null });
+    mocks.orderNumbers = [];
     mocks.reconcile.mockReset();
     mocks.reconcile.mockResolvedValue({ ok: true, status: 'completed' });
     mocks.recoverGoodsPayment.mockReset();
@@ -121,6 +124,16 @@ describe('admin order actions', () => {
     mocks.sendShippedEmail.mockResolvedValue({ status: 'sent' });
     mocks.sendConfirmationEmail.mockReset();
     mocks.sendConfirmationEmail.mockResolvedValue({ status: 'sent' });
+  });
+
+  it.each(['influencer', 'deputy', 'agency', 'logistics'] as const)('configured %s cannot dispatch, cancel, or resend order mail', async role => {
+    Object.assign(mocks.adminState, { operatorAccess: configuredOperatorAccessFixture(role) });
+    expect((await updateAdminOrderStatusAction({}, new FormData())).errors?.form).toContain('권한');
+    expect((await approveAdminOrderCancellationAction({}, requestForm())).errors?.form).toContain('권한');
+    expect((await updateAdminOrderTrackingAction({}, trackingForm())).errors?.form).toContain('권한');
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.reconcile).not.toHaveBeenCalled();
+    expect(mocks.sendShippedEmail).not.toHaveBeenCalled();
   });
 
   it('배송 시작 전이에서만 배송 시작 메일 훅을 부른다', async () => {
@@ -297,7 +310,7 @@ describe('admin order actions', () => {
       expect(mocks.rpc).toHaveBeenCalledWith('admin_request_email_resend', {
         p_dedupe_key: `order_confirmation:${ORDER_ID}`,
       });
-      expect(mocks.sendConfirmationEmail).toHaveBeenCalledWith(ORDER_ID);
+      expect(mocks.sendConfirmationEmail).toHaveBeenCalledWith(ORDER_ID, 'payer');
       expect(mocks.sendShippedEmail).not.toHaveBeenCalled();
     });
 
@@ -306,7 +319,7 @@ describe('admin order actions', () => {
         resendOrderEmailAction({}, resendForm(`order_shipped:${ORDER_ID}`)),
       ).resolves.toEqual({ message: '메일을 다시 보냈습니다.' });
 
-      expect(mocks.sendShippedEmail).toHaveBeenCalledWith({ orderId: ORDER_ID });
+      expect(mocks.sendShippedEmail).toHaveBeenCalledWith({ orderId: ORDER_ID, shipmentId: undefined, audience: 'payer' });
       expect(mocks.sendConfirmationEmail).not.toHaveBeenCalled();
     });
 
@@ -391,8 +404,18 @@ describe('admin order actions', () => {
     mocks.reconcile.mockResolvedValue({ ok: false, code: 'provider_unreachable' });
 
     await expect(approveAdminOrderCancellationAction({}, requestForm())).resolves.toEqual({
-      errors: { form: '결제 취소 상태를 확정하지 못했습니다. 운영 화면의 최신 상태에서 다시 확인해주세요.' },
+      errors: { form: '결제 취소 상태를 확정하지 못했습니다(provider_unreachable). 주문과 재고는 그대로 유지됩니다. 코드별 조치는 어드민 가이드 "클레임 처리"에 있습니다. 원인을 확인한 뒤 이 주문 패널의 [상태 다시 확인]으로 다시 시도해주세요.' },
     });
+  });
+
+  /* 2026-10-12 QA-10: 재시도 결과도 처음 실행처럼 원인 코드를 보여준다. */
+  it('재정합화가 확정하지 못하면 원인 코드를 결과에 싣는다', async () => {
+    mocks.reconcile.mockResolvedValue({ ok: false, code: 'provider_unavailable' });
+
+    const result = await reconcileAdminOrderCancellationAction({}, requestForm());
+
+    expect(result.errors?.form).toContain('(provider_unavailable)');
+    expect(result.errors?.form).toContain('[상태 다시 확인]');
   });
 
   it('진행 중인 결제 상태는 완료로 거짓 보고하지 않고 주문·재고 보존을 안내한다', async () => {
@@ -420,7 +443,7 @@ describe('admin order actions', () => {
 
   it('needs_review 재정합화도 DB의 staff 게이트를 통과한 뒤 provider를 조회한다', async () => {
     await expect(reconcileAdminOrderCancellationAction({}, requestForm())).resolves.toEqual({
-      message: '결제 취소 상태를 정합화했습니다.',
+      message: '결제 취소 상태를 확인했습니다.',
     });
 
     expect(mocks.rpc).toHaveBeenCalledWith('admin_begin_order_cancellation_reconcile', {
@@ -456,7 +479,7 @@ describe('admin order actions', () => {
       mocks.recoverGoodsPayment.mockResolvedValue({ outcome: 'provider_cancel_confirmed' });
 
       await expect(recoverAdminGoodsPaymentAction({}, cancellationForm())).resolves.toEqual({
-        message: 'Korpay 전액 취소 확인을 주문 정합화에 반영했습니다.',
+        message: 'Korpay 전액 취소 확인을 주문에 반영했습니다.',
       });
 
       expect(mocks.recoverGoodsPayment).toHaveBeenCalledWith({
@@ -547,6 +570,16 @@ describe('admin order actions', () => {
       expect(state.message).toContain('처리하지 못한 1건');
       expect(state.message).toContain('11111111');
       expect(state.confirmedOrderIds).toEqual([SECOND_ORDER_ID]);
+    });
+
+    it('실패한 주문을 16자리 주문번호로 적는다', async () => {
+      mocks.orderNumbers = [{ id: ORDER_ID, order_number: '2026102710000007' }];
+      mocks.rpc.mockImplementation(async (_fn: string, args: { p_order_id: string }) => (
+        args.p_order_id === ORDER_ID ? { data: null, error: { message: 'order cancellation in progress' } } : { data: null, error: null }
+      ));
+      const state = await bulkConfirmAdminOrdersAction({}, bulkForm(ORDER_ID, SECOND_ORDER_ID));
+      expect(state.message).toContain('처리하지 못한 1건: 2026102710000007');
+      expect(state.message).not.toContain('11111111');
     });
 
     it('전부 실패하면 성공 문구를 내보내지 않는다', async () => {

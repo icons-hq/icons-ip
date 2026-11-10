@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { CatalogSnapshot, HomeSnapshot } from '@/lib/catalog';
+import type { CollectionBanner } from '@/lib/collection-banners';
 import type { Good } from '@/lib/data';
 import type { HomeBestTab, HomeGoodsCard } from '@/lib/home-catalog';
 import Page, { metadata } from './page';
@@ -8,12 +9,22 @@ import Page, { metadata } from './page';
 const mocks = vi.hoisted(() => ({
   categoryBestTabs: [] as HomeBestTab[],
   popularTabs: [] as HomeBestTab[],
+  banners: [] as CollectionBanner[],
+  bannerSlots: [] as string[],
+}));
+vi.mock('@/lib/collection-banners.server', () => ({
+  getCollectionBanners: async (slot: string) => {
+    mocks.bannerSlots.push(slot);
+    return mocks.banners.filter((banner) => banner.slot === slot);
+  },
 }));
 vi.mock('@/lib/catalog-categories.server', () => ({ loadPublicCatalogCategories: async () => [] }));
+vi.mock('@/lib/wishlist-ids.server', () => ({ loadListingWishlist: async () => ({ viewerId: null, goodIds: [] }) }));
+vi.mock('@/app/shop/actions', () => ({ toggleWishlistAction: vi.fn() }));
 
 vi.mock('next/navigation', () => ({
   usePathname: () => '/shop/best',
-  useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
+  useRouter: () => ({ replace: vi.fn(), push: vi.fn(), refresh: vi.fn() }),
 }));
 vi.mock('@/lib/catalog', () => ({
   getHomeSnapshot: async (): Promise<HomeSnapshot> => ({
@@ -108,7 +119,9 @@ describe('/shop/best page', () => {
 
     expect(html).toMatch(/<h1[^>]*>BEST<\/h1>/);
     expect(html).toContain('지금 가장 사랑받는 굿즈예요.');
-    expect(html.replace(/<[^>]+>/g, '')).toContain('전체 2개 굿즈');
+    expect(html.replace(/<[^>]+>/g, '')).toContain('전체 › 2개 굿즈');
+    /* 게스트에게도 카드 하트가 보인다(누르면 로그인 벽 — CL-01). */
+    expect((html.match(/<button[^>]*class="wc-list-heart"/g) ?? []).length).toBe(2);
     expect(html.indexOf('1위 굿즈')).toBeLessThan(html.indexOf('2위 굿즈'));
     expect(html).not.toContain('큐레이션 밖 굿즈');
   });
@@ -132,4 +145,22 @@ describe('/shop/best page', () => {
     expect(html).toContain('href="/shop"');
     expect(html).not.toContain('wc-product-grid');
   });
+
+  it('BEST 배너가 있으면 텍스트 제목 대신 배너가 머리말이 된다(CL-09)', async () => {
+    mocks.categoryBestTabs = [tab('카테고리', ['a'])];
+    mocks.banners = [collectionBanner('b1', 'best'), collectionBanner('n1', 'new')];
+    mocks.bannerSlots = [];
+    const html = renderToStaticMarkup(await Page({ searchParams: Promise.resolve({}) }));
+
+    expect(mocks.bannerSlots).toEqual(['best']);
+    expect(html).toContain('wc-collection-banners--contained');
+    expect(html).toContain('배너 b1');
+    expect(html).not.toContain('배너 n1');
+    expect(html).toMatch(/<h1 class="wc-sr-only">BEST<\/h1>/);
+    mocks.banners = [];
+  });
 });
+
+function collectionBanner(id: string, slot: CollectionBanner['slot']): CollectionBanner {
+  return { id, slot, title: `배너 ${id}`, subtitle: null, imageUrl: `https://cdn.test/${id}.webp`, mobileImageUrl: null, href: null, imageAlt: '', imageDim: 'none', textColor: 'black', endsAt: null };
+}

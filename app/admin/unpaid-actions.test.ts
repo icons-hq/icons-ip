@@ -1,3 +1,4 @@
+import { legacyOperatorAccessFixture } from '@/lib/admin/access.test-fixtures';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   confirmBankDepositAction,
@@ -24,7 +25,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/lib/auth/admin', () => ({
-  getCurrentAdminAuthState: () => mocks.adminState,
+  getCurrentAdminAuthState: () => ({ ...mocks.adminState, operatorAccess: 'operatorAccess' in mocks.adminState && mocks.adminState.operatorAccess || legacyOperatorAccessFixture() }),
 }));
 vi.mock('@/lib/supabase/server', () => ({
   createClient: () => ({ rpc: mocks.rpc }),

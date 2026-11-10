@@ -1,10 +1,12 @@
 'use server';
 
+import { hasAdminCapability, type AdminCapability } from '@/lib/admin/access';
+
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
-import { getAdminCustomerDetail } from '@/lib/admin/customer-detail.server';
+import { getAdminCustomerHistory } from '@/lib/admin/customer-detail.server';
 import { isCustomerId, MAX_CUSTOMER_NOTE_LENGTH, normalizeCustomerDetailFilters, type AdminCustomerDetail } from '@/lib/admin/customer-detail';
 
 export interface CustomerNoteState { error?: string; message?: string; resultKey?: string }
@@ -14,20 +16,20 @@ export interface CustomerHistoryState {
 }
 const NOTE_FAILED = '메모를 저장하지 못했습니다. 입력한 메모는 유지됩니다. 다시 시도해주세요.';
 function read(data: FormData, name: string) { const value = data.get(name); return typeof value === 'string' ? value.trim() : ''; }
-async function staffError(userId: string) {
+async function staffError(userId: string, capability: AdminCapability) {
   const auth = await getCurrentAdminAuthState();
   if (!auth.isConfigured || !auth.user) redirect(`/login?next=${encodeURIComponent(isCustomerId(userId) ? `/admin/customers/${userId}` : '/admin/community/members')}`);
-  return auth.isStaff ? null : '운영자 권한이 필요합니다.';
+  return auth.isStaff && hasAdminCapability(auth, capability) ? null : '운영자 권한이 필요합니다.';
 }
 
 export async function loadCustomerHistoryAction(_state: CustomerHistoryState, form: FormData): Promise<CustomerHistoryState> {
   const userId = read(form, 'userId');
-  const accessError = await staffError(userId);
-  if (accessError) return { error: accessError };
   const filters = normalizeCustomerDetailFilters({ tab: read(form, 'tab'), page: read(form, 'page') });
+  const accessError = await staffError(userId, filters.tab === 'orders' ? 'sales.read' : 'sales.manage');
+  if (accessError) return { error: accessError };
   if (!isCustomerId(userId) || !['orders', 'claims'].includes(filters.tab)) return { error: '고객 이력을 다시 열어주세요.' };
   try {
-    const detail = await getAdminCustomerDetail(userId, filters);
+    const detail = await getAdminCustomerHistory(userId, filters);
     if (!detail) return { error: '고객을 찾을 수 없습니다.' };
     const { items, tab, page, pageSize, total } = detail;
     return { history: { userId, items, tab, page, pageSize, total } };
@@ -38,7 +40,7 @@ export async function loadCustomerHistoryAction(_state: CustomerHistoryState, fo
 
 export async function addCustomerNoteAction(_state: CustomerNoteState, form: FormData): Promise<CustomerNoteState> {
   const userId = read(form, 'userId');
-  const accessError = await staffError(userId);
+  const accessError = await staffError(userId, 'platform.manage');
   if (accessError) return { error: accessError };
   const body = read(form, 'body');
   const operationId = read(form, 'operationId');

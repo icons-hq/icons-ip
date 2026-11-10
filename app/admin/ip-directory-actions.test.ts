@@ -1,3 +1,4 @@
+const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ auth: vi.fn(), rpc: vi.fn(), revalidate: vi.fn() }));
 vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: mocks.auth }));
@@ -11,7 +12,7 @@ function form() {
   return data;
 }
 beforeEach(() => {
-  mocks.auth.mockResolvedValue({ isConfigured: true, isStaff: true, user: { id: 'staff' } });
+  mocks.auth.mockResolvedValue({ isConfigured: true, isStaff: true, operatorAccess: legacyOperatorAccessFixture(), user: { id: 'staff' } });
   mocks.rpc.mockResolvedValue({ error: null });
   vi.clearAllMocks();
 });
@@ -30,7 +31,7 @@ describe('IP directory action', () => {
     mocks.auth.mockResolvedValue({ isConfigured: true, isStaff: false, user: { id: 'user' } });
     expect((await saveIpDirectoryAction({}, form())).errors?.form).toContain('권한');
     expect(mocks.rpc).not.toHaveBeenCalled();
-    mocks.auth.mockResolvedValue({ isConfigured: true, isStaff: true, user: { id: 'staff' } });
+    mocks.auth.mockResolvedValue({ isConfigured: true, isStaff: true, operatorAccess: legacyOperatorAccessFixture(), user: { id: 'staff' } });
     const data = form(); data.set('expectedOrder', '["hwasan","hwasan"]');
     expect((await saveIpDirectoryAction({}, data)).errors?.form).toContain('새로고침');
     expect(mocks.rpc).not.toHaveBeenCalled();

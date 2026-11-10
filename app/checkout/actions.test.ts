@@ -1,8 +1,12 @@
+import { GoodsPaymentRepositoryError } from '@/lib/payments/goods-checkout.server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CurrentAuthState } from '@/lib/auth/server';
 import type { CheckoutOrderSnapshot } from '@/lib/checkout.server';
 import type { PreparedCheckout } from '@/lib/payments/gateway';
-import { placeOrderAction, prepareGoodsPaymentAction } from './actions';
+import { placeOrderAction as placeOrderActionRaw, prepareGoodsPaymentAction } from './actions';
+
+const seenCart=[{goodId:'g1',variantId:'00000000-0000-4000-8000-000000000001',qty:1}];
+const placeOrderAction=(address:unknown,key:unknown,method:unknown='card',credits:unknown=0,coupon:unknown=undefined)=>placeOrderActionRaw(address,key,method,credits,coupon,seenCart);
 
 const mocks = vi.hoisted(() => ({
   auth: { isConfigured: true, user: null, profile: null, isStaff: false } as CurrentAuthState,
@@ -10,8 +14,10 @@ const mocks = vi.hoisted(() => ({
   paymentAvailable: true,
   availabilityUserIds: [] as Array<string | undefined>,
   availabilityProviders: [] as Array<string | undefined>,
-  derivedProvider: 'toss' as 'toss' | 'korpay',
+  derivedProvider: 'toss' as 'toss' | 'nicepay',
   deriveProvider: vi.fn(),
+  derivedCartProvider: 'toss' as 'toss' | 'nicepay',
+  deriveCartProvider: vi.fn(),
   runtimeProviders: [] as Array<string | undefined>,
   prepare: vi.fn(),
   rpc: vi.fn(),
@@ -30,6 +36,10 @@ vi.mock('@/lib/payments/goods-sale-restriction.server', () => ({
   deriveGoodsOrderProvider: (orderId: string) => {
     mocks.deriveProvider(orderId);
     return Promise.resolve(mocks.derivedProvider);
+  },
+  deriveGoodsCartProvider: (goodIds: string[]) => {
+    mocks.deriveCartProvider(goodIds);
+    return Promise.resolve(mocks.derivedCartProvider);
   },
 }));
 vi.mock('@/lib/payments/goods-checkout.runtime.server', () => ({
@@ -69,6 +79,8 @@ const checkoutOrder: CheckoutOrderSnapshot = {
   paymentStatus: null,
   shipments: [],
   paymentMethod: 'card' as const,
+  paymentAttempt: null,
+  hasActiveCancellationRequest: false,
   items: [],
 };
 
@@ -121,9 +133,9 @@ describe('placeOrderAction', () => {
     vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'service-role-key');
   });
 
-  it('normalizes fulfillment data and sends no client amount or item list', async () => {
+  it('normalizes fulfillment data and sends a cart expectation without client prices', async () => {
     await expect(placeOrderAction(address, checkoutKey)).resolves.toEqual({ ok: true, orderId });
-    expect(mocks.rpc).toHaveBeenCalledWith('place_order_with_store_credits', {
+    expect(mocks.rpc).toHaveBeenCalledWith('place_order_with_cart_snapshot', {
       p_user_id: userId,
       p_address: {
         recipientName: '팬',
@@ -138,6 +150,8 @@ describe('placeOrderAction', () => {
          흘려보내면 재고가 하루씩 묶인다(#256). */
       p_payment_method: 'card',
       p_store_credit_amount: 0,
+      p_expected_user_coupon_id:null,
+      p_expected_cart:[{good_id:'g1',variant_id:'00000000-0000-4000-8000-000000000001',qty:1,input_revision:0,input_values:{}}],
     });
     expect(mocks.availabilityUserIds).toContain(userId);
   });
@@ -153,12 +167,21 @@ describe('placeOrderAction', () => {
     });
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
+  it('고객이 본 전체 장바구니가 빠지거나 중복된 기대값이면 주문 RPC에 닿지 않는다',async()=>{
+    expect(await placeOrderActionRaw(address,checkoutKey)).toEqual({ok:false,error:'invalid_request'});
+    expect(await placeOrderActionRaw(address,checkoutKey,'card',0,null,[seenCart[0],seenCart[0]])).toEqual({ok:false,error:'invalid_request'});
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+  it('원본 카트가 변경되면 재확인 오류를 반환한다',async()=>{
+    mocks.rpc.mockResolvedValue({data:null,error:{message:'cart_snapshot_changed'}});
+    expect(await placeOrderAction(address,checkoutKey)).toEqual({ok:false,error:'cart_changed'});
+  });
   it('passes explicit coupon intent including no coupon without any client discount amount', async () => {
     await expect(placeOrderAction(address, checkoutKey, 'card', 0, null)).resolves.toEqual({ ok: true, orderId });
-    expect(mocks.rpc).toHaveBeenLastCalledWith('place_order_with_store_credits', expect.objectContaining({ p_expected_user_coupon_id: null }));
+    expect(mocks.rpc).toHaveBeenLastCalledWith('place_order_with_cart_snapshot', expect.objectContaining({ p_expected_user_coupon_id: null }));
     const selectedId = '11111111-1111-4111-8111-111111111111';
     await expect(placeOrderAction(address, checkoutKey, 'card', 0, selectedId)).resolves.toEqual({ ok: true, orderId });
-    expect(mocks.rpc).toHaveBeenLastCalledWith('place_order_with_store_credits', expect.objectContaining({ p_expected_user_coupon_id: selectedId }));
+    expect(mocks.rpc).toHaveBeenLastCalledWith('place_order_with_cart_snapshot', expect.objectContaining({ p_expected_user_coupon_id: selectedId }));
     mocks.rpc.mockClear();
     await expect(placeOrderAction(address, checkoutKey, 'card', 0, 'bad-id')).resolves.toEqual({ ok: false, error: 'invalid_request' });
     expect(mocks.rpc).not.toHaveBeenCalled();
@@ -166,7 +189,7 @@ describe('placeOrderAction', () => {
 
   it('passes only an explicit whole-won credit request and leaves all totals to the atomic order RPC', async () => {
     await expect(placeOrderAction(address, checkoutKey, 'card', '1500')).resolves.toEqual({ ok: true, orderId });
-    expect(mocks.rpc).toHaveBeenLastCalledWith('place_order_with_store_credits', expect.objectContaining({ p_store_credit_amount: 1500 }));
+    expect(mocks.rpc).toHaveBeenLastCalledWith('place_order_with_cart_snapshot', expect.objectContaining({ p_store_credit_amount: 1500 }));
     mocks.rpc.mockClear();
     for (const invalid of [-1, 1.5, '1e3', { amount: 1000 }, Number.MAX_SAFE_INTEGER]) {
       await expect(placeOrderAction(address, checkoutKey, 'card', invalid)).resolves.toEqual({ ok: false, error: 'invalid_request' });
@@ -194,6 +217,33 @@ describe('placeOrderAction', () => {
       error: 'payment_unavailable',
     });
     expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('19금 굿즈가 섞인 카트의 카드 주문은 카트 구성으로 파생한 나이스페이 gate를 본다(ADR-0024)', async () => {
+    mocks.availabilityProviders = [];
+    mocks.deriveCartProvider.mockReset();
+    mocks.derivedCartProvider = 'nicepay';
+    mocks.paymentAvailable = false;
+
+    await expect(placeOrderAction(address, checkoutKey)).resolves.toEqual({ ok: false, error: 'payment_unavailable' });
+    expect(mocks.deriveCartProvider).toHaveBeenCalledWith(['g1']);
+    expect(mocks.availabilityProviders).toEqual(['nicepay']);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+
+    mocks.derivedCartProvider = 'toss';
+  });
+
+  it('카트 구성 조회가 실패하면 주문을 만들지 않는다', async () => {
+    mocks.deriveCartProvider.mockReset();
+    mocks.deriveCartProvider.mockImplementationOnce(() => { throw new Error('lookup failed'); });
+
+    await expect(placeOrderAction(address, checkoutKey)).resolves.toEqual({ ok: false, error: 'unavailable' });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('DB의 성인 인증 요구를 주문서 오류로 알린다', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'adult verification required: g1' } });
+    await expect(placeOrderAction(address, checkoutKey)).resolves.toEqual({ ok: false, error: 'adult_verification_required' });
   });
 
   it('rejects a suspended account before validating or reserving an order', async () => {
@@ -230,7 +280,7 @@ describe('placeOrderAction', () => {
     ['store_credit_insufficient', 'store_credit_rejected'],
     ['store_credit_disabled', 'store_credit_rejected'],
     ['checkout key conflict', 'checkout_changed'],
-    ['coupon_selection_changed', 'checkout_changed'],
+    ['coupon_selection_changed', 'coupon_selection_changed'],
     ['sensitive db detail', 'unavailable'],
   ] as const)('maps database error %s to %s', async (message, error) => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message } });
@@ -284,13 +334,18 @@ describe('prepareGoodsPaymentAction', () => {
     expect(mocks.runtimeProviders).toEqual(['toss']);
   });
 
-  it('판매 제한 상품 포함 주문은 korpay로 파생돼 korpay gate·조립을 탄다', async () => {
-    mocks.derivedProvider = 'korpay';
+  it('판매기간 종료는 결제 환경 오류와 구분해 안내한다', async () => {
+    mocks.prepare.mockRejectedValueOnce(new GoodsPaymentRepositoryError('goods_sale_not_open'));
+    await expect(prepareGoodsPaymentAction({}, formData())).resolves.toEqual({ error: 'goods_sale_not_open' });
+  });
+
+  it('판매 제한 상품 포함 주문은 nicepay로 파생돼 nicepay gate·조립을 탄다', async () => {
+    mocks.derivedProvider = 'nicepay';
 
     await expect(prepareGoodsPaymentAction({}, formData())).resolves.toEqual({ prepared });
 
-    expect(mocks.availabilityProviders).toEqual(['korpay']);
-    expect(mocks.runtimeProviders).toEqual(['korpay']);
+    expect(mocks.availabilityProviders).toEqual(['nicepay']);
+    expect(mocks.runtimeProviders).toEqual(['nicepay']);
   });
 
   it('비로그인·foreign 주문·provider OFF는 attempt를 만들지 않는다', async () => {
@@ -320,5 +375,51 @@ describe('prepareGoodsPaymentAction', () => {
       error: 'not_payable',
     });
     expect(mocks.prepare).not.toHaveBeenCalled();
+  });
+
+  /*
+   * 승인 거절·시도 만료 뒤의 prepare는 DB가 goods_payment_attempt_not_preparable로 막는다.
+   * 그 실패를 "결제 환경을 준비 중"으로 뭉개면 고객은 같은 실패를 반복한다.
+   */
+  it.each([
+    ['승인 거절', { paymentAttempt: { state: 'declined', expiresAt: '2099-08-13T10:05:00.000Z', provider: 'toss' } }],
+    ['시도 만료', { paymentAttempt: { state: 'prepared', expiresAt: '2000-01-01T00:00:00.000Z', provider: 'toss' } }],
+    ['취소 요청 처리 중', { hasActiveCancellationRequest: true }],
+  ])('%s 주문은 provider 호출 없이 payment_closed로 답한다', async (_label, patch) => {
+    mocks.loadOrder.mockResolvedValue({ ...checkoutOrder, ...patch });
+
+    await expect(prepareGoodsPaymentAction({}, formData())).resolves.toEqual({ error: 'payment_closed' });
+    expect(mocks.prepare).not.toHaveBeenCalled();
+  });
+
+  it('아직 유효한 prepared 시도는 같은 주문으로 다시 준비한다', async () => {
+    mocks.loadOrder.mockResolvedValue({
+      ...checkoutOrder,
+      paymentAttempt: { state: 'prepared', expiresAt: '2099-08-13T10:05:00.000Z', provider: 'toss' },
+    });
+
+    await expect(prepareGoodsPaymentAction({}, formData())).resolves.toEqual({ prepared });
+    expect(mocks.prepare).toHaveBeenCalledOnce();
+  });
+
+  it('prepare 실패 뒤 원장을 다시 읽어 닫힌 결제와 일시 장애를 나눈다', async () => {
+    mocks.prepare.mockRejectedValue(new Error('goods_payment_repository_failed'));
+    mocks.loadOrder
+      .mockResolvedValueOnce(checkoutOrder)
+      .mockResolvedValueOnce({
+        ...checkoutOrder,
+        paymentAttempt: { state: 'declined', expiresAt: '2099-08-13T10:05:00.000Z', provider: 'toss' },
+      });
+    await expect(prepareGoodsPaymentAction({}, formData())).resolves.toEqual({ error: 'payment_closed' });
+
+    mocks.loadOrder.mockReset();
+    mocks.loadOrder.mockResolvedValue(checkoutOrder);
+    await expect(prepareGoodsPaymentAction({}, formData())).resolves.toEqual({ error: 'payment_unavailable' });
+
+    mocks.loadOrder.mockReset();
+    mocks.loadOrder
+      .mockResolvedValueOnce(checkoutOrder)
+      .mockResolvedValueOnce({ ...checkoutOrder, status: 'canceled' });
+    await expect(prepareGoodsPaymentAction({}, formData())).resolves.toEqual({ error: 'not_payable' });
   });
 });

@@ -5,6 +5,7 @@ import {
 } from '@/lib/payments/goods-checkout';
 import { goodsPaymentConfirmationAvailable } from '@/lib/payments/goods-checkout-availability';
 import { createRuntimeGoodsPaymentCheckout } from '@/lib/payments/goods-checkout.runtime.server';
+import { orderCompleteHref } from '@/lib/routes';
 import {
   TossCallbackInvalidError,
   parseTossSuccessCallback,
@@ -30,8 +31,9 @@ interface TossGoodsPaymentConfirmHandlerDependencies {
   readonly createCheckout: () => GoodsPaymentCheckout;
 }
 
-function redirectForOutcome(outcome: string) {
-  if (outcome === 'approved') return '/orders?payment=approved';
+/* 승인되면 그 주문의 완료 화면으로 보낸다(D12). 주문은 쿼리가 아니라 결제 시도 원장에서 나온다. */
+function redirectForOutcome(outcome: string, orderId?: string) {
+  if (outcome === 'approved') return orderId ? orderCompleteHref(orderId) : '/orders?payment=approved';
   if (outcome === 'unknown' || outcome === 'needs_review') return '/orders?payment=checking';
   return '/orders?payment=failed';
 }
@@ -68,7 +70,7 @@ export function createTossGoodsPaymentConfirmHandler({
 
     try {
       const outcome = await createCheckout().confirm(callback);
-      return tossCallbackRedirect(redirectForOutcome(outcome.outcome));
+      return tossCallbackRedirect(redirectForOutcome(outcome.outcome, outcome.orderId));
     } catch (error) {
       if (error instanceof GoodsPaymentConfirmationInProgressError) {
         return tossCallbackRedirect('/orders?payment=checking');

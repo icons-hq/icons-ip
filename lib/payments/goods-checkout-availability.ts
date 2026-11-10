@@ -10,8 +10,8 @@ import {
 /**
  * Goods reservations are created only when the provider-neutral server path is
  * ready. 신규 결제의 기본 provider는 toss다(에픽 #384). 콜백 drain은 provider별
- * 자격 증명 기준이라 korpay 콜백 라우트는 'korpay'를 명시해 호출한다 — rollout
- * gate가 닫혀도 진행 중 콜백은 계속 처리돼야 한다.
+ * 자격 증명 기준이라 korpay·nicepay 콜백 라우트는 provider를 명시해 호출한다 —
+ * rollout gate가 닫혀도 진행 중 콜백은 계속 처리돼야 한다.
  */
 export function goodsPaymentConfirmationAvailable(
   provider: PaymentCheckoutProvider = 'toss',
@@ -21,7 +21,8 @@ export function goodsPaymentConfirmationAvailable(
 
 /**
  * 신규 결제 시작 gate. provider는 주문의 도메인 사실(판매 제한 상품 포함 여부)
- * 에서 파생된다(#392) — 일반 주문은 toss, 제한 주문은 korpay gate를 본다.
+ * 에서 파생된다(#392) — 일반 주문은 toss, 제한 주문은 nicepay gate를 본다.
+ * korpay gate는 은퇴해 어떤 env로도 열리지 않는다(runtime-gateway.ts).
  */
 export function goodsCheckoutPaymentsEnabled(
   userId?: string,

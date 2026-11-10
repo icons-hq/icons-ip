@@ -6,12 +6,15 @@ export interface WcButtonProps {
   href?: string;
   type?: 'button' | 'submit';
   disabled?: boolean;
+  /** 포커스는 지키고 상태만 잠글 때(진행 중 등). 클릭은 호출부가 막는다. */
+  ariaDisabled?: boolean;
   onClick?: () => void;
   children: ReactNode;
   className?: string;
 }
 
 export function WcButton({
+  ariaDisabled,
   children,
   className,
   disabled,
@@ -33,7 +36,7 @@ export function WcButton({
   }
 
   return (
-    <button className={classes} disabled={disabled} onClick={onClick} type={type}>
+    <button aria-disabled={ariaDisabled ? 'true' : undefined} className={classes} disabled={disabled} onClick={onClick} type={type}>
       {children}
     </button>
   );

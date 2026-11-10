@@ -43,8 +43,9 @@ export function isEmailDeliveryStatus(value: string): value is EmailDeliveryStat
   return (EMAIL_DELIVERY_STATUSES as readonly string[]).includes(value);
 }
 
-export function orderEmailDedupeKey(template: OrderEmailTemplateName, orderId: string): string {
-  return `${template}:${orderId}`;
+export type OrderEmailAudience = 'payer' | 'recipient';
+export function orderEmailDedupeKey(template: OrderEmailTemplateName, orderId: string, audience: OrderEmailAudience = 'payer'): string {
+  return `${template}:${orderId}${audience === 'recipient' ? ':recipient' : ''}`;
 }
 
 /**
@@ -58,15 +59,19 @@ export function inquiryEmailDedupeKey(messageId: string): string {
 }
 
 /**
- * 재입고 알림 메일의 dedupe_key (#326).
+ * 재입고 알림 메일의 dedupe_key (#326 · PD-11).
  *
  * 신청 id 하나로는 부족하다. 같은 신청 행은 재신청→재품절→재입고 사이클마다
  * pending 으로 되돌아오는데, 키가 그대로면 두 번째 재입고 메일이 첫 사이클의 sent
  * 행에 막혀 조용히 사라진다. 전이 시각(restock_alerts.notified_at)을 함께 담아
  * 사이클마다 유일한 키가 되게 한다 — DB 트리거의 알림함 dedupe_key 와 같은 규율이다.
+ *
+ * 옵션 단위 신청은 옵션 id 를 키에 담는다. 굿즈 단위(모든 옵션) 신청은 옵션 키 없이 예전 형식을
+ * 한 글자도 바꾸지 않는다 — 발송 경로는 최근 7일의 notified 행을 다시 읽고 이미 보낸 사이클을 이
+ * 키로만 거르므로, 형식이 바뀌면 그 기간의 지난 사이클 메일이 다음 어드민 저장 때 한 번 더 나간다.
  */
-export function restockAlertEmailDedupeKey(alertId: string, notifiedAtIso: string): string {
-  return `restock_alert:${alertId}:${notifiedAtIso}`;
+export function restockAlertEmailDedupeKey(alertId: string, notifiedAtIso: string, variantId?: string | null): string {
+  return variantId ? `restock_alert:${alertId}:${variantId}:${notifiedAtIso}` : `restock_alert:${alertId}:${notifiedAtIso}`;
 }
 
 /**
@@ -75,18 +80,22 @@ export function restockAlertEmailDedupeKey(alertId: string, notifiedAtIso: strin
  * 형식을 벗어난 키는 null이다 — 재발송 대상이 아닌 행(미래에 추가될 다른 템플릿 등)을
  * 주문 메일로 오인해 엉뚱한 주문에 메일을 보내지 않게 한다.
  */
-export function shipmentEmailDedupeKey(orderId: string, shipmentId: string): string {
-  return `order_shipped:${orderId}:${shipmentId}`;
+export function shipmentEmailDedupeKey(orderId: string, shipmentId: string, audience: OrderEmailAudience = 'payer'): string {
+  return `order_shipped:${orderId}:${shipmentId}${audience === 'recipient' ? ':recipient' : ''}`;
 }
 
 /** Legacy two-part keys are readable; every new shipping email includes its shipment. */
 export function parseOrderEmailDedupeKey(
   value: string,
-): { template: OrderEmailTemplateName; orderId: string; shipmentId?: string } | null {
-  const [template, rawOrderId, rawShipmentId, ...extra] = value.split(':');
+): { template: OrderEmailTemplateName; orderId: string; shipmentId?: string; audience?: 'recipient' } | null {
+  const parts = value.split(':');
+  const recipient = parts.at(-1) === 'recipient';
+  if (recipient) parts.pop();
+  const [template, rawOrderId, rawShipmentId, ...extra] = parts;
   const orderId = rawOrderId?.toLowerCase() ?? '';
   const shipmentId = rawShipmentId?.toLowerCase();
   if (!isOrderEmailTemplateName(template) || !UUID_PATTERN.test(orderId ?? '') || extra.length) return null;
   if (shipmentId !== undefined && (template !== 'order_shipped' || !UUID_PATTERN.test(shipmentId))) return null;
-  return { template, orderId, ...(shipmentId ? { shipmentId } : {}) };
+  if (recipient && template === 'order_shipped' && !shipmentId) return null;
+  return { template, orderId, ...(shipmentId ? { shipmentId } : {}), ...(recipient ? { audience: 'recipient' } as const : {}) };
 }

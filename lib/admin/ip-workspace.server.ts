@@ -42,18 +42,25 @@ export async function loadAdminIpIndex(filters: IpIndexFilters): Promise<AdminIp
 export async function loadAdminIpWorkspace(id: string, tab: IpWorkspaceTab): Promise<AdminIpWorkspaceData | null> {
   const supabase = await createClient();
   const [result, verticals] = await Promise.all([
-    supabase.from('ips').select('id,archived_at,published_at,title,sub,vertical_key,tagline,synopsis,glyph,bg,image_path,featured,fans_count').eq('id', id).maybeSingle(),
+    supabase.from('ips').select('id,archived_at,published_at,title,sub,vertical_key,tagline,synopsis,glyph,bg,image_path,hall_banner_image_path,hall_banner_mobile_image_path,featured,fans_count').eq('id', id).maybeSingle(),
     supabase.from('verticals').select('key,label,color').order('key'),
   ]);
   if (result.error || verticals.error) throw new Error('IP 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
   const row = result.data;
   if (!row) return null;
+  const publicUrl = (path: string | null) => path ? supabase.storage.from(PUBLIC_MEDIA_BUCKET).getPublicUrl(normalizePublicMediaPath(path)).data.publicUrl : null;
+  /* IP 상세의 'IP관 배너' 폼(IP-06)은 이 로더의 값을 현재 배너로 연다 — 빠지면 폼이 빈 칸으로 열리고, 한쪽만 바꿔 저장하면
+     다른 쪽이 지워진다(l8b-qa-1). 목록 화면 로더(catalog.server getAdminCatalogRecords)와 같은 네 필드를 싣는다. */
+  const hallBannerImagePath = row.hall_banner_image_path ?? null;
+  const hallBannerMobileImagePath = row.hall_banner_mobile_image_path ?? null;
   const data: AdminIpWorkspaceData = {
     identity: await loadAdminIpIdentity(id),
     ip: { id: row.id, archivedAt: row.archived_at, publishedAt: row.published_at, title: row.title,
       sub: row.sub, verticalKey: row.vertical_key, tagline: row.tagline, synopsis: row.synopsis,
       glyph: row.glyph, bg: row.bg, imagePath: row.image_path,
-      imageUrl: row.image_path ? supabase.storage.from(PUBLIC_MEDIA_BUCKET).getPublicUrl(normalizePublicMediaPath(row.image_path)).data.publicUrl : imageUrlFromBg(row.bg),
+      imageUrl: publicUrl(row.image_path) ?? imageUrlFromBg(row.bg),
+      hallBannerImagePath, hallBannerImageUrl: publicUrl(hallBannerImagePath),
+      hallBannerMobileImagePath, hallBannerMobileImageUrl: publicUrl(hallBannerMobileImagePath),
       featured: row.featured, fansCount: row.fans_count ?? 0 },
     tab, verticals: verticals.data ?? [], directory: [], related: [], relatedTotal: 0,
   };

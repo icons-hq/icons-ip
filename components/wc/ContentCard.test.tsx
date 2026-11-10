@@ -28,11 +28,12 @@ describe('ContentCard', () => {
     expect(html).toContain('style="background:linear-gradient(#111, #222)"');
   });
 
-  /* 배지는 이미지 위 오버레이가 아니라 텍스트 영역 첫 줄이다(R-스펙 02 §2 ②). */
-  it('renders the badge above the title as a shared Badge primitive', () => {
+  /* 배지는 이미지 위 오버레이가 아니라 텍스트 영역 첫 줄이다(R-스펙 02 §2 ②).
+     같은 Badge 프리미티브에 콘텐츠 카드 변형 클래스를 얹는다(11 HM-02 — 상품 배지 11/600 재사용 금지). */
+  it('renders the badge above the title as a shared Badge primitive with the content-card variant', () => {
     const html = renderToStaticMarkup(<ContentCard {...card} badge="NEW" />);
 
-    expect(html).toContain('<span class="wc-badge">NEW</span>');
+    expect(html).toContain('<span class="wc-badge wc-content-card__badge">NEW</span>');
     expect(html.indexOf('wc-badge')).toBeLessThan(html.indexOf('wc-content-card__title'));
   });
 

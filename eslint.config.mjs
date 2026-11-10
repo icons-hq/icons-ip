@@ -15,6 +15,8 @@ const eslintConfig = defineConfig([
     ".next/**",
     "out/**",
     "build/**",
+    // Local verification evidence includes downloaded references and one-off capture scripts.
+    "output/**",
     // Immutable upstream game bundle; the packaging script validates its input and output hashes.
     "private/ip-popups/aouad-hyosan/**",
     "docs/claude-design/project/support.js",

@@ -41,6 +41,10 @@ SQL
 
 cleanup_fixtures() {
   psql_exec -q <<SQL >/dev/null 2>&1 || true
+-- The buyer's own cancellation now audits the expired attempt it closed with
+-- the buyer as actor; that row references the profile deleted below.
+delete from public.notifications where user_id = '${user_id}'::uuid;
+delete from public.audit_log where target = 'order:${order_id}' or actor_id = '${user_id}'::uuid;
 delete from public.order_cancellation_requests where order_id = '${order_id}'::uuid;
 delete from public.payment_attempts where ref_id = '${order_id}'::uuid;
 delete from public.order_items where order_id = '${order_id}'::uuid;
@@ -489,11 +493,12 @@ fi
 echo "PASS=attempt-ttl-closes-action-before-inventory-release"
 
 # A cancellation request can win while the action is already expired. The
-# sweep uses SKIP LOCKED while that transaction owns the order, then the next
-# pass atomically closes attempt + request + order and restores stock once.
-# The cron fence spans from the stale reset to that next pass: a scheduled pass
-# before the request would cancel the order, and one after the request commits
-# would complete it before this script's pass.
+# sweep uses SKIP LOCKED while that transaction owns the order. Since
+# 20261013110500 the request itself closes the expired prepared attempt under
+# its order -> attempt locks and completes at once (QA-1), so the next pass has
+# nothing left to close and stock is restored exactly once. The cron fence
+# spans from the stale reset to that next pass: a scheduled pass before the
+# request would cancel the order first.
 hold_cron_fence
 psql_exec -q <<SQL >/dev/null
 begin;
@@ -538,15 +543,15 @@ fi
 
 release_commit_gate
 wait "$request_client_pid"
-if ! grep -qx 'requested' "$expiry_log"; then
-  echo "racing cancellation did not persist its durable request" >&2
+if ! grep -qx 'completed' "$expiry_log"; then
+  echo "racing cancellation did not close the expired prepared attempt itself" >&2
   sed -n '1,160p' "$expiry_log" >&2
   exit 1
 fi
 
 swept="$(psql_scalar 'select public.expire_stale_checkouts()')"
-if [[ "$swept" != "1" ]]; then
-  echo "post-request expiry did not close the expired prepared attempt (returned ${swept})" >&2
+if [[ "$swept" != "0" ]]; then
+  echo "post-request expiry reprocessed an order the cancellation already closed (returned ${swept})" >&2
   dump_cron_runs
   exit 1
 fi
@@ -580,4 +585,4 @@ if [[ "$(psql_scalar 'select public.expire_stale_checkouts()')" != "0" ]]; then
   exit 1
 fi
 
-echo "PASS=request-wins-lock-next-expiry-completes-once"
+echo "PASS=request-wins-lock-closes-expired-attempt-once"

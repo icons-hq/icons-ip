@@ -1,14 +1,33 @@
 'use client';
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
+import { ShoppingBag, User, UserCheck, UserPlus } from 'lucide-react';
 import { useState, useTransition } from 'react';
 import { searchCouponTargetGoodsAction, type CouponTargetSearch } from '@/app/admin/coupon-target-actions';
-import { AdminField, AdminFormGrid } from '@/components/admin/console/AdminKit';
+import { AdminField, AdminFormGrid, AdminNotice } from '@/components/admin/console/AdminKit';
+import { ConsolePagination } from '@/components/admin/console/ConsolePagination';
 import { SelectField } from '@/components/admin/fields';
-import type { CouponTargetGood } from '@/lib/coupon-targeting';
+import type { CouponTargetCategory, CouponTargetGood, CouponTargetIp } from '@/lib/coupon-targeting';
+import { CouponCategoryPicker } from './CouponCategoryPicker';
+import { CouponIpPicker } from './CouponIpPicker';
+import { Button } from '@/components/admin/kit/ui/button';
+import { Input } from '@/components/admin/kit/ui/input';
 
-export function CouponTargetingFields({ recipientSegment, goodsScope, targetIds, targetGoods, errors }: {
+/* 혜택 대상 고르기(템플릿 룩, ADR-0028). 타겟팅 카드는 숨긴 라디오 + 고른 카드 강조, 상품 선택 결과는 kit 목록 행이다. */
+const TARGETS = [
+  { value: 'all', label: '전체고객', Icon: User },
+  { value: 'first_purchase', label: '첫구매고객', Icon: UserPlus },
+  { value: 'repeat_purchase', label: '재구매고객', Icon: ShoppingBag },
+  { value: 'targeted', label: '고객지정', Icon: UserCheck },
+] as const;
+const ROW = 'flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-xs';
+
+export function CouponTargetingFields({ recipientSegment, goodsScope, targetIds, targetGoods, errors, showBenefitType = false, issuanceMode = 'code', modeLocked = false, categoryIds = '[]', targetCategories = [], ipIds = '[]', targetIps = [] }: {
   recipientSegment: string; goodsScope: string; targetIds: string; targetGoods: CouponTargetGood[]; errors?: Record<string, string | undefined>;
+  showBenefitType?: boolean;
+  issuanceMode?: string; modeLocked?: boolean; categoryIds?: string; targetCategories?: CouponTargetCategory[];
+  ipIds?: string; targetIps?: CouponTargetIp[];
 }) {
+  const [segment, setSegment] = useState(issuanceMode === 'targeted' ? 'targeted' : recipientSegment);
   const [scope, setScope] = useState(goodsScope);
   const [selected, setSelected] = useState<CouponTargetGood[]>(() => {
     try {
@@ -19,29 +38,37 @@ export function CouponTargetingFields({ recipientSegment, goodsScope, targetIds,
   const [query, setQuery] = useState(''); const [result, setResult] = useState<CouponTargetSearch | null>(null);
   const [pending, start] = useTransition();
   function search(page = 1) { start(async () => setResult(await searchCouponTargetGoodsAction(query, page))); }
-  return <div className="wc-admin-kit">
+  return <div className="flex min-w-0 flex-col gap-4 border-t p-4 sm:p-6">
     <AdminFormGrid>
-      <SelectField name="recipientSegment" label="발급·사용 대상 고객" defaultValue={recipientSegment} error={errors?.recipientSegment}>
-        <option value="all">전체 고객</option><option value="first_purchase">첫구매 고객</option><option value="repeat_purchase">재구매 고객</option>
-      </SelectField>
+      <fieldset className="min-w-0"><legend className="mb-2 text-sm font-medium">타겟팅 대상</legend><div className="grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap">
+        {TARGETS.map(option => <label className="relative flex min-h-[90px] cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border p-3 text-sm transition-colors hover:bg-muted has-[:disabled]:cursor-default has-[:disabled]:opacity-55 has-[:focus-visible]:ring-3 has-[:focus-visible]:ring-ring/50 data-selected:border-primary data-selected:bg-primary-soft data-selected:text-primary-soft-foreground data-selected:ring-1 data-selected:ring-primary sm:w-[116px] forced-colors:data-selected:outline-2" key={option.value} data-selected={segment === option.value || undefined}>
+          <input className="sr-only" name="couponTargetChoice" type="radio" value={option.value} checked={segment === option.value} disabled={modeLocked && (option.value === 'targeted') !== (issuanceMode === 'targeted')} onChange={() => setSegment(option.value)} /><option.Icon aria-hidden="true" className="size-7" /><span>{option.label}</span>
+        </label>)}
+      </div>{errors?.recipientSegment || errors?.issuanceMode ? <p className="mt-2 text-sm text-destructive" role="alert">{errors.recipientSegment || errors.issuanceMode}</p> : null}</fieldset>
+      <input name="recipientSegment" type="hidden" value={segment === 'targeted' ? 'all' : segment} />
+      <input name="issuanceMode" type="hidden" value={segment === 'targeted' ? 'targeted' : 'code'} />
+      {showBenefitType ? <div className="flex flex-col gap-2 text-sm"><span className="font-medium">혜택종류</span><span>쿠폰</span></div> : null}
       <SelectField name="goodsScope" label="할인 대상 상품" value={scope} onChange={event => setScope(event.target.value)} error={errors?.goodsScope}>
-        <option value="all">전체 상품</option><option value="selected_goods">선택한 상품</option>
+        <option value="all">전체 상품</option><option value="selected_ips">선택한 IP</option><option value="selected_categories">선택한 카테고리</option><option value="selected_goods">선택한 상품</option>
       </SelectField>
     </AdminFormGrid>
     <input type="hidden" name="targetGoodIds" value={JSON.stringify(scope === 'selected_goods' ? selected.map(item => item.id) : [])} />
-    <p>{adminGoodsCopy("첫구매·재구매는 전액 취소 완료를 제외한 유효 굿즈 결제 이력으로 판단합니다. 발급 자격과 할인 대상 상품은 별개이며, 등급 혜택도 주문당 쿠폰 1장 안에서 사용합니다.")}</p>
+    {segment === 'targeted' ? <AdminNotice tone="info">저장 후 고객이나 세그먼트를 선택하고 발급 대상을 확인합니다. 직접 발급된 고객만 사용할 수 있으며, 코드 입력으로 새로 받을 수 없습니다.</AdminNotice> : null}
+    <p className="text-xs leading-relaxed text-muted-foreground">{adminGoodsCopy("첫구매·재구매는 전액 취소 완료를 제외한 유효 굿즈 결제 이력으로 판단합니다. 발급 자격과 할인 대상 상품은 별개이며, 등급 혜택도 스토어 정책과 각 쿠폰의 중복 사용 조건을 따릅니다.")}</p>
     {scope === 'selected_goods' ? <>
       <AdminField inputId="coupon-goods-query" label="대상 상품명·상품코드 검색" error={errors?.targetGoodIds}>
-        <input id="coupon-goods-query" type="search" maxLength={100} value={query} onChange={event => setQuery(event.target.value)} />
+        <Input id="coupon-goods-query" type="search" maxLength={100} value={query} onChange={event => setQuery(event.target.value)} />
       </AdminField>
-      <button type="button" className="btn btn-ghost" disabled={pending} onClick={() => search()}>상품 찾기</button>
-      <p>선택 {selected.length}개 · 이 상품들의 기간 할인 후 소계에만 최소금액과 할인을 적용합니다.</p>
-      <ul>{selected.map(good => <li key={good.id}>{good.code} · {good.name}{good.archivedAt ? ' (보관 상품)' : ''} <button type="button" className="btn btn-ghost" onClick={() => setSelected(items => items.filter(item => item.id !== good.id))}>제외</button></li>)}</ul>
+      <Button className="self-start" type="button" variant="outline" disabled={pending} onClick={() => search()}>상품 찾기</Button>
+      <p className="text-xs leading-relaxed text-muted-foreground">선택 {selected.length}개 · 이 상품들의 기간 할인 후 소계에만 최소금액과 할인을 적용합니다.</p>
+      {selected.length ? <ul className="grid gap-2">{selected.map(good => <li className={ROW} key={good.id}><span className="min-w-0 [overflow-wrap:anywhere]">{good.code} · {good.name}{good.archivedAt ? ' (보관 상품)' : ''}</span> <Button className="shrink-0" type="button" size="xs" variant="outline" onClick={() => setSelected(items => items.filter(item => item.id !== good.id))}>제외</Button></li>)}</ul> : null}
       {result?.ok ? <>
-        <p role="status">검색 결과 전체 {result.total}개 · {result.page}페이지</p>
-        <ul>{result.items.map(good => <li key={good.id}>{good.code} · {good.name} <button type="button" className="btn btn-ghost" disabled={selected.some(item => item.id === good.id) || selected.length >= 1000} onClick={() => setSelected(items => [...items, good])}>선택</button></li>)}</ul>
-        <div className="wc-admin-kit__actions"><button type="button" disabled={pending || result.page <= 1} onClick={() => search(result.page - 1)}>이전</button><button type="button" disabled={pending || result.page * result.pageSize >= result.total} onClick={() => search(result.page + 1)}>다음</button></div>
-      </> : result ? <p role="alert">{result.error}</p> : null}
+        <p className="text-xs text-muted-foreground" role="status">검색 결과 전체 {result.total}개 · {result.page}페이지</p>
+        <ul className="grid gap-2">{result.items.map(good => <li className={ROW} key={good.id}><span className="min-w-0 [overflow-wrap:anywhere]">{good.code} · {good.name}</span> <Button className="shrink-0" type="button" size="xs" variant="outline" disabled={selected.some(item => item.id === good.id) || selected.length >= 1000} onClick={() => setSelected(items => [...items, good])}>선택</Button></li>)}</ul>
+        <ConsolePagination label="상품 검색 결과 페이지" page={result.page} pageSize={result.pageSize} total={result.total} unit="개" disabled={pending} onPageChange={search} />
+      </> : result ? <p className="text-sm text-destructive" role="alert">{result.error}</p> : null}
     </> : null}
+    <CouponCategoryPicker active={scope === 'selected_categories'} targetIds={categoryIds} categories={targetCategories} error={errors?.targetCategoryIds} />
+    <CouponIpPicker active={scope === 'selected_ips'} targetIds={ipIds} ips={targetIps} error={errors?.targetIpIds} />
   </div>;
 }

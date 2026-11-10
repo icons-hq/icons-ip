@@ -1,15 +1,27 @@
+import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { CheckoutOrderSnapshot } from '@/lib/checkout.server';
 import type { PreparedCheckout } from '@/lib/payments/gateway';
+import { transactionDisplay, transactionLineId } from '@/test/fixtures/cart-transaction';
+import { checkoutStatusCopy } from '@/lib/checkout-status-copy';
+import { bankTransferDepositName } from '@/lib/payments/bank-transfer';
 import {
   CheckoutOrder,
   effectiveGoodsCheckoutExpiry,
+  prepareRetryable,
   preparedGoodsCheckoutUsable,
 } from './CheckoutOrder';
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ refresh: vi.fn() }),
+  useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
+}));
+vi.mock('@/app/checkout/reorder-actions', () => ({ restoreCanceledOrderToCartAction: vi.fn() }));
+/* 직전 목록 링크(목적지·문구 판정)는 ListingReturn.client.test 가 본다 — 여기서는 닫힌 주문이 그 링크를 쓰는지만 표식으로 본다. */
+vi.mock('@/components/shell/ListingReturn', () => ({
+  ListingReturnLink: ({ children, className }: { children?: ReactNode; className?: string }) => (
+    <a className={className} data-listing-return="">{children ?? '(직전 목록 문구)'}</a>
+  ),
 }));
 
 const order: CheckoutOrderSnapshot = {
@@ -25,6 +37,8 @@ const order: CheckoutOrderSnapshot = {
   paymentStatus: null,
   shipments: [],
   paymentMethod: 'card' as const,
+  paymentAttempt: null,
+  hasActiveCancellationRequest: false,
   items: [{
     id: 'item-1',
     variantId: '00000000-0000-4000-8000-000000000001', goodId: 'g13',
@@ -36,6 +50,25 @@ const order: CheckoutOrderSnapshot = {
 };
 
 describe('CheckoutOrder 영수증', () => {
+  it.each(['pending', 'canceled'])('닫힌 선물 결제(%s)는 일반 장바구니 복원 대신 선물함으로 안내한다', status => {
+    const html = renderToStaticMarkup(<CheckoutOrder order={{ ...order, giftId: order.id, status,
+      paymentStatus: 'declined', paymentAttempt: { state: 'declined', provider: 'toss', expiresAt: null } }} />);
+    expect(html).toContain(`href="/gifts/${order.id}"`);
+    expect(html).toContain('받는 분의 수락과 배송지 확인');
+    expect(html).not.toContain('이 주문 취소하고 다시 주문하기');
+    expect(html).not.toContain('같은 굿즈 다시 담기');
+  });
+
+  it('상품 코드 변경 후에도 원 영수증의 복수할인과 착불을 별도 표시한다', () => {
+    const html = renderToStaticMarkup(<CheckoutOrder order={{ ...order, total: 16000, shippingFee: 0, discountTotal: 1000, storeCreditTotal: 1000, transaction: transactionDisplay,
+      items: [{ ...order.items[0], id: transactionLineId, goodId: 'renamed-good', qty: 2, unitPrice: 10000 }] }} />);
+    expect(html).toContain('온라인 결제금액</dt><dd>₩16,000'); expect(html).toContain('복수구매 할인'); expect(html).toContain('수령 시 별도');
+    expect(html).toContain('홍실 아크릴 블록 · 선결제 ₩0 · 착불 별도');
+  });
+  it('선물 주문의 주소 비공개를 조회 실패로 안내하지 않는다', () => {
+    const html = renderToStaticMarkup(<CheckoutOrder order={{ ...order, giftId: order.id }} />);
+    expect(html).toContain('주소와 연락처는 받는 분만 확인할 수 있어요.');
+  });
   it('서버 원장 금액에서 쿠폰과 적립금을 함께 복원해 굿즈 소계를 표시한다', () => {
     const html = renderToStaticMarkup(<CheckoutOrder order={{ ...order, total: 12500, discountTotal: 1000, storeCreditTotal: 1500 }} />);
     expect(html).toContain('₩12,000');
@@ -111,6 +144,159 @@ describe('CheckoutOrder 결제 실패 복귀 안내', () => {
 
     expect(html).not.toContain('결제가 완료되지 않았어요');
   });
+
+  /* 시도가 닫힌 주문에서 "같은 주문에서 다시 시도"는 지킬 수 없는 약속이다(UX-1). */
+  it('같은 주문으로 다시 결제할 수 없으면 재시도를 약속하지 않는다', () => {
+    const html = renderToStaticMarkup(
+      <CheckoutOrder
+        order={{ ...order, paymentAttempt: { state: 'declined', expiresAt: '2099-08-07T06:10:00.000Z', provider: 'toss' } }}
+        paymentFailCode="PAY_PROCESS_CANCELED"
+      />,
+    );
+
+    expect(html).toContain('결제를 직접 취소하셨어요.');
+    expect(html).not.toContain('같은 주문에서 다시 시도');
+  });
+});
+
+describe('CheckoutOrder 닫힌 결제 안내', () => {
+  it('승인 거절된 주문에는 결제 준비 버튼 대신 다시 결제할 수 없다는 안내를 띄운다', () => {
+    const html = renderToStaticMarkup(
+      <CheckoutOrder
+        order={{ ...order, paymentAttempt: { state: 'declined', expiresAt: '2099-08-07T06:10:00.000Z', provider: 'toss' } }}
+      />,
+    );
+
+    expect(html).toContain('이 주문은 다시 결제할 수 없어요');
+    expect(html).not.toContain('결제 준비하기');
+    expect(html).not.toContain('결제 환경을 준비 중');
+  });
+
+  it('처리 중인 취소 요청이 있으면 결제 대신 주문 상세로 안내한다', () => {
+    const html = renderToStaticMarkup(
+      <CheckoutOrder order={{ ...order, hasActiveCancellationRequest: true }} />,
+    );
+
+    expect(html).toContain('취소 요청을 처리하고 있어요');
+    expect(html).toContain(`href="/orders/${order.id}"`);
+    expect(html).not.toContain('결제 준비하기');
+  });
+
+  /* 웹훅·재정합 비밀이 없으면 확인은 자동으로 계속되지 않는다(UX-4). */
+  it('확인 중 화면은 자동 확인을 약속하지 않고 주문 상세와 1:1 문의로 잇는다', () => {
+    const html = renderToStaticMarkup(
+      <CheckoutOrder order={{ ...order, paymentStatus: 'pending' }} />,
+    );
+
+    expect(html).toContain('결제를 확인하고 있어요');
+    expect(html).not.toContain('확인은 계속됩니다');
+    expect(html).toContain(`href="/orders/${order.id}"`);
+    expect(html).toContain('href="/my/inquiries"');
+  });
+
+  /* C race 케이스 A: 승인을 기다리는 사이 취소를 요청했다. finalizer가 결제 원장을 paid로
+     남기고 주문은 pending, 결제 기한은 비운 채 결제 취소를 시작한다. 30초 폴링 뒤에도
+     '승인 결과를 아직 확정하지 못했어요'에 머물면 사실과 다르다(INT-5). */
+  it('승인된 결제를 취소 요청에 따라 취소하는 중이면 결제 취소 진행으로 안내하고 주문 상세로 잇는다', () => {
+    const html = renderToStaticMarkup(
+      <CheckoutOrder
+        order={{
+          ...order,
+          expiresAt: null,
+          paymentStatus: 'paid',
+          paymentAttempt: { state: 'approved', expiresAt: '2099-08-07T06:10:00.000Z', provider: 'toss' },
+          hasActiveCancellationRequest: true,
+        }}
+      />,
+    );
+
+    expect(html).toContain('결제 취소를 진행하고 있어요');
+    expect(html).toContain('결제는 승인됐고, 취소 요청에 따라 결제 취소를 진행하고 있어요');
+    expect(html).not.toContain('결제를 확인하고 있어요');
+    expect(html).not.toContain('아직 확정하지 못했어요');
+    expect(html).not.toContain('취소 요청을 처리하고 있어요');
+    expect(html).toContain(`href="/orders/${order.id}"`);
+    expect(html).not.toContain('결제 준비하기');
+    expect(html).not.toContain('이 주문 취소하고 다시 주문하기');
+  });
+
+  it('무통장 주문의 결제 취소 진행은 입금 확인과 환불로 말한다', () => {
+    const copy = checkoutStatusCopy({
+      state: 'refund_in_progress',
+      closedCopy: null,
+      isBankTransfer: true,
+      orderStatus: 'pending',
+      reorderMode: null,
+    });
+
+    expect(copy?.title).toBe('환불을 진행하고 있어요');
+    expect(copy?.body).toContain('입금은 확인됐고');
+    expect(copy?.body).not.toContain('결제는 승인됐고');
+  });
+
+  it('취소된 카드 주문은 만료가 아니라 취소로 안내하고 같은 굿즈를 다시 담게 한다', () => {
+    const html = renderToStaticMarkup(
+      <CheckoutOrder order={{ ...order, status: 'canceled', expiresAt: null }} />,
+    );
+
+    expect(html).toContain('취소된 주문이에요');
+    expect(html).not.toContain('결제 가능한 시간이 지났어요');
+    expect(html).toContain('같은 굿즈 다시 담기');
+    expect(html).not.toContain('이 주문 취소하고 다시 주문하기');
+  });
+
+  it('승인 거절된 주문은 한 번에 취소하고 다시 주문하게 한다', () => {
+    const html = renderToStaticMarkup(
+      <CheckoutOrder
+        order={{ ...order, paymentAttempt: { state: 'declined', expiresAt: '2099-08-07T06:10:00.000Z', provider: 'toss' } }}
+      />,
+    );
+
+    expect(html).toContain('이 주문 취소하고 다시 주문하기');
+  });
+
+  /* 즉시 취소가 확실하지 않은 주문(시도를 확인하지 못함 등)은 즉시 정리를 약속하는 대신
+     만료 sweep을 기다리라고 안내한다. (시각에 기대는 상태라 정적 렌더 대신 문구 선택
+     함수로 본다.) */
+  it('결제 기한이 지난 주문은 즉시 취소 가능 여부에 맞춰 다음 일을 안내한다', () => {
+    const base = { state: 'closed' as const, closedCopy: null, isBankTransfer: false, orderStatus: 'pending' };
+    expect(checkoutStatusCopy({ ...base, reorderMode: null })?.body).toContain('몇 분 안에 자동으로 취소');
+    expect(checkoutStatusCopy({ ...base, reorderMode: 'cancel_then_reorder' })?.body).toContain('주문을 취소하면');
+  });
+
+  /* 시도 만료는 시각에 기대는 판정이라 마운트 전(서버 렌더)에는 단정하지 않는다. 마운트
+     뒤 판정은 checkoutReorderMode·closedPaymentCopy 테스트가 본다. */
+  it('시각을 모르는 첫 렌더에서는 유효 시간이 지난 시도에도 정리 액션을 열지 않는다', () => {
+    const html = renderToStaticMarkup(
+      <CheckoutOrder
+        order={{ ...order, paymentAttempt: { state: 'prepared', expiresAt: '2026-08-07T06:10:00.000Z', provider: 'toss' } }}
+      />,
+    );
+
+    expect(html).toContain('결제 가능 시간을 확인하고 있어요');
+    expect(html).not.toContain('이 주문 취소하고 다시 주문하기');
+  });
+
+  /* l9-ui-2 · 10/14 S17 셋째 기준: 닫힌 주문의 둘러보기도 직전에 보던 굿즈 목록으로 간다. 표면을 말하지 않는 '굿즈 다시 담기'는 그 문구를 쓴다. */
+  it('닫힌 주문의 둘러보기는 직전 목록 링크로 간다', () => {
+    const card = renderToStaticMarkup(<CheckoutOrder order={{ ...order, status: 'canceled', expiresAt: null }} />);
+    const bank = renderToStaticMarkup(
+      <CheckoutOrder order={{ ...order, paymentMethod: 'bank_transfer', status: 'canceled', expiresAt: null }} />,
+    );
+
+    expect(card).toContain('<a class="btn btn-ghost" data-listing-return="">(직전 목록 문구)</a>');
+    expect(bank).toContain('<a class="btn btn-holo" data-listing-return="">굿즈 다시 담기</a>');
+    expect(card + bank).not.toContain('href="/shop"');
+  });
+
+  it('무통장 주문에는 카드 주문 정리 액션을 띄우지 않는다', () => {
+    const html = renderToStaticMarkup(
+      <CheckoutOrder order={{ ...order, paymentMethod: 'bank_transfer', status: 'canceled', expiresAt: null }} />,
+    );
+
+    expect(html).not.toContain('같은 굿즈 다시 담기');
+    expect(html).not.toContain('이 주문 취소하고 다시 주문하기');
+  });
 });
 
 describe('CheckoutOrder 무통장 입금 안내', () => {
@@ -143,6 +329,23 @@ describe('CheckoutOrder 무통장 입금 안내', () => {
     expect(html).toContain('15,000');
     /* 입금자명 코드는 DB private.bank_transfer_deposit_code와 같은 규칙이다. */
     expect(html).toContain('홍길동7AD4C967');
+  });
+
+  it('16자리 주문번호가 있으면 입금자명 코드를 주문번호로 만든다(알림 코드와 같은 근거)', () => {
+    const html = renderToStaticMarkup(
+      <CheckoutOrder bankTransferAccount={account} order={{ ...bankOrder, orderNumber: '2026102710000001' }} />,
+    );
+    /* 주문일 10일 주기 자리(6) + 그날 일련번호 끝 5자리 — DB private.bank_transfer_deposit_code_for_number와 같다. */
+    expect(html).toContain('홍길동600001');
+    expect(html).toContain(bankTransferDepositName('홍길동', '2026102710000001'));
+  });
+
+  it('DB가 준 공식 입금코드가 있으면 그것을 안내한다(코드 전환 전에 접수된 주문은 옛 코드 유지)', () => {
+    const html = renderToStaticMarkup(
+      <CheckoutOrder bankTransferAccount={account} order={{ ...bankOrder, orderNumber: '2026102710000001', depositCode: '7AD4C967' }} />,
+    );
+    expect(html).toContain('홍길동7AD4C967');
+    expect(html).not.toContain('홍길동600001');
   });
 
   /*
@@ -181,5 +384,47 @@ describe('CheckoutOrder 무통장 입금 안내', () => {
 
     expect(html).toContain('결제가 확인됐어요');
     expect(html).not.toContain('123456-01-789012');
+  });
+});
+
+describe('CheckoutOrder 한 번에 결제(S8)·장바구니 유지(D3)', () => {
+  it('결제할 수 있는 카드 주문은 결제 준비 버튼 없이 결제 화면을 바로 준비한다', () => {
+    const html = renderToStaticMarkup(<CheckoutOrder order={order} />);
+    expect(html).not.toContain('결제 준비하기');
+    expect(html).not.toContain('결제를 준비해주세요');
+  });
+
+  it('결제 화면 머리말은 전체 UUID 대신 16자리 주문번호를 쓴다(A3a)', () => {
+    const html = renderToStaticMarkup(<CheckoutOrder order={{ ...order, orderNumber: '2026102710000001' }} />);
+    expect(html).toContain('주문번호 2026102710000001');
+    expect(html).not.toContain(`ORDER · ${order.id}`);
+  });
+
+  it('장바구니가 남은 주문의 승인 거절은 다시 담지 않고 주문서에서 다시 결제하게 한다', () => {
+    const html = renderToStaticMarkup(
+      <CheckoutOrder
+        order={{ ...order, cartRetained: true, paymentAttempt: { state: 'declined', expiresAt: '2099-08-07T06:10:00.000Z', provider: 'toss' } }}
+      />,
+    );
+    expect(html).toContain('href="/checkout"');
+    expect(html).toContain('다시 결제하기');
+    expect(html).toContain('장바구니는 그대로 있으니');
+    expect(html).not.toContain('이 주문 취소하고 다시 주문하기');
+  });
+
+  it('장바구니가 남은 주문이 결제 없이 취소됐으면 다시 담지 않고 장바구니로 잇는다', () => {
+    const html = renderToStaticMarkup(<CheckoutOrder order={{ ...order, cartRetained: true, status: 'canceled', expiresAt: null }} />);
+    expect(html).toContain('결제 없이 취소된 주문이에요');
+    expect(html).toContain('href="/cart"');
+    expect(html).not.toContain('같은 굿즈 다시 담기');
+  });
+});
+
+describe('prepareRetryable', () => {
+  it('닫힌 주문·판매기간·로그인처럼 다시 눌러도 같은 실패에는 다시 시도를 두지 않는다', () => {
+    expect(prepareRetryable('payment_unavailable')).toBe(true);
+    for (const error of ['not_payable', 'not_found', 'payment_closed', 'goods_sale_not_open', 'auth_required'] as const) {
+      expect(prepareRetryable(error)).toBe(false);
+    }
   });
 });

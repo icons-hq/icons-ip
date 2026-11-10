@@ -1,6 +1,8 @@
 import type { CheckoutAddress } from '../checkout';
 import { krw } from '../format';
+import { commerceReferenceLabel } from '../commerce-number';
 import { formatOrderDateTime, LEGAL_WITHDRAWAL_NOTICE, orderReferenceLabel } from '../orders';
+import type { GoodsTransactionDisplay } from '../goods-transaction';
 
 /* 트랜잭션 이메일 본문(#180). 순수 함수다 — 네트워크·DB·env를 모르고 입력만 받는다.
  *
@@ -23,21 +25,30 @@ export interface RenderedEmail {
 }
 
 export interface OrderConfirmationEmailInput {
+  transaction?: GoodsTransactionDisplay;
+  giftDelivery?: boolean;
   orderId: string;
+  /** 16자리 주문번호. 번호가 없는 옛 기록만 UUID 뒤 8자리로 표기한다. */
+  orderNumber?: string | null;
   orderedAt: string;
   items: OrderEmailItem[];
   itemsSubtotal: number;
   shippingFee: number;
   discountTotal?: number;
+  /** 주문에 사용한 적립금. 쿠폰 할인과 따로 적어야 굿즈 합계+배송비−할인이 총 결제금액과 맞는다. */
+  storeCreditTotal?: number;
   total: number;
   address: CheckoutAddress | null;
   orderUrl: string;
 }
 
+/* 고객 메일에는 출고지(창고) 이름을 싣지 않는다(10/14 회의 S7). 배송 건은 배송건번호로만 가리킨다. */
 export interface OrderShippedEmailInput {
+  giftDelivery?: boolean;
   orderId: string;
+  orderNumber?: string | null;
   shipmentId: string;
-  originName: string;
+  shipmentNumber?: string | null;
   items: OrderEmailItem[];
   address: CheckoutAddress | null;
   carrierName?: string | null;
@@ -52,6 +63,7 @@ const MUTED = '#6B6685';
 const LINE = '#E4E1F0';
 const ADDRESS_FALLBACK = '배송지 정보를 확인할 수 없습니다. 주문 상세에서 확인해주세요.';
 const TRACKING_FALLBACK = '운송장 정보가 등록되면 주문 상세에서 배송 조회를 할 수 있습니다.';
+const GIFT_DELIVERY_PRIVATE = '선물 받는 분이 입력한 주소로 배송됩니다. 받는 분의 주소·연락처·운송장 정보는 구매자에게 공개되지 않습니다.';
 
 export function escapeHtml(value: string): string {
   return value
@@ -163,9 +175,25 @@ function htmlDocument(reference: string, body: string, referenceLabel = '주문�
 }
 
 export function renderOrderConfirmationEmail(input: OrderConfirmationEmailInput): RenderedEmail {
-  const reference = orderReferenceLabel(input.orderId);
+  const reference = orderReferenceLabel(input.orderId, input.orderNumber);
   const orderedAt = formatOrderDateTime(input.orderedAt);
   const subject = `[ICONS] 주문이 접수됐어요 (주문번호 ${reference})`;
+  const totals = input.transaction?.totals;
+  const amountRows: [string, string][] = totals ? [
+    ['굿즈 합계', krw(totals.subtotal)], ['복수구매 할인', `−${krw(totals.volumeDiscountTotal)}`],
+    ['쿠폰 할인', `−${krw(totals.couponDiscountTotal)}`], ['적립금 사용', `−${krw(totals.storeCreditTotal)}`],
+    ['선불 배송비', krw(totals.prepaidShippingTotal)], ['온라인 결제금액', krw(totals.onlineTotal)],
+    ...(totals.collectShippingTotal > 0 ? [['착불 배송비 · 수령 시 별도', krw(totals.collectShippingTotal)], ['총 부담금액', krw(totals.customerTotal)]] as [string, string][] : []),
+  ] : [
+    ['굿즈 합계', krw(input.itemsSubtotal)], ['배송비', shippingFeeLabel(input.shippingFee)],
+    ...(input.discountTotal ? [['쿠폰 할인', `−${krw(input.discountTotal)}`] as [string, string]] : []),
+    ...(input.storeCreditTotal ? [['적립금 사용', `−${krw(input.storeCreditTotal)}`] as [string, string]] : []),
+    ['총 결제금액', krw(input.total)],
+  ];
+  const collectLines = input.transaction?.shipping.flatMap(group => group.collector ? [
+    `착불 수납 주체: ${group.collector.name} · ${group.collector.method}`, group.collector.instructions,
+    `착불 배송비 환급 문의: ${group.collector.refundContact}`,
+  ] : []) ?? [];
 
   const text = textBlock([
     'ICONS 주문이 접수됐어요.',
@@ -176,13 +204,11 @@ export function renderOrderConfirmationEmail(input: OrderConfirmationEmailInput)
     '[주문 굿즈]',
     ...input.items.map(itemLine),
     '',
-    `굿즈 합계: ${krw(input.itemsSubtotal)}`,
-    `배송비: ${shippingFeeLabel(input.shippingFee)}`,
-    ...(input.discountTotal ? [`쿠폰 할인: −${krw(input.discountTotal)}`] : []),
-    `총 결제금액: ${krw(input.total)}`,
+    ...amountRows.map(([label, value]) => `${label}: ${value}`),
+    ...collectLines,
     '',
     '[배송지]',
-    ...addressLines(input.address),
+    ...(input.giftDelivery ? [GIFT_DELIVERY_PRIVATE] : addressLines(input.address)),
     '',
     '[청약철회 안내]',
     LEGAL_WITHDRAWAL_NOTICE,
@@ -200,14 +226,10 @@ export function renderOrderConfirmationEmail(input: OrderConfirmationEmailInput)
     ]),
     htmlSectionTitle('주문 굿즈'),
     htmlItemRows(input.items),
-    htmlDefinitionRows([
-      ['굿즈 합계', krw(input.itemsSubtotal)],
-      ['배송비', shippingFeeLabel(input.shippingFee)],
-      ...(input.discountTotal ? [['쿠폰 할인', `−${krw(input.discountTotal)}`] as [string, string]] : []),
-      ['총 결제금액', krw(input.total)],
-    ]),
+    htmlDefinitionRows(amountRows),
+    ...collectLines.map(line => htmlParagraph(line)),
     htmlSectionTitle('배송지'),
-    htmlAddress(input.address),
+    input.giftDelivery ? htmlParagraph(GIFT_DELIVERY_PRIVATE) : htmlAddress(input.address),
     htmlSectionTitle('청약철회 안내'),
     htmlParagraph(LEGAL_WITHDRAWAL_NOTICE, INK),
     htmlButton(input.orderUrl, '주문 상세 보기'),
@@ -217,17 +239,17 @@ export function renderOrderConfirmationEmail(input: OrderConfirmationEmailInput)
 }
 
 export function renderOrderShippedEmail(input: OrderShippedEmailInput): RenderedEmail {
-  const reference = orderReferenceLabel(input.orderId);
-  const subject = `[ICONS] ${input.originName} 굿즈가 배송을 시작했어요 (주문번호 ${reference})`;
-  const carrierName = input.carrierName?.trim() || null;
-  const trackingNumber = input.trackingNumber?.trim() || null;
-  const trackingUrl = safeLinkUrl(input.trackingUrl);
+  const reference = orderReferenceLabel(input.orderId, input.orderNumber);
+  const shipmentReference = commerceReferenceLabel(input.shipmentId, input.shipmentNumber);
+  const subject = `[ICONS] 굿즈가 배송을 시작했어요 (주문번호 ${reference})`;
+  const carrierName = input.giftDelivery ? null : input.carrierName?.trim() || null;
+  const trackingNumber = input.giftDelivery ? null : input.trackingNumber?.trim() || null;
+  const trackingUrl = input.giftDelivery ? null : safeLinkUrl(input.trackingUrl);
   const hasTracking = Boolean(carrierName || trackingNumber);
 
   const trackingRows: [string, string][] = [
     ['주문번호', reference],
-    ['배송 건 번호', input.shipmentId],
-    ['출고지', input.originName],
+    ['배송건번호', shipmentReference],
     ...(carrierName ? [['택배사', carrierName] as [string, string]] : []),
     ...(trackingNumber ? [['운송장번호', trackingNumber] as [string, string]] : []),
   ];
@@ -236,18 +258,17 @@ export function renderOrderShippedEmail(input: OrderShippedEmailInput): Rendered
     'ICONS 굿즈가 배송을 시작했어요.',
     '',
     `주문번호: ${reference}`,
-    `배송 건 번호: ${input.shipmentId}`,
-    `출고지: ${input.originName}`,
+    `배송건번호: ${shipmentReference}`,
     ...(carrierName ? [`택배사: ${carrierName}`] : []),
     ...(trackingNumber ? [`운송장번호: ${trackingNumber}`] : []),
     ...(trackingUrl ? [`배송 조회: ${trackingUrl}`] : []),
-    ...(hasTracking ? [] : [TRACKING_FALLBACK]),
+    ...(hasTracking || input.giftDelivery ? [] : [TRACKING_FALLBACK]),
     '',
     '[이번 배송 굿즈]',
     ...input.items.map(itemLine),
     '',
     '[배송지]',
-    ...addressLines(input.address),
+    ...(input.giftDelivery ? [GIFT_DELIVERY_PRIVATE] : addressLines(input.address)),
     '',
     `주문 상세: ${input.orderUrl}`,
   ]);
@@ -257,16 +278,42 @@ export function renderOrderShippedEmail(input: OrderShippedEmailInput): Rendered
     htmlParagraph('아래 굿즈가 배송지로 이동하고 있습니다. 다른 배송 건은 주문 상세에서 확인해주세요.'),
     htmlSectionTitle('배송 정보'),
     htmlDefinitionRows(trackingRows),
-    ...(hasTracking ? [] : [htmlParagraph(TRACKING_FALLBACK)]),
+    ...(hasTracking || input.giftDelivery ? [] : [htmlParagraph(TRACKING_FALLBACK)]),
     ...(trackingUrl ? [htmlButton(trackingUrl, '배송 조회하기')] : []),
     htmlSectionTitle('이번 배송 굿즈'),
     htmlItemRows(input.items),
     htmlSectionTitle('배송지'),
-    htmlAddress(input.address),
+    input.giftDelivery ? htmlParagraph(GIFT_DELIVERY_PRIVATE) : htmlAddress(input.address),
     htmlButton(input.orderUrl, '주문 상세 보기'),
   ].join(''));
 
   return { subject, text, html };
+}
+
+export interface GiftRecipientEmailInput {
+  orderId: string;
+  orderNumber?: string | null;
+  stage: 'confirmation' | 'shipped';
+  items: { name: string; variantName?: string | null; qty: number }[];
+  address: CheckoutAddress;
+  giftUrl: string;
+  carrierName?: string | null;
+  trackingNumber?: string | null;
+  trackingUrl?: string | null;
+}
+/** Recipient messages accept no money, payment, coupon or sender fields. */
+export function renderGiftRecipientEmail(input: GiftRecipientEmailInput): RenderedEmail {
+  const reference = orderReferenceLabel(input.orderId, input.orderNumber), shipped = input.stage === 'shipped';
+  const title = shipped ? '받을 선물의 배송이 시작됐어요' : '받을 선물이 주문됐어요';
+  const itemLines = input.items.map(item => `${item.name}${item.variantName ? ` · ${item.variantName}` : ''} × ${item.qty}`);
+  const trackingUrl = shipped ? safeLinkUrl(input.trackingUrl) : null;
+  const tracking = shipped ? [input.carrierName ? `택배사: ${input.carrierName}` : '', input.trackingNumber ? `운송장번호: ${input.trackingNumber}` : ''].filter(Boolean) : [];
+  const text = textBlock([title, '', '[받을 선물]', ...itemLines, '', '[배송지]', ...addressLines(input.address), ...tracking,
+    ...(trackingUrl ? [`배송 조회: ${trackingUrl}`] : []), '', `선물함: ${input.giftUrl}`]);
+  const html = htmlDocument(reference, [htmlHeading(title), htmlSectionTitle('받을 선물'), ...itemLines.map(line => htmlParagraph(line, INK)),
+    htmlSectionTitle('배송지'), htmlAddress(input.address), ...tracking.map(line => htmlParagraph(line)),
+    ...(trackingUrl ? [htmlButton(trackingUrl, '배송 조회하기')] : []), htmlButton(input.giftUrl, '선물함 보기')].join(''), '선물 주문번호');
+  return { subject: `[ICONS] ${title}`, text, html };
 }
 
 export interface InquiryAnsweredEmailInput {
@@ -281,11 +328,19 @@ export interface InquiryAnsweredEmailInput {
 
 export interface RestockAlertEmailInput {
   goodName: string;
+  /** 옵션 단위 신청이면 그 옵션 이름(PD-11). 굿즈 단위(모든 옵션) 신청은 비운다. */
+  optionName?: string | null;
   /**
    * 굿즈 상세로 가는 **절대** URL. 메일에는 우리 사이트의 상대 경로를 이어 붙일
    * 기준 문서가 없어 http(s) 여야 하고, `safeLinkUrl` 이 그 조건을 강제한다.
    */
   goodPath: string;
+}
+
+/** 재입고 알림 첫 문장. 알림함 본문(DB 트리거)과 같은 문장이다. */
+export function restockAlertSentence(goodName: string, optionName?: string | null): string {
+  const option = optionName?.trim();
+  return option ? `${goodName} · ${option} 옵션이 다시 판매를 시작했어요.` : `${goodName} 굿즈가 다시 판매를 시작했어요.`;
 }
 
 /**
@@ -298,17 +353,20 @@ export interface RestockAlertEmailInput {
  * 참이었고, 재품절은 재신청이라는 자기 경로를 갖는다.
  */
 export function renderRestockAlertEmail(input: RestockAlertEmailInput): RenderedEmail {
-  /* 굿즈명은 길이 무제한 text 다. claim_email_delivery 가 제목 200자를 넘기면 거부하는데,
+  /* 굿즈명·옵션명은 길이 무제한 text 다. claim_email_delivery 가 제목 200자를 넘기면 거부하는데,
      트리거는 이미 notified 로 넘긴 뒤라 그 메일은 영영 못 나간다 — 제목만 자르고
-     전체 이름은 본문이 말한다. */
-  const subjectName = input.goodName.length > 60
-    ? `${input.goodName.slice(0, 59)}…`
-    : input.goodName;
+     전체 이름은 본문이 말한다. 옵션 단위 신청은 어느 옵션인지 제목에서도 보인다. */
+  const option = input.optionName?.trim();
+  const subjectLabel = option ? `${input.goodName} · ${option}` : input.goodName;
+  const subjectName = subjectLabel.length > 60
+    ? `${subjectLabel.slice(0, 59)}…`
+    : subjectLabel;
   const subject = `[ICONS] 재입고 알림 — ${subjectName}`;
   const goodUrl = safeLinkUrl(input.goodPath);
+  const sentence = restockAlertSentence(input.goodName, option);
 
   const text = textBlock([
-    `${input.goodName} 굿즈가 다시 판매를 시작했어요.`,
+    sentence,
     '',
     '수량이 한정적이라 다시 품절될 수 있어요.',
     ...(goodUrl ? ['', `굿즈 보러 가기: ${goodUrl}`] : []),
@@ -316,7 +374,7 @@ export function renderRestockAlertEmail(input: RestockAlertEmailInput): Rendered
 
   const html = htmlDocument(input.goodName, [
     htmlHeading('재입고 알림'),
-    htmlParagraph(`${input.goodName} 굿즈가 다시 판매를 시작했어요.`, INK),
+    htmlParagraph(sentence, INK),
     htmlParagraph('수량이 한정적이라 다시 품절될 수 있어요.'),
     ...(goodUrl ? [htmlButton(goodUrl, '굿즈 보러 가기')] : []),
   ].join(''), '굿즈');
@@ -325,13 +383,17 @@ export function renderRestockAlertEmail(input: RestockAlertEmailInput): Rendered
 }
 
 /* 답변 본문의 줄바꿈만 살린다. 문단 태그로 감싸지 않는 이유는 운영자가 목록·인사말을
-   자유롭게 쓰기 때문이다 — 빈 줄을 문단으로 해석하면 의도한 간격이 사라진다. */
+   자유롭게 쓰기 때문이다 — 빈 줄을 문단으로 해석하면 의도한 간격이 사라진다.
+   white-space:pre-wrap으로 들여쓰기·연속 공백도 접지 않는다(R5, MD-0022). 줄바꿈은 <br />로도
+   남겨 pre-wrap을 무시하는 메일 클라이언트에서도 줄이 유지된다. 브라우저 폼이 보낸 본문은 CRLF라
+   먼저 LF로 맞춘다 — CR이 <br /> 앞에 남으면 HTML 파서가 LF로 바꾸고 pre-wrap이 한 번 더 줄을 바꾼다. */
 function htmlAnswerBody(body: string) {
   const lines = body
+    .replace(/\r\n?/g, '\n')
     .split('\n')
     .map((line) => escapeHtml(line))
     .join('<br />');
-  return `<tr><td style="padding:0 24px 12px 24px;font-size:14px;line-height:1.8;color:${INK};">${lines}</td></tr>`;
+  return `<tr><td style="padding:0 24px 12px 24px;font-size:14px;line-height:1.8;color:${INK};white-space:pre-wrap;word-break:break-word;">${lines}</td></tr>`;
 }
 
 /**

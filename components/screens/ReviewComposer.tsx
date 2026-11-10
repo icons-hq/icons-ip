@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { REVIEW_KIND_LABELS, targetReviewDaysRemaining } from '@/lib/review-types';
 import { useActionState, useState } from 'react';
 import {
   createReviewAction,
@@ -10,6 +11,8 @@ import {
 import { MypageShell } from '@/components/wc/MypageShell';
 import { WcButton } from '@/components/wc/WcButton';
 import type { MyReviewTarget } from '@/lib/reviews.server';
+import { ReviewEventBanner } from '@/components/reviews/ReviewEventBanner';
+import { ScheduledHomeRefresh } from '@/components/home/ScheduledHomeRefresh';
 import {
   MAX_REVIEW_BODY_LENGTH,
   MAX_REVIEW_IMAGES,
@@ -18,7 +21,6 @@ import {
   REVIEW_RATINGS,
   REVIEW_WINDOW_DAYS,
   formatReviewDate,
-  reviewDaysRemaining,
   reviewRatingLabel,
 } from '@/lib/reviews';
 
@@ -63,11 +65,13 @@ export function ReviewComposer({
   mode,
   target,
   now = new Date(),
+  reviewEvents,
 }: {
   mode: 'create' | 'edit';
   target: MyReviewTarget;
   /** 기한 계산 기준 시각. 테스트 주입용. */
   now?: Date;
+  reviewEvents?: import('@/lib/review-events').GoodsReviewEvents;
 }) {
   const isEdit = mode === 'edit';
   const review = target.review;
@@ -77,10 +81,10 @@ export function ReviewComposer({
   );
   const [keptPaths, setKeptPaths] = useState<string[]>(review?.imagePaths ?? []);
 
-  const daysLeft = reviewDaysRemaining(target.deliveredAt, now);
+  const daysLeft = targetReviewDaysRemaining(target, now);
   const expired = daysLeft === null || daysLeft === 0;
   const hidden = review?.status === 'hidden';
-  const blocked = expired || hidden || (!isEdit && !target.writable);
+  const blocked = expired || hidden || (isEdit ? target.editable === false : !target.writable);
 
   return (
     <MypageShell active="/my/reviews">
@@ -89,11 +93,16 @@ export function ReviewComposer({
         <Link className="wc-mypage__headbar-link" href="/my/reviews">내 리뷰</Link>
       </div>
       <p className="wc-mypage__lede">
+        {REVIEW_KIND_LABELS[target.kind ?? 'ordinary']} ·{' '}
         {target.deliveredAt ? `배송완료 ${formatReviewDate(target.deliveredAt)} · ` : ''}
         {expired
-          ? `작성 기한(배송완료 후 ${REVIEW_WINDOW_DAYS}일)이 지났습니다.`
+          ? target.kind === 'month' ? '현재 작성 가능한 기간이 아닙니다.' : `작성 기한(배송완료 후 ${REVIEW_WINDOW_DAYS}일)이 지났습니다.`
           : `작성 기한 ${daysLeft}일 남음`}
       </p>
+
+      {reviewEvents?.nextChangeAt ? <ScheduledHomeRefresh at={reviewEvents.nextChangeAt} /> : null}
+      {!isEdit && !blocked && (target.kind !== 'month' || target.monthRewardEligible) ? reviewEvents?.rows.filter(row => row.goodId === target.goodId).map(row => <ReviewEventBanner key={row.event.id} event={row.event} />) : null}
+      {reviewEvents?.unavailable ? <p className="wc-mypage__hint">진행 중인 리뷰이벤트를 확인하지 못했습니다. 리뷰 등록 시 실제 응모 자격을 다시 확인합니다.</p> : null}
 
       {blocked ? (
         <div className="wc-mypage__notice">
@@ -104,7 +113,7 @@ export function ReviewComposer({
             {hidden
               ? '운영 정책에 따라 비공개 처리되어 수정할 수 없습니다. 삭제는 내 리뷰에서 언제든 가능합니다.'
               : expired
-                ? `리뷰는 배송완료 후 ${REVIEW_WINDOW_DAYS}일까지 남기거나 고칠 수 있습니다.`
+                ? target.kind === 'month' ? '내 리뷰에 표시된 한달사용 작성 기간을 확인해주세요.' : `리뷰는 배송완료 후 ${REVIEW_WINDOW_DAYS}일까지 남기거나 고칠 수 있습니다.`
                 : '이미 이 주문의 굿즈에 리뷰를 남겼거나, 배송이 아직 완료되지 않았습니다.'}
           </span>
           <WcButton href="/my/reviews">내 리뷰로 돌아가기</WcButton>
@@ -126,6 +135,7 @@ export function ReviewComposer({
             <>
               <input name="orderId" type="hidden" value={target.orderId} />
               <input name="goodId" type="hidden" value={target.goodId} />
+              <input name="kind" type="hidden" value={target.kind ?? 'ordinary'} />
             </>
           )}
 
@@ -196,7 +206,7 @@ export function ReviewComposer({
           </div>
 
           <p className="wc-mypage__note">
-            등록한 리뷰는 굿즈 상세에 닉네임과 함께 공개됩니다. 리뷰를 남긴다고 적립금이나 혜택이 주어지지는 않습니다.
+            등록한 리뷰는 굿즈 상세에 닉네임과 함께 공개됩니다. 리뷰 작성만으로 혜택이 지급되지는 않으며, 진행 중인 리뷰이벤트의 선정 혜택은 별도 안내를 확인해주세요.
             개인정보나 타인을 비방하는 내용은 운영 정책에 따라 비공개 처리될 수 있습니다.
           </p>
         </form>

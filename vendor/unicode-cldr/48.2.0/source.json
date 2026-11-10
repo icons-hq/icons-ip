@@ -1,0 +1,45 @@
+{
+  "version": "48.2.0",
+  "cldrVersion": "48.2",
+  "license": "Unicode-3.0",
+  "licenseFile": "LICENSE",
+  "releaseUrl": "https://cldr.unicode.org/index/downloads",
+  "retrievedAt": "2026-10-14",
+  "rowCount": 249,
+  "generatedSha256": "12f1326197a64f7c2d75655a13408f1cac4b94209b0b60a72ceb0253c86e92e5",
+  "selection": "region.xml regular two-letter codes with alpha3 and numeric mapping below 900; CLDR-derived country/region names, not an independent ISO certification",
+  "excludedRegular": [
+    "AC",
+    "CP",
+    "CQ",
+    "DG",
+    "EA",
+    "IC",
+    "TA",
+    "XK"
+  ],
+  "files": {
+    "ko-territories.json": {
+      "url": "https://raw.githubusercontent.com/unicode-org/cldr-json/48.2.0/cldr-json/cldr-localenames-full/main/ko/territories.json",
+      "sha256": "47b2f98d9cbf823068b0594074fe5db7fde80f9baf6a8038bd24ed81aefe7829"
+    },
+    "en-territories.json": {
+      "url": "https://raw.githubusercontent.com/unicode-org/cldr-json/48.2.0/cldr-json/cldr-localenames-full/main/en/territories.json",
+      "sha256": "158c1d575308f7e46912edbeda435c8fe2ef5dad280798231f3a432e406b1807"
+    },
+    "codeMappings.json": {
+      "url": "https://raw.githubusercontent.com/unicode-org/cldr-json/48.2.0/cldr-json/cldr-core/supplemental/codeMappings.json",
+      "sha256": "0d1ef50b92c1140e5847d22d96faf1a9c35543b0dedf8e9a2fcb87e4c51b9ed6"
+    },
+    "region.xml": {
+      "url": "https://raw.githubusercontent.com/unicode-org/cldr/release-48-2/common/validity/region.xml",
+      "sha256": "e751e0eedd46b52c38f3cdb72b0fab61ac8b48e052e8b28ba74b6ac26c4c8cb1"
+    },
+    "LICENSE": {
+      "url": "https://raw.githubusercontent.com/unicode-org/cldr-json/48.2.0/LICENSE",
+      "sha256": "220ba0e1c43b99530d2d5bdb892a99dca0989414f51ab695ecd90163eaa1ec3b"
+    }
+  },
+  "generator": "scripts/generate-country-names.py",
+  "generatedFile": "lib/admin/country-names-data.json"
+}

@@ -35,7 +35,7 @@ function parsePromise(value: unknown): ShipmentPreorderPromise | null {
     updatedAt: value.updatedAt, changes };
 }
 export async function readShipmentPreorderPromiseAction(shipmentId: unknown, orderId?: string): Promise<{ ok: true; promise: ShipmentPreorderPromise } | Failure> {
-  if (!await requireAdminActionAccess(adminOrderActionHref(orderId))) return { ok: false, error: '예약 발송 일정은 운영자가 확인할 수 있습니다.' };
+  if (!await requireAdminActionAccess(adminOrderActionHref(orderId), { capability: 'sales.read' })) return { ok: false, error: '예약 발송 일정은 운영자가 확인할 수 있습니다.' };
   if (!isUuid(shipmentId)) return { ok: false, error: '배송 건을 다시 선택해주세요.' };
   try {
     const client = await createClient();
@@ -45,7 +45,7 @@ export async function readShipmentPreorderPromiseAction(shipmentId: unknown, ord
   } catch (error) { unstable_rethrow(error); return { ok: false, error: '예약 발송 일정을 불러오지 못했습니다.' }; }
 }
 export async function changeShipmentPreorderDateAction(formData: FormData): Promise<{ ok: true; message: string } | Failure> {
-  if (!await requireAdminActionAccess(adminOrderActionHref(formData.get('orderId')))) return { ok: false, error: '예약 발송 일정은 운영자가 변경할 수 있습니다.' };
+  if (!await requireAdminActionAccess(adminOrderActionHref(formData.get('orderId')), { capability: 'sales.manage' })) return { ok: false, error: '예약 발송 일정은 운영자가 변경할 수 있습니다.' };
   const shipmentId = formData.get('shipmentId');
   const date = formData.get('expectedShipDate');
   const expectedVersion = formData.get('updatedAt');

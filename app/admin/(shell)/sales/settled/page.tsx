@@ -2,6 +2,7 @@ import { SettledScreen } from '@/components/admin/screens/SettledScreen';
 import { requireAdminScreenAccess } from '@/lib/admin/guard.server';
 import { normalizeAdminSettledFilters } from '@/lib/admin/settled';
 import { getAdminSettledOrders } from '@/lib/admin/settled.server';
+import { isSettledExportId } from '@/lib/admin/settled-export';
 
 export default async function AdminSalesSettledPage({
   searchParams,
@@ -14,5 +15,6 @@ export default async function AdminSalesSettledPage({
 
   const data = await getAdminSettledOrders(normalizeAdminSettledFilters(query));
 
-  return <SettledScreen data={data} exportRequestId={crypto.randomUUID()} />;
+  const receiptId = typeof query.exportReceipt === 'string' && isSettledExportId(query.exportReceipt) ? query.exportReceipt : undefined;
+  return <SettledScreen data={data} exportRequestId={crypto.randomUUID()} exportReceiptId={receiptId} />;
 }

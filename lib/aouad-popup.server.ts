@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { hasAdminCapability } from '@/lib/admin/access';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { AOUAD_POPUP_ENABLED, AOUAD_POPUP_PUBLIC } from './aouad-popup';
 
@@ -13,6 +14,6 @@ export function isAouadLocalPreviewEnabled(): boolean {
 export async function canViewAouadPopup(): Promise<boolean> {
   if (!AOUAD_POPUP_ENABLED) return false;
   if (AOUAD_POPUP_PUBLIC || isAouadLocalPreviewEnabled()) return true;
-  const { isStaff } = await getCurrentAdminAuthState();
-  return isStaff;
+  const auth = await getCurrentAdminAuthState();
+  return hasAdminCapability(auth, 'platform.manage');
 }

@@ -2,7 +2,7 @@ import 'server-only';
 
 import { createClient } from '@/lib/supabase/server';
 import {
-  adminStatsRange,
+  adminStatsFilterRange,
   type AdminClaimsReport,
   type AdminCustomerReport,
   type AdminSalesReport,
@@ -28,7 +28,7 @@ export async function getAdminSalesReport(
   now: Date = new Date(),
 ): Promise<AdminSalesReport> {
   const supabase = await createClient();
-  const range = adminStatsRange(filters.days, now);
+  const range = adminStatsFilterRange(filters, now);
   const { data, error } = await supabase.rpc('admin_sales_report', {
     p_from: range.from,
     p_to: range.to,
@@ -42,7 +42,7 @@ export async function getAdminClaimsReport(
   now: Date = new Date(),
 ): Promise<AdminClaimsReport> {
   const supabase = await createClient();
-  const range = adminStatsRange(filters.days, now);
+  const range = adminStatsFilterRange(filters, now);
   const { data, error } = await supabase.rpc('admin_claims_report', {
     p_from: range.from,
     p_to: range.to,
@@ -55,7 +55,7 @@ export async function getAdminCustomerReport(
   now: Date = new Date(),
 ): Promise<AdminCustomerReport> {
   const supabase = await createClient();
-  const range = adminStatsRange(filters.days, now);
+  const range = adminStatsFilterRange(filters, now);
   const { data, error } = await supabase.rpc('admin_customer_report', {
     p_from: range.from,
     p_to: range.to,

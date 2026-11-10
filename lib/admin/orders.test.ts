@@ -109,7 +109,7 @@ describe('normalizeAdminOrderFilters', () => {
   );
 
   it('허용하지 않은 검색 대상은 전체 검색으로 되돌린다', () => {
-    expect(normalizeAdminOrderFilters({ field: 'phone' })).toMatchObject({ field: 'all' });
+    expect(normalizeAdminOrderFilters({ field: 'unknown' })).toMatchObject({ field: 'all' });
   });
 });
 
@@ -313,6 +313,8 @@ describe('adminOrdersHref', () => {
   });
 
   it('상세 back 값은 허용된 주문·거래확정 목록 조건만 복원한다', () => {
+    expect(adminOrderBackHref('/admin/sales/dispatch?tab=delayed&delayNotice=partial_failed&page=2&query=ABC'))
+      .toBe('/admin/sales/dispatch?tab=delayed&page=2&query=ABC&delayNotice=partial_failed');
     expect(adminOrderBackHref(
       `/admin/sales/orders?status=shipping&field=tracking&query=ABC&page=3&evil=1`,
     )).toBe('/admin/sales/orders?status=shipping&query=ABC&field=tracking&page=3');

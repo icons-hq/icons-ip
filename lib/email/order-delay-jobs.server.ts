@@ -9,11 +9,15 @@ import { emailSiteUrl } from './site-url';
 
 export interface OrderDelayEmailJob {
   id: string;
+  audience?: 'payer' | 'recipient';
   claimToken: string;
   orderId: string;
+  /** 16자리 주문번호. 이 필드를 내기 전의 DB 응답만 비어 있고, 그때는 UUID 뒤 8자리로 표기한다. */
+  orderNumber?: string | null;
   recipient: string;
   title: string;
   body: string;
+  /** 배송건번호. 고객 메일이라 출고지 이름은 싣지 않는다. */
   shipmentLabels: string[];
 }
 export interface OrderDelayEmailOutcome {
@@ -168,8 +172,8 @@ export async function processOrderDelayEmails(
               result.stale++;
               return;
             }
-            const orderUrl = `${siteUrl}/orders/${job.orderId}`;
-            const text = `주문 ${orderReferenceLabel(job.orderId)}\n안내 대상 배송 건: ${job.shipmentLabels.join(', ')}\n\n${job.body}\n\n주문 확인: ${orderUrl}`;
+            const orderUrl = job.audience === 'recipient' ? `${siteUrl}/gifts` : `${siteUrl}/orders/${job.orderId}`;
+            const text = `주문 ${orderReferenceLabel(job.orderId, job.orderNumber)}\n안내 대상 배송 건: ${job.shipmentLabels.join(', ')}\n\n${job.body}\n\n주문 확인: ${orderUrl}`;
             delivery = outcome(
               await dependencies.dispatcher.dispatch({
                 intentId: intent.intentId,

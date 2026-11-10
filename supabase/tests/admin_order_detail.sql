@@ -101,13 +101,13 @@ do $$ begin
   perform public.admin_order_detail('10000000-0000-4000-8000-000000004141');
   raise exception 'ordinary owner accessed staff order detail';
  exception when insufficient_privilege then
-  if sqlerrm <> 'staff_required' then raise; end if;
+  if sqlerrm not in ('staff_required','operator_capability_required') then raise; end if;
  end;
  begin
   perform public.admin_add_order_note('10000000-0000-4000-8000-000000004141','고객이 내부 메모를 씀',gen_random_uuid());
   raise exception 'ordinary owner added internal note';
  exception when insufficient_privilege then
-  if sqlerrm <> 'staff_required' then raise; end if;
+  if sqlerrm not in ('staff_required','operator_capability_required') then raise; end if;
  end;
 end; $$;
 reset role;

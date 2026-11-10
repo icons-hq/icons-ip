@@ -77,13 +77,19 @@ export interface GoodsPaymentAttemptRepository {
   finalizeOrderReconciliation(input: GoodsPaymentFinalization): Promise<ConfirmOutcome>;
 }
 
+/**
+ * 결제 콜백 확정 결과. `orderId`는 이 결과가 가리키는 굿즈 주문이다(시도 원장의 ref_id). 콜백
+ * 라우트가 승인 뒤 그 주문의 완료 화면으로 보낼 때 쓴다(D12). 쿼리가 아니라 원장에서 나온다.
+ */
+export type GoodsConfirmOutcome = ConfirmOutcome & { readonly orderId?: string };
+
 export interface GoodsPaymentCheckout {
   prepare(input: { readonly userId: string; readonly orderId: string }): Promise<PreparedCheckout>;
   confirm(input: {
     readonly providerOrderId: string;
     readonly callbackNonce: string;
     readonly providerPayload: unknown;
-  }): Promise<ConfirmOutcome>;
+  }): Promise<GoodsConfirmOutcome>;
   reconcilePayment(input: {
     readonly attemptId: string;
     readonly caseRef: string;
@@ -208,7 +214,7 @@ export function createGoodsPaymentCheckout({
 
       if (claim.status === 'terminal') {
         if (claim.outcome.outcome === 'approved') await notifyApproved(claim.attempt);
-        return claim.outcome;
+        return { ...claim.outcome, orderId: claim.attempt.refId };
       }
       if (claim.status === 'in_progress') {
         throw new GoodsPaymentConfirmationInProgressError();
@@ -246,7 +252,7 @@ export function createGoodsPaymentCheckout({
         outcome,
       });
       if (finalized.outcome === 'approved') await notifyApproved(claim.attempt);
-      return finalized;
+      return { ...finalized, orderId: claim.attempt.refId };
     },
 
     async reconcilePayment({ attemptId, caseRef }) {

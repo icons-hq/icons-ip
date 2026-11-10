@@ -5,6 +5,7 @@ import {
   renderOrderConfirmationEmail,
   renderOrderShippedEmail,
   renderRestockAlertEmail,
+  restockAlertSentence,
 } from './templates';
 
 const ORDER_ID = 'b2f8a1c4-3d5e-4f6a-8b7c-9d0e1f2a3b4c';
@@ -38,7 +39,6 @@ function shippedInput(overrides: Partial<Parameters<typeof renderOrderShippedEma
   return {
     orderId: ORDER_ID,
     shipmentId: '00000000-0000-4000-8000-000000044701',
-    originName: '김포',
     items: [{ name: '홍실 아크릴 블록', qty: 1, unitPrice: 12_000 }],
     address,
     carrierName: null,
@@ -50,7 +50,28 @@ function shippedInput(overrides: Partial<Parameters<typeof renderOrderShippedEma
 }
 
 describe('renderOrderConfirmationEmail', () => {
-  it('제목과 본문에 주문번호 뒤 8자리를 넣는다', () => {
+  it('적립금을 쓰지 않은 주문에는 적립금 줄을 넣지 않는다', () => {
+    const email = renderOrderConfirmationEmail(confirmationInput());
+    expect(email.text).not.toContain('적립금 사용');
+  });
+
+  it('적립금 사용액을 텍스트·HTML 양쪽에 차감으로 적는다', () => {
+    const email = renderOrderConfirmationEmail(confirmationInput({ storeCreditTotal: 1500 }));
+    expect(email.text).toContain('적립금 사용: −₩1,500');
+    expect(email.html).toContain('적립금 사용');
+    expect(email.html).toContain('−₩1,500');
+  });
+
+  it('제목·본문·푸터에 16자리 주문번호를 넣는다', () => {
+    const email = renderOrderConfirmationEmail(confirmationInput({ orderNumber: '2026102710000123' }));
+
+    expect(email.subject).toBe('[ICONS] 주문이 접수됐어요 (주문번호 2026102710000123)');
+    expect(email.text).toContain('주문번호: 2026102710000123');
+    expect(email.html).toContain('주문번호 2026102710000123 · 이 메일은 발신 전용입니다.');
+    for (const surface of [email.subject, email.text, email.html]) expect(surface).not.toContain('1F2A3B4C');
+  });
+
+  it('번호가 없는 옛 주문만 UUID 뒤 8자리로 적는다', () => {
     const email = renderOrderConfirmationEmail(confirmationInput());
 
     expect(email.subject).toContain('1F2A3B4C');
@@ -203,6 +224,20 @@ describe('renderInquiryAnsweredEmail (#253)', () => {
     expect(renderInquiryAnsweredEmail(input).html).toContain('안녕하세요.<br />오늘 발송 예정입니다.');
   });
 
+  /* R5(MD-0022): 운영자가 넣은 빈 줄·들여쓰기·연속 공백이 HTML 메일에서 접히지 않는다. */
+  it('빈 줄과 연속 공백을 접지 않도록 답변 칸에 pre-wrap을 둔다', () => {
+    const html = renderInquiryAnsweredEmail({ ...input, answerBody: '안내\n\n  1) 교환  접수' }).html;
+    expect(html).toMatch(/<td style="[^"]*white-space:pre-wrap;[^"]*">안내<br \/><br \/>  1\) 교환  접수<\/td>/);
+  });
+
+  /* 브라우저 폼은 줄바꿈을 CRLF로 보낸다. CR이 남으면 HTML 파서가 LF로 바꾸고 pre-wrap이 그 LF를
+     <br />과 함께 한 번 더 줄바꿈해, 줄마다 빈 줄이 하나씩 생긴다. */
+  it('CRLF·CR 줄바꿈도 줄마다 한 번만 바꾼다', () => {
+    const html = renderInquiryAnsweredEmail({ ...input, answerBody: '안녕하세요.\r\n오늘 발송 예정입니다.\r\r\n\r\n감사합니다.\r끝' }).html;
+    expect(html).toMatch(/white-space:pre-wrap;[^"]*">안녕하세요\.<br \/>오늘 발송 예정입니다\.<br \/><br \/><br \/>감사합니다\.<br \/>끝<\/td>/);
+    expect(html).not.toContain('\r');
+  });
+
   /* 푸터 라벨을 고정하면 문의 메일이 "주문번호 #12"라고 거짓말을 한다. */
   it('푸터가 주문번호가 아니라 문의번호를 가리킨다', () => {
     const html = renderInquiryAnsweredEmail(input).html;
@@ -250,6 +285,43 @@ describe('renderRestockAlertEmail (#326)', () => {
     expect(email.html).not.toContain('<script>');
     expect(email.html).toContain('&lt;script&gt;');
   });
+
+  /* PD-11 — 옵션 단위 신청은 어느 옵션이 돌아왔는지 제목·본문이 말하고, 링크는 그 옵션을 고른 상세다. */
+  it('옵션 단위 신청이면 제목과 본문이 옵션을 말한다', () => {
+    const email = renderRestockAlertEmail({ ...input, optionName: '빨강', goodPath: 'https://iconsip.com/shop/g13?variant=00000000-0000-4000-8000-000000056711' });
+
+    expect(email.subject).toBe('[ICONS] 재입고 알림 — 홍실 아크릴 블록 · 빨강');
+    expect(email.text.split('\n')[0]).toBe('홍실 아크릴 블록 · 빨강 옵션이 다시 판매를 시작했어요.');
+    expect(email.html).toContain('홍실 아크릴 블록 · 빨강 옵션이 다시 판매를 시작했어요.');
+    expect(email.html).toContain('href="https://iconsip.com/shop/g13?variant=00000000-0000-4000-8000-000000056711"');
+  });
+
+  it('옵션 이름이 없거나 비면 굿즈 단위 문장 그대로다', () => {
+    for (const optionName of [undefined, null, '   ']) {
+      const email = renderRestockAlertEmail({ ...input, optionName });
+      expect(email.subject).toBe('[ICONS] 재입고 알림 — 홍실 아크릴 블록');
+      expect(email.text.split('\n')[0]).toBe('홍실 아크릴 블록 굿즈가 다시 판매를 시작했어요.');
+    }
+  });
+
+  /* claim_email_delivery 는 제목 200자를 넘기면 거부한다 — 옵션 이름까지 더한 표시를 60자에서 자른다. */
+  it('긴 옵션 이름도 제목을 60자 표시 안에 둔다', () => {
+    const email = renderRestockAlertEmail({ ...input, optionName: '아주 긴 옵션 이름 '.repeat(20) });
+    expect(email.subject.length).toBeLessThanOrEqual('[ICONS] 재입고 알림 — '.length + 60);
+    expect(email.subject.endsWith('…')).toBe(true);
+  });
+
+  it('옵션 이름의 HTML을 이스케이프한다', () => {
+    const email = renderRestockAlertEmail({ ...input, optionName: '<b>빨강</b>' });
+    expect(email.html).not.toContain('<b>빨강</b>');
+    expect(email.html).toContain('&lt;b&gt;빨강&lt;/b&gt;');
+  });
+
+  /* 알림함 본문은 DB 트리거가 같은 문장으로 쓴다(20261023010000 private.wake_restock_alerts). */
+  it('알림함과 같은 문장을 쓴다', () => {
+    expect(restockAlertSentence('옵션 재입고 굿즈', '옵션 B')).toBe('옵션 재입고 굿즈 · 옵션 B 옵션이 다시 판매를 시작했어요.');
+    expect(restockAlertSentence('전부 품절 굿즈')).toBe('전부 품절 굿즈 굿즈가 다시 판매를 시작했어요.');
+  });
 });
 
  it('preserves the selected option in confirmation text and escaped HTML', () => {
@@ -258,16 +330,15 @@ describe('renderRestockAlertEmail (#326)', () => {
   expect(result.html).toContain('키링 · 파랑 &lt;한정&gt;');
 });
 
- it('배송 건 번호·출고지와 이번 배송 품목으로 메일 스냅샷을 고정한다', () => {
-  const email = renderOrderShippedEmail(shippedInput({carrierName:'한진택배',trackingNumber:'123456789012',trackingUrl:'https://carrier.example.test/123456789012'}));
+ it('주문번호·배송건번호와 이번 배송 품목으로 메일 스냅샷을 고정하고 출고지 이름은 싣지 않는다', () => {
+  const email = renderOrderShippedEmail(shippedInput({orderNumber:'2026102710000123',shipmentNumber:'2026102730000045',carrierName:'한진택배',trackingNumber:'123456789012',trackingUrl:'https://carrier.example.test/123456789012'}));
   expect({subject:email.subject,text:email.text}).toMatchInlineSnapshot(`
     {
-      "subject": "[ICONS] 김포 굿즈가 배송을 시작했어요 (주문번호 1F2A3B4C)",
+      "subject": "[ICONS] 굿즈가 배송을 시작했어요 (주문번호 2026102710000123)",
       "text": "ICONS 굿즈가 배송을 시작했어요.
 
-    주문번호: 1F2A3B4C
-    배송 건 번호: 00000000-0000-4000-8000-000000044701
-    출고지: 김포
+    주문번호: 2026102710000123
+    배송건번호: 2026102730000045
     택배사: 한진택배
     운송장번호: 123456789012
     배송 조회: https://carrier.example.test/123456789012
@@ -282,4 +353,20 @@ describe('renderRestockAlertEmail (#326)', () => {
     주문 상세: https://iconsip.com/orders/b2f8a1c4-3d5e-4f6a-8b7c-9d0e1f2a3b4c",
     }
   `);
+  expect(email.html).toContain('2026102730000045');
+  for (const surface of [email.subject, email.text, email.html]) { expect(surface).not.toContain('출고지'); expect(surface).not.toContain('김포'); }
  });
+
+ it('번호가 없는 옛 배송 건은 UUID 뒤 8자리로 적는다', () => {
+  const email = renderOrderShippedEmail(shippedInput());
+  expect(email.text).toContain('주문번호: 1F2A3B4C');
+  expect(email.text).toContain('배송건번호: 00044701');
+ });
+
+it('defensively suppresses recipient PII and tracking even when a gift payer caller passes them', () => {
+  const confirmation = renderOrderConfirmationEmail(confirmationInput({ giftDelivery: true }));
+  expect(confirmation.text).not.toContain('010-'); expect(confirmation.html).not.toContain('010-');
+  const shipping = renderOrderShippedEmail(shippedInput({ giftDelivery: true, trackingNumber: '987654321000', trackingUrl: 'https://private-tracking.test/track' }));
+  expect(shipping.text).not.toContain('987654321000'); expect(shipping.html).not.toContain('private-tracking.test');
+  expect(shipping.text).toContain('구매자에게 공개되지 않습니다');
+});

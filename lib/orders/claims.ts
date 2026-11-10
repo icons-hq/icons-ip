@@ -21,11 +21,75 @@ export const ORDER_CLAIM_STAGES = [
   'needs_review',
   'completed',
   'rejected',
+  'withdrawn',
 ] as const;
 export type OrderClaimStage = (typeof ORDER_CLAIM_STAGES)[number];
 
 export const ORDER_CLAIM_REFUND_METHODS = ['pg_cancel', 'bank_transfer'] as const;
 export type OrderClaimRefundMethod = (typeof ORDER_CLAIM_REFUND_METHODS)[number];
+
+/**
+ * 클레임 사유 구분 — DB `order_cancellation_requests.reason_type` check 제약 전체.
+ *
+ * 구매자 청약철회 사유(`lib/orders` ORDER_WITHDRAWAL_REASON_TYPES: 단순 변심·하자)에
+ * 운영자 전액 취소(`staff`, ADR-0018)를 더한 값이다. `staff`는 기한·반송비 부담을
+ * 가르는 구매자 사유가 아니다 — 운영 화면은 운영 사유(staff_reason_code)를 함께 보여준다
+ * (2026-10-12 브라우저 QA QA-4). 구매자 신청은 계속 구매자 사유 두 값만 받는다.
+ */
+export const ORDER_CLAIM_REASON_TYPES = ['change_of_mind', 'defect', 'staff'] as const;
+export type OrderClaimReasonType = (typeof ORDER_CLAIM_REASON_TYPES)[number];
+
+/**
+ * 유형별로 새로 받을 수 있는 구매자 사유(10/27 회의 R7).
+ *
+ * 하자·오배송은 굿즈를 받은 뒤에야 알 수 있으므로 취소(발주확인 전)에는 받지 않고 반품·교환으로
+ * 받는다. 고객 화면은 원래 취소에 단순 변심만 보냈고, 판매자 대리 접수·고객 취소 API·목록 필터가
+ * 이 표를 따른다. 이미 저장된 요청의 사유는 바꾸지 않고 그대로 표시한다.
+ */
+export const ORDER_CLAIM_BUYER_REASON_TYPES: Record<OrderClaimType, readonly Exclude<OrderClaimReasonType, 'staff'>[]> = {
+  cancel: ['change_of_mind'],
+  return: ['change_of_mind', 'defect'],
+  exchange: ['change_of_mind', 'defect'],
+};
+
+/**
+ * 운영자 전액 취소 사유(ADR-0018). DB `admin_start_order_cancellation`의 허용 목록·
+ * `order_cancellation_requests_staff_origin_shape` 제약과 같아야 한다 — 한쪽만 늘리면
+ * 고를 수 있는데 항상 거절되는 선택지가 생긴다.
+ */
+export const ORDER_STAFF_CANCELLATION_REASON_CODES = [
+  'out_of_stock',
+  'customer_request',
+  'test_payment_cleanup',
+  'other',
+] as const;
+export type OrderStaffCancellationReasonCode = (typeof ORDER_STAFF_CANCELLATION_REASON_CODES)[number];
+
+export const ORDER_STAFF_CANCELLATION_REASON_LABELS: Record<OrderStaffCancellationReasonCode, string> = {
+  out_of_stock: '품절·출고 불가',
+  customer_request: '고객 요청(CS 접수)',
+  test_payment_cleanup: '테스트 결제 정리',
+  other: '기타',
+};
+
+/** 운영자 전액 취소의 사유 구분 표기. 운영 사유는 뒤에 붙는다. */
+export const ORDER_STAFF_CLAIM_REASON_LABEL = '운영자 전액 취소';
+
+export function isOrderClaimReasonType(value: unknown): value is OrderClaimReasonType {
+  return typeof value === 'string' && (ORDER_CLAIM_REASON_TYPES as readonly string[]).includes(value);
+}
+
+export function isOrderStaffCancellationReasonCode(value: unknown): value is OrderStaffCancellationReasonCode {
+  return typeof value === 'string'
+    && (ORDER_STAFF_CANCELLATION_REASON_CODES as readonly string[]).includes(value);
+}
+
+/** 운영자 전액 취소 표기. 사유 코드를 모르면 구분만 적는다. */
+export function orderStaffClaimReasonLabel(staffReasonCode: OrderStaffCancellationReasonCode | null) {
+  return staffReasonCode
+    ? `${ORDER_STAFF_CLAIM_REASON_LABEL} · ${ORDER_STAFF_CANCELLATION_REASON_LABELS[staffReasonCode]}`
+    : ORDER_STAFF_CLAIM_REASON_LABEL;
+}
 
 export const ORDER_CLAIM_TYPE_LABELS: Record<OrderClaimType, string> = {
   cancel: '취소',
@@ -57,6 +121,7 @@ export const ORDER_CLAIM_STAGE_LABELS: Record<OrderClaimStage, string> = {
   needs_review: '결제확인필요',
   completed: '처리완료',
   rejected: '거부',
+  withdrawn: '요청 철회',
 };
 
 export const ORDER_CLAIM_REFUND_METHOD_LABELS: Record<OrderClaimRefundMethod, string> = {
@@ -86,6 +151,21 @@ export function isOrderClaimStage(value: unknown): value is OrderClaimStage {
 export function isOrderClaimRefundMethod(value: unknown): value is OrderClaimRefundMethod {
   return typeof value === 'string'
     && (ORDER_CLAIM_REFUND_METHODS as readonly string[]).includes(value);
+}
+
+/**
+ * 결제 provider가 정하는 환불 수단. null이면 운영자가 고른다(Korpay·결제 없음).
+ *
+ * 토스·나이스페이 결제는 '환불 완료 확정'이 결제사 전액 취소를 발행하므로 결제사 취소뿐이다 —
+ * 계좌 송금을 고를 수 있게 두면 취소가 나간 뒤 송금까지 해서 이중 환불이 된다
+ * (2026-10-12 점검 REF-8·REF-3). 무통장 입금 결제는 계좌 송금으로만 돌려준다.
+ */
+export function orderClaimRefundMethodForProvider(
+  provider: string | null,
+): OrderClaimRefundMethod | null {
+  if (provider === 'toss' || provider === 'nicepay') return 'pg_cancel';
+  if (provider === 'bank_transfer') return 'bank_transfer';
+  return null;
 }
 
 export function orderClaimTypeForSlug(slug: unknown): OrderClaimType | null {
@@ -217,7 +297,7 @@ export function orderClaimSlaState(
   },
   now: Date,
 ): OrderClaimSlaState {
-  if (input.stage === 'completed' || input.stage === 'rejected') {
+  if (!isOpenOrderClaimStage(input.stage)) {
     return { label: '종료', tone: 'muted', dueAt: null };
   }
   if (input.claimType === 'exchange') {
@@ -362,7 +442,7 @@ export interface OrderClaimAvailability {
 /**
  * 구매자가 지금 접수할 수 있는 클레임 유형.
  *
- * 취소는 발주확인 전, 반품·교환은 실제 모든 주문 수량 배송완료 후에 연다.
+ * 취소는 발주확인 전, 반품·교환은 실제 발송된 배송 중 주문부터 전체 수량을 대상으로 연다.
  * DB의 `request_order_claim`이 잠금 안에서 다시 판정하므로 여기 값은 안내용이다.
  */
 /** 소유자/직원 전용 RPC의 발주확인 이력·실제 배송 수량 판정. 접수 시 DB가 다시 검증한다. */
@@ -377,8 +457,8 @@ export function orderClaimAvailability(input: {
   hasActiveClaim: boolean;
   eligibility?: OrderClaimEligibility | null;
 }): OrderClaimAvailability[] {
-  const delivered = input.orderStatus === 'delivered' || input.orderStatus === 'done';
-  const cancelable = input.orderStatus === 'pending' || input.orderStatus === 'paid';
+  const claimableStage = ['shipping', 'delivered', 'done'].includes(input.orderStatus);
+  const cancelable = ['pending', 'paid', 'confirmed', 'shipping', 'delivered', 'done'].includes(input.orderStatus);
 
   return ORDER_CLAIM_TYPES.map((claimType) => {
     if (input.hasActiveClaim) {
@@ -396,21 +476,21 @@ export function orderClaimAvailability(input: {
       return {
         claimType,
         available,
-        blockedReason: available ? null : '주문 취소는 발주확인 전에만 신청할 수 있습니다.',
+        blockedReason: available ? null : '현재 주문의 제작·배송·파일 제공 상태에서는 직접 취소를 신청할 수 없습니다.',
       };
     }
-    const available = delivered && input.eligibility[claimType];
+    const available = claimableStage && input.eligibility[claimType];
     return {
       claimType,
       available,
-      blockedReason: available ? null : '주문의 모든 굿즈가 배송 완료된 뒤에 신청할 수 있습니다.',
+      blockedReason: available ? null : '배송 중 또는 배송완료 주문의 전체 수량을 확인한 뒤 신청할 수 있습니다.',
     };
   });
 }
 
 /** 유형별 접수 안내. 부분 환불을 약속하지 않는 문구를 한 곳에 모아 둔다. */
 export const ORDER_CLAIM_INTAKE_NOTICES: Record<OrderClaimType, string> = {
-  cancel: '취소는 발주확인 전에만 직접 신청할 수 있으며 주문 단위로 처리됩니다. 승인되면 최초 배송비를 포함한 결제금액 전액이 취소되고, 지급된 카드팩 중 개봉하지 않은 것은 회수됩니다.',
-  return: '주문의 모든 굿즈가 배송 완료된 뒤에 주문 전체 반품을 직접 신청할 수 있습니다. 일부 굿즈만 반품하는 처리는 제공하지 않습니다. 안내된 출고지별 반송지에서 모든 굿즈의 회수를 확인한 뒤 최초 배송비를 포함한 결제금액 전액을 환급합니다. 환급 기한은 반환받은 날부터 영업일 기준 3일 이내이며 담당자의 확인이 늦어져도 연장되지 않습니다.',
-  exchange: '주문의 모든 굿즈가 배송 완료된 뒤에 직접 신청할 수 있습니다. 안내된 출고지별 반송지에서 모든 굿즈의 회수를 확인한 뒤 같은 굿즈를 다시 보내드립니다. 결제는 유지되고 카드팩도 회수하지 않습니다.',
+  cancel: '일반 배송 상품은 발주확인 전에 직접 취소할 수 있습니다. 주문제작·배송없음·디지털 상품은 현재 이행 상태에 따라 주문 전체 취소 검토를 요청합니다. 일부 굿즈나 수량만 취소하는 처리는 제공하지 않습니다. 승인되면 최초 배송비를 포함한 결제금액 전액이 취소되고, 지급된 카드팩 중 개봉하지 않은 것은 회수됩니다.',
+  return: '배송 중부터 주문 전체 반품을 직접 신청할 수 있습니다. 일부 굿즈만 반품하는 처리는 제공하지 않습니다. 실물 상품은 안내된 배송 묶음별 반송지에서 전체 회수를 확인하며, 디지털 상품은 제공 이력과 요청 사유를 검토합니다. 승인된 환불은 최초 선결제 배송비를 포함한 결제금액 전액으로 처리합니다. 환급 기한은 반환받은 날부터 영업일 기준 3일 이내이며 담당자의 확인이 늦어져도 연장되지 않습니다.',
+  exchange: '배송 중부터 주문 전체 교환을 직접 신청할 수 있습니다. 안내된 배송 묶음별 반송지에서 모든 굿즈의 회수를 확인한 뒤 같은 굿즈를 다시 보내드립니다. 결제는 유지되고 카드팩도 회수하지 않습니다.',
 };

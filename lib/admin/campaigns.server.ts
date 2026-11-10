@@ -58,7 +58,7 @@ const KIND_SET = new Set<string>(ADMIN_CAMPAIGN_KINDS);
 const STATUS_SET = new Set<string>(ADMIN_CAMPAIGN_STATUSES);
 const OFFER_STATUS_SET = new Set<string>(ADMIN_COIN_OFFER_STATUSES);
 
-export async function getAdminCampaignConsoleData(): Promise<AdminCampaignConsoleData> {
+export async function getAdminCampaignConsoleData(options: { includeOffers?: boolean } = {}): Promise<AdminCampaignConsoleData> {
   const supabase = await createClient();
 
   const [campaignsResult, offersResult] = await Promise.all([
@@ -67,7 +67,7 @@ export async function getAdminCampaignConsoleData(): Promise<AdminCampaignConsol
       /* supabase-js 는 select 를 문자열 리터럴로 받아야 행 타입을 추론한다 — 쪼개면 안 된다. */
       .select('id,kind,title,subtitle,status,starts_at,ends_at,hero_image_path,card_image_path,banner_image_path,featured_order,sections,updated_at')
       .order('starts_at', { ascending: false }),
-    supabase
+    options.includeOffers === false ? Promise.resolve({ data: [], error: null }) : supabase
       .from('coin_exchange_offers')
       .select('id,pool_id,label,coin_cost,ticket_count,status,updated_at')
       .order('created_at', { ascending: false }),

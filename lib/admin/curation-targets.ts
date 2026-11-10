@@ -40,6 +40,12 @@ const FIXED_TARGETS: AdminCurationTargetOption[] = [
   { label: '굿즈샵', path: '/shop' },
   { label: '카드팩', path: '/packs' },
   { label: '오프라인 팝업', path: '/offline-popups' },
+  /* 텍스트 공지 바의 버튼 목적지로 자주 쓰는 화면(예: '약관 개정 안내 → 내용 보기', LFS 패리티 2차 L8a). */
+  { label: '이벤트', path: '/events' },
+  { label: '쇼핑스토리', path: '/stories' },
+  { label: '이용약관', path: '/legal/terms' },
+  { label: '개인정보처리방침', path: '/legal/privacy' },
+  { label: '배송·반품 정책', path: '/legal/shipping' },
   /* 커뮤니티는 임시 비공개라 새 큐레이션 타깃으로 제안하지 않는다. 공개 지면 쪽에서도
      withoutCommunityCurations 가 기존 배너를 걸러낸다. 복원은 lib/community-visibility.ts. */
   ...(COMMUNITY_ENABLED ? [{ label: '커뮤니티', path: '/community' }] : []),

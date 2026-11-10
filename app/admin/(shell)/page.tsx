@@ -1,10 +1,15 @@
+import { loadAdminHomeAttention } from '@/lib/admin/home-attention.server';
 import { loadAdminWorkQueue } from '@/lib/admin/work-queue.server';
 import { redirect } from 'next/navigation';
 import { OverviewSection } from '@/components/admin/sections/Overview';
 import { requireAdminScreenAccess } from '@/lib/admin/guard.server';
 import { getAdminInsights } from '@/lib/admin/insights.server';
 import { getAdminModerationRecords } from '@/lib/admin/moderation.server';
-import { legacyAdminSectionHref } from '@/lib/admin/navigation';
+import { ADMIN_SCREENS, legacyAdminSectionHref } from '@/lib/admin/navigation';
+import { adminInsightPeriod } from '@/lib/admin/home-summary';
+import { loadAdminHomeSummary } from '@/lib/admin/home-summary.server';
+import { canAccessAdminScreen, hasAdminCapability, operatorAccessOf } from '@/lib/admin/access';
+import { OperatorOverview } from '@/components/admin/sections/OperatorOverview';
 
 export default async function AdminOverviewPage({
   searchParams,
@@ -29,13 +34,22 @@ export default async function AdminOverviewPage({
     redirect(search ? `${legacyHref}?${search}` : legacyHref);
   }
 
-  await requireAdminScreenAccess('/admin');
+  const auth = await requireAdminScreenAccess('/admin');
+  if (!hasAdminCapability(auth, 'platform.manage')) {
+    const attention = hasAdminCapability(auth, 'cs.manage') ? await loadAdminHomeAttention().catch(() => undefined) : undefined;
+    return <OperatorOverview role={auth.role ?? 'staff'} access={operatorAccessOf(auth)} attention={attention} />;
+  }
 
-  const [insights, moderation, workQueue] = await Promise.all([
-    getAdminInsights().catch(() => null),
+  const days = adminInsightPeriod(query.period);
+  /* 무통장 입금 대기·환불 송금 대기는 목적지 화면을 열 수 있는 계정에만 집계한다(환불 송금 대기는 관리자 전용). */
+  const canOpen = (screenId: string) => canAccessAdminScreen(auth, ADMIN_SCREENS.find((screen) => screen.id === screenId) ?? null);
+  const [insights, moderation, workQueue, summary, attention] = await Promise.all([
+    getAdminInsights(days).catch(() => null),
     getAdminModerationRecords().catch(() => null),
-    loadAdminWorkQueue(),
+    loadAdminWorkQueue({ unpaid: canOpen('unpaid'), refundTransfers: canOpen('refund-transfers') }),
+    loadAdminHomeSummary().catch(() => undefined),
+    loadAdminHomeAttention().catch(() => undefined),
   ]);
 
-  return <OverviewSection insights={insights} reports={moderation?.reports ?? null} workQueue={workQueue} />;
+  return <OverviewSection insights={insights} reports={moderation?.reports ?? null} workQueue={workQueue} summary={summary} days={days} attention={attention} />;
 }

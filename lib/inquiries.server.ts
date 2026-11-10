@@ -1,4 +1,6 @@
 import 'server-only';
+import type { InquiryFile } from './inquiry-files';
+import { loadInquiryMessageFiles } from './inquiry-files.server';
 
 import { loadInquiryAuthorNames } from '@/lib/inquiry-authors.server';
 import { orderReferenceLabel } from '@/lib/orders';
@@ -12,6 +14,8 @@ import {
   type InquiryCategory,
   type InquiryStatus,
 } from '@/lib/inquiries';
+import { adultGoodsRestrictions } from './adult-goods';
+import { getAdultGoodsAccess } from './adult-goods-access.server';
 
 /* 사용자 표면의 문의 로더(#253).
  *
@@ -27,10 +31,12 @@ export interface InquiryMessageView {
   authorName: string | null;
   body: string;
   imageUrls: string[];
+  files?: InquiryFile[];
   createdAt: string;
 }
 
 export interface InquiryListItem {
+  orderNumber?: string;
   id: string;
   reference: number;
   category: InquiryCategory;
@@ -50,6 +56,7 @@ export interface InquiryThreadView extends InquiryListItem {
 }
 
 interface InquiryRow {
+  order?: { order_number: string } | { order_number: string }[] | null;
   id: string;
   reference: number;
   category: string;
@@ -68,11 +75,12 @@ interface MessageRow {
   author: string;
   body: string;
   image_paths: string[] | null;
+  file_ids?: string[];
   created_at: string;
 }
 
 const INQUIRY_COLUMNS =
-  'id,reference,category,title,status,order_id,good_id,created_at,last_message_at,answered_at,closed_at';
+  'id,reference,category,title,status,order_id,good_id,created_at,last_message_at,answered_at,closed_at,order:orders(order_number)';
 
 /* 앱이 모르는 카테고리·상태는 목록에서 빼지 않고 안전한 값으로 접는다.
    행을 감추면 사용자가 자기가 보낸 문의를 잃어버린다. */
@@ -86,6 +94,8 @@ function toListItem(row: InquiryRow): InquiryListItem {
     title: row.title,
     status: isInquiryStatus(row.status) ? row.status : 'open',
     orderId: row.order_id,
+    ...((Array.isArray(row.order) ? row.order[0]?.order_number : row.order?.order_number)
+      ? { orderNumber: Array.isArray(row.order) ? row.order[0].order_number : row.order!.order_number } : {}),
     goodId: row.good_id,
     createdAt: row.created_at,
     lastMessageAt: row.last_message_at,
@@ -144,7 +154,7 @@ export async function loadMyInquiryThread(
 
   const { data: messageData, error: messageError } = await supabase
     .from('inquiry_messages')
-    .select('id,author,body,image_paths,created_at')
+    .select('id,author,body,image_paths,file_ids,created_at')
     .eq('inquiry_id', inquiryId)
     .order('created_at', { ascending: true })
     .order('id', { ascending: true });
@@ -152,9 +162,10 @@ export async function loadMyInquiryThread(
   if (messageError) throw new Error(`Failed to load inquiry messages: ${messageError.message}`);
 
   const rows = (messageData ?? []) as MessageRow[];
-  const [urls, authorNames] = await Promise.all([
+  const [urls, authorNames, files] = await Promise.all([
     signedImageUrls(supabase, [...new Set(rows.flatMap((row) => row.image_paths ?? []))]),
     loadInquiryAuthorNames(supabase, inquiryId),
+    rows.some(row => row.file_ids?.length) ? loadInquiryMessageFiles(supabase, inquiryId) : Promise.resolve(new Map<string, InquiryFile[]>()),
   ]);
 
   return {
@@ -168,6 +179,7 @@ export async function loadMyInquiryThread(
         .map((path) => urls.get(path))
         .filter((url): url is string => typeof url === 'string'),
       createdAt: row.created_at,
+      files: files.get(row.id) ?? [],
     })),
   };
 }
@@ -216,15 +228,15 @@ export async function resolveInquiryLinkTargets(
   if (input.orderId) {
     const { data } = await supabase
       .from('orders')
-      .select('id')
+      .select('id,order_number')
       .eq('id', input.orderId)
       .eq('user_id', userId)
-      .maybeSingle<{ id: string }>();
+      .maybeSingle<{ id: string; order_number?: string }>();
     if (data) {
       targets.orderId = data.id;
       /* 표기는 주문 화면과 같은 규칙을 쓴다 — 두 화면이 같은 주문을 다르게 부르면
          구매자가 옮겨 적은 번호가 운영자 검색에 걸리지 않는다. */
-      targets.orderLabel = orderReferenceLabel(data.id);
+      targets.orderLabel = orderReferenceLabel(data.id, data.order_number);
     }
   }
 
@@ -237,9 +249,9 @@ export async function resolveInquiryLinkTargets(
       .not('published_at', 'is', null)
       .is('ips.archived_at', null)
       .not('ips.published_at', 'is', null)
-      // 판매 제한(19금) 상품은 비노출 표면과 같은 취급 — 문의 컨텍스트가
-      // 상품명을 되돌려주는 우회 노출을 막는다(#392).
-      .eq('sale_restriction', 'none')
+      // 판매 제한(19금) 상품은 인증 성인에게만 문의 컨텍스트로 이름을 돌려준다 —
+      // 인증 전 방문자에게 상품명을 되돌려주는 우회 노출을 막는다(#392·ADR-0024).
+      .in('sale_restriction', adultGoodsRestrictions(await getAdultGoodsAccess() === 'full' ? 'full' : 'hidden'))
       .maybeSingle<{ id: string; name: string }>();
     if (data) {
       targets.goodId = data.id;

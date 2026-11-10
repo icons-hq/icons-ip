@@ -4,6 +4,7 @@ import {
   normalizeAdminMemberDetailForm,
   normalizeAdminMemberSearchForm,
   normalizeAdminMemberSuspensionForm,
+  parseAdminMemberSummary,
 } from './members';
 
 const profileId = '11111111-1111-4111-8111-111111111111';
@@ -48,14 +49,22 @@ describe('admin member form normalization', () => {
       value: { profileId, reason: '반복적인 운영 방해' },
     });
   });
+  it('Postgres UUID 표기 형식을 받아 유효한 새 버전 식별자가 목록 전체를 깨뜨리지 않는다', () => {
+    const id = '019ceabc-def0-7123-8abc-0123456789ab';
+    const detail = new FormData(); detail.set('profileId', id.toUpperCase());
+    expect(normalizeAdminMemberDetailForm(detail)).toEqual({ ok: true, value: { profileId: id } });
+    const record = { profile_id: id, nickname: '합성 회원', masked_email: 't***@example.test', role: 'user', created_at: '2026-10-13T00:00:00Z', suspended_at: null };
+    expect(parseAdminMemberSummary(record)).toMatchObject({ id });
+    expect(parseAdminMemberSummary({ ...record, profile_id: 'not-a-uuid' })).toBeNull();
+  });
 });
 
 describe('canModerateAdminMember', () => {
-  it('staff는 일반 사용자만, admin은 본인/admin을 제외한 user·staff만 관리한다', () => {
-    expect(canModerateAdminMember({ actorId: 'staff-a', actorRole: 'staff', memberId: 'fan-a', memberRole: 'user' })).toBe(true);
-    expect(canModerateAdminMember({ actorId: 'staff-a', actorRole: 'staff', memberId: 'staff-b', memberRole: 'staff' })).toBe(false);
-    expect(canModerateAdminMember({ actorId: 'admin-a', actorRole: 'admin', memberId: 'staff-b', memberRole: 'staff' })).toBe(true);
-    expect(canModerateAdminMember({ actorId: 'admin-a', actorRole: 'admin', memberId: 'admin-b', memberRole: 'admin' })).toBe(false);
-    expect(canModerateAdminMember({ actorId: 'admin-a', actorRole: 'admin', memberId: 'admin-a', memberRole: 'user' })).toBe(false);
+  it('현재 DB 허용만 사용하고 누락·거절·본인에게는 제재 작업을 열지 않는다', () => {
+    const input = { actorId: 'actor', memberId: 'member' };
+    expect(canModerateAdminMember({ ...input, moderation: { managerRole: 'deputy', canModerate: true } })).toBe(true);
+    expect(canModerateAdminMember({ ...input, moderation: { managerRole: 'primary', canModerate: false } })).toBe(false);
+    expect(canModerateAdminMember({ ...input, moderation: undefined })).toBe(false);
+    expect(canModerateAdminMember({ ...input, memberId: 'actor', moderation: { managerRole: null, canModerate: true } })).toBe(false);
   });
 });

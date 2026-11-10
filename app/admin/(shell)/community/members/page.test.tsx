@@ -1,3 +1,4 @@
+const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AdminCommunityMembersPage from './page';
 
@@ -15,12 +16,12 @@ const mocks = vi.hoisted(() => ({
     isConfigured: true,
     user: { id: '11111111-1111-4111-8111-111111111111', email: 'staff@icons.gg' },
     role: 'staff',
-    isStaff: true,
+    isStaff: true, operatorAccess: legacyOperatorAccessFixture(),
   } as {
     isConfigured: boolean;
     user: { id: string; email: string | null } | null;
     role: 'user' | 'staff' | 'admin' | null;
-    isStaff: boolean;
+    isStaff: boolean; operatorAccess?: ReturnType<typeof legacyOperatorAccessFixture>;
   },
   membersSection: vi.fn(() => null),
   members: vi.fn(),
@@ -50,7 +51,7 @@ describe('AdminCommunityMembersPage', () => {
       isConfigured: true,
       user: { id: '11111111-1111-4111-8111-111111111111', email: 'staff@icons.gg' },
       role: 'staff',
-      isStaff: true,
+      isStaff: true, operatorAccess: legacyOperatorAccessFixture(),
     };
     mocks.membersSection.mockClear();
     mocks.moderation.mockClear();

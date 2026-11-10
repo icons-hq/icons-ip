@@ -5,7 +5,9 @@ import type { AdminOrderFilters } from './orders';
 const ORDER_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
 
-const mocks = vi.hoisted(() => ({ client: null as unknown }));
+const mocks = vi.hoisted(() => ({ client: null as unknown, deliveryRows: [] as Record<string, unknown>[] }));
+vi.mock('@/lib/order-delivery.server', () => ({ loadAdminOrderDeliveries: async (ids: string[]) => new Map(ids.map(id => [id, { orderId: id, address: mocks.deliveryRows.find(row => row.id === id)?.address ?? null, isGift: false }])) }));
+vi.mock('@/lib/order-transactions.server', () => ({ loadAdminOrderTransactions: async (ids: string[]) => new Map(ids.map(id => [id, null])) }));
 
 vi.mock('@/lib/supabase/server', () => ({ createClient: () => mocks.client }));
 /* 택배사 레지스트리는 DB(`public.shipping_carriers`)에서 온다(#251). 앱에 상수
@@ -35,21 +37,24 @@ interface QueryRecord {
   eq: Array<[string, unknown]>;
   in: Array<[string, unknown[]]>;
   order: Array<[string, { ascending?: boolean } | undefined]>;
+  range?: [number, number];
 }
 
 function createClient(input: {
   rpcRows?: Row[];
   rpcError?: string;
   rpcRowsByName?: Record<string, Row[]>;
+  rpcCounts?: Record<string, number>;
   rpcErrorsByName?: Record<string, string>;
   rows?: Record<string, Row[]>;
   errors?: Record<string, string>;
   records: QueryRecord[];
   rpc: ReturnType<typeof vi.fn>;
 }) {
+  mocks.deliveryRows = input.rpcRowsByName?.admin_search_orders_console ?? input.rpcRows ?? [];
   return {
     rpc: input.rpc.mockImplementation(async (name: string) => ({
-      data: input.rpcRowsByName?.[name] ?? input.rpcRows ?? [],
+      data: name === 'admin_sales_order_counts' ? input.rpcCounts ?? { pending: 0, paid: 0, confirmed: 0, shipping: 0, delivered: 0, done: 0, canceled: 0 } : input.rpcRowsByName?.[name] ?? input.rpcRows ?? [],
       error: input.rpcErrorsByName?.[name]
         ? { message: input.rpcErrorsByName[name] }
         : input.rpcError ? { message: input.rpcError } : null,
@@ -57,10 +62,15 @@ function createClient(input: {
     from(table: string) {
       const record: QueryRecord = { table, select: null, eq: [], in: [], order: [] };
       input.records.push(record);
-      const resolve = (): Result => ({
-        data: input.rows?.[table] ?? [],
-        error: input.errors?.[table] ? { message: input.errors[table] } : null,
-      });
+      // PostgREST처럼 응답은 max_rows(1,000)에서 잘리고, range를 주면 그 구간만 돌려준다.
+      const resolve = (): Result => {
+        const rows = input.rows?.[table] ?? [];
+        const [from, to] = record.range ?? [0, rows.length - 1];
+        return {
+          data: rows.slice(from, Math.min(to, from + 999) + 1),
+          error: input.errors?.[table] ? { message: input.errors[table] } : null,
+        };
+      };
       const query = {
         select(columns: string) {
           record.select = columns;
@@ -76,6 +86,10 @@ function createClient(input: {
         },
         order(column: string, options?: { ascending?: boolean }) {
           record.order.push([column, options]);
+          return query;
+        },
+        range(from: number, to: number) {
+          record.range = [from, to];
           return query;
         },
         then<TResult1 = Result, TResult2 = never>(
@@ -103,6 +117,31 @@ const filters: AdminOrderFilters = {
 describe('getAdminOrderRecords', () => {
   beforeEach(() => {
     mocks.client = null;
+  });
+
+  it('한 페이지 주문의 상품 줄이 API 상한 1,000줄을 넘어도 끝까지 읽는다', async () => {
+    const records: QueryRecord[] = [];
+    mocks.client = createClient({
+      records,
+      rpc: vi.fn(),
+      rpcRows: [{
+        id: ORDER_ID, user_id: USER_ID, buyer_name: 'bulk', buyer_email: null, status: 'paid', total: 1500, address: null,
+        created_at: '2026-07-14T06:00:00.000Z', updated_at: '2026-07-14T06:00:00.000Z', total_count: 1,
+      }],
+      rows: {
+        order_items: Array.from({ length: 1500 }, (_, index) => ({
+          id: `item-${String(index).padStart(4, '0')}`, order_id: ORDER_ID, qty: 1, unit_price: 1,
+          good_name_snapshot: `상품 ${index}`, good_type_snapshot: '키링',
+        })),
+        payment_summaries: [],
+      },
+    });
+
+    const result = await getAdminOrderRecords(filters);
+
+    expect(result.items[0].items).toHaveLength(1500);
+    expect(records.filter((record) => record.table === 'order_items').map((record) => record.range))
+      .toEqual([[0, 999], [1000, 1999]]);
   });
 
   it('filters and paginates in the staff-gated DB RPC, then joins only safe ledger fields', async () => {
@@ -154,6 +193,7 @@ describe('getAdminOrderRecords', () => {
         payment_summaries: [{
           id: 'payment-1',
           ref_id: ORDER_ID,
+          provider: 'toss',
           amount: 32000,
           status: 'paid',
           created_at: '2026-07-14T06:01:00.000Z',
@@ -173,7 +213,7 @@ describe('getAdminOrderRecords', () => {
 
     const result = await getAdminOrderRecords(filters);
 
-    expect(rpc).toHaveBeenCalledWith('admin_search_orders', {
+    expect(rpc).toHaveBeenCalledWith('admin_search_orders_console', {
       p_field: 'all',
       p_from: '2026-07-01',
       p_limit: 20,
@@ -181,6 +221,7 @@ describe('getAdminOrderRecords', () => {
       p_query: 'fan@example.test',
       p_status: 'paid',
       p_to: '2026-07-14',
+      p_date_field: 'ordered', p_payment_method: null, p_sort: 'newest',
     });
     expect(result).toMatchObject({
       filters,
@@ -194,7 +235,7 @@ describe('getAdminOrderRecords', () => {
         status: 'paid',
         total: 32000,
         items: [{ id: 'item-1', name: '화산강림 아크릴 스탠드', type: '아크릴 스탠드', qty: 1, unitPrice: 32000 }],
-        payments: [{ id: 'payment-1', amount: 32000, status: 'paid', createdAt: '2026-07-14T06:01:00.000Z' }],
+        payments: [{ id: 'payment-1', provider: 'toss', amount: 32000, status: 'paid', createdAt: '2026-07-14T06:01:00.000Z' }],
         refunds: [{ id: 'refund-1', amount: 32000, status: 'requested', createdAt: '2026-07-14T07:00:00.000Z' }],
         cancellationRequest: {
           id: '33333333-3333-4333-8333-333333333333',
@@ -219,7 +260,7 @@ describe('getAdminOrderRecords', () => {
     // 서술 reason은 여전히 새면 안 된다. 키 이름으로 정확히 구분한다.
     expect(JSON.stringify(result)).not.toMatch(/must-not-leak|payment_key|"raw"|"reason"/);
     expect(records.find((record) => record.table === 'payment_summaries')?.select).toBe(
-      'id,ref_id,amount,status,created_at',
+      'id,ref_id,provider,amount,status,created_at',
     );
     expect(records.find((record) => record.table === 'refunds')?.select).toBe(
       'id,payment_id,amount,status,created_at',
@@ -245,6 +286,7 @@ describe('getAdminOrderRecords', () => {
       items: [],
       pageSize: 20,
       total: 0,
+      counts: { pending: 0, paid: 0, confirmed: 0, shipping: 0, delivered: 0, done: 0, canceled: 0 },
     });
     expect(records).toEqual([]);
   });
@@ -255,7 +297,7 @@ describe('getAdminOrderRecords', () => {
 
     await getAdminOrderRecords({ ...filters, field: 'tracking', page: 1 });
 
-    expect(rpc).toHaveBeenCalledWith('admin_search_orders', expect.objectContaining({
+    expect(rpc).toHaveBeenCalledWith('admin_search_orders_console', expect.objectContaining({
       p_field: 'tracking',
     }));
   });
@@ -268,7 +310,7 @@ describe('getAdminOrderRecords', () => {
       records,
       rpc,
       rpcRowsByName: {
-        admin_search_orders: [{
+        admin_search_orders_console: [{
           id: ORDER_ID,
           user_id: USER_ID,
           buyer_name: 'maple_fan',
@@ -331,7 +373,7 @@ describe('getAdminOrderRecords', () => {
       records: [],
       rpc: vi.fn(),
       rpcRowsByName: {
-        admin_search_orders: [{
+        admin_search_orders_console: [{
           id: ORDER_ID,
           user_id: USER_ID,
           buyer_name: 'maple_fan',
@@ -464,4 +506,67 @@ describe('getAdminOrderRecords', () => {
       'unsupported cancellation reason type',
     );
   });
+
+  /* 2026-10-12 QA-4·QA-10: 운영자 전액 취소는 운영 사유를, 결제확인필요 요청은 정합화
+     오류 코드를 함께 싣는다. 운영 사유는 운영자 취소에만 있다 — 짝이 어긋나면 fail closed. */
+  function staffRow(overrides: Record<string, unknown>) {
+    return {
+      id: ORDER_ID,
+      user_id: USER_ID,
+      buyer_name: 'fan',
+      buyer_email: null,
+      status: 'paid',
+      total: 1,
+      address: null,
+      created_at: '2026-07-14T06:00:00.000Z',
+      updated_at: '2026-07-14T06:00:00.000Z',
+      cancellation_request_id: '33333333-3333-4333-8333-333333333333',
+      cancellation_request_status: 'needs_review',
+      cancellation_claim_type: 'cancel',
+      cancellation_stage: 'needs_review',
+      cancellation_reason_type: 'staff',
+      cancellation_staff_reason_code: 'test_payment_cleanup',
+      cancellation_last_error_code: 'provider_unavailable',
+      cancellation_requested_at: '2026-07-14T07:00:00.000Z',
+      cancellation_decided_at: '2026-07-14T07:00:00.000Z',
+      cancellation_decision_note: null,
+      total_count: 1,
+      ...overrides,
+    };
+  }
+
+  it('운영자 전액 취소의 운영 사유와 결제사 확인 오류 코드를 싣는다', async () => {
+    mocks.client = createClient({ records: [], rpc: vi.fn(), rpcRows: [staffRow({})] });
+
+    const result = await getAdminOrderRecords(filters);
+    expect(result.items[0].cancellationRequest).toMatchObject({
+      reasonType: 'staff',
+      staffReasonCode: 'test_payment_cleanup',
+      lastErrorCode: 'provider_unavailable',
+    });
+  });
+
+  it('운영 사유 짝이 어긋나면 fail closed다', async () => {
+    mocks.client = createClient({
+      records: [], rpc: vi.fn(), rpcRows: [staffRow({ cancellation_staff_reason_code: null })],
+    });
+    await expect(getAdminOrderRecords(filters)).rejects.toThrow('unsupported staff cancellation reason');
+
+    mocks.client = createClient({
+      records: [], rpc: vi.fn(), rpcRows: [staffRow({ cancellation_reason_type: 'change_of_mind' })],
+    });
+    await expect(getAdminOrderRecords(filters)).rejects.toThrow('unexpected staff cancellation reason');
+  });
+});
+
+it('read-only order search skips payment/refund queries and cancellation operating detail', async () => {
+  const records: QueryRecord[] = []; const rpc = vi.fn();
+  mocks.client = createClient({ records, rpc, rpcRows: [{ id: ORDER_ID, user_id: USER_ID, buyer_name: 'reader', buyer_email: null,
+    status: 'paid', total: 100, address: null, created_at: '2026-10-13', updated_at: '2026-10-13', total_count: 1,
+    cancellation_request_id: 'must-not-project', cancellation_decision_note: 'private-note' }], rows: { order_items: [] } });
+  const result = await getAdminOrderRecords(filters, true, { canManage: false });
+  expect(records.some(row => ['payment_summaries', 'refunds'].includes(row.table))).toBe(false);
+  expect(rpc).not.toHaveBeenCalledWith('admin_goods_manual_recovery_attempts', expect.anything());
+  expect(result.items[0]).toMatchObject({ payments: [], refunds: [], cancellationRequest: null, manualRecoveryAttempt: null });
+  expect(JSON.stringify(result)).not.toContain('private-note');
 });

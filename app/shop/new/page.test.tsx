@@ -6,10 +6,21 @@ import Page, { metadata } from './page';
 
 const mocks = vi.hoisted(() => ({ goods: [] as Good[] }));
 vi.mock('@/lib/catalog-categories.server', () => ({ loadPublicCatalogCategories: async () => [] }));
+const bannerMocks = vi.hoisted(() => ({ slots: [] as string[], enabled: false }));
+vi.mock('@/lib/collection-banners.server', () => ({
+  getCollectionBanners: async (slot: string) => {
+    bannerMocks.slots.push(slot);
+    return bannerMocks.enabled
+      ? [{ id: 'n1', slot, title: 'NEW 배너', subtitle: null, imageUrl: 'https://cdn.test/n1.webp', mobileImageUrl: null, href: null, imageAlt: '', imageDim: 'none', textColor: 'black', endsAt: null }]
+      : [];
+  },
+}));
+vi.mock('@/lib/wishlist-ids.server', () => ({ loadListingWishlist: async () => ({ viewerId: 'viewer-1', goodIds: ['a'] }) }));
+vi.mock('@/app/shop/actions', () => ({ toggleWishlistAction: vi.fn() }));
 
 vi.mock('next/navigation', () => ({
   usePathname: () => '/shop/new',
-  useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
+  useRouter: () => ({ replace: vi.fn(), push: vi.fn(), refresh: vi.fn() }),
 }));
 vi.mock('@/lib/catalog', () => ({
   getCatalogSnapshot: async (): Promise<CatalogSnapshot> => ({
@@ -74,7 +85,16 @@ describe('/shop/new page', () => {
     expect(html).toMatch(/<h1[^>]*>NEW<\/h1>/);
     expect(html).toContain('신상 키링');
     expect(html).not.toContain('평범한 키링');
-    expect(html.replace(/<[^>]+>/g, '')).toContain('전체 1개 굿즈');
+    expect(html.replace(/<[^>]+>/g, '')).toContain('전체 › 1개 굿즈');
+  });
+
+  /* 목록 페이지는 로그인 회원의 위시 ID 집합을 한 번 읽어 카드 하트의 초기 상태로 내려 준다(CL-01). */
+  it('passes the listing wish set to the card hearts', async () => {
+    mocks.goods = [good('a', { name: '신상 키링', badge: 'NEW' })];
+    const html = await render();
+
+    expect(html).toContain('aria-label="신상 키링 위시리스트에서 빼기"');
+    expect(html).toContain('aria-pressed="true"');
   });
 
   it('URL 의 필터·정렬 파라미터를 그대로 목록에 반영한다', async () => {
@@ -96,5 +116,16 @@ describe('/shop/new page', () => {
     expect(html).toContain('굿즈샵 둘러보기');
     expect(html).toContain('href="/shop"');
     expect(html).not.toContain('wc-product-grid');
+  });
+
+  it('NEW 슬롯 배너를 읽어 콘텐츠 폭으로 그린다(CL-09)', async () => {
+    bannerMocks.slots = [];
+    bannerMocks.enabled = true;
+    const html = renderToStaticMarkup(await Page({ searchParams: Promise.resolve({}) }));
+    bannerMocks.enabled = false;
+
+    expect(bannerMocks.slots).toEqual(['new']);
+    expect(html).toContain('wc-collection-banners--contained');
+    expect(html).toContain('NEW 배너');
   });
 });

@@ -58,11 +58,12 @@ export function isReviewRating(value: unknown): value is ReviewRating {
  * 공개 목록 정렬·필터
  * ------------------------------------------------------------------------- */
 
-export const REVIEW_SORTS = ['recent', 'rating_desc', 'rating_asc'] as const;
+export const REVIEW_SORTS = ['recent', 'helpful_desc', 'rating_desc', 'rating_asc'] as const;
 export type ReviewSort = (typeof REVIEW_SORTS)[number];
 
 export const REVIEW_SORT_LABELS: Record<ReviewSort, string> = {
   recent: '최신순',
+  helpful_desc: '도움순',
   rating_desc: '평점 높은순',
   rating_asc: '평점 낮은순',
 };
@@ -74,6 +75,8 @@ export function isReviewSort(value: unknown): value is ReviewSort {
 export const GOOD_REVIEW_PAGE_SIZE = 10;
 
 export interface GoodReviewListOptions {
+  kind?: import('./review-types').ReviewKindFilter;
+  repeat?: import('./review-types').ReviewRepeatFilter;
   sort: ReviewSort;
   photoOnly: boolean;
   page: number;
@@ -106,6 +109,8 @@ export function normalizeGoodReviewOptions(
   return {
     sort: isReviewSort(rawSort) ? rawSort : 'recent',
     photoOnly: singleParam(searchParams.reviewPhoto) === '1',
+    ...(searchParams.reviewKind === 'ordinary' || searchParams.reviewKind === 'month' ? { kind: searchParams.reviewKind } : {}),
+    ...(searchParams.reviewRepeat === 'yes' || searchParams.reviewRepeat === 'no' || searchParams.reviewRepeat === 'unknown' ? { repeat: searchParams.reviewRepeat } : {}),
     page: Number.isSafeInteger(rawPage) && rawPage > 0 ? rawPage : 1,
   };
 }
@@ -126,6 +131,8 @@ export function goodReviewsHref(
   const params = new URLSearchParams();
   if (next.sort !== 'recent') params.set('reviewSort', next.sort);
   if (next.photoOnly) params.set('reviewPhoto', '1');
+  if (next.kind && next.kind !== 'all') params.set('reviewKind', next.kind);
+  if (next.repeat && next.repeat !== 'all') params.set('reviewRepeat', next.repeat);
   params.set('reviewPage', String(Math.max(1, next.page)));
   return `/shop/${goodId}?${params.toString()}#reviews`;
 }
@@ -410,8 +417,9 @@ export function reviewBodyPreview(body: string, limit = 60) {
 }
 
 /** 리뷰 작성 화면 링크. 주문 상세·마이페이지가 공유하는 진입점이다. */
-export function newReviewHref(orderId: string, goodId: string) {
+export function newReviewHref(orderId: string, goodId: string, kind?: import('./review-types').ReviewKind) {
   const params = new URLSearchParams({ orderId, goodId });
+  if (kind === 'month') params.set('kind', kind);
   return `/my/reviews/new?${params.toString()}`;
 }
 

@@ -1,0 +1,21 @@
+.wc-gallery-best-reviews { min-width:0; height:100%; box-sizing:border-box; padding:20px 20px 48px; display:flex; flex-direction:column; gap:12px; overflow-y:auto; background:var(--wc-surface-grey-2); }
+.wc-gallery-best-reviews header { display:flex; align-items:baseline; flex-wrap:wrap; gap:8px; }
+.wc-gallery-best-reviews h2 { margin:0; font-size:15px; font-weight:700; }
+.wc-gallery-best-reviews header > span { font-size:11px; color:var(--wc-ink-sub); }
+.wc-gallery-best-reviews ul { display:flex; flex-direction:column; flex:1; justify-content:center; gap:8px; margin:0; padding:0; list-style:none; }
+.wc-gallery-best-reviews li { min-width:0; }
+.wc-gallery-best-reviews li > a { display:flex; gap:12px; padding:12px; border:1px solid var(--wc-hairline); background:var(--wc-surface); color:inherit; text-decoration:none; }
+.wc-gallery-best-reviews li > a:focus-visible { outline:2px solid var(--wc-ink); outline-offset:-2px; }
+.wc-pdp-gallery .wc-gallery-best-reviews img { flex:none; width:64px; height:64px; object-fit:cover; }
+.wc-gallery-best-reviews__content { min-width:0; font-size:12px; line-height:1.5; }
+.wc-gallery-best-reviews__meta { display:flex; align-items:center; gap:6px; font-size:11px; line-height:16px; }
+.wc-gallery-best-reviews__author { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--wc-ink-sub); }
+.wc-gallery-best-reviews__content > p:not(.wc-review-event-disclosure) { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; margin:4px 0; overflow-wrap:anywhere; }
+.wc-gallery-best-reviews time { margin-left:auto; white-space:nowrap; font-size:10px; color:var(--wc-ink-sub); }
+.wc-gallery-best-reviews .wc-review-event-disclosure { font-size:10px; line-height:1.4; margin:4px 0 0; }
+.wc-gallery-best-reviews__all { text-align:center; font-size:12px; }
+.wc-gallery-best-reviews__all a { color:inherit; text-underline-offset:3px; }
+.wc-pdp-gallery[data-active-kind="reviews"] .wc-pdp-gallery__overlay { display:none; }
+@media(max-width:767px) { .wc-gallery-best-reviews { padding:10px 12px 40px; gap:6px; } .wc-gallery-best-reviews ul { gap:6px; } .wc-gallery-best-reviews li > a { padding:8px; gap:8px; } .wc-gallery-best-reviews__content { font-size:12px; line-height:1.4; } .wc-pdp-gallery .wc-gallery-best-reviews img { width:56px; height:56px; } }
+@media(forced-colors:active) { .wc-gallery-best-reviews,.wc-gallery-best-reviews li > a { border-color:CanvasText; } }
+@media print { .wc-gallery-best-reviews { height:auto; overflow:visible; } .wc-gallery-best-reviews li { break-inside:avoid; } }

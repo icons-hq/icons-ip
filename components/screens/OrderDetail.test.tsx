@@ -1,10 +1,21 @@
+import { orderReshipmentReceipt } from '@/test/fixtures/order-reshipment';
 import { shipmentFixture } from '@/lib/orders/shipments.fixture';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { OrderDetail as OrderDetailData } from '@/lib/orders';
 import { OrderDetail } from './OrderDetail';
+import { reasonReceipt } from '@/lib/orders/claim-reason-change.fixture';
+import { parseClaimReasonHistory } from '@/lib/orders/claim-reason-change';
+import { transactionDisplay, transactionLineId } from '@/test/fixtures/cart-transaction';
+
+/* 회수 계획은 서버 액션으로 문서를 읽는다 — 여기서는 주문 상세가 넘기는 배송 건 이름표만 본다(m27 CUST-2). */
+vi.mock('@/components/orders/ClaimCollectionPlan', () => ({
+  ClaimCollectionPlan: ({ shipmentLabels }: { shipmentLabels?: Readonly<Record<string, string>> }) =>
+    <ul aria-label="회수 계획 이름표">{Object.entries(shipmentLabels ?? {}).map(([id, label]) => <li key={id}>{`${id}=${label}`}</li>)}</ul>,
+}));
 
 vi.mock('next/navigation', () => ({
+  usePathname: () => '/orders/11111111-1111-4111-8111-111111111111',
   useRouter: () => ({ refresh: () => undefined }),
 }));
 
@@ -42,10 +53,123 @@ function order(overrides: Partial<OrderDetailData> = {}): OrderDetailData {
 }
 
 describe('OrderDetail', () => {
-  it('결제 대기 카드 주문은 결제 상태 확인과 이어가기 화면으로 이동한다', () => {
-    const html=renderToStaticMarkup(<OrderDetail order={order({status:'pending',payment:null,shipments:[]})}/>);
+  /* MY-01(10/14 S16): 주문 상세도 데스크톱 좌 메뉴 셸 안에 선다 — 영수증 지면은 셸 안 콘텐츠로 유지한다. */
+  it('sits inside the mypage shell with orders as the current menu, keeping the receipt surface', () => {
+    const html = renderToStaticMarkup(<OrderDetail order={order()} />);
+    const aside = html.slice(html.indexOf('aria-label="마이페이지 메뉴"'), html.indexOf('wc-mypage__content'));
+
+    expect(html).toContain('<main class="wc-root wc-mypage">');
+    expect(aside).toMatch(/aria-current="page" href="\/orders"|href="\/orders"[^>]*aria-current="page"/);
+    expect(html).toContain('class="wc-receipt order-detail-page"');
+    expect(html.indexOf('wc-mypage__content')).toBeLessThan(html.indexOf('wc-receipt order-detail-page'));
+    expect(html.match(/<h1/g)).toHaveLength(1);
+  });
+
+  it('keeps the original purchase and actual exchange product in separate labeled sections', () => {
+    const html = renderToStaticMarkup(<OrderDetail order={order({ reshipmentHistory: [orderReshipmentReceipt] })} />);
+    expect(html).toContain('주문한 굿즈'); expect(html).toContain('홍실 아크릴 블록');
+    expect(html).toContain('교환으로 받은 굿즈'); expect(html).toContain('교환 출고 파랑 상품');
+    expect(html).not.toContain('REPLACEMENT-BLUE');
+  });
+
+  it('주문 내역에서도 온라인 결제금액과 착불·복수할인 원영수증을 유지한다', () => {
+    const value = order({ transaction: transactionDisplay, total: 16000, shippingFee: 0, discountTotal: 1000, storeCreditTotal: 1000, giftId: ORDER_ID, address: null,
+      items: [{ ...order().items[0], id: transactionLineId, goodId: 'renamed-good', qty: 2, unitPrice: 10000 }], shipments: [] });
+    const html = renderToStaticMarkup(<OrderDetail order={value} />);
+    expect(html).toContain('온라인 결제금액</dt><dd>₩16,000'); expect(html).toContain('총 부담금액</dt><dd>₩19,000');
+    expect(html).toContain('홍실 아크릴 블록 · 선결제 ₩0 · 착불 별도 ₩3,000'); expect(html).toContain('주소와 연락처는 받는 분만'); expect(html).not.toContain('배송지 정보를 확인할 수 없습니다.');
+  });
+  it('교환 사유의 정정 전후와 원접수를 표시하고 내부 협의 근거는 노출하지 않는다', () => {
+    const html = renderToStaticMarkup(<OrderDetail order={order()} claimReasonHistory={parseClaimReasonHistory([reasonReceipt])} />);
+    expect(html).toContain('교환 사유 정정 이력'); expect(html).toContain('최초 접수:');
+    expect(html).toContain(reasonReceipt.fromReason); expect(html).toContain(reasonReceipt.toReason);
+    expect(html).not.toContain(reasonReceipt.agreement); expect(html).not.toContain(reasonReceipt.actorId);
+  });
+  it('결제할 수 있는 결제 대기 카드 주문은 결제 화면에서 결제를 이어가게 한다', () => {
+    const html=renderToStaticMarkup(<OrderDetail cardPayment={{ state: 'payable', closure: null, reorderMode: null, provider: 'toss' }} order={order({status:'pending',payment:null,shipments:[]})}/>);
+    expect(html).toContain('결제를 기다리고 있어요');
     expect(html).toContain(`href="/checkout/${ORDER_ID}"`);
-    expect(html).toContain('결제 상태 확인·이어가기');
+    expect(html).toContain('결제 이어가기');
+  });
+
+  /* QA-2: 거절·시도 만료로 닫힌 결제를 '확인 중'으로 말하면 청구가 진행 중인 것처럼 읽히고,
+     이어갈 수 없는 결제를 '이어가기'로 안내하게 된다. 결제 화면과 같은 사실을 말한다. */
+  it('승인 거절된 결제 대기 카드 주문은 다시 결제할 수 없다고 말하고 정리 액션으로 보낸다', () => {
+    const html = renderToStaticMarkup(<OrderDetail
+      cardPayment={{ state: 'payment_closed', closure: 'not_approved', reorderMode: 'cancel_then_reorder', provider: 'toss' }}
+      order={order({ status: 'pending', payment: null, shipments: [], expiresAt: '2026-08-01T06:15:00.000Z' })}
+    />);
+
+    expect(html).toContain('이 주문은 다시 결제할 수 없어요');
+    expect(html).toContain('주문 정리하고 다시 주문하기');
+    expect(html).toContain(`href="/checkout/${ORDER_ID}"`);
+    expect(html).not.toContain('결제 상태를 확인하고 있어요');
+    expect(html).not.toContain('승인 확인 중');
+    expect(html).not.toContain('진행 중인 결제를 확인해주세요');
+    expect(html).not.toContain('이어가기');
+  });
+
+  /* 2026-10-12 QA-1: 결제 준비 후 유효 시간이 지난 주문도 거절 주문처럼 결제 화면의
+     "취소하고 다시 주문하기"로 즉시 정리한다. */
+  it('결제 시도가 만료된 결제 대기 카드 주문은 청구 없음을 말하고 거절 주문처럼 정리 액션으로 보낸다', () => {
+    const html = renderToStaticMarkup(<OrderDetail
+      cardPayment={{ state: 'payment_closed', closure: 'attempt_expired', reorderMode: 'cancel_then_reorder', provider: 'toss' }}
+      order={order({ status: 'pending', payment: null, shipments: [], expiresAt: '2026-10-12T07:41:00.000Z' })}
+    />);
+
+    expect(html).toContain('결제 가능 시간이 지났어요');
+    expect(html).toContain('청구된 금액은 없어요');
+    expect(html).toContain('이 주문을 취소하고 같은 굿즈로 다시 주문해주세요');
+    expect(html).toContain('주문 정리하고 다시 주문하기');
+    expect(html).toContain(`href="/checkout/${ORDER_ID}"`);
+    expect(html).not.toContain('몇 분 안에 자동으로 취소');
+    expect(html).not.toContain('결제 상태를 확인하고 있어요');
+    expect(html).not.toContain('진행 중인 결제를 확인해주세요');
+    expect(html).not.toContain('이어가기');
+  });
+
+  it('즉시 취소가 확실하지 않은 시도 만료 주문은 결제 기한 뒤 자동 취소를 말하고 결제 화면으로 보내지 않는다', () => {
+    const html = renderToStaticMarkup(<OrderDetail
+      cardPayment={{ state: 'payment_closed', closure: 'attempt_expired', reorderMode: null, provider: 'toss' }}
+      order={order({ status: 'pending', payment: null, shipments: [], expiresAt: '2026-10-12T07:41:00.000Z' })}
+    />);
+
+    expect(html).toContain('결제 기한(16:41)');
+    expect(html).not.toContain('주문 정리하고 다시 주문하기');
+    expect(html).not.toContain('이어가기');
+  });
+
+  it('결제 국면을 읽지 못한 결제 대기 카드 주문은 상태를 단정하지 않고 결제 화면으로 잇는다', () => {
+    const html = renderToStaticMarkup(<OrderDetail order={order({ status: 'pending', payment: null, shipments: [] })} />);
+
+    expect(html).toContain('결제 화면 보기');
+    expect(html).not.toContain('결제 상태를 확인하고 있어요');
+    expect(html).not.toContain('이어가기');
+  });
+  /* 처리 중인 취소가 있으면 DB가 결제를 막고, 승인과 겹친 취소는 승인된 결제를 취소하는
+     중이다(INT-5). 결제 이어가기·주문 취소로 정리 안내는 둘 다 사실과 다르다. */
+  it('처리 중인 취소가 있는 결제 대기 카드 주문에는 결제 이어가기 안내를 띄우지 않는다', () => {
+    const html = renderToStaticMarkup(<OrderDetail order={order({
+      status: 'pending',
+      payment: { amount: 30000, status: 'paid', createdAt: '2026-08-01T06:01:00.000Z' },
+      shipments: [],
+      cancellationRequest: {
+        id: 'claim-1',
+        status: 'processing',
+        claimType: 'cancel',
+        stage: 'processing',
+        reference: 12,
+        requestedAt: '2026-08-01T06:00:30.000Z',
+        decidedAt: '2026-08-01T06:01:00.000Z',
+        decisionNote: null,
+        reshipCarrier: null,
+        reshipTrackingNumber: null,
+      },
+    })} />);
+
+    expect(html).not.toContain('결제 상태 확인·이어가기');
+    expect(html).not.toContain('진행 중인 결제를 확인해주세요');
+    expect(html).toContain('결제 취소 처리 중');
   });
   it('운송장이 등록되면 택배사·운송장번호와 배송조회 링크를 노출한다', () => {
     const html = renderToStaticMarkup(<OrderDetail order={order()} />);
@@ -133,7 +257,7 @@ describe('OrderDetail', () => {
       />,
     );
 
-    expect(html).toContain('단순 변심 청약철회 기한이 지났습니다');
+    expect(html).toContain('단순 변심 반품·교환 기한이 지났습니다');
     expect(html).toContain('공급받은 날부터 3개월');
     expect(html).not.toContain('일 남음');
   });
@@ -173,13 +297,125 @@ describe('OrderDetail 무통장 입금 대기', () => {
   });
 });
 
+ it('회수 계획은 배송 건 머리와 같은 택배사 이름표를 받는다(m27 CUST-2)', () => {
+  const gimpo = shipmentFixture({ status: 'delivered', deliveredAt: '2026-09-08T00:00:00Z' });
+  const namyangju = shipmentFixture({ id: '00000000-0000-4000-8000-000000044702', originName: '남양주', status: 'delivered', deliveredAt: '2026-09-09T00:00:00Z',
+    carrier: 'epost', carrierLabel: '우체국택배', trackingNumber: '9876543210', trackingUrl: 'https://carrier.example.test/9876543210' });
+  const claim = { id: '22222222-2222-4222-8222-222222222222', status: 'requested' as const, claimType: 'return' as const, stage: 'requested' as const, reference: 3,
+    requestedAt: '2026-09-10T00:00:00.000Z', decidedAt: null, decisionNote: null, reshipCarrier: null, reshipTrackingNumber: null };
+  const html = renderToStaticMarkup(<OrderDetail viewerId="33333333-3333-4333-8333-333333333333"
+    order={order({ status: 'delivered', shipments: [gimpo, namyangju], cancellationRequest: claim })} />);
+  expect(html).toContain('한진택배 배송 · 배송 완료');
+  expect(html).toContain('우체국택배 배송 · 배송 완료');
+  expect(html).toContain(`<li>${gimpo.id}=한진택배 배송</li>`);
+  expect(html).toContain(`<li>${namyangju.id}=우체국택배 배송</li>`);
+  expect(html).not.toContain('배송 묶음');
+ });
+
+ it('회수 계획 이름표는 배송 건 머리와 같은 규칙이다 — 같은 택배사 번호·택배 아닌 수령·택배사 모름', () => {
+  const pickup = { method: 'pickup' as const, policy: null, providerName: null, canIssueReceipt: false };
+  const shipments = [
+    shipmentFixture({ id: '00000000-0000-4000-8000-000000044711' }),
+    shipmentFixture({ id: '00000000-0000-4000-8000-000000044712', delivery: pickup }),
+    shipmentFixture({ id: '00000000-0000-4000-8000-000000044713' }),
+    shipmentFixture({ id: '00000000-0000-4000-8000-000000044714', carrier: null, carrierLabel: null, status: 'ready', trackingNumber: null, trackingUrl: null, shippedAt: null }),
+  ];
+  const claim = { id: '22222222-2222-4222-8222-222222222222', status: 'requested' as const, claimType: 'exchange' as const, stage: 'requested' as const, reference: 4,
+    requestedAt: '2026-09-10T00:00:00.000Z', decidedAt: null, decisionNote: null, reshipCarrier: null, reshipTrackingNumber: null };
+  const html = renderToStaticMarkup(<OrderDetail viewerId="33333333-3333-4333-8333-333333333333"
+    order={order({ status: 'delivered', shipments, cancellationRequest: claim })} />);
+  const headings = [...html.matchAll(/<section class="order-receipt-section wc-shipment-details"><h3>(.+?) · /g)].map(match => match[1]);
+  const labels = [...html.matchAll(/<li>([0-9a-f-]{36})=(.+?)<\/li>/g)].map(match => match[2]);
+  expect(headings).toEqual(['한진택배 배송 1', '배송 묶음 2', '한진택배 배송 2', '배송 묶음 4']);
+  expect(labels).toEqual(headings);
+ });
+
  it('두 출고지 배송을 각각 추적하고 각 배송 완료시각을 분리한다', () => {
   const shipments = [shipmentFixture({status:'delivered',deliveredAt:'2026-09-08T00:00:00Z'}),shipmentFixture({id:'00000000-0000-4000-8000-000000044702',originName:'남양주',trackingNumber:'9876543210',trackingUrl:'https://carrier.example.test/9876543210'})];
   const html = renderToStaticMarkup(<OrderDetail order={order({shipments})} />);
-  expect(html).toContain('김포 · 배송 완료');
-  expect(html).toContain('남양주 · 배송 중');
+  /* 고객 화면은 출고지 이름 대신 배송 건의 택배사로 부르고, 같은 택배사면 번호를 붙인다(10/14 회의 S7 · R26). */
+  expect(html).toContain('한진택배 배송 1 · 배송 완료');
+  expect(html).toContain('한진택배 배송 2 · 배송 중');
   expect(html).toContain('123456789012');
   expect(html).toContain('9876543210');
-  expect(html).toContain('김포 배송조회');
-  expect(html).toContain('남양주 배송조회');
+  expect(html).toContain('한진택배 배송 1 배송조회');
+  expect(html).toContain('한진택배 배송 2 배송조회');
+  expect(html).not.toContain('김포');
+  expect(html).not.toContain('남양주');
  });
+
+/* 2026-10-12 브라우저 QA QA-8: 결제 취소가 도는 결제완료 주문의 상단 카드는 "배송 준비를
+   시작합니다"가 아니라 취소 단계를 말한다. 상태 배지는 실제 주문 상태 그대로다. */
+describe('진행 중인 취소의 상단 상태 카드', () => {
+  const request = (stage: 'processing' | 'needs_review' | 'requested' | 'completed') => ({
+    id: '22222222-2222-4222-8222-222222222222',
+    status: stage,
+    claimType: 'cancel' as const,
+    stage,
+    reference: 12,
+    requestedAt: '2026-08-01T07:00:00.000Z',
+    decidedAt: null,
+    decisionNote: null,
+    reshipCarrier: null,
+    reshipTrackingNumber: null,
+  });
+
+  it.each([
+    ['needs_review', '주문 취소를 확인하고 있어요'],
+    ['processing', '주문 취소를 진행하고 있어요'],
+    ['requested', '주문 취소 요청을 접수했어요'],
+  ] as const)('%s 취소가 있는 결제완료 주문은 배송 준비를 약속하지 않는다', (stage, title) => {
+    const html = renderToStaticMarkup(<OrderDetail order={order({
+      status: 'paid', shipments: [], cancellationRequest: request(stage),
+    })} />);
+
+    expect(html).toContain(title);
+    expect(html).not.toContain('결제가 확인됐고 배송 준비를 시작합니다');
+    expect(html).toContain('order-status--paid');
+  });
+
+  it('취소가 끝났거나 없는 주문은 기존 상태 문구를 쓴다', () => {
+    const none = renderToStaticMarkup(<OrderDetail order={order({ status: 'paid', shipments: [] })} />);
+    expect(none).toContain('결제가 확인됐고 배송 준비를 시작합니다');
+
+    const done = renderToStaticMarkup(<OrderDetail order={order({
+      status: 'canceled', shipments: [], cancellationRequest: request('completed'),
+    })} />);
+    expect(done).toContain('취소된 주문이에요');
+  });
+});
+
+/* 10/14 회의 S20·S21 */
+describe('OrderDetail claim badge and line totals', () => {
+  it('shows the same claim badge as the order list in the header', () => {
+    const html = renderToStaticMarkup(<OrderDetail order={order({ status: 'paid', cancellationRequest: {
+      id: '22222222-2222-4222-8222-222222222222', status: 'requested', claimType: 'cancel', stage: 'requested', reference: 1,
+      requestedAt: '2026-08-01T07:00:00.000Z', decidedAt: null, decisionNote: null, reshipCarrier: null, reshipTrackingNumber: null,
+    } })} />);
+    expect(html).toMatch(/<div class="order-detail-status-row"><span class="order-status order-status--paid">결제완료<\/span><span class="order-list-badge order-claim-badge">취소 요청<\/span><\/div>/);
+  });
+
+  it('omits the line total when the quantity is one and keeps it for larger quantities', () => {
+    const single = renderToStaticMarkup(<OrderDetail order={order()} />);
+    expect(single).not.toContain('<strong class="mono">₩27,000</strong>');
+    const double = renderToStaticMarkup(<OrderDetail order={order({ items: [{ id: 'item-1', variantId: '00000000-0000-4000-8000-000000000001', goodId: 'g13', name: '홍실 아크릴 블록', type: '아크릴 블록', qty: 2, unitPrice: 27000 }] })} />);
+    expect(double).toContain('<strong class="mono">₩54,000</strong>');
+  });
+});
+
+/* 디지털 전용 주문은 교환을 받지 않는다 — 기한 안내도 실제 절차(취소·환불 검토 요청)로 말한다. */
+describe('OrderDetail digital-only deadline wording', () => {
+  const downloads = { orderId: ORDER_ID, canCancel: false, reviewRequired: false,
+    items: [{ itemId: 'item-1', name: '디지털 파일', files: [], available: true, firstProvidedAt: '2026-08-03T06:00:00.000Z' }] };
+
+  it('names the cancel and refund review instead of return or exchange', () => {
+    const before = renderToStaticMarkup(<OrderDetail downloads={downloads} order={order({ status: 'paid' })} />);
+    expect(before).toContain('단순 변심 취소·환불 검토 요청 기한');
+    expect(before).not.toContain('반품·교환 기한');
+
+    const expired = renderToStaticMarkup(<OrderDetail downloads={downloads} now={new Date('2026-08-20T06:00:00.000Z')}
+      order={order({ status: 'done', deliveredAt: '2026-08-03T06:00:00.000Z' })} />);
+    expect(expired).toContain('단순 변심 취소·환불 검토 요청 기한이 지났습니다. 파일 하자·오제공은');
+  });
+});
+

@@ -36,7 +36,7 @@ begin
   begin
     perform public.admin_save_store_settings('business','{"phone":"stale"}',row.updated_at - interval '1 second');
     raise exception 'stale write allowed';
-  exception when serialization_failure then null; end;
+  exception when sqlstate 'PT409' then null; end;
   begin
     perform public.admin_save_store_settings('bank_transfer','{"bank":"은행","accountNumber":"","holder":""}',row.updated_at);
     raise exception 'partial account allowed';

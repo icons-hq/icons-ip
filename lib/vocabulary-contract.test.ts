@@ -9,12 +9,14 @@ const ADMIN_COPY_EXCEPTIONS = [
   { file: 'lib/admin/guide/topics/cards-games.ts', reason: '카드·카드팩·게임 안내는 운영 상품 어휘 변환 대상이 아니다.' },
   { file: 'lib/admin/guide/topics/events-tickets.ts', reason: '티켓 안내는 운영 상품 어휘 변환 대상이 아니다.' },
   { file: 'lib/admin/good-preview.ts', text: '(굿즈 이름 미입력)', reason: '고객용 굿즈 미리보기에 쓰는 임시 이름이다.' },
-  { file: 'components/admin/screens/ClaimQueueScreen.tsx', text: '약관 제16조', reason: '굿즈를 반환받은 날부터 3영업일이라는 약관 원문 인용을 보존한다.' },
+  { file: 'components/admin/screens/ClaimQueueKitScreen.tsx', text: '약관 제16조', reason: '굿즈를 반환받은 날부터 3영업일이라는 약관 원문 인용을 보존한다.' },
   { file: 'app/admin/actions.ts', text: 'legacy 굿즈 게임은 읽기 전용이며 현 로드맵에서 운영하지 않습니다.', reason: '실물 판매와 구분하는 폐기된 게임 variant 안내다.' },
   { file: 'app/admin/actions.ts', text: '선택한 IP의 굿즈만 지정할 수 있습니다.', reason: '카드팩 리워드 정책의 결제 자격 검증 오류다.' },
   { file: 'app/admin/actions.ts', text: '연결할 굿즈를 찾을 수 없습니다.', reason: '카드팩 리워드 정책의 결제 자격 검증 오류다.' },
   { file: 'lib/admin/catalog.ts', text: '등록된 굿즈를 선택해주세요.', reason: '카드팩 리워드 정책의 결제 자격 검증 오류다.' },
   { file: 'lib/admin/catalog.ts', text: '선택한 IP의 굿즈만 지정할 수 있습니다.', reason: '카드팩 리워드 정책의 결제 자격 검증 오류다.' },
+  { file: 'lib/admin/sabangnet-goods-format.ts', text: '추가상품그룹코드', reason: '사방넷 상품 양식의 원본 열 이름이라 운영 어휘로 바꾸면 열을 인식하지 못한다.' },
+  { file: 'lib/admin/sabangnet-goods-format.ts', text: '추가 상품상세설명', reason: '사방넷 상품 양식의 원본 열 이름이라 운영 어휘로 바꾸면 열을 인식하지 못한다.' },
 ] as const;
 const PUBLIC_COPY_EXCEPTIONS = [
   { file: 'components/screens/GoodDetail.tsx', text: '전자상거래법에 따라 표시하는 상품정보제공고시 항목입니다.', reason: '상품정보제공고시는 법정 고시의 이름이므로 바꾸지 않는다.' },
@@ -66,10 +68,13 @@ function excepted(copy: CopyLiteral, exceptions: readonly { file: string; text?:
 
 const PUBLIC_SOURCES = [
   'components/shop', 'components/orders', 'app/cart', 'app/checkout', 'app/orders', 'app/shop', 'app/my',
-  'app/help', 'components/campaign', 'app/events/participation-actions.ts',
+  'app/help', 'components/reviews', 'app/review-events', 'components/screens/ReviewEvents.tsx', 'components/campaign', 'app/events/participation-actions.ts',
   ...['GoodDetail', 'Cart', 'Checkout', 'CheckoutOrder', 'OrderDetail', 'Orders', 'MyPage', 'MyQuestions', 'MyReviews',
-    'MyCoupons', 'MyStoreCredits', 'Wishlist', 'Inquiries', 'Notifications', 'Home', 'CampaignLanding'].map(name => `components/screens/${name}.tsx`),
-  'components/wc/MypageShell.tsx', 'components/wc/ProductCard.tsx', 'components/shell/CartProvider.tsx',
+    'MyCoupons', 'MyStoreCredits', 'Wishlist', 'Inquiries', 'Notifications', 'Home', 'CampaignLanding', 'MyGradeBenefits', 'MyAddresses', 'OnboardingAddress'].map(name => `components/screens/${name}.tsx`),
+  'components/mypage', 'components/wc/MypageShell.tsx', 'components/wc/ProductCard.tsx', 'components/shell/CartProvider.tsx',
+  'app/gifts', 'components/gifts', 'components/screens/gifts', 'components/subscriptions', 'components/screens/subscriptions',
+  'components/checkout/GoodsTransactionSummary.tsx', 'components/screens/GoodsTransactionCheckout.tsx', 'components/checkout/CheckoutAddressBook.tsx', 'components/address-book',
+  'lib/gifts.ts', 'lib/loyalty-benefits.ts', 'lib/address-book.ts', 'lib/checkout-transaction.ts', 'lib/goods-transaction-presentation.ts', 'lib/subscriptions/customer.ts', 'lib/subscriptions/model.ts',
   ...['checkout', 'fulfillment', 'shipping', 'product-questions', 'inquiries', 'cart', 'goods-sales', 'goods-options', 'goods-claim-policy', 'orders', 'notifications'].map(name => `lib/${name}.ts`),
 ];
 const CARD_PACK_EXCHANGE_SOURCES = ['components/campaign/ExchangePanel.tsx', 'app/events/participation-actions.ts'];

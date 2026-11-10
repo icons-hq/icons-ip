@@ -1,6 +1,7 @@
+import { StatsRangeTabs } from '@/components/admin/StatsRangeTabs';
 import { StatsClaimsScreen } from '@/components/admin/screens/StatsClaimsScreen';
 import { requireAdminScreenAccess } from '@/lib/admin/guard.server';
-import { normalizeAdminStatsFilters } from '@/lib/admin/stats';
+import { adminStatsComparisonFilters, normalizeAdminStatsFilters } from '@/lib/admin/stats';
 import { getAdminClaimsReport } from '@/lib/admin/stats.server';
 
 export default async function AdminStatsClaimsPage({
@@ -13,7 +14,13 @@ export default async function AdminStatsClaimsPage({
   const query = await searchParams;
 
   const filters = normalizeAdminStatsFilters(query);
-  const data = await getAdminClaimsReport(filters);
+  if (filters.rangeError) return <div className="flex min-w-0 flex-col gap-4"><StatsRangeTabs base="/admin/stats/claims" filters={filters} /><p className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive" role="alert">{filters.rangeError}</p></div>;
+  const now = new Date();
+  const comparisonFilters = adminStatsComparisonFilters(filters, now);
+  const [data, comparison] = await Promise.all([
+    getAdminClaimsReport(filters, now),
+    comparisonFilters ? getAdminClaimsReport(comparisonFilters, now) : null,
+  ]);
 
-  return <StatsClaimsScreen data={data} filters={filters} />;
+  return <StatsClaimsScreen data={data} filters={filters} comparison={comparison} now={now} />;
 }

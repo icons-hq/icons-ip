@@ -145,9 +145,9 @@ preorder_wait_marker() {
 preorder_db >"$preorder_logs/capacity-a.log" 2>&1 <<'SQL' &
 begin;
 set local statement_timeout='15s';
-set local role authenticated;
-select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000048601',true);
-select public.place_order('{"recipientName":"예약 경쟁","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
+-- 브라우저 롤은 주문 생성 RPC를 직접 부르지 못한다(20261013100000). 앱처럼 service role 래퍼가 구매자 id를 넘긴다.
+set local role service_role;
+select public.place_order('00000000-0000-4000-8000-000000048601'::uuid,'{"recipientName":"예약 경쟁","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
  '00000000-0000-4000-8000-000000048620'::uuid,'card'::public.order_payment_method);
 \echo PREORDER_CAPACITY_RESERVED
 select pg_sleep(3);
@@ -158,9 +158,8 @@ preorder_wait_marker "$preorder_logs/capacity-a.log" PREORDER_CAPACITY_RESERVED
 if preorder_db >"$preorder_logs/capacity-b.log" 2>&1 <<'SQL'
 begin;
 set local statement_timeout='15s';
-set local role authenticated;
-select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000048602',true);
-select public.place_order('{"recipientName":"예약 경쟁","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
+set local role service_role;
+select public.place_order('00000000-0000-4000-8000-000000048602'::uuid,'{"recipientName":"예약 경쟁","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
  '00000000-0000-4000-8000-000000048621'::uuid,'card'::public.order_payment_method);
 commit;
 SQL
@@ -189,9 +188,8 @@ preorder_wait_marker "$preorder_logs/cancel-reserve-a.log" PREORDER_CAPACITY_REL
 preorder_db >"$preorder_logs/cancel-reserve-b.log" 2>&1 <<'SQL'
 begin;
 set local statement_timeout='15s';
-set local role authenticated;
-select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000048602',true);
-select public.place_order('{"recipientName":"예약 경쟁","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
+set local role service_role;
+select public.place_order('00000000-0000-4000-8000-000000048602'::uuid,'{"recipientName":"예약 경쟁","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
  '00000000-0000-4000-8000-000000048622'::uuid,'card'::public.order_payment_method);
 commit;
 SQL
@@ -213,11 +211,14 @@ set local statement_timeout='20s';
 set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000048601',true);
 select public.set_cart_item_quantity('preorder-race-allocation-4273',(select id from public.goods_variants where good_id='preorder-race-allocation-4273'),2);
-select public.place_order('{"recipientName":"할당 경쟁","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
+set local role service_role;
+select public.place_order('00000000-0000-4000-8000-000000048601'::uuid,'{"recipientName":"할당 경쟁","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
  '00000000-0000-4000-8000-000000048623'::uuid,'card'::public.order_payment_method);
+set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000048602',true);
 select public.set_cart_item_quantity('preorder-race-allocation-4273',(select id from public.goods_variants where good_id='preorder-race-allocation-4273'),2);
-select public.place_order('{"recipientName":"할당 경쟁","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
+set local role service_role;
+select public.place_order('00000000-0000-4000-8000-000000048602'::uuid,'{"recipientName":"할당 경쟁","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
  '00000000-0000-4000-8000-000000048624'::uuid,'card'::public.order_payment_method);
 reset role;
 do $$ declare purchase public.orders; attempt public.payment_attempts; claim_id uuid; provider_key text; begin

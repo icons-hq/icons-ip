@@ -94,7 +94,7 @@ describe('parseTrackingImport · 행 단위 검증', () => {
   it('주문번호 형식이 아니면 조회하지 않고 거절한다', () => {
     const result = parseTrackingImport('주문A,hanjin,123456789012', CARRIERS);
 
-    expect(result.issues[0].reason).toContain('8자리 또는 전체 UUID');
+    expect(result.issues[0].reason).toContain('16자리 배송건번호');
   });
 
   it('레지스트리에 없는 택배사를 거절하고 입력값을 그대로 알린다', () => {

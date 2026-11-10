@@ -89,7 +89,7 @@ select 1 / case when exists (
   from storage.buckets
   where id = 'public-media'
     and public
-    and file_size_limit = 5 * 1024 * 1024
+    and file_size_limit = 20 * 1024 * 1024
     and allowed_mime_types = array['image/jpeg', 'image/png', 'image/webp']::text[]
 ) then 1 else 0 end as assert_public_media_bucket_contract;
 
@@ -98,7 +98,7 @@ select 1 / case when exists (
   from storage.buckets
   where id = 'admin-artwork-staging'
     and not public
-    and file_size_limit = 5 * 1024 * 1024
+    and file_size_limit = 20 * 1024 * 1024
     and allowed_mime_types = array['image/jpeg', 'image/png', 'image/webp']::text[]
 ) then 1 else 0 end as assert_private_staging_bucket_contract;
 
@@ -224,13 +224,56 @@ select 1 / case when public.service_prepare_admin_artwork_upload(
   'event', 'image/webp', 10, now() + interval '10 minutes'
 ) = false then 1 else 0 end as assert_suspended_staff_claim_rejected;
 
--- 굿즈 폼은 업로드 칸이 6개다(대표·갤러리 4칸·상세). 동시 활성 클레임 예산은
+-- 상품 이미지만 20MB·30,000px까지 받고, 다른 종류는 5MB·8192px 그대로다(MD-0002).
+select 1 / case when public.service_prepare_admin_artwork_upload(
+  '00000000-0000-4000-8000-000000011202',
+  'catalog/good/77777777-7777-4777-8777-777777777778.jpg',
+  'good', 'image/jpeg', 20 * 1024 * 1024, now() + interval '10 minutes'
+) then 1 else 0 end as assert_good_claim_accepts_20mb;
+
+select 1 / case when public.service_prepare_admin_artwork_upload(
+  '00000000-0000-4000-8000-000000011202',
+  'catalog/good/77777777-7777-4777-8777-777777777779.jpg',
+  'good', 'image/jpeg', 20 * 1024 * 1024 + 1, now() + interval '10 minutes'
+) = false then 1 else 0 end as assert_good_claim_rejects_over_20mb;
+
+select 1 / case when public.service_prepare_admin_artwork_upload(
+  '00000000-0000-4000-8000-000000011202',
+  'catalog/ip/77777777-7777-4777-8777-77777777777a.jpg',
+  'ip', 'image/jpeg', 5 * 1024 * 1024 + 1, now() + interval '10 minutes'
+) = false then 1 else 0 end as assert_other_kinds_keep_5mb;
+
+select public.service_begin_admin_artwork_verification(
+  '00000000-0000-4000-8000-000000011202',
+  'catalog/good/77777777-7777-4777-8777-777777777778.jpg'
+);
+
+select 1 / case when public.service_verify_admin_artwork_upload(
+  '00000000-0000-4000-8000-000000011202',
+  'catalog/good/77777777-7777-4777-8777-777777777778.jpg',
+  18 * 1024 * 1024, 900, 30001
+) = false then 1 else 0 end as assert_good_verify_rejects_over_30000px;
+
+select 1 / case when public.service_verify_admin_artwork_upload(
+  '00000000-0000-4000-8000-000000011202',
+  'catalog/good/77777777-7777-4777-8777-777777777778.jpg',
+  18 * 1024 * 1024, 900, 30000
+) then 1 else 0 end as assert_good_verify_accepts_long_detail_image;
+
+delete from public.admin_artwork_upload_claims
+where path in (
+  'catalog/good/77777777-7777-4777-8777-777777777778.jpg',
+  'catalog/good/77777777-7777-4777-8777-777777777779.jpg',
+  'catalog/ip/77777777-7777-4777-8777-77777777777a.jpg'
+);
+
+-- 굿즈 폼은 업로드 칸이 11개다(대표 1 + 추가 이미지 9 + 상세 1, 20261007160000). 동시 활성 클레임 예산은
 -- 그 폼 한 장을 채우고 한 번 갈아끼울 수 있어야 한다(20260807140003).
 do $$
 declare
   slot integer;
 begin
-  for slot in 1..12 loop
+  for slot in 1..22 loop
     if not public.service_prepare_admin_artwork_upload(
       '00000000-0000-4000-8000-000000011205',
       'catalog/card/10000000-0000-4000-8000-' || lpad(slot::text, 12, '0') || '.png',
@@ -244,7 +287,7 @@ $$;
 
 select 1 / case when public.service_prepare_admin_artwork_upload(
   '00000000-0000-4000-8000-000000011205',
-  'catalog/card/10000000-0000-4000-8000-000000000013.png',
+  'catalog/card/10000000-0000-4000-8000-000000000023.png',
   'card', 'image/png', 10, now() + interval '10 minutes'
 ) = false then 1 else 0 end as assert_actor_active_claim_limit;
 
@@ -281,7 +324,7 @@ do $$
 declare
   slot integer;
 begin
-  for slot in 21..32 loop
+  for slot in 21..42 loop
     if not public.service_prepare_admin_artwork_upload(
       '00000000-0000-4000-8000-000000011205',
       'catalog/card/10000000-0000-4000-8000-' || lpad(slot::text, 12, '0') || '.png',
@@ -381,16 +424,16 @@ select public.service_reject_admin_artwork_upload(
   'catalog/card/20000000-0000-4000-8000-000000000004.png'
 );
 
--- 남용 억제 창은 굿즈 폼 한 장(대표 1 + 갤러리 4 + 상세 1 = 6칸)을 한 번 채우고
--- 한 번 갈아끼우는 12회까지 열려 있다. 4회였을 때는 다섯 번째 업로드가
+-- 남용 억제 창은 굿즈 폼 한 장(대표 1 + 추가 이미지 9 + 상세 1 = 11칸)을 한 번 채우고
+-- 한 번 갈아끼우는 22회까지 열려 있다(20261007160000, 추가 이미지 4장 시절은 12회). 4회였을 때는 다섯 번째 업로드가
 -- 파일에 아무 문제가 없는데도 "이미지 파일을 확인하지 못했습니다"로 막혔다.
--- 5~12번째는 통과하고, 13번째에서 창이 닫힌다.
+-- 5~22번째는 통과하고, 23번째에서 창이 닫힌다.
 do $$
 declare
   slot integer;
   path text;
 begin
-  for slot in 5..12 loop
+  for slot in 5..22 loop
     path := 'catalog/card/20000000-0000-4000-8000-0000000000' || lpad(slot::text, 2, '0') || '.png';
 
     perform public.service_prepare_admin_artwork_upload(
@@ -416,7 +459,7 @@ $$;
 
 select public.service_prepare_admin_artwork_upload(
   '00000000-0000-4000-8000-000000011205',
-  'catalog/card/20000000-0000-4000-8000-000000000013.png',
+  'catalog/card/20000000-0000-4000-8000-000000000023.png',
   'card', 'image/png', 10, now() + interval '10 minutes'
 );
 
@@ -424,7 +467,7 @@ select 1 / case when not exists (
   select 1
   from public.service_begin_admin_artwork_verification(
     '00000000-0000-4000-8000-000000011205',
-    'catalog/card/20000000-0000-4000-8000-000000000013.png'
+    'catalog/card/20000000-0000-4000-8000-000000000023.png'
   )
 ) then 1 else 0 end as assert_actor_verification_rate_limit;
 

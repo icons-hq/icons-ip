@@ -6,10 +6,10 @@ import { fetchStaffPreviewVisible } from './staff-preview.client';
 beforeEach(() => { mocks.rpc.mockReset(); });
 
 describe('스태프 진입점 공용 readback', () => {
-  it('is_staff의 true 성공 결과만 진입점을 연다', async () => {
+  it('현재 ICONS 운영 권한의 true 성공 결과만 진입점을 연다', async () => {
     mocks.rpc.mockResolvedValue({ data: true, error: null });
     await expect(fetchStaffPreviewVisible()).resolves.toBe(true);
-    expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith('is_staff');
+    expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith('has_operator_capability', { p_capability: 'platform.manage' });
   });
 
   it.each([

@@ -1,11 +1,14 @@
+import { legacyOperatorAccessFixture } from '@/lib/admin/access.test-fixtures';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AdminOrderDetailPage from './page';
 const mocks = vi.hoisted(() => ({
   auth: { isConfigured: true, user: { id: 'staff' } as { id: string } | null, isStaff: true, role: 'staff' },
-  load: vi.fn(),
+  load: vi.fn(), production: vi.fn(), downloads: vi.fn(),
 }));
-vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: vi.fn(async () => mocks.auth) }));
+vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: vi.fn(async () => ({ ...mocks.auth, operatorAccess: 'operatorAccess' in mocks.auth && mocks.auth.operatorAccess || legacyOperatorAccessFixture() })) }));
 vi.mock('@/lib/admin/order-detail.server', () => ({ getAdminOrderDetail: mocks.load }));
+vi.mock('@/lib/order-production.server', () => ({ loadAdminOrderProduction: mocks.production }));
+vi.mock('@/lib/admin/order-downloads.server', () => ({ loadAdminOrderDownloads: mocks.downloads }));
 vi.mock('@/components/admin/screens/OrderDetailScreen', () => ({
   OrderDetailScreen: () => null,
 }));
@@ -17,6 +20,7 @@ const ORDER = '10000000-0000-4000-8000-000000004141';
 const visit = (orderId = ORDER) => AdminOrderDetailPage({ params: Promise.resolve({ orderId }) });
 beforeEach(() => {
   mocks.auth.user = { id: 'staff' }; mocks.auth.isStaff = true;
+  mocks.production.mockReset().mockResolvedValue(null);
   mocks.load.mockReset().mockResolvedValue({ order: { id: ORDER }, items: [], timeline: [] });
 });
 describe('정확한 주문 상세 라우트', () => {
@@ -25,11 +29,11 @@ describe('정확한 주문 상세 라우트', () => {
     await expect(visit()).rejects.toThrow('not_found');
     mocks.auth.user = null;
     await expect(visit()).rejects.toThrow(`redirect:/login?next=${encodeURIComponent(`/admin/sales/orders/${ORDER}`)}`);
-    expect(mocks.load).not.toHaveBeenCalled();
+    expect(mocks.load).not.toHaveBeenCalled(); expect(mocks.production).not.toHaveBeenCalled();
   });
   it('정확한 주문만 읽고 없는 주문이나 잘못된 ID는 404로 끝난다', async () => {
     await visit();
-    expect(mocks.load).toHaveBeenCalledExactlyOnceWith(ORDER);
+    expect(mocks.load).toHaveBeenCalledExactlyOnceWith(ORDER, true);
     mocks.load.mockResolvedValue(null);
     await expect(visit()).rejects.toThrow('not_found');
     mocks.load.mockClear();

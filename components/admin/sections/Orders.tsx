@@ -1,28 +1,37 @@
 'use client';
-import { adminGoodsCopy } from '@/lib/admin/vocabulary';
+import { GoodsCustomInputsSummary } from '@/components/shop/GoodsCustomInputs';
 
 import Link from 'next/link';
-import { useActionState, useEffect, useRef } from 'react';
+import { startTransition, useActionState, useEffect, useRef, useState } from 'react';
 import {
   approveAdminOrderCancellationAction,
+  bulkConfirmAdminOrdersAction,
   recoverAdminGoodsPaymentAction,
   reconcileAdminOrderCancellationAction,
   rejectAdminOrderCancellationAction,
+  startAdminOrderCancellationAction,
   updateAdminOrderStatusAction,
   updateAdminOrderTrackingAction,
   type AdminOrderActionState,
 } from '@/app/admin/order-actions';
 import {
+  ADMIN_CANCELLATION_RECHECK_LABELS,
   ADMIN_ORDER_STATUSES,
   ADMIN_ORDER_SEARCH_FIELDS,
   ADMIN_ORDER_STATUS_LABELS,
+  ADMIN_STAFF_CANCELLATION_NOTE_LIMIT,
+  ADMIN_STAFF_CANCELLATION_REASONS,
   ADMIN_WITHDRAWAL_RETURN_SHIPPING_LABELS,
   adminOrderDetailHref,
+  adminOrderSearchHref,
+  adminStaffCancellationAvailability,
   adminOrdersHref,
   isKorpayManualRecoveryState,
   isLegacyDecidableCancellation,
+  normalizeAdminStaffCancellationForm,
   type AdminOrderCancellationRequestRecord,
   type AdminOrderConsoleData,
+  type AdminOrderFieldErrors,
   type AdminOrderFilters,
   type AdminOrderFormStatus,
   type AdminOrderRecord,
@@ -30,16 +39,15 @@ import {
 import {
   formatOrderDateTime,
   ORDER_WITHDRAWAL_DEADLINE_LABELS,
-  ORDER_WITHDRAWAL_REASON_LABELS,
   orderReferenceLabel,
   orderStatusMeta,
   paymentStatusLabel,
   refundStatusLabel,
-  type OrderWithdrawalReasonType,
 } from '@/lib/orders';
+import { adminClaimReasonText, adminClaimStageLabel } from '@/lib/admin/claims';
+import { statusTone } from '@/lib/admin/status-tone';
 import {
   isOpenOrderClaimStage,
-  ORDER_CLAIM_STAGE_LABELS,
   ORDER_CLAIM_TYPE_LABELS,
   ORDER_CLAIM_TYPE_SLUGS,
 } from '@/lib/orders/claims';
@@ -52,7 +60,38 @@ import {
 import { formatKrwExact } from '../format';
 import { ADMIN_VOCABULARY } from '@/lib/admin/vocabulary';
 import { isParcelShipment } from '@/lib/admin/shipment-dispatch';
+import { commerceReferenceLabel, isCommerceNumber } from '@/lib/commerce-number';
 import { DELIVERY_METHOD_LABELS, deliveryStatusLabel } from '@/lib/shipment-delivery';
+import { adminListExportHref } from '@/lib/admin/list-export';
+import { AdminListExportButton } from '@/components/admin/AdminListExportButton';
+import { ConsoleGrid, ConsolePagination, type ConsoleGridColumn } from '@/components/admin/console';
+import { SALES_DATE_FIELDS } from '@/lib/admin/sales-list';
+import { SalesFilterField, SalesFilterPanel, SalesGuide, SalesResultsHeader, SalesSelect, SalesStatusSummary, ShortId } from '@/components/admin/sales/SalesConsole';
+import { SellerClaimIntakeButton } from '@/components/admin/screens/SellerClaimIntakeForm';
+import { OrderViewTabs } from '@/components/admin/sales/OrderViewTabs';
+import { OrderStatusBadge } from '@/components/admin/sales/OrderStatusBadge';
+import { AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
+import { Input } from '@/components/admin/kit/ui/input';
+import { Label } from '@/components/admin/kit/ui/label';
+import { NativeSelect } from '@/components/admin/kit/ui/native-select';
+import { Textarea } from '@/components/admin/kit/ui/textarea';
+import { adminPaymentCancelErrorCopy } from '@/lib/admin/payment-cancel-error';
+import { Ban, BadgeCheck, ChevronDown, ClipboardCheck, Hourglass, ListChecks, PackageCheck, Truck, type LucideIcon } from 'lucide-react';
+
+/*
+ * 주문 통합검색 — 템플릿 룩(ADR-0028). 조회 조건·처리 동선·열 구성·확인 문구는 그대로이고, 화면을 kit 부품과
+ * 유틸리티로 그린다. 옛 클래스(admin-order-*·admin-sales-*·btn·card)를 쓰지 않으며, 테스트가 찾는 자리는 data-* 표시다.
+ */
+const FEEDBACK_CLASS = 'text-sm font-medium empty:hidden [&_[role=alert]]:text-destructive [&_[role=status]]:text-success [&_[role=status][data-unfinished]]:text-warning';
+const FIELD_ERROR_CLASS = 'text-xs text-destructive';
+const LINK_BUTTON = buttonVariants({ size: 'sm', variant: 'outline' });
+const FACTS_CLASS = 'grid grid-cols-1 gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-2';
+const FACT_CLASS = 'min-w-0 bg-card p-3';
+const FACT_TERM = 'text-xs text-muted-foreground';
+const FACT_VALUE = 'mt-1 font-medium wrap-anywhere';
+const DETAIL_SECTION = 'flex flex-col gap-2 border-t pt-4';
+const DETAIL_HEADING = 'text-sm font-medium text-muted-foreground';
 
 /* 사다리 순서 그대로 둔다 — 드롭다운 순서가 운영자에게는 단계 순서다(#250).
    문구는 ADMIN_ORDER_STATUS_LABELS에서 가져온다. 여기에 다시 적으면 일괄 등록
@@ -64,6 +103,17 @@ const STATUS_OPTIONS: Array<{ value: AdminOrderFilters['status']; label: string 
     label: ADMIN_ORDER_STATUS_LABELS[status],
   })),
 ];
+
+/* 건수 카드는 색을 아끼는 대신 모양으로 단계를 나눈다. 신규주문만 주의색 카드의 기본 아이콘을 쓴다. */
+const STATUS_CARD_ICONS: Partial<Record<AdminOrderFilters['status'], LucideIcon>> = {
+  all: ListChecks,
+  pending: Hourglass,
+  confirmed: ClipboardCheck,
+  shipping: Truck,
+  delivered: PackageCheck,
+  done: BadgeCheck,
+  canceled: Ban,
+};
 
 const EMPTY_ACTION_STATE: AdminOrderActionState = {};
 
@@ -80,19 +130,39 @@ const GOODS_PAYMENT_ATTEMPT_STATE_LABELS: Record<
   needs_review: '운영 확인 필요',
 };
 
-/** 사유 배지. 하자·오배송은 기한과 배송비 부담이 달라 색으로도 구분한다. */
+/**
+ * 사유 배지. 하자·오배송은 기한과 배송비 부담이 달라 색으로도 구분한다. 운영자 전액
+ * 취소는 구매자 단순 변심과 섞지 않고 운영 사유를 적는다(2026-10-12 QA-4).
+ */
 function CancellationReasonBadge({
-  className,
-  reasonType,
+  row = false,
+  request,
 }: {
-  className?: string;
-  reasonType: OrderWithdrawalReasonType;
+  /** 목록 행의 배지. 처리가 남은 요청에만 붙는다. */
+  row?: boolean;
+  request: Pick<AdminOrderCancellationRequestRecord, 'reasonType' | 'staffReasonCode'>;
 }) {
+  const label = adminClaimReasonText(request.reasonType, request.staffReasonCode);
   return (
-    <span className={`${className ? `${className} ` : ''}admin-order-reason admin-order-reason--${reasonType}`}>
-      {adminGoodsCopy(ORDER_WITHDRAWAL_REASON_LABELS[reasonType])}
-    </span>
+    <AdminStatusBadge
+      className={row ? 'max-w-30' : 'h-auto min-h-5 text-left whitespace-normal'}
+      data-order-reason={request.reasonType}
+      data-order-row-reason={row ? '' : undefined}
+      title={row ? label : undefined}
+      tone={request.reasonType === 'defect' ? 'danger' : request.reasonType === 'staff' ? 'warning' : 'neutral'}
+    >
+      {/* 목록에서는 한 줄로 자른다 — 사유가 길어도 줄 높이가 튀지 않는다. */}
+      {row ? <span className="truncate">{label}</span> : label}
+    </AdminStatusBadge>
   );
+}
+
+/** 목록 행 이름에 붙는 사유. 구매자 사유만 "청약철회"다. */
+function cancellationReasonAccessibleName(
+  request: Pick<AdminOrderCancellationRequestRecord, 'reasonType' | 'staffReasonCode'>,
+) {
+  const label = adminClaimReasonText(request.reasonType, request.staffReasonCode);
+  return request.reasonType === 'staff' ? label : `청약철회 ${label}`;
 }
 
 /** 처리가 남은 클레임. 종결된 요청까지 목록에 표시하면 미처리 건과 섞인다. */
@@ -105,11 +175,200 @@ function confirmAction(event: React.FormEvent<HTMLFormElement>, message: string)
   if (!window.confirm(message)) event.preventDefault();
 }
 
+/*
+ * 일부 주문만 처리됐거나 결제 취소가 아직 진행 중인 결과. 서버 액션은 이것을 별도 값 없이 문구로만 돌려주므로
+ * 문구는 그대로 쓰고 초록 완료로 보이지 않게 색만 나눈다(app/admin/order-actions.ts의 일괄 발주확인·취소 결과 문구).
+ */
+const UNFINISHED_RESULT = /처리하지 못한 [\d,]+건|아직 끝나지 않았습니다/;
+const isUnfinishedResult = (message: string | undefined) => UNFINISHED_RESULT.test(message ?? '');
+
 function ActionFeedback({ state }: { state: AdminOrderActionState }) {
   return (
-    <div aria-live="polite" className="admin-order-action-feedback">
+    <div aria-live="polite" className={FEEDBACK_CLASS}>
+      {state.errors?.form ? <span role="alert">{state.errors.form}</span> : null}
+      {state.message ? <span data-unfinished={isUnfinishedResult(state.message) || undefined} role="status">{state.message}</span> : null}
+    </div>
+  );
+}
+
+/*
+ * 취소 처리 결과(2차 재검토 C2-1).
+ *
+ * 청약철회 승인·거절, 처리 상태 재확인, 운영자 전액 취소, Korpay 반영은 결과가 나오는
+ * 순간 그 양식을 그리던 조건(요청 단계·주문 상태)이 바뀐다. 서버 액션의 revalidatePath가
+ * 같은 응답에 새 주문 패널을 실어 오므로, 결과를 양식 안에 그리면 양식과 함께 사라진다 —
+ * 운영자는 결과 코드도 "주문과 재고는 그대로"도 재시도 위치도 보지 못한다. 상태 필터로
+ * 보던 목록에서는 주문 자체가 빠지기도 한다.
+ *
+ * 그래서 다섯 액션을 주문 콘솔 수준의 useActionState 하나로 묶고, 결과에 어느 주문의
+ * 어떤 액션인지 붙여 양식 밖에 그린다. 묶인 액션은 한 번에 하나만 돈다 — 결제사 취소가
+ * 도는 동안 다른 취소 처리를 누르지 못한다.
+ */
+const ORDER_CANCELLATION_ACTIONS = {
+  approve: approveAdminOrderCancellationAction,
+  reject: rejectAdminOrderCancellationAction,
+  reconcile: reconcileAdminOrderCancellationAction,
+  staffCancel: startAdminOrderCancellationAction,
+  korpayRecovery: recoverAdminGoodsPaymentAction,
+} as const;
+type OrderCancellationIntent = keyof typeof ORDER_CANCELLATION_ACTIONS;
+
+export interface OrderCancellationActionState extends AdminOrderActionState {
+  intent?: OrderCancellationIntent;
+  orderId?: string;
+  /** 표시 전용 16자리 주문번호. 처리 대상은 orderId다. */
+  orderNumber?: string;
+}
+
+const EMPTY_CANCELLATION_STATE: OrderCancellationActionState = {};
+
+function isOrderCancellationIntent(value: unknown): value is OrderCancellationIntent {
+  return typeof value === 'string' && Object.prototype.hasOwnProperty.call(ORDER_CANCELLATION_ACTIONS, value);
+}
+
+/** 양식이 고른 취소 액션을 실행하고 결과에 액션과 주문을 붙인다. 주문 id는 표시 범위에만 쓴다. */
+export async function runOrderCancellationAction(
+  _previous: OrderCancellationActionState,
+  formData: FormData,
+): Promise<OrderCancellationActionState> {
+  const intent = formData.get('cancellationIntent');
+  const orderId = String(formData.get('cancellationOrderId') ?? '');
+  const number = formData.get('cancellationOrderNumber');
+  const orderNumber = isCommerceNumber(number, 'order') ? { orderNumber: number as string } : {};
+  if (!isOrderCancellationIntent(intent)) {
+    return { errors: { form: '처리할 작업을 확인하지 못했습니다. 새로고침한 뒤 다시 시도해주세요.' }, orderId, ...orderNumber };
+  }
+  const result = await ORDER_CANCELLATION_ACTIONS[intent](EMPTY_ACTION_STATE, formData);
+  return { ...result, intent, orderId, ...orderNumber };
+}
+
+type CancellationFormValidator = (formData: FormData) => AdminOrderFieldErrors | null;
+
+/*
+ * 취소 처리 양식의 React action 자리. 아무것도 보내지 않는다.
+ *
+ * 서버 렌더는 이 자리가 있어야 하이드레이션 전 제출을 페이지 이동(입력값이 주소에 실린
+ * GET)으로 보내지 않는다. 대신 React는 그 제출을 담아 두었다가 하이드레이션 뒤 이 action으로
+ * 재생하는데, 그 경로는 입력 검사와 확인 창을 거치지 않는다. 되돌릴 수 없는 결제 취소가
+ * 확인 없이 나가지 않도록 재생된 제출은 버린다 — 운영자는 화면이 준비된 뒤 다시 누른다.
+ */
+function ignoreUnconfirmedCancellationSubmit() {}
+
+interface OrderCancellationConsole {
+  state: OrderCancellationActionState;
+  /*
+   * 양식의 React action 자리. 실제 전송은 아래 submit(검사 → 확인 → 전송)이 한다 —
+   * ignoreUnconfirmedCancellationSubmit 참고.
+   */
+  action: () => void;
+  pending: boolean;
+  /** 확인 창을 통과해 보낸 마지막 취소 액션. "처리 중" 라벨을 그 양식에만 붙인다. */
+  submitted: { intent: OrderCancellationIntent; orderId: string } | null;
+  /** 확인 창 전에 잡힌 입력 오류. 서버를 부르지 않았으므로 서버 결과와 따로 둔다. */
+  clientErrors: { intent: OrderCancellationIntent; orderId: string; errors: AdminOrderFieldErrors } | null;
+  submit: (
+    event: React.FormEvent<HTMLFormElement>,
+    confirmation: string,
+    intent: OrderCancellationIntent,
+    orderId: string,
+    validate?: CancellationFormValidator,
+  ) => void;
+}
+
+export type OrderCancellationSubmitPlan =
+  | { kind: 'invalid'; errors: AdminOrderFieldErrors }
+  | { kind: 'dismissed' }
+  | { kind: 'dispatch' };
+
+/**
+ * 취소 처리 양식 제출 순서(2026-10-12 브라우저 QA QA-5).
+ *
+ * 입력 검사가 확인 창보다 먼저다. "되돌릴 수 없다"를 승인받은 뒤에 입력 오류로 돌려보내면
+ * 운영자는 이미 실행했다고 믿는다. 확인을 통과하면 React 양식 action을 거치지 않고 직접
+ * 보낸다 — 양식 action은 끝나면 비제어 입력을 초기화해서, 서버가 거절해도 운영자가 고른
+ * 사유·메모가 비워진다.
+ */
+export function planOrderCancellationSubmit(
+  formData: FormData,
+  confirmation: string,
+  confirm: (message: string) => boolean,
+  validate?: CancellationFormValidator,
+): OrderCancellationSubmitPlan {
+  const errors = validate?.(formData) ?? null;
+  if (errors && Object.keys(errors).length) return { kind: 'invalid', errors };
+  return confirm(confirmation) ? { kind: 'dispatch' } : { kind: 'dismissed' };
+}
+
+/**
+ * 운영자 전액 취소 입력 검사. 서버 액션과 같은 규칙(normalizeAdminStaffCancellationForm)에
+ * 화면만 아는 조건 — 출고지시가 나간 배송 건의 창고 중단 확인 — 을 더한다.
+ */
+export function staffCancellationClientErrors(
+  formData: FormData,
+  requiresWarehouseStop: boolean,
+): AdminOrderFieldErrors | null {
+  const normalized = normalizeAdminStaffCancellationForm(formData);
+  const errors: AdminOrderFieldErrors = normalized.ok ? {} : { ...normalized.errors };
+  if (requiresWarehouseStop && formData.get('warehouseStopConfirmed') !== 'confirmed') {
+    errors.warehouseStopConfirmed = '창고에 출고 중단을 확인한 뒤 확인란을 체크해주세요.';
+  }
+  return Object.keys(errors).length ? errors : null;
+}
+
+/** 한 양식이 볼 결과 조각. 필드 오류는 그 양식이 보낸 결과일 때만 붙인다. */
+function cancellationFormView(
+  cancellation: OrderCancellationConsole,
+  intent: OrderCancellationIntent,
+  orderId: string,
+) {
+  const { clientErrors, pending, state, submitted } = cancellation;
+  const local = clientErrors?.intent === intent && clientErrors.orderId === orderId ? clientErrors.errors : undefined;
+  return {
+    errors: local ?? (state.intent === intent && state.orderId === orderId ? state.errors : undefined),
+    pending,
+    running: pending && submitted?.intent === intent && submitted.orderId === orderId,
+  };
+}
+
+function CancellationIntentFields({ intent, orderId }: { intent: OrderCancellationIntent; orderId: string }) {
+  return (
+    <>
+      <input name="cancellationIntent" type="hidden" value={intent} />
+      <input name="cancellationOrderId" type="hidden" value={orderId} />
+    </>
+  );
+}
+
+/* 상자의 색·아이콘이 결과를 말하므로 글자는 본문색이다 — 주의 상자 안에 초록 글자가 남지 않게 한다. */
+function CancellationResultBody({ state }: { state: OrderCancellationActionState }) {
+  return (
+    <div className="text-sm font-medium empty:hidden [&_[role=alert]]:text-destructive">
       {state.errors?.form ? <span role="alert">{state.errors.form}</span> : null}
       {state.message ? <span role="status">{state.message}</span> : null}
+    </div>
+  );
+}
+
+function cancellationResultTone(state: OrderCancellationActionState) {
+  if (state.errors?.form) return 'danger' as const;
+  return isUnfinishedResult(state.message) ? 'warning' as const : 'success' as const;
+}
+
+function hasCancellationResult(state: OrderCancellationActionState) {
+  return Boolean(state.orderId && (state.errors?.form || state.message));
+}
+
+/** 주문 패널의 취소 처리 결과. 처리 버튼이 사라진 뒤에도 그 주문 패널에 남는다. */
+function OrderCancellationResult({ orderId, state }: { orderId: string; state: OrderCancellationActionState }) {
+  return (
+    <div aria-live="polite">
+      {state.orderId === orderId && hasCancellationResult(state) ? (
+        <section aria-label="취소 처리 결과">
+          <AdminNotice title="취소 처리 결과" tone={cancellationResultTone(state)}>
+            <CancellationResultBody state={state} />
+          </AdminNotice>
+        </section>
+      ) : null}
     </div>
   );
 }
@@ -135,8 +394,9 @@ function CarrierSelect({
   id: string;
 }) {
   return (
-    <select
+    <NativeSelect
       aria-describedby={describedBy}
+      className="w-full"
       defaultValue={defaultValue ?? ''}
       disabled={disabled}
       id={id}
@@ -147,7 +407,7 @@ function CarrierSelect({
       {selectableShippingCarriers(carriers).map((carrier) => (
         <option key={carrier.code} value={carrier.code}>{carrier.label}</option>
       ))}
-    </select>
+    </NativeSelect>
   );
 }
 
@@ -173,8 +433,8 @@ function TrackingFields({
   const trackingErrorId = `${idPrefix}-tracking-error-${orderId}`;
 
   return (
-    <div className="admin-order-tracking-fields">
-      <label htmlFor={carrierId}>택배사</label>
+    <div className="grid w-full gap-1.5">
+      <Label htmlFor={carrierId}>택배사</Label>
       <CarrierSelect
         carriers={carriers}
         defaultValue={shipment?.carrier}
@@ -182,9 +442,9 @@ function TrackingFields({
         disabled={pending}
         id={carrierId}
       />
-      {errors?.carrier ? <span id={carrierErrorId} role="alert">{errors.carrier}</span> : null}
-      <label htmlFor={trackingId}>운송장번호</label>
-      <input
+      {errors?.carrier ? <span className={FIELD_ERROR_CLASS} id={carrierErrorId} role="alert">{errors.carrier}</span> : null}
+      <Label className="mt-1" htmlFor={trackingId}>운송장번호</Label>
+      <Input
         aria-describedby={errors?.trackingNumber ? trackingErrorId : undefined}
         defaultValue={shipment?.trackingNumber ?? ''}
         disabled={pending}
@@ -197,7 +457,7 @@ function TrackingFields({
         type="text"
       />
       {errors?.trackingNumber ? (
-        <span id={trackingErrorId} role="alert">{errors.trackingNumber}</span>
+        <span className={FIELD_ERROR_CLASS} id={trackingErrorId} role="alert">{errors.trackingNumber}</span>
       ) : null}
     </div>
   );
@@ -230,8 +490,8 @@ function OrderStatusAction({
     <form
       action={action}
       className={status === 'shipping'
-        ? 'admin-order-action-form admin-order-shipment-form'
-        : 'admin-order-action-form'}
+        ? 'flex flex-col items-start gap-2 sm:col-span-2'
+        : 'flex flex-wrap items-center gap-2'}
       data-confirm={confirmation}
       onSubmit={(event) => confirmAction(event, confirmation)}
     >
@@ -248,9 +508,9 @@ function OrderStatusAction({
           shipment={shipment}
         />
       ) : null}
-      <button className="btn btn-sm" disabled={pending} type="submit">
+      <Button disabled={pending} size="sm" type="submit">
         {pending ? '처리 중' : label}
-      </button>
+      </Button>
       <ActionFeedback state={state} />
     </form>
   );
@@ -273,7 +533,7 @@ function UpdateTrackingForm({
   return (
     <form
       action={action}
-      className="admin-order-action-form admin-order-shipment-form"
+      className="flex flex-col items-start gap-2"
       data-confirm={confirmation}
       onSubmit={(event) => confirmAction(event, confirmation)}
     >
@@ -287,22 +547,26 @@ function UpdateTrackingForm({
         pending={pending}
         shipment={shipment}
       />
-      <button className="btn btn-sm btn-ghost" disabled={pending} type="submit">
+      <Button disabled={pending} size="sm" type="submit" variant="outline">
         {pending ? '저장 중' : '운송장 수정'}
-      </button>
+      </Button>
       <ActionFeedback state={state} />
     </form>
   );
 }
 
 function ApproveCancellationForm({
+  cancellation,
+  orderId,
   orderStatus,
   requestId,
 }: {
+  cancellation: OrderCancellationConsole;
+  orderId: string;
   orderStatus: AdminOrderRecord['status'];
   requestId: string;
 }) {
-  const [state, action, pending] = useActionState(approveAdminOrderCancellationAction, EMPTY_ACTION_STATE);
+  const { pending, running } = cancellationFormView(cancellation, 'approve', orderId);
   // 반품 입고 확인은 별도 상태가 아니라 승인 행위에 내포된다(D11). 배송이 나간 주문은
   // 승인 즉시 결제가 취소되고 재고가 복원되므로 확인 문구로 그 전제를 묻는다.
   const confirmation = orderStatus === 'shipping' || orderStatus === 'done'
@@ -311,35 +575,44 @@ function ApproveCancellationForm({
 
   return (
     <form
-      action={action}
-      className="admin-order-action-form"
+      action={cancellation.action}
+      className="flex flex-wrap items-center gap-2"
       data-confirm={confirmation}
-      onSubmit={(event) => confirmAction(event, confirmation)}
+      onSubmit={(event) => cancellation.submit(event, confirmation, 'approve', orderId)}
     >
+      <CancellationIntentFields intent="approve" orderId={orderId} />
       <input name="requestId" type="hidden" value={requestId} />
-      <button className="btn btn-sm" disabled={pending} type="submit">
-        {pending ? '승인 중' : '청약철회 승인'}
-      </button>
-      <ActionFeedback state={state} />
+      <Button disabled={pending} size="sm" type="submit">
+        {running ? '승인 중' : '청약철회 승인'}
+      </Button>
     </form>
   );
 }
 
-function RejectCancellationForm({ requestId }: { requestId: string }) {
-  const [state, action, pending] = useActionState(rejectAdminOrderCancellationAction, EMPTY_ACTION_STATE);
+function RejectCancellationForm({
+  cancellation,
+  orderId,
+  requestId,
+}: {
+  cancellation: OrderCancellationConsole;
+  orderId: string;
+  requestId: string;
+}) {
+  const { errors, pending, running } = cancellationFormView(cancellation, 'reject', orderId);
   const confirmation = '청약철회 요청을 거절할까요? 입력한 사유가 기록됩니다.';
 
   return (
     <form
-      action={action}
-      className="admin-order-reject-form"
+      action={cancellation.action}
+      className="flex flex-col items-start gap-2 rounded-lg border border-destructive/30 bg-muted/40 p-3 sm:col-span-2"
       data-confirm={confirmation}
-      onSubmit={(event) => confirmAction(event, confirmation)}
+      onSubmit={(event) => cancellation.submit(event, confirmation, 'reject', orderId)}
     >
+      <CancellationIntentFields intent="reject" orderId={orderId} />
       <input name="requestId" type="hidden" value={requestId} />
-      <label htmlFor={`admin-order-reject-reason-${requestId}`}>거절 사유</label>
-      <textarea
-        aria-describedby={state.errors?.reason ? `admin-order-reject-error-${requestId}` : undefined}
+      <Label htmlFor={`admin-order-reject-reason-${requestId}`}>거절 사유</Label>
+      <Textarea
+        aria-describedby={errors?.reason ? `admin-order-reject-error-${requestId}` : undefined}
         disabled={pending}
         id={`admin-order-reject-reason-${requestId}`}
         maxLength={200}
@@ -349,21 +622,24 @@ function RejectCancellationForm({ requestId }: { requestId: string }) {
         required
         rows={3}
       />
-      {state.errors?.reason ? (
-        <span id={`admin-order-reject-error-${requestId}`} role="alert">{state.errors.reason}</span>
+      {errors?.reason ? (
+        <span className={FIELD_ERROR_CLASS} id={`admin-order-reject-error-${requestId}`} role="alert">{errors.reason}</span>
       ) : null}
-      <button className="btn btn-sm btn-ghost" disabled={pending} type="submit">
-        {pending ? '거절 중' : '요청 거절'}
-      </button>
-      <ActionFeedback state={state} />
+      <Button disabled={pending} size="sm" type="submit" variant="destructive">
+        {running ? '거절 중' : '요청 거절'}
+      </Button>
     </form>
   );
 }
 
 function ReconcileCancellationForm({
+  cancellation,
+  orderId,
   preparedKorpay,
   request,
 }: {
+  cancellation: OrderCancellationConsole;
+  orderId: string;
   preparedKorpay?: {
     amount: number;
     currency: string;
@@ -371,26 +647,127 @@ function ReconcileCancellationForm({
   };
   request: AdminOrderCancellationRequestRecord;
 }) {
-  const [state, action, pending] = useActionState(reconcileAdminOrderCancellationAction, EMPTY_ACTION_STATE);
+  const { pending, running } = cancellationFormView(cancellation, 'reconcile', orderId);
   const confirmation = preparedKorpay
     ? `Korpay 주문 ${preparedKorpay.providerOrderId} · ₩${preparedKorpay.amount.toLocaleString('ko-KR')} ${preparedKorpay.currency} 결제 세션의 만료를 확인할까요? 이미 만료됐다면 주문 취소와 재고 복원이 즉시 완료됩니다.`
     : '결제 취소 상태를 다시 확인할까요?';
   const label = preparedKorpay
-    ? 'Korpay 만료·취소 처리'
-    : request.status === 'processing' ? '처리 상태 확인' : '상태 다시 확인';
+    ? ADMIN_CANCELLATION_RECHECK_LABELS.preparedKorpay
+    : request.status === 'processing'
+      ? ADMIN_CANCELLATION_RECHECK_LABELS.processing
+      : ADMIN_CANCELLATION_RECHECK_LABELS.needsReview;
 
   return (
     <form
-      action={action}
-      className="admin-order-action-form"
+      action={cancellation.action}
+      className="flex flex-wrap items-center gap-2"
       data-confirm={confirmation}
-      onSubmit={(event) => confirmAction(event, confirmation)}
+      onSubmit={(event) => cancellation.submit(event, confirmation, 'reconcile', orderId)}
     >
+      <CancellationIntentFields intent="reconcile" orderId={orderId} />
       <input name="requestId" type="hidden" value={request.id} />
-      <button className="btn btn-sm" disabled={pending} type="submit">
-        {pending ? '확인 중' : label}
-      </button>
-      <ActionFeedback state={state} />
+      <Button disabled={pending} size="sm" type="submit">
+        {running ? '확인 중' : label}
+      </Button>
+    </form>
+  );
+}
+
+/**
+ * 운영자 전액 취소(ADR-0018).
+ *
+ * 발송 전 주문의 결제 전액을 바로 취소한다 — 누르면 DB가 사유와 함께 취소 요청을
+ * 열고 서버가 토스 전액 취소를 발행·확인한 뒤 주문·재고·쿠폰·적립금을 정리한다.
+ * 출고지시 파일이 나간 배송 건이 있으면 창고 출고 중단 확인을 체크해야 한다.
+ * 결과가 나오면 이 양식은 사라진다(요청이 생기거나 주문이 취소된다) — 결과는
+ * 주문 패널의 취소 처리 결과에 남는다.
+ */
+function StaffCancellationForm({
+  cancellation,
+  orderId,
+  requiresWarehouseStop,
+}: {
+  cancellation: OrderCancellationConsole;
+  orderId: string;
+  requiresWarehouseStop: boolean;
+}) {
+  const { errors, pending, running } = cancellationFormView(cancellation, 'staffCancel', orderId);
+  const confirmation = '이 주문 전체를 취소하고 결제 금액 전액을 결제사에서 취소할까요? 되돌릴 수 없고 구매자에게 취소 알림이 갑니다.';
+  const reasonId = `admin-order-staff-cancel-reason-${orderId}`;
+  const noteId = `admin-order-staff-cancel-note-${orderId}`;
+  const stopId = `admin-order-staff-cancel-stop-${orderId}`;
+
+  return (
+    <form
+      action={cancellation.action}
+      aria-label="운영자 전액 취소"
+      className="flex flex-col items-start gap-2 rounded-lg border border-destructive/30 bg-muted/40 p-3 sm:col-span-2"
+      data-confirm={confirmation}
+      noValidate
+      onSubmit={(event) => cancellation.submit(
+        event,
+        confirmation,
+        'staffCancel',
+        orderId,
+        (formData) => staffCancellationClientErrors(formData, requiresWarehouseStop),
+      )}
+    >
+      <CancellationIntentFields intent="staffCancel" orderId={orderId} />
+      <input name="orderId" type="hidden" value={orderId} />
+      <Label htmlFor={reasonId}>운영자 전액 취소 사유</Label>
+      <NativeSelect
+        aria-describedby={errors?.reasonCode ? `${reasonId}-error` : undefined}
+        aria-invalid={errors?.reasonCode ? true : undefined}
+        className="w-full"
+        defaultValue=""
+        disabled={pending}
+        id={reasonId}
+        name="reasonCode"
+        required
+      >
+        <option disabled value="">사유를 선택해주세요</option>
+        {ADMIN_STAFF_CANCELLATION_REASONS.map((reason) => (
+          <option key={reason.value} value={reason.value}>{reason.label}</option>
+        ))}
+      </NativeSelect>
+      {errors?.reasonCode ? <span className={FIELD_ERROR_CLASS} id={`${reasonId}-error`} role="alert">{errors.reasonCode}</span> : null}
+      <Label className="mt-1" htmlFor={noteId}>메모 (기타는 필수 · 구매자에게 보이지 않습니다)</Label>
+      <Textarea
+        aria-describedby={errors?.note ? `${noteId}-error` : undefined}
+        aria-invalid={errors?.note ? true : undefined}
+        disabled={pending}
+        id={noteId}
+        maxLength={ADMIN_STAFF_CANCELLATION_NOTE_LIMIT}
+        name="note"
+        placeholder="예: 창고 실재고 0개 확인, 1:1 문의 #123 고객 취소 요청"
+        rows={2}
+      />
+      {errors?.note ? <span className={FIELD_ERROR_CLASS} id={`${noteId}-error`} role="alert">{errors.note}</span> : null}
+      {requiresWarehouseStop ? (
+        <label className="flex items-start gap-2 text-sm" htmlFor={stopId}>
+          <input
+            className="mt-0.5"
+            aria-describedby={errors?.warehouseStopConfirmed ? `${stopId}-error` : undefined}
+            aria-invalid={errors?.warehouseStopConfirmed ? true : undefined}
+            disabled={pending}
+            id={stopId}
+            name="warehouseStopConfirmed"
+            required
+            type="checkbox"
+            value="confirmed"
+          />
+          <span>출고지시 파일이 나간 배송 건이 있습니다. 창고에 출고 중단을 확인했습니다.</span>
+        </label>
+      ) : null}
+      {errors?.warehouseStopConfirmed ? (
+        <span className={FIELD_ERROR_CLASS} id={`${stopId}-error`} role="alert">{errors.warehouseStopConfirmed}</span>
+      ) : null}
+      <small className="text-xs text-muted-foreground">
+        발송 전 주문의 결제 금액 전액을 바로 취소합니다. 품절·출고 불가, 1:1 문의로 받은 취소 요청, 라이브 전환 전 심사용 테스트 결제 정리에 씁니다.
+      </small>
+      <Button disabled={pending} size="sm" type="submit" variant="destructive">
+        {running ? '취소 처리 중' : '전액 취소 실행'}
+      </Button>
     </form>
   );
 }
@@ -398,25 +775,26 @@ function ReconcileCancellationForm({
 function ManualKorpayCancellationForm({
   amount,
   attemptId,
+  cancellation,
   currency,
+  orderId,
   providerOrderId,
   requestId,
 }: {
   amount: number;
   attemptId: string;
+  cancellation: OrderCancellationConsole;
   currency: string;
+  orderId: string;
   providerOrderId: string;
   requestId: string;
 }) {
-  const [state, action, pending] = useActionState(
-    recoverAdminGoodsPaymentAction,
-    EMPTY_ACTION_STATE,
-  );
+  const { errors, pending, running } = cancellationFormView(cancellation, 'korpayRecovery', orderId);
   const attestationRef = useRef<HTMLInputElement>(null);
   const confirmation = `Korpay 주문 ${providerOrderId} · ₩${amount.toLocaleString('ko-KR')} ${currency}의 전액 취소 완료를 원장에서 확인했습니다. 반영하면 확인된 결제에는 환불 원장을 남기고, 주문 취소와 재고 복원을 즉시 완료합니다. 계속할까요?`;
   const attestationId = `admin-korpay-cancel-attestation-${attemptId}`;
   const attestationErrorId = `admin-korpay-cancel-attestation-error-${attemptId}`;
-  const attestationError = state.errors?.operatorAttestation;
+  const attestationError = errors?.operatorAttestation;
 
   useEffect(() => {
     if (attestationError) attestationRef.current?.focus();
@@ -424,15 +802,17 @@ function ManualKorpayCancellationForm({
 
   return (
     <form
-      action={action}
-      className="admin-order-korpay-recovery-form"
+      action={cancellation.action}
+      className="flex flex-col items-start gap-2 rounded-lg border border-destructive/30 bg-muted/40 p-3 sm:col-span-2"
       data-confirm={confirmation}
-      onSubmit={(event) => confirmAction(event, confirmation)}
+      onSubmit={(event) => cancellation.submit(event, confirmation, 'korpayRecovery', orderId)}
     >
+      <CancellationIntentFields intent="korpayRecovery" orderId={orderId} />
       <input name="attemptId" type="hidden" value={attemptId} />
       <input name="requestId" type="hidden" value={requestId} />
-      <label htmlFor={attestationId}>
+      <label className="flex items-start gap-2 text-sm" htmlFor={attestationId}>
         <input
+          className="mt-0.5"
           aria-describedby={attestationError ? attestationErrorId : undefined}
           aria-invalid={attestationError ? true : undefined}
           disabled={pending}
@@ -445,81 +825,66 @@ function ManualKorpayCancellationForm({
         />
         <span>표시된 Korpay 주문번호와 금액의 전액 취소 완료를 원장에서 확인했습니다.</span>
       </label>
-      <button
-        className="btn btn-sm admin-order-korpay-recovery-submit"
+      <Button
+        data-order-action="korpay-recovery-submit"
         disabled={pending}
+        size="sm"
         type="submit"
+        variant="destructive"
       >
-        {pending ? '반영 중' : 'Korpay 전액 취소 반영'}
-      </button>
+        {running ? '반영 중' : 'Korpay 전액 취소 반영'}
+      </Button>
       {attestationError ? (
         <span
-          className="admin-order-korpay-recovery-error"
+          className={FIELD_ERROR_CLASS}
           id={attestationErrorId}
           role="alert"
         >
           {attestationError}
         </span>
       ) : null}
-      <ActionFeedback state={state} />
     </form>
   );
 }
 
 function OrderFilters({ filters }: { filters: AdminOrderFilters }) {
   return (
-    <form action="/admin/sales/orders" className="admin-order-filters card" method="get">
-      <label>
-        <span>주문 검색</span>
-        <select aria-label="주문 검색 대상" defaultValue={filters.field} name="field">
-          {ADMIN_ORDER_SEARCH_FIELDS.map((field) => (
-            <option key={field.value} value={field.value}>{field.label}</option>
-          ))}
-        </select>
-        <input
-          aria-label="주문번호·구매자·수취인·운송장 검색"
-          defaultValue={filters.query}
-          name="query"
-          placeholder="검색어 입력"
-          type="search"
-        />
-      </label>
-      <label>
-        <span>상태</span>
-        <select aria-label="주문 상태" defaultValue={filters.status} name="status">
-          {STATUS_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>{option.label}</option>
-          ))}
-        </select>
-      </label>
-      <label>
-        <span>시작일</span>
-        <input aria-label="주문 시작일" defaultValue={filters.from ?? ''} name="from" type="date" />
-      </label>
-      <label>
-        <span>종료일</span>
-        <input aria-label="주문 종료일" defaultValue={filters.to ?? ''} name="to" type="date" />
-      </label>
-      <div className="admin-order-filter-actions">
-        <button className="btn btn-sm" type="submit">검색</button>
-        <Link className="btn btn-sm btn-ghost" href="/admin/sales/orders?page=1">초기화</Link>
-      </div>
-    </form>
+    <SalesFilterPanel currentHref={adminOrdersHref(filters)} id="sales-orders"
+      date={{ from: filters.from, to: filters.to, field: filters.dateField ?? 'ordered', options: SALES_DATE_FIELDS }}
+      search={{ value: filters.query, field: filters.field, options: ADMIN_ORDER_SEARCH_FIELDS, placeholder: '검색어 입력' }}
+      moreActive={Boolean(filters.paymentMethod)}
+      more={<>
+        <SalesFilterField label="주문상태" htmlFor="sales-orders-status">
+          <SalesSelect id="sales-orders-status" name="status" value={filters.status} options={STATUS_OPTIONS} />
+        </SalesFilterField>
+        <SalesFilterField label="결제수단" htmlFor="sales-orders-payment">
+          <SalesSelect id="sales-orders-payment" name="paymentMethod" value={filters.paymentMethod ?? ''}
+            options={[{value:'',label:'전체'},{value:'card',label:'카드'},{value:'bank_transfer',label:'무통장 입금'}]} />
+        </SalesFilterField>
+      </>} />
   );
 }
 
 function OrderDetail({
+  cancellation,
   carriers,
   filters,
   order,
+  canManage,
 }: {
+  cancellation: OrderCancellationConsole;
   carriers: ShippingCarrierRegistry;
   filters: AdminOrderFilters;
   order: AdminOrderRecord;
+  canManage: boolean;
 }) {
   const status = orderStatusMeta(order.status);
   const statusLabel = ADMIN_ORDER_STATUS_LABELS[order.status] ?? status.label;
   const cancellationRequest = order.cancellationRequest;
+  /* 기한·반송비 부담은 구매자 청약철회 사유에만 있다. 운영자 전액 취소에는 없다. */
+  const withdrawalReasonType = cancellationRequest && cancellationRequest.reasonType !== 'staff'
+    ? cancellationRequest.reasonType
+    : null;
   const canAdvanceOrderStatus = !cancellationRequest || cancellationRequest.status === 'rejected';
   /* 반송비 부담 주체는 실제로 물건이 나간 뒤에만 의미가 있다. 사다리가 늘어
      배송 이후 상태가 셋이 됐다(#250). */
@@ -536,20 +901,25 @@ function OrderDetail({
   const usesKorpayManualRecovery = manualRecoveryAttempt
     ? isKorpayManualRecoveryState(manualRecoveryAttempt.state)
     : false;
+  const staffCancellation = adminStaffCancellationAvailability(order);
 
   return (
-    <article aria-labelledby="admin-order-detail-title" className="admin-order-detail card">
-      <header className="admin-order-detail-header">
-        <div>
-          <span className={`order-status order-status--${order.status}`}
-            title={order.status === 'done' ? ADMIN_VOCABULARY.settledHint : undefined}
-            data-admin-tooltip={order.status === 'done' ? ADMIN_VOCABULARY.settledHint : undefined}
-            aria-label={order.status === 'done' ? `${statusLabel}: ${ADMIN_VOCABULARY.settledHint}` : undefined}
-            tabIndex={order.status === 'done' ? 0 : undefined}>{statusLabel}</span>
-          <h2 id="admin-order-detail-title">주문 {orderReferenceLabel(order.id)}</h2>
-          <p className="faint mono">{order.id}</p>
+    <article aria-labelledby="admin-order-detail-title" className="flex min-w-0 flex-col gap-4 border-t p-4 sm:p-5" data-order-detail="">
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex min-w-0 flex-col items-start gap-1.5">
+          {order.status === 'done' ? (
+            /* 거래확정의 뜻은 키보드 포커스에도 보이는 설명(data-admin-tooltip)으로 남긴다. */
+            <span className="inline-flex rounded-4xl outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+              title={ADMIN_VOCABULARY.settledHint}
+              data-admin-tooltip={ADMIN_VOCABULARY.settledHint}
+              aria-label={`${statusLabel}: ${ADMIN_VOCABULARY.settledHint}`}
+              tabIndex={0}><OrderStatusBadge label={statusLabel} status={order.status} /></span>
+          ) : <OrderStatusBadge label={statusLabel} status={order.status} />}
+          <h2 className="text-lg font-semibold tracking-tight text-foreground" id="admin-order-detail-title">주문 {orderReferenceLabel(order.id, order.orderNumber)}</h2>
+          <ShortId className="text-xs text-muted-foreground" value={order.id} />
           <Link
-            className="btn btn-sm btn-ghost"
+            className={LINK_BUTTON}
+            data-slot="button"
             href={adminOrderDetailHref(order.id, filters)}
             rel="noopener noreferrer"
             target="_blank"
@@ -557,122 +927,141 @@ function OrderDetail({
             상세 열기 (새 탭)
           </Link>
         </div>
-        <strong>{formatKrwExact(order.total)}</strong>
+        <strong className="text-lg font-semibold tabular-nums">{formatKrwExact(order.total)}</strong>
       </header>
 
-      <dl className="admin-order-summary">
-        <div><dt>구매자</dt><dd>@{order.buyerName}</dd></div>
-        <div><dt>이메일</dt><dd>{order.buyerEmail ?? '미등록'}</dd></div>
-        <div><dt>주문 시각</dt><dd>{formatOrderDateTime(order.createdAt)}</dd></div>
-        <div><dt>최근 변경</dt><dd>{formatOrderDateTime(order.updatedAt)}</dd></div>
+      <dl className={FACTS_CLASS}>
+        <div className={FACT_CLASS}><dt className={FACT_TERM}>구매자</dt><dd className={FACT_VALUE}>{order.buyerName}</dd></div>
+        <div className={FACT_CLASS}><dt className={FACT_TERM}>이메일</dt><dd className={FACT_VALUE}>{order.buyerEmail ?? '미등록'}</dd></div>
+        <div className={FACT_CLASS}><dt className={FACT_TERM}>주문 시각</dt><dd className={FACT_VALUE}>{formatOrderDateTime(order.createdAt)}</dd></div>
+        <div className={FACT_CLASS}><dt className={FACT_TERM}>최근 변경</dt><dd className={FACT_VALUE}>{formatOrderDateTime(order.updatedAt)}</dd></div>
       </dl>
 
-      <section className="admin-order-detail-section" aria-labelledby="admin-order-items-title">
-        <h3 id="admin-order-items-title">주문 품목</h3>
-        <div className="admin-order-items">
+      <section className={DETAIL_SECTION} aria-labelledby="admin-order-items-title">
+        <h3 className={DETAIL_HEADING} id="admin-order-items-title">주문 품목</h3>
+        <div className="flex flex-col gap-2">
           {order.items.map((item) => (
-            <div className="admin-order-item" key={item.id}>
-              <div><strong>{item.name}</strong><span>{item.type}</span></div>
-              <span>{item.qty.toLocaleString('ko-KR')}개</span>
-              <strong>{formatKrwExact(item.unitPrice * item.qty)}</strong>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border px-3 py-2.5" key={item.id}>
+              <div className="flex min-w-0 flex-1 flex-col gap-0.5"><strong className="font-medium wrap-anywhere">{item.name}</strong><span className="text-xs text-muted-foreground">{item.type}</span><GoodsCustomInputsSummary selection={item.customInputs} /></div>
+              <span className="text-muted-foreground tabular-nums">{item.qty.toLocaleString('ko-KR')}개</span>
+              <strong className="font-semibold tabular-nums">{formatKrwExact(item.unitPrice * item.qty)}</strong>
             </div>
           ))}
         </div>
       </section>
 
       {order.address && (
-        <section className="admin-order-detail-section" aria-labelledby="admin-order-address-title">
-          <h3 id="admin-order-address-title">배송지</h3>
-          <address className="admin-order-address">
-            <strong>{order.address.recipientName}</strong>
-            <span>{order.address.phone}</span>
-            <span>[{order.address.postalCode}] {order.address.address1}</span>
-            {order.address.address2 ? <span>{order.address.address2}</span> : null}
-            {order.address.deliveryNote ? <small>배송 메모 · {order.address.deliveryNote}</small> : null}
+        <section className={DETAIL_SECTION} aria-labelledby="admin-order-address-title">
+          <h3 className={DETAIL_HEADING} id="admin-order-address-title">배송지</h3>
+          {order.addressNeedsReview && <AdminNotice role="status" tone="warning">주문 당시 주소 형식 확인이 필요합니다. 배송 처리 전 원본 기록과 수령 주소를 확인해주세요.</AdminNotice>}
+          <address className="flex flex-col gap-0.5 not-italic wrap-anywhere">
+            <strong className="font-medium">{order.address.recipientName}</strong>
+            <span className="text-muted-foreground">{order.address.phone}</span>
+            <span className="text-muted-foreground">[{order.address.postalCode}] {order.address.address1}</span>
+            {order.address.address2 ? <span className="text-muted-foreground">{order.address.address2}</span> : null}
+            {order.address.deliveryNote ? <small className="text-xs text-muted-foreground">배송 메모 · {order.address.deliveryNote}</small> : null}
           </address>
         </section>
       )}
 
-      <section className="admin-order-detail-section" aria-labelledby="admin-order-payment-title">
-        <h3 id="admin-order-payment-title">결제·환불</h3>
-        <div className="admin-order-ledger">
+      {canManage ? <section className={DETAIL_SECTION} aria-labelledby="admin-order-payment-title">
+        <h3 className={DETAIL_HEADING} id="admin-order-payment-title">결제·환불</h3>
+        <div className="flex flex-col gap-2">
           {order.payments.map((payment) => (
-            <div key={payment.id}>
-              <span>결제 · {paymentStatusLabel(payment.status)}</span>
-              <span>{formatOrderDateTime(payment.createdAt)}</span>
-              <strong>{formatKrwExact(payment.amount)}</strong>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border px-3 py-2.5" key={payment.id}>
+              <span className="flex items-center gap-1.5">결제 <AdminStatusBadge tone={statusTone('payment', payment.status)}>{paymentStatusLabel(payment.status)}</AdminStatusBadge></span>
+              <span className="text-xs text-muted-foreground">{formatOrderDateTime(payment.createdAt)}</span>
+              <strong className="ml-auto font-semibold tabular-nums">{formatKrwExact(payment.amount)}</strong>
             </div>
           ))}
           {order.refunds.map((refund) => (
-            <div key={refund.id}>
-              <span>환불 · {refundStatusLabel(refund.status)}</span>
-              <span>{formatOrderDateTime(refund.createdAt)}</span>
-              <strong>{formatKrwExact(refund.amount)}</strong>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border px-3 py-2.5" key={refund.id}>
+              <span className="flex items-center gap-1.5">환불 <AdminStatusBadge tone={statusTone('refund', refund.status)}>{refundStatusLabel(refund.status)}</AdminStatusBadge></span>
+              <span className="text-xs text-muted-foreground">{formatOrderDateTime(refund.createdAt)}</span>
+              <strong className="ml-auto font-semibold tabular-nums">{formatKrwExact(refund.amount)}</strong>
             </div>
           ))}
-          {!order.payments.length && !order.refunds.length ? <p className="muted">결제 기록이 없습니다.</p> : null}
+          {!order.payments.length && !order.refunds.length ? <p className="text-muted-foreground">결제 기록이 없습니다.</p> : null}
         </div>
-      </section>
+      </section> : null}
 
-      {cancellationRequest ? (
-        <section className="admin-order-cancellation" aria-labelledby="admin-order-cancellation-title">
-          <div className="admin-order-cancellation-heading">
-            <div>
+      {canManage && cancellationRequest ? (
+        <section className="flex flex-col gap-2.5 rounded-lg border border-warning-border bg-muted/40 p-4" aria-labelledby="admin-order-cancellation-title">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex flex-col gap-1">
               {/* 유형과 절차 단계를 그대로 쓴다. status 투영만 보이면 수거 중인
                   반품이 "청약철회 요청 · 요청 접수"로 표시된다(#252). */}
-              <span>{ORDER_CLAIM_TYPE_LABELS[cancellationRequest.claimType]} 요청</span>
-              <h3 id="admin-order-cancellation-title">
-                {ORDER_CLAIM_STAGE_LABELS[cancellationRequest.stage]}
+              <span className="text-xs font-medium text-warning">{ORDER_CLAIM_TYPE_LABELS[cancellationRequest.claimType]} 요청</span>
+              <h3 className="text-base font-medium text-foreground" id="admin-order-cancellation-title">
+                <AdminStatusBadge tone={statusTone('claim', cancellationRequest.stage)}>{adminClaimStageLabel(cancellationRequest.claimType, cancellationRequest.stage)}</AdminStatusBadge>
               </h3>
             </div>
-            <time dateTime={cancellationRequest.requestedAt}>
+            <time className="text-xs text-muted-foreground" dateTime={cancellationRequest.requestedAt}>
               {formatOrderDateTime(cancellationRequest.requestedAt)}
             </time>
           </div>
-          <div className="admin-order-cancellation-reason">
-            <CancellationReasonBadge reasonType={cancellationRequest.reasonType} />
-            <small>
-              {ORDER_WITHDRAWAL_DEADLINE_LABELS[cancellationRequest.reasonType]}
-              {/* 반송은 배송이 시작된 주문에서만 일어난다. 미출고 건에 부담 주체를
-                  띄우면 존재하지 않는 사건을 판단 근거로 제시하게 된다. */}
-              {hasShipped
-                ? ` · ${ADMIN_WITHDRAWAL_RETURN_SHIPPING_LABELS[cancellationRequest.reasonType]}`
-                : ''}
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+            <CancellationReasonBadge request={cancellationRequest} />
+            <small className="text-xs text-muted-foreground">
+              {withdrawalReasonType
+                ? (
+                  <>
+                    {ORDER_WITHDRAWAL_DEADLINE_LABELS[withdrawalReasonType]}
+                    {/* 반송은 배송이 시작된 주문에서만 일어난다. 미출고 건에 부담 주체를
+                        띄우면 존재하지 않는 사건을 판단 근거로 제시하게 된다. */}
+                    {hasShipped
+                      ? ` · ${ADMIN_WITHDRAWAL_RETURN_SHIPPING_LABELS[withdrawalReasonType]}`
+                      : ''}
+                  </>
+                )
+                : '운영자가 시작한 발송 전 전액 취소 · 구매자 청약철회 기한과 무관'}
             </small>
           </div>
           {cancellationRequest.decisionNote ? (
-            <p>처리 메모 · {cancellationRequest.decisionNote}</p>
+            <p className="text-muted-foreground wrap-anywhere">처리 메모 · {cancellationRequest.decisionNote}</p>
+          ) : null}
+          {/* 재시도 결과와 같은 원인 코드를 요청 영역에도 남긴다(QA-10). 결과 문구는 다른
+              주문을 처리하거나 새로고침하면 사라지지만 코드는 요청이 열려 있는 동안 남는다. */}
+          {cancellationRequest.lastErrorCode
+            && (cancellationRequest.status === 'needs_review' || cancellationRequest.status === 'processing') ? (
+            <p className="text-muted-foreground wrap-anywhere">
+              결제사 확인 오류 · {adminPaymentCancelErrorCopy(cancellationRequest.lastErrorCode).label} <code className="rounded bg-muted px-1 font-mono text-xs text-foreground">{cancellationRequest.lastErrorCode}</code>
+              {' · 코드별 조치는 어드민 가이드 "클레임 처리"에 있습니다.'}
+            </p>
           ) : null}
           {manualRecoveryAttempt ? (
             <>
-              <h4 className="admin-order-korpay-title">Korpay 원장 확인 정보</h4>
-              <dl className="admin-order-summary admin-order-korpay-summary">
-                <div>
-                  <dt>Korpay 주문번호</dt>
-                  <dd className="mono">{manualRecoveryAttempt.providerOrderId}</dd>
+              <h4 className="text-sm font-medium text-foreground">Korpay 원장 확인 정보</h4>
+              <dl className={FACTS_CLASS}>
+                <div className={FACT_CLASS}>
+                  <dt className={FACT_TERM}>Korpay 주문번호</dt>
+                  <dd className={`${FACT_VALUE} tabular-nums`}>{manualRecoveryAttempt.providerOrderId}</dd>
                 </div>
-                <div>
-                  <dt>결제 시도 ID</dt>
-                  <dd className="mono">{manualRecoveryAttempt.attemptId}</dd>
+                <div className={FACT_CLASS}>
+                  <dt className={FACT_TERM}>결제 시도 ID</dt>
+                  <dd className={`${FACT_VALUE} tabular-nums`}>{manualRecoveryAttempt.attemptId}</dd>
                 </div>
-                <div>
-                  <dt>시도 상태</dt>
-                  <dd>{GOODS_PAYMENT_ATTEMPT_STATE_LABELS[manualRecoveryAttempt.state]}</dd>
+                <div className={FACT_CLASS}>
+                  <dt className={FACT_TERM}>시도 상태</dt>
+                  <dd className={FACT_VALUE}>{GOODS_PAYMENT_ATTEMPT_STATE_LABELS[manualRecoveryAttempt.state]}</dd>
                 </div>
-                <div>
-                  <dt>원장 확인 금액</dt>
-                  <dd>₩{manualRecoveryAttempt.amount.toLocaleString('ko-KR')} · {manualRecoveryAttempt.currency}</dd>
+                <div className={FACT_CLASS}>
+                  <dt className={FACT_TERM}>원장 확인 금액</dt>
+                  <dd className={`${FACT_VALUE} tabular-nums`}>₩{manualRecoveryAttempt.amount.toLocaleString('ko-KR')} · {manualRecoveryAttempt.currency}</dd>
                 </div>
               </dl>
               {usesKorpayManualRecovery && !manualRecoveryAttempt.manualRecoveryAvailable ? (
-                <p>현재 결제 처리 또는 다른 운영 확인이 진행 중입니다.</p>
+                <p className="text-muted-foreground">현재 결제 처리 또는 다른 운영 확인이 진행 중입니다.</p>
               ) : null}
             </>
           ) : null}
         </section>
       ) : null}
 
-      <div className="admin-order-actions">
+      {canManage ? <OrderCancellationResult orderId={order.id} state={cancellation.state} /> : null}
+
+      {canManage ? <div className="grid grid-cols-1 items-start gap-3 border-t pt-4 empty:hidden sm:grid-cols-2" data-order-actions="">
+        {['shipping', 'delivered', 'done'].includes(order.status) && !openCancellationRequest(order) ? <SellerClaimIntakeButton orderId={order.id} /> : null}
         {canAdvanceOrderStatus && order.status === 'paid' ? (
           <OrderStatusAction
             carriers={carriers}
@@ -682,21 +1071,21 @@ function OrderDetail({
             status="confirmed"
           />
         ) : null}
-        {canAdvanceOrderStatus && hasParcelShipment && order.status === 'confirmed' ? <Link href={`/admin/sales/dispatch?tab=ready&query=${order.id}`}>배송 건별 운송장 등록</Link> : null}
-        {canAdvanceOrderStatus && hasParcelShipment && order.status === 'shipping' ? <Link href={`/admin/sales/shipping?tab=transit&query=${order.id}`}>배송 건별 배송완료 처리</Link> : null}
+        {canAdvanceOrderStatus && hasParcelShipment && order.status === 'confirmed' ? <Link className={`${LINK_BUTTON} justify-self-start`} data-slot="button" href={`/admin/sales/dispatch?tab=ready&query=${order.id}`}>배송 건별 운송장 등록</Link> : null}
+        {canAdvanceOrderStatus && hasParcelShipment && order.status === 'shipping' ? <Link className={`${LINK_BUTTON} justify-self-start`} data-slot="button" href={`/admin/sales/shipping?tab=transit&query=${order.id}`}>배송 건별 배송완료 처리</Link> : null}
         {/* delivered→done은 자동 거래확정 잡이 맡는다. 운영자 버튼을 두면
             청약철회 창을 사람 손으로 조기 종료시킬 수 있다. */}
         {hasShipped ? order.shipments.filter(shipment=>isParcelShipment(shipment)&&(shipment.status==='shipping'||shipment.status==='delivered')).map(shipment=>(
-          <section key={shipment.id} aria-label={`${shipment.originName} 운송장 수정`}>
-            <h4>{shipment.originName} · {shipment.id.slice(-8).toUpperCase()}</h4>
+          <section className="flex min-w-0 flex-col gap-2 rounded-lg border p-3" key={shipment.id} aria-label={`${shipment.originName} 운송장 수정`}>
+            <h4 className="text-sm font-medium text-foreground">{shipment.originName} · {commerceReferenceLabel(shipment.id, shipment.shipmentNumber)}</h4>
             <UpdateTrackingForm carriers={carriers} orderId={order.id} shipmentId={shipment.id} shipment={orderShipment(carriers,shipment.carrier,shipment.trackingNumber)} />
           </section>
         )) : null}
         {order.shipments.filter(shipment=>!isParcelShipment(shipment)).map(shipment=>(
-          <section key={shipment.id} aria-label={`${shipment.originName} 인계·수령 확인`}>
-            <h4>{shipment.originName} · {shipment.id.slice(-8).toUpperCase()}</h4>
-            <p>{shipment.delivery ? deliveryStatusLabel(shipment.delivery.method,shipment.status) : '배송 방식 확인 필요'}</p>
-            <Link href={adminOrderDetailHref(order.id,filters)} target="_blank" rel="noopener noreferrer">
+          <section className="flex min-w-0 flex-col items-start gap-2 rounded-lg border p-3" key={shipment.id} aria-label={`${shipment.originName} 인계·수령 확인`}>
+            <h4 className="text-sm font-medium text-foreground">{shipment.originName} · {commerceReferenceLabel(shipment.id, shipment.shipmentNumber)}</h4>
+            <p className="text-muted-foreground">{shipment.delivery ? deliveryStatusLabel(shipment.delivery.method,shipment.status) : '배송 방식 확인 필요'}</p>
+            <Link className={LINK_BUTTON} data-slot="button" href={adminOrderDetailHref(order.id,filters)} target="_blank" rel="noopener noreferrer">
               {shipment.delivery ? DELIVERY_METHOD_LABELS[shipment.delivery.method] : '배송 방식'} 인계·수령 확인
             </Link>
           </section>
@@ -708,16 +1097,21 @@ function OrderDetail({
             것은 안내가 아니다. */}
         {cancellationRequest && isLegacyDecidableCancellation(cancellationRequest) ? (
           <>
-            <ApproveCancellationForm orderStatus={order.status} requestId={cancellationRequest.id} />
-            <RejectCancellationForm requestId={cancellationRequest.id} />
+            <ApproveCancellationForm
+              cancellation={cancellation}
+              orderId={order.id}
+              orderStatus={order.status}
+              requestId={cancellationRequest.id}
+            />
+            <RejectCancellationForm cancellation={cancellation} orderId={order.id} requestId={cancellationRequest.id} />
           </>
         ) : null}
         {cancellationRequest
           && !isLegacyDecidableCancellation(cancellationRequest)
-          && cancellationRequest.stage !== 'completed'
-          && cancellationRequest.stage !== 'rejected' ? (
+          && isOpenOrderClaimStage(cancellationRequest.stage) ? (
           <Link
-            className="btn btn-sm btn-ghost"
+            className={`${LINK_BUTTON} justify-self-start`}
+            data-slot="button"
             href={`/admin/sales/claims/${ORDER_CLAIM_TYPE_SLUGS[cancellationRequest.claimType]}/${cancellationRequest.id}`}
           >
             {ADMIN_VOCABULARY.claims}에서 처리
@@ -726,6 +1120,8 @@ function OrderDetail({
         {(cancellationRequest?.status === 'processing' || cancellationRequest?.status === 'needs_review')
           && !usesKorpayManualRecovery ? (
           <ReconcileCancellationForm
+            cancellation={cancellation}
+            orderId={order.id}
             preparedKorpay={manualRecoveryAttempt?.state === 'prepared'
               ? {
                   amount: manualRecoveryAttempt.amount,
@@ -736,104 +1132,178 @@ function OrderDetail({
             request={cancellationRequest}
           />
         ) : null}
+        {staffCancellation.available ? (
+          <StaffCancellationForm
+            cancellation={cancellation}
+            orderId={order.id}
+            requiresWarehouseStop={staffCancellation.requiresWarehouseStop}
+          />
+        ) : null}
         {manualRecoveryAttempt?.manualRecoveryAvailable ? (
           <ManualKorpayCancellationForm
             amount={manualRecoveryAttempt.amount}
             attemptId={manualRecoveryAttempt.attemptId}
+            cancellation={cancellation}
             currency={manualRecoveryAttempt.currency}
+            orderId={order.id}
             providerOrderId={manualRecoveryAttempt.providerOrderId}
             requestId={manualRecoveryAttempt.requestId}
           />
         ) : null}
-      </div>
+      </div> : null}
     </article>
   );
 }
 
-export function OrdersSection({ data }: { data: AdminOrderConsoleData }) {
+/** 상품 칸은 대표 상품(두 줄까지) + 외 N건이다 — 품목 수에 따라 줄 높이가 들쭉날쭉하면 목록을 훑을 수 없다. 전체 품목은 title과 화면 낭독기로 읽는다. */
+function OrderItemsCell({ items }: { items: AdminOrderRecord['items'] }) {
+  const [first, ...others] = items;
+  if (!first) return <span className="text-muted-foreground">-</span>;
+  const line = (item: AdminOrderRecord['items'][number]) => `${item.name}${item.variantName ? ` · ${item.variantName}` : ''}`;
+  return <div className="flex min-w-36 items-baseline gap-1.5" title={items.map(line).join('\n')}>
+    <span className="line-clamp-2 min-w-0 flex-1">{line(first)}</span>
+    {others.length ? <span aria-hidden="true" className="shrink-0 text-xs whitespace-nowrap text-muted-foreground">외 {others.length}건</span> : null}
+    <ul className="sr-only">
+      {others.map((item) => <li key={item.id}>{line(item)}</li>)}
+      {items.map((item) => <li key={`inputs-${item.id}`}><GoodsCustomInputsSummary selection={item.customInputs} /></li>)}
+    </ul>
+  </div>;
+}
+
+export function OrdersSection({ data, canManage = true }: { data: AdminOrderConsoleData; canManage?: boolean }) {
+  const [selection, setSelection] = useState<string[]>([]);
+  const [bulkState, bulkAction, bulkPending] = useActionState(bulkConfirmAdminOrdersAction, EMPTY_ACTION_STATE);
   const selected = data.filters.orderId
     ? data.items.find((order) => order.id === data.filters.orderId) ?? null
     : data.items[0] ?? null;
-  const totalPages = Math.max(1, Math.ceil(data.total / data.pageSize));
+  const currentHref = adminOrdersHref(data.filters);
+  const eligible = new Set(data.items.filter((order) => canManage && order.status === 'paid' && !openCancellationRequest(order)).map((order) => order.id));
+  const selectedIds = selection.filter((id) => eligible.has(id));
+  /* 1440 화면(표 폭 1,100px)에 진행 중인 요청까지 잘리지 않고 들어오게 나눈다. 진행 중인 요청 칸은 '취소 결제확인필요'가 한 줄에 들어가는 폭이고, 상품 칸이 남는 자리를 받는다. 수취인명은 조회항목 설정에서 켠다. */
+  const columns: ConsoleGridColumn[] = [
+    {key:'reference',label:'주문번호',width:'164px'}, {key:'status',label:'주문상태',width:'98px'},
+    {key:'items',label:'상품명 / 옵션'},
+    {key:'total',label:'결제금액',width:'92px',align:'end'}, {key:'qty',label:'수량',width:'50px',align:'end'},
+    {key:'ordered',label:'주문일시',width:'144px'}, {key:'buyer',label:'구매자명',width:'104px'},
+    {key:'detail',label:canManage?'주문 처리':'주문 상세',width:'78px'},
+    {key:'claim',label:'취소·반품·교환',width:'146px'},
+    {key:'recipient',label:'수취인명',width:'80px',defaultVisible:false},
+  ];
+  const rows = data.items.map((order) => {
+    const request = canManage ? openCancellationRequest(order) : null;
+    return {id:order.id,selectable:eligible.has(order.id),selectLabel:`주문 ${orderReferenceLabel(order.id, order.orderNumber)} 선택`,cells:[
+      <Link key="reference" className="font-medium tabular-nums underline-offset-4 hover:underline" href={adminOrderDetailHref(order.id,data.filters)} target="_blank" rel="noopener noreferrer"
+        aria-label={`주문 ${orderReferenceLabel(order.id, order.orderNumber)} 상세 열기 (새 탭)`}>{orderReferenceLabel(order.id, order.orderNumber)}</Link>,
+      <OrderStatusBadge key="status" status={order.status} title={order.status==='done'?ADMIN_VOCABULARY.settledHint:undefined} />,
+      <OrderItemsCell items={order.items} key="items" />,
+      formatKrwExact(order.total), order.items.reduce((qty,item)=>qty+item.qty,0),
+      <time key="created" className="tabular-nums whitespace-nowrap" dateTime={order.createdAt}>{formatOrderDateTime(order.createdAt)}</time>,
+      <span key="buyer" className="block max-w-20 truncate" title={order.buyerName}>{order.buyerName}</span>,
+      <Link key="detail" className="font-medium underline-offset-4 hover:underline" aria-label={`${canManage ? '상세·처리' : '상세 보기'} 주문 ${orderReferenceLabel(order.id, order.orderNumber)}${request?` · ${cancellationReasonAccessibleName(request)}`:''}`} href={`${adminOrdersHref(data.filters,{orderId:order.id})}#sales-order-detail`}>{canManage ? '상세·처리' : '상세 보기'}</Link>,
+      request?<div key="claim" className="flex flex-col items-start gap-1"><Link className="inline-flex flex-wrap items-center gap-1 underline-offset-4 hover:underline" href={`/admin/sales/claims/${ORDER_CLAIM_TYPE_SLUGS[request.claimType]}/${request.id}`}>{ORDER_CLAIM_TYPE_LABELS[request.claimType]} <AdminStatusBadge tone={statusTone('claim', request.stage)}>{adminClaimStageLabel(request.claimType, request.stage)}</AdminStatusBadge></Link><CancellationReasonBadge row request={request}/></div>:'-',
+      <span key="recipient">{order.address?.recipientName??'-'}</span>,
+    ]};
+  });
+  const [cancellationState, cancellationAction, cancellationPending] = useActionState(
+    runOrderCancellationAction,
+    EMPTY_CANCELLATION_STATE,
+  );
+  const [submittedCancellation, setSubmittedCancellation] = useState<OrderCancellationConsole['submitted']>(null);
+  const [cancellationClientErrors, setCancellationClientErrors] = useState<OrderCancellationConsole['clientErrors']>(null);
+  const cancellation: OrderCancellationConsole = {
+    state: cancellationState,
+    action: ignoreUnconfirmedCancellationSubmit,
+    pending: cancellationPending,
+    submitted: submittedCancellation,
+    clientErrors: cancellationClientErrors,
+    submit: (event, confirmation, intent, orderId, validate) => {
+      /* 양식 action으로 보내지 않는다 — 끝나면 입력이 초기화된다(planOrderCancellationSubmit). */
+      event.preventDefault();
+      const formData = new FormData(event.currentTarget);
+      const plan = planOrderCancellationSubmit(formData, confirmation, (message) => window.confirm(message), validate);
+      if (plan.kind === 'invalid') {
+        setCancellationClientErrors({ intent, orderId, errors: plan.errors });
+        return;
+      }
+      if (plan.kind === 'dismissed') return;
+      setCancellationClientErrors(null);
+      // 처리 뒤 목록에서 빠질 수 있는 주문의 결과 배너를 16자리 주문번호로 적도록 함께 보낸다(표시 전용).
+      const orderNumber = data.items.find((order) => order.id === orderId)?.orderNumber;
+      if (orderNumber) formData.set('cancellationOrderNumber', orderNumber);
+      setSubmittedCancellation({ intent, orderId });
+      startTransition(() => cancellationAction(formData));
+    },
+  };
+  /* 상태 필터로 보던 목록에서는 방금 취소한 주문이 빠진다. 그 결과는 목록 위에 남긴다. */
+  const resultOrderId = hasCancellationResult(cancellationState) ? cancellationState.orderId ?? null : null;
+  const resultOutsideList = resultOrderId && !data.items.some((order) => order.id === resultOrderId)
+    ? resultOrderId
+    : null;
 
   return (
-    <section className="admin-orders col">
-      <OrderFilters filters={data.filters} />
-      <div className="admin-master-detail admin-order-master-detail">
-        <aside className="admin-order-list card" aria-label="주문 목록">
-          <div className="admin-order-list-heading">
-            <strong>주문 {data.total.toLocaleString('ko-KR')}건</strong>
-            <span className="faint mono">최근순</span>
-          </div>
-          {data.items.map((order) => {
-            const openRequest = openCancellationRequest(order);
-            return (
-            <Link
-              aria-current={selected?.id === order.id ? 'true' : undefined}
-              /* aria-label이 행 내용을 덮어쓰므로 사유 배지를 이름에도 넣는다. 넣지
-                 않으면 스크린리더 사용자에게만 사유가 사라진다. */
-              aria-label={`주문 ${orderReferenceLabel(order.id)} 선택${
-                openRequest ? ` · 청약철회 ${adminGoodsCopy(ORDER_WITHDRAWAL_REASON_LABELS[openRequest.reasonType])}` : ''
-              }`}
-              className={selected?.id === order.id ? 'admin-order-row on' : 'admin-order-row'}
-              href={adminOrdersHref(data.filters, { orderId: order.id })}
-              key={order.id}
-            >
-              <span className={`order-status order-status--${order.status}`}
-                title={order.status === 'done' ? ADMIN_VOCABULARY.settledHint : undefined}
-            data-admin-tooltip={order.status === 'done' ? ADMIN_VOCABULARY.settledHint : undefined}
-                aria-label={order.status === 'done' ? `${ADMIN_VOCABULARY.settled}: ${ADMIN_VOCABULARY.settledHint}` : undefined}
-                tabIndex={order.status === 'done' ? 0 : undefined}>{ADMIN_ORDER_STATUS_LABELS[order.status] ?? orderStatusMeta(order.status).label}</span>
-              <strong>@{order.buyerName}</strong>
-              <span className="faint mono">{orderReferenceLabel(order.id)}</span>
-              <span className="admin-order-row-total">{formatKrwExact(order.total)}</span>
-              {openRequest ? (
-                <CancellationReasonBadge
-                  className="admin-order-row-reason"
-                  reasonType={openRequest.reasonType}
-                />
-              ) : null}
-            </Link>
-            );
-          })}
-          {!data.items.length ? <p className="muted">조건에 맞는 주문이 없습니다.</p> : null}
-          {totalPages > 1 ? (
-            <nav aria-label="주문 목록 페이지" className="admin-order-pagination">
-              {data.filters.page > 1 ? (
-                <Link
-                  aria-label="이전 페이지"
-                  className="btn btn-sm btn-ghost"
-                  href={adminOrdersHref(data.filters, { orderId: null, page: data.filters.page - 1 })}
-                >
-                  이전
-                </Link>
-              ) : <span />}
-              <span aria-live="polite">{data.filters.page} / {totalPages} 페이지</span>
-              {data.filters.page < totalPages ? (
-                <Link
-                  aria-label="다음 페이지"
-                  className="btn btn-sm btn-ghost"
-                  href={adminOrdersHref(data.filters, { orderId: null, page: data.filters.page + 1 })}
-                >
-                  다음
-                </Link>
-              ) : <span />}
-            </nav>
-          ) : null}
-        </aside>
-        {selected ? <OrderDetail carriers={data.carriers} filters={data.filters} order={selected} /> : data.filters.orderId ? (
-          <div className="card col" role="status">
-            <p>선택한 주문은 현재 목록에 없습니다.</p>
-            <Link
-              href={adminOrderDetailHref(data.filters.orderId, data.filters)}
-              rel="noopener noreferrer"
-              target="_blank"
-            >
-              지정한 주문 상세 열기 (새 탭)
-            </Link>
-          </div>
-        ) : null}
+    <section className="flex min-w-0 flex-col gap-4 text-sm" data-admin-orders="">
+      {/* 조회 단위와 메뉴설명을 한 줄에 두어 표가 첫 화면에 더 들어오게 한다. */}
+      <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
+        <OrderViewTabs filters={data.filters} view="orders" />
+        <div className="min-w-0 flex-1 basis-80">
+          <SalesGuide title="주문 검색과 주문별 결제·배송·요청 내역을 확인할 수 있습니다.">
+            <p>{canManage ? '주문번호를 누르면 상세 정보를 새 탭으로 엽니다. 신규주문은 선택하여 발주확인할 수 있으며, 발송과 배송완료는 출고지별 배송건을 확인해 처리합니다.' : '주문번호를 누르면 주문과 배송 정보를 조회할 수 있습니다.'}</p>
+          </SalesGuide>
+        </div>
       </div>
+      <SalesStatusSummary hideLabel label="주문 처리 단계" items={STATUS_OPTIONS.map(option=>({label:option.label,active:data.filters.status===option.value,tone:option.value==='paid'?'warning' as const:undefined,icon:STATUS_CARD_ICONS[option.value],
+        count:option.value==='all'?(data.counts?Object.values(data.counts).reduce((sum,value)=>sum+value,0):undefined):data.counts?.[option.value],
+        href:adminOrdersHref(data.filters,{status:option.value,page:1,orderId:null})}))}/>
+      <OrderFilters filters={data.filters} />
+      {canManage && resultOutsideList ? (
+        <section aria-label="취소 처리 결과">
+          <AdminNotice title={`주문 ${orderReferenceLabel(resultOutsideList, cancellationState.orderNumber)} 취소 처리 결과 · 지금 검색 조건의 목록에는 없는 주문입니다.`} tone={cancellationResultTone(cancellationState)}>
+            <div className="flex flex-col items-start gap-2">
+              <CancellationResultBody state={cancellationState} />
+              <Link className={LINK_BUTTON} data-slot="button" href={adminOrderSearchHref(resultOutsideList)}>이 주문 열기</Link>
+            </div>
+          </AdminNotice>
+        </section>
+      ) : null}
+      <div className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground" data-sales-results="">
+        <SalesResultsHeader currentHref={currentHref} total={data.total} pageSize={data.pageSize} sort={data.filters.sort??'newest'}>
+          <AdminListExportButton href={adminListExportHref('orders', currentHref)} total={data.total} />
+        </SalesResultsHeader>
+        <form action={bulkAction} className="flex min-w-0 flex-col gap-2" onSubmit={(event)=>confirmAction(event,`선택한 신규주문 ${selectedIds.length}건을 발주확인할까요?`)}>
+          {selectedIds.map(id=><input key={id} type="hidden" name="orderIds" value={id}/>)}
+          <ConsoleGrid caption="주문 목록" preferencesKey="sales-orders" columns={columns} rows={rows} selectable={eligible.size>0}
+            selectedIds={selectedIds} onSelectionChange={setSelection} emptyLabel="조건에 맞는 주문이 없습니다.">
+            {canManage ? <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2 print:hidden" data-sales-workbar="">
+              <span className="text-muted-foreground tabular-nums">{selectedIds.length}건 선택</span>
+              <Button disabled={bulkPending||selectedIds.length===0} size="sm" title={selectedIds.length===0?'왼쪽 체크칸에서 신규주문을 고르면 누를 수 있습니다.':undefined} type="submit">{bulkPending?'처리 중…':'선택 주문 발주확인'}</Button>
+              <span className="text-xs text-muted-foreground">체크칸은 진행 중인 취소·반품·교환 요청이 없는 신규주문에만 있습니다.</span>
+              <ActionFeedback state={bulkState}/>
+              <span className="ml-auto flex items-center gap-2"><Link className={LINK_BUTTON} data-slot="button" href="/admin/sales/dispatch">발송관리</Link><Link className={LINK_BUTTON} data-slot="button" href="/admin/sales/shipping">배송현황</Link></span>
+            </div> : null}
+          </ConsoleGrid>
+        </form>
+        <ConsolePagination label="주문 목록 페이지" page={data.filters.page} pageSize={data.pageSize} total={data.total}
+          hrefForPage={page=>adminOrdersHref(data.filters,{page,orderId:null})}/>
+      </div>
+        {selected ? <details id="sales-order-detail" className="group scroll-mt-4 rounded-xl border bg-card text-card-foreground" open={Boolean(data.filters.orderId)} key={selected.id}>
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 font-medium [&::-webkit-details-marker]:hidden">주문 {orderReferenceLabel(selected.id, selected.orderNumber)} {canManage ? '상세·처리' : '상세 보기'}<ChevronDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" /></summary>
+          <OrderDetail cancellation={cancellation} carriers={data.carriers} filters={data.filters} order={selected} canManage={canManage} />
+        </details> : data.filters.orderId ? (
+          <AdminNotice role="status" tone="warning">
+            <div className="flex flex-col items-start gap-2">
+              <p>선택한 주문은 현재 목록에 없습니다.</p>
+              <Link
+                className={LINK_BUTTON}
+                data-slot="button"
+                href={adminOrderDetailHref(data.filters.orderId, data.filters)}
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                지정한 주문 상세 열기 (새 탭)
+              </Link>
+            </div>
+          </AdminNotice>
+        ) : null}
     </section>
   );
 }

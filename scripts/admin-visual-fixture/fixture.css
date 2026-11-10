@@ -2,6 +2,8 @@
 
 body { margin: 0; }
 
+.fixture-route-switcher[hidden], .fixture-editor-controls[hidden] { display: none !important; }
+
 .fixture-route-switcher {
   position: fixed;
   z-index: 200;

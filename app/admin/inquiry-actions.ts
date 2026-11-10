@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { hasAdminCapability } from '@/lib/admin/access';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { sendInquiryAnsweredEmail } from '@/lib/email/transactional.server';
 import {
@@ -12,7 +13,7 @@ import {
 } from '@/lib/inquiries';
 import { createClient } from '@/lib/supabase/server';
 
-/* 어드민 문의 답변·종결·템플릿(#253).
+/* 어드민 문의 답변·종결(#253). 템플릿 관리는 inquiry-reply-template-actions로 분리한다.
  *
  * 답변 등록과 인앱 알림은 DB 한 트랜잭션 안에서 끝난다(admin_answer_inquiry).
  * 메일만 그 뒤에 보낸다 — HTTP는 트랜잭션에 넣을 수 없고, 메일 실패가 답변 등록을
@@ -34,11 +35,11 @@ export interface AdminInquiryActionState {
    * 운영자가 한 번 더 보낸다.
    */
   resultKey?: string;
+  uncertain?: boolean;
 }
 
 const ANSWER_FAILED = '답변을 등록하지 못했습니다. 최신 상태를 확인해주세요.';
 const CLOSE_FAILED = '문의를 종결하지 못했습니다. 최신 상태를 확인해주세요.';
-const TEMPLATE_FAILED = '답변 템플릿을 저장하지 못했습니다.';
 const UPLOAD_FAILED = '첨부 이미지를 업로드하지 못했습니다. 다시 시도해주세요.';
 
 interface AnswerRow {
@@ -54,7 +55,7 @@ async function requireStaffAction(): Promise<{ error?: AdminInquiryActionState; 
   if (!auth.isConfigured || !auth.user) {
     redirect(`/login?next=${encodeURIComponent('/admin/cs/inquiries')}`);
   }
-  if (!auth.isStaff) return { error: { errors: { form: '관리자 권한이 필요합니다.' } } };
+  if (!auth.isStaff || !hasAdminCapability(auth, 'cs.manage')) return { error: { errors: { form: '관리자 권한이 필요합니다.' } } };
   return { userId: auth.user.id };
 }
 
@@ -67,9 +68,25 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string) {
   return fallback;
 }
 
+/* 브라우저 폼은 textarea 줄바꿈을 CRLF(2자)로 보낸다. textarea maxLength는 줄바꿈을 1자로 세므로,
+   trim·길이 검사·저장 전에 LF로 맞춰야 화면과 서버가 같은 글자 수를 센다(줄이 많은 2,000자 답변이
+   서버에서만 거절되지 않는다). DB에도 CRLF가 남지 않는다. */
+function normalizeLineBreaks(value: string) {
+  return value.replace(/\r\n?/g, '\n');
+}
+
+/** 답변 폼의 문자열 칸만 줄바꿈을 맞춘 사본. 첨부 이미지는 그대로 넘긴다. */
+function lineBreakNormalizedForm(formData: FormData) {
+  const normalized = new FormData();
+  for (const [name, value] of formData.entries()) {
+    normalized.append(name, typeof value === 'string' ? normalizeLineBreaks(value) : value);
+  }
+  return normalized;
+}
+
 function readString(formData: FormData, name: string) {
   const value = formData.get(name);
-  return typeof value === 'string' ? value.trim() : '';
+  return typeof value === 'string' ? normalizeLineBreaks(value).trim() : '';
 }
 
 export async function answerInquiryAction(
@@ -79,7 +96,7 @@ export async function answerInquiryAction(
   const access = await requireStaffAction();
   if (access.error || !access.userId) return access.error ?? { errors: { form: ANSWER_FAILED } };
 
-  const normalized = normalizeInquiryReplyForm(formData);
+  const normalized = normalizeInquiryReplyForm(lineBreakNormalizedForm(formData));
   if (!normalized.ok) {
     return {
       errors: {
@@ -127,6 +144,7 @@ export async function answerInquiryAction(
   });
 
   revalidatePath('/admin/cs/inquiries');
+  revalidatePath('/admin/cs/chat');
   revalidatePath(`/admin/cs/inquiries/${normalized.value.inquiryId}`);
 
   const resultKey = crypto.randomUUID();
@@ -159,60 +177,9 @@ export async function closeInquiryAction(
   if (error) return { errors: { form: rpcErrorMessage(error.message, CLOSE_FAILED) } };
 
   revalidatePath('/admin/cs/inquiries');
+  revalidatePath('/admin/cs/chat');
   revalidatePath(`/admin/cs/inquiries/${inquiryId}`);
   return { message: '문의를 종결했습니다.' };
-}
-
-export async function saveInquiryReplyTemplateAction(
-  _state: AdminInquiryActionState,
-  formData: FormData,
-): Promise<AdminInquiryActionState> {
-  const access = await requireStaffAction();
-  if (access.error) return access.error;
-
-  const title = readString(formData, 'templateTitle');
-  const body = readString(formData, 'templateBody');
-  if (!title || title.length > 40) {
-    return { errors: { form: '템플릿 이름을 40자 이내로 입력해주세요.' } };
-  }
-  if (!body || body.length > MAX_INQUIRY_BODY_LENGTH) {
-    return { errors: { form: `템플릿 본문을 ${MAX_INQUIRY_BODY_LENGTH}자 이내로 입력해주세요.` } };
-  }
-
-  const supabase = await createClient();
-  const { error } = await supabase.rpc('admin_upsert_inquiry_reply_template', {
-    target_body: body,
-    target_template_id: readString(formData, 'templateId') || null,
-    target_title: title,
-  });
-  if (error) return { errors: { form: TEMPLATE_FAILED } };
-
-  revalidatePath('/admin/cs/inquiries');
-  const inquiryId = readString(formData, 'inquiryId');
-  if (inquiryId) revalidatePath(`/admin/cs/inquiries/${inquiryId}`);
-  return { message: '답변 템플릿을 저장했습니다.' };
-}
-
-export async function deleteInquiryReplyTemplateAction(
-  _state: AdminInquiryActionState,
-  formData: FormData,
-): Promise<AdminInquiryActionState> {
-  const access = await requireStaffAction();
-  if (access.error) return access.error;
-
-  const templateId = readString(formData, 'templateId');
-  if (!templateId) return { errors: { form: TEMPLATE_FAILED } };
-
-  const supabase = await createClient();
-  const { error } = await supabase.rpc('admin_delete_inquiry_reply_template', {
-    target_template_id: templateId,
-  });
-  if (error) return { errors: { form: TEMPLATE_FAILED } };
-
-  revalidatePath('/admin/cs/inquiries');
-  const inquiryId = readString(formData, 'inquiryId');
-  if (inquiryId) revalidatePath(`/admin/cs/inquiries/${inquiryId}`);
-  return { message: '답변 템플릿을 삭제했습니다.' };
 }
 
 const INQUIRY_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -244,6 +211,7 @@ export async function reassignInquiryAction(
       : '담당자를 변경하지 못했습니다. 최신 상태를 확인해주세요.' } };
   }
   revalidatePath('/admin/cs/inquiries');
+  revalidatePath('/admin/cs/chat');
   revalidatePath(`/admin/cs/inquiries/${inquiryId}`);
   return { message: '담당자를 변경했습니다. 변경 사유가 이력에 기록됐습니다.', resultKey: crypto.randomUUID() };
 }
@@ -266,6 +234,7 @@ export async function addInquiryInternalNoteAction(
     target_body: body,
   });
   if (error) return { errors: { form: '내부 메모를 저장하지 못했습니다. 다시 시도해주세요.' } };
+  revalidatePath('/admin/cs/chat');
   revalidatePath(`/admin/cs/inquiries/${inquiryId}`);
   return { message: '내부 메모를 저장했습니다. 고객에게는 보이지 않습니다.', resultKey: crypto.randomUUID() };
 }

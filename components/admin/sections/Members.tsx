@@ -2,7 +2,7 @@
 
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import Link from 'next/link';
-import { useActionState, useState, type FormEvent } from 'react';
+import { Fragment, useActionState, useState, type FormEvent } from 'react';
 import {
   adjustMemberLoyaltyAction,
   loadAdminMemberDetailAction,
@@ -18,7 +18,11 @@ import {
   type AdminMemberRole,
   type AdminMemberSummary,
 } from '@/lib/admin/members';
-import { Icon } from '@/components/ui/Icon';
+import { Check, RefreshCw, Search, ShieldBan, User } from 'lucide-react';
+import { Button } from '@/components/admin/kit/ui/button';
+import { statusTone } from '@/lib/admin/status-tone';
+import { Input } from '@/components/admin/kit/ui/input';
+import { Table, TableBody, TableCell, TableHead, TableRow } from '@/components/admin/kit/ui/table';
 import {
   LOYALTY_GRADES,
   isLoyaltyGrade,
@@ -26,6 +30,11 @@ import {
   loyaltyGradeLabel,
 } from '@/lib/loyalty';
 import { ErrorText, InlineNotice, SelectField, TextArea } from '../fields';
+import { CONSOLE_FILTER_CARD_CLASS, CONSOLE_FILTER_FIELDS_CLASS, ConsoleFilterActions, ConsoleFilterField } from '../console/ConsoleFilterPanel';
+import { CONSOLE_TABLE_FRAME_CLASS, ConsoleListCard, ConsoleTableHeader } from '../console/ConsoleListCard';
+import { AdminNotice, AdminStatusBadge } from '../console/AdminKit';
+import { ADMIN_COUNT_CARD_GRID_CLASS, AdminCountCard } from '../console/AdminCountCard';
+import { ROW_DANGER_BUTTON_CLASS } from '../screens/cs-kit-classes';
 
 const emptyMutationState: AdminMemberMutationActionState = {};
 const dateFormatter = new Intl.DateTimeFormat('ko-KR', {
@@ -44,6 +53,16 @@ export function confirmMemberSuspension(event: FormEvent<HTMLFormElement>) {
   if (!confirmed) event.preventDefault();
 }
 
+/** 권한 값(user·staff·admin)은 DB 계약이고 화면은 운영팀 말로 보인다. */
+const MEMBER_ROLE_LABELS: Record<AdminMemberRole, string> = { user: '일반 회원', staff: '직원', admin: '관리자' };
+
+function MemberRoleBadge({ role }: { role: AdminMemberRole }) {
+  return <AdminStatusBadge tone={statusTone('memberRole', role)}>{MEMBER_ROLE_LABELS[role]}</AdminStatusBadge>;
+}
+
+/* 터치 화면에서는 운영 동작을 44px 이상으로 둔다(마우스에서는 kit 기본 크기). */
+const TOUCH_TARGET_CLASS = 'pointer-coarse:min-h-11';
+
 function MemberSuspensionControl({
   actor,
   member,
@@ -61,52 +80,43 @@ function MemberSuspensionControl({
   );
   const canModerate = canModerateAdminMember({
     actorId: actor.id,
-    actorRole: actor.role,
     memberId: member.id,
-    memberRole: member.role,
+    moderation: member.moderation,
   });
 
   if (!canModerate) {
-    return (
-      <div className="card" style={{ borderRadius: 10, padding: 14 }}>
-        <span className="muted" style={{ fontSize: 13 }}>
-          이 계정은 현재 권한으로 제재할 수 없습니다.
-        </span>
-      </div>
-    );
+    return <AdminNotice tone="neutral">이 계정은 현재 권한으로 제재할 수 없습니다.</AdminNotice>;
   }
 
   if (suspendState.message || unsuspendState.message) {
     const state = suspendState.message ? suspendState : unsuspendState;
     return (
-      <div className="card col" style={{ borderRadius: 10, gap: 6, padding: 14 }}>
-        <InlineNotice state={state} />
-        <span className="muted" style={{ fontSize: 12 }}>
-          변경된 상태에서 추가 작업이 필요하면 회원을 다시 검색해 상세를 열어주세요.
-        </span>
-      </div>
+      <AdminNotice tone="success">
+        <div className="flex flex-col gap-1.5">
+          <InlineNotice state={state} />
+          <span className="text-xs text-muted-foreground">
+            변경된 상태에서 추가 작업이 필요하면 회원을 다시 검색해 상세를 열어주세요.
+          </span>
+        </div>
+      </AdminNotice>
     );
   }
 
   if (member.suspendedAt) {
     return (
-      <div className="card col" style={{ borderRadius: 10, gap: 10, padding: 14 }}>
-        <div className="col" style={{ gap: 4 }}>
-          <strong style={{ color: 'var(--pink)', fontSize: 14 }}>정지된 계정</strong>
-          <span className="muted" style={{ fontSize: 12 }}>
+      <div className="flex flex-col gap-3 rounded-lg border border-danger-border bg-danger-soft p-4">
+        <div className="flex flex-col gap-1">
+          <strong className="text-sm font-semibold text-destructive">정지된 계정</strong>
+          <span className="text-xs text-muted-foreground tabular-nums">
             정지 시각 {new Date(member.suspendedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}
           </span>
-          <span style={{ fontSize: 13 }}>내부 사유: {member.suspensionReason ?? '기록 없음'}</span>
+          <span className="text-sm wrap-anywhere">내부 사유: {member.suspensionReason ?? '기록 없음'}</span>
         </div>
-        <form action={unsuspendAction} className="row" style={{ flexWrap: 'wrap', gap: 8, justifyContent: 'flex-start' }}>
+        <form action={unsuspendAction} className="flex flex-wrap items-center gap-2">
           <input name="profileId" type="hidden" value={member.id} />
-          <button
-            className="btn btn-sm admin-field-control"
-            disabled={unsuspendPending}
-            style={{ minHeight: 44 }}
-          >
-            <Icon name="check" size={14} /> {unsuspendPending ? '처리 중' : '정지 해제'}
-          </button>
+          <Button className={TOUCH_TARGET_CLASS} disabled={unsuspendPending} type="submit" variant="outline">
+            <Check aria-hidden="true" /> {unsuspendPending ? '처리 중' : '정지 해제'}
+          </Button>
           <InlineNotice state={unsuspendState} />
         </form>
       </div>
@@ -116,9 +126,8 @@ function MemberSuspensionControl({
   return (
     <form
       action={suspendAction}
-      className="card col"
+      className="flex flex-col gap-3 rounded-lg border p-4"
       onSubmit={confirmMemberSuspension}
-      style={{ gap: 10, padding: 14 }}
     >
       <input name="profileId" type="hidden" value={member.id} />
       <TextArea
@@ -129,14 +138,10 @@ function MemberSuspensionControl({
         placeholder="운영자가 확인할 내부 사유를 입력하세요"
         required
       />
-      <div className="row" style={{ flexWrap: 'wrap', gap: 8, justifyContent: 'flex-start' }}>
-        <button
-          className="btn btn-sm admin-field-control"
-          disabled={suspendPending}
-          style={{ minHeight: 44 }}
-        >
-          <Icon name="shield" size={14} /> {suspendPending ? '처리 중' : '회원 정지'}
-        </button>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button className={TOUCH_TARGET_CLASS} disabled={suspendPending} type="submit" variant="destructive">
+          <ShieldBan aria-hidden="true" /> {suspendPending ? '처리 중' : '회원 정지'}
+        </Button>
         <InlineNotice state={suspendState} />
       </div>
     </form>
@@ -144,7 +149,7 @@ function MemberSuspensionControl({
 }
 
 function ConsentValue({ value }: { value: boolean }) {
-  return <strong style={{ color: value ? 'var(--mint)' : 'var(--dim)' }}>{value ? '동의' : '미동의'}</strong>;
+  return <strong className={value ? 'font-semibold text-success' : 'font-semibold text-muted-foreground'}>{value ? '동의' : '미동의'}</strong>;
 }
 
 /*
@@ -167,17 +172,17 @@ function MemberLoyaltyPanel({ member }: { member: AdminMemberDetail }) {
     : member.loyaltyGrade.toUpperCase();
 
   return (
-    <section className="col" style={{ gap: 10 }}>
-      <div className="row" style={{ flexWrap: 'wrap', gap: 8, justifyContent: 'flex-start' }}>
-        <strong style={{ fontSize: 14 }}>회원 등급</strong>
-        <span className="tag">{gradeLabel}</span>
+    <section className="flex flex-col gap-3 border-t pt-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <strong className="text-sm font-semibold text-foreground">회원 등급</strong>
+        <AdminStatusBadge>{gradeLabel}</AdminStatusBadge>
       </div>
-      <p className="muted" style={{ fontSize: 12, lineHeight: 1.7, margin: 0 }}>
+      <p className="text-xs leading-relaxed text-muted-foreground">
         {loyaltyBasisSummary()} 보정 이력은 등급 이력·감사 로그에 남습니다.
       </p>
-      <form action={adjustAction} className="col" style={{ gap: 8 }}>
+      <form action={adjustAction} className="flex flex-col gap-3">
         <input name="profileId" type="hidden" value={member.id} />
-        <div className="row" style={{ alignItems: 'flex-start', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-start' }}>
+        <div className="max-w-xs">
           <SelectField
             defaultValue={isLoyaltyGrade(member.loyaltyGrade) ? member.loyaltyGrade : 'welcome'}
             error={adjustState.errors?.grade}
@@ -196,18 +201,16 @@ function MemberLoyaltyPanel({ member }: { member: AdminMemberDetail }) {
           placeholder="예: 오프라인 팝업 구매 실적 반영"
           required
         />
-        <div className="row" style={{ flexWrap: 'wrap', gap: 8, justifyContent: 'flex-start' }}>
-          <button className="btn btn-sm admin-field-control" disabled={adjustPending} style={{ minHeight: 40 }}>
-            <Icon name="check" size={14} /> {adjustPending ? '보정 중' : '등급 보정'}
-          </button>
-        </div>
+        <Button className={`self-start ${TOUCH_TARGET_CLASS}`} disabled={adjustPending} type="submit">
+          <Check aria-hidden="true" /> {adjustPending ? '보정 중' : '등급 보정'}
+        </Button>
         <InlineNotice state={adjustState} />
       </form>
-      <form action={recalcAction} className="row" style={{ flexWrap: 'wrap', gap: 8, justifyContent: 'flex-start' }}>
+      <form action={recalcAction} className="flex flex-wrap items-center gap-2">
         <input name="profileId" type="hidden" value={member.id} />
-        <button className="btn btn-sm admin-field-control" disabled={recalcPending} style={{ minHeight: 40 }}>
-          <Icon name="swap" size={14} /> {recalcPending ? '재산정 중' : '실적으로 재산정'}
-        </button>
+        <Button className={TOUCH_TARGET_CLASS} disabled={recalcPending} type="submit" variant="outline">
+          <RefreshCw aria-hidden="true" /> {recalcPending ? '재산정 중' : '실적으로 재산정'}
+        </Button>
         <InlineNotice state={recalcState} />
       </form>
     </section>
@@ -229,39 +232,32 @@ function MemberDetail({
   ] as const;
 
   return (
-    <article className="card col" style={{ gap: 16, padding: 18 }}>
-      <div className="between" style={{ alignItems: 'start', flexWrap: 'wrap', gap: 12 }}>
-        <div className="col" style={{ gap: 5, minWidth: 0 }}>
-          <div className="row" style={{ flexWrap: 'wrap', gap: 8, justifyContent: 'flex-start' }}>
-            <strong style={{ fontSize: 17 }}>@{member.nickname}</strong>
-            <span className="tag">{member.role}</span>
-            {member.suspendedAt && <span className="tag" style={{ color: 'var(--pink)' }}>정지</span>}
-          </div>
-          <span className="mono" style={{ fontSize: 13 }}>{member.email}</span>
-          <span className="faint mono" style={{ fontSize: 11 }}>
-            가입 {formatDate(member.createdAt)}
-          </span>
+    <article className="flex min-w-0 flex-col gap-5 rounded-xl border bg-card p-4 text-card-foreground sm:p-5">
+      <div className="flex min-w-0 flex-col gap-1.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <strong className="text-base font-semibold text-foreground">@{member.nickname}</strong>
+          <MemberRoleBadge role={member.role} />
+          {member.suspendedAt && <AdminStatusBadge tone={statusTone('member', 'suspended')}>정지</AdminStatusBadge>}
         </div>
+        <span className="text-sm tabular-nums wrap-anywhere">{member.email}</span>
+        <span className="text-xs text-muted-foreground tabular-nums">
+          가입 {formatDate(member.createdAt)}
+        </span>
       </div>
 
-      <section className="col" style={{ gap: 8 }}>
-        <strong style={{ fontSize: 14 }}>현재 동의 상태</strong>
-        <div className="row" style={{ flexWrap: 'wrap', gap: 12, justifyContent: 'flex-start' }}>
-          <span className="muted" style={{ fontSize: 13 }}>이용약관 <ConsentValue value={member.consents.terms} /></span>
-          <span className="muted" style={{ fontSize: 13 }}>개인정보 <ConsentValue value={member.consents.privacy} /></span>
-          <span className="muted" style={{ fontSize: 13 }}>마케팅 <ConsentValue value={member.consents.marketing} /></span>
+      <section className="flex flex-col gap-2">
+        <strong className="text-sm font-semibold text-foreground">현재 동의 상태</strong>
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+          <span>이용약관 <ConsentValue value={member.consents.terms} /></span>
+          <span>개인정보 <ConsentValue value={member.consents.privacy} /></span>
+          <span>마케팅 <ConsentValue value={member.consents.marketing} /></span>
         </div>
       </section>
 
-      <section className="col" style={{ gap: 8 }}>
-        <strong style={{ fontSize: 14 }}>운영 집계</strong>
-        <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))' }}>
-          {counts.map(([label, count]) => (
-            <div key={label} className="card col" style={{ borderRadius: 10, gap: 4, padding: 12 }}>
-              <span className="muted" style={{ fontSize: 12 }}>{label}</span>
-              <strong className="mono" style={{ fontSize: 18 }}>{count}</strong>
-            </div>
-          ))}
+      <section className="flex flex-col gap-2">
+        <strong className="text-sm font-semibold text-foreground">운영 집계</strong>
+        <div className={ADMIN_COUNT_CARD_GRID_CLASS}>
+          {counts.map(([label, count]) => <AdminCountCard count={count} key={label} label={label} tone={label === '받은 신고' ? 'warning' : 'default'} />)}
         </div>
       </section>
 
@@ -299,73 +295,96 @@ export function MembersSection({
     && searchState.members.some((member) => member.id === selectedProfileId)
     ? detailState.member
     : null;
+  const suspendedCount = searchState.members.filter((member) => member.suspendedAt).length;
+  /* 지금 읽은 목록만 거른다(서버 재조회·URL 변경 없음). 정지 회원이 없는 검색 결과로 바뀌면 자동으로 풀린다. */
+  const [suspendedOnly, setSuspendedOnly] = useState(false);
+  const showingSuspended = suspendedOnly && suspendedCount > 0;
+  const visibleMembers = showingSuspended ? searchState.members.filter((member) => member.suspendedAt) : searchState.members;
 
   return (
-    <section className="col" style={{ gap: 14 }}>
-      <p className="muted" style={{ fontSize: 13, margin: 0 }}>
-        목록의 이메일은 마스킹됩니다. 전체 이메일과 운영 정보는 상세 조회 시에만 표시됩니다.
-      </p>
+    <section className="flex min-w-0 flex-col gap-4" data-members-section="">
       <form
         action={searchAction}
-        className="card col"
+        className={CONSOLE_FILTER_CARD_CLASS}
         onSubmit={() => setSelectedProfileId(null)}
-        style={{ gap: 8, padding: 14 }}
       >
-        <label className="col" style={{ gap: 7 }}>
-          <span className="mono" style={{ color: 'var(--dim)', fontSize: 11 }}>회원 검색</span>
-          <div className="row" style={{ gap: 8 }}>
-            <input
+        <div className={CONSOLE_FILTER_FIELDS_CLASS}>
+          <ConsoleFilterField className="min-w-[min(100%,20rem)] flex-1" htmlFor="member-query" label="회원 검색">
+            <Input
               aria-describedby={searchState.errors?.query ? 'member-query-error' : undefined}
               aria-invalid={Boolean(searchState.errors?.query)}
-              className="admin-field-control"
+              className={TOUCH_TARGET_CLASS}
               defaultValue={searchState.query}
+              id="member-query"
               maxLength={100}
               name="query"
               placeholder="이메일 또는 닉네임"
-              style={{ padding: '0 12px', width: '100%' }}
             />
-            <button className="btn btn-sm admin-field-control" disabled={searchPending} style={{ minHeight: 44 }}>
-              <Icon name="search" size={14} /> {searchPending ? '검색 중' : '검색'}
-            </button>
-          </div>
-        </label>
-        <ErrorText id="member-query-error">{searchState.errors?.query}</ErrorText>
+            <ErrorText id="member-query-error">{searchState.errors?.query}</ErrorText>
+          </ConsoleFilterField>
+        </div>
         <InlineNotice state={searchState} />
+        {/* 조회 카드 바닥 줄 [초기화][검색]. 초기화는 검색어를 비우고 처음 목록을 다시 읽는다. */}
+        <ConsoleFilterActions>
+          <Button
+            className={TOUCH_TARGET_CLASS}
+            disabled={searchPending}
+            onClick={(event) => {
+              const form = event.currentTarget.form;
+              const query = form?.elements.namedItem('query');
+              if (query instanceof HTMLInputElement) query.value = '';
+              form?.requestSubmit();
+            }}
+            type="button"
+            variant="outline"
+          >
+            초기화
+          </Button>
+          <Button className={TOUCH_TARGET_CLASS} disabled={searchPending} type="submit" variant="soft">
+            <Search aria-hidden="true" /> {searchPending ? '검색 중' : '검색'}
+          </Button>
+        </ConsoleFilterActions>
       </form>
 
-      <div className="col" style={{ gap: 8 }}>
-        {searchState.members.map((member) => (
-          <article key={member.id} className="card between" style={{ flexWrap: 'wrap', gap: 12, padding: 14 }}>
-            <div className="col" style={{ gap: 4, minWidth: 0 }}>
-              <div className="row" style={{ flexWrap: 'wrap', gap: 8, justifyContent: 'flex-start' }}>
-                <strong style={{ fontSize: 15 }}>@{member.nickname}</strong>
-                <span className="tag">{member.role}</span>
-                {member.suspendedAt && <span className="tag" style={{ color: 'var(--pink)' }}>정지</span>}
-              </div>
-              <span className="mono" style={{ fontSize: 12 }}>{member.maskedEmail}</span>
-              <span className="faint mono" style={{ fontSize: 11 }}>가입 {formatDate(member.createdAt)}</span>
-            </div>
-            <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-            <Link href={`/admin/customers/${member.id}`} className="btn btn-sm admin-field-control" style={{ minHeight: 44 }}>고객 상세 열기</Link>
-            <form action={detailAction} onSubmit={() => setSelectedProfileId(member.id)}>
-              <input name="profileId" type="hidden" value={member.id} />
-              <button className="btn btn-sm admin-field-control" disabled={detailPending} style={{ minHeight: 44 }}>
-                <Icon name="user" size={14} /> {detailPending ? '불러오는 중' : '상세 보기'}
-              </button>
-            </form>
-            </div>
-          </article>
-        ))}
-        {!searchState.members.length && (
-          <div className="card" style={{ borderRadius: 10, padding: 18 }}>
-            <div style={{ fontWeight: 700 }}>검색 결과가 없습니다.</div>
-            <p className="muted" style={{ marginTop: 6 }}>다른 이메일 또는 닉네임으로 검색해주세요.</p>
+      {/* 검색 결과 상한이 있어 전체 회원 수가 아니라 지금 보이는 건수를 말한다. 정지 건수는 누르면 그 회원만 남기는 버튼이다. */}
+      <ConsoleListCard
+        actions={suspendedCount ? <Button aria-pressed={showingSuspended} className={ROW_DANGER_BUTTON_CLASS} onClick={() => setSuspendedOnly((value) => !value)} size="sm" type="button" variant="outline">{showingSuspended ? '전체 회원 보기' : `정지 ${suspendedCount.toLocaleString('ko-KR')}명만 보기`}</Button> : undefined}
+        aria-label="회원 검색 결과"
+        description="이메일은 일부만 보입니다. 전체 이메일과 운영 정보는 상세 보기에서 확인합니다."
+        title={<>회원 목록 <span className="text-sm font-normal text-muted-foreground tabular-nums">{searchState.members.length.toLocaleString('ko-KR')}명 표시</span></>}
+      >
+        {searchState.members.length ? <div aria-label="회원 목록 가로 스크롤" className={`${CONSOLE_TABLE_FRAME_CLASS} [&>[data-slot=table-container]]:overflow-visible`} role="region" tabIndex={0}><Table className="min-w-[44rem]"><caption className="sr-only">회원 목록</caption>
+          {/* 한 사람이 한 줄이다 — 이메일·가입일을 위아래로 나란히 훑어본다. */}
+          <ConsoleTableHeader><TableRow className="hover:bg-transparent"><TableHead className="px-3">닉네임</TableHead><TableHead className="px-3">이메일</TableHead><TableHead className="px-3">가입일</TableHead><TableHead className="px-3">계정 상태</TableHead><TableHead className="px-3 text-right">운영 정보</TableHead></TableRow></ConsoleTableHeader>
+          <TableBody>{visibleMembers.map((member) => (
+            <Fragment key={member.id}>
+              <TableRow>
+                <TableCell className="px-3 whitespace-normal">
+                  {/* 닉네임은 고객 상세(주문·문의 이력)로 간다. 줄 오른쪽 버튼은 이 화면에서 펼치는 회원 운영 정보 하나뿐이다. */}
+                  <span className="flex flex-wrap items-center gap-2"><Link className="font-semibold underline-offset-4 hover:underline" href={`/admin/customers/${member.id}`}>@{member.nickname}</Link>{member.role !== 'user' ? <MemberRoleBadge role={member.role} /> : null}</span>
+                </TableCell>
+                <TableCell className="px-3 tabular-nums">{member.maskedEmail}</TableCell>
+                <TableCell className="px-3 text-muted-foreground tabular-nums">{formatDate(member.createdAt)}</TableCell>
+                {/* 고객 상세·매니저 관리와 같은 상태는 같은 배지다. */}
+                <TableCell className="px-3"><AdminStatusBadge tone={statusTone('member', member.suspendedAt ? 'suspended' : 'active')}>{member.suspendedAt ? '정지' : '이용 중'}</AdminStatusBadge></TableCell>
+                <TableCell className="px-3 text-right"><form action={detailAction} onSubmit={() => setSelectedProfileId(member.id)}>
+                  <input name="profileId" type="hidden" value={member.id} />
+                  <Button aria-expanded={activeDetail?.id === member.id} className={TOUCH_TARGET_CLASS} disabled={detailPending} size="sm" type="submit" variant="outline">
+                    <User aria-hidden="true" /> {detailPending ? '불러오는 중' : '상세 보기'}
+                  </Button>
+                </form></TableCell>
+              </TableRow>
+              {/* 상세는 누른 줄 바로 아래에 연다 — 목록이 길어도 화면 밖에 생기지 않는다. */}
+              {activeDetail?.id === member.id ? <TableRow className="hover:bg-transparent"><TableCell className="bg-muted/30 p-3 whitespace-normal" colSpan={5}><MemberDetail actor={actor} member={activeDetail} /></TableCell></TableRow> : null}
+            </Fragment>
+          ))}</TableBody></Table></div> : (
+          <div className="py-10 text-center">
+            <div className="text-sm font-semibold">검색 결과가 없습니다.</div>
+            <p className="mt-1.5 text-sm text-muted-foreground">다른 이메일 또는 닉네임으로 검색해주세요.</p>
           </div>
         )}
-      </div>
-
-      <InlineNotice state={detailState} />
-      {activeDetail && <MemberDetail actor={actor} member={activeDetail} />}
+        <InlineNotice state={detailState} />
+      </ConsoleListCard>
     </section>
   );
 }

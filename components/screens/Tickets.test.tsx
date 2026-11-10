@@ -25,6 +25,22 @@ const order: TicketOrderListItem = {
 };
 
 describe('Tickets', () => {
+  /* MY-01: 메뉴 '내 티켓'도 데스크톱 좌 메뉴 셸 안에 선다 — 영수증 지면은 셸 안 콘텐츠로 유지한다. */
+  it('sits inside the mypage shell with tickets as the current menu, keeping the receipt surface', () => {
+    const html = renderToStaticMarkup(<Tickets now={Date.parse('2026-07-15T03:00:00.000Z')} orders={[order]} />);
+    const aside = html.slice(html.indexOf('aria-label="마이페이지 메뉴"'), html.indexOf('wc-mypage__content'));
+
+    expect(html).toContain('<main class="wc-root wc-mypage">');
+    expect(html.match(/<main/g)).toHaveLength(1);
+    expect(aside).toMatch(/aria-current="page" href="\/tickets"|href="\/tickets"[^>]*aria-current="page"/);
+    expect(aside.match(/aria-current="page"/g)).toHaveLength(1);
+    expect(html).toContain('class="wc-receipt tickets-page"');
+    expect(html.indexOf('wc-mypage__content')).toBeLessThan(html.indexOf('wc-receipt tickets-page'));
+    expect(html.indexOf('wc-receipt tickets-page')).toBeLessThan(html.indexOf('class="wrap tickets-content"'));
+    expect(html.match(/<h1/g)).toHaveLength(1);
+    expect(html).toContain('<h1 class="wc-receipt__title">내 티켓</h1>');
+  });
+
   it('renders grouped booking states and owner-detail links', () => {
     const html = renderToStaticMarkup(<Tickets now={Date.parse('2026-07-15T03:00:00.000Z')} orders={[
       order,

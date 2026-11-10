@@ -22,6 +22,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - DB, Auth, 결제, 권한, 라우팅 구조, mock→real 이전 작업은 `docs/ARCHITECTURE.md`를 먼저 읽는다.
 - 카드 리워드, 뽑기권, RNG, 참여형 게임이 걸린 작업은 `docs/adr/0003-free-reward-pivot.md`·`docs/adr/0004-draw-ticket-card-packs.md`를 함께 읽는다. `docs/adr/0002-cross-platform-popup-game-miniapps.md`는 superseded 이력이며 Expo나 범용 게임 미니앱 구현의 근거로 쓰지 않는다. 유료 가챠 유물(`wallets`·`pulls` 등)을 다루면 `docs/adr/0001-paid-digital-gacha.md`(superseded)를 참조한다.
 - 19+ 유한 실물 쿠지는 기존 디지털 카드·뽑기권·참여형 게임과 분리된 `prize_sale` 도메인이다. 현재 구현 범위와 선행 증거는 GitHub #212·#213을 따른다.
+- 블라인드 포장 굿즈의 `랜덤 판매`(주문 생성 때 DB가 옵션을 무작위 배정, 고객에게 배정 결과 은닉)는 `docs/adr/0027-random-option-sale-goods.md`를 따른다. 실물 쿠지·판매 제한 값 `random_box`와 섞지 않는다.
 - issue tracker, triage label, agent skill 운영 작업은 `docs/agents/`를 먼저 읽는다.
 
 문서가 서로 충돌하면 조용히 덮어쓰지 말고, 어떤 문서와 충돌하는지 먼저 밝힌다. 코드와 문서가 충돌하면 현재 동작은 코드가 진실이고, 문서는 별도 요청이 있을 때 갱신한다.
@@ -32,7 +33,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - 수집형 디지털 `카드`와 실물 `굿즈`를 혼용하지 않는다.
 - `팬덤 가입`은 v1에서 무료 `팔로우`다. 유료 `멤버십`과 섞지 않는다.
 - `트레이드`는 카드 C2C(구 명칭 "교환"), `마켓`은 굿즈 C2C다. 둘 다 v1에서는 플레이스홀더/v2 범위다. `교환`은 굿즈 `클레임` 유형(회수 후 재출고)으로만 쓴다.
-- 유료 가챠·`충전금`은 폐기됐다(ADR-0003·ADR-0004). `카드`는 `뽑기권`(UI 표기 "카드팩") 개봉과 참여형 게임의 무상 리워드로만 발급된다. 굿즈·티켓 신규 결제의 기본 provider는 토스페이먼츠 주문서형 v2이고(ADR-0013), `판매 제한 상품`(`goods.sale_restriction`, 성인(19금)) 포함 주문만 코페이로 파생된다 — provider는 관리자가 고르는 값이 아니라 서버가 주문 단위로 파생·강제한다. 19금 오픈 트랙(성인인증·코페이 gate 재개방) 전까지 판매 제한 상품은 비노출·구매 차단이다. 현재 gate 상태·심사 시퀀스·잔여 위험은 `docs/runbooks/toss-production-rollout.md`를, 코페이의 판매 제한 전용 대기 상태는 `docs/runbooks/korpay-production-rollout.md`를 따른다.
+- 유료 가챠·`충전금`은 폐기됐다(ADR-0003·ADR-0004). `카드`는 `뽑기권`(UI 표기 "카드팩") 개봉과 참여형 게임의 무상 리워드로만 발급된다. 굿즈·티켓 신규 결제의 기본 provider는 토스페이먼츠 주문서형 v2이고(ADR-0013), `판매 제한 상품`(`goods.sale_restriction`, 성인(19금)) 포함 굿즈 주문만 나이스페이(웹표준 인증결제, 2026-11-06 코페이 대체)로 파생된다 — provider는 관리자가 고르는 값이 아니라 서버가 주문 단위로 파생·강제한다(앱 `RESTRICTED_GOODS_CARD_PROVIDER`·DB `prepare_goods_payment_attempt`). 코페이는 drain 전용으로 은퇴해 새 결제를 준비하지 않고, 진행 중 콜백·수동 복구만 남는다. 19금 오픈 트랙(성인인증 #595·19금 판매 #596·나이스페이 gate) 전까지 판매 제한 상품은 비노출·구매 차단이다. 토스 gate 상태·심사 시퀀스·잔여 위험은 `docs/runbooks/toss-production-rollout.md`를, 나이스페이 심사용 canary·카드사 심사·공개 순서는 `docs/runbooks/nicepay-production-rollout.md`를 따른다.
 - 범용 온라인 팝업 운영 레이어와 Expo webview 호스트는 현 로드맵 범위가 아니다. 기존 게임 `goods` variant는 운영 콘솔에서 읽기 전용이며, 남아 있는 mock 연출은 실제 경품·구매권을 만들지 않는다. 실물 쿠지에 재사용하지 않는다.
 
 ## 구현 원칙
@@ -57,7 +58,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 - Next.js 16, React 19, Tailwind v4 기준으로 작성한다.
 - 공개 표면 디자인 시스템은 "White Catalog"(ADR-0011, 루트 `DESIGN.md` v4)다. 표면별 수치·anatomy는 재현 스펙 `docs/research/linefriends-square/`가 정본이며, 스토어프론트 개편 작업 전에 해당 표면의 R-스펙 문서를 먼저 읽는다.
-- 색·타이포·컴포넌트·표면별 디자인 규율은 루트 `DESIGN.md`를 따른다. 토큰 진실원은 `app/styles/wc-foundation.css`다. 어드민(`/admin/**`)은 [ADR-0014](docs/adr/0014-admin-console-redesign.md)의 White Catalog 키트와 `.wc-admin` 경계를 쓴다. 셸·키트는 `wc-admin.css`, 화면 배치·검표·가이드는 `wc-admin-surfaces.css`가 소유한다. CSS를 옮기거나 지우면 중첩 media/forced-colors/print와 실제 JSX 소비자를 확인하고 경계 테스트를 갱신한다. 어드민 라벨은 운영팀 어휘(상품·상품코드·옵션)를 쓰고 코드·문서·공개 표면은 `CONTEXT.md`의 굿즈를 유지한다. 공개 보존 표면(`/about`·`/offline-popups`·`/legal/*`)은 격리 CSS(`about-legacy`·`offline-popups-legacy`·`legal-doc`) 안에 자체 기본 규칙과 토큰을 둔다. `globals.css`는 전역 하부만 소유한다. 레퍼런스 사이트의 이미지·카피·로고·액센트 색은 재사용하지 않는다.
+- 색·타이포·컴포넌트·표면별 디자인 규율은 루트 `DESIGN.md`를 따른다. 토큰 진실원은 `app/styles/wc-foundation.css`다. 어드민(`/admin/**`)은 [ADR-0028](docs/adr/0028-admin-template-look.md)에 따라 전 화면이 shadcn/ui 템플릿 구조이고, 색과 위계는 [ADR-0029](docs/adr/0029-admin-color-hierarchy.md)를 따른다. 주 색은 행동·현재 위치, 의미색은 상태에만 쓰고 상태→tone은 `lib/admin/status-tone.ts` 한 곳에서 정한다. 화면은 색을 고르지 않고 토큰·공용 부품(`AdminStatusBadge`·`AdminCountCard`·`AdminNotice`·kit Button)을 쓴다. 화면은 `components/admin/kit/`(shadcn CLI 복사 소스, base는 Base UI 하나) 부품과 Tailwind 유틸리티로 그리고, 공용 골격은 `components/admin/console/`(ConsoleGrid·조회 조건·건수 카드·일괄 막대·페이지·AdminKit)와 `fields.tsx`가 소유한다. 토큰은 `app/styles/admin-kit.css`의 `.wc-admin`에만 둔다(주 색 값을 바꿀 때는 `--primary`·`--primary-soft`·`--primary-soft-foreground`·`--ring`만). 화면 전용 CSS를 새로 만들지 않는다 — 남은 관리자 CSS(공개 미리보기 보정·데이터 속성 색·고객 부품 보정)는 `@layer components` 안에서 모든 선택자가 `:not([data-slot])`으로 kit 부품을 비켜 간다(`app/admin-kit-contract.test.ts`). kit `Button`은 기본 `type="button"`이라 form 제출 버튼에 `type="submit"`을 적고, Tailwind 클래스를 보간으로 조각내지 않는다. 목록 URL은 화면의 기존 계약이 진실원이다(Dice `useDataTable`의 URL 형식은 쓰지 않는다). 템플릿의 영어 문구는 운영팀 어휘로 바꾼다. 어드민 라벨은 운영팀 어휘(상품·상품코드·옵션)를 쓰고 코드·문서·공개 표면은 `CONTEXT.md`의 굿즈를 유지한다. 공개 보존 표면(`/about`)은 격리 CSS(`about-legacy`) 안에 자체 기본 규칙과 토큰을 둔다. `globals.css`는 전역 하부만 소유한다. 레퍼런스 사이트의 이미지·카피·로고·액센트 색은 재사용하지 않는다.
 - 라우트는 `app/**/page.tsx`에서 screen 컴포넌트로 연결하는 현 구조를 존중한다.
 - 프로토타입 라우트 id와 실제 경로 매핑은 `lib/routes.ts`를 기준으로 한다.
 

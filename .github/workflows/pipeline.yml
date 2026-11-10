@@ -42,15 +42,29 @@ env:
   # 2.101.0 bundles Postgres 17.6.1.106, whose supautils permission-denied
   # path can crash instead of raising 42501 (supabase/postgres#2112).
   SUPABASE_CLI_VERSION: "2.109.1"
+  # `.github/actions/setup-supabase-cli`가 받은 tarball(supabase_<version>_linux_amd64.tar.gz)을
+  # 이 값과 대조한다. 버전을 올리면 release의 checksums.txt 값으로 함께 바꾸고, cleanup workflow도 맞춘다.
+  SUPABASE_CLI_SHA256: "36d87b7fe6b4bcfe89ac47a4354e526cff22480224de426d7b370f6934556976"
   VERCEL_CLI_VERSION: "54.17.2"
 
 jobs:
-  validate:
-    name: validate
+  # 모든 job에 timeout-minutes를 둔다. 기본 상한 360분에서는 멈춘 설치 하나가 main 배포 사슬을
+  # 6시간 막았고 run은 failure가 아닌 cancelled로 끝났다(run 41991138701). job 상한은 최근 성공
+  # run 실측 최대치의 2배 이상이되 5분(migration을 쓰는 job은 10분)보다 낮추지 않는다. job 상한
+  # 초과는 cancel이므로, 정상 수 초인 Supabase CLI 설치 step은 5분에서 따로 끊어 failure로 남긴다.
+  # 검증은 재사용 판정(validate-plan) 뒤에 앱 검사(validate-app)와 DB 샤드(validate-db)로
+  # 병렬 실행하고, 이름이 그대로인 집계 job(validate)이 모두 통과했을 때만 성공한다.
+  # production deploy job의 `needs: validate`와 main의 재사용 증거 조회는 집계 job만 본다.
+  # PR preview 배포는 검증을 기다리지 않는다(deploy-supabase-preview 주석 참고).
+  validate-plan:
+    name: validate-plan
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       actions: read
       contents: read
+    outputs:
+      reuse_hit: ${{ steps.reuse.outputs.hit }}
 
     steps:
       - name: Verify deployed Production source
@@ -96,6 +110,80 @@ jobs:
           fi
 
       - name: Check out repository
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/checkout@v6
+
+      # tree에는 이 workflow와 lockfile까지 들어 있으므로, 같은 tree를 통과한 PR·merge queue
+      # run은 같은 validate 정의를 같은 입력으로 실행한 증거다. main push는 그 증거가 있으면
+      # 검사를 다시 돌리지 않는다. fork PR이 올린 아티팩트는 출처 repo 대조로 거부하고,
+      # 조회가 실패하거나 증거가 없으면 전체 검사를 실행한다.
+      - name: Reuse validation of the identical tree
+        id: reuse
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          tree="$(git rev-parse 'HEAD^{tree}')"
+          api() {
+            curl --fail --silent --show-error \
+              --header "Authorization: Bearer $GH_TOKEN" \
+              --header "Accept: application/vnd.github+json" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/$1"
+          }
+          run_full_validation() {
+            echo "hit=false" >> "$GITHUB_OUTPUT"
+            echo "Full validation for tree \`$tree\`: $1" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          }
+
+          if ! artifacts_json="$(api "actions/artifacts?name=validated-tree-${tree}&per_page=100")"; then
+            echo "::warning title=Validation reuse lookup failed::Running full validation"
+            run_full_validation "evidence lookup failed"
+          fi
+
+          while IFS= read -r run_id; do
+            [ -n "$run_id" ] || continue
+            run_json="$(api "actions/runs/${run_id}")" || continue
+            if ! jq -e --arg repo "$GITHUB_REPOSITORY_ID" '
+              (.event == "pull_request" or .event == "merge_group")
+              and .path == ".github/workflows/pipeline.yml"
+              and (.repository.id | tostring) == $repo
+              and (.head_repository.id | tostring) == $repo
+            ' <<<"$run_json" >/dev/null; then
+              continue
+            fi
+            # 재실행에서 validate가 실패했다면 이전 시도의 아티팩트는 증거로 쓰지 않는다.
+            jobs_json="$(api "actions/runs/${run_id}/jobs?filter=latest&per_page=100")" || continue
+            if ! jq -e 'any(.jobs[]; .name == "validate" and .conclusion == "success")' \
+              <<<"$jobs_json" >/dev/null; then
+              continue
+            fi
+
+            echo "hit=true" >> "$GITHUB_OUTPUT"
+            {
+              echo "### Validation reused"
+              echo
+              echo "- tree: \`$tree\`"
+              echo "- evidence: [$(jq -r '.event' <<<"$run_json") run ${run_id}]($(jq -r '.html_url' <<<"$run_json"))"
+              echo "- 같은 tree의 lint·typecheck·test·build·DB 검증을 위 run의 \`validate\`가 통과해 다시 실행하지 않았습니다."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          done < <(jq -r '.artifacts[] | select(.expired == false) | .workflow_run.id' <<<"$artifacts_json" | sort -u)
+
+          run_full_validation "no same-repository PR or merge queue run validated it"
+
+  validate-app:
+    name: validate-app
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: validate-plan
+    if: needs.validate-plan.outputs.reuse_hit != 'true'
+
+    steps:
+      - name: Check out repository
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
@@ -125,10 +213,48 @@ jobs:
       - name: Build application
         run: npm run build
 
+  # 샤드 목록과 순서는 scripts/database-test-shards.mjs가 소유한다. 샤드마다 새 DB에서 시작하므로
+  # 매분 pg_cron sweep과 자동 발주확인 정지도 샤드 DB마다 같은 조건으로 적용된다.
+  validate-db:
+    name: validate-db (${{ matrix.shard }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: validate-plan
+    if: needs.validate-plan.outputs.reuse_hit != 'true'
+    env:
+      # 샤드마다 DB 이미지를 새로 받으므로 ECR 비인증 데이터 한도(Data limit exceeded) 대신
+      # Supabase 공식 GHCR 이미지만 쓴다. 이 값이 있으면 CLI는 다른 레지스트리로 넘어가지 않는다.
+      SUPABASE_INTERNAL_IMAGE_REGISTRY: ghcr.io
+    strategy:
+      fail-fast: false
+      matrix:
+        shard:
+          - operators
+          - catalog
+          - storefront
+          - commerce
+          - legacy
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      # 일부 DB 회귀는 실제 route·DTO 경계를 node_modules의 vitest로 함께 실행한다.
+      - name: Install dependencies
+        run: npm ci
+
       - name: Set up Supabase CLI
-        uses: supabase/setup-cli@v2
+        timeout-minutes: 5
+        uses: ./.github/actions/setup-supabase-cli
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
+          sha256: ${{ env.SUPABASE_CLI_SHA256 }}
 
       - name: Start local Supabase database
         run: supabase db start
@@ -136,193 +262,113 @@ jobs:
       - name: Apply local migrations
         run: supabase db reset --local --no-seed
 
+      - name: Pause automatic order confirmation in the CI database
+        # 매분 cron 틱이 KST 16:30을 걸친 CI 실행에서 다른 스모크가 커밋한 결제완료 주문을 발주확인하지 않게 한다.
+        # 꺼진 설정이면 틱은 잠금 없이 끝난다. 자동 발주확인 스모크는 자기 트랜잭션 안에서 설정을 켜고 검증한다.
+        run: docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -c "update private.auto_order_confirmation_settings set enabled=false, revision=revision+1 where singleton"
+
       - name: Install database smoke test tools
         run: |
           sudo apt-get update
-          sudo apt-get install --yes ripgrep
+          sudo apt-get install --yes ripgrep python3
+          # Use Supabase's identical GHCR image to avoid ECR anonymous data limits.
+          docker pull ghcr.io/supabase/postgrest:v14.14
+          # Existing HTTP fixtures inspect this local tag before starting PostgREST.
+          docker tag ghcr.io/supabase/postgrest:v14.14 public.ecr.aws/supabase/postgrest:v14.14
 
-      - name: Run database smoke tests
-        run: |
-          run_sql_test() {
-            cat supabase/tests/helpers/goods_kc_fixture.sql "$1" | docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1
-          }
-          run_sql_test supabase/tests/catalog_baseline.sql
-          run_sql_test supabase/tests/profile_editing.sql
-          run_sql_test supabase/tests/minimum_age_gate.sql
-          run_sql_test supabase/tests/account_deletion_phase_one.sql
-          bash supabase/tests/account_deletion_phase_one_concurrency.sh
-          run_sql_test supabase/tests/email_dispatcher_dark.sql
-          run_sql_test supabase/tests/email_dispatch_acceptance_recovery.sql
-          bash supabase/tests/email_dispatcher_concurrency.sh
-          run_sql_test supabase/tests/in_app_notifications.sql
-          run_sql_test supabase/tests/admin_notification_console.sql
-          run_sql_test supabase/tests/admin_role_management.sql
-          run_sql_test supabase/tests/admin_member_suspension.sql
-          run_sql_test supabase/tests/admin_artwork_upload_storage.sql
-          run_sql_test supabase/tests/home_curations.sql
-          bash supabase/tests/home_curations_concurrency.sh
-          run_sql_test supabase/tests/cart_items.sql
-          run_sql_test supabase/tests/checkout_order.sql
-          run_sql_test supabase/tests/order_history.sql
-          run_sql_test supabase/tests/payment_provider_foundation.sql
-          bash scripts/test-payment-provider-production-readback.sh
-          run_sql_test supabase/tests/goods_payment_provider_seam.sql
-          bash supabase/tests/goods_payment_provider_seam_concurrency.sh
-          run_sql_test supabase/tests/goods_payment_cancellation_guard.sql
-          bash supabase/tests/goods_payment_cancellation_guard_concurrency.sh
-          bash supabase/tests/goods_payment_expiry_claim_concurrency.sh
-          run_sql_test supabase/tests/goods_payment_manual_recovery.sql
-          bash supabase/tests/goods_payment_manual_recovery_concurrency.sh
-          run_sql_test supabase/tests/ticket_payment_provider_seam.sql
-          bash supabase/tests/ticket_payment_provider_seam_concurrency.sh
-          run_sql_test supabase/tests/order_cancellation.sql
-          run_sql_test supabase/tests/order_withdrawal_deadline.sql
-          run_sql_test supabase/tests/order_status_ladder.sql
-          run_sql_test supabase/tests/admin_order_console.sql
-          run_sql_test supabase/tests/admin_order_search.sql
-          run_sql_test supabase/tests/admin_coupon_search.sql
-          run_sql_test supabase/tests/shipping_carrier_registry.sql
-          run_sql_test supabase/tests/order_dispatch_delay_notes.sql
-          run_sql_test supabase/tests/order_delay_notices.sql
-          run_sql_test supabase/tests/order_delay_notice_recovery.sql
-          ORDER_DELAY_TEST_SCOPE=1 SUPABASE_DB_CONTAINER=supabase_db_icons-ip SUPABASE_DB_DATABASE=postgres bash supabase/tests/order_delay_notices_concurrency.sh
-          run_sql_test supabase/tests/admin_stock_adjustment.sql
-          run_sql_test supabase/tests/admin_ticket_type_console.sql
-          run_sql_test supabase/tests/admin_card_pool_console.sql
-          run_sql_test supabase/tests/admin_reward_policy_console.sql
-          run_sql_test supabase/tests/admin_game_console.sql
-          run_sql_test supabase/tests/card_reward_global_gate.sql
-          bash supabase/tests/card_reward_global_gate_concurrency.sh
-          run_sql_test supabase/tests/ticket_booking_flow.sql
-          run_sql_test supabase/tests/ticket_cancellation_flow.sql
-          run_sql_test supabase/tests/ticket_check_in_flow.sql
-          run_sql_test supabase/tests/community_comment_like_actions.sql
-          run_sql_test supabase/tests/community_moderation_actions.sql
-          run_sql_test supabase/tests/community_trending_tags.sql
-          run_sql_test supabase/tests/community_feed_personalization.sql
-          run_sql_test supabase/tests/community_post_editing.sql
-          run_sql_test supabase/tests/community_comment_moderation.sql
-          run_sql_test supabase/tests/community_write_gate.sql
-          run_sql_test supabase/tests/search_public_content.sql
-          run_sql_test supabase/tests/catalog_archiving.sql
-          run_sql_test supabase/tests/ip_publish_state.sql
-          run_sql_test supabase/tests/ip_purchase_publish_guard.sql
-          run_sql_test supabase/tests/search_catalog_visibility.sql
-          bash supabase/tests/ip_purchase_publish_concurrency.sh
-          run_sql_test supabase/tests/inquiry_threads.sql
-          run_sql_test supabase/tests/inquiry_assignment_and_private_notes.sql
-          run_sql_test supabase/tests/faq_entries.sql
-          run_sql_test supabase/tests/goods_notice_presets.sql
-          run_sql_test supabase/tests/goods_notice_kc_templates.sql
-          run_sql_test supabase/tests/admin_order_detail.sql
-          run_sql_test supabase/tests/goods_variants_expand.sql
-          run_sql_test supabase/tests/shipping_policy_lookup.sql
-          run_sql_test supabase/tests/admin_customer_detail.sql
-          run_sql_test supabase/tests/ip_directory_workspace.sql
-          run_sql_test supabase/tests/goods_identifiers.sql
-          run_sql_test supabase/tests/store_settings.sql
-          run_sql_test supabase/tests/inquiry_auto_reply_settings.sql
-          run_sql_test supabase/tests/inquiry_system_messages.sql
-          run_sql_test supabase/tests/admin_operations_contacts.sql
-          run_sql_test supabase/tests/admin_goods_directory.sql
-          run_sql_test supabase/tests/admin_goods_readiness_workspace.sql
-          run_sql_test supabase/tests/admin_work_queue.sql
-          run_sql_test supabase/tests/goods_inactive_shipping_fee.sql
-          run_sql_test supabase/tests/goods_publish_state.sql
-          run_sql_test supabase/tests/fulfillment_origins_policy.sql
-          run_sql_test supabase/tests/fulfillment_zero_price_policy.sql
-          run_sql_test supabase/tests/inquiry_realtime_delivery.sql
-          run_sql_test supabase/tests/cart_order_variants.sql
-          run_sql_test supabase/tests/option_stock_recovery_reshipment.sql
-          run_sql_test supabase/tests/goods_option_editor.sql
-          run_sql_test supabase/tests/goods_variant_operations.sql
-          run_sql_test supabase/tests/goods_option_reference_lifecycle.sql
-          run_sql_test supabase/tests/goods_english_name.sql
-          run_sql_test supabase/tests/goods_discovery_metadata.sql
-          run_sql_test supabase/tests/ip_public_slug_identity.sql
-          run_sql_test supabase/tests/goods_variant_external_identity.sql
-          run_sql_test supabase/tests/goods_purchase_policies.sql
-          run_sql_test supabase/tests/goods_sales_publication.sql
-          run_sql_test supabase/tests/sales_review_cleanup.sql
-          run_sql_test supabase/tests/goods_discount_display.sql
-          run_sql_test supabase/tests/goods_additional_categories.sql
-          run_sql_test supabase/tests/sales_category_hierarchy.sql
-          run_sql_test supabase/tests/shipping_notice_templates.sql
-          run_sql_test supabase/tests/goods_variant_purchase_cost.sql
-          run_sql_test supabase/tests/sales_claim_policy_costs.sql
-          run_sql_test supabase/tests/store_credit_ledger.sql
-          run_sql_test supabase/tests/store_credit_checkout.sql
-          run_sql_test supabase/tests/store_credit_earned_refund.sql
-          run_sql_test supabase/tests/goods_clone.sql
-          run_sql_test supabase/tests/goods_detail_html.sql
-          bash supabase/tests/goods_detail_html_concurrency.sh supabase_db_icons-ip postgres
-          run_sql_test supabase/tests/goods_additional.sql
-          run_sql_test supabase/tests/goods_kc_compliance.sql
-          run_sql_test supabase/tests/goods_preorders.sql
-          run_sql_test supabase/tests/coupon_targeting.sql
-          run_sql_test supabase/tests/coupon_targeting_restore.sql
-          run_sql_test supabase/tests/checkout_coupon_expectation.sql
-          run_sql_test supabase/tests/settled_export.sql
-          run_sql_test supabase/tests/shipping_regions.sql
-          run_sql_test supabase/tests/shipping_region_expiry.sql
-          run_sql_test supabase/tests/shipment_delivery_methods.sql
-          bash supabase/tests/goods_purchase_policies_concurrency.sh supabase_db_icons-ip postgres
-          bash supabase/tests/sales_category_hierarchy_concurrency.sh supabase_db_icons-ip postgres
-          SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/store_credit_concurrency.sh
-          SUPABASE_DB_CONTAINER=supabase_db_icons-ip SUPABASE_DB_DATABASE=postgres bash supabase/tests/coupon_targeting_concurrency.sh
-          bash supabase/tests/goods_preorders_concurrency.sh supabase_db_icons-ip postgres
-          bash supabase/tests/goods_clone_concurrency.sh supabase_db_icons-ip postgres
-          run_sql_test supabase/tests/goods_option_contract.sql
-          run_sql_test supabase/tests/order_shipments_expand.sql
-          run_sql_test supabase/tests/order_shipments_transitions.sql
-          run_sql_test supabase/tests/order_shipments_contract.sql
-          run_sql_test supabase/tests/shipment_dispatch_workspace.sql
-          run_sql_test supabase/tests/shipment_export.sql
-          run_sql_test supabase/tests/shipment_export_variant_code.sql
-          run_sql_test supabase/tests/warehouse_native_tracking.sql
-          run_sql_test supabase/tests/goods_excel_imports.sql
-          run_sql_test supabase/tests/order_shipment_email_jobs.sql
-          PSQL_BIN=psql PGHOST=127.0.0.1 PGPORT=54322 PGUSER=postgres PGPASSWORD=postgres PGDATABASE=postgres bash supabase/tests/option_stock_recovery_concurrency.sh
-          bash supabase/tests/order_shipments_concurrency.sh
-          PSQL_BIN=psql PGHOST=127.0.0.1 PGPORT=54322 PGUSER=postgres PGPASSWORD=postgres PGDATABASE=postgres bash supabase/tests/order_claim_origin_concurrency.sh
-          bash supabase/tests/order_shipment_email_jobs_concurrency.sh
-          bash supabase/tests/goods_publish_concurrency.sh
-          bash supabase/tests/cart_order_variants_concurrency.sh
-          PSQL_BIN=psql PGHOST=127.0.0.1 PGPORT=54322 PGUSER=postgres PGPASSWORD=postgres PGDATABASE=postgres bash supabase/tests/fulfillment_origins_concurrency.sh
-          bash supabase/tests/goods_identifiers_concurrency.sh
-          bash supabase/tests/ip_directory_workspace_concurrency.sh
-          bash supabase/tests/goods_variants_expand_concurrency.sh
-          docker cp supabase supabase_db_icons-ip:/tmp/admin-ops-sql
-          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f /tmp/admin-ops-sql/tests/helpers/goods_kc_fixture.sql -f /tmp/admin-ops-sql/tests/admin_ops_staging_seed.sql
-          PSQL_BIN=psql PGHOST=127.0.0.1 PGPORT=54322 PGUSER=postgres PGPASSWORD=postgres PGDATABASE=postgres node supabase/tests/admin_ops_rehearsal.mjs
-          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f /tmp/admin-ops-sql/tests/helpers/goods_kc_fixture.sql -f /tmp/admin-ops-sql/tests/goods_variants_seed.sql
-          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f /tmp/admin-ops-sql/tests/helpers/goods_kc_fixture.sql -f /tmp/admin-ops-sql/tests/ip_directory_seed.sql
-          run_sql_test supabase/tests/order_claims.sql
-          run_sql_test supabase/tests/order_claim_origin_policy.sql
-          run_sql_test supabase/tests/order_claim_reshipment_delivery.sql
-          run_sql_test supabase/tests/goods_reviews.sql
-          run_sql_test supabase/tests/bank_transfer_payments.sql
-          run_sql_test supabase/tests/goods_sale_restriction.sql
-          run_sql_test supabase/tests/bank_deposit_feed.sql
-          run_sql_test supabase/tests/admin_stats_reports.sql
-          run_sql_test supabase/tests/commerce_wishlist_restock.sql
-          run_sql_test supabase/tests/coupon_redemption.sql
-          bash supabase/tests/coupon_issue_concurrency.sh
-          run_sql_test supabase/tests/loyalty_grades.sql
-          run_sql_test supabase/tests/campaigns.sql
-          run_sql_test supabase/tests/coin_participation.sql
-          run_sql_test supabase/tests/product_questions.sql
-          run_sql_test supabase/tests/s8_review_hardening.sql
-          bash supabase/tests/coin_exchange_concurrency.sh
+      - name: Run database test shard
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: node scripts/database-test-shards.mjs --shard "$SHARD"
 
       - name: Lint local database
         run: supabase db lint --local --fail-on error
 
+  validate:
+    name: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs:
+      - validate-plan
+      - validate-app
+      - validate-db
+    if: ${{ !cancelled() }}
+
+    steps:
+      # 재사용이 적중한 main push만 검사 job을 건너뛸 수 있다. 그 밖에는 앱 검사와 모든 DB 샤드가
+      # 성공해야 하며, 건너뛰었거나 실패한 job이 하나라도 있으면 deploy job도 실행되지 않는다.
+      - name: Require every validation job
+        env:
+          PLAN_RESULT: ${{ needs.validate-plan.result }}
+          REUSE_HIT: ${{ needs.validate-plan.outputs.reuse_hit }}
+          APP_RESULT: ${{ needs.validate-app.result }}
+          DB_RESULT: ${{ needs.validate-db.result }}
+        run: |
+          set -euo pipefail
+
+          if [ "$PLAN_RESULT" != "success" ]; then
+            echo "::error title=Validation plan failed::validate-plan finished as $PLAN_RESULT"
+            exit 1
+          fi
+          if [ "$REUSE_HIT" = "true" ]; then
+            echo "Validation reused; validate-app and validate-db were skipped." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          failed=0
+          for job in "validate-app:$APP_RESULT" "validate-db:$DB_RESULT"; do
+            if [ "${job#*:}" != "success" ]; then
+              echo "::error title=Validation job did not pass::${job%%:*} finished as ${job#*:}"
+              failed=1
+            fi
+          done
+          exit "$failed"
+
+      - name: Check out repository
+        if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
+        uses: actions/checkout@v6
+
+      # PR·merge queue가 통과시킨 정확한 merge tree를 남긴다. 같은 tree의 main push는
+      # validate-plan의 reuse step이 이 증거를 찾아 검사 job을 건너뛴다. 앱 검사나 DB 샤드가
+      # 하나라도 통과하지 못하면 위 step에서 끝나 이 step까지 오지 않는다.
+      - name: Record validated tree
+        if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
+        run: |
+          set -euo pipefail
+
+          tree="$(git rev-parse 'HEAD^{tree}')"
+          jq -n \
+            --arg tree "$tree" \
+            --arg sha "$GITHUB_SHA" \
+            --arg event "$GITHUB_EVENT_NAME" \
+            --arg run_id "$GITHUB_RUN_ID" \
+            --arg run_attempt "$GITHUB_RUN_ATTEMPT" \
+            '{tree: $tree, sha: $sha, event: $event, runId: $run_id, runAttempt: $run_attempt}' \
+            > "$RUNNER_TEMP/validated-tree.json"
+          echo "VALIDATED_TREE=$tree" >> "$GITHUB_ENV"
+
+      - name: Upload validated tree evidence
+        if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
+        uses: actions/upload-artifact@v7
+        with:
+          name: validated-tree-${{ env.VALIDATED_TREE }}
+          path: ${{ runner.temp }}/validated-tree.json
+          retention-days: 14
+          if-no-files-found: error
+          overwrite: true
+
+  # main 재사용이 적중하면 validate-app·validate-db는 skipped다. job if의 암묵적 success()는
+  # 간접 의존 job까지 보므로 skipped 조상 때문에 배포가 조용히 건너뛰어진다. main 배포 사슬은
+  # !cancelled()와 직접 의존 job의 결과로만 판정한다.
   deploy-supabase:
     name: deploy-supabase
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     needs: validate
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: >-
+      !cancelled()
+      && needs.validate.result == 'success'
+      && github.event_name == 'push'
+      && github.ref == 'refs/heads/main'
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
@@ -333,9 +379,11 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Set up Supabase CLI
-        uses: supabase/setup-cli@v2
+        timeout-minutes: 5
+        uses: ./.github/actions/setup-supabase-cli
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
+          sha256: ${{ env.SUPABASE_CLI_SHA256 }}
 
       - name: Check Supabase deployment secrets
         run: |
@@ -354,6 +402,10 @@ jobs:
       # PRUNE: preview는 2026-08-11부터 전용 Supabase 프로젝트를 보므로(ADR-0006) 운영
       # allow-list에 preview wildcard가 남아 있을 이유가 없다. 게다가 이 패턴은 실제
       # preview 호스트(`icons-<hash>-<team>.vercel.app`)와 애초에 맞지도 않았다.
+      #
+      # 비밀번호 변경 가드는 앱 handler와 무관하게 recovery 흐름을 유지하므로 앱 배포 전에 켠다.
+      # 변경 알림 메일은 custom SMTP가 있는 production에서만 켠다 — preview 계열은 기본 메일
+      # 발송 한도를 recovery 메일과 나눠 쓰게 된다.
       - name: Sync and verify Supabase Auth configuration
         env:
           PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_ID }}
@@ -361,6 +413,9 @@ jobs:
           REQUIRE_SMTP: "true"
           ENFORCE_MAILER: "true"
           EMAIL_OTP_EXPIRY_SECONDS: "3600"
+          PASSWORD_UPDATE_GUARDS: "true"
+          PASSWORD_CHANGED_TEMPLATE_PATH: supabase/templates/password_changed_notification.html
+          PASSWORD_CHANGED_SUBJECT: ICONS 비밀번호 변경 안내
           REDIRECT_URLS: |
             https://iconsip.com/auth/callback
             https://iconsip.com/auth/recovery/callback
@@ -401,11 +456,14 @@ jobs:
   # 매 실행 새로 만들어 정확한 스키마를 적용한다.
   # 어떤 경로도 production 프로젝트를 가리키거나 shared preview에 PR migration을
   # 누적하지 않는다.
+  #
+  # PR preview는 validate를 기다리지 않고 검사 job과 병렬로 시작한다. preview DB는 PR마다
+  # 재생성하는 무데이터 branch이거나 읽기 전용 shared main이고, 검사가 실패하면 PR check가
+  # 실패로 남는다. production 배포 사슬만 validate 집계 결과를 본다.
   deploy-supabase-preview:
     name: deploy-supabase-preview
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: validate
     if: >-
       github.event_name == 'pull_request'
       && github.event.pull_request.head.repo.full_name == github.repository
@@ -530,11 +588,13 @@ jobs:
             exit 0
           fi
 
+          # 증거는 두 job의 결론이다. 뒤따르는 deploy-staging까지 run 전체가 끝나기를
+          # 기다리지 않도록 실행 중인 run도 조회하고, 진행 중인 job은 success가 아니라 거부된다.
           runs_json="$(curl --fail --silent --show-error \
             --header "Authorization: Bearer $GH_TOKEN" \
             --header "Accept: application/vnd.github+json" \
             --header "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/pipeline.yml/runs?event=push&head_sha=${PR_BASE_SHA}&status=completed&per_page=20")"
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/pipeline.yml/runs?event=push&head_sha=${PR_BASE_SHA}&per_page=20")"
 
           synchronized_run_id=""
           while IFS= read -r run_id; do
@@ -570,9 +630,11 @@ jobs:
 
       - name: Set up Supabase CLI
         if: steps.check.outputs.configured == 'true'
-        uses: supabase/setup-cli@v2
+        timeout-minutes: 5
+        uses: ./.github/actions/setup-supabase-cli
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
+          sha256: ${{ env.SUPABASE_CLI_SHA256 }}
 
       # PR migration은 수정·삭제될 수 있어 기존 branch를 재사용하면 같은 version의
       # 과거 SQL이 남는다. 무데이터 branch를 매 실행 재생성해 PR head와 정확히 맞춘다.
@@ -696,6 +758,7 @@ jobs:
           REQUIRE_SMTP: "false"
           ENFORCE_MAILER: "false"
           EMAIL_OTP_EXPIRY_SECONDS: "3600"
+          PASSWORD_UPDATE_GUARDS: "true"
           REDIRECT_URLS: |
             https://icons-ip.vercel.app/auth/callback
             https://icons-ip.vercel.app/auth/recovery/callback
@@ -742,9 +805,12 @@ jobs:
   deploy-vercel-preview:
     name: deploy-vercel-preview
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: deploy-supabase-preview
     if: >-
-      github.event_name == 'pull_request'
+      !cancelled()
+      && needs.deploy-supabase-preview.result == 'success'
+      && github.event_name == 'pull_request'
       && github.event.pull_request.head.repo.full_name == github.repository
       && needs.deploy-supabase-preview.outputs.configured == 'true'
     env:
@@ -762,22 +828,23 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v6
 
+      # Vercel이 원격에서 npm install·build를 하고 업로드에서 node_modules를 빼므로 로컬 의존성
+      # 설치는 쓰이지 않는다. 이 job의 node 스크립트는 Node 내장 모듈만 쓴다(계약 테스트가 확인).
+      # 설치가 없으니 npm 캐시도 복원·저장하지 않는다.
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
 
       - name: Install Vercel CLI
         run: npm install --global "vercel@${VERCEL_CLI_VERSION}"
 
       - name: Set up Supabase CLI
-        uses: supabase/setup-cli@v2
+        timeout-minutes: 5
+        uses: ./.github/actions/setup-supabase-cli
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
+          sha256: ${{ env.SUPABASE_CLI_SHA256 }}
 
       - name: Check Vercel deployment secrets
         run: |
@@ -949,10 +1016,16 @@ jobs:
   sync-supabase-preview-main:
     name: sync-supabase-preview-main
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     needs:
       - deploy-supabase
       - deploy-vercel
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: >-
+      !cancelled()
+      && needs.deploy-supabase.result == 'success'
+      && needs.deploy-vercel.result == 'success'
+      && github.event_name == 'push'
+      && github.ref == 'refs/heads/main'
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_PREVIEW_DB_PASSWORD }}
@@ -965,9 +1038,11 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Set up Supabase CLI
-        uses: supabase/setup-cli@v2
+        timeout-minutes: 5
+        uses: ./.github/actions/setup-supabase-cli
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
+          sha256: ${{ env.SUPABASE_CLI_SHA256 }}
 
       - name: Check shared preview sync secrets
         run: |
@@ -1004,6 +1079,7 @@ jobs:
           REQUIRE_SMTP: "false"
           ENFORCE_MAILER: "false"
           EMAIL_OTP_EXPIRY_SECONDS: "3600"
+          PASSWORD_UPDATE_GUARDS: "true"
           RECOVERY_TEMPLATE_PATH: supabase/templates/recovery.html
           REDIRECT_URLS: |
             https://icons-ip.vercel.app/auth/callback
@@ -1046,7 +1122,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     needs: sync-supabase-preview-main
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: >-
+      !cancelled()
+      && needs.sync-supabase-preview-main.result == 'success'
+      && github.event_name == 'push'
+      && github.ref == 'refs/heads/main'
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_PREVIEW_PROJECT_ID: ${{ secrets.SUPABASE_PREVIEW_PROJECT_ID }}
@@ -1060,17 +1140,17 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+      # staging 스크립트도 Node 내장 모듈과 전역 vercel·supabase CLI만 쓰므로 npm ci를 하지 않는다.
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-      - name: Install dependencies
-        run: npm ci
       - name: Set up Supabase CLI
-        uses: supabase/setup-cli@v2
+        timeout-minutes: 5
+        uses: ./.github/actions/setup-supabase-cli
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
+          sha256: ${{ env.SUPABASE_CLI_SHA256 }}
       - name: Install Vercel CLI
         run: npm install --global "vercel@${VERCEL_CLI_VERSION}"
       - name: Check staging configuration and current main
@@ -1106,6 +1186,7 @@ jobs:
           REQUIRE_SMTP: "false"
           ENFORCE_MAILER: "false"
           EMAIL_OTP_EXPIRY_SECONDS: "3600"
+          PASSWORD_UPDATE_GUARDS: "true"
         run: |
           export SITE_URL="https://$STAGING_ALIAS"
           export REDIRECT_URLS="https://$STAGING_ALIAS/auth/callback
@@ -1126,6 +1207,7 @@ jobs:
   deploy-vercel:
     name: deploy-vercel
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs:
       - validate
       - deploy-supabase
@@ -1157,14 +1239,13 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v6
 
+      # Vercel이 원격에서 npm install·build를 하고 업로드에서 node_modules를 빼므로 로컬 의존성
+      # 설치는 쓰이지 않는다. 이 job의 node 스크립트는 Node 내장 모듈만 쓴다(계약 테스트가 확인).
+      # 설치가 없으니 npm 캐시도 복원·저장하지 않는다.
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
 
       - name: Install Vercel CLI
         run: npm install --global "vercel@${VERCEL_CLI_VERSION}"

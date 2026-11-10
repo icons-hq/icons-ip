@@ -1,3 +1,4 @@
+const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AdminMessagingEmailsPage from './page';
 
@@ -6,12 +7,12 @@ const mocks = vi.hoisted(() => ({
     isConfigured: true,
     user: { id: '11111111-1111-4111-8111-111111111111', email: 'staff@icons.gg' },
     role: 'staff',
-    isStaff: true,
+    isStaff: true, operatorAccess: legacyOperatorAccessFixture(),
   } as {
     isConfigured: boolean;
     user: { id: string; email: string | null } | null;
     role: 'user' | 'staff' | 'admin' | null;
-    isStaff: boolean;
+    isStaff: boolean; operatorAccess?: ReturnType<typeof legacyOperatorAccessFixture>;
   },
   emailSection: vi.fn(() => null),
   emails: vi.fn(async () => [{ id: 'delivery-1' }]),
@@ -45,7 +46,7 @@ describe('AdminMessagingEmailsPage', () => {
       isConfigured: true,
       user: { id: '11111111-1111-4111-8111-111111111111', email: 'staff@icons.gg' },
       role: 'staff',
-      isStaff: true,
+      isStaff: true, operatorAccess: legacyOperatorAccessFixture(),
     };
     mocks.emailSection.mockClear();
     mocks.emails.mockClear();
@@ -66,7 +67,7 @@ describe('AdminMessagingEmailsPage', () => {
     const screen = await AdminMessagingEmailsPage();
 
     expect(screen.type).toBe(mocks.emailSection);
-    expect(screen.props).toEqual({ deliveries: [{ id: 'delivery-1' }] });
+    expect(screen.props).toEqual({ deliveries: [{ id: 'delivery-1' }], nowMs: expect.any(Number) });
   });
 
   it('다른 화면의 로더는 부르지 않는다', async () => {

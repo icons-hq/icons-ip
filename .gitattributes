@@ -2,3 +2,7 @@
 private/ip-popups/aouad-hyosan/** -text linguist-generated=true
 private/ip-popups/aouad-hyosan/assets/*.js -diff
 private/ip-popups/aouad-hyosan/assets/*.css -diff
+
+# Keep upstream dictionary and font-license bytes identical to their provenance hashes.
+vendor/korean-legal-regions/20260729/legal-regions.csv -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+docs/licenses/pretendard.txt -text whitespace=-blank-at-eol

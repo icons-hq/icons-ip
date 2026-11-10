@@ -1,0 +1,491 @@
+{
+  "observedAt": "2026-10-20",
+  "source": "https://sell.smartstore.naver.com/#/naverpay/sale/delivery",
+  "sha256": "19a71d121ba49fbead3a18df54e6cbbec26643a7bd32b9fb857b0e2e9a48daed",
+  "sheetName": "발주발송관리",
+  "defaultRowHeight": 15,
+  "noticeHeight": 150,
+  "merges": [
+    "A1:C1",
+    "D1:F1"
+  ],
+  "columns": [
+    {
+      "number": 1,
+      "width": 28.5
+    },
+    {
+      "number": 2,
+      "width": 28.5
+    },
+    {
+      "number": 3,
+      "width": 28.5
+    },
+    {
+      "number": 4,
+      "width": 28.5
+    },
+    {
+      "number": 5,
+      "width": 28.5
+    },
+    {
+      "number": 6,
+      "width": 28.5
+    },
+    {
+      "number": 7,
+      "width": 28.5
+    },
+    {
+      "number": 8,
+      "width": 28.5
+    },
+    {
+      "number": 9,
+      "width": 28.5
+    },
+    {
+      "number": 10,
+      "width": 28.5,
+      "numFmt": "yyyy/mm/dd hh:mm"
+    },
+    {
+      "number": 11,
+      "width": 28.5,
+      "numFmt": "yyyy/mm/dd hh:mm"
+    },
+    {
+      "number": 12,
+      "width": 28.5,
+      "numFmt": "yyyy/mm/dd hh:mm"
+    },
+    {
+      "number": 13,
+      "width": 28.5,
+      "numFmt": "yyyy/mm/dd hh:mm"
+    },
+    {
+      "number": 14,
+      "width": 28.5,
+      "numFmt": "yyyy/mm/dd hh:mm"
+    },
+    {
+      "number": 15,
+      "width": 28.5,
+      "numFmt": "yyyy/mm/dd hh:mm"
+    },
+    {
+      "number": 16,
+      "width": 28.5,
+      "numFmt": "yyyy/mm/dd hh:mm"
+    },
+    {
+      "number": 17,
+      "width": 28.5,
+      "numFmt": "yyyy/mm/dd hh:mm"
+    },
+    {
+      "number": 18,
+      "width": 28.5,
+      "numFmt": "yyyy/mm/dd hh:mm"
+    },
+    {
+      "number": 19,
+      "width": 28.5,
+      "numFmt": "yyyy/mm/dd hh:mm"
+    },
+    {
+      "number": 20,
+      "width": 28.5,
+      "numFmt": "yyyy/mm/dd hh:mm"
+    },
+    {
+      "number": 21,
+      "width": 28.5,
+      "numFmt": "yyyy/mm/dd hh:mm"
+    },
+    {
+      "number": 22,
+      "width": 28.5,
+      "numFmt": "yyyy/mm/dd hh:mm"
+    },
+    {
+      "number": 23,
+      "width": 28.5,
+      "numFmt": "yyyy/mm/dd hh:mm"
+    },
+    {
+      "number": 24,
+      "width": 28.5,
+      "numFmt": "yyyy/mm/dd hh:mm"
+    },
+    {
+      "number": 25,
+      "width": 28.5,
+      "numFmt": "yyyy/mm/dd hh:mm"
+    },
+    {
+      "number": 26,
+      "width": 28.5,
+      "numFmt": "yyyy/mm/dd hh:mm"
+    },
+    {
+      "number": 27,
+      "width": 28.5,
+      "numFmt": "yyyy/mm/dd hh:mm"
+    },
+    {
+      "number": 28,
+      "width": 28.5,
+      "numFmt": "\"\"#,##0"
+    },
+    {
+      "number": 29,
+      "width": 28.5,
+      "numFmt": "\"\"#,##0"
+    },
+    {
+      "number": 30,
+      "width": 28.5,
+      "numFmt": "\"\"#,##0"
+    },
+    {
+      "number": 31,
+      "width": 28.5,
+      "numFmt": "\"\"#,##0"
+    },
+    {
+      "number": 32,
+      "width": 28.5,
+      "numFmt": "\"\"#,##0"
+    },
+    {
+      "number": 33,
+      "width": 28.5,
+      "numFmt": "\"\"#,##0"
+    },
+    {
+      "number": 34,
+      "width": 28.5,
+      "numFmt": "\"\"#,##0"
+    },
+    {
+      "number": 35,
+      "width": 28.5,
+      "numFmt": "\"\"#,##0"
+    },
+    {
+      "number": 36,
+      "width": 28.5,
+      "numFmt": "yyyy/mm/dd hh:mm"
+    },
+    {
+      "number": 37,
+      "width": 28.5,
+      "numFmt": "yyyy/mm/dd hh:mm"
+    },
+    {
+      "number": 38,
+      "width": 28.5,
+      "numFmt": "yyyy/mm/dd hh:mm"
+    },
+    {
+      "number": 39,
+      "width": 28.5,
+      "numFmt": "yyyy/mm/dd hh:mm"
+    },
+    {
+      "number": 40,
+      "width": 28.5,
+      "numFmt": "yyyy/mm/dd hh:mm"
+    },
+    {
+      "number": 41,
+      "width": 28.5,
+      "numFmt": "yyyy/mm/dd hh:mm"
+    },
+    {
+      "number": 42,
+      "width": 28.5,
+      "numFmt": "yyyy/mm/dd hh:mm"
+    },
+    {
+      "number": 43,
+      "width": 28.5,
+      "numFmt": "\"\"#,##0"
+    },
+    {
+      "number": 44,
+      "width": 28.5,
+      "numFmt": "\"\"#,##0"
+    },
+    {
+      "number": 45,
+      "width": 28.5,
+      "numFmt": "\"\"#,##0"
+    },
+    {
+      "number": 46,
+      "width": 28.5,
+      "numFmt": "\"\"#,##0"
+    },
+    {
+      "number": 47,
+      "width": 28.5,
+      "numFmt": "\"\"#,##0"
+    },
+    {
+      "number": 48,
+      "width": 28.5,
+      "numFmt": "\"\"#,##0"
+    },
+    {
+      "number": 49,
+      "width": 28.5,
+      "numFmt": "\"\"#,##0"
+    },
+    {
+      "number": 50,
+      "width": 28.5,
+      "numFmt": "\"\"#,##0"
+    },
+    {
+      "number": 51,
+      "width": 28.5,
+      "numFmt": "\"\"#,##0"
+    },
+    {
+      "number": 52,
+      "width": 28.5,
+      "numFmt": "\"\"#,##0"
+    },
+    {
+      "number": 53,
+      "width": 28.5,
+      "numFmt": "\"\"#,##0"
+    },
+    {
+      "number": 54,
+      "width": 28.5,
+      "numFmt": "\"\"#,##0"
+    },
+    {
+      "number": 55,
+      "width": 28.5,
+      "numFmt": "\"\"#,##0"
+    },
+    {
+      "number": 56,
+      "width": 28.5,
+      "numFmt": "\"\"#,##0"
+    },
+    {
+      "number": 57,
+      "width": 28.5,
+      "numFmt": "\"\"#,##0"
+    },
+    {
+      "number": 58,
+      "width": 28.5,
+      "numFmt": "\"\"#,##0"
+    },
+    {
+      "number": 59,
+      "width": 28.5,
+      "numFmt": "\"\"#,##0"
+    },
+    {
+      "number": 60,
+      "width": 28.5,
+      "numFmt": "\"\"#,##0"
+    },
+    {
+      "number": 61,
+      "width": 28.5,
+      "numFmt": "\"\"#,##0"
+    },
+    {
+      "number": 62,
+      "width": 28.5,
+      "numFmt": "\"\"#,##0"
+    },
+    {
+      "number": 63,
+      "width": 28.5,
+      "numFmt": "\"\"#,##0"
+    },
+    {
+      "number": 64,
+      "width": 28.5,
+      "numFmt": "\"\"#,##0"
+    },
+    {
+      "number": 65,
+      "width": 28.5,
+      "numFmt": "yyyy/mm/dd hh:mm"
+    },
+    {
+      "number": 66,
+      "width": 28.5,
+      "numFmt": "yyyy/mm/dd hh:mm"
+    },
+    {
+      "number": 67,
+      "width": 28.5,
+      "numFmt": "yyyy/mm/dd hh:mm"
+    },
+    {
+      "number": 68,
+      "width": 28.5,
+      "numFmt": "yyyy/mm/dd hh:mm"
+    },
+    {
+      "number": 69,
+      "width": 28.5,
+      "numFmt": "yyyy/mm/dd hh:mm"
+    },
+    {
+      "number": 70,
+      "width": 28.5,
+      "numFmt": "yyyy/mm/dd hh:mm"
+    },
+    {
+      "number": 71,
+      "width": 28.5,
+      "numFmt": "yyyy/mm/dd hh:mm"
+    },
+    {
+      "number": 72,
+      "width": 28.5,
+      "numFmt": "yyyy/mm/dd hh:mm"
+    },
+    {
+      "number": 73,
+      "width": 28.5,
+      "numFmt": "yyyy/mm/dd hh:mm"
+    },
+    {
+      "number": 74,
+      "width": 28.5,
+      "numFmt": "yyyy/mm/dd hh:mm"
+    }
+  ],
+  "headers": [
+    "상품주문번호",
+    "주문번호",
+    "배송속성",
+    "풀필먼트사(주문 기준)",
+    "택배사(주문 기준)",
+    "배송방법(구매자 요청)",
+    "배송방법",
+    "택배사",
+    "송장번호",
+    "발송일",
+    "판매채널",
+    "구매자명",
+    "구매자ID",
+    "수취인명",
+    "주문상태",
+    "주문세부상태",
+    "수량클레임 여부",
+    "결제위치",
+    "결제일",
+    "상품번호",
+    "상품명",
+    "상품종류",
+    "반품안심케어",
+    "멤버십N배송",
+    "옵션정보",
+    "옵션관리코드",
+    "수량",
+    "옵션가격",
+    "상품가격",
+    "최종 상품별 할인액",
+    "최초 상품별 할인액",
+    "판매자 부담 할인액",
+    "최종 상품별 총 주문금액",
+    "최초 상품별 총 주문금액",
+    "사은품",
+    "발주확인일",
+    "발송기한",
+    "발송처리일",
+    "송장출력일",
+    "배송비 형태",
+    "배송비 묶음번호",
+    "배송비 유형",
+    "배송비 합계",
+    "제주/도서 추가배송비",
+    "배송비 할인액",
+    "판매자 상품코드",
+    "판매자 내부코드1",
+    "판매자 내부코드2",
+    "수취인연락처1",
+    "수취인연락처2",
+    "통합배송지",
+    "기본배송지",
+    "상세배송지",
+    "구매자연락처",
+    "우편번호",
+    "배송메세지",
+    "출고지",
+    "결제수단",
+    "네이버페이 주문관리 수수료",
+    "매출연동 수수료",
+    "정산예정금액",
+    "일회용 통관부호",
+    "개인통관고유부호",
+    "인증번호",
+    "주문일시",
+    "배송희망일",
+    "구독신청회차",
+    "구독진행회차",
+    "구독배송희망일",
+    "배송태그 유형",
+    "출입방법 유형",
+    "출입방법 내용",
+    "수령위치 유형",
+    "수령위치 내용"
+  ],
+  "headerStyle": {
+    "font": {
+      "bold": true
+    },
+    "border": {},
+    "fill": {
+      "type": "pattern",
+      "pattern": "solid",
+      "fgColor": {
+        "argb": "FFCCCCFF"
+      }
+    },
+    "alignment": {
+      "horizontal": "center"
+    }
+  },
+  "noticeStyle": {
+    "font": {
+      "color": {
+        "theme": 1
+      },
+      "family": 2,
+      "scheme": "minor",
+      "size": 11,
+      "name": "Calibri"
+    },
+    "border": {},
+    "fill": {
+      "type": "pattern",
+      "pattern": "solid",
+      "fgColor": {
+        "argb": "FFFFFF99"
+      }
+    },
+    "alignment": {
+      "horizontal": "left",
+      "vertical": "middle",
+      "wrapText": true
+    }
+  }
+}

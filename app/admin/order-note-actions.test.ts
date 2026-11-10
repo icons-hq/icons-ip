@@ -1,3 +1,4 @@
+import { legacyOperatorAccessFixture } from '@/lib/admin/access.test-fixtures';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { addOrderNoteAction } from './order-note-actions';
 
@@ -5,7 +6,7 @@ const mocks = vi.hoisted(() => ({
   auth: { isConfigured: true, user: { id: 'staff' }, isStaff: true },
   rpc: vi.fn(), revalidatePath: vi.fn(),
 }));
-vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: vi.fn(async () => mocks.auth) }));
+vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: vi.fn(async () => ({ ...mocks.auth, operatorAccess: 'operatorAccess' in mocks.auth && mocks.auth.operatorAccess || legacyOperatorAccessFixture() })) }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn(async () => ({ rpc: mocks.rpc })) }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock('next/navigation', () => ({ redirect: (path: string) => { throw new Error(`redirect:${path}`); } }));

@@ -21,12 +21,16 @@ function review(overrides: Partial<GoodReviewItem> = {}): GoodReviewItem {
     adminReply: null,
     adminReplyAt: null,
     imageUrls: [],
+    helpfulCount: 0,
+    helpfulByMe: false,
+    canMarkHelpful: false,
     ...overrides,
   };
 }
 
 function section(overrides: Partial<GoodReviewSection> = {}): GoodReviewSection {
   return {
+    viewerAuthenticated: false,
     summary: {
       count: 3,
       average: 4,
@@ -74,8 +78,23 @@ describe('GoodReviews', () => {
     const html = render();
 
     expect(html).toContain('reviewSort=rating_desc');
+    expect(html).toContain('reviewSort=helpful_desc');
     expect(html).toContain('reviewPhoto=1');
     expect(html).toContain('사진 리뷰만');
+  });
+
+  it('비회원에게 도움수와 현재 정렬·페이지로 돌아오는 로그인 링크를 제공한다', () => {
+    const html = render({ reviews: [review({ helpfulCount: 7 })], options: { sort: 'helpful_desc', photoOnly: true, page: 2 } });
+    expect(html).toContain('현재 7명');
+    expect(html).toContain(encodeURIComponent('/shop/g13?reviewSort=helpful_desc&reviewPhoto=1&reviewPage=2#reviews'));
+    expect(html).not.toContain('aria-pressed=');
+  });
+
+  it('세션이 만료된 작성자에게도 자기 리뷰 도움 표시 진입점을 제공하지 않는다', () => {
+    const html = render({ viewerAuthenticated: false, reviews: [review({ isMine: true, helpfulCount: 7 })] });
+    expect(html).toContain('도움이 돼요 7');
+    expect(html).not.toContain('로그인하고 도움이 돼요');
+    expect(html).not.toContain('aria-pressed=');
   });
 
   it('운영자 답글을 리뷰와 함께 공개한다', () => {
@@ -92,7 +111,7 @@ describe('GoodReviews', () => {
 
   /* 자기 리뷰를 자기가 신고하는 경로는 만들지 않는다 — 수정·삭제는 내 리뷰가 맡는다. */
   it('내 리뷰에는 신고 대신 관리 링크를 준다', () => {
-    const mine = render({ reviews: [review({ isMine: true })] });
+    const mine = render({ viewerAuthenticated: true, reviews: [review({ isMine: true })] });
     const others = render();
 
     expect(mine).toContain('내 리뷰 관리');
@@ -106,9 +125,9 @@ describe('GoodReviews', () => {
       .toContain('수정됨');
   });
 
-  /* v1에는 리뷰 보상이 없다(#254 확정). 기대를 만들지 않도록 명시한다. */
-  it('보상이 없다는 사실을 적는다', () => {
-    expect(render()).toContain('적립금이나 혜택이 주어지지는 않습니다');
+  it('일반 작성과 이벤트 선정 혜택을 구분한다', () => {
+    expect(render()).toContain('리뷰 작성만으로 혜택이 지급되지는 않습니다');
+    expect(render()).toContain('리뷰이벤트의 선정 혜택');
   });
 
   it('한 페이지를 넘으면 숫자 페이지네이션을 그린다', () => {

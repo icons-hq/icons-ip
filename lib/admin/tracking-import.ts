@@ -1,3 +1,4 @@
+import { isCommerceNumber } from '@/lib/commerce-number';
 import {
   findShippingCarrier,
   isTrackingNumber,
@@ -106,11 +107,11 @@ export function parseTrackingImport(
       ? reference.toLowerCase()
       : reference.replace(/[\s-]/g, '').toUpperCase();
 
-    if (!isUuid && !REFERENCE_PATTERN.test(normalizedReference)) {
+    if (!isUuid && !REFERENCE_PATTERN.test(normalizedReference) && !isCommerceNumber(normalizedReference, 'order') && !isCommerceNumber(normalizedReference, 'shipment')) {
       issues.push({
         line,
         reference,
-        reason: '배송건번호 또는 단일 배송 주문번호는 콘솔에 표시되는 8자리 또는 전체 UUID여야 합니다.',
+        reason: '콘솔에 표시되는 16자리 배송건번호 또는 단일 배송 주문번호를 입력해주세요. 기존 8자리 번호와 전체 UUID도 사용할 수 있습니다.',
       });
       return;
     }
@@ -169,5 +170,5 @@ export function parseTrackingImport(
 /** 운영자가 화면에서 받아 갈 예시. 화면 문구와 테스트가 같은 값을 본다. */
 export const TRACKING_IMPORT_SAMPLE = [
   '배송건번호,택배사코드,운송장번호',
-  '11111111-1111-4111-8111-111111111111,hanjin,123456789012',
+  '2026102130000001,hanjin,123456789012',
 ].join('\n');

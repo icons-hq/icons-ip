@@ -1,10 +1,11 @@
+import { configuredOperatorAccessFixture, legacyOperatorAccessFixture } from '@/lib/admin/access.test-fixtures';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ auth: vi.fn(), rpc: vi.fn(), revalidate: vi.fn() }));
 vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: mocks.auth }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ rpc: mocks.rpc }) }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidate }));
 vi.mock('next/navigation', () => ({ unstable_rethrow: vi.fn() }));
-import { saveGoodsPreorderAction, switchToStockSupplyAction, allocateGoodsPreordersAction } from './goods-preorder-actions';
+import { saveGoodsPreorderAction, switchToStockSupplyAction, allocateGoodsPreordersAction, listGoodsPreorderReservationsAction } from './goods-preorder-actions';
 const variant = '00000000-0000-4000-8000-000000000001';
 const policy = '00000000-0000-4000-8000-000000000002';
 const item = '00000000-0000-4000-8000-000000000003';
@@ -15,7 +16,7 @@ function form(state: string, evidence = '합성 공급 승인') {
 }
 beforeEach(() => {
   vi.resetAllMocks();
-  mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'staff1' }, isStaff: true, role: 'staff' });
+  mocks.auth.mockResolvedValue({ operatorAccess: legacyOperatorAccessFixture(), isConfigured: true, user: { id: 'staff1' }, isStaff: true, role: 'staff' });
 });
 describe('preorder authority and actual stock inputs', () => {
   it('lets staff save drafts but blocks opening supply or returning to regular sales', async () => {
@@ -27,7 +28,7 @@ describe('preorder authority and actual stock inputs', () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
   it('never fills in missing supply proof and sends observed policy revisions when activating', async () => {
-    mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'admin1' }, isStaff: true, role: 'admin' });
+    mocks.auth.mockResolvedValue({ operatorAccess: legacyOperatorAccessFixture(), isConfigured: true, user: { id: 'admin1' }, isStaff: true, role: 'admin' });
     expect(await saveGoodsPreorderAction(form('active', ''))).toMatchObject({ ok: false });
     expect(mocks.rpc).not.toHaveBeenCalled();
     mocks.rpc.mockResolvedValue({ data: { id: policy, revision: 2, changed: true }, error: null });
@@ -47,4 +48,20 @@ describe('preorder authority and actual stock inputs', () => {
     expect(await allocateGoodsPreordersAction('g1', { orderItemIds: [item], expectedStock: { [variant]: 3 } }, '')).toMatchObject({ ok: false });
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
+});
+
+it('configured influencer can request reservation history but cannot allocate or open supply', async () => {
+  mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'influencer' }, isStaff: true, role: 'staff', operatorAccess: configuredOperatorAccessFixture('influencer') });
+  mocks.rpc.mockResolvedValue({ data: { items: [], total: 0, hasMore: false }, error: null });
+  await listGoodsPreorderReservationsAction('g1');
+  expect(mocks.rpc).toHaveBeenCalledWith('admin_list_goods_preorder_reservations', expect.anything());
+  mocks.rpc.mockClear();
+  expect(await allocateGoodsPreordersAction('g1', { orderItemIds: [item], expectedStock: { [variant]: 3 } }, '입고')).toMatchObject({ ok: false });
+  expect(await saveGoodsPreorderAction(form('active'))).toMatchObject({ ok: false });
+  expect(mocks.rpc).not.toHaveBeenCalled();
+});
+it('configured deputy cannot load reservation orders through the product page', async () => {
+  mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'deputy' }, isStaff: true, role: 'staff', operatorAccess: configuredOperatorAccessFixture('deputy') });
+  expect(await listGoodsPreorderReservationsAction('g1')).toMatchObject({ ok: false });
+  expect(mocks.rpc).not.toHaveBeenCalled();
 });

@@ -144,7 +144,8 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 
 function readString(formData: FormData, name: string) {
   const value = formData.get(name);
-  return typeof value === 'string' ? value.trim() : '';
+  /* 브라우저 폼 본문은 줄바꿈을 CRLF로 보낸다. textarea maxLength처럼 줄바꿈을 1자로 세고 LF로 저장한다. */
+  return typeof value === 'string' ? value.replace(/\r\n?/g, '\n').trim() : '';
 }
 
 function readUuid(formData: FormData, name: string) {
@@ -213,7 +214,7 @@ export function normalizeInquiryReplyForm(formData: FormData): InquiryReplyFormR
   const errors: InquiryFormErrors = {};
 
   if (!inquiryId) errors.form = '문의를 찾을 수 없습니다.';
-  if (!body) errors.body = '추가 문의 내용을 입력해주세요.';
+  if (!body && !images.length) errors.body = '추가 문의 내용을 입력하거나 이미지를 첨부해주세요.';
   else if (body.length > MAX_INQUIRY_BODY_LENGTH) {
     errors.body = `문의 내용은 ${MAX_INQUIRY_BODY_LENGTH}자 이내로 입력해주세요.`;
   }

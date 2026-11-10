@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-const mocks = vi.hoisted(() => ({ quote: vi.fn() }));
-vi.mock('@/lib/goods-sales.server', () => ({ loadGoodsSalesQuote: mocks.quote }));
-import { quoteGoodsSalesAction } from './sales-actions';
+const mocks = vi.hoisted(() => ({ quote: vi.fn(), precheckout: vi.fn() }));
+vi.mock('@/lib/goods-sales.server', () => ({ loadGoodsSalesQuote: mocks.quote, loadGoodsSalesPrecheckoutQuote: mocks.precheckout }));
+import { quoteGoodsSalesAction, quoteGoodsSalesPrecheckoutAction } from './sales-actions';
+import { goodsSalesPrecheckoutQuote } from '@/test/fixtures/goods-sales-precheckout';
 beforeEach(() => vi.resetAllMocks());
 describe('public sales quote action', () => {
   it('sends only item identity and quantity to the server price/limit calculation', async () => {
@@ -28,5 +29,25 @@ describe('public sales quote action', () => {
     expect(await quoteGoodsSalesAction(items)).toMatchObject({ ok: false });
     mocks.quote.mockRejectedValue(new Error('offline'));
     expect(await quoteGoodsSalesAction(items)).toMatchObject({ ok: false });
+  });
+});
+
+describe('precheckout sales action', () => {
+  it('forwards only item identities and quantities without address, price or caller user data', async () => {
+    const item = goodsSalesPrecheckoutQuote.lines[0];
+    mocks.precheckout.mockResolvedValue(goodsSalesPrecheckoutQuote);
+    expect(await quoteGoodsSalesPrecheckoutAction([{ ...item, price: 1, userId: 'other', destination: { postalCode: '01234' } }]))
+      .toEqual({ ok: true, quote: goodsSalesPrecheckoutQuote });
+    expect(mocks.precheckout).toHaveBeenCalledExactlyOnceWith([{ goodId: item.goodId, variantId: item.variantId, qty: item.qty }]);
+    expect(mocks.quote).not.toHaveBeenCalled();
+  });
+  it('rejects invalid quantities and keeps failed product conditions unavailable', async () => {
+    const item = goodsSalesPrecheckoutQuote.lines[0];
+    expect(await quoteGoodsSalesPrecheckoutAction([{ ...item, qty: 0 }])).toMatchObject({ ok: false });
+    expect(mocks.precheckout).not.toHaveBeenCalled();
+    mocks.precheckout.mockResolvedValueOnce(null).mockRejectedValueOnce(new Error('offline'));
+    expect(await quoteGoodsSalesPrecheckoutAction([item])).toMatchObject({ ok: false });
+    expect(await quoteGoodsSalesPrecheckoutAction([item])).toMatchObject({ ok: false });
+    expect(mocks.quote).not.toHaveBeenCalled();
   });
 });

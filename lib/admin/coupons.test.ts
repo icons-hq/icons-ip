@@ -126,3 +126,15 @@ describe('admin coupon list URL state', () => {
     });
   });
 });
+
+describe('혜택 상세 필터', () => {
+  it('날짜·대상·상태·정렬을 페이지 이동에도 보존한다', () => {
+    const filters = normalizeAdminCouponFilters({ phase: 'live', segment: 'first_purchase', discountType: 'percent', from: '2026-10-01', to: '2026-10-12', dateField: 'starts', sort: 'ends_asc', pageSize: '50' });
+    expect(filters).toMatchObject({ phase: 'live', segment: 'first_purchase', discountType: 'percent', from: '2026-10-01', to: '2026-10-12', dateField: 'starts', sort: 'ends_asc', pageSize: 50 });
+    expect(adminCouponListHref(filters, { page: 2 })).toContain('page=2&phase=live');
+  });
+  it('불가능한 날짜로 전체 쿠폰을 조회하지 않는다', () => {
+    expect(normalizeAdminCouponFilters({ from: '2026-02-30' }).inputError).toContain('조회 시작일');
+    expect(normalizeAdminCouponFilters({ from: '2026-10-12', to: '2026-10-01' }).inputError).toContain('조회 시작일');
+  });
+});

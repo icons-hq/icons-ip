@@ -26,11 +26,23 @@ describe('WITHDRAWAL_REASON_LABELS', () => {
 });
 
 describe('발주확인 이후 직접 취소 차단', () => {
+  it.each(['processing', 'completed'] as const)('계좌 송금 대기는 기존 %s 요청 라벨보다 먼저 표시하고 재신청을 열지 않는다', status => {
+    const request = { id: '11111111-1111-4111-8111-111111111111', status, stage: status, claimType: 'cancel' as const, reference: 1,
+      requestedAt: '2026-10-14T01:00:00Z', decidedAt: null, decisionNote: null, reshipCarrier: null, reshipTrackingNumber: null, reshipDeliveredAt: null };
+    const refund = { status: 'awaiting_transfer', createdAt: '2026-10-14T02:00:00Z' };
+    const presentation = cancellationPresentation('canceled', refund, request);
+    expect(presentation).toMatchObject({ canCancel: false, heading: '환불 송금 대기', requestLabel: '송금 대기' });
+    const html = renderToStaticMarkup(createElement(OrderCancellation, { orderId: '11111111-1111-4111-8111-111111111111', status: 'canceled', refund, cancellationRequest: request, deliveredAt: null, eligibility: null }));
+    expect(html).toContain('결제자 계좌');
+    expect(html).not.toContain('취소·환불 처리 완료');
+    expect(html).not.toContain('order-cancellation-open');
+  });
   it.each(['confirmed', 'shipping', 'delivered', 'done'] as const)('%s 주문은 취소 버튼 대신 신청 기준을 안내한다', (status) => {
     const presentation = cancellationPresentation(status, null);
     expect(presentation.canCancel).toBe(false);
     expect(presentation.body).toContain('발주확인 전');
-    expect(presentation.body).toContain('모든 굿즈');
+    expect(presentation.body).toContain('배송 중부터');
+    expect(presentation.body).toContain('주문 전체');
     expect(presentation.body).not.toContain('주문이 취소됐습니다');
     const markup = renderToStaticMarkup(createElement(OrderCancellation, {
       deliveredAt: null, orderId: '11111111-1111-4111-8111-111111111111', status,
@@ -122,10 +134,12 @@ describe('submitOrderCancellation', () => {
       actionLabel: '주문 취소',
     });
     expect(cancellationPresentation('pending', null, null, { eligibility: { cancel: true, return: false, exchange: false } }).body).toContain('결제 내역');
+    /* 10/14 회의 S19 — 결제완료 주문의 고객 액션은 '주문 취소'다. 법정 용어는 접힌 안내에만 남는다. */
     expect(cancellationPresentation('paid', null, null, { eligibility: { cancel: true, return: false, exchange: false } })).toMatchObject({
       canCancel: true,
-      heading: '청약철회 요청',
-      actionLabel: '청약철회 요청',
+      heading: '주문 취소',
+      actionLabel: '주문 취소',
+      confirmTitle: '이 주문을 취소할까요?',
     });
   });
 
@@ -142,12 +156,13 @@ describe('submitOrderCancellation', () => {
   });
 
   it.each([
-    ['requested', '청약철회 요청 접수', '검토'],
+    ['requested', '주문 취소 요청 접수', '검토'],
     ['processing', '결제 취소 처리 중', '처리'],
     ['needs_review', '결제 취소 확인 중', '확인'],
     ['completed', '취소·환불 처리 완료', '완료'],
   ] as const)('shows safe %s request status without provider details', (requestStatus, heading, bodyWord) => {
-    const presentation = cancellationPresentation('paid', null, {
+    /* 결제완료 주문의 취소라 환불 원장이 있다. 원장 없는 완료는 아래에서 따로 본다. */
+    const presentation = cancellationPresentation('paid', { status: 'done', createdAt: '2026-07-14T07:35:00.000Z' }, {
       id: '22222222-2222-4222-8222-222222222222',
       status: requestStatus,
       /* 취소 패널은 취소 클레임만 그린다(#252). 반품·교환은 OrderClaimRequest가 맡는다. */
@@ -166,6 +181,60 @@ describe('submitOrderCancellation', () => {
     expect(JSON.stringify(presentation)).not.toMatch(/paymentKey|raw|provider/i);
   });
 
+  /* 2026-10-12 브라우저 QA R2-3: 결제 없이 닫힌 취소는 결제 취소를 완료했다고 말하지 않는다. */
+  it('환불 원장 없이 완료된 취소는 결제 없는 주문 취소 완료로 안내한다', () => {
+    const presentation = cancellationPresentation('canceled', null, {
+      id: '22222222-2222-4222-8222-222222222222',
+      status: 'completed',
+      claimType: 'cancel',
+      stage: 'completed',
+      reference: 12,
+      requestedAt: '2026-07-14T07:30:00.000Z',
+      decidedAt: null,
+      decisionNote: null,
+      reshipCarrier: null,
+      reshipTrackingNumber: null,
+    });
+
+    expect(presentation).toMatchObject({ canCancel: false, heading: '주문 취소 완료', requestLabel: '처리 완료' });
+    expect(presentation.body).toContain('주문 취소가 완료됐습니다');
+    expect(presentation.body).toContain('결제된 금액이 없어');
+    expect(presentation.body).not.toContain('결제 취소 처리가 완료');
+    expect(presentation.body).not.toContain('청약철회');
+  });
+
+  it('결제 대기 주문의 취소 안내는 결제 가능 시간이 남은 결제만 결과 확인을 기다린다고 말한다', () => {
+    const presentation = cancellationPresentation('pending', null, null, {
+      eligibility: { cancel: true, return: false, exchange: false },
+    });
+
+    expect(presentation).toMatchObject({ canCancel: true, heading: '결제 대기 주문 취소' });
+    expect(presentation.body).toContain('바로 취소');
+    expect(presentation.body).toContain('결제 가능 시간이 남은 결제');
+    expect(presentation.body).not.toContain('청약철회 요청으로 접수');
+    expect(presentation.canCancel && presentation.confirmBody).not.toContain('청약철회');
+  });
+
+  /* 2026-10-12 QA-7: 결제 전 주문의 취소 요청은 담당자가 아니라 결제 결과가 닫는다. */
+  it('결제 전 주문의 접수된 취소는 담당자 검토가 아니라 결제 결과로 마무리된다고 말한다', () => {
+    const presentation = cancellationPresentation('pending', null, {
+      id: '22222222-2222-4222-8222-222222222222',
+      status: 'requested',
+      claimType: 'cancel',
+      stage: 'requested',
+      reference: 12,
+      requestedAt: '2026-07-14T07:30:00.000Z',
+      decidedAt: null,
+      decisionNote: null,
+      reshipCarrier: null,
+      reshipTrackingNumber: null,
+    });
+
+    expect(presentation).toMatchObject({ canCancel: false, requestLabel: '결제 확인 대기' });
+    expect(presentation.body).toContain('결제 기한이 지난 뒤 자동으로 취소');
+    expect(presentation.body).not.toContain('담당자');
+  });
+
   it('shows the rejected request history while allowing a paid order to submit again', () => {
     const rejectedRequest = {
       id: '22222222-2222-4222-8222-222222222222',
@@ -182,8 +251,8 @@ describe('submitOrderCancellation', () => {
 
     expect(cancellationPresentation('paid', null, rejectedRequest, { eligibility: { cancel: true, return: false, exchange: false } })).toMatchObject({
       canCancel: true,
-      heading: '청약철회 재요청',
-      actionLabel: '다시 청약철회 요청',
+      heading: '주문 취소 재요청',
+      actionLabel: '다시 주문 취소 요청',
       requestLabel: '이전 요청 거절',
       requestRequestedAt: '2026-07-14T07:30:00.000Z',
       requestDecidedAt: '2026-07-14T08:00:00.000Z',
@@ -200,14 +269,30 @@ describe('submitOrderCancellation', () => {
     }));
     expect(markup).toContain('이전 요청 거절');
     expect(markup).toContain('요청 시각');
-    expect(markup).toContain('처리 시각');
+    expect(markup).toContain('승인·결정 시각');
     expect(markup).toContain('2026-07-14T08:00:00.000Z');
-    expect(markup).toContain('다시 청약철회 요청');
+    expect(markup).toContain('다시 주문 취소 요청');
 
     expect(cancellationPresentation('canceled', null, rejectedRequest)).toMatchObject({
       canCancel: false,
       heading: '취소·환불 상태',
     });
+  });
+
+  /* 10/14 회의 S19·S21 — 결제완료 화면의 액션·상태 문구에서 '청약철회'를 빼고, 법정 고지는
+     문구 그대로 접은 안내(<details>) 안에 둔다. */
+  it('keeps the statutory notice verbatim inside a collapsed section and out of paid-order actions', () => {
+    const markup = renderToStaticMarkup(createElement(OrderCancellation, { deliveredAt: null,
+      orderId: '11111111-1111-4111-8111-111111111111',
+      status: 'paid',
+      refund: null,
+      cancellationRequest: null,
+      eligibility: { cancel: true, return: false, exchange: false },
+    }));
+    expect(markup).toMatch(/<details class="order-cancellation-notice"><summary>취소·반품 법정 안내<\/summary><p class="money-caption">[^<]+<\/p>/);
+    expect(markup).toContain(LEGAL_WITHDRAWAL_NOTICE);
+    expect(markup.replace(LEGAL_WITHDRAWAL_NOTICE, '')).not.toContain('청약철회');
+    expect(markup).not.toContain('<details class="order-cancellation-notice" open');
   });
 
   it('keeps the statutory notice and fail-closed error copy exact', () => {

@@ -14,6 +14,7 @@ const ROWS = [
 ];
 
 const sortHrefFor = (key: string, direction: string) => `/admin/orders?sort=${key}&dir=${direction}`;
+const tableMarkup = (html: string) => html.slice(html.indexOf('<table'), html.indexOf('</table>') + 8);
 
 describe('nextSortDirection', () => {
   it('같은 컬럼이면 방향을 뒤집고 다른 컬럼이면 기본 방향으로 간다', () => {
@@ -83,7 +84,7 @@ describe('ConsoleGrid 정렬', () => {
       />,
     );
 
-    expect(html).not.toContain('admin-console-grid-sort');
+    expect(html).not.toContain('정렬"');
     expect(html).toContain('주문번호');
   });
 });
@@ -97,7 +98,7 @@ describe('ConsoleGrid 빈 상태', () => {
     expect(html).toContain('조건에 맞는 항목이 없습니다.');
     /* 체크박스 열 1 + 데이터 열 3 */
     expect(html).toContain('colSpan="4"');
-    expect(html).toContain('admin-console-grid-empty');
+    expect(html).toMatch(/<td class="[^"]*" colSpan="\d+" data-slot="table-cell">/);
   });
 
   it('빈 상태 문구를 콘솔별로 바꿀 수 있다', () => {
@@ -131,9 +132,9 @@ describe('ConsoleGrid 행', () => {
     );
 
     expect(html).toContain('href="/admin/orders/o1"');
-    expect(html).toContain('admin-console-grid-link');
+    expect(html).toMatch(/<td[^>]*><a class="[^"]*hover:underline[^"]*" href=/);
     /* href 없는 두 번째 행은 링크가 되지 않는다. */
-    expect(html.match(/admin-console-grid-link/g)).toHaveLength(1);
+    expect(html.match(/hover:underline/g)).toHaveLength(1);
     expect(html).toContain('2026081800002');
   });
 
@@ -151,7 +152,7 @@ describe('ConsoleGrid 행', () => {
       <ConsoleGrid caption="주문 목록" columns={COLUMNS} rows={ROWS} />,
     );
 
-    expect(html).toContain('<caption class="admin-console-grid-caption">주문 목록</caption>');
+    expect(html).toContain('<caption class="sr-only">주문 목록</caption>');
     expect(html).toContain('width:160px');
   });
 });
@@ -162,7 +163,7 @@ describe('ConsoleGrid 선택', () => {
       <ConsoleGrid caption="주문 목록" columns={COLUMNS} rows={ROWS} />,
     );
 
-    expect(html).not.toContain('type="checkbox"');
+    expect(tableMarkup(html)).not.toContain('type="checkbox"');
   });
 
   it('선택된 행을 체크 상태와 data-selected로 표시한다', () => {
@@ -178,7 +179,7 @@ describe('ConsoleGrid 선택', () => {
 
     expect(html).toContain('data-selected="true"');
     /* 한 행만 골랐으므로 전체선택은 아직 체크되지 않는다. */
-    expect(html.match(/checked=""/g)).toHaveLength(1);
+    expect(tableMarkup(html).match(/checked=""/g)).toHaveLength(1);
   });
 
   it('현재 페이지 행을 모두 고르면 전체선택 체크박스도 체크된다', () => {
@@ -193,7 +194,7 @@ describe('ConsoleGrid 선택', () => {
     );
 
     /* 전체선택 1 + 행 2 */
-    expect(html.match(/checked=""/g)).toHaveLength(3);
+    expect(tableMarkup(html).match(/checked=""/g)).toHaveLength(3);
   });
 
   /* 일괄 처리 대상이 아닌 행(이미 종결된 클레임 등)은 체크박스 자체를 주지 않는다. */
@@ -208,7 +209,7 @@ describe('ConsoleGrid 선택', () => {
     );
 
     /* 전체선택 1 + 선택 가능한 행 1 */
-    expect(html.match(/type="checkbox"/g)).toHaveLength(2);
+    expect(tableMarkup(html).match(/type="checkbox"/g)).toHaveLength(2);
   });
 
   /* hidden input 덕분에 그리드를 form으로 감싸기만 하면 server action이 선택을 받는다. */
@@ -242,6 +243,18 @@ describe('ConsoleGrid 선택', () => {
     );
 
     expect(html).not.toContain('type="hidden"');
+  });
+
+  it('체크박스는 칸 전체를 채우는 label 안에 있어 칸 어디를 눌러도 선택된다', () => {
+    const html = tableMarkup(renderToStaticMarkup(
+      <ConsoleGrid caption="주문 목록" columns={COLUMNS} rows={[ROWS[0], { ...ROWS[1], selectable: false }]} selectable />,
+    ));
+    const hit = 'class="absolute inset-0 flex cursor-pointer items-center justify-center print:static"';
+    expect(html.match(new RegExp(`<label ${hit}><input`, 'g'))).toHaveLength(2);
+    expect(html).toContain(`<label ${hit}><input aria-label="전체 선택"`);
+    expect(html).toContain(`<label ${hit}><input aria-label="o1 선택"`);
+    /* 선택할 수 없는 행은 빈 칸이다. */
+    expect(html).not.toContain('o2 선택');
   });
 
   it('일괄 액션 바 슬롯을 표 위에 렌더한다', () => {

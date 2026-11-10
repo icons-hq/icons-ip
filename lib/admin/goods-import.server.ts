@@ -1,9 +1,11 @@
+import { canAccessAdminScreen } from '@/lib/admin/access';
 import 'server-only';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { publicMediaUrl } from '@/lib/media';
 import {
+  countDroppedGoodsImportImages,
   exportGoodsWorkbookRows,
   partitionGoodsExports,
   type GoodsImportExisting,
@@ -11,9 +13,13 @@ import {
   type GoodsWorkbookContext,
   type GoodsWorkbookInputRow,
 } from './goods-workbook';
-import type { GoodsListFilters } from './goods-list';
+import { goodsConsoleFilterValues, type GoodsListFilters } from './goods-list';
 import { parseAdminGoodsKc } from './goods-kc';
 import { exportGoodsKcWorkbookRows } from './goods-kc-workbook';
+import { exportGoodsCustomInputWorkbookRows, goodsCustomInputWorkbookConfig } from './goods-custom-input-workbook';
+import { parseGoodsAfterSalesSnapshot } from '@/lib/goods-after-sales';
+import { parseGoodsSizeChartSnapshot } from '@/lib/goods-size-chart';
+import { exportGoodsAfterSalesWorkbookRows, exportGoodsSizeWorkbookRows } from './goods-guidance-workbook';
 export type GoodsImportResult = {
   status: 'success' | 'failed' | 'unchanged';
   id?: string;
@@ -130,13 +136,18 @@ export async function loadGoodsWorkbookContext(
     ips.push(...(result.data ?? []));
     if ((result.data?.length ?? 0) < 1000) break;
   }
+  const canManageGuidance = canAccessAdminScreen(auth, null, { capability: 'catalog.manage' });
   return {
     existing: ((records.data ?? []) as GoodsImportExisting[]).map(record => {
       const kcReview = record.kcReview == null ? null : parseAdminGoodsKc(record.kcReview);
       if (record.kcReview != null && !kcReview) throw new Error('현재 KC 검토 정보를 읽지 못했습니다. 다시 시도해주세요.');
-      return { ...record, kcReview };
+      const afterSales = canManageGuidance ? parseGoodsAfterSalesSnapshot(record.afterSales) : null;
+      const sizeChart = canManageGuidance ? parseGoodsSizeChartSnapshot(record.sizeChart) : null;
+      if (canManageGuidance && (!afterSales || !sizeChart || afterSales.goodId !== record.good.id || sizeChart.goodId !== record.good.id))
+        throw new Error('현재 A/S·사이즈 안내를 읽지 못했습니다. 다시 시도해주세요.');
+      return { ...record, kcReview, afterSales, sizeChart };
     }),
-    canManageCosts: auth.role === 'admin',
+    canManageCosts: canAccessAdminScreen(auth, null, { capability: 'platform.manage', adminOnly: true }),
     origins: origins.data ?? [],
     categories,
     ips,
@@ -155,18 +166,37 @@ export async function loadGoodsWorkbookContext(
     })),
   };
 }
+/** Active IPs a Sabangnet import can attach new drafts to. */
+export async function loadGoodsImportIps(): Promise<{ id: string; title: string }[]> {
+  const client = await createClient();
+  const ips: { id: string; title: string }[] = [];
+  for (let start = 0; ; start += 1000) {
+    const result = await client
+      .from('ips')
+      .select('id,title,archived_at')
+      .is('archived_at', null)
+      .order('title')
+      .order('id')
+      .range(start, start + 999);
+    if (result.error) throw new Error('IP 목록을 읽지 못했습니다.');
+    ips.push(...(result.data ?? []).map((ip) => ({ id: String(ip.id), title: String(ip.title) })));
+    if ((result.data?.length ?? 0) < 1000) break;
+  }
+  return ips;
+}
 export async function loadGoodsExportParts(filters: GoodsListFilters) {
   const client = await createClient();
   const candidates: { id: string; rows: number }[] = [];
   for (let start = 0; ; start += 1000) {
     const { data, error } = await client
-      .rpc('admin_goods_workspace_export_candidates', {
+      .rpc('admin_goods_console_export_candidates', {
         p_query: filters.query,
         p_ip_id: filters.ipId,
         p_status: filters.status,
         p_stock: filters.stock,
         p_category_id: filters.categoryId || null,
         p_readiness: filters.readiness || 'all',
+        p_filters: goodsConsoleFilterValues(filters),
       })
       .order('good_id')
       .range(start, start + 999);
@@ -200,9 +230,23 @@ export async function loadGoodsExportWorkbook(
     throw new Error(
       '옵션 구성이 바뀌어 500행을 초과했습니다. 내보내기 페이지를 새로 열어주세요.',
     );
-  return { rows, kcRows: exportGoodsKcWorkbookRows(context.existing.map(record => ({ goodCode: String(record.good.code), review: record.kcReview ?? null }))) };
+  return {
+    rows,
+    kcRows: exportGoodsKcWorkbookRows(context.existing.map(record => ({ goodCode: String(record.good.code), review: record.kcReview ?? null }))),
+    customInputRows: exportGoodsCustomInputWorkbookRows(context.existing.map(record => ({
+      goodCode: String(record.good.code), config: goodsCustomInputWorkbookConfig(record.good),
+    }))),
+    afterSalesRows: exportGoodsAfterSalesWorkbookRows(context.existing.flatMap(record => record.afterSales
+      ? [{ goodCode: String(record.good.code), snapshot: record.afterSales }] : [])),
+    sizeRows: exportGoodsSizeWorkbookRows(context.existing.flatMap(record => record.sizeChart
+      ? [{ goodCode: String(record.good.code), snapshot: record.sizeChart }] : [])),
+  };
 }
 export function goodsImportErrorMessage(error?: string) {
+  if (error?.includes('goods_after_sales_changed') || error?.includes('goods_size_chart_changed'))
+    return '미리보기 이후 A/S·사이즈 안내가 바뀌었습니다. 해당 상품은 저장하지 않았습니다. 최신 파일로 다시 검증해주세요.';
+  if (error?.includes('guidance') || error?.includes('goods_after_sales') || error?.includes('goods_size_chart'))
+    return 'A/S·사이즈 안내의 입력 내용과 버전을 확인하고 다시 검증해주세요. 해당 상품의 변경은 저장하지 않았습니다.';
   if (error?.includes('category') || error?.includes('additional_categories'))
     return '대표·추가 카테고리의 코드와 활성 말단 상태를 확인하고 다시 검증해주세요.';
   if (error?.includes('stock_changed'))
@@ -222,14 +266,23 @@ export function goodsImportView(batch: GoodsImportBatch) {
     id: batch.id,
     fileName: batch.workbook_name,
     state: batch.state,
+    format: batch.plan.some((group) => group.format === 'sabangnet') ? 'sabangnet' as const : 'icons' as const,
     groups: batch.plan.map((group, index) => ({
       index,
       code: group.code,
       name: group.name,
-      rows: group.rows,
+      // A Sabangnet row expands to one row per option; show its source row once.
+      rows: [...new Set(group.rows)],
       kind: group.kind,
       errors: group.errors,
       warnings: group.warnings,
+      // Rows left out of the failure workbook (an existing code from a Sabangnet sheet) are not re-uploadable.
+      retryable: group.source.length > 0,
+      // Read from the saved prepared images so the note survives retries and reloads.
+      skippedImages:
+        batch.results[index]?.status === 'success'
+          ? countDroppedGoodsImportImages(group, batch.prepared_images?.[index])
+          : 0,
       result: batch.results[index]
         ? {
             ...batch.results[index],

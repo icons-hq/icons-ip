@@ -228,7 +228,9 @@ double_confirm_changes = true
 # If enabled, users need to confirm their email address before signing in.
 enable_confirmations = true
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
-secure_password_change = false
+# 운영과 맞춘다(docs/runbooks/supabase-auth-password-update-guards.md). 운영의 다른 한 축인
+# security_update_password_require_current_password는 CLI 2.109.1 config에 키가 없어 로컬에서는 꺼져 있다.
+secure_password_change = true
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
 max_frequency = "1s"
 # Number of characters used in the email OTP.
@@ -255,11 +257,11 @@ otp_expiry = 3600
 subject = "ICONS 비밀번호 재설정"
 content_path = "./supabase/templates/recovery.html"
 
-# Uncomment to customize notification email template
-# [auth.email.notification.password_changed]
-# enabled = true
-# subject = "Your password has been changed"
-# content_path = "./templates/password_changed_notification.html"
+# notification.*의 content_path는 template.*과 달리 supabase/ 디렉터리 기준으로 읽는다(CLI 2.109.1 실측).
+[auth.email.notification.password_changed]
+enabled = true
+subject = "ICONS 비밀번호 변경 안내"
+content_path = "./templates/password_changed_notification.html"
 
 [auth.sms]
 # Allow/disallow new user signups via SMS to your project.

@@ -48,6 +48,13 @@ describe('주소별 배송비 견적 계약', () => {
     expect(parseRegionalShippingSnapshot(base)).toBeNull();
     expect(parseRegionalShippingSnapshot(managed)?.policyVersion).toBe(1);
   });
+  it('새 marker가 있으면 유효한 구형 필드를 섞어도 구형 지역 parser로 우회하지 못한다', () => {
+    for (const chargeDetails of [null, undefined, {}, { version: 1 }, { version: 99 }]) {
+      expect(parseRegionalShippingSnapshot({ ...managed, chargeDetails })).toBeNull();
+      expect(parseAddressShippingQuote(quote({ ...managed, chargeDetails }))).toBeNull();
+    }
+    expect(parseRegionalShippingSnapshot(managed)?.regionalFee).toBe(2500);
+  });
   it('sales parser는 기존 가격·쿠폰 검증을 재사용한다', () => {
     const sale = { calculatedAt: '2026-09-10T00:00:00Z', subtotal: 10000, lines: [{ goodId: 'g1', variantId: '00000000-0000-4000-8000-000000000010',
       qty: 1, available: true, regularPrice: 10000, effectivePrice: 10000, pricePeriodId: null, startsAt: null, endsAt: null }],
@@ -58,4 +65,12 @@ describe('주소별 배송비 견적 계약', () => {
     expect(parseAddressGoodsSalesQuote({ ...sale, subtotal: 9999 })).toBeNull();
     expect(parseAddressGoodsSalesQuote({ ...sale, shipping: { ...sale.shipping, nextChangeAt: '2026-09-09T00:00:00Z' } })).toBeNull();
   });
+});
+
+/* R26: 고객 화면은 '출고지'를 말하지 않는다. */
+it('배송 가능 여부 안내는 출고지를 말하지 않는다', () => {
+  for (const status of ['unconfigured', 'standard', 'surcharge', 'address_required', 'unavailable', 'manual_review', 'policy_unavailable', 'carrier_mismatch'] as const) {
+    expect(shippingRegionStatusMessage(status)).not.toContain('출고지');
+  }
+  expect(shippingRegionStatusMessage('unavailable')).toBe('이 배송 묶음은 입력한 주소로 배송할 수 없습니다. 다른 배송지를 선택해주세요.');
 });

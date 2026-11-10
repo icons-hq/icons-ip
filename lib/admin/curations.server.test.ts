@@ -1,3 +1,4 @@
+const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getAdminCurations, getAdminCurationStatus } from './curations.server';
 
@@ -5,7 +6,7 @@ type AdminAuthState = {
   isConfigured: boolean;
   user: { id: string; email: string | null } | null;
   role: 'user' | 'staff' | 'admin' | null;
-  isStaff: boolean;
+  isStaff: boolean; operatorAccess?: ReturnType<typeof legacyOperatorAccessFixture>;
 };
 
 const mocks = vi.hoisted(() => ({
@@ -13,11 +14,12 @@ const mocks = vi.hoisted(() => ({
     isConfigured: true,
     user: { id: 'staff-1', email: 'staff@icons.test' },
     role: 'staff',
-    isStaff: true,
+    isStaff: true, operatorAccess: legacyOperatorAccessFixture(),
   } as AdminAuthState,
   from: vi.fn(),
   getPublicUrl: vi.fn(),
   order: vi.fn(),
+  is: vi.fn(),
   select: vi.fn(),
   storageFrom: vi.fn(),
 }));
@@ -38,12 +40,15 @@ vi.mock('next/navigation', () => ({
 function configureRows(data: unknown[], error: unknown = null) {
   const query: {
     order: ReturnType<typeof vi.fn>;
+    is: ReturnType<typeof vi.fn>;
     then: (resolve: (result: { data: unknown[]; error: unknown }) => unknown) => unknown;
   } = {
     order: mocks.order,
+    is: mocks.is,
     then: (resolve) => resolve({ data, error }),
   };
   mocks.order.mockImplementation(() => query);
+  mocks.is.mockImplementation(() => query);
   mocks.select.mockReturnValue(query);
   mocks.from.mockReturnValue({ select: mocks.select });
 }
@@ -54,7 +59,7 @@ describe('admin curation loader', () => {
       isConfigured: true,
       user: { id: 'staff-1', email: 'staff@icons.test' },
       role: 'staff',
-      isStaff: true,
+      isStaff: true, operatorAccess: legacyOperatorAccessFixture(),
     };
     mocks.from.mockReset();
     mocks.getPublicUrl.mockReset();
@@ -113,6 +118,7 @@ describe('admin curation loader', () => {
       }),
     ]);
 
+    expect(mocks.is).toHaveBeenCalledWith('archived_at', null);
     expect(mocks.from).toHaveBeenCalledWith('home_curations');
     expect(mocks.select).toHaveBeenCalledWith(
       'id,kind,ip_id,title,image_path,link_path,display_order,active_from,active_to,enabled,created_at,updated_at,slot,payload,ips(bg,image_path)',

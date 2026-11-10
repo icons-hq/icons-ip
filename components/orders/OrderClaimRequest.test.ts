@@ -6,9 +6,10 @@ import { OrderClaimRequest, claimStageNotice, submitOrderClaim } from './OrderCl
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: () => undefined }) }));
 
-describe('실제 전체 배송 완료 후 반품 접수', () => {
+describe('배송 중 전체 주문의 서버 자격 기반 반품 접수', () => {
   it.each([
     ['shipping', { cancel: false, return: false, exchange: false }, false],
+    ['shipping', { cancel: false, return: true, exchange: true }, true],
     ['delivered', { cancel: false, return: false, exchange: false }, false],
     ['delivered', { cancel: false, return: true, exchange: true }, true],
     ['delivered', null, false],
@@ -21,6 +22,18 @@ describe('실제 전체 배송 완료 후 반품 접수', () => {
 });
 
 const ORDER_ID = '11111111-1111-4111-8111-111111111111';
+
+it('반품 송금 대기에는 결제자 환불 안내를 표시하고 추가 접수를 막는다', () => {
+  const request = claim({ stage: 'processing', status: 'processing' });
+  const refund = { status: 'awaiting_transfer', createdAt: '2026-10-14T02:00:00Z' };
+  const html = renderToStaticMarkup(createElement(OrderClaimRequest, { claim: request, refund,
+    eligibility: { cancel: false, return: true, exchange: true }, orderId: ORDER_ID, status: 'canceled' }));
+  expect(html).toContain('환불 송금 대기');
+  expect(html).toContain('결제자 계좌');
+  expect(html).not.toContain('환급 처리가 완료됐습니다');
+  expect(html).not.toContain('order-cancellation-open');
+  expect(claimStageNotice(claim({ claimType: 'exchange', stage: 'completed', reshipDeliveredAt: null }), refund)).toContain('재출고했습니다');
+});
 
 function claim(
   overrides: Partial<OrderCancellationRequestSummary> = {},

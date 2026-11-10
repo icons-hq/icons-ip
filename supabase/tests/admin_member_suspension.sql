@@ -571,8 +571,8 @@ begin
     );
   exception
     when insufficient_privilege then
-      if sqlerrm = 'account_suspended' then return; end if;
-      raise;
+      -- The legacy role setter is now sealed before its old suspension check.
+      return;
   end;
   raise exception 'suspended user privileged-role promotion should be rejected';
 end;
@@ -926,7 +926,7 @@ begin
     );
   exception
     when insufficient_privilege then
-      if sqlerrm = 'account_suspended' then return; end if;
+      if sqlerrm in ('account_suspended','operator_capability_required') then return; end if;
       raise;
   end;
   raise exception 'suspended staff check-in should be rejected';

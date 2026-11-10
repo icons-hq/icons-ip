@@ -38,14 +38,14 @@ export function readAdminGoodsSalePolicy(form: FormData) {
     else value.saleRestriction = restriction;
   }
   if (value.orderQuantityLimitEnabled) {
-    if (value.minOrderQty == null) errors.minOrderQty = '한도를 적용하려면 최소 구매 수량을 입력해주세요.';
-    if (value.maxOrderQty == null) errors.maxOrderQty = '한도를 적용하려면 최대 구매 수량을 입력해주세요.';
+    if (value.minOrderQty == null) errors.minOrderQty = '최소/최대 구매수량을 설정하려면 최소 구매수량을 입력해주세요.';
+    if (value.maxOrderQty == null) errors.maxOrderQty = '최소/최대 구매수량을 설정하려면 최대 구매수량을 입력해주세요.';
   }
   if (value.minOrderQty != null && value.maxOrderQty != null && value.minOrderQty > value.maxOrderQty) {
-    errors.maxOrderQty = '최대 구매 수량은 최소 구매 수량 이상이어야 합니다.';
+    errors.maxOrderQty = '최대 구매수량은 최소 구매수량 이상이어야 합니다.';
   }
   if (value.memberPurchaseLimitEnabled && value.memberLifetimeQtyLimit == null) {
-    errors.memberLifetimeQtyLimit = '한도를 적용하려면 회원 누적 구매 수량을 입력해주세요.';
+    errors.memberLifetimeQtyLimit = '1인 최대 구매수량을 설정하려면 수량을 입력해주세요.';
   }
   return { value, errors };
 }

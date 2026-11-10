@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { hasAdminCapability } from '@/lib/admin/access';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
 
@@ -110,7 +111,7 @@ async function updateAdminIpPublishState(
   }
   if (!auth.isConfigured) return { errors: { form: CONFIG_ERROR } };
   if (!auth.user) redirect(loginPath());
-  if (!auth.isStaff) return { errors: { form: '관리자 권한이 필요합니다.' } };
+  if (!auth.isStaff || !hasAdminCapability(auth, 'platform.manage')) return { errors: { form: '관리자 권한이 필요합니다.' } };
 
   let data: unknown;
   let error: { code?: unknown; message?: unknown } | null;

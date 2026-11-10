@@ -1,3 +1,4 @@
+import { EXPORT_PASSWORD_HINT } from '@/lib/admin/export-password';
 import type { AdminGuideErrorCase, AdminGuideTable, AdminGuideTopic } from '../types';
 
 /*
@@ -30,6 +31,39 @@ const CATALOG_CASES: AdminGuideErrorCase[] = [
     sourceFile: 'app/admin/actions.ts',
     cause: '업로드 후 시간이 지났거나 업로드가 중간에 끊겨 이미지 검증 기록이 만료됐습니다.',
     fix: '이미지를 다시 업로드하고 바로 저장을 누릅니다.',
+  },
+  {
+    quote: '이미 다른 옵션에 연결된 ERP 코드입니다.',
+    sourceFile: 'app/admin/actions.ts',
+    cause: '한 ERP 품목은 옵션 하나에만 연결됩니다. 같은 상품의 다른 옵션이나 다른 상품·보관된 옵션이 이미 그 ERP 코드를 쓰고 있거나, 저장된 두 옵션의 ERP 품목을 한 번에 맞바꿨습니다.',
+    fix: '문구의 확인할 옵션을 봅니다. 다른 상품의 옵션이 쓰고 있으면 그 옵션에서 먼저 비우고 저장합니다. 맞바꾸려면 한쪽 옵션의 ERP 코드·바코드를 비우고 저장한 뒤 다시 지정합니다.',
+  },
+  {
+    quote: '이미 다른 옵션에 연결된 바코드입니다.',
+    sourceFile: 'app/admin/actions.ts',
+    cause: 'ERP 코드처럼 바코드도 옵션 하나에만 연결됩니다. 다른 옵션이 같은 바코드를 쓰고 있습니다.',
+    fix: '문구의 확인할 옵션을 보고 바코드를 고칩니다. 다른 옵션의 바코드를 옮기려면 그 옵션에서 먼저 비우고 저장한 뒤 다시 입력합니다.',
+  },
+];
+
+const KC_PUBLISH_CASES: AdminGuideErrorCase[] = [
+  {
+    quote: "초안으로 저장했습니다. 상품명·유형·IP·고시정보가 바뀌어 KC를 다시 검토해야 공개할 수 있습니다. KC 정보에서 다시 검토(KC 대상이 아니면 '상품 전체 KC 해당 없음')한 뒤 공개해주세요.",
+    sourceFile: 'lib/admin/goods-kc.ts',
+    cause: 'KC 검토를 마친 뒤 상품명·유형·IP나 고시정보의 제조자·제조국·소재·크기를 바꿔 저장 후 공개를 눌렀습니다. 이 변경으로 KC 검토가 미검토로 돌아가 공개만 보류됐고, 입력은 초안으로 저장됐습니다. 옵션 구성을 바꾼 경우에는 문구가 옵션이 바뀌었다고 알립니다.',
+    fix: '저장 영역의 KC 정보 열기로 이동해 다시 검토합니다. KC 대상이 아니면 상품 전체 KC 해당 없음으로 끝냅니다. 검토가 끝나면 공개로 전환(입력을 고쳤다면 저장 후 공개)을 누르거나 게시 상태에서 공개로 전환합니다.',
+  },
+  {
+    quote: "초안으로 저장했습니다. KC 정보에서 검토를 완료한 뒤 공개해주세요. KC 대상이 아니면 '상품 전체 KC 해당 없음'으로 바로 끝낼 수 있습니다.",
+    sourceFile: 'lib/admin/goods-kc.ts',
+    cause: 'KC 검토를 완료하지 않은 초안에서 저장 후 공개를 눌렀습니다. 입력은 초안으로 저장됐고 공개만 보류됐습니다.',
+    fix: 'KC 정보에서 검토를 완료한 뒤 다시 공개합니다. KC 대상이 아니면 상품 전체 KC 해당 없음에서 확인 체크 후 해당 없음으로 검토 완료를 누릅니다.',
+  },
+  {
+    quote: "KC 정보에서 검토를 완료한 뒤 공개해주세요. KC 대상이 아니면 '상품 전체 KC 해당 없음'으로 바로 끝낼 수 있습니다.",
+    sourceFile: 'app/admin/goods-publish-actions.ts',
+    cause: '게시 상태에서 공개로 전환했는데 KC 검토가 완료되지 않았거나, 검토 뒤 상품·옵션 저장으로 검토가 미검토로 돌아갔습니다. 저장 후 공개에서 이 문구만 보이면 초안 저장도 되지 않은 것입니다.',
+    fix: 'KC 정보에서 저장된 검토 상태를 확인하고 검토를 완료한 뒤 다시 공개합니다. 저장 후 공개였다면 입력을 확인하고 다시 저장합니다.',
   },
 ];
 
@@ -77,7 +111,7 @@ const ARCHIVE_CASES: AdminGuideErrorCase[] = [
     quote: '판매 가능한 재고가 남아 있어 굿즈를 보관할 수 없습니다.',
     sourceFile: 'app/admin/archive-actions.ts',
     cause: '실재고 수량이 남은 굿즈를 보관하려 했습니다.',
-    fix: '실재고 조정으로 수량을 0으로 만든 뒤(사유: 보관 전 정리 등) 다시 보관합니다.',
+    fix: '판매만 중지할 때는 판매 중지를 사용합니다. 실제로 ICONS 할당 물량을 회수했을 때만 그 근거로 재고를 조정한 뒤 보관합니다.',
   },
   {
     quote: '활성 리워드 정책에 연결된 굿즈는 보관할 수 없습니다.',
@@ -104,16 +138,16 @@ const PUBLISH_CASES: AdminGuideErrorCase[] = [
 
 const CLAIM_CASES: AdminGuideErrorCase[] = [
   {
-    quote: '결제 취소 정합화가 끝나지 않았습니다. 재고 복원과 카드팩 회수가 확인된 뒤에만 환불 완료를 기록할 수 있습니다.',
+    quote: '결제 취소 확인이 끝나지 않았습니다. 재고 복원과 카드팩 회수가 확인된 뒤에만 환불 완료를 기록할 수 있습니다.',
     sourceFile: 'app/admin/claim-actions.ts',
     cause: '결제사 취소가 아직 시스템에서 확인되지 않은 상태에서 환불 완료를 먼저 기록하려 했습니다.',
     fix: '화면의 결제 취소 확인 절차를 먼저 마칩니다. Korpay 건의 수동 확정은 admin에게 요청합니다.',
   },
   {
-    quote: '이 클레임에는 등록된 환불계좌가 없습니다. 계좌 송금 대신 결제사 취소로 접수하거나, 구매자에게 계좌를 먼저 받아주세요.',
+    quote: '등록된 환불계좌가 없습니다. 무통장 주문은 결제한 분이 주문 상세에서 환불계좌를 등록한 뒤 다시 진행해주세요. 선물 주문은 선물 요청 화면에서 등록합니다.',
     sourceFile: 'app/admin/claim-actions.ts',
     cause: '환불 수단을 계좌 송금으로 골랐지만 구매자의 환불계좌가 등록되어 있지 않습니다.',
-    fix: '카드 결제 건이면 결제사 취소로 접수합니다. 계좌 송금이 맞으면 구매자에게 환불계좌를 받은 뒤 진행합니다.',
+    fix: '무통장 주문은 결제자가 주문 상세의 환불계좌 확인에서 누락 계좌를 등록한 뒤 다시 진행합니다. 선물 주문은 선물 요청 화면을 이용합니다. 이미 환급을 접수했거나 계좌가 등록된 건은 덮어쓰지 않고 기존 처리 내역을 확인합니다.',
   },
   {
     quote: '처리에 착수한 클레임은 거부할 수 없습니다. 결제 취소를 마치거나, 사람이 판단할 일이면 보류로 남겨주세요.',
@@ -124,8 +158,8 @@ const CLAIM_CASES: AdminGuideErrorCase[] = [
   {
     quote: '청약철회 기한이 지난 요청입니다. 승인 대신 사유를 남겨 거부해주세요.',
     sourceFile: 'app/admin/claim-actions.ts',
-    cause: '법정 청약철회 기한이 지난 접수 건을 승인하려 했습니다.',
-    fix: '기한 경과를 사유(10~200자)로 적어 거부 처리합니다. 사유는 구매자에게 전달됩니다.',
+    cause: '서버가 기록된 배송일·접수일·사유로 계산한 신청 기한을 넘는 요청입니다.',
+    fix: '배송일과 최초 문의 접수 시각·사유를 담당자가 대조합니다. 앞서 받은 요청이나 별도 검토할 사실이 있으면 고객지원 검토를 이어가고, 오류 문구만으로 즉시 거부하지 않습니다.',
   },
 ];
 
@@ -142,6 +176,12 @@ const PROMOTION_CASES: AdminGuideErrorCase[] = [
     cause: '캠페인 랜딩 구성의 쿠폰 블록에 아직 등록되지 않은 쿠폰 코드를 넣었습니다.',
     fix: '쿠폰 관리에서 그 코드를 먼저 등록한 뒤 캠페인을 저장합니다.',
   },
+  {
+    quote: '/로 시작하는 ICONS 내부 경로여야 합니다.',
+    sourceFile: 'lib/admin/campaigns.ts',
+    cause: '캠페인 랜딩 구성의 이동 버튼(cta) 블록 href에 외부 사이트 주소(https://…, //…)나 공백·역슬래시가 든 주소를 넣었습니다. 외부로 보내는 버튼은 피싱·추적 위험이 있어 받지 않습니다.',
+    fix: '이동할 ICONS 화면 주소에서 도메인을 뺀 경로(예: /shop, /events/캠페인ID)를 넣고 다시 저장합니다.',
+  },
 ];
 
 const POOL_CASES: AdminGuideErrorCase[] = [
@@ -155,6 +195,7 @@ const POOL_CASES: AdminGuideErrorCase[] = [
 
 export const ADMIN_GUIDE_ERROR_CASES: AdminGuideErrorCase[] = [
   ...CATALOG_CASES,
+  ...KC_PUBLISH_CASES,
   ...STOCK_CASES,
   ...ORDER_CASES,
   ...BANK_CASES,
@@ -193,11 +234,24 @@ export const TROUBLESHOOTING_TOPIC: AdminGuideTopic = {
       heading: '오류가 표시되는 방식',
       paragraphs: [
         '어드민의 오류는 팝업이 아니라 폼 안에 표시됩니다 — 문제가 된 입력 칸 바로 아래, 또는 폼 상단의 알림 카드를 확인해주세요.',
-        '"최신 상태를 확인해주세요"로 끝나는 문구는 대부분 다른 운영자·고객의 처리가 먼저 반영된 경우입니다. 새로고침해서 현재 상태를 보고 다시 시도하면 해결됩니다.',
+        '"최신 상태를 확인해주세요"는 다른 운영자·고객의 처리나 조회 실패로 나타날 수 있습니다. 입력을 보존하고 최신 상태를 확인합니다. 결과가 불명확한 결제·환불·출고·일괄 지급은 같은 요청의 결과 확인을 먼저 사용합니다.',
         '아래 표의 문구는 화면에 뜨는 원문 그대로입니다. 표에 없는 오류가 반복되면 문구를 그대로 복사해 개발팀에 전달해주세요.',
       ],
     },
+    {
+      id: 'excel-password',
+      heading: '엑셀 비밀번호·다운로드·재업로드',
+      paragraphs: [
+        EXPORT_PASSWORD_HINT,
+        '숫자만 입력해도 되며 비밀번호 확인란까지 같은 값으로 입력합니다. 3자리 이하·17자리 이상·공백·한글은 사용할 수 없습니다. 오류나 연결 실패 뒤에는 입력이 지워지므로 다시 입력합니다.',
+        '기존에 받은 파일은 당시 설정한 비밀번호로 엽니다. 새 파일의 비밀번호를 바꿔도 이전 파일은 바뀌지 않습니다. 잊어버린 비밀번호는 조회할 수 없으므로 다시 내려받습니다.',
+        '운송장 회신을 업로드할 때는 Excel에서 암호를 해제한 XLSX로 저장합니다. 스마트스토어 양식은 발송처리 시트와 상품주문번호·배송방법·택배사·송장번호 헤더도 확인합니다.',
+        '출고지시를 다시 받기 전에는 기존 파일의 다운로드 결과와 창고 전달 여부를 확인합니다. 이미 전달한 파일을 중복 전송하지 않도록 각 파일의 처리 범위를 대조합니다.',
+      ],
+      screens: [{ href: '/admin/sales/dispatch' }, { href: '/admin/sales/shipping' }],
+    },
     { id: 'catalog', heading: '카탈로그 등록·이미지', table: errorTable(CATALOG_CASES) },
+    { id: 'kc-publish', heading: '상품 KC 검토와 공개', table: errorTable(KC_PUBLISH_CASES) },
     { id: 'stock', heading: '실재고 조정', table: errorTable(STOCK_CASES) },
     { id: 'orders', heading: '주문·배송', table: errorTable(ORDER_CASES) },
     { id: 'bank', heading: '무통장 입금', table: errorTable(BANK_CASES) },

@@ -1,0 +1,54 @@
+.wc-store-brand-name {
+  display: inline-block;
+  max-width: min(280px, 44vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.wc-store-brand-logo {
+  display: inline-flex;
+  vertical-align: middle;
+}
+.wc-store-brand-logo img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: min(200px, 44vw);
+  max-height: 40px;
+  object-fit: contain;
+}
+.wc-store-brand-details {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  color: var(--wc-ink-sub);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.wc-store-brand-details p {
+  margin: 0;
+  max-width: 640px;
+  overflow-wrap: anywhere;
+}
+.wc-store-brand-details ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.wc-store-brand-details a {
+  color: var(--wc-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.wc-store-profile-image {
+  display: block;
+  width: 80px;
+  height: 80px;
+  aspect-ratio: 1;
+  object-fit: contain;
+}

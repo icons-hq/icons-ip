@@ -1,6 +1,9 @@
 import Link from 'next/link';
+import { REVIEW_KIND_LABELS, REVIEW_KIND_OPTIONS } from '@/lib/review-types';
 import { reportCommunityTargetAction } from '@/app/community/actions';
 import type { GoodReviewSection } from '@/lib/reviews.server';
+import { ReviewEventDisclosureNote } from '@/components/reviews/ReviewEventBanner';
+import { ReviewHelpfulButton } from './ReviewHelpfulButton';
 import {
   formatReviewAverage,
   formatReviewDate,
@@ -15,13 +18,13 @@ import {
  * 굿즈 상세의 리뷰 표면(#254 → #326 White Catalog 재조판).
  *
  * 서버 컴포넌트다. GoodDetailView는 갤러리·수량 때문에 `'use client'`지만, 리뷰는
- * 클라이언트 상태가 없다 — 정렬·필터·페이지는 전부 링크(URL)로 움직인다. 그래서
- * 이 블록만 서버에 남겨 PDP 리뷰 탭에 slot으로 끼운다. 결과적으로 리뷰 본문·사진
- * 서명 URL이 클라이언트 번들의 props로 직렬화되지 않는다.
+ * 정렬·필터·페이지는 링크(URL)로 움직이며 도움 표시 버튼만 클라이언트 상태를 갖는다.
+ * 이 블록은 서버에 남겨 PDP 리뷰 탭에 slot으로 끼운다. 리뷰 본문·사진 서명 URL을
+ * 도움 표시 클라이언트 컴포넌트에 전달하지 않는다.
  *
  * 읽기는 비로그인도 가능하다(공개 브라우징 원칙). 살지 말지를 정하는 사람은 아직
  * 로그인하지 않은 사람이라, 리뷰를 로그인 뒤로 미루면 리뷰를 두는 이유가 사라진다.
- * 신고와 작성만 보호 액션이다.
+ * 신고·작성·도움 표시만 보호 액션이다.
  *
  * 레퍼런스는 분포 바·검증구매·도움돼요를 전부 숨겨 리뷰 신뢰 UI가 반쯤 꺼져 있다
  * (R-04 §10-3). 우리는 이미 가진 분포 데이터를 그대로 보여준다.
@@ -87,12 +90,18 @@ export function GoodReviews({
   const currentPage = Math.min(Math.max(1, options.page), pageCount);
   /* 조건이 걸린 목록은 요약 개수와 다를 수 있다. 목록 헤더에는 요약(전체)이 아니라
      지금 보고 있는 조건의 건수를 적는다 — 두 숫자가 어긋나 보이면 어느 쪽도 못 믿는다. */
-  const listCountLabel = options.photoOnly ? '사진 리뷰' : '리뷰';
+  const listCountLabel = options.kind === 'month' ? '한달사용 리뷰' : options.kind === 'ordinary' ? '일반 리뷰' : options.photoOnly ? '사진 리뷰' : '리뷰';
   const summaryPhotos = reviews.flatMap((review) => review.imageUrls).slice(0, SUMMARY_PHOTO_LIMIT);
+
+  if (section.unavailable) return <section aria-labelledby="pdp-review-heading" className="wc-reviews" id="reviews">
+    <h2 className="wc-pdp-panel__title" id="pdp-review-heading">리뷰</h2>
+    <p className="wc-pdp-panel__note">리뷰를 불러오지 못했습니다. 잠시 후 다시 확인해주세요.</p>
+  </section>;
 
   return (
     <section aria-labelledby="pdp-review-heading" className="wc-reviews" id="reviews">
       <h2 className="wc-sr-only" id="pdp-review-heading">리뷰</h2>
+      {section.grouped ? <p className="wc-pdp-panel__note">같은 그룹의 굿즈 리뷰를 함께 보여드립니다.</p> : null}
 
       {summary.count === 0 ? (
         <p className="wc-pdp-panel__note">
@@ -142,6 +151,7 @@ export function GoodReviews({
             >
               {options.photoOnly ? '전체 리뷰 보기' : '사진 리뷰만'}
             </Link>
+            {REVIEW_KIND_OPTIONS.map(option => <Link key={option.value} className="wc-review-controls__link" aria-current={(options.kind ?? 'all') === option.value ? 'true' : undefined} href={goodReviewsHref(goodId, options, { page: 1, kind: option.value })}>{option.label}</Link>)}
           </div>
 
           {reviews.length === 0 ? (
@@ -154,8 +164,14 @@ export function GoodReviews({
               <ul className="wc-review-list">
                 {reviews.map((review) => (
                   <li key={review.id} className="wc-review-item">
+                    {section.grouped && review.purchasedGood ? <p className="wc-review-item__purchase">
+                      구매 당시 굿즈: {review.purchasedGood.name}
+                      {review.purchasedGood.variantNames.length ? ` · ${review.purchasedGood.variantNames.join(' / ')}` : ''}
+                    </p> : null}
                     <div className="wc-review-item__meta">
                       <Stars rating={review.rating} />
+                      <span>{REVIEW_KIND_LABELS[review.kind ?? 'ordinary']}</span>
+                      {review.repeatPurchase ? <span>재구매</span> : null}
                       <span className="wc-review-item__author">@{review.authorName}</span>
                       <time className="wc-review-item__date" dateTime={review.createdAt}>
                         {formatReviewDate(review.createdAt)}
@@ -167,6 +183,7 @@ export function GoodReviews({
 
                     {/* 줄바꿈은 작성자가 넣은 내용이다 — 접으면 문단이 한 덩어리가 된다. */}
                     <p className="wc-review-item__body" style={{ whiteSpace: 'pre-wrap' }}>{review.body}</p>
+                    <ReviewEventDisclosureNote value={review.eventDisclosure} />
 
                     {review.imageUrls.length > 0 ? (
                       <ul className="wc-review-item__photos">
@@ -191,6 +208,17 @@ export function GoodReviews({
                       </div>
                     ) : null}
 
+                    <div className="wc-review-item__actions">
+                    {review.isMine ? <span className="wc-review-helpful__count">도움이 돼요 {review.helpfulCount.toLocaleString('ko-KR')}</span>
+                      : section.viewerAuthenticated ? <ReviewHelpfulButton
+                      key={review.id}
+                      goodId={goodId} options={options} initial={{ reviewId: review.id, helpfulCount: review.helpfulCount,
+                        helpfulByMe: review.helpfulByMe, canMarkHelpful: review.canMarkHelpful }} />
+                      : <Link className="wc-review-helpful__button"
+                        href={`/login?next=${encodeURIComponent(goodReviewsHref(goodId, options))}`}
+                        aria-label={`로그인하고 도움이 돼요 표시 · 현재 ${review.helpfulCount.toLocaleString('ko-KR')}명`}>
+                        도움이 돼요 <span>{review.helpfulCount.toLocaleString('ko-KR')}</span>
+                      </Link>}
                     {/* 자기 리뷰는 신고 대상이 아니다. 수정·삭제는 내 리뷰 화면이 맡는다. */}
                     {review.isMine ? (
                       <Link className="wc-review-item__action" href="/my/reviews">내 리뷰 관리</Link>
@@ -202,6 +230,7 @@ export function GoodReviews({
                         <button className="wc-review-item__action" type="submit">신고</button>
                       </form>
                     )}
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -245,8 +274,8 @@ export function GoodReviews({
       )}
 
       <p className="wc-reviews__policy">
-        리뷰는 배송이 완료된 주문의 구매자만 주문·굿즈당 한 번 남길 수 있고, 작성 기한은 배송완료 후 90일입니다.
-        리뷰를 남긴다고 적립금이나 혜택이 주어지지는 않습니다.{' '}
+        리뷰는 배송이 완료된 주문의 구매자만 남길 수 있습니다. 일반 리뷰는 주문·굿즈당 한 번, 배송완료 후 90일까지입니다. 한달사용 리뷰는 내 리뷰에 안내된 기간에 별도로 한 번 작성할 수 있습니다.
+        리뷰 작성만으로 혜택이 지급되지는 않습니다. 진행 중인 리뷰이벤트의 선정 혜택은 별도 안내를 확인해주세요.{' '}
         <Link href="/my/reviews">내가 쓸 수 있는 리뷰 보기</Link>
       </p>
     </section>

@@ -1,0 +1,1162 @@
+[
+  {
+    "name": "admin_goods_drafts_owner_read",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "admin_goods_drafts",
+    "using": "((owner_id = ( SELECT auth.uid() AS uid)) AND has_operator_capability('catalog.manage'::text))",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "catalog.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "admin_goods_imports_owner_read",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "admin_goods_imports",
+    "using": "((actor_id = ( SELECT auth.uid() AS uid)) AND ( SELECT has_operator_capability('catalog.manage'::text) AS is_staff) AND ((NOT requires_admin) OR (EXISTS ( SELECT 1\n   FROM profiles\n  WHERE ((profiles.id = ( SELECT auth.uid() AS uid)) AND has_operator_capability('platform.manage'::text, true))))))",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "catalog.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "audit_staff_read",
+    "check": null,
+    "roles": [
+      "public"
+    ],
+    "table": "audit_log",
+    "using": "( SELECT has_operator_capability('platform.manage'::text) AS is_staff)",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "platform.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "bank_deposits_staff_read",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "bank_deposits",
+    "using": "( SELECT has_operator_capability('sales.manage'::text) AS is_staff)",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "sales.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "bank_transfer_confirmations_staff_read",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "bank_transfer_confirmations",
+    "using": "( SELECT has_operator_capability('sales.manage'::text) AS is_staff)",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "sales.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "blocks_read_self_or_staff",
+    "check": null,
+    "roles": [
+      "public"
+    ],
+    "table": "blocks",
+    "using": "((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT has_operator_capability('platform.manage'::text) AS is_staff))",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "platform.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "campaigns_public_read",
+    "check": null,
+    "roles": [
+      "anon",
+      "authenticated"
+    ],
+    "table": "campaigns",
+    "using": "((status <> 'draft'::text) OR ( SELECT has_operator_capability('promotion.manage'::text) AS is_staff))",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "promotion.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "catalog_categories_staff_read",
+    "check": null,
+    "roles": [
+      "public"
+    ],
+    "table": "catalog_categories",
+    "using": "( SELECT has_operator_capability('catalog.read'::text) AS is_staff)",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "catalog.read",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "catalog_category_erp_mappings_staff_read",
+    "check": null,
+    "roles": [
+      "public"
+    ],
+    "table": "catalog_category_erp_mappings",
+    "using": "( SELECT has_operator_capability('platform.manage'::text) AS is_staff)",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "platform.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "category_activation_staff_read",
+    "check": null,
+    "roles": [
+      "public"
+    ],
+    "table": "category_activation_control",
+    "using": "( SELECT has_operator_capability('platform.manage'::text) AS is_staff)",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "platform.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "check_ins_staff",
+    "check": null,
+    "roles": [
+      "public"
+    ],
+    "table": "check_ins",
+    "using": "( SELECT has_operator_capability('platform.manage'::text) AS is_staff)",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "platform.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "coin_attendance_select_own_or_staff",
+    "check": null,
+    "roles": [
+      "public"
+    ],
+    "table": "coin_attendance",
+    "using": "((user_id = ( SELECT auth.uid() AS uid)) OR ( SELECT has_operator_capability('platform.manage'::text) AS is_staff))",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "platform.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "coin_balances_select_own_or_staff",
+    "check": null,
+    "roles": [
+      "public"
+    ],
+    "table": "coin_balances",
+    "using": "((user_id = ( SELECT auth.uid() AS uid)) OR ( SELECT has_operator_capability('platform.manage'::text) AS is_staff))",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "platform.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "coin_exchange_offers_public_read",
+    "check": null,
+    "roles": [
+      "anon",
+      "authenticated"
+    ],
+    "table": "coin_exchange_offers",
+    "using": "((status = 'active'::text) OR ( SELECT has_operator_capability('platform.manage'::text) AS is_staff))",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "platform.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "coin_ledger_select_own_or_staff",
+    "check": null,
+    "roles": [
+      "public"
+    ],
+    "table": "coin_ledger",
+    "using": "((user_id = ( SELECT auth.uid() AS uid)) OR ( SELECT has_operator_capability('platform.manage'::text) AS is_staff))",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "platform.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "comments_read",
+    "check": null,
+    "roles": [
+      "public"
+    ],
+    "table": "comments",
+    "using": "((user_id = ( SELECT auth.uid() AS uid)) OR ( SELECT has_operator_capability('platform.manage'::text) AS is_staff) OR (EXISTS ( SELECT 1\n   FROM posts\n  WHERE ((posts.id = comments.post_id) AND (((comments.status = 'visible'::post_status) AND (posts.status = 'visible'::post_status)) OR (posts.user_id = ( SELECT auth.uid() AS uid)))))))",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "platform.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "coupon_redemptions_select_own_or_staff",
+    "check": null,
+    "roles": [
+      "public"
+    ],
+    "table": "coupon_redemptions",
+    "using": "((user_id = ( SELECT auth.uid() AS uid)) OR has_operator_capability('marketing.manage'::text))",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "marketing.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "coupons_select_held_or_staff",
+    "check": null,
+    "roles": [
+      "public"
+    ],
+    "table": "coupons",
+    "using": "(has_operator_capability('marketing.manage'::text) OR (EXISTS ( SELECT 1\n   FROM user_coupons held\n  WHERE ((held.coupon_code = coupons.code) AND (held.user_id = ( SELECT auth.uid() AS uid))))))",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "marketing.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "cs_reply_templates_staff_read",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "cs_reply_templates",
+    "using": "( SELECT has_operator_capability('cs.manage'::text) AS is_staff)",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "cs.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "customer_notes_staff_read",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "customer_notes",
+    "using": "( SELECT has_operator_capability('platform.manage'::text) AS is_staff)",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "platform.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "erp_category_mappings_staff_read",
+    "check": null,
+    "roles": [
+      "public"
+    ],
+    "table": "erp_category_mappings",
+    "using": "( SELECT has_operator_capability('platform.manage'::text) AS is_staff)",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "platform.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "erp_items_staff_read",
+    "check": null,
+    "roles": [
+      "public"
+    ],
+    "table": "erp_items",
+    "using": "( SELECT has_operator_capability('platform.manage'::text) AS is_staff)",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "platform.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "events_delete",
+    "check": null,
+    "roles": [
+      "public"
+    ],
+    "table": "events",
+    "using": "( SELECT has_operator_capability('platform.manage'::text) AS is_staff)",
+    "schema": "public",
+    "command": "DELETE",
+    "capability": "platform.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "events_insert",
+    "check": "( SELECT has_operator_capability('platform.manage'::text) AS is_staff)",
+    "roles": [
+      "public"
+    ],
+    "table": "events",
+    "using": null,
+    "schema": "public",
+    "command": "INSERT",
+    "capability": "platform.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "events_update",
+    "check": "( SELECT has_operator_capability('platform.manage'::text) AS is_staff)",
+    "roles": [
+      "public"
+    ],
+    "table": "events",
+    "using": "( SELECT has_operator_capability('platform.manage'::text) AS is_staff)",
+    "schema": "public",
+    "command": "UPDATE",
+    "capability": "platform.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "faq_staff_read",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "faq_entries",
+    "using": "( SELECT has_operator_capability('cs.manage'::text) AS is_staff)",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "cs.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "fulfillment_origins_staff_read",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "fulfillment_origins",
+    "using": "( SELECT has_operator_capability('platform.manage'::text) AS is_staff)",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "platform.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "goods_delete",
+    "check": null,
+    "roles": [
+      "public"
+    ],
+    "table": "goods",
+    "using": "( SELECT has_operator_capability('catalog.manage'::text) AS is_staff)",
+    "schema": "public",
+    "command": "DELETE",
+    "capability": "catalog.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "goods_insert",
+    "check": "( SELECT has_operator_capability('catalog.manage'::text) AS is_staff)",
+    "roles": [
+      "public"
+    ],
+    "table": "goods",
+    "using": null,
+    "schema": "public",
+    "command": "INSERT",
+    "capability": "catalog.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "goods_update",
+    "check": "( SELECT has_operator_capability('catalog.manage'::text) AS is_staff)",
+    "roles": [
+      "public"
+    ],
+    "table": "goods",
+    "using": "( SELECT has_operator_capability('catalog.manage'::text) AS is_staff)",
+    "schema": "public",
+    "command": "UPDATE",
+    "capability": "catalog.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "goods_additional_categories_staff_read",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "goods_additional_categories",
+    "using": "( SELECT has_operator_capability('catalog.read'::text) AS is_staff)",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "catalog.read",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "goods_announcement_goods_staff_read",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "goods_announcement_goods",
+    "using": "has_operator_capability('catalog.announcements'::text)",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "catalog.announcements",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "goods_announcements_staff_read",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "goods_announcements",
+    "using": "has_operator_capability('catalog.announcements'::text)",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "catalog.announcements",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "goods_notice_presets_staff_read",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "goods_notice_presets",
+    "using": "( SELECT has_operator_capability('catalog.read'::text) AS is_staff)",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "catalog.read",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "goods_photo_library_staff_read",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "goods_photo_library",
+    "using": "has_operator_capability('catalog.read'::text)",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "catalog.read",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "goods_purchase_restrictions_staff_read",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "goods_purchase_restrictions",
+    "using": "( SELECT has_operator_capability('sales.restrictions'::text) AS is_staff)",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "sales.restrictions",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "goods_relation_hotspots_operator_read",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "goods_relation_hotspots",
+    "using": "has_operator_capability('catalog.read'::text)",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "catalog.read",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "goods_relation_members_staff_read",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "goods_relation_members",
+    "using": "( SELECT has_operator_capability('catalog.read'::text) AS is_staff)",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "catalog.read",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "goods_relations_staff_read",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "goods_relations",
+    "using": "( SELECT has_operator_capability('catalog.read'::text) AS is_staff)",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "catalog.read",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "goods_type_category_migrations_staff_read",
+    "check": null,
+    "roles": [
+      "public"
+    ],
+    "table": "goods_type_category_migrations",
+    "using": "( SELECT has_operator_capability('platform.manage'::text) AS is_staff)",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "platform.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "goods_variants_staff_read",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "goods_variants",
+    "using": "( SELECT has_operator_capability('catalog.read'::text) AS is_staff)",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "catalog.read",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "home_curations_staff_read",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "home_curations",
+    "using": "has_operator_capability('store.manage'::text)",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "store.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "home_layout_staff_read",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "home_layout_settings",
+    "using": "( SELECT has_operator_capability('store.manage'::text) AS is_staff)",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "store.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "inquiries_owner_staff_read",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "inquiries",
+    "using": "((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT has_operator_capability('cs.manage'::text) AS is_staff))",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "cs.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "inquiry_internal_notes_staff_read",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "inquiry_internal_notes",
+    "using": "( SELECT has_operator_capability('cs.manage'::text) AS is_staff)",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "cs.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "inquiry_messages_owner_staff_read",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "inquiry_messages",
+    "using": "(( SELECT has_operator_capability('cs.manage'::text) AS is_staff) OR (EXISTS ( SELECT 1\n   FROM inquiries thread\n  WHERE ((thread.id = inquiry_messages.inquiry_id) AND (thread.user_id = ( SELECT auth.uid() AS uid))))))",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "cs.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "inquiry_reply_templates_staff_read",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "inquiry_reply_templates",
+    "using": "( SELECT has_operator_capability('cs.manage'::text) AS is_staff)",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "cs.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "follows_read",
+    "check": null,
+    "roles": [
+      "public"
+    ],
+    "table": "ip_follows",
+    "using": "((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT has_operator_capability('marketing.manage'::text) AS is_staff))",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "marketing.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "ip_public_slug_aliases_read",
+    "check": null,
+    "roles": [
+      "public"
+    ],
+    "table": "ip_public_slug_aliases",
+    "using": "(EXISTS ( SELECT 1\n   FROM ips ip\n  WHERE ((ip.id = ip_public_slug_aliases.ip_id) AND (((ip.archived_at IS NULL) AND (ip.published_at IS NOT NULL)) OR ( SELECT has_operator_capability('catalog.read'::text) AS is_staff)))))",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "catalog.read",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "ips_delete",
+    "check": null,
+    "roles": [
+      "public"
+    ],
+    "table": "ips",
+    "using": "( SELECT has_operator_capability('platform.manage'::text) AS is_staff)",
+    "schema": "public",
+    "command": "DELETE",
+    "capability": "platform.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "ips_insert",
+    "check": "( SELECT has_operator_capability('platform.manage'::text) AS is_staff)",
+    "roles": [
+      "public"
+    ],
+    "table": "ips",
+    "using": null,
+    "schema": "public",
+    "command": "INSERT",
+    "capability": "platform.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "ips_update",
+    "check": "( SELECT has_operator_capability('platform.manage'::text) AS is_staff)",
+    "roles": [
+      "public"
+    ],
+    "table": "ips",
+    "using": "( SELECT has_operator_capability('platform.manage'::text) AS is_staff)",
+    "schema": "public",
+    "command": "UPDATE",
+    "capability": "platform.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "likes_read",
+    "check": null,
+    "roles": [
+      "public"
+    ],
+    "table": "likes",
+    "using": "((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT has_operator_capability('platform.manage'::text) AS is_staff) OR (EXISTS ( SELECT 1\n   FROM posts\n  WHERE ((posts.id = likes.post_id) AND (posts.status = 'visible'::post_status)))))",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "platform.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "loyalty_grade_events_select_own_or_staff",
+    "check": null,
+    "roles": [
+      "public"
+    ],
+    "table": "loyalty_grade_events",
+    "using": "((user_id = ( SELECT auth.uid() AS uid)) OR has_operator_capability('marketing.manage'::text))",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "marketing.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "order_cancellation_requests_owner_staff_read",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "order_cancellation_requests",
+    "using": "((requested_by = ( SELECT auth.uid() AS uid)) OR ( SELECT has_operator_capability('sales.manage'::text) AS is_staff))",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "sales.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "order_claim_collections_owner_staff",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "order_claim_collections",
+    "using": "(EXISTS ( SELECT 1\n   FROM (order_cancellation_requests c\n     JOIN orders o ON ((o.id = c.order_id)))\n  WHERE ((c.id = order_claim_collections.claim_id) AND ((o.user_id = ( SELECT auth.uid() AS uid)) OR has_operator_capability('sales.manage'::text)))))",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "sales.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "order_dispatch_delays_staff_read",
+    "check": null,
+    "roles": [
+      "public"
+    ],
+    "table": "order_dispatch_delays",
+    "using": "( SELECT has_operator_capability('sales.manage'::text) AS is_staff)",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "sales.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "order_items_read",
+    "check": null,
+    "roles": [
+      "public"
+    ],
+    "table": "order_items",
+    "using": "(EXISTS ( SELECT 1\n   FROM orders o\n  WHERE ((o.id = order_items.order_id) AND ((o.user_id = ( SELECT auth.uid() AS uid)) OR ( SELECT has_operator_capability('sales.read'::text) AS is_staff)))))",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "sales.read",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "shipment_email_jobs_staff_read",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "order_shipment_email_jobs",
+    "using": "has_operator_capability('sales.manage'::text)",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "sales.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "shipment_items_owner_staff_read",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "order_shipment_items",
+    "using": "(has_operator_capability('sales.read'::text) OR (EXISTS ( SELECT 1\n   FROM orders o\n  WHERE ((o.id = order_shipment_items.order_id) AND (o.user_id = ( SELECT auth.uid() AS uid))))))",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "sales.read",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "shipments_owner_staff_read",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "order_shipments",
+    "using": "(has_operator_capability('sales.read'::text) OR (EXISTS ( SELECT 1\n   FROM orders o\n  WHERE ((o.id = order_shipments.order_id) AND (o.user_id = ( SELECT auth.uid() AS uid))))))",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "sales.read",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "orders_self_read",
+    "check": null,
+    "roles": [
+      "public"
+    ],
+    "table": "orders",
+    "using": "((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT has_operator_capability('sales.read'::text) AS is_staff))",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "sales.read",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "payments_self_read",
+    "check": null,
+    "roles": [
+      "public"
+    ],
+    "table": "payments",
+    "using": "((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT has_operator_capability('sales.manage'::text) AS is_staff))",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "sales.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "posts_delete",
+    "check": null,
+    "roles": [
+      "public"
+    ],
+    "table": "posts",
+    "using": "((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT has_operator_capability('platform.manage'::text) AS is_staff))",
+    "schema": "public",
+    "command": "DELETE",
+    "capability": "platform.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "posts_read",
+    "check": null,
+    "roles": [
+      "public"
+    ],
+    "table": "posts",
+    "using": "((status = 'visible'::post_status) OR (( SELECT auth.uid() AS uid) = user_id) OR ( SELECT has_operator_capability('platform.manage'::text) AS is_staff))",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "platform.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "product_questions_read",
+    "check": null,
+    "roles": [
+      "anon",
+      "authenticated"
+    ],
+    "table": "product_questions",
+    "using": "((status = 'visible'::text) OR (user_id = ( SELECT auth.uid() AS uid)) OR ( SELECT has_operator_capability('cs.manage'::text) AS is_staff))",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "cs.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "refunds_staff_read",
+    "check": null,
+    "roles": [
+      "public"
+    ],
+    "table": "refunds",
+    "using": "( SELECT has_operator_capability('sales.manage'::text) AS is_staff)",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "sales.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "reports_read",
+    "check": null,
+    "roles": [
+      "public"
+    ],
+    "table": "reports",
+    "using": "((( SELECT auth.uid() AS uid) = reporter_id) OR ( SELECT has_operator_capability('platform.manage'::text) AS is_staff))",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "platform.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "reviews_staff_read",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "reviews",
+    "using": "( SELECT has_operator_capability('cs.manage'::text) AS is_staff)",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "cs.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "shipping_notice_templates_staff_read",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "shipping_notice_templates",
+    "using": "( SELECT has_operator_capability('catalog.read'::text) AS is_staff)",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "catalog.read",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "shipping_settings_templates_staff_read",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "shipping_settings_templates",
+    "using": "( SELECT has_operator_capability('catalog.read'::text) AS is_staff)",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "catalog.read",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "shopping_stories_operator_read",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "shopping_stories",
+    "using": "has_operator_capability('store.manage'::text)",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "store.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "shopping_story_goods_operator_read",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "shopping_story_goods",
+    "using": "has_operator_capability('store.manage'::text)",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "store.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "shopping_story_sections_operator_read",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "shopping_story_sections",
+    "using": "has_operator_capability('store.manage'::text)",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "store.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "store_settings_staff_read",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "store_settings",
+    "using": "( SELECT has_operator_capability('seller.manage'::text) AS is_staff)",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "seller.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "ticket_cancellation_requests_owner_staff_read",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "ticket_cancellation_requests",
+    "using": "((requested_by = ( SELECT auth.uid() AS uid)) OR ( SELECT has_operator_capability('platform.manage'::text) AS is_staff))",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "platform.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "ticket_order_reservations_owner_staff_read",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "ticket_order_reservations",
+    "using": "(EXISTS ( SELECT 1\n   FROM ticket_orders ticket_order\n  WHERE ((ticket_order.id = ticket_order_reservations.ticket_order_id) AND ((ticket_order.user_id = ( SELECT auth.uid() AS uid)) OR ( SELECT has_operator_capability('platform.manage'::text) AS is_staff)))))",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "platform.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "ticket_orders_self",
+    "check": null,
+    "roles": [
+      "public"
+    ],
+    "table": "ticket_orders",
+    "using": "((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT has_operator_capability('platform.manage'::text) AS is_staff))",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "platform.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "tickets_self",
+    "check": null,
+    "roles": [
+      "public"
+    ],
+    "table": "tickets",
+    "using": "(EXISTS ( SELECT 1\n   FROM ticket_orders o\n  WHERE ((o.id = tickets.ticket_order_id) AND ((o.user_id = ( SELECT auth.uid() AS uid)) OR ( SELECT has_operator_capability('platform.manage'::text) AS is_staff)))))",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "platform.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "user_coupons_select_own_or_staff",
+    "check": null,
+    "roles": [
+      "public"
+    ],
+    "table": "user_coupons",
+    "using": "((user_id = ( SELECT auth.uid() AS uid)) OR has_operator_capability('marketing.manage'::text))",
+    "schema": "public",
+    "command": "SELECT",
+    "capability": "marketing.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "verticals_delete",
+    "check": null,
+    "roles": [
+      "public"
+    ],
+    "table": "verticals",
+    "using": "( SELECT has_operator_capability('platform.manage'::text) AS is_staff)",
+    "schema": "public",
+    "command": "DELETE",
+    "capability": "platform.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "verticals_insert",
+    "check": "( SELECT has_operator_capability('platform.manage'::text) AS is_staff)",
+    "roles": [
+      "public"
+    ],
+    "table": "verticals",
+    "using": null,
+    "schema": "public",
+    "command": "INSERT",
+    "capability": "platform.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "verticals_update",
+    "check": "( SELECT has_operator_capability('platform.manage'::text) AS is_staff)",
+    "roles": [
+      "public"
+    ],
+    "table": "verticals",
+    "using": "( SELECT has_operator_capability('platform.manage'::text) AS is_staff)",
+    "schema": "public",
+    "command": "UPDATE",
+    "capability": "platform.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "admin_artwork_staging_insert",
+    "check": "((bucket_id = 'admin-artwork-staging'::text) AND can_stage_admin_artwork(name))",
+    "roles": [
+      "authenticated"
+    ],
+    "table": "objects",
+    "using": null,
+    "schema": "storage",
+    "command": "INSERT",
+    "capability": "catalog.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "admin_goods_import_files_delete",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "objects",
+    "using": "((bucket_id = 'admin-goods-imports'::text) AND ( SELECT has_operator_capability('catalog.manage'::text) AS is_staff) AND (EXISTS ( SELECT 1\n   FROM admin_goods_imports batch\n  WHERE ((batch.actor_id = ( SELECT auth.uid() AS uid)) AND ((objects.name = ((((batch.actor_id)::text || '/'::text) || (batch.id)::text) || '/workbook.xlsx'::text)) OR (objects.name = ((((batch.actor_id)::text || '/'::text) || (batch.id)::text) || '/images.zip'::text)))))))",
+    "schema": "storage",
+    "command": "DELETE",
+    "capability": "catalog.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "admin_goods_import_files_insert",
+    "check": "((bucket_id = 'admin-goods-imports'::text) AND ( SELECT has_operator_capability('catalog.manage'::text) AS is_staff) AND (EXISTS ( SELECT 1\n   FROM admin_goods_imports batch\n  WHERE ((batch.actor_id = ( SELECT auth.uid() AS uid)) AND (batch.state = 'uploading'::text) AND (batch.expires_at > now()) AND ((objects.name = ((((batch.actor_id)::text || '/'::text) || (batch.id)::text) || '/workbook.xlsx'::text)) OR (batch.has_images AND (objects.name = ((((batch.actor_id)::text || '/'::text) || (batch.id)::text) || '/images.zip'::text))))))))",
+    "roles": [
+      "authenticated"
+    ],
+    "table": "objects",
+    "using": null,
+    "schema": "storage",
+    "command": "INSERT",
+    "capability": "catalog.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "admin_goods_import_files_read",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "objects",
+    "using": "((bucket_id = 'admin-goods-imports'::text) AND ( SELECT has_operator_capability('catalog.manage'::text) AS is_staff) AND (EXISTS ( SELECT 1\n   FROM admin_goods_imports batch\n  WHERE ((batch.actor_id = ( SELECT auth.uid() AS uid)) AND (batch.expires_at > now()) AND ((objects.name = ((((batch.actor_id)::text || '/'::text) || (batch.id)::text) || '/workbook.xlsx'::text)) OR (objects.name = ((((batch.actor_id)::text || '/'::text) || (batch.id)::text) || '/images.zip'::text)))))))",
+    "schema": "storage",
+    "command": "SELECT",
+    "capability": "catalog.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "user_uploads_inquiry_staff_read",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "objects",
+    "using": "((bucket_id = 'user-uploads'::text) AND ( SELECT has_operator_capability('cs.manage'::text) AS is_staff) AND (EXISTS ( SELECT 1\n   FROM inquiry_messages message\n  WHERE (objects.name = ANY (message.image_paths)))))",
+    "schema": "storage",
+    "command": "SELECT",
+    "capability": "cs.manage",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "user_uploads_review_staff_read",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "objects",
+    "using": "((bucket_id = 'user-uploads'::text) AND ( SELECT has_operator_capability('cs.manage'::text) AS is_staff) AND (EXISTS ( SELECT 1\n   FROM reviews review\n  WHERE (objects.name = ANY (review.image_paths)))))",
+    "schema": "storage",
+    "command": "SELECT",
+    "capability": "cs.manage",
+    "permissive": "PERMISSIVE"
+  }
+]

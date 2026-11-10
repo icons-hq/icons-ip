@@ -12,6 +12,7 @@ const categories = ['문구', '신학기', '선물'].map((name, index) => ({
 
 /** Real edit/recovery UI with a local action; no Auth, Storage or DB writes. */
 export function GoodEditorFixture() {
+  const capture = new URLSearchParams(window.location.search).get('capture') === '1';
   const [result, setResult] = useState('failure');
   const [submitted, setSubmitted] = useState<Record<string, string>>({});
   const [state, action, pending] = useActionState<AdminCatalogActionState, FormData>(async (previous, form) => {
@@ -21,10 +22,12 @@ export function GoodEditorFixture() {
     return result === 'success' ? { message: '합성 저장 성공', attempt } : { errors: { form: '합성 저장 실패' }, values, attempt };
   }, {});
   return <section className="col" style={{ gap: 16 }}>
+    <div className="fixture-editor-controls col" style={{ gap: 16 }} hidden={capture}>
     <h2>상품 편집 통합 fixture</h2>
     <label>합성 저장 결과 <select value={result} onChange={event => setResult(event.target.value)}>
       <option value="failure">실패</option><option value="success">성공</option>
     </select></label>
+    </div>
     <output id="fixture-good-submission" hidden>{JSON.stringify(submitted)}</output>
     <GoodEditor accountId="fixture-operator" action={action} pending={pending} state={state} selected={null} initialIpId={ip.id}
       catalogIps={[ip]} ipOptions={[{ id: ip.id, title: ip.title, archivedAt: null }]} variants={[]}

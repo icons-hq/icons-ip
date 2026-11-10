@@ -1,8 +1,9 @@
+const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { saveFaqAction, deleteFaqAction } from './faq-actions';
 
 const mocks = vi.hoisted(() => ({
-  auth: { isConfigured: true, user: { id: 'staff' }, isStaff: true },
+  auth: { isConfigured: true, user: { id: 'staff' }, isStaff: true, operatorAccess: legacyOperatorAccessFixture() },
   rpc: vi.fn(), revalidatePath: vi.fn(),
 }));
 vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: () => mocks.auth }));

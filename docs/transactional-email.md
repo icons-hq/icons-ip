@@ -156,11 +156,12 @@ provider callback replay와 known-only Toss webhook 재전달이 겹쳐도 legac
 응답이 유실돼 `pending`으로 남은 클레임은 10분(`target_retry_after`) 뒤에 다시 잡을 수 있어,
 한 번의 사고로 메일이 영구히 막히지 않는다.
 
-### 배송비 표기
+### 금액 표기
 
-메일은 `orders`의 배송비 컬럼을 읽지 않고 `총 결제금액 - 굿즈 합계`로 파생한다.
-배송비 도입([#174](https://github.com/icons-hq/icons-ip/issues/174))이 먼저 들어와도, 나중에 들어와도 표기가 맞는다.
-배송비가 0이면 "무료"로 적는다.
+주문 확인 메일은 계약내용 서면이라 금액 줄의 합이 총 결제금액과 맞아야 한다. 메일은 주문
+시점 스냅샷(`orders.shipping_fee`·`discount_total`·`store_credit_total`·`total`)과 품목
+단가로 **굿즈 합계 + 배송비 − 쿠폰 할인 − 적립금 사용 = 총 결제금액**을 적는다. 쿠폰 할인과
+적립금 사용은 쓴 주문에만 줄을 넣고, 배송비가 0이면 "무료"로 적는다.
 
 ---
 

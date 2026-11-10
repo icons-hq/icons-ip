@@ -4,6 +4,12 @@ import { describe, expect, it, vi } from 'vitest';
 import type { AdminInquiryDetail } from '@/lib/admin/inquiries.server';
 import { InquiryDetailScreen } from './InquiryDetailScreen';
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+/* next/link의 이동 옵션(scroll·replace)은 DOM에 남지 않아 data 속성으로 드러낸다. */
+vi.mock('next/link', () => ({
+  default: ({ children, href, scroll, replace, ...rest }: { children?: React.ReactNode; href: string; scroll?: boolean; replace?: boolean } & Record<string, unknown>) => (
+    <a href={href} data-scroll={scroll === false ? 'false' : undefined} data-replace={replace ? 'true' : undefined} {...rest}>{children}</a>
+  ),
+}));
 
 vi.mock('react', async () => {
   const actual = await vi.importActual<typeof import('react')>('react');
@@ -17,9 +23,8 @@ vi.mock('@/app/admin/inquiry-actions', () => ({
   reassignInquiryAction: vi.fn(),
   addInquiryInternalNoteAction: vi.fn(),
   closeInquiryAction: vi.fn(),
-  deleteInquiryReplyTemplateAction: vi.fn(),
-  saveInquiryReplyTemplateAction: vi.fn(),
 }));
+vi.mock('@/app/admin/inquiry-reply-template-actions', () => ({ listInquiryReplyTemplatesAction: vi.fn(), mutateInquiryReplyTemplateAction: vi.fn(), readInquiryReplyTemplateAction: vi.fn(), readInquiryTemplateOperationAction: vi.fn() }));
 vi.mock('@/app/admin/customer-actions', () => ({ loadCustomerHistoryAction: vi.fn() }));
 
 const INQUIRY_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -82,7 +87,6 @@ function detail(overrides: Partial<AdminInquiryDetail> = {}): AdminInquiryDetail
       inquiryCount: 3,
       openInquiryCount: 1,
     },
-    templates: [{ id: 't1', title: '배송 지연 안내', body: '배송이 지연되어 죄송합니다.' }],
     staffOptions: [],
     notes: [],
     ...overrides,
@@ -96,6 +100,24 @@ function render(input = detail()) {
 }
 
 describe('InquiryDetailScreen', () => {
+  it('목록 아래 작업 영역에서도 답변 작성은 한 번만 렌더하고 문의·주문 근거를 보존한다', () => {
+    const html = renderToStaticMarkup(<InquiryDetailScreen embedded backHref="/admin/cs/inquiries" detail={detail()} now={NOW} />);
+    expect(html).toContain('고객문의 내용 보기');
+    expect(html).toContain('aria-label="판매자 답변 처리"');
+    expect(html.match(/<h3[^>]*>답변 작성<\/h3>/g)).toHaveLength(1);
+    expect(html).toContain('주문한 지 일주일이 지났어요');
+    expect(html).toContain(`/admin/sales/orders/${ORDER_ID}`);
+    expect(html).not.toContain('<dialog');
+  });
+
+  /* 팝업 안 '← 문의 목록'은 닫기와 같다. 기본 이동(scroll=true)은 목록을 맨 위로 올려, 80번째 행에서
+     연 팝업을 닫으면 보던 위치를 잃는다(R4). X·Esc처럼 스크롤을 두고 기록을 바꿔 쓴다. */
+  it('팝업 안 문의 목록 링크는 스크롤을 건드리지 않고 닫는다', () => {
+    const embedded = renderToStaticMarkup(<InquiryDetailScreen embedded backHref="/admin/cs/inquiries?page=3" detail={detail()} now={NOW} />);
+    expect(embedded).toMatch(/<a href="\/admin\/cs\/inquiries\?page=3" data-scroll="false" data-replace="true"[^>]*>← 문의 목록<\/a>/);
+    expect(render()).toMatch(/<a href="\/admin\/cs\/inquiries\?status=open&amp;page=1" class="[^"]*"[^>]*>← 문의 목록<\/a>/);
+  });
+
   it('자동 안내가 있어도 답변자·담당자로 표시하지 않고 미답변 기한을 유지한다', () => {
     const html=render(detail({messages:[{id:'system',author:'system',authorName:null,body:'FAQ https://iconsip.com/help',imageUrls:[],createdAt:'2026-08-18T01:00:01Z'}]}));
     expect(html).toContain('자동 안내');
@@ -119,6 +141,13 @@ describe('InquiryDetailScreen', () => {
     expect(html).toContain('담당자 변경');
   });
 
+  it('답변 작성이 내부 메모보다 먼저 오고, 목록 밖 문의에는 이전·다음 줄을 두지 않는다', () => {
+    const html = renderToStaticMarkup(<InquiryDetailScreen backHref="/admin/cs/inquiries" detail={detail()} now={NOW} navigation={{ position: null, total: 3, previousHref: null, nextHref: null }} />);
+    expect(html.indexOf('답변 작성')).toBeLessThan(html.indexOf('내부 메모 · 고객 비노출'));
+    expect(html).not.toContain('고객문의 상세 이동');
+    expect(html.indexOf('연결 주문')).toBeLessThan(html.indexOf('문의 담당자'));
+  });
+
   it('각 답변에 실제 답변자의 표시명을 보여준다', () => {
     const html = render(detail({ messages: [
       { id: 'staff-a', author: 'staff', authorName: '수민', body: '확인했습니다.', imageUrls: [], createdAt: '2026-08-20T01:00:00Z' },
@@ -126,6 +155,18 @@ describe('InquiryDetailScreen', () => {
     ] }));
     expect(html).toContain('수민');
     expect(html).toContain('지우');
+  });
+
+  /* 같은 모양에 바탕색만 다르면 이름을 읽어야 누가 쓴 글인지 안다 — 상담하기처럼 고객·운영자를 위치와 글자로 가른다. */
+  it('고객 글과 운영자 답변을 양쪽 말풍선으로 나누고 역할을 글자로 말한다', () => {
+    const html = render(detail({ messages: [
+      { id: 'user-a', author: 'user', authorName: null, body: '언제 오나요', imageUrls: [], createdAt: '2026-08-20T01:00:00Z' },
+      { id: 'staff-a', author: 'staff', authorName: '수민', body: '확인했습니다.', imageUrls: [], createdAt: '2026-08-20T02:00:00Z' },
+    ] }));
+    expect(html).toMatch(/data-author="user"[^>]*>[\s\S]*?고객 <\/span>@maple_fan/);
+    expect(html).toMatch(/data-author="staff"[^>]*>[\s\S]*?운영자 <\/span>수민/);
+    expect(html).toContain('data-[author=staff]:self-end');
+    expect(html).toContain('group-data-[author=staff]/message:bg-primary-soft');
   });
 
   /* 컨텍스트 패널이 이 화면의 존재 이유다 — 없으면 CS가 주문 콘솔을 오간다. */
@@ -174,11 +215,48 @@ describe('InquiryDetailScreen', () => {
     expect(html).not.toContain('답변 발송');
   });
 
+  /* 이미 답변을 보낸 문의에 빈 입력칸을 크게 열어 두면 또 써야 하는 것처럼 보인다. */
+  it('답변 완료 문의는 상태를 먼저 말하고 입력칸은 접어 둔다', () => {
+    const input = detail();
+    const html = render({ ...input, inquiry: { ...input.inquiry, status: 'answered', answeredAt: '2026-08-19T00:00:00.000Z', waitingSince: null } });
+    expect(html).toContain('답변을 보낸 문의입니다.');
+    expect(html).toMatch(/<details(?![^>]*\sopen)[^>]*>[\s\S]*?추가 답변 작성/);
+    expect(html).toContain('추가 답변 발송');
+    expect(html).not.toMatch(/<h3[^>]*>답변 작성<\/h3>/);
+  });
+
+  /* 결제·클레임 값은 운영자 말로 보이고, 끝난 클레임이 주문상태(취소)와 다른 색으로 엇갈리지 않는다. */
+  it('결제 상태는 한글로, 끝난 클레임 이력은 조용한 색으로 보인다', () => {
+    const input = detail();
+    const html = render({ ...input, order: { ...input.order!, status: 'canceled', payment: { provider: 'toss', status: 'canceled', amount: 57000 }, claims: [{ status: 'completed', requestedAt: '2026-08-17T01:00:00.000Z', decidedAt: null, reasonType: 'change_of_mind' }] } });
+    expect(html).toContain('토스페이먼츠 · 결제취소');
+    expect(html).not.toContain('· canceled');
+    expect(html).toMatch(/data-tone="neutral"[^>]*>취소 완료</);
+  });
+
+  it('전체 미답변 바로가기는 제목보다 앞서지 않고 머리 줄 오른쪽에 둔다', () => {
+    const html = renderToStaticMarkup(<InquiryDetailScreen backHref="/admin/cs/inquiries" detail={detail()} now={NOW} pendingBadge={<a href="/x">미답변 바로가기</a>} />);
+    expect(html.indexOf('← 문의 목록')).toBeLessThan(html.indexOf('미답변 바로가기'));
+    expect(html.indexOf('미답변 바로가기')).toBeLessThan(html.indexOf('배송이 아직 안 왔어요'));
+    expect(html.indexOf('배송이 아직 안 왔어요')).toBeLessThan(html.indexOf('class="inquiry-live"'));
+  });
+
   it('미종결 문의에는 템플릿과 답변 발송·종결 버튼을 둔다', () => {
     const html = render();
 
-    expect(html).toContain('배송 지연 안내');
+    expect(html).toContain('답변 템플릿 불러오기');
     expect(html).toContain('답변 발송');
     expect(html).toContain('지금 종결');
+    /* kit Button은 type을 주지 않으면 type="button"이 된다 — 발송·종결·담당자 변경·메모 저장은 폼을 제출해야 한다. */
+    for (const label of ['답변 발송', '지금 종결', '담당자 변경', '내부 메모 저장']) {
+      expect(html).toMatch(new RegExp(`<button(?=[^>]*type="submit")[^>]*>(?:<svg[\\s\\S]*?</svg>)?${label}</button>`));
+    }
+    expect(html).toMatch(/<button(?=[^>]*type="button")[^>]*>(?:<svg[\s\S]*?<\/svg>)?답변 템플릿 불러오기<\/button>/);
   });
+});
+
+it('CS-only managers do not receive order or global customer entry points', () => {
+  const html = renderToStaticMarkup(<InquiryDetailScreen backHref="/admin/cs/inquiries" detail={detail()} now={NOW} canReadOrders={false} canManageSales={false} canViewCustomer={false} />);
+  expect(html).toContain('주문한 지 일주일이 지났어요');
+  for (const text of ['연결 주문', '주문 콘솔에서 열기', '고객 상세 열기', '고객 이력', '클레임 이력', ORDER_ID]) expect(html).not.toContain(text);
 });

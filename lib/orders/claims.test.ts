@@ -5,6 +5,7 @@ import {
   canRejectOrderClaim,
   isOpenOrderClaimStage,
   normalizeRefundAccount,
+  ORDER_CLAIM_INTAKE_NOTICES,
   ORDER_CLAIM_STAGES,
   ORDER_CLAIM_TYPES,
   orderClaimAvailability,
@@ -241,12 +242,15 @@ describe('구매자 접수 가능 여부', () => {
       .every((entry) => !entry.available)).toBe(true);
   });
 
-  it('반품·교환은 배송 완료 이후에만 열린다', () => {
+  it('배송 중부터 서버가 전체 수량 자격을 확인한 주문만 접수한다', () => {
     const shipping = orderClaimAvailability({ orderStatus: 'shipping', hasActiveClaim: false,
       eligibility: { cancel: false, return: false, exchange: false } });
     expect(shipping.find((entry) => entry.claimType === 'return')?.available).toBe(false);
     expect(shipping.find((entry) => entry.claimType === 'exchange')?.available).toBe(false);
     expect(shipping.find((entry) => entry.claimType === 'cancel')?.available).toBe(false);
+
+    const eligibleTransit = orderClaimAvailability({ orderStatus: 'shipping', hasActiveClaim: false, eligibility: { cancel: false, return: true, exchange: true } });
+    expect(eligibleTransit.filter(entry => entry.claimType !== 'cancel').every(entry => entry.available)).toBe(true);
 
     const delivered = orderClaimAvailability({ orderStatus: 'delivered', hasActiveClaim: false,
       eligibility: { cancel: false, return: true, exchange: true } });
@@ -255,9 +259,9 @@ describe('구매자 접수 가능 여부', () => {
   });
 
   it.each([
-    ['pending', true], ['paid', true], ['confirmed', false], ['shipping', false],
-    ['delivered', false], ['done', false], ['canceled', false],
-  ] as const)('취소 접수는 발주확인 전 주문만 허용한다: %s', (orderStatus, expected) => {
+    ['pending', true], ['paid', true], ['confirmed', true], ['shipping', true],
+    ['delivered', true], ['done', true], ['canceled', false],
+  ] as const)('DB가 판정한 제작·제공 전후 취소 가능 여부를 따른다: %s', (orderStatus, expected) => {
     const cancel = orderClaimAvailability({ orderStatus, hasActiveClaim: false,
       eligibility: { cancel: true, return: true, exchange: true } })
       .find((entry) => entry.claimType === 'cancel');
@@ -270,4 +274,11 @@ describe('구매자 접수 가능 여부', () => {
     expect(blocked.every((entry) => entry.available)).toBe(false);
     expect(blocked[0].blockedReason).toContain('처리 중인 클레임');
   });
+});
+
+/* R26: 고객 접수 안내는 '출고지'를 말하지 않는다. 반송지는 배송 묶음마다 안내된다. */
+it('고객 접수 안내는 출고지 대신 배송 묶음별 반송지로 말한다', () => {
+  for (const notice of Object.values(ORDER_CLAIM_INTAKE_NOTICES)) expect(notice).not.toContain('출고지');
+  expect(ORDER_CLAIM_INTAKE_NOTICES.return).toContain('안내된 배송 묶음별 반송지에서');
+  expect(ORDER_CLAIM_INTAKE_NOTICES.exchange).toContain('안내된 배송 묶음별 반송지에서');
 });

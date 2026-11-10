@@ -1,4 +1,6 @@
+const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { NO_OPERATOR_ACCESS } from '@/lib/admin/access';
 import { updateAdminIpIdentityAction } from './ip-identity-actions';
 
 const mocks = vi.hoisted(() => ({
@@ -6,7 +8,7 @@ const mocks = vi.hoisted(() => ({
     isConfigured: true,
     user: { id: 'staff-1', email: 'staff@icons.test' } as { id: string; email: string } | null,
     role: 'staff' as 'user' | 'staff' | 'admin',
-    isStaff: true,
+    isStaff: true, operatorAccess: legacyOperatorAccessFixture(),
   },
   getCurrentAdminAuthState: vi.fn(),
   createClient: vi.fn(),
@@ -37,7 +39,7 @@ beforeEach(() => {
     isConfigured: true,
     user: { id: 'staff-1', email: 'staff@icons.test' },
     role: 'staff',
-    isStaff: true,
+    isStaff: true, operatorAccess: legacyOperatorAccessFixture(),
   };
   mocks.getCurrentAdminAuthState.mockReset().mockResolvedValue(mocks.adminState);
   mocks.createClient.mockReset().mockReturnValue({ rpc: mocks.rpc });
@@ -113,7 +115,7 @@ describe('admin IP identity action', () => {
   });
 
   it('redirects an unauthenticated operator to this workspace', async () => {
-    mocks.adminState = { isConfigured: true, user: null, role: 'user', isStaff: false };
+    mocks.adminState = { isConfigured: true, user: null, role: 'user', isStaff: false, operatorAccess: NO_OPERATOR_ACCESS };
     mocks.getCurrentAdminAuthState.mockResolvedValue(mocks.adminState);
     await expect(updateAdminIpIdentityAction({}, identityForm())).rejects.toThrow(
       'NEXT_REDIRECT:/login?next=%2Fadmin%2Fcatalog%2Fips%2Fhwasan',

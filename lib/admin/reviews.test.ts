@@ -62,6 +62,15 @@ describe('어드민 리뷰 필터 정규화', () => {
 });
 
 describe('어드민 리뷰 링크', () => {
+  it.each(['good_name_asc', 'photo_count_desc'])('새 정렬 %s과 BEST·검색 조건을 페이지 이동 URL에 보존한다', (sort) => {
+    const filters = normalizeAdminReviewFilters({ sort, best: 'needs_review', field: 'good', query: '정렬 검증', photo: 'with', page: '2', pageSize: '50' });
+    const href = adminReviewHref(filters, { page: 3 });
+    expect(filters.sort).toBe(sort);
+    expect(filters.pageSize).toBe(50);
+    expect(normalizeAdminReviewFilters(Object.fromEntries(new URLSearchParams(href.split('?')[1]))))
+      .toEqual({ ...filters, page: 3 });
+  });
+
   it('기본값은 쿼리에서 빼고 페이지만 남긴다', () => {
     expect(adminReviewHref(DEFAULT_ADMIN_REVIEW_FILTERS)).toBe('/admin/cs/reviews?page=1');
     expect(adminReviewResetHref()).toBe('/admin/cs/reviews?page=1');

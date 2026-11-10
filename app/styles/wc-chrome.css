@@ -1,4 +1,4 @@
-/* White Catalog v4 전역 셸 — 유틸바·헤더·GNB·오버레이·바텀바·푸터.
+/* White Catalog v4 전역 셸 — 유틸바·헤더·GNB·오버레이·바텀바·푸터, 그리고 셸이 직접 그리는 404 기본 표면.
    수치 정본은 재현 스펙 `docs/research/linefriends-square/01-global-chrome.md`(R-01)이고,
    색은 wc-foundation의 `--wc-*` 토큰만 쓴다(레퍼런스 액센트는 옮기지 않는다 — 액센트는 green 하나).
    wc-foundation과 같은 스코프 규율을 지킨다: 모든 규칙은 `.wc-` 클래스에서 시작하고
@@ -11,6 +11,30 @@
 /* ------------------------------------------------------------------
    크롬 루트와 스킵 링크
    ------------------------------------------------------------------ */
+
+/* 스크롤 중 화면 위에 남는 크롬의 높이. 표면별 sticky 요소(PDP 탭바·캠페인 앵커 내브)는
+   `top: var(--wc-sticky-chrome-h, <이전 값>)`으로 이 값 바로 아래에 붙는다.
+   모바일·태블릿(≤989px)은 GNB 탭 행 51 + 하단 선 1, 데스크톱은 축약 로고 행 68 + 하단 선 1.
+   해시 이동·scrollIntoView 의 착지선(html scroll-padding-top)도 같은 높이다 — 문서 루트(html)는 이 변수를 읽지 못해
+   globals.css 가 아래와 같은 상태 조건으로 같은 수치를 적는다(chrome-styles.test 가 두 곳을 맞춘다). */
+.wc-root {
+  --wc-sticky-chrome-h: 52px;
+}
+
+@media (min-width: 990px) {
+  .wc-root {
+    --wc-sticky-chrome-h: 69px;
+  }
+
+  /* 데스크톱 헤더가 펼친 동안은 화면 위 크롬이 펼침 높이 123이다 — 스크롤 150 이하(B1)이거나, 축약 중 키보드가
+     헤더로 들어와 GNB를 되돌린 동안(아래 data-condensed 규칙). 지면 맨 위에서 곧바로 붙는 sticky(캠페인 앵커 내브)가
+     펼친 헤더(z 3) 뒤로 숨지 않게 같은 높이를 따른다. GNB는 .3s로 접히고 펴지므로 소비자는 top에 같은 전환을 둔다.
+     셸(.wc-chrome)과 본문(#root)은 body 아래 형제다 — 전역 element(body) 규칙 없이 형제 결합자로 건다. */
+  .wc-chrome:has(.wc-header[data-condensed='false']) ~ #root .wc-root,
+  .wc-chrome:has(.wc-header[data-condensed='true'] :is(.wc-header__bar, .wc-gnb-wrap) :focus-visible) ~ #root .wc-root {
+    --wc-sticky-chrome-h: 123px;
+  }
+}
 
 /* 래퍼가 박스를 만들면 sticky 헤더가 body가 아니라 이 래퍼를 기준으로 붙어 버린다.
    박스를 지워 헤더·바텀바·오버레이를 body 스택에 그대로 올린다 — 그래서 배경·여백도 주지 않는다. */
@@ -67,8 +91,107 @@
 }
 
 /* ------------------------------------------------------------------
-   공지 스트립
+   공지 (텍스트 공지 바 · 이미지 스트립)
    ------------------------------------------------------------------ */
+
+/* 셸 공지 묶음(ShellNotices) — 유틸바 위, 스크롤과 함께 빠지는 일반 흐름이다(sticky 아님, R-01 §1·3.1).
+   패딩·보더를 두지 않아 공지가 모두 닫히거나 숨으면 높이 0으로 사라진다(빈 띠 없음).
+   후보 공지는 hidden으로 접는데, 아래 클래스의 display가 UA의 [hidden]을 이기므로 여기서 다시 끈다. */
+.wc-notices {
+  display: block;
+}
+
+.wc-notice-bar[hidden],
+.wc-notice[hidden] {
+  display: none;
+}
+
+/* 텍스트 공지 바(11 §3 Δ1): 데스크톱 1440×47, 13px 문구 + 잉크 버튼(높이 23) + 오른쪽 끝 닫기.
+   배경은 레퍼런스 #F2F2F2 대신 surface.grey 토큰이다. 긴 문구는 줄을 바꿔 바가 자란다 — 자르지 않는다. */
+.wc-notice-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 47px;
+  padding: 8px 56px;
+  background: var(--wc-surface-grey);
+  color: var(--wc-ink);
+}
+
+.wc-notice-bar__body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px 8px;
+  max-width: var(--wc-container-max);
+  margin: 0;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.25;
+  letter-spacing: -.2px;
+  text-align: center;
+}
+
+.wc-notice-bar__message {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.wc-notice-bar__cta {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  height: 23px;
+  padding: 0 11px;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  border-radius: var(--wc-radius-form);
+  background: var(--wc-ink);
+  color: #FFFFFF;
+}
+
+/* 보이는 버튼은 23px지만 누르는 영역은 바 높이(47)까지 넓힌다 — 터치 대상 44px(DESIGN touch-target). */
+.wc-notice-bar__cta::before {
+  content: '';
+  position: absolute;
+  inset: -12px -4px;
+}
+
+.wc-notice-bar__close {
+  position: absolute;
+  top: 50%;
+  right: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin-top: -22px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--wc-ink);
+  cursor: pointer;
+}
+
+/* 닫기 상자는 47px 바 안에서 위(1.5px)·오른쪽(2px) 끝에 붙어 있어, 기본 포커스 링(offset 2px·두께 2px)은
+   위·오른쪽 변이 뷰포트 밖으로 잘린다. 이 버튼만 링을 상자 안쪽(2~4px)에 그려 사방이 다 보이게 한다. */
+.wc-notice-bar .wc-notice-bar__close:focus-visible {
+  outline-offset: -4px;
+}
+
+/* 모바일은 레퍼런스처럼 왼쪽을 좁혀 375 폭에서도 문구와 버튼이 한 줄에 서게 한다(오른쪽은 닫기 자리). */
+@media (max-width: 989px) {
+  .wc-notice-bar {
+    padding: 8px 44px 8px 12px;
+  }
+}
 
 /* 큐레이션 kind(notice_strip) 한 장을 통째로 감싸는 링크 배너다. 높이를 고정하지 않고
    이미지 비율을 그대로 따른다(R-01 §1) — 스트립 높이가 그대로 축약 히스테리시스 밴드에 더해진다.
@@ -151,17 +274,13 @@
    헤더 행 (로고 · 아이콘)
    ------------------------------------------------------------------ */
 
-/* 헤더가 뷰포트 상단에 닿았는지를 IntersectionObserver로 판정하기 위한 1px 센티널.
-   음수 마진으로 레이아웃 높이를 상쇄해 화면에는 아무 공간도 차지하지 않는다. */
-.wc-header-sentinel {
-  height: 1px;
-  margin-bottom: -1px;
-}
-
+/* CH-03 — GNB와 축약 헤더 아래에 1px 헤어라인을 둔다(데스크톱 펼침 123 / 축약 69, 모바일 고정 시 52).
+   레퍼런스 실측값 #F0F2F4를 line.hairline-soft 토큰으로 쓴다 — 그림자는 쓰지 않는다. */
 .wc-header {
   position: sticky;
   top: 0;
   z-index: 3;
+  border-bottom: 1px solid var(--wc-hairline-soft);
   background: var(--wc-surface);
 }
 
@@ -264,30 +383,35 @@
   }
 }
 
+/* 모바일 헤더 고정 (LD-2 · 11 §6 B2)
+   스크롤하면 로고 행이 화면 위로 빠지고 GNB 탭 행만 상단에 남는다. 최상단에서는 로고 행이 제자리에 있다.
+   로고 행을 display로 지우는 레퍼런스 방식은 헤더가 81px 줄며 본문이 튀고, 스크롤 앵커링이 그만큼 scrollY를
+   당기면 최상단 근처에서 숨김·복귀가 번갈아 진동할 수 있다. 그래서 레이아웃은 그대로 두고 sticky 기준만
+   로고 행 높이(81px, .wc-header__bar-inner)만큼 올린다 — 로고 행은 스크롤과 함께 밀려 나가고 판정 상태가 없다. */
+@media (max-width: 989px) {
+  .wc-header {
+    top: -81px;
+  }
+
+  /* 키보드 포커스가 헤더에 들어오면 로고 행까지 내려 보여 준다 — 포커스가 화면 밖에 남으면 안 된다.
+     :focus-within이 아니라 :focus-visible인 이유: 손가락으로 GNB 탭을 누를 때마다 로고 행이 튀어나오지 않게. */
+  .wc-header:has(:focus-visible) {
+    top: 0;
+  }
+}
+
 /* ------------------------------------------------------------------
    GNB (데스크톱) · 메가메뉴
    ------------------------------------------------------------------ */
 
-/* 스크롤이 상단을 벗어나면 GNB만 로고 행 뒤로 밀어 넣어 로고 행만 남긴다(R-01 §3.1).
+/* 데스크톱은 스크롤이 B1 기준(>150 접힘 / <64 해제, chrome-scroll.ts)을 넘으면 GNB만 로고 행 뒤로
+   밀어 넣어 로고 행만 남긴다(R-01 §3.1). 모바일은 접지 않는다 — 아래 '모바일 헤더 고정'.
    메가 패널의 기준 상자이기도 해서 positioned 상태를 유지한다. */
 .wc-gnb-wrap {
   position: relative;
   z-index: 1;
   background: var(--wc-surface);
   transition: margin-top var(--wc-duration-medium) ease, opacity var(--wc-duration-medium) ease;
-}
-
-.wc-header[data-condensed='true'] .wc-gnb-wrap {
-  margin-top: -51px;
-  opacity: 0;
-  pointer-events: none;
-}
-
-/* 축약 상태에서도 키보드가 헤더로 들어오면 GNB를 되돌려 준다 — 포커스가 안 보이는 곳으로 사라지면 안 된다. */
-.wc-header[data-condensed='true']:focus-within .wc-gnb-wrap {
-  margin-top: 0;
-  opacity: 1;
-  pointer-events: auto;
 }
 
 .wc-gnb {
@@ -304,7 +428,8 @@
 }
 
 .wc-gnb__item {
-  flex: none;
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
 /* 메가 패널이 헤더 전폭을 덮어야 한다 — 기준 상자를 .wc-gnb-wrap에 남기려고 항목은 positioned로 만들지 않는다. */
@@ -314,6 +439,9 @@
 
 .wc-gnb__link {
   display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   padding: 0 16px 4px;
   font-family: inherit;
   font-size: 16px;
@@ -442,9 +570,174 @@
   text-decoration: none;
 }
 
+/* CH-05 — 공개 전시 트리가 있을 때의 카테고리 메가메뉴(R-01 §4.1 메가메뉴 A).
+   [굿즈샵 바로가기 130][기획전 180] | 세로선 | 전시분류 그룹(줄바꿈 흐름). 레퍼런스 트랙 130·180·150(구분선 칸)·간격 20을
+   같은 자리로 옮긴다 — 세로선은 기획전 칸 끝에서 70px(간격 20 + 50), 전시분류는 선에서 120px 뒤에서 시작한다.
+   기획전이 없으면 그 칸을 접는다(빈 180px 를 남기지 않는다). */
+.wc-mega__list--catalog {
+  grid-template-columns: 130px 180px minmax(0, 1fr);
+  column-gap: 20px;
+  row-gap: 18px;
+}
+
+.wc-mega__list--catalog.wc-mega__list--compact {
+  grid-template-columns: 130px minmax(0, 1fr);
+}
+
+/* 기획전 칸(180)의 캠페인 제목은 2줄에서 말줄임한다 — 제목은 120자까지 와서, 그대로 감으면 한 제목이 8줄로 늘어
+   패널 높이를 밀어 올리고 나머지 기획전을 아래로 밀었다(QA l5-qa-1). 레퍼런스 컬렉션 링크도 2줄까지만 감긴다.
+   한글은 낱말 단위로 줄을 바꾸고 칸보다 긴 낱말만 글자 단위로 끊는다. 전체 제목은 글자(접근 이름)와 title 에 남는다.
+   자르기는 링크 안 글자 상자에 건다 — 링크(위아래 여백 7)에 걸면 overflow 가 여백 바깥 끝에서 잘려 3번째 줄 윗부분이 여백에 비친다. */
+.wc-mega__list--catalog .wc-mega__link-clamp {
+  display: -webkit-box;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+/* 세로 구분선은 장식이라 목록 항목이 아니라 그룹 칸의 왼쪽 선으로 그린다(스크린리더가 빈 항목을 읽지 않게). */
+.wc-mega__catalog {
+  min-width: 0;
+  margin-left: 50px;
+  padding-left: 119px;
+  border-left: 1px solid var(--wc-hairline-dark);
+}
+
+.wc-mega__catalog-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px 20px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 그룹 폭은 레퍼런스 트랙(80~180)을 따른다 — 짧은 이름은 80, 긴 하위 이름은 180까지 넓어진다. */
+.wc-mega__catalog-groups > .wc-mega__group {
+  flex: 0 0 auto;
+  min-width: 80px;
+  max-width: 180px;
+}
+
+/* 자기 전시가 있는 그룹 제목은 링크다 — 제목 문법(14/700) 그대로, hover 밑줄은 하위 링크와 같다. */
+.wc-mega__heading-link {
+  display: block;
+  text-decoration: none;
+}
+
+.wc-mega__heading-link:hover {
+  text-decoration: underline;
+}
+
+.wc-mega__heading-link[aria-current='page'] {
+  color: var(--wc-success);
+  text-decoration: none;
+}
+
+/* 하위 전시를 묶기만 하는(자기 전시가 없는) 2단계 이름표. 링크와 같은 줄 높이로 서고 굵기로 구분한다. */
+.wc-mega__label {
+  display: block;
+  padding: 7px 0;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -.5px;
+  color: var(--wc-ink-sub);
+}
+
+/* 3단계 이하 전시는 한 칸 들여 부모 아래에 묶인다. */
+.wc-mega__link--nested {
+  padding-left: 10px;
+  font-size: 13px;
+}
+
+/* CH-07 — 온라인 팝업 메가메뉴(R-01 §4.1 메가메뉴 B·C): repeat(6) 간격 18×40, 1열 피처드 IP 목록,
+   4열부터 '전체보기' 제목 + 이미지 타일 136×136 두 개. */
+.wc-mega__list--ip {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  column-gap: 40px;
+  row-gap: 18px;
+}
+
+.wc-mega__group--tiles {
+  grid-column: 4 / span 2;
+}
+
+.wc-mega__tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 40px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wc-mega__tile {
+  display: block;
+  width: 136px;
+  max-width: 100%;
+  text-decoration: none;
+  color: var(--wc-ink);
+}
+
+.wc-mega__tile-image {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 1;
+  background-color: var(--wc-surface-icon-tile);
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+/* 키아트가 없는 IP는 이름 첫 글자로 선다 — 빈 회색 칸만 남기지 않는다. */
+.wc-mega__tile-image--text {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--wc-ink-sub);
+}
+
+.wc-mega__tile-name {
+  display: block;
+  margin-top: 8px;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.3;
+  letter-spacing: -.5px;
+}
+
+.wc-mega__tile:hover .wc-mega__tile-name {
+  text-decoration: underline;
+}
+
 @media (min-width: 990px) {
   .wc-header[data-condensed='true'] .wc-gnb-wrap {
     margin-top: -54px;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* 축약 상태에서도 키보드가 헤더(로고 행·GNB)로 들어오면 GNB를 되돌려 준다 — 포커스가 안 보이는 곳으로
+     사라지면 안 된다. 검색 패널 안의 포커스는 제외한다: 패널이 GNB 자리를 덮고 있어 되돌릴 이유가 없고,
+     되돌리면 열리는 순간 헤더가 54px 자라 흐린 본문이 밀린다. 마우스 클릭의 포커스(:focus-visible 아님)도 제외한다. */
+  .wc-header[data-condensed='true']:has(.wc-header__bar :focus-visible, .wc-gnb-wrap :focus-visible) .wc-gnb-wrap {
+    margin-top: 0;
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* 헤더는 sticky 라 로고 행·GNB 안의 포커스는 이미 화면 맨 위에 보인다. 그런데 html scroll-padding-top(globals.css, 최대 펼친
+     헤더 123)이 그 자리를 크롬에 가려진 곳으로 읽어, 브라우저가 포커스를 가운데로 데려오려 문서를 약 470px 끌어올렸다 — 요소는
+     sticky 라 제자리라서 Tab 마다 다시 끌려 맨 위까지 갔다(축약 중 깊이 스크롤한 /shop). 착지 상자 윗변을 착지선 최댓값만큼
+     내려 이미 보이는 것으로 읽게 한다. 안쪽 스크롤 상자인 메가메뉴(.wc-mega)와 헤더 밖 검색 패널은 그대로 둔다. */
+  .wc-header .wc-header__bar :focus,
+  .wc-header .wc-gnb__link:focus {
+    scroll-margin-top: -123px;
   }
 
   .wc-gnb {
@@ -535,24 +828,34 @@
    검색 오버레이
    ------------------------------------------------------------------ */
 
-/* 헤더 스태킹 컨텍스트 안이라 z 1이어도 본문(#root, z 1)보다 위에 깔린다.
-   로고·아이콘 행(z 2)은 딤 위에 남긴다 — 레퍼런스도 패널이 열릴 때 헤더 행은 밝게 유지한다. */
+/* 11 §6 B5 — 패널은 로고 행 바로 아래에서 GNB 행을 덮고, 그 아래 본문은 10% 딤 + 5px 흐림이다.
+   패널·백드롭 모두 sticky 헤더 상자 기준으로 로고 행(모바일 81 / 데스크톱 68, .wc-header__bar-inner) 바로
+   아래에서 시작한다. 레퍼런스는 fixed top 156이라 공지 바가 생기자 데스크톱에선 로고 행을 덮고 모바일에선
+   공지에 가려졌다 — 헤더 상자 기준이면 공지·유틸바·축약 여부와 무관하게 실제 로고 행 아래에 붙는다.
+   공지·유틸바·로고 행은 딤 밖에서 밝게 남는다. 스크롤 잠금은 useOverlayA11y의 body overflow가 맡는다. */
 .wc-search-backdrop {
-  position: fixed;
-  inset: 0;
+  position: absolute;
+  top: 81px;
+  left: 0;
+  right: 0;
   z-index: 1;
-  background: var(--wc-dim);
+  height: 100vh;
+  background: color-mix(in srgb, var(--wc-ink) 10%, transparent);
+  /* backdrop-filter를 지원하지 않는 브라우저는 10% 딤만 남는다. */
+  -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
 }
 
-/* 인풋 아래 추천 칩 행이 함께 들어가므로 높이를 고정하지 않는다 — 칩이 두 줄로 접히면
-   86px 고정 높이가 칩을 잘라 먹는다. 패널은 내용만큼만 열린다. */
+/* 인풋 아래 추천 칩 행이 함께 들어가므로 높이는 내용을 따른다(데스크톱은 레퍼런스 200을 최소로 둔다).
+   좌우 거터는 안쪽 .wc-container가 진다. */
 .wc-search {
-  position: fixed;
-  top: 0;
+  position: absolute;
+  top: 81px;
   left: 0;
   right: 0;
   z-index: 3;
-  padding: 16px 16px 20px;
+  padding: 16px 0;
+  border-top: 1px solid var(--wc-hairline-soft);
   background: var(--wc-surface);
 }
 
@@ -560,6 +863,22 @@
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+/* 오버레이의 입력 칸 — 칸이 플렉스 항목이 되고 인풋이 그 폭을 채운다. 돋보기 장식은 데스크톱에서만 칸 안에 선다. */
+.wc-search .wc-search__form {
+  position: relative;
+}
+
+.wc-search__field {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
+.wc-search__field-icon {
+  display: none;
 }
 
 /* editorial 파운데이션의 `:where(input …)` 규칙이 최소 높이·보더·포커스 글로우를 얹으므로
@@ -586,7 +905,8 @@
 }
 
 /* 추천 검색어 칩 — 오버레이와 `/search` 빈 결과가 같은 마크업을 공유한다(R-03 §2.1·§4-7).
-   레퍼런스는 빈 결과에서 칩을 걷어 회복 동선을 없애는데, 그 결함은 옮기지 않는다. */
+   레퍼런스는 빈 결과에서 칩을 걷어 회복 동선을 없애는데, 그 결함은 옮기지 않는다.
+   오버레이 전용 보정은 아래 `.wc-search` 스코프에서만 한다 — `/search`의 수치는 이 공유 규칙을 따른다. */
 .wc-search__chips {
   display: flex;
   flex-wrap: wrap;
@@ -618,15 +938,80 @@
   color: var(--wc-success);
 }
 
+/* 오버레이의 추천 라벨은 '추천' 17/700이다(R-03 §2.1). */
+.wc-search .wc-search__chips-label {
+  flex: 0 0 auto;
+  font-size: 17px;
+  white-space: nowrap;
+}
+
+@media (max-width: 989px) {
+  /* MC-04 — 모바일 칩은 한 줄로 두고 가로로 넘긴다. 여러 줄로 접히면 패널이 본문을 한 뼘 더 가린다. */
+  .wc-search .wc-search__chips {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .wc-search .wc-search__chips::-webkit-scrollbar {
+    display: none;
+  }
+
+  .wc-search .wc-search__chip {
+    flex: 0 0 auto;
+  }
+}
+
 @media (min-width: 990px) {
+  .wc-search-backdrop,
   .wc-search {
-    position: absolute;
-    top: 100%;
-    padding: 24px 0 32px;
+    top: 68px;
+  }
+
+  .wc-search {
+    min-height: 200px;
+    padding: 24px 0;
   }
 
   .wc-search__input {
     min-height: 60px;
+  }
+
+  /* CH-09 — 데스크톱 입력은 컨테이너 전폭(1180)의 회색 칸 하나이고 돋보기는 칸 안 왼쪽 장식이다. */
+  .wc-search .wc-search__input {
+    padding-left: 52px;
+  }
+
+  .wc-search__field-icon {
+    position: absolute;
+    top: 50%;
+    left: 18px;
+    display: flex;
+    color: var(--wc-ink-tertiary);
+    transform: translateY(-50%);
+    pointer-events: none;
+  }
+
+  /* 데스크톱은 뒤로·제출 버튼을 화면에서 감춘다 — 닫기는 백드롭·ESC, 제출은 Enter.
+     접근 이름과 키보드 순서는 남기고, 키보드 포커스가 오면 칸 안 오른쪽에 드러내 보이지 않는 포커스를 막는다. */
+  .wc-search .wc-search__aux:not(:focus) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .wc-search .wc-search__aux:focus {
+    position: absolute;
+    top: 50%;
+    right: calc(var(--wc-gutter) + 8px);
+    background: var(--wc-surface);
+    transform: translateY(-50%);
   }
 }
 
@@ -689,7 +1074,7 @@
 
 .wc-sheet__links {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   column-gap: 8px;
   margin: 0;
   padding: 0;
@@ -698,7 +1083,9 @@
 
 .wc-sheet__link {
   display: block;
+  min-width: 0;
   padding: 12px 0;
+  overflow-wrap: anywhere;
   font-size: 15px;
   font-weight: 500;
   text-decoration: none;
@@ -712,6 +1099,311 @@
 .wc-sheet__auth-placeholder {
   display: block;
   height: 50px;
+}
+
+/* ------------------------------------------------------------------
+   모바일 카테고리 시트 (L5 · MC-05)
+   ------------------------------------------------------------------ */
+
+/* 전체 메뉴 시트와 같은 75% 바텀시트(.wc-sheet — radius 8·딤 70%·섹션 사이 10px 회색 띠)이고 내용만 다르다:
+   ① 아이콘 바로가기(가로 스크롤) → ② 기획전 카드 2×2 슬라이드 + 점 → ③ [카테고리 | 온라인 팝업] 탭 + 아이콘 그리드(R-01 §7·11 2-4).
+   열 때 아래에서 올라온다(.3s, 레퍼런스 300ms) — 모션 축소에서는 전환 없이 바로 선다. */
+.wc-catsheet {
+  animation: wc-sheet-rise var(--wc-duration-medium) var(--wc-ease-out-slow);
+}
+
+.wc-catsheet-dim {
+  animation: wc-fade-in var(--wc-duration-medium) ease;
+}
+
+@keyframes wc-sheet-rise {
+  0% {
+    transform: translateY(100%);
+  }
+
+  100% {
+    transform: translateY(0);
+  }
+}
+
+/* 닫기 버튼 줄(위 8 + 버튼 44 = 52)은 카테고리 시트의 머리줄이다. 공용 닫기(.wc-sheet__close)는 투명한 채 시트 기준으로 떠 있고
+   스크롤은 안쪽(.wc-sheet__inner)이 하므로, 내리면 기획전 이미지·제목이 X 아래로 지나가 어두운 키아트 위에서 X 가 묻혔다(QA l5-qa-5).
+   콘텐츠가 머리줄 아래로 들어간 동안(data-scrolled — CategorySheet 가 스크롤 위치로 단다)에만 지면색과 하단 선을 깔아 콘텐츠를 가린다.
+   맨 위에서는 투명하고 탭도 통과시켜 첫 섹션 제목 자리(시트 위 20)가 레퍼런스와 같다. 공용 .wc-sheet__close·전체 메뉴 시트는 그대로다. */
+.wc-catsheet::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 1;
+  height: 52px;
+  border-radius: inherit;
+  background: var(--wc-surface);
+  box-shadow: 0 1px 0 var(--wc-hairline);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--wc-duration-short) ease;
+}
+
+.wc-catsheet[data-scrolled='true']::before {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.wc-catsheet .wc-sheet__close {
+  z-index: 2;
+}
+
+/* 바로가기·기획전이 모두 비어 제목 없는 탭 구역이 맨 위에 오면, 탭 줄이 시트 위 20에서 시작해 닫기 버튼(8~52)과 겹친다 —
+   그때만 그 차이(32)만큼 내린다. */
+.wc-catsheet .wc-sheet__inner > .wc-catsheet__section--untitled:first-child {
+  padding-top: 32px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wc-catsheet,
+  .wc-catsheet-dim {
+    animation: none;
+  }
+
+  .wc-catsheet::before {
+    transition: none;
+  }
+}
+
+/* ① 아이콘 바로가기 — 칸 폭 17vw(375에서 63.8), 이미지 칸 60 정사각 r10 icon-tile, 라벨 위 8·아래 10, 간격 5(1.33vw).
+   시트 거터 밖까지 스크롤되도록 트랙만 좌우 16px 넓히고 같은 만큼 안쪽 여백·스냅 여백을 둔다.
+   가로 스크롤 트랙은 overflow 로 위아래도 자르므로, 포커스 링(2px + 간격 2px, DESIGN §10)이 잘리지 않게 위아래 4px 안쪽 여백을 두고
+   같은 만큼 바깥 여백을 당겨 배치는 그대로 둔다(리뷰 l5-ui-3). */
+.wc-catsheet__shortcuts {
+  display: flex;
+  gap: 5px;
+  margin: -4px -16px;
+  padding: 4px 16px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: 16px;
+  scrollbar-width: none;
+  list-style: none;
+}
+
+.wc-catsheet__shortcuts::-webkit-scrollbar {
+  display: none;
+}
+
+.wc-catsheet__shortcuts > li {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+}
+
+.wc-catsheet__shortcut {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: clamp(60px, 17vw, 72px);
+  padding-bottom: 10px;
+  text-decoration: none;
+  color: var(--wc-ink);
+}
+
+.wc-catsheet__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  border-radius: 10px;
+  background: var(--wc-surface-icon-tile);
+  color: var(--wc-ink);
+}
+
+/* 라벨은 칸 폭(375에서 82)에 열 간격(5)의 반씩을 양옆으로 더 쓴다 — 칸만 쓰면 'NONGDAMGOM'(약 83) 같은 라틴 IP 이름이
+   'NONGDAMGO / M'처럼 한 글자만 다음 줄로 떨어졌다(QA l5-qa-2). 한글은 낱말 단위로 줄을 바꾸고, 그래도 칸보다 긴 낱말만
+   글자 단위로 끊으며, 운영 이름이 길어도 2줄에서 말줄임해 그리드 행 높이가 들쭉날쭉하지 않게 한다. */
+.wc-catsheet__label,
+.wc-catsheet__tile-label {
+  display: -webkit-box;
+  margin: 8px -2.5px 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.3;
+  text-align: center;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+/* ② 기획전 2×2 슬라이드 — 한 장이 시트 폭 전체(슬라이드 간격 16)이고 장 안은 2열(열 간격 7·행 간격 16).
+   카드 이미지는 캠페인 카드 이미지의 비율(3:2, 이벤트 허브 카드와 같은 자산)을 그대로 쓴다. */
+/* 슬라이드 트랙도 overflow 로 네 변을 자른다 — 카드가 트랙 경계에 붙어 포커스 링이 잘리지 않게 트랙을 사방 4px 넓히고 같은 만큼
+   안쪽 여백·스냅 여백을 둔다. 슬라이드 폭(100% = 내용 상자)과 카드 위치는 그대로다(리뷰 l5-ui-3). */
+.wc-catsheet__collections .wc-slider__track {
+  margin: -4px;
+  padding: 4px;
+  scroll-padding-inline: 4px;
+}
+
+.wc-catsheet__collections .wc-slider__track > * {
+  width: 100%;
+}
+
+.wc-catsheet__collection-page {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wc-catsheet__collection {
+  display: block;
+  text-decoration: none;
+  color: var(--wc-ink);
+}
+
+.wc-catsheet__collection-image {
+  display: block;
+  aspect-ratio: 3 / 2;
+  background-color: var(--wc-surface-icon-tile);
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+.wc-catsheet__collection-title {
+  display: -webkit-box;
+  margin-top: 8px;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+/* 장 위치는 점 버튼이다(디렉토리 피처드와 같은 문법 — 24×44 터치 상자 안 8px 점, 반투명 잉크/잉크). */
+.wc-catsheet__collections .wc-slider__dots {
+  display: flex;
+  justify-content: center;
+  margin-top: 6px;
+}
+
+.wc-catsheet__collections .wc-slider__dot {
+  position: relative;
+  flex: none;
+  width: 24px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.wc-catsheet__collections .wc-slider__dot::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--wc-ink) 30%, transparent);
+  transform: translate(-50%, -50%);
+}
+
+.wc-catsheet__collections .wc-slider__dot[aria-current='true']::before {
+  background: var(--wc-ink);
+}
+
+.wc-root .wc-catsheet__collections .wc-slider__dot:focus-visible {
+  outline: none;
+}
+
+.wc-root .wc-catsheet__collections .wc-slider__dot:focus-visible::before {
+  outline: 2px solid var(--wc-focus);
+  outline-offset: 2px;
+}
+
+@media (forced-colors: active) {
+  .wc-catsheet__collections .wc-slider__dot::before {
+    forced-color-adjust: none;
+    background: GrayText;
+  }
+
+  .wc-catsheet__collections .wc-slider__dot[aria-current='true']::before {
+    background: CanvasText;
+  }
+}
+
+/* ③ [카테고리 | 온라인 팝업] 탭 — 시트 폭을 반씩 나누는 16/700 탭(비활성은 읽히는 ink.tertiary, 활성은 잉크 + 2px 밑줄). */
+.wc-catsheet__tabs .wc-tabs__tab {
+  flex: 1 1 0;
+  height: 48px;
+  padding: 0 8px;
+  font-size: 16px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-catsheet__tabs .wc-tabs__tab.active {
+  color: var(--wc-ink);
+}
+
+.wc-catsheet__tabs .wc-tabs__panel {
+  padding-top: 20px;
+}
+
+/* 아이콘 그리드 4열 — 칸마다 60 정사각 r10 이미지 칸 + 12px 이름. 전시분류 아이콘은 칸 안에 맞추고(라인아트),
+   IP 키아트는 칸을 채운다. 이미지가 없으면 이름 첫 글자다. */
+.wc-catsheet__grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wc-catsheet__tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-decoration: none;
+  color: var(--wc-ink);
+}
+
+.wc-catsheet__tile-image {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  overflow: hidden;
+  border-radius: 10px;
+  background-color: var(--wc-surface-icon-tile);
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.wc-catsheet__tile-image--icon {
+  padding: 6px;
+  background-origin: content-box;
+  background-size: contain;
+}
+
+.wc-catsheet__tile-image--art {
+  background-size: cover;
+}
+
+.wc-catsheet__tile-image--text {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--wc-ink-sub);
 }
 
 /* ------------------------------------------------------------------
@@ -731,6 +1423,16 @@
   padding-bottom: max(5px, env(safe-area-inset-bottom));
   border-top: 1px solid var(--wc-hairline);
   background: var(--wc-surface);
+  transition: transform var(--wc-duration-medium) ease;
+}
+
+/* B3 — 아래로 누적 300px 스크롤했거나 검색 오버레이가 열려 있으면 화면 밖으로 내린다(Nav·chrome-scroll.ts).
+   내려간 뒤에는 visibility로 포커스 순서·접근성 트리에서도 뺀다 — 안 보이는 탭바에 포커스가 들어가면 안 된다.
+   다시 보일 때는 visibility가 즉시 돌아오고, reduced-motion에서는 파운데이션이 전환을 0으로 만든다. */
+.wc-tabbar[data-hidden='true'] {
+  transform: translateY(100%);
+  visibility: hidden;
+  transition: transform var(--wc-duration-medium) ease, visibility 0s linear var(--wc-duration-medium);
 }
 
 .wc-tabbar__item {
@@ -766,8 +1468,10 @@
    푸터
    ------------------------------------------------------------------ */
 
+/* 선택 방문 통계 안내가 보이는 동안(html --wc-store-analytics-clearance — 바닥에서 안내 윗변까지, StoreAnalytics 가 잰다)은
+   문서 끝 줄도 그 위로 올라오게 바닥을 연다. 최대 스크롤에서는 착지선이 더 내릴 곳이 없어 마지막 푸터 링크가 안내 밑에 남았다. */
 .wc-footer {
-  padding: 40px 0 60px;
+  padding: 40px 0 max(60px, calc(var(--wc-store-analytics-clearance, 0px) + 16px));
   border-top: 1px solid var(--wc-hairline);
   background: var(--wc-surface-grey);
 }
@@ -812,6 +1516,13 @@
 
 .wc-footer__logo {
   margin: 50px 0 0;
+}
+
+/* 폭마다 자리가 다른 로고·소개는 한 벌씩 있다(SiteFooter, CH-15). 그 폭이 아닌 쪽은 display:none 이라
+   읽기·포커스 순서에서도 빠진다 — CSS order 처럼 화면 순서와 포커스 순서가 갈리지 않는다. */
+.wc-footer .wc-footer__logo--mobile,
+.wc-footer .wc-footer__brand--mobile {
+  display: none;
 }
 
 .wc-footer__logo a {
@@ -1012,10 +1723,10 @@
   color: var(--wc-ink-tertiary);
 }
 
-/* 고정 탭바(62px)에 마지막 줄이 가리지 않도록 모바일에서만 바닥을 더 연다. */
+/* 고정 탭바(62px)에 마지막 줄이 가리지 않도록 모바일에서만 바닥을 더 연다(안내가 보이면 그 위까지). */
 @media (max-width: 989px) {
   .wc-footer {
-    padding-bottom: 122px;
+    padding-bottom: max(122px, calc(var(--wc-store-analytics-clearance, 0px) + 16px));
   }
 
   /* 줄이 바뀔 때 첫 링크 앞에 구분선과 들여쓰기가 남지 않게 간격으로 구분한다. */
@@ -1039,7 +1750,66 @@
     min-height: 32px;
   }
 
-  .wc-footer__middle {
+  /* CH-15 — 모바일 순서: 로고 → 회사·정책 → 고객센터 → 사업자 정보(기본 펼침) → 스토어 소개·SNS → 링크 → 저작권.
+     마크업이 이미 이 순서다 — 자리가 다른 로고·소개는 이 폭의 것만 보인다(SiteFooter). CSS order 를 쓰지 않아
+     화면 순서와 읽기·포커스 순서가 같다. 사업자 정보 펼침은 SiteFooter가 모바일에서 붙는 순간 한 번 연다.
+     .wc-footer__middle은 상자를 지워 고객센터·소개·링크를 세로 흐름에 그대로 잇는다(간격은 flex 라 겹치지 않는다). */
+  .wc-footer__inner {
+    display: flex;
     flex-direction: column;
   }
+
+  .wc-footer .wc-footer__logo--desktop,
+  .wc-footer .wc-footer__brand--desktop {
+    display: none;
+  }
+
+  .wc-footer .wc-footer__logo--mobile {
+    display: block;
+    margin-top: 0;
+  }
+
+  .wc-footer__primary {
+    margin-top: 20px;
+  }
+
+  .wc-footer__middle {
+    display: contents;
+  }
+
+  .wc-footer__cs {
+    margin-top: 28px;
+  }
+
+  .wc-footer .wc-footer__brand--mobile {
+    display: grid;
+    margin-top: 24px;
+  }
+
+  .wc-footer__cols {
+    margin-top: 32px;
+  }
+}
+
+/* ------------------------------------------------------------------
+   404 기본 표면 (CH-14)
+   ------------------------------------------------------------------ */
+
+/* 2CTA 260×56 — [이전 페이지 잉크][메인으로 아웃라인](NotFoundActions). 파운데이션 빈 상태의 버튼 그룹(최대 448)을
+   이 표면에서만 260 두 칸 + 간격 8로 넓힌다. 좁은 폭에서는 두 버튼이 같은 폭으로 나눠 갖는다.
+   일러스트는 LG-7 자산 전까지 두지 않는다 — 제목부터 시작해도 .wc-fallback의 가운데 정렬이 그대로 선다. */
+/* .wc-fallback은 가운데 정렬 행 flex라 그 안의 .wc-empty가 글자 폭으로 줄고, 버튼 묶음의 퍼센트 폭이 그 줄어든
+   상자를 가리킨다(운영 실측: 묶음 214 · 버튼 103). 상자부터 폭을 준다 — 528 + 좌우 패딩 16×2. */
+.wc-not-found .wc-empty {
+  width: min(560px, 100%);
+}
+
+.wc-not-found .wc-not-found__actions {
+  width: min(528px, 100%);
+  max-width: 528px;
+}
+
+.wc-not-found .wc-not-found__actions .wc-btn {
+  max-width: 260px;
+  height: 56px;
 }

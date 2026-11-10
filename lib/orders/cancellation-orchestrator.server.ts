@@ -1,8 +1,13 @@
 import 'server-only';
 
 import type { PaymentAttempt, RefundOutcome } from '../payments/gateway';
+import {
+  providerCancelsAutomatically,
+  type AutomatedCancelProvider,
+} from '../payments/provider-capabilities';
 import { getPaymentGateway, type PaymentCheckoutProvider } from '../payments/runtime-gateway';
 import { createServiceClient } from '../supabase/service';
+import { createRuntimeAttemptPaymentGateway } from '../subscriptions/payment-dispatch.server';
 
 export type CancellationRequestStatus =
   | 'requested'
@@ -40,8 +45,21 @@ export interface CancellationReconciliationContext {
   }>;
 }
 
+/**
+ * 게이트웨이 refund가 needs_review·unknown 등으로 돌려준 사유 코드(`provider_*`).
+ *
+ * 그대로 needs_review 사유(`last_error_code`)와 감사 로그에 남긴다. 사유마다 운영
+ * 조치가 다르다 — 취소 거절은 원인 해소 뒤 수동 복구로 닫히지만, 상점(MID) 불일치·결제
+ * 대조 실패는 상점관리자에서 취소해도 다음 조회가 같은 결과라 닫히지 않는다
+ * (docs/runbooks/order-claim-intake.md "결제확인필요 재시도와 멱등키"). 게이트웨이가
+ * 정규화한 내부 코드만 담고 provider 원문 코드(evidence.resultCode)는 옮기지 않는다.
+ */
+export type ProviderRefundReviewCode = `provider_${string}`;
+
 /* provider_* 코드 일부는 더 이상 새로 기록되지 않지만, 과거 요청 행이 이미
- * 이 코드들을 담고 있어 DB 계약과 읽기 표면을 위해 유지한다. */
+ * 이 코드들을 담고 있어 DB 계약과 읽기 표면을 위해 유지한다.
+ * provider_cancel_failed는 2026-10-12부터 게이트웨이 사유 코드가 없거나 형식 밖일 때의
+ * 대체 코드다 — 그 전 행에는 모든 명시 거절이 이 코드로 남아 있다. */
 export type CancellationReconciliationCode =
   | 'request_not_found'
   | 'request_not_ready'
@@ -52,7 +70,8 @@ export type CancellationReconciliationCode =
   | 'provider_cancel_failed'
   | 'provider_cancellation_incomplete'
   | 'bank_transfer_refund_filed'
-  | 'local_finalize_failed';
+  | 'local_finalize_failed'
+  | ProviderRefundReviewCode;
 
 export type CancellationReconciliationResult =
   | { ok: true; status: 'completed' | 'already_completed' | 'in_progress' }
@@ -65,33 +84,45 @@ export type ExpiredPreparedGoodsReconciliation =
 
 export type CancellationReconciliationPreflight = 'allowed' | 'completed' | 'not_allowed';
 
+/**
+ * 정합화를 실행하는 주체. 문자열은 staff/admin 사용자 id, null은 시스템(서버 자동
+ * 발행)이다 — 고객이 연 자동 승인처럼 사람이 누르지 않은 취소를 서버가 바로 닫을 때만
+ * 쓴다. DB는 null actor를 취소(claim_type='cancel') 요청에만 허용하고 감사 로그를
+ * system.order.* 액션으로 남긴다(20261013110000).
+ */
+export type CancellationActorId = string | null;
+
 export interface CancellationReconciliationDependencies {
   loadContext(requestId: string): Promise<CancellationReconciliationContext | null>;
   preflightReconciliation(input: {
     requestId: string;
-    actorId: string;
+    actorId: CancellationActorId;
   }): Promise<CancellationReconciliationPreflight>;
   reconcileExpiredPreparedGoods(input: {
     requestId: string;
-    actorId: string;
+    actorId: CancellationActorId;
   }): Promise<ExpiredPreparedGoodsReconciliation>;
   /**
-   * toss 유상 캡처의 전액 취소. 게이트웨이가 취소 API 발행 후 fresh 조회로
-   * 전액 취소를 검증한 결과(5-outcome)를 그대로 돌려준다(#389).
+   * 취소 API가 있는 카드 provider(toss·nicepay) 유상 캡처의 전액 취소. 게이트웨이가
+   * 취소 API 발행 후 조회로 전액 취소를 검증한 결과(5-outcome)를 그대로 돌려준다(#389).
+   * paymentKey는 로컬 원장의 결제 식별자다 — TID 기준 provider(nicepay)가 취소 대상을
+   * 찾는 데 쓰고, 주문번호 조회가 진실원인 toss는 쓰지 않는다.
    */
-  refundTossPayment(input: {
+  refundProviderPayment(input: {
     paymentId: string;
+    provider: AutomatedCancelProvider;
     amount: number;
     reason: string;
+    paymentKey: string;
   }): Promise<RefundOutcome>;
   completeRequest(input: {
     requestId: string;
-    actorId: string;
+    actorId: CancellationActorId;
     verifiedPaymentKeys: string[];
   }): Promise<void>;
   markNeedsReview(input: {
     requestId: string;
-    actorId: string;
+    actorId: CancellationActorId;
     code: CancellationReconciliationCode;
   }): Promise<void>;
 }
@@ -118,6 +149,32 @@ const PREFLIGHT_REJECTIONS = new Set([
   'staff required',
   'cancellation_request_not_found',
 ]);
+/*
+ * 보존할 게이트웨이 사유 코드의 형식. DB `last_error_code` 검사(`^[a-z0-9_]{1,64}$`)
+ * 안쪽이면서 `provider_` 접두가 붙은 내부 코드만 받는다 — 대문자 provider 원문 코드나
+ * 길이 밖 값은 DB가 거부해 needs_review 전이 자체가 실패하므로 대체 코드로 바꾼다.
+ */
+const PROVIDER_REFUND_REVIEW_CODE = /^provider_[a-z0-9_]{1,55}$/;
+
+/**
+ * 완료로 닫지 못한 refund 결과의 needs_review 사유.
+ *
+ * 게이트웨이 사유 코드를 그대로 쓴다. 사유가 없거나 형식 밖이면 종전 대체 코드로
+ * 남긴다 — 모호(unknown)는 provider_unavailable, 그 밖은 provider_cancel_failed.
+ * approved인데 금액이 맞지 않는 결과는 사유 코드가 '취소 확인'이라 옮기면 오해를
+ * 부르므로 대체 코드로 남긴다.
+ */
+function refundReviewCode(refund: RefundOutcome): CancellationReconciliationCode {
+  if (
+    refund.outcome !== 'approved'
+    && typeof refund.reasonCode === 'string'
+    && PROVIDER_REFUND_REVIEW_CODE.test(refund.reasonCode)
+  ) {
+    return refund.reasonCode as ProviderRefundReviewCode;
+  }
+  return refund.outcome === 'unknown' ? 'provider_unavailable' : 'provider_cancel_failed';
+}
+
 function createDefaultDependencies(): CancellationReconciliationDependencies {
   const service = createServiceClient();
 
@@ -154,11 +211,11 @@ function createDefaultDependencies(): CancellationReconciliationDependencies {
       }
 
       // 카드 provider 원장만 본다(무통장 환불은 별도 계좌 환불 경로 — ADR-0010).
-      // toss는 취소 API 자동화 경로(#389), korpay는 수동 복구 seam이 정합화 경로다.
+      // toss·nicepay는 취소 API 자동화 경로(#389), korpay는 수동 복구 seam이 정합화 경로다.
       const { data: paymentData, error: paymentError } = await service
         .from('payments')
         .select('id,provider,status,amount,payment_key')
-        .in('provider', ['toss', 'korpay'])
+        .in('provider', ['toss', 'korpay', 'nicepay'])
         .eq('purpose', 'order')
         .eq('ref_id', request.order_id)
         .order('id', { ascending: true });
@@ -169,7 +226,7 @@ function createDefaultDependencies(): CancellationReconciliationDependencies {
         const payment = paymentDataRow as Record<string, unknown>;
         if (
           typeof payment.id !== 'string'
-          || (payment.provider !== 'toss' && payment.provider !== 'korpay')
+          || (payment.provider !== 'toss' && payment.provider !== 'korpay' && payment.provider !== 'nicepay')
           || typeof payment.status !== 'string'
           || !PAYMENT_STATUSES.has(payment.status as CancellationPaymentStatus)
           || typeof payment.amount !== 'number'
@@ -229,7 +286,7 @@ function createDefaultDependencies(): CancellationReconciliationDependencies {
         payments,
       };
     },
-    async refundTossPayment({ paymentId, amount, reason }) {
+    async refundProviderPayment({ paymentId, provider, amount, reason, paymentKey }) {
       const { data, error } = await service
         .from('payment_attempts')
         .select('id,provider,purpose,ref_id,amount,currency,idempotency_key,provider_order_id,provider_product_code,expires_at')
@@ -241,7 +298,7 @@ function createDefaultDependencies(): CancellationReconciliationDependencies {
       if (!data) throw new Error('payment attempt missing');
       const row = data as Record<string, unknown>;
       if (
-        row.provider !== 'toss'
+        row.provider !== provider
         || row.purpose !== 'order'
         || typeof row.id !== 'string'
         || typeof row.ref_id !== 'string'
@@ -257,7 +314,7 @@ function createDefaultDependencies(): CancellationReconciliationDependencies {
       }
       const attempt: PaymentAttempt = {
         id: row.id,
-        provider: 'toss',
+        provider,
         purpose: 'order',
         refId: row.ref_id,
         amount: row.amount,
@@ -267,11 +324,12 @@ function createDefaultDependencies(): CancellationReconciliationDependencies {
         providerProductCode: row.provider_product_code,
         expiresAt: row.expires_at,
       };
-      return getPaymentGateway('toss').refund({
+      return createRuntimeAttemptPaymentGateway(service, provider, getPaymentGateway(provider)).refund({
         attempt,
         idempotencyKey: `refund:${attempt.id}`,
         amount,
         reason,
+        providerPaymentKey: paymentKey,
       });
     },
     async reconcileExpiredPreparedGoods({ requestId, actorId }) {
@@ -312,7 +370,7 @@ function createDefaultDependencies(): CancellationReconciliationDependencies {
 
 async function markNeedsReview(
   dependencies: CancellationReconciliationDependencies,
-  input: { requestId: string; actorId: string },
+  input: { requestId: string; actorId: CancellationActorId },
   code: CancellationReconciliationCode,
 ): Promise<CancellationReconciliationResult> {
   try {
@@ -327,13 +385,18 @@ async function markNeedsReview(
  * 승인된 주문 취소 요청을 정합화한다. 호출자는 인증된 actor/request id만
  * 전달하며 결제 키·금액은 service DB에서만 읽는다.
  *
- * toss 유상 캡처는 게이트웨이 refund(취소 API 발행 + fresh 조회 검증)로 자동
+ * toss·nicepay 유상 캡처는 게이트웨이 refund(취소 API 발행 + 조회 검증)로 자동
  * 취소하고, 검증된 키만 완료 RPC에 넘긴다(#389). korpay 유상 캡처는 취소 API가
  * 없어 수동 복구 seam(goods-manual-recovery)이 정상 경로이므로 여기서는 수동
  * 검토로 승격한다. 실패·모호는 자동 종결하지 않는다.
+ *
+ * 승인 직후 서버가 곧바로 부르는 것이 정상 경로다 — 고객 자동 승인은
+ * cancellation-auto.server.ts가 시스템 actor(null)로, 클레임 콘솔·주문 콘솔 승인과
+ * 운영자 전액 취소는 그 staff actor로 부른다. 클레임 상세의 '환불 완료 확정'과 주문
+ * 패널의 '처리 상태 확인'·'상태 다시 확인'은 같은 함수를 다시 부르는 재시도 표면이다.
  */
 export async function reconcileOrderCancellation(
-  input: { requestId: string; actorId: string },
+  input: { requestId: string; actorId: CancellationActorId },
   providedDependencies?: CancellationReconciliationDependencies,
 ): Promise<CancellationReconciliationResult> {
   let dependencies: CancellationReconciliationDependencies;
@@ -395,14 +458,15 @@ export async function reconcileOrderCancellation(
     ) {
       return markNeedsReview(dependencies, input, 'payment_evidence_invalid');
     }
-    if (payment.provider !== 'toss') {
+    if (!providerCancelsAutomatically(payment.provider)) {
       // korpay는 취소 API가 없다 — 수동 복구 seam(운영자 확인)이 정상 경로다.
       return markNeedsReview(dependencies, input, 'provider_unavailable');
     }
+    const provider = payment.provider;
     /*
      * 계좌 송금으로 접수된 건에는 카드 취소를 발행하지 않는다.
      *
-     * 환불계좌는 카드 주문에도 fallback 안전망으로 수집되므로 toss 결제에도
+     * 환불계좌는 카드 주문에도 fallback 안전망으로 수집되므로 toss·nicepay 결제에도
      * refunds.method='bank_transfer'가 붙을 수 있다. 운영자가 이미 송금했는데
      * 취소 API까지 나가면 구매자가 두 번 환불받는다 — 되돌리기 어려운 쪽이라
      * 발행 전에 격리한다. 이 건을 어떻게 종결할지(운영자 확인 vs 접수 취소)는
@@ -414,10 +478,12 @@ export async function reconcileOrderCancellation(
 
     let refund: RefundOutcome;
     try {
-      refund = await dependencies.refundTossPayment({
+      refund = await dependencies.refundProviderPayment({
         paymentId: payment.id,
+        provider,
         amount: payment.amount,
         reason: 'ICONS 주문 취소',
+        paymentKey: payment.paymentKey,
       });
     } catch {
       return markNeedsReview(dependencies, input, 'provider_unavailable');
@@ -426,7 +492,7 @@ export async function reconcileOrderCancellation(
       /*
        * provider가 취소를 검증해 준 결제와 로컬 원장의 결제가 같은 건인지 대조한다.
        *
-       * 게이트웨이의 취소 검증은 orderId·통화·금액·잔액만 본다. 이 대조가 없으면
+       * 토스 게이트웨이의 취소 검증은 orderId·통화·금액·잔액만 본다. 이 대조가 없으면
        * 완료 근거가 순환한다 — 로컬 키를 verified 배열에 넣고 완료 RPC가 그 배열을
        * 다시 로컬 키와 맞춰보는 꼴이라, provider가 같은 orderId에 다른 paymentKey를
        * 돌려주는 이상 상황이 검증 없이 통과한다. 증거 키가 없어도 마찬가지로
@@ -438,13 +504,9 @@ export async function reconcileOrderCancellation(
       verifiedPaymentKeys.push(payment.paymentKey);
       continue;
     }
-    // 명시 거절(needs_review·declined)은 취소 실패로, 모호(unknown)는 provider
-    // 불가로 남긴다 — 어느 쪽도 돈이 걸린 판단을 추측으로 종결하지 않는다.
-    return markNeedsReview(
-      dependencies,
-      input,
-      refund.outcome === 'unknown' ? 'provider_unavailable' : 'provider_cancel_failed',
-    );
+    // 거절·모호 결과는 어느 쪽도 돈이 걸린 판단을 추측으로 종결하지 않는다. 사유는
+    // 게이트웨이 코드를 그대로 남긴다 — 운영자는 이 코드로 런북의 조치를 고른다.
+    return markNeedsReview(dependencies, input, refundReviewCode(refund));
   }
 
   try {

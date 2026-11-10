@@ -36,7 +36,8 @@ exception when invalid_parameter_value then null; end $$;
 do $$ begin
  perform public.merge_cart_items('[{"good_id":"option-contract-test","qty":1}]');
  raise exception 'merge silently selected default option';
-exception when check_violation then null; end $$;
+exception when invalid_parameter_value then
+ if sqlerrm<>'invalid cart item' then raise;end if;end $$;
 select public.set_cart_item_quantity('option-contract-test',(select id from public.goods_variants where good_id='option-contract-test' and is_default),2);
 select 1 / case when (select count(*) from public.cart_items where good_id='option-contract-test' and variant_id is not null)=1 then 1 else 0 end as assert_explicit_option_mutation_remains_available;
 rollback;

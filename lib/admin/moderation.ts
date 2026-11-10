@@ -24,6 +24,9 @@ export type AdminModerationFormResult<T> =
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const REPORT_STATUSES = new Set<CommunityReportStatus>(['open', 'reviewing', 'resolved', 'dismissed']);
 
+/** 신고 처리 상태의 운영자 표기. 값(open 등)은 DB 계약이고 화면은 이 이름을 보인다. */
+export const ADMIN_REPORT_STATUS_LABELS: Record<CommunityReportStatus, string> = { open: '접수', reviewing: '검토중', resolved: '처리완료', dismissed: '기각' };
+
 function readString(formData: FormData, key: string) {
   const value = formData.get(key);
   return typeof value === 'string' ? value.trim() : '';
@@ -96,3 +99,6 @@ export function normalizeAdminHideCommentForm(
     value: { commentId, reportId },
   };
 }
+export const reportTargetLabels = {
+  post: '포스트', comment: '댓글', review: '리뷰', user: '사용자',
+} as const;

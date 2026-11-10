@@ -9,6 +9,7 @@ import type {
 import { StatsClaimsScreen } from './StatsClaimsScreen';
 import { StatsCustomersScreen } from './StatsCustomersScreen';
 import { StatsSalesScreen } from './StatsSalesScreen';
+import { statsChangeTone } from '@/components/admin/StatsSummary';
 
 const filters: AdminStatsFilters = { days: 30, ipId: '' };
 
@@ -38,9 +39,11 @@ const sales: AdminSalesReport = {
   ],
 };
 
+const goodsPage = { rows: sales.goods.map((row, index) => ({ ...row, rank: index + 1 })), totalCount: sales.goods.length, page: 1, pageSize: 20, asOf: '2026-10-14T00:00:00Z' };
+
 describe('StatsSalesScreen', () => {
   it('기간 합계와 객단가를 요약으로 먼저 보여준다', () => {
-    const html = renderToStaticMarkup(<StatsSalesScreen data={sales} filters={filters} />);
+    const html = renderToStaticMarkup(<StatsSalesScreen goods={goodsPage} data={sales} filters={filters} />);
 
     expect(html).toContain('69,000');
     expect(html).toContain('23,000');
@@ -48,7 +51,7 @@ describe('StatsSalesScreen', () => {
 
   /* 무통장 도입(#256) 뒤 재고 선점 시간의 실제 비용을 보여 주는 유일한 자리다. */
   it('카드와 무통장을 이름과 구성비로 가른다', () => {
-    const html = renderToStaticMarkup(<StatsSalesScreen data={sales} filters={filters} />);
+    const html = renderToStaticMarkup(<StatsSalesScreen goods={goodsPage} data={sales} filters={filters} />);
 
     expect(html).toContain('신용·체크카드');
     expect(html).toContain('무통장 입금');
@@ -58,7 +61,7 @@ describe('StatsSalesScreen', () => {
 
   /* 굿즈는 재고·배송 축, 티켓은 이벤트 축이다. 합치면 무엇이 늘었는지 못 읽는다. */
   it('굿즈 순위와 티켓 매출을 나눠 그린다', () => {
-    const html = renderToStaticMarkup(<StatsSalesScreen data={sales} filters={filters} />);
+    const html = renderToStaticMarkup(<StatsSalesScreen goods={goodsPage} data={sales} filters={filters} />);
 
     expect(html).toContain('상품별 판매 순위');
     expect(html).toContain('티켓 매출 · 이벤트');
@@ -70,15 +73,21 @@ describe('StatsSalesScreen', () => {
 
   /* IP 필터가 URL에만 있으면 운영자가 쓸 수 없다. */
   it('굿즈 순위용 IP 필터 컨트롤을 노출한다', () => {
-    const html = renderToStaticMarkup(<StatsSalesScreen data={sales} filters={filters} />);
+    const html = renderToStaticMarkup(<StatsSalesScreen goods={goodsPage} data={sales} filters={filters} />);
 
     expect(html).toContain('name="ip"');
     expect(html).toContain('IP 필터');
   });
 
+  it('비교기간 상한 초과는 상단과 상품 영역의 엑셀 링크를 모두 대체한다', () => {
+    const html = renderToStaticMarkup(<StatsSalesScreen goods={goodsPage} comparisonGoodsTotal={10001} data={sales} filters={{ ...filters, comparisonMode: 'year' }} />);
+    expect(html).not.toContain('/api/admin/stats-workbook');
+    expect(html.match(/비교기간 상품이 10,000개를 초과/g)).toHaveLength(2);
+  });
+
   it('데이터가 없어도 빈 상태를 말한다', () => {
     const html = renderToStaticMarkup(
-      <StatsSalesScreen
+      <StatsSalesScreen goods={{ ...goodsPage, rows: [], totalCount: 0 }}
         data={{ daily: [], paymentMethods: [], goods: [], tickets: [], ticketOccurrences: [] }}
         filters={filters}
       />,
@@ -93,8 +102,8 @@ const claims: AdminClaimsReport = {
   orderCount: 3,
   claimCount: 2,
   byType: [
-    { claimType: 'cancel', total: 1, completed: 1, rejected: 0, open: 0, ratePerMille: 333.3 },
-    { claimType: 'return', total: 1, completed: 0, rejected: 0, open: 1, ratePerMille: 333.3 },
+    { claimType: 'cancel', total: 1, completed: 1, rejected: 0, withdrawn: 0, open: 0, ratePerMille: 333.3 },
+    { claimType: 'return', total: 1, completed: 0, rejected: 0, withdrawn: 0, open: 1, ratePerMille: 333.3 },
   ],
   byReason: [
     { claimType: 'cancel', reasonType: 'change_of_mind', total: 1 },
@@ -114,6 +123,33 @@ describe('StatsClaimsScreen', () => {
     expect(html).toContain('10시간');
   });
 
+  it('진행중 건수를 카드와 표에서 밝히고 유형 칸은 처리 화면으로 간다', () => {
+    const html = renderToStaticMarkup(<StatsClaimsScreen data={claims} filters={filters} />);
+    expect(html).toContain('>진행중<');
+    expect(html).toMatch(/<strong class="font-semibold text-warning tabular-nums">1<\/strong>/);
+    expect(html).toContain('href="/admin/sales/claims/returns"');
+  });
+
+  /* 2026-10-12 QA-4: 운영자 전액 취소는 구매자 단순 변심과 따로, 운영 사유별로 센다. */
+  it('운영자 전액 취소를 운영 사유별 행으로 나눈다', () => {
+    const html = renderToStaticMarkup(
+      <StatsClaimsScreen
+        data={{
+          ...claims,
+          byReason: [
+            { claimType: 'cancel', reasonType: 'staff', staffReasonCode: 'out_of_stock', total: 2 },
+            { claimType: 'cancel', reasonType: 'staff', staffReasonCode: 'test_payment_cleanup', total: 1 },
+          ],
+        }}
+        filters={filters}
+      />,
+    );
+
+    expect(html).toContain('운영자 전액 취소 · 품절·출고 불가');
+    expect(html).toContain('운영자 전액 취소 · 테스트 결제 정리');
+    expect(html).not.toContain('단순 변심');
+  });
+
   /* 판매가 없던 기간의 클레임율은 0%가 아니라 값 없음이다. */
   it('클레임율 분모가 없으면 비율 대신 값 없음을 적는다', () => {
     const html = renderToStaticMarkup(
@@ -121,7 +157,7 @@ describe('StatsClaimsScreen', () => {
         data={{
           ...claims,
           orderCount: 0,
-          byType: [{ claimType: 'cancel', total: 1, completed: 0, rejected: 0, open: 1, ratePerMille: null }],
+          byType: [{ claimType: 'cancel', total: 1, completed: 0, rejected: 0, withdrawn: 0, open: 1, ratePerMille: null }],
           refunds: { completedCount: 0, averageHours: null, within72h: 0 },
         }}
         filters={filters}
@@ -130,6 +166,36 @@ describe('StatsClaimsScreen', () => {
 
     expect(html).toContain('—');
     expect(html).not.toContain('0.0%');
+  });
+});
+
+describe('비교기간 대비 증감', () => {
+  it('요약 숫자에 오름·내림을 화살표와 색으로 보인다', () => {
+    const html = renderToStaticMarkup(<StatsSalesScreen comparison={{ ...sales, daily: [{ date: '2026-07-01', orderCount: 3, revenue: 138000, averageOrderValue: 46000 }] }} goods={goodsPage} data={sales} filters={filters} />);
+    expect(html).toMatch(/data-tone="danger"[^>]*><span aria-hidden="true"[^>]*>▼<\/span>-50\.0%/);
+  });
+
+  /* 값의 크기로 고르면 같은 하락인데 한 칸만 빨갛게 되어 규칙 없이 보인다 — 색은 방향만 본다. */
+  it('색은 방향만 보고 오르면 나쁜 지표만 뒤집는다', () => {
+    expect([statsChangeTone('up'), statsChangeTone('down'), statsChangeTone('flat')]).toEqual(['success', 'danger', 'neutral']);
+    expect([statsChangeTone('up', 'lower'), statsChangeTone('down', 'lower'), statsChangeTone('flat', 'lower')]).toEqual(['danger', 'success', 'neutral']);
+  });
+
+  it('비교 줄의 금액은 요약 카드와 같은 ₩ 표기다', () => {
+    const html = renderToStaticMarkup(<StatsSalesScreen comparison={{ ...sales, daily: [{ date: '2026-07-01', orderCount: 3, revenue: 138000, averageOrderValue: 46000 }] }} goods={goodsPage} data={sales} filters={{ ...filters, compare: true }} />);
+    expect(html).toContain('₩138,000 → ₩69,000');
+    expect(html).not.toContain('138,000원');
+  });
+
+  /* 클레임은 줄수록 좋은 지표다. 늘어난 클레임이 초록으로 보이면 거꾸로 읽는다. */
+  it('줄수록 좋은 지표는 오름을 위험색으로 보인다', () => {
+    const html = renderToStaticMarkup(<StatsClaimsScreen comparison={{ ...claims, claimCount: 1 }} data={claims} filters={filters} />);
+    expect(html).toMatch(/data-tone="danger"[^>]*><span aria-hidden="true"[^>]*>▲<\/span>\+100\.0%/);
+  });
+
+  it('비교기간 실적이 없으면 방향 없이 말한다', () => {
+    const html = renderToStaticMarkup(<StatsClaimsScreen comparison={{ ...claims, claimCount: 0 }} data={claims} filters={filters} />);
+    expect(html).toMatch(/data-tone="neutral"[^>]*><span aria-hidden="true"[^>]*>–<\/span>비교기간 실적 없음/);
   });
 });
 
@@ -167,6 +233,12 @@ describe('StatsCustomersScreen', () => {
     );
 
     expect(html).toContain('기간 내 재구매율');
+  });
+
+  it('바로 처리할 건수는 처리 화면 링크로 밝힌다', () => {
+    const html = renderToStaticMarkup(<StatsCustomersScreen data={customers} filters={filters} />);
+    expect(html).toContain('href="/admin/cs/inquiries?status=open"');
+    expect(html).toContain('href="/admin/cs/reviews?reply=without&amp;status=visible"');
   });
 
   it('리뷰 평균과 평점 분포를 함께 보여준다', () => {

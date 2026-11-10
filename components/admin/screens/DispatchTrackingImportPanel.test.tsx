@@ -18,6 +18,15 @@ describe('운송장 업로드 후속 동선', () => {
     expect(html).toContain('name="originId"');expect(html).toContain('value="selected-origin"');
     expect(html).toContain('김포');expect(html).toContain('21열');expect(html).toContain('주문번호(쇼핑몰)');
     expect(html).toContain('배송건번호 · 택배사코드 · 운송장번호');
+    expect(html).toContain('상품주문번호 · 배송방법 · 택배사 · 송장번호');
+    expect(html).toContain('암호를 해제');expect(html).toContain('발송처리');expect(html).toContain('안내 행이 있는 파일만');expect(html).toContain('머리글 행은 유지');
+  });
+
+  it('남양주(서원) 송장양식 회신 방법과 덮어쓰지 않는 정정 경로를 안내한다',()=>{
+    const html=renderToStaticMarkup(<DispatchTrackingImportPanel carriers={[]} />);
+    expect(html).toContain('남양주(서원) 송장양식');expect(html).toContain('송장번호');
+    expect(html).toContain('받는분전화번호·주소·품목명·수량');expect(html).toContain('파일 양식으로 찾고');
+    expect(html).toContain('이미 발송된 배송 건의 운송장은 덮어쓰지 않습니다.');expect(html).toContain('운송장 수정');
   });
 
   it('목록에서는 접혀 있고 작업을 펼치면 파일 선택과 등록을 제공한다', () => {
@@ -25,6 +34,8 @@ describe('운송장 업로드 후속 동선', () => {
     expect(html).not.toContain('<details');
     expect(html).toContain('type="file"');
     expect(html).toContain('일괄 등록');
+    /* kit Button은 type이 없으면 button이 된다 — 일괄 등록은 양식을 제출한다. */
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>일괄 등록</);
     expect(html).not.toContain('배송현황에서 결과 확인');
   });
 
@@ -36,7 +47,7 @@ describe('운송장 업로드 후속 동선', () => {
     const html = renderToStaticMarkup(<DispatchTrackingImportPanel carriers={[]} shippingHref="/admin/sales/shipping?tab=transit&page=1&originId=warehouse" />);
     expect(html).toContain('배송현황에서 결과 확인');
     expect(html).toContain('href="/admin/sales/shipping?tab=transit&amp;page=1&amp;originId=warehouse"');
-    expect(html).toContain('실패 행 내려받기');
+    expect(html).toContain('실패 행 내려받기');expect(html).toContain('대상(상품주문·배송건·주문·받는 분)');
     expect(html).toContain('00000002');
     expect(html).toContain('배송 건을 찾을 수 없습니다.');
   });

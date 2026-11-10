@@ -1,5 +1,7 @@
 \set ON_ERROR_STOP on
 begin;
+-- Keep the default contract assertion independent of saved QA examples.
+update public.store_settings set inquiry_auto_replies=default where singleton;
 select 1 / case when (select count(*) from public.store_settings s,jsonb_each(s.inquiry_auto_replies))=5
   and not exists(select 1 from public.store_settings s,jsonb_each(s.inquiry_auto_replies) c where c.value->>'enabled'<>'false' or c.value->>'body'<>'')
   then 1 else 0 end as assert_all_disabled_by_default;
@@ -53,7 +55,7 @@ begin
   begin
     perform public.admin_save_store_settings('inquiry_auto_replies',settings,initial.updated_at);
     raise exception 'stale settings accepted';
-  exception when serialization_failure then null; end;
+  exception when sqlstate 'PT409' then null; end;
   if public.get_storefront_settings() ? 'inquiry_auto_replies' then raise exception 'public config leak'; end if;
 end $$;
 reset role;

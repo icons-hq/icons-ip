@@ -1,0 +1,33 @@
+{
+  "provider": "국토교통부 국가공간정보센터",
+  "datasetId": "15063424",
+  "datasetUrl": "https://www.data.go.kr/data/15063424/fileData.do",
+  "metadataUrl": "https://www.data.go.kr/catalog/15063424/fileData.json",
+  "downloadUrl": "https://www.data.go.kr/cmm/cmm/fileDownload.do?atchFileId=FILE_000000003687312&fileDetailSn=1&insertDataPrcus=N",
+  "datasetTitleDate": "2026-06-30",
+  "fileModifiedDate": "2026-07-29",
+  "originalFilename": "국토교통부_전국_법정동_20260729.csv",
+  "retrievedAt": "2026-10-14",
+  "sourceFile": "legal-regions.csv",
+  "sourceSha256": "e5657d4b53a16f72e42e9c0d91e84ff2d647e70dc56b9408da6fd057d0da45c3",
+  "license": "이용허락범위 제한 없음",
+  "licenseEvidence": {
+    "url": "https://www.data.go.kr/data/15063424/fileData.do",
+    "verifiedAt": "2026-10-14",
+    "fileTabStatements": [
+      "이용허락범위 제한 없음",
+      "무료",
+      "파일데이터는 로그인 없이 다운로드를 통해 이용하실 수 있습니다."
+    ]
+  },
+  "rowCount": 20561,
+  "provinceCount": 16,
+  "districtCount": 268,
+  "excludedRepeatedSejongCode": "3611000000",
+  "verifiedAgainst": {
+    "url": "https://www.mois.go.kr/frt/bbs/type001/commonSelectBoardArticle.do?bbsId=BBSMSTR_000000000052&nttId=130109",
+    "effectiveDate": "2026-10-12",
+    "scope": "province and city/county/district code-name sets only; spaces normalized; lower levels excluded"
+  },
+  "generatedSha256": "4f1fc0c22dc72b30748bf4525a537f59838e696dbcb0714895911a7955d6ad66"
+}

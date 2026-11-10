@@ -1,0 +1,14 @@
+.claim-fees { display: grid; gap: 12px; min-width: 0; margin-block: 16px; }
+.claim-fees h3, .claim-fees p { margin: 0; line-height: 1.6; overflow-wrap: anywhere; }
+.claim-fees > .btn { justify-self: start; }
+.claim-fees__invoice { padding: 12px; border: 1px solid var(--wc-hairline); display: grid; gap: 8px; }
+.claim-fees fieldset { display: grid; gap: 12px; min-width: 0; padding: 12px; margin: 0 0 12px; border: 1px solid var(--wc-hairline); }
+.claim-fees label { display: grid; gap: 6px; min-width: 0; }
+.claim-fees input:not([type="checkbox"]), .claim-fees select, .claim-fees textarea { box-sizing: border-box; width: 100%; min-width: 0; min-height: 40px; border: 1px solid var(--wc-line-control); padding: 8px; font: inherit; color: var(--wc-ink); background: var(--wc-surface); }
+.claim-fees .claim-fees__check, .claim-fees__actions { display: flex; align-items: start; gap: 8px; }
+.claim-fees__actions { flex-wrap: wrap; align-items: center; }
+.claim-fees__check input { margin-top: 4px; width: auto; flex: 0 0 auto; }
+.claim-fees li { margin-block: 8px; overflow-wrap: anywhere; }
+@media (max-width: 900px) {
+  .claim-fees input:not([type="checkbox"]), .claim-fees select, .claim-fees textarea { min-height: 44px; }
+}

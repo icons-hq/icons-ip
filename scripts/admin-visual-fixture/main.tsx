@@ -1,3 +1,4 @@
+import { ADMIN_CAPABILITIES, type OperatorAccess } from '../../lib/admin/access';
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { AdminShell } from '../../components/admin/AdminShell';
@@ -11,30 +12,58 @@ import { GoodsListScreen } from '../../components/admin/screens/GoodsListScreen'
 import { normalizeGoodsListFilters, type AdminGoodsListData } from '../../lib/admin/goods-list';
 import type { GoodsOptionRow } from '../../lib/admin/goods-option-editor';
 import { FIXTURE_GOODS, FIXTURE_IPS, FIXTURE_OPTION_ROWS } from './fixtures';
+import { OverviewSection } from '../../components/admin/sections/Overview';
+import { ConsoleGrid } from '../../components/admin/console/ConsoleGrid';
+import { adminInsightPeriod } from '../../lib/admin/home-summary';
+import { StatsSalesScreen } from '../../components/admin/screens/StatsSalesScreen';
+import { normalizeAdminStatsFilters } from '../../lib/admin/stats';
+import { PurchaseRestrictionsFixture } from './purchase-restrictions';
+import { CouponsFixture } from './coupons';
+import { GoodsAnnouncementsFixture } from './announcements';
+import { StoreEditorFixture } from './store-editor';
+import { CustomerServiceFixture, FIXTURE_HOME_ATTENTION } from './customer-service';
+import { OrderItemsFixture, ReturnClaimsFixture } from './sales';
 import './fixture.css';
 import '../../app/globals.css';
 import '../../app/styles/wc-foundation.css';
 import '../../app/styles/wc-admin-surfaces.css';
 import '../../app/styles/wc-admin.css';
+import '../../app/styles/admin-font.css';
 import '../../app/styles/wc-catalog.css';
-import '../../app/styles/admin-goods-worklist.css';
-import '../../app/styles/wc-admin-option-artwork.css';
-import '../../app/styles/admin-ux-521.css';
-import '../../app/styles/admin-faq.css';
-import '../../app/styles/admin-goods-notice-presets.css';
+import '../../app/styles/wc-home.css';
+import '../../app/styles/wc-chrome.css';
+import '../../app/styles/admin-sales-console.css';
 import '../../app/styles/admin-order-detail.css';
-import '../../app/styles/admin-customer-detail.css';
-import '../../app/styles/admin-store-settings.css';
+/* 앱 레이아웃처럼 옛 클래스 어휘의 kit 옷을 관리자 CSS 뒤에 싣는다(ADR-0028). */
+import '../../app/styles/admin-kit-vocabulary.css';
 
-type FixtureView = 'goods' | 'filter-date' | 'options' | 'editor' | 'inquiry-settings' | 'kc-presets' | 'kc-editor' | 'shell';
+type FixtureView = 'goods' | 'filter-date' | 'options' | 'editor' | 'inquiry-settings' | 'kc-presets' | 'kc-editor' | 'shell' | 'overview' | 'grid' | 'cs-qna' | 'cs-reviews' | 'cs-inquiries' | 'store-editor' | 'stats' | 'purchase-restrictions' | 'announcements' | 'announcement-public' | 'coupons' | 'claims' | 'orders';
 
-const ADMIN = { id: 'fixture-staff', email: 'fixture.staff@local.test', role: 'staff' };
+const ADMIN = { id: 'fixture-staff', email: 'fixture.staff@local.test', role: 'staff', operatorAccess: { mode: 'legacy', managerRole: null, capabilities: [...ADMIN_CAPABILITIES], revision: 0, setupRequired: true } as OperatorAccess };
 
 function currentView(): FixtureView {
   const params = new URLSearchParams(window.location.search);
   const value = params.get('view');
+  if (value === 'claims') return 'claims';
+  if (value === 'orders' || value === 'items') return 'orders';
+  if (value === 'cs-qna' || value === 'cs-reviews' || value === 'cs-inquiries') return value;
+  if (value === 'coupons') return value;
+  if (value === 'announcements' || value === 'announcement-public') return value;
+  if (value === 'purchase-restrictions') return value;
+  if (value === 'store-editor' || value === 'stats') return value;
+  if (value === 'overview' || value === 'grid') return value;
   if (value === 'kc-presets' || value === 'kc-editor' || value === 'inquiry-settings' || value === 'filter-date' || value === 'options' || value === 'editor' || value === 'shell') return value;
+  if (window.location.pathname.startsWith('/admin/sales/purchase-restrictions')) return 'purchase-restrictions';
+  if (window.location.pathname.startsWith('/admin/sales/claims/returns')) return 'claims';
   if (window.location.pathname.startsWith('/admin/sales/orders')) return 'filter-date';
+  if (window.location.pathname.startsWith('/admin/cs/qna')) return 'cs-qna';
+  if (window.location.pathname.startsWith('/admin/cs/reviews')) return 'cs-reviews';
+  if (window.location.pathname.startsWith('/admin/cs/inquiries')) return 'cs-inquiries';
+  if (window.location.pathname.startsWith('/admin/sales/coupons')) return 'coupons';
+  if (window.location.pathname === '/admin/catalog/announcements') return 'announcements';
+  if (window.location.pathname === '/admin/display/curations') return 'store-editor';
+  if (window.location.pathname === '/admin/stats/sales') return 'stats';
+  if (window.location.pathname === '/admin') return 'overview';
   if (window.location.pathname.startsWith('/admin/catalog/goods')) return 'goods';
   return 'goods';
 }
@@ -46,14 +75,16 @@ function goodsData(): AdminGoodsListData {
   const goods = query
     ? FIXTURE_GOODS.filter((good) => `${good.name} ${good.code} ${good.id}`.toLocaleLowerCase('ko-KR').includes(query))
     : FIXTURE_GOODS;
-  return { filters, goods, total: goods.length, ips: FIXTURE_IPS };
+  return { filters, goods, total: goods.length, ips: FIXTURE_IPS, checkedAt: '2026-10-12T06:00:00Z', counts: { all: 6, active: 5, draft: 2, published: 3, archived: 1 }, stockCounts: { out_of_stock: 0, low: 1 }, origins: [{ id: '00000000-0000-4000-8000-000000000011', name: '기본 출고지', active: true }], categories: [{ id: '00000000-0000-4000-8000-000000000012', name: '수집품', depth: 1, archivedAt: null }] };
 }
 
 function RouteSwitcher({ active }: { active: FixtureView }) {
+  const params = new URLSearchParams(window.location.search);
+  const capture = params.get('capture') === '1' || params.get('clean') === '1';
   return (
-    <nav aria-label="Fixture route selector" className="fixture-route-switcher">
+    <nav aria-label="Fixture route selector" className="fixture-route-switcher" hidden={capture}>
       <span className="fixture-route-switcher__label">component fixture</span>
-      {(['goods', 'filter-date', 'options', 'editor', 'inquiry-settings', 'kc-presets', 'kc-editor', 'shell'] as FixtureView[]).map((view) => (
+      {(['goods', 'filter-date', 'options', 'editor', 'inquiry-settings', 'kc-presets', 'kc-editor', 'shell', 'overview', 'grid', 'store-editor', 'stats', 'purchase-restrictions', 'announcements', 'announcement-public', 'coupons', 'cs-qna', 'cs-reviews', 'cs-inquiries', 'orders', 'claims'] as FixtureView[]).map((view) => (
         <a className={view === active ? 'is-active' : undefined} href={`/?view=${view}`} key={view}>
           {view}
         </a>
@@ -66,7 +97,7 @@ function FixtureFrame({ view, children }: { view: FixtureView; children: React.R
   return (
     <>
       <RouteSwitcher active={view} />
-      <AdminShell admin={ADMIN}>
+      <AdminShell admin={{ ...ADMIN, id: new URLSearchParams(window.location.search).get('account') || ADMIN.id }}>
         {children}
       </AdminShell>
     </>
@@ -75,6 +106,34 @@ function FixtureFrame({ view, children }: { view: FixtureView; children: React.R
 
 function GoodsFixture() {
   return <GoodsListScreen data={goodsData()} />;
+}
+
+function OverviewFixture() {
+  const days = adminInsightPeriod(new URLSearchParams(window.location.search).get('period'));
+  return <OverviewSection days={days} reports={[]} attention={FIXTURE_HOME_ATTENTION} insights={{
+    revenue: { current: 1585000, previous: 1250000 }, paymentCount: { current: 79, previous: 60 },
+    avgPayment: { current: 20063, previous: 20833 }, signupCount: { current: 12, previous: 9 },
+    dailyRevenue: Array.from({ length: days }, (_, index) => ({ date: `2026-09-${String(index + 1).padStart(2, '0')}`, goods: index % 3 === 0 ? 85000 : 42000, tickets: index % 2 ? 12000 : 0 })),
+    pipeline: [{ status: 'paid', count: 16 }, { status: 'confirmed', count: 85 }, { status: 'shipping', count: 32 }, { status: 'delivered', count: 154 }, { status: 'done', count: 906 }],
+    recentOrders: [], topIps: [],
+  }} workQueue={{ checkedAt: '2026-10-12T08:00:00Z', counts: { orders: { state: 'ready', count: 16 }, ready: { state: 'ready', count: 92 }, delayed: { state: 'ready', count: 3 }, inquiries: { state: 'ready', count: 5 }, goods: { state: 'ready', count: 8 }, unpaid: { state: 'ready', count: 4 }, refundTransfers: { state: 'ready', count: 1 } }, goodsReasons: [] }} summary={{
+    claims: { cancel: 2, return: 1, exchange: 3 }, goods: { published: 186, soldout: 12 }, reviews: { total: 342, lowRating: 2, awaitingReply: 8 },
+  }} />;
+}
+
+function StatsFixture() {
+  const filters = normalizeAdminStatsFilters(Object.fromEntries(new URLSearchParams(window.location.search)));
+  const data = { daily: [{ date: '2026-10-10', orderCount: 12, revenue: 312000, averageOrderValue: 26000 }, { date: '2026-10-11', orderCount: 17, revenue: 425000, averageOrderValue: 25000 }, { date: '2026-10-12', orderCount: 9, revenue: 189000, averageOrderValue: 21000 }], paymentMethods: [{ method: 'card', orderCount: 38, revenue: 926000 }], goods: FIXTURE_GOODS.map(good => ({ goodId: good.id, name: good.name, ipId: good.ipId, qty: 3, revenue: 30000 })), tickets: [], ticketOccurrences: [] };
+  return <StatsSalesScreen goods={{ rows: data.goods.map((row, index) => ({ ...row, rank: index + 1 })), totalCount: data.goods.length, page: 1, pageSize: 20, asOf: '2026-10-14T00:00:00Z' }} data={data} filters={filters} comparison={filters.compare ? { ...data, daily: [{ date: '2026-09-10', orderCount: 12, revenue: 530000, averageOrderValue: 44166 }] } : null} />;
+}
+
+function GridFixture() {
+  const [selection, setSelection] = useState<string[]>([]);
+  return <section className="wc-admin-kit"><ConsoleGrid caption="조회항목 동작 검수" preferencesKey="fixture-grid" selectable selectedIds={selection} onSelectionChange={setSelection}
+    columns={['주문번호', '구매자', '상품명', '옵션', '수량', '결제금액', '배송방법', '운송장번호'].map((label, index) => ({ key: `column-${index}`, label, width: '180px', align: index === 5 ? 'end' as const : 'start' as const }))}
+    rows={Array.from({ length: 5 }, (_, index) => ({ id: `order-${index}`, cells: [`주문-${index}`, `고객-${index}`, `상품-${index}`, `옵션-${index}`, `${index + 1}개`, `${(index + 1) * 10000}원`, '택배', `운송장-${index}`] }))}>
+    <p role="status">선택 {selection.length}건</p>
+  </ConsoleGrid></section>;
 }
 
 function DateFilterFixture() {
@@ -172,7 +231,7 @@ function OptionsFixture() {
       <header className="wc-admin-kit wc-admin-kit__page-header">
         <div>
           <h2 className="wc-admin-kit__heading">상품 옵션 편집 fixture</h2>
-          <p className="wc-admin-kit__description">실제 GoodsOptionEditor. 조합 생성과 행 상태 변경은 브라우저 로컬 상태만 바꿉니다.</p>
+          <p className="wc-admin-kit__description">실제 GoodsOptionEditor. 옵션목록으로 적용·일괄수정과 행 상태 변경은 브라우저 로컬 상태만 바꿉니다.</p>
         </div>
       </header>
       <GoodsOptionEditor
@@ -229,11 +288,15 @@ function App() {
   }, []);
   const content = view === 'goods'
     ? <GoodsFixture />
+    : view === 'orders' ? <OrderItemsFixture />
+    : view === 'claims' ? <ReturnClaimsFixture />
     : view === 'filter-date'
       ? <DateFilterFixture />
       : view === 'options'
         ? <OptionsFixture />
-        : view === 'editor' ? <GoodEditorFixture /> : view === 'inquiry-settings' ? <InquirySettingsFixture />
+        : view === 'coupons' ? <CouponsFixture /> : view === 'announcements' || view === 'announcement-public' ? <GoodsAnnouncementsFixture publicView={view === 'announcement-public'} /> : view === 'purchase-restrictions' ? <PurchaseRestrictionsFixture /> : view === 'stats' ? <StatsFixture /> : view === 'store-editor' ? <StoreEditorFixture /> : view === 'overview' ? <OverviewFixture /> : view === 'grid' ? <GridFixture />
+          : view === 'cs-qna' || view === 'cs-reviews' || view === 'cs-inquiries' ? <CustomerServiceFixture view={view} />
+          : view === 'editor' ? <GoodEditorFixture /> : view === 'inquiry-settings' ? <InquirySettingsFixture />
           : view === 'kc-presets' ? <KcPresetFixture /> : view === 'kc-editor' ? <KcTemplateFixture /> : <ShellFixture />;
   return <FixtureFrame view={view}>{content}</FixtureFrame>;
 }

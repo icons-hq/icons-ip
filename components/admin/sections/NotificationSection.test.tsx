@@ -154,13 +154,14 @@ describe('NotificationSection', () => {
       title: '제목',
     });
     const tree = NotificationSection({ data, operationId: '11111111-1111-4111-8111-111111111111' });
+    /* 제목·대상은 kit Input·NativeSelect(컴포넌트 요소)라 태그 이름 대신 제출 name으로 찾는다. */
     const titleInput = findElement(
       tree,
-      (element) => element.type === 'input' && (element.props as { name?: string }).name === 'title',
+      (element) => (element.props as { name?: string }).name === 'title',
     );
     const scopeSelect = findElement(
       tree,
-      (element) => element.type === 'select' && (element.props as { name?: string }).name === 'scope',
+      (element) => (element.props as { name?: string }).name === 'scope',
     );
 
     (titleInput?.props as { onChange: (event: { target: { value: string } }) => void }).onChange({ target: { value: '바꾼 제목' } });

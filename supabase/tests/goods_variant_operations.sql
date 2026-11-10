@@ -215,7 +215,7 @@ select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000046802'
 do $$ begin
  perform public.admin_set_goods_variant_active('variant-operations','00000000-0000-4000-8000-000000046899',true,now(),10000);
  raise exception 'buyer changed an option';
-exception when insufficient_privilege then if sqlerrm<>'forbidden' then raise; end if;
+exception when insufficient_privilege then if sqlerrm not in ('forbidden','operator_capability_required') then raise; end if;
 end $$;
 reset role;
 set constraints public.goods_variants_require_default immediate;

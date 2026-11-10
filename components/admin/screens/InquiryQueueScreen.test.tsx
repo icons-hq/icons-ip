@@ -21,6 +21,7 @@ function data(overrides: Partial<AdminInquiryConsoleData> = {}): AdminInquiryCon
     },
     pageSize: 20,
     total: 2,
+    satisfactionSummary: { satisfied: 3, dissatisfied: 1, unrated: 6 },
     rows: [
       {
         id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
@@ -68,6 +69,23 @@ function data(overrides: Partial<AdminInquiryConsoleData> = {}): AdminInquiryCon
 }
 
 describe('InquiryQueueScreen', () => {
+  it('검색과 목록을 앞에 두고 상태별 집계·만족도·문의 바로가기를 보존한다', () => {
+    const html = renderToStaticMarkup(<InquiryQueueScreen data={data()} now={NOW} />);
+    expect(html.indexOf('data-console-filters')).toBeLessThan(html.indexOf('data-slot="table"'));
+    expect(html.indexOf('data-slot="table"')).toBeLessThan(html.indexOf('답변 만족도 요약'));
+    expect(html).toContain('문의·리뷰 관리');
+    expect(html).toContain('aria-live="polite"');
+    expect(html).toContain('미답변 2건');
+    expect(html).toContain('평가 응답 중 만족 비율 75%');
+  });
+  it('만족도 필터와 평가 응답 분모를 표시하고 미평가를 0점으로 계산하지 않는다', () => {
+    const html = renderToStaticMarkup(<InquiryQueueScreen data={data()} now={NOW} />);
+    expect(html).toContain('name="satisfaction"');
+    expect(html).toContain('평가 응답 중 만족 비율 75%');
+    expect(html).toContain('만족도 선택을 제외한 현재 조회 조건');
+    const empty = renderToStaticMarkup(<InquiryQueueScreen data={data({ satisfactionSummary: { satisfied: 0, dissatisfied: 0, unrated: 10 } })} now={NOW} />);
+    expect(empty).toContain('평가 응답 중 만족 비율 —'); expect(empty).toContain('평가 응답 없음');
+  });
   it.each([
     ['2026-09-06T00:00:00.001Z', 'open', false],
     ['2026-09-06T00:00:00.000Z', 'open', true],
@@ -78,6 +96,66 @@ describe('InquiryQueueScreen', () => {
     const source = data();
     const html = renderToStaticMarkup(<InquiryQueueScreen data={{ ...source, rows: [{ ...source.rows[0], waitingSince, status, answeredAt: '2026-09-01T00:00:00Z' }] }} now={new Date('2026-09-07T00:00:00Z')} />);
     expect(html.includes('미답변 24시간 경과')).toBe(overdue);
+  });
+
+  /* 비슷한 숫자 둘이 함께 빨가면 어느 것이 기준인지 망설인다 — 위험색은 1차 답변 기한 칸에만 쓰고, 경과 일수는 회색 글자다. */
+  it('24시간을 넘긴 미답변은 경과 일수를 회색 글자로 보이고 위험색은 기한 칸에만 쓴다', () => {
+    const source = data();
+    const rows = [
+      { ...source.rows[0], id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1', waitingSince: '2026-08-14T05:00:00.000Z' },
+      { ...source.rows[0], id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2', waitingSince: '2026-08-18T05:00:00.000Z' },
+    ];
+    const html = renderToStaticMarkup(<InquiryQueueScreen data={{ ...source, rows }} now={NOW} />);
+    expect(html).toContain('6일 경과');
+    expect(html).toContain('2일 경과');
+    expect(html).not.toMatch(/data-tone="(?:danger|warning)"[^>]*>\d+일 경과</);
+    expect(html).toContain('data-sla-tone="danger"');
+  });
+
+  /* '16일 경과'·'최근 16일 전'·'기한 초과 13일'처럼 같은 뜻의 시간 글씨가 한 줄에 세 번 나오지 않게 한다. */
+  it('경과일을 보이는 줄에는 최근 시각을 되풀이하지 않고 그 밖의 줄은 그대로 보인다', () => {
+    const source = data();
+    const overdue = renderToStaticMarkup(<InquiryQueueScreen data={{ ...source, rows: [{ ...source.rows[0], waitingSince: '2026-08-14T05:00:00.000Z' }] }} now={NOW} />);
+    expect(overdue).toContain('6일 경과');
+    expect(overdue).not.toContain('최근 2일 전');
+    const answered = renderToStaticMarkup(<InquiryQueueScreen data={{ ...source, rows: [source.rows[1]] }} now={NOW} />);
+    expect(answered).not.toContain('일 경과');
+    expect(answered).toContain('최근 1시간 전');
+  });
+
+  /* 표가 카드 끝에서 잘린 듯 끝나면 오른쪽에 칸이 더 있는지 모른다 — 담당자가 마지막 칸으로 들어오게 참고 칸을 기본에서 뺀다. */
+  it('담당자가 기본 표의 마지막 칸이고 답변 만족도 칸은 조회항목 설정으로 켠다', () => {
+    const html = renderToStaticMarkup(<InquiryQueueScreen data={data()} now={NOW} />);
+    const head = html.slice(html.indexOf('<thead'), html.indexOf('</thead>'));
+    expect(head).toMatch(/>담당자<\/th><\/tr>$/);
+    expect(head).not.toContain('답변 만족도');
+    expect(html).toContain('name="satisfaction"');
+  });
+
+  /* 첫 화면을 문의가 차지한다 — 기본 미답변 큐에서는 조회 조건을 접고, 조건이 걸리면 펼쳐서 보인다. */
+  it('기본 큐는 조회 조건을 접고 조건이 있으면 펼친다', () => {
+    const openSearch = /<details(?=[^>]*data-cs-search="")(?=[^>]*\sopen="")/;
+    expect(renderToStaticMarkup(<InquiryQueueScreen data={data()} now={NOW} />)).not.toMatch(openSearch);
+    const source = data();
+    expect(renderToStaticMarkup(<InquiryQueueScreen data={{ ...source, filters: { ...source.filters, query: '배송' } }} now={NOW} />)).toMatch(openSearch);
+    expect(renderToStaticMarkup(<InquiryQueueScreen data={{ ...source, filters: { ...source.filters, status: 'answered' } }} now={NOW} />)).toMatch(openSearch);
+  });
+
+  /* 1440 화면에서 답변처리가 잘리지 않게 앞에 두고, 경과일은 제목 길이에 따라 옮겨 다니지 않게 상태 아래에 고정한다. */
+  it('답변처리를 구매자 앞에 두고 경과일을 상태 칸 안에 그린다', () => {
+    const html = renderToStaticMarkup(<InquiryQueueScreen data={data()} now={NOW} />);
+    const head = html.slice(html.indexOf('<thead'), html.indexOf('</thead>'));
+    expect(head.indexOf('>처리<')).toBeGreaterThan(-1);
+    expect(head.indexOf('>처리<')).toBeLessThan(head.indexOf('>구매자<'));
+    expect(head.indexOf('>구매자<')).toBeLessThan(head.indexOf('>연결 주문<'));
+    expect(html).toMatch(/>미답변<\/span><span(?=[^>]*title="미답변 24시간 경과")[^>]*>2일 경과</);
+  });
+
+  it('상태 칸과 건수 카드는 상태 표(status-tone)의 색을 따른다', () => {
+    const html = renderToStaticMarkup(<InquiryQueueScreen data={data()} now={NOW} />);
+    expect(html).toMatch(/data-tone="warning"[^>]*>미답변</);
+    expect(html).toMatch(/data-tone="success"[^>]*>답변 완료</);
+    expect(html).toMatch(/<a(?=[^>]*aria-label="답변 완료 5건")(?=[^>]*data-tone="success")/);
   });
 
   it('이슈가 요구한 큐 컬럼을 순서대로 보여준다', () => {

@@ -49,7 +49,7 @@ do $$ declare target public.faq_entries; begin
   begin
     perform public.admin_save_faq_entry(target.id,'order','덮어쓰기','이전 버전',0,true,target.updated_at - interval '1 second');
     raise exception 'stale edit was allowed';
-  exception when serialization_failure then null; end;
+  exception when sqlstate 'PT409' then null; end;
 end $$;
 
 set local role anon;

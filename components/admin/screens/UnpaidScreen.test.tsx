@@ -74,7 +74,27 @@ describe('UnpaidScreen', () => {
 
     expect(html).toContain('연장됨');
     /* 2시간 남은 주문 하나만 임박이다 — 20시간 남은 주문까지 붉으면 신호가 죽는다. */
-    expect(html.match(/admin-badge--warn/g)).toHaveLength(1);
+    expect(html.match(/data-tone="warning"/g)).toHaveLength(1);
+  });
+
+  /* 사람 눈 판정(3·4라운드): 색만 다르면 흰 버튼이 못 누르는 것처럼 보이고, 같은 말이면 눌러도 되는지 망설였다. 모양은 같게, 말로 구분한다. */
+  it('기한 종료·결제 확인 필요 줄은 같은 버튼이고 말만 "확인·처리"로 다르다', () => {
+    const data = consoleData();
+    const link = (row: typeof data.rows[number]) => renderToStaticMarkup(<UnpaidScreen data={{ ...data, rows: [row] }} now={now} />).match(/<a[^>]*#unpaid-actions"[^>]*>[^<]*<\/a>/)?.[0] ?? '';
+    expect(link(data.rows[0])).toContain('bg-primary-soft');
+    expect(link(data.rows[0])).toContain('>입금 확인<');
+    for (const row of [{ ...data.rows[0], expiresAt: '2026-08-17T23:00:00.000Z' }, { ...data.rows[0], attemptState: 'needs_review' as const }]) {
+      expect(link(row)).toContain('bg-primary-soft');
+      expect(link(row)).toContain('>확인·처리<');
+    }
+  });
+
+  /* 사람 눈 판정: 제일 급한 기한 종료가 보통 글씨로 지나갔다. */
+  it('기한이 끝난 주문은 위험 표시로, 처리는 행마다 버튼으로 연다', () => {
+    const data = consoleData();
+    const html = renderToStaticMarkup(<UnpaidScreen data={{ ...data, rows: [{ ...data.rows[0], expiresAt: '2026-08-17T23:00:00.000Z' }] }} now={now} />);
+    expect(html).toMatch(/data-tone="danger"[^>]*>기한 종료</);
+    expect(html).toMatch(/<a[^>]*href="\/admin\/sales\/unpaid\?order=[^"]*#unpaid-actions"[^>]*>확인·처리<\/a>/);
   });
 
   /*
@@ -93,7 +113,7 @@ describe('UnpaidScreen', () => {
       />,
     );
 
-    expect(html).toContain('정합화 필요');
+    expect(html).toContain('결제 확인 필요');
   });
 
   it('주문을 고르기 전에는 처리 폼을 열지 않는다', () => {
@@ -121,6 +141,10 @@ describe('UnpaidScreen', () => {
     expect(html).toContain('입금 확인');
     expect(html).toContain('기한 24시간 연장');
     expect(html).toContain('즉시 취소');
+    /* kit Button은 type이 없으면 button이 된다 — 세 양식 모두 제출 버튼으로 보낸다. */
+    for (const label of ['입금 확인', '기한 24시간 연장', '즉시 취소']) {
+      expect(html).toMatch(new RegExp(`<button[^>]*type="submit"[^>]*>${label}<`));
+    }
   });
 
   /* 연장은 주문당 1회다. 폼이 열려 있으면 운영자가 눌러 보고 실패를 본다. */
@@ -183,6 +207,8 @@ describe('UnpaidScreen 입금 내역 큐', () => {
     expect(html).toContain('주문코드·금액 일치');
     expect(html).toContain('이 주문으로 확정');
     expect(html).toContain('큐에서 내리기');
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>이 주문으로 확정</);
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>큐에서 내리기</);
   });
 
   /* 금액이 다른 제안은 부분 입금일 수도, 남의 주문일 수도 있다. */
@@ -216,5 +242,13 @@ describe('UnpaidScreen 입금 내역 큐', () => {
     expect(html).toContain('대조되는 미입금 주문을 찾지 못했습니다');
     expect(html).not.toContain('이 주문으로 확정');
     expect(html).toContain('큐에서 내리기');
+  });
+});
+
+describe('미입금 확인 목록 엑셀 다운로드', () => {
+  it('검색어만 담고 선택 주문·페이지는 버린다', () => {
+    const html = renderToStaticMarkup(<UnpaidScreen data={consoleData({ filters: { query: '9A3F', page: 3, selectedOrderId: '9a3f21c0-1111-4000-8000-000000000abc' } })} now={now} />);
+    expect(html).toContain('목록 엑셀 다운로드');
+    expect(html).toContain('data-export-href="/api/admin/list-export?screen=unpaid&amp;q=9A3F"');
   });
 });

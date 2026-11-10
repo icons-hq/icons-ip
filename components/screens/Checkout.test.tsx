@@ -3,6 +3,9 @@ import { describe, expect, it, vi } from 'vitest';
 import type { CartItem } from '@/lib/cart';
 import type { Good } from '@/lib/data';
 import type { AddressGoodsSalesQuote } from '@/lib/shipping-regions';
+import { EMPTY_CHECKOUT_ADDRESS_PREFILL, type CheckoutAddressPrefill } from '@/lib/address-book';
+import type { UserCouponSummary } from '@/lib/coupons';
+import type { CartCouponState } from '@/lib/coupons.server';
 import { Checkout, checkoutMethodAvailable } from './Checkout';
 
 const mocks = vi.hoisted(() => ({ items: [] as CartItem[], sales: null as AddressGoodsSalesQuote | null }));
@@ -13,10 +16,13 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
 vi.mock('@/app/checkout/actions', () => ({ placeOrderAction: vi.fn() }));
+vi.mock('@/app/cart/coupon-actions', () => ({ applyCouponAction: vi.fn(), applyCouponCodeAction: vi.fn(), clearCouponAction: vi.fn() }));
+vi.mock('@/app/my/addresses/actions', () => ({ saveAddressBookEntryAction: vi.fn() }));
 vi.mock('@/components/checkout/PostcodeField', () => ({
   PostcodeField: () => <div data-postcode-field />,
 }));
 vi.mock('@/components/shell/CartProvider', () => ({
+  useReleaseUnpaidCartOrders: () => true,
   useCart: () => ({
     items: mocks.items,
     ready: true,
@@ -53,6 +59,19 @@ const goods: Good[] = [
     img: 'none',
     allowBankTransfer: false,
   },
+  /* D5② 랜덤 판매 — 카탈로그가 옵션을 기본 옵션 키 하나('랜덤')로 접은 모양. */
+  {
+    id: 'g15', name: '랜덤 포토카드', ip: 'hong-sil-quest', type: '포토카드', price: 5000, badge: null, stock: 'ok', stockQty: 6, optionSaleMode: 'random',
+    options: [{id:'00000000-0000-4000-8000-000000000015',name:'랜덤',price:5000,stockQty:6,code:'',isDefault:true,attributes:{},orderMaxQty:null,memberMaxQty:null}],
+    img: 'none',
+  },
+  /* D7② 옵션별 구매 제한. */
+  {
+    id: 'g16', name: '아크릴 키링', ip: 'hong-sil-quest', type: '키링', price: 7000, badge: null, stock: 'ok', stockQty: 9,
+    options: [{id:'00000000-0000-4000-8000-000000000016',name:'파랑',price:7000,stockQty:9,code:'BLUE',isDefault:true,attributes:{},orderMaxQty:2,memberMaxQty:3},
+      {id:'00000000-0000-4000-8000-000000000017',name:'빨강',price:7000,stockQty:9,code:'RED',isDefault:false,attributes:{}}],
+    img: 'none',
+  },
 ];
 
 function render({
@@ -62,7 +81,11 @@ function render({
   resumeOrderId = null,
   paymentFailCode = null,
   quote = {},
+  addressPrefill = EMPTY_CHECKOUT_ADDRESS_PREFILL,
+  couponState = { selectedUserCouponId: null, coupons: [] },
 }: {
+  addressPrefill?: CheckoutAddressPrefill;
+  couponState?: CartCouponState;
   paymentAvailable: boolean;
   bankTransferAvailable: boolean;
   items?: CartItem[];
@@ -83,11 +106,12 @@ function render({
   return renderToStaticMarkup(
     <Checkout
       catalog={{ goods, ips: [] }}
-      latestAddress={null}
+      addressPrefill={addressPrefill}
       paymentAvailable={paymentAvailable}
       bankTransferAvailable={bankTransferAvailable}
       resumeOrderId={resumeOrderId}
-      appliedCoupon={null}
+      appliedCoupon={couponState.coupons.find(held => held.id === couponState.selectedUserCouponId) ?? null}
+      couponState={couponState}
       paymentFailCode={paymentFailCode}
     />,
   );
@@ -165,13 +189,24 @@ describe('Checkout 결제수단 게이트', () => {
     expect(submitButton(html)).toContain('disabled');
     expect(submitButton(render({ paymentAvailable: true, bankTransferAvailable: true, quote: null }))).toContain('disabled');
   });
+  /* DB 트리거가 1,000원 미만 결제 대기 주문을 거절한다. 제출 뒤 "잠시 후 다시 시도"로
+     보이면 고객은 같은 실패를 반복한다(AMT-7). */
+  it('굿즈 금액과 배송비 합이 최소 결제 금액 미만이면 제출 전에 사유를 안내하고 막는다', () => {
+    const free = { totalFee: 0, groups: [], checkoutAllowed: true, finalTotalFee: 0, destination: null, nextChangeAt: null };
+    const below = render({ paymentAvailable: true, bankTransferAvailable: true, quote: { subtotal: 900, shipping: free } });
+    expect(below).toContain('최소 결제 금액(₩1,000)보다 적어');
+    expect(submitButton(below)).toContain('disabled');
+
+    const atMinimum = render({ paymentAvailable: true, bankTransferAvailable: true, quote: { subtotal: 1000, shipping: free } });
+    expect(atMinimum).not.toContain('최소 결제 금액');
+  });
   it('카드 OFF·무통장 ON이면 무통장이 선택된 채 제출 버튼이 살아 있다', () => {
     const html = render({ paymentAvailable: false, bankTransferAvailable: true });
 
     expect(methodRadio(html, 'bank_transfer')).toContain('checked');
     expect(methodRadio(html, 'bank_transfer')).not.toContain('disabled');
     expect(methodRadio(html, 'card')).toContain('disabled');
-    expect(html).toContain('주문 만들고 입금 안내 받기');
+    expect(html).toContain('주문하고 입금 안내 받기');
     expect(submitButton(html)).not.toContain('disabled');
     expect(html).not.toContain('선택한 결제수단을 지금은 쓸 수 없어요');
   });
@@ -183,7 +218,7 @@ describe('Checkout 결제수단 게이트', () => {
     expect(methodRadio(html, 'card')).not.toContain('disabled');
     expect(methodRadio(html, 'bank_transfer')).toContain('disabled');
     expect(html).toContain('지금은 무통장 입금을 받지 않습니다.');
-    expect(html).toContain('주문 만들고 결제하기');
+    expect(html).toContain('결제하기');
     expect(submitButton(html)).not.toContain('disabled');
   });
 
@@ -244,5 +279,131 @@ describe('Checkout 결제 실패 복귀 안내', () => {
     expect(html).toContain('진행 중인 주문이 있어요');
     expect(html).toContain('카드사가 결제를 거절했어요');
     expect(html).toContain('/checkout/20000000-0000-4000-8000-000000000388');
+  });
+});
+
+/* 주소록(L7 · MY-11) · 배송지 미리 채우기 정정(10/14 S6a): 무엇으로 채웠는지 사실대로 안내하고, 주소록에서 고르거나 저장한다. */
+describe('Checkout 배송지 미리 채우기·주소록', () => {
+  const home = {
+    id: '7a570000-0000-4000-8000-000000000001', label: '집', recipientName: '홍길동', phone: '01012345678',
+    postalCode: '04524', address1: '서울 중구 세종대로 110', address2: '101동', isDefault: true,
+  };
+  const office = { ...home, id: '7a570000-0000-4000-8000-000000000002', label: '회사', address1: '서울 강남구 테헤란로 152', address2: null, isDefault: false };
+
+  it('주소록의 기본 배송지로 채우고 그 사실과 선택지를 보여 준다', () => {
+    const html = render({ paymentAvailable: true, bankTransferAvailable: true, addressPrefill: {
+      address: { recipientName: '홍길동', phone: '01012345678', postalCode: '04524', address1: '서울 중구 세종대로 110', address2: '101동', deliveryNote: '' },
+      source: 'address_book', book: [home, office],
+    } });
+
+    expect(html).toContain('주소록의 기본 배송지를 불러왔어요. 주문 전 한 번 더 확인해주세요.');
+    expect(html).not.toContain('최근 결제한 주문의 배송지를 불러왔어요');
+    expect(html).toMatch(/<input[^>]*id="checkout-recipientName"[^>]*value="홍길동"/);
+    const select = html.match(/<select[^>]*id="checkout-address-book"[^>]*>[\s\S]*?<\/select>/)?.[0] ?? '';
+    expect(select).toMatch(new RegExp(`<option value="${home.id}" selected="">집 \\(기본\\) · \\(04524\\) 서울 중구 세종대로 110 101동</option>`));
+    expect(select).toContain(`<option value="${office.id}">회사 · (04524) 서울 강남구 테헤란로 152</option>`);
+    /* 이미 주소록에 있는 배송지라 다시 저장하자고 하지 않는다. 연락처는 선택지에 싣지 않는다. */
+    expect(html).not.toContain('이 배송지를 주소록에 저장');
+    expect(select).not.toContain('01012345678');
+    expect(html).toContain('href="/my/addresses"');
+  });
+
+  it('주소록이 비면 결제를 마친 직전 주문의 배송지로 채웠다고 안내하고 저장을 권한다', () => {
+    const html = render({ paymentAvailable: true, bankTransferAvailable: true, addressPrefill: {
+      address: { recipientName: '김팬', phone: '01099998888', postalCode: '06236', address1: '서울 강남구 테헤란로 152', address2: '', deliveryNote: '문 앞' },
+      source: 'recent_order', book: [],
+    } });
+
+    expect(html).toContain('최근 결제한 주문의 배송지를 불러왔어요. 주문 전 한 번 더 확인해주세요.');
+    expect(html).not.toContain('id="checkout-address-book"');
+    expect(html).toContain('이 배송지를 주소록에 저장');
+    expect(html).toMatch(/<input[^>]*id="checkout-deliveryNote"[^>]*value="문 앞"/);
+  });
+
+  it('채울 배송지가 없으면 기존 안내를 두고, 주소록을 읽지 못했으면 주소록 UI 없이 직접 입력한다', () => {
+    const html = render({ paymentAvailable: true, bankTransferAvailable: true });
+
+    expect(html).toContain('수령에 필요한 정보만 주문에 안전하게 저장합니다.');
+    expect(html).not.toContain('불러왔어요');
+    expect(html).not.toContain('checkout-address-book');
+    expect(html).not.toContain('href="/my/addresses"');
+    expect(html).toContain('id="checkout-recipientName"');
+  });
+});
+
+describe('Checkout 랜덤 판매·옵션별 구매 제한 품목 줄', () => {
+  it('랜덤 판매 굿즈는 옵션명을 랜덤으로 보인다', () => {
+    const html = render({ paymentAvailable: true, bankTransferAvailable: true, items: [{ goodId: 'g15', variantId: '00000000-0000-4000-8000-000000000015', qty: 2 }] });
+    expect(html).toContain('<span>랜덤</span>');
+  });
+
+  it('견적이 옵션 한도 위반을 알리면 품목 줄에 확정 카피를 보이고 제출을 막는다', () => {
+    const item = { goodId: 'g16', variantId: '00000000-0000-4000-8000-000000000016', qty: 3 };
+    const html = render({ paymentAvailable: true, bankTransferAvailable: true, items: [item], quote: { lines: [{ ...item, regularPrice: 7000, effectivePrice: 7000,
+      pricePeriodId: null, startsAt: null, endsAt: null, available: true,
+      optionLimit: { orderMaxQty: 2, memberMaxQty: 3, memberReservedQty: null, memberRemainingQty: null, reason: 'option_order_limit_exceeded' } }] } });
+    expect(html).toContain('&#x27;파랑&#x27;은 한 번에 2개까지 주문할 수 있습니다.');
+    expect(html).toContain('한 번에 주문할 수 있는 수량이 정해진 옵션이 있어요.');
+    expect(submitButton(html)).toContain('disabled');
+  });
+});
+
+/* R25(D3①): 운영 주문서에서도 장바구니와 같은 선택 상태(cart_coupon_selections)로 쿠폰을 고르고 코드를 넣는다. */
+describe('Checkout 쿠폰', () => {
+  const fix5k: UserCouponSummary = {
+    id: '11111111-1111-4111-8111-111111111111', status: 'active', issuedAt: '2026-08-30T00:00:00Z', expiresAt: null, usedAt: null,
+    coupon: { code: 'CPNFIX5K', name: '5천원 할인', discountType: 'fixed', discountValue: 5000, maxDiscountAmount: null, minSubtotal: 0, endsAt: null, gradeBenefit: null },
+  };
+
+  it('쿠폰을 고르지 않아도 할인 행과 보유 쿠폰 선택·코드 입력을 보인다', () => {
+    const html = render({ paymentAvailable: true, bankTransferAvailable: true, couponState: { selectedUserCouponId: null, coupons: [fix5k] } });
+    expect(html).toMatch(/<dt>쿠폰 할인<\/dt><dd>−₩0<\/dd>/);
+    expect(html).toContain('id="checkout-coupon-select"');
+    expect(html).toContain(`<option value="${fix5k.id}">5천원 할인 · ₩5,000 할인</option>`);
+    expect(html).toContain('id="checkout-coupon-code"');
+    /* 주문서 전체가 주문 form 이다 — 쿠폰 칸이 form 을 중첩하지 않는다. */
+    expect(html.match(/<form/g)).toHaveLength(1);
+  });
+
+  it('적용한 쿠폰은 할인 행에 이름과 서버 견적 할인액을 싣는다', () => {
+    const html = render({ paymentAvailable: true, bankTransferAvailable: true, couponState: { selectedUserCouponId: fix5k.id, coupons: [fix5k] },
+      quote: { coupon: { userCouponId: fix5k.id, couponCode: 'CPNFIX5K', eligibleSubtotal: 12000, discount: 5000, reason: null } } });
+    expect(html).toMatch(/<dt>쿠폰 할인 \(5천원 할인\)<\/dt><dd>−₩5,000<\/dd>/);
+    expect(html).toContain('적용 해제');
+    expect(html).toContain('₩10,000');
+  });
+
+  it('보유 쿠폰이 없으면 안내와 코드 입력만 둔다', () => {
+    const html = render({ paymentAvailable: true, bankTransferAvailable: true, couponState: { selectedUserCouponId: null, coupons: [] } });
+    expect(html).toContain('사용할 수 있는 쿠폰이 없어요.');
+    expect(html).toContain('id="checkout-coupon-code"');
+  });
+
+  it('보유 쿠폰을 불러오지 못했으면 없다고 하지 않고 그 사실을 알린다', () => {
+    const html = render({ paymentAvailable: true, bankTransferAvailable: true, couponState: { selectedUserCouponId: null, coupons: [], unavailable: true } });
+    expect(html).toContain('보유 쿠폰을 불러오지 못했습니다. 새로고침 후 다시 확인해주세요.');
+    expect(html).not.toContain('사용할 수 있는 쿠폰이 없어요');
+  });
+});
+
+/* R26·R27(D4①): 주문서도 배송 묶음을 택배사로 부르고, 묶음이 둘 이상이면 따로 계산되는 이유를 알린다. */
+describe('Checkout 배송 묶음 이름', () => {
+  const group = { originId: '00000000-0000-4000-8000-000000042201', originCode: 'gimpo', originName: '김포', policySubtotal: 12000, baseFee: 3000,
+    freeThreshold: 50000, policyFee: 3000, individualFee: 0, totalFee: 3000, regionMode: 'legacy_base_only' as const, regionStatus: 'unconfigured' as const,
+    regionalContractFee: null, regionalFee: 0, finalFee: 3000, policyId: null, policyVersion: null, ruleId: null, regionLabel: null,
+    carrierCode: 'hanjin', carrierLabel: '한진택배', feeUnit: null, unitCount: 0, destinationPostalCode: null, matchedAddressPrefix: null };
+  it('택배사가 다른 두 묶음은 각 택배사 이름과 이유 한 줄을 보인다', () => {
+    const html = render({ paymentAvailable: true, bankTransferAvailable: true, quote: { shipping: { totalFee: 6000, finalTotalFee: 6000, checkoutAllowed: true,
+      destination: null, nextChangeAt: null, groups: [group, { ...group, originId: '00000000-0000-4000-8000-000000042202', originCode: 'namyangju', originName: '남양주', carrierCode: 'epost', carrierLabel: '우체국택배' }] } } });
+    expect(html).toContain('<h3>한진택배 배송</h3>');
+    expect(html).toContain('<h3>우체국택배 배송</h3>');
+    expect(html).toContain('택배사가 달라 배송비가 각각 계산됩니다.');
+    expect(html).not.toContain('김포');
+  });
+  it('묶음이 하나면 이유 줄을 두지 않는다', () => {
+    const html = render({ paymentAvailable: true, bankTransferAvailable: true, quote: { shipping: { totalFee: 3000, finalTotalFee: 3000, checkoutAllowed: true,
+      destination: null, nextChangeAt: null, groups: [group] } } });
+    expect(html).toContain('<h3>한진택배 배송</h3>');
+    expect(html).not.toContain('배송비가 각각 계산됩니다');
   });
 });

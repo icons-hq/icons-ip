@@ -41,8 +41,23 @@ export interface GoodOption {
   attributes: Record<string, string>;
   pricing?: import('./goods-sales').GoodsVariantPricing;
   supply?: import('./goods-preorders').GoodsVariantSupply;
+  /** 옵션별 주문당 최대 수량(D7②). null·없음 = 제한 없음. 진실원은 주문 생성 트리거다. */
+  orderMaxQty?: number | null;
+  /** 옵션별 1인 누적 최대 수량(결제 대기 포함·취소 완료 제외). null·없음 = 제한 없음. */
+  memberMaxQty?: number | null;
 }
 export interface Good {
+  /**
+   * 옵션 판매 방식(D5②). 'random'이면 카탈로그가 옵션을 기본 옵션 키 하나('랜덤')로 접는다 — 고객은 옵션을 고르지
+   * 않고, 주문 생성 때 DB가 재고 비례로 배정한다. 없으면 'select'(목업·옛 투영).
+   */
+  optionSaleMode?: import('./goods-option-sale-mode').GoodsOptionSaleMode;
+  /** undefined: legacy/mock catalog; null: terms could not be read safely. */
+  transactionOffer?: import('./goods-transaction-offers').GoodsTransactionOffer | null;
+  transactionCalculatedAt?: string;
+  salePeriod?: import('./goods-sale-period').GoodsSalePeriod;
+  listingAppearance?: import('./store-presentation').GoodsListingAppearance;
+  customInputs?: import('./goods-custom-inputs').GoodsCustomInputConfig;
   options?: GoodOption[];
   originId?: string;
   /** 운영자가 지정한 공통 추천 진열 순서. 비어 있으면 기존 결정적 순서를 쓴다. */
@@ -61,11 +76,13 @@ export interface Good {
   /**
    * 취소선으로 표기할 정가 (#326). 할인 중일 때만 값이 있고(price 초과 보장 —
    * DB CHECK), 할인이 아니면 null/부재. SALE 표기는 저장 배지가 아니라 이 값에서
-   * 파생된다.
+   * 파생된다. 옵션 가격이면 그 옵션의 정가다(`lib/goods-options` optionCompareAtPrice).
    */
   compareAtPrice?: number | null;
   showDiscountRate?: boolean;
-  /** Stored comparison amount, retained while a period uses its own regular option price. */
+  /** 저장된 기준 판매가(`goods.price`). `price`가 옵션 최저가로 바뀌어도 옵션 추가금액의 기준으로 남는다. */
+  catalogPrice?: number;
+  /** 저장된 소비자가(`goods.compare_at_price`). 옵션 정가는 여기에 옵션 추가금액을 더해 파생한다. */
   catalogCompareAtPrice?: number | null;
   badge: string | null;
   stock: Stock;
@@ -80,6 +97,11 @@ export interface Good {
   allowBankTransfer?: boolean;
   allowCardPayment?: boolean;
   saleRestriction?: 'none' | 'adult';
+  /**
+   * 성인 인증 전 방문자에게 보이는 가림 카드(ADR-0024). 이름·이미지·배지·옵션은
+   * 서버에서 이미 지워져 있고, 화면은 이 값으로 19 가림 표지를 그린다.
+   */
+  masked?: boolean;
   orderQuantityLimitEnabled?: boolean;
   minOrderQty?: number | null;
   maxOrderQty?: number | null;

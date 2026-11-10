@@ -7,6 +7,7 @@
  */
 
 import type { BankDepositConfidence } from '@/lib/payments/bank-deposit-feed';
+import { appendSalesListOptions, normalizeSalesListOptions, salesPage, salesParam, type SalesListOptions } from './sales-list';
 
 export const ADMIN_UNPAID_PAGE_SIZE = 20;
 
@@ -14,14 +15,16 @@ export const ADMIN_UNPAID_PAGE_SIZE = 20;
 export const ADMIN_UNPAID_MEMO_MIN = 5;
 export const ADMIN_UNPAID_MEMO_MAX = 200;
 
-export interface AdminUnpaidFilters {
+export interface AdminUnpaidFilters extends SalesListOptions {
   query: string;
   page: number;
   /** 상세 액션 패널을 열 주문. 없으면 목록만 보여준다. */
   selectedOrderId: string | null;
+  state?: 'prepared' | 'confirming' | 'needs_review' | 'unknown' | 'missing';
 }
 
 export interface AdminUnpaidOrderRow {
+  orderNumber?: string;
   id: string;
   buyerName: string;
   buyerId: string;
@@ -73,22 +76,43 @@ function readParam(
 export function normalizeAdminUnpaidFilters(
   params: Record<string, string | string[] | undefined>,
 ): AdminUnpaidFilters {
-  const page = Number.parseInt(readParam(params, 'page'), 10);
+  const listOptions = normalizeSalesListOptions(params, ADMIN_UNPAID_PAGE_SIZE, 'oldest');
   const selected = readParam(params, 'order').trim();
   return {
+    ...listOptions,
+    ...(['prepared', 'confirming', 'needs_review', 'unknown', 'missing'].includes(salesParam(params, 'state'))
+      ? { state: salesParam(params, 'state') as AdminUnpaidFilters['state'] } : {}),
     query: readParam(params, 'q').trim().slice(0, 100),
-    page: Number.isFinite(page) && page > 0 ? page : 1,
+    page: salesPage(params.page, listOptions.pageSize ?? ADMIN_UNPAID_PAGE_SIZE),
     selectedOrderId: selected || null,
   };
 }
 
 export function adminUnpaidHref(filters: Partial<AdminUnpaidFilters>) {
   const params = new URLSearchParams();
+  appendSalesListOptions(params, filters);
+  if (filters.state) params.set('state', filters.state);
   if (filters.query) params.set('q', filters.query);
   if (filters.page && filters.page > 1) params.set('page', String(filters.page));
   if (filters.selectedOrderId) params.set('order', filters.selectedOrderId);
   const query = params.toString();
   return query ? `/admin/sales/unpaid?${query}` : '/admin/sales/unpaid';
+}
+
+/**
+ * attempt 상태를 운영자 문구로. `prepared`가 정상적인 입금 대기이고, 그 밖의
+ * 값은 확정이 중간에 멈춘 것이라 눈에 띄어야 한다. 화면과 목록 엑셀이 같은 말을 쓴다.
+ */
+const ATTEMPT_STATE_LABELS: Record<string, string> = {
+  prepared: '입금 대기',
+  confirming: '확정 처리중',
+  needs_review: '결제 확인 필요',
+  unknown: '결제 확인 필요',
+};
+
+export function adminUnpaidAttemptStateLabel(state: string | null) {
+  if (!state) return '원장 없음';
+  return ATTEMPT_STATE_LABELS[state] ?? state;
 }
 
 export type AdminUnpaidFormResult<T> =

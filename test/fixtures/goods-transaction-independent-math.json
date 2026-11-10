@@ -1,0 +1,3534 @@
+{
+  "status": "INDEPENDENT_DESIGN_VECTORS_NOT_IMPLEMENTATION_VERIFICATION",
+  "currency": "KRW",
+  "source": "discounts-shipping-transaction-proposal.md",
+  "discounts": [
+    {
+      "input": {
+        "lines": [
+          {
+            "regular": 10000,
+            "effective": 7999,
+            "quantity": 2
+          }
+        ],
+        "condition": "quantity",
+        "target": 3,
+        "kind": "fixed",
+        "value": 1000
+      },
+      "expected": {
+        "eligible": false,
+        "unitDiscounts": [
+          0
+        ],
+        "subtotal": 15998,
+        "discount": 0,
+        "net": 15998
+      },
+      "splitLineInvariant": true
+    },
+    {
+      "input": {
+        "lines": [
+          {
+            "regular": 10000,
+            "effective": 7999,
+            "quantity": 3
+          }
+        ],
+        "condition": "quantity",
+        "target": 3,
+        "kind": "fixed",
+        "value": 1000
+      },
+      "expected": {
+        "eligible": true,
+        "unitDiscounts": [
+          1000
+        ],
+        "subtotal": 23997,
+        "discount": 3000,
+        "net": 20997
+      },
+      "splitLineInvariant": true
+    },
+    {
+      "input": {
+        "lines": [
+          {
+            "regular": 10000,
+            "effective": 7999,
+            "quantity": 4
+          }
+        ],
+        "condition": "quantity",
+        "target": 3,
+        "kind": "fixed",
+        "value": 1000
+      },
+      "expected": {
+        "eligible": true,
+        "unitDiscounts": [
+          1000
+        ],
+        "subtotal": 31996,
+        "discount": 4000,
+        "net": 27996
+      },
+      "splitLineInvariant": true
+    },
+    {
+      "input": {
+        "lines": [
+          {
+            "regular": 10000,
+            "effective": 7999,
+            "quantity": 2
+          }
+        ],
+        "condition": "quantity",
+        "target": 3,
+        "kind": "percent",
+        "value": 33
+      },
+      "expected": {
+        "eligible": false,
+        "unitDiscounts": [
+          0
+        ],
+        "subtotal": 15998,
+        "discount": 0,
+        "net": 15998
+      },
+      "splitLineInvariant": true
+    },
+    {
+      "input": {
+        "lines": [
+          {
+            "regular": 10000,
+            "effective": 7999,
+            "quantity": 3
+          }
+        ],
+        "condition": "quantity",
+        "target": 3,
+        "kind": "percent",
+        "value": 33
+      },
+      "expected": {
+        "eligible": true,
+        "unitDiscounts": [
+          2639
+        ],
+        "subtotal": 23997,
+        "discount": 7917,
+        "net": 16080
+      },
+      "splitLineInvariant": true
+    },
+    {
+      "input": {
+        "lines": [
+          {
+            "regular": 10000,
+            "effective": 7999,
+            "quantity": 4
+          }
+        ],
+        "condition": "quantity",
+        "target": 3,
+        "kind": "percent",
+        "value": 33
+      },
+      "expected": {
+        "eligible": true,
+        "unitDiscounts": [
+          2639
+        ],
+        "subtotal": 31996,
+        "discount": 10556,
+        "net": 21440
+      },
+      "splitLineInvariant": true
+    },
+    {
+      "input": {
+        "lines": [
+          {
+            "regular": 10000,
+            "effective": 7999,
+            "quantity": 2
+          }
+        ],
+        "condition": "quantity",
+        "target": 3,
+        "kind": "fixed",
+        "value": 99999
+      },
+      "expected": {
+        "eligible": false,
+        "unitDiscounts": [
+          0
+        ],
+        "subtotal": 15998,
+        "discount": 0,
+        "net": 15998
+      },
+      "splitLineInvariant": true
+    },
+    {
+      "input": {
+        "lines": [
+          {
+            "regular": 10000,
+            "effective": 7999,
+            "quantity": 3
+          }
+        ],
+        "condition": "quantity",
+        "target": 3,
+        "kind": "fixed",
+        "value": 99999
+      },
+      "expected": {
+        "eligible": true,
+        "unitDiscounts": [
+          7999
+        ],
+        "subtotal": 23997,
+        "discount": 23997,
+        "net": 0
+      },
+      "splitLineInvariant": true
+    },
+    {
+      "input": {
+        "lines": [
+          {
+            "regular": 10000,
+            "effective": 7999,
+            "quantity": 4
+          }
+        ],
+        "condition": "quantity",
+        "target": 3,
+        "kind": "fixed",
+        "value": 99999
+      },
+      "expected": {
+        "eligible": true,
+        "unitDiscounts": [
+          7999
+        ],
+        "subtotal": 31996,
+        "discount": 31996,
+        "net": 0
+      },
+      "splitLineInvariant": true
+    },
+    {
+      "input": {
+        "lines": [
+          {
+            "regular": 10000,
+            "effective": 7999,
+            "quantity": 2
+          }
+        ],
+        "condition": "quantity",
+        "target": 3,
+        "kind": "percent",
+        "value": 100
+      },
+      "expected": {
+        "eligible": false,
+        "unitDiscounts": [
+          0
+        ],
+        "subtotal": 15998,
+        "discount": 0,
+        "net": 15998
+      },
+      "splitLineInvariant": true
+    },
+    {
+      "input": {
+        "lines": [
+          {
+            "regular": 10000,
+            "effective": 7999,
+            "quantity": 3
+          }
+        ],
+        "condition": "quantity",
+        "target": 3,
+        "kind": "percent",
+        "value": 100
+      },
+      "expected": {
+        "eligible": true,
+        "unitDiscounts": [
+          7999
+        ],
+        "subtotal": 23997,
+        "discount": 23997,
+        "net": 0
+      },
+      "splitLineInvariant": true
+    },
+    {
+      "input": {
+        "lines": [
+          {
+            "regular": 10000,
+            "effective": 7999,
+            "quantity": 4
+          }
+        ],
+        "condition": "quantity",
+        "target": 3,
+        "kind": "percent",
+        "value": 100
+      },
+      "expected": {
+        "eligible": true,
+        "unitDiscounts": [
+          7999
+        ],
+        "subtotal": 31996,
+        "discount": 31996,
+        "net": 0
+      },
+      "splitLineInvariant": true
+    },
+    {
+      "input": {
+        "lines": [
+          {
+            "regular": 10000,
+            "effective": 7999,
+            "quantity": 2
+          }
+        ],
+        "condition": "regular_subtotal",
+        "target": 30000,
+        "kind": "fixed",
+        "value": 1000
+      },
+      "expected": {
+        "eligible": false,
+        "unitDiscounts": [
+          0
+        ],
+        "subtotal": 15998,
+        "discount": 0,
+        "net": 15998
+      },
+      "splitLineInvariant": true
+    },
+    {
+      "input": {
+        "lines": [
+          {
+            "regular": 10000,
+            "effective": 7999,
+            "quantity": 3
+          }
+        ],
+        "condition": "regular_subtotal",
+        "target": 30000,
+        "kind": "fixed",
+        "value": 1000
+      },
+      "expected": {
+        "eligible": true,
+        "unitDiscounts": [
+          1000
+        ],
+        "subtotal": 23997,
+        "discount": 3000,
+        "net": 20997
+      },
+      "splitLineInvariant": true
+    },
+    {
+      "input": {
+        "lines": [
+          {
+            "regular": 10000,
+            "effective": 7999,
+            "quantity": 4
+          }
+        ],
+        "condition": "regular_subtotal",
+        "target": 30000,
+        "kind": "fixed",
+        "value": 1000
+      },
+      "expected": {
+        "eligible": true,
+        "unitDiscounts": [
+          1000
+        ],
+        "subtotal": 31996,
+        "discount": 4000,
+        "net": 27996
+      },
+      "splitLineInvariant": true
+    },
+    {
+      "input": {
+        "lines": [
+          {
+            "regular": 10000,
+            "effective": 7999,
+            "quantity": 2
+          }
+        ],
+        "condition": "regular_subtotal",
+        "target": 30000,
+        "kind": "percent",
+        "value": 33
+      },
+      "expected": {
+        "eligible": false,
+        "unitDiscounts": [
+          0
+        ],
+        "subtotal": 15998,
+        "discount": 0,
+        "net": 15998
+      },
+      "splitLineInvariant": true
+    },
+    {
+      "input": {
+        "lines": [
+          {
+            "regular": 10000,
+            "effective": 7999,
+            "quantity": 3
+          }
+        ],
+        "condition": "regular_subtotal",
+        "target": 30000,
+        "kind": "percent",
+        "value": 33
+      },
+      "expected": {
+        "eligible": true,
+        "unitDiscounts": [
+          2639
+        ],
+        "subtotal": 23997,
+        "discount": 7917,
+        "net": 16080
+      },
+      "splitLineInvariant": true
+    },
+    {
+      "input": {
+        "lines": [
+          {
+            "regular": 10000,
+            "effective": 7999,
+            "quantity": 4
+          }
+        ],
+        "condition": "regular_subtotal",
+        "target": 30000,
+        "kind": "percent",
+        "value": 33
+      },
+      "expected": {
+        "eligible": true,
+        "unitDiscounts": [
+          2639
+        ],
+        "subtotal": 31996,
+        "discount": 10556,
+        "net": 21440
+      },
+      "splitLineInvariant": true
+    },
+    {
+      "input": {
+        "lines": [
+          {
+            "regular": 10000,
+            "effective": 7999,
+            "quantity": 2
+          }
+        ],
+        "condition": "regular_subtotal",
+        "target": 30000,
+        "kind": "fixed",
+        "value": 99999
+      },
+      "expected": {
+        "eligible": false,
+        "unitDiscounts": [
+          0
+        ],
+        "subtotal": 15998,
+        "discount": 0,
+        "net": 15998
+      },
+      "splitLineInvariant": true
+    },
+    {
+      "input": {
+        "lines": [
+          {
+            "regular": 10000,
+            "effective": 7999,
+            "quantity": 3
+          }
+        ],
+        "condition": "regular_subtotal",
+        "target": 30000,
+        "kind": "fixed",
+        "value": 99999
+      },
+      "expected": {
+        "eligible": true,
+        "unitDiscounts": [
+          7999
+        ],
+        "subtotal": 23997,
+        "discount": 23997,
+        "net": 0
+      },
+      "splitLineInvariant": true
+    },
+    {
+      "input": {
+        "lines": [
+          {
+            "regular": 10000,
+            "effective": 7999,
+            "quantity": 4
+          }
+        ],
+        "condition": "regular_subtotal",
+        "target": 30000,
+        "kind": "fixed",
+        "value": 99999
+      },
+      "expected": {
+        "eligible": true,
+        "unitDiscounts": [
+          7999
+        ],
+        "subtotal": 31996,
+        "discount": 31996,
+        "net": 0
+      },
+      "splitLineInvariant": true
+    },
+    {
+      "input": {
+        "lines": [
+          {
+            "regular": 10000,
+            "effective": 7999,
+            "quantity": 2
+          }
+        ],
+        "condition": "regular_subtotal",
+        "target": 30000,
+        "kind": "percent",
+        "value": 100
+      },
+      "expected": {
+        "eligible": false,
+        "unitDiscounts": [
+          0
+        ],
+        "subtotal": 15998,
+        "discount": 0,
+        "net": 15998
+      },
+      "splitLineInvariant": true
+    },
+    {
+      "input": {
+        "lines": [
+          {
+            "regular": 10000,
+            "effective": 7999,
+            "quantity": 3
+          }
+        ],
+        "condition": "regular_subtotal",
+        "target": 30000,
+        "kind": "percent",
+        "value": 100
+      },
+      "expected": {
+        "eligible": true,
+        "unitDiscounts": [
+          7999
+        ],
+        "subtotal": 23997,
+        "discount": 23997,
+        "net": 0
+      },
+      "splitLineInvariant": true
+    },
+    {
+      "input": {
+        "lines": [
+          {
+            "regular": 10000,
+            "effective": 7999,
+            "quantity": 4
+          }
+        ],
+        "condition": "regular_subtotal",
+        "target": 30000,
+        "kind": "percent",
+        "value": 100
+      },
+      "expected": {
+        "eligible": true,
+        "unitDiscounts": [
+          7999
+        ],
+        "subtotal": 31996,
+        "discount": 31996,
+        "net": 0
+      },
+      "splitLineInvariant": true
+    }
+  ],
+  "repeated": [
+    {
+      "quantity": 1,
+      "interval": 1,
+      "baseFee": 3000,
+      "expected": 3000
+    },
+    {
+      "quantity": 2,
+      "interval": 1,
+      "baseFee": 3000,
+      "expected": 6000
+    },
+    {
+      "quantity": 3,
+      "interval": 1,
+      "baseFee": 3000,
+      "expected": 9000
+    },
+    {
+      "quantity": 1,
+      "interval": 2,
+      "baseFee": 3000,
+      "expected": 3000
+    },
+    {
+      "quantity": 2,
+      "interval": 2,
+      "baseFee": 3000,
+      "expected": 3000
+    },
+    {
+      "quantity": 3,
+      "interval": 2,
+      "baseFee": 3000,
+      "expected": 6000
+    },
+    {
+      "quantity": 4,
+      "interval": 2,
+      "baseFee": 3000,
+      "expected": 6000
+    },
+    {
+      "quantity": 5,
+      "interval": 2,
+      "baseFee": 3000,
+      "expected": 9000
+    },
+    {
+      "quantity": 1,
+      "interval": 5,
+      "baseFee": 3000,
+      "expected": 3000
+    },
+    {
+      "quantity": 5,
+      "interval": 5,
+      "baseFee": 3000,
+      "expected": 3000
+    },
+    {
+      "quantity": 6,
+      "interval": 5,
+      "baseFee": 3000,
+      "expected": 6000
+    },
+    {
+      "quantity": 10,
+      "interval": 5,
+      "baseFee": 3000,
+      "expected": 6000
+    },
+    {
+      "quantity": 11,
+      "interval": 5,
+      "baseFee": 3000,
+      "expected": 9000
+    }
+  ],
+  "tiers": [
+    {
+      "quantity": 1,
+      "firstLimit": 2,
+      "secondLimit": 5,
+      "baseFee": 3000,
+      "extra1": 1000,
+      "extra2": 2500,
+      "expected": 3000
+    },
+    {
+      "quantity": 2,
+      "firstLimit": 2,
+      "secondLimit": 5,
+      "baseFee": 3000,
+      "extra1": 1000,
+      "extra2": 2500,
+      "expected": 3000
+    },
+    {
+      "quantity": 3,
+      "firstLimit": 2,
+      "secondLimit": 5,
+      "baseFee": 3000,
+      "extra1": 1000,
+      "extra2": 2500,
+      "expected": 4000
+    },
+    {
+      "quantity": 5,
+      "firstLimit": 2,
+      "secondLimit": 5,
+      "baseFee": 3000,
+      "extra1": 1000,
+      "extra2": 2500,
+      "expected": 4000
+    },
+    {
+      "quantity": 6,
+      "firstLimit": 2,
+      "secondLimit": 5,
+      "baseFee": 3000,
+      "extra1": 1000,
+      "extra2": 2500,
+      "expected": 5500
+    },
+    {
+      "quantity": 10,
+      "firstLimit": 2,
+      "secondLimit": 5,
+      "baseFee": 3000,
+      "extra1": 1000,
+      "extra2": 2500,
+      "expected": 5500
+    }
+  ],
+  "allocations": [
+    {
+      "total": 468275005,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 183337
+        },
+        {
+          "id": "item-02",
+          "weight": 710420
+        },
+        {
+          "id": "item-03",
+          "weight": 805500
+        },
+        {
+          "id": "item-04",
+          "weight": 156793
+        },
+        {
+          "id": "item-05",
+          "weight": 846568
+        },
+        {
+          "id": "item-06",
+          "weight": 504971
+        },
+        {
+          "id": "item-07",
+          "weight": 619748
+        },
+        {
+          "id": "item-08",
+          "weight": 532595
+        },
+        {
+          "id": "item-09",
+          "weight": 346810
+        },
+        {
+          "id": "item-10",
+          "weight": 663824
+        },
+        {
+          "id": "item-11",
+          "weight": 375313
+        },
+        {
+          "id": "item-12",
+          "weight": 334999
+        },
+        {
+          "id": "item-13",
+          "weight": 551807
+        },
+        {
+          "id": "item-14",
+          "weight": 371729
+        },
+        {
+          "id": "item-15",
+          "weight": 835396
+        },
+        {
+          "id": "item-16",
+          "weight": 159731
+        },
+        {
+          "id": "item-17",
+          "weight": 979530
+        },
+        {
+          "id": "item-18",
+          "weight": 571823
+        }
+      ],
+      "expected": {
+        "item-01": 8988911,
+        "item-02": 34831496,
+        "item-03": 39493216,
+        "item-04": 7687473,
+        "item-05": 41506757,
+        "item-06": 24758446,
+        "item-07": 30385899,
+        "item-08": 26112836,
+        "item-09": 17003901,
+        "item-10": 32546920,
+        "item-11": 18401387,
+        "item-12": 16424814,
+        "item-13": 27054789,
+        "item-14": 18225666,
+        "item-15": 40959000,
+        "item-16": 7831522,
+        "item-17": 48025809,
+        "item-18": 28036163
+      },
+      "orderAndScaleInvariant": true
+    },
+    {
+      "total": 337370846,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 937670
+        },
+        {
+          "id": "item-02",
+          "weight": 464410
+        },
+        {
+          "id": "item-03",
+          "weight": 453437
+        },
+        {
+          "id": "item-04",
+          "weight": 283461
+        },
+        {
+          "id": "item-05",
+          "weight": 247987
+        },
+        {
+          "id": "item-06",
+          "weight": 62853
+        },
+        {
+          "id": "item-07",
+          "weight": 733399
+        },
+        {
+          "id": "item-08",
+          "weight": 881385
+        },
+        {
+          "id": "item-09",
+          "weight": 469036
+        },
+        {
+          "id": "item-10",
+          "weight": 739358
+        }
+      ],
+      "expected": {
+        "item-01": 59992938,
+        "item-02": 29713354,
+        "item-03": 29011292,
+        "item-04": 18136080,
+        "item-05": 15866423,
+        "item-06": 4021389,
+        "item-07": 46923502,
+        "item-08": 56391775,
+        "item-09": 30009329,
+        "item-10": 47304764
+      },
+      "orderAndScaleInvariant": true
+    },
+    {
+      "total": 409971135,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 827637
+        },
+        {
+          "id": "item-02",
+          "weight": 655508
+        },
+        {
+          "id": "item-03",
+          "weight": 611968
+        },
+        {
+          "id": "item-04",
+          "weight": 656896
+        },
+        {
+          "id": "item-05",
+          "weight": 422511
+        },
+        {
+          "id": "item-06",
+          "weight": 329789
+        },
+        {
+          "id": "item-07",
+          "weight": 823863
+        },
+        {
+          "id": "item-08",
+          "weight": 276412
+        },
+        {
+          "id": "item-09",
+          "weight": 792888
+        },
+        {
+          "id": "item-10",
+          "weight": 442479
+        },
+        {
+          "id": "item-11",
+          "weight": 596348
+        },
+        {
+          "id": "item-12",
+          "weight": 210549
+        },
+        {
+          "id": "item-13",
+          "weight": 78015
+        },
+        {
+          "id": "item-14",
+          "weight": 736511
+        },
+        {
+          "id": "item-15",
+          "weight": 351951
+        },
+        {
+          "id": "item-16",
+          "weight": 226106
+        },
+        {
+          "id": "item-17",
+          "weight": 116316
+        }
+      ],
+      "expected": {
+        "item-01": 41603458,
+        "item-02": 32950919,
+        "item-03": 30762261,
+        "item-04": 33020691,
+        "item-05": 21238682,
+        "item-06": 16577754,
+        "item-07": 41413748,
+        "item-08": 13894612,
+        "item-09": 39856704,
+        "item-10": 22242428,
+        "item-11": 29977078,
+        "item-12": 10583827,
+        "item-13": 3921639,
+        "item-14": 37022758,
+        "item-15": 17691789,
+        "item-16": 11365842,
+        "item-17": 5846945
+      },
+      "orderAndScaleInvariant": true
+    },
+    {
+      "total": 397227434,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 12562
+        },
+        {
+          "id": "item-02",
+          "weight": 895028
+        },
+        {
+          "id": "item-03",
+          "weight": 764229
+        },
+        {
+          "id": "item-04",
+          "weight": 50388
+        }
+      ],
+      "expected": {
+        "item-01": 2897428,
+        "item-02": 206438411,
+        "item-03": 176269592,
+        "item-04": 11622003
+      },
+      "orderAndScaleInvariant": true
+    },
+    {
+      "total": 953487789,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 410939
+        },
+        {
+          "id": "item-02",
+          "weight": 974214
+        },
+        {
+          "id": "item-03",
+          "weight": 126464
+        },
+        {
+          "id": "item-04",
+          "weight": 940735
+        },
+        {
+          "id": "item-05",
+          "weight": 455608
+        },
+        {
+          "id": "item-06",
+          "weight": 399656
+        },
+        {
+          "id": "item-07",
+          "weight": 94265
+        },
+        {
+          "id": "item-08",
+          "weight": 138818
+        },
+        {
+          "id": "item-09",
+          "weight": 999859
+        }
+      ],
+      "expected": {
+        "item-01": 86294530,
+        "item-02": 204578634,
+        "item-03": 26556621,
+        "item-04": 197548261,
+        "item-05": 95674731,
+        "item-06": 83925173,
+        "item-07": 19795040,
+        "item-08": 29150881,
+        "item-09": 209963918
+      },
+      "orderAndScaleInvariant": true
+    },
+    {
+      "total": 816946633,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 868479
+        },
+        {
+          "id": "item-02",
+          "weight": 846472
+        },
+        {
+          "id": "item-03",
+          "weight": 876753
+        },
+        {
+          "id": "item-04",
+          "weight": 929234
+        },
+        {
+          "id": "item-05",
+          "weight": 764135
+        }
+      ],
+      "expected": {
+        "item-01": 165575008,
+        "item-02": 161379386,
+        "item-03": 167152441,
+        "item-04": 177157912,
+        "item-05": 145681886
+      },
+      "orderAndScaleInvariant": true
+    },
+    {
+      "total": 318326754,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 380075
+        },
+        {
+          "id": "item-02",
+          "weight": 59772
+        },
+        {
+          "id": "item-03",
+          "weight": 392903
+        },
+        {
+          "id": "item-04",
+          "weight": 885810
+        },
+        {
+          "id": "item-05",
+          "weight": 724781
+        },
+        {
+          "id": "item-06",
+          "weight": 140379
+        },
+        {
+          "id": "item-07",
+          "weight": 60108
+        },
+        {
+          "id": "item-08",
+          "weight": 213797
+        },
+        {
+          "id": "item-09",
+          "weight": 9255
+        }
+      ],
+      "expected": {
+        "item-01": 42201990,
+        "item-02": 6636841,
+        "item-03": 43626359,
+        "item-04": 98356758,
+        "item-05": 80476749,
+        "item-06": 15587116,
+        "item-07": 6674149,
+        "item-08": 23739154,
+        "item-09": 1027638
+      },
+      "orderAndScaleInvariant": true
+    },
+    {
+      "total": 7056324,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 582521
+        },
+        {
+          "id": "item-02",
+          "weight": 5170
+        },
+        {
+          "id": "item-03",
+          "weight": 1981
+        },
+        {
+          "id": "item-04",
+          "weight": 873915
+        },
+        {
+          "id": "item-05",
+          "weight": 281890
+        },
+        {
+          "id": "item-06",
+          "weight": 913494
+        },
+        {
+          "id": "item-07",
+          "weight": 92005
+        },
+        {
+          "id": "item-08",
+          "weight": 387439
+        },
+        {
+          "id": "item-09",
+          "weight": 565772
+        },
+        {
+          "id": "item-10",
+          "weight": 752373
+        },
+        {
+          "id": "item-11",
+          "weight": 811711
+        },
+        {
+          "id": "item-12",
+          "weight": 784813
+        },
+        {
+          "id": "item-13",
+          "weight": 514546
+        },
+        {
+          "id": "item-14",
+          "weight": 774774
+        },
+        {
+          "id": "item-15",
+          "weight": 102653
+        },
+        {
+          "id": "item-16",
+          "weight": 837764
+        },
+        {
+          "id": "item-17",
+          "weight": 376035
+        }
+      ],
+      "expected": {
+        "item-01": 474711,
+        "item-02": 4213,
+        "item-03": 1614,
+        "item-04": 712176,
+        "item-05": 229720,
+        "item-06": 744430,
+        "item-07": 74977,
+        "item-08": 315734,
+        "item-09": 461062,
+        "item-10": 613128,
+        "item-11": 661484,
+        "item-12": 639564,
+        "item-13": 419317,
+        "item-14": 631383,
+        "item-15": 83655,
+        "item-16": 682715,
+        "item-17": 306441
+      },
+      "orderAndScaleInvariant": true
+    },
+    {
+      "total": 10659424,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 104
+        },
+        {
+          "id": "item-02",
+          "weight": 118310
+        },
+        {
+          "id": "item-03",
+          "weight": 797779
+        },
+        {
+          "id": "item-04",
+          "weight": 603989
+        },
+        {
+          "id": "item-05",
+          "weight": 502731
+        },
+        {
+          "id": "item-06",
+          "weight": 999112
+        },
+        {
+          "id": "item-07",
+          "weight": 722910
+        },
+        {
+          "id": "item-08",
+          "weight": 18254
+        },
+        {
+          "id": "item-09",
+          "weight": 224031
+        }
+      ],
+      "expected": {
+        "item-01": 278,
+        "item-02": 316290,
+        "item-03": 2132780,
+        "item-04": 1614703,
+        "item-05": 1344000,
+        "item-06": 2671023,
+        "item-07": 1932626,
+        "item-08": 48800,
+        "item-09": 598924
+      },
+      "orderAndScaleInvariant": true
+    },
+    {
+      "total": 401100031,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 224834
+        },
+        {
+          "id": "item-02",
+          "weight": 581033
+        },
+        {
+          "id": "item-03",
+          "weight": 331261
+        },
+        {
+          "id": "item-04",
+          "weight": 723921
+        },
+        {
+          "id": "item-05",
+          "weight": 237803
+        },
+        {
+          "id": "item-06",
+          "weight": 854964
+        }
+      ],
+      "expected": {
+        "item-01": 30530312,
+        "item-02": 78898738,
+        "item-03": 44982083,
+        "item-04": 98301565,
+        "item-05": 32291379,
+        "item-06": 116095954
+      },
+      "orderAndScaleInvariant": true
+    },
+    {
+      "total": 100734267,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 480
+        },
+        {
+          "id": "item-02",
+          "weight": 224168
+        },
+        {
+          "id": "item-03",
+          "weight": 155597
+        },
+        {
+          "id": "item-04",
+          "weight": 100653
+        },
+        {
+          "id": "item-05",
+          "weight": 989910
+        },
+        {
+          "id": "item-06",
+          "weight": 762867
+        },
+        {
+          "id": "item-07",
+          "weight": 609791
+        },
+        {
+          "id": "item-08",
+          "weight": 614701
+        },
+        {
+          "id": "item-09",
+          "weight": 224120
+        },
+        {
+          "id": "item-10",
+          "weight": 252407
+        }
+      ],
+      "expected": {
+        "item-01": 12289,
+        "item-02": 5739048,
+        "item-03": 3983524,
+        "item-04": 2576873,
+        "item-05": 25343231,
+        "item-06": 19530578,
+        "item-07": 15611595,
+        "item-08": 15737299,
+        "item-09": 5737819,
+        "item-10": 6462011
+      },
+      "orderAndScaleInvariant": true
+    },
+    {
+      "total": 841401177,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 381795
+        },
+        {
+          "id": "item-02",
+          "weight": 557137
+        },
+        {
+          "id": "item-03",
+          "weight": 907442
+        },
+        {
+          "id": "item-04",
+          "weight": 272632
+        },
+        {
+          "id": "item-05",
+          "weight": 539241
+        },
+        {
+          "id": "item-06",
+          "weight": 157439
+        },
+        {
+          "id": "item-07",
+          "weight": 834546
+        }
+      ],
+      "expected": {
+        "item-01": 88006122,
+        "item-02": 128423543,
+        "item-03": 209171024,
+        "item-04": 62843372,
+        "item-05": 124298404,
+        "item-06": 36290669,
+        "item-07": 192368043
+      },
+      "orderAndScaleInvariant": true
+    },
+    {
+      "total": 493793483,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 228804
+        },
+        {
+          "id": "item-02",
+          "weight": 147710
+        },
+        {
+          "id": "item-03",
+          "weight": 24159
+        },
+        {
+          "id": "item-04",
+          "weight": 23434
+        },
+        {
+          "id": "item-05",
+          "weight": 476800
+        },
+        {
+          "id": "item-06",
+          "weight": 849210
+        },
+        {
+          "id": "item-07",
+          "weight": 616538
+        },
+        {
+          "id": "item-08",
+          "weight": 543713
+        },
+        {
+          "id": "item-09",
+          "weight": 494912
+        },
+        {
+          "id": "item-10",
+          "weight": 492599
+        },
+        {
+          "id": "item-11",
+          "weight": 641945
+        },
+        {
+          "id": "item-12",
+          "weight": 484006
+        },
+        {
+          "id": "item-13",
+          "weight": 697874
+        },
+        {
+          "id": "item-14",
+          "weight": 844744
+        },
+        {
+          "id": "item-15",
+          "weight": 735191
+        },
+        {
+          "id": "item-16",
+          "weight": 866255
+        },
+        {
+          "id": "item-17",
+          "weight": 8386
+        },
+        {
+          "id": "item-18",
+          "weight": 493906
+        },
+        {
+          "id": "item-19",
+          "weight": 916693
+        },
+        {
+          "id": "item-20",
+          "weight": 764614
+        }
+      ],
+      "expected": {
+        "item-01": 10914554,
+        "item-02": 7046156,
+        "item-03": 1152448,
+        "item-04": 1117864,
+        "item-05": 22744616,
+        "item-06": 40509554,
+        "item-07": 29410487,
+        "item-08": 25936542,
+        "item-09": 23608606,
+        "item-10": 23498270,
+        "item-11": 30622467,
+        "item-12": 23088361,
+        "item-13": 33290428,
+        "item-14": 40296514,
+        "item-15": 35070547,
+        "item-16": 41322645,
+        "item-17": 400034,
+        "item-18": 23560617,
+        "item-19": 43728671,
+        "item-20": 36474102
+      },
+      "orderAndScaleInvariant": true
+    },
+    {
+      "total": 528446376,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 277509
+        },
+        {
+          "id": "item-02",
+          "weight": 232101
+        },
+        {
+          "id": "item-03",
+          "weight": 878584
+        },
+        {
+          "id": "item-04",
+          "weight": 814733
+        },
+        {
+          "id": "item-05",
+          "weight": 842377
+        },
+        {
+          "id": "item-06",
+          "weight": 301099
+        },
+        {
+          "id": "item-07",
+          "weight": 80091
+        },
+        {
+          "id": "item-08",
+          "weight": 839572
+        },
+        {
+          "id": "item-09",
+          "weight": 823831
+        },
+        {
+          "id": "item-10",
+          "weight": 416266
+        }
+      ],
+      "expected": {
+        "item-01": 26633542,
+        "item-02": 22275572,
+        "item-03": 84320884,
+        "item-04": 78192873,
+        "item-05": 80845967,
+        "item-06": 28897560,
+        "item-07": 7686623,
+        "item-08": 80576761,
+        "item-09": 79066040,
+        "item-10": 39950554
+      },
+      "orderAndScaleInvariant": true
+    },
+    {
+      "total": 656584657,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 388152
+        },
+        {
+          "id": "item-02",
+          "weight": 834694
+        },
+        {
+          "id": "item-03",
+          "weight": 617485
+        },
+        {
+          "id": "item-04",
+          "weight": 157335
+        },
+        {
+          "id": "item-05",
+          "weight": 446133
+        },
+        {
+          "id": "item-06",
+          "weight": 437045
+        },
+        {
+          "id": "item-07",
+          "weight": 517606
+        },
+        {
+          "id": "item-08",
+          "weight": 299417
+        },
+        {
+          "id": "item-09",
+          "weight": 514990
+        },
+        {
+          "id": "item-10",
+          "weight": 512702
+        },
+        {
+          "id": "item-11",
+          "weight": 995792
+        },
+        {
+          "id": "item-12",
+          "weight": 416176
+        }
+      ],
+      "expected": {
+        "item-01": 41523996,
+        "item-02": 89294479,
+        "item-03": 66057742,
+        "item-04": 16831494,
+        "item-05": 47726728,
+        "item-06": 46754506,
+        "item-07": 55372817,
+        "item-08": 32031241,
+        "item-09": 55092961,
+        "item-10": 54848193,
+        "item-11": 106528533,
+        "item-12": 44521967
+      },
+      "orderAndScaleInvariant": true
+    },
+    {
+      "total": 240448792,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 393281
+        },
+        {
+          "id": "item-02",
+          "weight": 455247
+        },
+        {
+          "id": "item-03",
+          "weight": 325376
+        },
+        {
+          "id": "item-04",
+          "weight": 362038
+        },
+        {
+          "id": "item-05",
+          "weight": 410293
+        },
+        {
+          "id": "item-06",
+          "weight": 892240
+        },
+        {
+          "id": "item-07",
+          "weight": 111259
+        },
+        {
+          "id": "item-08",
+          "weight": 864671
+        }
+      ],
+      "expected": {
+        "item-01": 24791269,
+        "item-02": 28697422,
+        "item-03": 20510739,
+        "item-04": 22821803,
+        "item-05": 25863655,
+        "item-06": 56244167,
+        "item-07": 7013438,
+        "item-08": 54506299
+      },
+      "orderAndScaleInvariant": true
+    },
+    {
+      "total": 524561562,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 610727
+        },
+        {
+          "id": "item-02",
+          "weight": 700577
+        },
+        {
+          "id": "item-03",
+          "weight": 870320
+        },
+        {
+          "id": "item-04",
+          "weight": 666272
+        },
+        {
+          "id": "item-05",
+          "weight": 180911
+        },
+        {
+          "id": "item-06",
+          "weight": 979511
+        },
+        {
+          "id": "item-07",
+          "weight": 808135
+        },
+        {
+          "id": "item-08",
+          "weight": 218271
+        },
+        {
+          "id": "item-09",
+          "weight": 406012
+        },
+        {
+          "id": "item-10",
+          "weight": 52152
+        },
+        {
+          "id": "item-11",
+          "weight": 161407
+        },
+        {
+          "id": "item-12",
+          "weight": 891742
+        },
+        {
+          "id": "item-13",
+          "weight": 369577
+        },
+        {
+          "id": "item-14",
+          "weight": 337500
+        },
+        {
+          "id": "item-15",
+          "weight": 290444
+        }
+      ],
+      "expected": {
+        "item-01": 42468542,
+        "item-02": 48716503,
+        "item-03": 60520038,
+        "item-04": 46331013,
+        "item-05": 12580132,
+        "item-06": 68112928,
+        "item-07": 56195837,
+        "item-08": 15178060,
+        "item-09": 28233135,
+        "item-10": 3626529,
+        "item-11": 11223869,
+        "item-12": 62009675,
+        "item-13": 25699529,
+        "item-14": 23468969,
+        "item-15": 20196803
+      },
+      "orderAndScaleInvariant": true
+    },
+    {
+      "total": 545580419,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 781938
+        },
+        {
+          "id": "item-02",
+          "weight": 455603
+        },
+        {
+          "id": "item-03",
+          "weight": 398002
+        },
+        {
+          "id": "item-04",
+          "weight": 76788
+        },
+        {
+          "id": "item-05",
+          "weight": 350685
+        },
+        {
+          "id": "item-06",
+          "weight": 579124
+        },
+        {
+          "id": "item-07",
+          "weight": 123956
+        },
+        {
+          "id": "item-08",
+          "weight": 405161
+        }
+      ],
+      "expected": {
+        "item-01": 134523964,
+        "item-02": 78381561,
+        "item-03": 68471933,
+        "item-04": 13210544,
+        "item-05": 60331556,
+        "item-06": 99632012,
+        "item-07": 21325287,
+        "item-08": 69703562
+      },
+      "orderAndScaleInvariant": true
+    },
+    {
+      "total": 156467041,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 655
+        },
+        {
+          "id": "item-02",
+          "weight": 821791
+        }
+      ],
+      "expected": {
+        "item-01": 124611,
+        "item-02": 156342430
+      },
+      "orderAndScaleInvariant": true
+    },
+    {
+      "total": 771841240,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 903607
+        },
+        {
+          "id": "item-02",
+          "weight": 440653
+        },
+        {
+          "id": "item-03",
+          "weight": 323628
+        },
+        {
+          "id": "item-04",
+          "weight": 940693
+        },
+        {
+          "id": "item-05",
+          "weight": 906733
+        },
+        {
+          "id": "item-06",
+          "weight": 316149
+        }
+      ],
+      "expected": {
+        "item-01": 182029983,
+        "item-02": 88768744,
+        "item-03": 65194271,
+        "item-04": 189500891,
+        "item-05": 182659711,
+        "item-06": 63687640
+      },
+      "orderAndScaleInvariant": true
+    },
+    {
+      "total": 495901250,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 708092
+        },
+        {
+          "id": "item-02",
+          "weight": 337997
+        },
+        {
+          "id": "item-03",
+          "weight": 469304
+        },
+        {
+          "id": "item-04",
+          "weight": 889523
+        },
+        {
+          "id": "item-05",
+          "weight": 744253
+        },
+        {
+          "id": "item-06",
+          "weight": 106286
+        },
+        {
+          "id": "item-07",
+          "weight": 309053
+        },
+        {
+          "id": "item-08",
+          "weight": 254788
+        }
+      ],
+      "expected": {
+        "item-01": 91939380,
+        "item-02": 43885872,
+        "item-03": 60934905,
+        "item-04": 115496565,
+        "item-05": 96634561,
+        "item-06": 13800282,
+        "item-07": 40127754,
+        "item-08": 33081931
+      },
+      "orderAndScaleInvariant": true
+    },
+    {
+      "total": 661863438,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 196017
+        },
+        {
+          "id": "item-02",
+          "weight": 76874
+        },
+        {
+          "id": "item-03",
+          "weight": 973602
+        },
+        {
+          "id": "item-04",
+          "weight": 655465
+        },
+        {
+          "id": "item-05",
+          "weight": 611410
+        },
+        {
+          "id": "item-06",
+          "weight": 587686
+        },
+        {
+          "id": "item-07",
+          "weight": 207320
+        },
+        {
+          "id": "item-08",
+          "weight": 390380
+        },
+        {
+          "id": "item-09",
+          "weight": 118473
+        },
+        {
+          "id": "item-10",
+          "weight": 552753
+        },
+        {
+          "id": "item-11",
+          "weight": 610786
+        },
+        {
+          "id": "item-12",
+          "weight": 831860
+        }
+      ],
+      "expected": {
+        "item-01": 22319772,
+        "item-02": 8753374,
+        "item-03": 110860662,
+        "item-04": 74635512,
+        "item-05": 69619123,
+        "item-06": 66917754,
+        "item-07": 23606805,
+        "item-08": 44451208,
+        "item-09": 13490107,
+        "item-10": 62940055,
+        "item-11": 69548071,
+        "item-12": 94720995
+      },
+      "orderAndScaleInvariant": true
+    },
+    {
+      "total": 216700846,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 700914
+        }
+      ],
+      "expected": {
+        "item-01": 216700846
+      },
+      "orderAndScaleInvariant": true
+    },
+    {
+      "total": 345660649,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 247508
+        },
+        {
+          "id": "item-02",
+          "weight": 622614
+        },
+        {
+          "id": "item-03",
+          "weight": 685961
+        },
+        {
+          "id": "item-04",
+          "weight": 777799
+        },
+        {
+          "id": "item-05",
+          "weight": 848081
+        },
+        {
+          "id": "item-06",
+          "weight": 962137
+        },
+        {
+          "id": "item-07",
+          "weight": 875324
+        },
+        {
+          "id": "item-08",
+          "weight": 100316
+        },
+        {
+          "id": "item-09",
+          "weight": 743389
+        },
+        {
+          "id": "item-10",
+          "weight": 361039
+        },
+        {
+          "id": "item-11",
+          "weight": 541811
+        },
+        {
+          "id": "item-12",
+          "weight": 591156
+        },
+        {
+          "id": "item-13",
+          "weight": 490514
+        },
+        {
+          "id": "item-14",
+          "weight": 181894
+        },
+        {
+          "id": "item-15",
+          "weight": 968124
+        }
+      ],
+      "expected": {
+        "item-01": 9508440,
+        "item-02": 23918773,
+        "item-03": 26352356,
+        "item-04": 29880469,
+        "item-05": 32580471,
+        "item-06": 36962126,
+        "item-07": 33627057,
+        "item-08": 3853809,
+        "item-09": 28558550,
+        "item-10": 13869926,
+        "item-11": 20814589,
+        "item-12": 22710261,
+        "item-13": 18843928,
+        "item-14": 6987767,
+        "item-15": 37192127
+      },
+      "orderAndScaleInvariant": true
+    },
+    {
+      "total": 124164081,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 661280
+        },
+        {
+          "id": "item-02",
+          "weight": 433619
+        },
+        {
+          "id": "item-03",
+          "weight": 210642
+        },
+        {
+          "id": "item-04",
+          "weight": 855766
+        },
+        {
+          "id": "item-05",
+          "weight": 652456
+        },
+        {
+          "id": "item-06",
+          "weight": 267407
+        }
+      ],
+      "expected": {
+        "item-01": 26648067,
+        "item-02": 17473851,
+        "item-03": 8488389,
+        "item-04": 34485406,
+        "item-05": 26292480,
+        "item-06": 10775888
+      },
+      "orderAndScaleInvariant": true
+    },
+    {
+      "total": 343358277,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 164984
+        },
+        {
+          "id": "item-02",
+          "weight": 458037
+        }
+      ],
+      "expected": {
+        "item-01": 90925702,
+        "item-02": 252432575
+      },
+      "orderAndScaleInvariant": true
+    },
+    {
+      "total": 871504859,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 755873
+        },
+        {
+          "id": "item-02",
+          "weight": 104854
+        },
+        {
+          "id": "item-03",
+          "weight": 449976
+        },
+        {
+          "id": "item-04",
+          "weight": 315349
+        },
+        {
+          "id": "item-05",
+          "weight": 51190
+        },
+        {
+          "id": "item-06",
+          "weight": 782333
+        },
+        {
+          "id": "item-07",
+          "weight": 99544
+        },
+        {
+          "id": "item-08",
+          "weight": 700482
+        },
+        {
+          "id": "item-09",
+          "weight": 790607
+        },
+        {
+          "id": "item-10",
+          "weight": 795408
+        },
+        {
+          "id": "item-11",
+          "weight": 173791
+        },
+        {
+          "id": "item-12",
+          "weight": 582268
+        },
+        {
+          "id": "item-13",
+          "weight": 423055
+        },
+        {
+          "id": "item-14",
+          "weight": 43833
+        },
+        {
+          "id": "item-15",
+          "weight": 128045
+        },
+        {
+          "id": "item-16",
+          "weight": 462216
+        },
+        {
+          "id": "item-17",
+          "weight": 875726
+        },
+        {
+          "id": "item-18",
+          "weight": 539581
+        }
+      ],
+      "expected": {
+        "item-01": 81587355,
+        "item-02": 11317722,
+        "item-03": 48569471,
+        "item-04": 34038113,
+        "item-05": 5525342,
+        "item-06": 84443392,
+        "item-07": 10744572,
+        "item-08": 75608566,
+        "item-09": 85336471,
+        "item-10": 85854680,
+        "item-11": 18758638,
+        "item-12": 62848793,
+        "item-13": 45663674,
+        "item-14": 4731243,
+        "item-15": 13820910,
+        "item-16": 49890631,
+        "item-17": 94524038,
+        "item-18": 58241248
+      },
+      "orderAndScaleInvariant": true
+    },
+    {
+      "total": 480070009,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 384042
+        },
+        {
+          "id": "item-02",
+          "weight": 793803
+        },
+        {
+          "id": "item-03",
+          "weight": 666144
+        },
+        {
+          "id": "item-04",
+          "weight": 708960
+        },
+        {
+          "id": "item-05",
+          "weight": 188604
+        },
+        {
+          "id": "item-06",
+          "weight": 87937
+        },
+        {
+          "id": "item-07",
+          "weight": 655538
+        },
+        {
+          "id": "item-08",
+          "weight": 726364
+        },
+        {
+          "id": "item-09",
+          "weight": 532004
+        },
+        {
+          "id": "item-10",
+          "weight": 622614
+        },
+        {
+          "id": "item-11",
+          "weight": 422382
+        },
+        {
+          "id": "item-12",
+          "weight": 102520
+        },
+        {
+          "id": "item-13",
+          "weight": 646379
+        },
+        {
+          "id": "item-14",
+          "weight": 262672
+        }
+      ],
+      "expected": {
+        "item-01": 27112948,
+        "item-02": 56041630,
+        "item-03": 47029044,
+        "item-04": 50051807,
+        "item-05": 13315238,
+        "item-06": 6208257,
+        "item-07": 46280271,
+        "item-08": 51280510,
+        "item-09": 37558905,
+        "item-10": 43955873,
+        "item-11": 29819711,
+        "item-12": 7237801,
+        "item-13": 45633656,
+        "item-14": 18544358
+      },
+      "orderAndScaleInvariant": true
+    },
+    {
+      "total": 543575691,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 320102
+        },
+        {
+          "id": "item-02",
+          "weight": 938995
+        },
+        {
+          "id": "item-03",
+          "weight": 285372
+        },
+        {
+          "id": "item-04",
+          "weight": 180783
+        },
+        {
+          "id": "item-05",
+          "weight": 180132
+        },
+        {
+          "id": "item-06",
+          "weight": 240815
+        },
+        {
+          "id": "item-07",
+          "weight": 548449
+        },
+        {
+          "id": "item-08",
+          "weight": 55999
+        }
+      ],
+      "expected": {
+        "item-01": 63257723,
+        "item-02": 185561745,
+        "item-03": 56394471,
+        "item-04": 35725865,
+        "item-05": 35597216,
+        "item-06": 47589233,
+        "item-07": 108383062,
+        "item-08": 11066376
+      },
+      "orderAndScaleInvariant": true
+    },
+    {
+      "total": 495604981,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 108543
+        },
+        {
+          "id": "item-02",
+          "weight": 965881
+        },
+        {
+          "id": "item-03",
+          "weight": 66273
+        },
+        {
+          "id": "item-04",
+          "weight": 616328
+        },
+        {
+          "id": "item-05",
+          "weight": 241014
+        },
+        {
+          "id": "item-06",
+          "weight": 650031
+        },
+        {
+          "id": "item-07",
+          "weight": 713255
+        },
+        {
+          "id": "item-08",
+          "weight": 362333
+        },
+        {
+          "id": "item-09",
+          "weight": 366176
+        },
+        {
+          "id": "item-10",
+          "weight": 966676
+        },
+        {
+          "id": "item-11",
+          "weight": 496140
+        },
+        {
+          "id": "item-12",
+          "weight": 421670
+        },
+        {
+          "id": "item-13",
+          "weight": 969487
+        },
+        {
+          "id": "item-14",
+          "weight": 347597
+        },
+        {
+          "id": "item-15",
+          "weight": 523119
+        },
+        {
+          "id": "item-16",
+          "weight": 979978
+        },
+        {
+          "id": "item-17",
+          "weight": 61016
+        },
+        {
+          "id": "item-18",
+          "weight": 707539
+        },
+        {
+          "id": "item-19",
+          "weight": 54605
+        }
+      ],
+      "expected": {
+        "item-01": 5593299,
+        "item-02": 49772542,
+        "item-03": 3415095,
+        "item-04": 31759825,
+        "item-05": 12419624,
+        "item-06": 33496564,
+        "item-07": 36754543,
+        "item-08": 18671280,
+        "item-09": 18869312,
+        "item-10": 49813509,
+        "item-11": 25566451,
+        "item-12": 21728958,
+        "item-13": 49958362,
+        "item-14": 17911923,
+        "item-15": 26956698,
+        "item-16": 50498970,
+        "item-17": 3144198,
+        "item-18": 36459993,
+        "item-19": 2813835
+      },
+      "orderAndScaleInvariant": true
+    },
+    {
+      "total": 184358672,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 4088
+        },
+        {
+          "id": "item-02",
+          "weight": 852761
+        },
+        {
+          "id": "item-03",
+          "weight": 654535
+        },
+        {
+          "id": "item-04",
+          "weight": 219761
+        },
+        {
+          "id": "item-05",
+          "weight": 191110
+        },
+        {
+          "id": "item-06",
+          "weight": 868889
+        },
+        {
+          "id": "item-07",
+          "weight": 867061
+        },
+        {
+          "id": "item-08",
+          "weight": 753636
+        },
+        {
+          "id": "item-09",
+          "weight": 346909
+        },
+        {
+          "id": "item-10",
+          "weight": 697866
+        },
+        {
+          "id": "item-11",
+          "weight": 353378
+        },
+        {
+          "id": "item-12",
+          "weight": 690350
+        },
+        {
+          "id": "item-13",
+          "weight": 450588
+        },
+        {
+          "id": "item-14",
+          "weight": 946461
+        },
+        {
+          "id": "item-15",
+          "weight": 712083
+        },
+        {
+          "id": "item-16",
+          "weight": 436387
+        },
+        {
+          "id": "item-17",
+          "weight": 816572
+        },
+        {
+          "id": "item-18",
+          "weight": 552986
+        },
+        {
+          "id": "item-19",
+          "weight": 86893
+        }
+      ],
+      "expected": {
+        "item-01": 71761,
+        "item-02": 14969452,
+        "item-03": 11489773,
+        "item-04": 3857707,
+        "item-05": 3354764,
+        "item-06": 15252564,
+        "item-07": 15220476,
+        "item-08": 13229402,
+        "item-09": 6089675,
+        "item-10": 12250410,
+        "item-11": 6203233,
+        "item-12": 12118473,
+        "item-13": 7909667,
+        "item-14": 16614271,
+        "item-15": 12499976,
+        "item-16": 7660381,
+        "item-17": 14334187,
+        "item-18": 9707172,
+        "item-19": 1525328
+      },
+      "orderAndScaleInvariant": true
+    },
+    {
+      "total": 152316108,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 984477
+        },
+        {
+          "id": "item-02",
+          "weight": 43595
+        },
+        {
+          "id": "item-03",
+          "weight": 29141
+        },
+        {
+          "id": "item-04",
+          "weight": 394387
+        },
+        {
+          "id": "item-05",
+          "weight": 695652
+        },
+        {
+          "id": "item-06",
+          "weight": 477765
+        },
+        {
+          "id": "item-07",
+          "weight": 467617
+        },
+        {
+          "id": "item-08",
+          "weight": 306139
+        }
+      ],
+      "expected": {
+        "item-01": 44119365,
+        "item-02": 1953711,
+        "item-03": 1305955,
+        "item-04": 17674464,
+        "item-05": 31175664,
+        "item-06": 21411052,
+        "item-07": 20956269,
+        "item-08": 13719628
+      },
+      "orderAndScaleInvariant": true
+    },
+    {
+      "total": 624210433,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 545489
+        },
+        {
+          "id": "item-02",
+          "weight": 386242
+        },
+        {
+          "id": "item-03",
+          "weight": 174024
+        },
+        {
+          "id": "item-04",
+          "weight": 212589
+        },
+        {
+          "id": "item-05",
+          "weight": 131448
+        },
+        {
+          "id": "item-06",
+          "weight": 712508
+        },
+        {
+          "id": "item-07",
+          "weight": 719289
+        },
+        {
+          "id": "item-08",
+          "weight": 915342
+        }
+      ],
+      "expected": {
+        "item-01": 89677670,
+        "item-02": 63497674,
+        "item-03": 28609315,
+        "item-04": 34949350,
+        "item-05": 21609877,
+        "item-06": 117135373,
+        "item-07": 118250160,
+        "item-08": 150481014
+      },
+      "orderAndScaleInvariant": true
+    },
+    {
+      "total": 981703030,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 125300
+        },
+        {
+          "id": "item-02",
+          "weight": 622264
+        },
+        {
+          "id": "item-03",
+          "weight": 923576
+        },
+        {
+          "id": "item-04",
+          "weight": 188925
+        },
+        {
+          "id": "item-05",
+          "weight": 119535
+        },
+        {
+          "id": "item-06",
+          "weight": 856293
+        },
+        {
+          "id": "item-07",
+          "weight": 565811
+        },
+        {
+          "id": "item-08",
+          "weight": 253718
+        },
+        {
+          "id": "item-09",
+          "weight": 190027
+        },
+        {
+          "id": "item-10",
+          "weight": 184247
+        },
+        {
+          "id": "item-11",
+          "weight": 187769
+        },
+        {
+          "id": "item-12",
+          "weight": 287651
+        },
+        {
+          "id": "item-13",
+          "weight": 480231
+        }
+      ],
+      "expected": {
+        "item-01": 24673787,
+        "item-02": 122534791,
+        "item-03": 181868455,
+        "item-04": 37202675,
+        "item-05": 23538557,
+        "item-06": 168619242,
+        "item-07": 111418197,
+        "item-08": 49961563,
+        "item-09": 37419679,
+        "item-10": 36281494,
+        "item-11": 36975038,
+        "item-12": 56643571,
+        "item-13": 94565981
+      },
+      "orderAndScaleInvariant": true
+    },
+    {
+      "total": 794834706,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 59150
+        },
+        {
+          "id": "item-02",
+          "weight": 965940
+        },
+        {
+          "id": "item-03",
+          "weight": 399862
+        }
+      ],
+      "expected": {
+        "item-01": 32993724,
+        "item-02": 538798946,
+        "item-03": 223042036
+      },
+      "orderAndScaleInvariant": true
+    },
+    {
+      "total": 861875192,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 778339
+        },
+        {
+          "id": "item-02",
+          "weight": 781337
+        },
+        {
+          "id": "item-03",
+          "weight": 401700
+        },
+        {
+          "id": "item-04",
+          "weight": 164060
+        },
+        {
+          "id": "item-05",
+          "weight": 990008
+        },
+        {
+          "id": "item-06",
+          "weight": 948222
+        }
+      ],
+      "expected": {
+        "item-01": 165080269,
+        "item-02": 165716123,
+        "item-03": 85197766,
+        "item-04": 34795981,
+        "item-05": 209973786,
+        "item-06": 201111267
+      },
+      "orderAndScaleInvariant": true
+    },
+    {
+      "total": 379137823,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 518979
+        },
+        {
+          "id": "item-02",
+          "weight": 955897
+        },
+        {
+          "id": "item-03",
+          "weight": 92566
+        },
+        {
+          "id": "item-04",
+          "weight": 581910
+        },
+        {
+          "id": "item-05",
+          "weight": 895154
+        },
+        {
+          "id": "item-06",
+          "weight": 999924
+        },
+        {
+          "id": "item-07",
+          "weight": 61994
+        },
+        {
+          "id": "item-08",
+          "weight": 599868
+        },
+        {
+          "id": "item-09",
+          "weight": 705314
+        },
+        {
+          "id": "item-10",
+          "weight": 753720
+        },
+        {
+          "id": "item-11",
+          "weight": 385347
+        },
+        {
+          "id": "item-12",
+          "weight": 464704
+        },
+        {
+          "id": "item-13",
+          "weight": 290074
+        },
+        {
+          "id": "item-14",
+          "weight": 268252
+        },
+        {
+          "id": "item-15",
+          "weight": 346332
+        },
+        {
+          "id": "item-16",
+          "weight": 179522
+        },
+        {
+          "id": "item-17",
+          "weight": 596735
+        },
+        {
+          "id": "item-18",
+          "weight": 513505
+        },
+        {
+          "id": "item-19",
+          "weight": 479653
+        }
+      ],
+      "expected": {
+        "item-01": 20307094,
+        "item-02": 37403228,
+        "item-03": 3622009,
+        "item-04": 22769516,
+        "item-05": 35026419,
+        "item-06": 39125957,
+        "item-07": 2425759,
+        "item-08": 23472194,
+        "item-09": 27598183,
+        "item-10": 29492258,
+        "item-11": 15078216,
+        "item-12": 18183371,
+        "item-13": 11350286,
+        "item-14": 10496414,
+        "item-15": 13551601,
+        "item-16": 7024504,
+        "item-17": 23349603,
+        "item-18": 20092902,
+        "item-19": 18768309
+      },
+      "orderAndScaleInvariant": true
+    },
+    {
+      "total": 286831603,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 659987
+        },
+        {
+          "id": "item-02",
+          "weight": 322407
+        }
+      ],
+      "expected": {
+        "item-01": 192697766,
+        "item-02": 94133837
+      },
+      "orderAndScaleInvariant": true
+    },
+    {
+      "total": 48270507,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 403551
+        },
+        {
+          "id": "item-02",
+          "weight": 645342
+        }
+      ],
+      "expected": {
+        "item-01": 18571591,
+        "item-02": 29698916
+      },
+      "orderAndScaleInvariant": true
+    },
+    {
+      "total": 301733028,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 281905
+        },
+        {
+          "id": "item-02",
+          "weight": 300753
+        },
+        {
+          "id": "item-03",
+          "weight": 109676
+        },
+        {
+          "id": "item-04",
+          "weight": 7204
+        },
+        {
+          "id": "item-05",
+          "weight": 516155
+        },
+        {
+          "id": "item-06",
+          "weight": 942720
+        },
+        {
+          "id": "item-07",
+          "weight": 896752
+        },
+        {
+          "id": "item-08",
+          "weight": 793497
+        },
+        {
+          "id": "item-09",
+          "weight": 940810
+        },
+        {
+          "id": "item-10",
+          "weight": 134136
+        },
+        {
+          "id": "item-11",
+          "weight": 335708
+        }
+      ],
+      "expected": {
+        "item-01": 16173215,
+        "item-02": 17254547,
+        "item-03": 6292239,
+        "item-04": 413302,
+        "item-05": 29612408,
+        "item-06": 54084934,
+        "item-07": 51447697,
+        "item-08": 45523839,
+        "item-09": 53975355,
+        "item-10": 7695537,
+        "item-11": 19259955
+      },
+      "orderAndScaleInvariant": true
+    },
+    {
+      "total": 424948015,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 18994
+        },
+        {
+          "id": "item-02",
+          "weight": 760891
+        },
+        {
+          "id": "item-03",
+          "weight": 657255
+        }
+      ],
+      "expected": {
+        "item-01": 5616337,
+        "item-02": 224987907,
+        "item-03": 194343771
+      },
+      "orderAndScaleInvariant": true
+    },
+    {
+      "total": 821487295,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 584022
+        },
+        {
+          "id": "item-02",
+          "weight": 136736
+        },
+        {
+          "id": "item-03",
+          "weight": 321161
+        },
+        {
+          "id": "item-04",
+          "weight": 740974
+        },
+        {
+          "id": "item-05",
+          "weight": 193801
+        },
+        {
+          "id": "item-06",
+          "weight": 609975
+        },
+        {
+          "id": "item-07",
+          "weight": 857075
+        },
+        {
+          "id": "item-08",
+          "weight": 152088
+        },
+        {
+          "id": "item-09",
+          "weight": 478879
+        },
+        {
+          "id": "item-10",
+          "weight": 188627
+        },
+        {
+          "id": "item-11",
+          "weight": 38486
+        },
+        {
+          "id": "item-12",
+          "weight": 607364
+        },
+        {
+          "id": "item-13",
+          "weight": 17259
+        },
+        {
+          "id": "item-14",
+          "weight": 948676
+        }
+      ],
+      "expected": {
+        "item-01": 81660699,
+        "item-02": 19119070,
+        "item-03": 44906240,
+        "item-04": 103606465,
+        "item-05": 27098166,
+        "item-06": 85289570,
+        "item-07": 119840252,
+        "item-08": 21265659,
+        "item-09": 66959111,
+        "item-10": 26374713,
+        "item-11": 5381293,
+        "item-12": 84924487,
+        "item-13": 2413235,
+        "item-14": 132648335
+      },
+      "orderAndScaleInvariant": true
+    },
+    {
+      "total": 545384340,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 453247
+        },
+        {
+          "id": "item-02",
+          "weight": 303322
+        },
+        {
+          "id": "item-03",
+          "weight": 395684
+        },
+        {
+          "id": "item-04",
+          "weight": 72098
+        },
+        {
+          "id": "item-05",
+          "weight": 968723
+        },
+        {
+          "id": "item-06",
+          "weight": 18724
+        },
+        {
+          "id": "item-07",
+          "weight": 955302
+        },
+        {
+          "id": "item-08",
+          "weight": 868174
+        },
+        {
+          "id": "item-09",
+          "weight": 454989
+        },
+        {
+          "id": "item-10",
+          "weight": 593887
+        },
+        {
+          "id": "item-11",
+          "weight": 393940
+        }
+      ],
+      "expected": {
+        "item-01": 45124088,
+        "item-02": 30197947,
+        "item-03": 39393266,
+        "item-04": 7177889,
+        "item-05": 96443533,
+        "item-06": 1864113,
+        "item-07": 95107373,
+        "item-08": 86433137,
+        "item-09": 45297517,
+        "item-10": 59125839,
+        "item-11": 39219638
+      },
+      "orderAndScaleInvariant": true
+    },
+    {
+      "total": 920230590,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 90939
+        },
+        {
+          "id": "item-02",
+          "weight": 472032
+        },
+        {
+          "id": "item-03",
+          "weight": 947705
+        },
+        {
+          "id": "item-04",
+          "weight": 339843
+        },
+        {
+          "id": "item-05",
+          "weight": 79316
+        },
+        {
+          "id": "item-06",
+          "weight": 120368
+        },
+        {
+          "id": "item-07",
+          "weight": 997357
+        },
+        {
+          "id": "item-08",
+          "weight": 352423
+        },
+        {
+          "id": "item-09",
+          "weight": 921585
+        },
+        {
+          "id": "item-10",
+          "weight": 132345
+        },
+        {
+          "id": "item-11",
+          "weight": 854661
+        },
+        {
+          "id": "item-12",
+          "weight": 212264
+        }
+      ],
+      "expected": {
+        "item-01": 15157998,
+        "item-02": 78679774,
+        "item-03": 157966441,
+        "item-04": 56646097,
+        "item-05": 13220639,
+        "item-06": 20063316,
+        "item-07": 166242592,
+        "item-08": 58742971,
+        "item-09": 153612678,
+        "item-10": 22059680,
+        "item-11": 142457575,
+        "item-12": 35380829
+      },
+      "orderAndScaleInvariant": true
+    },
+    {
+      "total": 427169314,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 891932
+        },
+        {
+          "id": "item-02",
+          "weight": 372482
+        },
+        {
+          "id": "item-03",
+          "weight": 777691
+        },
+        {
+          "id": "item-04",
+          "weight": 234562
+        },
+        {
+          "id": "item-05",
+          "weight": 62339
+        },
+        {
+          "id": "item-06",
+          "weight": 73928
+        },
+        {
+          "id": "item-07",
+          "weight": 208921
+        },
+        {
+          "id": "item-08",
+          "weight": 381924
+        },
+        {
+          "id": "item-09",
+          "weight": 471305
+        },
+        {
+          "id": "item-10",
+          "weight": 256525
+        },
+        {
+          "id": "item-11",
+          "weight": 715881
+        },
+        {
+          "id": "item-12",
+          "weight": 437153
+        },
+        {
+          "id": "item-13",
+          "weight": 768053
+        }
+      ],
+      "expected": {
+        "item-01": 67402524,
+        "item-02": 28148140,
+        "item-03": 58769432,
+        "item-04": 17725646,
+        "item-05": 4710904,
+        "item-06": 5586675,
+        "item-07": 15787978,
+        "item-08": 28861664,
+        "item-09": 35616108,
+        "item-10": 19385371,
+        "item-11": 54098504,
+        "item-12": 33035272,
+        "item-13": 58041096
+      },
+      "orderAndScaleInvariant": true
+    },
+    {
+      "total": 475042126,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 329181
+        },
+        {
+          "id": "item-02",
+          "weight": 97358
+        },
+        {
+          "id": "item-03",
+          "weight": 574279
+        },
+        {
+          "id": "item-04",
+          "weight": 544513
+        },
+        {
+          "id": "item-05",
+          "weight": 275321
+        },
+        {
+          "id": "item-06",
+          "weight": 931225
+        },
+        {
+          "id": "item-07",
+          "weight": 331235
+        },
+        {
+          "id": "item-08",
+          "weight": 920527
+        },
+        {
+          "id": "item-09",
+          "weight": 5745
+        },
+        {
+          "id": "item-10",
+          "weight": 55798
+        },
+        {
+          "id": "item-11",
+          "weight": 734295
+        },
+        {
+          "id": "item-12",
+          "weight": 325449
+        },
+        {
+          "id": "item-13",
+          "weight": 152421
+        },
+        {
+          "id": "item-14",
+          "weight": 969691
+        },
+        {
+          "id": "item-15",
+          "weight": 200898
+        }
+      ],
+      "expected": {
+        "item-01": 24251922,
+        "item-02": 7172706,
+        "item-03": 42309154,
+        "item-04": 40116188,
+        "item-05": 20283867,
+        "item-06": 68606621,
+        "item-07": 24403248,
+        "item-08": 67818462,
+        "item-09": 423254,
+        "item-10": 4110835,
+        "item-11": 54098096,
+        "item-12": 23976973,
+        "item-13": 11229391,
+        "item-14": 71440547,
+        "item-15": 14800862
+      },
+      "orderAndScaleInvariant": true
+    },
+    {
+      "total": 184568725,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 117977
+        },
+        {
+          "id": "item-02",
+          "weight": 403309
+        },
+        {
+          "id": "item-03",
+          "weight": 870220
+        },
+        {
+          "id": "item-04",
+          "weight": 702738
+        },
+        {
+          "id": "item-05",
+          "weight": 791464
+        },
+        {
+          "id": "item-06",
+          "weight": 385014
+        },
+        {
+          "id": "item-07",
+          "weight": 715915
+        }
+      ],
+      "expected": {
+        "item-01": 5461963,
+        "item-02": 18671935,
+        "item-03": 40288443,
+        "item-04": 32534554,
+        "item-05": 36642288,
+        "item-06": 17824934,
+        "item-07": 33144608
+      },
+      "orderAndScaleInvariant": true
+    },
+    {
+      "total": 453498440,
+      "rows": [
+        {
+          "id": "item-01",
+          "weight": 226673
+        },
+        {
+          "id": "item-02",
+          "weight": 757372
+        },
+        {
+          "id": "item-03",
+          "weight": 211419
+        },
+        {
+          "id": "item-04",
+          "weight": 441912
+        },
+        {
+          "id": "item-05",
+          "weight": 589028
+        },
+        {
+          "id": "item-06",
+          "weight": 101265
+        },
+        {
+          "id": "item-07",
+          "weight": 412673
+        }
+      ],
+      "expected": {
+        "item-01": 37512052,
+        "item-02": 125337283,
+        "item-03": 34987672,
+        "item-04": 73131895,
+        "item-05": 97478081,
+        "item-06": 16758317,
+        "item-07": 68293140
+      },
+      "orderAndScaleInvariant": true
+    }
+  ],
+  "documentExample": {
+    "subtotal": 29000,
+    "volumeDiscount": 3000,
+    "netGoods": 26000,
+    "prepaidShipping": 6750,
+    "collectShipping": 2250,
+    "coupon": 2100,
+    "credit": 2000,
+    "onlineTotal": 28650,
+    "customerTotal": 30900,
+    "creditByItem": {
+      "a": 1582,
+      "b": 418
+    }
+  }
+}

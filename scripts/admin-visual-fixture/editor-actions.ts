@@ -11,6 +11,7 @@ export const loadLastSavedGoodNotice = async () => ({ name: '합성 프리셋', 
 const blocked = async () => { throw new Error('fixture blocks server writes'); };
 export const toggleWishlistAction = blocked;
 export const requestRestockAlertAction = blocked;
+export const requestVariantRestockAlertAction = blocked;
 export const cancelAdminArtworkUploadAction = blocked;
 export const prepareAdminArtworkUploadAction = blocked;
 export const verifyAdminArtworkUploadAction = blocked;

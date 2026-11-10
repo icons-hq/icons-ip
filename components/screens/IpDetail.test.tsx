@@ -1,9 +1,15 @@
+import { readFileSync } from 'node:fs';
+import postcss, { type AtRule } from 'postcss';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 import type { CatalogIpDetail } from '@/lib/catalog';
 import type { IpFollowState } from '@/lib/ip-follow';
-import { IpDetail } from './IpDetail';
+import { IP_HALL_BANNER_EMPTY_SOURCE, type IpHallBanner } from '@/lib/ip-hall-banner';
+import type { ListingWishlist } from '@/lib/listing-wishlist';
+import { parseShopSearchParams, selectCollectionGoods } from '@/lib/shop-catalog';
+import { shopQueryString } from '@/components/shop/collection-filters';
+import { IpDetail, type IpGoodsCollection } from './IpDetail';
 
 /* R-03 §1.9 개별 관 행동 단언 — 팔로우·알림 폼의 hidden 필드 계약(app/ip/actions.ts),
  * 해시태그 실데이터 파생, 품절 포함 굿즈 카운트 행, 연결 밴드 경로. */
@@ -16,6 +22,11 @@ const actions = vi.hoisted(() => ({
 vi.mock('@/app/ip/actions', () => ({
   setIpNotificationPreferencesAction: actions.setPreferences,
   toggleIpFollowAction: actions.toggleFollow,
+}));
+vi.mock('@/app/shop/actions', () => ({ toggleWishlistAction: vi.fn() }));
+vi.mock('next/navigation', () => ({
+  usePathname: () => '/ip/maplestory',
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
 }));
 
 const ip = {
@@ -57,16 +68,28 @@ function render(overrides: {
   followError?: boolean;
   notificationError?: boolean;
   notificationSaved?: boolean;
+  collection?: IpGoodsCollection;
+  wishlist?: ListingWishlist | null;
+  banner?: IpHallBanner | null;
 } = {}) {
   return renderToStaticMarkup(
     <IpDetail
+      banner={overrides.banner}
+      collection={overrides.collection}
       detail={overrides.detail ?? detail}
       followError={overrides.followError ?? false}
       followState={overrides.followState ?? notFollowed}
       notificationError={overrides.notificationError ?? false}
       notificationSaved={overrides.notificationSaved ?? false}
+      wishlist={overrides.wishlist}
     />,
   );
+}
+
+/* 페이지가 URL 로 계산해 내려주는 IP관 컬렉션을 테스트에서도 같은 함수로 만든다. */
+function collectionOf(params: Record<string, string | string[]>, source: CatalogIpDetail = detail): IpGoodsCollection {
+  const query = parseShopSearchParams(params, { view: 'ip', validIpIds: new Set() });
+  return { query, result: selectCollectionGoods(source.goods, { ips: [source.ip] }, query) };
 }
 
 function inputNamed(html: string, name: string) {
@@ -116,6 +139,27 @@ describe('IpDetail follow form', () => {
     );
     expect(inputNamed(html, 'ipId')).toContain('value="maplestory"');
     expect(inputNamed(html, 'next')).toContain('value="/ip/maple-world"');
+  });
+});
+
+/* 팔로우·알림 저장(성공·실패·로그인 왕복) 뒤에도 고른 굿즈 필터·정렬이 남아야 한다(Codex #598). */
+describe('IpDetail form return path', () => {
+  it('sends the current filtered hall URL as next from every follow and notification form', () => {
+    const collection = collectionOf({ sort: 'name_asc', type: '키링' });
+    const expected = `/ip/maplestory?${shopQueryString(collection.query)}`.replace(/&/g, '&amp;');
+    expect(expected).toContain('sort=name_asc');
+
+    const follower = render({ collection, followState: { isFollowed: true, notifyDrops: true, notifyEvents: false } });
+    const guest = render({ collection });
+    const nextValues = (html: string) => [...html.matchAll(/<input[^>]*name="next"[^>]*value="([^"]*)"/g)].map((match) => match[1]);
+
+    expect(nextValues(follower)).toEqual([expected, expected]);
+    expect(nextValues(guest)).toEqual([expected, expected]);
+  });
+
+  it('keeps the bare hall path when no collection filter is chosen', () => {
+    const nextValues = [...render().matchAll(/<input[^>]*name="next"[^>]*value="([^"]*)"/g)].map((match) => match[1]);
+    expect(nextValues).toEqual(['/ip/maplestory', '/ip/maplestory']);
   });
 });
 
@@ -173,6 +217,18 @@ describe('IpDetail banner', () => {
     expect(hashtagList.match(/<li>/g)).toHaveLength(2);
   });
 
+  /* 데스크톱은 배너 안, 모바일은 배너 아래 흰 지면에 해시태그가 선다(11 IP-05) — 같은 목록을 폭마다 하나만 보인다. */
+  it('places the same hashtag list inside the banner and below it for the mobile layout', () => {
+    const html = render();
+    const banner = html.match(/<ul class="wc-iphall__hashtags wc-iphall__hashtags--banner">[\s\S]*?<\/ul>/)?.[0] ?? '';
+    const below = html.match(/<div class="wc-container wc-iphall__tags-band"><ul class="wc-iphall__hashtags wc-iphall__hashtags--below">[\s\S]*?<\/ul>/)?.[0] ?? '';
+
+    expect(banner.match(/<li>/g)).toHaveLength(2);
+    expect(below.match(/<li>/g)).toHaveLength(2);
+    expect(html.indexOf('wc-iphall__hashtags--banner')).toBeLessThan(html.indexOf('</section>'));
+    expect(html.indexOf('wc-iphall__hashtags--below')).toBeGreaterThan(html.indexOf('</section>'));
+  });
+
   it('renders the ip name as the page heading with its description', () => {
     const html = render();
 
@@ -181,11 +237,74 @@ describe('IpDetail banner', () => {
   });
 });
 
+/* IP-06(L8b): IP관 PC/MO 배너. 없으면 키아트 배경 그대로(마크업 불변), 있으면 폭별 picture 가 배경 위·스크림 아래에 선다. */
+describe('IpDetail hall banner artwork', () => {
+  const sectionOf = (html: string) => html.match(/<section class="wc-iphall__banner"[^>]*>/)?.[0] ?? '';
+
+  it('keeps the key-art background exactly as before when the IP has no hall banner', () => {
+    for (const banner of [undefined, null, { imageUrl: null, mobileImageUrl: null }]) {
+      const html = render({ banner });
+
+      expect(sectionOf(html)).toBe('<section class="wc-iphall__banner" style="background:linear-gradient(#111, #222);background-size:cover;background-position:center">');
+      expect(html).not.toContain('wc-iphall__banner-media');
+    }
+  });
+
+  it('draws the PC banner for every width and swaps in the mobile banner below 750px', () => {
+    const html = render({ banner: { imageUrl: 'https://cdn.test/pc.webp', mobileImageUrl: 'https://cdn.test/mo.webp' } });
+
+    expect(sectionOf(html)).toBe('<section class="wc-iphall__banner" data-banner="all">');
+    expect(html).toContain('<picture class="wc-iphall__banner-media"><source media="(max-width: 749px)" srcSet="https://cdn.test/mo.webp"/><img alt="" decoding="async" fetchPriority="high" loading="eager" sizes="100vw" src="https://cdn.test/pc.webp"/></picture>');
+    expect(html.indexOf('wc-iphall__banner-media')).toBeLessThan(html.indexOf('<h1'));
+  });
+
+  it('uses the PC banner on mobile too when no mobile banner exists', () => {
+    const html = render({ banner: { imageUrl: 'https://cdn.test/pc.webp', mobileImageUrl: null } });
+
+    expect(html).not.toContain('<source');
+    expect(html).toContain('src="https://cdn.test/pc.webp"');
+  });
+
+  /* l8b-qa-6 — 데스크톱 PC 배너는 전면 스크림 대신 왼쪽 글자 단에만 스크림을 깐다(그림 오른쪽은 그대로). 키아트·모바일은 전면 그대로. */
+  it('scrims only the left text column over a desktop PC banner and keeps the full scrim elsewhere', () => {
+    const css = readFileSync(new URL('../../app/styles/wc-discovery.css', import.meta.url), 'utf8');
+    const rules: Array<{ media: string | null; selector: string; decls: Record<string, string> }> = [];
+    postcss.parse(css).walkRules((rule) => {
+      const parent = rule.parent?.type === 'atrule' ? rule.parent as AtRule : null;
+      const decls: Record<string, string> = {};
+      rule.walkDecls((decl) => { decls[decl.prop] = decl.value; });
+      for (const selector of rule.selectors) rules.push({ media: parent?.name === 'media' ? parent.params : null, selector: selector.trim(), decls });
+    });
+    const find = (selector: string, media: string | null) => rules.filter((rule) => rule.selector === selector && rule.media === media);
+
+    /* 기본(키아트·모바일): 전면 세로 스크림 .45→.62 그대로. */
+    expect(find('.wc-iphall__banner::before', null)[0]?.decls.background).toBe('linear-gradient(180deg, rgba(0, 0, 0, .45) 0%, rgba(0, 0, 0, .62) 100%)');
+    /* 데스크톱 PC 배너만: 왼쪽 글자 단(콘텐츠 왼쪽 선 + 560) 안은 .62→.54(기존 스크림의 글자 줄 값 이상), 그 끝에서 280px 동안 0 으로 풀린다. */
+    const pc = find(".wc-iphall__banner[data-banner='all']::before", '(min-width: 750px)');
+    expect(pc).toHaveLength(1);
+    expect(pc[0].decls['--wc-iphall-text-end']).toBe('calc(max(var(--wc-gutter), (100% - var(--wc-container-max)) / 2 + var(--wc-gutter)) + 560px)');
+    expect(pc[0].decls.background.replace(/\s+/g, ' ')).toBe(
+      'linear-gradient(90deg, rgba(0, 0, 0, .62) 0, rgba(0, 0, 0, .54) var(--wc-iphall-text-end), rgba(0, 0, 0, 0) calc(var(--wc-iphall-text-end) + 280px))',
+    );
+    /* 모바일 폭과 모바일 배너만 있는 IP 의 데스크톱(키아트)에는 이 완화가 걸리지 않는다. */
+    expect(rules.filter((rule) => rule.selector.includes('::before') && rule.selector.includes('wc-iphall__banner') && rule.media === '(max-width: 749px)')).toHaveLength(0);
+    expect(rules.filter((rule) => rule.selector.includes("data-banner='mobile']::before"))).toHaveLength(0);
+  });
+
+  it('keeps the key art on desktop for a mobile-only banner without downloading the mobile art there', () => {
+    const html = render({ banner: { imageUrl: null, mobileImageUrl: 'https://cdn.test/mo.webp' } });
+
+    expect(sectionOf(html)).toBe('<section class="wc-iphall__banner" data-banner="mobile" style="--wc-iphall-keyart:linear-gradient(#111, #222)">');
+    expect(html).toContain(`<source media="(min-width: 750px)" srcSet="${IP_HALL_BANNER_EMPTY_SOURCE}"/>`);
+    expect(html).toContain('src="https://cdn.test/mo.webp"');
+  });
+});
+
 describe('IpDetail goods section', () => {
   it('counts every good including sold-out ones and keeps the sold-out band', () => {
     const html = render();
 
-    expect(text(html)).toContain('전체 3개 굿즈');
+    expect(text(html)).toContain('전체 › 3개 굿즈');
     expect(html).toContain('SOLD OUT');
     expect(html).toContain('href="/shop/g1"');
   });
@@ -197,24 +316,62 @@ describe('IpDetail goods section', () => {
     expect(html).toContain('href="/shop?ip=maplestory"');
   });
 
-  it('renders a single-axis type chip row with 전체 pressed by default', () => {
+  /* IP-01: 상품 영역은 IP로 좁힌 굿즈샵 컬렉션이다 — 사이드바(타입·가격)·정렬·212 카드·VIEW MORE.
+     IP 그룹은 값이 하나뿐이라 그리지 않는다(레퍼런스 브랜드관의 1항목 브랜드 그룹 생략). */
+  it('replaces the type chips with the collection sidebar narrowed to this ip', () => {
     const html = render();
-    const allChip = html.match(/<button[^>]*aria-pressed="true"[^>]*>전체<\/button>/)?.[0];
 
-    expect(allChip).toContain('wc-iphall__filter-chip');
-    expect(html).toContain('>키링</button>');
-    expect(html).toContain('>인형</button>');
+    expect(html).toContain('aria-label="굿즈 필터"');
+    expect(html).toContain('타입 (0)');
+    expect(text(html)).toContain('키링 (2)');
+    expect(text(html)).toContain('인형 (1)');
+    expect(html).not.toContain('IP (0)');
+    expect(html).not.toContain('wc-iphall__filter-chip');
+    expect(html).toContain('class="wc-product-grid"');
   });
 
-  it('hides the chip row when a hall has a single type, and shows the empty state without goods', () => {
-    const single = render({
-      detail: { ...detail, goods: detail.goods.filter((good) => good.type === '키링') },
-    });
-    expect(single).not.toContain('wc-iphall__filter-chip');
+  it('offers the seven collection sorts with recommended selected by default', () => {
+    const html = render();
+    const values = [...html.matchAll(/<option[^>]*value="([^"]+)"/g)].map((match) => match[1]);
 
+    expect(values).toEqual(['recommended', 'name_asc', 'name_desc', 'price_asc', 'price_desc', 'oldest', 'newest']);
+    expect(html).toMatch(/<option[^>]*value="recommended"[^>]*selected/);
+  });
+
+  it('renders the server-computed collection with its filters and sort applied', () => {
+    const html = render({ collection: collectionOf({ type: '키링', sort: 'price_asc' }) });
+
+    expect(text(html)).toContain('전체 › 2/3개 굿즈');
+    expect(html.indexOf('버섯 키링')).toBeLessThan(html.indexOf('단풍 키링'));
+    expect(html).not.toContain('슬라임 인형');
+    expect(html).toMatch(/<input[^>]*checked=""[^>]*value="키링"/);
+  });
+
+  it('pages beyond twenty goods with VIEW MORE', () => {
+    const many: CatalogIpDetail = {
+      ...detail,
+      goods: Array.from({ length: 25 }, (_, index) => ({ ...detail.goods[0], id: `m${index}`, name: `굿즈 ${index}` })),
+    };
+    const html = render({ detail: many });
+
+    expect((html.match(/wc-product-card__name-link/g) ?? []).length).toBe(20);
+    expect(html).toContain('>VIEW MORE</button>');
+  });
+
+  it('puts a listing heart on every card when the wish set is passed', () => {
+    const html = render({ wishlist: { viewerId: 'viewer-1', goodIds: ['g3'] } });
+
+    expect((html.match(/<button[^>]*class="wc-list-heart[ "]/g) ?? []).length).toBe(3);
+    expect(html).toContain('aria-label="버섯 키링 위시리스트에서 빼기"');
+  });
+
+  it('shows only the empty state when the hall has no goods', () => {
     const empty = render({ detail: { ...detail, goods: [] } });
+
     expect(empty).toContain('등록된 굿즈가 아직 없습니다');
-    expect(text(empty)).toContain('전체 0개 굿즈');
+    expect(empty).toContain('id="iphall-goods-heading"');
+    expect(empty).not.toContain('aria-label="굿즈 필터"');
+    expect(empty).not.toContain('wc-product-grid');
   });
 });
 

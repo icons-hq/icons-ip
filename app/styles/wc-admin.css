@@ -1,212 +1,70 @@
-/* ADR-0014: shared White Catalog shell, controls, and operational screen kit. */
-.wc-admin.admin-shell {
-  display: flex;
-  min-height: 100svh;
-  background: var(--wc-surface-grey);
-  color: var(--wc-ink);
-  font-family: var(--wc-font);
-  font-size: 14px;
-  line-height: 1.65;
-}
-.wc-admin .wc-admin__sidebar {
-  position: fixed;
-  inset: 0 auto 0 0;
-  z-index: 80;
-  display: flex;
-  width: 248px;
-  flex-direction: column;
-  background: var(--wc-surface);
-  border-right: 1px solid var(--wc-hairline);
-  overflow: hidden;
-  transition: width var(--wc-duration-default);
-}
-.wc-admin .wc-admin__brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 72px;
-  padding: 0 24px;
-  border-bottom: 1px solid var(--wc-hairline);
-  color: var(--wc-ink);
-  font-size: 19px;
-  font-weight: 800;
-  white-space: nowrap;
-}
-.wc-admin .wc-admin__brand-dot { width: 10px; height: 10px; flex: none; border-radius: 50%; background: var(--wc-accent); }
-.wc-admin .wc-admin__brand-caption { color: var(--wc-ink-tertiary); font-weight: 500; }
-.wc-admin .wc-admin__nav { display: flex; min-height: 0; flex: 1; flex-direction: column; gap: 20px; padding: 20px 12px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--wc-line-control) transparent; }
-.wc-admin .wc-admin__nav-group { display: grid; gap: 2px; }
-.wc-admin .wc-admin__nav-group-label { margin: 0 0 4px; padding: 0 12px; color: var(--wc-ink-tertiary); font-size: 11px; font-weight: 600; }
-.wc-admin .wc-admin__nav-item { display: flex; width: 100%; min-height: 44px; align-items: center; gap: 12px; padding: 10px 12px; border: 0; border-radius: var(--wc-radius-form); background: transparent; color: var(--wc-ink-sub); font-family: inherit; font-size: 13px; font-weight: 500; line-height: 1.5; text-align: left; white-space: nowrap; cursor: pointer; }
-.wc-admin .wc-admin__nav-item svg { flex: none; }
-.wc-admin .wc-admin__nav-label { min-width: 0; white-space: normal; word-break: keep-all; overflow-wrap: anywhere; line-height: 1.5; }
-.wc-admin .wc-admin__nav-item:hover { background: var(--wc-surface-grey); color: var(--wc-ink); }
-.wc-admin .wc-admin__nav-item[aria-current='page'] { background: var(--wc-accent-tint); color: var(--wc-success); font-weight: 700; }
-.wc-admin .wc-admin__nav-item-planned { cursor: default; color: var(--wc-ink-tertiary); }
-.wc-admin .wc-admin__sidebar-foot { display: grid; gap: 2px; padding: 12px; border-top: 1px solid var(--wc-hairline); }
-.wc-admin .wc-admin__main { display: flex; min-width: 0; min-height: 100svh; flex: 1; flex-direction: column; margin-left: 248px; transition: margin-left var(--wc-duration-default); }
-.wc-admin .wc-admin__header { position: sticky; top: 0; z-index: 60; display: flex; min-height: 72px; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 32px; background: var(--wc-surface); border-bottom: 1px solid var(--wc-hairline); }
-.wc-admin .wc-admin__title { margin: 0; color: var(--wc-ink); font-family: var(--wc-font); font-size: 22px; font-weight: 700; line-height: 1.4; }
-.wc-admin .wc-admin__identity { position: relative; display: flex; min-width: 0; align-items: center; gap: 12px; }
-.wc-admin .wc-admin__account-trigger { display: flex; min-width: 0; align-items: center; gap: 12px; padding: 4px; border: 1px solid transparent; border-radius: var(--wc-radius-form); background: transparent; color: inherit; font: inherit; text-align: right; cursor: pointer; }
-.wc-admin .wc-admin__account-trigger:hover { background: var(--wc-surface-grey); }
-.wc-admin .wc-admin__identity-text { display: flex; align-items: flex-end; flex-direction: column; gap: 2px; }
-.wc-admin .wc-admin__email { font-size: 13px; overflow-wrap: anywhere; }
-.wc-admin .wc-admin__role { color: var(--wc-ink-tertiary); font-size: 11px; }
-.wc-admin .wc-admin__avatar { display: grid; width: 36px; height: 36px; flex: none; place-items: center; border: 1px solid var(--wc-hairline); border-radius: 50%; background: var(--wc-surface-grey); font-size: 13px; font-weight: 700; }
-.wc-admin .wc-admin__account-menu { position: absolute; top: calc(100% + 8px); right: 0; z-index: 100; display: grid; width: min(280px, calc(100vw - 32px)); gap: 14px; padding: 16px; border: 1px solid var(--wc-line-control); border-radius: var(--wc-radius-form); background: var(--wc-surface); box-shadow: var(--wc-shadow-popup); text-align: left; }
-.wc-admin .wc-admin__account-summary { display: grid; gap: 3px; min-width: 0; }
-.wc-admin .wc-admin__account-label { color: var(--wc-ink-tertiary); font-size: 11px; }
-.wc-admin .wc-admin__account-email { overflow-wrap: anywhere; font-size: 13px; font-weight: 700; }
-.wc-admin .wc-admin__account-role { color: var(--wc-ink-tertiary); font-size: 12px; }
-.wc-admin .wc-admin__account-form { margin: 0; }
-.wc-admin .wc-admin__account-logout { width: 100%; min-height: 40px; padding: 8px 12px; border: 1px solid var(--wc-ink); border-radius: var(--wc-radius-form); background: var(--wc-ink); color: var(--wc-surface); font: 600 13px/1.5 var(--wc-font); cursor: pointer; }
-.wc-admin .wc-admin__account-logout:disabled { border-color: var(--wc-line-control); background: var(--wc-surface-grey); color: var(--wc-ink-tertiary); cursor: default; }
-.wc-admin .wc-admin__account-error { margin: 0; color: var(--wc-danger); font-size: 12px; line-height: 1.5; }
-/* This slot renders only when an unanswered inquiry needs attention. */
-.wc-admin .admin-shell-badges { display: flex; flex-wrap: wrap; gap: 8px; padding: 16px 32px 0; }
-.wc-admin .admin-shell-badge { display: inline-flex; min-height: 40px; align-items: center; gap: 8px; padding: 7px 14px; border: 1px solid var(--wc-warning); border-radius: var(--wc-radius-badge); background: var(--wc-surface); color: var(--wc-ink); font-size: 13px; }
-.wc-admin .admin-shell-badge strong { color: var(--wc-warning); font-weight: 700; }
-.wc-admin .admin-shell-badge:hover { background: var(--wc-surface-grey); }
-/* Keep keyboard focus visible across the admin shell and operational surfaces. */
-.wc-admin .wc-admin__sidebar :focus-visible,
-.wc-admin .wc-admin__header :focus-visible,
-.wc-admin .admin-shell-badge:focus-visible,
-.wc-admin .wc-admin-kit :focus-visible {
-  border-color: var(--wc-focus);
-  box-shadow: none;
-  outline: 2px solid var(--wc-focus);
-  outline-offset: 2px;
-}
-.wc-admin.collapsed .wc-admin__sidebar { width: 72px; }
-.wc-admin.collapsed .wc-admin__main { margin-left: 72px; }
-.wc-admin.collapsed .wc-admin__nav-label, .wc-admin.collapsed .wc-admin__nav-group-label { display: none; }
-.wc-admin.collapsed .wc-admin__nav-item, .wc-admin.collapsed .wc-admin__brand { justify-content: center; padding-inline: 0; }
+/*
+ * Console tokens and the keyboard tooltip (ADR-0028).
+ *
+ * The console wears the shadcn/ui template look; its root is not a `.wc-root` (the storefront's unlayered
+ * base and focus rules would beat this layer). The `--wc-*` names that kit markup still reads for semantic
+ * tones (`text-[var(--wc-success)]` …) and that storefront previews inherit are defined here, mapped onto the
+ * shadcn tokens from admin-kit.css. Storefront previews inside the console keep their own `.wc-root`.
+ */
+@layer components {
+  .wc-admin:not([data-slot]) {
+    --wc-surface: var(--background);
+    --wc-surface-grey: oklch(0.985 0 0);
+    --wc-surface-grey-2: var(--muted);
+    --wc-surface-icon-tile: var(--muted);
+    --wc-ink: var(--foreground);
+    --wc-ink-sub: var(--foreground);
+    --wc-ink-tertiary: var(--muted-foreground);
+    --wc-ink-disabled: oklch(0.708 0 0);
+    --wc-hairline: var(--border);
+    --wc-hairline-soft: var(--border);
+    --wc-hairline-dark: var(--border);
+    --wc-line-control: var(--input);
+    --wc-line-control-soft: var(--border);
+    --wc-line-divider: oklch(0.87 0 0);
+    --wc-accent: var(--primary);
+    --wc-accent-border: var(--primary);
+    --wc-accent-tint: var(--accent);
+    --wc-success: var(--success);
+    --wc-info: var(--info);
+    --wc-danger: var(--destructive);
+    --wc-warning: var(--warning);
+    --wc-focus: var(--ring);
+    --wc-dim: rgba(0,0,0,.7);
+    --wc-scrim: rgba(0,0,0,.5);
+    --wc-loyalty-welcome-bg: rgba(120,187,83,.12);
+    --wc-loyalty-welcome-ink: #3F7D38;
+    --wc-loyalty-silver-bg: #F3F3F3;
+    --wc-loyalty-silver-ink: #5A5A5A;
+    --wc-loyalty-gold-bg: #FBF3D9;
+    --wc-loyalty-gold-ink: #8A6D1B;
+    --wc-loyalty-platinum-bg: #EFE9F7;
+    --wc-loyalty-platinum-ink: #5B4791;
+    --wc-shadow-popup: 0 4px 6px -1px rgb(0 0 0 / .1), 0 2px 4px -2px rgb(0 0 0 / .1);
+    --wc-duration-short: .1s;
+    --wc-duration-default: .2s;
+    --wc-duration-medium: .3s;
+    --wc-duration-long: .5s;
+    --wc-ease-out-slow: cubic-bezier(0,0,.3,1);
+    --wc-radius-form: var(--radius);
+    --wc-radius-badge: calc(var(--radius) * 0.6);
+    --wc-radius-cta: var(--radius);
+    --wc-radius-sheet: calc(var(--radius) * 1.4);
+    --wc-container-max: 1212px;
+    --wc-gutter: 16px;
+  }
 
-/* Shared screen kit for all operational surfaces. */
-.wc-admin .wc-admin-kit { color: var(--wc-ink); font-family: var(--wc-font); }
-.wc-admin .wc-admin-kit__screen {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 20px;
-  min-width: 0;
-}
-.wc-admin .wc-admin-kit__screen > * { min-width: 0; }
-.wc-admin .wc-admin-kit__screen > .wc-admin-kit__page-header,
-.wc-admin .wc-admin-kit__screen > .admin-console-filters,
-.wc-admin .wc-admin-kit__screen > .wc-admin-kit__description {
-  margin: 0;
-}
-.wc-admin .wc-admin-kit__screen > .admin-dispatch-workflow,
-.wc-admin .wc-admin-kit__screen > .admin-shipment-import-disclosure {
-  margin-block: 0;
-}
-/* Use consistent White Catalog inputs throughout the operational forms. */
-.wc-admin .wc-admin-kit :where(input:not([type='checkbox']):not([type='radio']):not([type='hidden']), select, textarea) {
-  min-height: 44px;
-  border: 1px solid var(--wc-line-control);
-  border-radius: var(--wc-radius-form);
-  background: var(--wc-surface);
-  box-shadow: none;
-  color: var(--wc-ink);
-  font-family: var(--wc-font);
-  font-size: 14px;
-}
-.wc-admin .wc-admin-kit :where(input, select, textarea)[aria-invalid='true'] { border-color: var(--wc-danger); }
-.wc-admin .wc-admin-kit__page-header { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
-.wc-admin .wc-admin-kit__heading { margin: 0; color: var(--wc-ink); font: 700 20px/1.4 var(--wc-font); }
-.wc-admin .wc-admin-kit__description { max-width: 80ch; margin: 8px 0 0; color: var(--wc-ink-sub); font-size: 14px; line-height: 1.7; word-break: keep-all; overflow-wrap: anywhere; }
-.wc-admin .wc-admin-kit__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.wc-admin .wc-admin-kit__card { min-width: 0; padding: 24px; border: 1px solid var(--wc-hairline); border-radius: var(--wc-radius-form); background: var(--wc-surface); }
-.wc-admin .wc-admin-kit__card > header { margin-bottom: 20px; }
-.wc-admin .wc-admin-kit__card h3 { margin: 0; color: var(--wc-ink); font: 700 16px/1.5 var(--wc-font); }
-.wc-admin .wc-admin-kit__section { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-content: start; }
-.wc-admin .wc-admin-kit__section > header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; }
-.wc-admin .wc-admin-kit__section > header > h3, .wc-admin .wc-admin-kit__section > header > p { flex-basis: 100%; }
-.wc-admin .wc-admin-kit__section > p { margin: 0; font-size: 13px; line-height: 1.7; }
-.wc-admin .wc-admin-kit__form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, max(260px, calc((100% - 24px) / 2))), 1fr)); gap: 20px 24px; }
-.wc-admin .wc-admin-kit__field { display: grid; align-content: start; gap: 8px; min-width: 0; font-size: 13px; }
-.wc-admin .wc-admin-kit__field-label { font-weight: 600; }
-.wc-admin .wc-admin-kit__field :is(input, select, textarea) { width: 100%; min-height: 44px; padding: 8px 12px; border: 1px solid var(--wc-line-control); border-radius: var(--wc-radius-form); background: var(--wc-surface); color: var(--wc-ink); font: inherit; font-size: 14px; }
-.wc-admin .wc-admin-kit__field textarea { padding: 12px; }
-.wc-admin .wc-admin-kit__field [aria-invalid='true'] { border-color: var(--wc-danger); }
-.wc-admin .wc-admin-kit__hint { margin: 0; color: var(--wc-ink-sub); font-size: 13px; line-height: 1.65; word-break: keep-all; overflow-wrap: anywhere; }
-.wc-admin .wc-admin-kit__error { margin: 0; color: var(--wc-danger); font-size: 12px; }
-.wc-admin .wc-admin-kit__badge { display: inline-flex; padding: 3px 8px; border: 1px solid var(--wc-hairline); border-radius: var(--wc-radius-badge); background: var(--wc-surface-grey); color: var(--wc-ink-sub); font-size: 12px; font-weight: 600; }
-.wc-admin .wc-admin-kit__badge[data-tone='success'] { background: var(--wc-accent-tint); color: var(--wc-success); }
-.wc-admin .wc-admin-kit__badge[data-tone='warning'] { color: var(--wc-warning); }
-.wc-admin .wc-admin-kit__badge[data-tone='danger'] { color: var(--wc-danger); }
-.wc-admin .wc-admin-kit__panel { min-width: 0; padding: 24px; border: 1px solid var(--wc-hairline); background: var(--wc-surface); }
-.wc-admin .wc-admin-kit__panel > header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
-.wc-admin .wc-admin-kit__button { display: inline-flex; min-height: 44px; max-width: 100%; align-items: center; justify-content: center; gap: 8px; padding: 10px 16px; border: 1px solid var(--wc-ink); border-radius: var(--wc-radius-form); background: var(--wc-ink); color: var(--wc-surface); font: 600 13px/1.5 var(--wc-font); word-break: keep-all; overflow-wrap: anywhere; cursor: pointer; }
-.wc-admin .wc-admin-kit__button:disabled { border-color: var(--wc-line-control); background: var(--wc-surface-grey); color: var(--wc-ink-tertiary); cursor: default; }
-.wc-admin .wc-admin-kit .admin-console-grid { border: 1px solid var(--wc-hairline); border-radius: var(--wc-radius-form); background: var(--wc-surface); }
-.wc-admin .wc-admin-kit .admin-console-grid-table :is(th, td) { min-height: 44px; padding: 12px 16px; border-color: var(--wc-hairline); color: var(--wc-ink-sub); font-family: var(--wc-font); }
-.wc-admin .wc-admin-kit .admin-console-grid-table th { background: var(--wc-surface-grey); color: var(--wc-ink-tertiary); }
-.wc-admin .wc-admin-kit .admin-console-grid-table tr[data-selected='true'] { background: var(--wc-accent-tint); }
-.wc-admin .wc-admin-kit .admin-console-bulk-bar { border: 1px solid var(--wc-hairline); border-radius: var(--wc-radius-form); background: var(--wc-surface); color: var(--wc-ink); }
-.wc-admin .wc-admin-kit .admin-console-bulk-action { border: 1px solid var(--wc-ink); border-radius: var(--wc-radius-form); background: var(--wc-ink); color: var(--wc-surface); box-shadow: none; }
-.wc-admin .wc-admin-kit .admin-console-bulk-action--danger { background: var(--wc-danger); border-color: var(--wc-danger); }
-.wc-admin .wc-admin-kit .admin-console-filters { border: 1px solid var(--wc-hairline); border-radius: var(--wc-radius-form); background: var(--wc-surface); box-shadow: none; }
-.wc-admin .wc-admin-kit .admin-console-filters :is(input, select) { border: 1px solid var(--wc-line-control); border-radius: var(--wc-radius-form); background: var(--wc-surface); color: var(--wc-ink); font: 400 14px/1.5 var(--wc-font); }
-.wc-admin .wc-admin-kit .admin-console-filter-label { color: var(--wc-ink-tertiary); font-family: var(--wc-font); }
-.wc-admin .wc-admin-kit :is(.admin-console-filters, .admin-console-pagination) .btn { border: 1px solid var(--wc-ink); border-radius: var(--wc-radius-form); background: var(--wc-ink); color: var(--wc-surface); box-shadow: none; font-family: var(--wc-font); }
-.wc-admin .wc-admin-kit :is(.admin-console-filters, .admin-console-pagination) .btn-ghost { border-color: var(--wc-line-control); background: var(--wc-surface); color: var(--wc-ink); }
-.wc-admin .wc-admin-kit .admin-console-pagination-summary { color: var(--wc-ink-tertiary); font-family: var(--wc-font); }
-@media (max-width: 900px) {
-  .wc-admin .wc-admin__sidebar { width: 72px; }
-  .wc-admin .wc-admin__main { margin-left: 72px; }
-  .wc-admin .wc-admin__nav-label, .wc-admin .wc-admin__nav-group-label { display: none; }
-  .wc-admin .wc-admin__nav-item, .wc-admin .wc-admin__brand { justify-content: center; padding-inline: 0; }
-  .wc-admin .wc-admin__collapse-btn { display: none; }
-  .wc-admin .wc-admin__header { padding-inline: 20px; }
-  .wc-admin .admin-shell-badges { padding-inline: 20px; }
-}
-@media (max-width: 600px) {
-  .wc-admin .wc-admin__sidebar, .wc-admin.collapsed .wc-admin__sidebar { width: 56px; }
-  .wc-admin .wc-admin__main, .wc-admin.collapsed .wc-admin__main { margin-left: 56px; }
-  .wc-admin .wc-admin__title { font-size: 18px; }
-  .wc-admin .wc-admin__identity-text { display: none; }
-  .wc-admin .wc-admin__header { padding-inline: 16px; }
-  .wc-admin .admin-shell-badges { padding-inline: 16px; }
-  .wc-admin .wc-admin-kit__form-grid { grid-template-columns: minmax(0, 1fr); }
-  .wc-admin .wc-admin-kit__card, .wc-admin .wc-admin-kit__panel { padding: 16px; }
-}
-@media (max-width: 400px) {
-  .wc-admin .admin-content { padding: 12px; }
-  .wc-admin .wc-admin-kit__card, .wc-admin .wc-admin-kit__panel { padding: 12px; }
-}
+  /* Keyboard focus exposes the same state explanation as pointer hover. */
+  .wc-admin [data-admin-tooltip]:not([data-slot]) { position: relative; }
+  /* Keyboard-reachable hint on a status badge, drawn like the kit tooltip. */
+  .wc-admin [data-admin-tooltip]:is(:hover,:focus-visible):not([data-slot])::after {
+    content: attr(data-admin-tooltip); position: absolute; z-index: 90; left: 0; top: calc(100% + 6px);
+    width: min(280px, 70vw); padding: 6px 10px; border-radius: calc(var(--radius) * 0.8);
+    background: var(--foreground); color: var(--background); box-shadow: var(--wc-shadow-popup);
+    font: 400 12px/1.5 var(--wc-font); text-transform: none; white-space: normal; text-align: left;
+  }
 
-/* Keyboard focus exposes the same state explanation as pointer hover. */
-.wc-admin [data-admin-tooltip] { position: relative; }
-.wc-admin [data-admin-tooltip]:is(:hover,:focus-visible)::after {
-  content: attr(data-admin-tooltip); position: absolute; z-index: 90; left: 0; top: calc(100% + 8px);
-  width: min(280px, 70vw); padding: 12px; border: 1px solid var(--wc-line-control);
-  background: var(--wc-surface); color: var(--wc-ink); font: 400 12px/1.6 var(--wc-font);
-  text-transform: none; white-space: normal; text-align: left;
-}
-
-.wc-admin .inquiry-live:empty { display: none; }
-.wc-admin .inquiry-live button {
-  min-height: 44px;
-  padding: 8px 12px;
-  border: 1px solid var(--wc-line-control);
-  background: var(--wc-surface);
-  color: var(--wc-ink);
-  font: inherit;
-  font-size: 13px;
-  cursor: pointer;
-}
-
-/* Long native select values remain readable without widening their grid track. */
-.wc-admin .wc-admin-kit__select-hint { display: block; width: 100%; min-width: 0; max-width: 100%; margin-top: 4px; color: var(--wc-ink-sub); font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; white-space: normal; }
-
-@media (forced-colors: active) {
-  .wc-admin:is(.admin-shell, .check-in-shell) .wc-admin-kit :is(input, select, textarea),
-  .wc-admin:is(.admin-shell, .check-in-shell) .wc-admin-kit__card { border-color: CanvasText; background: Canvas; color: CanvasText; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .wc-admin { --wc-duration-short: .01ms; --wc-duration-default: .01ms; --wc-duration-medium: .01ms; --wc-duration-long: .01ms; }
-  .wc-admin:is(.admin-shell, .check-in-shell) :is(.wc-admin__sidebar, .wc-admin__main) { transition: none; }
+  @media (prefers-reduced-motion: reduce) {
+    .wc-admin:not([data-slot]) { --wc-duration-short: .01ms; --wc-duration-default: .01ms; --wc-duration-medium: .01ms; --wc-duration-long: .01ms; }
+  }
 }

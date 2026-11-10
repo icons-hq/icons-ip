@@ -7,10 +7,11 @@ const mocks = vi.hoisted(() => ({
   auth: { isConfigured: true, user: null, profile: null, isStaff: false } as CurrentAuthState,
   rpc: vi.fn(),
   variantQuery: vi.fn(),
+  adultGoods: 'hidden' as 'hidden' | 'masked' | 'full',
   variantRows: { data: [{ id: '00000000-0000-4000-8000-000000000001', good_id: 'g1' }], error: null } as { data: {id:string;good_id:string}[]; error: {message:string}|null },
   from: vi.fn(),
   cartRows: { data: [{ good_id: 'g1', variant_id: '00000000-0000-4000-8000-000000000001', qty: 4 }], error: null } as {
-    data: { good_id: string; variant_id?: string; qty: number }[] | null;
+    data: { good_id: string; variant_id?: string; qty: number; input_snapshot?:unknown }[] | null;
     error: { message: string } | null;
   },
   goodRow: { data: { stock: 'ok', stock_qty: 5 }, error: null } as {
@@ -31,8 +32,11 @@ const mocks = vi.hoisted(() => ({
   goodsNot: vi.fn(),
   goodsRestrictionEq: vi.fn(),
   goodsMaybeSingle: vi.fn(),
+  randomGoodsQuery: vi.fn(),
+  randomGoodsRows: { data: [], error: null } as { data: { id: string; random_option: unknown }[]; error: { message: string } | null },
 }));
 
+vi.mock('@/lib/adult-goods-access.server', () => ({ getAdultGoodsAccess: async () => mocks.adultGoods }));
 vi.mock('@/lib/auth/server', () => ({
   getCurrentAuthState: () => mocks.auth,
 }));
@@ -74,6 +78,8 @@ describe('cart Server Actions', () => {
     mocks.auth = onboardedAuth();
     mocks.variantRows = {data:[{id:VARIANT_ID,good_id:'g1'}],error:null};
     mocks.variantQuery.mockReset();
+    mocks.randomGoodsQuery.mockReset();
+    mocks.randomGoodsRows = { data: [], error: null };
     mocks.cartRows = { data: [{ good_id: 'g1', variant_id: '00000000-0000-4000-8000-000000000001', qty: 4 }], error: null };
     mocks.goodRow = { data: { stock: 'ok', stock_qty: 5 }, error: null };
     mocks.upsertResult = { error: null };
@@ -97,9 +103,6 @@ describe('cart Server Actions', () => {
     ]) mock.mockReset();
 
     mocks.rpc.mockResolvedValue({ error: null });
-    mocks.cartOrder.mockImplementation(async () => mocks.cartRows);
-    mocks.cartSelectEq.mockReturnValue({ order: mocks.cartOrder });
-    mocks.cartSelect.mockReturnValue({ eq: mocks.cartSelectEq });
     mocks.cartUpsert.mockImplementation(async () => mocks.upsertResult);
     mocks.cartDelete.mockImplementation(() => thenableDeleteBuilder());
     mocks.goodsMaybeSingle.mockImplementation(async () => mocks.goodRow);
@@ -109,9 +112,24 @@ describe('cart Server Actions', () => {
     mocks.goodsIs.mockReturnValue(goodsFilters);
     mocks.goodsNot.mockReturnValue(goodsFilters);
     mocks.goodsEq.mockReturnValue(goodsFilters);
-    mocks.goodsSelect.mockReturnValue({ eq: mocks.goodsEq });
+    // 옛 장바구니의 랜덤 판매 굿즈 기본 키 조회(goods.in → 필터 → 결과). 재고 확인 경로(goods.eq → maybeSingle)와 나뉜다.
+    const randomGoodsQuery = { in: mocks.randomGoodsQuery, eq: mocks.randomGoodsQuery, is: mocks.randomGoodsQuery, not: mocks.randomGoodsQuery,
+      then: (resolve: (value: typeof mocks.randomGoodsRows) => unknown) => Promise.resolve(mocks.randomGoodsRows).then(resolve) };
+    mocks.randomGoodsQuery.mockReturnValue(randomGoodsQuery);
+    mocks.goodsSelect.mockReturnValue({ eq: mocks.goodsEq, in: mocks.randomGoodsQuery });
     mocks.from.mockImplementation((table: string) => {
       if (table === 'cart_items') {
+        let afterId:string|null=null,pageSize=1000;
+        const query={
+          eq:mocks.cartSelectEq,order:mocks.cartOrder,
+          gt(_column:string,value:string){afterId=value;return query;},
+          limit(value:number){pageSize=value;return query;},
+          then(resolve:(value:unknown)=>unknown){
+            const rows=(mocks.cartRows.data??[]).map((row,index)=>({id:String(index).padStart(12,'0'),...row})).filter(row=>afterId===null||row.id>afterId);
+            return Promise.resolve({data:mocks.cartRows.error?null:rows.slice(0,Math.min(pageSize,1000)),error:mocks.cartRows.error,count:rows.length}).then(resolve);
+          },
+        };
+        mocks.cartSelect.mockReturnValue(query);mocks.cartSelectEq.mockReturnValue(query);mocks.cartOrder.mockReturnValue(query);
         return {
           select: mocks.cartSelect,
           upsert: mocks.cartUpsert,
@@ -125,6 +143,30 @@ describe('cart Server Actions', () => {
       if (table === 'goods') return { select: mocks.goodsSelect };
       throw new Error(`Unexpected table ${table}`);
     });
+  });
+
+  it('같은 옵션의 다른 문구를 서버 읽기와 값별 수정·삭제에서 보존한다', async () => {
+    const fieldId='00000000-0000-4000-8000-000000063311';
+    const customInputs={revision:2,fields:[{id:fieldId,name:'각인 문구',value:'첫 문구'}]};
+    const other={...customInputs,fields:[{...customInputs.fields[0],value:'다른 문구'}]};
+    mocks.cartRows={data:[{good_id:'g1',variant_id:VARIANT_ID,qty:1,input_snapshot:customInputs},{good_id:'g1',variant_id:VARIANT_ID,qty:2,input_snapshot:other}],error:null};
+    expect(await setCartItemQuantityAction('g1',1,VARIANT_ID,customInputs)).toEqual({ok:true,mode:'server',items:[
+      {goodId:'g1',variantId:VARIANT_ID,qty:1,customInputs},{goodId:'g1',variantId:VARIANT_ID,qty:2,customInputs:other},
+    ]});
+    expect(mocks.rpc).toHaveBeenCalledWith('set_cart_item_quantity_with_inputs',{p_good_id:'g1',p_variant_id:VARIANT_ID,p_qty:1,p_input_revision:2,p_input_values:{[fieldId]:'첫 문구'}});
+    await deleteCartItemAction('g1',VARIANT_ID,customInputs);
+    expect(mocks.rpc).toHaveBeenLastCalledWith('set_cart_item_quantity_with_inputs',{p_good_id:'g1',p_variant_id:VARIANT_ID,p_qty:0,p_input_revision:2,p_input_values:{[fieldId]:'첫 문구'}});
+  });
+  it('같은 옵션의 1001개 문구를 PostgREST 상한에서 자르지 않고 전부 동기화한다', async () => {
+    mocks.cartRows={data:Array.from({length:1001},(_,index)=>({good_id:'g1',variant_id:VARIANT_ID,qty:1,
+      input_snapshot:{revision:1,fields:[{id:'00000000-0000-4000-8000-000000063311',name:'각인 문구',value:`문구 ${index}`}]}})),error:null};
+    const result=await syncCartAction([]);
+    expect(result.ok).toBe(true);
+    if(!result.ok)throw new Error('sync failed');
+    expect(result.items).toHaveLength(1001);
+    expect(result.items.at(-1)?.customInputs?.fields[0].value).toBe('문구 1000');
+    expect(result.items.reduce((total,item)=>total+item.qty,0)).toBe(1001);
+    expect(mocks.cartSelect).toHaveBeenCalledTimes(3);
   });
 
   it('preserves a normalized local cart without DB access when Supabase is not configured', async () => {
@@ -165,7 +207,7 @@ describe('cart Server Actions', () => {
     expect(mocks.rpc).toHaveBeenCalledWith('merge_cart_items', {
       p_items: [{ good_id: 'g1', variant_id: VARIANT_ID, qty: 2 }],
     });
-    expect(mocks.cartSelect).toHaveBeenCalledWith('good_id,variant_id,qty');
+    expect(mocks.cartSelect).toHaveBeenCalledWith('id,good_id,variant_id,qty,input_snapshot',{count:'exact'});
     expect(mocks.cartSelectEq).toHaveBeenCalledWith('user_id', 'user-1');
   });
 
@@ -226,9 +268,59 @@ describe('cart Server Actions', () => {
     expect(mocks.rpc).toHaveBeenCalledWith('merge_cart_items', { p_items: [{ good_id: 'g1', variant_id: VARIANT_ID, qty: 5 }] });
     expect(mocks.variantQuery).toHaveBeenCalledWith('goods.published_at', 'is', null);
     expect(mocks.variantQuery).toHaveBeenCalledWith('goods.archived_at', null);
-    expect(mocks.variantQuery).toHaveBeenCalledWith('goods.sale_restriction', 'none');
+    expect(mocks.variantQuery).toHaveBeenCalledWith('goods.sale_restriction', ['none']);
     expect(mocks.variantQuery).toHaveBeenCalledWith('goods.ips.published_at', 'is', null);
     expect(mocks.variantQuery).toHaveBeenCalledWith('goods.ips.archived_at', null);
+  });
+
+  it('19금 굿즈의 기본 옵션은 인증 성인에게만 찾는다(ADR-0024)', async () => {
+    mocks.adultGoods = 'full';
+    await syncCartAction([{ goodId: 'g1', qty: 2 }]);
+    expect(mocks.variantQuery).toHaveBeenCalledWith('goods.sale_restriction', ['none', 'adult']);
+
+    mocks.variantQuery.mockClear();
+    mocks.adultGoods = 'masked';
+    await syncCartAction([{ goodId: 'g1', qty: 2 }]);
+    expect(mocks.variantQuery).toHaveBeenCalledWith('goods.sale_restriction', ['none']);
+    mocks.adultGoods = 'hidden';
+  });
+
+  it('DB의 성인 인증 요구를 담기 오류 문구로 바꾼다', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'adult_verification_required' } });
+    await expect(setCartItemQuantityAction('g1', 1, VARIANT_ID)).resolves.toMatchObject({
+      ok: false,
+      error: '19금 굿즈는 성인 인증을 마친 회원만 담을 수 있어요. 마이 > 성인 인증에서 인증해주세요.',
+    });
+  });
+
+  it('옛 장바구니의 랜덤 판매 굿즈는 숨겨진 옵션 행 대신 공개 랜덤 한 줄의 키로 옮긴다', async () => {
+    // T6 restrictive 정책으로 랜덤 굿즈의 goods_variants 행(기본 옵션 포함)은 고객·익명에게 보이지 않는다.
+    const randomKey = '00000000-0000-4000-8000-000000000077';
+    mocks.variantRows = { data: [{ id: VARIANT_ID, good_id: 'g1' }], error: null };
+    mocks.randomGoodsRows = { data: [{ id: 'g-random', random_option: { id: randomKey, name: '랜덤' } }], error: null };
+    await syncCartAction([{ goodId: 'g1', qty: 1 }, { goodId: 'g-random', qty: 2 }]);
+    expect(mocks.rpc).toHaveBeenCalledWith('merge_cart_items', { p_items: [
+      { good_id: 'g1', variant_id: VARIANT_ID, qty: 1 },
+      { good_id: 'g-random', variant_id: randomKey, qty: 2 },
+    ] });
+    // 옵션 행에서 기본 옵션을 찾은 굿즈는 다시 묻지 않고, 공개 굿즈만 본다.
+    expect(mocks.goodsSelect).toHaveBeenCalledWith('id,random_option:goods_random_option');
+    expect(mocks.randomGoodsQuery).toHaveBeenCalledWith('id', ['g-random']);
+    expect(mocks.randomGoodsQuery).toHaveBeenCalledWith('option_sale_mode', 'random');
+    expect(mocks.randomGoodsQuery).toHaveBeenCalledWith('published_at', 'is', null);
+    expect(mocks.randomGoodsQuery).toHaveBeenCalledWith('archived_at', null);
+    expect(mocks.randomGoodsQuery).toHaveBeenCalledWith('sale_restriction', 'none');
+  });
+
+  it('랜덤 한 줄이 없거나 모양이 틀리면 옛 항목을 확인할 수 없는 항목으로 남긴다', async () => {
+    mocks.variantRows = { data: [], error: null };
+    mocks.randomGoodsRows = { data: [{ id: 'g-random', random_option: { id: 'not-a-uuid' } }, { id: 'g-gone', random_option: null }], error: null };
+    await expect(syncCartAction([{ goodId: 'g-random', qty: 1 }, { goodId: 'g-gone', qty: 1 }])).resolves.toMatchObject({
+      ok: false, mode: 'local', unresolvedItems: [{ goodId: 'g-random', qty: 1 }, { goodId: 'g-gone', qty: 1 }],
+    });
+    mocks.randomGoodsRows = { data: [], error: { message: 'db detail' } };
+    await expect(syncCartAction([{ goodId: 'g-random', qty: 1 }])).resolves.toMatchObject({ ok: false, mode: 'local', unresolvedItems: [{ goodId: 'g-random', qty: 1 }] });
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
   it('keeps unmigrated items when their public default cannot be resolved', async () => {

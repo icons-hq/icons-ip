@@ -3,6 +3,7 @@ import {
   cancelAdminArtworkUpload,
   cleanupExpiredAdminArtworkUploads,
   createAdminArtworkUploadClaim,
+  readAdminArtworkUploadBlockReason,
   rejectAdminArtworkUpload,
   verifyAndPromoteAdminArtwork,
 } from './artwork.server';
@@ -70,6 +71,7 @@ beforeEach(() => {
     if (name === 'service_complete_admin_artwork_cleanup') return { data: true, error: null };
     if (name === 'service_list_admin_artwork_cleanup_candidates') return { data: [], error: null };
     if (name === 'service_log_admin_artwork_cleanup_failure') return { data: true, error: null };
+    if (name === 'service_admin_artwork_upload_block_reason') return { data: null, error: null };
     throw new Error(`Unexpected RPC ${name}`);
   });
   mocks.storageFrom.mockImplementation((bucket: string) => {
@@ -129,6 +131,23 @@ describe('admin artwork upload claims', () => {
       size: SOURCE_BYTES.byteLength,
     })).resolves.toBe(false);
   });
+
+  it.each([
+    [{ data: 'staging_full', error: null }, 'staging_full'],
+    [{ data: 'unsaved_full', error: null }, 'unsaved_full'],
+    [{ data: null, error: null }, null],
+    [{ data: 'constructor', error: null }, null],
+    [{ data: 'staging_full', error: { message: 'private detail' } }, null],
+  ])('reads a known upload block reason only (%j)', async (response, expected) => {
+    mocks.rpc.mockResolvedValueOnce(response);
+    await expect(readAdminArtworkUploadBlockReason({ actorId: ACTOR_ID, stage: 'prepare' })).resolves.toBe(expected);
+    expect(mocks.rpc).toHaveBeenCalledWith('service_admin_artwork_upload_block_reason', { p_actor_id: ACTOR_ID, p_stage: 'prepare' });
+  });
+
+  it('does not let a failing reason lookup throw', async () => {
+    mocks.rpc.mockRejectedValueOnce(new Error('private network detail'));
+    await expect(readAdminArtworkUploadBlockReason({ actorId: ACTOR_ID, stage: 'verify' })).resolves.toBeNull();
+  });
 });
 
 describe('verifyAndPromoteAdminArtwork', () => {
@@ -147,7 +166,7 @@ describe('verifyAndPromoteAdminArtwork', () => {
 
     expect(mocks.info).toHaveBeenCalledWith(PATH);
     expect(mocks.download).toHaveBeenCalledWith(PATH);
-    expect(mocks.decode).toHaveBeenCalledWith(SOURCE_BYTES, 'image/png');
+    expect(mocks.decode).toHaveBeenCalledWith(SOURCE_BYTES, 'image/png', 'ip');
     expect(mocks.publicUpload).toHaveBeenCalledWith(PATH, NORMALIZED_BYTES, {
       contentType: 'image/png',
       upsert: false,
@@ -155,6 +174,8 @@ describe('verifyAndPromoteAdminArtwork', () => {
     expect(mocks.rpc).toHaveBeenCalledWith('service_verify_admin_artwork_upload', {
       p_actor_id: ACTOR_ID,
       p_final_size: NORMALIZED_BYTES.byteLength,
+      p_final_width: 1,
+      p_final_height: 1,
       p_path: PATH,
     });
     expect(mocks.rpc).toHaveBeenCalledWith('service_begin_admin_artwork_verification', {
@@ -185,6 +206,40 @@ describe('verifyAndPromoteAdminArtwork', () => {
     expect(mocks.publicUpload).not.toHaveBeenCalled();
     expect(mocks.stagingRemove).not.toHaveBeenCalled();
     expect(mocks.publicRemove).not.toHaveBeenCalled();
+    expect(mocks.rpc).toHaveBeenCalledWith('service_admin_artwork_upload_block_reason', { p_actor_id: ACTOR_ID, p_stage: 'verify' });
+  });
+
+  /* R20(MD-0025): 운영자별 확인 한도에 걸린 실패를 일반 오류와 구분해 화면에 알린다. */
+  it.each(['verification_in_progress', 'verification_rate_limited'] as const)('reports a %s block without touching Storage', async reason => {
+    mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === 'service_begin_admin_artwork_verification') return { data: [], error: null };
+      if (name === 'service_admin_artwork_upload_block_reason') return { data: reason, error: null };
+      throw new Error(`Unexpected RPC ${name}`);
+    });
+
+    await expect(verifyAndPromoteAdminArtwork(input)).resolves.toEqual({ blockedReason: reason });
+    expect(mocks.info).not.toHaveBeenCalled();
+    expect(mocks.publicUpload).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['an unknown reason', { data: 'private_reason', error: null }],
+    ['a reason lookup error', { data: null, error: { message: 'private lookup detail' } }],
+  ])('falls back to a generic failure for %s', async (_label, response) => {
+    mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === 'service_begin_admin_artwork_verification') return { data: [], error: null };
+      if (name === 'service_admin_artwork_upload_block_reason') return response;
+      throw new Error(`Unexpected RPC ${name}`);
+    });
+
+    await expect(verifyAndPromoteAdminArtwork(input)).resolves.toBeNull();
+  });
+
+  it('does not look up a block reason when the verification RPC itself fails', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'private begin detail' } });
+
+    await expect(verifyAndPromoteAdminArtwork(input)).resolves.toBeNull();
+    expect(mocks.rpc).not.toHaveBeenCalledWith('service_admin_artwork_upload_block_reason', expect.anything());
   });
 
   it('rejects an admitted claim when browser metadata differs from the durable claim', async () => {

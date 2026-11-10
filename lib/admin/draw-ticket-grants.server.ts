@@ -5,13 +5,14 @@ import {
   parseAdminDrawTicketGrantRecord,
   type AdminDrawTicketGrantRecord,
 } from './draw-ticket-grants';
+import { hasAdminCapability } from './access';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
 
 async function requireStaffLoader() {
   const auth = await getCurrentAdminAuthState();
   if (!auth.isConfigured || !auth.user) redirect(`/login?next=${encodeURIComponent('/admin')}`);
-  if (!auth.isStaff) notFound();
+  if (!auth.isStaff || !hasAdminCapability(auth, 'platform.manage')) notFound();
 }
 
 export async function getAdminDrawTicketGrants(): Promise<AdminDrawTicketGrantRecord[]> {

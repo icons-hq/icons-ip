@@ -1,11 +1,11 @@
 'use client';
 
-import { AdminPageHeader } from '@/components/admin/console/AdminKit';
-import { useActionState, useTransition } from 'react';
+import { useActionState, useEffect, useRef, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { preservedFormValues } from '@/lib/admin/form-state';
 import { upsertAdminCouponAction, type AdminCouponActionState } from '@/app/admin/coupon-actions';
 import { CouponSection } from '@/components/admin/sections/CouponSection';
+import type { ConfigurableGrade } from '@/lib/loyalty-policy';
 import {
   adminCouponListHref,
   type AdminCouponListData,
@@ -13,13 +13,21 @@ import {
 
 const emptyState: AdminCouponActionState = {};
 
-export function CouponScreen({ data }: { data: AdminCouponListData }) {
+export function CouponScreen({ data, mode = 'list', initialGrade }: { data: AdminCouponListData; mode?: 'list' | 'create'; initialGrade?: ConfigurableGrade }) {
   const [state, action, pending] = useActionState(upsertAdminCouponAction, emptyState);
   const router = useRouter();
   const [selecting, startSelect] = useTransition();
   const selectedCode = data.filters.selectedCode;
-  const selected = data.records.find((record) => record.id === selectedCode)
+  const navigatedSave = useRef<string | null>(null);
+  useEffect(() => {
+    if (!state.savedCode || navigatedSave.current === state.savedCode) return;
+    navigatedSave.current = state.savedCode;
+    router.replace(state.openTargetIssuance ? `/admin/sales/coupons/issue?couponCode=${encodeURIComponent(state.savedCode)}` : adminCouponListHref(data.filters, { selectedCode: state.savedCode }), { scroll: false });
+  }, [state.savedCode, state.openTargetIssuance, router, data.filters]);
+  const source = data.records.find((record) => record.id === selectedCode)
     ?? (data.selectedRecord?.id === selectedCode ? data.selectedRecord : null);
+
+  const selected = mode === 'create' ? null : source;
 
   function select(record: { id: string } | null) {
     const nextCode = record?.id ?? null;
@@ -30,9 +38,11 @@ export function CouponScreen({ data }: { data: AdminCouponListData }) {
   const scopedState = state.values && !draft ? emptyState : state;
 
   return (
-    <><AdminPageHeader title="쿠폰 관리" description="쿠폰 발급 조건과 사용 기간을 관리합니다." />
     <CouponSection
       action={action}
+      mode={mode}
+      copySource={mode === 'create' ? source : null}
+      initialGrade={initialGrade}
       onSelect={select}
       pending={pending || selecting}
       records={data.records}
@@ -42,6 +52,6 @@ export function CouponScreen({ data }: { data: AdminCouponListData }) {
       total={data.total}
       draft={draft}
       state={scopedState}
-    /></>
+    />
   );
 }

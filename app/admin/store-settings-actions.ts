@@ -25,7 +25,7 @@ export async function saveInquiryAutoRepliesAction(previous:StoreSettingsActionS
   const attempt=(previous.attempt??0)+1;
   const fail=(errors:Record<string,string>)=>({errors,values,attempt});
   try {
-    if (!await requireAdminActionAccess(STORE_SETTINGS_PATH, { adminOnly: true })) return fail({form:'설정 변경은 관리자(admin)만 할 수 있습니다.'});
+    if (!await requireAdminActionAccess(STORE_SETTINGS_PATH, { adminOnly: true, capability: 'store.manage' })) return fail({form:'설정 변경은 관리자(admin)만 할 수 있습니다.'});
     const stamp=value(data,'updatedAt');
     if (!validStamp(stamp)) return fail({form:'최신 설정을 다시 열어주세요.'});
     const targetValues=Object.fromEntries(INQUIRY_CATEGORIES.map(({id})=>[id,{
@@ -51,7 +51,7 @@ export async function saveStoreSettingsAction(previous:StoreSettingsActionState,
   const attempt=(previous.attempt??0)+1;
   const fail=(errors:Record<string,string>)=>({errors,values,attempt});
   try {
-    if (!await requireAdminActionAccess(STORE_SETTINGS_PATH, { adminOnly: true })) return fail({form:'설정 변경은 관리자(admin)만 할 수 있습니다.'});
+    if (!await requireAdminActionAccess(STORE_SETTINGS_PATH, { adminOnly: true, capability: 'seller.manage' })) return fail({form:'설정 변경은 관리자(admin)만 할 수 있습니다.'});
     if (section!=='business' && section!=='bank_transfer') return fail({form:'설정 항목을 확인해주세요.'});
     const parsed=parseStoreSettingsInput(section,values);
     if (!parsed.ok) return fail(parsed.errors);
@@ -69,7 +69,7 @@ export async function saveShippingCarrierAction(previous:StoreSettingsActionStat
   const attempt=(previous.attempt??0)+1;
   const fail=(errors:Record<string,string>)=>({errors,values,attempt});
   try {
-    if (!await requireAdminActionAccess(CARRIER_SETTINGS_PATH, { adminOnly: true })) return fail({form:'설정 변경은 관리자(admin)만 할 수 있습니다.'});
+    if (!await requireAdminActionAccess(CARRIER_SETTINGS_PATH, { adminOnly: true, capability: 'platform.manage' })) return fail({form:'설정 변경은 관리자(admin)만 할 수 있습니다.'});
     const parsed=parseCarrierInput({code:values.code,label:values.label,trackingUrlTemplate:values.trackingUrlTemplate,active:values.active==='true'});
     if (!parsed.ok) return fail(parsed.errors);
     if (values.updatedAt && !validStamp(values.updatedAt)) return fail({form:'최신 택배사 설정을 다시 열어주세요.'});

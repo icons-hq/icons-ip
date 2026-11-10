@@ -1,9 +1,10 @@
+const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import Page from './page';
 
 const mocks = vi.hoisted(() => ({
-  auth: { isConfigured: true, user: { id: 'staff' }, isStaff: true, role: 'staff' },
+  auth: { isConfigured: true, user: { id: 'staff' }, isStaff: true, operatorAccess: legacyOperatorAccessFixture(), role: 'staff' },
   rpc: vi.fn(), range: vi.fn(), createClient: vi.fn(),
 }));
 vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: vi.fn(async () => mocks.auth) }));

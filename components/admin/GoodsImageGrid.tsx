@@ -1,0 +1,556 @@
+'use client';
+
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ChangeEvent, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react';
+import { ADMIN_ARTWORK_ACCEPT, GOODS_ARTWORK_ERROR, normalizeAdminArtworkMetadata, parseAdminArtworkPath } from '@/lib/admin/artwork';
+// 상대 경로는 ArtworkUploadField와 같은 모듈 지정자다 — 시각 fixture가 이 지정자로 합성 업로드를 끼운다.
+import { uploadAdminArtwork } from '../../lib/admin/artwork-upload.client';
+import { createAdminArtworkPreviewUrl } from '@/lib/admin/artwork-preview.client';
+import { GOODS_GALLERY_MAX } from '@/lib/admin/catalog';
+import { goodsPhotoNameFromFileName } from '@/lib/admin/goods-photo-library';
+import {
+  GOODS_IMAGE_FIELD_NAMES,
+  GOODS_IMAGE_SLOT_COUNT,
+  createGoodsImageSlots,
+  findGoodsImagePosition,
+  goodsGalleryCount,
+  goodsImageBlockingMessage,
+  goodsImageLabel,
+  goodsImageObjectParticle,
+  goodsImageTargets,
+  moveGoodsGalleryImage,
+  promoteGoodsImage,
+  removeGoodsImage,
+  replaceGoodsImageTile,
+  type GoodsImageSlots,
+  type GoodsImageTile,
+} from '@/lib/admin/goods-image-grid';
+import { cn } from 'cn';
+import { buttonVariants } from '@/components/admin/kit/ui/button';
+import { GOODS_ARTWORK_GUIDANCE } from './ArtworkUploadField';
+import { ErrorText } from './fields';
+import { GoodsPhotoPicker } from './screens/GoodsPhotoLibraryScreen';
+import { normalizePublicMediaPath, publicMediaUrl } from '@/lib/media';
+import { createGoodsPhotoEditGuard, goodsPhotoEditTarget, type GoodsPhotoEditTicket } from '@/lib/admin/goods-photo-edit-guard';
+import { inquiryDraftSessionId } from '@/lib/admin/inquiry-drafts';
+import { INQUIRY_DRAFT_SIGN_OUT_EVENT } from '@/lib/admin/inquiry-draft-lifecycle';
+import { createClient } from '@/lib/supabase/client';
+import { getSupabaseConfig } from '@/lib/supabase/config';
+import { GoodsPhotoEditor } from './GoodsPhotoEditor';
+
+export const GOODS_IMAGE_GUIDANCE_ID = 'goods-image-upload-guidance';
+export const GOODS_IMAGE_RATIO_GUIDANCE = '1000×1000(1:1) 이미지를 권장합니다. 올린 원본 비율 그대로, 잘리지 않고 표시됩니다.';
+/** R20(MD-0025): 타일에 직접 올린 사진은 사진 보관함에도 등록되어, 상품을 저장하지 않고 떠나도 다시 고를 수 있다. */
+export const GOODS_IMAGE_LIBRARY_NOTICE = '타일에 올린 사진은 사진 보관함에도 자동으로 등록됩니다.';
+export const GOODS_IMAGE_LIBRARY_FAILURE = '사진 보관함에 등록하지 못한 사진이 있습니다. 상품 이미지는 그대로 저장할 수 있고, 사진 보관함에서 직접 올릴 수 있습니다.';
+
+type Slots = GoodsImageSlots<File>;
+type Tile = GoodsImageTile<File>;
+type FocusTarget = { position: number; control: 'input' | 'handle' | 'earlier' | 'later' };
+type DragSource = 'frame' | 'handle';
+type DragState = { pointerId: number; from: number; startX: number; startY: number; active: boolean; over: number };
+
+const DRAG_THRESHOLD = 6;
+
+/*
+ * 타일 틀의 테두리·배경. 상태가 겹칠 때(대표+업로드 중, 실패+놓을 자리 등) 옛 규칙의 우선순위를 그대로 따르도록
+ * 한 곳에서 고른다: 굵기는 대표·놓을 자리 2px, 모양은 빈 자리·추가·놓을 자리 점선,
+ * 색은 놓을 자리 > 실패·오류 > 업로드 완료 > 업로드 중 > 대표 > 기본 순서다.
+ */
+function tileFrameClass({ isMain, empty, state, invalid, dropTarget, dragging, draggable }: {
+  isMain: boolean; empty: boolean; state: string; invalid: boolean; dropTarget: boolean; dragging: boolean; draggable: boolean;
+}) {
+  const width = isMain || dropTarget ? 'border-2' : 'border';
+  const style = empty || dropTarget ? 'border-dashed' : 'border-solid';
+  const color = dropTarget ? 'border-[var(--wc-info)]' : state === 'failed' || invalid ? 'border-destructive'
+    : state === 'uploaded' ? 'border-[var(--wc-success)]' : state === 'uploading' ? 'border-[var(--wc-info)]' : isMain ? 'border-foreground' : 'border-input';
+  /* 끌기는 손잡이에서만 시작한다(터치). 끌 수 있는 타일 본문은 세로 스크롤·확대를 막지 않는다. grab 커서는 마우스 끌기용이다. */
+  const cursor = dragging ? 'cursor-grabbing' : state === 'uploading' ? 'cursor-progress' : draggable ? 'cursor-grab' : 'cursor-pointer';
+  return cn('relative flex aspect-square items-center justify-center overflow-hidden rounded-lg text-muted-foreground select-none has-[input:focus-visible]:ring-3 has-[input:focus-visible]:ring-ring/50 forced-colors:border-[CanvasText] forced-colors:has-[input:focus-visible]:outline-2 forced-colors:has-[input:focus-visible]:outline-[Highlight]',
+    width, style, color, cursor, empty ? 'bg-background' : 'bg-muted', draggable && 'touch-pan-y touch-pinch-zoom', dragging && 'opacity-55',
+    (isMain || dropTarget) && 'forced-colors:border-[Highlight]');
+}
+const TILE_ACTION_CLASS = cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'min-w-7 px-1.5 text-xs');
+/* 좁은 타일(최소 96px)에서도 잘리지 않게 줄을 바꾸는 글자 버튼. */
+const TILE_WIDE_ACTION_CLASS = cn(TILE_ACTION_CLASS, 'h-auto min-h-7 w-full py-1 whitespace-normal');
+
+/*
+ * 상품 이미지 썸네일 그리드 (2026-10-07 MD 요청). 대표 이미지와 추가 이미지를 1:1 타일로 한곳에 보여준다.
+ *
+ * - 타일을 누르면 파일 선택 → 즉시 업로드로 교체한다. 업로드 파이프라인(서명 업로드·검증·claim)은
+ *   ArtworkUploadField와 같은 uploadAdminArtwork를 쓴다.
+ * - 자리마다 hidden input(`imagePath`, `galleryPath0…`)이 고정되어 있고 값만 옮겨진다. 저장 계약과
+ *   로컬 자동복구·미저장 감지(hidden value 변경 감시)가 그대로 동작한다.
+ * - 각 타일은 `[data-artwork-upload-field]` 경계 안에 hidden input과 파일 입력을 함께 둔다. 폼의
+ *   오류 이동·유효성 매핑(GoodEditor·GoodWorkspace)이 그 경계로 자리 이름을 찾는다.
+ * - 끌기는 추가 이미지의 손잡이(⋮⋮)에서 시작한다. 손잡이만 `touch-action: none`이고 타일 본문은
+ *   세로 스크롤을 허용하므로, 모바일에서 타일 위를 쓸어도 화면이 스크롤된다. 마우스는 스크롤과 겹치지
+ *   않아 타일 본문에서도 끌 수 있다. 키보드는 손잡이·파일 입력에서 ←/→, 또는 ◀/▶ 버튼을 쓴다.
+ */
+export function GoodsImageGrid({ errors = {}, initialPaths, initialUrls, onPreviewChange, accountId = '', recordId = 'new', editingDisabled = false }: {
+  errors?: Record<string, string | undefined>;
+  /** 대표 이미지, 추가 이미지 1…N 순서. */
+  initialPaths: readonly (string | null | undefined)[];
+  initialUrls: readonly (string | null | undefined)[];
+  onPreviewChange: (name: string, url: string | null) => void;
+  accountId?: string;
+  recordId?: string;
+  editingDisabled?: boolean;
+}) {
+  const [slots, setSlots] = useState<Slots>(() => createGoodsImageSlots(initialPaths, initialUrls));
+  const [announcement, setAnnouncement] = useState('');
+  const [notice, setNotice] = useState('');
+  const [photoPicker, setPhotoPicker] = useState(false);
+  const [photoEdit, setPhotoEdit] = useState<GoodsPhotoEditTicket | null>(null);
+  const photoGuard = useMemo(() => createGoodsPhotoEditGuard(accountId, recordId), [accountId, recordId]);
+  const photoScope = useSyncExternalStore(photoGuard.subscribe, photoGuard.getSnapshot, photoGuard.getServerSnapshot);
+  const photoUploads = useRef(new Map<File, GoodsPhotoEditTicket>());
+  const mounted = useRef(false);
+  const [drag, setDrag] = useState<{ from: number; over: number } | null>(null);
+  const slotsRef = useRef<Slots>(slots);
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const controlRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const objectUrls = useRef(new Set<string>());
+  // 만들고 있는 축소 미리보기. 타일 key마다 마지막으로 고른 파일만 미리보기를 붙인다.
+  const pendingPreviews = useRef(new Map<string, File>());
+  const keyCounter = useRef(0);
+  // DB는 운영자별로 동시에 하나의 이미지 검증만 허용한다(service_begin_admin_artwork_verification).
+  // 여러 장을 한 번에 골라도 업로드·검증을 한 장씩 차례로 돌려 서로의 검증을 막지 않게 한다.
+  const uploadQueue = useRef<Promise<void>>(Promise.resolve());
+  const dragRef = useRef<DragState | null>(null);
+  const suppressClick = useRef(false);
+  const pendingFocus = useRef<FocusTarget | null>(null);
+  const galleryCount = goodsGalleryCount(slots);
+
+  useLayoutEffect(() => { photoGuard.setBusy(editingDisabled); }, [photoGuard, editingDisabled]);
+  useEffect(() => {
+    photoGuard.activate();
+    const signOut = () => photoGuard.authenticate(null, null);
+    window.addEventListener(INQUIRY_DRAFT_SIGN_OUT_EVENT, signOut);
+    const subscription = accountId && getSupabaseConfig().isConfigured ? createClient().auth.onAuthStateChange((_event, session) => {
+      photoGuard.authenticate(session?.user.id ?? null, session ? inquiryDraftSessionId(session.access_token) : null);
+    }).data.subscription : null;
+    return () => { photoGuard.dispose(); subscription?.unsubscribe(); window.removeEventListener(INQUIRY_DRAFT_SIGN_OUT_EVENT, signOut); };
+  }, [photoGuard, accountId]);
+
+  useEffect(() => {
+    mounted.current = true;
+    const urls = objectUrls.current;
+    const uploads = photoUploads.current;
+    const previews = pendingPreviews.current;
+    return () => {
+      mounted.current = false;
+      uploads.clear();
+      previews.clear();
+      for (const url of urls) URL.revokeObjectURL(url);
+      urls.clear();
+    };
+  }, []);
+
+  /* 업로드 중·실패한 새 이미지는 제출할 경로가 없다. 그 자리의 파일 입력이 폼 저장을 막는다. */
+  useEffect(() => {
+    inputRefs.current.forEach((input, position) => input?.setCustomValidity(goodsImageBlockingMessage(slots[position])));
+    const focus = pendingFocus.current;
+    if (!focus) return;
+    pendingFocus.current = null;
+    const control = focus.control === 'input' ? null : controlRefs.current[`${focus.control}-${focus.position}`];
+    (control && !control.disabled ? control : inputRefs.current[focus.position])?.focus();
+  }, [slots]);
+
+  function releaseUrl(url: string | null | undefined) {
+    if (url && objectUrls.current.delete(url)) URL.revokeObjectURL(url);
+  }
+
+  function commit(next: Slots, message?: string) {
+    const previous = slotsRef.current;
+    slotsRef.current = next;
+    setSlots(next);
+    // R19: 미리보기 주소가 실제로 바뀐 자리만 편집기에 알린다. 업로드 완료·실패 표시처럼 상태만 바뀐 커밋까지
+    // 10개 자리를 모두 알리면 상품 편집기 전체(미리보기·상세 HTML 정리)가 업로드 진행마다 다시 렌더된다.
+    GOODS_IMAGE_FIELD_NAMES.forEach((name, position) => {
+      const url = next[position]?.url ?? null;
+      if (url !== (previous[position]?.url ?? null)) onPreviewChange(name, url);
+    });
+    if (message) setAnnouncement(message);
+  }
+
+  function enqueueUpload(key: string, file: File) {
+    const run = uploadQueue.current.then(() => upload(key, file));
+    uploadQueue.current = run.catch(() => undefined);
+  }
+
+  async function upload(key: string, file: File) {
+    if (!mounted.current) return;
+    // 차례를 기다리는 동안 삭제됐거나 다른 파일로 바뀐 타일은 올리지 않는다.
+    const waiting = slotsRef.current[findGoodsImagePosition(slotsRef.current, key)];
+    if (!waiting || waiting.file !== file) { photoUploads.current.delete(file); return; }
+    const edit = photoUploads.current.get(file);
+    if (edit && !photoGuard.isCurrent(edit)) { photoUploads.current.delete(file); return; }
+    // 직접 고른 파일은 사진 보관함에도 등록한다(R20). 사진 편집 결과는 원래 사진의 편집본이라 등록하지 않는다.
+    const result = await uploadAdminArtwork(edit
+      ? { kind: 'good', file, expectedActorId: edit.actorId }
+      : { kind: 'good', file, library: { name: goodsPhotoNameFromFileName(file.name) } });
+    photoUploads.current.delete(file);
+    if (!mounted.current || edit && !photoGuard.isCurrent(edit)) return;
+    const current = slotsRef.current;
+    const position = findGoodsImagePosition(current, key);
+    // 업로드 중에 삭제했거나 다시 교체한 이미지의 결과는 버린다. 검증만 된 claim은 정기 정리가 회수한다.
+    if (position < 0 || current[position]?.file !== file) return;
+    const label = goodsImageLabel(position);
+    if (result.ok) {
+      const tile = current[position]!;
+      releaseUrl(tile.previous?.url);
+      const library = result.library?.ok ? ' · 사진 보관함에 등록' : result.library ? ' · 사진 보관함 등록 실패' : '';
+      if (result.library && !result.library.ok) setNotice(GOODS_IMAGE_LIBRARY_FAILURE);
+      commit(replaceGoodsImageTile(current, key, (value) => ({ key: value.key, path: result.imagePath, url: value.url, status: 'uploaded' })),
+        `${label}${edit ? ' 편집 이미지' : ''} 업로드 완료${library} · 상품 저장 전입니다.`);
+      return;
+    }
+    commit(replaceGoodsImageTile(current, key, (value) => {
+      if (!value.previous) return { ...value, status: 'failed', error: result.error };
+      // 원래 이미지로 되돌린 타일에는 만들던 새 미리보기를 붙이지 않는다.
+      pendingPreviews.current.delete(key);
+      releaseUrl(value.url);
+      return { key: value.key, ...value.previous, error: `${result.error} 원래 이미지를 유지합니다.` };
+    }), `${label} 업로드 실패. ${result.error}`);
+  }
+
+  /*
+   * R19: 미리보기는 축소 사본으로 그린다(createAdminArtworkPreviewUrl). 사본이 준비되는 동안 타일은 '미리보기 준비 중'이고,
+   * 그사이 삭제·교체·원래 이미지로 복구된 타일에는 붙이지 않는다. 업로드가 먼저 끝나도(파일 참조가 빠져도) 같은 key면 붙인다.
+   */
+  function attachPreview(key: string, file: File) {
+    pendingPreviews.current.set(key, file);
+    void createAdminArtworkPreviewUrl(file).then((url) => {
+      const current = slotsRef.current;
+      const position = findGoodsImagePosition(current, key);
+      const tile = position < 0 ? null : current[position];
+      if (!mounted.current || pendingPreviews.current.get(key) !== file || !tile || tile.url) {
+        if (pendingPreviews.current.get(key) === file) pendingPreviews.current.delete(key);
+        URL.revokeObjectURL(url);
+        return;
+      }
+      pendingPreviews.current.delete(key);
+      objectUrls.current.add(url);
+      commit(replaceGoodsImageTile(current, key, (value) => ({ ...value, url })));
+    }, () => {
+      if (pendingPreviews.current.get(key) === file) pendingPreviews.current.delete(key);
+    });
+  }
+
+  function newTile(file: File): Tile {
+    keyCounter.current += 1;
+    return { key: `new-${keyCounter.current}`, path: '', url: null, status: 'uploading', file };
+  }
+
+  function addFiles(files: File[], fromMain: boolean) {
+    const accepted = files.filter((file) => normalizeAdminArtworkMetadata({ kind: 'good', mimeType: file.type, size: file.size }).ok);
+    const rejected = files.length - accepted.length;
+    const { targets, overflow } = goodsImageTargets(slotsRef.current, accepted.length, fromMain);
+    const next = [...slotsRef.current];
+    const started: Tile[] = [];
+    targets.forEach((position, index) => {
+      const tile = newTile(accepted[index]);
+      next[position] = tile;
+      started.push(tile);
+    });
+    const messages = [
+      rejected ? `형식·크기 조건에 맞지 않는 파일 ${rejected}개는 넣지 않았습니다. ${GOODS_ARTWORK_ERROR}` : '',
+      overflow ? `추가 이미지는 최대 ${GOODS_GALLERY_MAX}장입니다. 선택한 파일 중 ${overflow}개는 넣지 않았습니다.` : '',
+    ].filter(Boolean);
+    setNotice(messages.join(' '));
+    if (!started.length) {
+      if (messages.length) setAnnouncement(messages.join(' '));
+      return;
+    }
+    commit(next, `${started.length}장 업로드를 시작했습니다.${messages.length ? ` ${messages.join(' ')}` : ''}`);
+    for (const tile of started) {
+      attachPreview(tile.key, tile.file!);
+      enqueueUpload(tile.key, tile.file!);
+    }
+  }
+
+  function replaceFile(position: number, file: File, photoEditing = false) {
+    const tile = slotsRef.current[position];
+    if (!tile) return false;
+    const metadata = normalizeAdminArtworkMetadata({ kind: 'good', mimeType: file.type, size: file.size });
+    if (!metadata.ok) {
+      commit(replaceGoodsImageTile(slotsRef.current, tile.key, (value) => ({ ...value, error: metadata.error })), `${goodsImageLabel(position)}: ${metadata.error}`);
+      return false;
+    }
+    const previous = tile.status === 'saved' || tile.status === 'uploaded' ? { path: tile.path, url: tile.url, status: tile.status } : undefined;
+    if (!previous) releaseUrl(tile.url);
+    commit(replaceGoodsImageTile(slotsRef.current, tile.key, (value) => ({ key: value.key, path: previous?.path ?? '', url: null, status: 'uploading', file, previous, ...(photoEditing ? { uploadSource: 'photo-edit' as const } : {}) })),
+      `${goodsImageLabel(position)} 교체 업로드를 시작했습니다.`);
+    attachPreview(tile.key, file);
+    enqueueUpload(tile.key, file);
+    return true;
+  }
+
+  function closePhotoEdit(ticket: GoodsPhotoEditTicket) {
+    setPhotoEdit(null);
+    requestAnimationFrame(() => { if (mounted.current) controlRefs.current[`edit-${ticket.tileKey}`]?.focus(); });
+  }
+  function applyPhotoEdit(ticket: GoodsPhotoEditTicket, file: File | null) {
+    const position = goodsPhotoEditTarget(slotsRef.current, ticket);
+    if (!photoGuard.canApply(ticket) || position < 0) {
+      setNotice('계정·상품 또는 원본 사진이 바뀌었거나 다른 저장이 진행 중입니다. 현재 화면을 다시 확인한 뒤 사진 편집을 시작해주세요.');
+      closePhotoEdit(ticket); return;
+    }
+    closePhotoEdit(ticket);
+    if (!file) { setAnnouncement('사진을 변경하지 않았습니다.'); return; }
+    photoUploads.current.set(file, ticket);
+    if (!replaceFile(position, file, true)) photoUploads.current.delete(file);
+  }
+  function cancelPhotoUpload(position: number) {
+    const tile = slotsRef.current[position];
+    if (!tile?.file || !tile.previous || !photoUploads.current.has(tile.file)) return;
+    photoUploads.current.delete(tile.file); pendingPreviews.current.delete(tile.key); releaseUrl(tile.url);
+    commit(replaceGoodsImageTile(slotsRef.current, tile.key, () => ({ key: tile.key, ...tile.previous! })), '사진 편집 업로드를 취소하고 원래 사진을 유지합니다.');
+  }
+
+  function handleFiles(event: ChangeEvent<HTMLInputElement>, position: number) {
+    const files = Array.from(event.currentTarget.files ?? []);
+    event.currentTarget.value = '';
+    if (!files.length) return;
+    setNotice('');
+    const tile = slotsRef.current[position];
+    if (tile) replaceFile(position, files[0]);
+    else addFiles(files, position === 0);
+  }
+
+  function retry(position: number) {
+    const tile = slotsRef.current[position];
+    if (!tile?.file || tile.status !== 'failed') return;
+    commit(replaceGoodsImageTile(slotsRef.current, tile.key, (value) => ({ ...value, status: 'uploading', error: undefined })),
+      `${goodsImageLabel(position)} 업로드를 다시 시도합니다.`);
+    enqueueUpload(tile.key, tile.file);
+  }
+
+  function remove(position: number) {
+    const tile = slotsRef.current[position];
+    if (!tile) return;
+    pendingPreviews.current.delete(tile.key);
+    releaseUrl(tile.url);
+    releaseUrl(tile.previous?.url);
+    // 지운 자리에는 다음 이미지나 "이미지 추가" 타일이 온다.
+    pendingFocus.current = { position, control: 'input' };
+    const label = goodsImageLabel(position);
+    commit(removeGoodsImage(slotsRef.current, position), tile.path && position > 0
+      ? `${label}${goodsImageObjectParticle(position)} 삭제했습니다. 상품을 저장하면 연결이 제거됩니다. 저장소 원본은 별도 보존됩니다.`
+      : `${label} 업로드를 취소했습니다.`);
+  }
+
+  function move(from: number, to: number, control: FocusTarget['control'] = 'input') {
+    const count = goodsGalleryCount(slotsRef.current);
+    if (from < 1 || to < 1 || to > count || from === to) return;
+    pendingFocus.current = { position: to, control };
+    commit(moveGoodsGalleryImage(slotsRef.current, from, to),
+      `${goodsImageLabel(from)}${goodsImageObjectParticle(from)} ${to}번째 추가 이미지로 옮겼습니다.`);
+  }
+
+  function promote(position: number) {
+    if (!slotsRef.current[position]) return;
+    const hadMain = Boolean(slotsRef.current[0]);
+    pendingFocus.current = { position: 0, control: 'input' };
+    commit(promoteGoodsImage(slotsRef.current, position), `${goodsImageLabel(position)}${goodsImageObjectParticle(position)} 대표 이미지로 지정했습니다.${hadMain ? ` 기존 대표 이미지는 ${position}번째 추가 이미지로 옮겼습니다.` : ''}`);
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLElement>, position: number, control: FocusTarget['control'] = 'input') {
+    if (position < 1) return;
+    const delta = event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1 : 0;
+    if (!delta) return;
+    event.preventDefault();
+    move(position, position + delta, control);
+  }
+
+  function pointerDown(event: PointerEvent<HTMLElement>, position: number, source: DragSource) {
+    if (position < 1 || !event.isPrimary || event.button !== 0) return;
+    // 터치·펜으로 타일 본문을 누르면 끌기 대신 스크롤·탭(교체)이다. 끌기는 손잡이에서만 시작한다.
+    if (source === 'frame' && event.pointerType !== 'mouse') return;
+    dragRef.current = { pointerId: event.pointerId, from: position, startX: event.clientX, startY: event.clientY, active: false, over: position };
+  }
+
+  function pointerMove(event: PointerEvent<HTMLElement>) {
+    const current = dragRef.current;
+    if (!current || current.pointerId !== event.pointerId) return;
+    if (!current.active) {
+      if (Math.hypot(event.clientX - current.startX, event.clientY - current.startY) < DRAG_THRESHOLD) return;
+      current.active = true;
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+      setDrag({ from: current.from, over: current.over });
+      setAnnouncement(`${goodsImageLabel(current.from)} 순서를 바꾸는 중입니다. 놓을 자리에서 손을 떼주세요.`);
+    }
+    const target = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>('[data-image-position]');
+    const over = Number(target?.dataset.imagePosition);
+    if (Number.isInteger(over) && over >= 1 && over <= goodsGalleryCount(slotsRef.current) && over !== current.over) {
+      current.over = over;
+      setDrag({ from: current.from, over });
+    }
+  }
+
+  function pointerEnd(event: PointerEvent<HTMLElement>, cancelled = false) {
+    const current = dragRef.current;
+    if (!current || current.pointerId !== event.pointerId) return;
+    dragRef.current = null;
+    if (!current.active) return;
+    setDrag(null);
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+    // 끌기를 마친 뒤 이어지는 click이 파일 선택 창을 열지 않게 한다.
+    suppressClick.current = true;
+    setTimeout(() => { suppressClick.current = false; }, 0);
+    if (cancelled || current.over === current.from) {
+      setAnnouncement(`${goodsImageLabel(current.from)} 순서를 바꾸지 않았습니다.`);
+      return;
+    }
+    move(current.from, current.over);
+  }
+
+  function frameClick(event: MouseEvent<HTMLLabelElement>, tile: Tile | null) {
+    if (suppressClick.current || tile?.status === 'uploading') {
+      event.preventDefault();
+      suppressClick.current = false;
+    }
+  }
+
+  function renderTile(position: number) {
+    const tile = slots[position];
+    const name = GOODS_IMAGE_FIELD_NAMES[position];
+    const label = goodsImageLabel(position);
+    const particle = goodsImageObjectParticle(position);
+    const isMain = position === 0;
+    const isAdd = !tile && !isMain;
+    const formError = errors[name];
+    const errorId = `${name}-error`;
+    const tileErrorId = `${name}-tile-error`;
+    const describedBy = [GOODS_IMAGE_GUIDANCE_ID, tile?.error ? tileErrorId : null, formError ? errorId : null].filter(Boolean).join(' ');
+    const inputLabel = tile ? `${label} 교체` : isMain ? '대표 이미지 추가' : '이미지 추가 (추가 이미지, 여러 장 선택 가능)';
+    const state = tile?.status ?? 'empty';
+    const stateText = tile?.status === 'uploading' ? '업로드 중…' : tile?.status === 'uploaded' ? '업로드 완료 · 저장 전' : tile?.status === 'failed' ? '업로드 실패' : null;
+    const dropTarget = Boolean(drag && drag.over === position && drag.from !== position);
+    const dragging = drag?.from === position;
+    const invalid = Boolean(formError || tile?.error);
+    const draggable = Boolean(tile && !isMain);
+    /* 타일은 업로드 경계(data-artwork-upload-field)다 — 폼 오류 이동·유효성 매핑이 그 안의 hidden input으로 자리 이름을 찾는다. */
+    return <li
+      className="relative grid min-w-0 content-start gap-1.5 p-0" data-artwork-upload-field=""
+      data-add-tile={isAdd || undefined}
+      data-drop-target={dropTarget ? 'true' : undefined}
+      data-dragging={dragging || undefined}
+      data-image-position={position}
+      data-invalid={invalid || undefined}
+      data-main={isMain || undefined}
+      data-upload-state={state}
+      key={`position-${position}`}
+    >
+      <label
+        className={tileFrameClass({ isMain, empty: isAdd || state === 'empty', state, invalid, dropTarget, dragging, draggable })}
+        data-draggable={draggable || undefined}
+        onClick={(event) => frameClick(event, tile)}
+        onPointerCancel={(event) => pointerEnd(event, true)}
+        onPointerDown={(event) => tile && pointerDown(event, position, 'frame')}
+        onPointerMove={pointerMove}
+        onPointerUp={(event) => pointerEnd(event)}
+      >
+        {tile?.url ? (
+          // 선택한 파일의 축소 미리보기(object URL)도 바로 보여야 한다.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img alt="" className={cn('pointer-events-none size-full object-contain', state === 'uploading' && 'opacity-60')} decoding="async" draggable={false} src={tile.url} />
+        ) : tile ? (
+          <span className="grid justify-items-center gap-1 p-2 text-center text-xs leading-snug">{tile.file ? '미리보기 준비 중…' : '미리보기 없음'}</span>
+        ) : (
+          <span className="grid justify-items-center gap-1 p-2 text-center text-xs leading-snug" aria-hidden="true"><b className="text-2xl leading-none font-normal">+</b>{isMain ? '대표 이미지' : '이미지 추가'}</span>
+        )}
+        <input
+          accept={ADMIN_ARTWORK_ACCEPT}
+          aria-describedby={describedBy}
+          aria-invalid={Boolean(formError || tile?.error) || undefined}
+          aria-label={inputLabel}
+          className="sr-only"
+          data-image-input=""
+          multiple={!tile}
+          onChange={(event) => handleFiles(event, position)}
+          onClick={(event) => { if (tile?.status === 'uploading') event.preventDefault(); }}
+          onKeyDown={(event) => handleKeyDown(event, position)}
+          ref={(element) => { inputRefs.current[position] = element; }}
+          type="file"
+        />
+      </label>
+      {tile && !isMain ? (
+        <button
+          aria-keyshortcuts="ArrowLeft ArrowRight"
+          aria-label={`${label} 순서 바꾸기 손잡이 (끌거나 ←·→ 키)`}
+          className={cn('absolute top-1 left-1 z-[1] inline-flex size-8 touch-none items-center justify-center rounded-md border bg-background p-0 text-foreground shadow-xs outline-none select-none hover:bg-muted focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50', dragging ? 'cursor-grabbing' : 'cursor-grab')}
+          data-image-handle=""
+          onKeyDown={(event) => handleKeyDown(event, position, 'handle')}
+          onPointerCancel={(event) => pointerEnd(event, true)}
+          onPointerDown={(event) => pointerDown(event, position, 'handle')}
+          onPointerMove={pointerMove}
+          onPointerUp={(event) => pointerEnd(event)}
+          ref={(element) => { controlRefs.current[`handle-${position}`] = element; }}
+          type="button"
+        >
+          <svg aria-hidden="true" className="fill-current" focusable="false" height="16" viewBox="0 0 10 16" width="10">
+            {[3, 8, 13].flatMap((cy) => [2, 8].map((cx) => <circle cx={cx} cy={cy} key={`${cx}-${cy}`} r="1.5" />))}
+          </svg>
+        </button>
+      ) : null}
+      {tile && (!isMain || !tile.path) ? (
+        <button aria-label={isMain ? '대표 이미지 업로드 취소' : `${label} 삭제`} className="absolute top-1 right-1 z-[1] inline-flex size-7 items-center justify-center rounded-full border bg-background p-0 text-base leading-none text-foreground shadow-xs outline-none hover:bg-muted focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50" data-image-remove="" onClick={() => remove(position)} type="button">
+          <span aria-hidden="true">×</span>
+        </button>
+      ) : null}
+      <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-xs leading-snug">
+        <strong className="font-medium text-foreground">{isAdd ? `추가 이미지 ${galleryCount}/${GOODS_GALLERY_MAX}` : label}</strong>
+        {isMain ? <span className="text-muted-foreground">공개 필수</span> : null}
+        {stateText ? <span className={state === 'uploaded' ? 'text-[var(--wc-success)]' : state === 'failed' ? 'text-destructive' : 'text-muted-foreground'} data-upload-status={state}>{stateText}</span> : null}
+      </div>
+      {tile && !isMain ? (
+        <div className="flex gap-1">
+          <button className={TILE_ACTION_CLASS} data-slot="button" aria-label={`${label}${particle} 앞으로`} disabled={position === 1} onClick={() => move(position, position - 1, 'earlier')} ref={(element) => { controlRefs.current[`earlier-${position}`] = element; }} type="button"><span aria-hidden="true">◀</span></button>
+          <button className={TILE_ACTION_CLASS} data-slot="button" aria-label={`${label}${particle} 뒤로`} disabled={position === galleryCount} onClick={() => move(position, position + 1, 'later')} ref={(element) => { controlRefs.current[`later-${position}`] = element; }} type="button"><span aria-hidden="true">▶</span></button>
+          <button className={cn(TILE_ACTION_CLASS, 'ml-auto')} data-slot="button" aria-label={`${label}${particle} 대표로 지정`} onClick={() => promote(position)} type="button">대표로</button>
+        </div>
+      ) : null}
+      {tile?.status === 'failed' && tile.file ? <button className={TILE_WIDE_ACTION_CLASS} data-slot="button" onClick={() => retry(position)} type="button">다시 시도</button> : null}
+      {accountId && tile && parseAdminArtworkPath(normalizePublicMediaPath(tile.path))?.kind === 'good' ? <button
+        type="button" className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'w-full')} data-slot="button" aria-label={`${label} 사진 편집`}
+        disabled={editingDisabled || !photoScope.ready || photoScope.blocked || tile.status !== 'saved' && tile.status !== 'uploaded'}
+        ref={element => { controlRefs.current[`edit-${tile.key}`] = element; }}
+        onClick={() => { const ticket = photoGuard.capture(tile.key, tile.path); if (ticket) { setNotice(''); setPhotoEdit(ticket); } }}
+      >사진 편집</button> : null}
+      {tile?.file && tile.previous && tile.uploadSource === 'photo-edit' ? <button type="button" className={TILE_WIDE_ACTION_CLASS} data-slot="button" onClick={() => cancelPhotoUpload(position)}>편집 업로드 취소</button> : null}
+      {tile?.error ? <span className="text-xs font-medium leading-snug text-destructive wrap-anywhere" id={tileErrorId} role="alert">{tile.error}</span> : null}
+      <ErrorText id={errorId}>{formError}</ErrorText>
+      <input name={name} readOnly type="hidden" value={tile?.path ?? ''} />
+    </li>;
+  }
+
+  return <fieldset className="m-0 flex min-w-0 flex-col gap-3 rounded-lg border p-4" data-image-grid="">
+    <legend className="float-left w-full p-0 text-sm font-medium text-foreground">상품 이미지 · 대표 이미지 1장 + 추가 이미지 최대 {GOODS_GALLERY_MAX}장</legend>
+    <p className="text-sm wrap-anywhere" id={GOODS_IMAGE_GUIDANCE_ID}>{GOODS_IMAGE_RATIO_GUIDANCE} 공통 파일 규격: {GOODS_ARTWORK_GUIDANCE}.</p>
+    <p className="text-xs text-muted-foreground">이미지를 누르면 다른 파일로 바꿉니다. 추가 이미지는 왼쪽 위 손잡이(⋮⋮)를 끌거나 ←·→ 키로 순서를 바꾸며(마우스는 이미지를 바로 끌어도 됩니다), 이 순서대로 상품 상세 상단 이미지에서 대표 이미지 다음에 표시됩니다. 파일은 고르는 즉시 업로드되며, 상품 저장 후 공개 화면에 반영됩니다. {GOODS_IMAGE_LIBRARY_NOTICE}</p>
+    <button type="button" className={cn(buttonVariants({ variant: 'outline' }), 'self-start')} data-slot="button" disabled={slots.every(Boolean)} onClick={() => setPhotoPicker(true)}>사진 보관함에서 선택</button>
+    {photoPicker ? <GoodsPhotoPicker onClose={() => setPhotoPicker(false)} onSelect={photo => {
+      const current = slotsRef.current;
+      const position = current.findIndex(tile => !tile);
+      if (position < 0) { setNotice('상품 이미지는 최대 10장입니다.'); setPhotoPicker(false); return; }
+      if (current.some(tile => tile?.path === photo.imagePath)) { setNotice('이미 선택한 사진입니다.'); setPhotoPicker(false); return; }
+      keyCounter.current += 1;
+      const next = [...current];
+      next[position] = { key: `library-${keyCounter.current}`, path: photo.imagePath, url: publicMediaUrl(photo.imagePath), status: 'uploaded' };
+      commit(next, `${goodsImageLabel(position)}에 보관함 사진을 선택했습니다. 상품 저장 전입니다.`);
+      setPhotoPicker(false);
+    }} /> : null}
+    <ol className="m-0 grid max-w-[680px] list-none grid-cols-[repeat(auto-fill,minmax(96px,1fr))] gap-3 p-0">
+      {Array.from({ length: GOODS_IMAGE_SLOT_COUNT }, (_, position) =>
+        position === 0 || slots[position] || position === galleryCount + 1 ? renderTile(position) : null)}
+    </ol>
+    {Array.from({ length: GOODS_IMAGE_SLOT_COUNT }, (_, position) => position === 0 || slots[position] || position === galleryCount + 1
+      ? null
+      : <input key={`hidden-${position}`} name={GOODS_IMAGE_FIELD_NAMES[position]} readOnly type="hidden" value="" />)}
+    {notice ? <p className="text-xs font-medium text-destructive" role="alert">{notice}</p> : null}
+    {photoScope.blocked ? <p className="text-xs font-medium text-destructive" role="alert">로그인 계정 또는 세션이 변경되어 사진 편집을 중단했습니다. 현재 계정에서 상품을 다시 열어주세요.</p> : null}
+    {photoEdit && photoGuard.isCurrent(photoEdit) ? <GoodsPhotoEditor sourcePath={photoEdit.sourcePath} onCancel={() => closePhotoEdit(photoEdit)} onApply={file => applyPhotoEdit(photoEdit, file)} /> : null}
+    <p aria-atomic="true" aria-live="polite" className="sr-only" role="status">{announcement}</p>
+  </fieldset>;
+}

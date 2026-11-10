@@ -1,0 +1,9 @@
+.wc-goods-after-sales { margin: 40px 0; border-block: 1px solid var(--wc-hairline); padding: 28px 0; font-size: 14px; line-height: 1.8; }
+.wc-goods-after-sales h2 { margin: 0 0 20px; font-size: 20px; font-weight: 600; }
+.wc-goods-after-sales h3 { margin: 20px 0 12px; font-size: 16px; font-weight: 500; }
+.wc-goods-after-sales dl { margin: 0; }
+.wc-goods-after-sales dl > div { display: grid; grid-template-columns: 140px minmax(0,1fr); gap: 16px; padding: 12px 0; }
+.wc-goods-after-sales dt { color: var(--wc-ink-sub); }
+.wc-goods-after-sales dd,.wc-goods-after-sales p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+@media(max-width: 749px) { .wc-goods-after-sales dl > div { grid-template-columns: minmax(0,1fr); gap: 4px; } }
+@media(forced-colors: active) { .wc-goods-after-sales { border-color: CanvasText; } }

@@ -1,0 +1,63 @@
+import { readFileSync } from 'node:fs';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { describe, expect, it } from 'vitest';
+import { resolveGoodsPrice, type GoodsPriceDraft } from '@/lib/admin/goods-price-editor';
+import { GoodsDiscountRateField, GoodsPriceFields } from './GoodsPriceFields';
+
+const render = (changes: Partial<GoodsPriceDraft> = {}) => {
+  const draft: GoodsPriceDraft = { regularPrice: '10000', discountEnabled: false, discountValue: '', discountUnit: 'won', ...changes };
+  return renderToStaticMarkup(<GoodsPriceFields draft={draft} onDraftChange={() => {}} result={resolveGoodsPrice(draft)} errors={{}} />);
+};
+
+/** 할인 입력 묶음(설정안함이면 hidden) 안의 마크업 */
+const discountBlock = (html: string) => {
+  const start = html.indexOf('data-good-price-discount=""');
+  return html.slice(start, html.indexOf('data-good-price-result=""', start));
+};
+
+describe('판매가·할인 입력', () => {
+  /* 리뷰 T3a-10 — R18 할인 결과 문구('할인가 X원 (Y원, Z% 할인)')를 어드민 비주얼 픽스처 QA가 찾는 문구와 맞춘다(판매가 2,000원·할인 1,000원). */
+  it('비주얼 픽스처 QA가 기다리는 할인 결과 문구가 실제 화면 문구와 같다', () => {
+    const qa = readFileSync(new URL('../../scripts/admin-visual-fixture/good-editor-qa.mjs', import.meta.url), 'utf8');
+    const expected = qa.match(/getByText\('(\([^']*할인\))'\)/)?.[1];
+    expect(expected).toBe('(1,000원, 50% 할인)');
+    const text = render({ regularPrice: '2000', discountEnabled: true, discountValue: '1000' }).replace(/<[^>]+>/g, '');
+    expect(text).toContain(`할인가 1,000원 ${expected}`);
+  });
+
+  /* 2026-10-07 리뷰: 할인율 표시는 기간 할인에도 쓰인다. 할인 설정안함 상품에서도 바꿀 수 있어야 해서 할인 입력과 분리해 추가 설정 카드에 둔다. */
+  it('고객 화면에 할인율 표시는 할인 입력 묶음 밖의 별도 칸이고 기간 할인에도 적용된다고 안내한다', () => {
+    for (const discountEnabled of [false, true]) expect(discountBlock(render({ discountEnabled, discountValue: '1000' })), String(discountEnabled)).not.toContain('showDiscountRate');
+    const html = renderToStaticMarkup(<GoodsDiscountRateField value="false" />);
+    const rate = html.indexOf('name="showDiscountRate"');
+    expect(rate).toBeGreaterThan(-1);
+    expect(html.slice(html.lastIndexOf('<label', rate), rate)).toContain('고객 화면에 할인율 표시');
+    expect(html).toContain('기간 할인에도 적용됩니다');
+    expect(html).toMatch(/<option value="false" selected="">숨김 · 할인가만 표시<\/option>/);
+    expect(render()).toContain('data-good-price-discount="" hidden=""');
+  });
+
+  /* 2026-10-07 QA: 10%로 저장한 할인을 다시 열면 1,200원으로 보여, 판매가를 바꿔도 할인율이 따라가지 않는 것을 몰랐다. */
+  it('할인 칸 도움말은 저장 후 다시 열면 원 단위로 표시되고 판매가를 바꾸면 할인을 다시 확인하라고 안내한다', () => {
+    const html = render({ discountEnabled: true, discountValue: '10', discountUnit: 'percent' });
+    const hint = html.slice(html.indexOf('id="goods-discount-value-hint"'));
+    expect(hint.slice(0, hint.indexOf('</'))).toContain('저장 후 다시 열면 할인은 원 단위로 표시됩니다(결과 금액은 같습니다). 판매가를 바꿀 때는 할인도 다시 확인해주세요.');
+  });
+
+  /* 2026-10-07 리뷰: 숨긴 할인 입력에 남은 음수 값(rangeUnderflow)이 설정안함 상태의 저장을 막았다. */
+  it('할인 설정안함이면 할인 입력을 검증·제출에서 빼고, 입력값은 복구용 hidden 값으로 보존한다', () => {
+    const off = render({ discountEnabled: false, discountValue: '-10', discountUnit: 'percent' });
+    expect(off).toMatch(/<input[^>]*id="goods-discount-value"[^>]*disabled=""/);
+    expect(off).toMatch(/<select[^>]*name="discountUnit"[^>]*disabled=""/);
+    expect(off).toContain('<input type="hidden" name="discountValue" value="-10"/>');
+    expect(off).toContain('<input type="hidden" name="discountUnit" value="percent"/>');
+    expect(off).toContain('<input type="hidden" name="price" value="10000"/>');
+    expect(off).toContain('<input type="hidden" name="compareAtPrice" value=""/>');
+
+    const on = render({ discountEnabled: true, discountValue: '1000' });
+    expect(on).not.toMatch(/<input[^>]*id="goods-discount-value"[^>]*disabled=""/);
+    expect(on).not.toContain('type="hidden" name="discountValue"');
+    expect(on).not.toContain('type="hidden" name="discountUnit"');
+    expect(on).toMatch(/<input[^>]*name="discountValue"[^>]*value="1000"/);
+  });
+});

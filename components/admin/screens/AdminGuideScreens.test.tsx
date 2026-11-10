@@ -7,11 +7,13 @@ import {
 } from '@/lib/admin/guide/topics';
 import { AdminGuideIndexScreen } from './AdminGuideIndexScreen';
 import { AdminGuideTopicScreen } from './AdminGuideTopicScreen';
+import { configuredOperatorAccessFixture } from '@/lib/admin/access.test-fixtures';
 
 describe('AdminGuideIndexScreen', () => {
   const html = renderToStaticMarkup(<AdminGuideIndexScreen />);
 
-  it('13개 주제 카드가 전부 자기 주소로 연결된다', () => {
+  it('전체 주제 카드가 자기 주소로 연결되고 판매자 가이드로 표시된다', () => {
+    expect(html).toContain('판매자 가이드');
     for (const slug of ADMIN_GUIDE_TOPIC_SLUGS) {
       expect(html).toContain(`href="${adminGuideTopicHref(slug)}"`);
       expect(html).toContain(ADMIN_GUIDE_TOPICS[slug].navLabel);
@@ -20,6 +22,12 @@ describe('AdminGuideIndexScreen', () => {
 });
 
 describe('AdminGuideTopicScreen', () => {
+  it('읽을 수 있는 가이드에서도 허용되지 않은 실제 화면 링크를 제외한다', () => {
+    const html = renderToStaticMarkup(<AdminGuideTopicScreen topic={ADMIN_GUIDE_TOPICS['members-roles']} access={configuredOperatorAccessFixture('agency')} />);
+    expect(html).not.toContain('href="/admin/community/roles"');
+    expect(html).not.toContain('href="/admin/community/members"');
+    expect(html).toContain('href="/admin/guide"');
+  });
   it('섹션 앵커·목차·단계 목록을 렌더한다', () => {
     const topic = ADMIN_GUIDE_TOPICS['goods-sales'];
     const html = renderToStaticMarkup(<AdminGuideTopicScreen topic={topic} />);
@@ -28,8 +36,20 @@ describe('AdminGuideTopicScreen', () => {
       expect(html).toContain(`id="${section.id}"`);
       expect(html).toContain(`href="#${section.id}"`);
     }
-    expect(html).toContain('admin-guide-steps');
-    expect(html).toContain('admin-guide-table');
+    expect(html).toContain('data-guide="steps"');
+    expect(html).toContain('data-guide="table"');
+  });
+
+  it('목차는 지금 읽는 섹션을 표시하고 전체 흐름을 맨 앞에 둔다', () => {
+    const html = renderToStaticMarkup(<AdminGuideTopicScreen topic={ADMIN_GUIDE_TOPICS['goods-sales']} />);
+    expect(html).toMatch(/<a aria-current="location"[^>]*>전체 흐름<\/a>/);
+    expect(html.indexOf('>전체 흐름</h3>')).toBeLessThan(html.indexOf('>상품 작성과 저장 범위</h3>'));
+  });
+
+  it('긴 문단의 막힘·불가 문장을 문구 그대로 표시한다', () => {
+    const html = renderToStaticMarkup(<AdminGuideTopicScreen topic={ADMIN_GUIDE_TOPICS['goods-sales']} />);
+    expect(html).toContain('data-guide-caution');
+    expect(html).toMatch(/data-guide-caution[^>]*>[^<]*제작 진행을 막습니다\.<\/mark>/);
   });
 
   it('화면 바로가기 라벨은 내비 정본에서 조회한다 — 데이터에 라벨이 없다', () => {
@@ -38,13 +58,13 @@ describe('AdminGuideTopicScreen', () => {
     );
 
     /* "그룹 › 화면" 형태. 화면 이름이 바뀌면 가이드 chip도 따라 바뀌어야 한다. */
-    expect(html).toContain('고객 응대 › 역할');
-    expect(html).toContain('admin 전용');
+    expect(html).toContain('판매자 정보 › 매니저 관리');
+    expect(html).toContain('통합 매니저·계정 주매니저');
   });
 
-  it('콜아웃 톤 클래스와 이전/다음 내비를 렌더한다', () => {
+  it('콜아웃 톤과 이전/다음 내비를 렌더한다', () => {
     const claims = renderToStaticMarkup(<AdminGuideTopicScreen topic={ADMIN_GUIDE_TOPICS.claims} />);
-    expect(claims).toContain('admin-guide-callout--danger');
+    expect(claims).toContain('data-guide-callout="danger"');
 
     const first = renderToStaticMarkup(
       <AdminGuideTopicScreen topic={ADMIN_GUIDE_TOPICS[ADMIN_GUIDE_TOPIC_SLUGS[0]]} />,

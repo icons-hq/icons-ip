@@ -6,6 +6,22 @@ import { COMMUNITY_ENABLED } from './community-visibility';
 import { publicIpHref, type PublicIpReference } from './ip-identity';
 
 export const AOUAD_POPUP_PATH = '/ip/aouad';
+export const MANAGER_INVITATION_PATH = '/manager-invitation';
+
+export const routes = {
+  gifts: () => '/gifts',
+  giftNew: () => '/gifts/new',
+  gift: (id: string) => `/gifts/${encodeURIComponent(id)}`,
+  giftReceive: () => '/gifts/receive',
+  giftReceiveSession: () => '/gifts/receive/session',
+  subscriptions: () => '/my/subscriptions',
+  subscriptionNew: (goodId?: string) => goodId ? `/my/subscriptions/new?goodId=${encodeURIComponent(goodId)}` : '/my/subscriptions/new',
+  subscription: (id: string) => `/my/subscriptions/${encodeURIComponent(id)}`,
+} as const;
+
+export function categoryDisplayHref(categoryId: string): string {
+  return `/shop?displayCategory=${encodeURIComponent(categoryId)}`;
+}
 
 export interface NavItem {
   id: string;
@@ -22,7 +38,7 @@ function visibleItems(items: NavItem[]): NavItem[] {
 }
 
 /* 데스크톱 GNB — 카탈로그 진입(NEW·BEST·카테고리)을 앞에 두고 그 뒤에 세계관 표면을 잇는다. */
-export const NAV_ITEMS: NavItem[] = visibleItems([
+export const STOREFRONT_MENU_ITEMS = [
   { id: 'new', label: 'NEW' },
   { id: 'best', label: 'BEST' },
   { id: 'shop', label: '카테고리' },
@@ -30,7 +46,9 @@ export const NAV_ITEMS: NavItem[] = visibleItems([
   { id: 'packs', label: '카드팩' },
   { id: 'events', label: '이벤트' },
   { id: 'community', label: '커뮤니티' },
-]);
+  { id: 'stories', label: '쇼핑스토리' },
+] as const satisfies readonly NavItem[];
+export const NAV_ITEMS: NavItem[] = visibleItems([...STOREFRONT_MENU_ITEMS]);
 
 /* 모바일 바텀 탭 5개 — 가운데가 홈이다.
    'menu'만 라우트가 없는 액션 탭이라 링크가 아니라 전체 메뉴 시트를 연다. */
@@ -48,6 +66,13 @@ export const UTIL_ITEMS: NavItem[] = [
   { id: 'notifications', label: '알림함' },
 ];
 
+/* 로그인 회원에게만 보이는 유틸 항목 — 데스크톱의 위시 진입(MY-13, 10/14 S14). 헤더 아이콘 3개 문법은 그대로 둔다.
+   STOREFRONT_MENU_ITEMS에 넣지 않는다: 운영 저장 내비(고정 8개 ID)가 개수 불일치로 통째로 무시된다
+   (lib/store-navigation.ts parseStoreNavigation). 비회원 위시는 없다(CONTEXT.md 위시리스트). */
+export const MEMBER_UTIL_ITEMS: NavItem[] = [
+  { id: 'wish', label: '위시리스트' },
+];
+
 const PATHS: Record<string, string> = {
   home: '/',
   new: '/shop/new',
@@ -61,16 +86,26 @@ const PATHS: Record<string, string> = {
   events: '/events',
   offlinePopups: '/offline-popups',
   community: '/community',
+  stories: '/stories',
+  reviewEvents: '/review-events',
+  interests: '/interests',
   exchange: '/exchange',
   market: '/market',
   search: '/search',
   login: '/login',
+  managerInvitation: MANAGER_INVITATION_PATH,
   cart: '/cart',
   checkout: '/checkout',
   orders: '/orders',
+  gifts: '/gifts',
+  subscriptions: '/my/subscriptions',
   tickets: '/tickets',
   my: '/my',
   wish: '/my/wishlist',
+  /* 회원 등급 혜택 — 등급 기준·혜택 안내(L6 · MY-05). 무료 회원 등급이라 유료 v2 어휘를 경로·라벨에 쓰지 않는다(CONTEXT.md). */
+  gradeBenefits: '/my/grade-benefits',
+  /* 배송지 관리(주소록) — 주문서가 불러올 배송지(L7 · MY-11). */
+  addresses: '/my/addresses',
   notifications: '/notifications',
   about: '/about',
   help: '/help',
@@ -85,12 +120,26 @@ const PATHS: Record<string, string> = {
 /** 함정: 미등록 id는 '/'로 폴백한다. 오타 하나가 홈 링크로 둔갑해 조용히 통과하므로 새 항목은 반드시 PATHS에 등록한다. */
 export function hrefFor(route: string, param?: string | PublicIpReference | null): string {
   if (route === 'ip') return param ? publicIpHref(param) : '/ip';
+  if (route === 'reviewEvent') return typeof param === 'string' ? `/review-events/${encodeURIComponent(param)}` : '/review-events';
   return PATHS[route] ?? '/';
+}
+
+/**
+ * 주문 완료 화면(D12 · S18). 결제 승인·무통장 접수 뒤 보내는 곳이며 `app/orders/[orderId]/complete/page.tsx`
+ * → `components/screens/OrderComplete.tsx`가 그린다. 주문 식별자는 본인 확인을 거친 뒤에만 읽힌다.
+ */
+export function orderCompleteHref(orderId: string): string {
+  return `/orders/${encodeURIComponent(orderId)}/complete`;
 }
 
 /** hrefFor가 실제 경로를 돌려주는 id인지 — '/' 폴백과 진짜 홈('/')을 구분한다. */
 function hasPath(route: string): boolean {
-  return route === 'ip' || route in PATHS;
+  return route === 'ip' || route === 'reviewEvent' || route in PATHS;
+}
+
+/** 굿즈 상세(`/shop/[goodId]`)인가. NEW·BEST(`/shop/new`·`/shop/best`)는 같은 접두를 쓰는 컬렉션 목록이라 아니다. */
+export function isGoodDetailPath(pathname: string): boolean {
+  return /^\/shop\/(?!(?:new|best)$)[^/]+$/.test(pathname);
 }
 
 /** does the given prototype route-id correspond to the current pathname? */
@@ -101,8 +150,11 @@ export function isActive(route: string, pathname: string): boolean {
 }
 
 /** pathname에 가장 특정하게 매칭되는 nav 항목 id 하나를 고른다 (없으면 null).
-    '/shop/new'에서 '카테고리(/shop)'가 아니라 'NEW(/shop/new)'가 이겨야 해서 최장 href가 우선한다. */
+    '/shop/new'에서 '카테고리(/shop)'가 아니라 'NEW(/shop/new)'가 이겨야 해서 최장 href가 우선한다.
+    굿즈 상세는 어떤 내비 항목의 목록도 아니라 아무것도 고르지 않는다 — '/shop' 접두가 맞아도
+    카테고리를 켜지 않는다(CH-12, 레퍼런스 실측). 목록인 /shop·/shop/new·/shop/best는 그대로 켠다. */
 export function activeNavId(pathname: string, items: NavItem[] = NAV_ITEMS): string | null {
+  if (isGoodDetailPath(pathname)) return null;
   let activeId: string | null = null;
   let activeLength = -1;
   for (const item of items) {
@@ -118,8 +170,10 @@ export function activeNavId(pathname: string, items: NavItem[] = NAV_ITEMS): str
   return activeId;
 }
 
+/** 집중형(크롬 없는) 인증 셸 — 초대 수락·비밀번호 변경·이용 정지 안내.
+    `/login`(가입·재설정 모드 포함)은 여기 넣지 않는다: 레퍼런스처럼 전역 헤더·푸터·모바일 탭바 안에서 연다(CH-13). */
 export function isAuthShellPath(pathname: string): boolean {
-  return pathname === '/login'
+  return pathname === MANAGER_INVITATION_PATH
     || pathname === '/update-password'
     || pathname === '/account-suspended';
 }
@@ -188,7 +242,8 @@ export const FOOTER_COMMUNITY_STAFF_ITEMS: NavItem[] = [
   { id: 'community', label: '커뮤니티' },
 ];
 
-/* 카테고리 메가메뉴 — goods.type 표준화(S4) 전까지 실존 라우트 그룹만 노출한다. */
+/* 카테고리 메가메뉴의 기존 그룹 — 고객 카테고리 공개 스위치가 꺼졌거나 공개 전시분류가 없을 때의 폴백이다.
+   공개 전시 트리가 있으면 메가메뉴는 첫 그룹(굿즈샵)만 바로가기로 남기고 기획전·전시분류 그룹을 잇는다(L5, Nav.tsx). */
 export const CATEGORY_MEGA_GROUPS: NavGroup[] = [
   { heading: '굿즈샵', items: [
     { id: 'shop', label: '전체 굿즈' },
@@ -205,7 +260,23 @@ export const CATEGORY_MEGA_GROUPS: NavGroup[] = [
   ] },
 ];
 
-/* 모바일 전체 메뉴 시트 — 바텀바 '메뉴' 탭과 모바일 GNB '카테고리' 탭이 함께 연다. */
+/* 모바일 카테고리 시트의 아이콘 바로가기(레퍼런스 '스퀘어 픽' 자리, MC-05 ①) — 스토어 목적지만 둔다.
+   운영 메뉴 설정의 이름·노출·순서를 메가메뉴 링크와 같은 규칙으로 따른다(lib/store-navigation.ts configuredNavigationGroups). */
+export const CATEGORY_SHEET_SHORTCUTS: NavGroup = { heading: '바로가기', items: [
+  { id: 'shop', label: '전체 굿즈' },
+  { id: 'new', label: 'NEW' },
+  { id: 'best', label: 'BEST' },
+  { id: 'events', label: '이벤트' },
+  { id: 'stories', label: '쇼핑스토리' },
+] };
+
+/** 기획전(캠페인) 상세 주소 — 메가메뉴·카테고리 시트의 기획전 링크(이벤트 허브 카드와 같은 목적지). */
+export function campaignDetailHref(id: string): string {
+  return `/events/${encodeURIComponent(id)}`;
+}
+
+/* 모바일 전체 메뉴 시트 — 바텀바 '메뉴' 탭이 연다. 모바일 GNB '카테고리' 탭은 공개 전시 트리가 있으면 카테고리 시트를,
+   없으면(공개 스위치 OFF·전시 없음) 이 시트를 연다(L5 폴백). */
 export const MENU_SHEET_GROUPS: NavGroup[] = visibleGroups([
   { heading: '쇼핑', items: [
     { id: 'shop', label: '전체 굿즈' },

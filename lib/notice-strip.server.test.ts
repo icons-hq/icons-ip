@@ -1,31 +1,45 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { getActiveNoticeStrip } from './notice-strip.server';
+import { getShellNotices } from './notice-strip.server';
+
+const IMAGE = 'public-media/catalog/curation/11111111-1111-4111-8111-111111111111.webp';
+const MOBILE = 'public-media/catalog/curation/22222222-2222-4222-8222-222222222222.webp';
+
+type Row = { id: string; kind: string; title: string; image_path: string | null; link_path: string | null; active_to?: string | null; payload: Record<string, unknown> | null };
 
 const mocks = vi.hoisted(() => ({
-  href: '/ip/old-ip?tab=goods#detail',
   published: true,
+  rows: [] as Row[],
+  error: null as { message: string } | null,
+  calls: [] as Array<[string, ...unknown[]]>,
   createServerClient: vi.fn(),
-  cookieClient: vi.fn(() => { throw new Error('notice strip must not read cookies'); }),
+  cookieClient: vi.fn(() => { throw new Error('shell notices must not read cookies'); }),
   cache: vi.fn((fn: unknown) => fn),
+  /* 띠배너 이미지 머리 읽기 — 기본은 네트워크 실패(크기 없음). */
+  fetch: vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async () => { throw new Error('offline'); }),
 }));
+vi.stubGlobal('fetch', mocks.fetch);
 vi.mock('next/cache', () => ({ unstable_cache: mocks.cache }));
 vi.mock('@supabase/ssr', () => ({ createServerClient: mocks.createServerClient }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: mocks.cookieClient }));
 vi.mock('./supabase/config', () => ({ getSupabaseConfig: () => ({ isConfigured: true, url: 'https://preview.example.test', key: 'test-public-key' }) }));
 
 beforeEach(() => {
-  mocks.href = '/ip/old-ip?tab=goods#detail';
   mocks.published = true;
+  mocks.error = null;
+  mocks.calls = [];
+  mocks.rows = [];
   mocks.cookieClient.mockClear();
+  mocks.fetch.mockClear().mockImplementation(async () => { throw new Error('offline'); });
   mocks.createServerClient.mockReset().mockImplementation(() => ({
     from: (table: string) => {
       const filters: Record<string, unknown> = {};
       const query = {
-        select: () => query,
-        eq: (column: string, value: unknown) => { filters[column] = value; return query; },
-        lte: () => query, or: () => query, order: () => query,
-        limit: async () => ({ error: null, data: [{ id: 'strip', title: '공지',
-          image_path: 'public-media/catalog/curation/11111111-1111-4111-8111-111111111111.webp', link_path: mocks.href, payload: null }] }),
+        select: (columns: string) => { mocks.calls.push(['select', table, columns]); return query; },
+        in: (column: string, values: unknown) => { mocks.calls.push(['in', column, values]); return query; },
+        eq: (column: string, value: unknown) => { filters[column] = value; mocks.calls.push(['eq', column, value]); return query; },
+        lte: () => query, or: () => query,
+        order: (column: string) => { mocks.calls.push(['order', column]); return query; },
+        then: (resolve: (value: unknown) => unknown) => resolve({ error: mocks.error, data: mocks.error ? null : mocks.rows }),
         maybeSingle: async () => ({ error: null, data: table === 'ip_public_slug_aliases'
           ? { slug: 'old-ip', ip_id: 'internal-ip' }
           : filters.id === 'internal-ip' || filters.public_slug === 'current-ip'
@@ -38,20 +52,119 @@ beforeEach(() => {
   }));
 });
 
-describe('cached public notice strip', () => {
+const bar = (id: string, patch: Partial<Row> = {}): Row => ({
+  id, kind: 'notice_bar', title: '이용약관 개정 안내', image_path: null, link_path: '/legal/terms',
+  payload: { page_types: ['home', 'product'], cta_label: '자세히 보기' }, ...patch,
+});
+const strip = (id: string, patch: Partial<Row> = {}): Row => ({
+  id, kind: 'notice_strip', title: '키링 기획전', image_path: IMAGE, link_path: '/events', payload: null, ...patch,
+});
+
+describe('셸 공지 캐시 읽기', () => {
+  it('쿠키 없이 공지 바·스트립 전체를 운영 순서대로 읽고, 캐시 키를 이전 단일 스트립과 분리한다', async () => {
+    mocks.rows = [bar('b1'), strip('s1'), strip('s2', { payload: { page_types: ['home'], mobile_image_path: MOBILE } })];
+    const notices = await getShellNotices();
+    expect(mocks.cookieClient).not.toHaveBeenCalled();
+    expect(mocks.cache).toHaveBeenCalledWith(expect.any(Function), ['shell-notices'], { revalidate: 300, tags: ['home-curations'] });
+    expect(mocks.calls).toEqual(expect.arrayContaining([
+      ['in', 'kind', ['notice_bar', 'notice_strip']], ['eq', 'enabled', true],
+      ['order', 'display_order'], ['order', 'active_from'], ['order', 'id'],
+    ]));
+    expect(notices.bars).toEqual([{
+      id: 'b1', key: expect.stringMatching(/^b1:[0-9a-f]{12}$/), message: '이용약관 개정 안내',
+      cta: { label: '자세히 보기', href: '/legal/terms' }, pageTypes: ['home', 'product'], endsAt: null,
+    }]);
+    expect(notices.strips).toEqual([
+      { id: 's1', title: '키링 기획전', imageUrl: `https://cdn.example.test/${IMAGE.replace('public-media/', '')}`, imageSize: null, mobileImageUrl: null, mobileImageSize: null, href: '/events', pageTypes: null, endsAt: null },
+      expect.objectContaining({ id: 's2', mobileImageUrl: `https://cdn.example.test/${MOBILE.replace('public-media/', '')}`, pageTypes: ['home'] }),
+    ]);
+  });
+
+  /* 셸 QA(2026-10-27) — 띠배너 이미지가 첫 페인트 뒤에 오면 띠가 0 에서 펼쳐지며 본문을 밀었다(모바일 CLS 0.05). 머리 바이트만 받아
+     고유 크기를 싣고, 화면이 width·height 로 자리를 먼저 잡는다. 실패·형식 밖은 크기 없음이다. */
+  it('띠배너 이미지 머리만 받아 고유 크기를 싣는다', async () => {
+    const vp8x = (width: number, height: number) => {
+      const body = [0, 0, 0, 0, (width - 1) & 0xff, ((width - 1) >> 8) & 0xff, 0, (height - 1) & 0xff, ((height - 1) >> 8) & 0xff, 0];
+      return Uint8Array.from([...'RIFF'].map((c) => c.charCodeAt(0)).concat([0, 0, 0, 0], [...'WEBPVP8X'].map((c) => c.charCodeAt(0)), [0, 0, 0, 10], body));
+    };
+    mocks.fetch.mockImplementation(async (url: string) => (url.endsWith(IMAGE.replace('public-media/', ''))
+      ? new Response(vp8x(1440, 36), { status: 206 })
+      : new Response('missing', { status: 404 })));
+    mocks.rows = [strip('s1', { payload: { mobile_image_path: MOBILE } })];
+    const [notice] = (await getShellNotices()).strips;
+    expect(notice).toMatchObject({ imageSize: { width: 1440, height: 36 }, mobileImageSize: null });
+    expect(mocks.fetch).toHaveBeenCalledTimes(2);
+    expect(mocks.fetch.mock.calls[0][1]).toMatchObject({ headers: { Range: 'bytes=0-65535' } });
+  });
+
+  /* 셸 공지는 하드 로드 때만 내려온다 — 열린 화면이 종료 시각에 숨기도록 active_to를 epoch ms로 싣는다(l8a-ui-4). */
+  it('노출 종료 시각을 함께 읽어 공지 바·스트립에 epoch ms로 싣는다', async () => {
+    const endsAt = '2026-10-23T09:00:00+00:00';
+    mocks.rows = [bar('b1', { active_to: endsAt }), strip('s1', { active_to: endsAt }), strip('s2', { active_to: null })];
+    const notices = await getShellNotices();
+    expect(mocks.calls).toContainEqual(['select', 'home_curations', 'id,kind,title,image_path,link_path,active_to,payload']);
+    expect(notices.bars[0].endsAt).toBe(Date.parse(endsAt));
+    expect(notices.strips.map((item) => item.endsAt)).toEqual([Date.parse(endsAt), null]);
+  });
+
+  it('문구·버튼·대상을 바꾸면 닫힘 키가 바뀌고, 순서·기간만 바뀌면 그대로다', async () => {
+    mocks.rows = [bar('b1')];
+    const first = (await getShellNotices()).bars[0].key;
+    mocks.rows = [bar('b1', { title: '이용약관 개정 사전 안내' })];
+    expect((await getShellNotices()).bars[0].key).not.toBe(first);
+    mocks.rows = [bar('b1', { payload: { page_types: ['home'], cta_label: '자세히 보기' } })];
+    expect((await getShellNotices()).bars[0].key).not.toBe(first);
+    mocks.rows = [bar('b1', { active_to: '2026-12-31T15:00:00+00:00' })];
+    expect((await getShellNotices()).bars[0].key).toBe(first);
+  });
+
+  it('버튼 없는 공지 바를 받고, 계약을 어긴 행은 그리지 않는다', async () => {
+    mocks.rows = [
+      bar('copy', { link_path: null, payload: { page_types: ['home'] } }),
+      bar('no-label', { payload: { page_types: ['home'] } }),
+      bar('label-only', { link_path: null }),
+      bar('no-targets', { payload: { cta_label: '보기' } }),
+      bar('bad-target', { payload: { page_types: ['checkout'], cta_label: '보기' } }),
+      bar('long', { title: '가'.repeat(61) }),
+      bar('control', { title: '배송\n공지' }),
+      bar('unsafe', { link_path: '//outside' }),
+      bar('with-image', { image_path: IMAGE }),
+      strip('strip-bad-target', { payload: { page_types: [] } }),
+      strip('strip-no-image', { image_path: null }),
+    ];
+    const notices = await getShellNotices();
+    expect(notices.bars.map((item) => [item.id, item.cta])).toEqual([['copy', null]]);
+    expect(notices.strips).toEqual([]);
+  });
+
   it.each(['/ip/old-ip?tab=goods#detail', '/ip?ip=internal-ip&tab=goods#detail'])(
-    'uses the current IP address without reading request cookies: %s', async (href) => {
-      mocks.href = href;
-      expect((await getActiveNoticeStrip())?.href).toBe('/ip/current-ip?tab=goods#detail');
-      expect(mocks.cookieClient).not.toHaveBeenCalled();
-      expect(mocks.cache).toHaveBeenCalledWith(expect.any(Function), ['home-notice-strip'], { revalidate: 300, tags: ['home-curations'] });
+    '공지 바 버튼·스트립의 IP 링크를 현재 공개 주소로 바꾼다: %s', async (href) => {
+      mocks.rows = [bar('b1', { link_path: href }), strip('s1', { link_path: href })];
+      const notices = await getShellNotices();
+      expect(notices.bars[0].cta?.href).toBe('/ip/current-ip?tab=goods#detail');
+      expect(notices.strips[0].href).toBe('/ip/current-ip?tab=goods#detail');
     },
   );
-  it('does not resolve an unpublished target or change a reserved popup URL', async () => {
+
+  it('비공개 대상은 바꾸지 않고, 읽기 실패는 공지 없음으로 수렴한다', async () => {
     mocks.published = false;
-    expect((await getActiveNoticeStrip())?.href).toBe(mocks.href);
-    mocks.href = '/ip/aouad';
-    expect((await getActiveNoticeStrip())?.href).toBe('/ip/aouad');
+    mocks.rows = [bar('b1', { link_path: '/ip/old-ip' }), strip('s1', { link_path: '/ip/old-ip' })];
+    const notices = await getShellNotices();
+    expect(notices.bars[0].cta?.href).toBe('/ip/old-ip');
+    expect(notices.strips[0].href).toBe('/ip/old-ip');
+    mocks.error = { message: 'offline' };
+    expect(await getShellNotices()).toEqual({ bars: [], strips: [] });
     expect(mocks.cookieClient).not.toHaveBeenCalled();
   });
+
+  /* 예약 팝업 주소는 IP 별칭 해석을 타지 않는다. 대역은 어떤 슬러그든 공개 IP로 풀어 주므로(published), 예약 검사가
+     빠지면 이 주소가 '/ip/current-ip'로 바뀌어 실패한다. */
+  it.each(['/ip/aouad', '/ip/aouad?tab=goods#detail', '/ip?ip=aouad'])(
+    '공지 바 버튼·스트립의 예약 팝업 주소는 그대로 둔다: %s', async (href) => {
+      mocks.rows = [bar('b1', { link_path: href }), strip('s1', { link_path: href })];
+      const notices = await getShellNotices();
+      expect(notices.bars[0].cta?.href).toBe(href);
+      expect(notices.strips[0].href).toBe(href);
+    },
+  );
 });

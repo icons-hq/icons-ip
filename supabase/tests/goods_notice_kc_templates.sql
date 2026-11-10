@@ -40,7 +40,7 @@ do $$ declare preset public.goods_notice_presets; notice jsonb; invalid jsonb; b
   begin
     perform public.admin_save_goods_notice_preset(preset.id,preset.name,notice||'{"kcTemplate":null}',preset.updated_at-interval '1 second');
     raise exception 'stale KC template clear accepted';
-  exception when serialization_failure then null; end;
+  exception when sqlstate 'PT409' then null; end;
   perform public.admin_save_goods_notice_preset(preset.id,preset.name,notice,preset.updated_at);
   if (select kc_template from public.goods_notice_presets where id=preset.id) is distinct from preset.kc_template then raise exception 'legacy seven fields cleared KC'; end if;
   select * into preset from public.goods_notice_presets where id=preset.id;

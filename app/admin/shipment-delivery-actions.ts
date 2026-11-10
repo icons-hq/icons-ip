@@ -6,7 +6,7 @@ import { adminOrderActionHref } from '@/lib/admin/orders';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
 import {
-  DELIVERY_POLICY_TEXT_FIELDS, deliveryErrorMessage, deliveryObject, deliveryTimestamp, deliveryUuid,
+  DELIVERY_POLICY_TEXT_FIELDS, deliveryIsHandoff, deliveryErrorMessage, deliveryObject, deliveryTimestamp, deliveryUuid,
   parseAdminDeliveryPolicies, parseAdminShipmentDelivery, parseDeliveryEvidence, parseDeliveryPolicyInput,
   type AdminDeliveryPolicy, type AdminShipmentDelivery,
 } from '@/lib/shipment-delivery';
@@ -24,7 +24,7 @@ function refreshDelivery() {
   revalidatePath('/orders/[orderId]', 'page'); revalidatePath('/admin/sales/orders/[orderId]', 'page');
 }
 export async function readDeliveryPoliciesAction(originId: unknown): Promise<{ ok: true; policies: AdminDeliveryPolicy[] } | Failure> {
-  if (!await requireAdminActionAccess('/admin/settings/origins')) return { ok: false, error: '운영자만 배송 방식 정책을 확인할 수 있습니다.' };
+  if (!await requireAdminActionAccess('/admin/settings/origins', { capability: 'catalog.read' })) return { ok: false, error: '운영자만 배송 방식 정책을 확인할 수 있습니다.' };
   if (!deliveryUuid(originId)) return { ok: false, error: '출고지를 다시 선택해주세요.' };
   try {
     const client = await createClient(); const { data, error } = await client.rpc('admin_list_delivery_policies', { p_origin_id: originId });
@@ -33,13 +33,13 @@ export async function readDeliveryPoliciesAction(originId: unknown): Promise<{ o
   } catch (error) { unstable_rethrow(error); return { ok: false, error: '배송 방식 정책을 불러오지 못했습니다.' }; }
 }
 export async function saveDeliveryPolicyAction(form: FormData): Promise<Saved | Failure> {
-  if (!await requireAdminActionAccess('/admin/settings/origins', { adminOnly: true })) return { ok: false, error: '배송 방식 정책은 관리자만 저장할 수 있습니다.' };
+  if (!await requireAdminActionAccess('/admin/settings/origins', { adminOnly: true, capability: 'platform.manage' })) return { ok: false, error: '배송 방식 정책은 관리자만 저장할 수 있습니다.' };
   const originId = form.get('originId'); const policyId = nullableUuid(form.get('policyId'));
   const expectedRevision = revision(form.get('revision')); const method = form.get('method');
   const delegate = form.get('allowDelegate');
   const input = parseDeliveryPolicyInput({ state: form.get('state'), allowDelegate: delegate === 'true' ? true : delegate === 'false' ? false : null,
     ...Object.fromEntries(DELIVERY_POLICY_TEXT_FIELDS.map((key) => [key, form.get(key)])) });
-  if (!deliveryUuid(originId) || !['quick', 'pickup'].includes(String(method)) || policyId === false || expectedRevision === false
+  if (!deliveryUuid(originId) || !['quick', 'pickup', 'direct', 'freight', 'none'].includes(String(method)) || policyId === false || expectedRevision === false
     || (policyId === null) !== (expectedRevision === null) || !input) return { ok: false, error: deliveryErrorMessage('delivery_policy_incomplete') };
   try {
     const client = await createClient(); const { data, error } = await client.rpc('admin_save_delivery_policy', {
@@ -53,7 +53,7 @@ export async function saveDeliveryPolicyAction(form: FormData): Promise<Saved | 
   } catch (error) { unstable_rethrow(error); return { ok: false, error: deliveryErrorMessage() }; }
 }
 export async function readShipmentDeliveryAction(shipmentId: unknown, orderId?: string): Promise<{ ok: true; shipment: AdminShipmentDelivery } | Failure> {
-  if (!await requireAdminActionAccess(adminOrderActionHref(orderId))) return { ok: false, error: '운영자만 배송 인계 정보를 확인할 수 있습니다.' };
+  if (!await requireAdminActionAccess(adminOrderActionHref(orderId), { capability: 'sales.read' })) return { ok: false, error: '운영자만 배송 인계 정보를 확인할 수 있습니다.' };
   if (!deliveryUuid(shipmentId)) return { ok: false, error: '배송 건을 다시 선택해주세요.' };
   try {
     const client = await createClient(); const { data, error } = await client.rpc('admin_read_shipment_delivery', { p_shipment_id: shipmentId });
@@ -62,12 +62,12 @@ export async function readShipmentDeliveryAction(shipmentId: unknown, orderId?: 
   } catch (error) { unstable_rethrow(error); return { ok: false, error: '배송 인계 정보를 불러오지 못했습니다.' }; }
 }
 export async function selectShipmentDeliveryMethodAction(form: FormData): Promise<Saved | Failure> {
-  if (!await requireAdminActionAccess(adminOrderActionHref(form.get('orderId')))) return { ok: false, error: '운영자만 배송 방식을 변경할 수 있습니다.' };
+  if (!await requireAdminActionAccess(adminOrderActionHref(form.get('orderId')), { capability: 'sales.manage' })) return { ok: false, error: '운영자만 배송 방식을 변경할 수 있습니다.' };
   const shipmentId = form.get('shipmentId'); const operationId = form.get('operationId'); const method = form.get('method');
   const policyId = nullableUuid(form.get('policyId')); const updatedAt = form.get('updatedAt');
   const requestReference = String(form.get('customerRequestReference') ?? '').trim();
   const feeConsentReference = String(form.get('feeConsentReference') ?? '').trim();
-  if (!deliveryUuid(shipmentId) || !deliveryUuid(operationId) || !deliveryTimestamp(updatedAt) || !['parcel', 'quick', 'pickup'].includes(String(method))
+  if (!deliveryUuid(shipmentId) || !deliveryUuid(operationId) || !deliveryTimestamp(updatedAt) || !['parcel', 'quick', 'pickup', 'direct', 'freight'].includes(String(method))
     || policyId === false || (method === 'parcel') !== (policyId === null) || !requestReference || requestReference.length > 2000
     || !feeConsentReference || feeConsentReference.length > 2000 || form.get('feeUnchanged') !== 'on') {
     return { ok: false, error: '방식·운영 정책과 고객 요청, 기존 배송비 유지 동의 근거를 입력해주세요.' };
@@ -83,14 +83,14 @@ export async function selectShipmentDeliveryMethodAction(form: FormData): Promis
   } catch (error) { unstable_rethrow(error); return { ok: false, error: deliveryErrorMessage() }; }
 }
 export async function recordShipmentDeliveryAction(form: FormData): Promise<Saved | Failure> {
-  if (!await requireAdminActionAccess(adminOrderActionHref(form.get('orderId')))) return { ok: false, error: '운영자만 인계·수령을 확인할 수 있습니다.' };
+  if (!await requireAdminActionAccess(adminOrderActionHref(form.get('orderId')), { capability: 'sales.manage' })) return { ok: false, error: '운영자만 인계·수령을 확인할 수 있습니다.' };
   const shipmentId = form.get('shipmentId'); const operationId = form.get('operationId'); const kind = form.get('kind'); const updatedAt = form.get('updatedAt');
-  const keys = kind === 'quick_handoff' ? ['operatorName', 'providerName', 'providerPhone', 'handoffReference', 'occurredAt']
+  const keys = deliveryIsHandoff(kind) ? ['operatorName', 'providerName', 'providerPhone', 'handoffReference', 'occurredAt']
     : ['operatorName', 'receiptReference', 'recipientKind', 'occurredAt'];
   const evidence = parseDeliveryEvidence(kind, Object.fromEntries(keys.map((key) => [key, form.get(key)])));
   const receiptCode = String(form.get('receiptCode') ?? '').replace(/[\s-]/g, '').toUpperCase();
   if (!deliveryUuid(shipmentId) || !deliveryUuid(operationId) || !deliveryTimestamp(updatedAt) || !evidence
-    || (kind !== 'quick_handoff' && !/^[0-9A-F]{12}$/.test(receiptCode)) || (kind === 'quick_handoff' && receiptCode !== '')) {
+    || (!deliveryIsHandoff(kind) && !/^[0-9A-F]{12}$/.test(receiptCode)) || (deliveryIsHandoff(kind) && receiptCode !== '')) {
     return { ok: false, error: '실제 인계·수령 근거와 시각, 필요한 일회 수령 확인값을 입력해주세요.' };
   }
   try {
@@ -101,6 +101,6 @@ export async function recordShipmentDeliveryAction(form: FormData): Promise<Save
     if (error) return { ok: false, error: deliveryErrorMessage(error.message) };
     if (!deliveryObject(data) || data.ok !== true) return { ok: false, error: deliveryErrorMessage(deliveryObject(data) ? String(data.error) : undefined) };
     refreshDelivery(); return { ok: true, message: data.replayed ? '이미 완료된 같은 인계·수령 기록을 확인했습니다.'
-      : kind === 'quick_handoff' ? '실제 퀵 인계 근거를 기록하고 배송 중으로 반영했습니다.' : '일회 수령 확인과 인계 근거를 기록하고 수령 완료로 반영했습니다.' };
+      : deliveryIsHandoff(kind) ? '실제 배송 인계 근거를 기록하고 배송 중으로 반영했습니다.' : '일회 수령 확인과 인계 근거를 기록하고 수령 완료로 반영했습니다.' };
   } catch (error) { unstable_rethrow(error); return { ok: false, error: deliveryErrorMessage() }; }
 }

@@ -8,7 +8,7 @@ begin;
 --   pending → paid → confirmed → shipping → delivered → done (+ canceled)
 --
 -- 어드민이 미는 전이는 세 개(발주확인·발송처리·배송완료)뿐이고, 거래확정(done)은
--- settle_delivered_orders()가 delivered + 8일에 만든다. 이 스모크는 허용 전이,
+-- 명시적으로 설정한 8일 정책 아래 settle_delivered_orders()가 만든다. 허용 전이,
 -- 금지 전이, 활성 클레임 중 발주확인 거부, 운송장 없는 발송 거부, 자동 확정의
 -- 8일 경계·멱등·클레임 보류를 DB 안에서 고정한다.
 -- ============================================================================
@@ -44,8 +44,23 @@ select 1 / case when (
 ) then 1 else 0 end as assert_settlement_job_is_scheduled;
 
 -- ---------------------------------------------------------------------------
--- Fixtures
+-- Fixtures: automatic confirmation is disabled by default. These synthetic
+-- deliveries explicitly opt into an 8-day policy and include approved payments.
 -- ---------------------------------------------------------------------------
+update private.purchase_confirmation_policy set auto_enabled=true,auto_after_days=8,
+ evidence='TEST ONLY: order ladder regression' where singleton;
+create function pg_temp.prepare_ladder_settlement_fixtures() returns void language plpgsql as $$
+declare purchase public.orders;
+begin
+ for purchase in select * from public.orders o where o.user_id='00000000-0000-4000-8000-000000000901'
+  and o.status='delivered' and not exists(select 1 from private.order_purchase_confirmations c where c.order_id=o.id) loop
+  insert into public.payments(user_id,purpose,ref_id,provider,amount,status,idempotency_key)
+   values(purchase.user_id,'order',purchase.id,'toss',purchase.total,'paid','TEST-ladder-payment-'||purchase.id);
+  -- Exercise the actual delivery transition trigger for historical fixtures.
+  update public.orders set status='confirmed' where id=purchase.id;
+  update public.orders set status='delivered' where id=purchase.id;
+ end loop;
+end $$;
 insert into auth.users (
   id, aud, role, email, email_confirmed_at,
   raw_app_meta_data, raw_user_meta_data, created_at, updated_at
@@ -164,6 +179,8 @@ join public.order_shipments s on s.order_id=i.order_id
 join public.orders o on o.id=i.order_id
 where o.user_id='00000000-0000-4000-8000-000000000901'
   and not exists(select 1 from public.order_shipment_items si where si.order_item_id=i.id);
+
+select pg_temp.prepare_ladder_settlement_fixtures();
 
 insert into public.order_cancellation_requests (
   order_id, requested_by, reason, reason_type, status
@@ -539,15 +556,6 @@ select
 from generate_series(10, 39) as n
 on conflict (id) do nothing;
 
--- 30건 전부에 풀리지 않는 클레임을 건다.
-insert into public.order_cancellation_requests (order_id, requested_by, reason, status)
-select
-  ('40000000-0000-4000-8000-0000000009' || lpad(n::text, 2, '0'))::uuid,
-  '00000000-0000-4000-8000-000000000901',
-  '검토 보류',
-  'needs_review'
-from generate_series(10, 39) as n;
-
 -- 그 뒤에 정상 주문 하나를 둔다(공급일이 더 최근이라 정렬상 뒤에 선다).
 insert into public.orders (id, user_id, status, total, shipping_fee, delivered_at)
 values (
@@ -583,6 +591,16 @@ join public.order_shipments s on s.order_id=i.order_id
 join public.orders o on o.id=i.order_id
 where o.user_id='00000000-0000-4000-8000-000000000901'
   and not exists(select 1 from public.order_shipment_items si where si.order_item_id=i.id);
+
+select pg_temp.prepare_ladder_settlement_fixtures();
+-- 30건 전부에 풀리지 않는 클레임을 건다.
+insert into public.order_cancellation_requests (order_id, requested_by, reason, status)
+select
+  ('40000000-0000-4000-8000-0000000009' || lpad(n::text, 2, '0'))::uuid,
+  '00000000-0000-4000-8000-000000000901',
+  '검토 보류',
+  'needs_review'
+from generate_series(10, 39) as n;
 
 select public.settle_delivered_orders();
 

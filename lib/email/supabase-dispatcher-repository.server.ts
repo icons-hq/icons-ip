@@ -55,7 +55,7 @@ export function getEmailDispatchHmacConfig() {
 
 type DigestPurpose = 'source' | 'recipient' | 'provider';
 
-function digest(purpose: DigestPurpose, value: string): string {
+export function emailDispatchDigest(purpose: DigestPurpose, value: string): string {
   const { secret, isConfigured } = getEmailDispatchHmacConfig();
   if (!isConfigured || !secret) throw new Error('email_dispatch_hmac_not_configured');
   return createHmac('sha256', secret)
@@ -84,8 +84,8 @@ function parseEnqueueBatch(value: unknown, expectedLength: number): EnqueueEmail
 function durableInput(input: import('./dispatcher').EnqueueEmailInput) {
   return {
     source: input.source,
-    sourceReferenceDigest: digest('source', input.sourceReference),
-    recipientDigest: digest('recipient', input.recipient.trim().toLowerCase()),
+    sourceReferenceDigest: emailDispatchDigest('source', input.sourceReference),
+    recipientDigest: emailDispatchDigest('recipient', input.recipient.trim().toLowerCase()),
     messageKind: input.messageKind,
     contentRevision: input.contentRevision,
   };
@@ -169,8 +169,8 @@ export function createSupabaseEmailDispatcherRepository(
     async enqueue(input) {
       return parseEnqueue(await rpc(service, 'enqueue_email_intent', {
         target_source: input.source,
-        target_source_reference_digest: digest('source', input.sourceReference),
-        target_recipient_digest: digest('recipient', input.recipient.trim().toLowerCase()),
+        target_source_reference_digest: emailDispatchDigest('source', input.sourceReference),
+        target_recipient_digest: emailDispatchDigest('recipient', input.recipient.trim().toLowerCase()),
         target_message_kind: input.messageKind,
         target_content_revision: input.contentRevision,
       }));
@@ -186,13 +186,13 @@ export function createSupabaseEmailDispatcherRepository(
     async claimDispatch(input): Promise<DispatchClaim> {
       return parseClaim(await rpc(service, 'claim_email_intent_dispatch', {
         target_intent_id: input.intentId,
-        target_recipient_digest: digest('recipient', input.recipient.trim().toLowerCase()),
+        target_recipient_digest: emailDispatchDigest('recipient', input.recipient.trim().toLowerCase()),
       }));
     },
     async recordAccepted(input): Promise<{ state: ProviderAcceptedState | 'needs_review' }> {
       return parseAccepted(await rpc(service, 'record_email_intent_accepted', {
         target_intent_id: input.intentId,
-        target_provider_reference_digest: digest('provider', input.providerReference),
+        target_provider_reference_digest: emailDispatchDigest('provider', input.providerReference),
       }));
     },
     async recoverAcceptedPersistence(input) {
@@ -217,7 +217,7 @@ export function createSupabaseEmailDispatcherRepository(
     async reduceProviderEvent(input): Promise<ReduceProviderEventOutcome> {
       return parseReduced(await rpc(service, 'reduce_email_provider_event', {
         target_svix_id: input.svixId,
-        target_provider_reference_digest: digest('provider', input.providerReference),
+        target_provider_reference_digest: emailDispatchDigest('provider', input.providerReference),
         target_event_type: input.type,
         target_occurred_at: input.occurredAt,
       }));

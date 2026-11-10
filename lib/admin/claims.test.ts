@@ -6,6 +6,13 @@ import {
   adminClaimDetailHref,
   adminClaimHref,
   adminClaimOpenCount,
+  adminClaimPreviewHref,
+  adminClaimPreviewId,
+  adminClaimReasonOptions,
+  adminClaimReasonText,
+  adminClaimRejectionPresets,
+  ADMIN_CLAIM_REASON_OPTIONS,
+  ADMIN_CLAIM_REJECTION_PRESETS,
   normalizeAdminClaimCollectionForm,
   normalizeAdminClaimOriginCollectionForm,
   normalizeAdminClaimOperationalFeeForm,
@@ -81,9 +88,40 @@ describe('클레임 콘솔 경로', () => {
   it('back이 비면 목록 기본값으로 돌아간다', () => {
     expect(adminClaimBackHref('cancel', undefined)).toBe('/admin/sales/claims/cancels');
   });
+  /* R8: 상세는 같은 목록 위 팝업으로 연다. 닫으면 claimId만 빠진 같은 조건의 목록이다. */
+  it('목록 위 팝업 주소는 목록 조건 뒤에 claimId만 더한다', () => {
+    const current = filters({ page: 3, stage: 'collecting' });
+    expect(adminClaimPreviewHref('return', CLAIM_ID, current)).toBe(`${adminClaimHref('return', current)}&claimId=${CLAIM_ID}`);
+    expect(adminClaimPreviewHref('exchange', CLAIM_ID)).toBe(`/admin/sales/claims/exchanges?claimId=${CLAIM_ID}`);
+    expect(normalizeAdminClaimFilters({ stage: 'collecting', page: '3', claimId: CLAIM_ID })).toEqual(current);
+  });
+
+  it('팝업으로 열 claimId는 UUID 하나만 받는다', () => {
+    expect(adminClaimPreviewId(CLAIM_ID.toUpperCase())).toBe(CLAIM_ID);
+    expect(adminClaimPreviewId([CLAIM_ID, CLAIM_ID])).toBeNull();
+    expect(adminClaimPreviewId('../evil')).toBeNull();
+    expect(adminClaimPreviewId(undefined)).toBeNull();
+  });
 });
 
 describe('클레임 필터 정규화', () => {
+  it.each(['recipient', 'item', 'product'] as const)('새 상세조건 %s을 페이지·상세 복귀에도 보존한다', (field) => {
+    const query = '전체%_번호-AB12';
+    const result = normalizeAdminClaimFilters({ field, query: `  ${query}  `, dateField: 'paid', stage: 'all', page: '3' });
+    expect(result).toMatchObject({ field, query, dateField: 'paid', page: 3 });
+    const href = adminClaimHref('return', result);
+    const back = adminClaimDetailHref('return', CLAIM_ID, result).split('?back=')[1];
+    expect(adminClaimBackHref('return', decodeURIComponent(back))).toBe(href);
+    expect(new URL(href, 'https://icons.test').searchParams.get('field')).toBe(field);
+    expect(new URL(href, 'https://icons.test').searchParams.get('query')).toBe(query);
+  });
+
+  it('중복·알 수 없는 검색 대상은 전체로 처리하고 전체 기본값은 URL에 붙이지 않는다', () => {
+    for (const field of [['recipient', 'item'], 'recipientName', 'goodId', 'all']) {
+      expect(normalizeAdminClaimFilters({ field }).field).toBeUndefined();
+    }
+  });
+
   it('기본 필터는 미처리다', () => {
     expect(normalizeAdminClaimFilters({}).stage).toBe('open');
   });
@@ -111,6 +149,72 @@ describe('클레임 필터 정규화', () => {
     expect(adminClaimHref('cancel', filters({ reasonType: 'defect', query: 'A1B2' })))
       .toBe('/admin/sales/claims/cancels?stage=open&reasonType=defect&query=A1B2&page=1');
   });
+
+  /* 2026-10-12 QA-4: 운영자 전액 취소를 구매자 단순 변심과 따로, 운영 사유로 거른다. */
+  it('운영자 전액 취소 전체와 운영 사유 하나로 거를 수 있다', () => {
+    expect(normalizeAdminClaimFilters({ reasonType: 'staff' }).reasonType).toBe('staff');
+    expect(normalizeAdminClaimFilters({ reasonType: 'staff:test_payment_cleanup' }).reasonType)
+      .toBe('staff:test_payment_cleanup');
+    expect(normalizeAdminClaimFilters({ reasonType: 'staff:refund_anyway' }).reasonType).toBe('all');
+    expect(adminClaimHref('cancel', filters({ reasonType: 'staff:out_of_stock' })))
+      .toBe('/admin/sales/claims/cancels?stage=open&reasonType=staff%3Aout_of_stock&page=1');
+    expect(ADMIN_CLAIM_REASON_OPTIONS.map((option) => option.label)).toEqual([
+      '전체',
+      '단순 변심',
+      '상품 하자·오배송',
+      '운영자 전액 취소 전체',
+      '운영자 전액 취소 · 품절·출고 불가',
+      '운영자 전액 취소 · 고객 요청(CS 접수)',
+      '운영자 전액 취소 · 테스트 결제 정리',
+      '운영자 전액 취소 · 기타',
+    ]);
+  });
+  /* R7: 하자·오배송은 받은 뒤의 일이다. 취소 화면은 단순 변심과 운영자 전액 취소만, 반품·교환은
+     구매자 사유 둘만 거른다(운영자 전액 취소는 DB 제약상 취소 전용). 기존 행의 표기는 그대로다. */
+  it('유형마다 그 유형에 생길 수 있는 사유만 필터로 보인다', () => {
+    expect(adminClaimReasonOptions('cancel').map((option) => option.value)).toEqual([
+      'all', 'change_of_mind', 'staff', 'staff:out_of_stock', 'staff:customer_request', 'staff:test_payment_cleanup', 'staff:other',
+    ]);
+    for (const type of ['return', 'exchange'] as const) {
+      expect(adminClaimReasonOptions(type).map((option) => option.value)).toEqual(['all', 'change_of_mind', 'defect']);
+    }
+    expect(normalizeAdminClaimFilters({ reasonType: 'defect' }, 'cancel').reasonType).toBe('all');
+    expect(normalizeAdminClaimFilters({ reasonType: 'staff:other' }, 'return').reasonType).toBe('all');
+    expect(normalizeAdminClaimFilters({ reasonType: 'defect' }, 'exchange').reasonType).toBe('defect');
+    expect(adminClaimBackHref('cancel', 'reasonType=defect&stage=all')).toBe('/admin/sales/claims/cancels?stage=all&page=1');
+    expect(adminClaimReasonText('defect')).toBe('상품 하자·오배송');
+  });
+});
+
+describe('거부 사유 프리셋', () => {
+  it('확정 문구 네 개는 모두 10자 이상이고 앞뒤 공백이 없다(DB invalid rejection reason 규칙)', () => {
+    expect(ADMIN_CLAIM_REJECTION_PRESETS).toEqual([
+      '이미 발송되어 취소할 수 없습니다.',
+      '회수한 상품에 사용 흔적이 있어 반품할 수 없습니다.',
+      '교환할 옵션의 재고가 없어 교환할 수 없습니다.',
+      '반품 가능 기간이 지났습니다.',
+    ]);
+    for (const preset of ADMIN_CLAIM_REJECTION_PRESETS) {
+      expect(preset.trim()).toBe(preset);
+      expect(preset.length).toBeGreaterThanOrEqual(10);
+      expect(preset.length).toBeLessThanOrEqual(200);
+    }
+  });
+
+  it('유형에 맞는 프리셋만 고를 수 있다', () => {
+    expect(adminClaimRejectionPresets('cancel')).toEqual(['이미 발송되어 취소할 수 없습니다.']);
+    expect(adminClaimRejectionPresets('return')).toEqual(['회수한 상품에 사용 흔적이 있어 반품할 수 없습니다.', '반품 가능 기간이 지났습니다.']);
+    expect(adminClaimRejectionPresets('exchange')).toEqual(['교환할 옵션의 재고가 없어 교환할 수 없습니다.']);
+  });
+});
+
+describe('클레임 사유 표기', () => {
+  it('운영자 전액 취소는 단순 변심이 아니라 운영 사유로 적는다', () => {
+    expect(adminClaimReasonText('staff', 'test_payment_cleanup')).toBe('운영자 전액 취소 · 테스트 결제 정리');
+    expect(adminClaimReasonText('staff', null)).toBe('운영자 전액 취소');
+    expect(adminClaimReasonText('change_of_mind')).toBe('단순 변심');
+    expect(adminClaimReasonText('defect')).toBe('상품 하자·오배송');
+  });
 });
 
 describe('구매자 표기와 집계', () => {
@@ -133,7 +237,7 @@ describe('구매자 표기와 집계', () => {
       processing: 6,
       needs_review: 7,
       completed: 100,
-      rejected: 200,
+      rejected: 200, withdrawn: 0,
     })).toBe(28);
   });
 });

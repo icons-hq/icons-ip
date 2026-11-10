@@ -2,16 +2,104 @@ import { describe, expect, it } from 'vitest';
 import type { CatalogPostPreview, CatalogSnapshot } from './catalog';
 import type { Card, FandomEvent, Good, Ip, Vertical } from './data';
 import {
+  benefitTileIcon,
   buildHomeIpWorld,
   getHomeSelectableIps,
   isCommunityDestination,
   MAX_HOME_PICKER_IPS,
   prioritizeHomePostPreviews,
+  readHomeGoodsSelection,
+  resolveHomeLatestGoodsCards,
+  resolveHomeGoodsCards,
   withoutCommunityCurations,
+  withoutCardRewardCurations,
   type HomeCurationSnapshot,
 } from './home-catalog';
 
 const vertical: Vertical = { key: 'global', label: '글로벌 IP', color: '#2DE2FF' };
+
+it('링크 없는 프로모션 배너는 카드·커뮤니티 게이트와 무관하게 남긴다', () => {
+  const curation: HomeCurationSnapshot = { hero: null, announcement: null, featuredIpIds: [], editorPicks: [], goodsBands: [], categoryBestTabs: [], popularTabs: [], benefitTiles: [],
+    heroSlides: [{ id: 'no-link', title: '', subtitle: null, imageUrl: '/banner.webp', mobileImageUrl: null, href: null }] };
+  expect(withoutCommunityCurations(withoutCardRewardCurations(curation)).heroSlides).toEqual(curation.heroSlides);
+});
+
+/* LD-15(11 DT-11): 게이트 OFF 는 혜택 밴드를 통째로 비우지 않는다 — 카드팩·게임 목적지 타일만 뺀다. */
+it('게이트가 꺼지면 카드팩·게임으로 가는 혜택 타일만 걸러내고 나머지 혜택은 남긴다', () => {
+  const curation: HomeCurationSnapshot = { hero: null, announcement: null, featuredIpIds: [], heroSlides: [], editorPicks: [], goodsBands: [], categoryBestTabs: [], popularTabs: [],
+    benefitTiles: [
+      { id: 'packs', title: '카드팩', description: null, href: '/packs' },
+      { id: 'game', title: '게임', description: null, href: '/games/reward?x=1' },
+      { id: 'coupon', title: '쿠폰', description: null, href: '/events/welcome' },
+      { id: 'broken', title: '깨진 링크', description: null, href: 'http://[' },
+    ] };
+
+  expect(withoutCardRewardCurations(curation).benefitTiles.map((tile) => tile.id)).toEqual(['coupon']);
+  expect(curation.benefitTiles).toHaveLength(4);
+});
+
+/* 커뮤니티 노출 게이트는 카드 리워드 게이트와 별개다 — 혜택 타일도 다른 큐레이션처럼 커뮤니티 목적지를 거른다.
+   게이트 OFF(홈 순서: 카드 → 커뮤니티)와 게이트 ON 두 경로 모두에서 커뮤니티 타일이 남지 않아야 한다. */
+it('커뮤니티가 닫히면 커뮤니티로 가는 혜택 타일도 카드 게이트와 무관하게 걸러낸다', () => {
+  const curation: HomeCurationSnapshot = { hero: null, announcement: null, featuredIpIds: [], heroSlides: [], editorPicks: [], goodsBands: [], categoryBestTabs: [], popularTabs: [],
+    benefitTiles: [
+      { id: 'community-events', title: '팬 이벤트', description: null, href: '/community/events' },
+      { id: 'community', title: '커뮤니티', description: null, href: '/community' },
+      { id: 'packs', title: '카드팩', description: null, href: '/packs' },
+      { id: 'coupon', title: '쿠폰', description: null, href: '/events/first' },
+      { id: 'lookalike', title: '비슷한 경로', description: null, href: '/communitylike' },
+      { id: 'broken', title: '깨진 링크', description: null, href: 'http://[' },
+    ] };
+
+  expect(withoutCommunityCurations(withoutCardRewardCurations(curation)).benefitTiles.map((tile) => tile.id)).toEqual(['coupon', 'lookalike']);
+  expect(withoutCommunityCurations(curation).benefitTiles.map((tile) => tile.id)).toEqual(['packs', 'coupon', 'lookalike']);
+  expect(curation.benefitTiles).toHaveLength(6);
+});
+
+it('혜택 타일 아이콘은 목적지에서 ICONS 아이콘 이름으로 고른다', () => {
+  expect(benefitTileIcon('/packs')).toBe('card');
+  expect(benefitTileIcon('/packs/season-1')).toBe('card');
+  expect(benefitTileIcon('/games/marble')).toBe('spark');
+  expect(benefitTileIcon('/events/welcome')).toBe('event');
+  expect(benefitTileIcon('/review-events/abc')).toBe('event');
+  expect(benefitTileIcon('/shop?type=%ED%82%A4%EB%A7%81')).toBe('shop');
+  expect(benefitTileIcon('/ip/rilakkuma')).toBe('ip');
+  expect(benefitTileIcon('/my/coupons')).toBe('star');
+  expect(benefitTileIcon('/packsale')).toBe('star');
+});
+
+describe('automatic home goods selection', () => {
+  it('keeps the sale-period reason and boundary in compact home cards', () => {
+    const salePeriod = { state: 'scheduled' as const, startsAt: '2026-10-14T00:00:00Z', endsAt: '2026-10-15T00:00:00Z', calculatedAt: '2026-10-13T00:00:00Z', nextChangeAt: '2026-10-14T00:00:00Z' };
+    const selected = resolveHomeGoodsCards({ ips: [ip('brand')], goods: [{ ...good('scheduled', 'brand'), stock: 'soldout', stockQty: 0, salePeriod }] }, ['scheduled'], 1);
+    expect(selected).toHaveLength(1); expect(selected[0].salePeriod).toEqual(salePeriod); expect(selected[0].href).toBe('/shop/scheduled');
+  });
+  it('keeps old manual payloads and rejects ambiguous or malformed automatic rules', () => {
+    expect(readHomeGoodsSelection({ good_ids: ['g2', 'g1'] })).toEqual({ mode: 'manual', goodIds: ['g2', 'g1'] });
+    expect(readHomeGoodsSelection({ selection_mode: 'latest', item_count: 6 })).toEqual({ mode: 'latest', count: 6 });
+    for (const payload of [
+      { selection_mode: 'latest' }, { selection_mode: 'latest', item_count: 2 },
+      { selection_mode: 'latest', item_count: 11 }, { selection_mode: 'latest', item_count: 3.5 },
+      { selection_mode: 'latest', item_count: '3' }, { selection_mode: 'latest', item_count: 3, good_ids: ['g1'] },
+      { selection_mode: 'popular', item_count: 3 }, { item_count: 3 },
+    ]) expect(readHomeGoodsSelection(payload)).toBeNull();
+  });
+
+  it('uses real registration dates, keeps ties stable and never fills missing catalog entries', () => {
+    const goods = [
+      { ...good('older', 'brand'), createdAt: '2026-01-01T00:00:00Z' },
+      { ...good('new-b', 'brand'), createdAt: '2026-10-12T00:00:00Z' },
+      { ...good('new-a', 'brand'), createdAt: '2026-10-12T00:00:00Z' },
+      good('unknown', 'brand'),
+      { ...good('invalid', 'brand'), createdAt: 'invalid' },
+    ];
+    const catalog = { ips: [ip('brand')], goods };
+    expect(resolveHomeLatestGoodsCards(catalog, 3).map((row) => row.id)).toEqual(['new-a', 'new-b', 'older']);
+    expect(resolveHomeLatestGoodsCards({ ...catalog, goods: goods.filter((row) => row.id !== 'new-a') }, 3).map((row) => row.id)).toEqual(['new-b', 'older']);
+    expect(resolveHomeLatestGoodsCards(catalog, 11)).toEqual([]);
+    expect(goods[0].id).toBe('older');
+  });
+});
 
 function ip(id: string, featured = false): Ip {
   return {

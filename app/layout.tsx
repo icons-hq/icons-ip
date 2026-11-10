@@ -1,38 +1,66 @@
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
+import { StoreAnalytics } from '@/components/shell/StoreAnalytics';
+import { MemberActivity } from '@/components/shell/MemberActivity';
+import { HashLanding } from '@/components/shell/HashLanding';
 import { Space_Grotesk, Space_Mono } from 'next/font/google';
 import './globals.css';
 import './styles/wc-foundation.css';
 import './styles/wc-admin-surfaces.css';
 import './styles/wc-admin.css';
-import './styles/admin-goods-worklist.css';
-import './styles/wc-admin-option-artwork.css';
-import './styles/admin-ux-521.css';
-import './styles/admin-faq.css';
-import './styles/admin-goods-notice-presets.css';
+import './styles/admin-font.css';
+import './styles/admin-sales-console.css';
+import './styles/store-analytics.css';
+import './styles/wc-category-display.css';
 import './styles/admin-order-detail.css';
-import './styles/admin-customer-detail.css';
-import './styles/admin-store-settings.css';
+import './styles/admin-shopping-stories.css';
+import './styles/goods-after-sales.css';
+import './styles/wc-goods-size-chart.css';
+import './styles/goods-benefits.css';
+import './styles/goods-review-best.css';
+import './styles/goods-media.css';
+/* 콘솔의 옛 클래스 어휘(btn·card·chip·tag·폼 요소)를 kit 모양으로 입힌다(ADR-0028). 관리자 스타일시트 뒤에 둔다. */
+import './styles/admin-kit-vocabulary.css';
 import './styles/wc-chrome.css';
+import './styles/wc-store-branding.css';
 import './styles/wc-home.css';
+import './styles/wc-product-mosaic.css';
+import './styles/wc-product-collection.css';
+import './styles/wc-shopping-stories.css';
 import './styles/wc-catalog.css';
+import './styles/content-format.css';
+import './styles/wc-good-relation-visual.css';
+import './styles/store-presentation.css';
+import './styles/product-detail-presentation.css';
+import './styles/product-detail-experience.css';
+import './styles/wc-review-events.css';
+import './styles/marketing-message.css';
+import './styles/claim-collection-plan.css';
+import './styles/claim-fees.css';
 import './styles/wc-discovery.css';
 import './styles/wc-account-commerce.css';
 import './styles/wc-campaign.css';
+import './styles/wc-offline-popups.css';
+import './styles/wc-document.css';
 import './styles/wc-help.css';
 import './styles/wc-inquiry-widget.css';
-/* 보존 표면은 각 앵커 안에 자체 기본 규칙과 토큰을 가진다. */
+/* 보존 표면(/about — ADR-0011)은 자기 앵커 안에 자체 기본 규칙과 토큰을 가진다. */
 import './styles/about-legacy.css';
-import './styles/offline-popups-legacy.css';
-import './styles/legal-doc.css';
 import { AuthPresenceProvider } from '@/components/shell/AuthPresenceProvider';
 import { CartProvider } from '@/components/shell/CartProvider';
 import { Nav } from '@/components/shell/Nav';
 import { getBusinessInfo } from '@/lib/legal/business-info.server';
 import { InquiryWidget } from '@/components/screens/InquiryWidget';
 import { SiteFooter } from '@/components/shell/SiteFooter';
+import { getStorefrontBranding } from '@/lib/store-branding.server';
+import { getStorefrontNavigation } from '@/lib/store-navigation.server';
+import { getStorefrontMegaMenus } from '@/lib/storefront-mega-menu.server';
+import { getStorefrontPresentation } from '@/lib/store-presentation.server';
+import { StorePresentationProvider } from '@/components/shell/StorePresentationProvider';
 import { CardRewardAvailabilityProvider } from '@/components/shell/CardRewardAvailability';
 import { StaffPreviewAvailabilityProvider } from '@/components/shell/StaffPreviewAvailability';
-import { getActiveNoticeStrip } from '@/lib/notice-strip.server';
+import { getShellNotices } from '@/lib/notice-strip.server';
+import { getOperatorSearchTerms } from '@/lib/search-terms.server';
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ['latin'],
@@ -46,15 +74,18 @@ const spaceMono = Space_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'ICONS — 서브컬처 팬덤 플랫폼',
+  title: 'ICONS',
   description:
     '공식 라이선스 굿즈 · 팝업 & 티케팅 · 팬 커뮤니티 · 수집형 카드까지. 모든 서브컬처가 모이는 디지털 팬덤 허브.',
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  /* 공지 스트립은 셸의 일부라 루트에서 한 번만 읽는다. 쿠키를 만지지 않는 캐시 읽기라
-     legal 라우트의 SSG가 dynamic으로 무너지지 않는다(lib/notice-strip.server.ts 주석 참고). */
-  const [noticeStrip,businessInfo] = await Promise.all([getActiveNoticeStrip(),getBusinessInfo()]);
+  /* 셸 공지(텍스트 공지 바·이미지 스트립)는 셸의 일부라 루트에서 한 번만 읽는다. 쿠키를 만지지 않는 캐시 읽기라
+     legal 라우트의 SSG가 dynamic으로 무너지지 않는다(lib/notice-strip.server.ts 주석 참고). 화면 유형·닫힘·스트립 선택은
+     셸이 클라이언트에서 정한다(components/shell/ShellNotices.tsx). */
+  /* 메가메뉴·카테고리 시트(공개 전시 트리·진행 중 기획전·피처드 IP)도 같은 쿠키 없는 캐시 읽기다(lib/storefront-mega-menu.server.ts). */
+  /* 검색 오버레이의 운영 추천 검색어도 같은 쿠키 없는 캐시 읽기다(lib/search-terms.server.ts). */
+  const [notices,businessInfo,branding,navigation,presentation,megaMenus,searchTerms] = await Promise.all([getShellNotices(),getBusinessInfo(),getStorefrontBranding(),getStorefrontNavigation(),getStorefrontPresentation(),getStorefrontMegaMenus(),getOperatorSearchTerms()]);
 
   return (
     <html lang="ko" data-scroll-behavior="smooth" className={`${spaceGrotesk.variable} ${spaceMono.variable}`}>
@@ -64,10 +95,16 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <AuthPresenceProvider>
               {/* 스태프 전용 진입점(세컨더리 마켓 시연·커뮤니티 프리뷰)은 presence 위에서 is_staff 를 읽으므로 AuthPresence 안쪽이다. */}
               <StaffPreviewAvailabilityProvider>
-                <Nav noticeStrip={noticeStrip} />
+                <StorePresentationProvider value={presentation}>
+                <Nav notices={notices} branding={branding} navigation={navigation} megaMenus={megaMenus} searchTerms={searchTerms} />
                 {/* tabIndex: 셸 스킵 링크(#root)가 키보드 포커스를 본문으로 실제 이동시키기 위한 타깃. */}
                 <div id="root" tabIndex={-1}>{children}<InquiryWidget /></div>
-                <SiteFooter businessInfo={businessInfo} />
+                <SiteFooter businessInfo={businessInfo} branding={branding} />
+                <Suspense fallback={null}><StoreAnalytics /></Suspense>
+                <Suspense fallback={null}><MemberActivity /></Suspense>
+                {/* 해시가 붙은 주소·링크의 대상을 고정 크롬 아래 착지선에 세운다 — 스트리밍으로 늦게 드러난 본문 포함. */}
+                <Suspense fallback={null}><HashLanding /></Suspense>
+                </StorePresentationProvider>
               </StaffPreviewAvailabilityProvider>
             </AuthPresenceProvider>
           </CardRewardAvailabilityProvider>

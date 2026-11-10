@@ -4,8 +4,11 @@ import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { ADMIN_PRODUCT_QUESTIONS_PATH } from '@/lib/admin/product-questions';
+import { hasAdminCapability } from '@/lib/admin/access';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
+import { saveCsReplyRequest } from '@/lib/admin/cs-reply-mutations.server';
+import type { CsReplyOutcome } from '@/lib/admin/cs-reply-mutations';
 
 /* 어드민 상품 Q&A 답변·비노출 (S8 #330).
  *
@@ -23,9 +26,9 @@ export interface AdminQnaActionState {
    * 문구만 보고 판단하면 두 번째 저장의 문구가 첫 번째와 같아 창이 갱신되지 않는다.
    */
   resultKey?: string;
+  replyOutcome?: CsReplyOutcome;
 }
 
-const ANSWER_FAILED = '답변을 저장하지 못했습니다. 최신 상태를 확인해주세요.';
 const VISIBILITY_FAILED = '노출 상태를 변경하지 못했습니다. 최신 상태를 확인해주세요.';
 const ANSWER_MAX_LENGTH = 2000;
 
@@ -46,7 +49,7 @@ async function requireStaffAction(): Promise<AdminQnaActionState | null> {
   if (!auth.isConfigured || !auth.user) {
     redirect(`/login?next=${encodeURIComponent(ADMIN_PRODUCT_QUESTIONS_PATH)}`);
   }
-  if (!auth.isStaff) return { errors: { form: '관리자 권한이 필요합니다.' } };
+  if (!auth.isStaff || !hasAdminCapability(auth, 'cs.manage')) return { errors: { form: '관리자 권한이 필요합니다.' } };
   return null;
 }
 
@@ -89,22 +92,18 @@ export async function answerProductQuestionAction(
 
   if (!questionId) return { errors: { form: '질문을 찾을 수 없습니다.' } };
   if (!answer) return { errors: { answer: '답변 내용을 입력해주세요.' } };
-  if (answer.length > ANSWER_MAX_LENGTH) {
+  if ([...answer].length > ANSWER_MAX_LENGTH) {
     return { errors: { answer: `답변은 ${ANSWER_MAX_LENGTH}자 이내로 입력해주세요.` } };
   }
 
-  const supabase = await createClient();
-  const { error } = await supabase.rpc('admin_answer_product_question', {
-    target_answer_body: answer,
-    target_question_id: questionId,
-  });
-
-  if (error) return { errors: { form: rpcErrorMessage(error.message, ANSWER_FAILED) } };
+  const replyOutcome = await saveCsReplyRequest(formData, 'product_question', questionId, answer);
+  if (replyOutcome.kind !== 'saved') return { replyOutcome, errors: { form: replyOutcome.error } };
 
   revalidateQuestionSurfaces();
   return {
-    message: adminGoodsCopy('답변을 저장했습니다. 굿즈 상세에 공개되고 작성자에게 알림이 갑니다.'),
-    resultKey: crypto.randomUUID(),
+    message: replyOutcome.receipt.changed ? adminGoodsCopy('답변을 저장했습니다. 굿즈 상세에 공개되고 작성자에게 알림이 갑니다.') : '이미 같은 답변이 저장되어 있습니다.',
+    resultKey: replyOutcome.receipt.operationId,
+    replyOutcome,
   };
 }
 

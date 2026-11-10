@@ -1,5 +1,7 @@
 'use server';
 
+import { hasAdminCapability } from '@/lib/admin/access';
+
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import {
@@ -75,7 +77,7 @@ async function finalizationResult(
   return {
     error: `입금 기록은 남았지만 주문이 결제완료로 확정되지 않았습니다(결과: ${
       typeof outcome === 'string' ? outcome : 'unknown'
-    }). 결제 원장을 확인한 뒤 수동 정합화가 필요합니다.`,
+    }). 결제 내역을 확인한 뒤 수동 확인이 필요합니다.`,
   };
 }
 
@@ -101,7 +103,7 @@ async function requireStaffAction(): Promise<AdminUnpaidActionState | null> {
   if (!auth.isConfigured || !auth.user) {
     redirect(`/login?next=${encodeURIComponent('/admin/sales/unpaid')}`);
   }
-  if (!auth.isStaff) return { error: '관리자 권한이 필요합니다.' };
+  if (!auth.isStaff || !hasAdminCapability(auth, 'sales.manage')) return { error: '관리자 권한이 필요합니다.' };
   return null;
 }
 

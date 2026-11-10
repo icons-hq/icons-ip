@@ -8,8 +8,12 @@ import type { GoodsNoticeInfo } from './goods-notice';
  * 저장 전 입력값으로 같은 모양을 클라이언트에서 조립해 같은 화면을 그린다.
  */
 export interface GoodDetailContent {
+  attributes?: { id: string; name: string; value: string }[];
+  sizeChart?: import('./goods-size-chart').GoodsSizeChart | null;
   good: Good;
   additionalGoods?: Good[];
+  relatedGoods?: import('./good-relations').PublicGoodRelations;
+  goodsGroup?: import('./goods-groups').PublicGoodsGroup | null;
   ip: Ip | null;
   description: string | null;
   descriptionFormat?: import('./goods-description').GoodsDescriptionFormat;

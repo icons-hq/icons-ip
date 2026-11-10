@@ -7,6 +7,7 @@ import {
   normalizeAdminNotificationForm,
   type AdminNotificationActionState,
 } from '@/lib/admin/notifications';
+import { hasAdminCapability } from '@/lib/admin/access';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
 
@@ -25,7 +26,7 @@ function loginPath() {
 async function requireStaffAction(): Promise<AdminNotificationActionState | null> {
   const auth = await getCurrentAdminAuthState();
   if (!auth.isConfigured || !auth.user) redirect(loginPath());
-  if (!auth.isStaff) return { errors: { form: '관리자 권한이 필요합니다.' } };
+  if (!auth.isStaff || !hasAdminCapability(auth, 'marketing.manage')) return { errors: { form: '관리자 권한이 필요합니다.' } };
   return null;
 }
 

@@ -1,3 +1,4 @@
+import { hasAdminCapability } from '@/lib/admin/access';
 import { unstable_rethrow } from 'next/navigation';
 import { requireAdminScreenAccess } from '@/lib/admin/guard.server';
 import { categoryExportCsv } from '@/lib/admin/category-export';
@@ -6,13 +7,14 @@ import { loadAdminCategoryExportRows } from '@/lib/admin/category.server';
 export const runtime = 'nodejs';
 
 export async function GET() {
-  await requireAdminScreenAccess('/admin/catalog/categories');
+  const auth = await requireAdminScreenAccess('/admin/catalog/categories');
+  const includeErp = hasAdminCapability(auth, 'platform.manage');
   try {
-    const rows = await loadAdminCategoryExportRows();
-    return new Response(categoryExportCsv(rows), {
+    const rows = await loadAdminCategoryExportRows(includeErp);
+    return new Response(categoryExportCsv(rows, includeErp), {
       headers: {
         'Content-Type': 'text/csv; charset=utf-8',
-        'Content-Disposition': 'attachment; filename="icons-category-erp.csv"',
+        'Content-Disposition': includeErp ? 'attachment; filename="icons-category-erp.csv"' : 'attachment; filename="icons-category.csv"',
         'Cache-Control': 'private, no-store',
         'X-Content-Type-Options': 'nosniff',
       },

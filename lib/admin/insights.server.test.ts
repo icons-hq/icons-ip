@@ -106,6 +106,11 @@ describe('getAdminInsights profile boundaries', () => {
       'canceled',
     ]);
   });
+  it.each([1, 7, 30] as const)('성과 기간 %s일에 맞춰 KST 일별 버킷을 만든다', async (days) => {
+    const result = await getAdminInsights(days);
+    expect(result.dailyRevenue).toHaveLength(days);
+    expect(new Set(result.dailyRevenue.map((row) => row.date)).size).toBe(days);
+  });
 
   // 발주확인·배송완료는 결제가 끝난 단계다. 빠지면 사다리를 지나는 동안
   // 매출이 사라졌다가 done에서 되살아난다(#250).

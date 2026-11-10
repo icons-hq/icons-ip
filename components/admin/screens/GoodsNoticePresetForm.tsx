@@ -5,6 +5,9 @@ import {
   deleteGoodsNoticePresetAction, saveGoodsNoticePresetAction, type GoodsNoticePresetActionState,
 } from '@/app/admin/goods-notice-preset-actions';
 import { AdminField, AdminFormGrid } from '@/components/admin/console/AdminKit';
+import { useAdminCreateDialogBusy } from '@/components/admin/console/AdminCreateDialogButton';
+import { Button } from '@/components/admin/kit/ui/button';
+import { Input } from '@/components/admin/kit/ui/input';
 import { GoodsKcPresetFields } from '@/components/admin/GoodsKcPresetFields';
 import { GOODS_NOTICE_FIELDS } from '@/lib/goods-notice';
 import {
@@ -12,9 +15,14 @@ import {
 } from '@/lib/admin/goods-notice-presets';
 
 const EMPTY_STATE: GoodsNoticePresetActionState = {};
+/* 메뉴·버튼의 말(템플릿)에 맞춰 서버 안내도 같은 말로 보인다. 서버 문구 자체는 상품 편집의 불러오기와 함께 쓴다. */
+const noticeCopy = (text: string) => text.replaceAll('프리셋', '템플릿');
 
-export function GoodsNoticePresetForm({ preset }: { preset?: GoodsNoticePreset }) {
+/** `inset`: 접는 목록 안에서는 자기 여백을 두고, 등록 팝업 안에서는 팝업 본문 여백을 쓴다. */
+export function GoodsNoticePresetForm({ preset, inset = true }: { preset?: GoodsNoticePreset; inset?: boolean }) {
   const [state, action, pending] = useActionState(saveGoodsNoticePresetAction, EMPTY_STATE);
+  /* 등록 팝업 안에서 저장을 기다리는 동안 팝업을 닫지 못하게 한다(목록 안 수정 폼에서는 아무 일도 하지 않는다). */
+  useAdminCreateDialogBusy(pending);
   const prefix = useId();
   // Keep the editing version until this form saves successfully. Another form's
   // revalidation must not advance our token while these inputs are still unsaved.
@@ -33,45 +41,45 @@ export function GoodsNoticePresetForm({ preset }: { preset?: GoodsNoticePreset }
 
   // Keep the form's controlled KC selects until the keyed fieldset restores the
   // action result. A handled failure must not invoke the native action reset.
-  return <form action={action} className="admin-notice-presets__form" onSubmit={event => {
+  return <form action={action} className={`flex min-w-0 flex-col gap-4${inset ? ' p-4 sm:p-6' : ''}`} onSubmit={event => {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     startTransition(() => action(data));
   }}>
-    <fieldset key={state.attempt ?? 0} disabled={pending}>
+    <fieldset className="flex min-w-0 flex-col gap-6 disabled:opacity-65" key={state.attempt ?? 0} disabled={pending}>
       <input name="id" type="hidden" value={preset?.id ?? ''} />
       <input name="updatedAt" type="hidden" value={value('updatedAt', editingPreset?.updatedAt ?? '')} />
-      <AdminField label="프리셋 이름" inputId={`${prefix}-name`} error={state.errors?.name}>
-        <input {...inputProps('name')} required maxLength={GOODS_NOTICE_PRESET_NAME_MAX}
+      <AdminField label="템플릿 이름" inputId={`${prefix}-name`} error={state.errors?.name ? noticeCopy(state.errors.name) : undefined}>
+        <Input {...inputProps('name')} className="sm:max-w-md" required maxLength={GOODS_NOTICE_PRESET_NAME_MAX}
           defaultValue={value('name', editingPreset?.name ?? '')} placeholder="아크릴 기본" />
       </AdminField>
       <AdminFormGrid>
         {GOODS_NOTICE_FIELDS.map((field) => <AdminField key={field.key} label={field.label}
           inputId={`${prefix}-${field.formName}`} error={state.errors?.[field.formName]}>
-          <input {...inputProps(field.formName)} required maxLength={GOODS_NOTICE_PRESET_FIELD_MAX}
+          <Input {...inputProps(field.formName)} required maxLength={GOODS_NOTICE_PRESET_FIELD_MAX}
             defaultValue={value(field.formName, editingPreset?.notice[field.key] ?? '')} placeholder={field.placeholder} />
         </AdminField>)}
       </AdminFormGrid>
       <GoodsKcPresetFields template={editingPreset?.kcTemplate} raw={state.values?.kcTemplate} error={state.errors?.kcTemplate}/>
-      <button className="wc-admin-kit__button" type="submit">{pending ? '저장 중…' : preset ? '프리셋 수정 저장' : '프리셋 등록'}</button>
+      <Button className="self-start" type="submit">{pending ? '저장 중…' : preset ? '템플릿 수정 저장' : '템플릿 등록'}</Button>
     </fieldset>
-    {state.errors?.form ? <p className="admin-notice-presets__error" role="alert">{state.errors.form}</p> : null}
-    {state.message ? <p role="status">{state.message}</p> : null}
+    {state.errors?.form ? <p className="text-sm text-destructive" role="alert">{noticeCopy(state.errors.form)}</p> : null}
+    {state.message ? <p className="text-sm text-success" role="status">{noticeCopy(state.message)}</p> : null}
   </form>;
 }
 
 export function GoodsNoticePresetDeleteForm({ preset }: { preset: GoodsNoticePreset }) {
   const [state, action, pending] = useActionState(deleteGoodsNoticePresetAction, EMPTY_STATE);
-  return <details className="admin-notice-presets__delete">
-    <summary>프리셋 삭제</summary>
-    <form action={action}>
+  return <details className="px-4 pb-4 sm:px-6 sm:pb-6" data-notice-presets="delete">
+    <summary className="flex min-h-9 w-fit cursor-pointer items-center text-sm font-medium text-destructive underline-offset-4 hover:underline">템플릿 삭제</summary>
+    <form action={action} className="mt-2 flex flex-col gap-3 rounded-lg border border-danger-border bg-danger-soft p-4">
       <input name="id" type="hidden" value={preset.id} />
       <input name="updatedAt" type="hidden" value={preset.updatedAt} />
-      <p>프리셋을 삭제해도 기존 상품에 입력된 값은 바뀌지 않습니다.</p>
-      <label><input name="confirmed" type="checkbox" required value="true" disabled={pending} /> 이 프리셋을 삭제하겠습니다.</label>
-      <button className="wc-admin-kit__button" disabled={pending} type="submit">{pending ? '삭제 중…' : '삭제 확정'}</button>
-      {state.errors?.form ? <p className="admin-notice-presets__error" role="alert">{state.errors.form}</p> : null}
-      {state.message ? <p role="status">{state.message}</p> : null}
+      <p className="text-sm">템플릿을 삭제해도 기존 상품에 입력된 값은 바뀌지 않습니다.</p>
+      <label className="flex min-h-9 cursor-pointer items-center gap-2 text-sm"><input name="confirmed" type="checkbox" required value="true" disabled={pending} /> 이 템플릿을 삭제하겠습니다.</label>
+      <Button className="self-start" variant="destructive" disabled={pending} type="submit">{pending ? '삭제 중…' : '삭제 확정'}</Button>
+      {state.errors?.form ? <p className="text-sm text-destructive" role="alert">{noticeCopy(state.errors.form)}</p> : null}
+      {state.message ? <p className="text-sm text-success" role="status">{noticeCopy(state.message)}</p> : null}
     </form>
   </details>;
 }

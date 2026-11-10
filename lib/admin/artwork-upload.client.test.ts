@@ -3,10 +3,12 @@ import { uploadAdminArtwork } from './artwork-upload.client';
 
 const UUID = '123e4567-e89b-42d3-a456-426614174000';
 const OBJECT_PATH = `catalog/card/${UUID}.webp`;
+const ACTOR_CHANGED_ERROR = '로그인 계정이 변경되었습니다. 현재 계정에서 다시 시도해주세요.';
 
 const mocks = vi.hoisted(() => ({
   cancel: vi.fn(),
   createClient: vi.fn(),
+  fetch: vi.fn(),
   prepare: vi.fn(),
   storageFrom: vi.fn(),
   upload: vi.fn(),
@@ -16,11 +18,17 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/app/admin/artwork-actions', () => ({
   cancelAdminArtworkUploadAction: mocks.cancel,
   prepareAdminArtworkUploadAction: mocks.prepare,
-  verifyAdminArtworkUploadAction: mocks.verify,
 }));
 vi.mock('@/lib/supabase/client', () => ({ createClient: mocks.createClient }));
 
 beforeEach(() => {
+  /* 확인은 서버 액션이 아니라 /api/admin/artwork/verify로 간다(R19). mocks.verify는 그 본문을 받는 서버 역할이다. */
+  vi.stubGlobal('fetch', mocks.fetch);
+  mocks.fetch.mockReset();
+  mocks.fetch.mockImplementation(async (_url: string, init: RequestInit) => {
+    const result = await mocks.verify(JSON.parse(String(init.body)));
+    return { ok: result?.ok === true, json: async () => result };
+  });
   mocks.cancel.mockReset();
   mocks.createClient.mockReset();
   mocks.prepare.mockReset();
@@ -50,6 +58,63 @@ beforeEach(() => {
 });
 
 describe('uploadAdminArtwork', () => {
+  it('captures the starting actor once for prepare and verify', async () => {
+    const file = new File(['image'], 'image.webp', { type: 'image/webp' });
+    const input = { kind: 'card' as const, file, expectedActorId: 'staff-1' };
+    mocks.prepare.mockImplementationOnce(async () => {
+      input.expectedActorId = 'staff-2';
+      return { ok: true, path: OBJECT_PATH };
+    });
+
+    await expect(uploadAdminArtwork(input)).resolves.toEqual({ ok: true, imagePath: `public-media/${OBJECT_PATH}` });
+    expect(mocks.prepare).toHaveBeenCalledExactlyOnceWith({ kind: 'card', mimeType: file.type, size: file.size, expectedActorId: 'staff-1' });
+    expect(mocks.verify).toHaveBeenCalledExactlyOnceWith({ kind: 'card', mimeType: file.type, size: file.size, path: OBJECT_PATH, expectedActorId: 'staff-1' });
+    expect(mocks.upload).toHaveBeenCalledExactlyOnceWith(OBJECT_PATH, file, { contentType: file.type, upsert: false });
+    expect(mocks.cancel).not.toHaveBeenCalled();
+  });
+
+  it('keeps explicitly undefined actor bindings compatible with existing actions', async () => {
+    const file = new File(['image'], 'image.webp', { type: 'image/webp' });
+    await uploadAdminArtwork({ kind: 'card', file, expectedActorId: undefined });
+    expect(mocks.prepare).toHaveBeenCalledExactlyOnceWith({ kind: 'card', mimeType: file.type, size: file.size });
+    expect(mocks.verify).toHaveBeenCalledExactlyOnceWith({ kind: 'card', mimeType: file.type, size: file.size, path: OBJECT_PATH });
+  });
+
+  it('does not upload or cancel when the actor changed before prepare', async () => {
+    mocks.prepare.mockResolvedValue({ ok: false, error: ACTOR_CHANGED_ERROR });
+    await expect(uploadAdminArtwork({
+      kind: 'good', file: new File(['image'], 'image.png', { type: 'image/png' }), expectedActorId: 'staff-1',
+    })).resolves.toEqual({ ok: false, error: ACTOR_CHANGED_ERROR });
+    expect(mocks.createClient).not.toHaveBeenCalled();
+    expect(mocks.upload).not.toHaveBeenCalled();
+    expect(mocks.verify).not.toHaveBeenCalled();
+    expect(mocks.cancel).not.toHaveBeenCalled();
+  });
+
+  it.each(['resolves', 'rejects'])('keeps a verify account-switch error when cancellation %s', async cleanup => {
+    mocks.verify.mockResolvedValue({ ok: false, error: ACTOR_CHANGED_ERROR });
+    if (cleanup === 'rejects') mocks.cancel.mockRejectedValue(new Error('private cancellation failure'));
+    await expect(uploadAdminArtwork({
+      kind: 'good', file: new File(['image'], 'image.png', { type: 'image/png' }), expectedActorId: 'staff-1',
+    })).resolves.toEqual({ ok: false, error: ACTOR_CHANGED_ERROR });
+    expect(mocks.cancel).toHaveBeenCalledExactlyOnceWith({ path: OBJECT_PATH });
+    expect(mocks.verify).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ expectedActorId: 'staff-1' }));
+    expect(mocks.prepare).toHaveBeenCalledTimes(1);
+    expect(mocks.upload).toHaveBeenCalledTimes(1);
+  });
+
+  it('cleans up a bound verification rejection without accepting a path or retrying', async () => {
+    mocks.verify.mockRejectedValue(new Error('private verification failure'));
+    mocks.cancel.mockRejectedValue(new Error('private cancellation failure'));
+    await expect(uploadAdminArtwork({
+      kind: 'good', file: new File(['image'], 'image.png', { type: 'image/png' }), expectedActorId: 'staff-1',
+    })).resolves.toEqual({ ok: false, error: '이미지를 업로드하지 못했습니다. 다시 시도해주세요.' });
+    expect(mocks.cancel).toHaveBeenCalledExactlyOnceWith({ path: OBJECT_PATH });
+    expect(mocks.prepare).toHaveBeenCalledTimes(1);
+    expect(mocks.verify).toHaveBeenCalledTimes(1);
+    expect(mocks.upload).toHaveBeenCalledTimes(1);
+  });
+
   it('preserves the curation kind through prepare and verification', async () => {
     const path = `catalog/curation/${UUID}.png`;
     const file = new File(['image'], 'curation.png', { type: 'image/png' });
@@ -194,5 +259,75 @@ describe('uploadAdminArtwork', () => {
       ok: false,
       error: '이미지를 업로드하지 못했습니다. 다시 시도해주세요.',
     });
+  });
+
+  /* R19(MD-0030): 수 초 걸리는 확인을 서버 액션 대기열 밖으로 보내 사진 보관함 팝업 조회가 뒤에 서지 않게 한다. */
+  it('verifies through the same-origin JSON route instead of a server action', async () => {
+    await uploadAdminArtwork({ kind: 'card', file: new File(['image'], 'image.webp', { type: 'image/webp' }) });
+    expect(mocks.fetch).toHaveBeenCalledExactlyOnceWith('/api/admin/artwork/verify', expect.objectContaining({
+      method: 'POST', credentials: 'same-origin', cache: 'no-store', headers: { 'Content-Type': 'application/json' },
+    }));
+  });
+
+  it('sends the library request and returns its registration result', async () => {
+    const path = `catalog/good/${UUID}.png`;
+    mocks.prepare.mockResolvedValue({ ok: true, path });
+    mocks.verify.mockResolvedValue({ ok: true, imagePath: `public-media/${path}`, library: { ok: true, id: UUID } });
+    const file = new File(['image'], 'image.png', { type: 'image/png' });
+    await expect(uploadAdminArtwork({ kind: 'good', file, library: { name: '키링.png' } })).resolves.toEqual({
+      ok: true, imagePath: `public-media/${path}`, library: { ok: true, id: UUID },
+    });
+    expect(mocks.verify).toHaveBeenCalledExactlyOnceWith({ kind: 'good', mimeType: 'image/png', path, size: file.size, library: { name: '키링.png' } });
+  });
+
+  it.each([
+    ['a public path for another upload', { ok: true, imagePath: 'public-media/catalog/card/223e4567-e89b-42d3-a456-426614174000.webp' }],
+    ['a non-JSON gateway error', null],
+    ['an untyped body', { ok: 'yes' }],
+  ])('rejects %s and cancels the claim', async (_label, body) => {
+    mocks.fetch.mockResolvedValue({ ok: body !== null, json: async () => { if (body === null) throw new SyntaxError('html'); return body; } });
+    await expect(uploadAdminArtwork({ kind: 'card', file: new File(['image'], 'image.webp', { type: 'image/webp' }) })).resolves.toEqual({
+      ok: false, error: '이미지를 업로드하지 못했습니다. 다시 시도해주세요.',
+    });
+    expect(mocks.cancel).toHaveBeenCalledWith({ path: OBJECT_PATH });
+  });
+
+  it('keeps a specific server error such as an upload limit', async () => {
+    mocks.fetch.mockResolvedValue({ ok: false, json: async () => ({ ok: false, error: '다른 사진을 올리는 중입니다. 끝난 뒤 다시 시도해주세요.' }) });
+    await expect(uploadAdminArtwork({ kind: 'card', file: new File(['image'], 'image.webp', { type: 'image/webp' }) })).resolves.toEqual({
+      ok: false, error: '다른 사진을 올리는 중입니다. 끝난 뒤 다시 시도해주세요.',
+    });
+  });
+
+  it('sends one verification at a time per tab while other uploads keep preparing', async () => {
+    const paths = [1, 2].map(n => `catalog/card/${UUID.slice(0, -1)}${n}.webp`);
+    let prepared = 0;
+    mocks.prepare.mockImplementation(async () => ({ ok: true, path: paths[prepared++] }));
+    const releases: (() => void)[] = [];
+    let active = 0, maxActive = 0;
+    mocks.verify.mockImplementation(async (body: { path: string }) => {
+      active++; maxActive = Math.max(maxActive, active);
+      await new Promise<void>(resolve => releases.push(resolve));
+      active--;
+      return { ok: true, imagePath: `public-media/${body.path}` };
+    });
+    const file = () => new File(['image'], 'image.webp', { type: 'image/webp' });
+    const uploads = [uploadAdminArtwork({ kind: 'card', file: file() }), uploadAdminArtwork({ kind: 'card', file: file() })];
+    for (let i = 0; i < 20; i++) await Promise.resolve();
+    expect(mocks.prepare).toHaveBeenCalledTimes(2);
+    expect(mocks.verify).toHaveBeenCalledTimes(1);
+    releases.shift()?.();
+    for (let i = 0; i < 20; i++) await Promise.resolve();
+    expect(mocks.verify).toHaveBeenCalledTimes(2);
+    releases.shift()?.();
+    await expect(Promise.all(uploads)).resolves.toEqual(paths.map(path => ({ ok: true, imagePath: `public-media/${path}` })));
+    expect(maxActive).toBe(1);
+  });
+
+  it('does not let a rejected verification block the next one', async () => {
+    mocks.fetch.mockRejectedValueOnce(new TypeError('network down'));
+    const file = () => new File(['image'], 'image.webp', { type: 'image/webp' });
+    await expect(uploadAdminArtwork({ kind: 'card', file: file() })).resolves.toMatchObject({ ok: false });
+    await expect(uploadAdminArtwork({ kind: 'card', file: file() })).resolves.toEqual({ ok: true, imagePath: `public-media/${OBJECT_PATH}` });
   });
 });

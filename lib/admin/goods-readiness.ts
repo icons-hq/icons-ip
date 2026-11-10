@@ -13,7 +13,7 @@ export const GOODS_READINESS_REASONS = {
   payment_disabled: { label: '결제수단 모두 중지', detail: '현재 상품에서 허용하는 결제수단을 확인하세요.', target: 'sale' },
   restricted_sale: { label: '판매 제한 상품', detail: '현재 판매 제한 상품의 공개·구매는 닫혀 있습니다.', target: 'sale' },
   shipping_unavailable: { label: '출고지 사용 불가', detail: '상품에 연결한 출고지의 사용 상태를 확인하세요.', target: 'shipping' },
-  kc_required: { label: 'KC 검토 필요', detail: '초안 저장 후 실제 모델·옵션과 근거를 검토하세요.', target: 'kc' },
+  kc_required: { label: 'KC 검토 필요', detail: '초안 저장 후 KC 정보에서 검토하세요. KC 대상이 아니면 상품 전체 KC 해당 없음으로 끝낼 수 있습니다.', target: 'kc' },
   kc_legacy_unrecorded: { label: '기존 공개 · KC 미기록', detail: '기존 공개 상태는 유지됩니다. 초안 전환·재공개 전에 KC 검토를 확인하세요.', target: 'kc' },
   readiness_unknown: { label: '준비 상태 확인 필요', detail: '현재 준비 정보를 읽지 못했습니다. 새로고침 후 다시 확인하세요.', target: 'publish' },
 } as const;

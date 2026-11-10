@@ -17,6 +17,7 @@ import { loadCampaignDetail } from '@/lib/campaigns.server';
 import { readCardRewardsEnabled } from '@/lib/card-rewards/gate.server';
 import { getCatalogSnapshot } from '@/lib/catalog';
 import { loadCoinOverview } from '@/lib/coins.server';
+import { loadListingWishlist } from '@/lib/wishlist-ids.server';
 
 /* /packs 와 같은 관례 — 게이트 값은 요청당 한 번만 읽는다. */
 const getCardRewardsEnabled = cache(readCardRewardsEnabled);
@@ -82,12 +83,16 @@ export default async function Page({ params, searchParams }: PageProps) {
   if (campaign) {
     /* 공개 브라우징 — 로그인 여부는 참여 패널을 로그인 CTA 로 바꾸는 데만 쓴다.
        비로그인도 본문은 그대로 읽는다. */
-    const [auth, cardRewardsEnabled] = await Promise.all([
+    const hasGoods = campaign.resolvedSections.some((section) => section.type === 'goods' && section.goods.length > 0);
+    const [auth, cardRewardsEnabled, wishlist] = await Promise.all([
       getCurrentAuthState(),
       /* 전역 카드 리워드 게이트. /packs·게임·마이 메뉴가 게이트 OFF 에서 표면을
          감추는 것과 같은 규율이다 — 교환 CTA 만 남으면 누를 수 있는데 서버가
          거절하는 버튼이 된다. RPC 의 card_rewards_disabled 는 백스톱으로 남는다. */
       getCardRewardsEnabled(),
+      /* 굿즈 진열 카드의 목록 하트(LFS 패리티 2차 L4b · CL-01) — 진열이 있을 때만 회원의 위시 ID 를 한 번 읽는다.
+         이 라우트는 이미 로그인 상태를 읽는 동적 렌더라 렌더 방식이 바뀌지 않는다. 던지지 않는다. */
+      hasGoods ? loadListingWishlist() : Promise.resolve(null),
     ]);
     const signedIn = Boolean(auth.user);
     const coin = signedIn ? await loadCoinOverview() : null;
@@ -99,6 +104,7 @@ export default async function Page({ params, searchParams }: PageProps) {
         coin={coin}
         exchangeOperationIds={exchangeOperationIdsFor(campaign.resolvedSections)}
         signedIn={signedIn}
+        wishlist={wishlist}
       />
     );
   }

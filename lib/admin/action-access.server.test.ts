@@ -1,10 +1,11 @@
+import { configuredOperatorAccessFixture, legacyOperatorAccessFixture } from '@/lib/admin/access.test-fixtures';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { requireAdminActionAccess } from './action-access.server';
 
 const mocks = vi.hoisted(() => ({ auth: vi.fn() }));
 vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: mocks.auth }));
 vi.mock('next/navigation', () => ({ redirect: (path: string) => { throw new Error(`NEXT_REDIRECT:${path}`); } }));
-const staff = { isConfigured: true, user: { id: 'staff', email: null }, role: 'staff', isStaff: true };
+const staff = { isConfigured: true, user: { id: 'staff', email: null }, role: 'staff', isStaff: true, operatorAccess: legacyOperatorAccessFixture() };
 beforeEach(() => { mocks.auth.mockReset(); mocks.auth.mockResolvedValue(staff); });
 
 describe('admin action access', () => {
@@ -24,5 +25,12 @@ describe('admin action access', () => {
     expect(await requireAdminActionAccess('/admin', { adminOnly: true })).toBeNull();
     mocks.auth.mockResolvedValue({ ...staff, role: 'admin' });
     expect(await requireAdminActionAccess('/admin', { adminOnly: true })).toMatchObject({ role: 'admin' });
+  });
+  it('configured influencer cannot use order mutations even when the old profile is admin', async () => {
+    mocks.auth.mockResolvedValue({ ...staff, role: 'admin', operatorAccess: configuredOperatorAccessFixture('influencer') });
+    expect(await requireAdminActionAccess('/admin/sales/orders')).toBeNull();
+    expect(await requireAdminActionAccess('/admin/catalog/goods?goodId=g1')).not.toBeNull();
+    expect(await requireAdminActionAccess('/admin', { capability: 'sales.read' })).not.toBeNull();
+    expect(await requireAdminActionAccess('/admin', { capability: 'platform.manage' })).toBeNull();
   });
 });

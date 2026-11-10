@@ -23,9 +23,9 @@ export interface ShippingNoticeTemplateActionState extends AdminFormValuesState 
   updatedAt?: string;
 }
 
-const SAVE_FAILED = '배송정보 템플릿을 저장하지 못했습니다. 입력값은 유지됩니다. 잠시 후 다시 시도해주세요.';
-const ACTIVATE_FAILED = '배송정보 템플릿을 활성화하지 못했습니다. 입력값과 확인 근거를 다시 확인해주세요.';
-const APPLY_FAILED = '상품에 배송정보 템플릿을 적용하지 못했습니다. 최신 상품을 다시 확인해주세요.';
+const SAVE_FAILED = '배송 안내 템플릿을 저장하지 못했습니다. 입력값은 유지됩니다. 잠시 후 다시 시도해주세요.';
+const ACTIVATE_FAILED = '배송 안내 템플릿을 활성화하지 못했습니다. 입력값과 확인 근거를 다시 확인해주세요.';
+const APPLY_FAILED = '상품에 배송 안내 템플릿을 적용하지 못했습니다. 최신 상품을 다시 확인해주세요.';
 
 function stringValue(data: FormData, key: string): string {
   const value = data.get(key);
@@ -50,7 +50,7 @@ function rpcErrors(error: { code?: string; message: string }, fallback: string):
   if (error.message.includes('shipping_notice_template_active_immutable')) return { form: '활성 템플릿은 수정할 수 없습니다. 새 버전으로 등록해주세요.' };
   if (error.message.includes('shipping_notice_template_required')) return { form: '배송·교환/반품 안내와 고객센터 정보, 확인 근거를 모두 입력해주세요.' };
   if (error.message.includes('shipping_notice_template_not_active')) return { form: '활성화된 템플릿만 상품에 적용할 수 있습니다.' };
-  if (error.message.includes('good_archived')) return { form: '보관된 상품에는 배송정보 템플릿을 적용할 수 없습니다.' };
+  if (error.message.includes('good_archived')) return { form: '보관된 상품에는 배송 안내 템플릿을 적용할 수 없습니다.' };
   if (error.message.includes('good_not_found')) return { goodId: '상품을 찾을 수 없습니다. 상품 ID를 확인해주세요.' };
   if (error.message.includes('staff_required')) return { form: '관리자 권한이 필요합니다.' };
   return { form: fallback };
@@ -73,7 +73,7 @@ export async function saveShippingNoticeTemplateAction(
   const accessError = await staffError();
   if (accessError) return fail({ form: accessError });
   if (values.id && (!isUuid(values.id) || !values.updatedAt || Number.isNaN(Date.parse(values.updatedAt)))) {
-    return fail({ form: '최신 배송정보 템플릿을 다시 열어주세요.' });
+    return fail({ form: '최신 배송 안내 템플릿을 다시 열어주세요.' });
   }
   const parsed = parseShippingNoticeTemplateInput(values);
   if (!parsed.ok) return fail(parsed.errors);
@@ -96,7 +96,7 @@ export async function saveShippingNoticeTemplateAction(
     revalidatePath('/admin/catalog/goods');
     return {
       attempt,
-      message: '배송정보 템플릿을 저장했습니다. 필수 안내와 확인 근거를 확인한 뒤 활성화해주세요.',
+      message: '배송 안내 템플릿을 저장했습니다. 필수 안내와 확인 근거를 확인한 뒤 활성화해주세요.',
       updatedAt: typeof saved?.updatedAt === 'string' ? saved.updatedAt : undefined,
     };
   } catch {
@@ -116,7 +116,7 @@ export async function activateShippingNoticeTemplateAction(
   const accessError = await staffError();
   if (accessError) return fail({ form: accessError });
   if (!isShippingNoticeTemplateId(id) || !updatedAt || Number.isNaN(Date.parse(updatedAt))) {
-    return fail({ form: '최신 배송정보 템플릿을 다시 열어주세요.' });
+    return fail({ form: '최신 배송 안내 템플릿을 다시 열어주세요.' });
   }
   if (!evidence || evidence.length > SHIPPING_NOTICE_TEMPLATE_EVIDENCE_MAX || hasDisallowedShippingNoticeControl(evidence)) {
     return fail({ confirmationEvidence: `확인 근거는 1~${SHIPPING_NOTICE_TEMPLATE_EVIDENCE_MAX}자로 입력해주세요.` });
@@ -133,7 +133,7 @@ export async function activateShippingNoticeTemplateAction(
     revalidatePath('/admin/catalog/goods');
     return {
       attempt,
-      message: '배송정보 템플릿을 활성화했습니다. 상품에 적용해야 공개 안내에 반영됩니다.',
+      message: '배송 안내 템플릿을 활성화했습니다. 상품에 적용해야 공개 안내에 반영됩니다.',
       updatedAt: typeof saved?.updatedAt === 'string' ? saved.updatedAt : undefined,
     };
   } catch {
@@ -166,7 +166,7 @@ export async function applyShippingNoticeTemplateAction(
     if (error) return fail(rpcErrors(error, APPLY_FAILED));
     revalidatePath(SHIPPING_NOTICE_TEMPLATES_PATH);
     revalidateGoodsSurfaces();
-    return { attempt, message: '상품에 배송정보 템플릿을 적용했습니다.' };
+    return { attempt, message: '상품에 배송 안내 템플릿을 적용했습니다.' };
   } catch {
     return fail({ form: APPLY_FAILED });
   }

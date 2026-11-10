@@ -81,8 +81,17 @@ export function safeNextPath(value: FormDataEntryValue | string | null | undefin
   if (!decoded.startsWith('/') || decoded.startsWith('//')) return '/';
 
   const sameOrigin = 'https://icons.local';
-  const url = new URL(decoded, sameOrigin);
+  let url: URL;
+  try {
+    url = new URL(decoded, sameOrigin);
+  } catch {
+    return '/';
+  }
   if (url.origin !== sameOrigin) return '/';
+
+  // 점 조각(`/..//x`, `/.//x`, `%2e`)을 접고 탭·줄바꿈을 지우는 일은 파서 안에서 일어나서,
+  // 원문 검사를 통과한 값도 정규화 뒤에는 `//evil.example`(스킴 상대 URL)이 될 수 있다.
+  if (url.pathname.startsWith('//') || url.pathname.includes('\\')) return '/';
 
   return `${url.pathname}${url.search}${url.hash}`;
 }
@@ -271,6 +280,9 @@ export function passwordUpdateErrorMessage(error: AuthErrorLike | null | undefin
     case 'session_expired':
     case 'session_not_found':
     case 'reauthentication_needed':
+    /* 운영 Auth 가드가 recovery 세션이 아닌 비밀번호 변경을 거절한 경우 — 재설정 메일로만 바꿀 수 있다. */
+    case 'current_password_required':
+    case 'current_password_invalid':
       return '비밀번호 재설정 세션이 만료되었습니다. 로그인 화면에서 새 재설정 메일을 요청해주세요.';
     default:
       return GENERIC_PASSWORD_UPDATE_ERROR_MESSAGE;

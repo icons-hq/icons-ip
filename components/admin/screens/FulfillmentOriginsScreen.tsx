@@ -1,27 +1,78 @@
 import Link from 'next/link';
-import { AdminPageHeader, AdminSectionCard } from '../console/AdminKit';
+import { AdminNotice, AdminPageHeader, AdminSectionCard, AdminStatusBadge } from '../console/AdminKit';
+import { statusTone } from '@/lib/admin/status-tone';
+import { buttonVariants } from '@/components/admin/kit/ui/button';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/admin/kit/ui/table';
 import { ShipmentExportColumnsEditor } from './ShipmentExportColumnsEditor';
 import { FulfillmentOriginForm } from './FulfillmentOriginForm';
-import type { FulfillmentOrigin } from '@/lib/admin/fulfillment-origins';
+import type { FulfillmentOrigin, GoodsFulfillmentOrigin } from '@/lib/admin/fulfillment-origins';
 import { CARRIER_SETTINGS_PATH, STORE_SETTINGS_PATH, storeSettingsHistoryRows, type EditableCarrier, type StoreSettingsAudit } from '@/lib/admin/store-settings';
 import { formatOrderDateTime } from '@/lib/orders';
 import { DeliveryPoliciesPanel } from '@/components/admin/DeliveryPoliciesPanel';
+import { ShippingCollectContractPanel } from '@/components/admin/ShippingCollectContractPanel';
+import { NEW_FULFILLMENT_ORIGIN_TAB, fulfillmentOriginTabHref, selectedFulfillmentOriginTab } from '@/lib/admin/fulfillment-origin-tabs';
+import { StoreSettingsRelatedLinks } from './StoreSettingsRelatedLinks';
+export { selectedFulfillmentOriginTab };
 
-export function FulfillmentOriginsScreen({ origins, carriers, history, canEdit }: { origins: FulfillmentOrigin[]; carriers: EditableCarrier[]; history: StoreSettingsAudit[]; canEdit: boolean }) {
-  return <section className="wc-admin-kit wc-admin-kit__screen">
-    <AdminPageHeader title="출고지·배송 정책" description="출고지별로 배송비를 계산합니다. 무료배송 상품은 기준 금액에서 빼고, 개별 배송비는 상품당 한 번 더합니다." />
-    <nav className="wc-admin-kit__actions" aria-label="설정 항목"><Link href={STORE_SETTINGS_PATH}>사업자·결제 표시 설정</Link><Link href={CARRIER_SETTINGS_PATH}>택배사</Link><Link href="/admin/settings/shipping-regions">지역 추가 배송비</Link></nav>
-    {origins.map((origin) => <AdminSectionCard key={origin.id} title={`${origin.name} · ${origin.active ? '사용 중' : '비활성'}`}>
+/* 출고지 탭(셸의 콘솔 전환과 같은 링크 탭, ADR-0028). */
+const ORIGIN_TABS = 'inline-flex w-fit max-w-full flex-wrap items-center rounded-lg bg-muted p-0.5';
+const ORIGIN_TAB = 'inline-flex h-7 items-center gap-1 rounded-md px-2.5 text-[0.8rem] font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground aria-[current=page]:bg-background aria-[current=page]:text-primary-soft-foreground aria-[current=page]:shadow-sm';
+/* 출고지 전환 탭과 갈리도록 별도 행동(추가)은 탭 묶음 밖의 작은 버튼이다. */
+const ADD_ORIGIN = `${buttonVariants({ variant: 'outline', size: 'sm' })} before:mr-0.5 before:content-['+'] aria-[current=page]:border-primary aria-[current=page]:bg-primary-soft aria-[current=page]:text-primary-soft-foreground`;
+
+/** 출고지 카드 머리의 사용 상태. */
+function OriginStatus({ active }: { active: boolean }) {
+  return <AdminStatusBadge tone={statusTone('setting', active ? 'active' : 'inactive')}>{active ? '사용 중' : '비활성'}</AdminStatusBadge>;
+}
+
+/** 카드 머리에 자주 보는 값(기본 배송비·무료 배송 기준·출고 마감)을 한 줄로 모은다. */
+function OriginFacts({ origin }: { origin: FulfillmentOrigin }) {
+  return <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+    <OriginStatus active={origin.active} />
+    <span className="tabular-nums">기본 배송비 {origin.baseFee.toLocaleString('ko-KR')}원 · {origin.freeThreshold === null ? '금액별 무료배송 없음' : `${origin.freeThreshold.toLocaleString('ko-KR')}원 이상 무료 배송`}{origin.cutoff ? ` · 출고 마감 ${origin.cutoff}` : ''}</span>
+  </span>;
+}
+
+/**
+ * 배송정보 관리. 출고지마다 링크형 탭(R22, `?origin=<코드>`)으로 한 번에 한 출고지만 보인다 — 새로고침·주소 공유에도 유지되고
+ * Tab 키로 탭을 오간다. 출고지 추가는 편집 권한이 있을 때만 마지막 탭이다. 최근 변경 이력은 탭 아래 공통이다.
+ */
+export function FulfillmentOriginsScreen({ origins, carriers, history, canEdit, accountId = '', selected }: { origins: FulfillmentOrigin[]; carriers: EditableCarrier[]; history: StoreSettingsAudit[]; canEdit: boolean; accountId?: string; selected?: string | null }) {
+  const tab = selected === undefined ? selectedFulfillmentOriginTab(origins, undefined, canEdit) : selected;
+  const origin = origins.find(item => item.code === tab);
+  return <div className="flex min-w-0 flex-col gap-4" data-admin-screen="fulfillment-origins">
+    <AdminPageHeader title="배송정보 관리" description="출고지별 기본 배송비와 운영 조건을 관리합니다. 상품별 배송비·수량 조건과 지역 추가 배송비는 주문서에서 함께 확인합니다." />
+    <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2">
+      {origins.length || canEdit ? <nav aria-label="출고지" className="flex min-w-0 flex-wrap items-center gap-2">
+        {origins.length ? <span className={ORIGIN_TABS}>{origins.map(item => <Link key={item.id} aria-current={tab === item.code ? 'page' : undefined} className={ORIGIN_TAB} href={fulfillmentOriginTabHref(item.code)}>{item.name}{item.active ? '' : ' · 비활성'}</Link>)}</span> : null}
+        {canEdit ? <Link aria-current={tab === NEW_FULFILLMENT_ORIGIN_TAB ? 'page' : undefined} className={ADD_ORIGIN} data-slot="button" href={fulfillmentOriginTabHref(NEW_FULFILLMENT_ORIGIN_TAB)}>출고지 추가</Link> : null}
+      </nav> : <span />}
+      <StoreSettingsRelatedLinks label="설정 항목" links={[{ href: STORE_SETTINGS_PATH, label: '사업자·결제 표시 설정' }, { href: CARRIER_SETTINGS_PATH, label: '택배사' }, { href: '/admin/settings/shipping-regions', label: '지역 추가 배송비' }]} />
+    </div>
+    {origin ? <AdminSectionCard key={origin.id} summary={<OriginFacts origin={origin} />} title={origin.name}>
       <FulfillmentOriginForm origin={origin} carriers={carriers} canEdit={canEdit} />
       <ShipmentExportColumnsEditor origin={origin} canEdit={canEdit} />
       <DeliveryPoliciesPanel originId={origin.id} canEdit={canEdit} />
-    </AdminSectionCard>)}
-    {canEdit ? <AdminSectionCard title="출고지 추가"><FulfillmentOriginForm carriers={carriers} canEdit /></AdminSectionCard> : null}
+      {canEdit && accountId && <ShippingCollectContractPanel originId={origin.id} accountId={accountId} canEdit />}
+    </AdminSectionCard> : null}
+    {canEdit && tab === NEW_FULFILLMENT_ORIGIN_TAB ? <AdminSectionCard title="새 출고지" summary="저장하면 새 출고지 탭으로 이동합니다."><FulfillmentOriginForm carriers={carriers} canEdit /></AdminSectionCard> : null}
     <AdminSectionCard title="최근 변경 이력">
-      {history.length ? <ol>{history.map((entry) => <li key={entry.id}>{formatOrderDateTime(entry.createdAt)} · {entry.actorName}
-        <details><summary>출고지 변경 내용</summary><table><caption className="sr-only">변경 전후</caption><thead><tr><th>항목</th><th>이전</th><th>변경 후</th></tr></thead>
-          <tbody>{storeSettingsHistoryRows(entry).map((row) => <tr key={row.key}><th>{row.label}</th><td>{row.before || '빈 값'}</td><td>{row.after || '빈 값'}</td></tr>)}</tbody></table></details>
-      </li>)}</ol> : <p>변경 이력이 없습니다.</p>}
+      {history.length ? <ol className="flex flex-col divide-y">{history.map((entry) => <li className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0" key={entry.id}><p className="tabular-nums">{formatOrderDateTime(entry.createdAt)} · {entry.actorName}</p>
+        <details className="rounded-lg border"><summary className="cursor-pointer px-3 py-2 text-sm text-muted-foreground hover:text-foreground">출고지 변경 내용</summary><div className="border-t"><Table className="table-fixed"><caption className="sr-only">변경 전후</caption><TableHeader><TableRow className="hover:bg-transparent"><TableHead className="w-1/4 text-xs text-muted-foreground">항목</TableHead><TableHead className="text-xs text-muted-foreground">이전</TableHead><TableHead className="text-xs text-muted-foreground">변경 후</TableHead></TableRow></TableHeader>
+          <TableBody>{storeSettingsHistoryRows(entry).map((row) => <TableRow className="hover:bg-transparent" key={row.key}><TableHead className="h-auto py-2 align-top font-medium whitespace-normal" scope="row">{row.label}</TableHead><TableCell className="align-top whitespace-normal [overflow-wrap:anywhere]">{row.before || '빈 값'}</TableCell><TableCell className="align-top whitespace-normal [overflow-wrap:anywhere]">{row.after || '빈 값'}</TableCell></TableRow>)}</TableBody></Table></div></details>
+      </li>)}</ol> : <p className="text-muted-foreground">변경 이력이 없습니다.</p>}
     </AdminSectionCard>
-  </section>;
+  </div>;
+}
+
+export function GoodsOriginSummaryScreen({ origins }: { origins: GoodsFulfillmentOrigin[] }) {
+  return <div className="flex min-w-0 flex-col gap-4" data-admin-screen="goods-origins">
+    <AdminPageHeader title="배송정보 관리" description="상품에 적용할 출고지와 고객 배송 정보를 확인합니다." />
+    {origins.map(origin => <AdminSectionCard key={origin.id} summary={<OriginStatus active={origin.active} />} title={origin.name}>
+      <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2"><div className="flex flex-col gap-0.5"><dt className="text-xs text-muted-foreground">기본 배송비</dt><dd className="tabular-nums">{origin.baseFee.toLocaleString('ko-KR')}원</dd></div>
+        <div className="flex flex-col gap-0.5"><dt className="text-xs text-muted-foreground">무료배송 기준</dt><dd className="tabular-nums">{origin.freeThreshold === null ? '미설정' : `${origin.freeThreshold.toLocaleString('ko-KR')}원 이상`}</dd></div>
+        <div className="flex flex-col gap-0.5"><dt className="text-xs text-muted-foreground">기본 택배사</dt><dd>{origin.defaultCarrier ?? '미설정'}</dd></div><div className="flex flex-col gap-0.5"><dt className="text-xs text-muted-foreground">반품 주소</dt><dd className="[overflow-wrap:anywhere]">{origin.returnAddress || '미설정'}</dd></div></dl>
+      {origin.returnAddress ? null : <AdminNotice tone="warning">반품 주소가 없으면 이 출고지 상품의 반품을 진행할 수 없습니다.</AdminNotice>}
+    </AdminSectionCard>)}
+  </div>;
 }

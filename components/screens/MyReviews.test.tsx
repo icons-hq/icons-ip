@@ -86,7 +86,7 @@ describe('MyReviews', () => {
   /* 기한이 지나도 삭제는 상시다 — 수정만 닫힌다. */
   it('기한이 지난 리뷰는 수정을 닫고 삭제는 남긴다', () => {
     const html = render([target({
-      deliveredAt: '2026-01-01T00:00:00.000Z',
+      deliveredAt: '2026-01-01T00:00:00.000Z', deadlineAt: '2026-04-01T00:00:00.000Z',
       writable: false,
       review: writtenReview(),
     })]);
@@ -97,14 +97,14 @@ describe('MyReviews', () => {
 
   /* 사라진 항목은 "왜 못 쓰는지"를 설명하지 못한다. */
   it('기한이 지난 미작성 굿즈도 감추지 않는다', () => {
-    const html = render([target({ deliveredAt: '2026-01-01T00:00:00.000Z', writable: false })]);
+    const html = render([target({ deliveredAt: '2026-01-01T00:00:00.000Z', deadlineAt: '2026-04-01T00:00:00.000Z', writable: false })]);
 
-    expect(html).toContain('기한이 지난 굿즈 1건');
-    expect(html).toContain('작성 기한(배송완료 후 90일)이 지났습니다');
+    expect(html).toContain('현재 작성할 수 없는 리뷰 1건');
+    expect(html).toContain('작성 기한이 지났습니다');
   });
 
-  /* v1에는 리뷰 보상이 없다(#254 확정). */
-  it('보상이 없다는 사실을 적는다', () => {
-    expect(render([])).toContain('적립금이나 혜택이 주어지지는 않습니다');
+  it('일반 작성과 이벤트 선정 혜택을 구분한다', () => {
+    expect(render([])).toContain('리뷰 작성만으로 혜택이 지급되지는 않으며');
+    expect(render([])).toContain('리뷰이벤트의 선정 혜택');
   });
 });

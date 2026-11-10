@@ -71,6 +71,19 @@ describe('IpDirectory', () => {
     expect(html.match(/class="wc-ipdir__tile"/g)).toHaveLength(5);
   });
 
+  /* 모바일 피처드는 '1 / 5' 화살표가 아니라 점으로 위치를 보인다(R-03 §3.2 · 11 IP-04). */
+  it('marks the featured carousel position with dots instead of a fraction', () => {
+    const featured = Array.from({ length: 3 }, (_, i) => ip(`feat-${i}`, `피처드 ${i}`, { featured: true }));
+    const html = render(featured);
+    const dots = [...html.matchAll(/<button[^>]*class="wc-slider__dot[^"]*"[^>]*>/g)].map((match) => match[0]);
+
+    expect(html).toContain('aria-label="피처드 IP 위치"');
+    expect(dots).toHaveLength(3);
+    expect(dots[0]).toContain('aria-current="true"');
+    expect(dots[0]).toContain('aria-label="1 / 3"');
+    expect(html).not.toContain('wc-slider__fraction');
+  });
+
   it('omits the featured rail when no ip is featured', () => {
     const html = render([maplestory, hwasan]);
 

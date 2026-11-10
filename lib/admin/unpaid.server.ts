@@ -11,6 +11,7 @@ import {
 } from './unpaid';
 
 interface UnpaidRow {
+  order_number?: string;
   order_id: string;
   buyer_name: string | null;
   buyer_id: string;
@@ -47,15 +48,22 @@ interface DepositRow {
  */
 export async function getAdminUnpaidOrders(
   filters: AdminUnpaidFilters,
+  /* 목록 엑셀 다운로드 전용: RPC 상한(200건) 안에서 페이지를 키우고 입금 큐는 읽지 않는다. */
+  options: { pageSize?: number; includeDeposits?: boolean } = {},
 ): Promise<AdminUnpaidConsoleData> {
+  const pageSize = Math.min(Math.max(Math.trunc(options.pageSize ?? filters.pageSize ?? ADMIN_UNPAID_PAGE_SIZE) || ADMIN_UNPAID_PAGE_SIZE, 1), 200);
   const supabase = await createClient();
   const [{ data, error }, { data: depositData, error: depositError }] = await Promise.all([
-    supabase.rpc('admin_unpaid_bank_transfer_orders', {
+    supabase.rpc('admin_unpaid_bank_transfer_orders_console', {
       p_query: filters.query || null,
-      p_limit: ADMIN_UNPAID_PAGE_SIZE,
-      p_offset: (filters.page - 1) * ADMIN_UNPAID_PAGE_SIZE,
+      p_limit: pageSize,
+      p_offset: (filters.page - 1) * pageSize,
+      p_state: filters.state ?? null,
+      p_sort: filters.sort ?? 'oldest',
     }),
-    supabase.rpc('admin_bank_deposit_queue', { p_status: 'unmatched', p_limit: 30 }),
+    options.includeDeposits === false
+      ? Promise.resolve({ data: [], error: null })
+      : supabase.rpc('admin_bank_deposit_queue', { p_status: 'unmatched', p_limit: 30 }),
   ]);
 
   if (error) throw new Error(`Failed to load unpaid orders: ${error.message}`);
@@ -76,6 +84,7 @@ export async function getAdminUnpaidOrders(
   }));
   const unpaid: AdminUnpaidOrderRow[] = rows.map((row) => ({
     id: row.order_id,
+    ...(row.order_number ? { orderNumber: row.order_number } : {}),
     buyerName: row.buyer_name?.trim() || `fan_${row.buyer_id.slice(0, 6)}`,
     buyerId: row.buyer_id,
     recipientName: row.recipient_name?.trim() ?? '',
@@ -90,7 +99,7 @@ export async function getAdminUnpaidOrders(
 
   return {
     filters,
-    pageSize: ADMIN_UNPAID_PAGE_SIZE,
+    pageSize,
     rows: unpaid,
     total: rows[0]?.total_count ?? 0,
     deposits,

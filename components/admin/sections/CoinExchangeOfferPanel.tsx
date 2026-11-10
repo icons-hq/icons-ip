@@ -1,6 +1,6 @@
 'use client';
 
-import { AdminFormGrid } from '@/components/admin/console/AdminKit';
+import { AdminFormGrid, AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { useActionState, useState } from 'react';
 import {
   upsertAdminCoinExchangeOfferAction,
@@ -12,7 +12,9 @@ import {
   type AdminCoinExchangeOfferRecord,
 } from '@/lib/admin/campaigns';
 import type { AdminCardPoolRecord } from '@/lib/admin/catalog.server';
-import { Icon } from '@/components/ui/Icon';
+import { Check, ChevronDown } from 'lucide-react';
+import { Button } from '@/components/admin/kit/ui/button';
+import { statusTone } from '@/lib/admin/status-tone';
 import { Field, InlineNotice, SelectField } from '../fields';
 
 /*
@@ -34,6 +36,15 @@ function poolLabel(pool: AdminCardPoolRecord) {
   return `${pool.name} (${pool.ipId})${readiness}`;
 }
 
+/** '구성 코드' 칸이 받는 형식 그대로 복사한다. 이미 다른 구성이 있으면 그 목록 안에 항목으로 넣는다. */
+function CopyExchangeBlockButton({ offerId }: { offerId: string }) {
+  const [copied, setCopied] = useState<string | null>(null);
+  function copy() {
+    void navigator.clipboard?.writeText(JSON.stringify([{ type: 'exchange', offer_id: offerId }])).then(() => setCopied(offerId));
+  }
+  return <Button onClick={copy} size="xs" title="캠페인 '구성 코드' 칸에 붙여 넣는 형식입니다. 이미 다른 구성이 있으면 그 목록 안에 항목으로 넣어주세요." type="button" variant="outline">{copied ? '복사했습니다' : '구성 코드 복사'}</Button>;
+}
+
 function OfferRow({
   active,
   offer,
@@ -46,27 +57,32 @@ function OfferRow({
   pool: AdminCardPoolRecord | undefined;
 }) {
   return (
-    <li className="admin-campaign-offer">
-      <button
+    <li className="flex min-w-0 flex-col gap-1">
+      <Button
         aria-current={active ? 'true' : undefined}
-        className={active ? 'chip on' : 'chip'}
+        className="h-auto w-full justify-start py-2 text-left whitespace-normal aria-[current=true]:border-primary aria-[current=true]:bg-primary-soft"
         onClick={onSelect}
-        style={{ justifyContent: 'flex-start', minHeight: 36, textAlign: 'left', width: '100%' }}
         type="button"
+        variant="outline"
       >
-        <span className="col" style={{ gap: 3, minWidth: 0 }}>
-          <strong style={{ fontSize: 13 }}>{offer.label}</strong>
-          <span className="faint mono" style={{ fontSize: 11 }}>
+        <span className="flex min-w-0 flex-col items-start gap-1">
+          <span className="flex flex-wrap items-center gap-1.5">
+            <span className="text-sm font-medium">{offer.label}</span>
+            <AdminStatusBadge tone={statusTone('coinOffer', offer.status)}>{ADMIN_COIN_OFFER_STATUS_LABELS[offer.status]}</AdminStatusBadge>
+            {pool && !pool.rewardReady ? <AdminStatusBadge tone="danger">개봉 준비 안 됨</AdminStatusBadge> : null}
+          </span>
+          <span className="text-xs font-normal text-muted-foreground tabular-nums">
             {pool ? pool.name : '삭제된 카드풀'}
             {' · '}코인 {offer.coinCost.toLocaleString('ko-KR')}
             {' · '}카드팩 {offer.ticketCount}장
-            {' · '}{ADMIN_COIN_OFFER_STATUS_LABELS[offer.status]}
-            {pool && !pool.rewardReady ? ' · 개봉 준비 안 됨' : ''}
           </span>
         </span>
-      </button>
-      {/* 캠페인 sections 의 exchange 블록이 이 id 를 그대로 받는다. */}
-      <code className="admin-campaign-offer-id">{offer.id}</code>
+      </Button>
+      {/* 캠페인 sections 의 exchange 블록이 이 id 를 그대로 받는다. 손으로 옮겨 적지 않게 블록 째 복사한다. */}
+      <span className="flex min-w-0 flex-wrap items-center gap-2">
+        <code className="overflow-x-auto px-0.5 font-mono text-xs text-muted-foreground select-all" data-coin-offer-id="">{offer.id}</code>
+        <CopyExchangeBlockButton offerId={offer.id} />
+      </span>
     </li>
   );
 }
@@ -84,20 +100,24 @@ export function CoinExchangeOfferPanel({
   const poolsById = new Map(pools.map((pool) => [pool.id, pool]));
 
   return (
-    <section className="card col admin-campaign-panel wc-admin-kit wc-admin-kit__card" style={{ gap: 14 }}>
-      <div className="col" style={{ gap: 5 }}>
-        <strong style={{ fontSize: 15 }}>카드팩 교환처</strong>
-        <p className="muted" style={{ fontSize: 12, lineHeight: 1.7, margin: 0 }}>
-          출석으로 모은 코인을 카드팩으로 바꾸는 자리입니다. 등록한 뒤 목록의 ID를 복사해
-          캠페인 랜딩 구성의 <code>exchange</code> 블록 <code>offer_id</code>에 넣으면 상세에 붙습니다.
-          카드풀 확률이 채워지지 않으면 교환 시점에 실패하므로 <strong>개봉 준비 안 됨</strong> 표시가
-          붙은 풀은 그대로 두지 마세요.
-        </p>
-      </div>
+    <details className="group/offers min-w-0 rounded-xl border bg-card p-4 text-sm text-card-foreground sm:p-5" open={offers.some((offer) => poolsById.get(offer.poolId)?.rewardReady === false) || undefined}>
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
+        <span className="flex min-w-0 flex-col gap-1"><span className="text-base leading-snug font-semibold text-foreground">카드팩 교환처</span><span className="text-sm text-muted-foreground">캠페인 상세에 코인 → 카드팩 교환을 붙일 때만 씁니다 · 등록 {offers.length.toLocaleString('ko-KR')}개</span></span>
+        <ChevronDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open/offers:rotate-180 motion-reduce:transition-none" />
+      </summary>
+      <div className="mt-4 flex min-w-0 flex-col gap-4">
+      <ol className="flex flex-col gap-1 text-sm text-muted-foreground"><li>1. 아래에서 교환처를 등록합니다.</li><li>2. 목록의 [구성 코드 복사]를 누릅니다.</li><li>3. 캠페인 수정의 &apos;이미지·랜딩 구성 &gt; 구성 코드&apos; 칸에 붙여 넣습니다.</li></ol>
 
-      <ul className="admin-campaign-offers">
+      {/* 주의는 등록된 교환처가 실제로 준비 안 된 풀을 쓸 때만 상자로 말한다(처리할 대상 없는 경고를 띄우지 않는다). */}
+      {offers.some((offer) => poolsById.get(offer.poolId)?.rewardReady === false) ? (
+        <AdminNotice title="개봉 준비 안 됨 표시가 붙은 교환처가 있습니다" tone="warning">
+          카드풀 확률이 채워지지 않으면 고객이 교환할 때 실패합니다. 확률을 채우거나 그 교환처를 내려주세요.
+        </AdminNotice>
+      ) : null}
+
+      <ul className="flex flex-col gap-3">
         {offers.length === 0 && (
-          <li className="muted" style={{ fontSize: 13 }}>등록된 교환처가 없습니다.</li>
+          <li className="text-sm text-muted-foreground">등록된 교환처가 없습니다.</li>
         )}
         {offers.map((offer) => (
           <OfferRow
@@ -110,7 +130,7 @@ export function CoinExchangeOfferPanel({
         ))}
       </ul>
 
-      <form action={action} className="col" key={selected ? `${selected.id}:${selected.updatedAt}` : 'new-offer'} style={{ gap: 12 }}>
+      <form action={action} className="flex flex-col gap-4 border-t pt-4" key={selected ? `${selected.id}:${selected.updatedAt}` : 'new-offer'}>
         <input name="offerId" type="hidden" value={selected?.id ?? ''} />
         <AdminFormGrid>
           <SelectField
@@ -128,7 +148,7 @@ export function CoinExchangeOfferPanel({
           <Field
             defaultValue={selected?.label ?? ''}
             error={state.errors?.label}
-            label="교환처 이름 (사용자에게 보이는 문구)"
+            label="교환처 이름 (고객에게 보이는 문구)"
             name="label"
             placeholder="가을 카드팩 1장"
             required
@@ -166,23 +186,23 @@ export function CoinExchangeOfferPanel({
             ))}
           </SelectField>
         </AdminFormGrid>
-        <div className="row" style={{ flexWrap: 'wrap', gap: 8, justifyContent: 'flex-start' }}>
-          <button className="btn btn-sm admin-field-control" disabled={pending} style={{ minHeight: 40 }}>
-            <Icon name="check" size={14} /> {pending ? '저장 중' : selected ? '교환처 수정' : '교환처 등록'}
-          </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button disabled={pending} type="submit">
+            <Check aria-hidden="true" /> {pending ? '저장 중' : selected ? '교환처 수정' : '교환처 등록'}
+          </Button>
           {selected && (
-            <button
-              className="btn btn-sm btn-ghost"
+            <Button
               onClick={() => setSelectedId(null)}
-              style={{ minHeight: 40 }}
               type="button"
+              variant="outline"
             >
               새 교환처
-            </button>
+            </Button>
           )}
           <InlineNotice state={state} />
         </div>
       </form>
-    </section>
+      </div>
+    </details>
   );
 }

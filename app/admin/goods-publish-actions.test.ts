@@ -1,5 +1,6 @@
+const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-const mocks = vi.hoisted(() => ({ auth: { isConfigured: true, isStaff: true, user: { id: 'staff' } }, rpc: vi.fn(), revalidatePath: vi.fn() }));
+const mocks = vi.hoisted(() => ({ auth: { isConfigured: true, isStaff: true, operatorAccess: legacyOperatorAccessFixture(), user: { id: 'staff' } }, rpc: vi.fn(), revalidatePath: vi.fn() }));
 vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: async () => mocks.auth }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ rpc: mocks.rpc }) }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }));
@@ -35,8 +36,8 @@ describe('상품 게시 상태 액션', () => {
   it('KC 미검토로 차단된 경우 검토할 작업을 알려준다', async () => {
     mocks.rpc.mockResolvedValue({ error: { message: 'goods_kc_review_required private diagnostic' } });
     const result = await setAdminGoodPublishedAction({}, form(true));
-    expect(result.error).toContain('KC');
-    expect(result.error).toContain('검토');
+    expect(result.error).toContain('KC 정보에서 검토를 완료한 뒤 공개');
+    expect(result.error).toContain('상품 전체 KC 해당 없음');
     expect(result.error).not.toContain('private diagnostic');
   });
 });

@@ -1,7 +1,10 @@
 import type { ShipmentRecord } from '@/lib/orders/shipments';
 import type { AdminOrderAddress, AdminOrderItemRecord, AdminOrderStatus } from './orders';
+import { isGoodsOptionSaleMode, type GoodsOptionSaleMode } from '@/lib/goods-option-sale-mode';
 
 export const MAX_ORDER_NOTE_LENGTH = 2000;
+/** admin_order_detail 품목의 optionSaleMode. 모르는 값·키가 없는 옛 응답은 고른 옵션('select')으로 읽는다. */
+export const adminOrderItemOptionSaleMode = (value: unknown): GoodsOptionSaleMode => isGoodsOptionSaleMode(value) ? value : 'select';
 export const isOrderDetailId = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 
 export type AdminOrderTimelineSource = 'order' | 'payment' | 'refund' | 'status' | 'shipment' | 'claim' | 'inquiry' | 'email' | 'note';
@@ -24,6 +27,8 @@ export interface AdminOrderTimelineEntry {
   title?: string | null;
   relatedId?: string | null;
   claimType?: string | null;
+  /** 시스템이 남긴 감사 기록의 출처(예: 자동 발주확인 'auto_order_confirmation'). 운영자 처리는 비어 있다. */
+  trigger?: string | null;
 }
 export interface AdminShipmentEmailJob {
   shipmentId: string;
@@ -36,12 +41,20 @@ export interface AdminShipmentEmailJob {
 export interface AdminOrderDetail {
   emailJobs: AdminShipmentEmailJob[];
   order: {
+    orderNumber?: string;
+    isGift?: boolean;
+    transaction?: import('@/lib/goods-transaction').GoodsTransactionDisplay;
     id: string; userId: string; buyerName: string | null; buyerEmail: string | null;
     status: AdminOrderStatus; total: number; shippingFee: number; discountTotal: number; storeCreditTotal: number;
     createdAt: string;
     address: Partial<AdminOrderAddress>;
+    addressNeedsReview?: boolean;
   };
   shipments: ShipmentRecord[];
   items: AdminOrderItemRecord[];
+  /** 품목 id별 쿠폰·적립금·복수구매 배분(`lib/admin/item-allocation`). 나눌 수 없는 주문은 비어 있다. */
+  itemAllocations?: Record<string, import('./item-allocation').OrderItemAllocation>;
+  /** 배분 조회 자체가 실패했다. 나눌 수 없는 주문(빈 itemAllocations)과 구분해 '불러오지 못했다'고 안내한다. */
+  itemAllocationsUnavailable?: true;
   timeline: AdminOrderTimelineEntry[];
 }

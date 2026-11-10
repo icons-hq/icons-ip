@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { observeInquiryChanges, type InquiryRealtimeClient } from './inquiry-realtime';
 
 function transport() {
@@ -9,10 +9,20 @@ function transport() {
     subscribe: (callback: typeof status) => { status = callback; return channel; },
   };
   const removeChannel = vi.fn();
-  return { handlers, joined: () => status('SUBSCRIBED'), ready: () => handlers.find((handler) => handler.type === 'system')?.callback({ extension: 'postgres_changes', status: 'ok' }), removeChannel,
+  return { handlers, disconnected: () => status('CHANNEL_ERROR'), joined: () => status('SUBSCRIBED'), ready: () => handlers.find((handler) => handler.type === 'system')?.callback({ extension: 'postgres_changes', status: 'ok' }), removeChannel,
     client: { channel: () => channel, removeChannel } as unknown as InquiryRealtimeClient };
 }
 describe('실시간 문의 화면 구독', () => {
+  afterEach(() => vi.useRealTimers());
+  it('첫 DB 구독이 지연되거나 연결이 끊긴 동안만 인증 로더의 재동기화를 요청한다', () => {
+    vi.useFakeTimers();
+    const test = transport(); const resync = vi.fn();
+    const close = observeInquiryChanges(test.client, { onChange: vi.fn(), onResync: resync });
+    test.joined(); vi.advanceTimersByTime(5000); expect(resync).toHaveBeenCalledTimes(1);
+    test.ready(); vi.advanceTimersByTime(15000); expect(resync).toHaveBeenCalledTimes(1);
+    test.disconnected(); vi.advanceTimersByTime(5000); expect(resync).toHaveBeenCalledTimes(2);
+    close(); vi.advanceTimersByTime(15000); expect(resync).toHaveBeenCalledTimes(2);
+  });
   it('자동 안내 이벤트를 고객·staff 답글로 바꾸지 않는다', () => {
     const test=transport();const changed=vi.fn();
     observeInquiryChanges(test.client,{inquiryId:'thread-a',onChange:changed});
@@ -34,6 +44,16 @@ describe('실시간 문의 화면 구독', () => {
     message.callback({ new: { id: 'message-a', inquiry_id: 'thread-a', author: 'staff', body: 'raw payload' } });
     expect(changed).toHaveBeenCalledWith({ kind: 'message', inquiryId: 'thread-a', messageId: 'message-a', author: 'staff' });
     expect(JSON.stringify(changed.mock.calls)).not.toContain('raw payload');
+  });
+  /* R2: 새 문의 알림은 INSERT만 골라야 한다. 상태 변경(UPDATE)마다 알림이 뜨면 안 된다. */
+  it('문의 스레드 이벤트에 INSERT·UPDATE 종류와 알림용 제목을 싣는다', () => {
+    const test = transport(); const changed = vi.fn();
+    observeInquiryChanges(test.client, { onChange: changed });
+    const threads = test.handlers.filter((handler) => handler.filter.table === 'inquiries');
+    threads.find((handler) => handler.filter.event === 'INSERT')!.callback({ new: { id: 'thread-new', title: '배송 문의', status: 'open' } });
+    threads.find((handler) => handler.filter.event === 'UPDATE')!.callback({ new: { id: 'thread-old', title: '기존 문의', status: 'answered' } });
+    expect(changed).toHaveBeenNthCalledWith(1, { kind: 'thread', inquiryId: 'thread-new', event: 'INSERT', title: '배송 문의' });
+    expect(changed).toHaveBeenNthCalledWith(2, { kind: 'thread', inquiryId: 'thread-old', event: 'UPDATE', title: '기존 문의' });
   });
   it('화면을 닫으면 구독을 제거하고 늦은 이벤트가 새 화면을 갱신하지 않는다', () => {
     const test = transport(); const changed = vi.fn(); const ready = vi.fn();

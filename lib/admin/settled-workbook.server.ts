@@ -1,16 +1,19 @@
 import 'server-only';
 import ExcelJS from 'exceljs';
 import { buildSettledExportModel, parseSettledExportSnapshot, type SettledExportModel } from './settled-export';
+import { SALES_DATE_FIELDS, SALES_ORDER_SEARCH_FIELDS } from './sales-list';
 
 export const SETTLED_EXPORT_HEADERS = [
   '확정일 (KST)', '주문번호', '운송장', 'ERP 품명', '수량', '판매금액 (원)', '배송비 (원)', '결제일 (KST)',
   '할인 전 정가금액 (원)', '상품 할인 (원)', '쿠폰 적용 전 금액 (원)', '쿠폰 배분 (원)', '적립금 배분 (원)',
   'ERP 코드', '바코드', '주문 당시 상품명', '주문 당시 옵션명', '배송 건 번호', '주문 품목 번호', '결제일 근거', '미기록·확인 사유',
+  '복수구매 할인 (원)', '착불 별도 지급 (원)', '착불 수납 상태', '금액 계산 버전', '배송비에 포함된 설치비 (원)', '배송비 쿠폰 차감 (원)',
 ] as const;
 const ORDER_HEADERS = [
   '주문번호', '확정일 (KST)', '결제일 (KST)', '품목 수', '수량', '쿠폰 적용 전 금액 (원)', '쿠폰 (원)', '적립금 (원)',
   '배송비 원장 (원)', '주문 결제금액 (원)', '품목 판매금액 합계 (원)', '품목 배송비 합계 (원)', '품목 결제합계 (원)',
   '결제 원장금액 (원)', '품목 합계 − 주문 (원)', '결제 원장 − 주문 (원)', '결제 상태', '미기록·확인 사유',
+  '복수구매 할인 (원)', '착불 별도 지급 원장 (원)', '품목 착불 합계 (원)', '착불 합계 − 원장 (원)', '금액 계산 버전', '배송비에 포함된 설치비 (원)', '배송비 쿠폰 차감 (원)',
 ] as const;
 const HEADER_ROW = 6;
 const FIRST_ROW = HEADER_ROW + 1;
@@ -29,7 +32,7 @@ function createSheet(workbook: ExcelJS.Workbook, name: string, headers: readonly
   const filter = snapshot.filters;
   const metadata = [
     `보존 시각 (KST): ${kstLabel(snapshot.capturedAt)}  영수증: ${snapshot.receiptId}`,
-    `조회 기준: 주문일 (KST) ${filter.from ?? '시작 제한 없음'} ~ ${filter.to ?? '종료 제한 없음'}  검색어: ${filter.query || '전체'}`,
+    `조회 기준: ${SALES_DATE_FIELDS.find(option=>option.value===(filter.dateField??'ordered'))!.label} (KST) ${filter.from ?? '시작 제한 없음'} ~ ${filter.to ?? '종료 제한 없음'}  검색 대상: ${SALES_ORDER_SEARCH_FIELDS.find(option=>option.value===(filter.field??'all'))!.label}  검색어: ${filter.query || '전체'}`,
     definition,
   ];
   metadata.forEach((value, index) => {
@@ -88,22 +91,27 @@ export async function buildSettledWorkbook(value: unknown): Promise<Buffer> {
   workbook.created = new Date(model.snapshot.capturedAt); workbook.modified = new Date(model.snapshot.capturedAt);
   workbook.calcProperties.fullCalcOnLoad = true;
   const detail = createSheet(workbook, '거래확정 품목', SETTLED_EXPORT_HEADERS,
-    [23, 39, 24, 31, 9, 18, 16, 23, 20, 17, 21, 17, 18, 23, 23, 31, 25, 39, 39, 22, 64], model,
-    '판매금액은 상품 할인·쿠폰·적립금 차감 후 금액입니다. 배송비는 배송 건 첫 품목에 한 번 기록합니다. 공란은 미기록이며, 불완전한 열의 합계도 공란입니다.');
+    [23, 39, 24, 31, 9, 18, 16, 23, 20, 17, 21, 17, 18, 23, 23, 31, 25, 39, 39, 22, 64, 20, 21, 28, 14, 23, 23], model,
+    '판매금액은 기간·복수구매 할인·쿠폰·적립금 차감 후 금액입니다. 선결제 배송비와 착불 별도 지급은 배송 건 첫 품목에 기록합니다. 설치비는 선결제 배송비에 포함되며 별도 열은 포함 금액입니다. 배송비 쿠폰 열은 배송비에서 이미 차감된 금액입니다. 착불은 온라인 결제합계에서 제외합니다. 공란은 미기록입니다.');
   for (const row of model.lines) addDataRow(detail, [
     excelKstDate(row.doneAt), row.orderId, row.trackingNumber, row.erpName, row.qty, row.salesAmount, row.shippingFee, excelKstDate(row.paidAt),
     row.regularAmount, row.productDiscount, row.beforeCouponAmount, row.couponAmount, row.creditAmount, row.erpCode, row.barcode,
-    row.goodName, row.variantName, row.shipmentId, row.itemId, row.paymentTimeSource, row.issues.join(' / '),
-  ], [1, 8], [5, 6, 7, 9, 10, 11, 12, 13], 21);
-  totals(detail, [5, 6, 7, 9, 10, 11, 12, 13], model.lines.map(row => [row.qty, row.salesAmount, row.shippingFee, row.regularAmount, row.productDiscount, row.beforeCouponAmount, row.couponAmount, row.creditAmount]));
+    row.goodName, row.variantName, row.shipmentId, row.itemId, row.paymentTimeSource, row.issues.join(' / '), row.volumeDiscount, row.shippingCollectFee, row.collectState, row.calculationVersion, row.installationFee, row.shippingCouponDiscount,
+  ], [1, 8], [5, 6, 7, 9, 10, 11, 12, 13, 22, 23, 26, 27], 21);
+  totals(detail, [5, 6, 7, 9, 10, 11, 12, 13, 22, 23, 26, 27], model.lines.map(row => [row.qty, row.salesAmount, row.shippingFee, row.regularAmount, row.productDiscount, row.beforeCouponAmount, row.couponAmount, row.creditAmount, row.volumeDiscount, row.shippingCollectFee, row.installationFee, row.shippingCouponDiscount]));
   const orderSheet = createSheet(workbook, '주문 대조', ORDER_HEADERS,
-    [39, 23, 23, 10, 10, 22, 17, 17, 20, 22, 24, 24, 22, 23, 24, 24, 18, 72], model,
-    '주문 원장과 품목 배분·결제 원장을 대조합니다. 차이 0원은 금액 일치이며, 시각·ERP 미기록 여부는 마지막 열에서 확인합니다. 공란은 확인할 기록이 없는 상태입니다.');
+    [39, 23, 23, 10, 10, 22, 17, 17, 20, 22, 24, 24, 22, 23, 24, 24, 18, 72, 20, 24, 22, 24, 14, 23, 23], model,
+    '주문 원장과 품목 배분·결제 원장을 대조합니다. 차이 0원은 금액 일치이며, 시각·ERP 미기록 여부는 미기록·확인 사유 열에서 확인합니다. 공란은 확인할 기록이 없는 상태입니다.');
   for (const row of model.orders) addDataRow(orderSheet, [
     row.id, excelKstDate(row.doneAt), excelKstDate(row.paidAt), row.itemCount, row.qty, row.beforeCouponAmount, row.couponDiscount, row.storeCredits,
     row.shippingFee, row.total, row.detailSales, row.detailShipping, row.detailTotal, row.paymentAmount, row.detailDifference, row.ledgerDifference,
-    row.paymentStatus === 'paid' ? '결제 완료' : row.paymentStatus === 'refunded' ? '환불 기록' : row.paymentStatus, row.issues.join(' / '),
-  ], [2, 3], Array.from({ length: 13 }, (_, index) => index + 4), 18);
-  totals(orderSheet, Array.from({ length: 13 }, (_, index) => index + 4), model.orders.map(row => [row.itemCount, row.qty, row.beforeCouponAmount, row.couponDiscount, row.storeCredits, row.shippingFee, row.total, row.detailSales, row.detailShipping, row.detailTotal, row.paymentAmount, row.detailDifference, row.ledgerDifference]));
+    row.paymentStatus === 'paid' ? '결제 완료' : row.paymentStatus === 'refunded' ? '환불 기록' : row.paymentStatus, row.issues.join(' / '), row.volumeDiscount, row.shippingCollectTotal, row.detailShippingCollect, row.collectDifference, row.calculationVersion, row.installationFee, row.shippingCouponDiscount,
+  ], [2, 3], [...Array.from({ length: 13 }, (_, index) => index + 4), 19, 20, 21, 22, 24, 25], 18);
+  totals(orderSheet, [...Array.from({ length: 13 }, (_, index) => index + 4), 19, 20, 21, 22, 24, 25], model.orders.map(row => [row.itemCount, row.qty, row.beforeCouponAmount, row.couponDiscount, row.storeCredits, row.shippingFee, row.total, row.detailSales, row.detailShipping, row.detailTotal, row.paymentAmount, row.detailDifference, row.ledgerDifference, row.volumeDiscount, row.shippingCollectTotal, row.detailShippingCollect, row.collectDifference, row.installationFee, row.shippingCouponDiscount]));
+  if (model.snapshot.orders.some(o => o.coupons?.length)) {
+    const couponSheet = createSheet(workbook, '쿠폰 사용', ['주문번호', '적용 순서', '쿠폰 코드', '할인 대상', '할인액 (원)'], [39, 14, 27, 18, 20], model, '주문 당시 적용한 쿠폰 순서와 할인액입니다. 상품 할인과 배송비 할인은 각각의 원장에 반영됩니다.');
+    for (const order of model.snapshot.orders) for (const coupon of order.coupons ?? []) addDataRow(couponSheet, [order.id, coupon.applicationIndex, coupon.code, coupon.benefitKind === 'shipping' ? '선결제 배송비' : '상품 금액', coupon.discountAmount], [], [5], 0);
+    totals(couponSheet, [5], model.snapshot.orders.flatMap(o => (o.coupons ?? []).map(c => [c.discountAmount])));
+  }
   return Buffer.from(await workbook.xlsx.writeBuffer());
 }

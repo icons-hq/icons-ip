@@ -1,4 +1,6 @@
+const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { NO_OPERATOR_ACCESS } from '@/lib/admin/access';
 import { upsertAdminCouponAction } from './coupon-actions';
 
 const mocks = vi.hoisted(() => ({
@@ -6,7 +8,7 @@ const mocks = vi.hoisted(() => ({
     isConfigured: true,
     user: { id: 'staff-1', email: 'staff@icons.gg' },
     role: 'staff' as 'staff' | 'user' | 'admin' | null,
-    isStaff: true,
+    isStaff: true, operatorAccess: legacyOperatorAccessFixture(),
   },
   rpc: vi.fn(),
   revalidatePath: vi.fn(),
@@ -55,7 +57,7 @@ beforeEach(() => {
     isConfigured: true,
     user: { id: 'staff-1', email: 'staff@icons.gg' },
     role: 'staff',
-    isStaff: true,
+    isStaff: true, operatorAccess: legacyOperatorAccessFixture(),
   };
   mocks.rpc.mockReset();
   mocks.rpc.mockResolvedValue({ data: null, error: null });
@@ -112,6 +114,7 @@ describe('upsertAdminCouponAction', () => {
       user: { id: 'fan-1', email: 'fan@icons.gg' },
       role: 'user',
       isStaff: false,
+      operatorAccess: NO_OPERATOR_ACCESS,
     };
 
     const state = await upsertAdminCouponAction({}, form());

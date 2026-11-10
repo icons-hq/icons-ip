@@ -1,13 +1,23 @@
+import ExcelJS from 'exceljs';
+import { findCountryName } from './country-names';
 import { describe, expect, it } from 'vitest';
-import { emptyGoodsKcWorkbookRow } from './goods-kc-workbook';
+import { emptyGoodsKcWorkbookRow, GOODS_KC_WORKBOOK_HEADERS, GOODS_KC_WORKBOOK_SHEET } from './goods-kc-workbook';
 import { buildGoodsWorkbook, parseGoodsWorkbookWithKc } from './goods-workbook-file';
+import { emptyGoodsCustomInputWorkbookRow, exportGoodsCustomInputWorkbookRows } from './goods-custom-input-workbook';
 import {
   emptyGoodsWorkbookRow,
   exportGoodsWorkbookRows,
+  GOODS_WORKBOOK_CELL_MAX,
+  GOODS_WORKBOOK_HEADERS,
+  GOODS_WORKBOOK_KEYS,
+  GOODS_WORKBOOK_LONG_DESCRIPTION_MARKER,
+  GOODS_WORKBOOK_V3_VERSION,
+  GOODS_WORKBOOK_V4_VERSION,
   partitionGoodsExports,
   planGoodsWorkbookImport,
   type GoodsImportExisting,
   type GoodsWorkbookContext,
+  type GoodsWorkbookRow,
 } from './goods-workbook';
 const variantId = '00000000-0000-4000-8000-000000000001';
 const existing: GoodsImportExisting = {
@@ -78,7 +88,83 @@ const row = (
     ...values,
   },
 });
+/** 이전 2축 양식의 실제 열 순서로 만든다. v3는 갤러리 5~9도 빠져 있다. */
+async function v3Workbook(rows: GoodsWorkbookRow[], version = GOODS_WORKBOOK_V3_VERSION) {
+  const keys = GOODS_WORKBOOK_KEYS.filter((key) => key !== 'axis3' && key !== 'value3' && (version !== GOODS_WORKBOOK_V3_VERSION || !/^gallery(Url|File)[4-8]$/.test(key)));
+  expect(keys).toHaveLength(GOODS_WORKBOOK_KEYS.length - (version === GOODS_WORKBOOK_V3_VERSION ? 12 : 2));
+  if (version === GOODS_WORKBOOK_V3_VERSION) expect(keys.slice(keys.indexOf('galleryFile3'), keys.indexOf('galleryFile3') + 2)).toEqual(['galleryFile3', 'detailImageUrl']);
+  const book = new ExcelJS.Workbook();
+  const sheet = book.addWorksheet('상품');
+  sheet.getCell('A1').value = version;
+  sheet.getRow(4).values = keys.map((key) => GOODS_WORKBOOK_HEADERS[key]);
+  rows.forEach((values, index) => {
+    sheet.getRow(index + 5).values = keys.map((key) => values[key] || null);
+  });
+  // v3 파일의 KC 검토 시트도 같은 v3 버전 표기를 쓴다.
+  const kc = book.addWorksheet(GOODS_KC_WORKBOOK_SHEET);
+  kc.getCell('A1').value = version;
+  kc.getRow(4).values = Object.values(GOODS_KC_WORKBOOK_HEADERS);
+  return Buffer.from(await book.xlsx.writeBuffer());
+}
 describe('goods Excel planning', () => {
+  it.each([findCountryName('KR')!.name, '대한민국(경기도) / 중국', '대한민국(경기도 수원시 영통구)'])('제조국 %s는 XLSX 왕복에도 코드 치환 없이 같은 고시 문자열로 남는다', async value => {
+    const record = { ...existing, good: { ...existing.good, notice_origin: value } };
+    const ctx = { ...context, existing: [record] };
+    const exported = exportGoodsWorkbookRows(record, ctx);
+    const parsed = await parseGoodsWorkbookWithKc(await buildGoodsWorkbook(exported));
+    expect(GOODS_WORKBOOK_HEADERS.noticeOrigin).toBe('제조국');
+    expect(parsed.rows[0].values.noticeOrigin).toBe(value);
+    expect(planGoodsWorkbookImport(parsed.rows, ctx)[0].kind).toBe('unchanged');
+  });
+  it('3축 옵션을 v5 실제 파일로 왕복하며 식별자·재고를 유지하고 구형 양식의 축 소실을 막는다', async () => {
+    const record = { ...existing, variants: [{ ...existing.variants[0], name: '빨강 / M / 선물', attributes: { 색상: '빨강', 크기: 'M', 구성: '선물' } }] };
+    const ctx = { ...context, existing: [record] };
+    const exported = exportGoodsWorkbookRows(record, ctx);
+    expect(exported[0]).toMatchObject({ axis1: '색상', value1: '빨강', axis2: '크기', value2: 'M', axis3: '구성', value3: '선물' });
+    const parsed = await parseGoodsWorkbookWithKc(await buildGoodsWorkbook(exported));
+    expect(planGoodsWorkbookImport(parsed.rows, ctx)[0].kind).toBe('unchanged');
+    parsed.rows[0].values.stockQty = '5';
+    expect(planGoodsWorkbookImport(parsed.rows, ctx)[0].target?.variants).toEqual([expect.objectContaining({ id: variantId, attributes: record.variants[0].attributes, stockQty: 5, expectedStockQty: 7 })]);
+    for (const version of [GOODS_WORKBOOK_V3_VERSION, GOODS_WORKBOOK_V4_VERSION]) {
+      const old = await parseGoodsWorkbookWithKc(await v3Workbook(exported, version));
+      const plan = planGoodsWorkbookImport(old.rows, ctx)[0];
+      expect(plan.kind).toBe('error'); expect(plan.target).toBeNull(); expect(plan.errors.join(' ')).toContain('최신 v7 양식');
+    }
+  });
+  it('상품열이 같아도 직접입력형만 변경하면 기존 writer payload로 계획하고 누락 시에는 보존한다', async () => {
+    const config = { enabled: true, revision: 4, fields: [{ id: '00000000-0000-4000-8000-000000010001', name: 'TEST 이전 문구', active: true }] };
+    const record = { ...existing, good: { ...existing.good, custom_inputs_enabled: config.enabled,
+      custom_inputs_revision: config.revision, custom_input_fields: config.fields } };
+    const ctx = { ...context, existing: [record] };
+    const goodsRows = exportGoodsWorkbookRows(record, ctx);
+    const custom = exportGoodsCustomInputWorkbookRows([{ goodCode: 'GO-001', config }]);
+    custom[0].name = 'TEST 변경 문구';
+    const parsed = await parseGoodsWorkbookWithKc(await buildGoodsWorkbook(goodsRows, undefined, [], custom));
+    const result = planGoodsWorkbookImport(parsed.rows, { ...ctx, customInputRows: parsed.customInputRows });
+    expect(result[0]).toMatchObject({ kind: 'update', customInputSource: parsed.customInputRows,
+      target: { custom_inputs: { enabled: true, fields: [{ ...config.fields[0], name: 'TEST 변경 문구' }] }, custom_inputs_expected_revision: 4 } });
+    expect(planGoodsWorkbookImport(parsed.rows, ctx)[0]).toMatchObject({ kind: 'unchanged', target: null });
+    const failed = planGoodsWorkbookImport(parsed.rows, { ...ctx, customInputRows: parsed.customInputRows!.map(row => ({ ...row, values: { ...row.values, revision: '3' } })) });
+    expect(failed[0]).toMatchObject({ kind: 'error', target: null });
+  });
+  it('직접입력형 오류는 해당 상품만 막고 정상 신규 상품의 서버 ID를 plan에 고정한다', () => {
+    const custom = (goodCode: string, name: string) => ({ row: 5, values: { ...emptyGoodsCustomInputWorkbookRow(), goodCode,
+      mode: '편집', enabled: '예', name, action: '사용', revision: '0' } });
+    const rows = [row({ code: 'NEW-1' }), row({ code: 'NEW-2', name: '다른 새 상품' }, 6)];
+    const results = planGoodsWorkbookImport(rows, { ...context, customInputRows: [custom('NEW-1', ''), custom('NEW-2', 'TEST 문구')],
+      newCustomInputId: () => '00000000-0000-4000-8000-000000010003' });
+    expect(results[0]).toMatchObject({ kind: 'error', target: null });
+    expect(results[1]).toMatchObject({ kind: 'new', target: { custom_inputs_expected_revision: 0,
+      custom_inputs: { enabled: true, fields: [{ id: '00000000-0000-4000-8000-000000010003', name: 'TEST 문구', active: true }] } } });
+  });
+  it('기존 2축 이하 상품은 v4 양식을 계속 읽고 동일한 수정 계획을 만든다', async () => {
+    const exported = exportGoodsWorkbookRows(existing, context);
+    const old = await parseGoodsWorkbookWithKc(await v3Workbook(exported, GOODS_WORKBOOK_V4_VERSION));
+    expect(old.rows[0].layout).toBe('v4'); expect(old.rows[0].values.axis3).toBe('');
+    expect(planGoodsWorkbookImport(old.rows, context)[0].kind).toBe('unchanged');
+    old.rows[0].values.stockQty = '5';
+    expect(planGoodsWorkbookImport(old.rows, context)[0].target?.variants).toEqual([expect.objectContaining({ id: variantId, stockQty: 5, expectedStockQty: 7 })]);
+  });
   it('대표·추가 카테고리를 XLSX로 왕복하고 추가 분류 공란은 명시 해제한다', async () => {
     const primary = '00000000-0000-4000-8000-000000051111';
     const extra = '00000000-0000-4000-8000-000000051121';
@@ -118,25 +204,25 @@ describe('goods Excel planning', () => {
     expect(record.good.description).toBe(description);
     expect(record.good.description_image_paths).toEqual([path]);
   });
-  it('plain 줄바꿈과 여러 키워드는 왕복하며 0·공란·실제 문구와 이미지 변경은 계속 구분한다', async () => {
+  // Each case performs a real XLSX encode/decode. Give each independent case the
+  // normal test deadline so CI CPU contention does not combine eight roundtrips.
+  it.each([
+    { label: '키워드 줄바꿈', edits: { searchKeywords: '0\r\n키링\r\n스티커' }, expected: { kind: 'unchanged', target: null } },
+    { label: '설명 줄바꿈', edits: { description: '0\r\n수정한 설명\r\n\r\n마지막 설명' }, expected: { kind: 'update', target: { description: '0\n수정한 설명\n\n마지막 설명' } } },
+    { label: '진열 순서 공란', edits: { displayOrder: '' }, expected: { kind: 'update', target: { display_order: null } } },
+    { label: '문자열 0', edits: { description: '0' }, expected: { kind: 'update', target: { description: '0' } } },
+    { label: '설명 공란', edits: { description: '' }, expected: { kind: 'update', target: { description: null } } },
+    { label: '변경한 키워드', edits: { searchKeywords: '0\r\n다른 키워드' }, expected: { kind: 'update', target: { search_keywords: ['0', '다른 키워드'] } } },
+    { label: 'ERP 선행 0', edits: { erpCode: '00000124' }, expected: { kind: 'update', target: { variants: [{ erpCode: '00000124' }] } } },
+    { label: '변경한 이미지', edits: { descriptionFormat: 'html', description: '<p>새 HTML</p>\r\n<img src="public-media/catalog/good/33333333-3333-4333-8333-333333333333.webp" alt="새 이미지">' }, expected: { kind: 'update', target: { description_format: 'html', description_image_paths: ['public-media/catalog/good/33333333-3333-4333-8333-333333333333.webp'] } } },
+  ])('plain 엑셀 왕복에서 $label 값을 보존하고 구분한다', async ({ edits, expected }) => {
     const description = '0\r\n첫 설명\r\n\r\n마지막 설명';
     const record = { ...existing, good: { ...existing.good, description, description_format: 'plain', search_keywords: ['0', '키링', '스티커'], display_order: 0 },
       variants: [{ ...existing.variants[0], erp_code: '00000123' }] };
     const ctx = { ...context, existing: [record] };
     const exported = exportGoodsWorkbookRows(record, ctx);
-    const parsePlan = async (edits: Partial<typeof exported[number]>) => {
-      const parsed = await parseGoodsWorkbookWithKc(await buildGoodsWorkbook([{ ...exported[0], ...edits }]));
-      return planGoodsWorkbookImport(parsed.rows, { ...ctx, kcRows: parsed.kcRows })[0];
-    };
-    expect(await parsePlan({ searchKeywords: '0\r\n키링\r\n스티커' })).toMatchObject({ kind: 'unchanged', target: null });
-    expect(await parsePlan({ description: '0\r\n수정한 설명\r\n\r\n마지막 설명' })).toMatchObject({ kind: 'update', target: { description: '0\n수정한 설명\n\n마지막 설명' } });
-    expect(await parsePlan({ displayOrder: '' })).toMatchObject({ kind: 'update', target: { display_order: null } });
-    expect(await parsePlan({ description: '0' })).toMatchObject({ kind: 'update', target: { description: '0' } });
-    expect(await parsePlan({ description: '' })).toMatchObject({ kind: 'update', target: { description: null } });
-    expect(await parsePlan({ searchKeywords: '0\r\n다른 키워드' })).toMatchObject({ kind: 'update', target: { search_keywords: ['0', '다른 키워드'] } });
-    expect(await parsePlan({ erpCode: '00000124' })).toMatchObject({ kind: 'update', target: { variants: [{ erpCode: '00000124' }] } });
-    const imagePath = 'public-media/catalog/good/33333333-3333-4333-8333-333333333333.webp';
-    expect(await parsePlan({ descriptionFormat: 'html', description: `<p>새 HTML</p>\r\n<img src="${imagePath}" alt="새 이미지">` })).toMatchObject({ kind: 'update', target: { description_format: 'html', description_image_paths: [imagePath] } });
+    const parsed = await parseGoodsWorkbookWithKc(await buildGoodsWorkbook([{ ...exported[0], ...edits }]));
+    expect(planGoodsWorkbookImport(parsed.rows, { ...ctx, kcRows: parsed.kcRows })[0]).toMatchObject(expected);
     expect(record.good.description).toBe(description);
     expect(record.good.display_order).toBe(0);
     expect(record.variants[0].erp_code).toBe('00000123');
@@ -150,6 +236,45 @@ describe('goods Excel planning', () => {
     expect(exported[0]).toMatchObject({ descriptionFormat: 'html', description });
     expect(planGoodsWorkbookImport([{ row: 5, values: exported[0] }], ctx)[0].kind).toBe('unchanged');
     expect(planGoodsWorkbookImport([{ row: 5, values: { ...exported[0], name: '이름만 변경' } }], ctx)[0]).toMatchObject({ kind: 'update', target: { description, description_format: 'html', description_image_paths: [path] } });
+  });
+  /*
+   * 리뷰 재현(T3B-RV-1): R17이 상세 HTML 상한을 200,000자로 올린 뒤, 엑셀 한 칸(32,767자)보다 긴 설명은 내보낸 파일을
+   * 그대로 다시 올려도 '셀 내용이 너무 깁니다'로 거절됐고, Excel에서 저장하면 잘린 설명이 정상 설명을 덮어쓸 수 있었다.
+   * 긴 설명은 표식 문구로 내보내고, 표식을 그대로 두면 저장된 설명·형식을 유지한다.
+   */
+  it('엑셀 한 칸보다 긴 상세 HTML은 표식으로 내보내고 그대로 다시 올리면 기존 설명을 유지한다', async () => {
+    const description = `<h2>상세</h2><p>${'가'.repeat(39980)}</p>`;
+    expect(description.length).toBeGreaterThan(GOODS_WORKBOOK_CELL_MAX);
+    const record = { ...existing, good: { ...existing.good, description, description_format: 'html', description_image_paths: [] } };
+    const ctx = { ...context, existing: [record] };
+    const exported = exportGoodsWorkbookRows(record, ctx);
+    expect(exported[0]).toMatchObject({ descriptionFormat: 'html', description: GOODS_WORKBOOK_LONG_DESCRIPTION_MARKER });
+    const parsed = await parseGoodsWorkbookWithKc(await buildGoodsWorkbook(exported));
+    expect(parsed.rows[0].errors).toEqual([]);
+    expect(parsed.rows[0].values.description).toBe(GOODS_WORKBOOK_LONG_DESCRIPTION_MARKER);
+    expect(planGoodsWorkbookImport(parsed.rows, { ...ctx, kcRows: parsed.kcRows })[0]).toMatchObject({ kind: 'unchanged', target: null });
+    /* 다른 항목을 고쳐도 설명은 표식이 아니라 저장된 원문으로 다시 저장한다. */
+    const edited = planGoodsWorkbookImport([{ row: 5, values: { ...parsed.rows[0].values, name: '이름만 변경' } }], ctx)[0];
+    expect(edited).toMatchObject({ kind: 'update', errors: [], target: { name: '이름만 변경', description, description_format: 'html' } });
+    expect(edited.target?.description).not.toContain('상품 편집에서만 수정');
+  });
+  it('긴 설명 표식은 기존 상품에서만 쓰고 형식을 바꾸면 거절한다', () => {
+    const description = `<p>${'나'.repeat(GOODS_WORKBOOK_CELL_MAX)}</p>`;
+    const record = { ...existing, good: { ...existing.good, description, description_format: 'html', description_image_paths: [] } };
+    const ctx = { ...context, existing: [record] };
+    const exported = exportGoodsWorkbookRows(record, ctx)[0];
+    const plain = planGoodsWorkbookImport([{ row: 5, values: { ...exported, descriptionFormat: 'plain' } }], ctx)[0];
+    expect(plain).toMatchObject({ kind: 'error', target: null });
+    expect(plain.errors.join(' ')).toContain('상세 설명 형식');
+    const created = planGoodsWorkbookImport([row({ price: '1000', variantPrice: '1000', descriptionFormat: 'html', description: GOODS_WORKBOOK_LONG_DESCRIPTION_MARKER })], ctx)[0];
+    expect(created).toMatchObject({ kind: 'error', target: null });
+    expect(created.errors.join(' ')).toContain('상품 편집');
+  });
+  it('엑셀 한 칸에 들어가는 상세 HTML(32,767자)은 표식 없이 원문 그대로 내보낸다', () => {
+    const description = `<p>${'다'.repeat(GOODS_WORKBOOK_CELL_MAX - 7)}</p>`;
+    expect(description.length).toBe(GOODS_WORKBOOK_CELL_MAX);
+    const record = { ...existing, good: { ...existing.good, description, description_format: 'html', description_image_paths: [] } };
+    expect(exportGoodsWorkbookRows(record, context)[0].description).toBe(description);
   });
   it('plans KC-only changes in the same atomic product payload and never discards them as an unchanged product', () => {
     const record = { ...existing, good: { ...existing.good, published_at: null } };
@@ -261,6 +386,13 @@ describe('goods Excel planning', () => {
       },
     });
   });
+  it('소비자가 오류는 편집기의 판매가·할인 대신 엑셀 열 이름(기준 판매가·소비자가)으로 알린다', () => {
+    const [equal] = planGoodsWorkbookImport([row({ code: 'price-eq', price: '12000', compareAtPrice: '12000' })], context);
+    expect(equal.errors).toEqual(['소비자가는 기준 판매가보다 커야 합니다.']);
+    const [text] = planGoodsWorkbookImport([row({ code: 'price-text', price: '12000', compareAtPrice: '12,000원' })], context);
+    expect(text.errors).toEqual(['소비자가는 0 이상의 정수여야 합니다.']);
+    for (const group of [equal, text]) expect(group.errors.join()).not.toMatch(/할인/);
+  });
   it('keeps errors scoped to a complete product group and allows other products', () => {
     const groups = planGoodsWorkbookImport(
       [
@@ -345,6 +477,41 @@ describe('goods Excel planning', () => {
         context,
       ),
     ).toThrow('500행');
+  });
+  it('추가 이미지 9장을 v5 양식으로 왕복하고 9번째 칸만 바꾼 변경을 계획한다', async () => {
+    const gallery = Array.from({ length: 9 }, (_, index) => `public-media/catalog/good/gallery-${index + 1}.webp`);
+    const record = { ...existing, good: { ...existing.good, gallery_paths: gallery } };
+    const ctx = { ...context, existing: [record] };
+    const exported = exportGoodsWorkbookRows(record, ctx);
+    expect(exported[0]).toMatchObject({ galleryUrl0: `https://example.test/${gallery[0]}`, galleryUrl8: `https://example.test/${gallery[8]}` });
+    const parsed = await parseGoodsWorkbookWithKc(await buildGoodsWorkbook(exported));
+    expect(parsed.rows[0].values.galleryUrl8).toBe(`https://example.test/${gallery[8]}`);
+    expect(parsed.rows[0].layout).toBeUndefined();
+    expect(planGoodsWorkbookImport(parsed.rows, { ...ctx, kcRows: parsed.kcRows })[0]).toMatchObject({ kind: 'unchanged' });
+    const changed = planGoodsWorkbookImport([{ row: 5, values: { ...exported[0], galleryUrl8: 'https://img.example.com/new-9.png' } }], ctx)[0];
+    expect(changed).toMatchObject({ kind: 'update', target: { gallery_paths: [...gallery.slice(0, 8), 'import-image:gallery_8'] } });
+    expect(changed.images).toEqual([{ field: 'gallery_8', source: 'https://img.example.com/new-9.png', kind: 'url' }]);
+  });
+  it('갤러리 4칸 v3 양식도 올리고 기존 상품의 추가 이미지 5~9는 저장값을 유지한다', async () => {
+    const gallery = Array.from({ length: 9 }, (_, index) => `public-media/catalog/good/gallery-${index + 1}.webp`);
+    const record = { ...existing, good: { ...existing.good, gallery_paths: gallery } };
+    const ctx = { ...context, existing: [record] };
+    const exported = exportGoodsWorkbookRows(record, ctx)[0];
+    const parsed = await parseGoodsWorkbookWithKc(await v3Workbook([exported]));
+    expect(parsed.rows).toHaveLength(1);
+    expect(parsed.rows[0]).toMatchObject({ row: 5, layout: 'v3', values: { galleryUrl3: exported.galleryUrl3, galleryUrl4: '', galleryUrl8: '', detailImageUrl: exported.detailImageUrl } });
+    expect(parsed.rows[0].values.name).toBe('기존 상품');
+    // 파일에 없는 갤러리 5~9는 빈칸이 아니라 "그대로 둠"이다.
+    expect(planGoodsWorkbookImport(parsed.rows, { ...ctx, kcRows: parsed.kcRows })[0]).toMatchObject({ kind: 'unchanged' });
+    const removedFirst = { ...parsed.rows[0], values: { ...parsed.rows[0].values, galleryUrl0: '' } };
+    const plan = planGoodsWorkbookImport([removedFirst], ctx)[0];
+    expect(plan).toMatchObject({ kind: 'update', target: { gallery_paths: gallery.slice(1) }, images: [] });
+    // 실패 행 파일은 v4로 다시 만들어지므로 유지한 추가 이미지 5~9가 열에 그대로 남는다.
+    expect(plan.source[0].values.galleryUrl8).toBe(`https://example.test/${gallery[8]}`);
+    expect(removedFirst.values.galleryUrl8).toBe('');
+    // 새 상품은 v3 파일의 갤러리 1~4만 쓴다.
+    const fresh = planGoodsWorkbookImport([{ row: 6, layout: 'v3', values: { ...row().values, galleryUrl0: 'https://img.example.com/1.png' } }], ctx)[0];
+    expect(fresh).toMatchObject({ kind: 'new', target: { gallery_paths: ['import-image:gallery_0'] } });
   });
   it('never splits one product across export parts', () => {
     expect(

@@ -1,0 +1,2047 @@
+[
+  {
+    "code": "AD",
+    "alpha3": "AND",
+    "numeric": "020",
+    "name": "안도라",
+    "english": "Andorra",
+    "aliases": []
+  },
+  {
+    "code": "AE",
+    "alpha3": "ARE",
+    "numeric": "784",
+    "name": "아랍에미리트",
+    "english": "United Arab Emirates",
+    "aliases": []
+  },
+  {
+    "code": "AF",
+    "alpha3": "AFG",
+    "numeric": "004",
+    "name": "아프가니스탄",
+    "english": "Afghanistan",
+    "aliases": []
+  },
+  {
+    "code": "AG",
+    "alpha3": "ATG",
+    "numeric": "028",
+    "name": "앤티가 바부다",
+    "english": "Antigua & Barbuda",
+    "aliases": []
+  },
+  {
+    "code": "AI",
+    "alpha3": "AIA",
+    "numeric": "660",
+    "name": "앵귈라",
+    "english": "Anguilla",
+    "aliases": []
+  },
+  {
+    "code": "AL",
+    "alpha3": "ALB",
+    "numeric": "008",
+    "name": "알바니아",
+    "english": "Albania",
+    "aliases": []
+  },
+  {
+    "code": "AM",
+    "alpha3": "ARM",
+    "numeric": "051",
+    "name": "아르메니아",
+    "english": "Armenia",
+    "aliases": []
+  },
+  {
+    "code": "AO",
+    "alpha3": "AGO",
+    "numeric": "024",
+    "name": "앙골라",
+    "english": "Angola",
+    "aliases": []
+  },
+  {
+    "code": "AQ",
+    "alpha3": "ATA",
+    "numeric": "010",
+    "name": "남극 대륙",
+    "english": "Antarctica",
+    "aliases": []
+  },
+  {
+    "code": "AR",
+    "alpha3": "ARG",
+    "numeric": "032",
+    "name": "아르헨티나",
+    "english": "Argentina",
+    "aliases": []
+  },
+  {
+    "code": "AS",
+    "alpha3": "ASM",
+    "numeric": "016",
+    "name": "아메리칸 사모아",
+    "english": "American Samoa",
+    "aliases": []
+  },
+  {
+    "code": "AT",
+    "alpha3": "AUT",
+    "numeric": "040",
+    "name": "오스트리아",
+    "english": "Austria",
+    "aliases": []
+  },
+  {
+    "code": "AU",
+    "alpha3": "AUS",
+    "numeric": "036",
+    "name": "오스트레일리아",
+    "english": "Australia",
+    "aliases": []
+  },
+  {
+    "code": "AW",
+    "alpha3": "ABW",
+    "numeric": "533",
+    "name": "아루바",
+    "english": "Aruba",
+    "aliases": []
+  },
+  {
+    "code": "AX",
+    "alpha3": "ALA",
+    "numeric": "248",
+    "name": "올란드 제도",
+    "english": "Åland Islands",
+    "aliases": []
+  },
+  {
+    "code": "AZ",
+    "alpha3": "AZE",
+    "numeric": "031",
+    "name": "아제르바이잔",
+    "english": "Azerbaijan",
+    "aliases": []
+  },
+  {
+    "code": "BA",
+    "alpha3": "BIH",
+    "numeric": "070",
+    "name": "보스니아 헤르체고비나",
+    "english": "Bosnia & Herzegovina",
+    "aliases": [
+      "Bosnia"
+    ]
+  },
+  {
+    "code": "BB",
+    "alpha3": "BRB",
+    "numeric": "052",
+    "name": "바베이도스",
+    "english": "Barbados",
+    "aliases": []
+  },
+  {
+    "code": "BD",
+    "alpha3": "BGD",
+    "numeric": "050",
+    "name": "방글라데시",
+    "english": "Bangladesh",
+    "aliases": []
+  },
+  {
+    "code": "BE",
+    "alpha3": "BEL",
+    "numeric": "056",
+    "name": "벨기에",
+    "english": "Belgium",
+    "aliases": []
+  },
+  {
+    "code": "BF",
+    "alpha3": "BFA",
+    "numeric": "854",
+    "name": "부르키나파소",
+    "english": "Burkina Faso",
+    "aliases": []
+  },
+  {
+    "code": "BG",
+    "alpha3": "BGR",
+    "numeric": "100",
+    "name": "불가리아",
+    "english": "Bulgaria",
+    "aliases": []
+  },
+  {
+    "code": "BH",
+    "alpha3": "BHR",
+    "numeric": "048",
+    "name": "바레인",
+    "english": "Bahrain",
+    "aliases": []
+  },
+  {
+    "code": "BI",
+    "alpha3": "BDI",
+    "numeric": "108",
+    "name": "부룬디",
+    "english": "Burundi",
+    "aliases": []
+  },
+  {
+    "code": "BJ",
+    "alpha3": "BEN",
+    "numeric": "204",
+    "name": "베냉",
+    "english": "Benin",
+    "aliases": []
+  },
+  {
+    "code": "BL",
+    "alpha3": "BLM",
+    "numeric": "652",
+    "name": "생바르텔레미",
+    "english": "St. Barthélemy",
+    "aliases": []
+  },
+  {
+    "code": "BM",
+    "alpha3": "BMU",
+    "numeric": "060",
+    "name": "버뮤다",
+    "english": "Bermuda",
+    "aliases": []
+  },
+  {
+    "code": "BN",
+    "alpha3": "BRN",
+    "numeric": "096",
+    "name": "브루나이",
+    "english": "Brunei",
+    "aliases": []
+  },
+  {
+    "code": "BO",
+    "alpha3": "BOL",
+    "numeric": "068",
+    "name": "볼리비아",
+    "english": "Bolivia",
+    "aliases": []
+  },
+  {
+    "code": "BQ",
+    "alpha3": "BES",
+    "numeric": "535",
+    "name": "네덜란드령 카리브",
+    "english": "Caribbean Netherlands",
+    "aliases": []
+  },
+  {
+    "code": "BR",
+    "alpha3": "BRA",
+    "numeric": "076",
+    "name": "브라질",
+    "english": "Brazil",
+    "aliases": []
+  },
+  {
+    "code": "BS",
+    "alpha3": "BHS",
+    "numeric": "044",
+    "name": "바하마",
+    "english": "Bahamas",
+    "aliases": []
+  },
+  {
+    "code": "BT",
+    "alpha3": "BTN",
+    "numeric": "064",
+    "name": "부탄",
+    "english": "Bhutan",
+    "aliases": []
+  },
+  {
+    "code": "BV",
+    "alpha3": "BVT",
+    "numeric": "074",
+    "name": "부베섬",
+    "english": "Bouvet Island",
+    "aliases": []
+  },
+  {
+    "code": "BW",
+    "alpha3": "BWA",
+    "numeric": "072",
+    "name": "보츠와나",
+    "english": "Botswana",
+    "aliases": []
+  },
+  {
+    "code": "BY",
+    "alpha3": "BLR",
+    "numeric": "112",
+    "name": "벨라루스",
+    "english": "Belarus",
+    "aliases": []
+  },
+  {
+    "code": "BZ",
+    "alpha3": "BLZ",
+    "numeric": "084",
+    "name": "벨리즈",
+    "english": "Belize",
+    "aliases": []
+  },
+  {
+    "code": "CA",
+    "alpha3": "CAN",
+    "numeric": "124",
+    "name": "캐나다",
+    "english": "Canada",
+    "aliases": []
+  },
+  {
+    "code": "CC",
+    "alpha3": "CCK",
+    "numeric": "166",
+    "name": "코코스 제도",
+    "english": "Cocos (Keeling) Islands",
+    "aliases": [
+      "Cocos Islands"
+    ]
+  },
+  {
+    "code": "CD",
+    "alpha3": "COD",
+    "numeric": "180",
+    "name": "콩고-킨샤사",
+    "english": "Congo - Kinshasa",
+    "aliases": [
+      "Congo (DRC)",
+      "콩고민주공화국"
+    ]
+  },
+  {
+    "code": "CF",
+    "alpha3": "CAF",
+    "numeric": "140",
+    "name": "중앙 아프리카 공화국",
+    "english": "Central African Republic",
+    "aliases": []
+  },
+  {
+    "code": "CG",
+    "alpha3": "COG",
+    "numeric": "178",
+    "name": "콩고-브라자빌",
+    "english": "Congo - Brazzaville",
+    "aliases": [
+      "Congo (Republic)",
+      "콩고 공화국"
+    ]
+  },
+  {
+    "code": "CH",
+    "alpha3": "CHE",
+    "numeric": "756",
+    "name": "스위스",
+    "english": "Switzerland",
+    "aliases": []
+  },
+  {
+    "code": "CI",
+    "alpha3": "CIV",
+    "numeric": "384",
+    "name": "코트디부아르",
+    "english": "Côte d’Ivoire",
+    "aliases": [
+      "Ivory Coast",
+      "아이보리 코스트"
+    ]
+  },
+  {
+    "code": "CK",
+    "alpha3": "COK",
+    "numeric": "184",
+    "name": "쿡 제도",
+    "english": "Cook Islands",
+    "aliases": []
+  },
+  {
+    "code": "CL",
+    "alpha3": "CHL",
+    "numeric": "152",
+    "name": "칠레",
+    "english": "Chile",
+    "aliases": []
+  },
+  {
+    "code": "CM",
+    "alpha3": "CMR",
+    "numeric": "120",
+    "name": "카메룬",
+    "english": "Cameroon",
+    "aliases": []
+  },
+  {
+    "code": "CN",
+    "alpha3": "CHN",
+    "numeric": "156",
+    "name": "중국",
+    "english": "China",
+    "aliases": []
+  },
+  {
+    "code": "CO",
+    "alpha3": "COL",
+    "numeric": "170",
+    "name": "콜롬비아",
+    "english": "Colombia",
+    "aliases": []
+  },
+  {
+    "code": "CR",
+    "alpha3": "CRI",
+    "numeric": "188",
+    "name": "코스타리카",
+    "english": "Costa Rica",
+    "aliases": []
+  },
+  {
+    "code": "CU",
+    "alpha3": "CUB",
+    "numeric": "192",
+    "name": "쿠바",
+    "english": "Cuba",
+    "aliases": []
+  },
+  {
+    "code": "CV",
+    "alpha3": "CPV",
+    "numeric": "132",
+    "name": "카보베르데",
+    "english": "Cape Verde",
+    "aliases": [
+      "Cabo Verde"
+    ]
+  },
+  {
+    "code": "CW",
+    "alpha3": "CUW",
+    "numeric": "531",
+    "name": "퀴라소",
+    "english": "Curaçao",
+    "aliases": []
+  },
+  {
+    "code": "CX",
+    "alpha3": "CXR",
+    "numeric": "162",
+    "name": "크리스마스섬",
+    "english": "Christmas Island",
+    "aliases": []
+  },
+  {
+    "code": "CY",
+    "alpha3": "CYP",
+    "numeric": "196",
+    "name": "키프로스",
+    "english": "Cyprus",
+    "aliases": []
+  },
+  {
+    "code": "CZ",
+    "alpha3": "CZE",
+    "numeric": "203",
+    "name": "체코",
+    "english": "Czechia",
+    "aliases": [
+      "Czech Republic",
+      "체코 공화국"
+    ]
+  },
+  {
+    "code": "DE",
+    "alpha3": "DEU",
+    "numeric": "276",
+    "name": "독일",
+    "english": "Germany",
+    "aliases": []
+  },
+  {
+    "code": "DJ",
+    "alpha3": "DJI",
+    "numeric": "262",
+    "name": "지부티",
+    "english": "Djibouti",
+    "aliases": []
+  },
+  {
+    "code": "DK",
+    "alpha3": "DNK",
+    "numeric": "208",
+    "name": "덴마크",
+    "english": "Denmark",
+    "aliases": []
+  },
+  {
+    "code": "DM",
+    "alpha3": "DMA",
+    "numeric": "212",
+    "name": "도미니카",
+    "english": "Dominica",
+    "aliases": []
+  },
+  {
+    "code": "DO",
+    "alpha3": "DOM",
+    "numeric": "214",
+    "name": "도미니카 공화국",
+    "english": "Dominican Republic",
+    "aliases": []
+  },
+  {
+    "code": "DZ",
+    "alpha3": "DZA",
+    "numeric": "012",
+    "name": "알제리",
+    "english": "Algeria",
+    "aliases": []
+  },
+  {
+    "code": "EC",
+    "alpha3": "ECU",
+    "numeric": "218",
+    "name": "에콰도르",
+    "english": "Ecuador",
+    "aliases": []
+  },
+  {
+    "code": "EE",
+    "alpha3": "EST",
+    "numeric": "233",
+    "name": "에스토니아",
+    "english": "Estonia",
+    "aliases": []
+  },
+  {
+    "code": "EG",
+    "alpha3": "EGY",
+    "numeric": "818",
+    "name": "이집트",
+    "english": "Egypt",
+    "aliases": []
+  },
+  {
+    "code": "EH",
+    "alpha3": "ESH",
+    "numeric": "732",
+    "name": "서사하라",
+    "english": "Western Sahara",
+    "aliases": []
+  },
+  {
+    "code": "ER",
+    "alpha3": "ERI",
+    "numeric": "232",
+    "name": "에리트리아",
+    "english": "Eritrea",
+    "aliases": []
+  },
+  {
+    "code": "ES",
+    "alpha3": "ESP",
+    "numeric": "724",
+    "name": "스페인",
+    "english": "Spain",
+    "aliases": []
+  },
+  {
+    "code": "ET",
+    "alpha3": "ETH",
+    "numeric": "231",
+    "name": "에티오피아",
+    "english": "Ethiopia",
+    "aliases": []
+  },
+  {
+    "code": "FI",
+    "alpha3": "FIN",
+    "numeric": "246",
+    "name": "핀란드",
+    "english": "Finland",
+    "aliases": []
+  },
+  {
+    "code": "FJ",
+    "alpha3": "FJI",
+    "numeric": "242",
+    "name": "피지",
+    "english": "Fiji",
+    "aliases": []
+  },
+  {
+    "code": "FK",
+    "alpha3": "FLK",
+    "numeric": "238",
+    "name": "포클랜드 제도",
+    "english": "Falkland Islands",
+    "aliases": [
+      "Falkland Islands (Islas Malvinas)",
+      "포클랜드 제도(말비나스 군도)"
+    ]
+  },
+  {
+    "code": "FM",
+    "alpha3": "FSM",
+    "numeric": "583",
+    "name": "미크로네시아",
+    "english": "Micronesia",
+    "aliases": []
+  },
+  {
+    "code": "FO",
+    "alpha3": "FRO",
+    "numeric": "234",
+    "name": "페로 제도",
+    "english": "Faroe Islands",
+    "aliases": []
+  },
+  {
+    "code": "FR",
+    "alpha3": "FRA",
+    "numeric": "250",
+    "name": "프랑스",
+    "english": "France",
+    "aliases": []
+  },
+  {
+    "code": "GA",
+    "alpha3": "GAB",
+    "numeric": "266",
+    "name": "가봉",
+    "english": "Gabon",
+    "aliases": []
+  },
+  {
+    "code": "GB",
+    "alpha3": "GBR",
+    "numeric": "826",
+    "name": "영국",
+    "english": "United Kingdom",
+    "aliases": [
+      "UK"
+    ]
+  },
+  {
+    "code": "GD",
+    "alpha3": "GRD",
+    "numeric": "308",
+    "name": "그레나다",
+    "english": "Grenada",
+    "aliases": []
+  },
+  {
+    "code": "GE",
+    "alpha3": "GEO",
+    "numeric": "268",
+    "name": "조지아",
+    "english": "Georgia",
+    "aliases": []
+  },
+  {
+    "code": "GF",
+    "alpha3": "GUF",
+    "numeric": "254",
+    "name": "프랑스령 기아나",
+    "english": "French Guiana",
+    "aliases": []
+  },
+  {
+    "code": "GG",
+    "alpha3": "GGY",
+    "numeric": "831",
+    "name": "건지",
+    "english": "Guernsey",
+    "aliases": []
+  },
+  {
+    "code": "GH",
+    "alpha3": "GHA",
+    "numeric": "288",
+    "name": "가나",
+    "english": "Ghana",
+    "aliases": []
+  },
+  {
+    "code": "GI",
+    "alpha3": "GIB",
+    "numeric": "292",
+    "name": "지브롤터",
+    "english": "Gibraltar",
+    "aliases": []
+  },
+  {
+    "code": "GL",
+    "alpha3": "GRL",
+    "numeric": "304",
+    "name": "그린란드",
+    "english": "Greenland",
+    "aliases": []
+  },
+  {
+    "code": "GM",
+    "alpha3": "GMB",
+    "numeric": "270",
+    "name": "감비아",
+    "english": "Gambia",
+    "aliases": []
+  },
+  {
+    "code": "GN",
+    "alpha3": "GIN",
+    "numeric": "324",
+    "name": "기니",
+    "english": "Guinea",
+    "aliases": []
+  },
+  {
+    "code": "GP",
+    "alpha3": "GLP",
+    "numeric": "312",
+    "name": "과들루프",
+    "english": "Guadeloupe",
+    "aliases": []
+  },
+  {
+    "code": "GQ",
+    "alpha3": "GNQ",
+    "numeric": "226",
+    "name": "적도 기니",
+    "english": "Equatorial Guinea",
+    "aliases": []
+  },
+  {
+    "code": "GR",
+    "alpha3": "GRC",
+    "numeric": "300",
+    "name": "그리스",
+    "english": "Greece",
+    "aliases": []
+  },
+  {
+    "code": "GS",
+    "alpha3": "SGS",
+    "numeric": "239",
+    "name": "사우스조지아 사우스샌드위치 제도",
+    "english": "South Georgia & South Sandwich Islands",
+    "aliases": []
+  },
+  {
+    "code": "GT",
+    "alpha3": "GTM",
+    "numeric": "320",
+    "name": "과테말라",
+    "english": "Guatemala",
+    "aliases": []
+  },
+  {
+    "code": "GU",
+    "alpha3": "GUM",
+    "numeric": "316",
+    "name": "괌",
+    "english": "Guam",
+    "aliases": []
+  },
+  {
+    "code": "GW",
+    "alpha3": "GNB",
+    "numeric": "624",
+    "name": "기니비사우",
+    "english": "Guinea-Bissau",
+    "aliases": []
+  },
+  {
+    "code": "GY",
+    "alpha3": "GUY",
+    "numeric": "328",
+    "name": "가이아나",
+    "english": "Guyana",
+    "aliases": []
+  },
+  {
+    "code": "HK",
+    "alpha3": "HKG",
+    "numeric": "344",
+    "name": "홍콩(중국 특별행정구)",
+    "english": "Hong Kong SAR China",
+    "aliases": [
+      "Hong Kong",
+      "홍콩"
+    ]
+  },
+  {
+    "code": "HM",
+    "alpha3": "HMD",
+    "numeric": "334",
+    "name": "허드 맥도널드 제도",
+    "english": "Heard & McDonald Islands",
+    "aliases": []
+  },
+  {
+    "code": "HN",
+    "alpha3": "HND",
+    "numeric": "340",
+    "name": "온두라스",
+    "english": "Honduras",
+    "aliases": []
+  },
+  {
+    "code": "HR",
+    "alpha3": "HRV",
+    "numeric": "191",
+    "name": "크로아티아",
+    "english": "Croatia",
+    "aliases": []
+  },
+  {
+    "code": "HT",
+    "alpha3": "HTI",
+    "numeric": "332",
+    "name": "아이티",
+    "english": "Haiti",
+    "aliases": []
+  },
+  {
+    "code": "HU",
+    "alpha3": "HUN",
+    "numeric": "348",
+    "name": "헝가리",
+    "english": "Hungary",
+    "aliases": []
+  },
+  {
+    "code": "ID",
+    "alpha3": "IDN",
+    "numeric": "360",
+    "name": "인도네시아",
+    "english": "Indonesia",
+    "aliases": []
+  },
+  {
+    "code": "IE",
+    "alpha3": "IRL",
+    "numeric": "372",
+    "name": "아일랜드",
+    "english": "Ireland",
+    "aliases": []
+  },
+  {
+    "code": "IL",
+    "alpha3": "ISR",
+    "numeric": "376",
+    "name": "이스라엘",
+    "english": "Israel",
+    "aliases": []
+  },
+  {
+    "code": "IM",
+    "alpha3": "IMN",
+    "numeric": "833",
+    "name": "맨섬",
+    "english": "Isle of Man",
+    "aliases": []
+  },
+  {
+    "code": "IN",
+    "alpha3": "IND",
+    "numeric": "356",
+    "name": "인도",
+    "english": "India",
+    "aliases": []
+  },
+  {
+    "code": "IO",
+    "alpha3": "IOT",
+    "numeric": "086",
+    "name": "영국령 인도양 지역",
+    "english": "British Indian Ocean Territory",
+    "aliases": [
+      "Chagos Archipelago",
+      "차고스 제도"
+    ]
+  },
+  {
+    "code": "IQ",
+    "alpha3": "IRQ",
+    "numeric": "368",
+    "name": "이라크",
+    "english": "Iraq",
+    "aliases": []
+  },
+  {
+    "code": "IR",
+    "alpha3": "IRN",
+    "numeric": "364",
+    "name": "이란",
+    "english": "Iran",
+    "aliases": []
+  },
+  {
+    "code": "IS",
+    "alpha3": "ISL",
+    "numeric": "352",
+    "name": "아이슬란드",
+    "english": "Iceland",
+    "aliases": []
+  },
+  {
+    "code": "IT",
+    "alpha3": "ITA",
+    "numeric": "380",
+    "name": "이탈리아",
+    "english": "Italy",
+    "aliases": []
+  },
+  {
+    "code": "JE",
+    "alpha3": "JEY",
+    "numeric": "832",
+    "name": "저지",
+    "english": "Jersey",
+    "aliases": []
+  },
+  {
+    "code": "JM",
+    "alpha3": "JAM",
+    "numeric": "388",
+    "name": "자메이카",
+    "english": "Jamaica",
+    "aliases": []
+  },
+  {
+    "code": "JO",
+    "alpha3": "JOR",
+    "numeric": "400",
+    "name": "요르단",
+    "english": "Jordan",
+    "aliases": []
+  },
+  {
+    "code": "JP",
+    "alpha3": "JPN",
+    "numeric": "392",
+    "name": "일본",
+    "english": "Japan",
+    "aliases": []
+  },
+  {
+    "code": "KE",
+    "alpha3": "KEN",
+    "numeric": "404",
+    "name": "케냐",
+    "english": "Kenya",
+    "aliases": []
+  },
+  {
+    "code": "KG",
+    "alpha3": "KGZ",
+    "numeric": "417",
+    "name": "키르기스스탄",
+    "english": "Kyrgyzstan",
+    "aliases": []
+  },
+  {
+    "code": "KH",
+    "alpha3": "KHM",
+    "numeric": "116",
+    "name": "캄보디아",
+    "english": "Cambodia",
+    "aliases": []
+  },
+  {
+    "code": "KI",
+    "alpha3": "KIR",
+    "numeric": "296",
+    "name": "키리바시",
+    "english": "Kiribati",
+    "aliases": []
+  },
+  {
+    "code": "KM",
+    "alpha3": "COM",
+    "numeric": "174",
+    "name": "코모로",
+    "english": "Comoros",
+    "aliases": []
+  },
+  {
+    "code": "KN",
+    "alpha3": "KNA",
+    "numeric": "659",
+    "name": "세인트키츠 네비스",
+    "english": "St. Kitts & Nevis",
+    "aliases": []
+  },
+  {
+    "code": "KP",
+    "alpha3": "PRK",
+    "numeric": "408",
+    "name": "북한",
+    "english": "North Korea",
+    "aliases": []
+  },
+  {
+    "code": "KR",
+    "alpha3": "KOR",
+    "numeric": "410",
+    "name": "대한민국",
+    "english": "South Korea",
+    "aliases": [
+      "한국"
+    ]
+  },
+  {
+    "code": "KW",
+    "alpha3": "KWT",
+    "numeric": "414",
+    "name": "쿠웨이트",
+    "english": "Kuwait",
+    "aliases": []
+  },
+  {
+    "code": "KY",
+    "alpha3": "CYM",
+    "numeric": "136",
+    "name": "케이맨 제도",
+    "english": "Cayman Islands",
+    "aliases": []
+  },
+  {
+    "code": "KZ",
+    "alpha3": "KAZ",
+    "numeric": "398",
+    "name": "카자흐스탄",
+    "english": "Kazakhstan",
+    "aliases": []
+  },
+  {
+    "code": "LA",
+    "alpha3": "LAO",
+    "numeric": "418",
+    "name": "라오스",
+    "english": "Laos",
+    "aliases": []
+  },
+  {
+    "code": "LB",
+    "alpha3": "LBN",
+    "numeric": "422",
+    "name": "레바논",
+    "english": "Lebanon",
+    "aliases": []
+  },
+  {
+    "code": "LC",
+    "alpha3": "LCA",
+    "numeric": "662",
+    "name": "세인트루시아",
+    "english": "St. Lucia",
+    "aliases": []
+  },
+  {
+    "code": "LI",
+    "alpha3": "LIE",
+    "numeric": "438",
+    "name": "리히텐슈타인",
+    "english": "Liechtenstein",
+    "aliases": []
+  },
+  {
+    "code": "LK",
+    "alpha3": "LKA",
+    "numeric": "144",
+    "name": "스리랑카",
+    "english": "Sri Lanka",
+    "aliases": []
+  },
+  {
+    "code": "LR",
+    "alpha3": "LBR",
+    "numeric": "430",
+    "name": "라이베리아",
+    "english": "Liberia",
+    "aliases": []
+  },
+  {
+    "code": "LS",
+    "alpha3": "LSO",
+    "numeric": "426",
+    "name": "레소토",
+    "english": "Lesotho",
+    "aliases": []
+  },
+  {
+    "code": "LT",
+    "alpha3": "LTU",
+    "numeric": "440",
+    "name": "리투아니아",
+    "english": "Lithuania",
+    "aliases": []
+  },
+  {
+    "code": "LU",
+    "alpha3": "LUX",
+    "numeric": "442",
+    "name": "룩셈부르크",
+    "english": "Luxembourg",
+    "aliases": []
+  },
+  {
+    "code": "LV",
+    "alpha3": "LVA",
+    "numeric": "428",
+    "name": "라트비아",
+    "english": "Latvia",
+    "aliases": []
+  },
+  {
+    "code": "LY",
+    "alpha3": "LBY",
+    "numeric": "434",
+    "name": "리비아",
+    "english": "Libya",
+    "aliases": []
+  },
+  {
+    "code": "MA",
+    "alpha3": "MAR",
+    "numeric": "504",
+    "name": "모로코",
+    "english": "Morocco",
+    "aliases": []
+  },
+  {
+    "code": "MC",
+    "alpha3": "MCO",
+    "numeric": "492",
+    "name": "모나코",
+    "english": "Monaco",
+    "aliases": []
+  },
+  {
+    "code": "MD",
+    "alpha3": "MDA",
+    "numeric": "498",
+    "name": "몰도바",
+    "english": "Moldova",
+    "aliases": []
+  },
+  {
+    "code": "ME",
+    "alpha3": "MNE",
+    "numeric": "499",
+    "name": "몬테네그로",
+    "english": "Montenegro",
+    "aliases": []
+  },
+  {
+    "code": "MF",
+    "alpha3": "MAF",
+    "numeric": "663",
+    "name": "생마르탱",
+    "english": "St. Martin",
+    "aliases": []
+  },
+  {
+    "code": "MG",
+    "alpha3": "MDG",
+    "numeric": "450",
+    "name": "마다가스카르",
+    "english": "Madagascar",
+    "aliases": []
+  },
+  {
+    "code": "MH",
+    "alpha3": "MHL",
+    "numeric": "584",
+    "name": "마셜 제도",
+    "english": "Marshall Islands",
+    "aliases": []
+  },
+  {
+    "code": "MK",
+    "alpha3": "MKD",
+    "numeric": "807",
+    "name": "북마케도니아",
+    "english": "North Macedonia",
+    "aliases": []
+  },
+  {
+    "code": "ML",
+    "alpha3": "MLI",
+    "numeric": "466",
+    "name": "말리",
+    "english": "Mali",
+    "aliases": []
+  },
+  {
+    "code": "MM",
+    "alpha3": "MMR",
+    "numeric": "104",
+    "name": "미얀마",
+    "english": "Myanmar (Burma)",
+    "aliases": [
+      "Myanmar"
+    ]
+  },
+  {
+    "code": "MN",
+    "alpha3": "MNG",
+    "numeric": "496",
+    "name": "몽골",
+    "english": "Mongolia",
+    "aliases": []
+  },
+  {
+    "code": "MO",
+    "alpha3": "MAC",
+    "numeric": "446",
+    "name": "마카오(중국 특별행정구)",
+    "english": "Macao SAR China",
+    "aliases": [
+      "Macao",
+      "마카오"
+    ]
+  },
+  {
+    "code": "MP",
+    "alpha3": "MNP",
+    "numeric": "580",
+    "name": "북마리아나제도",
+    "english": "Northern Mariana Islands",
+    "aliases": []
+  },
+  {
+    "code": "MQ",
+    "alpha3": "MTQ",
+    "numeric": "474",
+    "name": "마르티니크",
+    "english": "Martinique",
+    "aliases": []
+  },
+  {
+    "code": "MR",
+    "alpha3": "MRT",
+    "numeric": "478",
+    "name": "모리타니",
+    "english": "Mauritania",
+    "aliases": []
+  },
+  {
+    "code": "MS",
+    "alpha3": "MSR",
+    "numeric": "500",
+    "name": "몬트세라트",
+    "english": "Montserrat",
+    "aliases": []
+  },
+  {
+    "code": "MT",
+    "alpha3": "MLT",
+    "numeric": "470",
+    "name": "몰타",
+    "english": "Malta",
+    "aliases": []
+  },
+  {
+    "code": "MU",
+    "alpha3": "MUS",
+    "numeric": "480",
+    "name": "모리셔스",
+    "english": "Mauritius",
+    "aliases": []
+  },
+  {
+    "code": "MV",
+    "alpha3": "MDV",
+    "numeric": "462",
+    "name": "몰디브",
+    "english": "Maldives",
+    "aliases": []
+  },
+  {
+    "code": "MW",
+    "alpha3": "MWI",
+    "numeric": "454",
+    "name": "말라위",
+    "english": "Malawi",
+    "aliases": []
+  },
+  {
+    "code": "MX",
+    "alpha3": "MEX",
+    "numeric": "484",
+    "name": "멕시코",
+    "english": "Mexico",
+    "aliases": []
+  },
+  {
+    "code": "MY",
+    "alpha3": "MYS",
+    "numeric": "458",
+    "name": "말레이시아",
+    "english": "Malaysia",
+    "aliases": []
+  },
+  {
+    "code": "MZ",
+    "alpha3": "MOZ",
+    "numeric": "508",
+    "name": "모잠비크",
+    "english": "Mozambique",
+    "aliases": []
+  },
+  {
+    "code": "NA",
+    "alpha3": "NAM",
+    "numeric": "516",
+    "name": "나미비아",
+    "english": "Namibia",
+    "aliases": []
+  },
+  {
+    "code": "NC",
+    "alpha3": "NCL",
+    "numeric": "540",
+    "name": "뉴칼레도니아",
+    "english": "New Caledonia",
+    "aliases": []
+  },
+  {
+    "code": "NE",
+    "alpha3": "NER",
+    "numeric": "562",
+    "name": "니제르",
+    "english": "Niger",
+    "aliases": []
+  },
+  {
+    "code": "NF",
+    "alpha3": "NFK",
+    "numeric": "574",
+    "name": "노퍽섬",
+    "english": "Norfolk Island",
+    "aliases": []
+  },
+  {
+    "code": "NG",
+    "alpha3": "NGA",
+    "numeric": "566",
+    "name": "나이지리아",
+    "english": "Nigeria",
+    "aliases": []
+  },
+  {
+    "code": "NI",
+    "alpha3": "NIC",
+    "numeric": "558",
+    "name": "니카라과",
+    "english": "Nicaragua",
+    "aliases": []
+  },
+  {
+    "code": "NL",
+    "alpha3": "NLD",
+    "numeric": "528",
+    "name": "네덜란드",
+    "english": "Netherlands",
+    "aliases": []
+  },
+  {
+    "code": "NO",
+    "alpha3": "NOR",
+    "numeric": "578",
+    "name": "노르웨이",
+    "english": "Norway",
+    "aliases": []
+  },
+  {
+    "code": "NP",
+    "alpha3": "NPL",
+    "numeric": "524",
+    "name": "네팔",
+    "english": "Nepal",
+    "aliases": []
+  },
+  {
+    "code": "NR",
+    "alpha3": "NRU",
+    "numeric": "520",
+    "name": "나우루",
+    "english": "Nauru",
+    "aliases": []
+  },
+  {
+    "code": "NU",
+    "alpha3": "NIU",
+    "numeric": "570",
+    "name": "니우에",
+    "english": "Niue",
+    "aliases": []
+  },
+  {
+    "code": "NZ",
+    "alpha3": "NZL",
+    "numeric": "554",
+    "name": "뉴질랜드",
+    "english": "New Zealand",
+    "aliases": [
+      "Aotearoa New Zealand"
+    ]
+  },
+  {
+    "code": "OM",
+    "alpha3": "OMN",
+    "numeric": "512",
+    "name": "오만",
+    "english": "Oman",
+    "aliases": []
+  },
+  {
+    "code": "PA",
+    "alpha3": "PAN",
+    "numeric": "591",
+    "name": "파나마",
+    "english": "Panama",
+    "aliases": []
+  },
+  {
+    "code": "PE",
+    "alpha3": "PER",
+    "numeric": "604",
+    "name": "페루",
+    "english": "Peru",
+    "aliases": []
+  },
+  {
+    "code": "PF",
+    "alpha3": "PYF",
+    "numeric": "258",
+    "name": "프랑스령 폴리네시아",
+    "english": "French Polynesia",
+    "aliases": []
+  },
+  {
+    "code": "PG",
+    "alpha3": "PNG",
+    "numeric": "598",
+    "name": "파푸아뉴기니",
+    "english": "Papua New Guinea",
+    "aliases": []
+  },
+  {
+    "code": "PH",
+    "alpha3": "PHL",
+    "numeric": "608",
+    "name": "필리핀",
+    "english": "Philippines",
+    "aliases": []
+  },
+  {
+    "code": "PK",
+    "alpha3": "PAK",
+    "numeric": "586",
+    "name": "파키스탄",
+    "english": "Pakistan",
+    "aliases": []
+  },
+  {
+    "code": "PL",
+    "alpha3": "POL",
+    "numeric": "616",
+    "name": "폴란드",
+    "english": "Poland",
+    "aliases": []
+  },
+  {
+    "code": "PM",
+    "alpha3": "SPM",
+    "numeric": "666",
+    "name": "생피에르 미클롱",
+    "english": "St. Pierre & Miquelon",
+    "aliases": []
+  },
+  {
+    "code": "PN",
+    "alpha3": "PCN",
+    "numeric": "612",
+    "name": "핏케언 제도",
+    "english": "Pitcairn Islands",
+    "aliases": [
+      "Pitcairn"
+    ]
+  },
+  {
+    "code": "PR",
+    "alpha3": "PRI",
+    "numeric": "630",
+    "name": "푸에르토리코",
+    "english": "Puerto Rico",
+    "aliases": []
+  },
+  {
+    "code": "PS",
+    "alpha3": "PSE",
+    "numeric": "275",
+    "name": "팔레스타인 지구",
+    "english": "Palestinian Territories",
+    "aliases": [
+      "Palestine",
+      "팔레스타인"
+    ]
+  },
+  {
+    "code": "PT",
+    "alpha3": "PRT",
+    "numeric": "620",
+    "name": "포르투갈",
+    "english": "Portugal",
+    "aliases": []
+  },
+  {
+    "code": "PW",
+    "alpha3": "PLW",
+    "numeric": "585",
+    "name": "팔라우",
+    "english": "Palau",
+    "aliases": []
+  },
+  {
+    "code": "PY",
+    "alpha3": "PRY",
+    "numeric": "600",
+    "name": "파라과이",
+    "english": "Paraguay",
+    "aliases": []
+  },
+  {
+    "code": "QA",
+    "alpha3": "QAT",
+    "numeric": "634",
+    "name": "카타르",
+    "english": "Qatar",
+    "aliases": []
+  },
+  {
+    "code": "RE",
+    "alpha3": "REU",
+    "numeric": "638",
+    "name": "레위니옹",
+    "english": "Réunion",
+    "aliases": []
+  },
+  {
+    "code": "RO",
+    "alpha3": "ROU",
+    "numeric": "642",
+    "name": "루마니아",
+    "english": "Romania",
+    "aliases": []
+  },
+  {
+    "code": "RS",
+    "alpha3": "SRB",
+    "numeric": "688",
+    "name": "세르비아",
+    "english": "Serbia",
+    "aliases": []
+  },
+  {
+    "code": "RU",
+    "alpha3": "RUS",
+    "numeric": "643",
+    "name": "러시아",
+    "english": "Russia",
+    "aliases": []
+  },
+  {
+    "code": "RW",
+    "alpha3": "RWA",
+    "numeric": "646",
+    "name": "르완다",
+    "english": "Rwanda",
+    "aliases": []
+  },
+  {
+    "code": "SA",
+    "alpha3": "SAU",
+    "numeric": "682",
+    "name": "사우디아라비아",
+    "english": "Saudi Arabia",
+    "aliases": []
+  },
+  {
+    "code": "SB",
+    "alpha3": "SLB",
+    "numeric": "090",
+    "name": "솔로몬 제도",
+    "english": "Solomon Islands",
+    "aliases": []
+  },
+  {
+    "code": "SC",
+    "alpha3": "SYC",
+    "numeric": "690",
+    "name": "세이셸",
+    "english": "Seychelles",
+    "aliases": []
+  },
+  {
+    "code": "SD",
+    "alpha3": "SDN",
+    "numeric": "729",
+    "name": "수단",
+    "english": "Sudan",
+    "aliases": []
+  },
+  {
+    "code": "SE",
+    "alpha3": "SWE",
+    "numeric": "752",
+    "name": "스웨덴",
+    "english": "Sweden",
+    "aliases": []
+  },
+  {
+    "code": "SG",
+    "alpha3": "SGP",
+    "numeric": "702",
+    "name": "싱가포르",
+    "english": "Singapore",
+    "aliases": []
+  },
+  {
+    "code": "SH",
+    "alpha3": "SHN",
+    "numeric": "654",
+    "name": "세인트헬레나",
+    "english": "St. Helena",
+    "aliases": []
+  },
+  {
+    "code": "SI",
+    "alpha3": "SVN",
+    "numeric": "705",
+    "name": "슬로베니아",
+    "english": "Slovenia",
+    "aliases": []
+  },
+  {
+    "code": "SJ",
+    "alpha3": "SJM",
+    "numeric": "744",
+    "name": "스발바르제도-얀마웬섬",
+    "english": "Svalbard & Jan Mayen",
+    "aliases": []
+  },
+  {
+    "code": "SK",
+    "alpha3": "SVK",
+    "numeric": "703",
+    "name": "슬로바키아",
+    "english": "Slovakia",
+    "aliases": []
+  },
+  {
+    "code": "SL",
+    "alpha3": "SLE",
+    "numeric": "694",
+    "name": "시에라리온",
+    "english": "Sierra Leone",
+    "aliases": []
+  },
+  {
+    "code": "SM",
+    "alpha3": "SMR",
+    "numeric": "674",
+    "name": "산마리노",
+    "english": "San Marino",
+    "aliases": []
+  },
+  {
+    "code": "SN",
+    "alpha3": "SEN",
+    "numeric": "686",
+    "name": "세네갈",
+    "english": "Senegal",
+    "aliases": []
+  },
+  {
+    "code": "SO",
+    "alpha3": "SOM",
+    "numeric": "706",
+    "name": "소말리아",
+    "english": "Somalia",
+    "aliases": []
+  },
+  {
+    "code": "SR",
+    "alpha3": "SUR",
+    "numeric": "740",
+    "name": "수리남",
+    "english": "Suriname",
+    "aliases": []
+  },
+  {
+    "code": "SS",
+    "alpha3": "SSD",
+    "numeric": "728",
+    "name": "남수단",
+    "english": "South Sudan",
+    "aliases": []
+  },
+  {
+    "code": "ST",
+    "alpha3": "STP",
+    "numeric": "678",
+    "name": "상투메 프린시페",
+    "english": "São Tomé & Príncipe",
+    "aliases": []
+  },
+  {
+    "code": "SV",
+    "alpha3": "SLV",
+    "numeric": "222",
+    "name": "엘살바도르",
+    "english": "El Salvador",
+    "aliases": []
+  },
+  {
+    "code": "SX",
+    "alpha3": "SXM",
+    "numeric": "534",
+    "name": "신트마르턴",
+    "english": "Sint Maarten",
+    "aliases": []
+  },
+  {
+    "code": "SY",
+    "alpha3": "SYR",
+    "numeric": "760",
+    "name": "시리아",
+    "english": "Syria",
+    "aliases": []
+  },
+  {
+    "code": "SZ",
+    "alpha3": "SWZ",
+    "numeric": "748",
+    "name": "에스와티니",
+    "english": "Eswatini",
+    "aliases": [
+      "Swaziland",
+      "스와질란드"
+    ]
+  },
+  {
+    "code": "TC",
+    "alpha3": "TCA",
+    "numeric": "796",
+    "name": "터크스 케이커스 제도",
+    "english": "Turks & Caicos Islands",
+    "aliases": []
+  },
+  {
+    "code": "TD",
+    "alpha3": "TCD",
+    "numeric": "148",
+    "name": "차드",
+    "english": "Chad",
+    "aliases": []
+  },
+  {
+    "code": "TF",
+    "alpha3": "ATF",
+    "numeric": "260",
+    "name": "프랑스령 남방 지역",
+    "english": "French Southern Territories",
+    "aliases": []
+  },
+  {
+    "code": "TG",
+    "alpha3": "TGO",
+    "numeric": "768",
+    "name": "토고",
+    "english": "Togo",
+    "aliases": []
+  },
+  {
+    "code": "TH",
+    "alpha3": "THA",
+    "numeric": "764",
+    "name": "태국",
+    "english": "Thailand",
+    "aliases": []
+  },
+  {
+    "code": "TJ",
+    "alpha3": "TJK",
+    "numeric": "762",
+    "name": "타지키스탄",
+    "english": "Tajikistan",
+    "aliases": []
+  },
+  {
+    "code": "TK",
+    "alpha3": "TKL",
+    "numeric": "772",
+    "name": "토켈라우",
+    "english": "Tokelau",
+    "aliases": []
+  },
+  {
+    "code": "TL",
+    "alpha3": "TLS",
+    "numeric": "626",
+    "name": "동티모르",
+    "english": "Timor-Leste",
+    "aliases": [
+      "East Timor",
+      "티모르레스테"
+    ]
+  },
+  {
+    "code": "TM",
+    "alpha3": "TKM",
+    "numeric": "795",
+    "name": "투르크메니스탄",
+    "english": "Turkmenistan",
+    "aliases": []
+  },
+  {
+    "code": "TN",
+    "alpha3": "TUN",
+    "numeric": "788",
+    "name": "튀니지",
+    "english": "Tunisia",
+    "aliases": []
+  },
+  {
+    "code": "TO",
+    "alpha3": "TON",
+    "numeric": "776",
+    "name": "통가",
+    "english": "Tonga",
+    "aliases": []
+  },
+  {
+    "code": "TR",
+    "alpha3": "TUR",
+    "numeric": "792",
+    "name": "튀르키예",
+    "english": "Türkiye",
+    "aliases": [
+      "Turkey"
+    ]
+  },
+  {
+    "code": "TT",
+    "alpha3": "TTO",
+    "numeric": "780",
+    "name": "트리니다드 토바고",
+    "english": "Trinidad & Tobago",
+    "aliases": []
+  },
+  {
+    "code": "TV",
+    "alpha3": "TUV",
+    "numeric": "798",
+    "name": "투발루",
+    "english": "Tuvalu",
+    "aliases": []
+  },
+  {
+    "code": "TW",
+    "alpha3": "TWN",
+    "numeric": "158",
+    "name": "대만",
+    "english": "Taiwan",
+    "aliases": []
+  },
+  {
+    "code": "TZ",
+    "alpha3": "TZA",
+    "numeric": "834",
+    "name": "탄자니아",
+    "english": "Tanzania",
+    "aliases": []
+  },
+  {
+    "code": "UA",
+    "alpha3": "UKR",
+    "numeric": "804",
+    "name": "우크라이나",
+    "english": "Ukraine",
+    "aliases": []
+  },
+  {
+    "code": "UG",
+    "alpha3": "UGA",
+    "numeric": "800",
+    "name": "우간다",
+    "english": "Uganda",
+    "aliases": []
+  },
+  {
+    "code": "UM",
+    "alpha3": "UMI",
+    "numeric": "581",
+    "name": "미국령 해외 제도",
+    "english": "U.S. Outlying Islands",
+    "aliases": []
+  },
+  {
+    "code": "US",
+    "alpha3": "USA",
+    "numeric": "840",
+    "name": "미국",
+    "english": "United States",
+    "aliases": [
+      "US"
+    ]
+  },
+  {
+    "code": "UY",
+    "alpha3": "URY",
+    "numeric": "858",
+    "name": "우루과이",
+    "english": "Uruguay",
+    "aliases": []
+  },
+  {
+    "code": "UZ",
+    "alpha3": "UZB",
+    "numeric": "860",
+    "name": "우즈베키스탄",
+    "english": "Uzbekistan",
+    "aliases": []
+  },
+  {
+    "code": "VA",
+    "alpha3": "VAT",
+    "numeric": "336",
+    "name": "바티칸 시국",
+    "english": "Vatican City",
+    "aliases": []
+  },
+  {
+    "code": "VC",
+    "alpha3": "VCT",
+    "numeric": "670",
+    "name": "세인트빈센트그레나딘",
+    "english": "St. Vincent & Grenadines",
+    "aliases": []
+  },
+  {
+    "code": "VE",
+    "alpha3": "VEN",
+    "numeric": "862",
+    "name": "베네수엘라",
+    "english": "Venezuela",
+    "aliases": []
+  },
+  {
+    "code": "VG",
+    "alpha3": "VGB",
+    "numeric": "092",
+    "name": "영국령 버진아일랜드",
+    "english": "British Virgin Islands",
+    "aliases": []
+  },
+  {
+    "code": "VI",
+    "alpha3": "VIR",
+    "numeric": "850",
+    "name": "미국령 버진아일랜드",
+    "english": "U.S. Virgin Islands",
+    "aliases": []
+  },
+  {
+    "code": "VN",
+    "alpha3": "VNM",
+    "numeric": "704",
+    "name": "베트남",
+    "english": "Vietnam",
+    "aliases": []
+  },
+  {
+    "code": "VU",
+    "alpha3": "VUT",
+    "numeric": "548",
+    "name": "바누아투",
+    "english": "Vanuatu",
+    "aliases": []
+  },
+  {
+    "code": "WF",
+    "alpha3": "WLF",
+    "numeric": "876",
+    "name": "왈리스-푸투나 제도",
+    "english": "Wallis & Futuna",
+    "aliases": []
+  },
+  {
+    "code": "WS",
+    "alpha3": "WSM",
+    "numeric": "882",
+    "name": "사모아",
+    "english": "Samoa",
+    "aliases": []
+  },
+  {
+    "code": "YE",
+    "alpha3": "YEM",
+    "numeric": "887",
+    "name": "예멘",
+    "english": "Yemen",
+    "aliases": []
+  },
+  {
+    "code": "YT",
+    "alpha3": "MYT",
+    "numeric": "175",
+    "name": "마요트",
+    "english": "Mayotte",
+    "aliases": []
+  },
+  {
+    "code": "ZA",
+    "alpha3": "ZAF",
+    "numeric": "710",
+    "name": "남아프리카",
+    "english": "South Africa",
+    "aliases": []
+  },
+  {
+    "code": "ZM",
+    "alpha3": "ZMB",
+    "numeric": "894",
+    "name": "잠비아",
+    "english": "Zambia",
+    "aliases": []
+  },
+  {
+    "code": "ZW",
+    "alpha3": "ZWE",
+    "numeric": "716",
+    "name": "짐바브웨",
+    "english": "Zimbabwe",
+    "aliases": []
+  }
+]

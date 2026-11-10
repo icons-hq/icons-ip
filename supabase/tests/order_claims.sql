@@ -2,6 +2,32 @@
 
 begin;
 
+-- Test-only access to the preserved physical engine. New dispatch through the
+-- old public RPC is sealed; contact-v2 and public denial are covered separately
+-- by order_claim_contact.sql. Keep the original JWT actor/capability checks.
+create function pg_temp.record_order_claim_reshipment_physical(p_claim uuid,p_carrier text,p_tracking text,p_items jsonb) returns text
+language sql security definer set search_path='' as $$
+ select private.record_order_claim_reshipment_physical(p_claim,p_carrier,p_tracking,p_items);
+$$;
+create function pg_temp.record_order_claim_reshipment_physical(p_claim uuid,p_carrier text,p_tracking text) returns text
+language sql security definer set search_path='' as $$
+ select private.record_order_claim_reshipment_physical(p_claim,p_carrier,p_tracking,'[]'::jsonb);
+$$;
+revoke all on function pg_temp.record_order_claim_reshipment_physical(uuid,text,text,jsonb),pg_temp.record_order_claim_reshipment_physical(uuid,text,text) from public,anon,authenticated,service_role;
+grant execute on function pg_temp.record_order_claim_reshipment_physical(uuid,text,text,jsonb),pg_temp.record_order_claim_reshipment_physical(uuid,text,text) to authenticated;
+
+
+-- Versioned entry point for the existing hold/resume regression cases. The
+-- test reads the latest context deliberately; stale-context rejection is covered
+-- by order_claim_hold_operations.sql and its real concurrency harness.
+create function pg_temp.decide_claim_pause(p_claim uuid,p_decision text,p_note text) returns text
+language plpgsql as $$declare context jsonb;begin
+ context:=public.admin_order_claim_hold_context(p_claim);
+ return public.admin_change_order_claim_hold(p_claim,gen_random_uuid(),(context->>'revision')::integer,
+  context->>'claimType',p_decision,p_note,auth.uid())->>'stage';
+end $$;
+
+
 -- ============================================================================
 -- ICONS · 클레임 도메인(취소·반품·교환) (#252)
 --
@@ -152,7 +178,7 @@ values
     '00000000-0000-4000-8000-000000000c01', 'delivered', 10000, '{}'::jsonb, null,
     now() - interval '3 days', now() - interval '1 day'
   ),
-  -- E: shipping — 반품·교환 접수 거부(회수할 물건이 아직 고객에게 없다)
+  -- E: shipping — 실제 출고·전체 수량 배정 후 반품·교환 접수 가능
   (
     '41000000-0000-4000-8000-000000000c05',
     '00000000-0000-4000-8000-000000000c01', 'shipping', 10000, '{}'::jsonb, null,
@@ -286,6 +312,11 @@ values
     '41000000-0000-4000-8000-000000000c04', 10000, 'paid', 'pk_claim_c04', 'idem_claim_c04'
   ),
   (
+    '42000000-0000-4000-8000-000000000c05',
+    '00000000-0000-4000-8000-000000000c01', 'order',
+    '41000000-0000-4000-8000-000000000c05', 10000, 'paid', 'pk_claim_c05', 'idem_claim_c05'
+  ),
+  (
     '42000000-0000-4000-8000-000000000c09',
     '00000000-0000-4000-8000-000000000c01', 'order',
     '41000000-0000-4000-8000-000000000c09', 10000, 'paid', 'pk_claim_c09', 'idem_claim_c09'
@@ -327,30 +358,34 @@ values (
 -- ---------------------------------------------------------------------------
 set local role service_role;
 
--- 반품·교환은 배송이 끝난 뒤에만 받는다. shipping 주문은 전체 수령을 증명하지 못한다.
+-- 배송 중에는 접수만 허용한다. 회수 전 환불·재배송 차단은 별도 회수
+-- 계약에서 검증한다. 각 접수를 되돌려 아래 기존 집계에 섞이지 않게 한다.
+savepoint in_transit_intake;
 select 1 / case when (
   public.request_order_claim(
     '41000000-0000-4000-8000-000000000c05',
     '00000000-0000-4000-8000-000000000c01',
     'return', '반품 요청', 'change_of_mind'
-  ) = 'not_claimable'
-) then 1 else 0 end as assert_return_requires_delivery;
+  ) = 'requested'
+) then 1 else 0 end as assert_in_transit_return_intake;
+rollback to in_transit_intake;
 
 select 1 / case when (
   public.request_order_claim(
     '41000000-0000-4000-8000-000000000c05',
     '00000000-0000-4000-8000-000000000c01',
     'exchange', '교환 요청', 'change_of_mind'
-  ) = 'not_claimable'
-) then 1 else 0 end as assert_exchange_requires_delivery;
+  ) = 'requested'
+) then 1 else 0 end as assert_in_transit_exchange_intake;
+rollback to in_transit_intake;
 
--- 접수 자체가 실패했으므로 행이 남지 않는다.
+-- 두 독립 접수 시나리오를 되돌린 뒤 클레임이 남지 않아야 한다.
 select 1 / case when (
   not exists (
     select 1 from public.order_cancellation_requests
     where order_id = '41000000-0000-4000-8000-000000000c05'
   )
-) then 1 else 0 end as assert_rejected_intake_leaves_no_claim_row;
+) then 1 else 0 end as assert_transit_fixture_rollback_leaves_no_claim_row;
 
 -- 교환도 청약철회 기한을 준용한다(변심 7일).
 select 1 / case when (
@@ -618,7 +653,7 @@ end;
 $$;
 
 select 1 / case when (
-  public.admin_record_order_claim_reshipment(
+  pg_temp.record_order_claim_reshipment_physical(
     (select id from public.order_cancellation_requests
      where order_id = '41000000-0000-4000-8000-000000000c04'),
     'hanjin', 'LD00000000C04'
@@ -655,7 +690,7 @@ select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000c02
 do $$
 begin
   begin
-    perform public.admin_record_order_claim_reshipment(
+    perform pg_temp.record_order_claim_reshipment_physical(
       (select id from public.order_cancellation_requests
        where order_id = '41000000-0000-4000-8000-000000000c03'),
       'hanjin', 'LD00000000C03'
@@ -694,7 +729,7 @@ select public.admin_decide_order_claim(
 do $$
 begin
   begin
-    perform public.admin_decide_order_claim(
+    perform pg_temp.decide_claim_pause(
       (select id from public.order_cancellation_requests
        where order_id = '41000000-0000-4000-8000-000000000c07'),
       'hold', '짧음'
@@ -708,7 +743,7 @@ end;
 $$;
 
 select 1 / case when (
-  public.admin_decide_order_claim(
+  pg_temp.decide_claim_pause(
     (select id from public.order_cancellation_requests
      where order_id = '41000000-0000-4000-8000-000000000c07'),
     'hold', '반품 배송비 정산이 확인되지 않았습니다'
@@ -761,7 +796,7 @@ select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000c02
 
 -- 재개는 처음이 아니라 보류 직전 단계로 돌아간다.
 select 1 / case when (
-  public.admin_decide_order_claim(
+  pg_temp.decide_claim_pause(
     (select id from public.order_cancellation_requests
      where order_id = '41000000-0000-4000-8000-000000000c07'),
     'resume', null
@@ -871,7 +906,8 @@ $$;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000c02', true);
 
 select 1 / case when (
-  (select count(*) from public.admin_order_claim_stage_counts(null::text)) = 9
+  (select count(*) from public.admin_order_claim_stage_counts(null::text)) = 10
+  and exists(select 1 from public.admin_order_claim_stage_counts(null::text) where stage='withdrawn')
 ) then 1 else 0 end as assert_stage_counts_include_zero_rows;
 
 select 1 / case when (
@@ -992,7 +1028,7 @@ select public.admin_decide_order_claim(
    where order_id = '41000000-0000-4000-8000-000000000c10'),
   'approve', null
 );
-select public.admin_decide_order_claim(
+select pg_temp.decide_claim_pause(
   (select id from public.order_cancellation_requests
    where order_id = '41000000-0000-4000-8000-000000000c10'),
   'hold', '반송 배송비 정산이 확인되지 않았습니다'
@@ -1209,7 +1245,7 @@ begin
 end;
 $$;
 
-select public.admin_decide_order_claim(
+select pg_temp.decide_claim_pause(
   (select id from public.order_cancellation_requests
    where order_id = '41000000-0000-4000-8000-000000000c11'),
   'hold', '결제사 원장 확인을 기다리는 중입니다'
@@ -1218,7 +1254,7 @@ select public.admin_decide_order_claim(
 -- 재개가 needs_review로 돌아갈 때 status를 requested로 쓰면 투영 CHECK가 막아
 -- 보류가 영원히 풀리지 않는다. 남는 선택지가 거절뿐이면 위의 동결과 같아진다.
 select 1 / case when (
-  public.admin_decide_order_claim(
+  pg_temp.decide_claim_pause(
     (select id from public.order_cancellation_requests
      where order_id = '41000000-0000-4000-8000-000000000c11'),
     'resume', null

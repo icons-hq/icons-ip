@@ -4,6 +4,7 @@ import { InquiryThread } from '@/components/screens/InquiryThread';
 import { isOnboarded, onboardingPath } from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
 import { loadMyInquiryThread } from '@/lib/inquiries.server';
+import { loadMyInquirySatisfaction } from '@/lib/inquiry-satisfaction.server';
 
 export const metadata: Metadata = {
   title: '문의 상세 — ICONS',
@@ -23,8 +24,10 @@ export default async function Page({ params }: PageProps<'/my/inquiries/[inquiry
   if (!auth.user) redirect(`/login?next=${encodeURIComponent(next)}`);
   if (!isOnboarded(auth.profile, auth.user.email)) redirect(onboardingPath(next));
 
-  const inquiry = await loadMyInquiryThread(auth.user.id, inquiryId);
+  const [inquiry, satisfaction] = await Promise.all([
+    loadMyInquiryThread(auth.user.id, inquiryId), loadMyInquirySatisfaction(inquiryId),
+  ]);
   if (!inquiry) notFound();
 
-  return <InquiryThread inquiry={inquiry} />;
+  return <InquiryThread inquiry={inquiry} satisfaction={satisfaction} />;
 }

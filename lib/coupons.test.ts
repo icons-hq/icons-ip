@@ -106,6 +106,15 @@ describe('couponPreviewDiscount payment floor', () => {
     /* 무료배송 70,000 카트 + 70,000 전액 쿠폰 → 총액 1,000원이 되도록 69,000만 깎는다. */
     expect(couponPreviewDiscount(fullCoupon, 70000, 0)).toBe(70000 - MIN_PAYABLE_TOTAL);
   });
+  it('requires a server quote for category coupons instead of discounting the entire cart', () => {
+    expect(couponPreviewDiscount({ ...fullCoupon, coupon: { ...fullCoupon.coupon, goodsScope: 'selected_categories', targetCategoryIds: ['ca109300-0000-4000-8000-000000000001'] } }, 70000, 0)).toBe(0);
+    expect(couponConditionLabel({ goodsScope: 'selected_categories', minSubtotal: 0 })).toBe('선택한 카테고리의 굿즈에만 사용');
+  });
+  it('requires a server quote for IP coupons and states the IP-only minimum', () => {
+    expect(couponPreviewDiscount({ ...fullCoupon, coupon: { ...fullCoupon.coupon, goodsScope: 'selected_ips', targetIpIds: ['maple'] } }, 70000, 0)).toBe(0);
+    expect(couponConditionLabel({ goodsScope: 'selected_ips', minSubtotal: 0 })).toBe('선택한 IP의 굿즈에만 사용');
+    expect(couponConditionLabel({ goodsScope: 'selected_ips', minSubtotal: 50000 })).toBe('대상 굿즈 합계 ₩50,000 이상 구매 시');
+  });
 
   it('keeps the pin between app constant and the SQL guard/cap', () => {
     const dir = join(process.cwd(), 'supabase/migrations');

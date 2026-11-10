@@ -4,8 +4,50 @@ export type AdminArtworkMimeType = 'image/jpeg' | 'image/png' | 'image/webp';
 export const ADMIN_ARTWORK_ACCEPT = 'image/jpeg,image/png,image/webp';
 export const ADMIN_ARTWORK_MAX_BYTES = 5 * 1024 * 1024;
 export const ADMIN_ARTWORK_MAX_DIMENSION = 8192;
+/**
+ * 상품 이미지는 세로로 긴 통이미지 상세페이지를 받아야 해서 한도가 따로 크다(MD-0002).
+ * DB·스토리지 한도(20261110110000)와 같은 값이다. 총 픽셀 상한은 모든 종류에 공통이다.
+ */
+export const GOODS_ARTWORK_MAX_BYTES = 20 * 1024 * 1024;
+export const GOODS_ARTWORK_MAX_DIMENSION = 30_000;
+/** 공개 원본의 사진형 긴 변·띠형 짧은 변 상한(artwork-image.server.ts의 adminArtworkOutputBox). */
+export const ADMIN_ARTWORK_OUTPUT_MAX_EDGE = 2560;
+/**
+ * 운영자별 1분 동안 시작할 수 있는 아트워크 검증 수. DB service_begin_admin_artwork_verification의
+ * 남용 억제 창(20261007160000)과 같은 값이다 — 굿즈 폼 11칸(대표 1 + 추가 이미지 9 + 상세 1) × 2.
+ */
+export const ADMIN_ARTWORK_VERIFICATIONS_PER_MINUTE = 22;
 export const ADMIN_ARTWORK_ERROR =
   '이미지는 JPEG, PNG, WebP 형식의 5MB 이하, 가로·세로 8192px 이하 파일만 업로드할 수 있습니다.';
+export const GOODS_ARTWORK_ERROR =
+  '이미지는 JPEG, PNG, WebP 형식의 20MB 이하, 가로·세로 30,000px 이하 파일만 업로드할 수 있습니다.';
+
+export function adminArtworkLimits(kind: AdminArtworkKind): { maxBytes: number; maxDimension: number } {
+  return kind === 'good'
+    ? { maxBytes: GOODS_ARTWORK_MAX_BYTES, maxDimension: GOODS_ARTWORK_MAX_DIMENSION }
+    : { maxBytes: ADMIN_ARTWORK_MAX_BYTES, maxDimension: ADMIN_ARTWORK_MAX_DIMENSION };
+}
+
+/**
+ * 운영자별 업로드 한도에 걸린 이유(DB service_admin_artwork_upload_block_reason, 20261103120000).
+ * 예전에는 모두 "이미지 파일을 확인하지 못했습니다"로 보여 사진이 조용히 사라진 것처럼 보였다(R20).
+ */
+export type AdminArtworkUploadBlockReason =
+  | 'verification_in_progress'
+  | 'verification_rate_limited'
+  | 'staging_full'
+  | 'unsaved_full';
+export const ADMIN_ARTWORK_BLOCK_MESSAGES: Record<AdminArtworkUploadBlockReason, string> = {
+  verification_in_progress: '다른 사진을 올리는 중입니다. 끝난 뒤 다시 시도해주세요.',
+  verification_rate_limited: '1분에 올릴 수 있는 사진 수를 넘었습니다. 잠시 뒤 다시 시도해주세요.',
+  staging_full: '확인을 기다리는 사진이 너무 많습니다. 올리는 중인 사진이 끝난 뒤 다시 시도해주세요.',
+  unsaved_full: '저장하지 않고 올려 둔 사진이 너무 많습니다. 작성 중인 화면을 먼저 저장한 뒤 다시 시도해주세요.',
+};
+export function parseAdminArtworkUploadBlockReason(value: unknown): AdminArtworkUploadBlockReason | null {
+  return typeof value === 'string' && Object.hasOwn(ADMIN_ARTWORK_BLOCK_MESSAGES, value)
+    ? value as AdminArtworkUploadBlockReason
+    : null;
+}
 
 const ADMIN_ARTWORK_KINDS = new Set<AdminArtworkKind>(['ip', 'good', 'card', 'event', 'curation']);
 const ADMIN_ARTWORK_EXTENSIONS: Record<AdminArtworkMimeType, 'jpg' | 'png' | 'webp'> = {
@@ -38,8 +80,8 @@ export type AdminArtworkMetadataResult =
   | { ok: false; error: string };
 
 /*
- * 아트워크가 실제로 놓이는 자리의 비율. 업로드 미리보기와 목록 썸네일이
- * 같은 크롭을 보여줘야 운영자가 저장 전에 잘림을 판단할 수 있다.
+ * 아트워크 업로드 미리보기 영역의 비율. 이벤트 포스터는 이 영역 안에
+ * 원본 전체를 표시하고, 나머지 아트워크는 영역을 채워 잘림을 미리 확인한다.
  */
 export function adminArtworkAspectRatio(kind: AdminArtworkKind) {
   return kind === 'ip' || kind === 'curation' ? '16 / 9' : '4 / 3';
@@ -66,9 +108,9 @@ export function normalizeAdminArtworkMetadata(input: {
     || typeof input.size !== 'number'
     || !Number.isInteger(input.size)
     || input.size < 1
-    || input.size > ADMIN_ARTWORK_MAX_BYTES
+    || input.size > adminArtworkLimits(input.kind).maxBytes
   ) {
-    return { ok: false, error: ADMIN_ARTWORK_ERROR };
+    return { ok: false, error: input.kind === 'good' ? GOODS_ARTWORK_ERROR : ADMIN_ARTWORK_ERROR };
   }
 
   return {

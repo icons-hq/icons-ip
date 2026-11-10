@@ -1,6 +1,7 @@
 import type { CheckoutPaymentMethod, CheckoutAddress } from './checkout';
+import { commerceReferenceLabel } from './commerce-number';
 import type { ShipmentRecord } from './orders/shipments';
-import type { OrderClaimEligibility, OrderClaimStage, OrderClaimType } from './orders/claims';
+import { isOpenOrderClaimStage, ORDER_CLAIM_TYPE_LABELS, type OrderClaimEligibility, type OrderClaimStage, type OrderClaimType } from './orders/claims';
 
 // 주문 목록에 보이는 상태. pending은 결제가 끝나지 않은 선점이라 별도 취급한다.
 // 사다리는 pending → paid → confirmed → shipping → delivered → done이고
@@ -28,7 +29,8 @@ export const ORDER_CANCELLATION_REQUEST_STATUSES = [
 export type OrderCancellationRequestStatus = (typeof ORDER_CANCELLATION_REQUEST_STATUSES)[number];
 
 // 청약철회 사유는 기한을 가른다(#189) — 단순 변심 7일, 하자·오배송 3개월.
-// DB의 order_cancellation_requests.reason_type check 제약과 같은 값이어야 한다.
+// 구매자가 고르는 값이다. DB reason_type check 제약은 여기에 운영자 전액 취소('staff',
+// ADR-0018)를 더한 것이다 — 전체 값은 lib/orders/claims ORDER_CLAIM_REASON_TYPES.
 export const ORDER_WITHDRAWAL_REASON_TYPES = ['change_of_mind', 'defect'] as const;
 export type OrderWithdrawalReasonType = (typeof ORDER_WITHDRAWAL_REASON_TYPES)[number];
 
@@ -77,15 +79,15 @@ const STATUS_PRESENTATION: Record<OrderDetailStatus, OrderStatusPresentation> = 
   delivered: {
     label: '배송완료',
     title: '굿즈가 배송 완료됐어요',
-    body: '배송이 완료됐습니다. 문제가 있으면 아래에서 청약철회를 요청할 수 있어요.',
+    body: '배송이 완료됐습니다. 문제가 있으면 아래에서 반품·교환을 요청할 수 있어요.',
     tone: 'delivered',
   },
   done: {
-    // "완료"가 아니라 "거래확정"이다(CONTEXT.md). 변심 청약철회 창이 닫혔다는
-    // 뜻이고, 하자·오배송 클레임은 공급받은 날부터 3개월까지 남아 있다.
+    // 구매자 직접 확정과 설정된 자동 정책이 같은 상태에 도달한다.
+    // 반품·교환 신청 자격과 기한은 별도 계약이다.
     label: '거래확정',
     title: '거래가 확정됐어요',
-    body: '배송완료 후 청약철회 기간이 지나 거래가 확정된 주문입니다.',
+    body: '거래가 확정된 주문입니다. 반품·교환은 배송일과 사유별 신청 기한을 별도로 확인해주세요.',
     tone: 'done',
   },
   canceled: {
@@ -97,6 +99,8 @@ const STATUS_PRESENTATION: Record<OrderDetailStatus, OrderStatusPresentation> = 
 };
 
 export interface OrderListItem {
+  orderNumber?: string;
+  giftId?: string;
   id: string;
   status: OrderDetailStatus;
   total: number;
@@ -105,12 +109,16 @@ export interface OrderListItem {
   itemCount: number;
   /** 주문 생성 시점에 고정된 결제수단(#256). */
   paymentMethod: CheckoutPaymentMethod;
+  /** 가장 최근 클레임의 유형·단계. 목록 배지가 상세 헤더와 같은 규칙으로 진행 중 클레임을 말한다. */
+  claim?: Pick<OrderCancellationRequestSummary, 'claimType' | 'stage'> | null;
 }
 
 export interface OrderDetailItem {
+  productOrderNumber?: string;
   id: string;
   variantId: string;
   variantName?: string | null;
+  customInputs?: import('@/lib/goods-custom-inputs').GoodsCustomInputSelection | null;
   variantCode?: string | null;
   goodId: string;
   name: string;
@@ -156,6 +164,10 @@ export interface OrderCancellationRequestSummary {
 }
 
 export interface OrderDetail {
+  orderNumber?: string;
+  reshipmentHistory?: import('./orders/reshipment-items').OrderReshipmentReceipt[];
+  giftId?: string;
+  transaction?: import('./goods-transaction').GoodsTransactionDisplay;
   id: string;
   status: OrderDetailStatus;
   total: number;
@@ -216,10 +228,88 @@ export function orderStatusMeta(status: OrderDetailStatus): OrderStatusPresentat
   return STATUS_PRESENTATION[status];
 }
 
+/**
+ * 주문 상세 상단 상태 카드(2026-10-12 브라우저 QA QA-8).
+ *
+ * 주문 상태는 취소가 끝날 때까지 결제완료·발주확인으로 남는다. 그 값만 보면 결제 취소가
+ * 도는 동안에도 "결제가 확인됐고 배송 준비를 시작합니다"라고 말해, 같은 화면의 취소 섹션
+ * ("결제 취소 확인 중")과 구매자 알림("주문 취소를 진행해요")과 어긋난다. 진행 중인 취소
+ * 클레임이 있으면 그 단계로 말한다. 상태 배지는 실제 주문 상태 그대로 둔다.
+ */
+export function orderDetailHeaderPresentation(
+  status: OrderDetailStatus,
+  cancellationRequest: Pick<OrderCancellationRequestSummary, 'claimType' | 'stage'> | null,
+): OrderStatusPresentation {
+  const base = STATUS_PRESENTATION[status];
+  if (status === 'canceled' || cancellationRequest?.claimType !== 'cancel') return base;
+  switch (cancellationRequest.stage) {
+    case 'processing':
+      return {
+        ...base,
+        title: '주문 취소를 진행하고 있어요',
+        body: '결제 취소를 처리하고 있습니다. 끝나면 알림을 보내드려요.',
+      };
+    case 'needs_review':
+      return {
+        ...base,
+        title: '주문 취소를 확인하고 있어요',
+        body: '결제 취소 결과를 확인하고 있습니다. 확인되면 알림을 보내드려요.',
+      };
+    case 'requested':
+    case 'in_review':
+    case 'collecting':
+    case 'collected':
+    case 'on_hold':
+      return {
+        ...base,
+        title: '주문 취소 요청을 접수했어요',
+        body: status === 'pending'
+          ? '결제 결과를 확인한 뒤 주문 취소를 마무리하고 알림을 보내드려요.'
+          : '요청을 확인하고 있습니다. 진행 상황은 알림으로 보내드려요.',
+      };
+    case 'completed':
+    case 'rejected':
+    case 'withdrawn':
+      return base;
+  }
+}
+
+/**
+ * 진행 중인 클레임 배지(10/14 회의 S20).
+ *
+ * 주문 상태 배지는 실제 주문 상태 그대로 둔다(결제완료·발주확인은 취소가 끝날 때까지 남는다).
+ * 그 옆에 진행 중인 취소·반품·교환의 단계를 덧붙여, 취소를 요청한 구매자가 목록에서도
+ * 상태를 본다. 주문 목록과 주문 상세 헤더가 이 함수 하나를 쓴다 — 한쪽만 바꾸면 같은 주문을
+ * 두 화면이 다르게 말한다. 끝난 클레임(완료·거절·철회)은 배지를 달지 않는다.
+ */
+export function orderClaimProgressLabel(
+  status: OrderDetailStatus,
+  claim: Pick<OrderCancellationRequestSummary, 'claimType' | 'stage'> | null | undefined,
+): string | null {
+  if (!claim || status === 'canceled' || !isOpenOrderClaimStage(claim.stage)) return null;
+  const type = ORDER_CLAIM_TYPE_LABELS[claim.claimType];
+  switch (claim.stage) {
+    case 'collecting':
+      return `${type} 회수 중`;
+    case 'collected':
+      return `${type} 입고 완료`;
+    case 'on_hold':
+      return `${type} 보류`;
+    case 'processing':
+      return `${type} 처리 중`;
+    case 'needs_review':
+      return `${type} 확인 중`;
+    default:
+      return `${type} 요청`;
+  }
+}
+
 export function refundStatusLabel(status: string): string {
   switch (status) {
     case 'requested':
       return '환불 요청 접수';
+    case 'awaiting_transfer':
+      return '환불 송금 대기';
     case 'done':
       return '환불 완료';
     case 'failed':
@@ -229,8 +319,8 @@ export function refundStatusLabel(status: string): string {
   }
 }
 
-export function orderReferenceLabel(orderId: string): string {
-  return orderId.replaceAll('-', '').slice(-8).toUpperCase();
+export function orderReferenceLabel(orderId: string, orderNumber?: string | null): string {
+  return commerceReferenceLabel(orderId, orderNumber);
 }
 
 export function formatOrderDate(value: string): string {

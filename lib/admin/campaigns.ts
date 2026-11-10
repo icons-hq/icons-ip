@@ -1,6 +1,11 @@
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import type { AdminFieldErrors } from '@/lib/admin/catalog';
 import { kstDateTimeToIso } from '@/lib/admin/kst';
+import {
+  CAMPAIGN_CTA_HREF_MAX_LENGTH,
+  CAMPAIGN_CTA_LABEL_MAX_LENGTH,
+  isCampaignInternalHref,
+} from '@/lib/campaigns';
 
 /*
  * 어드민 캠페인 콘솔의 폼 계약 (S8 #330).
@@ -104,7 +109,8 @@ export type AdminCoinExchangeOfferFormResult =
 
 export const ADMIN_CAMPAIGN_MAX_SECTIONS = 20;
 
-type SectionFieldKind = 'text' | 'uuid' | 'stringArray';
+/** internalPath — ICONS 안의 경로만(LD-18). 판정은 공개 파서·DB 와 같은 isCampaignInternalHref 다. */
+type SectionFieldKind = 'text' | 'uuid' | 'stringArray' | 'internalPath';
 
 export interface AdminCampaignSectionField {
   key: string;
@@ -114,6 +120,8 @@ export interface AdminCampaignSectionField {
   maxLength: number;
   minItems?: number;
   maxItems?: number;
+  /** 공백만 든 값을 거절한다(화면에 아무것도 그릴 수 없는 버튼 문구 등). DB 도 같은 키를 막는다. */
+  nonBlank?: boolean;
 }
 
 export interface AdminCampaignSectionSpec {
@@ -192,6 +200,14 @@ const SECTION_SPECS = [
       maxItems: 20,
     }],
   },
+  {
+    type: 'cta',
+    label: '이동 버튼',
+    fields: [
+      { key: 'label', kind: 'text', required: true, maxLength: CAMPAIGN_CTA_LABEL_MAX_LENGTH, nonBlank: true },
+      { key: 'href', kind: 'internalPath', required: true, maxLength: CAMPAIGN_CTA_HREF_MAX_LENGTH },
+    ],
+  },
 ] as const;
 
 export type AdminCampaignSectionType = (typeof SECTION_SPECS)[number]['type'];
@@ -210,6 +226,11 @@ const SECTION_SPEC_BY_TYPE = new Map<string, AdminCampaignSectionSpec>(
 const ANCHOR_MAX_LENGTH = 20;
 
 const ID_PATTERN = /^[a-z0-9][a-z0-9-]{1,63}$/;
+/* DB 는 char_length(코드 포인트)로 센다. UTF-16 길이로 세면 이모지 든 문구를 DB 보다 먼저, 더 엄격하게 거절한다. */
+function codePointLength(value: string): number {
+  return Array.from(value).length;
+}
+
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const KIND_SET = new Set<string>(ADMIN_CAMPAIGN_KINDS);
 const STATUS_SET = new Set<string>(ADMIN_CAMPAIGN_STATUSES);
@@ -240,6 +261,10 @@ export type AdminCampaignSectionsResult =
   | { ok: true; value: unknown[] }
   | { ok: false; message: string };
 
+/** 이동 버튼 링크 오류 안내. 어드민 가이드 오류 표(troubleshooting)가 이 문구를 인용한다. */
+export const CAMPAIGN_INTERNAL_PATH_MESSAGE =
+  '/로 시작하는 ICONS 내부 경로여야 합니다. 외부 주소(https://…, //…), 공백·역슬래시, ./.. 경로 조각은 넣을 수 없습니다.';
+
 function sectionValueError(index: number, key: string, detail: string) {
   return `${index + 1}번째 블록의 ${key}: ${detail}`;
 }
@@ -263,19 +288,28 @@ function validateSectionField(
       return sectionValueError(index, field.key, `문자열 ${min}~${max}개의 배열이어야 합니다.`);
     }
     const bad = value.some(
-      (entry) => typeof entry !== 'string' || entry.length < 1 || entry.length > field.maxLength,
+      (entry) => typeof entry !== 'string' || codePointLength(entry) < 1 || codePointLength(entry) > field.maxLength,
     );
     return bad
       ? sectionValueError(index, field.key, `각 항목은 1~${field.maxLength}자 문자열이어야 합니다.`)
       : null;
   }
 
-  if (typeof value !== 'string' || value.length < 1 || value.length > field.maxLength) {
+  if (typeof value !== 'string' || codePointLength(value) < 1 || codePointLength(value) > field.maxLength) {
     return sectionValueError(index, field.key, `1~${field.maxLength}자 문자열이어야 합니다.`);
+  }
+
+  if (field.nonBlank && !value.trim()) {
+    return sectionValueError(index, field.key, '공백만으로는 쓸 수 없습니다.');
   }
 
   if (field.kind === 'uuid' && !UUID_PATTERN.test(value)) {
     return sectionValueError(index, field.key, '교환처 ID(UUID)여야 합니다.');
+  }
+
+  /* 외부 링크는 피싱·추적 위험이 있어 받지 않는다(LD-18). DB 가 같은 판정으로 다시 막는다. */
+  if (field.kind === 'internalPath' && !isCampaignInternalHref(value)) {
+    return sectionValueError(index, field.key, CAMPAIGN_INTERNAL_PATH_MESSAGE);
   }
 
   return null;

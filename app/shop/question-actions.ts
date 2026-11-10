@@ -86,7 +86,10 @@ export async function askProductQuestionAction(
   const { error } = await supabase.from('product_questions').insert({
     body: normalized.value.body,
     good_id: normalized.value.goodId,
-    /* insert grant 가 열려 있는 컬럼은 good_id·user_id·body 뿐이다. status·answer_* 를
+    /* 비밀글(MD-0023). 남의 비밀글을 가리는 일은 DB 가 한다 — 테이블 정책이 행을 빼고 공개 목록
+       RPC 가 본문·답변을 비운다. 여기서는 작성자의 선택만 싣는다. */
+    is_secret: normalized.value.isSecret,
+    /* insert grant 가 열려 있는 컬럼은 good_id·user_id·body·is_secret 뿐이다. status·answer_* 를
        여기서 함께 보내면 권한 오류로 통째로 거절된다. */
     user_id: user.id,
   });

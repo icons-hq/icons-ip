@@ -103,8 +103,11 @@ set local statement_timeout='15s';
 set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000048401',true);
 select public.set_cart_item_quantity('sales-quota-race-4273',(select id from public.goods_variants where good_id='sales-quota-race-4273' and is_default),2);
-select public.place_order('{"recipientName":"검증 구매자","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
+-- 브라우저 롤은 주문 생성 RPC를 직접 부르지 못한다(20261013100000). 앱처럼 service role 래퍼가 구매자 id를 넘긴다.
+set local role service_role;
+select public.place_order('00000000-0000-4000-8000-000000048401'::uuid,'{"recipientName":"검증 구매자","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
  '00000000-0000-4000-8000-000000048420'::uuid,'card'::public.order_payment_method);
+set local role authenticated;
 select public.set_cart_item_quantity('sales-quota-race-4273',(select id from public.goods_variants where good_id='sales-quota-race-4273' and is_default),2);
 \echo SALES_MEMBER_A_RESERVED
 select pg_sleep(3);
@@ -115,9 +118,8 @@ sales_wait_marker "$sales_test_tmp/member-a.log" SALES_MEMBER_A_RESERVED
 if sales_db >"$sales_test_tmp/member-b.log" 2>&1 <<'SQL'
 begin;
 set local statement_timeout='15s';
-set local role authenticated;
-select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000048401',true);
-select public.place_order('{"recipientName":"검증 구매자","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
+set local role service_role;
+select public.place_order('00000000-0000-4000-8000-000000048401'::uuid,'{"recipientName":"검증 구매자","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
  '00000000-0000-4000-8000-000000048421'::uuid,'card'::public.order_payment_method);
 commit;
 SQL
@@ -148,9 +150,8 @@ sales_wait_marker "$sales_test_tmp/cancel-a.log" SALES_CANCELED_UNCOMMITTED
 sales_db >"$sales_test_tmp/cancel-b.log" 2>&1 <<'SQL'
 begin;
 set local statement_timeout='15s';
-set local role authenticated;
-select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000048401',true);
-select public.place_order('{"recipientName":"검증 구매자","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
+set local role service_role;
+select public.place_order('00000000-0000-4000-8000-000000048401'::uuid,'{"recipientName":"검증 구매자","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
  '00000000-0000-4000-8000-000000048422'::uuid,'card'::public.order_payment_method);
 commit;
 SQL

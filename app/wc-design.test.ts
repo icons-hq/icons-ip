@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
+import { withoutKitGuard } from './styles/css-cascade.test-helpers';
 import { describe, expect, it } from 'vitest';
-import postcss from 'postcss';
+import postcss, { type AtRule, type Rule } from 'postcss';
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
 
@@ -23,12 +24,23 @@ describe('White Catalog admin boundary (#433)', () => {
 
   it('scopes all admin rules including nested media rules and uses only WC tokens', () => {
     const ast = postcss.parse(read('./styles/wc-admin.css'));
+    /* ADR-0028: the console's --wc-* names are mapped onto the shadcn tokens of admin-kit.css. */
+    const kitTokens = new Set<string>();
+    postcss.parse(read('./styles/admin-kit.css')).walkDecls((decl) => { if (decl.prop.startsWith('--')) kitTokens.add(decl.prop); });
     ast.walkRules((rule) => {
       for (const selector of rule.selectors) expect(selector.trim()).toMatch(/^\.wc-admin(?:\b|[.\s:#])/);
     });
     ast.walkDecls((decl) => {
-      for (const match of decl.value.matchAll(/var\(\s*(--[\w-]+)/g)) expect(match[1]).toMatch(/^--wc-/);
-      expect(decl.value).not.toMatch(/#[\da-f]{3,8}\b|rgba?\(|hsla?\(/i);
+      for (const match of decl.value.matchAll(/var\(\s*(--[\w-]+)/g)) {
+        expect(match[1].startsWith('--wc-') || kitTokens.has(match[1]), `${decl.prop}: ${match[1]}`).toBe(true);
+      }
+      // The console palette belongs to the isolated admin token boundary.
+      // Components still consume variables so the public foundation cannot drift.
+      if (decl.prop.startsWith('--wc-')) {
+        expect(decl.parent?.type === 'rule' ? withoutKitGuard(decl.parent.selector) : '').toBe('.wc-admin');
+      } else {
+        expect(decl.value).not.toMatch(/#[\da-f]{3,8}\b|rgba?\(|hsla?\(/i);
+      }
     });
   });
 
@@ -165,6 +177,8 @@ describe('White Catalog global chrome wiring', () => {
       '../components/shell/Nav.tsx',
       '../components/shell/SearchOverlay.tsx',
       '../components/shell/MenuSheet.tsx',
+      '../components/shell/CategorySheet.tsx',
+      '../components/shell/CategorySheetTabs.tsx',
       '../components/shell/BottomTabBar.tsx',
       '../components/shell/SiteFooter.tsx',
     ].map(read);
@@ -247,6 +261,126 @@ describe('White Catalog catalog wiring', () => {
     expect(css).not.toMatch(/line-height:\s*(?:0?\.)\d+/);
   });
 
+  it('상세 HTML의 줄바꿈은 CSS로 숨기지 않고 이어지는 이미지 사이 틈만 없앤다', () => {
+    /* 2026-10-07 리뷰: `img + br { display: none }`은 사이의 글자 노드를 건너뛰어
+     * `<img>제품명<br>소재`의 글자 줄바꿈까지 숨겼다. 이미지 바로 뒤 <br>은 렌더 경계의 sanitizer가 지운다. */
+    const css = read('./styles/wc-catalog.css');
+    const selectors = postcss.parse(css).nodes.flatMap((node) => node.type === 'rule' ? node.selectors : []);
+
+    expect(selectors.filter((selector) => selector.includes('.wc-goods-description') && /\bbr\b/.test(selector))).toEqual([]);
+    expect(css).toMatch(/\.wc-goods-description img \+ img\s*\{\s*margin-top:\s*0;/);
+  });
+
+  it('이미지마다 p·div로 감싼 상세 이미지도 이음매 여백만 지우고 글자 문단 간격은 남긴다', () => {
+    /* 2026-10-07 4차 리뷰: 판매처 공통 상세 HTML은 `<p><img></p><p><img></p>`나 `<div align=center><img></div>…`처럼
+     * 이미지를 하나씩 감싼다. 형제 img 규칙만으로는 p 여백 18px·img 여백 12px 틈이 남았다.
+     * :only-child는 글자 노드를 세지 않으므로 래퍼 여백 전체가 아니라 이미지↔이미지 이음매만 지워야
+     * 글자 문단과 이미지 사이 간격(12~18px)이 그대로 남는다. */
+    const css = read('./styles/wc-catalog.css');
+    const subjectOf = (selector: string) => {
+      let depth = 0;
+      let start = 0;
+      for (let index = 0; index < selector.length; index++) {
+        const char = selector[index];
+        if (char === '(') depth++;
+        else if (char === ')') depth--;
+        else if (depth === 0 && /[\s>+~]/.test(char)) start = index + 1;
+      }
+      return selector.slice(start);
+    };
+    const zeroed = { top: new Set<string>(), bottom: new Set<string>() };
+    postcss.parse(css).walkRules((rule) => {
+      const scoped = rule.selectors.filter((selector) => selector.includes('.wc-goods-description'));
+      if (!scoped.length) return;
+      rule.walkDecls((decl) => {
+        const sides = decl.prop === 'margin' || decl.prop === 'margin-block'
+          ? (decl.value.trim() === '0' ? ['top', 'bottom'] as const : [])
+          : decl.prop === 'margin-top' && decl.value.trim() === '0' ? ['top'] as const
+            : decl.prop === 'margin-bottom' && decl.value.trim() === '0' ? ['bottom'] as const : [];
+        for (const side of sides) for (const selector of scoped) zeroed[side].add(selector.trim());
+      });
+    });
+
+    const root = '.wc-root .wc-goods-description';
+    const wrapper = ':is(p, div):has(> img:only-child)';
+    const followedByImage = ':has(+ img, + :is(p, div) > img:only-child)';
+    expect([...zeroed.bottom]).toEqual(expect.arrayContaining([
+      `${root} img:has(+ :is(p, div) > img:only-child)`,
+      `${root} ${wrapper}${followedByImage}`,
+      `${root} ${wrapper}${followedByImage} > img`,
+    ]));
+    expect([...zeroed.top]).toEqual(expect.arrayContaining([
+      `${root} ${wrapper} + img`,
+      `${root} :is(img, ${wrapper}) + :is(p, div) > img:only-child`,
+    ]));
+
+    /* 여백을 지우는 규칙의 주체는 이미지, 컨테이너 가장자리, 또는 "이미지 하나만 담고 다음 이미지가 이어지는" 래퍼뿐이다. */
+    for (const selector of [...zeroed.top, ...zeroed.bottom]) {
+      const subject = subjectOf(selector);
+      if (/^img\b/.test(subject) || /^:(?:first|last)-child$/.test(subject)) continue;
+      expect(subject, selector).toMatch(/^(?::is\(p, div\)|(?:p|div)\b)/);
+      expect(subject, selector).toContain(':has(> img:only-child)');
+      expect(subject, selector).toContain(':has(+ img, + :is(p, div) > img:only-child)');
+    }
+    /* 글자 문단의 기본 간격은 그대로다. */
+    expect(css).toMatch(/\.wc-root \.wc-goods-description :is\(p, ul, ol, blockquote, figure, table\) \{ margin: 0 0 18px; \}/);
+  });
+
+  it('상품 갤러리 도트는 메인 이미지 안에 앉고 점마다 겹치지 않는 24×44 터치 영역을 갖는다', () => {
+    /* 2026-10-07 QA 6·7 (추가 이미지 9장 확장으로 드러난 기존 결함):
+     * 6) 도트의 기준이 썸네일까지 품은 `.wc-pdp-gallery`라 데스크톱에서 도트가 썸네일 줄 위에 떴다.
+     *    기준 상자는 스테이지와 도트만 담는 `__viewport`다(구조는 GoodDetail.test가 지킨다).
+     * 7) 8px 점 + 8px 간격(피치 16px)에 점마다 44px `::after`를 붙여 뒤 점의 히트박스가 앞 점 중앙을
+     *    덮었다. 점의 그림보다 버튼 상자 자체를 터치 영역으로 삼고, 상자끼리 겹치지 않게 피치 = 상자 폭 + 간격으로 둔다. */
+    const css = read('./styles/wc-catalog.css');
+    const rules: Array<{ selectors: string[]; media: string | null; decls: Record<string, string> }> = [];
+    postcss.parse(css).walkRules((rule) => {
+      const media = rule.parent?.type === 'atrule' ? (rule.parent as AtRule).params : null;
+      const decls: Record<string, string> = {};
+      rule.walkDecls((decl) => { decls[decl.prop] = decl.value.trim(); });
+      rules.push({ selectors: rule.selectors.map((selector) => selector.trim()), media, decls });
+    });
+    const base = (selector: string) => Object.assign({}, ...rules
+      .filter((rule) => rule.media === null && rule.selectors.includes(selector))
+      .map((rule) => rule.decls)) as Record<string, string>;
+    const px = (value: string | undefined) => {
+      expect(value, 'px 값').toMatch(/^\d+(?:\.\d+)?px$/);
+      return Number.parseFloat(value!);
+    };
+
+    expect(base('.wc-pdp-gallery__viewport').position).toBe('relative');
+    const dots = base('.wc-pdp-gallery__dots');
+    expect(dots.position).toBe('absolute');
+    /* 44px 터치 줄 가운데의 빈 자리는 스와이프가 스테이지로 그대로 내려가야 한다. */
+    expect(dots['pointer-events']).toBe('none');
+
+    const dot = base('.wc-pdp-gallery__dot');
+    expect(dot['pointer-events']).toBe('auto');
+    const width = px(dot.width);
+    const height = px(dot.height);
+    expect(width).toBeGreaterThanOrEqual(24);
+    expect(height).toBeGreaterThanOrEqual(44);
+    /* 음수 여백으로 상자를 이웃 쪽으로 끌어당기면 피치가 상자 폭보다 좁아진다. */
+    expect(dot.margin ?? '0').not.toMatch(/-/);
+    expect(dots.gap ?? '0').not.toMatch(/-/);
+
+    /* 의사 요소는 8px 점을 그리기만 한다 — 버튼 상자보다 크면 그 초과분이 이웃 점을 덮는다. */
+    const marks = ['::before', '::after'].map((pseudo) => base(`.wc-pdp-gallery__dot${pseudo}`)).filter((decls) => Object.keys(decls).length);
+    expect(marks).toHaveLength(1);
+    const [mark] = marks;
+    expect(px(mark.width)).toBe(8);
+    expect(px(mark.height)).toBe(8);
+    expect(mark['border-radius']).toBe('50%');
+    expect(px(mark.width)).toBeLessThanOrEqual(width);
+    expect(px(mark.height)).toBeLessThanOrEqual(height);
+
+    /* 폭·위치는 모바일·데스크톱 공통이다 — 미디어 쿼리가 도트를 다시 잡으면 위 계약이 그 폭에서 깨진다. */
+    const overridden = rules.filter((rule) => rule.media !== null && /min-width|max-width/.test(rule.media)
+      && rule.selectors.some((selector) => /\.wc-pdp-gallery__(?:viewport|dots?)\b/.test(selector))
+      && ['position', 'top', 'bottom', 'left', 'right', 'inset', 'width', 'height', 'gap'].some((prop) => prop in rule.decls));
+    expect(overridden).toEqual([]);
+  });
+
   it('moves small accent text to the success ink while decoration keeps brand green', () => {
     /* S4 확정: brand-green은 흰 지면에서 2.3:1이라 소형 텍스트에 쓰면 AA를 못 넘는다.
      * 텍스트(배지·할인율·GNB 활성·추천 칩)만 --wc-success로 내리고,
@@ -261,6 +395,8 @@ describe('White Catalog catalog wiring', () => {
     expect(chrome).toMatch(/\.wc-search__chip\s*\{[^}]*color:\s*var\(--wc-success\)/s);
     expect(chrome).toMatch(/\.wc-gnb__label::after\s*\{[^}]*background:\s*var\(--wc-accent\)/s);
     expect(chrome).toMatch(/\.wc-cartcount\s*\{[^}]*background:\s*var\(--wc-accent\)/s);
+    /* 액센트 버튼은 green 면 그대로 글자만 잉크다 — 흰 글자는 2.3:1(셸 QA 2026-10-27), 흰 글자는 잉크 면 위에만(DESIGN §2). */
+    expect(foundation).toMatch(/\.wc-btn\.accent\s*\{[^}]*background:\s*var\(--wc-accent\);[^}]*color:\s*var\(--wc-ink\)/s);
   });
 });
 
@@ -368,6 +504,16 @@ describe('White Catalog account-commerce wiring', () => {
     expect(css).not.toMatch(/@keyframes/);
     expect(css).not.toMatch(/animation:/);
   });
+
+  it('puts the ticket detail status badge on its own row like the order detail', () => {
+    /* 셸 QA(2026-10-27) — 뒤로 링크(inline-flex) 바로 뒤에 배지(inline-flex)를 두어 1100·375 모두 '‹ 내 티켓'과 '사용 가능'이
+     * 간격 0으로 붙었다. 주문 상세와 같은 상태 행이 배지를 다음 줄로 내리고 제목과 10px 띄운다. */
+    const css = read('./styles/wc-account-commerce.css');
+    const ticket = readFileSync(new URL('../components/screens/TicketDetail.tsx', import.meta.url), 'utf8');
+
+    expect(css).toMatch(/\.wc-receipt \.order-detail-status-row,\s*\.wc-receipt \.ticket-detail-status-row\s*\{\s*margin-bottom:\s*10px;/);
+    expect(ticket).toMatch(/<div className="ticket-detail-status-row">\s*<span className=\{`ticket-status /);
+  });
 });
 
 describe('White Catalog campaign wiring', () => {
@@ -400,12 +546,182 @@ describe('White Catalog campaign wiring', () => {
 
   it('pins the campaign anchor nav under the shell header instead of over it', () => {
     /* 앵커 내브가 셸 헤더보다 위 z-index 를 가져가면 GNB·검색 오버레이를 덮는다.
-     * 헤더 축약 높이(모바일 81 / 데스크톱 68)를 오프셋으로 두고 그 아래에 선다
-     * — wc-catalog 의 PDP 탭바와 같은 계약값이다. */
+     * 셸이 알리는 고정 크롬 높이(--wc-sticky-chrome-h)를 오프셋으로 두고 그 아래에 선다.
+     * 토큰이 없을 때의 대체값은 축약 헤더 높이(모바일 81 / 데스크톱 68)다. */
     const css = read('./styles/wc-campaign.css');
 
     expect(css).toMatch(/\.wc-campaign-nav\s*\{[^}]*position:\s*sticky/s);
-    expect(css).toMatch(/\.wc-campaign-nav\s*\{[^}]*top:\s*81px/s);
+    expect(css).toMatch(/\.wc-campaign-nav\s*\{[^}]*top:\s*var\(--wc-sticky-chrome-h,\s*81px\)/s);
+    expect(css).toMatch(/@media \(min-width: 990px\)\s*\{[^@]*\.wc-campaign-nav\s*\{[^}]*top:\s*var\(--wc-sticky-chrome-h,\s*68px\)/s);
     expect(css).toMatch(/\.wc-campaign-nav\s*\{[^}]*z-index:\s*2/s);
+    /* 고정 높이를 숫자로 박아 두면 셸 높이가 바뀔 때 이 지면만 어긋난다. */
+    expect(css).not.toMatch(/top:\s*(?:81|68|69|52)px/);
+  });
+
+  it('lands anchored sections right on the nav line, not in a gap below it', () => {
+    /* 착지선 = 고정 크롬 + 앵커 내브(안쪽 48 + 하단 선 1). 고정 크롬은 전역 html scroll-padding-top(globals.css)이
+     * 맡으므로 섹션은 내브 49만 더한다 — 크롬 높이를 여기서 또 더하면 그만큼(52~123) 아래에 선다(2026-10-23 실측).
+     * 목차 클릭은 CampaignAnchorNav 가 같은 선에 맞춘다(campaign-anchor-scroll).
+     * 선 아래 틈을 두면 그 사이로 앞 블록의 끝(이동 버튼 아랫단)이 비친다. */
+    const css = read('./styles/wc-campaign.css');
+    const margins: string[] = [];
+    postcss.parse(css).walkDecls('scroll-margin-top', (decl) => {
+      const rule = decl.parent?.type === 'rule' ? (decl.parent as Rule).selectors.join(', ') : '';
+      const media = decl.parent?.parent?.type === 'atrule' ? (decl.parent.parent as AtRule).params : 'base';
+      margins.push(`${media} ${rule}: ${decl.value}`);
+    });
+
+    expect(css).toMatch(/\.wc-campaign-nav\s*\{[^}]*border-bottom:\s*1px/s);
+    expect(css).toMatch(/\.wc-campaign-nav__inner\s*\{[^}]*height:\s*48px/s);
+    /* 모바일·데스크톱이 같은 한 줄이다 — 미디어마다 다시 적으면 크롬 높이를 다시 끌어들이기 쉽다.
+     * 본문 안 키보드 포커스도 같은 내브 높이만큼 띄워 붙어 있는 내브 밑에 숨지 않게 한다. */
+    expect(margins).toEqual([
+      'base .wc-campaign-section: 49px',
+      'base .wc-campaign__body :where(a[href], button, input, select, textarea, summary, [tabindex]): 49px',
+    ]);
+  });
+});
+
+describe('White Catalog offline popup wiring', () => {
+  it('loads the offline popup layer after the campaign layer and before the retained about surface', () => {
+    /* 오프라인 팝업은 캠페인 카드 문법(R-06 §1.4)과 파운데이션 버튼·스테퍼를 자기 수치로 조율한다 —
+     * 앞선 레이어보다 먼저 로드되면 같은 특정성에서 그 조율이 밀린다. */
+    const layout = read('./layout.tsx');
+
+    expect(layout).toContain("'./styles/wc-offline-popups.css'");
+    expect(layout.indexOf("'./styles/wc-offline-popups.css'")).toBeGreaterThan(
+      layout.indexOf("'./styles/wc-campaign.css'"),
+    );
+    expect(layout.indexOf("'./styles/about-legacy.css'")).toBeGreaterThan(
+      layout.indexOf("'./styles/wc-offline-popups.css'"),
+    );
+  });
+
+  it('keeps the offline popup stylesheet scoped, rootless, and free of the reference accent', () => {
+    const css = read('./styles/wc-offline-popups.css');
+
+    expect(css).not.toMatch(/^\s*(?:html|body|:root|h[1-6]|a|p|ul|ol|button|input|\*)\s*[,{:]/m);
+    expect(css).not.toMatch(/:root\s*\{[^}]*--wc-/s);
+    expect(css).not.toMatch(/#F83BAA/i);
+    expect(css).not.toMatch(/#FD4BBB/i);
+    expect(css).not.toMatch(/line-height:\s*(?:0?\.)\d+/);
+    postcss.parse(css).walkRules((rule) => {
+      for (const selector of rule.selectors) expect(selector.trim()).toMatch(/^\.wc-offline/);
+    });
+  });
+
+  it('keeps the booking surface free of ambient motion', () => {
+    /* 예매·결제 지면에서는 주변 자동 모션을 두지 않는다(DESIGN §9). 피드백 전환만 허용한다. */
+    const css = read('./styles/wc-offline-popups.css');
+
+    expect(css).not.toMatch(/@keyframes/);
+    expect(css).not.toMatch(/animation:/);
+  });
+});
+
+describe('White Catalog document-page wiring', () => {
+  it('loads the document layer after the campaign layer and before the retained about surface', () => {
+    const layout = read('./layout.tsx');
+
+    expect(layout).toContain("'./styles/wc-document.css'");
+    expect(layout.indexOf("'./styles/wc-document.css'")).toBeGreaterThan(
+      layout.indexOf("'./styles/wc-campaign.css'"),
+    );
+    expect(layout.indexOf("'./styles/about-legacy.css'")).toBeGreaterThan(
+      layout.indexOf("'./styles/wc-document.css'"),
+    );
+  });
+
+  it('keeps the document stylesheet scoped, rootless, and free of the reference accent', () => {
+    const css = read('./styles/wc-document.css');
+
+    expect(css).not.toMatch(/^\s*(?:html|body|:root|h[1-6]|a|p|ul|ol|button|input|\*)\s*[,{:]/m);
+    expect(css).not.toMatch(/:root\s*\{[^}]*--wc-/s);
+    expect(css).not.toMatch(/#F83BAA/i);
+    expect(css).not.toMatch(/#FD4BBB/i);
+    expect(css).not.toMatch(/line-height:\s*(?:0?\.)\d+/);
+    postcss.parse(css).walkRules((rule) => {
+      for (const selector of rule.selectors) expect(selector.trim()).toMatch(/^\.wc-document/);
+    });
+  });
+
+  it('pins the R-06 §8 policy document measures', () => {
+    /* 620 칼럼(좌우 20 → 본문 580), 조항 제목 20/700, 본문 14/1.6 — 레퍼런스 정책 문서 서식. */
+    const css = read('./styles/wc-document.css');
+
+    expect(css).toMatch(/\.wc-document__page\s*\{[^}]*max-width:\s*620px/s);
+    expect(css).toMatch(/@media \(min-width: 990px\)\s*\{[^@]*\.wc-document__page\s*\{[^}]*padding:\s*0 20px/s);
+    expect(css).toMatch(/\.wc-document__heading\s*\{[^}]*font-size:\s*20px;[^}]*font-weight:\s*700/s);
+    expect(css).toMatch(/\.wc-document__paragraph\s*\{[^}]*font-size:\s*14px;[^}]*line-height:\s*1\.6/s);
+  });
+});
+
+describe('Hash landing offsets', () => {
+  /* 고정 크롬은 html scroll-padding-top(globals.css — chrome-styles.test 가 셸 높이와 맞춘다)이 비켜 준다. 대상의
+   * scroll-margin-top 은 그 표면의 sticky 하위 내브와 여백만 더한다 — 크롬 높이를 또 더하면 그만큼 아래에 선다.
+   * 2026-10-23까지는 전역 112(≤720px 88)에 크롬·내브를 다시 더해 캠페인 +112, PDP 리뷰 +183~194, 어드민 +80 안팎이 남았다. */
+  const styleNames = readdirSync(new URL('./styles/', import.meta.url)).filter((name) => name.endsWith('.css'));
+  const isAdminSheet = (name: string) => name.startsWith('admin-') || name.startsWith('wc-admin');
+
+  function scrollMargins(names: string[]) {
+    const found: Array<{ sheet: string; selector: string; media: string | null; prop: string; value: string }> = [];
+    for (const sheet of names) {
+      postcss.parse(read(`./styles/${sheet}`)).walkDecls(/^scroll-margin/, (decl) => {
+        const rule = decl.parent?.type === 'rule' ? (decl.parent as Rule) : null;
+        const media = rule?.parent?.type === 'atrule' ? (rule.parent as AtRule).params : null;
+        found.push({ sheet, selector: rule ? rule.selectors.join(', ') : '', media, prop: decl.prop, value: decl.value });
+      });
+    }
+    return found;
+  }
+
+  it('keeps the fixed chrome height out of public scroll margins', () => {
+    const margins = scrollMargins(styleNames.filter((name) => !isAdminSheet(name)));
+    /* 예외 하나 — sticky 헤더 행 안의 포커스는 이미 크롬 자리에 보이므로 착지선을 음수로 상쇄한다(wc-chrome.css,
+     * 값은 chrome-styles.test 가 착지선 최댓값과 맞춘다). 해시 대상에 크롬 높이를 더하는 것과는 반대 방향이다. */
+    const headerOwn = (margin: { sheet: string; selector: string; value: string }) => margin.sheet === 'wc-chrome.css'
+      && margin.value.startsWith('-') && margin.selector.split(', ').every((selector) => selector.startsWith('.wc-header '));
+
+    expect(margins.filter((margin) => !headerOwn(margin) && /--wc-sticky-chrome-h|\b(?:52|68|69|81|88|112|123)px/.test(margin.value))).toEqual([]);
+    expect(margins.filter(headerOwn).map(({ media, value }) => `${media} ${value}`)).toEqual(['(min-width: 990px) -123px']);
+    /* 감사한 해시 대상: 캠페인 섹션(내브 49, 여백 0 — 섹션 padding 이 여백), PDP 리뷰·Q&A(탭바 55 + 16), 배송비 절약(16).
+     * sticky 하위 내브 아래 패널·본문의 키보드 포커스는 내브 높이만큼 띄운다(탭바 55, 캠페인 내브 49). */
+    expect(margins.map(({ sheet, selector, media, value }) => `${sheet} ${media ?? 'base'} ${selector}: ${value}`)).toEqual(expect.arrayContaining([
+      'product-detail-experience.css base .wc-pdp-shipping-savings, .wc-product-interests: 16px',
+      'wc-campaign.css base .wc-campaign-section: 49px',
+      'wc-campaign.css base .wc-campaign__body :where(a[href], button, input, select, textarea, summary, [tabindex]): 49px',
+      'wc-catalog.css base .wc-pdp-tabs .wc-reviews, .wc-pdp-tabs .wc-qna: calc(55px + 16px)',
+      'wc-catalog.css base .wc-pdp-tabs .wc-tabs__panel :where(a[href], button, input, select, textarea, summary, [tabindex]): 55px',
+    ]));
+  });
+
+  it('keeps the admin topbar height out of admin scroll margins', () => {
+    /* 어드민 상단바(55, position: fixed)도 html scroll-padding-top 이 비켜 준다 — 대상은 그 아래 여백만 둔다. */
+    const margins = scrollMargins(styleNames.filter(isAdminSheet)).filter((margin) => margin.prop === 'scroll-margin-top');
+
+    expect(margins.length).toBeGreaterThan(0);
+    /* 어드민 해시 대상은 모두 상단바 아래 16에 선다 — 상단바 높이를 다시 더한 값(80·84·90·96)이 돌아오면 여기서 걸린다. */
+    expect(margins.filter((margin) => margin.value !== '16px').map(({ sheet, selector, value }) => `${sheet} ${selector}: ${value}`)).toEqual([]);
+  });
+
+  it('lands goods workspace sections on their own margin, not the centered-field margin', () => {
+    /* 입력칸은 가운데로 맞추며 위아래 140을 띄운다(scroll-margin-block). 섹션(details[id])까지 그 규칙에 걸리면
+     * #good-section-* 로 들어온 섹션이 상단바보다 140 아래에 선다(섹션 자신의 scroll-margin-top 이 묻힌다). */
+    /* ADR-0028: 편집기 폼은 입력류에만 위아래 여백(scroll-my-32)을 두고, 섹션(details[id])은 자기 scroll-mt-24로 착지한다. */
+    const editor = read('../components/admin/GoodEditor.tsx');
+    const workspace = read('../components/admin/GoodWorkspace.tsx');
+
+    expect(editor).toContain('[&_:is(input,select,textarea,button,summary,a)]:scroll-my-32');
+    expect(editor).not.toMatch(/\[&_:is\([^)]*(details|\[id\])[^)]*\)\]:scroll-my/);
+    expect(workspace).toMatch(/SECTION_CLASS = '[^']*\bscroll-mt-24\b/);
+  });
+
+  it('mounts the hash landing watcher once at the root for every shell', () => {
+    /* 스트리밍으로 늦게 드러난 해시 대상을 세운다(components/shell/HashLanding). 셸 안에 두면 셸이 없는 어드민·집중형
+     * 화면이 빠진다. useSearchParams 를 읽으므로 Suspense 로 감싼다(정적 렌더 경계). */
+    const layout = read('./layout.tsx');
+
+    expect(layout.match(/<HashLanding \/>/g)).toHaveLength(1);
+    expect(layout).toContain('<Suspense fallback={null}><HashLanding /></Suspense>');
   });
 });

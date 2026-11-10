@@ -53,7 +53,7 @@ begin
   begin
     perform public.admin_save_goods_notice_preset(row.id,'덮어쓰기',notice,row.updated_at - interval '1 second');
     raise exception 'stale update was allowed';
-  exception when serialization_failure then null; end;
+  exception when sqlstate 'PT409' then null; end;
   begin
     perform public.admin_save_goods_notice_preset(null,' 아크릴 개선 ',notice,null);
     raise exception 'ambiguous duplicate name was allowed';
@@ -69,7 +69,7 @@ begin
   begin
     perform public.admin_delete_goods_notice_preset(row.id,row.updated_at - interval '1 second');
     raise exception 'stale deletion was allowed';
-  exception when serialization_failure then null; end;
+  exception when sqlstate 'PT409' then null; end;
 end $$;
 
 select updated_at as delete_updated_at from public.goods_notice_presets where id = :'preset_id' \gset

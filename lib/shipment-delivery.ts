@@ -1,9 +1,12 @@
+import { FULFILLMENT_METHOD_LABELS, FULFILLMENT_METHODS, type FulfillmentMethod } from './goods-fulfillment';
 import { isUuid } from '@/lib/uuid';
 import { isGoodsShipDate } from './goods-preorders';
 
-export type DeliveryMethod = 'parcel' | 'quick' | 'pickup';
+export type DeliveryMethod = FulfillmentMethod;
 export type DeliveryPolicyState = 'draft' | 'active' | 'stopped';
-export type DeliveryOperation = 'quick_handoff' | 'quick_receive' | 'pickup_receive';
+export const DELIVERY_OPERATIONS = ['quick_handoff', 'quick_receive', 'pickup_receive', 'direct_handoff', 'direct_receive', 'freight_handoff', 'freight_receive', 'none_receive'] as const;
+export type DeliveryOperation = typeof DELIVERY_OPERATIONS[number];
+export const deliveryIsHandoff = (kind: unknown) => typeof kind === 'string' && kind.endsWith('_handoff');
 export type DeliveryPolicyInput = {
   state: DeliveryPolicyState; contactName: string | null; contactPhone: string | null;
   handoffLocation: string | null; handoffInstructions: string | null; appointmentInstructions: string | null;
@@ -11,11 +14,11 @@ export type DeliveryPolicyInput = {
   approvalReference: string | null;
 };
 export type AdminDeliveryPolicy = DeliveryPolicyInput & {
-  id: string; originId: string; method: Exclude<DeliveryMethod, 'parcel'>; revision: number;
+  id: string; originId: string; method: Exclude<DeliveryMethod, 'parcel' | 'digital'>; revision: number;
   createdAt: string; activatedAt: string | null; stoppedAt: string | null;
 };
 export type DeliveryPolicySnapshot = Omit<DeliveryPolicyInput, 'state' | 'approvalReference'> & {
-  version: 1; policyId: string; revision: number; feeRule: 'order_fee_unchanged';
+  version: 1 | 2; policyId: string; revision: number; feeRule: 'order_fee_unchanged' | 'checkout_prepaid';
   confirmationRule: 'recipient_code';
 };
 export type ShipmentDeliverySummary = {
@@ -26,7 +29,7 @@ export type DeliveryEvidence = {
   handoffReference?: string; receiptReference?: string; recipientKind?: 'self' | 'delegate';
 };
 export type DeliveryHistory = {
-  id: string; kind: 'method_selected' | DeliveryOperation; evidence: Record<string, unknown>;
+  id: string; kind: 'method_selected' | 'digital_access' | DeliveryOperation; evidence: Record<string, unknown>;
   actorName: string | null; recordedAt: string;
 };
 export type AdminShipmentDelivery = {
@@ -37,7 +40,7 @@ export type AdminShipmentDelivery = {
 
 export const DELIVERY_POLICY_TEXT_FIELDS = ['contactName', 'contactPhone', 'handoffLocation', 'handoffInstructions',
   'appointmentInstructions', 'completionInstructions', 'cancellationInstructions', 'approvalReference'] as const;
-export const DELIVERY_METHOD_LABELS: Record<DeliveryMethod, string> = { parcel: '택배', quick: '퀵', pickup: '방문수령' };
+export const DELIVERY_METHOD_LABELS = FULFILLMENT_METHOD_LABELS;
 export const deliveryUuid = isUuid;
 export function deliveryObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -75,7 +78,7 @@ export function parseAdminDeliveryPolicies(value: unknown): AdminDeliveryPolicy[
   if (!Array.isArray(value)) return null;
   const output: AdminDeliveryPolicy[] = [];
   for (const row of value) {
-    if (!deliveryObject(row) || !deliveryUuid(row.id) || !deliveryUuid(row.originId) || !['quick', 'pickup'].includes(String(row.method))
+    if (!deliveryObject(row) || !deliveryUuid(row.id) || !deliveryUuid(row.originId) || !['quick', 'pickup', 'direct', 'freight', 'none'].includes(String(row.method))
       || !positive(row.revision) || !deliveryTimestamp(row.createdAt) || !timestampOrNull(row.activatedAt) || !timestampOrNull(row.stoppedAt)) return null;
     const input = parseDeliveryPolicyInput(Object.fromEntries(['state', 'allowDelegate', ...DELIVERY_POLICY_TEXT_FIELDS].map((key) => [key, row[key]])));
     if (!input || (input.state === 'active' && row.activatedAt === null) || (input.state === 'stopped' && row.stoppedAt === null)) return null;
@@ -86,11 +89,11 @@ export function parseAdminDeliveryPolicies(value: unknown): AdminDeliveryPolicy[
 }
 
 export function parseShipmentDeliverySummary(value: unknown): ShipmentDeliverySummary | null {
-  if (!deliveryObject(value) || !['parcel', 'quick', 'pickup'].includes(String(value.method))) return null;
-  if (value.method === 'parcel') return { method: 'parcel', policy: null, providerName: null, canIssueReceipt: false };
+  if (!deliveryObject(value) || !FULFILLMENT_METHODS.includes(value.method as FulfillmentMethod)) return null;
+  if (value.method === 'parcel' || value.method === 'digital') return { method: value.method, policy: null, providerName: null, canIssueReceipt: false };
   const policy = value.policy;
-  if (!deliveryObject(policy) || policy.version !== 1 || !deliveryUuid(policy.policyId) || !positive(policy.revision)
-    || policy.feeRule !== 'order_fee_unchanged' || policy.confirmationRule !== 'recipient_code'
+  if (!deliveryObject(policy) || ![1, 2].includes(Number(policy.version)) || !deliveryUuid(policy.policyId) || !positive(policy.revision)
+    || policy.feeRule !== (policy.version === 1 ? 'order_fee_unchanged' : 'checkout_prepaid') || policy.confirmationRule !== 'recipient_code'
     || typeof policy.allowDelegate !== 'boolean' || typeof value.canIssueReceipt !== 'boolean'
     || (value.providerName != null && typeof value.providerName !== 'string')) return null;
   const fields: Record<string, string> = {};
@@ -98,13 +101,13 @@ export function parseShipmentDeliverySummary(value: unknown): ShipmentDeliverySu
     const parsed = text(policy[key]); if (!parsed) return null; fields[key] = parsed;
   }
   return { method: value.method as DeliveryMethod, providerName: value.providerName as string | null ?? null, canIssueReceipt: value.canIssueReceipt,
-    policy: { ...fields, version: 1, policyId: policy.policyId, revision: policy.revision, allowDelegate: policy.allowDelegate,
-      feeRule: 'order_fee_unchanged', confirmationRule: 'recipient_code' } as DeliveryPolicySnapshot };
+    policy: { ...fields, version: policy.version, policyId: policy.policyId, revision: policy.revision, allowDelegate: policy.allowDelegate,
+      feeRule: policy.feeRule, confirmationRule: 'recipient_code' } as DeliveryPolicySnapshot };
 }
 
 export function parseDeliveryEvidence(kind: unknown, value: unknown): DeliveryEvidence | null {
-  if (!deliveryObject(value) || !['quick_handoff', 'quick_receive', 'pickup_receive'].includes(String(kind))) return null;
-  const keys = kind === 'quick_handoff' ? ['operatorName', 'providerName', 'providerPhone', 'handoffReference', 'occurredAt']
+  if (!deliveryObject(value) || !DELIVERY_OPERATIONS.includes(kind as DeliveryOperation)) return null;
+  const keys = deliveryIsHandoff(kind) ? ['operatorName', 'providerName', 'providerPhone', 'handoffReference', 'occurredAt']
     : ['operatorName', 'receiptReference', 'recipientKind', 'occurredAt'];
   if (Object.keys(value).some((key) => !keys.includes(key))) return null;
   let occurredAt = value.occurredAt;
@@ -119,8 +122,8 @@ export function parseDeliveryEvidence(kind: unknown, value: unknown): DeliveryEv
     const parsed = text(value[key], ['operatorName', 'providerName'].includes(key) ? 100 : key === 'providerPhone' ? 40 : 2000);
     if (!parsed) return null; fields[key] = parsed;
   }
-  if (kind !== 'quick_handoff' && !['self', 'delegate'].includes(String(value.recipientKind))) return null;
-  return { ...fields, occurredAt, ...(kind !== 'quick_handoff' ? { recipientKind: value.recipientKind } : {}) } as DeliveryEvidence;
+  if (!deliveryIsHandoff(kind) && !['self', 'delegate'].includes(String(value.recipientKind))) return null;
+  return { ...fields, occurredAt, ...(!deliveryIsHandoff(kind) ? { recipientKind: value.recipientKind } : {}) } as DeliveryEvidence;
 }
 
 export function parseAdminShipmentDelivery(value: unknown): AdminShipmentDelivery | null {
@@ -134,7 +137,7 @@ export function parseAdminShipmentDelivery(value: unknown): AdminShipmentDeliver
   if (!summary || !policies) return null;
   const history: DeliveryHistory[] = [];
   for (const row of value.history) {
-    if (!deliveryObject(row) || !deliveryUuid(row.id) || !['method_selected', 'quick_handoff', 'quick_receive', 'pickup_receive'].includes(String(row.kind))
+    if (!deliveryObject(row) || !deliveryUuid(row.id) || !['method_selected', 'digital_access', ...DELIVERY_OPERATIONS].includes(String(row.kind))
       || !deliveryObject(row.evidence) || !deliveryTimestamp(row.recordedAt) || (row.actorName !== null && typeof row.actorName !== 'string')) return null;
     history.push({ id: row.id, kind: row.kind as DeliveryHistory['kind'], evidence: row.evidence,
       actorName: row.actorName as string | null, recordedAt: row.recordedAt });
@@ -146,9 +149,11 @@ export function parseAdminShipmentDelivery(value: unknown): AdminShipmentDeliver
 
 export function deliveryStatusLabel(method: DeliveryMethod, status: 'ready' | 'shipping' | 'delivered' | 'canceled'): string {
   if (status === 'canceled') return '취소';
+  if (method === 'digital') return status === 'delivered' ? '파일 제공 시작' : '파일 제공 대기';
+  if (method === 'none') return status === 'delivered' ? '직접전달 완료' : '직접전달 준비';
   if (method === 'pickup') return status === 'delivered' ? '방문수령 완료' : '방문수령 준비';
   const label = { ready: '배송 준비', shipping: '배송 중', delivered: '배송 완료' }[status];
-  return method === 'quick' ? `퀵 ${label}` : label;
+  return method === 'parcel' ? label : `${DELIVERY_METHOD_LABELS[method]} ${label}`;
 }
 
 export function deliveryErrorMessage(code?: string): string {

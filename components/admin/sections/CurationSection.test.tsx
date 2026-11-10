@@ -1,381 +1,367 @@
-import { isValidElement, type ReactElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { readFileSync } from 'node:fs';
+vi.mock('@/app/admin/curation-archive-actions', () => ({ readArchivedHeroBannersAction: vi.fn(), setHeroBannerArchivedAction: vi.fn() }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AdminCurationKind } from '@/lib/admin/curations';
+import type { AdminCurationActionState } from '@/lib/admin/curations';
 import type { AdminCurationRecord } from '@/lib/admin/curations.server';
-import { CurationSection } from './CurationSection';
+import { CurationSection, getCurationFormKey, SearchTermFields } from './CurationSection';
 
 const mocks = vi.hoisted(() => ({
   action: vi.fn(),
-  /* kind 리터럴만 골라 가로채야 아트워크 칸의 useState 까지 덮어쓰지 않는다. */
-  kinds: [
-    'hero',
-    'featured_ip',
-    'announcement',
-    'notice_strip',
-    'editor_pick',
-    'band_banner',
-    'best_tab',
-    'benefit',
-  ] as string[],
-  kindSetter: vi.fn(),
-  kindState: null as null | AdminCurationKind,
-  notificationAction: vi.fn(),
-  reducer: null as unknown,
+  onSelect: vi.fn(),
+  reducer: null as null | ((state: AdminCurationActionState, data: FormData) => Promise<AdminCurationActionState>),
+  state: {} as AdminCurationActionState,
 }));
-
-vi.mock('react', async () => {
-  const actual = await vi.importActual<typeof import('react')>('react');
-  return {
-    ...actual,
-    useActionState: (reducer: unknown) => {
-      mocks.reducer = reducer;
-      return [{}, vi.fn(), false];
-    },
-    useState: (initial: unknown) => {
-      const value = typeof initial === 'function' ? (initial as () => unknown)() : initial;
-      if (mocks.kindState && typeof value === 'string' && mocks.kinds.includes(value)) {
-        return [mocks.kindState, mocks.kindSetter];
-      }
-      return actual.useState(initial);
-    },
-  };
-});
+vi.mock('react', async () => ({
+  ...await vi.importActual<typeof import('react')>('react'),
+  useActionState: (reducer: typeof mocks.reducer) => {
+    mocks.reducer = reducer;
+    return [mocks.state, vi.fn(), false];
+  },
+}));
 vi.mock('@/app/admin/curation-actions', () => ({ upsertAdminCurationAction: mocks.action }));
-vi.mock('@/app/admin/notification-actions', () => ({ sendAdminNotificationAction: mocks.notificationAction }));
 vi.mock('@/components/ui/Icon', () => ({ Icon: () => null }));
 vi.mock('../../../lib/admin/artwork-upload.client', () => ({ uploadAdminArtwork: vi.fn() }));
 
-const activeAnnouncement: AdminCurationRecord = {
-  id: '11111111-1111-4111-8111-111111111111',
-  kind: 'announcement',
-  ipId: null,
-  title: '서비스 점검 안내',
-  imagePath: null,
-  imageUrl: null,
-  mobileImageUrl: null,
-  linkPath: '/notice/maintenance',
-  displayOrder: 2,
-  activeFrom: '2026-07-15T00:00:00.000Z',
-  activeTo: null,
-  enabled: true,
-  slot: null,
-  payload: null,
-  createdAt: '2026-07-14T00:00:00.000Z',
-  updatedAt: '2026-07-15T01:00:00.000Z',
-  status: 'active',
+const record: AdminCurationRecord = {
+  id: '11111111-1111-4111-8111-111111111111', kind: 'hero', ipId: null, title: '여름 신작',
+  imagePath: 'public-media/catalog/curation/77777777-7777-4777-8777-777777777777.webp',
+  imageUrl: 'https://cdn.example/desktop.webp', mobileImageUrl: 'https://cdn.example/mobile.webp',
+  linkPath: '/shop/g13', displayOrder: 2, activeFrom: '2026-07-15T00:00:00.000Z', activeTo: null,
+  enabled: true, slot: null, payload: { subtitle: '여름 한정', mobile_image_path: 'public-media/catalog/curation/99999999-9999-4999-8999-999999999999.webp' },
+  createdAt: '2026-07-14T00:00:00.000Z', updatedAt: '2026-07-15T01:00:00.000Z', status: 'active',
 };
-
-const ipOptions = [
-  { id: 'active-ip', title: '운영 IP', archivedAt: null },
-  { id: 'archived-ip', title: '보관 IP', archivedAt: '2026-07-01T00:00:00.000Z' },
-];
-
-const eventOptions = [
-  { id: 'e100', title: '성수 팝업', archivedAt: null },
-];
-
 const goodOptions = [
   { id: 'g13', title: '홍실 아크릴 블록', archivedAt: null },
-  { id: 'archived-good', title: '보관 굿즈', archivedAt: '2026-07-01T00:00:00.000Z' },
+  { id: 'archived-good', title: '보관 상품', archivedAt: '2026-07-01' },
 ];
-
-function renderSection(selected: AdminCurationRecord | null, records = selected ? [selected] : []) {
-  return renderToStaticMarkup(
-    <CurationSection
-      draftActiveFrom="2026-07-15T03:04:05.000Z"
-      draftId="22222222-2222-4222-8222-222222222222"
-      eventOptions={eventOptions}
-      goodOptions={goodOptions}
-      ipOptions={ipOptions}
-      onSelect={vi.fn()}
-      operationId="33333333-3333-4333-8333-333333333333"
-      records={records}
-      selected={selected}
-    />,
-  );
+/* 체크박스 하나의 태그 — 속성 순서와 무관하게 값으로 찾는다. */
+function checkboxTag(html: string, value: string) {
+  return html.match(new RegExp(`<input[^>]*name="pageTypes"[^>]*value="${value}"[^>]*/>`))?.[0] ?? '';
 }
-
-/*
- * 히어로는 대표 아트워크 칸 뒤에 모바일 칸을 하나 더 그린다. 제거 버튼 단언은
- * 대표 칸에만 걸어야 의미가 유지되므로 첫 업로드 섹션만 잘라 본다.
- */
-function primaryArtwork(html: string) {
-  return html.split('data-artwork-kind="curation"')[1] ?? '';
-}
-
-function findElement(node: ReactNode, predicate: (element: ReactElement) => boolean): ReactElement | null {
-  if (!isValidElement(node)) return null;
-  if (predicate(node)) return node;
-  const children = (node.props as { children?: ReactNode }).children;
-  for (const child of Array.isArray(children) ? children : [children]) {
-    const found = findElement(child, predicate);
-    if (found) return found;
-  }
-  return null;
+function renderSection(selected: AdminCurationRecord | null = record) {
+  return renderToStaticMarkup(<CurationSection
+    draftActiveFrom="2026-07-15T03:04:05.000Z" draftId="22222222-2222-4222-8222-222222222222"
+    eventOptions={[]} goodOptions={goodOptions} ipOptions={[{ id: 'ip-1', title: '홍실', archivedAt: null }]}
+    onSelect={mocks.onSelect} operationId="33333333-3333-4333-8333-333333333333" records={selected ? [selected] : []} selected={selected}
+  />);
 }
 
 describe('CurationSection', () => {
-  beforeEach(() => {
-    mocks.action.mockReset();
-    mocks.kindSetter.mockReset();
-    mocks.kindState = null;
-    mocks.notificationAction.mockReset();
-    mocks.reducer = null;
-  });
-
-  it('목록에 유형·텍스트 상태·순서·KST 운영 윈도를 함께 보여준다', () => {
-    const records: AdminCurationRecord[] = [
-      activeAnnouncement,
-      { ...activeAnnouncement, id: '44444444-4444-4444-8444-444444444444', status: 'scheduled' },
-      { ...activeAnnouncement, id: '55555555-5555-4555-8555-555555555555', status: 'ended' },
-      { ...activeAnnouncement, id: '66666666-6666-4666-8666-666666666666', status: 'inactive' },
-    ];
-    const html = renderSection(activeAnnouncement, records);
-
-    expect(html).toContain('홈 큐레이션');
-    expect(html).toContain('운영 윈도');
-    expect(html).toContain('공지 배너');
-    expect(html).toContain('서비스 점검 안내');
-    expect(html).toContain('공지 배너 · 노출 중 · 순서 2');
-    expect(html).toContain('노출 중');
-    expect(html).toContain('노출 예정');
-    expect(html).toContain('종료');
-    expect(html).toContain('비활성');
-    expect(html).toContain('순서 2');
-    expect(html).toContain('2026-07-15 09:00 KST');
-  });
-
-  it('신규 히어로에 필수 이미지·내부 링크·음수가 아닌 순서·KST 기간·활성 제어를 놓는다', () => {
-    const html = renderSection(null);
-
-    expect(html).toContain('name="kind"');
-    expect(html).toContain('value="hero"');
-    expect(html).toContain('히어로 이미지는 필수입니다.');
-    expect(html).toContain('name="linkPath"');
-    expect(html).toContain('name="displayOrder"');
-    expect(html).toContain('min="0"');
-    expect(html).toContain('노출 시작 (KST)');
-    expect(html).toContain('노출 종료 (KST, 선택)');
-    expect(html).toContain('name="enabled"');
-    expect(html).toContain('data-artwork-kind="curation"');
-    expect(mocks.reducer).toBe(mocks.action);
-  });
-
-  /* 굿즈가 빠지면 첫 판매 굿즈를 홈에서 상세로 바로 보낼 수 없다. */
-  it('이동 대상 목록에 활성 굿즈 상세를 넣고 보관 굿즈는 뺀다', () => {
-    const html = renderSection(null);
-    const linkSelect = html.match(/<select[^>]*name="linkPath"[\s\S]*?<\/select>/)?.[0];
-
-    expect(linkSelect).toBeDefined();
-    expect(linkSelect).toContain('label="상품 상세"');
-    expect(linkSelect).toContain('<option value="/shop/g13">홍실 아크릴 블록 (g13)</option>');
-    expect(linkSelect).not.toContain('/shop/archived-good');
-  });
-
-  it('특집 IP에서만 IP를 필수로 받고 보관 IP는 선택할 수 없게 한다', () => {
-    const featured: AdminCurationRecord = {
-      ...activeAnnouncement,
-      kind: 'featured_ip',
-      ipId: 'active-ip',
-      title: '운영 IP 특집',
-    };
-    const html = renderSection(featured);
-
-    expect(html).toContain('특집 IP 이미지는 선택입니다. 비우면 IP 키아트를 사용합니다.');
-    expect(html).toMatch(/<select[^>]*name="ipId"[^>]*required/);
-    expect(html).toMatch(/<option disabled="" value="archived-ip">\[보관\] 보관 IP<\/option>/);
-  });
-
-  it('특집 IP 레코드에서 다른 영역으로 전환하면 IP 선택기와 현재 IP 안내를 숨긴다', () => {
-    const featured: AdminCurationRecord = {
-      ...activeAnnouncement,
-      kind: 'featured_ip',
-      ipId: 'active-ip',
-      title: '운영 IP 특집',
-    };
-    mocks.kindState = 'announcement';
-
-    const html = renderSection(featured);
-
-    expect(html).toContain('공지 배너 이미지는 선택입니다.');
-    expect(html).not.toContain('특집할 IP');
-    expect(html).not.toContain('현재 특집 IP:');
-  });
-
-  /* CTA가 부모 상태를 바꾸던 콜백이었을 때는 큐레이션 화면 밖에서 재사용할 수 없었다. */
-  it('공지 배너는 이미지가 선택이고 CTA는 공지 발송 라우트 링크다', () => {
-    const html = renderSection(activeAnnouncement);
-
-    expect(html).toContain('공지 배너 이미지는 선택입니다.');
-    expect(html).toMatch(
-      /<a[^>]*class="btn btn-ghost admin-curation-notification-cta"[^>]*href="\/admin\/messaging\/notifications"/,
-    );
-    expect(html).not.toContain('<button class="btn btn-ghost admin-curation-notification-cta"');
-    expect(mocks.notificationAction).not.toHaveBeenCalled();
-  });
-
-  it('선택 이미지가 있는 특집 IP와 공지는 제거할 수 있지만 이미지 필수 편성은 제거할 수 없다', () => {
-    const imagePath = 'public-media/catalog/curation/77777777-7777-4777-8777-777777777777.webp';
-    const withArtwork = {
-      ...activeAnnouncement,
-      imagePath,
-      imageUrl: 'https://cdn.example/catalog/curation/current.webp',
-    };
-    const announcementHtml = renderSection(withArtwork);
-    const featuredHtml = renderSection({
-      ...withArtwork,
-      kind: 'featured_ip',
-      ipId: 'active-ip',
-    });
-    const heroHtml = renderSection({
-      ...withArtwork,
-      kind: 'hero',
-      ipId: null,
-    });
-    const noticeStripHtml = renderSection({
-      ...withArtwork,
-      kind: 'notice_strip',
-      ipId: null,
-    });
-
-    expect(announcementHtml).toContain('>이미지 제거</button>');
-    expect(featuredHtml).toContain('>이미지 제거</button>');
-    expect(primaryArtwork(heroHtml)).not.toContain('>이미지 제거</button>');
-    expect(heroHtml).toContain('히어로 이미지는 필수입니다.');
-    expect(primaryArtwork(noticeStripHtml)).not.toContain('>이미지 제거</button>');
-    expect(noticeStripHtml).toContain('공지 스트립 이미지는 필수입니다.');
-  });
-
-  it('390px에서도 120자 제목과 상태·순서·기간을 별도 구조로 모두 노출한다', () => {
-    const longTitle = '가'.repeat(120);
-    const record = { ...activeAnnouncement, title: longTitle };
+  it('keeps missing legacy banner style selected and exposes archive only on saved heroes', () => {
     const html = renderSection(record);
-    const button = html.match(/<button[^>]*admin-curation-record-button[^>]*>[\s\S]*?<\/button>/)?.[0];
-    const css = readFileSync(new URL('../../../app/styles/wc-admin-surfaces.css', import.meta.url), 'utf8');
-
-    expect(button).toBeDefined();
-    expect(button).toContain(`<strong class="admin-curation-record-title">${longTitle}</strong>`);
-    expect(button).toContain('<span class="admin-curation-record-meta">');
-    expect(button).toContain('공지 배너 · 노출 중 · 순서 2');
-    expect(button).toContain('2026-07-15 09:00 KST → 종료 없음');
-    expect(css).toMatch(/\.admin-curation-record-button\s*\{[^}]*height:\s*auto[^}]*white-space:\s*normal/);
-    expect(css).toMatch(
-      /\.admin-curation-record-title\s*\{[^}]*word-break:\s*keep-all;[^}]*overflow-wrap:\s*break-word/s,
-    );
-    expect(css).toMatch(/\.admin-curation-record-meta\s*\{[^}]*color:\s*var\(--wc-ink-tertiary\)[^}]*font-size:\s*12px/);
+    expect(html).toContain('name="imageDim"'); expect(html).toContain('name="textColor"');
+    expect(html).toContain('<option value="" selected="">기존 표시 유지</option>');
+    expect(html).toContain('배너 삭제'); expect(html).toContain('삭제한 배너');
+    const styled = renderSection({ ...record, payload: { image_dim: 'white', text_color: 'black' } });
+    expect(styled).toContain('value="white" selected=""'); expect(styled).toContain('value="black" selected=""');
+  });
+  beforeEach(() => { mocks.action.mockReset(); mocks.onSelect.mockReset(); mocks.reducer = null; mocks.state = {}; });
+  it('edits free-product design, shape, candidates and count without an artwork or destination input', () => {
+    const html = renderSection({ ...record, kind: 'product_collection', imagePath: null, imageUrl: null, linkPath: null,
+      payload: { layout: 'full_image', image_shape: 'landscape', item_count: 8, good_ids: ['g13', 'gone'] } });
+    for (const name of ['productLayout', 'productImageShape', 'productItemCount', 'goodIds']) expect(html).toContain(`name="${name}"`);
+    expect(html).toContain('value="full_image" selected=""');
+    expect(html).toContain('value="landscape" selected=""');
+    expect(html).toContain('type="hidden" name="linkPath" value=""');
+    expect(html).toContain('type="hidden" name="goodIds" value="g13, gone"');
+    expect(html).toContain('자유상품 1 / 5개 · 모자이크·비노출·종료 포함');
+    expect(html).not.toContain('data-artwork-kind="curation"');
+    expect(html).not.toContain('눌렀을 때 이동할 화면');
   });
 
-  /* S3 홈 편성 확장 (#325) — 아래는 kind 5종이 늘면서 붙은 폼 계약이다. */
-
-  it('BEST 탭은 슬롯 선택과 연결 상품 칸을 열고 이미지를 쓰지 않는다고 안내한다', () => {
-    mocks.kindState = 'best_tab';
-
-    const html = renderSection(null);
-
-    expect(html).toContain('BEST 탭은 이미지를 쓰지 않습니다.');
-    expect(html).toMatch(/<select[^>]*name="slot"[^>]*required/);
-    expect(html).toContain('<option value="category">카테고리 BEST</option>');
-    expect(html).toContain('<option value="popular">인기템</option>');
-    expect(html).toContain('연결 상품 ID (쉼표 구분, 최대 12개)');
-    expect(html).toContain('name="goodIds"');
+  it('배너 문구와 대체텍스트를 분리하고 null 링크와 저장본 시각을 유지한다', () => {
+    const html = renderSection({ ...record, title: '', linkPath: null, payload: { alt_enabled: true, alt_title: '이미지 제목', alt_content: '이미지 설명' } });
+    expect(html).toContain('제목 없는 배너');
+    expect(html).toContain('대체텍스트 제목');
+    expect(html).toContain('대체텍스트 내용');
+    expect(html).toContain('value="이미지 제목"');
+    expect(html).toContain('>이미지 설명</textarea>');
+    expect(html).toContain('<option value="" selected="">링크 없음</option>');
+    expect(html).toContain(`type="hidden" name="expectedUpdatedAt" value="${record.updatedAt}"`);
+    expect(html).toContain('프로모션 배너 1 / 10개 · 비노출 포함');
   });
 
-  it('선택한 BEST 탭 레코드의 슬롯과 연결 상품을 폼 초기값으로 되살린다', () => {
-    const bestTab: AdminCurationRecord = {
-      ...activeAnnouncement,
-      kind: 'best_tab',
-      title: '인기템',
-      slot: 'popular',
-      payload: { good_ids: ['g13', 'g14'] },
-    };
-
-    const html = renderSection(bestTab);
-
-    expect(html).toContain('<option value="popular" selected="">인기템</option>');
-    expect(html).toContain('value="g13, g14"');
+  it('응답 불명확 때 같은 원본 요청만 재확인하고 필드 편집을 잠근다', async () => {
+    renderSection();
+    const first = new FormData(); first.set('id', record.id); first.set('title', '보낸 원본');
+    const changed = new FormData(); changed.set('id', record.id); changed.set('title', '바꾼 값');
+    mocks.action.mockResolvedValueOnce({ errors: { form: '결과 확인 필요' }, uncertain: true });
+    await mocks.reducer!({}, first);
+    mocks.action.mockResolvedValueOnce({ message: '저장했습니다.' });
+    await mocks.reducer!({ uncertain: true }, changed);
+    expect(mocks.action.mock.calls[1][1].get('title')).toBe('보낸 원본');
+    mocks.state = { errors: { form: '결과 확인 필요' }, uncertain: true };
+    expect(renderSection()).toMatch(/<fieldset disabled=""[ >]/);
+    expect(renderSection()).toContain('같은 요청 결과 확인');
   });
 
-  it.each([
-    ['editor_pick', '에디터의 제안 카드 이미지는 필수입니다.', ['배지 문구 (선택)', '카드 설명 (선택)']],
-    ['band_banner', '기획전 배너 이미지는 필수입니다.', ['서브카피 (선택)', '연결 상품 ID (쉼표 구분, 최대 4개)']],
-    ['benefit', '혜택 타일은 이미지를 쓰지 않습니다.', ['타일 설명 (선택)']],
-  ] as const)('%s 편성은 자기 payload 칸과 아트워크 안내를 보여준다', (kind, guidance, labels) => {
-    mocks.kindState = kind;
-
-    const html = renderSection(null);
-
-    expect(html).toContain(guidance);
-    for (const label of labels) expect(html).toContain(label);
-    expect(html).not.toContain('name="slot"');
+  it('keeps a lost save request fixed when a later retry is denied or conflicts', async () => {
+    renderSection();
+    const first = new FormData(); first.set('id', record.id); first.set('title', '첫 요청');
+    mocks.action.mockResolvedValueOnce({ errors: { form: '응답 유실' }, uncertain: true });
+    await mocks.reducer!({}, first);
+    for (const denied of [{ errors: { form: '권한 없음' } }, { errors: { form: '충돌' }, conflict: true }]) {
+      mocks.action.mockResolvedValueOnce(denied);
+      expect(await mocks.reducer!({ uncertain: true }, new FormData())).toMatchObject({ uncertain: true, conflict: false });
+      expect(mocks.action.mock.lastCall?.[1]).toBe(first);
+    }
   });
 
-  /* 모바일 히어로는 5:6 세로 크롭이라 데스크톱 아트워크를 그대로 쓸 수 없다. */
-  it('히어로만 부제와 모바일 아트워크 칸을 하나 더 놓는다', () => {
-    const hero: AdminCurationRecord = {
-      ...activeAnnouncement,
-      kind: 'hero',
-      title: '여름 신작',
-      imagePath: 'public-media/catalog/curation/77777777-7777-4777-8777-777777777777.webp',
-      imageUrl: 'https://cdn.example/catalog/curation/current.webp',
-      payload: {
-        subtitle: '여름 한정 컬렉션',
-        mobile_image_path: 'public-media/catalog/curation/99999999-9999-4999-8999-999999999999.webp',
-      },
-    };
-
-    const heroHtml = renderSection(hero);
-
-    expect(heroHtml).toContain('히어로 부제 (선택)');
-    expect(heroHtml).toContain('value="여름 한정 컬렉션"');
-    expect(heroHtml).toContain('name="mobileImagePath"');
-    expect(heroHtml).toContain('모바일 아트워크 파일');
-    expect(heroHtml).toContain('public-media/catalog/curation/99999999-9999-4999-8999-999999999999.webp');
-    expect(heroHtml.match(/data-artwork-kind="curation"/g)).toHaveLength(2);
-    expect(renderSection(activeAnnouncement).match(/data-artwork-kind="curation"/g)).toHaveLength(1);
+  it('저장본 충돌은 입력을 유지하고 명시적인 다시 불러오기를 제공한다', () => {
+    mocks.state = { errors: { form: '저장본 충돌' }, conflict: true };
+    const html = renderSection();
+    expect(html).toContain('value="여름 신작"');
+    expect(html).toMatch(/<fieldset disabled=""[ >]/);
+    expect(html).toContain('입력을 취소하고 최신 저장본 불러오기');
   });
 
-  it('실제 CurationForm key가 새 operation ID와 최신 레코드를 반영한다', () => {
-    const originalTree = CurationSection({
-      draftActiveFrom: '2026-07-15T03:04:05.000Z',
-      draftId: '22222222-2222-4222-8222-222222222222',
-      eventOptions,
-      goodOptions,
-      ipOptions,
-      onSelect: vi.fn(),
-      operationId: '33333333-3333-4333-8333-333333333333',
-      records: [activeAnnouncement],
-      selected: activeAnnouncement,
-    });
-    const latest = { ...activeAnnouncement, updatedAt: '2026-07-15T04:00:00.000Z' };
-    const revalidatedTree = CurationSection({
-      draftActiveFrom: '2026-07-15T03:04:05.000Z',
-      draftId: '77777777-7777-4777-8777-777777777777',
-      eventOptions,
-      goodOptions,
-      ipOptions,
-      onSelect: vi.fn(),
-      operationId: '88888888-8888-4888-8888-888888888888',
-      records: [latest],
-      selected: latest,
-    });
-    const isCurationForm = (element: ReactElement) => (
-      typeof element.type === 'function' && element.type.name === 'CurationForm'
-    );
-    const originalForm = findElement(originalTree, isCurationForm);
-    const revalidatedForm = findElement(revalidatedTree, isCurationForm);
+  it('구성 목록·입력·실제 화면 미리보기와 기기 전환을 함께 제공한다', () => {
+    const html = renderSection();
+    expect(html).toContain('aria-label="홈 구성 목록"');
+    expect(html).toContain('aria-label="홈 구성 편집"');
+    expect(html).toContain('aria-label="스토어 미리보기"');
+    expect(html).toContain('aria-current="true"');
+    expect(html).toContain('여름 신작');
+    expect(html).toContain('노출 중');
+    expect(html).toContain('순서 2');
+    expect(html).toContain('2026-07-15 09:00');
+    expect(html).toContain('모바일');
+    expect(html).toContain('PC');
+    expect(html).toContain('전체보기');
+    expect(html).toContain('미리보기 준비 중…');
+    expect(html).not.toContain('<iframe');
+    expect(html).not.toContain('allow-scripts');
+    expect(html).toContain('현재 공개 홈');
+  });
 
-    expect(originalForm?.key).toBe(JSON.stringify([
-      activeAnnouncement.id,
-      activeAnnouncement.updatedAt,
-      '33333333-3333-4333-8333-333333333333',
-    ]));
-    expect(revalidatedForm?.key).toBe(JSON.stringify([
-      latest.id,
-      latest.updatedAt,
-      '88888888-8888-4888-8888-888888888888',
-    ]));
-    expect(revalidatedForm?.key).not.toBe(originalForm?.key);
+  it('PC·모바일 이미지, 순서·KST 일정과 기존 RPC 필드 계약을 유지한다', () => {
+    const html = renderSection();
+    for (const field of ['id', 'operationId', 'kind', 'title', 'subtitle', 'linkPath', 'imagePath', 'mobileImagePath', 'displayOrder', 'activeFrom', 'activeTo', 'enabled']) {
+      expect(html).toContain(`name="${field}"`);
+    }
+    expect(html).toContain('>여름 한정</textarea>');
+    expect(html).toContain('PC 이미지');
+    expect(html).toContain('모바일 이미지');
+    expect(html.match(/data-artwork-kind="curation"/g)).toHaveLength(2);
+    expect(html).toContain('value="2026-07-15T09:00"');
+    expect(html).toContain('이 구성 적용하기');
+  });
+
+  /* kit Button은 type을 주지 않으면 type="button"이라 폼을 제출하지 않는다 — 적용 버튼이 제출 버튼인지 지킨다. */
+  it('이 구성 적용하기 버튼은 홈 구성 폼을 제출한다', () => {
+    const html = renderSection();
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>이 구성 적용하기<\/button>/);
+    expect(html).toMatch(/<button[^>]*type="button"[^>]*>전체보기<\/button>/);
+  });
+
+  /* 적용은 곧 공개다 — 고객 화면에 바로 나간다는 걸 버튼 앞에서 말하고, 화면 이름은 메뉴 라벨 하나로 쓴다. */
+  it('적용이 고객 화면에 바로 나간다고 알리고 목록에 노출 상태 배지를 둔다', () => {
+    const html = renderSection();
+    expect(html).toContain('적용하면 고객 화면에 바로 나갑니다');
+    expect(html).toMatch(/data-tone="[a-z]+"[^>]*>(노출 중|노출 예정|종료|비노출)<\/span>/);
+    expect(html).toContain('>홈 전시 관리</h2>');
+    expect(html).not.toContain('홈 큐레이션');
+    expect(html).not.toContain('스토어 전시관리');
+  });
+
+  it('이동 대상에 실재 상품을 표시하고 보관 상품을 새 선택지에서 제외한다', () => {
+    const select = renderSection().match(/<select[^>]*name="linkPath"[\s\S]*?<\/select>/)?.[0];
+    expect(select).toContain('value="/shop/g13"');
+    expect(select).not.toContain('/shop/archived-good');
+  });
+
+  it('상품을 이름과 순서로 편집하고 기존 상품 ID 제출 형식을 유지한다', () => {
+    const html = renderSection({ ...record, kind: 'best_tab', slot: 'popular', payload: { good_ids: ['g13', 'gone'] } });
+    expect(html).toContain('전시할 상품');
+    expect(html).toContain('상품 추가');
+    expect(html).toContain('홍실 아크릴 블록 위로');
+    expect(html).toContain('홍실 아크릴 블록 아래로');
+    expect(html).toContain('현재 선택 상품');
+    expect(html).toContain('type="hidden" name="goodIds" value="g13, gone"');
+    expect(html).toContain('value="popular" selected=""');
+    expect(html).not.toContain('data-artwork-kind="curation"');
+  });
+
+  it('검증 실패를 표시하면서 편집 값과 업로드된 경로를 유지한다', () => {
+    mocks.state = { errors: { title: '제목을 확인해주세요.', imagePath: '이미지를 확인해주세요.' } };
+    const html = renderSection();
+    expect(html).toContain('제목을 확인해주세요.');
+    expect(html).toContain('value="여름 신작"');
+    expect(html).toContain(record.imagePath);
+    expect(html).toContain('aria-invalid="true"');
+  });
+
+  it('실패한 저장은 선택을 이동하지 않고 성공한 저장만 실제 id를 선택한다', async () => {
+    renderSection();
+    const data = new FormData(); data.set('id', record.id);
+    mocks.action.mockResolvedValueOnce({ errors: { form: '저장 실패' } });
+    await mocks.reducer!({}, data);
+    expect(mocks.onSelect).not.toHaveBeenCalled();
+    mocks.action.mockResolvedValueOnce({ message: '저장했습니다.' });
+    await mocks.reducer!({}, data);
+    expect(mocks.onSelect).toHaveBeenCalledWith({ id: record.id });
+    expect(mocks.action).toHaveBeenCalledWith({}, data);
+  });
+
+  it('현재 공개 홈에 없는 기존 타입은 가짜 미리보기를 만들지 않는다', () => {
+    const html = renderSection({ ...record, kind: 'featured_ip', ipId: 'ip-1' });
+    expect(html).toContain('현재 홈 본문에는 특집 IP 영역이 없습니다.');
+    expect(html).toContain('name="ipId"');
+    expect(html).not.toContain('<iframe');
+  });
+
+  it('텍스트 공지 바는 문구·선택 버튼·노출 화면을 편집하고 이미지 업로드를 두지 않는다', () => {
+    const notice: AdminCurationRecord = { ...record, kind: 'notice_bar', title: '이용약관 개정 안내', imagePath: null, imageUrl: null, mobileImageUrl: null,
+      linkPath: '/shop/g13', payload: { page_types: ['home', 'product'], cta_label: '자세히 보기' } };
+    const html = renderSection(notice);
+    expect(html).toContain('텍스트 공지 바 관리');
+    expect(html).toContain('공지 문구');
+    expect(html).toContain('10 / 60자');
+    expect(html).toContain('name="ctaLabel"');
+    expect(html).toContain('value="자세히 보기"');
+    expect(html).toContain('버튼을 눌렀을 때 이동할 화면');
+    expect(html).toContain('<option value="">링크 없음</option>');
+    expect(html).toContain('type="hidden" name="pageTypesField" value="1"');
+    expect(checkboxTag(html, 'home')).toContain('checked=""');
+    expect(checkboxTag(html, 'collection')).toContain('type="checkbox"');
+    expect(checkboxTag(html, 'collection')).not.toContain('checked');
+    expect(checkboxTag(html, 'product')).toContain('checked=""');
+    expect(html).toContain('상품 목록(굿즈샵·NEW·BEST·IP관)');
+    expect(html).not.toContain('data-artwork-kind="curation"');
+    expect(html).toContain('type="hidden" name="imagePath" value=""');
+    /* 띠배너를 공지 바로 바꿔도 이전 이미지 경로를 싣지 않는다 — 이미지 칸이 없어 오류를 보여 줄 자리도 없다. */
+    expect(renderSection({ ...notice, imagePath: record.imagePath })).toContain('type="hidden" name="imagePath" value=""');
+    /* 링크를 비우면 버튼 문구 칸이 사라진다 — 저장 계약에서도 버튼 문구를 싣지 않는다. */
+    expect(renderSection({ ...notice, linkPath: null })).not.toContain('name="ctaLabel"');
+  });
+
+  it('띠배너도 노출 화면을 고르고, 대상 없이 저장된 기존 띠배너는 모든 화면이 켜진 채로 보인다', () => {
+    const strip: AdminCurationRecord = { ...record, kind: 'notice_strip', payload: null };
+    const html = renderSection(strip);
+    for (const type of ['home', 'collection', 'product', 'content', 'other']) {
+      expect(checkboxTag(html, type), type).toContain('checked=""');
+    }
+    expect(html).toContain('스토어를 새로 열 때마다 하나를 무작위로 보여줍니다');
+    expect(renderSection({ ...strip, payload: { page_types: ['product'] } })).toContain('홈이 노출 화면에 없어 공개 홈에서는 보이지 않습니다.');
+  });
+
+  it('저장본 변경은 폼을 초기화하지만 서버 요청 ID 교체는 폼의 식별자가 아니다', () => {
+    expect(getCurationFormKey(record, 'draft')).not.toBe(getCurationFormKey({ ...record, updatedAt: 'later' }, 'draft'));
+    expect(getCurationFormKey(record, 'draft')).toBe(getCurationFormKey(record, 'other-server-draft'));
+    expect(getCurationFormKey(null, 'draft')).not.toBe(getCurationFormKey(null, 'new-explicit-draft'));
+  });
+
+  /* LD-15(12 §4) — 카드 리워드가 중지되면 카드팩·게임으로 가는 혜택 타일만 숨고 다른 혜택 타일은 노출된다.
+     안내와 미리보기 알림이 "혜택 타일 전체가 숨는다"고 말하면 운영자가 쿠폰·이벤트 타일까지 내려 버린다. */
+  it('혜택 타일 안내는 목적지 기준 게이트를 설명하고 카드팩·게임 목적지일 때만 숨김 알림을 띄운다', () => {
+    const benefit = (linkPath: string): AdminCurationRecord => ({ ...record, kind: 'benefit', title: '첫 구매 혜택', imagePath: null, imageUrl: null,
+      mobileImageUrl: null, linkPath, payload: { description: '쿠폰을 받아 가세요' } });
+    const packs = renderSection(benefit('/packs'));
+    const events = renderSection(benefit('/events'));
+
+    expect(packs).toContain('쿠폰·이벤트 같은 혜택을 제목과 설명, 이동할 화면으로 보여줍니다. 카드 리워드가 중지되면 카드팩·게임으로 가는 타일만 숨깁니다.');
+    expect(packs).not.toContain('카드팩·게임 혜택을');
+    /* 기본 미리보기는 카드 리워드 중지 상태다(DEFAULT_PREVIEW). */
+    expect(packs).toContain('<strong>카드 리워드가 중지되어 카드팩·게임으로 가는 이 혜택 타일은 노출되지 않습니다. 다른 화면으로 가는 혜택 타일은 그대로 보입니다.</strong>');
+    expect(events).not.toContain('혜택 타일은 노출되지 않습니다');
+    expect(events).not.toContain('카드 리워드가 비활성 상태여서');
+    expect(renderSection(benefit('/games/runner'))).toContain('카드팩·게임으로 가는 이 혜택 타일은 노출되지 않습니다');
+  });
+
+  /* L8b(#574) — 컬렉션 배너(CL-09): 슬롯·한 줄 문구·부제·PC/MO 이미지·딤/글자색·대체텍스트, 링크는 선택. */
+  it('컬렉션 배너는 컬렉션 선택·문구·부제·PC/MO 이미지·스타일·대체텍스트를 편집한다', () => {
+    const banner: AdminCurationRecord = { ...record, kind: 'collection_banner', title: 'BEST 아이템', slot: 'best', linkPath: null,
+      payload: { subtitle: '지금 많이 찾는 굿즈', image_alt: '키링 세 종', image_dim: 'none', text_color: 'black', mobile_image_path: 'public-media/catalog/curation/99999999-9999-4999-8999-999999999999.webp' } };
+    const html = renderSection(banner);
+    expect(html).toContain('컬렉션 배너 관리');
+    expect(html).toContain('배너를 보일 컬렉션');
+    expect(html).toContain('<option value="best" selected="">BEST</option>');
+    expect(html).toContain('<option value="all">굿즈샵 전체(슬라이드)</option>');
+    expect(html).toContain('배너 문구');
+    expect(html).toContain('8 / 40자');
+    expect(html).toContain('name="subtitle"');
+    expect(html).toContain('11 / 80자');
+    expect(html).toContain('name="imageAlt"');
+    expect(html).toContain('value="키링 세 종"');
+    expect(html).toContain('<option value="" selected="">링크 없음</option>');
+    expect(html).toContain('name="mobileImagePath"');
+    expect(html).toContain('name="imageDim"');
+    /* 새 종류라 '기존 표시 유지' 같은 옛 선택지가 없다. */
+    expect(html).not.toContain('기존 표시 유지');
+    expect(html).not.toContain('기존 흰색 유지');
+    expect(html).not.toContain('배너 삭제');
+  });
+
+  /* CH-10 — 추천 검색어: 칸 하나가 칩 하나, 최대 10개, 이미지·링크 없음. */
+  it('추천 검색어는 목록 이름과 검색어 칸을 편집하고 이미지·이동 화면 입력을 두지 않는다', () => {
+    const terms: AdminCurationRecord = { ...record, kind: 'search_terms', title: '11월 추천 검색어', imagePath: null, imageUrl: null, mobileImageUrl: null,
+      linkPath: null, payload: { terms: ['리락쿠마', '키링'] } };
+    const html = renderSection(terms);
+    expect(html).toContain('추천 검색어 관리');
+    expect(html).toContain('목록 이름 (관리용)');
+    expect(html.match(/name="searchTerm"/g)).toHaveLength(2);
+    expect(html).toContain('value="리락쿠마"');
+    expect(html).toContain('aria-label="추천 검색어 2 삭제"');
+    expect(html).toContain('2 / 10');
+    expect(html).toContain('type="hidden" name="linkPath" value=""');
+    expect(html).toContain('type="hidden" name="imagePath" value=""');
+    expect(html).not.toContain('data-artwork-kind="curation"');
+    expect(html).not.toContain('눌렀을 때 이동할 화면');
+    /* 빈 목록도 입력 칸 하나로 시작한다. */
+    expect(renderSection({ ...terms, payload: { terms: [] } }).match(/name="searchTerm"/g)).toHaveLength(1);
+  });
+
+  /* l8b-data-2 — 이미지가 있던 구성을 추천 검색어로 바꿔도 숨은 이미지 칸이 이전 이미지를 보내지 않고, 이미지 오류는 보인다. */
+  it('추천 검색어는 이전 종류의 이미지 경로를 보내지 않고, 이미지 오류가 와도 숨기지 않는다', () => {
+    const carried: AdminCurationRecord = { ...record, kind: 'search_terms', title: '11월', linkPath: null, payload: { terms: ['키링'] } };
+    const html = renderSection(carried);
+    expect(html).toContain('type="hidden" name="imagePath" value=""');
+    expect(html).not.toContain('77777777-7777-4777-8777-777777777777');
+    mocks.state = { errors: { imagePath: '추천 검색어는 이미지를 쓰지 않습니다.' } };
+    expect(renderSection(carried)).toMatch(/role="alert"[^>]*>추천 검색어는 이미지를 쓰지 않습니다\.</);
+  });
+
+  /* l8b-qa-3 — 목록 단위 오류여도 겹친 칸만 오류로 표시한다(10칸 전부가 빨갛고 스크린리더가 전부 오류로 읽던 결함). */
+  it('추천 검색어 저장 거절은 문제 칸만 aria-invalid·오류 설명으로 잇는다', () => {
+    const terms = ['메이플스토리', '리락쿠마', '담곰이', '카카오프렌즈', '진격의 거인', '키링', '인형', '아크릴', 'BT21', 'bt21'];
+    const inputs = (html: string) => html.match(/<input[^>]*name="searchTerm"[^>]*>/g) ?? [];
+    const html = renderToStaticMarkup(<SearchTermFields error="겹치는 추천 검색어가 있습니다: BT21 · bt21." onChange={vi.fn()} terms={terms} />);
+    const invalid = inputs(html).filter((tag) => tag.includes('aria-invalid="true"'));
+    expect(inputs(html)).toHaveLength(10);
+    expect(invalid).toHaveLength(2);
+    expect(invalid.map((tag) => tag.match(/aria-label="([^"]+)"/)?.[1])).toEqual(['추천 검색어 9', '추천 검색어 10']);
+    expect(invalid.every((tag) => /aria-describedby="[^"]+-error"/.test(tag))).toBe(true);
+    expect(inputs(html).filter((tag) => tag.includes('aria-describedby'))).toHaveLength(2);
+    expect(html).toMatch(/role="alert"[^>]*>겹치는 추천 검색어가 있습니다: BT21 · bt21\.</);
+
+    /* 저장 전·문제 없는 칸은 표시하지 않고, 전부 비어 거절되면 첫 칸만 짚는다. */
+    expect(inputs(renderToStaticMarkup(<SearchTermFields onChange={vi.fn()} terms={terms} />)).filter((tag) => tag.includes('aria-invalid="true"'))).toHaveLength(0);
+    const empty = inputs(renderToStaticMarkup(<SearchTermFields error="추천 검색어를 1개 이상 입력해주세요." onChange={vi.fn()} terms={['', '']} />));
+    expect(empty.map((tag) => tag.includes('aria-invalid="true"'))).toEqual([true, false]);
+    const long = inputs(renderToStaticMarkup(<SearchTermFields error="추천 검색어는 20자까지 입력할 수 있습니다." onChange={vi.fn()} terms={['키링', '가'.repeat(21)]} />));
+    expect(long.map((tag) => tag.includes('aria-invalid="true"'))).toEqual([false, true]);
+  });
+
+  /* l8b-data-5 — 목록 이름은 화면에 없지만 공개 읽기로 나간다. 내부 메모를 적지 않게 안내한다. */
+  it('추천 검색어 목록 이름 안내는 공개 데이터임을 알린다', () => {
+    const html = renderSection({ ...record, kind: 'search_terms', title: '11월', imagePath: null, imageUrl: null, mobileImageUrl: null, linkPath: null, payload: { terms: ['키링'] } });
+    expect(html).toContain('공개 데이터로 읽힐 수 있으니 내부 메모나 협력사 정보는 적지 마세요');
+    expect(html).not.toContain('고객에게는 보이지 않는 이름입니다');
+  });
+
+  /* l8b-ui-2 — 카드 리워드가 멈춘 배포에서 카드팩으로 가는 컬렉션 배너는 공개 화면에 없다. 혜택 타일처럼 알린다. */
+  it('카드 리워드가 중지되면 카드팩으로 가는 컬렉션 배너에 노출되지 않음을 알리고, 다른 목적지는 알리지 않는다', () => {
+    const banner: AdminCurationRecord = { ...record, kind: 'collection_banner', title: 'BEST 아이템', slot: 'best', linkPath: '/packs', payload: null };
+    expect(renderSection(banner)).toContain('카드팩·게임으로 가는 이 컬렉션 배너는 노출되지 않습니다');
+    expect(renderSection({ ...banner, linkPath: '/shop/best' })).not.toContain('이 컬렉션 배너는 노출되지 않습니다');
+    expect(renderSection({ ...banner, linkPath: null })).not.toContain('이 컬렉션 배너는 노출되지 않습니다');
+  });
+
+  /* l8b-data-4 — 한 컬렉션에 노출 기간이 겹치는 배너 상한을 편집기에서도 알린다(DB 트리거가 강제). */
+  it('컬렉션 배너 안내는 겹치는 노출 10장 상한과 BEST·NEW 한 장 규칙을 함께 알린다', () => {
+    const html = renderSection({ ...record, kind: 'collection_banner', title: 'BEST 아이템', slot: 'best', linkPath: null, payload: null });
+    expect(html).toContain('노출 기간이 겹치는 배너는 비노출을 빼고 10장까지');
+    expect(html).toContain('BEST·NEW는 노출 순서가 가장 앞선 한 장을 보여줍니다');
   });
 });

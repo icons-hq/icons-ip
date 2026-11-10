@@ -15,7 +15,7 @@ import type { ReactNode } from 'react';
    래퍼 자체는 높이 0으로 보이지 않는다.
    열린 뒤에만 마운트되는 오버레이가 전제다. 서버 렌더에서는 붙일 body가 없으므로
    그리지 않는다 — renderToStaticMarkup 테스트는 포털 안쪽 컴포넌트를 직접 렌더하라. */
-export function OverlayPortal({ children }: { children: ReactNode }) {
+export function OverlayPortal({ children, container }: { children: ReactNode; container?: HTMLElement }) {
   if (typeof document === 'undefined') return null;
-  return createPortal(<div className="wc-root">{children}</div>, document.body);
+  return createPortal(<div className="wc-root">{children}</div>, container ?? document.body);
 }

@@ -9,6 +9,8 @@ import {
 import { normalizeGoodsListFilters } from '@/lib/admin/goods-list';
 import type { GoodsWorkbookRow } from '@/lib/admin/goods-workbook';
 import type { GoodsKcWorkbookRow } from '@/lib/admin/goods-kc-workbook';
+import type { GoodsCustomInputWorkbookRow } from '@/lib/admin/goods-custom-input-workbook';
+import type { GoodsAfterSalesWorkbookRow, GoodsSizeWorkbookRow } from '@/lib/admin/goods-guidance-workbook';
 export const runtime = 'nodejs';
 export async function GET(request: Request) {
   const auth = await requireAdminScreenAccess('/admin/catalog/goods/import');
@@ -17,9 +19,12 @@ export async function GET(request: Request) {
     const mode = params.get('mode') ?? 'template';
     let rows: GoodsWorkbookRow[] = [];
     let kcRows: GoodsKcWorkbookRow[] = [];
+    let customInputRows: GoodsCustomInputWorkbookRow[] = [];
+    let afterSalesRows: GoodsAfterSalesWorkbookRow[] = [];
+    let sizeRows: GoodsSizeWorkbookRow[] = [];
     let errors: string[] | undefined;
     if (mode === 'export') {
-      ({ rows, kcRows } = await loadGoodsExportWorkbook(
+      ({ rows, kcRows, customInputRows, afterSalesRows, sizeRows } = await loadGoodsExportWorkbook(
         normalizeGoodsListFilters(Object.fromEntries(params)),
         Number(params.get('part') ?? 1),
       ));
@@ -40,6 +45,9 @@ export async function GET(request: Request) {
           errors!.push(message);
         }
         kcRows.push(...(group.kcSource ?? []).map(row => row.values));
+        customInputRows.push(...(group.customInputSource ?? []).map(row => row.values));
+        afterSalesRows.push(...(group.afterSalesSource ?? []).map(row => row.values));
+        sizeRows.push(...(group.sizeSource ?? []).map(row => row.values));
       });
       if (!rows.length)
         return Response.json(
@@ -51,7 +59,7 @@ export async function GET(request: Request) {
         { error: '잘못된 다운로드 요청입니다.' },
         { status: 400 },
       );
-    const bytes = await buildGoodsWorkbook(rows, errors, kcRows);
+    const bytes = await buildGoodsWorkbook(rows, errors, kcRows, customInputRows, afterSalesRows, sizeRows);
     return new Response(new Uint8Array(bytes), {
       headers: {
         'Content-Type':

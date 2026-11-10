@@ -1,28 +1,48 @@
 'use client';
 
 /* 온라인 팝업 개별 관(/ip/[id]) — R-03 §1.9 브랜드관 재현.
- * 풀블리드 배너(IP명·팔로우 하트+팬 수·설명·해시태그) + 굿즈 섹션(타입 칩 단일 축 필터) + 연결 밴드 3종.
+ * 풀블리드 배너(IP명·팔로우 하트+팬 수·설명·해시태그) + IP로 좁힌 굿즈샵 컬렉션(사이드바·정렬·VIEW MORE·
+ * 212 카드 — 11 IP-01) + 연결 밴드 3종.
+ * 배너 그림은 IP관 PC/MO 배너(11 IP-06)가 있으면 그것, 없으면 키아트(ip.bg)다 — lib/ip-hall-banner.ts 의 폭별 폴백.
  * 팔로우·알림 폼은 app/ip/actions.ts 계약(hidden ipId·intent·next·setBoth·autoFollow…)을 그대로 승계한다. */
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { useFormStatus } from 'react-dom';
 import { setIpNotificationPreferencesAction, toggleIpFollowAction } from '@/app/ip/actions';
+import { CollectionBrowser } from '@/components/shop/CollectionBrowser';
+import { shopQueryString } from '@/components/shop/collection-filters';
 import { EmptyState } from '@/components/wc/EmptyState';
-import { ProductCard } from '@/components/wc/ProductCard';
+import { GoodsSalePeriodRefresh } from '@/components/shop/GoodsSalePeriodRefresh';
 import { SectionHeading } from '@/components/wc/SectionHeading';
 import type { CatalogIpDetail } from '@/lib/catalog';
 import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 import { compactNumber } from '@/lib/format';
-import { goodDetailHref } from '@/lib/goods-display';
-import { goodDisplayBadges } from '@/lib/goods-taxonomy';
 import type { IpFollowState } from '@/lib/ip-follow';
+import { IP_HALL_BANNER_EMPTY_SOURCE, type IpHallBanner } from '@/lib/ip-hall-banner';
 import { ipEn } from '@/lib/ip-display';
 import { publicIpHref } from '@/lib/ip-identity';
+import type { ListingWishlist } from '@/lib/listing-wishlist';
 import { hrefFor } from '@/lib/routes';
+import {
+  SHOP_VIEW_SORTS,
+  parseShopSearchParams,
+  selectCollectionGoods,
+  type ShopListQuery,
+  type ShopListResult,
+} from '@/lib/shop-catalog';
 
-/** 타입 칩 단일 축의 리셋 값 — 굿즈 타입과 충돌하지 않는 표기. */
-const ALL_TYPES = '전체';
+/** IP관 굿즈 컬렉션 — 서버 페이지가 URL 필터·정렬로 계산해 내려준다(`app/ip/[id]/page.tsx`). */
+export interface IpGoodsCollection {
+  query: ShopListQuery;
+  result: ShopListResult;
+}
+
+/** URL 필터가 없을 때의 IP관 컬렉션. IP 축은 스코프가 이미 이 IP 하나라 받지 않는다. */
+function ipGoodsCollection(detail: Pick<CatalogIpDetail, 'ip' | 'goods'>): IpGoodsCollection {
+  const query = parseShopSearchParams({}, { view: 'ip', validIpIds: new Set() });
+  return { query, result: selectCollectionGoods(detail.goods, { ips: [detail.ip] }, query) };
+}
 
 /* 하트 원형 40×40 은 아이콘 단독 버튼이라(R-03 §1.9) 팔로우 상태 카피는 스크린리더 이름으로 승계한다. */
 function FollowSubmit({ isFollowed }: { isFollowed: boolean }) {
@@ -50,12 +70,12 @@ function FollowSubmit({ isFollowed }: { isFollowed: boolean }) {
 
 /* 팔로우 폼 계약(불변): hidden ipId·intent(follow|unfollow)·next.
  * 비로그인은 액션이 /login?next= 로 보내므로 클라이언트 게이트를 두지 않는다. */
-function FollowForm({ followState, ipId, publicSlug }: { followState: IpFollowState; ipId: string; publicSlug: string }) {
+function FollowForm({ followState, ipId, next }: { followState: IpFollowState; ipId: string; next: string }) {
   return (
     <form action={toggleIpFollowAction}>
       <input name="ipId" type="hidden" value={ipId} />
       <input name="intent" type="hidden" value={followState.isFollowed ? 'unfollow' : 'follow'} />
-      <input name="next" type="hidden" value={publicIpHref(publicSlug)} />
+      <input name="next" type="hidden" value={next} />
       <FollowSubmit isFollowed={followState.isFollowed} />
     </form>
   );
@@ -71,11 +91,11 @@ function NotificationSubmit({ label }: { label: string }) {
 }
 
 /* 미팔로우 상태의 원클릭 폼(불변): autoFollow·setBoth·notifyDrops·notifyEvents 전부 1로 고정 전송. */
-function AutoFollowNotificationForm({ ipId, publicSlug }: { ipId: string; publicSlug: string }) {
+function AutoFollowNotificationForm({ ipId, next }: { ipId: string; next: string }) {
   return (
     <form action={setIpNotificationPreferencesAction}>
       <input name="ipId" type="hidden" value={ipId} />
-      <input name="next" type="hidden" value={publicIpHref(publicSlug)} />
+      <input name="next" type="hidden" value={next} />
       <input name="autoFollow" type="hidden" value="1" />
       <input name="setBoth" type="hidden" value="1" />
       <input name="notifyDrops" type="hidden" value="1" />
@@ -121,64 +141,104 @@ function NotificationPreferenceFields({ followState }: { followState: IpFollowSt
 }
 
 /* 팔로우 상태의 알림 설정 폼(불변): hidden ipId·next·setBoth + notifyDrops·notifyEvents 체크박스. */
-function NotificationPreferencesForm({ followState, ipId, publicSlug }: { followState: IpFollowState; ipId: string; publicSlug: string }) {
+function NotificationPreferencesForm({ followState, ipId, next }: { followState: IpFollowState; ipId: string; next: string }) {
   return (
     <form action={setIpNotificationPreferencesAction} aria-label="IP 알림 설정">
       <input name="ipId" type="hidden" value={ipId} />
-      <input name="next" type="hidden" value={publicIpHref(publicSlug)} />
+      <input name="next" type="hidden" value={next} />
       <input name="setBoth" type="hidden" value="1" />
       <NotificationPreferenceFields followState={followState} />
     </form>
   );
 }
 
+/*
+ * 배너 그림(IP-06). 없으면 지금처럼 키아트를 섹션 배경으로 깐다(마크업·스타일 그대로).
+ * PC 배너가 있으면 키아트 배경을 걷고 picture 하나로 폭을 고른다(모바일 배너 → PC 배너). 모바일 배너만 있으면 데스크톱은 키아트를
+ * CSS 변수로 남기고(모바일에서는 내려받지 않는다), picture 는 데스크톱에서 1×1 빈 그림을 골라 모바일 그림을 받지 않는다.
+ * 그림은 IP명·설명이 텍스트로 얹히는 배경이라 장식(alt="")이고, 첫 화면 LCP 후보라 우선 로드한다.
+ */
+function HallBannerMedia({ banner }: { banner: IpHallBanner }) {
+  const src = banner.imageUrl ?? banner.mobileImageUrl;
+  if (!src) return null;
+  return (
+    <picture className="wc-iphall__banner-media">
+      {banner.imageUrl
+        ? banner.mobileImageUrl ? <source media="(max-width: 749px)" srcSet={banner.mobileImageUrl} /> : null
+        : <source media="(min-width: 750px)" srcSet={IP_HALL_BANNER_EMPTY_SOURCE} />}
+      <img alt="" decoding="async" fetchPriority="high" loading="eager" sizes="100vw" src={src} />
+    </picture>
+  );
+}
+
 export function IpDetail({
+  banner = null,
+  collection,
   detail,
   publicSlug,
   followState,
   followError,
   notificationError,
   notificationSaved,
+  wishlist,
 }: {
+  /** IP관 PC/MO 배너(lib/ip-hall-banner.server). 생략·null 이면 키아트 배경 그대로다. */
+  banner?: IpHallBanner | null;
+  /** URL 필터·정렬이 걸린 굿즈 컬렉션. 생략하면 필터 없는 기본 컬렉션을 그린다. */
+  collection?: IpGoodsCollection;
   detail: CatalogIpDetail;
   publicSlug?: string;
   followState: IpFollowState;
   followError: boolean;
   notificationError: boolean;
   notificationSaved: boolean;
+  /** 목록 하트의 초기 상태. 생략하면 하트를 그리지 않는다. */
+  wishlist?: ListingWishlist | null;
 }) {
   const { ip, goods, cards } = detail;
+  const hallBanner = banner && (banner.imageUrl || banner.mobileImageUrl) ? banner : null;
   const canonicalSlug = publicSlug ?? ip.publicSlug ?? ip.id;
-  const [typeFilter, setTypeFilter] = useState(ALL_TYPES);
-  const types = useMemo(() => [...new Set(goods.map((good) => good.type))], [goods]);
-  /* 타입 칩은 실존 타입에서만 파생되는 단일 축이라, 필터 결과가 0이 되는 경우는 없다. */
-  const visibleGoods = typeFilter === ALL_TYPES
-    ? goods
-    : goods.filter((good) => good.type === typeFilter);
+  const hallPath = publicIpHref(canonicalSlug);
+  const goodsCollection = collection ?? ipGoodsCollection(detail);
+  /* 팔로우·알림 폼은 저장(성공·실패·로그인 왕복) 뒤 지금 보던 IP 관으로 돌아온다 — 고른 굿즈 필터·정렬까지.
+     액션은 이 주소를 safeNextPath 로 다시 검사하고 결과 파라미터를 searchParams 로 덧붙인다. */
+  const collectionQuery = shopQueryString(goodsCollection.query);
+  const returnPath = collectionQuery ? `${hallPath}?${collectionQuery}` : hallPath;
   const description = [ip.tagline, ip.synopsis].filter(Boolean).join(' ');
+  /* 해시태그는 데스크톱에서 배너 안, 모바일에서 배너 아래에 선다(11 IP-05). 같은 목록을 두 자리에
+     두고 폭마다 하나만 보인다 — 감춘 쪽은 display 로 빠져 스크린리더가 두 번 읽지 않는다. */
+  const hashtags = (placement: 'banner' | 'below') => (
+    <ul className={`wc-iphall__hashtags wc-iphall__hashtags--${placement}`}>
+      <li>{`#${ipEn(ip)}`}</li>
+      <li>{`#${ip.v.label}`}</li>
+    </ul>
+  );
 
   return (
     <div className="wc-root wc-iphall">
+      <GoodsSalePeriodRefresh goods={goods} />
       <section
         className="wc-iphall__banner"
-        style={{ background: ip.bg, backgroundSize: 'cover', backgroundPosition: 'center' }}
+        data-banner={hallBanner ? (hallBanner.imageUrl ? 'all' : 'mobile') : undefined}
+        style={hallBanner
+          ? hallBanner.imageUrl ? undefined : ({ '--wc-iphall-keyart': ip.bg } as CSSProperties)
+          : { background: ip.bg, backgroundSize: 'cover', backgroundPosition: 'center' }}
       >
+        {hallBanner ? <HallBannerMedia banner={hallBanner} /> : null}
         <div className="wc-container">
           <h1 className="wc-iphall__name">{ip.title}</h1>
           <div className="wc-iphall__follow">
-            <FollowForm followState={followState} ipId={ip.id} publicSlug={canonicalSlug} />
+            <FollowForm followState={followState} ipId={ip.id} next={returnPath} />
             <span className="wc-iphall__follow-count">
               <span className="wc-sr-only">팬 </span>
               {compactNumber(ip.fans)}
             </span>
           </div>
           {description ? <p className="wc-iphall__desc">{description}</p> : null}
-          <ul className="wc-iphall__hashtags">
-            <li>{`#${ipEn(ip)}`}</li>
-            <li>{`#${ip.v.label}`}</li>
-          </ul>
+          {hashtags('banner')}
         </div>
       </section>
+      <div className="wc-container wc-iphall__tags-band">{hashtags('below')}</div>
 
       {/* 알림 폼·저장 결과는 배너의 흰 글자 영역이 아니라 흰 지면에서 다룬다(체크박스 가독성). */}
       <div className="wc-container">
@@ -202,57 +262,34 @@ export function IpDetail({
             </p>
           ) : null}
           {followState.isFollowed
-            ? <NotificationPreferencesForm followState={followState} ipId={ip.id} publicSlug={canonicalSlug} />
-            : <AutoFollowNotificationForm ipId={ip.id} publicSlug={canonicalSlug} />}
+            ? <NotificationPreferencesForm followState={followState} ipId={ip.id} next={returnPath} />
+            : <AutoFollowNotificationForm ipId={ip.id} next={returnPath} />}
         </section>
       </div>
 
-      <section className="wc-iphall__goods">
+      <section aria-labelledby="iphall-goods-heading" className="wc-iphall__goods">
         <div className="wc-container">
-          <SectionHeading title={`${ip.title}의 굿즈`} />
-          <div className="wc-collection__toolbar">
-            <p aria-live="polite" className="wc-collection__count">
-              전체 <strong>{visibleGoods.length}</strong>개 굿즈
-            </p>
-            <Link href={`${hrefFor('shop')}?ip=${ip.id}`}>굿즈샵에서 전체 보기</Link>
+          <div className="wc-iphall__goods-head">
+            <SectionHeading id="iphall-goods-heading" title={`${ip.title}의 굿즈`} />
+            <Link className="wc-iphall__shop-link" href={`${hrefFor('shop')}?ip=${ip.id}`}>굿즈샵에서 전체 보기</Link>
           </div>
-          {types.length > 1 ? (
-            <div
-              aria-label="굿즈 타입 필터"
-              role="group"
-              style={{ display: 'flex', flexWrap: 'wrap', gap: 8, margin: '0 0 20px' }}
-            >
-              {[ALL_TYPES, ...types].map((type) => (
-                <button
-                  key={type}
-                  aria-pressed={typeFilter === type}
-                  className={`wc-iphall__filter-chip${typeFilter === type ? ' is-active' : ''}`}
-                  onClick={() => setTypeFilter(type)}
-                  type="button"
-                >
-                  {type}
-                </button>
-              ))}
-            </div>
-          ) : null}
-          {goods.length === 0 ? (
+          {goodsCollection.result.total === 0 ? (
             <EmptyState description="새 굿즈가 입점하면 이 자리에 소개돼요." title="등록된 굿즈가 아직 없습니다" />
           ) : (
-            <div className="wc-product-grid">
-              {visibleGoods.map((good) => (
-                <ProductCard
-                  key={good.id}
-                  badges={goodDisplayBadges(good)}
-                  brand={ip.title}
-                  showDiscountRate={good.showDiscountRate} compareAtPrice={good.compareAtPrice}
-                  href={goodDetailHref(good.id)}
-                  imageBackground={good.img}
-                  name={good.name}
-                  price={good.price} priceMax={good.priceMax}
-                  soldOut={good.stock === 'soldout'}
-                />
-              ))}
-            </div>
+            /* 굿즈샵 컬렉션을 IP 범위로 재사용한다(DESIGN §8 'facet 축약 컬렉션'). IP 그룹은 값이 하나뿐이라 그리지 않는다. */
+            <CollectionBrowser
+              countNoun="굿즈"
+              hrefFor={(next) => {
+                const qs = shopQueryString(next);
+                return qs ? `${hallPath}?${qs}` : hallPath;
+              }}
+              query={goodsCollection.query}
+              result={goodsCollection.result}
+              sheetDescription="원하는 타입과 가격을 골라보세요."
+              showIpFacet={false}
+              sorts={SHOP_VIEW_SORTS.ip}
+              wishlist={wishlist}
+            />
           )}
         </div>
       </section>

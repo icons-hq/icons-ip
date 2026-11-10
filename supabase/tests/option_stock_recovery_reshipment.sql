@@ -1,5 +1,20 @@
 \set ON_ERROR_STOP on
 begin;
+
+-- Test-only access to the preserved physical engine. New dispatch through the
+-- old public RPC is sealed; contact-v2 and public denial are covered separately
+-- by order_claim_contact.sql. Keep the original JWT actor/capability checks.
+create function pg_temp.record_order_claim_reshipment_physical(p_claim uuid,p_carrier text,p_tracking text,p_items jsonb) returns text
+language sql security definer set search_path='' as $$
+ select private.record_order_claim_reshipment_physical(p_claim,p_carrier,p_tracking,p_items);
+$$;
+create function pg_temp.record_order_claim_reshipment_physical(p_claim uuid,p_carrier text,p_tracking text) returns text
+language sql security definer set search_path='' as $$
+ select private.record_order_claim_reshipment_physical(p_claim,p_carrier,p_tracking,'[]'::jsonb);
+$$;
+revoke all on function pg_temp.record_order_claim_reshipment_physical(uuid,text,text,jsonb),pg_temp.record_order_claim_reshipment_physical(uuid,text,text) from public,anon,authenticated,service_role;
+grant execute on function pg_temp.record_order_claim_reshipment_physical(uuid,text,text,jsonb),pg_temp.record_order_claim_reshipment_physical(uuid,text,text) to authenticated;
+
 select 1 / case when not has_function_privilege('anon','public.admin_adjust_stock(uuid,text,uuid,integer,integer,text)','execute')
  and has_function_privilege('authenticated','public.admin_adjust_stock(uuid,text,uuid,integer,integer,text)','execute')
  and not has_function_privilege('service_role','public.admin_adjust_stock(uuid,text,uuid,integer,integer,text)','execute')
@@ -75,7 +90,7 @@ select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000044001'
 select public.admin_decide_order_claim('00000000-0000-4000-8000-000000044042','approve',null);
 -- 승인만으로는 재고를 이동할 수 없다. 실제 출고지의 2개 입고가 선행해야 한다.
 do $$ begin
- perform public.admin_record_order_claim_reshipment('00000000-0000-4000-8000-000000044042','hanjin','EX44000001',
+ perform pg_temp.record_order_claim_reshipment_physical('00000000-0000-4000-8000-000000044042','hanjin','EX44000001',
   '[{"orderItemId":"00000000-0000-4000-8000-000000044041","variantId":"00000000-0000-4000-8000-000000044011"}]');
  raise exception 'exchange before collection accepted';
 exception when check_violation then if sqlerrm<>'claim_collections_incomplete' then raise; end if; end $$;
@@ -84,12 +99,12 @@ select public.admin_record_order_claim_origin_collection('00000000-0000-4000-800
 -- stock change may survive the rejected transaction.
 do $$ declare other_variant uuid; begin
  select id into other_variant from public.goods_variants where good_id='option-stock-other' and is_default;
- perform public.admin_record_order_claim_reshipment('00000000-0000-4000-8000-000000044042','hanjin','EX44000001',
+ perform pg_temp.record_order_claim_reshipment_physical('00000000-0000-4000-8000-000000044042','hanjin','EX44000001',
   jsonb_build_array(jsonb_build_object('orderItemId','00000000-0000-4000-8000-000000044041','variantId',other_variant)));
  raise exception 'cross-product exchange accepted';
 exception when check_violation then if sqlerrm<>'reshipment_variant_unavailable' then raise; end if; end $$;
 select 1 / case when not exists(select 1 from public.order_claim_reshipment_items where claim_id='00000000-0000-4000-8000-000000044042') then 1 else 0 end as assert_rejected_exchange_has_no_ledger;
-select public.admin_record_order_claim_reshipment('00000000-0000-4000-8000-000000044042','hanjin','EX44000001',
+select pg_temp.record_order_claim_reshipment_physical('00000000-0000-4000-8000-000000044042','hanjin','EX44000001',
  '[{"orderItemId":"00000000-0000-4000-8000-000000044041","variantId":"00000000-0000-4000-8000-000000044011"}]');
 do $$ begin
  perform public.admin_record_order_claim_reshipment('00000000-0000-4000-8000-000000044042','hanjin','EX44000001',

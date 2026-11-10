@@ -1,5 +1,12 @@
 # Korpay Production rollout runbook
 
+> **2026-11-06 — 코페이는 drain 전용으로 은퇴했다.** 판매 제한 상품(성인/19금) 주문의 카드
+> PG는 나이스페이다([NICEPAY Production rollout runbook](./nicepay-production-rollout.md)).
+> 앱·DB 모두 새 코페이 결제를 준비하지 않고, 런타임은 `KORPAY_*_CHECKOUT_ENABLED`·
+> `KORPAY_*_CANARY_USER_ID`를 더는 읽지 않는다(남아 있으면 빌드 경고). 아래의 재개방 절차는
+> 이력으로만 남긴다. `KORPAY_MID`·`KORPAY_KEY`·콜백 drain·수동 복구 seam은 진행 중 결제와
+> 과거 원장 처리를 위해 그대로 유지한다.
+
 이 runbook은 Korpay 신규 결제를 **자격 증명 등록 → dark deploy → 단일 actor canary →
 목적별 공개 활성화** 순서로 운영한다. MID, MKEY, paymentKey, TID, 승인번호, 원문 응답,
 자격 증명 fingerprint는 문서·issue·PR·로그·명령 인자에 기록하지 않는다.
@@ -13,7 +20,7 @@
 > 기본 provider는 `toss`이고, 토스가 취급하지 않는 **판매 제한 상품**(성인(19금),
 > 추후 랜덤박스)이 담긴 주문만 코페이로 파생된다.
 >
-> 아래 절차는 삭제하지 않는다 — 19+ 오픈 트랙(NICE 성인인증 #209·#210 · 노출 게이트 ·
+> 아래 절차는 삭제하지 않는다 — 19+ 오픈 트랙(KCP 성인 인증 ADR-0024 · 노출 게이트 #210 ·
 > 코페이 수동 취소 운영 콘솔)이 갖춰진 뒤 코페이 gate를 판매 제한 상품 전용으로
 > 재개방할 때 그대로 재사용한다(에픽 #384 시퀀스 ⑥).
 >
@@ -24,8 +31,10 @@
 - 코페이 자격 증명(`KORPAY_MID`·`KORPAY_KEY`)과 어댑터는 제거하지 않는다. 진행 중이던
   코페이 결제의 callback drain은 rollout gate가 아니라 자격 증명 기준으로 열려 있어,
   gate를 닫아도 known order+nonce는 계속 claim·confirm·finalize된다.
-- 판매 제한 상품은 성인인증이 붙기 전까지 스토어에서 비노출이고 주문 생성이 서버에서
-  차단되므로, 코페이 gate가 닫힌 지금 코페이로 파생되는 신규 주문은 만들어지지 않는다.
+- 판매 제한 상품은 성인 인증 gate가 열리기 전까지 스토어에서 비노출이고 주문 생성이 서버에서
+  차단된다. 열린 뒤에도 카드 주문은 코페이 gate를 따르므로, 코페이 gate가 닫힌 동안 코페이로
+  파생되는 신규 카드 주문은 만들어지지 않는다(무통장 입금은 provider와 무관하다 —
+  `docs/runbooks/kcp-adult-verification.md`의 19금 굿즈 판매 경계).
 - 코페이에는 취소·상태 조회 API가 없다는 제약이 그대로다. 아래 "모호 결제와 취소",
   수동 복구 seam, #208 운영 경계는 재개방 시점에도 같은 조건으로 적용된다.
 
@@ -47,7 +56,7 @@
 
 - 2026-08-14 사용자 확인으로 Korpay 계약은 완료됐고 현재 운영 자격 증명을 사용할 수
   있다. 이 확인을 계약 미완료, 키 폐기, rotation 또는 재발급 대기로 해석하지 않는다.
-- 위 확인은 공급사 서면 증거가 아니며 19+ 유한 실물 쿠지의 결제·NICE·법률·IP 승인
+- 위 확인은 공급사 서면 증거가 아니며 19+ 유한 실물 쿠지의 결제·성인 인증·법률·IP 승인
   범위를 포함하지 않는다.
 - 기술 계약은 **코페이 인증결제 가이드 v1.2.2**와
   [`@korpay/sdk` 1.1.8 공식 sample](https://github.com/korpay/korpay-sample)을 따른다.
@@ -74,12 +83,26 @@
   그대로 보존한다. 티켓 gate와 두 canary는 닫힌 상태를 유지한다.
 - 현재 결제 취소·환급 운영 소유자는 canary 관리자 계정을 소유한 **회사 대표자** 한 명이다.
   개인 이메일 주소를 runbook에 기록하지 않는다. 수동 취소 반영 UI·Server Action·DB RPC는
-  모두 활성 `admin` 역할만 허용한다. 승인된 기본 경계에서는 공개 판매 전에 지정된 회사
+  매니저 권한 전환 전에는 활성 legacy `admin`만 허용한다. 6개 매니저 역할을 적용한
+  환경에서는 현재 `sales.manage`를 보유한 대표(`owner`)·계정 주매니저(`primary`)만 새 수동
+  확인을 시작할 수 있다. raw `profiles.role=staff`인 주매니저도 포함하며, raw `admin`인
+  부매니저·인플루언서·대행사·물류 매니저는 권한을 얻지 않는다. 승인된 기본 경계에서는 공개 판매 전에 지정된 회사
   직원에게 접수 채널, 처리 SLA, 상태·금액 대조 방법, 완료 증거 보관 위치, 에스컬레이션
   경로를 문서로 인계해야 했다. 2026-08-18 예외 전환 시점에는 인계가 끝나지 않았으므로
-  현재 대표자가 대응 가능 상태를 유지하고, 지정 담당자에게 필요한 `admin` 권한을
-  명시적으로 부여·검증한 뒤 기존 담당자의 권한을 회수한다. 모든 `staff`가 이 권한을 가진
+  현재 대표자가 대응 가능 상태를 유지하고, 지정 담당자에게 필요한 결제 관리 권한
+  (미전환 환경은 `admin`, 전환 환경은 계정 주매니저)을 명시적으로 부여·검증한 뒤 기존
+  담당자의 권한을 회수한다. 모든 `staff` 또는 모든 매니저가 이 권한을 가진
   것으로 간주하지 않고 #208의 담당자를 갱신한다.
+
+새 선점은 `claim_goods_manual_payment_recovery`가 현재 actor의 결제 관리 권한과 계정
+상태를 잠금 안에서 재검사한다. `finalize_goods_manual_payment_recovery`는 선점된
+미종결 claim의 attempt·request·actor·operation·case·claim token 결속과 기존 provider 증거를
+검사한다. 이미 종결된 동일 attempt·request·actor·operation·case의 감사 기록은 기존 결과를
+멱등 반환하는 근거이며 새로운 금융 결과를 만들지 않는다.
+선점 뒤 권한이 회수되어도 그 정확한 요청의 종결은 허용해 이미 발생한 금융 결과가 고립되지
+않게 하며, 신규 선점이나 다른 actor/요청으로의 종결은 허용하지 않는다. 전액 취소 확인·반송
+입고·주문/금액 일치·환급 연계 검증은 그대로 유지한다. 6개 역할 변경의 로컬 검증은 운영
+환경의 역할 전환·담당자 인계 완료 증거를 대신하지 않는다.
 
 ### 2026-08-18 굿즈 공개 활성화 readback
 
@@ -196,12 +219,12 @@ claim을 선점하는 것을 암호학적으로 차단할 수 없다. 승인된 
 단일 actor로만 수행하고, provider가 서명 검증 또는 자동 상태 조회 계약을 제공하거나 definitive
 invalid-key claim 재개방과 ambiguous hold 해제 SLA가 별도 승인되기 전에는 목적별 public gate를
 `true`로 열지 않는다. 2026-08-18 사용자 지시로 굿즈 gate가 이 경계보다 먼저 열렸으므로,
-보호 계약이 추가될 때까지 현재 admin 취소 담당자의 즉시 대응 가능 여부와 rollback 준비 상태를
+보호 계약이 추가될 때까지 현재 결제 취소 담당자의 즉시 대응 가능 여부와 rollback 준비 상태를
 계속 확인하고 모호 승인·취소 불능 징후가 있으면 새 결제를 즉시 닫는다. 티켓 gate는 `false`로
 유지한다.
 
 굿즈는 provider confirm 뒤 DB finalizer 전에 프로세스가 종료될 때 stale `confirming`을 자동
-재확인할 공식 provider API가 없다. 현재 admin-only 수동 seam은 공급사 원장에서 **전액 취소가
+재확인할 공식 provider API가 없다. 현재 수동 seam은 위 결제 관리 권한을 확인한 뒤 공급사 원장에서 **전액 취소가
 완료된 사실**을 운영자가 먼저 확인한 경우에만 `provider_cancel_confirmed`를 반영한다. DB는
 단일 claim 아래 주문·취소 요청·attempt의 사용자, 금액, KRW, snapshot과 payment provenance를
 재검증한다. 이미 `approved`인 attempt는 exact linked payment만 환불 종결한다. `confirming`,
@@ -257,7 +280,7 @@ canonical alias와 runtime boolean readback에서 해당 목적의 canary만 tru
   카드 승인 취소가 확인되지 않았는데 재고·정원만 복원하지 않는다.
 - 관리자 화면의 opaque Korpay 주문번호와 KRW 금액을 공급사 원장과 대조하고, 전액 취소 완료
   attestation과 브라우저 재확인을 모두 통과한 경우에만 수동 반영한다. private audit에는 자동
-  audit ID·기록 시각, DB에서 검증한 admin actor UUID, 내부 order·request·attempt 식별자,
+  audit ID·기록 시각, DB에서 현재 권한을 검증한 actor UUID, 내부 order·request·attempt 식별자,
   operation, opaque case, prior state, outcome을 남기고 public audit에도 같은 내부 linkage와 actor를
   기록한다. paymentKey, TID, PAN, 승인번호, provider raw는 입력·화면·audit에 복사하지 않는다.
 

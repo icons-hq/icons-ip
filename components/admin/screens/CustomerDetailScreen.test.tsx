@@ -9,7 +9,7 @@ const USER = '00000000-0000-4000-8000-000000004301';
 const detail: AdminCustomerDetail = {
   customer: { id: USER, nickname: '상담 고객', email: 'customer@example.test', role: 'user', createdAt: '2026-01-01T00:00:00Z',
     consents: { terms: true, privacy: true, marketing: false }, suspendedAt: null, suspensionReason: null,
-    loyaltyGrade: 'silver', goodsOrderCount: 25, ticketOrderCount: 2, submittedReportCount: 0, receivedReportCount: 0 },
+    loyaltyGrade: 'silver', goodsOrderCount: 25, ticketOrderCount: 2, submittedReportCount: 0, receivedReportCount: 0, moderation: { managerRole: null, canModerate: true } },
   counts: { orders: 25, inquiries: 3, claims: 2, coupons: 4, notes: 1 }, tab: 'overview', page: 1, pageSize: 20, total: 0, items: [],
 };
 const render = (data = detail) => renderToStaticMarkup(<CustomerDetailScreen detail={data} actor={{ id: 'actor', role: 'staff' }} noteOperationId="operation" />);
@@ -18,16 +18,48 @@ describe('고객 상세 작업 공간', () => {
     const html = render();
     for (const value of ['customer@example.test', 'SILVER', '개인정보', '미동의', '계정 정지', '내부 메모', '취소·반품·교환 관리']) expect(html).toContain(value);
     expect(html).toContain(`/admin/customers/${USER}?tab=orders`);
+    /* 정지·등급 보정·재산정은 각자의 폼을 제출한다(kit Button은 type을 주지 않으면 button이 된다). */
+    for (const label of ['계정 정지', '등급 보정', '실적으로 재산정']) expect(html).toMatch(new RegExp(`<button(?=[^>]*type="submit")[^>]*>${label}</button>`));
   });
+  /* 고객을 보러 들어온 화면이다 — 정지·등급 보정은 접어 두고 건수와 동의 상태를 먼저 보인다. */
+  it('개요는 건수 카드를 먼저 보이고 정지·보정 입력은 접어 둔다', () => {
+    const html = render();
+    expect(html).not.toContain(`customer@example.test · ${USER}`);
+    /* 내부 식별자라 앞부분만 보이고, 대조가 필요하면 복사한다. */
+    expect(html).toContain(`회원번호 · ${USER.slice(0, 8)}…`);
+    expect(html).toContain(`title="${USER}"`);
+    expect(html).toContain('aria-label="회원번호 전체 복사"');
+    expect(html).toMatch(/<h2[^>]*>상담 고객<\/h2>/);
+    expect(html).toMatch(/aria-label="상품 주문 25건"/);
+    expect(html).toMatch(/<details(?![^>]*\sopen)[^>]*>[\s\S]*?계정 정지 처리/);
+    expect(html).toMatch(/data-tone="neutral"[^>]*>미동의</);
+  });
+
+  /* 필수 약관이 비어 있는 계정은 확인할 일이고, 선택 동의를 안 한 것은 평상 상태다 — 색과 글자가 함께 가른다. */
+  it('필수 약관 미동의만 주의색이고 선택 동의 미동의는 조용하다', () => {
+    const html = render({ ...detail, customer: { ...detail.customer, consents: { terms: false, privacy: false, marketing: false } } });
+    expect(html.match(/data-tone="warning"[^>]*>미동의</g)).toHaveLength(2);
+    expect(html.match(/data-tone="neutral"[^>]*>미동의</g)).toHaveLength(1);
+    expect(html).toContain('필수');
+    expect(html).toContain('선택');
+  });
+
   it('주문 탭은 지정 주문 상세와 고객 안의 다음 페이지로 이어진다', () => {
     const html = render({ ...detail, tab: 'orders', total: 25, items: [{ id: 'order-1', title: '주문 당시 상품', status: 'paid', amount: 12800, createdAt: '2026-09-01T00:00:00Z' }] });
     expect(html).toContain('/admin/sales/orders/order-1');
     expect(html).toContain(`/admin/customers/${USER}?tab=orders&amp;page=2`);
     expect(html).toContain('12,800원');
   });
+  it('적립금 링크는 전달된 capability에 따르고 프로필 admin만으로 열리지 않는다', () => {
+    const allowed = renderToStaticMarkup(<CustomerDetailScreen detail={detail} actor={{ id: 'actor', role: 'staff' }} canManageCredits noteOperationId="operation" />);
+    expect(allowed).toContain(`/admin/customers/${USER}/store-credits`);
+    const denied = renderToStaticMarkup(<CustomerDetailScreen detail={detail} actor={{ id: 'actor', role: 'admin' }} noteOperationId="operation" />);
+    expect(denied).not.toContain(`/admin/customers/${USER}/store-credits`);
+  });
   it('메모는 작성자와 함께 별도 탭에 나타나고 staff 계정 제재 권한은 확장하지 않는다', () => {
     const html = render({ ...detail, tab: 'notes', total: 1, items: [{ id: 'note-1', createdAt: '2026-09-01T00:00:00Z', authorName: '수민', body: '내부 상담 메모' }] });
     expect(html).toContain('수민'); expect(html).toContain('내부 상담 메모'); expect(html).toContain('고객에게 전달되지 않습니다');
-    expect(render({ ...detail, customer: { ...detail.customer, role: 'staff' } })).not.toContain('>계정 정지</button>');
+    expect(html).toMatch(/<button(?=[^>]*type="submit")[^>]*>내부 메모 저장<\/button>/);
+    expect(render({ ...detail, customer: { ...detail.customer, role: 'staff', moderation: { managerRole: 'primary', canModerate: false } } })).not.toContain('>계정 정지</button>');
   });
 });

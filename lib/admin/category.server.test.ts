@@ -46,3 +46,13 @@ describe('admin category loader', () => {
     expect(rows[1]).toMatchObject({ path: '생활 > 문구', erpCode: 'ERP-01', assignedGoods: 2 });
   });
 });
+
+it('basic category workspace skips ERP, migration, and activation reads altogether', async () => {
+  const client = await mocks.createClient(); const from = vi.spyOn(client, 'from');
+  const result = await loadAdminCategoryWorkspace(false);
+  expect(result.categories[1].assignedGoodCount).toBe(2);
+  expect(result.mappings).toEqual([]); expect(result.migrations).toEqual([]);
+  expect(from.mock.calls.map(args => args[0])).toEqual(['catalog_categories', 'goods', 'goods_additional_categories']);
+  const rows = await loadAdminCategoryExportRows(false);
+  expect(rows[0]).not.toHaveProperty('erpCode');
+});

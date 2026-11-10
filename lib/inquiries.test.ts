@@ -58,6 +58,16 @@ describe('접수 폼 정규화', () => {
     expect(result.value.orderId).toBe(ORDER_ID);
   });
 
+  it('CRLF 줄바꿈은 LF 한 글자로 세고 저장한다', () => {
+    const lines = Array.from({ length: 900 }, () => '가').join('\r\n');
+    const result = normalizeInquiryForm(form({ body: lines, category: 'order', title: '여러 줄' }));
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.body).not.toContain('\r');
+    expect(result.value.body).toHaveLength(1799);
+  });
+
   it('빈 제목·본문과 모르는 유형을 각각 알린다', () => {
     const result = normalizeInquiryForm(form({ body: ' ', category: 'refund', title: '' }));
 
@@ -221,5 +231,15 @@ describe('표기 헬퍼', () => {
       .toBe('/my/inquiries/new?category=good&goodId=g13');
     expect(newInquiryHref({ category: 'order', orderId: ORDER_ID }))
       .toBe(`/my/inquiries/new?category=order&orderId=${ORDER_ID}`);
+  });
+});
+
+
+describe('사진 단독 추가 문의', () => {
+  it('본문은 실제 선택한 허용 사진이 있을 때만 비워둘 수 있다', () => {
+    const empty = form({ inquiryId: INQUIRY_ID, body: '' });
+    expect(normalizeInquiryReplyForm(empty).ok).toBe(false);
+    empty.append('images', imageFile());
+    expect(normalizeInquiryReplyForm(empty)).toMatchObject({ ok: true, value: { body: '', images: [expect.any(File)] } });
   });
 });

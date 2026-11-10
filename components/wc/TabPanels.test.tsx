@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { TabPanels, type TabPanelDef } from './TabPanels';
+import { TabPanels, tabsStickyScrollTop, type TabPanelDef } from './TabPanels';
 
 const panels: TabPanelDef[] = [
   { id: 'detail', label: '상세정보', content: <p>상세</p> },
@@ -76,5 +76,25 @@ describe('TabPanels', () => {
       .filter((panel) => !panel[1].includes('hidden'));
     expect(visible).toHaveLength(1);
     expect(visible[0][1]).toContain('id="good-panel-review"');
+  });
+
+  /* PD-13 — 스크롤은 PDP 만 켜는 opt-in 이다. 켜도 마크업은 그대로라 홈·이벤트 허브가 같은 컴포넌트를 쓴다. */
+  it('scrollOnSelect 는 마크업을 바꾸지 않는다', () => {
+    expect(renderToStaticMarkup(<TabPanels idBase="good" panels={panels} scrollOnSelect />)).toBe(render());
+  });
+});
+
+describe('tabsStickyScrollTop', () => {
+  it('탭 묶음 머리가 sticky 자리(top)에 오는 문서 위치를 낸다', () => {
+    /* 긴 패널을 읽다(탭바가 붙은 채 머리가 화면 위 1200px) 다른 탭을 고르면 머리로 되돌아간다. */
+    expect(tabsStickyScrollTop({ scrollY: 3000, rootTop: -1200, stickyTop: 68 })).toBe(1732);
+    /* 탭바가 화면 중간에 있으면 sticky 자리까지 내려 새 패널 첫머리를 보인다. */
+    expect(tabsStickyScrollTop({ scrollY: 0, rootTop: 600, stickyTop: 81 })).toBe(519);
+  });
+
+  it('이미 그 자리면 움직이지 않고, 문서 위로 넘어가지 않는다', () => {
+    expect(tabsStickyScrollTop({ scrollY: 1000, rootTop: 68, stickyTop: 68 })).toBeNull();
+    expect(tabsStickyScrollTop({ scrollY: 1000, rootTop: 68.4, stickyTop: 68 })).toBeNull();
+    expect(tabsStickyScrollTop({ scrollY: 10, rootTop: 20, stickyTop: 68 })).toBe(0);
   });
 });

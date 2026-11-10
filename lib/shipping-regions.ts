@@ -1,6 +1,7 @@
 import { isUuid } from '@/lib/uuid';
 import { parseShippingQuote, type ShippingQuote, type ShippingQuoteGroup } from './fulfillment';
 import { parseGoodsSalesQuote, type GoodsSalesQuote } from './goods-sales';
+import { hasShippingChargeDetails } from './shipping-charge-groups';
 
 export type ShippingRegionStatus = 'unconfigured' | 'standard' | 'surcharge' | 'address_required'
   | 'unavailable' | 'manual_review' | 'policy_unavailable' | 'carrier_mismatch';
@@ -40,7 +41,7 @@ export function parseShippingDestination(value: unknown): ShippingDestination | 
 }
 
 export function parseRegionalShippingSnapshot(value: unknown): RegionalShippingSnapshot | null {
-  if (!object(value) || !['legacy_base_only', 'managed'].includes(String(value.regionMode))
+  if (hasShippingChargeDetails(value) || !object(value) || !['legacy_base_only', 'managed'].includes(String(value.regionMode))
     || !STATUSES.includes(value.regionStatus as ShippingRegionStatus)
     || !nullableAmount(value.regionalContractFee) || !nullableAmount(value.regionalFee) || !nullableAmount(value.finalFee)
     || !nullableId(value.policyId) || !nullableId(value.ruleId)
@@ -120,7 +121,7 @@ export function shippingRegionStatusMessage(status: ShippingRegionStatus): strin
   return {
     unconfigured: '표시된 배송비로 주문이 확정됩니다.', standard: '이 주소는 지역 추가 배송비가 없습니다.',
     surcharge: '배송지에 따른 추가 배송비가 포함되어 있습니다.', address_required: '배송지를 입력하면 배송비가 확정됩니다.',
-    unavailable: '이 출고지에서 배송할 수 없는 주소입니다. 다른 배송지를 선택해주세요.',
+    unavailable: '이 배송 묶음은 입력한 주소로 배송할 수 없습니다. 다른 배송지를 선택해주세요.',
     manual_review: '이 주소의 배송 가능 여부와 배송비를 확인해야 합니다. 고객센터에 문의해주세요.',
     policy_unavailable: '현재 배송비를 확인 중입니다. 잠시 후 다시 시도해주세요.',
     carrier_mismatch: '현재 배송비를 확인 중입니다. 잠시 후 다시 시도해주세요.',

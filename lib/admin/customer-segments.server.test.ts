@@ -1,0 +1,16 @@
+import { beforeEach,describe,expect,it,vi } from 'vitest';
+import { loadCustomerSegments,loadCustomerSegmentOverview,loadCustomerSegment,loadCustomerSegmentOptions } from './customer-segments.server';
+import { defaultSegmentRule,normalizeSegmentFilters } from './customer-segments';
+const mocks=vi.hoisted(()=>({rpc:vi.fn()}));vi.mock('server-only',()=>({}));vi.mock('@/lib/supabase/server',()=>({createClient:()=>({rpc:mocks.rpc})}));
+const id='11111111-1111-4111-8111-111111111111',at='2026-10-13T06:00:00Z';
+const segment={id,reference:1,name:'첫구매 대상',presetKey:null,ruleVersion:1,rule:defaultSegmentRule(),ruleHash:'a'.repeat(64),target:'first_purchase',group:'visitor',revision:1,available:true,favorite:false,estimate:null,createdAt:at,updatedAt:at};
+const history=Array.from({length:13},(_,i)=>({month:`${i===0?'2025':'2026'}-${String(i===0?12:i).padStart(2,'0')}`,evaluatedAt:null,matchedCount:null,consentedCount:null}));
+describe('customer segment server reads',()=>{
+ beforeEach(()=>vi.clearAllMocks());
+ it('preserves missing observation and visitor data as null',async()=>{mocks.rpc.mockResolvedValue({data:{checkedAt:at,groups:{potential:null,visitor:null,interested:5,buyer:3,loyal:1},firstPurchaseMembers:10,memberCount:13}});expect((await loadCustomerSegmentOverview()).groups.visitor).toBeNull();mocks.rpc.mockResolvedValue({data:{segment,history,selectedOptions:[]}});expect((await loadCustomerSegment(id))?.history.every(p=>p.matchedCount===null)).toBe(true);});
+ it('fails closed on malformed member activity counts',async()=>{mocks.rpc.mockResolvedValue({data:{checkedAt:at,groups:{potential:-1,visitor:0,interested:0,buyer:0,loyal:0},firstPurchaseMembers:0,memberCount:0}});await expect(loadCustomerSegmentOverview()).rejects.toThrow('불러오지');});
+ it('forwards every filter and repairs out-of-range pagination',async()=>{const filters=normalizeSegmentFilters({page:'5',group:'buyer',target:'purchased',kind:'custom',favorite:'1'});mocks.rpc.mockResolvedValueOnce({data:{rows:[],favorites:[],total:1,page:5,pageSize:20}}).mockResolvedValueOnce({data:{rows:[segment],favorites:[],total:1,page:1,pageSize:20}});expect((await loadCustomerSegments(filters)).filters.page).toBe(1);expect(mocks.rpc).toHaveBeenNthCalledWith(1,'admin_list_customer_segments',expect.objectContaining({p_group:'buyer',p_target:'purchased',p_kind:'custom',p_favorite_only:true,p_page:5}));});
+ it('rejects duplicate rows and API failures',async()=>{mocks.rpc.mockResolvedValue({data:{rows:[segment,segment],favorites:[],total:2,page:1,pageSize:20}});await expect(loadCustomerSegments(normalizeSegmentFilters({}))).rejects.toThrow();mocks.rpc.mockResolvedValue({error:{message:'denied'}});await expect(loadCustomerSegment(id)).rejects.toThrow();});
+ it('keeps detail not-found separate from invalid observations',async()=>{mocks.rpc.mockResolvedValue({data:null});expect(await loadCustomerSegment(id)).toBeNull();mocks.rpc.mockResolvedValue({data:{segment,history:[{...history[0],matchedCount:0},...history.slice(1)],selectedOptions:[]}});await expect(loadCustomerSegment(id)).rejects.toThrow();});
+ it('rejects option source mismatches',async()=>{mocks.rpc.mockResolvedValue({data:{rows:[{kind:'ip',id:'test-ip',label:'IP'}],total:1,page:1,pageSize:20}});await expect(loadCustomerSegmentOptions('good','',1)).rejects.toThrow();});
+});

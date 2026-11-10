@@ -18,6 +18,9 @@ import { ADMIN_VOCABULARY, adminGoodsCopy, adminClaimCopy } from '../vocabulary'
 
 export type { AdminGuideTopic, AdminGuideTopicSlug };
 
+/** 모든 주제를 현재 판매자센터 메뉴와 처리 계약에 대조한 날짜(KST). */
+export const ADMIN_GUIDE_UPDATED_AT = '2026-10-21';
+
 /** 인덱스 카드와 이전/다음 내비가 따르는 열람 순서. */
 export const ADMIN_GUIDE_TOPIC_SLUGS: readonly AdminGuideTopicSlug[] = [
   'whats-new',

@@ -228,7 +228,10 @@ select 1 / case when (
 reset role;
 select 1 / case when (
   select count(*) = 1
-    and bool_and(body like '%' || upper(left(replace(:'bank_order_id', '-', ''), 8)) || '%')
+    -- 입금코드는 주문번호에서 만든다(10/14 회의 D7, bank_transfer_order_number_code.sql).
+    and bool_and(body like '%주문코드 ' || (
+      select private.bank_transfer_deposit_code_for_number(o.order_number) from public.orders o where o.id = :'bank_order_id'::uuid
+    ) || '를%')
     and bool_and(body like '%23,000%')
   from public.notifications
   where user_id = '00000000-0000-4000-8000-000000000d01'

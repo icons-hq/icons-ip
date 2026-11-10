@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { notFound, redirect } from 'next/navigation';
+import { hasAdminCapability } from './access';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
 import {
@@ -25,7 +26,7 @@ function loginPath() {
 async function requireStaffLoader() {
   const auth = await getCurrentAdminAuthState();
   if (!auth.isConfigured || !auth.user) redirect(loginPath());
-  if (!auth.isStaff) notFound();
+  if (!auth.isStaff || !hasAdminCapability(auth, 'marketing.manage')) notFound();
 }
 
 function firstRow<T>(data: unknown): T | null {

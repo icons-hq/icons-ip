@@ -78,7 +78,7 @@ export async function loadShippingNoticeTemplates(
       search_query: filters.goodQuery,
     }),
   ]);
-  if (templatesResult.error) throw new Error('배송정보 템플릿을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
+  if (templatesResult.error) throw new Error('배송 안내 템플릿을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
   if (impactResult.error) throw new Error('상품 적용 대상을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
   const total = templatesResult.count ?? 0;
   const lastPage = Math.max(1, Math.ceil(total / SHIPPING_NOTICE_TEMPLATE_PAGE_SIZE));
@@ -112,7 +112,7 @@ export async function loadActiveShippingNoticeTemplateOptions(): Promise<Shippin
       .order('version', { ascending: false })
       .order('id')
       .range(page * pageSize, page * pageSize + pageSize - 1);
-    if (error) throw new Error('활성 배송정보 템플릿을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
+    if (error) throw new Error('활성 배송 안내 템플릿을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
     const batch = (data ?? []) as ShippingNoticeTemplateRow[];
     rows.push(...batch);
     if (batch.length < pageSize) break;

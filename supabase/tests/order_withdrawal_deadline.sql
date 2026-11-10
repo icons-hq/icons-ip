@@ -231,11 +231,13 @@ select 1 / case when not public.order_withdrawal_deadline_passed(
   null, 'change_of_mind', now()
 ) then 1 else 0 end as assert_deadline_does_not_start_without_delivery;
 
+savepoint in_transit_return;
 select 1 / case when public.request_order_claim(
   '40000000-0000-4000-8000-000000000805',
   '00000000-0000-4000-8000-000000000801',
   'return', '배송 중 반품 요청', 'change_of_mind'
-) = 'not_claimable' then 1 else 0 end as assert_undelivered_order_cannot_request_return;
+) = 'requested' then 1 else 0 end as assert_in_transit_return_keeps_delivery_deadline_unstarted;
+rollback to in_transit_return;
 
 select 1 / case when public.request_order_cancellation(
   '40000000-0000-4000-8000-000000000805',

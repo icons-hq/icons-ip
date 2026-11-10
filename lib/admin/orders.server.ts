@@ -1,12 +1,17 @@
 import 'server-only';
+import { readGoodsCustomInputSnapshot } from '@/lib/goods-custom-inputs';
 
-import { normalizeCheckoutAddress } from '@/lib/checkout';
-import { isOrderWithdrawalReasonType, type OrderWithdrawalReasonType } from '@/lib/orders';
+import { loadAdminOrderDeliveries } from '@/lib/order-delivery.server';
+import { loadAdminOrderTransactions } from '@/lib/order-transactions.server';
 import {
+  isOrderClaimReasonType,
   isOrderClaimStage,
   isOrderClaimType,
+  isOrderStaffCancellationReasonCode,
+  type OrderClaimReasonType,
   type OrderClaimStage,
   type OrderClaimType,
+  type OrderStaffCancellationReasonCode,
 } from '@/lib/orders/claims';
 import { loadOrderShipments } from '@/lib/orders/shipments.server';
 import { getShippingCarrierRegistry } from '@/lib/orders/shipment.server';
@@ -31,6 +36,7 @@ const ATTEMPT_STATE_SET = new Set<string>(GOODS_PAYMENT_ATTEMPT_STATES);
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 interface SearchRow {
+  order_number?: string;
   id: string;
   user_id: string;
   buyer_name: string | null;
@@ -48,10 +54,36 @@ interface SearchRow {
   cancellation_decision_note: string | null;
   cancellation_claim_type: string | null;
   cancellation_stage: string | null;
+  cancellation_staff_reason_code: string | null;
+  cancellation_last_error_code: string | null;
   total_count: number;
 }
 
+/* PostgREST max_rows(1,000)는 넘친 행을 오류 없이 자른다. 한 페이지의 주문 상품 줄이 그보다 많을 수 있어
+   2MiB 거래 선택 한도에서도) 1,000행씩 끝까지 읽는다. 화면과 목록 엑셀이 같은 로더를 쓴다. */
+const ORDER_ITEM_PAGE_ROWS = 1000;
+
+async function loadOrderItemRows(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  orderIds: readonly string[],
+): Promise<{ data: ItemRow[] | null; error: { message: string } | null }> {
+  const rows: ItemRow[] = [];
+  for (let start = 0; ; start += ORDER_ITEM_PAGE_ROWS) {
+    const { data, error } = await supabase
+      .from('order_items')
+      .select('id,product_order_number,order_id,qty,unit_price,good_name_snapshot,good_type_snapshot,variant_id,variant_name_snapshot,variant_code_snapshot,custom_inputs_snapshot')
+      .in('order_id', [...orderIds])
+      .order('id', { ascending: true })
+      .range(start, start + ORDER_ITEM_PAGE_ROWS - 1);
+    if (error) return { data: null, error };
+    const page = (data ?? []) as ItemRow[];
+    rows.push(...page);
+    if (page.length < ORDER_ITEM_PAGE_ROWS) return { data: rows, error: null };
+  }
+}
+
 interface ItemRow {
+  product_order_number?: string;
   id: string;
   order_id: string;
   qty: number;
@@ -60,12 +92,14 @@ interface ItemRow {
   good_type_snapshot: string;
   variant_id: string;
   variant_name_snapshot?: string | null;
+  custom_inputs_snapshot?: unknown;
   variant_code_snapshot?: string | null;
 }
 
 interface PaymentRow {
   id: string;
   ref_id: string;
+  provider: string | null;
   amount: number;
   status: string;
   created_at: string;
@@ -159,9 +193,24 @@ function requireClaimStage(value: string): OrderClaimStage {
 
 // 사유 구분은 기한과 반품 배송비 부담 주체를 가른다. 모르는 값을 기본값으로 접으면
 // 운영자가 틀린 근거로 승인한다.
-function requireReasonType(value: string): OrderWithdrawalReasonType {
-  if (!isOrderWithdrawalReasonType(value)) {
+function requireReasonType(value: string): OrderClaimReasonType {
+  if (!isOrderClaimReasonType(value)) {
     throw new Error('Failed to load admin orders: unsupported cancellation reason type');
+  }
+  return value;
+}
+
+// 운영자 전액 취소(reason_type 'staff')만 운영 사유를 갖는다. DB 제약과 같은 짝이다.
+function requireStaffReasonCode(
+  reasonType: OrderClaimReasonType,
+  value: string | null,
+): OrderStaffCancellationReasonCode | null {
+  if (reasonType !== 'staff') {
+    if (value !== null) throw new Error('Failed to load admin orders: unexpected staff cancellation reason');
+    return null;
+  }
+  if (!isOrderStaffCancellationReasonCode(value)) {
+    throw new Error('Failed to load admin orders: unsupported staff cancellation reason');
   }
   return value;
 }
@@ -170,51 +219,69 @@ function buyerName(value: string | null, userId: string) {
   return value?.trim() || `fan_${userId.slice(0, 6)}`;
 }
 
+/**
+ * 화면의 목록 수와 출력의 페이지 크기를 모두 RPC 상한(100건) 안에서 적용한다.
+ */
 export async function getAdminOrderRecords(
   filters: AdminOrderFilters,
   includeManualRecovery = false,
+  options: { pageSize?: number; includeCounts?: boolean; canManage?: boolean } = {},
 ): Promise<AdminOrderConsoleData> {
+  const canManage = options.canManage !== false;
+  const pageSize = Math.min(Math.max(Math.trunc(options.pageSize ?? filters.pageSize ?? PAGE_SIZE) || PAGE_SIZE, 1), 100);
   const supabase = await createClient();
   /* 드롭다운과 배송조회 링크가 같은 레지스트리를 봐야 한다. 클라이언트 콘솔에는
      상수가 없으므로 목록 응답에 실어 보낸다(#251). */
-  const carriers = await getShippingCarrierRegistry();
-  const { data, error } = await supabase.rpc('admin_search_orders', {
+  const search = {
     p_field: filters.field,
     p_from: filters.from,
-    p_limit: PAGE_SIZE,
-    p_offset: (filters.page - 1) * PAGE_SIZE,
     p_query: filters.query || null,
-    p_status: filters.status === 'all' ? null : filters.status,
     p_to: filters.to,
-  });
+    p_date_field: filters.dateField ?? 'ordered',
+    p_payment_method: filters.paymentMethod ?? null,
+  };
+  const [carriers, { data, error }, countsResult] = await Promise.all([
+    getShippingCarrierRegistry(),
+    supabase.rpc('admin_search_orders_console', { ...search, p_limit: pageSize, p_offset: (filters.page - 1) * pageSize,
+      p_status: filters.status === 'all' ? null : filters.status, p_sort: filters.sort ?? 'newest' }),
+    options.includeCounts === false ? Promise.resolve(null) : supabase.rpc('admin_sales_order_counts', search),
+  ]);
 
   if (error) throw new Error(`Failed to load admin orders: ${error.message}`);
+  if (countsResult?.error) throw new Error(`Failed to count admin orders: ${countsResult.error.message}`);
+  let counts: Record<AdminOrderStatus, number> | undefined;
+  if (options.includeCounts !== false) {
+    const source = countsResult?.data;
+    if (!source || typeof source !== 'object' || Array.isArray(source)
+      || ADMIN_ORDER_STATUSES.some(status => !Number.isSafeInteger(Number(source[status])) || Number(source[status]) < 0)) {
+      throw new Error('Failed to count admin orders: invalid counts');
+    }
+    counts = Object.fromEntries(ADMIN_ORDER_STATUSES.map(status => [status, Number(source[status])])) as Record<AdminOrderStatus, number>;
+  }
   const rows = (data ?? []) as SearchRow[];
   if (!rows.length) {
-    return { carriers, filters, items: [], pageSize: PAGE_SIZE, total: 0 };
+    return { carriers, filters, items: [], pageSize, total: 0, ...(counts ? { counts } : {}) };
   }
 
   const orderIds = rows.map((row) => row.id);
-  const shipments = await loadOrderShipments(supabase, orderIds, carriers);
-  const recoveryOrderIds = includeManualRecovery
+  const [shipments, deliveries, transactions] = await Promise.all([
+    loadOrderShipments(supabase, orderIds, carriers), loadAdminOrderDeliveries(orderIds), loadAdminOrderTransactions(orderIds),
+  ]);
+  const recoveryOrderIds = canManage && includeManualRecovery
     ? rows.filter((row) => row.cancellation_request_id
       && (row.cancellation_request_status === 'processing'
         || row.cancellation_request_status === 'needs_review'))
       .map((row) => row.id)
     : [];
   const [itemsResult, paymentsResult, recoveryAttemptsResult] = await Promise.all([
-    supabase
-      .from('order_items')
-      .select('id,order_id,qty,unit_price,good_name_snapshot,good_type_snapshot,variant_id,variant_name_snapshot,variant_code_snapshot')
-      .in('order_id', orderIds)
-      .order('id', { ascending: true }),
-    supabase
+    loadOrderItemRows(supabase, orderIds),
+    canManage ? supabase
       .from('payment_summaries')
-      .select('id,ref_id,amount,status,created_at')
+      .select('id,ref_id,provider,amount,status,created_at')
       .eq('purpose', 'order')
       .in('ref_id', orderIds)
       .order('created_at', { ascending: true })
-      .order('id', { ascending: true }),
+      .order('id', { ascending: true }) : Promise.resolve({ data: [], error: null }),
     recoveryOrderIds.length
       ? supabase.rpc('admin_goods_manual_recovery_attempts', {
           p_order_ids: recoveryOrderIds,
@@ -287,16 +354,28 @@ export async function getAdminOrderRecords(
   }
 
   const items: AdminOrderRecord[] = rows.map((row) => {
-    const cancellationRequest = row.cancellation_request_id
+    const delivery = deliveries.get(row.id), transaction = transactions.get(row.id)?.display;
+    if (!delivery) throw new Error('Failed to load admin order delivery');
+    const orderItems = itemsByOrder.get(row.id) ?? [];
+    if (transaction && (transaction.totals.onlineTotal !== row.total || transaction.lines.length !== orderItems.length
+      || transaction.lines.some(line => !orderItems.some(item => item.id === line.lineId && item.variant_id === line.variantId && item.qty === line.qty && item.unit_price === line.unitPrice)))) {
+      throw new Error('Failed to load admin order transaction: snapshot mismatch');
+    }
+    const reasonType = canManage && row.cancellation_request_id
+      ? requireReasonType(row.cancellation_reason_type ?? '')
+      : null;
+    const cancellationRequest = canManage && row.cancellation_request_id && reasonType
       ? {
           id: row.cancellation_request_id,
           status: requireRequestStatus(row.cancellation_request_status ?? ''),
           claimType: requireClaimType(row.cancellation_claim_type ?? ''),
           stage: requireClaimStage(row.cancellation_stage ?? ''),
-          reasonType: requireReasonType(row.cancellation_reason_type ?? ''),
+          reasonType,
+          staffReasonCode: requireStaffReasonCode(reasonType, row.cancellation_staff_reason_code ?? null),
           requestedAt: row.cancellation_requested_at ?? '',
           decidedAt: row.cancellation_decided_at,
           decisionNote: row.cancellation_decision_note,
+          lastErrorCode: row.cancellation_last_error_code?.trim() || null,
         }
       : null;
 
@@ -315,24 +394,31 @@ export async function getAdminOrderRecords(
 
     return {
       id: row.id,
+      ...(row.order_number ?? delivery.orderNumber ? { orderNumber: row.order_number ?? delivery.orderNumber } : {}),
       userId: row.user_id,
       buyerName: buyerName(row.buyer_name, row.user_id),
       buyerEmail: row.buyer_email,
       status: requireOrderStatus(row.status),
       total: row.total,
-      address: normalizeCheckoutAddress(row.address),
+      address: delivery.address,
+      ...(delivery.addressNeedsReview ? { addressNeedsReview: true } : {}),
+      isGift: delivery.isGift,
+      ...(transaction ? { transaction } : {}),
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       items: (itemsByOrder.get(row.id) ?? []).map((item) => ({
         id: item.id,
+        ...(item.product_order_number ? { productOrderNumber: item.product_order_number } : {}),
         name: item.good_name_snapshot,
-        variantId: item.variant_id, variantName: item.variant_name_snapshot ?? null, variantCode: item.variant_code_snapshot ?? null,
+        ...(item.custom_inputs_snapshot == null ? {} : {customInputs:readGoodsCustomInputSnapshot(item.custom_inputs_snapshot)}),
+      variantId: item.variant_id, variantName: item.variant_name_snapshot ?? null, variantCode: item.variant_code_snapshot ?? null,
         type: item.good_type_snapshot,
         qty: item.qty,
         unitPrice: item.unit_price,
       })),
       payments: (paymentsByOrder.get(row.id) ?? []).map((payment) => ({
         id: payment.id,
+        provider: typeof payment.provider === 'string' ? payment.provider : null,
         amount: payment.amount,
         status: payment.status,
         createdAt: payment.created_at,
@@ -358,10 +444,11 @@ export async function getAdminOrderRecords(
   });
 
   return {
+    ...(counts ? { counts } : {}),
     carriers,
     filters,
     items,
-    pageSize: PAGE_SIZE,
+    pageSize,
     total: rows[0].total_count,
   };
 }

@@ -1,0 +1,9 @@
+/*
+ * 쇼핑스토리 목록·편집은 kit 유틸리티로 옮겼다(ADR-0028). 남은 것:
+ * - 개인 문구·서식 템플릿 도구(BodyTemplateTools — 상품·스토리 편집이 함께 쓴다, B 트랙).
+ * - 스토리 미리보기(공개 ShoppingStoryContent)의 모바일 보정. 공개 규칙은 화면 폭 기준이라 팝업 안 375px 틀에서는 여기서 맞춘다.
+ */
+@layer components {
+  .wc-admin [data-story-preview][data-device=mobile] .wc-shopping-story__header h1:not([data-slot]) { font-size: 25px; }
+  .wc-admin [data-story-preview][data-device=mobile] .wc-shopping-story__goods:not([data-slot]) { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+}

@@ -41,7 +41,7 @@ describe('versioned cart storage', () => {
     ]);
 
     expect(JSON.parse(stored)).toEqual({
-      version: 2,
+      version: 3,
       items: [{ goodId: 'g1', variantId: DEFAULT_VARIANT, qty: 2 }],
     });
     expect(parseStoredCart(stored)).toEqual([{ goodId: 'g1', variantId: DEFAULT_VARIANT, qty: 2 }]);
@@ -49,7 +49,7 @@ describe('versioned cart storage', () => {
 
   it('rejects malformed JSON and unknown storage versions', () => {
     expect(parseStoredCart('{')).toEqual([]);
-    expect(parseStoredCart(JSON.stringify({ version: 3, items: [{ goodId: 'g1', variantId: DEFAULT_VARIANT, qty: 2 }] }))).toEqual([]);
+    expect(parseStoredCart(JSON.stringify({ version: 4, items: [{ goodId: 'g1', variantId: DEFAULT_VARIANT, qty: 2 }] }))).toEqual([]);
     expect(parseStoredCart(null)).toEqual([]);
   });
 });
@@ -95,7 +95,7 @@ describe('옵션별 장바구니 계약 (#439)',()=>{
   it('이전 v1 저장본은 기본 옵션 해석을 위해 보존하고 v2는 옵션 식별자를 보존한다',()=>{
     expect(parseStoredCart(JSON.stringify({version:1,items:[{goodId:'goods',qty:2}]}))).toEqual([{goodId:'goods',qty:2}]);
     const items=[{goodId:'goods',variantId:blue,qty:2}];
-    expect(JSON.parse(serializeCart(items)).version).toBe(2);expect(parseStoredCart(serializeCart(items))).toEqual(items);
+    expect(JSON.parse(serializeCart(items)).version).toBe(3);expect(parseStoredCart(serializeCart(items))).toEqual(items);
   });
   it('잘못된 옵션 식별자를 기본 옵션으로 조용히 바꾸지 않는다',()=>{
     expect(normalizeCartItems([{goodId:'goods',variantId:'bad',qty:2}])).toEqual([]);

@@ -1,12 +1,20 @@
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
+import { appendSalesListOptions, normalizeSalesListOptions, salesPage, salesParam, type SalesListOptions } from './sales-list';
 import {
+  ORDER_CLAIM_BUYER_REASON_TYPES,
   ORDER_CLAIM_STAGE_LABELS,
   ORDER_CLAIM_STAGES,
   ORDER_CLAIM_TYPE_SLUGS,
+  ORDER_STAFF_CANCELLATION_REASON_CODES,
+  ORDER_STAFF_CANCELLATION_REASON_LABELS,
+  ORDER_STAFF_CLAIM_REASON_LABEL,
   isOpenOrderClaimStage,
+  orderStaffClaimReasonLabel,
+  type OrderClaimReasonType,
   type OrderClaimRefundMethod,
   type OrderClaimStage,
   type OrderClaimType,
+  type OrderStaffCancellationReasonCode,
 } from '@/lib/orders/claims';
 import {
   ORDER_WITHDRAWAL_REASON_LABELS,
@@ -25,7 +33,30 @@ import {
 export const ADMIN_CLAIM_PAGE_SIZE = 20;
 
 export type AdminClaimStageFilter = OrderClaimStage | 'all' | 'open';
-export type AdminClaimReasonFilter = OrderWithdrawalReasonType | 'all';
+/**
+ * 사유 필터. 구매자 사유, 운영자 전액 취소 전체(`staff`), 운영자 전액 취소의 운영 사유 하나
+ * (`staff:<사유 코드>`). DB `admin_search_order_claims`의 p_reason_type이 같은 값을 받는다.
+ */
+export type AdminClaimReasonFilter =
+  | OrderWithdrawalReasonType
+  | 'staff'
+  | `staff:${OrderStaffCancellationReasonCode}`
+  | 'all';
+
+/**
+ * 운영 화면의 클레임 사유 표기(2026-10-12 브라우저 QA QA-4).
+ *
+ * 운영자 전액 취소는 구매자 단순 변심과 섞지 않고 "운영자 전액 취소 · 품절·출고 불가"처럼
+ * 운영 사유까지 적는다. 구매자 사유는 어드민 어휘(굿즈→상품)로 옮긴다.
+ */
+export function adminClaimReasonText(
+  reasonType: OrderClaimReasonType,
+  staffReasonCode: OrderStaffCancellationReasonCode | null = null,
+) {
+  return reasonType === 'staff'
+    ? orderStaffClaimReasonLabel(staffReasonCode)
+    : adminGoodsCopy(ORDER_WITHDRAWAL_REASON_LABELS[reasonType]);
+}
 
 /** 기본 필터는 미처리다. 이 화면의 존재 이유가 "지금 처리할 것"이기 때문이다. */
 export const DEFAULT_ADMIN_CLAIM_STAGE: AdminClaimStageFilter = 'open';
@@ -39,36 +70,110 @@ export const ADMIN_CLAIM_STAGE_OPTIONS: { value: AdminClaimStageFilter; label: s
   })),
 ];
 
+/** Keep the provider-review stage distinct from an operator hold and buyer withdrawal. */
+export function adminClaimStageLabel(type: OrderClaimType, stage: OrderClaimStage) {
+  const typeLabel = type === 'cancel' ? '취소' : type === 'return' ? '반품' : '교환';
+  if (stage === 'requested') return `${typeLabel}요청`;
+  if (stage === 'in_review') return `${typeLabel} 검토중`;
+  if (stage === 'collecting') return '수거중';
+  if (stage === 'collected') return '수거완료';
+  if (stage === 'on_hold') return `${typeLabel}보류`;
+  if (stage === 'completed') return type === 'exchange' ? '재배송 처리완료' : `${typeLabel}완료`;
+  if (stage === 'rejected') return `${typeLabel}거부`;
+  if (stage === 'withdrawn') return `${typeLabel}철회`;
+  return ORDER_CLAIM_STAGE_LABELS[stage];
+}
+export function adminClaimStageOptions(type: OrderClaimType) {
+  return ADMIN_CLAIM_STAGE_OPTIONS.filter((option) => type !== 'cancel' || !['collecting', 'collected'].includes(option.value))
+    .map((option) => ({ ...option, label: option.value === 'all' || option.value === 'open' ? option.label : adminClaimStageLabel(type, option.value) }));
+}
+
+/** 모든 사유 필터 값의 표기. 표기 조회용이다 — 화면의 선택지는 `adminClaimReasonOptions(유형)`. */
 export const ADMIN_CLAIM_REASON_OPTIONS: { value: AdminClaimReasonFilter; label: string }[] = [
   { value: 'all', label: '전체' },
   ...ORDER_WITHDRAWAL_REASON_TYPES.map((reasonType) => ({
     value: reasonType as AdminClaimReasonFilter,
     label: adminGoodsCopy(ORDER_WITHDRAWAL_REASON_LABELS[reasonType]),
   })),
+  { value: 'staff', label: `${ORDER_STAFF_CLAIM_REASON_LABEL} 전체` },
+  ...ORDER_STAFF_CANCELLATION_REASON_CODES.map((code) => ({
+    value: `staff:${code}` as AdminClaimReasonFilter,
+    label: `${ORDER_STAFF_CLAIM_REASON_LABEL} · ${ORDER_STAFF_CANCELLATION_REASON_LABELS[code]}`,
+  })),
 ];
+
+/**
+ * 유형별 사유 필터(R7). 취소는 단순 변심과 운영자 전액 취소(DB 제약상 취소 전용),
+ * 반품·교환은 단순 변심과 하자·오배송이다. 그 유형에 생길 수 없는 값은 고르지 못하게 한다.
+ */
+export function adminClaimReasonOptions(claimType: OrderClaimType) {
+  const buyer = new Set<string>(ORDER_CLAIM_BUYER_REASON_TYPES[claimType]);
+  return ADMIN_CLAIM_REASON_OPTIONS.filter((option) => option.value === 'all'
+    || buyer.has(option.value)
+    || (claimType === 'cancel' && (option.value === 'staff' || option.value.startsWith('staff:'))));
+}
+
+/**
+ * 거부 사유 프리셋(R7 확정 문구). DB(private.decide_order_claim)가 앞뒤 공백이 있거나
+ * 10~200자 밖인 사유를 `invalid rejection reason`으로 거절하므로 모두 그 안의 문장이다.
+ * 고르면 사유 칸에 채워지고, 운영자가 고쳐 쓸 수 있다.
+ */
+export const ADMIN_CLAIM_REJECTION_PRESETS = [
+  '이미 발송되어 취소할 수 없습니다.',
+  '회수한 상품에 사용 흔적이 있어 반품할 수 없습니다.',
+  '교환할 옵션의 재고가 없어 교환할 수 없습니다.',
+  '반품 가능 기간이 지났습니다.',
+] as const;
+
+const REJECTION_PRESETS_BY_TYPE: Record<OrderClaimType, readonly (typeof ADMIN_CLAIM_REJECTION_PRESETS)[number][]> = {
+  cancel: [ADMIN_CLAIM_REJECTION_PRESETS[0]],
+  return: [ADMIN_CLAIM_REJECTION_PRESETS[1], ADMIN_CLAIM_REJECTION_PRESETS[3]],
+  exchange: [ADMIN_CLAIM_REJECTION_PRESETS[2]],
+};
+
+/** 그 유형의 요청에 맞는 문장만 고를 수 있다 — 취소 요청에 '반품 가능 기간' 같은 문장이 구매자에게 가지 않게 한다. */
+export function adminClaimRejectionPresets(claimType: OrderClaimType): readonly string[] {
+  return REJECTION_PRESETS_BY_TYPE[claimType];
+}
 
 export const ADMIN_CLAIM_SEARCH_FIELDS = [
   { value: 'all', label: '전체' },
   { value: 'order', label: '주문·클레임번호' },
   { value: 'buyer', label: '구매자' },
-];
+  { value: 'email', label: '구매자 이메일' },
+  { value: 'recipient', label: '수취인명' },
+  { value: 'item', label: '상품주문번호' },
+  { value: 'product', label: '상품번호' },
+] as const;
+export type AdminClaimSearchField = (typeof ADMIN_CLAIM_SEARCH_FIELDS)[number]['value'];
+export const ADMIN_CLAIM_DATE_FIELDS = [
+  { value: 'requested', label: '요청일' },
+  { value: 'paid', label: '결제일' },
+  { value: 'collected', label: '수거완료일' },
+  { value: 'completed', label: '처리완료일' },
+] as const;
 
-export interface AdminClaimFilters {
+export interface AdminClaimFilters extends SalesListOptions {
   stage: AdminClaimStageFilter;
   reasonType: AdminClaimReasonFilter;
   from: string | null;
   to: string | null;
   query: string;
   page: number;
+  field?: Exclude<AdminClaimSearchField, 'all'>;
+  dateField?: 'paid' | 'collected' | 'completed';
 }
 
 export interface AdminClaimRow {
+  orderNumber?: string;
   id: string;
   reference: number;
   orderId: string;
   claimType: OrderClaimType;
   stage: OrderClaimStage;
-  reasonType: OrderWithdrawalReasonType;
+  reasonType: OrderClaimReasonType;
+  /** 운영자 전액 취소의 운영 사유. 구매자 사유 요청은 null이다. */
+  staffReasonCode: OrderStaffCancellationReasonCode | null;
   buyerName: string;
   buyerEmail: string | null;
   orderStatus: string;
@@ -94,7 +199,7 @@ type SearchParamValue = string | string[] | undefined;
 
 const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 const STAGE_FILTERS = new Set<string>(['all', 'open', ...ORDER_CLAIM_STAGES]);
-const REASON_FILTERS = new Set<string>(['all', ...ORDER_WITHDRAWAL_REASON_TYPES]);
+const REASON_FILTERS = new Set<string>(ADMIN_CLAIM_REASON_OPTIONS.map((option) => option.value));
 
 function singleParam(value: SearchParamValue) {
   return typeof value === 'string' ? value : '';
@@ -117,9 +222,13 @@ function normalizedDate(value: SearchParamValue) {
   return validCalendarDate(candidate) ? candidate : null;
 }
 
-/** URL 파라미터를 화면이 믿을 수 있는 필터로 좁힌다. 주문·문의 콘솔과 같은 규율이다. */
+/**
+ * URL 파라미터를 화면이 믿을 수 있는 필터로 좁힌다. 주문·문의 콘솔과 같은 규율이다.
+ * 유형을 주면 그 유형의 사유 필터(`adminClaimReasonOptions`) 밖의 값은 버린다.
+ */
 export function normalizeAdminClaimFilters(
   searchParams: Record<string, SearchParamValue>,
+  claimType?: OrderClaimType,
 ): AdminClaimFilters {
   let from = normalizedDate(searchParams.from);
   let to = normalizedDate(searchParams.to);
@@ -132,17 +241,25 @@ export function normalizeAdminClaimFilters(
   const rawStage = singleParam(searchParams.stage);
   const rawReason = singleParam(searchParams.reasonType);
   const rawQuery = singleParam(searchParams.query).trim();
-  const rawPage = Number(singleParam(searchParams.page));
+  const listOptions = normalizeSalesListOptions(searchParams);
+  const field = salesParam(searchParams, 'field');
 
   return {
+    ...listOptions,
+    ...(field !== 'all' && ADMIN_CLAIM_SEARCH_FIELDS.some(option => option.value === field)
+      ? { field: field as AdminClaimFilters['field'] } : {}),
+    ...(['paid', 'collected', 'completed'].includes(salesParam(searchParams, 'dateField'))
+      ? { dateField: salesParam(searchParams, 'dateField') as AdminClaimFilters['dateField'] } : {}),
     stage: STAGE_FILTERS.has(rawStage)
       ? rawStage as AdminClaimStageFilter
       : DEFAULT_ADMIN_CLAIM_STAGE,
-    reasonType: REASON_FILTERS.has(rawReason) ? rawReason as AdminClaimReasonFilter : 'all',
+    reasonType: (claimType ? adminClaimReasonOptions(claimType).some((option) => option.value === rawReason) : REASON_FILTERS.has(rawReason))
+      ? rawReason as AdminClaimReasonFilter
+      : 'all',
     from,
     to,
     query: rawQuery.length <= 100 ? rawQuery : '',
-    page: Number.isSafeInteger(rawPage) && rawPage > 0 ? rawPage : 1,
+    page: salesPage(searchParams.page, listOptions.pageSize ?? ADMIN_CLAIM_PAGE_SIZE),
   };
 }
 
@@ -157,6 +274,9 @@ export function adminClaimHref(
 ) {
   const next = { ...filters, ...overrides };
   const params = new URLSearchParams();
+  appendSalesListOptions(params, next);
+  if (next.field) params.set('field', next.field);
+  if (next.dateField) params.set('dateField', next.dateField);
   params.set('stage', next.stage);
   if (next.reasonType !== 'all') params.set('reasonType', next.reasonType);
   if (next.from) params.set('from', next.from);
@@ -178,7 +298,28 @@ export function adminClaimDetailHref(
   return back ? `${base}?back=${encodeURIComponent(back)}` : base;
 }
 
-const BACK_PARAM_KEYS = ['stage', 'reasonType', 'from', 'to', 'query', 'page'] as const;
+/**
+ * 목록 위 상세 팝업(R8). 독립 상세 라우트 대신 같은 목록 URL에 `claimId`만 더한다 —
+ * 팝업을 닫으면 `adminClaimHref`로 같은 조건의 목록에 그대로 돌아온다.
+ */
+export function adminClaimPreviewHref(
+  claimType: OrderClaimType,
+  claimId: string,
+  filters?: AdminClaimFilters,
+) {
+  if (!filters) return `${adminClaimBasePath(claimType)}?claimId=${encodeURIComponent(claimId)}`;
+  return `${adminClaimHref(claimType, filters)}&claimId=${encodeURIComponent(claimId)}`;
+}
+
+const PREVIEW_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+/** `?claimId=`에서 팝업으로 열 요청 id. 형식이 아니면 팝업을 열지 않는다. */
+export function adminClaimPreviewId(value: SearchParamValue): string | null {
+  const candidate = singleParam(value).trim().toLowerCase();
+  return PREVIEW_ID_PATTERN.test(candidate) ? candidate : null;
+}
+
+const BACK_PARAM_KEYS = ['stage', 'reasonType', 'from', 'to', 'query', 'page', 'field', 'dateField', 'sort', 'pageSize'] as const;
 
 /**
  * `?back=`으로 돌아온 목록 조건.
@@ -197,7 +338,7 @@ export function adminClaimBackHref(claimType: OrderClaimType, back: unknown) {
     if (value) known[key] = value;
   }
 
-  return adminClaimHref(claimType, normalizeAdminClaimFilters(known));
+  return adminClaimHref(claimType, normalizeAdminClaimFilters(known, claimType));
 }
 
 /** 구매자 표기. 닉네임이 비면 주문 콘솔과 같은 fan_ 축약(구매자 id 앞 6자)을 쓴다. */

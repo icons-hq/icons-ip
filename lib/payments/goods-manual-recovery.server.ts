@@ -154,7 +154,8 @@ export function createGoodsManualRecoveryRepository(
 }
 
 /**
- * 한 admin이 provider 원장을 수동 확인한 뒤 한 attempt를 정합화하는 유일한 서버 seam.
+ * 결제 관리 권한이 있는 운영자가 provider 원장을 확인한 뒤 한 attempt를 정합화하는 서버 seam.
+ * 진입은 DB의 현재 권한으로 검사하며, 종결은 선점한 actor와 요청/claim 결속을 유지한다.
  * Provider API를 호출하지 않으며 raw paymentKey, TID, PAN을 입력 계약에 두지 않는다.
  */
 export async function recoverGoodsPaymentManually(

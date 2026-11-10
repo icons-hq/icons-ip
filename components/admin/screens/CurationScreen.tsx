@@ -1,9 +1,10 @@
 'use client';
 
-import { AdminPageHeader } from '@/components/admin/console/AdminKit';
 import { CurationSection } from '@/components/admin/sections/CurationSection';
+import type { CurationPublicPreview } from '@/lib/admin/curation-editor';
 import type { AdminCurationTargetRecord } from '@/lib/admin/curation-targets';
 import type { AdminCurationRecord } from '@/lib/admin/curations.server';
+import type { AdminHomeLayout } from '@/lib/admin/home-layout';
 import { useSelectedRecord } from './record-selection';
 
 /*
@@ -21,7 +22,10 @@ export function CurationScreen({
   goodOptions,
   ipOptions,
   operationId,
+  preview,
   records,
+  homeLayout,
+  homeLayoutOperationId,
 }: {
   draftActiveFrom: string;
   draftId: string;
@@ -29,12 +33,14 @@ export function CurationScreen({
   goodOptions: AdminCurationTargetRecord[];
   ipOptions: AdminCurationTargetRecord[];
   operationId: string;
+  preview?: CurationPublicPreview;
   records: AdminCurationRecord[];
+  homeLayout?: AdminHomeLayout;
+  homeLayoutOperationId?: string;
 }) {
   const { selected, select } = useSelectedRecord(records);
 
   return (
-    <><AdminPageHeader title="홈 큐레이션" description="노출 위치·순서·기간을 확인합니다." />
     <CurationSection
       draftActiveFrom={draftActiveFrom}
       draftId={draftId}
@@ -43,8 +49,11 @@ export function CurationScreen({
       ipOptions={ipOptions}
       onSelect={select}
       operationId={operationId}
+      preview={preview}
       records={records}
       selected={selected}
-    /></>
+      homeLayout={homeLayout}
+      homeLayoutOperationId={homeLayoutOperationId}
+    />
   );
 }

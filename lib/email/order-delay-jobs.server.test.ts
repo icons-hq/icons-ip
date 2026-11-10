@@ -104,3 +104,13 @@ describe('지연 주문 이메일 작업',()=>{
   expect(s.finishes).toEqual([{status:'unknown',errorCode:'delivery_needs_review',retryable:false}]);
  });
 });
+
+it('uses the gift inbox for a frozen recipient target, with no payer order-detail link', async () => {
+  const s = setup();
+  s.jobs.claim = async () => [{ ...job, audience: 'recipient', recipient: 'gift-recipient@example.test' }];
+  await processOrderDelayEmails({ repository: s.jobs, dispatcher: s.dispatcher });
+  expect(s.provider.send).toHaveBeenCalledWith(expect.objectContaining({ recipient: 'gift-recipient@example.test',
+    message: expect.objectContaining({ text: expect.stringContaining('/gifts') }) }));
+  const message = vi.mocked(s.provider.send).mock.calls[0][0].message;
+  expect(message.text).not.toContain(`/orders/${job.orderId}`);
+});

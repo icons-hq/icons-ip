@@ -6,6 +6,7 @@ import {
   isKorpayUuid,
   normalizeKorpaySiteUrl,
 } from '../lib/payments/korpay-config.mjs';
+import { isNicepayMerchantId, isNicepayMerchantKey } from '../lib/payments/nicepay-config.mjs';
 import { isTossKeyPairAligned, tossKeyMode } from '../lib/payments/toss-config.mjs';
 import { isSupabasePublishableKey, isSupabaseSecretKey } from '../lib/supabase/api-key-format.mjs';
 import { validateStagingBuildEnvironment } from './staging-environment.mjs';
@@ -27,6 +28,8 @@ const TOSS_CANARY_NAMES = [
   'TOSS_ORDER_CANARY_USER_ID',
   'TOSS_TICKET_CANARY_USER_ID',
 ];
+// 나이스페이는 판매 제한 굿즈 주문 전용이다 — 티켓 gate는 없다(runtime-gateway.ts).
+const NICEPAY_CREDENTIAL_NAMES = ['NICEPAY_MID', 'NICEPAY_MERCHANT_KEY'];
 
 function isPresent(value) {
   return typeof value === 'string' && value.trim().length > 0;
@@ -93,6 +96,11 @@ export function validateVercelBuildEnvironment(environment) {
     target,
     'TOSS_TICKET_CHECKOUT_ENABLED',
   );
+  const nicepayOrderCheckoutEnabled = parseBooleanGate(
+    environment,
+    target,
+    'NICEPAY_ORDER_CHECKOUT_ENABLED',
+  );
 
   if (target === 'preview') {
     for (const name of ['KORPAY_MID', 'KORPAY_KEY']) {
@@ -123,6 +131,19 @@ export function validateVercelBuildEnvironment(environment) {
         throw new Error(`Invalid Vercel preview ${name}: canary users are production-only`);
       }
     }
+    // 나이스페이 MID·MerchantKey는 production 전용이다. 공개 저장소의 preview 빌드에
+    // 실 자격 증명이 새지 않도록 존재 자체를 막는다.
+    for (const name of NICEPAY_CREDENTIAL_NAMES) {
+      if (isPresent(environment[name])) {
+        throw new Error(`Invalid Vercel preview ${name}: NICEPAY credentials are production-only`);
+      }
+    }
+    if (nicepayOrderCheckoutEnabled) {
+      throw new Error('Invalid Vercel preview NICEPAY_ORDER_CHECKOUT_ENABLED: checkout must remain disabled');
+    }
+    if (isPresent(environment.NICEPAY_ORDER_CANARY_USER_ID)) {
+      throw new Error('Invalid Vercel preview NICEPAY_ORDER_CANARY_USER_ID: canary users are production-only');
+    }
   }
 
   if (target === 'production') {
@@ -145,6 +166,37 @@ export function validateVercelBuildEnvironment(environment) {
         throw new Error(`Invalid Vercel production ${name}: use a UUID v1-5`);
       }
     }
+    if (
+      isPresent(environment.NICEPAY_ORDER_CANARY_USER_ID)
+      && !isKorpayUuid(environment.NICEPAY_ORDER_CANARY_USER_ID)
+    ) {
+      throw new Error('Invalid Vercel production NICEPAY_ORDER_CANARY_USER_ID: use a UUID v1-5');
+    }
+  }
+
+  // 나이스페이 자격 증명은 required가 아니다 — MID·KEY 발급 전에도 production 빌드가
+  // 깨지면 안 된다. 다만 하나라도 놓였다면 둘 다 형식에 맞아야 한다. 새로 등록하는 값의
+  // 오타가 조용히 "미구성"으로 새면 심사 canary가 결제창을 못 여는 원인을 찾기 어렵다.
+  const nicepayCredentialsPresent = NICEPAY_CREDENTIAL_NAMES.some((name) => isPresent(environment[name]));
+  if (target === 'production' && nicepayCredentialsPresent) {
+    if (!isNicepayMerchantId(environment.NICEPAY_MID?.trim())) {
+      throw new Error('Invalid Vercel production NICEPAY_MID: use exactly 10 ASCII letters or digits');
+    }
+    if (!isNicepayMerchantKey(environment.NICEPAY_MERCHANT_KEY?.trim())) {
+      throw new Error('Invalid Vercel production NICEPAY_MERCHANT_KEY: use 32-256 base64 characters');
+    }
+  }
+  const nicepayConfigured = target === 'production' && nicepayCredentialsPresent;
+  const nicepayOrderCanaryConfigured = isPresent(environment.NICEPAY_ORDER_CANARY_USER_ID);
+  if (
+    target === 'production'
+    && !nicepayConfigured
+    && (nicepayOrderCheckoutEnabled || nicepayOrderCanaryConfigured)
+  ) {
+    throw new Error(
+      'Invalid Vercel production NICEPAY configuration: checkout gate or canary is set '
+      + 'but NICEPAY_MID/NICEPAY_MERCHANT_KEY are not configured',
+    );
   }
 
   // 토스 위젯 키 페어는 required가 아니다 — 전자결제 심사(#394) 전 미등록
@@ -183,6 +235,10 @@ export function validateVercelBuildEnvironment(environment) {
     && !/^[A-Za-z0-9_-]{16,128}$/.test(environment.PAYMENT_RECONCILIATION_SECRET)) {
     throw new Error(`Invalid Vercel ${target} PAYMENT_RECONCILIATION_SECRET: use 16-128 URL-safe characters`);
   }
+  if (isPresent(environment.ERP_SYNC_SECRET)
+    && !/^[A-Za-z0-9_-]{16,128}$/.test(environment.ERP_SYNC_SECRET)) {
+    throw new Error(`Invalid Vercel ${target} ERP_SYNC_SECRET: use 16-128 URL-safe characters`);
+  }
 
   const korpayOrderCanaryConfigured = isPresent(environment.KORPAY_ORDER_CANARY_USER_ID);
   const korpayTicketCanaryConfigured = isPresent(environment.KORPAY_TICKET_CANARY_USER_ID);
@@ -192,6 +248,20 @@ export function validateVercelBuildEnvironment(environment) {
   // 없다. 그래서 막지 않고, 대신 빌드 로그에 눈에 띄게 남긴다. 이 상태가 심사
   // 뒤까지 남으면 무과금 결제가 paid 주문을 만든다.
   const warnings = [];
+  // 코페이는 drain 전용으로 은퇴했다 — 런타임은 이 gate·canary를 더는 읽지 않는다. 남아
+  // 있으면 운영자가 "열려 있다"고 오해하지 않도록 빌드 로그에 남긴다(빌드는 막지 않는다).
+  if (
+    target === 'production'
+    && (korpayOrderCheckoutEnabled || korpayTicketCheckoutEnabled
+      || isPresent(environment.KORPAY_ORDER_CANARY_USER_ID)
+      || isPresent(environment.KORPAY_TICKET_CANARY_USER_ID))
+  ) {
+    warnings.push(
+      'Korpay checkout gates and canaries are retired and ignored at runtime; new restricted-goods '
+      + 'card checkouts use NICEPAY. Remove KORPAY_*_CHECKOUT_ENABLED/KORPAY_*_CANARY_USER_ID: '
+      + 'docs/runbooks/nicepay-production-rollout.md',
+    );
+  }
   if (
     tossConfigured
     && (tossOrderCheckoutEnabled || tossTicketCheckoutEnabled)
@@ -208,14 +278,13 @@ export function validateVercelBuildEnvironment(environment) {
     checked: true,
     ...(stagingVerified ? { stagingVerified: true } : {}),
     warnings,
-    newCheckoutEnabled: korpayOrderCheckoutEnabled
-      || korpayTicketCheckoutEnabled
-      || korpayOrderCanaryConfigured
-      || korpayTicketCanaryConfigured
-      || tossOrderCheckoutEnabled
+    // 코페이 gate는 은퇴해 신규 결제를 열지 않으므로 이 합에 들어가지 않는다.
+    newCheckoutEnabled: tossOrderCheckoutEnabled
       || tossTicketCheckoutEnabled
       || tossOrderCanaryConfigured
-      || tossTicketCanaryConfigured,
+      || tossTicketCanaryConfigured
+      || nicepayOrderCheckoutEnabled
+      || nicepayOrderCanaryConfigured,
     paymentReconciliationConfigured: isPresent(environment.PAYMENT_RECONCILIATION_SECRET),
     korpayConfigured: target === 'production',
     korpayOrderCheckoutEnabled,
@@ -227,6 +296,9 @@ export function validateVercelBuildEnvironment(environment) {
     tossTicketCheckoutEnabled,
     tossOrderCanaryConfigured,
     tossTicketCanaryConfigured,
+    nicepayConfigured,
+    nicepayOrderCheckoutEnabled,
+    nicepayOrderCanaryConfigured,
   };
 }
 
@@ -248,16 +320,15 @@ function main() {
 
     console.log(
       `Vercel ${process.env.VERCEL_ENV} environment verified; `
-      + `Korpay configured=${result.korpayConfigured}, `
-      + `order checkout enabled=${result.korpayOrderCheckoutEnabled}, `
-      + `ticket checkout enabled=${result.korpayTicketCheckoutEnabled}, `
-      + `order canary configured=${result.korpayOrderCanaryConfigured}, `
-      + `ticket canary configured=${result.korpayTicketCanaryConfigured}; `
+      + `Korpay configured=${result.korpayConfigured} (drain only; checkout gates retired); `
       + `Toss configured=${result.tossConfigured}, `
       + `order checkout enabled=${result.tossOrderCheckoutEnabled}, `
       + `ticket checkout enabled=${result.tossTicketCheckoutEnabled}, `
       + `order canary configured=${result.tossOrderCanaryConfigured}, `
-      + `ticket canary configured=${result.tossTicketCanaryConfigured}`,
+      + `ticket canary configured=${result.tossTicketCanaryConfigured}; `
+      + `NICEPAY configured=${result.nicepayConfigured}, `
+      + `order checkout enabled=${result.nicepayOrderCheckoutEnabled}, `
+      + `order canary configured=${result.nicepayOrderCanaryConfigured}`,
     );
   } catch (error) {
     console.error(error instanceof Error ? error.message : 'Invalid Vercel build environment');

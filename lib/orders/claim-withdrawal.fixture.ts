@@ -1,0 +1,4 @@
+import type { ClaimWithdrawalContext, ClaimWithdrawalReceipt, ClaimWithdrawalRequest } from './claim-withdrawal';
+export const withdrawalRequestFixture: ClaimWithdrawalRequest = { id: '33333333-3333-4333-8333-333333333333', claimId: '22222222-2222-4222-8222-222222222222', revision: 2, reason: '고객 전화로 철회 확인', confirmed: true };
+export const withdrawalContextFixture: ClaimWithdrawalContext = { claimId: withdrawalRequestFixture.claimId, orderId: '11111111-1111-4111-8111-111111111111', claimType: 'return', stage: 'collecting', revision: 2, allowed: true, blocker: null, orderTotal: 10000, withdrawal: null };
+export const withdrawalReceiptFixture: ClaimWithdrawalReceipt = { id: withdrawalRequestFixture.id, claimId: withdrawalRequestFixture.claimId, orderId: withdrawalContextFixture.orderId, actorKind: 'operator', reason: withdrawalRequestFixture.reason, createdAt: '2026-10-13T11:30:00Z', stage: 'withdrawn' };

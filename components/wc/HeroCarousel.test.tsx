@@ -38,6 +38,35 @@ const playable: HeroPlaybackState = {
 };
 
 describe('HeroCarousel markup', () => {
+  it('keeps the legacy gradient only when image dim is absent and supports image-only full dim', () => {
+    expect(renderToStaticMarkup(<HeroCarousel slides={[slides[0]]} />)).toContain('wc-hero__scrim');
+    const none = renderToStaticMarkup(<HeroCarousel slides={[{ ...slides[0], imageDim: 'none', textColor: 'black' }]} />);
+    expect(none).not.toContain('wc-hero__scrim'); expect(none).not.toContain('wc-hero__dim'); expect(none).toContain('data-text-color="black"');
+    for (const imageDim of ['white', 'black'] as const) {
+      const html = renderToStaticMarkup(<HeroCarousel slides={[{ ...slides[0], title: '', subtitle: null, imageDim }]} />);
+      expect(html).toContain('wc-hero__dim'); expect(html).toContain(`data-tone="${imageDim}"`);
+      expect(html).not.toContain('wc-hero__scrim'); expect(html).not.toContain('wc-hero__copy');
+    }
+  });
+  it('링크 없는 배너는 클릭·탭 대상이 없고 이미지 설명은 별도로 읽힌다', () => {
+    const html = renderToStaticMarkup(<HeroCarousel slides={[{ ...slides[0], href: null, imageAlt: '이미지 속 문구' }]} />);
+    expect(html).not.toMatch(/<a\b/);
+    expect(html).not.toContain('tabindex');
+    expect(html).toContain('alt="이미지 속 문구"');
+    expect(html).toContain('여름 드랍');
+  });
+
+  it('이미지 전용 배너는 가짜 제목·그라데이션을 표시하지 않고 링크에 이름을 제공한다', () => {
+    const blank = { ...slides[0], title: '', subtitle: null, imageAlt: '' };
+    const html = renderToStaticMarkup(<HeroCarousel slides={[blank]} />);
+    expect(html).not.toContain('wc-hero__copy');
+    expect(html).not.toContain('wc-hero__scrim');
+    expect(html).toContain('aria-label="프로모션 배너 1 보기"');
+    const decorative = renderToStaticMarkup(<HeroCarousel slides={[{ ...blank, href: null }]} />);
+    expect(decorative).toContain('alt=""');
+    expect(decorative).not.toMatch(/<a\b/);
+  });
+
   it('announces itself as a labelled carousel', () => {
     const html = renderToStaticMarkup(<HeroCarousel slides={slides} />);
 

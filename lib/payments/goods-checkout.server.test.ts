@@ -126,6 +126,12 @@ describe('GoodsPaymentAttemptRepository', () => {
     });
   });
 
+  it('판매기간 거부만 공개 가능한 도메인 코드로 보존한다', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'goods_sale_not_open' } });
+    const repository = createGoodsPaymentAttemptRepository({ rpc: mocks.rpc });
+    await expect(repository.prepareOrderAttempt({ userId: '00000000-0000-4000-8000-000000000205', orderId: ORDER_ID, provider: 'toss' })).rejects.toMatchObject({ code: 'goods_sale_not_open' });
+  });
+
   it('DB 오류는 원문을 공개하지 않는 repository error로 감싼다', async () => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: 'private database detail' } });
     const repository = createGoodsPaymentAttemptRepository({ rpc: mocks.rpc });

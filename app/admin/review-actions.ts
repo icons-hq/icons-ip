@@ -3,8 +3,11 @@
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { hasAdminCapability } from '@/lib/admin/access';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
+import { saveCsReplyRequest } from '@/lib/admin/cs-reply-mutations.server';
+import type { CsReplyOutcome } from '@/lib/admin/cs-reply-mutations';
 
 /* 어드민 리뷰 답글·블라인드(#254).
  *
@@ -25,9 +28,9 @@ export interface AdminReviewActionState {
    * 문구만 보고 판단하면 두 번째 저장의 문구가 첫 번째와 같아 창이 비지 않는다.
    */
   resultKey?: string;
+  replyOutcome?: CsReplyOutcome;
 }
 
-const REPLY_FAILED = '답글을 저장하지 못했습니다. 최신 상태를 확인해주세요.';
 const STATUS_FAILED = '리뷰 상태를 변경하지 못했습니다. 최신 상태를 확인해주세요.';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -47,7 +50,7 @@ async function requireStaffAction(): Promise<AdminReviewActionState | null> {
   if (!auth.isConfigured || !auth.user) {
     redirect(`/login?next=${encodeURIComponent(REVIEWS_PATH)}`);
   }
-  if (!auth.isStaff) return { errors: { form: '관리자 권한이 필요합니다.' } };
+  if (!auth.isStaff || !hasAdminCapability(auth, 'cs.manage')) return { errors: { form: '관리자 권한이 필요합니다.' } };
   return null;
 }
 
@@ -76,21 +79,18 @@ export async function replyToReviewAction(
   const reply = readString(formData, 'reply');
 
   if (!reviewId) return { errors: { form: '리뷰를 찾을 수 없습니다.' } };
-  if (reply.length < 2) return { errors: { reply: '답글을 2자 이상 입력해주세요.' } };
-  if (reply.length > 1000) return { errors: { reply: '답글은 1000자 이내로 입력해주세요.' } };
+  if ([...reply].length < 2) return { errors: { reply: '답글을 2자 이상 입력해주세요.' } };
+  if ([...reply].length > 1000) return { errors: { reply: '답글은 1000자 이내로 입력해주세요.' } };
 
-  const supabase = await createClient();
-  const { error } = await supabase.rpc('admin_reply_to_review', {
-    target_reply: reply,
-    target_review_id: reviewId,
-  });
-
-  if (error) return { errors: { form: rpcErrorMessage(error.message, REPLY_FAILED) } };
+  const replyOutcome = await saveCsReplyRequest(formData, 'review', reviewId, reply);
+  if (replyOutcome.kind !== 'saved') return { replyOutcome, errors: { form: replyOutcome.error } };
 
   revalidatePath(REVIEWS_PATH);
+  revalidatePath('/shop/[goodId]', 'page');
   return {
-    message: adminGoodsCopy('답글을 저장했습니다. 굿즈 상세에 함께 표시됩니다.'),
-    resultKey: crypto.randomUUID(),
+    message: replyOutcome.receipt.changed ? adminGoodsCopy('답글을 저장했습니다. 굿즈 상세에 함께 표시됩니다.') : '이미 같은 답글이 저장되어 있습니다.',
+    resultKey: replyOutcome.receipt.operationId,
+    replyOutcome,
   };
 }
 
@@ -138,6 +138,14 @@ export async function setReviewStatusAction(
 
   revalidatePath(REVIEWS_PATH);
   revalidatePath('/admin/community/moderation');
+  revalidatePath('/admin/cs/review-events');
+  revalidatePath('/admin/cs/review-events/[eventId]', 'page');
+  revalidatePath('/admin/sales/store-credits');
+  revalidatePath('/my/store-credits');
+  revalidatePath('/my/reviews');
+  revalidatePath('/review-events/[eventId]', 'page');
+  revalidatePath('/shop/[goodId]', 'page');
+  revalidatePath('/');
   return {
     message: status === 'hidden'
       ? '리뷰를 블라인드했습니다. 평점 평균에서도 즉시 빠집니다.'

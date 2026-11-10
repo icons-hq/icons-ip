@@ -1,14 +1,21 @@
 'use client';
 
-import { useActionState, useRef, useState } from 'react';
+import { useActionState, useId, useRef, useState } from 'react';
+import { ChevronDown, Send } from 'lucide-react';
+import { useInquiryDraft } from '@/components/admin/useInquiryDraft';
+import { AdminNotice } from '@/components/admin/console/AdminKit';
+import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
+import { Label } from '@/components/admin/kit/ui/label';
+import { Textarea } from '@/components/admin/kit/ui/textarea';
+import { InquiryDraftNotice } from './InquiryDraftNotice';
+import { useInquiryPreviewBusy } from './CustomerServiceDialog';
+import { KIT_INPUT_CLASS } from './cs-kit-classes';
 import {
   answerInquiryAction,
   closeInquiryAction,
-  deleteInquiryReplyTemplateAction,
-  saveInquiryReplyTemplateAction,
   type AdminInquiryActionState,
 } from '@/app/admin/inquiry-actions';
-import type { AdminInquiryReplyTemplate } from '@/lib/admin/inquiries.server';
+import { InquiryReplyTemplateTools } from './InquiryReplyTemplateTools';
 import {
   INQUIRY_IMAGE_ACCEPT,
   MAX_INQUIRY_BODY_LENGTH,
@@ -18,12 +25,18 @@ import {
 
 /* 답변 작성 패널(#253).
  *
- * 템플릿은 "삽입"이지 "치환"이 아니다. 이미 쓰던 문장을 지우고 덮어쓰면 운영자가
- * 작성 중이던 내용을 잃는다 — 커서 위치를 모르는 서버 렌더 폼에서는 뒤에 붙이는 편이
- * 유일하게 안전한 삽입이다.
+ * 템플릿은 작성 중인 답변을 "대체"한다(10/27 회의 후속 R3, MD-0011). 뒤에 덧붙이면 운영자가
+ * 매번 기존 문장을 지워야 했다. 작성 중인 내용이 있으면 템플릿 도구가 "작성 중인 내용을
+ * 템플릿으로 바꿀까요?" 확인을 거친 뒤에만 바꾸므로, 실수로 쓰던 답변을 잃지 않는다.
+ * 고객문의·상담하기·상품문의·리뷰 답변이 같은 도구(InquiryReplyTemplateTools·CsReplyTemplateTools)로
+ * 같은 동작과 안내 문구를 쓴다.
  *
  * [답변 발송]과 [종결]은 다른 폼이다. 하나의 폼에 두 버튼을 두면 브라우저 기본 제출
- * (엔터)이 어느 쪽으로 갈지 마크업 순서에 좌우된다. */
+ * (엔터)이 어느 쪽으로 갈지 마크업 순서에 좌우된다. 고객문의 답변은 실수 발송을 막기 위해
+ * Enter 전송을 쓰지 않는다(상담하기만 Enter 전송, R5).
+ *
+ * 이미 답변을 보낸 문의(answered)는 빈 입력칸을 열어 두지 않는다 — 또 써야 하는 것처럼 보인다.
+ * 추가 답변은 펼쳐서 쓰고, 복구할 초안이나 쓰던 문구가 있으면 처음부터 펼친다. */
 
 const EMPTY_STATE: AdminInquiryActionState = {};
 
@@ -31,16 +44,16 @@ function Feedback({ state }: { state: AdminInquiryActionState }) {
   return (
     <>
       {state.errors?.form ? (
-        <span role="alert" style={{ fontSize: 12.5 }}>{state.errors.form}</span>
+        <span className="text-sm text-destructive" role="alert">{state.errors.form}</span>
       ) : null}
       {state.errors?.body ? (
-        <span role="alert" style={{ fontSize: 12.5 }}>{state.errors.body}</span>
+        <span className="text-sm text-destructive" role="alert">{state.errors.body}</span>
       ) : null}
       {state.errors?.images ? (
-        <span role="alert" style={{ fontSize: 12.5 }}>{state.errors.images}</span>
+        <span className="text-sm text-destructive" role="alert">{state.errors.images}</span>
       ) : null}
       {state.message ? (
-        <span className="muted" role="status" style={{ fontSize: 12.5 }}>{state.message}</span>
+        <span className="text-sm text-muted-foreground" role="status">{state.message}</span>
       ) : null}
     </>
   );
@@ -49,153 +62,102 @@ function Feedback({ state }: { state: AdminInquiryActionState }) {
 export function InquiryReplyPanel({
   category,
   closed,
+  answered = false,
   inquiryId,
-  templates,
+  accountId = '',
 }: {
   category: InquiryCategory;
   closed: boolean;
+  /** 답변을 이미 보낸 문의. 입력칸을 접고 지금 상태를 먼저 말한다. */
+  answered?: boolean;
   inquiryId: string;
-  templates: AdminInquiryReplyTemplate[];
+  accountId?: string;
 }) {
   const [answerState, answerAction, answerPending] = useActionState(answerInquiryAction, EMPTY_STATE);
   const [closeState, closeAction, closePending] = useActionState(closeInquiryAction, EMPTY_STATE);
-  const [templateState, templateAction, templatePending] = useActionState(
-    saveInquiryReplyTemplateAction,
-    EMPTY_STATE,
-  );
-  const [deleteState, deleteAction] = useActionState(deleteInquiryReplyTemplateAction, EMPTY_STATE);
-  const [body, setBody] = useState('');
-  const [clearedKey, setClearedKey] = useState<string | null>(null);
-  const [templateFormOpen, setTemplateFormOpen] = useState(false);
+  useInquiryPreviewBusy(answerPending || closePending); /* 목록 위 문의 팝업(R4)에서 발송·종결을 기다리는 동안 팝업이 닫히지 않게 알린다. 팝업 밖에서는 아무 일도 하지 않는다. */
+  const draft = useInquiryDraft(accountId, inquiryId, 'reply', answerState.resultKey);
+  const { body, change: setBody } = draft;
   const bodyRef = useRef<HTMLTextAreaElement>(null);
+  const busy = answerPending || closePending || !draft.ready || draft.blocked;
+  const id = useId();
+  const [toggled, setToggled] = useState<boolean | null>(null);
+  const composeOpen = toggled ?? (Boolean(body) || draft.recovery !== null);
 
-  /* 발송에 성공하면 작성창을 비운다. 남겨 두면 운영자가 같은 답변을 한 번 더 보낸다.
-     effect가 아니라 렌더 중 조정이다 — 액션 결과에 맞춰 상태를 맞추는 일이라
-     한 번 더 렌더될 뿐 화면이 두 번 깜빡이지 않는다. */
-  if (answerState.resultKey && answerState.resultKey !== clearedKey) {
-    setClearedKey(answerState.resultKey);
-    setBody('');
-  }
-
-  function insertTemplate(templateBody: string) {
-    setBody((current) => (current.trim() ? `${current}\n\n${templateBody}` : templateBody));
+  function insertTemplate(nextBody: string) {
+    setBody(nextBody);
     bodyRef.current?.focus();
   }
 
   if (closed) {
     return (
-      <section className="card col" style={{ gap: 8, padding: 18 }}>
-        <strong>종결된 문의입니다.</strong>
-        <span className="muted" style={{ fontSize: 13 }}>
-          종결 후에도 기록은 남습니다. 구매자가 이어서 물으려면 새 문의를 접수해야 합니다.
-        </span>
-      </section>
+      <AdminNotice title="종결된 문의입니다." tone="neutral">
+        종결 후에도 기록은 남습니다. 구매자가 이어서 물으려면 새 문의를 접수해야 합니다.
+      </AdminNotice>
     );
   }
 
+  const tools = <InquiryReplyTemplateTools accountId={accountId} body={body} onInsert={insertTemplate} disabled={busy} />;
+  const composer = <>
+    <InquiryDraftNotice draft={draft} pending={busy} />
+    <form action={answerAction} className="flex flex-col gap-3">
+      <input name="category" type="hidden" value={category} />
+      <input name="inquiryId" type="hidden" value={inquiryId} />
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor={`${id}-body`}>답변 내용</Label>
+        <Textarea
+          className="max-h-[60vh] min-h-40"
+          disabled={busy}
+          id={`${id}-body`}
+          maxLength={MAX_INQUIRY_BODY_LENGTH}
+          name="body"
+          onChange={(event) => setBody(event.target.value)}
+          placeholder="구매자가 메일에서 그대로 읽습니다. 결론을 먼저 적어주세요."
+          ref={bodyRef}
+          rows={8}
+          value={body}
+        />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor={`${id}-images`}>이미지 첨부 · 최대 {MAX_INQUIRY_IMAGES}장</Label>
+        <input className={KIT_INPUT_CLASS} data-slot="input" id={`${id}-images`} key={answerState.resultKey ?? 'initial'} disabled={busy} accept={INQUIRY_IMAGE_ACCEPT} multiple name="images" type="file" />
+      </div>
+      <div className="flex justify-end">
+        <Button disabled={busy} type="submit">
+          <Send aria-hidden="true" />{answerPending ? '발송 중' : answered ? '추가 답변 발송' : '답변 발송'}
+        </Button>
+      </div>
+      <Feedback state={answerState} />
+    </form>
+  </>;
+
+  /* 문의 상태는 실시간으로 뒤집힌다(고객 추가 문의·다른 담당자 답변). 작성칸은 상태와 무관하게 같은 자리에 두고
+     감추기만 한다 — 자리가 바뀌면 다시 그려져 고른 첨부와 포커스가 사라지고, 문구만 남아 첨부 없이 발송될 수 있다. */
   return (
-    <section className="card col" style={{ gap: 14, padding: 18 }}>
-      <div className="row" style={{ alignItems: 'center', gap: 8, justifyContent: 'space-between' }}>
-        <strong>답변 작성</strong>
-        <button
-          className="btn btn-sm btn-ghost"
-          onClick={() => setTemplateFormOpen((open) => !open)}
-          type="button"
-        >
-          {templateFormOpen ? '템플릿 저장 닫기' : '현재 답변을 템플릿으로 저장'}
-        </button>
+    <section className="flex min-w-0 flex-col gap-4 rounded-xl border bg-card p-4 text-card-foreground sm:p-5">
+      {answered ? <AdminNotice title="답변을 보낸 문의입니다." tone="success">더 안내할 내용이 있을 때만 추가 답변을 보내주세요.</AdminNotice> : null}
+      {answered ? <details className="group/compose" onToggle={(event) => setToggled(event.currentTarget.open)} open={composeOpen}>
+        <summary aria-controls={`${id}-composer`} className={`${buttonVariants({ size: 'sm', variant: 'outline' })} w-fit list-none [&::-webkit-details-marker]:hidden`} data-slot="button">추가 답변 작성 <ChevronDown aria-hidden="true" className="transition-transform group-open/compose:rotate-180" /></summary>
+      </details> : null}
+      <div hidden={answered && !composeOpen} id={`${id}-composer`}>
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            {answered ? null : <h3 className="text-base font-semibold text-foreground">답변 작성</h3>}
+            <div className="ml-auto">{tools}</div>
+          </div>
+          {composer}
+        </div>
       </div>
 
-      {templates.length ? (
-        <div className="col" style={{ gap: 6 }}>
-          <span className="muted" style={{ fontSize: 12 }}>답변 템플릿</span>
-          <div className="row" style={{ flexWrap: 'wrap', gap: 6, justifyContent: 'flex-start' }}>
-            {templates.map((template) => (
-              <span key={template.id} className="row" style={{ gap: 4 }}>
-                <button
-                  className="btn btn-sm btn-ghost"
-                  onClick={() => insertTemplate(template.body)}
-                  title={template.body}
-                  type="button"
-                >
-                  {template.title}
-                </button>
-                <form action={deleteAction}>
-                  <input name="inquiryId" type="hidden" value={inquiryId} />
-                  <input name="templateId" type="hidden" value={template.id} />
-                  <button
-                    aria-label={`${template.title} 템플릿 삭제`}
-                    className="btn btn-sm btn-ghost"
-                    type="submit"
-                  >
-                    ×
-                  </button>
-                </form>
-              </span>
-            ))}
-          </div>
-          <Feedback state={deleteState} />
-        </div>
-      ) : null}
-
-      <form action={answerAction} className="col" style={{ gap: 10 }}>
-        <input name="category" type="hidden" value={category} />
+      <form action={closeAction} className="flex flex-col gap-2 border-t pt-4">
         <input name="inquiryId" type="hidden" value={inquiryId} />
-        <label className="col" style={{ gap: 6 }}>
-          <span className="muted" style={{ fontSize: 12 }}>답변 내용</span>
-          <textarea
-            maxLength={MAX_INQUIRY_BODY_LENGTH}
-            name="body"
-            onChange={(event) => setBody(event.target.value)}
-            placeholder="구매자가 메일에서 그대로 읽습니다. 결론을 먼저 적어주세요."
-            ref={bodyRef}
-            rows={8}
-            value={body}
-          />
-        </label>
-        <label className="col" style={{ gap: 6 }}>
-          <span className="muted" style={{ fontSize: 12 }}>
-            이미지 첨부 · 최대 {MAX_INQUIRY_IMAGES}장
-          </span>
-          <input accept={INQUIRY_IMAGE_ACCEPT} multiple name="images" type="file" />
-        </label>
-        <div className="row" style={{ gap: 8, justifyContent: 'flex-end' }}>
-          <button className="btn" disabled={answerPending} type="submit">
-            {answerPending ? '발송 중' : '답변 발송'}
-          </button>
-        </div>
-        <Feedback state={answerState} />
-      </form>
-
-      {templateFormOpen ? (
-        <form action={templateAction} className="col" style={{ gap: 8 }}>
-          <input name="inquiryId" type="hidden" value={inquiryId} />
-          <input name="templateBody" type="hidden" value={body} />
-          <label className="col" style={{ gap: 6 }}>
-            <span className="muted" style={{ fontSize: 12 }}>템플릿 이름</span>
-            <input maxLength={40} name="templateTitle" placeholder="예: 배송 지연 안내" type="text" />
-          </label>
-          <span className="muted" style={{ fontSize: 12 }}>
-            위 답변 입력창의 현재 내용을 그대로 저장합니다.
-          </span>
-          <div className="row" style={{ justifyContent: 'flex-end' }}>
-            <button className="btn btn-sm" disabled={templatePending} type="submit">
-              {templatePending ? '저장 중' : '템플릿 저장'}
-            </button>
-          </div>
-          <Feedback state={templateState} />
-        </form>
-      ) : null}
-
-      <form action={closeAction} className="col" style={{ gap: 6 }}>
-        <input name="inquiryId" type="hidden" value={inquiryId} />
-        <div className="row" style={{ alignItems: 'center', gap: 8, justifyContent: 'space-between' }}>
-          <span className="muted" style={{ fontSize: 12 }}>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="text-xs text-muted-foreground">
             답변 후 7일 동안 추가 질문이 없으면 자동으로 종결됩니다.
           </span>
-          <button className="btn btn-sm btn-ghost" disabled={closePending} type="submit">
+          <Button disabled={busy} size="sm" type="submit" variant="outline">
             {closePending ? '종결 중' : '지금 종결'}
-          </button>
+          </Button>
         </div>
         <Feedback state={closeState} />
       </form>

@@ -1,3 +1,4 @@
+import { legacyOperatorAccessFixture } from '@/lib/admin/access.test-fixtures';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { emptyShippingRegionPolicy } from '@/lib/admin/shipping-regions';
 const mocks = vi.hoisted(() => ({ auth: vi.fn(), rpc: vi.fn(), revalidate: vi.fn() }));
@@ -10,11 +11,11 @@ const id = '00000000-0000-4000-8000-000000000001';
 const input = emptyShippingRegionPolicy(id, 'hanjin');
 const policy = { ...input, id, version: 1, revision: 1, status: 'draft', confirmedAt: null, confirmedBy: null, updatedAt: '2026-09-10T00:00:00Z' };
 beforeEach(() => {
-  vi.resetAllMocks(); mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'admin' }, isStaff: true, role: 'admin' });
+  vi.resetAllMocks(); mocks.auth.mockResolvedValue({ operatorAccess: legacyOperatorAccessFixture(), isConfigured: true, user: { id: 'admin' }, isStaff: true, role: 'admin' });
 });
 describe('지역 배송 정책 서버 action', () => {
   it('staff와 일반 회원은 정책 저장·활성화에 접근하지 못한다', async () => {
-    mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'staff' }, isStaff: true, role: 'staff' });
+    mocks.auth.mockResolvedValue({ operatorAccess: legacyOperatorAccessFixture(), isConfigured: true, user: { id: 'staff' }, isStaff: true, role: 'staff' });
     expect(await saveShippingRegionPolicyAction(null, null, input)).toMatchObject({ ok: false });
     expect(await setShippingRegionPolicyStatusAction(id, 1, 'active', true)).toMatchObject({ ok: false });
     expect(mocks.rpc).not.toHaveBeenCalled();

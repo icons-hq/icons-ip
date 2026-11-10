@@ -12,12 +12,12 @@ export default async function AdminCsQnaPage({
    * 게이트를 로더보다 먼저 부른다. layout에도 같은 게이트가 있지만 Next.js는
    * layout과 page를 병렬로 렌더하므로 layout의 redirect가 질문 조회를 막지 못한다.
    */
-  await requireAdminScreenAccess('/admin/cs/qna');
+  const auth=await requireAdminScreenAccess('/admin/cs/qna');
   const query = await searchParams;
 
   const data = await getAdminProductQuestionConsoleData(
     normalizeAdminProductQuestionFilters(query),
   );
 
-  return <QnaConsoleScreen data={data} />;
+  return <QnaConsoleScreen data={data} accountId={auth.user.id} initialDetail={typeof query.detail==='string'?query.detail:null} />;
 }

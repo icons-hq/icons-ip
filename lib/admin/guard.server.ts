@@ -2,6 +2,8 @@ import 'server-only';
 
 import { notFound, redirect } from 'next/navigation';
 import { getCurrentAdminAuthState, type CurrentAdminAuthState } from '@/lib/auth/admin';
+import { canAccessAdminScreen, type AdminCapability } from './access';
+import { adminScreenForPath } from './navigation';
 
 /*
  * 어드민 화면 권한 게이트.
@@ -13,7 +15,7 @@ import { getCurrentAdminAuthState, type CurrentAdminAuthState } from '@/lib/auth
  */
 export async function requireAdminScreenAccess(
   pathname: string,
-  options: { adminOnly?: boolean } = {},
+  options: { adminOnly?: boolean; capability?: AdminCapability } = {},
 ): Promise<CurrentAdminAuthState & { user: NonNullable<CurrentAdminAuthState['user']> }> {
   const auth = await getCurrentAdminAuthState();
 
@@ -25,7 +27,7 @@ export async function requireAdminScreenAccess(
     notFound();
   }
 
-  if (options.adminOnly && auth.role !== 'admin') {
+  if (!canAccessAdminScreen(auth, adminScreenForPath(pathname), options)) {
     notFound();
   }
 

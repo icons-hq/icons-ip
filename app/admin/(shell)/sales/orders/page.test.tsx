@@ -1,3 +1,4 @@
+import { configuredOperatorAccessFixture, legacyOperatorAccessFixture } from '@/lib/admin/access.test-fixtures';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AdminSalesOrdersPage from './page';
 
@@ -14,6 +15,8 @@ const mocks = vi.hoisted(() => ({
     isStaff: boolean;
   },
   ordersSection: vi.fn(() => null),
+  orderItemsScreen: vi.fn(() => null),
+  orderItems: vi.fn(async () => ({ rows: [], total: 0 })),
   orders: vi.fn(async () => ({ items: [], filters: {}, pageSize: 20, total: 0 })),
   catalogRecords: vi.fn(async () => ({})),
   curations: vi.fn(async () => []),
@@ -22,13 +25,15 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/components/admin/sections/Orders', () => ({ OrdersSection: mocks.ordersSection }));
+vi.mock('@/components/admin/screens/OrderItemsScreen', () => ({ OrderItemsScreen: mocks.orderItemsScreen }));
+vi.mock('@/lib/admin/order-items.server', () => ({ getAdminOrderItemData: mocks.orderItems }));
 vi.mock('@/lib/admin/orders.server', () => ({ getAdminOrderRecords: mocks.orders }));
 vi.mock('@/lib/admin/catalog.server', () => ({ getAdminCatalogRecords: mocks.catalogRecords }));
 vi.mock('@/lib/admin/curations.server', () => ({ getAdminCurations: mocks.curations }));
 vi.mock('@/lib/admin/insights.server', () => ({ getAdminInsights: mocks.insights }));
 vi.mock('@/lib/admin/moderation.server', () => ({ getAdminModerationRecords: mocks.moderation }));
 vi.mock('@/lib/auth/admin', () => ({
-  getCurrentAdminAuthState: vi.fn(async () => mocks.authState),
+  getCurrentAdminAuthState: vi.fn(async () => ({ ...mocks.authState, operatorAccess: 'operatorAccess' in mocks.authState && mocks.authState.operatorAccess || legacyOperatorAccessFixture() })),
 }));
 vi.mock('next/navigation', () => ({
   redirect: (path: string) => {
@@ -88,18 +93,19 @@ describe('AdminSalesOrdersPage', () => {
     expect(mocks.orders).toHaveBeenCalledWith(
       { field: 'all', from: null, orderId: null, page: 2, query: 'maple fan', status: 'paid', to: null },
       false,
+      { canManage: true },
     );
     expect(screen.type).toBe(mocks.ordersSection);
-    expect(screen.props).toEqual({ data: { items: [], filters: {}, pageSize: 20, total: 0 } });
+    expect(screen.props).toEqual({ canManage: true, data: { items: [], filters: {}, pageSize: 20, total: 0 } });
   });
 
   it('Korpay 수동 복구 요약은 admin 세션에서만 주문 로더에 요청한다', async () => {
     await AdminSalesOrdersPage({ searchParams: Promise.resolve({}) });
-    expect(mocks.orders).toHaveBeenLastCalledWith(expect.anything(), false);
+    expect(mocks.orders).toHaveBeenLastCalledWith(expect.anything(), false, { canManage: true });
 
     mocks.authState.role = 'admin';
     await AdminSalesOrdersPage({ searchParams: Promise.resolve({}) });
-    expect(mocks.orders).toHaveBeenLastCalledWith(expect.anything(), true);
+    expect(mocks.orders).toHaveBeenLastCalledWith(expect.anything(), true, { canManage: true });
   });
 
   /* 단일 페이지 시절에는 어느 화면을 열든 17개 로더가 전부 돌았다. */
@@ -111,4 +117,28 @@ describe('AdminSalesOrdersPage', () => {
     expect(mocks.insights).not.toHaveBeenCalled();
     expect(mocks.moderation).not.toHaveBeenCalled();
   });
+  it('configured influencer enters query-only mode and deputy is refused before loading orders', async () => {
+    Object.assign(mocks.authState, { operatorAccess: configuredOperatorAccessFixture('influencer') });
+    const screen = await AdminSalesOrdersPage({ searchParams: Promise.resolve({}) });
+    expect(mocks.orders).toHaveBeenLastCalledWith(expect.anything(), false, { canManage: false });
+    expect(screen.props.canManage).toBe(false);
+    mocks.orders.mockClear();
+    Object.assign(mocks.authState, { operatorAccess: configuredOperatorAccessFixture('deputy') });
+    await expect(AdminSalesOrdersPage({ searchParams: Promise.resolve({}) })).rejects.toThrow('NEXT_NOT_FOUND');
+    expect(mocks.orders).not.toHaveBeenCalled();
+  });
+});
+
+
+it('상품주문 보기는 전용 파서·로더만 사용하고 조회 전용 역할에는 쓰기 버튼을 주지 않는다', async () => {
+  staffSession(); Object.assign(mocks.authState, { operatorAccess: configuredOperatorAccessFixture('influencer') });
+  vi.clearAllMocks();
+  const screen = await AdminSalesOrdersPage({ searchParams: Promise.resolve({ view: 'items', field: 'item', query: 'id', page: '2' }) });
+  expect(screen.type).toBe(mocks.orderItemsScreen); expect(screen.props.canManage).toBe(false);
+  expect(mocks.orderItems).toHaveBeenCalledWith(expect.objectContaining({ field: 'item', query: 'id', page: 2 }));
+  expect(mocks.orders).not.toHaveBeenCalled();
+  Object.assign(mocks.authState, { operatorAccess: configuredOperatorAccessFixture('deputy') });
+  vi.clearAllMocks();
+  await expect(AdminSalesOrdersPage({ searchParams: Promise.resolve({ view: 'items' }) })).rejects.toThrow('NEXT_NOT_FOUND');
+  expect(mocks.orderItems).not.toHaveBeenCalled();
 });
