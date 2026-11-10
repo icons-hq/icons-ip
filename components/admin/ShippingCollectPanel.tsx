@@ -13,6 +13,7 @@ import { getSupabaseConfig } from '@/lib/supabase/config';
 import { krw } from '@/lib/format';
 import { formatOrderDateTime } from '@/lib/orders';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
+import { useAdminLeaveGuard } from '@/components/admin/useAdminLeaveGuard';
 import { cn } from 'cn';
 /* 템플릿 룩(ADR-0028). 입력은 네이티브 그대로이고(어휘 CSS가 kit 모양을 입힌다), 버튼은 kit 버튼 모양이다. */
 const PRIMARY = cn(buttonVariants({ size: 'sm' }));
@@ -80,18 +81,7 @@ function CollectEvidenceForm({ context, obligation, onSaved, onReload, scope, se
     finally { requestBusy.current = false;if (alive.current && scope.canApply(ticket)) setPending(false); }
   }
   const unresolved = Boolean(recovery) || uncertain;
-  useEffect(() => {
-    if (!unresolved && !pending && !Object.values(draft).some(Boolean)) return;
-    const unload = (event: BeforeUnloadEvent) => { event.preventDefault();event.returnValue = ''; };
-    const navigation = (event: MouseEvent) => {
-      const anchor = event.target instanceof Element ? event.target.closest('a[href]') : null;
-      if (!(anchor instanceof HTMLAnchorElement) || event.defaultPrevented || anchor.target === '_blank' || anchor.hasAttribute('download')) return;
-      const target = new URL(anchor.href, location.href);if (target.href === location.href) return;
-      if (unresolved || pending || !window.confirm('입력한 증빙은 브라우저에 보관하지 않습니다. 화면을 나가시겠습니까?')) { event.preventDefault();event.stopPropagation(); }
-    };
-    window.addEventListener('beforeunload', unload);document.addEventListener('click', navigation, true);
-    return () => { window.removeEventListener('beforeunload', unload);document.removeEventListener('click', navigation, true); };
-  }, [unresolved, pending, draft]);
+  useAdminLeaveGuard({ dirty: Object.values(draft).some(Boolean), blocked: unresolved || pending, message: '입력한 증빙은 브라우저에 보관하지 않습니다. 화면을 나가시겠습니까?' });
   return <form className="flex min-w-0 flex-col gap-3" onSubmit={submit}>
     {recovery ? <p className="text-destructive" role="alert">이전 요청 {recovery.operationId}의 결과를 먼저 확인해주세요. 요청 번호만 이 탭에 보관하며 증빙 본문은 저장하지 않습니다.</p> : null}
     {mustConfirm && !recovery ? <p className="flex flex-wrap items-center gap-2" role="status">현재 상태: {SHIPPING_COLLECT_STATE_LABEL[obligation.state]} · 기록 {obligation.revision}. <button className={OUTLINE} data-slot="button" type="button" disabled={pending || !readReady} onClick={() => { setRevision(obligation.revision);setMustConfirm(false); }}>최신 상태 확인 · 새 증빙 입력</button></p> : null}

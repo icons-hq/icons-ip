@@ -1,13 +1,15 @@
 'use client';
 import Link from 'next/link';
-import { useEffect, useLayoutEffect, useRef, useState, useTransition, type ReactNode } from 'react';
+import { useLayoutEffect, useRef, useState, useTransition, type ReactNode } from 'react';
 import { resolveGoodsAnnouncementSaveAction, saveGoodsAnnouncementAction, type GoodsAnnouncementActionState } from '@/app/admin/goods-announcement-actions';
 import { announcementKstInput, GOODS_ANNOUNCEMENT_CATEGORIES, GOODS_ANNOUNCEMENT_DEVICES, GOODS_ANNOUNCEMENT_GOOD_LIMIT, GOODS_ANNOUNCEMENTS_PATH, type GoodsAnnouncement } from '@/lib/admin/goods-announcements';
 import { sanitizeGoodsDescription } from '@/lib/goods-description';
 import { GoodsDescription } from '@/components/shop/GoodsDescription';
 import { createGoodsAnnouncementPendingSave, goodsAnnouncementPendingForm, goodsAnnouncementPendingDisplayValue, GOODS_ANNOUNCEMENT_PENDING_LABELS,
   parseGoodsAnnouncementPendingSave, retainGoodsAnnouncementPendingSave, type GoodsAnnouncementPendingSave } from '@/lib/admin/goods-announcement-pending';
+import { ADMIN_LEAVE_RECOVERABLE_MESSAGE } from '@/lib/admin/leave-guard';
 import { useCsEditorDraft } from '../useCsEditorDraft';
+import { useAdminLeaveGuard } from '../useAdminLeaveGuard';
 import { AdminNotice, AdminPageHeader } from '../console/AdminKit';
 import { AdminSelect } from '../console/AdminSelect';
 import { Button, buttonVariants } from '../kit/ui/button';
@@ -46,7 +48,9 @@ function EditorFields({ announcement, action, pending, state, backHref, uncertai
   const popupChanged = popupSelected !== announcement.popup.selected || popupStartsAt !== announcementKstInput(announcement.popup.startsAt) || popupEndsAt !== announcementKstInput(announcement.popup.endsAt);
   const popupIntent = popupSelected && popupChanged ? 'set' : !popupSelected && announcement.popup.selected ? 'clear' : 'preserve';
   const errors = state.errors ?? {}; const warnings = format === 'html' ? sanitizeGoodsDescription(body, { imagePaths: [] }).warnings : [];
-  return <form onSubmit={event => { event.preventDefault(); action(new FormData(event.currentTarget)); }} className="flex min-w-0 flex-col gap-4" aria-busy={pending}>
+  /* 결과를 모르는 저장 요청은 이 탭에 보관되어 다시 열면 확인할 수 있다. 입력이 사라진다고 단정하지 않는다. */
+  const { formRef } = useAdminLeaveGuard({ dirty: uncertain, blocked: pending, message: uncertain ? ADMIN_LEAVE_RECOVERABLE_MESSAGE : undefined });
+  return <form ref={formRef} onSubmit={event => { event.preventDefault(); action(new FormData(event.currentTarget)); }} className="flex min-w-0 flex-col gap-4" aria-busy={pending}>
     <input type="hidden" name="id" value={announcement.id} /><input type="hidden" name="revision" value={announcement.revision} />
     <input type="hidden" name="goodIds" value={JSON.stringify(goods.map(good => good.id))} />
     <input type="hidden" name="important" value={String(important)} /><input type="hidden" name="usePeriod" value={String(usePeriod)} />
@@ -113,11 +117,6 @@ export function GoodsAnnouncementEditor({ announcement, backHref, accountId, per
     mounted.current = true; activeTarget.current = targetKey;
     return () => { mounted.current = false; };
   }, [targetKey]);
-  useEffect(() => {
-    if (!pending && !unresolved) return;
-    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
-    window.addEventListener('beforeunload', warn); return () => window.removeEventListener('beforeunload', warn);
-  }, [pending, unresolved]);
   function restore() {
     if (busy.current || !active()) return;
     const operation = draft.restore();

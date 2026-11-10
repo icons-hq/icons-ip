@@ -9,6 +9,7 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from './
 import { Input } from './kit/ui/input';
 import { FolderTree } from 'lucide-react';
 import { CategoryDisplayArtwork } from './CategoryDisplayArtwork';
+import { useAdminLeaveGuard } from './useAdminLeaveGuard';
 import { reloadCategoryDisplayTreeAction, updateCategoryDisplayNodeImageAction, updateCategoryDisplayTreeAction, type CategoryDisplayTreeResult } from '@/app/admin/category-display-actions';
 import { CATEGORY_DISPLAY_ADMIN_PATH, categoryDisplayParentChoices, type CategoryDisplayDirectory, type CategoryDisplayTreeChange } from '@/lib/category-display';
 import { createClient } from '@/lib/supabase/client';
@@ -39,18 +40,7 @@ export function CategoryDisplayTree({ initial, selectedId, actorId, sessionId }:
     }).data.subscription;
     return () => { alive.current = false; subscription.unsubscribe(); };
   }, [actorId, sessionId]);
-  useEffect(() => {
-    if (!dirty && !uncertain && !imageUncertain) return;
-    const prevent = (event: BeforeUnloadEvent) => event.preventDefault();
-    const navigate = (event: MouseEvent) => {
-      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-      const link = event.target instanceof Element ? event.target.closest('a[href]') as HTMLAnchorElement | null : null;
-      if (!link || link.target === '_blank' || link.hasAttribute('download')) return;
-      if (!window.confirm('저장하지 않은 전시분류 입력을 두고 이동할까요?')) { event.preventDefault(); event.stopPropagation(); }
-    };
-    window.addEventListener('beforeunload', prevent); document.addEventListener('click', navigate, true);
-    return () => { window.removeEventListener('beforeunload', prevent); document.removeEventListener('click', navigate, true); };
-  }, [dirty, uncertain, imageUncertain]);
+  useAdminLeaveGuard({ dirty: dirty || uncertain || imageUncertain, message: '저장하지 않은 전시분류 입력을 두고 이동할까요?' });
   function applyImage(imagePath: string | null) {
     if (!selected || blockedRef.current) return;
     /* 다른 전시분류 작업이 진행 중이거나 충돌로 멈춘 동안 도착한 아이콘은 적용하지 않는다 — 조용히 버리지 않고 다시 올리게 안내한다. */

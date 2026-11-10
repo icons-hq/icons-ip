@@ -9,6 +9,7 @@ import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { StoreBrandFooterDetails, StoreBrandLogo } from '@/components/shell/StoreBranding';
 import type { StoreSettingsSnapshot } from '@/lib/admin/store-settings';
 import { publicMediaUrl } from '@/lib/media';
+import { useAdminLeaveGuard } from '../useAdminLeaveGuard';
 import { DEFAULT_STORE_BRANDING, STORE_SOCIAL_LABELS, STORE_SOCIAL_PLATFORMS, parseStoreBranding, storefrontBranding, type StoreBranding } from '@/lib/store-branding';
 
 const GROUP = 'flex min-w-0 flex-col gap-5 rounded-lg border p-4 sm:p-5';
@@ -23,6 +24,8 @@ export function StoreBrandingForm({ settings, canEdit, operationId }: { settings
   const [saveOperationId, setSaveOperationId] = useState(operationId);
   const [state, setState] = useState<StoreBrandingActionState>({});
   const [pending, startTransition] = useTransition();
+  const [savedDraft, setSavedDraft] = useState(draft);
+  useAdminLeaveGuard({ dirty: JSON.stringify(draft) !== JSON.stringify(savedDraft) });
   function change(update: Partial<StoreBranding>) {
     setDraft(previous => ({ ...previous, ...update }));
     setSaveOperationId(crypto.randomUUID());
@@ -46,6 +49,7 @@ export function StoreBrandingForm({ settings, canEdit, operationId }: { settings
           setSaveOperationId(crypto.randomUUID());
           const saved = parseStoreBranding(payload);
           if (saved) setDraft(saved);
+          setSavedDraft(saved ?? draft);
         }
       } catch {
         // Transport errors happen before the server's structured error response.

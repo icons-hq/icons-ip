@@ -8,6 +8,7 @@ import { Input } from '@/components/admin/kit/ui/input';
 import { Label } from '@/components/admin/kit/ui/label';
 import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 import { hrefFor, STOREFRONT_MENU_ITEMS } from '@/lib/routes';
+import { useAdminLeaveGuard } from '../useAdminLeaveGuard';
 import type { StoreSettingsSnapshot } from '@/lib/admin/store-settings';
 import { DEFAULT_STORE_NAVIGATION, parseStoreNavigation, resolveStorefrontNavigation, storefrontNavigation, STORE_MENU_LABEL_LIMIT, type StoreNavigation } from '@/lib/store-navigation';
 
@@ -25,6 +26,8 @@ export function StoreNavigationForm({ settings, canEdit, operationId }: { settin
   const [pending, startTransition] = useTransition();
   const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop');
   const cardRewardsEnabled = useCardRewardsEnabled();
+  const [savedDraft, setSavedDraft] = useState(draft);
+  useAdminLeaveGuard({ dirty: JSON.stringify(draft) !== JSON.stringify(savedDraft) });
 
   function change(update: (previous: StoreNavigation) => StoreNavigation) {
     setDraft(update);
@@ -51,6 +54,7 @@ export function StoreNavigationForm({ settings, canEdit, operationId }: { settin
           setEditingStamp(result.updatedAt);
           const saved = parseStoreNavigation(payload);
           if (saved) setDraft(saved);
+          setSavedDraft(saved ?? draft);
         }
       } catch {
         setState({ error: '저장 결과를 확인하지 못했습니다. 입력값을 유지한 채 다시 저장해주세요.' });

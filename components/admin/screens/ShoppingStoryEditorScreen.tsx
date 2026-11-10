@@ -14,6 +14,7 @@ import { ArrowDown, ArrowLeft, ArrowUp, ExternalLink, Plus, Search } from 'lucid
 import { CustomerServiceDialog } from './CustomerServiceDialog';
 import { AdminNotice, AdminStatusBadge } from '../console/AdminKit';
 import { AdminPageHeading } from '../console/admin-shell-title';
+import { useAdminLeaveGuard } from '../useAdminLeaveGuard';
 import { statusTone } from '@/lib/admin/status-tone';
 import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
@@ -26,6 +27,8 @@ const FIELD = 'flex min-w-0 flex-col gap-2 text-sm font-medium';
 const HELP = 'text-xs leading-relaxed text-muted-foreground';
 
 const EMPTY: ShoppingStoryEditorInput = { title: '', bodyHtml: '', startsAt: null, endsAt: null, sections: [] };
+/** 저장 전후를 비교할 입력. startsAt·endsAt은 저장할 때 시작·종료 칸에서 만들므로 칸의 값을 본다. */
+function storyInputs(values: ShoppingStoryEditorInput, start: string, end: string) { return JSON.stringify({ title: values.title, bodyHtml: values.bodyHtml, sections: values.sections, start, end }); }
 function move<T>(items: T[], index: number, direction: number) { const result = [...items]; const target = index + direction; if (target < 0 || target >= items.length) return items; [result[index], result[target]] = [result[target], result[index]]; return result; }
 export function ShoppingStoryEditorScreen({ accountId, draftId, initial }: { accountId: string; draftId: string; initial: AdminShoppingStory | null }) {
   const router = useRouter(); const [values, setValues] = useState<ShoppingStoryEditorInput>(() => initial ? { title: initial.title, bodyHtml: initial.bodyHtml, startsAt: initial.startsAt, endsAt: initial.endsAt, sections: initial.sections } : EMPTY);
@@ -34,6 +37,8 @@ export function ShoppingStoryEditorScreen({ accountId, draftId, initial }: { acc
   const [preview, setPreview] = useState<'off' | 'desktop' | 'mobile'>('off'), [searchSection, setSearchSection] = useState<string | null>(null);
   const [latest, setLatest] = useState<AdminShoppingStory | null>(null);
   const [retry, setRetry] = useState<ShoppingStorySaveRequest | null>(null); const blocked = pending || !!retry;
+  const [savedInputs, setSavedInputs] = useState(() => storyInputs(values, start, end));
+  useAdminLeaveGuard({ dirty: !!retry || storyInputs(values, start, end) !== savedInputs });
   const count = values.sections.reduce((total, section) => total + section.goodIds.length, 0);
   const content = useMemo(() => sanitizeShoppingStoryContent(values.bodyHtml), [values.bodyHtml]);
   const previewSections: PublicShoppingStorySection[] = values.sections.map(section => ({ ...section, goods: section.goodIds.flatMap(id => { const good = goods.find(row => row.id === id); return good && !good.archived && good.published ? [{ id: good.id, name: good.name, price: good.price, priceMax: good.priceMax, compareAtPrice: good.compareAtPrice, showDiscountRate: good.showDiscountRate, imageBackground: good.imageBackground, badge: good.badge, soldOut: good.soldOut }] : []; }) }));
@@ -56,7 +61,8 @@ export function ShoppingStoryEditorScreen({ accountId, draftId, initial }: { acc
     startTransition(async () => {
       const result = await saveShoppingStoryAction(request);
       if (!result.ok) { setRetry(result.retrySameOperation ? request : null); setError(result.error); if (result.latestStory) setLatest(result.latestStory); if (result.savedId) router.replace(`${ADMIN_SHOPPING_STORIES_PATH}/${result.savedId}`); return; }
-      setRetry(null); setRevision(result.story.revision); setValues({ title: result.story.title, bodyHtml: result.story.bodyHtml, startsAt: result.story.startsAt, endsAt: result.story.endsAt, sections: result.story.sections }); setGoods(result.story.goods); setLatest(null);
+      const savedValues = { title: result.story.title, bodyHtml: result.story.bodyHtml, startsAt: result.story.startsAt, endsAt: result.story.endsAt, sections: result.story.sections };
+      setRetry(null); setRevision(result.story.revision); setValues(savedValues); setSavedInputs(storyInputs(savedValues, start, end)); setGoods(result.story.goods); setLatest(null);
       setNotice(`저장한 내용을 다시 확인했습니다.${result.warnings.length ? ` ${result.warnings.join(' ')}` : ''}`);
       if (!initial) router.replace(`${ADMIN_SHOPPING_STORIES_PATH}/${draftId}`); router.refresh();
     });

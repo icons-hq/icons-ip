@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState, useCallback, useState } from 'react';
 import type { AdminCatalogActionState } from '@/app/admin/actions';
 import { saveAdminIpHallBannerAction, type AdminIpHallBannerActionState } from '@/app/admin/ip-banner-actions';
 import type { AdminIpRecord } from '@/lib/admin/catalog.server';
@@ -24,6 +24,8 @@ import { IpPublishControl, IpPublishStateBadge } from '../IpPublishControls';
 import { ActionNotice, ErrorText, Field, RecordList, SelectField, TextArea } from '../fields';
 import { AdminLocalDraftNotice } from '../AdminLocalDraftNotice';
 import { useAdminLocalAutosave } from '../useAdminLocalAutosave';
+import { useAdminLeaveGuard } from '../useAdminLeaveGuard';
+import { ADMIN_LEAVE_RECOVERABLE_MESSAGE } from '@/lib/admin/leave-guard';
 import { FormGroup, MasterDetail, SECTION_CARD, SectionHeading } from './SectionLayout';
 import { RecordStatusLabel } from './RecordStatusLabel';
 
@@ -36,8 +38,9 @@ const EMPTY_BANNER_STATE: AdminIpHallBannerActionState = {};
  */
 export function IpHallBannerForm({ ip }: { ip: AdminIpRecord }) {
   const [state, action, pending] = useActionState(saveAdminIpHallBannerAction, EMPTY_BANNER_STATE);
+  const { formRef } = useAdminLeaveGuard({ serverState: state });
   return (
-    <form action={action} aria-label="IP관 배너" className={SECTION_CARD} key={`${ip.id}:${ip.hallBannerImagePath ?? ''}:${ip.hallBannerMobileImagePath ?? ''}`}>
+    <form action={action} aria-label="IP관 배너" className={SECTION_CARD} key={`${ip.id}:${ip.hallBannerImagePath ?? ''}:${ip.hallBannerMobileImagePath ?? ''}`} ref={formRef}>
       <SectionHeading
         description="온라인 팝업 IP관 맨 위 배너 그림입니다. 비워 두면 IP 키아트를 씁니다. IP 이름·설명·해시태그는 그림 위에 글자로 얹히니 그림에 넣지 마세요."
         title="IP관 배너"
@@ -110,6 +113,17 @@ export function IpSection({
     serverState: state,
   });
   const inputState = withLocalRecoveryValues(state, selected?.id ?? null, localDraft.restoredValues);
+  /* 저장 실패·복구로 되살린 값은 폼이 그 값으로 새로 그려져 폼 비교만으로는 저장 전임을 알 수 없다. */
+  const { formRef: leaveFormRef } = useAdminLeaveGuard({
+    serverState: state,
+    preserved: Boolean(preservedFormValues(inputState, selected?.id ?? null)),
+    message: ADMIN_LEAVE_RECOVERABLE_MESSAGE,
+  });
+  const attachForm = useCallback((form: HTMLFormElement | null) => {
+    const detachDraft = formRef(form);
+    const detachLeave = leaveFormRef(form);
+    return () => { detachDraft?.(); detachLeave?.(); };
+  }, [formRef, leaveFormRef]);
 
   /*
    * 모든 입력은 비제어 defaultValue 다. 저장이 실패하면 액션이 제출값을 `state.values` 로
@@ -137,7 +151,7 @@ export function IpSection({
         recovery={Boolean(localDraft.recovery) && !preservedFormValues(state, selected?.id)}
         unavailable={localDraft.unavailable}
       />
-      <form action={action} className={SECTION_CARD} key={formKey} onSubmitCapture={onSubmitCapture} ref={formRef}>
+      <form action={action} className={SECTION_CARD} key={formKey} onSubmitCapture={onSubmitCapture} ref={attachForm}>
         {/* IP 작업 화면은 머리에 같은 게시 상태 배지가 있어 폼 맨 위에 다시 두지 않는다. */}
         {selected && hideRecordList ? null : <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-medium">게시 상태</span>

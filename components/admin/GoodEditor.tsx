@@ -45,6 +45,8 @@ import { GOOD_LOCKED_SELECTS_CLASS } from './GoodEditorParts';
 import { GoodsOriginField } from './CountryNameFinder';
 import type { GoodsKcPresetTemplate } from '@/lib/admin/goods-notice-presets';
 import { useAdminLocalAutosave } from './useAdminLocalAutosave';
+import { useAdminLeaveGuard } from './useAdminLeaveGuard';
+import { ADMIN_LEAVE_RECOVERABLE_MESSAGE } from '@/lib/admin/leave-guard';
 import { AdminLocalDraftNotice } from './AdminLocalDraftNotice';
 import { goodFormValues } from '@/lib/admin/good-preview';
 import { GOODS_HTML_MAX_LENGTH, goodsHtmlCleanedLengthWarning, sanitizeGoodsDescription } from '@/lib/goods-description';
@@ -304,12 +306,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
   }, [formRef]);
   /* 등록 화면 KC·예약판매 입력은 폼 밖이라 폼 지문에 잡히지 않는다. 떠나기 경고에는 함께 센다. */
   const sectionsDirty = Boolean(atomicSections && (atomicSections.sections.kc.models.length || atomicSections.sections.kc.attested || atomicSections.sections.preorders.length));
-  useEffect(() => {
-    if (!(dirty || sectionsDirty) || pending || draftBusy) return;
-    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); };
-    window.addEventListener('beforeunload', warn);
-    return () => window.removeEventListener('beforeunload', warn);
-  }, [dirty, sectionsDirty, pending, draftBusy]);
+  useAdminLeaveGuard({ dirty: (dirty || sectionsDirty) && !pending && !draftBusy, message: ADMIN_LEAVE_RECOVERABLE_MESSAGE });
   const [suggestedCode, setSuggestedCode] = useState(selected?.code ?? '');
   const setRows: Dispatch<SetStateAction<GoodsOptionRow[]>> = useCallback((update) => {
     setValues((current) => {
@@ -499,7 +496,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
     {/* R21(D9①): 그룹상품 등록은 메뉴 숨김과 짝으로 숨기고 라우트(/admin/catalog/groups/new)만 유지한다. 탭이 하나뿐이면 줄을 그리지 않는다. */}
     {showTabs ? <nav aria-label="상품 등록 방식" data-good-editor-tabs=""><span className="inline-flex rounded-lg bg-muted p-0.5"><span aria-current="page" className={EDITOR_TAB_CLASS}>상품 등록</span>
         <Link className={EDITOR_TAB_CLASS} href="/admin/catalog/groups/new?mode=assemble" aria-disabled={pending || draftBusy} onNavigate={event => {
-          if (pending || draftBusy || dirty && !window.confirm('저장하지 않은 상품 입력을 두고 그룹상품 등록으로 이동할까요?')) event.preventDefault();
+          if (pending || draftBusy) event.preventDefault();
         }}>그룹상품 등록</Link></span></nav> : null}
     <GoodWorkspaceNavigation errors={goodErrorsByCard(errors)} remaining={showCardProgress ? remainingByCard : undefined} remainingTone={selected ? 'warning' : 'neutral'} />
     {/* 키보드로 옮긴 입력칸이 위 고정 섹션 내비·아래 고정 저장 영역에 가리지 않게 위아래 여백을 둔다(섹션 자체는 scroll-mt). */}
@@ -672,7 +669,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
           {!attributesReady ? <span className="text-xs text-muted-foreground" role="status">상품속성 조회 후 저장할 수 있습니다.</span> : null}
           <button className={`${buttonVariants({ variant: saveIsPrimary ? 'default' : 'outline' })} md:min-w-24 ${SAVE_BAR_BUTTON_CLASS}`} data-slot="button" disabled={pending || draftBusy || !attributesReady || Boolean(selected?.archivedAt)} name="intent" value="save">{pending ? '저장 중…' : '저장하기'}</button>
           {publishOnSave && <button className={`${buttonVariants({ variant: 'outline' })} ${SAVE_BAR_BUTTON_CLASS}`} data-slot="button" disabled={pending || !attributesReady} name="intent" value="publish">저장 후 공개</button>}
-          <Link className={`${buttonVariants({ variant: 'ghost' })} aria-disabled:pointer-events-none aria-disabled:opacity-50 ${SAVE_BAR_BUTTON_CLASS}`} data-slot="button" href={listHref} aria-disabled={pending || draftBusy} onNavigate={(event) => { if (pending || draftBusy || dirty && !window.confirm('저장하지 않은 변경사항이 있습니다. 상품 목록으로 이동하시겠습니까?')) event.preventDefault(); }}>취소</Link>
+          <Link className={`${buttonVariants({ variant: 'ghost' })} aria-disabled:pointer-events-none aria-disabled:opacity-50 ${SAVE_BAR_BUTTON_CLASS}`} data-slot="button" href={listHref} aria-disabled={pending || draftBusy} onNavigate={(event) => { if (pending || draftBusy) event.preventDefault(); }}>취소</Link>
         </div>
         {localSaveMessage ? <p className={`text-xs xl:col-span-2 ${localSaveMessage.ok ? 'text-success' : 'text-destructive'}`} role="status">{localSaveMessage.text}</p> : null}
         {justPublished && !dirty ? <AdminNotice className="xl:col-span-2" tone="success"><span role="status">공개했습니다. <a className="underline underline-offset-4" href={`/shop/${selected?.id}`} rel="noreferrer" target="_blank">고객 화면에서 보기</a></span></AdminNotice> : draftSaved ? null : kcBlockedVisible ? <AdminNotice className="xl:col-span-2" tone="warning"><span role="alert">{state.message}</span>{selected && <> <a href="#good-operation-kc" className="underline underline-offset-4" onClick={(event) => { event.preventDefault(); focusGoodWorkspaceTarget('good-operation-kc'); }}>KC 정보 열기</a></>}</AdminNotice> : state.kcPublishBlocked ? null : <div className="empty:hidden xl:col-span-2"><ActionNotice state={state} /></div>}

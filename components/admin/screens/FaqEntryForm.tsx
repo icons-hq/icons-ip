@@ -11,18 +11,20 @@ import { Input } from '@/components/admin/kit/ui/input';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
 import { DIALOG_BODY, DIALOG_HEADER, DIALOG_TITLE, NATIVE_DIALOG } from '@/components/admin/settings-kit';
 import { FIELD_LABEL_CLASS } from './cs-kit-classes';
+import { useAdminLeaveGuard } from '../useAdminLeaveGuard';
 
 const EMPTY: FaqActionState = {};
 const LABEL_CLASS = 'flex min-w-0 flex-col gap-1.5';
 export function FaqEntryForm({ entry }: { entry?: FaqEntry }) {
   const [state, action, pending] = useActionState(saveFaqAction, EMPTY);
+  const { formRef } = useAdminLeaveGuard({ serverState: state });
   const prefix = useId();
   const values = state.values;
   const value = (name: string, fallback: string) => values?.[name] ?? fallback;
   const error = (name: string) => state.errors?.[name] ? <span id={`${prefix}-${name}-error`} className="text-sm text-destructive" role="alert">{state.errors[name]}</span> : null;
   const fieldProps = (name: string) => ({ 'aria-invalid': Boolean(state.errors?.[name]), 'aria-describedby': state.errors?.[name] ? `${prefix}-${name}-error` : undefined });
   /* 필수·형식 검사는 서버가 칸마다 돌려준다(입력값 유지) — 브라우저 말풍선 대신 칸 아래 오류로 통일한다. */
-  return <form action={action} className="flex flex-col gap-3" data-faq-form="" noValidate>
+  return <form action={action} className="flex flex-col gap-3" data-faq-form="" noValidate ref={formRef}>
     <fieldset className="flex min-w-0 flex-col gap-4 disabled:opacity-60" key={state.revision ?? 0} disabled={pending}>
       <input type="hidden" name="id" value={entry?.id ?? ''} />
       <input type="hidden" name="updatedAt" value={value('updatedAt', entry?.updatedAt ?? '')} />

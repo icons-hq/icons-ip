@@ -12,6 +12,8 @@ vi.mock('react',async()=>{
       return [mocks.states[index],(next:unknown)=>{mocks.states[index]=typeof next==='function'?next(mocks.states[index]):next;}];
     },
     useTransition:()=>[false,(action:()=>Promise<void>)=>{mocks.tasks.push(action());}],
+    useRef:(current:unknown)=>({current}),
+    useEffect:()=>{},
   };
 });
 import { StoreBrandingForm } from './StoreBrandingForm';

@@ -11,6 +11,7 @@ import { getSupabaseConfig } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/client';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { cn } from 'cn';
+import { useAdminLeaveGuard } from './useAdminLeaveGuard';
 
 /* 템플릿 룩(ADR-0028). 입력은 네이티브 그대로이고(어휘 CSS가 kit 모양을 입힌다), 버튼은 kit 버튼 모양이다. */
 const PRIMARY = cn(buttonVariants({ size: 'sm' }));
@@ -61,18 +62,7 @@ export function ShippingCollectContractPanel({ originId, accountId, canEdit }: {
       setEdit({ base: result.value, values: result.value.values, status: result.value.status, latest: null, retry: null, pending, lookupMissing: false });
     }).catch(() => { if (scope.canApply(ticket)) setError('착불 운영 조건을 불러오지 못했습니다.'); });
   }, [valid, sessionId, scope, originId, accountId, key, removePending, setEdit]);
-  useEffect(() => {
-    if (!valid || !protect) return;
-    const unload = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
-    const navigate = (event: MouseEvent) => {
-      const anchor = event.target instanceof Element ? event.target.closest('a[href]') : null;
-      if (!(anchor instanceof HTMLAnchorElement) || anchor.target === '_blank' || anchor.hasAttribute('download') || event.defaultPrevented) return;
-      const url = new URL(anchor.href, location.href); if (url.pathname === location.pathname && url.search === location.search && url.origin === location.origin) return;
-      if (busy || !window.confirm('착불 운영 조건에 저장하지 않은 입력이 있습니다. 화면을 나가면 입력은 사라지고 요청 확인 정보만 남습니다. 나가시겠습니까?')) { event.preventDefault(); event.stopPropagation(); }
-    };
-    window.addEventListener('beforeunload', unload); document.addEventListener('click', navigate, true);
-    return () => { window.removeEventListener('beforeunload', unload); document.removeEventListener('click', navigate, true); };
-  }, [valid, protect, busy]);
+  useAdminLeaveGuard({ dirty: valid && protect, blocked: valid && busy, message: '착불 운영 조건에 저장하지 않은 입력이 있습니다. 화면을 나가면 입력은 사라지고 요청 확인 정보만 남습니다. 나가시겠습니까?' });
   async function refresh() {
     if (!valid || lane.current) return;
     const ticket = scope.capture(); if (!ticket) return;

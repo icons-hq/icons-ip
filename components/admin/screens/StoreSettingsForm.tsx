@@ -12,6 +12,7 @@ import { INQUIRY_CATEGORIES } from '@/lib/inquiries';
 import { BANK_ACCOUNT_LABELS,mergeBusinessInfo,type EditableCarrier,type StoreSettingsSnapshot } from '@/lib/admin/store-settings';
 import { CustomerServiceDialog } from './CustomerServiceDialog';
 import { SettingsSaveBar } from './StoreSettingsFormGroup';
+import { useAdminLeaveGuard } from '../useAdminLeaveGuard';
 
 const NOTE = 'text-sm text-muted-foreground';
 const CHECK_LABEL = 'flex w-fit items-center gap-2 text-sm';
@@ -25,10 +26,11 @@ function ReadOnlyNotice() {
 function latestStamp(server:string,local?:string) {return local&&Date.parse(local)>Date.parse(server)?local:server;}
 export function StoreSettingsForm({section,settings,canEdit}:{section:'business'|'bank_transfer';settings:StoreSettingsSnapshot;canEdit:boolean}) {
   const [state,action,pending]=useActionState(saveStoreSettingsAction,{});
+  const {formRef}=useAdminLeaveGuard({serverState:state});
   const [contactHelpOpen,setContactHelpOpen]=useState(false);
   const labels=section==='business'?BUSINESS_INFO_LABELS:BANK_ACCOUNT_LABELS;
   const defaults:Record<string,string>=section==='business'?{...mergeBusinessInfo(settings.business)}:{bank:'',accountNumber:'',holder:'',...settings.bankTransfer};
-  return <form action={action} className="flex min-w-0 flex-col gap-4">
+  return <form action={action} className="flex min-w-0 flex-col gap-4" ref={formRef}>
     <input type="hidden" name="section" value={section}/>
     <input type="hidden" name="updatedAt" value={latestStamp(settings.updatedAt,state.updatedAt)}/>
     <AdminFormGrid>{Object.entries(labels).map(([key,label])=><AdminField key={key} label={label} inputId={`settings-${key}`} error={state.errors?.[key]}>
@@ -57,10 +59,11 @@ export function StoreSettingsForm({section,settings,canEdit}:{section:'business'
 }
 export function InquiryAutoRepliesForm({settings,canEdit}:{settings:StoreSettingsSnapshot;canEdit:boolean}) {
   const [state,action,pending]=useActionState(saveInquiryAutoRepliesAction,{});
+  const {formRef}=useAdminLeaveGuard({serverState:state});
   // External revalidation must not advance the version of unsaved inputs.
   const [editingStamp,setEditingStamp]=useState(settings.updatedAt);
   if (state.updatedAt && state.updatedAt!==editingStamp) setEditingStamp(state.updatedAt);
-  return <form action={action} className="flex min-w-0 flex-col gap-4">
+  return <form action={action} className="flex min-w-0 flex-col gap-4" ref={formRef}>
     <input type="hidden" name="updatedAt" value={editingStamp}/>
     <p className={NOTE}>문의 유형별 사용 여부와 안내 문구를 함께 저장합니다. 기본은 모두 꺼짐입니다. 문구에 HTTPS로 시작하는 FAQ 전체 주소를 넣을 수 있습니다.</p>
     <div key={state.attempt??0} className="flex min-w-0 flex-col gap-4" data-auto-replies="">
@@ -82,7 +85,8 @@ export function InquiryAutoRepliesForm({settings,canEdit}:{settings:StoreSetting
 }
 export function ShippingCarrierForm({carrier,canEdit}:{carrier?:EditableCarrier;canEdit:boolean}) {
   const [state,action,pending]=useActionState(saveShippingCarrierAction,{});
-  return <form action={action} className="flex min-w-0 flex-col gap-4">
+  const {formRef}=useAdminLeaveGuard({serverState:state});
+  return <form action={action} className="flex min-w-0 flex-col gap-4" ref={formRef}>
     <input type="hidden" name="updatedAt" value={latestStamp(carrier?.updatedAt??'',state.updatedAt)}/>
     <AdminFormGrid>{[
       ['code','택배사 코드',carrier?.code??''],['label','택배사 이름',carrier?.label??''],['trackingUrlTemplate','배송조회 URL',carrier?.trackingUrlTemplate??''],

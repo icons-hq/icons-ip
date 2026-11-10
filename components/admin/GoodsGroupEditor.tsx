@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { useEffect, useState, useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import { archiveGoodsGroupAction, readGoodsGroupAction, saveGoodsGroupAction } from '@/app/admin/goods-group-actions';
 import { GOODS_GROUPS_PATH, goodsGroupConversionHref, parseGoodsGroupValues, type GoodsGroupSnapshot, type GoodsGroupSource, type GoodsGroupValues } from '@/lib/admin/goods-groups';
 import { formatWon } from '@/lib/admin/goods-price-editor';
@@ -12,6 +12,7 @@ import { Button, buttonVariants } from './kit/ui/button';
 import { Input } from './kit/ui/input';
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from './kit/ui/table';
 import { GoodsGroupProductPicker, GroupCompleted, GroupOperationStatus, GroupTable, useGoodsGroupOperation, useGoodsGroupSession } from './GoodsGroupOperation';
+import { useAdminLeaveGuard } from './useAdminLeaveGuard';
 
 /* 셸의 콘솔 전환과 같은 탭 모양(템플릿 룩, ADR-0028). */
 const TAB = 'inline-flex h-7 items-center rounded-md px-3 text-sm font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground aria-[current=page]:bg-background aria-[current=page]:text-primary-soft-foreground aria-[current=page]:shadow-sm';
@@ -64,20 +65,7 @@ export function GoodsGroupEditor({ initial, newGroupId, actorId, sessionId, titl
   const [problems, setProblems] = useState<GroupProblems | null>(null);
   const locked = session.blocked || operation.locked || operation.receipt !== null || pending || Boolean(stored?.archivedAt);
   const dirty = operation.receipt?.state !== 'completed' && JSON.stringify(values) !== JSON.stringify(valuesOf(stored));
-  useEffect(() => {
-    if (!dirty && !pending && !operation.pending) return;
-    const prevent = (event: BeforeUnloadEvent) => event.preventDefault();
-    const navigate = (event: MouseEvent) => {
-      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-      const link = event.target instanceof Element ? event.target.closest('a[href]') as HTMLAnchorElement | null : null;
-      if (!link || link.hasAttribute('download') || link.target && link.target !== '_self') return;
-      const destination = new URL(link.href, window.location.href);
-      if (destination.origin !== window.location.origin || destination.pathname === window.location.pathname && destination.search === window.location.search) return;
-      if (pending || operation.pending || !window.confirm('저장하지 않은 그룹상품 구성을 두고 이동할까요?')) { event.preventDefault(); event.stopPropagation(); }
-    };
-    window.addEventListener('beforeunload', prevent); document.addEventListener('click', navigate, true);
-    return () => { window.removeEventListener('beforeunload', prevent); document.removeEventListener('click', navigate, true); };
-  }, [dirty, pending, operation.pending]);
+  useAdminLeaveGuard({ dirty, blocked: pending || operation.pending, message: '저장하지 않은 그룹상품 구성을 두고 이동할까요?' });
   function leave(event: { preventDefault: () => void }) {
     if (pending || operation.pending) event.preventDefault();
   }
