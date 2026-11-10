@@ -25,9 +25,11 @@ const rawDocument = (document: GoodsAttributeDocument): RawEntry[] => document.e
 const compatible = (entry: RawEntry, field: GoodsAttributeField | undefined) => Boolean(field && entry.field.kind === field.kind && entry.field.unit === field.unit
   && (!['single','multi'].includes(field.kind) || (Array.isArray(entry.raw) ? entry.raw : entry.raw ? [entry.raw] : []).every(id => field.options.some(option => option.id === id))));
 
-export function GoodsAttributeEditor({ categoryId, goodId, initialSubmission, initialDraft, error, onChange }: {
+export function GoodsAttributeEditor({ categoryId, goodId, initialSubmission, initialDraft, error, onChange, onRequiredMissing }: {
   categoryId: string; goodId: string | null; initialSubmission?: string; initialDraft?: string; error?: string;
   onChange: (submission: string, draft: string, initialize: boolean, preview: {id:string;name:string;value:string}[]) => void;
+  /** 아직 안 채운 필수 속성 이름. 저장 전 진행 표시에 쓴다. */
+  onRequiredMissing?: (names: readonly string[]) => void;
 }) {
   const [schema, setSchema] = useState<GoodsAttributeSchema | null>(null); const [document, setDocument] = useState<GoodsAttributeDocument>(EMPTY_GOODS_ATTRIBUTES);
   const [raw, setRaw] = useState<RawEntry[]>(() => restoreRaw(initialDraft) ?? []); const [removeIds, setRemoveIds] = useState<string[]>([]);
@@ -84,6 +86,8 @@ export function GoodsAttributeEditor({ categoryId, goodId, initialSubmission, in
     if (!ready) return;
     onChange(serialized,draft,!announced.current,JSON.parse(preview)); announced.current=true;
   }, [serialized,draft,ready,onChange,preview]);
+  const missingRequired = ready ? (schema?.fields ?? []).filter(field => field.required && !validGoodsAttributeValue(field,values[field.id])).map(field => field.name).join('\n') : '';
+  useEffect(() => { onRequiredMissing?.(missingRequired ? missingRequired.split('\n') : []); }, [missingRequired,onRequiredMissing]);
   function edit(field: GoodsAttributeField, value: string|string[]) {
     setRemoveIds(ids=>ids.filter(id=>id!==field.id)); setRaw(entries=>[...entries.filter(entry=>entry.field.id!==field.id),{field,raw:value}]);
   }
@@ -93,20 +97,23 @@ export function GoodsAttributeEditor({ categoryId, goodId, initialSubmission, in
     if (!result.data) {setLoadError(result.error ?? '조회하지 못했습니다.');return;}
     setLatest(result.data); setLoadError('');
   }
+  const hasFields = Boolean(schema?.fields.length);
+  /* 속성 정의가 있는 카테고리일 때만 보인다. 없으면 시각적으로만 숨기고 hidden 값은 그대로 제출한다(저장 차단 계약). */
+  const conflict = Boolean(loadError || error || unmatched.length || latest);
+  const empty = !conflict && !hasFields && !(categoryId && (loading || !ready));
   /* 상품 폼 안에 놓인다. 버튼은 모두 type="button"이고, 값은 위 hidden 두 칸으로만 제출한다. */
-  return <div className="flex min-w-0 flex-col gap-4" data-good-attributes="">
+  return <div className="flex min-w-0 flex-col gap-4" data-good-attributes="" hidden={empty}>
     <input type="hidden" name="productAttributes" value={serialized} /><input type="hidden" name="productAttributeDraft" value={draft} />
-    <p className="text-sm text-muted-foreground">대표 카테고리의 상품속성을 사용합니다. 추가 카테고리는 속성 정의에 영향을 주지 않습니다. 기본 상품 저장으로 반영하며, 임시저장에는 미완성 입력도 보관합니다.</p>
-    {loading || !ready && !loadError ? <p className="text-sm text-muted-foreground" role="status">상품속성을 불러오는 중입니다.</p> : null}
+    {hasFields ? <p className="text-sm font-medium text-foreground">대표 카테고리의 상품속성</p> : null}
+    {categoryId && (loading || !ready && !loadError) ? <p className="text-sm text-muted-foreground" role="status">상품속성을 불러오는 중입니다.</p> : null}
     {loadError ? <p className="text-sm text-destructive" role="alert">{loadError}</p> : null}{error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
-    <Button type="button" variant="outline" size="sm" className="self-start" onClick={refresh}><RefreshCw aria-hidden="true" />최신 속성 정의·저장값 조회</Button>
+    {conflict ? <Button type="button" variant="outline" size="sm" className="self-start" onClick={refresh}><RefreshCw aria-hidden="true" />최신 속성 정의·저장값 조회</Button> : null}
     {latest ? <div className="flex min-w-0 flex-col gap-2 rounded-lg border bg-muted/40 p-4 text-sm"><h4 className="font-medium">최신 정의 버전 {latest.schema?.revision ?? 0} · 저장값 버전 {latest.document.revision}</h4>{latest.document.entries.map(entry=><p className="text-muted-foreground wrap-anywhere" key={entry.field.id}>{entry.field.name}: {goodsAttributeValueLabel(entry.field,entry.value)}</p>)}
       <div className="flex flex-wrap gap-2 pt-1">
       <Button type="button" variant="outline" size="sm" onClick={()=>{setSchema(latest.schema);setSchemaRevision(latest.schema?.revision??0);setDocument(latest.document);setExpectedRevision(latest.document.revision);setLatest(null);initialized.current=true;setLoaded(true);setLoading(false);}}>내 입력 유지하고 최신 버전으로 저장 준비</Button>
       <Button type="button" variant="outline" size="sm" onClick={()=>{setSchema(latest.schema);setSchemaRevision(latest.schema?.revision??0);setDocument(latest.document);setExpectedRevision(latest.document.revision);setRaw(rawDocument(latest.document));setRemoveIds([]);setLatest(null);initialized.current=true;setLoaded(true);setLoading(false);}}>최신 저장값으로 입력 교체</Button>
       </div>
     </div> : null}
-    {ready && !schema?.fields.length ? <p className="text-sm text-muted-foreground">선택한 대표 카테고리에 정의된 상품속성이 없습니다.</p> : null}
     {ready ? <div className="grid min-w-0 gap-x-6 gap-y-5 empty:hidden sm:grid-cols-2">{schema?.fields.map(field=>{
       const entry=raw.find(item=>item.field.id===field.id && compatible(item,field) && !removeIds.includes(field.id));
       const value=entry?.raw ?? (field.kind==='multi'?[]:''); const id=`product-attribute-${field.id}`;

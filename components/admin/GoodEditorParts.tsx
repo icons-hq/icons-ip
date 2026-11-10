@@ -10,6 +10,8 @@ import type { ComponentProps, ReactNode } from 'react';
 
 /** kit Input과 같은 모양. 네이티브 `<input>`에 `data-slot="input"`과 함께 쓴다. */
 export const GOOD_INPUT_CLASS = 'h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 read-only:border-dashed read-only:bg-muted/50 read-only:text-muted-foreground aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20';
+/** 잠긴 선택칸을 잠긴 입력칸(read-only)과 같은 모양으로 — 점선에 화살표 없이. 선택칸을 감싼 요소에 쓴다(값·name은 그대로 제출된다). */
+export const GOOD_LOCKED_SELECTS_CLASS = 'min-w-0 [&_select:disabled]:border-dashed [&_select:disabled]:bg-muted/50 [&_select:disabled]:bg-none [&_select:disabled]:text-muted-foreground';
 /** 금액·수량 입력(오른쪽 정렬·고정폭 숫자). */
 export const GOOD_NUMBER_INPUT_CLASS = `${GOOD_INPUT_CLASS} text-right tabular-nums`;
 /** kit Textarea와 같은 모양. 네이티브 `<textarea>`에 `data-slot="textarea"`와 함께 쓴다. */

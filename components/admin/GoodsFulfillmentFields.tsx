@@ -15,7 +15,7 @@ export function GoodsFulfillmentFields({ origins, value, errors = {}, regionSumm
   const origin = origins.find((item) => item.id === originId);
   const won = (amount: number) => `${amount.toLocaleString('ko-KR')}원`;
   return <AdminFormGrid>
-    <AdminField inputId="good-origin" label="출고지" error={errors.originId}>
+    <AdminField inputId="good-origin" label="출고지 (필수)" error={errors.originId}>
       <NativeSelect className="w-full" id="good-origin" name="originId" value={originId} onChange={(event) => setOriginId(event.target.value)} aria-invalid={Boolean(errors.originId)} aria-describedby={errors.originId ? "good-origin-error" : undefined}>
         <option value="">설정 전</option>
         {origins.map((origin) => <option key={origin.id} value={origin.id} disabled={!origin.active && origin.id !== originId}>{origin.name}{origin.active ? '' : ' · 비활성'}</option>)}
@@ -39,7 +39,7 @@ export function GoodsFulfillmentFields({ origins, value, errors = {}, regionSumm
         <a className="w-fit underline underline-offset-4" href="/admin/settings/origins" target="_blank" rel="noreferrer">출고지 정책 확인 (새 탭)</a>
       </> : <p className="text-muted-foreground">{feeType === 'free' ? '상품 기본 배송비 0원 · 지역 추가료는 별도 정책을 따릅니다.' : '상품 예외 배송비 · 같은 상품의 수량·옵션과 관계없이 한 번 부과합니다.'}</p>}
       <p className="text-muted-foreground wrap-anywhere">{region?.label ?? '지역 추가료 적용 상태 확인 필요'} · {region?.detail ?? '지역 정책에서 현재 적용 상태를 확인해주세요.'} <a className="text-foreground underline underline-offset-4" href="/admin/settings/shipping-regions" target="_blank" rel="noreferrer">지역 배송 정책 (새 탭)</a></p>
-      <p className="text-muted-foreground">편집 중 값은 상품 저장 후 적용됩니다. 기존 주문에 확정된 배송비와 반품 주소는 바뀌지 않습니다.</p>
+      <p className="text-muted-foreground">기존 주문에 확정된 배송비와 반품 주소는 바뀌지 않습니다.</p>
     </div>
   </AdminFormGrid>;
 }

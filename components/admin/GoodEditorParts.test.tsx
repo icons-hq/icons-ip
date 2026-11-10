@@ -41,7 +41,7 @@ describe('편집기 하나 고르기(설정함/설정안함)', () => {
 
   it('판매가·판매기간과 구매 제한의 설정함/설정안함 묶음 모두 같은 부품으로 그린다', () => {
     const draft = { regularPrice: '10000', discountEnabled: false, discountValue: '', discountUnit: 'won' as const };
-    const price = renderToStaticMarkup(<GoodsPriceFields draft={draft} onDraftChange={() => {}} result={resolveGoodsPrice(draft)} errors={{}} showDiscountRate="true" />);
+    const price = renderToStaticMarkup(<GoodsPriceFields draft={draft} onDraftChange={() => {}} result={resolveGoodsPrice(draft)} errors={{}} />);
     const period = renderToStaticMarkup(<GoodsSalePeriodFields values={{ salePeriodEnabled: 'false' }} onChange={() => {}} />);
     const limits = renderToStaticMarkup(<GoodsPurchaseLimitFields values={{ orderQuantityLimitEnabled: 'true', memberPurchaseLimitEnabled: 'false' }} rows={[]} onRowsChange={() => {}} />);
     const groups = [...choiceGroups(price), ...choiceGroups(period), ...choiceGroups(limits)];

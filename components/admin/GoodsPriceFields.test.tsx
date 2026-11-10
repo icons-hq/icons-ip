@@ -2,11 +2,11 @@ import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { resolveGoodsPrice, type GoodsPriceDraft } from '@/lib/admin/goods-price-editor';
-import { GoodsPriceFields } from './GoodsPriceFields';
+import { GoodsDiscountRateField, GoodsPriceFields } from './GoodsPriceFields';
 
-const render = (changes: Partial<GoodsPriceDraft> = {}, showDiscountRate = 'true') => {
+const render = (changes: Partial<GoodsPriceDraft> = {}) => {
   const draft: GoodsPriceDraft = { regularPrice: '10000', discountEnabled: false, discountValue: '', discountUnit: 'won', ...changes };
-  return renderToStaticMarkup(<GoodsPriceFields draft={draft} onDraftChange={() => {}} result={resolveGoodsPrice(draft)} errors={{}} showDiscountRate={showDiscountRate} />);
+  return renderToStaticMarkup(<GoodsPriceFields draft={draft} onDraftChange={() => {}} result={resolveGoodsPrice(draft)} errors={{}} />);
 };
 
 /** 할인 입력 묶음(설정안함이면 hidden) 안의 마크업 */
@@ -25,17 +25,15 @@ describe('판매가·할인 입력', () => {
     expect(text).toContain(`할인가 1,000원 ${expected}`);
   });
 
-  /* 2026-10-07 리뷰: 할인율 표시는 기간 할인에도 쓰인다. 할인 설정안함 상품에서도 바꿀 수 있어야 한다. */
-  it('고객 화면에 할인율 표시는 할인 설정과 상관없이 늘 보이고 기간 할인에도 적용된다고 안내한다', () => {
-    for (const discountEnabled of [false, true]) {
-      const html = render({ discountEnabled, discountValue: '1000' }, 'false');
-      const rate = html.indexOf('name="showDiscountRate"');
-      expect(rate, String(discountEnabled)).toBeGreaterThan(-1);
-      expect(discountBlock(html)).not.toContain('showDiscountRate');
-      expect(html.slice(html.lastIndexOf('<label', rate), rate)).toContain('고객 화면에 할인율 표시');
-      expect(html).toContain('기간 할인에도 적용됩니다');
-      expect(html).toMatch(/<option value="false" selected="">숨김 · 할인가만 표시<\/option>/);
-    }
+  /* 2026-10-07 리뷰: 할인율 표시는 기간 할인에도 쓰인다. 할인 설정안함 상품에서도 바꿀 수 있어야 해서 할인 입력과 분리해 추가 설정 카드에 둔다. */
+  it('고객 화면에 할인율 표시는 할인 입력 묶음 밖의 별도 칸이고 기간 할인에도 적용된다고 안내한다', () => {
+    for (const discountEnabled of [false, true]) expect(discountBlock(render({ discountEnabled, discountValue: '1000' })), String(discountEnabled)).not.toContain('showDiscountRate');
+    const html = renderToStaticMarkup(<GoodsDiscountRateField value="false" />);
+    const rate = html.indexOf('name="showDiscountRate"');
+    expect(rate).toBeGreaterThan(-1);
+    expect(html.slice(html.lastIndexOf('<label', rate), rate)).toContain('고객 화면에 할인율 표시');
+    expect(html).toContain('기간 할인에도 적용됩니다');
+    expect(html).toMatch(/<option value="false" selected="">숨김 · 할인가만 표시<\/option>/);
     expect(render()).toContain('data-good-price-discount="" hidden=""');
   });
 

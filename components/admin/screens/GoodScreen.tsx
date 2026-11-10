@@ -58,7 +58,7 @@ function GoodScreenForm({
   initialSelectedId,
   hideRecordList=false,
   listHref='/admin/catalog/goods',
-  accountId='', origins=[], noticeDefaults, categories=[], shippingNoticeOptions=[], canManageCosts=false, canReadOrders=true, canManageSales=true, canSearchErp=true, cloneOperationId, readiness, regionSummaries = [],
+  accountId='', origins=[], noticeDefaults, categories=[], shippingNoticeOptions=[], canManageCosts=false, canReadOrders=true, canManageSales=true, canSearchErp=true, canManageMedia=false, cloneOperationId, readiness, regionSummaries = [],
   onCreated,
 }: {
   /** 등록 화면에서 상품을 처음 저장했다. 주소를 바꾼 뒤에도 같은 화면을 유지하도록 GoodScreen이 key를 넘겨받는다. */
@@ -74,7 +74,7 @@ function GoodScreenForm({
   hideRecordList?: boolean;
   listHref?: string;
   accountId?: string; origins?: GoodsFulfillmentOrigin[]; noticeDefaults?: GoodNoticeDefaults;
-  categories?: AdminCategoryNode[]; shippingNoticeOptions?: GoodsShippingNoticeOption[]; canManageCosts?: boolean; canReadOrders?: boolean; canManageSales?: boolean; canSearchErp?: boolean; cloneOperationId?: string; readiness?: AdminGoodsReadiness | null; regionSummaries?: GoodShippingRegionSummary[];
+  categories?: AdminCategoryNode[]; shippingNoticeOptions?: GoodsShippingNoticeOption[]; canManageCosts?: boolean; canReadOrders?: boolean; canManageSales?: boolean; canSearchErp?: boolean; canManageMedia?: boolean; cloneOperationId?: string; readiness?: AdminGoodsReadiness | null; regionSummaries?: GoodShippingRegionSummary[];
 }) {
   const [state, action, pending] = useActionState(upsertAdminGoodAction, emptyState);
   const noticeState = useMemo(() => adminGoodsNotice(state), [state]);
@@ -108,7 +108,7 @@ function GoodScreenForm({
       ownership={ownership}
       readiness={readiness} regionSummaries={regionSummaries}
       accountId={accountId} origins={origins} noticeDefaults={noticeDefaults}
-      categories={categories} shippingNoticeOptions={shippingNoticeOptions} canManageCosts={canManageCosts} canReadOrders={canReadOrders} canManageSales={canManageSales} canSearchErp={canSearchErp} cloneOperationId={cloneOperationId}
+      categories={categories} shippingNoticeOptions={shippingNoticeOptions} canManageCosts={canManageCosts} canReadOrders={canReadOrders} canManageSales={canManageSales} canSearchErp={canSearchErp} canManageMedia={canManageMedia} cloneOperationId={cloneOperationId}
       action={action}
       adjustmentId={adjustmentId}
       catalogIps={catalogIps}

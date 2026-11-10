@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useState, useTransition } from 'react';
+import { useCallback, useEffect, useId, useState, useTransition } from 'react';
 import type { GoodsKcTemplateRequest } from './useGoodsKcTemplate';
 import { readGoodsKcAction, saveGoodsKcAction } from '@/app/admin/goods-kc-actions';
 import { GoodsKcDisclosure } from '@/components/shop/GoodsKcDisclosure';
@@ -17,6 +17,7 @@ import {
   type GoodsKcFamily, type GoodsKcScheme,
 } from '@/lib/goods-kc';
 import { GOOD_INPUT_CLASS, GOOD_NOTE_CLASS, GOOD_SUBPANEL_CLASS, GOOD_TEXTAREA_CLASS } from './GoodEditorParts';
+import { useGoodWorkspaceSections, type GoodsKcPanelStash } from './GoodWorkspace';
 
 /* 템플릿 룩(ADR-0028). 입력 라벨 글자만 굵게 하고 입력값은 보통 굵기로 둔다(라벨이 입력을 감싼다). */
 const FIELD_CLASS = 'flex min-w-0 flex-col gap-2 text-sm';
@@ -89,14 +90,18 @@ export function ModelFields({ model, index, variants, disabled, onChange, onRemo
 
 export const GOODS_KC_NOT_APPLICABLE_ATTESTATION = '이 상품은 KC 안전인증·안전확인·공급자적합성확인·안전기준준수 대상이 아님을 확인했습니다.';
 
-/** "상품 전체 KC 해당 없음": one confirmation and one action replace the model
- * list with a single not-applicable model covering every active option, then
- * save it as reviewed through the same attested save contract. */
-export function ProductNotApplicable({ variants, models, disabled, onNoteChange, onComplete, completeLabel = '해당 없음으로 검토 완료' }: {
+/** "상품 전체 KC 해당 없음": one confirmation replaces the model list with a single
+ * not-applicable model covering every active option. On a saved product the button
+ * saves it as reviewed through the same attested save contract. On the create screen
+ * nothing is saved yet, so the checkbox alone sets that state (`checkOnly`) and the
+ * save button carries it; the option list is re-linked at submit. */
+export function ProductNotApplicable({ variants, models, disabled, onNoteChange, onComplete, checkOnly = false, checked = false, onClear }: {
   variants: readonly GoodsKcVariant[]; models: readonly GoodsKcModelInput[]; disabled: boolean;
   onNoteChange: (publicNote: string) => void; onComplete: (models: GoodsKcModelInput[]) => void;
-  /** 등록 화면은 상품과 함께 저장하므로 버튼이 '검토 완료로 채우기'다. */
-  completeLabel?: string;
+  /** 등록 화면: 저장 전이라 체크 하나로 해당 없음 상태를 만든다. 버튼이 없다. */
+  checkOnly?: boolean;
+  checked?: boolean;
+  onClear?: () => void;
 }) {
   const active = variants.filter((variant) => variant.active);
   const [confirmed, setConfirmed] = useState(false);
@@ -113,27 +118,30 @@ export function ProductNotApplicable({ variants, models, disabled, onNoteChange,
   /* legend 문구 바로 앞을 시험이 대조한다 — legend 모양은 fieldset의 자식 선택 유틸리티로 입힌다. */
   return <fieldset className="m-0 flex min-w-0 flex-col gap-3 rounded-lg border bg-muted/30 p-4 [&>legend]:float-left [&>legend]:w-full [&>legend]:p-0 [&>legend]:text-sm [&>legend]:font-medium [&>legend]:text-foreground" disabled={disabled} data-kc-not-applicable="">
     <legend>상품 전체 KC 해당 없음</legend>
-    <p className="text-sm text-muted-foreground">{active.length
-      ? `KC 대상이 아닌 상품은 확인 체크 후 바로 검토를 끝낼 수 있습니다. 사용 중인 옵션 ${active.length}개가 모두 연결되고, 모델·사업자·판단 근거는 입력하지 않아도 됩니다.`
-      : '사용 중인 옵션이 없습니다. 옵션을 저장한 뒤 해당 없음으로 검토를 완료할 수 있습니다.'}</p>
-    <label className={CHECK_LABEL_CLASS}><input className="mt-0.5" type="checkbox" checked={confirmed} disabled={!active.length}
-      onChange={(event) => setConfirmed(event.target.checked)} /><span>{GOODS_KC_NOT_APPLICABLE_ATTESTATION}</span></label>
+    <p className="text-sm text-muted-foreground">{!active.length ? '사용 중인 옵션이 없습니다. 옵션을 저장한 뒤 해당 없음으로 검토를 완료할 수 있습니다.'
+      : checkOnly ? (checked ? `사용 중인 옵션 ${active.length}개가 모두 연결됩니다. 저장하기를 누르면 해당 없음으로 검토 완료됩니다. 더 입력할 것은 없습니다.` : 'KC 대상이 아닌 상품은 확인 체크 하나로 끝납니다. 모델·사업자·판단 근거는 입력하지 않아도 됩니다.')
+      : `KC 대상이 아닌 상품은 확인 체크 후 바로 검토를 끝낼 수 있습니다. 사용 중인 옵션 ${active.length}개가 모두 연결되고, 모델·사업자·판단 근거는 입력하지 않아도 됩니다.`}</p>
+    <label className={CHECK_LABEL_CLASS}><input className="mt-0.5" type="checkbox" checked={checkOnly ? checked : confirmed} disabled={!active.length && !(checkOnly && checked)}
+      onChange={(event) => { if (!checkOnly) setConfirmed(event.target.checked); else if (event.target.checked) complete(); else onClear?.(); }} /><span>{GOODS_KC_NOT_APPLICABLE_ATTESTATION}</span></label>
     <details className={`${DETAILS_CLASS} bg-background`}><summary className={SUMMARY_CLASS}>고객 안내 추가 (선택)</summary>
       <div className={DETAILS_BODY_CLASS}>
         <textarea className={GOOD_TEXTAREA_CLASS} data-slot="textarea" aria-label="해당 없음 고객 안내" rows={2} maxLength={1000} value={note}
           onChange={(event) => (sole ? onNoteChange : setDraftNote)(event.target.value)} />
       </div>
     </details>
-    <div><button type="button" className={buttonVariants()} data-slot="button" disabled={!active.length || !confirmed} onClick={complete}>{completeLabel}</button></div>
+    {checkOnly ? null : <div><button type="button" className={buttonVariants()} data-slot="button" disabled={!active.length || !confirmed} onClick={complete}>해당 없음으로 검토 완료</button></div>}
   </fieldset>;
 }
 
-export function GoodsKcEditor({ goodId, configuration, onSaved, templateRequest, onTemplateApplied }: {
+export function GoodsKcEditor({ goodId, configuration, onSaved, templateRequest, onTemplateApplied, initialDraft = null, onDraftChange }: {
   goodId: string; configuration: AdminGoodsKc; onSaved: (configuration: AdminGoodsKc, message: string) => void;
   templateRequest?:GoodsKcTemplateRequest|null;onTemplateApplied?:(id:string)=>void;
+  /** 다시 마운트돼도 이어 쓸 입력(패널이 고시 카드 안에 있어 기본 저장 때 함께 다시 마운트된다). */
+  initialDraft?: { models: GoodsKcModelInput[]; attested: boolean } | null;
+  onDraftChange?: (draft: { models: GoodsKcModelInput[]; attested: boolean }) => void;
 }) {
-  const [models, setModels] = useState(configuration.models);
-  const [attested, setAttested] = useState(false);
+  const [models, setModels] = useState(initialDraft?.models ?? configuration.models);
+  const [attested, setAttested] = useState(initialDraft?.attested ?? false);
   // 기본 상품 저장이 KC 버전을 올려도 편집기를 다시 마운트하지 않는다. 입력 중인 모델은 지키고
   // 새 버전(기대 revision·맥락 지문)만 받아, 다시 저장할 때 충돌하지 않게 한다.
   const [seenConfiguration, setSeenConfiguration] = useState(configuration);
@@ -164,8 +172,9 @@ export function GoodsKcEditor({ goodId, configuration, onSaved, templateRequest,
   }
   useEffect(()=>{if(appliedTemplate) onTemplateApplied?.(appliedTemplate);},[appliedTemplate,onTemplateApplied]);
   const dirty=JSON.stringify(models)!==JSON.stringify(configuration.models);
+  useEffect(()=>{onDraftChange?.({models,attested});},[models,attested,onDraftChange]);
   // 해당 없음 완료 요약의 모델 상세는 사용자가 연 상태를 유지한다. 미저장 입력이 생기면 열기만 하고 닫지는 않는다.
-  const [wasDirty, setWasDirty] = useState(dirty);
+  const [wasDirty, setWasDirty] = useState(false);
   if (wasDirty !== dirty) { setWasDirty(dirty); if (dirty) setDetailsOpen(true); }
   const problems = goodsKcReviewProblems(models, configuration.variants);
   function change(next: GoodsKcModelInput[]) { setModels(next); setAttested(false); }
@@ -244,14 +253,23 @@ export function GoodsKcEditor({ goodId, configuration, onSaved, templateRequest,
   </div>;
 }
 
-/** Independent domain editor. Mount outside the main goods form, after the
- * goods draft and its actual option identifiers have been saved. */
+/** Independent domain editor for a saved product. It has no form of its own and no
+ * named inputs, so inside the goods form it never reaches the goods submission; the
+ * caller keeps Enter from submitting that form. */
 export function GoodsKcPanel({ goodId,templateRequest,onTemplateApplied,refreshKey=0 }: {
   goodId: string;templateRequest?:GoodsKcTemplateRequest|null;onTemplateApplied?:(id:string)=>void;
   /** 기본 상품 저장 회차. 상품·옵션 저장이 KC 검토를 무효화할 수 있어 바뀔 때마다 서버 상태를 다시 읽는다. */
   refreshKey?: number;
 }) {
-  const [loaded, setLoaded] = useState<{ goodId: string; configuration?: AdminGoodsKc; error?: string } | null>(null);
+  /* 고시 카드 안에 있어 기본 상품 저장 때 함께 다시 마운트된다. 불러온 설정과 입력 중인 KC는 폼 키 밖 provider에서 이어 받는다. */
+  const workspace = useGoodWorkspaceSections();
+  const readStash = workspace?.readKcPanelStash, rememberStash = workspace?.rememberKcPanel;
+  const [resumed] = useState(() => readStash?.(goodId) ?? null);
+  const [loaded, setLoaded] = useState<{ goodId: string; configuration?: AdminGoodsKc; error?: string } | null>(resumed?.configuration ? { goodId, configuration: resumed.configuration } : null);
+  const [initialDraft] = useState(resumed?.draft ?? null);
+  const remember = useCallback((changes: Partial<Omit<GoodsKcPanelStash, 'goodId'>>) => rememberStash?.(goodId, changes), [rememberStash, goodId]);
+  const onDraftChange = useCallback((draft: NonNullable<GoodsKcPanelStash['draft']>) => remember({ draft }), [remember]);
+  useEffect(() => { if (loaded?.goodId === goodId && loaded.configuration) remember({ configuration: loaded.configuration }); }, [loaded, goodId, remember]);
   const [notice, setNotice] = useState<{ goodId: string; message: string } | null>(null);
   const [refresh, setRefresh] = useState(0);
   // KC를 직접 저장하면 편집기를 새로 마운트해 저장된 모델로 시작한다. 기본 상품 저장으로 다시 읽을 때는
@@ -280,8 +298,9 @@ export function GoodsKcPanel({ goodId,templateRequest,onTemplateApplied,refreshK
     {notice?.goodId === goodId && <p className={`${GOOD_NOTE_CLASS} font-medium text-[var(--wc-success)]`} role="status">{notice.message}</p>}
     {!visible ? <p className="text-sm text-muted-foreground" role="status">KC 검토를 불러오는 중입니다…</p> : visible.error ? <p className="text-sm text-destructive" role="alert">{visible.error}</p>
       : visible.configuration ? <GoodsKcEditor key={`${goodId}:${refresh}:${savedEpoch}`} goodId={goodId} configuration={visible.configuration} templateRequest={templateRequest} onTemplateApplied={onTemplateApplied}
-        onSaved={(configuration, message) => { setLoaded({ goodId, configuration }); setNotice({ goodId, message }); setSavedEpoch((value) => value + 1); }} /> : null}
-    <button type="button" className={`${buttonVariants({ variant: 'outline' })} self-start`} data-slot="button" disabled={pending} onClick={() => { setLoaded(null); setRefresh((value) => value + 1); }}>저장된 KC 정보 다시 불러오기</button>
+        initialDraft={refresh || savedEpoch ? null : initialDraft} onDraftChange={onDraftChange}
+        onSaved={(configuration, message) => { remember({ draft: null }); setLoaded({ goodId, configuration }); setNotice({ goodId, message }); setSavedEpoch((value) => value + 1); }} /> : null}
+    <button type="button" className={`${buttonVariants({ variant: 'outline' })} self-start`} data-slot="button" disabled={pending} onClick={() => { remember({ configuration: null, draft: null }); setLoaded(null); setRefresh((value) => value + 1); }}>저장된 KC 정보 다시 불러오기</button>
     <small className="text-xs text-muted-foreground">저장 실패 시 현재 입력은 유지됩니다. 내부 증빙 참조는 브라우저 자동복구 저장소에 보관하지 않으므로, 작업을 중단하기 전에 미검토로 저장해주세요.</small>
   </section>;
 }

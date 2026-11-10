@@ -4,7 +4,7 @@ import { useState, type Dispatch, type SetStateAction } from 'react';
 import { goodsOptionRowKey, isSingleGoodsOption, type GoodsOptionRow } from '@/lib/admin/goods-option-editor';
 import { GOOD_OPTION_LIMIT_ERROR_FIELD } from '@/lib/admin/good-workspace';
 import { AdminField, AdminFormGrid } from './console/AdminKit';
-import { GoodEditorSection } from './GoodWorkspace';
+import { GoodFoldedRow } from './GoodWorkspace';
 import { ErrorText, SelectField } from './fields';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/admin/kit/ui/table';
 import { GOOD_NUMBER_INPUT_CLASS, GOOD_TABLE_FRAME_CLASS, GoodAmountField, GoodChoiceGroup, GoodChoiceOption } from './GoodEditorParts';
@@ -103,7 +103,7 @@ export function GoodsPurchaseLimitFields({ values, current, errors, quantityRead
     memberLimit ? `1인 최대 ${live.memberLifetimeQtyLimit?.trim() || '?'}개` : '1인 최대 구매수량 설정안함',
     ...(optionLimited ? [`옵션별 제한 ${optionLimited}개`] : []),
   ].join(' · ');
-  return <GoodEditorSection title="구매 제한" id="good-section-limits" requirement="선택 · 설정하면 수량 입력 필요" errorCount={errorCount} summary={summary}>
+  return <GoodFoldedRow title="구매 제한" id="good-section-limits" errorCount={errorCount} summary={summary} isDefault={!orderLimit && !memberLimit && !optionLimited}>
     <div className="flex min-w-0 flex-col gap-5" data-good-purchase-limits="">
       <fieldset disabled={quantityReadOnly} className="m-0 flex min-w-0 flex-col gap-5 border-0 p-0">
         <LimitChoice name="orderQuantityLimitEnabled" legend="최소/최대 구매수량" enabled={orderLimit} onChange={setOrderLimit} />
@@ -122,12 +122,14 @@ export function GoodsPurchaseLimitFields({ values, current, errors, quantityRead
       <p className="text-sm text-muted-foreground">수량은 같은 상품의 모든 옵션을 합산합니다.</p>
       <GoodsOptionLimitTable rows={rows} onRowsChange={onRowsChange} randomSale={randomSale} error={errors?.[GOOD_OPTION_LIMIT_ERROR_FIELD]} />
     </div>
-  </GoodEditorSection>;
+  </GoodFoldedRow>;
 }
 
-/** 결제수단·판매 제한(19금) — 상단 내비의 "판매 조건". 구매 제한은 GoodsPurchaseLimitFields가 따로 그린다. */
-export function GoodsSalePolicyFields({ values, errors }: {
+/** 결제수단·판매 제한(19금). 구매 제한은 GoodsPurchaseLimitFields가 따로 그린다. */
+export function GoodsSalePolicyFields({ values, current, errors }: {
   values: Record<string, string>;
+  /** 편집 중인 현재 입력값. 한 줄 요약은 이 값으로 보인다. */
+  current?: Record<string, string>;
   errors?: Record<string, string | undefined>;
 }) {
   function choice(name: string, label: string, enabled: string, disabled: string) {
@@ -136,8 +138,9 @@ export function GoodsSalePolicyFields({ values, errors }: {
     </SelectField>;
   }
   const errorCount = Object.keys(errors ?? {}).filter((key) => errors?.[key] && (PAYMENT_FIELDS as readonly string[]).includes(key)).length;
-  return <GoodEditorSection defaultOpen={false} errorCount={errorCount} title="결제·판매 제한" id="good-section-sale" requirement="선택 · 결제수단과 판매 제한"
-    summary={`카드 ${values.allowCardPayment === 'false' ? '받지 않음' : '허용'} · 무통장 ${values.allowBankTransfer === 'false' ? '받지 않음' : '허용'} · 판매 제한 ${values.saleRestriction === 'adult' ? '성인(19금)' : '없음'}`}>
+  const live = current ?? values;
+  return <GoodFoldedRow errorCount={errorCount} title="결제·판매 제한" id="good-section-sale" isDefault={live.allowCardPayment !== 'false' && live.allowBankTransfer !== 'false' && live.saleRestriction !== 'adult'}
+    summary={`카드 ${live.allowCardPayment === 'false' ? '받지 않음' : '허용'} · 무통장 ${live.allowBankTransfer === 'false' ? '받지 않음' : '허용'} · 판매 제한 ${live.saleRestriction === 'adult' ? '성인(19금)' : '없음'}`}>
     <AdminFormGrid>
       {choice('allowCardPayment', '카드 결제', '허용', '받지 않음')}
       {choice('allowBankTransfer', '무통장 입금', '허용', '받지 않음')}
@@ -147,5 +150,5 @@ export function GoodsSalePolicyFields({ values, errors }: {
     </AdminFormGrid>
     <p className="text-sm text-muted-foreground">함께 주문한 모든 상품이 허용하는 결제수단만 사용할 수 있습니다. 두 수단을 모두 닫으면 새 주문을 받지 않습니다. 실제 결제는 결제사·계좌 준비 상태도 확인합니다.</p>
     <p className="text-sm text-muted-foreground">성인(19금) 상품은 성인 인증을 마친 회원에게만 공개·판매됩니다. 성인 인증이 열리기 전에는 스토어에 노출되지 않습니다.</p>
-  </GoodEditorSection>;
+  </GoodFoldedRow>;
 }
