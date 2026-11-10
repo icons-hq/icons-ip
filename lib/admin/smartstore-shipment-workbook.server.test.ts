@@ -116,8 +116,10 @@ describe('ICONS 표준 양식 출고지시', () => {
   it('운송장번호만 채운 파일을 안내 없이 그대로 회신으로 읽는다', async () => {
     const file = await buildShipmentExport({ shipments: [shipment] }, 'xlsx', 'smartstore');
     expect(file.name).toMatch(/^icons-출고지시-\d{8}-\d{4}\.xlsx$/);
-    const encrypted = encryptAdminWorkbook(file.bytes, '1234');
-    await expect(parseTrackingWorkbook(encrypted.bytes, carriers)).rejects.toThrow('암호를 해제');
+    const downloaded = encryptAdminWorkbook(file.bytes, '1234');
+    await expect(parseTrackingWorkbook(downloaded.bytes, carriers)).rejects.toThrow('파일 비밀번호를 입력');
+    await expect(parseTrackingWorkbook(downloaded.bytes, carriers, '4321')).rejects.toThrow('맞지 않습니다');
+    expect(await parseTrackingWorkbook(downloaded.bytes, carriers, '1234')).toEqual(await parseTrackingWorkbook(file.bytes, carriers));
     const book = await load(file.bytes);
     const sheet = book.worksheets[0];
     value(sheet, '운송장번호').value = '001234567890';
@@ -125,6 +127,8 @@ describe('ICONS 표준 양식 출고지시', () => {
     expect(parsed.issues).toEqual([]);
     if (!('kind' in parsed) || parsed.kind !== 'smartstore') throw new Error('Expected ICONS standard reply');
     expect(trackingImportCommand(parsed, '')).toEqual({ name: 'admin_import_item_tracking_batch', args: { target_rows: [{ line: 2, reference: detail.productOrderNumber, carrier: 'hanjin', trackingNumber: '001234567890' }] } });
+    const filled = encryptAdminWorkbook(Buffer.from(await book.xlsx.writeBuffer()), '1234');
+    expect(await parseTrackingWorkbook(filled.bytes, carriers, '1234')).toEqual(parsed);
   });
 
   it('품목 1,000줄 회신이 업로드 한도 안에 들어간다', async () => {

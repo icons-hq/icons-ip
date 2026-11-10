@@ -601,7 +601,8 @@ export async function bulkRegisterAdminOrderTrackingAction(
     if (file instanceof File && file.size > 0) {
       const workbook=/\.xlsx$/i.test(file.name);
       if (file.size > TRACKING_IMPORT_FILE_LIMIT_BYTES) return {errors:{form:`${workbook?'XLSX':'CSV·TSV·텍스트'} 파일은 1MB 이하로 올려주세요. 운송장은 1,000줄까지 등록할 수 있습니다.`}};
-      if (workbook) parsed=await parseTrackingWorkbook(Buffer.from(await file.arrayBuffer()),carriers);
+      const password=formData.get('filePassword');
+      if (workbook) parsed=await parseTrackingWorkbook(Buffer.from(await file.arrayBuffer()),carriers,typeof password==='string'?password:'');
       else if (/\.(csv|tsv|txt)$/i.test(file.name)) {
         const text=decodeSpreadsheetText(new Uint8Array(await file.arrayBuffer()));
         if(/^\uFEFF?"?받는분전화번호/.test(text))return {errors:{form:'남양주(서원) 송장양식 회신은 XLSX로 올려주세요.'}};
