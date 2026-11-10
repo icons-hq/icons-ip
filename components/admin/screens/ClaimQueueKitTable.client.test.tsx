@@ -302,3 +302,14 @@ it('체크 전에는 표 위에 흐린 처리 버튼을 보이고, 체크하면 
   select([A]);
   expect(idle()).toBeUndefined();
 });
+
+/* 10/27 회의·MD-0032·0033: 체크 전에도 반품↔교환 전환이 있다는 것이 처리 막대와 같은 순서로 보여야 한다. */
+it('체크 전 흐린 버튼에 반품·교환 목록은 전환을 함께 보이고 취소 목록에는 넣지 않는다', () => {
+  const labels = (claimType: OrderClaimType) => {
+    const idle = all(render(claimType)).find((element) => (element.props as Record<string, unknown>)['data-claims-bulk-idle'] === '');
+    return all(idle!.props.children as ReactNode).filter((element) => element.type === Button).map((button) => button.props.children);
+  };
+  expect(labels('return')).toEqual(['선택 건 승인', '선택 건 검토중', '선택 건 교환 전환', '선택 건 거부']);
+  expect(labels('exchange')).toEqual(['선택 건 승인', '선택 건 검토중', '선택 건 반품 전환', '선택 건 거부']);
+  expect(labels('cancel')).toEqual(['선택 건 승인', '선택 건 검토중', '선택 건 거부']);
+});

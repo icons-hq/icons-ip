@@ -562,7 +562,12 @@ export function ClaimQueueKitTable({
       {/* 처리 막대는 체크하면 화면 아래에 뜬다. 체크 전에는 같은 버튼을 흐리게 보여 어디서 처리하는지 알린다(발주 화면의 '선택 주문 0건'과 같은 약속). */}
       {selectedIds.length === 0 ? <div aria-label="일괄 처리(요청을 체크하면 쓸 수 있습니다)" className="flex flex-wrap items-center gap-1.5" data-claims-bulk-idle="" role="group">
         <span className="text-xs text-muted-foreground">0건 선택</span>
-        {(['approve', 'review', 'reject'] as const).map((decision) => <Button disabled key={decision} size="sm" title="왼쪽 체크칸에서 요청을 고르면 화면 아래 막대에서 처리합니다" variant="outline">{ADMIN_CLAIM_BULK_ACTION_LABELS[decision]}</Button>)}
+        {[
+          ADMIN_CLAIM_BULK_ACTION_LABELS.approve,
+          ADMIN_CLAIM_BULK_ACTION_LABELS.review,
+          ...(convertFrom ? [adminClaimBulkConversionLabel(convertFrom)] : []),
+          ADMIN_CLAIM_BULK_ACTION_LABELS.reject,
+        ].map((label) => <Button disabled key={label} size="sm" title="왼쪽 체크칸에서 요청을 고르면 화면 아래 막대에서 처리합니다" variant="outline">{label}</Button>)}
       </div> : null}
     </div>
     <DataTable
