@@ -12,6 +12,7 @@ import { getSupabaseConfig } from '@/lib/supabase/config';
 import { CustomerServiceDialog } from './screens/CustomerServiceDialog';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { GOOD_INPUT_CLASS, GOOD_TEXTAREA_CLASS } from './GoodEditorParts';
+import { useAdminLeaveGuard } from './useAdminLeaveGuard';
 
 /* 템플릿 룩(ADR-0028). 상품 상세설명·쇼핑 스토리 본문 편집기가 함께 쓰는 공유 부품이다.
    테스트가 요소 트리에서 네이티브 button·라벨 안 입력을 찾으므로 kit 클래스를 네이티브 요소에 입힌다. */
@@ -39,12 +40,7 @@ export function BodyTemplateTools({ accountId, surface, disabled, captureEditor,
   const snapshot = useSyncExternalStore(scope.subscribe, scope.getSnapshot, scope.getServerSnapshot);
   const [workspace, setWorkspace] = useState<Workspace | null>(null), [undo, setUndo] = useState<Undo | null>(null), [outsideMessage, setOutsideMessage] = useState('');
   const unsaved = workspace?.scope === scope && (!sameDraft(workspace.draft, workspace.baseline) || Boolean(workspace.retry));
-  useEffect(() => {
-    if (!unsaved) return;
-    const protect = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
-    window.addEventListener('beforeunload', protect);
-    return () => window.removeEventListener('beforeunload', protect);
-  }, [unsaved]);
+  useAdminLeaveGuard({ dirty: unsaved });
   useLayoutEffect(() => { scope.setEnabled(!disabled); }, [scope, disabled]);
   useEffect(() => {
     scope.activate(); const signOut = () => scope.authenticate(null, null);

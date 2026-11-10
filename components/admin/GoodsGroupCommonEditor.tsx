@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useRef, useState, type FormEvent } from 'react';
 import { saveGoodsGroupCommonAction } from '@/app/admin/goods-group-common-actions';
 import { goodsGroupCommonHref, goodsGroupHref, normalizeGoodsGroupCommonForm, type GoodsGroupCommonSnapshot } from '@/lib/admin/goods-group-common';
 import type { AdminCategoryNode } from '@/lib/admin/category';
@@ -11,6 +11,7 @@ import { parseGoodsSizeChart } from '@/lib/goods-size-chart';
 import { GOODS_HTML_MAX_LENGTH, goodsHtmlCleanedLengthWarning, goodsHtmlSourceLengthWarning, sanitizeGoodsDescription } from '@/lib/goods-description';
 import { goodsAttributeSubmissionReady } from '@/lib/admin/goods-attributes';
 import { GroupCompleted, GroupOperationStatus, useGoodsGroupOperation, useGoodsGroupSession } from './GoodsGroupOperation';
+import { useAdminLeaveGuard } from './useAdminLeaveGuard';
 import { AdminFormGrid, AdminSectionCard } from './console/AdminKit';
 import { AdminSelect } from './console/AdminSelect';
 import { Button, buttonVariants } from './kit/ui/button';
@@ -50,20 +51,7 @@ export function GoodsGroupCommonEditor({ snapshot: initialSnapshot, actorId, ses
   function leave(event: { preventDefault: () => void }) {
     if (operation.pending) event.preventDefault();
   }
-  useEffect(() => {
-    if ((!dirty || operation.receipt) && !operation.pending) return;
-    const prevent = (event: BeforeUnloadEvent) => event.preventDefault();
-    const navigate = (event: MouseEvent) => {
-      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-      const link = event.target instanceof Element ? event.target.closest('a[href]') as HTMLAnchorElement | null : null;
-      if (!link || link.hasAttribute('download') || link.target && link.target !== '_self') return;
-      const destination = new URL(link.href, window.location.href);
-      if (destination.origin !== window.location.origin || destination.pathname === window.location.pathname && destination.search === window.location.search) return;
-      if (operation.pending || !window.confirm('저장하지 않은 공통정보 입력을 두고 이동할까요?')) { event.preventDefault(); event.stopPropagation(); }
-    };
-    window.addEventListener('beforeunload', prevent); document.addEventListener('click', navigate, true);
-    return () => { window.removeEventListener('beforeunload', prevent); document.removeEventListener('click', navigate, true); };
-  }, [dirty, operation.receipt, operation.pending]);
+  useAdminLeaveGuard({ dirty: dirty && !operation.receipt, blocked: operation.pending, message: '저장하지 않은 공통정보 입력을 두고 이동할까요?' });
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (locked || !identity || !ready) return;
     const form = new FormData(event.currentTarget), normalized = normalizeGoodsGroupCommonForm(form);

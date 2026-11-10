@@ -89,6 +89,25 @@ describe('그룹 전환 화면 복구', () => {
     expect(render().some(node => isInput(node) && node.props.value === source.name)).toBe(true);
     const event = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(event); expect(event.defaultPrevented).toBe(true);
   });
+  it('입력을 고친 뒤에만 이동을 묻고, 취소하면 입력을 유지하며, 되돌리면 묻지 않는다', async () => {
+    vi.mocked(window.confirm).mockReturnValue(false);
+    const nameInput = () => render().find(node => node.props.id === 'conversion-group-name')!;
+    expect(navigate().defaultPrevented).toBe(false); expect(window.confirm).not.toHaveBeenCalled();
+    (nameInput().props.onChange as (event: unknown) => void)({ target: { value: '미저장 전환명' } }); render();
+    expect(navigate().defaultPrevented).toBe(true); expect(window.confirm).toHaveBeenCalledOnce();
+    expect(nameInput().props.value).toBe('미저장 전환명');
+    const unload = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(unload); expect(unload.defaultPrevented).toBe(true);
+    (nameInput().props.onChange as (event: unknown) => void)({ target: { value: source.name } }); render(); vi.mocked(window.confirm).mockClear();
+    expect(navigate().defaultPrevented).toBe(false); expect(window.confirm).not.toHaveBeenCalled();
+  });
+  it('전환 요청이 끝나기 전에는 묻지 않고 막고, 완료되면 입력이 있어도 묻지 않는다', async () => {
+    let complete!: (value: unknown) => void; mocks.confirm.mockReturnValue(new Promise(resolve => { complete = resolve; }));
+    (render().find(node => node.props.id === 'conversion-group-name')!.props.onChange as (event: unknown) => void)({ target: { value: '미저장 전환명' } });
+    await ready(); click('이 내용으로 그룹 전환'); await flush(); const metadata = saved(); vi.mocked(window.confirm).mockClear();
+    expect(navigate().defaultPrevented).toBe(true); expect(window.confirm).not.toHaveBeenCalled();
+    complete({ value: { ...receipt, operationId: metadata.operationId } }); await flush();
+    expect(navigate().defaultPrevented).toBe(false); expect(window.confirm).not.toHaveBeenCalled();
+  });
   it('변환 전 비교 버튼은 폼 제출이다(kit 버튼의 기본 type은 button)', () => {
     expect(render().find(node => isButton(node) && text(node) === '변환 전 변경사항 비교')?.props.type).toBe('submit');
   });

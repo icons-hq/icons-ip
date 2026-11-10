@@ -1,7 +1,7 @@
 'use client';
 /* eslint-disable @next/next/no-img-element -- Stored catalog previews keep the original aspect ratio. */
 import Link from 'next/link';
-import { useEffect, useState, useTransition, type FormEvent } from 'react';
+import { useState, useTransition, type FormEvent } from 'react';
 import { saveGoodsRelationAction } from '@/app/admin/goods-relation-actions';
 import { GOODS_RELATIONS_PATH, GOODS_RELATION_KINDS, goodsRelationDraft, relationDefaultTitle, relationLimit, type GoodsRelationDraft, type GoodsRelationGood, type GoodsRelationKind, type GoodsRelationValues } from '@/lib/admin/goods-relations';
 import { relationVisualDraft } from '@/lib/good-relation-visual';
@@ -15,6 +15,7 @@ import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '../kit/u
 import { GoodsRelationProductPicker } from './GoodsRelationProductPicker';
 import { CustomerServiceDialog } from './CustomerServiceDialog';
 import { GoodsRelationVisualEditor } from '../GoodsRelationVisualEditor';
+import { useAdminLeaveGuard } from '../useAdminLeaveGuard';
 import { RelationImageMap } from '@/components/shop/RelationImageMap';
 
 /* 스마트스토어 연관상품 등록의 행 구성(라벨 | 입력)을 kit 카드 안에 그린다(템플릿 룩, ADR-0028). */
@@ -36,11 +37,7 @@ export function GoodsRelationEditor({ initial, backHref }: { initial: GoodsRelat
   const otherComposition = draft.kind === 'other_composition';
   const visual = otherComposition ? null : draft.visual ?? null, limit = relationLimit(draft.kind, Boolean(visual));
   const dirty = JSON.stringify(draft) !== baseline;
-  useEffect(() => {
-    if (!dirty) return;
-    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
-    window.addEventListener('beforeunload', warn); return () => window.removeEventListener('beforeunload', warn);
-  }, [dirty]);
+  useAdminLeaveGuard({ dirty, blocked });
   const update = (value: Partial<GoodsRelationDraft>) => { setDraft(current => ({ ...current, ...value })); setNotice(''); };
   function withoutCompositionLabel(good: GoodsRelationGood): GoodsRelationGood {
     const next = { ...good }; delete next.compositionLabel; return next;
@@ -111,7 +108,7 @@ export function GoodsRelationEditor({ initial, backHref }: { initial: GoodsRelat
         <div className={ROW}><span className={ROW_LABEL}>노출 기간</span><div className="flex min-w-0 flex-col gap-2"><div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap"><label className="flex min-w-0 flex-col gap-1.5 text-xs font-medium text-muted-foreground">시작일시<Input className="sm:w-56" name="startsAt" type="datetime-local" value={draft.startsAt ?? ''} onChange={event => update({ startsAt: event.target.value })} /></label><label className="flex min-w-0 flex-col gap-1.5 text-xs font-medium text-muted-foreground">종료일시<Input className="sm:w-56" name="endsAt" type="datetime-local" value={draft.endsAt ?? ''} onChange={event => update({ endsAt: event.target.value })} /></label></div><p className={NOTE}>한국 시각 기준입니다. 시작 시각부터 표시하고 종료 시각에는 내려갑니다. 비워 둔 경계는 제한하지 않습니다.</p></div></div>
         </div>
       </fieldset>
-      <div className="sticky bottom-0 z-10 flex flex-col gap-4 rounded-xl border bg-background p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between print:static" data-relation="savebar"><div className="flex min-w-0 flex-col gap-1.5 text-sm">{error ? <p className="text-destructive" role="alert">{error}</p> : null}{notice ? <p className="text-success" role="status">{notice}</p> : null}{savedId || error.includes('다른 운영자') ? <Link className="w-fit underline underline-offset-4" href={`${GOODS_RELATIONS_PATH}?edit=${savedId ?? draft.id}&reload=${draft.revision}`}>최신 편성 다시 열기</Link> : null}<small className="text-xs text-muted-foreground">{draft.revision ? `저장 버전 ${draft.revision}` : '신규 편성'}{dirty ? ' · 저장하지 않은 변경사항' : ''}</small></div><div className="flex shrink-0 flex-wrap justify-end gap-2"><Button type="submit" disabled={pending || uploading}>{pending ? '저장 중…' : retry ? '같은 요청으로 결과 확인' : '저장'}</Button><Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={backHref} onClick={event => { if (blocked || dirty && !window.confirm('저장하지 않은 변경사항이 있습니다. 목록으로 이동할까요?')) event.preventDefault(); }}>목록</Link></div></div>
+      <div className="sticky bottom-0 z-10 flex flex-col gap-4 rounded-xl border bg-background p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between print:static" data-relation="savebar"><div className="flex min-w-0 flex-col gap-1.5 text-sm">{error ? <p className="text-destructive" role="alert">{error}</p> : null}{notice ? <p className="text-success" role="status">{notice}</p> : null}{savedId || error.includes('다른 운영자') ? <Link className="w-fit underline underline-offset-4" href={`${GOODS_RELATIONS_PATH}?edit=${savedId ?? draft.id}&reload=${draft.revision}`}>최신 편성 다시 열기</Link> : null}<small className="text-xs text-muted-foreground">{draft.revision ? `저장 버전 ${draft.revision}` : '신규 편성'}{dirty ? ' · 저장하지 않은 변경사항' : ''}</small></div><div className="flex shrink-0 flex-wrap justify-end gap-2"><Button type="submit" disabled={pending || uploading}>{pending ? '저장 중…' : retry ? '같은 요청으로 결과 확인' : '저장'}</Button><Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={backHref}>목록</Link></div></div>
     </form>
     {picker ? <GoodsRelationProductPicker value={draft.goods} limit={limit} onClose={() => setPicker(false)} onApply={goods => {
       const previous = new Map(draft.goods.map(good => [good.id, good]));

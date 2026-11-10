@@ -12,6 +12,7 @@ import { Button, buttonVariants } from './kit/ui/button';
 import { Input } from './kit/ui/input';
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from './kit/ui/table';
 import { GoodsGroupProductPicker, GroupCompleted, GroupOperationStatus, GroupTable, useGoodsGroupOperation, useGoodsGroupSession } from './GoodsGroupOperation';
+import { useAdminLeaveGuard } from './useAdminLeaveGuard';
 
 function initialDraft(source: GoodsGroupSource | null): GoodsGroupConversionRequest {
   const optionNames = Object.keys(source?.variants.find(row => Object.keys(row.attributes).length > 0)?.attributes ?? {}).slice(0, 3);
@@ -29,6 +30,9 @@ export function GoodsGroupConversion({ initialSource, actorId, sessionId, title 
   const [preview, setPreview] = useState<GoodsGroupPreview | null>(null), [approved, setApproved] = useState(false), [error, setError] = useState('');
   const [choosing, setChoosing] = useState(!initialSource), [pending, startTransition] = useTransition(); const sequence = useRef(0), busy = useRef(false);
   const locked = session.blocked || operation.locked || pending || operation.receipt !== null;
+  /* 상품을 고르기만 했으면 기본값 그대로라 잃을 입력이 없다. 전환이 끝났거나 로그인이 바뀌면 입력 칸이 사라져 묻지 않는다. */
+  const dirty = !session.blocked && operation.receipt?.state !== 'completed' && JSON.stringify(draft) !== JSON.stringify(initialDraft(source));
+  useAdminLeaveGuard({ dirty, blocked: operation.pending });
   function change(next: GoodsGroupConversionRequest) { if (locked || !session.current()) return; sequence.current += 1; setDraft(next); setPreview(null); setApproved(false); setError(''); }
   function selectSource(next: GoodsGroupSource) { if (locked || !session.current()) return; setSource(next); setDraft(initialDraft(next)); setChoosing(false); setPreview(null); setApproved(false); setError(''); sequence.current += 1; }
   function toggle(variantId: string) {
