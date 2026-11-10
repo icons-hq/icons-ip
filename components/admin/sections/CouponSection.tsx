@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { CouponFilters } from '@/components/admin/coupons/CouponFilters';
 import { CouponRowActions } from '@/components/admin/coupons/CouponRowActions';
 import { CouponScheduleFields } from '@/components/admin/coupons/CouponScheduleFields';
@@ -24,6 +24,7 @@ import { formatOrderDateTime } from '@/lib/orders';
 import { LOYALTY_GRADES, isLoyaltyGrade, loyaltyBasisSummary, loyaltyGradeLabel } from '@/lib/loyalty';
 import type { ConfigurableGrade } from '@/lib/loyalty-policy';
 import { Field, FormShell, SelectField } from '../fields';
+import { useAdminLeaveGuard } from '../useAdminLeaveGuard';
 import { ArrowLeft, ArrowRight, Plus } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
 
@@ -86,6 +87,13 @@ function CouponEditor({
   const [step, setStep] = useState<1 | 2>(selected || draft ? 2 : 1);
   const [stepError, setStepError] = useState('');
   const form = useRef<HTMLFormElement>(null);
+  /* 저장 실패 뒤에는 폼이 제출값으로 새로 그려진다 — draft가 있는 동안은 폼 값이 기준과 같아도 저장 전이다. */
+  const { formRef: leaveFormRef } = useAdminLeaveGuard({ serverState: state, preserved: Boolean(draft) });
+  const attachForm = useCallback((node: HTMLFormElement | null) => {
+    form.current = node;
+    const detach = leaveFormRef(node);
+    return () => { form.current = null; detach?.(); };
+  }, [leaveFormRef]);
   const defaults = selected ?? (copySource ? { ...copySource, code: '', termsRevision: undefined, name: `${copySource.name} 복사` } : null);
   const value = (
     key: string,
@@ -113,7 +121,7 @@ function CouponEditor({
 
   return (
     <form
-      ref={form}
+      ref={attachForm}
       action={action}
       className="flex min-w-0 flex-col rounded-xl border bg-card text-sm text-card-foreground"
       key={adminFormRemountKey(state, selected)}

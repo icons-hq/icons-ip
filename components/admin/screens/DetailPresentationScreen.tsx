@@ -1,9 +1,10 @@
 'use client';
 import Link from 'next/link';
-import { useRef, useState, type MouseEvent, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { saveDetailPresentationAction, type DetailSaveResult } from '@/app/admin/product-detail-presentation-actions';
 import { AdminPageHeader, AdminSectionCard, AdminStatusBadge } from '../console/AdminKit';
 import { ConsolePagination } from '../console/ConsolePagination';
+import { useAdminLeaveGuard } from '../useAdminLeaveGuard';
 import { StoreSettingsRelatedLinks } from './StoreSettingsRelatedLinks';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
@@ -56,13 +57,10 @@ function DetailForm({ snapshot, section, goods, categories }: {
   const dirty = JSON.stringify(values[section]) !== JSON.stringify(saved[section]);
   const modulesOn = DETAIL_MODULE_KEYS.filter(key => saved.modules[key]).length;
   const live = section === 'banner' ? saved.banner.enabled : section === 'otherComposition' ? saved.otherComposition.enabled : modulesOn > 0;
-  /* 탭은 페이지 이동이라 저장 안 한 입력이 사라진다 — 말없이 잃지 않게 한 번 묻는다. */
-  function confirmLeave(event: MouseEvent<HTMLAnchorElement>) {
-    if (dirty && !window.confirm('저장하지 않은 변경이 있습니다. 이 탭을 떠나면 입력이 사라집니다. 이동할까요?')) event.preventDefault();
-  }
+  /* 탭·메뉴 이동은 페이지 이동이라 저장 안 한 입력이 사라진다. 저장 결과를 모르는 상태도 말없이 떠나지 않게 묻는다. */
+  useAdminLeaveGuard({ dirty: dirty || uncertain });
   function tabProps(target: DetailSection, href: string) {
-    const current = section === target;
-    return { 'aria-current': current ? 'page' as const : undefined, className: TAB, href, onClick: current ? undefined : confirmLeave };
+    return { 'aria-current': section === target ? 'page' as const : undefined, className: TAB, href };
   }
   function changeBanner<K extends keyof DetailBanner>(key: K, value: DetailBanner[K]) { setValues(current => ({ ...current, banner: { ...current.banner, [key]: value } })); }
   async function save() {

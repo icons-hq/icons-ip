@@ -9,6 +9,7 @@ import { Input } from '@/components/admin/kit/ui/input';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
 import { DELIVERY_METHOD_LABELS, DELIVERY_POLICY_TEXT_FIELDS, type AdminDeliveryPolicy } from '@/lib/shipment-delivery';
+import { useAdminLeaveGuard } from './useAdminLeaveGuard';
 
 const LABELS: Record<typeof DELIVERY_POLICY_TEXT_FIELDS[number], string> = {
   contactName: '실제 담당자 이름', contactPhone: '실제 담당 연락처', handoffLocation: '인계 장소',
@@ -22,6 +23,8 @@ const DETAILS_SUMMARY = 'cursor-pointer px-3 py-2.5 text-sm font-medium';
 
 function PolicyForm({ originId, policy, onSaved }: { originId: string; policy?: AdminDeliveryPolicy; onSaved: (message: string) => void }) {
   const [pending, startTransition] = useTransition(); const [error, setError] = useState<string | null>(null); const busy = useRef(false);
+  /* 저장에 성공하면 목록을 다시 읽어 이 폼이 새로 만들어진다 — 저장 결과를 따로 알릴 필요가 없다. */
+  const { formRef } = useAdminLeaveGuard();
   function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (busy.current) return;
     const form = new FormData(event.currentTarget);
@@ -33,7 +36,7 @@ function PolicyForm({ originId, policy, onSaved }: { originId: string; policy?: 
       finally { busy.current = false; }
     });
   }
-  return <form className="flex min-w-0 flex-col gap-3 border-t p-3" onSubmit={save}>
+  return <form className="flex min-w-0 flex-col gap-3 border-t p-3" onSubmit={save} ref={formRef}>
     <input type="hidden" name="originId" value={originId} /><input type="hidden" name="policyId" value={policy?.id ?? ''} />
     <input type="hidden" name="revision" value={policy?.revision ?? ''} />
     {policy ? <input type="hidden" name="method" value={policy.method} /> : <label className={FIELD_LABEL}>제공할 배송 방식

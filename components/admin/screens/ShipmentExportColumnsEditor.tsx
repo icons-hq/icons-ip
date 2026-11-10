@@ -9,6 +9,7 @@ import {GIMPO_EXPORT_HEADERS,SEOWON_EXPORT_HEADERS} from '@/lib/admin/warehouse-
 import {Button} from '@/components/admin/kit/ui/button';
 import {Input} from '@/components/admin/kit/ui/input';
 import {Table,TableBody,TableCell,TableHead,TableHeader,TableRow} from '@/components/admin/kit/ui/table';
+import {useAdminLeaveGuard} from '../useAdminLeaveGuard';
 const availableColumns=[...DEFAULT_SHIPMENT_EXPORT_COLUMNS,...OPTIONAL_SHIPMENT_EXPORT_COLUMNS];
 /* 출고지시 양식 설정(템플릿 룩, ADR-0028). 접는 설명과 kit 표·입력·버튼이다. */
 const DETAILS='group mt-6 rounded-lg border px-4 py-3 text-sm leading-relaxed';
@@ -16,6 +17,8 @@ const SUMMARY='flex cursor-pointer list-none items-center justify-between gap-2 
 function Chevron(){return <ChevronDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"/>;}
 export function ShipmentExportColumnsEditor({origin,canEdit}:{origin:FulfillmentOrigin;canEdit:boolean}){
  const [columns,setColumns]=useState(()=>parseShipmentExportColumns(origin.exportColumns)??DEFAULT_SHIPMENT_EXPORT_COLUMNS.map(column=>({...column})));
+ const [savedColumns,setSavedColumns]=useState(columns);
+ useAdminLeaveGuard({dirty:JSON.stringify(columns)!==JSON.stringify(savedColumns)});
  const [stamp,setStamp]=useState(origin.updatedAt);const [pending,startTransition]=useTransition();const [feedback,setFeedback]=useState<{error?:string;message?:string}>({});const router=useRouter();
  function move(index:number,direction:number){const next=[...columns];[next[index],next[index+direction]]=[next[index+direction],next[index]];setColumns(next);}
  if(origin.exportTemplate!=='standard'){
@@ -29,7 +32,7 @@ export function ShipmentExportColumnsEditor({origin,canEdit}:{origin:Fulfillment
  }
  return <details className={DETAILS}><summary className={SUMMARY}>출고지시 컬럼과 헤더 설정<Chevron/></summary>
   <p className="mt-3 text-muted-foreground">기존 창고 양식의 표준 12개 항목을 유지하면서 헤더와 순서를 바꿉니다. 기본 스마트스토어 74열 양식에는 적용되지 않습니다. 옵션코드는 주문 당시 저장된 물류 품번입니다. 바코드·ERP 코드·ERP 품명은 주문 당시 값이고, 주문 당시 값이 비어 있으면 지금 등록된 값을 씁니다. 여러 출고지를 선택하면 출고지별 파일을 ZIP으로 받습니다.</p>
-  <form className="mt-3 flex flex-col gap-3" onSubmit={event=>{event.preventDefault();startTransition(async()=>{try{const result=await saveShipmentExportColumnsAction(origin.id,columns,stamp);setFeedback(result);if(result.updatedAt){setStamp(result.updatedAt);router.refresh();}}catch{setFeedback({error:'양식을 저장하지 못했습니다. 입력한 값은 유지됩니다.'});}});}}>
+  <form className="mt-3 flex flex-col gap-3" onSubmit={event=>{event.preventDefault();startTransition(async()=>{try{const result=await saveShipmentExportColumnsAction(origin.id,columns,stamp);setFeedback(result);if(result.updatedAt){setStamp(result.updatedAt);setSavedColumns(columns);router.refresh();}}catch{setFeedback({error:'양식을 저장하지 못했습니다. 입력한 값은 유지됩니다.'});}});}}>
    <fieldset disabled={pending||!canEdit} className="m-0 flex min-w-0 flex-col items-start gap-3 border-0 p-0">
     <div className="flex flex-wrap gap-x-5 gap-y-2">{OPTIONAL_SHIPMENT_EXPORT_COLUMNS.map(optional=><label key={optional.key} className="flex items-center gap-2">
      <input type="checkbox" checked={columns.some(column=>column.key===optional.key)} onChange={event=>{
