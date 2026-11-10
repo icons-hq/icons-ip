@@ -77,7 +77,7 @@ function setup(disabled = false, recovered = false, selected: AdminGoodRecord | 
   return { form, ancestor, entries, reads, render, initialize, capture };
 }
 function summary(tree: Element[], id: string) { return tree.find(node => node.props.id === id)!.props.summary; }
-beforeEach(() => { hooks.values = []; hooks.jobs = []; hooks.index = 0; mocks.capture = null; vi.clearAllMocks(); vi.stubGlobal('window', new EventTarget()); });
+beforeEach(() => { hooks.values = []; hooks.jobs = []; hooks.index = 0; mocks.capture = null; vi.clearAllMocks(); vi.stubGlobal('window', new EventTarget()); vi.stubGlobal('document', new EventTarget()); });
 afterEach(() => vi.unstubAllGlobals());
 
 it('속성 초기화가 외부 저장 잠금과 겹쳐도 요약과 pristine 상태를 유지하고 해제 후 전체 값으로 비교한다', () => {

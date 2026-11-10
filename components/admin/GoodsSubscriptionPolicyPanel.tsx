@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useMemo, useState, useSyncExternalStore } from 'react';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
+import { useAdminLeaveGuard } from './useAdminLeaveGuard';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/admin/kit/ui/table';
 import { GOOD_INPUT_CLASS, GOOD_NOTE_CLASS, GOOD_SUBPANEL_CLASS, GOOD_TABLE_FRAME_CLASS } from './GoodEditorParts';
@@ -109,21 +110,7 @@ export function GoodsSubscriptionPolicyPanel({ goodId, accountId, disabledReason
     window.addEventListener('pagehide', flush); document.addEventListener('visibilitychange', hidden);
     return () => { flush(); window.removeEventListener('pagehide', flush); document.removeEventListener('visibilitychange', hidden); };
   }, [storage]);
-  useEffect(() => {
-    if (!valid || !dirty && !busy && !workspace?.retry) return;
-    const unload = (event: BeforeUnloadEvent) => { storage.flush(); event.preventDefault(); event.returnValue = ''; };
-    const navigation = (event: MouseEvent) => {
-      const anchor = event.target instanceof Element ? event.target.closest('a[href]') : null;
-      if (!(anchor instanceof HTMLAnchorElement) || event.defaultPrevented || anchor.target === '_blank' || anchor.hasAttribute('download')) return;
-      const target = new URL(anchor.href, location.href);
-      if (target.origin === location.origin && target.pathname === location.pathname && target.search === location.search) return;
-      if (busy || workspace?.retry || !window.confirm('저장하지 않은 정기배송 입력이 있습니다. 이 화면을 나가시겠습니까? 입력은 이 브라우저에 7일간 보관됩니다.')) {
-        event.preventDefault(); event.stopPropagation();
-      }
-    };
-    window.addEventListener('beforeunload', unload); document.addEventListener('click', navigation, true);
-    return () => { window.removeEventListener('beforeunload', unload); document.removeEventListener('click', navigation, true); };
-  }, [valid, dirty, busy, workspace?.retry, storage]);
+  useAdminLeaveGuard({ dirty: valid && dirty, blocked: valid && (busy || Boolean(workspace?.retry)), message: '저장하지 않은 정기배송 입력이 있습니다. 이 화면을 나가시겠습니까? 입력은 이 브라우저에 7일간 보관됩니다.', onUnload: () => storage.flush() });
 
   function edit(draft: GoodsSubscriptionDraft) {
     if (!workspace || !valid || scope.lane.busy() || workspace.retry || workspace.recoveryPending || workspace.readbackRequired) return;

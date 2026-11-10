@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { CouponFilters } from '@/components/admin/coupons/CouponFilters';
 import { CouponRowActions } from '@/components/admin/coupons/CouponRowActions';
 import { CouponScheduleFields } from '@/components/admin/coupons/CouponScheduleFields';
@@ -24,6 +24,8 @@ import { formatOrderDateTime } from '@/lib/orders';
 import { LOYALTY_GRADES, isLoyaltyGrade, loyaltyBasisSummary, loyaltyGradeLabel } from '@/lib/loyalty';
 import type { ConfigurableGrade } from '@/lib/loyalty-policy';
 import { Field, FormShell, SelectField } from '../fields';
+import { useAdminLeaveGuard } from '../useAdminLeaveGuard';
+import { confirmAdminLeave } from '@/lib/admin/leave-guard';
 import { ArrowLeft, ArrowRight, Plus } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
 
@@ -86,6 +88,13 @@ function CouponEditor({
   const [step, setStep] = useState<1 | 2>(selected || draft ? 2 : 1);
   const [stepError, setStepError] = useState('');
   const form = useRef<HTMLFormElement>(null);
+  /* 저장 실패 뒤에는 폼이 제출값으로 새로 그려진다 — draft가 있는 동안은 폼 값이 기준과 같아도 저장 전이다. */
+  const { formRef: leaveFormRef } = useAdminLeaveGuard({ serverState: state, preserved: Boolean(draft) });
+  const attachForm = useCallback((node: HTMLFormElement | null) => {
+    form.current = node;
+    const detach = leaveFormRef(node);
+    return () => { form.current = null; detach?.(); };
+  }, [leaveFormRef]);
   const defaults = selected ?? (copySource ? { ...copySource, code: '', termsRevision: undefined, name: `${copySource.name} 복사` } : null);
   const value = (
     key: string,
@@ -113,7 +122,7 @@ function CouponEditor({
 
   return (
     <form
-      ref={form}
+      ref={attachForm}
       action={action}
       className="flex min-w-0 flex-col rounded-xl border bg-card text-sm text-card-foreground"
       key={adminFormRemountKey(state, selected)}
@@ -293,9 +302,11 @@ export function CouponSection({
   copySource?: AdminCouponRecord | null;
   initialGrade?: ConfigurableGrade;
 }) {
+  /* 취소·목록으로는 링크가 아니라 router.replace로 떠나 공용 경고가 클릭을 가로채지 못한다. 같은 확인을 직접 거친다. */
+  const leaveEditor = () => { if (confirmAdminLeave()) onSelect(null); };
   if (selected || mode === 'create') return <section className="flex min-w-0 flex-col gap-3">
-    {selected || copySource ? <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card px-4 py-3.5 sm:px-6"><h2 className="text-lg font-semibold tracking-tight">{copySource ? '복사한 혜택 설정' : '혜택 정보'}</h2><Button type="button" variant="outline" onClick={() => onSelect(null)}>목록으로</Button></div> : null}
-    <CouponEditor action={action} draft={draft} pending={pending} selected={selected} copySource={copySource} initialGrade={initialGrade} state={state} onCancel={() => onSelect(null)} />
+    {selected || copySource ? <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card px-4 py-3.5 sm:px-6"><h2 className="text-lg font-semibold tracking-tight">{copySource ? '복사한 혜택 설정' : '혜택 정보'}</h2><Button type="button" variant="outline" onClick={leaveEditor}>목록으로</Button></div> : null}
+    <CouponEditor action={action} draft={draft} pending={pending} selected={selected} copySource={copySource} initialGrade={initialGrade} state={state} onCancel={leaveEditor} />
     {selected ? <Link className={buttonVariants({ variant: 'outline', className: 'self-start' })} data-slot="button" href={`${ADMIN_COUPON_LIST_PATH}/issue?couponCode=${encodeURIComponent(selected.code)}`}>지정 고객·세그먼트 발급</Link> : null}
   </section>;
   const href = adminCouponListHref(filters);

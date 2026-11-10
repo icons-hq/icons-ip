@@ -6,6 +6,7 @@ import { ArrowLeftRight, BookOpen, Check, ChevronsUpDown, ExternalLink, LogOut }
 import { adminSignOutAction, type SignOutActionState } from '@/app/login/actions';
 import { MANAGER_ROLE_LABELS, type OperatorAccess } from '@/lib/admin/access';
 import { clearInquiryDraftsForSignOut } from '@/lib/admin/inquiry-draft-lifecycle';
+import { confirmAdminLeave } from '@/lib/admin/leave-guard';
 import { Avatar, AvatarFallback } from '@/components/admin/kit/ui/avatar';
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/admin/kit/ui/breadcrumb';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
@@ -177,7 +178,7 @@ export function Header({
               <DropdownMenuItem render={<Link href="/" rel="noopener noreferrer" target="_blank" />}><ExternalLink />쇼핑몰 바로가기</DropdownMenuItem>
               <DropdownMenuSeparator />
             </DropdownMenuGroup>
-            <DropdownMenuItem disabled={signOutPending} onClick={() => signOutFormRef.current?.requestSubmit()}>
+            <DropdownMenuItem disabled={signOutPending} onClick={() => { if (confirmAdminLeave()) signOutFormRef.current?.requestSubmit(); }}>
               <LogOut />
               {signOutPending ? '로그아웃 중…' : '로그아웃'}
             </DropdownMenuItem>

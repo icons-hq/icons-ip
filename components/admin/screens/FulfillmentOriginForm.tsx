@@ -10,6 +10,7 @@ import type { FulfillmentOrigin } from '@/lib/admin/fulfillment-origins';
 import type { EditableCarrier } from '@/lib/admin/store-settings';
 import { SettingsFormGroup, SettingsSaveBar } from './StoreSettingsFormGroup';
 import { WonInput } from './StoreSettingsWonInput';
+import { useAdminLeaveGuard } from '../useAdminLeaveGuard';
 
 /** 새 주문 사용 여부. 켜져 있는 동안의 안내는 조용한 글자로 두고(늘 떠 있는 노란 상자는 지금 문제가 있는 줄 안다), 끄는 쪽을 고르면 그때 상자로 올린다. */
 function OriginActiveField({ id, initial, wasActive }: { id: string; initial: string; wasActive: boolean }) {
@@ -25,6 +26,7 @@ function OriginActiveField({ id, initial, wasActive }: { id: string; initial: st
 
 export function FulfillmentOriginForm({ origin, carriers, canEdit }: { origin?: FulfillmentOrigin; carriers: EditableCarrier[]; canEdit: boolean }) {
   const [state, action, pending] = useActionState(saveFulfillmentOriginAction, {} as FulfillmentActionState);
+  const { formRef } = useAdminLeaveGuard({ serverState: state });
   const [initialStamp] = useState(origin?.updatedAt ?? '');
   const defaults: Record<string, string> = {
     code: origin?.code ?? '', name: origin?.name ?? '', defaultCarrier: origin?.defaultCarrier ?? '',
@@ -43,7 +45,7 @@ export function FulfillmentOriginForm({ origin, carriers, canEdit }: { origin?: 
           aria-invalid={invalid} aria-describedby={describedBy} />}
     </AdminField>;
   }
-  return <form action={action}>
+  return <form action={action} ref={formRef}>
     <fieldset disabled={pending || !canEdit} key={state.attempt ?? 0} className="m-0 flex min-w-0 flex-col gap-4 border-0 p-0">
       <input type="hidden" name="id" value={origin?.id ?? ''} />
       <input type="hidden" name="updatedAt" value={state.values?.updatedAt ?? state.updatedAt ?? initialStamp} />
