@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { after } from 'next/server';
 import { meetsMinimumSignupAge } from '@/lib/age/minimum-age';
 import { addressBookOnboardingPath } from '@/lib/address-book';
 import { AUTO_NICKNAME_MAX_ATTEMPTS, generateAutoNickname } from '@/lib/auth/nickname';
@@ -10,6 +11,7 @@ import { isDemographicGender, type DemographicGender } from '@/lib/customer-demo
 import { customerDemographicState, updateCustomerDemographicChoice } from '@/lib/customer-demographics.server';
 import { buildRecommendedIpFollowChanges, uniqueSelectedIpIds } from '@/lib/ip-follow';
 import { kakaoChannelConfig } from '@/lib/kakao/channel-config.server';
+import { syncKakaoChannelFriendReward } from '@/lib/kakao/channel-reward.server';
 import { readMarketingChannelChoices } from '@/lib/marketing-consent';
 import { saveMyMarketingConsents } from '@/lib/marketing-consent.server';
 import { updateProfileIdentity } from '@/lib/profile.server';
@@ -287,6 +289,14 @@ export async function completeOnboardingAction(
 
   if (completeError) return { errors: { form: '온보딩 완료 상태를 저장하지 못했습니다. 다시 시도해주세요.' } };
   if (genderResult.gender) await saveOnboardingGender(genderResult.gender);
+  /* 카카오톡 채널 친구 추가 쿠폰(1014-014, 스위치 OFF 기본)은 온보딩을 마친 회원만 받는다. 카카오 로그인 동의 화면에서
+     채널을 추가하고 막 가입한 회원은 여기서 처음 대상이 된다. 응답 뒤에 확인하고, 실패해도 온보딩은 끝난다. */
+  if (kakaoChannelConfig()) {
+    const userId = user.id;
+    after(async () => {
+      await syncKakaoChannelFriendReward({ userId, via: 'onboarding' });
+    });
+  }
 
   revalidatePath('/');
   revalidatePath('/ip');

@@ -756,3 +756,58 @@ describe('signup confirmation code', () => {
     expect(mocks.resend).toHaveBeenCalledOnce();
   });
 });
+
+/* 1014-014 — 카카오톡 채널 스위치가 켜졌을 때만 카카오 로그인에 채널 관계 동의항목(plusfriends)을 더한다. */
+describe('signInWithSocialAction kakao channel scope', () => {
+  const KAKAO_ENV = {
+    ICONS_KAKAO_CHANNEL_ENABLED: 'true',
+    KAKAO_CHANNEL_PUBLIC_ID: '_IconsTest',
+    KAKAO_ADMIN_KEY: '0123456789abcdef0123456789abcdef',
+  } as const;
+  const original = Object.fromEntries(Object.keys(KAKAO_ENV).map((key) => [key, process.env[key]]));
+
+  beforeEach(() => {
+    process.env.AUTH_SIGNUP_RESEND_SECRET = TEST_SIGNUP_RESEND_SECRET;
+    mocks.isConfigured = true;
+    mocks.headers = new Map<string, string>([['origin', 'https://iconsip.com']]);
+    mocks.cookies.clear();
+    mocks.cookieSetCalls.length = 0;
+    mocks.signInWithOAuth.mockReset();
+    mocks.signInWithOAuth.mockResolvedValue({ data: { url: 'https://provider.example/start' }, error: null });
+  });
+
+  afterEach(() => {
+    for (const [key, value] of Object.entries(original)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    if (ORIGINAL_SIGNUP_RESEND_SECRET === undefined) delete process.env.AUTH_SIGNUP_RESEND_SECRET;
+    else process.env.AUTH_SIGNUP_RESEND_SECRET = ORIGINAL_SIGNUP_RESEND_SECRET;
+  });
+
+  it('asks Kakao for the plusfriends consent only while the switch is on', async () => {
+    Object.assign(process.env, KAKAO_ENV);
+
+    await expect(signInWithSocialAction({}, socialFormData('kakao'))).rejects.toThrow('NEXT_REDIRECT:https://provider.example/start');
+    expect(mocks.signInWithOAuth).toHaveBeenLastCalledWith({
+      provider: 'kakao',
+      options: { redirectTo: 'https://iconsip.com/auth/callback', scopes: 'plusfriends' },
+    });
+
+    await expect(signInWithSocialAction({}, socialFormData('google'))).rejects.toThrow('NEXT_REDIRECT:https://provider.example/start');
+    expect(mocks.signInWithOAuth).toHaveBeenLastCalledWith({
+      provider: 'google',
+      options: { redirectTo: 'https://iconsip.com/auth/callback' },
+    });
+  });
+
+  it('keeps the Kakao request unchanged while the switch is off', async () => {
+    for (const key of Object.keys(KAKAO_ENV)) delete process.env[key];
+
+    await expect(signInWithSocialAction({}, socialFormData('kakao'))).rejects.toThrow('NEXT_REDIRECT:https://provider.example/start');
+    expect(mocks.signInWithOAuth).toHaveBeenLastCalledWith({
+      provider: 'kakao',
+      options: { redirectTo: 'https://iconsip.com/auth/callback' },
+    });
+  });
+});

@@ -30,6 +30,7 @@ import {
   type AuthNextPurpose,
 } from '@/lib/auth/recovery.server';
 import { getProfileForUser } from '@/lib/auth/server';
+import { KAKAO_CHANNEL_LOGIN_SCOPE, kakaoChannelConfig } from '@/lib/kakao/channel-config.server';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/server';
 import { CANONICAL_AUTH_ORIGIN, trustedAuthOrigin } from '@/lib/auth/trusted-origin';
@@ -303,9 +304,14 @@ export async function signInWithSocialAction(
   const next = safeNextPath(formData.get('next'));
   const origin = await requestOrigin();
   const supabase = await createClient();
+  /* 카카오톡 채널 스위치가 켜졌을 때만 카카오 로그인에 채널 관계 동의항목(plusfriends)을 더 요청한다 — 동의 화면에
+     채널 추가 항목이 보이고, 친구 추가 쿠폰을 확인할 수 있다(1014-014). 꺼져 있으면 요청은 예전과 같다. */
+  const channelScope = provider === 'kakao' && kakaoChannelConfig() ? KAKAO_CHANNEL_LOGIN_SCOPE : null;
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider,
-    options: { redirectTo: authCallbackUrl(origin) },
+    options: channelScope
+      ? { redirectTo: authCallbackUrl(origin), scopes: channelScope }
+      : { redirectTo: authCallbackUrl(origin) },
   });
 
   if (error || !data.url) {

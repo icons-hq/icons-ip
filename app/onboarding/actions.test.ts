@@ -15,12 +15,16 @@ const mocks = vi.hoisted(() => ({
   profileResults: [] as { data: { id: string } | null; error: { message: string } | null }[],
   revalidatePath: vi.fn(),
   rpc: vi.fn(),
+  after: vi.fn(),
+  syncKakao: vi.fn(),
 }));
 
 vi.mock('@/lib/profile.server', () => ({ updateProfileIdentity: mocks.identity }));
 vi.mock('@/lib/supabase/config', () => ({ getSupabaseConfig: mocks.getSupabaseConfig }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: mocks.createClient }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }));
+vi.mock('next/server', () => ({ after: mocks.after }));
+vi.mock('@/lib/kakao/channel-reward.server', () => ({ syncKakaoChannelFriendReward: mocks.syncKakao }));
 vi.mock('next/navigation', () => ({
   redirect: (path: string) => {
     throw new Error(`NEXT_REDIRECT:${path}`);
@@ -495,5 +499,44 @@ describe('completeOnboardingAction phone verification switch', () => {
 
     await expect(completeOnboardingAction({}, onboardingForm())).rejects.toThrow('NEXT_REDIRECT:/onboarding/address?next=%2Fcommunity');
     expect(mocks.rpc.mock.calls[0]?.[0]).toBe('my_member_phone_verification');
+  });
+});
+
+/* 1014-014 — 카카오톡 채널 친구 추가 쿠폰은 온보딩을 마친 뒤(응답 뒤) 확인한다. 스위치가 꺼져 있으면 아무것도 예약하지 않는다. */
+describe('completeOnboardingAction kakao channel reward', () => {
+  const KAKAO_ENV = {
+    ICONS_KAKAO_CHANNEL_ENABLED: 'true',
+    KAKAO_CHANNEL_PUBLIC_ID: '_IconsTest',
+    KAKAO_ADMIN_KEY: '0123456789abcdef0123456789abcdef',
+    ICONS_KAKAO_CHANNEL_COUPON_CODE: 'KAKAO-FRIEND',
+  } as const;
+  const original = Object.fromEntries(Object.keys(KAKAO_ENV).map((key) => [key, process.env[key]]));
+
+  beforeEach(() => {
+    mocks.after.mockReset();
+    mocks.syncKakao.mockReset();
+  });
+
+  afterEach(() => {
+    for (const [key, value] of Object.entries(original)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+
+  it('schedules nothing while the switch is off', async () => {
+    for (const key of Object.keys(KAKAO_ENV)) delete process.env[key];
+
+    await expect(completeOnboardingAction({}, onboardingForm())).rejects.toThrow('NEXT_REDIRECT:/onboarding/address?next=%2Fcommunity');
+    expect(mocks.after).not.toHaveBeenCalled();
+  });
+
+  it('checks the channel friendship after completion when the switch is on', async () => {
+    Object.assign(process.env, KAKAO_ENV);
+
+    await expect(completeOnboardingAction({}, onboardingForm())).rejects.toThrow('NEXT_REDIRECT:/onboarding/address?next=%2Fcommunity');
+    expect(mocks.after).toHaveBeenCalledOnce();
+    await (mocks.after.mock.calls[0][0] as () => Promise<void>)();
+    expect(mocks.syncKakao).toHaveBeenCalledWith({ userId: USER_ID, via: 'onboarding' });
   });
 });
