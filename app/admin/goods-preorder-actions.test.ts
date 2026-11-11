@@ -5,7 +5,7 @@ vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: mocks.auth }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ rpc: mocks.rpc }) }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidate }));
 vi.mock('next/navigation', () => ({ unstable_rethrow: vi.fn() }));
-import { saveGoodsPreorderAction, switchToStockSupplyAction, allocateGoodsPreordersAction, listGoodsPreorderReservationsAction } from './goods-preorder-actions';
+import { saveGoodsPreorderAction, saveRandomGoodsPreordersAction, switchToStockSupplyAction, allocateGoodsPreordersAction, listGoodsPreorderReservationsAction } from './goods-preorder-actions';
 const variant = '00000000-0000-4000-8000-000000000001';
 const policy = '00000000-0000-4000-8000-000000000002';
 const item = '00000000-0000-4000-8000-000000000003';
@@ -64,4 +64,45 @@ it('configured deputy cannot load reservation orders through the product page', 
   mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'deputy' }, isStaff: true, role: 'staff', operatorAccess: configuredOperatorAccessFixture('deputy') });
   expect(await listGoodsPreorderReservationsAction('g1')).toMatchObject({ ok: false });
   expect(mocks.rpc).not.toHaveBeenCalled();
+});
+
+describe('랜덤 판매 일괄 예약', () => {
+  const second = '00000000-0000-4000-8000-000000000004';
+  const values = { startsAt: '2099-11-20T10:00', endsAt: '2099-11-27T23:59', expectedShipDate: '2099-12-20', approvalReference: '홍실 2차 승인' };
+  const options = [
+    { variantId: variant, policyId: null, expectedRevision: null, capacityQty: '30' },
+    { variantId: second, policyId: null, expectedRevision: null, capacityQty: '20' },
+  ];
+  it('운영자는 초안만 저장하고, 활성화·일반 재고 전환은 관리자에게만 보낸다', async () => {
+    mocks.rpc.mockResolvedValue({ data: { goodId: 'g1', state: 'draft', results: [{}, {}] }, error: null });
+    expect(await saveRandomGoodsPreordersAction('g1', 'draft', values, options)).toMatchObject({ ok: true });
+    expect(mocks.rpc).toHaveBeenLastCalledWith('admin_save_random_goods_preorders', {
+      p_good_id: 'g1', p_state: 'draft',
+      p_values: { startsAt: '2099-11-20T01:00:00.000Z', endsAt: '2099-11-27T14:59:00.000Z', expectedShipDate: '2099-12-20', approvalReference: '홍실 2차 승인' },
+      p_options: [
+        { variantId: variant, policyId: null, expectedRevision: null, capacityQty: 30 },
+        { variantId: second, policyId: null, expectedRevision: null, capacityQty: 20 },
+      ],
+    });
+    mocks.rpc.mockClear();
+    expect(await saveRandomGoodsPreordersAction('g1', 'active', values, options)).toMatchObject({ ok: false });
+    expect(await saveRandomGoodsPreordersAction('g1', 'stock', null, [{ variantId: variant, policyId: policy, expectedRevision: 3 }])).toMatchObject({ ok: false });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+  it('관리자 활성화는 결과 수가 옵션 수와 같아야 성공으로 본다', async () => {
+    mocks.auth.mockResolvedValue({ operatorAccess: legacyOperatorAccessFixture(), isConfigured: true, user: { id: 'admin1' }, isStaff: true, role: 'admin' });
+    mocks.rpc.mockResolvedValue({ data: { goodId: 'g1', state: 'active', results: [{}] }, error: null });
+    expect(await saveRandomGoodsPreordersAction('g1', 'active', values, options)).toMatchObject({ ok: false });
+    mocks.rpc.mockResolvedValue({ data: { goodId: 'g1', state: 'active', results: [{}, {}] }, error: null });
+    expect(await saveRandomGoodsPreordersAction('g1', 'active', values, options)).toMatchObject({ ok: true });
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'random_option_preorder_mismatch' } });
+    const rejected = await saveRandomGoodsPreordersAction('g1', 'active', values, options);
+    expect(rejected).toMatchObject({ ok: false });
+    expect(!rejected.ok && rejected.error).toContain('발송 예정일');
+  });
+  it('물량이 빠진 활성화는 보내지 않는다', async () => {
+    mocks.auth.mockResolvedValue({ operatorAccess: legacyOperatorAccessFixture(), isConfigured: true, user: { id: 'admin1' }, isStaff: true, role: 'admin' });
+    expect(await saveRandomGoodsPreordersAction('g1', 'active', values, [options[0], { ...options[1], capacityQty: '' }])).toMatchObject({ ok: false });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
 });

@@ -25,7 +25,7 @@ import { goodsCustomInputProblem } from '@/lib/goods-custom-inputs';
 import { cartItemKey } from '@/lib/cart';
 import { cartLineOption, cartOptionGood, goodAtQuotedPrice, optionLabel } from '@/lib/goods-options';
 import { goodsPurchaseReasonMessage, goodsSalesQuoteProblem, quoteLineOptionLimitMessage } from '@/lib/goods-sales';
-import { PLACE_ORDER_OPTION_LIMIT_MESSAGES, PLACE_ORDER_RANDOM_OPTION_MESSAGE } from '@/lib/goods-option-sale-mode';
+import { PLACE_ORDER_OPTION_LIMIT_MESSAGES, PLACE_ORDER_RANDOM_OPTION_LIMIT_MESSAGE, PLACE_ORDER_RANDOM_OPTION_MESSAGE } from '@/lib/goods-option-sale-mode';
 import { couponErrorNeedsPendingOrder, MIN_PAYABLE_TOTAL, type UserCouponSummary } from '@/lib/coupons';
 import type { CartCouponState } from '@/lib/coupons.server';
 import { normalizeStoreCreditAmount } from '@/lib/store-credits';
@@ -64,6 +64,7 @@ const actionErrors = {
   option_order_limit_exceeded: PLACE_ORDER_OPTION_LIMIT_MESSAGES.option_order_limit_exceeded,
   option_member_limit_exceeded: PLACE_ORDER_OPTION_LIMIT_MESSAGES.option_member_limit_exceeded,
   random_option_unavailable: PLACE_ORDER_RANDOM_OPTION_MESSAGE,
+  random_option_limit_exceeded: PLACE_ORDER_RANDOM_OPTION_LIMIT_MESSAGE,
   restricted_good_blocked: '지금은 구매할 수 없는 굿즈가 담겨 있어요. 장바구니에서 빼고 다시 시도해주세요.',
   adult_verification_required: '19금 굿즈는 성인 인증을 마친 회원만 주문할 수 있어요. 마이 > 성인 인증에서 인증한 뒤 다시 시도해주세요.',
   empty_cart: '장바구니가 비어 있어요.',

@@ -13,7 +13,9 @@ const QUANTITY_FIELDS = ['orderQuantityLimitEnabled', 'minOrderQty', 'maxOrderQt
 /** 구매 제한 카드의 오류 개수에 세는 칸(상품 단위 수량 + 옵션별 제한 표). */
 const LIMIT_ERROR_FIELDS: readonly string[] = [...QUANTITY_FIELDS, GOOD_OPTION_LIMIT_ERROR_FIELD];
 const PAYMENT_FIELDS = ['allowCardPayment', 'allowBankTransfer', 'saleRestriction'] as const;
-export const GOODS_RANDOM_OPTION_LIMIT_BLOCKED = '랜덤 판매 상품은 옵션별 구매 제한을 쓸 수 없습니다.';
+/** 랜덤 판매 상품의 옵션별 구매 제한 안내. 고객은 옵션을 고르지 않으므로 '같은 옵션 배정 상한' 하나를 모든 옵션에 넣는다. */
+export const GOODS_RANDOM_OPTION_LIMIT_GUIDANCE = '랜덤 판매 상품은 같은 옵션을 주문 1건·회원 1명에게 몇 개까지 배정할지 정합니다. 입력한 값은 모든 옵션에 같이 들어가고, 주문할 때 상한에 닿은 옵션은 빼고 배정합니다.';
+export const GOODS_RANDOM_OPTION_LIMIT_MIXED = '옵션마다 값이 달라 저장할 수 없습니다. 값을 다시 입력하면 모든 옵션에 같은 값이 들어갑니다.';
 
 function QuantityInput({ name, label, value, error, hint }: { name: string; label: string; value: string; error?: string; hint?: string }) {
   const id = `goods-${name}`;
@@ -39,6 +41,39 @@ function optionLimitValue(raw: string): number | null {
   return Number.isFinite(value) ? value : null;
 }
 
+/**
+ * 랜덤 판매 상품: 같은 옵션 배정 상한 한 줄. 값은 모든 옵션 행에 같이 쓴다(DB는 판매 중 옵션이 모두 같은 값이어야 저장한다,
+ * random_option_limit_mismatch). 옵션마다 값이 다르면(랜덤 전환 전 저장값) 첫 판매 중 옵션 값을 보이고 경고한다.
+ */
+function RandomOptionLimitRow({ rows, onRowsChange }: { rows: GoodsOptionRow[]; onRowsChange: Dispatch<SetStateAction<GoodsOptionRow[]>> }) {
+  const active = rows.filter((row) => row.isActive !== false);
+  const sample = active[0] ?? rows[0];
+  const mixed = active.some((row) => (row.orderMaxQty ?? null) !== (sample?.orderMaxQty ?? null) || (row.memberMaxQty ?? null) !== (sample?.memberMaxQty ?? null));
+  function update(field: 'orderMaxQty' | 'memberMaxQty', raw: string) {
+    const value = optionLimitValue(raw);
+    /* 다른 칸도 첫 옵션 값으로 맞춰 모든 옵션이 같은 쌍을 갖게 한다. */
+    const other = field === 'orderMaxQty' ? 'memberMaxQty' : 'orderMaxQty';
+    const otherValue = sample?.[other] ?? null;
+    onRowsChange((current) => current.map((row) => ({ ...row, [field]: value, [other]: otherValue })));
+  }
+  return <>
+    {mixed ? <p className="text-sm font-medium text-[var(--wc-warning)]" role="note">{GOODS_RANDOM_OPTION_LIMIT_MIXED}</p> : null}
+    <div className={GOOD_TABLE_FRAME_CLASS} role="region" aria-label="같은 옵션 배정 상한 표" tabIndex={0}>
+      <Table className="min-w-[30rem]">
+        <TableCaption className="sr-only">같은 옵션 배정 상한(주문당·1인)</TableCaption>
+        <TableHeader className="bg-muted/50"><TableRow className="hover:bg-transparent"><TableHead scope="col" className="px-3">대상</TableHead><TableHead scope="col" className="px-3">같은 옵션 최대(주문당)</TableHead><TableHead scope="col" className="px-3">같은 옵션 최대(1인)</TableHead></TableRow></TableHeader>
+        <TableBody><TableRow data-random-option-limit="">
+          <TableCell className="px-3 whitespace-normal wrap-anywhere">모든 옵션 ({active.length}개)</TableCell>
+          <TableCell className="px-3"><input className={`${GOOD_NUMBER_INPUT_CLASS} max-w-40`} data-slot="input" aria-label="같은 옵션 최대 배정 수량(주문당)" data-error-field={GOOD_OPTION_LIMIT_ERROR_FIELD} type="number" min={1} max={2147483647} step={1} inputMode="numeric" placeholder="제한 없음"
+            value={sample?.orderMaxQty ?? ''} onChange={(event) => update('orderMaxQty', event.target.value)} /></TableCell>
+          <TableCell className="px-3"><input className={`${GOOD_NUMBER_INPUT_CLASS} max-w-40`} data-slot="input" aria-label="같은 옵션 최대 배정 수량(1인)" data-error-field={GOOD_OPTION_LIMIT_ERROR_FIELD} type="number" min={1} max={2147483647} step={1} inputMode="numeric" placeholder="제한 없음"
+            value={sample?.memberMaxQty ?? ''} onChange={(event) => update('memberMaxQty', event.target.value)} /></TableCell>
+        </TableRow></TableBody>
+      </Table>
+    </div>
+  </>;
+}
+
 /** 옵션마다 주문 1건·회원 1명의 최대 수량. 행 JSON(`variants`)의 orderMaxQty·memberMaxQty로 저장된다(D7②). */
 function GoodsOptionLimitTable({ rows, onRowsChange, randomSale, error }: {
   rows: GoodsOptionRow[]; onRowsChange: Dispatch<SetStateAction<GoodsOptionRow[]>>; randomSale: boolean; error?: string;
@@ -48,13 +83,13 @@ function GoodsOptionLimitTable({ rows, onRowsChange, randomSale, error }: {
     onRowsChange((current) => current.map((row) => goodsOptionRowKey(row) === key ? { ...row, [field]: optionLimitValue(raw) } : row));
   }
   /* legend 문구는 가이드가 화면과 대조한다(lib/admin/guide) — 모양은 fieldset의 자식 선택 유틸리티로 입힌다. */
-  return <fieldset className="m-0 flex min-w-0 flex-col gap-3 border-0 border-t p-0 pt-5 [&>legend]:float-left [&>legend]:w-full [&>legend]:p-0 [&>legend]:text-sm [&>legend]:font-medium [&>legend]:text-foreground" data-good-option-limits="" disabled={randomSale} aria-describedby="goods-option-limits-guidance">
+  return <fieldset className="m-0 flex min-w-0 flex-col gap-3 border-0 border-t p-0 pt-5 [&>legend]:float-left [&>legend]:w-full [&>legend]:p-0 [&>legend]:text-sm [&>legend]:font-medium [&>legend]:text-foreground" data-good-option-limits="" aria-describedby="goods-option-limits-guidance">
     <legend>옵션별 구매 제한 (선택)</legend>
     <p id="goods-option-limits-guidance" className="text-sm text-muted-foreground">
-      옵션마다 주문 1건의 최대 구매수량과 1인 최대 구매수량을 따로 정합니다. 비워 두면 그 옵션은 제한하지 않으며, 위 상품 전체 제한과 함께 적용됩니다.
+      {randomSale ? GOODS_RANDOM_OPTION_LIMIT_GUIDANCE
+        : '옵션마다 주문 1건의 최대 구매수량과 1인 최대 구매수량을 따로 정합니다. 비워 두면 그 옵션은 제한하지 않으며, 위 상품 전체 제한과 함께 적용됩니다.'}
     </p>
-    {randomSale ? <p className="text-sm font-medium text-[var(--wc-warning)]" role="note">{GOODS_RANDOM_OPTION_LIMIT_BLOCKED}</p> : null}
-    <div className={GOOD_TABLE_FRAME_CLASS} role="region" aria-label="옵션별 구매 제한 표" tabIndex={0}>
+    {randomSale ? <RandomOptionLimitRow rows={rows} onRowsChange={onRowsChange} /> : <div className={GOOD_TABLE_FRAME_CLASS} role="region" aria-label="옵션별 구매 제한 표" tabIndex={0}>
       <Table className="min-w-[30rem]">
         <TableCaption className="sr-only">옵션별 최대 구매수량(주문당)·1인 최대 구매수량</TableCaption>
         <TableHeader className="bg-muted/50"><TableRow className="hover:bg-transparent"><TableHead scope="col" className="px-3">옵션</TableHead><TableHead scope="col" className="px-3">최대 구매수량(주문당)</TableHead><TableHead scope="col" className="px-3">1인 최대 구매수량</TableHead></TableRow></TableHeader>
@@ -71,7 +106,7 @@ function GoodsOptionLimitTable({ rows, onRowsChange, randomSale, error }: {
           </TableRow>;
         })}</TableBody>
       </Table>
-    </div>
+    </div>}
     <ErrorText>{error}</ErrorText>
   </fieldset>;
 }
@@ -90,18 +125,20 @@ export function GoodsPurchaseLimitFields({ values, current, errors, quantityRead
   quantityReadOnly?: boolean;
   rows: GoodsOptionRow[];
   onRowsChange: Dispatch<SetStateAction<GoodsOptionRow[]>>;
-  /** goods.option_sale_mode='random'이면 옵션별 제한을 쓸 수 없다(DB가 거절한다). */
+  /** goods.option_sale_mode='random'이면 옵션별 제한은 모든 옵션에 같은 '같은 옵션 배정 상한' 한 줄이다. */
   randomSale?: boolean;
 }) {
   const [orderLimit, setOrderLimit] = useState(values.orderQuantityLimitEnabled === 'true');
   const [memberLimit, setMemberLimit] = useState(values.memberPurchaseLimitEnabled === 'true');
   const errorCount = Object.keys(errors ?? {}).filter((key) => errors?.[key] && LIMIT_ERROR_FIELDS.includes(key)).length;
   const optionLimited = rows.filter((row) => row.orderMaxQty != null || row.memberMaxQty != null).length;
+  const randomLimit = randomSale ? rows.find((row) => row.isActive !== false) ?? rows[0] : undefined;
   const live = current ?? values;
   const summary = [
     orderLimit ? `최소 ${live.minOrderQty?.trim() || '?'}·최대 ${live.maxOrderQty?.trim() || '?'}개` : '최소/최대 구매수량 설정안함',
     memberLimit ? `1인 최대 ${live.memberLifetimeQtyLimit?.trim() || '?'}개` : '1인 최대 구매수량 설정안함',
-    ...(optionLimited ? [`옵션별 제한 ${optionLimited}개`] : []),
+    ...(randomLimit && optionLimited ? [`같은 옵션 ${[randomLimit.orderMaxQty != null ? `주문당 ${randomLimit.orderMaxQty}개` : '', randomLimit.memberMaxQty != null ? `1인 ${randomLimit.memberMaxQty}개` : ''].filter(Boolean).join('·') || '상한'}까지`]
+      : optionLimited ? [`옵션별 제한 ${optionLimited}개`] : []),
   ].join(' · ');
   return <GoodFoldedRow title="구매 제한" id="good-section-limits" errorCount={errorCount} summary={summary} isDefault={!orderLimit && !memberLimit && !optionLimited}>
     <div className="flex min-w-0 flex-col gap-5" data-good-purchase-limits="">

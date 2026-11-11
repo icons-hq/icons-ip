@@ -13,6 +13,12 @@
  *   코드 '', stock_qty·supply.availableQty = 풀 합계. `goods_variant_supply`·카테고리 전시·배송비 절약 추천·옵션 재입고 신청도
  *   풀 기준이다.
  * - 운영자 setter `admin_set_goods_option_sale_mode(p_good_id, p_mode, p_expected_updated_at)`, 조회 `admin_goods_option_sale_mode(p_good_id)`.
+ * - 랜덤 예약판매(20261111100000): 판매 중 옵션이 모두 같은 접수 기간·발송 예정일로 예약을 선택했거나 모두 일반 재고다(승인 물량만
+ *   옵션별). 배정은 남은 예약 물량에 비례하고, 공개 공급은 풀 기준이다. 운영자는 일괄 RPC `admin_save_random_goods_preorders`로
+ *   모든 옵션을 한 번에 저장한다.
+ * - 같은 옵션 배정 상한: 랜덤 굿즈에서 옵션별 구매 제한은 '같은 옵션을 한 주문·한 회원에게 몇 개까지 배정하는가'다. 모든 판매 중
+ *   옵션이 같은 값이어야 하고, 배정이 상한을 지킨다. 가능한 수량이 모자라면 `random_option_limit_exceeded: <goodId>`로 거절한다.
+ *   랜덤 한 줄(`goods_random_option`)의 `order_max_qty`·`member_max_qty`는 옵션 수 × 상한, `allocation_limit`은 상한 자체다.
  *
  * 옵션별 구매 제한:
  * - 주문당·1인 누적 한도는 `order_items` BEFORE INSERT 트리거(`private.guard_order_item_variant_purchase_limit`)가 막는다.
@@ -33,16 +39,54 @@ export function isGoodsOptionSaleMode(value: unknown): value is GoodsOptionSaleM
 export const RANDOM_OPTION_LABEL = '랜덤';
 /** 상품 상세 안내(확정 카피). */
 export const RANDOM_OPTION_NOTICE = '옵션은 주문 후 재고에서 무작위로 정해져 발송됩니다. 같은 옵션이 중복될 수 있습니다.';
+/** 랜덤 예약판매 상품 상세 안내(확정 카피, 2026-11-11). */
+export const RANDOM_OPTION_PREORDER_NOTICE = '옵션은 주문 후 예약 물량에서 무작위로 정해져 발송됩니다. 같은 옵션이 중복될 수 있습니다.';
+/** 같은 옵션이 중복될 수 있다는 안내 문장. 1인 배정 상한이 1이면 중복이 없으므로 뺀다. */
+const RANDOM_OPTION_DUPLICATE_SENTENCE = ' 같은 옵션이 중복될 수 있습니다.';
 /** 주문 생성이 random_option_unavailable로 거절됐을 때 주문서 문구. */
 export const PLACE_ORDER_RANDOM_OPTION_MESSAGE = '랜덤 판매 조건이 바뀐 굿즈가 있어요. 장바구니에서 다시 확인해주세요.';
+/** 주문 생성이 random_option_limit_exceeded로 거절됐을 때 주문서 문구(같은 옵션 배정 상한 때문에 그 수량을 배정할 수 없다). */
+export const PLACE_ORDER_RANDOM_OPTION_LIMIT_MESSAGE = '같은 옵션 배정 수량이 정해진 랜덤 굿즈가 있어 지금은 그 수량을 주문할 수 없어요. 장바구니에서 수량을 줄여 다시 시도해주세요.';
+
+/**
+ * 랜덤 판매 상품 상세 안내(확정 카피, 2026-11-11). 예약판매면 '예약 물량에서', 같은 옵션 배정 상한이 있으면 그 문장을 더한다.
+ * 1인 배정 상한이 1이면 같은 옵션을 두 번 받지 않으므로 중복 문장을 뺀다.
+ */
+export function randomOptionNotices({ preorder = false, allocationLimit = null }: {
+  preorder?: boolean;
+  allocationLimit?: GoodsOptionLimitPolicy | null;
+} = {}): string[] {
+  const base = preorder ? RANDOM_OPTION_PREORDER_NOTICE : RANDOM_OPTION_NOTICE;
+  const notices = [allocationLimit?.memberMaxQty === 1 ? base.replace(RANDOM_OPTION_DUPLICATE_SENTENCE, '') : base];
+  const limit = randomOptionAllocationNotice(allocationLimit);
+  if (limit) notices.push(limit);
+  return notices;
+}
+
+/** 같은 옵션 배정 상한 안내 한 문장. 상한이 없으면 null. */
+export function randomOptionAllocationNotice(limit: GoodsOptionLimitPolicy | null | undefined): string | null {
+  if (!limit || (limit.orderMaxQty === null && limit.memberMaxQty === null)) return null;
+  if (limit.orderMaxQty !== null && limit.memberMaxQty !== null) {
+    return `같은 옵션은 한 번에 ${limit.orderMaxQty}개, 1인당 ${limit.memberMaxQty}개까지 배정됩니다.`;
+  }
+  return limit.orderMaxQty !== null
+    ? `같은 옵션은 한 번에 ${limit.orderMaxQty}개까지 배정됩니다.`
+    : `같은 옵션은 1인당 ${limit.memberMaxQty}개까지 배정됩니다.`;
+}
+
+/** 공개 랜덤 한 줄의 `allocation_limit`. 모양이 다르면 null(상한 없음으로 읽는다). */
+export function parseRandomAllocationLimit(value: unknown): GoodsOptionLimitPolicy | null {
+  if (!record(value) || !positiveOrNull(value.orderMaxQty) || !positiveOrNull(value.memberMaxQty)) return null;
+  return { orderMaxQty: value.orderMaxQty, memberMaxQty: value.memberMaxQty };
+}
 
 /** `private.goods_random_option_problem`이 돌려주는 랜덤 판매 불가 사유(setter 거절·커밋 거절 메시지와 같다). */
 export const RANDOM_OPTION_PROBLEMS = [
   'random_option_count',
   'random_option_default_inactive',
-  'random_option_preorder',
+  'random_option_preorder_mismatch',
   'random_option_price_mismatch',
-  'random_option_variant_limits',
+  'random_option_limit_mismatch',
   'random_option_custom_inputs',
   'random_option_aggregation',
   'random_option_group',
@@ -55,9 +99,9 @@ export type RandomOptionProblem = typeof RANDOM_OPTION_PROBLEMS[number];
 const RANDOM_OPTION_PROBLEM_MESSAGES: Record<RandomOptionProblem, string> = {
   random_option_count: '판매 중인 옵션이 2개 이상이어야 랜덤 판매를 쓸 수 있습니다.',
   random_option_default_inactive: '첫 번째(기본) 옵션이 판매 중이어야 랜덤 판매를 쓸 수 있습니다.',
-  random_option_preorder: '예약판매 옵션이 있으면 랜덤 판매를 쓸 수 없습니다.',
+  random_option_preorder_mismatch: '랜덤 판매 상품은 판매 중인 모든 옵션이 같은 접수 기간·발송 예정일로 예약판매하거나 모두 일반 재고로 판매해야 합니다. 예약판매의 랜덤 판매 예약에서 모든 옵션을 한 번에 설정하세요.',
   random_option_price_mismatch: '랜덤 판매 상품은 판매 중인 모든 옵션의 판매가와 기간 할인이 같아야 합니다. 기간 할인은 모든 옵션에 한 번에 넣으세요.',
-  random_option_variant_limits: '랜덤 판매 상품은 옵션별 구매 제한을 쓸 수 없습니다.',
+  random_option_limit_mismatch: '랜덤 판매 상품은 옵션별 구매 제한(같은 옵션 배정 상한)이 판매 중인 모든 옵션에서 같아야 합니다.',
   random_option_custom_inputs: '직접 입력 옵션이 있으면 랜덤 판매를 쓸 수 없습니다.',
   random_option_aggregation: '옵션을 상품으로 나눈 이력이 있는 상품은 랜덤 판매를 쓸 수 없습니다.',
   random_option_group: '그룹상품에 묶인 상품은 랜덤 판매를 쓸 수 없습니다.',

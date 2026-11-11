@@ -116,7 +116,7 @@ select pg_temp.expect_error(format('select public.admin_set_goods_option_sale_mo
 select pg_temp.expect_error(format('select public.admin_set_goods_option_sale_mode(%L,%L,%L)','random-priced','random',(select updated_at from public.goods where id='random-priced')),
  'random_option_price_mismatch','23514');
 select pg_temp.expect_error(format('select public.admin_set_goods_option_sale_mode(%L,%L,%L)','random-limited','random',(select updated_at from public.goods where id='random-limited')),
- 'random_option_variant_limits','23514');
+ 'random_option_limit_mismatch','23514');
 select 1/case when public.admin_goods_option_sale_mode('random-priced')->>'randomProblem'='random_option_price_mismatch'
  and public.admin_goods_option_sale_mode('random-main')->>'randomProblem' is null
  and public.admin_goods_option_sale_mode('random-main')->>'optionSaleMode'='select'
@@ -155,7 +155,7 @@ update public.goods set price=5000 where id='random-main';
 
 -- 조건 재검사: 랜덤 굿즈의 옵션 가격·옵션별 제한·판매 중지·단일 옵션 기간 할인 저장은 커밋에서 거절된다.
 select pg_temp.expect_deferred_error(format('update public.goods_variants set price=6000 where id=%L',:'variant_b'),'random_option_price_mismatch');
-select pg_temp.expect_deferred_error(format('update public.goods_variants set order_max_qty=2 where id=%L',:'variant_c'),'random_option_variant_limits');
+select pg_temp.expect_deferred_error(format('update public.goods_variants set order_max_qty=2 where id=%L',:'variant_c'),'random_option_limit_mismatch');
 select pg_temp.expect_deferred_error(format('update public.goods_variants set archived_at=now() where id in (%L,%L)',:'variant_b',:'variant_c'),'random_option_count');
 select pg_temp.expect_deferred_error(format('update public.goods_variants set archived_at=now() where id=%L',:'variant_a'),'random_option_default_inactive');
 set local role authenticated;

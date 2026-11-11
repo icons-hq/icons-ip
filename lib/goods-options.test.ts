@@ -234,6 +234,14 @@ describe('랜덤 판매(D5②)·옵션별 구매 제한(D7②) 표시 규칙', (
   it('상세 안내는 랜덤 안내와 고른 옵션의 옵션별 제한(확정 카피)이다', () => {
     const random: Good = { ...good, optionSaleMode: 'random', options: collapseRandomGoodOptions(options) };
     expect(goodOptionPurchaseNotices(random, random.options?.[0])).toEqual(['옵션은 주문 후 재고에서 무작위로 정해져 발송됩니다. 같은 옵션이 중복될 수 있습니다.']);
+    /* 랜덤 예약판매 한 줄은 예약 물량 문구, 같은 옵션 배정 상한이 있으면 그 문장을 더한다. */
+    const supply = { mode: 'preorder' as const, availableQty: 10, policyId: '00000000-0000-4000-8000-000000000001', policyRevision: 2,
+      state: 'open' as const, startsAt: '2026-11-20T01:00:00Z', endsAt: '2026-11-27T15:00:00Z', expectedShipDate: '2026-12-20',
+      calculatedAt: '2026-11-21T00:00:00Z', nextChangeAt: '2026-11-27T15:00:00Z' };
+    const randomLine = { ...random.options![0], supply, randomAllocationLimit: { orderMaxQty: 2, memberMaxQty: 1 } };
+    expect(goodOptionPurchaseNotices({ ...random, options: [randomLine] }, randomLine)).toEqual([
+      '옵션은 주문 후 예약 물량에서 무작위로 정해져 발송됩니다.', '같은 옵션은 한 번에 2개, 1인당 1개까지 배정됩니다.',
+    ]);
     const limited = { ...options[1], orderMaxQty: 2, memberMaxQty: 5 };
     expect(goodOptionPurchaseNotices({ ...good, options: [options[0], limited] }, limited)).toEqual([
       "'빨강'은 한 번에 2개까지 주문할 수 있습니다.", "'빨강'은 1인당 5개까지 구매할 수 있습니다.",

@@ -1,5 +1,5 @@
 import { goodsSaleUnavailableLabel } from './goods-sale-period';
-import { goodsOptionLimitMessage, goodsOptionLimitNotices, RANDOM_OPTION_LABEL, RANDOM_OPTION_NOTICE } from './goods-option-sale-mode';
+import { goodsOptionLimitMessage, goodsOptionLimitNotices, RANDOM_OPTION_LABEL, randomOptionNotices } from './goods-option-sale-mode';
 import type { Good, GoodOption } from './data';
 import type { GoodsSalesQuoteLine, GoodsVariantPricing } from './goods-sales';
 
@@ -252,7 +252,9 @@ export function optionOrderLimitMessage(good: Pick<Good, 'name' | 'options'>, op
  * 정적 안내다(남은 수량은 보이지 않는다). 하나뿐인 '기본 옵션'은 이름을 숨기므로 굿즈 이름으로 말한다.
  */
 export function goodOptionPurchaseNotices(good: Pick<Good, 'name' | 'options' | 'optionSaleMode'>, option: GoodOption | undefined): string[] {
-  if (good.optionSaleMode === 'random') return [RANDOM_OPTION_NOTICE];
+  if (good.optionSaleMode === 'random') {
+    return randomOptionNotices({ preorder: option?.supply?.mode === 'preorder', allocationLimit: option?.randomAllocationLimit ?? null });
+  }
   if (!option) return [];
   return goodsOptionLimitNotices(optionLabel(option, good.options?.length ?? 0) ?? good.name,
     { orderMaxQty: option.orderMaxQty ?? null, memberMaxQty: option.memberMaxQty ?? null });

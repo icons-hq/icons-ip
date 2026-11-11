@@ -23,6 +23,7 @@ import { EMPTY_GOODS_NOTICE } from '@/lib/goods-notice';
 import { collapseRandomGoodOptions, goodCompareAtPrice, optionPriceRange } from '@/lib/goods-options';
 import { parseGoodsVariantPricing } from '@/lib/goods-sales';
 import { parseGoodsVariantSupply } from '@/lib/goods-preorders';
+import { parseRandomAllocationLimit } from '@/lib/goods-option-sale-mode';
 import { parseGoodsKcDisclosures } from '@/lib/goods-kc';
 import { imageBg, normalizePublicMediaPath, PUBLIC_MEDIA_BUCKET } from '@/lib/media';
 import { resolvePublicIpLinks } from '@/lib/ip-identity.server';
@@ -167,6 +168,8 @@ interface GoodOptionRow {
   /* D7② 옵션별 구매 제한. 옛 투영(카테고리 전시 RPC 등)에는 없다. */
   order_max_qty?: number | null;
   member_max_qty?: number | null;
+  /* 랜덤 한 줄(`goods_random_option`)만: 같은 옵션 배정 상한 {orderMaxQty, memberMaxQty}. */
+  allocation_limit?: unknown;
 }
 
 export interface GoodRow {
@@ -634,7 +637,8 @@ function toGoodOptions(rows: readonly GoodOptionRow[]): GoodOption[] {
       return [{id: option.id, name: option.name, code: option.code, price: pricing?.effectivePrice ?? option.price,
         stockQty: supply?.availableQty ?? option.stock_qty, isDefault: option.is_default, attributes: option.attributes,
         ...(pricing ? { pricing } : {}), ...(supply ? { supply } : {}),
-        orderMaxQty: option.order_max_qty ?? null, memberMaxQty: option.member_max_qty ?? null}];
+        orderMaxQty: option.order_max_qty ?? null, memberMaxQty: option.member_max_qty ?? null,
+        ...(option.allocation_limit === undefined ? {} : { randomAllocationLimit: parseRandomAllocationLimit(option.allocation_limit) })}];
     });
 }
 

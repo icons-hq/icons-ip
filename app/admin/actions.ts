@@ -49,6 +49,7 @@ import type { AdminCapability } from '@/lib/admin/access';
 import { loadGoodsIpOptions } from '@/lib/admin/goods-list.server';
 import { createClient } from '@/lib/supabase/server';
 import { RANDOM_OPTION_PROBLEMS, goodsOptionSaleModeErrorMessage } from '@/lib/goods-option-sale-mode';
+import { GOOD_OPTION_LIMIT_ERROR_FIELD } from '@/lib/admin/good-workspace';
 
 /*
  * `values`·`attempt` 는 실패한 제출을 폼이 되살리기 위한 값이다(lib/admin/form-state.ts).
@@ -169,13 +170,15 @@ function compareAtPriceFailure(message: string): AdminCatalogActionState | null 
 }
 
 /*
- * D5② 랜덤 판매 상품의 조건(옵션 2개 이상·같은 가격·옵션별 제한 없음·직접입력 없음 등)을 깨는 저장은 DB가 커밋에서
- * random_option_*로 거절한다. 직접입력 조건은 직접입력 칸, 나머지는 옵션 칸에 이유를 붙인다.
+ * D5② 랜덤 판매 상품의 조건(옵션 2개 이상·같은 가격·같은 옵션 배정 상한·직접입력 없음 등)을 깨는 저장은 DB가 커밋에서
+ * random_option_*로 거절한다. 직접입력 조건은 직접입력 칸, 배정 상한은 구매 제한 카드의 옵션별 제한, 나머지는 옵션 칸에 이유를 붙인다.
  */
 function randomOptionSaleModeFailure(message: string): AdminCatalogActionState | null {
   const problem = RANDOM_OPTION_PROBLEMS.find((code) => message.includes(code));
   if (!problem) return null;
-  return { errors: { [problem === 'random_option_custom_inputs' ? 'customInputs' : 'variants']: goodsOptionSaleModeErrorMessage(problem) } };
+  const field = problem === 'random_option_custom_inputs' ? 'customInputs'
+    : problem === 'random_option_limit_mismatch' ? GOOD_OPTION_LIMIT_ERROR_FIELD : 'variants';
+  return { errors: { [field]: goodsOptionSaleModeErrorMessage(problem) } };
 }
 
 const ERP_IDENTITY_TAKEN = {

@@ -13,6 +13,7 @@ import { commonTestOwnership } from '@/lib/admin/goods-group-common.test-fixture
 import { parseGoodsEditorOwnership } from '@/lib/admin/goods-group-common';
 import { GoodsKcTemplateProvider } from '../useGoodsKcTemplate';
 import { GOOD_LOCKED_SELECTS_CLASS } from '../GoodEditorParts';
+import { GOODS_RANDOM_OPTION_LIMIT_GUIDANCE, GOODS_RANDOM_OPTION_LIMIT_MIXED } from '../GoodsSalePolicyFields';
 
 vi.mock('@/app/admin/actions', () => ({
   adjustAdminStockAction: vi.fn(),
@@ -552,14 +553,24 @@ describe('GoodSection', () => {
     expect(html.indexOf('name="allowCardPayment"')).toBeGreaterThan(variants);
   });
 
-  it('저장된 옵션별 제한을 보여주고, 랜덤 판매 상품은 옵션별 제한 입력을 막는다', () => {
+  it('저장된 옵션별 제한을 보여주고, 랜덤 판매 상품은 같은 옵션 배정 상한 한 줄로 입력한다', () => {
     const variant = { id: '11111111-1111-4111-8111-111111111111', goodId: good.id, name: '기본 옵션', code: 'HW-0100-01', price: good.price, stockQty: 12, isDefault: true, archivedAt: null, orderMaxQty: 2, memberMaxQty: null };
     const html = renderGoodSection(good, {}, { variants: [variant] });
     expect(html).toMatch(/<input[^>]*aria-label="기본 옵션 최대 구매수량\(주문당\)"[^>]*value="2"/);
-    expect(html).not.toContain('랜덤 판매 상품은 옵션별 구매 제한을 쓸 수 없습니다.');
-    const random = renderGoodSection({ ...good, optionSaleMode: 'random' } as typeof good, {}, { variants: [variant] });
-    expect(random).toContain('랜덤 판매 상품은 옵션별 구매 제한을 쓸 수 없습니다.');
-    expect(random).toMatch(/<fieldset[^>]*disabled=""[^>]*data-good-option-limits=""|<fieldset[^>]*data-good-option-limits=""[^>]*disabled=""/);
+    expect(html).not.toContain(GOODS_RANDOM_OPTION_LIMIT_GUIDANCE);
+    expect(html).not.toContain('data-random-option-limit=""');
+    const second = { ...variant, id: '22222222-2222-4222-8222-222222222222', name: 'B', code: 'HW-0100-02', isDefault: false };
+    const random = renderGoodSection({ ...good, optionSaleMode: 'random' } as typeof good, {}, { variants: [variant, second] });
+    expect(random).toContain(GOODS_RANDOM_OPTION_LIMIT_GUIDANCE);
+    /* 랜덤 판매 상품은 옵션별 표 대신 모든 옵션에 같은 값을 넣는 한 줄이고, 입력은 막지 않는다. */
+    expect(random).not.toMatch(/<fieldset[^>]*disabled=""[^>]*data-good-option-limits=""|<fieldset[^>]*data-good-option-limits=""[^>]*disabled=""/);
+    expect(random).toContain('모든 옵션 (2개)');
+    expect(random).toMatch(/<input[^>]*aria-label="같은 옵션 최대 배정 수량\(주문당\)"[^>]*value="2"/);
+    expect(random).not.toContain('aria-label="B 최대 구매수량(주문당)"');
+    expect(random).toContain('같은 옵션 주문당 2개까지');
+    expect(random).not.toContain(GOODS_RANDOM_OPTION_LIMIT_MIXED);
+    const mixed = renderGoodSection({ ...good, optionSaleMode: 'random' } as typeof good, {}, { variants: [variant, { ...second, orderMaxQty: null }] });
+    expect(mixed).toContain(GOODS_RANDOM_OPTION_LIMIT_MIXED);
   });
 
   /* 리뷰 T3a-2 — 편집기 안 접이식 영역도 키 밖 펼침 상태(stateId)로 그려 저장 시도마다 다시 접히지 않는다. */
