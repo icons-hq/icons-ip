@@ -25,7 +25,7 @@ const HEADER_ROW = 6;
 const FIRST_ROW = HEADER_ROW + 1;
 
 /**
- * 화면·주문통합검색 파일과 대조하는 16자리 표시 번호.
+ * 화면·주문통합검색 파일과 대조하는 표시 번호(16자리, 주문 시각을 넣은 주문번호·주문 품목 번호는 20자리).
  * 보존 영수증에는 UUID만 있어 파일을 만들 때 읽는다. 번호는 발급 후 바뀌지 않으므로 같은 영수증은 다시 받아도 같은 내용이다.
  * 번호가 없는 옛 건은 UUID로 남는다.
  */
@@ -155,7 +155,7 @@ export async function buildSettledWorkbook(value: unknown, readNumbers?: (snapsh
     ['보존 시각 (KST)', kstDateTimeText(snapshot.capturedAt)], ['영수증', snapshot.receiptId],
     ['건수', `주문 ${model.orders.length.toLocaleString('ko-KR')}건 · 품목 ${model.lines.length.toLocaleString('ko-KR')}행`],
     ['안내', '보존 시각의 주문·품목·배송·쿠폰·결제 기록입니다. 같은 영수증은 다시 받아도 같은 내용입니다.'],
-    ['안내', '주문번호·배송 건 번호·주문 품목 번호는 화면과 같은 16자리 번호입니다. 번호가 없는 옛 기록은 내부 식별값으로 표시합니다.'],
+    ['안내', '주문번호·배송 건 번호·주문 품목 번호는 화면과 같은 16자리 또는 주문 시각을 넣은 20자리 번호입니다(배송 건 번호는 16자리). 번호가 없는 옛 기록은 내부 식별값으로 표시합니다.'],
     ['개인정보', ADMIN_LIST_EXPORT_PRIVACY_NOTICE],
   ]);
   return Buffer.from(await workbook.xlsx.writeBuffer());

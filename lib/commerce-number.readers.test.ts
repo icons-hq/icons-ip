@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { loadSettledExportNumbers } from '@/lib/admin/settled-workbook.server';
 import { parseSmartStoreReplyText } from '@/lib/admin/smartstore-tracking-workbook.server';
 import { parseTrackingImport } from '@/lib/admin/tracking-import';
 import { trackingImportCommand } from '@/lib/admin/warehouse-templates.server';
@@ -53,5 +54,18 @@ describe('ICONS 표준 양식 회신(상품주문번호)', () => {
     expect(parsed.rows).toEqual([]);
     expect(parsed.issues[0].reason).toContain('전체 상품주문번호');
     expect(parsed.issues[1].reason).toContain('숫자로 바뀌어');
+  });
+});
+
+describe('거래확정 엑셀 표시 번호', () => {
+  it('20자리 주문번호·주문 품목 번호와 16자리 배송 건 번호를 그대로 싣고, 형식이 틀린 값은 버린다', async () => {
+    const rows = [{ id: 'order-1', order_number: TIMED_ORDER, order_items: [{ id: 'item-1', product_order_number: TIMED_ITEM }, { id: 'item-2', product_order_number: TIMED_ORDER }],
+      order_shipments: [{ id: 'ship-1', shipment_number: SHIPMENT }, { id: 'ship-2', shipment_number: '20261112143530000009' }] },
+    { id: 'order-2', order_number: LEGACY_ORDER, order_items: [{ id: 'item-3', product_order_number: LEGACY_ITEM }], order_shipments: [] }];
+    const client = { from: () => ({ select: () => ({ in: async () => ({ data: rows, error: null }) }) }) };
+    const numbers = await loadSettledExportNumbers(client as never, ['order-1', 'order-2']);
+    expect([...numbers.orders]).toEqual([['order-1', TIMED_ORDER], ['order-2', LEGACY_ORDER]]);
+    expect([...numbers.items]).toEqual([['item-1', TIMED_ITEM], ['item-3', LEGACY_ITEM]]);
+    expect([...numbers.shipments]).toEqual([['ship-1', SHIPMENT]]);
   });
 });
