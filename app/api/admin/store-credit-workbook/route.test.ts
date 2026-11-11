@@ -13,7 +13,7 @@ describe('credit workbook route',()=>{
  });
  it('exports the same normalized filters without paging the result or caching financial data',async()=>{
   const result=await GET(new Request('http://local/api/admin/store-credit-workbook?privacyConfirmed=yes&mode=ledger&query=fan&from=2026-10-01&kind=grant&page=8'));
-  expect(result.status).toBe(200);expect(result.headers.get('cache-control')).toBe('private, no-store');
+  expect(result.status).toBe(200);expect(result.headers.get('cache-control')).toBe('private, no-store');expect(decodeURIComponent(result.headers.get('content-disposition')!)).toContain('icons-적립금원장-20261012-0900.xlsx');
   expect(mocks.rpc).toHaveBeenCalledWith('admin_export_store_credit_console',{p_mode:'ledger',p_query:'fan',p_from:'2026-10-01',p_to:null,p_kind:'grant'});
  });
  it('rejects truncated and oversized exports',async()=>{

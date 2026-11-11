@@ -5,6 +5,7 @@ import { convertClaimTypeAction, loadClaimTypeContextAction, readClaimTypeChange
 import { claimTypeError, claimTypeReceiptMatches, normalizeClaimTypeRequest, type ClaimTypeContext, type ClaimTypeRequest, type ClaimTypeReceipt } from '@/lib/orders/claim-type-conversion';
 import { ORDER_CLAIM_TYPE_LABELS, ORDER_CLAIM_TYPE_SLUGS } from '@/lib/orders/claims';
 import { formatOrderDateTime } from '@/lib/orders';
+import { startAdminNavigation } from '@/lib/admin/navigation-pending';
 import { useClaimPreviewBusy } from '@/components/admin/screens/ClaimPreviewDialog';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { cn } from 'cn';
@@ -31,8 +32,10 @@ export function ClaimTypeConversionPanel({ initial, onClose, embedded = false }:
     if (!claimTypeReceiptMatches(saved, request) || saved.orderId !== context.orderId || saved.fromType !== context.claimType) { setError('현재 요청과 다른 저장 결과입니다. 같은 요청의 결과를 다시 확인해주세요.'); setUncertain(true); return; }
     dispatched.current = null; setReceipt(saved); setUncertain(false); setError(''); setMessage('');
     setBankName(''); setAccountNumber(''); setAccountHolder('');
-    if (embedded) router.replace(`/admin/sales/claims/${ORDER_CLAIM_TYPE_SLUGS[saved.toType]}?claimId=${saved.claimId}`, { scroll: false });
-    else router.replace(`/admin/sales/claims/${ORDER_CLAIM_TYPE_SLUGS[saved.toType]}/${saved.claimId}`);
+    const destination = embedded ? `/admin/sales/claims/${ORDER_CLAIM_TYPE_SLUGS[saved.toType]}?claimId=${saved.claimId}` : `/admin/sales/claims/${ORDER_CLAIM_TYPE_SLUGS[saved.toType]}/${saved.claimId}`;
+    startAdminNavigation(destination);
+    if (embedded) router.replace(destination, { scroll: false });
+    else router.replace(destination);
     router.refresh();
   }
   async function save() {

@@ -1,4 +1,6 @@
 import { legacyOperatorAccessFixture } from '@/lib/admin/access.test-fixtures';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AdminShell } from './AdminShell';
@@ -133,6 +135,43 @@ describe('AdminShell', () => {
 
   it('본문을 그대로 렌더한다', () => {
     expect(render(<p>주문 목록</p>)).toContain('주문 목록');
+  });
+
+  describe('메뉴 이동(본문을 비우지 않는다)', () => {
+    function Suspended(): never {
+      throw new Promise(() => {});
+    }
+
+    it('공용 loading.tsx를 두지 않는다 — 있으면 메뉴를 누를 때마다 본문이 사라진다', () => {
+      for (const root of ['app/admin/(shell)', 'app/admin/(content)']) expect(existsSync(join(process.cwd(), root, 'loading.tsx'))).toBe(false);
+    });
+
+    it('세로 스크롤바 유무로 상단이 튀지 않게 어드민 셸에서 자리를 항상 잡는다', () => {
+      expect(readFileSync(join(process.cwd(), 'app/styles/admin-kit.css'), 'utf8')).toMatch(/html:has\(\.admin-shell\)\s*\{\s*scrollbar-gutter:\s*stable;/);
+    });
+
+    it('평소에는 골격·진행 표시 없이 본문을 그리고 낭독 칸은 항상 둔다', () => {
+      const html = render(<p>주문 목록</p>);
+      expect(html).not.toContain('data-admin-screen-skeleton');
+      expect(html).not.toContain('data-admin-nav-indicators');
+      expect(html).toMatch(/<p[^>]*data-admin-nav-status=""[^>]*role="status"><\/p>/);
+    });
+
+    it('진입 애니메이션용 클래스와 경로 key를 쓰지 않는다', () => {
+      expect(render()).not.toMatch(/class="rise\b/);
+    });
+
+    it.each([
+      ['/admin/sales/orders', 'list'],
+      ['/admin/cs/chat', 'chat'],
+      ['/admin', 'home'],
+    ])('%s 직접 진입: 본문이 준비되는 동안 %s 골격을 본문 칸에 그린다', (pathname, kind) => {
+      mocks.pathname = pathname;
+      const html = render(<Suspended />);
+      expect(html).toContain(`data-admin-screen-skeleton="${kind}"`);
+      expect(html.indexOf('data-admin-screen-skeleton')).toBeGreaterThan(html.indexOf('id="admin-main"'));
+      expect(html.indexOf('data-admin-screen-skeleton')).toBeLessThan(html.indexOf('</main>'));
+    });
   });
 
   it('상품 등록과 수정 제목을 현재 검색조건에 맞추고 등록 메뉴를 선택한다', () => {

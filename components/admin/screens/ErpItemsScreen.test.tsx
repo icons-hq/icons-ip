@@ -54,6 +54,14 @@ describe('ERP 품목 화면', () => {
     expect(html).not.toMatch(/슬롯|가챠|충전/);
   });
 
+  /* 2026-11-10 사람 눈 시험: 두 화면의 ERP 연결 이름이 비슷해 어디서 해야 하는지 헷갈렸다. */
+  it('이 연결이 쓰이는 곳과 카테고리 관리에서 하는 일을 구분해 알려 준다', () => {
+    const html = renderToStaticMarkup(<ErpItemsScreen data={data()} />);
+    expect(html).toContain('상품 옵션에서 ERP 품목을 고를 때 연결된 카테고리를 제안하는 데만 씁니다.');
+    expect(html).toContain('href="/admin/catalog/categories#category-erp-mapping"');
+    expect(html).toContain('카테고리마다 ERP 코드·품명을 적어 CSV로 내보내는 일도');
+  });
+
   it('품목 반입이 접혀 있으면 화면 머리의 주 행동 버튼이 펼치는 길이고, 펼쳐 있으면 외곽선으로 물러난다', () => {
     const closed = renderToStaticMarkup(<ErpItemsScreen data={data()} />);
     expect(closed).toMatch(/data-admin-kit="page-header"[\s\S]*?<button[^>]*bg-primary[^>]*>(?:<svg[\s\S]*?<\/svg>)?품목 반입<\/button>/);
@@ -68,9 +76,41 @@ describe('ERP 품목 화면', () => {
     expect(html).toContain('ERP 분류 3개 중 2개 연결됨');
     expect(html).toContain('aria-label="문구 &gt; 포토카드 고객 카테고리"');
     expect(html).toContain('같은 경로로 연결 · 문구 &gt; 포토카드');
-    expect(html).toContain(`<option value="${KEYRING}" selected="">문구 &gt; 키링</option>`);
+    expect(html).toMatch(/aria-label="문구 &gt; 키링 고객 카테고리"[^>]*><span[^>]*>문구 &gt; 키링<\/span>/);
     expect(html).toContain('문구 &gt; 단종 · 지금은 연결할 수 없음');
-    expect(html).not.toContain(`<option value="${ARCHIVED}">문구 &gt; 단종</option>`);
+    expect(html).toMatch(/aria-label="문구 &gt; 포토카드 고객 카테고리"[^>]*><span[^>]*>연결 안 함<\/span>/);
+  });
+
+  /* 2026-11-10 운영 실측: 고객 카테고리 말단 약 300개 × ERP 분류 200행이 select마다 그려져 option 59,800개·문서 6.97MB·첫 화면 최대 4.1초였다. */
+  describe('말단 300개·ERP 분류 257행의 첫 화면', () => {
+    const PARENT_ID = '00000000-0000-4000-8000-000000071110';
+    const leafId = (index: number) => `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`;
+    const leaves = (count: number) => [
+      node(PARENT_ID, '문구', null, { childCount: count }),
+      ...Array.from({ length: count }, (_, index) => node(leafId(index), `말단 ${index}`, PARENT_ID)),
+    ];
+    const rows = Array.from({ length: 257 }, (_, index) => ({
+      erpCategory: index % 2 ? `문구 > 말단 ${index % 300}` : `ERP 분류 ${index}`,
+      itemCount: index + 1,
+      categoryId: index % 3 === 0 ? leafId(index % 3) : null,
+      updatedAt: null,
+      fallbackCategoryId: index % 3 === 1 ? leafId(index) : null,
+    }));
+    const elements = (html: string) => html.match(/<[a-z][^>]*>/g)?.length ?? 0;
+    const render = (leafCount: number, erpCategories = rows) => renderToStaticMarkup(<ErpItemsScreen data={data({ erpCategories, categories: leaves(leafCount) })} />);
+
+    it('DOM은 6,000개 아래이고 닫힌 칸에는 선택지가 없다', () => {
+      const html = render(300);
+      expect(elements(html)).toBeLessThan(6_000);
+      expect(html).not.toContain('<option value="00000000-0000-4000-8000-0000000');
+      expect(html.split('말단 299').length - 1).toBeLessThanOrEqual(2);
+    });
+
+    it('카테고리가 늘어도 칸의 DOM은 늘지 않는다(행×카테고리가 아니다)', () => {
+      /* 제안 버튼이 말단 수에 따라 달라지지 않게 어떤 말단과도 맞지 않는 분류로 잰다. */
+      const unmatched = rows.map((row, index) => ({ ...row, erpCategory: `ERP 분류 ${index}`, categoryId: null, fallbackCategoryId: null }));
+      expect(elements(render(300, unmatched))).toBe(elements(render(3, unmatched)));
+    });
   });
 
   it('목록은 선행 0을 그대로 보이고, 연결된 고객 카테고리 경로·판매가·KST 반입일을 보여 준다', () => {
@@ -79,6 +119,9 @@ describe('ERP 품목 화면', () => {
     expect(html).toContain('>0088012345678<');
     expect(html).toContain('12,000원');
     expect(html).toContain('연결 없음');
+    // 저장하면 이 칸이 긴 경로로 바뀐다. 한 줄로 잘라 표 높이가 그대로이고, 전체 경로는 title로 본다(사람 눈 시험 2026-11-10: 아래 표가 176px 밀렸다).
+    expect(html).toMatch(/<span class="block max-w-\[9\.5rem\] truncate" title="문구 &gt; 키링">문구 &gt; 키링<\/span>/);
+    expect(html).toContain('<col style="width:180px"/>');
     expect(html).toContain('dateTime="2026-10-06T16:30:00Z">2026-10-07</time>');
     expect(html).toContain('총 51건');
     expect(html).toContain('aria-label="000123 아크릴 키링 선택"');
@@ -86,7 +129,7 @@ describe('ERP 품목 화면', () => {
     // 체크박스 label은 칸을 덮는 절대 배치라 내용 폭이 없다 — 좁은 화면에서 칸이 0px로 접히지 않게 머리칸 최소 폭을 준다.
     expect(html).toMatch(/<div class="[^"]*\[&amp;_thead_th:first-child\]:min-w-10[^"]*" data-console-grid="">/);
     expect(html).toContain('action="/admin/catalog/erp-items"');
-    // 품목 검색은 GET 폼 제출이다(kit 버튼의 기본 type은 button).
+    // 품목 검색은 GET 폼 제출이다(kit 버튼의 기본 type은 button). next/form이라 화면을 다시 불러오지 않아 연결 표의 입력이 남는다.
     expect(html).toMatch(/<button(?=[^>]*type="submit")[^>]*>검색<\/button>/);
     expect(html).toContain('href="/admin/catalog/erp-items?page=2"');
   });

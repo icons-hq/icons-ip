@@ -84,7 +84,14 @@ describe('admin category actions', () => {
     await expect(saveAdminCategoryErpMappingAction({}, form({ categoryId, erpCode: 'ERP-01', erpName: '문구', source: 'ERP sheet', verifiedAt: '2026-09-10T00:00:00Z' }))).resolves.toEqual({
       message: 'ERP 분류 매핑을 저장했습니다.', changed: true,
     });
-    expect(mocks.rpc).toHaveBeenCalledWith('admin_set_category_erp_mapping', expect.objectContaining({ target_category_id: categoryId, target_erp_code: 'ERP-01' }));
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_set_category_erp_mapping', expect.objectContaining({ target_category_id: categoryId, target_erp_code: 'ERP-01', target_verified_at: '2026-09-10T00:00:00Z' }));
+  });
+
+  /* 표의 검증 시각 칸은 시간대가 없는 값을 보낸다. DB 세션 시간대(UTC)로 저장되면 9시간 어긋나 다시 열 때 다른 시각으로 보인다. */
+  it('시간대 없는 검증 시각은 한국 시간으로 저장한다', async () => {
+    const categoryId = '00000000-0000-4000-8000-000000047499';
+    await saveAdminCategoryErpMappingAction({}, form({ categoryId, erpCode: 'ERP-01', erpName: '문구', source: 'ERP sheet', verifiedAt: '2026-11-10T09:30' }));
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_set_category_erp_mapping', expect.objectContaining({ target_verified_at: '2026-11-10T09:30:00+09:00' }));
   });
 
   it('blocks non-staff before RPC', async () => {

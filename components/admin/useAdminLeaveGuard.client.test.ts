@@ -86,6 +86,21 @@ describe('useAdminLeaveGuard', () => {
     expect(window.confirm).toHaveBeenLastCalledWith('다른 문구');
   });
 
+  it('쿼리만 바뀌어도 입력이 남는 화면은 그런 링크에 묻지 않는다(옵션을 켠 화면만)', () => {
+    const clickQueryLink = () => {
+      (document as unknown as { closest: () => unknown }).closest = () => ({ href: 'https://iconsip.com/admin/settings/store?page=2', target: '', hasAttribute: () => false });
+      const event = Object.assign(new Event('click', { cancelable: true }), { button: 0 });
+      document.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    render({ dirty: true, survivesQueryChange: true });
+    expect(clickQueryLink()).toBe(false);
+    expect(window.confirm).not.toHaveBeenCalled();
+    render({ dirty: true });
+    expect(clickQueryLink()).toBe(true);
+    expect(window.confirm).toHaveBeenCalledOnce();
+  });
+
   it('저장 결과를 기다리는 동안은 묻지 않고 막는다', () => {
     render({ blocked: true });
     expect(clickLink()).toBe(true);

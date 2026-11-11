@@ -5,8 +5,10 @@ import { requireAdminScreenAccess } from '@/lib/admin/guard.server';
 import { adminStatsComparisonFilters, normalizeAdminStatsFilters } from '@/lib/admin/stats';
 import { getAdminClaimsReport, getAdminCustomerReport, getAdminSalesReport } from '@/lib/admin/stats.server';
 import { buildStatsWorkbook } from '@/lib/admin/stats-workbook.server';
+import { adminListExportContentDisposition, kstFileStamp } from '@/lib/admin/list-export';
 
 export const runtime = 'nodejs';
+const REPORT_FILE_LABELS: Record<string, string> = { sales: '판매분석', claims: '취소반품교환분석', customers: '고객분석' };
 export async function GET(request: Request) {
   const params = Object.fromEntries(new URL(request.url).searchParams);
   const kind = params.report;
@@ -33,7 +35,7 @@ export async function GET(request: Request) {
     }
     return new Response(new Uint8Array(bytes), { headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'Content-Disposition': `attachment; filename="icons-${kind}-report.xlsx"`,
+      'Content-Disposition': adminListExportContentDisposition(`icons-${REPORT_FILE_LABELS[kind]}-${kstFileStamp(now)}.xlsx`, `icons-${kind}-report-${kstFileStamp(now)}.xlsx`),
       'Cache-Control': 'private, no-store',
     } });
   } catch (error) {

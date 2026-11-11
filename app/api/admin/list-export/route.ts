@@ -6,6 +6,7 @@ import {
   adminListExportContentDisposition,
   adminListExportFileNames,
   isAdminListExportScreenId,
+  kstFileStamp,
 } from '@/lib/admin/list-export';
 import { buildAdminListExportWorkbook } from '@/lib/admin/list-export.server';
 import {
@@ -58,7 +59,11 @@ export async function POST(request: Request) {
     const tab = definition.id === 'dispatch' || definition.id === 'shipping'
       ? SHIPMENT_CONSOLE_TABS[definition.id].find((item) => item.id === sheet.filters.tab)?.label
       : undefined;
-    const { fileName, asciiFileName } = adminListExportFileNames(definition.id, now, tab);
+    /* 주문통합검색의 상품주문별 보기는 주문별 파일과 구분되는 이름으로 내려준다. */
+    const stamp = kstFileStamp(now);
+    const { fileName, asciiFileName } = definition.id === 'orders' && sheet.filters.view === 'items'
+      ? { fileName: `icons-상품주문별조회-${stamp}.xlsx`, asciiFileName: `icons-order-items-${stamp}.xlsx` }
+      : adminListExportFileNames(definition.id, now, tab);
     return new Response(new Uint8Array(bytes), {
       headers: {
         ...NO_STORE,

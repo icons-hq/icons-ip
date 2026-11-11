@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, it } from 'vitest';
 import { CategoryAssignmentField, createPrimaryChangeAnnouncer, searchAssignableCategories } from './CategoryAssignmentField';
+import { CategoryTemplatesAvailableProvider } from './CategoryTemplatesAvailability';
 const categories = [
   { id: 'primary', name: '문구', code: 'paper', parentId: null, depth: 1, childCount: 0, sortOrder: 0, archivedAt: null, updatedAt: '', assignedGoodCount: 1 },
   { id: 'extra', name: '신학기', code: 'school', parentId: null, depth: 1, childCount: 0, sortOrder: 0, archivedAt: '2026-09-01', updatedAt: '', assignedGoodCount: 1 },
@@ -38,14 +39,26 @@ it('카테고리 검색은 이름·상위 경로·코드를 함께 찾고 말단
   expect(searchAssignableCategories(source, '   ')).toEqual([]);
 });
 
-it('검색·선택·템플릿 진입을 제공하면서 폼의 대표 카테고리 값은 보존한다', () => {
+it('검색·선택 진입을 제공하면서 폼의 대표 카테고리 값은 보존한다', () => {
   const html = renderToStaticMarkup(<CategoryAssignmentField categories={categories} value="primary" />);
   expect(html).toContain('카테고리명 검색');
   expect(html).toContain('카테고리명 선택');
-  expect(html).toContain('카테고리 템플릿');
   expect(html).toContain('name="categoryId"');
   expect(html).toMatch(/<option value="primary" selected="">/);
   expect(html).toContain('선택 해제');
+});
+
+/* 운영 책임자 피드백(2026-11-10): '카테고리 템플릿' 버튼이 무엇인지 몰랐고, 등록 0건이라 누르면 빈 창이었다. */
+it('자주 쓰는 카테고리는 등록된 게 있을 때만 버튼과 관리 링크를 보인다', () => {
+  const field = <CategoryAssignmentField categories={categories} value="primary" />;
+  const none = renderToStaticMarkup(field);
+  expect(none).not.toContain('자주 쓰는 카테고리');
+  expect(none).not.toContain('카테고리 템플릿');
+  const some = renderToStaticMarkup(<CategoryTemplatesAvailableProvider available>{field}</CategoryTemplatesAvailableProvider>);
+  expect(some).toMatch(/<button[^>]*>자주 쓰는 카테고리<\/button>/);
+  expect(some).toContain('자주 쓰는 카테고리 관리 ↗');
+  expect(some).toContain('href="/admin/catalog/category-templates"');
+  expect(some).not.toContain('카테고리 템플릿');
 });
 
 /* 2026-10-07 리뷰: 'ERP 카테고리로 바꾸기'는 select의 change 이벤트 없이 값만 바꿔 브라우저 복구 기록·미리보기 관찰에 잡히지 않았다. */

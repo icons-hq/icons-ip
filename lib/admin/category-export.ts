@@ -1,4 +1,5 @@
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
+import { kstDateTimeText } from './list-export';
 export interface CategoryExportRow {
   code: string;
   name: string;
@@ -39,7 +40,7 @@ export function categoryExportCsv(rows: readonly CategoryExportRow[], includeErp
     row.depth,
     row.status,
     row.assignedGoods,
-    ...(includeErp ? [row.erpCode ?? '', row.erpName ?? '', row.erpSource ?? '', row.erpVerifiedAt ?? ''] : []),
+    ...(includeErp ? [row.erpCode ?? '', row.erpName ?? '', row.erpSource ?? '', kstDateTimeText(row.erpVerifiedAt) || (row.erpVerifiedAt ?? '')] : []),
   ] satisfies readonly (string | number)[]);
   return `\uFEFF${[includeErp ? HEADERS : HEADERS.slice(0, 6), ...values].map((row) => row.map(csvCell).join(',')).join('\r\n')}`;
 }

@@ -37,6 +37,7 @@ describe('review event XLSX contract', () => {
     workbook.eachSheet(worksheet => worksheet.eachRow(item => item.eachCell(cell => expect(readSafeWorkbookCell(cell).error).toBeUndefined())));
     info.eachRow(item => lines.push(String(item.getCell(2).value))); expect(lines).toContain('고객'); expect(lines).toContain('회수됨'); expect(lines).toContain('현재 검색 조건의 전체 페이지');
     expect(sheet.columns.map(value => value.header)).not.toContain('리뷰 본문'); expect(sheet.columns.map(value => value.header)).not.toContain('회원번호');
+    expect(sheet.columns.map(value => value.header).filter(header => /\(원\)|KST/.test(header))).toEqual([]); expect(sheet.columns[13]).toMatchObject({ header: '선정 혜택', kind: 'amount' });
   });
   it('exports no matching results as a valid empty table with query metadata', async () => {
     const bytes = await buildAdminListExportWorkbook(reviewEventExportSheet({ ...snapshot, rows: [], total: 0 }), new Date(snapshot.capturedAt));

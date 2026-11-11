@@ -78,7 +78,7 @@ export function GoodsGroupCommonEditor({ snapshot: initialSnapshot, actorId, ses
     <AdminSectionCard title={`${snapshot.group.name} · 공통정보 편집`}>
       <div className="flex flex-col gap-1.5 text-sm text-muted-foreground">
         <p>연결된 {snapshot.group.members.length}개 상품에 아래 정보를 한 번에 적용합니다. 저장하면 모두 미공개로 전환되고 KC를 다시 검토해야 합니다.</p>
-        <p>그룹명·옵션명·옵션값은 <Link className="text-foreground underline underline-offset-4" href={goodsGroupHref(snapshot.group.id)} onNavigate={leave}>그룹 구성</Link>에서 수정합니다.</p>
+        <p>그룹명·옵션명·옵션값은 <Link className="text-foreground underline underline-offset-4" href={goodsGroupHref(snapshot.group.id)} aria-disabled={operation.pending || undefined} onNavigate={leave}>그룹 구성</Link>에서 수정합니다.</p>
         <p>가격·재고·상품이미지·결제 설정은 개별 상품에서 관리합니다. 입력 내용은 이 화면에만 유지되며 진행 내역에는 요청 식별 정보만 보관됩니다.</p>
       </div>
     </AdminSectionCard>
@@ -133,7 +133,7 @@ export function GoodsGroupCommonEditor({ snapshot: initialSnapshot, actorId, ses
           <GoodSizeChart chart={parseGoodsSizeChart(sizeChart.chart)} />
         </AdminSectionCard>
         {Object.keys(errors).length ? <ul className="list-disc space-y-1 pl-5 text-sm text-destructive" role="alert">{Object.entries(errors).map(([key, error]) => <li key={key}>{error}</li>)}</ul> : null}
-        <div className="flex flex-wrap items-center gap-2"><Button type="submit" disabled={!ready}>{operation.pending ? '저장 중…' : `연결된 ${snapshot.group.members.length}개 상품에 공통정보 적용`}</Button><Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={goodsGroupHref(snapshot.group.id)} onNavigate={leave}>취소</Link></div>
+        <div className="flex flex-wrap items-center gap-2"><Button type="submit" disabled={!ready}>{operation.pending ? '저장 중…' : `연결된 ${snapshot.group.members.length}개 상품에 공통정보 적용`}</Button><Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={goodsGroupHref(snapshot.group.id)} aria-disabled={operation.pending || undefined} onNavigate={leave}>취소</Link></div>
       </fieldset>
     </form>
     {asTemplates && !locked ? <GoodsAfterSalesTemplatePicker onClose={() => setAsTemplates(false)} onSelect={template => { setAfterSales(template); setAfterSalesEnabled(true); setAsTemplates(false); setDirty(true); }} /> : null}

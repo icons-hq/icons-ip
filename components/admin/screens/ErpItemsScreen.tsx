@@ -1,3 +1,4 @@
+import Form from 'next/form';
 import Link from 'next/link';
 import { AdminPageHeader, AdminSectionCard, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { Button } from '@/components/admin/kit/ui/button';
@@ -23,7 +24,7 @@ const COLUMNS: ConsoleGridColumn[] = [
   { key: 'code', label: 'ERP 코드', width: '140px' },
   { key: 'name', label: 'ERP 품명' },
   { key: 'category', label: 'ERP 분류' },
-  { key: 'mapped', label: '고객 카테고리' },
+  { key: 'mapped', label: '고객 카테고리', width: '180px' },
   { key: 'salePrice', label: '판매가', align: 'end', width: '110px' },
   { key: 'barcode', label: '바코드', width: '150px' },
   { key: 'importedAt', label: '최근 반입', width: '110px' },
@@ -33,7 +34,9 @@ export function ErpItemsScreen({ data }: { data: ErpItemsWorkspaceData }) {
   const { filters, page, categories } = data;
   const categoryLabel = (id: string | null) => {
     if (!id) return <span className="text-muted-foreground">연결 없음</span>;
-    return categories.some((category) => category.id === id) ? categoryPath(categories, id).join(' > ') : id;
+    const path = categories.some((category) => category.id === id) ? categoryPath(categories, id).join(' > ') : id;
+    /* 연결을 저장하면 이 칸이 `연결 없음`에서 긴 경로로 바뀐다. 두 줄이 되면 아래 연결 표가 통째로 밀리므로 한 줄로 자르고 전체 경로는 title로 보여 준다. */
+    return <span className="block max-w-[9.5rem] truncate" title={path}>{path}</span>;
   };
   const importOpen = page.total === 0 && !filters.query;
   const rows = page.items.map((item) => ({
@@ -66,12 +69,13 @@ export function ErpItemsScreen({ data }: { data: ErpItemsWorkspaceData }) {
       id="erp-item-list"
       summary={`총 ${page.total.toLocaleString('ko-KR')}건 · ERP 코드 순. 지울 품목은 줄 왼쪽 칸을 체크하면 삭제 버튼이 나타납니다.`}
     >
-      <form action={ERP_ITEMS_PATH} className="flex flex-wrap items-center gap-2" role="search">
+      {/* next/form: 검색도 페이지 넘김처럼 화면을 다시 불러오지 않아, 아래 연결 표에서 고르던 값이 남는다. */}
+      <Form action={ERP_ITEMS_PATH} className="flex flex-wrap items-center gap-2" prefetch={false} role="search">
         <label className="text-sm font-medium whitespace-nowrap" htmlFor="erp-item-query">ERP 코드·품명 검색</label>
         <Input className="w-full sm:w-80" id="erp-item-query" name="q" type="search" defaultValue={filters.query} maxLength={ERP_ITEM_SEARCH_QUERY_MAX} placeholder="예: 000123, 아크릴 키링" />
         <Button variant="soft" type="submit">검색</Button>
         {filters.query ? <Link className="text-sm underline underline-offset-4" href={ERP_ITEMS_PATH}>전체 품목 보기</Link> : null}
-      </form>
+      </Form>
       <ErpItemListGrid
         columns={COLUMNS}
         rows={rows}
@@ -83,10 +87,10 @@ export function ErpItemsScreen({ data }: { data: ErpItemsWorkspaceData }) {
     <AdminSectionCard
       title="ERP 분류 ↔ 고객 카테고리 연결"
       id="erp-category-mapping"
-      summary="ERP 분류마다 고객 카테고리 말단을 하나 연결합니다. 연결은 나중에 바꿀 수 있고, 상품 화면에서 제안된 카테고리도 MD가 바꿀 수 있습니다."
+      summary="ERP 분류마다 마지막 단계 고객 카테고리를 하나 연결합니다. 연결은 나중에 바꿀 수 있고, 상품 화면에서 제안된 카테고리도 MD가 바꿀 수 있습니다."
     >
       <ErpCategoryMappingPanel rows={data.erpCategories} categories={categories} categoryErpMappings={data.categoryErpMappings} />
-      <p className="text-sm text-muted-foreground"><Link className="text-foreground underline underline-offset-4" href={CATEGORY_PATH}>고객 카테고리</Link>에서 말단을 만들거나 보관합니다.</p>
+      <p className="text-sm text-muted-foreground"><Link className="text-foreground underline underline-offset-4" href={CATEGORY_PATH}>카테고리 관리</Link>에서 마지막 단계 카테고리를 만들거나 보관합니다. 카테고리마다 ERP 코드·품명을 적어 CSV로 내보내는 일도 카테고리 관리의 <Link className="text-foreground underline underline-offset-4" href={`${CATEGORY_PATH}#category-erp-mapping`}>ERP 분류 매핑</Link>에서 합니다.</p>
     </AdminSectionCard>
   </section>;
 }

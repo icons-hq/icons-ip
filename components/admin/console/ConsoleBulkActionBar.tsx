@@ -29,6 +29,8 @@ export interface ConsoleBulkActionBarProps {
   label?: string;
   /** 버튼 뒤에 붙일 추가 컨트롤(예: 사유 select). */
   children?: ReactNode;
+  /** 버튼 앞에 둘 입력. 버튼이 이 값을 쓸 때(예: 일괄 적용할 카테고리) 읽는 순서대로 놓는다. */
+  controls?: ReactNode;
   className?: string;
 }
 
@@ -42,6 +44,7 @@ export function ConsoleBulkActionBar({
   actions,
   children,
   className,
+  controls,
   label = '선택한 항목',
   selectedCount,
 }: ConsoleBulkActionBarProps) {
@@ -58,6 +61,7 @@ export function ConsoleBulkActionBar({
       <p aria-live="polite" className="text-sm">
         {label} <strong className="font-semibold tabular-nums">{selectedCount.toLocaleString('ko-KR')}</strong>건
       </p>
+      {controls}
       <div className="flex flex-wrap items-center gap-1.5">
         {actions.map((action) => (
           <button

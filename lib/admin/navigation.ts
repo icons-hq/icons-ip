@@ -24,6 +24,8 @@ export interface AdminScreen {
    * 직접 경로·북마크·다른 화면의 링크로는 계속 열린다(10/27 회의 R21: 그룹상품, 운영에서 꺼진 선물하기·정기구매).
    */
   navHidden?: boolean;
+  /** 메뉴 검색에서 이 화면을 찾는 평소 말. 메뉴 이름에 없는 말만 몇 개 둔다(예: 혜택 등록 → 쿠폰). */
+  keywords?: readonly string[];
 }
 
 /*
@@ -67,8 +69,8 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     screens: [
       { id: 'orders', label: ADMIN_VOCABULARY.orderSearch, href: '/admin/sales/orders', status: 'ready' },
       { id: 'unpaid', label: ADMIN_VOCABULARY.unpaidOrders, href: '/admin/sales/unpaid', status: 'ready' },
-      { id: 'dispatch', label: ADMIN_VOCABULARY.dispatch, href: '/admin/sales/dispatch', status: 'ready' },
-      { id: 'shipping', label: ADMIN_VOCABULARY.shipping, href: '/admin/sales/shipping', status: 'ready' },
+      { id: 'dispatch', label: ADMIN_VOCABULARY.dispatch, href: '/admin/sales/dispatch', status: 'ready', keywords: ['송장', '출고'] },
+      { id: 'shipping', label: ADMIN_VOCABULARY.shipping, href: '/admin/sales/shipping', status: 'ready', keywords: ['택배', '배송조회'] },
       /* 거래확정과 PG 판매대금 지급(정산관리)은 별도 계약이다. */
       { id: 'settled', label: `${ADMIN_VOCABULARY.settled} 내역`, href: '/admin/sales/settled', status: 'ready' },
       /* 선물하기·정기구매는 운영에서 꺼져 있다. 기존 데이터를 다룰 수 있게 라우트·권한은 두고 메뉴에서만 숨긴다(그룹상품과 같은 방식). */
@@ -151,8 +153,8 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     label: '혜택/마케팅',
     icon: 'star',
     screens: [
-      { id: 'coupon-register', label: '혜택 등록', href: '/admin/sales/coupons/new', status: 'ready' },
-      { id: 'coupons', label: '혜택 조회/수정', href: '/admin/sales/coupons', status: 'ready' },
+      { id: 'coupon-register', label: '혜택 등록', href: '/admin/sales/coupons/new', status: 'ready', keywords: ['쿠폰', '쿠폰 발급'] },
+      { id: 'coupons', label: '혜택 조회/수정', href: '/admin/sales/coupons', status: 'ready', keywords: ['쿠폰', '쿠폰 발급'] },
       { id: 'store-credit-console', label: '적립금 지급관리', href: '/admin/sales/store-credits', status: 'ready', adminOnly: true },
       { id: 'marketing-messages', label: '고객 안내 메시지', href: '/admin/marketing/messages', status: 'ready' },
       { id: 'notifications', label: '공지 발송', href: '/admin/messaging/notifications', status: 'ready' },
@@ -201,7 +203,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     screens: [
       { id: 'notice-presets', label: `${ADMIN_VOCABULARY.noticeInfo} 템플릿 관리`, href: '/admin/catalog/notice-presets', status: 'ready' },
       { id: 'goods-event-templates', label: '이벤트 템플릿 관리', href: '/admin/catalog/event-templates', status: 'ready' },
-      { id: 'category-templates', label: '카테고리 템플릿 관리', href: '/admin/catalog/category-templates', status: 'ready' },
+      { id: 'category-templates', label: '자주 쓰는 카테고리 관리', href: '/admin/catalog/category-templates', status: 'ready' },
       { id: 'goods-after-sales-templates', label: 'A/S 템플릿 관리', href: '/admin/catalog/after-sales-templates', status: 'ready' },
       { id: 'size-templates', label: '사이즈 템플릿 관리', href: '/admin/catalog/size-templates', status: 'ready' },
       { id: 'goods-attributes', label: '상품속성 관리', href: '/admin/catalog/attributes', status: 'ready', adminOnly: true },

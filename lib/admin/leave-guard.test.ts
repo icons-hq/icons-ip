@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   ADMIN_LEAVE_CONFIRM_MESSAGE,
   adminFormFingerprint,
+  changesOnlyAdminQuery,
   confirmAdminLeave,
   createAdminFormTracker,
   leavesAdminPage,
@@ -36,6 +37,25 @@ describe('leavesAdminPage', () => {
 
   it('target=_self는 같은 창 이동이다', () => {
     expect(leavesAdminPage(anchor('/admin/cs/faq', { target: '_self' }), CURRENT)).toBe(true);
+  });
+});
+
+describe('changesOnlyAdminQuery', () => {
+  it.each([
+    ['페이지 넘김', '/admin/settings/store?section=business&page=2'],
+    ['쿼리를 지우는 링크', '/admin/settings/store'],
+    ['검색어를 바꾸는 링크', '/admin/settings/store?q=a'],
+  ])('%s는 쿼리만 바뀐다', (_label, href) => {
+    expect(changesOnlyAdminQuery(anchor(href), CURRENT)).toBe(true);
+  });
+
+  it.each([
+    ['다른 메뉴', '/admin/cs/faq'],
+    ['다른 경로의 같은 쿼리', '/admin/cs/faq?section=business'],
+    ['다른 사이트', 'https://example.com/admin/settings/store?page=2'],
+    ['주소가 같은 링크', '/admin/settings/store?section=business'],
+  ])('%s는 쿼리만 바뀌는 이동이 아니다', (_label, href) => {
+    expect(changesOnlyAdminQuery(anchor(href), CURRENT)).toBe(false);
   });
 });
 
@@ -190,6 +210,47 @@ describe('registerAdminLeaveGuard', () => {
     expect(unload()).toBe(true);
     second();
     expect(unload()).toBe(false);
+  });
+
+  /* 2차 사람 눈 시험(2026-11-10): ERP 품목의 페이지 넘김에 "고른 연결이 사라집니다"가 떴지만 값은 그대로 남았다. */
+  describe('쿼리만 바뀌어도 입력이 남는 화면', () => {
+    const NEXT_PAGE = '/admin/settings/store?section=business&page=2';
+
+    it('쿼리만 바뀌는 링크에는 묻지 않는다', () => {
+      guard({ survivesQueryChange: true });
+      expect(click(anchor(NEXT_PAGE)).blocked).toBe(false);
+      expect(confirm).not.toHaveBeenCalled();
+    });
+
+    it('다른 화면으로 가는 링크에는 그대로 묻는다', () => {
+      guard({ survivesQueryChange: true });
+      confirm.mockReturnValue(false);
+      expect(click(anchor('/admin/cs/faq')).blocked).toBe(true);
+      expect(confirm).toHaveBeenCalledOnce();
+    });
+
+    it('옵션을 켜지 않은 화면은 쿼리만 바뀌어도 그대로 묻는다', () => {
+      guard();
+      confirm.mockReturnValue(false);
+      expect(click(anchor(NEXT_PAGE)).blocked).toBe(true);
+      expect(confirm).toHaveBeenCalledOnce();
+    });
+
+    it('한 화면에 옵션 없는 경고가 함께 있으면 그 경고로 묻는다', () => {
+      guard({ survivesQueryChange: true, message: '남는 입력' });
+      guard({ message: '사라지는 입력' });
+      confirm.mockReturnValue(false);
+      expect(click(anchor(NEXT_PAGE)).blocked).toBe(true);
+      expect(confirm).toHaveBeenCalledExactlyOnceWith('사라지는 입력');
+    });
+
+    it('페이지가 통째로 내려가는 이동(beforeunload)과 링크 아닌 이탈은 그대로 지킨다', () => {
+      guard({ survivesQueryChange: true });
+      expect(unload()).toBe(true);
+      confirm.mockReturnValue(false);
+      expect(confirmAdminLeave()).toBe(false);
+      expect(confirm).toHaveBeenCalledOnce();
+    });
   });
 
   it('confirmAdminLeave는 등록된 경고가 있을 때만 묻는다', () => {

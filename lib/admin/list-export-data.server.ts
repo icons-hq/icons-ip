@@ -198,7 +198,7 @@ async function unpaidSheet(params: SearchParams) {
 
 async function shipmentsSheet(surface: 'dispatch' | 'shipping', params: SearchParams) {
   const filters = normalizeShipmentFilters(params, surface);
-  const meta: { value: Pick<ShipmentConsoleData, 'origins' | 'carriers'> | null } = { value: null };
+  const meta: { value: Pick<ShipmentConsoleData, 'origins'> | null } = { value: null };
   let noticeFingerprint: string | undefined;
   const verifyNoticeFingerprint = (data: ShipmentConsoleData) => {
     if (surface !== 'dispatch') return;
@@ -211,20 +211,20 @@ async function shipmentsSheet(surface: 'dispatch' | 'shipping', params: SearchPa
     async (page) => {
       const data = await getShipmentConsoleData({ ...filters, page }, surface, { pageSize: SHIPMENT_PAGE_SIZE });
       verifyNoticeFingerprint(data);
-      meta.value ??= { origins: data.origins, carriers: data.carriers };
+      meta.value ??= { origins: data.origins };
       return { items: data.rows, total: data.total };
     },
     (row) => row.id,
     (row) => row.items.length,
   );
   const lines = await loadSmartStoreDeliveryLines(rows);
+  const deliveries = await orderContacts(rows.map((row) => row.orderId));
   // Recheck the entire result set, including rows outside the first page, after
   // collecting item lines. A channel callback may change results without changing counts.
   if (surface === 'dispatch') verifyNoticeFingerprint(await getShipmentConsoleData({ ...filters, page: 1 }, surface, { pageSize: 1 }));
-  const contacts = new Map<string, ListExportContact | null>();
-  const { origins, carriers } = meta.value ?? { origins: [], carriers: [] };
-  const base = shipmentsListExportSheet({ surface, rows, filters, contacts, origins, carriers });
-  return smartStoreDeliveryListSheet(base, lines);
+  const contacts = new Map([...deliveries].map(([id, value]) => [id, value.contact]));
+  const base = shipmentsListExportSheet({ surface, recordCount: rows.length, filters, origins: meta.value?.origins ?? [] });
+  return smartStoreDeliveryListSheet(base, lines, { shipments: rows, contacts });
 }
 
 async function claimOrders(claimType: OrderClaimType, orderIds: readonly string[]) {
