@@ -73,11 +73,19 @@ select 1/case when (select count(*) from private.order_item_external_identity_sn
 insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot)
  values('60000000-0000-4000-8000-000000052802','50000000-0000-4000-8000-000000052801','00000000-0000-4000-8000-000000042202','남양주',0,'{}');
 set local role authenticated;
--- 김포 21열(wms_csv)에는 바코드 칸이 없다.
-select 1/case when public.admin_shipment_barcode_gaps(array['60000000-0000-4000-8000-000000052801'::uuid])=0
- and public.admin_shipment_barcode_gaps(array['60000000-0000-4000-8000-000000052801'::uuid,'60000000-0000-4000-8000-000000052802'::uuid])=0
+-- 1027T-046(20261112120000): 김포 WMS 양식도 원본 21열 오른쪽에 바코드 칸을 덧붙인다. 김포 출고지 배송 건도 센다.
+select 1/case when public.admin_shipment_barcode_gaps(array['60000000-0000-4000-8000-000000052801'::uuid])=1
+ and public.admin_shipment_barcode_gaps(array['60000000-0000-4000-8000-000000052801'::uuid,'60000000-0000-4000-8000-000000052802'::uuid])=1
  and public.admin_shipment_barcode_gaps(array[]::uuid[])=0
- then 1 else 0 end as assert_gimpo_template_has_no_barcode_column;
+ and public.admin_shipment_barcode_gaps(p_origin_id=>'00000000-0000-4000-8000-000000042201')=1
+ then 1 else 0 end as assert_gimpo_template_counts_appended_barcode_column;
+-- ICONS 표준 양식은 출고지 양식과 관계없이 모든 행에 바코드 칸이 있다.
+select 1/case when public.admin_smartstore_shipment_barcode_gaps(array['60000000-0000-4000-8000-000000052801'::uuid])=1
+ and public.admin_smartstore_shipment_barcode_gaps(array['60000000-0000-4000-8000-000000052801'::uuid,'60000000-0000-4000-8000-000000052802'::uuid])=1
+ and public.admin_smartstore_shipment_barcode_gaps(array[]::uuid[])=0
+ and public.admin_smartstore_shipment_barcode_gaps(p_origin_id=>'00000000-0000-4000-8000-000000042201')=1
+ and public.admin_smartstore_shipment_barcode_gaps(p_origin_id=>gen_random_uuid())=0
+ then 1 else 0 end as assert_standard_layout_counts_every_origin;
 reset role;
 update public.fulfillment_origins set export_template='seowon_xlsx' where id='00000000-0000-4000-8000-000000042201';
 set local role authenticated;
@@ -121,8 +129,20 @@ reset role;
 update public.fulfillment_origins set export_template='standard' where id='00000000-0000-4000-8000-000000042201';
 set local role authenticated;
 -- 표준 기본 12열에는 바코드 칸이 없다(바코드 선택 열을 고른 경우는 아래 표준 양식 절에서 센다).
+-- 같은 배송 건을 ICONS 표준 양식으로 받으면 바코드 칸이 있으므로 센다.
 select 1/case when public.admin_shipment_barcode_gaps(array['60000000-0000-4000-8000-000000052801'::uuid])=0
+ and public.admin_smartstore_shipment_barcode_gaps(array['60000000-0000-4000-8000-000000052801'::uuid])=1
  then 1 else 0 end as assert_standard_twelve_columns_has_no_barcode_column;
+do $$ begin
+ begin perform public.admin_smartstore_shipment_barcode_gaps(array[]::uuid[],'00000000-0000-4000-8000-000000042201'); raise exception 'standard: selection and origin accepted together';
+ exception when invalid_parameter_value then null; end;
+ begin perform public.admin_smartstore_shipment_barcode_gaps(); raise exception 'standard: missing target accepted';
+ exception when invalid_parameter_value then null; end;
+ begin perform public.admin_smartstore_shipment_barcode_gaps(array[null]::uuid[]); raise exception 'standard: null id accepted';
+ exception when invalid_parameter_value then null; end;
+ begin perform public.admin_smartstore_shipment_barcode_gaps(array(select gen_random_uuid() from generate_series(1,1001))); raise exception 'standard: oversized selection accepted';
+ exception when invalid_parameter_value then null; end;
+end $$;
 do $$ begin
  begin perform public.admin_shipment_barcode_gaps(null); raise exception 'null selection accepted';
  exception when invalid_parameter_value then null; end;
@@ -169,6 +189,10 @@ do $$ begin
  perform public.admin_shipment_barcode_gaps(array['60000000-0000-4000-8000-000000052801'::uuid]);
  raise exception 'customer read barcode gaps';
 exception when insufficient_privilege then null; end $$;
+do $$ begin
+ perform public.admin_smartstore_shipment_barcode_gaps(array['60000000-0000-4000-8000-000000052801'::uuid]);
+ raise exception 'customer read standard barcode gaps';
+exception when insufficient_privilege then null; end $$;
 
 -- PostgREST는 STABLE RPC를 POST여도 READ ONLY 트랜잭션에서 실행한다(리뷰 SEC-DB-1).
 -- 경고 조회는 잠금 없는 권한 판정(has_operator_capability)만 써야 읽기 전용 트랜잭션에서 25006 없이 센다.
@@ -181,6 +205,14 @@ select 1/case when (select provolatile='s' and prosecdef
  and not has_function_privilege('anon','public.admin_shipment_barcode_gaps(uuid[],uuid)','execute')
  and not has_function_privilege('service_role','public.admin_shipment_barcode_gaps(uuid[],uuid)','execute')
  then 1 else 0 end as assert_barcode_gaps_is_lock_free_stable_read;
+select 1/case when (select provolatile='s' and prosecdef
+   and prosrc!~'private\.(require_operator_capability|require_actor_operator_capability|lock_operator_subjects|lock_account_action_subject)'
+   and prosrc~'private\.has_operator_capability[[:space:]]*[(]'
+  from pg_proc where oid='public.admin_smartstore_shipment_barcode_gaps(uuid[],uuid)'::regprocedure)
+ and has_function_privilege('authenticated','public.admin_smartstore_shipment_barcode_gaps(uuid[],uuid)','execute')
+ and not has_function_privilege('anon','public.admin_smartstore_shipment_barcode_gaps(uuid[],uuid)','execute')
+ and not has_function_privilege('service_role','public.admin_smartstore_shipment_barcode_gaps(uuid[],uuid)','execute')
+ then 1 else 0 end as assert_standard_barcode_gaps_is_lock_free_stable_read;
 update public.profiles set role='admin' where id='00000000-0000-4000-8000-000000052801';
 update public.fulfillment_origins set export_template='seowon_xlsx' where id='00000000-0000-4000-8000-000000042201';
 -- 이 아래로는 쓰기를 하지 않는다(읽기 전용으로 바꾼 트랜잭션은 다시 읽기·쓰기로 돌릴 수 없다).
@@ -189,6 +221,8 @@ set local role authenticated;
 select 1/case when current_setting('transaction_read_only')='on'
  and public.admin_shipment_barcode_gaps(array['60000000-0000-4000-8000-000000052801'::uuid])=1
  and public.admin_shipment_barcode_gaps(p_origin_id=>'00000000-0000-4000-8000-000000042201')=1
+ and public.admin_smartstore_shipment_barcode_gaps(array['60000000-0000-4000-8000-000000052801'::uuid])=1
+ and public.admin_smartstore_shipment_barcode_gaps(p_origin_id=>'00000000-0000-4000-8000-000000042201')=1
  then 1 else 0 end as assert_barcode_gaps_counts_in_read_only_transaction;
 reset role;
 rollback;
