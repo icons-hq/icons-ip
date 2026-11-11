@@ -75,6 +75,7 @@ export function DiscountPromotionEditorScreen({ identity, options, initial }: {
   const [goods, setGoods] = useState<PickedGood[]>([]), [picker, setPicker] = useState(false);
   const [ruleMode, setRuleMode] = useState<DiscountPromotionRuleMode>('rate'), [ruleValue, setRuleValue] = useState('');
   const [preview, setPreview] = useState<DiscountPromotionPreview | null>(null);
+  /* 상품별 예외는 비교 표에서 정한다. 대상(종류·기획전·IP·선택 상품)을 바꾸면 비운다 — 새 대상에 없는 상품의 예외는 서버가 거절한다. */
   const [drafts, setDrafts] = useState<Record<string, ExceptionDraft>>({});
   const [acknowledged, setAcknowledged] = useState(false), [message, setMessage] = useState('');
   const [receipt, setReceipt] = useState<DiscountPromotionReceipt | null>(null);
@@ -211,16 +212,16 @@ export function DiscountPromotionEditorScreen({ identity, options, initial }: {
         </AdminSectionCard>
         <AdminSectionCard summary="대상 상품은 비교할 때 고정됩니다. 보관한 상품은 할인하지 않습니다." title="대상">
           <fieldset className="flex flex-wrap gap-4"><legend className="sr-only">대상 종류</legend>
-            {(['campaign', 'ip', 'goods'] as DiscountPromotionTargetKind[]).map(value => <label className={CHOICE} key={value}><input checked={kind === value} name="target-kind" onChange={() => setKind(value)} type="radio" value={value} />{DISCOUNT_PROMOTION_TARGET_LABELS[value]}</label>)}
+            {(['campaign', 'ip', 'goods'] as DiscountPromotionTargetKind[]).map(value => <label className={CHOICE} key={value}><input checked={kind === value} name="target-kind" onChange={() => { setKind(value); setDrafts({}); }} type="radio" value={value} />{DISCOUNT_PROMOTION_TARGET_LABELS[value]}</label>)}
           </fieldset>
           {kind === 'campaign' ? <AdminField hint="기획전 본문 상품 묶음 블록의 상품이 대상입니다(블록 순서대로). 블록을 바꿨다면 캠페인을 먼저 저장하세요." inputId={campaignSelectId} label="기획전(캠페인)">
-            <AdminSelect id={campaignSelectId} onChange={event => setCampaignId(event.target.value)} value={campaignId} wrapperClassName="w-full">
+            <AdminSelect id={campaignSelectId} onChange={event => { setCampaignId(event.target.value); setDrafts({}); }} value={campaignId} wrapperClassName="w-full">
               <option value="">기획전을 선택하세요</option>
               {options.campaigns.map(campaign => <option key={campaign.id} value={campaign.id}>{campaign.title} · 상품 {campaign.goodsCount}개 ({campaign.id})</option>)}
             </AdminSelect></AdminField> : null}
           {kind === 'campaign' && selectedCampaign && !selectedCampaign.goodsCount ? <AdminNotice tone="warning">이 기획전 본문에는 상품 묶음 블록의 상품이 없습니다. 캠페인 관리에서 상품 묶음을 먼저 고르세요.</AdminNotice> : null}
           {kind === 'ip' ? <AdminField hint="그 IP의 보관하지 않은 전체 상품이 대상입니다." inputId={ipSelectId} label="IP">
-            <AdminSelect id={ipSelectId} onChange={event => setIpId(event.target.value)} value={ipId} wrapperClassName="w-full">
+            <AdminSelect id={ipSelectId} onChange={event => { setIpId(event.target.value); setDrafts({}); }} value={ipId} wrapperClassName="w-full">
               <option value="">IP를 선택하세요</option>
               {options.ips.map(ip => <option key={ip.id} value={ip.id}>{ip.title} · 상품 {ip.goodsCount.toLocaleString('ko-KR')}개</option>)}
             </AdminSelect></AdminField> : null}
@@ -228,11 +229,11 @@ export function DiscountPromotionEditorScreen({ identity, options, initial }: {
           {kind === 'goods' ? <div className="flex min-w-0 flex-col gap-2">
             <div className="flex flex-wrap items-center gap-2"><Button onClick={() => setPicker(true)} size="sm" type="button" variant="outline">상품 선택</Button>
               <span className="text-sm tabular-nums">선택 {goods.length.toLocaleString('ko-KR')} / {DISCOUNT_PROMOTION_GOODS_LIMIT.toLocaleString('ko-KR')}개</span>
-              {goods.length ? <Button onClick={() => setGoods([])} size="sm" type="button" variant="ghost">선택 비우기</Button> : null}</div>
+              {goods.length ? <Button onClick={() => { setGoods([]); setDrafts({}); }} size="sm" type="button" variant="ghost">선택 비우기</Button> : null}</div>
             <p className={NOTE}>검색으로 고르거나, 선택 창의 ‘여러 상품 한 번에 추가’에 상품 URL·상품코드를 여러 줄로 붙이거나 엑셀 한 열을 올려 담습니다.</p>
             {goods.length ? <ul className="flex max-h-56 flex-col overflow-auto rounded-lg border text-sm">{goods.map(good => <li className="flex items-center gap-2 border-b px-3 py-1.5 last:border-b-0" key={good.id}>
               <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{good.name}<small className="ml-1 text-xs text-muted-foreground">{good.id}</small></span>
-              <Button aria-label={`${good.name} 빼기`} onClick={() => setGoods(current => current.filter(item => item.id !== good.id))} size="icon-sm" type="button" variant="ghost"><X aria-hidden="true" /></Button></li>)}</ul> : null}
+              <Button aria-label={`${good.name} 빼기`} onClick={() => { setGoods(current => current.filter(item => item.id !== good.id)); setDrafts(current => Object.fromEntries(Object.entries(current).filter(([goodId]) => goodId !== good.id))); }} size="icon-sm" type="button" variant="ghost"><X aria-hidden="true" /></Button></li>)}</ul> : null}
           </div> : null}
         </AdminSectionCard>
         <AdminSectionCard summary="모든 대상 상품의 판매 중인 옵션에 같은 율·금액을 적용합니다. 율 계산의 원 미만은 버립니다. 한두 상품만 다르게 하려면 비교 표에서 그 상품만 바꿉니다." title="일괄 할인">
@@ -278,7 +279,8 @@ export function DiscountPromotionEditorScreen({ identity, options, initial }: {
     {status}
     {picker ? <CategoryDisplayGoodsPicker limit={DISCOUNT_PROMOTION_GOODS_LIMIT} onApply={(ids, rows) => {
       const names = new Map([...goods.map(good => [good.id, good.name] as const), ...rows.map(row => [row.id, row.name] as const)]);
-      setGoods(ids.map(id => ({ id, name: names.get(id) ?? id }))); setPicker(false);
+      /* 대상이 바뀌면 빠진 상품의 예외도 버린다(서버는 대상 밖 예외를 거절한다). */
+      setGoods(ids.map(id => ({ id, name: names.get(id) ?? id }))); setDrafts(current => Object.fromEntries(Object.entries(current).filter(([goodId]) => ids.includes(goodId)))); setPicker(false);
     }} onClose={() => setPicker(false)} selected={goods.map(good => good.id)} title="할인할 상품 선택" /> : null}
   </div>;
 }
