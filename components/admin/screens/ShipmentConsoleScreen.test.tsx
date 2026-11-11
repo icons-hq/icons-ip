@@ -242,6 +242,30 @@ describe('발송처리 화면의 행 운송장·배송 방법 (S36-072·S36-X04)
   expect(mixed).toContain('출고지시 내보내기');expect(mixed).toContain('택배 외 발송처리');
  });
 });
+describe('리뷰 반영: 주문번호 글자 팝업·택배 외 필터 안내',()=>{
+ it('배송건번호와 "주문 번호" 글자 모두 같은 목록 위 팝업을 열고, 아이콘만 새 탭으로 연다',()=>{
+  const html=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[row]}}/>);
+  const popup=`href="/admin/sales/dispatch?tab=ready&amp;page=1&amp;orderId=${row.orderId}"`;
+  expect(html.split(popup).length-1).toBe(2);
+  expect(html).toContain('aria-label="배송 건 00000001의 주문 상세 팝업 열기"');expect(html).toMatch(/aria-label="주문 00000001 상세 팝업 열기"[^>]*>주문 00000001/);
+  expect(html).toMatch(/aria-label="주문 00000001 상세 열기 \(새 탭\)"[^>]*target="_blank"|target="_blank"[^>]*aria-label="주문 00000001 상세 열기 \(새 탭\)"/);
+ });
+ it('택배가 섞인 발송 대기 목록에서 체크칸 없는 택배 외 행이 있으면 작업 막대에 방법별 필터 링크를 둔다',()=>{
+  const quick={...row,id:'60000000-0000-4000-8000-000000000002',delivery:shipmentDeliveryFixture({method:'quick'})};
+  const pickup={...row,id:'60000000-0000-4000-8000-000000000003',delivery:shipmentDeliveryFixture()};
+  const mixed=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[row,quick,pickup]}}/>);
+  const bar=mixed.slice(mixed.indexOf('data-sales-workbar'),mixed.indexOf('data-non-parcel-hint')+2000);
+  expect(bar).toContain('택배 외 배송 건 2건은 여기서 고를 수 없습니다');
+  expect(bar).toContain('href="/admin/sales/dispatch?tab=ready&amp;page=1&amp;method=quick">퀵 1건만 보기');
+  expect(bar).toContain('href="/admin/sales/dispatch?tab=ready&amp;page=1&amp;method=pickup">방문수령 1건만 보기');
+  /* 택배 행이 없어 처리 막대가 없는 목록도 안내만 담은 막대를 그리고, 출고지시 버튼은 두지 않는다. */
+  const only=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[pickup]}}/>);
+  expect(only).toContain('data-non-parcel-hint=""');expect(only).not.toContain('출고지시 내보내기');
+  /* 그 방법만 모아 본 목록·다른 탭에는 안내가 없다. */
+  expect(renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,filters:{...base.filters,method:'quick'},rows:[quick]}}/>)).not.toContain('data-non-parcel-hint');
+  expect(renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,filters:{...base.filters,tab:'delayed'},rows:[row,quick]}}/>)).not.toContain('data-non-parcel-hint');
+ });
+});
 describe('물류 출고 권한 화면 숨김 (T05 통합용 props)',()=>{
  it('판매 관리 권한이 없으면 발주확인·합포장 관리·고객 지연 안내·지연 메모·목록 엑셀을 숨기고 출고·운송장·택배 외 발송처리는 남긴다',()=>{
   const delayed=renderToStaticMarkup(<ShipmentConsoleScreen actorId="actor" canManageSales={false} data={{...base,filters:{...base.filters,tab:'delayed'},rows:[row]}}/>);

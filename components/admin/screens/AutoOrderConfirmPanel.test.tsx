@@ -31,6 +31,13 @@ describe('발주 화면의 자동 발주확인 패널', () => {
     /* 저장은 양식 제출(onSubmit)로 간다 — kit Button은 type이 없으면 button이 된다. */
     expect(html).toMatch(/<button[^>]*type="submit"[^>]*>설정 저장</);
   });
+  /* S36-075 리뷰: 남긴 주문도 같은 발주·발송 목록 위 상세 팝업으로 열고, 새 탭은 보조 아이콘으로 남긴다. */
+  it('마지막 실행에서 남긴 주문은 지금 목록 조건 위 팝업으로 열고 새 탭 링크를 따로 둔다', () => {
+    const html = renderToStaticMarkup(<AutoOrderConfirmPanel initial={state} listHref="/admin/sales/dispatch?tab=new&page=2" />);
+    expect(html).toContain('href="/admin/sales/dispatch?tab=new&amp;page=2&amp;orderId=a0c00000-0000-4001-8000-000000000005"');
+    expect(html).toContain('aria-label="주문 2026102610000005 상세 팝업 열기"');
+    expect(html).toMatch(/href="\/admin\/sales\/orders\/a0c00000-0000-4001-8000-000000000005\?back=[^"]*"[^>]*target="_blank"|target="_blank"[^>]*href="\/admin\/sales\/orders\/a0c00000-0000-4001-8000-000000000005/);
+  });
   it('꺼짐에는 다음 실행이 없고, 읽기 실패에도 직접 발주확인 안내를 남긴다', () => {
     const off = renderToStaticMarkup(<AutoOrderConfirmPanel initial={{ ...state, enabled: false, nextRunAt: null, lastRun: null, lastExclusions: [] }} />);
     expect(off).toMatch(/data-tone="warning"[^>]*>꺼짐</); expect(off).toContain('매일 16:30 · 아직 실행 기록 없음'); expect(off).not.toContain('다음 실행');

@@ -24,6 +24,6 @@ export default async function AdminSalesSettledPage({
   const receiptId = typeof query.exportReceipt === 'string' && isSettledExportId(query.exportReceipt) ? query.exportReceipt : undefined;
   return <>
     <SettledScreen data={data} exportRequestId={crypto.randomUUID()} exportReceiptId={receiptId} />
-    {previewId && preview ? <OrderPreviewPopup key={previewId} actorId={auth.user.id} backLabel="거래확정 목록" closeHref={adminSettledHref(filters)} orderId={previewId} preview={preview} /> : null}
+    {previewId && preview ? <OrderPreviewPopup key={previewId} actorId={auth.user.id} closeHref={adminSettledHref(filters)} orderId={previewId} preview={preview} /> : null}
   </>;
 }

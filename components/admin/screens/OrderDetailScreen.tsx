@@ -43,6 +43,7 @@ const ACTION_LABELS: Record<string, string> = {
   'order.preorder_stock_allocated': '예약 재고 할당', 'order.preorder_capacity_released': '예약 물량 해제',
   'admin.shipment.preorder_promise_changed': '예약 발송 일정 변경',
   'admin.shipment.delivery_method_selected': '배송 방식 변경', 'admin.shipment.delivery_evidence_recorded': '인계·수령 근거 기록',
+  'admin.order.forced_delivered': '강제 배송완료',
   'admin.order.address_changed': '배송지 변경',
   'admin.order.status_updated': '주문 상태 변경', 'admin.order.tracking_updated': '운송장 수정',
   'admin.order.note': '운영자 메모', 'admin.order.dispatch_delay_noted': '발송 지연 기록',
@@ -190,6 +191,7 @@ export function OrderDetailScreen({
   canManage = true,
   canViewCustomer = true,
   actorId,
+  embedded = false,
 }: {
   backHref?: string;
   backLabel?: string;
@@ -200,6 +202,8 @@ export function OrderDetailScreen({
   canManage?: boolean;
   canViewCustomer?: boolean;
   actorId?: string;
+  /** 목록 위 상세 팝업(S36-075) 안. 목록 돌아가기 버튼은 팝업 닫기와 겹치고 기록을 쌓으며 스크롤을 올리므로 숨긴다. */
+  embedded?: boolean;
 }) {
   const { order, items } = detail;
   const orderDiscounted = order.discountTotal > 0 || order.storeCreditTotal > 0 || (order.transaction?.totals.volumeDiscountTotal ?? 0) > 0;
@@ -233,7 +237,7 @@ export function OrderDetailScreen({
         <span className="flex items-baseline gap-1.5"><span className="text-muted-foreground">{canceled && !charged && !reversed && !latestRefund ? '주문금액' : '결제금액'}</span><strong className="text-base font-semibold tabular-nums">{money(order.total)}</strong></span>
       </section>
       <div className="flex flex-wrap items-center gap-2">
-        <Link href={backHref} className={buttonVariants({ variant: 'outline' })} data-slot="button">{backLabel}</Link>
+        {embedded ? null : <Link href={backHref} className={buttonVariants({ variant: 'outline' })} data-slot="button">{backLabel}</Link>}
         {canManage ? <Link href={trackingMissing ? `${consoleHref}#sales-order-detail` : consoleHref} className={buttonVariants({ variant: nextStep ? 'default' : 'outline' })} data-slot="button">{nextStep ? `주문 처리 · ${nextStep}` : canceled ? '주문 통합검색에서 보기' : '주문 처리'}</Link> : null}
         {/* 끝난 주문의 배송지는 바꿀 일이 없다. 바뀐 이력은 아래 타임라인에 남아 있다. */}
         {canManage && !addressNotRequired && !canceled ? <OrderAddressButton orderId={order.id} /> : null}

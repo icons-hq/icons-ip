@@ -7,7 +7,7 @@ import {AdminNotice,AdminStatusBadge} from '@/components/admin/console/AdminKit'
 import {AdminCountCard} from '@/components/admin/console/AdminCountCard';
 import {buttonVariants} from '@/components/admin/kit/ui/button';
 import {statusTone} from '@/lib/admin/status-tone';
-import {SHIPMENT_CONSOLE_TABS,SHIPMENT_SEARCH_FIELDS,isParcelShipment,shipmentConsoleHref,shipmentConsoleRowSelectable,shipmentConsoleSelectable,type ShipmentConsoleData} from '@/lib/admin/shipment-dispatch';
+import {SHIPMENT_CONSOLE_TABS,SHIPMENT_SEARCH_FIELDS,isParcelShipment,shipmentConsoleHref,shipmentConsoleNonParcelBatch,shipmentConsoleRowSelectable,shipmentConsoleSelectable,type ShipmentConsoleData} from '@/lib/admin/shipment-dispatch';
 import {ShipmentConsoleRowTracking} from './ShipmentConsoleRowTracking';
 import {ShipmentConsoleMethodButton} from './ShipmentConsoleMethodButton';
 import {OrderPreviewLink,OrderPreviewNewTabLink} from './OrderPreview';
@@ -81,6 +81,14 @@ export function ShipmentConsoleScreen({data,registeredCount,actorId,summaryAside
   {key:'tracking',label:isDispatch?'발송·인계':'배송·수령 확인',width:isDispatch?'132px':'206px'},...(rowTracking?[{key:'dispatch',label:'택배사 · 운송장',width:'176px'}]:[]),
   ...(delayNoticeColumn?[{key:'notice',label:'지연 안내 결과',width:'128px',required:showDelayNotice,defaultVisible:showDelayNotice}]:[]),...(delayNoteColumn?[{key:'delay',label:'지연 메모',width:'260px'}]:[]),
   {key:'method',label:'배송 방식',width:isDispatch?'96px':'84px',...(isDispatch?{}:{defaultVisible:false})}];
+ /* S36-X04: 택배가 섞인 발송 대기 목록에서는 출고지시 전체 선택을 지키려고 택배 외 행에 체크칸을 두지 않는다. 작업 막대에서 방법별 필터로 모아 고르게 안내한다. */
+ const nonParcelReady=isDispatch&&filters.tab==='ready'&&!shipmentConsoleNonParcelBatch('ready',filters.method)
+  ?rows.filter(row=>row.status==='ready'&&row.delivery&&['quick','pickup','direct','freight'].includes(row.delivery.method)):[];
+ const nonParcelMethods=[...new Set(nonParcelReady.map(row=>row.delivery!.method))];
+ const workbarNote=nonParcelReady.length?<span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground" data-non-parcel-hint="">
+  택배 외 배송 건 {nonParcelReady.length}건은 여기서 고를 수 없습니다. 배송방법 필터로 모아 [택배 외 발송처리]로 처리합니다:
+  {nonParcelMethods.map(method=><Link className={CELL_LINK} href={shipmentConsoleHref('dispatch',filters,{method,page:1})} key={method}>{DELIVERY_METHOD_LABELS[method]} {nonParcelReady.filter(row=>row.delivery!.method===method).length}건만 보기</Link>)}
+ </span>:null;
  const gridRows=rows.map(row=>{
   const parcel=isParcelShipment(row);const tracking=parcel?orderShipment(carriers,row.carrier,row.trackingNumber):null;
   const methodLabel=row.delivery?DELIVERY_METHOD_LABELS[row.delivery.method]:parcel?'택배':'확인 필요';
@@ -97,11 +105,15 @@ export function ShipmentConsoleScreen({data,registeredCount,actorId,summaryAside
   /* 출고지시 전달 전 준비 건만 방법을 바꿀 수 있다(배송없음·디지털은 구매 때 정한 방식). 정확한 판정은 팝업이 서버에서 읽는다. */
   const methodChangeable=isDispatch&&row.status==='ready'&&!row.exportedAt&&!row.trackingNumber&&row.delivery?.method!=='none'&&row.delivery?.method!=='digital';
   return {id:row.id,selectable:shipmentConsoleRowSelectable(row,filters.tab,filters.method),selectLabel:`배송 건 ${reference} 선택`,cells:[
-   /* S36-075: 번호를 누르면 같은 목록 위에 주문 상세 팝업을 연다(닫으면 목록·선택·스크롤 그대로). 새 탭 열기는 옆 보조 링크다. */
+   /* S36-075: 배송건번호·주문번호를 누르면 같은 목록 위에 주문 상세 팝업을 연다(닫으면 목록·선택·스크롤 그대로). 새 탭 열기는 옆 아이콘(보조)이다. */
    <div key="id" className={CELL_STACK}>{canReadOrders?<OrderPreviewLink
     href={adminOrderPreviewHref(currentHref,row.orderId)}
+    label={`배송 건 ${reference}의 주문 상세 팝업 열기`}
+   >{reference}</OrderPreviewLink>:<span className="font-medium tabular-nums">{reference}</span>}<span className="flex items-center gap-1">{canReadOrders?<OrderPreviewLink
+    className={`${CELL_NOTE} tabular-nums whitespace-nowrap underline-offset-4 hover:underline`}
+    href={adminOrderPreviewHref(currentHref,row.orderId)}
     label={`주문 ${orderReferenceLabel(row.orderId, row.orderNumber)} 상세 팝업 열기`}
-   >{reference}</OrderPreviewLink>:<span className="font-medium tabular-nums">{reference}</span>}<span className="flex items-center gap-1"><small className={`${CELL_NOTE} tabular-nums whitespace-nowrap`}>주문 {orderReferenceLabel(row.orderId, row.orderNumber)}</small>
+   >주문 {orderReferenceLabel(row.orderId, row.orderNumber)}</OrderPreviewLink>:<small className={`${CELL_NOTE} tabular-nums whitespace-nowrap`}>주문 {orderReferenceLabel(row.orderId, row.orderNumber)}</small>}
     {canReadOrders?<OrderPreviewNewTabLink href={detailHref} label={`주문 ${orderReferenceLabel(row.orderId, row.orderNumber)} 상세 열기 (새 탭)`}/>:null}</span>{row.pack?<AdminStatusBadge tone="neutral">합포장 {row.pack.id.slice(-8).toUpperCase()} · {row.pack.count}건</AdminStatusBadge>:null}</div>,
    /* 출고 전 대조에 쓰는 칸이라 품목·옵션·수량을 줄이지 않는다(10/14 회의 요청). 긴 이름은 잘지 않고 줄을 바꾸며, 수량은 첫 줄 오른쪽에 둔다. */
    <ul key="items" className="flex min-w-44 flex-col gap-1">{row.items.map(item=><li key={item.id}><span className="flex min-w-0 items-baseline gap-1"><span className="min-w-0 flex-1 wrap-anywhere">{item.name}{item.variantName?` · ${item.variantName}`:''}</span><span className="shrink-0 whitespace-nowrap">× {item.qty}</span></span><GoodsCustomInputsSummary selection={item.customInputs} /></li>)}</ul>,
@@ -165,7 +177,7 @@ export function ShipmentConsoleScreen({data,registeredCount,actorId,summaryAside
   {trackingImport}
   <div className="flex min-w-0 basis-full flex-col gap-3">
   <ShipmentConsoleGrid actorId={actorId} rows={rows} columns={columns} gridRows={gridRows} tab={filters.tab} origins={isDispatch?origins:[]} originId={filters.originId}
-   currentHref={shipmentConsoleHref(surface,filters)} readyHref={shipmentConsoleHref('dispatch',filters,{tab:'ready',page:1})} methodFilter={filters.method??null} dispatchActions={isDispatch} canManageSales={canManageSales}/>
+   currentHref={shipmentConsoleHref(surface,filters)} readyHref={shipmentConsoleHref('dispatch',filters,{tab:'ready',page:1})} methodFilter={filters.method??null} dispatchActions={isDispatch} canManageSales={canManageSales} workbarNote={workbarNote}/>
   <ConsolePagination label="배송 건 페이지" page={filters.page} pageSize={data.pageSize} total={data.total} hrefForPage={page=>shipmentConsoleHref(surface,filters,{page})}/>
   </div>
   </div>

@@ -101,7 +101,7 @@ describe('AdminSalesSettledPage', () => {
     const page = await AdminSalesSettledPage({ searchParams: Promise.resolve({ query: 'maple', orderId }) });
     expect(mocks.preview).toHaveBeenCalledWith(expect.objectContaining({ user: mocks.authState.user }), orderId);
     expect(listOf(page).type).toBe(mocks.settledScreen);
-    expect(popupOf(page)).toMatchObject({ key: orderId, props: { orderId, backLabel: '거래확정 목록' } });
+    expect(popupOf(page)).toMatchObject({ key: orderId, props: { orderId } });
     expect(String(popupOf(page)!.props.closeHref)).toMatch(/^\/admin\/sales\/settled\?/);
     expect(String(popupOf(page)!.props.closeHref)).not.toContain('orderId');
   });

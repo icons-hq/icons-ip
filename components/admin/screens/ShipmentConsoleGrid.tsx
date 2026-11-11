@@ -1,5 +1,5 @@
 'use client';
-import {useEffect,useState,useTransition} from 'react';
+import {useEffect,useState,useTransition,type ReactNode} from 'react';
 import {useRouter} from 'next/navigation';
 import {bulkConfirmAdminOrdersAction} from '@/app/admin/order-actions';
 import {completeShipmentsAction,exportPendingOriginShipmentsAction,exportShipmentsAction,originBarcodeGapsAction,shipmentBarcodeGapsAction} from '@/app/admin/shipment-actions';
@@ -39,13 +39,15 @@ function layoutLabel(layout:ShipmentExportLayout,seowonOnly:boolean){
 function defaultExportLayout(origins:readonly ShipmentConsoleOrigin[],originIds:readonly string[]):ShipmentExportLayout{
  return originIds.length>0&&originIds.every(id=>origins.find(origin=>origin.id===id)?.template==='seowon_xlsx')?'warehouse':'smartstore';
 }
-export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,readyHref,actorId,origins=[],originId=null,methodFilter=null,dispatchActions=false,canManageSales=true}:{actorId?:string;rows:ShipmentConsoleRow[];columns:ConsoleGridColumn[];gridRows:ConsoleGridRow[];tab:ShipmentConsoleTab;currentHref:string;readyHref:string;origins?:ShipmentConsoleOrigin[];originId?:string|null;
+export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,readyHref,actorId,origins=[],originId=null,methodFilter=null,dispatchActions=false,canManageSales=true,workbarNote=null}:{actorId?:string;rows:ShipmentConsoleRow[];columns:ConsoleGridColumn[];gridRows:ConsoleGridRow[];tab:ShipmentConsoleTab;currentHref:string;readyHref:string;origins?:ShipmentConsoleOrigin[];originId?:string|null;
  /** 목록의 배송방법 필터. 택배 외 한 방법만 모아 보면 그 건도 일괄 발송처리용으로 고른다. */
  methodFilter?:FulfillmentMethod|null;
  /** 발주·발송 화면: 행 운송장 칸·배송 방법·택배 외 발송처리(S36-072·S36-X04)를 연다. */
  dispatchActions?:boolean;
  /** 판매 관리 권한. 없으면(물류 출고 권한) 발주확인·합포장 관리·고객 지연 안내(이력 포함)를 숨긴다. 출고지시·운송장·발송·배송완료는 그대로다. */
- canManageSales?:boolean}){
+ canManageSales?:boolean;
+ /** 작업 막대 끝에 둘 안내(택배가 섞인 발송 대기 목록의 택배 외 건 필터 안내). 막대가 없는 목록이면 안내만 담은 막대를 그린다. */
+ workbarNote?:ReactNode}){
  const [selected,setSelected]=useState<string[]>([]);const [pending,startTransition]=useTransition();const router=useRouter();
  const [deliveryDialog,setDeliveryDialog]=useState<{ids:string[];mode:ShipmentDeliveryDialogMode}|null>(null);
  const nonParcelBatch=shipmentConsoleNonParcelBatch(tab,methodFilter??undefined);
@@ -190,7 +192,8 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
     {/* 비활성 버튼이 고장처럼 보이지 않게 언제 눌리는지 말한다. */}
     {!ids.length&&!pending&&(tab==='new'||tab==='transit')?<span className="text-xs text-muted-foreground">{SELECT_FIRST}</span>:null}
     {pending?<span className="text-muted-foreground" role="status">처리 중…</span>:null}
-   </div>:null}
+    {workbarNote}
+   </div>:workbarNote?<div className={WORKBAR} data-sales-workbar="">{workbarNote}</div>:null}
    {exportOrigins.length?<div className="flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2" role="group" aria-label="출고지별 새 출고지시 내려받기">
     {!hasBatchActions||nonParcelBatch?<><span className={CONTROL}><Label className="shrink-0 whitespace-nowrap" htmlFor="shipment-export-layout">엑셀 양식</Label><NativeSelect className="max-w-full" id="shipment-export-layout" size="sm" value={layoutChoice??'auto'} disabled={pending} onChange={event=>setLayout(event.target.value==='auto'?null:event.target.value as ShipmentExportLayout)}><option value="auto">출고지 기본 양식 (남양주만 고르면 서원 송장양식 · 그 밖·여러 출고지는 ICONS 표준 양식)</option><option value="smartstore">ICONS 표준 양식</option><option value="warehouse">기존 창고 양식</option></NativeSelect></span>
      <span className={CONTROL}><Label className="shrink-0 whitespace-nowrap" htmlFor="shipment-export-format">파일 형식</Label><NativeSelect id="shipment-export-format" size="sm" value={format} disabled={pending} onChange={event=>setFormat(event.target.value as 'xlsx'|'csv')}><option value="xlsx">Excel (.xlsx)</option><option value="csv">CSV</option></NativeSelect></span>{seowonCsvNote}</>:null}

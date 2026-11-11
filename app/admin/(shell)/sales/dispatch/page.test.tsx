@@ -83,7 +83,7 @@ describe('AdminSalesDispatchPage shipment contract', () => {
     const shown = children(await AdminSalesDispatchPage({ searchParams: Promise.resolve({ tab: 'ready', orderId }) }) as Element);
     expect(mocks.preview).toHaveBeenCalledWith(mocks.authState, orderId);
     expect(shown.slice(0, 3).map(child => child.type)).toEqual([mocks.screen, mocks.autoPanel, mocks.forcedPanel]);
-    expect(shown[3].props).toMatchObject({ orderId, closeHref: '/admin/sales/dispatch?tab=ready&page=1', backLabel: '발주·발송 목록' });
+    expect(shown[3].props).toMatchObject({ orderId, closeHref: '/admin/sales/dispatch?tab=ready&page=1' });
   });
   it('자동 발주확인 설정을 읽지 못해도 발주 목록은 그대로 연다', async () => {
     mocks.loadAuto.mockResolvedValue(null);

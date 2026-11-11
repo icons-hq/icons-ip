@@ -155,9 +155,9 @@ it('`?orderId=`가 있으면 주문 목록·상품주문 목록 위에 같은 �
   const orders = await AdminSalesOrdersPage({ searchParams: Promise.resolve({ status: 'paid', page: '2', orderId }) });
   expect(mocks.preview).toHaveBeenCalledWith(expect.objectContaining({ user: mocks.authState.user }), orderId);
   expect(listOf(orders).type).toBe(mocks.ordersSection);
-  expect(popupOf(orders)).toMatchObject({ key: orderId, props: { orderId, backLabel: '주문 목록', closeHref: '/admin/sales/orders?status=paid&page=2' } });
+  expect(popupOf(orders)).toMatchObject({ key: orderId, props: { orderId, closeHref: '/admin/sales/orders?status=paid&page=2' } });
   const items = await AdminSalesOrdersPage({ searchParams: Promise.resolve({ view: 'items', orderId }) });
   expect(listOf(items).type).toBe(mocks.orderItemsScreen);
-  expect(popupOf(items)?.props).toMatchObject({ backLabel: '상품주문 목록', closeHref: '/admin/sales/orders?page=1&view=items' });
+  expect(popupOf(items)?.props).toMatchObject({ closeHref: '/admin/sales/orders?page=1&view=items' });
   expect(popupOf(await AdminSalesOrdersPage({ searchParams: Promise.resolve({ orderId: 'x' }) }))).toBeNull();
 });

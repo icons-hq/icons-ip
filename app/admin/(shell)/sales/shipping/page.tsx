@@ -17,6 +17,6 @@ export default async function AdminSalesShippingPage({searchParams}:{searchParam
   const registeredCount=typeof registered==='string'&&/^\d{1,4}$/.test(registered)&&Number(registered)>=1&&Number(registered)<=1000?Number(registered):null;
   return <>
     <ShipmentConsoleScreen data={data} registeredCount={registeredCount}/>
-    {previewId&&preview?<OrderPreviewPopup key={previewId} actorId={auth.user.id} backLabel="배송현황 목록" closeHref={shipmentConsoleHref('shipping',filters)} orderId={previewId} preview={preview}/>:null}
+    {previewId&&preview?<OrderPreviewPopup key={previewId} actorId={auth.user.id} closeHref={shipmentConsoleHref('shipping',filters)} orderId={previewId} preview={preview}/>:null}
   </>;
 }

@@ -173,3 +173,13 @@ it('query-only detail does not mount any shipment or claim operation, note, or g
   expect(html).toContain('주문 당시 상품명');
   for (const text of ['판매자 직접 반품·교환 접수', '배송 방식·인계 확인', '고객 상세 열기', '>주문 처리<', 'name="body"']) expect(html).not.toContain(text);
 });
+
+/* S36-075 리뷰: 목록 위 팝업 안에서는 목록 돌아가기 버튼이 팝업 닫기와 겹치고 기록을 쌓으며 스크롤을 올리므로 숨긴다. */
+it('embedded(목록 위 팝업)에서는 머리의 목록 버튼을 그리지 않고, 강제 배송완료 감사 기록에 이름을 붙인다', () => {
+  const standalone = renderToStaticMarkup(<OrderDetailScreen backHref="/admin/sales/dispatch?tab=ready&page=1" backLabel="발주·발송 목록" detail={detail} noteOperationId="operation" />);
+  expect(standalone).toContain('>발주·발송 목록<');
+  const embedded = renderToStaticMarkup(<OrderDetailScreen backHref="/admin/sales/dispatch?tab=ready&page=1" backLabel="발주·발송 목록" detail={{ ...detail, timeline: [...detail.timeline,
+    { id: 'five', source: 'status', occurredAt: '2026-09-01T05:00:00Z', action: 'admin.order.forced_delivered', actorName: '수민' }] }} embedded noteOperationId="operation" />);
+  expect(embedded).not.toContain('>발주·발송 목록<');
+  expect(embedded).toContain('>강제 배송완료<');
+});

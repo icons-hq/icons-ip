@@ -25,9 +25,9 @@ export default async function AdminSalesDispatchPage({searchParams}:{searchParam
   return <section className="flex min-w-0 flex-col gap-6">
     <ShipmentConsoleScreen data={data} actorId={auth.user.id} summaryAside={autoStatus}/>
     {/* key를 두지 않는다 — 저장 뒤 다시 그릴 때 패널이 새로 마운트되면 저장 결과 문구와 포커스가 사라진다. 새 설정은 패널이 맞춘다. */}
-    <AutoOrderConfirmPanel initial={autoConfirmation}/>
+    <AutoOrderConfirmPanel initial={autoConfirmation} listHref={shipmentConsoleHref('dispatch',filters)}/>
     {/* 1014-083: 운영에서도 배송 처리 권한자가 사유·확인창·감사 기록을 남기고 강제 배송완료한다(스테이징 전용 테스트 배송완료를 대체). */}
     {hasAdminCapability(auth,'sales.manage')?<ForcedDeliveryPanel/>:null}
-    {previewId&&preview?<OrderPreviewPopup key={previewId} actorId={auth.user.id} backLabel="발주·발송 목록" closeHref={shipmentConsoleHref('dispatch',filters)} orderId={previewId} preview={preview}/>:null}
+    {previewId&&preview?<OrderPreviewPopup key={previewId} actorId={auth.user.id} closeHref={shipmentConsoleHref('dispatch',filters)} orderId={previewId} preview={preview}/>:null}
   </section>;
 }

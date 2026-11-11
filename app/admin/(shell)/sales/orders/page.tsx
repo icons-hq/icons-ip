@@ -35,7 +35,7 @@ export default async function AdminSalesOrdersPage({
     const [data, loaded] = await Promise.all([getAdminOrderItemData(itemFilters), preview]);
     return <>
       <OrderItemsScreen data={data} canManage={hasAdminCapability(auth, 'sales.manage')} />
-      {previewId && loaded ? <OrderPreviewPopup key={previewId} actorId={auth.user.id} backLabel="상품주문 목록" closeHref={adminOrderItemsHref(itemFilters)} orderId={previewId} preview={loaded} /> : null}
+      {previewId && loaded ? <OrderPreviewPopup key={previewId} actorId={auth.user.id} closeHref={adminOrderItemsHref(itemFilters)} orderId={previewId} preview={loaded} /> : null}
     </>;
   }
 
@@ -49,6 +49,6 @@ export default async function AdminSalesOrdersPage({
 
   return <>
     <OrdersSection data={orders} canManage={hasAdminCapability(auth, 'sales.manage')} />
-    {previewId && loaded ? <OrderPreviewPopup key={previewId} actorId={auth.user.id} backLabel="주문 목록" closeHref={adminOrdersHref(filters)} orderId={previewId} preview={loaded} /> : null}
+    {previewId && loaded ? <OrderPreviewPopup key={previewId} actorId={auth.user.id} closeHref={adminOrdersHref(filters)} orderId={previewId} preview={loaded} /> : null}
   </>;
 }

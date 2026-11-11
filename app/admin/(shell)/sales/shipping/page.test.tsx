@@ -61,7 +61,7 @@ describe('주문 상세 팝업 (S36-075)', () => {
     expect(mocks.load).toHaveBeenCalledWith(expect.objectContaining({ tab: 'transit', query: 'maple' }), 'shipping');
     const [list, popup] = parts(page);
     expect(list.type).toBe(mocks.screen);
-    expect(popup).toMatchObject({ key: orderId, props: { orderId, closeHref: '/admin/sales/shipping?tab=transit&page=1&query=maple', backLabel: '배송현황 목록' } });
+    expect(popup).toMatchObject({ key: orderId, props: { orderId, closeHref: '/admin/sales/shipping?tab=transit&page=1&query=maple' } });
     expect(String(popup!.props.closeHref)).not.toContain('orderId');
   });
   it('UUID가 아닌 orderId는 무시한다', async () => {
