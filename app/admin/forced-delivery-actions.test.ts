@@ -9,7 +9,7 @@ vi.mock('next/navigation', () => ({ unstable_rethrow: () => {} }));
 const id = 'f0dd0000-0000-4000-8000-0000000000c1', orderId = 'f0dd0000-0000-4001-8000-000000000001', orderNumber = '2026111110000001';
 const receipt = { orderId, orderNumber, status: 'delivered', deliveredShipments: 1, orderCount: 1, deliveredAt: '2026-11-11T02:00:00Z' };
 const preview = { orderId, orderNumber, status: 'confirmed', createdAt: '2026-11-11T00:00:00Z', buyerName: '구매자', itemCount: 1, firstItemName: '굿즈', orderCount: 1,
-  shipments: [{ id: 'f0dd0000-0000-4002-8000-000000000001', shipmentNumber: '2026111130000001', orderNumber, originName: '김포', status: 'ready', method: 'parcel', carrier: null, trackingNumber: null }], blockers: [] };
+  shipments: [{ id: 'f0dd0000-0000-4002-8000-000000000001', shipmentNumber: '2026111130000001', orderNumber, originName: '김포', status: 'ready', method: 'parcel', carrier: null, trackingNumber: null, exportedAt: null }], blockers: [] };
 beforeEach(() => { vi.clearAllMocks(); mocks.access.mockResolvedValue(true); });
 
 describe('운영 강제 배송완료 (1014-083)', () => {
@@ -40,8 +40,8 @@ describe('운영 강제 배송완료 (1014-083)', () => {
   it('DB 거절 사유를 운영자 문구로 보여 주고 다른 주문의 응답은 받지 않는다', async () => {
     mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: '23514', message: 'forced_delivery_requires_confirmed' } });
     expect(await forceOrderDeliveredAction(orderNumber, '시험', id)).toEqual({ error: expect.stringContaining('발주확인 뒤') });
-    mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: '23514', message: 'forced_delivery_parcel_only' } });
-    expect(await forceOrderDeliveredAction(orderNumber, '시험', id)).toEqual({ error: expect.stringContaining('택배 외 배송 건') });
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: '23514', message: 'forced_delivery_digital_access_only' } });
+    expect(await forceOrderDeliveredAction(orderNumber, '시험', id)).toEqual({ error: expect.stringContaining('디지털 파일') });
     mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: '23505', message: 'operation_conflict' } });
     expect(await forceOrderDeliveredAction(orderNumber, '시험', id)).toEqual({ error: expect.stringContaining('같은 요청 번호') });
     mocks.rpc.mockResolvedValueOnce({ data: { ...receipt, orderNumber: '2026111110000002' }, error: null });

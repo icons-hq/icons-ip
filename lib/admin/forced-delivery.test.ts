@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FORCED_DELIVERY_BLOCKERS, forcedDeliveryBlockerLabel, forcedDeliveryError, normalizeForcedDeliveryOrderNumber, parseForcedDeliveryReceipt } from './forced-delivery';
+import { FORCED_DELIVERY_BLOCKERS, forcedDeliveryBlockerLabel, forcedDeliveryError, forcedDeliveryExportedPending, forcedDeliveryTargets, normalizeForcedDeliveryOrderNumber, parseForcedDeliveryPreview, parseForcedDeliveryReceipt } from './forced-delivery';
 
 describe('운영 강제 배송완료 값 (1014-083)', () => {
   it('주문번호는 공백·하이픈을 빼고 주문번호 형식(주문번호 모듈 판정)일 때만 받는다', () => {
@@ -12,6 +12,16 @@ describe('운영 강제 배송완료 값 (1014-083)', () => {
     expect(parseForcedDeliveryReceipt(receipt)).toEqual(receipt);
     expect(parseForcedDeliveryReceipt({ ...receipt, deliveredShipments: 0 })).toBeNull();
     expect(parseForcedDeliveryReceipt({ ...receipt, staging: true })).toBeNull();
+  });
+  it('미리보기는 출고지시 전달 여부를 받고, 디지털 파일은 이번 대상에서 빼며 전달된 발송 전 건을 따로 센다', () => {
+    const base = { orderId: 'f0dd0000-0000-4001-8000-000000000001', orderNumber: '2026111110000001', status: 'confirmed', createdAt: '2026-11-11T00:00:00Z', buyerName: '구매자',
+      itemCount: 2, firstItemName: '굿즈', orderCount: 1, blockers: [] };
+    const shipment = { id: 'f0dd0000-0000-4002-8000-000000000001', shipmentNumber: null, orderNumber: '2026111110000001', originName: '김포', status: 'ready', method: 'parcel', carrier: null, trackingNumber: null, exportedAt: '2026-11-11T01:00:00Z' };
+    const preview = parseForcedDeliveryPreview({ ...base, shipments: [shipment, { ...shipment, id: 'f0dd0000-0000-4002-8000-000000000002', method: 'digital', exportedAt: null }, { ...shipment, id: 'f0dd0000-0000-4002-8000-000000000003', method: 'quick', exportedAt: null }] })!;
+    expect(forcedDeliveryTargets(preview).map(row => row.method)).toEqual(['parcel', 'quick']);
+    expect(forcedDeliveryExportedPending(preview).map(row => row.id)).toEqual([shipment.id]);
+    expect(parseForcedDeliveryPreview({ ...base, shipments: [{ ...shipment, exportedAt: 'yesterday' }] })).toBeNull();
+    expect(parseForcedDeliveryPreview({ ...base, shipments: [], blockers: ['parcel_only'] })).toBeNull();
   });
   it('막는 사유와 DB 거절은 모두 운영자 문구가 있다', () => {
     for (const blocker of FORCED_DELIVERY_BLOCKERS) expect(forcedDeliveryBlockerLabel(blocker).length).toBeGreaterThan(10);
