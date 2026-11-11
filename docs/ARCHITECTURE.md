@@ -297,7 +297,7 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 
 ## 6. 권한 모델 (RLS)
 
-판매자센터는 통합 매니저·계정 주매니저·계정 부매니저·인플루언서·대행사·물류출고관리의 6역할을 `private.operator_memberships`에 보관한다. `admin_current_operator_access()`의 현재 업무 권한을 `lib/admin/access.ts`에서 해석하고 메뉴·홈 요약·도움말 진입점·화면 로더·서버 액션에 동일하게 적용한다. 권한 조회 실패나 알 수 없는 화면은 접근을 거절한다. `profiles.role`은 운영 계정의 기본 자격으로 남지만 단독으로 접근을 허용하지 않으며, 담당업무 표시는 접근 권한을 바꾸지 않는다. [ADR-0020](./adr/0020-store-manager-capabilities.md), [운영 런북](./runbooks/operator-access.md).
+판매자센터는 통합 매니저·계정 주매니저·계정 부매니저·인플루언서·대행사·물류출고관리의 6역할을 `private.operator_memberships`에 보관한다. `admin_current_operator_access()`의 현재 업무 권한을 `lib/admin/access.ts`에서 해석하고 메뉴·홈 요약·도움말 진입점·화면 로더·서버 액션에 동일하게 적용한다. 권한 조회 실패나 알 수 없는 화면은 접근을 거절한다. `profiles.role`은 운영 계정의 기본 자격으로 남지만 단독으로 접근을 허용하지 않으며, 담당업무 표시는 접근 권한을 바꾸지 않는다. 물류출고관리는 출고 전용 능력 `sales.dispatch`로 발주(주문)확인/발송관리·배송현황 관리의 출고지시 내려받기·운송장 회신·발송·배송완료만 처리하고, `sales.manage`는 이 능력을 포함한다(DB `private.has_operator_capability`·앱 `hasAdminCapability`가 같은 함의 표를 쓴다). [ADR-0020](./adr/0020-store-manager-capabilities.md), [운영 런북](./runbooks/operator-access.md).
 
 전환 전 호환 권한은 migration 시점에 기록한 기존 운영자 ID에만 적용한다. 명시적 역할은 전환 완료 전에도 제한되고, 신규 raw staff/admin은 호환 권한을 얻지 않는다. 최초 활성화는 통합 매니저 1명과 기존 운영자 전원의 역할 또는 회수를 한 트랜잭션으로 확정한다. 통합 매니저의 일반 회수·정지·삭제는 차단하고 승계 경로를 사용한다. 기존 역할 변경 RPC의 실행 권한은 회수했다.
 
