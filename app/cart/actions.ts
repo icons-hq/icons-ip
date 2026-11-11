@@ -17,6 +17,7 @@ import { parseCartAdditionRequest, parseCartAdditionSnapshot } from '@/lib/cart-
 import { readCompleteIdPages } from '@/lib/supabase/complete-id-pages';
 import { adultGoodsRestrictions } from '@/lib/adult-goods';
 import { getAdultGoodsAccess } from '@/lib/adult-goods-access.server';
+import { cartLineIdentityPayload } from '@/lib/checkout-selection';
 
 const SYNC_ERROR = '장바구니를 동기화하지 못했습니다. 다시 시도해주세요.';
 const SAVE_ERROR = '장바구니를 저장하지 못했습니다. 다시 시도해주세요.';
@@ -180,6 +181,25 @@ export async function setCartItemQuantityAction(
 
 export async function deleteCartItemAction(goodIdValue: unknown, variantIdValue: unknown, customInputsValue?: unknown): Promise<CartActionResult> {
   return setCartItemQuantityAction(goodIdValue, 0, variantIdValue, customInputsValue);
+}
+
+/** DB 일괄 삭제가 받는 줄 수 상한(remove_cart_lines). 장바구니 스냅샷 계약과 같은 값이다. */
+const MAX_REMOVE_LINES = 19239;
+
+/**
+ * 장바구니 선택 삭제·전체 비우기(ADR-0030 · 1014-035·036). 화면이 보고 있는 줄만 넘긴다 — 전체 비우기도
+ * 다른 탭에서 막 담겨 아직 보이지 않은 줄은 지우지 않는다. 이미 없는 줄은 DB가 조용히 건너뛴다.
+ */
+export async function removeCartLinesAction(linesValue: unknown): Promise<CartActionResult> {
+  const lines = normalizeCartItems(linesValue);
+  if (!Array.isArray(linesValue) || !lines.length || lines.length !== linesValue.length || lines.length > MAX_REMOVE_LINES) {
+    return { ok: false, mode: 'server', error: INPUT_ERROR };
+  }
+  const context = await currentCartAuth();
+  if (!context) return { ok: false, mode: 'local' };
+  const { error } = await context.supabase.rpc('remove_cart_lines', { p_lines: lines.map(cartLineIdentityPayload) });
+  if (error) return { ok: false, mode: 'server', error: SAVE_ERROR };
+  return serverMutationResult(context.supabase, context.user.id);
 }
 
 export async function addCartSelectionAction(baseGoodIdValue: unknown, entriesValue: unknown): Promise<CartActionResult> {

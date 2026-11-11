@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const VARIANT_ID = '00000000-0000-4000-8000-000000000001';
 import type { CurrentAuthState } from '@/lib/auth/server';
-import { addCartSelectionAction, deleteCartItemAction, setCartItemQuantityAction, syncCartAction } from './actions';
+import { addCartSelectionAction, deleteCartItemAction, removeCartLinesAction, setCartItemQuantityAction, syncCartAction } from './actions';
 
 const mocks = vi.hoisted(() => ({
   auth: { isConfigured: true, user: null, profile: null, isStaff: false } as CurrentAuthState,
@@ -404,5 +404,34 @@ describe('cart Server Actions', () => {
       error: '장바구니 수량을 확인해주세요.',
     });
     expect(mocks.from).not.toHaveBeenCalled();
+  });
+
+  /* 선택 삭제·전체 비우기(ADR-0030 · 1014-035·036): 화면이 본 줄의 식별(굿즈·옵션·직접입력값)만 한 번에 넘긴다. */
+  it('선택한 줄의 식별만 일괄 삭제 RPC 로 넘기고 서버 장바구니로 다시 그린다', async () => {
+    const fieldId='00000000-0000-4000-8000-000000063311';
+    const customInputs={revision:2,fields:[{id:fieldId,name:'각인 문구',value:'첫 문구'}]};
+    mocks.cartRows={data:[{good_id:'g1',variant_id:VARIANT_ID,qty:4}],error:null};
+    await expect(removeCartLinesAction([{goodId:'g2',variantId:'00000000-0000-4000-8000-000000000002',qty:1},
+      {goodId:'g1',variantId:VARIANT_ID,qty:2,customInputs}])).resolves.toEqual({ok:true,mode:'server',items:[{goodId:'g1',variantId:VARIANT_ID,qty:4}]});
+    expect(mocks.rpc).toHaveBeenCalledWith('remove_cart_lines',{p_lines:[
+      {good_id:'g2',variant_id:'00000000-0000-4000-8000-000000000002',input_revision:0,input_values:{}},
+      {good_id:'g1',variant_id:VARIANT_ID,input_revision:2,input_values:{[fieldId]:'첫 문구'}},
+    ]});
+  });
+
+  it('일괄 삭제는 빈·잘못된 줄을 DB 에 보내지 않고, 로그인 전 장바구니는 기기 장바구니로 남긴다', async () => {
+    for (const value of [[], null, [{goodId:'g1',variantId:'not-a-uuid',qty:1}], [{goodId:'g1',variantId:VARIANT_ID,qty:1},{goodId:'g1',variantId:VARIANT_ID,qty:1}]]) {
+      await expect(removeCartLinesAction(value)).resolves.toEqual({ok:false,mode:'server',error:'장바구니 수량을 확인해주세요.'});
+    }
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    mocks.auth = { isConfigured: true, user: null, profile: null, isStaff: false };
+    await expect(removeCartLinesAction([{goodId:'g1',variantId:VARIANT_ID,qty:1}])).resolves.toEqual({ok:false,mode:'local'});
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('일괄 삭제 DB 오류는 일반 저장 오류로만 알린다', async () => {
+    mocks.rpc.mockResolvedValueOnce({ error: { message: 'permission denied for table cart_items' } });
+    await expect(removeCartLinesAction([{goodId:'g1',variantId:VARIANT_ID,qty:1}])).resolves.toEqual({
+      ok:false,mode:'server',error:'장바구니를 저장하지 못했습니다. 다시 시도해주세요.'});
   });
 });

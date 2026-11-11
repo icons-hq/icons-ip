@@ -660,3 +660,29 @@ describe('origin quote and option lines', () => {
   expect(html).not.toContain('href="/checkout"');
   expect(html).not.toContain('장바구니가 비어 있어요');
  });
+
+/* 선택 바·줄 체크(ADR-0030 · 10/14 회의 1014-031·035·036). 진입 시 전체 체크이고, 주문할 수 없는 줄은 체크할 수 없다. */
+describe('Cart 선택 바', () => {
+  const lineOf = (html: string, marker: string) => html.split('<li class="wc-cart__line').find((chunk) => chunk.includes(marker)) ?? '';
+
+  it('들어오면 고를 수 있는 줄이 모두 체크된 채 열리고 전체 선택·선택 삭제·전체 비우기를 목록 위에 둔다', () => {
+    const html = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }, { goodId: 'g14', variantId: SOLD_VARIANT, qty: 1 }]);
+    const bar = html.slice(html.indexOf('<div class="wc-cart__select-bar">'), html.indexOf('<section class="wc-shipping-group"'));
+    expect(bar).toContain('<label class="wc-cart__select-all"><input type="checkbox" checked=""/><span>전체 선택 (1/1)</span></label>');
+    expect(bar).toContain('<button class="wc-cart__select-action" type="button">선택 삭제</button>');
+    expect(bar).toContain('<button aria-expanded="false" class="wc-cart__select-action" type="button">전체 비우기</button>');
+    /* 확인은 누른 뒤에만 연다. */
+    expect(html).not.toContain('wc-cart__clear-confirm');
+    expect(lineOf(html, '홍실 아크릴 블록')).toContain('<label class="wc-cart__line-check"><input aria-label="홍실 아크릴 블록 선택" type="checkbox" checked=""/></label>');
+  });
+
+  it('품절·판매 종료·성인 인증 전 줄은 체크할 수 없고 선택 수에 들지 않는다', () => {
+    const html = render([{ goodId: 'g14', variantId: SOLD_VARIANT, qty: 1 }, { goodId: 'gone', variantId: DEFAULT_VARIANT, qty: 1 }]);
+    expect(lineOf(html, '품절된 키링')).toContain('<input aria-label="품절된 키링 선택" disabled="" type="checkbox"/>');
+    expect(lineOf(html, '판매 종료된 굿즈 (gone)')).toContain('<input aria-label="판매 종료된 굿즈 gone 선택" disabled="" type="checkbox"/>');
+    /* 고를 줄이 없으면 전체 선택도 잠기고 선택 삭제는 할 일이 없다. 전체 비우기는 남는다. */
+    expect(html).toContain('<input disabled="" type="checkbox"/><span>전체 선택 (0/0)</span>');
+    expect(html).toContain('<button class="wc-cart__select-action" disabled="" type="button">선택 삭제</button>');
+    expect(html).toContain('<button aria-expanded="false" class="wc-cart__select-action" type="button">전체 비우기</button>');
+  });
+});

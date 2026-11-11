@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { PendingOrderResolution } from '@/components/checkout/PendingOrderResolution';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { CouponPicker } from '@/components/checkout/CouponPicker';
 import { CartEmptyState } from '@/components/cart/CartEmptyState';
 import { CartSubheader } from '@/components/cart/CartSubheader';
@@ -31,6 +31,7 @@ import { GoodsSalePeriodRefresh } from '@/components/shop/GoodsSalePeriodRefresh
 import { goodsSaleUnavailableLabel } from '@/lib/goods-sale-period';
 import { ADULT_GOOD_LABEL } from '@/lib/adult-goods';
 import { adultVerificationHref } from '@/lib/identity/adult-verification-routes';
+import { cartLineKey, pruneCartSelection, selectedCartLines, toggleAllCartLines, toggleCartLineSelection } from '@/lib/checkout-selection';
 
 interface CartLine {
   goodId: string;
@@ -72,15 +73,39 @@ function lineStateLabel(good: Good, qty: number) {
   return null;
 }
 
-/* 행 = [썸네일 64(모바일 80) · 브랜드·이름·단가·상태] 다음 줄에 회색 옵션 밴드 [옵션·직접 입력 | 수량 | ×],
+interface CartLineSelection {
+  checked: boolean;
+  /** 주문할 수 없는 줄은 체크할 수 없다 — 선택에서 자동으로 빠진다(ADR-0030). */
+  selectable: boolean;
+  onChange: (checked: boolean) => void;
+}
+
+/* 줄 선택 체크박스(ADR-0030 · 1014-031). 접근 이름은 굿즈 이름이고, 고를 수 없는 줄은 비활성으로 남겨 이유는 상태 문구가 말한다. */
+function CartLineCheck({ label, selection }: { label: string; selection: CartLineSelection }) {
+  const { pending } = useCart();
+  return (
+    <label className="wc-cart__line-check">
+      <input
+        aria-label={`${label} 선택`}
+        checked={selection.selectable && selection.checked}
+        disabled={!selection.selectable || pending}
+        onChange={(event) => selection.onChange(event.target.checked)}
+        type="checkbox"
+      />
+    </label>
+  );
+}
+
+/* 행 = [체크 · 썸네일 64(모바일 80) · 브랜드·이름·단가·상태] 다음 줄에 회색 옵션 밴드 [옵션·직접 입력 | 수량 | ×],
    그 아래 오른쪽에 줄 금액(CT-04 · 레퍼런스 실측). 표시 배치만 바꾼다 — 수량·삭제 호출과 금액 계산은 그대로다. */
-function CartLineRow({ line }: { line: CartLine }) {
+function CartLineRow({ line, selection }: { line: CartLine; selection: CartLineSelection }) {
   const { pending, remove, setQuantity } = useCart();
   const { good, goodId, variantId, ip, qty, optionName, supply,customInputs, orderMaxQty, optionLimitMessage, refold } = line;
 
   if (line.masked) {
     return (
-      <li className="wc-cart__line wc-cart__line--unavailable">
+      <li className="wc-cart__line wc-cart__line--selectable wc-cart__line--unavailable">
+        <CartLineCheck label={ADULT_GOOD_LABEL} selection={selection} />
         <span aria-hidden className="wc-cart__line-media wc-product-card__adult-cover">
           <span className="wc-product-card__adult-mark">19</span>
         </span>
@@ -106,7 +131,8 @@ function CartLineRow({ line }: { line: CartLine }) {
 
   if (!good) {
     return (
-      <li className="wc-cart__line wc-cart__line--unavailable">
+      <li className="wc-cart__line wc-cart__line--selectable wc-cart__line--unavailable">
+        <CartLineCheck label={`판매 종료된 굿즈 ${goodId}`} selection={selection} />
         <span aria-hidden className="wc-cart__line-media" />
         <div className="wc-cart__line-info">
           <p className="wc-cart__line-name">판매 종료된 굿즈 ({goodId})</p>
@@ -133,7 +159,8 @@ function CartLineRow({ line }: { line: CartLine }) {
   const href = `/shop/${goodId}`;
 
   return (
-    <li className={`wc-cart__line${isUnavailable(line) ? ' wc-cart__line--unavailable' : ''}`}>
+    <li className={`wc-cart__line wc-cart__line--selectable${isUnavailable(line) ? ' wc-cart__line--unavailable' : ''}`}>
+      <CartLineCheck label={good.name} selection={selection} />
       {/* 바로 옆 이름 링크와 목적지가 같다 — 접근성 트리에서는 숨긴다(ProductCard 와 같은 규칙). */}
       <Link
         aria-hidden
@@ -205,8 +232,12 @@ export function Cart({
   transactionMode?: 'legacy' | 'transaction' | 'unavailable';
   giftAvailable?: boolean;
 }) {
-  const { count, error, items, mode, pending, ready, legacyItems = [], removeLegacyItem, refresh } = useCart();
+  const { count, error, items, mode, pending, ready, legacyItems = [], removeLegacyItem, refresh, removeLines } = useCart();
   const transactionActive = transactionMode === 'transaction';
+  /* 선택은 고객이 체크를 푼 줄만 기억한다 — 들어오면 전체 체크, 새로 동기화된 줄도 체크된 채다(ADR-0030). */
+  const [deselectedState, setDeselected] = useState<ReadonlySet<string>>(() => new Set());
+  const deselected = pruneCartSelection(deselectedState, items);
+  const [confirmingClear, setConfirmingClear] = useState(false);
   /* 결제를 마치지 않은 이전 주문이 쿠폰·구매 한도를 잡고 있으면 견적 전에 닫는다(ADR-0026). */
   const released = useReleaseUnpaidCartOrders();
   const shipping = useShippingQuote(items, ready && released && transactionMode === 'legacy', couponState.selectedUserCouponId ?? '');
@@ -254,6 +285,24 @@ export function Cart({
   const canCheckout = transactionMode !== 'unavailable' && unavailableCount === 0 && !pending && Boolean(sales) && !purchaseProblem
     && (transactionActive || shippingCanContinue && !couponSelectionChanged);
 
+  const selectableLines = lines.filter((line) => !isUnavailable(line));
+  const selectedLines = selectedCartLines(lines, deselected, (line) => !isUnavailable(line));
+  const allSelected = selectableLines.length > 0 && selectedLines.length === selectableLines.length;
+  const lineSelection = (line: CartLine): CartLineSelection => ({
+    checked: !deselected.has(cartLineKey(line)),
+    selectable: !isUnavailable(line),
+    onChange: (checked) => setDeselected(toggleCartLineSelection(deselected, cartLineKey(line), checked)),
+  });
+  const removeSelected = () => {
+    if (!selectedLines.length) return;
+    setConfirmingClear(false);
+    void removeLines(selectedLines);
+  };
+  const clearAll = () => {
+    setConfirmingClear(false);
+    void removeLines(lines);
+  };
+
   const appliedCoupon = couponState.coupons.find(
     (held) => held.id === couponState.selectedUserCouponId,
   ) ?? null;
@@ -290,19 +339,54 @@ export function Cart({
         ) : (
           <div className="wc-cart__layout">
             <div aria-busy={pending} className="wc-cart__list-col">
+              {/* 선택 바(ADR-0030 · 1014-031·035·036): 전체 선택 · 선택 삭제 · 전체 비우기(확인). */}
+              <div className="wc-cart__select-bar">
+                <label className="wc-cart__select-all">
+                  <input
+                    checked={allSelected}
+                    disabled={pending || selectableLines.length === 0}
+                    onChange={(event) => setDeselected(toggleAllCartLines(deselected, selectableLines.map(cartLineKey), event.target.checked))}
+                    type="checkbox"
+                  />
+                  <span>{`전체 선택 (${selectedLines.length}/${selectableLines.length})`}</span>
+                </label>
+                <div className="wc-cart__select-actions">
+                  <button className="wc-cart__select-action" disabled={pending || selectedLines.length === 0} onClick={removeSelected} type="button">
+                    선택 삭제
+                  </button>
+                  <button
+                    aria-expanded={confirmingClear}
+                    className="wc-cart__select-action"
+                    disabled={pending}
+                    onClick={() => setConfirmingClear((open) => !open)}
+                    type="button"
+                  >
+                    전체 비우기
+                  </button>
+                </div>
+              </div>
+              {confirmingClear ? (
+                <div aria-labelledby="cart-clear-title" className="wc-cart__clear-confirm" role="alertdialog">
+                  <p id="cart-clear-title">{`장바구니의 굿즈 ${lines.length}개를 모두 삭제할까요?`}</p>
+                  <div className="wc-cart__clear-actions">
+                    <button className="wc-btn" disabled={pending} onClick={() => setConfirmingClear(false)} type="button">취소</button>
+                    <button className="wc-btn primary" disabled={pending} onClick={clearAll} type="button">전체 비우기</button>
+                  </div>
+                </div>
+              ) : null}
               {shipping.quote && shippingGroupsNotice(shipping.quote.groups) ? <p className="wc-cart__summary-note">{shippingGroupsNotice(shipping.quote.groups)}</p> : null}
               {shipping.quote?.groups.map((group, index, groups) => (
                 <section className="wc-shipping-group" key={group.originId} aria-label={`${shippingGroupLabel(groups, index)} 굿즈`}>
                   <h2>{shippingGroupLabel(groups, index)}</h2>
                   <ul className="wc-cart__list">
-                    {lines.filter(line => line.good?.originId === group.originId).map(line => <CartLineRow key={cartItemKey(line.goodId, line.variantId,line.customInputs)} line={line} />)}
+                    {lines.filter(line => line.good?.originId === group.originId).map(line => <CartLineRow key={cartItemKey(line.goodId, line.variantId,line.customInputs)} line={line} selection={lineSelection(line)} />)}
                   </ul>
                   {!transactionActive && <ShippingGroupSummary group={group} />}
                 </section>
               ))}
               <ul className="wc-cart__list">
                 {lines.filter(line => !shipping.quote?.groups.some(group => line.good?.originId === group.originId))
-                  .map(line => <CartLineRow key={cartItemKey(line.goodId, line.variantId,line.customInputs)} line={line} />)}
+                  .map(line => <CartLineRow key={cartItemKey(line.goodId, line.variantId,line.customInputs)} line={line} selection={lineSelection(line)} />)}
               </ul>
             </div>
 
