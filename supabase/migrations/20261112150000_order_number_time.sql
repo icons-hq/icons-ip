@@ -16,9 +16,11 @@
 --   · 하루 최대 건수도 종전과 같다: (날짜, 종류)별 9,999,999건. 넘으면 잘린 번호를 만들지 않고 실패한다.
 --     입금코드는 하루 주문 10만 건 미만이면 입금 대기 주문 사이에서 겹치지 않는다(종전과 같은 보장).
 --
--- 배포 순서 보호: 파이프라인은 DB를 먼저, 앱을 몇 분 뒤 배포한다. 배포 전 앱은 20자리 번호를 주문번호로 읽지 못하므로
--- 이 migration을 적용한 시각 + 1시간(private.commerce_number_time_switch) 이후에 만든 주문부터 새 형식을 쓴다.
--- 그 전에 만든 주문은 종전과 한 글자도 같은 16자리 번호를 받는다.
+-- 배포 순서 보호: 파이프라인은 DB를 먼저, 앱을 몇 분 뒤 배포하고 앱 배포는 실패할 수도 있다. 배포 전 앱은 20자리
+-- 번호를 주문번호로 읽지 못하므로(어드민 조회·선물 화면의 정확 형식 검사) 이 migration은 전환을 꺼 둔 채
+-- (private.commerce_number_time_switch.switched_at = infinity) 배포한다. 꺼져 있는 동안 발급은 종전과 한 글자도 같은
+-- 16자리다. 이 변경의 앱이 운영에 배포된 것을 확인한 뒤 후속 migration이 switched_at을 그 적용 시각으로 바꾸면
+-- 그 뒤에 만든 주문부터 20자리다(런북 '주문 시각 형식'의 켜는 순서). 그때 운영 앱은 이미 두 형식을 읽는다.
 begin;
 
 -- 1) 형식 판정. 주문(1)·상품주문(2)은 옛 16자리와 새 20자리를 받고, 배송(3)은 16자리만 받는다.
@@ -85,16 +87,17 @@ begin
 end $$;
 revoke all on function private.next_product_order_number(text) from public,anon,authenticated,service_role;
 
--- 3) 전환 시각. 이 시각 이후(이상)에 만든 주문부터 새 형식이다. 행이 없으면 옛 형식을 쓴다.
+-- 3) 전환 시각. 이 시각 이후(이상)에 만든 주문부터 새 형식이다. 행이 없거나 infinity(꺼짐)면 옛 형식을 쓴다.
+--    켜기는 앱 배포 확인 뒤의 후속 migration이 한다(앱 배포가 늦거나 실패해도 정해 둔 시각에 저절로 켜지지 않게).
 create table private.commerce_number_time_switch (
   singleton boolean primary key default true check (singleton),
   switched_at timestamptz not null
 );
 alter table private.commerce_number_time_switch enable row level security;
 revoke all on private.commerce_number_time_switch from public,anon,authenticated,service_role;
-insert into private.commerce_number_time_switch(singleton,switched_at) values(true,clock_timestamp()+interval '1 hour');
+insert into private.commerce_number_time_switch(singleton,switched_at) values(true,'infinity');
 comment on table private.commerce_number_time_switch is
-  'Orders created at/after switched_at get 20-digit numbers (KST date + KST HHMI + kind + daily sequence). Set to migration time + 1 hour so the previously deployed app never reads them during the DB-first deploy.';
+  'Orders created at/after switched_at get 20-digit numbers (KST date + KST HHMI + kind + daily sequence). Ships as infinity (off); a follow-up migration sets it to its own apply time only after the app that reads both formats is confirmed live in production.';
 
 -- 4) 발급 트리거. 갱신 금지·임의 번호 금지는 종전 그대로다.
 create or replace function private.assign_commerce_number() returns trigger

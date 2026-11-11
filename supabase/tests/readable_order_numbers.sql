@@ -23,8 +23,8 @@ select pg_temp.number_assert(not has_table_privilege('authenticated','private.co
   and not has_function_privilege('authenticated','private.next_commerce_number(timestamptz,smallint)','execute')
   and not has_function_privilege('service_role','private.next_commerce_number(timestamptz,smallint)','execute'), 'number generator sealed');
 
--- 아래는 옛 16자리 발급의 회귀다. 시각 전환 전에 만든 주문은 종전과 한 글자도 같은 번호를 받는다.
-update private.commerce_number_time_switch set switched_at='2099-01-01T00:00:00Z' where singleton;
+-- 아래는 옛 16자리 발급의 회귀다. 시각 전환이 꺼져 있으면(infinity, migration 기본) 종전과 한 글자도 같은 번호를 받는다.
+update private.commerce_number_time_switch set switched_at='infinity' where singleton;
 insert into auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
 values('c6010000-0000-4000-8000-000000000001','authenticated','authenticated','readable-numbers@example.test','{}','{}',now(),now());
 insert into public.orders(id,user_id,status,total,address,created_at)

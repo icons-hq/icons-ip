@@ -14,7 +14,8 @@ create function pg_temp.tid(kind integer,n integer) returns uuid language sql im
   select ('d6110000-0000-'||lpad(kind::text,4,'0')||'-8000-'||lpad(n::text,12,'0'))::uuid;
 $$;
 
--- 0) 새 함수와 전환 행은 서버 내부 전용이다.
+-- 0) 새 함수와 전환 행은 서버 내부 전용이다. 전환은 미래 시각에 예약해 두지 않는다 — 꺼져 있거나(infinity, 이 migration의
+--    기본) 앱 배포를 확인한 뒤의 후속 migration이 켠 시각(과거)이다. 앱 배포가 늦어도 저절로 켜지는 일이 없다.
 select pg_temp.ok(not exists(
   select 1 from unnest(array['private.is_commerce_number(text,smallint)','private.next_commerce_sequence(date,smallint)',
     'private.next_timed_order_number(timestamptz)','private.next_product_order_number(text)','private.next_commerce_number(timestamptz,smallint)',
@@ -23,6 +24,8 @@ select pg_temp.ok(not exists(
  and not has_table_privilege('authenticated','private.commerce_number_time_switch','select')
  and not has_table_privilege('service_role','private.commerce_number_time_switch','select,update')
  and (select count(*)=1 from private.commerce_number_time_switch),'number helpers and switch are sealed');
+select pg_temp.ok((select switched_at='infinity'::timestamptz or switched_at<=now() from private.commerce_number_time_switch where singleton),
+ 'switch is either off or already flipped, never scheduled ahead of the app deploy');
 
 -- 1) 형식: 주문·상품주문은 옛 16자리와 새 20자리, 배송건은 16자리만 받는다. 시각 자리는 00:00~23:59다.
 select pg_temp.ok(private.is_commerce_number('2026102110000001',1::smallint) and private.is_commerce_number('20261112143510000042',1::smallint)
