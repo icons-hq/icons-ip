@@ -145,6 +145,7 @@ const storefront = [
   sql('customer_marketing_consents'),
   sql('auto_order_confirmation'),
   script('auto_order_confirmation_concurrency.sh', 'AUTO_ORDER_CONFIRM_TEST_SCOPE'),
+  sql('stock_reconcile_safety_digest'),
   sql('staging_test_delivery'),
   sql('commerce_number_labels'),
   sql('bank_transfer_order_number_code'),
