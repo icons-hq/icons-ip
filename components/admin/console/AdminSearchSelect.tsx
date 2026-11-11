@@ -19,7 +19,7 @@ const NO_OPTIONS: readonly AdminSearchSelectOption[] = [];
 const normalize = (text: string) => text.normalize('NFKC').toLocaleLowerCase('ko-KR');
 
 /** 검색어의 낱말이 라벨·keywords에 모두 들어 있는 항목만 남긴다. 순서는 그대로다. */
-export function filterAdminSearchSelectOptions(options: readonly AdminSearchSelectOption[], query: string): readonly AdminSearchSelectOption[] {
+export function filterAdminSearchSelectOptions<T extends AdminSearchSelectOption>(options: readonly T[], query: string): readonly T[] {
   const words = normalize(query).trim().split(/\s+/).filter(Boolean);
   if (!words.length) return options;
   return options.filter((option) => {

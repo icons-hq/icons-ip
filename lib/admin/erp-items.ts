@@ -146,6 +146,72 @@ export function parseErpCategoryMappingRow(value: unknown): ErpCategoryMappingRo
   return { erpCategory: row.erp_category, itemCount, categoryId, updatedAt, fallbackCategoryId };
 }
 
+/** 한 번에 저장할 수 있는 ERP 분류 연결 수(`admin_set_erp_category_mappings`와 같은 상한). 연결 표가 한 번에 보여 주는 행 수이기도 하다. */
+export const ERP_CATEGORY_MAPPING_BATCH_LIMIT = 500;
+
+export interface ErpCategoryMappingEntry {
+  erpCategory: string;
+  /** 연결할 고객 카테고리. null이면 연결 해제. */
+  categoryId: string | null;
+}
+
+export interface ErpCategoryMappingBatch {
+  changed: number;
+  unchanged: number;
+  /** 저장하지 못한 행. index는 보낸 순서(0부터), reason은 DB 사유 코드. */
+  rejected: { index: number; reason: string }[];
+}
+
+function batchCount(value: unknown): number | null {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null;
+}
+
+/** `admin_set_erp_category_mappings` 결과 → 계약 타입. 형식이 다르면 null. */
+export function parseErpCategoryMappingBatch(value: unknown): ErpCategoryMappingBatch | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const result = value as Record<string, unknown>;
+  const changed = batchCount(result.changed);
+  const unchanged = batchCount(result.unchanged);
+  if (changed === null || unchanged === null || !Array.isArray(result.rejected)) return null;
+  const rejected: ErpCategoryMappingBatch['rejected'] = [];
+  for (const raw of result.rejected) {
+    if (!raw || typeof raw !== 'object') return null;
+    const entry = raw as Record<string, unknown>;
+    const index = batchCount(entry.index);
+    if (index === null || typeof entry.reason !== 'string') return null;
+    rejected.push({ index, reason: entry.reason });
+  }
+  return { changed, unchanged, rejected };
+}
+
+const ERP_CATEGORY_MAPPING_ERRORS: Record<string, string> = {
+  category_archived: '보관된 카테고리에는 연결할 수 없습니다.',
+  category_not_leaf: '하위 카테고리가 있는 분류에는 연결할 수 없습니다. 마지막 단계 카테고리를 골라주세요.',
+  category_not_found: '카테고리를 찾지 못했습니다. 새로고침한 뒤 다시 골라주세요.',
+  invalid_erp_category: 'ERP 분류 이름을 확인해주세요.',
+  invalid_category_id: '연결할 고객 카테고리를 다시 골라주세요.',
+  duplicate_erp_category: '같은 ERP 분류가 두 번 들어 있습니다. 다시 시도해주세요.',
+};
+
+/** DB 오류·거절 사유를 운영자 문구로 바꾼다. 모르는 사유면 null. */
+export function erpCategoryMappingErrorLabel(descriptor: string): string | null {
+  const key = Object.keys(ERP_CATEGORY_MAPPING_ERRORS).find((reason) => descriptor.includes(reason));
+  return key ? ERP_CATEGORY_MAPPING_ERRORS[key] : null;
+}
+
+/** 일괄 저장 결과 한 줄. 해제만 한 묶음이면 해제라고 말한다. */
+export function erpCategoryMappingBatchMessage(
+  result: Pick<ErpCategoryMappingBatch, 'changed' | 'unchanged'> & { rejected: readonly unknown[] },
+  clearedOnly: boolean,
+): string {
+  const count = (value: number) => value.toLocaleString('ko-KR');
+  const parts: string[] = [];
+  if (result.changed) parts.push(`ERP 분류 ${count(result.changed)}건의 연결을 ${clearedOnly ? '해제' : '저장'}했습니다.`);
+  if (result.unchanged) parts.push(`${count(result.unchanged)}건은 이미 같은 연결입니다.`);
+  if (result.rejected.length) parts.push(`${count(result.rejected.length)}건은 저장하지 못했습니다. 표에서 사유를 확인해주세요.`);
+  return parts.join(' ') || '바뀐 연결이 없습니다.';
+}
+
 /* DB(private.erp_item_text)처럼 공백 연속을 하나로 합치고 앞뒤 공백을 지운다. 대소문자는 그대로 비교한다. */
 function sameErpText(left: string, right: string): boolean {
   const normalize = (value: string) => value.replace(/\s+/g, ' ').trim();
