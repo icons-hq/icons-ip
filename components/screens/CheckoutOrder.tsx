@@ -11,6 +11,7 @@ import {
   type PrepareGoodsPaymentActionState,
 } from '@/app/checkout/actions';
 import { ReorderAction } from '@/components/checkout/ReorderAction';
+import { CheckoutRetryButton } from './CheckoutRetryButton';
 import { ListingReturnLink } from '@/components/shell/ListingReturn';
 import { PreparedCheckoutAction } from '@/components/payments/PreparedCheckoutAction';
 import {
@@ -291,7 +292,7 @@ export function CheckoutOrder({
               <p>{statusCopy?.body ?? closedCopy.body}</p>
               {giftReturn}
               {reorderMode === 'retry_from_cart' ? (
-                <Link className="btn btn-holo" href="/checkout">다시 결제하기</Link>
+                <CheckoutRetryButton orderId={order.id} />
               ) : reorderMode && (
                 <ReorderAction
                   mode={reorderMode}
@@ -339,11 +340,9 @@ export function CheckoutOrder({
                 </>
               )}
               {state === 'closed' && giftReturn}
-              {state === 'closed' && reorderMode === 'retry_from_cart' && (
-                <Link className="btn btn-holo" href={order.status === 'canceled' ? '/cart' : '/checkout'}>
-                  {order.status === 'canceled' ? '장바구니 보기' : '다시 결제하기'}
-                </Link>
-              )}
+              {state === 'closed' && reorderMode === 'retry_from_cart' && (order.status === 'canceled'
+                ? <Link className="btn btn-holo" href="/cart">장바구니 보기</Link>
+                : <CheckoutRetryButton orderId={order.id} />)}
               {state === 'closed' && reorderMode && reorderMode !== 'retry_from_cart' && (
                 <ReorderAction
                   mode={reorderMode}

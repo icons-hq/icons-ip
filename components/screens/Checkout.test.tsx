@@ -6,7 +6,8 @@ import type { AddressGoodsSalesQuote } from '@/lib/shipping-regions';
 import { EMPTY_CHECKOUT_ADDRESS_PREFILL, type CheckoutAddressPrefill } from '@/lib/address-book';
 import type { UserCouponSummary } from '@/lib/coupons';
 import type { CartCouponState } from '@/lib/coupons.server';
-import { Checkout, checkoutMethodAvailable } from './Checkout';
+import { Checkout, checkoutMethodAvailable, checkoutSubcopy, checkoutSubmitCaption } from './Checkout';
+import type { CheckoutDraft } from '@/lib/checkout-draft';
 
 const mocks = vi.hoisted(() => ({ items: [] as CartItem[], sales: null as AddressGoodsSalesQuote | null }));
 
@@ -405,5 +406,51 @@ describe('Checkout 배송 묶음 이름', () => {
       destination: null, nextChangeAt: null, groups: [group] } } });
     expect(html).toContain('<h3>한진택배 배송</h3>');
     expect(html).not.toContain('배송비가 각각 계산됩니다');
+  });
+});
+
+/* 주문서 초안(ADR-0030): 장바구니 선택 주문은 고른 줄만, 바로구매는 고른 굿즈만 주문서에 오른다. 장바구니 전체가 아니다. */
+describe('Checkout 주문서 초안', () => {
+  const VARIANT = '00000000-0000-4000-8000-000000000001';
+  const draftOf = (overrides: Partial<CheckoutDraft> = {}): CheckoutDraft => ({ id: '00000000-0000-4000-8000-0000000000d1', source: 'selection',
+    baseGoodId: null, expiresAt: '2026-11-12T10:00:00Z', stale: false, lines: [{ goodId: 'g13', variantId: VARIANT, qty: 2 }], ...overrides });
+  function renderDraft(draft: CheckoutDraft) {
+    /* 계정 장바구니에는 고르지 않은 피규어도 있다. */
+    mocks.items = [{ goodId: 'g13', variantId: VARIANT, qty: 2 }, { goodId: 'g14', variantId: VARIANT, qty: 1 }];
+    const lines = draft.lines.map(item => ({ ...item, regularPrice: 12000, effectivePrice: 12000, pricePeriodId: null, startsAt: null, endsAt: null, available: true }));
+    mocks.sales = { calculatedAt: '2026-09-10T00:00:00Z', subtotal: 24000, lines,
+      goods: [{ goodId: 'g13', qty: 2, orderQuantityLimitEnabled: false, minOrderQty: null, maxOrderQty: null, memberPurchaseLimitEnabled: false,
+        memberLifetimeQtyLimit: null, memberReservedQty: null, memberRemainingQty: null, reason: null }],
+      shipping: { totalFee: 3000, groups: [], checkoutAllowed: true, finalTotalFee: 3000, destination: null, nextChangeAt: null },
+      paymentMethods: { card: true, bankTransfer: true } };
+    return renderToStaticMarkup(
+      <Checkout catalog={{ goods, ips: [] }} addressPrefill={EMPTY_CHECKOUT_ADDRESS_PREFILL} paymentAvailable bankTransferAvailable
+        resumeOrderId={null} appliedCoupon={null} couponState={{ selectedUserCouponId: null, coupons: [] }} draft={draft} />,
+    );
+  }
+
+  it('선택 주문 초안이면 고른 줄만 보이고, 고르지 않은 굿즈는 장바구니에 남는다고 안내한다', () => {
+    const html = renderDraft(draftOf());
+    expect(html).toContain('홍실 아크릴 블록');
+    expect(html).not.toContain('홍실 한정 피규어');
+    expect(html).toContain(checkoutSubcopy('selection', 'card'));
+    expect(html).toContain('<a class="checkout-back" href="/cart">← 장바구니 수정</a>');
+    expect(submitButton(html)).not.toContain('disabled');
+  });
+
+  it('고른 줄이 바뀐 선택 초안은 제출을 막고 장바구니로 돌려보낸다', () => {
+    const html = renderDraft(draftOf({ stale: true }));
+    expect(html).toContain('장바구니에서 고른 굿즈의 수량이나 구성이 바뀌었어요.');
+    expect(html).toContain('<a href="/cart">장바구니로 돌아가기</a>');
+    expect(submitButton(html)).toContain('disabled');
+  });
+
+  it('장바구니 전체 주문서의 안내 문구는 그대로다', () => {
+    expect(checkoutSubcopy(null, 'card')).toBe('결제하기를 누르면 바로 결제 화면이 열려요. 결제를 마치기 전까지 장바구니는 그대로예요.');
+    expect(checkoutSubcopy(null, 'bank_transfer')).toBe('주문을 접수하면 입금 계좌와 기한을 안내해요. 접수한 굿즈는 장바구니에서 빠져요.');
+    expect(checkoutSubmitCaption(null, 'card')).toBe('다음 화면에서 결제수단을 고르고 결제를 마쳐요. 결제가 끝나면 주문한 굿즈가 장바구니에서 빠져요.');
+    expect(checkoutSubmitCaption(null, 'bank_transfer')).toBe('주문이 접수되면 입금 계좌와 기한을 안내해요. 접수한 굿즈는 장바구니에서 빠져요.');
+    const html = render({ paymentAvailable: true, bankTransferAvailable: true });
+    expect(html).toContain('<a class="checkout-back" href="/cart">← 장바구니 수정</a>');
   });
 });

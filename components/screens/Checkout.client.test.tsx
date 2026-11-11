@@ -20,6 +20,7 @@ vi.mock('@/app/cart/coupon-actions', () => ({ applyCouponAction: vi.fn(), applyC
 vi.mock('@/app/my/addresses/actions', () => ({ saveAddressBookEntryAction: vi.fn() }));
 vi.mock('@/components/checkout/PostcodeField', () => ({ PostcodeField: () => null }));
 vi.mock('@/components/checkout/useStoreCreditQuote', () => ({ useStoreCreditQuote: () => ({ quote: null, loading: false, error: null, refresh: vi.fn() }) }));
+vi.mock('./CheckoutDraftQuotes', () => ({ useDraftStoreCreditQuote: () => ({ quote: null, loading: false, error: null, refresh: vi.fn() }) }));
 vi.mock('@/components/shop/useShippingQuote', () => ({ useShippingQuote: () => ({
   quote: (mocks.sales as AddressGoodsSalesQuote | null)?.shipping ?? null, sales: mocks.sales, loading: false, error: null, refresh: vi.fn(),
 }) }));

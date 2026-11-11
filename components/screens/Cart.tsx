@@ -2,7 +2,9 @@
 
 import Link from 'next/link';
 import { PendingOrderResolution } from '@/components/checkout/PendingOrderResolution';
-import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useCallback, useMemo, useState } from 'react';
+import { createCartSelectionDraftAction, type CheckoutDraftActionError } from '@/app/checkout/draft-actions';
 import { CouponPicker } from '@/components/checkout/CouponPicker';
 import { CartEmptyState } from '@/components/cart/CartEmptyState';
 import { CartSubheader } from '@/components/cart/CartSubheader';
@@ -19,7 +21,7 @@ import type { Good, Ip } from '@/lib/data';
 import { krw } from '@/lib/format';
 import { GoodsCustomInputsSummary } from '@/components/shop/GoodsCustomInputs';
 import { goodsCustomInputProblem, type GoodsCustomInputSelection } from '@/lib/goods-custom-inputs';
-import { cartItemKey } from '@/lib/cart';
+import { cartItemKey, type CartItem } from '@/lib/cart';
 import { cartLineOption, cartOptionGood, goodAtQuotedPrice, optionLabel, randomCartLineFold, type CartQuantityStep } from '@/lib/goods-options';
 import { goodsSalesQuoteProblem, quoteLineOptionLimitMessage } from '@/lib/goods-sales';
 import { shippingFeeLabel } from '@/lib/shipping';
@@ -31,7 +33,7 @@ import { GoodsSalePeriodRefresh } from '@/components/shop/GoodsSalePeriodRefresh
 import { goodsSaleUnavailableLabel } from '@/lib/goods-sale-period';
 import { ADULT_GOOD_LABEL } from '@/lib/adult-goods';
 import { adultVerificationHref } from '@/lib/identity/adult-verification-routes';
-import { cartLineKey, pruneCartSelection, selectedCartLines, toggleAllCartLines, toggleCartLineSelection } from '@/lib/checkout-selection';
+import { cartLineKey, cartOrderButtonLabel, cartSelectionQuantity, pruneCartSelection, selectedCartLines, toggleAllCartLines, toggleCartLineSelection } from '@/lib/checkout-selection';
 
 interface CartLine {
   goodId: string;
@@ -51,6 +53,14 @@ interface CartLine {
   /** 랜덤 전환 전에 비기본 옵션 키로 담은 줄(D5②)을 '랜덤' 한 줄로 다시 담는 호출 순서. 있으면 스테퍼 대신 다시 담기다. */
   refold?: CartQuantityStep[] | null;
 }
+
+/* 고른 줄로 주문서를 열지 못한 이유(ADR-0030). 로그인·프로필 미완료는 화면을 옮겨 안내한다. */
+const CART_ORDER_ERRORS: Record<Exclude<CheckoutDraftActionError, 'auth_required' | 'onboarding_required'>, string> = {
+  account_suspended: '정지된 계정은 새 주문을 만들 수 없어요.',
+  invalid_request: '고른 굿즈를 다시 확인해주세요.',
+  cart_changed: '다른 화면에서 장바구니가 바뀌었어요. 지금 장바구니를 확인하고 다시 주문해주세요.',
+  unavailable: '주문서를 열지 못했어요. 잠시 후 다시 시도해주세요.',
+};
 
 /* 랜덤 전환 전에 담은 줄의 안내. 이 줄의 수량을 바꾸면 DB가 키 줄로 합쳐 화면이 갑자기 바뀌므로 다시 담기 하나만 둔다. */
 const RANDOM_REFOLD_NOTICE = '판매 방식이 바뀌기 전에 담은 줄이에요. 다시 담으면 랜덤 한 줄로 합쳐집니다.';
@@ -232,21 +242,34 @@ export function Cart({
   transactionMode?: 'legacy' | 'transaction' | 'unavailable';
   giftAvailable?: boolean;
 }) {
-  const { count, error, items, mode, pending, ready, legacyItems = [], removeLegacyItem, refresh, removeLines } = useCart();
+  const { error, items, mode, pending, ready, legacyItems = [], removeLegacyItem, refresh, removeLines } = useCart();
+  const router = useRouter();
   const transactionActive = transactionMode === 'transaction';
   /* 선택은 고객이 체크를 푼 줄만 기억한다 — 들어오면 전체 체크, 새로 동기화된 줄도 체크된 채다(ADR-0030). */
   const [deselectedState, setDeselected] = useState<ReadonlySet<string>>(() => new Set());
   const deselected = pruneCartSelection(deselectedState, items);
   const [confirmingClear, setConfirmingClear] = useState(false);
+  const [ordering, setOrdering] = useState(false);
+  const [orderError, setOrderError] = useState<string | null>(null);
   /* 결제를 마치지 않은 이전 주문이 쿠폰·구매 한도를 잡고 있으면 견적 전에 닫는다(ADR-0026). */
   const released = useReleaseUnpaidCartOrders();
-  const shipping = useShippingQuote(items, ready && released && transactionMode === 'legacy', couponState.selectedUserCouponId ?? '');
-  const precheckout = useGoodsSalesPrecheckoutQuote(items, ready && released && transactionActive);
+
+  /* 고를 수 있는지는 카탈로그 판매 상태로 정한다(견적이 아니다). 견적은 고른 줄만 받으므로, 견적 결과로 선택을 바꾸면
+     줄이 견적에서 빠졌다 들어왔다 하며 선택이 흔들린다. 견적이 고른 줄의 재고 변화를 알리면 주문을 막고 문구가 말한다. */
+  const goodsById = useMemo(() => new Map(catalog.goods.map((good) => [good.id, good])), [catalog.goods]);
+  const selectable = useCallback((item: CartItem) => {
+    const catalogGood = goodsById.get(item.goodId);
+    if (catalogGood?.masked) return false;
+    return !isUnavailable({ ...item, good: cartOptionGood(catalogGood, item.variantId) });
+  }, [goodsById]);
+  const selectedItems = useMemo(() => selectedCartLines(items, deselected, selectable), [items, deselected, selectable]);
+  /* 견적·쿠폰 대상 소계·배송비·예상 총액은 고른 줄 기준이다(1014-032). */
+  const shipping = useShippingQuote(selectedItems, ready && released && transactionMode === 'legacy', couponState.selectedUserCouponId ?? '');
+  const precheckout = useGoodsSalesPrecheckoutQuote(selectedItems, ready && released && transactionActive);
   const productQuote = transactionActive ? precheckout : shipping;
   const sales = productQuote.sales;
 
   const lines = useMemo<CartLine[]>(() => {
-    const goodsById = new Map(catalog.goods.map((good) => [good.id, good]));
     const ipsById = new Map(catalog.ips.map((ip) => [ip.id, ip]));
     const prices = new Map(sales?.lines.map(line => [cartItemKey(line.goodId, line.variantId), line]));
 
@@ -270,27 +293,31 @@ export function Cart({
         refold: good ? randomCartLineFold(catalogGood, items, item, mode === 'server' ? 'server' : 'local', good.stockQty) : null,
       };
     });
-  }, [catalog.goods, catalog.ips, items, mode, sales]);
+  }, [catalog.ips, goodsById, items, mode, sales]);
 
-  const subtotal = sales?.subtotal ?? lines.reduce((total, line) => (
+  const selectedKeys = new Set(selectedItems.map(cartLineKey));
+  const selectedLines = lines.filter((line) => selectedKeys.has(cartLineKey(line)));
+  const selectableLines = lines.filter(selectable);
+  const allSelected = selectableLines.length > 0 && selectedLines.length === selectableLines.length;
+  /* 주문 버튼의 N은 고른 줄의 수량 합이다(SHEET-007 — 데스크톱·모바일 같은 문구). */
+  const selectedQuantity = cartSelectionQuantity(selectedItems);
+  const subtotal = sales?.subtotal ?? selectedLines.reduce((total, line) => (
     total + (line.good ? line.good.price * line.qty : 0)
   ), 0);
-  const unavailableCount = lines.filter(isUnavailable).length;
+  /* 주문할 수 없는 줄은 선택에서 빠질 뿐 나머지 주문을 막지 않는다(ADR-0030). */
+  const unavailableCount = lines.length - selectableLines.length;
   /* 표시용 예상치다. 실제 청구액은 place_order가 같은 정책으로 다시 계산한다. */
   const shippingFee = shipping.quote?.totalFee ?? 0;
   const shippingFinal = shipping.quote?.checkoutAllowed === true && shipping.quote.finalTotalFee !== null;
   const shippingCanContinue = Boolean(shipping.quote && shipping.quote.groups.every(group => group.finalFee !== null || group.regionStatus === 'address_required'));
   const purchaseProblem = sales ? goodsSalesQuoteProblem(sales) : null;
   const couponSelectionChanged = !transactionActive && Boolean(shipping.sales && (shipping.sales.coupon?.userCouponId ?? null) !== couponState.selectedUserCouponId);
-  const canCheckout = transactionMode !== 'unavailable' && unavailableCount === 0 && !pending && Boolean(sales) && !purchaseProblem
+  const canCheckout = transactionMode !== 'unavailable' && selectedItems.length > 0 && !pending && !ordering && Boolean(sales) && !purchaseProblem
     && (transactionActive || shippingCanContinue && !couponSelectionChanged);
 
-  const selectableLines = lines.filter((line) => !isUnavailable(line));
-  const selectedLines = selectedCartLines(lines, deselected, (line) => !isUnavailable(line));
-  const allSelected = selectableLines.length > 0 && selectedLines.length === selectableLines.length;
   const lineSelection = (line: CartLine): CartLineSelection => ({
     checked: !deselected.has(cartLineKey(line)),
-    selectable: !isUnavailable(line),
+    selectable: selectable(line),
     onChange: (checked) => setDeselected(toggleCartLineSelection(deselected, cartLineKey(line), checked)),
   });
   const removeSelected = () => {
@@ -302,12 +329,45 @@ export function Cart({
     setConfirmingClear(false);
     void removeLines(lines);
   };
+  /* 고른 줄로 주문서 초안을 만들고 주문서로 간다(1014-031). 로그인 전 장바구니는 로그인 뒤 장바구니로 돌아와
+     계정 장바구니에서 다시 고른다 — 합쳐진 계정 장바구니를 보지 않은 채 주문서로 가지 않는다. */
+  const startCheckout = async () => {
+    if (!canCheckout) return;
+    if (mode !== 'server') {
+      router.push(`/login?next=${encodeURIComponent('/cart')}`);
+      return;
+    }
+    if (transactionActive) {
+      router.push('/checkout');
+      return;
+    }
+    setOrdering(true);
+    setOrderError(null);
+    try {
+      const result = await createCartSelectionDraftAction(selectedItems.map(({ goodId, variantId, qty, customInputs }) => (
+        { goodId, variantId, qty, ...(customInputs ? { customInputs } : {}) })));
+      if (result.ok) {
+        router.push(result.href);
+        return;
+      }
+      if (result.error === 'auth_required') router.push(`/login?next=${encodeURIComponent('/cart')}`);
+      else if (result.error === 'onboarding_required') router.push(`/onboarding?next=${encodeURIComponent('/cart')}`);
+      else {
+        if (result.error === 'cart_changed') await refresh();
+        setOrderError(CART_ORDER_ERRORS[result.error]);
+      }
+    } catch {
+      setOrderError(CART_ORDER_ERRORS.unavailable);
+    } finally {
+      setOrdering(false);
+    }
+  };
 
   const appliedCoupon = couponState.coupons.find(
     (held) => held.id === couponState.selectedUserCouponId,
   ) ?? null;
   const couponDiscount = shipping.sales?.coupon?.discount ?? 0;
-  /* 예상 총액은 배송비가 확정된 기존 계약에서만 숫자다 — 요약 표와 모바일 주문 바가 같은 값을 보인다. */
+  /* 예상 총액은 배송비가 확정된 기존 계약에서만 숫자다. 금액은 요약 표에만 두고 주문 버튼은 'N개 주문하기'다(SHEET-007). */
   const estimatedTotal = !transactionActive && shippingFinal ? subtotal + shippingFee - couponDiscount : null;
 
   return (
@@ -446,22 +506,29 @@ export function Cart({
 
               {unavailableCount > 0 ? (
                 <p className="wc-cart__warning" role="alert">
-                  주문할 수 없는 굿즈 {unavailableCount}개를 삭제하거나 수량을 조정해주세요.
+                  {`주문할 수 없는 굿즈 ${unavailableCount}개는 주문에서 빠져요. 삭제하거나 수량을 조정하면 다시 고를 수 있어요.`}
                 </p>
               ) : null}
+              {selectedItems.length === 0 && selectableLines.length > 0 ? (
+                <p className="wc-cart__warning" role="status">주문할 굿즈를 골라주세요.</p>
+              ) : null}
+              {selectedLines.length < lines.length && selectedItems.length > 0 ? (
+                <p className="wc-cart__selection-note">고른 굿즈만 주문해요. 고르지 않은 굿즈는 결제 뒤에도 장바구니에 남아요.</p>
+              ) : null}
+              {orderError ? <p className="wc-cart__error" role="alert">{orderError}</p> : null}
 
-              {/* 데스크톱은 요약 박스 안 312×56, 모바일은 이 묶음이 하단 고정 바가 된다(CT-03). 모바일 바는 예상 총액이
-                  확정된 동안 금액을 싣고(레퍼런스 "₩금액 주문하기"), 아니면 데스크톱과 같은 수량 문구다 — 화면에 보이는 문구
-                  하나만 접근 이름이 된다(나머지는 display:none). */}
+              {/* 데스크톱은 요약 박스 안 312×56, 모바일은 이 묶음이 하단 고정 바가 된다(CT-03). 버튼은 모든 폭에서
+                  'N개 주문하기'(N = 고른 줄의 수량 합, SHEET-007)이고 금액은 위 요약 표가 보인다. 고른 줄로 주문서 초안을 만든 뒤
+                  주문서로 간다(ADR-0030). */}
               <div className="wc-cart__cta-bar">
                 <WcButton
-                  className={`wc-cart__checkout${estimatedTotal !== null ? ' wc-cart__checkout--amount' : ''}`}
-                  disabled={!canCheckout}
-                  href="/checkout"
+                  ariaDisabled={ordering}
+                  className="wc-cart__checkout"
+                  disabled={!canCheckout && !ordering}
+                  onClick={() => void startCheckout()}
                   variant="primary"
                 >
-                  <span className="wc-cart__checkout-count">{`${count}개 주문하기`}</span>
-                  {estimatedTotal !== null ? <span className="wc-cart__checkout-amount">{`${krw(estimatedTotal)} 주문하기`}</span> : null}
+                  <span className="wc-cart__checkout-count">{cartOrderButtonLabel(selectedQuantity)}</span>
                 </WcButton>
               </div>
               {giftAvailable ? <Link className="wc-cart__gift" href="/gifts/new">장바구니에서 선물 준비</Link> : null}

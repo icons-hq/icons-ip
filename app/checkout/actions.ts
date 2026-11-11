@@ -24,6 +24,8 @@ import { couponErrorNeedsPendingOrder } from '@/lib/coupons';
 import { normalizeCartItems } from '@/lib/cart';
 import { bindStoreAnalyticsOrder } from '@/lib/store-analytics.server';
 import { goodsCustomInputValues } from '@/lib/goods-custom-inputs';
+import { normalizeCheckoutDraftId } from '@/lib/checkout-draft';
+import { loadCheckoutDraft } from '@/lib/checkout-draft.server';
 
 type PlaceOrderActionError =
   | PlaceOrderErrorCode
@@ -111,6 +113,11 @@ export async function prepareGoodsPaymentAction(
   }
 }
 
+/**
+ * 주문을 만든다. 초안(`draftIdValue`, ADR-0030)이 있으면 그 초안의 줄만 주문한다 — 장바구니 선택 주문은
+ * `place_order_with_cart_selection`, 바로구매는 `place_direct_order`. 초안이 없으면 지금처럼 장바구니 전체
+ * 스냅샷(`expectedCartValue`)으로 주문한다. 초안의 줄과 결제사 파생은 서버가 다시 읽는다(화면 신호를 믿지 않는다).
+ */
 export async function placeOrderAction(
   addressValue: unknown,
   checkoutKeyValue: unknown,
@@ -118,7 +125,11 @@ export async function placeOrderAction(
   storeCreditAmountValue: unknown = 0,
   expectedUserCouponIdValue: unknown = undefined,
   expectedCartValue?: unknown,
+  draftIdValue?: unknown,
 ): Promise<PlaceOrderActionResult> {
+  if (draftIdValue !== undefined && draftIdValue !== null) {
+    return placeDraftOrder(addressValue, checkoutKeyValue, paymentMethodValue, storeCreditAmountValue, expectedUserCouponIdValue, draftIdValue);
+  }
   const auth = await getCurrentAuthState();
   if (!auth.isConfigured || !auth.user) return { ok: false, error: 'auth_required' };
   if (isAccountSuspended(auth.profile)) return { ok: false, error: 'account_suspended' };
@@ -170,6 +181,82 @@ export async function placeOrderAction(
       p_expected_user_coupon_id: expectedCouponId,
       p_expected_cart:expectedCart.map(item=>({good_id:item.goodId,variant_id:item.variantId,qty:item.qty,input_revision:item.customInputs?.revision??0,input_values:goodsCustomInputValues(item.customInputs)})),
     });
+    data = result.data;
+    error = result.error;
+  } catch {
+    return { ok: false, error: 'unavailable' };
+  }
+
+  if (error) return { ok: false, error: mapPlaceOrderError(error.message),
+    ...(couponErrorNeedsPendingOrder(error.message) ? { pendingOrder: true } : {}) };
+
+  const orderId = normalizeOrderReference(data);
+  if (!orderId) return { ok: false, error: 'unavailable' };
+  await bindStoreAnalyticsOrder(orderId, auth.user.id);
+  return { ok: true, orderId };
+}
+
+async function placeDraftOrder(
+  addressValue: unknown,
+  checkoutKeyValue: unknown,
+  paymentMethodValue: unknown,
+  storeCreditAmountValue: unknown,
+  userCouponIdValue: unknown,
+  draftIdValue: unknown,
+): Promise<PlaceOrderActionResult> {
+  const auth = await getCurrentAuthState();
+  if (!auth.isConfigured || !auth.user) return { ok: false, error: 'auth_required' };
+  if (isAccountSuspended(auth.profile)) return { ok: false, error: 'account_suspended' };
+  if (!isOnboarded(auth.profile, auth.user.email)) return { ok: false, error: 'onboarding_required' };
+
+  const draftId = normalizeCheckoutDraftId(draftIdValue);
+  const address = normalizeCheckoutAddress(addressValue);
+  if (!address) return { ok: false, error: 'invalid_address' };
+  const checkoutKey = normalizeCheckoutKey(checkoutKeyValue);
+  const paymentMethod = normalizeCheckoutPaymentMethod(paymentMethodValue);
+  const storeCreditAmount = normalizeStoreCreditAmount(storeCreditAmountValue);
+  const userCouponId = userCouponIdValue === null || userCouponIdValue === undefined ? null : normalizeOrderReference(userCouponIdValue);
+  if (!draftId || !checkoutKey || !paymentMethod || storeCreditAmount === null
+    || (userCouponIdValue !== null && userCouponIdValue !== undefined && userCouponId === null)) return { ok: false, error: 'invalid_request' };
+
+  const draft = await loadCheckoutDraft(auth.user.id, draftId);
+  if (draft === 'error') return { ok: false, error: 'unavailable' };
+  if (!draft) return { ok: false, error: 'checkout_draft_expired' };
+
+  // 카드 gate는 초안 줄로 파생한 provider의 것이다 — 19금 굿즈가 섞이면 나이스페이다. 장바구니 전체가 아니다.
+  let available: boolean;
+  try {
+    available = paymentMethod === 'bank_transfer'
+      ? await bankTransferCheckoutEnabled()
+      : goodsCheckoutPaymentsEnabled(auth.user.id, await deriveGoodsCartProvider(draft.lines.map(item => item.goodId)));
+  } catch {
+    return { ok: false, error: 'unavailable' };
+  }
+  if (!available) return { ok: false, error: 'payment_unavailable' };
+
+  let data: unknown;
+  let error: { message: string } | null;
+  try {
+    const service = createServiceClient();
+    const result = draft.source === 'direct'
+      ? await service.rpc('place_direct_order', {
+        p_user_id: auth.user.id,
+        p_draft_id: draft.id,
+        p_address: address,
+        p_checkout_key: checkoutKey,
+        p_payment_method: paymentMethod,
+        p_store_credit_amount: storeCreditAmount,
+        p_user_coupon_id: userCouponId,
+      })
+      : await service.rpc('place_order_with_cart_selection', {
+        p_user_id: auth.user.id,
+        p_draft_id: draft.id,
+        p_address: address,
+        p_checkout_key: checkoutKey,
+        p_payment_method: paymentMethod,
+        p_store_credit_amount: storeCreditAmount,
+        p_expected_user_coupon_id: userCouponId,
+      });
     data = result.data;
     error = result.error;
   } catch {

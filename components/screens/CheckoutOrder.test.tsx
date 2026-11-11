@@ -17,6 +17,7 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
 }));
 vi.mock('@/app/checkout/reorder-actions', () => ({ restoreCanceledOrderToCartAction: vi.fn() }));
+vi.mock('@/app/checkout/draft-actions', () => ({ createCartRetryDraftAction: vi.fn() }));
 /* 직전 목록 링크(목적지·문구 판정)는 ListingReturn.client.test 가 본다 — 여기서는 닫힌 주문이 그 링크를 쓰는지만 표식으로 본다. */
 vi.mock('@/components/shell/ListingReturn', () => ({
   ListingReturnLink: ({ children, className }: { children?: ReactNode; className?: string }) => (
@@ -406,8 +407,9 @@ describe('CheckoutOrder 한 번에 결제(S8)·장바구니 유지(D3)', () => {
         order={{ ...order, cartRetained: true, paymentAttempt: { state: 'declined', expiresAt: '2099-08-07T06:10:00.000Z', provider: 'toss' } }}
       />,
     );
-    expect(html).toContain('href="/checkout"');
-    expect(html).toContain('다시 결제하기');
+    /* 다시 결제는 그 주문의 줄로 주문서 초안을 만드는 버튼이다(ADR-0030) — 장바구니 전체 주문서 링크가 아니다. */
+    expect(html).toContain('<button class="btn btn-holo" type="button">다시 결제하기</button>');
+    expect(html).not.toContain('href="/checkout"');
     expect(html).toContain('장바구니는 그대로 있으니');
     expect(html).not.toContain('이 주문 취소하고 다시 주문하기');
   });
