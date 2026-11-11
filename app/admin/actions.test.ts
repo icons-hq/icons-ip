@@ -1076,10 +1076,11 @@ describe('admin catalog actions', () => {
     expect(await upsertAdminGoodAction({},goodForm())).toMatchObject({errors:{[field]:copy}});
   });
 
-  /* D5② 랜덤 판매: 옵션 가격·판매중지·옵션별 제한·직접입력 저장은 커밋에서 random_option_*로 거절된다. 일반 실패 문구 대신 이유를 알린다. */
+  /* D5② 랜덤 판매: 옵션 가격·판매중지·옵션별 제한(같은 옵션 배정 상한)·직접입력 저장은 커밋에서 random_option_*로 거절된다. 일반 실패 문구 대신 이유를 알린다. */
   it.each([
     ['random_option_price_mismatch', 'variants', '랜덤 판매 상품은 판매 중인 모든 옵션의 판매가와 기간 할인이 같아야 합니다. 기간 할인은 모든 옵션에 한 번에 넣으세요.'],
-    ['random_option_variant_limits', 'variants', '랜덤 판매 상품은 옵션별 구매 제한을 쓸 수 없습니다.'],
+    ['random_option_limit_mismatch', 'optionLimits', '랜덤 판매 상품은 옵션별 구매 제한(같은 옵션 배정 상한)이 판매 중인 모든 옵션에서 같아야 합니다.'],
+    ['random_option_preorder_mismatch', 'variants', '랜덤 판매 상품은 판매 중인 모든 옵션이 같은 접수 기간·발송 예정일로 예약판매하거나 모두 일반 재고로 판매해야 합니다. 예약판매의 랜덤 판매 예약에서 모든 옵션을 한 번에 설정하세요.'],
     ['random_option_count', 'variants', '판매 중인 옵션이 2개 이상이어야 랜덤 판매를 쓸 수 있습니다.'],
     ['random_option_custom_inputs', 'customInputs', '직접 입력 옵션이 있으면 랜덤 판매를 쓸 수 없습니다.'],
   ])('랜덤 판매 조건 거절 %s 를 이유와 함께 해당 칸에 알린다', async (message, field, copy) => {

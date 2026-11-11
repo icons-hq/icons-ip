@@ -186,6 +186,7 @@ run_sql_test supabase/tests/admin_stats_reports.sql
 run_sql_test supabase/tests/commerce_wishlist_restock.sql
 run_sql_test supabase/tests/goods_variant_purchase_limits.sql
 run_sql_test supabase/tests/random_option_allocation.sql
+run_sql_test supabase/tests/random_option_preorder.sql
 run_sql_test supabase/tests/random_option_customer_masking.sql
 run_sql_test supabase/tests/restock_alerts_variants.sql
 run_sql_test supabase/tests/coupon_redemption.sql

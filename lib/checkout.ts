@@ -29,6 +29,7 @@ export type PlaceOrderErrorCode =
   | 'option_member_limit_exceeded'
   /** 랜덤 판매 굿즈(D5②)의 배정 조건이 주문 순간 깨졌다(옵션 가격 불일치·판매 방식 변경 등). 재고 부족은 out_of_stock. */
   | 'random_option_unavailable'
+  | 'random_option_limit_exceeded'
   | 'restricted_good_blocked'
   | 'adult_verification_required'
   | 'coupon_rejected'
@@ -269,6 +270,8 @@ export function mapPlaceOrderError(message: unknown): PlaceOrderErrorCode {
   for (const code of ['option_order_limit_exceeded', 'option_member_limit_exceeded'] as const) {
     if (normalized.includes(code)) return code;
   }
+  /* 같은 옵션 배정 상한 때문에 랜덤 굿즈 수량을 배정할 수 없다(추출 전에 판정, 배정 결과와 무관). */
+  if (normalized.includes('random_option_limit_exceeded')) return 'random_option_limit_exceeded';
   if (normalized.includes('random_option_unavailable') || normalized.includes('random_option_checkout_unsupported')) {
     return 'random_option_unavailable';
   }

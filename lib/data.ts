@@ -45,6 +45,11 @@ export interface GoodOption {
   orderMaxQty?: number | null;
   /** 옵션별 1인 누적 최대 수량(결제 대기 포함·취소 완료 제외). null·없음 = 제한 없음. */
   memberMaxQty?: number | null;
+  /**
+   * 랜덤 한 줄만: 같은 옵션 배정 상한(같은 옵션을 한 주문·한 회원에게 몇 개까지 배정하는가). 위 orderMaxQty·memberMaxQty는
+   * 랜덤 줄 전체의 정적 상한(옵션 수 × 배정 상한)이다. 없으면 상한 없음.
+   */
+  randomAllocationLimit?: import('./goods-option-sale-mode').GoodsOptionLimitPolicy | null;
 }
 export interface Good {
   /**

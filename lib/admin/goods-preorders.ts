@@ -121,8 +121,65 @@ export function preparePreorderAllocation(rows: readonly Pick<AdminPreorderReser
   return { orderItemIds: idsValue, expectedStock };
 }
 
+/**
+ * 랜덤 판매 상품의 일괄 예약 저장(`admin_save_random_goods_preorders`). 모든 판매 중 옵션이 같은 접수 기간·발송 예정일을 쓰고
+ * 승인 예약 물량만 옵션별이다. 중지·일반 재고 전환도 모든 옵션을 한 트랜잭션으로 바꾼다(옵션 하나만 바꾸면 커밋에서 거절된다).
+ */
+export type RandomPreorderBulkState = 'draft' | 'active' | 'stopped' | 'stock';
+export interface RandomPreorderOptionInput {
+  variantId: string;
+  /** 이어 쓸 초안(초안·활성화) 또는 지금 선택된 정책(중지·일반 재고 전환). 새로 만들면 null. */
+  policyId: string | null;
+  expectedRevision: number | null;
+  /** 초안·활성화만. 활성화는 모든 옵션에 필요하다. */
+  capacityQty?: number | null;
+}
+export interface RandomPreorderRequest {
+  state: RandomPreorderBulkState;
+  values: Pick<GoodsPreorderInput, 'startsAt' | 'endsAt' | 'expectedShipDate' | 'approvalReference'> | null;
+  options: RandomPreorderOptionInput[];
+}
+function capacityValue(value: unknown): number | null | false {
+  if (value === '' || value === null || value === undefined) return null;
+  if (typeof value === 'string' ? !/^[1-9]\d*$/.test(value) : typeof value !== 'number') return false;
+  const number = Number(value);
+  return integer(number, 1) ? number : false;
+}
+export function parseRandomPreorderRequest(stateValue: unknown, valuesValue: unknown, optionsValue: unknown): RandomPreorderRequest | null {
+  if (!['draft', 'active', 'stopped', 'stock'].includes(String(stateValue)) || !Array.isArray(optionsValue)
+    || !optionsValue.length || optionsValue.length > 100) return null;
+  const state = stateValue as RandomPreorderBulkState;
+  const schedule = state === 'draft' || state === 'active';
+  let values: RandomPreorderRequest['values'] = null;
+  if (schedule) {
+    if (!object(valuesValue)) return null;
+    /* 활성화는 옵션별 물량을 따로 검사하므로 공통 값 검사에는 자리 값 1을 넣는다. */
+    const parsed = parseGoodsPreorderInput({ state, capacityQty: state === 'active' ? 1 : null, startsAt: valuesValue.startsAt,
+      endsAt: valuesValue.endsAt, expectedShipDate: valuesValue.expectedShipDate, approvalReference: valuesValue.approvalReference });
+    if (!parsed) return null;
+    values = { startsAt: parsed.startsAt, endsAt: parsed.endsAt, expectedShipDate: parsed.expectedShipDate, approvalReference: parsed.approvalReference };
+  } else if (valuesValue != null) return null;
+  const options: RandomPreorderOptionInput[] = [];
+  for (const row of optionsValue) {
+    if (!object(row) || !isUuid(row.variantId) || options.some((option) => option.variantId === row.variantId)
+      || (row.policyId !== null && !isUuid(row.policyId)) || (row.expectedRevision !== null && !integer(row.expectedRevision, 1))
+      || (row.policyId === null) !== (row.expectedRevision === null)
+      || Object.keys(row).some((key) => !['variantId', 'policyId', 'expectedRevision', ...(schedule ? ['capacityQty'] : [])].includes(key))) return null;
+    const base = { variantId: row.variantId, policyId: row.policyId as string | null, expectedRevision: row.expectedRevision as number | null };
+    if (!schedule) {
+      if (base.policyId === null) return null;
+      options.push(base);
+      continue;
+    }
+    const capacityQty = capacityValue(row.capacityQty);
+    if (capacityQty === false || (state === 'active' && capacityQty === null)) return null;
+    options.push({ ...base, capacityQty });
+  }
+  return { state, values, options };
+}
+
 export function preorderMutationError(message: string): string {
-  /* D5② 랜덤 판매 상품은 예약판매를 쓸 수 없다 — 커밋 시점 지연 제약이 random_option_*로 거절한다. */
+  /* D5② 랜덤 판매 상품은 모든 옵션이 같은 일정으로 예약해야 한다 — 커밋 시점 지연 제약이 random_option_*로 거절한다. */
   if (RANDOM_OPTION_PROBLEMS.some((code) => message.includes(code))) return goodsOptionSaleModeErrorMessage(message);
   const errors: Record<string, string> = {
     preorder_admin_required: '예약 활성화와 일반 재고 판매 전환은 관리자 계정에서 할 수 있습니다.',
@@ -137,6 +194,9 @@ export function preorderMutationError(message: string): string {
     preorder_physical_stock_shortfall: '선택한 예약 주문을 할당할 실제 옵션 재고가 부족합니다.',
     preorder_payment_required: '입금·결제가 확인된 예약 주문에만 실물 재고를 할당할 수 있습니다.',
     preorder_reservation_released: '취소된 예약 품목은 재고 할당 대상에서 제외해주세요.',
+    random_preorder_options_mismatch: '판매 중인 옵션이나 예약 상태가 바뀌었습니다. 예약 조건을 새로고침한 뒤 모든 옵션을 다시 확인해주세요.',
+    random_option_required: '랜덤 판매 상품에서만 모든 옵션을 한 번에 예약할 수 있습니다. 판매 방식을 확인해주세요.',
+    invalid_random_preorder: '승인 물량·접수 기간·발송 예정일·승인 근거를 확인해주세요.',
     'order cancellation in progress': '취소·클레임이 진행 중인 주문은 해당 처리를 먼저 확인해주세요.',
   };
   return errors[message] ?? '예약판매 처리를 완료하지 못했습니다. 입력과 현재 상품 상태를 확인해주세요.';

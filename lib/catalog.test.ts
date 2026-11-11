@@ -1933,6 +1933,18 @@ describe('옵션 판매 방식과 옵션별 구매 제한', () => {
     expect(good).toMatchObject({ optionSaleMode: 'random', stockQty: 7, stock: 'ok' });
   });
 
+  it('랜덤 한 줄의 정적 상한과 같은 옵션 배정 상한을 함께 읽는다', () => {
+    const good = toGood(row({ option_sale_mode: 'random', goods_variants: [], random_option: randomOption(21, {
+      order_max_qty: 6, member_max_qty: 9, allocation_limit: { orderMaxQty: 2, memberMaxQty: 3 } }) }), () => '');
+    expect(good.options?.[0]).toMatchObject({ orderMaxQty: 6, memberMaxQty: 9, randomAllocationLimit: { orderMaxQty: 2, memberMaxQty: 3 } });
+    /* 상한이 없는 랜덤 한 줄도 null 쌍으로 읽는다. 옛 투영(키 없음)은 값을 싣지 않는다. */
+    const open = toGood(row({ option_sale_mode: 'random', goods_variants: [], random_option: randomOption(7, {
+      allocation_limit: { orderMaxQty: null, memberMaxQty: null } }) }), () => '');
+    expect(open.options?.[0].randomAllocationLimit).toEqual({ orderMaxQty: null, memberMaxQty: null });
+    expect(toGood(row({ option_sale_mode: 'random', goods_variants: [], random_option: randomOption(7) }), () => '').options?.[0])
+      .not.toHaveProperty('randomAllocationLimit');
+  });
+
   it('운영자 세션이 옵션 행을 함께 받아도 랜덤 굿즈는 공개 계산 열의 랜덤 한 줄만 쓴다', () => {
     const good = toGood(row({ option_sale_mode: 'random', random_option: randomOption(5), goods_variants: [
       variant('00000000-0000-4000-8000-0000000000d1', '백', 1, 0), variant('00000000-0000-4000-8000-0000000000d2', '흑', 2, 1),

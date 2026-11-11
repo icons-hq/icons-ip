@@ -8,10 +8,15 @@ import {
   parseGoodsOptionLimit,
   parseGoodsOptionSaleModeState,
   PLACE_ORDER_OPTION_LIMIT_MESSAGES,
+  PLACE_ORDER_RANDOM_OPTION_LIMIT_MESSAGE,
   PLACE_ORDER_RANDOM_OPTION_MESSAGE,
+  parseRandomAllocationLimit,
   RANDOM_OPTION_LABEL,
   RANDOM_OPTION_NOTICE,
+  RANDOM_OPTION_PREORDER_NOTICE,
   RANDOM_OPTION_PROBLEMS,
+  randomOptionAllocationNotice,
+  randomOptionNotices,
 } from './goods-option-sale-mode';
 
 describe('랜덤 판매 계약', () => {
@@ -40,10 +45,38 @@ describe('랜덤 판매 계약', () => {
   it('DB 사유 코드마다 운영자 문구가 있고, 메시지 접두로도 찾는다', () => {
     for (const code of RANDOM_OPTION_PROBLEMS) expect(goodsOptionSaleModeErrorMessage(code)).toMatch(/[가-힣]/);
     expect(goodsOptionSaleModeErrorMessage('random_option_price_mismatch')).toContain('판매가');
-    expect(goodsOptionSaleModeErrorMessage('ERROR: random_option_variant_limits')).toBe(goodsOptionSaleModeErrorMessage('random_option_variant_limits'));
+    expect(goodsOptionSaleModeErrorMessage('ERROR: random_option_limit_mismatch')).toBe(goodsOptionSaleModeErrorMessage('random_option_limit_mismatch'));
+    expect(goodsOptionSaleModeErrorMessage('random_option_limit_mismatch')).toContain('같은 옵션 배정 상한');
+    expect(goodsOptionSaleModeErrorMessage('random_option_preorder_mismatch')).toContain('발송 예정일');
+    /* 옛 코드는 더 이상 DB가 내지 않는다(예약·옵션별 제한을 랜덤 판매에서 쓸 수 있다). */
+    expect(RANDOM_OPTION_PROBLEMS).not.toContain('random_option_preorder');
+    expect(RANDOM_OPTION_PROBLEMS).not.toContain('random_option_variant_limits');
     expect(goodsOptionSaleModeErrorMessage('goods_changed')).toContain('다른 곳에서');
     expect(goodsOptionSaleModeErrorMessage('operator_capability_required')).toContain('권한');
     expect(goodsOptionSaleModeErrorMessage('sensitive failure')).toBe('판매 방식을 바꾸지 못했습니다. 잠시 후 다시 시도하세요.');
+  });
+});
+
+describe('랜덤 예약판매·같은 옵션 배정 상한 안내', () => {
+  it('예약판매면 예약 물량 문구, 아니면 재고 문구다', () => {
+    expect(RANDOM_OPTION_PREORDER_NOTICE).toBe('옵션은 주문 후 예약 물량에서 무작위로 정해져 발송됩니다. 같은 옵션이 중복될 수 있습니다.');
+    expect(randomOptionNotices()).toEqual([RANDOM_OPTION_NOTICE]);
+    expect(randomOptionNotices({ preorder: true })).toEqual([RANDOM_OPTION_PREORDER_NOTICE]);
+  });
+  it('상한 문장을 더하고, 1인 상한이 1이면 중복 문장을 뺀다', () => {
+    expect(randomOptionNotices({ allocationLimit: { orderMaxQty: 2, memberMaxQty: 3 } }))
+      .toEqual([RANDOM_OPTION_NOTICE, '같은 옵션은 한 번에 2개, 1인당 3개까지 배정됩니다.']);
+    expect(randomOptionNotices({ preorder: true, allocationLimit: { orderMaxQty: null, memberMaxQty: 1 } }))
+      .toEqual(['옵션은 주문 후 예약 물량에서 무작위로 정해져 발송됩니다.', '같은 옵션은 1인당 1개까지 배정됩니다.']);
+    expect(randomOptionAllocationNotice({ orderMaxQty: 1, memberMaxQty: null })).toBe('같은 옵션은 한 번에 1개까지 배정됩니다.');
+    expect(randomOptionAllocationNotice({ orderMaxQty: null, memberMaxQty: null })).toBeNull();
+    expect(randomOptionAllocationNotice(null)).toBeNull();
+  });
+  it('공개 랜덤 한 줄의 allocation_limit을 읽는다', () => {
+    expect(parseRandomAllocationLimit({ orderMaxQty: 2, memberMaxQty: null })).toEqual({ orderMaxQty: 2, memberMaxQty: null });
+    expect(parseRandomAllocationLimit({ orderMaxQty: 0, memberMaxQty: null })).toBeNull();
+    expect(parseRandomAllocationLimit('2')).toBeNull();
+    expect(PLACE_ORDER_RANDOM_OPTION_LIMIT_MESSAGE).toContain('수량을 줄여');
   });
 });
 
