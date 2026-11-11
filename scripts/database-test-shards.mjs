@@ -173,6 +173,7 @@ const storefront = [
   script('product_detail_presentation_concurrency.sh', 'PRODUCT_DETAIL_PRESENTATION_TEST_SCOPE'),
   sql('review_events', { admin: true, kc: true }),
   sql('review_event_exports', { admin: true, kc: true }),
+  sql('review_event_templates', { admin: true }),
   script('review_events_concurrency.sh', 'REVIEW_EVENTS_TEST_SCOPE'),
   script('goods_relation_visual_concurrency.sh', 'GOODS_RELATION_VISUAL_TEST_SCOPE'),
 ];
