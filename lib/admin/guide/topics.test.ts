@@ -264,16 +264,16 @@ describe('어드민 가이드 인용·수치 정합', () => {
   });
 
   /* 출고지시 양식 기본값(10/14 회의 A2·T4) — 화면은 양식을 고르지 않으면 출고지 기본 양식을 쓰고 버튼마다 실제 양식을 적는다.
-     안내가 "기본은 74열"로 되돌아가면 남양주 담당자가 74열을 받는다고 오해한다. */
+     안내가 "기본은 ICONS 표준 양식"으로 되돌아가면 남양주 담당자가 그 양식을 받는다고 오해한다. */
   it('출고지시 기본 양식과 입금 확인 뒤 발주확인 안내가 화면 계약과 같다', () => {
     const grid = repoFile('components/admin/screens/ShipmentConsoleGrid.tsx');
-    expect(grid).toContain('출고지 기본 양식 (남양주만 고르면 서원 송장양식 · 그 밖·여러 출고지는 스마트스토어 74열)');
+    expect(grid).toContain('출고지 기본 양식 (남양주만 고르면 서원 송장양식 · 그 밖·여러 출고지는 ICONS 표준 양식)');
     expect(grid).toContain('CSV를 골라도 남양주(서원) 송장양식은 XLSX로 받습니다.');
     for (const slug of ['orders-shipping', 'store-settings'] as const) {
       const text = plainText(ADMIN_GUIDE_TOPICS[slug]);
       expect(text, slug).toContain('출고지 기본 양식');
       expect(text, slug).toContain('서원 송장양식 XLSX(비밀번호 없음)');
-      expect(text, slug).not.toMatch(/기본은 스마트스토어|기본 내보내기는 스마트스토어|위에서 고른 양식/);
+      expect(text, slug).not.toMatch(/기본은 ICONS|기본 내보내기는 ICONS|위에서 고른 양식/);
     }
     expect(plainText(ADMIN_GUIDE_TOPICS['orders-shipping'])).toContain('버튼에 적힌 양식');
     const bank = plainText(ADMIN_GUIDE_TOPICS['bank-transfer']);

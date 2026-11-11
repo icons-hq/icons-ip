@@ -51,7 +51,7 @@ describe('품목별 쿠폰·적립금 배분(10/14 회의 A5)', () => {
     expect(orderItemAllocations({ ...v2, items: [{ ...v2.items[0], allocation: null }] }).size).toBe(0);
   });
 
-  it('스마트스토어 상품별 할인액은 정가 차이와 배분 할인을 더하고 정가가 없으면 비운다', () => {
+  it('표준 양식의 상품별 할인액은 정가 차이와 배분 할인을 더하고 정가가 없으면 비운다', () => {
     const allocation = { source: 'legacy' as const, volumeDiscount: 0, couponDiscount: 501, storeCreditDiscount: 339, paidGoodsTotal: 9160 };
     expect(smartStoreItemDiscount({ qty: 2, unitPrice: 5000, regularUnitPrice: 6000 }, allocation)).toBe(2840);
     expect(smartStoreItemDiscount({ qty: 2, unitPrice: 5000, regularUnitPrice: null }, allocation)).toBeNull();

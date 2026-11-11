@@ -18,7 +18,7 @@ import type { GoodsFulfillmentOrigin } from '@/lib/admin/fulfillment-origins';
 import { GoodsSalePeriodFields } from './GoodsSalePeriodFields';
 import type { AdminGoodsReadiness } from '@/lib/admin/goods-readiness';
 import { categoryPath } from '@/lib/admin/category';
-import { goodEditorValues, createGoodEditorDraft, goodEditorFingerprint, buildGoodEditorPreview, GOOD_LOCAL_DRAFT_FIELDS, type GoodNoticeDefaults } from '@/lib/admin/good-editor';
+import { goodEditorValues, createGoodEditorDraft, goodEditorFingerprint, buildGoodEditorPreview, GOOD_LOCAL_DRAFT_FIELDS, GOOD_LOCAL_DRAFT_LINKED_FIELDS, type GoodNoticeDefaults } from '@/lib/admin/good-editor';
 import { goodsOptionStockTotals, initialGoodsOptionRows, isSingleGoodsOption, restoreGoodsOptionRows, type GoodsOptionRow } from '@/lib/admin/goods-option-editor';
 import { formatWon, goodsPriceDraftFromValues, resolveGoodsPrice } from '@/lib/admin/goods-price-editor';
 import { planErpCategorySuggestion, type ErpCategorySuggestion } from '@/lib/admin/goods-erp-suggestion';
@@ -691,6 +691,7 @@ export function GoodEditor({ accountId, ...props }: GoodEditorProps) {
   const local = useAdminLocalAutosave({
     scope: { accountId, formId: 'good', recordId: props.selected?.id ?? null },
     fields: GOOD_LOCAL_DRAFT_FIELDS, serverState: props.state, passiveInitializationFields: GOOD_PASSIVE_INITIALIZATION_FIELDS,
+    linkedFields: GOOD_LOCAL_DRAFT_LINKED_FIELDS,
     /* KC 입력은 복구 대상이 아니고 name도 없다. 폼 안에 있어도 "사용자 수정"으로 세지 않는다. */
     ignoreEditsWithin: '[data-good-kc-slot]',
   });
@@ -702,7 +703,7 @@ export function GoodEditor({ accountId, ...props }: GoodEditorProps) {
   useFocusFirstGoodError(props.state.attempt, state.errors);
   const showRecovery = Boolean(local.snapshot.recovery) && !preservedFormValues(props.state, props.selected?.id);
   return <>
-    <AdminLocalDraftNotice onDiscard={local.discard} onRestore={() => { setServerRecovery(null); local.restore(); }} pending={props.pending}
+    <AdminLocalDraftNotice onDiscard={local.discardRecovery} onRestore={() => { setServerRecovery(null); local.restore(); }} pending={props.pending}
       recovery={showRecovery} unavailable={local.snapshot.unavailable} />
     {/* 복구 기록에는 KC·예약판매 입력이 담기지 않는다(근거 참조 보호, DQ3). 조용히 비어 보이지 않게 미리 알린다. */}
     {showRecovery && !props.selected ? <p className="text-sm text-muted-foreground" role="note">KC·예약판매 입력은 복구되지 않습니다. 복구한 뒤 KC 정보를 다시 확인해주세요.</p> : null}

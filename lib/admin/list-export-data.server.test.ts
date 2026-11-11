@@ -144,7 +144,7 @@ describe('화면별 로더 재사용', () => {
     expect(sheet.filters).toMatchObject({ tab: 'delayed', delayNotice: 'not_sent' });
     expect(sheet.conditions).toContainEqual(['발송지연 안내여부', '미발송']);
     expect(sheet.columns.map(column => column.header)).toContain('상품주문번호');
-    expect(sheet.columns).toHaveLength(53);
+    expect(sheet.columns.map(column => column.header).slice(-1)).toEqual(['지연 메모']);
     expect(sheet.recordCount).toBe(0);
   });
   it('주문 통합검색은 화면 파서·로더를 그대로 쓰고 페이지 크기만 키운다', async () => {
@@ -181,12 +181,18 @@ describe('화면별 로더 재사용', () => {
         deliveredAt: null, exportedAt: null, updatedAt: line.shipmentUpdatedAt, delayReason: null, expectedShipDate: null, items: [{ id: line.itemId, name: line.goodName, variantName: line.variantName, qty: line.qty }] }],
       delayNoticeFingerprint: 'a'.repeat(64), total: 1, origins: [{ id: 'o', name: '김포' }], carriers: [], counts: {}, surface: 'shipping', filters: {}, pageSize: 1000,
     });
-    mocks.tables.orders = [{ id: ORDER_ID, address: { recipientName: '수령', phone: '01000000000', postalCode: '01234', address1: '서울' }, payment_method: 'card' }];
+    mocks.tables.orders = [{ id: ORDER_ID, address: { recipientName: '수령', phone: '01000000000', postalCode: '01234', address1: '서울', deliveryNote: '문 앞에 놓아주세요' }, payment_method: 'card' }];
     const sheet = await loadAdminListExportSheet('shipping', { tab: 'delivered', page: '2' }, new Date());
     expect(mocks.shipments).toHaveBeenCalledWith(expect.objectContaining({ tab: 'delivered', page: 1 }), 'shipping', { pageSize: 1000 });
-    expect(sheet.rows[0][sheet.columns.findIndex((column) => column.header === '수취인연락처1')]).toBe('01000000000');
-    expect(sheet.rows[0][0]).toBe(line.productOrderNumber);
+    const at = (header: string) => sheet.rows[0][sheet.columns.findIndex((column) => column.header === header)];
+    expect(at('연락처')).toBe('01000000000');
+    expect(at('배송메시지')).toBe('문 앞에 놓아주세요');
+    expect(at('출고지')).toBe('김포');
+    expect(at('주문일시')).toBe('2026-10-07 09:00');
+    expect(at('결제수단')).toBe('카드');
+    expect(at('상품주문번호')).toBe(line.productOrderNumber);
     expect(mocks.rpc).toHaveBeenCalledWith('admin_delivery_list_export_lines', { p_ids: [line.shipmentId] });
+    expect(mocks.inCalls.some((call) => call.table === 'orders' && call.ids.includes(ORDER_ID))).toBe(true);
   });
 
   it('반품 화면은 집계 없이 요청을 모으고 품목·배송지·운송장을 붙인다', async () => {

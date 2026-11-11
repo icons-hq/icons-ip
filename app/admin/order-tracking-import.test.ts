@@ -1,7 +1,8 @@
 const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { bulkRegisterAdminOrderTrackingAction } from './order-actions';
 import ExcelJS from 'exceljs';
+import {encryptAdminWorkbook} from '@/lib/admin/encrypted-workbook.server';
 import {GIMPO_EXPORT_HEADERS,SEOWON_EXPORT_HEADERS} from '@/lib/admin/warehouse-templates';
 import {SEOWON_REPLY_REASONS} from '@/lib/admin/seowon-exchange';
 const mocks = vi.hoisted(() => ({ auth: vi.fn(), rpc: vi.fn(), enqueue: vi.fn(), carriers: vi.fn(), refresh: vi.fn(), origins: vi.fn() }));
@@ -82,8 +83,8 @@ describe('bulk tracking action', () => {
   });
   it('상품주문번호 회신은 실제 item RPC로 보내고 같은 배송의 상품행을 중복 발송·메일 처리하지 않는다',async()=>{
     const firstItem='60000000-0000-4000-8000-000000000001',secondItem='60000000-0000-4000-8000-000000000002';
-    const book=new ExcelJS.Workbook();book.addWorksheet('발송처리').addRows([
-      ['상품주문번호','배송방법','택배사','송장번호'],[firstItem,'택배,등기,소포','한진택배','001234567890'],[secondItem,'택배,등기,소포','한진택배','001234567890'],
+    const book=new ExcelJS.Workbook();book.addWorksheet('발주(주문)확인 발송관리').addRows([
+      ['상품주문번호','택배사','운송장번호'],[firstItem,'한진택배','001234567890'],[secondItem,'한진택배','001234567890'],
     ]);
     const input=new FormData();input.set('file',new File([await book.xlsx.writeBuffer() as ArrayBuffer],'smartstore-reply.xlsx'));
     mocks.rpc.mockResolvedValue({error:null,data:[
@@ -124,6 +125,47 @@ describe('bulk tracking action', () => {
     const workbook = form(''); workbook.set('file', new File(['x'.repeat(1024 * 1024 + 1)], 'tracking.xlsx'));
     expect(await bulkRegisterAdminOrderTrackingAction({}, workbook)).toHaveProperty('errors.form');
     expect(mocks.rpc).not.toHaveBeenCalled(); expect(mocks.enqueue).not.toHaveBeenCalled();
+  });
+  describe('ICONS 표준 양식 CSV 회신', () => {
+    const item='2026102120000001',second='2026102120000002';
+    const csvForm=(text:string|Uint8Array,name='출고지시.csv')=>{const data=new FormData();data.set('file',new File([text as BlobPart],name));return data;};
+    const header='상품주문번호,배송메시지,택배사,운송장번호';
+    beforeEach(()=>mocks.rpc.mockResolvedValue({error:null,data:[{line:2,reference:item,ok:true,shipmentId:'shipment-one',orderId:warehouseOrder,dispatched:true,duplicate:false}]}));
+    it('12자리 운송장번호를 채운 CSV를 품목 RPC로 보낸다',async()=>{
+      const result=await bulkRegisterAdminOrderTrackingAction({},csvForm(`\uFEFF${header}\r\n"${item}","문 앞, 부탁합니다","한진택배","123456789012"\r\n`));
+      expect(mocks.rpc).toHaveBeenCalledWith('admin_import_item_tracking_batch',{target_rows:[{line:2,reference:item,carrier:'hanjin',trackingNumber:'123456789012'}]});
+      expect(result.errors).toBeUndefined();expect(result.report?.succeeded).toEqual([item]);
+    });
+    it('엑셀이 저장한 CP949 CSV의 머리글도 읽는다',async()=>{
+      const bytes=Uint8Array.from(Buffer.from('bbf3c7b0c1d6b9aeb9f8c8a32cc5c3b9e8bbe72cbfeebcdbc0e5b9f8c8a30d0a','hex'));
+      const line=Buffer.from(`${item},hanjin,123456789012\r\n`);
+      await bulkRegisterAdminOrderTrackingAction({},csvForm(new Uint8Array([...bytes,...line])));
+      expect(mocks.rpc).toHaveBeenCalledWith('admin_import_item_tracking_batch',{target_rows:[{line:2,reference:item,carrier:'hanjin',trackingNumber:'123456789012'}]});
+    });
+    it('붙여넣은 표준 양식 표도 같은 규칙으로 읽는다',async()=>{
+      await bulkRegisterAdminOrderTrackingAction({},form(`상품주문번호\t택배사\t운송장번호\n${item}\t한진택배\t123456789012`));
+      expect(mocks.rpc).toHaveBeenCalledWith('admin_import_item_tracking_batch',{target_rows:[{line:2,reference:item,carrier:'hanjin',trackingNumber:'123456789012'}]});
+    });
+    it('안전 검사에 걸린 줄은 등록하지 않고 사유를 남긴다',async()=>{
+      const result=await bulkRegisterAdminOrderTrackingAction({},csvForm(`${header}\r\n${item},,한진택배,=1+1\r\n${second},,한진택배,\r\n`));
+      expect(mocks.rpc).not.toHaveBeenCalled();
+      expect(result.report?.failed.map(row=>[row.line,row.reason])).toEqual([[2,'수식은 사용할 수 없습니다.'],[3,'운송장번호가 비어 있습니다.']]);
+    });
+    it('표준 양식 CSV는 256KB를 넘어도 받고, 일반 세 칸 CSV는 종전 한도를 유지하며 그대로 처리한다',async()=>{
+      const padding='합성 메시지 '.repeat(50);
+      const rows=Array.from({length:300},(_,index)=>`${String(2026102120000000+index+1)},"${padding}",한진택배,123456789012`).join('\r\n');
+      mocks.rpc.mockResolvedValue({error:null,data:[]});
+      const big=csvForm(`${header}\r\n${rows}`);
+      expect((big.get('file') as File).size).toBeGreaterThan(256*1024);
+      await bulkRegisterAdminOrderTrackingAction({},big);
+      expect(mocks.rpc.mock.calls[0][0]).toBe('admin_import_item_tracking_batch');
+      mocks.rpc.mockClear();
+      const plain=await bulkRegisterAdminOrderTrackingAction({},csvForm(`배송건번호,택배사코드,운송장번호\r\n${'0'.repeat(8)},hanjin,12345678\r\n#${'x'.repeat(256*1024)}`));
+      expect(plain.errors?.form).toContain('256KB');expect(mocks.rpc).not.toHaveBeenCalled();
+      mocks.rpc.mockResolvedValue({error:null,data:[{line:2,reference:'00000000',ok:true,shipmentId:'s',orderId:'o',dispatched:true}]});
+      await bulkRegisterAdminOrderTrackingAction({},csvForm(`배송건번호,택배사코드,운송장번호\r\n${'0'.repeat(8)},hanjin,12345678\r\n`));
+      expect(mocks.rpc.mock.calls[0][0]).toBe('admin_import_shipment_tracking_batch');
+    });
   });
   it('merges parser and database failures by original line while keeping successful IDs', async () => {
     mocks.rpc.mockResolvedValue({ error: null, data: [
@@ -235,4 +277,76 @@ describe('bulk tracking action', () => {
     expect(result.errors?.form).toContain('등록 결과를 확인하지 못했습니다.');
     expect(result.report).toBeUndefined(); expect(mocks.enqueue).not.toHaveBeenCalled();
   });
+});
+
+// 실제 Agile 암호화·복호화는 키마다 SHA-512를 100,000번 돌려 CI 러너에서 테스트 하나가 2~5초 걸린다.
+describe('비밀번호를 건 회신 파일 등록',{timeout:20_000},()=>{
+ const password='Sample-1234';
+ const item='60000000-0000-4000-8000-000000000001';
+ async function smartStoreReply(carrier='한진택배'){
+  const book=new ExcelJS.Workbook();book.addWorksheet('발송처리').addRows([['상품주문번호','배송방법','택배사','송장번호'],[item,'택배,등기,소포',carrier,'001234567890']]);
+  return Buffer.from(await book.xlsx.writeBuffer());
+ }
+ function upload(plain:Buffer,filePassword?:string|File){
+  const data=new FormData();data.set('file',new File([new Uint8Array(encryptAdminWorkbook(plain,password).bytes)],'reply.xlsx'));
+  if(filePassword!==undefined)data.set('filePassword',filePassword);
+  return data;
+ }
+ async function sealedForm(source:FormData){
+  const plain=Buffer.from(await (source.get('file') as File).arrayBuffer());const data=upload(plain,password);
+  data.set('originId',String(source.get('originId')??''));return data;
+ }
+ const logged=vi.fn();
+ const consoleMethods=['log','info','warn','error','debug'] as const;
+ beforeEach(()=>{logged.mockClear();for(const method of consoleMethods)vi.spyOn(console,method).mockImplementation(logged);});
+ afterEach(()=>{vi.restoreAllMocks();});
+ const expectNoSecret=(result:unknown)=>{
+  for(const seen of [result,mocks.rpc.mock.calls,mocks.enqueue.mock.calls,logged.mock.calls])expect(JSON.stringify(seen)??'').not.toContain(password);
+ };
+ it('내려받은 비밀번호 파일을 해제 없이 올리면 배송 건을 등록하고 비밀번호는 어디에도 남기지 않는다',async()=>{
+  mocks.rpc.mockResolvedValue({error:null,data:[{line:2,reference:item,ok:true,shipmentId:'shipment-one',orderId:warehouseOrder,dispatched:true,duplicate:false}]});
+  const result=await bulkRegisterAdminOrderTrackingAction({},upload(await smartStoreReply(),password));
+  expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith('admin_import_item_tracking_batch',{target_rows:[{line:2,reference:item,carrier:'hanjin',trackingNumber:'001234567890'}]});
+  expect(result.report?.succeeded).toEqual([item]);expect(result.errors).toBeUndefined();
+  expect(mocks.enqueue).toHaveBeenCalledExactlyOnceWith([{orderId:warehouseOrder,shipmentId:'shipment-one'}]);
+  expectNoSecret(result);
+ });
+ it('비밀번호가 없으면 물어보고 등록하지 않는다',async()=>{
+  const result=await bulkRegisterAdminOrderTrackingAction({},upload(await smartStoreReply()));
+  expect(result.errors?.form).toContain('파일 비밀번호를 입력');expect(mocks.rpc).not.toHaveBeenCalled();expect(mocks.enqueue).not.toHaveBeenCalled();
+ });
+ it('문자열이 아닌 비밀번호 값은 비밀번호 없음으로 처리한다',async()=>{
+  const result=await bulkRegisterAdminOrderTrackingAction({},upload(await smartStoreReply(),new File([password],'password.txt')));
+  expect(result.errors?.form).toContain('파일 비밀번호를 입력');expect(mocks.rpc).not.toHaveBeenCalled();
+ });
+ it('틀린 비밀번호는 분명한 문구로 거절하고 입력값을 응답·로그·DB 호출에 남기지 않는다',async()=>{
+  const wrong='Wrong-Secret-9';
+  const result=await bulkRegisterAdminOrderTrackingAction({},upload(await smartStoreReply(),wrong));
+  expect(result.errors?.form).toContain('파일 비밀번호가 맞지 않습니다');expect(mocks.rpc).not.toHaveBeenCalled();expect(mocks.enqueue).not.toHaveBeenCalled();
+  for(const seen of [result,logged.mock.calls])expect(JSON.stringify(seen)).not.toContain(wrong);
+ });
+ it('비활성 택배사 행은 복호화한 내용에서도 등록하지 않고 줄 오류로 알린다',async()=>{
+  mocks.carriers.mockResolvedValue([{code:'hanjin',label:'한진택배',active:false,trackingUrlTemplate:'https://example.test/{trackingNumber}'}]);
+  const result=await bulkRegisterAdminOrderTrackingAction({},upload(await smartStoreReply(),password));
+  expect(result.report?.failed[0]).toMatchObject({line:2,reference:item});expect(result.report?.failed[0].reason).toContain('사용하지 않는 택배사');
+  expect(mocks.rpc).not.toHaveBeenCalled();expect(mocks.enqueue).not.toHaveBeenCalled();
+ });
+ it('김포 회신을 비밀번호 파일로 올려도 같은 출고지 문맥으로 등록한다',async()=>{
+  await bulkRegisterAdminOrderTrackingAction({},await sealedForm(await warehouseForm('')));
+  expect(mocks.origins).toHaveBeenCalledWith('wms_csv');
+  expect(mocks.rpc).toHaveBeenCalledWith('admin_import_warehouse_tracking_batch',expect.objectContaining({target_origin_id:warehouseOrigin}));
+ });
+ it('서원 회신을 비밀번호 파일로 올려도 같은 대조 경로로 등록한다',async()=>{
+  mocks.rpc.mockImplementation(async(name:string,args:{target_rows?:{line:number;reference:string}[]})=>name==='admin_origin_tracking_candidates'
+   ?{error:null,data:{defaultCarrier:'epost',truncated:false,shipments:[seowonCandidate()],usedTracking:[]}}
+   :{error:null,data:args.target_rows!.map(row=>({...row,ok:true,dispatched:true,orderId:seowonOrder,shipmentId:seowonShipment}))});
+  const result=await bulkRegisterAdminOrderTrackingAction({},await sealedForm(await seowonForm([seowonRow('합성 키링_빨강',2,'6012345678901'),seowonRow('합성 엽서_',1,'6012345678901')])));
+  expect(mocks.rpc).toHaveBeenNthCalledWith(2,'admin_import_seowon_tracking_batch',{target_origin_id:seowonOrigin,target_rows:[{line:2,reference:seowonShipment,carrier:'epost',trackingNumber:'6012345678901'}]});
+  expect(result.report?.succeeded).toEqual(['000000A1']);
+ });
+ it('암호 없는 XLSX는 비밀번호 칸이 있어도 지금처럼 등록한다',async()=>{
+  const form=await warehouseForm();form.set('filePassword','');
+  await bulkRegisterAdminOrderTrackingAction({},form);
+  expect(mocks.rpc).toHaveBeenCalledWith('admin_import_warehouse_tracking_batch',expect.objectContaining({target_origin_id:warehouseOrigin}));
+ });
 });

@@ -84,7 +84,7 @@ export function Header({
       <Breadcrumb className="min-w-0 flex-1">
         <BreadcrumbList className="flex-nowrap">
           <BreadcrumbItem className={crumbs.length ? 'max-sm:hidden' : undefined}>
-            {crumbs.length ? <BreadcrumbLink render={<Link href={root?.href ?? '/admin'} />}>{rootLabel}</BreadcrumbLink> : <BreadcrumbPage>{rootLabel}</BreadcrumbPage>}
+            {crumbs.length ? <BreadcrumbLink render={<Link href={root?.href ?? '/admin'} prefetch={false} />}>{rootLabel}</BreadcrumbLink> : <BreadcrumbPage>{rootLabel}</BreadcrumbPage>}
           </BreadcrumbItem>
           {crumbs.map((crumb, index) => {
             const last = index === crumbs.length - 1;
@@ -110,6 +110,7 @@ export function Header({
                 data-admin-console-link={item.id}
                 href={item.href}
                 key={item.id}
+                prefetch={false}
               >
                 {item.label}
               </Link>
@@ -117,11 +118,11 @@ export function Header({
           </nav>
         ) : null}
         <nav aria-label="판매자 바로가기" className="hidden items-center gap-1 lg:flex">
-          <Link className={buttonVariants({ variant: 'ghost', size: 'sm' })} href="/admin/guide">
+          <Link className={buttonVariants({ variant: 'ghost', size: 'sm' })} href="/admin/guide" prefetch={false}>
             <BookOpen aria-hidden="true" />
             판매자 가이드
           </Link>
-          <Link className={buttonVariants({ variant: 'ghost', size: 'sm' })} href="/" rel="noopener noreferrer" target="_blank">
+          <Link className={buttonVariants({ variant: 'ghost', size: 'sm' })} href="/" prefetch={false} rel="noopener noreferrer" target="_blank">
             쇼핑몰 바로가기
             <ExternalLink aria-hidden="true" />
           </Link>
@@ -164,7 +165,7 @@ export function Header({
               <DropdownMenuGroup className="sm:hidden">
                 <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">콘솔 전환</DropdownMenuLabel>
                 {consoles.map((item) => (
-                  <DropdownMenuItem aria-current={item.current ? 'page' : undefined} key={item.id} render={<Link href={item.href} />}>
+                  <DropdownMenuItem aria-current={item.current ? 'page' : undefined} key={item.id} render={<Link href={item.href} prefetch={false} />}>
                     <ArrowLeftRight />
                     {item.label}
                     {item.current ? <Check className="ml-auto" /> : null}
@@ -174,8 +175,8 @@ export function Header({
               </DropdownMenuGroup>
             ) : null}
             <DropdownMenuGroup className="md:hidden">
-              <DropdownMenuItem render={<Link href="/admin/guide" />}><BookOpen />판매자 가이드</DropdownMenuItem>
-              <DropdownMenuItem render={<Link href="/" rel="noopener noreferrer" target="_blank" />}><ExternalLink />쇼핑몰 바로가기</DropdownMenuItem>
+              <DropdownMenuItem render={<Link href="/admin/guide" prefetch={false} />}><BookOpen />판매자 가이드</DropdownMenuItem>
+              <DropdownMenuItem render={<Link href="/" prefetch={false} rel="noopener noreferrer" target="_blank" />}><ExternalLink />쇼핑몰 바로가기</DropdownMenuItem>
               <DropdownMenuSeparator />
             </DropdownMenuGroup>
             <DropdownMenuItem disabled={signOutPending} onClick={() => { if (confirmAdminLeave()) signOutFormRef.current?.requestSubmit(); }}>

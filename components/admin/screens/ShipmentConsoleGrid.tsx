@@ -27,10 +27,10 @@ function download(file:{base64:string;mime:string;name:string}){
  const bytes=Uint8Array.from(atob(file.base64),c=>c.charCodeAt(0));const url=URL.createObjectURL(new Blob([bytes],{type:file.mime}));
  const anchor=document.createElement('a');anchor.href=url;anchor.download=file.name;anchor.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
-/** 내보낼 배송 건이 모두 서원 송장양식 출고지(남양주)면 원형 양식이 기본이고, 그 밖에는 스마트스토어 74열이다. */
+/** 내보낼 배송 건이 모두 서원 송장양식 출고지(남양주)면 원형 양식이 기본이고, 그 밖에는 ICONS 표준 양식이다. */
 /** 실제로 내려받을 양식 이름. 기존 창고 양식은 출고지 설정을 따르므로 서원 출고지만이면 서원 송장양식이라고 적는다. */
 function layoutLabel(layout:ShipmentExportLayout,seowonOnly:boolean){
- return layout==='smartstore'?'스마트스토어 74열':seowonOnly?'서원 송장양식':'기존 창고 양식';
+ return layout==='smartstore'?'ICONS 표준 양식':seowonOnly?'서원 송장양식':'기존 창고 양식';
 }
 function defaultExportLayout(origins:readonly ShipmentConsoleOrigin[],originIds:readonly string[]):ShipmentExportLayout{
  return originIds.length>0&&originIds.every(id=>origins.find(origin=>origin.id===id)?.template==='seowon_xlsx')?'warehouse':'smartstore';
@@ -159,7 +159,7 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
     {retainedOffPage>0?<span className="flex flex-wrap items-center gap-1.5">방금 발주확인한 다른 페이지의 {retainedOffPage}건 포함 <Button type="button" size="xs" variant="outline" onClick={()=>select([])}>선택 해제</Button></span>:null}
     {tab==='new'?<Button type="button" size="sm" disabled={pending||!ids.length} title={ids.length?undefined:SELECT_FIRST} onClick={()=>run('confirm')}>선택 주문 {orderIds.length}건 발주확인</Button>:tab==='transit'?
      <Button type="button" size="sm" disabled={pending||!ids.length} title={ids.length?undefined:SELECT_FIRST} onClick={reviewCompletion}>선택 배송완료</Button>:
-     <><span className={CONTROL}><Label className="shrink-0 whitespace-nowrap" htmlFor="shipment-export-layout">엑셀 양식</Label><NativeSelect className="max-w-full" id="shipment-export-layout" size="sm" value={layoutChoice??'auto'} disabled={pending} onChange={event=>setLayout(event.target.value==='auto'?null:event.target.value as ShipmentExportLayout)}><option value="auto">출고지 기본 양식 (남양주만 고르면 서원 송장양식 · 그 밖·여러 출고지는 스마트스토어 74열)</option><option value="smartstore">스마트스토어 양식 (74열)</option><option value="warehouse">기존 창고 양식</option></NativeSelect></span>
+     <><span className={CONTROL}><Label className="shrink-0 whitespace-nowrap" htmlFor="shipment-export-layout">엑셀 양식</Label><NativeSelect className="max-w-full" id="shipment-export-layout" size="sm" value={layoutChoice??'auto'} disabled={pending} onChange={event=>setLayout(event.target.value==='auto'?null:event.target.value as ShipmentExportLayout)}><option value="auto">출고지 기본 양식 (남양주만 고르면 서원 송장양식 · 그 밖·여러 출고지는 ICONS 표준 양식)</option><option value="smartstore">ICONS 표준 양식</option><option value="warehouse">기존 창고 양식</option></NativeSelect></span>
      <span className={CONTROL}><Label className="shrink-0 whitespace-nowrap" htmlFor="shipment-export-format">파일 형식</Label><NativeSelect id="shipment-export-format" size="sm" value={format} disabled={pending} onChange={event=>setFormat(event.target.value as 'xlsx'|'csv')}><option value="xlsx">Excel (.xlsx)</option><option value="csv">CSV</option></NativeSelect></span>
      {seowonCsvNote}
      {ids.length?<span className="text-muted-foreground">선택한 배송 건 내려받기 양식: {layoutLabel(layout,selectedOrigins.length>0&&selectedOrigins.every(id=>originTemplate(id)==='seowon_xlsx'))}</span>:null}
@@ -172,7 +172,7 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
     {pending?<span className="text-muted-foreground" role="status">처리 중…</span>:null}
    </div>:null}
    {exportOrigins.length?<div className="flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2" role="group" aria-label="출고지별 새 출고지시 내려받기">
-    {!hasBatchActions?<><span className={CONTROL}><Label className="shrink-0 whitespace-nowrap" htmlFor="shipment-export-layout">엑셀 양식</Label><NativeSelect className="max-w-full" id="shipment-export-layout" size="sm" value={layoutChoice??'auto'} disabled={pending} onChange={event=>setLayout(event.target.value==='auto'?null:event.target.value as ShipmentExportLayout)}><option value="auto">출고지 기본 양식 (남양주만 고르면 서원 송장양식 · 그 밖·여러 출고지는 스마트스토어 74열)</option><option value="smartstore">스마트스토어 양식 (74열)</option><option value="warehouse">기존 창고 양식</option></NativeSelect></span>
+    {!hasBatchActions?<><span className={CONTROL}><Label className="shrink-0 whitespace-nowrap" htmlFor="shipment-export-layout">엑셀 양식</Label><NativeSelect className="max-w-full" id="shipment-export-layout" size="sm" value={layoutChoice??'auto'} disabled={pending} onChange={event=>setLayout(event.target.value==='auto'?null:event.target.value as ShipmentExportLayout)}><option value="auto">출고지 기본 양식 (남양주만 고르면 서원 송장양식 · 그 밖·여러 출고지는 ICONS 표준 양식)</option><option value="smartstore">ICONS 표준 양식</option><option value="warehouse">기존 창고 양식</option></NativeSelect></span>
      <span className={CONTROL}><Label className="shrink-0 whitespace-nowrap" htmlFor="shipment-export-format">파일 형식</Label><NativeSelect id="shipment-export-format" size="sm" value={format} disabled={pending} onChange={event=>setFormat(event.target.value as 'xlsx'|'csv')}><option value="xlsx">Excel (.xlsx)</option><option value="csv">CSV</option></NativeSelect></span>{seowonCsvNote}</>:null}
     <span className="basis-full text-muted-foreground">선택 없이 출고지별 미전달 발송 대기 건을 버튼에 적힌 양식으로 받습니다(품목 1,000줄까지, 남으면 다시 눌러 이어 받기).</span>
     {exportOrigins.map(origin=><Button key={origin.id} type="button" size="sm" variant="outline" className="h-auto min-h-7 whitespace-normal text-left" disabled={pending} onClick={()=>exportOrigin(origin)}>{origin.name} 새 출고지시 전체 내려받기 ({layoutLabel(layoutChoice??defaultExportLayout(origins,[origin.id]),origin.template==='seowon_xlsx')})</Button>)}
@@ -202,11 +202,11 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
     if(invalid||typeof password!=='string'||typeof passwordConfirmation!=='string'){setError(invalid??EXPORT_PASSWORD_HINT);return;}
     run('export',{password,passwordConfirmation});
    }}>
-    <p>{exportRequest.kind==='selection'?`선택한 ${exportRequest.ids.length}개 배송 건`:`${exportRequest.origin.name}의 아직 전달하지 않은 발송 대기 건`}을 스마트스토어 양식으로 내려받습니다.</p>
+    <p>{exportRequest.kind==='selection'?`선택한 ${exportRequest.ids.length}개 배송 건`:`${exportRequest.origin.name}의 아직 전달하지 않은 발송 대기 건`}을 ICONS 표준 양식으로 내려받습니다.</p>
     <p className="text-muted-foreground">{EXPORT_PASSWORD_HINT}</p>
-    <label className={FIELD}><span>비밀번호</span><Input name="password" type="password" autoComplete="new-password" autoFocus minLength={EXPORT_PASSWORD_MIN_LENGTH} maxLength={EXPORT_PASSWORD_MAX_LENGTH} required disabled={pending} spellCheck={false}/></label>
+    <label className={FIELD}><span>비밀번호</span><Input name="password" type="password" autoComplete="new-password" autoFocus data-dialog-autofocus="" minLength={EXPORT_PASSWORD_MIN_LENGTH} maxLength={EXPORT_PASSWORD_MAX_LENGTH} required disabled={pending} spellCheck={false}/></label>
     <label className={FIELD}><span>비밀번호 확인</span><Input name="passwordConfirmation" type="password" autoComplete="new-password" minLength={EXPORT_PASSWORD_MIN_LENGTH} maxLength={EXPORT_PASSWORD_MAX_LENGTH} required disabled={pending} spellCheck={false}/></label>
-    <p className="text-muted-foreground">비밀번호는 저장하지 않습니다. 운송장 회신 파일은 Excel에서 암호를 해제한 뒤 올려주세요.</p>
+    <p className="text-muted-foreground">비밀번호는 저장하지 않습니다. 운송장 회신 파일을 올릴 때 같은 비밀번호를 입력합니다.</p>
     {error?<p role="alert" className="text-destructive">{error}</p>:null}
     <div className="flex flex-wrap justify-end gap-2 border-t pt-3">
      <Button type="button" variant="outline" disabled={pending} onClick={()=>{setExportRequest(null);setError('');}}>취소</Button>

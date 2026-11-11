@@ -1,4 +1,5 @@
-import { renderToStaticMarkup } from 'react-dom/server';
+import type { ReactNode } from 'react';
+import { renderToPipeableStream, renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { AdminInsights } from '@/lib/admin/insights.server';
 import type { AdminWorkQueueData } from '@/lib/admin/work-queue';
@@ -188,5 +189,61 @@ describe('OverviewSection', () => {
     expect(html).not.toContain('신규주문');
     expect(html).not.toContain('발주확인');
     expect(html).not.toContain('거래확정');
+  });
+});
+
+/* 2026-11-10 실측: 홈 서버 응답 1.5~1.9초. 업무 큐를 먼저 보내고 통계·신고 칸만 나중에 채운다. */
+describe('OverviewSection 나중에 채우기', () => {
+  async function streamOf(element: ReactNode, finish: () => void) {
+    const chunks: string[] = [];
+    const { Writable } = await import('node:stream');
+    let shellWritten!: () => void;
+    const firstChunk = new Promise<void>((resolve) => { shellWritten = resolve; });
+    const done = new Promise<void>((resolve, reject) => {
+      const sink = new Writable({ write(chunk, _encoding, callback) { chunks.push(String(chunk)); shellWritten(); callback(); }, final(callback) { resolve(); callback(); } });
+      const stream = renderToPipeableStream(element, { onError: reject, onShellReady() { stream.pipe(sink); } });
+    });
+    await firstChunk;
+    const shell = chunks.join('');
+    finish();
+    await done;
+    return { shell, full: chunks.join('') };
+  }
+  const workQueue: AdminWorkQueueData = {
+    checkedAt: '2026-11-10T00:00:00Z',
+    counts: {
+      orders: { state: 'ready', count: 9 }, ready: { state: 'ready', count: 7 }, delayed: { state: 'ready', count: 0 }, inquiries: { state: 'ready', count: 0 }, goods: { state: 'ready', count: 0 },
+      unpaid: { state: 'hidden', count: null }, refundTransfers: { state: 'hidden', count: null },
+    },
+    goodsReasons: [],
+  };
+
+  it('통계가 오기 전에도 업무 큐를 먼저 보이고, 통계 칸은 집계 중 자리만 비워 둔다', async () => {
+    let finishInsights!: (value: AdminInsights | null) => void;
+    let finishReports!: (value: []) => void;
+    const pendingInsights = new Promise<AdminInsights | null>((resolve) => { finishInsights = resolve; });
+    const pendingReports = new Promise<[]>((resolve) => { finishReports = resolve; });
+    const summary = { claims: { cancel: 0, return: 0, exchange: 0 }, goods: { published: 0, soldout: 0 }, reviews: { total: 0, lowRating: 0, awaitingReply: 0 } };
+    const { shell, full } = await streamOf(<OverviewSection insights={pendingInsights} reports={pendingReports} summary={summary} workQueue={workQueue} />, () => { finishInsights(insights); finishReports([]); });
+
+    expect(shell).toContain('aria-label="신규주문 9건"');
+    expect(shell).toContain('aria-label="발송 대기 7건"');
+    expect(shell).toContain('aria-label="집계 중"');
+    expect(shell).toContain('판매 성과 집계 중');
+    expect(shell).not.toContain('30일 매출');
+    /* 실패 표시와 헷갈리지 않게 오는 중에는 '확인 필요'를 쓰지 않는다. */
+    expect(shell).not.toContain('확인 필요');
+
+    expect(full).toContain('30일 매출');
+    expect(full).toContain('₩690,000');
+    expect(full).toContain('접수된 신고가 없습니다.');
+  });
+
+  it('통계 조회가 끝내 실패하면 그 칸만 실패로 안내한다', async () => {
+    let finish!: (value: null) => void;
+    const pending = new Promise<null>((resolve) => { finish = resolve; });
+    const { full } = await streamOf(<OverviewSection insights={pending} reports={null} workQueue={workQueue} />, () => finish(null));
+    expect(full).toContain('성과 통계를 불러오지 못했습니다');
+    expect(full).toContain('신고 목록을 불러오지 못했습니다.');
   });
 });

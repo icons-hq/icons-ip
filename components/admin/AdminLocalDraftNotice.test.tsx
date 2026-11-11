@@ -13,6 +13,7 @@ describe('AdminLocalDraftNotice', () => {
     const html = renderToStaticMarkup(<AdminLocalDraftNotice recovery pending={false} onRestore={vi.fn()} onDiscard={vi.fn()} />);
     expect(html).toContain('저장되지 않은 입력 복구');
     expect(html).toContain('이 브라우저에 최대 7일');
+    expect(html).toContain('복구하거나 버려도 이 화면에서 새로 입력한 칸은 그대로 유지됩니다.');
     expect(html).toContain('type="button"');
     expect(html).toContain('>복구</button>');
     expect(html).toContain('>버리기</button>');

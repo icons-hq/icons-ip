@@ -15,4 +15,5 @@ it('운영 DTO는 주소·카드·binding 원문을 넘기지 않고 금액형 �
 it('파일은 온라인 금액·별도 착불·결제완료 누계의 서로 다른 열을 보존한다', () => {
   const values = subscriptionExportRows([adminSubscriptionRow])[0];
   expect(values.slice(7, 12)).toEqual([16000, 3000, 2, 1, 16000]); expect(values).not.toContain('customerKey');
+  expect(String(values[12])).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/); expect(String(values[13])).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/);
 });

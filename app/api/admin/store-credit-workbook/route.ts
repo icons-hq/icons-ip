@@ -3,6 +3,7 @@ import { requireAdminScreenAccess } from '@/lib/admin/guard.server';
 import { createClient } from '@/lib/supabase/server';
 import { normalizeStoreCreditConsoleFilters, parseStoreCreditConsoleData, STORE_CREDIT_CONSOLE_PATH } from '@/lib/admin/store-credit-console';
 import { buildStoreCreditWorkbook } from '@/lib/admin/store-credit-workbook.server';
+import { adminListExportContentDisposition, kstFileStamp } from '@/lib/admin/list-export';
 export const runtime = 'nodejs';
 export async function GET(request: Request) {
   await requireAdminScreenAccess(STORE_CREDIT_CONSOLE_PATH,{adminOnly:true});
@@ -14,7 +15,7 @@ export async function GET(request: Request) {
     if (error?.message === 'store_credit_export_limit') return Response.json({error:'최대 10,000행입니다. 검색 기간이나 조건을 좁혀주세요.'},{status:422});
     const parsed = error ? null : parseStoreCreditConsoleData(data,filters,10000);
     if (!parsed || parsed.rows.length !== parsed.total || typeof data.capturedAt !== 'string' || !Number.isFinite(Date.parse(data.capturedAt))) throw new Error('invalid_export_result');
-    const bytes = await buildStoreCreditWorkbook(parsed,data.capturedAt);
-    return new Response(new Uint8Array(bytes),{headers:{'Content-Type':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','Content-Disposition':`attachment; filename="icons-store-credits-${filters.mode}.xlsx"`,'Cache-Control':'private, no-store'}});
+    const bytes = await buildStoreCreditWorkbook(parsed,data.capturedAt), stamp = kstFileStamp(new Date(data.capturedAt));
+    return new Response(new Uint8Array(bytes),{headers:{'Content-Type':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','Content-Disposition':adminListExportContentDisposition(`icons-${filters.mode === 'ledger' ? '적립금원장' : '적립금지급관리'}-${stamp}.xlsx`,`icons-store-credits-${filters.mode}-${stamp}.xlsx`),'Cache-Control':'private, no-store'}});
   } catch (error) { unstable_rethrow(error); return Response.json({error:'적립금 엑셀을 만들지 못했습니다. 검색 조건과 권한을 확인해주세요.'},{status:500}); }
 }

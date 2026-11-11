@@ -4,6 +4,7 @@ import { BENEFIT_REPORT_PATH, BenefitIssuanceError, normalizeBenefitReportFilter
 import { getBenefitIssuances, getBenefitReport } from '@/lib/admin/benefit-report.server';
 import { buildBenefitWorkbook } from '@/lib/admin/benefit-workbook.server';
 import { adminStatsPreviousFilters } from '@/lib/admin/stats';
+import { adminListExportContentDisposition, kstFileStamp } from '@/lib/admin/list-export';
 
 export const runtime = 'nodejs';
 export async function GET(request: Request) {
@@ -17,8 +18,8 @@ export async function GET(request: Request) {
       filters.compare ? getBenefitReport({ ...filters, ...adminStatsPreviousFilters(filters, now), page: 1 }, now) : null,
       filters.detail === 'issuances' ? getBenefitIssuances(filters, now, true) : null,
     ]);
-    const bytes = await buildBenefitWorkbook(data, comparison, filters, now, issuances);
-    return new Response(new Uint8Array(bytes), { headers: { 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': 'attachment; filename="icons-benefit-report.xlsx"', 'Cache-Control': 'private, no-store' } });
+    const bytes = await buildBenefitWorkbook(data, comparison, filters, now, issuances), stamp = kstFileStamp(now);
+    return new Response(new Uint8Array(bytes), { headers: { 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': adminListExportContentDisposition(`icons-혜택리포트-${stamp}.xlsx`, `icons-benefit-report-${stamp}.xlsx`), 'Cache-Control': 'private, no-store' } });
   } catch (error) {
     unstable_rethrow(error);
     if (error instanceof BenefitIssuanceError) {

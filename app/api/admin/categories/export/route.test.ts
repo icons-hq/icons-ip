@@ -31,7 +31,8 @@ describe('admin category export', () => {
     const response = await GET();
     expect(mocks.guard).toHaveBeenCalledWith('/admin/catalog/categories');
     expect(response.headers.get('cache-control')).toBe('private, no-store');
-    expect(response.headers.get('content-disposition')).toContain('icons-category-erp.csv');
+    expect(response.headers.get('content-disposition')).toMatch(/filename="icons-category-erp-\d{8}-\d{4}\.csv"/);
+    expect(decodeURIComponent(response.headers.get('content-disposition')!)).toMatch(/icons-카테고리관리-ERP-\d{8}-\d{4}\.csv/);
     const bytes = new Uint8Array(await response.arrayBuffer());
     expect([...bytes.slice(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
     const csv = new TextDecoder().decode(bytes);
@@ -45,7 +46,7 @@ it('configured deputy exports only category columns, even if an adapter returns 
   mocks.guard.mockResolvedValue({ user: { id: 'deputy' }, role: 'staff', operatorAccess: configuredOperatorAccessFixture('deputy') });
   const response = await GET();
   expect(mocks.rows).toHaveBeenCalledWith(false);
-  expect(response.headers.get('content-disposition')).toContain('icons-category.csv');
+  expect(response.headers.get('content-disposition')).toMatch(/filename="icons-category-\d{8}-\d{4}\.csv"/);
   const csv = await response.text();
   expect(csv).toContain('고객 카테고리 코드');
   expect(csv).not.toContain('ERP');

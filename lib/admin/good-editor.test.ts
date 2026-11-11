@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { goodEditorValues, createGoodEditorDraft, buildGoodEditorPreview, GOOD_LOCAL_DRAFT_FIELDS } from './good-editor';
+import { goodEditorValues, createGoodEditorDraft, buildGoodEditorPreview, GOOD_LOCAL_DRAFT_FIELDS, GOOD_LOCAL_DRAFT_LINKED_FIELDS } from './good-editor';
 import { createAdminLocalAutosave, withLocalRecoveryValues } from './local-autosave';
 it('미저장 직접입력형 항목을 상품 미리보기에 전달하고 제출 리비전은 보존한다', () => {
   const customInputs=JSON.stringify({enabled:true,fields:[{id:'11111111-1111-4111-8111-111111111111',name:' 각인 문구 ',active:true}]});
@@ -24,6 +24,46 @@ it('세 번째 옵션 축을 브라우저 복구에서 다시 읽고 옵션 영�
   expect(goodEditorValues(null, withLocalRecoveryValues({}, null, reopened.getSnapshot().restoredValues))).toMatchObject({ optionAxisName2: '포장', optionAxisValues2: '기본, 선물' });
   const { goodFieldSection } = await import('./good-workspace');
   expect(goodFieldSection('optionAxisName2').key).toBe('variants'); expect(goodFieldSection('optionAxisValues2').key).toBe('variants');
+});
+function reopenedGoodDraft(saved: Record<string, string>, baseline: Record<string, string>) {
+  const records = new Map<string, string>();
+  const storage = { getItem: (key: string) => records.get(key) ?? null, setItem: (key: string, value: string) => records.set(key, value), removeItem: (key: string) => records.delete(key) };
+  const open = () => createAdminLocalAutosave({ scope: { accountId: 'operator', formId: 'good', recordId: null }, storage, fields: GOOD_LOCAL_DRAFT_FIELDS, linkedFields: GOOD_LOCAL_DRAFT_LINKED_FIELDS });
+  const first = open(); first.capture(Object.entries(saved)); first.flush();
+  const session = open(); session.setEditBaseline(Object.entries(baseline));
+  return { open, session };
+}
+it('복구 안내를 두고 대표 카테고리를 고르면 새로고침 뒤 복구에서 이전 상품명과 함께 돌아온다', () => {
+  const baseline = { name: '', categoryId: '', productAttributes: '' };
+  const { open, session } = reopenedGoodDraft({ ...baseline, name: '이전 상품명' }, baseline);
+  session.capture(Object.entries({ ...baseline, categoryId: 'category-1' })); session.flush();
+  expect(session.getSnapshot().recovery).not.toBeNull();
+  const reloaded = open(); reloaded.restore();
+  expect(goodEditorValues(null, withLocalRecoveryValues({}, null, reloaded.getSnapshot().restoredValues))).toMatchObject({ name: '이전 상품명', categoryId: 'category-1' });
+});
+it('복구 안내를 두고 옵션 행을 고치면 축과 동시편집 기준도 화면 값을 쓰고, 사용 여부만 바꾸면 이전 옵션을 남긴다', () => {
+  const baseline = { variants: '[기본 행]', variantBaseline: '[]', optionUsage: 'off', optionAxisName0: '', categoryId: 'a', productAttributes: 'a 속성' };
+  const saved = { variants: '[빨강, 파랑]', variantBaseline: '[old]', optionUsage: 'on', optionAxisName0: '색상', categoryId: 'b', productAttributes: 'b 속성' };
+  const rows = reopenedGoodDraft(saved, baseline);
+  rows.session.capture(Object.entries({ ...baseline, variants: '[기본 행, 재고 5]' })); rows.session.flush();
+  expect(rows.open().getSnapshot().recovery?.values).toMatchObject({ variants: '[기본 행, 재고 5]', variantBaseline: '[]', optionUsage: 'off', optionAxisName0: '', categoryId: 'b', productAttributes: 'b 속성' });
+  const usage = reopenedGoodDraft(saved, baseline);
+  usage.session.capture(Object.entries({ ...baseline, optionUsage: 'on' })); usage.session.flush();
+  expect(usage.open().getSnapshot().recovery?.values).toMatchObject({ variants: '[빨강, 파랑]', variantBaseline: '[old]', optionUsage: 'on', optionAxisName0: '색상' });
+  const category = reopenedGoodDraft(saved, baseline);
+  category.session.capture(Object.entries({ ...baseline, categoryId: 'c' })); category.session.flush();
+  expect(category.open().getSnapshot().recovery?.values).toMatchObject({ categoryId: 'c', productAttributes: 'a 속성', variants: '[빨강, 파랑]' });
+});
+it('복구 안내를 두고 직접입력형 항목·판매기간을 고치면 서버 버전 비교값도 화면 값을 써 저장이 거절되지 않는다', () => {
+  const baseline = { customInputs: '{"enabled":false,"fields":[]}', customInputsExpectedRevision: '2', salePeriodEnabled: 'false', saleStartsAt: '', saleEndsAt: '', salePeriodRevision: '5', name: '' };
+  const saved = { customInputs: '{"enabled":true,"fields":["이전"]}', customInputsExpectedRevision: '1', salePeriodEnabled: 'true', saleStartsAt: '2026-11-01T10:00', saleEndsAt: '2026-11-02T10:00', salePeriodRevision: '4', name: '이전 상품명' };
+  const edited = reopenedGoodDraft(saved, baseline);
+  edited.session.capture(Object.entries({ ...baseline, customInputs: '{"enabled":true,"fields":["새 항목"]}', saleStartsAt: '2026-11-20T10:00' })); edited.session.flush();
+  expect(edited.open().getSnapshot().recovery?.values).toMatchObject({ customInputs: '{"enabled":true,"fields":["새 항목"]}', customInputsExpectedRevision: '2', saleStartsAt: '2026-11-20T10:00', salePeriodRevision: '5', salePeriodEnabled: 'true', saleEndsAt: '2026-11-02T10:00', name: '이전 상품명' });
+  /* 고치지 않은 쪽은 이전 기록의 값과 버전을 그대로 남긴다. 그 사이 서버가 바뀌었으면 저장이 동시 수정으로 막는다. */
+  const untouched = reopenedGoodDraft(saved, baseline);
+  untouched.session.capture(Object.entries({ ...baseline, name: '새 상품명' })); untouched.session.flush();
+  expect(untouched.open().getSnapshot().recovery?.values).toMatchObject({ customInputs: '{"enabled":true,"fields":["이전"]}', customInputsExpectedRevision: '1', salePeriodRevision: '4', name: '새 상품명' });
 });
 it('defaults discount display on and carries a recovered off setting into the public preview', () => {
   expect(goodEditorValues(null, {})).toHaveProperty('showDiscountRate', 'true');

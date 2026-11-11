@@ -208,8 +208,8 @@ describe('m27 가이드 — 상품 등록·목록·카테고리·랜덤 판매(R
     expect(text).toContain('등록된 카테고리가 없습니다');
     expect(GOOD_TYPES).toContain('기타');
     expect(text).not.toContain('기존 8종');
-    expect(repoFile('components/admin/ErpCategoryMappingPanel.tsx')).toContain('말단 이름만 같은 다른 경로는 연결하지 않습니다.');
-    expect(text).toContain('말단 이름만 같은 다른 경로는 연결하지 않습니다');
+    expect(repoFile('components/admin/ErpCategoryMappingPanel.tsx')).toContain('이름만 같고 경로가 다르면 연결하지 않습니다.');
+    expect(text).toContain('이름만 같고 경로가 다르면 연결하지 않습니다');
     expect(text).not.toContain('같은 이름으로 연결');
   });
 

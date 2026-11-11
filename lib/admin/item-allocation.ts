@@ -131,7 +131,7 @@ export function orderItemAllocations(order: OrderAllocationInput): Map<string, O
 }
 
 /**
- * 스마트스토어 양식의 `상품별 할인액`: 당시 정가와 판매 단가의 차이 + 복수구매·쿠폰·적립금 배분.
+ * ICONS 표준 양식의 `상품별 할인액`: 당시 정가와 판매 단가의 차이 + 복수구매·쿠폰·적립금 배분.
  * 정가 기록이 없거나 판매가보다 낮으면 총 할인액을 추정하지 않는다(DB 출고지시와 같은 규칙).
  */
 export function smartStoreItemDiscount(item: { qty: number; unitPrice: number; regularUnitPrice: number | null }, allocation: OrderItemAllocation): number | null {

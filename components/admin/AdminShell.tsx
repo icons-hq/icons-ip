@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname, useSearchParams } from 'next/navigation';
-import type { CSSProperties, ReactNode } from 'react';
+import { Suspense, type CSSProperties, type ReactNode } from 'react';
 import { ADMIN_CONSOLES, adminConsoleHomeHref, adminDetailTitleForPath, adminGroupConsoles, adminGroupForPath, adminScreenForPath, type AdminConsoleId } from '@/lib/admin/navigation';
 import { SidebarInset, SidebarProvider } from '@/components/admin/kit/ui/sidebar';
 import { TooltipProvider } from '@/components/admin/kit/ui/tooltip';
@@ -9,12 +9,15 @@ import { AdminSidebar } from './AdminSidebar';
 import { Header } from './Header';
 import { AdminPreferencesProvider } from './console/AdminPreferences';
 import { AdminShellTitleProvider } from './console/admin-shell-title';
+import { AdminNavigationBody, AdminNavigationIndicators, AdminNavigationPendingProvider } from './console/AdminNavigationPending';
+import { AdminScreenSkeleton } from './console/AdminScreenSkeleton';
 import { useAdminDocumentTitle } from './console/useAdminDocumentTitle';
 import { AdminKitPortalHost } from './kit/portal-container';
 import { OperationsDock } from './OperationsDock';
 import { AdminInquiryNotifier } from './AdminInquiryNotifier';
 import { AdminNumberWheelGuard } from './AdminNumberWheelGuard';
 import { hasAdminCapability, NO_OPERATOR_ACCESS, type OperatorAccess } from '@/lib/admin/access';
+import { adminNavigationAccountId, type SavedAdminNavigation } from '@/lib/admin/navigation-preferences';
 
 /*
  * 어드민 셸 — kit Sidebar 대시보드 배치(ADR-0028 ②). 셸 루트(.wc-admin)는 kit 부품이 아니라 콘솔 토큰
@@ -25,12 +28,15 @@ export function AdminShell({
   admin,
   children,
   console: consoleId = 'commerce',
+  initialNavigation,
   sidebarDefaultOpen = true,
 }: {
   admin: { id: string; email: string | null; role: string; operatorAccess?: OperatorAccess };
   children: ReactNode;
   /** 이 셸을 그리는 route group의 콘솔. 사이드바 메뉴와 상단 전환 상태를 정한다. */
   console?: AdminConsoleId;
+  /** 지난번 열린 메뉴 그룹·즐겨찾기(계정별 쿠키). 첫 HTML부터 같은 모양으로 그린다. */
+  initialNavigation?: SavedAdminNavigation | null;
   /** 지난번 사이드바 접힘 상태(`sidebar_state` 쿠키). */
   sidebarDefaultOpen?: boolean;
 }) {
@@ -55,7 +61,7 @@ export function AdminShell({
     ? '상품 수정'
     : pathname === '/admin/catalog/ips' && searchParams.get('create') === '1' ? 'IP 등록'
       : adminDetailTitleForPath(pathname) ?? screen?.label ?? '판매자센터';
-  const accountId = admin.id || admin.email || admin.role;
+  const accountId = adminNavigationAccountId(admin);
   /* WCAG 2.4.2 — 탭 제목으로 화면을 구분한다(서버 메타데이터 없이 셸 제목 하나를 쓴다). */
   useAdminDocumentTitle(title);
 
@@ -63,6 +69,7 @@ export function AdminShell({
     <AdminPreferencesProvider accountId={accountId}>
     <AdminKitPortalHost>
     <TooltipProvider delay={300}>
+    <AdminNavigationPendingProvider currentPath={currentPath}>
     <div className={`admin-shell wc-admin${isChat ? ' admin-shell--chat' : ''}`} data-admin-console={consoleId}>
       {/* WCAG 2.4.1 — 메뉴를 건너뛰어 본문으로 간다. 키보드 포커스를 받을 때만 보인다. */}
       <a className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-lg focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:font-semibold focus:text-primary-foreground" href="#admin-main">본문으로 건너뛰기</a>
@@ -72,6 +79,7 @@ export function AdminShell({
           console={consoleId}
           currentPath={currentPath}
           homeHref={consoles.find((item) => item.id === consoleId)?.href ?? '/admin'}
+          initialNavigation={initialNavigation}
           operatorAccess={access}
           role={admin.role}
         />
@@ -85,6 +93,7 @@ export function AdminShell({
             title={title}
             tools={<OperationsDock accountId={admin.id} access={admin.operatorAccess} inquiryNotifications={inquiryNotifications} />}
           />
+          <AdminNavigationIndicators />
           {/* 본문만 main 랜드마크다(상단 막대는 그 밖의 banner). */}
           <main id="admin-main" tabIndex={-1} className={`admin-content flex min-w-0 flex-1 flex-col outline-none ${isChat ? 'min-h-0 overflow-hidden print:overflow-visible' : 'gap-4 p-4 md:p-6 print:p-0'}`}>
             {isChat || isHome ? <h1 className="sr-only">{title}</h1> : (
@@ -92,12 +101,17 @@ export function AdminShell({
                 <h1 className="text-2xl font-bold tracking-tight text-foreground">{title}</h1>
               </div>
             )}
-            {/* key로 화면 전환마다 진입 애니메이션을 다시 태운다 */}
             {/* 화면이 여러 덩어리를 나란히 돌려줘도(접이 카드 + 목록 등) 카드 사이 간격은 같다. */}
-            <div className={`rise min-w-0${isChat ? ' min-h-0 flex-1' : ' flex flex-col gap-4'}`} key={pathname}>
-              {/* 홈·상담처럼 h1을 감춘 화면은 화면 머리가 제목을 보여 준다. */}
-              <AdminShellTitleProvider title={isChat || isHome ? '' : title}>{children}</AdminShellTitleProvider>
-            </div>
+            <AdminNavigationBody className={`min-w-0${isChat ? ' min-h-0 flex-1' : ' flex flex-col gap-4'}`}>
+              {/*
+               * 경계는 화면 바깥 한 곳에만 둔다(화면별 loading.tsx 없음). 메뉴 이동은 전환이라 이미 보인 경계의 fallback이 나오지 않아
+               * 이전 화면이 남고, 골격은 새로고침·직접 진입에서만 보인다. 이 위에 key를 달면 경계가 리셋되어 fallback이 되돌아온다.
+               */}
+              <Suspense fallback={<AdminScreenSkeleton kind={isChat ? 'chat' : isHome ? 'home' : 'list'} />}>
+                {/* 홈·상담처럼 h1을 감춘 화면은 화면 머리가 제목을 보여 준다. */}
+                <AdminShellTitleProvider title={isChat || isHome ? '' : title}>{children}</AdminShellTitleProvider>
+              </Suspense>
+            </AdminNavigationBody>
           </main>
         </SidebarInset>
       </SidebarProvider>
@@ -105,6 +119,7 @@ export function AdminShell({
       {/* R18: 포커스된 어드민 number 입력 위의 휠은 값을 바꾸지 않고 페이지만 스크롤한다(셸에 한 번). */}
       <AdminNumberWheelGuard />
     </div>
+    </AdminNavigationPendingProvider>
     </TooltipProvider>
     </AdminKitPortalHost>
     </AdminPreferencesProvider>

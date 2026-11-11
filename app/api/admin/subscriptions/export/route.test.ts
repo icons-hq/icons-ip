@@ -26,6 +26,7 @@ it('검색조건 전체 snapshot→암호화→현재 권한 감사 순서 뒤�
   expect(mocks.service).toHaveBeenCalledWith('service_record_goods_subscription_export', { p_actor_id: id(10), p_receipt_id: id(20), p_fingerprint: 'a'.repeat(64), p_file_sha256: 'b'.repeat(64) });
   expect(mocks.encrypt.mock.invocationCallOrder[0]).toBeLessThan(mocks.service.mock.invocationCallOrder[0]);
   expect(response.headers.get('x-icons-export-encryption')).toBe('ECMA-376-Agile'); expect(response.headers.get('x-icons-export-rows')).toBe('1');
+  expect(decodeURIComponent(response.headers.get('content-disposition')!)).toMatch(/icons-정기구매관리-\d{8}-\d{4}\.xlsx/);
   expect(Buffer.from(await response.arrayBuffer()).toString()).toBe('encrypted-workbook'); expect(plain.every(byte => byte === 0)).toBe(true);
 });
 it.each(['encryption', 'audit'])('%s 실패는 평문을 지우고 파일을 반환하지 않는다', async kind => {

@@ -1,19 +1,23 @@
 import 'server-only';
 import { WAREHOUSE_OPERATION_HEADERS } from './warehouse-templates';
 import type { ShippingCarrierRegistry } from '@/lib/orders/shipment';
+import {decryptUploadedWorkbook,isOleContainer} from './encrypted-workbook.server';
 import {loadSafeWorkbook,readSafeWorkbookCell} from './workbook-safety';
 import {parseTrackingImport,TRACKING_IMPORT_ROW_LIMIT,type TrackingImportParseResult} from './tracking-import';
 import {parseSeowonReply,parseWarehouseReply,type TrackingWorkbookParseResult} from './warehouse-templates.server';
-import {parseSmartStoreReply} from './smartstore-tracking-workbook.server';
+import {parseSmartStoreReply,smartStoreHeaderRow} from './smartstore-tracking-workbook.server';
+import {WORKBOOK_INFO_SHEET_NAME} from './workbook-format';
 export type {TrackingWorkbookParseResult} from './warehouse-templates.server';
-// A 74-column, 1,000-item reply with distinct UUIDs exceeds the legacy 256 KiB cap.
+// An older 74-column, 1,000-item reply with distinct UUIDs exceeds the legacy 256 KiB cap.
 export const TRACKING_IMPORT_FILE_LIMIT_BYTES=1024*1024;
 export const TRACKING_IMPORT_TEXT_LIMIT_BYTES=256*1024;
-export async function parseTrackingWorkbook(bytes:Buffer,carriers:ShippingCarrierRegistry):Promise<TrackingWorkbookParseResult>{
- if(bytes.subarray(0,8).equals(Buffer.from('d0cf11e0a1b11ae1','hex')))throw new Error('암호화된 파일 또는 구형 Excel 형식입니다. Excel에서 암호를 해제하고 XLSX로 저장해주세요.');
+export async function parseTrackingWorkbook(upload:Buffer,carriers:ShippingCarrierRegistry,password=''):Promise<TrackingWorkbookParseResult>{
+ // 푼 내용도 아래 평문 XLSX와 같은 크기·압축 한도와 셀 검사를 그대로 지난다.
+ const bytes=isOleContainer(upload)?await decryptUploadedWorkbook(upload,password,TRACKING_IMPORT_FILE_LIMIT_BYTES):upload;
  const workbook=await loadSafeWorkbook(bytes,{fileBytes:TRACKING_IMPORT_FILE_LIMIT_BYTES,totalBytes:8*1024*1024,entryBytes:4*1024*1024});
- const sheets=workbook.worksheets.filter(sheet=>sheet.name!=='배송 운영 안내'&&sheet.actualRowCount>0);
+ const sheets=workbook.worksheets.filter(sheet=>sheet.name!=='배송 운영 안내'&&sheet.name!==WORKBOOK_INFO_SHEET_NAME&&sheet.actualRowCount>0);
  const supplement=workbook.getWorksheet('배송 운영 안내');
+ const info=workbook.getWorksheet(WORKBOOK_INFO_SHEET_NAME);
  if(sheets.length!==1)throw new Error('운송장 양식은 내용이 있는 시트 하나로 올려주세요.');
  if(supplement){
   if(supplement.columnCount!==WAREHOUSE_OPERATION_HEADERS.length||supplement.rowCount>TRACKING_IMPORT_ROW_LIMIT+1
@@ -21,13 +25,20 @@ export async function parseTrackingWorkbook(bytes:Buffer,carriers:ShippingCarrie
    throw new Error('배송 운영 안내 시트의 형식을 확인해주세요.');
   supplement.eachRow(row=>row.eachCell(cell=>{if(readSafeWorkbookCell(cell).error)throw new Error('배송 운영 안내 시트에 허용되지 않는 셀이 있습니다.');}));
  }
+ if(info){
+  // ICONS 표준 양식 맨 뒤의 안내 시트다. 내용을 읽지는 않지만 수식이 든 파일은 거절한다.
+  if(info.columnCount>2||info.rowCount>TRACKING_IMPORT_ROW_LIMIT)throw new Error('내려받기 정보 시트의 형식을 확인해주세요.');
+  info.eachRow(row=>row.eachCell(cell=>{if(readSafeWorkbookCell(cell).error)throw new Error('내려받기 정보 시트에 허용되지 않는 셀이 있습니다.');}));
+ }
  const sheet=sheets[0];
- if(sheet.rowCount>TRACKING_IMPORT_ROW_LIMIT+1)throw new Error('운송장은 한 번에 1,000줄까지 등록할 수 있습니다.');
+ // 옛 출고지시 파일은 안내 1행이 머리글 위에 있어 그만큼 행이 하나 많다.
+ if(sheet.rowCount>TRACKING_IMPORT_ROW_LIMIT+(smartStoreHeaderRow(sheet)??1))throw new Error('운송장은 한 번에 1,000줄까지 등록할 수 있습니다.');
  const smartStoreReply=parseSmartStoreReply(sheet,carriers);
  if(smartStoreReply)return smartStoreReply;
+ if(info?.actualRowCount&&sheet.columnCount<=3)throw new Error('운송장 양식은 내용이 있는 시트 하나로 올려주세요.');
  const nativeReply=parseWarehouseReply(sheet)??parseSeowonReply(sheet);
  if(nativeReply)return nativeReply;
- if(sheet.columnCount>3)throw new Error('배송건번호·택배사·운송장번호 세 컬럼만 올려주세요. 김포 21열·남양주 송장양식 회신은 내려받은 헤더를 바꾸지 말고 올려주세요.');
+ if(sheet.columnCount>3)throw new Error('배송건번호·택배사·운송장번호 세 컬럼만 올려주세요. ICONS 표준 양식은 상품주문번호 머리글을, 김포 21열·남양주 송장양식 회신은 내려받은 헤더를 바꾸지 말고 올려주세요.');
  const issues:TrackingImportParseResult['issues']=[];const lines:string[]=[];
  for(let index=1;index<=sheet.rowCount;index++){
   const row=sheet.getRow(index);const cells=[1,2,3].map(column=>readSafeWorkbookCell(row.getCell(column),column!==2));

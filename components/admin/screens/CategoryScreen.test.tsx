@@ -40,6 +40,12 @@ it('basic category managers keep CRUD and assignment without platform configurat
   for (const text of ['ERP 매핑 저장', '활성화 상태 저장', '이관 메모 저장', '기존 유형 이관 메모', '분류·ERP CSV']) expect(html).not.toContain(text);
 });
 
+it('기본 카테고리 적용 칸의 자주 쓰는 카테고리는 등록된 게 있을 때만 보인다', () => {
+  const render = (hasCategoryTemplates?: boolean) => renderToStaticMarkup(<CategoryScreen data={{ categories, mappings: [], migrations: [], activation: { customerEnabled: false, erpEnabled: false, customerEvidence: null, erpEvidence: null, updatedAt: null } }} canManagePlatform={false} hasCategoryTemplates={hasCategoryTemplates} />);
+  expect(render()).not.toContain('자주 쓰는 카테고리');
+  expect(render(true)).toMatch(/<button[^>]*>자주 쓰는 카테고리<\/button>/);
+});
+
 it('트리에서 고치는 항목 하나만 오른쪽에 열고 트리에 주 색으로 표시한다', () => {
   const html = renderToStaticMarkup(<CategoryScreen data={{ categories, mappings: [], migrations: [], activation: { customerEnabled: false, erpEnabled: false, customerEvidence: null, erpEvidence: null, updatedAt: null } }} canManagePlatform={false} />);
   expect(html.match(/<button aria-current="true"/g)).toHaveLength(1);
@@ -79,6 +85,29 @@ it('고객 화면 미적용이면 접힌 줄에 켜는 곳을 버튼 모양으�
   const render = (customerEnabled: boolean) => renderToStaticMarkup(<CategoryScreen data={{ categories, mappings: [], migrations: [], activation: { customerEnabled, erpEnabled: false, customerEvidence: null, erpEvidence: null, updatedAt: null } }} />);
   expect(render(false)).toMatch(/<summary[^>]*>(?:(?!<\/summary>)[\s\S])*활성화 상태(?:(?!<\/summary>)[\s\S])*펼쳐서 켜기/);
   expect(render(true)).not.toContain('펼쳐서 켜기');
+});
+
+/* 2026-11-10 측정: 말단 300개면 ERP 분류 매핑 입력 묶음만 DOM 4,500개였다. 접혀 있는 동안은 그리지 않는다. */
+it('ERP 분류 매핑 입력 묶음은 펼치기 전에는 그리지 않고 안내만 둔다', () => {
+  const leaf = (index: number) => ({ ...categories[1], id: `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`, code: `leaf-${index}`, name: `말단 ${index}` });
+  const many = [categories[0], ...Array.from({ length: 300 }, (_, index) => leaf(index))];
+  const html = renderToStaticMarkup(<CategoryScreen data={{ categories: many, mappings: [], migrations: [], activation: { customerEnabled: false, erpEnabled: false, customerEvidence: null, erpEvidence: null, updatedAt: null } }} />);
+  expect(html).toContain('맨 아래 단계 300개');
+  expect(html).toContain('실제 ERP 코드·품명');
+  expect(html).not.toContain('ERP 매핑 저장');
+  expect(html).not.toContain('name="erpCode"');
+  expect(html.match(/<[a-z][^>]*>/g)!.length).toBeLessThan(4_000);
+});
+
+/* 2026-11-10 사람 눈 시험: 말단마다 카드 한 장이라 펼치면 페이지가 10만 px까지 길어지고 검색이 없었다. */
+it('ERP 분류 매핑은 검색되는 표 한 벌이고, 여기서 하는 일과 ERP 품목 화면에서 하는 일을 구분해 알려 준다', () => {
+  const html = renderToStaticMarkup(<CategoryScreen data={{ categories, mappings: [], migrations: [], activation: { customerEnabled: false, erpEnabled: false, customerEvidence: null, erpEvidence: null, updatedAt: null } }} legacyTypes={[]} />);
+  expect(html).toContain('id="category-erp-mapping"');
+  expect(html).toContain('맨 아래 단계 1개 · 미설정 1개');
+  expect(html).not.toContain('ERP 매핑 저장');
+  expect(html).toContain('분류·ERP CSV와 ERP 활성화에 쓰이고, 상품은 바뀌지 않습니다.');
+  expect(html).toContain('href="/admin/catalog/erp-items#erp-category-mapping"');
+  expect(html).toContain('ERP 품목 화면의 연결 표');
 });
 
 it('카테고리가 없으면 새 등록 카드를 펼쳐 둔다', () => {

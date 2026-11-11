@@ -1,14 +1,16 @@
 'use client';
 
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
-import { useActionState, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { useActionState, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import Link from 'next/link';
 import { Download } from 'lucide-react';
 import { statusTone } from '@/lib/admin/status-tone';
 import { MarketingLinkIssuer } from '../marketing/MarketingLinkIssuer';
 import { AdminPageHeader, AdminSectionCard, AdminStatusBadge } from '../console/AdminKit';
 import { CategoryAssignmentField } from '../CategoryAssignmentField';
+import { CategoryTemplatesAvailableProvider } from '../CategoryTemplatesAvailability';
 import { CategoryBulkCreatePanel } from '../CategoryBulkCreatePanel';
+import { CategoryErpMappingTable } from '../CategoryErpMappingTable';
 import { CategoryTree, firstCategoryInTree } from '../CategoryTree';
 import { FoldCard } from '../sections/SectionLayout';
 import { AdminSelect } from '../console/AdminSelect';
@@ -19,7 +21,6 @@ import {
   assignAdminGoodCategoryAction,
   archiveAdminCategoryAction,
   saveAdminCategoryAction,
-  saveAdminCategoryErpMappingAction,
   saveAdminCategoryTypeMigrationAction,
   setAdminCategoryActivationAction,
   unarchiveAdminCategoryAction,
@@ -34,6 +35,7 @@ import {
   type AdminCategoryMigration,
   type AdminCategoryNode,
 } from '@/lib/admin/category';
+import { ERP_ITEMS_PATH } from '@/lib/admin/erp-items';
 
 const EMPTY: AdminCategoryActionState = {};
 /* 입력 묶음 상자(kit 카드 안의 작은 상자)와 라벨 위·입력 아래 칸(템플릿 룩, ADR-0028). */
@@ -94,22 +96,6 @@ function ArchiveForm({ category }: { category: AdminCategoryNode }) {
   </form>;
 }
 
-function MappingForm({ category, mapping }: { category: AdminCategoryNode; mapping?: AdminCategoryErpMapping }) {
-  const [state, action, pending] = useActionState(saveAdminCategoryErpMappingAction, EMPTY);
-  return <form action={action} className={FORM_BOX}>
-    <input name="categoryId" type="hidden" value={category.id} /><input name="operationId" type="hidden" value="" />
-    <strong className="text-sm font-medium">{category.name} <code className="rounded bg-muted px-1 py-0.5 text-xs font-normal">{category.code}</code></strong>
-    <div className={FIELD_GRID}>
-      <Labeled label="ERP 코드"><Input defaultValue={mapping?.erpCode ?? ''} name="erpCode" required /></Labeled>
-      <Labeled label="ERP 품명"><Input defaultValue={mapping?.erpName ?? ''} name="erpName" required /></Labeled>
-      <Labeled label="출처"><Input defaultValue={mapping?.source ?? ''} name="source" placeholder="ERP 분류표 버전/파일" required /></Labeled>
-      <Labeled label="검증 시각"><Input defaultValue={mapping?.verifiedAt ?? ''} name="verifiedAt" type="datetime-local" required /></Labeled>
-    </div>
-    <Notice state={state} />
-    <Button className="self-start" variant="outline" disabled={pending} type="submit">{pending ? '저장 중' : 'ERP 매핑 저장'}</Button>
-  </form>;
-}
-
 function ActivationForm({ activation }: { activation: AdminCategoryActivation }) {
   const [state, action, pending] = useActionState(setAdminCategoryActivationAction, EMPTY);
   return <form action={action} className={FORM_BOX}>
@@ -128,6 +114,29 @@ function ActivationForm({ activation }: { activation: AdminCategoryActivation })
     <Notice state={state} />
     <Button className="self-start" disabled={pending} type="submit">{pending ? '저장 중' : '활성화 상태 저장'}</Button>
   </form>;
+}
+
+/**
+ * 접힌 카드(`<details>`) 안의 내용을 처음 펼칠 때 그린다.
+ * 말단 300개면 ERP 분류 매핑 입력 묶음만 DOM 4,500개로 화면 DOM의 절반이 넘는다(2026-11-10 측정). 접어 둔 채 일하는 날이 대부분이다.
+ * 다른 화면의 안내 링크가 카드 id를 해시로 가리키면 펼쳐 그 자리로 간다. 해시 이동은 접힘을 풀어 주지 않고, 스트리밍 중에는 맨 위에 멈추기도 한다.
+ */
+function RenderOnFirstOpen({ children }: { children: ReactNode }) {
+  const marker = useRef<HTMLSpanElement>(null);
+  const [opened, setOpened] = useState(false);
+  useEffect(() => {
+    const details = marker.current?.closest('details');
+    if (!details) return undefined;
+    const reveal = () => { if (details.open) setOpened(true); };
+    if (details.id && details.id === window.location.hash.slice(1)) {
+      details.open = true;
+      details.scrollIntoView();
+    }
+    reveal();
+    details.addEventListener('toggle', reveal);
+    return () => details.removeEventListener('toggle', reveal);
+  }, []);
+  return <><span hidden ref={marker} />{opened ? children : null}</>;
 }
 
 function MigrationForm({ types, categories }: { types: string[]; categories: AdminCategoryNode[] }) {
@@ -158,9 +167,9 @@ function AssignmentForm({ categories }: { categories: AdminCategoryNode[] }) {
   </form>;
 }
 
-export function CategoryScreen({ data, legacyTypes = [], canManagePlatform = true }: { data: { categories: AdminCategoryNode[]; mappings: AdminCategoryErpMapping[]; migrations: AdminCategoryMigration[]; activation: AdminCategoryActivation }; legacyTypes?: string[]; canManagePlatform?: boolean }) {
+export function CategoryScreen({ data, legacyTypes = [], canManagePlatform = true, hasCategoryTemplates = false }: { data: { categories: AdminCategoryNode[]; mappings: AdminCategoryErpMapping[]; migrations: AdminCategoryMigration[]; activation: AdminCategoryActivation }; legacyTypes?: string[]; canManagePlatform?: boolean; hasCategoryTemplates?: boolean }) {
   const activeLeaves = data.categories.filter((category) => !category.archivedAt && category.childCount === 0);
-  const mappings = new Map(data.mappings.map((mapping) => [mapping.categoryId, mapping]));
+  const mappedIds = new Set(data.mappings.map((mapping) => mapping.categoryId));
   /* 오른쪽 입력 묶음은 트리에서 고른 항목 하나다. 아직 안 골랐으면 트리 맨 위 항목을 연다. */
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = data.categories.find((category) => category.id === selectedId) ?? firstCategoryInTree(data.categories);
@@ -186,8 +195,13 @@ export function CategoryScreen({ data, legacyTypes = [], canManagePlatform = tru
       </div>
     </div>
     <FoldCard title="카테고리 일괄 등록"><CategoryBulkCreatePanel /></FoldCard>
-    {canManagePlatform ? <FoldCard title="ERP 분류 매핑" summary={`맨 아래 단계 ${activeLeaves.length}개`}><p className="text-sm text-muted-foreground">실제 ERP 코드·품명·출처·검증 시각이 없는 매핑은 쓰지 않습니다. 매핑이 없으면 내보내기에서 미설정으로 표시합니다.</p>{activeLeaves.map((category) => <MappingForm category={category} key={category.id} mapping={mappings.get(category.id)} />)}</FoldCard> : null}
+    {canManagePlatform ? <FoldCard id="category-erp-mapping" title="ERP 분류 매핑" summary={`맨 아래 단계 ${activeLeaves.length}개 · 미설정 ${activeLeaves.filter((category) => !mappedIds.has(category.id)).length}개`}>
+      {/* 이름이 비슷한 ERP 품목 화면의 연결과 헷갈리지 않게 여기서 하는 일과 저기서 하는 일을 함께 말한다. */}
+      <p className="text-sm text-muted-foreground">카테고리마다 ERP 코드·품명을 근거와 함께 적어 두는 곳입니다. 분류·ERP CSV와 ERP 활성화에 쓰이고, 상품은 바뀌지 않습니다. 실제 ERP 코드·품명·출처·검증 시각이 없는 매핑은 쓰지 않습니다. 매핑이 없으면 내보내기에서 미설정으로 표시합니다.</p>
+      <p className="text-sm text-muted-foreground">반입한 ERP 분류를 고객 카테고리에 잇는 일(상품 옵션의 카테고리 제안)은 <Link className="text-foreground underline underline-offset-4" href={`${ERP_ITEMS_PATH}#erp-category-mapping`}>ERP 품목 화면의 연결 표</Link>에서 합니다.</p>
+      <RenderOnFirstOpen><CategoryErpMappingTable categories={data.categories} mappings={data.mappings} /></RenderOnFirstOpen>
+    </FoldCard> : null}
     {canManagePlatform ? <FoldCard title="기존 유형 이관 메모"><p className="text-sm text-muted-foreground">유사 이름으로 자동 이관하지 않습니다. 확인된 항목만 선택적으로 기록하며, 전체 카테고리 기능을 켜는 조건은 아닙니다.</p><MigrationForm categories={data.categories} types={legacyTypes} />{data.migrations.length ? <ul className="list-disc space-y-1 pl-5 text-sm">{data.migrations.map((migration) => <li key={migration.type}>{migration.type} · {migration.status} · {migration.categoryId ?? '미설정'}</li>)}</ul> : null}</FoldCard> : null}
-    <AdminSectionCard title={adminGoodsCopy("굿즈 기본 카테고리 적용")}><p className="text-sm text-muted-foreground">대표 분류 하나를 바로 변경합니다. 추가 분류는 상품 편집에서 확인하고 저장하며 ERP는 대표 분류를 사용합니다.</p><AssignmentForm categories={data.categories} /></AdminSectionCard>
+    <AdminSectionCard title={adminGoodsCopy("굿즈 기본 카테고리 적용")}><p className="text-sm text-muted-foreground">대표 분류 하나를 바로 변경합니다. 추가 분류는 상품 편집에서 확인하고 저장하며 ERP는 대표 분류를 사용합니다.</p><CategoryTemplatesAvailableProvider available={hasCategoryTemplates}><AssignmentForm categories={data.categories} /></CategoryTemplatesAvailableProvider></AdminSectionCard>
   </section>;
 }

@@ -79,7 +79,7 @@ select 1/case when (select value->'coupon' from jsonb_array_elements(public.admi
  then 1 else 0 end as assert_recorded_allocations;
 
 -- 5) PostgREST는 STABLE RPC를 읽기 전용 트랜잭션으로 부른다. 권한 판정이 행 잠금(FOR SHARE)을 잡으면
---    25006으로 실패해 주문통합검색 엑셀·74열 출고지시가 막힌다 — 읽기 전용에서도 같은 결과를 내야 한다.
+--    25006으로 실패해 주문통합검색 엑셀·출고지시가 막힌다 — 읽기 전용에서도 같은 결과를 내야 한다.
 set transaction read only;
 select 1/case when jsonb_array_length(public.admin_order_item_allocation_inputs(array['54000000-0000-4000-8000-000000000001'::uuid]))=1
  then 1 else 0 end as assert_allocation_inputs_read_only_transaction;
