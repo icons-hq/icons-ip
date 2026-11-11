@@ -165,6 +165,36 @@ select pg_temp.promo_assert(public.admin_read_discount_promotion_operation(md5('
  'seal stores a terminal receipt');
 select pg_temp.promo_assert(pg_temp.promo_commit(6)->>'state'='sealed','a sealed request never commits');
 
+-- 5b. 끝난 프로모션 행은 상품 목록의 '기간 할인 중지' 뒤에도 종료로 남는다(진행 중·예정 할인만 끈다).
+-- 지난 기간에 끝까지 진행된 프로모션을 원장에 그대로 둔다(확정 RPC는 이미 끝난 기간을 받지 않으므로 행을 직접 만든다).
+reset role;
+insert into private.discount_promotions(id,name,state,starts_at,ends_at,target_kind,target_ids,target_label,default_rule,request,goods_count,applied_count,created_by)
+values('b9200000-0000-4000-8000-0000000000e1','TEST 지난 프로모션','active',now()-interval '5 days',now()-interval '2 days','goods',array['promo-g'],null,
+ '{"mode":"rate","value":5}','{}',1,1,'b9200000-0000-4000-8000-000000000001');
+insert into private.discount_promotion_goods(promotion_id,good_id,position,name,code,rule,skip_reason)
+values('b9200000-0000-4000-8000-0000000000e1','promo-g',1,'TEST 프로모션 G 제외',null,'{"source":"default","mode":"rate","value":5}',null);
+insert into private.goods_variant_price_periods(good_id,variant_id,state,regular_price,discount_price,starts_at,ends_at,created_by,updated_by,promotion_id)
+select good_id,id,'active',price,floor(price*0.95)::integer,now()-interval '5 days',now()-interval '2 days',
+ 'b9200000-0000-4000-8000-000000000001','b9200000-0000-4000-8000-000000000001','b9200000-0000-4000-8000-0000000000e1'
+from public.goods_variants where good_id='promo-g' and archived_at is null;
+set local role authenticated;
+-- 같은 상품에 개별로 건 예정 할인이 있어야 목록 중지 대상이 된다.
+select public.admin_save_goods_price_period('promo-g',(select id from public.goods_variants where good_id='promo-g'),null,
+ jsonb_build_object('state','active','discountPrice',9000,'startsAt',now()+interval '20 days','endsAt',now()+interval '22 days'),null);
+select public.admin_preview_goods_bulk(md5('promo-list-stop')::uuid,'{"kind":"goods","ids":["promo-g"],"command":"discount_stop","values":{}}',
+ 'b9200000-0000-4000-8000-000000000001','b9200000-0000-4000-8000-000000000011') as list_stop_preview \gset
+select pg_temp.promo_assert((:'list_stop_preview'::jsonb->'goods'->0->'discounts'->>'count')::int=1,'list stop preview counts only the upcoming discount');
+select pg_temp.promo_assert(public.admin_commit_goods_bulk(md5('promo-list-stop')::uuid,'b9200000-0000-4000-8000-000000000001','b9200000-0000-4000-8000-000000000011')->>'state'='completed',
+ 'list stop completes');
+reset role;
+select pg_temp.promo_assert((select count(*)=1 and bool_and(state='active' and ends_at<now()) from private.goods_variant_price_periods
+ where promotion_id='b9200000-0000-4000-8000-0000000000e1'),'ended promotion row stays ended after the list stop');
+select pg_temp.promo_assert(not exists(select 1 from private.goods_variant_price_periods where good_id='promo-g' and promotion_id is null and state='active'),
+ 'the upcoming individual discount was stopped');
+set local role authenticated;
+select pg_temp.promo_assert(public.admin_get_discount_promotion('b9200000-0000-4000-8000-0000000000e1')->'discounts'='{"active":0,"ended":1,"disabled":0}'::jsonb,
+ 'promotion detail still reads ended, not stopped');
+
 -- 6. 입력 검증.
 select pg_temp.promo_error($q$select pg_temp.promo_preview(7,'{"name":"x"}')$q$,'discount_promotion_invalid');
 select pg_temp.promo_error($q$select pg_temp.promo_preview(7,pg_temp.promo_request('{"kind":"goods","ids":["promo-a"]}','{"mode":"rate","value":100}'))$q$,'discount_promotion_invalid');
