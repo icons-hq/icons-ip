@@ -71,8 +71,11 @@ function renderSettings(marketingConsent: React.ComponentProps<typeof Settings>[
 }
 
 describe('연락 수단 스위치 OFF — 화면 불변', () => {
-  it('설정 화면 전체가 기능 도입 전과 같다', () => {
-    expect(withoutReactIds(renderSettings(null))).toBe(golden('settings-full-null'));
+  /* 마이페이지 셸(왼쪽 메뉴)은 이 기능과 무관하게 바뀔 수 있어 비교에서 뺀다 — 설정 본문 전체를 본다. */
+  it('설정 화면 본문 전체가 기능 도입 전과 같다', () => {
+    const body = (html: string) => html.slice(html.indexOf('<div class="wc-mypage__headbar">'));
+    expect(body(golden('settings-full-null')).length).toBeGreaterThan(1000);
+    expect(withoutReactIds(body(renderSettings(null)))).toBe(body(golden('settings-full-null')));
   });
 
   it('설정의 수신 동의 폼이 동의 기록이 있을 때도 도입 전과 같다(이메일·SMS 두 줄)', () => {
