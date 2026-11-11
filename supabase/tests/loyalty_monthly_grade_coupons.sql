@@ -236,7 +236,8 @@ end $$;
 
 create temporary table t09_march as
 select coupon_code, user_id, issued_source, issued_at, expires_at, usable_from, status, grade_benefit_month
-from public.user_coupons where grade_benefit_month='2031-03-01' and coupon_code like 'T09M-%';
+from public.user_coupons where grade_benefit_month='2031-03-01' and coupon_code like 'T09M-%'
+  and user_id in (select pg_temp.t09_member(n) from generate_series(0,11) n);
 
 select 1/case when (
   select jsonb_object_agg(coupon_code, users) from (
@@ -282,7 +283,8 @@ then 1 else 0 end as assert_one_notification_per_member_month;
 -- 같은 달은 다시 돌지 않는다.
 select 1/case when private.run_monthly_grade_coupons('2031-03-20 12:00:00+09',200)->>'status'='already_ran'
 then 1 else 0 end as assert_month_runs_once;
-select 1/case when (select count(*) from public.user_coupons where grade_benefit_month='2031-03-01' and coupon_code like 'T09M-%')=(select count(*) from t09_march)
+select 1/case when (select count(*) from public.user_coupons where grade_benefit_month='2031-03-01' and coupon_code like 'T09M-%'
+  and user_id in (select pg_temp.t09_member(n) from generate_series(0,11) n))=(select count(*) from t09_march)
 then 1 else 0 end as assert_rerun_adds_nothing;
 
 -- ---------------------------------------------------------------------------
@@ -295,7 +297,8 @@ select private.run_monthly_grade_coupons('2031-04-01 00:00:10+09',200) as april 
 select 1/case when :'april'::jsonb->>'status'='finished'
   and (select jsonb_object_agg(coupon_code, users) from (
         select coupon_code, jsonb_agg(right(user_id::text,2) order by user_id) as users from public.user_coupons
-        where grade_benefit_month='2031-04-01' and coupon_code like 'T09M-%' group by coupon_code) grouped)
+        where grade_benefit_month='2031-04-01' and coupon_code like 'T09M-%'
+          and user_id in (select pg_temp.t09_member(n) from generate_series(0,11) n) group by coupon_code) grouped)
       = jsonb_build_object(
         'T09M-SILVER', jsonb_build_array('01','02','03','11'),
         'T09M-GOLD', jsonb_build_array('01','02','03'),
@@ -342,7 +345,8 @@ select 1/case when :'august'::jsonb->>'status'='finished'
   and (select finish_reason='month_ended' and cursor_user_id=pg_temp.t09_member(1) from private.loyalty_monthly_coupon_runs where grant_month='2031-07-01')
   and (select array_agg(distinct right(user_id::text,2) order by right(user_id::text,2)) from public.user_coupons
        where grade_benefit_month='2031-07-01' and coupon_code like 'T09M-%')=array['01']
-  and (select count(distinct user_id) from public.user_coupons where grade_benefit_month='2031-08-01' and coupon_code like 'T09M-%')=4
+  and (select count(distinct user_id) from public.user_coupons where grade_benefit_month='2031-08-01' and coupon_code like 'T09M-%'
+       and user_id in (select pg_temp.t09_member(n) from generate_series(0,11) n))=4
   and (select count(*) from public.audit_log where action='commerce.coupon.grade_monthly_run_finished' and target='loyalty_monthly_coupons:2031-07'
        and diff->>'reason'='month_ended')=1
 then 1 else 0 end as assert_unfinished_previous_month_closed_not_continued;
