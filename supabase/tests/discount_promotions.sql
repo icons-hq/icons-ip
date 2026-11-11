@@ -159,9 +159,11 @@ select pg_temp.promo_assert(pg_temp.promo_commit(5)->>'error'='discount_promotio
 select pg_temp.promo_assert(public.admin_read_discount_promotion_operation(md5('promo-test:5')::uuid,'b9200000-0000-4000-8000-000000000001','b9200000-0000-4000-8000-000000000011')->>'state'='rejected',
  'read returns the stored receipt');
 select pg_temp.promo_preview(6,pg_temp.promo_request('{"kind":"goods","ids":["promo-g"]}','{"mode":"rate","value":5}','[]','TEST 봉인'));
-select pg_temp.promo_assert(public.admin_read_discount_promotion_operation(md5('promo-test:6')::uuid,'b9200000-0000-4000-8000-000000000001','b9200000-0000-4000-8000-000000000011')->>'state'='unresolved'
- and public.admin_read_discount_promotion_operation(md5('promo-test:6')::uuid,'b9200000-0000-4000-8000-000000000001','b9200000-0000-4000-8000-000000000011',true)->>'state'='sealed'
- and pg_temp.promo_commit(6)->>'state'='sealed','unresolved then sealed, commit never replays');
+select pg_temp.promo_assert(public.admin_read_discount_promotion_operation(md5('promo-test:6')::uuid,'b9200000-0000-4000-8000-000000000001','b9200000-0000-4000-8000-000000000011')->>'state'='unresolved',
+ 'unresolved before commit');
+select pg_temp.promo_assert(public.admin_read_discount_promotion_operation(md5('promo-test:6')::uuid,'b9200000-0000-4000-8000-000000000001','b9200000-0000-4000-8000-000000000011',true)->>'state'='sealed',
+ 'seal stores a terminal receipt');
+select pg_temp.promo_assert(pg_temp.promo_commit(6)->>'state'='sealed','a sealed request never commits');
 
 -- 6. 입력 검증.
 select pg_temp.promo_error($q$select pg_temp.promo_preview(7,'{"name":"x"}')$q$,'discount_promotion_invalid');
