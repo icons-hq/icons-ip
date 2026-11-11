@@ -504,4 +504,75 @@ select 1/case when (:'random_view'::jsonb->'lines'->0->>'variantId')=:'random_ke
  and pg_temp.d2_cart('d2000000-0000-4000-8000-000000000002')=:'cart_before_random'::jsonb
  then 1 else 0 end as assert_random_direct_allocates_from_key_without_cart_row;
 
+-- ── 5. 거래 런타임도 같은 계약이다(운영은 꺼져 있다): 선택 주문 = 고른 줄 ⊆ 장바구니, 바로구매 = 초안 줄만 ──────────
+update private.goods_transaction_runtime set enabled=true where singleton;
+select set_config('request.jwt.claim.sub','d2000000-0000-4000-8000-000000000002',true);
+set local role authenticated;
+select public.clear_cart_coupon();
+select public.set_cart_item_quantity('d2-a',:'variant_a',1);
+select public.set_cart_item_quantity('d2-b',:'variant_b',2);
+reset role;
+select pg_temp.d2_cart('d2000000-0000-4000-8000-000000000002') as tx_cart_before \gset
+select pg_temp.d2_lines('d2000000-0000-4000-8000-000000000002',array['d2-a']) as tx_a_only \gset
+-- 선택 주문: A만 고르면 견적·주문은 A만, 카드 보류 줄도 A만이다. B는 남는다.
+set local role service_role;
+select public.quote_cart_goods_transaction('d2000000-0000-4000-8000-000000000002',:'tx_a_only',:'address','{}',null,0) as tx_quote \gset
+select public.place_cart_goods_transaction('d2000000-0000-4000-8000-000000000002',:'tx_a_only',:'address',(:'tx_quote'::jsonb->>'quoteId')::uuid,
+ 'd2000000-0000-4000-8000-000000000401','card') as tx_selection_order \gset
+reset role;
+select 1/case when (select count(*) from public.order_items where order_id=:'tx_selection_order')=1
+ and exists(select 1 from public.order_items where order_id=:'tx_selection_order' and good_id='d2-a')
+ and (select calculation_version=2 from public.orders where id=:'tx_selection_order')
+ and (select source='cart_transaction' and jsonb_array_length(lines)=1 and lines->0->>'goodId'='d2-a' from private.cart_order_holds where order_id=:'tx_selection_order')
+ and pg_temp.d2_cart('d2000000-0000-4000-8000-000000000002')=:'tx_cart_before'::jsonb
+ then 1 else 0 end as assert_tx_selection_holds_only_selected_lines;
+-- 고른 줄의 수량이 바뀌면(다른 탭) 견적이 PT409로 막힌다.
+set local role authenticated;
+select public.set_cart_item_quantity('d2-a',:'variant_a',2);
+reset role;
+set local role service_role;
+select pg_temp.d2_expect_error(format('select public.quote_cart_goods_transaction(%L,%L,%L,%L,null,0)','d2000000-0000-4000-8000-000000000002',:'tx_a_only',:'address','{}'),'cart_snapshot_changed');
+reset role;
+-- 바로구매: 초안 줄만, 장바구니는 그대로. 새 바로구매가 이전 미결제 선택 주문을 닫는다(출처 무관).
+set local role authenticated;
+select public.set_cart_item_quantity('d2-a',:'variant_a',1);
+reset role;
+set local role service_role;
+select public.service_create_checkout_direct_draft('d2000000-0000-4000-8000-000000000002','d2-b',jsonb_build_array(
+  jsonb_build_object('good_id','d2-b','variant_id',:'variant_b','qty',1))) as tx_direct_draft \gset
+select public.quote_direct_goods_transaction('d2000000-0000-4000-8000-000000000002',:'tx_direct_draft',:'address','{}',null,0) as tx_direct_quote \gset
+select public.place_direct_goods_transaction('d2000000-0000-4000-8000-000000000002',:'tx_direct_draft',:'address',(:'tx_direct_quote'::jsonb->>'quoteId')::uuid,
+ 'd2000000-0000-4000-8000-000000000402','card') as tx_direct_order \gset
+-- 같은 키 재요청은 초안을 다시 보지 않고 원래 주문이다.
+select 1/case when public.place_direct_goods_transaction('d2000000-0000-4000-8000-000000000002','d2000000-0000-4000-8000-0000000000ff',:'address',
+ (:'tx_direct_quote'::jsonb->>'quoteId')::uuid,'d2000000-0000-4000-8000-000000000402','card')=:'tx_direct_order'::uuid
+ and public.resume_direct_goods_transaction('d2000000-0000-4000-8000-000000000002','d2000000-0000-4000-8000-0000000000ff',
+ (:'tx_direct_quote'::jsonb->>'quoteId')::uuid,'d2000000-0000-4000-8000-000000000402','card',false)=:'tx_direct_order'::uuid
+ then 1 else 0 end as assert_transaction_direct_replay_returns_same_order;
+reset role;
+select 1/case when (select count(*) from public.order_items where order_id=:'tx_direct_order')=1
+ and exists(select 1 from public.order_items where order_id=:'tx_direct_order' and good_id='d2-b' and qty=1)
+ and (select source_kind='direct' and source_id='d2000000-0000-4000-8000-000000000002'::uuid from private.order_goods_transactions where order_id=:'tx_direct_order')
+ and (select source='direct_transaction' and base_good_id='d2-b' from private.cart_order_holds where order_id=:'tx_direct_order')
+ and (select discount_total=0 and status='pending' from public.orders where id=:'tx_direct_order')
+ and (select status='canceled' from public.orders where id=:'tx_selection_order')
+ and pg_temp.d2_cart('d2000000-0000-4000-8000-000000000002')=:'tx_cart_before'::jsonb
+ then 1 else 0 end as assert_tx_direct_orders_draft_only_and_supersedes;
+-- 장바구니 선택 초안·다른 계정·만료 초안으로는 바로구매 견적이 되지 않는다.
+set local role service_role;
+select public.service_create_checkout_selection_draft('d2000000-0000-4000-8000-000000000002',:'tx_a_only') as tx_selection_draft \gset
+select pg_temp.d2_expect_error(format('select public.quote_direct_goods_transaction(%L,%L,%L,%L,null,0)','d2000000-0000-4000-8000-000000000002',:'tx_selection_draft',:'address','{}'),'checkout_draft_expired');
+select pg_temp.d2_expect_error(format('select public.quote_direct_goods_transaction(%L,%L,%L,%L,null,0)','d2000000-0000-4000-8000-000000000003',:'tx_direct_draft',:'address','{}'),'checkout_draft_expired');
+reset role;
+select 1/case when has_function_privilege('service_role','public.place_direct_goods_transaction(uuid,uuid,jsonb,uuid,uuid,public.order_payment_method)','execute')
+ and not has_function_privilege('authenticated','public.place_direct_goods_transaction(uuid,uuid,jsonb,uuid,uuid,public.order_payment_method)','execute')
+ and has_function_privilege('service_role','public.quote_direct_goods_transaction(uuid,uuid,jsonb,jsonb,uuid,bigint)','execute')
+ and not has_function_privilege('authenticated','public.quote_direct_goods_transaction(uuid,uuid,jsonb,jsonb,uuid,bigint)','execute')
+ and has_function_privilege('service_role','public.quote_direct_goods_transaction_combined(uuid,uuid,jsonb,jsonb,uuid[],bigint)','execute')
+ and has_function_privilege('service_role','public.resume_direct_goods_transaction(uuid,uuid,uuid,uuid,public.order_payment_method,boolean)','execute')
+ and not has_function_privilege('authenticated','public.resume_direct_goods_transaction(uuid,uuid,uuid,uuid,public.order_payment_method,boolean)','execute')
+ and not has_function_privilege('service_role','private.direct_goods_transaction_selection(uuid,uuid)','execute')
+ then 1 else 0 end as assert_transaction_direct_acl;
+update private.goods_transaction_runtime set enabled=false where singleton;
+
 rollback;

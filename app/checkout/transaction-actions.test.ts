@@ -11,6 +11,8 @@ vi.mock('@/lib/payments/goods-checkout-availability', () => ({ goodsCheckoutPaym
 vi.mock('@/lib/payments/goods-sale-restriction.server', () => ({ deriveGoodsCartProvider: mocks.cartProvider, deriveUserCartProvider: mocks.userCartProvider }));
 vi.mock('@/lib/payments/bank-transfer.server', () => ({ bankTransferCheckoutEnabled: () => mocks.bank }));
 vi.mock('@/lib/checkout-transaction.server', () => ({ loadGoodsTransactionRuntimeMode: () => mocks.runtime }));
+const drafts = vi.hoisted(() => ({ load: vi.fn() }));
+vi.mock('@/lib/checkout-draft.server', () => ({ loadCheckoutDraft: drafts.load }));
 import { placeCartTransactionAction, quoteCartTransactionAction, resumeCartTransactionAction } from './transaction-actions';
 const placeInput = { ...transactionInput, quoteId: transactionRecovery.quoteId, checkoutKey: transactionRecovery.checkoutKey, paymentMethod: transactionRecovery.paymentMethod };
 beforeEach(() => {
@@ -105,3 +107,29 @@ it('19금 굿즈가 섞인 카트의 카드 주문과 이어서 주문하기는 
   expect(mocks.userCartProvider).toHaveBeenCalledWith(transactionActor);
   expect(mocks.rpc).toHaveBeenCalledWith('resume_cart_goods_transaction', expect.objectContaining({ p_allow_new: false }));
 });
+
+/* 바로구매 초안(ADR-0030): 초안이 있으면 장바구니 어댑터가 아니라 바로구매 어댑터로 견적·주문·복구한다. */
+it('바로구매 초안은 장바구니 스냅샷 대신 초안 id로 견적·주문·복구한다', async () => {
+  const draftId = '00000000-0000-4000-8000-0000000000d1';
+  mocks.rpc.mockResolvedValueOnce({ data: transactionQuote, error: null });
+  await quoteCartTransactionAction({ ...transactionInput, draftId });
+  expect(mocks.rpc).toHaveBeenLastCalledWith('quote_direct_goods_transaction', expect.objectContaining({ p_user_id: transactionActor, p_draft_id: draftId }));
+  expect(mocks.rpc.mock.calls.at(-1)?.[1]).not.toHaveProperty('p_expected_cart');
+  await placeCartTransactionAction({ ...placeInput, draftId });
+  expect(mocks.rpc).toHaveBeenLastCalledWith('place_direct_goods_transaction', expect.objectContaining({ p_user_id: transactionActor, p_draft_id: draftId,
+    p_quote_id: transactionRecovery.quoteId, p_checkout_key: transactionRecovery.checkoutKey }));
+  drafts.load.mockResolvedValueOnce({ id: draftId, source: 'direct', baseGoodId: 'transaction-good', expiresAt: '2099-01-01T00:00:00Z', stale: false,
+    lines: [{ goodId: 'transaction-good', variantId: transactionInput.items[0].variantId, qty: 2 }] });
+  await resumeCartTransactionAction({ ...transactionRecovery, draftId });
+  expect(mocks.rpc).toHaveBeenLastCalledWith('resume_direct_goods_transaction', expect.objectContaining({ p_user_id: transactionActor, p_draft_id: draftId, p_allow_new: true }));
+  expect(mocks.cartProvider).toHaveBeenLastCalledWith(['transaction-good']);
+});
+it('바로구매 초안이 만료됐으면 따로 알리고, 복구는 새 결제를 열지 않는다', async () => {
+  const draftId = '00000000-0000-4000-8000-0000000000d1';
+  mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: 'PT409', message: 'checkout_draft_expired' } });
+  expect(await placeCartTransactionAction({ ...placeInput, draftId })).toEqual({ ok: false, error: 'draft_expired', uncertain: false });
+  drafts.load.mockResolvedValueOnce(null);
+  await resumeCartTransactionAction({ ...transactionRecovery, draftId });
+  expect(mocks.rpc).toHaveBeenLastCalledWith('resume_direct_goods_transaction', expect.objectContaining({ p_allow_new: false }));
+});
+

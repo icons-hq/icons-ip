@@ -19,6 +19,7 @@ import { cartItemKey, type CartItem } from '@/lib/cart';
 import type { CatalogSnapshot } from '@/lib/catalog';
 import { bankTransferMethodNote, checkoutAddressErrors, type CheckoutAddress, type CheckoutPaymentMethod } from '@/lib/checkout';
 import { orderCompleteHref } from '@/lib/routes';
+import { checkoutDraftReturnHref, type CheckoutDraft } from '@/lib/checkout-draft';
 import { cartTransactionRequestTooLarge, parseCartTransactionInput, parseCartTransactionRecovery, transactionIssueCopy, type CartTransactionRecovery, type CheckoutDeliveryChoices } from '@/lib/checkout-transaction';
 import { krw } from '@/lib/format';
 import type { GoodsTransactionDisplay } from '@/lib/goods-transaction';
@@ -37,6 +38,7 @@ export const cartTransactionErrorCopy: Record<CartTransactionError, string> = {
   quote_changed: '가격이나 배송 조건이 변경되었어요. 새로 확인한 금액으로 다시 주문해주세요.',
   checkout_conflict: '이미 요청한 주문을 확인해주세요. 같은 요청으로 다른 주문을 만들 수 없어요.', unavailable: '주문을 확인하지 못했어요. 잠시 후 다시 시도해주세요.',
   payment_in_progress: '앞서 결제한 주문의 승인 결과를 확인하고 있어요. 확인이 끝난 뒤 다시 시도해주세요.',
+  draft_expired: '주문서를 연 지 오래되어 다시 열어야 해요. 굿즈 상세에서 다시 구매해주세요.',
 };
 
 interface Props {
@@ -46,14 +48,24 @@ interface Props {
   paymentAvailable: boolean; bankTransferAvailable: boolean; resumeOrderId: string | null;
   coupons?: UserCouponSummary[]; couponPolicy?: CouponCombinationPolicy | null;
   userCouponId: string | null; paymentFailCode?: string | null;
+  /**
+   * 주문서 초안(ADR-0030). 장바구니 선택 주문은 고른 줄만 장바구니 원본으로(고른 줄 ⊆ 장바구니), 바로구매는 그 초안 줄을
+   * 바로구매 원본으로 견적·주문한다. 없으면 지금처럼 장바구니 전체다.
+   */
+  draft?: CheckoutDraft | null;
 }
 
-export function GoodsTransactionCheckout({ accountId, catalog, addressPrefill, paymentAvailable, bankTransferAvailable, resumeOrderId, userCouponId, coupons = [], couponPolicy, paymentFailCode }: Props) {
+export function GoodsTransactionCheckout({ accountId, catalog, addressPrefill, paymentAvailable, bankTransferAvailable, resumeOrderId, userCouponId, coupons = [], couponPolicy, paymentFailCode, draft = null }: Props) {
   const router = useRouter(), cart = useCart();
-  /* 결제를 마치지 않은 이전 장바구니 주문이 쿠폰·적립금·구매 한도를 잡고 있으면 견적 전에 닫는다(ADR-0026). */
-  const released = useReleaseUnpaidCartOrders();
+  const direct = draft?.source === 'direct';
+  /* 주문할 줄: 초안이 있으면 그 줄, 없으면 장바구니 전체다(ADR-0030). */
+  const orderItems = draft ? draft.lines : cart.items;
+  /* 결제를 마치지 않은 이전 주문이 쿠폰·적립금·구매 한도를 잡고 있으면 견적 전에 닫는다(ADR-0026). 바로구매 주문서는
+     출처와 무관하게, 장바구니 주문서는 장바구니 출처만 닫는다(ADR-0030). */
+  const released = useReleaseUnpaidCartOrders(direct ? 'checkout' : 'cart');
   const [address, setAddress] = useState<CheckoutAddress>(addressPrefill.address ?? { recipientName: '', phone: '', postalCode: '', address1: '', address2: '', deliveryNote: '' });
-  const [selectedCoupons, setSelectedCoupons] = useState<string[]>(userCouponId ? [userCouponId] : []), [shippingCoupon, setShippingCoupon] = useState('');
+  /* 바로구매 쿠폰은 이 주문서에서 따로 고른다 — 장바구니 쿠폰 선택을 이어받지 않는다. */
+  const [selectedCoupons, setSelectedCoupons] = useState<string[]>(userCouponId && !direct ? [userCouponId] : []), [shippingCoupon, setShippingCoupon] = useState('');
   const [verifiedOffers, setVerifiedOffers] = useState<GoodsTransactionOffer[]>([]);
   const [creditInput, setCreditInput] = useState(''), [choices, setChoices] = useState<CheckoutDeliveryChoices>({});
   const [method, setMethod] = useState<CheckoutPaymentMethod>(paymentAvailable || !bankTransferAvailable ? 'card' : 'bank_transfer');
@@ -91,7 +103,7 @@ export function GoodsTransactionCheckout({ accountId, catalog, addressPrefill, p
     const protect = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
     window.addEventListener('beforeunload', protect); return () => window.removeEventListener('beforeunload', protect);
   }, [recovery]);
-  const selectedGoods = new Set(cart.items.map(item => item.goodId));
+  const selectedGoods = new Set(orderItems.map(item => item.goodId));
   const offers = [...selectedGoods].flatMap(id => {
     const offer = verifiedOffers.find(o => o.goodId === id) ?? catalog.goods.find(g => g.id === id)?.transactionOffer;
     return offer ? [offer] : [];
@@ -106,12 +118,16 @@ export function GoodsTransactionCheckout({ accountId, catalog, addressPrefill, p
   const needsAddress = Object.values(currentChoices).some(choice => typeof choice === 'string' || fulfillmentNeedsAddress(choice.method));
   const amount = normalizeStoreCreditAmount(creditInput);
   const combinedIds = [...selectedCoupons, ...(shippingCoupon ? [shippingCoupon] : [])];
-  const rawInput = { expectedActorId: accountId, items: cart.items, address: needsAddress ? address : { kind: 'none' }, deliveryChoices: currentChoices, userCouponId: couponPolicy ? combinedIds[0] ?? null : userCouponId, ...(couponPolicy ? { userCouponIds: combinedIds } : {}), storeCreditAmount: amount };
+  /* 쿠폰 조합 정책을 못 읽었으면 장바구니 쿠폰 1장을 쓰는 지금 계약이다 — 바로구매는 장바구니 쿠폰을 쓰지 않는다. */
+  const fallbackCoupon = direct ? null : userCouponId;
+  const rawInput = { expectedActorId: accountId, items: orderItems, address: needsAddress ? address : { kind: 'none' }, deliveryChoices: currentChoices,
+    userCouponId: couponPolicy ? combinedIds[0] ?? null : fallbackCoupon, ...(couponPolicy ? { userCouponIds: combinedIds } : {}), storeCreditAmount: amount,
+    ...(direct && draft ? { draftId: draft.id } : {}) };
   const input = parseCartTransactionInput(rawInput), tooLarge = cartTransactionRequestTooLarge(rawInput);
   const quotes = useCartTransactionQuote(input, Boolean(session && !authBlocked && cart.ready && cart.mode === 'server' && !cart.pending && released), busy || recovery !== null, setVerifiedOffers);
   const quote = quotes.result?.ok ? quotes.result.quote : null;
   const currentDisplay = quote?.state === 'quoted' ? quote.display : null, display = recovery ? frozen?.display : currentDisplay;
-  const visibleItems = recovery ? frozen?.items ?? [] : cart.items;
+  const visibleItems = recovery ? frozen?.items ?? [] : orderItems;
   const selectable = { card: paymentAvailable && currentDisplay?.paymentMethods.card === true, bank_transfer: bankTransferAvailable && currentDisplay?.paymentMethods.bankTransfer === true };
   const effectiveMethod = selectable[method] ? method : selectable.card ? 'card' : selectable.bank_transfer ? 'bank_transfer' : method;
   const canSubmit = Boolean(session && !authBlocked && input && quote?.state === 'quoted' && selectable[effectiveMethod] && !cart.pending && !busy && !recovery);
@@ -148,7 +164,8 @@ export function GoodsTransactionCheckout({ accountId, catalog, addressPrefill, p
     if (!canSubmit || !input || !session || quote?.state !== 'quoted' || lane.current) return;
     if (Date.parse(quote.expiresAt) <= Date.now()) { quotes.refresh(); setError(cartTransactionErrorCopy.quote_changed); return; }
     lane.current = true; setBusy(true); setError(''); const capturedEpoch = epoch.current;
-    const marker: CartTransactionRecovery = { version: 1, expectedActorId: accountId, sessionId: session, quoteId: quote.quoteId, checkoutKey: crypto.randomUUID(), paymentMethod: effectiveMethod };
+    const marker: CartTransactionRecovery = { version: 1, expectedActorId: accountId, sessionId: session, quoteId: quote.quoteId, checkoutKey: crypto.randomUUID(), paymentMethod: effectiveMethod,
+      ...(input.draftId ? { draftId: input.draftId } : {}) };
     remember(marker); setFrozen({ display: quote.display, items: input.items });
     try { await acceptResult(await placeCartTransactionAction({ ...input, quoteId: marker.quoteId, checkoutKey: marker.checkoutKey, paymentMethod: marker.paymentMethod }), capturedEpoch, marker.paymentMethod); }
     catch { if (capturedEpoch === epoch.current) setError('주문 생성 결과를 확인하지 못했어요. 같은 주문 다시 확인을 눌러주세요.'); }
@@ -165,7 +182,7 @@ export function GoodsTransactionCheckout({ accountId, catalog, addressPrefill, p
   if (authBlocked) return <main className="wc-root checkout-page"><div className="wrap card"><h1>로그인 상태를 다시 확인해주세요</h1><p>{cartTransactionErrorCopy.auth_changed}</p><button type="button" className="btn btn-holo" onClick={() => window.location.reload()}>새로고침</button></div></main>;
   if (!session || !cart.ready || !released) return <main className="wc-root checkout-page"><p className="wrap" role="status">계정과 장바구니를 확인하고 있어요.</p></main>;
   if (cart.mode !== 'server') return <main className="wc-root checkout-page"><div className="wrap card"><h1>장바구니를 계정에 연결해주세요</h1><p>{cart.error}</p><button type="button" onClick={() => void cart.refresh()}>다시 연결</button></div></main>;
-  if (!cart.items.length && !recovery) return <main className="wc-root checkout-page"><div className="wrap card"><h1>{resumeOrderId ? '진행 중인 주문이 있어요' : '주문할 굿즈가 없어요'}</h1>{resumeOrderId && <><p>결제를 기다리거나 입금을 기다리는 주문이 있어요. 이어서 결제하거나 입금 안내를 확인할 수 있어요.</p><Link className="btn btn-holo" href={`/checkout/${resumeOrderId}`}>주문 이어가기</Link></>}<Link href="/cart">장바구니로 돌아가기</Link></div></main>;
+  if (!orderItems.length && !recovery) return <main className="wc-root checkout-page"><div className="wrap card"><h1>{resumeOrderId ? '진행 중인 주문이 있어요' : '주문할 굿즈가 없어요'}</h1>{resumeOrderId && <><p>결제를 기다리거나 입금을 기다리는 주문이 있어요. 이어서 결제하거나 입금 안내를 확인할 수 있어요.</p><Link className="btn btn-holo" href={`/checkout/${resumeOrderId}`}>주문 이어가기</Link></>}<Link href="/cart">장바구니로 돌아가기</Link></div></main>;
 
   return <main className="wc-root wc-receipt checkout-page">
     <header className="wc-receipt__head"><div className="wrap"><h1 className="wc-receipt__title">받을 방식과 최종 결제금액을 확인해주세요</h1><p className="wc-receipt__subcopy">복수구매 할인, 쿠폰, 적립금과 배송비를 함께 확인합니다.</p>{paymentFailCode && <p role="alert">{paymentFailNoticeCopy(paymentFailCode)}</p>}</div></header>
@@ -234,7 +251,7 @@ export function GoodsTransactionCheckout({ accountId, catalog, addressPrefill, p
           <button className="btn btn-holo checkout-submit" disabled={!canSubmit}>{busy ? '주문 확인 중' : effectiveMethod === 'bank_transfer' ? '주문하고 입금 안내 받기' : '결제하기'}</button>
         </>}
         {recovery && <section aria-label="주문 요청 복구"><p>앞서 요청한 주문을 확인한 뒤 진행해주세요.</p><button type="button" className="btn btn-holo" disabled={busy} onClick={() => void resume()}>{busy ? '같은 주문 확인 중' : '같은 주문 다시 확인'}</button><Link href="/orders?pending=1">진행 중인 주문 보기</Link></section>}
-        {error && <p className="checkout-error" role="alert">{error}</p>}<Link href="/cart">장바구니 확인</Link>
+        {error && <p className="checkout-error" role="alert">{error}</p>}<Link href={checkoutDraftReturnHref(draft)}>{direct ? '굿즈로 돌아가기' : '장바구니 확인'}</Link>
       </aside>
     </form>
   </main>;

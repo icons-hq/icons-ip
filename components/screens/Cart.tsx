@@ -342,10 +342,6 @@ export function Cart({
       router.push(`/login?next=${encodeURIComponent('/cart')}`);
       return;
     }
-    if (transactionActive) {
-      router.push('/checkout');
-      return;
-    }
     setOrdering(true);
     setOrderError(null);
     try {

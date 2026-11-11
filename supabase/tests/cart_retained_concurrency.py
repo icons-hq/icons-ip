@@ -213,4 +213,52 @@ assert sql(f"select qty from public.cart_items where user_id='{buyer}' and varia
 sql('drop trigger aaa_test_cart_retained_pause on public.cart_items;drop trigger aaa_test_cart_retained_pause on public.order_items;'
     'drop function private.test_cart_retained_cart_pause();drop function private.test_cart_retained_order_pause();')
 print('PASS order creation and other-tab cart quantity change wait in lock order either way; no deadlock', flush=True)
-print(json.dumps({'cases': 5, 'database': database, 'sourceDatabaseWrites': 0}, ensure_ascii=False), flush=True)
+# 6. 장바구니 선택 주문(ADR-0030): 고른 줄(A)로 주문이 품목을 쓰는 동안 다른 탭이 고르지 않은 줄(C)을 바꾼다.
+#    다른 탭은 사용자 advisory에서 기다리고, 주문은 A만 담아 끝난다. 고르지 않은 C는 다른 탭 값으로 남는다.
+variant_c = sql("select id from public.goods_variants where good_id='retained-c' and is_default;")
+sql("""create function private.test_cart_selection_order_pause() returns trigger language plpgsql as $$begin
+ if exists(select 1 from public.orders where id=new.order_id and checkout_key in ('dd270000-0000-4000-8000-000000000009'::uuid,'dd270000-0000-4000-8000-000000000010'::uuid)) then
+  perform pg_advisory_xact_lock(2710053);end if;
+ return new;end$$;
+create trigger aaa_test_cart_selection_pause before insert on public.order_items for each row execute function private.test_cart_selection_order_pause();""")
+sql('begin;' + as_buyer(f"select public.set_cart_item_quantity('retained-a','{variant}',0);select public.set_cart_item_quantity('retained-a','{variant}',1);"
+    f"select public.set_cart_item_quantity('retained-c','{variant_c}',1);") + 'commit;')
+selected = sql(f"select jsonb_agg(jsonb_build_object('good_id',good_id,'variant_id',variant_id,'qty',qty,'input_revision',input_revision,'input_values',input_values)) from public.cart_items where user_id='{buyer}' and good_id='retained-a';")
+draft = sql('begin;' + service(f"select public.service_create_checkout_selection_draft('{buyer}',{literal(selected)});") + 'commit;').splitlines()[-1]
+holder = start('selection-hold', 'select pg_advisory_xact_lock(2710053);select pg_sleep(1.5);')
+wait_state('selection-hold', 'Timeout', holder)
+placer = start('selection-order', service(f"select public.place_order_with_cart_selection('{buyer}','{draft}',{literal(address)},'dd270000-0000-4000-8000-000000000009','card',0,null);"))
+wait_state('selection-order', 'Lock', placer)
+mutation = start('selection-other-line', as_buyer(f"select public.set_cart_item_quantity('retained-c','{variant_c}',2);"))
+wait_state('selection-other-line', 'Lock', mutation)
+finish(holder)
+selection_order = finish(placer).strip().splitlines()[-1]
+finish(mutation)
+assert sql(f"select string_agg(good_id,',' order by good_id) from public.order_items where order_id='{selection_order}';") == 'retained-a'
+assert sql(f"select jsonb_array_length(lines)||':'||(lines->0->>'goodId') from private.cart_order_holds where order_id='{selection_order}';") == '1:retained-a'
+assert sql(f"select qty from public.cart_items where user_id='{buyer}' and good_id='retained-c';") == '2'
+print('PASS selection order holds only selected line while other tab changes an unselected line; no deadlock', flush=True)
+
+# 7. 두 탭 바로구매(ADR-0030): 첫 바로구매가 품목을 쓰는 동안 둘째 바로구매는 사용자 advisory에서 기다렸다가 첫 주문을
+#    닫고(출처 무관 supersede) 새 주문을 만든다. 장바구니는 두 주문 모두 건드리지 않는다.
+cart_before = cart()
+direct_lines = f"jsonb_build_array(jsonb_build_object('good_id','retained-a','variant_id','{variant}','qty',1))"
+draft_1 = sql('begin;' + service(f"select public.service_create_checkout_direct_draft('{buyer}','retained-a',{direct_lines});") + 'commit;').splitlines()[-1]
+draft_2 = sql('begin;' + service(f"select public.service_create_checkout_direct_draft('{buyer}','retained-a',{direct_lines});") + 'commit;').splitlines()[-1]
+holder = start('direct-hold', 'select pg_advisory_xact_lock(2710053);select pg_sleep(1.5);')
+wait_state('direct-hold', 'Timeout', holder)
+first_tab = start('direct-first', service(f"select public.place_direct_order('{buyer}','{draft_1}',{literal(address)},'dd270000-0000-4000-8000-000000000010','card',0,null);"))
+wait_state('direct-first', 'Lock', first_tab)
+second_tab = start('direct-second', service(f"select public.place_direct_order('{buyer}','{draft_2}',{literal(address)},'dd270000-0000-4000-8000-000000000011','card',0,null);"))
+wait_state('direct-second', 'Lock', second_tab)
+finish(holder)
+first_order = finish(first_tab).strip().splitlines()[-1]
+second_order = finish(second_tab).strip().splitlines()[-1]
+assert sql(f"select status from public.orders where id='{first_order}';") == 'canceled'
+assert sql(f"select state||':'||release_reason from private.cart_order_holds where order_id='{first_order}';") == 'released:superseded'
+assert sql(f"select status from public.orders where id='{second_order}';") == 'pending'
+assert sql(f"select source from private.cart_order_holds where order_id='{second_order}';") == 'direct_checkout'
+assert cart() == cart_before
+sql('drop trigger aaa_test_cart_selection_pause on public.order_items;drop function private.test_cart_selection_order_pause();')
+print('PASS two-tab direct orders serialize; second supersedes first; cart untouched; no deadlock', flush=True)
+print(json.dumps({'cases': 7, 'database': database, 'sourceDatabaseWrites': 0}, ensure_ascii=False), flush=True)
