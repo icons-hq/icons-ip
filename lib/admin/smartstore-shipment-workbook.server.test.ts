@@ -129,7 +129,8 @@ describe('ICONS 표준 양식 출고지시', () => {
     expect(trackingImportCommand(parsed, '')).toEqual({ name: 'admin_import_item_tracking_batch', args: { target_rows: [{ line: 2, reference: detail.productOrderNumber, carrier: 'hanjin', trackingNumber: '001234567890' }] } });
     const filled = encryptAdminWorkbook(Buffer.from(await book.xlsx.writeBuffer()), '1234');
     expect(await parseTrackingWorkbook(filled.bytes, carriers, '1234')).toEqual(parsed);
-  });
+    // 실제 Agile 암호화·복호화를 다섯 번 해 CI 러너에서 5초 기본 제한을 넘긴다.
+  }, 20_000);
 
   it('품목 1,000줄 회신이 업로드 한도 안에 들어간다', async () => {
     const shipments = Array.from({ length: 1000 }, (_, index) => {

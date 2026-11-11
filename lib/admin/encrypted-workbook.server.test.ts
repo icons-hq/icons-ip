@@ -5,7 +5,10 @@ import officeCrypto from 'officecrypto-tool';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { decryptUploadedWorkbook, encryptAdminWorkbook, isOleContainer } from './encrypted-workbook.server';
 
-describe('Office Agile 파일 암호화', () => {
+// 실제 Agile 암호화·복호화는 키마다 SHA-512를 100,000번 돌려 CI 러너에서 테스트 하나가 2~5초 걸린다.
+const CRYPTO_TEST_TIMEOUT = 20_000;
+
+describe('Office Agile 파일 암호화', { timeout: CRYPTO_TEST_TIMEOUT }, () => {
   it.each(['1234', 'A'.repeat(16)])('허용 길이의 암호 %s로 원본 ZIP 바이트를 보존하고 매번 다른 파일을 만든다', async password => {
     const workbook = new ExcelJS.Workbook(); const sheet = workbook.addWorksheet('원본');
     sheet.addRow(['00000123', '=1+1', 1000]); sheet.getCell('C1').numFmt = '#,##0';
@@ -25,7 +28,7 @@ describe('Office Agile 파일 암호화', () => {
   });
 });
 
-describe('업로드한 비밀번호 파일 복호화', () => {
+describe('업로드한 비밀번호 파일 복호화', { timeout: CRYPTO_TEST_TIMEOUT }, () => {
   const LIMIT = 1024 * 1024;
   const UNREADABLE = '암호 파일을 열지 못했습니다';
   const plain = async () => {

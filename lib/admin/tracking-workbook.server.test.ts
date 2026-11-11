@@ -85,7 +85,8 @@ describe('남양주(서원) 송장양식 회신',()=>{
  });
 });
 
-describe('비밀번호를 건 회신 파일',()=>{
+// 실제 Agile 암호화·복호화는 키마다 SHA-512를 100,000번 돌려 CI 러너에서 테스트 하나가 2~5초 걸린다.
+describe('비밀번호를 건 회신 파일',{timeout:20_000},()=>{
  const password='Sample-1234';
  const sealed=(plain:Buffer)=>encryptAdminWorkbook(plain,password).bytes;
  const threeColumns=()=>bytes([['배송건번호','택배사','운송장번호'],['00000001','hanjin','00123456']]);

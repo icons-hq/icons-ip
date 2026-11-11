@@ -279,7 +279,8 @@ describe('bulk tracking action', () => {
   });
 });
 
-describe('비밀번호를 건 회신 파일 등록',()=>{
+// 실제 Agile 암호화·복호화는 키마다 SHA-512를 100,000번 돌려 CI 러너에서 테스트 하나가 2~5초 걸린다.
+describe('비밀번호를 건 회신 파일 등록',{timeout:20_000},()=>{
  const password='Sample-1234';
  const item='60000000-0000-4000-8000-000000000001';
  async function smartStoreReply(carrier='한진택배'){
