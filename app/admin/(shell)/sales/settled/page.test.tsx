@@ -17,7 +17,12 @@ const mocks = vi.hoisted(() => ({
   settledScreen: vi.fn(() => null),
   settled: vi.fn(async () => ({ filters: {}, pageSize: 20, rows: [], total: 0 })),
   orders: vi.fn(async () => ({ items: [], filters: {}, pageSize: 20, total: 0 })),
+  preview: vi.fn(async () => ({ kind: 'not_found' })),
 }));
+vi.mock('@/lib/admin/order-preview.server', () => ({ loadAdminOrderPreview: mocks.preview }));
+/* 목록과 주문 상세 팝업(S36-075)은 Fragment의 같은 자리에 둔다 — 첫째가 목록, 둘째가 팝업(없으면 null)이다. */
+const listOf = (page: unknown) => ((page as { props: { children: unknown[] } }).props.children[0]) as { type: unknown; props: Record<string, unknown> };
+const popupOf = (page: unknown) => ((page as { props: { children: unknown[] } }).props.children[1]) as { type: unknown; key?: unknown; props: Record<string, unknown> } | null;
 
 vi.mock('@/components/admin/screens/SettledScreen', () => ({
   SettledScreen: mocks.settledScreen,
@@ -83,11 +88,22 @@ describe('AdminSalesSettledPage', () => {
       query: 'maple',
       page: 3,
     });
-    expect(screen.type).toBe(mocks.settledScreen);
-    expect(screen.props).toEqual({
+    expect(popupOf(screen)).toBeNull();
+    expect(listOf(screen).type).toBe(mocks.settledScreen);
+    expect(listOf(screen).props).toEqual({
       data: { filters: {}, pageSize: 20, rows: [], total: 0 },
       exportRequestId: expect.any(String),
     });
+  });
+
+  it('`?orderId=`가 있으면 거래확정 목록 위에 같은 조건으로 돌아가는 주문 상세 팝업을 둔다 (S36-075)', async () => {
+    const orderId = '50000000-0000-4000-8000-000000000001';
+    const page = await AdminSalesSettledPage({ searchParams: Promise.resolve({ query: 'maple', orderId }) });
+    expect(mocks.preview).toHaveBeenCalledWith(expect.objectContaining({ user: mocks.authState.user }), orderId);
+    expect(listOf(page).type).toBe(mocks.settledScreen);
+    expect(popupOf(page)).toMatchObject({ key: orderId, props: { orderId, backLabel: '거래확정 목록' } });
+    expect(String(popupOf(page)!.props.closeHref)).toMatch(/^\/admin\/sales\/settled\?/);
+    expect(String(popupOf(page)!.props.closeHref)).not.toContain('orderId');
   });
 
   it('다른 화면의 로더는 부르지 않는다', async () => {

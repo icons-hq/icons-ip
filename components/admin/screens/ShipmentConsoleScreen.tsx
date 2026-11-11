@@ -10,6 +10,8 @@ import {statusTone} from '@/lib/admin/status-tone';
 import {SHIPMENT_CONSOLE_TABS,SHIPMENT_SEARCH_FIELDS,isParcelShipment,shipmentConsoleHref,shipmentConsoleRowSelectable,shipmentConsoleSelectable,type ShipmentConsoleData} from '@/lib/admin/shipment-dispatch';
 import {ShipmentConsoleRowTracking} from './ShipmentConsoleRowTracking';
 import {ShipmentConsoleMethodButton} from './ShipmentConsoleMethodButton';
+import {OrderPreviewLink,OrderPreviewNewTabLink} from './OrderPreview';
+import {adminOrderPreviewHref} from '@/lib/admin/order-preview';
 import {adminOrderDetailHrefFromBack} from '@/lib/admin/orders';
 import {formatOrderDateTime,orderReferenceLabel} from '@/lib/orders';
 import {orderShipment} from '@/lib/orders/shipment';
@@ -89,13 +91,12 @@ export function ShipmentConsoleScreen({data,registeredCount,actorId,summaryAside
   /* 출고지시 전달 전 준비 건만 방법을 바꿀 수 있다(배송없음·디지털은 구매 때 정한 방식). 정확한 판정은 팝업이 서버에서 읽는다. */
   const methodChangeable=isDispatch&&row.status==='ready'&&!row.exportedAt&&!row.trackingNumber&&row.delivery?.method!=='none'&&row.delivery?.method!=='digital';
   return {id:row.id,selectable:shipmentConsoleRowSelectable(row,filters.tab,filters.method),selectLabel:`배송 건 ${reference} 선택`,cells:[
-   <div key="id" className={CELL_STACK}><Link
-    aria-label={`주문 ${orderReferenceLabel(row.orderId, row.orderNumber)} 상세 열기 (새 탭)`}
-    className="font-medium tabular-nums underline-offset-4 hover:underline"
-    href={adminOrderDetailHrefFromBack(row.orderId,shipmentConsoleHref(surface,filters))}
-    rel="noopener noreferrer"
-    target="_blank"
-   >{commerceReferenceLabel(row.id, row.shipmentNumber)}</Link><small className={`${CELL_NOTE} tabular-nums whitespace-nowrap`}>주문 {orderReferenceLabel(row.orderId, row.orderNumber)}</small>{row.pack?<AdminStatusBadge tone="neutral">합포장 {row.pack.id.slice(-8).toUpperCase()} · {row.pack.count}건</AdminStatusBadge>:null}</div>,
+   /* S36-075: 번호를 누르면 같은 목록 위에 주문 상세 팝업을 연다(닫으면 목록·선택·스크롤 그대로). 새 탭 열기는 옆 보조 링크다. */
+   <div key="id" className={CELL_STACK}><OrderPreviewLink
+    href={adminOrderPreviewHref(currentHref,row.orderId)}
+    label={`주문 ${orderReferenceLabel(row.orderId, row.orderNumber)} 상세 팝업 열기`}
+   >{reference}</OrderPreviewLink><span className="flex items-center gap-1"><small className={`${CELL_NOTE} tabular-nums whitespace-nowrap`}>주문 {orderReferenceLabel(row.orderId, row.orderNumber)}</small>
+    <OrderPreviewNewTabLink href={detailHref} label={`주문 ${orderReferenceLabel(row.orderId, row.orderNumber)} 상세 열기 (새 탭)`}/></span>{row.pack?<AdminStatusBadge tone="neutral">합포장 {row.pack.id.slice(-8).toUpperCase()} · {row.pack.count}건</AdminStatusBadge>:null}</div>,
    /* 출고 전 대조에 쓰는 칸이라 품목·옵션·수량을 줄이지 않는다(10/14 회의 요청). 긴 이름은 잘지 않고 줄을 바꾸며, 수량은 첫 줄 오른쪽에 둔다. */
    <ul key="items" className="flex min-w-44 flex-col gap-1">{row.items.map(item=><li key={item.id}><span className="flex min-w-0 items-baseline gap-1"><span className="min-w-0 flex-1 wrap-anywhere">{item.name}{item.variantName?` · ${item.variantName}`:''}</span><span className="shrink-0 whitespace-nowrap">× {item.qty}</span></span><GoodsCustomInputsSummary selection={item.customInputs} /></li>)}</ul>,
    <span key="origin" className={`${CELL_ONE_LINE} max-w-12`} title={row.originName}>{row.originName}</span>,<span key="buyer" className={`${CELL_ONE_LINE} max-w-16`} title={row.buyerName}>{row.buyerName}</span>,<span key="recipient" className={`${CELL_ONE_LINE} max-w-18`} title={row.recipientName||undefined}>{row.recipientName||'미기록'}</span>,

@@ -187,6 +187,14 @@ describe('배송 건 목록 엑셀 다운로드',()=>{
   expect(shipping).toContain('data-export-href="/api/admin/list-export?screen=shipping&amp;tab=delivered"');
  });
 });
+describe('주문번호 상세 팝업 (S36-075)',()=>{
+ it.each(['dispatch','shipping'] as const)('번호는 같은 목록 위 팝업(orderId)을 열고 새 탭 열기는 보조 링크로 남긴다: %s',surface=>{
+  const html=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,surface,filters:{...base.filters,tab:surface==='dispatch'?'ready':'transit',query:'maple'},rows:[{...row,status:surface==='dispatch'?'ready':'shipping'}]}}/>);
+  expect(html).toContain(`href="/admin/sales/${surface}?tab=${surface==='dispatch'?'ready':'transit'}&amp;page=1&amp;query=maple&amp;orderId=${row.orderId}"`);
+  expect(html).toContain('aria-label="주문 00000001 상세 팝업 열기"');expect(html).toContain('aria-label="주문 00000001 상세 열기 (새 탭)"');
+  expect(html).toMatch(/aria-label="주문 00000001 상세 팝업 열기"(?:(?!target=)[^>])*>/);
+ });
+});
 describe('발송처리 화면의 행 운송장·배송 방법 (S36-072·S36-X04)',()=>{
  const header=(html:string)=>html.slice(html.indexOf('<thead'),html.indexOf('</thead>'));
  const withCarrier={...base,origins:[{...base.origins[0],defaultCarrier:'hanjin'},...base.origins.slice(1)]};

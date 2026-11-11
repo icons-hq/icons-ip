@@ -11,7 +11,9 @@ const mocks = vi.hoisted(() => ({
   forcedPanel: vi.fn(() => null),
   load: vi.fn(),
   loadAuto: vi.fn(),
+  preview: vi.fn(),
 }));
+vi.mock('@/lib/admin/order-preview.server', () => ({ loadAdminOrderPreview: mocks.preview }));
 vi.mock('@/components/admin/screens/ShipmentConsoleScreen', () => ({ ShipmentConsoleScreen: mocks.screen }));
 vi.mock('@/components/admin/screens/AutoOrderConfirmPanel', () => ({ AutoOrderConfirmPanel: mocks.autoPanel }));
 vi.mock('@/components/admin/screens/ForcedDeliveryPanel', () => ({ ForcedDeliveryPanel: mocks.forcedPanel }));
@@ -73,6 +75,15 @@ describe('AdminSalesDispatchPage shipment contract', () => {
     expect(before.key).toBeNull();
     expect(after.key).toBe(before.key);
     expect((after.props.initial as { revision: number }).revision).toBe(2);
+  });
+  /* S36-075: 주문번호를 누르면 같은 목록 위 팝업. 목록·자동 발주확인·강제 배송완료의 자리는 그대로라 팝업을 열고 닫아도 다시 마운트되지 않는다. */
+  it('`?orderId=`가 있으면 목록 아래 같은 자리 뒤에 주문 상세 팝업을 두고, 닫으면 같은 조건의 목록으로 돌아간다', async () => {
+    const orderId = '50000000-0000-4000-8000-000000000001';
+    mocks.preview.mockResolvedValue({ kind: 'not_found' });
+    const shown = children(await AdminSalesDispatchPage({ searchParams: Promise.resolve({ tab: 'ready', orderId }) }) as Element);
+    expect(mocks.preview).toHaveBeenCalledWith(mocks.authState, orderId);
+    expect(shown.slice(0, 3).map(child => child.type)).toEqual([mocks.screen, mocks.autoPanel, mocks.forcedPanel]);
+    expect(shown[3].props).toMatchObject({ orderId, closeHref: '/admin/sales/dispatch?tab=ready&page=1', backLabel: '발주·발송 목록' });
   });
   it('자동 발주확인 설정을 읽지 못해도 발주 목록은 그대로 연다', async () => {
     mocks.loadAuto.mockResolvedValue(null);
