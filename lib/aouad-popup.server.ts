@@ -10,7 +10,7 @@ export function isAouadLocalPreviewEnabled(): boolean {
     && process.env.ICONS_AOUAD_LOCAL_PREVIEW === '1';
 }
 
-/** 공개 모드는 익명을 허용하고, 비공개 모드만 정지되지 않은 staff/admin으로 제한한다. */
+/** 공개 모드는 익명을 허용하고, 비공개 모드만 정지되지 않은 계정의 `platform.manage` 권한으로 제한한다. */
 export async function canViewAouadPopup(): Promise<boolean> {
   if (!AOUAD_POPUP_ENABLED) return false;
   if (AOUAD_POPUP_PUBLIC || isAouadLocalPreviewEnabled()) return true;
