@@ -1,8 +1,14 @@
 import 'server-only';
 
+import { cookies } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
 import { getSupabaseConfig } from '@/lib/supabase/config';
-import type { OnboardingConsents, ProfileForOnboarding } from './onboarding';
+import {
+  AUTH_RECOVERY_PROOF_COOKIE_NAME,
+  type OnboardingConsents,
+  type ProfileForOnboarding,
+} from './onboarding';
+import { passwordUpdateAccess, type PasswordUpdateAccess } from './recovery.server';
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -58,5 +64,29 @@ export async function getCurrentAuthState(): Promise<CurrentAuthState> {
     },
     profile,
     isStaff: !profile?.suspended_at && (profile?.role === 'staff' || profile?.role === 'admin'),
+  };
+}
+
+export interface PasswordUpdateState {
+  user: { id: string; email: string | null } | null;
+  access: PasswordUpdateAccess;
+}
+
+/** /update-password 화면 판정 — 로그인 사용자와 그 세션이 새 비밀번호를 받을 수 있는지. 서버 action은 같은 판정을 자기 클라이언트로 한다. */
+export async function getPasswordUpdateState(): Promise<PasswordUpdateState> {
+  const { isConfigured } = getSupabaseConfig();
+  if (!isConfigured) return { user: null, access: 'recovery_required' };
+
+  const [supabase, cookieStore] = await Promise.all([createClient(), cookies()]);
+  const { data, error } = await supabase.auth.getUser();
+  if (error || !data.user) return { user: null, access: 'recovery_required' };
+
+  return {
+    user: { id: data.user.id, email: data.user.email ?? null },
+    access: await passwordUpdateAccess(
+      supabase,
+      data.user,
+      cookieStore.get(AUTH_RECOVERY_PROOF_COOKIE_NAME)?.value,
+    ),
   };
 }

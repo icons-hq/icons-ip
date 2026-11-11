@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import {
   AUTH_RECOVERY_NEXT_COOKIE_NAME,
   AUTH_RECOVERY_CALLBACK_PATH,
+  AUTH_RECOVERY_PROOF_COOKIE_NAME,
   passwordResetErrorLoginPath,
   publicPasswordRecoveryErrorCode,
   updatePasswordSessionReadyPath,
@@ -14,7 +15,12 @@ import {
   createAuthResponseState,
   type AuthResponseState,
 } from '@/lib/auth/callback.server';
-import { authCookieSecret, authNextStateFromCookie } from '@/lib/auth/recovery.server';
+import {
+  authCookieSecret,
+  authNextStateFromCookie,
+  passwordRecoveryProofCookieOptions,
+  signedPasswordRecoveryProofValue,
+} from '@/lib/auth/recovery.server';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 
 function redirectTo(
@@ -37,10 +43,11 @@ function redirectTo(
 export async function GET(request: NextRequest) {
   const tokenHash = request.nextUrl.searchParams.get('token_hash');
   const tokenType = request.nextUrl.searchParams.get('type');
+  const secret = authCookieSecret();
   const signedState = authNextStateFromCookie(
     request.cookies.get(AUTH_RECOVERY_NEXT_COOKIE_NAME)?.value,
     Date.now(),
-    authCookieSecret(),
+    secret,
   );
   const next = signedState?.purpose === 'recovery' ? signedState.next : '/';
   const providerError = request.nextUrl.searchParams.get('error_code')
@@ -94,7 +101,9 @@ export async function GET(request: NextRequest) {
   }
 
   const { data, error: userError } = await supabase.auth.getUser();
-  if (userError || !data.user) {
+  const claims = data.user && !userError ? (await supabase.auth.getClaims()).data?.claims : null;
+  const sessionId = claims && claims.sub === data.user?.id ? claims.session_id : null;
+  if (userError || !data.user || !secret || typeof sessionId !== 'string') {
     await clearExchangedAuthSession(supabase, authResponse);
     return redirectTo(
       request,
@@ -103,5 +112,12 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  return redirectTo(request, updatePasswordSessionReadyPath(next), authResponse, true);
+  // /update-password가 비밀번호를 받는 유일한 근거 — 이 콜백을 통과한 그 세션에만 짧게 남긴다.
+  const response = redirectTo(request, updatePasswordSessionReadyPath(next), authResponse, true);
+  response.cookies.set(
+    AUTH_RECOVERY_PROOF_COOKIE_NAME,
+    signedPasswordRecoveryProofValue({ sessionId, userId: data.user.id }, Date.now(), secret),
+    passwordRecoveryProofCookieOptions(request.nextUrl.protocol === 'https:'),
+  );
+  return response;
 }
