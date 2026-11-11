@@ -84,10 +84,12 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 export function trimReviewEventText(values: ReviewEventValues): ReviewEventValues {
   return { ...values, title: values.title.trim(), description: values.description.trim() };
 }
+const REVIEW_EVENT_TITLE_ERROR = '이벤트명은 1~15자로 입력하세요. 줄바꿈·제어 문자는 쓸 수 없습니다.';
+const REVIEW_EVENT_DESCRIPTION_ERROR = '내용은 1~30자로 입력하세요. 줄바꿈·제어 문자는 쓸 수 없습니다.';
 export function reviewEventFieldErrors(values: ReviewEventValues, today = reviewEventToday()): ReviewEventFieldErrors {
   const errors: ReviewEventFieldErrors = {};
-  if (!text(values.title, 1, 15)) errors.title = '이벤트명은 1~15자로 입력하세요. 줄바꿈·제어 문자는 쓸 수 없습니다.';
-  if (!text(values.description, 1, 30)) errors.description = '내용은 1~30자로 입력하세요. 줄바꿈·제어 문자는 쓸 수 없습니다.';
+  if (!text(values.title, 1, 15)) errors.title = REVIEW_EVENT_TITLE_ERROR;
+  if (!text(values.description, 1, 30)) errors.description = REVIEW_EVENT_DESCRIPTION_ERROR;
   if (values.targetType === 'goods' && !values.goodIds.length) errors.target = '이벤트 대상 상품을 1개 이상 고르세요.';
   if (values.targetType === 'categories' && !values.categoryIds.length) errors.target = '이벤트 대상 카테고리를 1개 이상 고르세요.';
   if (!isReviewEventDate(values.startsOn) || values.startsOn <= today) errors.startsOn = '시작일은 내일(한국 시각)부터 고를 수 있습니다.';
@@ -199,4 +201,61 @@ export function reviewEventError(message: string | undefined): string {
     account_deletion_in_progress: '탈퇴 처리 중인 고객이 있습니다. 전체 지급과 발표는 반영되지 않았습니다.',
   };
   return errors[message ?? ''] ?? '입력값과 현재 권한을 확인해주세요. 입력과 기존 선정은 유지됩니다.';
+}
+
+/* SHEET-017(MD-0013): 리뷰이벤트 문구 템플릿. 이벤트명·내용만 담고, 불러오면 등록 화면의 두 칸에 복사한다.
+   규칙은 이벤트 칸과 같다(DB private.review_event_templates·admin_save_review_event_template) — 불러온 문구가 그대로
+   이벤트 저장 검사를 통과해야 한다. 템플릿 저장은 적립금 정책과 무관하다(정책 검사는 이벤트 저장에만 있다). */
+export const REVIEW_EVENT_TEMPLATES_ADMIN_PATH = `${REVIEW_EVENTS_ADMIN_PATH}/templates`;
+export const REVIEW_EVENT_TEMPLATE_PAGE_SIZE = 20;
+export interface ReviewEventTemplateValues { title: string; description: string }
+export interface ReviewEventTemplate extends ReviewEventTemplateValues { id: string; revision: number; createdAt: string; updatedAt: string }
+export interface ReviewEventTemplatePage { total: number; page: number; pageSize: typeof REVIEW_EVENT_TEMPLATE_PAGE_SIZE; rows: ReviewEventTemplate[] }
+export type ReviewEventTemplateFieldErrors = Partial<Record<'title' | 'description', string>>;
+/** 불러오기가 작성 중인 문구를 바꾸기 전에 묻는 말. 답변 템플릿(MD-0011)처럼 덧붙이지 않고 바꾼다. */
+export const REVIEW_EVENT_TEMPLATE_REPLACE_CONFIRM = '작성 중인 이벤트명·내용을 템플릿 문구로 바꿀까요?';
+/** 앞뒤 공백만 잘라 낸다. 이벤트 저장과 같은 기준이다(trimReviewEventText). */
+export function trimReviewEventTemplateText(values: ReviewEventTemplateValues): ReviewEventTemplateValues {
+  return { title: values.title.trim(), description: values.description.trim() };
+}
+export function reviewEventTemplateFieldErrors(values: ReviewEventTemplateValues): ReviewEventTemplateFieldErrors {
+  const errors: ReviewEventTemplateFieldErrors = {};
+  if (!text(values.title, 1, 15)) errors.title = REVIEW_EVENT_TITLE_ERROR;
+  if (!text(values.description, 1, 30)) errors.description = REVIEW_EVENT_DESCRIPTION_ERROR;
+  return errors;
+}
+export function parseReviewEventTemplateValues(value: unknown): ReviewEventTemplateValues | null {
+  if (!object(value) || !text(value.title, 1, 15) || !text(value.description, 1, 30)) return null;
+  return { title: value.title, description: value.description };
+}
+export function parseReviewEventTemplate(value: unknown): ReviewEventTemplate | null {
+  if (!object(value) || !isUuid(value.id) || !integer(value.revision, 1) || !instant(value.createdAt) || !instant(value.updatedAt)) return null;
+  const values = parseReviewEventTemplateValues(value);
+  return values ? { id: value.id, ...values, revision: value.revision, createdAt: value.createdAt, updatedAt: value.updatedAt } : null;
+}
+export function parseReviewEventTemplatePage(value: unknown): ReviewEventTemplatePage | null {
+  if (!object(value) || !integer(value.total) || !integer(value.page, 1, 100000) || value.pageSize !== REVIEW_EVENT_TEMPLATE_PAGE_SIZE
+    || !Array.isArray(value.rows) || value.rows.length > REVIEW_EVENT_TEMPLATE_PAGE_SIZE || value.rows.length > value.total) return null;
+  const rows = value.rows.map(parseReviewEventTemplate);
+  if (rows.some(row => !row) || new Set(rows.map(row => row!.id)).size !== rows.length) return null;
+  return { total: value.total, page: value.page, pageSize: REVIEW_EVENT_TEMPLATE_PAGE_SIZE, rows: rows as ReviewEventTemplate[] };
+}
+/** 불러오기는 이벤트명·내용만 바꾼다. 대상·기간·선정 혜택·배너는 그대로 둔다. */
+export function withReviewEventTemplate(values: ReviewEventValues, template: ReviewEventTemplateValues): ReviewEventValues {
+  return { ...values, title: template.title, description: template.description };
+}
+/** 작성 중인 이벤트명·내용이 있고 템플릿 문구와 다르면 바꾸기 전에 확인한다. 비어 있거나 같으면 묻지 않는다. */
+export function reviewEventTemplateNeedsConfirm(values: ReviewEventTemplateValues, template: ReviewEventTemplateValues): boolean {
+  const current = trimReviewEventTemplateText(values);
+  return Boolean(current.title || current.description) && (current.title !== template.title || current.description !== template.description);
+}
+export function reviewEventTemplateError(message: string | undefined): string {
+  const errors: Record<string, string> = {
+    review_event_template_changed: '다른 운영자가 이 템플릿을 먼저 고치거나 지웠습니다. 입력은 유지됩니다. 최신 목록을 다시 불러와 확인해주세요.',
+    invalid_review_event_template: '이벤트명은 1~15자, 내용은 1~30자로 입력해주세요. 줄바꿈·제어 문자는 쓸 수 없습니다.',
+    invalid_review_event_template_search: '검색어는 100자까지 입력할 수 있습니다.',
+    operation_conflict: '같은 요청 번호로 다른 내용이 이미 처리되었습니다. 최신 목록을 다시 불러와 확인해주세요.',
+    operator_capability_required: '리뷰 관리 권한이 필요합니다.',
+  };
+  return errors[message ?? ''] ?? '입력값과 현재 권한을 확인해주세요. 입력은 유지됩니다.';
 }

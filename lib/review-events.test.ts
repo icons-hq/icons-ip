@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { newReviewEventValues, normalizeReviewEventFilters, parseReviewEventCreditPolicy, parseReviewEventSelection, parseReviewEventValues, reviewEventCreditPolicyLabel,
-  reviewEventCreditPolicyProblem, reviewEventError, reviewEventFieldErrors, reviewEventToday, trimReviewEventText, withReviewEventEndsOn, withReviewEventStartsOn } from './review-events';
+  reviewEventCreditPolicyProblem, reviewEventError, reviewEventFieldErrors, reviewEventToday, trimReviewEventText, withReviewEventEndsOn, withReviewEventStartsOn,
+  parseReviewEventTemplate, parseReviewEventTemplatePage, parseReviewEventTemplateValues, reviewEventTemplateError, reviewEventTemplateFieldErrors, reviewEventTemplateNeedsConfirm,
+  trimReviewEventTemplateText, withReviewEventTemplate, REVIEW_EVENT_TEMPLATE_REPLACE_CONFIRM, REVIEW_EVENT_TEMPLATES_ADMIN_PATH } from './review-events';
 describe('review event contracts', () => {
   it('uses KST date boundaries and requires real dates and bounded terms', () => {
     expect(reviewEventToday(Date.parse('2026-10-13T15:00:00Z'))).toBe('2026-10-14');
@@ -82,5 +84,51 @@ describe('review event editor guidance (R6)', () => {
   it('maps a rejected value check to the input guidance instead of a generic permission message', () => {
     expect(reviewEventError('invalid_review_event')).toContain('입력값');
     expect(reviewEventError('invalid_review_event')).not.toContain('권한');
+  });
+});
+
+/* SHEET-017: 문구 템플릿은 이벤트명·내용 칸과 같은 규칙이고, 불러오면 그 두 칸만 바꾼다. */
+describe('review event wording templates (SHEET-017)', () => {
+  const template = { id: '93100000-0000-4000-8000-000000000101', title: '포토리뷰 이벤트', description: '사진과 함께 후기를 남겨주세요', revision: 2,
+    createdAt: '2026-11-11T01:00:00.000Z', updatedAt: '2026-11-11T02:00:00+00:00' };
+
+  it('uses the same text rules as the event title and description fields', () => {
+    const event = { ...newReviewEventValues('2026-11-11'), title: '', description: '' };
+    for (const values of [{ title: '포토리뷰 이벤트', description: '사진 후기' }, { title: '1'.repeat(15), description: '2'.repeat(30) }, { title: '', description: '' },
+      { title: '1'.repeat(16), description: '내용' }, { title: '제목', description: '2'.repeat(31) }, { title: '제목', description: '첫 줄\n둘째 줄' }]) {
+      const templateErrors = reviewEventTemplateFieldErrors(values);
+      const eventErrors = reviewEventFieldErrors({ ...event, ...values });
+      expect(templateErrors.title).toBe(eventErrors.title);
+      expect(templateErrors.description).toBe(eventErrors.description);
+      expect(parseReviewEventTemplateValues(values) !== null).toBe(!templateErrors.title && !templateErrors.description);
+    }
+    expect(parseReviewEventTemplateValues({ title: ' 제목 ', description: '내용' })).toBeNull();
+    expect(trimReviewEventTemplateText({ title: ' 제목 ', description: '내용 \n' })).toEqual({ title: '제목', description: '내용' });
+  });
+
+  it('parses templates and pages strictly', () => {
+    expect(parseReviewEventTemplate(template)).toEqual(template);
+    for (const broken of [{ ...template, id: 'nope' }, { ...template, revision: 0 }, { ...template, title: '1'.repeat(16) }, { ...template, updatedAt: 'later' }]) expect(parseReviewEventTemplate(broken)).toBeNull();
+    const page = { total: 1, page: 1, pageSize: 20, rows: [template] };
+    expect(parseReviewEventTemplatePage(page)).toEqual(page);
+    for (const broken of [{ ...page, pageSize: 50 }, { ...page, total: 0 }, { ...page, rows: [template, template], total: 2 }, { ...page, page: 0 }, { ...page, rows: [{ ...template, description: '' }] }]) expect(parseReviewEventTemplatePage(broken)).toBeNull();
+  });
+
+  it('replaces only the event title and description, asking first when typed wording differs', () => {
+    const values = { ...newReviewEventValues('2026-11-11'), title: '가을 이벤트', description: '후기 남기기', targetType: 'goods' as const, goodIds: ['g1'], creditAmount: 3000 };
+    const applied = withReviewEventTemplate(values, template);
+    expect(applied).toEqual({ ...values, title: template.title, description: template.description });
+    expect(reviewEventTemplateNeedsConfirm(values, template)).toBe(true);
+    expect(reviewEventTemplateNeedsConfirm({ title: ' ', description: '' }, template)).toBe(false);
+    expect(reviewEventTemplateNeedsConfirm({ title: ` ${template.title}`, description: template.description }, template)).toBe(false);
+    expect(REVIEW_EVENT_TEMPLATE_REPLACE_CONFIRM).toContain('바꿀까요');
+  });
+
+  it('explains conflicts and invalid wording without blaming permissions', () => {
+    expect(reviewEventTemplateError('review_event_template_changed')).toContain('다른 운영자');
+    expect(reviewEventTemplateError('invalid_review_event_template')).toContain('1~15자');
+    expect(reviewEventTemplateError('invalid_review_event_template')).not.toContain('권한');
+    expect(reviewEventTemplateError('operator_capability_required')).toContain('권한');
+    expect(REVIEW_EVENT_TEMPLATES_ADMIN_PATH).toBe('/admin/cs/review-events/templates');
   });
 });
