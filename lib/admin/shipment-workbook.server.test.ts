@@ -6,7 +6,8 @@ import { DEFAULT_SHIPMENT_EXPORT_COLUMNS, type ShipmentExportLine } from './ship
 import type { ShipmentExportData } from './shipment-dispatch';
 import { parseTrackingWorkbook, type TrackingWorkbookParseResult } from './tracking-workbook.server';
 import { trackingImportCommand, type SeowonTrackingParseResult, type WarehouseTrackingParseResult } from './warehouse-templates.server';
-import { GIMPO_EXPORT_HEADERS, GIMPO_TEMPLATE_HEADERS, SEOWON_EXPORT_HEADERS } from './warehouse-templates';
+import { GIMPO_COLUMNS, GIMPO_EXPORT_HEADERS, GIMPO_TEMPLATE_HEADERS, SEOWON_COLUMNS, SEOWON_EXPORT_HEADERS } from './warehouse-templates';
+import { isCommerceNumber } from '@/lib/commerce-number';
 import { matchSeowonReply, seowonExportLabels } from './seowon-exchange';
 
 function native<T extends WarehouseTrackingParseResult | SeowonTrackingParseResult>(parsed: TrackingWorkbookParseResult, kind: T['kind']): T {
@@ -103,6 +104,20 @@ describe('shipment workbook exchange', () => {
     // 원본 21열 뒤에 모르는 열이 붙으면 김포 회신으로 보지 않는다.
     await expect(replyBook([...GIMPO_TEMPLATE_HEADERS, '메모'], [orderUuid])).rejects.toThrow('세 컬럼만');
     await expect(replyBook([...GIMPO_EXPORT_HEADERS, '바코드'], [orderUuid])).rejects.toThrow('세 컬럼만');
+  });
+  it('김포 회신의 주문번호 판정은 isCommerceNumber 한 곳을 따른다(번호 체계가 바뀌면 그 함수만 바뀐다)', async () => {
+    // 16자리(지금)·20자리(새 체계: 날짜8+시분4+종류1+일련7)·상품주문번호·잘린 번호. 받는지는 공용 판정과 언제나 같아야 한다.
+    const samples = ['2026102710000001', '20261027153010000001', '2026102720000001', '20261027153020000001', '202610271000000'];
+    const workbook = new ExcelJS.Workbook(), sheet = workbook.addWorksheet('김포');
+    sheet.addRow([...GIMPO_EXPORT_HEADERS]);
+    for (const sample of samples) { const row: string[] = Array(GIMPO_EXPORT_HEADERS.length).fill(''); row[8] = sample; row[20] = '001234567890'; sheet.addRow(row); }
+    const parsed = native<WarehouseTrackingParseResult>(await parseTrackingWorkbook(Buffer.from(await workbook.xlsx.writeBuffer()), []), 'gimpo');
+    expect(parsed.rows.map(row => row.reference)).toEqual(samples.filter(sample => isCommerceNumber(sample, 'order')));
+    // 20자리 번호도 김포·서원 파일에서 잘리지 않는 텍스트 칸이다.
+    expect(GIMPO_COLUMNS.find(column => column.key === 'orderNumber')).toMatchObject({ text: true });
+    expect(GIMPO_COLUMNS.find(column => column.key === 'orderNumber')!.width).toBeGreaterThanOrEqual(20);
+    expect(SEOWON_COLUMNS.find(column => column.key === 'orderNumber')).toMatchObject({ text: true });
+    expect(SEOWON_COLUMNS.find(column => column.key === 'orderNumber')!.width).toBeGreaterThanOrEqual(20);
   });
   it('김포 파일은 회신 대조 키인 주문번호를 확인하지 못하면 만들지 않는다', async () => {
     const gimpo = { ...shipment, template: 'wms_csv' };
@@ -268,7 +283,8 @@ describe('shipment workbook exchange', () => {
   });
   it('rejects missing or invalid monetary snapshots instead of inventing a Gimpo price or shipping fee', async () => {
     const gimpo = { ...shipment, template: 'wms_csv' };
-    for (const value of [undefined, NaN, -1, 0.5]) {
+    // 김포 21열은 금액 칸이 있어 비운 값(null)도 지어내지 않고 거절한다(ICONS 표준 양식만 빈칸을 받는다).
+    for (const value of [undefined, null, NaN, -1, 0.5]) {
       await expect(buildShipmentExport({ shipments: [{ ...gimpo, shippingFee: value }] } as ShipmentExportData, 'csv')).rejects.toThrow('금액');
       await expect(buildShipmentExport({ shipments: [{ ...gimpo, lines: [{ ...line, unitPrice: value }] }] } as ShipmentExportData, 'csv')).rejects.toThrow('금액');
     }

@@ -1,6 +1,6 @@
 /**
  * Header, position, formatting and reply identity belong to the same column definition.
- * 김포 WMS 원본 21열(A~U)은 헤더·순서를 바꾸지 않는다. `주문번호(쇼핑몰)`은 16자리 주문번호다(10/14 회의 1014-096, 옛 파일의 UUID 회신도 받는다).
+ * 김포 WMS 원본 21열(A~U)은 헤더·순서를 바꾸지 않는다. `주문번호(쇼핑몰)`은 표시 주문번호(`orders.order_number`)다(10/14 회의 1014-096, 옛 파일의 UUID 회신도 받는다).
  * 옵션의 바코드·ERP 품명은 원본 오른쪽(V~W)에 덧붙인다(`appended`, 10/27 회의 1027T-046). 회신은 덧붙인 열이 남아 있어도, 지워져도 받는다.
  */
 export const GIMPO_COLUMNS = [
@@ -56,7 +56,7 @@ export const SEOWON_COLUMNS = [
   { key: 'optionName', header: '옵션명', width: 24, fill: 'optional', text: true, appended: true },
   { key: 'barcode', header: '바코드', width: 20, fill: 'optional', text: true, appended: true },
   { key: 'erpName', header: 'ERP 품명', width: 36, fill: 'optional', text: true, appended: true },
-  { key: 'orderNumber', header: '주문번호', width: 20, fill: 'optional', text: true, appended: true },
+  { key: 'orderNumber', header: '주문번호', width: 22, fill: 'optional', text: true, appended: true },
 ] as const;
 /** 회신 파일에서 송장번호 열로 인정하는 헤더. 공백은 비교 전에 지운다. */
 export const SEOWON_REPLY_TRACKING_HEADERS = ['송장번호', '운송장번호', '등기번호', '운송장', '송장', '택배송장번호', '우체국송장번호'] as const;

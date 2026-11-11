@@ -36,7 +36,7 @@ function gimpoCells(shipment: Shipment, line: Line, index: number): Cell[] {
   const values: Record<typeof GIMPO_COLUMNS[number]['key'], Cell> = {
     collectedItem: itemLabel(confirmedGood, line.optionName, line.qty), confirmedItem: ` ${itemLabel(confirmedGood, confirmedOption, line.qty)}`,
     address: line.address, recipientShop: `${line.recipient}/ICONS/`, phone: line.phone,
-    // 10/14 회의(1014-096): 주문번호(쇼핑몰)는 UUID 대신 16자리 주문번호다. 회신 대조 키라 `warehouseExportTable`이 번호를 먼저 확인한다.
+    // 10/14 회의(1014-096): 주문번호(쇼핑몰)는 UUID 대신 표시 주문번호다. 회신 대조 키라 `warehouseExportTable`이 번호를 먼저 확인한다.
     otherPhone: '', deliveryNote: line.deliveryNote, sabangnetOrder: '', orderNumber: shipment.orderNumber ?? '',
     optionAlias: '', goodName: confirmedGood, collectedOption: line.optionName, confirmedOption,
     supplyPrice: '', unitPrice: line.unitPrice, qty: line.qty, ea: '', postalCode: postalCode(line.postalCode),
@@ -47,13 +47,13 @@ function gimpoCells(shipment: Shipment, line: Line, index: number): Cell[] {
   return GIMPO_COLUMNS.map(column => values[column.key]);
 }
 
-/** 배송 운영 안내의 번호는 본 시트와 같은 16자리 번호다. 번호가 없는 옛 응답만 UUID로 남긴다. */
+/** 배송 운영 안내의 번호는 본 시트와 같은 표시 번호다. 번호가 없는 옛 응답만 UUID로 남긴다. */
 const shipmentReference = (shipment: Shipment) => isCommerceNumber(shipment.shipmentNumber, 'shipment') ? shipment.shipmentNumber! : shipment.id;
 const orderReference = (shipment: Shipment) => isCommerceNumber(shipment.orderNumber, 'order') ? shipment.orderNumber! : shipment.lines[0].orderId;
 
 /**
- * 한 출고지 묶음의 선물·착불·합포장·양식·금액 계약을 확인한다. ICONS 표준 양식도 같은 계약을 쓰므로 행을 만들지 않고 이것만 부른다.
- * 실패하면 파일을 만들지 않는다.
+ * 한 출고지 묶음의 선물·착불·합포장·양식·수량 계약을 확인한다. ICONS 표준 양식도 같은 계약을 쓰므로 행을 만들지 않고 이것만 부른다.
+ * 창고 양식 고유의 금액·번호 칸 확인은 그 양식의 행을 만들 때(`warehouseExportTable`) 한다. 실패하면 파일을 만들지 않는다.
  */
 export function assertWarehouseExportShipments(shipments: Shipments) {
   const first = shipments[0];
@@ -61,7 +61,8 @@ export function assertWarehouseExportShipments(shipments: Shipments) {
   for (const shipment of shipments) {
     if (shipment.pack && (!parseShipmentPackSummary(shipment.pack) || !shipment.pack.shipmentIds.includes(shipment.id) || shipment.pack.shipmentIds.some(id => !shipments.some(member => member.id === id && member.pack?.id === shipment.pack?.id)))) throw new Error('합포장의 모든 배송 건을 선택해주세요.');
     if (shipment.isGift !== undefined && typeof shipment.isGift !== 'boolean'
-      || shipment.shippingCollectFee !== undefined && (!Number.isSafeInteger(shipment.shippingCollectFee) || shipment.shippingCollectFee < 0)
+      // 금액을 비운 응답(null, 물류 출고 권한 결정 대기)은 착불 없음으로 보고 거절하지 않는다. 숫자가 잘못됐으면 거절한다.
+      || shipment.shippingCollectFee != null && (!Number.isSafeInteger(shipment.shippingCollectFee) || shipment.shippingCollectFee < 0)
       || (shipment.shippingCollectFee ?? 0) > 0 && !validCollector(shipment.collector)
       || shipment.isGift && shipment.lines.some(line => !line.recipient.trim() || !line.address.trim() || !/^\d{5}$/.test(line.postalCode) || !/^[0-9]{8,15}$/.test(line.phone))) {
       throw new Error('선물·착불 배송 정보를 확인하지 못해 출고 파일을 만들지 않았습니다.');
@@ -70,10 +71,6 @@ export function assertWarehouseExportShipments(shipments: Shipments) {
       || shipment.template !== first.template || shipment.originId !== first.originId || !shipment.lines.length
       || (shipment.template === 'standard' && !parseShipmentExportColumns(shipment.columns))) {
       throw new Error('출고지시 양식 또는 상품 정보를 확인해주세요.');
-    }
-    if (shipment.template === 'wms_csv' && (!Number.isSafeInteger(shipment.shippingFee) || shipment.shippingFee < 0
-      || shipment.lines.some(line => !Number.isSafeInteger(line.unitPrice) || line.unitPrice < 0))) {
-      throw new Error('출고지시 금액 정보를 확인해주세요.');
     }
     if (shipment.template === 'seowon_xlsx' && shipment.lines.some(line => !Number.isSafeInteger(line.qty) || line.qty < 1)) {
       throw new Error('출고지시 수량 정보를 확인해주세요.');
@@ -96,6 +93,12 @@ export function warehouseExportTable(shipments: Shipments) {
       orderNumber: isCommerceNumber(shipment.orderNumber, 'order') ? shipment.orderNumber : null, packId: shipment.pack?.id ?? null, lines: shipment.lines })))
       .map(row => SEOWON_COLUMNS.map(column => row[column.key])),
   };
+  // 김포 21열에는 주문금액/수량·배송비(수집) 칸이 있다. 금액을 지어내지 않도록 주문 당시 값이 없으면 만들지 않는다.
+  // (ICONS 표준 양식은 위 계약 확인만 쓰고 자기 금액 칸은 비운 값을 빈칸으로 둔다.)
+  if (first.template === 'wms_csv' && shipments.some(shipment => !Number.isSafeInteger(shipment.shippingFee) || shipment.shippingFee < 0
+    || shipment.lines.some(line => !Number.isSafeInteger(line.unitPrice) || line.unitPrice < 0))) {
+    throw new Error('출고지시 금액 정보를 확인해주세요.');
+  }
   // 김포 회신은 주문번호(쇼핑몰)로만 배송 건을 찾는다. 번호를 확인하지 못하면 회신이 돌아오지 않는 파일을 만들지 않는다.
   if (first.template === 'wms_csv' && shipments.some(shipment => !isCommerceNumber(shipment.orderNumber, 'order'))) {
     throw new Error('출고지시 주문번호를 확인하지 못했습니다. 목록을 새로고침해주세요.');
@@ -122,7 +125,7 @@ export function warehouseOperationalTable(shipments: Shipments) {
     widths: [40, 40, 14, 50, 16, 20, 24, 36, 50, 36, 40, 18, 20, 60],
     rows: selected.map(shipment => [shipmentReference(shipment), orderReference(shipment), shipment.isGift ? '선물' : '일반',
       shipment.isGift ? '수령인용 명세에 가격·할인·결제정보를 표시하지 마세요. 내부 출고 파일은 포장에 동봉하지 마세요.' : '',
-      shipment.shippingFee, shipment.shippingCollectFee ?? 0, shipment.collector?.name ?? '', shipment.collector?.method ?? '',
+      (shipment.shippingFee as number | null) ?? '', (shipment.shippingCollectFee as number | null | undefined) === null ? '' : shipment.shippingCollectFee ?? 0, shipment.collector?.name ?? '', shipment.collector?.method ?? '',
       shipment.collector?.instructions ?? '', shipment.collector?.refundContact ?? '', shipment.pack?.id ?? '', shipment.pack?.count ?? '', shipment.pack?.collectFee ?? '', shipment.pack ? '같은 합포장번호의 모든 상품을 하나로 포장하고 동일 택배사·송장을 회신해주세요. 원래 주문번호·배송비·착불 금액을 유지합니다.' : ''] as Cell[]),
   };
 }
@@ -176,7 +179,10 @@ export interface WarehouseTrackingParseResult {
 export interface SeowonTrackingParseResult { kind: 'seowon'; rows: SeowonReplyRow[]; issues: TrackingImportParseResult['issues'] }
 export type TrackingWorkbookParseResult = TrackingImportParseResult | WarehouseTrackingParseResult | SeowonTrackingParseResult | SmartStoreTrackingParseResult;
 const ORDER_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-/** 김포 회신의 주문 식별값. 지금 파일은 16자리 주문번호이고, 11/12 이전에 내려받은 파일은 전체 주문 UUID다. */
+/**
+ * 김포 회신의 주문 식별값. 지금 파일은 표시 주문번호이고, 11/12 이전에 내려받은 파일은 전체 주문 UUID다.
+ * 주문번호 형식 판정은 `isCommerceNumber` 한 곳을 따른다(번호 체계가 바뀌면 그 함수만 바뀐다).
+ */
 const isGimpoOrderReference = (value: string) => ORDER_UUID.test(value) || isCommerceNumber(value, 'order');
 const GIMPO_NATIVE_COLUMNS = GIMPO_COLUMNS.filter(column => !('appended' in column));
 const GIMPO_REPLY_EXTRA_HEADERS = new Set<string>(['', ...GIMPO_APPENDED_HEADERS]);

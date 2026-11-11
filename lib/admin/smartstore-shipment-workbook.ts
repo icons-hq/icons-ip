@@ -37,8 +37,9 @@ export interface SmartStoreShipmentDetail {
  * 그 파일에서 항상 비는 열만 `only`로 덜어 낸다. 열 이름은 주문통합검색 엑셀과 `CONTEXT.md`를 따른다.
  */
 const ICONS_STANDARD_COLUMNS: readonly (ListExportColumn & { only?: 'instruction' | 'list' })[] = [
-  { header: '주문번호', kind: 'code', width: 20 },
-  { header: '상품주문번호', kind: 'code', width: 20 },
+  /* 새 번호 체계의 20자리 주문번호·상품주문번호도 잘리지 않게 22자 너비를 둔다. */
+  { header: '주문번호', kind: 'code', width: 22 },
+  { header: '상품주문번호', kind: 'code', width: 22 },
   { header: '배송건번호', kind: 'code', width: 20 },
   { header: '구매자', kind: 'text', width: 16 },
   { header: '수취인', kind: 'text', width: 12 },

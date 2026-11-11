@@ -111,6 +111,33 @@ describe('ICONS 표준 양식 출고지시', () => {
     expect(info.get('안내')!.join(' ')).toContain('바코드·ERP 품명');
   });
 
+  it('금액·결제 칸을 비운 응답(null)도 빈칸으로 만들고 다른 칸은 그대로 둔다(물류 출고 권한 결정 대기)', async () => {
+    const blankDetail = { ...detail, paymentMethod: null, paidAt: null, itemDiscount: null, sellerDiscount: null, itemTotal: null,
+      regionalShippingFee: null, shippingDiscount: null } as unknown as SmartStoreShipmentDetail;
+    const blank = { ...shipment, shippingFee: null, shippingCollectFee: null,
+      lines: [{ ...line, unitPrice: null, smartstore: blankDetail }, { ...line, unitPrice: null, smartstore: { ...blankDetail, itemId: '60000000-0000-4000-8000-000000000016' } }] };
+    const sheet = (await load((await buildShipmentExport({ shipments: [blank] } as unknown as ShipmentExportData, 'xlsx', 'smartstore')).bytes)).worksheets[0];
+    for (const row of [2, 3]) {
+      for (const header of ['결제일', '결제수단', '상품별 할인액', '품목 실결제액(배송비 제외)', '배송비 형태', '배송비 합계', '제주/도서 추가배송비', '배송비 할인액']) {
+        expect(value(sheet, header, row).value, `${header} ${row}`).toBeNull();
+      }
+      expect(value(sheet, '상품주문번호', row).value).toMatch(/^\d{16}$/);
+      expect(value(sheet, '수량', row).value).toBe(2);
+    }
+    expect(value(sheet, '바코드').value).toBe('0880000000011');
+    // 비운 값(null)이 아니라 잘못된 숫자는 여전히 거절한다.
+    await expect(buildShipmentExport({ shipments: [{ ...shipment, shippingFee: -1 }] }, 'xlsx', 'smartstore')).rejects.toThrow('금액');
+    await expect(buildShipmentExport({ shipments: [{ ...shipment, lines: [{ ...line, unitPrice: 0.5 }] }] }, 'xlsx', 'smartstore')).rejects.toThrow('상품주문 정보');
+  });
+
+  it('주문번호·상품주문번호 칸은 새 번호 체계(20자리)도 잘리지 않는 텍스트 칸이다', async () => {
+    const sheet = (await exported()).worksheets[0];
+    for (const header of ['주문번호', '상품주문번호']) {
+      expect(sheet.getColumn(HEADERS.indexOf(header) + 1).width).toBeGreaterThanOrEqual(20);
+      expect(value(sheet, header).numFmt).toBe('@');
+    }
+  });
+
   it('출고지를 한 시트에 모으고 배송비를 배송 건의 첫 행에 한 번만 쓴다', async () => {
     const secondLine = { ...line, smartstore: { ...detail, itemId: '60000000-0000-4000-8000-000000000006' } };
     const other = { ...shipment, id: '60000000-0000-4000-8000-000000000007', originId: '60000000-0000-4000-8000-000000000008', originName: '남양주', template: 'seowon_xlsx', shippingFee: 4000,
