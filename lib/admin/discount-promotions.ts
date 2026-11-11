@@ -279,7 +279,8 @@ export function parseDiscountPromotionDetail(value: unknown): DiscountPromotionD
   if (!record(value) || !exact(value, [...SUMMARY_KEYS, 'checkedAt', 'stopReceipt', 'goods']) || !instant(value.checkedAt)
     || !Array.isArray(value.goods) || value.goods.length > DISCOUNT_PROMOTION_GOODS_LIMIT) return null;
   const summary = parseSummaryFields(value);
-  if (!summary || value.goods.length !== summary.goodsCount) return null;
+  /* 건너뛴 초안 상품이 나중에 삭제되면 그 줄만 사라진다 — 대상 수보다 많을 수는 없다. */
+  if (!summary || value.goods.length > summary.goodsCount) return null;
   const stopReceipt = value.stopReceipt === null ? null : parseDiscountPromotionStopReceipt(value.stopReceipt);
   if (value.stopReceipt !== null && !stopReceipt || (summary.state === 'stopped') !== (stopReceipt !== null)) return null;
   const goods: DiscountPromotionDetailGood[] = [];
@@ -300,15 +301,18 @@ export function parseDiscountPromotionDetail(value: unknown): DiscountPromotionD
 }
 export function parseDiscountPromotionTargetOptions(value: unknown): DiscountPromotionTargetOptions | null {
   if (!record(value) || !exact(value, ['campaigns', 'ips']) || !Array.isArray(value.campaigns) || value.campaigns.length > 200 || !Array.isArray(value.ips)) return null;
+  /* 고를 수 없는 모양의 행(옛 IP 주소 등)은 목록에서만 뺀다 — 한 줄 때문에 새 프로모션 화면 전체를 막지 않는다. 서버가 다시 검증한다. */
   const campaigns: DiscountPromotionTargetOptions['campaigns'] = [];
   for (const row of value.campaigns) {
-    if (!record(row) || !exact(row, ['id', 'title', 'status', 'startsAt', 'endsAt', 'goodsCount']) || !validCampaignId(row.id) || !boundedText(row.title, 200)
-      || !['draft', 'published', 'ended'].includes(String(row.status)) || !instant(row.startsAt) || !instant(row.endsAt) || !integer(row.goodsCount, 0, 1000)) return null;
+    if (!record(row) || !exact(row, ['id', 'title', 'status', 'startsAt', 'endsAt', 'goodsCount'])) return null;
+    if (!validCampaignId(row.id) || !boundedText(row.title, 200) || !['draft', 'published', 'ended'].includes(String(row.status))
+      || !instant(row.startsAt) || !instant(row.endsAt) || !integer(row.goodsCount, 0, 1000)) continue;
     campaigns.push({ id: row.id, title: row.title, status: row.status as string, startsAt: row.startsAt, endsAt: row.endsAt, goodsCount: row.goodsCount });
   }
   const ips: DiscountPromotionTargetOptions['ips'] = [];
   for (const row of value.ips) {
-    if (!record(row) || !exact(row, ['id', 'title', 'goodsCount']) || !validIpId(row.id) || !boundedText(row.title, 200) || !integer(row.goodsCount, 0, 1_000_000)) return null;
+    if (!record(row) || !exact(row, ['id', 'title', 'goodsCount'])) return null;
+    if (!validIpId(row.id) || !boundedText(row.title, 200) || !integer(row.goodsCount, 0, 1_000_000)) continue;
     ips.push({ id: row.id, title: row.title, goodsCount: row.goodsCount });
   }
   return { campaigns, ips };

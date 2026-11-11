@@ -96,11 +96,12 @@ describe('할인 프로모션 응답', () => {
         discounts: { active: 0, ended: 0, disabled: id === 'good-d' ? 0 : 1, minPrice: id === 'good-d' ? null : 9000, maxPrice: id === 'good-d' ? null : 9000 } })) };
     expect(parseDiscountPromotionDetail(detail)?.stopReceipt?.disabledCount).toBe(3);
     expect(parseDiscountPromotionDetail({ ...detail, stopReceipt: null })).toBeNull();
-    expect(parseDiscountPromotionDetail({ ...detail, goods: detail.goods.slice(1) })).toBeNull();
+    expect(parseDiscountPromotionDetail({ ...detail, goods: detail.goods.slice(1) })?.goods).toHaveLength(3);
+    expect(parseDiscountPromotionDetail({ ...detail, goods: [...detail.goods, { ...detail.goods[0], id: 'good-z' }] })).toBeNull();
     expect(parseDiscountPromotionStopReceipt(stopReceipt, { promotionId: OPERATION, operationId: stopReceipt.operationId })).not.toBeNull();
     expect(parseDiscountPromotionStopReceipt(stopReceipt, { promotionId: OPERATION, operationId: OPERATION })).toBeNull();
     expect(parseDiscountPromotionTargetOptions({ campaigns: [{ id: 'hongsil-open', title: '홍실', status: 'published', startsAt: summary.startsAt, endsAt: summary.endsAt, goodsCount: 8 }],
-      ips: [{ id: 'maple', title: '메이플스토리', goodsCount: 120 }] })?.ips[0].goodsCount).toBe(120);
+      ips: [{ id: 'maple', title: '메이플스토리', goodsCount: 120 }, { id: 'Old_IP', title: '옛 IP', goodsCount: 1 }] })?.ips).toEqual([{ id: 'maple', title: '메이플스토리', goodsCount: 120 }]);
   });
 });
 
