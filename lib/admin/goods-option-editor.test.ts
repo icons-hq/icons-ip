@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   applyErpItemToGoodsOption, applyGoodsOptionBulkEdit, collapseGoodsOptionRows, goodsOptionCollapseNotice, generateGoodsOptionRows, goodsOptionRowKey, goodsOptionStockTotals,
   initialGoodsOptionRows, isSingleGoodsOption, parseGoodsOptionBulkEdit, parseGoodsOptionRows, removeGoodsOptionRows, restoreGoodsOptionRows,
-  predictGoodsOptionCodes, selectErpItemForGoodsOption, type GoodsOptionRow,
+  inheritRandomOptionLimits, predictGoodsOptionCodes, selectErpItemForGoodsOption, type GoodsOptionRow,
 } from './goods-option-editor';
+import { planGoodsOptionImport } from './goods-option-import';
 describe('goods option editing', () => {
   it('세 축을 조합하면서 같은 조합의 옵션 식별자·가격·재고를 보존한다', () => {
     const existing = { id: '11111111-1111-4111-8111-111111111111', name: '빨강 / M / 기본', code: 'THREE-01', attributes: { 색상: '빨강', 사이즈: 'M', 구성: '기본' }, extraPrice: 500, stockQty: 7, expectedStockQty: 9 };
@@ -228,5 +229,57 @@ describe('옵션별 구매 제한 키', () => {
     if (!result.ok) throw new Error();
     expect(result.rows[0]).toBe(red);
     expect(result.rows[1]).not.toHaveProperty('orderMaxQty');
+  });
+});
+
+describe('랜덤 판매 상품에 옵션을 더할 때의 같은 옵션 배정 상한', () => {
+  const ids = ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222', '33333333-3333-4333-8333-333333333333'];
+  const saved = (index: number, name: string, limits: Pick<GoodsOptionRow, 'orderMaxQty' | 'memberMaxQty'>, isActive = true): GoodsOptionRow => ({
+    id: ids[index], name, code: `HSQ-0${index + 1}`, attributes: { 종류: name }, extraPrice: 0, stockQty: 5, expectedStockQty: 5, isActive, ...limits,
+  });
+  const limited = [saved(0, '기훈', { orderMaxQty: 2, memberMaxQty: 3 }), saved(1, '홍실', { orderMaxQty: 2, memberMaxQty: 3 })];
+  /* 판매 중 옵션의 (주문당, 1인) 쌍이 하나뿐이어야 DB random_option_limit_mismatch를 통과한다. */
+  const activePairs = (rows: GoodsOptionRow[]) => new Set(rows.filter((row) => row.isActive !== false).map((row) => `${row.orderMaxQty ?? null}|${row.memberMaxQty ?? null}`));
+
+  /* 리뷰 #649 — 상한이 걸린 랜덤 상품에 옵션을 추가하면 새 행의 상한이 비어 커밋에서 random_option_limit_mismatch로 거절됐다. */
+  it('옵션목록 적용으로 더한 옵션에 기존 공통 상한을 채운다', () => {
+    const generated = generateGoodsOptionRows([{ name: '종류', values: '기훈, 홍실, 무영' }], limited);
+    if (!generated.ok) throw new Error(generated.error);
+    expect(generated.rows[2]).not.toHaveProperty('orderMaxQty');
+    const rows = inheritRandomOptionLimits(limited, generated.rows);
+    expect(rows[2]).toMatchObject({ name: '무영', orderMaxQty: 2, memberMaxQty: 3 });
+    expect(rows[0]).toBe(limited[0]);
+    expect(activePairs(rows).size).toBe(1);
+  });
+
+  it('다른 상품 옵션 불러오기로 더한 옵션과, 사용 중지에서 사용으로 바꾼 옵션에도 채운다', () => {
+    const source = { id: 'source', code: 'SOURCE', name: '원본', basePrice: 12000, version: 'a'.repeat(64), rows: [
+      { name: '기훈', attributes: { 종류: '기훈' }, price: 12000 }, { name: '홍실', attributes: { 종류: '홍실' }, price: 12000 }, { name: '무영', attributes: { 종류: '무영' }, price: 12000 },
+    ] };
+    const imported = planGoodsOptionImport({ current: limited, source, basePrice: 12000, includePrices: false });
+    if (!imported.ok) throw new Error(imported.error);
+    expect(activePairs(inheritRandomOptionLimits(limited, imported.plan.rows)).size).toBe(1);
+
+    const withStopped = [...limited, saved(2, '무영', { orderMaxQty: 9, memberMaxQty: null }, false)];
+    const reactivated = applyGoodsOptionBulkEdit(withStopped, new Set([ids[2]]), { isActive: true });
+    expect(inheritRandomOptionLimits(withStopped, reactivated)[2]).toMatchObject({ isActive: true, orderMaxQty: 2, memberMaxQty: 3 });
+  });
+
+  it('상한이 없거나(제한 없음) 이미 같은 값이면 행을 바꾸지 않는다', () => {
+    const open = [saved(0, '기훈', { orderMaxQty: null, memberMaxQty: null }), saved(1, '홍실', { orderMaxQty: null, memberMaxQty: null })];
+    const generated = generateGoodsOptionRows([{ name: '종류', values: '기훈, 홍실, 무영' }], open);
+    if (!generated.ok) throw new Error(generated.error);
+    expect(inheritRandomOptionLimits(open, generated.rows)).toBe(generated.rows);
+    const edited = limited.map((row) => ({ ...row, orderMaxQty: 1 }));
+    expect(inheritRandomOptionLimits(limited, edited)).toBe(edited);
+  });
+
+  it('기존 판매 중 옵션끼리 값이 다르거나 값을 읽지 않았으면 추측해 채우지 않는다', () => {
+    const add = (rows: GoodsOptionRow[]) => [...rows, { name: '무영', code: '', attributes: { 종류: '무영' }, extraPrice: 0, stockQty: 0 }];
+    const mixed = [limited[0], { ...limited[1], orderMaxQty: 5 }];
+    expect(inheritRandomOptionLimits(mixed, add(mixed))[2]).not.toHaveProperty('orderMaxQty');
+    /* 상한을 읽지 않은 행은 키가 없다(initialGoodsOptionRows). */
+    const unread = limited.map((row) => { const copy = { ...row }; delete copy.orderMaxQty; delete copy.memberMaxQty; return copy; });
+    expect(inheritRandomOptionLimits(unread, add(unread))[2]).not.toHaveProperty('orderMaxQty');
   });
 });

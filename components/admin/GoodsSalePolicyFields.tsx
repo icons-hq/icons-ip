@@ -14,7 +14,7 @@ const QUANTITY_FIELDS = ['orderQuantityLimitEnabled', 'minOrderQty', 'maxOrderQt
 const LIMIT_ERROR_FIELDS: readonly string[] = [...QUANTITY_FIELDS, GOOD_OPTION_LIMIT_ERROR_FIELD];
 const PAYMENT_FIELDS = ['allowCardPayment', 'allowBankTransfer', 'saleRestriction'] as const;
 /** 랜덤 판매 상품의 옵션별 구매 제한 안내. 고객은 옵션을 고르지 않으므로 '같은 옵션 배정 상한' 하나를 모든 옵션에 넣는다. */
-export const GOODS_RANDOM_OPTION_LIMIT_GUIDANCE = '랜덤 판매 상품은 같은 옵션을 주문 1건·회원 1명에게 몇 개까지 배정할지 정합니다. 입력한 값은 모든 옵션에 같이 들어가고, 주문할 때 상한에 닿은 옵션은 빼고 배정합니다.';
+export const GOODS_RANDOM_OPTION_LIMIT_GUIDANCE = '랜덤 판매 상품은 같은 옵션을 주문 1건·회원 1명에게 몇 개까지 배정할지 정합니다. 입력한 값은 모든 옵션에 같이 들어가고 나중에 더한 옵션에도 채워지며, 주문할 때 상한에 닿은 옵션은 빼고 배정합니다.';
 export const GOODS_RANDOM_OPTION_LIMIT_MIXED = '옵션마다 값이 달라 저장할 수 없습니다. 값을 다시 입력하면 모든 옵션에 같은 값이 들어갑니다.';
 
 function QuantityInput({ name, label, value, error, hint }: { name: string; label: string; value: string; error?: string; hint?: string }) {

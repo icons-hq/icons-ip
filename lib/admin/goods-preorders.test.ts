@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseGoodsPreorderInput, parseRandomPreorderRequest, preorderMutationError, preparePreorderAllocation } from './goods-preorders';
+import { parseGoodsPreorderInput, parseRandomPreorderRequest, pendingPreorderReservationsByVariant, preorderMutationError, preparePreorderAllocation } from './goods-preorders';
 describe('preorder operation inputs', () => {
   it('retains unset drafts and requires supply evidence and all promised dates to activate', () => {
     expect(parseGoodsPreorderInput({ state: 'draft', capacityQty: '', startsAt: '', endsAt: '', expectedShipDate: '', approvalReference: '' }))
@@ -22,6 +22,17 @@ describe('preorder operation inputs', () => {
     });
     expect(preparePreorderAllocation(rows, ['00000000-0000-4000-8000-000000000004'])).toBeNull();
     expect(preparePreorderAllocation([rows[0], { ...rows[1], physicalStockQty: 5 }], rows.map((row) => row.orderItemId))).toBeNull();
+  });
+});
+
+describe('일반 재고 전환을 막는 미할당 예약', () => {
+  it('옵션마다 모든 예약 조건(이전 회차의 중지된 조건 포함)의 미할당 수량을 합하고, 남은 옵션만 돌려준다', () => {
+    const pending = pendingPreorderReservationsByVariant([
+      { variantId: 'red', reservedQty: 0 }, { variantId: 'red', reservedQty: 2 }, { variantId: 'red', reservedQty: 1 },
+      { variantId: 'blue', reservedQty: 0 },
+    ]);
+    expect([...pending]).toEqual([['red', 3]]);
+    expect(pendingPreorderReservationsByVariant([]).size).toBe(0);
   });
 });
 

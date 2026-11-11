@@ -19,7 +19,7 @@ import { GoodsSalePeriodFields } from './GoodsSalePeriodFields';
 import type { AdminGoodsReadiness } from '@/lib/admin/goods-readiness';
 import { categoryPath } from '@/lib/admin/category';
 import { goodEditorValues, createGoodEditorDraft, goodEditorFingerprint, buildGoodEditorPreview, GOOD_LOCAL_DRAFT_FIELDS, GOOD_LOCAL_DRAFT_LINKED_FIELDS, type GoodNoticeDefaults } from '@/lib/admin/good-editor';
-import { goodsOptionStockTotals, initialGoodsOptionRows, isSingleGoodsOption, restoreGoodsOptionRows, type GoodsOptionRow } from '@/lib/admin/goods-option-editor';
+import { goodsOptionStockTotals, inheritRandomOptionLimits, initialGoodsOptionRows, isSingleGoodsOption, restoreGoodsOptionRows, type GoodsOptionRow } from '@/lib/admin/goods-option-editor';
 import { formatWon, goodsPriceDraftFromValues, resolveGoodsPrice } from '@/lib/admin/goods-price-editor';
 import { planErpCategorySuggestion, type ErpCategorySuggestion } from '@/lib/admin/goods-erp-suggestion';
 import type { ErpItemMatch } from '@/lib/admin/erp-items';
@@ -312,9 +312,10 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
     setValues((current) => {
       const currentRows = restoreGoodsOptionRows(current.variants)!;
       const next = typeof update === 'function' ? update(currentRows) : update;
-      return { ...current, variants: JSON.stringify(next) };
+      /* 랜덤 판매 상품은 새로 판매 중이 된 옵션에 공통 배정 상한을 물려준다(없으면 커밋에서 random_option_limit_mismatch). */
+      return { ...current, variants: JSON.stringify(randomSale ? inheritRandomOptionLimits(currentRows, next) : next) };
     });
-  }, []);
+  }, [randomSale]);
   const [imageUrls, setImageUrls] = useState(draft.imageUrls);
   /* 판매가·할인은 화면 입력에서 저장 계약(price·compareAtPrice)을 한 번에 만든다. */
   const [priceDraft, setPriceDraft] = useState(() => goodsPriceDraftFromValues(draft.values));
