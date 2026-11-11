@@ -122,6 +122,20 @@ export function preparePreorderAllocation(rows: readonly Pick<AdminPreorderReser
 }
 
 /**
+ * 옵션별 미할당 예약 합계(남은 옵션만). 일반 재고 전환(`admin_use_stock_supply`)은 지금 선택된 정책만이 아니라 그 옵션의
+ * 모든 예약 정책 — 2회차부터는 이전 회차의 중지된 정책까지 — 에 남은 미할당(reserved) 예약을 보고 `preorder_allocations_pending`으로
+ * 거절한다. 예약 조건 목록(`admin_list_goods_preorders`)은 상품의 모든 정책을 정책별 미할당 수량과 함께 주므로, 화면도 이 합계로
+ * 전환 버튼을 막는다.
+ */
+export function pendingPreorderReservationsByVariant(policies: readonly Pick<AdminGoodsPreorder, 'variantId' | 'reservedQty'>[]): Map<string, number> {
+  const pending = new Map<string, number>();
+  for (const policy of policies) {
+    if (policy.reservedQty > 0) pending.set(policy.variantId, (pending.get(policy.variantId) ?? 0) + policy.reservedQty);
+  }
+  return pending;
+}
+
+/**
  * 랜덤 판매 상품의 일괄 예약 저장(`admin_save_random_goods_preorders`). 모든 판매 중 옵션이 같은 접수 기간·발송 예정일을 쓰고
  * 승인 예약 물량만 옵션별이다. 중지·일반 재고 전환도 모든 옵션을 한 트랜잭션으로 바꾼다(옵션 하나만 바꾸면 커밋에서 거절된다).
  */

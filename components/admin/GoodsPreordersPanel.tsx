@@ -6,7 +6,9 @@ import {
   switchToStockSupplyAction,
 } from '@/app/admin/goods-preorder-actions';
 import { toKstDateTimeInput } from '@/lib/admin/goods-price-periods';
-import { ADMIN_PREORDER_RESERVATION_PAGE_SIZE, preparePreorderAllocation, type AdminGoodsPreorder, type AdminPreorderReservationPage } from '@/lib/admin/goods-preorders';
+import {
+  ADMIN_PREORDER_RESERVATION_PAGE_SIZE, pendingPreorderReservationsByVariant, preparePreorderAllocation, type AdminGoodsPreorder, type AdminPreorderReservationPage,
+} from '@/lib/admin/goods-preorders';
 import { ConsolePagination } from '@/components/admin/console/ConsolePagination';
 import type { AdminGoodsVariant } from '@/lib/admin/goods-variants';
 import { goodsShipDateLabel } from '@/lib/goods-preorders';
@@ -19,6 +21,15 @@ import { GOOD_INPUT_CLASS, GOOD_NOTE_CLASS, GOOD_NUMBER_INPUT_CLASS, GOOD_SUBPAN
 const FIELD_CLASS = 'flex min-w-0 flex-col gap-2 text-sm';
 const DETAILS_CLASS = 'min-w-0 rounded-lg border';
 const SUMMARY_CLASS = 'cursor-pointer rounded-lg px-3 py-2.5 text-sm font-medium outline-none select-none marker:text-muted-foreground focus-visible:ring-3 focus-visible:ring-ring/50';
+
+/**
+ * 일반 재고 전환을 막는 미할당 예약 안내. 서버는 지금 선택된 예약 조건만이 아니라 옵션의 모든 예약 조건(이전 회차의 중지된 조건 포함)에
+ * 남은 미할당 예약으로 전환을 거절하므로(pendingPreorderReservationsByVariant), 어느 옵션에 몇 개가 남았는지 함께 보인다.
+ */
+export function stockSupplyBlockedText(pending: readonly (readonly [name: string, qty: number])[]): string {
+  return `미할당 예약 주문을 먼저 실제 재고로 할당하거나 취소해야 일반 재고 판매로 전환할 수 있습니다. 이전 예약 조건에 남은 예약도 포함합니다. 남은 미할당 예약: ${
+    pending.map(([name, qty]) => `${name} ${qty.toLocaleString('ko-KR')}개`).join(' · ')}`;
+}
 
 function PreorderEditor({ goodId, variants, policy, canActivate, onSaved }: {
   goodId: string; variants: AdminGoodsVariant[]; policy?: AdminGoodsPreorder; canActivate: boolean; onSaved: (message: string) => void;
@@ -168,7 +179,7 @@ function RandomPreorderEditor({ goodId, variants, policies, canActivate, onSaved
 }
 
 /** 랜덤 판매 상품: 모든 옵션의 접수 중지·일반 재고 전환을 한 번에 한다. 옵션 하나만 일반 재고로 바꾸면 커밋에서 거절된다. */
-function RandomPreorderBulkActions({ goodId, variants, policies, canActivate, onSaved }: {
+export function RandomPreorderBulkActions({ goodId, variants, policies, canActivate, onSaved }: {
   goodId: string; variants: AdminGoodsVariant[]; policies: AdminGoodsPreorder[]; canActivate: boolean; onSaved: (message: string) => void;
 }) {
   const [error, setError] = useState<string | null>(null);
@@ -176,7 +187,12 @@ function RandomPreorderBulkActions({ goodId, variants, policies, canActivate, on
   const activeIds = new Set(variants.map((variant) => variant.id));
   const selected = policies.filter((policy) => policy.selected && activeIds.has(policy.variantId));
   const open = selected.filter((policy) => policy.state === 'active');
-  const reserved = selected.some((policy) => policy.reservedQty > 0);
+  /* 선택된 정책의 미할당 수량만 보면 2회차부터 이전 회차 예약이 남은 채 버튼이 켜지고 서버가 거절한다. 옵션의 모든 정책을 합한다. */
+  const pendingByVariant = pendingPreorderReservationsByVariant(policies);
+  const blocking = selected.flatMap((policy) => {
+    const qty = pendingByVariant.get(policy.variantId) ?? 0;
+    return qty > 0 ? [[variants.find((variant) => variant.id === policy.variantId)?.name ?? '이전 옵션', qty] as const] : [];
+  });
   function run(state: 'stopped' | 'stock', targets: AdminGoodsPreorder[]) {
     setError(null);
     startTransition(async () => {
@@ -190,15 +206,17 @@ function RandomPreorderBulkActions({ goodId, variants, policies, canActivate, on
     <strong className="font-medium">모든 옵션 한 번에 처리</strong>
     <div className="flex flex-wrap gap-2">
       {open.length > 0 && <button className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" type="button" disabled={pending} onClick={() => run('stopped', open)}>모든 옵션 새 예약 접수 중지</button>}
-      {!open.length && canActivate && <button className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" type="button" disabled={pending || reserved} onClick={() => run('stock', selected)}>모든 옵션 일반 재고 판매로 전환</button>}
+      {!open.length && canActivate && <button className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" type="button" disabled={pending || blocking.length > 0} onClick={() => run('stock', selected)}>모든 옵션 일반 재고 판매로 전환</button>}
     </div>
-    {!open.length && reserved && <small className="text-xs text-muted-foreground">미할당 예약 주문을 먼저 처리해야 일반 재고 판매로 전환할 수 있습니다.</small>}
+    {!open.length && blocking.length > 0 && <small className="text-xs text-muted-foreground" data-stock-supply-blocked="">{stockSupplyBlockedText(blocking)}</small>}
     {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
   </div>;
 }
 
-function PreorderReceipt({ policy, variant, canActivate, onSaved, randomSale = false }: {
+export function PreorderReceipt({ policy, variant, pendingQty, canActivate, onSaved, randomSale = false }: {
   policy: AdminGoodsPreorder; variant?: AdminGoodsVariant; canActivate: boolean; onSaved: (message: string) => void; randomSale?: boolean;
+  /** 이 옵션의 모든 예약 조건(이전 회차 포함)에 남은 미할당 예약 합계. 일반 재고 전환은 이 값이 0일 때만 서버가 받는다. */
+  pendingQty: number;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -228,9 +246,9 @@ function PreorderReceipt({ policy, variant, canActivate, onSaved, randomSale = f
     <p className="text-xs whitespace-pre-wrap text-muted-foreground wrap-anywhere">승인 근거: {policy.approvalReference}</p>
     <div className="mt-1.5 flex flex-wrap gap-2 empty:hidden">
       {policy.state === 'active' && <button className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" type="button" disabled={pending} onClick={stop}>새 예약 접수 중지</button>}
-      {policy.state === 'stopped' && policy.selected && canActivate && !randomSale && <button className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" type="button" disabled={pending || policy.reservedQty > 0} onClick={regular}>일반 재고 판매로 전환</button>}
+      {policy.state === 'stopped' && policy.selected && canActivate && !randomSale && <button className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" type="button" disabled={pending || pendingQty > 0} onClick={regular}>일반 재고 판매로 전환</button>}
     </div>
-    {policy.state === 'stopped' && policy.selected && policy.reservedQty > 0 && !randomSale && <small className="text-xs text-muted-foreground">미할당 예약 주문을 먼저 처리해야 일반 재고 판매로 전환할 수 있습니다.</small>}
+    {policy.state === 'stopped' && policy.selected && pendingQty > 0 && !randomSale && <small className="text-xs text-muted-foreground" data-stock-supply-blocked="">{stockSupplyBlockedText([[variant?.name ?? '이전 옵션', pendingQty]])}</small>}
     {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
   </div>;
 }
@@ -345,6 +363,7 @@ export function GoodsPreordersPanel({ goodId, variants, canActivate = false, can
   const selectedVariants = variants.filter((variant) => variant.goodId === goodId);
   const activeVariants = selectedVariants.filter((variant) => !variant.archivedAt);
   const randomOpen = Boolean(visible?.policies?.some((policy) => policy.state === 'active' && activeVariants.some((variant) => variant.id === policy.variantId)));
+  const pendingByVariant = pendingPreorderReservationsByVariant(visible?.policies ?? []);
   const reload = () => setRefresh((value) => value + 1);
   const saved = (message: string) => { setNotice({ goodId, message }); reload(); };
   return <section className={`${GOOD_SUBPANEL_CLASS} text-sm`} aria-labelledby={`goods-preorders-${goodId}`} data-preorders-panel="">
@@ -361,7 +380,8 @@ export function GoodsPreordersPanel({ goodId, variants, canActivate = false, can
       {visible.policies?.map((policy) => randomSale && policy.state === 'draft' ? null : <div key={`${policy.id}:${policy.revision}`} className="min-w-0">
         {policy.state === 'draft' ? <details className={DETAILS_CLASS}><summary className={SUMMARY_CLASS}>예약 초안 · {selectedVariants.find((variant) => variant.id === policy.variantId)?.name ?? '이전 옵션'}</summary>
           <div className="border-t p-3"><PreorderEditor goodId={goodId} variants={selectedVariants} policy={policy} canActivate={canActivate} onSaved={saved} /></div>
-        </details> : <div className="rounded-lg border p-3"><PreorderReceipt policy={policy} variant={selectedVariants.find((variant) => variant.id === policy.variantId)} canActivate={canActivate} onSaved={saved} randomSale={randomSale} /></div>}
+        </details> : <div className="rounded-lg border p-3"><PreorderReceipt policy={policy} variant={selectedVariants.find((variant) => variant.id === policy.variantId)}
+          pendingQty={pendingByVariant.get(policy.variantId) ?? 0} canActivate={canActivate} onSaved={saved} randomSale={randomSale} /></div>}
       </div>)}
       {randomSale
         ? randomOpen ? <p className="text-sm text-muted-foreground">접수 중인 예약이 있습니다. 새 예약은 모든 옵션의 접수를 중지한 뒤 등록할 수 있습니다.</p>

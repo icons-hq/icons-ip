@@ -120,6 +120,30 @@ export function goodsOptionRowKey(row: Pick<GoodsOptionRow, 'id' | 'attributes'>
   return row.id ?? `new:${signature(row.attributes)}`;
 }
 
+const limitPair = (row: GoodsVariantPurchaseLimits) => `${row.orderMaxQty ?? null}|${row.memberMaxQty ?? null}`;
+
+/**
+ * 랜덤 판매 상품의 옵션 행 변경. 판매 중인 옵션은 모두 같은 '같은 옵션 배정 상한'(주문당·1인)이어야 저장된다
+ * (DB `random_option_limit_mismatch`). 이번 변경으로 판매 중이 된 행 — 옵션목록 적용·다른 상품 옵션 불러오기로 더한 옵션,
+ * 사용 중지에서 사용으로 바꾼 옵션 — 에는 변경 전 판매 중 옵션의 공통 상한을 채워 바로 저장되게 한다. 변경 전 판매 중 옵션끼리
+ * 값이 달라 공통 상한이 없으면(랜덤 전환 전에 저장한 값) 손대지 않는다 — 구매 제한 카드가 다시 입력하라고 경고한다.
+ * 상한 키가 없는 행은 값을 읽지 않은 행(DB 값 보존)이라 공통 상한을 알 수 없으므로 그때도 손대지 않는다.
+ */
+export function inheritRandomOptionLimits(previous: readonly GoodsOptionRow[], next: GoodsOptionRow[]): GoodsOptionRow[] {
+  const before = previous.filter((row) => row.isActive !== false);
+  if (!before.length || before.some((row) => row.orderMaxQty === undefined || row.memberMaxQty === undefined)
+    || new Set(before.map(limitPair)).size !== 1) return next;
+  const common = { orderMaxQty: before[0].orderMaxQty ?? null, memberMaxQty: before[0].memberMaxQty ?? null };
+  const known = new Set(before.map(goodsOptionRowKey));
+  let changed = false;
+  const rows = next.map((row) => {
+    if (row.isActive === false || known.has(goodsOptionRowKey(row)) || limitPair(row) === limitPair(common)) return row;
+    changed = true;
+    return { ...row, ...common };
+  });
+  return changed ? rows : next;
+}
+
 /** 저장된 상품코드와 이 상품의 저장된 옵션 전체(보관된 옵션 포함). 새 상품이면 `{ goodCode: null, options: [] }`. */
 export type GoodsOptionSavedCodes = {
   goodCode: string | null;
