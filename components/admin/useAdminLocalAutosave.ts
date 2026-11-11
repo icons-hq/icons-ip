@@ -6,6 +6,7 @@ import { readAdminFormData } from '@/lib/admin/form-capture';
 import {
   createAdminLocalAutosave,
   EMPTY_LOCAL_AUTOSAVE_SNAPSHOT,
+  type AdminLocalDraftLinkedFields,
   type AdminLocalDraftScope,
 } from '@/lib/admin/local-autosave';
 
@@ -18,7 +19,7 @@ function browserStorage(): Storage | null {
 }
 
 /** Supply a stable, explicit allowlist of public catalog fields; never attach this to customer or account forms. */
-export function useAdminLocalAutosave({ scope, fields, serverState, passiveInitializationFields = NO_PASSIVE_FIELDS, ignoreEditsWithin }: {
+export function useAdminLocalAutosave({ scope, fields, serverState, passiveInitializationFields = NO_PASSIVE_FIELDS, ignoreEditsWithin, linkedFields }: {
   scope: AdminLocalDraftScope;
   fields: readonly string[];
   serverState: SaveResult;
@@ -26,13 +27,16 @@ export function useAdminLocalAutosave({ scope, fields, serverState, passiveIniti
   passiveInitializationFields?: readonly string[];
   /** 이 선택자 안의 입력은 사용자 수정으로 세지 않는다(복구 대상이 아닌 묶음). */
   ignoreEditsWithin?: string;
+  /** 복구 안내가 떠 있는 동안 기준 칸을 고치면 이전 기록 대신 화면 값을 함께 쓸 칸. 모듈 상수로 넘긴다. */
+  linkedFields?: AdminLocalDraftLinkedFields;
 }) {
   const { accountId, formId, recordId } = scope;
   const store = useMemo(() => createAdminLocalAutosave({
-    scope: { accountId, formId, recordId }, fields, storage: browserStorage(),
-  }), [accountId, formId, recordId, fields]);
+    scope: { accountId, formId, recordId }, fields, storage: browserStorage(), linkedFields,
+  }), [accountId, formId, recordId, fields, linkedFields]);
   const snapshot = useSyncExternalStore(store.subscribe, store.getSnapshot, () => EMPTY_LOCAL_AUTOSAVE_SNAPSHOT);
   const submission = useRef<{ store: typeof store; result: SaveResult } | null>(null);
+  const readScheduledInput = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     const submitted = submission.current;
@@ -44,6 +48,11 @@ export function useAdminLocalAutosave({ scope, fields, serverState, passiveIniti
 
   const formRef = useCallback((form: HTMLFormElement | null, onCapture?: (data: FormData) => void) => {
     if (!form) return;
+    // 복구 안내가 떠 있으면 입력 전의 값을 잡아 둔다. 안내를 닫지 않고 고친 칸만 이전 기록에 합치는 기준이다.
+    if (store.getSnapshot().recovery) {
+      const entry = readAdminFormData(form);
+      if (entry) store.setEditBaseline(entry);
+    }
     let captureTimer: ReturnType<typeof setTimeout> | undefined;
     let explicitEdit = false;
     const readForm = (notify = true) => {
@@ -68,12 +77,15 @@ export function useAdminLocalAutosave({ scope, fields, serverState, passiveIniti
       if (ignoreEditsWithin && event.target instanceof Element && event.target.closest(ignoreEditsWithin)) return;
       scheduleCapture(true);
     };
+    const readScheduled = () => {
+      if (captureTimer === undefined) return;
+      clearTimeout(captureTimer);
+      captureTimer = undefined;
+      readForm(false);
+    };
+    readScheduledInput.current = readScheduled;
     const flush = () => {
-      if (captureTimer !== undefined) {
-        clearTimeout(captureTimer);
-        captureTimer = undefined;
-        readForm(false);
-      }
+      readScheduled();
       store.flush();
     };
     const visibility = () => { if (document.visibilityState === 'hidden') flush(); };
@@ -105,8 +117,15 @@ export function useAdminLocalAutosave({ scope, fields, serverState, passiveIniti
       window.removeEventListener('pagehide', flush);
       document.removeEventListener('visibilitychange', visibility);
       flush();
+      if (readScheduledInput.current === readScheduled) readScheduledInput.current = null;
     };
   }, [store, passiveInitializationFields, ignoreEditsWithin]);
+
+  const restore = useCallback(() => {
+    // 입력 직후에 눌러도 그 입력이 합쳐지도록 예약된 읽기를 먼저 끝낸다. 남겨 두면 복구로 폼이 내려갈 때 옛 화면 값을 기록에 쓴다.
+    readScheduledInput.current?.();
+    store.restore();
+  }, [store]);
 
   const onSubmitCapture = useCallback((event: FormEvent<HTMLFormElement>) => {
     const data = readAdminFormData(event.currentTarget);
@@ -124,5 +143,5 @@ export function useAdminLocalAutosave({ scope, fields, serverState, passiveIniti
     return !store.getSnapshot().unavailable;
   }, [store]);
 
-  return { snapshot, formRef, onSubmitCapture, saveDraft, restore: store.restore, discard: store.discard, scopeKey: store.key };
+  return { snapshot, formRef, onSubmitCapture, saveDraft, restore, discard: store.discard, discardRecovery: store.discardRecovery, scopeKey: store.key };
 }

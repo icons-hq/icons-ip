@@ -68,6 +68,37 @@ it('recovers a pending operation after remount and compares the current table af
   expect(mocks.save).toHaveBeenCalledWith('synthetic-size', values, 1, oldRequest.operationId);
   expect(text(render())).toContain('이후 변경된 최신 저장본'); expect(button('사이즈 안내 저장').props.disabled).toBe(true);
 });
+it('브라우저 복구 기록이 남은 동안 표를 고치거나 저장해 이전 기록을 덮지 않는다', async () => {
+  mocks.recovery = { baseRevision: 1, values: { ...values, chart: { ...chart, note: '이전에 작성한 표' } }, request: null };
+  await mount();
+  expect(all(render()).find(node => node.type === 'fieldset')?.props.disabled).toBe(true);
+  expect(button('사이즈 안내 저장').props.disabled).toBe(true); expect(button('표 복구').props.disabled).toBe(false);
+  expect(text(render())).toContain('복구하거나 버린 뒤 표를 고칠 수 있습니다.');
+  note('새로 쓴 안내'); submit(); await settle();
+  expect(mocks.capture).not.toHaveBeenCalled(); expect(mocks.save).not.toHaveBeenCalled();
+  /* 첫 조회가 실패했을 때 복구로 가는 길이라 최신 저장본 확인은 열어 두고, 받아들이는 버튼만 막는다. */
+  mocks.load.mockResolvedValue({ ok: true, value: { ...snapshot, revision: 2 } });
+  button('최신 저장본 확인').props.onClick?.(); await settle();
+  expect(button('최신 저장본으로 바꾸기').props.disabled).toBe(true);
+  button('최신 저장본으로 바꾸기').props.onClick?.(); button('최신 버전 기준으로 작성한 표 유지').props.onClick?.();
+  expect(mocks.discard).not.toHaveBeenCalled(); expect(mocks.capture).not.toHaveBeenCalled();
+  button('복구 기록 버리기').props.onClick?.();
+  expect(mocks.discard).toHaveBeenCalledOnce(); expect(button('최신 저장본으로 바꾸기').props.disabled).toBe(false);
+});
+it('복구하거나 버린 뒤에는 표를 다시 고칠 수 있다', async () => {
+  const kept = { baseRevision: 1, values: { ...values, chart: { ...chart, note: '이전에 작성한 표' } }, request: null };
+  mocks.recovery = kept; mocks.restore.mockImplementation(() => { mocks.recovery = null; return kept; });
+  await mount(); button('표 복구').props.onClick?.();
+  expect(all(render()).find(node => node.type === 'fieldset')?.props.disabled).toBe(false);
+  expect(all(render()).find(node => node.type === 'textarea')?.props.value).toBe('이전에 작성한 표');
+  note('복구한 표에 덧붙임');
+  expect(mocks.capture).toHaveBeenLastCalledWith({ baseRevision: 1, values: { ...values, chart: { ...chart, note: '복구한 표에 덧붙임' } }, request: null });
+  vi.clearAllMocks(); hooks.state = []; hooks.refs = []; mocks.recovery = kept;
+  await mount(); button('복구 기록 버리기').props.onClick?.();
+  expect(all(render()).find(node => node.type === 'fieldset')?.props.disabled).toBe(false);
+  note('새로 쓴 안내');
+  expect(mocks.capture).toHaveBeenLastCalledWith({ baseRevision: 1, values: { ...values, chart: { ...chart, note: '새로 쓴 안내' } }, request: null });
+});
 it('does not enable empty editing on a failed read or accept a late initial read over newer work', async () => {
   let finish!: (value: unknown) => void;
   mocks.load.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; })).mockResolvedValueOnce({ ok: true, value: { ...snapshot, revision: 3 } });
