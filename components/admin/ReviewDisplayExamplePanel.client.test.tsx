@@ -43,6 +43,7 @@ describe('ReviewDisplayExamplePanel', () => {
     expect(html).toContain('가짜(예시) 리뷰');
     expect(html).toContain('고객 화면·리뷰 집계·엑셀에 나오지 않습니다');
     expect(html).toContain('href="/admin/display/detail"');
+    expect(html).toContain('선정한 리뷰가 3개 이상일 때만');
     expect(html).toMatch(/aria-pressed="true"[^>]*>모바일</);
     expect(html).toContain(`화면 폭 ${REVIEW_EXAMPLE_VIEWPORTS.mobile}px`);
     /* 서버 렌더에는 폭을 모르니 iframe 대신 준비 문구만 둔다. 예시 본문은 iframe 안에만 그린다. */

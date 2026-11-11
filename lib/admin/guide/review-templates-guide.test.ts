@@ -46,4 +46,12 @@ describe('고객 화면 노출 예시 안내(SHEET-027)', () => {
     expect(text).toContain('고객 화면·리뷰 집계·엑셀에 나오지 않습니다');
     expect(repoFile('components/admin/screens/ReviewConsoleScreen.tsx')).toContain('<ReviewDisplayExample />');
   });
+
+  it('예시가 그리는 자리(BEST 리뷰 포함)와 BEST가 보이는 조건을 화면 예시와 같게 안내한다', () => {
+    const example = repoFile('components/admin/ReviewDisplayExample.tsx');
+    expect(example).toContain('<GalleryBestReviews');
+    expect(example).toContain('BEST 리뷰를 켜고 이 상품에 선정한 리뷰가 3개 이상일 때만');
+    expect(text).toContain('상품 상세 대표이미지의 BEST 리뷰');
+    expect(text).toContain('BEST 리뷰를 켜고 그 상품에 선정한 리뷰가 3개 이상일 때만');
+  });
 });

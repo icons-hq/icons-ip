@@ -76,10 +76,10 @@ export function ReviewDisplayExamplePanel({ children, defaultOpen = false }: { c
     {open ? <div className="flex min-w-0 flex-col gap-3 border-t px-4 py-4">
       <p className="text-sm leading-relaxed text-muted-foreground">
         실제 고객 화면과 같은 부품을 <strong className="font-medium text-foreground">가짜(예시) 리뷰</strong>로 그린 화면입니다. 예시 리뷰는 저장되지 않으며 고객 화면·리뷰 집계·엑셀에 나오지 않습니다.
-        상품 목록 카드, 상품 상세 가격 아래 별점 줄, 상단 리뷰 요약(켠 경우), &ldquo;리뷰 (N)&rdquo; 탭 순서로 보여 줍니다. 예시 안의 버튼과 링크는 눌리지 않습니다.
+        상품 목록 카드, 상품 상세 대표이미지의 BEST 리뷰, 가격 아래 별점 줄, 상단 리뷰 요약, &ldquo;리뷰 (N)&rdquo; 탭 순서로 보여 줍니다. 예시 안의 버튼과 링크는 눌리지 않습니다.
       </p>
       <p className="text-sm leading-relaxed text-muted-foreground">
-        상단 리뷰 요약과 대표이미지의 BEST 리뷰는 스토어 전시관리 &gt; <Link className="font-medium text-foreground underline underline-offset-4" href="/admin/display/detail">상품 상세 구성</Link>에서 켠 경우에만 고객에게 보입니다.
+        대표이미지의 BEST 리뷰는 스토어 전시관리 &gt; <Link className="font-medium text-foreground underline underline-offset-4" href="/admin/display/detail">상품 상세 구성</Link>에서 BEST 리뷰를 켜고 그 상품에 선정한 리뷰가 3개 이상일 때만, 상단 리뷰 요약은 같은 화면에서 켠 경우에만 고객에게 보입니다.
       </p>
       <div className="flex flex-wrap items-center gap-2">
         <div aria-label="예시 화면 크기" className={SEGMENTED} role="group">

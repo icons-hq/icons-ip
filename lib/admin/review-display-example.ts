@@ -1,5 +1,6 @@
 import type { GoodsReviewSummary } from '@/lib/goods-review-summary';
 import type { PublicDetailPresentation } from '@/lib/product-detail-presentation';
+import type { PublicSelectedReviewCard } from '@/lib/review-best';
 import { DEFAULT_GOOD_REVIEW_OPTIONS, GOOD_REVIEW_PAGE_SIZE, type ReviewRatingSummary } from '@/lib/reviews';
 import type { GoodReviewItem, GoodReviewSection } from '@/lib/reviews.server';
 
@@ -25,6 +26,8 @@ export interface ReviewDisplayExample {
   cards: [ReviewDisplayExampleCard, ReviewDisplayExampleCard];
   /** 상품상세 전시 설정에서 '상단 리뷰 요약'을 켠 상품의 요약(4·5점 비율과 4점 이상 리뷰 카드, 사진 리뷰 먼저). */
   highlights: PublicDetailPresentation;
+  /** 대표이미지 마지막 장의 BEST 리뷰. 공개 화면은 선정 리뷰가 3개 이상일 때 무작위 3개만 그린다(GalleryBestReviews는 3개가 아니면 그리지 않는다). */
+  bestReviews: PublicSelectedReviewCard[];
 }
 
 /** 글자가 들어간 단색 사진. 실제 사진처럼 보이지 않게, 저장소 밖 주소도 쓰지 않는다. */
@@ -81,5 +84,8 @@ export function reviewDisplayExample(now: Date = new Date()): ReviewDisplayExamp
         reviewSummary: null },
     ],
     highlights,
+    /* BEST는 별점과 무관하게 운영자가 고른다 — 예시도 3점 리뷰를 함께 넣는다. */
+    bestReviews: [reviews[0], reviews[1], reviews[3]].map(review => ({ id: review.id, kind: review.kind, repeatPurchase: review.repeatPurchase, rating: review.rating,
+      body: review.body, authorName: review.authorName, createdAt: review.createdAt, imageUrls: review.imageUrls, ...(review.eventDisclosure ? { eventDisclosure: review.eventDisclosure } : {}) })),
   };
 }

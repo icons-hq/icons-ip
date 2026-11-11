@@ -16,12 +16,26 @@ describe('ReviewDisplayExampleContent', () => {
   const html = renderToStaticMarkup(<ReviewDisplayExampleContent now={NOW} />);
 
   it('labels each area as an example in the order customers meet them', () => {
-    const steps = ['예시 ①', '예시 ②', '예시 ③', '예시 ④'].map(step => html.indexOf(step));
+    const steps = ['예시 ①', '예시 ②', '예시 ③', '예시 ④', '예시 ⑤'].map(step => html.indexOf(step));
     expect(steps.every(index => index >= 0)).toBe(true);
     expect(steps).toEqual([...steps].sort((left, right) => left - right));
-    expect(html.indexOf('wc-product-card')).toBeLessThan(html.indexOf('wc-pdp-tools__rating'));
+    expect(html.indexOf('wc-product-card')).toBeLessThan(html.indexOf('wc-gallery-best-reviews'));
+    expect(html.indexOf('wc-gallery-best-reviews')).toBeLessThan(html.indexOf('wc-pdp-tools__rating'));
     expect(html.indexOf('wc-pdp-tools__rating')).toBeLessThan(html.indexOf('wc-pdp-review-summary'));
     expect(html.indexOf('wc-pdp-review-summary')).toBeLessThan(html.indexOf('wc-review-list'));
+  });
+
+  /* 리뷰 지적: 대표이미지 갤러리의 BEST 리뷰 장도 고객이 리뷰를 보는 자리다. 공개 부품(PdpGallery·GalleryBestReviews)으로 그 장만 그린다. */
+  it('shows the gallery BEST review slide with three cards and says when customers see it', () => {
+    const best = html.slice(html.indexOf('<section class="wc-gallery-best-reviews"'), html.indexOf('</section>', html.indexOf('<section class="wc-gallery-best-reviews"')));
+    expect(best).toContain('<h2 id="gallery-best-reviews-heading">BEST 리뷰</h2>');
+    expect(best).toContain('운영자가 선정한 구매 리뷰');
+    expect(best.match(/<li>/g)).toHaveLength(3);
+    expect(best).toContain('리뷰 모두 보기');
+    expect(html).toMatch(/<section aria-label="\[예시\] 아크릴 스탠드 이미지" aria-roledescription="carousel" class="wc-pdp-gallery" data-active-kind="reviews">/);
+    expect(html).toContain('BEST 리뷰를 켜고 이 상품에 선정한 리뷰가 3개 이상일 때만');
+    expect(html.indexOf('wc-pdp__layout')).toBeLessThan(html.indexOf('wc-pdp-gallery'));
+    expect(html.indexOf('wc-pdp-gallery')).toBeLessThan(html.indexOf('wc-pdp__info'));
   });
 
   it('renders the public review tab opened, with summary, list, reply and event disclosure', () => {
@@ -59,7 +73,8 @@ describe('example markup stays in step with the product detail page', () => {
     const detail = repoFile('components/screens/GoodDetail.tsx');
     for (const part of ['<p className="wc-pdp-tools__rating">', '<strong className="wc-pdp-tools__average">{formatReviewAverage(reviewSummary.average)}</strong>',
       '<a className="wc-pdp-tools__reviews"', "{reviewSummary.count.toLocaleString('ko-KR')}개 리뷰보기", '<span className="wc-rating__stars">',
-      "label: '상세정보'", "label: '리뷰'", "label: 'Q&A'", "label: '추가정보'", 'idBase="pdp"', '<div className="wc-pdp-panel">']) {
+      "label: '상세정보'", "label: '리뷰'", "label: 'Q&A'", "label: '추가정보'", 'idBase="pdp"', '<div className="wc-pdp-panel">',
+      '<div className="wc-pdp__layout">', 'selectedReviews={selectedReviews} />', '<div className="wc-pdp__info">']) {
       expect(detail, part).toContain(part);
     }
   });
@@ -68,5 +83,6 @@ describe('example markup stays in step with the product detail page', () => {
     const page = repoFile('app/shop/[goodId]/page.tsx');
     expect(page).toContain('reviews={<GoodReviews goodId={goodId} section={reviewSection} />}');
     expect(page).toContain('reviewHighlights={<ProductDetailReviewSummary goodId={goodId} data={presentation} />}');
+    expect(page).toContain('selectedReviews={selectedReviews.length === 3 ? <GalleryBestReviews goodId={goodId} cards={selectedReviews} /> : undefined}');
   });
 });

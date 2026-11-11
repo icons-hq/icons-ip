@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
+import { GalleryBestReviews } from '@/components/shop/GalleryBestReviews';
 import { GoodReviews } from '@/components/shop/GoodReviews';
+import { PdpGallery } from '@/components/shop/PdpGallery';
 import { PdpPrice } from '@/components/shop/PdpPrice';
 import { ProductDetailReviewSummary } from '@/components/shop/ProductDetailPresentation';
 import { ProductCard } from '@/components/wc/ProductCard';
@@ -9,8 +11,8 @@ import { formatReviewAverage, goodReviewsHref, reviewRatingLabel } from '@/lib/r
 import { ReviewDisplayExamplePanel } from './ReviewDisplayExamplePanel';
 
 /*
- * SHEET-027(MD-0019): 리뷰 관리 화면의 '고객 화면 노출 예시'. 공개 화면과 같은 부품(상품 목록 카드·리뷰 탭·리뷰 목록)을
- * 합성 데이터로 그린다. DB에 리뷰를 넣지 않고, 이 화면 밖(고객 화면·리뷰 집계·엑셀)에는 나오지 않는다.
+ * SHEET-027(MD-0019): 리뷰 관리 화면의 '고객 화면 노출 예시'. 공개 화면과 같은 부품(상품 목록 카드·대표이미지 갤러리의 BEST 리뷰·
+ * 상단 리뷰 요약·리뷰 탭·리뷰 목록)을 합성 데이터로 그린다. 갤러리는 이미지 없이 BEST 리뷰 장 하나만 넘겨 그 장이 바로 보이게 한다. DB에 리뷰를 넣지 않고, 이 화면 밖(고객 화면·리뷰 집계·엑셀)에는 나오지 않는다.
  * 서버에서 그려 예시 틀(클라이언트)에 넘긴다 — 상품 상세의 리뷰 블록도 서버 컴포넌트라 같은 방식으로 그려진다.
  *
  * 상품 상세 가격 아래 별점 줄은 GoodDetail 안에 직접 쓰인 마크업이라(따로 내보낸 부품이 없다) 같은 클래스·문구로 옮겨 적었다.
@@ -54,17 +56,22 @@ export function ReviewDisplayExampleContent({ now }: { now?: Date }) {
         {example.cards.map(card => <ProductCard key={card.name} href={`/shop/${example.goodId}`} name={card.name} price={card.price} imageBackground={card.imageBackground} reviewSummary={card.reviewSummary} />)}
       </div>
     </div>
-    {/* 상품 상세 안의 위에서 아래 순서 그대로다: 정보 칼럼의 별점 줄 → (켠 경우) 상단 리뷰 요약 → 하부 탭의 리뷰 탭. */}
+    {/* 상품 상세 안의 순서 그대로다: 대표이미지(마지막 장의 BEST 리뷰)·정보 칼럼의 별점 줄 → (켠 경우) 상단 리뷰 요약 → 하부 탭의 리뷰 탭.
+        대표이미지와 정보 칼럼은 상세와 같은 두 칸 배치(.wc-pdp__layout)라 모바일은 위아래, PC는 좌우로 선다. */}
     <div className="wc-pdp">
-      <ExampleNote step="②">상품 상세 — 가격 아래 별점 줄. 평균 별점과 &ldquo;{summary.count}개 리뷰보기&rdquo;를 누르면 리뷰 탭으로 이동합니다.</ExampleNote>
-      <div className="wc-container"><div className="wc-pdp__info">
-        <h1 className="wc-pdp__title">{example.goodName}</h1>
-        <PdpPrice className="wc-pdp__price" price={example.price} />
-        <PdpRatingRow goodId={example.goodId} average={summary.average} count={summary.count} />
+      <ExampleNote step="②">상품 상세 대표이미지의 BEST 리뷰 — 상품 상세 구성에서 BEST 리뷰를 켜고 이 상품에 선정한 리뷰가 3개 이상일 때만 대표이미지 마지막 장에 무작위 3개가 보입니다. 예시는 그 장만 보여 줍니다(모바일은 위, PC는 왼쪽).</ExampleNote>
+      <ExampleNote step="③">상품 상세 가격 아래 별점 줄 — 평균 별점과 &ldquo;{summary.count}개 리뷰보기&rdquo;를 누르면 리뷰 탭으로 이동합니다(모바일은 대표이미지 아래, PC는 오른쪽).</ExampleNote>
+      <div className="wc-container"><div className="wc-pdp__layout">
+        <PdpGallery frames={[]} goodName={example.goodName} selectedReviews={<GalleryBestReviews goodId={example.goodId} cards={example.bestReviews} />} />
+        <div className="wc-pdp__info">
+          <h1 className="wc-pdp__title">{example.goodName}</h1>
+          <PdpPrice className="wc-pdp__price" price={example.price} />
+          <PdpRatingRow goodId={example.goodId} average={summary.average} count={summary.count} />
+        </div>
       </div></div>
-      <ExampleNote step="③">상품 상세 상단 리뷰 요약 — 상품 상세 구성에서 켠 경우에만 보입니다. 4·5점 비율과 4점 이상 리뷰 카드(사진 리뷰 먼저)입니다.</ExampleNote>
+      <ExampleNote step="④">상품 상세 상단 리뷰 요약 — 상품 상세 구성에서 켠 경우에만 보입니다. 4·5점 비율과 4점 이상 리뷰 카드(사진 리뷰 먼저)입니다.</ExampleNote>
       <div className="wc-container"><ProductDetailReviewSummary goodId={example.goodId} data={example.highlights} /></div>
-      <ExampleNote step="④">상품 상세 &ldquo;리뷰 ({summary.count})&rdquo; 탭 — 평균·별점 분포·사진, 정렬·필터, 리뷰 목록과 운영자 답글. 리뷰이벤트 선정 리뷰에는 혜택 안내가 붙습니다.</ExampleNote>
+      <ExampleNote step="⑤">상품 상세 &ldquo;리뷰 ({summary.count})&rdquo; 탭 — 평균·별점 분포·사진, 정렬·필터, 리뷰 목록과 운영자 답글. 리뷰이벤트 선정 리뷰에는 혜택 안내가 붙습니다.</ExampleNote>
       <div className="wc-pdp-tabs"><TabPanels idBase="pdp" defaultPanelId="reviews" panels={panels} /></div>
     </div>
   </>;

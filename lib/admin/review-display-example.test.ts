@@ -19,7 +19,8 @@ describe('review display example data', () => {
   });
 
   it('uses inline images only — no storage or outside addresses', () => {
-    const urls = [...example.section.reviews.flatMap(review => review.imageUrls), ...(example.highlights.reviews?.cards.flatMap(card => card.imageUrls) ?? [])];
+    const urls = [...example.section.reviews.flatMap(review => review.imageUrls), ...(example.highlights.reviews?.cards.flatMap(card => card.imageUrls) ?? []),
+      ...example.bestReviews.flatMap(card => card.imageUrls)];
     expect(urls.length).toBeGreaterThan(0);
     for (const url of urls) expect(url.startsWith('data:image/svg+xml;charset=utf-8,')).toBe(true);
     for (const card of example.cards) expect(card.imageBackground).toMatch(/^url\("data:image\/svg\+xml;charset=utf-8,[^"]*"\) center \/ cover no-repeat$/);
@@ -49,6 +50,18 @@ describe('review display example data', () => {
     expect(new Set(reviews.map(review => review.rating)).size).toBeGreaterThan(1);
     expect(reviews.map(review => review.createdAt)).toEqual([...reviews.map(review => review.createdAt)].sort().reverse());
     expect(reviews.every(review => Date.parse(review.createdAt) <= now.getTime())).toBe(true);
+  });
+
+  it('picks exactly three BEST cards from the example reviews, regardless of rating', () => {
+    const { bestReviews, section } = example;
+    expect(bestReviews).toHaveLength(3);
+    const ids = new Set(section.reviews.map(review => review.id));
+    for (const card of bestReviews) {
+      expect(ids.has(card.id)).toBe(true);
+      expect(card.body.startsWith(REVIEW_DISPLAY_EXAMPLE_MARK)).toBe(true);
+      expect(card.authorName).toContain('예시');
+    }
+    expect(Math.min(...bestReviews.map(card => card.rating))).toBeLessThan(4);
   });
 
   it('builds the top review summary from 4-5 point reviews, photo reviews first', () => {
