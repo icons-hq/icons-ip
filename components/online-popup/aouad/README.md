@@ -21,7 +21,7 @@
 
 체험존은 급식실 → 방송실 → 도서관 → 효산의 기억 순서입니다. 마지막 장면 `?s=hyosan`에서 **효산의 기억 시작하기**를 누르면 최신 활 전투·강화·학교 탐험 게임을 같은 페이지의 전체 화면으로 엽니다. 게임 엔진과 3D 모델은 이때 처음 요청하고, 복귀하면 팝업 장면·학생증·시연 상태를 유지합니다. 기존 급식실·방송실·도서관 체험도 그대로 이용할 수 있습니다.
 
-원본은 `88b9937a118120f60ef5166b66e5c370fc292b3a`의 독립 Vite 시연판입니다. 게임 로직과 원본 모델을 바꾸지 않고, 검산한 HTML·JS의 URL 8곳을 `/ip-popups/aouad/hyosan/`으로 재배치했습니다. 모델 원본 15개와 각 전송용 압축 파일의 SHA-256을 검증합니다. 기존 `/games/hyosan-memories`나 개발용 에셋 경로의 권한을 여는 방식은 사용하지 않습니다.
+원본은 `88b9937a118120f60ef5166b66e5c370fc292b3a`의 독립 Vite 시연판입니다. 게임 로직과 원본 모델을 바꾸지 않고, 검산한 HTML·JS의 URL 8곳을 `/ip-popups/aouad/hyosan/`으로 재배치했습니다. 원본 미디어 15개(모델 GLB 13개·WebP 2개)와 GLB의 전송용 압축 파일 SHA-256을 검증합니다. WebP 2개는 압축본 없이 원본으로 제공합니다. 기존 `/games/hyosan-memories`나 개발용 에셋 경로의 권한을 여는 방식은 사용하지 않습니다.
 
 정상 응답은 `no-transform`을 요청하지만 Vercel 재압축이 관찰되므로, manifest SHA 기반 약한 ETag를 사용합니다. 배포 후 실제 전송 방식·크기·해시를 기록하고 압축 해제 후 원본 SHA-256을 대조합니다. If-Range는 바이트 동일성을 증명할 수 없어 전체 200으로 응답하며 일반 미디어 Range는 206을 유지합니다. 재검증과 접근 회수 검증은 운영 런북을 따릅니다.
 
@@ -57,7 +57,7 @@
 
 ## 접근과 검증
 
-정본 경로는 `/ip/aouad`입니다. 2026-09-10 현재 `AOUAD_POPUP_PUBLIC=true`인 공개 모드라서 로그인 없이 `/ip`의 프레젠테이션 카드와 직접 경로를 사용할 수 있습니다. `lib/aouad-popup.ts`의 코드 상수를 `AOUAD_POPUP_PUBLIC=false`로 바꾸고 배포하면 staff/admin 전용 카드·경로가 됩니다. 전체 회수도 `AOUAD_POPUP_ENABLED=false` 코드 변경과 배포가 필요합니다. 서버 공개·회수 스위치, 로컬 QA, 배포 후 확인 순서는 [시연 운영 가이드](../../../docs/runbooks/aouad-executive-demo.md)를 따릅니다. 공개 카탈로그에 가짜 IP나 굿즈 행을 추가하지 않습니다.
+정본 경로는 `/ip/aouad`입니다. 2026-09-10 현재 `AOUAD_POPUP_PUBLIC=true`인 공개 모드라서 로그인 없이 `/ip`의 프레젠테이션 카드와 직접 경로를 사용할 수 있습니다. `lib/aouad-popup.ts`의 코드 상수를 `AOUAD_POPUP_PUBLIC=false`로 바꾸고 배포하면 `platform.manage` 권한 운영자 전용 카드·경로가 됩니다. 전체 회수도 `AOUAD_POPUP_ENABLED=false` 코드 변경과 배포가 필요합니다. 서버 공개·회수 스위치, 로컬 QA, 배포 후 확인 순서는 [시연 운영 가이드](../../../docs/runbooks/aouad-executive-demo.md)를 따릅니다. 공개 카탈로그에 가짜 IP나 굿즈 행을 추가하지 않습니다.
 
 에셋 229개는 `public` 밖에 보관하고 `/ip-popups/aouad/[...asset]`의 Node Route Handler가 화면과 동일한 공개·회수 스위치를 매 요청 확인합니다. 현재 공개 모드에서는 인증 없이 통과하지만, `asset-index.json`에 기록된 파일만 허용하고 GET·HEAD·영상 Range의 정상 응답은 `private, max-age=0, must-revalidate, no-transform`와 manifest SHA 기반 약한 ETag를 제공합니다. 매번 서버에 재검증하고 변경이 없으면 본문 없는 304를 반환합니다. 두 에셋 라우트는 `lib/popup-assets.server.ts`의 파일 검사·스트리밍과 보안 헤더를 공유하며 CDN 캐시는 허용하지 않습니다. 비활성화·잘못된 경로·경로 탈출·symlink는 ETag 검사보다 먼저 차단하며 오류 응답은 `private, no-store, max-age=0`을 유지합니다. 인증이 필요한 비공개 모드의 이미지는 Next 이미지 최적화 프록시를 거치지 않습니다. Vercel 출력 추적은 이 에셋 라우트에만 비공개 파일을 포함합니다. 저장 위치 변경 전후 229개 SHA가 일치하며, `provenance.json`은 원본 입력 경로 기록이므로 보존합니다.
 

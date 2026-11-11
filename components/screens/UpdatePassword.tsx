@@ -6,6 +6,8 @@ import {
   updatePasswordAction,
   type UpdatePasswordActionState,
 } from '@/app/update-password/actions';
+import { PasswordRecoveryRequired } from '@/components/screens/PasswordRecoveryRequired';
+import { SocialAccountPasswordNotice } from '@/components/screens/SocialAccountPasswordNotice';
 import { WcButton } from '@/components/wc/WcButton';
 
 const emptyState: UpdatePasswordActionState = {};
@@ -36,9 +38,13 @@ function PasswordField({ error, label, name }: { error?: string; label: string; 
   );
 }
 
-export function UpdatePassword({ next }: { next: string }) {
+export function UpdatePassword({ email, next }: { email: string | null; next: string }) {
   const [state, action, pending] = useActionState(updatePasswordAction, emptyState);
   const resetHref = `/login?mode=reset${next === '/' ? '' : `&next=${encodeURIComponent(next)}`}`;
+
+  /* 폼을 연 뒤 서버 action이 저장을 거절하면(복구 증명 만료·불일치, 소셜 전용 계정) 화면도 같은 안내로 바꾼다. */
+  if (state.blocked === 'no_email_identity') return <SocialAccountPasswordNotice next={next} />;
+  if (state.blocked === 'recovery_required') return <PasswordRecoveryRequired email={email} next={next} />;
 
   return (
     <main className="wc-root wc-auth">

@@ -2,14 +2,14 @@
 
 migration 파일 경로는 [배포 매핑](../../supabase/manifests/admin-rollout-migration-map.json)을 반영했다. 아래 과거 검증·적용 기록은 당시 원본 DRAFT 기준이며 이번 운영 배포의 성공을 뜻하지 않는다.
 
-#432의 실시간 표면은 기존 문의 원장과 서버 액션을 사용한다. 고객 위젯은 FAQ를 먼저 보여주고 로그인한 고객에게 내 문의·새 문의를 제공한다. `/my/inquiries/[inquiryId]`와 어드민 문의 목록·상세, `/admin/cs/chat` 상담하기 화면도 변경을 구독한다. 위젯 오버레이는 `OverlayPortal`로 `body` 아래에 렌더한다.
+#432의 실시간 표면은 기존 문의 원장과 서버 액션을 사용한다. 고객 위젯은 FAQ를 먼저 보여주고 로그인한 고객에게 내 문의·새 문의를 제공한다. `/my/inquiries/[inquiryId]`와 어드민 문의 목록·상세, `/admin/cs/chat` 상담하기 화면도 변경을 구독한다. 커머스 콘솔의 새 1:1 문의 PC 알림과 탭 제목 미답변 수(`components/admin/AdminInquiryNotifier.tsx`)도 같은 구독을 쓴다. 위젯 오버레이는 `OverlayPortal`로 `body` 아래에 렌더한다.
 
 ## 데이터와 권한
 
 - `20260908025703_inquiry_realtime_delivery.sql`은 `supabase_realtime`에 `inquiries`, `inquiry_messages`를 추가하고 INSERT·UPDATE만 발행한다. DELETE의 RLS 필터 제약 때문에 DELETE·TRUNCATE는 발행하지 않는다. 적용 시점에 저장소의 다른 `postgres_changes` 소비자는 없었다. 이후 같은 publication에 테이블을 추가할 때 이 이벤트 정책을 함께 확인한다.
 - 기존 RLS가 고객 본인과 현재 `cs.manage` 권한을 가진 운영자만 허용한다. `inquiry_internal_notes`와 감사 로그는 publication에 넣지 않는다. 서버의 service role로 고객 채널을 만들지 않는다.
 - 테이블 SELECT를 열어두지 않고 공개 가능한 칼럼에만 authenticated SELECT를 부여한다. `inquiries.assignee_id`, `handled_by`, `waiting_since`와 `inquiry_messages.author_id`는 일반 고객뿐 아니라 authenticated를 공유하는 운영자의 원시 구독에도 노출되지 않는다. 운영자 상세의 담당 정보는 staff 권한을 확인하는 `admin_inquiry_workspace` RPC가 읽는다. 답변자 표시 이름은 기존 목적별 조회 RPC를 사용한다.
-- 클라이언트는 이벤트를 갱신 신호로만 사용한다. 표시할 본문·첨부·운영자 이름은 기존 권한 있는 로더에서 다시 읽는다. `/api/inquiries`는 요청의 사용자 ID를 받지 않고 서버가 확인한 로그인 사용자로 조회하며 `private, no-store`로 반환한다. 계정이 바뀌면 위젯 패널을 다시 마운트하고, 이전 응답은 사용자 ID와 요청 키로 차단한다.
+- 클라이언트는 이벤트를 갱신 신호로만 사용한다. 표시할 본문·첨부·운영자 이름은 기존 권한 있는 로더에서 다시 읽는다. 예외로 새 1:1 문의 PC 알림은 이벤트의 문의 제목만 알림 본문에 쓰고 메시지 본문은 싣지 않는다. `/api/inquiries`는 요청의 사용자 ID를 받지 않고 서버가 확인한 로그인 사용자로 조회하며 `private, no-store`로 반환한다. 계정이 바뀌면 위젯 패널을 다시 마운트하고, 이전 응답은 사용자 ID와 요청 키로 차단한다.
 - `SUBSCRIBED`는 WebSocket 채널 입장 완료다. DB 구독 준비는 `system` 이벤트의 `extension=postgres_changes`, `status=ok`로 확인한다. 이때 다시 조회하여 최초 접속·재연결 중 놓친 변경을 보완한다. 첫 DB 구독 대기·연결 오류 동안에는 활성 탭이 온라인인 경우 5초마다 기존 인증 로더를 다시 읽는다. DB ready가 확인되면 이 보완 조회를 중단하며 구독을 닫을 때 타이머도 제거한다. 연결 오류 시 재시도 상태와 수동 새로고침을 표시한다.
 
 ## 자동 검증

@@ -1,6 +1,6 @@
 # 지역 추가 배송비 운영
 
-대상: [#493](https://github.com/icons-hq/icons-ip/issues/493), [#177 H6](https://github.com/icons-hq/icons-ip/issues/177)의 실제 출고지·물류사 회신. 설정 화면은 `/admin/settings/shipping-regions`다. staff는 조회하고, 활성 admin만 초안 저장·활성화·중단할 수 있다. 각 변경과 확인한 원본 참조를 감사 로그에 남긴다.
+대상: [#493](https://github.com/icons-hq/icons-ip/issues/493), [#177 H6](https://github.com/icons-hq/icons-ip/issues/177)의 실제 출고지·물류사 회신. 설정 화면은 `/admin/settings/shipping-regions`다. 정책 조회는 `catalog.read`, 초안 저장·활성화·중단은 정지되지 않은 계정의 `platform.manage` 권한으로 판정한다([ADR-0020](../adr/0020-store-manager-capabilities.md)). 각 변경과 확인한 원본 참조를 감사 로그에 남긴다.
 
 ## 현재 확보한 사실과 도입 경계
 
