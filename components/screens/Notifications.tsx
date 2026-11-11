@@ -19,6 +19,7 @@ const TYPE_LABELS: Record<NotificationType, string> = {
   review_replied: '리뷰',
   restock_available: '재입고',
   loyalty_grade_upgraded: '등급',
+  loyalty_monthly_coupons_issued: '등급',
   /* 비공개 1:1('문의')과 다른 표면이라 라벨도 갈라 둔다 — 같은 말이면 알림함에서
      어느 쪽에 답이 달렸는지 알 수 없다. */
   product_question_answered: '굿즈 Q&A',
@@ -40,6 +41,7 @@ const TYPE_ICONS: Record<NotificationType, string> = {
   review_replied: 'star',
   restock_available: 'bell',
   loyalty_grade_upgraded: 'star',
+  loyalty_monthly_coupons_issued: 'star',
   product_question_answered: 'chat',
 };
 

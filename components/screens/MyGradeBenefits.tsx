@@ -4,6 +4,7 @@ import { LOYALTY_GRADES, LOYALTY_WINDOW_DAYS, loyaltyGradeLabel, type LoyaltyGra
 import {
   gradeBenefitCountLines,
   gradeBenefitCouponCopy,
+  gradeBenefitMonthlyNote,
   gradeCreditRateLabel,
   hasGradeCreditRates,
   loyaltyCriterionCopy,
@@ -60,15 +61,17 @@ function BenefitList({ row, unavailable, now }: { row: GradeBenefitRow | null; u
   }
   const rate = row.creditRateBps !== null && row.creditRateBps > 0 ? gradeCreditRateLabel(row.creditRateBps) : null;
   const countLines = row.reached ? [] : gradeBenefitCountLines(row.couponCounts);
+  const monthlyNote = row.reached ? null : gradeBenefitMonthlyNote(row.couponCounts);
   if (!row.coupons.length && !countLines.length && !rate) {
     return <p className="wc-grade-benefits__empty">지금은 이 등급에 지급 중인 혜택이 없어요.</p>;
   }
   return (
     <ul className="wc-grade-benefits__list">
-      {countLines.map((line) => (
+      {countLines.map((line, index) => (
         <li key={`${row.grade}-${line}`}>
           <strong>{line}</strong>
           <span className="wc-grade-benefits__terms">쿠폰 내용은 이 등급에 오르면 쿠폰함에서 확인할 수 있어요</span>
+          {monthlyNote && index === countLines.length - 1 ? <span className="wc-grade-benefits__terms">{monthlyNote}</span> : null}
         </li>
       ))}
       {row.coupons.map((coupon, index) => {
@@ -77,6 +80,7 @@ function BenefitList({ row, unavailable, now }: { row: GradeBenefitRow | null; u
           <li key={`${row.grade}-${index}-${coupon.name}`}>
             <strong>{coupon.name}</strong> · {copy.benefit}
             <span className="wc-grade-benefits__terms">{copy.condition} · 사용 기간 {copy.validity}</span>
+            <span className="wc-grade-benefits__terms">{copy.cadence}</span>
             {copy.recipient ? <span className="wc-grade-benefits__terms">{copy.recipient}</span> : null}
           </li>
         );
@@ -114,7 +118,7 @@ export function MyGradeBenefits({
       <div className="wc-grade-benefits__notice">
         <EyeGlyph />
         <div>
-          <p>등급이 오르면 새로 오른 등급까지의 혜택 쿠폰이 자동으로 지급되고, 쿠폰함에서 바로 확인할 수 있어요.</p>
+          <p>등급이 오르면 새로 오른 등급까지의 혜택 쿠폰이 자동으로 지급되고, 매월 지급 쿠폰은 매월 1일 그때 등급을 기준으로 다시 지급돼요. 받은 쿠폰은 쿠폰함에서 바로 확인할 수 있어요.</p>
           <p>등급은 최근 {LOYALTY_WINDOW_DAYS}일 동안 결제가 완료된 주문을 기준으로 결제 완료·취소 때 다시 계산돼요.</p>
         </div>
       </div>
@@ -170,7 +174,8 @@ export function MyGradeBenefits({
         </ul>
         <p className="wc-grade-benefits__guide-title">혜택 지급</p>
         <ul>
-          <li>등급 혜택 쿠폰은 쿠폰마다 한 번만 지급되고, 이미 받은 쿠폰은 다시 지급되지 않아요.</li>
+          <li>승급할 때 지급하는 쿠폰은 쿠폰마다 한 번만 지급되고, 이미 받은 쿠폰은 다시 지급되지 않아요.</li>
+          <li>매월 지급 쿠폰은 매월 1일 0시(한국 시간)에 그때 등급까지의 쿠폰을 한 장씩 지급하고 알림으로 알려 드려요. 지난달에 받지 못한 몫을 나중에 몰아서 드리지는 않아요.</li>
           {/* 표가 적립률 줄을 그릴 때만 — 등급 적립이 꺼져 있으면 없는 혜택을 약속하지 않는다. */}
           {hasGradeCreditRates(benefits) ? <li>등급 적립금은 기본 적립금 정책의 주문당·보유 한도 안에서 쌓여요.</li> : null}
         </ul>
