@@ -53,18 +53,19 @@ import { INQUIRY_SATISFACTION_LABELS, inquirySatisfactionPercent } from '@/lib/i
  *
  * 템플릿 룩(ADR-0028): 결과 카드 안에 머리 → 조회 조건(접기) → 목록 → 페이지 → 상태별 집계·만족도, 그 아래 안내 순서다. */
 
-/* 1440 화면(표 폭 약 1100px)에서 담당자가 카드 끝에 잘리지 않게 폭을 나눴다(합 1094px). 주문번호(16자리)가 다 보이는 폭이 기준이다.
+/* 1440 화면(표 폭 약 1100px)에서 담당자가 카드 끝에 잘리지 않게 폭을 나눴다(합 1094px). '연결 주문'은 주문 시각을 넣은 20자리
+   주문번호(text-xs)가 다 보이는 폭이 기준이고, 늘린 만큼 두 줄에서 잘리는 제목 칸을 줄였다(전체 제목은 title로 본다).
    미답변 큐에서는 전부 미평가인 참고 칸(답변 만족도)은 기본으로 빼고, 조회항목 설정에서 켠다 — 만족도 필터·요약은 그대로다. */
 const COLUMNS: ConsoleGridColumn[] = [
   { key: 'reference', label: '문의번호', width: '72px' },
   { key: 'category', label: '유형', width: '88px' },
-  { key: 'title', label: '제목', width: '156px' },
+  { key: 'title', label: '제목', width: '124px' },
   { key: 'status', label: '상태', width: '96px' },
   { key: 'action', label: '처리', width: '88px' },
   { key: 'buyer', label: '구매자', width: '96px' },
   { key: 'times', label: '접수 · 최근', width: '154px' },
   { key: 'sla', label: '1차 답변 기한', align: 'end', width: '120px' },
-  { key: 'order', label: '연결 주문', width: '140px' },
+  { key: 'order', label: '연결 주문', width: '172px' },
   { key: 'handler', label: '담당자', width: '84px' },
   { key: 'satisfaction', label: '답변 만족도', width: '88px', defaultVisible: false },
 ];
