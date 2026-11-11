@@ -102,8 +102,11 @@ select pg_temp.expect_manager_error('select public.admin_search_operators()','op
 select 1/case when public.admin_current_operator_access()->'capabilities' ? 'sales.read'
   and not(public.admin_current_operator_access()->'capabilities' ? 'sales.manage') then 1 else 0 end as influencer_scope_stays_separate;
 select set_config('request.jwt.claim.sub','82000000-0000-4000-8000-000000000007',true);
+-- 1014-084: 물류출고관리는 출고 전용 업무만 한다. 주문 조회·관리(발주확인·취소·환불·클레임)와 고객·상품 관리는 없다.
 select 1/case when public.admin_current_operator_access()->'capabilities' ? 'catalog.announcements'
-  and not(public.admin_current_operator_access()->'capabilities' ? 'sales.manage') then 1 else 0 end as logistics_is_not_dispatch;
+  and public.admin_current_operator_access()->'capabilities' ? 'sales.dispatch' and public.has_operator_capability('sales.dispatch')
+  and not(public.admin_current_operator_access()->'capabilities' ?| array['sales.manage','sales.read','cs.manage','catalog.manage','platform.manage'])
+  and not public.has_operator_capability('sales.manage') and not public.has_operator_capability('sales.read') then 1 else 0 end as logistics_dispatches_without_order_management;
 reset role;
 select 1/case when (select count(*) from private.operator_memberships where manager_role='owner')=1
   and (select manager_role from private.operator_memberships where profile_id='82000000-0000-4000-8000-000000000004')='owner'

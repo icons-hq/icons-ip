@@ -20,7 +20,8 @@ update public.profiles set role='staff',nickname='release_authority_'||right(id:
  where id::text like 'ed200000-0000-4000-8000-%';
 insert into private.operator_memberships(profile_id,manager_role) values
  ('ed200000-0000-4000-8000-000000000001','primary'),
- ('ed200000-0000-4000-8000-000000000002','logistics');
+ -- 출고 업무가 없는 매니저. 물류출고관리는 1014-084부터 출고 전용 능력이 있어 계정 부매니저로 확인한다.
+ ('ed200000-0000-4000-8000-000000000002','deputy');
 
 select 1/case when not private.has_operator_capability('ed200000-0000-4000-8000-000000000003','sales.manage')
  then 1 else 0 end as raw_staff_is_not_an_operator;
@@ -47,7 +48,7 @@ select 1/case when public.admin_origin_tracking_candidates(
 select pg_temp.expect_release_error($sql$select public.admin_start_order_cancellation(
  'ed200000-0000-4001-8000-000000000001','out_of_stock',null,false)$sql$,'P0002');
 reset role;
-update private.operator_memberships set manager_role='logistics'
+update private.operator_memberships set manager_role='deputy'
  where profile_id='ed200000-0000-4000-8000-000000000001';
 set local role authenticated;
 select pg_temp.expect_release_error($sql$select public.admin_origin_pending_export_ids(

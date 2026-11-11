@@ -28,7 +28,8 @@ insert into operator_role_expectations values
  (3,'deputy',array['home','catalog.read','catalog.manage','catalog.announcements','cs.manage','store.manage','seller.read','promotion.manage']),
  (4,'influencer',array['home','catalog.read','catalog.manage','catalog.announcements','cs.manage','store.manage','seller.read','promotion.manage','sales.read','sales.restrictions','stats.read']),
  (5,'agency',array['home','catalog.read','catalog.manage','catalog.announcements','cs.manage','store.manage','seller.read','promotion.manage','stats.read']),
- (6,'logistics',array['home','catalog.announcements']);
+ -- 1014-084: 물류출고관리는 출고 전용 sales.dispatch만 더 받는다. 다른 다섯 역할의 목록은 그대로다.
+ (6,'logistics',array['home','catalog.announcements','sales.dispatch']);
 create temp table operator_rpc_cases as
 select p.oid,p.oid::regprocedure::text as signature,c.capability,c.guard_kind,
  -- Actor-bound RPCs must receive the current actor before this probe can
@@ -44,7 +45,7 @@ where c.guard_kind in ('read','write') and has_function_privilege('authenticated
 grant select on operator_role_expectations,operator_rpc_cases to authenticated;
 
 set local role authenticated;
-do $$ declare r record; f record; access jsonb; actual text[]; failure text; code text; denied_count integer:=0; allowed_count integer:=0;
+do $$ declare r record; f record; access jsonb; actual text[]; effective text[]; failure text; code text; denied_count integer:=0; allowed_count integer:=0;
 begin
  for r in select * from operator_role_expectations order by n loop
   perform set_config('request.jwt.claim.sub','bfc01300-0000-4000-8000-'||lpad(r.n::text,12,'0'),true);
@@ -52,11 +53,13 @@ begin
   select array_agg(value) into actual from jsonb_array_elements_text(access->'capabilities');
   if access->>'mode'<>'configured' or access->>'managerRole'<>r.manager_role or not(actual<@r.caps and actual@>r.caps) then
    raise exception 'role matrix mismatch %: %',r.manager_role,access; end if;
+  -- sales.manage는 출고 전용 sales.dispatch를 포함한다. 목록에는 적지 않고 판정에서만 더한다.
+  effective:=r.caps||case when 'sales.manage'=any(r.caps) then array['sales.dispatch'] else array[]::text[] end;
   for f in select * from operator_rpc_cases order by signature loop
    code:=null;failure:=null;
    begin execute f.invocation;
    exception when others then get stacked diagnostics code=returned_sqlstate,failure=message_text; end;
-   if f.capability<>all(r.caps) then
+   if f.capability<>all(effective) then
     if code is distinct from '42501' then raise exception 'capability bypass role=% RPC=% SQLSTATE=% error=%',r.manager_role,f.signature,code,failure; end if;
     denied_count:=denied_count+1;
    else
@@ -73,13 +76,14 @@ begin
  -- Compatibility preserves staff work but not prior admin-only mutations.
  perform set_config('request.jwt.claim.sub','bfc01300-0000-4000-8000-000000000008',true);
  if public.admin_current_operator_access()->>'mode'<>'legacy' or not public.has_operator_capability('platform.manage')
-  or public.has_operator_capability('platform.manage',true) or public.has_operator_capability('operators.manage') then raise exception 'legacy staff mismatch'; end if;
+  or public.has_operator_capability('platform.manage',true) or public.has_operator_capability('operators.manage')
+  or not public.has_operator_capability('sales.dispatch') or public.admin_current_operator_access()->'capabilities' ? 'sales.dispatch' then raise exception 'legacy staff mismatch'; end if;
  perform set_config('request.jwt.claim.sub','bfc01300-0000-4000-8000-000000000007',true);
  if not public.has_operator_capability('marketing.manage',true) or not public.has_operator_capability('operators.manage')
   or public.has_operator_capability('operators.transfer') then raise exception 'legacy admin mismatch'; end if;
  -- A raw admin explicitly assigned deputy does not retain financial/platform power.
  perform set_config('request.jwt.claim.sub','bfc01300-0000-4000-8000-000000000003',true);
- if public.has_operator_capability('platform.manage') or public.has_operator_capability('sales.manage') then raise exception 'raw admin assignment escape'; end if;
+ if public.has_operator_capability('platform.manage') or public.has_operator_capability('sales.manage') or public.has_operator_capability('sales.dispatch') then raise exception 'raw admin assignment escape'; end if;
  if public.admin_operator_store_settings()->'store' ? 'bank_transfer' then raise exception 'bank projection leaked'; end if;
  perform public.admin_goods_origin_options();perform public.admin_goods_ip_options();perform public.admin_curation_target_options();
  perform set_config('request.jwt.claim.sub','bfc01300-0000-4000-8000-000000000006',true);
