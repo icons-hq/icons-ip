@@ -10,15 +10,19 @@ begin;
 --   · 승급 지급은 '승급 시 1회' 정의만, 매월 지급은 '매월' 정의만 준다
 --   · 매월 1일(KST) 그 시점 등급이 쿠폰 등급 이상인 이용 가능 회원에게 한 장씩 — 정지·탈퇴 진행·운영자·
 --     미온보딩·WELCOME·받는 회원 조건 불일치는 빠지고, 보관·사용 종료·WELCOME 등급·승급 지급 정의도 빠진다
+--   · '그 시점 등급'은 캐시가 아니라 지급 직전 재산정 결과다 — 90일 실적이 빠진 캐시 GOLD 회원은 강등 이력을
+--     남기고 받지 않으며(stale), 실적·수동 보정이 더 높은 회원은 승급 쿠폰·알림을 받은 뒤 새 등급으로 받는다
 --   · 발급 한도는 회원 id 순으로 남은 만큼만, 묶음은 커서로 이어 가고, 같은 달은 다시 돌지 않는다(멱등)
 --   · 다음 달에는 같은 쿠폰을 또 준다 — (코드, 회원) 유일 제약이 매월 지급분만 (코드, 회원, 월)로 풀렸다
 --   · 그 달 실행이 고정한 뒤 지정한 정의는 다음 달부터, 놓친 달은 몰아서 주지 않고 끝나지 못한 지난달
 --     실행은 'month_ended'로 닫는다. 같은 달 늦은 첫 실행은 그 달 몫을 준다
---   · 회원·월마다 인앱 알림 한 건, 실행 마감 감사 한 건, 코드 입력·운영자 발급의 보유 판정은 여러 장 중
---     사용 가능한 최신 한 장을 고른다
+--   · 회원·월마다 인앱 알림 한 건, 지급이 있었거나 달이 바뀌어 끝난 실행만 감사 한 건(지급 0장 마감은
+--     감사 없음 — 매월 첫 틱이 audit_log 전역 개수를 흔들지 않는다), 코드 입력·운영자 발급의 보유 판정은
+--     여러 장 중 사용 가능한 최신 한 장을 고른다
 --   · 마이페이지 등급 혜택 안내와 고객등급 관리 읽기가 지급 방식·매월 지급 기록을 싣는다
 -- 실행 월은 2031년으로 고정해 실제 매분 틱(현재 달)과 실행 행이 겹치지 않는다. 이 트랜잭션의 쿠폰·회원은
 -- 커밋되지 않으므로 틱이 보지 못한다. 단언은 이 파일의 회원·쿠폰(T09M-*)으로만 좁힌다.
+-- 재산정은 실제 now() 기준 90일 창을 본다 — 회원 등급은 수동 보정 이벤트(바닥)로 세우고 캐시도 같게 둔다.
 -- 스칼라 하위 질의는 같은 문장의 함수 호출보다 먼저 평가되므로 실행과 결과 확인은 문장을 나눈다.
 -- ============================================================================
 
@@ -79,16 +83,18 @@ end $$;
 
 insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
 select pg_temp.t09_member(n),'authenticated','authenticated','t09-monthly-'||n||'@example.test',now(),'{}','{}',now(),now()
-from generate_series(0,11) n;
+from generate_series(0,13) n;
 
 -- 00 운영자 · 01 SILVER · 02 GOLD · 03 PLATINUM · 04 WELCOME · 05 GOLD 정지 · 06 GOLD 운영자 계정 ·
--- 07 GOLD 미온보딩 · 08 GOLD 탈퇴 진행 · 09 GOLD 만 14세 미만(2031년 기준) · 10 GOLD · 11 SILVER(결제 이력 있음)
+-- 07 GOLD 미온보딩 · 08 GOLD 탈퇴 진행 · 09 GOLD 만 14세 미만(2031년 기준) · 10 GOLD · 11 SILVER(결제 이력 있음) ·
+-- 12 캐시만 GOLD(보정·실적 없음 — 90일이 지난 옛 등급) · 13 캐시는 SILVER지만 GOLD 보정(재산정이 승급시킨다)
 update public.profiles set nickname='TEST 매월 등급 '||right(id::text,2),birth_date='2000-01-01',onboarded_at=now(),
   consents='{"terms":true,"privacy":true}',role='user'::public.user_role,loyalty_grade='gold'
-where id in (select pg_temp.t09_member(n) from generate_series(0,11) n);
+where id in (select pg_temp.t09_member(n) from generate_series(0,13) n);
 update public.profiles set role='admin'::public.user_role, loyalty_grade='welcome' where id=pg_temp.t09_member(0);
 update public.profiles set loyalty_grade='silver' where id in (pg_temp.t09_member(1), pg_temp.t09_member(11));
 update public.profiles set loyalty_grade='platinum' where id=pg_temp.t09_member(3);
+update public.profiles set loyalty_grade='silver' where id=pg_temp.t09_member(13);
 update public.profiles set loyalty_grade='welcome' where id=pg_temp.t09_member(4);
 update public.profiles set suspended_at=now(), suspension_reason='TEST 정지' where id=pg_temp.t09_member(5);
 update public.profiles set role='staff'::public.user_role where id=pg_temp.t09_member(6);
@@ -109,6 +115,13 @@ insert into public.payments(user_id,purpose,ref_id,provider,amount,status,paymen
 
 insert into private.operator_memberships(profile_id,manager_role) values(pg_temp.t09_member(0),'primary');
 update private.operator_access_state set configured=true where id;
+
+-- 등급의 근거: 최근 90일 안의 수동 보정(재산정의 바닥). 12번은 근거가 없어 재산정하면 WELCOME 이다.
+create function pg_temp.t09_floor(n integer, grade public.loyalty_grade, days_ago integer) returns void language sql as $$
+  insert into public.loyalty_grade_events(user_id,previous_grade,next_grade,reason,actor_id,note,created_at)
+  values(pg_temp.t09_member(n),'welcome',grade,'manual_adjustment',pg_temp.t09_member(0),'TEST 매월 등급 근거',now()-make_interval(days=>days_ago)) $$;
+select pg_temp.t09_floor(n, grade, 10) from (values (1,'silver'::public.loyalty_grade),(2,'gold'),(3,'platinum'),(5,'gold'),(6,'gold'),
+  (7,'gold'),(8,'gold'),(9,'gold'),(10,'gold'),(11,'silver'),(13,'gold')) floors(n, grade);
 
 -- 매월 정의. 발급 시작이 과거라 지금(마이페이지 안내)도 2031년(실행)도 지급할 수 있다.
 insert into public.coupons(code,name,discount_type,discount_value,starts_at,ends_at,issue_starts_at,issue_ends_at,valid_days,
@@ -209,7 +222,8 @@ select 1/case when (select array_agg(coupon_code order by coupon_code) from publ
 then 1 else 0 end as assert_upgrade_grant_skips_monthly;
 
 -- ---------------------------------------------------------------------------
--- 2031-03: 묶음 2명씩. 대상 = 01·02·03·10·11 (그 밖은 등급·계정·연령 조건으로 빠진다)
+-- 2031-03: 묶음 2명씩. 묶음 = 01·02 / 03·10 / 11·12 / 13 (그 밖은 등급·계정·연령 조건으로 빠진다).
+-- 12는 재산정에서 WELCOME 으로 내려가 받지 않고, 13은 GOLD 로 올라 승급 쿠폰을 받은 뒤 GOLD 로 받는다.
 -- ---------------------------------------------------------------------------
 select private.run_monthly_grade_coupons('2031-03-01 00:00:30+09',2) as march_one \gset
 select 1/case when :'march_one'::jsonb->>'status'='continuing' and :'march_one'::jsonb->>'grantMonth'='2031-03'
@@ -237,18 +251,18 @@ end $$;
 create temporary table t09_march as
 select coupon_code, user_id, issued_source, issued_at, expires_at, usable_from, status, grade_benefit_month
 from public.user_coupons where grade_benefit_month='2031-03-01' and coupon_code like 'T09M-%'
-  and user_id in (select pg_temp.t09_member(n) from generate_series(0,11) n);
+  and user_id in (select pg_temp.t09_member(n) from generate_series(0,13) n);
 
 select 1/case when (
   select jsonb_object_agg(coupon_code, users) from (
     select coupon_code, jsonb_agg(right(user_id::text,2) order by user_id) as users from t09_march group by coupon_code) grouped
 ) = jsonb_build_object(
-  'T09M-SILVER', jsonb_build_array('01','02','03','10','11'),
-  -- 한도 2장: 회원 id 순으로 02·03 — 10은 남은 한도가 없다.
+  'T09M-SILVER', jsonb_build_array('01','02','03','10','11','13'),
+  -- 한도 2장: 회원 id 순으로 02·03 — 10·13은 남은 한도가 없다.
   'T09M-GOLD', jsonb_build_array('02','03'),
   'T09M-PLAT', jsonb_build_array('03'),
   -- 첫 구매 조건: 11은 결제 확정 주문이 있어 빠지고 나머지 대상은 받는다.
-  'T09M-FIRST', jsonb_build_array('01','02','03','10'))
+  'T09M-FIRST', jsonb_build_array('01','02','03','10','13'))
 then 1 else 0 end as assert_march_recipients_by_grade_account_and_limit;
 
 -- 지급 기록: 지급 경로·월·발급 시각·사용 기간(지급일 기준 30일 → KST 3/31 23:59:59.999)·발급 수.
@@ -257,7 +271,7 @@ select 1/case when not exists(select 1 from t09_march where issued_source<>'grad
   and (select bool_and(expires_at='2031-03-31 23:59:59.999+09' and usable_from=issued_at) from t09_march)
   and (select issued_count from public.coupons where code='T09M-GOLD')=2
   and (select issued_count from public.coupons where code='T09M-SILVER')=(select count(*) from public.user_coupons where coupon_code='T09M-SILVER')
-  and (select finished_at is not null and finish_reason='completed' and member_count>=5
+  and (select finished_at is not null and finish_reason='completed' and member_count>=7 and skipped_count=0
          and granted_count=(select count(*) from public.user_coupons where grade_benefit_month='2031-03-01')
          and notified_count=recipient_count
        from private.loyalty_monthly_coupon_runs where grant_month='2031-03-01')
@@ -268,47 +282,72 @@ then 1 else 0 end as assert_march_ledger_counts_and_audit;
 -- 회원·월마다 알림 한 건(지급 장수와 그 시점 등급).
 select 1/case when (
   select jsonb_object_agg(right(user_id::text,2), body order by user_id) from public.notifications
-  where type='loyalty_monthly_coupons_issued' and user_id in (select pg_temp.t09_member(n) from generate_series(0,11) n)
+  where type='loyalty_monthly_coupons_issued' and user_id in (select pg_temp.t09_member(n) from generate_series(0,13) n)
 ) = jsonb_build_object(
   '01','SILVER 등급 혜택 쿠폰 2장을 드렸어요. 쿠폰함에서 확인할 수 있어요.',
   '02','GOLD 등급 혜택 쿠폰 3장을 드렸어요. 쿠폰함에서 확인할 수 있어요.',
   '03','PLATINUM 등급 혜택 쿠폰 4장을 드렸어요. 쿠폰함에서 확인할 수 있어요.',
   '10','GOLD 등급 혜택 쿠폰 2장을 드렸어요. 쿠폰함에서 확인할 수 있어요.',
-  '11','SILVER 등급 혜택 쿠폰 1장을 드렸어요. 쿠폰함에서 확인할 수 있어요.')
+  '11','SILVER 등급 혜택 쿠폰 1장을 드렸어요. 쿠폰함에서 확인할 수 있어요.',
+  '13','GOLD 등급 혜택 쿠폰 2장을 드렸어요. 쿠폰함에서 확인할 수 있어요.')
   and (select bool_and(title='이번 달 등급 혜택 쿠폰이 도착했어요' and link_path='/my/coupons' and source_id='2031-03'
          and dedupe_key='loyalty:monthly-coupons:'||user_id||':2031-03')
-       from public.notifications where type='loyalty_monthly_coupons_issued' and user_id in (select pg_temp.t09_member(n) from generate_series(0,11) n))
+       from public.notifications where type='loyalty_monthly_coupons_issued' and user_id in (select pg_temp.t09_member(n) from generate_series(0,13) n))
 then 1 else 0 end as assert_one_notification_per_member_month;
+
+-- 그 시점 등급 확정: 캐시만 GOLD 인 12번은 강등 이력을 남기고 받지 않는다(stale). 13번은 재산정이 승급시켜
+-- 승급 쿠폰·승급 알림(기존 규칙)을 받은 뒤 GOLD 로 매월 쿠폰을 받는다.
+select 1/case when (select loyalty_grade from public.profiles where id=pg_temp.t09_member(12))='welcome'
+  and not exists(select 1 from public.user_coupons where user_id=pg_temp.t09_member(12))
+  and not exists(select 1 from public.notifications where user_id=pg_temp.t09_member(12))
+  and (select count(*) from public.loyalty_grade_events where user_id=pg_temp.t09_member(12) and reason='recalculation'
+       and previous_grade='gold' and next_grade='welcome' and (basis->>'spend')::bigint=0)=1
+  and (select loyalty_grade from public.profiles where id=pg_temp.t09_member(13))='gold'
+  and (select count(*) from public.loyalty_grade_events where user_id=pg_temp.t09_member(13) and reason='recalculation'
+       and previous_grade='silver' and next_grade='gold')=1
+  and (select count(*) from public.user_coupons where user_id=pg_temp.t09_member(13) and coupon_code='T09M-UPGRADE'
+       and grade_benefit_month is null and issued_source='grade_benefit')=1
+  and (select count(*) from public.notifications where user_id=pg_temp.t09_member(13) and type='loyalty_grade_upgraded')=1
+  -- 보정과 캐시가 같은 회원은 재산정이 아무것도 바꾸지 않는다.
+  and not exists(select 1 from public.loyalty_grade_events where reason='recalculation'
+       and user_id in (select pg_temp.t09_member(n) from generate_series(1,11) n))
+then 1 else 0 end as assert_grade_confirmed_by_recalculation;
 
 -- 같은 달은 다시 돌지 않는다.
 select 1/case when private.run_monthly_grade_coupons('2031-03-20 12:00:00+09',200)->>'status'='already_ran'
 then 1 else 0 end as assert_month_runs_once;
 select 1/case when (select count(*) from public.user_coupons where grade_benefit_month='2031-03-01' and coupon_code like 'T09M-%'
-  and user_id in (select pg_temp.t09_member(n) from generate_series(0,11) n))=(select count(*) from t09_march)
+  and user_id in (select pg_temp.t09_member(n) from generate_series(0,13) n))=(select count(*) from t09_march)
 then 1 else 0 end as assert_rerun_adds_nothing;
 
 -- ---------------------------------------------------------------------------
 -- 2031-04: 등급 변동을 반영해 같은 쿠폰을 또 준다. 3월에 늦게 지정한 정의도 이제 준다.
 -- ---------------------------------------------------------------------------
+select pg_temp.t09_floor(1,'gold',5);
 update public.profiles set loyalty_grade='gold' where id=pg_temp.t09_member(1);
-update public.profiles set loyalty_grade='welcome' where id=pg_temp.t09_member(10);
+-- 10번은 새 보정이 WELCOME 인데 캐시는 GOLD 로 남아 있다 — 4월 실행의 재산정이 내린다.
+select pg_temp.t09_floor(10,'welcome',5);
 update public.coupons set issue_limit=10 where code='T09M-GOLD';
 select private.run_monthly_grade_coupons('2031-04-01 00:00:10+09',200) as april \gset
 select 1/case when :'april'::jsonb->>'status'='finished'
   and (select jsonb_object_agg(coupon_code, users) from (
         select coupon_code, jsonb_agg(right(user_id::text,2) order by user_id) as users from public.user_coupons
         where grade_benefit_month='2031-04-01' and coupon_code like 'T09M-%'
-          and user_id in (select pg_temp.t09_member(n) from generate_series(0,11) n) group by coupon_code) grouped)
+          and user_id in (select pg_temp.t09_member(n) from generate_series(0,13) n) group by coupon_code) grouped)
       = jsonb_build_object(
-        'T09M-SILVER', jsonb_build_array('01','02','03','11'),
-        'T09M-GOLD', jsonb_build_array('01','02','03'),
+        'T09M-SILVER', jsonb_build_array('01','02','03','11','13'),
+        'T09M-GOLD', jsonb_build_array('01','02','03','13'),
         'T09M-PLAT', jsonb_build_array('03'),
-        'T09M-FIRST', jsonb_build_array('01','02','03'),
-        'T09M-LATE', jsonb_build_array('01','02','03','11'))
+        'T09M-FIRST', jsonb_build_array('01','02','03','13'),
+        'T09M-LATE', jsonb_build_array('01','02','03','11','13'))
   -- 02번은 3월·4월의 실버 쿠폰을 따로 가진다.
   and (select count(*) from public.user_coupons where coupon_code='T09M-SILVER' and user_id=pg_temp.t09_member(2))=2
   and (select count(*) from public.notifications where type='loyalty_monthly_coupons_issued' and source_id='2031-04'
-       and user_id in (select pg_temp.t09_member(n) from generate_series(0,11) n))=4
+       and user_id in (select pg_temp.t09_member(n) from generate_series(0,13) n))=5
+  -- 10번은 4월 실행의 재산정으로 내려가 받지 않는다.
+  and (select loyalty_grade from public.profiles where id=pg_temp.t09_member(10))='welcome'
+  and (select count(*) from public.loyalty_grade_events where user_id=pg_temp.t09_member(10) and reason='recalculation'
+       and previous_grade='gold' and next_grade='welcome')=1
 then 1 else 0 end as assert_april_grants_again_with_current_grades;
 
 -- (코드, 회원, 월) 하나에 한 장은 스키마가 막는다.
@@ -334,7 +373,7 @@ select 1/case when :'june'::jsonb->>'status'='finished'
   and not exists(select 1 from public.user_coupons where grade_benefit_month='2031-05-01')
   and not exists(select 1 from private.loyalty_monthly_coupon_runs where grant_month='2031-05-01')
   and (select count(*) from public.user_coupons where grade_benefit_month='2031-06-01' and coupon_code='T09M-SILVER'
-       and user_id in (select pg_temp.t09_member(n) from generate_series(0,11) n) and issued_at='2031-06-15 13:00:00+09')=4
+       and user_id in (select pg_temp.t09_member(n) from generate_series(0,13) n) and issued_at='2031-06-15 13:00:00+09')=5
 then 1 else 0 end as assert_missed_month_not_backfilled_late_start_grants;
 
 -- 끝나지 못한 7월 실행은 8월에 이어 주지 않고 닫는다.
@@ -346,7 +385,7 @@ select 1/case when :'august'::jsonb->>'status'='finished'
   and (select array_agg(distinct right(user_id::text,2) order by right(user_id::text,2)) from public.user_coupons
        where grade_benefit_month='2031-07-01' and coupon_code like 'T09M-%')=array['01']
   and (select count(distinct user_id) from public.user_coupons where grade_benefit_month='2031-08-01' and coupon_code like 'T09M-%'
-       and user_id in (select pg_temp.t09_member(n) from generate_series(0,11) n))=4
+       and user_id in (select pg_temp.t09_member(n) from generate_series(0,13) n))=5
   and (select count(*) from public.audit_log where action='commerce.coupon.grade_monthly_run_finished' and target='loyalty_monthly_coupons:2031-07'
        and diff->>'reason'='month_ended')=1
 then 1 else 0 end as assert_unfinished_previous_month_closed_not_continued;
@@ -357,6 +396,8 @@ select private.run_monthly_grade_coupons('2031-09-01 00:00:10+09',200) as septem
 select 1/case when :'september'::jsonb->>'reason'='no_monthly_coupons'
   and (select finish_reason='no_monthly_coupons' and coupon_codes='{}' from private.loyalty_monthly_coupon_runs where grant_month='2031-09-01')
   and not exists(select 1 from public.user_coupons where grade_benefit_month='2031-09-01')
+  -- 지급 0장 마감은 실행 원장에만 남고 감사 행을 쓰지 않는다(매월 첫 틱이 audit_log 전역 개수를 흔들지 않게).
+  and not exists(select 1 from public.audit_log where action='commerce.coupon.grade_monthly_run_finished' and target='loyalty_monthly_coupons:2031-09')
 then 1 else 0 end as assert_month_without_monthly_coupons;
 select pg_temp.expect_error($$select private.run_monthly_grade_coupons(null,200)$$,'invalid_monthly_grade_coupon_run');
 select pg_temp.expect_error($$select private.run_monthly_grade_coupons('2031-10-01 00:00+09',0)$$,'invalid_monthly_grade_coupon_run');

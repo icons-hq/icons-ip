@@ -15,6 +15,11 @@
 -- - 대상 회원은 운영자 지정 발급(private.coupon_issue_rows)과 같은 '이용 가능한 고객'이다: 일반 회원,
 --   정지·탈퇴 진행(쓰기 차단) 아님, 온보딩 완료, 만 14세 이상. 받는 회원 조건(첫 구매·재구매)·발급 기간·
 --   사용 종료·발급 한도는 승급 지급과 같은 거름을 지난다.
+-- - '그 시점 등급'은 캐시(profiles.loyalty_grade)가 아니라 지급 직전 재산정 결과다. 캐시는 주문 결제·취소
+--   때만 갱신돼, 90일 실적이 빠진 회원도 주문이 없으면 상위 등급으로 남는다. 묶음에서 등급이 WELCOME 보다
+--   높게 캐시된 회원을 잠근 뒤 기존 private.recalculate_loyalty_grade 를 그대로 불러(강등 이력·승급 쿠폰·
+--   승급 알림은 기존 규칙대로) 그 결과로 판정한다. WELCOME 으로 캐시된 회원은 재산정하지 않는다(지금처럼
+--   다음 결제·취소나 수동 재산정 때 오른다 — 정책 저장만으로 일괄 재산정하지 않는 계약 유지).
 --
 -- ## 멱등과 '놓친 달'
 --
@@ -37,10 +42,16 @@
 --
 -- ## 잠금 순서
 --
--- 실행 행 → 이번 묶음 회원(profiles FOR KEY SHARE, id 순) → 지급할 쿠폰 정의(FOR UPDATE, code 순) → 쓰기.
--- 주문 생성(회원 → 쿠폰 FOR SHARE)·등급 재산정(회원 FOR UPDATE → 승급 쿠폰)·코드 입력(쿠폰 FOR UPDATE →
--- 보유 행)과 같은 '회원 → 쿠폰' 방향이라 서로 기다릴 수는 있어도 교착하지 않는다. 틱은 lock_timeout 5초로
--- 오래 기다리지 않고 다음 분에 다시 시도한다.
+-- 실행 행 → 이번 묶음 회원(profiles FOR UPDATE, id 순 — 재산정이 같은 잠금을 쓴다) → 재산정의 승급 쿠폰
+-- (승급일 때만) → 지급할 쿠폰 정의(FOR UPDATE, code 순) → 쓰기. 주문 생성(회원 → 쿠폰 FOR SHARE)·주문 전이
+-- 재산정(회원 FOR UPDATE → 승급 쿠폰)과 같은 '회원 → 쿠폰' 방향이다. 코드 입력은 회원 FOR SHARE 를 먼저
+-- 잡으므로 묶음 회원이면 그 자리에서 기다리고, 쿠폰을 쥔 채 이 실행의 회원 잠금을 기다리지 않는다. 틱은
+-- lock_timeout 5초로 오래 기다리지 않고 다음 분에 다시 시도한다.
+--
+-- ## 감사
+--
+-- 지급한 장수가 있는 실행 마감과, 달이 바뀌어 끝난 실행(month_ended)만 audit_log 에 남긴다. 지급 0장 마감
+-- (매월 정의 없음 등)은 실행 원장에만 남긴다 — 매월 첫 틱이 audit_log 전역 개수를 흔들지 않게 한다.
 --
 -- ## 알림
 --
@@ -152,6 +163,8 @@ create table private.loyalty_monthly_coupon_runs (
   recipient_count integer not null default 0 check (recipient_count >= 0),
   granted_count integer not null default 0 check (granted_count >= 0),
   notified_count integer not null default 0 check (notified_count >= 0),
+  -- 등급 재산정이 실패해 이번 달 지급에서 뺀 회원 수(잠금 대기·교착은 빼지 않고 틱을 다시 돈다).
+  skipped_count integer not null default 0 check (skipped_count >= 0),
   batch_count integer not null default 0 check (batch_count >= 0),
   finished_at timestamptz,
   finish_reason text check (finish_reason in ('completed', 'no_monthly_coupons', 'coupons_closed', 'month_ended')),
@@ -232,6 +245,12 @@ begin
     return;
   end if;
 
+  -- 지급 0장 마감(매월 정의 없음·대상 없음·쿠폰 중지)은 실행 원장에만 남긴다. 달이 바뀌어 끝난 실행은
+  -- 지급 장수와 관계없이 남긴다(이어 주지 않은 회원이 있다는 기록이다).
+  if v_run.granted_count = 0 and p_reason <> 'month_ended' then
+    return;
+  end if;
+
   insert into public.audit_log (actor_id, action, target, diff)
   values (
     null,
@@ -247,6 +266,7 @@ begin
       'recipients', v_run.recipient_count,
       'granted', v_run.granted_count,
       'notified', v_run.notified_count,
+      'skipped', v_run.skipped_count,
       'batches', v_run.batch_count
     )
   );
@@ -270,7 +290,10 @@ declare
   v_run private.loyalty_monthly_coupon_runs;
   v_stale date;
   v_member_ids uuid[];
-  v_member_grades public.loyalty_grade[];
+  v_member_grades public.loyalty_grade[] := '{}';
+  v_member uuid;
+  v_grade public.loyalty_grade;
+  v_skipped integer := 0;
   v_scanned integer;
   v_last_member uuid;
   v_live_codes text[];
@@ -328,19 +351,18 @@ begin
     return jsonb_build_object('status', 'finished', 'grantMonth', v_label, 'reason', 'no_monthly_coupons', 'granted', 0);
   end if;
 
-  -- 이번 묶음 회원을 먼저 잠근다(회원 → 쿠폰 순서). 등급은 이 잠금 아래에서 읽은 값이 '그 시점 등급'이다.
-  select coalesce(array_agg(member.id order by member.id), '{}'::uuid[]),
-         coalesce(array_agg(member.loyalty_grade order by member.id), '{}'::public.loyalty_grade[]),
-         count(*)::integer
-  into v_member_ids, v_member_grades, v_scanned
+  -- 이번 묶음 회원(등급이 WELCOME 보다 높게 캐시된 이용 가능 고객)을 id 순으로 먼저 잠근다(회원 → 쿠폰 순서).
+  -- FOR UPDATE: 아래 재산정이 같은 잠금을 쓰고, 코드 입력·주문 경로는 이 회원 잠금에서 먼저 기다린다.
+  select coalesce(array_agg(member.id order by member.id), '{}'::uuid[]), count(*)::integer
+  into v_member_ids, v_scanned
   from (
-    select profile.id, profile.loyalty_grade
+    select profile.id
     from public.profiles as profile
     where profile.id > coalesce(v_run.cursor_user_id, '00000000-0000-0000-0000-000000000000'::uuid)
       and private.monthly_grade_coupon_recipient(profile, p_now)
     order by profile.id
     limit p_batch
-    for key share of profile
+    for update of profile
   ) as member;
 
   if v_scanned = 0 then
@@ -349,6 +371,35 @@ begin
   end if;
 
   v_last_member := v_member_ids[v_scanned];
+
+  -- 고정한 정의가 모두 닫혔으면 재산정 없이 끝낸다(잠그기 전 확인 — 아래에서 잠근 뒤 다시 본다).
+  if not exists (
+    select 1 from public.coupons as coupon
+    where coupon.code = any (v_run.coupon_codes)
+      and coupon.grade_benefit_cadence = 'monthly'
+      and private.grade_benefit_coupon_grantable(coupon, p_now)
+  ) then
+    perform private.finish_monthly_grade_coupon_run(v_month, p_now, 'coupons_closed');
+    return jsonb_build_object('status', 'finished', 'grantMonth', v_label, 'reason', 'coupons_closed', 'granted', 0);
+  end if;
+
+  -- '그 시점 등급'을 확정한다. 캐시(profiles.loyalty_grade)는 결제·취소 때만 갱신돼 90일 실적이 빠져도
+  -- 남으므로, 기존 재산정을 그대로 불러(강등 이력·승급 쿠폰·승급 알림 포함) 그 결과로 판정한다.
+  -- 잠금 대기·교착·취소는 틱을 실패시켜 다음 분에 다시 돌고, 그 밖의 재산정 실패는 그 회원만 이번 달
+  -- 지급에서 뺀다(한 회원 때문에 그 달 실행이 멈추지 않게).
+  foreach v_member in array v_member_ids loop
+    begin
+      v_grade := private.recalculate_loyalty_grade(v_member);
+    exception
+      when lock_not_available or deadlock_detected or query_canceled then
+        raise;
+      when others then
+        raise warning 'monthly grade coupon recalculation skipped for %: % %', v_member, sqlstate, sqlerrm;
+        v_grade := null;
+        v_skipped := v_skipped + 1;
+    end;
+    v_member_grades := v_member_grades || coalesce(v_grade, 'welcome'::public.loyalty_grade);
+  end loop;
 
   -- 고정한 정의 중 지금도 지급할 수 있는 것만 잠근다 — 발급 수·한도를 이 트랜잭션이 확정한다.
   select coalesce(array_agg(locked.code order by locked.code), '{}'::text[])
@@ -439,6 +490,7 @@ begin
       recipient_count = run.recipient_count + v_recipients,
       granted_count = run.granted_count + cardinality(v_granted_codes),
       notified_count = run.notified_count + v_notified,
+      skipped_count = run.skipped_count + v_skipped,
       batch_count = run.batch_count + 1
   where run.grant_month = v_month;
 
@@ -461,7 +513,8 @@ begin
     'members', v_scanned,
     'granted', cardinality(v_granted_codes),
     'recipients', v_recipients,
-    'notified', v_notified
+    'notified', v_notified,
+    'skipped', v_skipped
   );
 end;
 $$;
@@ -505,6 +558,7 @@ as $$
       'members', run.member_count,
       'recipients', run.recipient_count,
       'granted', run.granted_count,
+      'skipped', run.skipped_count,
       'coupons', coalesce((
         select jsonb_agg(jsonb_build_object('code', issued.coupon_code, 'name', coalesce(coupon.name, issued.coupon_code), 'granted', issued.granted)
           order by issued.coupon_code)
