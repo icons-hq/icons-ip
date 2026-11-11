@@ -156,7 +156,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
       { id: 'coupon-register', label: '혜택 등록', href: '/admin/sales/coupons/new', status: 'ready', keywords: ['쿠폰', '쿠폰 발급'] },
       { id: 'coupons', label: '혜택 조회/수정', href: '/admin/sales/coupons', status: 'ready', keywords: ['쿠폰', '쿠폰 발급'] },
       /* 1014-109: 기획전·IP·선택 상품에 거는 기간 할인 묶음. 상품 관리 권한(catalog.manage)으로 연다. */
-      { id: 'discount-promotions', label: '할인 프로모션', href: '/admin/sales/discount-promotions', status: 'ready', keywords: ['기획전 할인', '즉시할인', '기간 할인', '세일'] },
+      { id: 'discount-promotions', label: '할인 프로모션', href: '/admin/sales/discount-promotions', status: 'ready', keywords: ['기획전 할인', '즉시할인', '세일'] },
       { id: 'store-credit-console', label: '적립금 지급관리', href: '/admin/sales/store-credits', status: 'ready', adminOnly: true },
       { id: 'marketing-messages', label: '고객 안내 메시지', href: '/admin/marketing/messages', status: 'ready' },
       { id: 'notifications', label: '공지 발송', href: '/admin/messaging/notifications', status: 'ready' },

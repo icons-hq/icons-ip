@@ -14,7 +14,7 @@ export const ADMIN_QA_ROUTES = [
   ['sales/coupons', '혜택 조회/수정'], ['cs/inquiries', '고객문의 관리'], ['cs/faq', 'FAQ 관리'],
   ['sales/gifts', '선물 수락 대기'], ['sales/subscriptions', '정기구매 관리'],
   ['sales/purchase-restrictions', '판매방해 고객관리'], ['sales/claims/refund-transfers', '환불 송금 대기'],
-  ['sales/coupons/new', '혜택 등록'], ['sales/benefit-report', '혜택 리포트'],
+  ['sales/coupons/new', '혜택 등록'], ['sales/benefit-report', '혜택 리포트'], ['sales/discount-promotions', '할인 프로모션'],
   ['sales/store-credits', '적립금 지급관리'], ['settlements', '정산 내역 (일별/건별)'],
   ['cs/qna', '문의 관리'], ['cs/reviews', '리뷰 관리'],
   ['cs/chat', '상담하기'],

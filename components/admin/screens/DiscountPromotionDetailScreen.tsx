@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useRef, useState, useTransition } from 'react';
 import { stopDiscountPromotionAction } from '@/app/admin/discount-promotion-actions';
 import { GroupTable, useGoodsGroupSession } from '@/components/admin/GoodsGroupOperation';
-import { AdminNotice, AdminPageHeader, AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { AdminPageHeader, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/admin/kit/ui/table';
 import { CustomerServiceDialog } from './CustomerServiceDialog';
