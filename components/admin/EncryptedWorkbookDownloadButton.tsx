@@ -98,7 +98,7 @@ export function EncryptedWorkbookDownloadButton({ href, label, disabled = false,
       <form autoComplete="off" className="flex flex-col gap-4" data-admin-encrypted-export="" onSubmit={download}>
         <p>{snapshot ? '보존된 거래확정 기록을 새 비밀번호로 내려받습니다.' : '현재 검색 조건의 최신 목록을 암호화해 내려받습니다.'}</p>
         <p className="text-muted-foreground" id={hintId}>{EXPORT_PASSWORD_HINT}</p>
-        <label className="flex flex-col gap-1.5 font-medium">비밀번호<Input aria-describedby={hintId} autoComplete="new-password" autoFocus disabled={pending}
+        <label className="flex flex-col gap-1.5 font-medium">비밀번호<Input aria-describedby={hintId} autoComplete="new-password" autoFocus data-dialog-autofocus="" disabled={pending}
           maxLength={EXPORT_PASSWORD_MAX_LENGTH} minLength={EXPORT_PASSWORD_MIN_LENGTH} name="password" required spellCheck={false} type="password" /></label>
         <label className="flex flex-col gap-1.5 font-medium">비밀번호 확인<Input aria-describedby={hintId} autoComplete="new-password" disabled={pending}
           maxLength={EXPORT_PASSWORD_MAX_LENGTH} minLength={EXPORT_PASSWORD_MIN_LENGTH} name="passwordConfirmation" required spellCheck={false} type="password" /></label>

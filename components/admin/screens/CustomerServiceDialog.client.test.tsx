@@ -31,7 +31,7 @@ beforeEach(() => {
 });
 
 type DialogElement = ReactElement<{ onCancel: (event: unknown) => void; onClose: (event: unknown) => void; children?: ReactNode }>;
-type NativeDialog = { open: boolean; isConnected: boolean; contains: ReturnType<typeof vi.fn>; focus: ReturnType<typeof vi.fn>; showModal: ReturnType<typeof vi.fn> };
+type NativeDialog = { open: boolean; isConnected: boolean; contains: ReturnType<typeof vi.fn>; focus: ReturnType<typeof vi.fn>; showModal: ReturnType<typeof vi.fn>; querySelector: ReturnType<typeof vi.fn> };
 
 function cancel(dialog: DialogElement, target: object, currentTarget: object, cancelable?: boolean) {
   const event = { target, currentTarget, cancelable, preventDefault: vi.fn() };
@@ -40,7 +40,7 @@ function cancel(dialog: DialogElement, target: object, currentTarget: object, ca
 }
 
 function nativeDialog(state: Partial<NativeDialog> = {}): NativeDialog {
-  return { open: false, isConnected: true, contains: vi.fn(() => true), focus: vi.fn(), showModal: vi.fn(), ...state };
+  return { open: false, isConnected: true, contains: vi.fn(() => true), focus: vi.fn(), showModal: vi.fn(), querySelector: vi.fn(() => null), ...state };
 }
 
 function close(dialog: DialogElement, target: object, currentTarget: NativeDialog) {
@@ -177,5 +177,42 @@ describe('CustomerServiceDialog 닫힌 상태', () => {
     expect(classes).toContain('hidden');
     expect(classes).toContain('open:flex');
     expect(classes).not.toContain('flex');
+  });
+});
+
+/* 엑셀 비밀번호 창: React autoFocus는 속성을 남기지 않아 showModal()이 닫기 버튼으로 포커스를 옮겼다(최종 확인 지적). */
+describe('CustomerServiceDialog 첫 포커스', () => {
+  it('data-dialog-autofocus로 표시한 칸이 있으면 모달을 연 뒤 그 칸으로 포커스를 옮긴다', () => {
+    const field = { focus: vi.fn() };
+    const element = { ...nativeDialog({ querySelector: vi.fn(() => field) }), close: vi.fn() };
+    vi.stubGlobal('document', { activeElement: null, body: { style: { overflow: '' } } });
+    vi.stubGlobal('HTMLElement', class {});
+    try {
+      hooks.refIndex = 0;
+      CustomerServiceDialog({ title: '엑셀 비밀번호 설정', onClose: vi.fn(), children: null });
+      hooks.refs[0].current = element;
+      hooks.effects.splice(0)[0]();
+      expect(element.showModal).toHaveBeenCalledOnce();
+      expect(element.querySelector).toHaveBeenCalledWith('[data-dialog-autofocus]');
+      expect(field.focus).toHaveBeenCalledWith({ preventScroll: true });
+      expect(element.focus).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('표시한 칸이 없고 안쪽에 포커스가 없으면 팝업 자체로 옮긴다', () => {
+    const element = { ...nativeDialog({ contains: vi.fn(() => false) }), close: vi.fn() };
+    vi.stubGlobal('document', { activeElement: null, body: { style: { overflow: '' } } });
+    vi.stubGlobal('HTMLElement', class {});
+    try {
+      hooks.refIndex = 0;
+      CustomerServiceDialog({ title: '답변 템플릿', onClose: vi.fn(), children: null });
+      hooks.refs[0].current = element;
+      hooks.effects.splice(0)[0]();
+      expect(element.focus).toHaveBeenCalledWith({ preventScroll: true });
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

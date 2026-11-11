@@ -29,8 +29,12 @@ export function CustomerServiceDialog({ title, children, onClose, busy = false, 
     const overflow = document.body.style.overflow;
     closingRef.current = false;
     dialog.showModal();
+    /* React의 autoFocus는 DOM에 autofocus 속성을 남기지 않아, 모달을 여는 순간 브라우저가 첫 버튼(닫기)으로 포커스를 옮긴다.
+       화면이 `data-dialog-autofocus`로 표시한 칸이 있으면 그 칸에서 바로 입력하게 한다(엑셀 비밀번호 창 등). */
+    const preferred = dialog.querySelector<HTMLElement>('[data-dialog-autofocus]');
+    if (preferred) preferred.focus({ preventScroll: true });
     /* 열자마자 안쪽에 포커스 줄 곳이 없으면 body에 남는다 — 키보드 사용자가 팝업 안에서 시작하게 팝업 자체로 옮긴다. */
-    if (!dialog.contains(document.activeElement)) dialog.focus({ preventScroll: true });
+    else if (!dialog.contains(document.activeElement)) dialog.focus({ preventScroll: true });
     document.body.style.overflow = 'hidden';
     return () => {
       closingRef.current = true;
