@@ -17,6 +17,7 @@ import Link from 'next/link';
 import { AccountDeletionPanel } from '@/components/account/AccountDeletionPanel';
 import { MemberActivityConsent } from '@/components/account/MemberActivityConsent';
 import { CustomerDemographicConsent } from '@/components/account/CustomerDemographicConsent';
+import { PhoneVerificationPanel, type PhoneVerificationPanelView } from '@/components/screens/OnboardingPhoneVerification';
 import { Icon } from '@/components/ui/Icon';
 import { MypageShell } from '@/components/wc/MypageShell';
 import { WcButton } from '@/components/wc/WcButton';
@@ -25,10 +26,12 @@ import { ADDRESS_BOOK_PATH } from '@/lib/address-book';
 import { LEGAL_DOCUMENT_LABELS, legalDocumentHref } from '@/lib/legal/links';
 import {
   marketingChannelConsentLabel,
+  marketingConsentNoticeFor,
   MARKETING_CHANNEL_FIELDS,
   MARKETING_CHANNEL_LABELS,
   MARKETING_CHANNELS,
   MARKETING_CONSENT_NOTICE,
+  MARKETING_KAKAO_OFFERED_FIELD,
   type MarketingChannel,
   type MarketingChannelConsent,
   type MarketingConsentState,
@@ -46,8 +49,12 @@ interface SettingsProps {
   marketingConsent: MarketingConsentState | null;
   /** 동의 상태를 읽지 못했다. 미동의로 그려 저장하면 실제 동의를 철회하게 되므로 폼을 잠근다. */
   marketingConsentUnavailable?: boolean;
+  /** 그릴 수신 동의 수단. 카카오톡 채널 스위치가 꺼져 있으면 이메일·SMS 두 줄 그대로다(1014-010). */
+  marketingChannels?: readonly MarketingChannel[];
   isConfigured: boolean;
   nickname: string;
+  /** 휴대폰 번호 인증(1014-005·006). 스위치가 꺼져 있으면 없다 — 그때 설정 화면은 예전과 같다. */
+  phoneVerification?: PhoneVerificationPanelView;
 }
 
 const emptyState: SettingsActionState = {};
@@ -162,8 +169,10 @@ export function Settings({
   email,
   marketingConsent,
   marketingConsentUnavailable = false,
+  marketingChannels = MARKETING_CHANNELS,
   isConfigured,
   nickname,
+  phoneVerification,
 }: SettingsProps) {
   const [profileState, profileAction, profilePending] = useActionState(updateProfileAction, emptyState);
   const [marketingState, marketingAction, marketingPending] = useActionState(updateMarketingConsentAction, emptyState);
@@ -172,6 +181,8 @@ export function Settings({
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const profileBusy = uploadPending || profilePending;
   const visibleProfileErrors = uploadErrors ?? profileState.errors;
+  const { notice: marketingNotice } = marketingConsentNoticeFor(marketingChannels);
+  const kakaoOffered = marketingChannels.includes('kakao');
 
   async function handleProfileSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -275,6 +286,9 @@ export function Settings({
         </WcButton>
       </form>
 
+      {phoneVerification ? (
+        <PhoneVerificationPanel context="settings" isConfigured={isConfigured} view={phoneVerification} />
+      ) : null}
       <MemberActivityConsent />
       <CustomerDemographicConsent />
       {/* 알림함 마케팅 소식의 '마케팅 수신 동의 관리' 링크가 이 폼(#marketing-consent)으로 온다. */}
@@ -283,19 +297,20 @@ export function Settings({
         <ul className="wc-auth__agree">
           <li><RequiredConsentRow label="이용약관 동의" /></li>
           <li><RequiredConsentRow label="개인정보 처리방침 동의" /></li>
-          {MARKETING_CHANNELS.map((channel) => (
+          {marketingChannels.map((channel) => (
             <li key={channel}>
               <MarketingConsentRow channel={channel} consent={marketingConsent?.[channel] ?? null} disabled={marketingConsentUnavailable} />
             </li>
           ))}
         </ul>
+        {kakaoOffered ? <input name={MARKETING_KAKAO_OFFERED_FIELD} type="hidden" value="1" /> : null}
         {marketingConsentUnavailable ? (
           <div className="wc-auth__alert" role="alert">
             마케팅 정보 수신 동의를 불러오지 못했어요. 지금은 변경할 수 없으니 새로고침한 뒤 다시 확인해주세요.
           </div>
         ) : null}
         <p className="wc-mypage__note">
-          {MARKETING_CONSENT_NOTICE.summary} {MARKETING_CONSENT_NOTICE.sms} {MARKETING_CONSENT_NOTICE.inApp}
+          {marketingNotice.summary} {marketingNotice.sms}{kakaoOffered ? ` ${marketingNotice.kakao}` : ''} {marketingNotice.inApp}
         </p>
 
         <div aria-label="마케팅 동의 저장 상태" aria-live="polite" role="group">

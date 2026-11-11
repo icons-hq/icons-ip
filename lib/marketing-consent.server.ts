@@ -2,6 +2,7 @@ import 'server-only';
 import { createClient } from '@/lib/supabase/server';
 import {
   MARKETING_CONSENT_NOTICE_VERSION,
+  MARKETING_CONSENT_NOTICE_VERSION_WITH_KAKAO,
   parseMarketingConsentState,
   type MarketingChannelChoices,
   type MarketingConsentSource,
@@ -31,12 +32,21 @@ export async function saveMyMarketingConsents(
   choices: MarketingChannelChoices,
   source: MarketingConsentSource,
 ): Promise<{ ok: true; state: MarketingConsentState | null } | { ok: false }> {
-  const { data, error } = await supabase.rpc('set_my_marketing_consents', {
-    p_email: choices.email,
-    p_sms: choices.sms,
-    p_notice_version: MARKETING_CONSENT_NOTICE_VERSION,
-    p_source: source,
-  });
+  /* 카카오톡 줄을 그리지 않은 저장은 예전 두 수단 RPC를 그대로 부른다(스위치 OFF면 동작 불변). */
+  const { data, error } = choices.kakao === undefined
+    ? await supabase.rpc('set_my_marketing_consents', {
+      p_email: choices.email,
+      p_sms: choices.sms,
+      p_notice_version: MARKETING_CONSENT_NOTICE_VERSION,
+      p_source: source,
+    })
+    : await supabase.rpc('set_my_marketing_consents_v2', {
+      p_email: choices.email,
+      p_sms: choices.sms,
+      p_kakao: choices.kakao,
+      p_notice_version: MARKETING_CONSENT_NOTICE_VERSION_WITH_KAKAO,
+      p_source: source,
+    });
   if (error) return { ok: false };
   return { ok: true, state: parseMarketingConsentState(data) };
 }

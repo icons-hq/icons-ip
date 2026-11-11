@@ -167,3 +167,15 @@ describe('Onboarding optional consents', () => {
   });
 });
 
+
+/* 1014-010 — 카카오톡 채널 스위치가 켜지면 온보딩에서도 카카오톡 수신 동의를 따로 받는다. */
+describe('Onboarding kakao marketing channel', () => {
+  it('adds an optional kakao row, the offered marker and the v2 notice', () => {
+    const html = render({ marketingChannels: ['email', 'sms', 'kakao'], initialMarketing: { email: false, sms: false, kakao: false } });
+
+    expect(html).toContain('마케팅 정보 수신 동의 (카카오톡) <em class="wc-auth__opt">선택</em>');
+    expect(html).toContain('<input type="hidden" name="marketingKakaoOffered" value="1"/>');
+    expect(html).toContain('카카오톡은 ICONS 카카오톡 채널 메시지로 보내 드려요.');
+    expect(html).toContain('알림함의 마케팅 소식은 이메일·SMS·카카오톡 중 하나라도 수신에 동의하면 받아요.');
+  });
+});

@@ -23,6 +23,7 @@ import {
   rejectProfileAvatarClaim,
   updateProfileIdentity,
 } from '@/lib/profile.server';
+import { kakaoChannelConfig } from '@/lib/kakao/channel-config.server';
 import { marketingConsentResultMessage, readMarketingChannelChoices } from '@/lib/marketing-consent';
 import { saveMyMarketingConsents } from '@/lib/marketing-consent.server';
 import { createClient } from '@/lib/supabase/server';
@@ -356,12 +357,13 @@ export async function updateProfileAction(
 }
 
 /* 수단별(이메일·SMS) 마케팅 정보 수신 동의(10/14 회의 S4). 원장 기록·동의/철회 시각·파생값
-   consents.marketing 갱신은 RPC가 한 트랜잭션으로 한다 — terms·privacy는 건드리지 않는다. */
+   consents.marketing 갱신은 RPC가 한 트랜잭션으로 한다 — terms·privacy는 건드리지 않는다.
+   카카오톡 줄(1014-010)은 화면이 그렸을 때만 읽고, 카카오톡 채널 스위치가 꺼져 있으면 철회만 받는다. */
 export async function updateMarketingConsentAction(
   _state: SettingsActionState,
   formData: FormData,
 ): Promise<SettingsActionState> {
-  const choices = readMarketingChannelChoices(formData);
+  const choices = readMarketingChannelChoices(formData, { kakaoChannelOn: kakaoChannelConfig() !== null });
 
   const required = await requireSettingsAuth();
   if (!required.ok) return required.state;

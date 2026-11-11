@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { completeOnboardingAction } from './actions';
 
 const mocks = vi.hoisted(() => ({
@@ -443,3 +443,57 @@ describe('completeOnboardingAction optional consents', () => {
   });
 });
 
+
+/* 1014-005·006 — 휴대폰 번호 인증은 스위치가 켜졌을 때만 온보딩 완료 조건이다. */
+describe('completeOnboardingAction phone verification switch', () => {
+  const PHONE_ENV = {
+    ICONS_PHONE_VERIFICATION_ENABLED: 'true',
+    ICONS_PHONE_VERIFICATION_SECRET: 'phone-verification-test-secret-0123456789',
+    ICONS_SMS_PROVIDER: 'console',
+  } as const;
+  const original = Object.fromEntries(Object.keys(PHONE_ENV).map((key) => [key, process.env[key]]));
+
+  function setPhoneEnv(on: boolean) {
+    for (const [key, value] of Object.entries(PHONE_ENV)) {
+      if (on) process.env[key] = value;
+      else delete process.env[key];
+    }
+  }
+
+  afterEach(() => {
+    for (const [key, value] of Object.entries(original)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+
+  it('does not read phone verification at all while the switch is off', async () => {
+    setPhoneEnv(false);
+
+    await expect(completeOnboardingAction({}, onboardingForm())).rejects.toThrow('NEXT_REDIRECT:/onboarding/address?next=%2Fcommunity');
+    expect(mocks.rpc.mock.calls.map(([name]) => name)).not.toContain('my_member_phone_verification');
+  });
+
+  it('stops before any write when the switch is on and the member has not verified a phone', async () => {
+    setPhoneEnv(true);
+    mocks.rpc.mockImplementation(async (name: string) => name === 'my_member_phone_verification'
+      ? { data: { verified: false, phoneE164: null, verifiedAt: null }, error: null }
+      : { data: null, error: null });
+
+    await expect(completeOnboardingAction({}, onboardingForm())).resolves.toEqual({
+      errors: { form: '휴대폰 번호 인증을 먼저 마쳐주세요.' },
+    });
+    expect(mocks.identity).not.toHaveBeenCalled();
+    expect(mocks.profilePayloads).toEqual([]);
+  });
+
+  it('completes onboarding when the switch is on and the phone is verified', async () => {
+    setPhoneEnv(true);
+    mocks.rpc.mockImplementation(async (name: string) => name === 'my_member_phone_verification'
+      ? { data: { verified: true, phoneE164: '+821012345678', verifiedAt: '2026-11-11T00:00:00Z' }, error: null }
+      : { data: null, error: null });
+
+    await expect(completeOnboardingAction({}, onboardingForm())).rejects.toThrow('NEXT_REDIRECT:/onboarding/address?next=%2Fcommunity');
+    expect(mocks.rpc.mock.calls[0]?.[0]).toBe('my_member_phone_verification');
+  });
+});

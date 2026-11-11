@@ -143,6 +143,8 @@ const storefront = [
   sql('home_free_product_collections', { admin: true, kc: true }),
   script('home_free_product_collections_concurrency.sh', 'HOME_FREE_PRODUCTS_TEST_SCOPE'),
   sql('customer_marketing_consents'),
+  sql('member_phone_verification'),
+  sql('customer_marketing_consent_kakao'),
   sql('auto_order_confirmation'),
   script('auto_order_confirmation_concurrency.sh', 'AUTO_ORDER_CONFIRM_TEST_SCOPE'),
   sql('staging_test_delivery'),

@@ -777,3 +777,51 @@ describe('updateMarketingConsentAction', () => {
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 });
+
+/* 1014-010 — 카카오톡 줄은 화면이 그렸을 때만 읽는다. 스위치가 켜졌으면 세 수단 v2로, 꺼졌으면 철회만 받는다. */
+describe('updateMarketingConsentAction kakao channel', () => {
+  const KAKAO_ENV = {
+    ICONS_KAKAO_CHANNEL_ENABLED: 'true',
+    KAKAO_CHANNEL_PUBLIC_ID: '_IconsTest',
+    KAKAO_ADMIN_KEY: '0123456789abcdef0123456789abcdef',
+  } as const;
+  const original = Object.fromEntries(Object.keys(KAKAO_ENV).map((key) => [key, process.env[key]]));
+
+  afterEach(() => {
+    for (const [key, value] of Object.entries(original)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+
+  function kakaoForm(kakao: boolean) {
+    const data = marketingForm(false);
+    data.set('marketingKakaoOffered', '1');
+    if (kakao) data.set('marketingKakao', 'on');
+    return data;
+  }
+
+  it('saves three channels through the v2 RPC while the kakao switch is on', async () => {
+    Object.assign(process.env, KAKAO_ENV);
+    mocks.rpc.mockResolvedValue({ data: null, error: null });
+
+    const result = await updateMarketingConsentAction({}, kakaoForm(true));
+    expect(mocks.rpc).toHaveBeenCalledWith('set_my_marketing_consents_v2', {
+      p_email: false, p_sms: false, p_kakao: true, p_notice_version: 'marketing-channels-v2', p_source: 'settings',
+    });
+    expect(result.message).toContain('카카오톡 수신 동의');
+  });
+
+  it('accepts a kakao withdrawal but never a new kakao consent while the switch is off', async () => {
+    for (const key of Object.keys(KAKAO_ENV)) delete process.env[key];
+    mocks.rpc.mockResolvedValue({ data: null, error: null });
+
+    await updateMarketingConsentAction({}, kakaoForm(false));
+    expect(mocks.rpc).toHaveBeenLastCalledWith('set_my_marketing_consents_v2', expect.objectContaining({ p_kakao: false }));
+
+    await updateMarketingConsentAction({}, kakaoForm(true));
+    expect(mocks.rpc).toHaveBeenLastCalledWith('set_my_marketing_consents', {
+      p_email: false, p_sms: false, p_notice_version: 'marketing-channels-v1', p_source: 'settings',
+    });
+  });
+});

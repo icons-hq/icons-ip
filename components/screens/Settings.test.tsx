@@ -409,3 +409,30 @@ describe('Settings marketing consent edge states', () => {
   });
 });
 
+
+/* 1014-010 — 카카오톡 채널 스위치가 켜지면(또는 이미 동의한 회원이면) 카카오톡 수신 동의 줄이 더해진다. */
+describe('Settings kakao marketing channel', () => {
+  it('draws the kakao row with the v2 notice and marks the form as offering kakao', () => {
+    const html = render({
+      marketingChannels: ['email', 'sms', 'kakao'],
+      marketingConsent: {
+        marketing: true,
+        email: null,
+        sms: null,
+        kakao: { agreed: true, agreedAt: '2026-11-11T01:00:00.000Z', withdrawnAt: null, noticeVersion: 'marketing-channels-v2', source: 'settings' },
+      },
+    });
+
+    expect(html).toContain('마케팅 정보 수신 동의 (카카오톡) <em class="wc-auth__opt">선택</em>');
+    expect(html).toMatch(/<input[^>]*name="marketingKakao"[^>]*checked=""|<input[^>]*checked=""[^>]*name="marketingKakao"/);
+    expect(html).toContain('<input type="hidden" name="marketingKakaoOffered" value="1"/>');
+    expect(html).toContain('카카오톡은 ICONS 카카오톡 채널 메시지로 보내 드려요.');
+    expect(html).toContain('이메일·SMS·카카오톡 중 하나라도');
+  });
+
+  it('keeps the two rows and no kakao marker by default', () => {
+    const html = render();
+    expect(html).not.toContain('marketingKakao');
+    expect(html).not.toContain('카카오톡');
+  });
+});

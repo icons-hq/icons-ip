@@ -2,6 +2,7 @@
 
 import { startTransition, useActionState, useState, type FormEvent } from 'react';
 import { completeOnboardingAction, type OnboardingActionState } from '@/app/onboarding/actions';
+import { PhoneVerificationPanel, type PhoneVerificationPanelView } from '@/components/screens/OnboardingPhoneVerification';
 import { WcButton } from '@/components/wc/WcButton';
 import { DEMOGRAPHIC_GENDER_LABELS, DEMOGRAPHIC_GENDERS, DEMOGRAPHIC_NOTICE } from '@/lib/customer-demographics';
 import { LEGAL_DOCUMENT_LABELS, legalDocumentHref, type LegalDocumentSlug } from '@/lib/legal/links';
@@ -9,7 +10,9 @@ import {
   MARKETING_CHANNEL_FIELDS,
   MARKETING_CHANNEL_LABELS,
   MARKETING_CHANNELS,
-  MARKETING_CONSENT_NOTICE,
+  MARKETING_KAKAO_OFFERED_FIELD,
+  marketingConsentNoticeFor,
+  type MarketingChannel,
   type MarketingChannelChoices,
 } from '@/lib/marketing-consent';
 
@@ -19,6 +22,8 @@ interface OnboardingProps {
   followedIpIds: string[];
   /** 채널별 마케팅 정보 수신 동의의 현재 선택(10/14 회의 S4). */
   initialMarketing: MarketingChannelChoices;
+  /** 그릴 수신 동의 수단. 카카오톡 채널 스위치가 꺼져 있으면 이메일·SMS 두 줄 그대로다(1014-010). */
+  marketingChannels?: readonly MarketingChannel[];
   /**
    * 선택 성별을 받을 수 있는 계정인지. 성별 동의는 일반 회원(role=user)만 저장되므로(설정 화면과 같은 기준)
    * 운영자 초대 가입처럼 저장되지 않는 계정에는 묻지 않는다.
@@ -26,6 +31,8 @@ interface OnboardingProps {
   genderEligible: boolean;
   isConfigured: boolean;
   next: string;
+  /** 휴대폰 번호 인증(1014-005·006). 스위치가 꺼져 있으면 없다 — 그때 화면은 이 단계 없이 예전과 같다. */
+  phoneVerification?: PhoneVerificationPanelView;
   recommendedIps: {
     bg: string;
     color: string;
@@ -131,7 +138,9 @@ export function Onboarding({
   genderEligible,
   initialMarketing,
   isConfigured,
+  marketingChannels = MARKETING_CHANNELS,
   next,
+  phoneVerification,
   recommendedIps,
 }: OnboardingProps) {
   const [state, action, pending] = useActionState(completeOnboardingAction, emptyState);
@@ -140,6 +149,8 @@ export function Onboarding({
   const [ipPicksSkipped, setIpPicksSkipped] = useState(false);
   const initiallyFollowed = new Set(followedIpIds);
   const [birthYear = '', birthMonth = '', birthDay = ''] = birthDate.split('-');
+  const { notice: marketingNotice } = marketingConsentNoticeFor(marketingChannels);
+  const kakaoOffered = marketingChannels.includes('kakao');
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -156,6 +167,10 @@ export function Onboarding({
         {/* 가입 간소화(10/14 회의 1014-004) — 필수 입력은 생년월일과 약관 동의뿐이다. 닉네임은 서버가 자동으로
             만들고(나중에 설정에서 변경), 관심 IP·성별·마케팅 수신은 선택이다. */}
         <p className="wc-auth__lede">생년월일과 약관 동의만 확인하면 바로 시작할 수 있어요. 닉네임은 자동으로 만들어 두니 설정에서 언제든 바꿀 수 있어요.</p>
+
+        {phoneVerification ? (
+          <PhoneVerificationPanel context="onboarding" isConfigured={isConfigured} view={phoneVerification} />
+        ) : null}
 
         <form action={action} className="wc-auth__form" data-onboarding-form onSubmit={handleSubmit}>
           <input type="hidden" name="next" value={next} />
@@ -226,20 +241,22 @@ export function Onboarding({
               <TermRow errorId="privacy-error" hasError={Boolean(state.errors?.privacy)} label="개인정보 처리방침 동의" name="privacy" required slug="privacy" />
               <ErrorText id="privacy-error">{state.errors?.privacy}</ErrorText>
             </li>
-            {/* 마케팅 정보 수신 동의는 수단별 선택이다(LFS와 같은 이메일·SMS 두 줄, 10/14 회의 S4). */}
-            {MARKETING_CHANNELS.map((channel) => (
+            {/* 마케팅 정보 수신 동의는 수단별 선택이다(LFS와 같은 이메일·SMS 두 줄, 10/14 회의 S4).
+                카카오톡 채널 스위치가 켜지면 카카오톡 줄이 더해진다(1014-010). */}
+            {marketingChannels.map((channel) => (
               <li key={channel}>
                 <TermRow
                   defaultChecked={initialMarketing[channel]}
-                  label={`${MARKETING_CONSENT_NOTICE.title} (${MARKETING_CHANNEL_LABELS[channel]})`}
+                  label={`${marketingNotice.title} (${MARKETING_CHANNEL_LABELS[channel]})`}
                   name={MARKETING_CHANNEL_FIELDS[channel]}
                   required={false}
                 />
               </li>
             ))}
           </ul>
+          {kakaoOffered ? <input name={MARKETING_KAKAO_OFFERED_FIELD} type="hidden" value="1" /> : null}
           <p className="onboarding-consent-note">
-            {MARKETING_CONSENT_NOTICE.summary} {MARKETING_CONSENT_NOTICE.inApp} {MARKETING_CONSENT_NOTICE.sms} {MARKETING_CONSENT_NOTICE.change}
+            {marketingNotice.summary} {marketingNotice.inApp} {marketingNotice.sms}{kakaoOffered ? ` ${marketingNotice.kakao}` : ''} {marketingNotice.change}
           </p>
 
           {/* 선택 성별(10/14 회의 S5). 기본은 미선택이고, 고른 경우에만 별도 수집·이용 동의를 받는다.

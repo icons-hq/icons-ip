@@ -9,9 +9,11 @@ import { safeNextPath } from '@/lib/auth/onboarding';
 import { isDemographicGender, type DemographicGender } from '@/lib/customer-demographics';
 import { customerDemographicState, updateCustomerDemographicChoice } from '@/lib/customer-demographics.server';
 import { buildRecommendedIpFollowChanges, uniqueSelectedIpIds } from '@/lib/ip-follow';
+import { kakaoChannelConfig } from '@/lib/kakao/channel-config.server';
 import { readMarketingChannelChoices } from '@/lib/marketing-consent';
 import { saveMyMarketingConsents } from '@/lib/marketing-consent.server';
 import { updateProfileIdentity } from '@/lib/profile.server';
+import { phoneVerificationConfig, readMyVerifiedPhone } from '@/lib/sms/phone-verification.server';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/server';
 
@@ -195,7 +197,7 @@ export async function completeOnboardingAction(
   const next = safeNextPath(formData.get('next'));
   const terms = formData.get('terms') === 'on';
   const privacy = formData.get('privacy') === 'on';
-  const marketingChoices = readMarketingChannelChoices(formData);
+  const marketingChoices = readMarketingChannelChoices(formData, { kakaoChannelOn: kakaoChannelConfig() !== null });
   const genderResult = readOnboardingGender(formData);
   const selectedIpIds = uniqueSelectedIpIds(formData.getAll('followIpIds'));
   const recommendedIpIds = uniqueSelectedIpIds(formData.getAll('recommendedIpIds'));
@@ -216,6 +218,12 @@ export async function completeOnboardingAction(
   const user = userData.user;
 
   if (userError || !user) return { errors: { form: '로그인이 필요합니다.' } };
+
+  /* 휴대폰 번호 인증(1014-005·006)은 스위치가 켜졌을 때만 온보딩 필수 단계다. 꺼져 있으면 읽지도 않는다. */
+  if (phoneVerificationConfig()) {
+    const verifiedPhone = await readMyVerifiedPhone(supabase);
+    if (!verifiedPhone?.verified) return { errors: { form: '휴대폰 번호 인증을 먼저 마쳐주세요.' } };
+  }
 
   let existingRecommendedIpIds: string[];
   let followedRecommendedIpIds: string[];
