@@ -84,7 +84,7 @@ create trigger goods_price_period_promotion_guard before update on private.goods
 
 -- 2. 요청 검증·가격 계산 -----------------------------------------------------------------------------------------------
 create function private.discount_promotion_validate(p_request jsonb) returns void
-language plpgsql immutable set search_path='' as $$
+language plpgsql stable set search_path='' as $$
 declare kind text; ids jsonb; rule jsonb; starts timestamptz; ends timestamptz; item jsonb; id_pattern text;
 begin
   if jsonb_typeof(p_request) is distinct from 'object'
@@ -141,7 +141,7 @@ end $$;
 -- 율·금액은 일괄 즉시할인과 같은 계산(private.goods_bulk_discount_price)이다. 예외가는 기준 판매가(goods.price)를 그 값으로
 -- 내리는 할인 금액을 모든 옵션에 같게 뺀다 — 옵션 추가금에는 할인을 붙이지 않는 상품 할인 규칙과 같은 모양이다.
 create function private.discount_promotion_price(p_good_price integer,p_variant_price integer,p_rule jsonb) returns integer
-language plpgsql immutable set search_path='' as $$
+language plpgsql stable set search_path='' as $$
 declare amount bigint;
 begin
   if p_rule->>'mode' in ('rate','amount') then
@@ -195,7 +195,7 @@ $$;
 create function public.admin_preview_discount_promotion(p_id uuid,p_request jsonb,p_actor uuid,p_session uuid) returns jsonb
 language plpgsql security definer set search_path='' as $$
 declare prior private.discount_promotion_operations; kind text; target_ids text[]; ids text[]; label text; g public.goods;
-  rows jsonb:='[]'; guards jsonb:='{}'; applied integer:=0; window_range tstzrange; rule jsonb; skip text; overlap jsonb;
+  rows jsonb:='[]'::jsonb; guards jsonb:='{}'::jsonb; applied integer:=0; window_range tstzrange; rule jsonb; skip text; overlap jsonb;
   min_price integer; max_price integer; next_min integer; next_max integer; expires timestamptz; result jsonb;
 begin
   perform private.require_goods_group_identity(p_actor,p_session);
