@@ -14,14 +14,19 @@ import {
   type ErpImportIssue,
 } from '@/lib/admin/erp-item-import';
 import {
+  ERP_CATEGORY_MAPPING_BATCH_LIMIT,
   ERP_ITEMS_PATH,
   ERP_ITEM_DELETE_LIMIT,
   ERP_ITEM_LIMITS,
   ERP_ITEM_SEARCH_MIN_LENGTH,
   ERP_ITEM_SEARCH_QUERY_MAX,
   ERP_ITEM_SUGGESTION_LIMIT,
+  erpCategoryMappingBatchMessage,
+  erpCategoryMappingErrorLabel,
   isErpItemRejectReason,
+  parseErpCategoryMappingBatch,
   parseErpItemMatch,
+  type ErpCategoryMappingEntry,
   type ErpItemMatch,
 } from '@/lib/admin/erp-items';
 import { hasAdminCapability } from '@/lib/admin/access';
@@ -29,6 +34,7 @@ import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
 
 const STAFF_ONLY = 'ERP 품목은 운영자만 관리할 수 있습니다.';
+const MAPPING_FAILED = 'ERP 분류 연결을 저장하지 못했습니다. 다시 시도해주세요.';
 
 function rpcCode(error: { code?: unknown; message?: unknown }) {
   const code = typeof error.code === 'string' ? error.code.toLowerCase() : '';
@@ -220,11 +226,7 @@ export async function setErpCategoryMappingAction(input: { erpCategory: unknown;
     if (error) {
       const { code, descriptor } = rpcCode(error);
       if (isPermissionError(code, descriptor)) return { ok: false, error: STAFF_ONLY };
-      if (descriptor.includes('category_archived')) return { ok: false, error: '보관된 카테고리에는 연결할 수 없습니다.' };
-      if (descriptor.includes('category_not_leaf')) return { ok: false, error: '하위 카테고리가 있는 분류에는 연결할 수 없습니다. 말단 카테고리를 골라주세요.' };
-      if (descriptor.includes('category_not_found')) return { ok: false, error: '카테고리를 찾지 못했습니다. 새로고침한 뒤 다시 골라주세요.' };
-      if (descriptor.includes('invalid_erp_category')) return { ok: false, error: 'ERP 분류 이름을 확인해주세요.' };
-      return { ok: false, error: 'ERP 분류 연결을 저장하지 못했습니다. 다시 시도해주세요.' };
+      return { ok: false, error: erpCategoryMappingErrorLabel(descriptor) ?? MAPPING_FAILED };
     }
     const changed = Boolean(data && typeof data === 'object' && (data as Record<string, unknown>).changed === true);
     if (changed) revalidatePath(ERP_ITEMS_PATH);
@@ -236,6 +238,67 @@ export async function setErpCategoryMappingAction(input: { erpCategory: unknown;
     };
   } catch (error) {
     unstable_rethrow(error);
-    return { ok: false, error: 'ERP 분류 연결을 저장하지 못했습니다. 다시 시도해주세요.' };
+    return { ok: false, error: MAPPING_FAILED };
+  }
+}
+
+export type ErpCategoryMappingsResult =
+  | { ok: true; changed: number; unchanged: number; rejected: { erpCategory: string; error: string }[]; message: string }
+  | { ok: false; error: string };
+
+/* 화면은 표의 행을 그대로 보낸다. 형식이 어긋난 묶음은 잘못된 요청이므로 DB에 보내지 않는다. */
+function normalizeMappingEntries(value: unknown): (ErpCategoryMappingEntry & { original: string })[] | null {
+  if (!Array.isArray(value) || value.length === 0 || value.length > ERP_CATEGORY_MAPPING_BATCH_LIMIT) return null;
+  const entries: (ErpCategoryMappingEntry & { original: string })[] = [];
+  for (const raw of value) {
+    if (!raw || typeof raw !== 'object') return null;
+    const { erpCategory: rawCategory, categoryId: rawId } = raw as { erpCategory?: unknown; categoryId?: unknown };
+    if (typeof rawCategory !== 'string') return null;
+    const erpCategory = normalizeErpText(rawCategory, true);
+    if (!erpCategory || erpCategory.length > ERP_ITEM_LIMITS.category) return null;
+    if (rawId !== null && !isCategoryId(rawId)) return null;
+    entries.push({ original: rawCategory, erpCategory, categoryId: rawId as string | null });
+  }
+  return entries;
+}
+
+/**
+ * ERP 분류 연결을 여러 건 저장한다(연결 표의 선택 연결·제안 저장·고른 값 저장). categoryId가 null이면 연결 해제.
+ * DB가 행마다 단건과 같은 규칙으로 처리하고 거절된 행의 사유만 돌려준다.
+ * 같은 내용을 다시 보내면 변경 없음으로 끝나 결과를 못 받았을 때 다시 눌러도 된다.
+ */
+export async function setErpCategoryMappingsAction(entriesValue: unknown): Promise<ErpCategoryMappingsResult> {
+  try {
+    if (!await requireAdminActionAccess(ERP_ITEMS_PATH)) return { ok: false, error: STAFF_ONLY };
+    const entries = normalizeMappingEntries(entriesValue);
+    if (!entries) return { ok: false, error: `연결할 ERP 분류를 다시 골라주세요. 한 번에 ${ERP_CATEGORY_MAPPING_BATCH_LIMIT.toLocaleString('ko-KR')}개까지 저장할 수 있습니다.` };
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc('admin_set_erp_category_mappings', {
+      p_entries: entries.map(({ erpCategory, categoryId }) => ({ erp_category: erpCategory, category_id: categoryId })),
+    });
+    if (error) {
+      const { code, descriptor } = rpcCode(error);
+      return { ok: false, error: isPermissionError(code, descriptor) ? STAFF_ONLY : MAPPING_FAILED };
+    }
+    const parsed = parseErpCategoryMappingBatch(data);
+    if (!parsed) {
+      revalidatePath(ERP_ITEMS_PATH);
+      return { ok: false, error: '저장 결과를 확인하지 못했습니다. 목록을 새로고침해 확인해주세요.' };
+    }
+    if (parsed.changed) revalidatePath(ERP_ITEMS_PATH);
+    const rejected = parsed.rejected.map(({ index, reason }) => ({
+      erpCategory: entries[index]?.original ?? '',
+      error: erpCategoryMappingErrorLabel(reason) ?? MAPPING_FAILED,
+    }));
+    return {
+      ok: true,
+      changed: parsed.changed,
+      unchanged: parsed.unchanged,
+      rejected,
+      message: erpCategoryMappingBatchMessage({ ...parsed, rejected }, entries.every((entry) => entry.categoryId === null)),
+    };
+  } catch (error) {
+    unstable_rethrow(error);
+    return { ok: false, error: MAPPING_FAILED };
   }
 }

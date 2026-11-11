@@ -1,5 +1,5 @@
 import { isUuid } from '@/lib/uuid';
-import { emptyGoodsKcModel, goodsKcReviewProblems, normalizeGoodsKcModels, type GoodsKcModelInput, type GoodsKcVariant } from './goods-kc';
+import { emptyGoodsKcModel, goodsKcReviewProblems, goodsKcSoleNotApplicable, normalizeGoodsKcModels, planGoodsKcProductNotApplicable, type GoodsKcModelInput, type GoodsKcVariant } from './goods-kc';
 import { goodsOptionRowKey, type GoodsOptionRow } from './goods-option-editor';
 import { parseGoodsPreorderInput, type GoodsPreorderInput } from './goods-preorders';
 
@@ -24,6 +24,8 @@ export interface GoodWorkspaceKcDraft {
   /** variantIds는 goodWorkspaceVariantId(행)로 만든 화면용 id다. 제출할 때 옵션 참조로 바뀐다. */
   models: GoodsKcModelInput[];
   attested: boolean;
+  /** "상품 전체 KC 해당 없음" 체크로 만든 상태. 연결 옵션을 제출 때 현재 옵션으로 다시 맞춘다. */
+  productNotApplicable?: boolean;
 }
 export interface GoodWorkspacePreorderDraft {
   key: string;
@@ -89,11 +91,13 @@ export function prepareGoodWorkspaceSections(draft: GoodWorkspaceSectionsDraft, 
   let kc: GoodWorkspaceSectionsSubmission['kc'] = null;
   if (draft.kc.models.length || draft.kc.attested) {
     const variants = goodWorkspaceKcVariants(rows);
+    /* 등록 화면의 해당 없음은 체크 한 번으로 끝난다. 체크 뒤 옵션을 바꿀 수 있으니 연결 옵션은 제출 시점의 옵션으로 다시 맞춘다. */
+    const models = draft.kc.productNotApplicable && draft.kc.attested && goodsKcSoleNotApplicable(draft.kc.models) ? planGoodsKcProductNotApplicable(draft.kc.models, variants).models : draft.kc.models;
     if (draft.kc.attested) {
-      const problems = goodsKcReviewProblems(draft.kc.models, variants);
+      const problems = goodsKcReviewProblems(models, variants);
       if (problems.length) return { ok: false, field: 'workspaceKc', error: `KC 검토 완료 전 확인: ${problems[0]}` };
     }
-    const normalized = normalizeGoodsKcModels(draft.kc.models);
+    const normalized = normalizeGoodsKcModels(models);
     if (!normalized) return { ok: false, field: 'workspaceKc', error: 'KC 입력 형식과 제품군·제도 조합을 확인해주세요.' };
     if (normalized.some((model) => model.variantIds.some((id) => !byId.has(id)))) {
       return { ok: false, field: 'workspaceKc', error: 'KC 모델에 연결한 옵션이 옵션목록에 없습니다. 적용 옵션을 다시 선택해주세요.' };

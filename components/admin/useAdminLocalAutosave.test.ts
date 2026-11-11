@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({ capture: vi.fn(), flush: vi.fn(), beginSubmission: vi.fn() }));
+const mocks = vi.hoisted(() => ({ capture: vi.fn(), flush: vi.fn(), beginSubmission: vi.fn(), setEditBaseline: vi.fn(), restore: vi.fn(), snapshot: {} as Record<string, unknown> }));
 vi.mock('react', () => ({
   useCallback: (fn: unknown) => fn, useMemo: (factory: () => unknown) => factory(),
   useRef: (current: unknown) => ({ current }), useEffect: () => undefined,
@@ -8,11 +8,11 @@ vi.mock('react', () => ({
 }));
 vi.mock('@/lib/admin/local-autosave', () => ({
   EMPTY_LOCAL_AUTOSAVE_SNAPSHOT: {},
-  createAdminLocalAutosave: () => ({ capture: mocks.capture, flush: mocks.flush, beginSubmission: mocks.beginSubmission, getSnapshot: () => ({}), subscribe: vi.fn(), key: 'test' }),
+  createAdminLocalAutosave: () => ({ capture: mocks.capture, flush: mocks.flush, beginSubmission: mocks.beginSubmission, setEditBaseline: mocks.setEditBaseline, restore: mocks.restore, getSnapshot: () => mocks.snapshot, subscribe: vi.fn(), key: 'test' }),
 }));
 import { useAdminLocalAutosave } from './useAdminLocalAutosave';
 
-afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.clearAllMocks(); });
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.clearAllMocks(); mocks.snapshot = {}; });
 
 it('복구 보존은 지정한 비동기 초기화만 적용하고 사진 선택·혼합 hidden 배치·직접 입력은 편집으로 보관한다', () => {
   vi.useFakeTimers();
@@ -85,6 +85,36 @@ it('잠금 중 명시 임시저장과 프로그램 제출을 막고 해제 후 �
   h.setDisabled(false); vi.runOnlyPendingTimers(); mocks.capture.mockClear();
   expect(h.local.saveDraft(h.form)).toBe(true); expect([...mocks.capture.mock.lastCall![0]]).toEqual([...h.entries]);
   h.cleanup?.();
+});
+
+it('복구 안내가 떠 있을 때만 입력 전 폼 값을 읽어 합칠 기준으로 넘긴다', () => {
+  const idle = LockedFormHarness(false);
+  expect(mocks.setEditBaseline).not.toHaveBeenCalled(); expect(idle.formDataReads).not.toHaveBeenCalled(); idle.cleanup?.();
+  mocks.snapshot = { recovery: { savedAt: 1, values: { name: '이전 상품명' } } };
+  const offered = LockedFormHarness(false);
+  expect(mocks.setEditBaseline).toHaveBeenCalledOnce(); expect([...mocks.setEditBaseline.mock.lastCall![0]]).toEqual([...offered.entries]); offered.cleanup?.();
+  mocks.setEditBaseline.mockClear();
+  const locked = LockedFormHarness(true);
+  expect(mocks.setEditBaseline).not.toHaveBeenCalled(); expect(locked.formDataReads).not.toHaveBeenCalled(); locked.cleanup?.();
+});
+
+it('입력 직후 복구를 눌러도 예약된 읽기를 먼저 끝내 새 입력을 합치고 뒤늦은 쓰기를 남기지 않는다', () => {
+  const h = LockedFormHarness(false);
+  h.entries.set('name', '방금 고른 값'); h.form.dispatchEvent(new Event('change'));
+  expect(mocks.capture).not.toHaveBeenCalled();
+  h.local.restore();
+  expect(mocks.capture).toHaveBeenCalledOnce(); expect(mocks.capture).toHaveBeenLastCalledWith(expect.any(Map), { preserveRecovery: false });
+  expect([...mocks.capture.mock.lastCall![0]]).toEqual([...h.entries]);
+  expect(mocks.capture.mock.invocationCallOrder[0]).toBeLessThan(mocks.restore.mock.invocationCallOrder[0]);
+  vi.runOnlyPendingTimers(); h.cleanup?.();
+  expect(mocks.capture).toHaveBeenCalledOnce();
+});
+
+it('폼이 내려간 뒤의 복구는 이미 떠난 폼을 다시 읽지 않는다', () => {
+  const h = LockedFormHarness(false);
+  h.cleanup?.(); h.formDataReads.mockClear();
+  h.local.restore();
+  expect(h.formDataReads).not.toHaveBeenCalled(); expect(mocks.restore).toHaveBeenCalledOnce();
 });
 
 it('잠금 전에 발생한 실제 입력은 해제 후에도 명시 편집으로 보관한다', () => {

@@ -8,7 +8,8 @@ const data: BenefitReport = { summary, daily: [], coupons: [{ code: 'ABC', name:
 const issuances: BenefitIssuances = { totalCount: 51, paidUseCount: 1, asOf: '2026-10-12T00:00:00Z', rows: [{ id: '00000000-0000-4000-8000-000000000051', couponCode: 'ABC', issuedAt: '2026-09-30T15:00:00Z', isPaidUse: false }] };
 const filters = normalizeBenefitReportFilters({ code: 'ABC', detail: 'issuances', page: '2', from: '2026-10-01', to: '2026-10-12', q: '검수', bucket: 'month', compare: 'previous' });
 const now = new Date('2026-10-12T00:00:00Z');
-const href = (html: string, label: string) => html.match(new RegExp(`href="([^"]+)"[^>]*>${label}</a>`))![1].replaceAll('&amp;', '&');
+/* 페이지 이동 링크는 아이콘(svg) 뒤에 이름이 온다(ConsolePagination). */
+const href = (html: string, label: string) => html.match(new RegExp(`href="([^"]+)"[^>]*>(?:<svg(?:(?!</a>)[\\s\\S])*?</svg>)?${label}</a>`))![1].replaceAll('&amp;', '&');
 
 describe('혜택 리포트 발급 상세', () => {
   it('발급 모집단·관측시각·50건 페이지와 상태 의미를 표시한다', () => {
@@ -16,12 +17,14 @@ describe('혜택 리포트 발급 상세', () => {
     expect(html).toContain('쿠폰 발급 상세');
     expect(html).toContain('2026-10-01 00:00:00');
     expect(html).toContain('2026-10-12 09:00:00');
-    expect(html).toContain('2 / 2 페이지 · 51개');
+    expect(html).toContain('51–51 / 전체 51개 · 2 / 2 페이지');
     expect(html).toContain('아니오');
     expect(html).toContain('사용 가능이나 환불 완료를 뜻하지 않습니다');
     expect(html).not.toContain('order-1');
     expect(html).toContain('name="detail" value="issuances"');
     expect(html).toContain('name="code" value="ABC"');
+    /* 조회는 GET 폼 제출이다 — kit Button은 type이 없으면 button이 된다. */
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>검색</);
     const previous = new URL(href(html, '이전'), 'https://example.test');
     expect(Object.fromEntries(previous.searchParams)).toMatchObject({ detail: 'issuances', code: 'ABC', q: '검수', bucket: 'month', compare: 'previous', from: '2026-10-01', to: '2026-10-12' });
     expect(previous.searchParams.has('page')).toBe(false);

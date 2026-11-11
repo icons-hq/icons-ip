@@ -8,7 +8,7 @@ const rows: GoodsOptionRow[] = [
   { name: '빨강', code: '', attributes: { 색상: '빨강' }, extraPrice: 0, stockQty: 3 },
   { name: '파랑', code: '', attributes: { 색상: '파랑' }, extraPrice: 0, stockQty: 1 },
 ];
-const summary = (html: string) => html.match(/<span class="admin-good-section__summary">(.*?)<\/span>/)?.[1] ?? '';
+const summary = (html: string) => html.match(/data-good-section-summary="">(.*?)<\/span>/)?.[1] ?? '';
 
 describe('구매 제한 카드', () => {
   /* 리뷰 T3a-5 — 수량 입력은 비제어라 마운트 때 값으로 요약하면 편집 중 입력이 '?'로 남는다. 편집기의 현재 입력값으로 요약한다. */

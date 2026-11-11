@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
   inquiries: vi.fn(async () => ({ rows: [], counts: { open: 3, answered: 0, closed: 0 } })),
   detail: vi.fn(async () => ({ inquiry: { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' } })),
   navigation: vi.fn(async () => undefined),
-  screen: vi.fn(() => null),
+  screen: vi.fn(({ pendingBadge }: { pendingBadge?: React.ReactNode }) => pendingBadge ?? null),
 }));
 
 vi.mock('@/components/admin/screens/InquiryDetailScreen', () => ({ InquiryDetailScreen: mocks.screen }));

@@ -32,30 +32,10 @@ import '../../app/styles/admin-font.css';
 import '../../app/styles/wc-catalog.css';
 import '../../app/styles/wc-home.css';
 import '../../app/styles/wc-chrome.css';
-import '../../app/styles/admin-goods-worklist.css';
-import '../../app/styles/wc-admin-option-artwork.css';
-import '../../app/styles/admin-ux-521.css';
-import '../../app/styles/admin-console-controls.css';
-import '../../app/styles/admin-home.css';
 import '../../app/styles/admin-sales-console.css';
-import '../../app/styles/admin-customer-service.css';
-import '../../app/styles/admin-stats-console.css';
-import '../../app/styles/admin-store-editor.css';
-import '../../app/styles/admin-goods-announcements.css';
-import '../../app/styles/admin-photo-library.css';
-import '../../app/styles/admin-goods-relations.css';
-import '../../app/styles/admin-goods-attributes.css';
-import '../../app/styles/admin-goods-drafts.css';
-import '../../app/styles/admin-review-insights.css';
-import '../../app/styles/admin-coupons.css';
-import '../../app/styles/admin-operations-dock.css';
-import '../../app/styles/admin-shipping-settings.css';
-import '../../app/styles/admin-store-credits.css';
-import '../../app/styles/admin-faq.css';
-import '../../app/styles/admin-goods-notice-presets.css';
 import '../../app/styles/admin-order-detail.css';
-import '../../app/styles/admin-customer-detail.css';
-import '../../app/styles/admin-store-settings.css';
+/* 앱 레이아웃처럼 옛 클래스 어휘의 kit 옷을 관리자 CSS 뒤에 싣는다(ADR-0028). */
+import '../../app/styles/admin-kit-vocabulary.css';
 
 type FixtureView = 'goods' | 'filter-date' | 'options' | 'editor' | 'inquiry-settings' | 'kc-presets' | 'kc-editor' | 'shell' | 'overview' | 'grid' | 'cs-qna' | 'cs-reviews' | 'cs-inquiries' | 'store-editor' | 'stats' | 'purchase-restrictions' | 'announcements' | 'announcement-public' | 'coupons' | 'claims' | 'orders';
 
@@ -95,7 +75,7 @@ function goodsData(): AdminGoodsListData {
   const goods = query
     ? FIXTURE_GOODS.filter((good) => `${good.name} ${good.code} ${good.id}`.toLocaleLowerCase('ko-KR').includes(query))
     : FIXTURE_GOODS;
-  return { filters, goods, total: goods.length, ips: FIXTURE_IPS, checkedAt: '2026-10-12T06:00:00Z', counts: { all: 6, active: 5, draft: 2, published: 3, archived: 1 }, origins: [{ id: '00000000-0000-4000-8000-000000000011', name: '기본 출고지', active: true }], categories: [{ id: '00000000-0000-4000-8000-000000000012', name: '수집품', depth: 1, archivedAt: null }] };
+  return { filters, goods, total: goods.length, ips: FIXTURE_IPS, checkedAt: '2026-10-12T06:00:00Z', counts: { all: 6, active: 5, draft: 2, published: 3, archived: 1 }, stockCounts: { out_of_stock: 0, low: 1 }, origins: [{ id: '00000000-0000-4000-8000-000000000011', name: '기본 출고지', active: true }], categories: [{ id: '00000000-0000-4000-8000-000000000012', name: '수집품', depth: 1, archivedAt: null }] };
 }
 
 function RouteSwitcher({ active }: { active: FixtureView }) {

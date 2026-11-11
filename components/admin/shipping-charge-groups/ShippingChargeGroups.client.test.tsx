@@ -9,7 +9,7 @@ vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>
   useState: (value: unknown) => { const i = hooks.stateIndex++; if (!(i in hooks.states)) hooks.states[i] = typeof value === 'function' ? value() : value; return [hooks.states[i], (next: unknown) => { hooks.states[i] = typeof next === 'function' ? next(hooks.states[i]) : next; }]; },
   useRef: (value: unknown) => { const i = hooks.refIndex++; return hooks.refs[i] ??= { current: value }; },
   useMemo: (callback: () => unknown, deps: unknown[]) => { const i = hooks.memoIndex++; if (!hooks.memos[i] || deps.some((dep, j) => dep !== hooks.memos[i].deps[j])) hooks.memos[i] = { value: callback(), deps }; return hooks.memos[i].value; },
-  useId: () => 'charge-group-test', useSyncExternalStore: (_subscribe: unknown, read: () => unknown) => read(),
+  useCallback: (callback: unknown) => callback, useId: () => 'charge-group-test', useSyncExternalStore: (_subscribe: unknown, read: () => unknown) => read(),
   useEffect: (effect: () => void | (() => void), deps: unknown[] = []) => { const i = hooks.effectIndex++, previous = hooks.effects[i]; if (!previous || deps.some((dep, j) => dep !== previous.deps[j])) { hooks.effects[i] = { deps, effect, cleanup: previous?.cleanup }; hooks.changed.push(i); } },
 }));
 vi.mock('@/app/admin/shipping-charge-group-actions', () => ({ saveShippingChargeGroupAction: mocks.save, assignShippingChargeGroupAction: mocks.assign,
@@ -23,15 +23,20 @@ import { createGoodsDescriptionToolScope } from '@/lib/admin/goods-description-t
 import { shippingChargeGroupOperationContext, type ShippingChargeGroupListData } from '@/lib/admin/shipping-charge-groups';
 import { chargeAdminFixtures, chargeIdentity as identity, chargeIds as ids } from '@/test/fixtures/shipping-charge-groups';
 import { ShippingChargeGroupField, ShippingChargeGroupSummary, type ShippingChargeGroupFieldProps } from '../ShippingChargeGroupField';
-import { ShippingChargeGroupEditor } from '../screens/ShippingChargeGroupsPanel';
+import { GroupsWorkspace, ShippingChargeGroupEditor } from '../screens/ShippingChargeGroupsPanel';
+import { ConsolePagination } from '@/components/admin/console/ConsolePagination';
 import { ShippingChargeGroupAssignmentDialog } from './ShippingChargeGroupAssignmentDialog';
 import { useShippingChargeGroupOperation, useShippingChargeGroupPending, useShippingChargeGroupSession } from './useShippingChargeGroupOperation';
+import { Button } from '@/components/admin/kit/ui/button';
+import { Input } from '@/components/admin/kit/ui/input';
+import { NativeSelect } from '@/components/admin/kit/ui/native-select';
+import { Textarea } from '@/components/admin/kit/ui/textarea';
 
 type Element = ReactElement<Record<string, unknown>>;
 const all = (node: ReactNode): Element[] => Children.toArray(node).flatMap(value => isValidElement<Record<string, unknown>>(value) ? [value, ...all(value.props.children as ReactNode)] : []);
 const text = (node: ReactNode): string => Children.toArray(node).map(value => isValidElement<Record<string, unknown>>(value) ? text(value.props.children as ReactNode) : String(value)).join('');
 const deferred = <T,>() => { let resolve!: (value: T) => void; const promise = new Promise<T>(yes => { resolve = yes; }); return { promise, resolve }; };
-let scope: ReturnType<typeof createGoodsDescriptionToolScope>, storageValues: Map<string, string>, mode: 'operation' | 'session' | 'field' | 'editor' | 'assignment';
+let scope: ReturnType<typeof createGoodsDescriptionToolScope>, storageValues: Map<string, string>, mode: 'operation' | 'session' | 'field' | 'editor' | 'assignment' | 'workspace';
 let command: 'save' | 'assign', groupId: string | null, fieldProps: ShippingChargeGroupFieldProps;
 let editorProps: Parameters<typeof ShippingChargeGroupEditor>[0];
 let assignmentProps: Parameters<typeof ShippingChargeGroupAssignmentDialog>[0];
@@ -46,15 +51,24 @@ function render() {
   if (mode === 'field') return ShippingChargeGroupField(fieldProps);
   if (mode === 'editor') return ShippingChargeGroupEditor(editorProps);
   if (mode === 'assignment') return ShippingChargeGroupAssignmentDialog(assignmentProps);
+  if (mode === 'workspace') return GroupsWorkspace({ identity, scope, origins: [], carriers: [], canEdit: true, canManageRegional: true });
   return useShippingChargeGroupOperation({ identity, scope, groupId, command, onReceipt: mocks.receipt });
 }
 function effects() { for (const index of hooks.changed.splice(0)) { const item = hooks.effects[index]; item.cleanup?.(); item.cleanup = item.effect() || undefined; } }
 async function flush() { for (let i = 0; i < 7; i++) { await Promise.resolve(); render(); effects(); } }
 const operation = () => render() as ReturnType<typeof useShippingChargeGroupOperation>;
 const node = () => render() as ReactElement;
-const button = (label: string) => all(node()).find(item => item.type === 'button' && text(item) === label)!;
+/* 편집·배정 팝업은 kit Button·Input·NativeSelect·Textarea(ADR-0028)를 쓴다. 이 얕은 렌더는 kit 부품을 펼치지 않으므로 그 요소를 그대로 찾는다 — kit 부품은 onClick·disabled·onChange를 네이티브 요소에 그대로 넘긴다. */
+const CONTROL_TYPES: unknown[] = ['input', 'select', 'textarea', Input, NativeSelect, Textarea];
+const button = (label: string) => all(node()).find(item => (item.type === 'button' || item.type === Button) && text(item) === label)!;
 function click(label: string) { const item = button(label); expect(item).toBeDefined(); expect(item.props.disabled).not.toBe(true); (item.props.onClick as () => void)(); }
-function field(label: string) { const parent = all(node()).find(item => item.type === 'label' && text(item).startsWith(label)); return parent && all(parent.props.children as ReactNode).find(item => ['input', 'select', 'textarea'].includes(String(item.type))); }
+/* 페이지 이동은 공용 ConsolePagination(버튼 모드)이다 — 얕은 렌더는 부품을 펼치지 않으므로 그 요소의 onPageChange를 직접 부른다. */
+function nextPage() {
+  const item = all(node()).find(element => element.type === ConsolePagination) as unknown as ReactElement<{ page: number; pageSize: number; total: number; disabled?: boolean; onPageChange: (page: number) => void }> | undefined;
+  expect(item).toBeDefined(); expect(item!.props.disabled).not.toBe(true); expect(item!.props.page * item!.props.pageSize).toBeLessThan(item!.props.total);
+  item!.props.onPageChange(item!.props.page + 1);
+}
+function field(label: string) { const parent = all(node()).find(item => item.type === 'label' && text(item).startsWith(label)); return parent && all(parent.props.children as ReactNode).find(item => CONTROL_TYPES.includes(item.type)); }
 function change(label: string, value: string | boolean) { const item = field(label)!; expect(item).toBeDefined(); (item.props.onChange as (event: unknown) => void)({ target: typeof value === 'boolean' ? { checked: value } : { value } }); }
 async function submit() { const form = all(node()).find(item => item.type === 'form')!; await (form.props.onSubmit as (event: unknown) => Promise<void>)({ preventDefault() {} }); await flush(); }
 function authenticate(actor = ids.actor, session = ids.session) { mocks.auth?.('SIGNED_IN', { user: { id: actor }, access_token: `x.${Buffer.from(JSON.stringify({ session_id: session })).toString('base64url')}.x` }); }
@@ -262,7 +276,7 @@ it('상품 배정은 100개 선택 한도를 handler에서도 제한한다', asy
   await mountAssignment();
   for (let page = 1; page <= 6; page++) {
     for (let index = 0; index < (page === 6 ? 1 : 20); index++) selectAssignmentGood(index);
-    if (page < 6) { click('다음'); await flush(); }
+    if (page < 6) { nextPage(); await flush(); }
   }
   expect(text(node())).toContain('선택 100개'); expect(text(node())).toContain('한 번에 최대 100개 원상품');
 });
@@ -293,4 +307,21 @@ it('상품 배정 해제 preview가 거부하면 진단 blocker와 무관하게 
   mocks.preview.mockResolvedValueOnce({ data: { ...preview, canAssign: false, group: null, goods: [{ ...preview.goods[0], afterGroup: null }] } });
   await mountAssignment(); change('선택 상품의 배정 변경', 'clear'); selectAssignmentGood(); click('배정 미리보기'); await flush();
   expect(button('1개 원상품에 적용').props.disabled).toBe(true); (button('1개 원상품에 적용').props.onClick as () => void)(); expect(mocks.assign).not.toHaveBeenCalled();
+});
+
+/* 공용 페이지 이동(ConsolePagination)은 범위 밖 페이지를 범위 안으로 보정해 그려 '이전'이 닫힌다 — 보관 등으로 마지막
+   페이지가 비면 같은 페이지에 남지 않고 마지막 유효 페이지를 다시 읽어야 빈 목록에 갇히지 않는다(템플릿 화면과 같다). */
+it('다음 페이지가 비어 돌아오면 마지막 유효 페이지를 다시 읽는다', async () => {
+  mode = 'workspace';
+  const { group } = chargeAdminFixtures();
+  mocks.list.mockReset()
+    .mockResolvedValueOnce({ data: { ...listData(), total: 21 } })
+    .mockResolvedValueOnce({ data: { ...listData(), page: 2, total: 20, groups: [] } })
+    .mockResolvedValueOnce({ data: { ...listData(), page: 1, total: 20, groups: [group] } });
+  render(); effects(); await new Promise(resolve => setTimeout(resolve, 0)); await flush();
+  const pager = () => all(node()).find(item => item.type === ConsolePagination)!;
+  expect(pager().props).toMatchObject({ page: 1, total: 21 });
+  (pager().props.onPageChange as (page: number) => void)(2); await flush();
+  expect(mocks.list.mock.calls.map(([filters]) => filters.page)).toEqual([1, 2, 1]);
+  expect(pager().props).toMatchObject({ page: 1, total: 20 });
 });

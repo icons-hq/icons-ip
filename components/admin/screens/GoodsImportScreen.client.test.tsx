@@ -45,6 +45,8 @@ vi.mock('@/lib/supabase/client', () => ({
 }));
 
 const { GoodsImportScreen } = await import('./GoodsImportScreen');
+const { AdminSelect } = await import('../console/AdminSelect');
+const { Button } = await import('../kit/ui/button');
 
 type Props = { children?: ReactNode; id?: string; onClick?: () => Promise<void>; onChange?: (event: unknown) => void };
 function find(node: ReactNode, predicate: (element: ReactElement<Props>) => boolean): ReactElement<Props>[] {
@@ -65,7 +67,7 @@ function render() {
   return GoodsImportScreen({});
 }
 const button = (tree: ReactNode, label: string) =>
-  find(tree, (element) => element.type === 'button' && text(element).includes(label))[0];
+  find(tree, (element) => (element.type === 'button' || element.type === Button) && text(element).includes(label))[0];
 /* 화면의 useRef 순서: 상품 XLSX, 이미지 ZIP, 사방넷 파일, 중지 신호. */
 const REF = { workbook: 0, zip: 1, sabangnet: 2 } as const;
 const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -104,7 +106,7 @@ describe('상품 엑셀 파일 업로드 본문 형식', () => {
       hooks.state = [];
       hooks.refs = [];
       const first = render();
-      const format = find(first, (element) => element.type === 'select' && element.props.id === 'goods-import-format')[0];
+      const format = find(first, (element) => (element.type === 'select' || element.type === AdminSelect) && element.props.id === 'goods-import-format')[0];
       format.props.onChange?.({ target: { value: 'sabangnet' } });
       const file = new File(['상품명,판매가\n키링,9000\n'], '사방넷 상품.csv', { type });
       hooks.refs[REF.sabangnet].current = { files: [file] };
@@ -123,7 +125,7 @@ describe('상품 엑셀 파일 업로드 본문 형식', () => {
 
   it('사방넷 .xlsx와 ICONS 양식 XLSX·이미지 ZIP도 버킷이 받는 형식의 Blob으로 올린다', async () => {
     const first = render();
-    find(first, (element) => element.type === 'select' && element.props.id === 'goods-import-format')[0]
+    find(first, (element) => (element.type === 'select' || element.type === AdminSelect) && element.props.id === 'goods-import-format')[0]
       .props.onChange?.({ target: { value: 'sabangnet' } });
     hooks.refs[REF.sabangnet].current = { files: [new File(['PK'], '사방넷.xlsx', { type: '' })] };
     await button(render(), '열 확인').props.onClick?.();

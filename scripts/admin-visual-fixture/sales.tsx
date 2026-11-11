@@ -1,4 +1,4 @@
-import { ClaimQueueScreen } from '../../components/admin/screens/ClaimQueueScreen';
+import { ClaimQueueKitScreen } from '../../components/admin/screens/ClaimQueueKitScreen';
 import { OrderItemsScreen } from '../../components/admin/screens/OrderItemsScreen';
 import { normalizeAdminClaimFilters, type AdminClaimConsoleData, type AdminClaimRow } from '../../lib/admin/claims';
 import { normalizeAdminOrderItemFilters, type AdminOrderItemData, type AdminOrderItemRow } from '../../lib/admin/order-items';
@@ -58,5 +58,5 @@ export function ReturnClaimsFixture() {
     claimType: 'return', filters, rows: matching.slice((filters.page - 1) * pageSize, filters.page * pageSize), total: matching.length, pageSize,
     counts: { requested: 1, in_review: 0, collecting: 1, collected: 0, on_hold: 1, processing: 1, needs_review: 0, completed: 0, rejected: 0, withdrawn: 0 },
   };
-  return <ClaimQueueScreen data={data} now={NOW} />;
+  return <ClaimQueueKitScreen data={data} now={NOW} />;
 }

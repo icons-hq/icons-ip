@@ -145,7 +145,19 @@ describe('MembersSection', () => {
     expect(html).toContain('name="reason"');
     expect(html).toContain('maxLength="200"');
     expect(html).toContain('required=""');
-    expect(html).toContain('min-height:44px');
+    /* 터치 화면(pointer: coarse)에서 정지 버튼은 44px 이상이다. 템플릿 룩에서 마우스 크기는 kit 기본값을 쓴다. */
+    expect(html).toMatch(/<button(?=[^>]*type="submit")(?=[^>]*pointer-coarse:min-h-11)[^>]*>(?:<svg[\s\S]*?<\/svg>)? 회원 정지<\/button>/);
+  });
+
+  it('검색·상세 보기·정지·등급 보정은 각자의 폼을 제출한다', () => {
+    hooks.detailState = { member: detail };
+    const html = renderToStaticMarkup(
+      <MembersSection actor={{ id: 'staff-a', role: 'staff' }} initialMembers={summaries} />,
+    );
+    /* kit Button은 type을 주지 않으면 type="button"이 된다 — 폼 안 동작은 제출 버튼이어야 한다. */
+    for (const label of ['검색', '상세 보기', '회원 정지', '등급 보정', '실적으로 재산정']) {
+      expect(html).toMatch(new RegExp(`<button(?=[^>]*type="submit")[^>]*>(?:<svg[\\s\\S]*?</svg>)? ${label}</button>`));
+    }
   });
 
   it('현재 검색 결과와 다른 이전 상세는 PII와 제재 form을 렌더링하지 않는다', () => {
@@ -177,6 +189,41 @@ describe('MembersSection', () => {
     );
     expect(searchPendingHtml).not.toContain('fan@example.test');
     expect(searchPendingHtml).not.toContain('name="reason"');
+  });
+
+  /* 같은 말로 보이는 버튼을 두지 않는다 — 고객 상세는 닉네임 링크, 줄의 버튼은 이 화면의 상세 보기 하나다. */
+  it('줄마다 버튼은 하나만 두고 권한은 운영자 말로 보인다', () => {
+    const html = renderToStaticMarkup(
+      <MembersSection actor={{ id: 'staff-a', role: 'staff' }} initialMembers={summaries} />,
+    );
+
+    expect(html).not.toContain('고객 상세 열기');
+    expect(html.match(/ 상세 보기<\/button>/g)).toHaveLength(2);
+    expect(html).toMatch(new RegExp(`<a[^>]*href="/admin/customers/${summaries[0].id}"[^>]*>@팬일호</a>`));
+    expect(html).toMatch(/data-tone="neutral"[^>]*>직원</);
+    expect(html).not.toMatch(/>(?:user|staff|admin)</);
+    expect(html).toContain('2명 표시');
+  });
+
+  /* 한 사람이 한 줄이고, 정지 회원은 줄의 배지와 버튼으로 찾는다. '이용 중'은 고객 상세와 같은 배지다(같은 상태는 같은 모양). */
+  it('회원을 표 한 줄로 보이고 정지 건수는 거르는 버튼이다', () => {
+    const html = renderToStaticMarkup(
+      <MembersSection actor={{ id: 'staff-a', role: 'staff' }} initialMembers={summaries} />,
+    );
+
+    expect(html).toContain('data-slot="table"');
+    expect(html).toMatch(/<button(?=[^>]*aria-pressed="false")[^>]*>정지 1명만 보기<\/button>/);
+    expect(html).toMatch(/data-tone="danger"[^>]*>정지</);
+    expect(html).toMatch(/data-tone="success"[^>]*>이용 중</);
+  });
+
+  it('상세는 누른 줄 바로 아래에 연다', () => {
+    hooks.detailState = { member: detail };
+    const html = renderToStaticMarkup(
+      <MembersSection actor={{ id: 'staff-a', role: 'staff' }} initialMembers={summaries} />,
+    );
+
+    expect(html.indexOf('fan@example.test')).toBeLessThan(html.indexOf('@운영이호'));
   });
 
   it('운영자가 영향 확인을 거절하면 정지 제출을 취소한다', () => {

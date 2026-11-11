@@ -59,7 +59,7 @@ function parseAttempt(value: unknown): PaymentAttempt {
   const row = value as unknown as AttemptRow;
   if (
     typeof row.id !== 'string'
-    || (row.provider !== 'toss' && row.provider !== 'korpay')
+    || (row.provider !== 'toss' && row.provider !== 'korpay' && row.provider !== 'nicepay')
     || row.purpose !== 'order'
     || typeof row.ref_id !== 'string'
     || !Number.isSafeInteger(row.amount)

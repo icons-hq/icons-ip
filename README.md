@@ -18,7 +18,7 @@ ICONS는 서브컬처 팬덤을 위한 슈퍼앱 프로토타입이다. 공식 �
 - 검색은 Supabase 환경변수가 있으면 Postgres `search_public_content` RPC로 IP, 굿즈, 카드, visible 포스트, 태그를 그룹 검색하고, 로컬 fallback에서는 mock 데이터를 사용한다.
 - `/admin`은 통합 매니저·계정 주매니저·계정 부매니저·인플루언서·대행사·물류출고관리의 현재 DB 권한으로 메뉴·조회·변경을 제한한다. 상품·주문·문의·전시·마케팅·분석과 IP·카드·게임 운영을 각각 검사하며, 기존 `profiles.role` 값만으로 접근을 허용하지 않는다. 기존 게임 `goods` variant는 운영 콘솔에서 읽기 전용이고, mock 연출은 실제 경품·구매권을 만들지 않으며 신규 실물 판매에 쓰지 않는다.
 - Google, Kakao, Apple 버튼은 Supabase 관리형 OAuth Server Action에 연결되어 있고 production Supabase provider도 모두 활성화되어 있다. Google은 production 공개 상태이며 Apple App ID·Services ID·callback·서명 키 구성이 완료됐다. Kakao는 `(주) 아이콘스` 비즈 앱, 로그인용 client secret, `account_email` 필수 동의·계정 정보 수집까지 설정했고 Supabase의 이메일 없는 사용자 허용은 꺼져 있다. 코드가 production에 배포된 뒤 controlled login smoke가 남아 있다.
-- 굿즈와 티켓 checkout은 provider-neutral attempt/claim/finalizer와 `PaymentGateway` 경계 위에서 **토스페이먼츠 주문서형 v2**를 기본 provider로 쓴다(prepare→위젯 SDK→경로 세그먼트 nonce callback→서버 승인, ADR-0013). **판매 제한 상품**(성인(19금))이 담긴 주문만 서버가 주문 단위로 코페이를 파생하며 관리자가 PG를 고르지 않는다. 목적별 rollout gate의 기본값은 OFF이고 토스 gate 둘과 canary 둘은 모두 닫혀 있다 — 개방은 심사 트랙(`docs/runbooks/toss-production-rollout.md`)을 따른다. 2026-08-18 공개 ON으로 열어 둔 코페이 굿즈 gate는 폐쇄 실행 대기다.
+- 굿즈와 티켓 checkout은 provider-neutral attempt/claim/finalizer와 `PaymentGateway` 경계 위에서 **토스페이먼츠 주문서형 v2**를 기본 provider로 쓴다(prepare→위젯 SDK→경로 세그먼트 nonce callback→서버 승인, ADR-0013). **판매 제한 상품**(성인(19금))이 담긴 굿즈 주문만 서버가 주문 단위로 나이스페이(웹표준 인증결제)를 파생하며 관리자가 PG를 고르지 않는다(2026-11-06 코페이 대체 — 코페이는 진행 중 결제 drain 전용, `docs/runbooks/nicepay-production-rollout.md`). 목적별 rollout gate의 기본값은 OFF이고 토스 gate 둘과 canary 둘은 모두 닫혀 있다 — 개방은 심사 트랙(`docs/runbooks/toss-production-rollout.md`)을 따른다. 2026-08-18 공개 ON으로 열어 둔 코페이 굿즈 gate는 폐쇄 실행 대기다.
 - 범용 온라인 팝업 운영 레이어와 Expo webview 호스트는 현 로드맵에 없다. 19+ 꽝 없는 유한 실물 쿠지는 기존 카드·게임과 분리된 `prize_sale`로 설계하며 [#212](https://github.com/icons-hq/icons-ip/issues/212)·[#213](https://github.com/icons-hq/icons-ip/issues/213)이 별도 추적한다.
 
 운영자는 [설정 런북](./docs/runbooks/admin-store-settings.md)에서 사업자·CS, 무통장 계좌 표시값과 택배사 변경 절차를 확인할 수 있습니다.
@@ -72,6 +72,7 @@ RESEND_WEBHOOK_SECRET=
 # Optional Resend-compatible endpoint override; normally leave empty.
 RESEND_API_ENDPOINT=
 PAYMENT_RECONCILIATION_SECRET=
+ERP_SYNC_SECRET=
 # Toss (default PG) keys: Production only. Client/secret must share one mode.
 NEXT_PUBLIC_TOSS_CLIENT_KEY=
 TOSS_SECRET_KEY=
@@ -80,14 +81,16 @@ TOSS_TICKET_CHECKOUT_ENABLED=false
 # Optional Production-only UUID for one authenticated canary actor; leave unset by default.
 TOSS_ORDER_CANARY_USER_ID=
 TOSS_TICKET_CANARY_USER_ID=
-# Korpay (sale-restricted goods only): Production only; never put these in Preview/CI or NEXT_PUBLIC_*.
+# NICEPAY (sale-restricted goods only, web-standard MID + MerchantKey): Production only;
+# never put these in Preview/CI or NEXT_PUBLIC_*. There is no ticket gate.
+NICEPAY_MID=
+NICEPAY_MERCHANT_KEY=
+NICEPAY_ORDER_CHECKOUT_ENABLED=false
+# Optional Production-only UUID for one authenticated canary actor (card review account); leave unset by default.
+NICEPAY_ORDER_CANARY_USER_ID=
+# Korpay (retired: in-flight callback drain only): Production only. Checkout gates/canaries are no longer read.
 KORPAY_MID=
 KORPAY_KEY=
-KORPAY_ORDER_CHECKOUT_ENABLED=false
-KORPAY_TICKET_CHECKOUT_ENABLED=false
-# Optional Production-only UUID for one authenticated canary actor; leave unset by default.
-KORPAY_ORDER_CANARY_USER_ID=
-KORPAY_TICKET_CANARY_USER_ID=
 # NHN KCP mobile identity verification (adult verification). Production uses production mode;
 # Preview/local use test mode only. Never commit the site code, web site id or ENC_KEY.
 KCP_CERT_MODE=
@@ -104,13 +107,14 @@ ADULT_VERIFICATION_CANARY_USER_ID=
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`: legacy Supabase anon public key. `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`가 없을 때 fallback으로만 사용한다.
 - `ICONS_CATALOG_SOURCE`: 서버 전용 catalog/search source override. 값은 `mock` 또는 `supabase`만 허용한다. 비워두면 Vercel Preview는 `mock`, Supabase 환경변수가 있는 production/local은 `supabase`, Supabase 환경변수가 없으면 `mock`을 쓴다. GitHub Actions의 PR preview는 선택된 shared/isolated Supabase 자격 증명과 함께 `supabase`를 강제한다.
 - `AUTH_SIGNUP_RESEND_SECRET`: 회원가입 확인 메일 재전송 상태, 인증 `next`, 비밀번호 재설정 요청 제한 쿠키를 domain-separated HMAC으로 서명하는 서버 전용 secret. 긴 랜덤 값을 사용하고 `NEXT_PUBLIC_` prefix를 붙이지 않는다.
-- `SITE_URL`: secret이 아닌 서버 전용 canonical public origin이다. Production은 정확히 `https://iconsip.com`을 사용하며 토스 `successUrl`·`failUrl`과 코페이 `returnUrl` callback이 모두 이 origin 아래에서 생성된다. Preview/CI는 필요하면 각 환경의 일반 서버 origin을 둘 수 있지만 Korpay 실자격 증명과 canary actor는 두지 않고 목적별 gate를 닫는다. `SITE_URL`만으로 live checkout이 열리지는 않는다.
+- `SITE_URL`: secret이 아닌 서버 전용 canonical public origin이다. Production은 정확히 `https://iconsip.com`을 사용하며 토스 `successUrl`·`failUrl`, 나이스페이 `ReturnURL`, 코페이 `returnUrl` callback이 모두 이 origin 아래에서 생성된다. Preview/CI는 필요하면 각 환경의 일반 서버 origin을 둘 수 있지만 Korpay·NICEPAY 실자격 증명과 canary actor는 두지 않고 목적별 gate를 닫는다. `SITE_URL`만으로 live checkout이 열리지는 않는다.
 - `CRON_SECRET`: production Vercel Cron이 만료된 관리자 아트워크 staging 객체를 정리할 때 쓰는 서버 전용 bearer secret. 16~128자의 URL-safe 랜덤 값을 사용하고 preview에는 필요하지 않다.
 - `SUPABASE_SEND_EMAIL_HOOK_SECRET`·`RESEND_WEBHOOK_SECRET`: #191 Hook/webhook의 raw body 서명 검증용 서버 secret이다.
 - `EMAIL_DISPATCH_HMAC_SECRET`: recipient·source·provider reference를 목적 분리 keyed HMAC으로 투영하는 32자 이상 서버 secret이다.
 - `RESEND_API_KEY`·`RESEND_FROM`·`RESEND_REPLY_TO`: durable EmailDispatcher의 Resend HTTP 발송 설정이다. 전용 provider 설정과 `RESEND_API_ENDPOINT`를 모두 생략하면 기존 앱의 `EMAIL_PROVIDER_API_KEY`·`EMAIL_FROM`·`EMAIL_REPLY_TO`를 사용한다. 일부 전용 값과 기존 계정 값을 섞지 않으며 자세한 조건은 [이메일 운영](docs/transactional-email.md)을 따른다. Preview·CI에는 실값을 두지 않는다.
 - `RESEND_API_ENDPOINT`: 호환성 검증에만 쓰는 선택적 endpoint override다. 일반 운영에서는 비워 둔다.
 - `PAYMENT_RECONCILIATION_SECRET`: 검토된 단일 결제·환급 건을 명시적으로 재조회하는 내부 route(티켓 `/api/internal/payments/tickets/reconcile` — `operation: payment | refund`, 굿즈 `/api/internal/payments/goods/reconcile` — 환불 reconcile seam이 없어 `operation: payment`만) 전용 bearer secret. `CRON_SECRET`과 공유하지 않는다. #206 dark deploy에서는 미설정이 정상이며 route가 401로 닫힌다. 활성화 시 별도 승인 절차로 Production에만 16~128자의 URL-safe 랜덤 값을 두고 Preview/CI에는 넣지 않는다. 요청은 이메일 등 PII가 아닌 opaque URL-safe `caseRef`만 받으며 actor는 서버가 `payment_reconciliation_service_v1`으로 고정한다.
+- `ERP_SYNC_SECRET`: AX 서버(ERPNext 연동)가 몰 업무 표를 읽는 내부 route `/api/internal/erp/data`(본문 `service_erp_read`) 전용 bearer secret. 다른 secret과 공유하지 않는다. 미설정이면 route가 401로 닫힌다. 16~128자 URL-safe 랜덤 값을 Production에만 두고 Preview/CI에는 넣지 않는다. `table` 이 없으면 읽을 수 있는 표·칸 목록(public·private 업무 표 + `auth.users` 회원 칸), 있으면 그 표의 줄 — `columns`(칸 고르기)·`where`(`{칸: [값]}`, 칸마다 1,000개)·`after`(앞 응답의 `next`)·`limit`(1~1,000). GET 은 `table`·`columns`·`limit` 만 받고, 값이 실리는 `after`·`where` 는 쿼리가 접근 로그에 남으므로 POST 본문으로만 받는다. 이어 읽기는 진행 중 트랜잭션 뒤의 줄을 잠시 숨기는 안전 경계(응답 `settled_before`)를 쓰고, `settled: false` 는 하루 전수 대사용이다. 끝은 `next` 가 null 인지로 판단한다(응답 크기 때문에 줄이 `limit` 보다 적어도 이어질 수 있다). 비밀 표(빌링 자격 증명·선물 링크 토큰·운영자 초대·내부 계약·성인 인증 세션·원본 결제·메일 증거·시험 도구·이 읽기의 접근 기록)와 비밀 칸(토큰·비밀번호·해시·다이제스트·논스·서명·자격 증명·결제 키·원본 결제 응답 `payments.raw`)은 함수가 막고, 개인정보 칸(주소·연락처·메일·환불 계좌 등)은 보낸다 — AX 가 따로 두고 열람 명단만 본다. 읽기마다 표·칸·거른 칸 이름·돌려준 줄 수·거절·실패가 `private.erp_read_access_log` 에 남고(값은 저장하지 않으며, 기록 실패는 읽기 실패다) 줄 없는 이어 읽기와 인증 실패는 집계만 한다. 2년 보관.
 - `NEXT_PUBLIC_TOSS_CLIENT_KEY`·`TOSS_SECRET_KEY`: 토스페이먼츠 주문서형 v2 위젯 키 쌍이다. 형식은 `(test|live)_gck_…`/`(test|live)_gsk_…`이고 **두 키의 모드가 같아야 한다** — 테스트 클라이언트 키로 띄운 결제를 라이브 시크릿 키로 승인하는 반쪽 전환을 빌드와 런타임이 함께 막는다. API 개별연동 `test_sk_…` 계열은 형식에서 거절한다. 클라이언트 키만 `NEXT_PUBLIC_`이고 시크릿 키는 server-only 모듈 밖으로 나가지 않는다. Vercel Production에만 sensitive 값으로 두고, 심사 기간에는 테스트 키가 물린다.
 - `TOSS_ORDER_CHECKOUT_ENABLED`·`TOSS_TICKET_CHECKOUT_ENABLED`: 신규 굿즈·티켓 토스 provider session을 목적별로 여는 정확한 `true`/`false` gate다. 기본값은 `false`이고 개방은 [`docs/runbooks/toss-production-rollout.md`](./docs/runbooks/toss-production-rollout.md)의 심사 트랙을 따른다. gate를 내려도 이미 durable하게 준비된 known order+nonce callback은 계속 drain한다.
 - `TOSS_SETTLEMENT_SYNC_ENABLED`·`TOSS_SETTLEMENT_MID`: 정산 조회 연결의 선택 설정이다. 기본 OFF이며 활성화하려면 계약 MID와 기존 토스 키 쌍의 모드·범위가 일치해야 한다. 실거래 연결은 Production에서만 허용하고, Preview/로컬에는 실키를 복제하지 않는다. `/admin/settlements`의 저장된 완료 자료는 연결 OFF에서도 조회·내보내기 가능하다. 실제 PG 수집·계좌 대사와 활성화는 [정산 런북](./docs/runbooks/pg-settlement-reconciliation.md)을 따른다.

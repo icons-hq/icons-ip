@@ -3,6 +3,7 @@ import {
   ADMIN_NAV_GROUPS,
   ADMIN_SCREENS,
   adminGroupForPath,
+  adminDetailTitleForPath,
   adminScreenForPath,
   adminConsoleForPath,
   adminConsoleHomeHref,
@@ -239,5 +240,18 @@ describe('visibleAdminNavGroups', () => {
   it('대분류 순서를 바꾸지 않는다', () => {
     expect(visibleAdminNavGroups('admin').map((group) => group.id))
       .toEqual(ADMIN_NAV_GROUPS.map((group) => group.id));
+  });
+});
+
+describe('상세 화면 셸 제목(ADR-0029)', () => {
+  it('레코드 상세는 상세 이름을, 목록·등록은 목록 이름을 쓴다', () => {
+    expect(adminDetailTitleForPath('/admin/sales/orders/abc')).toBe('주문 상세');
+    expect(adminDetailTitleForPath('/admin/sales/claims/returns/abc')).toBe('반품 상세');
+    expect(adminDetailTitleForPath('/admin/cs/inquiries/abc')).toBe('고객문의 상세');
+    expect(adminDetailTitleForPath('/admin/customers/abc')).toBe('고객 상세');
+    expect(adminDetailTitleForPath('/admin/sales/claims/returns/fees')).toBeNull();
+    expect(adminDetailTitleForPath('/admin/sales/claims/returns/fee-policy')).toBeNull();
+    expect(adminDetailTitleForPath('/admin/sales/orders')).toBeNull();
+    expect(adminDetailTitleForPath('/admin/sales/claims/cancels')).toBeNull();
   });
 });

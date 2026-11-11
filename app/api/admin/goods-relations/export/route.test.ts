@@ -12,7 +12,7 @@ describe('연관상품 파일 경계', () => {
     expect(mocks.guard).toHaveBeenCalledExactlyOnceWith('/admin/catalog/related-goods');
     expect(mocks.load).toHaveBeenCalledWith(expect.objectContaining({ query: 'test', kind: 'codi', state: 'scheduled' }));
     expect(response.status).toBe(200); expect(response.headers.get('cache-control')).toBe('private, no-store');
-    expect(response.headers.get('content-disposition')).toContain('icons-goods-relations.xlsx'); expect(response.headers.get('x-icons-export-rows')).toBe('1');
+    expect(decodeURIComponent(response.headers.get('content-disposition')!)).toMatch(/icons-연관상품관리-\d{8}-\d{4}\.xlsx/); expect(response.headers.get('x-icons-export-rows')).toBe('1');
   });
   it('비인가 요청은 파일 조회/생성을 하지 않는다', async () => {
     mocks.guard.mockRejectedValueOnce(new Error('forbidden'));

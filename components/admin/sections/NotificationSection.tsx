@@ -2,7 +2,16 @@
 
 import { useActionState, useState } from 'react';
 import { sendAdminNotificationAction } from '@/app/admin/notification-actions';
-import { Icon } from '@/components/ui/Icon';
+import { Bell, Check } from 'lucide-react';
+import { Badge } from '@/components/admin/kit/ui/badge';
+import { Button } from '@/components/admin/kit/ui/button';
+import { Input } from '@/components/admin/kit/ui/input';
+import { Label } from '@/components/admin/kit/ui/label';
+import { NativeSelect, NativeSelectOption } from '@/components/admin/kit/ui/native-select';
+import { Textarea } from '@/components/admin/kit/ui/textarea';
+import { ErrorText } from '../fields';
+import { AdminNotice, AdminPageHeader, AdminStatusBadge } from '../console/AdminKit';
+import { SECTION_CARD, SectionHeading } from './SectionLayout';
 import type {
   AdminNotificationActionState,
   AdminNotificationAudience,
@@ -29,9 +38,8 @@ function audienceLabel(
   return `${audience.ipTitle ?? audience.ipId ?? 'IP'} 팔로워`;
 }
 
-function FieldError({ children, id }: { children?: string; id: string }) {
-  if (!children) return null;
-  return <span className="admin-notification-field-error" id={id} role="alert">{children}</span>;
+function counterClass(over: boolean) {
+  return over ? 'text-xs tabular-nums text-destructive' : 'text-xs tabular-nums text-muted-foreground';
 }
 
 export function NotificationSection({
@@ -80,25 +88,27 @@ export function NotificationSection({
 
   const resetConfirmation = () => setConfirmed(false);
 
+  /*
+   * 작성 → 최종 확인 → 발송의 두 단계 흐름과 문구는 그대로다. 미리보기는 공개 알림함을 흉내 낸 어드민 카드라
+   * kit 모양으로 그린다(공개 미리보기 부품이 아니다).
+   */
   return (
-    <section aria-labelledby="admin-notification-heading" className="admin-notification-console col">
-      <header className="admin-notification-heading">
-        <div>
-          <span className="mono">IN-APP ANNOUNCEMENT</span>
-          <h2 id="admin-notification-heading">공지·알림 발송</h2>
-          <p>전체 사용자 또는 특정 IP 팔로워에게 운영 공지를 보냅니다.</p>
-        </div>
-        <span className="admin-notification-channel-badge">인앱 전용</span>
-      </header>
+    <section aria-label="공지 발송" className="flex min-w-0 flex-col gap-6">
+      <AdminPageHeader
+        actions={<Badge variant="outline">인앱 전용</Badge>}
+        description="전체 사용자 또는 특정 IP 팔로워에게 운영 공지를 보냅니다."
+        title="공지 발송"
+      />
 
-      <p className="card admin-notification-guide wc-admin-kit wc-admin-kit__card" role="note">
+      {/* 바로 나가고 되돌릴 수 없는 발송이라 일반 안내가 아니라 주의로 둔다. */}
+      <AdminNotice role="note" tone="warning">
         인앱 알림함에 즉시 발송됩니다. 이메일·푸시는 발송하지 않습니다. 수신자 수는 현재 기준 추정치이며 실제 수신자는 발송 시점에 확정됩니다.
-      </p>
+      </AdminNotice>
 
-      <div className="admin-notification-layout">
+      <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(17.5rem,0.72fr)]">
         <form
           action={action}
-          className="card admin-notification-composer wc-admin-kit wc-admin-kit__card"
+          className={SECTION_CARD}
           onSubmit={(event) => {
             if (confirmed && canSend) return;
             event.preventDefault();
@@ -107,26 +117,26 @@ export function NotificationSection({
         >
           <input name="operationId" type="hidden" value={operationId} />
 
-          <div className="admin-notification-form-heading">
-            <div>
-              <span className="mono">COMPOSER</span>
-              <h3>발송 내용</h3>
-            </div>
-            <span aria-live="polite" className={audience?.canSend ? 'can-send' : 'cannot-send'}>
-              {audience
-                ? `현재 추정 수신자 ${recipientNumber.format(audience.recipientCount)}명`
-                : '대상을 선택해주세요'}
-            </span>
-          </div>
+          <SectionHeading
+            action={(
+              <span aria-live="polite" className={audience?.canSend ? 'text-sm font-medium tabular-nums text-foreground' : 'text-sm font-medium text-destructive'}>
+                {audience
+                  ? `현재 추정 수신자 ${recipientNumber.format(audience.recipientCount)}명`
+                  : '대상을 선택해주세요'}
+              </span>
+            )}
+            title="발송 내용"
+          />
 
-          <div className="admin-notification-target-grid">
-            <label>
-              <span className="mono">발송 대상</span>
-              <select
+          <div className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
+            <div className="flex min-w-0 flex-col gap-2">
+              <Label htmlFor="notification-scope">발송 대상</Label>
+              <NativeSelect
                 aria-describedby={state.errors?.scope ? 'notification-scope-error' : undefined}
                 aria-invalid={Boolean(state.errors?.scope)}
-                className="admin-notification-control"
+                className="w-full"
                 disabled={pending}
+                id="notification-scope"
                 name="scope"
                 onChange={(event) => {
                   setScope(event.target.value as AdminNotificationScope);
@@ -135,19 +145,20 @@ export function NotificationSection({
                 }}
                 value={scope}
               >
-                <option value="all">전체 사용자</option>
-                <option value="ip_followers">특정 IP 팔로워</option>
-              </select>
-              <FieldError id="notification-scope-error">{state.errors?.scope}</FieldError>
-            </label>
+                <NativeSelectOption value="all">전체 사용자</NativeSelectOption>
+                <NativeSelectOption value="ip_followers">특정 IP 팔로워</NativeSelectOption>
+              </NativeSelect>
+              <ErrorText id="notification-scope-error">{state.errors?.scope}</ErrorText>
+            </div>
 
-            <label>
-              <span className="mono">대상 IP</span>
-              <select
+            <div className="flex min-w-0 flex-col gap-2">
+              <Label htmlFor="notification-ip">대상 IP</Label>
+              <NativeSelect
                 aria-describedby={state.errors?.ipId ? 'notification-ip-error' : undefined}
                 aria-invalid={Boolean(state.errors?.ipId)}
-                className="admin-notification-control"
+                className="w-full [&_select:disabled]:border-border"
                 disabled={scope === 'all' || pending}
+                id="notification-ip"
                 name="ipId"
                 onChange={(event) => {
                   setIpId(event.target.value);
@@ -156,27 +167,27 @@ export function NotificationSection({
                 required={scope === 'ip_followers'}
                 value={ipId}
               >
-                <option value="">IP 선택</option>
+                <NativeSelectOption value="">IP 선택</NativeSelectOption>
                 {ipAudiences.map((candidate) => (
-                  <option key={candidate.ipId} value={candidate.ipId}>
+                  <NativeSelectOption key={candidate.ipId} value={candidate.ipId}>
                     {candidate.ipTitle ?? candidate.ipId} · {recipientNumber.format(candidate.recipientCount)}명
-                  </option>
+                  </NativeSelectOption>
                 ))}
-              </select>
-              <FieldError id="notification-ip-error">{state.errors?.ipId}</FieldError>
-            </label>
+              </NativeSelect>
+              <ErrorText id="notification-ip-error">{state.errors?.ipId}</ErrorText>
+            </div>
           </div>
 
-          <label>
-            <span className="admin-notification-label-row">
-              <span className="mono">제목</span>
-              <span className={titleLength > 120 ? 'is-over-limit' : undefined}>{titleLength}/120</span>
-            </span>
-            <input
+          <div className="flex min-w-0 flex-col gap-2">
+            <div className="flex items-center justify-between gap-2">
+              <Label htmlFor="notification-title">제목</Label>
+              <span className={counterClass(titleLength > 120)}>{titleLength}/120</span>
+            </div>
+            <Input
               aria-describedby={state.errors?.title ? 'notification-title-error' : undefined}
               aria-invalid={Boolean(state.errors?.title) || titleLength > 120}
-              className="admin-notification-control"
               disabled={pending}
+              id="notification-title"
               name="title"
               onChange={(event) => {
                 setTitle(event.target.value);
@@ -186,19 +197,20 @@ export function NotificationSection({
               required
               value={title}
             />
-            <FieldError id="notification-title-error">{state.errors?.title}</FieldError>
-          </label>
+            <ErrorText id="notification-title-error">{state.errors?.title}</ErrorText>
+          </div>
 
-          <label>
-            <span className="admin-notification-label-row">
-              <span className="mono">본문</span>
-              <span className={bodyLength > 500 ? 'is-over-limit' : undefined}>{bodyLength}/500</span>
-            </span>
-            <textarea
+          <div className="flex min-w-0 flex-col gap-2">
+            <div className="flex items-center justify-between gap-2">
+              <Label htmlFor="notification-body">본문</Label>
+              <span className={counterClass(bodyLength > 500)}>{bodyLength}/500</span>
+            </div>
+            <Textarea
               aria-describedby={state.errors?.body ? 'notification-body-error' : undefined}
               aria-invalid={Boolean(state.errors?.body) || bodyLength > 500}
-              className="admin-notification-control"
+              className="min-h-36 resize-y"
               disabled={pending}
+              id="notification-body"
               name="body"
               onChange={(event) => {
                 setBody(event.target.value);
@@ -209,106 +221,96 @@ export function NotificationSection({
               rows={6}
               value={body}
             />
-            <FieldError id="notification-body-error">{state.errors?.body}</FieldError>
-          </label>
+            <ErrorText id="notification-body-error">{state.errors?.body}</ErrorText>
+          </div>
 
           {!audience?.canSend && (
-            <p className="admin-notification-blocked" role="status">
+            <AdminNotice role="status" tone="warning">
               현재 대상에게 발송할 수 없습니다. 수신자가 1명 이상인지 확인해주세요.
-            </p>
+            </AdminNotice>
           )}
 
           {state.errors?.form && (
-            <p className="admin-notification-action-error" role="alert">{state.errors.form}</p>
+            <AdminNotice role="alert" tone="danger">{state.errors.form}</AdminNotice>
           )}
           {state.message && state.recipientCount !== undefined && (
-            <p className="admin-notification-action-success" role="status">
-              <Icon name="check" size={16} /> 실제 {recipientNumber.format(state.recipientCount)}명에게 발송했습니다.
-            </p>
+            <AdminNotice role="status" tone="success">실제 {recipientNumber.format(state.recipientCount)}명에게 발송했습니다.</AdminNotice>
           )}
 
           {confirmed ? (
-            <div aria-label="즉시 발송 최종 확인" className="admin-notification-confirm" role="group">
-              <p>
+            <div aria-label="즉시 발송 최종 확인" className="flex flex-col gap-3 rounded-lg border border-danger-border bg-danger-soft p-3" role="group">
+              <p className="text-sm font-medium text-destructive">
                 예상 {recipientNumber.format(audience?.recipientCount ?? 0)}명에게 즉시 발송하며 회수할 수 없습니다.
               </p>
-              <div>
-                <button
-                  className="btn btn-ghost"
+              <div className="flex flex-wrap gap-2">
+                <Button
                   disabled={pending}
                   onClick={() => setConfirmed(false)}
                   type="button"
+                  variant="outline"
                 >
                   내용 다시 수정
-                </button>
-                <button className="btn btn-holo" disabled={!canSend} type="submit">
-                  <Icon name="bell" size={16} /> {pending ? '발송 처리 중' : '즉시 발송 확정'}
-                </button>
+                </Button>
+                <Button disabled={!canSend} type="submit">
+                  <Bell aria-hidden="true" /> {pending ? '발송 처리 중' : '즉시 발송 확정'}
+                </Button>
               </div>
             </div>
           ) : (
-            <button
-              className="btn btn-holo admin-notification-review"
+            <Button
+              className="self-start"
               disabled={!canSend}
               onClick={() => setConfirmed(true)}
               type="button"
             >
-              <Icon name="check" size={16} /> {pending ? '발송 처리 중' : '발송 내용 확인'}
-            </button>
+              <Check aria-hidden="true" /> {pending ? '발송 처리 중' : '발송 내용 확인'}
+            </Button>
           )}
         </form>
 
-        <aside aria-labelledby="notification-preview-heading" className="card admin-notification-preview wc-admin-kit wc-admin-kit__card">
-          <div className="admin-notification-form-heading">
-            <div>
-              <span className="mono">PREVIEW</span>
-              <h3 id="notification-preview-heading">사용자 알림 미리보기</h3>
-            </div>
-          </div>
-          <article className="notification-row is-unread admin-notification-preview-card">
-            <div className="notification-open">
-              <span aria-hidden className="notification-type-icon">
-                <Icon name="bell" size={20} />
+        <aside aria-labelledby="notification-preview-heading" className={`${SECTION_CARD} lg:sticky lg:top-16`}>
+          <SectionHeading id="notification-preview-heading" title="사용자 알림 미리보기" />
+          <article className="relative flex items-start gap-3 overflow-hidden rounded-lg border bg-background py-4 pr-4 pl-5" data-notification-preview="">
+            <span aria-hidden className="absolute inset-y-0 left-0 w-1 bg-info" />
+            <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-lg border bg-muted text-info">
+              <Bell className="size-5" />
+            </span>
+            <span className="flex min-w-0 flex-1 flex-col gap-1">
+              <span className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                <span className="font-medium text-info">공지</span>
+                <time>방금 전</time>
               </span>
-              <span className="notification-copy">
-                <span className="notification-meta mono">
-                  <span>공지</span>
-                  <time>방금 전</time>
-                </span>
-                <strong>{title.trim() || '제목을 입력하면 여기에 보여요.'}</strong>
-                <span>{body.trim() || '본문을 입력하면 사용자가 받을 알림 모양을 확인할 수 있어요.'}</span>
-              </span>
-              <span aria-hidden className="notification-unread-dot" />
-            </div>
+              <strong className="text-sm leading-snug font-semibold break-words text-foreground">{title.trim() || '제목을 입력하면 여기에 보여요.'}</strong>
+              <span className="text-sm break-words text-muted-foreground">{body.trim() || '본문을 입력하면 사용자가 받을 알림 모양을 확인할 수 있어요.'}</span>
+            </span>
+            <span aria-hidden className="mt-1.5 size-2 shrink-0 rounded-full bg-info max-sm:hidden" />
           </article>
-          <p className="admin-notification-preview-note">링크는 알림함(<code>/notifications</code>)으로 고정됩니다.</p>
+          <p className="text-xs text-muted-foreground">알림을 누르면 알림함으로 이동합니다.</p>
         </aside>
       </div>
 
-      <section aria-labelledby="notification-history-heading" className="card admin-notification-history wc-admin-kit wc-admin-kit__card">
-        <div className="admin-notification-history-heading">
-          <div>
-            <span className="mono">LATEST 20</span>
-            <h3 id="notification-history-heading">최근 발송 이력</h3>
-          </div>
-          <span className="mono">{data.history.length}건</span>
-        </div>
+      <section aria-labelledby="notification-history-heading" className={SECTION_CARD}>
+        <SectionHeading
+          action={<Badge className="tabular-nums" variant="secondary">{data.history.length}건</Badge>}
+          id="notification-history-heading"
+          title="최근 발송 이력"
+        />
 
         {data.history.length === 0 ? (
-          <p className="admin-notification-history-empty">아직 발송한 공지가 없습니다.</p>
+          <p className="py-6 text-center text-sm text-muted-foreground">아직 발송한 공지가 없습니다.</p>
         ) : (
-          <ol className="admin-notification-history-list">
+          <ol className="flex flex-col divide-y rounded-lg border">
             {data.history.slice(0, 20).map((record) => (
-              <li key={record.operationId}>
-                <div className="admin-notification-history-meta">
-                  <span className="mono">{audienceLabel(record)}</span>
-                  <time dateTime={record.sentAt}>{historyDate.format(new Date(record.sentAt))}</time>
+              <li className="flex min-w-0 flex-col gap-1.5 px-4 py-3" key={record.operationId}>
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                  <span className="flex flex-wrap items-center gap-2"><span className="font-medium text-foreground">{audienceLabel(record)}</span><AdminStatusBadge tone="success">발송 완료</AdminStatusBadge></span>
+                  <time className="tabular-nums" dateTime={record.sentAt}>{historyDate.format(new Date(record.sentAt))}</time>
                 </div>
-                <strong>{record.title}</strong>
-                <p>{record.body}</p>
-                <div className="admin-notification-history-result">
+                <strong className="text-sm font-semibold break-words text-foreground">{record.title}</strong>
+                <p className="text-sm break-words text-muted-foreground">{record.body}</p>
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
                   <span>{record.actorName}</span>
-                  <b>실제 {recipientNumber.format(record.recipientCount)}명</b>
+                  <b className="font-medium text-foreground tabular-nums">실제 {recipientNumber.format(record.recipientCount)}명</b>
                 </div>
               </li>
             ))}

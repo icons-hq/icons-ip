@@ -9,7 +9,7 @@ export type CategoryTemplateResult<T> = { ok: true; value: T } | { ok: false; er
 const unknown = <T,>(): CategoryTemplateResult<T> => ({ ok: false, error: '저장 결과를 확인하지 못했습니다. 같은 요청 결과를 확인해주세요.', uncertain: true });
 export async function listCategoryTemplatesAction(query: string, archived: boolean, page: number): Promise<CategoryTemplateResult<CategoryTemplatePage>> {
   if (!await requireAdminActionAccess('/admin/catalog/goods', { capability: 'catalog.manage' })) return { ok: false, error: '상품 관리 권한이 필요합니다.' };
-  const failure = { ok: false as const, error: '카테고리 템플릿을 불러오지 못했습니다. 다시 조회해주세요.' };
+  const failure = { ok: false as const, error: '자주 쓰는 카테고리를 불러오지 못했습니다. 다시 조회해주세요.' };
   if (typeof query !== 'string' || Array.from(query).length > 120 || typeof archived !== 'boolean' || !Number.isSafeInteger(page) || page < 1 || page > 10000) return failure;
   try {
     const client = await createClient(), { data, error } = await client.rpc('admin_list_catalog_category_templates', { p_query: query.trim(), p_archived: archived, p_page: page });

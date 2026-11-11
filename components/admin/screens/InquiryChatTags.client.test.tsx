@@ -44,5 +44,7 @@ describe('상담 태그 네트워크 실패 복구', () => {
     await hooks.pending;
     expect(hooks.mutate).toHaveBeenLastCalledWith(expect.objectContaining({ label: '보존할 태그', present: true }));
     expect(renderToStaticMarkup(render())).toContain('value=""'); expect(hooks.refresh).toHaveBeenCalledOnce();
+    /* 태그 추가는 폼 제출 경로다(kit Button은 type을 주지 않으면 button이 된다). */
+    expect(renderToStaticMarkup(render())).toMatch(/<button(?=[^>]*type="submit")[^>]*>\+ 태그 추가<\/button>/);
   });
 });

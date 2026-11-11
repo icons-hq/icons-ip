@@ -149,6 +149,10 @@ describe('OrdersSection', () => {
       expect(html).toContain('<option value="out_of_stock">품절·출고 불가</option>');
       expect(html).not.toContain('name="warehouseStopConfirmed"');
       expect(html).toContain('전액 취소 실행');
+      /* kit Button은 type이 없으면 button이 된다 — 처리 양식의 버튼은 모두 제출 버튼이어야 한다. */
+      expect(html).toMatch(/<button[^>]*type="submit"[^>]*>전액 취소 실행</);
+      expect(html).toMatch(/<button[^>]*type="submit"[^>]*>발주확인</);
+      expect(html).toMatch(/<button[^>]*type="submit"[^>]*>선택 주문 발주확인</);
     });
 
     it('출고지시가 나간 발주확인 주문은 창고 출고 중단 확인을 필수로 받는다', () => {
@@ -227,7 +231,7 @@ describe('OrdersSection', () => {
     expect(html).toContain('₩10,000');
     expect(html).toContain('₩0');
     expect(html).not.toContain('₩4만');
-    expect(html).toMatch(/order-status order-status--paid[^>]*>신규주문/);
+    expect(html).toMatch(/data-order-status="paid"[^>]*>신규주문/);
   });
 
   it('opens no replacement panel when a linked order is outside the current page', () => {
@@ -249,6 +253,25 @@ describe('OrdersSection', () => {
     expect(html).toContain('value="hanjin"');
     expect(html).toContain('한진택배</option>');
     expect(html).not.toContain('계약종료 택배');
+  });
+
+  it('처리할 신규주문 칸을 주의색으로 켜고 체크칸이 있는 줄의 이유를 알린다', () => {
+    const html = renderToStaticMarkup(<OrdersSection data={{ ...orderData(), counts: { pending: 1, paid: 2, confirmed: 3, shipping: 0, delivered: 0, done: 0, canceled: 0 } }} />);
+    expect(html).toMatch(/aria-label="신규주문 2건"[^>]*data-tone="warning"/);
+    expect(html).toMatch(/aria-label="발주확인 3건"[^>]*data-tone="default"/);
+    /* 사람 눈 판정: 처리 중인 요청이 있는 신규주문 줄에는 체크칸이 없어 '신규주문에만 있다'는 안내와 어긋났다. */
+    expect(html).toContain('체크칸은 진행 중인 취소·반품·교환 요청이 없는 신규주문에만 있습니다.');
+  });
+
+  /* 사람 눈 판정: 품목 수에 따라 줄 높이가 4~5줄로 들쭉날쭉했고, 단계 카드가 전부 같은 동그라미라 진행·완료·취소가 구분되지 않았다. */
+  it('상품 칸은 대표 상품 한 줄과 외 N건으로 줄 높이를 맞추고, 단계 카드는 모양으로 나눈다', () => {
+    const items = ['첫째 상품', '둘째 상품', '셋째 상품'].map((name, index) => ({ ...orderData().items[0].items[0], id: `item-${index}`, name }));
+    const html = renderToStaticMarkup(<OrdersSection data={{ ...orderData({ items }), counts: { pending: 1, paid: 2, confirmed: 3, shipping: 4, delivered: 5, done: 6, canceled: 7 } }} />);
+    expect(html).toContain('>외 2건<');
+    expect(html).toMatch(/title="첫째 상품&#10;둘째 상품&#10;셋째 상품"|title="첫째 상품\n둘째 상품\n셋째 상품"/);
+    for (const name of ['둘째 상품', '셋째 상품']) expect(html).toMatch(new RegExp(`<ul class="sr-only">[\\s\\S]*${name}`));
+    const icon = (label: string) => html.slice(html.indexOf(`aria-label="${label}`)).match(/lucide-[a-z-]+/)?.[0];
+    expect(new Set(['배송중 4건', '배송완료 5건', '취소 7건', '거래확정 6건'].map(icon)).size).toBe(4);
   });
 
   it('renders staff-safe order detail and the paid-to-confirmed action without provider secrets', () => {
@@ -311,7 +334,8 @@ describe('OrdersSection', () => {
       'data-confirm="Korpay 주문 O0123456789ABCDEF · ₩32,000 KRW의 전액 취소 완료를 원장에서 확인했습니다. 반영하면 확인된 결제에는 환불 원장을 남기고, 주문 취소와 재고 복원을 즉시 완료합니다. 계속할까요?"',
     );
     expect(html).toContain('Korpay 전액 취소 반영');
-    expect(html).toContain('admin-order-korpay-recovery-submit');
+    expect(html).toContain('data-order-action="korpay-recovery-submit"');
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*data-order-action="korpay-recovery-submit"|<button[^>]*data-order-action="korpay-recovery-submit"[^>]*type="submit"/);
     expect(html).not.toContain('상태 다시 확인');
   });
 
@@ -432,7 +456,7 @@ describe('OrdersSection', () => {
       overrides: {
         cancellationRequest: cancellationRequest({ stage: 'withdrawn', status: 'rejected' }),
       },
-      visible: ['발주확인', '요청 철회', 'aria-label="운영자 전액 취소"'],
+      visible: ['발주확인', '취소철회', 'aria-label="운영자 전액 취소"'],
       hidden: ['청약철회 승인', '요청 거절', '상태 다시 확인', '취소·반품·교환 관리에서 처리'],
     },
     {
@@ -441,7 +465,7 @@ describe('OrdersSection', () => {
         status: 'confirmed' as const,
         cancellationRequest: cancellationRequest({ stage: 'withdrawn', status: 'rejected' }),
       },
-      visible: ['배송 건별 운송장 등록', '요청 철회', 'aria-label="운영자 전액 취소"'],
+      visible: ['배송 건별 운송장 등록', '취소철회', 'aria-label="운영자 전액 취소"'],
       hidden: ['청약철회 승인', '요청 거절', '상태 다시 확인', '취소·반품·교환 관리에서 처리'],
     },
     {
@@ -450,7 +474,7 @@ describe('OrdersSection', () => {
         status: 'shipping' as const,
         cancellationRequest: cancellationRequest({ claimType: 'return', stage: 'withdrawn', status: 'rejected' }),
       },
-      visible: ['배송 건별 배송완료 처리', '요청 철회'],
+      visible: ['배송 건별 배송완료 처리', '반품철회'],
       hidden: ['청약철회 승인', '요청 거절', '상태 다시 확인', '취소·반품·교환 관리에서 처리', 'aria-label="운영자 전액 취소"'],
     },
     {
@@ -462,7 +486,7 @@ describe('OrdersSection', () => {
           decidedAt: '2026-07-14T08:00:00.000Z',
         }),
       },
-      visible: ['처리완료'],
+      visible: ['취소완료'],
       hidden: [
         '발주확인', '발송처리', '배송완료', '청약철회 승인', '요청 거절', '상태 다시 확인',
         '취소·반품·교환 관리에서 처리',
@@ -486,7 +510,7 @@ describe('OrdersSection', () => {
         status: 'delivered' as const,
         cancellationRequest: cancellationRequest({ claimType: 'exchange', stage: 'collected' }),
       },
-      visible: ['취소·반품·교환 관리에서 처리', '교환 요청', '입고완료'],
+      visible: ['취소·반품·교환 관리에서 처리', '교환 요청', '수거완료'],
       hidden: ['청약철회 승인', '요청 거절'],
     },
     {
@@ -587,10 +611,10 @@ describe('OrdersSection', () => {
       cancellationRequest: cancellationRequest({ reasonType: 'defect' }),
     })} />);
 
-    expect(html).toContain('admin-order-row-reason');
-    expect(html).toContain(`aria-label="주문 ${ORDER_ID.slice(0, 8)} 선택 · 청약철회 상품 하자·오배송"`);
+    expect(html).toContain('data-order-row-reason');
+    expect(html).toContain(`aria-label="상세·처리 주문 ${ORDER_ID.slice(0, 8)} · 청약철회 상품 하자·오배송"`);
     expect(html).toContain('상품 하자·오배송');
-    expect(html).toContain('admin-order-reason--defect');
+    expect(html).toContain('data-order-reason="defect"');
     expect(html).toContain('공급받은 날부터 3개월');
     expect(html).toContain('반송비 회사 부담');
   });
@@ -602,8 +626,8 @@ describe('OrdersSection', () => {
     })} />);
 
     expect(html).toContain('단순 변심');
-    expect(html).toContain('admin-order-reason--change_of_mind');
-    expect(html).not.toContain('admin-order-reason--defect');
+    expect(html).toContain('data-order-reason="change_of_mind"');
+    expect(html).not.toContain('data-order-reason="defect"');
     expect(html).toContain('공급받은 날부터 7일');
     expect(html).toContain('반송비 이용자 부담');
   });
@@ -621,15 +645,15 @@ describe('OrdersSection', () => {
     })} />);
 
     expect(html).toContain('운영자 전액 취소 · 품절·출고 불가');
-    expect(html).toContain('admin-order-reason--staff');
-    expect(html).toContain(`aria-label="주문 ${ORDER_ID.slice(0, 8)} 선택 · 운영자 전액 취소 · 품절·출고 불가"`);
+    expect(html).toContain('data-order-reason="staff"');
+    expect(html).toContain(`aria-label="상세·처리 주문 ${ORDER_ID.slice(0, 8)} · 운영자 전액 취소 · 품절·출고 불가"`);
     expect(html).not.toContain('단순 변심');
     expect(html).not.toContain('공급받은 날부터 7일');
     expect(html).toContain('운영자가 시작한 발송 전 전액 취소');
   });
 
   /* 2026-10-12 QA-10: 결제확인필요 요청의 원인 코드는 주문 패널에서도 보인다. */
-  it('결제확인필요 요청의 정합화 오류 코드를 취소 요청 영역에 보여준다', () => {
+  it('결제확인필요 요청의 결제사 확인 오류 코드를 취소 요청 영역에 보여준다', () => {
     const html = renderToStaticMarkup(<OrdersSection data={orderData({
       cancellationRequest: cancellationRequest({
         status: 'needs_review',
@@ -640,11 +664,11 @@ describe('OrdersSection', () => {
       }),
     })} />);
 
-    expect(html).toContain('정합화 오류 · <code class="mono">provider_unavailable</code>');
+    expect(html).toMatch(/결제사 확인 오류 · 결제사 응답을 받지 못했습니다 <code[^>]*>provider_unavailable<\/code>/);
     expect(html).toContain('상태 다시 확인');
   });
 
-  it('종결된 요청에는 지난 정합화 오류 코드를 다시 띄우지 않는다', () => {
+  it('종결된 요청에는 지난 결제사 확인 오류 코드를 다시 띄우지 않는다', () => {
     const html = renderToStaticMarkup(<OrdersSection data={orderData({
       status: 'canceled',
       cancellationRequest: cancellationRequest({ status: 'completed', stage: 'completed', lastErrorCode: 'provider_unavailable' }),
@@ -656,8 +680,8 @@ describe('OrdersSection', () => {
   it('청약철회 요청이 없는 주문은 사유 표시를 만들지 않는다', () => {
     const html = renderToStaticMarkup(<OrdersSection data={orderData()} />);
 
-    expect(html).not.toContain('admin-order-reason');
-    expect(html).not.toContain('admin-order-row-reason');
+    expect(html).not.toContain('data-order-reason');
+    expect(html).not.toContain('data-order-row-reason');
   });
 
   /* 반송은 배송이 시작된 주문에서만 일어난다. 미출고 주문에 부담 주체를 띄우면
@@ -685,10 +709,10 @@ describe('OrdersSection', () => {
       }),
     })} />);
 
-    expect(html).not.toContain('admin-order-row-reason');
-    expect(html).toContain(`aria-label="주문 ${ORDER_ID.slice(0, 8)} 선택"`);
+    expect(html).not.toContain('data-order-row-reason');
+    expect(html).toContain(`aria-label="상세·처리 주문 ${ORDER_ID.slice(0, 8)}"`);
     // 상세에는 남는다 — 어떤 사유로 종결됐는지는 사후에도 필요하다.
-    expect(html).toContain('admin-order-reason--defect');
+    expect(html).toContain('data-order-reason="defect"');
   });
 
   it('배송 건 운송장 정정 폼에서 택배사와 운송장번호를 필수로 받는다', () => {
@@ -710,6 +734,7 @@ describe('OrdersSection', () => {
 
     expect(html).toContain('123456789012');
     expect(html).toContain('운송장 수정');
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>운송장 수정</);
     expect(html).toContain('data-confirm="운송장번호를 수정할까요? 변경 이력이 감사 로그에 남습니다."');
   });
 
@@ -748,6 +773,8 @@ describe('OrdersSection', () => {
     expect(html).toContain('data-confirm="청약철회를 승인하고 결제 취소를 시작할까요?"');
     expect(html).toContain('data-confirm="청약철회 요청을 거절할까요? 입력한 사유가 기록됩니다."');
     expect(html).toContain(`for="admin-order-reject-reason-${requestId}">거절 사유`);
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>청약철회 승인</);
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>요청 거절</);
     expect(html).toContain('minLength="10"');
     expect(html).toContain('maxLength="200"');
     expect(html).toContain('aria-live="polite"');
@@ -805,6 +832,8 @@ describe('OrdersSection', () => {
         useRef: () => ({ current: { focus } }),
       };
     });
+    /* 이 목은 모든 effect를 렌더 중에 돌린다 — 공용 표의 잘림 표시(스크롤 측정)는 이 시험의 관심사가 아니므로 뺀다. */
+    vi.doMock('@/components/admin/console/useHorizontalOverflow', () => ({ useHorizontalOverflow: () => ({ ref: { current: null }, more: false }) }));
 
     try {
       const { OrdersSection: ErroredOrdersSection } = await import('./Orders');
@@ -831,6 +860,7 @@ describe('OrdersSection', () => {
       expect(focus).toHaveBeenCalledOnce();
     } finally {
       vi.doUnmock('react');
+      vi.doUnmock('@/components/admin/console/useHorizontalOverflow');
       vi.resetModules();
     }
   });
@@ -856,7 +886,8 @@ describe('주문 통합검색 목록 엑셀 다운로드', () => {
     expect(html).toContain('목록 엑셀 다운로드');
     expect(html).toContain('data-export-href="/api/admin/list-export?screen=orders&amp;status=paid&amp;from=2026-10-01&amp;query=%EB%B0%B0%EC%86%A1+%EC%88%98%EC%B7%A8%EC%9D%B8&amp;field=recipient"');
     expect(html).toContain('전체 57건을 받습니다');
-    expect(html.indexOf('admin-order-filters')).toBeLessThan(html.indexOf('목록 엑셀 다운로드'));
+    expect(html.indexOf('data-sales-filters')).toBeGreaterThan(-1);
+    expect(html.indexOf('data-sales-filters')).toBeLessThan(html.indexOf('목록 엑셀 다운로드'));
   });
 });
 
@@ -948,6 +979,15 @@ describe('주문 패널 취소 처리 결과', () => {
     expect(numbered).toContain('주문 2026102710000042 취소 처리 결과');
   });
 
+  it('결제 취소가 아직 진행 중이면 서버 문구 그대로 주의 상자로, 끝났으면 완료 상자로 그린다', async () => {
+    const inProgress = '결제 상태 처리가 아직 끝나지 않았습니다. 주문과 재고는 그대로 유지됩니다.';
+    const pending = await renderAfterStaffCancellation({ intent: 'staffCancel', orderId: ORDER_ID, message: inProgress }, orderData({ cancellationRequest: cancellationRequest({ status: 'processing', stage: 'processing' }) }));
+    expect(pending).toMatch(/data-admin-notice="warning"(?:(?!<\/section>)[\s\S])*결제 상태 처리가 아직 끝나지 않았습니다/);
+    expect(pending).not.toContain('data-admin-notice="success"');
+    const done = await renderAfterStaffCancellation({ intent: 'staffCancel', orderId: ORDER_ID, message: success }, orderData({ status: 'canceled', cancellationRequest: cancellationRequest({ status: 'completed', stage: 'completed' }) }));
+    expect(done).toMatch(/data-admin-notice="success"(?:(?!<\/section>)[\s\S])*토스 전액 취소를 확인하고/);
+  });
+
   it('목록에 있지만 선택하지 않은 다른 주문의 결과는 지금 패널에 그리지 않는다', async () => {
     const data = orderData();
     const otherId = '55555555-5555-4555-8555-555555555555';
@@ -955,6 +995,25 @@ describe('주문 패널 취소 처리 결과', () => {
     const html = await renderAfterStaffCancellation({ intent: 'staffCancel', orderId: otherId, message: success }, data);
 
     expect(html).not.toContain(success);
+  });
+
+  /* 코드 리뷰: 일괄 발주확인이 일부만 처리됐는데 초록 글자로 나왔다. 서버 문구는 그대로 두고 색만 나눈다. */
+  it('일괄 발주확인이 일부만 처리되면 결과를 주의 글자로 그린다', async () => {
+    vi.resetModules();
+    const partial = '1건을 발주확인했습니다. 처리하지 못한 1건: 00000002 — 주문 상세에서 취소 요청 여부와 현재 상태를 확인해주세요.';
+    vi.doMock('react', async () => {
+      const actual = await vi.importActual<typeof import('react')>('react');
+      return { ...actual, useActionState: (fn: unknown, initial: unknown) => [fn === orderActions.bulkConfirmAdminOrdersAction ? { message: partial } : initial, () => {}, false] };
+    });
+    try {
+      const { OrdersSection: ResultOrdersSection } = await import('./Orders');
+      const html = renderToStaticMarkup(<ResultOrdersSection data={orderData()} />);
+      expect(html).toMatch(/<span data-unfinished="true" role="status">1건을 발주확인했습니다\. 처리하지 못한 1건/);
+      expect(html).toContain('[&amp;_[role=status][data-unfinished]]:text-warning');
+    } finally {
+      vi.doUnmock('react');
+      vi.resetModules();
+    }
   });
 
   it('다른 액션의 필드 오류는 엉뚱한 양식에 붙이지 않는다', async () => {

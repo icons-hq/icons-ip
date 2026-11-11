@@ -166,7 +166,7 @@ describe('verifyAndPromoteAdminArtwork', () => {
 
     expect(mocks.info).toHaveBeenCalledWith(PATH);
     expect(mocks.download).toHaveBeenCalledWith(PATH);
-    expect(mocks.decode).toHaveBeenCalledWith(SOURCE_BYTES, 'image/png');
+    expect(mocks.decode).toHaveBeenCalledWith(SOURCE_BYTES, 'image/png', 'ip');
     expect(mocks.publicUpload).toHaveBeenCalledWith(PATH, NORMALIZED_BYTES, {
       contentType: 'image/png',
       upsert: false,

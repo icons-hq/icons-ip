@@ -9,14 +9,17 @@ vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>
 }));
 vi.mock('@/app/admin/category-template-actions', () => ({ listCategoryTemplatesAction: mocks.list, saveCategoryTemplatesAction: mocks.save }));
 import { CategoryTemplatesScreen } from './CategoryTemplatesScreen';
+import { AdminSelect } from '../console/AdminSelect';
+import { Button } from '../kit/ui/button';
 const id = '94700000-0000-4000-8000-000000000101';
 const row = { categoryId: id, code: 'stationery', name: '문구', path: ['문구'], usable: true, archived: false, revision: 1, createdAt: '2026-10-14T00:00:00Z' };
 const page = { rows: [row], total: 1, page: 1, pageSize: 20 };
 type Element = ReactElement<{ children?: ReactNode; onClick?: () => void; onSubmit?: (event: { preventDefault: () => void }) => void; onChange?: (event: { target: { checked?: boolean; value?: string } }) => void; disabled?: boolean; value?: string; type?: string; 'aria-label'?: string }>;
-function all(node: ReactNode): Element[] { return Array.isArray(node) ? node.flatMap(all) : isValidElement(node) ? [node as Element, ...all((node.props as { children?: ReactNode }).children)] : []; }
+/* 목록 카드 머리 동작(ConsoleListCard actions)도 화면이 그리는 요소다. */
+function all(node: ReactNode): Element[] { return Array.isArray(node) ? node.flatMap(all) : isValidElement(node) ? [node as Element, ...all((node.props as { actions?: ReactNode }).actions), ...all((node.props as { children?: ReactNode }).children)] : []; }
 function text(node: ReactNode): string { return Array.isArray(node) ? node.map(text).join('') : isValidElement(node) ? text((node.props as { children?: ReactNode }).children) : typeof node === 'string' || typeof node === 'number' ? String(node) : ''; }
 function render() { hooks.index = 0; hooks.refIndex = 0; hooks.effects = []; return CategoryTemplatesScreen({}); }
-function button(label: string) { const node = all(render()).find(item => item.type === 'button' && text(item) === label); if (!node) throw new Error(label); return node; }
+function button(label: string) { const node = all(render()).find(item => (item.type === 'button' || item.type === Button) && text(item) === label); if (!node) throw new Error(label); return node; }
 function choose() { all(render()).find(item => item.type === 'input' && item.props['aria-label'] === '문구 선택')?.props.onChange?.({ target: { checked: true } }); }
 async function settle() { for (let i = 0; i < 18; i++) await Promise.resolve(); }
 beforeEach(() => { vi.clearAllMocks(); hooks.state = [page]; hooks.refs = []; hooks.effects = []; mocks.list.mockResolvedValue({ ok: true, value: page }); });
@@ -36,12 +39,52 @@ it('keeps selection after a confirmed conflict until an explicit fresh read', as
   expect(hooks.state[4]).toEqual([id]); expect(button('선택 보관 1개').props.disabled).toBe(true);
   button('최신 목록 다시 조회').props.onClick?.(); await settle(); expect(hooks.state[4]).toEqual([]);
 });
+it('reports a registration as registered, not restored', async () => {
+  mocks.save.mockResolvedValue({ ok: true, value: [{ ...row, revision: 1 }] });
+  button('자주 쓰는 카테고리 등록').props.onClick?.();
+  button('등록').props.onClick?.(); await settle();
+  expect(mocks.save.mock.calls[0][0]).toEqual([{ categoryId: '', revision: 0 }]);
+  expect(hooks.state[9]).toBe('자주 쓰는 카테고리 1개를 등록했습니다.');
+});
+/* 사람 눈 시험(2026-11-10): 이미 있는 카테고리를 다시 등록하면 '다른 저장 결과가 있습니다'만 나와 원인을 몰랐다. */
+it('says the category already exists when a new registration conflicts, and leaves the screen usable', async () => {
+  mocks.save.mockResolvedValue({ ok: false, conflict: true, error: '다른 저장 결과가 있습니다. 선택은 유지했습니다. 최신 목록을 다시 확인해주세요.' });
+  button('자주 쓰는 카테고리 등록').props.onClick?.();
+  button('등록').props.onClick?.(); await settle();
+  expect(hooks.state[9]).toBe('이미 등록됐거나 보관된 카테고리입니다. 보관된 항목은 보관 상태를 보관됨으로 조회해 복구해주세요.');
+  expect(hooks.state[10]).toBe(true);
+  expect(hooks.state[8]).toBe(false);
+  expect(hooks.state[11]).toBe(true);
+});
+it('keeps the stale-list wording for an archive conflict', async () => {
+  mocks.save.mockResolvedValue({ ok: false, conflict: true, error: '다른 저장 결과가 있습니다.' });
+  choose(); button('선택 보관 1개').props.onClick?.(); await settle();
+  expect(hooks.state[9]).toBe('다른 저장 결과가 있습니다.');
+  expect(hooks.state[8]).toBe(true);
+});
+it('reports a restore from the archived list as restored', async () => {
+  hooks.state[3] = true;
+  hooks.state[0] = { ...page, rows: [{ ...row, archived: true, revision: 2 }] };
+  mocks.list.mockResolvedValue({ ok: true, value: hooks.state[0] });
+  mocks.save.mockResolvedValue({ ok: true, value: [{ ...row, revision: 3 }] });
+  choose(); button('선택 복구 1개').props.onClick?.(); await settle();
+  expect(mocks.save.mock.calls[0][0]).toEqual([{ categoryId: id, revision: 2 }]);
+  expect(mocks.save.mock.calls[0][1]).toBe(false);
+  expect(hooks.state[9]).toBe('자주 쓰는 카테고리 1개를 복구했습니다.');
+});
+/* 사람 눈 시험(2026-11-10): 등록하려면 단계를 3번 눌러 내려가야 했다. */
+it('registers by searching in the dialog instead of walking the category steps', () => {
+  button('자주 쓰는 카테고리 등록').props.onClick?.();
+  const names = all(render()).map(item => typeof item.type === 'function' ? item.type.name : '');
+  expect(names).toContain('TemplateCategoryChooser');
+  expect(names).not.toContain('CategoryTemplateTree');
+});
 it('ignores an initial response that arrives after a newer archived-list search', async () => {
   hooks.state = []; let initial!: (value: unknown) => void;
   const archived = { ...page, rows: [{ ...row, archived: true, revision: 2 }] };
   mocks.list.mockImplementationOnce(() => new Promise(resolve => { initial = resolve; })).mockResolvedValueOnce({ ok: true, value: archived });
   render(); hooks.effects[0]();
-  all(render()).find(item => item.type === 'select')?.props.onChange?.({ target: { value: 'archived' } }); await settle();
+  all(render()).find(item => item.type === 'select' || item.type === AdminSelect)?.props.onChange?.({ target: { value: 'archived' } }); await settle();
   initial({ ok: true, value: page }); await settle();
   expect(hooks.state[0]).toEqual(archived); expect(hooks.state[3]).toBe(true);
 });

@@ -30,13 +30,24 @@ import {
   type SabangnetColumnStatus,
   type SabangnetTarget,
 } from '@/lib/admin/sabangnet-goods-format';
+import { Download, TriangleAlert } from 'lucide-react';
+import { GoodsFlowSteps } from './GoodsFlowSteps';
+import { statusTone } from '@/lib/admin/status-tone';
 import {
   AdminField,
+  AdminFormGrid,
+  AdminNotice,
   AdminPageHeader,
   AdminSectionCard,
   AdminStatusBadge,
 } from '../console/AdminKit';
+import { AdminSelect } from '../console/AdminSelect';
+import { Button, buttonVariants } from '../kit/ui/button';
+import { Input } from '../kit/ui/input';
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '../kit/ui/table';
 type ImportView = ReturnType<typeof goodsImportView>;
+/* 검증 경고는 긴 문장이라 배지 대신 경고색 줄로 보인다(배지는 한 줄로 잘린다). */
+const WARNING = 'flex items-start gap-1.5 text-sm text-warning';
 const labels = {
   new: '신규',
   update: '수정',
@@ -45,16 +56,21 @@ const labels = {
 };
 type ImportFormat = 'icons' | 'sabangnet';
 type ColumnState = SabangnetColumnStatus | 'manual';
-const COLUMN_STATES: Record<ColumnState, { label: string; tone: 'neutral' | 'success' | 'warning' }> = {
-  confirmed: { label: '자동 인식', tone: 'success' },
-  guessed: { label: '추정 · 확인 필요', tone: 'warning' },
-  remembered: { label: '지난번 선택', tone: 'neutral' },
-  known: { label: '사방넷 열 · 기본 제외', tone: 'neutral' },
-  unknown: { label: '인식 못 함 · 직접 선택', tone: 'warning' },
-  duplicate: { label: '앞 열과 같은 항목', tone: 'warning' },
-  manual: { label: '직접 고름', tone: 'neutral' },
+const COLUMN_LABELS: Record<ColumnState, string> = {
+  confirmed: '자동 인식',
+  guessed: '추정 · 확인 필요',
+  remembered: '지난번 선택',
+  known: '사방넷 열 · 기본 제외',
+  unknown: '인식 못 함 · 직접 선택',
+  duplicate: '앞 열과 같은 항목',
+  manual: '직접 고름',
 };
 const XLSX_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+/* 몇 단계 중 어디인지 보이는 순서 표시. 단계 이름은 아래 카드 제목과 같은 말이다. */
+const IMPORT_STEPS: Record<ImportFormat, string[]> = {
+  icons: ['파일 올리기', '검증 결과 확인·적용'],
+  sabangnet: ['파일 올리기', '열 연결·IP 선택', '검증 결과 확인·초안 만들기'],
+};
 /**
  * storage-js sends a File/Blob as a multipart part typed by the Blob itself and ignores the
  * contentType option, and Storage checks that part type against the private bucket's allow-list
@@ -111,7 +127,7 @@ export function SabangnetMappingStep({
   const unknown = columnStates.filter((state) => state === 'unknown' || state === 'guessed').length;
   return (
     <AdminSectionCard title="2. 열 연결·IP 선택">
-      <p className="wc-admin-kit__description">
+      <p className="text-sm text-muted-foreground">
         {inspection.fileName} · {inspection.headerRow}행을 열 이름으로 읽었습니다 · 상품 {inspection.rowCount}행.
         {unknown ? ` 확인이 필요한 열 ${unknown}개가 있습니다.` : ''} 연결하지 않은 열은 가져오지 않습니다.
       </p>
@@ -120,13 +136,14 @@ export function SabangnetMappingStep({
         inputId="sabangnet-ip"
         hint="사방넷 양식에는 IP가 없습니다. 새 상품을 모두 이 IP에 연결합니다."
       >
-        <select
+        <AdminSelect
           id="sabangnet-ip"
           value={ipId}
           onChange={(event) => onIp(event.target.value)}
           disabled={busy}
           aria-describedby="sabangnet-ip-hint"
           required
+          wrapperClassName="w-full sm:max-w-sm"
         >
           <option value="">IP를 골라 주세요</option>
           {inspection.ips.map((ip) => (
@@ -134,94 +151,92 @@ export function SabangnetMappingStep({
               {ip.title}
             </option>
           ))}
-        </select>
+        </AdminSelect>
       </AdminField>
-      <div style={{ overflowX: 'auto' }}>
-        <table className="admin-console-grid-table">
-          <caption className="sr-only">사방넷 열과 ICONS 항목 연결</caption>
-          <thead>
-            <tr>
-              <th scope="col">사방넷 열</th>
-              <th scope="col">예시 값</th>
-              <th scope="col">ICONS 항목</th>
-              <th scope="col">인식</th>
-            </tr>
-          </thead>
-          <tbody>
+      <div className="overflow-hidden rounded-lg border">
+        <Table>
+          <TableCaption className="sr-only">사방넷 열과 ICONS 항목 연결</TableCaption>
+          <TableHeader>
+            <TableRow>
+              <TableHead scope="col">사방넷 열</TableHead>
+              <TableHead scope="col">예시 값</TableHead>
+              <TableHead scope="col">ICONS 항목</TableHead>
+              <TableHead scope="col">인식</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {inspection.columns.map((column, index) => (
-              <tr key={`${index}-${column.header}`}>
-                <td>{column.header || `${index + 1}번째 열(이름 없음)`}</td>
-                <td>{column.sample || '—'}</td>
-                <td>
-                  <div className="wc-admin-kit__field">
-                    <select
-                      aria-label={`${column.header || `${index + 1}번째 열`} 열을 연결할 ICONS 항목`}
-                      value={targets[index]}
-                      onChange={(event) => onTarget(index, event.target.value as SabangnetTarget)}
-                      disabled={busy}
-                    >
-                      {SABANGNET_TARGETS.map((target) => (
-                        <option key={target.key} value={target.key}>
-                          {target.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </td>
-                <td>
-                  <AdminStatusBadge tone={COLUMN_STATES[columnStates[index]].tone}>
-                    {COLUMN_STATES[columnStates[index]].label}
+              <TableRow key={`${index}-${column.header}`}>
+                <TableCell className="whitespace-normal">{column.header || `${index + 1}번째 열(이름 없음)`}</TableCell>
+                <TableCell className="max-w-56 truncate text-muted-foreground">{column.sample || '—'}</TableCell>
+                <TableCell>
+                  <AdminSelect
+                    aria-label={`${column.header || `${index + 1}번째 열`} 열을 연결할 ICONS 항목`}
+                    value={targets[index]}
+                    onChange={(event) => onTarget(index, event.target.value as SabangnetTarget)}
+                    disabled={busy}
+                    wrapperClassName="w-56"
+                  >
+                    {SABANGNET_TARGETS.map((target) => (
+                      <option key={target.key} value={target.key}>
+                        {target.label}
+                      </option>
+                    ))}
+                  </AdminSelect>
+                </TableCell>
+                <TableCell>
+                  <AdminStatusBadge tone={statusTone('sabangnetColumn', columnStates[index])}>
+                    {COLUMN_LABELS[columnStates[index]]}
                   </AdminStatusBadge>
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
       {brands.length ? (
-        <div style={{ overflowX: 'auto' }}>
-          <table className="admin-console-grid-table">
-            <caption>브랜드별 IP · 브랜드명이 IP 이름과 같으면 그 IP를 미리 골라 두었습니다.</caption>
-            <thead>
-              <tr>
-                <th scope="col">브랜드명</th>
-                <th scope="col">연결 IP</th>
-              </tr>
-            </thead>
-            <tbody>
+        <div className="overflow-hidden rounded-lg border">
+          <Table>
+            <TableCaption className="mt-0 caption-top px-2 py-2 text-left">브랜드별 IP · 브랜드명이 IP 이름과 같으면 그 IP를 미리 골라 두었습니다.</TableCaption>
+            <TableHeader>
+              <TableRow>
+                <TableHead scope="col">브랜드명</TableHead>
+                <TableHead scope="col">연결 IP</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {brands.map((brand) => (
-                <tr key={brand}>
-                  <td>{brand}</td>
-                  <td>
-                    <div className="wc-admin-kit__field">
-                      <select
-                        aria-label={`${brand} 브랜드 상품을 연결할 IP`}
-                        value={brandIps[brand] ?? ''}
-                        onChange={(event) => onBrandIp(brand, event.target.value)}
-                        disabled={busy}
-                      >
-                        <option value="">위에서 고른 연결 IP</option>
-                        {inspection.ips.map((ip) => (
-                          <option key={ip.id} value={ip.id}>
-                            {ip.title}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </td>
-                </tr>
+                <TableRow key={brand}>
+                  <TableCell className="whitespace-normal">{brand}</TableCell>
+                  <TableCell>
+                    <AdminSelect
+                      aria-label={`${brand} 브랜드 상품을 연결할 IP`}
+                      value={brandIps[brand] ?? ''}
+                      onChange={(event) => onBrandIp(brand, event.target.value)}
+                      disabled={busy}
+                      wrapperClassName="w-56"
+                    >
+                      <option value="">위에서 고른 연결 IP</option>
+                      {inspection.ips.map((ip) => (
+                        <option key={ip.id} value={ip.id}>
+                          {ip.title}
+                        </option>
+                      ))}
+                    </AdminSelect>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       ) : null}
-      <p className="wc-admin-kit__hint">
+      <p className="text-sm text-muted-foreground">
         옵션제목·옵션상세명칭은 옵션 축과 값(쉼표 구분)으로, 대표이미지·부가이미지는 대표 이미지와
         추가 이미지 {SABANGNET_GALLERY_LIMIT}장으로 가져옵니다. 옵션 재고는 0으로 만들고, 인증 정보는 KC 검토에 반영하지 않습니다.
       </p>
-      <button className="wc-admin-kit__button" type="button" onClick={onPreview} disabled={busy}>
+      <Button className="self-start" type="button" onClick={onPreview} disabled={busy}>
         미리보기 만들기
-      </button>
+      </Button>
     </AdminSectionCard>
   );
 }
@@ -467,21 +482,15 @@ export function GoodsImportScreen({
     }
   }
   return (
-    <section className="wc-admin-kit wc-admin-kit__screen">
+    <section className="flex min-w-0 flex-col gap-4" data-admin-screen="goods-import">
       <AdminPageHeader
-        title="상품 엑셀 등록·수정"
+        title="상품 일괄등록"
         description="옵션마다 한 행을 작성합니다. 검증 결과를 확인한 뒤 상품별로 적용합니다."
         actions={
           <>
-            <button className="wc-admin-kit__button" type="button" onClick={() => setCategoryFinder(true)}>카테고리 찾기</button>
-            <button className="wc-admin-kit__button" type="button" onClick={() => setCountryFinder(true)}>제조국 찾기</button>
-            <a
-              className="wc-admin-kit__button"
-              href="/api/admin/goods-workbook?mode=template"
-            >
-              양식 내려받기
-            </a>
-            <Link className="wc-admin-kit__button" href="/admin/catalog/goods">
+            <Button variant="outline" type="button" onClick={() => setCategoryFinder(true)}>카테고리 찾기</Button>
+            <Button variant="outline" type="button" onClick={() => setCountryFinder(true)}>제조국 찾기</Button>
+            <Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href="/admin/catalog/goods">
               상품 목록
             </Link>
           </>
@@ -489,40 +498,58 @@ export function GoodsImportScreen({
       />
       {categoryFinder ? <CategoryCodeFinder onClose={() => setCategoryFinder(false)} /> : null}
       {countryFinder ? <CountryNamePicker mode="copy" onClose={() => setCountryFinder(false)} /> : null}
+      <GoodsFlowSteps steps={IMPORT_STEPS[view?.format ?? format]} current={view ? IMPORT_STEPS[view.format].length - 1 : inspection ? 1 : 0} />
       <AdminSectionCard title="1. 파일 올리기">
-        <AdminField
-          label="양식"
-          inputId="goods-import-format"
-          hint={
-            format === 'sabangnet'
-              ? '사방넷에서 내려받은 상품 엑셀을 그대로 올립니다. 모든 상품은 초안으로 만듭니다.'
-              : 'ICONS 양식을 내려받아 작성한 파일을 올립니다.'
-          }
-        >
-          <select
-            id="goods-import-format"
-            value={format}
-            onChange={(event) => {
-              setFormat(event.target.value as ImportFormat);
-              setInspection(null);
-              setError('');
-            }}
-            disabled={busy}
-            aria-describedby="goods-import-format-hint"
-          >
-            <option value="icons">ICONS 자체 양식</option>
-            <option value="sabangnet">사방넷 상품 양식</option>
-          </select>
-        </AdminField>
+        {/* 양식 내려받기가 올리기보다 먼저다 — 고른 양식 바로 옆에 둔다. */}
+        <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
+          <div className="min-w-0 flex-1 basis-72 sm:max-w-sm">
+            <AdminField
+              label="양식"
+              inputId="goods-import-format"
+              hint={
+                format === 'sabangnet'
+                  ? '사방넷에서 내려받은 상품 엑셀을 그대로 올립니다. 모든 상품은 초안으로 만듭니다.'
+                  : 'ICONS 양식을 내려받아 작성한 파일을 올립니다.'
+              }
+            >
+              <AdminSelect
+                id="goods-import-format"
+                value={format}
+                onChange={(event) => {
+                  setFormat(event.target.value as ImportFormat);
+                  setInspection(null);
+                  setError('');
+                }}
+                disabled={busy}
+                aria-describedby="goods-import-format-hint"
+                wrapperClassName="w-full"
+              >
+                <option value="icons">ICONS 자체 양식</option>
+                <option value="sabangnet">사방넷 상품 양식</option>
+              </AdminSelect>
+            </AdminField>
+          </div>
+          {format === 'sabangnet' ? null : (
+            <a
+              className={`${buttonVariants({ variant: 'soft' })} sm:mt-7`}
+              data-slot="button"
+              href="/api/admin/goods-workbook?mode=template"
+            >
+              <Download aria-hidden="true" />
+              양식 내려받기
+            </a>
+          )}
+        </div>
         {format === 'sabangnet' ? (
           <>
-            <p className="wc-admin-kit__description">
+            <p className="text-sm text-muted-foreground">
               .xlsx 또는 .csv · 2MB · 상품 최대 500개(옵션 조합을 펼쳐 500행까지). 위쪽 안내 행은 건너뛰고 열
               이름 행을 찾습니다. .xls 파일은 엑셀에서 .xlsx로 저장해 올려 주세요. 이미지 주소는 서버가 내려받아
               확인하며, 한 번에 최대 {SABANGNET_IMAGE_LIMIT}장까지 가져옵니다. 이미 등록된 상품코드는 수정하지 않고 오류로 표시합니다.
             </p>
             <AdminField label="사방넷 상품 파일" inputId="sabangnet-workbook">
-              <input
+              <Input
+                className="sm:max-w-md"
                 id="sabangnet-workbook"
                 type="file"
                 accept=".xlsx,.csv,.xls"
@@ -530,53 +557,55 @@ export function GoodsImportScreen({
                 disabled={busy}
               />
             </AdminField>
-            <button
-              className="wc-admin-kit__button"
+            <Button
+              className="self-start"
               type="button"
               onClick={inspectSabangnet}
               disabled={busy}
             >
               열 확인
-            </button>
+            </Button>
           </>
         ) : (
           <>
-            <p className="wc-admin-kit__description">
-              XLSX 2MB · 상품·옵션 최대 500행 · 이미지 ZIP 50MB. 상품코드가 같으면 기존 상품을
-              수정합니다. 옵션을 모두 포함해주세요. 직접입력형 옵션은 별도 시트에서 편집하며 기존 항목 ID와 정의 버전을 유지합니다.
-              A/S·사이즈 안내도 별도 시트에서 편집하며 안내 버전을 유지합니다. 안내 시트나 상품 행을 빼면 기존 안내를 보존합니다.
-            </p>
-            <AdminField label="상품 XLSX" inputId="goods-workbook">
-              <input
-                id="goods-workbook"
-                type="file"
-                accept=".xlsx"
-                ref={workbook}
-                disabled={busy}
-              />
-            </AdminField>
-            <AdminField
-              label="이미지 ZIP (선택)"
-              inputId="goods-images"
-              hint="파일명 열을 쓴 경우 JPEG·PNG·WebP 이미지를 함께 올려주세요."
-            >
-              <input
-                id="goods-images"
-                type="file"
-                accept=".zip"
-                ref={imageZip}
-                disabled={busy}
-                aria-describedby="goods-images-hint"
-              />
-            </AdminField>
-            <button
-              className="wc-admin-kit__button"
+            <AdminNotice tone="warning" title="상품코드가 같으면 기존 상품을 수정합니다.">
+              옵션을 모두 포함해주세요. 직접입력형 옵션과 A/S·사이즈 안내는 별도 시트에서 고치고, 내려받은 시트에 이미 채워진 번호 칸(ID·버전)은 그대로 두세요.
+              안내 시트나 상품 행을 빼면 기존 안내를 보존합니다.
+            </AdminNotice>
+            <p className="text-sm text-muted-foreground">XLSX 2MB · 상품·옵션 최대 500행 · 이미지 ZIP 50MB</p>
+            <AdminFormGrid>
+              <AdminField label="상품 XLSX" inputId="goods-workbook">
+                <Input
+                  id="goods-workbook"
+                  type="file"
+                  accept=".xlsx"
+                  ref={workbook}
+                  disabled={busy}
+                />
+              </AdminField>
+              <AdminField
+                label="이미지 ZIP (선택)"
+                inputId="goods-images"
+                hint="파일명 열을 쓴 경우 JPEG·PNG·WebP 이미지를 함께 올려주세요."
+              >
+                <Input
+                  id="goods-images"
+                  type="file"
+                  accept=".zip"
+                  ref={imageZip}
+                  disabled={busy}
+                  aria-describedby="goods-images-hint"
+                />
+              </AdminField>
+            </AdminFormGrid>
+            <Button
+              className="self-start"
               type="button"
               onClick={upload}
               disabled={busy}
             >
               파일 검증
-            </button>
+            </Button>
           </>
         )}
       </AdminSectionCard>
@@ -594,12 +623,9 @@ export function GoodsImportScreen({
           onPreview={previewSabangnet}
         />
       ) : null}
-      {error ? (
-        <p role="alert" className="wc-admin-kit__error">
-          {error}
-        </p>
-      ) : null}
-      <p role="status" aria-live="polite" className="wc-admin-kit__hint">
+      {error ? <AdminNotice role="alert" tone="danger">{error}</AdminNotice> : null}
+      {/* 빈 상태 알림도 접근성 트리에 남긴다(sr-only) — 내용이 생기면 읽히고 보인다. */}
+      <p role="status" aria-live="polite" className="text-sm text-muted-foreground empty:sr-only">
         {status}
       </p>
       {view ? (
@@ -610,33 +636,39 @@ export function GoodsImportScreen({
               : '2. 검증 결과 확인·적용'
           }
         >
-          <p>
+          <p className="text-sm tabular-nums">
             {view.fileName} · {view.groups.length}개 상품 ·{' '}
             {view.groups.reduce((count, group) => count + group.rows.length, 0)}
             행
           </p>
+          {/* 긴 표를 내리기 전에 오류 건수를 먼저 보이게 한다. */}
+          <p className="flex flex-wrap gap-1.5">
+            {(['error', 'new', 'update', 'unchanged'] as const).map((kind) => {
+              const count = view.groups.filter((group) => group.kind === kind).length;
+              return count ? <AdminStatusBadge key={kind} tone={statusTone('goodsImport', kind)}>{labels[kind]} {count}</AdminStatusBadge> : null;
+            })}
+          </p>
           {view.format === 'sabangnet' ? (
-            <p className="wc-admin-kit__description">
+            <p className="text-sm text-muted-foreground">
               모든 상품을 초안으로 만들고 공개하지 않습니다. 받지 못한 이미지는 경고로 표시하고 이미지 없이
               만듭니다. 대표 이미지·고시정보·출고지·KC 검토를 상품 편집에서 채운 뒤 공개해 주세요.
             </p>
           ) : (
-            <p className="wc-admin-kit__description">
+            <p className="text-sm text-muted-foreground">
               같은 상품의 옵션은 함께 성공하거나 실패합니다. 변경 없는 상품은
               저장하지 않습니다. 새 이미지는 적용할 때 검증하며, 주소·파일 오류가
               있으면 해당 상품만 실패합니다.
             </p>
           )}
           {view.format === 'sabangnet' && ignoredColumns?.length ? (
-            <p className="wc-admin-kit__hint">
+            <p className="text-sm text-muted-foreground">
               가져오지 않은 열 {ignoredColumns.length}개: {ignoredColumns.join(', ')}
             </p>
           ) : null}
-          <div className="wc-admin-kit__actions">
+          <div className="flex flex-wrap items-center gap-2">
             {pending ? (
-              <button
+              <Button
                 type="button"
-                className="wc-admin-kit__button"
                 onClick={apply}
                 disabled={busy}
               >
@@ -647,109 +679,103 @@ export function GoodsImportScreen({
                   : unchanged
                     ? '변경 없이 완료'
                     : '검증 오류 결과 확정'}
-              </button>
+              </Button>
             ) : null}
             {busy ? (
-              <button
+              <Button
+                variant="outline"
                 type="button"
-                className="wc-admin-kit__button"
                 onClick={() => {
                   stop.current = true;
                 }}
               >
                 현재 상품 처리 후 멈춤
-              </button>
+              </Button>
             ) : null}
             {failed ? (
               <a
-                className="wc-admin-kit__button"
+                className={buttonVariants({ variant: 'outline' })}
+                data-slot="button"
                 href={`/api/admin/goods-workbook?mode=failures&batch=${encodeURIComponent(view.id)}`}
               >
+                <Download aria-hidden="true" />
                 실패 행 내려받기
               </a>
             ) : null}
           </div>
           {view.format === 'sabangnet' ? (
-            <p className="wc-admin-kit__hint">
+            <p className="text-sm text-muted-foreground">
               이 작업은 24시간 동안 이어서 열 수 있습니다. 실패 행은 ICONS 양식으로 내려받으며, 이미 등록된
               상품코드 행은 넣지 않습니다. 고친 뒤 ICONS 자체 양식으로 올려 주세요.
             </p>
           ) : (
-            <p className="wc-admin-kit__hint">
+            <p className="text-sm text-muted-foreground">
               이 작업은 24시간 동안 이어서 열 수 있습니다. 실패 행을 다시 올릴 때
               파일명을 사용했다면 원래 이미지 ZIP도 함께 올려주세요.
             </p>
           )}
-          <div role="region" aria-label="상품 엑셀 결과 가로 스크롤" tabIndex={0} style={{ overflowX: 'auto' }}>
-            <table className="admin-console-grid-table" style={{ minWidth: 620, width: '100%', tableLayout: 'fixed' }}>
+          <div role="region" aria-label="상품 엑셀 결과 가로 스크롤" tabIndex={0} className="relative min-w-0 overflow-x-auto rounded-lg border bg-card outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+            <table className="w-full min-w-[620px] table-fixed caption-bottom text-sm" data-slot="table">
               <caption className="sr-only">상품 엑셀 행별 검증 결과</caption>
-              <colgroup><col style={{ width: 48 }} /><col style={{ width: 200 }} /><col style={{ width: 104 }} /><col /></colgroup>
-              <thead>
-                <tr>
-                  <th scope="col">행</th>
-                  <th scope="col">상품</th>
-                  <th scope="col">분류</th>
-                  <th scope="col">검증·적용 결과</th>
-                </tr>
-              </thead>
-              <tbody>
+              <colgroup><col className="w-12" /><col className="w-[200px]" /><col className="w-[104px]" /><col /></colgroup>
+              <TableHeader>
+                <TableRow>
+                  <TableHead scope="col">행</TableHead>
+                  <TableHead scope="col">상품</TableHead>
+                  <TableHead scope="col">분류</TableHead>
+                  <TableHead scope="col">검증·적용 결과</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {view.groups.map((group) => (
-                  <tr key={group.index}>
-                    <td>{group.rows.join(', ')}</td>
-                    <td>
+                  <TableRow key={group.index}>
+                    <TableCell className="align-top whitespace-normal tabular-nums">{group.rows.join(', ')}</TableCell>
+                    <TableCell className="align-top whitespace-normal wrap-anywhere">
                       {group.name || '이름 없음'}
-                      <small style={{ display: 'block' }}>
+                      <small className="block text-xs text-muted-foreground">
                         {group.code || '코드 자동 생성'}
                       </small>
-                    </td>
-                    <td>
-                      <AdminStatusBadge
-                        tone={
-                          group.kind === 'error'
-                            ? 'danger'
-                            : group.kind === 'new'
-                              ? 'success'
-                              : 'neutral'
-                        }
-                      >
+                    </TableCell>
+                    <TableCell className="align-top">
+                      <AdminStatusBadge tone={statusTone('goodsImport', group.kind)}>
                         {labels[group.kind]}
                       </AdminStatusBadge>
-                    </td>
-                    <td>
-                      {group.errors.map((message) => (
-                        <p key={message} className="wc-admin-kit__error">
-                          {message}
-                        </p>
-                      ))}
-                      {group.warnings.map((message) => (
-                        <p key={message}>
-                          <AdminStatusBadge tone="warning">
+                    </TableCell>
+                    <TableCell className="align-top whitespace-normal">
+                      <div className="flex flex-col items-start gap-1">
+                        {group.errors.map((message) => (
+                          <p key={message} className="text-sm text-destructive">
                             {message}
-                          </AdminStatusBadge>
-                        </p>
-                      ))}
-                      {group.result ? (
-                        <p>
-                          {group.result.status === 'success'
-                            ? view.format === 'sabangnet'
-                              ? '초안 저장 완료'
-                              : '저장 완료'
-                            : group.result.status === 'unchanged'
-                              ? '변경 없이 완료'
-                              : group.result.error}
-                        </p>
-                      ) : null}
-                      {group.result?.status === 'success' && group.skippedImages ? (
-                        <p>
-                          <AdminStatusBadge tone="warning">
+                          </p>
+                        ))}
+                        {group.warnings.map((message) => (
+                          <p key={message} className={WARNING}>
+                            <TriangleAlert aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
+                            {message}
+                          </p>
+                        ))}
+                        {group.result ? (
+                          <p className={`text-sm ${group.result.status === 'success' ? 'text-success' : group.result.status === 'unchanged' ? 'text-muted-foreground' : 'text-destructive'}`}>
+                            {group.result.status === 'success'
+                              ? view.format === 'sabangnet'
+                                ? '초안 저장 완료'
+                                : '저장 완료'
+                              : group.result.status === 'unchanged'
+                                ? '변경 없이 완료'
+                                : group.result.error}
+                          </p>
+                        ) : null}
+                        {group.result?.status === 'success' && group.skippedImages ? (
+                          <p className={WARNING}>
+                            <TriangleAlert aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
                             {`이미지 ${group.skippedImages}장은 확인하지 못해 빼고 저장했습니다. 상품 편집에서 올려 주세요.`}
-                          </AdminStatusBadge>
-                        </p>
-                      ) : null}
-                    </td>
-                  </tr>
+                          </p>
+                        ) : null}
+                      </div>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
+              </TableBody>
             </table>
           </div>
         </AdminSectionCard>

@@ -3,8 +3,14 @@
 import Link from 'next/link';
 import { createContext, useCallback, useContext, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
+import { X } from 'lucide-react';
+import { Button } from '@/components/admin/kit/ui/button';
 
-/** Native dialog keeps focus and Escape inside the selected record, even from a grid cell. */
+/**
+ * Native dialog keeps focus and Escape inside the selected record, even from a grid cell.
+ * The closed dialog stays `hidden` and only `open:flex` lays it out — an author display utility beats the UA
+ * `dialog:not([open])` rule, so a bare `flex` would spread the dialog into the page before `showModal()` runs.
+ */
 export function CustomerServiceDialog({ title, children, onClose, busy = false, wide = false }: {
   title: string;
   children: ReactNode;
@@ -23,6 +29,12 @@ export function CustomerServiceDialog({ title, children, onClose, busy = false, 
     const overflow = document.body.style.overflow;
     closingRef.current = false;
     dialog.showModal();
+    /* React의 autoFocus는 DOM에 autofocus 속성을 남기지 않아, 모달을 여는 순간 브라우저가 첫 버튼(닫기)으로 포커스를 옮긴다.
+       화면이 `data-dialog-autofocus`로 표시한 칸이 있으면 그 칸에서 바로 입력하게 한다(엑셀 비밀번호 창 등). */
+    const preferred = dialog.querySelector<HTMLElement>('[data-dialog-autofocus]');
+    if (preferred) preferred.focus({ preventScroll: true });
+    /* 열자마자 안쪽에 포커스 줄 곳이 없으면 body에 남는다 — 키보드 사용자가 팝업 안에서 시작하게 팝업 자체로 옮긴다. */
+    else if (!dialog.contains(document.activeElement)) dialog.focus({ preventScroll: true });
     document.body.style.overflow = 'hidden';
     return () => {
       closingRef.current = true;
@@ -33,8 +45,10 @@ export function CustomerServiceDialog({ title, children, onClose, busy = false, 
   }, []);
 
   return <dialog
+    tabIndex={-1}
     aria-labelledby={titleId}
-    className={`admin-cs-dialog${wide ? ' admin-cs-dialog--wide' : ''}`}
+    className={`admin-cs-dialog m-auto hidden max-h-[calc(100svh-2rem)] w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-xl border-0 bg-popover p-0 text-sm text-popover-foreground shadow-lg ring-1 ring-foreground/10 outline-none backdrop:bg-black/50 open:flex print:static print:max-h-none print:w-full print:max-w-none print:shadow-none print:ring-0 forced-colors:border forced-colors:border-[CanvasText] ${wide ? 'max-w-5xl' : 'max-w-xl'}`}
+    data-wide={wide || undefined}
     onCancel={(event) => {
       /* React는 버블링하지 않는 native cancel도 컴포넌트 트리로 전달한다. 안쪽 dialog(답변 템플릿 등)의
          Esc가 바깥 팝업까지 닫지 않게 자기 dialog의 cancel만 처리한다. */
@@ -61,11 +75,11 @@ export function CustomerServiceDialog({ title, children, onClose, busy = false, 
     }}
     ref={ref}
   >
-    <header className="admin-cs-dialog__header">
-      <h2 id={titleId}>{title}</h2>
-      <button aria-label="닫기" disabled={busy} onClick={onClose} type="button">×</button>
+    <header className="flex shrink-0 items-center justify-between gap-3 border-b px-4 py-3">
+      <h2 className="text-base leading-none font-semibold text-foreground" id={titleId}>{title}</h2>
+      <Button aria-label="닫기" className="print:hidden" disabled={busy} onClick={onClose} size="icon-sm" type="button" variant="ghost"><X /></Button>
     </header>
-    <div className="admin-cs-dialog__body">{children}</div>
+    <div className="admin-cs-dialog__body min-h-0 flex-1 overflow-y-auto p-4 text-left whitespace-normal print:overflow-visible">{children}</div>
   </dialog>;
 }
 
@@ -116,8 +130,8 @@ export function InquiryPreviewDialog({ children, closeHref }: { children: ReactN
 export function InquiryPreviewBackLink({ href }: { href: string }) {
   const busy = useContext(InquiryPreviewBusy);
   return busy
-    ? <span aria-disabled="true" className="mono muted" style={{ fontSize: 12 }}>← 문의 목록</span>
-    : <Link className="mono" href={href} replace scroll={false} style={{ fontSize: 12 }}>← 문의 목록</Link>;
+    ? <span aria-disabled="true" className="text-xs text-muted-foreground">← 문의 목록</span>
+    : <Link className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" href={href} replace scroll={false}>← 문의 목록</Link>;
 }
 
 /** 목록 안에서 답변을 펼칠 때는 배경을 잠그거나 모달 포커스 트랩을 만들지 않는다. */
@@ -134,10 +148,10 @@ export function CustomerServiceInlinePanel({ title, children, onClose, busy = fa
     heading.current?.focus({ preventScroll: true });
     return () => { if (previousFocus?.isConnected) previousFocus.focus({ preventScroll: true }); };
   }, []);
-  return <section aria-labelledby={titleId} className="admin-cs-inline" onKeyDown={event => {
+  return <section aria-labelledby={titleId} className="admin-cs-inline flex flex-col gap-3 rounded-xl border bg-card p-4 text-sm text-card-foreground" onKeyDown={event => {
     if (event.key === 'Escape' && !busy) { event.preventDefault(); event.stopPropagation(); onClose(); }
   }}>
-    <header className="admin-cs-inline__header"><h3 id={titleId} ref={heading} tabIndex={-1}>{title}</h3><button type="button" className="btn btn-sm btn-ghost" disabled={busy} onClick={onClose}>답변 접기</button></header>
-    <div className="admin-cs-inline__body">{children}</div>
+    <header className="flex items-center justify-between gap-3"><h3 className="text-base font-semibold text-foreground outline-none" id={titleId} ref={heading} tabIndex={-1}>{title}</h3><Button disabled={busy} onClick={onClose} size="sm" type="button" variant="outline">답변 접기</Button></header>
+    <div className="admin-cs-inline__body flex flex-col gap-3">{children}</div>
   </section>;
 }

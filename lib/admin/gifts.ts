@@ -1,4 +1,5 @@
 import { isUuid } from '../uuid';
+import { kstDateTimeText } from './list-export';
 
 export const ADMIN_GIFT_STATES = ['awaiting_acceptance', 'accepted', 'ordered', 'declined', 'expired', 'canceled'] as const;
 export type AdminGiftState = typeof ADMIN_GIFT_STATES[number];
@@ -53,5 +54,5 @@ export function parseAdminGiftData(value: unknown, filters: AdminGiftFilters): A
 }
 export function giftExportRows(rows: readonly AdminGiftRow[]) {
   return rows.map(row => [row.id, ADMIN_GIFT_STATE_LABELS[row.state], row.senderName, row.recipientName, row.goodsLabel, row.quantity,
-    row.createdAt, row.expiresAt, row.acceptedAt, row.orderId]);
+    kstDateTimeText(row.createdAt), kstDateTimeText(row.expiresAt), kstDateTimeText(row.acceptedAt), row.orderId]);
 }

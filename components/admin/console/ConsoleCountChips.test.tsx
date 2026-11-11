@@ -20,7 +20,7 @@ describe('ConsoleCountChips', () => {
     expect(html).toContain('취소요청');
     /* 0이 두 번 나온다 = 두 상태 모두 자리를 지켰다. */
     expect(html.match(/>0</g)).toHaveLength(2);
-    expect(html).toContain('admin-console-chip--danger');
+    expect(html).toContain('data-tone="danger"');
   });
 
   it('건수를 한국어 천 단위로 끊어 보여준다', () => {

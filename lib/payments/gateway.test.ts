@@ -61,14 +61,16 @@ function returnInput(overrides: Partial<PaymentReturnInput> = {}): PaymentReturn
 const PAYMENT_PROVIDERS: Record<PaymentProvider, true> = {
   toss: true,
   korpay: true,
+  nicepay: true,
   bank_transfer: true,
 };
 
 describe('PaymentProvider', () => {
-  it('원장 provider 축은 DB enum public.payment_provider 3종과 일치한다', () => {
+  it('원장 provider 축은 DB enum public.payment_provider 4종과 일치한다', () => {
     expect(Object.keys(PAYMENT_PROVIDERS).sort()).toEqual([
       'bank_transfer',
       'korpay',
+      'nicepay',
       'toss',
     ]);
   });

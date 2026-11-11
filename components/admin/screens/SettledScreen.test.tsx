@@ -47,7 +47,8 @@ describe('SettledScreen', () => {
     expect(html).toContain('name="field" value="recipient"');
     expect(html).toContain('field=recipient');
     expect(html).toContain('field%3Drecipient');
-    const search = html.slice(html.indexOf('class="admin-sales-filters"'), html.indexOf('</form>'));
+    expect(html).toContain('data-sales-filters=""');
+    const search = html.slice(html.indexOf('data-sales-filters=""'), html.indexOf('</form>'));
     expect((search.match(/name="field"/g) ?? [])).toHaveLength(1);
   });
   it('확정일과 하자 클레임 잔여 기한을 함께 보여준다', () => {
@@ -68,6 +69,24 @@ describe('SettledScreen', () => {
     expect(html).toContain('배송일과 사유별 신청 기한');
     expect(html).toContain('자동 확정은 기본 꺼짐');
     expect(html).toContain('판매대금 지급 완료나 반품·교환 권리의 소멸을 뜻하지 않습니다.');
+  });
+
+  /* 사람 눈 판정(3라운드): 긴 닉네임이 '@ / 메이플20년차모험가 / _민지'로 세 줄로 깨졌고 @는 주문통합검색에 없는 표기였다. */
+  it('구매자는 @ 없이 한 줄로 자르고 전체 값을 title에 둔다', () => {
+    const buyerName = '메이플20년차모험가_민지';
+    const html = renderToStaticMarkup(<SettledScreen now={NOW} data={data({ rows: [{ ...data().rows[0], buyerName }] })} />);
+    expect(html).toMatch(new RegExp(`class="block [^"]*truncate" title="${buyerName}">${buyerName}<`));
+    expect(html).not.toContain(`@${buyerName}`);
+  });
+
+  /* 사람 눈 판정: 화면의 유일한 색이 줄마다 똑같은 '가능 · N일 남음'이라 볼 필요 적은 정보가 제일 튀었다. */
+  it('하자 요청 기한은 7일 이내로 임박한 건에만 색을 입힌다', () => {
+    const line = (deliveredAt: string) => renderToStaticMarkup(<SettledScreen now={NOW} data={data({ rows: [{ ...data().rows[0], deliveredAt }] })} />);
+    const imminent = line('2026-05-25T06:00:00.000Z');
+    expect(imminent).toMatch(/data-tone="warning"[^>]*data-claim-open="true"|data-claim-open="true"[^>]*data-tone="warning"/);
+    const quiet = line(NOW.toISOString());
+    expect(quiet).toContain('data-claim-open="true"');
+    expect(quiet).not.toMatch(/data-claim-open="true"[^>]*data-tone=/);
   });
 
   it('3개월이 지난 주문은 기한 종료로 표기한다', () => {
@@ -96,7 +115,7 @@ describe('SettledScreen', () => {
     const html = renderToStaticMarkup(<SettledScreen data={data()} now={NOW} />);
 
     expect(html).not.toContain('aria-label="전체 선택"');
-    expect(html).not.toContain('admin-console-bulk-bar');
+    expect(html).not.toContain('data-console-bulk-bar');
     expect(html).not.toContain('name="orderIds"');
   });
 
@@ -113,8 +132,11 @@ describe('SettledScreen', () => {
     const html = renderToStaticMarkup(<SettledScreen data={data({ filters: { from: '2026-09-01', to: '2026-09-09', query: '0000', page: 3 } })}
       exportRequestId="10000000-0000-4000-8000-000000004951" now={NOW} />);
     expect(html).toContain('목록 엑셀 다운로드');
-    /* 다른 주문·배송 목록처럼 필터 바로 아래, 안내 문단보다 앞에 둔다. */
-    expect(html.indexOf('목록 엑셀 다운로드')).toBeLessThan(html.indexOf('자동 확정은 기본 꺼짐'));
+    /* 보존 기록 생성은 서버 액션 폼 제출이다 — kit Button은 type이 없으면 button이 된다. */
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>(?:<svg[\s\S]*?<\/svg>)?목록 엑셀 다운로드</);
+    /* 다른 주문·배송 목록처럼 목록 머리에 둔다. 표 위의 안내 문단은 메뉴설명으로 접혀 표를 밀지 않는다. */
+    expect(html.indexOf('목록 엑셀 다운로드')).toBeLessThan(html.indexOf('<thead'));
+    expect(html.indexOf('자동 확정은 기본 꺼짐')).toBeLessThan(html.indexOf('data-sales-filters'));
     expect(html).toContain('현재 조회 조건의 전체 페이지');
     expect(html).toContain('name="from" value="2026-09-01"');
     expect(html).toContain('name="query" value="0000"');

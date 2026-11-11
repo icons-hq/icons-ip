@@ -11,8 +11,10 @@ export type PaymentOutcome = (typeof PAYMENT_OUTCOMES)[number];
  * DB enum `public.payment_provider`와 같은 축이다. `bank_transfer` attempt는
  * 게이트웨이 seam(prepare/confirm/refund)을 타지 않지만, 원장의 provider 축은
  * DB enum과 어긋나면 안 된다 — attempt·payment 행을 읽는 코드가 같은 타입을 쓴다.
+ * `nicepay`는 판매 제한 굿즈 주문의 카드 PG다(2026-11-06, 코페이 대체). `korpay`는
+ * 진행 중 결제 drain과 과거 원장을 위해 값으로 남는다.
  */
-export type PaymentProvider = 'toss' | 'korpay' | 'bank_transfer';
+export type PaymentProvider = 'toss' | 'korpay' | 'nicepay' | 'bank_transfer';
 export type PaymentPurpose = 'order' | 'ticket' | 'prize_sale';
 
 export interface PaymentAttempt {
@@ -89,6 +91,14 @@ export interface PaymentRefundRequest {
   readonly idempotencyKey: string;
   readonly amount: number;
   readonly reason: string;
+  /**
+   * 로컬 결제 원장(payments.payment_key)이 기록한 provider 결제 식별자. 주문번호로
+   * 조회할 수 없는 provider(나이스페이 웹표준은 거래조회·취소가 TID 기준)가 취소
+   * 대상을 찾는 데 쓴다. 주문번호 조회가 진실원인 provider(토스)는 쓰지 않는다.
+   * 취소 결과의 evidence.providerPaymentKey는 provider 응답에서 다시 읽어 호출자가
+   * 이 값과 대조한다.
+   */
+  readonly providerPaymentKey?: string;
 }
 
 export interface RefundOutcome extends PaymentOperationOutcome {

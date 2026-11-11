@@ -12,10 +12,12 @@ vi.mock('@/app/admin/goods-group-actions', () => ({ previewGoodsGroupConversionA
   readGoodsGroupOperationAction: mocks.read, saveGoodsGroupAction: mocks.save, archiveGoodsGroupAction: mocks.archive, readGoodsGroupAction: vi.fn(), readGoodsGroupSourceAction: vi.fn(), searchGoodsGroupProductsAction: vi.fn() }));
 vi.mock('@/lib/supabase/client', () => ({ createClient: () => ({ auth: { onAuthStateChange: (callback: typeof mocks.auth) => { mocks.auth = callback; return { data: { subscription: { unsubscribe() {} } } }; } } }) }));
 import { GoodsGroupConversion } from './GoodsGroupConversion';
-import { GoodsGroupEditor } from './GoodsGroupEditor';
+import { GoodsGroupEditor, groupValueProblems } from './GoodsGroupEditor';
 import { GoodsGroupsScreen } from './screens/GoodsGroupsScreen';
 import { GroupCompleted, GroupOperationStatus, GroupTable } from './GoodsGroupOperation';
 import { AdminField, AdminFormGrid, AdminSectionCard, AdminStatusBadge } from './console/AdminKit';
+import { Button } from './kit/ui/button';
+import { Input } from './kit/ui/input';
 import { goodsGroupRecoveryKey, type GoodsGroupRecovery } from '@/lib/admin/goods-groups';
 import { groupTestGroup as group, groupTestId as id, groupTestIdentity as identity, groupTestPreview as preview, groupTestReceipt as receipt, groupTestSource as source } from '@/lib/admin/goods-groups.test-fixtures';
 
@@ -26,6 +28,9 @@ const nodes = (node: ReactNode): Element[] => Children.toArray(node).flatMap(val
   if (pure.has(value.type)) return [value, ...nodes((value.type as (props: Record<string, unknown>) => ReactNode)(value.props))];
   return [value, ...nodes(value.props.children as ReactNode)];
 });
+/* kit 버튼·입력도 네이티브 button·input과 같은 조작 부품으로 찾는다(ADR-0028). */
+const isButton = (node: Element) => node.type === 'button' || node.type === Button;
+const isInput = (node: Element) => node.type === 'input' || node.type === Input;
 const text = (node: ReactNode): string => Children.toArray(node).map(value => isValidElement<Record<string, unknown>>(value) ? text(value.props.children as ReactNode) : String(value)).join('');
 let mode: 'convert' | 'editor' | 'list' = 'convert'; const storage = new Map<string, string>();
 const storageApi = { get length() { return storage.size; }, key: (index: number) => [...storage.keys()][index] ?? null,
@@ -57,7 +62,7 @@ function render() {
 }
 function remount() { for (const effect of hooks.effects.values()) effect.cleanup?.(); hooks.values = []; hooks.effects.clear(); hooks.jobs = []; hooks.pending = false; render(); authenticate(); }
 async function flush() { for (let index = 0; index < 12; index += 1) { await Promise.resolve(); render(); } }
-function click(label: string) { const button = render().find(node => node.type === 'button' && text(node) === label); expect(button, label).toBeDefined(); expect(button!.props.disabled, label).not.toBe(true); (button!.props.onClick as () => void)(); }
+function click(label: string) { const button = render().find(node => isButton(node) && text(node) === label); expect(button, label).toBeDefined(); expect(button!.props.disabled, label).not.toBe(true); (button!.props.onClick as () => void)(); }
 function submit() { const form = render().find(node => node.type === 'form')!; (form.props.onSubmit as (event: unknown) => void)({ preventDefault() {} }); }
 function check(labelPart: string) { const label = render().find(node => node.type === 'label' && text(node).includes(labelPart))!; const checkbox = nodes(label).find(node => node.type === 'input' && node.props.type === 'checkbox')!;
   (checkbox.props.onChange as (event: unknown) => void)({ target: { checked: true } }); }
@@ -80,9 +85,31 @@ describe('그룹 전환 화면 복구', () => {
     expect(mocks.confirm).toHaveBeenCalledOnce(); const metadata = saved(); expect(metadata).toMatchObject({ ...identity, version: 1, command: 'convert', previewId: preview.previewId, sourceGoodId: source.goodId });
     expect(Object.keys(metadata).sort()).toEqual(['version', 'actorId', 'sessionId', 'operationId', 'command', 'sourceGoodId', 'previewId'].sort());
     expect(render().find(node => node.type === 'fieldset')!.props.disabled).toBe(true);
-    expect(render().find(node => node.type === 'button' && text(node) === '이 내용으로 그룹 전환')!.props.disabled).toBe(true);
-    expect(render().some(node => node.type === 'input' && node.props.value === source.name)).toBe(true);
+    expect(render().find(node => isButton(node) && text(node) === '이 내용으로 그룹 전환')!.props.disabled).toBe(true);
+    expect(render().some(node => isInput(node) && node.props.value === source.name)).toBe(true);
     const event = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(event); expect(event.defaultPrevented).toBe(true);
+  });
+  it('입력을 고친 뒤에만 이동을 묻고, 취소하면 입력을 유지하며, 되돌리면 묻지 않는다', async () => {
+    vi.mocked(window.confirm).mockReturnValue(false);
+    const nameInput = () => render().find(node => node.props.id === 'conversion-group-name')!;
+    expect(navigate().defaultPrevented).toBe(false); expect(window.confirm).not.toHaveBeenCalled();
+    (nameInput().props.onChange as (event: unknown) => void)({ target: { value: '미저장 전환명' } }); render();
+    expect(navigate().defaultPrevented).toBe(true); expect(window.confirm).toHaveBeenCalledOnce();
+    expect(nameInput().props.value).toBe('미저장 전환명');
+    const unload = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(unload); expect(unload.defaultPrevented).toBe(true);
+    (nameInput().props.onChange as (event: unknown) => void)({ target: { value: source.name } }); render(); vi.mocked(window.confirm).mockClear();
+    expect(navigate().defaultPrevented).toBe(false); expect(window.confirm).not.toHaveBeenCalled();
+  });
+  it('전환 요청이 끝나기 전에는 묻지 않고 막고, 완료되면 입력이 있어도 묻지 않는다', async () => {
+    let complete!: (value: unknown) => void; mocks.confirm.mockReturnValue(new Promise(resolve => { complete = resolve; }));
+    (render().find(node => node.props.id === 'conversion-group-name')!.props.onChange as (event: unknown) => void)({ target: { value: '미저장 전환명' } });
+    await ready(); click('이 내용으로 그룹 전환'); await flush(); const metadata = saved(); vi.mocked(window.confirm).mockClear();
+    expect(navigate().defaultPrevented).toBe(true); expect(window.confirm).not.toHaveBeenCalled();
+    complete({ value: { ...receipt, operationId: metadata.operationId } }); await flush();
+    expect(navigate().defaultPrevented).toBe(false); expect(window.confirm).not.toHaveBeenCalled();
+  });
+  it('변환 전 비교 버튼은 폼 제출이다(kit 버튼의 기본 type은 button)', () => {
+    expect(render().find(node => isButton(node) && text(node) === '변환 전 변경사항 비교')?.props.type).toBe('submit');
   });
   it('응답 유실 뒤 새로고침은 자동 재전송 없이 동일 내역만 조회한다', async () => {
     await ready(); click('이 내용으로 그룹 전환'); await flush(); const metadata = saved(); remount(); await flush();
@@ -96,7 +123,7 @@ describe('그룹 전환 화면 복구', () => {
     mocks.read.mockResolvedValue({ value: { state: 'unresolved', operationId: metadata.operationId } }); click('진행 내역 확인'); await flush(); expect(storage.size).toBe(1);
     mocks.read.mockResolvedValue({ value: { state: 'sealed', operationId: metadata.operationId } }); click('이 요청 종료하고 다시 준비'); await flush();
     expect(mocks.read).toHaveBeenLastCalledWith(metadata, true); expect(mocks.confirm).toHaveBeenCalledOnce(); expect(storage.size).toBe(0);
-    click('입력으로 돌아가 다시 비교'); await flush(); expect(render().some(node => node.type === 'button' && text(node) === '이 내용으로 그룹 전환')).toBe(false);
+    click('입력으로 돌아가 다시 비교'); await flush(); expect(render().some(node => isButton(node) && text(node) === '이 내용으로 그룹 전환')).toBe(false);
   });
   it.each(['actor', 'session'])('%s 교체 뒤 늦게 도착한 완료는 적용하거나 기록을 지우지 않는다', async kind => {
     let complete!: (value: unknown) => void; mocks.confirm.mockReturnValue(new Promise(resolve => { complete = resolve; })); await ready(); click('이 내용으로 그룹 전환'); await flush(); const metadata = saved();
@@ -141,11 +168,26 @@ describe('그룹 구성 화면', () => {
   });
   it('목록에서 개별 상품을 펼치고 계정 변경 시 상세 링크를 감춘다', async () => {
     mode = 'list'; remount(); await flush();
-    const toggle = render().find(node => node.type === 'button' && node.props['aria-label'] === `${group.name} 판매옵션 펼치기`)!;
+    const toggle = render().find(node => isButton(node) && node.props['aria-label'] === `${group.name} 판매옵션 펼치기`)!;
     expect(toggle.props['aria-expanded']).toBe(false); (toggle.props.onClick as () => void)(); await flush();
     for (const member of group.members) expect(render().some(node => node.props.href === `/admin/catalog/goods?goodId=${encodeURIComponent(member.goodId)}` && text(node) === member.name)).toBe(true);
     authenticate(id(99)); await flush();
     expect(render().some(node => typeof node.props.href === 'string' && node.props.href.startsWith('/admin/catalog/goods?goodId='))).toBe(false);
+  });
+  it('구성 확인이 막히면 어느 칸을 고칠지 칸마다 알려 준다', () => {
+    const problems = groupValueProblems({ name: '', optionNames: ['색상', '색상'], members: [
+      { goodId: 'good-a', values: ['빨강', ''] },
+      { goodId: 'good-b', values: ['빨강', ''] },
+    ] }, 2);
+    expect(problems.name).toBe('그룹상품명을 입력해주세요.');
+    expect(problems.optionNames).toEqual([undefined, '옵션명이 겹칩니다. 다른 이름을 입력해주세요.']);
+    expect(problems.values).toEqual({ 'good-a:1': '값을 입력해주세요.', 'good-b:1': '값을 입력해주세요.' });
+    expect(groupValueProblems({ name: '그룹', optionNames: ['색상'], members: [{ goodId: 'good-a', values: ['빨강'] }] }, 2).members).toBe('상품을 2개 이상 선택해주세요.');
+    expect(groupValueProblems({ name: '그룹', optionNames: ['색상'], members: [{ goodId: 'good-a', values: ['빨강'] }, { goodId: 'good-b', values: ['빨강'] }] }, 2).combination).toContain('같은 옵션값 조합');
+  });
+  it('구성 변경 확인 버튼은 폼 제출이다(kit 버튼의 기본 type은 button)', async () => {
+    mode = 'editor'; remount(); await flush();
+    expect(render().find(node => isButton(node) && text(node) === '변경사항 확인')?.props.type).toBe('submit');
   });
   it('제외만으로 상품을 합치지 않으며 승인된 구성 metadata와 입력을 분리한다', async () => {
     mode = 'editor'; remount(); await flush(); click('TEST 그룹 파랑 제외'); submit(); await flush(); check('변경 내용과 미공개'); render();

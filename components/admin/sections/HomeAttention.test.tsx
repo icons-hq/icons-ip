@@ -28,6 +28,14 @@ describe('홈 상담·리뷰 바로가기', () => {
     expect(html).toContain('전체 기간 · 현재 대화 상태 기준');
   });
 
+  /* 탭의 건수는 확인할 것이 있을 때만 주의색이다 — 낮은 평점은 위험색, 0건은 조용히 둔다(ADR-0029). */
+  it('확인할 것이 있는 탭만 주의·위험으로 표시한다', () => {
+    const html = renderToStaticMarkup(<HomeAttention data={{ ...data, lowReviews: { total: 2, rows: [] } }} />);
+    expect(html).toMatch(/data-attention="warning"[^>]*>읽지 않은 상담/);
+    expect(html).toMatch(/data-attention="danger"[^>]*>낮은 평점/);
+    expect(html).not.toMatch(/data-attention="[a-z]+"[^>]*>고객문의/);
+  });
+
   it('리뷰 인사이트의 기준일과 동일한 조건별 상품 수를 연결한다', () => {
     const html = renderToStaticMarkup(<HomeAttention data={data} />);
     expect(html).toContain('2026-10-19 기준 · 조건별 상품 수');

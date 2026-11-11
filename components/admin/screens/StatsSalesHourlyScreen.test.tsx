@@ -25,5 +25,6 @@ describe('시간대 판매 화면', () => {
     const html = renderToStaticMarkup(<StatsSalesHourlyControls report={salesHourlyFixture(0)} filters={filters} error="잘못된 조건" />);
     expect(html).toContain('name="compareDate"'); expect(html).toContain('value="2026-10-07"'); expect(html).toContain('name="ip"');
     expect(html).not.toContain('name="cutoff"'); expect(html).toContain('role="alert"'); expect(html).toContain('최신 현황 조회');
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>(?:(?!<\/button>)[\s\S])*조회·갱신<\/button>/);
   });
 });

@@ -18,8 +18,16 @@ describe('운송장 업로드 후속 동선', () => {
     expect(html).toContain('name="originId"');expect(html).toContain('value="selected-origin"');
     expect(html).toContain('김포');expect(html).toContain('21열');expect(html).toContain('주문번호(쇼핑몰)');
     expect(html).toContain('배송건번호 · 택배사코드 · 운송장번호');
-    expect(html).toContain('상품주문번호 · 배송방법 · 택배사 · 송장번호');
-    expect(html).toContain('암호를 해제');expect(html).toContain('발송처리');expect(html).toContain('안내 행이 있는 파일만');expect(html).toContain('머리글 행은 유지');
+    expect(html).toContain('상품주문번호 · 택배사 · 운송장번호');
+    expect(html).not.toContain('암호를 해제');expect(html).toContain('시트 이름과 열 순서는 바꿔도');expect(html).toContain('이전에 내려받은 파일도');expect(html).toContain('내려받은 CSV');expect(html).toContain('ICONS 표준 양식 CSV는 1MB');
+    expect(html).not.toMatch(/발송처리<|안내 행|스마트스토어/);
+  });
+
+  it('비밀번호를 건 XLSX를 해제 없이 올리도록 파일 비밀번호 칸을 제공한다',()=>{
+    const html=renderToStaticMarkup(<DispatchTrackingImportPanel carriers={[]} />);
+    const input=html.match(/<input[^>]*name="filePassword"[^>]*>/)?.[0]??'';
+    expect(input).toContain('type="password"');expect(input).toMatch(/autocomplete="new-password"/i);expect(input).not.toContain('required');expect(input).not.toContain('value=');
+    expect(html).toContain('파일 비밀번호');expect(html).toContain('파일을 내려받을 때 정한 비밀번호');expect(html).toContain('저장하지 않습니다');
   });
 
   it('남양주(서원) 송장양식 회신 방법과 덮어쓰지 않는 정정 경로를 안내한다',()=>{
@@ -34,6 +42,8 @@ describe('운송장 업로드 후속 동선', () => {
     expect(html).not.toContain('<details');
     expect(html).toContain('type="file"');
     expect(html).toContain('일괄 등록');
+    /* kit Button은 type이 없으면 button이 된다 — 일괄 등록은 양식을 제출한다. */
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>일괄 등록</);
     expect(html).not.toContain('배송현황에서 결과 확인');
   });
 

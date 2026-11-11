@@ -13,7 +13,7 @@ export interface ConsoleTableSettingsColumn extends GridPreferenceColumn {
 }
 
 /**
- * 조회항목 설정 — kit 판(ADR-0028). 기존 표의 ConsoleGridSettings와 같은 계약(DESIGN.md §어드민 콘솔):
+ * 조회항목 설정 — kit 판(ADR-0028). 콘솔 표(ConsoleGrid)와 kit 표가 함께 쓰는 계약(DESIGN.md §어드민 콘솔):
  * 열 표시·순서·왼쪽 0~4열 고정, 첫 열과 필수 열은 숨기지 못한다. 설정은 같은 계정별 그리드 설정 저장소
  * (`useGridPreferences`)에 남아 기존 표에서 저장한 배치가 그대로 이어진다. 확인을 눌러야 저장한다.
  */

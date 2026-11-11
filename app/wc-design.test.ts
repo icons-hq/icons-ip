@@ -1,4 +1,5 @@
 import { readdirSync, readFileSync } from 'node:fs';
+import { withoutKitGuard } from './styles/css-cascade.test-helpers';
 import { describe, expect, it } from 'vitest';
 import postcss, { type AtRule, type Rule } from 'postcss';
 
@@ -23,15 +24,20 @@ describe('White Catalog admin boundary (#433)', () => {
 
   it('scopes all admin rules including nested media rules and uses only WC tokens', () => {
     const ast = postcss.parse(read('./styles/wc-admin.css'));
+    /* ADR-0028: the console's --wc-* names are mapped onto the shadcn tokens of admin-kit.css. */
+    const kitTokens = new Set<string>();
+    postcss.parse(read('./styles/admin-kit.css')).walkDecls((decl) => { if (decl.prop.startsWith('--')) kitTokens.add(decl.prop); });
     ast.walkRules((rule) => {
       for (const selector of rule.selectors) expect(selector.trim()).toMatch(/^\.wc-admin(?:\b|[.\s:#])/);
     });
     ast.walkDecls((decl) => {
-      for (const match of decl.value.matchAll(/var\(\s*(--[\w-]+)/g)) expect(match[1]).toMatch(/^--wc-/);
-      // The seller-center palette belongs to the isolated admin token boundary.
+      for (const match of decl.value.matchAll(/var\(\s*(--[\w-]+)/g)) {
+        expect(match[1].startsWith('--wc-') || kitTokens.has(match[1]), `${decl.prop}: ${match[1]}`).toBe(true);
+      }
+      // The console palette belongs to the isolated admin token boundary.
       // Components still consume variables so the public foundation cannot drift.
       if (decl.prop.startsWith('--wc-')) {
-        expect(decl.parent?.type === 'rule' ? decl.parent.selector : '').toBe('.wc-admin');
+        expect(decl.parent?.type === 'rule' ? withoutKitGuard(decl.parent.selector) : '').toBe('.wc-admin');
       } else {
         expect(decl.value).not.toMatch(/#[\da-f]{3,8}\b|rgba?\(|hsla?\(/i);
       }
@@ -701,9 +707,13 @@ describe('Hash landing offsets', () => {
   it('lands goods workspace sections on their own margin, not the centered-field margin', () => {
     /* 입력칸은 가운데로 맞추며 위아래 140을 띄운다(scroll-margin-block). 섹션(details[id])까지 그 규칙에 걸리면
      * #good-section-* 로 들어온 섹션이 상단바보다 140 아래에 선다(섹션 자신의 scroll-margin-top 이 묻힌다). */
-    const css = read('./styles/wc-admin-surfaces.css');
+    /* ADR-0028: 편집기 폼은 입력류에만 위아래 여백(scroll-my-32)을 두고, 섹션(details[id])은 자기 scroll-mt-24로 착지한다. */
+    const editor = read('../components/admin/GoodEditor.tsx');
+    const workspace = read('../components/admin/GoodWorkspace.tsx');
 
-    expect(css).toMatch(/\.admin-good-workspace__form \[id\]:not\(\.admin-good-section\)[^{]*\{\s*scroll-margin-block:\s*140px/);
+    expect(editor).toContain('[&_:is(input,select,textarea,button,summary,a)]:scroll-my-32');
+    expect(editor).not.toMatch(/\[&_:is\([^)]*(details|\[id\])[^)]*\)\]:scroll-my/);
+    expect(workspace).toMatch(/SECTION_CLASS = '[^']*\bscroll-mt-24\b/);
   });
 
   it('mounts the hash landing watcher once at the root for every shell', () => {

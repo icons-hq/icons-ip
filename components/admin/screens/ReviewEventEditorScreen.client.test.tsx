@@ -64,6 +64,22 @@ describe('ReviewEventEditorScreen (R6)', () => {
     expect(off).toContain('href="/admin/settings/store-credits"');
   });
 
+  /* 응모마감 뒤 할 일은 화면 맨 아래에 있다. 머리에서 그 자리로 가는 버튼이 첫 화면에 있어야 한다. */
+  it('offers the next step from the header and explains locked fields for a closed event', () => {
+    const event = { ...newReviewEventValues(), id: ID, number: 7, title: '가을 포토리뷰', revision: 1, createdAt: '2026-10-01T00:00:00Z', updatedAt: '2026-10-01T00:00:00Z', archivedAt: null, announcedAt: null, state: 'closed', canEdit: false, entryCount: 0, selectedCount: 0, awardedCount: 0, revokedCount: 0 } as const;
+    props = { ...props, workspace: { event, total: 0, page: 1, pageSize: 50, canPay: true, creditPolicy: ON, selected: [], rows: [] }, creditPolicy: undefined };
+    const markup = html();
+    expect(markup).toContain('가을 포토리뷰');
+    expect(markup).toMatch(/href="#review-event-selection"[^>]*>당첨자 선정·발표로 이동</);
+    expect(markup).toContain('id="review-event-selection"');
+    expect(markup.indexOf('시작한 이벤트의 조건은 수정할 수 없습니다.')).toBeLessThan(markup.indexOf('이벤트 정보'));
+    expect(markup).not.toContain('data-admin-notice="info"');
+
+    props = { ...props, workspace: { ...props.workspace!, event: { ...event, state: 'ready' } } };
+    mocks.states = [];
+    expect(html()).toMatch(/href="#review-event-publish"[^>]*>발표 및 지급으로 이동</);
+  });
+
   it('blocks saving with the policy-off reason before calling the server', () => {
     props = { ...props, creditPolicy: OFF };
     change('이벤트명', '후기 이벤트'); change('내용', '별점과 무관한 후기');

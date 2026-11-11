@@ -95,11 +95,11 @@ it('쿠폰 순서를 별도 명시하고 응답의 쿠폰 선택이 다르면 �
   expect(await quoteCartTransactionAction({ ...transactionInput, userCouponIds: ids })).toEqual({ ok: false, error: 'unavailable' });
 });
 
-it('19금 굿즈가 섞인 카트의 카드 주문과 이어서 주문하기는 코페이 gate를 본다(ADR-0024)', async () => {
-  mocks.cartProvider.mockResolvedValue('korpay'); mocks.userCartProvider.mockResolvedValue('korpay'); mocks.card = false;
+it('19금 굿즈가 섞인 카트의 카드 주문과 이어서 주문하기는 나이스페이 gate를 본다(ADR-0024)', async () => {
+  mocks.cartProvider.mockResolvedValue('nicepay'); mocks.userCartProvider.mockResolvedValue('nicepay'); mocks.card = false;
   expect(await placeCartTransactionAction(placeInput)).toMatchObject({ ok: false, error: 'payment_unavailable', uncertain: false });
   expect(mocks.cartProvider).toHaveBeenCalledWith(placeInput.items.map(item => item.goodId));
-  expect(mocks.cardProviders).toEqual(['korpay']);
+  expect(mocks.cardProviders).toEqual(['nicepay']);
   expect(mocks.rpc).not.toHaveBeenCalled();
   await resumeCartTransactionAction(transactionRecovery);
   expect(mocks.userCartProvider).toHaveBeenCalledWith(transactionActor);

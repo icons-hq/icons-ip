@@ -1,9 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { shipmentFixture } from '@/lib/orders/shipments.fixture';
-import { shipmentDeliveryFixture } from '@/lib/shipment-delivery.fixture';
 import type { AdminOrderRecord } from './orders';
 import type { AdminClaimRow } from './claims';
-import type { ShipmentConsoleRow } from './shipment-dispatch';
 import {
   claimsListExportSheet,
   listExportContact,
@@ -63,7 +61,6 @@ describe('주문 통합검색 목록 엑셀', () => {
     const first = cells(sheet);
     expect(first).toMatchObject({
       주문번호: '11111111',
-      '전체 주문번호': ORDER_ID,
       주문일시: '2026-10-07 00:10',
       '주문 상태': '배송중',
       구매자: 'maple_fan',
@@ -87,6 +84,9 @@ describe('주문 통합검색 목록 엑셀', () => {
     expect(second.상품명).toBe('스티커');
     expect(second.출고지).toBeNull();
     expect(second.결제금액).toBe(45_000);
+    expect(sheet.columns.map((column) => column.header)).not.toEqual(expect.arrayContaining(['전체 주문번호']));
+    expect(sheet.columns.map((column) => column.header)).not.toContain('계산 버전');
+    expect(sheet.columns.find((column) => column.header === '이메일')?.width).toBeGreaterThanOrEqual(34);
     /* 주문 통합검색은 수취인 이름만 싣고 연락처·주소는 담지 않는다. */
     expect(sheet.columns.map((column) => column.header)).not.toContain('연락처');
     expect(sheet.conditions).toEqual([
@@ -124,7 +124,7 @@ describe('미입금 확인 목록 엑셀', () => {
       filters: { query: '', page: 2, selectedOrderId: null },
     });
     expect(cells(sheet)).toMatchObject({
-      입금확인코드: '9A3F21C0', '안내된 입금자명': '홍길동9A3F21C0', 주문일시: '2026-08-17 18:00', '입금 기한': '2026-08-18 11:00',
+      입금확인코드: '9A3F21C0', 주문번호: '9a3f21c0-1111-4000-8000-000000000abc', '안내된 입금자명': '홍길동9A3F21C0', 주문일시: '2026-08-17 18:00', '입금 기한': '2026-08-18 11:00',
       '기한 연장': null, 상태: '입금 대기', 입금액: 23_000,
     });
     expect(sheet.columns.map((column) => column.header)).not.toEqual(expect.arrayContaining(['연락처', '주소']));
@@ -133,55 +133,31 @@ describe('미입금 확인 목록 엑셀', () => {
 });
 
 describe('발주·발송/배송현황 목록 엑셀', () => {
-  const row: ShipmentConsoleRow = {
-    id: '60000000-0000-4000-8000-0000000000aa', orderId: ORDER_ID, originId: 'one', originName: '김포', status: 'ready',
-    createdAt: '2026-09-08T00:00:00Z', confirmedAt: '2026-09-08T01:00:00Z', buyerName: '구매자', recipientName: '받는 분',
-    total: 30_000, paymentMethod: 'card', shippingFee: 3_000, carrier: 'hanjin', trackingNumber: null, shippedAt: null,
-    deliveredAt: null, exportedAt: '2026-09-08T02:00:00Z', updatedAt: '2026-09-08T00:00:00Z', delayReason: '입고 지연',
-    expectedShipDate: '2026-09-12', items: [{ id: 'i1', name: '상품', variantName: '파랑', qty: 2, customInputs:CUSTOM_INPUTS }, { id: 'i2', name: '스티커', variantName: null, qty: 1 }],
-  };
-  const carriers = [{ code: 'hanjin', label: '한진택배', active: true, trackingUrlTemplate: 'https://example.test/{trackingNumber}' }];
+  const origins = [{ id: 'one', name: '김포' }];
 
-  it('배송 건의 상품 줄마다 수령인·연락처·주소를 싣고 연락처·우편번호의 선행 0을 지킨다', () => {
-    const contacts = new Map([[ORDER_ID, listExportContact({ recipientName: '받는 분', phone: '01000000001', postalCode: '01234', address1: '서울', address2: '101호', deliveryNote: '문 앞' })]]);
+  it('화면·탭·조건과 확인용 목록 안내를 만든다(열과 행은 표준 양식이 채운다)', () => {
     const sheet = shipmentsListExportSheet({
-      surface: 'dispatch', rows: [row], filters: { tab: 'ready', originId: 'one', query: '', from: null, to: null, page: 1 },
-      contacts, origins: [{ id: 'one', name: '김포' }], carriers,
+      surface: 'dispatch', recordCount: 2, filters: { tab: 'ready', originId: 'one', query: '', from: null, to: null, page: 1 }, origins,
     });
     expect(sheet.screen).toBe('dispatch');
     expect(sheet.title).toBe('발주(주문)확인/발송관리 - 발송 대기');
-    expect(sheet.rows).toHaveLength(2);
-    expect(sheet.recordCount).toBe(1);
-    expect(cells(sheet)).toMatchObject({
-      배송건번호: '000000AA', 주문번호: '11111111', 출고지: '김포', '배송 방식': '택배', '배송 상태': '배송 준비',
-      수취인: '받는 분', 연락처: '01000000001', 우편번호: '01234', 주소: '서울 101호', 배송메시지: '문 앞',
-      상품명: '상품', 옵션: '파랑', 수량: 2, 결제금액: 30_000, 결제수단: '카드', 배송비: 3_000, 택배사: '한진택배',
-      '직접 입력 옵션':'각인 문구: 합성 문구',
-      '출고지시 전달일시': '2026-09-08 11:00',
-    });
-    expect(sheet.columns.find((column) => column.header === '연락처')?.kind).toBe('code');
-    expect(sheet.columns.find((column) => column.header === '우편번호')?.kind).toBe('code');
-    expect(sheet.columns.map((column) => column.header)).not.toContain('지연 메모');
+    expect(sheet.recordCount).toBe(2);
+    expect(sheet).not.toHaveProperty('columns');
     expect(sheet.conditions).toContainEqual(['출고지', '김포']);
+    expect(sheet.conditions).toContainEqual(['발송지연 안내여부', '전체']);
     expect(sheet.notes.join(' ')).toContain('출고지시 파일과 다른 확인용 목록');
+    expect(sheet.notes.join(' ')).toContain('엑셀 일괄 운송장 등록');
+    expect(sheet.filters).toMatchObject({ tab: 'ready', originId: 'one' });
   });
 
-  it('발송 지연 탭은 지연 메모를, 배송현황은 출고지시 칸 없이 방식별 상태를 싣는다', () => {
-    const delayed = shipmentsListExportSheet({
-      surface: 'dispatch', rows: [row], filters: { tab: 'delayed', originId: null, query: '', from: null, to: null, page: 1 },
-      contacts: new Map(), origins: [], carriers,
+  it('배송현황은 전체 출고지 표기를 쓰고 출고지시 안내를 뺀다', () => {
+    const sheet = shipmentsListExportSheet({
+      surface: 'shipping', recordCount: 1, filters: { tab: 'transit', originId: null, query: '', from: null, to: null, page: 1 }, origins: [],
     });
-    expect(cells(delayed)).toMatchObject({ '지연 메모': '입고 지연', '발송 예정일': '2026-09-12', 연락처: null });
-    expect(delayed.conditions).toContainEqual(['출고지', '전체 출고지']);
-
-    const shipping = shipmentsListExportSheet({
-      surface: 'shipping',
-      rows: [{ ...row, status: 'shipping', delivery: shipmentDeliveryFixture({ method: 'quick', providerName: '퀵' }) }],
-      filters: { tab: 'transit', originId: null, query: '', from: null, to: null, page: 1 },
-      contacts: new Map(), origins: [], carriers,
-    });
-    expect(shipping.columns.map((column) => column.header)).not.toContain('출고지시 전달일시');
-    expect(cells(shipping)).toMatchObject({ '배송 방식': '퀵', '배송 상태': '퀵 배송 중' });
+    expect(sheet.title).toBe('배송현황 관리 - 배송중');
+    expect(sheet.conditions).toContainEqual(['출고지', '전체 출고지']);
+    expect(sheet.conditions.map(([label]) => label)).not.toContain('발송지연 안내여부');
+    expect(sheet.notes.join(' ')).not.toMatch(/출고지시 파일과 다른|네이버|스마트스토어/);
   });
 });
 
@@ -208,6 +184,7 @@ describe('취소·반품·교환 목록 엑셀', () => {
       '직접 입력 옵션':'각인 문구: 합성 문구',
     });
     expect(sheet.conditions).toContainEqual(['처리 상태', '미처리 전체']);
+    expect(sheet.columns.map((column) => column.header)).not.toContain('전체 주문번호');
   });
 
   it('취소는 출고 전 중단이라 배송지·운송장 칸을 싣지 않는다', () => {

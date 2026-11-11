@@ -1,0 +1,197 @@
+/*
+ * 어드민 입력 화면의 이탈 경고.
+ *
+ * App Router에는 이동을 막는 공식 API가 없어 두 갈래로 묻는다.
+ * - 링크 이동(사이드바·상단 막대·화면 안의 Next Link): document 캡처 단계에서 클릭을 먼저 받는다.
+ *   취소하면 이벤트가 React까지 가지 않아 Link가 이동을 시작하지 않는다.
+ * - 페이지가 통째로 내려가는 이동(브라우저 닫기·새로고침·주소 입력·다른 사이트): beforeunload.
+ *
+ * 브라우저 뒤로 가기는 막지 못한다. App Router가 주소를 바꾼 뒤에야 알 수 있어서다.
+ *
+ * 화면에는 입력 폼이 여럿일 수 있다(FAQ 목록은 줄마다 폼이다). 한 번의 클릭에 확인창이 폼 수만큼
+ * 뜨지 않도록 리스너는 모듈에 하나만 두고, 화면은 미저장 상태일 때만 경고를 등록한다.
+ */
+
+export const ADMIN_LEAVE_CONFIRM_MESSAGE = '저장하지 않은 변경이 있습니다. 이 화면을 떠나면 입력이 사라집니다. 이동할까요?';
+/** 브라우저에 복구 기록을 남기는 폼(상품·IP). 입력이 사라진다고 단정하지 않는다. */
+export const ADMIN_LEAVE_RECOVERABLE_MESSAGE = '저장하지 않은 변경사항이 있습니다. 이 화면을 떠나시겠습니까?';
+
+/** 일반 a 태그는 확인을 받은 뒤 페이지가 내려가며 beforeunload가 이어진다. 방금 허락한 이동을 다시 묻지 않는 시간. */
+const CONFIRMED_LEAVE_GRACE_MS = 2_000;
+
+export interface AdminLeaveGuard {
+  message: string;
+  /** 저장 요청이 끝나지 않아 지금 떠나면 결과를 잃는 상태. 묻지 않고 이동을 막는다. */
+  blocked: boolean;
+  /** 페이지가 내려가기 직전에 브라우저 복구 기록을 바로 쓴다. */
+  onUnload?: () => void;
+  /** 같은 경로에서 쿼리만 바뀌어도 입력이 남는 화면이다. 그런 링크(페이지 넘김·검색)에는 묻지 않는다. */
+  survivesQueryChange?: boolean;
+}
+
+type LeaveAnchor = Pick<HTMLAnchorElement, 'href' | 'target' | 'hasAttribute'>;
+
+/** 이 링크를 따라가면 지금 화면의 입력을 잃는가. 새 창·다운로드·같은 화면의 앵커는 입력을 잃지 않는다. */
+export function leavesAdminPage(anchor: LeaveAnchor, currentHref: string): boolean {
+  if (anchor.hasAttribute('download') || (anchor.target && anchor.target !== '_self')) return false;
+  const current = new URL(currentHref);
+  const destination = new URL(anchor.href, current);
+  /* 다른 사이트로 가면 페이지가 통째로 내려가 beforeunload가 묻는다. 여기서 또 묻지 않는다. */
+  if (destination.origin !== current.origin) return false;
+  return destination.pathname !== current.pathname || destination.search !== current.search;
+}
+
+/** 같은 사이트·같은 경로에서 쿼리만 바뀌는 링크인가. */
+export function changesOnlyAdminQuery(anchor: Pick<LeaveAnchor, 'href'>, currentHref: string): boolean {
+  const current = new URL(currentHref);
+  const destination = new URL(anchor.href, current);
+  return destination.origin === current.origin && destination.pathname === current.pathname && destination.search !== current.search;
+}
+
+const guards = new Set<AdminLeaveGuard>();
+let bound: { win: Window; doc: Document } | null = null;
+let leaveConfirmedAt = Number.NEGATIVE_INFINITY;
+
+function confirmGuards(active: AdminLeaveGuard[]): boolean {
+  if (!active.length) return true;
+  if (active.some((guard) => guard.blocked) || !window.confirm(active[0].message)) return false;
+  leaveConfirmedAt = Date.now();
+  return true;
+}
+
+/** 링크가 아닌 이탈(로그아웃 등)에도 같은 확인을 쓴다. 등록된 경고가 없으면 묻지 않는다. */
+export function confirmAdminLeave(): boolean {
+  return confirmGuards([...guards]);
+}
+
+function handleClick(event: MouseEvent) {
+  if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  const anchor = (event.target as Partial<Element> | null)?.closest?.('a[href]') as LeaveAnchor | null | undefined;
+  if (!anchor || !leavesAdminPage(anchor, window.location.href)) return;
+  const queryOnly = changesOnlyAdminQuery(anchor, window.location.href);
+  if (confirmGuards([...guards].filter((guard) => !(queryOnly && guard.survivesQueryChange)))) return;
+  event.preventDefault();
+  event.stopPropagation();
+}
+
+function handleBeforeUnload(event: BeforeUnloadEvent) {
+  for (const guard of guards) guard.onUnload?.();
+  if (Date.now() - leaveConfirmedAt < CONFIRMED_LEAVE_GRACE_MS) return;
+  event.preventDefault();
+  event.returnValue = '';
+}
+
+/** 미저장 상태인 동안만 등록한다. 돌려준 함수로 해제한다. */
+export function registerAdminLeaveGuard(guard: AdminLeaveGuard): () => void {
+  guards.add(guard);
+  if (!bound) {
+    bound = { win: window, doc: document };
+    bound.win.addEventListener('beforeunload', handleBeforeUnload);
+    bound.doc.addEventListener('click', handleClick, true);
+  }
+  return () => {
+    guards.delete(guard);
+    if (guards.size || !bound) return;
+    bound.win.removeEventListener('beforeunload', handleBeforeUnload);
+    bound.doc.removeEventListener('click', handleClick, true);
+    bound = null;
+  };
+}
+
+/** 같은 입력인데 저장 시점만 바뀌는 숨은 값. 다른 저장·재조회로 바뀌어도 운영자의 입력이 아니다. */
+const VERSION_FIELDS: ReadonlySet<string> = new Set(['updatedAt']);
+const NON_VALUE_CONTROLS: ReadonlySet<string> = new Set(['button', 'submit', 'reset', 'image', 'fieldset', 'object', 'output']);
+
+interface FormControl {
+  name?: string;
+  type?: string;
+  value?: string;
+  checked?: boolean;
+  files?: ArrayLike<{ name: string; size: number; lastModified: number }> | null;
+  options?: ArrayLike<{ value: string; selected: boolean }>;
+}
+
+/**
+ * 운영자가 보는 입력값의 지문.
+ * FormData를 쓰지 않는다 — 저장 중에 fieldset이 잠기면 FormData에서 값이 통째로 빠져 입력이 바뀐 것처럼 보인다.
+ */
+export function adminFormFingerprint(form: { elements: ArrayLike<unknown> }): string {
+  const entries: [string, string][] = [];
+  for (const control of Array.from(form.elements) as FormControl[]) {
+    const { name = '', type = '' } = control;
+    /* $ACTION_*은 Next가 서버 액션 폼에 심는 내부 필드다. */
+    if (!name || name.startsWith('$ACTION') || VERSION_FIELDS.has(name) || NON_VALUE_CONTROLS.has(type)) continue;
+    if ((type === 'checkbox' || type === 'radio') && !control.checked) continue;
+    if (type === 'file') entries.push([name, Array.from(control.files ?? [], (file) => `${file.name}:${file.size}:${file.lastModified}`).join('|')]);
+    else if (type === 'select-multiple') entries.push([name, Array.from(control.options ?? []).filter((option) => option.selected).map((option) => option.value).join('|')]);
+    else entries.push([name, control.value ?? '']);
+  }
+  return JSON.stringify(entries);
+}
+
+/** `useActionState` 결과 중 저장 성공 판정에 쓰는 부분. */
+export interface AdminSaveResult {
+  message?: string;
+  errors?: unknown;
+}
+
+/** 저장이 끝난 입력을 새 기준으로 삼아야 하는가. */
+function isSavedResult(result: AdminSaveResult | null | undefined): boolean {
+  return Boolean(result?.message) && !result?.errors;
+}
+
+/** 비제어 폼의 현재 값을 마운트 시점(또는 마지막 저장)과 비교한다. 화면이 값을 들고 있지 않은 서버 액션 폼에 쓴다. */
+export function createAdminFormTracker(onDirtyChange: (dirty: boolean) => void) {
+  let form: HTMLFormElement | null = null;
+  let baseline: string | null = null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let serverResult: AdminSaveResult | null | undefined;
+  let submittedAfter: { result: AdminSaveResult | null | undefined } | null = null;
+
+  const read = () => (form ? adminFormFingerprint(form) : null);
+  function run(job: () => void) {
+    clearTimeout(timer);
+    timer = setTimeout(() => { timer = undefined; job(); }, 0);
+  }
+  /* 네이티브 이벤트가 React 커밋보다 먼저 닿는다. 숨은 값까지 반영된 뒤에 읽도록 이벤트가 끝나고 한 번만 읽는다. */
+  function compareSoon() {
+    if (timer === undefined) run(() => { const current = read(); if (current !== null) onDirtyChange(current !== baseline); });
+  }
+
+  return {
+    /** form의 ref에 그대로 넘긴다. 폼이 key로 다시 만들어지면 새 폼을 기준으로 다시 잡는다. */
+    attach(node: HTMLFormElement | null) {
+      if (!node) return undefined;
+      form = node;
+      baseline = read();
+      onDirtyChange(false);
+      const noteSubmit = () => { submittedAfter = { result: serverResult }; };
+      node.addEventListener('input', compareSoon);
+      node.addEventListener('change', compareSoon);
+      /* 액션이 끝나면 React가 비제어 입력을 초기화한다. 실패 뒤 값이 되돌아간 폼을 계속 미저장으로 두지 않는다. */
+      node.addEventListener('reset', compareSoon);
+      node.addEventListener('submit', noteSubmit);
+      /* 사진 선택·상품 고르기는 숨은 값만 바꾸고, 행 추가·삭제는 입력 칸 자체를 바꾼다. */
+      const observer = new MutationObserver(compareSoon);
+      observer.observe(node, { subtree: true, childList: true, attributes: true, attributeFilter: ['value'] });
+      return () => {
+        observer.disconnect();
+        node.removeEventListener('input', compareSoon);
+        node.removeEventListener('change', compareSoon);
+        node.removeEventListener('reset', compareSoon);
+        node.removeEventListener('submit', noteSubmit);
+        clearTimeout(timer);
+        timer = undefined;
+        if (form === node) { form = null; baseline = null; }
+      };
+    },
+    /** 이 폼의 제출이 저장에 성공했으면 지금 값을 새 기준으로 삼는다. 실패하면 입력이 남아 있으므로 그대로 둔다. */
+    noteServerResult(result: AdminSaveResult | null | undefined) {
+      serverResult = result;
+      if (!submittedAfter || submittedAfter.result === result) return;
+      submittedAfter = null;
+      /* React가 폼을 초기화하고 저장값으로 다시 그린 뒤에 읽는다. */
+      if (isSavedResult(result)) run(() => { baseline = read(); onDirtyChange(false); });
+    },
+  };
+}

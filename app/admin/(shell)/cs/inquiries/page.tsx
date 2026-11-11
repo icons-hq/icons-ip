@@ -38,8 +38,7 @@ export default async function AdminCsInquiriesPage({
    * 돌아간다. 답변 액션의 revalidatePath가 같은 목록 경로를 갱신한다.
    */
   return <>
-    <AdminOpenInquiryBadge count={data.counts.open} />
-    <InquiryQueueScreen data={data} />
+    <InquiryQueueScreen data={data} pendingBadge={<AdminOpenInquiryBadge count={data.counts.open} />} />
     {inquiryId ? <InquiryPreviewDialog closeHref={closeHref}>
       {detail ? <InquiryDetailScreen embedded key={`${auth.user.id}:${detail.inquiry.id}`} accountId={auth.user.id} navigation={navigation} backHref={closeHref} detail={detail} {...access} canViewCustomer={canViewCustomer} /> : <p role="alert">문의를 찾을 수 없습니다. 삭제되었거나 접근 권한이 변경되었을 수 있습니다.</p>}
     </InquiryPreviewDialog> : null}

@@ -3,11 +3,12 @@ import postcss from 'postcss';
 import { describe, expect, it } from 'vitest';
 
 /* 10/27 회의 R18 — 어드민 금액·수량 입력에는 브라우저 스피너가 없다. 휠 변경은 AdminNumberWheelGuard가 막는다. */
-const css = postcss.parse(readFileSync(new URL('./wc-admin.css', import.meta.url), 'utf8'));
+/* 콘솔 공통 base(admin-kit.css)가 kit 부품과 옛 입력 모두에 건다. */
+const css = postcss.parse(readFileSync(new URL('./admin-kit.css', import.meta.url), 'utf8'));
 function declarations(selector: string) {
   const found = new Map<string, string>();
   css.walkRules((rule) => {
-    if (rule.parent?.type !== 'root' || !rule.selectors.includes(selector)) return;
+    if (!rule.selectors.includes(selector)) return;
     rule.walkDecls((decl) => { found.set(decl.prop, decl.value); });
   });
   return found;

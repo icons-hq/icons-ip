@@ -24,6 +24,8 @@ export interface AdminScreen {
    * 직접 경로·북마크·다른 화면의 링크로는 계속 열린다(10/27 회의 R21: 그룹상품, 운영에서 꺼진 선물하기·정기구매).
    */
   navHidden?: boolean;
+  /** 메뉴 검색에서 이 화면을 찾는 평소 말. 메뉴 이름에 없는 말만 몇 개 둔다(예: 혜택 등록 → 쿠폰). */
+  keywords?: readonly string[];
 }
 
 /*
@@ -67,8 +69,8 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     screens: [
       { id: 'orders', label: ADMIN_VOCABULARY.orderSearch, href: '/admin/sales/orders', status: 'ready' },
       { id: 'unpaid', label: ADMIN_VOCABULARY.unpaidOrders, href: '/admin/sales/unpaid', status: 'ready' },
-      { id: 'dispatch', label: ADMIN_VOCABULARY.dispatch, href: '/admin/sales/dispatch', status: 'ready' },
-      { id: 'shipping', label: ADMIN_VOCABULARY.shipping, href: '/admin/sales/shipping', status: 'ready' },
+      { id: 'dispatch', label: ADMIN_VOCABULARY.dispatch, href: '/admin/sales/dispatch', status: 'ready', keywords: ['송장', '출고'] },
+      { id: 'shipping', label: ADMIN_VOCABULARY.shipping, href: '/admin/sales/shipping', status: 'ready', keywords: ['택배', '배송조회'] },
       /* 거래확정과 PG 판매대금 지급(정산관리)은 별도 계약이다. */
       { id: 'settled', label: `${ADMIN_VOCABULARY.settled} 내역`, href: '/admin/sales/settled', status: 'ready' },
       /* 선물하기·정기구매는 운영에서 꺼져 있다. 기존 데이터를 다룰 수 있게 라우트·권한은 두고 메뉴에서만 숨긴다(그룹상품과 같은 방식). */
@@ -151,8 +153,8 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     label: '혜택/마케팅',
     icon: 'star',
     screens: [
-      { id: 'coupon-register', label: '혜택 등록', href: '/admin/sales/coupons/new', status: 'ready' },
-      { id: 'coupons', label: '혜택 조회/수정', href: '/admin/sales/coupons', status: 'ready' },
+      { id: 'coupon-register', label: '혜택 등록', href: '/admin/sales/coupons/new', status: 'ready', keywords: ['쿠폰', '쿠폰 발급'] },
+      { id: 'coupons', label: '혜택 조회/수정', href: '/admin/sales/coupons', status: 'ready', keywords: ['쿠폰', '쿠폰 발급'] },
       { id: 'store-credit-console', label: '적립금 지급관리', href: '/admin/sales/store-credits', status: 'ready', adminOnly: true },
       { id: 'marketing-messages', label: '고객 안내 메시지', href: '/admin/marketing/messages', status: 'ready' },
       { id: 'notifications', label: '공지 발송', href: '/admin/messaging/notifications', status: 'ready' },
@@ -201,7 +203,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     screens: [
       { id: 'notice-presets', label: `${ADMIN_VOCABULARY.noticeInfo} 템플릿 관리`, href: '/admin/catalog/notice-presets', status: 'ready' },
       { id: 'goods-event-templates', label: '이벤트 템플릿 관리', href: '/admin/catalog/event-templates', status: 'ready' },
-      { id: 'category-templates', label: '카테고리 템플릿 관리', href: '/admin/catalog/category-templates', status: 'ready' },
+      { id: 'category-templates', label: '자주 쓰는 카테고리 관리', href: '/admin/catalog/category-templates', status: 'ready' },
       { id: 'goods-after-sales-templates', label: 'A/S 템플릿 관리', href: '/admin/catalog/after-sales-templates', status: 'ready' },
       { id: 'size-templates', label: '사이즈 템플릿 관리', href: '/admin/catalog/size-templates', status: 'ready' },
       { id: 'goods-attributes', label: '상품속성 관리', href: '/admin/catalog/attributes', status: 'ready', adminOnly: true },
@@ -263,6 +265,26 @@ export const ADMIN_SCREENS: AdminScreen[] = ADMIN_NAV_GROUPS.flatMap((group) => 
  * pathname이 어느 화면인지. 정확 일치를 먼저 보고, 없으면 가장 긴 접두 일치를 쓴다.
  * `/admin`이 모든 경로의 접두라서 접두만으로 고르면 전부 개요로 떨어진다.
  */
+/**
+ * 레코드 상세 화면의 셸 제목. 상세 경로는 목록 화면으로 판정되므로 목록 이름이 h1이 되어 현재 위치를 잃는다.
+ * 경로의 다음 칸이 레코드 id인 상세만 여기서 이름을 준다(등록·`new` 경로는 제외).
+ */
+const ADMIN_DETAIL_TITLES: readonly (readonly [RegExp, string])[] = [
+  [/^\/admin\/sales\/orders\/(?!new$)[^/]+$/, '주문 상세'],
+  [/^\/admin\/sales\/claims\/cancels\/[^/]+$/, '취소 상세'],
+  [/^\/admin\/sales\/claims\/returns\/(?!fees$|fee-policy$)[^/]+$/, '반품 상세'],
+  [/^\/admin\/sales\/claims\/exchanges\/[^/]+$/, '교환 상세'],
+  [/^\/admin\/sales\/subscriptions\/[^/]+$/, '정기구매 상세'],
+  [/^\/admin\/cs\/inquiries\/[^/]+$/, '고객문의 상세'],
+  [/^\/admin\/customers\/[^/]+$/, '고객 상세'],
+  [/^\/admin\/catalog\/goods\/export$/, '상품 엑셀 내보내기'],
+  [/^\/admin\/catalog\/ips\/[^/]+$/, 'IP 상세'],
+];
+
+export function adminDetailTitleForPath(pathname: string): string | null {
+  return ADMIN_DETAIL_TITLES.find(([pattern]) => pattern.test(pathname))?.[1] ?? null;
+}
+
 export function adminScreenForPath(pathname: string): AdminScreen | null {
   const path = pathname.split(/[?#]/, 1)[0];
   const normalized = path.length > 1 && path.endsWith('/') ? path.slice(0, -1) : path;

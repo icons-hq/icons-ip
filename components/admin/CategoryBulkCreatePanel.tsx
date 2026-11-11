@@ -10,6 +10,11 @@ import {
   parseCategoryBulkText,
   type CategoryBulkResult,
 } from '@/lib/admin/category-bulk';
+import { AdminStatusBadge } from './console/AdminKit';
+import { statusTone } from '@/lib/admin/status-tone';
+import { Button } from './kit/ui/button';
+import { Textarea } from './kit/ui/textarea';
+import { TableBody, TableCell, TableHead, TableHeader, TableRow } from './kit/ui/table';
 
 /**
  * 카테고리 일괄 등록(R9). ERP 분류표처럼 `대>중>소` 경로를 줄마다 붙여넣으면 없는 단계만 만든다.
@@ -43,33 +48,33 @@ export function CategoryBulkCreatePanel() {
   }
 
   const total = result ? result.createdLines + result.skippedLines + result.failedLines : 0;
-  return <div className="col" style={{ gap: 10 }}>
-    <label className="col" style={{ gap: 5 }}>경로 붙여넣기
-      <textarea aria-label="카테고리 경로" className="admin-field-control" rows={8} value={text} disabled={pending} spellCheck={false}
+  return <div className="flex min-w-0 flex-col gap-3">
+    <label className="flex flex-col gap-2 text-sm font-medium">경로 붙여넣기
+      <Textarea aria-label="카테고리 경로" className="font-normal field-sizing-fixed" rows={8} value={text} disabled={pending} spellCheck={false}
         placeholder={'문구>노트>스프링노트\n문구>메모/수첩>메모지\n화장품/미용>뷰티소품2'}
         onChange={(event) => { setText(event.target.value); setOperationId(crypto.randomUUID()); }} />
     </label>
-    <p className="wc-admin-kit__hint" style={{ margin: 0 }}>
+    <p className="text-sm text-muted-foreground">
       한 줄에 경로 하나를 ‘대&gt;중&gt;소’처럼 ‘&gt;’로 나눠 입력합니다(최대 4단계, 2단계 줄도 됩니다). 같은 부모 아래 같은 이름은 새로 만들지 않고 건너뜁니다. 이름에 든 ‘/’는 이름 그대로 들어갑니다. 한 번에 {CATEGORY_BULK_LINE_LIMIT.toLocaleString('ko-KR')}줄까지 등록할 수 있습니다.
     </p>
-    <div className="row" style={{ alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-      <button className="wc-admin-kit__button" type="button" disabled={pending || !lineCount} onClick={() => { void submit(); }}>{pending ? '등록 중' : '일괄 등록'}</button>
-      <span role="status" className="wc-admin-kit__hint">경로 {lineCount.toLocaleString('ko-KR')}줄</span>
+    <div className="flex flex-wrap items-center gap-3">
+      <Button type="button" disabled={pending || !lineCount} onClick={() => { void submit(); }}>{pending ? '등록 중' : '일괄 등록'}</Button>
+      <span role="status" className="text-sm text-muted-foreground tabular-nums">경로 {lineCount.toLocaleString('ko-KR')}줄</span>
     </div>
-    {error ? <p role="alert" className="wc-admin-kit__error" style={{ margin: 0 }}>{error}</p> : null}
+    {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
     {result ? <>
-      <p role="status" style={{ margin: 0 }}>
+      <p role="status" className="text-sm tabular-nums">
         경로 {total.toLocaleString('ko-KR')}줄 중 처리 {result.createdLines.toLocaleString('ko-KR')} · 건너뜀 {result.skippedLines.toLocaleString('ko-KR')} · 실패 {result.failedLines.toLocaleString('ko-KR')} · 새 카테고리 {result.createdCategories.toLocaleString('ko-KR')}개
       </p>
-      <div role="region" aria-label="일괄 등록 결과" tabIndex={0} style={{ maxHeight: 360, overflow: 'auto' }}>
-        <table className="admin-console-grid-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <caption className="wc-admin-kit__hint" style={{ textAlign: 'start' }}>줄 번호는 붙여넣은 글의 줄입니다.</caption>
-          <thead><tr><th scope="col">번호</th><th scope="col">결과</th><th scope="col">사유</th></tr></thead>
-          <tbody>{result.lines.map((line) => <tr key={line.line}>
-            <th scope="row" style={{ textAlign: 'start', fontWeight: 400 }}>{line.line} · {line.path}</th>
-            <td>{categoryBulkResultLabel(line.status)}</td>
-            <td>{categoryBulkReason(line)}</td>
-          </tr>)}</tbody>
+      <div role="region" aria-label="일괄 등록 결과" tabIndex={0} className="relative max-h-[360px] min-w-0 overflow-auto rounded-lg border bg-card outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+        <table className="w-full caption-top text-sm" data-slot="table">
+          <caption className="px-2 py-2 text-left text-sm text-muted-foreground">줄 번호는 붙여넣은 글의 줄입니다.</caption>
+          <TableHeader><TableRow className="bg-muted/50"><TableHead scope="col">번호</TableHead><TableHead scope="col">결과</TableHead><TableHead scope="col">사유</TableHead></TableRow></TableHeader>
+          <TableBody>{result.lines.map((line) => <TableRow key={line.line}>
+            <TableHead scope="row" className="font-normal whitespace-normal">{line.line} · {line.path}</TableHead>
+            <TableCell><AdminStatusBadge tone={statusTone('categoryBulk', line.status)}>{categoryBulkResultLabel(line.status)}</AdminStatusBadge></TableCell>
+            <TableCell className="whitespace-normal">{categoryBulkReason(line)}</TableCell>
+          </TableRow>)}</TableBody>
         </table>
       </div>
     </> : null}

@@ -2,8 +2,8 @@ import 'server-only';
 import { createHash } from 'node:crypto';
 import { createServiceClient } from '@/lib/supabase/service';
 import {
-  ADMIN_ARTWORK_MAX_BYTES,
   ADMIN_ARTWORK_VERIFICATIONS_PER_MINUTE,
+  GOODS_ARTWORK_MAX_BYTES,
   buildAdminArtworkPath,
 } from './artwork';
 import {
@@ -107,9 +107,9 @@ async function promoteImage(
       ? files.get(image.source)
       : (image.cached && files.get(image.cached)) || (await fetchGoodsImportImage(image.source));
   const mimeType = bytes ? imageMime(bytes) : null;
-  if (!bytes || !mimeType || bytes.length > ADMIN_ARTWORK_MAX_BYTES)
+  if (!bytes || !mimeType || bytes.length > GOODS_ARTWORK_MAX_BYTES)
     throw new Error(
-      '이미지 파일은 JPEG/PNG/WebP 형식의 5MB 이하 파일이어야 합니다.',
+      '이미지 파일은 JPEG/PNG/WebP 형식의 20MB 이하 파일이어야 합니다.',
     );
   const path = buildAdminArtworkPath({
     kind: 'good',

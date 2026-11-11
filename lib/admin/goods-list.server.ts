@@ -1,6 +1,7 @@
 import 'server-only';
 import { loadGoodsEditorOwnership } from './goods-group-common.server';
 import { loadGoodsCategoryOptions } from './category.server';
+import { hasUsableCategoryTemplates } from './category-templates.server';
 import { loadActiveShippingNoticeTemplateOptions } from './shipping-notice-templates.server';
 import { createClient } from '@/lib/supabase/server';
 import { getAdminCatalogRecords, type AdminIpRecord } from './catalog.server';
@@ -9,7 +10,7 @@ import { loadAdminGoodsVariants } from './goods-variants.server';
 import { loadAdminGoodsReadiness, parseGoodsReadiness } from './goods-readiness.server';
 import { imageBg, imageUrlFromBg, publicMediaUrl } from '@/lib/media';
 import type { Ip, Stock } from '@/lib/data';
-import { goodsListPageSize, goodsConsoleFilterValues, type AdminGoodsListData, type GoodsListFilters } from './goods-list';
+import { goodsListPageSize, goodsConsoleFilterValues, type AdminGoodsListData, type GoodsListFilters, type GoodsListStockCounts } from './goods-list';
 
 export function goodsWorkspaceQuery(filters: GoodsListFilters) {
   return { p_query: filters.query, p_ip_id: filters.ipId, p_status: filters.status, p_stock: filters.stock,
@@ -22,6 +23,12 @@ interface WorkspaceRow {
   imagePath: string | null; categoryName: string | null;
   createdAt: string; updatedAt: string;
   readiness: { activeStockQty: number; lowStockOptionCount: number; noticeComplete: boolean; priceMin: number | null; priceMax: number | null };
+}
+const isCount = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) >= 0;
+/* 재고 칸 건수는 목록을 여는 데 필요한 값이 아니다. 앱이 DB보다 먼저 배포되었거나 형식이 어긋나면 목록은 그대로 열고 칸만 '집계 없음'으로 둔다. */
+function parseGoodsStockCounts(value: unknown): GoodsListStockCounts | null {
+  const { out_of_stock: outOfStock, low } = (value ?? {}) as Partial<Record<keyof GoodsListStockCounts, unknown>>;
+  return isCount(outOfStock) && isCount(low) ? { out_of_stock: outOfStock, low } : null;
 }
 export async function loadAdminGoodsList(filters: GoodsListFilters): Promise<AdminGoodsListData> {
   const client = await createClient();
@@ -50,7 +57,7 @@ export async function loadAdminGoodsList(filters: GoodsListFilters): Promise<Adm
   ]);
   const pageIds = (result.data.rows as WorkspaceRow[]).map(good => good.id);
   const [inline, customerVisible] = await Promise.all([loadGoodsListInlineValues(pageIds), loadGoodsListCustomerVisibility(pageIds)]);
-  return { filters, total, pageSize, counts, ips, categories, origins, checkedAt: result.data.checkedAt,
+  return { filters, total, pageSize, counts, stockCounts: parseGoodsStockCounts(result.data.stockCounts), ips, categories, origins, checkedAt: result.data.checkedAt,
     goods: (result.data.rows as WorkspaceRow[]).map(good => {
       const readiness = parseGoodsReadiness(good.readiness);
       return { ...inline.get(good.id), id: good.id, code: good.code, name: good.name, ipId: good.ipId, ipTitle: good.ipTitle,
@@ -112,7 +119,7 @@ async function loadGoodsListInlineValues(ids: string[]) {
 /** Editor requests one good and its options; opening the list never loads these. */
 export async function loadAdminGoodEditor(goodId?: string) {
   const supabase = await createClient();
-  const [records, ipOptions, variants, verticals, origins, categories, shippingNoticeOptions, readiness, ownership] = await Promise.all([
+  const [records, ipOptions, variants, verticals, origins, categories, shippingNoticeOptions, readiness, ownership, hasCategoryTemplates] = await Promise.all([
     getAdminCatalogRecords({ include: goodId ? ['goods'] : [], ...(goodId ? { goodId } : {}) }),
     loadGoodsIpOptions(),
     goodId ? loadAdminGoodsVariants(goodId) : Promise.resolve([]),
@@ -122,6 +129,7 @@ export async function loadAdminGoodEditor(goodId?: string) {
     loadActiveShippingNoticeTemplateOptions(),
     goodId ? loadAdminGoodsReadiness(goodId) : Promise.resolve(null),
     goodId ? loadGoodsEditorOwnership(goodId) : Promise.resolve(null),
+    hasUsableCategoryTemplates(),
   ]);
   if (verticals.error) throw new Error('상품 편집 정보를 불러오지 못했습니다.');
   // The preview needs IP presentation only, so avoid the public snapshot's full
@@ -135,7 +143,7 @@ export async function loadAdminGoodEditor(goodId?: string) {
     tagline: ip.tagline ?? '', synopsis: ip.synopsis ?? '',
   }));
   const goods = records.goods.map(good => ownership?.goodId === good.id && !ownership.aggregation.editable ? { ...good, ...ownership.aggregation.sharedPolicy } : good);
-  return { ownership, records: { ...records, goods, ips: ipOptions }, variants, catalogIps, origins, categories, shippingNoticeOptions, readiness };
+  return { ownership, records: { ...records, goods, ips: ipOptions }, variants, catalogIps, origins, categories, shippingNoticeOptions, readiness, hasCategoryTemplates };
 }
 
 /** IP presentation for product selection, without the IP operating workspace. */

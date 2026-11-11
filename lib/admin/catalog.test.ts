@@ -355,7 +355,7 @@ describe('admin catalog form normalization', () => {
       errors: {
         id: 'ID를 입력해주세요.',
         title: 'IP 이름을 입력해주세요.',
-        verticalKey: '등록된 버티컬을 선택해주세요.',
+        verticalKey: '등록된 IP 분류를 선택해주세요.',
       },
     });
   });

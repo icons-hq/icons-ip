@@ -37,6 +37,8 @@ describe('CatalogArchiveControl', () => {
     expect(html).toContain('value="g1"');
     expect(html).toContain('판매 재고나 활성 발급 정책이 남아 있으면 보관할 수 없습니다.');
     expect(html).toMatch(/<button[^>]*>[^<]*보관[^<]*<\/button>/);
+    // 서버 액션 폼의 제출 버튼이다(kit 버튼의 기본 type은 button).
+    expect(html).toMatch(/<button(?=[^>]*type="submit")[^>]*>보관<\/button>/);
   });
 
   it('renders restore copy for archived records', () => {

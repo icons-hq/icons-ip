@@ -18,6 +18,12 @@ describe('ConsoleBulkActionBar', () => {
     )).toBe('');
   });
 
+  it('controls는 건수와 버튼 사이에 둔다', () => {
+    const html = renderToStaticMarkup(<ConsoleBulkActionBar actions={ACTIONS} controls={<input aria-label="적용할 값" />} selectedCount={1} />);
+    expect(html.indexOf('aria-label="적용할 값"')).toBeGreaterThan(html.indexOf('<p'));
+    expect(html.indexOf('aria-label="적용할 값"')).toBeLessThan(html.indexOf('발송처리'));
+  });
+
   it('선택 건수와 액션 버튼을 보여준다', () => {
     const html = renderToStaticMarkup(
       <ConsoleBulkActionBar actions={ACTIONS} label="선택한 주문" selectedCount={1234} />,
@@ -50,7 +56,8 @@ describe('ConsoleBulkActionBar', () => {
     );
 
     expect(html).toContain('data-confirm="선택한 주문을 취소할까요?"');
-    expect(html).toContain('admin-console-bulk-action--danger');
+    /* 위험 동작은 kit destructive 버튼 모양이다. */
+    expect(html).toMatch(/<button class="[^"]*text-destructive[^"]*" data-confirm=/);
   });
 
   it('비활성 액션은 disabled로 렌더한다', () => {

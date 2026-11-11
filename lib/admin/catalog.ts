@@ -457,7 +457,7 @@ export function normalizeAdminIpForm(
 
   if (!title) errors.title = 'IP 이름을 입력해주세요.';
   if (!verticalKey || !context.verticalKeys.has(verticalKey)) {
-    errors.verticalKey = '등록된 버티컬을 선택해주세요.';
+    errors.verticalKey = '등록된 IP 분류를 선택해주세요.';
   }
 
   if (Object.keys(errors).length) return { ok: false, errors };

@@ -8,7 +8,13 @@ import { inquiryDraftSessionId } from '@/lib/admin/inquiry-drafts';
 import { INQUIRY_DRAFT_SIGN_OUT_EVENT } from '@/lib/admin/inquiry-draft-lifecycle';
 import { createGoodsDescriptionToolScope } from '@/lib/admin/goods-description-tools';
 import { formatOrderDateTime } from '@/lib/orders';
+import { krw } from '@/lib/format';
 import { useClaimPreviewBusy } from '@/components/admin/screens/ClaimPreviewDialog';
+import { AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { statusTone } from '@/lib/admin/status-tone';
+import { buttonVariants } from '@/components/admin/kit/ui/button';
+import { useAdminLeaveGuard } from '@/components/admin/useAdminLeaveGuard';
+import { cn } from 'cn';
 import {
   BANK_REFUND_LABELS, BANK_REFUND_RECOVERY_PREFIX, bankRefundError, bankRefundMetadata, bankRefundReceiptMatches,
   bankRefundRecoveryKey, normalizeBankRefundRequest, parseBankRefundRecovery,
@@ -17,6 +23,11 @@ import {
 } from '@/lib/admin/bank-transfer-refund';
 
 type Scope = ReturnType<typeof createGoodsDescriptionToolScope>;
+/* 템플릿 룩(ADR-0028). 입력은 네이티브 그대로이고(어휘 CSS가 kit 모양을 입힌다), 버튼은 kit 버튼 모양이다. */
+const PRIMARY = cn(buttonVariants({ size: 'sm' }));
+const OUTLINE = cn(buttonVariants({ size: 'sm', variant: 'outline' }));
+const FIELD = 'flex min-w-0 flex-col gap-1.5';
+const FIELD_LABEL = 'font-medium';
 const empty = { occurredAt: '', evidence: '', note: '', confirmed: false };
 const localInstant = () => { const now = new Date(); return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 23); };
 
@@ -29,15 +40,18 @@ function AccountView({ account, onClose }: { account: BankRefundAccountView; onC
     document.addEventListener('visibilitychange', hide);
     return () => { window.clearTimeout(timeout); document.removeEventListener('visibilitychange', hide); };
   }, [onClose]);
+  /* 네이티브 모달 dialog(showModal) 그대로 — 60초·탭 이동 시 닫기와 원문 해제가 이 요소의 수명에 묶여 있다. 모양만 kit Dialog와 같게 그린다. */
   return <dialog ref={dialog} aria-labelledby="bank-refund-account-title" onCancel={onClose} onClose={onClose}
     onClick={event => { if (event.target === event.currentTarget) onClose(); }}
-    style={{ width: 'min(460px, calc(100vw - 32px))', maxHeight: '85vh', overflow: 'auto', padding: 24, border: '1px solid #c8cdd2' }}>
-    <h3 id="bank-refund-account-title">환불계좌 원문</h3>
-    <p>송금 목적의 열람이 기록됐습니다. 계좌정보는 이 화면에만 표시되며 60초 후 또는 다른 탭으로 이동하면 닫힙니다.</p>
-    <dl data-private="true" style={{ overflowWrap: 'anywhere' }}>
-      <dt>은행</dt><dd>{account.bankName}</dd><dt>계좌번호</dt><dd>{account.accountNumber}</dd><dt>예금주</dt><dd>{account.accountHolder}</dd>
-    </dl>
-    <button className="btn btn-sm" type="button" onClick={onClose}>계좌정보 닫기</button>
+    className="m-auto max-h-[85vh] w-[min(28rem,calc(100vw-2rem))] overflow-auto rounded-xl bg-popover p-5 text-sm text-popover-foreground shadow-lg ring-1 ring-foreground/10 backdrop:bg-black/20">
+    <div className="flex flex-col gap-3">
+      <h3 className="text-base leading-snug font-medium" id="bank-refund-account-title">환불계좌 원문</h3>
+      <p className="text-muted-foreground">송금 목적의 열람이 기록됐습니다. 계좌정보는 이 화면에만 표시되며 60초 후 또는 다른 탭으로 이동하면 닫힙니다.</p>
+      <dl className="grid grid-cols-[6rem_minmax(0,1fr)] gap-x-3 gap-y-1.5 rounded-lg border bg-muted/40 p-3 break-all" data-private="true">
+        <dt className="text-muted-foreground">은행</dt><dd className="m-0">{account.bankName}</dd><dt className="text-muted-foreground">계좌번호</dt><dd className="m-0 tabular-nums">{account.accountNumber}</dd><dt className="text-muted-foreground">예금주</dt><dd className="m-0">{account.accountHolder}</dd>
+      </dl>
+      <button className={`${cn(buttonVariants({ size: 'sm' }))} w-fit`} data-slot="button" type="button" onClick={onClose}>계좌정보 닫기</button>
+    </div>
   </dialog>;
 }
 
@@ -72,20 +86,7 @@ function RefundPanel({ identity, scope }: { identity: BankRefundIdentity; scope:
     });
     return () => { active = false; };
   }, [identity, reload, scope]);
-  useEffect(() => {
-    if (!dirty) return;
-    const unload = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
-    const navigate = (event: MouseEvent) => {
-      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-      const anchor = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>('a[href]') : null;
-      if (!anchor || anchor.hasAttribute('download') || anchor.target && anchor.target !== '_self') return;
-      const destination = new URL(anchor.href, location.href);
-      if (destination.origin === location.origin && destination.pathname === location.pathname && destination.search === location.search) return;
-      if (!window.confirm('입력 중인 증빙은 보관하지 않습니다. 화면을 이동할까요?')) { event.preventDefault(); event.stopPropagation(); }
-    };
-    window.addEventListener('beforeunload', unload); document.addEventListener('click', navigate, true);
-    return () => { window.removeEventListener('beforeunload', unload); document.removeEventListener('click', navigate, true); };
-  }, [dirty]);
+  useAdminLeaveGuard({ dirty, message: '입력 중인 증빙은 보관하지 않습니다. 화면을 이동할까요?' });
 
   function clearRecovery() { try { sessionStorage.removeItem(key); } catch {} setRecovery(null); dispatched.current = null; setCanRetry(false); }
   function accept(receipt: BankRefundReceipt, original: BankRefundRecovery) {
@@ -148,40 +149,42 @@ function RefundPanel({ identity, scope }: { identity: BankRefundIdentity; scope:
   const blocked = context && !nextKind && context.phase !== 'completed'
     ? bankRefundError(undefined, context.confirmBlocker ?? context.completeBlocker ?? context.fileBlocker ?? undefined).error : null;
 
-  return <section aria-label="무통장 환불 처리" className="col" style={{ alignItems: 'stretch', gap: 12 }}>
-    <h4 style={{ margin: 0 }}>무통장 환불</h4>
-    <p>취소 확정과 실제 송금 완료를 따로 기록합니다. 환불 수단은 계좌 송금이며, 이 화면에서 은행 송금을 실행하지 않습니다.</p>
-    {context ? <><p><strong>환불 전액: {context.amount.toLocaleString('ko-KR')}원</strong> · {context.phase === 'completed' ? '송금 완료' : context.phase === 'awaiting_transfer' ? '송금대기' : '취소 확정 전'}</p>
-      {context.gift ? <p>선물의 결제한 분에게 환불합니다. 선물 받는 분의 요청과 환급 대상을 구분해주세요.</p> : null}
+  return <section aria-label="무통장 환불 처리" className="flex min-w-0 flex-col gap-3 rounded-lg border bg-muted/30 p-4 text-sm break-words" data-claim-panel="bank-refund">
+    <h4 className="text-base leading-snug font-medium">무통장 환불</h4>
+    <p className="text-muted-foreground">취소 확정과 실제 송금 완료를 따로 기록합니다. 환불 수단은 계좌 송금이며, 이 화면에서 은행 송금을 실행하지 않습니다.</p>
+    {context ? <><p className="flex flex-wrap items-center gap-2"><strong className="font-semibold tabular-nums">환불 전액: {krw(context.amount)}</strong> <AdminStatusBadge tone={statusTone('refundTransfer', context.phase)}>{context.phase === 'completed' ? '송금 완료' : context.phase === 'awaiting_transfer' ? '송금대기' : '취소 확정 전'}</AdminStatusBadge></p>
+      {context.gift ? <AdminNotice tone="warning">선물의 결제한 분에게 환불합니다. 선물 받는 분의 요청과 환급 대상을 구분해주세요.</AdminNotice> : null}
       {context.confirmedAt ? <p>취소 확정 {formatOrderDateTime(context.confirmedAt)} · 접수 {context.filedAt ? formatOrderDateTime(context.filedAt) : '미접수'}</p> : null}
       {context.maskedAccount ? <p>등록된 환불계좌: {context.maskedAccount} · {context.maskedHolder}</p> : null}
-    </> : !error ? <p role="status">현재 환불 상태를 확인하고 있습니다.</p> : null}
-    {blocked ? <p>{blocked}</p> : null}
-    {context?.viewBlocker === null ? <button className="btn btn-sm btn-ghost" disabled={pending || Boolean(recovery) || needsRefresh} type="button"
+    </> : !error ? <p className="text-muted-foreground" role="status">현재 환불 상태를 확인하고 있습니다.</p> : null}
+    {blocked ? <p className="text-muted-foreground">{blocked}</p> : null}
+    {context?.viewBlocker === null ? <button className={`${OUTLINE} w-fit`} data-slot="button" disabled={pending || Boolean(recovery) || needsRefresh} type="button"
       onClick={() => startTransition(async () => { await viewAccount(); })}>환불계좌 원문 확인</button> : null}
-    {recovery ? <p role="alert">이전 처리 결과를 먼저 확인해주세요. 요청번호만 이 탭에 보관하며 증빙과 계좌정보는 저장하지 않습니다.</p> : null}
-    {kind ? <form onSubmit={event => { event.preventDefault(); startTransition(async () => { await save(); }); }}>
-      <fieldset disabled={locked} className="col" style={{ border: 0, padding: 0, gap: 10 }}>
-        <legend>{BANK_REFUND_LABELS[kind]}</legend>
-        <label>확인 일시<input type="datetime-local" step="0.001" required value={draft.occurredAt} onChange={event => setDraft(previous => ({ ...previous, occurredAt: event.target.value }))} /></label>
-        <button className="btn btn-sm btn-ghost" type="button" onClick={() => setDraft(previous => ({ ...previous, occurredAt: localInstant() }))}>현재 시각 입력</button>
-        <label>확인 증빙<input required maxLength={300} value={draft.evidence} onChange={event => setDraft(previous => ({ ...previous, evidence: event.target.value }))} placeholder="상담 기록 또는 송금 확인 증빙 참조" /></label>
-        <label>처리 메모<input required maxLength={300} value={draft.note} onChange={event => setDraft(previous => ({ ...previous, note: event.target.value }))} /></label>
-        <p>증빙과 메모에 계좌번호·예금주 등 개인정보를 입력하지 마세요.</p>
-        <label className="row" style={{ alignItems: 'flex-start', gap: 8 }}><input type="checkbox" required checked={draft.confirmed} onChange={event => setDraft(previous => ({ ...previous, confirmed: event.target.checked }))} />
+    {recovery ? <p className="text-destructive" role="alert">이전 처리 결과를 먼저 확인해주세요. 요청번호만 이 탭에 보관하며 증빙과 계좌정보는 저장하지 않습니다.</p> : null}
+    {kind ? <form className="flex min-w-0 flex-col gap-3" onSubmit={event => { event.preventDefault(); startTransition(async () => { await save(); }); }}>
+      <fieldset disabled={locked} className="m-0 flex min-w-0 flex-col gap-3 border-0 p-0">
+        <legend className="mb-1 font-medium">{BANK_REFUND_LABELS[kind]}</legend>
+        <div className="flex flex-wrap items-end gap-2">
+          <label className={`${FIELD} w-full sm:w-auto`}><span className={FIELD_LABEL}>확인 일시</span><input className="w-full sm:w-64" type="datetime-local" step="0.001" required value={draft.occurredAt} onChange={event => setDraft(previous => ({ ...previous, occurredAt: event.target.value }))} /></label>
+          <button className={OUTLINE} data-slot="button" type="button" onClick={() => setDraft(previous => ({ ...previous, occurredAt: localInstant() }))}>현재 시각 입력</button>
+        </div>
+        <label className={FIELD}><span className={FIELD_LABEL}>확인 증빙</span><input className="w-full" required maxLength={300} value={draft.evidence} onChange={event => setDraft(previous => ({ ...previous, evidence: event.target.value }))} placeholder="상담 기록 또는 송금 확인 증빙 참조" /></label>
+        <label className={FIELD}><span className={FIELD_LABEL}>처리 메모</span><input className="w-full" required maxLength={300} value={draft.note} onChange={event => setDraft(previous => ({ ...previous, note: event.target.value }))} /></label>
+        <p className="text-xs text-muted-foreground">증빙과 메모에 계좌번호·예금주 등 개인정보를 입력하지 마세요.</p>
+        <label className="flex items-start gap-2 leading-relaxed"><input className="mt-0.5" type="checkbox" required checked={draft.confirmed} onChange={event => setDraft(previous => ({ ...previous, confirmed: event.target.checked }))} />
           <span>{kind === 'complete_transfer' ? '등록된 환불계좌로 표시된 전액의 실제 송금이 완료된 것을 확인했습니다.'
             : kind === 'confirm_cancellation' ? '주문 전체의 취소 확정 근거를 확인했습니다. 재고를 복원하며 환불은 송금대기로 남습니다.'
               : '결제한 분의 환불계좌와 전액 송금 접수 내용을 확인했습니다. 실제 송금 완료는 별도로 기록합니다.'}</span>
         </label>
       </fieldset>
-      {!recovery ? <button className="btn btn-sm" type="submit" disabled={locked}>{pending ? '처리 중…' : BANK_REFUND_LABELS[kind]}</button> : null}
+      {!recovery ? <button className={`${PRIMARY} w-fit`} data-slot="button" type="submit" disabled={locked}>{pending ? '처리 중…' : BANK_REFUND_LABELS[kind]}</button> : null}
     </form> : null}
-    {recovery ? <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
-      <button className="btn btn-sm" disabled={pending} type="button" onClick={() => startTransition(async () => { await check(); })}>이전 처리 결과 확인</button>
-      {canRetry ? <button className="btn btn-sm btn-ghost" disabled={pending} type="button" onClick={() => startTransition(async () => { await save(true); })}>같은 내용으로 다시 요청</button>
-        : <button className="btn btn-sm btn-ghost" disabled={pending} type="button" onClick={() => startTransition(async () => { await check(true); })}>미처리 요청 종료 후 새로 입력</button>}
-    </div> : <button className="btn btn-sm btn-ghost" disabled={pending || dirty && !needsRefresh} type="button" onClick={() => { setError(''); setAccount(null); if (needsRefresh) setDraft(empty); setNeedsRefresh(true); setReload(value => value + 1); }}>최신 환불 상태 확인</button>}
-    {error ? <p role="alert">{error}</p> : null}{message ? <p role="status">{message}</p> : null}
+    {recovery ? <div className="flex flex-wrap gap-2">
+      <button className={PRIMARY} data-slot="button" disabled={pending} type="button" onClick={() => startTransition(async () => { await check(); })}>이전 처리 결과 확인</button>
+      {canRetry ? <button className={OUTLINE} data-slot="button" disabled={pending} type="button" onClick={() => startTransition(async () => { await save(true); })}>같은 내용으로 다시 요청</button>
+        : <button className={OUTLINE} data-slot="button" disabled={pending} type="button" onClick={() => startTransition(async () => { await check(true); })}>미처리 요청 종료 후 새로 입력</button>}
+    </div> : <button className={`${OUTLINE} w-fit`} data-slot="button" disabled={pending || dirty && !needsRefresh} type="button" onClick={() => { setError(''); setAccount(null); if (needsRefresh) setDraft(empty); setNeedsRefresh(true); setReload(value => value + 1); }}>최신 환불 상태 확인</button>}
+    {error ? <p className="text-destructive" role="alert">{error}</p> : null}{message ? <p className="text-muted-foreground" role="status">{message}</p> : null}
     {account ? <AccountView account={account} onClose={closeAccount} /> : null}
   </section>;
 }
@@ -203,7 +206,7 @@ export function BankTransferRefund({ actorId, orderId, claimId }: { actorId: str
     return () => { scope.dispose(); subscription.unsubscribe(); window.removeEventListener(INQUIRY_DRAFT_SIGN_OUT_EVENT, signout); };
   }, [scope]);
   const identity = useMemo(() => sessionId ? { actorId, sessionId, orderId, claimId } : null, [actorId, sessionId, orderId, claimId]);
-  if (!auth.ready) return <p role="status">무통장 환불 처리를 위해 로그인 상태를 확인하고 있습니다.</p>;
-  if (auth.blocked || !identity) return <p role="alert">로그인 계정 또는 세션이 바뀌었습니다. 현재 계정으로 요청을 다시 열어주세요.</p>;
+  if (!auth.ready) return <p className="text-sm text-muted-foreground" role="status">무통장 환불 처리를 위해 로그인 상태를 확인하고 있습니다.</p>;
+  if (auth.blocked || !identity) return <p className="text-sm text-destructive" role="alert">로그인 계정 또는 세션이 바뀌었습니다. 현재 계정으로 요청을 다시 열어주세요.</p>;
   return <RefundPanel key={`${orderId}:${claimId}:${sessionId}`} identity={identity} scope={scope} />;
 }

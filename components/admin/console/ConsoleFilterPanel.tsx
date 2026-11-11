@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { buttonVariants } from '@/components/admin/kit/ui/button';
+import { Input } from '@/components/admin/kit/ui/input';
 import { AdminSelect } from './AdminSelect';
 import {
   CONSOLE_DATE_PRESET_IDS,
@@ -153,119 +155,152 @@ export function ConsoleFilterPanel({
   const periodLabelId = `${idPrefix}-period-label`;
   const searchHintId = search?.placeholder ? `${idPrefix}-search-hint` : undefined;
 
+  /*
+   * 조회 조건 카드(템플릿 룩, ADR-0028). 조회 조건의 종류·이름·URL 계약은 그대로이고(스마트스토어 기준),
+   * 모양만 kit 부품(Input · 버튼)과 유틸리티로 그린다. 화면 고유 CSS가 닿지 않게 옛 클래스 이름을 쓰지 않는다 —
+   * 화면이 children으로 더하는 조건도 `ConsoleFilterField`로 같은 칸 모양을 쓴다.
+   */
+  const presetBase = 'inline-flex h-7 items-center rounded-md px-2.5 text-[0.8rem] font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground aria-[current=true]:bg-background aria-[current=true]:text-primary-soft-foreground aria-[current=true]:shadow-sm';
   return (
     <form
       action={action}
-      className={`${className ? `${className} ` : ''}admin-console-filters card`}
+      className={`${className ? `${className} ` : ''}${CONSOLE_FILTER_CARD_CLASS}`}
+      data-console-filters=""
       method="get"
     >
       {Object.entries(hiddenFields ?? {}).map(([name, value]) => (
         <input key={name} name={name} type="hidden" value={value} />
       ))}
 
-      {dateRange ? (
-        <div className="admin-console-filter-field admin-console-filter-period">
-          <span className="admin-console-filter-label" id={periodLabelId}>
-            {dateRange.label ?? '조회기간'}
-          </span>
-          <div aria-labelledby={periodLabelId} className="admin-console-filter-presets" role="group">
-            {presets.map((preset) => {
-              const active = isConsoleDateRangeActive(preset.range, dateRange);
-              return (
-                <Link
-                  aria-current={active ? 'true' : undefined}
-                  className={`btn btn-sm admin-console-preset${active ? ' on' : ' btn-ghost'}`}
-                  href={presetHref(preset.range, preset.id)}
-                  key={preset.id}
+      {/* 칸은 위 기준으로 맞춘다 — 도움말 줄이 붙은 칸도 라벨·입력 줄이 이웃 칸과 같은 높이에 선다. */}
+      <div className={CONSOLE_FILTER_FIELDS_CLASS}>
+        {dateRange ? (
+          <div className="flex min-w-0 flex-col gap-1.5" data-console-filter="period">
+            <span className="text-sm leading-none font-medium" id={periodLabelId}>
+              {dateRange.label ?? '조회기간'}
+            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <div aria-labelledby={periodLabelId} className="inline-flex rounded-lg bg-muted p-0.5" role="group">
+                {presets.map((preset) => {
+                  const active = isConsoleDateRangeActive(preset.range, dateRange);
+                  return (
+                    <Link
+                      aria-current={active ? 'true' : undefined}
+                      className={presetBase}
+                      href={presetHref(preset.range, preset.id)}
+                      key={preset.id}
+                    >
+                      {preset.label}
+                    </Link>
+                  );
+                })}
+              </div>
+              <div className="flex items-center gap-1.5">
+                <label className="sr-only" htmlFor={`${idPrefix}-from`}>시작일</label>
+                <Input className="w-36" defaultValue={dateRange.from ?? ''} id={`${idPrefix}-from`} name={fromName} type="date" />
+                <span aria-hidden="true" className="text-muted-foreground">~</span>
+                <label className="sr-only" htmlFor={`${idPrefix}-to`}>종료일</label>
+                <Input className="w-36" defaultValue={dateRange.to ?? ''} id={`${idPrefix}-to`} name={toName} type="date" />
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {statusFilter ? (
+          <ConsoleFilterField htmlFor={`${idPrefix}-status`} label={statusFilter.label ?? '상태'}>
+            <AdminSelect
+              defaultValue={statusFilter.value ?? ''}
+              id={`${idPrefix}-status`}
+              name={statusName}
+              wrapperClassName="w-40"
+            >
+              {statusFilter.options.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </AdminSelect>
+          </ConsoleFilterField>
+        ) : null}
+
+        {search ? (
+          <div className="flex min-w-[min(100%,20rem)] flex-1 flex-col gap-1.5" data-console-filter="search">
+            <label className="text-sm leading-none font-medium" htmlFor={`${idPrefix}-query`}>
+              {search.label ?? '검색어'}
+            </label>
+            <div className="flex gap-2">
+              {search.fields?.length ? (
+                <AdminSelect
+                  aria-label="검색 유형"
+                  defaultValue={search.fieldValue ?? search.fields[0]?.value ?? ''}
+                  name={searchFieldName}
+                  wrapperClassName="w-36 shrink-0"
                 >
-                  {preset.label}
-                </Link>
-              );
-            })}
-          </div>
-          <div className="admin-console-filter-dates">
-            <label htmlFor={`${idPrefix}-from`}>
-              <span>시작일</span>
-              <input
-                defaultValue={dateRange.from ?? ''}
-                id={`${idPrefix}-from`}
-                name={fromName}
-                type="date"
+                  {search.fields.map((field) => (
+                    <option key={field.value} value={field.value}>{field.label}</option>
+                  ))}
+                </AdminSelect>
+              ) : null}
+              <Input
+                aria-describedby={searchHintId}
+                className="min-w-0 flex-1"
+                defaultValue={search.value ?? ''}
+                id={`${idPrefix}-query`}
+                name={searchName}
+                placeholder="검색어 입력"
+                type="search"
               />
-            </label>
-            <span aria-hidden="true" className="admin-console-filter-tilde">~</span>
-            <label htmlFor={`${idPrefix}-to`}>
-              <span>종료일</span>
-              <input
-                defaultValue={dateRange.to ?? ''}
-                id={`${idPrefix}-to`}
-                name={toName}
-                type="date"
-              />
-            </label>
+            </div>
+            {search?.placeholder ? <span className="text-xs text-muted-foreground" id={searchHintId}>{search.placeholder}</span> : null}
           </div>
-        </div>
-      ) : null}
+        ) : null}
 
-      {statusFilter ? (
-        <div className="admin-console-filter-field">
-          <label className="admin-console-filter-label" htmlFor={`${idPrefix}-status`}>
-            {statusFilter.label ?? '상태'}
-          </label>
-          <AdminSelect
-            defaultValue={statusFilter.value ?? ''}
-            id={`${idPrefix}-status`}
-            name={statusName}
-          >
-            {statusFilter.options.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </AdminSelect>
-        </div>
-      ) : null}
+        {children}
+      </div>
 
-      {search ? (
-        <div className="admin-console-filter-field admin-console-filter-search">
-          <label className="admin-console-filter-label" htmlFor={`${idPrefix}-query`}>
-            {search.label ?? '검색어'}
-          </label>
-          {search?.placeholder ? <span className="admin-console-filter-hint" id={searchHintId}>{search.placeholder}</span> : null}
-          <div className="admin-console-filter-search-row">
-            {search.fields?.length ? (
-              <AdminSelect
-                aria-label="검색 유형"
-                defaultValue={search.fieldValue ?? search.fields[0]?.value ?? ''}
-                name={searchFieldName}
-                wrapperClassName="admin-console-filter-select"
-              >
-                {search.fields.map((field) => (
-                  <option key={field.value} value={field.value}>{field.label}</option>
-                ))}
-              </AdminSelect>
-            ) : null}
-            <input
-              aria-describedby={searchHintId}
-              defaultValue={search.value ?? ''}
-              id={`${idPrefix}-query`}
-              name={searchName}
-              placeholder="검색어 입력"
-              type="search"
-            />
-          </div>
-        </div>
-      ) : null}
-
-      {children}
-
-      <div className="admin-console-filter-actions">
-        <button className="btn btn-sm" type="submit">{submitLabel}</button>
-        <Link
-          className="btn btn-sm btn-ghost"
-          href={resetHref ?? buildHref(action, hiddenFields, {})}
-        >
+      <ConsoleFilterActions>
+        <Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={resetHref ?? buildHref(action, hiddenFields, {})}>
           초기화
         </Link>
-      </div>
+        <button className={buttonVariants({ variant: 'soft' })} data-slot="button" type="submit">{submitLabel}</button>
+      </ConsoleFilterActions>
     </form>
+  );
+}
+
+/**
+ * 조회 조건 카드의 바닥 버튼 줄 — 구분선 아래 오른쪽에 [초기화][검색] 순서로 둔다. 조회 폼을 직접 그리는 화면도
+ * (클라이언트 조회·서버 액션 폼) 같은 줄을 쓴다. `start`는 같은 줄 왼쪽에 두는 안내·보조 동작이다.
+ */
+export function ConsoleFilterActions({ children, start }: { children: ReactNode; start?: ReactNode }) {
+  return (
+    <div
+      className={`flex flex-wrap items-center gap-2 border-t pt-3 ${start ? 'justify-between' : 'justify-end'}`}
+      data-console-filter-actions=""
+    >
+      {start ? <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">{start}</div> : null}
+      <div className="flex flex-wrap items-center justify-end gap-2">{children}</div>
+    </div>
+  );
+}
+
+/** 조회 조건 카드 바깥 상자(ConsoleFilterPanel과 같은 모양). 조회 폼을 직접 그리는 화면이 form·div에 단다. */
+export const CONSOLE_FILTER_CARD_CLASS = 'flex flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground';
+/** 조회 조건 칸 줄(라벨 위·입력 아래 칸을 위 기준으로 감싼다). */
+export const CONSOLE_FILTER_FIELDS_CLASS = 'flex flex-wrap items-start gap-x-5 gap-y-3';
+/** 입력을 감싸는 조회 조건 라벨(ConsoleFilterField와 같은 글자·간격). */
+export const CONSOLE_FILTER_LABEL_CLASS = 'flex min-w-0 flex-col gap-1.5 text-sm font-medium [&_input]:font-normal [&_select]:font-normal';
+
+/** 조회 조건 한 칸(라벨 위·입력 아래). 화면이 children으로 더하는 조건도 이 모양을 쓴다. */
+export function ConsoleFilterField({ children, className, htmlFor, label }: {
+  children: ReactNode;
+  className?: string;
+  htmlFor?: string;
+  label: ReactNode;
+}) {
+  return (
+    <div className={`flex min-w-0 flex-col gap-1.5${className ? ` ${className}` : ''}`} data-console-filter="field">
+      {htmlFor ? <label className="text-sm leading-none font-medium" htmlFor={htmlFor}>{label}</label>
+        : <span className="text-sm leading-none font-medium">{label}</span>}
+      {children}
+    </div>
   );
 }

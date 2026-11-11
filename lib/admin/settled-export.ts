@@ -145,7 +145,7 @@ function sum(values: number[]): number { return safeNumber(values.reduce((total,
 function sumKnown(values: (number | null)[]): number | null { return values.some(value => value === null) ? null : sum(values as number[]); }
 function multiply(left: number, right: number) { return safeNumber(BigInt(left) * BigInt(right)); }
 
-/** 배분 규칙은 주문 상세·상품주문 화면·스마트스토어 엑셀과 같은 공통 함수다(`./item-allocation`). */
+/** 배분 규칙은 주문 상세·상품주문 화면·ICONS 표준 양식 엑셀과 같은 공통 함수다(`./item-allocation`). */
 export { allocateSettledAmount };
 
 export function buildSettledExportModel(snapshot: SettledExportSnapshot): SettledExportModel {

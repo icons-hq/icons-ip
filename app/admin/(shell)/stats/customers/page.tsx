@@ -32,7 +32,7 @@ export default async function AdminStatsCustomersPage({
   }
 
   const filters = normalizeAdminStatsFilters(query);
-  if (filters.rangeError) return <><CustomerStatsViews view="status" /><section className="admin-stats wc-admin-kit"><StatsRangeTabs base="/admin/stats/customers" filters={filters} /><p role="alert">{filters.rangeError}</p></section></>;
+  if (filters.rangeError) return <><CustomerStatsViews view="status" /><section className="flex min-w-0 flex-col gap-3"><StatsRangeTabs base="/admin/stats/customers" filters={filters} /><p className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive" role="alert">{filters.rangeError}</p></section></>;
   const comparisonFilters = adminStatsComparisonFilters(filters, now);
   const [data, comparison] = await Promise.all([
     getAdminCustomerReport(filters, now),

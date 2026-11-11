@@ -42,16 +42,58 @@ export function withLocalRecoveryValues<T extends AdminFormValuesState>(
   return { ...state, values: { ...restoredValues, previousId: recordId ?? '' } };
 }
 
+type FieldValues = Readonly<Record<string, string>>;
+
+/** 기준 칸 → 그 칸을 고치면 이전 기록 대신 화면 값을 함께 쓸 칸. 따로 섞이면 서로 맞지 않는 칸을 묶는다. */
+export type AdminLocalDraftLinkedFields = Readonly<Record<string, readonly string[]>>;
+
+function changedFields(before: FieldValues, after: FieldValues): Set<string> {
+  return new Set([...Object.keys(before), ...Object.keys(after)].filter((name) => before[name] !== after[name]));
+}
+
+function withFieldsFrom(target: FieldValues, names: Iterable<string>, source: FieldValues): Record<string, string> {
+  const next = { ...target };
+  for (const name of names) {
+    if (Object.hasOwn(source, name)) next[name] = source[name];
+    else delete next[name];
+  }
+  return next;
+}
+
+/**
+ * 복구 안내가 떠 있는 동안의 입력을 이전 기록에 합친다. 화면에서 고친 칸만 얹으므로
+ * 나머지 칸의 이전 입력은 남고, 복구를 먼저 누른 뒤 같은 칸을 고친 것과 결과가 같다.
+ */
+export function overlayLocalEdits(
+  recovered: FieldValues,
+  baseline: FieldValues,
+  current: FieldValues,
+  linkedFields: AdminLocalDraftLinkedFields = {},
+): Record<string, string> {
+  const changed = changedFields(baseline, current);
+  for (const [leader, followers] of Object.entries(linkedFields)) {
+    if (changed.has(leader)) followers.forEach((name) => changed.add(name));
+  }
+  return withFieldsFrom(recovered, changed, current);
+}
+
+/** 사람이 고치지 않은 변경(비동기 초기화·잠금 해제 재읽기)은 기준값을 함께 옮겨 입력으로 세지 않는다. */
+export function rebaseLocalEditBaseline(baseline: FieldValues, previous: FieldValues, current: FieldValues): Record<string, string> {
+  return withFieldsFrom(baseline, changedFields(previous, current), current);
+}
+
 export function createAdminLocalAutosave({
   scope,
   fields,
   storage,
   now = Date.now,
+  linkedFields,
 }: {
   scope: AdminLocalDraftScope;
   fields: readonly string[];
   storage: (Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> & Partial<Pick<Storage, 'length' | 'key'>>) | null;
   now?: () => number;
+  linkedFields?: AdminLocalDraftLinkedFields;
 }) {
   const key = localDraftKey(scope);
   const allowed = new Set(fields.filter((field) => /^[A-Za-z][A-Za-z0-9_-]*$/.test(field)
@@ -63,6 +105,9 @@ export function createAdminLocalAutosave({
   let pending: Record<string, string> | null = null;
   let submitting = false;
   let edited = false;
+  /* 복구 안내가 떠 있는 동안만 쓴다. 입력 전의 폼 값과 마지막으로 읽은 폼 값. */
+  let editBaseline: Record<string, string> | null = null;
+  let lastRead: Record<string, string> | null = null;
 
   function update(change: Partial<AdminLocalAutosaveSnapshot>) {
     snapshot = { ...snapshot, ...change };
@@ -142,8 +187,18 @@ export function createAdminLocalAutosave({
     clearTimeout(timer);
     pending = null;
     edited = false;
+    editBaseline = lastRead = null;
     removeStored();
     update({ recovery: null, restoredValues: null, revision: snapshot.revision + Number(snapshot.restoredValues !== null) });
+  }
+
+  /** 안내가 떠 있으면 새 입력을 이전 기록에 합친 값을 돌려준다. 합칠 수 없으면 null이다. */
+  function mergeIntoOffer(values: Record<string, string>): Record<string, string> | null {
+    const { recovery } = snapshot;
+    // 열어 둔 안내가 보관 기한을 넘겼으면 합치지 않는다. 합치면 만료된 입력이 새 저장 시각으로 되살아난다.
+    if (!recovery || !editBaseline || now() - recovery.savedAt >= ADMIN_LOCAL_DRAFT_TTL_MS) return null;
+    lastRead = values;
+    return overlayLocalEdits(recovery.values, editBaseline, values, linkedFields);
   }
 
   return {
@@ -153,24 +208,48 @@ export function createAdminLocalAutosave({
       listeners.add(listener);
       return () => { listeners.delete(listener); };
     },
+    /** 복구 안내가 떠 있을 때 입력 전의 폼 값을 잡아 둔다. 저장 실패로 폼이 다시 그려져도 처음 기준을 유지한다. */
+    setEditBaseline(entries: Iterable<readonly [string, unknown]>) {
+      if (!editBaseline) editBaseline = lastRead = pickValues(entries);
+    },
     capture(entries: Iterable<readonly [string, unknown]>, options: { preserveRecovery?: boolean } = {}) {
+      const values = pickValues(entries);
       // Async field initialization is not an edit. It must not replace a pending recovery offer with server defaults.
-      if (options.preserveRecovery && (snapshot.recovery || !edited)) return;
-      pending = pickValues(entries);
+      if (options.preserveRecovery) {
+        if (snapshot.recovery) {
+          editBaseline = editBaseline && lastRead ? rebaseLocalEditBaseline(editBaseline, lastRead, values) : values;
+          lastRead = values;
+        }
+        if (snapshot.recovery || !edited) return;
+      }
+      const merged = mergeIntoOffer(values);
+      pending = merged ?? values;
       if (!Object.keys(pending).length) { pending = null; return; }
       edited = true;
-      // Starting a new edit dismisses an older recovery offer; it never replaces the current inputs.
-      if (snapshot.recovery) update({ recovery: null });
+      // 입력 전 값을 모르면(표 전체를 한 칸으로 보관하는 화면) 고친 칸을 가릴 수 없어 새 입력이 안내를 대신한다.
+      if (snapshot.recovery && !merged) update({ recovery: null });
       clearTimeout(timer);
       timer = setTimeout(flush, DEBOUNCE_MS);
     },
     flush,
     restore() {
+      // 안내가 떠 있는 동안 친 입력이 아직 쓰이지 않았으면 먼저 기록에 합친다.
+      flush();
       const draft = read();
       edited = Boolean(draft);
+      editBaseline = lastRead = null;
       update({ recovery: null, restoredValues: draft?.values ?? null, revision: snapshot.revision + 1 });
     },
     discard,
+    /** 복구 안내의 버리기. 이전 기록만 버리고, 안내가 떠 있는 동안 화면에서 고친 입력은 계속 보관한다. */
+    discardRecovery() {
+      const kept = editBaseline && lastRead && changedFields(editBaseline, lastRead).size ? lastRead : null;
+      if (!kept || !Object.keys(kept).length) { discard(); return; }
+      pending = kept;
+      editBaseline = lastRead = null;
+      update({ recovery: null });
+      flush();
+    },
     beginSubmission() {
       submitting = true;
       flush();

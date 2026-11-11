@@ -35,10 +35,12 @@ export function ReviewExportDownloadButton({ accountId, href, total }: { account
     const ticket = scope.capture();
     return ticket ? () => scope.canApply(ticket) : null;
   } }), [scope]);
-  return <div>
+  const hint = `적용된 검색 조건 전체 ${total.toLocaleString('ko-KR')}건 · 최대 ${REVIEW_EXPORT_LIMIT.toLocaleString('ko-KR')}건. 현재 페이지나 선택한 행에 한정하지 않습니다.`;
+  /* 목록 머리 한 줄에 놓이는 버튼이다 — 범위 안내는 버튼에 올리면 보이고 스크린리더가 함께 읽는다. */
+  return <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-3 gap-y-1.5" title={hint}>
+    <p className="sr-only" id={hintId}>{hint}</p>
     <EncryptedWorkbookDownloadButton key={`${accountId}:${href}:${auth.epoch}`} href={href} label="엑셀 다운로드"
       describedBy={hintId} disabled={!auth.ready || auth.blocked} requestScope={requestScope} />
-    <p className="muted" id={hintId}>적용된 검색 조건 전체 {total.toLocaleString('ko-KR')}건 · 최대 {REVIEW_EXPORT_LIMIT.toLocaleString('ko-KR')}건. 현재 페이지나 선택한 행에 한정하지 않습니다.</p>
-    {auth.blocked ? <p role="alert">로그인 계정 또는 세션이 바뀌었습니다. 현재 계정으로 화면을 다시 열어주세요.</p> : null}
+    {auth.blocked ? <p className="bg-transparent text-sm text-destructive" role="alert">로그인 계정 또는 세션이 바뀌었습니다. 현재 계정으로 화면을 다시 열어주세요.</p> : null}
   </div>;
 }

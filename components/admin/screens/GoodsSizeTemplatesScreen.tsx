@@ -6,7 +6,17 @@ import { GOODS_SIZE_LIMITS, emptyGoodsSizeChart, parseGoodsSizeChart, parseGoods
 import { parseGoodsSizeTemplateDraft, type GoodsSizeTemplateRequest } from '@/lib/admin/goods-size-chart-draft';
 import { kstDateTimeText } from '@/lib/admin/list-export';
 import { GoodSizeChart } from '@/components/shop/GoodSizeChart';
+import { Plus } from 'lucide-react';
 import { CustomerServiceDialog } from './CustomerServiceDialog';
+import { AdminNotice, AdminPageHeader, AdminStatusBadge } from '../console/AdminKit';
+import { statusTone } from '@/lib/admin/status-tone';
+import { AdminSelect } from '../console/AdminSelect';
+import { Button } from '../kit/ui/button';
+import { Input } from '../kit/ui/input';
+import { TableBody, TableCell, TableHead, TableRow } from '../kit/ui/table';
+import { CONSOLE_FILTER_CARD_CLASS, CONSOLE_FILTER_FIELDS_CLASS, CONSOLE_FILTER_LABEL_CLASS, ConsoleFilterActions } from '../console/ConsoleFilterPanel';
+import { CONSOLE_TABLE_FRAME_CLASS, ConsoleListCard, ConsoleTableEmptyRow, ConsoleTableHeader } from '../console/ConsoleListCard';
+import { ConsolePagination } from '../console/ConsolePagination';
 import { GoodsSizeChartFields } from '../GoodsSizeChartFields';
 import { useGoodsSizeRecovery } from '../useGoodsSizeRecovery';
 
@@ -18,12 +28,15 @@ function SizeTemplateEditor({ accountId, template, onClose, onSaved }: { account
   const busy = useRef(false), mounted = useRef(true), request = useRef<GoodsSizeTemplateRequest | null>(null);
   const local = useGoodsSizeRecovery({ accountId, formId: 'goods-size-template', recordId: template?.id ?? 'new', parse: parseGoodsSizeTemplateDraft });
   const recoveryBlocked = Boolean(local.recovery?.request);
+  /* 템플릿 전체를 한 칸으로 보관해 새 입력을 이전 기록에 합칠 수 없다. 복구나 버리기를 고르기 전에는 고치거나 저장해 이전 기록을 덮지 않는다. */
+  const recoveryPending = Boolean(local.recovery);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   function change(nextName: string, nextChart: GoodsSizeChart) {
+    if (recoveryPending) return;
     setName(nextName); setChart(nextChart); local.capture({ baseRevision, name: nextName, chart: nextChart, request: null });
   }
   async function save(archived = template?.archived ?? false, restoredRequest?: GoodsSizeTemplateRequest) {
-    if (busy.current || (recoveryBlocked && !restoredRequest && !request.current) || (conflict && !restoredRequest && !request.current)) return;
+    if (busy.current || (recoveryPending && !restoredRequest && !request.current) || (conflict && !restoredRequest && !request.current)) return;
     const parsed = restoredRequest?.chart ?? request.current?.chart ?? parseGoodsSizeChart(chart);
     const normalizedName = restoredRequest?.name ?? request.current?.name ?? parseGoodsSizeName(name, GOODS_SIZE_LIMITS.templateName);
     if (!parsed || !normalizedName) { setMessageError(true); setMessage('템플릿 이름(50자 이내)과 모든 치수를 확인해주세요.'); return; }
@@ -52,28 +65,28 @@ function SizeTemplateEditor({ accountId, template, onClose, onSaved }: { account
       setMessage('미저장 표를 복구했습니다. 현재 템플릿과 내용을 확인하고 저장해주세요.');
     }
   }
-  const locked = pending || uncertain || conflict || recoveryBlocked, preview = parseGoodsSizeChart(chart);
+  const locked = pending || uncertain || conflict || recoveryPending, preview = parseGoodsSizeChart(chart);
   return <CustomerServiceDialog title={template ? '사이즈 템플릿 수정' : '사이즈 템플릿 등록'} busy={pending || uncertain || recoveryBlocked} onClose={onClose} wide>
-    <div className="admin-goods-size-chart">
-      <p>내부 이름으로 표를 찾아 상품에 복사합니다. 이미 적용한 상품은 템플릿을 수정·보관해도 바뀌지 않습니다.</p>
-      {local.unavailable ? <p role="status">이 브라우저에서는 입력을 자동 보관할 수 없습니다.</p> : null}
-      {local.invalidRecovery ? <p role="alert">이전에 보관한 표를 읽을 수 없습니다. <button className="btn" type="button" onClick={local.discard}>읽을 수 없는 복구 기록 버리기</button></p> : null}
-      {local.recovery ? <div className="admin-goods-size-chart__recovery"><p>{recoveryBlocked ? '이전 저장 요청의 결과를 먼저 확인해주세요.' : '이 브라우저에 최대 7일 보관된 미저장 템플릿이 있습니다.'}</p><button className="btn" type="button" disabled={pending} onClick={restore}>{recoveryBlocked ? '이전 저장 요청 결과 확인' : '템플릿 복구'}</button>{!recoveryBlocked ? <button className="btn" type="button" onClick={local.discard}>복구 기록 버리기</button> : null}</div> : null}
-      <form onSubmit={event => { event.preventDefault(); startTransition(() => save()); }}>
-        <fieldset disabled={locked}><legend className="wc-sr-only">사이즈 템플릿 편집</legend>
-          <label>템플릿 이름<input value={name} onChange={event => change(event.target.value, chart)} /><small>{Array.from(name).length} / 50자 · 고객에게 표시하지 않습니다.</small></label>
+    <div className="flex min-w-0 flex-col gap-4" data-size-templates="editor">
+      <p className="text-sm text-muted-foreground">내부 이름으로 표를 찾아 상품에 복사합니다. 이미 적용한 상품은 템플릿을 수정·보관해도 바뀌지 않습니다.</p>
+      {local.unavailable ? <p className="text-sm text-muted-foreground" role="status">이 브라우저에서는 입력을 자동 보관할 수 없습니다.</p> : null}
+      {local.invalidRecovery ? <p className="flex flex-wrap items-center gap-2 text-sm text-destructive" role="alert">이전에 보관한 표를 읽을 수 없습니다. <Button size="sm" variant="outline" type="button" onClick={local.discard}>읽을 수 없는 복구 기록 버리기</Button></p> : null}
+      {local.recovery ? <AdminNotice tone="warning"><p>{recoveryBlocked ? '이전 저장 요청의 결과를 먼저 확인해주세요.' : '이 브라우저에 최대 7일 보관된 미저장 템플릿이 있습니다. 복구하거나 버린 뒤 템플릿을 고칠 수 있습니다.'}</p><div className="mt-2 flex flex-wrap items-center gap-2"><Button size="sm" type="button" disabled={pending} onClick={restore}>{recoveryBlocked ? '이전 저장 요청 결과 확인' : '템플릿 복구'}</Button>{!recoveryBlocked ? <Button size="sm" variant="outline" type="button" onClick={local.discard}>복구 기록 버리기</Button> : null}</div></AdminNotice> : null}
+      <form className="flex min-w-0 flex-col gap-4" onSubmit={event => { event.preventDefault(); startTransition(() => save()); }}>
+        <fieldset className="flex min-w-0 flex-col gap-3" disabled={locked}><legend className="sr-only">사이즈 템플릿 편집</legend>
+          <label className="flex flex-col gap-2 text-sm font-medium">템플릿 이름<Input className="sm:max-w-md" value={name} onChange={event => change(event.target.value, chart)} /><small className="text-xs font-normal text-muted-foreground">{Array.from(name).length} / 50자 · 고객에게 표시하지 않습니다.</small></label>
           <GoodsSizeChartFields chart={chart} onChange={next => change(name, next)} />
         </fieldset>
-        {message ? <p role={messageError ? 'alert' : 'status'}>{message}</p> : null}
-        {conflict && template && template.revision !== baseRevision ? <section className="admin-goods-size-chart__comparison"><h3>현재 템플릿 · {template.name}</h3><GoodSizeChart chart={template.chart} /><button className="btn" type="button" onClick={() => { setBaseRevision(template.revision); setConflict(false); local.capture({ baseRevision: template.revision, name, chart, request: null }, true); setMessage('현재 템플릿을 기준으로 작성한 표를 유지합니다. 저장하면 이 표가 반영됩니다.'); }}>현재 템플릿 기준으로 표 유지</button><button className="btn" type="button" onClick={() => { setName(template.name); setChart(template.chart); setBaseRevision(template.revision); setConflict(false); local.discard(); setMessage('현재 템플릿으로 바꿨습니다.'); }}>현재 템플릿으로 바꾸기</button></section> : null}
-        <div className="admin-goods-size-chart__actions">
-          {uncertain ? <button className="btn btn-primary" type="button" disabled={pending} onClick={() => startTransition(() => save())}>같은 요청 결과 확인</button> : <button className="btn btn-primary" disabled={locked}>템플릿 저장</button>}
-          {template ? <button className="btn" type="button" disabled={locked} onClick={() => startTransition(() => save(!template.archived))}>{template.archived ? '저장 후 복원' : '저장 후 보관'}</button> : null}
-          {conflict ? <button className="btn" type="button" disabled={pending} onClick={onSaved}>입력 보관하고 최신 목록 조회</button> : null}
-          <button className="btn" type="button" disabled={pending || uncertain || recoveryBlocked} onClick={onClose}>닫기</button>
+        {message ? <p className={`text-sm${messageError ? ' text-destructive' : ''}`} role={messageError ? 'alert' : 'status'}>{message}</p> : null}
+        {conflict && template && template.revision !== baseRevision ? <section className="flex min-w-0 flex-col gap-3 rounded-lg border bg-muted/40 p-3"><h3 className="text-sm font-medium">현재 템플릿 · {template.name}</h3><GoodSizeChart chart={template.chart} /><div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" type="button" onClick={() => { setBaseRevision(template.revision); setConflict(false); local.capture({ baseRevision: template.revision, name, chart, request: null }, true); setMessage('현재 템플릿을 기준으로 작성한 표를 유지합니다. 저장하면 이 표가 반영됩니다.'); }}>현재 템플릿 기준으로 표 유지</Button><Button size="sm" variant="outline" type="button" onClick={() => { setName(template.name); setChart(template.chart); setBaseRevision(template.revision); setConflict(false); local.discard(); setMessage('현재 템플릿으로 바꿨습니다.'); }}>현재 템플릿으로 바꾸기</Button></div></section> : null}
+        <div className="flex flex-wrap justify-end gap-2 print:hidden">
+          <Button variant="outline" type="button" disabled={pending || uncertain || recoveryBlocked} onClick={onClose}>닫기</Button>
+          {conflict ? <Button variant="outline" type="button" disabled={pending} onClick={onSaved}>입력 보관하고 최신 목록 조회</Button> : null}
+          {template ? <Button variant="outline" type="button" disabled={locked} onClick={() => startTransition(() => save(!template.archived))}>{template.archived ? '저장 후 복원' : '저장 후 보관'}</Button> : null}
+          {uncertain ? <Button type="button" disabled={pending} onClick={() => startTransition(() => save())}>같은 요청 결과 확인</Button> : <Button type="submit" disabled={locked}>템플릿 저장</Button>}
         </div>
       </form>
-      {preview ? <details className="admin-goods-size-chart__preview"><summary>템플릿 미리보기</summary><GoodSizeChart chart={preview} /></details> : null}
+      {preview ? <details className="rounded-lg border p-3 text-sm"><summary className="cursor-pointer font-medium">템플릿 미리보기</summary><div className="mt-3"><GoodSizeChart chart={preview} /></div></details> : null}
     </div>
   </CustomerServiceDialog>;
 }
@@ -101,22 +114,28 @@ export function GoodsSizeTemplatesScreen({ accountId, onSelect }: { accountId?: 
     } catch { if (mounted.current && sequence === readSequence.current) setMessage('사이즈 템플릿을 불러오지 못했습니다. 다시 조회해주세요.'); }
     finally { busy.current = false; if (mounted.current) setPending(false); }
   }
-  return <section className="wc-admin-kit wc-admin-kit__screen admin-goods-size-chart">
-    {!onSelect ? <><h2>사이즈 템플릿</h2><p>자주 쓰는 사이즈표를 저장해 상품에서 불러옵니다. 상품에 적용한 값은 독립적으로 보존됩니다.</p></> : null}
-    <form className="admin-goods-size-chart__search" onSubmit={event => { event.preventDefault(); startTransition(() => load(1, query, archived)); }}>
-      <label>템플릿 이름 검색<input type="search" value={query} onChange={event => setQuery(event.target.value)} /></label>
-      {!onSelect ? <label>보관 상태<select disabled={pending} value={archived ? 'archived' : 'active'} onChange={event => startTransition(() => load(1, search, event.target.value === 'archived'))}><option value="active">사용 중</option><option value="archived">보관됨</option></select></label> : null}
-      <button className="btn btn-primary" disabled={pending}>검색</button>
+  return <section className="flex min-w-0 flex-col gap-4" data-admin-screen="size-templates">
+    {/* 템플릿 화면군 공통 골격: 머리(설명·등록) → 조회 카드([초기화][검색]) → 목록 카드(표·페이지 이동). 선택 팝업은 머리 없이 쓴다. */}
+    {!onSelect ? <AdminPageHeader title="사이즈 템플릿 관리" description="자주 쓰는 사이즈표를 저장해 상품에서 불러옵니다. 상품에 적용한 값은 독립적으로 보존됩니다."
+      actions={accountId ? <Button className="print:hidden" type="button" disabled={!data} onClick={() => setEditor({ template: null })}><Plus aria-hidden="true" />사이즈 템플릿 등록</Button> : undefined} /> : null}
+    <form className={`${CONSOLE_FILTER_CARD_CLASS} print:hidden`} onSubmit={event => { event.preventDefault(); startTransition(() => load(1, query, archived)); }}>
+      <div className={CONSOLE_FILTER_FIELDS_CLASS}>
+        <label className={`${CONSOLE_FILTER_LABEL_CLASS} min-w-[min(100%,15rem)] flex-1`}>템플릿 이름 검색<Input type="search" value={query} onChange={event => setQuery(event.target.value)} /></label>
+        {!onSelect ? <label className={CONSOLE_FILTER_LABEL_CLASS}>보관 상태<AdminSelect disabled={pending} value={archived ? 'archived' : 'active'} onChange={event => startTransition(() => load(1, search, event.target.value === 'archived'))} wrapperClassName="w-40"><option value="active">사용 중</option><option value="archived">보관됨</option></AdminSelect></label> : null}
+      </div>
+      <ConsoleFilterActions>
+        <Button variant="ghost" type="button" disabled={pending} onClick={() => { setQuery(''); startTransition(() => load(1, '', false)); }}>초기화</Button>
+        <Button type="submit" disabled={pending} variant="soft">검색</Button>
+      </ConsoleFilterActions>
     </form>
-    {message ? <p role="alert">{message}</p> : null}
-    {data ? <>
-      <div className="admin-goods-size-chart__actions"><strong>조회 결과 {data.total.toLocaleString('ko-KR')}건</strong>{!onSelect && accountId ? <button type="button" className="btn" onClick={() => setEditor({ template: null })}>사이즈 템플릿 등록</button> : null}</div>
-      <div className="admin-goods-size-chart__scroll" role="region" aria-label="사이즈 템플릿 목록 가로 스크롤" tabIndex={0}><table><caption className="wc-sr-only">사이즈 템플릿 목록</caption><thead><tr><th scope="col">템플릿 이름</th><th scope="col">사이즈</th><th scope="col">측정 항목</th><th scope="col">단위</th><th scope="col">수정일</th><th scope="col">{onSelect ? '선택' : '관리'}</th></tr></thead><tbody>
-        {data.rows.map(row => <tr key={row.id}><th scope="row">{row.name}</th><td>{row.chart.sizes.join(', ')}</td><td>{row.chart.measurements.map(item => item.name).join(', ')}</td><td>{row.chart.unit}</td><td>{kstDateTimeText(row.updatedAt)}</td><td><button className="btn" type="button" onClick={() => onSelect ? onSelect(row) : setEditor({ template: row })}>{onSelect ? '선택' : '수정'}</button></td></tr>)}
-        {!data.rows.length ? <tr><td colSpan={6}>등록된 사이즈 템플릿이 없습니다.</td></tr> : null}
-      </tbody></table></div>
-      <nav className="admin-goods-size-chart__actions" aria-label="사이즈 템플릿 페이지"><button className="btn" type="button" disabled={pending || data.page <= 1} onClick={() => startTransition(() => load(data.page - 1))}>이전</button><span>{data.page} / {Math.max(1, Math.ceil(data.total / 20))} 페이지</span><button className="btn" type="button" disabled={pending || data.page * 20 >= data.total} onClick={() => startTransition(() => load(data.page + 1))}>다음</button></nav>
-    </> : <p role="status">{message ? '조회 후 템플릿을 관리할 수 있습니다.' : '사이즈 템플릿을 불러오는 중…'}</p>}
+    {message ? <p className="text-sm text-destructive" role="alert">{message}</p> : null}
+    {data ? <ConsoleListCard headingLevel={3} title="조회 결과" total={data.total}>
+      <div className={`${CONSOLE_TABLE_FRAME_CLASS} print:overflow-visible`} role="region" aria-label="사이즈 템플릿 목록 가로 스크롤" tabIndex={0}><table className="w-full min-w-[520px] caption-bottom text-sm" data-slot="table"><caption className="sr-only">사이즈 템플릿 목록</caption><ConsoleTableHeader><TableRow className="hover:bg-transparent"><TableHead scope="col">템플릿 이름</TableHead><TableHead scope="col">사이즈</TableHead><TableHead scope="col">측정 항목</TableHead><TableHead scope="col">단위</TableHead><TableHead scope="col">수정일</TableHead>{!onSelect ? <TableHead scope="col">상태</TableHead> : null}<TableHead scope="col" className="w-24">{onSelect ? '선택' : '관리'}</TableHead></TableRow></ConsoleTableHeader><TableBody>
+        {data.rows.map(row => <TableRow key={row.id}><TableHead scope="row" className="h-auto bg-transparent py-2 align-top text-sm font-medium whitespace-normal wrap-anywhere text-foreground">{row.name}</TableHead><TableCell className="align-top whitespace-normal wrap-anywhere">{row.chart.sizes.join(', ')}</TableCell><TableCell className="align-top whitespace-normal wrap-anywhere">{row.chart.measurements.map(item => item.name).join(', ')}</TableCell><TableCell className="align-top">{row.chart.unit}</TableCell><TableCell className="align-top tabular-nums">{kstDateTimeText(row.updatedAt).replaceAll('-', '.')}</TableCell>{!onSelect ? <TableCell className="align-top"><AdminStatusBadge tone={statusTone('setting', row.archived ? 'archived' : 'active')}>{row.archived ? '보관됨' : '사용 중'}</AdminStatusBadge></TableCell> : null}<TableCell className="align-top"><Button size="xs" variant="outline" type="button" onClick={() => onSelect ? onSelect(row) : setEditor({ template: row })}>{onSelect ? '선택' : '수정'}</Button></TableCell></TableRow>)}
+        {!data.rows.length ? <ConsoleTableEmptyRow colSpan={onSelect ? 6 : 7}>등록된 사이즈 템플릿이 없습니다.</ConsoleTableEmptyRow> : null}
+      </TableBody></table></div>
+      <ConsolePagination className="print:hidden" label="사이즈 템플릿 페이지" page={data.page} pageSize={20} total={data.total} disabled={pending} onPageChange={page => startTransition(() => load(page))} />
+    </ConsoleListCard> : <p className="text-sm text-muted-foreground" role="status">{message ? '조회 후 템플릿을 관리할 수 있습니다.' : '사이즈 템플릿을 불러오는 중…'}</p>}
     {editor && accountId ? <SizeTemplateEditor accountId={accountId} template={editor.template} onClose={() => setEditor(null)} onSaved={() => { setEditor(null); startTransition(() => load(data?.page ?? 1)); }} /> : null}
   </section>;
 }

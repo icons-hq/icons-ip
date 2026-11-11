@@ -171,12 +171,12 @@ describe('remote image SSRF boundary', () => {
   });
 
   it('stops at the size limit from the header or while streaming', async () => {
-    respond(200, { 'content-type': 'image/png', 'content-length': String(6 * 1024 * 1024) });
-    await expect(fetchRemoteImage('https://img.example.com/a.png')).rejects.toThrow('5MB');
-    respond(200, { 'content-type': 'image/png' }, Buffer.concat([PNG, Buffer.alloc(6 * 1024 * 1024)]));
-    await expect(fetchRemoteImage('https://img.example.com/a.png')).rejects.toThrow('5MB');
+    respond(200, { 'content-type': 'image/png', 'content-length': String(21 * 1024 * 1024) });
+    await expect(fetchRemoteImage('https://img.example.com/a.png')).rejects.toThrow('20MB');
+    respond(200, { 'content-type': 'image/png' }, Buffer.concat([PNG, Buffer.alloc(21 * 1024 * 1024)]));
+    await expect(fetchRemoteImage('https://img.example.com/a.png')).rejects.toThrow('20MB');
     respond(200, { 'content-type': 'image/png' }, Buffer.concat([PNG, Buffer.alloc(200)]));
-    await expect(fetchRemoteImage('https://img.example.com/a.png', { maxBytes: 100 })).rejects.toThrow('5MB');
+    await expect(fetchRemoteImage('https://img.example.com/a.png', { maxBytes: 100 })).rejects.toThrow('20MB');
   });
 
   it('gives up on a silent server within the time budget', async () => {

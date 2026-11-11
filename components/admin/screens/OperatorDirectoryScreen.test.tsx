@@ -19,6 +19,9 @@ describe('manager directory controls', () => {
     expect(html).toContain('aria-label="매니저1 담당업무 변경"');
     expect(html).toContain('대표');
     expect(html).not.toContain('name="role" aria-label="매니저3 권한"');
+    /* kit 버튼의 기본 type은 button이다 — 팝업의 저장·확인만 제출하고 여는 버튼은 제출하지 않는다. */
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>저장<\/button>/);
+    expect(html).toMatch(/<button[^>]*type="button"[^>]*aria-label="매니저3 권한 변경"|<button[^>]*aria-label="매니저3 권한 변경"[^>]*type="button"/);
   });
   it('offers ownership transfer only for active primary targets', () => {
     const ownerData: OperatorDirectoryData = { ...data, actorManagerRole: 'owner' };
@@ -35,5 +38,12 @@ describe('manager directory controls', () => {
     expect(html).toContain('통합 매니저');
     expect(html).toContain('미선택');
     expect(html).not.toContain('value="owner" selected');
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>매니저 역할 적용<\/button>/);
+    /* 아무 역할도 고르지 않은 처음에는 적용을 누를 수 없고, 권한 회수 결과는 주의 상자로 말한다. */
+    expect(html).toMatch(/<button(?=[^>]*disabled="")[^>]*>매니저 역할 적용<\/button>/);
+    expect(html).toMatch(/data-admin-notice="warning"[^>]*>[\s\S]*권한 회수를 고른 계정은 일반 회원으로 전환됩니다\./);
+    /* 흐린 버튼 옆에서 무엇이 남았는지 말하고, 빈 칸이 지금 권한을 뜻하지 않는다는 것을 알린다. */
+    expect(html).toContain('1명의 새 역할을 더 고르면 적용할 수 있습니다.');
+    expect(html).toContain('적용하기 전까지 지금 권한은 그대로');
   });
 });

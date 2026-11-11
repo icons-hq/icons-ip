@@ -21,7 +21,7 @@
 - **즉시 취소:** 승인된 토스 취소는 기존 서버 오케스트레이터가 즉시 전액 취소를 요청하고 fresh 조회로 확정한다. 발주확인 전 고객 자동 승인, 승인 경합 후 후속 처리, 운영자 승인·전액 취소, 만료된 결제 준비 건의 무결제 종결을 유지한다. 늦은 승인·불명확 결과·동일 멱등키 재확인은 [클레임 런북](order-claim-intake.md)의 경계를 따른다.
 - **반품·교환:** 새 판매자 대리 접수와 배송 중 접수는 요청·근거를 남기는 경로다. 전체 회수·창고 보관 확인 전에는 환급·재출고하지 않는다. 접수만으로 실제 도착·입고·환급 사실을 만들거나 부분 환불로 바꾸지 않는다.
 - **주문 생성 권한:** `place_order(jsonb,uuid,order_payment_method)` 본문은 브라우저 롤에 열리지 않는다. 앱의 인증·결제수단 검사를 거친 기존 서버 전용 경로를 유지한다.
-- **출고와 회신:** 기본은 스마트스토어 74열이다. 명시적으로 선택하는 김포·서원 원형 양식과 출고지별 ZIP을 함께 유지한다. 서원의 품목 행·원형 서식·확정된 추가 전달 열·후보 대조·중복/모호한 회신 거부, 합포장 무결성은 [출고 런북](warehouse-export.md)을 따른다.
+- **출고와 회신:** 기본은 ICONS 표준 양식이다. 명시적으로 선택하는 김포·서원 원형 양식과 출고지별 ZIP을 함께 유지한다. 서원의 품목 행·원형 서식·확정된 추가 전달 열·후보 대조·중복/모호한 회신 거부, 합포장 무결성은 [출고 런북](warehouse-export.md)을 따른다.
 - **권한과 보존:** 매니저 capability·RLS·RPC·Storage 경계와 감사·멱등 계약을 함께 배포한다. 문의 첨부 원문, 고객 연락처·계좌, 결제 원문을 배포 로그나 공개 검증 자료에 복사하지 않는다.
 
 운영 상점의 실결제·실환불, 실제 WMS 반입·송장 발행·출고, 고객 이메일 발송, 정책 시행·개별 통지는 배포 검증과 구분한다. 합성 PG·격리 SQL·파일 재열기를 해당 업무의 실운영 성공으로 기록하지 않는다.
@@ -32,7 +32,7 @@
 2. 선택한 `package.json`과 `package-lock.json`으로 `npm ci`를 수행한다. 암호화 XLSX의 `officecrypto-tool`, 상품 동영상 검사의 `mp4box`와 관련 런타임·형식 fixture가 포함되어야 한다. 이번 기능과 별개인 버전 변경은 같은 검증을 통과한 최종 lockfile에만 반영한다.
 3. `npm run lint`, `npm run typecheck`, `npm test`, 환경을 갖춘 빌드와 필수 CI를 확인한다. 조회·저장·권한·응답 유실·파일 재시도 등 실제로 수행한 UI 흐름만 기록한다.
 4. 빈 격리 DB의 최종 순차 적용과 기존 운영 schema를 기준으로 한 업그레이드 검증을 구분한다. Preview에는 운영 사용자 데이터·자격 증명을 복사하지 않는다. 기존 주문·결제·배송·미종결 요청·legacy 운영자 호환은 합성 fixture로 검증한다.
-5. 권한 coverage·guard·매니저 lifecycle, 주문 생성 ACL, `staff_order_cancellation.sql`, `order_cancellation_system_reconcile.sql`, `order_claim_expired_prepared_cancellation.sql`, 결제/취소 경합, 출고·서원/74열 회신·합포장, 문의 상담/첨부의 최종 SQL 회귀를 확인한다. 실제 테스트 명령과 대상 DB의 식별 근거는 CI/검증 결과에 남긴다.
+5. 권한 coverage·guard·매니저 lifecycle, 주문 생성 ACL, `staff_order_cancellation.sql`, `order_cancellation_system_reconcile.sql`, `order_claim_expired_prepared_cancellation.sql`, 결제/취소 경합, 출고·서원/ICONS 표준 양식 회신·합포장, 문의 상담/첨부의 최종 SQL 회귀를 확인한다. 실제 테스트 명령과 대상 DB의 식별 근거는 CI/검증 결과에 남긴다.
 6. 원본·배포본 SQL 및 호환 보정 후의 함수 정의·owner·ACL·operator registry를 대조한다. 정의가 바뀌었는데 과거 registry 지문만 맞추거나 검사를 생략해 통과시키지 않는다.
 
 ## 기존 운영자 유지와 최초 설정

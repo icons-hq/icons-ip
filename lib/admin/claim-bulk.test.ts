@@ -5,10 +5,14 @@ import {
   ADMIN_CLAIM_BULK_LIMIT,
   ADMIN_CLAIM_BULK_PROVIDER_ITEM_RESERVE_MS,
   ADMIN_CLAIM_BULK_TIME_BUDGET_MS,
+  ADMIN_CLAIM_BULK_CONVERT_ITEM_RESERVE_MS,
   adminClaimBulkConfirmation,
+  adminClaimBulkConversionLabel,
+  adminClaimBulkConversionTarget,
   adminClaimBulkSelectable,
   adminClaimBulkSummary,
   adminClaimBulkTimeoutMessage,
+  normalizeAdminClaimBulkConversionForm,
   normalizeAdminClaimBulkForm,
   planAdminClaimBulkSubmit,
   runAdminClaimBulkSequentially,
@@ -21,6 +25,41 @@ function form(entries: [string, string][]) {
   for (const [key, value] of entries) data.append(key, value);
   return data;
 }
+
+describe('normalizeAdminClaimBulkConversionForm', () => {
+  const valid: [string, string][] = [['claimType', 'return'], ['claimIds', ID(1)], ['agreement', '  11/9 전화 상담으로 합의  '], ['confirmed', 'true']];
+  const replace = (name: string, value: string) => form([...valid.filter(([key]) => key !== name), [name, value]]);
+
+  it('전환 방향과 라벨을 정하고, 합의 근거를 다듬어 선택을 중복 없이 넘긴다', () => {
+    expect(adminClaimBulkConversionTarget('return')).toBe('exchange');
+    expect(adminClaimBulkConversionTarget('exchange')).toBe('return');
+    expect(adminClaimBulkConversionLabel('return')).toBe('선택 건 교환 전환');
+    expect(adminClaimBulkConversionLabel('exchange')).toBe('선택 건 반품 전환');
+    expect(normalizeAdminClaimBulkConversionForm(form([...valid, ['claimIds', ID(1).toUpperCase()], ['claimIds', ID(2)]]))).toEqual({
+      ok: true,
+      value: { claimIds: [ID(1), ID(2)], fromType: 'return', agreement: '11/9 전화 상담으로 합의' },
+    });
+  });
+
+  it('취소·잘못된 유형, 합의 근거 길이·제어문자, 합의 미확인은 거절한다', () => {
+    expect(normalizeAdminClaimBulkConversionForm(replace('claimType', 'cancel'))).toEqual({ ok: false, error: '반품과 교환 요청만 서로 전환할 수 있습니다.' });
+    for (const agreement of ['한', 'ㄱ'.repeat(501), '합의\n내용']) {
+      expect(normalizeAdminClaimBulkConversionForm(replace('agreement', agreement))).toEqual({ ok: false, error: '고객 합의 근거를 2자 이상 500자 이하로 입력해주세요.' });
+    }
+    expect(normalizeAdminClaimBulkConversionForm(replace('confirmed', 'false'))).toEqual({ ok: false, error: '선택한 건 모두 고객과 합의했는지 확인해주세요.' });
+  });
+
+  it('선택이 없거나 50건을 넘기면 결정 일괄 처리와 같은 안내로 막는다', () => {
+    const others = valid.filter(([key]) => key !== 'claimIds');
+    expect(normalizeAdminClaimBulkConversionForm(form(others))).toEqual({ ok: false, error: '처리할 요청을 선택해주세요.' });
+    const many: [string, string][] = Array.from({ length: ADMIN_CLAIM_BULK_LIMIT + 1 }, (_, index) => ['claimIds', ID(index)]);
+    expect(normalizeAdminClaimBulkConversionForm(form([...others, ...many]))).toMatchObject({ ok: false });
+  });
+
+  it('전환 한 건은 DB 호출이 둘이라 결정 한 건의 두 배 시간을 예약한다', () => {
+    expect(ADMIN_CLAIM_BULK_CONVERT_ITEM_RESERVE_MS).toBe(ADMIN_CLAIM_BULK_DB_ITEM_RESERVE_MS * 2);
+  });
+});
 
 describe('normalizeAdminClaimBulkForm', () => {
   it('선택한 요청을 중복 없이 소문자로 좁히고 승인·검토중에는 사유를 보내지 않는다', () => {

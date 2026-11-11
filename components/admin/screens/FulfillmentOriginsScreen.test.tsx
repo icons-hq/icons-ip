@@ -22,20 +22,24 @@ describe('origin settings workspace', () => {
     expect(html).toContain('출고지 추가');
     expect(html).toContain('기존 주문의 배송비는 바뀌지 않습니다');
     expect(html).toContain('readOnly=""');
+    /* kit 버튼의 기본 type은 button이다 — 출고지 저장은 제출 버튼이어야 한다. */
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>(?:(?!<\/button>)[\s\S])*출고지 저장<\/button>/);
   });
   it('출고지마다 링크형 탭 하나에 한 출고지만 보이고, 변경 이력은 탭 아래 공통이다 (R22)', () => {
     const namyangju: FulfillmentOrigin = { ...origin, id: '00000000-0000-4000-8000-000000042202', code: 'namyangju', name: '남양주', exportTemplate: 'seowon_xlsx', baseFee: 3000 };
     const history = [{ id: 'h1', createdAt: '2026-10-01T00:00:00Z', actorName: '운영자', action: 'admin.fulfillment_origin.saved', diff: {} }] as never;
     const html = renderToStaticMarkup(<FulfillmentOriginsScreen origins={[origin, namyangju]} carriers={carriers} history={history} canEdit selected="namyangju" />);
-    expect(html).toContain('<nav class="admin-console-tabs" aria-label="출고지">');
-    expect(html).toContain('<a href="/admin/settings/origins?origin=gimpo">김포</a>');
-    expect(html).toContain('<a aria-current="page" href="/admin/settings/origins?origin=namyangju">남양주</a>');
-    expect(html).toContain('<a href="/admin/settings/origins?origin=_new">출고지 추가</a>');
+    /* 링크 탭: 현재 탭만 aria-current="page"이고 나머지는 표시가 없다. */
+    const tabLink = (code: string, label: string, current: boolean) => new RegExp(`<a ${current ? 'aria-current="page"' : '(?![^>]*aria-current)'}[^>]*href="/admin/settings/origins\\?origin=${code}">${label}</a>`);
+    expect(html).toMatch(/<nav aria-label="출고지"/);
+    expect(html).toMatch(tabLink('gimpo', '김포', false));
+    expect(html).toMatch(tabLink('namyangju', '남양주', true));
+    expect(html).toMatch(tabLink('_new', '출고지 추가', false));
     expect(html).toContain('value="3000"');
     expect(html).not.toContain('value="4700"');
-    expect(html.indexOf('최근 변경 이력')).toBeGreaterThan(html.indexOf('admin-console-tabs'));
+    expect(html.indexOf('최근 변경 이력')).toBeGreaterThan(html.indexOf('aria-label="출고지"'));
     const adding = renderToStaticMarkup(<FulfillmentOriginsScreen origins={[origin, namyangju]} carriers={carriers} history={[]} canEdit selected="_new" />);
-    expect(adding).toContain('<a aria-current="page" href="/admin/settings/origins?origin=_new">출고지 추가</a>');
+    expect(adding).toMatch(tabLink('_new', '출고지 추가', true));
     expect(adding).not.toContain('value="4700"'); expect(adding).not.toContain('value="3000"');
     expect(adding).toContain('최근 변경 이력');
   });

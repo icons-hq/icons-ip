@@ -112,13 +112,39 @@ describe('CardPoolSection', () => {
     const html = renderPool(pool, [{ ...card, id: 'c 100/&' }]);
 
     expect(html).toContain('href="/admin/catalog/cards?cardId=c%20100%2F%26"');
-    expect(html).not.toContain('<button class="btn"');
+    expect(html).toMatch(/<a[^>]*href="\/admin\/catalog\/cards\?cardId=c%20100%2F%26"[^>]*>카드 편집<\/a>/);
+    expect(html).not.toMatch(/<button[^>]*>카드 편집<\/button>/);
   });
 
   it('warns that odds changes affect unopened card packs immediately', () => {
     const html = renderPool();
 
     expect(html).toContain('미사용 카드팩도 개봉 시점의 최신 구성과 확률');
+  });
+
+  it('처음 열면 목록과 안내만 보이고, 왼쪽의 새로 등록 없이 등록을 시작했거나 카드풀을 고르면 입력 칸이 열린다', () => {
+    const idle = renderPool(null);
+    expect(idle).toContain('목록에서 카드풀을 고르면 여기에서 구성과 발급 확률을 수정합니다.');
+    /* 저장 실패 복원·멱등 키가 그대로 동작하도록 폼은 DOM에 남고 숨기기만 한다. */
+    expect(idle).toMatch(/<div class="hidden" data-record-detail="form"><form/);
+    expect(idle).not.toContain('새로 등록');
+    expect(renderPool()).toMatch(/<div class="contents" data-record-detail="form"><form/);
+    const creating = renderToStaticMarkup(
+      <CardPoolSection cards={[]} creating draftActiveFrom="2026-07-15T02:00:00.000Z" draftId="22222222-2222-4222-8222-222222222222" ipOptions={[{ id: 'hwasan', title: '화산강림', archivedAt: null }]} oddsOperationId="33333333-3333-4333-8333-333333333333" onSelect={vi.fn()} operationId="44444444-4444-4444-8444-444444444444" records={[pool]} selected={null} />,
+    );
+    expect(creating).not.toContain('data-record-detail="prompt"');
+    expect(creating).toContain('>새 카드풀 등록</h3>');
+  });
+
+  it('즉시 적용 주의는 저장할 수 있을 때만 주의색이고, 저장 전 카드풀의 잠긴 칸은 조용한 안내 하나뿐이다', () => {
+    const notice = (html: string) => html.match(/data-admin-notice="(\w+)"[^>]*>(?:(?!<\/div>)[\s\S])*?(?:즉시 적용|<div class="text-foreground">변경한)/)?.[1];
+    expect(notice(renderPool())).toBe('warning');
+    /* 합계가 100%가 아니면 저장 버튼이 잠겨 있어 아직 경고할 때가 아니다. */
+    expect(notice(renderPool({ ...pool, odds: { N: 0, R: 0.5, SR: 0, SSR: 0.2, HOLO: 0.1 } }))).toBe('neutral');
+    const locked = renderPool(null, [], []);
+    expect(locked).not.toContain('즉시 적용');
+    expect(locked).toMatch(/data-admin-notice="neutral"[^>]*>(?:(?!<\/div>)[\s\S])*카드풀을 먼저 저장해주세요\./);
+    expect(locked).not.toContain('data-admin-notice="warning"');
   });
 
   it('requires a saved pool before odds can be edited', () => {

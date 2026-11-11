@@ -221,9 +221,14 @@ select pg_temp.adult_gate_expect_error(
   format($sql$select public.prepare_goods_payment_attempt('a0190000-0000-4000-8000-000000000002'::uuid,%L::uuid,'toss'::public.payment_provider)$sql$, :'adult_order'),
   'goods_payment_provider_mismatch'
 );
+-- 판매 제한 PG는 나이스페이다(2026-11-06). 은퇴한 코페이로는 준비하지 않는다.
+select pg_temp.adult_gate_expect_error(
+  format($sql$select public.prepare_goods_payment_attempt('a0190000-0000-4000-8000-000000000002'::uuid,%L::uuid,'korpay'::public.payment_provider)$sql$, :'adult_order'),
+  'goods_payment_unavailable'
+);
 select 1 / case when (
-  public.prepare_goods_payment_attempt('a0190000-0000-4000-8000-000000000002'::uuid, :'adult_order'::uuid, 'korpay'::public.payment_provider) ->> 'provider' = 'korpay'
-) then 1 else 0 end as assert_adult_order_derives_korpay;
+  public.prepare_goods_payment_attempt('a0190000-0000-4000-8000-000000000002'::uuid, :'adult_order'::uuid, 'nicepay'::public.payment_provider) ->> 'provider' = 'nicepay'
+) then 1 else 0 end as assert_adult_order_derives_nicepay;
 
 select pg_temp.adult_gate_expect_error(
   $sql$select public.place_order('a0190000-0000-4000-8000-000000000003'::uuid,

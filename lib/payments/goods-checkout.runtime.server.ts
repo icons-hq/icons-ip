@@ -9,9 +9,10 @@ import { createRuntimeAttemptPaymentGateway, goodsReconciliationFinalizer } from
 
 /**
  * Composition root kept outside the deep module so tests can supply Fake.
- * 신규 굿즈 결제의 기본 provider는 toss다(에픽 #384). korpay는 진행 중 콜백
- * drain(korpay confirm 라우트)과 판매 제한 상품 분기(#392)를 위해 같은 조립을
- * provider 인자로 공유한다 — 승인 메일 훅은 provider와 무관한 확정 부수효과다.
+ * 신규 굿즈 결제의 기본 provider는 toss다(에픽 #384). nicepay는 판매 제한 상품
+ * 분기(#392, 2026-11-06 코페이 대체)이고 korpay는 진행 중 콜백 drain(korpay confirm
+ * 라우트)만 남았다 — 같은 조립을 provider 인자로 공유하며, 승인 메일 훅은 provider와
+ * 무관한 확정 부수효과다.
  */
 export function createRuntimeGoodsPaymentCheckout(
   provider: PaymentCheckoutProvider = 'toss',

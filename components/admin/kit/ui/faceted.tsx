@@ -450,7 +450,7 @@ function FacetedInput({
           ref={composedRef}
           data-slot="faceted-input"
           className={cn(
-            "h-full w-full bg-transparent text-sm outline-hidden placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50",
+            "h-full w-full bg-transparent text-sm outline-hidden placeholder:text-placeholder disabled:cursor-not-allowed disabled:opacity-50",
             className,
           )}
           {...props}
@@ -507,7 +507,7 @@ function FacetedCommandItem({
   return (
     <CommandPrimitive.Item
       className={cn(
-        "group/command-item relative flex cursor-default items-center gap-1.5 rounded-md px-1.5 py-1 text-sm outline-hidden select-none data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 data-selected:bg-muted data-selected:text-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 data-selected:*:[svg]:text-foreground",
+        "group/command-item relative flex cursor-default items-center gap-1.5 rounded-md px-1.5 py-1 text-sm outline-hidden select-none data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 data-[selected=true]:bg-muted data-[selected=true]:text-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 data-[selected=true]:*:[svg]:text-foreground",
         className,
       )}
       {...mergeProps<"div">(

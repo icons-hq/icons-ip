@@ -443,7 +443,7 @@ describe('admin order actions', () => {
 
   it('needs_review 재정합화도 DB의 staff 게이트를 통과한 뒤 provider를 조회한다', async () => {
     await expect(reconcileAdminOrderCancellationAction({}, requestForm())).resolves.toEqual({
-      message: '결제 취소 상태를 정합화했습니다.',
+      message: '결제 취소 상태를 확인했습니다.',
     });
 
     expect(mocks.rpc).toHaveBeenCalledWith('admin_begin_order_cancellation_reconcile', {
@@ -479,7 +479,7 @@ describe('admin order actions', () => {
       mocks.recoverGoodsPayment.mockResolvedValue({ outcome: 'provider_cancel_confirmed' });
 
       await expect(recoverAdminGoodsPaymentAction({}, cancellationForm())).resolves.toEqual({
-        message: 'Korpay 전액 취소 확인을 주문 정합화에 반영했습니다.',
+        message: 'Korpay 전액 취소 확인을 주문에 반영했습니다.',
       });
 
       expect(mocks.recoverGoodsPayment).toHaveBeenCalledWith({

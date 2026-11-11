@@ -5,6 +5,8 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import { observeInquiryChanges, type InquiryRealtimeClient } from '@/lib/inquiry-realtime';
 import { createClient } from '@/lib/supabase/client';
 import { getSupabaseConfig } from '@/lib/supabase/config';
+import { startAdminNavigation } from '@/lib/admin/navigation-pending';
+import { Button } from '@/components/admin/kit/ui/button';
 
 /*
  * 새 1:1 문의 PC 브라우저 알림(R2, 10/27 회의 D2①).
@@ -125,6 +127,14 @@ export function showInquiryNotification(inquiry: NewInquiry, onOpen: () => void,
     shown.onclick = () => { onOpen(); shown.close(); };
     return true;
   } catch { return false; }
+}
+
+/** 알림을 누르면 이 탭을 앞으로 가져와 문의 상세로 옮긴다. 링크가 아닌 이동이라 대기 표시를 직접 건다. */
+export function openNotifiedInquiry(inquiryId: string, push: (href: string) => void, focus: () => void = () => window.focus()) {
+  const href = `/admin/cs/inquiries/${inquiryId}`;
+  focus();
+  startAdminNavigation(href);
+  push(href);
 }
 
 /** 같은 문의는 계정의 모든 탭을 통틀어 한 번만 알린다. 기록을 못 읽으면 알린다(누락보다 중복이 낫다, tag가 OS에서 합친다). */
@@ -264,7 +274,7 @@ function useNotifierEffect(accountId: string, enabled: boolean, onCount: (count:
       },
       notify: (inquiry) => {
         // 권한 회수·OS 거부는 생성자가 던지지 않는다(오류 이벤트). 던지면 생성자 자체가 막힌 브라우저다.
-        if (!showInquiryNotification(inquiry, () => { window.focus(); router.push(`/admin/cs/inquiries/${inquiry.id}`); })) {
+        if (!showInquiryNotification(inquiry, () => openNotifiedInquiry(inquiry.id, (href) => router.push(href)))) {
           markInquiryNotificationsUnsupported(accountId);
         }
       },
@@ -302,13 +312,13 @@ export function InquiryNotificationSettingsView({ support, enabled, message, bus
     : support === 'denied' ? INQUIRY_NOTIFICATION_DENIED
     : on ? '켜짐 · 이 기기의 이 계정에서 커머스 콘솔 탭이 하나라도 열려 있으면 새 1:1 문의를 PC 알림으로 알려 드리고, 탭 제목 앞에 미답변 수를 표시합니다. 탭을 모두 닫으면 알림이 오지 않습니다.'
     : '꺼짐 · 켜면 새 1:1 문의가 올 때 PC 알림을 띄웁니다. 알림을 누르면 그 문의가 열립니다.';
-  return <section className="admin-operations-settings" aria-label="새 1:1 문의 PC 알림">
-    <h3>새 1:1 문의 PC 알림</h3>
-    <p role="status">{status}</p>
-    {message && message !== status ? <p role="status">{message}</p> : null}
-    <div>{on
-      ? <button type="button" disabled={busy} onClick={onDisable}>문의 알림 끄기</button>
-      : <button type="button" disabled={busy || support === 'unsupported'} onClick={onEnable}>문의 알림 받기</button>}</div>
+  return <section className="flex flex-col gap-2 rounded-lg border bg-muted/40 p-3" aria-label="새 1:1 문의 PC 알림">
+    <h3 className="text-sm font-medium text-foreground">새 1:1 문의 PC 알림</h3>
+    <p className="text-xs leading-relaxed text-muted-foreground" role="status">{status}</p>
+    {message && message !== status ? <p className="text-xs leading-relaxed text-muted-foreground" role="status">{message}</p> : null}
+    <div className="flex gap-2">{on
+      ? <Button disabled={busy} onClick={onDisable} size="sm" type="button" variant="outline">문의 알림 끄기</Button>
+      : <Button disabled={busy || support === 'unsupported'} onClick={onEnable} size="sm" type="button">문의 알림 받기</Button>}</div>
   </section>;
 }
 

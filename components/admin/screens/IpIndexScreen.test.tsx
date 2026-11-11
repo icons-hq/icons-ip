@@ -9,7 +9,7 @@ describe('IP index', () => {
       verticals: [{ key: 'webtoon', label: '웹툰' }],
       ips: [{ id: 'hwasan', title: '화산강림', verticalKey: 'webtoon', publishedAt: null, archivedAt: null, featured: false, sortOrder: 1 }],
     }} />);
-    expect(html).toContain('admin-console-grid-table');
+    expect(html).toContain('data-slot="table"');
     expect(html).toContain('IP 이름·ID');
     expect(html).toContain('name="vertical"');
     expect(html).toContain('href="/admin/catalog/ips/hwasan"');

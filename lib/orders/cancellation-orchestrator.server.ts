@@ -1,6 +1,10 @@
 import 'server-only';
 
 import type { PaymentAttempt, RefundOutcome } from '../payments/gateway';
+import {
+  providerCancelsAutomatically,
+  type AutomatedCancelProvider,
+} from '../payments/provider-capabilities';
 import { getPaymentGateway, type PaymentCheckoutProvider } from '../payments/runtime-gateway';
 import { createServiceClient } from '../supabase/service';
 import { createRuntimeAttemptPaymentGateway } from '../subscriptions/payment-dispatch.server';
@@ -99,13 +103,17 @@ export interface CancellationReconciliationDependencies {
     actorId: CancellationActorId;
   }): Promise<ExpiredPreparedGoodsReconciliation>;
   /**
-   * toss 유상 캡처의 전액 취소. 게이트웨이가 취소 API 발행 후 fresh 조회로
-   * 전액 취소를 검증한 결과(5-outcome)를 그대로 돌려준다(#389).
+   * 취소 API가 있는 카드 provider(toss·nicepay) 유상 캡처의 전액 취소. 게이트웨이가
+   * 취소 API 발행 후 조회로 전액 취소를 검증한 결과(5-outcome)를 그대로 돌려준다(#389).
+   * paymentKey는 로컬 원장의 결제 식별자다 — TID 기준 provider(nicepay)가 취소 대상을
+   * 찾는 데 쓰고, 주문번호 조회가 진실원인 toss는 쓰지 않는다.
    */
-  refundTossPayment(input: {
+  refundProviderPayment(input: {
     paymentId: string;
+    provider: AutomatedCancelProvider;
     amount: number;
     reason: string;
+    paymentKey: string;
   }): Promise<RefundOutcome>;
   completeRequest(input: {
     requestId: string;
@@ -203,11 +211,11 @@ function createDefaultDependencies(): CancellationReconciliationDependencies {
       }
 
       // 카드 provider 원장만 본다(무통장 환불은 별도 계좌 환불 경로 — ADR-0010).
-      // toss는 취소 API 자동화 경로(#389), korpay는 수동 복구 seam이 정합화 경로다.
+      // toss·nicepay는 취소 API 자동화 경로(#389), korpay는 수동 복구 seam이 정합화 경로다.
       const { data: paymentData, error: paymentError } = await service
         .from('payments')
         .select('id,provider,status,amount,payment_key')
-        .in('provider', ['toss', 'korpay'])
+        .in('provider', ['toss', 'korpay', 'nicepay'])
         .eq('purpose', 'order')
         .eq('ref_id', request.order_id)
         .order('id', { ascending: true });
@@ -218,7 +226,7 @@ function createDefaultDependencies(): CancellationReconciliationDependencies {
         const payment = paymentDataRow as Record<string, unknown>;
         if (
           typeof payment.id !== 'string'
-          || (payment.provider !== 'toss' && payment.provider !== 'korpay')
+          || (payment.provider !== 'toss' && payment.provider !== 'korpay' && payment.provider !== 'nicepay')
           || typeof payment.status !== 'string'
           || !PAYMENT_STATUSES.has(payment.status as CancellationPaymentStatus)
           || typeof payment.amount !== 'number'
@@ -278,7 +286,7 @@ function createDefaultDependencies(): CancellationReconciliationDependencies {
         payments,
       };
     },
-    async refundTossPayment({ paymentId, amount, reason }) {
+    async refundProviderPayment({ paymentId, provider, amount, reason, paymentKey }) {
       const { data, error } = await service
         .from('payment_attempts')
         .select('id,provider,purpose,ref_id,amount,currency,idempotency_key,provider_order_id,provider_product_code,expires_at')
@@ -290,7 +298,7 @@ function createDefaultDependencies(): CancellationReconciliationDependencies {
       if (!data) throw new Error('payment attempt missing');
       const row = data as Record<string, unknown>;
       if (
-        row.provider !== 'toss'
+        row.provider !== provider
         || row.purpose !== 'order'
         || typeof row.id !== 'string'
         || typeof row.ref_id !== 'string'
@@ -306,7 +314,7 @@ function createDefaultDependencies(): CancellationReconciliationDependencies {
       }
       const attempt: PaymentAttempt = {
         id: row.id,
-        provider: 'toss',
+        provider,
         purpose: 'order',
         refId: row.ref_id,
         amount: row.amount,
@@ -316,11 +324,12 @@ function createDefaultDependencies(): CancellationReconciliationDependencies {
         providerProductCode: row.provider_product_code,
         expiresAt: row.expires_at,
       };
-      return createRuntimeAttemptPaymentGateway(service, 'toss', getPaymentGateway('toss')).refund({
+      return createRuntimeAttemptPaymentGateway(service, provider, getPaymentGateway(provider)).refund({
         attempt,
         idempotencyKey: `refund:${attempt.id}`,
         amount,
         reason,
+        providerPaymentKey: paymentKey,
       });
     },
     async reconcileExpiredPreparedGoods({ requestId, actorId }) {
@@ -376,7 +385,7 @@ async function markNeedsReview(
  * 승인된 주문 취소 요청을 정합화한다. 호출자는 인증된 actor/request id만
  * 전달하며 결제 키·금액은 service DB에서만 읽는다.
  *
- * toss 유상 캡처는 게이트웨이 refund(취소 API 발행 + fresh 조회 검증)로 자동
+ * toss·nicepay 유상 캡처는 게이트웨이 refund(취소 API 발행 + 조회 검증)로 자동
  * 취소하고, 검증된 키만 완료 RPC에 넘긴다(#389). korpay 유상 캡처는 취소 API가
  * 없어 수동 복구 seam(goods-manual-recovery)이 정상 경로이므로 여기서는 수동
  * 검토로 승격한다. 실패·모호는 자동 종결하지 않는다.
@@ -449,14 +458,15 @@ export async function reconcileOrderCancellation(
     ) {
       return markNeedsReview(dependencies, input, 'payment_evidence_invalid');
     }
-    if (payment.provider !== 'toss') {
+    if (!providerCancelsAutomatically(payment.provider)) {
       // korpay는 취소 API가 없다 — 수동 복구 seam(운영자 확인)이 정상 경로다.
       return markNeedsReview(dependencies, input, 'provider_unavailable');
     }
+    const provider = payment.provider;
     /*
      * 계좌 송금으로 접수된 건에는 카드 취소를 발행하지 않는다.
      *
-     * 환불계좌는 카드 주문에도 fallback 안전망으로 수집되므로 toss 결제에도
+     * 환불계좌는 카드 주문에도 fallback 안전망으로 수집되므로 toss·nicepay 결제에도
      * refunds.method='bank_transfer'가 붙을 수 있다. 운영자가 이미 송금했는데
      * 취소 API까지 나가면 구매자가 두 번 환불받는다 — 되돌리기 어려운 쪽이라
      * 발행 전에 격리한다. 이 건을 어떻게 종결할지(운영자 확인 vs 접수 취소)는
@@ -468,10 +478,12 @@ export async function reconcileOrderCancellation(
 
     let refund: RefundOutcome;
     try {
-      refund = await dependencies.refundTossPayment({
+      refund = await dependencies.refundProviderPayment({
         paymentId: payment.id,
+        provider,
         amount: payment.amount,
         reason: 'ICONS 주문 취소',
+        paymentKey: payment.paymentKey,
       });
     } catch {
       return markNeedsReview(dependencies, input, 'provider_unavailable');
@@ -480,7 +492,7 @@ export async function reconcileOrderCancellation(
       /*
        * provider가 취소를 검증해 준 결제와 로컬 원장의 결제가 같은 건인지 대조한다.
        *
-       * 게이트웨이의 취소 검증은 orderId·통화·금액·잔액만 본다. 이 대조가 없으면
+       * 토스 게이트웨이의 취소 검증은 orderId·통화·금액·잔액만 본다. 이 대조가 없으면
        * 완료 근거가 순환한다 — 로컬 키를 verified 배열에 넣고 완료 RPC가 그 배열을
        * 다시 로컬 키와 맞춰보는 꼴이라, provider가 같은 orderId에 다른 paymentKey를
        * 돌려주는 이상 상황이 검증 없이 통과한다. 증거 키가 없어도 마찬가지로

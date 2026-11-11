@@ -1,16 +1,25 @@
 'use client';
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { saveAutoOrderConfirmationAction, type AutoOrderConfirmationResult } from '@/app/admin/auto-order-confirmation-actions';
-import { AdminField, AdminSectionCard, AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { AdminField, AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { SalesDisclosureCard } from '@/components/admin/sales/SalesConsole';
 import { AUTO_ORDER_CONFIRMATION_EXCLUSIONS, AUTO_ORDER_CONFIRMATION_PATH, isAutoOrderRunTime, type AutoOrderConfirmationState } from '@/lib/admin/auto-order-confirmation';
 import { adminOrderDetailHrefFromBack } from '@/lib/admin/orders';
 import { formatOrderDateTime, orderReferenceLabel } from '@/lib/orders';
+import { Button } from '@/components/admin/kit/ui/button';
+import { Input } from '@/components/admin/kit/ui/input';
+
+/** 한국 시각 날짜·시간을 한 덩어리(줄바꿈 없음)로 보인다. */
+const dateTimeText = (value: string) => <span className="whitespace-nowrap tabular-nums">{formatOrderDateTime(value)}</span>;
 
 const UNKNOWN = '저장 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.';
+/* 주문 표 위 단계 이름 줄의 켜짐·꺼짐이 이 자리로 내려온다. */
+const AUTO_ORDER_CONFIRM_ANCHOR = 'auto-order-confirm';
 
 /**
- * 자동 발주확인(ADR-0025) — 발주확인/발송관리 상단에서 상태를 보고 바로 바꾼다.
+ * 자동 발주확인(ADR-0025) — 발주확인/발송관리의 주문 표 아래에서 켜짐·꺼짐과 실행 결과를 한 줄로 보고, 펼쳐서 바꾼다.
+ * 접어도 입력은 DOM과 상태에 남고, 저장은 양식 값이 아니라 이 패널의 상태로 보낸다.
  * 결과가 불확실하면 입력과 요청 ID를 고정해 같은 요청으로만 다시 확인한다.
  * 저장 뒤 revalidatePath·router.refresh로 서버가 새 설정을 다시 그려도 패널을 다시 마운트하지 않는다 —
  * 새 설정이 지금 것보다 오래되지 않았을 때 표시 상태만 맞추고, 저장 결과 문구와 포커스는 남긴다.
@@ -37,7 +46,7 @@ export function AutoOrderConfirmPanel({ initial }: { initial: AutoOrderConfirmat
     const active = document.activeElement;
     if (!active || active === document.body || formRef.current?.contains(active)) resultRef.current?.focus();
   });
-  if (!state) return <AdminSectionCard title="자동 발주확인"><p role="alert">자동 발주확인 설정을 불러오지 못했습니다. 새로고침 후 다시 확인해주세요. 신규주문은 아래에서 직접 발주확인할 수 있습니다.</p></AdminSectionCard>;
+  if (!state) return <div className="scroll-mt-16" id={AUTO_ORDER_CONFIRM_ANCHOR}><AdminNotice role="alert" title="자동 발주확인" tone="danger">자동 발주확인 설정을 불러오지 못했습니다. 새로고침 후 다시 확인해주세요. 신규주문은 위 목록에서 직접 발주확인할 수 있습니다.</AdminNotice></div>;
   const current = state;
   const changed = enabled !== current.enabled || runTime !== current.runTime;
   async function save() {
@@ -54,32 +63,36 @@ export function AutoOrderConfirmPanel({ initial }: { initial: AutoOrderConfirmat
     setMessage(result.state.enabled ? `저장했습니다. 매일 ${result.state.runTime}에 자동 발주확인합니다.` : '저장했습니다. 자동 발주확인을 껐습니다. 신규주문은 직접 발주확인합니다.');
   }
   const last = current.lastRun;
-  const summary = [`매일 ${current.runTime}`, current.enabled ? '켜짐' : '꺼짐',
-    last ? `마지막 실행 ${formatOrderDateTime(last.finishedAt ?? last.startedAt)}${last.finishedAt ? '' : '(진행 중)'} · 발주확인 ${last.confirmedCount.toLocaleString('ko-KR')}건 · 제외 ${last.excludedCount.toLocaleString('ko-KR')}건` : '아직 실행 기록 없음',
-    current.nextRunAt ? `다음 실행 ${formatOrderDateTime(current.nextRunAt)}` : null].filter(Boolean).join(' · ');
-  return <AdminSectionCard title="자동 발주확인" status={current.enabled ? '켜짐' : '꺼짐'} summary={summary}>
-    <p>매일 설정한 시각까지 결제가 끝난 신규주문을 시스템이 발주확인합니다. 그 시각 뒤에 결제된 주문은 다음 날 처리하며, 발주확인 전까지 고객은 주문을 직접 취소할 수 있습니다.
-      {current.enabled && current.enabledAt ? ` 켠 시각(${formatOrderDateTime(current.enabledAt)}) 전에 결제된 주문은 자동 대상이 아니므로 직접 발주확인합니다.` : ' 꺼져 있는 동안에는 신규주문을 직접 발주확인합니다.'}
+  /* 날짜·시각은 좁은 화면에서도 한 덩어리로 둔다('2026. / 11. 6.'처럼 갈리지 않게). 글자는 그대로다. */
+  const summary = ([`매일 ${current.runTime}`,
+    last ? <>마지막 실행 {dateTimeText(last.finishedAt ?? last.startedAt)}{last.finishedAt ? '' : '(진행 중)'} · 발주확인 {last.confirmedCount.toLocaleString('ko-KR')}건 · 제외 {last.excludedCount.toLocaleString('ko-KR')}건</> : '아직 실행 기록 없음',
+    current.nextRunAt ? <>다음 실행 {dateTimeText(current.nextRunAt)}</> : null].filter(Boolean) as ReactNode[])
+    .map((part, index) => <Fragment key={index}>{index ? ' · ' : null}{part}</Fragment>);
+  return <SalesDisclosureCard id={AUTO_ORDER_CONFIRM_ANCHOR} status={<AdminStatusBadge tone={current.enabled ? 'success' : 'warning'}>{current.enabled ? '켜짐' : '꺼짐'}</AdminStatusBadge>} summary={summary} title="자동 발주확인">
+    <p className="text-muted-foreground">매일 설정한 시각까지 결제가 끝난 신규주문을 시스템이 발주확인합니다. 그 시각 뒤에 결제된 주문은 다음 날 처리하며, 발주확인 전까지 고객은 주문을 직접 취소할 수 있습니다.
+      {current.enabled && current.enabledAt ? <> 켠 시각({dateTimeText(current.enabledAt)}) 전에 결제된 주문은 자동 대상이 아니므로 직접 발주확인합니다.</> : ' 꺼져 있는 동안에는 신규주문을 직접 발주확인합니다.'}
       {' '}취소 요청이 진행 중이거나 예약 재고 할당 전인 주문은 신규주문에 남습니다.</p>
-    <form ref={formRef} onSubmit={event => { event.preventDefault(); void save(); }}>
-      <fieldset disabled={pending || uncertain}>
-        <legend className="wc-admin-kit__hint">자동 발주확인 설정</legend>
-        <label><input type="checkbox" checked={enabled} onChange={event => setEnabled(event.target.checked)} /> 자동 발주확인 사용</label>
+    <form className="flex flex-col gap-4" ref={formRef} onSubmit={event => { event.preventDefault(); void save(); }}>
+      <fieldset className="m-0 flex min-w-0 flex-col gap-4 border-0 p-0" disabled={pending || uncertain}>
+        <legend className="mb-3 text-sm text-muted-foreground">자동 발주확인 설정</legend>
+        <label className="flex items-center gap-2 font-medium"><input type="checkbox" checked={enabled} onChange={event => setEnabled(event.target.checked)} /> 자동 발주확인 사용</label>
         <AdminField label="매일 실행 시각 (한국 시간)" inputId="auto-order-confirmation-time" hint="이 시각까지 결제 완료된 주문이 대상입니다. 오늘 아직 실행 전이면 바꾼 시각에(이미 지난 시각이면 1분 안에) 실행하고, 이미 실행한 날은 다시 실행하지 않습니다. 다시 켜면 켠 뒤 결제된 주문부터 대상이 됩니다.">
-          <input id="auto-order-confirmation-time" type="time" step={60} required value={runTime} aria-describedby="auto-order-confirmation-time-hint" onChange={event => setRunTime(event.target.value.slice(0, 5))} />
+          <Input className="w-36" id="auto-order-confirmation-time" type="time" step={60} required value={runTime} aria-describedby="auto-order-confirmation-time-hint" onChange={event => setRunTime(event.target.value.slice(0, 5))} />
         </AdminField>
       </fieldset>
-      <div className="wc-admin-kit__actions">
-        <button type="submit" className="wc-admin-kit__button wc-admin-kit__button--primary" disabled={pending || (!changed && !uncertain)}>{pending ? '저장 중…' : uncertain ? '같은 요청 결과 확인' : '설정 저장'}</button>
-        {message ? <p role={error ? 'alert' : 'status'} ref={resultRef} tabIndex={-1}>{message}</p> : null}
+      <div className="flex flex-wrap items-center gap-3">
+        <Button type="submit" disabled={pending || (!changed && !uncertain)}>{pending ? '저장 중…' : uncertain ? '같은 요청 결과 확인' : '설정 저장'}</Button>
+        {/* 비활성 버튼이 고장처럼 보이지 않게 언제 눌리는지 말한다. */}
+        {!changed && !uncertain && !pending && !message ? <span className="text-xs text-muted-foreground">사용 여부나 실행 시각을 바꾸면 저장할 수 있습니다.</span> : null}
+        {message ? <p className={`text-sm outline-none ${error ? 'text-destructive' : 'text-success'}`} role={error ? 'alert' : 'status'} ref={resultRef} tabIndex={-1}>{message}</p> : null}
       </div>
     </form>
-    {current.lastExclusions.length ? <div>
-      <p className="wc-admin-kit__hint">마지막 실행에서 신규주문에 남긴 주문 (최대 20건)</p>
-      <ul>{current.lastExclusions.map(row => <li key={row.orderId}>
-        <Link href={adminOrderDetailHrefFromBack(row.orderId, AUTO_ORDER_CONFIRMATION_PATH)}>주문 {orderReferenceLabel(row.orderId, row.orderNumber)}</Link>{' '}
+    {current.lastExclusions.length ? <div className="flex flex-col gap-2 border-t pt-4">
+      <p className="text-muted-foreground">마지막 실행에서 신규주문에 남긴 주문 (최대 20건)</p>
+      <ul className="flex flex-col gap-1.5">{current.lastExclusions.map(row => <li className="flex flex-wrap items-center gap-2" key={row.orderId}>
+        <Link className="tabular-nums underline underline-offset-4" href={adminOrderDetailHrefFromBack(row.orderId, AUTO_ORDER_CONFIRMATION_PATH)}>주문 {orderReferenceLabel(row.orderId, row.orderNumber)}</Link>{' '}
         <AdminStatusBadge tone={row.outcome === 'failed' ? 'danger' : 'warning'}>{AUTO_ORDER_CONFIRMATION_EXCLUSIONS[row.outcome]}</AdminStatusBadge>
       </li>)}</ul>
     </div> : null}
-  </AdminSectionCard>;
+  </SalesDisclosureCard>;
 }

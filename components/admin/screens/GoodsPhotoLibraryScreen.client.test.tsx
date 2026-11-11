@@ -13,17 +13,21 @@ vi.mock('@/lib/admin/artwork-upload.client', () => ({ uploadAdminArtwork: mocks.
 vi.mock('./CustomerServiceDialog', () => ({ CustomerServiceDialog: ({ children }: { children: ReactNode }) => children }));
 
 import { GoodsPhotoLibraryScreen } from './GoodsPhotoLibraryScreen';
+import { Button } from '../kit/ui/button';
+import { Input } from '../kit/ui/input';
 
 type Element = ReactElement<{ children?: ReactNode; onClick?: () => void; onChange?: (event: unknown) => void; onKeyDown?: (event: unknown) => void; 'aria-label'?: string; value?: string; loading?: string; src?: string; alt?: string }>;
-function all(node: ReactNode): Element[] { return Array.isArray(node) ? node.flatMap(all) : isValidElement(node) ? [node as Element, ...all((node.props as { children?: ReactNode }).children)] : []; }
-function text(node: ReactNode): string { return Array.isArray(node) ? node.map(text).join('') : isValidElement(node) ? text((node.props as { children?: ReactNode }).children) : typeof node === 'string' || typeof node === 'number' ? String(node) : ''; }
+/* 화면 머리(AdminPageHeader)의 설명·동작 자리도 이 화면이 그리는 요소다. */
+type Slots = { description?: ReactNode; actions?: ReactNode; children?: ReactNode };
+function all(node: ReactNode): Element[] { return Array.isArray(node) ? node.flatMap(all) : isValidElement(node) ? [node as Element, ...all((node.props as Slots).description), ...all((node.props as Slots).actions), ...all((node.props as Slots).children)] : []; }
+function text(node: ReactNode): string { return Array.isArray(node) ? node.map(text).join('') : isValidElement(node) ? [(node.props as Slots).description, (node.props as Slots).actions, (node.props as Slots).children].map(text).join('') : typeof node === 'string' || typeof node === 'number' ? String(node) : ''; }
 function photo(id: string, name: string, references: { id: string; name: string; kind: string }[] = []) {
   return { id: `00000000-0000-4000-8000-0000000713${id}`, name, imagePath: `public-media/catalog/good/00000000-0000-4000-8000-0000000714${id}.webp`, revision: 1, archived: false, createdAt: '2026-10-28T00:00:00Z', references };
 }
 const older = photo('01', '노트 표지', [{ id: 't1', name: '운영자 테스트 메시지', kind: 'marketing_test' }, { id: 'x', name: '새 화면', kind: 'future_surface' }]);
 const page = { rows: [older], total: 1, page: 1, pageSize: 20 as const };
 function render(onSelect?: () => void) { hooks.index = 0; hooks.refIndex = 0; return GoodsPhotoLibraryScreen({ initial: page, onSelect }); }
-function input(label: string) { const node = all(render()).find(item => item.type === 'input' && item.props['aria-label'] === label); if (!node) throw new Error(label); return node; }
+function input(label: string) { const node = all(render()).find(item => (item.type === 'input' || item.type === Input) && item.props['aria-label'] === label); if (!node) throw new Error(label); return node; }
 async function settle() { for (let i = 0; i < 30; i++) await Promise.resolve(); }
 
 beforeEach(() => { vi.clearAllMocks(); hooks.state = []; hooks.refs = []; });
@@ -114,7 +118,7 @@ it('직접 다시 조회하면 방금 올린 사진 고정을 풀고 검색 결�
   input('사진 업로드').props.onChange?.({ currentTarget: { files: [new File(['c'], 'c.png')], value: '' } });
   await settle();
   expect(all(render()).filter(item => item.type === 'img')[0].props.alt).toBe('c.png');
-  all(render()).find(item => item.type === 'button' && text(item) === '조회')?.props.onClick?.();
+  all(render()).find(item => (item.type === 'button' || item.type === Button) && text(item) === '검색')?.props.onClick?.();
   await settle();
   expect(all(render()).filter(item => item.type === 'img')[0].props.alt).toBe('최신');
 });

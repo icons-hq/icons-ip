@@ -12,6 +12,7 @@ vi.mock('@/app/admin/category-display-actions', () => ({ reloadCategoryDisplayAc
 vi.mock('@/lib/supabase/client', () => ({ createClient: () => ({ auth: { onAuthStateChange: (callback: typeof mocks.auth) => { mocks.auth = callback; return { data: { subscription: { unsubscribe() {} } } }; } } }) }));
 
 import { CategoryDisplayScreen } from './CategoryDisplayScreen';
+import { Button } from '@/components/admin/kit/ui/button';
 import { defaultCategoryDisplayValues, type CategoryDisplaySnapshot } from '@/lib/category-display';
 
 const id = '94933000-0000-4000-8000-000000000001', actorId = '94933000-0000-4000-8000-000000000090';
@@ -30,7 +31,9 @@ function render() {
 }
 async function flush() { for (let i = 0; i < 8; i++) { await Promise.resolve(); render(); } }
 function titleInput() { const label = render().find(node => node.type === 'label' && text(node) === '제목 · 40자')!; return nodes(label).find(node => node.type === 'input')!; }
-function reload() { const button = render().find(node => node.type === 'button' && text(node) === '최신 저장본 불러오기')!; expect(button.props.disabled).not.toBe(true); (button.props.onClick as () => void)(); }
+/* 버튼은 kit Button 부품(ADR-0028)이다. */
+const isButton = (node: Element) => node.type === 'button' || node.type === Button;
+function reload() { const button = render().find(node => isButton(node) && text(node) === '최신 저장본 불러오기')!; expect(button.props.disabled).not.toBe(true); (button.props.onClick as () => void)(); }
 
 beforeEach(() => {
   hooks.values = []; hooks.effects.clear(); hooks.jobs = []; vi.clearAllMocks();
@@ -45,7 +48,7 @@ it('최신 저장본 통신 실패 뒤 입력을 유지하고 저장·재조회�
   reload(); await flush();
   expect(titleInput().props.value).toBe('보존할 미저장 제목');
   expect(render().some(node => node.props.role === 'alert' && text(node).includes('입력은 유지됩니다'))).toBe(true);
-  expect(render().find(node => node.type === 'button' && node.props.type === 'submit')!.props.disabled).toBe(false);
+  expect(render().find(node => isButton(node) && node.props.type === 'submit')!.props.disabled).toBe(false);
   const fresh = { ...initial, revision: 2, values: { ...initial.values, banner: { ...initial.values.banner, title: '서버 저장 제목' } } };
   mocks.reload.mockResolvedValueOnce({ snapshot: fresh });
   reload(); await flush();
