@@ -1,6 +1,7 @@
 import 'server-only';
 import { WAREHOUSE_OPERATION_HEADERS } from './warehouse-templates';
 import type { ShippingCarrierRegistry } from '@/lib/orders/shipment';
+import {decryptUploadedWorkbook,isOleContainer} from './encrypted-workbook.server';
 import {loadSafeWorkbook,readSafeWorkbookCell} from './workbook-safety';
 import {parseTrackingImport,TRACKING_IMPORT_ROW_LIMIT,type TrackingImportParseResult} from './tracking-import';
 import {parseSeowonReply,parseWarehouseReply,type TrackingWorkbookParseResult} from './warehouse-templates.server';
@@ -10,8 +11,9 @@ export type {TrackingWorkbookParseResult} from './warehouse-templates.server';
 // An older 74-column, 1,000-item reply with distinct UUIDs exceeds the legacy 256 KiB cap.
 export const TRACKING_IMPORT_FILE_LIMIT_BYTES=1024*1024;
 export const TRACKING_IMPORT_TEXT_LIMIT_BYTES=256*1024;
-export async function parseTrackingWorkbook(bytes:Buffer,carriers:ShippingCarrierRegistry):Promise<TrackingWorkbookParseResult>{
- if(bytes.subarray(0,8).equals(Buffer.from('d0cf11e0a1b11ae1','hex')))throw new Error('암호화된 파일 또는 구형 Excel 형식입니다. Excel에서 암호를 해제하고 XLSX로 저장해주세요.');
+export async function parseTrackingWorkbook(upload:Buffer,carriers:ShippingCarrierRegistry,password=''):Promise<TrackingWorkbookParseResult>{
+ // 푼 내용도 아래 평문 XLSX와 같은 크기·압축 한도와 셀 검사를 그대로 지난다.
+ const bytes=isOleContainer(upload)?await decryptUploadedWorkbook(upload,password,TRACKING_IMPORT_FILE_LIMIT_BYTES):upload;
  const workbook=await loadSafeWorkbook(bytes,{fileBytes:TRACKING_IMPORT_FILE_LIMIT_BYTES,totalBytes:8*1024*1024,entryBytes:4*1024*1024});
  const sheets=workbook.worksheets.filter(sheet=>sheet.name!=='배송 운영 안내'&&sheet.name!==WORKBOOK_INFO_SHEET_NAME&&sheet.actualRowCount>0);
  const supplement=workbook.getWorksheet('배송 운영 안내');

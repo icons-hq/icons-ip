@@ -51,7 +51,7 @@ export function DispatchTrackingImportPanel({ carriers, originId, shippingHref =
       <h2 className="text-base font-medium text-foreground">엑셀 일괄 운송장 등록</h2>
 
       <p className={NOTE}>
-        ICONS 표준 양식은 <strong className={STRONG}>상품주문번호 · 택배사 · 운송장번호</strong> 세 열을 읽습니다. 내려받은 파일에 택배사와 운송장번호를 채우고, 암호를 해제한 XLSX 또는 내려받은 CSV로 올려주세요.
+        ICONS 표준 양식은 <strong className={STRONG}>상품주문번호 · 택배사 · 운송장번호</strong> 세 열을 읽습니다. 내려받은 파일에 택배사와 운송장번호를 채우고, XLSX 또는 내려받은 CSV로 올려주세요. 비밀번호를 건 XLSX는 해제하지 않고 그대로 올리고 아래 <strong className={STRONG}>파일 비밀번호</strong>를 입력합니다.
         시트 이름과 열 순서는 바꿔도 되고, 나머지 열은 그대로 두거나 지워도 됩니다. 이전에 내려받은 파일도 그대로 올릴 수 있습니다.
         한 번에 {TRACKING_IMPORT_ROW_LIMIT.toLocaleString('ko-KR')}건까지 처리합니다.
       </p>
@@ -114,6 +114,19 @@ export function DispatchTrackingImportPanel({ carriers, originId, shippingHref =
           onChange={event => setSelectedFile(event.target.files?.[0] ?? null)}
         />
         {selectedFile ? <p className="flex flex-wrap items-center gap-2">선택 파일: {selectedFile.name} <Button type="button" size="xs" variant="outline" disabled={pending} onClick={() => { setSelectedFile(null); if (fileInput.current) fileInput.current.value = ''; }}>파일 선택 해제</Button></p> : null}
+        <Label className="mt-1" htmlFor="admin-dispatch-import-file-password">파일 비밀번호</Label>
+        <p className={NOTE} id="admin-dispatch-import-file-password-hint">비밀번호를 건 XLSX만 입력합니다. 파일을 내려받을 때 정한 비밀번호이며 저장하지 않습니다.</p>
+        <Input
+          aria-describedby="admin-dispatch-import-file-password-hint"
+          autoComplete="new-password"
+          className="max-w-md"
+          disabled={pending}
+          id="admin-dispatch-import-file-password"
+          maxLength={255}
+          name="filePassword"
+          spellCheck={false}
+          type="password"
+        />
         <p className={NOTE}>등록에 성공한 배송 건은 배송 중으로 바뀌고 배송 메일이 대기열에 등록됩니다.</p>
         <Button disabled={pending} type="submit">
           {pending ? '등록 중' : '일괄 등록'}

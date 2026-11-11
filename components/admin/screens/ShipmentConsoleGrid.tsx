@@ -206,7 +206,7 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
     <p className="text-muted-foreground">{EXPORT_PASSWORD_HINT}</p>
     <label className={FIELD}><span>비밀번호</span><Input name="password" type="password" autoComplete="new-password" autoFocus minLength={EXPORT_PASSWORD_MIN_LENGTH} maxLength={EXPORT_PASSWORD_MAX_LENGTH} required disabled={pending} spellCheck={false}/></label>
     <label className={FIELD}><span>비밀번호 확인</span><Input name="passwordConfirmation" type="password" autoComplete="new-password" minLength={EXPORT_PASSWORD_MIN_LENGTH} maxLength={EXPORT_PASSWORD_MAX_LENGTH} required disabled={pending} spellCheck={false}/></label>
-    <p className="text-muted-foreground">비밀번호는 저장하지 않습니다. 운송장 회신 파일은 Excel에서 암호를 해제한 뒤 올려주세요.</p>
+    <p className="text-muted-foreground">비밀번호는 저장하지 않습니다. 운송장 회신 파일을 올릴 때 같은 비밀번호를 입력합니다.</p>
     {error?<p role="alert" className="text-destructive">{error}</p>:null}
     <div className="flex flex-wrap justify-end gap-2 border-t pt-3">
      <Button type="button" variant="outline" disabled={pending} onClick={()=>{setExportRequest(null);setError('');}}>취소</Button>
