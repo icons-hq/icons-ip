@@ -102,7 +102,7 @@ describe('ICONS 표준 양식 출고지시', () => {
     expect(value(blank.worksheets[0], '바코드').numFmt).toBe('@');
     expect(value(blank.worksheets[0], 'ERP 품명').value).toBeNull();
     // 바코드·ERP 키가 없는 옛 응답 행도 빈칸으로 내보낸다.
-    const { barcode: _barcode, erpCode: _erpCode, erpName: _erpName, ...legacy } = line;
+    const legacy = Object.fromEntries(Object.entries(line).filter(([key]) => !['barcode', 'erpCode', 'erpName'].includes(key))) as typeof line;
     const old = await load((await buildShipmentExport({ shipments: [{ ...shipment, lines: [legacy] }] }, 'xlsx', 'smartstore')).bytes);
     expect(value(old.worksheets[0], '바코드').value).toBeNull();
     expect(value(old.worksheets[0], 'ERP 품명').value).toBeNull();
