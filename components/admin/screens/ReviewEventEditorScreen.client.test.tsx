@@ -157,6 +157,17 @@ describe('ReviewEventEditorScreen wording templates (SHEET-017)', () => {
     expect(html()).toContain('이벤트를 저장해야 반영됩니다');
   });
 
+  it('refuses a template whose wording breaks the event field rules instead of failing later on save', () => {
+    const confirm = vi.fn(() => true);
+    vi.stubGlobal('window', { confirm });
+    change('이벤트명', '가을 이벤트');
+    click('템플릿 불러오기');
+    picker()!.props.onSelect({ ...template, title: `${template.title} ` });
+    expect(confirm).not.toHaveBeenCalled();
+    expect(field('이벤트명').props.value).toBe('가을 이벤트');
+    expect(html()).toContain('불러올 수 없습니다');
+  });
+
   it('loads into empty fields without asking', () => {
     const confirm = vi.fn(() => false);
     vi.stubGlobal('window', { confirm });

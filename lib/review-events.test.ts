@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { newReviewEventValues, normalizeReviewEventFilters, parseReviewEventCreditPolicy, parseReviewEventSelection, parseReviewEventValues, reviewEventCreditPolicyLabel,
   reviewEventCreditPolicyProblem, reviewEventError, reviewEventFieldErrors, reviewEventToday, trimReviewEventText, withReviewEventEndsOn, withReviewEventStartsOn,
   parseReviewEventTemplate, parseReviewEventTemplatePage, parseReviewEventTemplateValues, reviewEventTemplateError, reviewEventTemplateFieldErrors, reviewEventTemplateNeedsConfirm,
-  trimReviewEventTemplateText, withReviewEventTemplate, REVIEW_EVENT_TEMPLATE_REPLACE_CONFIRM, REVIEW_EVENT_TEMPLATES_ADMIN_PATH } from './review-events';
+  trimReviewEventTemplateText, withReviewEventTemplate, REVIEW_EVENT_TEMPLATE_REPLACE_CONFIRM, REVIEW_EVENT_TEMPLATES_ADMIN_PATH, REVIEW_EVENT_TEMPLATE_UNUSABLE, reviewEventTemplateUsable } from './review-events';
 describe('review event contracts', () => {
   it('uses KST date boundaries and requires real dates and bounded terms', () => {
     expect(reviewEventToday(Date.parse('2026-10-13T15:00:00Z'))).toBe('2026-10-14');
@@ -106,12 +106,34 @@ describe('review event wording templates (SHEET-017)', () => {
     expect(trimReviewEventTemplateText({ title: ' 제목 ', description: '내용 \n' })).toEqual({ title: '제목', description: '내용' });
   });
 
-  it('parses templates and pages strictly', () => {
+  it('checks a save receipt strictly, including the wording rules', () => {
     expect(parseReviewEventTemplate(template)).toEqual(template);
-    for (const broken of [{ ...template, id: 'nope' }, { ...template, revision: 0 }, { ...template, title: '1'.repeat(16) }, { ...template, updatedAt: 'later' }]) expect(parseReviewEventTemplate(broken)).toBeNull();
+    for (const broken of [{ ...template, id: 'nope' }, { ...template, revision: 0 }, { ...template, title: '1'.repeat(16) }, { ...template, updatedAt: 'later' }, { ...template, title: `${template.title} ` }]) {
+      expect(parseReviewEventTemplate(broken)).toBeNull();
+    }
+  });
+
+  /* 리뷰 지적(SHEET-017): JS trim은 NBSP·전각 공백·BOM도 자른다. 그런 행 하나 때문에 목록 전체를 버리지 않는다. */
+  it('keeps a page readable when one row breaks the wording rules or the row format', () => {
     const page = { total: 1, page: 1, pageSize: 20, rows: [template] };
-    expect(parseReviewEventTemplatePage(page)).toEqual(page);
-    for (const broken of [{ ...page, pageSize: 50 }, { ...page, total: 0 }, { ...page, rows: [template, template], total: 2 }, { ...page, page: 0 }, { ...page, rows: [{ ...template, description: '' }] }]) expect(parseReviewEventTemplatePage(broken)).toBeNull();
+    expect(parseReviewEventTemplatePage(page)).toEqual({ ...page, skipped: 0 });
+    const spaced = { ...template, id: '93100000-0000-4000-8000-000000000102', title: `${template.title} `, description: '　사진 후기' };
+    const mixed = parseReviewEventTemplatePage({ ...page, total: 2, rows: [spaced, template] });
+    expect(mixed?.rows).toEqual([spaced, template]);
+    expect(mixed?.rows.map(reviewEventTemplateUsable)).toEqual([false, true]);
+    expect(mixed?.skipped).toBe(0);
+    const broken = parseReviewEventTemplatePage({ ...page, total: 4, rows: [{ ...template, id: 'nope' }, template, template, { ...template, id: '93100000-0000-4000-8000-000000000103', title: 7 }] });
+    expect(broken).toEqual({ total: 4, page: 1, pageSize: 20, rows: [template], skipped: 3 });
+    for (const envelope of [{ ...page, pageSize: 50 }, { ...page, total: 0 }, { ...page, page: 0 }, { ...page, rows: 'none' }]) expect(parseReviewEventTemplatePage(envelope)).toBeNull();
+  });
+
+  it('treats JS-trimmed whitespace at either end as unusable but keeps inner spaces', () => {
+    for (const edge of [' ', '　', '﻿', ' ', ' ', ' ', '\t']) {
+      expect(reviewEventTemplateUsable({ title: `제목${edge}`, description: '내용' }), JSON.stringify(edge)).toBe(false);
+      expect(reviewEventTemplateUsable({ title: '제목', description: `${edge}내용` }), JSON.stringify(edge)).toBe(false);
+    }
+    expect(reviewEventTemplateUsable({ title: '포토 리뷰', description: '사진　후기' })).toBe(true);
+    expect(REVIEW_EVENT_TEMPLATE_UNUSABLE).toContain('불러올 수 없습니다');
   });
 
   it('replaces only the event title and description, asking first when typed wording differs', () => {

@@ -3,11 +3,11 @@ import Link from 'next/link';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Plus } from 'lucide-react';
 import { deleteReviewEventTemplateAction, listReviewEventTemplatesAction, saveReviewEventTemplateAction, type ReviewEventTemplateResult } from '@/app/admin/review-event-actions';
-import { REVIEW_EVENT_TEMPLATE_PAGE_SIZE, REVIEW_EVENT_TEMPLATES_ADMIN_PATH, REVIEW_EVENTS_ADMIN_PATH, reviewEventTemplateFieldErrors, trimReviewEventTemplateText,
+import { REVIEW_EVENT_TEMPLATE_PAGE_SIZE, REVIEW_EVENT_TEMPLATES_ADMIN_PATH, REVIEW_EVENTS_ADMIN_PATH, reviewEventTemplateFieldErrors, reviewEventTemplateUsable, trimReviewEventTemplateText,
   type ReviewEventTemplate, type ReviewEventTemplatePage, type ReviewEventTemplateValues } from '@/lib/review-events';
 import { kstDateTimeText } from '@/lib/admin/list-export';
 import { CustomerServiceDialog } from './CustomerServiceDialog';
-import { AdminPageHeader } from '../console/AdminKit';
+import { AdminNotice, AdminPageHeader, AdminStatusBadge } from '../console/AdminKit';
 import { CONSOLE_FILTER_CARD_CLASS, CONSOLE_FILTER_FIELDS_CLASS, CONSOLE_FILTER_LABEL_CLASS, ConsoleFilterActions } from '../console/ConsoleFilterPanel';
 import { CONSOLE_TABLE_FRAME_CLASS, ConsoleListCard, ConsoleTableEmptyRow, ConsoleTableHeader } from '../console/ConsoleListCard';
 import { ConsolePagination } from '../console/ConsolePagination';
@@ -135,14 +135,16 @@ export function ReviewEventTemplatesScreen({ onSelect }: { onSelect?: (template:
     </form>
     {message ? <p className="text-sm text-destructive" role="alert">{message}</p> : null}
     {notice ? <p className="text-sm text-success" role="status">{notice}</p> : null}
+    {data?.skipped ? <AdminNotice tone="warning">형식을 읽지 못한 템플릿 {data.skipped}개는 목록에서 뺐습니다. 다시 조회해도 남으면 개발팀에 알려 주세요.</AdminNotice> : null}
+    {data?.rows.some(row => !reviewEventTemplateUsable(row)) ? <p className="text-sm text-muted-foreground">&lsquo;불러올 수 없음&rsquo; 템플릿은 이벤트명·내용 규칙(길이·앞뒤 공백·줄바꿈)에 맞지 않습니다. {onSelect ? '문구 템플릿 관리에서 고친 뒤 불러오세요.' : '수정해 저장하면 앞뒤 공백을 잘라 다시 쓸 수 있습니다.'}</p> : null}
     {data ? <ConsoleListCard headingLevel={onSelect ? 3 : 2} title="조회 결과" total={data.total}>
       <div className={CONSOLE_TABLE_FRAME_CLASS} role="region" aria-label="문구 템플릿 목록 가로 스크롤" tabIndex={0}><table className="w-full min-w-[560px] caption-bottom text-sm" data-slot="table"><caption className="sr-only">리뷰이벤트 문구 템플릿 목록</caption>
         <ConsoleTableHeader><TableRow className="hover:bg-transparent"><TableHead>이벤트명</TableHead><TableHead>내용</TableHead><TableHead>수정일</TableHead><TableHead className="w-32">{onSelect ? '선택' : '관리'}</TableHead></TableRow></ConsoleTableHeader>
         <TableBody>
-          {data.rows.map(row => <TableRow key={row.id}><TableCell className="font-medium whitespace-normal text-foreground wrap-anywhere">{row.title}</TableCell><TableCell className="whitespace-normal wrap-anywhere">{row.description}</TableCell>
+          {data.rows.map(row => { const usable = reviewEventTemplateUsable(row); return <TableRow key={row.id}><TableCell className="font-medium whitespace-normal text-foreground wrap-anywhere">{row.title}{usable ? null : <> <AdminStatusBadge tone="warning">불러올 수 없음</AdminStatusBadge></>}</TableCell><TableCell className="whitespace-normal wrap-anywhere">{row.description}</TableCell>
             <TableCell className="tabular-nums">{kstDateTimeText(row.updatedAt).replaceAll('-', '.')}</TableCell>
-            <TableCell>{onSelect ? <Button size="xs" variant="outline" type="button" onClick={() => onSelect(row)}>선택</Button>
-              : <Button size="xs" variant="outline" type="button" onClick={() => { setNotice(''); setEditor({ template: row }); }}>수정·삭제</Button>}</TableCell></TableRow>)}
+            <TableCell>{onSelect ? <Button size="xs" variant="outline" type="button" disabled={!usable} onClick={() => onSelect(row)}>선택</Button>
+              : <Button size="xs" variant="outline" type="button" onClick={() => { setNotice(''); setEditor({ template: row }); }}>수정·삭제</Button>}</TableCell></TableRow>; })}
           {!data.rows.length ? <ConsoleTableEmptyRow colSpan={4}>{search ? '검색어와 맞는 템플릿이 없습니다.' : '등록된 문구 템플릿이 없습니다.'}</ConsoleTableEmptyRow> : null}
         </TableBody></table></div>
       <ConsolePagination label="문구 템플릿 페이지" page={data.page} pageSize={REVIEW_EVENT_TEMPLATE_PAGE_SIZE} total={data.total} disabled={pending} onPageChange={page => void load(page)} />

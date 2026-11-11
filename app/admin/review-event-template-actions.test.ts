@@ -66,8 +66,13 @@ describe('review event template actions', () => {
 
   it('reads the requested page only and does not treat a failed read as an empty list', async () => {
     mock.rpc.mockResolvedValue({ data: page, error: null });
-    expect(await listReviewEventTemplatesAction(' 포토 ', 1)).toEqual({ ok: true, value: page });
+    expect(await listReviewEventTemplatesAction(' 포토 ', 1)).toEqual({ ok: true, value: { ...page, skipped: 0 } });
     expect(mock.rpc).toHaveBeenCalledExactlyOnceWith('admin_list_review_event_templates', { p_query: '포토', p_page: 1 });
+    /* 앞뒤에 NBSP가 남은 행(예전 데이터·직접 쓰기)이 있어도 목록은 열린다 — 그 행만 불러오기를 막는다. */
+    const spaced = { ...saved, id: '93100000-0000-4000-8000-000000000102', title: `${saved.title} ` };
+    mock.rpc.mockResolvedValue({ data: { ...page, total: 2, rows: [spaced, saved] }, error: null });
+    expect(await listReviewEventTemplatesAction('', 1)).toEqual({ ok: true, value: { ...page, total: 2, rows: [spaced, saved], skipped: 0 } });
+    mock.rpc.mockResolvedValue({ data: page, error: null });
     expect(await listReviewEventTemplatesAction('', 2)).toMatchObject({ ok: false });
     mock.rpc.mockResolvedValue({ data: null, error: { code: '08006' } });
     expect(await listReviewEventTemplatesAction('', 1)).toMatchObject({ ok: false });

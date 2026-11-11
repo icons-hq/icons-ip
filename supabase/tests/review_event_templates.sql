@@ -44,6 +44,14 @@ select pg_temp.review_template_error($q$select public.admin_save_review_event_te
 select pg_temp.review_template_error($q$select public.admin_save_review_event_template(gen_random_uuid(),0,gen_random_uuid(),'','내용')$q$,'invalid_review_event_template');
 select pg_temp.review_template_error($q$select public.admin_save_review_event_template(gen_random_uuid(),-1,gen_random_uuid(),'제목','내용')$q$,'invalid_review_event_template');
 select 1/case when (public.admin_save_review_event_template(gen_random_uuid(),0,gen_random_uuid(),'123456789012345','123456789012345678901234567890')->>'revision')::integer=1 then 1 else 0 end as max_lengths_fit;
+-- 앞뒤 공백은 앱(JS trim)과 같은 기준이다: NBSP·전각 공백·BOM·줄 구분자도 앞뒤에 오면 거절하고, 가운데 공백은 그대로 둔다.
+-- (btrim만 보면 NBSP 끝 문구가 저장되고, 앱이 그 행을 읽지 못해 템플릿 목록이 깨진다.)
+select pg_temp.review_template_error($q$select public.admin_save_review_event_template(gen_random_uuid(),0,gen_random_uuid(),E'제목 ','내용')$q$,'invalid_review_event_template');
+select pg_temp.review_template_error($q$select public.admin_save_review_event_template(gen_random_uuid(),0,gen_random_uuid(),E'　제목','내용')$q$,'invalid_review_event_template');
+select pg_temp.review_template_error($q$select public.admin_save_review_event_template(gen_random_uuid(),0,gen_random_uuid(),'제목',E'내용﻿')$q$,'invalid_review_event_template');
+select pg_temp.review_template_error($q$select public.admin_save_review_event_template(gen_random_uuid(),0,gen_random_uuid(),'제목',E' 내용')$q$,'invalid_review_event_template');
+select pg_temp.review_template_error($q$select public.admin_save_review_event_template(gen_random_uuid(),0,gen_random_uuid(),E'제목 ','내용')$q$,'invalid_review_event_template');
+select 1/case when public.admin_save_review_event_template(gen_random_uuid(),0,gen_random_uuid(),E'포토 리뷰',E'사진　후기')->>'title'=E'포토 리뷰' then 1 else 0 end as inner_unicode_space_kept;
 -- 이벤트 저장은 정책이 꺼져 있으면 여전히 막힌다(템플릿과 무관한 기존 검사).
 select pg_temp.review_template_error(format($q$select public.admin_save_review_event(gen_random_uuid(),0,gen_random_uuid(),%L::jsonb)$q$,
  jsonb_build_object('title','포토리뷰 이벤트','description','사진과 함께 후기를 남겨주세요','targetType','all','goodIds','[]'::jsonb,'categoryIds','[]'::jsonb,
@@ -57,6 +65,10 @@ reset role;
 select 1/case when (select count(*) from public.audit_log where id='93100000-0000-4000-8000-000000001002' and action='admin.review_event.template.saved'
  and actor_id='93100000-0000-4000-8000-000000000003' and diff->'before'->>'description'='사진과 함께 후기를 남겨주세요' and diff->'result'->>'revision'='2')=1 then 1 else 0 end as update_audited;
 select 1/case when (select count(*) from public.audit_log where id='93100000-0000-4000-8000-000000001001' and diff->'before'='null'::jsonb)=1 then 1 else 0 end as create_audited;
+-- RPC를 거치지 않는 쓰기도 표 검사가 같은 기준으로 막는다.
+select pg_temp.review_template_error($q$insert into private.review_event_templates(id,title,description,created_by,updated_by)
+ values(gen_random_uuid(),E'제목 ','내용','93100000-0000-4000-8000-000000000003','93100000-0000-4000-8000-000000000003')$q$,'23514');
+select pg_temp.review_template_error($q$update private.review_event_templates set description=E'﻿'||description where id='93100000-0000-4000-8000-000000000101'$q$,'23514');
 set local role authenticated;
 select set_config('request.jwt.claim.sub','93100000-0000-4000-8000-000000000003',true);
 
@@ -70,10 +82,10 @@ select 1/case when (public.admin_list_review_event_templates('합성 템플릿 1
 select 1/case when (public.admin_list_review_event_templates('없는 문구',1)->>'total')::integer=0 then 1 else 0 end as search_miss;
 select pg_temp.review_template_error($q$select public.admin_list_review_event_templates('',0)$q$,'invalid_review_event_template_search');
 select pg_temp.review_template_error($q$select public.admin_list_review_event_templates(repeat('가',101),1)$q$,'invalid_review_event_template_search');
-select 1/case when (public.admin_list_review_event_templates('',1)->>'total')::integer=23
+select 1/case when (public.admin_list_review_event_templates('',1)->>'total')::integer=24
  and (public.admin_list_review_event_templates('',1)->>'pageSize')::integer=20
  and jsonb_array_length(public.admin_list_review_event_templates('',1)->'rows')=20
- and jsonb_array_length(public.admin_list_review_event_templates('',2)->'rows')=3 then 1 else 0 end as paged;
+ and jsonb_array_length(public.admin_list_review_event_templates('',2)->'rows')=4 then 1 else 0 end as paged;
 select 1/case when not exists(
  select 1 from jsonb_array_elements(public.admin_list_review_event_templates('',1)->'rows') with ordinality a(item,i)
  join jsonb_array_elements(public.admin_list_review_event_templates('',1)->'rows') with ordinality b(item,i) on b.i=a.i+1
@@ -99,7 +111,7 @@ select 1/case when :'deleted'::jsonb='{"id":"93100000-0000-4000-8000-00000000010
 select 1/case when public.admin_delete_review_event_template('93100000-0000-4000-8000-000000000101',2,'93100000-0000-4000-8000-000000001003')=:'deleted'::jsonb then 1 else 0 end as delete_replay;
 select pg_temp.review_template_error($q$select public.admin_delete_review_event_template('93100000-0000-4000-8000-000000000101',2,gen_random_uuid())$q$,'review_event_template_changed');
 select pg_temp.review_template_error($q$select public.admin_save_review_event_template('93100000-0000-4000-8000-000000000101',2,gen_random_uuid(),'포토리뷰 이벤트','다시 쓰기')$q$,'review_event_template_changed');
-select 1/case when (public.admin_list_review_event_templates('포토리뷰')->>'total')::integer=0 and (public.admin_list_review_event_templates()->>'total')::integer=22 then 1 else 0 end as deleted_from_list;
+select 1/case when (public.admin_list_review_event_templates('포토리뷰')->>'total')::integer=0 and (public.admin_list_review_event_templates()->>'total')::integer=23 then 1 else 0 end as deleted_from_list;
 reset role;
 select 1/case when not exists(select 1 from private.review_event_templates where id='93100000-0000-4000-8000-000000000101')
  and (select count(*) from public.audit_log where id='93100000-0000-4000-8000-000000001003' and action='admin.review_event.template.deleted'

@@ -60,6 +60,22 @@ describe('ReviewEventTemplatesScreen (SHEET-017)', () => {
     expect(mocks.list.mock.calls).toEqual([['', 1], ['포토', 1]]);
   });
 
+  /* 리뷰 지적: 앞뒤 NBSP 같은 행이 있어도 목록은 열리고, 그 행만 불러오기를 막는다. 형식이 깨져 뺀 행은 건수로 알린다. */
+  it('keeps the list open around a row that breaks the wording rules and blocks only loading it', async () => {
+    const spaced = { ...template, id: '93100000-0000-4000-8000-000000000102', title: `${template.title} ` };
+    mocks.list.mockResolvedValue({ ok: true, value: { rows: [spaced, template], total: 3, page: 1, pageSize: 20, skipped: 1 } });
+    const onSelect = vi.fn();
+    render({ onSelect }); hooks.effects[0](); await settle();
+    const picker = render({ onSelect });
+    expect(all(picker).filter(item => item.type === Button && text(item.props.children) === '선택').map(item => item.props.disabled)).toEqual([true, false]);
+    expect(text(picker)).toContain('불러올 수 없음');
+    expect(text(picker)).toContain('형식을 읽지 못한 템플릿 1개는 목록에서 뺐습니다');
+    expect(text(picker)).toContain('문구 템플릿 관리에서 고친 뒤 불러오세요');
+    const manage = render();
+    expect(all(manage).filter(item => item.type === Button && text(item.props.children) === '수정·삭제').map(item => item.props.disabled)).toEqual([undefined, undefined]);
+    expect(text(manage)).toContain('수정해 저장하면 앞뒤 공백을 잘라 다시 쓸 수 있습니다');
+  });
+
   it('in the picker, hands the chosen template back without management actions', async () => {
     mocks.list.mockResolvedValue(page());
     const onSelect = vi.fn();

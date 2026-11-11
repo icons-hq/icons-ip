@@ -204,13 +204,18 @@ export function reviewEventError(message: string | undefined): string {
 }
 
 /* SHEET-017(MD-0013): 리뷰이벤트 문구 템플릿. 이벤트명·내용만 담고, 불러오면 등록 화면의 두 칸에 복사한다.
-   규칙은 이벤트 칸과 같다(DB private.review_event_templates·admin_save_review_event_template) — 불러온 문구가 그대로
-   이벤트 저장 검사를 통과해야 한다. 템플릿 저장은 적립금 정책과 무관하다(정책 검사는 이벤트 저장에만 있다). */
+   규칙은 이벤트 칸의 text()와 같다 — 불러온 문구가 그대로 이벤트 저장 검사를 통과해야 한다. DB(private.review_event_template_text_valid)도
+   앞뒤 공백을 JS trim 기준(NBSP·전각 공백·BOM 포함)으로 거절해, 저장된 행은 모두 여기서 읽힌다.
+   템플릿 저장은 적립금 정책과 무관하다(정책 검사는 이벤트 저장에만 있다). */
 export const REVIEW_EVENT_TEMPLATES_ADMIN_PATH = `${REVIEW_EVENTS_ADMIN_PATH}/templates`;
 export const REVIEW_EVENT_TEMPLATE_PAGE_SIZE = 20;
 export interface ReviewEventTemplateValues { title: string; description: string }
 export interface ReviewEventTemplate extends ReviewEventTemplateValues { id: string; revision: number; createdAt: string; updatedAt: string }
-export interface ReviewEventTemplatePage { total: number; page: number; pageSize: typeof REVIEW_EVENT_TEMPLATE_PAGE_SIZE; rows: ReviewEventTemplate[] }
+export interface ReviewEventTemplatePage {
+  total: number; page: number; pageSize: typeof REVIEW_EVENT_TEMPLATE_PAGE_SIZE; rows: ReviewEventTemplate[];
+  /** 형식(아이디·개정·시각·문자열)이 깨져 목록에서 뺀 행 수. 행 하나 때문에 목록 전체를 버리지 않는다. */
+  skipped: number;
+}
 export type ReviewEventTemplateFieldErrors = Partial<Record<'title' | 'description', string>>;
 /** 불러오기가 작성 중인 문구를 바꾸기 전에 묻는 말. 답변 템플릿(MD-0011)처럼 덧붙이지 않고 바꾼다. */
 export const REVIEW_EVENT_TEMPLATE_REPLACE_CONFIRM = '작성 중인 이벤트명·내용을 템플릿 문구로 바꿀까요?';
@@ -228,18 +233,34 @@ export function parseReviewEventTemplateValues(value: unknown): ReviewEventTempl
   if (!object(value) || !text(value.title, 1, 15) || !text(value.description, 1, 30)) return null;
   return { title: value.title, description: value.description };
 }
+/** 저장 영수증처럼 방금 보낸 문구와 맞춰 볼 때 쓴다 — 문구 규칙까지 맞아야 한다. */
 export function parseReviewEventTemplate(value: unknown): ReviewEventTemplate | null {
-  if (!object(value) || !isUuid(value.id) || !integer(value.revision, 1) || !instant(value.createdAt) || !instant(value.updatedAt)) return null;
-  const values = parseReviewEventTemplateValues(value);
-  return values ? { id: value.id, ...values, revision: value.revision, createdAt: value.createdAt, updatedAt: value.updatedAt } : null;
+  const row = parseReviewEventTemplateRow(value);
+  return row && reviewEventTemplateUsable(row) ? row : null;
 }
+/** 목록 행은 구조(아이디·개정·시각·문자열)만 본다. 문구 규칙을 벗어난 행도 보여 주어 고치거나 지울 수 있게 하고, 불러오기만 막는다. */
+function parseReviewEventTemplateRow(value: unknown): ReviewEventTemplate | null {
+  if (!object(value) || !isUuid(value.id) || !integer(value.revision, 1) || !instant(value.createdAt) || !instant(value.updatedAt)
+    || typeof value.title !== 'string' || typeof value.description !== 'string' || [...value.title].length > 200 || [...value.description].length > 200) return null;
+  return { id: value.id, title: value.title, description: value.description, revision: value.revision, createdAt: value.createdAt, updatedAt: value.updatedAt };
+}
+/** 불러올 수 있는 템플릿인가 — 이벤트명·내용이 이벤트 칸 규칙(길이·앞뒤 공백·제어 문자)에 맞아야 한다. */
+export function reviewEventTemplateUsable(template: ReviewEventTemplateValues): boolean {
+  return parseReviewEventTemplateValues(template) !== null;
+}
+/** 행 하나가 깨져도 목록 전체를 버리지 않는다(SHEET-017 리뷰). 형식이 깨진 행·중복 행은 빼고 그 수를 남긴다. */
 export function parseReviewEventTemplatePage(value: unknown): ReviewEventTemplatePage | null {
   if (!object(value) || !integer(value.total) || !integer(value.page, 1, 100000) || value.pageSize !== REVIEW_EVENT_TEMPLATE_PAGE_SIZE
     || !Array.isArray(value.rows) || value.rows.length > REVIEW_EVENT_TEMPLATE_PAGE_SIZE || value.rows.length > value.total) return null;
-  const rows = value.rows.map(parseReviewEventTemplate);
-  if (rows.some(row => !row) || new Set(rows.map(row => row!.id)).size !== rows.length) return null;
-  return { total: value.total, page: value.page, pageSize: REVIEW_EVENT_TEMPLATE_PAGE_SIZE, rows: rows as ReviewEventTemplate[] };
+  const rows: ReviewEventTemplate[] = [], ids = new Set<string>();
+  for (const item of value.rows) {
+    const row = parseReviewEventTemplateRow(item);
+    if (row && !ids.has(row.id)) { ids.add(row.id); rows.push(row); }
+  }
+  return { total: value.total, page: value.page, pageSize: REVIEW_EVENT_TEMPLATE_PAGE_SIZE, rows, skipped: value.rows.length - rows.length };
 }
+/** 불러올 수 없는 템플릿을 골랐을 때(목록이 막지만 한 번 더) 등록 화면이 보이는 말. */
+export const REVIEW_EVENT_TEMPLATE_UNUSABLE = '이 템플릿은 이벤트명·내용 규칙(길이·앞뒤 공백·줄바꿈)에 맞지 않아 불러올 수 없습니다. 문구 템플릿에서 고친 뒤 불러오세요.';
 /** 불러오기는 이벤트명·내용만 바꾼다. 대상·기간·선정 혜택·배너는 그대로 둔다. */
 export function withReviewEventTemplate(values: ReviewEventValues, template: ReviewEventTemplateValues): ReviewEventValues {
   return { ...values, title: template.title, description: template.description };

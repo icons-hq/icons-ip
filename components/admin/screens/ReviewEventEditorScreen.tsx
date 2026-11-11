@@ -6,7 +6,7 @@ import { useState, useTransition } from 'react';
 import { archiveReviewEventAction, publishReviewEventAction, revokeReviewEventAwardAction, saveReviewEventAction, selectReviewEventEntriesAction } from '@/app/admin/review-event-actions';
 import { REVIEW_EVENTS_ADMIN_PATH, REVIEW_EVENTS_PATH, REVIEW_EVENT_CREDIT_POLICY_OFF, isReviewEventDate, newReviewEventValues, parseReviewEventValues, reviewEventCreditPolicyLabel, reviewEventCreditPolicyProblem, reviewEventDayOffset, reviewEventFieldErrors,
   reviewEventToday, reviewEventStateLabel, reviewEventProblemLabel, trimReviewEventText, withReviewEventEndsOn, withReviewEventStartsOn,
-  REVIEW_EVENT_TEMPLATES_ADMIN_PATH, REVIEW_EVENT_TEMPLATE_REPLACE_CONFIRM, reviewEventTemplateNeedsConfirm, trimReviewEventTemplateText, withReviewEventTemplate,
+  REVIEW_EVENT_TEMPLATES_ADMIN_PATH, REVIEW_EVENT_TEMPLATE_REPLACE_CONFIRM, REVIEW_EVENT_TEMPLATE_UNUSABLE, reviewEventTemplateNeedsConfirm, reviewEventTemplateUsable, trimReviewEventTemplateText, withReviewEventTemplate,
   type ReviewEventCreditPolicy, type ReviewEventField, type ReviewEventFieldErrors, type ReviewEventValues, type ReviewEventWorkspace, type ReviewEventSelection, type ReviewEventTarget, type ReviewEventTemplate } from '@/lib/review-events';
 import { AdminNotice, AdminPageHeader, AdminStatusBadge } from '../console/AdminKit';
 import { ConsolePagination } from '../console';
@@ -75,6 +75,8 @@ export function ReviewEventEditorScreen({ id, workspace, targetLabels = [], quer
   }
   /** 불러오기는 이벤트명·내용만 바꾼다. 작성 중인 문구가 있고 다르면 먼저 묻는다(답변 템플릿과 같은 바꾸기 동작). */
   function applyTemplate(template: ReviewEventTemplate) {
+    /* 목록이 이미 막지만, 규칙에 맞지 않는 문구는 이벤트 칸에 넣지 않는다(저장 단계에서야 실패하지 않게). */
+    if (!reviewEventTemplateUsable(template)) { setError(REVIEW_EVENT_TEMPLATE_UNUSABLE); return; }
     if (reviewEventTemplateNeedsConfirm(values, template) && !window.confirm(REVIEW_EVENT_TEMPLATE_REPLACE_CONFIRM)) return;
     setValues(current => withReviewEventTemplate(current, template)); setDirtyTerms(true); setTemplateDialog(null);
     setError(''); setNotice('템플릿 문구를 불러왔습니다. 이벤트를 저장해야 반영됩니다.');
