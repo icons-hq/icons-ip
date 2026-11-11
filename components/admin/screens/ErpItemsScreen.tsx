@@ -90,7 +90,7 @@ export function ErpItemsScreen({ data }: { data: ErpItemsWorkspaceData }) {
       summary="ERP 분류마다 마지막 단계 고객 카테고리를 하나 연결합니다. 연결은 나중에 바꿀 수 있고, 상품 화면에서 제안된 카테고리도 MD가 바꿀 수 있습니다."
     >
       <ErpCategoryMappingPanel rows={data.erpCategories} categories={categories} categoryErpMappings={data.categoryErpMappings} />
-      <p className="text-sm text-muted-foreground"><Link className="text-foreground underline underline-offset-4" href={CATEGORY_PATH}>고객 카테고리</Link>에서 마지막 단계 카테고리를 만들거나 보관합니다.</p>
+      <p className="text-sm text-muted-foreground"><Link className="text-foreground underline underline-offset-4" href={CATEGORY_PATH}>카테고리 관리</Link>에서 마지막 단계 카테고리를 만들거나 보관합니다. 카테고리마다 ERP 코드·품명을 적어 CSV로 내보내는 일도 카테고리 관리의 <Link className="text-foreground underline underline-offset-4" href={`${CATEGORY_PATH}#category-erp-mapping`}>ERP 분류 매핑</Link>에서 합니다.</p>
     </AdminSectionCard>
   </section>;
 }

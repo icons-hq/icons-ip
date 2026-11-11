@@ -221,7 +221,9 @@ export async function saveAdminCategoryErpMappingAction(
     const supabase = await createClient();
     const { data, error } = await supabase.rpc('admin_set_category_erp_mapping', {
       target_operation_id: operationId(formData), target_category_id: categoryId,
-      target_erp_code: erpCode, target_erp_name: erpName, target_source: source, target_verified_at: verifiedAt,
+      target_erp_code: erpCode, target_erp_name: erpName, target_source: source,
+      /* 화면 입력(datetime-local)은 시간대가 없어 DB 세션 시간대로 저장되면 9시간 어긋난다. 어드민 시각은 한국 시간으로 읽는다. */
+      target_verified_at: /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(verifiedAt) ? `${verifiedAt}:00+09:00` : verifiedAt,
     });
     if (error) return preserve(state, formData, { form: mapRpcError(error) });
     revalidateCategorySurfaces();

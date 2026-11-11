@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { AdminCategoryNode } from '@/lib/admin/category';
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
-vi.mock('@/app/admin/erp-item-actions', () => ({ setErpCategoryMappingAction: vi.fn() }));
+vi.mock('@/app/admin/erp-item-actions', () => ({ setErpCategoryMappingAction: vi.fn(), setErpCategoryMappingsAction: vi.fn() }));
 
 import { ErpCategoryMappingPanel } from './ErpCategoryMappingPanel';
 
@@ -19,7 +19,7 @@ const firstRow = html.slice(html.indexOf('<tbody'), html.indexOf('</tr>', html.i
 describe('ERP 분류 연결 표의 배치', () => {
   it('표 레이아웃과 열 폭을 고정한다', () => {
     expect(html).toMatch(/<table class="[^"]*table-fixed/);
-    expect(html).toContain('<colgroup><col class="w-[28%]"/><col class="w-20"/><col/><col class="w-28"/></colgroup>');
+    expect(html).toContain('<colgroup><col class="w-10"/><col class="w-[28%]"/><col class="w-20"/><col/><col class="w-28"/></colgroup>');
   });
 
   it('결과 문구 자리를 저장 전에도 선택 칸 아래에 잡아 둔다', () => {

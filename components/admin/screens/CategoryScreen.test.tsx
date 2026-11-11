@@ -99,6 +99,17 @@ it('ERP 분류 매핑 입력 묶음은 펼치기 전에는 그리지 않고 안�
   expect(html.match(/<[a-z][^>]*>/g)!.length).toBeLessThan(4_000);
 });
 
+/* 2026-11-10 사람 눈 시험: 말단마다 카드 한 장이라 펼치면 페이지가 10만 px까지 길어지고 검색이 없었다. */
+it('ERP 분류 매핑은 검색되는 표 한 벌이고, 여기서 하는 일과 ERP 품목 화면에서 하는 일을 구분해 알려 준다', () => {
+  const html = renderToStaticMarkup(<CategoryScreen data={{ categories, mappings: [], migrations: [], activation: { customerEnabled: false, erpEnabled: false, customerEvidence: null, erpEvidence: null, updatedAt: null } }} legacyTypes={[]} />);
+  expect(html).toContain('id="category-erp-mapping"');
+  expect(html).toContain('맨 아래 단계 1개 · 미설정 1개');
+  expect(html).not.toContain('ERP 매핑 저장');
+  expect(html).toContain('분류·ERP CSV와 ERP 활성화에 쓰이고, 상품은 바뀌지 않습니다.');
+  expect(html).toContain('href="/admin/catalog/erp-items#erp-category-mapping"');
+  expect(html).toContain('ERP 품목 화면의 연결 표');
+});
+
 it('카테고리가 없으면 새 등록 카드를 펼쳐 둔다', () => {
   const html = renderToStaticMarkup(<CategoryScreen data={{ categories: [], mappings: [], migrations: [], activation: { customerEnabled: false, erpEnabled: false, customerEvidence: null, erpEvidence: null, updatedAt: null } }} canManagePlatform={false} />);
   expect(html).toMatch(/<details[^>]*data-fold-card=""[^>]*open=""[^>]*><summary[^>]*>(?:(?!<\/summary>)[\s\S])*새 카테고리 등록/);

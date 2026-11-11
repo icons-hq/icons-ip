@@ -16,6 +16,7 @@ import {
   readErpItemFileAction,
   searchErpItemsAction,
   setErpCategoryMappingAction,
+  setErpCategoryMappingsAction,
 } from './erp-item-actions';
 
 const staff = { isConfigured: true, user: { id: 'staff', email: null }, role: 'staff', isStaff: true, operatorAccess: legacyOperatorAccessFixture() };
@@ -188,6 +189,59 @@ describe('ERP 분류 연결', () => {
   ])('DB 거절 %s 를 안내 문구로 바꾼다', async (message, expected) => {
     mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: 'P0001', message } });
     expect(await setErpCategoryMappingAction({ erpCategory: '문구', categoryId: CATEGORY_ID })).toEqual({ ok: false, error: expected });
+  });
+});
+
+describe('ERP 분류 일괄 연결', () => {
+  const entries = [{ erpCategory: ' 문구 >  키링 ', categoryId: CATEGORY_ID }, { erpCategory: '문구', categoryId: null }];
+
+  it('미로그인·일반 회원·잘못된 묶음은 DB에 닿지 않는다', async () => {
+    mocks.auth.mockResolvedValue(signedOut);
+    await expect(setErpCategoryMappingsAction(entries)).rejects.toThrow(loginRedirect);
+    mocks.auth.mockResolvedValue(member);
+    expect(await setErpCategoryMappingsAction(entries)).toEqual({ ok: false, error: 'ERP 품목은 운영자만 관리할 수 있습니다.' });
+    mocks.auth.mockResolvedValue(staff);
+    const invalid = '연결할 ERP 분류를 다시 골라주세요. 한 번에 500개까지 저장할 수 있습니다.';
+    for (const value of [null, 'x', [], [null], [{ erpCategory: 7, categoryId: null }], [{ erpCategory: '  ', categoryId: null }], [{ erpCategory: 'x'.repeat(201), categoryId: null }], [{ erpCategory: '문구', categoryId: 'leaf' }], [{ erpCategory: '문구' }], Array.from({ length: 501 }, (_, index) => ({ erpCategory: `분류 ${index}`, categoryId: null }))]) {
+      expect(await setErpCategoryMappingsAction(value)).toEqual({ ok: false, error: invalid });
+    }
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('정리한 이름과 카테고리로 RPC를 부르고, 저장·같음·거절 건수를 안내한다', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: { changed: 1, unchanged: 0, rejected: [{ index: 1, reason: 'category_archived', erp_category: '문구' }] }, error: null });
+    expect(await setErpCategoryMappingsAction(entries)).toEqual({
+      ok: true, changed: 1, unchanged: 0,
+      rejected: [{ erpCategory: '문구', error: '보관된 카테고리에는 연결할 수 없습니다.' }],
+      message: 'ERP 분류 1건의 연결을 저장했습니다. 1건은 저장하지 못했습니다. 표에서 사유를 확인해주세요.',
+    });
+    expect(mocks.rpc).toHaveBeenLastCalledWith('admin_set_erp_category_mappings', { p_entries: [{ erp_category: '문구 > 키링', category_id: CATEGORY_ID }, { erp_category: '문구', category_id: null }] });
+    expect(mocks.revalidate).toHaveBeenCalledOnce();
+  });
+
+  it('거절 행은 화면이 보낸 원래 이름으로 돌려주어 정리 전 행을 찾게 한다', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: { changed: 0, unchanged: 0, rejected: [{ index: 0, reason: 'category_not_leaf' }] }, error: null });
+    expect(await setErpCategoryMappingsAction(entries.slice(0, 1))).toMatchObject({ ok: true, rejected: [{ erpCategory: ' 문구 >  키링 ' }] });
+  });
+
+  it('바뀐 행이 없으면 다시 그리지 않고, 해제만 있으면 해제라고 말한다', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: { changed: 0, unchanged: 2, rejected: [] }, error: null });
+    expect(await setErpCategoryMappingsAction(entries)).toMatchObject({ ok: true, changed: 0, message: '2건은 이미 같은 연결입니다.' });
+    expect(mocks.revalidate).not.toHaveBeenCalled();
+    mocks.rpc.mockResolvedValueOnce({ data: { changed: 1, unchanged: 0, rejected: [] }, error: null });
+    expect(await setErpCategoryMappingsAction([{ erpCategory: '문구', categoryId: null }])).toMatchObject({ ok: true, message: 'ERP 분류 1건의 연결을 해제했습니다.' });
+  });
+
+  it('권한·결과 형식·연결 오류를 안내 문구로 바꾼다', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: '42501', message: 'staff_required' } });
+    expect(await setErpCategoryMappingsAction(entries)).toEqual({ ok: false, error: 'ERP 품목은 운영자만 관리할 수 있습니다.' });
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: 'P0001', message: 'boom' } });
+    expect(await setErpCategoryMappingsAction(entries)).toEqual({ ok: false, error: 'ERP 분류 연결을 저장하지 못했습니다. 다시 시도해주세요.' });
+    mocks.rpc.mockResolvedValueOnce({ data: { changed: 'x' }, error: null });
+    expect(await setErpCategoryMappingsAction(entries)).toEqual({ ok: false, error: '저장 결과를 확인하지 못했습니다. 목록을 새로고침해 확인해주세요.' });
+    expect(mocks.revalidate).toHaveBeenCalledOnce();
+    mocks.rpc.mockRejectedValueOnce(new Error('network'));
+    expect(await setErpCategoryMappingsAction(entries)).toEqual({ ok: false, error: 'ERP 분류 연결을 저장하지 못했습니다. 다시 시도해주세요.' });
   });
 });
 

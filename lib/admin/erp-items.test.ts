@@ -4,10 +4,13 @@ import {
   ERP_ITEMS_PATH,
   conflictingCategoryErpMapping,
   createErpCategoryIndex,
+  erpCategoryMappingBatchMessage,
+  erpCategoryMappingErrorLabel,
   erpItemRejectReasonLabel,
   erpItemsHref,
   formatErpSalePrice,
   normalizeErpItemFilters,
+  parseErpCategoryMappingBatch,
   parseErpCategoryMappingRow,
   parseErpItemListPage,
   parseErpItemMatch,
@@ -149,5 +152,29 @@ describe('고른 고객 카테고리의 정본 ERP 분류 매핑과 비교', () 
   it('정본 매핑이 다르면 그 매핑을 돌려준다(대소문자도 다르게 본다)', () => {
     expect(conflictingCategoryErpMapping('문구 > 포토카드', 'keyring', mappings)).toEqual(mappings[0]);
     expect(conflictingCategoryErpMapping('kr-01', 'keyring', mappings)).toEqual(mappings[0]);
+  });
+});
+
+describe('ERP 분류 일괄 연결 계약', () => {
+  it('DB 결과를 읽고, 형식이 다르면 null을 돌려준다', () => {
+    expect(parseErpCategoryMappingBatch({ changed: 1, unchanged: 2, rejected: [{ index: 3, reason: 'category_archived', erp_category: 'x' }] }))
+      .toEqual({ changed: 1, unchanged: 2, rejected: [{ index: 3, reason: 'category_archived' }] });
+    for (const value of [null, [], 'x', { changed: -1, unchanged: 0, rejected: [] }, { changed: 1, unchanged: 0 }, { changed: 1, unchanged: 0, rejected: [{ index: 'a', reason: 'x' }] }, { changed: 1, unchanged: 0, rejected: [{ index: 0 }] }, { changed: 1, unchanged: 0, rejected: [null] }]) {
+      expect(parseErpCategoryMappingBatch(value)).toBeNull();
+    }
+  });
+
+  it('사유 코드를 운영자 문구로 바꾸고 모르는 사유는 null이다', () => {
+    expect(erpCategoryMappingErrorLabel('category_archived')).toBe('보관된 카테고리에는 연결할 수 없습니다.');
+    expect(erpCategoryMappingErrorLabel('p0001 category_not_leaf')).toBe('하위 카테고리가 있는 분류에는 연결할 수 없습니다. 마지막 단계 카테고리를 골라주세요.');
+    expect(erpCategoryMappingErrorLabel('duplicate_erp_category')).toBe('같은 ERP 분류가 두 번 들어 있습니다. 다시 시도해주세요.');
+    expect(erpCategoryMappingErrorLabel('invalid_category_id')).toBe('연결할 고객 카테고리를 다시 골라주세요.');
+    expect(erpCategoryMappingErrorLabel('boom')).toBeNull();
+  });
+
+  it('결과 문구는 있는 건수만 말한다', () => {
+    expect(erpCategoryMappingBatchMessage({ changed: 1234, unchanged: 0, rejected: [] }, false)).toBe('ERP 분류 1,234건의 연결을 저장했습니다.');
+    expect(erpCategoryMappingBatchMessage({ changed: 2, unchanged: 1, rejected: [{}] }, true)).toBe('ERP 분류 2건의 연결을 해제했습니다. 1건은 이미 같은 연결입니다. 1건은 저장하지 못했습니다. 표에서 사유를 확인해주세요.');
+    expect(erpCategoryMappingBatchMessage({ changed: 0, unchanged: 0, rejected: [] }, false)).toBe('바뀐 연결이 없습니다.');
   });
 });
