@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { cookies } from 'next/headers';
+import { phoneVerificationConfig, readMyVerifiedPhone } from '@/lib/sms/phone-verification.server';
 import { createClient } from '@/lib/supabase/server';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import {
@@ -41,6 +42,13 @@ export async function getProfileForUser(supabase: SupabaseServerClient, userId: 
     .maybeSingle<ProfileRow>();
 
   if (error || !data) return null;
+  /* 휴대폰 번호 인증 스위치가 켜졌을 때만: 번호를 다른 계정에 옮겨 간 회원은 다시 인증할 때까지 온보딩 미완료로 본다
+     (2026-11-11 사용자 결정 '옮기고 재인증 요구'). 보호 액션의 서버 판정이 모두 이 프로필로 isOnboarded를 부른다.
+     스위치가 꺼져 있으면 읽지 않는다 — 판정과 DB 호출이 예전과 같다. */
+  if (phoneVerificationConfig()) {
+    const phone = await readMyVerifiedPhone(supabase);
+    if (phone?.reverificationRequired) return { ...data, phone_reverification_required: true };
+  }
   return data;
 }
 

@@ -59,6 +59,9 @@ export default async function Page({ searchParams }: PageProps) {
       isConfigured={auth.isConfigured}
       marketingChannels={withKakao ? MARKETING_CHANNELS_WITH_KAKAO : MARKETING_CHANNELS}
       next={next}
+      /* 스위치가 켜졌고 1단계(생년월일·약관 동의)를 이미 저장했으면 휴대폰 인증 단계부터 연다. */
+      phoneStep={Boolean(phoneConfig) && Boolean(auth.profile?.birth_date)
+        && auth.profile?.consents?.terms === true && auth.profile?.consents?.privacy === true}
       phoneVerification={phoneConfig ? phoneVerificationView(phoneConfig, verifiedPhone) : undefined}
       recommendedIps={recommendedIps}
     />

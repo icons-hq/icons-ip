@@ -1,7 +1,7 @@
 'use client';
 
 import { startTransition, useActionState, useState, type FormEvent } from 'react';
-import { completeOnboardingAction, type OnboardingActionState } from '@/app/onboarding/actions';
+import { completeOnboardingAction, finishOnboardingAction, type OnboardingActionState } from '@/app/onboarding/actions';
 import { PhoneVerificationPanel, type PhoneVerificationPanelView } from '@/components/screens/OnboardingPhoneVerification';
 import { WcButton } from '@/components/wc/WcButton';
 import { DEMOGRAPHIC_GENDER_LABELS, DEMOGRAPHIC_GENDERS, DEMOGRAPHIC_NOTICE } from '@/lib/customer-demographics';
@@ -33,6 +33,11 @@ interface OnboardingProps {
   next: string;
   /** 휴대폰 번호 인증(1014-005·006). 스위치가 꺼져 있으면 없다 — 그때 화면은 이 단계 없이 예전과 같다. */
   phoneVerification?: PhoneVerificationPanelView;
+  /**
+   * 서버가 본 1단계(생년월일·약관 동의) 저장 여부. 스위치가 켜졌고 저장돼 있으면 처음부터 휴대폰 인증 단계를 연다
+   * (새로고침, 또는 번호를 다른 계정에 옮겨 간 회원의 재인증).
+   */
+  phoneStep?: boolean;
   recommendedIps: {
     bg: string;
     color: string;
@@ -140,10 +145,12 @@ export function Onboarding({
   isConfigured,
   marketingChannels = MARKETING_CHANNELS,
   next,
+  phoneStep = false,
   phoneVerification,
   recommendedIps,
 }: OnboardingProps) {
   const [state, action, pending] = useActionState(completeOnboardingAction, emptyState);
+  const [finishState, finishAction, finishPending] = useActionState(finishOnboardingAction, emptyState);
   /* 관심 IP는 선택 단계다(10/14 회의 S2 · D5). 건너뛰면 타일과 추천 목록 입력을 함께 내려
      서버가 팔로우를 바꾸지 않는다 — 고르지 않은 채 제출해 이미 팔로우한 IP가 풀리는 일도 없다. */
   const [ipPicksSkipped, setIpPicksSkipped] = useState(false);
@@ -160,17 +167,64 @@ export function Onboarding({
     startTransition(() => action(payload));
   }
 
+  /* 휴대폰 번호 인증 단계(스위치 ON): 1단계를 저장했으면(이번 제출이든 서버가 본 상태든) 인증 단계로 넘어간다.
+     동의·만 14세 확인 전에는 번호를 받지 않는다(1014-005·006, 리뷰 F2). */
+  const showPhoneStep = Boolean(phoneVerification) && (phoneStep || state.phoneStep === true || finishState.phoneStep === true);
+  const carriedGender = finishState.carriedGender ?? state.carriedGender;
+
+  function handleFinish(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (finishPending) return;
+
+    const payload = new FormData(event.currentTarget);
+    startTransition(() => finishAction(payload));
+  }
+
+  if (showPhoneStep && phoneVerification) {
+    return (
+      <main className="wc-root wc-auth">
+        <div className="wc-auth__panel">
+          <h1 className="wc-auth__title">프로필을 완성해요</h1>
+          <p className="wc-auth__lede">
+            {phoneVerification.reverificationRequired
+              ? '다른 계정에서 같은 휴대폰 번호를 인증해 이 계정의 휴대폰 인증이 해제됐어요. 다시 인증하면 이어서 이용할 수 있어요.'
+              : '마지막으로 휴대폰 번호를 인증해주세요. 인증을 마치면 ICONS를 시작할 수 있어요.'}
+          </p>
+          <PhoneVerificationPanel context="onboarding" isConfigured={isConfigured} view={phoneVerification} />
+          <form action={finishAction} className="wc-auth__form" data-onboarding-finish onSubmit={handleFinish}>
+            <input type="hidden" name="next" value={next} />
+            {carriedGender ? (
+              <>
+                <input type="hidden" name="gender" value={carriedGender} />
+                <input type="hidden" name="genderConsent" value="on" />
+              </>
+            ) : null}
+            {finishState.errors?.form && (
+              <div className="wc-auth__alert" role="alert">
+                {finishState.errors.form}
+              </div>
+            )}
+            <WcButton disabled={!isConfigured || finishPending} type="submit" variant="primary">
+              {finishPending ? '확인 중' : 'ICONS 시작하기'}
+            </WcButton>
+          </form>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="wc-root wc-auth">
       <div className="wc-auth__panel">
         <h1 className="wc-auth__title">프로필을 완성해요</h1>
         {/* 가입 간소화(10/14 회의 1014-004) — 필수 입력은 생년월일과 약관 동의뿐이다. 닉네임은 서버가 자동으로
-            만들고(나중에 설정에서 변경), 관심 IP·성별·마케팅 수신은 선택이다. */}
-        <p className="wc-auth__lede">생년월일과 약관 동의만 확인하면 바로 시작할 수 있어요. 닉네임은 자동으로 만들어 두니 설정에서 언제든 바꿀 수 있어요.</p>
-
-        {phoneVerification ? (
-          <PhoneVerificationPanel context="onboarding" isConfigured={isConfigured} view={phoneVerification} />
-        ) : null}
+            만들고(나중에 설정에서 변경), 관심 IP·성별·마케팅 수신은 선택이다. 휴대폰 번호 인증 스위치가 켜지면 이
+            1단계를 저장한 뒤 인증 단계로 간다. */}
+        <p className="wc-auth__lede">
+          {phoneVerification
+            ? '생년월일과 약관 동의를 저장한 뒤 휴대폰 번호를 인증하면 바로 시작할 수 있어요. 닉네임은 자동으로 만들어 두니 설정에서 언제든 바꿀 수 있어요.'
+            : '생년월일과 약관 동의만 확인하면 바로 시작할 수 있어요. 닉네임은 자동으로 만들어 두니 설정에서 언제든 바꿀 수 있어요.'}
+        </p>
 
         <form action={action} className="wc-auth__form" data-onboarding-form onSubmit={handleSubmit}>
           <input type="hidden" name="next" value={next} />
@@ -332,7 +386,7 @@ export function Onboarding({
           )}
 
           <WcButton disabled={!isConfigured || pending} type="submit" variant="primary">
-            {pending ? '저장 중' : 'ICONS 시작하기'}
+            {pending ? '저장 중' : phoneVerification ? '다음: 휴대폰 번호 인증' : 'ICONS 시작하기'}
           </WcButton>
           <p className="wc-auth__legal">
             본인확인은 자가신고와 결제 시 결제사 확인으로 진행돼요

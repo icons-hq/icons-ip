@@ -13,6 +13,11 @@ export interface ProfileForOnboarding {
   onboarded_at?: string | null;
   role?: 'user' | 'staff' | 'admin' | null;
   suspended_at?: string | null;
+  /**
+   * 휴대폰 번호 인증 스위치가 켜졌을 때만 서버가 채운다: 다른 계정이 같은 번호를 인증해 이 계정의 인증이 해제됐다.
+   * 다시 인증할 때까지 온보딩 미완료로 보고 보호 액션(주문·결제 준비 등) 전에 인증 단계로 보낸다.
+   */
+  phone_reverification_required?: boolean;
 }
 
 interface AuthErrorLike {
@@ -52,6 +57,7 @@ export function isOnboarded(profile: ProfileForOnboarding | null | undefined, au
   if (!profile.onboarded_at) return false;
   if (profile.consents?.terms !== true) return false;
   if (profile.consents?.privacy !== true) return false;
+  if (profile.phone_reverification_required === true) return false;
 
   const birthDate = new Date(`${profile.birth_date}T00:00:00.000Z`);
   if (Number.isNaN(birthDate.getTime())) return false;

@@ -14,7 +14,7 @@ vi.mock('@/app/onboarding/phone-actions', () => ({
   requestPhoneCodeAction: mocks.request,
   verifyPhoneCodeAction: mocks.verify,
 }));
-vi.mock('@/app/onboarding/actions', () => ({ completeOnboardingAction: vi.fn() }));
+vi.mock('@/app/onboarding/actions', () => ({ completeOnboardingAction: vi.fn(), finishOnboardingAction: vi.fn() }));
 vi.mock('react', async () => {
   const actual = await vi.importActual<typeof import('react')>('react');
   return {
@@ -115,8 +115,8 @@ describe('PhoneVerificationPanel (1014-005·006, 스위치 ON)', () => {
     expect(html).toContain('다른 번호로 바꾸기');
   });
 
-  it('is placed before the onboarding form when the switch is on', () => {
-    const html = renderToStaticMarkup(
+  function renderOnboarding(props: Partial<React.ComponentProps<typeof Onboarding>> = {}) {
+    return renderToStaticMarkup(
       <Onboarding
         birthDate=""
         email="fan@icons.gg"
@@ -127,10 +127,38 @@ describe('PhoneVerificationPanel (1014-005·006, 스위치 ON)', () => {
         next="/"
         phoneVerification={VIEW}
         recommendedIps={[]}
+        {...props}
       />,
     );
+  }
 
-    expect(html.indexOf('data-phone-verification')).toBeGreaterThan(-1);
-    expect(html.indexOf('data-phone-verification')).toBeLessThan(html.indexOf('data-onboarding-form'));
+  /* 리뷰 F2 — 동의·만 14세 확인 전에는 번호를 받지 않는다. 1단계에는 휴대폰 입력이 없고, 안내와 버튼이 다음 단계를 알린다(F9). */
+  it('keeps the phone step out of the first step and says that phone verification comes next', () => {
+    const html = renderOnboarding();
+
+    expect(html).not.toContain('data-phone-verification');
+    expect(html).toContain('data-onboarding-form');
+    expect(html).toContain('생년월일과 약관 동의를 저장한 뒤 휴대폰 번호를 인증하면 바로 시작할 수 있어요.');
+    expect(html).toContain('다음: 휴대폰 번호 인증');
+  });
+
+  it('opens the phone step once the first step is saved and finishes from there', () => {
+    const html = renderOnboarding({ phoneStep: true });
+
+    expect(html).toContain('data-phone-verification="phone"');
+    expect(html).toContain('data-onboarding-finish');
+    expect(html).not.toContain('data-onboarding-form');
+    expect(html).not.toContain('name="birthYear"');
+    expect(html).toContain('마지막으로 휴대폰 번호를 인증해주세요.');
+    expect(html).toContain('<input type="hidden" name="next" value="/"/>');
+    expect(html).toContain('ICONS 시작하기');
+  });
+
+  /* 사용자 결정 '옮기고 재인증 요구' — 번호를 다른 계정에 옮겨 간 회원에게 왜 다시 인증하는지 알린다. */
+  it('explains re-verification to a member whose number moved to another account', () => {
+    const html = renderOnboarding({ phoneStep: true, phoneVerification: { ...VIEW, reverificationRequired: true } });
+
+    expect(html).toContain('다른 계정에서 같은 휴대폰 번호를 인증해 이 계정의 휴대폰 인증이 해제됐어요.');
+    expect(html).toContain('주문 같은 기능을 쓰려면 다시 인증해주세요.');
   });
 });

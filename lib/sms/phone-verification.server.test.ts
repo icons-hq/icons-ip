@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { PHONE_COUNTRIES } from './phone-number';
+import { parsePhoneAllowlist } from './phone-number';
 import {
   generatePhoneCode,
   maskedVerifiedPhone,
@@ -38,8 +38,8 @@ function sender(result: Awaited<ReturnType<SmsSender['send']>> = { ok: true, pro
   };
 }
 
-function configWith(smsSender: SmsSender, countries = PHONE_COUNTRIES.filter((country) => ['KR', 'JP'].includes(country.iso))): PhoneVerificationConfig {
-  return { sender: smsSender, secret: SECRET, countries };
+function configWith(smsSender: SmsSender, allowlist = parsePhoneAllowlist('KR,JP')): PhoneVerificationConfig {
+  return { sender: smsSender, secret: SECRET, allowlist };
 }
 
 function service(responses: Record<string, { data: unknown; error: unknown }>) {
@@ -48,13 +48,18 @@ function service(responses: Record<string, { data: unknown; error: unknown }>) {
 }
 
 describe('phoneVerificationConfig — 스위치 OFF 기본', () => {
-  it('is null unless the switch is exactly true and the secret, sender and countries are usable', () => {
+  it('is null unless the switch is exactly true and the secret and sender are usable', () => {
     expect(phoneVerificationConfig({})).toBeNull();
     expect(phoneVerificationConfig({ ...ENABLED_ENV, ICONS_PHONE_VERIFICATION_ENABLED: '1' })).toBeNull();
     expect(phoneVerificationConfig({ ...ENABLED_ENV, ICONS_PHONE_VERIFICATION_SECRET: 'short' })).toBeNull();
     expect(phoneVerificationConfig({ ...ENABLED_ENV, ICONS_SMS_PROVIDER: '' })).toBeNull();
-    expect(phoneVerificationConfig({ ...ENABLED_ENV, ICONS_PHONE_VERIFICATION_COUNTRIES: 'KR,ZZ' })).toBeNull();
-    expect(phoneVerificationConfig(ENABLED_ENV)?.countries.map((country) => country.iso)).toEqual(['KR']);
+    expect(phoneVerificationConfig(ENABLED_ENV)?.allowlist).toEqual({ all: false, dialCodes: ['82'] });
+  });
+
+  /* 허용 목록에 모르는 값이 섞여도 기능을 끄지 않는다(F6). */
+  it('keeps working with unknown country entries and opens every country with *', () => {
+    expect(phoneVerificationConfig({ ...ENABLED_ENV, ICONS_PHONE_VERIFICATION_COUNTRIES: 'KR,ZZ' })?.allowlist).toEqual({ all: false, dialCodes: ['82'] });
+    expect(phoneVerificationConfig({ ...ENABLED_ENV, ICONS_PHONE_VERIFICATION_COUNTRIES: '*' })?.allowlist).toEqual({ all: true, dialCodes: [] });
   });
 
   it('stays closed in production until the privacy revision takes effect, even with the switch on', () => {
@@ -96,6 +101,7 @@ describe('requestPhoneVerificationCode', () => {
     expect(await requestPhoneVerificationCode({ userId: USER_ID, countryIso: 'KR', phone: '02-123-4567', ip: null }, { config: configWith(fake.sender), service: db.client }))
       .toEqual({ ok: false, field: 'phone', error: '휴대폰 번호를 다시 확인해주세요. 예: 010-1234-5678' });
     expect((await requestPhoneVerificationCode({ userId: USER_ID, countryIso: 'US', phone: '4155550123', ip: null }, { config: configWith(fake.sender), service: db.client })).ok).toBe(false);
+    expect((await requestPhoneVerificationCode({ userId: USER_ID, countryIso: 'INTL', phone: '+351 912 345 678', ip: null }, { config: configWith(fake.sender), service: db.client })).ok).toBe(false);
     expect(db.rpc).not.toHaveBeenCalled();
     expect(fake.sent).toEqual([]);
   });
@@ -104,6 +110,7 @@ describe('requestPhoneVerificationCode', () => {
     [{ ok: false, reason: 'cooldown', retryAfterSeconds: 42 }, '인증번호 요청이 너무 잦아요. 42초 후 다시 시도해주세요.'],
     [{ ok: false, reason: 'rate_limited', retryAfterSeconds: 3000 }, '인증번호 요청이 너무 잦아요. 50분 후 다시 시도해주세요.'],
     [{ ok: false, reason: 'account_unavailable' }, '지금은 이 계정으로 휴대폰 번호를 인증할 수 없어요.'],
+    [{ ok: false, reason: 'onboarding_required' }, '생년월일과 약관 동의를 먼저 저장한 뒤 휴대폰 번호를 인증해주세요.'],
   ])('explains a refused request %o without sending', async (data, error) => {
     const fake = sender();
     const db = service({ service_issue_member_phone_verification: { data, error: null } });
@@ -160,6 +167,7 @@ describe('verifyPhoneVerificationCode', () => {
     [{ ok: false, reason: 'expired' }, { field: 'form', error: '인증번호 입력 시간이 지났어요. 인증번호를 다시 받아주세요.', restart: true }],
     [{ ok: false, reason: 'exhausted' }, { field: 'form', error: '인증번호를 여러 번 틀렸어요. 인증번호를 다시 받아주세요.', restart: true }],
     [{ ok: false, reason: 'superseded' }, { field: 'form', error: '인증번호를 다시 받아주세요.', restart: true }],
+    [{ ok: false, reason: 'onboarding_required' }, { field: 'form', error: '생년월일과 약관 동의를 먼저 저장한 뒤 휴대폰 번호를 인증해주세요.', restart: true }],
   ])('maps %o', async (data, expected) => {
     const db = service({ service_verify_member_phone_verification: { data, error: null } });
     expect(await verifyPhoneVerificationCode({ userId: USER_ID, challengeId: CHALLENGE_ID, code: '123456' }, { config: configWith(sender().sender), service: db.client }))
@@ -169,22 +177,28 @@ describe('verifyPhoneVerificationCode', () => {
 
 describe('verified phone state', () => {
   it('reads only a well-formed verified number and masks it for the screen', async () => {
-    expect(await readMyVerifiedPhone({ rpc: async () => ({ data: { verified: true, phoneE164: '+821012345678', verifiedAt: '2026-11-11T00:00:00Z' }, error: null }) }))
-      .toEqual({ verified: true, maskedPhone: '010-****-5678' });
+    expect(await readMyVerifiedPhone({ rpc: async () => ({ data: { verified: true, phoneE164: '+821012345678', verifiedAt: '2026-11-11T00:00:00Z', reverificationRequired: false }, error: null }) }))
+      .toEqual({ verified: true, maskedPhone: '010-****-5678', reverificationRequired: false });
     expect(await readMyVerifiedPhone({ rpc: async () => ({ data: { verified: false, phoneE164: null }, error: null }) }))
-      .toEqual({ verified: false, maskedPhone: null });
+      .toEqual({ verified: false, maskedPhone: null, reverificationRequired: false });
+    expect(await readMyVerifiedPhone({ rpc: async () => ({ data: { verified: false, phoneE164: null, reverificationRequired: true }, error: null }) }))
+      .toEqual({ verified: false, maskedPhone: null, reverificationRequired: true });
     expect(await readMyVerifiedPhone({ rpc: async () => ({ data: null, error: { message: 'nope' } }) })).toBeNull();
     expect(maskedVerifiedPhone({ verified: true, phoneE164: 'garbage' })).toBeNull();
   });
 
   it('builds the screen view without secrets', () => {
-    const view = phoneVerificationView(configWith(sender().sender), { verified: true, maskedPhone: '010-****-5678' });
+    const view = phoneVerificationView(configWith(sender().sender), { verified: true, maskedPhone: '010-****-5678', reverificationRequired: false });
     expect(view).toEqual({
       countries: [{ iso: 'KR', label: '대한민국 (+82)' }, { iso: 'JP', label: '일본 (+81)' }],
       defaultCountry: 'KR',
       verified: { maskedPhone: '010-****-5678' },
+      reverificationRequired: false,
     });
     expect(JSON.stringify(view)).not.toContain(SECRET);
+    expect(phoneVerificationView(configWith(sender().sender, parsePhoneAllowlist('*')), null).countries.at(-1))
+      .toEqual({ iso: 'INTL', label: '다른 나라 (+국가번호로 입력)' });
+    expect(phoneVerificationView(configWith(sender().sender), { verified: false, maskedPhone: null, reverificationRequired: true }).reverificationRequired).toBe(true);
   });
 });
 
@@ -195,7 +209,7 @@ describe('codes', () => {
   });
 
   it('does not mark the verification message as advertising', () => {
-    const korea = PHONE_COUNTRIES.find((country) => country.iso === 'KR');
-    expect(korea && phoneCodeMessage('123456', korea)).not.toContain('(광고)');
+    expect(phoneCodeMessage('123456', '+821012345678')).not.toContain('(광고)');
+    expect(phoneCodeMessage('123456', '+351912345678')).toBe('[ICONS] Your verification code is 123456. It expires in 5 minutes.');
   });
 });

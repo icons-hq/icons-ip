@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { completeOnboardingAction } from './actions';
+import { completeOnboardingAction, finishOnboardingAction } from './actions';
 
 const mocks = vi.hoisted(() => ({
   authGetUser: vi.fn(),
@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   ipPublishedFilter: vi.fn(),
   profileNickname: null as string | null,
   profileReadError: null as { message: string } | null,
+  finishProfile: null as Record<string, unknown> | null,
   profilePayloads: [] as Record<string, unknown>[],
   profileResults: [] as { data: { id: string } | null; error: { message: string } | null }[],
   revalidatePath: vi.fn(),
@@ -57,6 +58,7 @@ function profileQuery() {
     select: (columns: string) => ({
       eq: () => ({
         maybeSingle: async () => {
+          if (columns === 'birth_date,consents,onboarded_at') return { data: mocks.finishProfile, error: null };
           expect(columns).toBe('nickname');
           return mocks.profileReadError
             ? { data: null, error: mocks.profileReadError }
@@ -115,6 +117,7 @@ beforeEach(() => {
   mocks.ipPublishedFilter.mockReset();
   mocks.profileNickname = null;
   mocks.profileReadError = null;
+  mocks.finishProfile = null;
   mocks.profilePayloads = [];
   mocks.profileResults = [];
   mocks.revalidatePath.mockReset();
@@ -478,27 +481,124 @@ describe('completeOnboardingAction phone verification switch', () => {
     expect(mocks.rpc.mock.calls.map(([name]) => name)).not.toContain('my_member_phone_verification');
   });
 
-  it('stops before any write when the switch is on and the member has not verified a phone', async () => {
+  /* 리뷰 F2 — 동의·만 14세 확인 전에 번호를 받지 않는다: 1단계(생년월일·약관)를 먼저 저장하고 인증 단계로 보낸다. */
+  it('saves birth date and consents first and moves to the phone step without completing onboarding', async () => {
     setPhoneEnv(true);
-    mocks.rpc.mockImplementation(async (name: string) => name === 'my_member_phone_verification'
-      ? { data: { verified: false, phoneE164: null, verifiedAt: null }, error: null }
-      : { data: null, error: null });
-
-    await expect(completeOnboardingAction({}, onboardingForm())).resolves.toEqual({
-      errors: { form: '휴대폰 번호 인증을 먼저 마쳐주세요.' },
+    const order: string[] = [];
+    mocks.from.mockImplementation((table: string) => {
+      if (table !== 'profiles') return table === 'ips' ? ipQuery([]) : followsQuery([]);
+      const query = profileQuery();
+      return { ...query, update: (payload: Record<string, unknown>) => { order.push(Object.keys(payload).join(',')); return query.update(payload); } };
     });
-    expect(mocks.identity).not.toHaveBeenCalled();
-    expect(mocks.profilePayloads).toEqual([]);
+    mocks.rpc.mockImplementation(async (name: string) => {
+      order.push(name);
+      return name === 'my_member_phone_verification'
+        ? { data: { verified: false, phoneE164: null, verifiedAt: null, reverificationRequired: false }, error: null }
+        : { data: null, error: null };
+    });
+    const formData = onboardingForm();
+    formData.set('gender', 'female');
+    formData.set('genderConsent', 'on');
+
+    await expect(completeOnboardingAction({}, formData)).resolves.toEqual({ phoneStep: true, carriedGender: 'female' });
+    expect(mocks.profilePayloads).toEqual([{ birth_date: '2000-01-01', consents: { terms: true, privacy: true } }]);
+    expect(order.indexOf('birth_date,consents')).toBeLessThan(order.indexOf('my_member_phone_verification'));
+    expect(order).not.toContain('onboarded_at');
+    expect(order).not.toContain('customer_demographic_state');
   });
 
-  it('completes onboarding when the switch is on and the phone is verified', async () => {
+  it('completes onboarding in one go when the switch is on and the phone is already verified', async () => {
     setPhoneEnv(true);
     mocks.rpc.mockImplementation(async (name: string) => name === 'my_member_phone_verification'
-      ? { data: { verified: true, phoneE164: '+821012345678', verifiedAt: '2026-11-11T00:00:00Z' }, error: null }
+      ? { data: { verified: true, phoneE164: '+821012345678', verifiedAt: '2026-11-11T00:00:00Z', reverificationRequired: false }, error: null }
       : { data: null, error: null });
 
     await expect(completeOnboardingAction({}, onboardingForm())).rejects.toThrow('NEXT_REDIRECT:/onboarding/address?next=%2Fcommunity');
-    expect(mocks.rpc.mock.calls[0]?.[0]).toBe('my_member_phone_verification');
+    expect(mocks.profilePayloads.at(-1)).toEqual({ onboarded_at: expect.any(String) });
+  });
+});
+
+/* 휴대폰 인증 단계의 [ICONS 시작하기] — 1단계 저장과 번호 인증을 모두 확인한 뒤에만 온보딩을 마친다. */
+describe('finishOnboardingAction', () => {
+  const PHONE_ENV = {
+    ICONS_PHONE_VERIFICATION_ENABLED: 'true',
+    ICONS_PHONE_VERIFICATION_SECRET: 'phone-verification-test-secret-0123456789',
+    ICONS_SMS_PROVIDER: 'console',
+  } as const;
+  const original = Object.fromEntries(Object.keys(PHONE_ENV).map((key) => [key, process.env[key]]));
+  const DEMOGRAPHIC_STATE = {
+    actorId: USER_ID, sessionId: '00000000-0000-4000-9000-000000001201', revision: 0, choice: 'unset', gender: null,
+    noticeVersion: 'customer-demographics-v1', acceptedAt: null,
+  };
+
+  function finishForm(values: Record<string, string> = {}) {
+    const data = new FormData();
+    data.set('next', '/community');
+    for (const [key, value] of Object.entries(values)) data.set(key, value);
+    return data;
+  }
+
+  function phoneState(verified: boolean) {
+    mocks.rpc.mockImplementation(async (name: string, args: Record<string, unknown>) => {
+      if (name === 'my_member_phone_verification') {
+        return { data: { verified, phoneE164: verified ? '+821012345678' : null, verifiedAt: null, reverificationRequired: false }, error: null };
+      }
+      if (name === 'customer_demographic_state') return { data: DEMOGRAPHIC_STATE, error: null };
+      if (name === 'set_customer_demographic_consent') return { data: { ...DEMOGRAPHIC_STATE, revision: 1, choice: 'accepted', gender: args.p_gender, acceptedAt: '2026-11-11T00:00:00.000Z' }, error: null };
+      return { data: null, error: null };
+    });
+  }
+
+  beforeEach(() => {
+    Object.assign(process.env, PHONE_ENV);
+    mocks.finishProfile = { birth_date: '2000-01-01', consents: { terms: true, privacy: true }, onboarded_at: null };
+  });
+
+  afterEach(() => {
+    for (const [key, value] of Object.entries(original)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+
+  it('refuses to finish before birth date and both consents are saved', async () => {
+    phoneState(true);
+    mocks.finishProfile = { birth_date: null, consents: { terms: true, privacy: true }, onboarded_at: null };
+
+    await expect(finishOnboardingAction({}, finishForm())).resolves.toEqual({
+      errors: { form: '생년월일과 약관 동의를 먼저 저장해주세요. 화면을 새로고침한 뒤 다시 시도해주세요.' },
+    });
+    expect(mocks.profilePayloads).toEqual([]);
+  });
+
+  it('keeps the phone step until the phone is verified', async () => {
+    phoneState(false);
+
+    await expect(finishOnboardingAction({}, finishForm({ gender: 'female', genderConsent: 'on' }))).resolves.toEqual({
+      phoneStep: true,
+      carriedGender: 'female',
+      errors: { form: '휴대폰 번호 인증을 먼저 마쳐주세요.' },
+    });
+    expect(mocks.profilePayloads).toEqual([]);
+  });
+
+  it('completes onboarding after verification and saves the carried gender', async () => {
+    phoneState(true);
+
+    await expect(finishOnboardingAction({}, finishForm({ gender: 'female', genderConsent: 'on' }))).rejects.toThrow(
+      'NEXT_REDIRECT:/onboarding/address?next=%2Fcommunity',
+    );
+    expect(mocks.profilePayloads).toEqual([{ onboarded_at: expect.any(String) }]);
+    expect(mocks.rpc).toHaveBeenCalledWith('set_customer_demographic_consent', expect.objectContaining({ p_choice: 'accepted', p_gender: 'female' }));
+  });
+
+  /* 사용자 결정 '옮기고 재인증 요구' — 번호를 잃은 회원이 다시 인증하면 완료 시각을 바꾸지 않고 하던 곳으로 돌아간다. */
+  it('sends an already onboarded member straight back after re-verification', async () => {
+    phoneState(true);
+    mocks.finishProfile = { birth_date: '2000-01-01', consents: { terms: true, privacy: true }, onboarded_at: '2026-07-01T00:00:00.000Z' };
+
+    await expect(finishOnboardingAction({}, finishForm())).rejects.toThrow('NEXT_REDIRECT:/community');
+    expect(mocks.profilePayloads).toEqual([]);
   });
 });
 

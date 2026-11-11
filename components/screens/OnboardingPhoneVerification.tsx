@@ -19,6 +19,8 @@ export interface PhoneVerificationPanelView {
   countries: { iso: string; label: string }[];
   defaultCountry: string;
   verified: { maskedPhone: string } | null;
+  /** 다른 계정이 같은 번호를 인증해 이 계정의 인증이 해제됐다 — 다시 인증해야 한다(사용자 결정 '옮기고 재인증 요구'). */
+  reverificationRequired?: boolean;
 }
 
 const emptyState: PhoneVerificationActionState = {};
@@ -69,6 +71,11 @@ export function PhoneVerificationPanel({
       <p className={context === 'onboarding' ? 'onboarding-birth-hint' : 'wc-mypage__note'}>
         문자로 받은 인증번호로 휴대폰 번호를 확인해요. 해외 번호도 인증할 수 있어요. 한 번호는 한 계정에서만 인증된 상태로 남아요.
       </p>
+      {view.reverificationRequired && !showVerified ? (
+        <div className="wc-auth__alert" role="alert">
+          다른 계정에서 같은 번호를 인증해 휴대폰 인증이 해제됐어요. 주문 같은 기능을 쓰려면 다시 인증해주세요.
+        </div>
+      ) : null}
 
       {showVerified ? (
         <div className={formClass}>

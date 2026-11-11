@@ -27,7 +27,7 @@ vi.mock('@/app/settings/actions', () => ({
   updateMarketingConsentAction: vi.fn(),
   updateProfileAction: vi.fn(),
 }));
-vi.mock('@/app/onboarding/actions', () => ({ completeOnboardingAction: vi.fn() }));
+vi.mock('@/app/onboarding/actions', () => ({ completeOnboardingAction: vi.fn(), finishOnboardingAction: vi.fn() }));
 vi.mock('@/app/onboarding/phone-actions', () => ({ requestPhoneCodeAction: vi.fn(), verifyPhoneCodeAction: vi.fn() }));
 vi.mock('@/lib/profile-upload.client', () => ({ uploadProfileAvatar: vi.fn() }));
 vi.mock('react', async () => {

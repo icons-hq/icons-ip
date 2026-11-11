@@ -5,6 +5,7 @@ import { Onboarding } from './Onboarding';
 
 vi.mock('@/app/onboarding/actions', () => ({
   completeOnboardingAction: vi.fn(),
+  finishOnboardingAction: vi.fn(),
 }));
 vi.mock('@/lib/ip-display', () => ({ ipAccent: () => '#2DE2FF' }));
 vi.mock('react', async () => {

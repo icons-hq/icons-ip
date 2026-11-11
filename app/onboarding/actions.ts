@@ -29,6 +29,13 @@ export interface OnboardingActionState {
     gender?: string;
     form?: string;
   };
+  /**
+   * 휴대폰 번호 인증 스위치가 켜졌을 때(1014-005·006): 생년월일·약관 동의(1단계)를 저장했고 이제 휴대폰 번호 인증
+   * 단계로 간다. 동의 전에는 번호를 받지 않는다.
+   */
+  phoneStep?: boolean;
+  /** 1단계에서 고른 선택 성별. 성별 동의 저장은 온보딩을 마친 뒤에만 열리므로 인증 단계의 완료 폼이 다시 보낸다. */
+  carriedGender?: DemographicGender;
 }
 
 function readString(formData: FormData, key: string) {
@@ -221,12 +228,6 @@ export async function completeOnboardingAction(
 
   if (userError || !user) return { errors: { form: '로그인이 필요합니다.' } };
 
-  /* 휴대폰 번호 인증(1014-005·006)은 스위치가 켜졌을 때만 온보딩 필수 단계다. 꺼져 있으면 읽지도 않는다. */
-  if (phoneVerificationConfig()) {
-    const verifiedPhone = await readMyVerifiedPhone(supabase);
-    if (!verifiedPhone?.verified) return { errors: { form: '휴대폰 번호 인증을 먼저 마쳐주세요.' } };
-  }
-
   let existingRecommendedIpIds: string[];
   let followedRecommendedIpIds: string[];
   try {
@@ -280,19 +281,43 @@ export async function completeOnboardingAction(
     revalidatePath(`/ip/${ipId}`);
   }
 
-  const { error: completeError } = await supabase
-    .from('profiles')
-    .update({ onboarded_at: new Date().toISOString() })
-    .eq('id', user.id)
-    .select('id')
-    .single();
+  /* 휴대폰 번호 인증(1014-005·006)은 스위치가 켜졌을 때만 온보딩 2단계다. 생년월일·약관 동의를 먼저 저장한 뒤
+     (위) 인증 단계로 보낸다 — 동의·만 14세 확인 전에는 번호를 받지 않는다. 이미 인증한 계정은 바로 마친다.
+     스위치가 꺼져 있으면 읽지도 않는다. */
+  if (phoneVerificationConfig()) {
+    const verifiedPhone = await readMyVerifiedPhone(supabase);
+    if (!verifiedPhone?.verified) {
+      revalidatePath('/onboarding');
+      return { phoneStep: true, ...(genderResult.gender ? { carriedGender: genderResult.gender } : {}) };
+    }
+  }
 
-  if (completeError) return { errors: { form: '온보딩 완료 상태를 저장하지 못했습니다. 다시 시도해주세요.' } };
-  if (genderResult.gender) await saveOnboardingGender(genderResult.gender);
+  return completeOnboarding(supabase, user.id, { alreadyOnboarded: false, gender: genderResult.gender, next });
+}
+
+/*
+ * 온보딩 완료 처리. 1단계만으로 끝나는 경우(스위치 OFF·이미 인증한 번호)와 휴대폰 인증 단계의 [ICONS 시작하기]가 같이 쓴다.
+ * 이미 온보딩을 마친 계정(번호를 다른 계정에 옮겨 가 다시 인증한 회원)은 완료 시각을 바꾸지 않고 원래 가려던 곳으로 보낸다.
+ */
+async function completeOnboarding(
+  supabase: SupabaseServerClient,
+  userId: string,
+  options: { alreadyOnboarded: boolean; gender: DemographicGender | null; next: string },
+): Promise<OnboardingActionState> {
+  if (!options.alreadyOnboarded) {
+    const { error: completeError } = await supabase
+      .from('profiles')
+      .update({ onboarded_at: new Date().toISOString() })
+      .eq('id', userId)
+      .select('id')
+      .single();
+
+    if (completeError) return { errors: { form: '온보딩 완료 상태를 저장하지 못했습니다. 다시 시도해주세요.' } };
+  }
+  if (options.gender) await saveOnboardingGender(options.gender);
   /* 카카오톡 채널 친구 추가 쿠폰(1014-014, 스위치 OFF 기본)은 온보딩을 마친 회원만 받는다. 카카오 로그인 동의 화면에서
      채널을 추가하고 막 가입한 회원은 여기서 처음 대상이 된다. 응답 뒤에 확인하고, 실패해도 온보딩은 끝난다. */
   if (kakaoChannelConfig()) {
-    const userId = user.id;
     after(async () => {
       await syncKakaoChannelFriendReward({ userId, via: 'onboarding' });
     });
@@ -303,5 +328,49 @@ export async function completeOnboardingAction(
 
   /* 온보딩을 마치면 배송지 등록 안내(건너뛸 수 있음)를 한 번 거쳐 원래 가려던 곳으로 간다(L7 · 10/14 S3).
      안내 화면은 이미 주소록이 있거나 읽지 못하면 바로 next 로 보낸다 — 가입·주문을 막지 않는다. */
-  redirect(addressBookOnboardingPath(next));
+  redirect(options.alreadyOnboarded ? options.next : addressBookOnboardingPath(options.next));
+}
+
+/*
+ * 휴대폰 번호 인증 단계의 [ICONS 시작하기](1014-005·006, 스위치 ON). 1단계(생년월일·약관 동의)를 저장했고 번호를
+ * 인증했을 때만 온보딩을 마친다. 다른 계정이 번호를 옮겨 가 다시 인증한 회원도 이 버튼으로 하던 일로 돌아간다.
+ */
+export async function finishOnboardingAction(
+  _state: OnboardingActionState,
+  formData: FormData,
+): Promise<OnboardingActionState> {
+  const next = safeNextPath(formData.get('next'));
+  const carried = readOnboardingGender(formData);
+  const carriedGender = carried.error ? null : carried.gender;
+
+  const { isConfigured } = getSupabaseConfig();
+  if (!isConfigured) return { errors: { form: 'Supabase 환경변수를 설정한 뒤 온보딩을 완료할 수 있습니다.' } };
+
+  const supabase = await createClient();
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  const user = userData.user;
+  if (userError || !user) return { errors: { form: '로그인이 필요합니다.' } };
+
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('birth_date,consents,onboarded_at')
+    .eq('id', user.id)
+    .maybeSingle<{ birth_date: string | null; consents: { terms?: boolean | null; privacy?: boolean | null } | null; onboarded_at: string | null }>();
+  if (profileError) return { errors: { form: '프로필을 확인하지 못했습니다. 다시 시도해주세요.' } };
+  if (!profile?.birth_date || profile.consents?.terms !== true || profile.consents?.privacy !== true) {
+    return { errors: { form: '생년월일과 약관 동의를 먼저 저장해주세요. 화면을 새로고침한 뒤 다시 시도해주세요.' } };
+  }
+
+  if (phoneVerificationConfig()) {
+    const verifiedPhone = await readMyVerifiedPhone(supabase);
+    if (!verifiedPhone?.verified) {
+      return {
+        phoneStep: true,
+        ...(carriedGender ? { carriedGender } : {}),
+        errors: { form: '휴대폰 번호 인증을 먼저 마쳐주세요.' },
+      };
+    }
+  }
+
+  return completeOnboarding(supabase, user.id, { alreadyOnboarded: Boolean(profile.onboarded_at), gender: carriedGender, next });
 }

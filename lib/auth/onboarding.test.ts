@@ -288,3 +288,17 @@ describe('authSignUpErrorMessage', () => {
     expect(authSignUpErrorMessage({ code: 'over_email_send_rate_limit' })).toContain('확인 메일 요청이 너무 많습니다');
   });
 });
+
+describe('isOnboarded phone re-verification', () => {
+  const complete = {
+    email: 'fan@icons.gg', nickname: 'fan', birth_date: '2000-01-01',
+    consents: { terms: true, privacy: true }, onboarded_at: '2026-07-01T00:00:00.000Z',
+  };
+
+  /* 번호를 다른 계정에 옮겨 간 회원은 다시 인증할 때까지 보호 액션 전에 온보딩(인증 단계)으로 간다. */
+  it('treats a member needing phone re-verification as not onboarded', () => {
+    expect(isOnboarded(complete)).toBe(true);
+    expect(isOnboarded({ ...complete, phone_reverification_required: false })).toBe(true);
+    expect(isOnboarded({ ...complete, phone_reverification_required: true })).toBe(false);
+  });
+});
