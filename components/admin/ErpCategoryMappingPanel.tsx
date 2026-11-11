@@ -8,6 +8,7 @@ import {
   conflictingCategoryErpMapping,
   createErpCategoryIndex,
   ERP_CATEGORY_MAPPING_BATCH_LIMIT,
+  erpCategoryMappingBatchMessage,
   type ErpCategoryIndex,
   type ErpCategoryMappingEntry,
   type ErpCategoryMappingRow,
@@ -232,23 +233,42 @@ export function ErpCategoryMappingPanel({ rows, categories, categoryErpMappings 
     setRowNotices(new Map());
     setBatchRun((current) => current + 1);
     startBulk(async () => {
-      let result: ErpCategoryMappingsResult;
-      /* 응답을 못 받아도 체크와 고른 값을 지키고 다시 누르게 한다. DB는 같은 내용을 변경 없음으로 처리한다. 로그인 이동은 그대로 흘려보낸다. */
-      try { result = await setErpCategoryMappingsAction(entries); }
-      catch (error) { unstable_rethrow(error); setBulkStatus({ tone: 'error', text: UNCONFIRMED }); return; }
-      if (!result.ok) { setBulkStatus({ tone: 'error', text: result.error }); return; }
-      const rejected = new Map(result.rejected.map((entry) => [entry.erpCategory, entry.error]));
-      const done = entries.filter((entry) => !rejected.has(entry.erpCategory));
+      /* 행마다 고른 값은 검색을 오가며 서버 상한(500건)보다 많이 쌓일 수 있다. 상한만큼 나눠 차례로 보내고,
+         중간에 실패하면 저장된 묶음만 반영하고 나머지 체크와 고른 값은 그대로 둔다. */
+      const rejected = new Map<string, string>();
+      const done: ErpCategoryMappingEntry[] = [];
+      let changed = 0;
+      let unchanged = 0;
+      let failure: string | null = null;
+      for (let start = 0; start < entries.length && failure === null; start += ERP_CATEGORY_MAPPING_BATCH_LIMIT) {
+        const chunk = entries.slice(start, start + ERP_CATEGORY_MAPPING_BATCH_LIMIT);
+        let result: ErpCategoryMappingsResult;
+        /* 응답을 못 받아도 체크와 고른 값을 지키고 다시 누르게 한다. DB는 같은 내용을 변경 없음으로 처리한다. 로그인 이동은 그대로 흘려보낸다. */
+        try { result = await setErpCategoryMappingsAction(chunk); }
+        catch (error) { unstable_rethrow(error); failure = UNCONFIRMED; break; }
+        if (!result.ok) { failure = result.error; break; }
+        changed += result.changed;
+        unchanged += result.unchanged;
+        for (const entry of result.rejected) rejected.set(entry.erpCategory, entry.error);
+        done.push(...chunk.filter((entry) => !rejected.has(entry.erpCategory)));
+      }
       remember(done.map((entry) => [entry.erpCategory, entry.categoryId ?? ''] as const));
       const doneNames = new Set(done.map((entry) => entry.erpCategory));
       setDrafts((current) => new Map([...current].filter(([erpCategory]) => !doneNames.has(erpCategory))));
       /* 거절된 행은 체크를 남겨 다른 카테고리로 바로 다시 처리하게 한다. */
       setChecked((current) => new Set([...current].filter((erpCategory) => !doneNames.has(erpCategory))));
       setRowNotices(rejected);
-      setBulkTarget('');
-      setBulkStatus({ tone: rejected.size ? 'error' : 'ok', text: result.message });
+      const summary = erpCategoryMappingBatchMessage({ changed, unchanged, rejected: [...rejected] }, entries.every((entry) => entry.categoryId === null));
+      /* 끝난 묶음의 행은 저장·변경 없음·거절 중 하나로 세어진다. */
+      const processed = changed + unchanged + rejected.size;
+      if (failure) {
+        setBulkStatus({ tone: 'error', text: processed ? `${summary} 나머지 ${count(entries.length - processed)}건은 저장하지 못했습니다. ${failure}` : failure });
+      } else {
+        setBulkTarget('');
+        setBulkStatus({ tone: rejected.size ? 'error' : 'ok', text: summary });
+      }
       /* 거절은 대개 그사이 카테고리가 바뀐 경우라, 고칠 수 있게 선택지도 새로 받는다. */
-      if (result.changed || rejected.size) router.refresh();
+      if (changed || rejected.size) router.refresh();
     });
   };
 

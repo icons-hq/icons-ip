@@ -588,6 +588,38 @@ describe('ERP 분류 일괄 연결', () => {
     await expect(Promise.all(hooks.pending.splice(0))).rejects.toThrow('NEXT_REDIRECT');
   });
 
+  /* Codex 리뷰(PR #646): 검색을 오가며 고른 값이 500건을 넘으면 서버 상한에 걸려 하나도 저장되지 않았다. */
+  it('고른 값이 500건을 넘으면 500건씩 나눠 차례로 저장한다', async () => {
+    const many = Array.from({ length: 501 }, (_, index) => needLink(`분류 ${String(index).padStart(3, '0')}`));
+    hooks.saveMany.mockImplementation(async (entries: unknown[]) => okResult(entries.length));
+    let panel = render(many);
+    const draft = rowsOf(panel)[0].onDraftChange;
+    for (const row of many) draft(row.erpCategory, KEYRING);
+    panel = render(many);
+    button(panel, '고른 501건 저장').props.onClick?.();
+    await Promise.all(hooks.pending.splice(0));
+    expect(hooks.saveMany.mock.calls.map(([entries]) => (entries as unknown[]).length)).toEqual([500, 1]);
+    panel = render(many);
+    expect(find(panel, (element) => isButton(element) && text(element).includes('고른'))).toHaveLength(0);
+    expect(statusLine(panel)).toBe('ERP 분류 501건의 연결을 저장했습니다.');
+    expect((hooks.leaveGuard.mock.calls.at(-1)?.[0] as { dirty: boolean }).dirty).toBe(false);
+  });
+
+  it('나눠 보내다 실패하면 저장된 묶음만 반영하고 나머지 고른 값은 남긴다', async () => {
+    const many = Array.from({ length: 501 }, (_, index) => needLink(`분류 ${String(index).padStart(3, '0')}`));
+    hooks.saveMany.mockResolvedValueOnce(okResult(500)).mockResolvedValueOnce({ ok: false, error: 'ERP 분류 연결을 저장하지 못했습니다. 다시 시도해주세요.' });
+    let panel = render(many);
+    const draft = rowsOf(panel)[0].onDraftChange;
+    for (const row of many) draft(row.erpCategory, KEYRING);
+    button(render(many), '고른 501건 저장').props.onClick?.();
+    await Promise.all(hooks.pending.splice(0));
+    panel = render(many);
+    expect(button(panel, '고른 1건 저장')).toBeDefined();
+    expect(rowOf(panel, '분류 000').saved).toBe(KEYRING);
+    expect(statusLine(panel)).toBe('ERP 분류 500건의 연결을 저장했습니다. 나머지 1건은 저장하지 못했습니다. ERP 분류 연결을 저장하지 못했습니다. 다시 시도해주세요.');
+    expect((hooks.leaveGuard.mock.calls.at(-1)?.[0] as { dirty: boolean }).dirty).toBe(true);
+  });
+
   it('품목을 지워 목록에서 사라진 분류의 고른 값은 저장 버튼과 이탈 경고에 세지 않는다', () => {
     const panel = render();
     rowOf(panel, '가').onDraftChange('가', KEYRING);
