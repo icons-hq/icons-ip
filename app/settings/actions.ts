@@ -24,7 +24,12 @@ import {
   updateProfileIdentity,
 } from '@/lib/profile.server';
 import { kakaoChannelConfig } from '@/lib/kakao/channel-config.server';
-import { marketingConsentResultMessage, readMarketingChannelChoices } from '@/lib/marketing-consent';
+import {
+  MARKETING_KAKAO_OFFERED_FIELD,
+  marketingChannelChoices,
+  marketingConsentResultMessage,
+  readMarketingChannelChoices,
+} from '@/lib/marketing-consent';
 import { saveMyMarketingConsents } from '@/lib/marketing-consent.server';
 import { createClient } from '@/lib/supabase/server';
 import { cleanupFencedGoodsAccount } from '@/lib/account-goods-cleanup.server';
@@ -373,5 +378,9 @@ export async function updateMarketingConsentAction(
   if (!result.ok) return { errors: { form: '설정을 저장하지 못했습니다. 다시 시도해주세요.' } };
 
   revalidatePath(SETTINGS_PATH);
-  return { message: marketingConsentResultMessage(choices, new Date()) };
+  /* 카카오톡 줄을 그린 저장은 고른 값과 저장된 값이 다를 수 있다(스위치 OFF면 새 카카오톡 동의를 버린다). 처리 결과
+     고지는 저장 뒤 DB 상태로 만든다(리뷰 F8). 응답 모양이 다르면 고른 값으로 알린다. */
+  const kakaoOffered = formData.get(MARKETING_KAKAO_OFFERED_FIELD) === '1';
+  const saved = kakaoOffered && result.state ? marketingChannelChoices(result.state, { withKakao: true }) : choices;
+  return { message: marketingConsentResultMessage(saved, new Date()) };
 }

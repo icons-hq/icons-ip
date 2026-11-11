@@ -824,4 +824,29 @@ describe('updateMarketingConsentAction kakao channel', () => {
       p_email: false, p_sms: false, p_notice_version: 'marketing-channels-v1', p_source: 'settings',
     });
   });
+
+  /* 리뷰 F8 — 카카오톡 줄을 그린 저장의 처리 결과 고지는 고른 값이 아니라 저장 뒤 DB 상태를 따른다. */
+  it('reports the saved state, not the submitted choice, after a kakao-row save', async () => {
+    for (const key of Object.keys(KAKAO_ENV)) delete process.env[key];
+    const agreed = { agreed: true, agreedAt: '2026-11-01T00:00:00.000Z', withdrawnAt: null, noticeVersion: 'marketing-channels-v2', source: 'settings' };
+    const withdrawn = { agreed: false, agreedAt: null, withdrawnAt: '2026-11-01T00:00:00.000Z', noticeVersion: 'marketing-channels-v1', source: 'settings' };
+    mocks.rpc.mockResolvedValue({
+      data: { noticeVersion: 'marketing-channels-v1', marketing: true, email: withdrawn, sms: withdrawn, kakao: agreed },
+      error: null,
+    });
+
+    /* 스위치 OFF라 새 카카오톡 동의(체크)는 버려지고 v1 저장이 된다 — 기존 카카오톡 동의는 DB에 그대로 남는다. */
+    const result = await updateMarketingConsentAction({}, kakaoForm(true));
+    expect(mocks.rpc).toHaveBeenLastCalledWith('set_my_marketing_consents', expect.objectContaining({ p_email: false, p_sms: false }));
+    expect(result.message).toContain('이메일 수신 거부 · SMS 수신 거부 · 카카오톡 수신 동의');
+    expect(result.message).not.toContain('알림함 마케팅 소식도 받지 않아요');
+  });
+
+  it('falls back to the submitted choice when the saved state is unreadable', async () => {
+    Object.assign(process.env, KAKAO_ENV);
+    mocks.rpc.mockResolvedValue({ data: { unexpected: true }, error: null });
+
+    const result = await updateMarketingConsentAction({}, kakaoForm(false));
+    expect(result.message).toContain('이메일 수신 거부 · SMS 수신 거부 · 카카오톡 수신 거부');
+  });
 });
