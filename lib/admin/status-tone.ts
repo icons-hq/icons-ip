@@ -131,8 +131,9 @@ const STATUS_TONES = {
   sabangnetColumn: { confirmed: 'success', guessed: 'warning', remembered: 'neutral', known: 'neutral', unknown: 'warning', duplicate: 'warning', manual: 'neutral' },
   /** 카테고리 일괄 등록 줄별 결과 */
   categoryBulk: { created: 'success', skipped: 'neutral', failed: 'danger' },
-  /** 재고 파일 대조 행 — lib/admin/stock-reconcile stockReconcileRowState. 부족(창고가 다 보낼 수 없음)만 위험색이다 */
-  stockReconcile: { same: 'neutral', increase: 'info', decrease: 'warning', shortage: 'danger' },
+  /** 재고 파일 대조 행 — lib/admin/stock-reconcile stockReconcileRowState. 부족(창고가 다 보낼 수 없음)만 위험색이다.
+   *  adjusted는 기준 시각 뒤 재고를 직접 바꾼 기록이 있어 반영 전에 확인해야 하는 행 표시다 */
+  stockReconcile: { same: 'neutral', increase: 'info', decrease: 'warning', shortage: 'danger', adjusted: 'warning' },
   /** 안전재고 요약 메일 발송 — lib/admin/stock-safety-digest */
   stockDigest: { queued: 'info', processing: 'info', sent: 'success', failed: 'danger', unknown: 'warning', suppressed: 'neutral' },
   // [ops]

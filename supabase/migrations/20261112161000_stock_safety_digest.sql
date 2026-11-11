@@ -6,7 +6,8 @@
 -- 기본 시각(16:30, ADR-0025) 전에 보충·품절 처리를 할 수 있다. 전날 저녁 주문까지 반영된다.
 --
 -- 멱등: 날짜당 실행 행 하나(digest_date PK)와 (날짜, 수신 주소)당 발송 행 하나. 한 주소가 운영자와
--- 출고지 담당자 양쪽에 있으면 전체 목록 한 통만 간다. 발송은 기존 durable dispatcher(#191)를 쓰고,
+-- 출고지 담당자 양쪽에 있으면 전체 목록 한 통만 가고, 여러 출고지의 담당자면 그 출고지들의 옵션을 한 통에
+-- 모두 싣는다(출고지별 목록을 좁히지 않는다). 발송은 기존 durable dispatcher(#191)를 쓰고,
 -- 주문 지연 안내처럼 전용 gate(이 설정의 '사용')로 연다. 수신 주소가 비어 있거나 대상 옵션이 없으면 보내지 않는다.
 -- 기본은 꺼짐이다. 이 migration은 메일을 보내지 않는다.
 begin;
@@ -47,9 +48,10 @@ create table private.stock_safety_digest_deliveries (
   id uuid primary key default extensions.gen_random_uuid(),
   digest_date date not null references private.stock_safety_digest_runs(digest_date) on delete cascade,
   audience text not null check(audience in ('operator','origin')),
-  -- 실행 기록이다. 출고지가 바뀌어도 그날 보낸 대상은 그대로 둔다.
-  origin_id uuid,
-  origin_name text,
+  -- 실행 기록이다. 출고지가 바뀌어도 그날 보낸 대상은 그대로 둔다. 한 주소가 여러 출고지의 담당자면
+  -- 한 통에 그 출고지들의 옵션을 모두 싣는다(주소당 하루 한 통).
+  origin_ids uuid[] not null default '{}'::uuid[],
+  origin_names text[] not null default '{}'::text[],
   recipient text not null check(char_length(recipient) between 3 and 254),
   item_count integer not null check(item_count>0),
   email_status text not null default 'queued' check(email_status in ('queued','processing','sent','failed','unknown','suppressed')),
@@ -63,7 +65,8 @@ create table private.stock_safety_digest_deliveries (
   created_at timestamptz not null default clock_timestamp(),
   updated_at timestamptz not null default clock_timestamp(),
   unique(digest_date,recipient),
-  check((audience='origin')=(origin_id is not null))
+  check((audience='origin')=(cardinality(origin_ids)>0)),
+  check(cardinality(origin_ids)=cardinality(origin_names))
 );
 create index stock_safety_digest_jobs on private.stock_safety_digest_deliveries(available_at,id)
   where email_status in ('queued','processing','unknown');
@@ -128,8 +131,8 @@ returns jsonb language sql stable security definer set search_path='' as $$
       from public.fulfillment_origins o left join private.stock_safety_digest_origin_recipients r on r.origin_id=o.id),'[]'::jsonb),
     'runs',coalesce((select jsonb_agg(jsonb_build_object('digestDate',run.digest_date,'createdAt',run.created_at,
         'itemCount',run.item_count,'deliveries',coalesce((select jsonb_agg(jsonb_build_object('audience',d.audience,
-            'originName',d.origin_name,'recipient',d.recipient,'itemCount',d.item_count,'status',d.email_status,
-            'errorCode',d.error_code,'attempts',d.attempts,'updatedAt',d.updated_at) order by d.audience desc,d.origin_name,d.recipient)
+            'originNames',to_jsonb(d.origin_names),'recipient',d.recipient,'itemCount',d.item_count,'status',d.email_status,
+            'errorCode',d.error_code,'attempts',d.attempts,'updatedAt',d.updated_at) order by d.audience desc,d.origin_names,d.recipient)
           from private.stock_safety_digest_deliveries d where d.digest_date=run.digest_date),'[]'::jsonb))
         order by run.digest_date desc)
       from (select * from private.stock_safety_digest_runs order by digest_date desc limit 7) run),'[]'::jsonb))
@@ -214,10 +217,12 @@ grant execute on function public.admin_save_stock_safety_digest_origin(uuid,text
 
 -- 그날 실행을 만든다. 켜져 있고 설정 시각(KST)이 지났고 그날 실행이 없을 때만. 대상 옵션이 없거나
 -- 수신 주소가 없으면 발송 행 없이 실행만 남긴다(같은 날 다시 만들지 않는다).
+-- 출고지 담당자 주소는 주소마다 묶는다: 한 주소가 여러 출고지의 담당자면 대상 옵션이 있는 출고지들을 한 통에 싣는다.
+-- 운영자 주소에도 있으면 전체 목록 한 통으로 충분하다.
 create function private.prepare_stock_safety_digest(p_now timestamptz)
 returns jsonb language plpgsql volatile security definer set search_path='' as $$
-declare s private.stock_safety_digest_settings;today date;due timestamptz;items jsonb;recipient text;origin record;
-  delivered text[]:='{}'::text[];origin_count integer;deliveries integer:=0;
+declare s private.stock_safety_digest_settings;today date;due timestamptz;items jsonb;recipient text;target record;
+  delivered text[]:='{}'::text[];deliveries integer:=0;
 begin
   if p_now is null then raise invalid_parameter_value using message='invalid_stock_safety_digest_run';end if;
   select * into s from private.stock_safety_digest_settings where singleton;
@@ -244,16 +249,20 @@ begin
         values(today,'operator',recipient,jsonb_array_length(items));
       delivered:=delivered||recipient;deliveries:=deliveries+1;
     end loop;
-    for origin in select o.id,o.name,r.recipients from private.stock_safety_digest_origin_recipients r
-      join public.fulfillment_origins o on o.id=r.origin_id where cardinality(r.recipients)>0 order by o.name,o.id loop
-      select count(*) into origin_count from jsonb_array_elements(items) i where i->>'originId'=origin.id::text;
-      if origin_count=0 then continue;end if;
-      foreach recipient in array origin.recipients loop
-        if recipient=any(delivered) then continue;end if;
-        insert into private.stock_safety_digest_deliveries(digest_date,audience,origin_id,origin_name,recipient,item_count)
-          values(today,'origin',origin.id,origin.name,recipient,origin_count);
-        delivered:=delivered||recipient;deliveries:=deliveries+1;
-      end loop;
+    for target in
+      select contact.address,array_agg(o.id order by o.name,o.id) as origin_ids,array_agg(o.name order by o.name,o.id) as origin_names
+      from private.stock_safety_digest_origin_recipients r
+      join public.fulfillment_origins o on o.id=r.origin_id
+      cross join unnest(r.recipients) as contact(address)
+      where exists(select 1 from jsonb_array_elements(items) i where i->>'originId'=o.id::text)
+        and not contact.address=any(delivered)
+      group by contact.address
+      order by min(o.name),contact.address
+    loop
+      insert into private.stock_safety_digest_deliveries(digest_date,audience,origin_ids,origin_names,recipient,item_count)
+        values(today,'origin',target.origin_ids,target.origin_names,target.address,
+          (select count(*) from jsonb_array_elements(items) i where i->>'originId'=any(target.origin_ids::text[])));
+      deliveries:=deliveries+1;
     end loop;
   end if;
   update private.stock_safety_digest_runs set delivery_count=deliveries where digest_date=today;
@@ -263,15 +272,15 @@ begin
 end $$;
 revoke all on function private.prepare_stock_safety_digest(timestamptz) from public,anon,authenticated,service_role;
 
--- 메일 한 통에 싣는 옵션 상한. 넘치면 본문이 '외 N개'로 끝난다.
-create function private.stock_safety_digest_job_items(p_digest_date date,p_origin_id uuid)
+-- 메일 한 통에 싣는 옵션 상한. 넘치면 본문이 '외 N개'로 끝난다. 출고지가 비어 있으면(운영자) 전체 목록이다.
+create function private.stock_safety_digest_job_items(p_digest_date date,p_origin_ids uuid[])
 returns jsonb language sql stable security definer set search_path='' as $$
   select coalesce(jsonb_agg(i order by ordinal),'[]'::jsonb) from (
     select i,ordinal from private.stock_safety_digest_runs r,jsonb_array_elements(r.items) with ordinality as e(i,ordinal)
-    where r.digest_date=p_digest_date and (p_origin_id is null or i->>'originId'=p_origin_id::text)
+    where r.digest_date=p_digest_date and (cardinality(p_origin_ids)=0 or i->>'originId'=any(p_origin_ids::text[]))
     order by ordinal limit 300) picked;
 $$;
-revoke all on function private.stock_safety_digest_job_items(date,uuid) from public,anon,authenticated,service_role;
+revoke all on function private.stock_safety_digest_job_items(date,uuid[]) from public,anon,authenticated,service_role;
 
 create function public.claim_stock_safety_digest_jobs(batch_limit integer default 25)
 returns jsonb language plpgsql volatile security definer set search_path='' as $$
@@ -299,9 +308,9 @@ begin
       lease_until=clock_timestamp()+interval '10 minutes',attempts=attempts+1,updated_at=clock_timestamp()
     from selected where d.id=selected.id returning d.*
   )
-  select coalesce(jsonb_agg(jsonb_build_object('id',c.id,'claimToken',c.claim_token,'audience',c.audience,'originName',c.origin_name,
+  select coalesce(jsonb_agg(jsonb_build_object('id',c.id,'claimToken',c.claim_token,'audience',c.audience,'originNames',to_jsonb(c.origin_names),
       'digestDate',c.digest_date,'recipient',c.recipient,'itemCount',c.item_count,
-      'items',private.stock_safety_digest_job_items(c.digest_date,c.origin_id)) order by c.id),'[]'::jsonb)
+      'items',private.stock_safety_digest_job_items(c.digest_date,c.origin_ids)) order by c.id),'[]'::jsonb)
     into result from claimed c;
   return result;
 end $$;

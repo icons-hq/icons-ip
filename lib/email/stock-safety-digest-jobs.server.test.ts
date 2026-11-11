@@ -15,10 +15,10 @@ const item = {
 };
 const operatorJob: StockSafetyDigestJob = {
   id: '50000000-0000-4000-8000-000000000001', claimToken: '50000000-0000-4000-8000-000000000002', recipient: 'ops@example.test',
-  audience: 'operator', originName: null, digestDate: '2031-05-01', itemCount: 2,
+  audience: 'operator', originNames: [], digestDate: '2031-05-01', itemCount: 2,
   items: [item, { ...item, optionName: '기본 옵션', optionCode: 'MAPLE-002-01', goodsCode: 'MAPLE-002', erpCode: null, barcode: null, originName: '김포' }],
 };
-const originJob: StockSafetyDigestJob = { ...operatorJob, id: '50000000-0000-4000-8000-000000000003', recipient: 'seowon@example.test', audience: 'origin', originName: '남양주', itemCount: 1, items: [item] };
+const originJob: StockSafetyDigestJob = { ...operatorJob, id: '50000000-0000-4000-8000-000000000003', recipient: 'seowon@example.test', audience: 'origin', originNames: ['남양주'], itemCount: 1, items: [item] };
 
 function setup(jobs: StockSafetyDigestJob[] = [operatorJob]) {
   let state = 'queued';
@@ -113,6 +113,12 @@ describe('안전재고 요약 메일 작업', () => {
     expect(parseStockSafetyDigestJob({ ...operatorJob, items: [] })).toBeNull();
     expect(parseStockSafetyDigestJob({ ...operatorJob, items: [{ ...item, stockQty: -1 }] })).toBeNull();
     expect(parseStockSafetyDigestJob({ ...operatorJob, audience: 'customer' })).toBeNull();
+    expect(parseStockSafetyDigestJob({ ...originJob })).toEqual(originJob);
+    // 출고지 담당자 메일은 출고지 이름이 있어야 하고, 운영자 메일은 없어야 한다.
+    expect(parseStockSafetyDigestJob({ ...originJob, originNames: [] })).toBeNull();
+    expect(parseStockSafetyDigestJob({ ...operatorJob, originNames: ['남양주'] })).toBeNull();
+    expect(parseStockSafetyDigestJob({ ...originJob, originNames: '남양주' })).toBeNull();
+    expect(parseStockSafetyDigestJob({ ...originJob, originName: '남양주', originNames: undefined })).toBeNull();
   });
 });
 
@@ -128,6 +134,22 @@ describe('안전재고 요약 메일 본문', () => {
     expect(origin.text).not.toContain('/admin/');
     expect(origin.html).not.toContain('/admin/');
     expect(origin.html).not.toContain('<th style="padding:4px 8px;border-bottom:1px solid #ddd;text-align:left;vertical-align:top">출고지</th>');
+  });
+
+  it('여러 출고지를 맡은 주소는 한 통에 그 출고지 이름들과 출고지 열을 싣는다', () => {
+    const job = { ...originJob, originNames: ['김포', '남양주'], itemCount: 2,
+      items: [item, { ...item, optionName: '기본 옵션', optionCode: 'MAPLE-002-01', goodsCode: 'MAPLE-002', originName: '김포' }] };
+    const email = renderStockSafetyDigestEmail(job, 'https://iconsip.com');
+    expect(email.subject).toBe('[ICONS] 김포, 남양주 안전재고 이하 옵션 2개 (2031-05-01)');
+    expect(email.text).toContain('김포, 남양주에서 출고하는 ICONS 상품');
+    expect(email.text).toContain('재고 2개 / 기준 3개 · 김포');
+    expect(email.text).toContain('재고 2개 / 기준 3개 · 남양주');
+    expect(email.html).toContain('<th style="padding:4px 8px;border-bottom:1px solid #ddd;text-align:left;vertical-align:top">출고지</th>');
+    expect(email.text).not.toContain('/admin/');
+    // 셋 이상이면 제목에는 앞 둘과 나머지 곳 수만, 인사말에는 전부 쓴다.
+    const many = renderStockSafetyDigestEmail({ ...job, originNames: ['김포', '남양주', '부천'] }, 'https://iconsip.com');
+    expect(many.subject).toBe('[ICONS] 김포, 남양주 외 1곳 안전재고 이하 옵션 2개 (2031-05-01)');
+    expect(many.text).toContain('김포, 남양주, 부천에서 출고하는 ICONS 상품');
   });
 
   it('300개를 넘는 목록은 외 N개로 끝내고 이름을 HTML로 이스케이프한다', () => {

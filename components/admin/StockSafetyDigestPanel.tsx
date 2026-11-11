@@ -103,7 +103,7 @@ export function StockSafetyDigestPanel({ initial }: { initial: StockSafetyDigest
         <Link className="underline underline-offset-4" href={fulfillmentOriginTabHref(origin.originCode)}>{origin.originName}{origin.active ? '' : ' (비활성)'}</Link>
         <span className={HINT}>{origin.recipients.length ? origin.recipients.join(', ') : '받는 주소 없음'}</span>
       </li>)}</ul>
-      <p className={HINT}>배송정보 관리의 출고지 탭에서 넣습니다. 서원처럼 창고가 다른 곳은 그 창고 담당자 주소를 넣으면 그 출고지 상품만 받습니다.</p>
+      <p className={HINT}>배송정보 관리의 출고지 탭에서 넣습니다. 서원처럼 창고가 다른 곳은 그 창고 담당자 주소를 넣으면 그 출고지 상품만 받습니다. 한 주소를 여러 출고지에 넣으면 그 출고지들 상품을 한 통으로 받습니다.</p>
     </div>
     {state.runs.length ? <div className="flex flex-col gap-2 border-t pt-4">
       <p className="font-medium">최근 발송 기록</p>
@@ -116,7 +116,7 @@ export function StockSafetyDigestPanel({ initial }: { initial: StockSafetyDigest
             <TableCell className="text-right align-top tabular-nums">{count(run.itemCount)}</TableCell>
             <TableCell className="whitespace-normal">{run.deliveries.length ? <ul className="flex flex-col gap-1">{run.deliveries.map((delivery) => <li className="flex flex-wrap items-center gap-2" key={delivery.recipient}>
               <span className="wrap-anywhere">{delivery.recipient}</span>
-              <span className={HINT}>{delivery.audience === 'origin' ? `${delivery.originName ?? '출고지'} 담당 · ${count(delivery.itemCount)}개` : `운영자 · ${count(delivery.itemCount)}개`}</span>
+              <span className={HINT}>{delivery.audience === 'origin' ? `${delivery.originNames.join(', ') || '출고지'} 담당 · ${count(delivery.itemCount)}개` : `운영자 · ${count(delivery.itemCount)}개`}</span>
               <AdminStatusBadge tone={statusTone('stockDigest', delivery.status)}>{STOCK_DIGEST_STATUS_LABELS[delivery.status]}</AdminStatusBadge>
               {delivery.errorCode && delivery.status !== 'sent' ? <span className={HINT}>{STOCK_DIGEST_ERROR_LABELS[delivery.errorCode] ?? delivery.errorCode}</span> : null}
             </li>)}</ul> : <span className={HINT}>{run.itemCount ? '받는 주소가 없어 보내지 않음' : '대상 옵션이 없어 보내지 않음'}</span>}</TableCell>

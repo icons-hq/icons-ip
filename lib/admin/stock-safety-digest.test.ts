@@ -11,8 +11,8 @@ const settings = {
   updatedAt: '2031-05-01T00:00:00Z', updatedByName: '운영자', nextSendAt: '2031-05-02T00:00:00Z', lowStockCount: 3,
   origins: [{ originId: 'o1', originCode: 'namyangju', originName: '남양주', active: true, revision: 1, recipients: ['seowon@example.test'] }],
   runs: [{ digestDate: '2031-05-01', createdAt: '2031-05-01T00:00:10Z', itemCount: 3, deliveries: [
-    { audience: 'operator', originName: null, recipient: 'ops@example.test', itemCount: 3, status: 'sent', errorCode: null, attempts: 1, updatedAt: '2031-05-01T00:00:20Z' },
-    { audience: 'origin', originName: '남양주', recipient: 'seowon@example.test', itemCount: 1, status: 'queued', errorCode: 'provider_retryable', attempts: 1, updatedAt: '2031-05-01T00:00:20Z' },
+    { audience: 'operator', originNames: [], recipient: 'ops@example.test', itemCount: 3, status: 'sent', errorCode: null, attempts: 1, updatedAt: '2031-05-01T00:00:20Z' },
+    { audience: 'origin', originNames: ['김포', '남양주'], recipient: 'seowon@example.test', itemCount: 1, status: 'queued', errorCode: 'provider_retryable', attempts: 1, updatedAt: '2031-05-01T00:00:20Z' },
   ] }],
 };
 
@@ -33,8 +33,11 @@ describe('안전재고 요약 메일 설정', () => {
   });
 
   it('설정 문서를 읽고 모르는 상태는 막는다', () => {
-    expect(parseStockSafetyDigestSettings(settings)?.runs[0].deliveries[1]).toMatchObject({ status: 'queued', errorCode: 'provider_retryable' });
+    expect(parseStockSafetyDigestSettings(settings)?.runs[0].deliveries[1]).toMatchObject({ status: 'queued', errorCode: 'provider_retryable',
+      originNames: ['김포', '남양주'] });
     expect(parseStockSafetyDigestSettings({ ...settings, sendTime: '9시' })).toBeNull();
+    // 발송 기록의 출고지는 이름 목록이다(한 주소가 여러 출고지 담당이면 여럿).
+    expect(parseStockSafetyDigestSettings({ ...settings, runs: [{ ...settings.runs[0], deliveries: [{ ...settings.runs[0].deliveries[1], originNames: '남양주' }] }] })).toBeNull();
     expect(parseStockSafetyDigestSettings({ ...settings, runs: [{ ...settings.runs[0], deliveries: [{ ...settings.runs[0].deliveries[0], status: 'bounced' }] }] })).toBeNull();
     expect(parseStockSafetyDigestSettings({ ...settings, enabled: false, enabledAt: null, nextSendAt: null })?.nextSendAt).toBeNull();
   });

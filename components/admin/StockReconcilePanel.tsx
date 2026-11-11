@@ -73,11 +73,16 @@ function itemName(item: Pick<StockReconcileItem, 'goodsName' | 'optionName'>) {
   return item.optionName && item.optionName !== '기본 옵션' ? `${item.goodsName} / ${item.optionName}` : item.goodsName;
 }
 
-function RowState({ item }: { item: StockReconcileItem }) {
+function RowState({ item, applied }: { item: StockReconcileItem; applied: boolean }) {
   const state = stockReconcileRowState(item);
   const delta = item.targetQty - item.stockQty;
   const label = state === 'shortage' ? `부족 ${count(stockReconcileShortage(item))}` : state === 'same' ? '같음' : `${STOCK_RECONCILE_ROW_STATE_LABELS[state]} ${signed(delta)}`;
-  return <AdminStatusBadge tone={statusTone('stockReconcile', state)}>{label}</AdminStatusBadge>;
+  return <span className="flex flex-wrap gap-1">
+    <AdminStatusBadge tone={statusTone('stockReconcile', state)}>{label}</AdminStatusBadge>
+    {item.adjustedSinceCount > 0 && !applied ? <AdminStatusBadge tone={statusTone('stockReconcile', 'adjusted')}>
+      기준 시각 뒤 직접 변경 {count(item.adjustedSinceCount)}건 ({signed(item.adjustedSinceQty)})
+    </AdminStatusBadge> : null}
+  </span>;
 }
 
 /** 미리보기·기록 한 건. 반영 전에는 '맞춘 뒤 재고수량', 반영 뒤에는 실제 반영 결과를 보인다. */
@@ -88,6 +93,7 @@ export function StockReconcileResult({ snapshot, showSame, onToggleSame }: { sna
   const decreases = changed.filter((item) => stockReconcileRowState(item) === 'decrease').length;
   const visible = showSame ? snapshot.items : changed;
   const applied = Boolean(snapshot.appliedAt);
+  const adjusted = snapshot.items.filter((item) => item.adjustedSinceCount > 0);
   return <div className="flex min-w-0 flex-col gap-3" data-stock-reconcile="result">
     <p className="flex flex-wrap items-center gap-2">
       <AdminStatusBadge tone={statusTone('stockReconcile', 'increase')}>늘림 {count(increases)}</AdminStatusBadge>
@@ -101,19 +107,25 @@ export function StockReconcileResult({ snapshot, showSame, onToggleSame }: { sna
       {' '}· 미리보기 {formatOrderDateTime(snapshot.createdAt)}{snapshot.createdByName ? ` (${snapshot.createdByName})` : ''}
     </p>
     {shortages.length ? <AdminNotice tone="danger" title={`창고 재고보다 출고할 주문이 많은 옵션 ${count(shortages.length)}개`}>
-      파일 수량에서 아직 출고하지 않은 주문을 빼면 0보다 작습니다. 반영하면 재고수량을 0으로 두고 더 팔지 않지만, 이미 받은 주문은 창고가 보낼 수 없습니다.
+      지금 창고에 있어야 할 실물에서 아직 출고하지 않은 주문을 빼면 0보다 작습니다. 반영하면 재고수량을 0으로 두고 더 팔지 않지만, 이미 받은 주문은 창고가 보낼 수 없습니다.
       실재고를 확인한 뒤 고객 안내나 취소를 검토해주세요.
     </AdminNotice> : null}
+    {adjusted.length > 0 && !applied ? <AdminNotice tone="warning" title={`기준 시각 뒤 재고를 직접 바꾼 옵션 ${count(adjusted.length)}개`}>
+      재고 조정이나 다른 대조 반영이 파일의 재고 기준 시각 뒤에 있었습니다. 이 변경은 계산에 넣지 않으므로, 파일 뒤에 들어온 입고였다면 반영할 때 그 수량이 사라집니다.
+      그 뒤에 받은 재고 파일로 다시 대조하거나, 반영한 뒤 재고 조정으로 다시 더해주세요.
+    </AdminNotice> : null}
     {visible.length ? <div className={TABLE_REGION} role="region" aria-label="옵션별 대조 결과" tabIndex={0}>
-      <table className={`${TABLE} min-w-[960px]`} data-slot="table">
+      <table className={`${TABLE} min-w-[1180px]`} data-slot="table">
         <caption className={CAPTION}>
-          {applied ? '반영 결과' : '반영 전 미리보기'} · 맞춘 뒤 재고수량 = 파일 수량 − 출고 대기 − 기준 시각 뒤 출고
+          {applied ? '반영 결과' : '반영 전 미리보기'} · 맞춘 뒤 재고수량 = 파일 수량 − 기준 시각 뒤 출고 + 기준 시각 뒤 회수 − 출고 대기 − 회수 뒤 미반영
           {onToggleSame ? <> · <button className="underline underline-offset-4" type="button" onClick={onToggleSame}>{showSame ? '바뀌는 옵션만 보기' : `같은 옵션 ${count(snapshot.items.length - changed.length)}개도 보기`}</button></> : null}
         </caption>
         <TableHeader><TableRow>
           <TableHead scope="col">상품 · 옵션</TableHead><TableHead scope="col">관리코드</TableHead><TableHead scope="col">찾은 코드</TableHead>
-          <TableHead scope="col" className="text-right">파일 수량</TableHead><TableHead scope="col" className="text-right">출고 대기</TableHead>
-          <TableHead scope="col" className="text-right">기준 시각 뒤 출고</TableHead><TableHead scope="col" className="text-right">{applied ? '반영 전' : '지금'} 재고수량</TableHead>
+          <TableHead scope="col" className="text-right">파일 수량</TableHead>
+          <TableHead scope="col" className="text-right">기준 시각 뒤 출고</TableHead><TableHead scope="col" className="text-right">기준 시각 뒤 회수</TableHead>
+          <TableHead scope="col" className="text-right">출고 대기</TableHead><TableHead scope="col" className="text-right">회수 뒤 미반영</TableHead>
+          <TableHead scope="col" className="text-right">{applied ? '반영 전' : '지금'} 재고수량</TableHead>
           <TableHead scope="col" className="text-right">{applied ? '반영 뒤' : '맞춘 뒤'} 재고수량</TableHead><TableHead scope="col">상태</TableHead>
         </TableRow></TableHeader>
         <TableBody>{visible.map((item) => <TableRow key={item.variantId}>
@@ -121,11 +133,13 @@ export function StockReconcileResult({ snapshot, showSame, onToggleSame }: { sna
           <TableCell className={CODE}>{item.optionCode}</TableCell>
           <TableCell className="whitespace-nowrap text-muted-foreground">{STOCK_MATCH_KIND_LABELS[item.matchKind]} · {count(item.sourceRow)}행</TableCell>
           <TableCell className={NUM}>{count(item.fileQty)}</TableCell>
-          <TableCell className={NUM}>{count(item.pendingQty)}</TableCell>
           <TableCell className={NUM}>{count(item.shippedSinceQty)}</TableCell>
+          <TableCell className={NUM}>{count(item.returnedSinceQty)}</TableCell>
+          <TableCell className={NUM}>{count(item.pendingQty)}</TableCell>
+          <TableCell className={NUM}>{count(item.awaitingReturnQty)}</TableCell>
           <TableCell className={NUM}>{count(item.stockQty)}</TableCell>
           <TableCell className={`${NUM} font-medium`}>{count(applied && item.stockAfter !== null ? item.stockAfter : item.targetQty)}</TableCell>
-          <TableCell><RowState item={item} /></TableCell>
+          <TableCell><RowState item={item} applied={applied} /></TableCell>
         </TableRow>)}</TableBody>
       </table>
     </div> : <p className={HINT}>{snapshot.items.length ? '재고수량이 바뀌는 옵션이 없습니다. 사이트 재고가 파일과 맞습니다.' : '찾은 옵션이 없습니다.'}</p>}
@@ -276,7 +290,7 @@ export function StockReconcilePanel({ origins, initialSnapshot, now }: {
         <label className="text-sm leading-snug font-medium" htmlFor="stock-reconcile-as-of">파일의 재고 기준 시각 (한국 시간)</label>
         <Input id="stock-reconcile-as-of" type="datetime-local" step={60} value={asOf} disabled={busy} className="w-60" aria-describedby="stock-reconcile-as-of-hint"
           onChange={(event) => setAsOf(event.target.value)} />
-        <p className={HINT} id="stock-reconcile-as-of-hint">ERP·창고에서 재고를 내려받은 시각입니다. 그 뒤에 출고한 주문은 파일에 아직 들어 있다고 보고 계산합니다.</p>
+        <p className={HINT} id="stock-reconcile-as-of-hint">ERP·창고에서 재고를 내려받은 시각입니다(7일 안). 그 뒤에 출고한 주문은 파일에 아직 들어 있고, 그 뒤에 회수한 반품·교환은 아직 없다고 보고 계산합니다.</p>
       </div>
     </div>
     <div className="grid gap-x-6 gap-y-5 [grid-template-columns:repeat(auto-fit,minmax(min(100%,20rem),1fr))] print:hidden">

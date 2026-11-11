@@ -50,6 +50,7 @@ describe('재고 파일 대조 액션', () => {
       { originId: null, asOf: asOf(), sourceLabel: 'x', rows: [{ row: 1, qty: 1 }] },
       { originId: null, asOf: asOf(), sourceLabel: 'x', rows: [{ row: 1, optionCode: 'A', qty: 1 }, { row: 1, optionCode: 'B', qty: 1 }] },
       { originId: null, asOf: new Date(Date.now() + 60 * 60 * 1000).toISOString(), sourceLabel: 'x', rows: [{ row: 1, optionCode: 'A', qty: 1 }] },
+      { originId: null, asOf: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString(), sourceLabel: 'x', rows: [{ row: 1, optionCode: 'A', qty: 1 }] },
       { originId: 'not-uuid', asOf: asOf(), sourceLabel: 'x', rows: [{ row: 1, optionCode: 'A', qty: 1 }] },
       { originId: null, asOf: asOf(), sourceLabel: '', rows: [{ row: 1, optionCode: 'A', qty: 1 }] },
       { originId: null, asOf: asOf(), sourceLabel: 'x', rows: [] },
@@ -61,7 +62,7 @@ describe('재고 파일 대조 액션', () => {
   it('DB 오류 코드를 운영 문구로 바꾸고 모르는 응답은 성공으로 보지 않는다', async () => {
     mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: '22023', message: 'invalid_stock_reconcile_as_of' } });
     expect(await previewStockReconcileAction({ originId: null, asOf: asOf(), sourceLabel: 'x', rows: [{ row: 1, optionCode: 'A', qty: 1 }] }))
-      .toEqual({ ok: false, error: '재고 기준 시각은 지금부터 31일 안이어야 합니다.' });
+      .toEqual({ ok: false, error: '재고 기준 시각은 지금부터 7일 안이어야 합니다.' });
     mocks.rpc.mockResolvedValueOnce({ data: { id: 'broken' }, error: null });
     expect(await previewStockReconcileAction({ originId: null, asOf: asOf(), sourceLabel: 'x', rows: [{ row: 1, optionCode: 'A', qty: 1 }] }))
       .toMatchObject({ ok: false });

@@ -23,7 +23,8 @@ const document = {
   sourceLabel: '서원 재고.xlsx', asOf: '2031-05-01T00:00:00+00:00', createdAt: '2031-05-01T00:05:00+00:00', createdByName: '운영자',
   rowCount: 3, matchedCount: 2, issueCount: 1, changedCount: 1, appliedAt: null, appliedByName: null, applyReason: null, applyResult: null,
   items: [{ variantId: '60000000-0000-4000-8000-000000000011', goodId: 'g1', goodsCode: 'G1', goodsName: '키링', optionName: '핑크', optionCode: 'G1-01',
-    sourceRow: 2, matchKind: 'option_code', fileQty: 20, stockQty: 10, pendingQty: 8, shippedSinceQty: 1, difference: 1, targetQty: 11,
+    sourceRow: 2, matchKind: 'option_code', fileQty: 20, stockQty: 10, pendingQty: 8, shippedSinceQty: 1, returnedSinceQty: 2,
+    awaitingReturnQty: 1, adjustedSinceCount: 1, adjustedSinceQty: -3, difference: 0, targetQty: 10,
     appliedDelta: null, stockAfter: null, preorder: false }],
   issues: [{ row: 3, key: 'NOPE', fileQty: 1, reason: 'not_found' }],
 };
@@ -100,11 +101,12 @@ describe('재고 파일 대조 — 기준 시각', () => {
     expect(kstDateTimeLocalToIso('2031-05-01T09:05')).toBe('2031-05-01T00:05:00.000Z');
     expect(kstDateTimeLocalToIso('2031-05-01 09:05')).toBeNull();
   });
-  it('미래·31일보다 오래된 기준 시각을 거절한다', () => {
+  it('미래·7일보다 오래된 기준 시각을 거절한다', () => {
     const now = new Date('2031-05-10T00:00:00Z');
     expect(stockAsOfError('2031-05-09T00:00:00Z', now)).toBeNull();
+    expect(stockAsOfError('2031-05-03T00:00:00Z', now)).toBeNull();
     expect(stockAsOfError('2031-05-10T01:00:00Z', now)).toContain('지금보다 뒤');
-    expect(stockAsOfError('2031-04-01T00:00:00Z', now)).toContain('31일');
+    expect(stockAsOfError('2031-05-02T23:59:00Z', now)).toContain('7일');
     expect(stockAsOfError(null, now)).toContain('입력');
   });
 });
@@ -112,14 +114,21 @@ describe('재고 파일 대조 — 기준 시각', () => {
 describe('재고 파일 대조 — 문서', () => {
   it('미리보기 문서를 읽고 모르는 모양은 막는다', () => {
     const parsed = parseStockReconcileDocument(document);
-    expect(parsed?.items[0]).toMatchObject({ fileQty: 20, pendingQty: 8, shippedSinceQty: 1, difference: 1, targetQty: 11 });
+    expect(parsed?.items[0]).toMatchObject({ fileQty: 20, pendingQty: 8, shippedSinceQty: 1, returnedSinceQty: 2, awaitingReturnQty: 1,
+      adjustedSinceCount: 1, adjustedSinceQty: -3, difference: 0, targetQty: 10 });
     expect(parsed?.issues).toEqual([{ row: 3, key: 'NOPE', fileQty: 1, reason: 'not_found' }]);
     expect(parseStockReconcileDocument({ ...document, issues: [{ row: 3, key: 'X', reason: 'mystery' }] })).toBeNull();
     expect(parseStockReconcileDocument({ ...document, items: [{ ...document.items[0], matchKind: 'name' }] })).toBeNull();
     expect(parseStockReconcileDocument({ ...document, id: 'not-a-uuid' })).toBeNull();
+    // 회수·조정 항이 빠졌거나 음수 회수면 읽지 않는다(조정 합계는 음수일 수 있다).
+    const withoutReturned: Record<string, unknown> = { ...document.items[0] };
+    delete withoutReturned.returnedSinceQty;
+    expect(parseStockReconcileDocument({ ...document, items: [withoutReturned] })).toBeNull();
+    expect(parseStockReconcileDocument({ ...document, items: [{ ...document.items[0], awaitingReturnQty: -1 }] })).toBeNull();
+    expect(parseStockReconcileDocument({ ...document, items: [{ ...document.items[0], adjustedSinceCount: -1 }] })).toBeNull();
   });
 
-  it('행 상태: 부족은 파일보다 출고 대기가 많은 것이다', () => {
+  it('행 상태: 부족은 지금 창고 실물보다 출고 대기가 많은 것이다', () => {
     expect(stockReconcileRowState({ stockQty: 10, difference: 1, targetQty: 11 })).toBe('increase');
     expect(stockReconcileRowState({ stockQty: 10, difference: -2, targetQty: 8 })).toBe('decrease');
     expect(stockReconcileRowState({ stockQty: 10, difference: 0, targetQty: 10 })).toBe('same');
@@ -139,9 +148,10 @@ describe('재고 파일 대조 — 문서', () => {
     const warnings = parseStockDispatchWarnings({ originId: null, minDifference: 1, checkedAt: '2031-05-01T00:00:00Z', batchVariantCount: 2,
       latestAsOf: '2031-05-01T00:00:00Z', unreconciledCount: 1,
       warnings: [{ variantId: 'v1', goodId: 'g', goodsCode: 'G1', goodsName: '키링', optionName: '핑크', optionCode: 'G1-01', kind: 'shortage',
-        snapshotId: 's', asOf: '2031-05-01T00:00:00Z', fileQty: 5, stockQty: 10, pendingQty: 9, shippedSinceQty: 0, expectedQty: 5, difference: -14, shortageQty: 4 }],
+        snapshotId: 's', asOf: '2031-05-01T00:00:00Z', fileQty: 5, stockQty: 10, pendingQty: 9, shippedSinceQty: 0, returnedSinceQty: 1,
+        awaitingReturnQty: 1, expectedQty: 5, difference: -14, shortageQty: 4 }],
       unreconciled: [{ variantId: 'v4', goodsName: '배지', optionName: '기본 옵션', optionCode: 'G4-01', pendingQty: 1 }] });
-    expect(warnings?.warnings[0]).toMatchObject({ kind: 'shortage', shortageQty: 4 });
+    expect(warnings?.warnings[0]).toMatchObject({ kind: 'shortage', shortageQty: 4, returnedSinceQty: 1, awaitingReturnQty: 1 });
     expect(warnings?.unreconciled).toHaveLength(1);
     expect(parseStockDispatchWarnings({ checkedAt: 'x', warnings: [], unreconciled: [] })).toBeNull();
   });

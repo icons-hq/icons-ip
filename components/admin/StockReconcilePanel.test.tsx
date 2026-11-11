@@ -6,7 +6,8 @@ import { StockReconcilePanel, StockReconcileResult, stockReconcileFileError } fr
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn(), replace: vi.fn() }) }));
 vi.mock('@/app/admin/stock-reconcile-actions', () => ({ readStockReconcileFileAction: vi.fn(), previewStockReconcileAction: vi.fn(), applyStockReconcileAction: vi.fn() }));
 
-const item = { goodId: 'g1', goodsCode: 'G1', goodsName: '키링', sourceRow: 2, matchKind: 'option_code' as const, appliedDelta: null, stockAfter: null, preorder: false };
+const item = { goodId: 'g1', goodsCode: 'G1', goodsName: '키링', sourceRow: 2, matchKind: 'option_code' as const, appliedDelta: null, stockAfter: null, preorder: false,
+  returnedSinceQty: 0, awaitingReturnQty: 0, adjustedSinceCount: 0, adjustedSinceQty: 0 };
 const snapshot: StockReconcileDocument = {
   id: '60000000-0000-4000-8000-000000000001', originId: null, originName: null, sourceLabel: '서원 재고.xlsx', asOf: '2031-05-01T00:00:00Z',
   createdAt: '2031-05-01T00:05:00Z', createdByName: '운영자', rowCount: 4, matchedCount: 3, issueCount: 1, changedCount: 2,
@@ -35,6 +36,20 @@ describe('재고 파일 대조 화면', () => {
     expect(html).toContain('사이트에서 찾지 못함');
     const all = renderToStaticMarkup(<StockReconcileResult snapshot={snapshot} showSame />);
     expect(all).toContain('키링 / 그린');
+    expect(html).toContain('기준 시각 뒤 회수');
+    expect(html).toContain('회수 뒤 미반영');
+    expect(html).not.toContain('기준 시각 뒤 재고를 직접 바꾼 옵션');
+  });
+
+  it('기준 시각 뒤 재고 조정·다른 대조가 있으면 반영 전에 알린다', () => {
+    const adjusted = { ...snapshot, items: snapshot.items.map((entry, index) => index === 0
+      ? { ...entry, returnedSinceQty: 2, awaitingReturnQty: 1, adjustedSinceCount: 1, adjustedSinceQty: 5 } : entry) };
+    const html = renderToStaticMarkup(<StockReconcileResult snapshot={adjusted} showSame={false} />);
+    expect(html).toContain('기준 시각 뒤 재고를 직접 바꾼 옵션 1개');
+    expect(html).toContain('기준 시각 뒤 직접 변경 1건 (+5)');
+    const applied = renderToStaticMarkup(<StockReconcileResult snapshot={{ ...adjusted, appliedAt: '2031-05-01T00:10:00Z', appliedByName: '운영자',
+      applyReason: '대조', applyResult: { changed: 2, increased: 1, decreased: 1, shortages: 1, totalDelta: -9 } }} showSame={false} />);
+    expect(applied).not.toContain('기준 시각 뒤 재고를 직접 바꾼 옵션');
   });
 
   it('반영한 기록은 반영 전·뒤 재고수량을 보인다', () => {

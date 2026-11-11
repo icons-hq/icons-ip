@@ -3,6 +3,7 @@
  *
  * 받는 사람은 운영자와 창고(출고지) 담당자다. 창고 담당자가 품목을 찾을 수 있게 판매자상품코드·관리코드와 함께
  * 등록된 ERP 코드·바코드를 싣는다. 어드민 링크는 운영자 메일에만 넣는다(창고는 어드민 계정이 없다).
+ * 한 주소가 여러 출고지 담당이면 한 통에 그 출고지들의 옵션을 담고 제목·인사말에 출고지 이름을, 표에 출고지 열을 둔다.
  */
 import { escapeHtml } from './templates';
 
@@ -13,7 +14,8 @@ export interface StockSafetyDigestItem {
 }
 export interface StockSafetyDigestJobContent {
   audience: 'operator' | 'origin';
-  originName: string | null;
+  /** 출고지 담당자 메일이 맡은 출고지 이름들(운영자 메일은 빈 배열). */
+  originNames: string[];
   /** KST 날짜(YYYY-MM-DD). */
   digestDate: string;
   /** 이 메일 대상의 전체 옵션 수. items는 앞 300개까지다. */
@@ -30,13 +32,20 @@ function itemLine(item: StockSafetyDigestItem, withOrigin: boolean): string {
   return `- ${name} (${codes}) — 재고 ${item.stockQty.toLocaleString('ko-KR')}개 / 기준 ${item.threshold.toLocaleString('ko-KR')}개${withOrigin && item.originName ? ` · ${item.originName}` : ''}`;
 }
 
+/** 제목에 싣는 출고지 이름. 셋 이상이면 앞 둘과 나머지 곳 수만 쓴다(인사말에는 전부 쓴다). */
+function originScope(names: readonly string[]): string {
+  if (names.length <= 2) return names.join(', ');
+  return `${names.slice(0, 2).join(', ')} 외 ${(names.length - 2).toLocaleString('ko-KR')}곳`;
+}
+
 export function renderStockSafetyDigestEmail(job: StockSafetyDigestJobContent, siteUrl: string) {
-  const scope = job.audience === 'origin' && job.originName ? `${job.originName} ` : '';
+  const origin = job.audience === 'origin';
+  const scope = origin && job.originNames.length ? `${originScope(job.originNames)} ` : '';
   const subject = `[ICONS] ${scope}안전재고 이하 옵션 ${job.itemCount.toLocaleString('ko-KR')}개 (${job.digestDate})`;
-  const withOrigin = job.audience === 'operator';
+  const withOrigin = !origin || job.originNames.length > 1;
   const rest = Math.max(0, job.itemCount - job.items.length);
-  const intro = job.audience === 'origin'
-    ? `${job.originName ?? '출고지'}에서 출고하는 ICONS 상품 중 재고수량이 안전재고 기준 이하인 옵션입니다. 실재고 확인과 입고 일정 공유를 부탁드립니다.`
+  const intro = origin
+    ? `${job.originNames.join(', ') || '출고지'}에서 출고하는 ICONS 상품 중 재고수량이 안전재고 기준 이하인 옵션입니다. 실재고 확인과 입고 일정 공유를 부탁드립니다.`
     : '재고수량이 안전재고 기준 이하인 옵션입니다. 재고수량은 ICONS에서 판매할 수 있는 할당 재고이며 주문을 받으면 줄어듭니다.';
   const adminUrl = `${siteUrl}${RECONCILE_PATH}`;
   const lines = job.items.map((item) => itemLine(item, withOrigin));

@@ -3,7 +3,8 @@
  *
  * 매일 설정 시각(KST)이 지나면 그날 한 번, 안전재고 기준 이하 옵션을 운영자 수신 주소(전체)와
  * 출고지 담당자 주소(그 출고지 상품만)로 보낸다. 기본은 꺼짐·09:00이다(근거는 migration 20261112161000 머리말).
- * 수신 주소가 비어 있거나 대상 옵션이 없으면 보내지 않는다. 같은 날·같은 주소에는 한 번만 보낸다(DB 멱등).
+ * 수신 주소가 비어 있거나 대상 옵션이 없으면 보내지 않는다. 같은 날·같은 주소에는 한 번만 보낸다(DB 멱등) —
+ * 한 주소가 여러 출고지 담당이면 그 출고지들의 옵션을 한 통에 담는다.
  */
 
 export const STOCK_SAFETY_DIGEST_DEFAULT_TIME = '09:00';
@@ -48,7 +49,8 @@ export const STOCK_DIGEST_ERROR_LABELS: Record<string, string> = {
 };
 
 export interface StockDigestDelivery {
-  audience: 'operator' | 'origin'; originName: string | null; recipient: string; itemCount: number;
+  /** 출고지 담당자 메일이면 그 주소가 맡은 출고지 이름들(운영자 메일은 빈 배열). */
+  audience: 'operator' | 'origin'; originNames: string[]; recipient: string; itemCount: number;
   status: StockDigestDeliveryStatus; errorCode: string | null; attempts: number; updatedAt: string;
 }
 export interface StockDigestRun { digestDate: string; createdAt: string; itemCount: number; deliveries: StockDigestDelivery[] }
@@ -83,10 +85,11 @@ export function parseStockDigestOrigin(value: unknown): StockDigestOrigin | null
 function parseDelivery(value: unknown): StockDigestDelivery | null {
   const row = record(value);
   const itemCount = int(row?.itemCount); const attempts = int(row?.attempts); const updatedAt = time(row?.updatedAt);
+  const originNames = strings(row?.originNames);
   if (!row || (row.audience !== 'operator' && row.audience !== 'origin') || typeof row.recipient !== 'string'
     || itemCount === null || attempts === null || !updatedAt || typeof row.status !== 'string' || !Object.hasOwn(STOCK_DIGEST_STATUS_LABELS, row.status)
-    || (row.originName !== null && typeof row.originName !== 'string') || (row.errorCode !== null && typeof row.errorCode !== 'string')) return null;
-  return { audience: row.audience, originName: row.originName as string | null, recipient: row.recipient, itemCount,
+    || originNames === null || (row.errorCode !== null && typeof row.errorCode !== 'string')) return null;
+  return { audience: row.audience, originNames, recipient: row.recipient, itemCount,
     status: row.status as StockDigestDeliveryStatus, errorCode: row.errorCode as string | null, attempts, updatedAt };
 }
 

@@ -4,7 +4,8 @@
  * 표 읽기·머리글 정규화는 ERP 품목 반입(lib/admin/erp-item-import)과 같고 열 대상만 다르다.
  * 브라우저(미리보기)와 서버 액션(재검증)이 같은 함수를 쓰고, 옵션 매칭·차이 계산·반영은 DB RPC가 한다.
  * 파일 수량은 그 시각 창고에 있던 ICONS 몫 실물이다(ADR-0005). 사이트 재고수량과 바로 비교하지 않고
- * 출고 대기·기준 시각 뒤 출고를 더해 비교한다 — 계산은 `admin_preview_stock_reconcile`이 소유한다.
+ * 출고 대기·회수 뒤 재고 미반영·기준 시각 뒤 출고를 더하고 기준 시각 뒤 회수를 빼서 비교한다
+ * — 계산은 `admin_preview_stock_reconcile`(`private.stock_reconcile_flows`)이 소유한다.
  */
 import { boundErpTable, normalizeErpHeader, normalizeErpText, parseErpDelimitedTable } from './erp-item-import';
 
@@ -15,8 +16,8 @@ export const STOCK_RECONCILE_QTY_LIMIT = 100_000_000;
 export const STOCK_RECONCILE_KEY_LIMIT = 200;
 export const STOCK_RECONCILE_LABEL_LIMIT = 200;
 export const STOCK_RECONCILE_REASON_LIMIT = 200;
-/** 파일 기준 시각은 이 날수 이내만 받는다(DB와 같다). */
-export const STOCK_RECONCILE_AS_OF_DAYS = 31;
+/** 파일 기준 시각은 이 날수 이내만 받는다(DB와 같다). 오래된 파일일수록 기록으로 가를 수 없는 변경이 쌓인다. */
+export const STOCK_RECONCILE_AS_OF_DAYS = 7;
 
 export type StockKeyField = 'goodsCode' | 'optionCode' | 'erpCode' | 'barcode';
 export type StockColumnTarget = StockKeyField | 'quantity' | 'ignore';
@@ -275,7 +276,7 @@ export function kstDateTimeLocalToIso(value: string): string | null {
   const date = new Date(`${value}:00+09:00`);
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
-/** 기준 시각 검증(DB와 같은 범위: 31일 이내, 미래 5분 이내). 문제가 없으면 null. */
+/** 기준 시각 검증(DB와 같은 범위: 7일 이내, 미래 5분 이내). 문제가 없으면 null. */
 export function stockAsOfError(iso: string | null, now = new Date()): string | null {
   if (!iso) return '파일의 재고 기준 시각을 입력해주세요.';
   const time = Date.parse(iso);
@@ -305,6 +306,12 @@ export const STOCK_MATCH_KIND_LABELS: Record<StockMatchKind, string> = {
 export interface StockReconcileItem {
   variantId: string; goodId: string; goodsCode: string; goodsName: string; optionName: string; optionCode: string;
   sourceRow: number; matchKind: StockMatchKind; fileQty: number; stockQty: number; pendingQty: number; shippedSinceQty: number;
+  /** 기준 시각 뒤 창고로 돌아온 수량(클레임 회수, 회수 기록 없이 복원된 출고분). */
+  returnedSinceQty: number;
+  /** 회수했지만 아직 환불·교환 재출고 전이라 재고수량에 돌아오지 않은 수량. */
+  awaitingReturnQty: number;
+  /** 기준 시각 뒤 사람이 바꾼 재고(재고 조정·다른 대조 반영). 계산에 넣지 않고 표시만 한다. */
+  adjustedSinceCount: number; adjustedSinceQty: number;
   difference: number; targetQty: number; appliedDelta: number | null; stockAfter: number | null; preorder: boolean;
 }
 export interface StockReconcileIssue { row: number; key: string; fileQty: number | null; reason: StockReconcileIssueReason }
@@ -349,15 +356,19 @@ function parseItem(value: unknown): StockReconcileItem | null {
   const sourceRow = int(row.sourceRow, { min: 1 }); const matchKind = text(row.matchKind) as StockMatchKind | null;
   const fileQty = int(row.fileQty, { min: 0 }); const stockQty = int(row.stockQty, { min: 0 });
   const pendingQty = int(row.pendingQty, { min: 0 }); const shippedSinceQty = int(row.shippedSinceQty, { min: 0 });
+  const returnedSinceQty = int(row.returnedSinceQty, { min: 0 }); const awaitingReturnQty = int(row.awaitingReturnQty, { min: 0 });
+  const adjustedSinceCount = int(row.adjustedSinceCount, { min: 0 }); const adjustedSinceQty = int(row.adjustedSinceQty);
   const difference = int(row.difference); const targetQty = int(row.targetQty, { min: 0 });
   const appliedDelta = row.appliedDelta === null ? null : int(row.appliedDelta);
   const stockAfter = row.stockAfter === null ? null : int(row.stockAfter, { min: 0 });
   if (!variantId || !UUID.test(variantId) || goodId === null || goodsCode === null || goodsName === null || optionName === null || optionCode === null
     || sourceRow === null || !matchKind || !Object.hasOwn(STOCK_MATCH_KIND_LABELS, matchKind) || fileQty === null || stockQty === null
-    || pendingQty === null || shippedSinceQty === null || difference === null || targetQty === null
+    || pendingQty === null || shippedSinceQty === null || returnedSinceQty === null || awaitingReturnQty === null
+    || adjustedSinceCount === null || adjustedSinceQty === null || difference === null || targetQty === null
     || (row.appliedDelta !== null && appliedDelta === null) || (row.stockAfter !== null && stockAfter === null) || typeof row.preorder !== 'boolean') return null;
   return { variantId, goodId, goodsCode, goodsName, optionName, optionCode, sourceRow, matchKind, fileQty, stockQty, pendingQty,
-    shippedSinceQty, difference, targetQty, appliedDelta, stockAfter, preorder: row.preorder };
+    shippedSinceQty, returnedSinceQty, awaitingReturnQty, adjustedSinceCount, adjustedSinceQty, difference, targetQty, appliedDelta,
+    stockAfter, preorder: row.preorder };
 }
 
 function parseIssue(value: unknown): StockReconcileIssue | null {
@@ -432,7 +443,7 @@ export function parseStockReconcileApplyOutcome(value: unknown): StockReconcileA
  * 행 상태(표시용)
  * ------------------------------------------------------------------------- */
 export type StockReconcileRowState = 'same' | 'increase' | 'decrease' | 'shortage';
-/** 반영 전에는 미리보기 값, 반영 뒤에는 실제 반영 값으로 판정한다. 부족은 파일 수량보다 출고 대기가 많은 것이다. */
+/** 반영 전에는 미리보기 값, 반영 뒤에는 실제 반영 값으로 판정한다. 부족은 지금 창고 실물보다 출고 대기(와 회수 뒤 미반영)가 많은 것이다. */
 export function stockReconcileRowState(item: Pick<StockReconcileItem, 'stockQty' | 'difference' | 'targetQty'>): StockReconcileRowState {
   if (item.stockQty + item.difference < 0) return 'shortage';
   if (item.targetQty > item.stockQty) return 'increase';
@@ -456,6 +467,8 @@ export function defaultStockReconcileReason(label: string): string {
 export interface StockDispatchWarning {
   variantId: string; goodsName: string; goodsCode: string; optionName: string; optionCode: string;
   kind: 'shortage' | 'mismatch'; asOf: string; fileQty: number; stockQty: number; pendingQty: number; shippedSinceQty: number;
+  returnedSinceQty: number; awaitingReturnQty: number;
+  /** 창고 예상 수량 = 파일 − 기준 시각 뒤 출고 + 기준 시각 뒤 회수 − 회수 뒤 재고 미반영. */
   expectedQty: number; difference: number; shortageQty: number;
 }
 export interface StockDispatchUnreconciled { variantId: string; goodsName: string; optionName: string; optionCode: string; pendingQty: number }
@@ -477,12 +490,14 @@ export function parseStockDispatchWarnings(value: unknown): StockDispatchWarning
   for (const entry of row.warnings) {
     const item = record(entry);
     if (!item) return null;
-    const numbers = ['fileQty', 'stockQty', 'pendingQty', 'shippedSinceQty', 'expectedQty', 'difference', 'shortageQty'].map((key) => int(item[key]));
+    const numbers = ['fileQty', 'stockQty', 'pendingQty', 'shippedSinceQty', 'returnedSinceQty', 'awaitingReturnQty', 'expectedQty', 'difference',
+      'shortageQty'].map((key) => int(item[key]));
     const variantId = text(item.variantId); const asOf = time(item.asOf);
     if (!variantId || !asOf || numbers.some((number) => number === null) || (item.kind !== 'shortage' && item.kind !== 'mismatch')) return null;
-    const [fileQty, stockQty, pendingQty, shippedSinceQty, expectedQty, difference, shortageQty] = numbers as number[];
+    const [fileQty, stockQty, pendingQty, shippedSinceQty, returnedSinceQty, awaitingReturnQty, expectedQty, difference, shortageQty] = numbers as number[];
     warnings.push({ variantId, goodsName: text(item.goodsName) ?? '', goodsCode: text(item.goodsCode) ?? '', optionName: text(item.optionName) ?? '',
-      optionCode: text(item.optionCode) ?? '', kind: item.kind, asOf, fileQty, stockQty, pendingQty, shippedSinceQty, expectedQty, difference, shortageQty });
+      optionCode: text(item.optionCode) ?? '', kind: item.kind, asOf, fileQty, stockQty, pendingQty, shippedSinceQty, returnedSinceQty,
+      awaitingReturnQty, expectedQty, difference, shortageQty });
   }
   const unreconciled: StockDispatchUnreconciled[] = [];
   for (const entry of row.unreconciled) {

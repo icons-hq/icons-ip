@@ -46,13 +46,16 @@ function outcome(result: DispatchOutcome): StockSafetyDigestOutcome {
 export function parseStockSafetyDigestJob(value: unknown): StockSafetyDigestJob | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const row = value as Record<string, unknown>;
+  const originNames = Array.isArray(row.originNames) && row.originNames.every((name) => typeof name === 'string')
+    ? row.originNames as string[] : null;
   if (!isUuid(row.id) || !isUuid(row.claimToken) || typeof row.recipient !== 'string' || !row.recipient.includes('@')
-    || (row.audience !== 'operator' && row.audience !== 'origin') || (row.originName !== null && typeof row.originName !== 'string')
+    || (row.audience !== 'operator' && row.audience !== 'origin') || originNames === null
+    || (row.audience === 'origin') !== (originNames.length > 0)
     || typeof row.digestDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(row.digestDate)
     || typeof row.itemCount !== 'number' || !Number.isSafeInteger(row.itemCount) || row.itemCount < 1 || !Array.isArray(row.items)) return null;
   const items = row.items.map(parseStockSafetyDigestItem);
   if (!items.length || items.some((item) => !item)) return null;
-  return { id: row.id, claimToken: row.claimToken, recipient: row.recipient, audience: row.audience, originName: row.originName as string | null,
+  return { id: row.id, claimToken: row.claimToken, recipient: row.recipient, audience: row.audience, originNames,
     digestDate: row.digestDate, itemCount: row.itemCount, items: items as StockSafetyDigestJob['items'] };
 }
 
