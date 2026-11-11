@@ -387,7 +387,7 @@ describe('ERP 분류 일괄 연결', () => {
     await Promise.all(hooks.pending.splice(0));
   };
   const statusLine = (panel: ReactNode) => text(find(panel, (element) => (element.props as { role?: string }).role === 'status' && element.type === 'p')[0]);
-  const stubConfirm = (answer: boolean) => { const confirm = vi.fn(() => answer); vi.stubGlobal('window', { confirm }); return confirm; };
+  const stubConfirm = (answer: boolean) => { const confirm = vi.fn<(message: string) => boolean>(() => answer); vi.stubGlobal('window', { confirm }); return confirm; };
   const okResult = (changed: number, message = '저장했습니다.') => ({ ok: true, changed, unchanged: 0, rejected: [], message });
 
   it('체크한 행을 고른 카테고리로 한 번에 연결하고 표에 바로 반영한다', async () => {
