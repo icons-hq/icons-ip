@@ -34,12 +34,17 @@ import {
   claimsListExportSheet,
   listExportContact,
   ordersListExportSheet,
+  REFUND_TRANSFER_EXPORT_INCLUDES_ACCOUNT,
+  refundTransfersListExportSheet,
   shipmentsListExportSheet,
   unpaidListExportSheet,
   type ListExportClaimItem,
   type ListExportClaimOrder,
   type ListExportContact,
 } from './list-export-sheets';
+import { loadRefundTransfers } from './refund-transfers.server';
+import { REFUND_TRANSFERS_PAGE_SIZE } from './refund-transfers';
+import { refundTransferExportCaller, revealRefundTransferAccounts } from './list-export-refund-transfers.server';
 
 /*
  * 목록 엑셀 다운로드 로더.
@@ -286,16 +291,41 @@ const CLAIM_TYPES: Record<string, OrderClaimType> = {
   'claims-exchanges': 'exchange',
 };
 
-/** 화면 id와 화면 검색 파라미터로 목록 시트를 만든다. 상한을 넘으면 AdminListExportLimitError. */
+/**
+ * 환불 송금 대기 — 화면과 같은 조회(리비전 포함)를 끝 페이지까지 모으고, 계좌 열을 켰으면 그 요청들의 계좌를 한 번에 연다.
+ * 계좌 열람은 라우트가 비밀번호를 확인한 뒤에만 이 함수로 들어온다(감사 기록은 DB가 남긴다).
+ */
+async function refundTransfersSheet(now: Date, actorId: string | undefined) {
+  const caller = REFUND_TRANSFER_EXPORT_INCLUDES_ACCOUNT ? await refundTransferExportCaller(await createClient(), actorId) : null;
+  const rows = await collectAdminListExportPages(
+    REFUND_TRANSFERS_PAGE_SIZE,
+    async (page) => {
+      let data: Awaited<ReturnType<typeof loadRefundTransfers>>;
+      try { data = await loadRefundTransfers(page); } catch { throw new AdminListExportLoadError(); }
+      return { items: data.rows, total: data.total };
+    },
+    (row) => row.claimId,
+  );
+  if (!caller) return refundTransfersListExportSheet({ rows, accounts: null, accountExportId: null, now });
+  const { exportId, accounts } = await revealRefundTransferAccounts(caller, rows);
+  return refundTransfersListExportSheet({ rows, accounts, accountExportId: exportId, now });
+}
+
+/**
+ * 화면 id와 화면 검색 파라미터로 목록 시트를 만든다. 상한을 넘으면 AdminListExportLimitError.
+ * `actorId`는 라우트 권한 게이트를 통과한 운영자다. 환불 송금 대기의 계좌 열람은 쿠키 세션이 이 운영자와 같을 때만 한다.
+ */
 export async function loadAdminListExportSheet(
   screen: AdminListExportScreenId,
   params: SearchParams,
   now: Date,
+  actorId?: string,
 ): Promise<AdminListExportSheet> {
   let sheet: AdminListExportSheet;
   if (screen === 'orders') sheet = await ordersSheet(params);
   else if (screen === 'unpaid') sheet = await unpaidSheet(params);
   else if (screen === 'dispatch' || screen === 'shipping') sheet = await shipmentsSheet(screen, params);
+  else if (screen === 'refund-transfers') sheet = await refundTransfersSheet(now, actorId);
   else sheet = await claimsSheet(CLAIM_TYPES[screen], params, now);
   assertAdminListExportWithinLimit(sheet.rows.length, ADMIN_LIST_EXPORT_ROW_LIMIT, 'rows');
   return sheet;

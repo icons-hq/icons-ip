@@ -25,6 +25,7 @@ export const ADMIN_LIST_EXPORT_SCREEN_IDS = [
   'claims-cancels',
   'claims-returns',
   'claims-exchanges',
+  'refund-transfers',
 ] as const;
 export type AdminListExportScreenId = (typeof ADMIN_LIST_EXPORT_SCREEN_IDS)[number];
 
@@ -48,6 +49,8 @@ export const ADMIN_LIST_EXPORT_SCREENS: Record<AdminListExportScreenId, AdminLis
   'claims-cancels': { id: 'claims-cancels', label: '취소 관리', href: '/admin/sales/claims/cancels', fileLabel: '취소관리', asciiLabel: 'claims-cancels' },
   'claims-returns': { id: 'claims-returns', label: '반품 관리', href: '/admin/sales/claims/returns', fileLabel: '반품관리', asciiLabel: 'claims-returns' },
   'claims-exchanges': { id: 'claims-exchanges', label: '교환 관리', href: '/admin/sales/claims/exchanges', fileLabel: '교환관리', asciiLabel: 'claims-exchanges' },
+  /* 10/7 회의 1007-047·048: 송금할 무통장 환불 목록. 계좌를 함께 싣는다(`REFUND_TRANSFER_EXPORT_INCLUDES_ACCOUNT`). */
+  'refund-transfers': { id: 'refund-transfers', label: '환불 송금 대기', href: '/admin/sales/claims/refund-transfers', fileLabel: '환불송금대기', asciiLabel: 'refund-transfers' },
 };
 
 /** 클레임 유형별 화면 id. 사이드바 id(`claims-cancels` 등)와 같다. */

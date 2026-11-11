@@ -7,10 +7,13 @@ import { cn } from 'cn';
 import { formatKrwExact } from '@/components/admin/format';
 import { formatOrderDateTime, orderReferenceLabel } from '@/lib/orders';
 import { orderClaimReferenceLabel } from '@/lib/orders/claims';
-import { refundTransfersHref, type RefundTransferPage } from '@/lib/admin/refund-transfers';
+import { REFUND_TRANSFERS_PATH, refundTransfersHref, type RefundTransferPage } from '@/lib/admin/refund-transfers';
+import { AdminListExportButton } from '@/components/admin/AdminListExportButton';
+import { adminListExportHref } from '@/lib/admin/list-export';
 
 /* 환불 송금 대기(무통장 환불의 실제 송금이 남은 요청) — 템플릿 룩(ADR-0028). 목록은 공용 ConsoleGrid다.
- * 목록 RPC는 계좌를 싣지 않는다 — 계좌 원문 열람과 송금 완료 기록은 요청 상세의 무통장 환불 칸에서만 한다. 그 칸으로 바로 가는 버튼을 첫 화면에 둔다. */
+ * 목록 RPC는 계좌를 싣지 않는다 — 화면에서 계좌 원문 열람과 송금 완료 기록은 요청 상세의 무통장 환불 칸에서만 한다. 그 칸으로 바로 가는 버튼을 첫 화면에 둔다.
+ * 송금에 쓸 계좌는 비밀번호를 건 목록 엑셀로도 받는다(1007-047·048). 내려받을 때 서버가 요청별 계좌 열람을 기록한다. */
 
 /** 취소 확정 뒤 이 날수 이상 지난 요청을 주의로 표시한다. 약관의 환급 기한(3영업일)에 맞춘 눈금이고 처리 판정이 아니다. */
 const LONG_WAIT_DAYS = 3;
@@ -45,6 +48,7 @@ export function RefundTransfersScreen({ data, now = new Date() }: {
     <SalesGuide title="실제 송금이 남은 무통장 환불을 확인하세요.">
       <p>주문 취소와 재고 복원은 확정됐으며, 결제자에게 환불금을 보내는 단계입니다. 요청 상세에서 환불 접수와 계좌를 확인한 뒤 송금하고, 실제 송금 증빙을 기록하면 이 목록에서 제외됩니다.</p>
       <p>선물의 결제자와 요청자는 다를 수 있습니다. 환불은 결제자 기준으로 처리하며 계좌 원문은 권한이 있는 담당자가 요청 상세에서 열람합니다.</p>
+      <p>목록 엑셀에는 송금에 쓸 환불 계좌가 함께 담깁니다. 비밀번호를 걸어 내려받으며, 내려받을 때마다 요청별 계좌 열람 기록이 남습니다.</p>
     </SalesGuide>
     {data.rows.length ? <AdminNotice tone="warning" title={<span className="flex flex-wrap items-baseline gap-x-2">{wholeList ? '보낼 돈 합계' : '이 페이지 보낼 돈 합계'}<span className="text-lg tabular-nums" data-refund-transfer-sum="">{formatKrwExact(sum)}</span></span>}>
       {wholeList ? `${data.rows.length.toLocaleString('ko-KR')}건` : `전체 ${data.total.toLocaleString('ko-KR')}건 중 이 페이지 ${data.rows.length.toLocaleString('ko-KR')}건`}
@@ -52,7 +56,10 @@ export function RefundTransfersScreen({ data, now = new Date() }: {
       {unnamed ? ` · 결제자 이름 미등록 ${unnamed.toLocaleString('ko-KR')}건은 송금 전에 확인해주세요.` : ''}
     </AdminNotice> : null}
     <ConsoleListCard title="목록" total={data.total}
-      actions={<a className={cn(buttonVariants({ size: 'sm', variant: 'outline' }))} data-slot="button" href={refundTransfersHref(data.page)}>새로고침</a>}>
+      actions={<div className="flex flex-wrap items-start gap-2">
+        <a className={cn(buttonVariants({ size: 'sm', variant: 'outline' }))} data-slot="button" href={refundTransfersHref(data.page)}>새로고침</a>
+        <AdminListExportButton href={adminListExportHref('refund-transfers', REFUND_TRANSFERS_PATH)} total={data.total} />
+      </div>}>
     <ConsoleGrid caption="무통장 환불 송금 대기 목록" preferencesKey="sales-refund-transfers" columns={columns}
       emptyLabel="송금 대기 중인 무통장 환불이 없습니다." rows={data.rows.map(row => {
         const detailHref = `/admin/sales/claims/${row.claimType === 'cancel' ? 'cancels' : 'returns'}/${row.claimId}`;
