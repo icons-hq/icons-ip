@@ -27,7 +27,7 @@ it('연결 쿠폰의 지급 방식과 매월 지급 기록을 검사한다(지�
   /* 재산정 실패 제외 수가 없던 응답은 0명이다. */
   const withoutSkipped: Record<string, unknown> = { ...run };
   delete withoutSkipped.skipped;
-  expect(parseAdminLoyaltyPolicy({ ...data, monthlyRuns: [withoutSkipped] })?.monthlyRuns[0].skipped).toBe(0);
+  expect(parseAdminLoyaltyPolicy({ ...data, monthlyRuns: [withoutSkipped] })?.monthlyRuns?.[0]?.skipped).toBe(0);
   for (const broken of [{ ...run, grantMonth: '2026-13' }, { ...run, finishReason: 'done' }, { ...run, finishedAt: null },
     { ...run, granted: -1 }, { ...run, skipped: -1 }, { ...run, coupons: [{ code: 'X', name: '', granted: 1 }] }]) {
     expect(parseAdminLoyaltyPolicy({ ...data, monthlyRuns: [broken] })).toBeNull();
