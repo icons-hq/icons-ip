@@ -88,6 +88,20 @@ describe('normalizeAdminCouponForm', () => {
     expect(good.ok).toBe(true);
     if (good.ok) expect(good.value.gradeBenefit).toBe('gold');
   });
+
+  it('등급 혜택 지급 방식은 등급을 고른 폼에서만 보내고 값을 두 방식으로 제한한다', () => {
+    const monthly = normalizeAdminCouponForm(form({ ...valid, gradeBenefit: 'gold', gradeBenefitCadence: 'monthly' }));
+    expect(monthly.ok && monthly.value.gradeBenefitCadence).toBe('monthly');
+    /* 칸이 없으면 null — 서버가 기존 지급 방식을 유지한다(목록에서 못 읽은 값을 기본값으로 덮어쓰지 않는다). */
+    const omitted = normalizeAdminCouponForm(form({ ...valid, gradeBenefit: 'gold' }));
+    expect(omitted.ok && omitted.value.gradeBenefitCadence).toBeNull();
+    /* 등급 혜택이 없으면 지급 방식은 보내지 않는다(서버가 승급 시 1회로 둔다). */
+    const ungraded = normalizeAdminCouponForm(form({ ...valid, gradeBenefitCadence: 'monthly' }));
+    expect(ungraded.ok && ungraded.value.gradeBenefitCadence).toBeNull();
+    const bad = normalizeAdminCouponForm(form({ ...valid, gradeBenefit: 'gold', gradeBenefitCadence: 'weekly' }));
+    expect(bad.ok).toBe(false);
+    if (!bad.ok) expect(bad.errors.gradeBenefitCadence).toBe('등급 혜택 지급 방식을 확인해주세요.');
+  });
 });
 
 describe('admin coupon list URL state', () => {

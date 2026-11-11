@@ -56,3 +56,12 @@ it('혜택 중지 확인은 대상 코드·약관 개정·다음 상태를 담�
   expect(dialog).toMatch(/<button[^>]*type="submit"[^>]*>중지 확인<\/button>/);
   expect(dialog).toMatch(/<button[^>]*type="button"[^>]*>닫기<\/button>/);
 });
+
+/* 매월 등급 혜택(S36-062) — 등급 쿠폰은 대상 칸에 지급 방식을 한 줄 더 적는다. */
+it('등급 혜택 쿠폰은 대상 칸에 지급 방식을 함께 보인다', () => {
+  const graded = (cadence: 'upgrade' | 'monthly') => ({ ...coupon, id: `GOLD-${cadence.toUpperCase()}`, code: `GOLD-${cadence.toUpperCase()}`, name: `골드 ${cadence}`, gradeBenefit: 'gold', gradeBenefitCadence: cadence }) as unknown as AdminCouponRecord;
+  const html = renderToStaticMarkup(<CouponSection action={() => {}} draft={null} filters={normalizeAdminCouponFilters({})} onSelect={() => {}} pageSize={20} pending={false}
+    records={[graded('monthly'), graded('upgrade')]} selected={null} state={{}} total={2} />);
+  expect(html).toMatch(/GOLD 등급<small[^>]*>매월 1일<\/small>/);
+  expect(html).toMatch(/GOLD 등급<small[^>]*>승급 시 1회<\/small>/);
+});

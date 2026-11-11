@@ -1,7 +1,7 @@
 import type { AdminFieldErrors } from '@/lib/admin/catalog';
 import { kstDateTimeToIso } from '@/lib/admin/kst';
 import { customerServiceDate } from './customer-service-list';
-import { LOYALTY_GRADES } from '@/lib/loyalty';
+import { isGradeBenefitCadence, LOYALTY_GRADES, type GradeBenefitCadence } from '@/lib/loyalty';
 import { parseCouponTargeting, type CouponTargetCategory, type CouponTargetGood, type CouponTargetIp, type CouponTargeting } from '@/lib/coupon-targeting';
 import { readCouponIssueSchedule, type CouponIssueSchedule } from './coupon-schedule';
 
@@ -41,6 +41,8 @@ export interface AdminCouponRecord extends Partial<CouponTargeting>, Partial<Cou
   usedCount: number;
   status: 'active' | 'archived';
   gradeBenefit: string | null;
+  /** 등급 혜택 지급 방식. 등급 혜택이 없으면 늘 'upgrade'다(DB 정본). */
+  gradeBenefitCadence?: GradeBenefitCadence;
   termsRevision?: number;
   targetGoods?: CouponTargetGood[];
   targetCategories?: CouponTargetCategory[];
@@ -85,6 +87,8 @@ export interface AdminCouponFormValue extends CouponTargeting, CouponIssueSchedu
   issueLimit: number | null;
   status: 'active' | 'archived';
   gradeBenefit: string | null;
+  /** 등급 혜택이 있을 때만 보낸다. null 이면 서버가 기존 지급 방식을 유지한다(등급 혜택이 없으면 'upgrade'). */
+  gradeBenefitCadence: GradeBenefitCadence | null;
   expectedRevision: number | null;
 }
 
@@ -213,6 +217,10 @@ export function normalizeAdminCouponForm(formData: FormData): AdminCouponFormRes
   if (rawGradeBenefit && !GRADE_SET.has(rawGradeBenefit)) {
     errors.gradeBenefit = '등급 혜택 값을 확인해주세요.';
   }
+  const rawCadence = readString(formData, 'gradeBenefitCadence');
+  if (rawGradeBenefit && rawCadence && !isGradeBenefitCadence(rawCadence)) {
+    errors.gradeBenefitCadence = '등급 혜택 지급 방식을 확인해주세요.';
+  }
 
   const discountValueRaw = readString(formData, 'discountValue');
   const discountValue = Number(discountValueRaw);
@@ -271,6 +279,7 @@ export function normalizeAdminCouponForm(formData: FormData): AdminCouponFormRes
       issueLimit,
       status: status as 'active' | 'archived',
       gradeBenefit: rawGradeBenefit || null,
+      gradeBenefitCadence: rawGradeBenefit && isGradeBenefitCadence(rawCadence) ? rawCadence : null,
     },
   };
 }

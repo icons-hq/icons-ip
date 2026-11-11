@@ -108,6 +108,21 @@ describe('upsertAdminCouponAction', () => {
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/admin/sales/coupons');
   });
 
+  it('sends the grade benefit cadence only with a grade benefit', async () => {
+    await upsertAdminCouponAction({}, form({ gradeBenefit: 'gold', gradeBenefitCadence: 'monthly' }));
+    expect(mocks.rpc.mock.calls[0][1].target_payload).toMatchObject({ target_grade_benefit: 'gold', target_grade_benefit_cadence: 'monthly' });
+
+    await upsertAdminCouponAction({}, form({ gradeBenefit: '', gradeBenefitCadence: 'monthly' }));
+    expect(mocks.rpc.mock.calls[1][1].target_payload).not.toHaveProperty('target_grade_benefit_cadence');
+    expect(mocks.rpc.mock.calls[1][1].target_payload.target_grade_benefit).toBeNull();
+  });
+
+  it('maps a rejected grade benefit cadence to its field', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'invalid_coupon_grade_cadence' } });
+    const state = await upsertAdminCouponAction({}, form({ gradeBenefit: 'gold', gradeBenefitCadence: 'monthly' }));
+    expect(state.errors?.gradeBenefitCadence).toBe('등급 혜택 지급 방식을 확인해주세요.');
+  });
+
   it('does not call the write RPC for a non-staff session', async () => {
     mocks.adminState = {
       isConfigured: true,
