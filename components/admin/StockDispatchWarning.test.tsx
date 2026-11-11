@@ -1,0 +1,37 @@
+import { renderToStaticMarkup } from 'react-dom/server';
+import { describe, expect, it } from 'vitest';
+import type { StockDispatchWarnings } from '@/lib/admin/stock-reconcile';
+import { StockDispatchWarning } from './StockDispatchWarning';
+
+const base: StockDispatchWarnings = { originId: null, checkedAt: '2031-05-01T00:00:00Z', batchVariantCount: 2, latestAsOf: '2031-05-01T00:00:00Z',
+  warnings: [], unreconciledCount: 0, unreconciled: [] };
+const warning = { variantId: 'v1', goodsName: '키링', goodsCode: 'G1', optionName: '핑크', optionCode: 'G1-01', asOf: '2031-05-01T00:00:00Z',
+  fileQty: 5, stockQty: 10, pendingQty: 9, shippedSinceQty: 0, expectedQty: 5, difference: -14, shortageQty: 4 };
+
+describe('출고지시 전 재고 경고', () => {
+  it('불러오지 못했거나 경고할 것이 없으면 그리지 않는다(출고를 막지 않는다)', () => {
+    expect(renderToStaticMarkup(<StockDispatchWarning data={null} />)).toBe('');
+    expect(renderToStaticMarkup(<StockDispatchWarning data={base} />)).toBe('');
+  });
+
+  it('부족은 위험 상자로 출고 대기·창고 예상 수량을 보인다', () => {
+    const html = renderToStaticMarkup(<StockDispatchWarning data={{ ...base, warnings: [{ ...warning, kind: 'shortage' }], unreconciledCount: 1,
+      unreconciled: [{ variantId: 'v4', goodsName: '배지', optionName: '기본 옵션', optionCode: 'G4-01', pendingQty: 1 }] }} />);
+    expect(html).toContain('data-admin-notice="danger"');
+    expect(html).toContain('창고 재고보다 출고할 주문이 많은 옵션 1개');
+    expect(html).toContain('출고 대기 9개 · 창고 예상 5개(부족 4)');
+    expect(html).toContain('재고 파일로 대조한 적 없는 출고 대기 옵션도 1개 있습니다.');
+    expect(html).toContain('href="/admin/catalog/stock-reconcile"');
+  });
+
+  it('차이는 주의 상자, 대조 기록만 없으면 안내 상자다', () => {
+    const mismatch = renderToStaticMarkup(<StockDispatchWarning data={{ ...base, warnings: [{ ...warning, kind: 'mismatch', difference: 3, shortageQty: 0 }] }} />);
+    expect(mismatch).toContain('data-admin-notice="warning"');
+    expect(mismatch).toContain('재고 파일과 차이 +3개');
+    const unreconciled = renderToStaticMarkup(<StockDispatchWarning data={{ ...base, unreconciledCount: 4,
+      unreconciled: [{ variantId: 'v4', goodsName: '배지', optionName: '기본 옵션', optionCode: 'G4-01', pendingQty: 1 }] }} />);
+    expect(unreconciled).toContain('data-admin-notice="info"');
+    expect(unreconciled).toContain('재고 파일로 대조한 적 없는 출고 대기 옵션 4개');
+    expect(unreconciled).toContain('배지 외 1개');
+  });
+});

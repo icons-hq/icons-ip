@@ -131,6 +131,10 @@ const STATUS_TONES = {
   sabangnetColumn: { confirmed: 'success', guessed: 'warning', remembered: 'neutral', known: 'neutral', unknown: 'warning', duplicate: 'warning', manual: 'neutral' },
   /** 카테고리 일괄 등록 줄별 결과 */
   categoryBulk: { created: 'success', skipped: 'neutral', failed: 'danger' },
+  /** 재고 파일 대조 행 — lib/admin/stock-reconcile stockReconcileRowState. 부족(창고가 다 보낼 수 없음)만 위험색이다 */
+  stockReconcile: { same: 'neutral', increase: 'info', decrease: 'warning', shortage: 'danger' },
+  /** 안전재고 요약 메일 발송 — lib/admin/stock-safety-digest */
+  stockDigest: { queued: 'info', processing: 'info', sent: 'success', failed: 'danger', unknown: 'warning', suppressed: 'neutral' },
   // [ops]
   /** 쿠폰 혜택상태(lib/admin/coupons couponPhase) — 중지는 coupon.archived(보관)와 같은 색이다. */
   couponPhase: { scheduled: 'info', live: 'success', ended: 'neutral', stopped: 'neutral' },
