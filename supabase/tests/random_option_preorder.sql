@@ -394,6 +394,21 @@ select 1/case when (select line->'optionLimit' from jsonb_array_elements(public.
  then 1 else 0 end as assert_quote_member_limit;
 reset role;
 
+-- 일반 재고 랜덤 굿즈의 공급 nextChangeAt은 굿즈 판매 기간 경계를 그대로 준다(풀 공급이 지우지 않는다).
+update public.goods set sale_starts_at=now()-interval '1 hour',sale_ends_at=now()+interval '2 hours' where id='rp-limit';
+select 1/case when (select (public.goods_variant_supply(v)->>'nextChangeAt')::timestamptz from public.goods_variants v where v.id=:'rl_b')
+   =(select sale_ends_at from public.goods where id='rp-limit')
+ then 1 else 0 end as assert_stock_pool_keeps_sale_period_boundary;
+update public.goods set sale_starts_at=null,sale_ends_at=null where id='rp-limit';
+
+-- 난수는 2^32보다 큰 범위에서도 뽑는다(큰 예약 물량 합).
+-- 200번 뽑아 모두 범위 안이고, 2^32 이상 값이 한 번은 나온다(한 번에 약 14%, 모두 빗나갈 확률 1e-13 미만).
+select 1/case when (select bool_and(value between 0 and 4999999999) and max(value)>=4294967296
+   from (select private.random_below(5000000000) value from generate_series(1,200)) draws)
+ and private.random_below(1)=0
+ then 1 else 0 end as assert_random_below_wide_range;
+select pg_temp.expect_error('select private.random_below(4611686018427387905)','invalid_random_bound');
+
 -- 함수 봉인: 새 풀 함수는 내부 전용, 일괄 RPC는 로그인 사용자만(권한은 함수 안에서 판정).
 select 1/case when not has_function_privilege('anon','private.random_option_pool_supply(text,timestamptz)','execute')
  and not has_function_privilege('authenticated','private.random_option_pool_supply(text,timestamptz)','execute')

@@ -73,6 +73,7 @@ grant execute on function private.goods_random_option_problem(text) to postgres;
 --   예약: 접수 기간·발송 예정일은 모든 옵션이 같다(조건 함수). availableQty = 접수 중인 옵션의 남은 예약 물량 합(접수 중이 아니면 0),
 --   state = 모든 정책이 중지면 stopped, 아니면 공통 기간 기준(scheduled·open·closed). policyId·policyRevision은 기본 옵션(장바구니 키)의
 --   선택 정책이다(옵션별 정책을 드러내지 않는다). 기본 옵션이 판매 중이 아니면 행이 없다.
+--   일반 재고의 nextChangeAt은 기본 옵션 공급의 값(굿즈 단위 판매 기간 경계)이다 — 20261105093418 이전 동작과 같다.
 create function private.random_option_pool_supply(p_good_id text,p_at timestamptz)
 returns table(mode text,available_qty integer,policy_id uuid,policy_revision integer,state text,
   starts_at timestamptz,ends_at timestamptz,expected_ship_date date,next_change_at timestamptz)
@@ -93,7 +94,7 @@ begin
     where variant.good_id=p_good_id and variant.archived_at is null and supply.mode=key_supply.mode;
   if key_supply.mode='stock' then
     return query select 'stock'::text,total::integer,null::uuid,null::integer,'stock'::text,
-      null::timestamptz,null::timestamptz,null::date,null::timestamptz;
+      null::timestamptz,null::timestamptz,null::date,key_supply.next_change_at;
     return;
   end if;
   return query select 'preorder'::text,
@@ -173,6 +174,23 @@ begin
 end $patch$;
 
 -- 3. 배정 ------------------------------------------------------------------------------------------------
+-- 난수 범위를 2^32에서 2^62로 넓힌다. 예약 물량은 옵션마다 integer 상한까지 받을 수 있어(운영자가 '사실상 무제한'으로 큰 값을 넣는 경우)
+-- 남은 물량 합이 2^32를 넘으면 모든 주문이 invalid_random_bound로 실패했다. 8바이트에서 하위 62비트를 거부 추출한다(균등).
+create or replace function private.random_below(p_bound bigint) returns bigint
+language plpgsql volatile set search_path='' as $$
+declare accept_below bigint; drawn bigint;
+  span constant bigint:=4611686018427387904;
+begin
+  if p_bound is null or p_bound<1 or p_bound>span then raise invalid_parameter_value using message='invalid_random_bound'; end if;
+  accept_below:=span-(span%p_bound);
+  loop
+    drawn:=('x'||encode(extensions.gen_random_bytes(8),'hex'))::bit(64)::bigint & 4611686018427387903;
+    if drawn<accept_below then return drawn%p_bound; end if;
+  end loop;
+end $$;
+revoke all on function private.random_below(bigint) from public,anon,authenticated,service_role;
+grant execute on function private.random_below(bigint) to postgres;
+
 -- 20261028160100의 배정에 예약 공급과 같은 옵션 배정 상한을 더한다. 호출자(legacy 주문 코어)는 회원·장바구니 잠금과
 -- 굿즈 행 FOR UPDATE를 쥐고 있다. 반환값은 배정 행 소계.
 --   풀: 판매 중 옵션 전부(id 순 FOR UPDATE). 공급 방식이 섞이거나 옵션 가격이 다르면 random_option_unavailable.
