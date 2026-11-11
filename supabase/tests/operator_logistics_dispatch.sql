@@ -78,7 +78,7 @@ begin
  end loop;
 end $$;
 
--- 계약: 정확히 이 20개 출고 RPC만 sales.manage에서 sales.dispatch로 옮겼다.
+-- 계약: 정확히 이 22개 출고 RPC만 sales.manage에서 sales.dispatch로 옮겼다(택배 외 인계·수령 기록과 그 읽기 포함).
 create temp table ld_dispatch_contracts(signature text primary key);
 insert into ld_dispatch_contracts values
  ('public.admin_search_shipments_notice_console(text,uuid,text,date,date,integer,integer,text,text,text,text,text,text)'),
@@ -91,7 +91,8 @@ insert into ld_dispatch_contracts values
  ('public.admin_import_warehouse_tracking_batch(uuid,jsonb)'),('public.admin_import_shipment_tracking_batch(jsonb)'),
  ('public.admin_import_item_tracking_batch(jsonb)'),('public.admin_import_shipment_tracking(text,text,text)'),
  ('public.admin_update_shipment_status(uuid,text,text,text)'),('public.admin_update_shipment_tracking(uuid,text,text)'),
- ('public.admin_complete_shipments(uuid[])'),('public.admin_enqueue_shipment_emails(jsonb)');
+ ('public.admin_complete_shipments(uuid[])'),('public.admin_enqueue_shipment_emails(jsonb)'),
+ ('public.admin_read_shipment_delivery(uuid)'),('public.admin_record_shipment_delivery(uuid,text,jsonb,text,timestamp with time zone,uuid)');
 select pg_temp.ld_assert(
  (select array_agg(signature order by signature) from private.operator_rpc_contracts where capability='sales.dispatch')
   =(select array_agg(signature order by signature) from ld_dispatch_contracts)
@@ -111,21 +112,24 @@ begin
   end loop;
  end loop;
 end $$;
--- 물류출고관리가 닿는 주문·판매 RPC는 출고 RPC뿐이다. 발주확인·취소·환불·클레임·고객·상품·목록 엑셀은 없다.
+-- 물류출고관리가 닿는 주문·판매 RPC는 출고 RPC뿐이다. 발주확인·배송 방식 변경·취소·환불·클레임·고객·상품·목록 엑셀은 없다.
 select pg_temp.ld_assert(
  not exists(select 1 from private.operator_rpc_contracts c where c.capability=any(private.operator_role_capabilities('logistics'))
   and c.capability not in ('home','catalog.announcements') and not exists(select 1 from ld_dispatch_contracts d where d.signature=c.signature))
  and not exists(select 1 from private.operator_rpc_contracts c join ld_dispatch_contracts d using(signature)
-  where c.signature ~ '(order_status|cancellation|refund|claim|customer|goods|delivery_list|allocation|dispatch_delay|shipment_pack\(|auto_order|record_shipment_delivery)'),
+  where c.signature ~ '(order_status|cancellation|refund|claim|customer|goods|delivery_list|allocation|dispatch_delay|shipment_pack\(|auto_order|select_shipment_delivery_method|delivery_polic)'),
  'logistics reaches no order management, refund, claim, customer, goods or list-export RPC');
 select pg_temp.ld_assert(
  (select capability from private.operator_rpc_contracts where signature='public.admin_update_order_status(uuid,public.order_status,text,text)')='sales.manage'
  and (select capability from private.operator_rpc_contracts where signature='public.admin_delivery_list_export_lines(uuid[])')='sales.manage'
  and (select capability from private.operator_rpc_contracts where signature='public.admin_upsert_order_dispatch_delay(uuid,text,date)')='sales.manage'
  and (select capability from private.operator_rpc_contracts where signature='public.admin_change_shipment_pack(uuid[],text,text,text,uuid,uuid,uuid)')='sales.manage'
- and (select capability from private.operator_rpc_contracts where signature='public.admin_record_shipment_delivery(uuid,text,jsonb,text,timestamp with time zone,uuid)')='sales.manage'
+ and (select capability from private.operator_rpc_contracts where signature='public.admin_record_shipment_delivery(uuid,text,jsonb,text,timestamp with time zone,uuid)')='sales.dispatch'
+ and (select capability from private.operator_rpc_contracts where signature='public.admin_read_shipment_delivery(uuid)')='sales.dispatch'
+ and (select capability from private.operator_rpc_contracts where signature='public.admin_select_shipment_delivery_method(uuid,text,uuid,text,text,boolean,timestamp with time zone,uuid)')='sales.manage'
+ and (select capability from private.operator_rpc_contracts where signature='public.admin_list_delivery_policies(uuid)')='sales.manage'
  and (select capability from private.operator_rpc_contracts where signature='public.admin_order_item_allocation_inputs(uuid[])')='sales.read',
- 'order confirmation, list export, delay memo, packing, non-parcel handover and allocations keep their capability');
+ 'order confirmation, list export, delay memo, packing, delivery method changes and allocations keep their capability; non-parcel handover is dispatch');
 
 -- B. 합성 주문. 1 발주확인된 김포 택배 건, 2 결제만 된 신규주문, 3 같은 구매자의 두 번째 발주확인 건, 4 남양주(서원) 건.
 insert into public.ips(id,title,vertical_key) values('logistics-dispatch-ip','합성 물류 IP','character');
@@ -147,7 +151,27 @@ insert into public.order_shipment_items(order_id,shipment_id,order_item_id,qty)
 select pg_temp.ld_id(2,n),pg_temp.ld_id(4,n),pg_temp.ld_id(3,n),1 from generate_series(1,4) n;
 
 -- C. 물류출고관리의 출고 흐름.
+-- 사용자 결정(2026-11-11) "수령인 정보만": 주문 조회 권한이 있는 주매니저의 목록·표준 양식 자료는 지금과 같고,
+-- 물류출고관리에게는 구매자·주문 총액·결제수단·결제일·품목 금액·배송비가 비어 온다.
 set local role authenticated;
+select pg_temp.ld_as(2);
+select public.admin_search_shipments_notice_console('ready',p_query=>'합성수령인1',p_field=>'recipient') as manager_ready \gset
+select public.admin_search_shipments_console('ready',p_query=>'합성수령인1',p_field=>'recipient') as manager_shipping \gset
+select public.admin_smartstore_shipment_export(array[pg_temp.ld_id(4,1)]) as manager_export \gset
+select pg_temp.ld_assert(:'manager_ready'::jsonb#>>'{rows,0,buyerName}'='합성물류구매자' and :'manager_ready'::jsonb#>>'{rows,0,total}'='5000'
+ and :'manager_ready'::jsonb#>>'{rows,0,paymentMethod}'='card' and :'manager_ready'::jsonb#>>'{rows,0,shippingFee}'='3000'
+ and :'manager_shipping'::jsonb#>>'{rows,0,buyerName}'='합성물류구매자' and :'manager_shipping'::jsonb#>>'{rows,0,total}'='5000'
+ and :'manager_export'::jsonb#>>'{shipments,0,lines,0,smartstore,buyerName}'='합성물류구매자'
+ and :'manager_export'::jsonb#>>'{shipments,0,lines,0,smartstore,buyerId}'=pg_temp.ld_id(1,9)::text
+ and :'manager_export'::jsonb#>>'{shipments,0,lines,0,smartstore,paymentMethod}'='card'
+ and :'manager_export'::jsonb#>>'{shipments,0,lines,0,smartstore,itemTotal}'='1000'
+ and :'manager_export'::jsonb#>>'{shipments,0,shippingFee}'='3000' and :'manager_export'::jsonb#>>'{shipments,0,lines,0,unitPrice}'='1000',
+ 'primary keeps buyer, totals, payment and item amounts in lists and the standard export');
+select pg_temp.ld_assert((public.admin_search_shipments_notice_console('ready',p_query=>'합성물류구매자',p_field=>'buyer')->>'total')='3'
+ and (public.admin_search_shipments_notice_console('ready',p_query=>'ld-buyer-oracle-77',p_field=>'buyer')->>'total')='3'
+ and (public.admin_search_shipments_notice_console('ready',p_query=>'f5d10000-0000-0004',p_field=>'shipment',p_payment_method=>'bank_transfer')->>'total')='0'
+ and (public.admin_search_shipments_notice_console('ready',p_query=>'f5d10000-0000-0004',p_field=>'shipment',p_date_field=>'paid',p_from=>(now() at time zone 'Asia/Seoul')::date)->>'total')='0',
+ 'primary keeps buyer search, payment filter and payment-date filter');
 select pg_temp.ld_as(6);
 select pg_temp.ld_assert(public.admin_current_operator_access()->>'managerRole'='logistics'
  and public.admin_current_operator_access()->'capabilities'='["home","catalog.announcements","sales.dispatch"]'::jsonb,'logistics snapshot');
@@ -157,14 +181,34 @@ select pg_temp.ld_assert((select count(*) from public.orders where id::text like
  and (select count(*) from public.order_items where id::text like 'f5d10000-0000-0003-%')=0
  and (select count(*) from public.order_shipments where id::text like 'f5d10000-0000-0004-%')=0
  and (select count(*) from public.profiles where id=pg_temp.ld_id(1,9))=0,'raw order, item, shipment and buyer rows stay hidden');
--- 발송 처리 목록: 수령인과 상품은 보이고, 구매자 이메일로는 찾지 못한다(닉네임으로는 찾는다).
+-- 발송 처리 목록: 수령인과 상품은 보이고, 구매자·금액·결제는 비어 있다. 구매자로 찾거나 결제로 거르거나 금액으로 정렬하지 못한다.
 select public.admin_search_shipments_notice_console('ready',p_query=>'합성수령인1',p_field=>'recipient') as ready_page \gset
+select public.admin_search_shipments_console('ready',p_query=>'합성수령인1',p_field=>'recipient') as shipping_page \gset
 select pg_temp.ld_assert((:'ready_page'::jsonb->>'total')='1' and :'ready_page'::jsonb#>>'{rows,0,recipientName}'='합성수령인1'
- and :'ready_page'::jsonb#>>'{rows,0,items,0,name}'='합성 물류 상품','dispatch list shows recipient and items');
+ and :'ready_page'::jsonb#>>'{rows,0,items,0,name}'='합성 물류 상품'
+ and :'ready_page'::jsonb#>'{rows,0}' @> '{"buyerName":null,"total":null,"paymentMethod":null,"shippingFee":null}'::jsonb
+ and :'shipping_page'::jsonb#>>'{rows,0,recipientName}'='합성수령인1'
+ and :'shipping_page'::jsonb#>'{rows,0}' @> '{"buyerName":null,"total":null,"paymentMethod":null,"shippingFee":null}'::jsonb
+ and (:'ready_page'::jsonb - 'rows')=(:'manager_ready'::jsonb - 'rows')
+ and ((:'ready_page'::jsonb#>'{rows,0}') - array['buyerName','total','paymentMethod','shippingFee'])=((:'manager_ready'::jsonb#>'{rows,0}') - array['buyerName','total','paymentMethod','shippingFee']),
+ 'dispatch lists show recipient and items, and blank only buyer, totals, payment and shipping fee');
 select pg_temp.ld_assert((public.admin_search_shipments_notice_console('new',p_query=>'합성수령인2',p_field=>'recipient')->>'total')='1','new orders are visible to plan dispatch');
 select pg_temp.ld_assert((public.admin_search_shipments_notice_console('ready',p_query=>'ld-buyer-oracle-77',p_field=>'buyer')->>'total')='0'
  and (public.admin_search_shipments_notice_console('ready',p_query=>'ld-buyer-oracle-77',p_field=>'all')->>'total')='0'
- and (public.admin_search_shipments_notice_console('ready',p_query=>'합성물류구매자',p_field=>'buyer')->>'total')='3','buyer email is not a search oracle for dispatch-only operators');
+ and (public.admin_search_shipments_notice_console('ready',p_query=>'합성물류구매자',p_field=>'buyer')->>'total')='0'
+ and (public.admin_search_shipments_notice_console('ready',p_query=>'합성물류구매자',p_field=>'all')->>'total')='0'
+ and (public.admin_search_shipments_console('ready',p_query=>'합성물류구매자',p_field=>'buyer')->>'total')='0'
+ and (public.admin_search_shipments_notice_console('ready',p_query=>'f5d10000-0000-0004',p_field=>'shipment',p_payment_method=>'bank_transfer')->>'total')='3'
+ and (public.admin_search_shipments_notice_console('ready',p_query=>'f5d10000-0000-0004',p_field=>'shipment',p_date_field=>'paid',p_from=>(now() at time zone 'Asia/Seoul')::date)->>'total')='3'
+ and (public.admin_search_shipments_notice_console('ready',p_query=>'f5d10000-0000-0004',p_field=>'shipment',p_sort=>'amount_high')->>'total')='3',
+ 'buyer, payment and amount are not search, filter or sort oracles for dispatch-only operators');
+select public.admin_smartstore_shipment_export(array[pg_temp.ld_id(4,1)]) as logistics_export \gset
+select pg_temp.ld_assert(:'logistics_export'::jsonb#>'{shipments,0,lines,0,smartstore}' @> '{"buyerName":null,"buyerId":null,"paidAt":null,"paymentMethod":null,
+ "productPrice":null,"optionPrice":null,"itemTotal":null,"itemDiscount":null,"sellerDiscount":null,"regionalShippingFee":null,"shippingDiscount":null}'::jsonb
+ and :'logistics_export'::jsonb#>>'{shipments,0,lines,0,recipient}'='합성수령인1'
+ and :'logistics_export'::jsonb#>>'{shipments,0,lines,0,smartstore,orderNumber}'=:'manager_export'::jsonb#>>'{shipments,0,lines,0,smartstore,orderNumber}'
+ and (:'logistics_export'::jsonb#>'{shipments,0,lines,0}')-'smartstore'=(:'manager_export'::jsonb#>'{shipments,0,lines,0}')-'smartstore',
+ 'standard export detail blanks buyer, payment and item amounts for dispatch-only operators');
 -- 발주확인은 하지 못하고, 발주확인 전 주문은 내보내지 못한다.
 select pg_temp.ld_error(format('select public.admin_update_order_status(%L,%L,null,null)',pg_temp.ld_id(2,2),'confirmed'),'42501');
 select pg_temp.ld_error(format('select public.admin_shipment_export(array[%L]::uuid[])',pg_temp.ld_id(4,2)),'shipment_not_ready');
@@ -204,7 +248,7 @@ select pg_temp.ld_assert(:'completed'::jsonb#>>'{0,ok}'='true','delivery complet
 select pg_temp.ld_assert((public.admin_search_shipments_console('transit',p_query=>'합성수령인3',p_field=>'recipient')->>'total')='1'
  and (public.admin_search_shipments_console('delivered',p_query=>'합성수령인1',p_field=>'recipient')->>'total')='1'
  and (public.admin_search_shipments_console('transit',p_query=>'ld-buyer-oracle-77',p_field=>'buyer')->>'total')='0','shipping list reads');
--- 출고 외 업무는 거절한다: 목록 엑셀, 금액 배분, 주문 검색·상세, 고객 이력, 취소, 지연 메모, 합포장, 자동 발주확인, 택배 외 인계.
+-- 출고 외 업무는 거절한다: 목록 엑셀, 금액 배분, 주문 검색·상세, 고객 이력, 취소, 지연 메모, 합포장, 자동 발주확인, 배송 방식 변경·정책 목록.
 select pg_temp.ld_error(format('select public.admin_delivery_list_export_lines(array[%L]::uuid[])',pg_temp.ld_id(4,1)),'42501');
 select pg_temp.ld_error(format('select public.admin_order_item_allocation_inputs(array[%L]::uuid[])',pg_temp.ld_id(2,1)),'42501');
 select pg_temp.ld_error('select public.admin_search_orders_console()','42501');
@@ -213,7 +257,8 @@ select pg_temp.ld_error(format('select public.admin_start_order_cancellation(%L,
 select pg_temp.ld_error(format('select public.admin_upsert_order_dispatch_delay(%L,%L,null)',pg_temp.ld_id(2,3),'합성 지연'),'42501');
 select pg_temp.ld_error('select public.admin_change_shipment_pack(null,null,null,null,null,null,null)','42501');
 select pg_temp.ld_error('select public.admin_get_auto_order_confirmation()','42501');
-select pg_temp.ld_error('select public.admin_record_shipment_delivery(null,null,null,null,null,null)','42501');
+select pg_temp.ld_error('select public.admin_select_shipment_delivery_method(null,null,null,null,null,null,null,null)','42501');
+select pg_temp.ld_error('select public.admin_list_delivery_policies(''00000000-0000-4000-8000-000000042201'')','42501');
 select pg_temp.ld_error(format('select public.admin_update_order_tracking(%L,%L,%L)',pg_temp.ld_id(2,3),'hanjin','LD100000039'),'42501');
 reset role;
 select pg_temp.ld_assert((select status from public.order_shipments where id=pg_temp.ld_id(4,1))='delivered'
@@ -223,6 +268,68 @@ select pg_temp.ld_assert((select status from public.order_shipments where id=pg_
  and (select status from public.orders where id=pg_temp.ld_id(2,2))='paid'
  and (select count(*) from public.audit_log where actor_id=pg_temp.ld_id(1,6) and action in ('admin.shipment.exported','admin.shipment.status_updated','admin.shipment.tracking_updated'))>=7,
  'dispatch changes are audited and the unconfirmed order is untouched');
+
+-- 판정 함수는 주문 조회 권한이 있으면 응답을 그대로 돌려주고, 판정이 비면 닫힌 쪽(비움)으로 간다. 클라이언트는 직접 부르지 못한다.
+select set_config('request.jwt.claim.sub',pg_temp.ld_id(1,2)::text,true);
+select pg_temp.ld_assert(private.shipment_console_for_reader(:'manager_ready'::jsonb)=:'manager_ready'::jsonb
+ and private.shipment_export_detail_for_reader('{"buyerName":"x","itemTotal":1,"orderNumber":"n"}'::jsonb,true)='{"buyerName":"x","itemTotal":1,"orderNumber":"n"}'::jsonb
+ and private.shipment_export_detail_for_reader('{"buyerName":"x","itemTotal":1,"orderNumber":"n"}'::jsonb,null)@>'{"buyerName":null,"itemTotal":null,"orderNumber":"n"}'::jsonb
+ and not has_function_privilege('authenticated','private.shipment_console_for_reader(jsonb)','execute')
+ and not has_function_privilege('authenticated','private.shipment_export_detail_for_reader(jsonb,boolean)','execute'),
+ 'reader helpers keep order readers unchanged, fail closed and stay sealed');
+select set_config('request.jwt.claim.sub','',true);
+
+-- C-2. 택배 외 배송도 발송·배송완료다. 물류출고관리는 주문 상세 없이 퀵 인계와 수령 완료를 기록하고,
+-- 배송 방식 변경 자료(출고지 정책 목록, 고객 요청·배송비 동의 근거)는 받지 않는다.
+insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,free_threshold,return_address,is_active)
+ values(pg_temp.ld_id(8,1),'ld-quick-origin','합성 퀵 출고지','hanjin',1000,null,'합성 반송 주소',true);
+insert into public.orders(id,user_id,status,total,shipping_fee,address,confirmed_at) values(pg_temp.ld_id(2,5),pg_temp.ld_id(1,9),'confirmed',5000,3000,
+ '{"recipientName":"합성수령인5","phone":"01012345675","postalCode":"00123","address1":"합성 주소","address2":"5층","deliveryNote":"문 앞"}',now());
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
+ select pg_temp.ld_id(3,5),pg_temp.ld_id(2,5),'logistics-dispatch-good',id,1,1000,'합성 물류 상품','문구','logistics-dispatch-ip'
+ from public.goods_variants where good_id='logistics-dispatch-good' and is_default;
+insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot)
+ values(pg_temp.ld_id(4,5),pg_temp.ld_id(2,5),pg_temp.ld_id(8,1),'합성 퀵 출고지',3000,'{}');
+insert into public.order_shipment_items(order_id,shipment_id,order_item_id,qty) values(pg_temp.ld_id(2,5),pg_temp.ld_id(4,5),pg_temp.ld_id(3,5),1);
+select updated_at as quick_version from public.order_shipments where id=pg_temp.ld_id(4,5) \gset
+set local role authenticated;
+select pg_temp.ld_as(2);
+select public.admin_save_delivery_policy(pg_temp.ld_id(8,1),'quick',null,jsonb_build_object('state','active','contactName','합성 운영 담당',
+ 'contactPhone','02-0000-0000','handoffLocation','합성 인계 장소','handoffInstructions','합성 인계 안내','appointmentInstructions','합성 예약 안내',
+ 'allowDelegate',false,'completionInstructions','합성 수령 기록','cancellationInstructions','합성 취소 안내','approvalReference','합성 운영 승인'),null)->>'id' as quick_policy \gset
+select public.admin_select_shipment_delivery_method(pg_temp.ld_id(4,5),'quick',:'quick_policy','합성 고객 요청 메모 010-0000-0005','합성 배송비 유지 동의',true,
+ :'quick_version',pg_temp.ld_id(9,1));
+select public.admin_read_shipment_delivery(pg_temp.ld_id(4,5)) as manager_view \gset
+select pg_temp.ld_assert(jsonb_array_length(:'manager_view'::jsonb->'policies')=1 and :'manager_view'::jsonb->>'shippingFee'='3000'
+ and :'manager_view'::jsonb#>>'{history,0,evidence,customerRequestReference}'='합성 고객 요청 메모 010-0000-0005','sales managers keep method-change material');
+select pg_temp.ld_as(6);
+select public.admin_read_shipment_delivery(pg_temp.ld_id(4,5)) as logistics_view \gset
+select pg_temp.ld_assert(:'logistics_view'::jsonb->'policies'='[]'::jsonb and :'logistics_view'::jsonb->'shippingFee'='null'::jsonb
+ and not (:'logistics_view'::jsonb#>'{history,0,evidence}' ?| array['customerRequestReference','feeConsentReference'])
+ and :'logistics_view'::jsonb#>>'{history,0,evidence,toMethod}'='quick'
+ and :'logistics_view'::jsonb#>>'{summary,method}'='quick' and :'logistics_view'::jsonb#>>'{summary,policy,handoffLocation}'='합성 인계 장소'
+ and (:'logistics_view'::jsonb->>'canTransition')::boolean,'dispatch-only operators read handoff conditions without method-change material');
+select pg_temp.ld_error(format('select public.admin_select_shipment_delivery_method(%L,%L,%L,%L,%L,true,%L,%L)',pg_temp.ld_id(4,5),'parcel',null,'요청','동의',
+ :'logistics_view'::jsonb->>'updatedAt',pg_temp.ld_id(9,2)),'42501');
+select public.admin_record_shipment_delivery(pg_temp.ld_id(4,5),'quick_handoff',jsonb_build_object('operatorName','합성 물류 담당','providerName','합성 퀵 업체',
+ 'providerPhone','010-0000-0000','handoffReference','합성 퀵 인계','occurredAt',clock_timestamp()),null,(:'logistics_view'::jsonb->>'updatedAt')::timestamptz,pg_temp.ld_id(9,3)) as handoff \gset
+select pg_temp.ld_assert(:'handoff'::jsonb->>'ok'='true','logistics records the non-parcel handoff');
+select pg_temp.ld_as(9);
+select public.issue_shipment_receipt_confirmation(pg_temp.ld_id(4,5))->>'code' as receipt_code \gset
+select pg_temp.ld_as(6);
+select public.admin_read_shipment_delivery(pg_temp.ld_id(4,5))->>'updatedAt' as in_transit_version \gset
+select public.admin_record_shipment_delivery(pg_temp.ld_id(4,5),'quick_receive',jsonb_build_object('operatorName','합성 물류 담당','receiptReference','합성 퀵 수령',
+ 'recipientKind','self','occurredAt',clock_timestamp()),:'receipt_code',:'in_transit_version',pg_temp.ld_id(9,4)) as receipt \gset
+select pg_temp.ld_assert(:'receipt'::jsonb->>'ok'='true','logistics records the non-parcel receipt');
+-- 출고 업무가 없는 매니저는 전처럼 읽지도 기록하지도 못한다.
+select pg_temp.ld_as(3);
+select pg_temp.ld_error(format('select public.admin_read_shipment_delivery(%L)',pg_temp.ld_id(4,5)),'42501');
+select pg_temp.ld_error('select public.admin_record_shipment_delivery(null,null,null,null,null,null)','42501');
+reset role;
+select pg_temp.ld_assert((select status='delivered' and delivery_method='quick' and shipped_at is not null and delivered_at is not null
+  from public.order_shipments where id=pg_temp.ld_id(4,5))
+ and (select count(*) from public.audit_log where actor_id=pg_temp.ld_id(1,6) and action='admin.shipment.delivery_evidence_recorded')=2,
+ 'non-parcel handoff and receipt are recorded as the logistics operator');
 
 -- D. 다른 역할의 출고 화면 접근은 변경 전과 같다.
 set local role authenticated;
@@ -263,5 +370,21 @@ select pg_temp.ld_as(6);
 select public.accept_operator_invitation(encode(extensions.digest('ld-synthetic-token','sha256'),'hex'),pg_temp.ld_id(7,2));
 select pg_temp.ld_assert(public.admin_current_operator_access()->>'managerRole'='logistics'
  and public.has_operator_capability('sales.dispatch') and not public.has_operator_capability('sales.manage'),'invited logistics manager receives dispatch-only access');
+reset role;
+
+-- F. 합포장 요약의 묶음 착불 배송비도 물류출고관리에게는 비어 온다. 주매니저에게는 그대로다.
+update public.order_shipments set shipping_collect_fee=4000 where id=pg_temp.ld_id(4,3);
+insert into private.shipment_packs(id,created_by) values(pg_temp.ld_id(10,1),pg_temp.ld_id(1,2));
+insert into private.shipment_pack_members(pack_id,shipment_id,identity_digest)
+ values(pg_temp.ld_id(10,1),pg_temp.ld_id(4,1),'synthetic'),(pg_temp.ld_id(10,1),pg_temp.ld_id(4,3),'synthetic');
+set local role authenticated;
+select pg_temp.ld_as(2);
+select public.admin_shipment_pack_summaries(array[pg_temp.ld_id(4,1),pg_temp.ld_id(4,4)]) as manager_packs \gset
+select pg_temp.ld_as(6);
+select public.admin_shipment_pack_summaries(array[pg_temp.ld_id(4,1),pg_temp.ld_id(4,4)]) as logistics_packs \gset
+select pg_temp.ld_assert((:'manager_packs'::jsonb#>>array[pg_temp.ld_id(4,1)::text,'collectFee'])='4000'
+ and :'logistics_packs'::jsonb#>array[pg_temp.ld_id(4,1)::text,'collectFee']='null'::jsonb
+ and (:'logistics_packs'::jsonb#>array[pg_temp.ld_id(4,1)::text])-'collectFee'=(:'manager_packs'::jsonb#>array[pg_temp.ld_id(4,1)::text])-'collectFee'
+ and :'logistics_packs'::jsonb->pg_temp.ld_id(4,4)::text='null'::jsonb,'pack collect fee is blank for dispatch-only operators');
 reset role;
 rollback;
