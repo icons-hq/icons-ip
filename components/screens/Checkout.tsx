@@ -40,7 +40,8 @@ import { shippingGroupLabel, shippingGroupsNotice } from '@/lib/fulfillment';
 import { parseShippingDestination } from '@/lib/shipping-regions';
 import { orderCompleteHref } from '@/lib/routes';
 import { checkoutDraftReturnHref, type CheckoutDraft } from '@/lib/checkout-draft';
-import { useDraftStoreCreditQuote } from './CheckoutDraftQuotes';
+import { useDirectCheckoutQuote, useDraftStoreCreditQuote } from './CheckoutDraftQuotes';
+import { CheckoutDirectCoupon } from './CheckoutDirectCoupon';
 
 /* 결제 대기 주문의 최소 결제 금액. DB 트리거(orders_korpay_minimum_amount)가 같은 값으로
    막는다 — 쿠폰·적립금은 그 아래로 깎지 않으므로 굿즈 금액+배송비가 기준이다. */
@@ -90,7 +91,7 @@ const actionErrors = {
 
 /* 주문서 초안(ADR-0030)에서만 쓰는 안내. 선택 주문은 장바구니에서 고른 줄, 바로구매는 상품 상세에서 고른 굿즈다. */
 const SELECTION_CART_CHANGED_COPY = '장바구니에서 고른 굿즈의 수량이나 구성이 바뀌었어요. 장바구니에서 다시 골라 주문해주세요.';
-const DIRECT_DRAFT_EXPIRED_COPY = '주문서를 연 지 오래되어 다시 열어야 해요. 상품 상세에서 다시 구매해주세요.';
+const DIRECT_DRAFT_EXPIRED_COPY = '주문서를 연 지 오래되어 다시 열어야 해요. 굿즈 상세에서 다시 구매해주세요.';
 
 interface CheckoutProps {
   catalog: Pick<CatalogSnapshot, 'goods' | 'ips'>;
@@ -187,9 +188,13 @@ export function Checkout({
   const { items: cartItems, ready, mode, pending: cartPending, error: cartError, refresh } = useCart();
   /* 초안이 있으면 그 줄만 주문한다(선택 주문·바로구매). 장바구니 전체가 아니다(ADR-0030). */
   const items = draft ? draft.lines : cartItems;
+  const direct = draft?.source === 'direct';
   const draftReturnHref = checkoutDraftReturnHref(draft);
-  /* 결제를 마치지 않은 이전 장바구니 주문이 쿠폰·적립금·구매 한도를 잡고 있으면 먼저 닫는다(ADR-0026). */
-  const released = useReleaseUnpaidCartOrders();
+  /* 결제를 마치지 않은 이전 주문이 쿠폰·적립금·구매 한도를 잡고 있으면 먼저 닫는다(ADR-0026). 장바구니 주문서는 장바구니
+     출처만, 바로구매 주문서는 출처와 무관하게 닫는다 — 다시 사려는 굿즈를 이전 바로구매가 잡고 있지 않게(ADR-0030). */
+  const released = useReleaseUnpaidCartOrders(direct ? 'checkout' : 'cart');
+  /* 바로구매 쿠폰은 이 주문서에서 따로 고른다 — 장바구니 쿠폰 선택은 바꾸지 않는다. */
+  const [directCouponId, setDirectCouponId] = useState<string | null>(null);
   const checkoutKey = useRef<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   /* 쿠폰 칸의 변경 액션이 진행 중이면 결제를 잠근다(R25) — 끝나기 전의 주문은 이전 쿠폰으로 나가 거절된다. */
@@ -217,13 +222,17 @@ export function Checkout({
   const prefillNotice = prefilled && sameCheckoutDestination(prefilled, address)
     ? checkoutAddressPrefillNotice(addressPrefill.source) : null;
   const destination = parseShippingDestination({ postalCode: address.postalCode, address1: address.address1 });
-  const shipping = useShippingQuote(items, ready && released, appliedCoupon?.id ?? '', destination);
+  const cartQuote = useShippingQuote(items, ready && released && !direct, appliedCoupon?.id ?? '', destination);
+  const directQuote = useDirectCheckoutQuote(items, ready && released && direct, directCouponId, destination);
+  const shipping = direct ? directQuote : cartQuote;
+  /* 이 주문서의 쿠폰: 바로구매는 주문서에서 고른 쿠폰, 아니면 장바구니 쿠폰 선택이다. */
+  const orderCoupon = direct ? couponState.coupons.find((held) => held.id === directCouponId) ?? null : appliedCoupon;
   const [storeCreditInput, setStoreCreditInput] = useState('');
   const requestedStoreCredits = normalizeStoreCreditAmount(storeCreditInput);
   /* 적립금 사용 한도도 이 주문서의 품목 기준이다 — 초안이면 그 줄과 쿠폰으로, 아니면 장바구니 전체로 묻는다. */
   const cartCredits = useStoreCreditQuote(requestedStoreCredits, draft ? null : shipping.sales?.calculatedAt ?? null, destination);
   const draftCredits = useDraftStoreCreditQuote(requestedStoreCredits, draft ? shipping.sales?.calculatedAt ?? null : null, destination, items,
-    { kind: 'cart' });
+    direct ? { kind: 'direct', userCouponId: directCouponId } : { kind: 'cart' });
   const credits = draft ? draftCredits : cartCredits;
   const creditProblem = requestedStoreCredits === null ? '적립금은 0 이상의 원 단위 정수로 입력해주세요.'
     : requestedStoreCredits > 0 && credits.quote && !credits.quote.valid ? actionErrors.store_credit_rejected : null;
@@ -250,8 +259,8 @@ export function Checkout({
   const shippingFee = shipping.quote?.totalFee ?? 0;
   const shippingReady = shipping.quote?.checkoutAllowed === true && shipping.quote.finalTotalFee !== null;
   const couponDiscount = shipping.sales?.coupon?.discount ?? 0;
-  const couponSelectionChanged = Boolean(shipping.sales && (shipping.sales.coupon?.userCouponId ?? null) !== (appliedCoupon?.id ?? null));
-  const quotedCouponName = !couponSelectionChanged && appliedCoupon ? appliedCoupon.coupon.name : shipping.sales?.coupon?.couponCode;
+  const couponSelectionChanged = Boolean(shipping.sales && (shipping.sales.coupon?.userCouponId ?? null) !== (orderCoupon?.id ?? null));
+  const quotedCouponName = !couponSelectionChanged && orderCoupon ? orderCoupon.coupon.name : shipping.sales?.coupon?.couponCode;
   const couponLabel = quotedCouponName ? `쿠폰 할인 (${quotedCouponName})` : '쿠폰 할인';
   const unavailable = lines.some(({ good, qty,customInputs }) => (
     !good || Boolean(goodsCustomInputProblem(good.customInputs,customInputs)) || good.stock === 'soldout' || good.stockQty < qty
@@ -338,8 +347,8 @@ export function Checkout({
     checkoutKey.current ??= crypto.randomUUID();
     let result: Awaited<ReturnType<typeof placeOrderAction>>;
     try {
-      result = await placeOrderAction(address, checkoutKey.current, selectedPaymentMethod, requestedStoreCredits, shipping.sales.coupon?.userCouponId ?? null, items,
-        draft?.id);
+      result = await placeOrderAction(address, checkoutKey.current, selectedPaymentMethod, requestedStoreCredits,
+        direct ? directCouponId : shipping.sales.coupon?.userCouponId ?? null, items, draft?.id);
     } catch {
       setSubmitError(actionErrors.unavailable);
       setSubmitting(false);
@@ -506,14 +515,24 @@ export function Checkout({
             <div className="checkout-total"><dt>결제 금액</dt><dd>{shippingReady && creditReady ? krw(subtotal + shippingFee - couponDiscount - usedStoreCredits) : '배송비·사용 조건 확인 후 표시'}</dd></div>
           </dl>
 
-          <CouponPicker
-            appliedCoupon={appliedCoupon}
-            couponState={couponState}
-            disabled={submitting}
-            onPendingChange={setCouponPending}
-            quote={shipping.sales?.coupon ?? null}
-            surface="checkout"
-          />
+          {direct ? (
+            <CheckoutDirectCoupon
+              couponState={couponState}
+              disabled={submitting}
+              onSelect={setDirectCouponId}
+              quote={shipping.sales?.coupon ?? null}
+              selectedUserCouponId={directCouponId}
+            />
+          ) : (
+            <CouponPicker
+              appliedCoupon={appliedCoupon}
+              couponState={couponState}
+              disabled={submitting}
+              onPendingChange={setCouponPending}
+              quote={shipping.sales?.coupon ?? null}
+              surface="checkout"
+            />
+          )}
 
           <fieldset className="checkout-method" disabled={submitting} aria-describedby="checkout-credit-note">
             <legend>적립금 사용</legend>
@@ -586,14 +605,14 @@ export function Checkout({
           {unavailable && <p className="checkout-error" role="alert">재고가 변경된 굿즈가 있어요. 장바구니에서 수량을 확인해주세요.</p>}
           {!methodAvailable && <p className="checkout-error" role="alert">선택한 결제수단을 지금은 쓸 수 없어요. 다른 수단을 골라주세요.</p>}
           {submitError && <p className="checkout-error" role="alert">{submitError}{pendingOrder ? <PendingOrderResolution /> : null}
-            {draftReturnNeeded ? <> <Link href={draftReturnHref}>{draft?.source === 'direct' ? '상품으로 돌아가기' : '장바구니로 돌아가기'}</Link></> : null}</p>}
+            {draftReturnNeeded ? <> <Link href={draftReturnHref}>{draft?.source === 'direct' ? '굿즈로 돌아가기' : '장바구니로 돌아가기'}</Link></> : null}</p>}
           <button className="btn btn-holo checkout-submit" disabled={submitting || cartPending || couponPending || unavailable || !methodAvailable || !shippingReady || !shipping.sales || Boolean(purchaseProblem) || !creditReady || couponSelectionChanged || draftStale}>
             {submitting
               ? '재고를 확인하는 중'
               : selectedPaymentMethod === 'bank_transfer' ? '주문하고 입금 안내 받기' : '결제하기'}
           </button>
           <p className="money-caption">{checkoutSubmitCaption(draft?.source ?? null, selectedPaymentMethod)}</p>
-          <Link className="checkout-back" href={draftReturnHref}>{draft?.source === 'direct' ? '← 상품으로 돌아가기' : '← 장바구니 수정'}</Link>
+          <Link className="checkout-back" href={draftReturnHref}>{draft?.source === 'direct' ? '← 굿즈로 돌아가기' : '← 장바구니 수정'}</Link>
         </aside>
       </form>
     </main>

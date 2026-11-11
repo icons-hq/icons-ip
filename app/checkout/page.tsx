@@ -33,7 +33,7 @@ function DraftUnavailable({ draft, error }: { draft: Pick<CheckoutDraft, 'source
       <div className="wrap checkout-empty card">
         <h1>{error ? '주문서를 불러오지 못했어요' : '주문서를 다시 열어주세요'}</h1>
         <p>{error ? '잠시 후 다시 시도해주세요.' : '주문서를 연 지 오래되었거나 이 계정의 주문서가 아니에요. 고른 화면에서 다시 주문해주세요.'}</p>
-        <Link className="btn btn-holo" href={checkoutDraftReturnHref(draft)}>{draft?.source === 'direct' ? '상품으로 돌아가기' : '장바구니로 돌아가기'}</Link>
+        <Link className="btn btn-holo" href={checkoutDraftReturnHref(draft)}>{draft?.source === 'direct' ? '굿즈로 돌아가기' : '장바구니로 돌아가기'}</Link>
       </div>
     </main>
   );

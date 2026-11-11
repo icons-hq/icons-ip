@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const VARIANT_ID = '00000000-0000-4000-8000-000000000001';
 import type { CurrentAuthState } from '@/lib/auth/server';
-import { addCartSelectionAction, deleteCartItemAction, removeCartLinesAction, setCartItemQuantityAction, syncCartAction } from './actions';
+import { addCartSelectionAction, deleteCartItemAction, releaseUnpaidCartOrdersAction, releaseUnpaidCheckoutOrdersAction, removeCartLinesAction, setCartItemQuantityAction, syncCartAction } from './actions';
 
 const mocks = vi.hoisted(() => ({
   auth: { isConfigured: true, user: null, profile: null, isStaff: false } as CurrentAuthState,
@@ -34,7 +34,9 @@ const mocks = vi.hoisted(() => ({
   goodsMaybeSingle: vi.fn(),
   randomGoodsQuery: vi.fn(),
   randomGoodsRows: { data: [], error: null } as { data: { id: string; random_option: unknown }[]; error: { message: string } | null },
+  serviceRpc: vi.fn(),
 }));
+vi.mock('@/lib/supabase/service', () => ({ createServiceClient: () => ({ rpc: mocks.serviceRpc }) }));
 
 vi.mock('@/lib/adult-goods-access.server', () => ({ getAdultGoodsAccess: async () => mocks.adultGoods }));
 vi.mock('@/lib/auth/server', () => ({
@@ -435,3 +437,29 @@ describe('cart Server Actions', () => {
       ok:false,mode:'server',error:'장바구니를 저장하지 못했습니다. 다시 시도해주세요.'});
   });
 });
+
+/* 미결제 주문 닫기(ADR-0026·0030): 장바구니·장바구니 주문서는 장바구니 출처만, 바로구매 주문서는 출처와 무관하게 닫는다. */
+describe('release unpaid orders', () => {
+  beforeEach(() => {
+    mocks.auth = onboardedAuth();
+    mocks.serviceRpc.mockReset();
+    mocks.serviceRpc.mockResolvedValue({ data: 1, error: null });
+  });
+
+  it('장바구니 복귀는 장바구니 출처 닫기를, 바로구매 주문서는 모든 출처 닫기를 로그인 사용자로 부른다', async () => {
+    await expect(releaseUnpaidCartOrdersAction()).resolves.toEqual({ released: 1 });
+    expect(mocks.serviceRpc).toHaveBeenLastCalledWith('release_unpaid_cart_orders', { p_user_id: 'user-1' });
+    await expect(releaseUnpaidCheckoutOrdersAction()).resolves.toEqual({ released: 1 });
+    expect(mocks.serviceRpc).toHaveBeenLastCalledWith('release_unpaid_checkout_orders', { p_user_id: 'user-1' });
+  });
+
+  it('로그인 전이거나 실패하면 아무것도 닫지 않은 것으로 답한다', async () => {
+    mocks.serviceRpc.mockResolvedValue({ data: null, error: { message: 'boom' } });
+    await expect(releaseUnpaidCheckoutOrdersAction()).resolves.toEqual({ released: 0 });
+    mocks.auth = { isConfigured: true, user: null, profile: null, isStaff: false };
+    mocks.serviceRpc.mockClear();
+    await expect(releaseUnpaidCheckoutOrdersAction()).resolves.toEqual({ released: 0 });
+    expect(mocks.serviceRpc).not.toHaveBeenCalled();
+  });
+});
+

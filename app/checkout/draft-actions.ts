@@ -6,6 +6,7 @@ import { normalizeCartItems } from '@/lib/cart';
 import { normalizeOrderReference } from '@/lib/checkout';
 import { checkoutDraftHref, normalizeCheckoutDraftId } from '@/lib/checkout-draft';
 import { cartLineIdentityPayload } from '@/lib/checkout-selection';
+import { directCheckoutLinePayload, parseDirectCheckoutEntries } from '@/lib/checkout-buy-now';
 import { createServiceClient } from '@/lib/supabase/service';
 
 /*
@@ -19,6 +20,14 @@ export type CheckoutDraftActionError =
   | 'account_suspended'
   | 'invalid_request'
   | 'cart_changed'
+  /** 바로구매: 19금 본품은 유효한 성인 인증이 있어야 한다(ADR-0024). */
+  | 'adult_verification_required'
+  /** 바로구매: 추가 구성 굿즈의 판매·연결 상태가 바뀌었다. */
+  | 'additional_good_unavailable'
+  /** 바로구매: 본품·옵션을 지금 살 수 없다(판매 중지·옵션 정리 등). */
+  | 'goods_unavailable'
+  /** 바로구매: 직접입력형 옵션 설정이 바뀌었다. */
+  | 'custom_inputs_changed'
   | 'unavailable';
 
 export type CheckoutDraftActionResult = { ok: true; draftId: string; href: string } | { ok: false; error: CheckoutDraftActionError };
@@ -42,7 +51,11 @@ function draftResult(data: unknown): CheckoutDraftActionResult {
 function draftError(message: string): CheckoutDraftActionError {
   if (message.includes('cart_snapshot_changed')) return 'cart_changed';
   if (message.includes('account_suspended')) return 'account_suspended';
-  if (message.includes('invalid_checkout_selection')) return 'invalid_request';
+  if (message.includes('adult_verification_required')) return 'adult_verification_required';
+  if (message.includes('additional_good_unavailable')) return 'additional_good_unavailable';
+  if (message.includes('catalog_item_unavailable')) return 'goods_unavailable';
+  if (/goods_custom_inputs/.test(message)) return 'custom_inputs_changed';
+  if (message.includes('invalid_checkout_selection') || message.includes('invalid_checkout_direct')) return 'invalid_request';
   return 'unavailable';
 }
 
@@ -88,6 +101,28 @@ export async function createCartRetryDraftAction(orderIdValue: unknown): Promise
     if (data === null) return { ok: true, href: '/cart' };
     const draft = draftResult(data);
     return draft.ok ? { ok: true, href: draft.href } : draft;
+  } catch {
+    return { ok: false, error: 'unavailable' };
+  }
+}
+
+/**
+ * 상품 상세·위시의 [구매하기](1014-033·037·039). 고른 옵션·수량·추가 구성·직접입력값만 바로구매 초안으로 만든다 —
+ * 장바구니를 읽지도 바꾸지도 않는다. 추가 구성·19금 본품·옵션 소속은 DB가 담기와 같은 규칙으로 다시 판정한다.
+ */
+export async function createDirectCheckoutDraftAction(baseGoodIdValue: unknown, entriesValue: unknown): Promise<CheckoutDraftActionResult> {
+  const baseGoodId = typeof baseGoodIdValue === 'string' ? baseGoodIdValue.trim() : '';
+  const entries = baseGoodId && baseGoodId.length <= 200 ? parseDirectCheckoutEntries(baseGoodId, entriesValue) : null;
+  if (!entries) return { ok: false, error: 'invalid_request' };
+  const owner = await draftOwner();
+  if ('error' in owner) return { ok: false, error: owner.error };
+  try {
+    const { data, error } = await createServiceClient().rpc('service_create_checkout_direct_draft', {
+      p_user_id: owner.userId,
+      p_base_good_id: baseGoodId,
+      p_lines: entries.map(directCheckoutLinePayload),
+    });
+    return error ? { ok: false, error: draftError(error.message) } : draftResult(data);
   } catch {
     return { ok: false, error: 'unavailable' };
   }

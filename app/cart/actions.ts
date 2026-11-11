@@ -243,3 +243,20 @@ export async function releaseUnpaidCartOrdersAction(): Promise<{ released: numbe
     return { released: 0 };
   }
 }
+
+/**
+ * 바로구매 주문서(ADR-0030)에 들어왔을 때 결제를 마치지 않은 이전 주문을 출처와 무관하게 닫는다. 다시 사려는 굿즈를
+ * 이전 바로구매·장바구니 주문이 잡고 있으면(쿠폰·첫구매 예약·1인 한도·재고) 견적이 막히기 때문이다. 장바구니·장바구니
+ * 주문서는 releaseUnpaidCartOrdersAction(장바구니 출처만)을 쓴다 — 장바구니를 열기만 해도 바로구매 결제창이 끊기지 않게.
+ */
+export async function releaseUnpaidCheckoutOrdersAction(): Promise<{ released: number }> {
+  const user = authenticatedCartUser(await getCurrentAuthState());
+  if (!user) return { released: 0 };
+  try {
+    const { data, error } = await createServiceClient().rpc('release_unpaid_checkout_orders', { p_user_id: user.id });
+    return { released: !error && typeof data === 'number' && Number.isSafeInteger(data) && data > 0 ? data : 0 };
+  } catch {
+    return { released: 0 };
+  }
+}
+

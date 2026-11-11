@@ -445,6 +445,16 @@ describe('Checkout 주문서 초안', () => {
     expect(submitButton(html)).toContain('disabled');
   });
 
+  it('바로구매 초안이면 장바구니 쿠폰 칸 대신 이 주문서 쿠폰 칸을 두고, 굿즈 상세로 돌아가게 한다', () => {
+    const html = renderDraft(draftOf({ source: 'direct', baseGoodId: 'g13' }));
+    expect(html).toContain(checkoutSubcopy('direct', 'card'));
+    expect(html).toContain('id="direct-coupon-title"');
+    expect(html).toContain('이 주문에만 쓸 쿠폰을 골라요. 장바구니에서 고른 쿠폰은 바뀌지 않아요.');
+    expect(html).not.toContain('장바구니에서 고른 쿠폰이 이어져요');
+    expect(html).toContain('<a class="checkout-back" href="/shop/g13">← 굿즈로 돌아가기</a>');
+    expect(html).not.toContain('홍실 한정 피규어');
+  });
+
   it('장바구니 전체 주문서의 안내 문구는 그대로다', () => {
     expect(checkoutSubcopy(null, 'card')).toBe('결제하기를 누르면 바로 결제 화면이 열려요. 결제를 마치기 전까지 장바구니는 그대로예요.');
     expect(checkoutSubcopy(null, 'bank_transfer')).toBe('주문을 접수하면 입금 계좌와 기한을 안내해요. 접수한 굿즈는 장바구니에서 빠져요.');

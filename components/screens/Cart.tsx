@@ -59,6 +59,11 @@ const CART_ORDER_ERRORS: Record<Exclude<CheckoutDraftActionError, 'auth_required
   account_suspended: '정지된 계정은 새 주문을 만들 수 없어요.',
   invalid_request: '고른 굿즈를 다시 확인해주세요.',
   cart_changed: '다른 화면에서 장바구니가 바뀌었어요. 지금 장바구니를 확인하고 다시 주문해주세요.',
+  /* 아래는 바로구매 초안의 사유다 — 장바구니 선택 초안에서는 나오지 않지만 같은 결과 타입이라 문구를 둔다. */
+  adult_verification_required: '19금 굿즈는 성인 인증을 마친 회원만 주문할 수 있어요.',
+  additional_good_unavailable: '추가 구성 굿즈의 판매 상태가 바뀌었어요. 다시 확인해주세요.',
+  goods_unavailable: '판매 상태가 바뀐 굿즈가 있어요. 장바구니를 다시 확인해주세요.',
+  custom_inputs_changed: '직접 입력 옵션 설정이 바뀌었어요. 굿즈에서 내용을 다시 확인해주세요.',
   unavailable: '주문서를 열지 못했어요. 잠시 후 다시 시도해주세요.',
 };
 

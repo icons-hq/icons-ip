@@ -293,7 +293,10 @@ export function CheckoutOrder({
               {giftReturn}
               {reorderMode === 'retry_from_cart' ? (
                 <CheckoutRetryButton orderId={order.id} />
-              ) : reorderMode && (
+              ) : reorderMode === 'retry_direct' && order.directGoodId ? (
+                /* 바로구매 주문(ADR-0030)은 장바구니와 무관하다 — 그 상품 상세에서 다시 구매하면 새 주문이 이 주문을 닫는다. */
+                <Link className="btn btn-holo" href={`/shop/${encodeURIComponent(order.directGoodId)}`}>다시 구매하기</Link>
+              ) : reorderMode && reorderMode !== 'retry_direct' && (
                 <ReorderAction
                   mode={reorderMode}
                   onCanceled={markReorderCanceled}
@@ -343,7 +346,10 @@ export function CheckoutOrder({
               {state === 'closed' && reorderMode === 'retry_from_cart' && (order.status === 'canceled'
                 ? <Link className="btn btn-holo" href="/cart">장바구니 보기</Link>
                 : <CheckoutRetryButton orderId={order.id} />)}
-              {state === 'closed' && reorderMode && reorderMode !== 'retry_from_cart' && (
+              {state === 'closed' && reorderMode === 'retry_direct' && order.directGoodId && (
+                <Link className="btn btn-holo" href={`/shop/${encodeURIComponent(order.directGoodId)}`}>다시 구매하기</Link>
+              )}
+              {state === 'closed' && reorderMode && reorderMode !== 'retry_from_cart' && reorderMode !== 'retry_direct' && (
                 <ReorderAction
                   mode={reorderMode}
                   onCanceled={markReorderCanceled}

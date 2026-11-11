@@ -16,6 +16,7 @@ import {
   addCartSelectionAction,
   deleteCartItemAction,
   releaseUnpaidCartOrdersAction,
+  releaseUnpaidCheckoutOrdersAction,
   removeCartLinesAction,
   setCartItemQuantityAction,
   syncCartAction,
@@ -447,8 +448,11 @@ export function useCart() {
  * 달라고 요청하고, 닫힌 주문이 있으면 서버 화면(쿠폰 상태 등)을 다시 읽은 뒤에 견적을 연다.
  * 로그인하지 않은 장바구니는 기다리지 않는다. 요청이 실패해도 화면을 막지 않는다 — 새 주문
  * 생성이 같은 정리를 다시 한다.
+ *
+ * `scope`: 장바구니·장바구니 주문서는 'cart'(장바구니 출처 주문만 닫는다 — 다른 탭의 바로구매 결제창을 끊지 않는다),
+ * 바로구매 주문서는 'checkout'(출처와 무관하게 닫는다 — 다시 사려는 굿즈를 이전 주문이 잡고 있지 않게, ADR-0030).
  */
-export function useReleaseUnpaidCartOrders(): boolean {
+export function useReleaseUnpaidCartOrders(scope: 'cart' | 'checkout' = 'cart'): boolean {
   const { ready, mode } = useCart();
   const router = useRouter();
   const started = useRef(false);
@@ -459,14 +463,14 @@ export function useReleaseUnpaidCartOrders(): boolean {
   useEffect(() => {
     if (!server || started.current) return;
     started.current = true;
-    void releaseUnpaidCartOrdersAction().then(
+    void (scope === 'checkout' ? releaseUnpaidCheckoutOrdersAction() : releaseUnpaidCartOrdersAction()).then(
       (result) => {
         if (result.released > 0) startRefresh(() => router.refresh());
         setSettled(true);
       },
       () => setSettled(true),
     );
-  }, [router, server]);
+  }, [router, scope, server]);
 
   if (!ready) return false;
   if (mode !== 'server') return true;

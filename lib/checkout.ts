@@ -92,11 +92,13 @@ export type CheckoutPaymentClosure = 'not_approved' | 'attempt_expired' | 'cance
 /**
  * 닫힌 결제 화면에서 고객에게 줄 수 있는 정리 액션.
  * - `retry_from_cart`: 결제가 끝날 때까지 장바구니가 남는 주문(ADR-0026). 장바구니에 굿즈가
- *   그대로 있으므로 다시 담지 않고 주문서로 보낸다. 주문서가 이 주문을 결제 없이 닫는다.
+ *   그대로 있으므로 다시 담지 않고 그 주문의 줄로 주문서를 다시 연다(ADR-0030 — 장바구니에서 고르지 않은
+ *   줄은 끼지 않는다). 새 주문이 이 주문을 결제 없이 닫는다.
+ * - `retry_direct`: 바로구매 주문(ADR-0030). 장바구니와 무관하므로 그 상품 상세로 보내 다시 구매하게 한다.
  * - `cancel_then_reorder`·`reorder`: 주문 생성 때 장바구니를 비운 이전 주문. 취소한 뒤
  *   품목을 장바구니에 다시 담는다.
  */
-export type CheckoutReorderMode = 'cancel_then_reorder' | 'reorder' | 'retry_from_cart';
+export type CheckoutReorderMode = 'cancel_then_reorder' | 'reorder' | 'retry_from_cart' | 'retry_direct';
 
 export interface CheckoutClosureInput {
   readonly status: string;
@@ -106,16 +108,31 @@ export interface CheckoutClosureInput {
   readonly hasActiveCancellationRequest: boolean;
   /** 결제가 끝날 때까지 장바구니를 남긴 카드 장바구니 주문인지(ADR-0026). */
   readonly cartRetained?: boolean;
+  /** 결제를 기다리거나 결제 없이 닫힌 카드 바로구매 주문(ADR-0030)이면 그 상품 상세 굿즈. 다시 구매하기 목적지다. */
+  readonly directGoodId?: string | null;
 }
 
 /**
- * 보류 원장의 상태로 본 "결제 없이 장바구니를 남긴 주문"인지(ADR-0026). 결제를 기다리는 보류와 결제 없이
+ * 보류 원장의 상태로 본 바로구매 주문(ADR-0030)의 상품 상세 굿즈. 결제를 기다리거나 결제 없이 닫힌 보류만 해당한다 —
+ * 결제가 확정됐거나(consumed) 새 주문이 떼어 낸 보류(detached)는 다시 구매를 권하지 않는다. 장바구니 보류는 null.
+ */
+export function directRetryGoodId(value: unknown): string | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const { state, releaseReason, source, baseGoodId } = value as { state?: unknown; releaseReason?: unknown; source?: unknown; baseGoodId?: unknown };
+  if (source !== 'direct' || typeof baseGoodId !== 'string' || !baseGoodId.trim()) return null;
+  return state === 'awaiting_payment' || (state === 'released' && releaseReason !== 'detached') ? baseGoodId : null;
+}
+
+/**
+ * 보류 원장의 상태로 본 "결제 없이 장바구니를 남긴 주문"인지(ADR-0026). 바로구매 보류(ADR-0030)는 장바구니를 읽지도
+ * 바꾸지도 않은 주문이라 해당하지 않는다. 결제를 기다리는 보류와 결제 없이
  * 닫혀 풀린 보류만 해당한다 — 결제가 확정돼 장바구니에서 이미 뺀 보류(consumed)와, 새 주문이 장바구니를
  * 넘겨받아 떼어 낸 보류(detached)는 아니다.
  */
 export function cartRetentionKeepsCart(value: unknown): boolean {
   if (typeof value !== 'object' || value === null) return false;
-  const { state, releaseReason } = value as { state?: unknown; releaseReason?: unknown };
+  const { state, releaseReason, source } = value as { state?: unknown; releaseReason?: unknown; source?: unknown };
+  if (source === 'direct') return false;
   return state === 'awaiting_payment' || (state === 'released' && releaseReason !== 'detached');
 }
 
@@ -388,9 +405,11 @@ export function checkoutReorderMode(
 ): CheckoutReorderMode | null {
   if (order.paymentMethod !== 'card') return null;
   /* 장바구니가 그대로 있는 주문은 다시 담지 않는다. 결제 없이 끝났거나(취소·시도 만료·승인
-     거절) 결제 기한이 지난 주문이면 주문서에서 새로 결제한다. */
-  if (order.cartRetained) {
-    if (order.status === 'canceled') return 'retry_from_cart';
+     거절) 결제 기한이 지난 주문이면 주문서에서 새로 결제한다. 바로구매 주문(ADR-0030)은 같은 조건에서
+     그 상품 상세로 보내 다시 구매하게 한다 — 새 주문이 이 주문을 닫는다. */
+  const retryMode = order.cartRetained ? 'retry_from_cart' : order.directGoodId ? 'retry_direct' : null;
+  if (retryMode) {
+    if (order.status === 'canceled') return retryMode;
     if (
       order.status !== 'pending'
       || order.paymentStatus !== null
@@ -400,7 +419,7 @@ export function checkoutReorderMode(
        주문서도 이 주문을 닫지 않으므로(승인 확인 중) 다시 결제하기를 권하지 않는다. */
     if (order.hasActiveCancellationRequest) return null;
     if (order.paymentAttempt && !checkoutAttemptSettledBeforeApproval(order.paymentAttempt, now)) return null;
-    return 'retry_from_cart';
+    return retryMode;
   }
   if (order.status === 'canceled') return 'reorder';
   if (
@@ -436,6 +455,8 @@ export interface CheckoutPaymentReading {
   readonly reorderMode: CheckoutReorderMode | null;
   /** 결제 시도의 provider. 시도가 없으면 null. */
   readonly provider: string | null;
+  /** 바로구매 주문(ADR-0030)의 상품 상세 굿즈 — `retry_direct` 안내의 목적지. 아니면 null. */
+  readonly directGoodId?: string | null;
 }
 
 export function readCheckoutPayment(
@@ -456,6 +477,7 @@ export function readCheckoutPayment(
     closure: state === 'payment_closed' ? closure : null,
     reorderMode: checkoutReorderMode(order, state, now),
     provider: order.paymentAttempt?.provider ?? null,
+    ...(order.directGoodId ? { directGoodId: order.directGoodId } : {}),
   };
 }
 

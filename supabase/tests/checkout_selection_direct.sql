@@ -305,4 +305,203 @@ select 1/case when has_function_privilege('service_role','public.service_create_
  and not has_function_privilege('authenticated','public.service_create_checkout_retry_draft(uuid,uuid)','execute')
  then 1 else 0 end as assert_retry_draft_acl;
 
+-- ── 3. 바로구매(1014-033·034·037·038): 그 상품만 주문하고 장바구니는 읽지도 바꾸지도 않는다 ──────────
+insert into public.coupons(code,name,discount_type,discount_value,min_subtotal,starts_at,status) values
+ ('D2CART3K','TEST D2 장바구니 3천','fixed',3000,0,now()-interval '1 day','active'),
+ ('D2SHIP','TEST D2 배송비','fixed',3000,0,now()-interval '1 day','active');
+update public.coupons set benefit_kind='shipping' where code='D2SHIP';
+select set_config('request.jwt.claim.sub','d2000000-0000-4000-8000-000000000002',true);
+set local role authenticated;
+-- 바로구매 쿠폰과 배송비 쿠폰은 보유만 하고, 장바구니에는 3천 쿠폰을 골라 둔다.
+select public.apply_cart_coupon_code('D2DIRECT1K') as direct_coupon \gset
+select public.clear_cart_coupon();
+select public.apply_cart_coupon_code('D2CART3K') as cart3_coupon \gset
+-- 장바구니: A 1개(바로구매할 상품과 같다), B 2개.
+select public.set_cart_item_quantity('d2-a',:'variant_a',1);
+select public.set_cart_item_quantity('d2-b',:'variant_b',2);
+-- 주문서에서 고른 쿠폰으로 견적한다. 장바구니 쿠폰 선택(3천)은 쓰지 않는다.
+select public.quote_goods_sales_for_address_with_coupon(jsonb_build_array(jsonb_build_object('goodId','d2-a','variantId',:'variant_a','qty',1)),
+ null,:'direct_coupon') as direct_quote \gset
+reset role;
+select 1/case when (:'direct_quote'::jsonb->'coupon'->>'userCouponId')=:'direct_coupon' and (:'direct_quote'::jsonb->'coupon'->>'discount')::int=1000
+ and (:'direct_quote'::jsonb->>'subtotal')::int=10000 then 1 else 0 end as assert_direct_quote_uses_checkout_coupon_not_cart_selection;
+select pg_temp.d2_cart('d2000000-0000-4000-8000-000000000002') as cart_before_direct \gset
+-- 바로구매 초안: A 1개 + 연결된 추가 구성 1개. 직접입력값은 서버 초안에만 둔다.
+set local role service_role;
+select public.service_create_checkout_direct_draft('d2000000-0000-4000-8000-000000000002','d2-a',jsonb_build_array(
+  jsonb_build_object('good_id','d2-a','variant_id',:'variant_a','qty',1),
+  jsonb_build_object('good_id','d2-addon','variant_id',:'variant_addon','qty',1))) as direct_draft \gset
+select public.service_get_checkout_draft('d2000000-0000-4000-8000-000000000002',:'direct_draft') as direct_view \gset
+-- 연결되지 않은 굿즈·본품 없는 선택·중복 줄·다른 굿즈의 옵션은 초안이 되지 않는다.
+select pg_temp.d2_expect_error(format('select public.service_create_checkout_direct_draft(%L,%L,%L)','d2000000-0000-4000-8000-000000000002','d2-a',
+  jsonb_build_array(jsonb_build_object('good_id','d2-a','variant_id',:'variant_a','qty',1),jsonb_build_object('good_id','d2-b','variant_id',:'variant_b','qty',1))),'additional_good_unavailable');
+select pg_temp.d2_expect_error(format('select public.service_create_checkout_direct_draft(%L,%L,%L)','d2000000-0000-4000-8000-000000000002','d2-a',
+  jsonb_build_array(jsonb_build_object('good_id','d2-addon','variant_id',:'variant_addon','qty',1))),'invalid_checkout_direct');
+select pg_temp.d2_expect_error(format('select public.service_create_checkout_direct_draft(%L,%L,%L)','d2000000-0000-4000-8000-000000000002','d2-a',
+  jsonb_build_array(jsonb_build_object('good_id','d2-a','variant_id',:'variant_a','qty',1),jsonb_build_object('good_id','d2-a','variant_id',:'variant_a','qty',2))),'invalid_checkout_direct');
+select pg_temp.d2_expect_error(format('select public.service_create_checkout_direct_draft(%L,%L,%L)','d2000000-0000-4000-8000-000000000002','d2-a',
+  jsonb_build_array(jsonb_build_object('good_id','d2-a','variant_id',:'variant_b','qty',1))),'catalog_item_unavailable');
+select pg_temp.d2_expect_error(format('select public.service_create_checkout_direct_draft(%L,%L,%L)','d2000000-0000-4000-8000-000000000002','d2-input',
+  jsonb_build_array(jsonb_build_object('good_id','d2-input','variant_id',:'variant_input','qty',1,'input_revision',1,'input_values','{}'::jsonb))),'goods_custom_inputs');
+-- 배송비 쿠폰은 legacy 주문서가 받지 않는다.
+reset role;
+insert into public.user_coupons(coupon_code,user_id,issued_source,usable_from)
+ values('D2SHIP','d2000000-0000-4000-8000-000000000002','admin_grant',now()-interval '1 minute') returning id as ship_coupon \gset
+set local role service_role;
+select pg_temp.d2_expect_error(format('select public.place_direct_order(%L,%L,%L,%L,%L,0,%L)','d2000000-0000-4000-8000-000000000002',:'direct_draft',:'address',
+  'd2000000-0000-4000-8000-000000000201','card',:'ship_coupon'),'coupon_checkout_required');
+select public.place_direct_order('d2000000-0000-4000-8000-000000000002',:'direct_draft',:'address','d2000000-0000-4000-8000-000000000202','card',500,:'direct_coupon') as direct_order \gset
+select 1/case when public.place_direct_order('d2000000-0000-4000-8000-000000000002','d2000000-0000-4000-8000-0000000000ff',:'address',
+  'd2000000-0000-4000-8000-000000000202','card',500,:'direct_coupon')=:'direct_order'::uuid then 1 else 0 end as assert_direct_replay_returns_same_order;
+select public.service_get_order_cart_retention('d2000000-0000-4000-8000-000000000002',:'direct_order') as direct_retention \gset
+reset role;
+select 1/case when (:'direct_view'::jsonb->>'source')='direct' and (:'direct_view'::jsonb->>'baseGoodId')='d2-a' and jsonb_array_length(:'direct_view'::jsonb->'lines')=2
+ and (select count(*) from public.order_items where order_id=:'direct_order')=2
+ and (select sum(qty) from public.order_items where order_id=:'direct_order' and good_id='d2-a')=1
+ and not exists(select 1 from public.order_items where order_id=:'direct_order' and good_id='d2-b')
+ and (select discount_total=1000 and store_credit_total=500 from public.orders where id=:'direct_order')
+ and (select status='used' and used_order_id=:'direct_order'::uuid from public.user_coupons where id=:'direct_coupon')
+ and pg_temp.d2_cart('d2000000-0000-4000-8000-000000000002')=:'cart_before_direct'::jsonb
+ and (select user_coupon_id=:'cart3_coupon'::uuid from public.cart_coupon_selections where user_id='d2000000-0000-4000-8000-000000000002')
+ and (select state='awaiting_payment' and source='direct_checkout' and base_good_id='d2-a' and jsonb_array_length(lines)=2
+  from private.cart_order_holds where order_id=:'direct_order')
+ and :'direct_retention'::jsonb='{"state":"awaiting_payment","releaseReason":null,"source":"direct","baseGoodId":"d2-a"}'::jsonb
+ then 1 else 0 end as assert_direct_orders_only_that_good_with_its_qty_and_keeps_cart_and_cart_coupon;
+-- 장바구니 화면 복귀는 바로구매 결제창을 끊지 않는다(장바구니 출처만 닫는다). 바로구매 주문서 진입은 모두 닫는다.
+set local role service_role;
+select 1/case when public.release_unpaid_cart_orders('d2000000-0000-4000-8000-000000000002')=0 then 1 else 0 end as assert_cart_return_keeps_direct_payment;
+reset role;
+select 1/case when (select status='pending' from public.orders where id=:'direct_order') then 1 else 0 end as assert_direct_order_still_pending_after_cart_return;
+-- 같은 상품을 다른 탭에서 다시 바로구매한다: 새 주문이 이전 바로구매를 닫고 쿠폰·재고를 돌려받아 다시 쓴다.
+set local role service_role;
+select public.service_create_checkout_direct_draft('d2000000-0000-4000-8000-000000000002','d2-a',jsonb_build_array(
+  jsonb_build_object('good_id','d2-a','variant_id',:'variant_a','qty',1))) as direct_draft_2 \gset
+select public.place_direct_order('d2000000-0000-4000-8000-000000000002',:'direct_draft_2',:'address','d2000000-0000-4000-8000-000000000203','card',0,:'direct_coupon') as direct_order_2 \gset
+reset role;
+select 1/case when (select status='canceled' from public.orders where id=:'direct_order')
+ and (select state='released' and release_reason='superseded' from private.cart_order_holds where order_id=:'direct_order')
+ and (select status='used' and used_order_id=:'direct_order_2'::uuid from public.user_coupons where id=:'direct_coupon')
+ and exists(select 1 from public.audit_log where action='system.order.unpaid_cart_order_closed' and target='order:'||:'direct_order'
+  and diff->>'trigger'='new_direct_order')
+ and pg_temp.d2_cart('d2000000-0000-4000-8000-000000000002')=:'cart_before_direct'::jsonb
+ then 1 else 0 end as assert_second_tab_direct_supersedes_first_direct;
+-- 출처를 건너도 다른 탭 중복 주문 방지는 같다: 장바구니 선택 주문이 바로구매 미결제 주문을 닫는다.
+select jsonb_agg(value) as b_only from jsonb_array_elements(pg_temp.d2_cart('d2000000-0000-4000-8000-000000000002')) value where value->>'good_id'='d2-b' \gset
+set local role service_role;
+select public.service_create_checkout_selection_draft('d2000000-0000-4000-8000-000000000002',:'b_only') as b_draft \gset
+select public.place_order_with_cart_selection('d2000000-0000-4000-8000-000000000002',:'b_draft',:'address','d2000000-0000-4000-8000-000000000204','card',0,:'cart3_coupon') as b_order \gset
+reset role;
+select 1/case when (select status='canceled' from public.orders where id=:'direct_order_2')
+ and (select state='released' and release_reason='superseded' from private.cart_order_holds where order_id=:'direct_order_2')
+ and (select status='active' from public.user_coupons where id=:'direct_coupon')
+ and (select status='pending' from public.orders where id=:'b_order')
+ then 1 else 0 end as assert_cart_selection_order_supersedes_direct_order;
+-- 바로구매가 이전 장바구니 미결제 주문(B)을 닫고, 장바구니 쿠폰 선택(3천)을 바로구매 쿠폰으로 고르면 결제 확정 때 그 선택을 해제한다.
+set local role service_role;
+select public.service_create_checkout_direct_draft('d2000000-0000-4000-8000-000000000002','d2-a',jsonb_build_array(
+  jsonb_build_object('good_id','d2-a','variant_id',:'variant_a','qty',1))) as direct_draft_3 \gset
+select public.place_direct_order('d2000000-0000-4000-8000-000000000002',:'direct_draft_3',:'address','d2000000-0000-4000-8000-000000000205','card',0,:'cart3_coupon') as direct_order_3 \gset
+reset role;
+select 1/case when (select status='canceled' from public.orders where id=:'b_order')
+ and (select user_coupon_id=:'cart3_coupon'::uuid from public.cart_coupon_selections where user_id='d2000000-0000-4000-8000-000000000002')
+ then 1 else 0 end as assert_direct_supersedes_cart_order_and_keeps_cart_coupon_until_payment;
+set local role service_role;
+select public.prepare_goods_payment_attempt('d2000000-0000-4000-8000-000000000002',:'direct_order_3','toss')->>'id' as direct_attempt \gset
+select public.bind_goods_payment_callback_nonce(:'direct_attempt',repeat('d',64));
+reset role;
+select provider_order_id as direct_provider from public.payment_attempts where id=:'direct_attempt' \gset
+set local role service_role;
+select public.claim_goods_payment_attempt('toss',:'direct_provider',repeat('d',64),'d2000000-0000-4000-8000-000000000143');
+select public.finalize_goods_payment_attempt(:'direct_attempt','d2000000-0000-4000-8000-000000000143','approved',null,'TEST-D2-DIRECT');
+reset role;
+select 1/case when (select status='paid' from public.orders where id=:'direct_order_3')
+ and pg_temp.d2_cart('d2000000-0000-4000-8000-000000000002')=:'cart_before_direct'::jsonb
+ and not exists(select 1 from public.cart_coupon_selections where user_id='d2000000-0000-4000-8000-000000000002')
+ and (select state='consumed' and consumption->'lines'='[]'::jsonb and (consumption->>'couponSelectionCleared')::boolean
+  from private.cart_order_holds where order_id=:'direct_order_3')
+ then 1 else 0 end as assert_direct_payment_keeps_cart_lines_and_clears_same_cart_coupon;
+-- 무통장 바로구매: 장바구니 줄은 그대로, 같은 쿠폰의 장바구니 선택만 접수 때 해제한다. 보류는 없다.
+set local role authenticated;
+select public.apply_cart_coupon(:'direct_coupon');
+reset role;
+set local role service_role;
+select public.service_create_checkout_direct_draft('d2000000-0000-4000-8000-000000000002','d2-b',jsonb_build_array(
+  jsonb_build_object('good_id','d2-b','variant_id',:'variant_b','qty',3))) as direct_bank_draft \gset
+select public.place_direct_order('d2000000-0000-4000-8000-000000000002',:'direct_bank_draft',:'address','d2000000-0000-4000-8000-000000000206','bank_transfer',0,:'direct_coupon') as direct_bank_order \gset
+reset role;
+select 1/case when (select status='pending' and payment_method='bank_transfer' from public.orders where id=:'direct_bank_order')
+ and (select sum(qty)=3 from public.order_items where order_id=:'direct_bank_order')
+ and pg_temp.d2_cart('d2000000-0000-4000-8000-000000000002')=:'cart_before_direct'::jsonb
+ and not exists(select 1 from public.cart_coupon_selections where user_id='d2000000-0000-4000-8000-000000000002')
+ and not exists(select 1 from private.cart_order_holds where order_id=:'direct_bank_order')
+ then 1 else 0 end as assert_bank_transfer_direct_keeps_cart_and_releases_same_cart_coupon;
+-- 바로구매 주문서 진입은 모든 출처의 미결제 점유를 닫는다(카드 바로구매 하나를 만들어 확인한다).
+set local role service_role;
+select public.service_create_checkout_direct_draft('d2000000-0000-4000-8000-000000000002','d2-a',jsonb_build_array(
+  jsonb_build_object('good_id','d2-a','variant_id',:'variant_a','qty',1))) as direct_draft_4 \gset
+select public.place_direct_order('d2000000-0000-4000-8000-000000000002',:'direct_draft_4',:'address','d2000000-0000-4000-8000-000000000207','card',0,null) as direct_order_4 \gset
+select 1/case when public.release_unpaid_checkout_orders('d2000000-0000-4000-8000-000000000002')=1
+ and public.release_unpaid_checkout_orders('d2000000-0000-4000-8000-000000000002')=0 then 1 else 0 end as assert_direct_checkout_entry_releases_all_sources;
+reset role;
+select 1/case when (select status='canceled' from public.orders where id=:'direct_order_4')
+ and exists(select 1 from public.audit_log where action='system.order.unpaid_cart_order_closed' and target='order:'||:'direct_order_4'
+  and diff->>'trigger'='returned_to_checkout')
+ and (select status='pending' from public.orders where id=:'direct_bank_order')
+ then 1 else 0 end as assert_checkout_release_closes_card_holds_only;
+-- 만료된 바로구매 초안은 주문되지 않는다. 다른 계정은 남의 초안으로 주문할 수 없다.
+set local role service_role;
+select pg_temp.d2_expect_error(format('select public.place_direct_order(%L,%L,%L,%L,%L,0,null)','d2000000-0000-4000-8000-000000000003',:'direct_draft_4',:'address',
+  'd2000000-0000-4000-8000-000000000208','card'),'checkout_draft_expired');
+reset role;
+select 1/case when has_function_privilege('service_role','public.place_direct_order(uuid,uuid,jsonb,uuid,public.order_payment_method,bigint,uuid)','execute')
+ and not has_function_privilege('authenticated','public.place_direct_order(uuid,uuid,jsonb,uuid,public.order_payment_method,bigint,uuid)','execute')
+ and has_function_privilege('service_role','public.service_create_checkout_direct_draft(uuid,text,jsonb)','execute')
+ and not has_function_privilege('authenticated','public.service_create_checkout_direct_draft(uuid,text,jsonb)','execute')
+ and has_function_privilege('authenticated','public.quote_goods_sales_for_address_with_coupon(jsonb,jsonb,uuid)','execute')
+ and not has_function_privilege('anon','public.quote_goods_sales_for_address_with_coupon(jsonb,jsonb,uuid)','execute')
+ and has_function_privilege('authenticated','public.get_my_store_credit_checkout_for_direct(bigint,jsonb,jsonb,uuid)','execute')
+ and not has_function_privilege('anon','public.get_my_store_credit_checkout_for_direct(bigint,jsonb,jsonb,uuid)','execute')
+ and has_function_privilege('service_role','public.release_unpaid_checkout_orders(uuid)','execute')
+ and not has_function_privilege('authenticated','public.release_unpaid_checkout_orders(uuid)','execute')
+ and not has_function_privilege('service_role','private.supersede_unpaid_checkout_orders(uuid,boolean,text[],text)','execute')
+ and not has_function_privilege('service_role','private.record_direct_order_hold(uuid,uuid,text,jsonb,text)','execute')
+ then 1 else 0 end as assert_direct_acl;
+
+-- ── 4. 랜덤 판매 굿즈 바로구매(ADR-0027): 어떤 옵션을 넘겨도 장바구니 키로 모으고, 주문 생성이 배정한다 ────────
+set local role authenticated;
+select set_config('request.jwt.claim.sub','d2000000-0000-4000-8000-000000000001',true);
+select public.admin_save_good('{"id":"d2-random","ip_id":"d2-ip","name":"TEST D2 랜덤","price":5000,
+ "variant_baseline":[],"variants":[
+  {"name":"A","code":"D2-RANDOM-A","attributes":{"멤버":"A"},"extraPrice":0,"stockQty":2},
+  {"name":"B","code":"D2-RANDOM-B","attributes":{"멤버":"B"},"extraPrice":0,"stockQty":3}],
+ "allow_card_payment":true,"allow_bank_transfer":true,"sale_restriction":"none"}');
+reset role;
+update public.goods set type='문구',origin_id='d2000000-0000-4000-8000-000000000010',shipping_fee_type='policy' where id='d2-random';
+insert into auth.users(id,aud,role,email,raw_app_meta_data,created_at,updated_at)
+ values(('47c47700'||left(md5('d2-random'),24))::uuid,'authenticated','authenticated','d2-kc-'||md5('d2-random')||'@example.test','{"testFixture":"goods-kc"}',now(),now());
+insert into private.operator_memberships(profile_id,manager_role) values(('47c47700'||left(md5('d2-random'),24))::uuid,'primary');
+select pg_temp.publish_goods_kc_fixture('d2-random');
+update private.goods_subscription_policies set enabled=false where good_id='d2-random';
+select id as random_key from public.goods_variants where code='D2-RANDOM-A' \gset
+select id as random_b from public.goods_variants where code='D2-RANDOM-B' \gset
+set local role authenticated;
+select set_config('request.jwt.claim.sub','d2000000-0000-4000-8000-000000000001',true);
+select public.admin_set_goods_option_sale_mode('d2-random','random',(select updated_at from public.goods where id='d2-random'));
+reset role;
+select pg_temp.d2_cart('d2000000-0000-4000-8000-000000000002') as cart_before_random \gset
+set local role service_role;
+select public.service_create_checkout_direct_draft('d2000000-0000-4000-8000-000000000002','d2-random',jsonb_build_array(
+  jsonb_build_object('good_id','d2-random','variant_id',:'random_b','qty',3))) as random_draft \gset
+select public.service_get_checkout_draft('d2000000-0000-4000-8000-000000000002',:'random_draft') as random_view \gset
+select public.place_direct_order('d2000000-0000-4000-8000-000000000002',:'random_draft',:'address','d2000000-0000-4000-8000-000000000301','card',0,null) as random_order \gset
+reset role;
+select 1/case when (:'random_view'::jsonb->'lines'->0->>'variantId')=:'random_key'
+ and (select sum(qty) from public.order_items where order_id=:'random_order' and good_id='d2-random')=3
+ and not exists(select 1 from public.order_items where order_id=:'random_order' and good_id='d2-random' and option_sale_mode_snapshot is distinct from 'random')
+ and (select sum(stock_qty) from public.goods_variants where good_id='d2-random')=2
+ and (select count(*)>=1 and bool_and(cart_item_id is null) and bool_and(cart_variant_id=:'random_key'::uuid)
+  from private.order_item_random_allocations where order_id=:'random_order')
+ and pg_temp.d2_cart('d2000000-0000-4000-8000-000000000002')=:'cart_before_random'::jsonb
+ then 1 else 0 end as assert_random_direct_allocates_from_key_without_cart_row;
+
 rollback;
