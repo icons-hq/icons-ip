@@ -10,6 +10,7 @@ import { ADMIN_ORDER_STATUS_LABELS, adminOrdersHref, normalizeAdminOrderFilters 
 import { formatKrwExact, metricChange } from '../format';
 import { MetricChangeBadge } from '../MetricCard';
 import { adminReviewHref, DEFAULT_ADMIN_REVIEW_FILTERS } from '@/lib/admin/reviews';
+import { OverviewDeferred, OverviewPendingValue, type OverviewLoadable } from './OverviewDeferred';
 
 /*
  * 홈 요약 카드(ADR-0029). 카드 머리 아이콘은 주 색 옅은 칸에 담고, 숫자는 foreground다. 의미색 칩은 지금 처리할 건수에만 쓴다 —
@@ -56,6 +57,11 @@ function CountLink({ label, value, href, unit = '건', attention = false, danger
   ><span className="mr-auto min-w-0 truncate text-muted-foreground group-hover/count:text-foreground">{label}</span><strong className={countClass(value, attention, danger)}>{reading}</strong><RowChevron /></Link>;
 }
 
+/** 값이 오기 전의 숫자 줄. 링크와 같은 높이를 잡아 값이 와도 화면이 밀리지 않는다. */
+function PendingCountRow({ label }: { label: string }) {
+  return <div className="-mx-2 flex min-h-9 min-w-0 items-center gap-2 px-2 text-sm"><span className="mr-auto min-w-0 truncate text-muted-foreground">{label}</span><OverviewPendingValue className="h-5 w-10" /></div>;
+}
+
 /** 줄을 누르면 목록으로 간다는 표시. */
 function RowChevron() {
   return <ChevronRight aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground/50 transition-transform group-hover/count:translate-x-0.5 group-hover/count:text-foreground" />;
@@ -66,7 +72,7 @@ function SummaryNote({ children }: { children: ReactNode }) {
 }
 
 export function SellerOverviewSummary({ insights, workQueue, summary, days }: {
-  insights: AdminInsights | null; workQueue?: AdminWorkQueueData; summary?: AdminHomeSummary; days: number;
+  insights: OverviewLoadable<AdminInsights | null>; workQueue?: AdminWorkQueueData; summary?: AdminHomeSummary; days: number;
 }) {
   const queueValue = (id: typeof ADMIN_WORK_QUEUES[number]['id']) => {
     const value = workQueue?.counts[id];
@@ -78,7 +84,7 @@ export function SellerOverviewSummary({ insights, workQueue, summary, days }: {
   return <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6" data-admin-home="summary">
     <SummaryPanel className="md:col-span-2 xl:col-span-4" description="전체 기간의 상품 주문 상태별 건수입니다." href="/admin/sales/orders" icon={ShoppingBag} id="sales" title="판매 관리">
       <div className="grid grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-5 sm:gap-1">{stages.map((status, index) => <Link className="flex min-w-0 items-center gap-1 rounded-md p-2 transition-colors hover:bg-muted" href={adminOrdersHref(normalizeAdminOrderFilters({ status }))} key={status} prefetch={false}>
-        <span className="flex min-w-0 flex-1 flex-col gap-0.5"><span className="truncate text-sm text-muted-foreground">{ADMIN_ORDER_STATUS_LABELS[status]}</span><strong className="text-2xl font-semibold whitespace-nowrap tabular-nums">{insights ? `${(insights.pipeline.find((stage) => stage.status === status)?.count ?? 0).toLocaleString('ko-KR')}건` : <span className="text-sm font-medium text-muted-foreground">확인 필요</span>}</strong></span>
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5"><span className="truncate text-sm text-muted-foreground">{ADMIN_ORDER_STATUS_LABELS[status]}</span><strong className="text-2xl font-semibold whitespace-nowrap tabular-nums"><OverviewDeferred fallback={<OverviewPendingValue className="h-7 w-14" />} value={insights}>{(ready) => ready ? `${(ready.pipeline.find((stage) => stage.status === status)?.count ?? 0).toLocaleString('ko-KR')}건` : <span className="text-sm font-medium text-muted-foreground">확인 필요</span>}</OverviewDeferred></strong></span>
         {index < stages.length - 1 ? <ChevronRight aria-hidden="true" className="hidden size-4 shrink-0 text-muted-foreground/60 sm:block" /> : null}
       </Link>)}</div>
       <div className="mt-2 grid grid-cols-1 gap-x-6 rounded-lg bg-muted/50 px-3 py-1 sm:grid-cols-2">
@@ -102,8 +108,8 @@ export function SellerOverviewSummary({ insights, workQueue, summary, days }: {
     </SummaryPanel>
     <SummaryPanel className="xl:col-span-3" description={`최근 ${days}일 상품·티켓 결제완료 기준입니다.`} href="/admin/stats/sales" icon={CreditCard} id="payment" title="결제 현황">
       <div className="grid gap-x-6 gap-y-1">
-        <Link className="group/count -mx-2 flex min-w-0 items-center gap-2 rounded-md p-2 transition-colors hover:bg-muted" href="/admin/stats/sales"><span className="flex min-w-0 flex-1 flex-col gap-0.5"><span className="text-sm text-muted-foreground group-hover/count:text-foreground">최근 {days}일 결제금액</span><span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1"><strong className="text-2xl font-semibold tabular-nums [overflow-wrap:anywhere]">{insights ? formatKrwExact(insights.revenue.current) : <span className="text-sm font-medium text-muted-foreground">확인 필요</span>}</strong>{insights ? <MetricChangeBadge {...metricChange(insights.revenue)} title={`직전 ${days}일 대비`} /> : null}</span></span><RowChevron /></Link>
-        <CountLink href="/admin/stats/sales" label={`최근 ${days}일 결제 건수`} value={insights?.paymentCount.current} />
+        <Link className="group/count -mx-2 flex min-w-0 items-center gap-2 rounded-md p-2 transition-colors hover:bg-muted" href="/admin/stats/sales"><span className="flex min-w-0 flex-1 flex-col gap-0.5"><span className="text-sm text-muted-foreground group-hover/count:text-foreground">최근 {days}일 결제금액</span><span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1"><OverviewDeferred fallback={<OverviewPendingValue className="h-8 w-28" />} value={insights}>{(ready) => <><strong className="text-2xl font-semibold tabular-nums [overflow-wrap:anywhere]">{ready ? formatKrwExact(ready.revenue.current) : <span className="text-sm font-medium text-muted-foreground">확인 필요</span>}</strong>{ready ? <MetricChangeBadge {...metricChange(ready.revenue)} title={`직전 ${days}일 대비`} /> : null}</>}</OverviewDeferred></span></span><RowChevron /></Link>
+        <OverviewDeferred fallback={<PendingCountRow label={`최근 ${days}일 결제 건수`} />} value={insights}>{(ready) => <CountLink href="/admin/stats/sales" label={`최근 ${days}일 결제 건수`} value={ready?.paymentCount.current} />}</OverviewDeferred>
       </div>
       <SummaryNote>상품·티켓 결제완료 기준 · 증감은 직전 {days}일 대비</SummaryNote>
     </SummaryPanel>

@@ -30,6 +30,9 @@
 @custom-variant data-horizontal (&[data-orientation="horizontal"]);
 @custom-variant data-vertical (&[data-orientation="vertical"]);
 
+/* 어드민 셸은 화면마다 세로 스크롤바 유무가 달라도 상단·본문 폭이 튀지 않게 자리를 늘 잡아 둔다. */
+html:has(.admin-shell) { scrollbar-gutter: stable; }
+
 /* shadcn 레지스트리가 globals.css에 두는 유틸리티 — kit Command 목록이 쓴다. 사이드바는 넘칠 때 스크롤 단서가
    보이도록 이것 대신 얇은 스크롤바를 쓴다(kit/ui/sidebar.tsx SidebarContent). */
 @utility no-scrollbar {

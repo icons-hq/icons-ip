@@ -18,7 +18,7 @@ beforeEach(() => {
   mocks.auth.mockResolvedValue({ operatorAccess: legacyOperatorAccessFixture(), isConfigured: true, user: { id: 'staff' }, isStaff: true, role: 'staff' });
   mocks.rpc.mockImplementation(async (name: string) => ({ error: null, data: name === 'admin_shipment_export' || name === 'admin_smartstore_shipment_export'
     ? { shipments: [{ id: ID, updatedAt: STAMP }] } : name === 'admin_shipment_barcode_gaps' ? 0 : 1 }));
-  mocks.build.mockResolvedValue({ bytes: Buffer.from('workbook'), mime: 'test/workbook', extension: 'xlsx', name: 'ICONS-출고지시-2026-10-12-남양주.xlsx' });
+  mocks.build.mockResolvedValue({ bytes: Buffer.from('workbook'), mime: 'test/workbook', extension: 'xlsx', name: 'icons-출고지시-남양주-20261012-0900.xlsx' });
   mocks.encrypt.mockReturnValue({ bytes: Buffer.from('encrypted-workbook'), sha256: 'a'.repeat(64) });
 });
 
@@ -63,8 +63,8 @@ describe('shipment action boundaries', () => {
     expect(mocks.refresh).not.toHaveBeenCalled();
   });
   it('names the downloaded file after the built warehouse file and explains a multi-warehouse ZIP', async () => {
-    expect(await exportShipmentsAction([ID], 'xlsx', 'warehouse')).toMatchObject({ file: { name: 'ICONS-출고지시-2026-10-12-남양주.xlsx' }, message: '1건의 출고지시를 내려받았습니다.' });
-    mocks.build.mockResolvedValue({ bytes: Buffer.from('zip'), mime: 'application/zip', extension: 'zip', name: 'ICONS-출고지시-2026-10-12-출고지별.zip' });
+    expect(await exportShipmentsAction([ID], 'xlsx', 'warehouse')).toMatchObject({ file: { name: 'icons-출고지시-남양주-20261012-0900.xlsx' }, message: '1건의 출고지시를 내려받았습니다.' });
+    mocks.build.mockResolvedValue({ bytes: Buffer.from('zip'), mime: 'application/zip', extension: 'zip', name: 'icons-출고지시-출고지별-20261012-0900.zip' });
     mocks.rpc.mockImplementation(async (name:string)=>({error:null,data:name==='admin_shipment_export'?{shipments:[{id:ID,updatedAt:STAMP,originId:'first'},{id:SECOND,updatedAt:STAMP,originId:'second'}]}:2}));
     expect((await exportShipmentsAction([ID,SECOND], 'xlsx', 'warehouse')).message).toContain('출고지별 파일을 ZIP으로 묶었습니다.');
   });
@@ -78,7 +78,7 @@ describe('shipment action boundaries', () => {
     expect(result.message).toContain('바코드가 없는 옵션 1개 — 파일의 바코드 칸이 비어 있습니다.');
     expect(mocks.rpc).toHaveBeenCalledWith('admin_origin_pending_export_ids', { target_origin_id: SECOND });
     expect(mocks.rpc).toHaveBeenCalledWith('admin_shipment_export', { p_ids: [ID] });
-    expect(result).toMatchObject({ file: { name: 'ICONS-출고지시-2026-10-12-남양주.xlsx' } });
+    expect(result).toMatchObject({ file: { name: 'icons-출고지시-남양주-20261012-0900.xlsx' } });
     expect(result.message).toContain('남은 1,200건');
   });
   it('uses encrypted SmartStore by default for a whole origin and checks the password before reading IDs',async()=>{
@@ -187,7 +187,7 @@ describe('내보내기 전 바코드 경고 조회', () => {
     expect(failedLookup.file).toBeDefined();
     expect(failedLookup.message).toBe('2건의 출고지시를 내려받았습니다.');
   });
-  it('스마트스토어 74열과 실패한 내보내기는 바코드 빈칸을 세지 않는다', async () => {
+  it('ICONS 표준 양식과 실패한 내보내기는 바코드 빈칸을 세지 않는다', async () => {
     await exportShipmentsAction([ID], 'xlsx', 'smartstore', credentials);
     expect(mocks.rpc).not.toHaveBeenCalledWith('admin_shipment_barcode_gaps', expect.anything());
     mocks.rpc.mockImplementation(async (name: string) => name === 'admin_shipment_export'

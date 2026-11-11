@@ -33,7 +33,7 @@ it('조회 실패는 화면에서만 null(불러오지 못함)로 낮춰 나눌 
   await expect(loadOrderItemAllocationsForScreen([ORDER])).resolves.toBeNull();
 });
 
-it('스마트스토어 양식의 비어 있는 버전 1 품목 금액만 채우고 정가가 없으면 할인액은 비운다', async () => {
+it('ICONS 표준 양식의 비어 있는 버전 1 품목 금액만 채우고 정가가 없으면 할인액은 비운다', async () => {
   const loaded = await loadOrderItemAllocations([ORDER]);
   expect(withLegacyItemAmounts({ itemId: 'item-a', itemTotal: null, itemDiscount: null, sellerDiscount: null }, loaded))
     .toEqual({ itemId: 'item-a', itemTotal: 5100, itemDiscount: 1900, sellerDiscount: 1900 });
@@ -43,7 +43,7 @@ it('스마트스토어 양식의 비어 있는 버전 1 품목 금액만 채우�
   expect(withLegacyItemAmounts(recorded, loaded)).toBe(recorded);
 });
 
-it('74열 출고지시는 비어 있는 품목이 있을 때만 배분을 읽는다', async () => {
+it('ICONS 표준 양식 출고지시는 비어 있는 품목이 있을 때만 배분을 읽는다', async () => {
   const line = { shipmentId: 's', orderId: ORDER, recipient: '', phone: '', postalCode: '', address: '', goodCode: '', variantCode: '', goodName: '', optionName: '', qty: 1, unitPrice: 6000, deliveryNote: '', carrier: '' };
   const smartstore = { itemId: 'item-a', itemTotal: null, itemDiscount: null, sellerDiscount: null } as unknown as NonNullable<ShipmentExportData['shipments'][number]['lines'][number]['smartstore']>;
   const data = { shipments: [{ id: 's', updatedAt: '', originId: 'o', originName: '김포', shippingFee: 0, template: 'standard', columns: [], lines: [{ ...line, smartstore }] }] } as ShipmentExportData;

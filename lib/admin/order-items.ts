@@ -62,3 +62,8 @@ export function selectedConfirmableOrderIds(rows: AdminOrderItemRow[], selectedI
   return [...new Set(rows.filter(row => selected.has(row.id) && row.status === 'paid'
     && (!row.claim || !isOpenOrderClaimStage(row.claim.stage))).map(row => row.orderId))];
 }
+
+/** 닉네임이 없는 구매자는 주문별 파일·주문 목록과 같은 `fan_` 표기로 쓴다. 조회 RPC의 `이름 미등록`은 자리표시다. */
+export function orderItemBuyerLabel(row: Pick<AdminOrderItemRow, 'buyerName' | 'userId'>): string {
+  return !row.buyerName.trim() || row.buyerName === '이름 미등록' ? `fan_${row.userId.slice(0, 6)}` : row.buyerName;
+}

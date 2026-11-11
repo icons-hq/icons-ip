@@ -14,7 +14,10 @@ it('내보낸 요약·전체행·주간 합계·안전한 문자열·조회조�
   expect(book.getWorksheet('혜택별 지급현황')?.getCell('B2').type).toBe(ExcelJS.ValueType.String);
   expect(book.getWorksheet('기간별 추이')?.getCell('A2').value).toBe('2026-09-28');
   expect(book.getWorksheet('사용 상세')?.getCell('D2').value).toBe('결제 완료');
-  expect(book.getWorksheet('조회 기준')?.getCell('B4').value).toBe('조건');
+  expect(book.getWorksheet('내려받기 정보')?.getCell('B4').value).toBe('조건');
+  expect(book.getWorksheet('사용 상세')?.getRow(1).values).toEqual([, '사용 ID', '주문번호', '적용일시', '현재 상태', '할인금액', '주문금액', '복구일시']);
+  expect(book.getWorksheet('사용 상세')?.getCell('C2').value).toBe('2026-10-01 00:00');
+  expect(book.getWorksheet('요약')?.getCell('D1').value).toBe('쿠폰 할인금액'); expect(book.getWorksheet('요약')?.getCell('D1').font).toMatchObject({ name: '맑은 고딕', size: 10, bold: true }); expect(book.getWorksheet('요약')?.getCell('D2').numFmt).toBe('#,##0');
 });
 
 const emptyMetrics = { issued: 0, paidUses: 0, discountAmount: 0, orderAmount: 0, released: 0, cohortPaidUses: 0 };
@@ -25,25 +28,25 @@ const issuanceData: BenefitIssuances = {
   rows: Array.from({ length: 51 }, (_, index) => ({ id: `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`, couponCode: 'ABC', issuedAt: '2026-09-30T15:00:00Z', isPaidUse: index === 0 })),
 };
 
-it('발급 상세 전체행·현재 사용 집계와 숫자형 KST 날짜를 보존하고 기존 시트를 유지한다', async () => {
+it('발급 상세 전체행·현재 사용 집계와 KST 문자열 날짜를 쓰고 기존 시트를 유지한다', async () => {
   const bytes = await buildBenefitWorkbook(emptyReport, emptyReport, issuanceFilters, new Date('2026-10-12T15:00:00Z'), issuanceData);
   const book = new ExcelJS.Workbook(); await book.xlsx.load(bytes as unknown as Parameters<typeof book.xlsx.load>[0]);
-  expect(book.worksheets.map(sheet => sheet.name)).toEqual(['요약', '혜택별 지급현황', '기간별 추이', '비교기간 추이', '사용 상세', '발급 상세', '조회 기준']);
+  expect(book.worksheets.map(sheet => sheet.name)).toEqual(['요약', '혜택별 지급현황', '기간별 추이', '비교기간 추이', '사용 상세', '발급 상세', '내려받기 정보']);
   const sheet = book.getWorksheet('발급 상세')!;
   expect(sheet.rowCount).toBe(52);
-  expect(sheet.getRow(1).values).toEqual([, '발급 ID', '쿠폰 ID', '발급일시(KST)', '현재 결제 사용 집계 여부']);
+  expect(sheet.getRow(1).values).toEqual([, '발급 ID', '쿠폰 ID', '발급일시', '현재 결제 사용 집계 여부']);
   expect(sheet.getCell('A52').value).toBe(issuanceData.rows[50].id);
   expect(sheet.getCell('A2').type).toBe(ExcelJS.ValueType.String);
-  expect(sheet.getCell('C2').type).toBe(ExcelJS.ValueType.Date);
-  expect((sheet.getCell('C2').value as Date).toISOString()).toBe('2026-10-01T00:00:00.000Z');
-  expect(sheet.getCell('C2').numFmt).toBe('yyyy-mm-dd hh:mm:ss');
+  expect(sheet.getCell('C2').type).toBe(ExcelJS.ValueType.String);
+  expect(sheet.getCell('C2').value).toBe('2026-10-01 00:00');
+  expect(sheet.getCell('C2').numFmt).toBe('@');
   expect(sheet.getCell('D2').value).toBe('예');
   expect(sheet.getCell('D52').value).toBe('아니오');
   const info = new Map<string, ExcelJS.CellValue>();
-  book.getWorksheet('조회 기준')!.eachRow(row => info.set(String(row.getCell(1).value), row.getCell(2).value));
-  expect(info.get('발급 상세 전체 건수')).toBe(51);
-  expect(info.get('발급 상세 현재 결제 사용수')).toBe(1);
-  expect((info.get('발급 상세 조회시각(KST)') as Date).toISOString()).toBe('2026-10-12T23:59:59.000Z');
+  book.getWorksheet('내려받기 정보')!.eachRow(row => info.set(String(row.getCell(1).value), row.getCell(2).value));
+  expect(info.get('발급 상세 전체 건수')).toBe('51');
+  expect(info.get('발급 상세 현재 결제 사용수')).toBe('1');
+  expect(info.get('발급 상세 조회 시각 (KST)')).toBe('2026-10-12 23:59');
   expect(info.get('현재 결제 사용 집계 여부')).toContain('사용 가능·미사용·환불 완료를 뜻하지 않음');
   expect(sheet.columnCount).toBe(4);
 });

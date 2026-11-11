@@ -22,6 +22,7 @@ export function useAdminLeaveGuard({
   message = ADMIN_LEAVE_CONFIRM_MESSAGE,
   serverState,
   onUnload,
+  survivesQueryChange = false,
 }: {
   /** 화면이 직접 판정한 미저장 상태. */
   dirty?: boolean;
@@ -33,6 +34,8 @@ export function useAdminLeaveGuard({
   serverState?: AdminSaveResult | null;
   /** 페이지가 내려가기 직전에 실행한다. */
   onUnload?: () => void;
+  /** 쿼리만 바뀌는 이동(페이지 넘김·검색) 뒤에도 입력이 그대로 남는 화면이면 켠다. 그런 링크에는 묻지 않는다. */
+  survivesQueryChange?: boolean;
 } = {}) {
   const [formDirty, setFormDirty] = useState(false);
   const [tracker] = useState(() => createAdminFormTracker(setFormDirty));
@@ -44,8 +47,8 @@ export function useAdminLeaveGuard({
   const guarded = dirty || blocked;
   useEffect(() => {
     if (!guarded) return;
-    return registerAdminLeaveGuard({ message, blocked, onUnload: () => latestUnload.current?.() });
-  }, [guarded, blocked, message]);
+    return registerAdminLeaveGuard({ message, blocked, survivesQueryChange, onUnload: () => latestUnload.current?.() });
+  }, [guarded, blocked, message, survivesQueryChange]);
 
   return { formRef: tracker.attach, dirty };
 }

@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import type { CSSProperties } from 'react';
 import { Download } from 'lucide-react';
 import { ConsoleGrid } from '@/components/admin/console';
@@ -47,7 +46,7 @@ export function CustomerDemographicsScreen({ filters, data }: { filters: Demogra
           })}</div></div>)}
         </div>
       </section>
-      <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="text-base font-semibold">조회 결과</h3><Link className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" href={demographicHref(filters, '/api/admin/customer-demographics-workbook')}><Download aria-hidden="true" />성별·연령 통계 엑셀 다운로드</Link></div>
+      <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="text-base font-semibold">조회 결과</h3><a className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" href={demographicHref(filters, '/api/admin/customer-demographics-workbook')}><Download aria-hidden="true" />성별·연령 통계 엑셀 다운로드</a></div>
       <ConsoleGrid caption="성별·연령별 고객수 · 10명 미만 비공개" columns={[{ key: 'age', label: '연령대', width: '140px' },
         ...genders.map(gender => ({ key: gender, label: DEMOGRAPHIC_GENDER_LABELS[gender], width: '120px', align: 'end' as const }))]}
         rows={bands.map(band => ({ id: band, cells: [DEMOGRAPHIC_AGE_LABELS[band], ...genders.map(gender => demographicCount(count(band, gender)))] }))} />

@@ -82,8 +82,8 @@ describe('bulk tracking action', () => {
   });
   it('상품주문번호 회신은 실제 item RPC로 보내고 같은 배송의 상품행을 중복 발송·메일 처리하지 않는다',async()=>{
     const firstItem='60000000-0000-4000-8000-000000000001',secondItem='60000000-0000-4000-8000-000000000002';
-    const book=new ExcelJS.Workbook();book.addWorksheet('발송처리').addRows([
-      ['상품주문번호','배송방법','택배사','송장번호'],[firstItem,'택배,등기,소포','한진택배','001234567890'],[secondItem,'택배,등기,소포','한진택배','001234567890'],
+    const book=new ExcelJS.Workbook();book.addWorksheet('발주(주문)확인 발송관리').addRows([
+      ['상품주문번호','택배사','운송장번호'],[firstItem,'한진택배','001234567890'],[secondItem,'한진택배','001234567890'],
     ]);
     const input=new FormData();input.set('file',new File([await book.xlsx.writeBuffer() as ArrayBuffer],'smartstore-reply.xlsx'));
     mocks.rpc.mockResolvedValue({error:null,data:[
@@ -124,6 +124,47 @@ describe('bulk tracking action', () => {
     const workbook = form(''); workbook.set('file', new File(['x'.repeat(1024 * 1024 + 1)], 'tracking.xlsx'));
     expect(await bulkRegisterAdminOrderTrackingAction({}, workbook)).toHaveProperty('errors.form');
     expect(mocks.rpc).not.toHaveBeenCalled(); expect(mocks.enqueue).not.toHaveBeenCalled();
+  });
+  describe('ICONS 표준 양식 CSV 회신', () => {
+    const item='2026102120000001',second='2026102120000002';
+    const csvForm=(text:string|Uint8Array,name='출고지시.csv')=>{const data=new FormData();data.set('file',new File([text as BlobPart],name));return data;};
+    const header='상품주문번호,배송메시지,택배사,운송장번호';
+    beforeEach(()=>mocks.rpc.mockResolvedValue({error:null,data:[{line:2,reference:item,ok:true,shipmentId:'shipment-one',orderId:warehouseOrder,dispatched:true,duplicate:false}]}));
+    it('12자리 운송장번호를 채운 CSV를 품목 RPC로 보낸다',async()=>{
+      const result=await bulkRegisterAdminOrderTrackingAction({},csvForm(`\uFEFF${header}\r\n"${item}","문 앞, 부탁합니다","한진택배","123456789012"\r\n`));
+      expect(mocks.rpc).toHaveBeenCalledWith('admin_import_item_tracking_batch',{target_rows:[{line:2,reference:item,carrier:'hanjin',trackingNumber:'123456789012'}]});
+      expect(result.errors).toBeUndefined();expect(result.report?.succeeded).toEqual([item]);
+    });
+    it('엑셀이 저장한 CP949 CSV의 머리글도 읽는다',async()=>{
+      const bytes=Uint8Array.from(Buffer.from('bbf3c7b0c1d6b9aeb9f8c8a32cc5c3b9e8bbe72cbfeebcdbc0e5b9f8c8a30d0a','hex'));
+      const line=Buffer.from(`${item},hanjin,123456789012\r\n`);
+      await bulkRegisterAdminOrderTrackingAction({},csvForm(new Uint8Array([...bytes,...line])));
+      expect(mocks.rpc).toHaveBeenCalledWith('admin_import_item_tracking_batch',{target_rows:[{line:2,reference:item,carrier:'hanjin',trackingNumber:'123456789012'}]});
+    });
+    it('붙여넣은 표준 양식 표도 같은 규칙으로 읽는다',async()=>{
+      await bulkRegisterAdminOrderTrackingAction({},form(`상품주문번호\t택배사\t운송장번호\n${item}\t한진택배\t123456789012`));
+      expect(mocks.rpc).toHaveBeenCalledWith('admin_import_item_tracking_batch',{target_rows:[{line:2,reference:item,carrier:'hanjin',trackingNumber:'123456789012'}]});
+    });
+    it('안전 검사에 걸린 줄은 등록하지 않고 사유를 남긴다',async()=>{
+      const result=await bulkRegisterAdminOrderTrackingAction({},csvForm(`${header}\r\n${item},,한진택배,=1+1\r\n${second},,한진택배,\r\n`));
+      expect(mocks.rpc).not.toHaveBeenCalled();
+      expect(result.report?.failed.map(row=>[row.line,row.reason])).toEqual([[2,'수식은 사용할 수 없습니다.'],[3,'운송장번호가 비어 있습니다.']]);
+    });
+    it('표준 양식 CSV는 256KB를 넘어도 받고, 일반 세 칸 CSV는 종전 한도를 유지하며 그대로 처리한다',async()=>{
+      const padding='합성 메시지 '.repeat(50);
+      const rows=Array.from({length:300},(_,index)=>`${String(2026102120000000+index+1)},"${padding}",한진택배,123456789012`).join('\r\n');
+      mocks.rpc.mockResolvedValue({error:null,data:[]});
+      const big=csvForm(`${header}\r\n${rows}`);
+      expect((big.get('file') as File).size).toBeGreaterThan(256*1024);
+      await bulkRegisterAdminOrderTrackingAction({},big);
+      expect(mocks.rpc.mock.calls[0][0]).toBe('admin_import_item_tracking_batch');
+      mocks.rpc.mockClear();
+      const plain=await bulkRegisterAdminOrderTrackingAction({},csvForm(`배송건번호,택배사코드,운송장번호\r\n${'0'.repeat(8)},hanjin,12345678\r\n#${'x'.repeat(256*1024)}`));
+      expect(plain.errors?.form).toContain('256KB');expect(mocks.rpc).not.toHaveBeenCalled();
+      mocks.rpc.mockResolvedValue({error:null,data:[{line:2,reference:'00000000',ok:true,shipmentId:'s',orderId:'o',dispatched:true}]});
+      await bulkRegisterAdminOrderTrackingAction({},csvForm(`배송건번호,택배사코드,운송장번호\r\n${'0'.repeat(8)},hanjin,12345678\r\n`));
+      expect(mocks.rpc.mock.calls[0][0]).toBe('admin_import_shipment_tracking_batch');
+    });
   });
   it('merges parser and database failures by original line while keeping successful IDs', async () => {
     mocks.rpc.mockResolvedValue({ error: null, data: [

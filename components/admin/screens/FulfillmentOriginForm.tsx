@@ -74,9 +74,9 @@ export function FulfillmentOriginForm({ origin, carriers, canEdit }: { origin?: 
       </SettingsFormGroup>
       <SettingsFormGroup title="출고·주문 운영">
         <AdminFormGrid>
-          <AdminField inputId={`${prefix}-template`} label="기존 창고 출고지시 양식" hint="발주·발송 관리에서 기존 창고 양식을 선택할 때 사용합니다. 기본 스마트스토어 74열 양식에는 적용되지 않습니다." error={state.errors?.exportTemplate}>
+          <AdminField inputId={`${prefix}-template`} label="기존 창고 출고지시 양식" hint="발주·발송 관리에서 기존 창고 양식을 선택할 때 사용합니다. ICONS 표준 양식에는 적용되지 않습니다." error={state.errors?.exportTemplate}>
             <NativeSelect className="w-full" id={`${prefix}-template`} name="exportTemplate" defaultValue={field('exportTemplate')} aria-invalid={Boolean(state.errors?.exportTemplate)} aria-describedby={state.errors?.exportTemplate ? `${prefix}-template-error` : undefined}>
-              <option value="standard">표준 양식</option><option value="wms_csv">김포 WMS 21열</option><option value="seowon_xlsx">서원 우체국 송장양식</option>
+              <option value="standard">기본 12열 양식</option><option value="wms_csv">김포 WMS 21열</option><option value="seowon_xlsx">서원 우체국 송장양식</option>
             </NativeSelect>
           </AdminField>
           <OriginActiveField id={`${prefix}-active`} initial={field('active')} wasActive={origin?.active ?? false} />

@@ -5,6 +5,7 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import { observeInquiryChanges, type InquiryRealtimeClient } from '@/lib/inquiry-realtime';
 import { createClient } from '@/lib/supabase/client';
 import { getSupabaseConfig } from '@/lib/supabase/config';
+import { startAdminNavigation } from '@/lib/admin/navigation-pending';
 import { Button } from '@/components/admin/kit/ui/button';
 
 /*
@@ -126,6 +127,14 @@ export function showInquiryNotification(inquiry: NewInquiry, onOpen: () => void,
     shown.onclick = () => { onOpen(); shown.close(); };
     return true;
   } catch { return false; }
+}
+
+/** 알림을 누르면 이 탭을 앞으로 가져와 문의 상세로 옮긴다. 링크가 아닌 이동이라 대기 표시를 직접 건다. */
+export function openNotifiedInquiry(inquiryId: string, push: (href: string) => void, focus: () => void = () => window.focus()) {
+  const href = `/admin/cs/inquiries/${inquiryId}`;
+  focus();
+  startAdminNavigation(href);
+  push(href);
 }
 
 /** 같은 문의는 계정의 모든 탭을 통틀어 한 번만 알린다. 기록을 못 읽으면 알린다(누락보다 중복이 낫다, tag가 OS에서 합친다). */
@@ -265,7 +274,7 @@ function useNotifierEffect(accountId: string, enabled: boolean, onCount: (count:
       },
       notify: (inquiry) => {
         // 권한 회수·OS 거부는 생성자가 던지지 않는다(오류 이벤트). 던지면 생성자 자체가 막힌 브라우저다.
-        if (!showInquiryNotification(inquiry, () => { window.focus(); router.push(`/admin/cs/inquiries/${inquiry.id}`); })) {
+        if (!showInquiryNotification(inquiry, () => openNotifiedInquiry(inquiry.id, (href) => router.push(href)))) {
           markInquiryNotificationsUnsupported(accountId);
         }
       },

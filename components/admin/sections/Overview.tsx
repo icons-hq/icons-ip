@@ -21,10 +21,20 @@ import { reportTargetLabels } from '@/lib/admin/moderation';
 import { statusTone } from '@/lib/admin/status-tone';
 import { ADMIN_REPORT_STATUS_LABELS } from '@/lib/admin/moderation';
 import { AdminNotice, AdminStatusBadge } from '../console/AdminKit';
+import { Skeleton } from '@/components/admin/kit/ui/skeleton';
+import { OverviewDeferred, type OverviewLoadable } from './OverviewDeferred';
 
 /* 셸의 콘솔 전환과 같은 구분 선택(링크 탭). */
 const SEGMENT_LINK = 'inline-flex h-7 items-center rounded-md px-3 text-[0.8rem] font-medium text-muted-foreground transition-colors hover:text-foreground aria-[current=page]:bg-background aria-[current=page]:text-primary-soft-foreground aria-[current=page]:shadow-sm';
 const OUTLINE_SM = buttonVariants({ variant: 'outline', size: 'sm' });
+
+/** 판매 성과가 오기 전의 자리. 지표 카드·그래프와 비슷한 높이를 잡아 값이 와도 아래 카드가 크게 밀리지 않는다. */
+function PerformancePending() {
+  return <div aria-busy="true" className="flex min-w-0 flex-col gap-4" role="status" aria-label="판매 성과 집계 중">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">{[0, 1, 2, 3].map((key) => <Skeleton className="h-28 rounded-xl" key={key} />)}</div>
+    <Skeleton className="h-72 rounded-xl" />
+  </div>;
+}
 
 export function OverviewSection({
   insights,
@@ -34,15 +44,13 @@ export function OverviewSection({
   days = 30,
   attention,
 }: {
-  insights: AdminInsights | null;
+  insights: OverviewLoadable<AdminInsights | null>;
   workQueue?: AdminWorkQueueData;
-  reports: AdminReportRecord[] | null;
+  reports: OverviewLoadable<AdminReportRecord[] | null>;
   summary?: AdminHomeSummary;
   days?: AdminInsightPeriod;
   attention?: AdminHomeAttention;
 }) {
-  const recent = reports?.slice(0, 5) ?? [];
-
   return (
     <div className="flex min-w-0 flex-col gap-4" data-admin-home="overview">
       <SellerOverviewSummary insights={insights} workQueue={workQueue} summary={summary} days={days} />
@@ -57,37 +65,37 @@ export function OverviewSection({
             <nav aria-label="성과 조회기간" className="inline-flex w-fit shrink-0 items-center rounded-lg bg-muted p-0.5">{ADMIN_INSIGHT_PERIODS.map((period) => <Link aria-current={period === days ? 'page' : undefined} className={SEGMENT_LINK} href={`/admin?period=${period}`} key={period}>{period === 1 ? '일간' : period === 7 ? '주간' : '월간'}</Link>)}</nav>
             <p className="text-sm text-muted-foreground">오늘을 포함한 KST {days}일 · 매출·결제 건수·평균 결제액은 결제완료 결제 기준입니다. 증감은 직전 {days}일과 비교합니다.</p>
           </header>
-          {insights ? <>
+          <OverviewDeferred fallback={<PerformancePending />} value={insights}>{(ready) => ready ? <>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <MetricCard
                 label={`${days}일 매출`}
                 comparisonDays={days}
-                value={formatKrwExact(insights.revenue.current)}
-                {...metricChange(insights.revenue)}
+                value={formatKrwExact(ready.revenue.current)}
+                {...metricChange(ready.revenue)}
               />
               <MetricCard
                 label={`${days}일 결제 건수`}
                 comparisonDays={days}
-                value={`${insights.paymentCount.current.toLocaleString('ko-KR')}건`}
-                {...metricChange(insights.paymentCount)}
+                value={`${ready.paymentCount.current.toLocaleString('ko-KR')}건`}
+                {...metricChange(ready.paymentCount)}
               />
               <MetricCard
                 label="평균 결제액"
                 comparisonDays={days}
-                value={formatKrwExact(insights.avgPayment.current)}
-                {...metricChange(insights.avgPayment)}
+                value={formatKrwExact(ready.avgPayment.current)}
+                {...metricChange(ready.avgPayment)}
               />
               <MetricCard
                 label={`${days}일 신규 가입`}
                 comparisonDays={days}
-                value={`${insights.signupCount.current.toLocaleString('ko-KR')}명`}
-                {...metricChange(insights.signupCount)}
+                value={`${ready.signupCount.current.toLocaleString('ko-KR')}명`}
+                {...metricChange(ready.signupCount)}
               />
             </div>
 
             <div className="grid min-w-0 grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(20rem,1fr)]">
-              <RevenueTrend data={insights.dailyRevenue} days={days} />
-              <OrderPipeline stages={insights.pipeline} />
+              <RevenueTrend data={ready.dailyRevenue} days={days} />
+              <OrderPipeline stages={ready.pipeline} />
             </div>
 
             {/*
@@ -109,10 +117,10 @@ export function OverviewSection({
             </nav>
 
             <div className="grid min-w-0 grid-cols-1 items-start gap-4 lg:grid-cols-2">
-              <RecentOrders orders={insights.recentOrders} />
-              <TopIps ips={insights.topIps} />
+              <RecentOrders orders={ready.recentOrders} />
+              <TopIps ips={ready.topIps} />
             </div>
-          </> : <AdminNotice role="status" tone="warning">성과 통계를 불러오지 못했습니다. 새로고침 후 다시 확인해주세요.</AdminNotice>}
+          </> : <AdminNotice role="status" tone="warning">성과 통계를 불러오지 못했습니다. 새로고침 후 다시 확인해주세요.</AdminNotice>}</OverviewDeferred>
         </div>
       </details>
 
@@ -132,7 +140,9 @@ export function OverviewSection({
           </CardAction>
         </CardHeader>
         <CardContent>
-          {recent.length ? <ul className="flex flex-col divide-y">
+          <OverviewDeferred fallback={<div aria-busy="true" className="flex flex-col gap-3"><Skeleton className="h-4 w-2/3" /><Skeleton className="h-4 w-1/2" /></div>} value={reports}>{(ready) => {
+            const recent = ready?.slice(0, 5) ?? [];
+            return recent.length ? <ul className="flex flex-col divide-y">
             {recent.map((report) => (
               <li className="flex min-w-0 items-center justify-between gap-4 py-3 first:pt-0 last:pb-0" key={report.id}>
                 <div className="flex min-w-0 flex-col gap-0.5">
@@ -147,7 +157,8 @@ export function OverviewSection({
                 <AdminStatusBadge tone={statusTone('report', report.status)}>{ADMIN_REPORT_STATUS_LABELS[report.status] ?? report.status}</AdminStatusBadge>
               </li>
             ))}
-          </ul> : <p className="text-sm text-muted-foreground">{reports ? '접수된 신고가 없습니다.' : '신고 목록을 불러오지 못했습니다.'}</p>}
+          </ul> : <p className="text-sm text-muted-foreground">{ready ? '접수된 신고가 없습니다.' : '신고 목록을 불러오지 못했습니다.'}</p>;
+          }}</OverviewDeferred>
         </CardContent>
       </Card>
 

@@ -32,6 +32,8 @@ import { recoverGoodsPaymentManually } from '@/lib/payments/goods-manual-recover
 import { trackingImportCommand, type SeowonTrackingParseResult } from '@/lib/admin/warehouse-templates.server';
 import { matchSeowonReply, type SeowonReplyCandidate } from '@/lib/admin/seowon-exchange';
 import { parseTrackingWorkbook, TRACKING_IMPORT_FILE_LIMIT_BYTES, TRACKING_IMPORT_TEXT_LIMIT_BYTES, type TrackingWorkbookParseResult } from '@/lib/admin/tracking-workbook.server';
+import { parseSmartStoreReplyText } from '@/lib/admin/smartstore-tracking-workbook.server';
+import { decodeSpreadsheetText } from '@/lib/admin/spreadsheet-text';
 import { shipmentMutationError } from '@/lib/admin/shipment-dispatch';
 import { enqueueOrderShippedEmails } from '@/lib/email/order-shipment-jobs.server';
 import { getShippingCarrierRegistry } from '@/lib/orders/shipment.server';
@@ -598,18 +600,21 @@ export async function bulkRegisterAdminOrderTrackingAction(
     const file = formData.get('file');
     if (file instanceof File && file.size > 0) {
       const workbook=/\.xlsx$/i.test(file.name);
-      if (file.size > (workbook?TRACKING_IMPORT_FILE_LIMIT_BYTES:TRACKING_IMPORT_TEXT_LIMIT_BYTES)) return {errors:{form:workbook?'XLSX 파일은 1MB 이하로 올려주세요. 운송장은 1,000줄까지 등록할 수 있습니다.':'CSV·TSV·텍스트 파일은 256KB 이하로 올려주세요. 운송장은 1,000줄까지 등록할 수 있습니다.'}};
+      if (file.size > TRACKING_IMPORT_FILE_LIMIT_BYTES) return {errors:{form:`${workbook?'XLSX':'CSV·TSV·텍스트'} 파일은 1MB 이하로 올려주세요. 운송장은 1,000줄까지 등록할 수 있습니다.`}};
       if (workbook) parsed=await parseTrackingWorkbook(Buffer.from(await file.arrayBuffer()),carriers);
       else if (/\.(csv|tsv|txt)$/i.test(file.name)) {
-        const text=await file.text();
+        const text=decodeSpreadsheetText(new Uint8Array(await file.arrayBuffer()));
         if(/^\uFEFF?"?받는분전화번호/.test(text))return {errors:{form:'남양주(서원) 송장양식 회신은 XLSX로 올려주세요.'}};
-        parsed=parseTrackingImport(text,carriers);
+        // 표준 양식 CSV는 열이 많아 XLSX와 같은 1MB까지 받는다. 일반 세 칸 회신은 종전대로 256KB다.
+        const standard=parseSmartStoreReplyText(text,carriers);
+        if(!standard&&file.size>TRACKING_IMPORT_TEXT_LIMIT_BYTES)return {errors:{form:'CSV·TSV·텍스트 파일은 256KB 이하로 올려주세요. 운송장은 1,000줄까지 등록할 수 있습니다.'}};
+        parsed=standard??parseTrackingImport(text,carriers);
       }
       else return {errors:{form:'XLSX 또는 CSV·TSV 파일을 올려주세요.'}};
     } else {
       const text=String(formData.get('pasted')??'');
       if(Buffer.byteLength(text,'utf8')>TRACKING_IMPORT_TEXT_LIMIT_BYTES)return {errors:{form:'붙여넣기 내용은 256KB 이하로 나누어주세요.'}};
-      parsed=parseTrackingImport(text,carriers);
+      parsed=parseSmartStoreReplyText(text,carriers)??parseTrackingImport(text,carriers);
     }
   } catch(error) { return {errors:{form:error instanceof Error?error.message:'운송장 파일을 읽지 못했습니다.'}}; }
   const requestedOrigin=String(formData.get('originId')??'');

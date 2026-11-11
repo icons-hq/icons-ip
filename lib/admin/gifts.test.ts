@@ -12,6 +12,7 @@ it('기본 수락 대기·100개와 전체 상태 및 50/200개 조건을 페이
 it('DTO는 raw 개인정보·메시지·직접입력 내용·링크 토큰·금액을 전파하지 않는다', () => {
   const parsed = parseAdminGiftRow({ ...adminGiftRow, address: { phone: 'CANARY' }, message: 'CANARY', inputValues: 'CANARY', token: 'CANARY', total: 10000 });
   expect(parsed).toEqual(adminGiftRow); expect(JSON.stringify(giftExportRows([parsed!]))).not.toContain('CANARY');
+  expect(giftExportRows([parsed!])[0].slice(6, 9)).toEqual(['2026-10-14 10:00', '2026-10-21 10:00', '']);
   expect(parseAdminGiftRow({ ...adminGiftRow, quantity: '2' })).toBeNull();
   expect(parseAdminGiftRow({ ...adminGiftRow, state: 'ordered' })).toBeNull();
   expect(parseAdminGiftRow({ ...adminGiftRow, expiresAt: 'unknown' })).toBeNull();

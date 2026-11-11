@@ -50,8 +50,29 @@ describe('AdminOverviewPage', () => {
     const screen = await run();
 
     expect(screen.type).toBe(mocks.overviewSection);
-    expect(screen.props).toMatchObject({ insights, reports });
+    await expect(screen.props.insights).resolves.toBe(insights);
+    await expect(screen.props.reports).resolves.toBe(reports);
     expect(mocks.requireAccess).toHaveBeenCalledWith('/admin');
+  });
+
+  /* 2026-11-10 실측: 홈이 가장 느린 화면(서버 응답 1.5~1.9초)이었다. 왕복이 가장 많은 통계·신고를 기다리지 않고 업무 큐부터 보낸다. */
+  it('통계와 신고가 끝나기 전에도 업무 큐로 화면을 돌려준다', async () => {
+    const never = new Promise<never>(() => {});
+    mocks.getInsights.mockReturnValue(never);
+    mocks.getModeration.mockReturnValue(never);
+    const screen = await run();
+    expect(screen.type).toBe(mocks.overviewSection);
+    expect(screen.props.workQueue).toMatchObject({ checkedAt: '2026-09-15T00:00:00Z' });
+    expect(screen.props.insights).toBeInstanceOf(Promise);
+    expect(screen.props.reports).toBeInstanceOf(Promise);
+  });
+
+  it('통계·신고 조회가 실패하면 화면을 깨지 않고 그 칸만 불러오지 못한 것으로 둔다', async () => {
+    mocks.getInsights.mockRejectedValue(new Error('insights down'));
+    mocks.getModeration.mockRejectedValue(new Error('reports down'));
+    const screen = await run();
+    await expect(screen.props.insights).resolves.toBeNull();
+    await expect(screen.props.reports).resolves.toBeNull();
   });
   it.each(['deputy', 'agency', 'influencer', 'logistics'] as const)('%s 홈은 허용되지 않은 원본 집계를 요청하지 않는다', async role => {
     mocks.requireAccess.mockResolvedValue({ role: 'staff', operatorAccess: configuredOperatorAccessFixture(role) });

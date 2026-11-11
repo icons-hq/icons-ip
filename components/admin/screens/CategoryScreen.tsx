@@ -1,13 +1,14 @@
 'use client';
 
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
-import { useActionState, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { useActionState, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import Link from 'next/link';
 import { Download } from 'lucide-react';
 import { statusTone } from '@/lib/admin/status-tone';
 import { MarketingLinkIssuer } from '../marketing/MarketingLinkIssuer';
 import { AdminPageHeader, AdminSectionCard, AdminStatusBadge } from '../console/AdminKit';
 import { CategoryAssignmentField } from '../CategoryAssignmentField';
+import { CategoryTemplatesAvailableProvider } from '../CategoryTemplatesAvailability';
 import { CategoryBulkCreatePanel } from '../CategoryBulkCreatePanel';
 import { CategoryTree, firstCategoryInTree } from '../CategoryTree';
 import { FoldCard } from '../sections/SectionLayout';
@@ -130,6 +131,24 @@ function ActivationForm({ activation }: { activation: AdminCategoryActivation })
   </form>;
 }
 
+/**
+ * 접힌 카드(`<details>`) 안의 내용을 처음 펼칠 때 그린다.
+ * 말단 300개면 ERP 분류 매핑 입력 묶음만 DOM 4,500개로 화면 DOM의 절반이 넘는다(2026-11-10 측정). 접어 둔 채 일하는 날이 대부분이다.
+ */
+function RenderOnFirstOpen({ children }: { children: ReactNode }) {
+  const marker = useRef<HTMLSpanElement>(null);
+  const [opened, setOpened] = useState(false);
+  useEffect(() => {
+    const details = marker.current?.closest('details');
+    if (!details) return undefined;
+    const reveal = () => { if (details.open) setOpened(true); };
+    reveal();
+    details.addEventListener('toggle', reveal);
+    return () => details.removeEventListener('toggle', reveal);
+  }, []);
+  return <><span hidden ref={marker} />{opened ? children : null}</>;
+}
+
 function MigrationForm({ types, categories }: { types: string[]; categories: AdminCategoryNode[] }) {
   const [state, action, pending] = useActionState(saveAdminCategoryTypeMigrationAction, EMPTY);
   return <form action={action} className={FORM_BOX}>
@@ -158,7 +177,7 @@ function AssignmentForm({ categories }: { categories: AdminCategoryNode[] }) {
   </form>;
 }
 
-export function CategoryScreen({ data, legacyTypes = [], canManagePlatform = true }: { data: { categories: AdminCategoryNode[]; mappings: AdminCategoryErpMapping[]; migrations: AdminCategoryMigration[]; activation: AdminCategoryActivation }; legacyTypes?: string[]; canManagePlatform?: boolean }) {
+export function CategoryScreen({ data, legacyTypes = [], canManagePlatform = true, hasCategoryTemplates = false }: { data: { categories: AdminCategoryNode[]; mappings: AdminCategoryErpMapping[]; migrations: AdminCategoryMigration[]; activation: AdminCategoryActivation }; legacyTypes?: string[]; canManagePlatform?: boolean; hasCategoryTemplates?: boolean }) {
   const activeLeaves = data.categories.filter((category) => !category.archivedAt && category.childCount === 0);
   const mappings = new Map(data.mappings.map((mapping) => [mapping.categoryId, mapping]));
   /* 오른쪽 입력 묶음은 트리에서 고른 항목 하나다. 아직 안 골랐으면 트리 맨 위 항목을 연다. */
@@ -186,8 +205,8 @@ export function CategoryScreen({ data, legacyTypes = [], canManagePlatform = tru
       </div>
     </div>
     <FoldCard title="카테고리 일괄 등록"><CategoryBulkCreatePanel /></FoldCard>
-    {canManagePlatform ? <FoldCard title="ERP 분류 매핑" summary={`맨 아래 단계 ${activeLeaves.length}개`}><p className="text-sm text-muted-foreground">실제 ERP 코드·품명·출처·검증 시각이 없는 매핑은 쓰지 않습니다. 매핑이 없으면 내보내기에서 미설정으로 표시합니다.</p>{activeLeaves.map((category) => <MappingForm category={category} key={category.id} mapping={mappings.get(category.id)} />)}</FoldCard> : null}
+    {canManagePlatform ? <FoldCard title="ERP 분류 매핑" summary={`맨 아래 단계 ${activeLeaves.length}개`}><p className="text-sm text-muted-foreground">실제 ERP 코드·품명·출처·검증 시각이 없는 매핑은 쓰지 않습니다. 매핑이 없으면 내보내기에서 미설정으로 표시합니다.</p><RenderOnFirstOpen>{activeLeaves.map((category) => <MappingForm category={category} key={category.id} mapping={mappings.get(category.id)} />)}</RenderOnFirstOpen></FoldCard> : null}
     {canManagePlatform ? <FoldCard title="기존 유형 이관 메모"><p className="text-sm text-muted-foreground">유사 이름으로 자동 이관하지 않습니다. 확인된 항목만 선택적으로 기록하며, 전체 카테고리 기능을 켜는 조건은 아닙니다.</p><MigrationForm categories={data.categories} types={legacyTypes} />{data.migrations.length ? <ul className="list-disc space-y-1 pl-5 text-sm">{data.migrations.map((migration) => <li key={migration.type}>{migration.type} · {migration.status} · {migration.categoryId ?? '미설정'}</li>)}</ul> : null}</FoldCard> : null}
-    <AdminSectionCard title={adminGoodsCopy("굿즈 기본 카테고리 적용")}><p className="text-sm text-muted-foreground">대표 분류 하나를 바로 변경합니다. 추가 분류는 상품 편집에서 확인하고 저장하며 ERP는 대표 분류를 사용합니다.</p><AssignmentForm categories={data.categories} /></AdminSectionCard>
+    <AdminSectionCard title={adminGoodsCopy("굿즈 기본 카테고리 적용")}><p className="text-sm text-muted-foreground">대표 분류 하나를 바로 변경합니다. 추가 분류는 상품 편집에서 확인하고 저장하며 ERP는 대표 분류를 사용합니다.</p><CategoryTemplatesAvailableProvider available={hasCategoryTemplates}><AssignmentForm categories={data.categories} /></CategoryTemplatesAvailableProvider></AdminSectionCard>
   </section>;
 }

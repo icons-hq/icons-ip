@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { setAdminOperationAlertBadgeAction, updateAdminOperationAlertsAction } from '@/app/admin/operations-dock-actions';
 import { ADMIN_ALERT_CATEGORIES, type AdminAlertCategory, type AdminAlertFilterState, type AdminAlertPage, type AdminHelpResult, type AdminOperationTask } from '@/lib/admin/operations-dock';
+import { startAdminNavigation } from '@/lib/admin/navigation-pending';
 import { RefreshCw, Settings, X } from 'lucide-react';
 import { Badge } from '@/components/admin/kit/ui/badge';
 import { Button } from '@/components/admin/kit/ui/button';
@@ -55,7 +56,7 @@ export function OperationsDockPanel({ section, pathname, onClose, onAlertRead, c
       try {
         const result = await updateAdminOperationAlertsAction({ action, ids, through: alerts.asOf, category, state });
         if (result.error) { setError(result.error); return; }
-        if (href) { router.push(href); onClose(); } else reload();
+        if (href) { startAdminNavigation(href); router.push(href); onClose(); } else reload();
       } catch { setError('알림을 처리하지 못했습니다. 다시 시도해주세요.'); }
     });
   }
@@ -95,7 +96,7 @@ export function OperationsDockPanel({ section, pathname, onClose, onAlertRead, c
         {!loading && alerts?.items.length === 0 ? <p className="py-6 text-center text-muted-foreground">표시할 알림이 없습니다.</p> : null}
         {!loading && alerts?.items.length ? <ul className="flex flex-col divide-y rounded-lg border">{alerts.items.map(item => <li className="flex flex-col gap-1.5 p-3 data-[unread]:bg-info-soft" key={item.id} data-unread={!item.readAt || undefined}>
           <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground"><Badge variant="outline">{ADMIN_ALERT_CATEGORIES.find(([key]) => key === item.category)?.[1]}</Badge><time dateTime={item.createdAt}>{new Date(item.createdAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</time></div>
-          <div className="flex items-start justify-between gap-2"><Link className={linkClass} href={item.href} onClick={event => { if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return; event.preventDefault(); update('read', [item.id], item.href); }}>{item.title}</Link>
+          <div className="flex items-start justify-between gap-2"><Link className={linkClass} data-admin-nav-skip="" href={item.href} onClick={event => { if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return; event.preventDefault(); update('read', [item.id], item.href); }}>{item.title}</Link>
           <Button className="shrink-0" disabled={pending} onClick={() => update(item.hiddenAt ? 'restore' : 'hide', [item.id])} size="xs" type="button" variant="ghost">{item.hiddenAt ? '복원' : '숨김'}</Button></div>
         </li>)}</ul> : null}
         {!loading && alerts?.hasMore ? <Button disabled={pending} onClick={more} type="button" variant="outline">더보기</Button> : null}

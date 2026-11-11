@@ -92,6 +92,15 @@ describe('목록 엑셀 다운로드 라우트', () => {
     expect(mocks.guard).toHaveBeenCalledWith('/admin/sales/claims/returns');
   });
 
+  it('주문통합검색의 상품주문별 보기는 주문별과 구분되는 파일명으로 내려준다', async () => {
+    mocks.load.mockResolvedValue({ ...sheet, screen: 'orders', filters: { view: 'items' } });
+    const items = await POST(request('screen=orders&view=items'));
+    expect(decodeURIComponent(items.headers.get('content-disposition')!)).toContain('icons-상품주문별조회-20261007-1504.xlsx');
+    expect(items.headers.get('content-disposition')).toContain('filename="icons-order-items-20261007-1504.xlsx"');
+    mocks.load.mockResolvedValue({ ...sheet, screen: 'orders', filters: { status: 'all' } });
+    const orders = await POST(request('screen=orders'));
+    expect(decodeURIComponent(orders.headers.get('content-disposition')!)).toContain('icons-주문통합검색-20261007-1504.xlsx');
+  });
   it.each(['orders', 'unpaid', 'dispatch', 'shipping', 'claims-returns'] as AdminListExportScreenId[])(
     '%s 목록 수를 바꿔도 전체 목록 다운로드 요청은 허용된다', async screen => {
       const href = adminListExportHref(screen, '/admin/sales/shipping?tab=transit&page=3&pageSize=50&sort=newest');

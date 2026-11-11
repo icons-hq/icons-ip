@@ -68,13 +68,15 @@ export function OperationsDock({ accountId, access, inquiryNotifications = false
       >
         <Icon aria-hidden="true" />
         <span className="hidden xl:inline">{label}</span>
-        {id === 'alerts' && showBadge ? <span className="absolute -top-1 -right-1 flex h-4 min-w-4 xl:static xl:ml-0.5 items-center justify-center rounded-full bg-muted-foreground px-1 text-[10px] leading-none font-semibold text-primary-foreground tabular-nums">{badge > 99 ? '99+' : badge}</span> : null}
+        {/* 넓은 화면에서는 배지가 글자 옆 흐름에 놓인다. 건수가 늦게 도착해도 옆 버튼이 밀리지 않게 칸을 미리 잡는다. */}
+        {id === 'alerts' && badgeEnabled ? <span className="absolute -top-1 -right-1 xl:static xl:ml-0.5 xl:inline-flex xl:w-7 xl:justify-center" data-admin-alert-badge-slot="">{showBadge ? <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-muted-foreground px-1 text-[10px] leading-none font-semibold text-primary-foreground tabular-nums">{badge > 99 ? '99+' : badge}</span> : null}</span> : null}
       </Button>)}
       {hasAdminCapability(access, 'cs.manage') ? <Link
         aria-current={pathname === '/admin/cs/chat' ? 'page' : undefined}
         aria-label="상담하기"
         className={`${buttonVariants({ variant: 'ghost', size: 'icon-sm' })} aria-[current=page]:bg-muted xl:w-auto xl:gap-1 xl:px-2`}
         href="/admin/cs/chat"
+        prefetch={false}
         title="상담하기"
       >
         <MessagesSquare aria-hidden="true" />

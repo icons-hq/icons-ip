@@ -4,8 +4,10 @@ import { unstable_rethrow } from 'next/navigation';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { isCount, isRecord, normalizeSegmentFilters, parseSegmentOptions, type SegmentActionResult, type SegmentList } from '@/lib/admin/customer-segments';
 import { loadCustomerSegments } from '@/lib/admin/customer-segments.server';
-import { MARKETING_MESSAGES_PATH, MARKETING_STATE_LABELS, marketingState, parseMarketingContent, parseMarketingSchedule, type MarketingFilters, type MarketingValues, type MarketingProductOptions } from '@/lib/admin/marketing-messages';
+import { MARKETING_MESSAGES_PATH, MARKETING_REASON_LABELS, MARKETING_STATE_LABELS, marketingState, parseMarketingContent, parseMarketingSchedule, type MarketingFilters, type MarketingValues, type MarketingProductOptions } from '@/lib/admin/marketing-messages';
 import { loadMarketingMessages, loadMarketingProducts } from '@/lib/admin/marketing-messages.server';
+import { kstDateTimeText, kstFileStamp, listExportPeriodLabel } from '@/lib/admin/list-export';
+import { addSafeWorkbookInfoSheet, addWorkbookTable, tableColumn as column } from '@/lib/admin/workbook-table';
 import { createClient } from '@/lib/supabase/server';
 import { processMarketingMessages } from '@/lib/marketing-messages-jobs.server';
 import { isUuid } from '@/lib/uuid';
@@ -34,9 +36,10 @@ export async function changeMarketingMessageAction(input:{id:string;revision:num
 export async function exportMarketingMessagesAction(filters:MarketingFilters):Promise<SegmentActionResult<{base64:string;filename:string}>>{
  try{if(!await access())return {error:'마케팅 관리 권한이 없습니다.'};const first=await loadMarketingMessages({...filters,page:1});if(first.total>1000)return {error:'다운로드는 최대 1,000개 메시지입니다. 기간이나 상태로 조회 범위를 좁혀주세요.'};
   const rows=[...first.rows];for(let page=2;page<=Math.ceil(first.total/20);page++)rows.push(...(await loadMarketingMessages({...filters,page})).rows);
-  const ExcelJS=(await import('exceljs')).default,book=new ExcelJS.Workbook(),sheet=book.addWorksheet('마케팅 메시지');
-  sheet.addRow(['메시지 ID','메시지명','세그먼트','현재 상태','생성 시각','회차 예약 시각','회차 상태','실제 인앱 등록','읽음 처리','제외','상태 사유']);
-  for(const row of rows){const common=[`MSG-${row.reference}`,row.name,row.segmentName,MARKETING_STATE_LABELS[marketingState(row)],row.createdAt];if(!row.runs.length)sheet.addRow([...common,'','작성 중',0,0,0,'']);for(const run of row.runs)sheet.addRow([...common,run.scheduledAt,MARKETING_STATE_LABELS[run.state],run.sentCount,run.readCount,run.excludedCount,run.reason??'']);}
-  sheet.views=[{state:'frozen',ySplit:1}];sheet.getRow(1).font={bold:true};sheet.columns.forEach(column=>{column.width=24;});const bytes=await book.xlsx.writeBuffer();return {data:{base64:Buffer.from(bytes).toString('base64'),filename:`marketing-messages-${new Date().toISOString().slice(0,10)}.xlsx`}};
+  const generatedAt=new Date(),ExcelJS=(await import('exceljs')).default,book=new ExcelJS.Workbook();book.creator='ICONS';book.created=generatedAt;
+  const lines=rows.flatMap(row=>{const common=[`MSG-${row.reference}`,row.name,row.segmentName,MARKETING_STATE_LABELS[marketingState(row)],kstDateTimeText(row.createdAt)];return row.runs.length?row.runs.map(run=>[...common,kstDateTimeText(run.scheduledAt),MARKETING_STATE_LABELS[run.state],run.sentCount,run.readCount,run.excludedCount,run.reason?MARKETING_REASON_LABELS[run.reason]??run.reason:null]):[[...common,null,'작성 중',0,0,0,null]];});
+  addWorkbookTable(book,'고객 안내 메시지',[column('메시지 ID','code',16),column('메시지명','text',32),column('세그먼트','text',24),column('현재 상태','text',14),column('생성 시각','date',18),column('회차 예약 시각','date',18),column('회차 상태','text',14),column('실제 인앱 등록','count'),column('읽음 처리','count'),column('제외','count'),column('상태 사유','text',28)],lines);
+  addSafeWorkbookInfoSheet(book,[['화면','고객 안내 메시지'],['상태',filters.state==='all'?'전체':MARKETING_STATE_LABELS[filters.state]],['기간',listExportPeriodLabel(filters.start||null,filters.end||null)],['검색어',filters.query||'전체'],['내려받은 시각 (KST)',kstDateTimeText(generatedAt.toISOString())],['건수',`${rows.length.toLocaleString('ko-KR')}개 메시지 · 엑셀 ${lines.length.toLocaleString('ko-KR')}행`],['안내','한 행은 메시지의 발송 회차 한 번입니다. 인앱 등록 수는 알림함에 실제 생성된 수이고, 읽음 처리는 알림 열기 기록이며 실제 열람·클릭·구매를 뜻하지 않습니다.']]);
+  const stamp=kstFileStamp(generatedAt),bytes=await book.xlsx.writeBuffer();return {data:{base64:Buffer.from(bytes).toString('base64'),filename:`icons-고객안내메시지-${stamp}.xlsx`}};
  }catch(error){unstable_rethrow(error);return {error:'이력을 다운로드하지 못했습니다. 조회 조건을 확인해주세요.'};}
 }

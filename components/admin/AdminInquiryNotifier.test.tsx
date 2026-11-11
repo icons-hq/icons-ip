@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { InquiryRealtimeClient } from '@/lib/inquiry-realtime';
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }), usePathname: () => '/admin' }));
+const navigationStart = vi.hoisted(() => vi.fn());
+vi.mock('@/lib/admin/navigation-pending', () => ({ startAdminNavigation: navigationStart }));
 
 import {
   INQUIRY_NOTIFICATION_DENIED,
@@ -13,6 +15,7 @@ import {
   inquiryNotificationSupport,
   inquiryNotificationsEnabled,
   markInquiryNotificationsUnsupported,
+  openNotifiedInquiry,
   readInquiryNotifierCursor,
   setInquiryNotificationsEnabled,
   showInquiryNotification,
@@ -320,5 +323,14 @@ describe('탭 간 리더 선출 (R2)', () => {
     const fallback = vi.fn();
     acquireInquiryNotifierLeadership('acc', fallback, null);
     expect(fallback).toHaveBeenCalledOnce();
+  });
+});
+
+describe('PC 알림을 눌러 문의로 이동 (R2)', () => {
+  it('탭을 앞으로 가져오고 메뉴 이동과 같은 대기 표시를 건 뒤 문의 상세로 옮긴다', () => {
+    const order: string[] = [];
+    navigationStart.mockImplementationOnce((href: string) => { order.push(`start ${href}`); });
+    openNotifiedInquiry('case-1', (href) => { order.push(`push ${href}`); }, () => { order.push('focus'); });
+    expect(order).toEqual(['focus', 'start /admin/cs/inquiries/case-1', 'push /admin/cs/inquiries/case-1']);
   });
 });

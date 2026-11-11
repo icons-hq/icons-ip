@@ -221,7 +221,7 @@ export async function setErpCategoryMappingAction(input: { erpCategory: unknown;
       const { code, descriptor } = rpcCode(error);
       if (isPermissionError(code, descriptor)) return { ok: false, error: STAFF_ONLY };
       if (descriptor.includes('category_archived')) return { ok: false, error: '보관된 카테고리에는 연결할 수 없습니다.' };
-      if (descriptor.includes('category_not_leaf')) return { ok: false, error: '하위 카테고리가 있는 분류에는 연결할 수 없습니다. 말단 카테고리를 골라주세요.' };
+      if (descriptor.includes('category_not_leaf')) return { ok: false, error: '하위 카테고리가 있는 분류에는 연결할 수 없습니다. 마지막 단계 카테고리를 골라주세요.' };
       if (descriptor.includes('category_not_found')) return { ok: false, error: '카테고리를 찾지 못했습니다. 새로고침한 뒤 다시 골라주세요.' };
       if (descriptor.includes('invalid_erp_category')) return { ok: false, error: 'ERP 분류 이름을 확인해주세요.' };
       return { ok: false, error: 'ERP 분류 연결을 저장하지 못했습니다. 다시 시도해주세요.' };

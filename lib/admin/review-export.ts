@@ -113,10 +113,10 @@ export function reviewExportSheet(snapshot: ReviewExportSnapshot): ListExportWor
     .map(([key, value]) => [key, value === null ? null : String(value)]));
   return {
     screenLabel: '리뷰', title: '리뷰', recordCount: snapshot.total,
-    columns: [column('리뷰 ID', 'code', 40), column('상품 ID', 'code', 28), column('상품명', 'text', 40), column('작성자 표시명'),
+    columns: [column('리뷰 ID', 'code', 40), column('상품번호', 'code', 28), column('상품명', 'text', 40), column('작성자 표시명'),
       column('평점', 'count', 10), column('리뷰 내용', 'text', 70), column('사진 수', 'count', 12), column('리뷰도움수', 'count', 14),
       column('상태', 'text', 14), column('BEST 상태', 'text', 18), column('전체 신고 수', 'count', 16), column('미처리 신고 수', 'count', 18),
-      column('답글 등록 여부', 'text', 18), column('답글 등록 시각 (KST)', 'text', 25), column('작성 시각 (KST)'), column('수정 시각 (KST)'), column('리뷰 구분'), column('재구매 표시')],
+      column('답글 등록 여부', 'text', 18), column('답글 등록 시각', 'text', 18), column('작성 시각', 'text', 18), column('수정 시각', 'text', 18), column('리뷰 구분'), column('재구매 표시')],
     rows: snapshot.rows.map(row => [row.id, row.goodId, row.goodName, row.authorName, row.rating, row.body, row.imageCount, row.helpfulCount,
       ADMIN_REVIEW_STATUS_LABELS[row.status], REVIEW_BEST_LABELS[row.bestState], row.reportCount, row.openReportCount, row.hasReply ? '등록' : '미등록',
       kstDateTimeText(row.replyAt), kstDateTimeText(row.createdAt), kstDateTimeText(row.editedAt), REVIEW_KIND_LABELS[row.kind ?? 'ordinary'], row.repeatPurchase === true ? '재구매' : row.repeatPurchase === false ? '해당 없음' : '이력 미확인']),

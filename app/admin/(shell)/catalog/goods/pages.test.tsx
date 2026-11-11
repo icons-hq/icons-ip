@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Children, isValidElement, type ComponentProps, type ReactElement, type ReactNode } from 'react';
 import { GoodScreen } from '@/components/admin/screens/GoodScreen';
+import { CategoryTemplatesAvailableProvider } from '@/components/admin/CategoryTemplatesAvailability';
 const mocks = vi.hoisted(() => ({ guard: vi.fn(), list: vi.fn(), editor: vi.fn(), common: vi.fn(), session: vi.fn() }));
 vi.mock('@/lib/admin/goods-group-common.server', () => ({ loadGoodsGroupCommon: mocks.common }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ auth: { getSession: mocks.session } }) }));
@@ -15,8 +16,14 @@ vi.mock('@/components/admin/screens/GoodScreen', () => ({ GoodScreen: () => null
 vi.mock('@/components/admin/screens/GoodsListScreen', () => ({ GoodsListScreen: () => null }));
 import Page from './page';
 
+function availability(children: ReactNode) {
+  const provider = Children.toArray(children).find((child): child is ReactElement<ComponentProps<typeof CategoryTemplatesAvailableProvider>> => isValidElement(child) && child.type === CategoryTemplatesAvailableProvider);
+  if (!provider) throw new Error('Missing category template availability');
+  return provider;
+}
+
 function editorScreen(children: ReactNode): ReactElement<ComponentProps<typeof GoodScreen>> {
-  const screen = Children.toArray(children).find((child): child is ReactElement<ComponentProps<typeof GoodScreen>> => isValidElement(child) && child.type === GoodScreen);
+  const screen = Children.toArray(availability(children).props.children).find((child): child is ReactElement<ComponentProps<typeof GoodScreen>> => isValidElement(child) && child.type === GoodScreen);
   if (!screen) throw new Error('Missing goods editor screen');
   return screen;
 }
@@ -34,11 +41,13 @@ describe('goods directory routes', () => {
     mocks.common.mockResolvedValue(snapshot);
     mocks.session.mockResolvedValue({ data: { session: { user: { id: identity.actorId }, access_token: `x.${Buffer.from(JSON.stringify({ session_id: identity.sessionId })).toString('base64url')}.x` } } });
     const page = await Page({ searchParams: Promise.resolve({ goodId: snapshot.group.commonGoodId, groupCommon: snapshot.group.id }) });
-    expect(page.type).toBe(GoodsGroupCommonEditor); expect(page.props).toMatchObject({ snapshot, actorId: identity.actorId, sessionId: identity.sessionId });
+    expect(page.type).toBe(CategoryTemplatesAvailableProvider);
+    const groupEditor = page.props.children;
+    expect(groupEditor.type).toBe(GoodsGroupCommonEditor); expect(groupEditor.props).toMatchObject({ snapshot, actorId: identity.actorId, sessionId: identity.sessionId });
     expect(mocks.common).toHaveBeenCalledWith(snapshot.group.id);
     mocks.common.mockResolvedValueOnce({ ...snapshot, group: { ...snapshot.group, revision: snapshot.group.revision + 1 } });
     const refreshed = await Page({ searchParams: Promise.resolve({ goodId: snapshot.group.commonGoodId, groupCommon: snapshot.group.id }) });
-    expect(refreshed.key).toBe(page.key);
+    expect(refreshed.props.children.key).toBe(groupEditor.key);
     await expect(Page({ searchParams: Promise.resolve({ goodId: 'different-product', groupCommon: snapshot.group.id }) })).rejects.toMatchObject({ digest: 'NEXT_HTTP_ERROR_FALLBACK;404' });
   });
   it.each([{ groupCommon: 'bad' }, { groupCommon: 'bc1d0000-0000-4000-8000-000000000010' }, { create: '1', groupCommon: 'bc1d0000-0000-4000-8000-000000000010' }])('공통 편집의 잘못된 경로를 거절한다: %j', async params => {
@@ -74,6 +83,12 @@ describe('goods directory routes', () => {
     expect(screen.props.listHref).toContain('page=3');
     expect(screen.props.listHref).toContain('q=CODE');
     expect(screen.props.adjustmentId).toMatch(/^[0-9a-f-]{36}$/);
+  });
+  /* 운영 책임자 피드백(2026-11-10): 비어 있는 '카테고리 템플릿' 버튼이 무엇인지 알 수 없었다. 등록된 게 있을 때만 대표 카테고리 옆에 보인다. */
+  it.each([true, false])('자주 쓰는 카테고리 유무(%s)를 대표 카테고리 칸까지 전한다', async (hasCategoryTemplates) => {
+    mocks.editor.mockResolvedValueOnce({ records: { goods: [], ips: [] }, catalogIps: [], variants: [], origins: [{ id: 'origin' }], hasCategoryTemplates });
+    const create = await Page({ searchParams: Promise.resolve({ create: '1' }) });
+    expect(availability(create.props.children).props.available).toBe(hasCategoryTemplates);
   });
   it('rejects absent edit targets and preselects an active draft IP for creation', async () => {
     mocks.editor.mockResolvedValueOnce({ records: { goods: [], ips: [] }, catalogIps: [], variants: [], origins: [{id:'origin'}] });
