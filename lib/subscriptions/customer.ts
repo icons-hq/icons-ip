@@ -79,7 +79,10 @@ export function parseSubscriptionOffers(value: unknown): SubscriptionOffer[] | n
   }
   return result;
 }
+/** 정기배송은 랜덤 판매 굿즈를 받지 않는다(ADR-0027 · m27 CUST-1). */
+export const SUBSCRIPTION_RANDOM_OPTION_UNSUPPORTED_MESSAGE = '랜덤 판매 굿즈는 정기배송으로 받을 수 없어요.';
 export function subscriptionError(code?: string, message?: string): string {
+  if (message?.includes('subscription_random_option_unsupported')) return SUBSCRIPTION_RANDOM_OPTION_UNSUPPORTED_MESSAGE;
   if (code === '42501' || message?.includes('actor')) return '현재 계정에서 처리할 수 없습니다. 로그인 상태를 확인해주세요.';
   if (code === 'PT409' || message?.includes('changed')) return '일정이나 금액이 변경됐습니다. 최신 내용을 다시 확인해주세요.';
   if (message?.includes('credential_in_use')) return '연결된 정기구매를 해지하거나 다른 카드로 변경한 뒤 삭제해주세요.';

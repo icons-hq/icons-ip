@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { createServerClient } from '@supabase/ssr';
 import { unstable_cache } from 'next/cache';
 import { HOME_CURATION_IMAGE_PATTERN, isSafeInternalLink } from './home-catalog';
+import { IMAGE_SIZE_PROBE_BYTES, imageSizeFromBytes, type ImageSize } from './image-size';
 import { normalizePublicMediaPath, PUBLIC_MEDIA_BUCKET } from './media';
 import { getSupabaseConfig } from './supabase/config';
 import { publicIpHref } from './ip-identity';
@@ -77,6 +78,31 @@ async function toNoticeBar(row: ShellNoticeRow, supabase: ServerClient): Promise
   return { id: row.id, key: noticeBarKey(row.id, message, cta, pageTypes), message, cta, pageTypes, endsAt: noticeEndsAt(row) };
 }
 
+/* 띠배너 높이는 이미지 비율로만 정해진다 — 크기를 모른 채 그리면 이미지가 첫 페인트 뒤에 올 때 띠가 0 에서 펼쳐지며 본문을 민다
+   (셸 QA 2026-10-27: 이미지가 600ms 늦으면 모바일 CLS 0.05). 캐시된 셸 읽기(5분) 안에서 머리 바이트만 받아 고유 크기를 읽는다.
+   실패·시간 초과는 null 로 수렴한다 — 크기 속성 없이 그리던 그대로다. */
+async function imageSizeAt(url: string): Promise<ImageSize | null> {
+  try {
+    const response = await fetch(url, { headers: { Range: `bytes=0-${IMAGE_SIZE_PROBE_BYTES - 1}` }, signal: AbortSignal.timeout(3000) });
+    if (!response.ok || !response.body) return null;
+    const reader = response.body.getReader();
+    const bytes = new Uint8Array(IMAGE_SIZE_PROBE_BYTES);
+    let size = 0;
+    while (size < bytes.length) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const part = value.subarray(0, bytes.length - size);
+      bytes.set(part, size);
+      size += part.byteLength;
+    }
+    // Range 를 무시하고 전체를 보내는 서버라도 머리만 읽고 끊는다.
+    await reader.cancel().catch(() => {});
+    return imageSizeFromBytes(bytes.subarray(0, size));
+  } catch {
+    return null;
+  }
+}
+
 async function toNoticeStrip(
   row: ShellNoticeRow,
   supabase: ServerClient,
@@ -88,16 +114,24 @@ async function toNoticeStrip(
   if (!title || Array.from(title).length > 120 || !isSafeInternalLink(href) || pageTypes === null) return null;
   if (!row.image_path || !HOME_CURATION_IMAGE_PATTERN.test(row.image_path)) return null;
   const mobileImagePath = row.payload?.mobile_image_path;
+  const imageUrl = publicUrlFor(row.image_path);
+  const mobileImageUrl = typeof mobileImagePath === 'string' && HOME_CURATION_IMAGE_PATTERN.test(mobileImagePath)
+    ? publicUrlFor(mobileImagePath)
+    : null;
+  const [imageSize, mobileImageSize, publicHref] = await Promise.all([
+    imageSizeAt(imageUrl),
+    mobileImageUrl ? imageSizeAt(mobileImageUrl) : null,
+    currentPublicHref(href, supabase),
+  ]);
 
   return {
     id: row.id,
     title,
-    imageUrl: publicUrlFor(row.image_path),
-    mobileImageUrl:
-      typeof mobileImagePath === 'string' && HOME_CURATION_IMAGE_PATTERN.test(mobileImagePath)
-        ? publicUrlFor(mobileImagePath)
-        : null,
-    href: await currentPublicHref(href, supabase),
+    imageUrl,
+    imageSize,
+    mobileImageUrl,
+    mobileImageSize,
+    href: publicHref,
     pageTypes: pageTypes ?? null,
     endsAt: noticeEndsAt(row),
   };

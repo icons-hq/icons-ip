@@ -393,6 +393,32 @@ describe('getAdminCatalogRecords', () => {
     });
   });
 
+  /* D5②·m27 접합: 편집기는 goods.option_sale_mode로 랜덤 판매 상품의 옵션별 제한 입력을 막고,
+     판매 방식 패널은 goods.updated_at이 바뀌면 낙관 잠금 값을 다시 읽는다. */
+  it('굿즈 목록에 판매 방식과 수정 시각을 싣고, 판매 방식이 없으면 옵션 선택 판매로 본다', async () => {
+    const records: QueryRecord[] = [];
+    mocks.client = createClient({
+      records,
+      rows: {
+        goods: [
+          { id: 'random-good', option_sale_mode: 'random', updated_at: '2026-10-28T03:00:00.000Z' },
+          { id: 'select-good', option_sale_mode: 'select', updated_at: '2026-10-28T04:00:00.000Z' },
+          { id: 'legacy-good' },
+        ],
+      },
+    });
+
+    const result = await getAdminCatalogRecords({ include: ['goods'] });
+
+    expect(records.find((record) => record.table === 'goods')?.select).toMatch(/(^|,)option_sale_mode(,|$)/);
+    expect(records.find((record) => record.table === 'goods')?.select).toMatch(/(^|,)updated_at(,|$)/);
+    expect(result.goods.map(({ id, optionSaleMode, updatedAt }) => ({ id, optionSaleMode, updatedAt }))).toEqual([
+      { id: 'random-good', optionSaleMode: 'random', updatedAt: '2026-10-28T03:00:00.000Z' },
+      { id: 'select-good', optionSaleMode: 'select', updatedAt: '2026-10-28T04:00:00.000Z' },
+      { id: 'legacy-good', optionSaleMode: 'select', updatedAt: undefined },
+    ]);
+  });
+
   it('classifies reward-policy status in the required priority order', () => {
     const now = Date.parse('2026-07-15T00:00:00.000Z');
     const activePolicy = {

@@ -722,7 +722,9 @@ describe('GoodDetail', () => {
         expectedShipDate: '2026-10-10', calculatedAt: '2026-09-10T00:00:00Z', nextChangeAt: '2026-09-30T00:00:00Z' } }] } });
     const section = html.slice(html.indexOf('pdp-shipping-heading'), html.indexOf('pdp-return-heading'));
     expect(section).toContain('2026년 10월 10일 발송 예정');
-    expect(section).toContain('같은 출고지');
+    // R26: 고객 화면은 출고지 대신 배송 묶음·택배사로 말한다(GoodAdditionalInfo 예약 안내).
+    expect(section).toContain('같은 배송 묶음의 일반 굿즈와 예약 굿즈를 함께 주문하면 가장 늦은 예정일에 함께 발송합니다.');
+    expect(section).not.toContain('출고지');
     expect(section).not.toContain(SHIPPING_PERIOD_NOTICE);
   });
 
@@ -785,6 +787,21 @@ describe('GoodDetail', () => {
     expect(panel.indexOf('wc-pdp-ipcard--panel')).toBeLessThan(panel.indexOf('유사한 굿즈'));
     expect(panel.indexOf('유사한 굿즈')).toBeLessThan(panel.indexOf('auto-recommendation-marker'));
     expect(html.indexOf('other-composition-marker')).toBeLessThan(html.indexOf('role="tablist"'));
+  });
+
+  /* L4b · CL-01·CL-02 — 상세가 받은 위시 상태·별점을 연관 굿즈 카드로 넘긴다. 이 굿즈 자신의 하트(engagement)와는 별개다. */
+  it('선반 카드의 목록 하트와 별점을 연관 굿즈에 넘기고 어드민 미리보기에는 선반을 그리지 않는다', () => {
+    const relatedGoods = { nextChangeAt: null, groups: [{ id: 'group-a', kind: 'similar' as const, title: '유사한 굿즈',
+      goods: [{ id: 'good-b', name: '연관 굿즈', ip: 'hong-sil-quest', type: '문구', price: 3000, badge: null, img: '', stock: 'ok' as const, stockQty: 5 }] }] };
+    const html = renderToStaticMarkup(
+      <GoodDetail detail={{ ...detail, relatedGoods }} listingReviewSummaries={{ 'good-b': { count: 4, average: 4.25 } }} listingWishlist={{ viewerId: 'viewer-1', goodIds: ['good-b'] }} />,
+    );
+    const panel = html.slice(html.indexOf('id="pdp-panel-detail"'), html.indexOf('id="pdp-panel-reviews"'));
+
+    expect(panel).toContain('aria-label="연관 굿즈 위시리스트에서 빼기"');
+    expect(panel).toContain('평점 5점 만점에 4.3점, 리뷰 4개');
+    expect(renderToStaticMarkup(<GoodDetail detail={{ ...detail, relatedGoods }} />)).not.toContain('wc-list-heart');
+    expect(renderToStaticMarkup(<GoodDetailView embedded detail={{ ...detail, relatedGoods }} listingWishlist={{ viewerId: 'viewer-1', goodIds: [] }} />)).not.toContain('wc-list-heart');
   });
 
   it('IP 주소를 바꾼 뒤 IP 카드 링크는 새 주소로 직접 간다', () => {
@@ -854,6 +871,8 @@ describe('출고지 배송 정책 표시', () => {
   it('DB 정책 금액과 상품별 유형을 표시하고 누락 시 금액을 추정하지 않는다', () => {
     const policy = {originId:'gimpo',originName:'김포',baseFee:4700,freeThreshold:62000,feeType:'policy' as const,individualFee:2500};
     expect(renderToStaticMarkup(<GoodDetailView detail={detail} shippingPolicy={policy} />)).toContain('4,700');
+    /* 배송 안내에 출고지 이름을 내지 않는다(10/14 회의 S7). */
+    expect(renderToStaticMarkup(<GoodDetailView detail={detail} shippingPolicy={policy} />)).not.toContain('김포');
     expect(renderToStaticMarkup(<GoodDetailView detail={detail} shippingPolicy={{...policy,feeType:'individual'}} />)).toContain('굿즈당 1회');
     expect(renderToStaticMarkup(<GoodDetailView detail={detail} shippingPolicy={{...policy,feeType:'free'}} />)).toContain('무료배송');
     expect(renderToStaticMarkup(<GoodDetailView detail={detail} />)).toContain('배송 정책을 확인하지 못했습니다');

@@ -13,6 +13,7 @@ vi.mock('../../../app/admin/ip-publish-actions', () => ({
   publishAdminIpAction: vi.fn(),
   unpublishAdminIpAction: vi.fn(),
 }));
+vi.mock('@/app/admin/ip-banner-actions', () => ({ saveAdminIpHallBannerAction: vi.fn() }));
 
 const ip: AdminIpRecord = {
   id: 'hwasan',
@@ -164,11 +165,29 @@ describe('IpSection', () => {
     );
 
     expect(html).toMatch(/<textarea[^>]*name="glyph"/);
-    expect(html).toContain('글리프 (줄바꿈 가능)');
+    expect(html).toContain('크게 쓰는 글자 (줄바꿈 가능)');
+  });
+
+  it('입력을 기본 정보·소개 글·대표 이미지로 나누고, 낯선 말의 뜻을 칸 이름에서 바로 말하며, 저장 줄은 오른쪽에 둔다', () => {
+    const html = renderToStaticMarkup(
+      <IpSection accountId="operator-a" action={vi.fn()} onSelect={vi.fn()} pending={false} records={[]} selected={null} state={{}} verticals={[]} />,
+    );
+    for (const group of ['기본 정보', '소개 글', '대표 이미지']) expect(html).toContain(`aria-label="${group}"`);
+    for (const label of ['한 줄 소개 · 태그라인', '크게 쓰는 글자', '자세한 소개', '키아트 이미지']) expect(html).toContain(label);
+    /* 글리프·시놉시스는 CONTEXT.md에 없는 말이라 칸 이름에 쓰지 않는다. 키아트는 도메인 용어라 유지하고 뜻을 설명한다. */
+    for (const word of ['글리프', '시놉시스']) expect(html).not.toContain(word);
+    expect(html).toContain('키아트는 IP를 대표하는 가로형 그림입니다.');
+    expect(html).toMatch(/data-admin-savebar=""/);
+    expect(html).toMatch(/class="[^"]*\bjustify-end\b[^"]*" data-admin-savebar=""/);
   });
 
   /* 게시 상태(20260907130000) — 초안·공개·보관을 폼 머리와 목록에서 읽을 수 있어야 한다. */
   describe('publish state', () => {
+    /* 제출 버튼(type="submit")의 intent 값과 문구. 앞에 장식 아이콘(svg) 하나가 올 수 있다 — 속성 순서는 묻지 않는다. */
+    function intentButton(intent: string, label: string) {
+      return new RegExp(`<button(?=[^>]*type="submit")(?=[^>]*value="${intent}")(?=[^>]*name="intent")[^>]*>(?:<svg[\\s\\S]*?</svg>)?\\s*${label}</button>`);
+    }
+
     function render(selected: AdminIpRecord | null, records = selected ? [selected] : []) {
       return renderToStaticMarkup(
         <IpSection
@@ -189,8 +208,8 @@ describe('IpSection', () => {
 
       expect(html).toContain('data-publish-state="draft"');
       expect(html).toContain('새 IP는 초안으로 시작합니다.');
-      expect(html).toMatch(/<button[^>]*value="draft"[^>]*name="intent"[^>]*>[^<]*초안으로 저장<\/button>/);
-      expect(html).toMatch(/<button[^>]*value="publish"[^>]*name="intent"[^>]*>[^<]*저장 후 공개<\/button>/);
+      expect(html).toMatch(intentButton('draft', '초안으로 저장'));
+      expect(html).toMatch(intentButton('publish', '저장 후 공개'));
       expect(html).not.toContain('PUBLISH STATE');
     });
 
@@ -212,7 +231,7 @@ describe('IpSection', () => {
       expect(html).toContain('hwasan · 화산강림');
       expect(html).not.toContain('[초안]');
       expect(html).toContain('data-publish-state="published"');
-      expect(html).toMatch(/<button[^>]*value="save"[^>]*name="intent"[^>]*>[^<]*저장<\/button>/);
+      expect(html).toMatch(intentButton('save', '저장'));
       expect(html).not.toContain('value="publish"');
       expect(html).not.toContain('초안으로 저장');
       expect(html).toContain('data-ip-publish-control="published"');
@@ -330,7 +349,9 @@ describe('IpSection', () => {
       /* 목록 썸네일은 저장된 이미지를 계속 보여주지만, 폼의 미리보기는 제거된 상태를 따른다. */
       expect(html).not.toContain('alt="현재 아트워크 미리보기" src="https://cdn.test/stored.png"');
       expect(html).toContain('이미지 없음');
-      expect(html).toContain('현재 경로: 없음');
+      /* 저장소 경로가 없을 때 '현재 경로: 없음'이라고 쓰면 그림이 보이는 IP도 등록이 안 된 것처럼 읽힌다. */
+      expect(html).not.toContain('현재 경로');
+      expect(html).toMatch(/name="imagePath"[^>]*value=""/);
       expect(html).toContain('IP 이름을 입력해주세요.');
     });
 
@@ -352,5 +373,27 @@ describe('IpSection', () => {
       expect(html).not.toContain('uploaded.png');
       expect(html).toMatch(/name="title"[^>]*value="화산강림"|value="화산강림"[^>]*name="title"/);
     });
+  });
+
+  /* IP-06(L8b): IP관 PC/MO 배너는 기본정보 폼과 따로 저장하는 별도 폼이다 — 저장된 IP 에만 보인다. */
+  it('저장된 IP 에만 IP관 PC/MO 배너 폼을 두고 현재 배너 경로를 싣는다', () => {
+    const render = (selected: AdminIpRecord | null) => renderToStaticMarkup(
+      <IpSection accountId="operator-a" action={vi.fn()} onSelect={vi.fn()} pending={false} records={selected ? [selected] : []}
+        selected={selected} state={{}} verticals={[{ key: 'webtoon', label: '웹툰', color: '#2DE2FF' }]} />,
+    );
+    expect(render(null)).not.toContain('IP관 배너');
+
+    const html = render({ ...ip, hallBannerImagePath: 'public-media/catalog/ip/97510000-0000-4000-8000-000000000001.webp', hallBannerImageUrl: 'https://cdn.test/pc.webp',
+      hallBannerMobileImagePath: null, hallBannerMobileImageUrl: null });
+    const form = html.slice(html.indexOf('aria-label="IP관 배너"'));
+    expect(form).toContain('PC 배너');
+    expect(form).toContain('모바일 배너');
+    expect(form).toContain('<input type="hidden" name="ipId" value="hwasan"/>');
+    expect(form).toContain('<input readOnly="" type="hidden" name="hallBannerImagePath" value="public-media/catalog/ip/97510000-0000-4000-8000-000000000001.webp"/>');
+    expect(form).toContain('<input readOnly="" type="hidden" name="hallBannerMobileImagePath" value=""/>');
+    expect(form).toContain('비우면 모바일에서도 PC 배너를 씁니다');
+    expect(form).toContain('IP관 배너 저장');
+    /* 기본정보 폼의 키아트 칸(imagePath)과 이름이 겹치지 않는다. */
+    expect(form).not.toContain('name="imagePath"');
   });
 });

@@ -6,7 +6,7 @@ import { getAdminSalesHourlyReport } from '@/lib/admin/stats-hourly.server';
 export default async function AdminSalesHourlyPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   await requireAdminScreenAccess(ADMIN_SALES_HOURLY_PATH);
   const filters = normalizeAdminSalesHourlyFilters(await searchParams);
-  if (filters.error) return <section className="admin-stats admin-sales-hourly wc-admin-kit"><StatsSalesHourlyControls filters={filters} error={filters.error} /></section>;
+  if (filters.error) return <div className="flex min-w-0 flex-col gap-4"><StatsSalesHourlyControls filters={filters} error={filters.error} /></div>;
   let report: AdminSalesHourlyReport | null = null;
   let errorMessage: string | undefined;
   try {
@@ -15,6 +15,6 @@ export default async function AdminSalesHourlyPage({ searchParams }: { searchPar
     if (!(error instanceof SalesHourlyReadError) || error.code !== 'invalid_filters') throw error;
     errorMessage = error.message;
   }
-  if (!report) return <section className="admin-stats admin-sales-hourly wc-admin-kit"><StatsSalesHourlyControls filters={filters} error={errorMessage} /></section>;
+  if (!report) return <div className="flex min-w-0 flex-col gap-4"><StatsSalesHourlyControls filters={filters} error={errorMessage} /></div>;
   return <StatsSalesHourlyScreen filters={filters} report={report} />;
 }

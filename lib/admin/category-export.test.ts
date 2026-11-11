@@ -12,4 +12,8 @@ describe('카테고리 CSV', () => {
     expect(csv).toContain('\r\n"001","문구, ""메모""\n노트"');
     expect(csv).toContain('"2","활성","0","00002"');
   });
+  it('ERP 검증 시각은 KST 문자열로 쓰고 미설정 표기는 그대로 둔다', () => {
+    expect(categoryExportCsv([{ ...row, erpVerifiedAt: '2026-09-28T15:10:00+00:00' }])).toContain('"2026-09-29 00:10"');
+    expect(categoryExportCsv([{ ...row, erpVerifiedAt: '미설정' }])).toContain('"미설정"');
+  });
 });

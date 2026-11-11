@@ -9,10 +9,14 @@ vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>
   useRef: (initial: unknown) => { const f = hooks.frames.get(hooks.current)!, i = hooks.index++; return f.values[i] ??= { current: initial }; },
   useMemo: (work: () => unknown, deps: unknown[]) => { const f = hooks.frames.get(hooks.current)!, i = hooks.index++, old = f.values[i] as { value: unknown; deps: unknown[] } | undefined; if (!old || deps.some((dep, n) => dep !== old.deps[n])) f.values[i] = { value: work(), deps }; return (f.values[i] as { value: unknown }).value; },
   useSyncExternalStore: (_subscribe: unknown, read: () => unknown) => read(),
-  useEffect: (work: () => void | (() => void), deps: unknown[] = []) => { const f = hooks.frames.get(hooks.current)!, i = hooks.index++, old = f.effects.get(i); if (!old || deps.some((dep, n) => dep !== old.deps[n])) { f.effects.set(i, { deps, cleanup: old?.cleanup }); f.jobs.push(() => { old?.cleanup?.(); f.effects.get(i)!.cleanup = work() || undefined; }); } },
+  useEffect: (work: () => void | (() => void), deps: unknown[] = []) => { const f = hooks.frames.get(hooks.current)!, i = hooks.index++, old = f.effects.get(i); if (!old || deps.some((dep, n) => dep !== old.deps[n])) { f.effects.set(i, { deps, cleanup: old?.cleanup }); f.jobs.push(() => { const effect = f.effects.get(i)!; effect.cleanup?.(); effect.cleanup = work() || undefined; }); } },
 }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: mocks.refresh }) }));
+/* 이 파일은 컴포넌트 함수를 직접 불러 트리를 편다 — Base UI 기반 kit Badge는 실제 렌더러 밖에서 훅을 쓸 수 없어 글자만 남기는 대역으로 둔다. */
+vi.mock('@/components/admin/kit/ui/badge', () => ({ Badge: (props: { children?: ReactNode }) => <span>{props.children}</span> }));
 vi.mock('@/app/admin/bank-transfer-refund-actions', () => ({ loadBankRefundContextAction: mocks.load, recordBankRefundAction: mocks.save, readBankRefundAction: mocks.read }));
+const busy = vi.hoisted(() => vi.fn());
+vi.mock('@/components/admin/screens/ClaimPreviewDialog', () => ({ useClaimPreviewBusy: busy }));
 vi.mock('@/lib/admin/bank-transfer-refund-account', () => ({ requestBankRefundAccount: mocks.view }));
 vi.mock('@/lib/supabase/client', () => ({ createClient: () => ({ auth: { onAuthStateChange: (callback: typeof mocks.auth) => { mocks.auth = callback; return { data: { subscription: { unsubscribe() {} } } }; } } }) }));
 import { BankTransferRefund } from './BankTransferRefund';
@@ -153,4 +157,14 @@ it('계좌 조회 실패와 다른 작업 receipt는 원문이나 성공 상태�
   mocks.save.mockImplementationOnce(async (original: BankRefundRequest) => ({ receipt: { ...makeReceipt(original), claimId: other } }));
   fill(); submit(); await flush(); expect(storage.size).toBe(1); expect(mocks.refresh).not.toHaveBeenCalled();
   expect(nodes.some(node => node.props.role === 'alert' && text(node).includes('다른 결과'))).toBe(true);
+});
+
+/* m27 G4-5: 목록 위 클레임 팝업(R8) 안에서 무통장 환불 기록을 기다리는 동안 팝업이 닫히지 않게 알린다. */
+it('환불 기록을 기다리는 동안 팝업에 처리 중을 알린다', async () => {
+  const pending = deferred(); mocks.save.mockReturnValueOnce(pending.promise);
+  render(); expect(busy).toHaveBeenLastCalledWith(false);
+  fill(); submit(); render();
+  expect(busy).toHaveBeenLastCalledWith(true);
+  pending.resolve({ error: '응답 유실', uncertain: true }); await flush();
+  expect(busy).toHaveBeenLastCalledWith(false);
 });

@@ -11,6 +11,7 @@ import {
   forgetShellNoticeNow,
   initialShellNoticeNow,
   nextShellNoticeEnd,
+  noticeStripDimensions,
   readDismissedNoticeKeys,
   readShellNoticeSeed,
   rememberDismissedNotice,
@@ -151,29 +152,34 @@ export function ShellNotices({
             </aside>
           ))}
           {/* 스트립은 이미지 비율만큼 높이를 차지하는 링크 배너다(R-01 §1). PC 비율 아트웍은 모바일 폭에서 수 px로
-              붕괴하므로 모바일 소스를 분기한다. 이미지는 숨은 후보까지 모두 기본(eager)으로 받는다(l8a-qa-1): 높이를 미리
-              알 수 없어 이미지가 첫 페인트 뒤에 오면 띠배너가 끼어들며 본문을 민다. 보일 후보를 고르는 첫 페인트 전 스크립트는
+              붕괴하므로 모바일 소스를 분기한다. 높이는 서버가 읽은 이미지 고유 크기(width·height)로 첫 페인트 전에 잡는다.
+              크기를 읽지 못한 경우를 위해 이미지는 숨은 후보까지 모두 기본(eager)으로 받는다(l8a-qa-1): 높이를 미리
+              알 수 없으면 이미지가 첫 페인트 뒤에 올 때 띠배너가 끼어들며 본문을 민다. 보일 후보를 고르는 첫 페인트 전 스크립트는
               head 스타일시트가 끝나야 돌기 때문에(로컬 실측 첫 페인트 15~20ms 전), 숨은 후보를 lazy로 미루면 그 후보가 뽑힌 하드 로드는
               이미지 요청이 그때서야 시작돼 실제 네트워크에서는 매번 늦는다. 모두 받으면 어느 후보가 뽑혀도 HTML 파싱 중 바로
               요청된다(main의 단일 스트립과 같은 시점) — 대가는 같은 화면 유형의 후보 수만큼 얇은 띠배너를 받는 것이다. */}
-          {strips.map((strip, index) => (
-            <Link
-              key={strip.id}
-              className="wc-notice"
-              data-notice-ends={strip.endsAt ?? undefined}
-              data-notice-id={strip.id}
-              data-notice-strip={strip.id}
-              hidden={index !== stripIndex}
-              href={strip.href}
-              onClick={() => recordClick(strip.id)}
-              suppressHydrationWarning
-            >
-              <picture>
-                {strip.mobileImageUrl ? <source media="(max-width: 749px)" srcSet={strip.mobileImageUrl} /> : null}
-                <img alt={strip.title} src={strip.imageUrl} />
-              </picture>
-            </Link>
-          ))}
+          {strips.map((strip, index) => {
+            /* 이미지 고유 크기를 달아 띠 자리를 첫 페인트 전에 잡는다 — 이미지가 늦게 와도 본문을 밀지 않는다(CLS). */
+            const size = noticeStripDimensions(strip);
+            return (
+              <Link
+                key={strip.id}
+                className="wc-notice"
+                data-notice-ends={strip.endsAt ?? undefined}
+                data-notice-id={strip.id}
+                data-notice-strip={strip.id}
+                hidden={index !== stripIndex}
+                href={strip.href}
+                onClick={() => recordClick(strip.id)}
+                suppressHydrationWarning
+              >
+                <picture>
+                  {strip.mobileImageUrl ? <source height={size.mobile?.height} media="(max-width: 749px)" srcSet={strip.mobileImageUrl} width={size.mobile?.width} /> : null}
+                  <img alt={strip.title} height={size.image?.height} src={strip.imageUrl} width={size.image?.width} />
+                </picture>
+              </Link>
+            );
+          })}
         </div>
       ) : null}
       <InlineScript html={SHELL_NOTICE_SCRIPT} />

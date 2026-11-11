@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CONTENT_DIVIDER_STYLES, CONTENT_QUOTE_STYLES } from '@/lib/content-format';
 import { GOODS_HTML_MAX_LENGTH } from '@/lib/goods-description';
-import { bodyTemplateLength, createBodyTemplateRequestLane, normalizeBodyTemplateBody, normalizeBodyTemplateSave, parseBodyTemplate, parseBodyTemplateList, parseBodyTemplateReceipt, validBodyTemplateArchive } from './body-templates';
+import { BODY_TEMPLATE_HTML_MAX, bodyTemplateLength, createBodyTemplateRequestLane, normalizeBodyTemplateBody, normalizeBodyTemplateSave, parseBodyTemplate, parseBodyTemplateList, parseBodyTemplateReceipt, validBodyTemplateArchive } from './body-templates';
 const id = '94000000-0000-4000-8000-000000000001', other = '94000000-0000-4000-8000-000000000002';
 const summary = { id, name: '배송 안내', revision: 1, archivedAt: null, createdAt: '2026-10-14T00:00:00Z', updatedAt: '2026-10-14T00:00:00Z', characterCount: 12 };
 const request = { surface: 'goods' as const, expectedActorId: id, id, expectedRevision: 0, operationId: other, name: ' 배송 안내 ', bodyHtml: '<p>배송 안내</p>' };
@@ -32,7 +32,7 @@ describe('개인 본문 템플릿 계약', () => {
     expect(normalizeBodyTemplateBody('story', '가'.repeat(30000)).ok).toBe(true);
     expect(normalizeBodyTemplateBody('story', '가'.repeat(30001)).ok).toBe(false);
     expect(normalizeBodyTemplateBody('story', '&'.repeat(10000)).ok).toBe(false);
-    const emoji = '😀'.repeat(16000); expect(bodyTemplateLength(emoji)).toBe(16000); expect(emoji.length).toBeGreaterThan(GOODS_HTML_MAX_LENGTH);
+    const emoji = '😀'.repeat(16000); expect(bodyTemplateLength(emoji)).toBe(16000); expect(emoji.length).toBeGreaterThan(BODY_TEMPLATE_HTML_MAX); expect(emoji.length).toBeLessThan(GOODS_HTML_MAX_LENGTH);
     expect(normalizeBodyTemplateBody('goods', emoji).ok).toBe(true);
   });
   it('저장 입력은 이름·actor·CAS·operation과 정확한 필드만 받는다', () => {

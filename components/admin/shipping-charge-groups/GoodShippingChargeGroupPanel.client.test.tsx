@@ -129,6 +129,13 @@ it('상호 잠금은 선택·미리보기·재조회와 이미 만든 미리보�
   props = { ...props, disabledReason: '' }; await prepare(); props = { ...props, disabledReason: '다른 설정 저장 중' };
   expect(button('이 배정으로 저장').props.disabled).toBe(true); (button('이 배정으로 저장').props.onClick as () => void)(); expect(mocks.assign).not.toHaveBeenCalled();
 });
+/* T3a-7 근본 정리: 상품 편집기가 패널 위에 공통 잠금 안내를 보이면 패널은 같은 이유를 다시 그리지 않는다. 잠금은 그대로다. */
+it('이유 문장 표시를 끄면 본문에 이유를 그리지 않고 잠금은 유지한다', async () => {
+  await mount(); props = { ...props, disabledReason: '다른 설정 저장 중' }; expect(text(node())).toContain('다른 설정 저장 중');
+  props = { ...props, showDisabledReason: false }; expect(text(node())).not.toContain('다른 설정 저장 중');
+  expect(button('배정 미리보기').props.disabled).toBe(true); expect(button('최신 배정 불러오기').props.disabled).toBe(true);
+  choose(); expect(picker().props.value).toBeNull();
+});
 it('서버 preview 차단은 버튼과 handler 모두 닫는다', async () => {
   const { preview } = chargeAdminFixtures(); mocks.preview.mockResolvedValueOnce({ data: { ...preview, canAssign: false,
     goods: [{ ...preview.goods[0], blocker: 'collect_contract_not_ready' }] } });

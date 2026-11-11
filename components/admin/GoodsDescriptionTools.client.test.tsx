@@ -21,6 +21,7 @@ vi.mock('@/lib/supabase/client', () => ({ createClient: () => ({ auth: { onAuthS
 import { GoodsDescriptionTools } from './GoodsDescriptionTools';
 import type { GoodsDescriptionTool } from '@/lib/admin/goods-description-tools';
 import type { BodyTemplateEditorTarget } from '@/lib/admin/body-templates';
+import { GOODS_HTML_MAX_LENGTH } from '@/lib/goods-description';
 
 type Element = ReactElement<Record<string, unknown>>;
 const all = (node: ReactNode): Element[] => Children.toArray(node).flatMap(value => isValidElement<Record<string, unknown>>(value) ? [value, ...all(value.props.children as ReactNode)] : []);
@@ -84,10 +85,12 @@ it('구분선 모양 선택은 폼 입력으로 전파하지 않고 넣기를 �
 it('인용과 구분선은 삽입 경계를 따르고 허용하지 않는 링크와 한도 초과는 원문을 보존한다', () => {
   click('인용 넣기'); expect(apply(dialog(), { kind: 'quote', text: '줄1\n줄2' })).toBeNull();
   expect(form.area.value).toContain('<blockquote>줄1<br>줄2</blockquote>');
-  form.area.value = '가'.repeat(30000); form.area.selectionStart = form.area.selectionEnd = 30000;
-  click('구분선 넣기'); expect(form.area.value).toHaveLength(30000); expect(text(render())).toContain('30,000자');
+  /* R17: 상한은 200,000자다(한글 UTF-8 약 600KB, 서버 액션 본문 3MB 안). */
+  expect(GOODS_HTML_MAX_LENGTH).toBe(200000);
+  form.area.value = '가'.repeat(GOODS_HTML_MAX_LENGTH); form.area.selectionStart = form.area.selectionEnd = GOODS_HTML_MAX_LENGTH;
+  click('구분선 넣기'); expect(form.area.value).toHaveLength(GOODS_HTML_MAX_LENGTH); expect(text(render())).toContain('200,000자');
   click('링크 넣기'); expect(apply(dialog(), { kind: 'link', text: '위험', href: 'javascript:alert(1)' })).toContain('주소');
-  expect(form.area.value).toHaveLength(30000);
+  expect(form.area.value).toHaveLength(GOODS_HTML_MAX_LENGTH);
 });
 it.each(['reset', 'submit'])('폼 %s 뒤 늦은 적용은 새 입력에 들어가지 않는다', event => {
   click('링크 넣기'); const stale = dialog(); form.dispatchEvent(new Event(event));
@@ -137,8 +140,8 @@ it('템플릿 전체 교체는 손상된 기존 HTML을 고칠 수 있지만 원
   form.area.value = '<p title="닫히지 않은 속성';
   expect(templateTarget()!.apply('<p>복구한 본문</p>', 'replace').ok).toBe(true);
   const previous = form.area.value;
-  expect(templateTarget()!.apply('가'.repeat(30001), 'replace').ok).toBe(false);
-  expect(templateTarget()!.apply('<a href="/">가</a>'.repeat(1000), 'replace').ok).toBe(false);
+  expect(templateTarget()!.apply('가'.repeat(GOODS_HTML_MAX_LENGTH + 1), 'replace').ok).toBe(false);
+  expect(templateTarget()!.apply('<a href="/">가</a>'.repeat(5000), 'replace').ok).toBe(false);
   expect(form.area.value).toBe(previous);
 });
 it.each(['source', 'reset', 'submit', 'account', 'session', 'format'])('템플릿도 %s 변경 뒤의 늦은 적용을 막는다', change => {

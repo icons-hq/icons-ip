@@ -32,4 +32,14 @@ describe('GoodAdditionalInfo', () => {
     expect(blank).not.toContain('판매자 정보');
     expect(blank.match(/<details class="wc-pdp-info__item">/g)).toHaveLength(3);
   });
+
+  /* R26·R27(D4①): 고객 화면은 '출고지' 대신 배송 묶음·택배사로 말한다. 따로 붙는 배송비의 이유는 택배사다. */
+  it('배송 안내는 출고지 대신 배송 묶음·택배사로 말한다', () => {
+    const html = renderToStaticMarkup(<GoodAdditionalInfo notice={notice} goods={[good]} />);
+    const preorder = renderToStaticMarkup(<GoodAdditionalInfo notice={notice} goods={[{ ...good, options: [{ id: '00000000-0000-4000-8000-000000000001', name: '예약', code: 'P1', price: 12000, stockQty: 0, isDefault: true, attributes: {},
+      supply: { mode: 'preorder', expectedShipDate: '2026-12-01', availableQty: 5, saleStatus: 'open', saleEndsAt: null } }] } as never]} />);
+    for (const markup of [html, preorder]) expect(markup).not.toContain('출고지');
+    expect(html).toContain('택배사가 달라 따로 배송되는 굿즈의 배송비는 각각 더합니다.');
+    expect(preorder).toContain('같은 배송 묶음의 일반 굿즈와 예약 굿즈를 함께 주문하면');
+  });
 });

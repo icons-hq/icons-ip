@@ -3,6 +3,7 @@ import { requireAdminScreenAccess } from '@/lib/admin/guard.server';
 import { normalizeCustomerPurchaseFilters } from '@/lib/admin/customer-purchase-report';
 import { getCustomerPurchaseReport } from '@/lib/admin/customer-purchase-report.server';
 import { buildCustomerPurchaseWorkbook } from '@/lib/admin/customer-purchase-workbook.server';
+import { adminListExportContentDisposition, kstFileStamp } from '@/lib/admin/list-export';
 
 export const runtime = 'nodejs';
 export async function GET(request: Request) {
@@ -13,10 +14,10 @@ export async function GET(request: Request) {
   if (filters.error) return Response.json({ error: filters.error }, { status: 400, headers: privateHeaders });
   try {
     const data = await getCustomerPurchaseReport(filters);
-    const bytes = await buildCustomerPurchaseWorkbook(data, filters, now);
+    const bytes = await buildCustomerPurchaseWorkbook(data, filters, now), stamp = kstFileStamp(now);
     return new Response(new Uint8Array(bytes), { headers: { ...privateHeaders,
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'Content-Disposition': 'attachment; filename="icons-customer-purchase-report.xlsx"',
+      'Content-Disposition': adminListExportContentDisposition(`icons-신규재구매분석-${stamp}.xlsx`, `icons-customer-purchase-${stamp}.xlsx`),
     } });
   } catch (error) {
     unstable_rethrow(error);

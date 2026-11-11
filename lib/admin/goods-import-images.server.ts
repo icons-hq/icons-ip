@@ -2,8 +2,8 @@ import 'server-only';
 import { createHash } from 'node:crypto';
 import { createServiceClient } from '@/lib/supabase/service';
 import {
-  ADMIN_ARTWORK_MAX_BYTES,
   ADMIN_ARTWORK_VERIFICATIONS_PER_MINUTE,
+  GOODS_ARTWORK_MAX_BYTES,
   buildAdminArtworkPath,
 } from './artwork';
 import {
@@ -107,9 +107,9 @@ async function promoteImage(
       ? files.get(image.source)
       : (image.cached && files.get(image.cached)) || (await fetchGoodsImportImage(image.source));
   const mimeType = bytes ? imageMime(bytes) : null;
-  if (!bytes || !mimeType || bytes.length > ADMIN_ARTWORK_MAX_BYTES)
+  if (!bytes || !mimeType || bytes.length > GOODS_ARTWORK_MAX_BYTES)
     throw new Error(
-      '이미지 파일은 JPEG/PNG/WebP 형식의 5MB 이하 파일이어야 합니다.',
+      '이미지 파일은 JPEG/PNG/WebP 형식의 20MB 이하 파일이어야 합니다.',
     );
   const path = buildAdminArtworkPath({
     kind: 'good',
@@ -131,7 +131,8 @@ async function promoteImage(
       .upload(path, bytes, { contentType: mimeType, upsert: false });
     if (uploaded.error) throw new Error('이미지를 저장하지 못했습니다.');
     const promoted = await verifyAndPromoteAdminArtwork(input);
-    if (!promoted) {
+    // 운영자별 확인 한도(blockedReason)도 예전처럼 1분 창 대기 여부로 판정한다.
+    if (!promoted || 'blockedReason' in promoted) {
       const retry = await verificationWait(batch.actor_id);
       if (retry) {
         await rejectAdminArtworkUpload({ actorId: batch.actor_id, path });

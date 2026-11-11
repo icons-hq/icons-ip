@@ -4,8 +4,9 @@ import { AdminPageHeader } from '@/components/admin/console/AdminKit';
 import { useActionState, useMemo } from 'react';
 import { upsertAdminCardAction, type AdminCatalogActionState } from '@/app/admin/actions';
 import { CardSection } from '@/components/admin/sections/CardSection';
+import { RecordNewButton, useRecordDetail } from '@/components/admin/sections/RecordMasterList';
 import type { AdminCatalogRecords } from '@/lib/admin/catalog.server';
-import { toRecordOptions, useSelectedRecord } from './record-selection';
+import { toRecordOptions } from './record-selection';
 
 const emptyState: AdminCatalogActionState = {};
 
@@ -33,19 +34,21 @@ export function CardScreen({
     () => pools.map((pool) => ({ id: pool.id, ipId: pool.ipId, name: pool.name })),
     [pools],
   );
-  const { selected, select } = useSelectedRecord(records, initialSelectedId);
+  const detail = useRecordDetail(records, initialSelectedId);
 
   return (
-    <><AdminPageHeader title="카드 편집" description="카드를 선택해 연결 IP·카드풀과 표시 정보를 관리합니다." />
+    <div className="flex min-w-0 flex-col gap-6"><AdminPageHeader title="카드" description="카드를 선택해 연결 IP·카드풀과 표시 정보를 관리합니다." actions={<RecordNewButton label="카드 등록" onClick={detail.startNew} open={detail.open} />} />
     <CardSection
       action={action}
+      creating={detail.creating}
       ipOptions={ipOptions}
-      onSelect={select}
+      onClose={detail.close}
+      onSelect={detail.select}
       pending={pending}
       poolOptions={poolOptions}
       records={records}
-      selected={selected}
+      selected={detail.selected}
       state={state}
-    /></>
+    /></div>
   );
 }

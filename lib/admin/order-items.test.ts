@@ -34,9 +34,19 @@ describe('상품주문별 조회 계약', () => {
     const sheet = orderItemsExportSheet(data.rows, filters, data.fingerprint);
     expect(sheet.recordCount).toBe(1);
     expect(sheet.rows[0][0]).toBe(row.id); expect(sheet.rows[0][1]).toBe(row.orderId);
-    expect(sheet.rows[0][sheet.columns.findIndex(column => column.header === '상품금액 (혜택·배송비 배분 전)')]).toBe(2000);
+    expect(sheet.rows[0][sheet.columns.findIndex(column => column.header === '상품 금액')]).toBe(2000);
     expect(sheet.notes.join(' ')).toContain('주문 전체');
     expect(sheet.filters).toMatchObject({ view: 'items', fingerprint: data.fingerprint });
+    const column = (header: string) => sheet.columns.findIndex(entry => entry.header === header);
+    expect(sheet.rows[0][column('품목 실결제액(배송비 제외)')]).toBeNull();
+    const allocated = orderItemsExportSheet([{ ...data.rows[0], allocation: { source: 'legacy', volumeDiscount: 0, couponDiscount: 300, storeCreditDiscount: 100, paidGoodsTotal: 1600 } }], filters, data.fingerprint);
+    expect([column('쿠폰 할인(품목)'), column('적립금 사용(품목)'), column('품목 실결제액(배송비 제외)')].map(index => allocated.rows[0][index])).toEqual([300, 100, 1600]);
+    expect(sheet.notes.join(' ')).toContain('거래확정 엑셀과 같은 규칙');
+    const shown = orderItemsExportSheet([{ ...data.rows[0], buyerName: '이름 미등록', shipmentStatus: 'delivered' }, { ...data.rows[0], shipmentStatus: 'ready' }, { ...data.rows[0], shipmentStatus: 'shipping' }, { ...data.rows[0], shipmentStatus: 'canceled' }], filters, data.fingerprint);
+    expect(shown.rows[0][column('구매자')]).toBe('fan_378dae'); expect(shown.rows[1][column('구매자')]).toBe('합성 구매자');
+    expect(shown.rows.map(values => values[column('배송 상태')])).toEqual(['배송 완료', '배송 준비', '배송 중', '취소']);
+    expect(sheet.columns.map(entry => entry.header)).toEqual(['상품주문번호', '주문번호', '주문 상태', '주문일시', '상품번호', '상품명', '옵션', '옵션코드', '직접 입력 옵션', '수량', '판매가', '상품 금액', '복수구매 할인(품목)', '쿠폰 할인(품목)', '적립금 사용(품목)', '품목 실결제액(배송비 제외)', '구매자', '수취인', '출고지', '배송 상태', '택배사', '운송장번호', '취소·반품·교환 요청']);
+    expect(Object.fromEntries(sheet.conditions)).toMatchObject({ '검색 대상': '상품주문번호', 주문일: '전체 기간', 정렬: '조회기준일 최신순', 결제수단: '전체', '주문 상태': '신규주문' });
   });
 });
 

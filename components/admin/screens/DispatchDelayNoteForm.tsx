@@ -9,6 +9,8 @@ import {
   ADMIN_DISPATCH_DELAY_REASON_MAX,
   type AdminDispatchDelayNote,
 } from '@/lib/admin/dispatch';
+import { Button } from '@/components/admin/kit/ui/button';
+import { Input } from '@/components/admin/kit/ui/input';
 
 const EMPTY_ACTION_STATE: AdminOrderActionState = {};
 
@@ -40,10 +42,11 @@ export function DispatchDelayNoteForm({
   const fieldError = state.errors?.reason ?? state.errors?.expectedShipDate ?? state.errors?.form;
 
   return (
-    <form action={action} className="admin-console-row-form">
+    <form action={action} className="flex min-w-0 flex-wrap items-center gap-1.5">
       <input name="orderId" type="hidden" value={orderId} />
-      <input
+      <Input
         aria-label={`주문 ${reference} 지연 사유`}
+        className="h-7 min-w-36 flex-1 text-xs md:text-xs"
         defaultValue={note?.reason ?? ''}
         disabled={pending}
         maxLength={ADMIN_DISPATCH_DELAY_REASON_MAX}
@@ -51,17 +54,18 @@ export function DispatchDelayNoteForm({
         placeholder="지연 사유 (비우면 해제)"
         type="text"
       />
-      <input
+      <Input
         aria-label={`주문 ${reference} 발송 예정일`}
+        className="h-7 w-36 text-xs md:text-xs"
         defaultValue={note?.expectedShipDate ?? ''}
         disabled={pending}
         name="expectedShipDate"
         type="date"
       />
-      <button className="btn btn-sm btn-ghost" disabled={pending} type="submit">
+      <Button disabled={pending} size="xs" type="submit" variant="outline">
         {pending ? '저장 중' : '메모 저장'}
-      </button>
-      <div aria-live="polite" className="admin-order-action-feedback">
+      </Button>
+      <div aria-live="polite" className="basis-full text-xs empty:hidden [&_[role=alert]]:text-destructive [&_[role=status]]:text-success">
         {fieldError ? <span role="alert">{fieldError}</span> : null}
         {state.message ? <span role="status">{state.message}</span> : null}
       </div>

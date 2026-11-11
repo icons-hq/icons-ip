@@ -65,15 +65,15 @@ export function reviewEventExportSheet(snapshot: ReviewEventExportSnapshot) {
   if (filters.mode === 'events') {
     conditions.push(['상태', filters.state === 'all' ? '전체 (보관 제외)' : reviewEventStateLabel[filters.state]], ['기간 기준', { created: '등록일', start: '시작일', end: '종료일', announce: '발표일' }[filters.dateField]], ['기간', listExportPeriodLabel(filters.from, filters.to)], ['정렬', '등록일 최신순, 같은 시각은 이벤트 ID 오름차순']);
     columns = [column('이벤트 번호', 'code', 16), column('이벤트명', 'text', 28), column('상태', 'text', 16), column('이벤트 내용', 'text', 44), column('대상', 'text', 18), column('지정 대상 수', 'count', 16),
-      column('시작일 (KST)', 'code', 18), column('종료일 (KST)', 'code', 18), column('발표 예정일 (KST)', 'code', 22), column('선정 예정 인원', 'count', 18), column('1인 혜택 (원)', 'amount', 20), column('유효기간 (일)', 'count', 18),
-      column('응모 수', 'count', 14), column('저장된 선정 수', 'count', 18), column('누적 지급 수', 'count', 18), column('회수 수', 'count', 14), column('발표 시각 (KST)'), column('등록 시각 (KST)'), column('수정 시각 (KST)'), column('보관 시각 (KST)'), column('이벤트 버전', 'count', 16), column('이벤트 ID', 'code', 40)];
+      column('시작일', 'code', 14), column('종료일', 'code', 14), column('발표 예정일', 'code', 16), column('선정 예정 인원', 'count', 18), column('1인 혜택', 'amount', 14), column('유효기간 (일)', 'count', 18),
+      column('응모 수', 'count', 14), column('저장된 선정 수', 'count', 18), column('누적 지급 수', 'count', 18), column('회수 수', 'count', 14), column('발표 시각', 'text', 18), column('등록 시각', 'text', 18), column('수정 시각', 'text', 18), column('보관 시각', 'text', 18), column('이벤트 버전', 'count', 16), column('이벤트 ID', 'code', 40)];
     rows = (snapshot.rows as ReviewEventExportEvent[]).map(row => [String(row.number), row.title, reviewEventStateLabel[row.state], row.description, targetLabels[row.targetType], row.targetType === 'all' ? null : row.targetCount,
       row.startsOn, row.endsOn, row.announcesOn, row.plannedWinners, row.creditAmount, row.creditValidityDays, row.entryCount, row.selectedCount, row.awardedCount, row.revokedCount,
       kstDateTimeText(row.announcedAt), kstDateTimeText(row.createdAt), kstDateTimeText(row.updatedAt), kstDateTimeText(row.archivedAt), row.revision, row.id]);
   } else {
     conditions.push(['이벤트', `#${event!.number} ${event!.title}`], ['이벤트 상태', reviewEventStateLabel[event!.state]], ['응모 상태', REVIEW_EVENT_ENTRY_FILTERS[filters.filter]], ['정렬', '응모일 최신순, 같은 시각은 응모 ID 오름차순'], ['이벤트 버전', String(event!.revision)]);
-    columns = [column('응모 ID', 'code', 40), column('리뷰 ID', 'code', 40), column('닉네임', 'text', 24), column('상품코드', 'code', 20), column('상품명', 'text', 42), column('별점', 'count', 10), column('사진 수', 'count', 12), column('응모 시각 (KST)'), column('리뷰 수정 시각 (KST)'),
-      column('저장된 선정', 'text', 18), column('선정 후 리뷰 변경', 'text', 22), column('현재 선정 자격', 'text', 36), column('혜택 처리 상태', 'text', 20), column('선정 혜택 (원)', 'amount', 20), column('유효기간 (일)', 'count', 18), column('지급 시각 (KST)'), column('유효기한 (KST)'), column('회수 시각 (KST)'), column('응모 당시 이벤트 버전', 'count', 26)];
+    columns = [column('응모 ID', 'code', 40), column('리뷰 ID', 'code', 40), column('닉네임', 'text', 24), column('상품코드', 'code', 20), column('상품명', 'text', 42), column('별점', 'count', 10), column('사진 수', 'count', 12), column('응모 시각', 'text', 18), column('리뷰 수정 시각', 'text', 18),
+      column('저장된 선정', 'text', 18), column('선정 후 리뷰 변경', 'text', 22), column('현재 선정 자격', 'text', 36), column('혜택 처리 상태', 'text', 20), column('선정 혜택', 'amount', 14), column('유효기간 (일)', 'count', 18), column('지급 시각', 'text', 18), column('유효기한', 'text', 18), column('회수 시각', 'text', 18), column('응모 당시 이벤트 버전', 'count', 26)];
     rows = (snapshot.rows as ReviewEventExportEntry[]).map(row => [row.id, row.reviewId, row.nickname, row.goodCode || row.goodId, row.goodName, row.rating, row.imageCount, kstDateTimeText(row.enteredAt), kstDateTimeText(row.reviewUpdatedAt),
       row.selected ? '선정됨' : '미선정', row.selectionChanged ? '재확인 필요' : '없음', row.grantedAt ? '기지급 · 재선정 불가' : reviewEventProblemLabel(row.problem), row.revokedAt ? '회수 완료' : row.grantedAt ? '지급 완료' : '미지급', row.creditAmount, row.creditValidityDays,
       kstDateTimeText(row.grantedAt), kstDateTimeText(row.expiresAt), kstDateTimeText(row.revokedAt), row.eventRevision]);
@@ -81,6 +81,6 @@ export function reviewEventExportSheet(snapshot: ReviewEventExportSnapshot) {
   return { screenLabel: '리뷰이벤트', title: filters.mode === 'events' ? '리뷰이벤트 목록' : '리뷰이벤트 응모', columns, rows, recordCount: snapshot.total, conditions,
     notes: [filters.mode === 'events' ? '한 행은 이벤트 한 건입니다. 누적 지급 수에는 이후 회수된 지급도 포함합니다.' : '한 행은 응모 리뷰 한 건입니다. 화면에서 수정 중인 선택은 포함하지 않으며 저장된 선정 상태를 표시합니다.',
       '조회 시점의 확인용 파일이며 선정·발표·지급·회수 작업을 실행하지 않습니다.',
-      '리뷰 본문·사진 주소·회원번호·주문번호·이메일·연락처·선정 및 회수 사유를 제외합니다. 검색어 자체에 고객 정보를 입력했다면 조회 정보 시트에 포함될 수 있습니다.'],
+      '리뷰 본문·사진 주소·회원번호·주문번호·이메일·연락처·선정 및 회수 사유를 제외합니다. 검색어 자체에 고객 정보를 입력했다면 내려받기 정보 시트에 포함될 수 있습니다.'],
     filters: { ...filters, fingerprint: snapshot.fingerprint } as Record<string, string | null> };
 }

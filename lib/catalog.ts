@@ -17,10 +17,10 @@ import { HOME_HERO_LIMIT, homeHeroAltText, homeHeroStyle } from './home-hero';
 
 import { blockedUserIds } from '@/lib/blocks.server';
 import { canViewCommunityPost, formatPostTime, type CommunityPostStatus } from '@/lib/community';
-import { DATA, type Card, type FandomEvent, type Good, type Ip, type Stock, type Vertical } from '@/lib/data';
+import { DATA, type Card, type FandomEvent, type Good, type GoodOption, type Ip, type Stock, type Vertical } from '@/lib/data';
 import type { GoodDetailContent } from '@/lib/goods-detail';
 import { EMPTY_GOODS_NOTICE } from '@/lib/goods-notice';
-import { goodCompareAtPrice, optionPriceRange } from '@/lib/goods-options';
+import { collapseRandomGoodOptions, goodCompareAtPrice, optionPriceRange } from '@/lib/goods-options';
 import { parseGoodsVariantPricing } from '@/lib/goods-sales';
 import { parseGoodsVariantSupply } from '@/lib/goods-preorders';
 import { parseGoodsKcDisclosures } from '@/lib/goods-kc';
@@ -36,6 +36,7 @@ import { readPublicHomeLayoutOrder } from '@/lib/home-layout';
 import { buildHomeReviewBestBand, buildHomeSalesBestBand, emptyHomeProductRankings, readHomeReviewRule, readHomeSalesRule, type HomeReviewRule, type HomeSalesRule } from '@/lib/home-ranking';
 import { loadHomeProductRankings } from '@/lib/home-ranking.server';
 import { resolveCatalogSource, type CatalogSource } from './catalog-source';
+import { ADULT_GOOD_LABEL, adultGoodsRestrictions, type AdultGoodsAccess } from './adult-goods';
 import {
   getHomeCuratedIpIds,
   getHomeSelectableIps,
@@ -73,6 +74,9 @@ export interface CatalogSnapshot {
 
 export interface CatalogSnapshotOptions {
   previewDefaultSource?: CatalogSource;
+  /** 19금 굿즈 노출 모드(ADR-0024). 기본은 hidden이고, 목록·위시·장바구니처럼 성인 상품을
+      보여야 하는 표면만 요청의 모드를 넘긴다. 홈·선물·정기배송 같은 표면은 그대로 둔다. */
+  adultGoods?: AdultGoodsAccess;
   /**
    * 목록 카드 별점(CL-02)을 함께 읽는다. 별점을 그리는 목록 경로(굿즈샵·NEW·BEST·검색·홈)만 켠다 —
    * 주문서·장바구니·바인더처럼 별점을 쓰지 않는 경로가 공개 굿즈 전체의 집계 RPC를 기다리지 않게 한다.
@@ -128,6 +132,7 @@ export interface HomeSnapshot {
 export interface CatalogIpDetailOptions {
   viewerId?: string | null;
   isStaff?: boolean;
+  adultGoods?: AdultGoodsAccess;
 }
 
 interface VerticalRow {
@@ -159,9 +164,20 @@ interface GoodOptionRow {
   is_default: boolean; attributes: Record<string, string>; archived_at: string | null; sort_order: number;
   pricing?: unknown;
   supply?: unknown;
+  /* D7② 옵션별 구매 제한. 옛 투영(카테고리 전시 RPC 등)에는 없다. */
+  order_max_qty?: number | null;
+  member_max_qty?: number | null;
 }
 
 export interface GoodRow {
+  /** D5② 옵션 판매 방식. 옛 투영(카테고리 전시 RPC 등)에는 없어 'select'로 읽는다. */
+  option_sale_mode?: string;
+  /**
+   * D5② 랜덤 판매 굿즈의 고객용 옵션 한 줄(공개 계산 열 `goods_random_option`, GoodOptionRow 모양: id = 장바구니 키,
+   * 이름 '랜덤', 재고 = 풀 합계). 랜덤 굿즈의 `goods_variants` 행은 고객·익명에게 숨으므로(옵션별 재고가 배정 단서다)
+   * 고객 화면은 이 값으로만 랜덤 굿즈를 판다. 랜덤이 아니거나 공개 조건 밖이면 null, 옛 투영에는 없다.
+   */
+  random_option?: unknown;
   sale_period?: unknown;
   custom_inputs_enabled?: boolean; custom_inputs_revision?: number; custom_input_fields?: unknown;
   origin_id?: string;
@@ -608,8 +624,8 @@ function toIp(row: IpRow, verticalsByKey: Map<string, Vertical>, imageUrlForPath
   };
 }
 
-export function toGood(row: GoodRow, imageUrlForPath: (path: string) => string): Good {
-  const options = row.goods_variants?.filter(option => option.archived_at === null)
+function toGoodOptions(rows: readonly GoodOptionRow[]): GoodOption[] {
+  return rows.filter(option => option.archived_at === null)
     .sort((left, right) => left.sort_order - right.sort_order || left.id.localeCompare(right.id))
     .flatMap(option => {
       const pricing = option.pricing === undefined ? undefined : parseGoodsVariantPricing(option.pricing);
@@ -617,12 +633,35 @@ export function toGood(row: GoodRow, imageUrlForPath: (path: string) => string):
       if (pricing === null || supply === null) return [];
       return [{id: option.id, name: option.name, code: option.code, price: pricing?.effectivePrice ?? option.price,
         stockQty: supply?.availableQty ?? option.stock_qty, isDefault: option.is_default, attributes: option.attributes,
-        ...(pricing ? { pricing } : {}), ...(supply ? { supply } : {})}];
+        ...(pricing ? { pricing } : {}), ...(supply ? { supply } : {}),
+        orderMaxQty: option.order_max_qty ?? null, memberMaxQty: option.member_max_qty ?? null}];
     });
+}
+
+/** 공개 계산 열 `goods_random_option`의 값. 모양이 GoodOptionRow가 아니면 버린다(옵션 없음으로 읽는다). */
+function randomOptionRow(value: unknown): GoodOptionRow | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const row = value as Record<string, unknown>;
+  return typeof row.id === 'string' && typeof row.name === 'string' && typeof row.code === 'string'
+    && typeof row.price === 'number' && typeof row.stock_qty === 'number' && typeof row.is_default === 'boolean'
+    && Boolean(row.attributes) && typeof row.attributes === 'object' && row.archived_at === null && typeof row.sort_order === 'number'
+    ? row as unknown as GoodOptionRow : null;
+}
+
+export function toGood(row: GoodRow, imageUrlForPath: (path: string) => string): Good {
+  /* 랜덤 판매(D5②)는 고객이 옵션을 고르지 않는다 — 공개 계산 열의 랜덤 한 줄(장바구니 키, 풀 합계)을 쓴다. 고객 세션은
+     옵션 행을 받지 못하고, 운영자 세션이 받은 옵션 행도 고객 화면에는 쓰지 않는다. 랜덤 한 줄이 없는 옛 투영·목업만
+     옵션 행을 기본 옵션 키 하나로 접는다. */
+  const optionSaleMode = row.option_sale_mode === 'random' ? 'random' as const : 'select' as const;
+  const randomOption = optionSaleMode === 'random' ? randomOptionRow(row.random_option) : null;
+  const selectableOptions = randomOption ? toGoodOptions([randomOption])
+    : row.goods_variants ? toGoodOptions(row.goods_variants) : undefined;
+  const options = optionSaleMode === 'random' && !randomOption && selectableOptions ? collapseRandomGoodOptions(selectableOptions) : selectableOptions;
   const catalogPricing = { price: row.price, compareAtPrice: row.compare_at_price ?? null };
   const stockQty = options ? options.reduce((total, option) => total + option.stockQty, 0) : row.stock_qty ?? 0;
   return {
     id: row.id,
+    optionSaleMode,
     salePeriod: parseGoodsSalePeriod(row.sale_period) ?? undefined,
     ip: row.ip_id,
     name: row.name,
@@ -655,6 +694,41 @@ export function toGood(row: GoodRow, imageUrlForPath: (path: string) => string):
     memberPurchaseLimitEnabled: row.member_purchase_limit_enabled ?? false,
     memberLifetimeQtyLimit: row.member_lifetime_qty_limit ?? null,
   };
+}
+
+/**
+ * 인증 전 방문자에게 보내는 성인 상품 가림 카드(ADR-0024). 이름·이미지·배지·키워드·
+ * 옵션은 행에서 옮기지 않는다 — 클라이언트로 가는 값에 상품 정보가 없어야 한다. 목록의
+ * 정렬·필터가 흔들리지 않도록 IP·기본 판매가·재고 상태·등록 순서만 남긴다.
+ */
+function toMaskedAdultGood(row: GoodRow): Good {
+  return {
+    id: row.id,
+    ip: row.ip_id,
+    name: ADULT_GOOD_LABEL,
+    searchKeywords: [],
+    displayOrder: row.display_order ?? null,
+    categoryId: row.category_id ?? null,
+    additionalGoodIds: [],
+    type: '',
+    price: row.price,
+    compareAtPrice: null,
+    catalogPrice: row.price,
+    catalogCompareAtPrice: null,
+    showDiscountRate: false,
+    badge: null,
+    stock: toStock(row.stock),
+    stockQty: row.stock_qty,
+    img: '',
+    createdAt: row.created_at ?? undefined,
+    saleRestriction: 'adult',
+    masked: true,
+  };
+}
+
+/** 노출 모드에 맞춰 행을 굿즈로 바꾼다. 성인 상품은 full일 때만 실제 정보를 싣는다. */
+function toCatalogGood(row: GoodRow, adultGoods: AdultGoodsAccess, imageUrlForPath: (path: string) => string): Good {
+  return row.sale_restriction === 'adult' && adultGoods !== 'full' ? toMaskedAdultGood(row) : toGood(row, imageUrlForPath);
 }
 
 /** 공개 굿즈 목록의 추천 기준. 명시 순서 뒤에 기존 ID 순서를 둔다. */
@@ -797,6 +871,7 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
   const source = getCatalogSource(options);
   if (source === 'mock') return mockSnapshot();
 
+  const adultGoods = options.adultGoods ?? 'hidden';
   const supabase = await createClient();
 
   const [verticalsResult, ipsResult, goodsResult, cardsResult, eventsResult] = await Promise.all([
@@ -810,12 +885,12 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
       .order('fans_count', { ascending: false }),
     supabase
       .from('goods')
-      .select('id,ip_id,name,name_en,search_keywords,display_order,category_id,additional_good_ids:goods_additional_ids,type,price,compare_at_price,show_discount_rate,created_at,badge,stock,stock_qty,bg,image_path,sale_period:goods_sale_period,custom_inputs_enabled,custom_inputs_revision,custom_input_fields,allow_bank_transfer,allow_card_payment,sale_restriction,order_quantity_limit_enabled,min_order_qty,max_order_qty,member_purchase_limit_enabled,member_lifetime_qty_limit,origin_id,goods_variants(id,name,code,price,stock_qty,is_default,attributes,archived_at,sort_order,pricing:goods_variant_pricing,supply:goods_variant_supply)')
+      .select('id,ip_id,name,name_en,search_keywords,display_order,category_id,additional_good_ids:goods_additional_ids,type,price,compare_at_price,show_discount_rate,created_at,badge,stock,stock_qty,bg,image_path,sale_period:goods_sale_period,custom_inputs_enabled,custom_inputs_revision,custom_input_fields,allow_bank_transfer,allow_card_payment,sale_restriction,order_quantity_limit_enabled,min_order_qty,max_order_qty,member_purchase_limit_enabled,member_lifetime_qty_limit,origin_id,option_sale_mode,random_option:goods_random_option,goods_variants(id,name,code,price,stock_qty,is_default,attributes,archived_at,sort_order,order_max_qty,member_max_qty,pricing:goods_variant_pricing,supply:goods_variant_supply)')
       .is('archived_at', null)
       .not('published_at', 'is', null)
-      /* 판매 제한(19금) 상품은 성인인증(#209·#210) 도입 전까지 스토어 전 표면에서
-         비노출이다(#392). 이 스냅샷이 리스트·검색·홈·바인더를 모두 먹인다. */
-      .eq('sale_restriction', 'none')
+      /* 판매 제한(19금) 상품은 요청한 표면이 노출 모드를 넘길 때만 읽는다(ADR-0024).
+         이 스냅샷이 리스트·검색·홈·바인더를 모두 먹이므로 기본은 지금처럼 비노출이다. */
+      .in('sale_restriction', adultGoodsRestrictions(adultGoods))
       .order('id'),
     supabase
       .from('cards')
@@ -864,18 +939,21 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
   const belongsToPublicIp = (ipId: string | null) => ipId === null || ipsById.has(ipId);
   const goods = ((goodsResult.data ?? []) as GoodRow[])
     .filter((row) => belongsToPublicIp(row.ip_id))
-    .map((row) => toGood(row, imageUrlForPath))
+    .map((row) => toCatalogGood(row, adultGoods, imageUrlForPath))
     .sort(compareGoodsDisplayOrder);
+  /* 가림 카드는 외형·거래 혜택·별점을 묻지 않는다. 혜택 조회는 요청한 상품이 하나라도 빠지면
+     전체를 버리는 계약이고, DB는 인증 전 세션에 성인 상품 혜택을 주지 않는다. */
+  const decorated = goods.filter(good => !good.masked);
   /* 목록 카드 별점은 별점을 그리는 경로가 요청할 때만 공개 굿즈 전체를 한 번(500개 묶음)에 읽는다 — 카드마다
      부르지 않는다(CL-02). */
   const [listingAppearance, transactionOffers, reviewSummaries] = await Promise.all([
-    loadGoodsListingAppearance(supabase, goods.map(good => good.id)),
-    loadGoodsTransactionOffers(goods.map(good => good.id)),
-    options.includeReviewSummaries ? loadGoodsReviewSummaries(supabase, goods.map(good => good.id)) : Promise.resolve(undefined),
+    loadGoodsListingAppearance(supabase, decorated.map(good => good.id)),
+    loadGoodsTransactionOffers(decorated.map(good => good.id)),
+    options.includeReviewSummaries ? loadGoodsReviewSummaries(supabase, decorated.map(good => good.id)) : Promise.resolve(undefined),
   ]);
   const offersByGood = new Map(transactionOffers?.map(offer => [offer.goodId, offer]));
   const transactionCalculatedAt = new Date().toISOString();
-  for (const good of goods) {
+  for (const good of decorated) {
     good.listingAppearance = listingAppearance.get(good.id);
     applyGoodsAggregationPolicy(good, offersByGood.get(good.id) ?? null);
     good.transactionCalculatedAt = transactionCalculatedAt;
@@ -1001,28 +1079,33 @@ interface GoodDetailRow {
 }
 
 /** Selected public cards share the catalog's option pricing, stock and listing metadata. */
-async function readPublicGoodsByIds(supabase: Awaited<ReturnType<typeof createClient>>, ids: readonly string[]): Promise<Good[]> {
+async function readPublicGoodsByIds(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  ids: readonly string[],
+  adultGoods: AdultGoodsAccess = 'hidden',
+): Promise<Good[]> {
   const selected = [...new Set(ids)];
   if (!selected.length) return [];
   if (selected.length > 1000 || selected.some(id => !/^[a-z0-9][a-z0-9-]{0,199}$/.test(id))) throw new Error('Invalid selected goods');
   const result = await readCompleteIdPages<GoodRow>((afterId, pageSize) => {
     let query = supabase.from('goods')
-      .select('id,ip_id,name,name_en,search_keywords,display_order,category_id,additional_good_ids:goods_additional_ids,type,price,compare_at_price,show_discount_rate,created_at,badge,stock,stock_qty,bg,image_path,allow_bank_transfer,allow_card_payment,sale_restriction,origin_id,sale_period:goods_sale_period,custom_inputs_enabled,custom_inputs_revision,custom_input_fields,order_quantity_limit_enabled,min_order_qty,max_order_qty,member_purchase_limit_enabled,member_lifetime_qty_limit,goods_variants(id,name,code,price,stock_qty,is_default,attributes,archived_at,sort_order,pricing:goods_variant_pricing,supply:goods_variant_supply),ips!inner(id)', { count: 'exact' })
-      .in('id', selected).is('archived_at', null).not('published_at', 'is', null).eq('sale_restriction', 'none')
+      .select('id,ip_id,name,name_en,search_keywords,display_order,category_id,additional_good_ids:goods_additional_ids,type,price,compare_at_price,show_discount_rate,created_at,badge,stock,stock_qty,bg,image_path,allow_bank_transfer,allow_card_payment,sale_restriction,origin_id,sale_period:goods_sale_period,custom_inputs_enabled,custom_inputs_revision,custom_input_fields,order_quantity_limit_enabled,min_order_qty,max_order_qty,member_purchase_limit_enabled,member_lifetime_qty_limit,option_sale_mode,random_option:goods_random_option,goods_variants(id,name,code,price,stock_qty,is_default,attributes,archived_at,sort_order,order_max_qty,member_max_qty,pricing:goods_variant_pricing,supply:goods_variant_supply),ips!inner(id)', { count: 'exact' })
+      .in('id', selected).is('archived_at', null).not('published_at', 'is', null).in('sale_restriction', adultGoodsRestrictions(adultGoods))
       .is('ips.archived_at', null).not('ips.published_at', 'is', null).order('id').limit(pageSize);
     if (afterId) query = query.gt('id', afterId);
     return query;
   });
   if (result.error) throw new Error('Failed to load selected public goods');
   const imageUrlForPath = (path: string) => supabase.storage.from(PUBLIC_MEDIA_BUCKET).getPublicUrl(normalizePublicMediaPath(path)).data.publicUrl;
-  const goods = (result.data ?? []).map(row => toGood(row, imageUrlForPath));
+  const goods = (result.data ?? []).map(row => toCatalogGood(row, adultGoods, imageUrlForPath));
+  const decorated = goods.filter(good => !good.masked);
   const [appearance, transactionOffers] = await Promise.all([
-    loadGoodsListingAppearance(supabase, goods.map(good => good.id)),
-    loadGoodsTransactionOffers(goods.map(good => good.id)),
+    loadGoodsListingAppearance(supabase, decorated.map(good => good.id)),
+    loadGoodsTransactionOffers(decorated.map(good => good.id)),
   ]);
   const offersByGood = new Map(transactionOffers?.map(offer => [offer.goodId, offer]));
   const transactionCalculatedAt = new Date().toISOString();
-  for (const good of goods) {
+  for (const good of decorated) {
     good.listingAppearance = appearance.get(good.id);
     applyGoodsAggregationPolicy(good, offersByGood.get(good.id) ?? null);
     good.transactionCalculatedAt = transactionCalculatedAt;
@@ -1030,17 +1113,45 @@ async function readPublicGoodsByIds(supabase: Awaited<ReturnType<typeof createCl
   return goods;
 }
 
-export async function getCatalogGoodsByIds(ids: readonly string[]): Promise<Good[]> {
+export async function getCatalogGoodsByIds(
+  ids: readonly string[],
+  options: { adultGoods?: AdultGoodsAccess } = {},
+): Promise<Good[]> {
   if (getCatalogSource() !== 'supabase') {
     const selected = new Set(ids);
     return (await getCatalogSnapshot()).goods.filter(good => selected.has(good.id));
   }
-  return readPublicGoodsByIds(await createClient(), ids);
+  return readPublicGoodsByIds(await createClient(), ids, options.adultGoods ?? 'hidden');
+}
+
+/**
+ * 성인 상품 상세의 인증 안내를 그릴지. 공개된 성인 상품이면 참이고, 상품 정보는 돌려주지
+ * 않는다 — 인증 전 방문자의 상세는 이름·이미지 없이 안내만 보인다(ADR-0024).
+ */
+export async function isPublishedAdultGood(goodId: string): Promise<boolean> {
+  if (getCatalogSource() !== 'supabase' || !/^[a-z0-9][a-z0-9-]{0,199}$/.test(goodId)) return false;
+  const supabase = await createClient();
+  const { data, error } = await supabase.from('goods')
+    .select('id,ips!inner(id)')
+    .eq('id', goodId)
+    .eq('sale_restriction', 'adult')
+    .is('archived_at', null)
+    .not('published_at', 'is', null)
+    .is('ips.archived_at', null)
+    .not('ips.published_at', 'is', null)
+    .maybeSingle();
+  return !error && Boolean(data);
 }
 
 /** 상세 목적지는 목록의 첫 페이지와 독립적으로 상품·IP 공개 조건을 검사한다. */
-export async function getCatalogGoodDetail(goodId: string): Promise<CatalogGoodDetail | null> {
+export async function getCatalogGoodDetail(
+  goodId: string,
+  options: { adultGoods?: AdultGoodsAccess } = {},
+): Promise<CatalogGoodDetail | null> {
   const source = getCatalogSource();
+  /* 상세는 성인 상품을 full일 때만 싣는다. 인증 전 방문자는 null을 받고, 화면은
+     isPublishedAdultGood로 인증 안내를 그린다 — 가림 카드를 상세로 펼치지 않는다. */
+  const adultGoods: AdultGoodsAccess = options.adultGoods === 'full' ? 'full' : 'hidden';
   if (source !== 'supabase') {
     const catalog = mockSnapshot(), good = catalog.goods.find(item => item.id === goodId);
     if (!good) return null;
@@ -1052,7 +1163,7 @@ export async function getCatalogGoodDetail(goodId: string): Promise<CatalogGoodD
   }
   if (!/^[a-z0-9][a-z0-9-]{0,199}$/.test(goodId)) return null;
   const supabase = await createClient();
-  const [good] = await readPublicGoodsByIds(supabase, [goodId]);
+  const [good] = await readPublicGoodsByIds(supabase, [goodId], adultGoods);
   if (!good) return null;
   const detailQuery = supabase
     .from('goods')
@@ -1064,7 +1175,7 @@ export async function getCatalogGoodDetail(goodId: string): Promise<CatalogGoodD
     .is('ips.archived_at', null)
     .not('ips.published_at', 'is', null)
     // 두 조회 사이에 공개 상태가 바뀐 경우에도 상세를 반환하지 않는다.
-    .eq('sale_restriction', 'none')
+    .in('sale_restriction', adultGoodsRestrictions(adultGoods))
     .maybeSingle();
 
   const [result, relationReferences, attributes, groupReference, ipResult, verticalsResult, additionalGoods] = await Promise.all([
@@ -1072,7 +1183,7 @@ export async function getCatalogGoodDetail(goodId: string): Promise<CatalogGoodD
     supabase.from('ips').select('id,public_slug,title,sub,vertical_key,tagline,synopsis,glyph,bg,image_path,featured,sort_order,fans_count,goods_count,cards_count')
       .eq('id', good.ip).is('archived_at', null).not('published_at', 'is', null).maybeSingle(),
     supabase.from('verticals').select('key,label,color').order('key'),
-    readPublicGoodsByIds(supabase, (good.additionalGoodIds ?? []).filter(id => id !== good.id)),
+    readPublicGoodsByIds(supabase, (good.additionalGoodIds ?? []).filter(id => id !== good.id), adultGoods),
   ]);
 
   if (result.error) {
@@ -1099,8 +1210,8 @@ export async function getCatalogGoodDetail(goodId: string): Promise<CatalogGoodD
       // Saved relations may already contain 1,000 goods; the group adds up to
       // 100 distinct destinations beyond that individual read limit.
       const selectedGoods = (await Promise.all([
-        readPublicGoodsByIds(supabase, selectedIds.slice(0, 1000)),
-        readPublicGoodsByIds(supabase, selectedIds.slice(1000)),
+        readPublicGoodsByIds(supabase, selectedIds.slice(0, 1000), adultGoods),
+        readPublicGoodsByIds(supabase, selectedIds.slice(1000), adultGoods),
       ])).flat();
       relatedGoods = resolveGoodRelations(relationReferences, selectedGoods, goodId);
       goodsGroup = resolvePublicGoodsGroup(groupReference, selectedGoods);
@@ -1224,12 +1335,12 @@ export async function getCatalogIpDetail(
   id: string,
   options: CatalogIpDetailOptions = {},
 ): Promise<CatalogIpDetail | null> {
-  const catalog = await getCatalogSnapshot();
+  const catalog = await getCatalogSnapshot({ adultGoods: options.adultGoods });
   const ip = catalog.ips.find((item) => item.id === id);
   if (!ip) return null;
 
-  /* IP 관 카드 별점은 공개 굿즈 전체가 아니라 이 IP 굿즈 몫만 읽는다(CL-02). */
-  const ipGoodIds = catalog.goods.filter((good) => good.ip === id).map((good) => good.id);
+  /* IP 관 카드 별점은 공개 굿즈 전체가 아니라 이 IP 굿즈 몫만 읽는다(CL-02). 가림 카드는 별점을 그리지 않는다. */
+  const ipGoodIds = catalog.goods.filter((good) => good.ip === id && !good.masked).map((good) => good.id);
   const [posts, reviewSummaries] = await Promise.all([
     catalog.source === 'mock' ? Promise.resolve(mockPostPreviews()) : getCatalogPostPreviewsForIp(id, ip, options),
     catalog.source === 'supabase' && ipGoodIds.length

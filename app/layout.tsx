@@ -9,59 +9,18 @@ import './styles/wc-foundation.css';
 import './styles/wc-admin-surfaces.css';
 import './styles/wc-admin.css';
 import './styles/admin-font.css';
-import './styles/admin-goods-worklist.css';
-import './styles/wc-admin-option-artwork.css';
-import './styles/admin-ux-521.css';
-import './styles/admin-console-controls.css';
-import './styles/admin-home.css';
 import './styles/admin-sales-console.css';
-import './styles/admin-customer-service.css';
-import './styles/admin-inquiry-chat.css';
-import './styles/admin-stats-console.css';
-import './styles/admin-store-analytics.css';
 import './styles/store-analytics.css';
-import './styles/admin-store-editor.css';
-import './styles/admin-category-display.css';
 import './styles/wc-category-display.css';
-import './styles/admin-goods-announcements.css';
-import './styles/admin-photo-library.css';
-import './styles/admin-photo-editor.css';
-import './styles/admin-goods-relations.css';
-import './styles/admin-goods-attributes.css';
-import './styles/admin-goods-drafts.css';
-import './styles/admin-review-insights.css';
-import './styles/admin-coupons.css';
-import './styles/admin-operations-dock.css';
-import './styles/admin-shipping-settings.css';
-import './styles/admin-shipping-charge-groups.css';
-import './styles/admin-store-credits.css';
-import './styles/admin-faq.css';
-import './styles/admin-goods-notice-presets.css';
 import './styles/admin-order-detail.css';
-import './styles/admin-customer-detail.css';
-import './styles/admin-store-settings.css';
-import './styles/admin-store-navigation.css';
 import './styles/admin-shopping-stories.css';
-import './styles/admin-marketing-links.css';
-import './styles/admin-customer-segments.css';
-import './styles/admin-store-presentation.css';
-import './styles/admin-product-detail-presentation.css';
-import './styles/admin-product-detail-experience.css';
-import './styles/admin-goods-media.css';
-import './styles/admin-pg-settlements.css';
-import './styles/admin-goods-benefits.css';
-import './styles/admin-category-templates.css';
-import './styles/admin-country-finder.css';
-import './styles/admin-goods-after-sales.css';
 import './styles/goods-after-sales.css';
-import './styles/admin-goods-size-chart.css';
 import './styles/wc-goods-size-chart.css';
 import './styles/goods-benefits.css';
-import './styles/admin-review-best.css';
 import './styles/goods-review-best.css';
 import './styles/goods-media.css';
-import './styles/admin-marketing-messages.css';
-import './styles/admin-review-events.css';
+/* 콘솔의 옛 클래스 어휘(btn·card·chip·tag·폼 요소)를 kit 모양으로 입힌다(ADR-0028). 관리자 스타일시트 뒤에 둔다. */
+import './styles/admin-kit-vocabulary.css';
 import './styles/wc-chrome.css';
 import './styles/wc-store-branding.css';
 import './styles/wc-home.css';
@@ -95,11 +54,13 @@ import { InquiryWidget } from '@/components/screens/InquiryWidget';
 import { SiteFooter } from '@/components/shell/SiteFooter';
 import { getStorefrontBranding } from '@/lib/store-branding.server';
 import { getStorefrontNavigation } from '@/lib/store-navigation.server';
+import { getStorefrontMegaMenus } from '@/lib/storefront-mega-menu.server';
 import { getStorefrontPresentation } from '@/lib/store-presentation.server';
 import { StorePresentationProvider } from '@/components/shell/StorePresentationProvider';
 import { CardRewardAvailabilityProvider } from '@/components/shell/CardRewardAvailability';
 import { StaffPreviewAvailabilityProvider } from '@/components/shell/StaffPreviewAvailability';
 import { getShellNotices } from '@/lib/notice-strip.server';
+import { getOperatorSearchTerms } from '@/lib/search-terms.server';
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ['latin'],
@@ -113,7 +74,7 @@ const spaceMono = Space_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'ICONS — 서브컬처 팬덤 플랫폼',
+  title: 'ICONS',
   description:
     '공식 라이선스 굿즈 · 팝업 & 티케팅 · 팬 커뮤니티 · 수집형 카드까지. 모든 서브컬처가 모이는 디지털 팬덤 허브.',
 };
@@ -122,7 +83,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   /* 셸 공지(텍스트 공지 바·이미지 스트립)는 셸의 일부라 루트에서 한 번만 읽는다. 쿠키를 만지지 않는 캐시 읽기라
      legal 라우트의 SSG가 dynamic으로 무너지지 않는다(lib/notice-strip.server.ts 주석 참고). 화면 유형·닫힘·스트립 선택은
      셸이 클라이언트에서 정한다(components/shell/ShellNotices.tsx). */
-  const [notices,businessInfo,branding,navigation,presentation] = await Promise.all([getShellNotices(),getBusinessInfo(),getStorefrontBranding(),getStorefrontNavigation(),getStorefrontPresentation()]);
+  /* 메가메뉴·카테고리 시트(공개 전시 트리·진행 중 기획전·피처드 IP)도 같은 쿠키 없는 캐시 읽기다(lib/storefront-mega-menu.server.ts). */
+  /* 검색 오버레이의 운영 추천 검색어도 같은 쿠키 없는 캐시 읽기다(lib/search-terms.server.ts). */
+  const [notices,businessInfo,branding,navigation,presentation,megaMenus,searchTerms] = await Promise.all([getShellNotices(),getBusinessInfo(),getStorefrontBranding(),getStorefrontNavigation(),getStorefrontPresentation(),getStorefrontMegaMenus(),getOperatorSearchTerms()]);
 
   return (
     <html lang="ko" data-scroll-behavior="smooth" className={`${spaceGrotesk.variable} ${spaceMono.variable}`}>
@@ -133,7 +96,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               {/* 스태프 전용 진입점(세컨더리 마켓 시연·커뮤니티 프리뷰)은 presence 위에서 is_staff 를 읽으므로 AuthPresence 안쪽이다. */}
               <StaffPreviewAvailabilityProvider>
                 <StorePresentationProvider value={presentation}>
-                <Nav notices={notices} branding={branding} navigation={navigation} />
+                <Nav notices={notices} branding={branding} navigation={navigation} megaMenus={megaMenus} searchTerms={searchTerms} />
                 {/* tabIndex: 셸 스킵 링크(#root)가 키보드 포커스를 본문으로 실제 이동시키기 위한 타깃. */}
                 <div id="root" tabIndex={-1}>{children}<InquiryWidget /></div>
                 <SiteFooter businessInfo={businessInfo} branding={branding} />

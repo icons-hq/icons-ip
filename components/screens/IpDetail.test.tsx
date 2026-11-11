@@ -1,8 +1,11 @@
+import { readFileSync } from 'node:fs';
+import postcss, { type AtRule } from 'postcss';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 import type { CatalogIpDetail } from '@/lib/catalog';
 import type { IpFollowState } from '@/lib/ip-follow';
+import { IP_HALL_BANNER_EMPTY_SOURCE, type IpHallBanner } from '@/lib/ip-hall-banner';
 import type { ListingWishlist } from '@/lib/listing-wishlist';
 import { parseShopSearchParams, selectCollectionGoods } from '@/lib/shop-catalog';
 import { shopQueryString } from '@/components/shop/collection-filters';
@@ -67,9 +70,11 @@ function render(overrides: {
   notificationSaved?: boolean;
   collection?: IpGoodsCollection;
   wishlist?: ListingWishlist | null;
+  banner?: IpHallBanner | null;
 } = {}) {
   return renderToStaticMarkup(
     <IpDetail
+      banner={overrides.banner}
       collection={overrides.collection}
       detail={overrides.detail ?? detail}
       followError={overrides.followError ?? false}
@@ -229,6 +234,69 @@ describe('IpDetail banner', () => {
 
     expect(html.match(/<h1[^>]*>메이플스토리<\/h1>/)).toBeTruthy();
     expect(html).toContain('작은 용사들의 큰 모험 메이플 월드의 이야기');
+  });
+});
+
+/* IP-06(L8b): IP관 PC/MO 배너. 없으면 키아트 배경 그대로(마크업 불변), 있으면 폭별 picture 가 배경 위·스크림 아래에 선다. */
+describe('IpDetail hall banner artwork', () => {
+  const sectionOf = (html: string) => html.match(/<section class="wc-iphall__banner"[^>]*>/)?.[0] ?? '';
+
+  it('keeps the key-art background exactly as before when the IP has no hall banner', () => {
+    for (const banner of [undefined, null, { imageUrl: null, mobileImageUrl: null }]) {
+      const html = render({ banner });
+
+      expect(sectionOf(html)).toBe('<section class="wc-iphall__banner" style="background:linear-gradient(#111, #222);background-size:cover;background-position:center">');
+      expect(html).not.toContain('wc-iphall__banner-media');
+    }
+  });
+
+  it('draws the PC banner for every width and swaps in the mobile banner below 750px', () => {
+    const html = render({ banner: { imageUrl: 'https://cdn.test/pc.webp', mobileImageUrl: 'https://cdn.test/mo.webp' } });
+
+    expect(sectionOf(html)).toBe('<section class="wc-iphall__banner" data-banner="all">');
+    expect(html).toContain('<picture class="wc-iphall__banner-media"><source media="(max-width: 749px)" srcSet="https://cdn.test/mo.webp"/><img alt="" decoding="async" fetchPriority="high" loading="eager" sizes="100vw" src="https://cdn.test/pc.webp"/></picture>');
+    expect(html.indexOf('wc-iphall__banner-media')).toBeLessThan(html.indexOf('<h1'));
+  });
+
+  it('uses the PC banner on mobile too when no mobile banner exists', () => {
+    const html = render({ banner: { imageUrl: 'https://cdn.test/pc.webp', mobileImageUrl: null } });
+
+    expect(html).not.toContain('<source');
+    expect(html).toContain('src="https://cdn.test/pc.webp"');
+  });
+
+  /* l8b-qa-6 — 데스크톱 PC 배너는 전면 스크림 대신 왼쪽 글자 단에만 스크림을 깐다(그림 오른쪽은 그대로). 키아트·모바일은 전면 그대로. */
+  it('scrims only the left text column over a desktop PC banner and keeps the full scrim elsewhere', () => {
+    const css = readFileSync(new URL('../../app/styles/wc-discovery.css', import.meta.url), 'utf8');
+    const rules: Array<{ media: string | null; selector: string; decls: Record<string, string> }> = [];
+    postcss.parse(css).walkRules((rule) => {
+      const parent = rule.parent?.type === 'atrule' ? rule.parent as AtRule : null;
+      const decls: Record<string, string> = {};
+      rule.walkDecls((decl) => { decls[decl.prop] = decl.value; });
+      for (const selector of rule.selectors) rules.push({ media: parent?.name === 'media' ? parent.params : null, selector: selector.trim(), decls });
+    });
+    const find = (selector: string, media: string | null) => rules.filter((rule) => rule.selector === selector && rule.media === media);
+
+    /* 기본(키아트·모바일): 전면 세로 스크림 .45→.62 그대로. */
+    expect(find('.wc-iphall__banner::before', null)[0]?.decls.background).toBe('linear-gradient(180deg, rgba(0, 0, 0, .45) 0%, rgba(0, 0, 0, .62) 100%)');
+    /* 데스크톱 PC 배너만: 왼쪽 글자 단(콘텐츠 왼쪽 선 + 560) 안은 .62→.54(기존 스크림의 글자 줄 값 이상), 그 끝에서 280px 동안 0 으로 풀린다. */
+    const pc = find(".wc-iphall__banner[data-banner='all']::before", '(min-width: 750px)');
+    expect(pc).toHaveLength(1);
+    expect(pc[0].decls['--wc-iphall-text-end']).toBe('calc(max(var(--wc-gutter), (100% - var(--wc-container-max)) / 2 + var(--wc-gutter)) + 560px)');
+    expect(pc[0].decls.background.replace(/\s+/g, ' ')).toBe(
+      'linear-gradient(90deg, rgba(0, 0, 0, .62) 0, rgba(0, 0, 0, .54) var(--wc-iphall-text-end), rgba(0, 0, 0, 0) calc(var(--wc-iphall-text-end) + 280px))',
+    );
+    /* 모바일 폭과 모바일 배너만 있는 IP 의 데스크톱(키아트)에는 이 완화가 걸리지 않는다. */
+    expect(rules.filter((rule) => rule.selector.includes('::before') && rule.selector.includes('wc-iphall__banner') && rule.media === '(max-width: 749px)')).toHaveLength(0);
+    expect(rules.filter((rule) => rule.selector.includes("data-banner='mobile']::before"))).toHaveLength(0);
+  });
+
+  it('keeps the key art on desktop for a mobile-only banner without downloading the mobile art there', () => {
+    const html = render({ banner: { imageUrl: null, mobileImageUrl: 'https://cdn.test/mo.webp' } });
+
+    expect(sectionOf(html)).toBe('<section class="wc-iphall__banner" data-banner="mobile" style="--wc-iphall-keyart:linear-gradient(#111, #222)">');
+    expect(html).toContain(`<source media="(min-width: 750px)" srcSet="${IP_HALL_BANNER_EMPTY_SOURCE}"/>`);
+    expect(html).toContain('src="https://cdn.test/mo.webp"');
   });
 });
 

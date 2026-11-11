@@ -1,5 +1,4 @@
 import { readFileSync } from 'node:fs';
-import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { BUSINESS_INFO, businessContactWords } from './business-info';
 import {
@@ -11,6 +10,7 @@ import {
   PENDING_PROCESSOR_LABEL,
   type LegalDocument,
 } from './documents';
+import { PRIVACY_ADDRESS_BOOK_REVISION, kstToday, koreanLegalDate } from './privacy-address-book-revision';
 import { SOCIAL_LOGIN_LABELS } from './social-login';
 
 const documents = LEGAL_DOCUMENT_SLUGS.map((slug) => LEGAL_DOCUMENTS[slug]);
@@ -90,51 +90,59 @@ describe('법정 문서 레지스트리', () => {
     }
   });
 
-  it('시행일은 문서마다 따로 관리한다 — 하나만 개정해도 나머지가 따라 바뀌지 않는다', () => {
+  /* 서비스 공개(오픈) 전이라 실사용자가 없다 — 세 문서는 개정 안내·이전 본문 없이 2026-11-06 최초 판 하나다.
+     오픈 뒤 개정부터는 약관 제3조·방침 제13조대로 사전 공지와 이전 본문 보존을 쓴다(page.test의 fixture가 렌더를 지킨다). */
+  it('오픈 전 최초 판이다 — 세 문서 모두 2026-11-06 시행이고 사전 공지·개정 안내·이전 본문이 없다', () => {
     expect(Object.keys(LEGAL_EFFECTIVE_DATES).sort()).toEqual([...LEGAL_DOCUMENT_SLUGS].sort());
 
     for (const slug of LEGAL_DOCUMENT_SLUGS) {
-      expect(LEGAL_DOCUMENTS[slug].effectiveDate, slug).toBe(LEGAL_EFFECTIVE_DATES[slug]);
-      /* 각 문서가 자기 슬러그의 시행일만 참조해야 개별 개정이 가능하다. */
+      const document = LEGAL_DOCUMENTS[slug];
+      expect(document.effectiveDate, slug).toBe('2026-11-06');
+      expect(document.effectiveDate, slug).toBe(LEGAL_EFFECTIVE_DATES[slug]);
+      expect(document.pendingRevision, slug).toBeUndefined();
+      expect(document.revisionChanges, slug).toBeUndefined();
+      expect(document.previousVersion, slug).toBeUndefined();
+      /* 오픈 뒤 한 문서만 개정할 수 있도록 각 문서는 자기 슬러그의 시행일만 참조한다. */
       expect(source().match(new RegExp(`LEGAL_EFFECTIVE_DATES\\.${slug}`, 'g')), slug).toHaveLength(1);
     }
 
-    expect(source(), '문서 셋이 시행일 상수 하나를 공유하면 개정 이력을 만들 수 없다').not.toMatch(/const EFFECTIVE_DATE\b/);
+    expect(source(), '문서 셋이 시행일 상수 하나를 공유하면 오픈 뒤 개별 개정을 할 수 없다').not.toMatch(/const EFFECTIVE_DATE\b/);
   });
 
-  it('신청 안내와 승인된 선택 성별 수집의 개정일을 문서별로 보존한다', () => {
-    expect(LEGAL_DOCUMENTS.terms.effectiveDate).toBe('2026-09-09');
-    expect(LEGAL_DOCUMENTS.privacy.effectiveDate).toBe('2026-10-19');
-    expect(LEGAL_DOCUMENTS.privacy.previousVersion?.effectiveDate).toBe('2026-08-22');
-    expect(JSON.stringify(LEGAL_DOCUMENTS.privacy.previousVersion)).not.toContain('성별 정보의 선택');
-    expect(JSON.stringify(LEGAL_DOCUMENTS.privacy.articles)).toContain('10명 이상');
-    expect(LEGAL_DOCUMENTS.shipping.effectiveDate).toBe('2026-09-09');
-
+  it('오픈 전에 없던 과거 결제·개정 이력을 본문에 남기지 않는다', () => {
     for (const document of documents) {
-      expect(document.pendingRevision, document.slug).toBeUndefined();
+      const text = plainText(document);
+      for (const word of ['코페이', '2026년 8월 21일', '이전 정책', '개정 전']) {
+        expect(text, `${document.slug} · ${word}`).not.toContain(word);
+      }
     }
   });
 
-  it('본문이 Korpay 신규 카드 결제와 Toss 기존 결제 조회·취소·환급 유지를 함께 밝힌다', () => {
+  it('주소록은 처리방침이 고지하는 날(최초 판 시행일)부터 열리고, 시행일은 한국 시간 날짜로 센다', () => {
+    expect(PRIVACY_ADDRESS_BOOK_REVISION.effectiveDate).toBe(LEGAL_EFFECTIVE_DATES.privacy);
+    expect(kstToday(new Date('2026-11-05T14:59:59Z'))).toBe('2026-11-05');
+    expect(kstToday(new Date('2026-11-05T15:00:00Z'))).toBe('2026-11-06');
+    expect(koreanLegalDate('2026-11-06')).toBe('2026년 11월 6일');
+  });
+
+  /* 결제대행사는 서버가 주문 단위로 정한다(ADR-0013) — 기본 토스페이먼츠, 19금 굿즈 주문의 카드 결제만 나이스페이. */
+  it('지급방법과 처리위탁이 실제 결제대행사(토스페이먼츠 기본, 19금 굿즈 주문은 나이스정보통신)를 밝힌다', () => {
     const termsPayment = LEGAL_DOCUMENTS.terms.articles
       .find((article) => article.heading.includes('지급방법'))!
       .paragraphs!.join('\n');
-
-    /* 신규 결제는 코페이, 기존 기록은 토스 — 한쪽만 적으면 이용자가 자기 결제의
-       처리 주체와 취소·환급 경로를 특정할 수 없다. */
-    expect(termsPayment).toMatch(/코페이/);
-    expect(termsPayment).toMatch(/토스페이먼츠/);
+    expect(termsPayment).toMatch(/굿즈와 티켓 대금은 결제대행사인 토스페이먼츠 주식회사를 통해/);
+    expect(termsPayment).toMatch(/19금 굿즈가 담긴 주문의 카드 대금은 결제대행사인 나이스정보통신 주식회사를 통해/);
 
     const processorRows = LEGAL_DOCUMENTS.privacy.articles
       .find((article) => article.heading.includes('위탁'))!
       .table!.rows;
     const processors = new Map(processorRows.map((row) => [row[0], row.join(' ')]));
-
-    expect([...processors.keys()]).toContain('주식회사 코페이');
-    /* 토스는 목록에서 빠지지 않는다 — 기존 거래의 취소·환급 주체가 사라지면 안 된다. */
-    for (const operation of ['조회', '취소', '환급']) {
+    for (const operation of ['결제 처리', '취소', '환급']) {
       expect(processors.get('토스페이먼츠 주식회사'), operation).toContain(operation);
+      expect(processors.get('나이스정보통신 주식회사'), operation).toContain(operation);
     }
+    expect(processors.get('나이스정보통신 주식회사')).toContain('19금 굿즈');
+    expect([...processors.keys()].join(' ')).not.toMatch(/코페이/);
   });
 
   it('문의처 문장은 사업자 정보에서 파생된다 — 연락처가 비어 있으면 없는 창구를 가리키지 않는다 (#87)', () => {
@@ -188,44 +196,6 @@ describe('승인된 배송 중 접수 정책과 고객지원 안내', () => {
     expect(text).not.toContain('취소는 발송 전');
     expect(text).not.toContain('문의는 질문과 답변을 주고받는 창구이며 청약철회 접수를 대신하지 않습니다');
     if (!contact.email) expect(text).toContain('공개 문의 연락처는 사업자 등록 절차가 끝나는 대로');
-  });
-
-  it('이전 공개본을 보존하고 권리·계약·금액·비용·기한 조항은 바꾸지 않는다', () => {
-    const terms = LEGAL_DOCUMENTS.terms;
-    const shipping = LEGAL_DOCUMENTS.shipping;
-    expect(terms.previousVersion?.effectiveDate).toBe('2026-08-22');
-    expect(shipping.previousVersion?.effectiveDate).toBe('2026-08-21');
-    expect(LEGAL_DOCUMENTS.privacy.previousVersion?.effectiveDate).toBe('2026-08-22');
-    for (const [document, headings] of [
-      [terms, ['제3조 (약관의 명시와 개정)', '제4조 (서비스의 제공과 변경)', '제15조 (청약철회 등)', '제16조 (청약철회 등의 효과)']],
-      [shipping, ['4. 청약철회가 제한되는 경우', '7. 환급 계좌', '8. 환급', '9. 하자·오배송 시 재발송']],
-    ] as const) {
-      for (const heading of headings) {
-        const current = document.articles.find((article) => article.heading === heading);
-        const previous = document.previousVersion!.articles.find((article) => article.heading === heading);
-        expect(current, heading).toEqual(previous);
-      }
-    }
-    const currentCost = shipping.articles.find((article) => article.heading === '5. 반송비 부담')!;
-    const previousCost = shipping.previousVersion!.articles.find((article) => article.heading === '5. 반송비 부담')!;
-    expect(currentCost.table).toEqual(previousCost.table);
-    expect(currentCost.closing![0]).toBe(previousCost.closing![0]);
-    const currentTwelve = terms.articles.find((article) => article.heading.startsWith('제12조 '))!;
-    const previousTwelve = terms.previousVersion!.articles.find((article) => article.heading.startsWith('제12조 '))!;
-    expect(currentTwelve.paragraphs!.slice(0, 2)).toEqual(previousTwelve.paragraphs);
-  });
-
-  it('보존 원문은 개인 연락처 대신 참조만 담고 현재 연락처로만 표시한다', () => {
-    const bytes = readFileSync(new URL('./archive/pre-2026-09-09.json', import.meta.url));
-    // Captured from the former production source 7ea5d1fd, with contact references preserved.
-    expect(createHash('sha256').update(bytes).digest('hex')).toBe('a6b34eae5c3b650d1f278aee76f0d8775f4672414aabf681423c1e1fb45c1379');
-    expect(bytes.toString()).toContain('{{CURRENT_CUSTOMER_SUPPORT}}');
-    expect(bytes.toString()).not.toMatch(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/);
-    const current = getLegalDocument('shipping', { ...BUSINESS_INFO, phone: '', email: 'archive@example.test' })!;
-    expect(JSON.stringify(current.previousVersion)).toContain('archive@example.test');
-    expect(JSON.stringify(current.previousVersion)).not.toContain('{{CURRENT_CUSTOMER_SUPPORT}}');
-    const blank = getLegalDocument('shipping', { ...BUSINESS_INFO, phone: '', email: '' })!;
-    expect(JSON.stringify(blank.previousVersion)).toContain('1:1 문의(/my/inquiries)');
   });
 });
 
@@ -324,6 +294,45 @@ describe('개인정보처리방침', () => {
     }
   });
 
+  /* 주소록(L7 · MY-11) — 주문 배송지와 별개로 회원이 저장하는 배송지라 수집 시점·목적·보유 기간·자가 열람 경로를 따로 적는다. */
+  it('주소록의 수집 항목·시점·목적·보유 기간·자가 열람 경로를 밝힌다', () => {
+    const article = (prefix: string) => privacy.articles.find((item) => item.heading.startsWith(prefix))!;
+    const rows = article('제1조 ').table!.rows;
+    const order = rows.findIndex((row) => row[0] === '굿즈 주문·배송');
+    expect(rows[order + 1]?.[0]).toBe('주소록 (선택)');
+    expect(rows[order + 1]?.[1]).toBe('배송지 이름, 받는 분 이름, 연락처, 우편번호, 주소');
+    expect(rows[order + 1]?.[2]).toMatch(/배송지를 저장한 경우/);
+    /* 주문 배송지 행은 그대로다 — 주소록은 주문에 저장되는 배송지를 대신하지 않는다. */
+    expect(rows[order]).toEqual(['굿즈 주문·배송', '수령인 이름, 연락처, 우편번호, 주소, 배송 요청사항', '주문 시']);
+    expect(article('제2조 ').list!.join('\n')).toMatch(/주소록\)를 주문서에 불러오는/);
+    expect(article('제3조 ').closing!.join('\n')).toMatch(/주소록에 저장한 배송지는 회원이 배송지 관리에서 언제든 직접 삭제할 수 있으며, 회사가 회원 탈퇴를 처리하면 지체 없이 파기합니다/);
+    expect(article('제3조 ').closing!.join('\n')).toMatch(/이미 한 주문의 배송지는 주문 정보의 일부로/);
+    expect(article('제7조 ').paragraphs!.join('\n')).toContain('배송지 관리(/my/addresses)에서 직접 열람·수정·삭제');
+  });
+
+  /* 성인 인증(ADR-0024) — 본인확인기관 결과 원문은 판정에만 쓰고, 회사는 인증 여부·기간과 복원 불가 다이제스트만 보관한다. */
+  it('성인 인증의 수집 항목·목적·보관 항목·유효기간·수탁자를 밝힌다', () => {
+    const article = (prefix: string) => privacy.articles.find((item) => item.heading.startsWith(prefix))!;
+    const rows = article('제1조 ').table!.rows;
+    const row = rows[rows.findIndex((item) => item[0] === '온보딩') + 1];
+    expect(row?.[0]).toBe('성인 인증 (휴대폰 본인확인)');
+    expect(row?.[1]).toMatch(/연계정보\(CI\), 중복가입확인정보\(DI\)/);
+    expect(row?.[1]).toMatch(/19세 이상 여부 판정에만 쓰고 저장하지 않으며/);
+    expect(row?.[2]).toMatch(/성인 인증을 진행한 경우/);
+    expect(article('제2조 ').list!.join('\n')).toMatch(/청소년 보호법에 따른 19세 이상 여부 확인/);
+    expect(article('제3조 ').closing!.join('\n')).toMatch(/성인 인증 기록의 유효기간은 인증일부터 1년/);
+    expect(article('제5조 ').table!.rows).toContainEqual(
+      ['엔에이치엔케이씨피 주식회사', '휴대폰 본인확인(성인 인증) 서비스 제공', '위탁계약 종료 시까지'],
+    );
+  });
+
+  it('선택 성별 수집의 목적·항목·보관·철회를 별도 조로 밝힌다', () => {
+    const article = privacy.articles.find((item) => item.heading.startsWith('제2조의2 '));
+    expect(article?.heading).toBe('제2조의2 (성별 정보의 선택 수집·이용)');
+    expect(JSON.stringify(privacy.articles)).toContain('10명 이상');
+    expect(privacy.articles[0]!.table!.rows.map((row) => row[0])).toContain('성별·연령 고객 통계 (선택)');
+  });
+
   it('결제수단 인증정보를 보유하지 않는다는 사실을 밝힌다', () => {
     expect(text).toMatch(/저장하지 않습니다/);
   });
@@ -334,7 +343,9 @@ describe('개인정보처리방침', () => {
 
     const processors = consignment!.table!.rows.map((row) => row[0]);
     expect(processors).toEqual(
-      expect.arrayContaining(['Supabase, Inc.', 'Vercel, Inc.', '토스페이먼츠 주식회사', '한진택배', 'Resend']),
+      expect.arrayContaining([
+        'Supabase, Inc.', 'Vercel, Inc.', '토스페이먼츠 주식회사', '나이스정보통신 주식회사', '엔에이치엔케이씨피 주식회사', '한진택배', 'Resend',
+      ]),
     );
   });
 

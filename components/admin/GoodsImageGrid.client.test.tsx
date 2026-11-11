@@ -73,3 +73,57 @@ it('변경 없음과 편집 취소는 파일과 상품 경로를 바꾸지 않�
   button('대표 이미지 사진 편집').props.onClick?.(); editor().props.onApply?.(null); button('대표 이미지 사진 편집').props.onClick?.(); editor().props.onCancel?.(); await settle();
   expect(path()).toBe(original); expect(mocks.upload).not.toHaveBeenCalled(); expect(mocks.preview).not.toHaveBeenCalled();
 });
+/* R19(MD-0030) 측정: 10장을 한 번에 올리면 커밋마다 10개 자리 전부를 상품 편집기 미리보기로 다시 알려 편집기 전체가
+   업로드 진행마다 다시 렌더됐다(시작 1회 + 완료 10회 = 11회 × 10자리 = 110회). 바뀐 자리만 알리면 축소 미리보기가
+   준비될 때 자리마다 1회뿐이다(업로드 시작·완료는 미리보기 주소를 바꾸지 않는다). */
+it('10장 업로드는 미리보기가 실제로 바뀐 자리만 한 번씩 알리고 업로드 완료는 편집기를 다시 그리지 않는다', async () => {
+  hooks.states = []; hooks.refs = []; hooks.memos = []; hooks.effects = []; hooks.changed = [];
+  const empty = { ...props, initialPaths: [], initialUrls: [] };
+  const renderEmpty = () => { hooks.stateIndex = 0; hooks.refIndex = 0; hooks.memoIndex = 0; hooks.effectIndex = 0; return GoodsImageGrid(empty); };
+  renderEmpty(); effects(); auth(); mocks.preview.mockClear();
+  let blob = 0; vi.mocked(URL.createObjectURL).mockImplementation(() => `blob:${++blob}`);
+  let uploaded = 0; mocks.upload.mockImplementation(async () => ({ ok: true, imagePath: `public-media/catalog/good/99000000-0000-4000-8000-0000000001${String(++uploaded).padStart(2, '0')}.png` }));
+  const files = Array.from({ length: 10 }, (_, index) => new File([`f${index}`], `f${index}.png`, { type: 'image/png' }));
+  const input = all(renderEmpty()).find(item => item.type === 'input' && item.props['aria-label'] === '대표 이미지 추가')!;
+  (input.props as unknown as { onChange: (event: unknown) => void }).onChange({ currentTarget: { files, value: 'x' } });
+  for (let i = 0; i < 400; i++) await Promise.resolve();
+  expect(mocks.upload).toHaveBeenCalledTimes(10);
+  const paths = all(renderEmpty()).filter(item => item.type === 'input' && typeof item.props.name === 'string' && /^(imagePath|galleryPath\d)$/.test(item.props.name)).map(item => item.props.value);
+  expect(paths.filter(Boolean)).toHaveLength(10);
+  expect(mocks.preview).toHaveBeenCalledTimes(10);
+  expect(mocks.preview.mock.calls.map(([, url]) => url)).toEqual(Array.from({ length: 10 }, (_, index) => `blob:${index + 1}`));
+  /* R20: 직접 고른 파일은 NFC 이름으로 사진 보관함 등록을 함께 요청한다. */
+  expect(mocks.upload.mock.calls.map(([input]) => input.library)).toEqual(files.map(file => ({ name: file.name })));
+});
+
+it('macOS NFD 파일 이름은 NFC로 등록을 요청하고, 보관함 등록 실패는 업로드를 실패로 만들지 않는다', async () => {
+  hooks.states = []; hooks.refs = []; hooks.memos = []; hooks.effects = []; hooks.changed = [];
+  const empty = { ...props, initialPaths: [], initialUrls: [] };
+  const renderEmpty = () => { hooks.stateIndex = 0; hooks.refIndex = 0; hooks.memoIndex = 0; hooks.effectIndex = 0; return GoodsImageGrid(empty); };
+  renderEmpty(); effects(); auth();
+  mocks.upload.mockResolvedValue({ ok: true, imagePath: replacement, library: { ok: false, error: 'x' } });
+  const nfd = '메이플 키링.png'.normalize('NFD');
+  const input = all(renderEmpty()).find(item => item.type === 'input' && item.props['aria-label'] === '대표 이미지 추가')!;
+  (input.props as unknown as { onChange: (event: unknown) => void }).onChange({ currentTarget: { files: [new File(['a'], nfd, { type: 'image/png' })], value: 'x' } });
+  for (let i = 0; i < 60; i++) await Promise.resolve();
+  expect(mocks.upload).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ library: { name: '메이플 키링.png'.normalize('NFC') } }));
+  expect(all(renderEmpty()).find(item => item.type === 'input' && item.props.name === 'imagePath')?.props.value).toBe(replacement);
+  expect(text(renderEmpty())).toContain('사진 보관함에 등록하지 못한 사진이 있습니다.');
+  expect(text(renderEmpty())).toContain('업로드 완료 · 사진 보관함 등록 실패 · 상품 저장 전입니다.');
+});
+
+it('미리보기가 준비되기 전에 지운 타일에는 늦게 온 미리보기를 붙이지 않고 해제한다', async () => {
+  hooks.states = []; hooks.refs = []; hooks.memos = []; hooks.effects = []; hooks.changed = [];
+  const withMain = { ...props, initialPaths: [original], initialUrls: ['https://example.test/original.png'] };
+  const renderMain = () => { hooks.stateIndex = 0; hooks.refIndex = 0; hooks.memoIndex = 0; hooks.effectIndex = 0; return GoodsImageGrid(withMain); };
+  renderMain(); effects(); auth();
+  mocks.upload.mockImplementation(() => new Promise(() => {}));
+  vi.mocked(URL.createObjectURL).mockImplementation(() => 'blob:late');
+  const add = all(renderMain()).find(item => item.type === 'input' && item.props['aria-label'] === '이미지 추가 (추가 이미지, 여러 장 선택 가능)')!;
+  (add.props as unknown as { onChange: (event: unknown) => void }).onChange({ currentTarget: { files: [new File(['b'], 'b.png', { type: 'image/png' })], value: 'x' } });
+  expect(text(renderMain())).toContain('미리보기 준비 중…');
+  all(renderMain()).find(item => item.type === 'button' && item.props['aria-label'] === '추가 이미지 1 삭제')?.props.onClick?.();
+  for (let i = 0; i < 20; i++) await Promise.resolve();
+  expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:late');
+  expect(all(renderMain()).filter(item => item.type === 'img').map(item => (item.props as { src?: string }).src)).toEqual(['https://example.test/original.png']);
+});

@@ -26,11 +26,14 @@ import {
   sendOrderShippedEmail,
 } from '@/lib/email/transactional.server';
 import { orderReferenceLabel } from '@/lib/orders';
+import { commerceReferenceLabel } from '@/lib/commerce-number';
 import { reconcileOrderCancellation } from '@/lib/orders/cancellation-orchestrator.server';
 import { recoverGoodsPaymentManually } from '@/lib/payments/goods-manual-recovery.server';
 import { trackingImportCommand, type SeowonTrackingParseResult } from '@/lib/admin/warehouse-templates.server';
 import { matchSeowonReply, type SeowonReplyCandidate } from '@/lib/admin/seowon-exchange';
 import { parseTrackingWorkbook, TRACKING_IMPORT_FILE_LIMIT_BYTES, TRACKING_IMPORT_TEXT_LIMIT_BYTES, type TrackingWorkbookParseResult } from '@/lib/admin/tracking-workbook.server';
+import { parseSmartStoreReplyText } from '@/lib/admin/smartstore-tracking-workbook.server';
+import { decodeSpreadsheetText } from '@/lib/admin/spreadsheet-text';
 import { shipmentMutationError } from '@/lib/admin/shipment-dispatch';
 import { enqueueOrderShippedEmails } from '@/lib/email/order-shipment-jobs.server';
 import { getShippingCarrierRegistry } from '@/lib/orders/shipment.server';
@@ -150,6 +153,16 @@ const BULK_CONFIRM_LIMIT = 100;
  * 세어 돌려준다. 개별 실패 사유는 화면에 늘어놓지 않는다 — 목록을 새로고침하면
  * 남아 있는 건이 곧 실패한 건이다.
  */
+/** 결과 문구의 주문은 16자리 주문번호로 적는다. 번호를 읽지 못하면 UUID 표기로 남긴다. */
+async function orderNumberLabels(supabase: Awaited<ReturnType<typeof createClient>>, orderIds: string[]) {
+  let numbers = new Map<string, string | null>();
+  try {
+    const { data } = await supabase.from('orders').select('id,order_number').in('id', orderIds);
+    numbers = new Map(((data ?? []) as { id: string; order_number: string | null }[]).map(row => [row.id, row.order_number]));
+  } catch { /* 결과 문구가 번호 조회 실패로 사라지지 않게 UUID 표기로 남긴다. */ }
+  return orderIds.map(id => orderReferenceLabel(id, numbers.get(id))).join(', ');
+}
+
 export async function bulkConfirmAdminOrdersAction(
   _state: AdminOrderActionState,
   formData: FormData,
@@ -194,12 +207,11 @@ export async function bulkConfirmAdminOrdersAction(
   for (const orderId of orderIds) revalidateOrderSurfaces(orderId);
 
   const confirmed = confirmedOrderIds.length;
+  const failedLabels = failed.length ? await orderNumberLabels(supabase, failed) : '';
   if (!confirmed) {
     return {
       errors: {
-        form: `선택한 ${orderIds.length}건을 발주확인하지 못했습니다. 취소 요청이 열려 있거나 이미 상태가 바뀐 주문일 수 있습니다: ${
-          failed.map(id => orderReferenceLabel(id)).join(', ')
-        }`,
+        form: `선택한 ${orderIds.length}건을 발주확인하지 못했습니다. 취소 요청이 열려 있거나 이미 상태가 바뀐 주문일 수 있습니다: ${failedLabels}`,
       },
     };
   }
@@ -209,9 +221,7 @@ export async function bulkConfirmAdminOrdersAction(
        (취소 요청·이미 바뀐 상태·일시적 오류) 한 가지로 단정하지 않는다. */
     return {
       confirmedOrderIds,
-      message: `${confirmed}건을 발주확인했습니다. 처리하지 못한 ${failed.length}건: ${
-        failed.map(id => orderReferenceLabel(id)).join(', ')
-      } — 주문 상세에서 취소 요청 여부와 현재 상태를 확인해주세요.`,
+      message: `${confirmed}건을 발주확인했습니다. 처리하지 못한 ${failed.length}건: ${failedLabels} — 주문 상세에서 취소 요청 여부와 현재 상태를 확인해주세요.`,
     };
   }
   return { confirmedOrderIds, message: `${confirmed}건을 발주확인했습니다.` };
@@ -355,7 +365,7 @@ export async function reconcileAdminOrderCancellationAction(
   revalidateOrderSurfaces();
   if (!result.ok) return { errors: { form: reviewRequiredMessage(result.code) } };
   if (result.status === 'in_progress') return { message: PAYMENT_RECONCILIATION_IN_PROGRESS };
-  return { message: '결제 취소 상태를 정합화했습니다.' };
+  return { message: '결제 취소 상태를 확인했습니다.' };
 }
 
 /** DB가 던지는 운영자 전액 취소 거절 코드를 운영자 문구로 옮긴다. 원문은 노출하지 않는다. */
@@ -373,7 +383,7 @@ function staffCancellationError(message: string | null | undefined) {
   }
   if (value.includes('payment_reconciliation_required')) return '결제 결과가 아직 확정되지 않았습니다. 결제 상태를 먼저 확인해주세요.';
   if (value.includes('staff_cancellation_toss_only')) {
-    return '토스 결제 주문만 이 화면에서 전액 취소할 수 있습니다. Korpay·무통장 주문은 기존 수동 절차를 따릅니다.';
+    return '토스·나이스페이 결제 주문만 이 화면에서 전액 취소할 수 있습니다. Korpay·무통장 주문은 기존 수동 절차를 따릅니다.';
   }
   if (value.includes('invalid_staff_cancellation_note')) return '기타 사유는 메모를 5자 이상 입력해주세요(최대 500자).';
   if (value.includes('invalid_staff_cancellation_reason')) return '취소 사유를 선택해주세요.';
@@ -463,7 +473,7 @@ export async function recoverAdminGoodsPaymentAction(
     if (result.outcome === 'in_progress') {
       return { errors: { form: '다른 운영 확인이 진행 중입니다. 잠시 뒤 최신 상태를 확인해주세요.' } };
     }
-    return { message: 'Korpay 전액 취소 확인을 주문 정합화에 반영했습니다.' };
+    return { message: 'Korpay 전액 취소 확인을 주문에 반영했습니다.' };
   } catch {
     return { errors: { form: 'Korpay 수동 취소 상태를 반영하지 못했습니다. 최신 상태를 확인해주세요.' } };
   }
@@ -567,7 +577,7 @@ async function registerSeowonReply(parsed: SeowonTrackingParseResult, requestedO
     const outcomes=new Map((result.data as TrackingBatchRow[]).map(row=>[row.reference,row]));
     const deliveries:{orderId:string;shipmentId:string}[]=[];
     for(const command of match.commands){
-      const outcome=outcomes.get(command.shipmentId),reference=command.shipmentId.slice(-8).toUpperCase();
+      const outcome=outcomes.get(command.shipmentId),reference=commerceReferenceLabel(command.shipmentId,command.shipmentNumber);
       if(outcome?.ok&&outcome.dispatched!==false){succeeded.push(reference);deliveries.push(...(outcome.packedShipments??[{orderId:command.orderId,shipmentId:command.shipmentId}]));}
       else if(outcome?.ok)unchanged++; // 다른 운영자가 같은 회신을 먼저 등록했다.
       else for(const line of command.lines)failed.push({line,reference,reason:shipmentMutationError(outcome?.error??'')});
@@ -590,18 +600,22 @@ export async function bulkRegisterAdminOrderTrackingAction(
     const file = formData.get('file');
     if (file instanceof File && file.size > 0) {
       const workbook=/\.xlsx$/i.test(file.name);
-      if (file.size > (workbook?TRACKING_IMPORT_FILE_LIMIT_BYTES:TRACKING_IMPORT_TEXT_LIMIT_BYTES)) return {errors:{form:workbook?'XLSX 파일은 1MB 이하로 올려주세요. 운송장은 1,000줄까지 등록할 수 있습니다.':'CSV·TSV·텍스트 파일은 256KB 이하로 올려주세요. 운송장은 1,000줄까지 등록할 수 있습니다.'}};
-      if (workbook) parsed=await parseTrackingWorkbook(Buffer.from(await file.arrayBuffer()),carriers);
+      if (file.size > TRACKING_IMPORT_FILE_LIMIT_BYTES) return {errors:{form:`${workbook?'XLSX':'CSV·TSV·텍스트'} 파일은 1MB 이하로 올려주세요. 운송장은 1,000줄까지 등록할 수 있습니다.`}};
+      const password=formData.get('filePassword');
+      if (workbook) parsed=await parseTrackingWorkbook(Buffer.from(await file.arrayBuffer()),carriers,typeof password==='string'?password:'');
       else if (/\.(csv|tsv|txt)$/i.test(file.name)) {
-        const text=await file.text();
+        const text=decodeSpreadsheetText(new Uint8Array(await file.arrayBuffer()));
         if(/^\uFEFF?"?받는분전화번호/.test(text))return {errors:{form:'남양주(서원) 송장양식 회신은 XLSX로 올려주세요.'}};
-        parsed=parseTrackingImport(text,carriers);
+        // 표준 양식 CSV는 열이 많아 XLSX와 같은 1MB까지 받는다. 일반 세 칸 회신은 종전대로 256KB다.
+        const standard=parseSmartStoreReplyText(text,carriers);
+        if(!standard&&file.size>TRACKING_IMPORT_TEXT_LIMIT_BYTES)return {errors:{form:'CSV·TSV·텍스트 파일은 256KB 이하로 올려주세요. 운송장은 1,000줄까지 등록할 수 있습니다.'}};
+        parsed=standard??parseTrackingImport(text,carriers);
       }
       else return {errors:{form:'XLSX 또는 CSV·TSV 파일을 올려주세요.'}};
     } else {
       const text=String(formData.get('pasted')??'');
       if(Buffer.byteLength(text,'utf8')>TRACKING_IMPORT_TEXT_LIMIT_BYTES)return {errors:{form:'붙여넣기 내용은 256KB 이하로 나누어주세요.'}};
-      parsed=parseTrackingImport(text,carriers);
+      parsed=parseSmartStoreReplyText(text,carriers)??parseTrackingImport(text,carriers);
     }
   } catch(error) { return {errors:{form:error instanceof Error?error.message:'운송장 파일을 읽지 못했습니다.'}}; }
   const requestedOrigin=String(formData.get('originId')??'');

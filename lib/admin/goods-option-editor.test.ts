@@ -194,3 +194,39 @@ describe('관리코드 칸의 저장 시 코드 예상', () => {
     expect(predictGoodsOptionCodes([kept(RED), fresh()], 'GOOD', { goodCode: null, options: [] })).toEqual([null, null]);
   });
 });
+
+/* D7② 옵션별 구매 제한 — 키를 보내지 않으면 DB가 기존 값을 유지한다(T6). 편집기는 읽은 값·입력한 값만 키로 보낸다. */
+describe('옵션별 구매 제한 키', () => {
+  const option = { name: '기본 옵션', code: '', attributes: {}, extraPrice: 0, stockQty: 3 };
+  const variant = {
+    id: '11111111-1111-4111-8111-111111111111', goodId: 'good-1', name: '기본 옵션', code: 'GOOD-1-01',
+    attributes: {}, price: 10000, stockQty: 3, isDefault: true, archivedAt: null,
+  };
+
+  it('양의 정수·null(제한 없음)은 저장하고, 0·소수·문자·상한 초과는 거절한다', () => {
+    for (const limits of [{ orderMaxQty: 2, memberMaxQty: 5 }, { orderMaxQty: null, memberMaxQty: null }, { orderMaxQty: 2147483647 }, {}]) {
+      const rows = [{ ...option, ...limits }];
+      expect(parseGoodsOptionRows(JSON.stringify(rows), 10000)).toEqual({ ok: true, rows });
+      expect(restoreGoodsOptionRows(JSON.stringify(rows))).toEqual(rows);
+    }
+    for (const invalid of [{ orderMaxQty: 0 }, { orderMaxQty: 1.5 }, { memberMaxQty: '3' }, { memberMaxQty: -1 }, { orderMaxQty: 2147483648 }]) {
+      expect(parseGoodsOptionRows(JSON.stringify([{ ...option, ...invalid }]), 10000)).toMatchObject({ ok: false });
+    }
+  });
+
+  it('저장된 옵션이 제한 값을 읽어 온 경우에만 키를 싣고, 읽지 않았으면 키를 빼 DB 값을 보존한다', () => {
+    expect(initialGoodsOptionRows([variant], 10000)[0]).not.toHaveProperty('orderMaxQty');
+    expect(initialGoodsOptionRows([variant], 10000)[0]).not.toHaveProperty('memberMaxQty');
+    const loaded = initialGoodsOptionRows([{ ...variant, orderMaxQty: 2, memberMaxQty: null }], 10000)[0];
+    expect(loaded).toMatchObject({ orderMaxQty: 2, memberMaxQty: null });
+    expect(JSON.parse(JSON.stringify([loaded]))[0]).toHaveProperty('memberMaxQty', null);
+  });
+
+  it('옵션값을 다시 적용해도 같은 조합의 제한은 유지하고 새 조합에는 키가 없다', () => {
+    const red = { ...option, name: '빨강', attributes: { 색상: '빨강' }, orderMaxQty: 1 };
+    const result = generateGoodsOptionRows([{ name: '색상', values: '빨강, 파랑' }], [red]);
+    if (!result.ok) throw new Error();
+    expect(result.rows[0]).toBe(red);
+    expect(result.rows[1]).not.toHaveProperty('orderMaxQty');
+  });
+});

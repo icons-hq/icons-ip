@@ -13,6 +13,7 @@ run_sql_test() {
 run_sql_test supabase/tests/catalog_baseline.sql
 run_sql_test supabase/tests/profile_editing.sql
 run_sql_test supabase/tests/minimum_age_gate.sql
+run_sql_test supabase/tests/adult_verification.sql
 run_sql_test supabase/tests/account_deletion_phase_one.sql
 bash supabase/tests/account_deletion_phase_one_concurrency.sh
 run_sql_test supabase/tests/email_dispatcher_dark.sql
@@ -132,6 +133,7 @@ run_sql_test supabase/tests/goods_kc_compliance.sql
 run_sql_test supabase/tests/goods_kc_not_applicable_quick_review.sql
 run_sql_test supabase/tests/goods_kc_publish_draft_fallback.sql
 run_sql_test supabase/tests/goods_preorders.sql
+run_sql_test supabase/tests/goods_workspace_atomic_save.sql
 run_sql_test supabase/tests/coupon_targeting.sql
 run_sql_test supabase/tests/coupon_targeting_restore.sql
 run_sql_test supabase/tests/checkout_coupon_expectation.sql
@@ -153,6 +155,7 @@ run_sql_test supabase/tests/order_shipments_contract.sql
 run_sql_test supabase/tests/shipment_dispatch_workspace.sql
 run_sql_test supabase/tests/shipment_export.sql
 run_sql_test supabase/tests/shipment_export_variant_code.sql
+run_sql_test supabase/tests/shipment_export_external_identity.sql
 run_sql_test supabase/tests/warehouse_native_tracking.sql
 run_sql_test supabase/tests/warehouse_reply_exchange.sql
 run_sql_test supabase/tests/goods_excel_imports.sql
@@ -181,6 +184,9 @@ run_sql_test supabase/tests/goods_sale_restriction.sql
 run_sql_test supabase/tests/bank_deposit_feed.sql
 run_sql_test supabase/tests/admin_stats_reports.sql
 run_sql_test supabase/tests/commerce_wishlist_restock.sql
+run_sql_test supabase/tests/goods_variant_purchase_limits.sql
+run_sql_test supabase/tests/random_option_allocation.sql
+run_sql_test supabase/tests/random_option_customer_masking.sql
 run_sql_test supabase/tests/restock_alerts_variants.sql
 run_sql_test supabase/tests/coupon_redemption.sql
 bash supabase/tests/coupon_issue_concurrency.sh
@@ -212,6 +218,7 @@ run_sql_test supabase/tests/purchase_restriction_batches.sql
 run_sql_test supabase/tests/coupon_issue_schedule.sql
 run_sql_test supabase/tests/store_branding_settings.sql
 run_sql_test supabase/tests/admin_goods_photo_library.sql
+run_sql_test supabase/tests/admin_artwork_upload_feedback.sql
 run_sql_test supabase/tests/admin_seller_claim_intake.sql
 run_sql_test supabase/tests/admin_optimistic_conflicts_http409.sql
 run_sql_test supabase/tests/admin_review_insights.sql
@@ -221,6 +228,9 @@ run_sql_test supabase/tests/admin_goods_server_drafts.sql
 run_sql_test supabase/tests/admin_inquiry_reply_template_management.sql
 run_sql_test supabase/tests/home_product_mosaic.sql
 run_sql_test supabase/tests/admin_loyalty_policy.sql
+run_sql_test supabase/tests/loyalty_grade_benefits.sql
+run_sql_test supabase/tests/address_book.sql
+ADDRESS_BOOK_TEST_SCOPE=ci SUPABASE_DB_CONTAINER="$db_container" bash supabase/tests/address_book_concurrency.sh
 run_sql_test supabase/tests/goods_dynamic_attributes.sql
 run_sql_test supabase/tests/goods_three_axis_options.sql
 bash supabase/tests/goods_photo_library_concurrency.sh "$db_container" postgres

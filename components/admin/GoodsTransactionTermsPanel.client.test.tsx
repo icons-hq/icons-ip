@@ -48,6 +48,11 @@ it('기본 상품의 미저장·저장 중 상태에서는 정책 전환을 시�
   props = { ...props, disabledReason: '기본 상품 미저장' }; const stale = button('복수구매 할인 저장'); expect(stale.props.disabled).toBe(true);
   (stale.props.onClick as () => void)(); expect(mocks.save).not.toHaveBeenCalled(); expect(text(render())).toContain('기본 상품 미저장');
 });
+/* T3a-7 근본 정리: 상품 편집기가 패널 위에 공통 잠금 안내를 보이면 패널은 같은 이유를 다시 그리지 않는다. 잠금은 그대로다. */
+it('이유 문장 표시를 끄면 본문에 이유를 그리지 않고 저장 잠금은 유지한다', () => {
+  props = { ...props, disabledReason: '기본 상품 미저장', showDisabledReason: false }; const stale = button('복수구매 할인 저장'); expect(stale.props.disabled).toBe(true);
+  (stale.props.onClick as () => void)(); expect(mocks.save).not.toHaveBeenCalled(); expect(text(render())).not.toContain('기본 상품 미저장');
+});
 it('같은 callback을 두 번 눌러도 한 요청이며 응답 불명은 원 UUID·원문으로 재확인한다', async () => {
   change('volume', 'threshold', '3'); const stale = button('복수구매 할인 저장'), pending = deferred<unknown>(); mocks.save.mockReturnValueOnce(pending.promise);
   (stale.props.onClick as () => void)(); (stale.props.onClick as () => void)(); expect(mocks.save).toHaveBeenCalledTimes(1); await flush();

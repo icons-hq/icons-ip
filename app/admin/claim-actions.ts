@@ -6,6 +6,14 @@ import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { revalidatePath } from 'next/cache';
 import { redirect, unstable_rethrow } from 'next/navigation';
 import {
+  ADMIN_CLAIM_BULK_DB_ITEM_RESERVE_MS,
+  ADMIN_CLAIM_BULK_PROVIDER_ITEM_RESERVE_MS,
+  adminClaimBulkSummary,
+  normalizeAdminClaimBulkForm,
+  runAdminClaimBulkSequentially,
+  type AdminClaimBulkState,
+} from '@/lib/admin/claim-bulk';
+import {
   adminClaimBasePath,
   normalizeAdminClaimCollectionForm,
   normalizeAdminClaimOriginCollectionForm,
@@ -20,14 +28,21 @@ import { ADMIN_CANCELLATION_RECHECK_LABELS } from '@/lib/admin/orders';
 import { withPreservedFormValues, type AdminFormValuesState } from '@/lib/admin/form-state';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import {
+  ORDER_CLAIM_TYPE_LABELS,
   isOrderClaimType,
+  orderClaimReferenceLabel,
   orderClaimRefundMethodForProvider,
   type OrderClaimRefundMethod,
   type OrderClaimType,
 } from '@/lib/orders/claims';
 import { reconcileOrderCancellation } from '@/lib/orders/cancellation-orchestrator.server';
 import { recoverGoodsPaymentManually } from '@/lib/payments/goods-manual-recovery.server';
+import {
+  automatedCancelProviderLabel,
+  providerCancelsAutomatically,
+} from '@/lib/payments/provider-capabilities';
 import { createClient } from '@/lib/supabase/server';
+import { adminPaymentCancelFailureMessage } from '@/lib/admin/payment-cancel-error';
 
 /* 어드민 클레임 콘솔 액션(#252).
  *
@@ -49,13 +64,13 @@ export interface AdminClaimActionState extends AdminFormValuesState {
 
 const DECIDE_FAILED = '클레임을 처리하지 못했습니다. 최신 상태를 확인해주세요.';
 const COLLECTION_FAILED = '수거 상태를 기록하지 못했습니다. 최신 상태를 확인해주세요.';
-const REFUND_FAILED = '환불 원장을 기록하지 못했습니다. 최신 상태를 확인해주세요.';
+const REFUND_FAILED = '환불 기록을 남기지 못했습니다. 최신 상태를 확인해주세요.';
 const RESHIP_FAILED = '재출고를 기록하지 못했습니다. 최신 상태를 확인해주세요.';
 const OPERATIONAL_FEE_FAILED = '운영 확인액을 기록하지 못했습니다. 최신 클레임을 다시 확인해주세요.';
-const FINALIZE_FAILED = '결제 취소 상태를 확정하지 못했습니다. 주문과 재고는 그대로 유지됩니다. 정합화 오류를 확인한 뒤 다시 시도해주세요.';
+const FINALIZE_FAILED = '결제 취소 상태를 확정하지 못했습니다. 주문과 재고는 그대로 유지됩니다. 결제사 확인 오류를 확인한 뒤 다시 시도해주세요.';
 /** 정합화 결과 코드가 있는 실패. 코드별 조치를 찾을 수 있게 그대로 싣는다(QA-10). */
 function finalizeFailed(code: string) {
-  return `결제 취소 상태를 확정하지 못했습니다(${code}). 주문과 재고는 그대로 유지됩니다. 정합화 오류의 코드별 조치를 확인한 뒤 다시 시도해주세요.`;
+  return adminPaymentCancelFailureMessage(code);
 }
 const IN_PROGRESS = '결제 상태 처리가 아직 끝나지 않았습니다. 주문과 재고는 그대로 유지됩니다.';
 const REFUND_METHOD_MISMATCH = '이 결제의 환불 수단과 다릅니다. 토스 결제는 결제사 취소(토스 전액 취소)로만 환불합니다. 화면을 새로고침한 뒤 다시 진행해주세요.';
@@ -85,10 +100,10 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string) {
     return '청약철회 기한이 지난 요청입니다. 승인 대신 사유를 남겨 거부해주세요.';
   }
   if (value.includes('claim_refund_finalization_required')) {
-    return '결제 취소 정합화가 끝나지 않았습니다. 재고 복원과 카드팩 회수가 확인된 뒤에만 환불 완료를 기록할 수 있습니다.';
+    return '결제 취소 확인이 끝나지 않았습니다. 재고 복원과 카드팩 회수가 확인된 뒤에만 환불 완료를 기록할 수 있습니다.';
   }
   if (value.includes('claim_refund_ledger_missing')) {
-    return '이 주문에는 환불 원장이 없습니다. 결제 내역을 먼저 확인해주세요.';
+    return '이 주문에는 환불 기록이 없습니다. 결제 내역을 먼저 확인해주세요.';
   }
   if (value.includes('exchange_has_no_refund')) return '교환 클레임에는 환불이 없습니다.';
   if (value.includes('claim_type_has_no_collection')) return '이 클레임에는 회수 확인이 필요하지 않습니다. 최신 처리 이력을 확인해주세요.';
@@ -110,6 +125,8 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string) {
   if (value.includes('reshipment_conflict')) return '이미 다른 운송장이나 상품으로 재출고한 교환입니다. 처리 이력을 확인해주세요.';
   if (value.includes('insufficient_or_overflowing_stock') || value.includes('stock_aggregate_overflow')) return '재고 수량을 적용할 수 없습니다. 최신 재고와 회수 수량을 확인해주세요.';
   if (value.includes('stock_out_of_range')) return '재출고할 옵션 재고가 부족합니다. 최신 옵션 수량을 확인해주세요.';
+  if (value.includes('invalid rejection reason')) return '거부 사유는 앞뒤 공백 없이 10자 이상 200자 이하로 입력해주세요.';
+  if (value.includes('invalid hold reason')) return '보류 사유는 앞뒤 공백 없이 10자 이상 200자 이하로 입력해주세요.';
   if (value.includes('claim_not_held')) return '보류 상태가 아닙니다.';
   if (value.includes('claim_not_found')) return '클레임을 찾을 수 없습니다.';
   if (value.includes('claim_operational_fee_conflict')) return '다른 운영자가 금액을 변경했습니다. 최신 클레임을 다시 열어주세요.';
@@ -195,7 +212,7 @@ async function issueApprovedClaimCancellation(
   if (!result.ok) {
     return {
       error: hasPayment
-        ? `취소는 승인했지만 결제 취소를 확정하지 못했습니다(${result.code}). 주문과 재고는 그대로 유지됩니다. 정합화 오류를 확인한 뒤 [환불 완료 확정]으로 다시 시도해주세요.`
+        ? `취소는 승인했습니다. ${adminPaymentCancelFailureMessage(result.code)}`
         : `취소는 승인했지만 주문 취소를 확정하지 못했습니다(${result.code}). 주문과 재고는 그대로 유지됩니다. 결제 내역이 없는 주문이라 [환불 완료 확정]은 보이지 않습니다. 원인을 확인한 뒤 ${ORDER_PANEL_RECHECK}으로 다시 시도해주세요.`,
     };
   }
@@ -203,14 +220,37 @@ async function issueApprovedClaimCancellation(
     return {
       message: hasPayment
         ? `취소를 승인했습니다. ${IN_PROGRESS} 잠시 뒤 [환불 완료 확정]으로 다시 확인해주세요.`
-        : `취소를 승인했습니다. ${IN_PROGRESS} 결제 결과가 정해지기 전이라 환불 원장이 없어 [환불 완료 확정]은 보이지 않습니다. 잠시 뒤 주문 통합검색에서 이 주문을 열어 [${RECHECK_PROCESSING}]으로 다시 확인해주세요. Korpay 결제창 주문은 그 자리의 Korpay 버튼으로 처리합니다.`,
+        : `취소를 승인했습니다. ${IN_PROGRESS} 결제 결과가 정해지기 전이라 환불 기록이 없어 [환불 완료 확정]은 보이지 않습니다. 잠시 뒤 주문 통합검색에서 이 주문을 열어 [${RECHECK_PROCESSING}]으로 다시 확인해주세요. Korpay 결제창 주문은 그 자리의 Korpay 버튼으로 처리합니다.`,
     };
   }
   return {
-    message: provider === 'toss'
-      ? '취소를 승인하고 토스 전액 취소까지 확인했습니다. 주문 취소·재고 복원·카드팩 회수와 환불 원장 기록이 함께 끝났습니다.'
+    message: providerCancelsAutomatically(provider)
+      ? `취소를 승인하고 ${automatedCancelProviderLabel(provider)} 전액 취소까지 확인했습니다. 주문 취소·재고 복원·카드팩 회수와 환불 원장 기록이 함께 끝났습니다.`
       : '취소를 승인하고 주문 취소를 마쳤습니다. 결제 전 주문이라 결제사 취소는 없었습니다.',
   };
+}
+
+/**
+ * 결정 한 건의 단건 경로. 상세 패널과 목록 일괄 처리가 같은 함수를 지난다(R8 · D8).
+ *
+ * 승인 결과 단계는 폼이 아니라 DB가 돌려준 값으로 읽는다. 취소는 회수할 물건이 없어
+ * 곧장 processing이 되고, 그 순간 결제사 취소를 발행한다.
+ */
+async function decideOneOrderClaim(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  actorId: string,
+  input: { claimId: string; decision: string; note: string | null },
+): Promise<{ decided: boolean; state: AdminClaimActionState }> {
+  const { data, error } = await supabase.rpc('admin_decide_order_claim', {
+    p_claim_id: input.claimId,
+    p_decision: input.decision,
+    p_note: input.note,
+  });
+  if (error) return { decided: false, state: { error: rpcErrorMessage(error.message, DECIDE_FAILED) } };
+  if (input.decision === 'approve' && data === 'processing') {
+    return { decided: true, state: await issueApprovedClaimCancellation(input.claimId, actorId) };
+  }
+  return { decided: true, state: { message: DECISION_MESSAGES[input.decision] ?? '클레임을 처리했습니다.' } };
 }
 
 export async function decideOrderClaimAction(
@@ -227,23 +267,90 @@ export async function decideOrderClaimAction(
   }
 
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc('admin_decide_order_claim', {
-    p_claim_id: normalized.value.claimId,
-    p_decision: normalized.value.decision,
-    p_note: normalized.value.note,
-  });
-  if (error) return { error: rpcErrorMessage(error.message, DECIDE_FAILED) };
+  const { decided, state } = await decideOneOrderClaim(supabase, access.userId, normalized.value);
+  if (decided) revalidateClaimSurfaces(normalized.value.claimId, readClaimType(formData));
+  return state;
+}
 
-  /* 승인 결과 단계는 폼이 아니라 DB가 돌려준 값으로 읽는다. 취소는 회수할 물건이
-     없어 곧장 processing이 되고, 그 순간 결제사 취소를 발행한다. */
-  if (normalized.value.decision === 'approve' && data === 'processing') {
-    const issued = await issueApprovedClaimCancellation(normalized.value.claimId, access.userId);
-    revalidateClaimSurfaces(normalized.value.claimId, readClaimType(formData));
-    return issued;
+interface BulkClaimRow {
+  id: string;
+  reference: number | string | null;
+}
+
+/**
+ * 목록 일괄 처리(R8 · D8) — 승인·거부(공통 사유)·검토중.
+ *
+ * 새 배열 RPC 없이 건마다 단건 경로(decideOneOrderClaim)를 그대로 탄다. 토스 취소 API는
+ * 결제 단건이라 앞 건의 결제사 취소가 끝난 뒤에 다음 건을 시작하고(전체 직렬), 시간은 액션
+ * 진입부터 잰다. 경과가 예산을 넘었거나 다음 건의 최악 시간(취소 승인 = 결제사 왕복 셋)이 목록
+ * maxDuration 안에 끝나지 않으면 남은 건은 시작하지 않고 '미처리'로 돌려준다.
+ *
+ * 요청번호는 처음에 한 번 읽고, 유형은 건을 시작하기 직전에 다시 읽는다 — 그 사이 다른
+ * 운영자가 반품↔교환을 전환한 요청을 이 목록의 결정으로 처리하지 않는다.
+ */
+export async function bulkDecideOrderClaimsAction(
+  _state: AdminClaimBulkState,
+  formData: FormData,
+): Promise<AdminClaimBulkState> {
+  const startedAt = Date.now();
+  const access = await requireStaffAction();
+  if (access.error || !access.userId) return { error: access.error?.error ?? DECIDE_FAILED };
+  const actorId = access.userId;
+
+  const claimType = readClaimType(formData);
+  if (!claimType) return { error: '목록을 새로고침한 뒤 다시 실행해주세요.' };
+
+  const normalized = normalizeAdminClaimBulkForm(formData);
+  if (!normalized.ok) return { error: normalized.error };
+  const { claimIds, decision, note } = normalized.value;
+
+  const supabase = await createClient();
+  const { data: rows, error: readError } = await supabase
+    .from('order_cancellation_requests')
+    .select('id,reference')
+    .in('id', claimIds);
+  if (readError || !Array.isArray(rows)) {
+    return { error: '선택한 요청을 읽지 못했습니다. 새로고침한 뒤 다시 실행해주세요.' };
   }
+  const claims = new Map((rows as BulkClaimRow[]).map((row) => [String(row.id).toLowerCase(), row]));
+  const referenceOf = (id: string) => {
+    const reference = Number(claims.get(id)?.reference);
+    return Number.isSafeInteger(reference) && reference > 0 ? orderClaimReferenceLabel(reference) : null;
+  };
 
-  revalidateClaimSurfaces(normalized.value.claimId, readClaimType(formData));
-  return { message: DECISION_MESSAGES[normalized.value.decision] ?? '클레임을 처리했습니다.' };
+  /* 취소 승인만 결정 직후 결제사 취소(사전 조회·취소·사후 조회)까지 간다. */
+  const reserveMs = claimType === 'cancel' && decision === 'approve'
+    ? ADMIN_CLAIM_BULK_PROVIDER_ITEM_RESERVE_MS
+    : ADMIN_CLAIM_BULK_DB_ITEM_RESERVE_MS;
+
+  const outcomes = await runAdminClaimBulkSequentially(claimIds, async (claimId) => {
+    if (!claims.has(claimId)) return { ok: false, message: '클레임을 찾을 수 없습니다.' };
+    const { data: latest, error: latestError } = await supabase
+      .from('order_cancellation_requests')
+      .select('claim_type')
+      .eq('id', claimId)
+      .maybeSingle<{ claim_type: string }>();
+    if (latestError) return { ok: false, message: '요청을 다시 읽지 못했습니다. 최신 상태를 확인해주세요.' };
+    if (!latest) return { ok: false, message: '클레임을 찾을 수 없습니다.' };
+    if (latest.claim_type !== claimType) {
+      return { ok: false, message: `${ORDER_CLAIM_TYPE_LABELS[claimType]} 요청이 아닙니다. 해당 목록에서 처리해주세요.` };
+    }
+    const { decided, state } = await decideOneOrderClaim(supabase, actorId, { claimId, decision, note });
+    if (decided) revalidateClaimSurfaces(claimId, claimType);
+    return state.error
+      ? { ok: false, message: state.error }
+      : { ok: true, message: state.message ?? DECISION_MESSAGES[decision] ?? '클레임을 처리했습니다.' };
+  }, { startedAt, reserveMs, clock: () => Date.now() });
+
+  return {
+    summary: adminClaimBulkSummary(outcomes.map((outcome) => outcome.outcome)),
+    results: outcomes.map(({ item, outcome, message }) => ({
+      claimId: item,
+      reference: referenceOf(item),
+      outcome,
+      message,
+    })),
+  };
 }
 
 export async function recordOrderClaimCollectionAction(
@@ -447,7 +554,10 @@ export async function recordOrderClaimRefundAction(
   if (derivedMethod && derivedMethod !== normalized.value.method) {
     return { error: REFUND_METHOD_MISMATCH };
   }
-  const tossPayment = current.payment?.provider === 'toss';
+  const paymentProvider = current.payment?.provider ?? null;
+  const cancelLabel = providerCancelsAutomatically(paymentProvider)
+    ? automatedCancelProviderLabel(paymentProvider)
+    : null;
 
   if (normalized.value.stage === 'completed') {
     const orderId = String(formData.get('orderId') ?? '');
@@ -498,7 +608,7 @@ export async function recordOrderClaimRefundAction(
        보이면 운영자가 같은 돈을 다른 수단으로 다시 돌려준다. 끝난 일을 먼저 말한다. */
     return {
       error: finalizationRan
-        ? `${tossPayment ? '토스 전액 취소와 ' : ''}주문 취소·재고 복원·카드팩 회수는 이미 완료됐습니다. 환불 원장 기록만 실패했습니다 — 다시 환불하지 마세요. ${reason}`
+        ? `${cancelLabel ? `${cancelLabel} 전액 취소와 ` : ''}주문 취소·재고 복원·카드팩 회수는 이미 완료됐습니다. 환불 원장 기록만 실패했습니다 — 다시 환불하지 마세요. ${reason}`
         : reason,
     };
   }
@@ -506,8 +616,8 @@ export async function recordOrderClaimRefundAction(
   revalidateClaimSurfaces(normalized.value.claimId, readClaimType(formData));
   if (normalized.value.stage === 'filed') {
     return {
-      message: tossPayment
-        ? '환불 접수를 기록했습니다. 토스 전액 취소는 [환불 완료 확정]을 누를 때 발행됩니다.'
+      message: cancelLabel
+        ? `환불 접수를 기록했습니다. ${cancelLabel} 전액 취소는 [환불 완료 확정]을 누를 때 발행됩니다.`
         : '환불 접수를 기록했습니다.',
     };
   }
@@ -517,8 +627,8 @@ export async function recordOrderClaimRefundAction(
     return { message: '환불 완료를 원장에 기록했습니다. 주문 취소와 재고 복원은 이미 확정된 상태였습니다.' };
   }
   return {
-    message: tossPayment
-      ? '토스 전액 취소를 확인하고 환불 완료를 기록했습니다. 재고 복원과 카드팩 회수가 함께 확정됐습니다.'
+    message: cancelLabel
+      ? `${cancelLabel} 전액 취소를 확인하고 환불 완료를 기록했습니다. 재고 복원과 카드팩 회수가 함께 확정됐습니다.`
       : '환불 완료를 기록했습니다. 재고 복원과 카드팩 회수가 함께 확정됐습니다.',
   };
 }

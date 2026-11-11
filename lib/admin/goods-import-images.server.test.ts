@@ -155,14 +155,14 @@ describe('import image source boundary', () => {
     ).rejects.toThrow('내부');
   });
   it('enforces header and streamed size and requires supported image signatures', async () => {
-    response(200, { 'content-type': 'image/png', 'content-length': String(6 * 1024 * 1024) });
+    response(200, { 'content-type': 'image/png', 'content-length': String(21 * 1024 * 1024) });
     await expect(
       fetchGoodsImportImage('https://example.test/a.png'),
-    ).rejects.toThrow('5MB');
-    response(200, { 'content-type': 'image/png' }, Buffer.concat([PNG, Buffer.alloc(6 * 1024 * 1024)]));
+    ).rejects.toThrow('20MB');
+    response(200, { 'content-type': 'image/png' }, Buffer.concat([PNG, Buffer.alloc(21 * 1024 * 1024)]));
     await expect(
       fetchGoodsImportImage('https://example.test/a.png'),
-    ).rejects.toThrow('5MB');
+    ).rejects.toThrow('20MB');
     expect(imageMime(Buffer.from('<svg></svg>'))).toBeNull();
     expect(imageMime(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))).toBe(
       'image/png',
@@ -265,5 +265,23 @@ describe('사방넷 이미지 미리 받기와 초안 이미지 준비', () => {
     expect(goodsImportView({ ...batch, results: {} }).groups[0].skippedImages).toBe(0);
     expect(goodsImportView({ ...batch, plan: [{ ...planned, format: undefined }], results: { 0: { status: 'success' } } })
       .groups[0].skippedImages).toBe(0);
+  });
+
+  /* 20261103120000: 확인 시작이 운영자별 한도에 걸리면 null 대신 blockedReason이 온다. 예전처럼 1분 창 대기로 이어 간다. */
+  it('운영자별 확인 한도에 걸린 결과도 1분 창 대기로 이어서 처리한다', async () => {
+    const planned = group({ images: [{ field: 'image_path', kind: 'url', source: 'https://img.example.com/main.png', cached: 'remote:main' }] });
+    const batch = batchWith([planned]);
+    mocks.rpc.mockImplementation(async (_name: string, args: { target_index: number; target_images: Record<string, unknown> }) => {
+      batch.prepared_images[args.target_index] = { ...batch.prepared_images[args.target_index], ...args.target_images };
+      return { error: null };
+    });
+    const busy = Array.from({ length: ADMIN_ARTWORK_VERIFICATIONS_PER_MINUTE }, () => ({ processing_started_at: new Date().toISOString() }));
+    mocks.claims
+      .mockResolvedValueOnce({ data: [], error: null })
+      .mockResolvedValueOnce({ data: busy, error: null });
+    mocks.promote.mockResolvedValueOnce({ blockedReason: 'verification_rate_limited' });
+
+    await expect(prepareGoodsImportImages(batch, 0, new Map([['remote:main', PNG]]))).resolves.toMatchObject({ ready: false, retryAfter: expect.any(Number) });
+    expect(String(batch.prepared_images[0]?.image_path ?? '')).not.toMatch(/^public-media\//);
   });
 });

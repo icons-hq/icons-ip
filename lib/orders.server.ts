@@ -1,6 +1,5 @@
 import 'server-only';
 import { parseOrderReshipmentHistory } from './orders/reshipment-items';
-import { readCompleteIdPages } from '@/lib/supabase/complete-id-pages';
 import { readGoodsCustomInputSnapshot } from '@/lib/goods-custom-inputs';
 import { loadGiftCheckoutOrder } from './gifts-order.server';
 import { loadGiftOrderDetail, loadGiftOrderList } from './gifts-order-detail.server';
@@ -14,7 +13,6 @@ import {
   isOrderCancellationRequestStatus,
   ORDER_DETAIL_STATUSES,
   summarizeOrderItems,
-  VISIBLE_ORDER_STATUSES,
   type OrderDetail,
   type OrderCancellationRequestStatus,
   type OrderListItem,
@@ -23,6 +21,7 @@ import { isOrderClaimStage, isOrderClaimType } from './orders/claims';
 import { loadOrderShipments } from './orders/shipments.server';
 import { getShippingCarrierRegistry } from './orders/shipment.server';
 import { createClient } from '@/lib/supabase/server';
+import { attachRandomItemsToShipments, readMyOrderItems } from './orders/customer-items.server';
 
 interface OrderListRow {
   order_number?: string;
@@ -48,12 +47,18 @@ interface OrderDetailRow extends OrderListRow {
 
 interface OrderListItemRow {
   order_id: string;
+  good_id: string;
   qty: number;
+  unit_price: number;
   good_name_snapshot: string;
+  /** 마스킹 RPC(my_order_items)가 주는 판매 방식. 'random' 줄은 DB가 같은 주문·굿즈의 배정 행을 이미 한 줄로 합쳤다. */
+  option_sale_mode?: 'select' | 'random';
 }
 
 interface CancellationRequestOrderRow {
   order_id: string;
+  claim_type: string;
+  stage: string;
 }
 
 interface OrderDetailItemRow extends OrderListItemRow {
@@ -110,44 +115,53 @@ function requireDetailStatus(status: string) {
 
 export async function loadOrders(userId: string, {includePending=false}:{includePending?:boolean}={}): Promise<OrderListItem[]> {
   const supabase = await createClient();
-  const [orderResult, requestResult, giftOrders] = await Promise.all([
+  const [orderResult, giftOrders] = await Promise.all([
     supabase
       .from('orders')
       .select('id,order_number,user_id,status,total,created_at,payment_method')
       .eq('user_id', userId)
-      .in('status', includePending?[...ORDER_DETAIL_STATUSES]:[...VISIBLE_ORDER_STATUSES])
+      .in('status', [...ORDER_DETAIL_STATUSES])
       .order('created_at', { ascending: false })
       .order('id', { ascending: false }),
-    supabase
-      .from('order_cancellation_requests')
-      .select('order_id'),
     loadGiftOrderList(includePending),
   ]);
 
   if (orderResult.error) {
     throw new Error(`Failed to load orders: ${orderResult.error.message}`);
   }
-  if (requestResult.error) {
-    throw new Error(`Failed to load order cancellation requests: ${requestResult.error.message}`);
-  }
 
-  let orderRows = (orderResult.data ?? []) as OrderListRow[];
-  const requestedOrderIds = [...new Set(
-    ((requestResult.data ?? []) as CancellationRequestOrderRow[]).map((request) => request.order_id),
-  )];
-
-  if (requestedOrderIds.length && !includePending) {
-    const { data: pendingData, error: pendingError } = await supabase
-      .from('orders')
-      .select('id,order_number,user_id,status,total,created_at,payment_method')
-      .eq('user_id', userId)
-      .eq('status', 'pending')
-      .in('id', requestedOrderIds)
-      .order('created_at', { ascending: false })
+  const userOrderRows = (orderResult.data ?? []) as OrderListRow[];
+  /* 클레임은 이 회원의 주문 id로만 읽는다. 운영자 계정은 RLS로 전체 클레임을 읽을 수 있어서, 조건 없이
+     읽으면 자기 /orders에서 남의 클레임까지 받아 온다. 요청자(requested_by)로는 거르지 않는다 —
+     운영자 전액 취소처럼 운영자가 접수한 클레임도 고객 목록에 보여야 한다. */
+  const latestClaimByOrderId = new Map<string, NonNullable<OrderListItem['claim']>>();
+  const requestedOrderIds = new Set<string>();
+  if (userOrderRows.length) {
+    /* 주문마다 가장 최근 클레임 하나가 목록 배지가 된다 — 상세와 같은 기준(requested_at 최신). */
+    const { data: requestData, error: requestError } = await supabase
+      .from('order_cancellation_requests')
+      .select('order_id,claim_type,stage')
+      .in('order_id', userOrderRows.map((order) => order.id))
+      .order('requested_at', { ascending: false })
       .order('id', { ascending: false });
-    if (pendingError) throw new Error(`Failed to load requested orders: ${pendingError.message}`);
-    orderRows = [...orderRows, ...((pendingData ?? []) as OrderListRow[])];
+    if (requestError) {
+      throw new Error(`Failed to load order cancellation requests: ${requestError.message}`);
+    }
+    for (const request of (requestData ?? []) as CancellationRequestOrderRow[]) {
+      requestedOrderIds.add(request.order_id);
+      if (latestClaimByOrderId.has(request.order_id)) continue;
+      /* 모르는 값은 배지를 만들지 않는다 — 상세가 판정을 보여준다. */
+      if (isOrderClaimType(request.claim_type) && isOrderClaimStage(request.stage)) {
+        latestClaimByOrderId.set(request.order_id, { claimType: request.claim_type, stage: request.stage });
+      }
+    }
   }
+
+  /* 결제 대기 카드 주문은 복구 목록(includePending)이 아니면 취소 요청이 남아 있는 것만 보인다.
+     무통장 입금 대기는 접수 = 주문 완료(ADR-0026)라 기본 목록에 '입금 대기'로 보인다. */
+  const orderRows = userOrderRows.filter((order) => (
+    includePending || order.status !== 'pending' || order.payment_method === 'bank_transfer' || requestedOrderIds.has(order.id)
+  ));
 
   orderRows.sort((left, right) => (
     right.created_at.localeCompare(left.created_at) || right.id.localeCompare(left.id)
@@ -156,19 +170,15 @@ export async function loadOrders(userId: string, {includePending=false}:{include
   if (orderRows.length === 0) return giftOrders.sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));
 
   const orderIds = orderRows.map((order) => order.id);
-  const { data: itemData, error: itemError } = await readCompleteIdPages<OrderListItemRow&{id:string}>((afterId,pageSize)=>{
-    let query=supabase.from('order_items').select('id,order_id,qty,good_name_snapshot',{count:'exact'})
-      .in('order_id',orderIds).order('id',{ascending:true}).limit(pageSize);
-    if(afterId)query=query.gt('id',afterId);
-    return query;
-  });
+  /* 랜덤 판매 굿즈(D5②)의 배정 행은 고객 직접 읽기에서 빠진다 — 마스킹 RPC로 읽어야 수량·요약이 맞다. */
+  const { data: itemData, error: itemError } = await readMyOrderItems<OrderListItemRow&{id:string}>(supabase, orderIds, 'id,order_id,good_id,qty,unit_price,good_name_snapshot,option_sale_mode');
 
   if (itemError) {
     throw new Error(`Failed to load order items: ${itemError.message}`);
   }
 
   const itemsByOrderId = new Map<string, OrderListItemRow[]>();
-  for (const item of (itemData ?? []) as OrderListItemRow[]) {
+  for (const item of itemData ?? []) {
     const items = itemsByOrderId.get(item.order_id) ?? [];
     items.push(item);
     itemsByOrderId.set(item.order_id, items);
@@ -192,6 +202,7 @@ export async function loadOrders(userId: string, {includePending=false}:{include
       itemLabel: summary.label,
       itemCount: summary.itemCount,
       paymentMethod: normalizeCheckoutPaymentMethod(order.payment_method) ?? 'card',
+      claim: latestClaimByOrderId.get(order.id) ?? null,
     };
   })].sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));
 }
@@ -228,13 +239,9 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
 
   const status = requireDetailStatus(orderData.status);
   const [itemsResult, paymentResult, ticketsResult, cancellationRequestResult, eligibilityResult, reshipmentResult] = await Promise.all([
-    readCompleteIdPages<OrderDetailItemRow>((afterId,pageSize)=>{
-      let query=supabase.from('order_items')
-        .select('id,order_id,product_order_number,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,variant_id,variant_name_snapshot,variant_code_snapshot,custom_inputs_snapshot,supply_source,preorder_expected_ship_date',{count:'exact'})
-        .eq('order_id',orderId).order('id',{ascending:true}).limit(pageSize);
-      if(afterId)query=query.gt('id',afterId);
-      return query;
-    }),
+    /* 랜덤 판매 굿즈(D5②)는 옵션명 '랜덤'·장바구니 키 옵션으로만 보인다. 배정 옵션은 고객에게 내려오지 않는다. */
+    readMyOrderItems<OrderDetailItemRow>(supabase, [orderId],
+      'id,order_id,product_order_number,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,variant_id,variant_name_snapshot,variant_code_snapshot,custom_inputs_snapshot,supply_source,preorder_expected_ship_date,option_sale_mode,shipment_id'),
     supabase
       .from('payment_summaries')
       .select('id,amount,status,created_at')
@@ -328,7 +335,8 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
     claimEligibility,
     paymentMethod: normalizeCheckoutPaymentMethod(orderData.payment_method) ?? 'card',
     expiresAt: orderData.expires_at,
-    items: ((itemsResult.data ?? []) as OrderDetailItemRow[]).map((item) => ({
+    /* 랜덤 배정 행은 DB(my_order_items)가 주문·굿즈마다 한 줄로 합쳐 준다 — 나뉜 개수도 배정 결과의 일부다. */
+    items: (itemsResult.data ?? []).map((item) => ({
       id: item.id,
       ...(item.product_order_number ? { productOrderNumber: item.product_order_number } : {}),
       goodId: item.good_id,
@@ -376,7 +384,8 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
           reshipDeliveredAt: cancellationRequestRow.reship_delivered_at ?? null,
         }
       : null,
-    shipments: await loadOrderShipments(supabase, [orderId], await getShippingCarrierRegistry()),
+    /* 고객은 배송 건 품목의 랜덤 배정 행을 읽지 못한다 — 합친 줄을 my_order_items 의 배송 건에 붙인다. */
+    shipments: attachRandomItemsToShipments(await loadOrderShipments(supabase, [orderId], await getShippingCarrierRegistry()), itemsResult.data ?? []),
     cardPacks: {
       issuedCount: ticketRows.length,
       availableCount: ticketRows.filter((ticket) => (

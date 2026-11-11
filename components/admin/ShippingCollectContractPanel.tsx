@@ -1,4 +1,5 @@
 'use client';
+import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { readShippingCollectContractAction, readShippingCollectOperationAction, saveShippingCollectContractAction } from '@/app/admin/shipping-collect-contract-actions';
 import { SHIPPING_COLLECT_FIELDS, SHIPPING_COLLECT_LABELS, parseShippingCollectPending, parseShippingCollectRequest, sameShippingCollectDocument, sameShippingCollectValues,
@@ -8,6 +9,18 @@ import { inquiryDraftSessionId } from '@/lib/admin/inquiry-drafts';
 import { INQUIRY_DRAFT_SIGN_OUT_EVENT } from '@/lib/admin/inquiry-draft-lifecycle';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/client';
+import { buttonVariants } from '@/components/admin/kit/ui/button';
+import { cn } from 'cn';
+import { useAdminLeaveGuard } from './useAdminLeaveGuard';
+
+/* 템플릿 룩(ADR-0028). 입력은 네이티브 그대로이고(어휘 CSS가 kit 모양을 입힌다), 버튼은 kit 버튼 모양이다. */
+const PRIMARY = cn(buttonVariants({ size: 'sm' }));
+const OUTLINE = cn(buttonVariants({ size: 'sm', variant: 'outline' }));
+const FIELD = 'flex min-w-0 flex-col gap-1.5';
+const FIELD_LABEL = 'font-medium';
+const HINT = 'text-xs text-muted-foreground';
+const TABLE_HEAD = 'h-9 px-2 text-left align-middle font-medium whitespace-nowrap';
+const TABLE_CELL = 'px-2 py-1.5 align-middle';
 
 type Edit = { base: ShippingCollectDocument; values: ShippingCollectValues; status: ShippingCollectStatus; latest: ShippingCollectDocument | null;
   retry: ShippingCollectRequest | null; pending: ShippingCollectPending | null; lookupMissing: boolean };
@@ -49,18 +62,7 @@ export function ShippingCollectContractPanel({ originId, accountId, canEdit }: {
       setEdit({ base: result.value, values: result.value.values, status: result.value.status, latest: null, retry: null, pending, lookupMissing: false });
     }).catch(() => { if (scope.canApply(ticket)) setError('착불 운영 조건을 불러오지 못했습니다.'); });
   }, [valid, sessionId, scope, originId, accountId, key, removePending, setEdit]);
-  useEffect(() => {
-    if (!valid || !protect) return;
-    const unload = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
-    const navigate = (event: MouseEvent) => {
-      const anchor = event.target instanceof Element ? event.target.closest('a[href]') : null;
-      if (!(anchor instanceof HTMLAnchorElement) || anchor.target === '_blank' || anchor.hasAttribute('download') || event.defaultPrevented) return;
-      const url = new URL(anchor.href, location.href); if (url.pathname === location.pathname && url.search === location.search && url.origin === location.origin) return;
-      if (busy || !window.confirm('착불 운영 조건에 저장하지 않은 입력이 있습니다. 화면을 나가면 입력은 사라지고 요청 확인 정보만 남습니다. 나가시겠습니까?')) { event.preventDefault(); event.stopPropagation(); }
-    };
-    window.addEventListener('beforeunload', unload); document.addEventListener('click', navigate, true);
-    return () => { window.removeEventListener('beforeunload', unload); document.removeEventListener('click', navigate, true); };
-  }, [valid, protect, busy]);
+  useAdminLeaveGuard({ dirty: valid && protect, blocked: valid && busy, message: '착불 운영 조건에 저장하지 않은 입력이 있습니다. 화면을 나가면 입력은 사라지고 요청 확인 정보만 남습니다. 나가시겠습니까?' });
   async function refresh() {
     if (!valid || lane.current) return;
     const ticket = scope.capture(); if (!ticket) return;
@@ -115,30 +117,30 @@ export function ShippingCollectContractPanel({ originId, accountId, canEdit }: {
     setError(''); setMessage('현재 저장본을 기준으로 편집합니다. 이후 저장은 이 버전이 바뀌면 거절됩니다.');
   }
   const locked = !canEdit || busy || Boolean(edit?.pending);
-  return <section className="card col wc-admin-kit" aria-labelledby={`collect-contract-${originId}`} style={{ padding: 16, marginTop: 16, gap: 12, minWidth: 0 }}>
-    <h3 id={`collect-contract-${originId}`}>착불 수납 운영 조건</h3>
-    <p>실제 수납 계약·출고 표기·증빙·환급 절차를 확인해 입력합니다. 상품의 착불 설정과 별도로 저장하며, 초안은 고객 선택에 적용되지 않습니다.</p>
-    {!auth.ready ? <p role="status">로그인 상태 확인 중…</p> : auth.blocked ? <p role="alert">로그인 계정 또는 세션이 바뀌었습니다. 현재 계정으로 화면을 다시 열어주세요.</p> : <>
-      {error && <p role="alert">{error}</p>}{message && <p role="status">{message}</p>}
-      {storageUnavailable && <p role="status">요청 확인 정보를 이 탭에 보관할 수 없습니다. 결과를 확인할 때까지 화면을 유지해주세요.</p>}
-      {!edit ? <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => void refresh()}>착불 운영 조건 다시 읽기</button> : <>
-        <p>현재 저장 상태: {statusLabel(edit.base.status)} · 버전 {edit.base.revision}</p>
-        {edit.pending && <div role="alert"><p>이전 저장 결과를 확인해야 합니다. 연락처와 계약 내용은 브라우저 저장소에 보관하지 않았습니다.</p>
-          <button type="button" className="btn" disabled={busy} onClick={() => void checkOperation()}>이전 저장 결과 확인</button>
-          {edit.retry && <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => void save(edit.retry!)}>같은 입력으로 결과 확인</button>}</div>}
-        {edit.latest && <div className="card col" style={{ padding: 12, gap: 8 }}><strong>최신 저장본: {statusLabel(edit.latest.status)} · 버전 {edit.latest.revision}</strong>
-          <details><summary>입력과 최신 저장본 비교</summary><div style={{ overflowX: 'auto' }}><table><thead><tr><th>항목</th><th>내 입력</th><th>최신 저장본</th></tr></thead><tbody>{SHIPPING_COLLECT_FIELDS.map(field => <tr key={field}><th scope="row">{SHIPPING_COLLECT_LABELS[field]}</th><td>{edit.values[field] || '미입력'}</td><td>{edit.latest!.values[field] || '미입력'}</td></tr>)}</tbody></table></div></details>
-          <button type="button" className="btn btn-ghost" disabled={busy || Boolean(edit.pending && !edit.lookupMissing)} onClick={() => adoptLatest(false)}>현재 저장값으로 편집 시작</button>
-          {!edit.pending && <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => adoptLatest(true)}>내 입력 유지 · 최신 버전을 저장 기준으로</button>}</div>}
-        <fieldset disabled={locked} className="col" style={{ border: 0, padding: 0, minWidth: 0, gap: 12 }}>
-          <label>착불 수납 상태<select value={edit.status} onChange={event => setEdit({ ...edit, status: event.target.value as ShippingCollectStatus })}><option value="draft">초안 · 미사용</option><option value="active">실제 운영 근거 확인 · 사용</option><option value="disabled">사용 안 함</option></select></label>
-          <div className="admin-form-grid">{SHIPPING_COLLECT_FIELDS.map(field => <label key={field}>{SHIPPING_COLLECT_LABELS[field]}
-            <input value={edit.values[field]} maxLength={field === 'collectorName' ? 100 : field === 'customerInstructions' ? 500 : 200} onChange={event => setEdit({ ...edit, values: { ...edit.values, [field]: event.target.value } })} />
-            {['collectorName', 'collectionMethod', 'refundContact', 'customerInstructions'].includes(field) ? <small>고객에게 표시되는 안내</small> : <small>운영 관리자용 근거</small>}</label>)}</div>
+  return <section className="mt-4 flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-sm text-card-foreground break-words" aria-labelledby={`collect-contract-${originId}`} data-shipping-collect-contract="">
+    <h3 className="text-base leading-snug font-medium" id={`collect-contract-${originId}`}>착불 수납 운영 조건</h3>
+    <p className="text-muted-foreground">실제 수납 계약·출고 표기·증빙·환급 절차를 확인해 입력합니다. 상품의 착불 설정과 별도로 저장하며, 초안은 고객 선택에 적용되지 않습니다.</p>
+    {!auth.ready ? <p className="text-muted-foreground" role="status">로그인 상태 확인 중…</p> : auth.blocked ? <p className="text-destructive" role="alert">로그인 계정 또는 세션이 바뀌었습니다. 현재 계정으로 화면을 다시 열어주세요.</p> : <>
+      {error && <p className="text-destructive" role="alert">{error}</p>}{message && <p className="text-muted-foreground" role="status">{message}</p>}
+      {storageUnavailable && <p className="text-muted-foreground" role="status">요청 확인 정보를 이 탭에 보관할 수 없습니다. 결과를 확인할 때까지 화면을 유지해주세요.</p>}
+      {!edit ? <button type="button" className={`${OUTLINE} w-fit`} data-slot="button" disabled={busy} onClick={() => void refresh()}>착불 운영 조건 다시 읽기</button> : <>
+        <p className="flex flex-wrap items-center gap-2">현재 저장 상태 <AdminStatusBadge tone={edit.base.status === 'active' ? 'success' : 'neutral'}>{statusLabel(edit.base.status)}</AdminStatusBadge> 버전 {edit.base.revision}</p>
+        {edit.pending && <div className="flex flex-col gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3" role="alert"><p className="text-destructive">이전 저장 결과를 확인해야 합니다. 연락처와 계약 내용은 브라우저 저장소에 보관하지 않았습니다.</p>
+          <div className="flex flex-wrap gap-2"><button type="button" className={PRIMARY} data-slot="button" disabled={busy} onClick={() => void checkOperation()}>이전 저장 결과 확인</button>
+          {edit.retry && <button type="button" className={OUTLINE} data-slot="button" disabled={busy} onClick={() => void save(edit.retry!)}>같은 입력으로 결과 확인</button>}</div></div>}
+        {edit.latest && <div className="flex min-w-0 flex-col gap-2 rounded-lg border bg-muted/30 p-3"><strong className="font-medium">최신 저장본: {statusLabel(edit.latest.status)} · 버전 {edit.latest.revision}</strong>
+          <details><summary className="cursor-pointer font-medium">입력과 최신 저장본 비교</summary><div className="mt-2 overflow-x-auto rounded-lg border bg-background"><table className="w-full text-sm"><thead><tr className="border-b"><th className={TABLE_HEAD}>항목</th><th className={TABLE_HEAD}>내 입력</th><th className={TABLE_HEAD}>최신 저장본</th></tr></thead><tbody>{SHIPPING_COLLECT_FIELDS.map(field => <tr className="border-b last:border-b-0" key={field}><th className={`${TABLE_HEAD} text-muted-foreground`} scope="row">{SHIPPING_COLLECT_LABELS[field]}</th><td className={TABLE_CELL}>{edit.values[field] || '미입력'}</td><td className={TABLE_CELL}>{edit.latest!.values[field] || '미입력'}</td></tr>)}</tbody></table></div></details>
+          <div className="flex flex-wrap gap-2"><button type="button" className={OUTLINE} data-slot="button" disabled={busy || Boolean(edit.pending && !edit.lookupMissing)} onClick={() => adoptLatest(false)}>현재 저장값으로 편집 시작</button>
+          {!edit.pending && <button type="button" className={OUTLINE} data-slot="button" disabled={busy} onClick={() => adoptLatest(true)}>내 입력 유지 · 최신 버전을 저장 기준으로</button>}</div></div>}
+        <fieldset disabled={locked} className="m-0 flex min-w-0 flex-col gap-3 border-0 p-0">
+          <label className={FIELD}><span className={FIELD_LABEL}>착불 수납 상태</span><select className="w-full sm:w-72" value={edit.status} onChange={event => setEdit({ ...edit, status: event.target.value as ShippingCollectStatus })}><option value="draft">초안 · 미사용</option><option value="active">실제 운영 근거 확인 · 사용</option><option value="disabled">사용 안 함</option></select></label>
+          <div className="grid min-w-0 gap-3 sm:grid-cols-2">{SHIPPING_COLLECT_FIELDS.map(field => <label className={FIELD} key={field}><span className={FIELD_LABEL}>{SHIPPING_COLLECT_LABELS[field]}</span>
+            <input className="w-full" value={edit.values[field]} maxLength={field === 'collectorName' ? 100 : field === 'customerInstructions' ? 500 : 200} onChange={event => setEdit({ ...edit, values: { ...edit.values, [field]: event.target.value } })} />
+            {['collectorName', 'collectionMethod', 'refundContact', 'customerInstructions'].includes(field) ? <small className={HINT}>고객에게 표시되는 안내</small> : <small className={HINT}>운영 관리자용 근거</small>}</label>)}</div>
         </fieldset>
-        <p className="muted">이 화면의 연락처와 계약 입력은 브라우저에 임시저장하지 않습니다. 결과가 불명확하면 저장 요청을 식별하는 정보만 같은 탭·로그인 세션에 남깁니다.</p>
-        <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}><button type="button" className="btn" disabled={locked} onClick={() => void save()}>착불 운영 조건 저장</button>
-          <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => void refresh()}>최신 저장본 비교</button></div>
+        <p className="text-muted-foreground">이 화면의 연락처와 계약 입력은 브라우저에 임시저장하지 않습니다. 결과가 불명확하면 저장 요청을 식별하는 정보만 같은 탭·로그인 세션에 남깁니다.</p>
+        <div className="flex flex-wrap gap-2"><button type="button" className={PRIMARY} data-slot="button" disabled={locked} onClick={() => void save()}>착불 운영 조건 저장</button>
+          <button type="button" className={OUTLINE} data-slot="button" disabled={busy} onClick={() => void refresh()}>최신 저장본 비교</button></div>
       </>}
     </>}
   </section>;

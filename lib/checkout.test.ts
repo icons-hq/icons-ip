@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  bankTransferMethodNote,
   checkoutAddressErrors,
   checkoutDeadlineTimeLabel,
   checkoutEffectivePaymentStatus,
@@ -108,6 +109,29 @@ describe('checkout copy and safe errors', () => {
     expect(mapPlaceOrderError('coupon_expired')).toBe('coupon_rejected');
     expect(mapPlaceOrderError('payment amount below provider minimum')).toBe('payment_below_minimum');
     expect(mapPlaceOrderError('sensitive database failure')).toBe('unavailable');
+  });
+
+  it('옵션별 구매 제한 오류를 상품 단위 제한과 섞지 않는다', () => {
+    const variant = '00000000-0000-4000-8000-000000161001';
+    expect(mapPlaceOrderError(`option_order_limit_exceeded: ${variant}`)).toBe('option_order_limit_exceeded');
+    expect(mapPlaceOrderError(`option_member_limit_exceeded: ${variant}`)).toBe('option_member_limit_exceeded');
+    expect(mapPlaceOrderError('order_quantity_above_maximum: good-id')).toBe('order_quantity_above_maximum');
+    expect(mapPlaceOrderError('member_purchase_limit_exceeded: good-id')).toBe('member_purchase_limit_exceeded');
+  });
+
+  it('견적 뒤 쿠폰 선택이 바뀐 거절을 이미 만든 주문과의 충돌과 나눈다', () => {
+    // DB place_order_with_store_credits 는 표시한 쿠폰과 현재 선택이 다르면 PT409 coupon_selection_changed 로 거절한다.
+    // 만든 주문이 없는 경우가 대부분이라 '이미 만든 주문과 요청 내용이 달라요'(checkout_changed)로 안내하면 틀린다.
+    expect(mapPlaceOrderError('coupon_selection_changed')).toBe('coupon_selection_changed');
+    expect(mapPlaceOrderError('checkout key conflict')).toBe('checkout_changed');
+    // 일반 쿠폰 거절(coupon_*)에 묻히지 않는다.
+    expect(mapPlaceOrderError('coupon_expired')).toBe('coupon_rejected');
+  });
+
+  it('랜덤 판매 굿즈를 주문할 수 없게 된 경우를 재고 변경과 나눈다', () => {
+    expect(mapPlaceOrderError('random_option_unavailable: good-id')).toBe('random_option_unavailable');
+    expect(mapPlaceOrderError('random_option_checkout_unsupported: good-id')).toBe('random_option_unavailable');
+    expect(mapPlaceOrderError('out of stock: good-id')).toBe('out_of_stock');
   });
 });
 
@@ -424,5 +448,42 @@ describe('checkoutPaymentResultOutcome', () => {
     }
     expect(checkoutPaymentResultOutcome({ orderStatus: 'pending', paymentStatus: 'pending', attempt: attempt('declined') }, now))
       .toBe('checking');
+  });
+});
+
+describe('장바구니 유지 주문(ADR-0026)', () => {
+  const now = Date.parse('2026-10-27T05:00:00.000Z');
+  const retained: CheckoutClosureInput = {
+    status: 'pending',
+    paymentMethod: 'card',
+    paymentStatus: null,
+    paymentAttempt: { state: 'declined', expiresAt: '2026-10-27T05:10:00.000Z', provider: 'toss' },
+    hasActiveCancellationRequest: false,
+    cartRetained: true,
+  };
+
+  it('결제 없이 끝난 장바구니 유지 주문은 다시 담지 않고 주문서에서 새로 결제한다', () => {
+    expect(checkoutReorderMode(retained, 'payment_closed', now)).toBe('retry_from_cart');
+    expect(checkoutReorderMode({ ...retained, paymentAttempt: { state: 'prepared', expiresAt: '2026-10-27T04:59:00.000Z', provider: 'toss' } }, 'payment_closed', now)).toBe('retry_from_cart');
+    expect(checkoutReorderMode({ ...retained, status: 'canceled', paymentAttempt: null }, 'closed', now)).toBe('retry_from_cart');
+  });
+
+  it('결제와 겹칠 수 있는 시도나 처리 중인 취소 요청이 있으면 다시 결제하기를 권하지 않는다', () => {
+    expect(checkoutReorderMode({ ...retained, paymentAttempt: { state: 'prepared', expiresAt: '2026-10-27T05:09:00.000Z', provider: 'toss' } }, 'closed', now)).toBeNull();
+    expect(checkoutReorderMode({ ...retained, hasActiveCancellationRequest: true }, 'payment_closed', now)).toBeNull();
+    expect(checkoutReorderMode({ ...retained, paymentStatus: 'pending' }, 'payment_closed', now)).toBeNull();
+  });
+
+  it('승인 확인 중인 이전 주문 때문에 막힌 새 주문은 별도 사유로 안내한다', () => {
+    expect(mapPlaceOrderError('checkout_payment_in_progress')).toBe('checkout_payment_in_progress');
+  });
+});
+
+describe('bankTransferMethodNote', () => {
+  it('두 주문서가 같은 무통장 비활성 사유를 쓴다(S26)', () => {
+    expect(bankTransferMethodNote({ accountConfigured: false, goodsAllow: true })).toBe('지금은 무통장 입금을 받지 않습니다.');
+    expect(bankTransferMethodNote({ accountConfigured: true, goodsAllow: false })).toBe('이 주문에는 무통장을 쓸 수 없는 굿즈가 있어요.');
+    expect(bankTransferMethodNote({ accountConfigured: true, goodsAllow: null })).toContain('확인한 뒤');
+    expect(bankTransferMethodNote({ accountConfigured: true, goodsAllow: true })).toContain('24시간 안에 입금');
   });
 });

@@ -20,13 +20,16 @@ vi.mock('react', async () => {
   } };
 });
 import { CsReplyTemplateTools } from './CsReplyTemplateTools';
+import { ConsolePagination } from '@/components/admin/console/ConsolePagination';
+import { Button } from '@/components/admin/kit/ui/button';
 type Element = ReactElement<Record<string, unknown>>;
 const rows = [{ id: '10000000-0000-4000-8000-000000000001', surface: 'review', category: 'other', title: '기존 A', body: 'A 본문', revision: 1, archivedAt: null, updatedAt: '2026-10-13T00:00:00Z' },
   { id: '10000000-0000-4000-8000-000000000002', surface: 'review', category: 'shipping', title: '기존 B', body: 'B 본문', revision: 1, archivedAt: null, updatedAt: '2026-10-13T00:00:00Z' }];
 function render() { mocks.index = 0; return CsReplyTemplateTools({ accountId: 'staff', surface: 'review', body: '미저장 리뷰 답글', onInsert: vi.fn() }) as Element; }
 function nodes(node: ReactNode): Element[] { return Children.toArray(node).flatMap(value => isValidElement<Record<string, unknown>>(value) ? [value, ...nodes(value.props.children as ReactNode)] : []); }
 function text(node: ReactNode): string { return Children.toArray(node).map(value => isValidElement<Record<string, unknown>>(value) ? text(value.props.children as ReactNode) : String(value)).join(''); }
-function button(root: ReactNode, label: string) { const result = nodes(root).find(node => node.type === 'button' && text(node.props.children as ReactNode) === label); if (!result) throw new Error(`Missing button ${label}`); return result; }
+/* 버튼은 네이티브 <button>이거나 kit Button(템플릿 룩, ADR-0028)이다. */
+function button(root: ReactNode, label: string) { const result = nodes(root).find(node => (node.type === 'button' || node.type === Button) && text(node.props.children as ReactNode) === label); if (!result) throw new Error(`Missing button ${label}`); return result; }
 function click(node: Element) { (node.props.onClick as () => void)(); }
 function input(root: ReactNode, label: string) {
   const wrapper = nodes(root).find(node => node.type === 'label' && text(node.props.children as ReactNode).startsWith(label));
@@ -35,7 +38,7 @@ function input(root: ReactNode, label: string) {
 }
 function change(label: string, value: string) { (input(render(), label).props.onChange as (event: unknown) => void)({ target: { value } }); }
 function edit(title: string) { click(button(nodes(render()).find(node => node.type === 'article' && text(node).includes(title))!, '수정')); }
-function submit() { (nodes(render()).find(node => node.type === 'form' && node.props.className === 'admin-cs-template__editor')!.props.onSubmit as (event: unknown) => void)({ preventDefault() {} }); }
+function submit() { (nodes(render()).find(node => node.type === 'form' && node.props['data-cs-template'] === 'editor')!.props.onSubmit as (event: unknown) => void)({ preventDefault() {} }); }
 async function settle() { for (let i = 0; i < 14; i++) await Promise.resolve(); }
 async function open() { click(button(render(), '답변 템플릿 불러오기')); await settle(); }
 function reload() { mocks.recovery = mocks.persisted; mocks.value = null; mocks.states = []; }
@@ -75,4 +78,43 @@ it('저장 완료 뒤 목록 실패에서도 저장한 초안을 다시 불확�
   mocks.save.mockResolvedValueOnce({ ok: true, template: { ...rows[0], body: '저장 완료 문구', revision: 2 } });
   mocks.list.mockRejectedValueOnce(new Error('list lost')); submit(); await settle();
   expect(mocks.persisted).toBeNull(); expect(text(render())).toContain('저장본은 확인했지만'); expect(button(render(), '템플릿 저장').props.disabled).toBe(false);
+});
+/* R3(MD-0011): 리뷰·상품문의 답변도 같은 대체 동작과 안내 문구를 쓴다. */
+it('작성 중인 답글이 있으면 확인 뒤에만 템플릿으로 바꾸고, 비어 있으면 바로 바꾼다', async () => {
+  const onInsert = vi.fn(); const confirm = vi.fn(() => false);
+  vi.stubGlobal('window', { confirm });
+  const draw = (body: string) => { mocks.index = 0; return CsReplyTemplateTools({ accountId: 'staff', surface: 'review', body, onInsert }) as Element; };
+  click(button(draw('미저장 리뷰 답글'), '답변 템플릿 불러오기')); await settle();
+  expect(text(draw('미저장 리뷰 답글'))).toContain('템플릿을 고르면 작성 중인 내용을 템플릿으로 바꿉니다.');
+  const pick = (body: string) => click(button(nodes(draw(body)).find(node => node.type === 'article' && text(node).includes('기존 A'))!, '불러오기'));
+  pick('미저장 리뷰 답글');
+  expect(confirm).toHaveBeenCalledWith('작성 중인 내용을 템플릿으로 바꿀까요?');
+  expect(onInsert).not.toHaveBeenCalled();
+  confirm.mockReturnValue(true); pick('미저장 리뷰 답글');
+  expect(onInsert).toHaveBeenLastCalledWith('A 본문');
+  mocks.states = []; confirm.mockClear();
+  click(button(draw(''), '답변 템플릿 불러오기')); await settle(); pick('');
+  expect(confirm).not.toHaveBeenCalled();
+  expect(onInsert).toHaveBeenLastCalledWith('A 본문');
+  vi.unstubAllGlobals();
+});
+
+it('검색과 템플릿 저장은 각자의 폼을 제출하고 나머지 버튼은 제출하지 않는다', async () => {
+  await open(); click(button(render(), '템플릿 등록'));
+  expect(button(render(), '검색').props.type).toBe('submit');
+  expect(button(render(), '템플릿 저장').props.type).toBe('submit');
+  for (const label of ['템플릿 등록', '편집 닫기 · 문구 보존', '불러오기']) expect(button(render(), label).props.type).toBe('button');
+});
+/* 페이지 이동은 공용 ConsolePagination(버튼 모드)이다 — 범위 밖 번호를 마지막 페이지로 보정해 보여 주므로 목록도 그 페이지를 다시 읽어야 한다. */
+it('마지막 페이지의 마지막 템플릿을 삭제하면 비어 버린 페이지 대신 마지막 유효 페이지를 다시 읽는다', async () => {
+  const lastRow = { ...rows[0], id: '10000000-0000-4000-8000-000000000021', title: '마지막 C' };
+  let total = 21;
+  mocks.list.mockImplementation(async ({ page }: { page: number }) => ({ ok: true, data: page === 1 ? { rows, total, page } : { rows: total > 20 ? [lastRow] : [], total, page } }));
+  mocks.archive.mockImplementation(async () => { total = 20; return { ok: true }; });
+  const pagination = () => nodes(render()).find(node => node.type === ConsolePagination) as unknown as ReactElement<{ page: number; total: number; onPageChange: (page: number) => void }>;
+  await open(); pagination().props.onPageChange(2); await settle();
+  expect(pagination().props).toMatchObject({ page: 2, total: 21 });
+  click(button(nodes(render()).find(node => node.type === 'article' && text(node).includes('마지막 C'))!, '삭제')); await settle();
+  expect(mocks.list.mock.calls.map(([input]) => (input as { page: number }).page)).toEqual([1, 2, 2, 1]);
+  expect(pagination().props).toMatchObject({ page: 1, total: 20 }); expect(text(render())).toContain('기존 A');
 });

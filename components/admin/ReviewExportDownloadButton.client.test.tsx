@@ -43,7 +43,7 @@ function renderShared(requestScope: EncryptedWorkbookRequestScope | undefined = 
   runEffects(); return result;
 }
 function open(requestScope: EncryptedWorkbookRequestScope | undefined = scope) {
-  const button = renderShared(requestScope).find(node => node.type === 'button' && text(node) === '엑셀 다운로드')!;
+  const button = renderShared(requestScope).find(node => typeof node.props.onClick === 'function' && text(node) === '엑셀 다운로드')!;
   (button.props.onClick as () => void)(); return renderShared(requestScope);
 }
 function submit(requestScope: EncryptedWorkbookRequestScope | undefined = scope) {
@@ -68,7 +68,7 @@ afterEach(() => { unmount(); vi.runOnlyPendingTimers(); vi.useRealTimers(); vi.r
 describe('리뷰에만 적용한 암호화 다운로드 lifetime', () => {
   it.each(['1234', 'A'.repeat(16)])('허용 길이의 암호 %s를 제출 즉시 비우고 검증된 파일 한 건만 다운로드한다', async password => {
     passwords = { password, passwordConfirmation: password };
-    const inputs = open().filter(node => node.type === 'input' && node.props.type === 'password');
+    const inputs = open().filter(node => node.props.type === 'password' && node.props.name !== undefined);
     expect(inputs).toHaveLength(2);
     for (const input of inputs) expect(input.props).toMatchObject({ minLength: 4, maxLength: 16 });
     await submit();
@@ -106,7 +106,7 @@ describe('리뷰에만 적용한 암호화 다운로드 lifetime', () => {
   it('scope를 사용하지 않는 기존 버튼은 기존 POST 계약을 유지한다', async () => {
     // Explicitly pass no scope; the review wrapper is the only opt-in caller.
     hooks.index = 0; const first = nodes(EncryptedWorkbookDownloadButton({ href: '/api/admin/gifts/export', label: '엑셀 다운로드' })); runEffects();
-    (first.find(node => node.type === 'button')!.props.onClick as () => void)();
+    (first.find(node => typeof node.props.onClick === 'function' && text(node) === '엑셀 다운로드')!.props.onClick as () => void)();
     hooks.index = 0; const next = nodes(EncryptedWorkbookDownloadButton({ href: '/api/admin/gifts/export', label: '엑셀 다운로드' })); runEffects();
     await (next.find(node => node.type === 'form')!.props.onSubmit as (event: unknown) => Promise<void>)({ preventDefault() {}, currentTarget: { reset: mocks.reset } });
     expect(mocks.fetch.mock.calls[0][0]).toBe('/api/admin/gifts/export'); expect(mocks.fetch.mock.calls[0][1].signal).toBeUndefined(); expect(mocks.click).toHaveBeenCalledOnce();

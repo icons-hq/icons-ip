@@ -178,16 +178,6 @@ export async function getAdminInquiryConsoleData(
   };
 }
 
-/** 사이드바 미답변 배지. 셸 layout이 화면마다 부르므로 집계 한 번으로 끝낸다. */
-export async function getAdminOpenInquiryCount(): Promise<number> {
-  const supabase = await createClient();
-  const { data, error } = await supabase.rpc('admin_inquiry_status_counts');
-  if (error) return 0;
-
-  const entry = ((data ?? []) as StatusCountRow[]).find((row) => row.status === 'open');
-  return toNumber(entry?.total);
-}
-
 export interface AdminInquiryMessage {
   id: string;
   author: InquiryMessageAuthor;

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildDraftCurationPreview, createCurationEditorValues, curationKstInput, curationValuesForKindChange, moveCurationProduct } from './curation-editor';
 import type { HomeGoodsCard } from '@/lib/home-catalog';
+import { buildHomeReviewBestBand, emptyHomeProductRankings, homeReviewBandRating, type HomeProductRankings } from '@/lib/home-ranking';
 
 const card: HomeGoodsCard = { id: 'g1', name: '실제 상품', brand: 'ICONS', price: 12000, badge: null, imageBg: 'url("/goods.webp")', href: '/shop/g1', soldOut: false };
 
@@ -30,6 +31,32 @@ describe('curation editor preview', () => {
     const values = { ...createCurationEditorValues(null, '2026-10-12T00:00:00Z', 'best_tab'), title: '신상품', selectionMode: 'latest' as const, itemCount: '3', goodIds: ['old'] };
     const latest = Array.from({ length: 5 }, (_, index) => ({ ...card, id: `new-${index}` }));
     expect(buildDraftCurationPreview('draft', values, [card], latest).curation.categoryBestTabs[0].goods).toEqual(latest.slice(0, 3));
+  });
+
+  /* L4b(2026-10-26 리드 결정) — 리뷰 BEST 편집 미리보기·노출 가능 수는 공개 홈과 같은 카드 묶음(그룹 범위 요약 포함)을 같은
+     함수로 판정한다. 어드민 화면이 공개 홈과 같은 옵션(includeReviewSummaries)으로 카드를 읽으면 선정이 같다. */
+  it('리뷰 BEST 미리보기와 노출 가능 수는 공개 홈과 같은 그룹 범위 판정이다', () => {
+    const stat = (goodId: string, ratingAverage: number, reviewCount: number) => ({ goodId, ratingAverage, reviewCount, recentReviewAt: '2026-10-20T00:00:00Z',
+      representative: { id: `review-${goodId}`, rating: 5, body: '공개 후기', authorName: '공개 닉네임', createdAt: '2026-10-20T00:00:00Z' } });
+    /* r1 은 자기 리뷰 5.00/1 이지만 그룹상품 범위 2.33/3 — 공개 홈에서 빠진다. r5 는 요약이 없어 굿즈 단위로 폴백한다. */
+    const summaries: Record<string, { count: number; average: number }> = { r0: { count: 3, average: 4.33 }, r1: { count: 3, average: 2.33 }, r2: { count: 2, average: 4.5 }, r3: { count: 1, average: 4 }, r4: { count: 4, average: 3.5 } };
+    const publicGoods = ['r0', 'r1', 'r2', 'r3', 'r4', 'r5'].map((id) => ({ ...card, id, href: `/shop/${id}`, ...(summaries[id] ? { reviewSummary: summaries[id] } : {}) }));
+    const rankings: HomeProductRankings = { ...emptyHomeProductRankings(), reviewsAvailable: true,
+      reviewStatistics: [stat('r0', 4.33, 3), stat('r1', 5, 1), stat('r2', 4.5, 2), stat('r3', 4, 1), stat('r4', 2.5, 2), stat('r5', 4.2, 5)] };
+    const goodIds = ['r0', 'r1', 'r2', 'r3', 'r4', 'r5'];
+    const values = { ...createCurationEditorValues(null, '2026-10-12T00:00:00Z', 'review_best'), title: '리뷰 베스트', reviewSelectionMode: 'manual' as const, goodIds };
+
+    const draft = buildDraftCurationPreview('review', values, publicGoods, [], rankings);
+    const publicBand = buildHomeReviewBestBand('review', '리뷰 베스트', { mode: 'manual', goodIds }, publicGoods, rankings);
+    expect(draft.curation.reviewBestBands?.[0].goods.map((good) => good.id)).toEqual(['r0', 'r2', 'r3', 'r4', 'r5']);
+    expect(draft.curation.reviewBestBands?.[0].goods.map((good) => good.id)).toEqual(publicBand.goods.map((good) => good.id));
+    expect(draft.reviewEligibleCount).toBe(5);
+    expect(draft.curation.reviewBestBands?.[0].goods.map((good) => homeReviewBandRating(good))).toEqual([
+      { average: 4.33, count: 3 }, { average: 4.5, count: 2 }, { average: 4, count: 1 }, { average: 3.5, count: 4 }, { average: 4.2, count: 5 }]);
+    /* 같은 카드에서 요약을 떼면(옵션 없이 읽은 스냅샷) 굿즈 단위 판정이 돼 r1 이 들어오고 r4 가 빠진다 — 미리보기가 공개 홈과 엇갈리는 경로. */
+    const withoutSummaries = publicGoods.map((good) => ({ ...good, reviewSummary: undefined }));
+    expect(buildDraftCurationPreview('review', values, withoutSummaries, [], rankings).curation.reviewBestBands?.[0].goods.map((good) => good.id))
+      .toEqual(['r0', 'r1', 'r2', 'r3', 'r5']);
   });
 
   it('모바일·PC 이미지와 입력 중인 제목을 공개 히어로 계약으로 전달한다', () => {
@@ -112,5 +139,50 @@ describe('curation editor preview', () => {
     expect(buildDraftCurationPreview('draft', values, []).curation.heroSlides).toEqual([]);
     expect(values.activeFrom).toBe('2026-10-12T09:00');
     expect(curationKstInput('invalid')).toBe('');
+  });
+
+  /* L8b — 컬렉션 배너는 굿즈샵 전체·딤 없음·잉크 글자로 시작하고, 추천 검색어는 빈 칸을 뺀 칩 행으로 미리 본다. */
+  it('새 컬렉션 배너는 굿즈샵 전체 슬롯·딤 없음·잉크 글자로 시작하고 컬렉션 배너로 미리 본다', () => {
+    const values = { ...createCurationEditorValues(null, '2026-10-12T00:00:00Z', 'collection_banner'), title: '가을 신상', imageUrl: '/pc.webp', mobileImageUrl: '/mo.webp', imageAlt: ' 키링 세 종 ', subtitle: ' 새로 나온 굿즈 ', linkPath: '' };
+    expect(values).toMatchObject({ slot: 'all', imageDim: 'none', textColor: 'black', searchTerms: [] });
+    /* 링크는 선택이라 새 배너·새 추천 검색어는 링크 없이 시작한다(홈으로 가는 기본 링크를 몰래 싣지 않는다). */
+    expect(createCurationEditorValues(null, '2026-10-12T00:00:00Z', 'collection_banner').linkPath).toBe('');
+    expect(createCurationEditorValues(null, '2026-10-12T00:00:00Z', 'search_terms').linkPath).toBe('');
+    const draft = buildDraftCurationPreview('draft', values, []);
+    expect(draft.collectionBanner).toEqual({ id: 'draft', slot: 'all', title: '가을 신상', subtitle: '새로 나온 굿즈', imageUrl: '/pc.webp', mobileImageUrl: '/mo.webp',
+      href: null, imageAlt: '키링 세 종', imageDim: 'none', textColor: 'black', endsAt: null });
+    expect(draft.curation.heroSlides).toEqual([]);
+    /* 업로드 전·문구 전 초안도 홈으로 떨어지지 않고 같은 크기의 빈 배너 면으로 미리 본다(l8b-ui-4). */
+    expect(buildDraftCurationPreview('draft', { ...values, imageUrl: null, title: '' }, []).collectionBanner)
+      .toMatchObject({ slot: 'all', title: '', imageUrl: '' });
+    expect(buildDraftCurationPreview('draft', { ...values, slot: 'best', imageUrl: null }, []).collectionBanner).toMatchObject({ slot: 'best', imageUrl: '' });
+  });
+
+  it('추천 검색어 초안은 목록 이름(관리용)이 비어도 칩 행으로 미리 보고, 검색어가 없으면 빈 칩 행이다(l8b-ui-4)', () => {
+    const values = createCurationEditorValues(null, '2026-10-12T00:00:00Z', 'search_terms');
+    expect(buildDraftCurationPreview('draft', { ...values, title: '', searchTerms: ['키링', ' '] }, []).searchTerms).toEqual(['키링']);
+    expect(buildDraftCurationPreview('draft', { ...values, title: '' }, []).searchTerms).toEqual([]);
+    expect(buildDraftCurationPreview('draft', { ...values, title: '' }, []).collectionBanner).toBeNull();
+  });
+
+  it('저장된 컬렉션 배너·추천 검색어 값을 폼으로 되살린다', () => {
+    const legacy = { id: 'saved', kind: 'notice_strip' as const, ipId: null, title: '기존', imagePath: null, imageUrl: null, mobileImageUrl: null,
+      linkPath: null, displayOrder: 0, activeFrom: '2026-10-01T00:00:00Z', activeTo: null, enabled: true, slot: null, payload: null,
+      createdAt: '2026-10-01T00:00:00Z', updatedAt: '2026-10-01T00:00:00Z', status: 'active' as const };
+    const banner = { ...legacy, kind: 'collection_banner' as const, slot: 'best', payload: { image_alt: '설명', text_color: 'white', image_dim: 'black' } };
+    expect(createCurationEditorValues(banner, '2026-10-12T00:00:00Z')).toMatchObject({ slot: 'best', imageAlt: '설명', textColor: 'white', imageDim: 'black' });
+    expect(createCurationEditorValues({ ...banner, payload: null }, '2026-10-12T00:00:00Z')).toMatchObject({ imageDim: 'none', textColor: 'black' });
+    const terms = { ...legacy, kind: 'search_terms' as const, imagePath: null, payload: { terms: ['키링', '인형'] } };
+    expect(createCurationEditorValues(terms, '2026-10-12T00:00:00Z').searchTerms).toEqual(['키링', '인형']);
+    expect(buildDraftCurationPreview('draft', { ...createCurationEditorValues(terms, '2026-10-12T00:00:00Z'), searchTerms: [' 키링 ', '', '인형'] }, []).searchTerms).toEqual(['키링', '인형']);
+  });
+
+  it('영역을 바꾸면 slot 을 새 종류에 맞는 값으로 돌린다(BEST 탭 인기템 → 컬렉션 배너는 굿즈샵 전체)', () => {
+    const DRAFT = '2026-10-12T00:00:00Z';
+    const tab = { ...createCurationEditorValues(null, DRAFT, 'best_tab'), slot: 'popular' };
+    expect(curationValuesForKindChange(tab, 'collection_banner', { isNew: true, touched: new Set(['slot'] as const), draftActiveFrom: DRAFT }).slot).toBe('all');
+    expect(curationValuesForKindChange({ ...tab, slot: 'new' }, 'collection_banner', { isNew: true, touched: new Set(['slot'] as const), draftActiveFrom: DRAFT }).slot).toBe('new');
+    expect(curationValuesForKindChange({ ...tab, slot: 'new' }, 'best_tab', { isNew: true, touched: new Set(['slot'] as const), draftActiveFrom: DRAFT }).slot).toBe('category');
+    expect(curationValuesForKindChange(tab, 'collection_banner', { isNew: true, touched: new Set(), draftActiveFrom: DRAFT }).slot).toBe('all');
   });
 });

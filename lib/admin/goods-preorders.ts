@@ -1,5 +1,6 @@
 import { isUuid } from '@/lib/uuid';
 import { isGoodsShipDate } from '@/lib/goods-preorders';
+import { RANDOM_OPTION_PROBLEMS, goodsOptionSaleModeErrorMessage } from '@/lib/goods-option-sale-mode';
 
 export type GoodsPreorderState = 'draft' | 'active' | 'stopped';
 export interface GoodsPreorderInput {
@@ -23,6 +24,8 @@ export interface AdminPreorderReservation {
   releasedAt: string | null; releaseReason: string | null;
 }
 export interface AdminPreorderReservationPage { total: number; items: AdminPreorderReservation[]; hasMore: boolean }
+/** 예약 주문 목록 한 페이지 행 수 — 조회 RPC의 `p_limit`(상한 100)과 화면 페이지 이동이 같은 값을 쓴다. */
+export const ADMIN_PREORDER_RESERVATION_PAGE_SIZE = 100;
 function object(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -119,6 +122,8 @@ export function preparePreorderAllocation(rows: readonly Pick<AdminPreorderReser
 }
 
 export function preorderMutationError(message: string): string {
+  /* D5② 랜덤 판매 상품은 예약판매를 쓸 수 없다 — 커밋 시점 지연 제약이 random_option_*로 거절한다. */
+  if (RANDOM_OPTION_PROBLEMS.some((code) => message.includes(code))) return goodsOptionSaleModeErrorMessage(message);
   const errors: Record<string, string> = {
     preorder_admin_required: '예약 활성화와 일반 재고 판매 전환은 관리자 계정에서 할 수 있습니다.',
     preorder_policy_changed: '예약 조건이 변경되었습니다. 목록을 새로고침한 뒤 다시 확인해주세요.',

@@ -7,6 +7,7 @@ import { revalidateGoodsSurfaces } from '@/lib/admin/revalidate-goods.server';
 import { isUuid } from '@/lib/uuid';
 import { createClient } from '@/lib/supabase/server';
 import { sendRestockAlertEmails } from '@/lib/email/transactional.server';
+import { RANDOM_OPTION_PROBLEMS, goodsOptionSaleModeErrorMessage } from '@/lib/goods-option-sale-mode';
 
 export interface GoodsVariantActionState {
   error?: string;
@@ -43,6 +44,8 @@ export async function setGoodsVariantActiveAction(
       target_price: active ? price : null,
     });
     if (error) {
+      /* D5② 랜덤 판매 상품의 옵션 판매중지·복원이 조건(옵션 2개 이상·기본 옵션 판매·같은 가격)을 깨면 커밋에서 거절된다. */
+      if (RANDOM_OPTION_PROBLEMS.some((code) => error.message.includes(code))) return { error: goodsOptionSaleModeErrorMessage(error.message) };
       const messages: Record<string, string> = {
         goods_variant_changed: '옵션 정보가 변경되었습니다. 새로고침 후 다시 확인해주세요.',
         goods_variant_combination_exists: '같은 조합의 옵션이 사용 중입니다. 기존 옵션을 확인해주세요.',

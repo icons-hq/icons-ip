@@ -36,4 +36,20 @@ describe('public shopping story projection',()=>{
   expect(await getPublicShoppingStory('not-a-uuid')).toBeNull();expect(mocks.rpc).not.toHaveBeenCalled();
   mocks.rpc.mockResolvedValue({data:null,error:null});expect(await getPublicShoppingStory(id)).toBeNull();expect(mocks.rpc).toHaveBeenCalledWith('get_shopping_story',{p_id:id});
  });
+ /* L4b · CL-02 — 공개 상세 로더가 카드 별점을 목록 표시 정보와 나란히 한 번의 묶음으로 읽어 굿즈에 싣는다. */
+ it('loads card review summaries in one batch beside listing appearance and keeps the story when they fail',async()=>{
+  const story={...base,goods:[good,{...good,id:'good-2'}],sections:[{id,title:'첫 섹션',imageShape:'square',goodIds:['good-1','good-2']}]};
+  mocks.rpc.mockImplementation(async(name:string)=>name==='get_shopping_story'?{data:story,error:null}
+   :name==='get_goods_review_summaries'?{data:[{goodId:'good-2',reviewCount:4,ratingAverage:4.75}],error:null}:{data:[],error:null});
+  const loaded=await getPublicShoppingStory(id);
+  expect(mocks.rpc).toHaveBeenCalledWith('get_goods_review_summaries',{p_good_ids:['good-1','good-2']});
+  expect(mocks.rpc.mock.calls.filter(([name])=>name==='get_goods_review_summaries')).toHaveLength(1);
+  expect(loaded?.sections[0].goods.map(item=>item.reviewSummary)).toEqual([undefined,{count:4,average:4.75}]);
+  expect(loaded?.sections[0].goods[0]).not.toHaveProperty('reviewSummary');
+  mocks.rpc.mockImplementation(async(name:string)=>name==='get_shopping_story'?{data:story,error:null}
+   :name==='get_goods_review_summaries'?{data:null,error:{message:'down'}}:{data:[],error:null});
+  const fallback=await getPublicShoppingStory(id);
+  expect(fallback?.sections[0].goods.map(item=>item.id)).toEqual(['good-1','good-2']);
+  expect(fallback?.sections[0].goods.every(item=>item.reviewSummary===undefined)).toBe(true);
+ });
 });

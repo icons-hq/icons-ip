@@ -20,6 +20,18 @@ import { goodsGuidanceOrphanErrors, planGoodsAfterSalesWorkbook, planGoodsSizeWo
 
 export const GOODS_WORKBOOK_ROW_LIMIT = 500;
 export const GOODS_WORKBOOK_BYTES_LIMIT = 2 * 1024 * 1024;
+/** Excel 한 칸의 최대 글자 수. 더 긴 값은 Excel이 잘라 저장하고, 이 양식도 읽지 않는다(workbook-safety). */
+export const GOODS_WORKBOOK_CELL_MAX = 32_767;
+/**
+ * 엑셀 한 칸보다 긴 상세 설명(상세 HTML 상한 200,000자, R17)을 내보낼 때 원문 대신 쓰는 표식.
+ * 원문을 그대로 쓰면 다시 올릴 때 거절되고, Excel에서 저장하면 잘린 설명이 정상 설명을 덮어쓸 수 있다.
+ * 표식을 그대로 두면 저장된 설명·형식을 유지한다. 긴 설명은 상품 편집에서만 고친다.
+ */
+export const GOODS_WORKBOOK_LONG_DESCRIPTION_MARKER =
+  '[상품 편집에서만 수정] 상세 설명이 엑셀 한 칸(32,767자)보다 길어 파일에 담지 않았습니다. 이 문구를 그대로 두면 기존 상세 설명을 유지합니다.';
+/** 상품 설명 칸에 쓸 값. 엑셀 한 칸에 들어가면 원문, 넘으면 표식이다. */
+export const goodsWorkbookDescriptionCell = (description: string) =>
+  description.length > GOODS_WORKBOOK_CELL_MAX ? GOODS_WORKBOOK_LONG_DESCRIPTION_MARKER : description;
 export const GOODS_IMAGES_ZIP_BYTES_LIMIT = 50 * 1024 * 1024;
 export const GOODS_IMPORT_PATH = '/admin/catalog/goods/import';
 export const GOODS_IMPORT_BUCKET = 'admin-goods-imports';
@@ -365,7 +377,7 @@ export function exportGoodsWorkbookRows(
     noticeMadeOn: str(good.notice_made_on),
     noticeAsManager: str(good.notice_as_manager),
     noticeAsContact: str(good.notice_as_contact),
-    description: str(good.description),
+    description: goodsWorkbookDescriptionCell(str(good.description)),
     descriptionFormat: good.description_format === 'html' ? 'html' : 'plain',
   };
   for (const [url, , field] of imagePairs) {
@@ -523,6 +535,13 @@ export function planGoodsWorkbookImport(
       ...(afterSalesPlan.kind === 'save' ? { afterSales: afterSalesPlan.change } : {}),
       ...(sizePlan.kind === 'save' ? { sizeChart: sizePlan.change } : {}),
     };
+    // 긴 설명 표식은 '저장된 설명·형식 유지'다. 새 상품에는 유지할 설명이 없고, 형식만 바꾸면 원문이 다른 형식으로 읽힌다.
+    const keepStoredDescription = first.description.trim() === GOODS_WORKBOOK_LONG_DESCRIPTION_MARKER;
+    if (keepStoredDescription && !record)
+      errors.push(`상품 설명: 엑셀 한 칸(${GOODS_WORKBOOK_CELL_MAX.toLocaleString('ko-KR')}자)보다 긴 상세 설명은 엑셀로 등록할 수 없습니다. 상품을 저장한 뒤 상품 편집에서 입력해주세요.`);
+    else if (keepStoredDescription && (first.descriptionFormat || 'plain') !== (record?.good.description_format === 'html' ? 'html' : 'plain'))
+      errors.push('상세 설명 형식: 엑셀 한 칸보다 긴 상세 설명은 상품 편집에서만 고칠 수 있어 형식도 상품 편집에서 바꿔주세요.');
+    const description = keepStoredDescription && record ? str(record.good.description) : first.description;
     for (const row of source) {
       const current = noticeFromPreset(row.values, context);
       if (
@@ -617,6 +636,7 @@ export function planGoodsWorkbookImport(
       'noticeAsContact',
     ] as const)
       form.set(field, first[field]);
+    form.set('description', description);
     const category = first.categoryCode ? context.categories?.find((category) => category.code === first.categoryCode) : null;
     if (first.categoryCode && !category) errors.push('고객 카테고리 코드를 찾을 수 없습니다.');
     if (category?.archived_at && category.id !== record?.good.category_id) errors.push('보관한 카테고리에 새 상품을 연결할 수 없습니다.');
@@ -790,7 +810,7 @@ export function planGoodsWorkbookImport(
       return group;
     }
     const value = normalized.value;
-    if (value.descriptionFormat === 'html') group.warnings.push(...sanitizeGoodsDescription(first.description).warnings);
+    if (value.descriptionFormat === 'html') group.warnings.push(...sanitizeGoodsDescription(description).warnings);
     group.target = {
       ...(kcPlan.kind === 'save' ? { kc_update: kcPlan.update } : {}),
       ...(customInputPlan.kind === 'save' ? { custom_inputs: customInputPlan.config,

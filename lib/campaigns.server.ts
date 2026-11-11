@@ -13,7 +13,9 @@ import {
   type CampaignSummary,
 } from '@/lib/campaigns';
 import { goodCompareAtPrice } from '@/lib/goods-options';
+import type { GoodsReviewSummary } from '@/lib/goods-review-summary';
 import { parseGoodsVariantPricing } from '@/lib/goods-sales';
+import { readListingReviewSummaries } from '@/lib/listing-review-summaries.server';
 import { imageBg, normalizePublicMediaPath, PUBLIC_MEDIA_BUCKET } from '@/lib/media';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/server';
@@ -53,9 +55,19 @@ interface ExchangeOfferRow {
   ticket_count: number;
 }
 
+interface GoodVariantPriceRow {
+  price: number;
+  archived_at: string | null;
+  pricing?: unknown;
+}
+
 interface GoodRow {
   sale_period?: unknown;
-  goods_variants?: {price:number; archived_at:string|null; pricing?: unknown}[];
+  goods_variants?: GoodVariantPriceRow[];
+  /** 'select' | 'random'(D5② 랜덤 판매). */
+  option_sale_mode?: string;
+  /** 공개 계산 열 `goods_random_option` — 랜덤 판매 굿즈의 고객용 옵션 한 줄(옵션 행은 고객에게 숨는다). 랜덤이 아니면 null. */
+  random_option?: unknown;
   id: string;
   name: string;
   price: number;
@@ -97,6 +109,8 @@ export interface GoodCardView {
   badge: string | null;
   soldOut: boolean;
   imageBackground: string;
+  /** 카드 별점(LFS 패리티 2차 L4b · CL-02) — 공개 리뷰가 있을 때만. 숫자는 굿즈 상세와 같은 묶음 그룹 범위다. */
+  reviewSummary?: GoodsReviewSummary;
 }
 
 /* 참조를 해석한 본문. exchange 는 offer 를, goods 는 상품 카드를, image 는 공개
@@ -206,6 +220,24 @@ async function loadExchangeOffers(
   }]));
 }
 
+/** 공개 계산 열 `goods_random_option`의 가격 부분. 모양이 틀리면 null(옵션 행으로 계산한다). */
+function randomOptionPriceRow(value: unknown): GoodVariantPriceRow | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const row = value as Record<string, unknown>;
+  return typeof row.price === 'number' && row.archived_at === null
+    ? { price: row.price, archived_at: null, ...('pricing' in row ? { pricing: row.pricing } : {}) }
+    : null;
+}
+
+/**
+ * 카드 가격을 계산할 옵션 행. 랜덤 판매 굿즈(D5②)는 옵션 행이 고객·익명에게 숨으므로(restrictive RLS) 랜덤 한 줄을 쓴다 —
+ * 운영자 세션이 받은 원본 옵션 행도 고객 화면과 같게 쓰지 않는다(lib/catalog.ts toGood과 같은 규칙). 랜덤 한 줄이 없으면 옵션 행.
+ */
+function priceRows(row: GoodRow): GoodVariantPriceRow[] {
+  const randomOption = row.option_sale_mode === 'random' ? randomOptionPriceRow(row.random_option) : null;
+  return randomOption ? [randomOption] : row.goods_variants ?? [];
+}
+
 async function loadSectionGoods(
   supabase: CampaignSupabaseClient,
   goodIds: string[],
@@ -214,7 +246,7 @@ async function loadSectionGoods(
 
   const { data, error } = await supabase
     .from('goods')
-    .select('id,name,sale_period:goods_sale_period,price,compare_at_price,show_discount_rate,badge,stock,stock_qty,bg,image_path,ips:ip_id(archived_at,published_at),goods_variants(price,archived_at,pricing:goods_variant_pricing)')
+    .select('id,name,sale_period:goods_sale_period,price,compare_at_price,show_discount_rate,badge,stock,stock_qty,bg,image_path,ips:ip_id(archived_at,published_at),option_sale_mode,random_option:goods_random_option,goods_variants(price,archived_at,pricing:goods_variant_pricing)')
     .in('id', goodIds)
     // 캠페인 섹션은 카탈로그 스냅샷을 우회하는 직접 조회라 보관 제외와
     // 판매 제한 비노출(#392)을 여기서 따로 건다.
@@ -230,7 +262,7 @@ async function loadSectionGoods(
     const stockQty = row.stock_qty ?? 0;
     const salePeriod = parseGoodsSalePeriod(row.sale_period) ?? undefined;
     /* 카탈로그(lib/catalog.ts toGood)와 같은 가격 원천이다 — 기간 할인 중이면 할인가를 보이고 그 옵션의 정상가와 비교한다. */
-    const options = (row.goods_variants ?? []).filter(option => option.archived_at === null).flatMap(option => {
+    const options = priceRows(row).filter(option => option.archived_at === null).flatMap(option => {
       const pricing = option.pricing === undefined ? undefined : parseGoodsVariantPricing(option.pricing);
       return pricing === null ? [] : [{ price: pricing?.effectivePrice ?? option.price, ...(pricing ? { pricing } : {}) }];
     });
@@ -270,9 +302,12 @@ async function resolveCampaignDetail(id: string): Promise<CampaignLandingSnapsho
   const offerIds = sections.flatMap((section) => (section.type === 'exchange' ? [section.offer_id] : []));
   const goodIds = sections.flatMap((section) => (section.type === 'goods' ? section.good_ids : []));
 
-  const [offers, goods] = await Promise.all([
+  const sectionGoodIds = [...new Set(goodIds)];
+  const [offers, goods, reviewSummaries] = await Promise.all([
     loadExchangeOffers(supabase, [...new Set(offerIds)]),
-    loadSectionGoods(supabase, [...new Set(goodIds)]),
+    loadSectionGoods(supabase, sectionGoodIds),
+    /* 굿즈 진열 카드 별점(CL-02) — 진열 굿즈 전체를 한 번의 묶음으로 묻는다. 못 읽으면 별점만 숨는다(던지지 않는다). */
+    readListingReviewSummaries(supabase, sectionGoodIds),
   ]);
 
   const resolvedSections: ResolvedCampaignSection[] = sections.map((section) => {
@@ -295,7 +330,9 @@ async function resolveCampaignDetail(id: string): Promise<CampaignLandingSnapsho
         ...section,
         goods: section.good_ids.flatMap((goodId) => {
           const good = goods.get(goodId);
-          return good ? [good] : [];
+          if (!good) return [];
+          const reviewSummary = reviewSummaries[goodId];
+          return [reviewSummary ? { ...good, reviewSummary } : good];
         }),
       };
     }

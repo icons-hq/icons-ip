@@ -2,7 +2,8 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-const SHELL_ROOT = join(process.cwd(), 'app/admin/(shell)');
+/* 커머스 `(shell)`과 IP·콘텐츠 운영 `(content)` 콘솔은 같은 게이트 규칙을 따른다. */
+const SHELL_ROOTS = ['app/admin/(shell)', 'app/admin/(content)'].map((root) => join(process.cwd(), root));
 
 function shellPageFiles(dir: string): string[] {
   const found: string[] = [];
@@ -17,7 +18,7 @@ function shellPageFiles(dir: string): string[] {
   return found;
 }
 
-const pages = shellPageFiles(SHELL_ROOT);
+const pages = SHELL_ROOTS.flatMap(shellPageFiles);
 
 /*
  * 권한의 진실원은 각 page의 requireAdminScreenAccess다. layout은 pathname을
@@ -28,6 +29,7 @@ const pages = shellPageFiles(SHELL_ROOT);
 describe('어드민 셸 라우트 권한 게이트', () => {
   it('셸 아래에 page가 존재한다', () => {
     expect(pages.length).toBeGreaterThan(0);
+    for (const root of SHELL_ROOTS) expect(pages.some((file) => file.startsWith(root))).toBe(true);
   });
 
   it.each(pages.map((file) => [file.slice(file.indexOf('app/admin')), file]))(

@@ -191,7 +191,7 @@ describe.skipIf(!runLocalIntegration)('goods payment confirm route local integra
       expect(response.status).toBe(303);
       expect(response.headers.get('location')).toBe(
         paymentOutcome === 'approved'
-          ? '/orders?payment=approved'
+          ? `/orders/${orderId}/complete`
           : paymentOutcome === 'unknown' || paymentOutcome === 'needs_review'
             ? '/orders?payment=checking'
             : '/orders?payment=failed',

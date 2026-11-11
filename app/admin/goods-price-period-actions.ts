@@ -8,6 +8,7 @@ import { unstable_rethrow } from 'next/navigation';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
 import { parseAdminGoodsPricePeriods, parseGoodsPricePeriodInput, type AdminGoodsPricePeriod } from '@/lib/admin/goods-price-periods';
+import { RANDOM_OPTION_PROBLEMS, goodsOptionSaleModeErrorMessage } from '@/lib/goods-option-sale-mode';
 
 type MutationResult = { ok: true; message: string } | { ok: false; error: string };
 
@@ -52,6 +53,8 @@ export async function saveGoodsPricePeriodAction(formData: FormData): Promise<Mu
       p_period: period, p_expected_revision: revision,
     });
     if (error) {
+      /* D5② 랜덤 판매 상품은 모든 옵션의 기간 할인이 같아야 한다. 옵션 하나만 바꾸면 커밋에서 random_option_*로 거절된다. */
+      if (RANDOM_OPTION_PROBLEMS.some((code) => error.message.includes(code))) return { ok: false, error: goodsOptionSaleModeErrorMessage(error.message) };
       const messages: Record<string, string> = {
         price_period_changed: '기간 할인 정보가 변경되었습니다. 목록을 새로고침하고 다시 확인해주세요.',
         price_period_overlap: '같은 옵션에 시간이 겹치는 활성 기간 할인이 있습니다.',

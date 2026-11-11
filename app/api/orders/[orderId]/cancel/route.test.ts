@@ -197,17 +197,31 @@ describe('POST /api/orders/[orderId]/cancel', () => {
     expect(JSON.stringify(mocks.rpc.mock.calls)).not.toContain('paymentKey');
   });
 
-  it('하자·오배송 사유를 RPC에 그대로 전달한다', async () => {
+  /* R7(10/27 회의): 하자·오배송은 받은 뒤의 일이라 취소가 아니라 반품·교환으로 받는다. 고객 화면은
+     원래 단순 변심만 보냈고, 열려 있던 API 입력을 닫는다. */
+  it('취소에는 하자·오배송 사유를 받지 않고 RPC 전에 400으로 막는다', async () => {
     const response = await POST(
       request('https://icons.local', { reasonType: 'defect' }),
+      context(),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: { code: 'invalid_reason_type' } });
+    expect(mocks.orderEq).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('단순 변심 사유를 RPC에 그대로 전달한다', async () => {
+    const response = await POST(
+      request('https://icons.local', { reasonType: 'change_of_mind' }),
       context(),
     );
 
     expect(response.status).toBe(202);
     expect(mocks.rpc).toHaveBeenCalledWith('request_order_cancellation', {
       p_order_id: ORDER_UUID,
-      p_reason: '상품 하자·오배송',
-      p_reason_type: 'defect',
+      p_reason: '사용자 주문 취소',
+      p_reason_type: 'change_of_mind',
       p_user_id: USER_ID,
     });
   });

@@ -7,10 +7,12 @@ import { notFound, permanentRedirect } from 'next/navigation';
 import { IpDetail } from '@/components/screens/IpDetail';
 import { getCurrentAuthState } from '@/lib/auth/server';
 import { getCatalogIpDetail } from '@/lib/catalog';
+import { getAdultGoodsAccess } from '@/lib/adult-goods-access.server';
 import { loadPublicCatalogCategories } from '@/lib/catalog-categories.server';
 import { publicIpHref } from '@/lib/ip-identity';
 import { resolvePublicIpIdentity } from '@/lib/ip-identity.server';
 import { getIpFollowState } from '@/lib/ip-follow.server';
+import { loadIpHallBanner } from '@/lib/ip-hall-banner.server';
 import { parseShopSearchParams, selectCollectionGoods } from '@/lib/shop-catalog';
 import { loadListingWishlist } from '@/lib/wishlist-ids.server';
 
@@ -48,10 +50,12 @@ export default async function Page({ params, searchParams }: PageProps) {
   if (identity.isAlias) permanentRedirect(canonicalIpRedirectHref(identity.publicSlug, query));
 
   const auth = await getCurrentAuthState();
-  const [detail, followState, wishlist] = await Promise.all([
-    getCatalogIpDetail(identity.internalId, { viewerId: auth.user?.id ?? null, isStaff: auth.isStaff }),
+  const [detail, followState, wishlist, banner] = await Promise.all([
+    getAdultGoodsAccess().then(adultGoods => getCatalogIpDetail(identity.internalId, { viewerId: auth.user?.id ?? null, isStaff: auth.isStaff, adultGoods })),
     getIpFollowState(identity.internalId),
     loadListingWishlist(),
+    /* IP관 PC/MO 배너(IP-06). 없거나 못 읽으면 null — 배너는 키아트 그대로다. */
+    loadIpHallBanner(identity.internalId),
   ]);
 
   if (!detail) notFound();
@@ -71,6 +75,7 @@ export default async function Page({ params, searchParams }: PageProps) {
 
   return (
     <IpDetail
+      banner={detail.source === 'supabase' ? banner : null}
       collection={collection}
       detail={detail}
       wishlist={wishlist}

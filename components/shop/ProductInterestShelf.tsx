@@ -8,11 +8,17 @@ import { getSupabaseConfig } from '@/lib/supabase/config';
 import { emptyInterestCollection, readRecentGoods, recentGoodsKey, normalizeExperienceGoodsIds, type InterestCollection, type InterestKind } from '@/lib/product-detail-experiences';
 import { ProductCard } from '@/components/wc/ProductCard';
 import { goodDisplayBadges } from '@/lib/goods-taxonomy';
+import type { ListingWishlist } from '@/lib/listing-wishlist';
 import { GoodsSalePeriodRefresh } from './GoodsSalePeriodRefresh';
+import { listingHeartsFor, wishlistForOwner } from './listing-hearts';
+import { useListingReviewSummaries } from './useListingReviewSummaries';
 
 const labels: Record<InterestKind, string> = { repurchase: '재구매한 굿즈', cart: '장바구니', wishlist: '찜한 굿즈', recent: '최근 본 굿즈' };
 const kinds: InterestKind[] = ['repurchase', 'cart', 'wishlist', 'recent'];
-export function ProductInterestShelf({ currentGoodId, standalone = false }: { currentGoodId?: string; standalone?: boolean }) {
+/* 카드의 목록 하트는 서버가 판정한 위시 상태(`wishlist`)로 시작한다(LFS 패리티 2차 L4b · CL-01) — 상세·관심 굿즈 화면이 한 번
+   읽어 내려 준다. 생략하면 하트가 없다. 선반은 계정 전환을 스스로 따라가므로, 그리는 목록의 주인이 서버가 판정한 회원과 다르면
+   하트를 숨긴다(`wishlistForOwner`). 별점(CL-02)은 굿즈를 받아 온 뒤 네 묶음의 굿즈를 한 번에 묻는다. */
+export function ProductInterestShelf({ currentGoodId, standalone = false, wishlist }: { currentGoodId?: string; standalone?: boolean; wishlist?: ListingWishlist | null }) {
   const cart = useCart();
   const [owner, setOwner] = useState<string | null | undefined>(undefined), [collection, setCollection] = useState<InterestCollection>(() => emptyInterestCollection());
   const [selected, setSelected] = useState<InterestKind>('recent'), [refresh, setRefresh] = useState(0);
@@ -46,6 +52,9 @@ export function ProductInterestShelf({ currentGoodId, standalone = false }: { cu
     return () => { generation.current += 1; };
   }, [owner, currentGoodId, cartIds, refresh]);
   const groups = kinds.map(kind => ({ kind, goods: collection.groups[kind].filter(good => good.id !== currentGoodId) }));
+  const reviewSummaries = useListingReviewSummaries(groups.flatMap(group => group.goods.map(good => good.id)));
+  /* 목록은 owner 의 것이다 — 계정이 바뀌면 identity() 가 목록을 비우고 새 owner 의 응답만 받는다. 하트도 같은 회원일 때만 그린다. */
+  const heartFor = listingHeartsFor(wishlistForOwner(wishlist, owner));
   const available = groups.filter(group => group.goods.length), active = available.find(group => group.kind === selected) ?? available[0];
   if (!standalone && (!collection.enabled || !active)) return null;
   return <section className="wc-product-interests" aria-labelledby="product-interests-heading">
@@ -53,7 +62,7 @@ export function ProductInterestShelf({ currentGoodId, standalone = false }: { cu
     <header><h2 id="product-interests-heading">관심 굿즈 모아보기</h2>{!standalone ? <Link href="/interests">모두 보기</Link> : null}</header>
     {collection.unavailable ? <p role="alert">관심 굿즈를 불러오지 못했습니다. 새로고침 후 다시 확인해주세요.</p> : !active ? <p>아직 모아볼 굿즈가 없습니다. 굿즈를 둘러보거나 찜해보세요.</p> : <>
       <div className="wc-product-interests__tabs" role="group" aria-label="관심 굿즈 종류">{available.map(group => <button key={group.kind} type="button" aria-pressed={group.kind === active.kind} aria-controls="product-interests-panel" onClick={() => setSelected(group.kind)}>{labels[group.kind]} ({group.goods.length})</button>)}</div>
-      <div id="product-interests-panel" role="region" aria-label={labels[active.kind]} className="wc-product-interests__products">{active.goods.map(good => <ProductCard key={good.id} href={`/shop/${good.id}`} name={good.name} imageBackground={good.img} price={good.price} priceMax={good.priceMax} compareAtPrice={good.compareAtPrice} showDiscountRate={good.showDiscountRate} badges={goodDisplayBadges(good)} salePeriod={good.salePeriod} soldOut={good.stock === 'soldout'} listSurface="standard" listingAppearance={good.listingAppearance} cartGood={good} />)}</div>
+      <div id="product-interests-panel" role="region" aria-label={labels[active.kind]} className="wc-product-interests__products">{active.goods.map(good => <ProductCard key={good.id} href={`/shop/${good.id}`} name={good.name} action={heartFor(good)} reviewSummary={reviewSummaries[good.id]} imageBackground={good.img} price={good.price} priceMax={good.priceMax} compareAtPrice={good.compareAtPrice} showDiscountRate={good.showDiscountRate} badges={goodDisplayBadges(good)} salePeriod={good.salePeriod} soldOut={good.stock === 'soldout'} listSurface="standard" listingAppearance={good.listingAppearance} cartGood={good} />)}</div>
     </>}
     <footer><small>최근 본 굿즈는 현재 계정별로 이 브라우저에만 최대 30개 저장합니다.</small><button type="button" onClick={() => { if (owner === undefined) return; try { window.localStorage.removeItem(recentGoodsKey(owner)); } catch { /* Local persistence may be blocked. */ } setCollection(current => ({ ...current, groups: { ...current.groups, recent: [] } })); setRefresh(value => value + 1); }}>최근 본 굿즈 지우기</button></footer>
   </section>;

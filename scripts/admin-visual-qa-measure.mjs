@@ -172,7 +172,7 @@ export function measureAdminLayout(options = {}) {
       const minimum = textWidth(sample, style) + (kind === 'select' || ['date', 'datetime-local', 'month', 'week', 'time'].includes(type) ? 24 : 0);
       measurement.minimumContentWidth = rounded(minimum);
       if (contentWidth < minimum - tolerance) add('field-narrow', 'Control has too little visible editing space for its type and font.', element, { rect: box, contentWidth: rounded(contentWidth), minimumContentWidth: rounded(minimum), sample });
-      const minimumHeight = innerWidth <= 900 ? 44 : element.closest('.admin-sales-filters, .admin-sales-list-options') ? 30 : 34;
+      const minimumHeight = element.closest('[data-sales-filters], [data-sales-list-options], [data-size="sm"]') || element.matches('[data-size="sm"]') ? 28 : 32;
       if (box.height < minimumHeight - tolerance) add('field-height', `Admin input height is below the ${minimumHeight} px surface contract.`, element, { rect: box, minimumHeight });
     }
     if (!embeddedStorefrontPreview && kind === 'input' && ['text', 'search'].includes(type) && !element.value && element.placeholder && (type === 'search' || /검색|search/i.test(`${label(element)} ${element.name}`))) {
@@ -229,21 +229,24 @@ export function measureAdminLayout(options = {}) {
         box.bottom = Math.min(box.bottom, boundary.top + parent.clientTop + parent.clientHeight);
       }
     }
+    /* Opaque in any color syntax the console paints with: rgb()/oklch()/lab()… without an alpha part. */
+    const opaque = (color) => /^[a-z]+\([^)]*\)$/.test(color) && !/\/\s*(0?\.\d+|0)\s*\)$|rgba\(|hsla\(|transparent/.test(color);
     // The documented fixed/sticky save bars intentionally occlude scrolling content.
     // Its own controls remain collision candidates, and only an opaque bar
     // spanning the entire control width may clip the underlying painted area.
-    for (const bar of root?.querySelectorAll('.admin-good-workspace__save, .admin-story-editor__footer') || []) {
+    for (const bar of root?.querySelectorAll('[data-good-workspace-save], [data-admin-savebar]') || []) {
       const style = getComputedStyle(bar), boundary = rect(bar);
-      if (!bar.contains(element) && ['fixed', 'sticky'].includes(style.position) && /^rgb\([^)]*\)$/.test(style.backgroundColor)
+      if (!bar.contains(element) && ['fixed', 'sticky'].includes(style.position) && opaque(style.backgroundColor)
         && box.left >= boundary.left && box.right <= boundary.right && box.top < boundary.bottom && box.bottom > boundary.top) box.bottom = Math.min(box.bottom, boundary.top);
     }
     // A dialog's opaque sticky heading covers the scrolled body from above.
     // Only clip its own body, keeping collisions among heading controls visible.
     const dialog = element.closest('dialog');
-    const header = dialog?.querySelector(':scope > .admin-cs-dialog__header');
+    /* The shared dialog's heading (CustomerServiceDialog) is its first child header since ADR-0028. */
+    const header = dialog?.querySelector(':scope > header');
     if (header && !header.contains(element)) {
       const style = getComputedStyle(header), boundary = rect(header);
-      if (style.position === 'sticky' && /^rgb\([^)]*\)$/.test(style.backgroundColor)
+      if (style.position === 'sticky' && opaque(style.backgroundColor)
         && box.left >= boundary.left && box.right <= boundary.right && box.top < boundary.bottom && box.bottom > boundary.top) box.top = Math.max(box.top, boundary.bottom);
     }
     return { left: rounded(box.left), top: rounded(box.top), right: rounded(box.right), bottom: rounded(box.bottom), width: rounded(Math.max(0, box.right - box.left)), height: rounded(Math.max(0, box.bottom - box.top)) };
@@ -263,7 +266,7 @@ export function measureAdminLayout(options = {}) {
       if (width > tolerance && height > tolerance) add('control-collision', 'Painted portions of separate controls overlap.', left, { rect: rect(left), visibleRect: a, otherSelector: describe(right), otherLabel: label(right), otherRect: rect(right), otherVisibleRect: b, overlap: { width: rounded(width), height: rounded(height) } });
     }
   }
-  for (const element of elements.filter((element) => element.matches('label, .wc-admin-kit__field-label, .admin-console-filter-label') && !element.querySelector('input, select, textarea'))) {
+  for (const element of elements.filter((element) => element.matches('label, [data-slot="label"], [data-slot="field-label"]') && !element.querySelector('input, select, textarea'))) {
     const box = rect(element); const style = getComputedStyle(element); const text = normal(element.textContent);
     if (text.length >= 4 && box.width < number(style.fontSize) * 3.5 && box.height > (number(style.lineHeight) || number(style.fontSize) * 1.5) * 1.8) add('label-fragmented', 'Label wraps into a very narrow vertical column.', element, { rect: box, fontSize: style.fontSize, lineHeight: style.lineHeight });
   }

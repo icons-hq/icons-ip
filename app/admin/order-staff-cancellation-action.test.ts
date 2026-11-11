@@ -99,7 +99,7 @@ describe('startAdminOrderCancellationAction', () => {
   it.each([
     ['shipment_already_dispatched', '이미 발송된 배송 건이 있어'],
     ['order_claim_in_progress', '이미 진행 중인 취소·반품·교환 요청'],
-    ['staff_cancellation_toss_only', '토스 결제 주문만'],
+    ['staff_cancellation_toss_only', '토스·나이스페이 결제 주문만'],
     ['payment_reconciliation_required', '결제 결과가 아직 확정되지 않았습니다'],
     ['private db detail', '전액 취소를 시작하지 못했습니다'],
   ])('%s 거절은 결제사 호출 없이 안전한 문구로 답한다', async (message, expected) => {

@@ -188,6 +188,25 @@ describe('sendOrderConfirmationEmail', () => {
     });
   });
 
+  /* 메일은 service role로 order_items를 읽어 RLS가 걸리지 않는다 — 랜덤 판매 굿즈(D5②)의 배정 옵션은 코드에서 가린다. */
+  it('랜덤 판매 굿즈는 배정 옵션 대신 랜덤 한 줄로 적는다', async () => {
+    mocks.order = { ...mocks.order, total: 15_000 };
+    mocks.items = [
+      { id: 'item-1', good_id: 'rnd', variant_id: '00000000-0000-4000-8000-00000000000b', good_name_snapshot: '랜덤 포토카드',
+        variant_name_snapshot: '배정-비밀', option_sale_mode_snapshot: 'random', qty: 2, unit_price: 5000 },
+      { id: 'item-2', good_id: 'rnd', variant_id: '00000000-0000-4000-8000-00000000000c', good_name_snapshot: '랜덤 포토카드',
+        variant_name_snapshot: '배정-비밀2', option_sale_mode_snapshot: 'random', qty: 1, unit_price: 5000 },
+    ];
+
+    await sendOrderConfirmationEmail(ORDER_ID);
+
+    const { text, html } = mocks.send.mock.calls[0][0] as { text: string; html: string };
+    expect(`${text}${html}`).not.toMatch(/비밀/);
+    expect(text).toContain('랜덤 포토카드 · 랜덤');
+    expect(text.match(/랜덤 포토카드/g)).toHaveLength(1);
+    expect(text).toContain('굿즈 합계: ₩15,000');
+  });
+
   it('배송비와 쿠폰 할인은 주문 당시 저장값을 별도로 표시한다', async () => {
     mocks.order = { ...mocks.order, total: 22_000, shipping_fee: 3000, discount_total: 5000 };
     mocks.items = [{ id: 'item-1', good_name_snapshot: '홍실 아크릴 블록', qty: 2, unit_price: 12_000 }];
@@ -629,6 +648,29 @@ describe('sendRestockAlertEmails (#326)', () => {
       expect(goodsMail.text).not.toContain('variant=');
     });
 
+    /* T7 리뷰 RV-7: 랜덤 전환 전에 옵션 단위로 신청한 알림. 상세는 랜덤 굿즈의 ?variant= 를 무시하고 '랜덤'으로 판다 —
+       고객이 고를 수 없는 옵션의 재입고를 알리지 않는다. 신청별 dedupe 키는 그대로다. */
+    it('랜덤 판매 굿즈는 옵션 신청도 굿즈 단위 문구·링크로 보내고 옵션 이름을 읽지 않는다', async () => {
+      withOptionNames([{ variant_id: VARIANT_ID, option_name: '빨강' }]);
+      mocks.good = { ...mocks.good, option_sale_mode: 'random' };
+      mocks.restockRows = [
+        { id: SECOND_ALERT, notified_at: '2026-10-23T01:00:00.000Z', variant_id: VARIANT_ID, profiles: { email: 'fan2@example.com' } },
+      ];
+
+      const results = await sendRestockAlertEmails('g13');
+
+      expect(results).toEqual([{ status: 'sent' }]);
+      expect(rpcCalls('service_restock_alert_option_names')).toHaveLength(0);
+      expect(rpcCalls('claim_email_delivery')[0][1]).toMatchObject({
+        target_dedupe_key: `restock_alert:${SECOND_ALERT}:${VARIANT_ID}:2026-10-23T01:00:00.000Z`,
+        target_subject: '[ICONS] 재입고 알림 — 홍실 아크릴 블록',
+      });
+      const mail = mocks.send.mock.calls[0][0];
+      expect(mail.text).toContain('홍실 아크릴 블록 굿즈가 다시 판매를 시작했어요.');
+      expect(mail.text).not.toContain('variant=');
+      expect(mail.text).not.toContain('빨강');
+    });
+
     it('옵션 이름을 못 읽으면 이번 배치를 보내지 않고 실패로 남긴다(클레임 전이라 다음 접점에서 다시 보낸다)', async () => {
       withOptionNames(null, { message: 'permission denied' });
       mocks.restockRows = [
@@ -657,6 +699,16 @@ describe('sendRestockAlertEmails (#326)', () => {
   expect(mocks.send.mock.calls[1][0].text).toContain('남양주 굿즈');
   expect(mocks.send.mock.calls[1][0].text).not.toContain('김포 굿즈');
   expect(await sendOrderShippedEmail({orderId:ORDER_ID})).toEqual({status:'skipped',reason:'shipment_reference_required'});
+ });
+ it('DB가 발급한 16자리 주문번호·배송건번호로 배송 메일을 쓰고 출고지 이름은 싣지 않는다', async () => {
+  mocks.order = {...mocks.order,status:'shipping',order_number:'2026102710000009'};
+  mocks.items = [{id:'item-1',good_name_snapshot:'굿즈',qty:1,unit_price:1000}];
+  mocks.shipments = [shipmentFixture({orderId:ORDER_ID,shipmentNumber:'2026102730000011',originName:'남양주',orderItemIds:['item-1']})];
+  await sendOrderShippedEmail({orderId:ORDER_ID,shipmentId:mocks.shipments[0].id});
+  const sent = mocks.send.mock.calls[0][0];
+  expect(sent.subject).toBe('[ICONS] 굿즈가 배송을 시작했어요 (주문번호 2026102710000009)');
+  expect(sent.text).toContain('배송건번호: 2026102730000011');
+  expect(`${sent.subject}${sent.text}${sent.html}`).not.toContain('남양주');
  });
  it('다른 배송이 출발했어도 아직 준비 중인 배송건의 메일은 보내지 않는다', async () => {
   mocks.order = {...mocks.order,status:'shipping'};

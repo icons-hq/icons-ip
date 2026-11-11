@@ -8,6 +8,7 @@ import {
 } from '@/lib/store-analytics';
 import { STORE_ANALYTICS_NOTICE } from '@/lib/store-analytics-notice';
 import { enqueueStoreAnalytics, releaseShellNoticeImpressions, setStoreAnalyticsCollecting, shellNoticeViewFor, type ShellNoticeViewHandle } from '@/lib/store-analytics-client';
+import { holdStoreAnalyticsClearance } from './store-analytics-clearance';
 
 type State = { enabled: boolean; choice: AnalyticsChoice; usable: boolean; needsRevocation?: boolean };
 function localChoice(): AnalyticsChoice {
@@ -35,6 +36,8 @@ export function StoreAnalytics() {
   const [state, setState] = useState<State | null>(null);
   const [open, setOpen] = useState(false); const [busy, setBusy] = useState(false); const [message, setMessage] = useState('');
   const dialog = useRef<HTMLDialogElement>(null);
+  /* 화면 아래 고정된 배너 또는 설정 버튼 — 하단 착지선이 그 위로 올라가게 윗변을 잰다(store-analytics-clearance.ts). */
+  const pinned = useRef<HTMLElement>(null);
   const entry = useRef<{ signature: string; path: string; noticeView: ShellNoticeViewHandle; event: AnalyticsEvent } | null>(null);
   const choiceGeneration = useRef(0);
   const hasNavigated = useRef(false);
@@ -131,14 +134,21 @@ export function StoreAnalytics() {
     });
   }
 
-  if (!page || !state || (!state.enabled && state.choice === 'unset')) return null;
+  const shown = Boolean(page && state && (state.enabled || state.choice !== 'unset'));
+  const asking = Boolean(state?.enabled && state.choice === 'unset');
+  useEffect(() => {
+    if (!shown || !pinned.current) return;
+    return holdStoreAnalyticsClearance(pinned.current, window);
+  }, [shown, asking]);
+
+  if (!page || !state || !shown) return null;
   return <div className="wc-root wc-store-analytics">
-    {state.enabled && state.choice === 'unset' ? <aside className="wc-store-analytics-banner" aria-label="선택 방문 통계">
+    {asking ? <aside ref={pinned} className="wc-store-analytics-banner" aria-label="선택 방문 통계">
       <p><strong>방문 통계에 참여하시겠어요?</strong><span>공개 화면의 이용과 구매 전환을 방문 세션 단위로 분석합니다. 거부해도 쇼핑할 수 있습니다.</span></p>
       <button type="button" onClick={() => setOpen(true)}>안내·설정</button>
       <button type="button" disabled={busy} onClick={() => choose('declined')}>거부</button>
       <button type="button" disabled={busy} onClick={() => choose('accepted')}>동의</button>
-    </aside> : <button className="wc-store-analytics-settings" type="button" onClick={() => setOpen(true)}>방문 통계 설정</button>}
+    </aside> : <button ref={(element) => { pinned.current = element; }} className="wc-store-analytics-settings" type="button" onClick={() => setOpen(true)}>방문 통계 설정</button>}
     {message && !open ? <p className="wc-store-analytics-message" role="status">{message}</p> : null}
     <dialog ref={dialog} className="wc-store-analytics-dialog" aria-labelledby="analytics-title" onCancel={() => setOpen(false)} onClose={() => setOpen(false)}>
       <header><h2 id="analytics-title">{STORE_ANALYTICS_NOTICE.title}</h2><button type="button" aria-label="방문 통계 설정 닫기" onClick={() => setOpen(false)}>닫기</button></header>

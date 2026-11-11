@@ -32,3 +32,32 @@ describe('찜 목록 담기', () => {
     expect(html).toContain('href="/shop/good"'); expect(html).toContain('수량 선택'); expect(mocks.add).not.toHaveBeenCalled();
   });
 });
+
+/* 10/14 회의 S14 — '담김'이 생소하다는 지적에 따라 이미 담은 굿즈는 장바구니 기준으로 말한다. */
+describe('담은 굿즈 표시', () => {
+  it('shows the cart quantity with the cart wording instead of 담김', () => {
+    mocks.getQuantity.mockReturnValueOnce(1);
+    const html = renderToStaticMarkup(<AddToCartButton good={good} />);
+    expect(html).toContain('>장바구니 · 1</button>');
+    expect(html).not.toContain('담김');
+    expect(html).toContain('aria-label="키링, 장바구니 1개, 한 개 더 담기"');
+  });
+});
+
+
+/* D5② 랜덤 판매·D7② 옵션별 구매 제한. */
+describe('랜덤 판매·옵션별 구매 제한 담기', () => {
+  it('랜덤 판매 굿즈는 접힌 기본 옵션 키 하나라 목록에서 바로 담는다', () => {
+    const random = { ...option, name: '랜덤', code: '', attributes: {}, stockQty: 6, orderMaxQty: null, memberMaxQty: null };
+    const html = renderToStaticMarkup(<AddToCartButton good={{ ...good, optionSaleMode: 'random', options: [random] }} />);
+    expect(html).not.toContain('옵션 선택');
+    expect(html).toContain('>담기</button>');
+  });
+  it('옵션별 주문당 최대 수량까지 담으면 더 담지 않는다', () => {
+    mocks.getQuantity.mockReturnValue(2);
+    const html = renderToStaticMarkup(<AddToCartButton good={{ ...good, options: [{ ...option, stockQty: 5, orderMaxQty: 2 }] }} />);
+    expect(html).toContain('disabled=""');
+    expect(html).toContain('aria-label="키링, 장바구니 2개, 구매 한도 2개"');
+    mocks.getQuantity.mockReturnValue(0);
+  });
+});

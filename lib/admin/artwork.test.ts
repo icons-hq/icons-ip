@@ -3,6 +3,8 @@ import {
   ADMIN_ARTWORK_ACCEPT,
   ADMIN_ARTWORK_ERROR,
   ADMIN_ARTWORK_MAX_BYTES,
+  GOODS_ARTWORK_ERROR,
+  GOODS_ARTWORK_MAX_BYTES,
   buildAdminArtworkPath,
   normalizeAdminArtworkMetadata,
   parseAdminArtworkPath,
@@ -18,7 +20,7 @@ describe('admin artwork metadata', () => {
 
   it.each([
     ['ip', 'image/jpeg', 1],
-    ['good', 'image/png', ADMIN_ARTWORK_MAX_BYTES],
+    ['good', 'image/png', GOODS_ARTWORK_MAX_BYTES],
     ['card', 'image/webp', 42],
     ['event', 'image/jpeg', 1024],
     ['curation', 'image/png', 2048],
@@ -26,6 +28,18 @@ describe('admin artwork metadata', () => {
     expect(normalizeAdminArtworkMetadata({ kind, mimeType, size })).toEqual({
       ok: true,
       value: { kind, mimeType, size },
+    });
+  });
+
+  it('상품 이미지만 큰 한도를 쓰고 넘으면 그 한도를 안내한다', () => {
+    expect(GOODS_ARTWORK_MAX_BYTES).toBe(20 * 1024 * 1024);
+    expect(normalizeAdminArtworkMetadata({ kind: 'good', mimeType: 'image/jpeg', size: GOODS_ARTWORK_MAX_BYTES + 1 })).toEqual({
+      ok: false,
+      error: GOODS_ARTWORK_ERROR,
+    });
+    expect(normalizeAdminArtworkMetadata({ kind: 'event', mimeType: 'image/jpeg', size: GOODS_ARTWORK_MAX_BYTES })).toEqual({
+      ok: false,
+      error: ADMIN_ARTWORK_ERROR,
     });
   });
 

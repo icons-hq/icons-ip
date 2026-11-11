@@ -6,7 +6,6 @@ import {
   type LegalDocumentSlug,
 } from './links';
 import { socialLoginWords } from './social-login';
-import previousPublicDocuments from './archive/pre-2026-09-09.json';
 import { DEMOGRAPHIC_NOTICE } from '../customer-demographics';
 
 export { LEGAL_DOCUMENT_SLUGS, legalDocumentHref };
@@ -21,10 +20,8 @@ export type { LegalDocumentSlug };
  * - 법무 검토는 판매 개시 게이트가 아니다(계획 D12). 초안으로 개시하고 검토는 병행한다.
  *
  * 용어는 CONTEXT.md를 따른다 — "상품"이 아니라 "굿즈", 카드 C2C는 "트레이드"다.
- * "교환"은 굿즈 클레임 유형(회수 후 재출고) 전용이다. #259가 미뤄 둔 제17조 본문
- * 정리("카드의 이용자 간 교환" → "트레이드")는 교환 클레임 조항이 들어가는 이번
- * 개정(#252)에서 시행일과 함께 처리했다 — 같은 문서 안에서 "교환"이 두 가지를
- * 가리키는 상태를 남기지 않기 위해서다.
+ * "교환"은 굿즈 클레임 유형(회수 후 재출고) 전용이다 — 제17조가 카드 C2C를 "교환"이라
+ * 부르면 제16조의2의 교환 절차와 같은 단어가 두 가지를 가리키게 된다.
  */
 
 /* 배송 금액은 출고지 설정을 조회하는 상품 상세·주문 화면에서 고지한다.
@@ -39,55 +36,20 @@ export const PENDING_PROCESSOR_LABEL = '확인 중';
  * EMAIL_PROVIDER_ENDPOINT로 provider를 바꾸면 아래 두 표를 함께 고쳐야 한다. */
 const EMAIL_PROCESSOR_LABEL = 'Resend';
 
-/* 문서별 시행일. 한 문서만 개정할 때 나머지 시행일이 따라 바뀌면
- * 약관 제3조 3항과 방침 제13조가 요구하는 개정 이력을 만들 수 없다. */
-/* 2026-08-22 개정 — v1 가입 기준을 만 14세 이상으로 확정했다(#188 · ADR-0009).
+/* 문서별 시행일 — 서비스 공개(오픈) 전의 최초 판.
  *
- * 약관 제6조와 방침 제7조가 "나이를 자동 검증하지 않는다"고 적고 있었는데, 이제
- * 온보딩 폼과 profiles 트리거가 만 14세 미만 생년월일 저장을 거부한다. 문서가 그대로
- * 남으면 실제 동작과 정반대를 고지하게 된다.
+ * 2026-11-06 기준으로 서비스는 아직 공개 모집 전이고 실사용자가 없다(운영 책임자 확인 — 회원은 내부 확인용·
+ * 운영 시뮬레이션 계정뿐이다). 그래서 세 문서는 개정 안내·이전 본문 없이 이 날짜의 최초 판 하나로 둔다. 오픈 전에
+ * 쌓인 변경(가입 연령, 결제대행사, 교환 클레임, 직접 신청, 선택 성별, 주소록, 성인 인증)은 알릴 기존 이용자가 없어
+ * 본문으로 접었다.
  *
- * 사전 공지 기간을 두지 않았다. 2026-08-20 Production 실측에서 실사용자 가입이 없고
- * (테스트 계정 6건, 만 14세 미만 0건) 광고·공개 모집도 시작하지 않았다 — 보호할 기존
- * 이용자가 없는 변경이라 유예가 보호하는 대상이 없다. 실사용자가 생긴 뒤의 가입 기준
- * 변경은 다시 사전 공지 대상이다.
- *
- * shipping은 08-21에 머문다 — 가입 연령은 배송정책 본문에 나오지 않는다. */
-/* 2026-08-21 개정 — 2026-08-14 사전 공지한 결제대행사 변경을 본문으로 승격했다(#207).
- *
- * terms 제11조와 privacy 제5조가 신규 결제의 처리 주체를 주식회사 코페이로 바꾸고,
- * 토스페이먼츠는 기존 결제 기록의 조회·취소·환급 수탁자로 남긴다. 토스를 목록에서
- * 빼면 이미 결제한 이용자가 자기 거래의 취소·환급 주체를 어디서도 찾을 수 없다.
- *
- * 같은 날짜로 shipping까지 올린다 — #239의 사업자 연락처가 확정되면서 세 문서의
- * 문의처 문장이 대기 안내에서 실제 창구로 함께 바뀌기 때문이다. 한 문서만 올리면
- * 같은 창구를 두 시행일이 가리킨다.
- *
- * 사전 공지는 걷는다. 시행일이 지난 내용을 "예정"으로 계속 알리면 그 자체가 거짓 고지다. */
-/* 2026-08-20 개정 — 교환 클레임 신설과 환불계좌 수집 고지(#252).
- *
- * 같은 개정에서 제17조의 "카드의 이용자 간 교환"을 트레이드로 정정한다 — 교환
- * 조항이 들어오는 순간 한 문서 안에서 같은 단어가 두 가지를 가리키게 되기
- * 때문이다(#259가 이 개정으로 미뤄 둔 정리다).
- *
- * 날짜가 08-21보다 앞인 이유는 terms·privacy에 걸린 Korpay 사전 공지의 시행일이
- * 2026-08-21이기 때문이다. 문서 시행일이 그보다 뒤면 "2026-08-21부터 추가 예정"이
- * 이미 지난 날짜를 미래로 안내하게 된다 — 두 개정은 서로 다른 사안이므로 예정
- * 공지를 흡수하지 않고 그 앞에 둔다.
- *
- * 세 문서가 모두 클레임 절차를 기술하므로 함께 올린다 — 한 문서만 올리면 같은
- * 절차를 두 날짜가 가리킨다. */
-/* 2026-08-18 — 무통장 입금 조문(#256)을 terms 제11조·제11조의2와 shipping에 넣었다.
- * 시행일은 올리지 않았다: 무통장 결제는 법인계좌 확정(#255) 전까지 서버 설정이
- * 비어 있어 화면에 뜨지 않으므로, 조문이 먼저 시행되어도 가리킬 기능이 없고
- * 반대로 시행일을 당기면 이미 공지된 08-20 개정(#252)의 이력이 흐트러진다.
- * 무통장을 실제로 여는 시점에 개정 공지와 시행일을 함께 정해야 한다. */
-/* 2026-09-09 — 승인된 A 직접 신청·출고지별 회수·CS 의사표시 안내를 반영한다.
- * 이전 공개 정책 본문은 개정 이력으로 남기며, 개인정보처리방침 시행일은 바꾸지 않는다. */
+ * 오픈 뒤의 변경부터는 약관 제3조·방침 제13조대로 시행 7일(이용자에게 불리한 약관 변경은 30일) 전에 사전 공지하고
+ * (pendingRevision), 시행일부터 직전 본문을 이전 판으로 보존한다(previousVersion·revisionChanges). 그때 한 문서만
+ * 개정해도 나머지 시행일이 따라 바뀌지 않도록 시행일을 문서별로 둔다. */
 export const LEGAL_EFFECTIVE_DATES: Record<LegalDocumentSlug, string> = {
-  terms: '2026-09-09',
-  privacy: '2026-10-19',
-  shipping: '2026-09-09',
+  terms: '2026-11-06',
+  privacy: '2026-11-06',
+  shipping: '2026-11-06',
 };
 
 export interface LegalTable {
@@ -125,28 +87,6 @@ export interface LegalDocument {
   revisionChanges?: string[];
   previousVersion?: { effectiveDate: string; articles: LegalArticle[] };
   articles: LegalArticle[];
-}
-
-/** Preserve the former public policy, without copying personal contact values into its archive.
- * Support references intentionally show today's contact; this is not a user's acceptance record. */
-function previousPublicVersion(slug: 'terms' | 'shipping', contact: string) {
-  const previous = previousPublicDocuments[slug];
-  const text = (value: string) => value.replaceAll(
-    '{{CURRENT_CUSTOMER_SUPPORT}}', contact || '마이페이지의 1:1 문의(/my/inquiries)',
-  );
-  return {
-    effectiveDate: previous.effectiveDate,
-    articles: (previous.articles as LegalArticle[]).map((article) => ({
-      ...article,
-      paragraphs: article.paragraphs?.map(text),
-      list: article.list?.map(text),
-      closing: article.closing?.map(text),
-      table: article.table && {
-        columns: article.table.columns.map(text),
-        rows: article.table.rows.map((row) => row.map(text)),
-      },
-    })),
-  };
 }
 
 export function createLegalDocuments(businessInfo:BusinessInfo=BUSINESS_INFO) {
@@ -188,11 +128,6 @@ const terms: LegalDocument = {
   navLabel: LEGAL_DOCUMENT_LABELS.terms,
   summary: '굿즈 구매, 카드팩과 카드, 팝업 티켓, 커뮤니티 이용에 적용되는 회사와 이용자의 권리·의무를 정합니다.',
   effectiveDate: LEGAL_EFFECTIVE_DATES.terms,
-  revisionChanges: [
-    '직접 취소는 발주확인 전, 직접 반품·교환은 배송 중부터 주문 전체를 신청하는 기능 조건을 안내합니다.',
-    '직접 신청을 이용할 수 없는 상태에서도 1:1 문의·고객지원으로 의사표시와 최초 접수 시각을 남겨 확인합니다. 기존 계약과 청약철회 권리·기한·환급 기준은 변경하지 않습니다.',
-  ],
-  previousVersion: previousPublicVersion('terms', CONTACT_WORDS),
   articles: [
     {
       heading: '제1조 (목적)',
@@ -289,11 +224,14 @@ const terms: LegalDocument = {
         '구매신청 시점에 굿즈의 판매 수량이 선점되며, 정해진 시간 안에 결제가 완료되지 않으면 주문은 자동으로 만료되고 선점된 수량은 복원됩니다.',
       ],
     },
+    /* 결제대행사는 관리자가 고르는 값이 아니라 서버가 주문 단위로 정한다(ADR-0013) — 기본은 토스페이먼츠이고,
+     * 19금(판매 제한) 굿즈가 담긴 주문의 카드 결제만 나이스페이(나이스정보통신)로 간다. 나이스페이 연동이 운영에
+     * 열리기 전에는 19금 굿즈 주문의 카드 결제를 시작할 수 없다(docs/runbooks/nicepay-production-rollout.md). */
     {
       heading: '제11조 (지급방법)',
       paragraphs: [
-        '굿즈와 티켓 대금은 결제대행사인 주식회사 코페이를 통해 신용·체크카드로 지급할 수 있습니다.',
-        '2026년 8월 21일 전에 토스페이먼츠 주식회사로 처리된 결제는 조회, 결제 취소와 환급을 위해 계속 같은 결제대행사를 통해 처리합니다.',
+        '굿즈와 티켓 대금은 결제대행사인 토스페이먼츠 주식회사를 통해 신용·체크카드 또는 간편결제로 지급할 수 있습니다.',
+        '19금 굿즈가 담긴 주문의 카드 대금은 결제대행사인 나이스정보통신 주식회사를 통해 신용·체크카드로 지급합니다.',
         '굿즈 대금은 회사가 안내하는 계좌로 직접 입금하는 방법(무통장 입금)으로도 지급할 수 있습니다. 무통장 입금은 굿즈 주문에만 제공하며, 팝업 티켓과 회사가 무통장 입금을 받지 않는 것으로 표시한 굿즈에는 제공하지 않습니다.',
         '결제의 확정은 결제대행사가 회사에 보내는 결제 승인 통지를 기준으로 합니다. 브라우저의 결제 완료 화면만으로는 주문·티켓이 확정되지 않습니다.',
         '카드와 카드팩은 무상 리워드이므로 대금 지급 대상이 아닙니다.',
@@ -485,8 +423,20 @@ const privacy: LegalDocument = {
         rows: [
           ['회원가입·로그인', `이메일 주소, 비밀번호(암호화 저장), 소셜 로그인 시 ${socialLoginWords()}가 전달하는 계정 식별자와 이메일`, '가입 또는 로그인 시'],
           ['온보딩', '닉네임, 생년월일, 이용약관·개인정보 수집이용 동의 여부, 마케팅 정보 수신 동의 여부, 팔로우한 IP', '온보딩 완료 시'],
+          /* 성인 인증(NHN KCP 휴대폰 본인확인, ADR-0024). 본인확인기관이 넘기는 결과 원문(이름·생년월일 등)은 서울
+           * 리전(icn1) 서버 함수가 19세 이상 여부 판정에만 쓰고 저장하지 않는다. DB(private.adult_verifications·
+           * adult_verification_sessions)에는 인증 여부·일시·유효기간과 DI·거래번호의 HMAC 다이제스트만 남고, 둘 다
+           * auth.users 삭제에 cascade 된다 — 그래서 별도 보존 기간 행을 두지 않고 제3조 일반 원칙(탈퇴 시 파기)을 따른다. */
+          [
+            '성인 인증 (휴대폰 본인확인)',
+            '본인확인기관(NHN KCP)이 인증 결과로 전달하는 이름, 생년월일, 성별, 내·외국인 구분, 휴대폰번호, 통신사, 연계정보(CI), 중복가입확인정보(DI). 19세 이상 여부 판정에만 쓰고 저장하지 않으며, 회사는 인증 여부·인증 일시·유효기간과 중복가입확인정보·인증 거래번호를 복원할 수 없게 변환한 값만 보관합니다.',
+            '회원이 19금 굿즈 이용을 위해 성인 인증을 진행한 경우',
+          ],
           ['프로필', '프로필 이미지', '회원이 직접 등록한 경우'],
           ['굿즈 주문·배송', '수령인 이름, 연락처, 우편번호, 주소, 배송 요청사항', '주문 시'],
+          /* 주소록(LFS 패리티 2차 L7 · MY-11)은 주문서 입력 보조라 주문에 저장되는 배송지(위 행)와 따로 적는다.
+           * 선물 수령인 주소는 담지 않는다. */
+          ['주소록 (선택)', '배송지 이름, 받는 분 이름, 연락처, 우편번호, 주소', '회원이 배송지 관리·주문서·가입 직후 안내에서 배송지를 저장한 경우'],
           ['결제', '결제 수단 종류, 결제 승인·취소 내역, 결제대행사 거래 식별자, 환급 내역', '결제·환급 시'],
           /* 환급 계좌는 결제 인증정보가 아니라 회사가 직접 받는 항목이다.
            * 위 안내문("인증정보는 결제대행사가 처리하며 회사는 저장하지 않습니다")과
@@ -495,6 +445,7 @@ const privacy: LegalDocument = {
           ['팝업 티켓', '예매 내역, 티켓 상태, 검표 기록', '예매·검표 시'],
           ['커뮤니티', '게시물, 댓글, 좋아요, 신고, 차단 기록', '이용자가 작성·요청한 경우'],
           ['자동 생성', '접속 일시, IP 주소, 브라우저·기기 정보 등 서비스 이용 기록', '서비스 이용 과정에서 자동으로'],
+          ['성별·연령 고객 통계 (선택)', '자가 입력 성별, 회원번호, 선택 동의 여부·시각·안내 버전. 연령대는 기존 생년월일로 계산', '설정에서 별도 선택 동의 후 저장한 경우'],
         ],
       },
     },
@@ -502,13 +453,19 @@ const privacy: LegalDocument = {
       heading: '제2조 (개인정보의 처리 목적)',
       list: [
         '회원 식별, 로그인 유지, 가입 자격 확인 등 회원 관리',
+        '청소년 보호법에 따른 19세 이상 여부 확인(19금 굿즈 열람·구매 자격 관리)과 한 명의로 여러 계정을 인증하는 부정 이용 방지',
         '굿즈 주문 접수, 대금 결제, 배송, 청약철회·취소·반품·교환·환급 처리',
+        '회원이 저장한 배송지(주소록)를 주문서에 불러오는 배송지 입력 편의 제공',
         '팝업 티켓의 예매, 발급, 검표, 취소 처리',
         '카드팩과 카드의 무상 발급 이력 관리와 부정 이용 방지',
         '커뮤니티 운영, 신고·차단 처리, 이용약관 위반에 대한 조치',
         '알림함·이메일을 통한 거래 진행 안내와 서비스 공지',
         '동의한 이용자에 한정한 마케팅·프로모션 정보 제공',
       ],
+    },
+    {
+      heading: '제2조의2 (성별 정보의 선택 수집·이용)',
+      paragraphs: [DEMOGRAPHIC_NOTICE.purpose, DEMOGRAPHIC_NOTICE.collected, DEMOGRAPHIC_NOTICE.retention, DEMOGRAPHIC_NOTICE.choice],
     },
     {
       heading: '제3조 (개인정보의 보유·이용기간)',
@@ -525,6 +482,13 @@ const privacy: LegalDocument = {
           ['서비스 접속에 관한 기록', '3개월', '통신비밀보호법'],
         ],
       },
+      /* 주소록 파기 시점은 약관 제7조('탈퇴를 처리하면 … 지체 없이 파기')와 같은 말로 적는다. 탈퇴 신청 기능이 꺼져
+       * 있는 동안 탈퇴는 문의로 받아 회사가 처리한다(WITHDRAWAL_ROUTE_NOTICE) — 그때 운영자가
+       * private.erase_member_address_book 으로 지운다. 신청 기능이 켜지면 신청 시점(계정 봉인)에 지워지므로 '처리하면'보다 이르다. */
+      closing: [
+        '주소록에 저장한 배송지는 회원이 배송지 관리에서 언제든 직접 삭제할 수 있으며, 회사가 회원 탈퇴를 처리하면 지체 없이 파기합니다. 이미 한 주문의 배송지는 주문 정보의 일부로 위 표의 거래 기록 보존 기간 동안 따로 보관합니다.',
+        '성인 인증 기록의 유효기간은 인증일부터 1년이며, 회원 탈퇴 시 다른 회원 정보와 함께 지체 없이 파기합니다.',
+      ],
     },
     {
       heading: '제4조 (개인정보의 제3자 제공)',
@@ -547,8 +511,9 @@ const privacy: LegalDocument = {
         rows: [
           ['Supabase, Inc.', '데이터베이스와 회원 인증 인프라 운영', '위탁계약 종료 또는 회원 탈퇴 시까지'],
           ['Vercel, Inc.', '서비스 호스팅과 배포 인프라 운영', '위탁계약 종료 시까지'],
-          ['주식회사 코페이', '굿즈·티켓 카드 결제 처리, 결제 취소와 환급 처리', '관련 법령이 정한 보존기간까지'],
-          ['토스페이먼츠 주식회사', '2026년 8월 21일 전에 처리된 결제 기록의 조회, 결제 취소와 환급 처리', '관련 법령이 정한 보존기간까지'],
+          ['토스페이먼츠 주식회사', '굿즈·티켓 카드·간편결제 처리, 결제 취소와 환급 처리', '관련 법령이 정한 보존기간까지'],
+          ['나이스정보통신 주식회사', '19금 굿즈가 담긴 주문의 카드 결제 처리, 결제 취소와 환급 처리', '관련 법령이 정한 보존기간까지'],
+          ['엔에이치엔케이씨피 주식회사', '휴대폰 본인확인(성인 인증) 서비스 제공', '위탁계약 종료 시까지'],
           [EMAIL_PROCESSOR_LABEL, '주문 확인·배송 시작 등 거래 안내 메일과 가입 인증·비밀번호 재설정 메일 발송', '위탁계약 종료 시까지'],
           ['한진택배', '굿즈 배송과 반품 회수', '위탁계약 종료 또는 배송 완료 후 관련 법령이 정한 기간까지'],
           [PENDING_PROCESSOR_LABEL, '물류창고 보관·출고 관리(WMS) 운영', '위탁계약 종료 시까지'],
@@ -586,6 +551,7 @@ const privacy: LegalDocument = {
       paragraphs: [
         '이용자는 언제든지 자신의 개인정보에 대해 열람, 정정, 삭제, 처리정지를 요구할 수 있습니다.',
         `${SETTINGS_EDITABLE_ITEMS}는 설정 화면에서 직접 열람·수정할 수 있습니다.`,
+        '주소록에 저장한 배송지는 마이페이지의 배송지 관리(/my/addresses)에서 직접 열람·수정·삭제할 수 있습니다.',
         SETTINGS_UNEDITABLE_NOTICE,
         `개인정보의 삭제와 처리 정지는 이용약관 제7조의 탈퇴 요청으로 요구할 수 있습니다. ${WITHDRAWAL_ROUTE_NOTICE}`,
         '회사는 만 14세 미만 아동을 대상으로 서비스를 제공하지 않으며, 만 14세 미만 아동의 개인정보를 수집하지 않습니다. 온보딩 단계에서 생년월일로 만 14세 이상 여부를 확인하고 만 14세 미만인 경우 가입을 완료할 수 없도록 하고 있습니다. 그럼에도 만 14세 미만 아동이 가입한 사실을 알게 된 경우 회사는 해당 계정의 이용을 정지하고 수집된 개인정보를 지체 없이 파기합니다.',
@@ -647,29 +613,12 @@ const privacy: LegalDocument = {
   ],
 };
 
-// Preserve the previous public body before appending the newly approved
-// optional collection notice. Live publication must follow the notice process
-// in article 13; this local implementation does not publish the revision.
-privacy.previousVersion = { effectiveDate: '2026-08-22', articles: structuredClone(privacy.articles) };
-privacy.revisionChanges = ['별도 선택 동의한 성별 정보의 수집 항목·목적·보관·철회와 10명 미만 집계 비공개 기준을 추가합니다.'];
-privacy.articles[0].table!.rows.push(['성별·연령 고객 통계 (선택)', '자가 입력 성별, 회원번호, 선택 동의 여부·시각·안내 버전. 연령대는 기존 생년월일로 계산', '설정에서 별도 선택 동의 후 저장한 경우']);
-privacy.articles.splice(2, 0, {
-  heading: '제2조의2 (성별 정보의 선택 수집·이용)',
-  paragraphs: [DEMOGRAPHIC_NOTICE.purpose, DEMOGRAPHIC_NOTICE.collected, DEMOGRAPHIC_NOTICE.retention, DEMOGRAPHIC_NOTICE.choice],
-});
-
 const shipping: LegalDocument = {
   slug: 'shipping',
   title: '배송·반품 정책',
   navLabel: LEGAL_DOCUMENT_LABELS.shipping,
   summary: '굿즈 배송비와 배송 절차, 청약철회 기간과 제한 사유, 취소·반품·교환 절차와 반송비 부담 주체, 환급 계좌 처리 기준을 안내합니다.',
   effectiveDate: LEGAL_EFFECTIVE_DATES.shipping,
-  revisionChanges: [
-    '직접 신청 조건과 고객지원 접수 경로, 출고지별 반송 대상·실제 입고 확인, 교환품의 실제 배송 완료 확인을 안내합니다.',
-    '배송비는 출고지별 정책과 주문 시점의 고정값으로 안내합니다. 기존 주문의 금액·배송 시각·신청 기한·금융 처리 사실은 바꾸지 않습니다.',
-    '최초 배송비를 포함한 주문 전체 환급과 기존 반송비 부담 기준을 유지합니다. 문의 접수만으로 환급이 승인되거나 출고가 중단되지는 않습니다.',
-  ],
-  previousVersion: previousPublicVersion('shipping', CONTACT_WORDS),
   articles: [
     {
       heading: '1. 배송 안내',

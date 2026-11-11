@@ -1,7 +1,21 @@
 'use client';
 
 import { useRef, type ReactNode } from 'react';
-import { ORDER_CLAIM_STAGE_LABELS, type OrderClaimStage } from '@/lib/orders/claims';
+import { Check, ChevronDown } from 'lucide-react';
+import { adminClaimStageLabel } from '@/lib/admin/claims';
+import { orderClaimEffectiveStage, type OrderClaimStage } from '@/lib/orders/claims';
+import { CLAIM_STEP_MARK_CLASS } from './ClaimProgressSummary';
+
+/*
+ * 단계 표시. 끝난 단계(초록 체크)·지금 단계(주 색)·남은 단계(회색 번호)를 모양과 글자로 나눈다.
+ * 고대비 모드에서는 지금 단계가 윤곽선으로 남는다.
+ */
+const STEP_BUTTON_CLASS = 'flex min-h-12 items-center gap-2 rounded-lg border bg-background px-2.5 py-1.5 text-left text-sm text-muted-foreground transition-colors outline-none hover:bg-muted hover:text-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 data-[step-state=current]:border-primary data-[step-state=current]:bg-primary-soft data-[step-state=current]:text-primary-soft-foreground data-[step-state=done]:text-foreground data-[step-state=optional]:border-dashed forced-colors:aria-[current=step]:outline-2 forced-colors:aria-[current=step]:outline-[Highlight]';
+const STEP_MARK_CLASS = CLAIM_STEP_MARK_CLASS;
+/* 강조 테두리는 지금 단계 칸 한 겹이다 — 바깥 처리 칸과 안쪽 묶음에는 겹치지 않는다. 접힌 단계도 인쇄에서는 내용이 보이게 한다. */
+const STEP_SECTION_CLASS = 'group/section min-w-0 rounded-lg border data-[step-state=current]:border-primary print:[&::details-content]:[content-visibility:visible]';
+/* 지금 할 일이 있으면 위 단계 칸이 유일한 이동 수단이고 아래에는 펼친 단계만 남긴다 — 같은 이름의 접이 줄이 네 개 더 있으면 어느 쪽을 눌러야 할지 망설인다. 인쇄에는 전부 나온다. */
+const STEP_SECTION_FOCUS_CLASS = '[&:not([open])]:hidden print:[&:not([open])]:block';
 
 export interface ReturnClaimProgress {
   stage: OrderClaimStage;
@@ -17,6 +31,8 @@ export interface ReturnClaimProgress {
 }
 
 type StepId = 'review' | 'collection' | 'hold' | 'refund';
+type StepState = 'done' | 'current' | 'todo' | 'optional' | 'closed';
+const STEP_CAPTION: Record<StepState, string> = { done: '완료', current: '지금 할 일', todo: '남은 단계', optional: '필요 시', closed: '종료' };
 
 /** Navigation derives only from refreshed claim evidence. It never submits or advances a claim. */
 export function ReturnClaimWorkspace({ progress, review, collection, hold, refund, exception }: {
@@ -35,47 +51,91 @@ export function ReturnClaimWorkspace({ progress, review, collection, hold, refun
         : progress.collectionPolicy === null || !progress.collectionComplete
           || progress.stage === 'collecting'
           || progress.collectionPolicy === 'legacy' && !progress.collectedAt ? 'collection' : 'refund';
+  const effective = orderClaimEffectiveStage(progress.stage, progress.heldFrom);
+  const evidence: Record<'review' | 'collection' | 'refund', boolean> = {
+    review: !closed && effective !== 'requested' && effective !== 'in_review',
+    collection: progress.collectionPolicy !== null && progress.collectionComplete && effective !== 'collecting'
+      && (progress.collectionPolicy !== 'legacy' || Boolean(progress.collectedAt)),
+    refund: progress.refundCompleted,
+  };
+  const stateOf = (id: StepId): StepState => {
+    if (id === next) return 'current';
+    if (id === 'hold') return closed || next === null ? 'closed' : 'optional';
+    return evidence[id] ? 'done' : closed ? 'closed' : 'todo';
+  };
   const collectionSummary = progress.collectionPolicy === null ? '회수 기준 확인 필요'
     : progress.collectionPolicy === 'legacy' ? progress.collectedAt ? '입고 확인 기록 있음' : '입고 확인 기록 없음'
       : progress.collectionCount === 0 ? '회수 대상 확인 전'
         : `${progress.collectedCount} / ${progress.collectionCount}개 출고지 확인 · ${progress.collectionComplete ? '전체 회수 확인 완료' : '전체 회수 확인 전'}`;
-  const steps: { id: StepId; title: string; summary: string; content: ReactNode }[] = [
-    { id: 'review', title: '검토·승인', summary: `현재 단계: ${ORDER_CLAIM_STAGE_LABELS[progress.stage]}`, content: review },
-    { id: 'collection', title: '회수 확인', summary: collectionSummary, content: collection },
-    { id: 'hold', title: '보류 상태 · 필요 시 처리', summary: progress.stage === 'on_hold'
-      ? `보류 중 · 보류 전 ${progress.heldFrom ? ORDER_CLAIM_STAGE_LABELS[progress.heldFrom] : '단계 확인 필요'}`
+  /* 처리 순서는 검토 → 회수 → 환불이고, 보류는 순서 밖의 예외라 번호 없이 맨 뒤에 둔다. */
+  const steps: { id: StepId; number: number | null; title: string; label: string; summary: string; content: ReactNode }[] = [
+    { id: 'review', number: 1, title: '검토·승인', label: '검토·승인', summary: evidence.review ? '승인 완료' : `현재 단계: ${adminClaimStageLabel('return', progress.stage)}`, content: review },
+    { id: 'collection', number: 2, title: '회수 확인', label: '회수 확인', summary: collectionSummary, content: collection },
+    { id: 'refund', number: 3, title: '환불 처리', label: '환불 처리', summary: progress.refundCompleted ? '환불 완료 시각 기록됨'
+      : progress.refundLedgerOpen ? progress.refundFiled ? '환불 접수 기록 있음 · 완료 시각 없음' : '환불 확인 전 · 완료 시각 없음'
+        : '환불 기록 없음', content: refund },
+    { id: 'hold', number: null, title: '보류 상태 · 필요 시 처리', label: '보류', summary: progress.stage === 'on_hold'
+      ? `보류 중 · 보류 전 ${progress.heldFrom ? adminClaimStageLabel('return', progress.heldFrom) : '단계 확인 필요'}`
       : '현재 보류 중인 요청이 아닙니다.', content: hold },
-    { id: 'refund', title: '환불 처리', summary: progress.refundCompleted ? '환불 완료 시각 기록됨'
-      : progress.refundLedgerOpen ? progress.refundFiled ? '환불 접수 기록 있음 · 완료 시각 없음' : '환불 원장 열림 · 완료 시각 없음'
-        : '환불 원장 없음', content: refund },
   ];
   const nextStep = steps.find(step => step.id === next);
+  /* 접힌 단계를 눌렀을 때도 내용이 보이도록 펼친 뒤 그 단계 제목으로 옮긴다. */
   function focusStep(id: StepId) {
-    headings.current[id]?.focus();
-    headings.current[id]?.scrollIntoView({ block: 'start', behavior: 'instant' });
+    const heading = headings.current[id];
+    const section = heading?.closest('details');
+    if (section) section.open = true;
+    heading?.focus();
+    heading?.scrollIntoView({ block: 'start', behavior: 'instant' });
   }
 
-  return <div className="admin-return-workspace">
-    <header className="admin-return-workspace__heading">
-      <h3>반품 단계별 처리</h3>
-      <p>주문과 요청을 확인한 뒤 회수·환불을 각각 처리합니다. 보류는 필요한 경우에만 설정합니다.</p>
-      <div className="admin-return-workspace__next">
-        <p role="status">{closed ? '요청 처리가 종료됐습니다. 기존 증빙과 환불 기록을 확인하세요.'
+  return <div className="flex min-w-0 flex-col gap-3" data-claim-workspace="return">
+    <header className="flex min-w-0 flex-col gap-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <h3 className="text-base leading-snug font-medium">반품 단계별 처리</h3>
+        {/* 다음 할 일은 바로 아래 단계 칸이 '지금 할 일'로 말한다. 같은 말을 또 적지 않고 화면 낭독기로만 읽는다. */}
+        <p className={nextStep ? 'sr-only' : 'min-w-0 break-words text-muted-foreground'} role="status">{closed ? '요청 처리가 종료됐습니다. 기존 증빙과 환불 기록을 확인하세요.'
           : nextStep ? `다음 확인: ${nextStep.title}` : '반품과 환불 완료 기록을 확인했습니다.'}</p>
-        {nextStep ? <button className="btn btn-sm btn-ghost" type="button" onClick={() => focusStep(nextStep.id)}>다음 작업 보기</button> : null}
       </div>
+      <nav aria-label="반품 처리 단계" className="grid grid-cols-2 gap-2 sm:grid-cols-4 print:hidden">
+        {steps.map(step => {
+          const state = stateOf(step.id);
+          return <button id={`return-step-${step.id}`} key={step.id} type="button" aria-current={state === 'current' ? 'step' : undefined}
+            className={STEP_BUTTON_CLASS} data-slot="button" data-step-state={state}
+            onClick={() => focusStep(step.id)}>
+            <span aria-hidden="true" className={STEP_MARK_CLASS} data-step-state={state}>{state === 'done' ? <Check className="size-3.5" /> : step.number ?? '–'}</span>
+            <span className="flex min-w-0 flex-col">
+              <span className="text-xs font-normal">{STEP_CAPTION[state]}</span>
+              <span className="font-medium">{step.number ? <span className="sr-only">{step.number}. </span> : null}{step.label}</span>
+            </span>
+          </button>;
+        })}
+      </nav>
     </header>
-    <nav aria-label="반품 처리 단계" className="admin-return-workspace__navigation">
-      {steps.map((step, index) => <button key={step.id} type="button" aria-current={step.id === next ? 'step' : undefined}
-        onClick={() => focusStep(step.id)}>{index + 1}. {step.title}</button>)}
-    </nav>
-    {steps.map((step, index) => <section key={step.id} className="admin-return-workspace__step" aria-labelledby={`return-${step.id}`}>
-      <h4 id={`return-${step.id}`} tabIndex={-1} ref={node => { headings.current[step.id] = node; }}>
-        <span aria-hidden="true">{index + 1}</span>{step.title}
-      </h4>
-      <p className="admin-return-workspace__evidence">{step.summary}</p>
-      <div className="admin-return-workspace__content">{step.content}</div>
-    </section>)}
-    {exception ? <section className="admin-return-workspace__exception" aria-label="요청 거부">{exception}</section> : null}
+    {/* 지금 단계만 펼친다. 다른 단계는 위 단계 칸을 누르면 펼쳐지고, 접어도 입력은 DOM에 남는다. 할 일이 끝난 요청은 기록을 찾아보도록 접이 줄을 모두 둔다. */}
+    <div className="flex min-w-0 flex-col gap-2">
+      {steps.map(step => {
+        const state = stateOf(step.id);
+        /* 지금 단계 칸은 접지 않는다 — 접으면 위 단계 칸 말고는 아무것도 남지 않는다. */
+        const pinned = state === 'current';
+        return <details key={step.id} className={`${STEP_SECTION_CLASS}${next ? ` ${STEP_SECTION_FOCUS_CLASS}` : ''}`} data-step-state={state} open={pinned} onToggle={event => {
+          /* 접으면 이 칸 전체가 숨는다 — 포커스가 사라지지 않게 위 단계 칸으로 돌려준다. */
+          const section = event.currentTarget;
+          if (next && !section.open && (section.contains(document.activeElement) || document.activeElement === document.body)) document.getElementById(`return-step-${step.id}`)?.focus();
+        }}>
+          <summary className={`flex list-none items-center gap-2 rounded-lg px-3 py-2.5 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden ${pinned ? 'cursor-default' : 'cursor-pointer'}`} onClick={pinned ? event => event.preventDefault() : undefined} tabIndex={pinned ? -1 : undefined}>
+            <h4 className="flex min-w-0 flex-1 scroll-mt-16 flex-wrap items-center gap-x-2 gap-y-0.5 rounded-sm text-sm font-medium outline-none focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
+              id={`return-${step.id}`} tabIndex={-1} ref={node => { headings.current[step.id] = node; }}>
+              <span aria-hidden="true" className={STEP_MARK_CLASS} data-step-state={state}>{state === 'done' ? <Check className="size-3.5" /> : step.number ?? '–'}</span>
+              {step.title}
+              <span className="min-w-0 text-xs font-normal break-words text-muted-foreground">{step.summary}</span>
+            </h4>
+            {pinned ? null : <ChevronDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open/section:rotate-180" />}
+          </summary>
+          <div className="flex min-w-0 flex-col gap-4 border-t px-3 py-3">{step.content}</div>
+        </details>;
+      })}
+    </div>
+    {exception ? <section className="flex min-w-0 flex-col gap-3 border-t pt-3" aria-label="요청 거부">{exception}</section> : null}
+    <p className="text-xs text-muted-foreground">주문과 요청을 확인한 뒤 회수·환불을 각각 처리합니다. 보류는 필요한 경우에만 설정합니다.</p>
   </div>;
 }

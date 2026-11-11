@@ -24,6 +24,9 @@ vi.mock('@/lib/ip-identity.server', () => ({ resolvePublicIpIdentity: () => mock
 vi.mock('@/lib/ip-follow.server', () => ({ getIpFollowState: () => mocks.followState }));
 vi.mock('@/lib/catalog-categories.server', () => ({ loadPublicCatalogCategories: async () => [] }));
 vi.mock('@/lib/wishlist-ids.server', () => ({ loadListingWishlist: async () => ({ viewerId: 'viewer-1', goodIds: ['g2'] }) }));
+vi.mock('@/lib/ip-hall-banner.server', () => ({
+  loadIpHallBanner: async (ipId: string) => (ipId === 'ip-1' ? { imageUrl: 'https://cdn.test/pc.webp', mobileImageUrl: null } : null),
+}));
 
 const ip = {
   id: 'ip-1',
@@ -127,5 +130,18 @@ describe('/ip/[id] page', () => {
     expect(props.collection.result.goods.map((good) => good.id)).toEqual(['g2']);
     expect(props.collection.result.total).toBe(2);
     expect(props.wishlist).toEqual({ viewerId: 'viewer-1', goodIds: ['g2'] });
+  });
+
+  it('passes the hall banner only for the live catalog (IP-06)', async () => {
+    mocks.detail = { ...mocks.detail!, source: 'supabase' };
+    renderToStaticMarkup(await Page({ params: Promise.resolve({ id: 'ip-1' }) }));
+    expect(mocks.ipDetail.mock.calls[0]?.[0]).toEqual(expect.objectContaining({
+      banner: { imageUrl: 'https://cdn.test/pc.webp', mobileImageUrl: null },
+    }));
+
+    mocks.ipDetail.mockClear();
+    mocks.detail = { ...mocks.detail!, source: 'mock' };
+    renderToStaticMarkup(await Page({ params: Promise.resolve({ id: 'ip-1' }) }));
+    expect(mocks.ipDetail.mock.calls[0]?.[0]).toEqual(expect.objectContaining({ banner: null }));
   });
 });

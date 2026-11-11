@@ -5,6 +5,15 @@ import { loadInquiryChatContext, loadInquiryChatData } from '@/lib/admin/inquiry
 import { loadAdminInquiryDetail } from '@/lib/admin/inquiries.server';
 import { isUuid } from '@/lib/uuid';
 import { InquiryChatScreen } from '@/components/admin/screens/InquiryChatScreen';
+import { getAdminCustomerHistory } from '@/lib/admin/customer-detail.server';
+
+/* 상담 화면 오른쪽 구매이력은 버튼 없이 자동으로 보인다(A7). 같은 RPC가 sales.read를 다시 검사한다. */
+async function loadPurchaseHistory(userId: string) {
+  try {
+    const history = await getAdminCustomerHistory(userId, { tab: 'orders', page: 1 });
+    return { history: history ? { ...history, userId } : null, error: false };
+  } catch { return { history: null, error: true }; }
+}
 
 export default async function AdminInquiryChatPage({ searchParams }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -18,6 +27,8 @@ export default async function AdminInquiryChatPage({ searchParams }: {
     loadInquiryChatData(filters), inquiryId ? loadAdminInquiryDetail(inquiryId, access) : Promise.resolve(null),
     inquiryId ? loadInquiryChatContext(inquiryId) : Promise.resolve(null),
   ]);
+  const purchase = detail && access.canReadOrders ? await loadPurchaseHistory(detail.buyer.id) : null;
   return <InquiryChatScreen key={auth.user.id} accountId={auth.user.id} filters={filters} data={data} detail={detail} chatContext={chatContext}
-    selected={Boolean(params.inquiryId)} canReadOrders={access.canReadOrders} canViewCustomer={hasAdminCapability(auth, 'platform.manage')} />;
+    selected={Boolean(params.inquiryId)} canReadOrders={access.canReadOrders} canViewCustomer={hasAdminCapability(auth, 'platform.manage')}
+    purchaseHistory={purchase?.history ?? null} purchaseHistoryError={purchase?.error ?? false} />;
 }

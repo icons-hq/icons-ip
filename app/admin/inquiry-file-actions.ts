@@ -49,7 +49,9 @@ export async function sendInquiryChatMessageAction(_state: AdminInquiryActionSta
   try {
     if (!await access()) return { errors: { form: '상담 권한이 필요합니다.' } };
     const inquiryId = formData.get('inquiryId'); const operationId = formData.get('operationId');
-    const body = String(formData.get('body') ?? '').trim();
+    /* 폼 본문의 CRLF를 LF로 맞춘 뒤 trim·길이 검사·저장한다. 입력창 maxLength(줄바꿈 1자)와 서버의
+       2,000자 검사가 같은 글자 수를 센다. */
+    const body = String(formData.get('body') ?? '').replace(/\r\n?/g, '\n').trim();
     const files: unknown = JSON.parse(String(formData.get('fileIds') ?? '[]'));
     if (!isUuid(inquiryId) || !isUuid(operationId) || !Array.isArray(files) || files.some(file => !isUuid(file))
       || new Set(files).size !== files.length || files.length > INQUIRY_MESSAGE_FILE_LIMIT || body.length > MAX_INQUIRY_BODY_LENGTH || !body && !files.length)

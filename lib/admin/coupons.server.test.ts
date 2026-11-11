@@ -107,12 +107,12 @@ describe('admin coupon list server boundary', () => {
     expect(data.total).toBe(41);
     expect(calls).toContainEqual([
       'rpc',
-      'admin_search_coupon_console_v3',
+      'admin_search_coupon_console_v4',
       { p_query: 'AUTUMN', p_status: 'active', p_limit: 20, p_offset: 20, p_filters: { phase: 'all', discountType: 'all', segment: 'any', dateField: 'created', from: null, to: null, sort: 'created_desc' } },
     ]);
     expect(calls).toContainEqual([
       'select',
-      'code,name,discount_type,discount_value,max_discount_amount,min_subtotal,starts_at,ends_at,issue_limit,issued_count,status,grade_benefit,recipient_segment,goods_scope,target_good_ids,terms_revision,issue_starts_at,issue_ends_at,valid_days,benefit_kind,stackable,target_category_ids,issuance_mode,used_count,total_count,target_goods,target_categories',
+      'code,name,discount_type,discount_value,max_discount_amount,min_subtotal,starts_at,ends_at,issue_limit,issued_count,status,grade_benefit,recipient_segment,goods_scope,target_good_ids,terms_revision,issue_starts_at,issue_ends_at,valid_days,benefit_kind,stackable,target_category_ids,target_ip_ids,issuance_mode,used_count,total_count,target_goods,target_categories,target_ips',
     ]);
     expect(calls.filter(([kind]) => kind === 'from')).toHaveLength(0);
   });

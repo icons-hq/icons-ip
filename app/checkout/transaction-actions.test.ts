@@ -1,18 +1,21 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { CurrentAuthState } from '@/lib/auth/server';
 import { transactionActor, transactionInput, transactionOrder, transactionQuote, transactionRecovery } from '@/test/fixtures/cart-transaction';
-const mocks = vi.hoisted(() => ({ auth: null as CurrentAuthState | null, rpc: vi.fn(), offers: vi.fn(), analytics: vi.fn(), card: true, bank: true, runtime: 'transaction' }));
+const mocks = vi.hoisted(() => ({ auth: null as CurrentAuthState | null, rpc: vi.fn(), offers: vi.fn(), analytics: vi.fn(), card: true, bank: true, runtime: 'transaction',
+  cardProviders: [] as Array<string | undefined>, cartProvider: vi.fn(), userCartProvider: vi.fn() }));
 vi.mock('@/lib/auth/server', () => ({ getCurrentAuthState: () => mocks.auth }));
 vi.mock('@/lib/supabase/service', () => ({ createServiceClient: () => ({ rpc: mocks.rpc }) }));
 vi.mock('@/lib/goods-transaction-offers.server', () => ({ loadGoodsTransactionOffers: mocks.offers }));
 vi.mock('@/lib/store-analytics.server', () => ({ bindStoreAnalyticsOrder: mocks.analytics }));
-vi.mock('@/lib/payments/goods-checkout-availability', () => ({ goodsCheckoutPaymentsEnabled: () => mocks.card }));
+vi.mock('@/lib/payments/goods-checkout-availability', () => ({ goodsCheckoutPaymentsEnabled: (_userId?: string, provider?: string) => { mocks.cardProviders.push(provider); return mocks.card; } }));
+vi.mock('@/lib/payments/goods-sale-restriction.server', () => ({ deriveGoodsCartProvider: mocks.cartProvider, deriveUserCartProvider: mocks.userCartProvider }));
 vi.mock('@/lib/payments/bank-transfer.server', () => ({ bankTransferCheckoutEnabled: () => mocks.bank }));
 vi.mock('@/lib/checkout-transaction.server', () => ({ loadGoodsTransactionRuntimeMode: () => mocks.runtime }));
 import { placeCartTransactionAction, quoteCartTransactionAction, resumeCartTransactionAction } from './transaction-actions';
 const placeInput = { ...transactionInput, quoteId: transactionRecovery.quoteId, checkoutKey: transactionRecovery.checkoutKey, paymentMethod: transactionRecovery.paymentMethod };
 beforeEach(() => {
-  vi.clearAllMocks(); mocks.card = true; mocks.bank = true; mocks.runtime = 'transaction';
+  vi.clearAllMocks(); mocks.card = true; mocks.bank = true; mocks.runtime = 'transaction'; mocks.cardProviders = [];
+  mocks.cartProvider.mockResolvedValue('toss'); mocks.userCartProvider.mockResolvedValue('toss');
   mocks.auth = { isConfigured: true, user: { id: transactionActor, email: 'qa@example.test' }, profile: { email: 'qa@example.test', nickname: '구매자', birth_date: '2000-01-01', consents: { terms: true, privacy: true }, onboarded_at: '2026-01-01T00:00:00Z' }, isStaff: false };
   mocks.rpc.mockResolvedValue({ data: transactionOrder, error: null }); mocks.offers.mockResolvedValue([]); mocks.analytics.mockResolvedValue(undefined);
 });
@@ -43,7 +46,11 @@ it('주문 생성은 견적 UUID로 금액을 확정하며 분석 기록 실패�
   expect(await placeCartTransactionAction(placeInput)).toEqual({ ok: true, orderId: transactionOrder });
   expect(mocks.rpc.mock.calls[0][1]).toEqual({ p_user_id: transactionActor, p_expected_cart: [{ good_id: 'transaction-good', variant_id: transactionInput.items[0].variantId, qty: 2, input_revision: 0, input_values: {} }], p_address: transactionInput.address, p_quote_id: transactionRecovery.quoteId, p_checkout_key: transactionRecovery.checkoutKey, p_payment_method: 'card' });
 });
-it.each([['PT409', 'transaction_quote_expired', 'quote_changed', false], ['PT409', 'cart_snapshot_changed', 'cart_changed', false], ['', 'network failed', 'unavailable', true]])('DB 거절과 결과 불명을 구분한다: %s %s', async (code, message, error, uncertain) => {
+it.each([['PT409', 'transaction_quote_expired', 'quote_changed', false], ['PT409', 'cart_snapshot_changed', 'cart_changed', false], ['', 'network failed', 'unavailable', true],
+  // 옵션별 구매 제한·랜덤 판매 굿즈는 order_items 경계가 거절한다(계산 단계 이슈를 지나친 경합). 장바구니 확인으로 돌려보낸다.
+  ['23514', 'option_order_limit_exceeded: 00000000-0000-4000-8000-000000000001', 'cart_changed', false],
+  ['23514', 'option_member_limit_exceeded: 00000000-0000-4000-8000-000000000001', 'cart_changed', false],
+  ['23514', 'random_option_checkout_unsupported: transaction-good', 'cart_changed', false]])('DB 거절과 결과 불명을 구분한다: %s %s', async (code, message, error, uncertain) => {
   mocks.rpc.mockResolvedValue({ data: null, error: { code, message } });
   expect(await placeCartTransactionAction(placeInput)).toEqual({ ok: false, error, uncertain });
 });
@@ -86,4 +93,15 @@ it('쿠폰 순서를 별도 명시하고 응답의 쿠폰 선택이 다르면 �
   expect(mocks.rpc.mock.calls[0][1]).not.toHaveProperty('p_user_coupon_id');
   quote.display.coupons[0].userCouponId = transactionOrder;
   expect(await quoteCartTransactionAction({ ...transactionInput, userCouponIds: ids })).toEqual({ ok: false, error: 'unavailable' });
+});
+
+it('19금 굿즈가 섞인 카트의 카드 주문과 이어서 주문하기는 나이스페이 gate를 본다(ADR-0024)', async () => {
+  mocks.cartProvider.mockResolvedValue('nicepay'); mocks.userCartProvider.mockResolvedValue('nicepay'); mocks.card = false;
+  expect(await placeCartTransactionAction(placeInput)).toMatchObject({ ok: false, error: 'payment_unavailable', uncertain: false });
+  expect(mocks.cartProvider).toHaveBeenCalledWith(placeInput.items.map(item => item.goodId));
+  expect(mocks.cardProviders).toEqual(['nicepay']);
+  expect(mocks.rpc).not.toHaveBeenCalled();
+  await resumeCartTransactionAction(transactionRecovery);
+  expect(mocks.userCartProvider).toHaveBeenCalledWith(transactionActor);
+  expect(mocks.rpc).toHaveBeenCalledWith('resume_cart_goods_transaction', expect.objectContaining({ p_allow_new: false }));
 });

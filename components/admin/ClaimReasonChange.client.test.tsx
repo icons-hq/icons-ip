@@ -9,6 +9,8 @@ vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>
 }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: mocks.refresh, replace: mocks.replace }) }));
 vi.mock('@/app/admin/claim-reason-change-actions', () => ({ changeClaimReasonAction: mocks.save, readClaimReasonChangeAction: mocks.read, loadClaimReasonContextAction: mocks.load }));
+const busy = vi.hoisted(() => vi.fn());
+vi.mock('@/components/admin/screens/ClaimPreviewDialog', () => ({ useClaimPreviewBusy: busy }));
 import { ClaimReasonChangePanel } from './ClaimReasonChange';
 import { reasonContext, reasonReceipt as receipt, reasonRequest } from '@/lib/orders/claim-reason-change.fixture';
 let context = structuredClone(reasonContext);
@@ -64,4 +66,13 @@ it('무변경 저장은 알림 없이 완료되며 오래된 기한 분류는 �
   mocks.save.mockImplementation(async request => ({ receipt: { ...receipt, id: request.id, fromReasonType: context.reasonType, toReasonType: context.reasonType,
     fromReason: context.reason, toReason: context.reason, resultRevision: context.revision, changed: false } }));
   await submit(); expect(text(render())).toContain('고객 알림을 추가하지 않았습니다'); expect(mocks.refresh).not.toHaveBeenCalled();
+});
+/* m27 G4-5: 목록 위 클레임 팝업(R8) 안에서 사유 정정을 기다리는 동안 팝업이 닫히지 않게 알린다. */
+it('사유 정정 저장을 기다리는 동안 팝업에 처리 중을 알린다', async () => {
+  let finish!: (value: unknown) => void; mocks.save.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  render(); expect(busy).toHaveBeenLastCalledWith(false);
+  fill(); all(render()).find(element => element.type === 'form')!.props.onSubmit?.({ preventDefault: () => {} });
+  render(); expect(busy).toHaveBeenLastCalledWith(true);
+  finish({ error: '충돌', conflict: true }); await settle();
+  render(); expect(busy).toHaveBeenLastCalledWith(false);
 });

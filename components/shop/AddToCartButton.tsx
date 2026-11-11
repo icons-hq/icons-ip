@@ -2,7 +2,7 @@
 
 import type { Good } from '@/lib/data';
 import { useCart } from '@/components/shell/CartProvider';
-import { goodsPurchaseConditionProblem, initialGoodOption } from '@/lib/goods-options';
+import { goodsPurchaseConditionProblem, initialGoodOption, purchasableOptionQty } from '@/lib/goods-options';
 import Link from 'next/link';
 import { goodsSaleUnavailableLabel } from '@/lib/goods-sale-period';
 
@@ -16,15 +16,19 @@ export function AddToCartButton({ good, variant = 'card' }: { good: Good; varian
   const quantity = option ? getQuantity(good.id, option.id) : 0;
   const stockQty = option?.stockQty ?? 0;
   const sold = good.stock === 'soldout' || stockQty <= 0;
-  const atStockLimit = quantity >= stockQty;
+  /* 옵션별 주문당 최대 수량(D7②)이 재고보다 작으면 그 수량이 담기 한도다. 최종 판정은 주문 생성 트리거다. */
+  const limitQty = option ? purchasableOptionQty(option) : 0;
+  const atStockLimit = quantity >= limitQty;
   const detail = variant === 'detail';
   const saleLabel = goodsSaleUnavailableLabel(good.salePeriod);
+  /* 이미 담은 굿즈는 장바구니 기준으로 말한다 — '담김'이 생소하다는 10/14 회의 지적(S14).
+     N은 장바구니에 든 이 옵션의 수량이고, 누르면 한 개 더 담는다(aria-label이 같은 사실을 말한다). */
   const label = sold
     ? '품절'
     : !ready
       ? '준비 중'
       : quantity > 0
-        ? `담김 · ${quantity}`
+        ? `장바구니 · ${quantity}`
         : '담기';
   const conditionProblem = goodsPurchaseConditionProblem(good);
   const ariaLabel = sold
@@ -34,7 +38,7 @@ export function AddToCartButton({ good, variant = 'card' }: { good: Good; varian
       : pending
         ? `${good.name} 장바구니 저장 중`
         : atStockLimit
-          ? `${good.name}, 장바구니 ${quantity}개, 재고 한도 ${stockQty}개`
+          ? `${good.name}, 장바구니 ${quantity}개, ${limitQty < stockQty ? '구매' : '재고'} 한도 ${limitQty}개`
           : quantity > 0
             ? `${good.name}, 장바구니 ${quantity}개, 한 개 더 담기`
             : `${good.name} 장바구니에 한 개 담기`;
@@ -53,7 +57,7 @@ export function AddToCartButton({ good, variant = 'card' }: { good: Good; varian
         borderRadius: 999,
         fontWeight: 700,
         fontSize: detail ? 15 : 12.5,
-        /* HM 다크 전제 인라인(--text·#110D22·흰 오버레이)의 WC 번역. 담김(quantity>0)
+        /* HM 다크 전제 인라인(--text·#110D22·흰 오버레이)의 WC 번역. 담은 상태(quantity>0)
            상태가 흰 지면에서 흰 글자로 사라지던 결함을 잉크 아웃라인 문법으로 바로잡는다
            — .wc-btn / .wc-btn.primary(wc-foundation.css)와 같은 쌍. */
         background: quantity > 0 ? 'var(--wc-surface)' : 'var(--wc-ink)',

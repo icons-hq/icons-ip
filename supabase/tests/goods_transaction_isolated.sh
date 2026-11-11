@@ -176,6 +176,7 @@ PYGIFTSETTLED
 fi
 if docker exec "$test_container" psql -X -U postgres -d "$test_database" -At -c "select to_regprocedure('public.quote_cart_goods_transaction(uuid,jsonb,jsonb,jsonb,uuid,bigint)') is not null" | rg -q '^t$'; then
  SUPABASE_DB_CONTAINER="$test_container" PGDATABASE="$test_database" python3 supabase/tests/goods_transaction_concurrency.py
+ SUPABASE_DB_CONTAINER="$test_container" PGDATABASE="$test_database" python3 supabase/tests/cart_retained_concurrency.py
  docker exec -i "$test_container" psql -X -U supabase_admin -d "$test_database" -v ON_ERROR_STOP=1 -q < supabase/tests/goods_order_readers_readonly.sql
 fi
 docker exec -i "$test_container" psql -X -U supabase_admin -d "$test_database" -v ON_ERROR_STOP=1 -q < supabase/tests/order_claim_refund_account.sql

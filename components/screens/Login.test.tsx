@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { Login } from './Login';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { Login, readSavedLoginEmail, saveLoginEmailChoice, SAVED_LOGIN_EMAIL_KEY } from './Login';
 
 const mocks = vi.hoisted(() => ({
   signInState: {} as Record<string, unknown>,
@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   signUp: vi.fn(),
   reset: vi.fn(),
   social: vi.fn(),
+  savedEmail: null as string | null,
 }));
 
 vi.mock('@/app/login/actions', () => ({
@@ -29,6 +30,8 @@ vi.mock('react', async () => {
       if (action === mocks.social) return [mocks.socialState, vi.fn(), false];
       return [mocks.resetState, vi.fn(), false];
     },
+    /* 정적 렌더는 서버 스냅샷(null)만 본다 — 이 기기에 저장된 이메일을 읽은 클라이언트 렌더를 흉내 낸다. */
+    useSyncExternalStore: () => mocks.savedEmail,
   };
 });
 
@@ -47,6 +50,7 @@ describe('Login', () => {
     mocks.signUpState = {};
     mocks.resetState = {};
     mocks.socialState = {};
+    mocks.savedEmail = null;
   });
 
   it('renders one social form with provider submit values and the preserved next path', () => {
@@ -156,5 +160,69 @@ describe('Login', () => {
 
     expect(html).toContain('결제사 승인 확인 후 주문 확정');
     expect(html).not.toContain('토스페이먼츠 안전 결제');
+  });
+});
+
+/* R29(MD-0004): 로그인 화면(어드민도 같은 /login)에 '이메일 저장'. 이 기기 localStorage 에만 두고,
+   세션은 이미 @supabase/ssr 기본 쿠키(400일)로 유지된다. */
+describe('Login 이메일 저장', () => {
+  const checkbox = (html: string) => html.match(/<input[^>]*type="checkbox"[^>]*>/)?.[0] ?? '';
+  const emailInput = (html: string) => html.match(/<input[^>]*name="email"[^>]*>/)?.[0] ?? '';
+
+  it('로그인 모드에만 체크박스를 두고, 저장된 이메일이 없으면 비워 둔다', () => {
+    const html = render();
+    expect(html).toContain('이메일 저장');
+    expect(checkbox(html)).not.toContain('checked');
+    expect(checkbox(html)).not.toContain('name=');
+    expect(emailInput(html)).not.toContain('value=');
+    expect(render({ initialMode: 'signup' })).not.toContain('이메일 저장');
+    expect(render({ initialMode: 'reset' })).not.toContain('이메일 저장');
+  });
+
+  it('이 기기에 저장한 이메일이 있으면 미리 채우고 체크해 둔다', () => {
+    mocks.savedEmail = 'fan@example.test';
+    const html = render();
+    expect(emailInput(html)).toContain('value="fan@example.test"');
+    expect(checkbox(html)).toContain('checked=""');
+  });
+
+  describe('저장소', () => {
+    let store: Map<string, string>;
+    beforeEach(() => {
+      store = new Map();
+      vi.stubGlobal('window', { localStorage: {
+        getItem: (key: string) => store.get(key) ?? null,
+        setItem: (key: string, value: string) => { store.set(key, value); },
+        removeItem: (key: string) => { store.delete(key); },
+      }, addEventListener: vi.fn(), removeEventListener: vi.fn() });
+    });
+    afterEach(() => { vi.unstubAllGlobals(); });
+
+    it('체크하면 다듬은 이메일을 저장하고, 해제하면 지운다', () => {
+      saveLoginEmailChoice('  fan@example.test ', true);
+      expect(store.get(SAVED_LOGIN_EMAIL_KEY)).toBe('fan@example.test');
+      expect(readSavedLoginEmail()).toBe('fan@example.test');
+      saveLoginEmailChoice('fan@example.test', false);
+      expect(store.has(SAVED_LOGIN_EMAIL_KEY)).toBe(false);
+      expect(readSavedLoginEmail()).toBeNull();
+    });
+
+    it('이메일 형태가 아니거나 너무 긴 값은 저장하지도 읽지도 않는다', () => {
+      saveLoginEmailChoice('not-an-email', true);
+      expect(store.has(SAVED_LOGIN_EMAIL_KEY)).toBe(false);
+      store.set(SAVED_LOGIN_EMAIL_KEY, `${'a'.repeat(250)}@example.test`);
+      expect(readSavedLoginEmail()).toBeNull();
+    });
+
+    it('저장소를 쓸 수 없는 브라우저(사생활 보호 모드 등)에서도 던지지 않는다', () => {
+      vi.stubGlobal('window', { localStorage: {
+        getItem: () => { throw new Error('denied'); },
+        setItem: () => { throw new Error('denied'); },
+        removeItem: () => { throw new Error('denied'); },
+      } });
+      expect(() => saveLoginEmailChoice('fan@example.test', true)).not.toThrow();
+      expect(() => saveLoginEmailChoice('fan@example.test', false)).not.toThrow();
+      expect(readSavedLoginEmail()).toBeNull();
+    });
   });
 });

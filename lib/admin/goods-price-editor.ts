@@ -49,6 +49,20 @@ export function formatWon(value: number): string {
 }
 
 /**
+ * 할인율(%) = 할인액 ÷ 판매가 × 100을 반올림한다(10/27 회의 R18). 고객 화면 할인율 배지
+ * (components/wc/PriceBlock.tsx의 `Math.round((1 - 판매 금액 / 정가) * 100)`)와 같은 식이라 표시가 어긋나지 않는다.
+ */
+export function goodsDiscountRate(regularPrice: number, salePrice: number): number {
+  return regularPrice > 0 && salePrice < regularPrice ? Math.round((1 - salePrice / regularPrice) * 100) : 0;
+}
+
+/** 즉시할인 결과 문구: '할인가 X원 (Y원, Z% 할인)'. 할인이 없거나 입력이 잘못되면 null. */
+export function goodsDiscountResultText(result: Pick<GoodsPriceResolution, 'regularPrice' | 'salePrice' | 'discountAmount'>): string | null {
+  if (result.discountAmount <= 0 || result.salePrice === null || result.regularPrice === null) return null;
+  return `할인가 ${formatWon(result.salePrice)} (${formatWon(result.discountAmount)}, ${goodsDiscountRate(result.regularPrice, result.salePrice)}% 할인)`;
+}
+
+/**
  * 편집을 열 때의 입력 상태. 실패·브라우저 복구로 화면 입력이 돌아오면 그 값을 그대로 쓰고,
  * 아니면 저장된 `price`·`compareAtPrice`에서 판매가·할인(원)을 되짚는다.
  */

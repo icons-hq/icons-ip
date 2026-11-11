@@ -46,13 +46,20 @@ select 1/case when (select count(*) from public.order_items where order_id=:'ord
  and (select total=1001000 and calculation_version=2 from public.orders where id=:'order_id')
  and private.goods_order_snapshot_matches(:'order_id',1001000,0)
  and (select stock_qty=199 from public.goods_variants where good_id='cart-snapshot-1001')
- and not exists(select 1 from public.cart_items where user_id='00000000-0000-4000-8000-000000064502') then 1 else 0 end as assert_v2_1001_line_order_allocation_supply_snapshot;
+ -- 카드 주문은 결제 확정 때 장바구니에서 뺀다(ADR-0026). 1001줄 전체가 보류에 남는다.
+ and (select count(*)=1001 from public.cart_items where user_id='00000000-0000-4000-8000-000000064502')
+ and (select jsonb_array_length(lines)=1001 and state='awaiting_payment' from private.cart_order_holds where order_id=:'order_id')
+ then 1 else 0 end as assert_v2_1001_line_order_allocation_supply_snapshot;
 select octet_length(calculation::text) as persisted_calculation_bytes,octet_length(selection::text) as persisted_selection_bytes
  from private.goods_transaction_quotes where id=(:'quote'::jsonb->>'quoteId')::uuid;
 set local role service_role;
 select public.cancel_order(:'order_id','합성 1001행 전체 취소');
 reset role;
-select 1/case when (select stock_qty=1200 from public.goods_variants where good_id='cart-snapshot-1001') then 1 else 0 end as assert_v2_1001_line_full_cancel;
+select 1/case when (select stock_qty=1200 from public.goods_variants where good_id='cart-snapshot-1001')
+ and (select state='released' and release_reason='order_closed' from private.cart_order_holds where order_id=:'order_id')
+ then 1 else 0 end as assert_v2_1001_line_full_cancel;
+-- 결제 전 취소된 카드 주문의 줄은 장바구니에 그대로 남는다. 아래 크기 검사는 빈 장바구니에서 시작한다.
+delete from public.cart_items where user_id='00000000-0000-4000-8000-000000064502';
 -- The explicit serialized byte budget applies separately to input and the
 -- larger immutable calculation. A long-input 1001-row cart may exceed it.
 insert into public.coupons(code,name,discount_type,discount_value,min_subtotal,starts_at,status)

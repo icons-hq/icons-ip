@@ -7,6 +7,7 @@ import { ADMIN_ORDER_STATUSES } from './orders';
 import type { ShipmentConsoleRow } from './shipment-dispatch';
 import type { SmartStoreDeliveryLine } from './smartstore-delivery-list';
 import { AdminListExportChangedError, AdminListExportLoadError } from './list-export-errors';
+import { loadOrderItemAllocations, withLegacyItemAmounts } from './item-allocation.server';
 
 /** Every item must still belong to the exact shipment version read by the list. */
 export async function loadSmartStoreDeliveryLines(rows: ShipmentConsoleRow[]): Promise<SmartStoreDeliveryLine[]> {
@@ -32,5 +33,10 @@ export async function loadSmartStoreDeliveryLines(rows: ShipmentConsoleRow[]): P
     }
   }
   if (rows.some(row => !row.items.length || row.items.some(item => !seen.has(item.id)))) throw new AdminListExportChangedError();
-  return result;
+  // 버전 1 할인 주문의 품목 금액은 거래확정 엑셀과 같은 공통 배분으로 채운다(10/14 회의 A5).
+  const pending = result.filter(line => line.itemTotal === null);
+  if (!pending.length) return result;
+  let loaded: Awaited<ReturnType<typeof loadOrderItemAllocations>>;
+  try { loaded = await loadOrderItemAllocations(pending.map(line => line.orderId), client); } catch { throw new AdminListExportLoadError(); }
+  return result.map(line => withLegacyItemAmounts(line, loaded));
 }

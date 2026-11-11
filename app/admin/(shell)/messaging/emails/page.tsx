@@ -5,7 +5,8 @@ import { loadEmailDeliveries } from '@/lib/email/deliveries.server';
 export default async function AdminMessagingEmailsPage() {
   await requireAdminScreenAccess('/admin/messaging/emails');
 
+  const now = new Date();
   const deliveries = await loadEmailDeliveries();
 
-  return <EmailDeliverySection deliveries={deliveries} />;
+  return <EmailDeliverySection deliveries={deliveries} nowMs={now.getTime()} />;
 }

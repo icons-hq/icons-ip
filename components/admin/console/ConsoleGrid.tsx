@@ -2,8 +2,10 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react';
+import { ConsoleTableSettings } from '@/components/admin/kit/console-table-settings';
 import { useGridPreferences } from './AdminPreferences';
-import { ConsoleGridSettings } from './ConsoleGridSettings';
+import { useHorizontalOverflow } from './useHorizontalOverflow';
 
 export type ConsoleSortDirection = 'asc' | 'desc';
 
@@ -145,6 +147,7 @@ export function ConsoleGrid({
   const selected = new Set(selection);
   const selectAllRef = useRef<HTMLInputElement>(null);
   const tableRef = useRef<HTMLTableElement>(null);
+  const { ref: overflowRef, more: overflowMore } = useHorizontalOverflow<HTMLDivElement>();
   const { preferences, save } = useGridPreferences(preferencesKey ?? caption, columns);
   const indexes = configurable
     ? preferences.order.filter((key) => !preferences.hidden.includes(key)).map((key) => columns.findIndex((column) => column.key === key))
@@ -210,34 +213,48 @@ export function ConsoleGrid({
 
   const columnCount = visibleColumns.length + (selectable ? 1 : 0);
   const hasWidths = visibleColumns.some((column) => column.width);
+  /* 인쇄에서는 고정 칸이 흐름 배치로 돌아간다 — 종이에는 가로 스크롤이 없다. */
+  const frozenCellClass = 'data-[frozen]:sticky data-[frozen]:z-10 print:data-[frozen]:static';
 
+  /*
+   * kit 표 모양(components/admin/kit/ui/table.tsx의 클래스, ADR-0028). 표는 화면 고유 CSS가 닿지 않게 kit 부품
+   * 표시(data-slot)를 단다. 체크박스는 폼 제출(선택 hidden input)과 단위 테스트를 위해 네이티브 그대로 두고
+   * kit 체크박스 모양을 입는다(admin-kit-vocabulary.css). 고정 열은 불투명 배경이라 가로 스크롤 아래가 비치지 않는다.
+   */
   return (
-    <div className={`${className ? `${className} ` : ''}admin-console-grid`}>
-      {children}
-      {configurable ? <ConsoleGridSettings columns={columns} preferences={preferences} onSave={save} /> : null}
-      <div className="admin-console-grid-scroll" role="region" aria-label={`${caption} 가로 스크롤`} tabIndex={0}>
-        <table className="admin-console-grid-table" ref={tableRef}>
-          <caption className="admin-console-grid-caption">{caption}</caption>
+    <div className={`${className ? `${className} ` : ''}flex min-w-0 flex-col gap-2`} data-console-grid="">
+      {/* 작업 막대와 조회항목 설정을 한 줄에 둔다 — 설정 버튼 혼자 한 줄을 차지해 표가 밀리지 않게. */}
+      {children || configurable ? <div className="flex min-w-0 flex-wrap items-center gap-2">
+        {children ? <div className="min-w-0 flex-1 basis-96">{children}</div> : <div className="flex-1" />}
+        {configurable ? <ConsoleTableSettings columns={columns} onSave={save} preferences={preferences} /> : null}
+      </div> : null}
+      <div className="relative min-w-0">
+      {/* 표가 영역보다 넓으면 오른쪽 끝을 흐리게 해 옆으로 더 있다는 것을 보인다(ADR-0029, 잘린 열 지적). */}
+      {overflowMore ? <div aria-hidden="true" className="pointer-events-none absolute inset-y-px right-px z-20 w-10 rounded-r-lg bg-gradient-to-l from-foreground/10 to-transparent print:hidden" data-console-grid-more="" /> : null}
+      <div aria-label={`${caption} 가로 스크롤`} className="@container relative min-w-0 overflow-x-auto rounded-lg border bg-card outline-none focus-visible:ring-3 focus-visible:ring-ring/50" ref={overflowRef} role="region" tabIndex={0}>
+        <table className="w-full caption-bottom text-sm" data-slot="table" ref={tableRef}>
+          <caption className="sr-only">{caption}</caption>
           {hasWidths ? (
             <colgroup>
-              {selectable ? <col className="admin-console-grid-check-col" /> : null}
+              {selectable ? <col className="w-10" /> : null}
               {visibleColumns.map((column) => (
                 <col key={column.key} style={column.width ? { width: column.width } : undefined} />
               ))}
             </colgroup>
           ) : null}
-          <thead>
-            <tr>
+          <thead className="[&_tr]:border-b" data-slot="table-header">
+            <tr className="border-b bg-muted/50" data-slot="table-row">
               {selectable ? (
-                <th className="admin-console-grid-check" data-frozen={frozenCount > 0 || undefined} style={frozenStyle(0)} scope="col">
-                  <input
+                <th className={`relative h-10 w-10 min-w-10 bg-muted p-0 align-middle ${frozenCellClass}`} data-frozen={frozenCount > 0 || undefined} data-slot="table-head" style={frozenStyle(0)} scope="col">
+                  {/* 칸 전체가 클릭 영역이다(label이 칸을 채운다). */}
+                  <label className="absolute inset-0 flex cursor-pointer items-center justify-center print:static"><input
                     aria-label="전체 선택"
                     checked={allSelected}
                     disabled={selectableIds.length === 0}
                     onChange={(event) => toggleAll(event.target.checked)}
                     ref={selectAllRef}
                     type="checkbox"
-                  />
+                  /></label>
                 </th>
               ) : null}
               {visibleColumns.map((column, displayIndex) => {
@@ -246,6 +263,7 @@ export function ConsoleGrid({
                 const href = column.sortable
                   ? column.sortHref ?? sortHrefFor?.(column.key, direction)
                   : undefined;
+                const SortIcon = active ? (sort?.direction === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown;
 
                 return (
                   <th
@@ -254,23 +272,24 @@ export function ConsoleGrid({
                         ? sort?.direction === 'asc' ? 'ascending' : 'descending'
                         : 'none'
                       : undefined}
+                    className={`h-10 bg-muted px-3 text-left align-middle text-xs font-semibold whitespace-nowrap text-secondary-foreground data-[align=end]:text-right ${frozenCellClass}`}
                     data-align={column.align ?? 'start'}
                     data-frozen={displayIndex < frozenCount || undefined}
-                    style={frozenStyle(displayIndex + (selectable ? 1 : 0))}
+                    data-slot="table-head"
+                    style={{ ...frozenStyle(displayIndex + (selectable ? 1 : 0)), ...(column.width ? { minWidth: column.width } : null) }}
                     key={column.key}
                     scope="col"
                   >
                     {href ? (
                       <Link
                         aria-label={`${column.label} ${SORT_DIRECTION_LABELS[direction]} 정렬`}
-                        className={`admin-console-grid-sort${active ? ' on' : ''}`}
+                        className="-mx-1.5 inline-flex h-7 items-center gap-1 rounded-md px-1.5 transition-colors outline-none hover:bg-accent hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 data-[active]:text-foreground"
+                        data-active={active || undefined}
                         data-direction={active ? sort?.direction : undefined}
                         href={href}
                       >
                         {column.label}
-                        <span aria-hidden="true" className="admin-console-grid-sort-mark">
-                          {active ? (sort?.direction === 'asc' ? '↑' : '↓') : '↕'}
-                        </span>
+                        <SortIcon aria-hidden="true" className={`size-3.5${active ? '' : ' opacity-50'}`} />
                       </Link>
                     ) : column.label}
                   </th>
@@ -278,11 +297,14 @@ export function ConsoleGrid({
               })}
             </tr>
           </thead>
-          <tbody>
+          <tbody className="[&_tr:last-child]:border-0" data-slot="table-body">
             {rows.length === 0 ? (
-              <tr>
-                <td className="admin-console-grid-empty" colSpan={columnCount}>
-                  <p className="muted">{emptyLabel}</p>
+              <tr data-slot="table-row">
+                <td className="h-24 p-0 text-center align-middle text-muted-foreground" colSpan={columnCount} data-slot="table-cell">
+                  {/* 표가 보이는 폭보다 넓어도 문구는 보이는 폭(스크롤 영역 = 크기 질의 컨테이너) 가운데에 남는다. */}
+                  <div className="sticky left-0 flex h-24 w-[100cqw] items-center justify-center px-4">
+                    {emptyLabel}
+                  </div>
                 </td>
               </tr>
             ) : rows.map((row) => {
@@ -290,33 +312,42 @@ export function ConsoleGrid({
               const rowSelected = selected.has(row.id);
 
               return (
-                <tr data-selected={rowSelected ? 'true' : undefined} key={row.id}>
+                <tr
+                  className="group/row border-b transition-colors hover:bg-primary-soft/40 data-[state=selected]:bg-primary-soft"
+                  data-selected={rowSelected ? 'true' : undefined}
+                  data-slot="table-row"
+                  data-state={rowSelected ? 'selected' : undefined}
+                  key={row.id}
+                >
                   {selectable ? (
-                    <td className="admin-console-grid-check" data-frozen={frozenCount > 0 || undefined} style={frozenStyle(0)}>
+                    <td className={`relative w-10 min-w-10 bg-card p-0 align-middle group-hover/row:bg-[color-mix(in_oklab,var(--primary-soft)_40%,var(--card))] group-data-[state=selected]/row:bg-primary-soft ${frozenCellClass}`} data-frozen={frozenCount > 0 || undefined} data-slot="table-cell" style={frozenStyle(0)}>
                       {rowSelectable ? (
-                        <input
+                        <label className="absolute inset-0 flex cursor-pointer items-center justify-center print:static"><input
                           aria-label={row.selectLabel ?? `${row.id} 선택`}
                           checked={rowSelected}
                           onChange={(event) => toggleRow(row.id, event.target.checked)}
                           type="checkbox"
                           value={row.id}
-                        />
+                        /></label>
                       ) : null}
                     </td>
                   ) : null}
                   {indexes.map((index, displayIndex) => {
                     const cell = row.cells[index];
                     const column = columns[index];
+                    const frozen = displayIndex < frozenCount;
                     return (
                       <td
+                        className={`px-3 py-2 align-middle break-keep data-[align=end]:text-right data-[align=end]:tabular-nums ${frozen ? `bg-card group-hover/row:bg-[color-mix(in_oklab,var(--primary-soft)_40%,var(--card))] group-data-[state=selected]/row:bg-primary-soft ${frozenCellClass}` : ''}`}
                         data-align={column?.align ?? 'start'}
-                        data-frozen={displayIndex < frozenCount || undefined}
+                        data-frozen={frozen || undefined}
+                        data-slot="table-cell"
                         style={frozenStyle(displayIndex + (selectable ? 1 : 0))}
                         key={column?.key ?? `cell-${index}`}
                       >
                         {/* 표에서는 행 전체를 링크로 만들 수 없다. 첫 셀만 상세 링크가 된다. */}
                         {index === 0 && row.href ? (
-                          <Link className="admin-console-grid-link" href={row.href}>{cell}</Link>
+                          <Link className="font-medium text-primary underline-offset-4 hover:underline" href={row.href}>{cell}</Link>
                         ) : cell}
                       </td>
                     );
@@ -326,6 +357,7 @@ export function ConsoleGrid({
             })}
           </tbody>
         </table>
+      </div>
       </div>
       {selectionName
         ? selection.map((id) => (

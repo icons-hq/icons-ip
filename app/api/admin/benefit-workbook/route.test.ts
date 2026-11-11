@@ -20,6 +20,7 @@ describe('혜택 리포트 다운로드', () => {
     expect(mocks.report).toHaveBeenNthCalledWith(1, expect.objectContaining({ query: 'benefit', code: 'ABC' }), expect.any(Date), true);
     expect(mocks.report).toHaveBeenNthCalledWith(2, expect.objectContaining({ from: '2026-09-19', to: '2026-09-30', query: 'benefit', code: 'ABC' }), expect.any(Date));
     expect(response.headers.get('cache-control')).toBe('private, no-store');
+    expect(decodeURIComponent(response.headers.get('content-disposition')!)).toMatch(/icons-혜택리포트-\d{8}-\d{4}\.xlsx/);
     expect(mocks.issuances).not.toHaveBeenCalled();
   });
   it('발급 상세를 선택해도 기존 사용 이력의 한도를 함께 적용한다', async () => {

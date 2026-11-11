@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import postcss from 'postcss';
+import { withoutKitGuard } from './styles/css-cascade.test-helpers';
 import { describe, expect, it } from 'vitest';
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
@@ -12,23 +13,23 @@ describe('complete admin WC cutover (#433)', () => {
         expect(declaration.important, `${file}: ${declaration.toString()}`).toBeFalsy();
       });
     }
+    /* 잘린 선택값 안내는 kit 유틸리티로 그린다(ADR-0028) — 인라인 색을 쓰지 않는다. */
     const select = read('../components/admin/console/AdminSelect.tsx');
-    expect(select).toContain('wc-admin-kit__select-hint');
+    expect(select).toContain('text-muted-foreground');
     expect(select).not.toContain("color: 'var(--wc-ink-sub)'");
-    expect(read('./styles/wc-admin.css')).toContain('.wc-admin .wc-admin-kit__select-hint');
   });
-  it('keeps the actionable unanswered-inquiry badge spaced inside the WC shell', () => {
+  it('keeps the actionable unanswered-inquiry badge spaced inside the inquiry pages', () => {
     const css=postcss.parse(read('./styles/wc-admin.css'));
     const rules=new Map<string,Map<string,string>>();
     css.walkRules(rule=>{
-      const declarations=rules.get(rule.selector)??new Map<string,string>();
+      const selector=withoutKitGuard(rule.selector);
+      const declarations=rules.get(selector)??new Map<string,string>();
       rule.walkDecls(decl=>{declarations.set(decl.prop,decl.value);});
-      rules.set(rule.selector,declarations);
+      rules.set(selector,declarations);
     });
-    expect(rules.get('.wc-admin .admin-shell-badges')?.get('padding')).toBe('16px 32px 0');
-    expect(rules.get('.wc-admin .admin-shell-badge')?.get('display')).toBe('inline-flex');
-    expect(rules.get('.wc-admin .admin-shell-badge')?.get('gap')).toBe('8px');
-    expect(rules.get('.wc-admin .admin-shell-badge')?.get('border')).toBe('1px solid var(--wc-warning)');
+    /* R1(D1①): 배지는 셸 헤더 아래가 아니라 고객문의 페이지 본문(.admin-content 여백 안)에 그려진다. */
+    /* ADR-0028: 배지는 kit 유틸리티로 그린다(InquiryQueueScreen의 data-open-inquiry-badge) — 셸 공통 규칙이 남아 있지 않다. */
+    expect([...rules.keys()].some((selector) => selector.includes('admin-shell-badge'))).toBe(false);
   });
   it('retires the shared editorial cascade and global admin selectors', () => {
     for (const file of retired) {
@@ -50,28 +51,32 @@ describe('complete admin WC cutover (#433)', () => {
     expect(read('./globals.css')).toMatch(/#root\s*\{[^}]*position:\s*relative;[^}]*z-index:\s*1;/s);
   });
 
-  it('scopes nested surface rules and resolves only WC tokens', () => {
-    const source = ['wc-admin-surfaces.css', 'admin-goods-worklist.css', 'wc-admin-option-artwork.css', 'admin-ux-521.css', 'admin-console-controls.css', 'admin-home.css', 'admin-sales-console.css', 'admin-customer-service.css', 'admin-review-insights.css', 'admin-stats-console.css', 'admin-store-analytics.css', 'admin-store-editor.css', 'admin-store-navigation.css', 'admin-shopping-stories.css', 'admin-marketing-links.css', 'admin-customer-segments.css', 'admin-store-presentation.css', 'admin-product-detail-presentation.css', 'admin-product-detail-experience.css', 'admin-goods-media.css', 'admin-pg-settlements.css', 'admin-goods-benefits.css', 'admin-category-templates.css', 'admin-goods-after-sales.css', 'admin-goods-size-chart.css', 'admin-review-best.css', 'admin-marketing-messages.css', 'admin-review-events.css', 'admin-goods-announcements.css', 'admin-photo-library.css', 'admin-goods-drafts.css', 'admin-goods-relations.css', 'admin-coupons.css', 'admin-loyalty-policy.css', 'admin-operator-directory.css', 'admin-goods-attributes.css', 'admin-store-credits.css', 'admin-operations-dock.css', 'admin-shipping-settings.css']
-      .concat('admin-country-finder.css', 'admin-photo-editor.css', "admin-coupon-combinations.css", "admin-coupon-issuance.css", "admin-order-production.css", "admin-review-types.css", "admin-goods-fulfillment.css", "admin-customer-rewards.css").map((file) => read(`./styles/${file}`)).join('\n');
+  it('scopes nested surface rules and resolves only console tokens', () => {
+    /* 아직 kit 부품으로 옮기지 않은 화면의 관리자 CSS 전부(ADR-0028). wc-admin.css는 토큰 파일이라 따로 본다. */
+    const files = readdirSync(new URL('./styles/', import.meta.url))
+      .filter((file) => /^(admin-|wc-admin).*\.css$/.test(file))
+      .filter((file) => !['wc-admin.css', 'admin-kit.css', 'admin-kit-vocabulary.css', 'admin-font.css'].includes(file));
+    const source = files.map((file) => read(`./styles/${file}`)).join('\n');
     const ast = postcss.parse(source);
-    const foundation = postcss.parse(`${read('./styles/wc-foundation.css')}\n${read('./styles/wc-admin.css')}`);
+    const foundation = postcss.parse(`${read('./styles/wc-foundation.css')}\n${read('./styles/wc-admin.css')}\n${read('./styles/admin-kit.css')}`);
     const tokens = new Set<string>();
-    foundation.walkDecls((decl) => { if (decl.prop.startsWith('--wc-')) tokens.add(decl.prop); });
+    foundation.walkDecls((decl) => { if (decl.prop.startsWith('--')) tokens.add(decl.prop); });
+    /* 화면이 자기 안에서 정의해 쓰는 지역 변수(예: 성별 범례 색)도 토큰이다. */
+    ast.walkDecls((decl) => { if (decl.prop.startsWith('--')) tokens.add(decl.prop); });
     ast.walkRules((rule) => {
-      if (rule.parent?.type === 'atrule' && rule.parent.name.endsWith('keyframes')) return;
+      if (rule.parent?.type === 'atrule' && (rule.parent as postcss.AtRule).name.endsWith('keyframes')) return;
       for (const selector of rule.selectors) expect(selector.trim()).toMatch(/^\.wc-admin(?:\b|[.\s:#])/);
     });
     ast.walkDecls((decl) => {
       for (const match of decl.value.matchAll(/var\(\s*(--[\w-]+)/g)) expect(tokens.has(match[1]), `${decl.prop}: ${match[1]}`).toBe(true);
-      expect(decl.value).not.toMatch(/#[\da-f]{3,8}\b|rgba?\(|hsla?\(/i);
+      if (!decl.prop.startsWith('--')) expect(decl.value, `${decl.prop}: ${decl.value}`).not.toMatch(/#[\da-f]{3,8}\b|rgba?\(|hsla?\(/i);
     });
-    expect(source).toContain('@media (forced-colors: active)');
-    expect(source).toContain('@media (prefers-reduced-motion: reduce)');
+    /* 고대비 모드와 움직임 줄이기는 콘솔 전체가 지킨다 — 옛 어휘의 kit 옷과 전역 규칙이 맡는다. */
+    expect(read('./styles/admin-kit-vocabulary.css')).toContain('@media (forced-colors: active)');
+    expect(read('./globals.css')).toContain('@media (prefers-reduced-motion: reduce)');
   });
 
-  it('keeps every major workbench layout and the independent check-in in scope', () => {
-    const css = read('./styles/wc-admin-surfaces.css');
-    for (const selector of ['.admin-master-detail', '.admin-form-grid', '.admin-console-grid', '.admin-order-master-detail', '.admin-notification-layout', '.admin-guide-doc', '.check-in-grid']) expect(css).toContain(selector);
-    expect(read('../components/admin/check-in/TicketCheckIn.tsx')).toContain('check-in-shell wc-root wc-admin');
+  it('keeps the independent check-in inside the console theme', () => {
+    expect(read('../components/admin/check-in/TicketCheckIn.tsx')).toContain('check-in-shell wc-admin');
   });
 });

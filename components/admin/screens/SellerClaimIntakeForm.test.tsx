@@ -13,10 +13,13 @@ describe('판매자 반품·교환 접수 화면', () => {
     expect(html).toContain('취소 · 주문 전체');
     expect(html).toContain('고객 합의 근거');
     expect(html).toContain('승인과 결제 취소·환급은 접수 후 별도로');
-    expect(html).not.toContain('<legend>수거 주소</legend>');
+    expect(html).not.toMatch(/<legend[^>]*>수거 주소<\/legend>/);
     expect(html).not.toContain('출고지별 수거 계획');
     expect(html).not.toContain('반품 · 주문 전체');
     expect(html).toContain('disabled="">취소 요청 접수');
+    /* R7: 취소 접수에는 하자·오배송 사유를 보이지 않는다. */
+    expect(html).toContain('<option value="change_of_mind" selected="">단순 변심</option>');
+    expect(html).not.toContain('value="defect"');
     const evidence = renderToStaticMarkup(<SellerClaimIntakeEvidence intake={{ ...sellerClaimReceiptFixture, claimType: 'cancel', collectionAddress: null, collections: [] }} />);
     expect(evidence).toContain('주문 전체 취소의 접수 근거');
     expect(evidence).not.toContain('수거 안내 주소');
@@ -27,11 +30,13 @@ describe('판매자 반품·교환 접수 화면', () => {
     expect(html).toContain('취소 · 주문 전체');
     expect(html).toContain('재다운로드 및 문의·취소·환불 심사');
     expect(html).not.toContain('교환 · 주문 전체');
-    expect(html).not.toContain('<legend>수거 주소</legend>');
+    expect(html).not.toMatch(/<legend[^>]*>수거 주소<\/legend>/);
   });
   it('주문 전체·고객 동의·수거 계획을 구분하고 승인·환급 버튼을 만들지 않는다', () => {
     const html = renderToStaticMarkup(<SellerClaimIntakeForm context={sellerClaimContextFixture} carriers={sellerClaimContextFixture.carriers} onClose={() => {}} />);
     for (const text of ['반품 · 주문 전체','교환 · 주문 전체','고객 합의 근거','고객 요청 시각 (한국 시간)','수거 주소','합성 출고지','접수 후 수거 협의','환불계좌 (선택)','반품 요청 접수']) expect(html).toContain(text);
+    /* 앞의 두 테스트가 '없다'고 보는 수거 주소 묶음 제목이 반품 접수에는 실제로 있다(같은 선택자로 확인). */
+    expect(html).toMatch(/<legend[^>]*>수거 주소<\/legend>/);
     expect(html).not.toContain('name="amount"'); expect(html).not.toContain('자동수거요청'); expect(html).not.toContain('>환불 승인<');
     expect(html).toContain('disabled="">반품 요청 접수');
   });

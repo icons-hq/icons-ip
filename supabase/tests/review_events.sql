@@ -29,6 +29,13 @@ select set_config('request.jwt.claim.sub','92000000-0000-4000-8000-000000000001'
 set local role authenticated;
 select public.admin_save_store_credit_policy(gen_random_uuid(),(public.admin_get_store_credit_policy()->>'version')::integer,
  '{"enabled":true,"earnKind":"fixed","earnValue":0,"earnMaxPerOrder":0,"maxBalance":100000,"validityDays":30,"minUse":100,"maxUse":30000,"restoreGraceDays":3,"refundEarnedCreditMode":"offset_future_credits","evidence":"리뷰이벤트 격리 합성 검증"}');
+-- R6: cs.manage만 가진 운영자(deputy)도 등록 화면에 보일 정책 상태를 읽는다. cs.manage가 없으면(logistics) 거절한다.
+select set_config('request.jwt.claim.sub','92000000-0000-4000-8000-000000000003',true);
+select pg_temp.review_event_error($q$select public.admin_get_store_credit_policy()$q$,'42501');
+select 1/case when public.admin_review_event_credit_policy()='{"enabled":true,"maxBalance":100000,"validityDays":30}'::jsonb then 1 else 0 end as cs_reads_review_event_credit_policy;
+select set_config('request.jwt.claim.sub','92000000-0000-4000-8000-000000000006',true);
+select pg_temp.review_event_error($q$select public.admin_review_event_credit_policy()$q$,'operator_capability_required');
+select set_config('request.jwt.claim.sub','92000000-0000-4000-8000-000000000001',true);
 create function pg_temp.review_event_values(amount integer default 1000) returns jsonb language sql as $$
  select jsonb_build_object('title','합성 리뷰 이벤트','description','별점과 무관한 구체적인 사용 후기','targetType','goods','goodIds',jsonb_build_array('review-event-good-1'),'categoryIds','[]'::jsonb,
   'startsOn',((statement_timestamp() at time zone 'Asia/Seoul')::date+1)::text,'endsOn',((statement_timestamp() at time zone 'Asia/Seoul')::date+3)::text,
@@ -55,6 +62,8 @@ select public.admin_archive_review_event('92000000-0000-4000-8000-000000000100',
 reset role;
 select 1/case when not has_table_privilege('authenticated','private.review_event_entries','select')
  and not has_function_privilege('anon','public.admin_publish_review_event(uuid,integer,uuid)','execute')
+ and not has_function_privilege('anon','public.admin_review_event_credit_policy()','execute')
+ and not has_function_privilege('service_role','public.admin_review_event_credit_policy()','execute')
  and not has_function_privilege('service_role','public.get_review_event(uuid,integer)','execute')
  and not has_function_privilege('authenticated','private.reverse_review_event_award(uuid,text,uuid)','execute') then 1 else 0 end as sealed_acl;
 set local role anon;

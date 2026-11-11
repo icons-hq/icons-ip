@@ -1,16 +1,23 @@
 import Link from 'next/link';
+import { ReviewEventBanner } from '@/components/reviews/ReviewEventBanner';
 import { Icon } from '@/components/ui/Icon';
+import { MypageShell } from '@/components/wc/MypageShell';
 import {
   checkoutPaymentResultFollowsApproval,
   type CheckoutPaymentResultFocus,
 } from '@/lib/checkout';
 import { krw } from '@/lib/format';
+import { ListingReturnLink } from '@/components/shell/ListingReturn';
 import {
   formatOrderDate,
+  ORDER_WITHDRAWAL_DEADLINE_LABELS,
+  orderClaimProgressLabel,
   orderReferenceLabel,
   orderStatusMeta,
   type OrderListItem,
+  type VisibleOrderStatus,
 } from '@/lib/orders';
+import type { PublicReviewEvent } from '@/lib/review-events';
 
 /** 결제 confirm 콜백(/api/payments/goods/confirm…)이 /orders?payment=…로 붙이는 결과값. */
 export type OrdersPaymentResult = 'approved' | 'checking' | 'failed';
@@ -27,7 +34,7 @@ interface BannerCopy {
   readonly tone: BannerTone;
   readonly title: string;
   readonly body: string;
-  readonly link?: BannerLink;
+  readonly link?: BannerLink | 'listing-return';
   /** 결제가 잡혔을 수 있는 상태에서만 고객센터 안내를 붙인다. */
   readonly inquiry?: boolean;
 }
@@ -53,13 +60,24 @@ const QUERY_BANNERS: Record<OrdersPaymentResult, BannerCopy> = {
     tone: 'failed',
     title: '결제가 완료되지 않았어요',
     body: '결제가 승인되지 않았습니다. 결제 대기 주문이 있다면 아래 목록에서 결제를 이어가거나 주문을 정리할 수 있어요.',
-    link: { href: '/shop', label: '굿즈샵 둘러보기' },
+    link: 'listing-return',
   },
 };
 
 /** 원장에서 읽은 실제 결과별 안내. 다음 행동은 그 주문의 결제 화면이 이어받는다. */
 function focusBanner(focus: CheckoutPaymentResultFocus): BannerCopy {
   const checkoutLink = (label: string): BannerLink => ({ href: `/checkout/${focus.orderId}`, label });
+  /* 결제 없이 장바구니를 남긴 주문(ADR-0026)은 다시 담지 않는다 — 주문서에서 다시 결제하면 이 주문은 자동으로 닫힌다. */
+  if (focus.cartRetained && (focus.outcome === 'not_approved' || focus.outcome === 'attempt_expired' || focus.outcome === 'canceled')) {
+    return {
+      tone: 'failed',
+      title: focus.outcome === 'attempt_expired' ? '결제 가능 시간이 지났어요' : '결제가 완료되지 않았어요',
+      body: focus.outcome === 'canceled'
+        ? '결제가 끝나지 않아 이 주문은 결제 없이 취소됐어요. 장바구니에서 다시 주문할 수 있어요.'
+        : '결제가 진행되지 않았어요. 장바구니는 그대로 있으니 다시 결제해주세요. 이 주문은 자동으로 취소돼요.',
+      link: focus.outcome === 'canceled' ? { href: '/cart', label: '장바구니 보기' } : { href: '/checkout', label: '다시 결제하기' },
+    };
+  }
   switch (focus.outcome) {
     case 'approved':
       return {
@@ -136,15 +154,53 @@ function focusBanner(focus: CheckoutPaymentResultFocus): BannerCopy {
   }
 }
 
+/*
+ * 주문 후 배송 과정 안내 (LFS 패리티 2차 L6 · MY-08 — 11 §5.3, R-05 §4.4). 레퍼런스의 4단계를 우리 주문 사다리
+ * 다섯 단계(주문 상세와 같은 이름)로 옮기고, 단계마다 그때 할 수 있는 일을 한 줄로 적는다. 문구는 주문 상세의
+ * 취소·반품 안내와 같은 규칙이다(직접 취소는 발주확인 전, 반품·교환은 배송 중부터, 청약철회 기한).
+ */
+const ORDER_FLOW_STEPS: readonly { status: VisibleOrderStatus; body: string; note: string | null }[] = [
+  { status: 'paid', body: '결제가 확인되면 주문이 접수돼요.', note: '발주확인 전에는 주문 상세에서 직접 취소할 수 있어요.' },
+  { status: 'confirmed', body: '판매자가 주문을 확인하고 발송을 준비해요.', note: '발주확인 뒤 취소는 이 주문의 1:1 문의로 요청해주세요.' },
+  { status: 'shipping', body: '굿즈가 출고돼 배송지로 이동하고 있어요.', note: '배송 중부터 주문 전체로 반품·교환을 신청할 수 있어요.' },
+  {
+    status: 'delivered',
+    body: '굿즈를 받았어요. 리뷰를 남길 수 있어요.',
+    note: `단순 변심은 ${ORDER_WITHDRAWAL_DEADLINE_LABELS.change_of_mind}, 하자·오배송은 ${ORDER_WITHDRAWAL_DEADLINE_LABELS.defect} 안에 신청해주세요.`,
+  },
+  { status: 'done', body: '구매를 확정하면 거래가 마무리돼요.', note: null },
+];
+
+function OrderFlowGuide() {
+  return (
+    <section aria-labelledby="orders-flow-heading" className="orders-flow">
+      <h2 id="orders-flow-heading">주문 후 배송 과정</h2>
+      <ol className="orders-flow-steps">
+        {ORDER_FLOW_STEPS.map((step, index) => (
+          <li key={step.status}>
+            <span className="orders-flow-index" aria-hidden>{index + 1}</span>
+            <strong>{orderStatusMeta(step.status).label}</strong>
+            <p>{step.body}</p>
+            {step.note ? <p className="orders-flow-note">{step.note}</p> : null}
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
 export function Orders({
   orders,
   paymentResult,
   paymentFocus = null,
+  reviewEvents = [],
 }: {
   orders: OrderListItem[];
   paymentResult?: OrdersPaymentResult;
   /** 최근 결제 시도의 실제 결과. page가 원장에서 읽어 넘긴다. */
   paymentFocus?: CheckoutPaymentResultFocus | null;
+  /** 내 주문에 든 굿즈의 진행 중 리뷰 이벤트(MY-08). 없으면 배너를 그리지 않는다. */
+  reviewEvents?: PublicReviewEvent[];
 }) {
   // ?payment=는 클라이언트가 만들 수 있는 입력이다. 원장에서 읽은 결과가 있으면 그것으로
   // 안내하고, 없을 때만 쿼리 기본 안내를 쓴다. "결제가 확인됐어요"는 DB가 결제 완료 국면
@@ -168,14 +224,13 @@ export function Orders({
         ? undefined
         : QUERY_BANNERS[paymentResult];
 
+  /* 마이페이지 셸 안의 영수증 지면(MY-01) — 데스크톱은 좌 메뉴로 다른 계정 화면을 오가고, 목록·결제 안내는
+     영수증 어휘(.wc-receipt) 그대로다. 머리는 셸 하위 화면과 같은 17/700 + 2px 선. */
   return (
-    <main className="wc-root wc-receipt orders-page">
-      <header className="wc-receipt__head">
-        <div className="wrap">
-          <h1 className="wc-receipt__title">주문 내역</h1>
-          <p className="wc-receipt__subcopy">굿즈 주문의 결제와 배송 상태를 한눈에 확인하세요.</p>
-        </div>
-      </header>
+    <MypageShell active="/orders"><div className="wc-receipt orders-page">
+      <div className="wc-mypage__headbar">
+        <h1 className="wc-mypage__headbar-title">주문 내역</h1>
+      </div>
 
       <section className="orders-section" aria-labelledby="orders-list-heading">
         <div className="wrap">
@@ -188,7 +243,7 @@ export function Orders({
               <p>{banner.body}</p>
               {banner.link && (
                 <p>
-                  <Link href={banner.link.href}>{banner.link.label}</Link>
+                  {banner.link === 'listing-return' ? <ListingReturnLink /> : <Link href={banner.link.href}>{banner.link.label}</Link>}
                 </p>
               )}
               {banner.inquiry && (
@@ -200,6 +255,11 @@ export function Orders({
               )}
             </div>
           )}
+          {reviewEvents.length ? (
+            <div className="orders-review-events">
+              {reviewEvents.map((event) => <ReviewEventBanner event={event} key={event.id} />)}
+            </div>
+          ) : null}
           <div className="orders-section-heading">
             <h2 id="orders-list-heading">최근 주문</h2>
             <span className="mono">{orders.length}건</span>
@@ -209,13 +269,14 @@ export function Orders({
             <div className="orders-empty card">
               <div className="orders-empty-icon" aria-hidden><Icon name="bag" size={30} /></div>
               <h2>아직 주문 내역이 없어요</h2>
-              <p>굿즈샵에서 첫 굿즈를 만나보세요.</p>
-              <Link className="btn btn-holo" href="/shop">굿즈샵 둘러보기</Link>
+              <p>첫 굿즈를 만나보세요.</p>
+              <ListingReturnLink className="btn btn-holo" />
             </div>
           ) : (
             <ol className="orders-list">
               {orders.map((order) => {
                 const status = orderStatusMeta(order.status);
+                const claimLabel = orderClaimProgressLabel(order.status, order.claim);
                 const date = formatOrderDate(order.createdAt);
 
                 return (
@@ -230,6 +291,8 @@ export function Orders({
                         {order.paymentMethod === 'bank_transfer' && order.status === 'pending' && (
                           <span className="order-list-badge">입금 대기</span>
                         )}
+                        {/* 진행 중인 취소·반품·교환 — 상세 헤더와 같은 함수(orderClaimProgressLabel)로 말한다. */}
+                        {claimLabel && <span className="order-list-badge order-claim-badge">{claimLabel}</span>}
                         <span>{order.itemCount}개 굿즈</span>
                       </div>
                       <span className={`order-status order-status--${status.tone}`}>{status.label}</span>
@@ -241,8 +304,9 @@ export function Orders({
               })}
             </ol>
           )}
+          <OrderFlowGuide />
         </div>
       </section>
-    </main>
+    </div></MypageShell>
   );
 }

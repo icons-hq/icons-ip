@@ -7,8 +7,10 @@ import { emptyGoodsCustomInputWorkbookRow, exportGoodsCustomInputWorkbookRows } 
 import {
   emptyGoodsWorkbookRow,
   exportGoodsWorkbookRows,
+  GOODS_WORKBOOK_CELL_MAX,
   GOODS_WORKBOOK_HEADERS,
   GOODS_WORKBOOK_KEYS,
+  GOODS_WORKBOOK_LONG_DESCRIPTION_MARKER,
   GOODS_WORKBOOK_V3_VERSION,
   GOODS_WORKBOOK_V4_VERSION,
   partitionGoodsExports,
@@ -234,6 +236,45 @@ describe('goods Excel planning', () => {
     expect(exported[0]).toMatchObject({ descriptionFormat: 'html', description });
     expect(planGoodsWorkbookImport([{ row: 5, values: exported[0] }], ctx)[0].kind).toBe('unchanged');
     expect(planGoodsWorkbookImport([{ row: 5, values: { ...exported[0], name: '이름만 변경' } }], ctx)[0]).toMatchObject({ kind: 'update', target: { description, description_format: 'html', description_image_paths: [path] } });
+  });
+  /*
+   * 리뷰 재현(T3B-RV-1): R17이 상세 HTML 상한을 200,000자로 올린 뒤, 엑셀 한 칸(32,767자)보다 긴 설명은 내보낸 파일을
+   * 그대로 다시 올려도 '셀 내용이 너무 깁니다'로 거절됐고, Excel에서 저장하면 잘린 설명이 정상 설명을 덮어쓸 수 있었다.
+   * 긴 설명은 표식 문구로 내보내고, 표식을 그대로 두면 저장된 설명·형식을 유지한다.
+   */
+  it('엑셀 한 칸보다 긴 상세 HTML은 표식으로 내보내고 그대로 다시 올리면 기존 설명을 유지한다', async () => {
+    const description = `<h2>상세</h2><p>${'가'.repeat(39980)}</p>`;
+    expect(description.length).toBeGreaterThan(GOODS_WORKBOOK_CELL_MAX);
+    const record = { ...existing, good: { ...existing.good, description, description_format: 'html', description_image_paths: [] } };
+    const ctx = { ...context, existing: [record] };
+    const exported = exportGoodsWorkbookRows(record, ctx);
+    expect(exported[0]).toMatchObject({ descriptionFormat: 'html', description: GOODS_WORKBOOK_LONG_DESCRIPTION_MARKER });
+    const parsed = await parseGoodsWorkbookWithKc(await buildGoodsWorkbook(exported));
+    expect(parsed.rows[0].errors).toEqual([]);
+    expect(parsed.rows[0].values.description).toBe(GOODS_WORKBOOK_LONG_DESCRIPTION_MARKER);
+    expect(planGoodsWorkbookImport(parsed.rows, { ...ctx, kcRows: parsed.kcRows })[0]).toMatchObject({ kind: 'unchanged', target: null });
+    /* 다른 항목을 고쳐도 설명은 표식이 아니라 저장된 원문으로 다시 저장한다. */
+    const edited = planGoodsWorkbookImport([{ row: 5, values: { ...parsed.rows[0].values, name: '이름만 변경' } }], ctx)[0];
+    expect(edited).toMatchObject({ kind: 'update', errors: [], target: { name: '이름만 변경', description, description_format: 'html' } });
+    expect(edited.target?.description).not.toContain('상품 편집에서만 수정');
+  });
+  it('긴 설명 표식은 기존 상품에서만 쓰고 형식을 바꾸면 거절한다', () => {
+    const description = `<p>${'나'.repeat(GOODS_WORKBOOK_CELL_MAX)}</p>`;
+    const record = { ...existing, good: { ...existing.good, description, description_format: 'html', description_image_paths: [] } };
+    const ctx = { ...context, existing: [record] };
+    const exported = exportGoodsWorkbookRows(record, ctx)[0];
+    const plain = planGoodsWorkbookImport([{ row: 5, values: { ...exported, descriptionFormat: 'plain' } }], ctx)[0];
+    expect(plain).toMatchObject({ kind: 'error', target: null });
+    expect(plain.errors.join(' ')).toContain('상세 설명 형식');
+    const created = planGoodsWorkbookImport([row({ price: '1000', variantPrice: '1000', descriptionFormat: 'html', description: GOODS_WORKBOOK_LONG_DESCRIPTION_MARKER })], ctx)[0];
+    expect(created).toMatchObject({ kind: 'error', target: null });
+    expect(created.errors.join(' ')).toContain('상품 편집');
+  });
+  it('엑셀 한 칸에 들어가는 상세 HTML(32,767자)은 표식 없이 원문 그대로 내보낸다', () => {
+    const description = `<p>${'다'.repeat(GOODS_WORKBOOK_CELL_MAX - 7)}</p>`;
+    expect(description.length).toBe(GOODS_WORKBOOK_CELL_MAX);
+    const record = { ...existing, good: { ...existing.good, description, description_format: 'html', description_image_paths: [] } };
+    expect(exportGoodsWorkbookRows(record, context)[0].description).toBe(description);
   });
   it('plans KC-only changes in the same atomic product payload and never discards them as an unchanged product', () => {
     const record = { ...existing, good: { ...existing.good, published_at: null } };

@@ -65,6 +65,9 @@ select pg_temp.expect_cancel_error($q$select public.admin_submit_seller_claim_in
 select pg_temp.expect_cancel_error($q$select public.admin_submit_seller_claim_intake(pg_temp.cancel_id('request',5),pg_temp.cancel_values(5)||'{"amount":100}')$q$,'invalid_seller_claim_request');
 select pg_temp.expect_cancel_error($q$select public.admin_submit_seller_claim_intake(pg_temp.cancel_id('request',5),pg_temp.cancel_values(5)||'{"agreementConfirmed":false}')$q$,'invalid_seller_claim_request');
 select pg_temp.expect_cancel_error($q$select public.admin_submit_seller_claim_intake(pg_temp.cancel_id('request',5),pg_temp.cancel_values(5)||'{"collectionAddress":{}}')$q$,'invalid_seller_cancel_collection');
+-- R7: 하자·오배송은 받은 뒤의 일이라 취소가 아니라 반품·교환으로 접수한다. 같은 주문은 단순 변심으로 그대로 접수된다.
+select pg_temp.expect_cancel_error($q$select public.admin_submit_seller_claim_intake(pg_temp.cancel_id('request',5),pg_temp.cancel_values(5)||'{"reasonType":"defect"}')$q$,'invalid_seller_cancel_reason');
+select 1/case when not exists(select 1 from public.order_cancellation_requests where id=pg_temp.cancel_id('request',5)) then 1 else 0 end as defect_cancel_not_recorded;
 select pg_temp.expect_cancel_error($q$select public.admin_submit_seller_claim_intake(pg_temp.cancel_id('request',5),pg_temp.cancel_values(5)||'{"customerRequestedAt":"2099-01-01T00:00:00Z"}')$q$,'invalid_seller_claim_customer_time');
 select pg_temp.expect_cancel_error($q$select public.admin_submit_seller_claim_intake(pg_temp.cancel_id('request',5),pg_temp.cancel_values(5)||jsonb_build_object('source','inquiry','inquiryId',pg_temp.cancel_id('inquiry',1)))$q$,'seller_claim_inquiry_mismatch');
 select set_config('request.jwt.claim.sub',pg_temp.cancel_id('user',3)::text,true);

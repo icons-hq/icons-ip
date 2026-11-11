@@ -1,4 +1,5 @@
 import { readdirSync, readFileSync } from 'node:fs';
+import { withoutKitGuard } from './styles/css-cascade.test-helpers';
 import { describe, expect, it } from 'vitest';
 import postcss, { type AtRule, type Rule } from 'postcss';
 
@@ -23,15 +24,20 @@ describe('White Catalog admin boundary (#433)', () => {
 
   it('scopes all admin rules including nested media rules and uses only WC tokens', () => {
     const ast = postcss.parse(read('./styles/wc-admin.css'));
+    /* ADR-0028: the console's --wc-* names are mapped onto the shadcn tokens of admin-kit.css. */
+    const kitTokens = new Set<string>();
+    postcss.parse(read('./styles/admin-kit.css')).walkDecls((decl) => { if (decl.prop.startsWith('--')) kitTokens.add(decl.prop); });
     ast.walkRules((rule) => {
       for (const selector of rule.selectors) expect(selector.trim()).toMatch(/^\.wc-admin(?:\b|[.\s:#])/);
     });
     ast.walkDecls((decl) => {
-      for (const match of decl.value.matchAll(/var\(\s*(--[\w-]+)/g)) expect(match[1]).toMatch(/^--wc-/);
-      // The seller-center palette belongs to the isolated admin token boundary.
+      for (const match of decl.value.matchAll(/var\(\s*(--[\w-]+)/g)) {
+        expect(match[1].startsWith('--wc-') || kitTokens.has(match[1]), `${decl.prop}: ${match[1]}`).toBe(true);
+      }
+      // The console palette belongs to the isolated admin token boundary.
       // Components still consume variables so the public foundation cannot drift.
       if (decl.prop.startsWith('--wc-')) {
-        expect(decl.parent?.type === 'rule' ? decl.parent.selector : '').toBe('.wc-admin');
+        expect(decl.parent?.type === 'rule' ? withoutKitGuard(decl.parent.selector) : '').toBe('.wc-admin');
       } else {
         expect(decl.value).not.toMatch(/#[\da-f]{3,8}\b|rgba?\(|hsla?\(/i);
       }
@@ -171,6 +177,8 @@ describe('White Catalog global chrome wiring', () => {
       '../components/shell/Nav.tsx',
       '../components/shell/SearchOverlay.tsx',
       '../components/shell/MenuSheet.tsx',
+      '../components/shell/CategorySheet.tsx',
+      '../components/shell/CategorySheetTabs.tsx',
       '../components/shell/BottomTabBar.tsx',
       '../components/shell/SiteFooter.tsx',
     ].map(read);
@@ -387,6 +395,8 @@ describe('White Catalog catalog wiring', () => {
     expect(chrome).toMatch(/\.wc-search__chip\s*\{[^}]*color:\s*var\(--wc-success\)/s);
     expect(chrome).toMatch(/\.wc-gnb__label::after\s*\{[^}]*background:\s*var\(--wc-accent\)/s);
     expect(chrome).toMatch(/\.wc-cartcount\s*\{[^}]*background:\s*var\(--wc-accent\)/s);
+    /* 액센트 버튼은 green 면 그대로 글자만 잉크다 — 흰 글자는 2.3:1(셸 QA 2026-10-27), 흰 글자는 잉크 면 위에만(DESIGN §2). */
+    expect(foundation).toMatch(/\.wc-btn\.accent\s*\{[^}]*background:\s*var\(--wc-accent\);[^}]*color:\s*var\(--wc-ink\)/s);
   });
 });
 
@@ -493,6 +503,16 @@ describe('White Catalog account-commerce wiring', () => {
 
     expect(css).not.toMatch(/@keyframes/);
     expect(css).not.toMatch(/animation:/);
+  });
+
+  it('puts the ticket detail status badge on its own row like the order detail', () => {
+    /* 셸 QA(2026-10-27) — 뒤로 링크(inline-flex) 바로 뒤에 배지(inline-flex)를 두어 1100·375 모두 '‹ 내 티켓'과 '사용 가능'이
+     * 간격 0으로 붙었다. 주문 상세와 같은 상태 행이 배지를 다음 줄로 내리고 제목과 10px 띄운다. */
+    const css = read('./styles/wc-account-commerce.css');
+    const ticket = readFileSync(new URL('../components/screens/TicketDetail.tsx', import.meta.url), 'utf8');
+
+    expect(css).toMatch(/\.wc-receipt \.order-detail-status-row,\s*\.wc-receipt \.ticket-detail-status-row\s*\{\s*margin-bottom:\s*10px;/);
+    expect(ticket).toMatch(/<div className="ticket-detail-status-row">\s*<span className=\{`ticket-status /);
   });
 });
 
@@ -657,8 +677,13 @@ describe('Hash landing offsets', () => {
 
   it('keeps the fixed chrome height out of public scroll margins', () => {
     const margins = scrollMargins(styleNames.filter((name) => !isAdminSheet(name)));
+    /* 예외 하나 — sticky 헤더 행 안의 포커스는 이미 크롬 자리에 보이므로 착지선을 음수로 상쇄한다(wc-chrome.css,
+     * 값은 chrome-styles.test 가 착지선 최댓값과 맞춘다). 해시 대상에 크롬 높이를 더하는 것과는 반대 방향이다. */
+    const headerOwn = (margin: { sheet: string; selector: string; value: string }) => margin.sheet === 'wc-chrome.css'
+      && margin.value.startsWith('-') && margin.selector.split(', ').every((selector) => selector.startsWith('.wc-header '));
 
-    expect(margins.filter((margin) => /--wc-sticky-chrome-h|\b(?:52|68|69|81|88|112|123)px/.test(margin.value))).toEqual([]);
+    expect(margins.filter((margin) => !headerOwn(margin) && /--wc-sticky-chrome-h|\b(?:52|68|69|81|88|112|123)px/.test(margin.value))).toEqual([]);
+    expect(margins.filter(headerOwn).map(({ media, value }) => `${media} ${value}`)).toEqual(['(min-width: 990px) -123px']);
     /* 감사한 해시 대상: 캠페인 섹션(내브 49, 여백 0 — 섹션 padding 이 여백), PDP 리뷰·Q&A(탭바 55 + 16), 배송비 절약(16).
      * sticky 하위 내브 아래 패널·본문의 키보드 포커스는 내브 높이만큼 띄운다(탭바 55, 캠페인 내브 49). */
     expect(margins.map(({ sheet, selector, media, value }) => `${sheet} ${media ?? 'base'} ${selector}: ${value}`)).toEqual(expect.arrayContaining([
@@ -682,9 +707,13 @@ describe('Hash landing offsets', () => {
   it('lands goods workspace sections on their own margin, not the centered-field margin', () => {
     /* 입력칸은 가운데로 맞추며 위아래 140을 띄운다(scroll-margin-block). 섹션(details[id])까지 그 규칙에 걸리면
      * #good-section-* 로 들어온 섹션이 상단바보다 140 아래에 선다(섹션 자신의 scroll-margin-top 이 묻힌다). */
-    const css = read('./styles/wc-admin-surfaces.css');
+    /* ADR-0028: 편집기 폼은 입력류에만 위아래 여백(scroll-my-32)을 두고, 섹션(details[id])은 자기 scroll-mt-24로 착지한다. */
+    const editor = read('../components/admin/GoodEditor.tsx');
+    const workspace = read('../components/admin/GoodWorkspace.tsx');
 
-    expect(css).toMatch(/\.admin-good-workspace__form \[id\]:not\(\.admin-good-section\)[^{]*\{\s*scroll-margin-block:\s*140px/);
+    expect(editor).toContain('[&_:is(input,select,textarea,button,summary,a)]:scroll-my-32');
+    expect(editor).not.toMatch(/\[&_:is\([^)]*(details|\[id\])[^)]*\)\]:scroll-my/);
+    expect(workspace).toMatch(/SECTION_CLASS = '[^']*\bscroll-mt-24\b/);
   });
 
   it('mounts the hash landing watcher once at the root for every shell', () => {

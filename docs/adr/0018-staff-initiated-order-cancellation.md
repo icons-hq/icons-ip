@@ -1,6 +1,6 @@
 # 운영자가 시작하는 배송 전 전액 취소
 
-- Status: proposed (2026-10-12) — PR 리뷰·merge 승인 시 accepted로 바꾼다
+- Status: accepted (2026-10-13, PR #557 merge·운영 배포)
 - 보완: [ADR-0017](./0017-order-claim-intake-and-origin-collections.md)의 직접 신청 경계는 그대로 두고, 운영자 처리 경로 하나를 더한다
 - 관련: 2026-10-12 토스 결제 출시 준비 점검 OPS-8·OPS-5·REF-1, [클레임 런북](../runbooks/order-claim-intake.md)
 

@@ -176,8 +176,8 @@ describe('GameSection', () => {
     const html = renderGameSection();
 
     expect(mocks.useActionState).toHaveBeenCalledWith(mocks.save, {});
-    expect(html).toContain('class="admin-master-detail"');
-    expect(html).toContain('class="wc-admin-kit wc-admin-kit__form-grid"');
+    expect(html).toContain('data-admin-layout="master-detail"');
+    expect(html).toContain('data-admin-kit="form-grid"');
     expect(html).toContain('aria-label="게임 목록"');
     expect(html).toContain('새 게임 등록');
     expect(html).toContain('name="operationId"');
@@ -247,6 +247,17 @@ describe('GameSection', () => {
     }
   });
 
+  it('카드풀 사용 불가 줄은 무엇을 확인할지 함께 보이고, 읽기 전용 게임은 운영 색 없이 읽기 전용으로 말한다', () => {
+    const unavailable = { ...activeGame, id: 'broken', title: '멈춘 룰렛', status: 'pool-unavailable' as const };
+    const retired = { ...activeGame, id: 'retired', title: '옛 굿즈 룰렛', variantKind: 'goods' as const };
+    const html = renderGameSection({ records: [unavailable, retired] });
+
+    expect(html).toContain('카드풀 확인 필요 · 눌러서 보기');
+    expect(html).toMatch(/data-tone="danger"[^>]*>카드풀 사용 불가</);
+    expect(html).toMatch(/data-tone="neutral"[^>]*>읽기 전용</);
+    expect(html).not.toMatch(/data-tone="success"/);
+  });
+
   it('locks slug, pool, and event after play history while keeping operating fields editable', () => {
     const html = renderGameSection({ records: [activeGame], selected: activeGame });
     const idInput = html.match(/<input[^>]+name="id"[^>]*>/)?.[0] ?? '';
@@ -263,7 +274,7 @@ describe('GameSection', () => {
     expect(eventInput).toContain('type="hidden"');
     expect(eventInput).toContain('value="online-a"');
     expect(html.match(/aria-readonly="true"/g)?.length).toBeGreaterThanOrEqual(2);
-    expect(html).toContain('플레이 이력이 있어 slug·보상 카드풀·연결 이벤트는 변경할 수 없습니다.');
+    expect(html).toContain('플레이 이력이 있어 게임 주소 이름·보상 카드풀·연결 이벤트는 변경할 수 없습니다.');
     expect(html).toContain('플레이 12회');
     expect(html).toContain('최근 플레이 2026-07-15 11:00 KST');
   });

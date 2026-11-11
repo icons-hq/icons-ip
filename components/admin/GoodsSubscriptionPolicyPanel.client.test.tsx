@@ -46,6 +46,13 @@ it('기본 상품 미저장 또는 저장 중에는 정책 저장을 시작하�
   props = { ...props, disabledReason: '기본 상품 미저장' }; const stale = button('정기배송 설정 저장');
   expect(stale.props.disabled).toBe(true); (stale.props.onClick as () => void)(); expect(mocks.save).not.toHaveBeenCalled();
 });
+/* T3a-7 근본 정리: 상품 편집기가 패널 위에 공통 잠금 안내를 보이면 패널은 같은 이유를 다시 그리지 않는다. 잠금은 그대로다. */
+it('이유 문장 표시를 끄면 본문에 이유를 그리지 않고 저장 잠금은 유지한다', () => {
+  props = { ...props, disabledReason: '기본 상품 미저장' }; expect(text(render())).toContain('기본 상품 미저장');
+  props = { ...props, showDisabledReason: false }; const stale = button('정기배송 설정 저장');
+  expect(stale.props.disabled).toBe(true); (stale.props.onClick as () => void)(); expect(mocks.save).not.toHaveBeenCalled();
+  expect(text(render())).not.toContain('기본 상품 미저장');
+});
 it('같은 콜백 중복 실행은 한 요청이며 불명확한 결과는 원 요청과 UUID로 재확인한다', async () => {
   change({ message: '다음 회차 안내' }); const pending = deferred<unknown>(); mocks.save.mockReturnValueOnce(pending.promise);
   const stale = button('정기배송 설정 저장'); (stale.props.onClick as () => void)(); (stale.props.onClick as () => void)();
@@ -70,7 +77,7 @@ it('저장은 확인되고 readback이 실패하면 새 저장을 잠그고 최�
   change({ message: '내 입력' }); mocks.save.mockResolvedValueOnce({ ok: false, committed: true, error: '다시 읽기 실패' });
   click('정기배송 설정 저장'); await flush(); expect(button('정기배송 설정 저장').props.disabled).toBe(true);
   expect(text(render())).toContain('최신 저장본 확인 필요'); mocks.read.mockResolvedValueOnce({ ok: true, value: { ...base, revision: 1, message: '내 입력' } });
-  click('최신 저장본 비교'); await flush(); click('내 입력 버리고 최신 저장본 불러오기'); await flush(); expect(text(render())).toContain('서버 저장값과 동일');
+  click('최신 저장본 비교'); await flush(); click('내 입력 버리고 최신 저장본 불러오기'); await flush(); expect(text(render())).toContain('저장된 내용과 같음');
 });
 it.each(['account', 'session', 'signout', 'unmount'])('%s 이후 늦은 응답이 다른 계정이나 세션에 노출되지 않는다', async kind => {
   change({ message: '이전 계정 입력' }); const pending = deferred<unknown>(); mocks.save.mockReturnValueOnce(pending.promise); click('정기배송 설정 저장'); await flush();

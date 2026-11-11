@@ -26,6 +26,11 @@ export interface SearchProps {
   listQuery: ShopListQuery;
   /** 목록 하트의 초기 상태. 생략하면 하트를 그리지 않는다. */
   wishlist?: ListingWishlist | null;
+  /**
+   * 빈 검색·0건 화면의 추천 칩. 검색 오버레이와 같은 운영 추천 검색어(`resolveSuggestedSearchTerms` — 운영 목록이 없으면
+   * 코드 상수)다 — 사이트에 서로 다른 두 '추천 검색어'가 보이지 않게 한다(11 CH-10, l8b-qa-2). 생략하면 코드 상수.
+   */
+  suggestedTerms?: readonly string[];
 }
 
 /** 검색어 → 필터·정렬 → 페이지 순서로 싣는다. 검색어는 칩 링크와 같은 인코딩(encodeURIComponent)을 쓴다. */
@@ -43,11 +48,11 @@ function resultHref(result: SearchResult) {
   return `/shop/${result.id}`;
 }
 
-function SuggestedTerms() {
+function SuggestedTerms({ terms }: { terms: readonly string[] }) {
   return (
     <div className="wc-search__chips">
       <p className="wc-search__chips-label">추천 검색어</p>
-      {SUGGESTED_SEARCH_TERMS.map((term) => (
+      {terms.map((term) => (
         <Link key={term} className="wc-search__chip" href={searchResultsHref(term, null, 1)}>{term}</Link>
       ))}
     </div>
@@ -142,7 +147,7 @@ function AsideGroup({ group }: { group: SearchResultGroup }) {
  * 제목과 재검색 인풋은 데스크톱 한 줄이다. 결과 그리드가 있는 모바일에서는 레퍼런스처럼 둘을 걷어
  * 내고(제목은 읽기 전용으로 남긴다) 필터·정렬 줄로 바로 시작한다.
  */
-export function Search({ goods, listQuery, query, snapshot, wishlist }: SearchProps) {
+export function Search({ goods, listQuery, query, snapshot, wishlist, suggestedTerms = SUGGESTED_SEARCH_TERMS }: SearchProps) {
   /* 굿즈 그룹만 자체 결과로 대체하고 나머지 그룹은 보조 섹션으로 남긴다. */
   const asideGroups = snapshot.groups.filter((group) => group.kind !== 'good');
   const hasQuery = query.length > 0;
@@ -207,7 +212,7 @@ export function Search({ goods, listQuery, query, snapshot, wishlist }: SearchPr
               title={hasQuery ? `'${query}'에 맞는 결과가 없어요` : '검색어를 입력해 주세요'}
               titleAs="h2"
             />
-            <SuggestedTerms />
+            <SuggestedTerms terms={suggestedTerms} />
           </div>
         )}
 

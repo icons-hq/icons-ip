@@ -18,6 +18,12 @@ describe('personal draft actions',()=>{
   expect(await saveGoodsDraftAction({id,revision:1},{name:'미완성 상품'})).toEqual({data:summary});
   expect(mocks.rpc).toHaveBeenCalledWith('admin_save_goods_draft',{p_id:id,p_values:{name:'미완성 상품'},p_expected_revision:1});
  });
+ /* 리뷰 재현(T3B-RV-3): 상한을 2MB로 올린 뒤에도 거절 문구가 '입력 크기(512KB)'였다. */
+ it('입력이 상한을 넘으면 실제 상한(2MB)을 안내하고 RPC를 부르지 않는다',async()=>{
+  const result=await saveGoodsDraftAction({id,revision:1},{name:'미완성 상품',description:'한'.repeat(800000)});
+  expect(result).toEqual({error:'상품명을 1~100자로 입력하고 등록 중인 상품의 입력 크기(2MB)와 이미지 업로드 상태를 확인해주세요.'});
+  expect(mocks.rpc).not.toHaveBeenCalled();
+ });
  it('preserves error distinctions and rejects archived or malformed readbacks',async()=>{
   mocks.rpc.mockResolvedValueOnce({error:{message:'goods_draft_changed'}});
   expect(await saveGoodsDraftAction({id,revision:1},{name:'미완성 상품'})).toMatchObject({error:expect.stringContaining('현재 입력은 유지')});

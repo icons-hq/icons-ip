@@ -30,11 +30,13 @@ export function goodsDescriptionToolFragment(tool: GoodsDescriptionTool): Result
   return { ok: true, value: sanitizeGoodsDescription(`<a href="${escape(tool.href)}">${escape(tool.text)}</a>`).html };
 }
 
+const SOURCE_LIMIT_ERROR = `입력 원문이 ${GOODS_HTML_MAX_LENGTH.toLocaleString('ko-KR')}자를 넘어 넣을 수 없습니다. 기존 내용은 유지됩니다.`;
+
 export function planGoodsDescriptionInsertion(source: string, start: number, end: number, fragment: string): Result<{ value: string; cursor: number }> {
   if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end < start || end > source.length)
     return { ok: false, error: '입력 위치가 바뀌었습니다. 상세설명에서 위치를 다시 선택해주세요.' };
   if (source.length > GOODS_HTML_MAX_LENGTH || fragment.length > GOODS_HTML_MAX_LENGTH)
-    return { ok: false, error: '입력 원문이 30,000자를 넘어 넣을 수 없습니다. 기존 내용은 유지됩니다.' };
+    return { ok: false, error: SOURCE_LIMIT_ERROR };
   const left = descriptionHtmlBoundary(source, start), right = descriptionHtmlBoundary(source, end);
   if (!left || !right || JSON.stringify(left) !== JSON.stringify(right)) return { ok: false, error: 'HTML 태그·속성·문자 참조의 중간이나 서로 다른 문단에 걸쳐 넣을 수 없습니다. 문단 전체의 HTML 또는 태그 밖 위치를 선택해주세요.' };
   // A reusable body can begin with inline text and still contain later block
@@ -44,7 +46,7 @@ export function planGoodsDescriptionInsertion(source: string, start: number, end
     || block && parent && !['div', 'blockquote', 'li', 'td', 'th', 'figure'].includes(parent)
     || /<a\b/i.test(fragment) && parents.includes('a')) return { ok: false, error: '이 태그 안에는 해당 서식을 넣을 수 없습니다. 문단 전체의 HTML을 선택하거나 닫는 태그 뒤에서 넣어주세요.' };
   const value = source.slice(0, start) + fragment + source.slice(end);
-  if (value.length > GOODS_HTML_MAX_LENGTH) return { ok: false, error: '입력 원문이 30,000자를 넘어 넣을 수 없습니다. 기존 내용은 유지됩니다.' };
+  if (value.length > GOODS_HTML_MAX_LENGTH) return { ok: false, error: SOURCE_LIMIT_ERROR };
   const cleaned = sanitizeGoodsDescription(value).html;
   if (cleaned.length > GOODS_HTML_MAX_LENGTH) return { ok: false, error: goodsHtmlCleanedLengthWarning(cleaned.length) };
   return { ok: true, value: { value, cursor: start + fragment.length } };

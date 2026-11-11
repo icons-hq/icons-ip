@@ -11,8 +11,13 @@ describe('판매자 취소·반품·교환 접수 계약', () => {
     }
   });
   it('취소는 고객 합의와 주문 전체 요청만 받고 수거 정보와 부분 처리 입력을 거부한다', () => {
-    const cancellation = { ...sellerClaimInputFixture, claimType: 'cancel', collectionAddress: null, collections: [] };
-    expect(parseSellerClaimInput(cancellation)).toMatchObject({ ok: true, payload: { claimType: 'cancel', collectionAddress: null, collections: [] } });
+    const cancellation = { ...sellerClaimInputFixture, claimType: 'cancel', reasonType: 'change_of_mind', collectionAddress: null, collections: [] };
+    expect(parseSellerClaimInput(cancellation)).toMatchObject({ ok: true, payload: { claimType: 'cancel', reasonType: 'change_of_mind', collectionAddress: null, collections: [] } });
+    /* R7: 하자·오배송은 받은 뒤의 일이라 취소가 아니라 반품·교환으로 접수한다. */
+    expect(parseSellerClaimInput({ ...cancellation, reasonType: 'defect' })).toEqual({
+      ok: false, error: '취소 접수 사유는 단순 변심만 선택할 수 있습니다. 상품 하자·오배송은 반품·교환으로 접수해주세요.',
+    });
+    expect(parseSellerClaimInput({ ...sellerClaimInputFixture, reasonType: 'defect' })).toMatchObject({ ok: true });
     for (const extra of [{ amount: 100 }, { items: ['item'] }, { qty: 1 }, { collectionAddress: sellerClaimInputFixture.collectionAddress }, { agreementConfirmed: false }]) {
       expect(parseSellerClaimInput({ ...cancellation, ...extra })).toMatchObject({ ok: false });
     }

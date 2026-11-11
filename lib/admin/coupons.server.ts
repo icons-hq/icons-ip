@@ -14,14 +14,14 @@ import { hasAdminCapability } from './access';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
 import { parseCouponDefinitionRow } from '@/lib/coupons';
-import { parseCouponTargetCategories, parseCouponTargetGoods } from '@/lib/coupon-targeting';
+import { parseCouponTargetCategories, parseCouponTargetGoods, parseCouponTargetIps } from '@/lib/coupon-targeting';
 import { parseCouponIssueSchedule } from './coupon-schedule';
 
 /* 쿠폰 콘솔 목록 로더 (#465).
  * 검색·상태·페이지는 서버 RPC가 적용하고, 화면에는 현재 페이지 정의만 내린다.
  * 사용 수 또한 전체 원장을 브라우저로 가져와 접지 않고 각 쿠폰의 집계값으로 받는다. */
 
-const COUPON_COLUMNS = 'code,name,discount_type,discount_value,max_discount_amount,min_subtotal,starts_at,ends_at,issue_limit,issued_count,status,grade_benefit,recipient_segment,goods_scope,target_good_ids,terms_revision,issue_starts_at,issue_ends_at,valid_days,benefit_kind,stackable,target_category_ids,issuance_mode';
+const COUPON_COLUMNS = 'code,name,discount_type,discount_value,max_discount_amount,min_subtotal,starts_at,ends_at,issue_limit,issued_count,status,grade_benefit,recipient_segment,goods_scope,target_good_ids,terms_revision,issue_starts_at,issue_ends_at,valid_days,benefit_kind,stackable,target_category_ids,target_ip_ids,issuance_mode';
 
 interface CouponRow {
   code: string;
@@ -44,6 +44,7 @@ interface CouponRow {
   terms_revision: number;
   target_goods: unknown;
   target_categories?: unknown;
+  target_ips?: unknown;
 }
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
@@ -57,8 +58,9 @@ function toCouponRecord(row: CouponRow, usedCount = toCount(row.used_count)): Ad
   const coupon = parseCouponDefinitionRow(row);
   const targetGoods = parseCouponTargetGoods(row.target_goods);
   const targetCategories = parseCouponTargetCategories(row.target_categories ?? []);
+  const targetIps = parseCouponTargetIps(row.target_ips ?? []);
   const schedule = parseCouponIssueSchedule({ ...row });
-  if (!coupon || !targetGoods || !targetCategories || !schedule || !Number.isSafeInteger(row.terms_revision) || row.terms_revision < 1
+  if (!coupon || !targetGoods || !targetCategories || !targetIps || !schedule || !Number.isSafeInteger(row.terms_revision) || row.terms_revision < 1
     || !Number.isSafeInteger(row.issued_count) || row.issued_count < 0
     || !(row.issue_limit === null || Number.isSafeInteger(row.issue_limit) && row.issue_limit > 0)) throw new Error('쿠폰 응답의 금액과 대상 조건을 확인할 수 없습니다.');
   return {
@@ -81,6 +83,7 @@ function toCouponRecord(row: CouponRow, usedCount = toCount(row.used_count)): Ad
     termsRevision: row.terms_revision,
     targetGoods,
     targetCategories,
+    targetIps,
   };
 }
 
@@ -97,7 +100,7 @@ async function loadSelectedCoupon(
   const [couponResult, usageResult] = await Promise.all([
     supabase
       .from('coupons')
-      .select(`${COUPON_COLUMNS},target_goods:admin_coupon_target_goods,target_categories:admin_coupon_target_categories`)
+      .select(`${COUPON_COLUMNS},target_goods:admin_coupon_target_goods,target_categories:admin_coupon_target_categories,target_ips:admin_coupon_target_ips`)
       .eq('code', code)
       .maybeSingle(),
     supabase
@@ -127,14 +130,14 @@ export async function getAdminCouponListData(
   };
 
   const listResult = await supabase
-    .rpc('admin_search_coupon_console_v3', {
+    .rpc('admin_search_coupon_console_v4', {
       p_query: filters.query || null,
       p_status: filters.status,
       p_limit: pageSize,
       p_filters: couponConsoleFilters(filters),
       p_offset: (filters.page - 1) * pageSize,
     })
-    .select(`${COUPON_COLUMNS},used_count,total_count,target_goods,target_categories`);
+    .select(`${COUPON_COLUMNS},used_count,total_count,target_goods,target_categories,target_ips`);
 
   if (listResult.error) {
     throw new Error('쿠폰 목록을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');

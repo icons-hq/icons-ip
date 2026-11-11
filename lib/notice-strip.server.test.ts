@@ -14,7 +14,10 @@ const mocks = vi.hoisted(() => ({
   createServerClient: vi.fn(),
   cookieClient: vi.fn(() => { throw new Error('shell notices must not read cookies'); }),
   cache: vi.fn((fn: unknown) => fn),
+  /* 띠배너 이미지 머리 읽기 — 기본은 네트워크 실패(크기 없음). */
+  fetch: vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async () => { throw new Error('offline'); }),
 }));
+vi.stubGlobal('fetch', mocks.fetch);
 vi.mock('next/cache', () => ({ unstable_cache: mocks.cache }));
 vi.mock('@supabase/ssr', () => ({ createServerClient: mocks.createServerClient }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: mocks.cookieClient }));
@@ -26,6 +29,7 @@ beforeEach(() => {
   mocks.calls = [];
   mocks.rows = [];
   mocks.cookieClient.mockClear();
+  mocks.fetch.mockClear().mockImplementation(async () => { throw new Error('offline'); });
   mocks.createServerClient.mockReset().mockImplementation(() => ({
     from: (table: string) => {
       const filters: Record<string, unknown> = {};
@@ -71,9 +75,26 @@ describe('셸 공지 캐시 읽기', () => {
       cta: { label: '자세히 보기', href: '/legal/terms' }, pageTypes: ['home', 'product'], endsAt: null,
     }]);
     expect(notices.strips).toEqual([
-      { id: 's1', title: '키링 기획전', imageUrl: `https://cdn.example.test/${IMAGE.replace('public-media/', '')}`, mobileImageUrl: null, href: '/events', pageTypes: null, endsAt: null },
+      { id: 's1', title: '키링 기획전', imageUrl: `https://cdn.example.test/${IMAGE.replace('public-media/', '')}`, imageSize: null, mobileImageUrl: null, mobileImageSize: null, href: '/events', pageTypes: null, endsAt: null },
       expect.objectContaining({ id: 's2', mobileImageUrl: `https://cdn.example.test/${MOBILE.replace('public-media/', '')}`, pageTypes: ['home'] }),
     ]);
+  });
+
+  /* 셸 QA(2026-10-27) — 띠배너 이미지가 첫 페인트 뒤에 오면 띠가 0 에서 펼쳐지며 본문을 밀었다(모바일 CLS 0.05). 머리 바이트만 받아
+     고유 크기를 싣고, 화면이 width·height 로 자리를 먼저 잡는다. 실패·형식 밖은 크기 없음이다. */
+  it('띠배너 이미지 머리만 받아 고유 크기를 싣는다', async () => {
+    const vp8x = (width: number, height: number) => {
+      const body = [0, 0, 0, 0, (width - 1) & 0xff, ((width - 1) >> 8) & 0xff, 0, (height - 1) & 0xff, ((height - 1) >> 8) & 0xff, 0];
+      return Uint8Array.from([...'RIFF'].map((c) => c.charCodeAt(0)).concat([0, 0, 0, 0], [...'WEBPVP8X'].map((c) => c.charCodeAt(0)), [0, 0, 0, 10], body));
+    };
+    mocks.fetch.mockImplementation(async (url: string) => (url.endsWith(IMAGE.replace('public-media/', ''))
+      ? new Response(vp8x(1440, 36), { status: 206 })
+      : new Response('missing', { status: 404 })));
+    mocks.rows = [strip('s1', { payload: { mobile_image_path: MOBILE } })];
+    const [notice] = (await getShellNotices()).strips;
+    expect(notice).toMatchObject({ imageSize: { width: 1440, height: 36 }, mobileImageSize: null });
+    expect(mocks.fetch).toHaveBeenCalledTimes(2);
+    expect(mocks.fetch.mock.calls[0][1]).toMatchObject({ headers: { Range: 'bytes=0-65535' } });
   });
 
   /* 셸 공지는 하드 로드 때만 내려온다 — 열린 화면이 종료 시각에 숨기도록 active_to를 epoch ms로 싣는다(l8a-ui-4). */

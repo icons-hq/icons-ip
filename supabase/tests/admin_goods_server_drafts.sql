@@ -31,6 +31,14 @@ select 1/case when public.admin_get_goods_draft('76000000-0000-4000-8000-0000000
  and public.admin_get_goods_draft('76000000-0000-4000-8000-000000000020')#>>'{values,price}'='미정' then 1 else 0 end as incomplete_and_retry_kept;
 select pg_temp.expect_draft_error($q$select public.admin_save_goods_draft('76000000-0000-4000-8000-000000000020','{"name":"다른 입력"}',0)$q$,'goods_draft_changed');
 select pg_temp.expect_draft_error($q$select public.admin_save_goods_draft('76000000-0000-4000-8000-000000000021','{"name":"민감값 차단","email":"private@example.test"}',0)$q$,'invalid_goods_draft');
+-- R17: 상세 HTML 200,000자(한글 약 600KB)가 든 작성 내용도 서버 임시저장한다. 상한은 2MB다.
+-- 아래 목록 개수 단언에 섞이지 않도록 savepoint 안에서 확인하고 되돌린다.
+savepoint r17_long_draft;
+select public.admin_save_goods_draft('76000000-0000-4000-8000-000000000022',jsonb_build_object('name','긴 상세 임시저장','descriptionFormat','html','description',repeat('가',200000)),0);
+select 1/case when (select char_length(form_values->>'description') from public.admin_goods_drafts where id='76000000-0000-4000-8000-000000000022')=200000
+ then 1 else 0 end as assert_draft_keeps_long_detail_html;
+select pg_temp.expect_draft_error($q$select public.admin_save_goods_draft('76000000-0000-4000-8000-000000000023',jsonb_build_object('name','2MB 초과','description',repeat('가',800000)),0)$q$,'invalid_goods_draft');
+rollback to savepoint r17_long_draft;
 select pg_temp.expect_draft_error($q$select public.admin_save_goods_draft('76000000-0000-4000-8000-000000000021','{"name":"기존 상품 차단","variantBaseline":"[\"existing\"]"}',0)$q$,'invalid_goods_draft');
 select pg_temp.expect_draft_error($q$select public.admin_save_goods_draft('76000000-0000-4000-8000-000000000021','{"name":"비검증 이미지 차단","imagePath":"public-media/catalog/good/76000000-0000-4000-8000-000000000099.png"}',0)$q$,'unverified_artwork');
 select public.admin_save_goods_draft('76000000-0000-4000-8000-000000000020','{"name":"이미지 포함 임시저장","imagePath":"public-media/catalog/good/76000000-0000-4000-8000-000000000010.png","galleryPath0":"public-media/catalog/good/76000000-0000-4000-8000-000000000012.png","description":"<img src=\"public-media/catalog/good/76000000-0000-4000-8000-000000000011.png\">","descriptionFormat":"html"}',1);

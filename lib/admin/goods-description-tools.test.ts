@@ -94,11 +94,14 @@ describe('상품 상세 HTML 도구', () => {
     expect(planGoodsDescriptionInsertion('가나다', start, end, '<hr>').ok).toBe(false);
   });
   it('원문 또는 정리 후 한도를 넘으면 내용이나 선택 범위를 잘라내지 않는다', () => {
+    expect(GOODS_HTML_MAX_LENGTH).toBe(200000);
+    expect(planGoodsDescriptionInsertion('가'.repeat(GOODS_HTML_MAX_LENGTH), GOODS_HTML_MAX_LENGTH, GOODS_HTML_MAX_LENGTH, '나'))
+      .toEqual({ ok: false, error: '입력 원문이 200,000자를 넘어 넣을 수 없습니다. 기존 내용은 유지됩니다.' });
     const source = '가'.repeat(GOODS_HTML_MAX_LENGTH);
     expect(planGoodsDescriptionInsertion(source, source.length, source.length, '나').ok).toBe(false);
     expect(planGoodsDescriptionInsertion(source, 0, 1, '나').ok).toBe(true);
     // rel is appended by the existing sanitizer; short source can exceed the saved HTML limit.
-    const expanding = '<a href="/">가</a>'.repeat(1000);
+    const expanding = '<a href="/">가</a>'.repeat(5000);
     expect(expanding.length).toBeLessThan(GOODS_HTML_MAX_LENGTH);
     expect(planGoodsDescriptionInsertion(expanding, expanding.length, expanding.length, '<hr>').ok).toBe(false);
     expect(source).toHaveLength(GOODS_HTML_MAX_LENGTH);

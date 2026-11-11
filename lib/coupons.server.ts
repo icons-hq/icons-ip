@@ -44,7 +44,7 @@ export async function loadMyCoupons(): Promise<UserCouponSummary[] | null> {
 
   const { data, error } = await supabase
     .from('user_coupons')
-    .select('id,status,issued_at,expires_at,usable_from,used_at,coupons(code,name,discount_type,discount_value,max_discount_amount,min_subtotal,starts_at,ends_at,issue_starts_at,status,grade_benefit,benefit_kind,stackable,recipient_segment,goods_scope,target_good_ids,target_category_ids,issuance_mode,recipient_reason:coupon_recipient_state)')
+    .select('id,status,issued_at,expires_at,usable_from,used_at,coupons(code,name,discount_type,discount_value,max_discount_amount,min_subtotal,starts_at,ends_at,issue_starts_at,status,grade_benefit,benefit_kind,stackable,recipient_segment,goods_scope,target_good_ids,target_category_ids,target_ip_ids,issuance_mode,recipient_reason:coupon_recipient_state)')
     .eq('user_id', userId)
     .order('issued_at', { ascending: false });
 
@@ -63,7 +63,7 @@ export async function loadCartCouponState(): Promise<CartCouponState> {
   const [couponsResult, selectionResult] = await Promise.all([
     supabase
       .from('user_coupons')
-      .select('id,status,issued_at,expires_at,usable_from,used_at,coupons(code,name,discount_type,discount_value,max_discount_amount,min_subtotal,starts_at,ends_at,issue_starts_at,status,grade_benefit,benefit_kind,stackable,recipient_segment,goods_scope,target_good_ids,target_category_ids,issuance_mode,recipient_reason:coupon_recipient_state)')
+      .select('id,status,issued_at,expires_at,usable_from,used_at,coupons(code,name,discount_type,discount_value,max_discount_amount,min_subtotal,starts_at,ends_at,issue_starts_at,status,grade_benefit,benefit_kind,stackable,recipient_segment,goods_scope,target_good_ids,target_category_ids,target_ip_ids,issuance_mode,recipient_reason:coupon_recipient_state)')
       .eq('user_id', userId)
       .eq('status', 'active')
       .order('issued_at', { ascending: false }),

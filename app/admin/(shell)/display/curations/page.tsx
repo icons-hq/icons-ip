@@ -18,7 +18,9 @@ export default async function AdminDisplayCurationsPage() {
   const [curations, records, home, notices, cardRewardsEnabled, homeLayout] = await Promise.all([
     getAdminCurations(),
     loadAdminCurationTargets(),
-    getHomeSnapshot(),
+    /* 리뷰 BEST 선정·정렬·표시가 그룹 범위 요약(reviewSummary)을 쓰므로 공개 홈(app/page.tsx)과 같은 옵션으로 읽는다 —
+       없으면 '현재 공개 홈' 미리보기·노출 가능 수·상품 선택기가 굿즈 단위로 폴백해 공개 홈과 선정이 엇갈린다. */
+    getHomeSnapshot({ includeReviewSummaries: true }),
     getShellNotices(),
     readCardRewardsEnabled(),
     getAdminHomeLayout(),

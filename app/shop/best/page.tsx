@@ -4,6 +4,7 @@ import { Shop } from '@/components/screens/Shop';
 import { getHomeSnapshot } from '@/lib/catalog';
 import { parseShopSearchParams, selectShopGoods } from '@/lib/shop-catalog';
 import { loadListingWishlist } from '@/lib/wishlist-ids.server';
+import { getCollectionBanners } from '@/lib/collection-banners.server';
 
 export const metadata: Metadata = {
   title: 'BEST — ICONS',
@@ -19,7 +20,7 @@ interface PageProps {
    큐레이션이 비면 여기서 나오는 스코프도 비고, 화면은 가짜 순위 대신 안내를 그린다.
    getHomeSnapshot 은 카탈로그까지 함께 주므로 카탈로그를 두 번 읽지 않는다. */
 export default async function Page({ searchParams }: PageProps) {
-  const [home, params, wishlist] = await Promise.all([getHomeSnapshot({ includeReviewSummaries: true }), searchParams ?? {}, loadListingWishlist()]);
+  const [home, params, wishlist, banners] = await Promise.all([getHomeSnapshot({ includeReviewSummaries: true }), searchParams ?? {}, loadListingWishlist(), getCollectionBanners('best')]);
   const bestGoodIds = [...home.curation.categoryBestTabs, ...home.curation.popularTabs]
     .flatMap((tab) => tab.goods.map((good) => good.id));
   const categories = home.catalog.source === 'supabase' ? await loadPublicCatalogCategories() : [];
@@ -30,6 +31,6 @@ export default async function Page({ searchParams }: PageProps) {
   });
 
   return (
-    <Shop query={query} result={selectShopGoods({ ...home.catalog, categories }, query, bestGoodIds)} view="best" wishlist={wishlist} />
+    <Shop banners={banners} query={query} result={selectShopGoods({ ...home.catalog, categories }, query, bestGoodIds)} view="best" wishlist={wishlist} />
   );
 }

@@ -553,4 +553,62 @@ describe('admin curation form normalization', () => {
       value: expect.objectContaining({ kind: 'announcement', slot: null, payload: null }),
     });
   });
+
+  /* L8b (#574) — 컬렉션 배너(CL-09)와 추천 검색어(CH-10). DB(20261027170000)와 같은 한도를 폼이 먼저 잡는다. */
+  function bannerForm(entries: Record<string, string> = {}) {
+    return curationForm({ kind: 'collection_banner', title: '  가을 신상 굿즈  ', linkPath: '', slot: 'all', imageDim: 'none', textColor: 'black', ...entries });
+  }
+
+  it('컬렉션 배너는 슬롯·한 줄 부제·대체텍스트·모바일 이미지·스타일을 싣고 링크는 선택이다', () => {
+    expect(normalizeAdminCurationForm(bannerForm({ subtitle: '  새로 나온 굿즈  ', imageAlt: ' 리락쿠마 키링 ', mobileImagePath: MOBILE_IMAGE_PATH }))).toEqual({
+      ok: true,
+      value: expect.objectContaining({
+        kind: 'collection_banner', title: '가을 신상 굿즈', imagePath: IMAGE_PATH, linkPath: null, slot: 'all',
+        payload: { image_dim: 'none', text_color: 'black', subtitle: '새로 나온 굿즈', image_alt: '리락쿠마 키링', mobile_image_path: MOBILE_IMAGE_PATH },
+      }),
+    });
+    expect(normalizeAdminCurationForm(bannerForm({ slot: 'best', linkPath: '/shop/best' }))).toMatchObject({ ok: true, value: { slot: 'best', linkPath: '/shop/best' } });
+  });
+
+  it('컬렉션 배너의 슬롯·문구·부제·대체텍스트·이미지 한도를 칸 오류로 막는다', () => {
+    expect(normalizeAdminCurationForm(bannerForm({ slot: 'category' }))).toMatchObject({ ok: false, errors: { slot: '배너를 보일 컬렉션을 선택해주세요.' } });
+    expect(normalizeAdminCurationForm(bannerForm({ slot: '' }))).toMatchObject({ ok: false, errors: { slot: expect.any(String) } });
+    for (const title of ['', '가'.repeat(41), '두 줄\n문구']) {
+      expect(normalizeAdminCurationForm(bannerForm({ title }))).toMatchObject({ ok: false, errors: { title: expect.any(String) } });
+    }
+    expect(normalizeAdminCurationForm(bannerForm({ title: '가'.repeat(40) }))).toMatchObject({ ok: true });
+    expect(normalizeAdminCurationForm(bannerForm({ subtitle: '가'.repeat(81) }))).toMatchObject({ ok: false, errors: { subtitle: '부제는 줄바꿈 없이 80자 이하로 입력해주세요.' } });
+    expect(normalizeAdminCurationForm(bannerForm({ imageAlt: '가'.repeat(101) }))).toMatchObject({ ok: false, errors: { imageAlt: expect.any(String) } });
+    expect(normalizeAdminCurationForm(bannerForm({ imagePath: '' }))).toMatchObject({ ok: false, errors: { imagePath: '이미지를 등록해주세요.' } });
+    expect(normalizeAdminCurationForm(bannerForm({ textColor: 'pink' }))).toMatchObject({ ok: false, errors: { textColor: expect.any(String) } });
+  });
+
+  function termsForm(terms: string[], entries: Record<string, string> = {}) {
+    const formData = curationForm({ kind: 'search_terms', title: '11월 추천 검색어', imagePath: '', linkPath: '', ...entries });
+    for (const term of terms) formData.append('searchTerm', term);
+    return formData;
+  }
+
+  it('추천 검색어는 빈 칸을 버리고 검색 질의처럼 정규화한 목록 하나를 싣는다', () => {
+    expect(normalizeAdminCurationForm(termsForm(['  리락쿠마 ', '', '키링\t  세트', '100%_굿즈']))).toEqual({
+      ok: true,
+      value: expect.objectContaining({ kind: 'search_terms', imagePath: null, linkPath: null, slot: null, payload: { terms: ['리락쿠마', '키링 세트', '100%_굿즈'] } }),
+    });
+  });
+
+  it('추천 검색어 개수·길이·중복과 이미지·링크를 거절하고, 무엇을 고칠지 짚는다(l8b-qa-3)', () => {
+    const error = (searchTerms: string) => ({ ok: false, errors: { searchTerms } });
+    expect(normalizeAdminCurationForm(termsForm([]))).toMatchObject(error('추천 검색어를 1개 이상 입력해주세요.'));
+    expect(normalizeAdminCurationForm(termsForm(['', '  ']))).toMatchObject(error('추천 검색어를 1개 이상 입력해주세요.'));
+    expect(normalizeAdminCurationForm(termsForm(Array.from({ length: 11 }, (_, index) => `검색어${index}`)))).toMatchObject(error('추천 검색어는 10개까지 입력할 수 있습니다.'));
+    expect(normalizeAdminCurationForm(termsForm(['가'.repeat(21)]))).toMatchObject(error('추천 검색어는 20자까지 입력할 수 있습니다.'));
+    /* 겹친 검색어를 그대로 적는다 — 운영자가 어느 칸인지 찾을 수 있다. */
+    expect(normalizeAdminCurationForm(termsForm(['키링', 'BT21', ' bt21 ']))).toMatchObject(
+      error('겹치는 추천 검색어가 있습니다: BT21 · bt21. 영문 대소문자는 같은 검색어로 보니 하나만 남겨주세요.'),
+    );
+    expect(normalizeAdminCurationForm(termsForm(['키\u0001링']))).toMatchObject(error('추천 검색어에 줄바꿈·제어 문자를 넣을 수 없습니다.'));
+    expect(normalizeAdminCurationForm(termsForm(['키링'], { imagePath: IMAGE_PATH }))).toMatchObject({ ok: false, errors: { imagePath: '추천 검색어는 이미지를 쓰지 않습니다.' } });
+    expect(normalizeAdminCurationForm(termsForm(['키링'], { linkPath: '/search' }))).toMatchObject({ ok: false, errors: { linkPath: '추천 검색어는 각 검색어의 검색 결과로 이동합니다.' } });
+    expect(normalizeAdminCurationForm(termsForm(['키링'], { title: '' }))).toMatchObject({ ok: false, errors: { title: expect.any(String) } });
+  });
 });

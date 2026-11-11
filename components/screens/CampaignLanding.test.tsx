@@ -7,6 +7,9 @@ vi.mock('@/app/events/participation-actions', () => ({
   attendanceCheckInAction: vi.fn(),
   exchangeCoinsAction: vi.fn(),
 }));
+/* 굿즈 진열 카드의 목록 하트(L4b)가 라우터·위시 액션을 쓴다. */
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
+vi.mock('@/app/shop/actions', () => ({ toggleWishlistAction: vi.fn() }));
 
 const OFFER_ID = '11111111-1111-4111-8111-111111111111';
 const SECOND_OFFER_ID = '44444444-4444-4444-8444-444444444444';
@@ -280,6 +283,26 @@ describe('CampaignLanding', () => {
     });
 
     expect(html).toContain('href="/">홈으로</a>');
+  });
+
+  /* L4b · CL-01·CL-02 — 굿즈 진열 카드도 목록 카드처럼 하트(링크 밖 형제)와 리뷰가 있을 때만 별점을 단다. */
+  it('굿즈 진열 카드에 위시 상태로 하트를, 로더가 실은 별점을 단다', () => {
+    const goodsSection = SECTIONS[5] as Extract<ResolvedCampaignSection, { type: 'goods' }>;
+    const sections = SECTIONS.map((section, index) => (index === 5 ? {
+      ...goodsSection,
+      goods: [{ ...goodsSection.goods[0], reviewSummary: { count: 9, average: 4.78 } }, { ...goodsSection.goods[0], id: 'g14', name: '오로라 키링' }],
+    } : section));
+    const html = render({ campaign: snapshot({ resolvedSections: sections }), wishlist: { viewerId: 'viewer-1', goodIds: ['g14'] } });
+    const goods = html.slice(html.indexOf('wc-campaign-goods'), html.indexOf('wc-campaign-section--attendance'));
+
+    expect(goods.match(/class="wc-product-card__action"/g)).toHaveLength(2);
+    expect(goods).toContain('aria-label="아크릴 블록 위시리스트에 담기"');
+    expect(goods).toContain('aria-label="오로라 키링 위시리스트에서 빼기"');
+    expect(goods.match(/class="wc-product-card__rating"/g)).toHaveLength(1);
+    expect(goods).toContain('평점 5점 만점에 4.8점, 리뷰 9개');
+    /* 게스트도 하트를 보고(누르면 로그인 벽), 위시 상태를 받지 않은 렌더는 하트가 없다. */
+    expect(render({ campaign: snapshot({ resolvedSections: sections }), wishlist: { viewerId: null, goodIds: [] }, signedIn: false, coin: null })).toContain('wc-list-heart');
+    expect(render()).not.toContain('wc-list-heart');
   });
 
   it('본문이 비면 빈 상태를 그린다', () => {

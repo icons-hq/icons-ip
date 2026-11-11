@@ -372,6 +372,25 @@
   position: relative;
 }
 
+/* IP관 PC/MO 배너(11 IP-06 · L8b). 그림은 섹션 배경 바로 위·스크림 아래에 깐다 — 섹션을 쌓임 맥락으로 묶어
+   z-index -1 이 섹션 밖으로 새지 않게 한다. 배너가 없는 IP 는 data-banner 가 없어 이 규칙이 걸리지 않는다(키아트 배경 그대로). */
+.wc-iphall__banner[data-banner] {
+  isolation: isolate;
+}
+
+.wc-iphall__banner > .wc-iphall__banner-media {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+}
+
+.wc-iphall__banner-media img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 .wc-iphall__banner .wc-container {
   display: flex;
   width: 100%;
@@ -564,6 +583,30 @@
 @media (min-width: 750px) {
   .wc-iphall__banner {
     min-height: 540px;
+  }
+
+  /* 모바일 배너만 있는 IP 의 데스크톱은 키아트 그대로다 — 키아트를 이 폭에서만 깔아 모바일에서는 내려받지 않는다. */
+  .wc-iphall__banner[data-banner='mobile'] {
+    background: var(--wc-iphall-keyart, none);
+    background-color: var(--wc-ink);
+    background-size: cover;
+    background-position: center;
+  }
+
+  .wc-iphall__banner[data-banner='mobile'] > .wc-iphall__banner-media {
+    display: none;
+  }
+
+  /* IP관 PC 배너(IP-06)는 운영자가 IP관에 맞춰 그린 그림이라 전면을 어둡게 덮지 않는다 — 레퍼런스 브랜드관처럼 그림이 그대로
+     보이게, 흰 글자가 서는 왼쪽 글자 단(콘텐츠 왼쪽 선 + 설명 최대 폭 560)에만 스크림을 깐다(l8b-qa-6). 글자 단 안은 .62→.54 로
+     기존 전면 스크림이 글자 줄에 주던 값(세로 가운데 .535) 이상을 지키고, 글자 단 끝에서 280px 동안 0 으로 풀려 오른쪽 그림은 손대지 않는다.
+     키아트(배너 없음)·모바일 배너만 있는 IP 의 데스크톱과 모바일 폭은 기존 전면 스크림 그대로다(모바일은 글자가 가운데에 선다). */
+  .wc-iphall__banner[data-banner='all']::before {
+    --wc-iphall-text-end: calc(max(var(--wc-gutter), (100% - var(--wc-container-max)) / 2 + var(--wc-gutter)) + 560px);
+    background: linear-gradient(90deg,
+      rgba(0, 0, 0, .62) 0,
+      rgba(0, 0, 0, .54) var(--wc-iphall-text-end),
+      rgba(0, 0, 0, 0) calc(var(--wc-iphall-text-end) + 280px));
   }
 
   .wc-iphall__links {

@@ -40,6 +40,8 @@ export function BottomTabBar({
      탭바를 그대로 두면 z-index 로 가려진 채 포커스 순서에만 남는 유령 내비가 된다.
      /shop/new·/shop/best 는 컬렉션 표면이라 탭바를 유지한다. */
   if (isGoodDetailPath(pathname)) return null;
+  /* 장바구니도 같다 — 모바일 카트는 하단 고정 주문 바(93px)가 최하단을 차지한다(CT-03, 레퍼런스 실측). */
+  if (pathname === hrefFor('cart')) return null;
 
   /* 항목별 isActive가 아니라 activeNavId — '/shop/new'에서 '굿즈샵'과 홈이 함께 켜지지 않게 최장 경로가 이긴다. */
   const activeId = activeNavId(pathname, MOB_ITEMS);

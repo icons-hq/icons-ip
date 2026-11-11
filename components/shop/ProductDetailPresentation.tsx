@@ -1,8 +1,11 @@
 import { ProductCard } from '@/components/wc/ProductCard';
 import { goodDisplayBadges } from '@/lib/goods-taxonomy';
+import type { GoodsReviewSummaries } from '@/lib/goods-review-summary';
+import type { ListingWishlist } from '@/lib/listing-wishlist';
 import { goodReviewsHref, reviewRatingLabel } from '@/lib/reviews';
 import type { PublicDetailPresentation, DetailRecommendationKey } from '@/lib/product-detail-presentation';
 import type { PublicGoodRelations } from '@/lib/good-relations';
+import { listingHeartsFor } from './listing-hearts';
 import { ProductDetailReviewLink } from './ProductDetailReviewLink';
 import { ReviewEventDisclosureNote } from '@/components/reviews/ReviewEventBanner';
 
@@ -34,8 +37,15 @@ const recommendationCopy: Record<DetailRecommendationKey, { title: string; basis
   categoryPopular: { title: '이 카테고리의 인기 굿즈', basis: '최근 30일 판매수량과 현재 찜 수를 반영했어요.' },
   storePopular: { title: '스토어 인기 굿즈', basis: '최근 30일 판매수량과 현재 찜 수를 반영했어요.' },
 };
-export function ProductDetailRecommendations({ data, manual }: { data: PublicDetailPresentation | null; manual?: PublicGoodRelations }) {
+/* 자동 추천 카드에도 목록 하트와 별점을 단다(LFS 패리티 2차 L4b · CL-01·CL-02). 값은 상세 페이지가 한 번씩 읽어 내려 준다. */
+export function ProductDetailRecommendations({ data, manual, reviewSummaries, wishlist }: {
+  data: PublicDetailPresentation | null;
+  manual?: PublicGoodRelations;
+  reviewSummaries?: GoodsReviewSummaries;
+  wishlist?: ListingWishlist | null;
+}) {
   if (!data || data.unavailable) return null;
+  const heartFor = listingHeartsFor(wishlist);
   if (data.recommendationsUnavailable) return <p className="wc-pdp-panel__note">추천 굿즈를 불러오지 못했습니다. 잠시 후 다시 확인해주세요.</p>;
   const kinds = ['similar', 'together', 'categoryPopular', 'storePopular'] as const;
   return <>{kinds.map(kind => {
@@ -45,6 +55,7 @@ export function ProductDetailRecommendations({ data, manual }: { data: PublicDet
     return <section key={kind} className="wc-pdp-auto" aria-labelledby={`pdp-auto-${kind}`}>
       <h2 id={`pdp-auto-${kind}`}>{copy.title}</h2><p>{copy.basis}</p>
       <div className="wc-pdp-auto__products">{goods.map(good => <ProductCard key={good.id} href={`/shop/${good.id}`} name={good.name}
+        action={heartFor(good)} reviewSummary={reviewSummaries?.[good.id]}
         listSurface="standard" listingAppearance={good.listingAppearance} cartGood={good} price={good.price} priceMax={good.priceMax}
         compareAtPrice={good.compareAtPrice} showDiscountRate={good.showDiscountRate} badges={goodDisplayBadges(good)} salePeriod={good.salePeriod} soldOut={good.stock === 'soldout'} imageBackground={good.img} />)}</div>
     </section>;

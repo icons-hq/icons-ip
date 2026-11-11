@@ -7,13 +7,14 @@ import { normalizeOrderReference } from '@/lib/checkout';
 import { parseGoodsTransactionQuote, type GoodsTransactionQuote } from '@/lib/goods-transaction';
 import { bankTransferCheckoutEnabled } from '@/lib/payments/bank-transfer.server';
 import { goodsCheckoutPaymentsEnabled } from '@/lib/payments/goods-checkout-availability';
+import { deriveGoodsCartProvider, deriveUserCartProvider } from '@/lib/payments/goods-sale-restriction.server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { bindStoreAnalyticsOrder } from '@/lib/store-analytics.server';
 import { loadGoodsTransactionOffers } from '@/lib/goods-transaction-offers.server';
 import type { GoodsTransactionOffer } from '@/lib/goods-transaction-offers';
 import { loadGoodsTransactionRuntimeMode } from '@/lib/checkout-transaction.server';
 
-export type CartTransactionError = 'invalid_request' | 'order_too_large' | 'auth_changed' | 'account_unavailable' | 'checkout_unavailable' | 'payment_unavailable' | 'cart_changed' | 'coupon_changed' | 'quote_changed' | 'checkout_conflict' | 'unavailable';
+export type CartTransactionError = 'invalid_request' | 'order_too_large' | 'auth_changed' | 'account_unavailable' | 'checkout_unavailable' | 'payment_unavailable' | 'cart_changed' | 'coupon_changed' | 'quote_changed' | 'checkout_conflict' | 'payment_in_progress' | 'unavailable';
 export type CartTransactionQuoteResult = { ok: true; quote: GoodsTransactionQuote; offers: GoodsTransactionOffer[] } | { ok: false; error: CartTransactionError };
 export type CartTransactionPlaceResult = { ok: true; orderId: string } | { ok: false; error: CartTransactionError; uncertain: boolean };
 
@@ -24,9 +25,14 @@ async function authorize(expectedActorId: string, allowExisting = false): Promis
   return null;
 }
 function rpcError(message: string): CartTransactionError {
+  // 이전 장바구니 주문의 결제를 승인 확인하는 중이면 새 주문을 받지 않는다(ADR-0026).
+  if (message.includes('checkout_payment_in_progress')) return 'payment_in_progress';
   if (message.includes('transaction_quote_too_large')) return 'order_too_large';
   if (message.includes('transaction_runtime_disabled')) return 'checkout_unavailable';
   if (message.includes('cart_snapshot_changed')) return 'cart_changed';
+  // 옵션별 구매 제한(D7②)·랜덤 판매 굿즈(D5②)는 order_items 경계가 거절한다. 계산 단계 이슈(purchase_limit·goods_unavailable)를
+  // 지나친 경합이므로 장바구니에서 최신 수량·품목을 확인하게 한다.
+  if (/option_(?:order|member)_limit_exceeded|random_option_/.test(message)) return 'cart_changed';
   if (message.includes('coupon_snapshot_changed')) return 'coupon_changed';
   if (message.includes('transaction_quote_')) return 'quote_changed';
   if (message.includes('checkout_key_conflict')) return 'checkout_conflict';
@@ -66,7 +72,12 @@ export async function placeCartTransactionAction(value: unknown): Promise<CartTr
   const input = parseCartTransactionOrderInput(value); if (!input) return { ok: false, error: 'invalid_request', uncertain: false };
   const denied = await authorize(input.expectedActorId); if (denied) return { ok: false, error: denied, uncertain: false };
   if (await loadGoodsTransactionRuntimeMode() !== 'transaction') return { ok: false, error: 'checkout_unavailable', uncertain: false };
-  const available = input.paymentMethod === 'bank_transfer' ? await bankTransferCheckoutEnabled() : goodsCheckoutPaymentsEnabled(input.expectedActorId);
+  let available: boolean;
+  try {
+    // 카드 gate는 카트 구성으로 파생한 provider의 것이다 — 19금 굿즈가 섞이면 나이스페이다.
+    available = input.paymentMethod === 'bank_transfer' ? await bankTransferCheckoutEnabled()
+      : goodsCheckoutPaymentsEnabled(input.expectedActorId, await deriveGoodsCartProvider(input.items.map(item => item.goodId)));
+  } catch { return { ok: false, error: 'unavailable', uncertain: false }; }
   if (!available) return { ok: false, error: 'payment_unavailable', uncertain: false };
   try {
     const { data, error } = await createServiceClient().rpc('place_cart_goods_transaction', {
@@ -88,7 +99,8 @@ export async function resumeCartTransactionAction(value: unknown): Promise<CartT
   const denied = await authorize(input.expectedActorId, true); if (denied) return { ok: false, error: denied, uncertain: false };
   try {
     const runtimeReady = await loadGoodsTransactionRuntimeMode() === 'transaction';
-    const allowNew = runtimeReady && (input.paymentMethod === 'bank_transfer' ? await bankTransferCheckoutEnabled() : goodsCheckoutPaymentsEnabled(input.expectedActorId));
+    const allowNew = runtimeReady && (input.paymentMethod === 'bank_transfer' ? await bankTransferCheckoutEnabled()
+      : goodsCheckoutPaymentsEnabled(input.expectedActorId, await deriveUserCartProvider(input.expectedActorId)));
     const { data, error } = await createServiceClient().rpc('resume_cart_goods_transaction', {
       p_user_id: input.expectedActorId, p_quote_id: input.quoteId, p_checkout_key: input.checkoutKey,
       p_payment_method: input.paymentMethod, p_allow_new: allowNew,

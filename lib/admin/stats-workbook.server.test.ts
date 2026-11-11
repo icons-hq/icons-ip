@@ -16,8 +16,11 @@ describe('통계 엑셀', () => {
     expect(book.getWorksheet('매출 추이')?.getCell('C3').value).toBe(0);
     expect(book.getWorksheet('상품 전체')?.getCell('B2').value).toBe('0000123');
     expect(book.getWorksheet('상품 전체')?.getCell('C2').type).toBe(ExcelJS.ValueType.String);
+    expect(book.getWorksheet('상품 전체')?.getRow(1).values).toEqual([, '순위', '상품번호', '상품명', 'IP', '수량', '금액']);
+    expect(book.getWorksheet('매출 추이')?.getCell('C1').font).toMatchObject({ name: '맑은 고딕', size: 10, bold: true }); expect(book.getWorksheet('매출 추이')?.getCell('C2').numFmt).toBe('#,##0');
+    expect(book.getWorksheet('매출 추이')?.getRow(1).height).toBe(22); expect(book.worksheets.at(-1)?.name).toBe('내려받기 정보');
     expect(book.getWorksheet('비교 매출 추이')?.getCell('A2').value).toBe('2026-09-29');
-    expect(JSON.stringify(book.getWorksheet('조회 정보')?.getSheetValues())).toContain('2026-10-02');
+    expect(JSON.stringify(book.getWorksheet('내려받기 정보')?.getSheetValues())).toContain('2026-10-02');
   });
   it('요청 철회와 진행을 구분하고 집계 불가 값은 0으로 바꾸지 않는다', async () => {
     const bytes = await buildStatsWorkbook({ kind: 'claims', data: { orderCount: 0, claimCount: 2, byType: [{ claimType: 'return', total: 2, completed: 0, rejected: 0, withdrawn: 1, open: 1, ratePerMille: null }], byReason: [], refunds: { completedCount: 0, averageHours: null, within72h: 0 } } }, { days: 30, ipId: '' });
@@ -25,6 +28,7 @@ describe('통계 엑셀', () => {
     expect(book.getWorksheet('유형별 클레임')?.getCell('E2').value).toBe(1);
     expect(book.getWorksheet('유형별 클레임')?.getCell('F2').value).toBe(1);
     expect(book.getWorksheet('유형별 클레임')?.getCell('G2').value).toBeNull();
+    expect(book.getWorksheet('클레임 요약')?.getCell('B2').numFmt).toBe('#,##0'); expect(book.getWorksheet('클레임 요약')?.getCell('B5').value).toBeNull();
   });
   it('전년 윤일 보정 뒤의 실제 날짜·금액과 비교 방식 설명을 재열어 확인한다', async () => {
     const filters = normalizeAdminStatsFilters({ from: '2024-02-28', to: '2024-03-01', compare: 'year', ip: 'sample' });
@@ -36,7 +40,7 @@ describe('통계 엑셀', () => {
     expect(current.rowCount).toBe(4); expect(previous.rowCount).toBe(3);
     expect(current.getCell('A3').value).toBe('2024-02-29'); expect(current.getCell('C3').value).toBe(14000);
     expect(previous.getCell('A2').value).toBe('2023-02-28'); expect(previous.getCell('A3').value).toBe('2023-03-01'); expect(previous.getCell('C2').value).toBe(5000);
-    const info = JSON.stringify(book.getWorksheet('조회 정보')!.getSheetValues());
+    const info = JSON.stringify(book.getWorksheet('내려받기 정보')!.getSheetValues());
     expect(info).toContain('전년 동일 날짜 비교'); expect(info).toContain('2023-02-28 ~ 2023-03-01'); expect(info).toContain('sample');
     expect(info).toContain('2월 29일은 2월 28일'); expect(info).toContain('비교기간의 일수가 달라질 수');
   });
@@ -49,7 +53,7 @@ describe('통계 엑셀', () => {
     const trend = book.getWorksheet('비교 가입 추이')!;
     if (bucket === 'week') { expect(trend.getCell('A2').value).toBe('2024-02-26'); expect(trend.getCell('B2').value).toBe(7); }
     else { expect(trend.getCell('A2').value).toBe('2024-02'); expect(trend.getCell('B2').value).toBe(5); expect(trend.getCell('A3').value).toBe('2024-03'); expect(trend.getCell('B3').value).toBe(2); }
-    expect(JSON.stringify(book.getWorksheet('조회 정보')!.getSheetValues())).toContain('2024-02-28 ~ 2024-03-01');
+    expect(JSON.stringify(book.getWorksheet('내려받기 정보')!.getSheetValues())).toContain('2024-02-28 ~ 2024-03-01');
   });
   it('21위 이후 전체 상품과 비교기간 전체를 파일에 담고 요약 TOP20을 섞지 않는다', async () => {
     const filters = normalizeAdminStatsFilters({ from: '2025-02-28', to: '2026-02-28', compare: 'year', ip: 'qa' });
@@ -63,10 +67,34 @@ describe('통계 엑셀', () => {
     expect(book.getWorksheet('비교 상품 전체')!.rowCount).toBe(32);
     expect(book.getWorksheet('상품 TOP20')).toBeUndefined();
     expect(book.getWorksheet('이벤트 TOP20')).toBeDefined(); expect(book.getWorksheet('회차 TOP20')).toBeDefined();
-    const info = JSON.stringify(book.getWorksheet('조회 정보')!.getSheetValues());
+    const info = JSON.stringify(book.getWorksheet('내려받기 정보')!.getSheetValues());
     expect(info).toContain('2024-02-28 ~ 2025-02-28'); expect(info).toContain('상품 전체 건수');
     expect(info).toContain('최대 10,000개'); expect(info).not.toContain('현재 화면과 같은 상위 20개');
     expect(book.getWorksheet('비교 매출 추이')!.rowCount).toBe(368);
+  });
+  describe('내려받기 정보에는 그 보고서에 해당하는 안내만 적는다', () => {
+    const filters = normalizeAdminStatsFilters({ from: '2026-10-01', to: '2026-10-02', ip: 'sample' });
+    const labels = async (bytes: Buffer) => {
+      const book = new ExcelJS.Workbook(); await book.xlsx.load(bytes as never);
+      const found: string[] = []; book.worksheets.at(-1)!.eachRow(row => found.push(String(row.getCell(1).value)));
+      return found;
+    };
+    const salesData = { daily: [], paymentMethods: [], goods: [], tickets: [], ticketOccurrences: [] };
+    const claimsData = { orderCount: 0, claimCount: 0, byType: [], byReason: [], refunds: { completedCount: 0, averageHours: null, within72h: 0 } };
+    const customersData = { signups: [], signupTotal: 0, buyerCount: 0, repeatBuyerCount: 0, inquiries: { total: 0, unanswered: 0, averageFirstResponseHours: null }, reviews: { total: 0, unanswered: 0, averageRating: null, distribution: [0, 0, 0, 0, 0] } };
+    it('판매분석은 IP 필터·매출 기준·순위 범위·집계 단위를 적는다', async () => {
+      expect(await labels(await buildStatsWorkbook({ kind: 'sales', data: salesData, goods: allGoods() }, filters))).toEqual(expect.arrayContaining(['IP 필터(상품 순위만)', '매출 기준', '순위 범위', '집계 단위', '상품 전체 건수']));
+    });
+    it('클레임 분석에는 판매·추이 안내를 넣지 않는다', async () => {
+      const found = await labels(await buildStatsWorkbook({ kind: 'claims', data: claimsData }, filters));
+      expect(found).toContain('클레임 기준');
+      for (const label of ['IP 필터(상품 순위만)', '매출 기준', '순위 범위', '집계 단위', '상품 전체 건수', '가입·재구매 기준']) expect(found).not.toContain(label);
+    });
+    it('고객분석에는 판매 안내를 넣지 않고 집계 단위는 남긴다', async () => {
+      const found = await labels(await buildStatsWorkbook({ kind: 'customers', data: customersData }, filters));
+      expect(found).toEqual(expect.arrayContaining(['집계 단위', '가입·재구매 기준']));
+      for (const label of ['IP 필터(상품 순위만)', '매출 기준', '순위 범위', '상품 전체 건수', '클레임 기준']) expect(found).not.toContain(label);
+    });
   });
   it('부분 페이지나 비교 상품 누락으로 전체 파일을 생성하지 않는다', async () => {
     const data = { daily: [], paymentMethods: [], goods: [], tickets: [], ticketOccurrences: [] };

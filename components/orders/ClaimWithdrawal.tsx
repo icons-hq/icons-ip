@@ -5,6 +5,7 @@ import { loadAdminClaimWithdrawalAction, readAdminClaimWithdrawalAction, submitA
 import { claimWithdrawalError, claimWithdrawalReceiptMatches, normalizeClaimWithdrawalRequest, parseClaimWithdrawalContext, parseClaimWithdrawalReceipt, type ClaimWithdrawalContext, type ClaimWithdrawalRequest, type ClaimWithdrawalReceipt, type ClaimWithdrawalResult } from '@/lib/orders/claim-withdrawal';
 import { ORDER_CLAIM_TYPE_LABELS, type OrderClaimStage } from '@/lib/orders/claims';
 import { formatOrderDateTime } from '@/lib/orders';
+import { useClaimPreviewBusy } from '@/components/orders/claim-preview-busy';
 
 async function customerRequest(claimId: string, operation?: string, payload?: ClaimWithdrawalRequest): Promise<ClaimWithdrawalResult> {
   try {
@@ -21,6 +22,7 @@ async function customerRequest(claimId: string, operation?: string, payload?: Cl
 export function ClaimWithdrawalPanel({ initial, operator = false, onClose }: { initial: ClaimWithdrawalContext; operator?: boolean; onClose: () => void }) {
   const router = useRouter(); const [context, setContext] = useState(initial); const [reason, setReason] = useState(''); const [confirmed, setConfirmed] = useState(false);
   const [pending, setPending] = useState(false); const [uncertain, setUncertain] = useState(false); const [conflict, setConflict] = useState(false);
+  useClaimPreviewBusy(pending); /* 목록 위 클레임 팝업(R8)에서 기다리는 동안 팝업이 닫히지 않게 알린다. 팝업 밖에서는 아무 일도 하지 않는다. */
   const [receipt, setReceipt] = useState<ClaimWithdrawalReceipt | null>(null); const [error, setError] = useState(''); const [message, setMessage] = useState('');
   const dispatched = useRef<ClaimWithdrawalRequest | null>(null); const inFlight = useRef(false); const errorRef = useRef<HTMLParagraphElement>(null);
   useEffect(() => { if (error) errorRef.current?.focus(); }, [error]);
@@ -86,11 +88,14 @@ export function ClaimWithdrawalPanel({ initial, operator = false, onClose }: { i
 }
 export function ClaimWithdrawal({ claimId, stage, operator = false }: { claimId: string; stage: OrderClaimStage; operator?: boolean }) {
   const [context, setContext] = useState<ClaimWithdrawalContext | null>(null); const [pending, setPending] = useState(false); const [error, setError] = useState(''); const loading = useRef(false);
+  useClaimPreviewBusy(pending);
   if (!['requested', 'in_review', 'collecting', 'on_hold', 'withdrawn'].includes(stage)) return null;
+  /* 철회는 구매자 몫이다(10/27 회의 R7, 스마트스토어 기준). 운영자 화면은 철회 이력만 본다. */
+  if (operator && stage !== 'withdrawn') return null;
   async function open() {
     if (loading.current) return; loading.current = true; setPending(true); setError('');
     try { const result = operator ? await loadAdminClaimWithdrawalAction(claimId) : await customerRequest(claimId); if ('error' in result) setError(result.error); else if ('context' in result) setContext(result.context); }
     catch { setError('최신 요청 상태를 읽지 못했습니다.'); } finally { loading.current = false; setPending(false); }
   }
-  return context ? <ClaimWithdrawalPanel key={claimId} initial={context} operator={operator} onClose={() => setContext(null)} /> : <div className="claim-withdrawal-entry"><button type="button" className="btn btn-ghost" disabled={pending} onClick={() => { void open(); }}>{pending ? '요청 확인 중…' : stage === 'withdrawn' ? '요청 철회 이력' : operator ? '고객 요청으로 철회' : '요청 철회하기'}</button>{error ? <p role="alert">{error}</p> : null}</div>;
+  return context ? <ClaimWithdrawalPanel key={claimId} initial={context} operator={operator} onClose={() => setContext(null)} /> : <div className="claim-withdrawal-entry"><button type="button" className="btn btn-ghost" disabled={pending} onClick={() => { void open(); }}>{pending ? '요청 확인 중…' : stage === 'withdrawn' ? '요청 철회 이력' : '요청 철회하기'}</button>{error ? <p role="alert">{error}</p> : null}</div>;
 }

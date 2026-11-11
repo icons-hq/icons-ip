@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-const mocks = vi.hoisted(() => ({ guard: vi.fn(), rpc: vi.fn(), builder: vi.fn(), encrypt: vi.fn(), audit: vi.fn() }));
+const mocks = vi.hoisted(() => ({ guard: vi.fn(), rpc: vi.fn(), builder: vi.fn(), numbers: vi.fn(), encrypt: vi.fn(), audit: vi.fn() }));
 vi.mock('@/lib/admin/guard.server', () => ({ requireAdminScreenAccess: mocks.guard }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ rpc: mocks.rpc }) }));
-vi.mock('@/lib/admin/settled-workbook.server', () => ({ buildSettledWorkbook: mocks.builder }));
+vi.mock('@/lib/admin/settled-workbook.server', () => ({ buildSettledWorkbook: mocks.builder, loadSettledExportNumbers: mocks.numbers }));
 vi.mock('@/lib/admin/encrypted-workbook.server', () => ({ encryptAdminWorkbook: mocks.encrypt }));
 vi.mock('@/lib/admin/encrypted-export-audit.server', () => ({ recordEncryptedSettledExport: mocks.audit }));
 vi.mock('next/navigation', () => ({ unstable_rethrow: vi.fn() }));
@@ -25,7 +25,9 @@ describe('보존된 거래확정 암호화 엑셀 다운로드', () => {
     const response = await POST(request());
     expect(mocks.guard).toHaveBeenCalledWith('/admin/sales/settled');
     expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith('admin_read_settled_export', { p_export_id: ID });
-    expect(mocks.builder).toHaveBeenCalledWith({ receiptId: ID });
+    expect(mocks.builder).toHaveBeenCalledWith({ receiptId: ID }, expect.any(Function));
+    await mocks.builder.mock.calls[0][1]({ orders: [{ id: 'order-1' }, { id: 'order-2' }] });
+    expect(mocks.numbers).toHaveBeenCalledWith(expect.objectContaining({ rpc: mocks.rpc }), ['order-1', 'order-2']);
     expect(mocks.audit).toHaveBeenCalledWith('staff', ID, 'a'.repeat(64));
     expect(mocks.builder.mock.invocationCallOrder[0]).toBeLessThan(mocks.encrypt.mock.invocationCallOrder[0]);
     expect(mocks.encrypt.mock.invocationCallOrder[0]).toBeLessThan(mocks.audit.mock.invocationCallOrder[0]);
@@ -33,6 +35,7 @@ describe('보존된 거래확정 암호화 엑셀 다운로드', () => {
     expect(response.headers.get('cache-control')).toBe('private, no-store');
     expect(response.headers.get('x-icons-export-receipt')).toBe(ID);
     expect(response.headers.get('x-icons-export-encryption')).toBe('ECMA-376-Agile');
+    expect(decodeURIComponent(response.headers.get('content-disposition')!)).toMatch(/icons-거래확정-\d{8}-\d{4}\.xlsx/);
     expect(Buffer.from(await response.arrayBuffer()).toString()).toBe('encrypted-evidence');
   });
   it('기존 GET 링크는 같은 기록의 암호 입력 화면으로만 이동한다', async () => {

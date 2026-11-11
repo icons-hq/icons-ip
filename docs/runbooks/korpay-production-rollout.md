@@ -1,5 +1,12 @@
 # Korpay Production rollout runbook
 
+> **2026-11-06 — 코페이는 drain 전용으로 은퇴했다.** 판매 제한 상품(성인/19금) 주문의 카드
+> PG는 나이스페이다([NICEPAY Production rollout runbook](./nicepay-production-rollout.md)).
+> 앱·DB 모두 새 코페이 결제를 준비하지 않고, 런타임은 `KORPAY_*_CHECKOUT_ENABLED`·
+> `KORPAY_*_CANARY_USER_ID`를 더는 읽지 않는다(남아 있으면 빌드 경고). 아래의 재개방 절차는
+> 이력으로만 남긴다. `KORPAY_MID`·`KORPAY_KEY`·콜백 drain·수동 복구 seam은 진행 중 결제와
+> 과거 원장 처리를 위해 그대로 유지한다.
+
 이 runbook은 Korpay 신규 결제를 **자격 증명 등록 → dark deploy → 단일 actor canary →
 목적별 공개 활성화** 순서로 운영한다. MID, MKEY, paymentKey, TID, 승인번호, 원문 응답,
 자격 증명 fingerprint는 문서·issue·PR·로그·명령 인자에 기록하지 않는다.
@@ -13,7 +20,7 @@
 > 기본 provider는 `toss`이고, 토스가 취급하지 않는 **판매 제한 상품**(성인(19금),
 > 추후 랜덤박스)이 담긴 주문만 코페이로 파생된다.
 >
-> 아래 절차는 삭제하지 않는다 — 19+ 오픈 트랙(NICE 성인인증 #209·#210 · 노출 게이트 ·
+> 아래 절차는 삭제하지 않는다 — 19+ 오픈 트랙(KCP 성인 인증 ADR-0024 · 노출 게이트 #210 ·
 > 코페이 수동 취소 운영 콘솔)이 갖춰진 뒤 코페이 gate를 판매 제한 상품 전용으로
 > 재개방할 때 그대로 재사용한다(에픽 #384 시퀀스 ⑥).
 >
@@ -24,8 +31,10 @@
 - 코페이 자격 증명(`KORPAY_MID`·`KORPAY_KEY`)과 어댑터는 제거하지 않는다. 진행 중이던
   코페이 결제의 callback drain은 rollout gate가 아니라 자격 증명 기준으로 열려 있어,
   gate를 닫아도 known order+nonce는 계속 claim·confirm·finalize된다.
-- 판매 제한 상품은 성인인증이 붙기 전까지 스토어에서 비노출이고 주문 생성이 서버에서
-  차단되므로, 코페이 gate가 닫힌 지금 코페이로 파생되는 신규 주문은 만들어지지 않는다.
+- 판매 제한 상품은 성인 인증 gate가 열리기 전까지 스토어에서 비노출이고 주문 생성이 서버에서
+  차단된다. 열린 뒤에도 카드 주문은 코페이 gate를 따르므로, 코페이 gate가 닫힌 동안 코페이로
+  파생되는 신규 카드 주문은 만들어지지 않는다(무통장 입금은 provider와 무관하다 —
+  `docs/runbooks/kcp-adult-verification.md`의 19금 굿즈 판매 경계).
 - 코페이에는 취소·상태 조회 API가 없다는 제약이 그대로다. 아래 "모호 결제와 취소",
   수동 복구 seam, #208 운영 경계는 재개방 시점에도 같은 조건으로 적용된다.
 
@@ -47,7 +56,7 @@
 
 - 2026-08-14 사용자 확인으로 Korpay 계약은 완료됐고 현재 운영 자격 증명을 사용할 수
   있다. 이 확인을 계약 미완료, 키 폐기, rotation 또는 재발급 대기로 해석하지 않는다.
-- 위 확인은 공급사 서면 증거가 아니며 19+ 유한 실물 쿠지의 결제·NICE·법률·IP 승인
+- 위 확인은 공급사 서면 증거가 아니며 19+ 유한 실물 쿠지의 결제·성인 인증·법률·IP 승인
   범위를 포함하지 않는다.
 - 기술 계약은 **코페이 인증결제 가이드 v1.2.2**와
   [`@korpay/sdk` 1.1.8 공식 sample](https://github.com/korpay/korpay-sample)을 따른다.

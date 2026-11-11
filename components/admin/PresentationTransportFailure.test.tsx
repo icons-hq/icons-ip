@@ -20,6 +20,9 @@ import { DetailExperienceScreen } from './screens/DetailExperienceScreen';
 import { DEFAULT_DETAIL_EXPERIENCES } from '@/lib/product-detail-experiences';
 import { GoodsMediaScreen } from './screens/GoodsMediaScreen';
 import { DetailMediaScreen } from './screens/DetailMediaScreen';
+import { Button } from '@/components/admin/kit/ui/button';
+/* 버튼은 kit Button 부품(ADR-0028) 또는 네이티브 button이다. */
+const isButton = (element: ReactElement<Record<string, unknown>>) => element.type === 'button' || element.type === Button;
 function elements(node: ReactNode): ReactElement<Record<string, unknown>>[] {
   if (Array.isArray(node)) return node.flatMap(elements);
   if (!isValidElement(node)) return [];
@@ -46,7 +49,7 @@ describe('presentation UI transport failure', () => {
     const firstArgs = action.mock.calls[0];
     const tree = render(factory);
     expect(tree.find(element => element.type === 'fieldset')?.props.disabled).toBe(true);
-    expect(tree.find(element => element.type === 'button' && element.props.type === 'submit')?.props.disabled).toBe(false);
+    expect(tree.find(element => isButton(element) && element.props.type === 'submit')?.props.disabled).toBe(false);
     expect(tree.some(element => element.props.role === 'alert')).toBe(true);
     await submit(); expect(action.mock.calls[1]).toEqual(firstArgs);
   });
@@ -55,10 +58,10 @@ describe('presentation UI transport failure', () => {
     actions.colors.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({ error: 'unknown', uncertain: true });
     const factory = () => GoodsListingColorsPanel({ goodId: 'g1' });
     render(factory); hooks.effects[0](); await flush();
-    const save = async () => { const button = render(factory).filter(element => element.type === 'button').at(-1)!; (button.props.onClick as () => void)(); await flush(); };
+    const save = async () => { const button = render(factory).filter(isButton).at(-1)!; (button.props.onClick as () => void)(); await flush(); };
     await save(); const firstArgs = actions.colors.mock.calls[0];
     expect(render(factory).find(element => element.type === 'fieldset')?.props.disabled).toBe(true);
-    expect(render(factory).filter(element => element.type === 'button').at(-1)?.props.disabled).toBe(false);
+    expect(render(factory).filter(isButton).at(-1)?.props.disabled).toBe(false);
     await save(); expect(actions.colors.mock.calls[1]).toEqual(firstArgs);
   });
 });

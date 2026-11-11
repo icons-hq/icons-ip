@@ -1,12 +1,15 @@
+import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { CheckoutOrderSnapshot } from '@/lib/checkout.server';
 import type { PreparedCheckout } from '@/lib/payments/gateway';
 import { transactionDisplay, transactionLineId } from '@/test/fixtures/cart-transaction';
 import { checkoutStatusCopy } from '@/lib/checkout-status-copy';
+import { bankTransferDepositName } from '@/lib/payments/bank-transfer';
 import {
   CheckoutOrder,
   effectiveGoodsCheckoutExpiry,
+  prepareRetryable,
   preparedGoodsCheckoutUsable,
 } from './CheckoutOrder';
 
@@ -14,6 +17,12 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
 }));
 vi.mock('@/app/checkout/reorder-actions', () => ({ restoreCanceledOrderToCartAction: vi.fn() }));
+/* 직전 목록 링크(목적지·문구 판정)는 ListingReturn.client.test 가 본다 — 여기서는 닫힌 주문이 그 링크를 쓰는지만 표식으로 본다. */
+vi.mock('@/components/shell/ListingReturn', () => ({
+  ListingReturnLink: ({ children, className }: { children?: ReactNode; className?: string }) => (
+    <a className={className} data-listing-return="">{children ?? '(직전 목록 문구)'}</a>
+  ),
+}));
 
 const order: CheckoutOrderSnapshot = {
   id: '7ad4c967-3d48-44da-a665-64731ac33f62',
@@ -268,6 +277,18 @@ describe('CheckoutOrder 닫힌 결제 안내', () => {
     expect(html).not.toContain('이 주문 취소하고 다시 주문하기');
   });
 
+  /* l9-ui-2 · 10/14 S17 셋째 기준: 닫힌 주문의 둘러보기도 직전에 보던 굿즈 목록으로 간다. 표면을 말하지 않는 '굿즈 다시 담기'는 그 문구를 쓴다. */
+  it('닫힌 주문의 둘러보기는 직전 목록 링크로 간다', () => {
+    const card = renderToStaticMarkup(<CheckoutOrder order={{ ...order, status: 'canceled', expiresAt: null }} />);
+    const bank = renderToStaticMarkup(
+      <CheckoutOrder order={{ ...order, paymentMethod: 'bank_transfer', status: 'canceled', expiresAt: null }} />,
+    );
+
+    expect(card).toContain('<a class="btn btn-ghost" data-listing-return="">(직전 목록 문구)</a>');
+    expect(bank).toContain('<a class="btn btn-holo" data-listing-return="">굿즈 다시 담기</a>');
+    expect(card + bank).not.toContain('href="/shop"');
+  });
+
   it('무통장 주문에는 카드 주문 정리 액션을 띄우지 않는다', () => {
     const html = renderToStaticMarkup(
       <CheckoutOrder order={{ ...order, paymentMethod: 'bank_transfer', status: 'canceled', expiresAt: null }} />,
@@ -310,6 +331,23 @@ describe('CheckoutOrder 무통장 입금 안내', () => {
     expect(html).toContain('홍길동7AD4C967');
   });
 
+  it('16자리 주문번호가 있으면 입금자명 코드를 주문번호로 만든다(알림 코드와 같은 근거)', () => {
+    const html = renderToStaticMarkup(
+      <CheckoutOrder bankTransferAccount={account} order={{ ...bankOrder, orderNumber: '2026102710000001' }} />,
+    );
+    /* 주문일 10일 주기 자리(6) + 그날 일련번호 끝 5자리 — DB private.bank_transfer_deposit_code_for_number와 같다. */
+    expect(html).toContain('홍길동600001');
+    expect(html).toContain(bankTransferDepositName('홍길동', '2026102710000001'));
+  });
+
+  it('DB가 준 공식 입금코드가 있으면 그것을 안내한다(코드 전환 전에 접수된 주문은 옛 코드 유지)', () => {
+    const html = renderToStaticMarkup(
+      <CheckoutOrder bankTransferAccount={account} order={{ ...bankOrder, orderNumber: '2026102710000001', depositCode: '7AD4C967' }} />,
+    );
+    expect(html).toContain('홍길동7AD4C967');
+    expect(html).not.toContain('홍길동600001');
+  });
+
   /*
    * 카드 결제 준비 버튼이 무통장 주문에 뜨면 구매자가 카드 창을 열고, 열리지
    * 않는 결제 action 앞에서 이체를 미룬다.
@@ -346,5 +384,47 @@ describe('CheckoutOrder 무통장 입금 안내', () => {
 
     expect(html).toContain('결제가 확인됐어요');
     expect(html).not.toContain('123456-01-789012');
+  });
+});
+
+describe('CheckoutOrder 한 번에 결제(S8)·장바구니 유지(D3)', () => {
+  it('결제할 수 있는 카드 주문은 결제 준비 버튼 없이 결제 화면을 바로 준비한다', () => {
+    const html = renderToStaticMarkup(<CheckoutOrder order={order} />);
+    expect(html).not.toContain('결제 준비하기');
+    expect(html).not.toContain('결제를 준비해주세요');
+  });
+
+  it('결제 화면 머리말은 전체 UUID 대신 16자리 주문번호를 쓴다(A3a)', () => {
+    const html = renderToStaticMarkup(<CheckoutOrder order={{ ...order, orderNumber: '2026102710000001' }} />);
+    expect(html).toContain('주문번호 2026102710000001');
+    expect(html).not.toContain(`ORDER · ${order.id}`);
+  });
+
+  it('장바구니가 남은 주문의 승인 거절은 다시 담지 않고 주문서에서 다시 결제하게 한다', () => {
+    const html = renderToStaticMarkup(
+      <CheckoutOrder
+        order={{ ...order, cartRetained: true, paymentAttempt: { state: 'declined', expiresAt: '2099-08-07T06:10:00.000Z', provider: 'toss' } }}
+      />,
+    );
+    expect(html).toContain('href="/checkout"');
+    expect(html).toContain('다시 결제하기');
+    expect(html).toContain('장바구니는 그대로 있으니');
+    expect(html).not.toContain('이 주문 취소하고 다시 주문하기');
+  });
+
+  it('장바구니가 남은 주문이 결제 없이 취소됐으면 다시 담지 않고 장바구니로 잇는다', () => {
+    const html = renderToStaticMarkup(<CheckoutOrder order={{ ...order, cartRetained: true, status: 'canceled', expiresAt: null }} />);
+    expect(html).toContain('결제 없이 취소된 주문이에요');
+    expect(html).toContain('href="/cart"');
+    expect(html).not.toContain('같은 굿즈 다시 담기');
+  });
+});
+
+describe('prepareRetryable', () => {
+  it('닫힌 주문·판매기간·로그인처럼 다시 눌러도 같은 실패에는 다시 시도를 두지 않는다', () => {
+    expect(prepareRetryable('payment_unavailable')).toBe(true);
+    for (const error of ['not_payable', 'not_found', 'payment_closed', 'goods_sale_not_open', 'auth_required'] as const) {
+      expect(prepareRetryable(error)).toBe(false);
+    }
   });
 });

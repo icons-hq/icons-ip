@@ -3,6 +3,20 @@ import { HOME_REVIEW_MANUAL_LIMIT, isHomeSalesPeriod } from '@/lib/home-ranking'
 import { HOME_HERO_CONTENT_LIMIT, HOME_HERO_TITLE_LIMIT, isHomeHeroImageDim, isHomeHeroTextColor, normalizeHeroNewlines } from '@/lib/home-hero';
 import { HOME_PRODUCT_CANDIDATE_LIMIT, homeProductCountRange, isHomeProductCollectionTitle, isHomeProductImageShape, isHomeProductLayout } from '@/lib/home-product-collection';
 import { parseShellNoticePageTypes } from '@/lib/shell-notices';
+import {
+  COLLECTION_BANNER_ALT_LIMIT,
+  COLLECTION_BANNER_SUBTITLE_LIMIT,
+  COLLECTION_BANNER_TITLE_LIMIT,
+  isCollectionBannerSlot,
+} from '@/lib/collection-banners';
+import {
+  describeSearchTermsError,
+  normalizeSuggestedSearchTerm,
+  parseSuggestedSearchTerms,
+  SEARCH_TERM_LIMIT,
+  SEARCH_TERM_LIST_NAME_LIMIT,
+  SEARCH_TERM_MAX_LENGTH,
+} from '@/lib/search-terms';
 
 export type AdminCurationKind =
   | 'hero'
@@ -17,7 +31,9 @@ export type AdminCurationKind =
   | 'review_best'
   | 'product_mosaic'
   | 'product_collection'
-  | 'benefit';
+  | 'benefit'
+  | 'collection_banner'
+  | 'search_terms';
 
 export interface AdminCurationFormValue {
   operationId: string;
@@ -71,6 +87,8 @@ export type AdminCurationFieldErrors = Partial<Record<
   | 'mobileImagePath'
   | 'ctaLabel'
   | 'pageTypes'
+  | 'imageAlt'
+  | 'searchTerms'
   | 'form',
   string
 >>;
@@ -100,6 +118,8 @@ const CURATION_KINDS = new Set<AdminCurationKind>([
   'product_mosaic',
   'product_collection',
   'benefit',
+  'collection_banner',
+  'search_terms',
 ]);
 /* 이미지 없이는 렌더할 수 없는 편성 — DB의 home_curations_image_required_check와 같은 목록이다. */
 const IMAGE_REQUIRED_KINDS = new Set<AdminCurationKind>([
@@ -107,6 +127,7 @@ const IMAGE_REQUIRED_KINDS = new Set<AdminCurationKind>([
   'notice_strip',
   'editor_pick',
   'band_banner',
+  'collection_banner',
 ]);
 /* slot은 오늘 두 BEST 탭 밴드만 구분한다 (home_curations_slot_check와 같은 규칙). */
 const BEST_TAB_SLOTS = new Set(['category', 'popular']);
@@ -126,6 +147,9 @@ const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f-\u009f]/;
 export const NOTICE_BAR_MESSAGE_LIMIT = 60;
 export const NOTICE_BAR_CTA_LIMIT = 12;
 const NOTICE_PAGE_TYPES_ERROR = '공지를 보일 화면을 하나 이상 선택해주세요.';
+const SEARCH_TERMS_ERROR = `추천 검색어는 줄바꿈 없이 1~${SEARCH_TERM_MAX_LENGTH}자로, 겹치지 않게 1~${SEARCH_TERM_LIMIT}개 입력해주세요.`;
+/* 링크 없이 저장하는 편성 — 링크 칸을 비우면 null 이다(DB home_curations_link_path_check). */
+const OPTIONAL_LINK_KINDS = new Set<AdminCurationKind>(['hero', 'product_collection', 'notice_bar', 'collection_banner', 'search_terms']);
 
 type PayloadTextField = 'badge' | 'description' | 'subcopy' | 'subtitle';
 
@@ -377,6 +401,36 @@ function readCurationPayload(
         payload.cta_label = label;
       }
     }
+  } else if (kind === 'collection_banner') {
+    /* 컬렉션 배너(CL-09): 한 줄 부제·이미지 대체텍스트·모바일 아트웍·딤/글자색. 문구는 이미지 위 텍스트 레이어다. */
+    const imageDim = readString(formData, 'imageDim') || 'none';
+    const textColor = readString(formData, 'textColor') || 'black';
+    if (isHomeHeroImageDim(imageDim)) payload.image_dim = imageDim;
+    else errors.imageDim = '이미지 딤 설정을 선택해주세요.';
+    if (isHomeHeroTextColor(textColor)) payload.text_color = textColor;
+    else errors.textColor = '텍스트 색상을 선택해주세요.';
+    const subtitle = readString(formData, 'subtitle');
+    if (subtitle) {
+      if (characterLength(subtitle) > COLLECTION_BANNER_SUBTITLE_LIMIT || CONTROL_CHARACTER_PATTERN.test(subtitle)) {
+        errors.subtitle = `부제는 줄바꿈 없이 ${COLLECTION_BANNER_SUBTITLE_LIMIT}자 이하로 입력해주세요.`;
+      } else payload.subtitle = subtitle;
+    }
+    const imageAlt = readString(formData, 'imageAlt');
+    if (imageAlt) {
+      if (characterLength(imageAlt) > COLLECTION_BANNER_ALT_LIMIT || CONTROL_CHARACTER_PATTERN.test(imageAlt)) {
+        errors.imageAlt = `이미지 대체텍스트는 줄바꿈 없이 ${COLLECTION_BANNER_ALT_LIMIT}자 이하로 입력해주세요.`;
+      } else payload.image_alt = imageAlt;
+    }
+    readMobileImagePath(formData, errors, payload);
+  } else if (kind === 'search_terms') {
+    /* 추천 검색어(CH-10): 입력 칸마다 한 검색어. 빈 칸은 버리고 검색 질의와 같은 규칙으로 정규화한 뒤 DB 와 같은 한도로 검사한다. */
+    const terms = formData.getAll('searchTerm')
+      .map((value) => (typeof value === 'string' ? normalizeSuggestedSearchTerm(value) : ''))
+      .filter(Boolean);
+    const parsed = parseSuggestedSearchTerms(terms);
+    /* 목록 단위 한 줄 대신 고칠 것을 짚는다(겹친 검색어 이름·개수·길이) — 편집기는 같은 규칙으로 문제 칸만 표시한다(l8b-qa-3). */
+    if (!parsed) errors.searchTerms = describeSearchTermsError(terms) ?? SEARCH_TERMS_ERROR;
+    else payload.terms = parsed;
   } else if (kind === 'editor_pick') {
     readPayloadText(formData, 'badge', errors, payload);
     readPayloadText(formData, 'description', errors, payload);
@@ -482,7 +536,9 @@ export function normalizeAdminCurationForm(formData: FormData): AdminCurationFor
 
   const title = readString(formData, 'title');
   const titleLimit = ['sales_best', 'review_best', 'product_mosaic', 'product_collection'].includes(kind ?? '') ? 15
-    : kind === 'notice_bar' ? NOTICE_BAR_MESSAGE_LIMIT : 120;
+    : kind === 'notice_bar' ? NOTICE_BAR_MESSAGE_LIMIT
+      : kind === 'collection_banner' ? COLLECTION_BANNER_TITLE_LIMIT
+        : kind === 'search_terms' ? SEARCH_TERM_LIST_NAME_LIMIT : 120;
   if (characterLength(title) < (kind === 'hero' ? 0 : 1) || characterLength(title) > titleLimit) {
     errors.title = kind === 'hero' ? '제목은 40자 이하로 입력해주세요.' : `제목은 1자 이상 ${titleLimit}자 이하로 입력해주세요.`;
   }
@@ -492,6 +548,11 @@ export function normalizeAdminCurationForm(formData: FormData): AdminCurationFor
   if (kind === 'product_collection' && !isHomeProductCollectionTitle(title)) errors.title = '제목은 제어 문자 없이 1자 이상 15자 이하로 입력해주세요.';
   if (kind === 'notice_bar' && (CONTROL_CHARACTER_PATTERN.test(title) || characterLength(title) < 1 || characterLength(title) > NOTICE_BAR_MESSAGE_LIMIT)) {
     errors.title = `공지 문구는 줄바꿈 없이 1자 이상 ${NOTICE_BAR_MESSAGE_LIMIT}자 이하로 입력해주세요.`;
+  }
+  if ((kind === 'collection_banner' || kind === 'search_terms') && (CONTROL_CHARACTER_PATTERN.test(title) || characterLength(title) < 1 || characterLength(title) > titleLimit)) {
+    errors.title = kind === 'collection_banner'
+      ? `배너 문구는 줄바꿈 없이 1자 이상 ${titleLimit}자 이하로 입력해주세요.`
+      : `목록 이름은 줄바꿈 없이 1자 이상 ${titleLimit}자 이하로 입력해주세요.`;
   }
 
   const rawImagePath = readString(formData, 'imagePath');
@@ -505,12 +566,16 @@ export function normalizeAdminCurationForm(formData: FormData): AdminCurationFor
   }
   if (kind === 'product_collection' && imagePath) errors.imagePath = '자유상품은 선택한 상품의 대표이미지를 사용합니다.';
   if (kind === 'notice_bar' && imagePath) errors.imagePath = '텍스트 공지 바는 이미지를 쓰지 않습니다.';
+  if (kind === 'search_terms' && imagePath) errors.imagePath = '추천 검색어는 이미지를 쓰지 않습니다.';
 
   const rawSlot = readString(formData, 'slot');
   let slot: string | null = null;
   if (kind === 'best_tab') {
     if (BEST_TAB_SLOTS.has(rawSlot)) slot = rawSlot;
     else errors.slot = '탭 슬롯을 선택해주세요.';
+  } else if (kind === 'collection_banner') {
+    if (isCollectionBannerSlot(rawSlot)) slot = rawSlot;
+    else errors.slot = '배너를 보일 컬렉션을 선택해주세요.';
   }
 
   const payload = readCurationPayload(formData, kind, errors);
@@ -518,7 +583,7 @@ export function normalizeAdminCurationForm(formData: FormData): AdminCurationFor
   const rawLinkValue = formData.get('linkPath');
   const rawLinkPath = typeof rawLinkValue === 'string' ? rawLinkValue : '';
   const trimmedLinkPath = rawLinkPath.trim();
-  const linkPath = (kind === 'hero' || kind === 'product_collection' || kind === 'notice_bar') && !trimmedLinkPath ? null : trimmedLinkPath;
+  const linkPath = kind && OPTIONAL_LINK_KINDS.has(kind) && !trimmedLinkPath ? null : trimmedLinkPath;
   const decodedLinkPath = decodeInternalLink(trimmedLinkPath);
   if (AMBIGUOUS_LINK_CHARACTER_PATTERN.test(rawLinkPath) || (linkPath !== null && (
     characterLength(linkPath) < 1
@@ -531,6 +596,7 @@ export function normalizeAdminCurationForm(formData: FormData): AdminCurationFor
     errors.linkPath = '1~2048자의 안전한 내부 경로를 입력해주세요.';
   }
   if (kind === 'product_collection' && linkPath !== null) errors.linkPath = '자유상품은 각 상품의 상세 화면으로 이동합니다.';
+  if (kind === 'search_terms' && linkPath !== null) errors.linkPath = '추천 검색어는 각 검색어의 검색 결과로 이동합니다.';
 
   const rawDisplayOrder = readString(formData, 'displayOrder');
   const displayOrder = Number(rawDisplayOrder);

@@ -1,5 +1,5 @@
 import { describe,expect,it } from 'vitest';
-import { DEFAULT_SHIPMENT_EXPORT_COLUMNS,parseShipmentExportColumns,shipmentExportCells,shipmentExportCsv,type ShipmentExportLine } from './shipment-workbook';
+import { DEFAULT_SHIPMENT_EXPORT_COLUMNS,OPTIONAL_SHIPMENT_EXPORT_COLUMNS,parseShipmentExportColumns,shipmentExportCells,shipmentExportCsv,type ShipmentExportLine } from './shipment-workbook';
 const line:ShipmentExportLine={shipmentId:'00000000-0000-4000-8000-000000000001',orderId:'00000000-0000-4000-8000-000000000002',recipient:'=HYPERLINK("https://example.test")',phone:'01012345678',postalCode:'00123',address:'주소, 상세',goodCode:'ITEM-1',variantCode:'000123-RED',goodName:'상품',optionName:'파랑',qty:2,unitPrice:12500,deliveryNote:'문 앞\n부탁합니다',carrier:'한진택배'};
 describe('출고지시 양식',()=>{
  it('기본 12열을 유지하고 옵션 물류 품번을 선택 컬럼으로 매핑한다',()=>{
@@ -10,6 +10,16 @@ describe('출고지시 양식',()=>{
   expect(shipmentExportCells({...line,variantCode:'000123-RED'},parsed).at(-1)).toBe('000123-RED');
   expect(parseShipmentExportColumns([...columns,{key:'variantCode',header:'중복 SKU'}])).toBeNull();
   expect(parseShipmentExportColumns(columns.slice(1))).toBeNull();
+ });
+ it('바코드·ERP 코드·ERP 품명을 선택 컬럼으로 더할 수 있고 값이 없으면 빈칸이다',()=>{
+  expect(OPTIONAL_SHIPMENT_EXPORT_COLUMNS.map(column=>[column.key,column.header])).toEqual([['variantCode','옵션코드'],['barcode','바코드'],['erpCode','ERP 코드'],['erpName','ERP 품명']]);
+  const columns=[...DEFAULT_SHIPMENT_EXPORT_COLUMNS,...OPTIONAL_SHIPMENT_EXPORT_COLUMNS];
+  expect(columns).toHaveLength(16);
+  expect(parseShipmentExportColumns(columns)).toEqual(columns);
+  expect(shipmentExportCells({...line,barcode:'0880123456789',erpCode:'ERP-001',erpName:'합성 키링 빨강'},columns).slice(-3)).toEqual(['0880123456789','ERP-001','합성 키링 빨강']);
+  expect(shipmentExportCells(line,columns).slice(-3)).toEqual(['','','']);
+  expect(parseShipmentExportColumns([...columns,{key:'barcode',header:'중복 바코드'}])).toBeNull();
+  expect(parseShipmentExportColumns([...DEFAULT_SHIPMENT_EXPORT_COLUMNS,{key:'erpName',header:'ERP 품명'},{key:'erpName',header:'다른 이름'}])).toBeNull();
  });
  it('모든 표준 컬럼의 헤더와 순서를 바꿀 수 있다',()=>{
   const columns=[...DEFAULT_SHIPMENT_EXPORT_COLUMNS].reverse().map(c=>({...c,header:'창고 '+c.header}));

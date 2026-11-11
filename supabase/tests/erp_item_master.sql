@@ -30,6 +30,15 @@ insert into public.catalog_category_erp_mappings(category_id,erp_code,erp_name,s
  ('00000000-0000-4000-8000-000000071112','ERP-ARCH','보관 분류','erp-smoke',now(),'00000000-0000-4000-8000-000000071101');
 update public.catalog_categories set archived_at=now() where id='00000000-0000-4000-8000-000000071112';
 
+-- R9 전체 경로 자동 연결용 트리. 같은 말단 이름('점착메모지')이 다른 경로에도 있다.
+insert into public.catalog_categories(id,code,name,parent_id,depth) values
+ ('00000000-0000-4000-8000-000000071120','erp-path-root','경로검증문구',null,1),
+ ('00000000-0000-4000-8000-000000071121','erp-path-memo','메모/수첩','00000000-0000-4000-8000-000000071120',2),
+ ('00000000-0000-4000-8000-000000071122','erp-path-sticky','점착 메모지','00000000-0000-4000-8000-000000071121',3),
+ ('00000000-0000-4000-8000-000000071123','erp-path-other','경로검증다른',null,1),
+ ('00000000-0000-4000-8000-000000071124','erp-path-other-memo','메모/수첩','00000000-0000-4000-8000-000000071123',2),
+ ('00000000-0000-4000-8000-000000071125','erp-path-other-sticky','점착메모지','00000000-0000-4000-8000-000000071124',3);
+
 -- 실행 권한은 인증 사용자에게만 열고, 테이블 직접 쓰기는 누구에게도 열지 않는다.
 select 1/case when
   not has_function_privilege('anon','public.admin_import_erp_items(jsonb)','execute')
@@ -47,6 +56,9 @@ select 1/case when
   and not has_function_privilege('anon','public.admin_set_erp_category_mapping(text,uuid)','execute')
   and has_function_privilege('authenticated','public.admin_set_erp_category_mapping(text,uuid)','execute')
   and not has_function_privilege('service_role','public.admin_set_erp_category_mapping(text,uuid)','execute')
+  and not has_function_privilege('anon','public.admin_set_erp_category_mappings(jsonb)','execute')
+  and has_function_privilege('authenticated','public.admin_set_erp_category_mappings(jsonb)','execute')
+  and not has_function_privilege('service_role','public.admin_set_erp_category_mappings(jsonb)','execute')
   and not has_function_privilege('anon','public.admin_delete_erp_items(text[])','execute')
   and has_function_privilege('authenticated','public.admin_delete_erp_items(text[])','execute')
   and not has_function_privilege('service_role','public.admin_delete_erp_items(text[])','execute')
@@ -284,6 +296,126 @@ select 1/case when
     and actor_id='00000000-0000-4000-8000-000000071101' and target='erp_category_mappings:문구 > 포토카드')=2
 then 1 else 0 end as assert_erp_audit_log;
 
+-- R9: 따로 연결하지 않은 ERP 분류는 정본 매핑이 없으면 `>`로 나눈 전체 경로가 같은 활성 말단 하나에 자동 연결된다.
+-- 이름의 '/'는 구분자가 아니고 공백은 무시한다. 말단 이름만 같거나, 말단이 아니거나, 없는 경로는 '연결 필요'로 남는다.
+select public.admin_import_erp_items(jsonb_build_array(
+  jsonb_build_object('code','PATH-1','name','경로 일치','category','경로검증문구>메모/수첩>점착메모지'),
+  jsonb_build_object('code','PATH-2','name','경로 공백','category',' 경로검증문구 > 메모/수첩 >  점착 메모지 '),
+  jsonb_build_object('code','PATH-3','name','말단 이름만','category','점착메모지'),
+  jsonb_build_object('code','PATH-4','name','중간 경로','category','경로검증문구>메모/수첩'),
+  jsonb_build_object('code','PATH-5','name','없는 경로','category','경로검증문구>메모/수첩>스프링노트'),
+  jsonb_build_object('code','PATH-6','name','슬래시 분리 아님','category','경로검증문구>메모>수첩>점착메모지')
+))->>'inserted' as path_inserted \gset
+select 1/case when :'path_inserted'='6'
+  and (select mapped_category_id from public.admin_search_erp_items('PATH-1',8) limit 1)='00000000-0000-4000-8000-000000071122'
+  and (select mapped_category_id from public.admin_search_erp_items('PATH-2',8) limit 1)='00000000-0000-4000-8000-000000071122'
+  and (select mapped_category_id from public.admin_search_erp_items('PATH-3',8) limit 1) is null
+  and (select mapped_category_id from public.admin_search_erp_items('PATH-4',8) limit 1) is null
+  and (select mapped_category_id from public.admin_search_erp_items('PATH-5',8) limit 1) is null
+  and (select mapped_category_id from public.admin_search_erp_items('PATH-6',8) limit 1) is null
+  and public.admin_list_erp_items('PATH-1',0,20)->'items'->0->>'mapped_category_id'='00000000-0000-4000-8000-000000071122'
+  and (select category_id from public.admin_list_erp_categories() where erp_category='경로검증문구>메모/수첩>점착메모지') is null
+  and (select fallback_category_id from public.admin_list_erp_categories() where erp_category='경로검증문구>메모/수첩>점착메모지')='00000000-0000-4000-8000-000000071122'
+  and (select fallback_category_id from public.admin_list_erp_categories() where erp_category='점착메모지') is null
+  and not exists(select 1 from public.erp_category_mappings where erp_category like '경로검증%')
+then 1 else 0 end as assert_erp_full_path_auto_link;
+-- ERP 품목 화면에서 다른 말단을 골라 저장하면 그 연결이 먼저이고, 해제하면 경로 연결로 돌아간다. 말단을 보관하면 연결이 빠진다.
+select public.admin_set_erp_category_mapping('경로검증문구>메모/수첩>점착메모지','00000000-0000-4000-8000-000000071125')->>'changed' as path_override \gset
+select 1/case when :'path_override'='true'
+  and (select mapped_category_id from public.admin_search_erp_items('PATH-1',8) limit 1)='00000000-0000-4000-8000-000000071125'
+  and (select mapped_category_id from public.admin_search_erp_items('PATH-2',8) limit 1)='00000000-0000-4000-8000-000000071122'
+then 1 else 0 end as assert_erp_path_link_editable;
+select public.admin_set_erp_category_mapping('경로검증문구>메모/수첩>점착메모지',null)->>'changed' as path_override_cleared \gset
+reset role;
+update public.catalog_categories set archived_at=now() where id='00000000-0000-4000-8000-000000071122';
+set local role authenticated;
+select 1/case when :'path_override_cleared'='true'
+  and (select mapped_category_id from public.admin_search_erp_items('PATH-1',8) limit 1) is null
+then 1 else 0 end as assert_erp_path_link_needs_active_leaf;
+
+-- 일괄 저장: 행마다 단건과 같은 규칙으로 처리하고, 거절된 행은 입력 순번과 사유로 돌려주며, 나머지는 저장한다.
+select public.admin_set_erp_category_mappings(jsonb_build_array(
+  jsonb_build_object('erp_category',' 일괄 >  가 ','category_id','00000000-0000-4000-8000-000000071111'),
+  jsonb_build_object('erp_category','일괄 > 나','category_id','00000000-0000-4000-8000-000000071111'),
+  jsonb_build_object('erp_category','일괄 > 보관','category_id','00000000-0000-4000-8000-000000071112'),
+  jsonb_build_object('erp_category','일괄 > 상위','category_id','00000000-0000-4000-8000-000000071110'),
+  jsonb_build_object('erp_category','일괄 > 없음','category_id','00000000-0000-4000-8000-000000071199'),
+  jsonb_build_object('erp_category','일괄 > 형식','category_id','not-a-uuid'),
+  jsonb_build_object('erp_category','일괄 > 나','category_id','00000000-0000-4000-8000-000000071125'),
+  jsonb_build_object('erp_category','  ','category_id','00000000-0000-4000-8000-000000071111'),
+  jsonb_build_object('erp_category','일괄 > 키없음'),
+  jsonb_build_object('erp_category',7,'category_id',null),
+  to_jsonb('행이 아님'::text)
+)) as batch_first \gset
+select 1/case when
+  (:'batch_first'::jsonb->>'changed')::int=2
+  and (:'batch_first'::jsonb->>'unchanged')::int=0
+  and (select jsonb_agg(jsonb_build_array((entry->>'index')::int,entry->>'erp_category',entry->>'reason')) from jsonb_array_elements(:'batch_first'::jsonb->'rejected') entry)
+    = jsonb_build_array(
+      jsonb_build_array(2,'일괄 > 보관','category_archived'),
+      jsonb_build_array(3,'일괄 > 상위','category_not_leaf'),
+      jsonb_build_array(4,'일괄 > 없음','category_not_found'),
+      jsonb_build_array(5,'일괄 > 형식','invalid_category_id'),
+      jsonb_build_array(6,'일괄 > 나','duplicate_erp_category'),
+      jsonb_build_array(7,'  ','invalid_erp_category'),
+      jsonb_build_array(8,'일괄 > 키없음','invalid_category_id'),
+      jsonb_build_array(9,null,'invalid_erp_category'),
+      jsonb_build_array(10,null,'invalid_erp_category'))
+  and (select count(*) from public.erp_category_mappings where erp_category like '일괄 >%')=2
+  and (select category_id from public.erp_category_mappings where erp_category='일괄 > 가')='00000000-0000-4000-8000-000000071111'
+  and (select category_id from public.erp_category_mappings where erp_category='일괄 > 나')='00000000-0000-4000-8000-000000071111'
+then 1 else 0 end as assert_erp_batch_partial;
+
+-- 같은 내용을 다시 보내면 변경 없음이고, 다른 카테고리·연결 해제를 한 묶음에 섞을 수 있다.
+select public.admin_set_erp_category_mappings(jsonb_build_array(
+  jsonb_build_object('erp_category','일괄 > 가','category_id','00000000-0000-4000-8000-000000071111'),
+  jsonb_build_object('erp_category','일괄 > 나','category_id','00000000-0000-4000-8000-000000071111')
+)) as batch_repeat \gset
+select public.admin_set_erp_category_mappings(jsonb_build_array(
+  jsonb_build_object('erp_category','일괄 > 가','category_id','00000000-0000-4000-8000-000000071125'),
+  jsonb_build_object('erp_category','일괄 > 나','category_id',null),
+  jsonb_build_object('erp_category','일괄 > 해제 없음','category_id',null)
+)) as batch_mixed \gset
+select 1/case when
+  (:'batch_repeat'::jsonb->>'changed')::int=0 and (:'batch_repeat'::jsonb->>'unchanged')::int=2
+  and jsonb_array_length(:'batch_repeat'::jsonb->'rejected')=0
+  and (:'batch_mixed'::jsonb->>'changed')::int=2 and (:'batch_mixed'::jsonb->>'unchanged')::int=1
+  and (select category_id from public.erp_category_mappings where erp_category='일괄 > 가')='00000000-0000-4000-8000-000000071125'
+  and not exists(select 1 from public.erp_category_mappings where erp_category='일괄 > 나')
+then 1 else 0 end as assert_erp_batch_repeat_and_mixed;
+
+-- 감사 기록은 단건 저장과 같다: 실제로 바뀐 행마다 한 줄, 거절·변경 없음은 남지 않는다.
+select 1/case when
+  (select count(*) from public.audit_log where action='admin.erp_items.category_mapping_updated'
+    and actor_id='00000000-0000-4000-8000-000000071101' and target='erp_category_mappings:일괄 > 가')=2
+  and (select count(*) from public.audit_log where action='admin.erp_items.category_mapping_updated'
+    and actor_id='00000000-0000-4000-8000-000000071101' and target='erp_category_mappings:일괄 > 나')=2
+  and exists(select 1 from public.audit_log where action='admin.erp_items.category_mapping_updated'
+    and target='erp_category_mappings:일괄 > 가'
+    and diff = jsonb_build_object('erp_category','일괄 > 가','before','00000000-0000-4000-8000-000000071111','after','00000000-0000-4000-8000-000000071125'))
+  and not exists(select 1 from public.audit_log where action='admin.erp_items.category_mapping_updated'
+    and target in ('erp_category_mappings:일괄 > 보관','erp_category_mappings:일괄 > 상위','erp_category_mappings:일괄 > 없음','erp_category_mappings:일괄 > 형식','erp_category_mappings:일괄 > 해제 없음'))
+then 1 else 0 end as assert_erp_batch_audit;
+
+-- 묶음 자체가 잘못되면(배열 아님·빈 배열·501건) 아무것도 저장하지 않는다. 500건은 받는다.
+do $$ begin
+  begin perform public.admin_set_erp_category_mappings(null); raise exception 'null batch accepted';
+  exception when invalid_parameter_value then if sqlerrm<>'invalid_erp_category_mappings' then raise; end if; end;
+  begin perform public.admin_set_erp_category_mappings('{}'::jsonb); raise exception 'object batch accepted';
+  exception when invalid_parameter_value then if sqlerrm<>'invalid_erp_category_mappings' then raise; end if; end;
+  begin perform public.admin_set_erp_category_mappings('[]'::jsonb); raise exception 'empty batch accepted';
+  exception when invalid_parameter_value then if sqlerrm<>'invalid_erp_category_mappings' then raise; end if; end;
+  begin
+    perform public.admin_set_erp_category_mappings((select jsonb_agg(jsonb_build_object('erp_category','초과 '||g,'category_id','00000000-0000-4000-8000-000000071111')) from generate_series(1,501) g));
+    raise exception 'oversized batch accepted';
+  exception when invalid_parameter_value then if sqlerrm<>'invalid_erp_category_mappings' then raise; end if; end;
+  if exists(select 1 from public.erp_category_mappings where erp_category like '초과 %') then raise exception 'oversized batch saved rows'; end if;
+end $$;
+select (public.admin_set_erp_category_mappings((select jsonb_agg(jsonb_build_object('erp_category','상한 '||g,'category_id','00000000-0000-4000-8000-000000071111')) from generate_series(1,500) g))->>'changed') as batch_limit_changed \gset
+select 1/case when :'batch_limit_changed'='500'
+  and (select count(*) from public.erp_category_mappings where erp_category like '상한 %')=500
+then 1 else 0 end as assert_erp_batch_limit;
+
 -- 비스태프: 직접 조회는 RLS가 비우고, 모든 RPC는 함수 가드에서 거절한다.
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000071102',true);
 select 1/case when (select count(*) from public.erp_items)=0
@@ -300,6 +432,8 @@ do $$ begin
   begin perform public.admin_list_erp_categories(); raise exception 'member category list accepted';
   exception when insufficient_privilege then null; end;
   begin perform public.admin_set_erp_category_mapping('문구 > 키링','00000000-0000-4000-8000-000000071111'); raise exception 'member mapping accepted';
+  exception when insufficient_privilege then null; end;
+  begin perform public.admin_set_erp_category_mappings('[{"erp_category":"문구 > 키링","category_id":null}]'::jsonb); raise exception 'member batch mapping accepted';
   exception when insufficient_privilege then null; end;
   begin perform public.admin_delete_erp_items(array['000123']); raise exception 'member delete accepted';
   exception when insufficient_privilege then null; end;

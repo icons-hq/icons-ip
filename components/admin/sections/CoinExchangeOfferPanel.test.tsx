@@ -70,7 +70,7 @@ describe('CoinExchangeOfferPanel', () => {
     const markup = render();
 
     expect(markup).toContain(OFFER_ID);
-    expect(markup).toContain('admin-campaign-offer-id');
+    expect(markup).toMatch(new RegExp(`<code[^>]*data-coin-offer-id=""[^>]*>${OFFER_ID}</code>`));
   });
 
   it('목록에 카드풀·코인 비용·카드팩 수·상태를 함께 읽어 준다', () => {

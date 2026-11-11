@@ -68,9 +68,25 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string) {
   return fallback;
 }
 
+/* 브라우저 폼은 textarea 줄바꿈을 CRLF(2자)로 보낸다. textarea maxLength는 줄바꿈을 1자로 세므로,
+   trim·길이 검사·저장 전에 LF로 맞춰야 화면과 서버가 같은 글자 수를 센다(줄이 많은 2,000자 답변이
+   서버에서만 거절되지 않는다). DB에도 CRLF가 남지 않는다. */
+function normalizeLineBreaks(value: string) {
+  return value.replace(/\r\n?/g, '\n');
+}
+
+/** 답변 폼의 문자열 칸만 줄바꿈을 맞춘 사본. 첨부 이미지는 그대로 넘긴다. */
+function lineBreakNormalizedForm(formData: FormData) {
+  const normalized = new FormData();
+  for (const [name, value] of formData.entries()) {
+    normalized.append(name, typeof value === 'string' ? normalizeLineBreaks(value) : value);
+  }
+  return normalized;
+}
+
 function readString(formData: FormData, name: string) {
   const value = formData.get(name);
-  return typeof value === 'string' ? value.trim() : '';
+  return typeof value === 'string' ? normalizeLineBreaks(value).trim() : '';
 }
 
 export async function answerInquiryAction(
@@ -80,7 +96,7 @@ export async function answerInquiryAction(
   const access = await requireStaffAction();
   if (access.error || !access.userId) return access.error ?? { errors: { form: ANSWER_FAILED } };
 
-  const normalized = normalizeInquiryReplyForm(formData);
+  const normalized = normalizeInquiryReplyForm(lineBreakNormalizedForm(formData));
   if (!normalized.ok) {
     return {
       errors: {

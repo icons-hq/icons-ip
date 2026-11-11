@@ -40,7 +40,7 @@ export interface ShipmentConsoleData {
  counts:Record<ShipmentConsoleTab,number>;carriers:ShippingCarrierRegistry;origins:ShipmentConsoleOrigin[];
  delayNoticeFingerprint?:string;
 }
-export interface ShipmentExportData {shipments:{id:string;updatedAt:string;originId:string;originName:string;shippingFee:number;shippingCollectFee?:number;pack?:import('./shipment-packs').ShipmentPackSummary|null;isGift?:boolean;collector?:import('@/lib/goods-transaction').GoodsTransactionCollector|null;template:string;columns:ShipmentExportColumn[];lines:import('./shipment-workbook').ShipmentExportLine[]}[]}
+export interface ShipmentExportData {shipments:{id:string;shipmentNumber?:string|null;orderNumber?:string|null;updatedAt:string;originId:string;originName:string;shippingFee:number;shippingCollectFee?:number;pack?:import('./shipment-packs').ShipmentPackSummary|null;isGift?:boolean;collector?:import('@/lib/goods-transaction').GoodsTransactionCollector|null;template:string;columns:ShipmentExportColumn[];lines:import('./shipment-workbook').ShipmentExportLine[]}[]}
 /** 양식·사용 여부는 출고지별 내려받기 버튼의 표시 기준입니다. */
 export interface ShipmentConsoleOrigin {id:string;name:string;template?:string;active?:boolean}
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;

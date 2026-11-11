@@ -119,10 +119,13 @@ select public.place_cart_goods_transaction('bb140000-0000-4000-8000-000000000002
 reset role;
 select 1/case when :'order_id'=:'replay_id' and (select calculation_version=2 and total=28650 and volume_discount_total=3000 and discount_total=2100
  and store_credit_total=2000 and shipping_fee=6750 and shipping_collect_total=2250 from public.orders where id=:'order_id')
- and not exists(select 1 from public.cart_items where user_id='bb140000-0000-4000-8000-000000000002')
+ -- 카드 주문은 결제 확정 때 장바구니에서 뺀다(ADR-0026). 그 전에는 장바구니와 쿠폰 선택이 그대로다.
+ and (select count(*)=2 from public.cart_items where user_id='bb140000-0000-4000-8000-000000000002')
+ and (select user_coupon_id=:'held_coupon'::uuid from public.cart_coupon_selections where user_id='bb140000-0000-4000-8000-000000000002')
+ and (select state='awaiting_payment' and source='cart_transaction' and jsonb_array_length(lines)=2 from private.cart_order_holds where order_id=:'order_id')
  and (select count(*)=1 and min(shipping_fee)=6750 and min(shipping_collect_fee)=2250 from public.order_shipments where order_id=:'order_id')
  and private.goods_order_snapshot_matches(:'order_id',28650,6750)
- then 1 else 0 end as assert_order_receipt_cart_consumption_one_physical_shipment;
+ then 1 else 0 end as assert_order_receipt_cart_retained_one_physical_shipment;
 select 1/case when (select sum(volume_discount)=3000 and sum(coupon_discount)=2100 and sum(store_credit_discount)=2000 and sum(paid_goods_total)=21900
  from private.order_price_allocations where order_id=:'order_id')
  and (select state='planned' and amount=2250 from private.shipping_collect_obligations where order_id=:'order_id')
@@ -145,6 +148,12 @@ set local role service_role;
 select public.claim_goods_payment_attempt('toss',:'provider_order_id',repeat('d',64),'bb140000-0000-4000-8000-000000000032');
 select 1/case when public.finalize_goods_payment_attempt(:'attempt_id','bb140000-0000-4000-8000-000000000032','approved',null,'TEST-TRANSACTION-APPROVED')='approved' then 1 else 0 end as assert_existing_provider_finalizer_accepts_v2_snapshot;
 select public.finalize_goods_payment_attempt(:'attempt_id','bb140000-0000-4000-8000-000000000032','approved');
+reset role;
+select 1/case when not exists(select 1 from public.cart_items where user_id='bb140000-0000-4000-8000-000000000002')
+ and not exists(select 1 from public.cart_coupon_selections where user_id='bb140000-0000-4000-8000-000000000002')
+ and (select state='consumed' from private.cart_order_holds where order_id=:'order_id')
+ then 1 else 0 end as assert_payment_approval_consumes_cart_and_used_coupon_selection;
+set local role service_role;
 select public.request_order_cancellation(:'order_id','bb140000-0000-4000-8000-000000000002','TEST 전액 취소','change_of_mind');
 reset role;
 select id as cancellation_id from public.order_cancellation_requests where order_id=:'order_id' \gset

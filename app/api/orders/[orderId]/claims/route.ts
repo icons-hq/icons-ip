@@ -4,7 +4,12 @@ import { NextResponse } from 'next/server';
 import { normalizeOrderReference } from '@/lib/checkout';
 import { isOrderWithdrawalReasonType, type OrderWithdrawalReasonType } from '@/lib/orders';
 import { scheduleApprovedOrderCancellation } from '@/lib/orders/cancellation-auto.server';
-import { isOrderClaimType, normalizeRefundAccount, type OrderClaimType } from '@/lib/orders/claims';
+import {
+  isOrderClaimType,
+  normalizeRefundAccount,
+  ORDER_CLAIM_BUYER_REASON_TYPES,
+  type OrderClaimType,
+} from '@/lib/orders/claims';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceClient, getServiceRoleConfig } from '@/lib/supabase/service';
@@ -28,10 +33,11 @@ import { createServiceClient, getServiceRoleConfig } from '@/lib/supabase/servic
 /* 대기 창 40초 + 결제사 취소·조회(8초×3) + DB. after()는 이 예산 안에서 실행된다. */
 export const maxDuration = 90;
 
-const CLAIM_REASONS: Record<OrderClaimType, Record<OrderWithdrawalReasonType, string>> = {
+/* 취소(발주확인 전)는 단순 변심만 받는다(10/27 회의 R7). 하자·오배송은 굿즈를 받은 뒤의
+   일이라 반품·교환으로 받는다 — 허용 표는 ORDER_CLAIM_BUYER_REASON_TYPES 하나다. */
+const CLAIM_REASONS: Record<OrderClaimType, Partial<Record<OrderWithdrawalReasonType, string>>> = {
   cancel: {
     change_of_mind: '사용자 주문 취소',
-    defect: '상품 하자·오배송 취소',
   },
   return: {
     change_of_mind: '단순 변심 반품',
@@ -88,6 +94,10 @@ export async function POST(
     }
     reasonType = rawReasonType;
   }
+  const reason = CLAIM_REASONS[claimType][reasonType];
+  if (!ORDER_CLAIM_BUYER_REASON_TYPES[claimType].includes(reasonType) || !reason) {
+    return errorJson(400, 'invalid_reason_type');
+  }
 
   const account = normalizeRefundAccount({
     accountHolder: typeof payload.accountHolder === 'string' ? payload.accountHolder : null,
@@ -119,7 +129,7 @@ export async function POST(
     p_bank_name: account.value?.bankName ?? null,
     p_claim_type: claimType,
     p_order_id: orderId,
-    p_reason: CLAIM_REASONS[claimType][reasonType],
+    p_reason: reason,
     p_reason_type: reasonType,
     p_user_id: user.id,
   });

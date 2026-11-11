@@ -57,20 +57,22 @@ describe('연관상품 XLSX 원문 검증', () => {
     expect(book.worksheets[1].getCell('I1').value).toBe('구성 표시값');
     expect(book.worksheets[1].getCell('I2').value).toBe('=2개 세트');
     expect(book.worksheets[1].getCell('I2').type).toBe(ExcelJS.ValueType.String);
-    expect(book.worksheets[1].getCell('I3').value).toBe('');
-    expect(book.worksheets[2].getCell('B13').value).toContain('대표 상품의 공개 여부는 다른 구성의 노출을 제한하지 않습니다');
+    expect(book.worksheets[1].getCell('I3').value).toBeNull();
+    expect(JSON.stringify(book.worksheets[2].getSheetValues())).toContain('대표 상품의 공개 여부는 다른 구성의 노출을 제한하지 않습니다');
   });
   it('편성/구성/조건의 세 시트, 순서·문자열 코드·KST와 수식 아닌 원문을 유지한다', async () => {
     const book = new ExcelJS.Workbook();
     await book.xlsx.load(await buildGoodsRelationsWorkbook({ filters, rows: [row()], startedAt: '2026-10-13T15:10:00Z', verifiedAt: '2026-10-13T15:11:00Z' }) as unknown as Parameters<typeof book.xlsx.load>[0]);
-    expect(book.worksheets.map(sheet => [sheet.name, sheet.rowCount])).toEqual([['연관상품 편성', 2], ['구성 상품', 3], ['조회 정보', 14]]);
+    expect(book.worksheets.map(sheet => [sheet.name, sheet.rowCount])).toEqual([['연관상품 편성', 2], ['구성 상품', 3], ['내려받기 정보', 13]]);
     const grouping = book.worksheets[0], members = book.worksheets[1], info = book.worksheets[2];
     expect(grouping.getCell('F2').value).toBe('g-2'); expect(grouping.getCell('G2').value).toBe('002');
     expect(grouping.getCell('K2').value).toContain('2026-10-14 00:00');
     expect(members.getCell('F2').value).toBe('000100'); expect(members.getCell('G2').value).toBe('=1+1'); expect(members.getCell('G2').type).toBe(ExcelJS.ValueType.String);
     expect(members.getCell('D3').value).toBe('대표'); expect(members.getCell('H3').value).toBe('불가');
     expect(info.getCell('B3').value).toBe(filters.query); expect(info.getCell('B4').value).toBe('함께 사면 좋은 상품');
-    expect(info.getCell('B12').value).toContain('단일 DB 스냅샷은 아닙니다');
+    expect(info.getCell('B11').value).toContain('단일 DB 스냅샷은 아닙니다');
+    expect(grouping.getRow(1).values).toEqual([, '편성 ID', '노출 제목', '유형', '전시상태', '전시 사용', '대표 상품번호', '대표 상품코드', '대표 상품명', '구성 상품수', '공개 상품수', '시작일시', '종료일시', '등록일시', '수정일시', '편성 버전']);
+    expect(grouping.getCell('A1').font).toMatchObject({ name: '맑은 고딕', size: 10, bold: true }); expect(grouping.getCell('A1').fill).toMatchObject({ fgColor: { argb: 'FFEFF2F0' } });
   });
   it('최대 2,000편성/20,000구성 행을 파일로 다시 읽어 끝 행까지 확인한다', async () => {
     const rows = Array.from({ length: 2000 }, (_, index) => ({ ...row(index + 1), kind: 'similar' as const, goods: Array.from({ length: 10 }, (_, member) => ({ id: `g-${member + 1}`, code: `00${member}`, name: `상품${member}`, imagePath: null, public: true })) }));

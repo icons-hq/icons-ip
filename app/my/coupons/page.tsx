@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { MyCoupons } from '@/components/screens/MyCoupons';
 import { getCurrentAuthState } from '@/lib/auth/server';
+import { loadGoodsTransactionRuntimeMode } from '@/lib/checkout-transaction.server';
+import { loadCouponCombinationPolicy } from '@/lib/coupon-combinations.server';
 import { loadMyCoupons } from '@/lib/coupons.server';
 
 export const metadata: Metadata = {
@@ -16,7 +18,12 @@ export default async function Page() {
   const auth = await getCurrentAuthState();
   if (!auth.user) redirect(`/login?next=${encodeURIComponent('/my/coupons')}`);
 
-  const coupons = await loadMyCoupons();
+  /* 쿠폰 안내는 지금 주문서 계약(거래 런타임·쿠폰 조합 정책)을 따른다 — 주문서와 같은 판정을 읽는다(R25). */
+  const [coupons, transactionMode, couponPolicy] = await Promise.all([
+    loadMyCoupons(),
+    loadGoodsTransactionRuntimeMode(),
+    loadCouponCombinationPolicy(),
+  ]);
 
-  return <MyCoupons coupons={coupons} />;
+  return <MyCoupons coupons={coupons} checkoutRules={{ transactionMode, couponPolicy }} />;
 }

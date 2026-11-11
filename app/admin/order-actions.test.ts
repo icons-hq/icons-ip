@@ -29,6 +29,7 @@ const mocks = vi.hoisted(() => ({
     isStaff: boolean;
   },
   rpc: vi.fn(),
+  orderNumbers: [] as { id: string; order_number: string | null }[],
   reconcile: vi.fn(),
   recoverGoodsPayment: vi.fn(),
   revalidatePath: vi.fn(),
@@ -68,7 +69,7 @@ vi.mock('@/lib/payments/goods-manual-recovery.server', () => ({
   recoverGoodsPaymentManually: mocks.recoverGoodsPayment,
 }));
 vi.mock('@/lib/supabase/server', () => ({
-  createClient: () => ({ rpc: mocks.rpc }),
+  createClient: () => ({ rpc: mocks.rpc, from: () => ({ select: () => ({ in: async () => ({ data: mocks.orderNumbers, error: null }) }) }) }),
 }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock('next/navigation', () => ({
@@ -113,6 +114,7 @@ describe('admin order actions', () => {
     };
     mocks.rpc.mockReset();
     mocks.rpc.mockResolvedValue({ data: null, error: null });
+    mocks.orderNumbers = [];
     mocks.reconcile.mockReset();
     mocks.reconcile.mockResolvedValue({ ok: true, status: 'completed' });
     mocks.recoverGoodsPayment.mockReset();
@@ -441,7 +443,7 @@ describe('admin order actions', () => {
 
   it('needs_review 재정합화도 DB의 staff 게이트를 통과한 뒤 provider를 조회한다', async () => {
     await expect(reconcileAdminOrderCancellationAction({}, requestForm())).resolves.toEqual({
-      message: '결제 취소 상태를 정합화했습니다.',
+      message: '결제 취소 상태를 확인했습니다.',
     });
 
     expect(mocks.rpc).toHaveBeenCalledWith('admin_begin_order_cancellation_reconcile', {
@@ -477,7 +479,7 @@ describe('admin order actions', () => {
       mocks.recoverGoodsPayment.mockResolvedValue({ outcome: 'provider_cancel_confirmed' });
 
       await expect(recoverAdminGoodsPaymentAction({}, cancellationForm())).resolves.toEqual({
-        message: 'Korpay 전액 취소 확인을 주문 정합화에 반영했습니다.',
+        message: 'Korpay 전액 취소 확인을 주문에 반영했습니다.',
       });
 
       expect(mocks.recoverGoodsPayment).toHaveBeenCalledWith({
@@ -568,6 +570,16 @@ describe('admin order actions', () => {
       expect(state.message).toContain('처리하지 못한 1건');
       expect(state.message).toContain('11111111');
       expect(state.confirmedOrderIds).toEqual([SECOND_ORDER_ID]);
+    });
+
+    it('실패한 주문을 16자리 주문번호로 적는다', async () => {
+      mocks.orderNumbers = [{ id: ORDER_ID, order_number: '2026102710000007' }];
+      mocks.rpc.mockImplementation(async (_fn: string, args: { p_order_id: string }) => (
+        args.p_order_id === ORDER_ID ? { data: null, error: { message: 'order cancellation in progress' } } : { data: null, error: null }
+      ));
+      const state = await bulkConfirmAdminOrdersAction({}, bulkForm(ORDER_ID, SECOND_ORDER_ID));
+      expect(state.message).toContain('처리하지 못한 1건: 2026102710000007');
+      expect(state.message).not.toContain('11111111');
     });
 
     it('전부 실패하면 성공 문구를 내보내지 않는다', async () => {

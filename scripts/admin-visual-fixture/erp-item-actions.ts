@@ -2,6 +2,7 @@
 import type { ErpItemMatch } from '../../lib/admin/erp-items';
 import type {
   ErpCategoryMappingResult,
+  ErpCategoryMappingsResult,
   ErpItemDeleteResult,
   ErpItemFileResult,
   ErpItemImportResult,
@@ -32,5 +33,8 @@ export async function deleteErpItemsAction(): Promise<ErpItemDeleteResult> {
   return { ok: false, error: blocked };
 }
 export async function setErpCategoryMappingAction(): Promise<ErpCategoryMappingResult> {
+  return { ok: false, error: blocked };
+}
+export async function setErpCategoryMappingsAction(): Promise<ErpCategoryMappingsResult> {
   return { ok: false, error: blocked };
 }

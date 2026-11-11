@@ -1,6 +1,6 @@
 'use client';
 
-import { AdminFormGrid } from '@/components/admin/console/AdminKit';
+import { AdminFormGrid, AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { useActionState, useMemo, useState } from 'react';
 import {
   grantAdminDrawTicketsAction,
@@ -15,10 +15,15 @@ import {
   DRAW_TICKET_GRANT_MAX_QUANTITY,
   type AdminDrawTicketGrantRecord,
 } from '@/lib/admin/draw-ticket-grants';
+import { kstDateTimeText } from '@/lib/admin/list-export';
 import type { AdminMemberSummary } from '@/lib/admin/members';
-import { Icon } from '@/components/ui/Icon';
+import { Check, Search, UserCheck, UserRound } from 'lucide-react';
+import { Button } from '@/components/admin/kit/ui/button';
+import { Input } from '@/components/admin/kit/ui/input';
+import { Label } from '@/components/admin/kit/ui/label';
 import { ErrorText, Field, InlineNotice, SelectField, TextArea } from '../fields';
 import { getRewardPolicyPoolOptions } from './RewardPolicySection';
+import { SECTION_CARD, SectionHeading } from './SectionLayout';
 
 /* 수동 카드팩(뽑기권) 발급 콘솔(#185).
  * 발급 정책(자동)과 화면을 나눈 이유는 감사 단위가 다르기 때문이다 — 정책은 조건을 세우고,
@@ -27,15 +32,9 @@ import { getRewardPolicyPoolOptions } from './RewardPolicySection';
 
 const emptyGrantState: AdminDrawTicketGrantActionState = {};
 
-const dateTimeFormatter = new Intl.DateTimeFormat('ko-KR', {
-  dateStyle: 'medium',
-  timeStyle: 'short',
-  timeZone: 'Asia/Seoul',
-});
-
+/* 어드민 표의 날짜와 같은 표기다(2026.11.06 17:40, 한국 시각). */
 function formatGrantedAt(value: string) {
-  const parsed = Date.parse(value);
-  return Number.isNaN(parsed) ? '시각 기록 없음' : dateTimeFormatter.format(new Date(parsed));
+  return kstDateTimeText(value).replaceAll('-', '.') || '시각 기록 없음';
 }
 
 export function DrawTicketGrantSection({
@@ -58,42 +57,44 @@ export function DrawTicketGrantSection({
   );
   const [selected, setSelected] = useState<AdminMemberSummary | null>(null);
 
+  /* 넓은 화면에서는 왼쪽에 대상 검색 → 발급 폼, 오른쪽에 최근 수동 발급 이력을 둔다(읽는 순서는 같다). */
   return (
-    <section className="col" style={{ gap: 14 }}>
-      <p className="muted" style={{ fontSize: 13, margin: 0 }}>
+    <section className="flex min-w-0 flex-col gap-4">
+      <p className="max-w-prose text-sm text-muted-foreground">
         특정 회원에게 카드팩을 직접 발급합니다. 사유와 실행자가 감사 로그에 남고, 같은 요청을
         두 번 보내도 중복 발급되지 않습니다. 자동 발급(주문 결제 완료)과 집계가 분리됩니다.
       </p>
 
-      {!poolOptions.length ? (
-        <div className="card col wc-admin-kit wc-admin-kit__card" role="status" style={{ gap: 6 }}>
-          <strong>발급할 수 있는 카드풀이 없습니다.</strong>
-          <span className="muted" style={{ fontSize: 13 }}>
-            카드풀 관리에서 운영 기간과 등급별 확률을 채우고 카드를 바인딩한 뒤 다시 시도해주세요.
-          </span>
+      <div className="grid min-w-0 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,0.8fr)]">
+        <div className="flex min-w-0 flex-col gap-4">
+          {!poolOptions.length ? (
+            <AdminNotice role="status" title="발급할 수 있는 카드풀이 없습니다." tone="warning">
+              카드풀 관리에서 운영 기간과 등급별 확률을 채우고 카드를 바인딩한 뒤 다시 시도해주세요.
+            </AdminNotice>
+          ) : (
+            <>
+              <MemberPicker
+                action={searchAction}
+                onSelect={setSelected}
+                pending={searchPending}
+                selectedId={selected?.id ?? null}
+                state={searchState}
+              />
+              <GrantForm
+                action={grantAction}
+                key={grantState.nextOperationId ?? draftOperationId}
+                operationId={grantState.nextOperationId ?? draftOperationId}
+                pending={grantPending}
+                poolOptions={poolOptions}
+                selected={selected}
+                state={grantState}
+              />
+            </>
+          )}
         </div>
-      ) : (
-        <>
-          <MemberPicker
-            action={searchAction}
-            onSelect={setSelected}
-            pending={searchPending}
-            selectedId={selected?.id ?? null}
-            state={searchState}
-          />
-          <GrantForm
-            action={grantAction}
-            key={grantState.nextOperationId ?? draftOperationId}
-            operationId={grantState.nextOperationId ?? draftOperationId}
-            pending={grantPending}
-            poolOptions={poolOptions}
-            selected={selected}
-            state={grantState}
-          />
-        </>
-      )}
 
-      <GrantHistory grants={grants} />
+        <GrantHistory grants={grants} />
+      </div>
     </section>
   );
 }
@@ -119,56 +120,58 @@ function MemberPicker({
   const queryError = state.errors?.query;
 
   return (
-    <div className="col" style={{ gap: 8 }}>
+    <div className="flex min-w-0 flex-col gap-3">
       <form
         action={action}
-        className="card col wc-admin-kit wc-admin-kit__card"
+        className={SECTION_CARD}
         onSubmit={() => onSelect(null)}
-        style={{ gap: 8 }}
       >
-        <label className="col" style={{ gap: 7 }}>
-          <span className="mono" style={{ color: 'var(--wc-ink-tertiary)', fontSize: 11 }}>발급 대상 검색</span>
-          <div className="row" style={{ gap: 8 }}>
-            <input
+        <div className="flex min-w-0 flex-col gap-2">
+          <Label htmlFor="grant-query">발급 대상 검색</Label>
+          <div className="flex gap-2">
+            <Input
               aria-describedby={queryError ? 'grant-query-error' : undefined}
               aria-invalid={Boolean(queryError)}
-              className="admin-field-control"
               defaultValue={state.query}
+              id="grant-query"
               maxLength={100}
               name="query"
               placeholder="이메일 또는 닉네임"
-              style={{ padding: '0 12px', width: '100%' }}
             />
-            <button className="btn btn-sm admin-field-control" disabled={pending} style={{ minHeight: 44 }}>
-              <Icon name="search" size={14} /> {pending ? '검색 중' : '검색'}
-            </button>
+            <Button disabled={pending} type="submit" variant="soft">
+              <Search aria-hidden="true" /> {pending ? '검색 중' : '검색'}
+            </Button>
           </div>
-        </label>
+        </div>
         <ErrorText id="grant-query-error">{queryError}</ErrorText>
         <InlineNotice state={state} />
       </form>
 
-      {state.members.map((member) => (
-        <article key={member.id} className="card between wc-admin-kit wc-admin-kit__card" style={{ flexWrap: 'wrap', gap: 12 }}>
-          <div className="col" style={{ gap: 4, minWidth: 0 }}>
-            <div className="row" style={{ flexWrap: 'wrap', gap: 8, justifyContent: 'flex-start' }}>
-              <strong style={{ fontSize: 15 }}>@{member.nickname}</strong>
-              {member.suspendedAt && <span className="tag" style={{ color: 'var(--wc-danger)' }}>정지</span>}
-            </div>
-            <span className="mono" style={{ fontSize: 12 }}>{member.maskedEmail}</span>
-          </div>
-          <button
-            aria-current={selectedId === member.id ? 'true' : undefined}
-            className={selectedId === member.id ? 'btn btn-sm btn-holo' : 'btn btn-sm'}
-            disabled={Boolean(member.suspendedAt)}
-            onClick={() => onSelect(member)}
-            style={{ minHeight: 44 }}
-            type="button"
-          >
-            <Icon name="user" size={14} /> {selectedId === member.id ? '선택됨' : '발급 대상으로 선택'}
-          </button>
-        </article>
-      ))}
+      {state.members.length ? (
+        <ul className="flex flex-col divide-y rounded-xl border bg-card">
+          {state.members.map((member) => (
+            <li className="flex flex-wrap items-center justify-between gap-3 px-4 py-3" key={member.id}>
+              <div className="flex min-w-0 flex-col gap-0.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-medium break-all">@{member.nickname}</span>
+                  {member.suspendedAt && <AdminStatusBadge tone="danger">정지</AdminStatusBadge>}
+                </div>
+                <span className="text-xs text-muted-foreground">{member.maskedEmail}</span>
+              </div>
+              <Button
+                aria-current={selectedId === member.id ? 'true' : undefined}
+                disabled={Boolean(member.suspendedAt)}
+                onClick={() => onSelect(member)}
+                size="sm"
+                type="button"
+                variant={selectedId === member.id ? 'default' : 'outline'}
+              >
+                {selectedId === member.id ? <UserCheck aria-hidden="true" /> : <UserRound aria-hidden="true" />} {selectedId === member.id ? '선택됨' : '발급 대상으로 선택'}
+              </Button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 }
@@ -190,22 +193,15 @@ function GrantForm({
 }) {
   if (!selected) {
     return (
-      <div className="card wc-admin-kit wc-admin-kit__card" role="status" style={{  }}>
-        <span className="muted" style={{ fontSize: 13 }}>
-          발급 대상을 검색해 선택하면 발급 폼이 열립니다.
-        </span>
-      </div>
+      <AdminNotice role="status" tone="info">발급 대상을 검색해 선택하면 카드풀·수량·사유를 입력할 수 있습니다.</AdminNotice>
     );
   }
 
   return (
-    <form action={action} className="card col wc-admin-kit wc-admin-kit__card" style={{ gap: 14 }}>
+    <form action={action} className={SECTION_CARD}>
       <input name="operationId" type="hidden" value={operationId} />
       <input name="profileId" type="hidden" value={selected.id} />
-      <div className="col" style={{ gap: 4 }}>
-        <strong>@{selected.nickname} 에게 발급</strong>
-        <span className="mono muted" style={{ fontSize: 12 }}>{selected.maskedEmail}</span>
-      </div>
+      <SectionHeading description={selected.maskedEmail} title={`@${selected.nickname} 에게 발급`} />
       <AdminFormGrid>
         <SelectField
           defaultValue={poolOptions[0]?.id ?? ''}
@@ -238,10 +234,10 @@ function GrantForm({
         placeholder="예: 카드풀 준비 전 결제한 초기 구매자 소급 발급"
         required
       />
-      <div className="row" style={{ flexWrap: 'wrap', gap: 8, justifyContent: 'flex-start' }}>
-        <button className="btn btn-holo" disabled={pending} style={{ minWidth: 150 }}>
-          <Icon name="check" size={15} /> {pending ? '발급 중' : '카드팩 발급'}
-        </button>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button className="min-w-36" disabled={pending} type="submit">
+          <Check aria-hidden="true" /> {pending ? '발급 중' : '카드팩 발급'}
+        </Button>
         {/* 발급 성공·실패를 알린다. 이게 없으면 RPC 실패가 아무 표시 없이 삼켜진다. */}
         <InlineNotice state={state} />
       </div>
@@ -251,28 +247,32 @@ function GrantForm({
 
 function GrantHistory({ grants }: { grants: AdminDrawTicketGrantRecord[] }) {
   return (
-    <section aria-labelledby="draw-ticket-grant-history-title" className="col" style={{ gap: 8 }}>
-      <strong id="draw-ticket-grant-history-title" style={{ fontSize: 14 }}>최근 수동 발급</strong>
+    <section aria-labelledby="draw-ticket-grant-history-title" className={SECTION_CARD}>
+      <SectionHeading id="draw-ticket-grant-history-title" title="최근 수동 발급" />
       {!grants.length && (
-        <div className="card wc-admin-kit wc-admin-kit__card" role="status" style={{  }}>
-          <span className="muted" style={{ fontSize: 13 }}>수동 발급 이력이 없습니다.</span>
-        </div>
+        <p className="py-6 text-center text-sm text-muted-foreground" role="status">수동 발급 이력이 없습니다.</p>
       )}
-      {grants.map((grant) => (
-        <article key={grant.operationId} className="card col wc-admin-kit wc-admin-kit__card" style={{ gap: 6 }}>
-          <div className="between" style={{ flexWrap: 'wrap', gap: 8 }}>
-            <strong style={{ fontSize: 14 }}>
-              @{grant.recipientNickname} · 카드팩 {grant.quantity.toLocaleString('ko-KR')}개
-            </strong>
-            <span className="faint mono" style={{ fontSize: 11 }}>{formatGrantedAt(grant.grantedAt)}</span>
-          </div>
-          <span className="mono muted" style={{ fontSize: 12 }}>
-            {grant.poolName} · 개봉 {grant.openedCount.toLocaleString('ko-KR')} · 회수 {grant.revokedCount.toLocaleString('ko-KR')}
-          </span>
-          <span style={{ fontSize: 13 }}>사유: {grant.reason}</span>
-          <span className="faint mono" style={{ fontSize: 11 }}>실행자 @{grant.actorNickname}</span>
-        </article>
-      ))}
+      {grants.length ? (
+        <ol className="flex flex-col divide-y rounded-lg border">
+          {grants.map((grant) => (
+            <li className="flex min-w-0 flex-col gap-1 px-3 py-2.5" key={grant.operationId}>
+              <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
+                <span className="text-sm font-medium break-all">
+                  @{grant.recipientNickname} · 카드팩 {grant.quantity.toLocaleString('ko-KR')}개
+                </span>
+                <span className="text-xs text-muted-foreground tabular-nums">{formatGrantedAt(grant.grantedAt)}</span>
+              </div>
+              <span className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                {grant.poolName}
+                <AdminStatusBadge tone={grant.openedCount ? 'success' : 'neutral'}>개봉 {grant.openedCount.toLocaleString('ko-KR')}</AdminStatusBadge>
+                <AdminStatusBadge tone={grant.revokedCount ? 'warning' : 'neutral'}>회수 {grant.revokedCount.toLocaleString('ko-KR')}</AdminStatusBadge>
+              </span>
+              <span className="text-sm break-words">사유: {grant.reason}</span>
+              <span className="text-xs text-muted-foreground">실행자 @{grant.actorNickname}</span>
+            </li>
+          ))}
+        </ol>
+      ) : null}
     </section>
   );
 }

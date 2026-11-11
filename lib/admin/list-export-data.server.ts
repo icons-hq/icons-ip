@@ -16,6 +16,8 @@ import { getAdminOrderRecords } from './orders.server';
 import { normalizeAdminOrderItemFilters } from './order-items';
 import { getAdminOrderItemData } from './order-items.server';
 import { orderItemsExportSheet } from './order-items-export';
+import { loadOrderItemAllocations } from './item-allocation.server';
+import type { OrderItemAllocation } from './item-allocation';
 import { normalizeAdminUnpaidFilters } from './unpaid';
 import { getAdminUnpaidOrders } from './unpaid.server';
 import { normalizeShipmentFilters, type ShipmentConsoleData } from './shipment-dispatch';
@@ -142,12 +144,23 @@ async function orderContacts(orderIds: readonly string[]) {
   return contacts;
 }
 
+/** 품목별 쿠폰·적립금 배분(거래확정 엑셀과 같은 공통 규칙). 일부만 빈 파일을 만들지 않게 실패하면 멈춘다. */
+async function orderAllocations(orderIds: readonly string[]) {
+  const allocations = new Map<string, OrderItemAllocation>();
+  try {
+    for (const batch of chunks([...new Set(orderIds)], 1000)) {
+      for (const [itemId, loaded] of await loadOrderItemAllocations(batch)) allocations.set(itemId, loaded.allocation);
+    }
+  } catch { throw new AdminListExportLoadError(); }
+  return allocations;
+}
+
 async function ordersSheet(params: SearchParams) {
   if (params.view === 'items') {
     const filters = normalizeAdminOrderItemFilters(params);
     let fingerprint: string | undefined;
     const rows = await collectAdminListExportPages(500, async page => {
-      const data = await getAdminOrderItemData({ ...filters, page }, 500);
+      const data = await getAdminOrderItemData({ ...filters, page }, 500, { strictAllocations: true });
       if (fingerprint !== undefined && fingerprint !== data.fingerprint) throw new AdminListExportChangedError();
       fingerprint = data.fingerprint;
       return { items: data.rows, total: data.total };
@@ -166,7 +179,8 @@ async function ordersSheet(params: SearchParams) {
   );
   const extras = await orderContacts(records.map((record) => record.id));
   const paymentMethods = new Map([...extras].map(([id, value]) => [id, value.paymentMethod]));
-  return ordersListExportSheet({ records, paymentMethods, filters });
+  const allocations = await orderAllocations(records.map((record) => record.id));
+  return ordersListExportSheet({ records, paymentMethods, filters, allocations });
 }
 
 async function unpaidSheet(params: SearchParams) {
@@ -184,7 +198,7 @@ async function unpaidSheet(params: SearchParams) {
 
 async function shipmentsSheet(surface: 'dispatch' | 'shipping', params: SearchParams) {
   const filters = normalizeShipmentFilters(params, surface);
-  const meta: { value: Pick<ShipmentConsoleData, 'origins' | 'carriers'> | null } = { value: null };
+  const meta: { value: Pick<ShipmentConsoleData, 'origins'> | null } = { value: null };
   let noticeFingerprint: string | undefined;
   const verifyNoticeFingerprint = (data: ShipmentConsoleData) => {
     if (surface !== 'dispatch') return;
@@ -197,20 +211,20 @@ async function shipmentsSheet(surface: 'dispatch' | 'shipping', params: SearchPa
     async (page) => {
       const data = await getShipmentConsoleData({ ...filters, page }, surface, { pageSize: SHIPMENT_PAGE_SIZE });
       verifyNoticeFingerprint(data);
-      meta.value ??= { origins: data.origins, carriers: data.carriers };
+      meta.value ??= { origins: data.origins };
       return { items: data.rows, total: data.total };
     },
     (row) => row.id,
     (row) => row.items.length,
   );
   const lines = await loadSmartStoreDeliveryLines(rows);
+  const deliveries = await orderContacts(rows.map((row) => row.orderId));
   // Recheck the entire result set, including rows outside the first page, after
   // collecting item lines. A channel callback may change results without changing counts.
   if (surface === 'dispatch') verifyNoticeFingerprint(await getShipmentConsoleData({ ...filters, page: 1 }, surface, { pageSize: 1 }));
-  const contacts = new Map<string, ListExportContact | null>();
-  const { origins, carriers } = meta.value ?? { origins: [], carriers: [] };
-  const base = shipmentsListExportSheet({ surface, rows, filters, contacts, origins, carriers });
-  return smartStoreDeliveryListSheet(base, lines);
+  const contacts = new Map([...deliveries].map(([id, value]) => [id, value.contact]));
+  const base = shipmentsListExportSheet({ surface, recordCount: rows.length, filters, origins: meta.value?.origins ?? [] });
+  return smartStoreDeliveryListSheet(base, lines, { shipments: rows, contacts });
 }
 
 async function claimOrders(claimType: OrderClaimType, orderIds: readonly string[]) {
@@ -252,7 +266,8 @@ async function claimOrders(claimType: OrderClaimType, orderIds: readonly string[
 }
 
 async function claimsSheet(claimType: OrderClaimType, params: SearchParams, now: Date) {
-  const filters = normalizeAdminClaimFilters(params);
+  // 화면(sales/claims/[claimType])과 같은 유형별 사유 필터 규칙을 써서 화면과 파일의 조건을 맞춘다(R7).
+  const filters = normalizeAdminClaimFilters(params, claimType);
   const rows = await collectAdminListExportPages(
     CLAIM_PAGE_SIZE,
     async (page) => {

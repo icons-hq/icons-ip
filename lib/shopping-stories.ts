@@ -38,6 +38,8 @@ export interface PublicShoppingStorySummary {
 export interface PublicShoppingStoryGood {
   salePeriod?: import('./goods-sale-period').GoodsSalePeriod;
   listingAppearance?: import('./store-presentation').GoodsListingAppearance;
+  /** 카드 별점(LFS 패리티 2차 L4b · CL-02) — 공개 리뷰가 있을 때만. 공개 상세 로더가 싣는다(어드민 미리보기는 없다). */
+  reviewSummary?: import('./goods-review-summary').GoodsReviewSummary;
   id: string;
   name: string;
   price: number;

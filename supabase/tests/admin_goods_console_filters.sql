@@ -43,7 +43,82 @@ select 1/case when (public.admin_search_goods_console(p_ip_id=>'goods-console-te
  then 1 else 0 end as assert_combined_details_and_sort_before_offset;
 select 1/case when (public.admin_search_goods_console(p_ip_id=>'goods-console-test',p_filters=>'{"dateField":"published","from":"2000-01-01"}')->>'total')::int=1
  then 1 else 0 end as assert_published_date_excludes_unpublished_rows;
+reset role;
+-- R16 판매기간: A=시작 전(판매대기), B=종료, D=판매 중, C=기간 없음(무제한).
+update public.goods set sale_starts_at=now()+interval '1 day',sale_ends_at=now()+interval '10 days' where id='console-a';
+update public.goods set sale_starts_at=now()-interval '10 days',sale_ends_at=now()-interval '1 day' where id='console-b';
+update public.goods set sale_starts_at=now()-interval '1 day',sale_ends_at=now()+interval '1 day' where id='console-d';
+set local role authenticated;
+select 1/case when (public.admin_search_goods_console(p_ip_id=>'goods-console-test',p_status=>'all',p_filters=>'{"salePeriod":"scheduled"}')->>'total')::int=1
+ and public.admin_search_goods_console(p_ip_id=>'goods-console-test',p_status=>'all',p_filters=>'{"salePeriod":"scheduled"}')->'rows'->0->>'id'='console-a'
+ and (public.admin_search_goods_console(p_ip_id=>'goods-console-test',p_status=>'all',p_filters=>'{"salePeriod":"ended"}')->>'total')::int=1
+ and public.admin_search_goods_console(p_ip_id=>'goods-console-test',p_status=>'all',p_filters=>'{"salePeriod":"ended"}')->'rows'->0->>'id'='console-b'
+ and (public.admin_search_goods_console(p_ip_id=>'goods-console-test',p_status=>'all',p_filters=>'{"salePeriod":"all"}')->>'total')::int=4
+ and (select count(*) from public.admin_goods_console_export_candidates(p_ip_id=>'goods-console-test',p_status=>'all',p_filters=>'{"salePeriod":"ended"}'))=1
+ then 1 else 0 end as assert_sale_period_filter_matches_list_and_export;
+reset role;
+-- MD-0026 판매상태: B·D=판매중지(B 재고 8, D 재고 0), A=판매중지 아님·재고 0(품절), C=보관·판매중(재고 4).
+update public.goods set stock='soldout' where id in ('console-b','console-d');
+update public.goods_variants set stock_qty=0 where good_id in ('console-a','console-d');
+set local role authenticated;
+select 1/case when (public.admin_search_goods_console(p_ip_id=>'goods-console-test',p_status=>'all',p_stock=>'stopped')->>'total')::int=2
+ and (select jsonb_agg(item->>'id' order by item->>'id') from jsonb_array_elements(
+   public.admin_search_goods_console(p_ip_id=>'goods-console-test',p_status=>'all',p_stock=>'stopped')->'rows') item)='["console-b","console-d"]'::jsonb
+ and (public.admin_search_goods_console(p_ip_id=>'goods-console-test',p_status=>'all',p_stock=>'out_of_stock')->>'total')::int=1
+ and public.admin_search_goods_console(p_ip_id=>'goods-console-test',p_status=>'all',p_stock=>'out_of_stock')->'rows'->0->>'id'='console-a'
+ and (public.admin_search_goods_console(p_ip_id=>'goods-console-test',p_status=>'all',p_stock=>'soldout')->>'total')::int=3
+ and (public.admin_search_goods_console(p_ip_id=>'goods-console-test',p_status=>'all',p_stock=>'ok')->>'total')::int=1
+ and (select count(*) from public.admin_goods_console_export_candidates(p_ip_id=>'goods-console-test',p_status=>'all',p_stock=>'out_of_stock'))=1
+ and (select count(*) from public.admin_goods_console_export_candidates(p_ip_id=>'goods-console-test',p_status=>'all',p_stock=>'stopped'))=2
+ and (public.admin_search_goods_workspace(p_ip_id=>'goods-console-test',p_status=>'all',p_stock=>'stopped')->>'total')::int=2
+ and (public.admin_search_goods_workspace(p_ip_id=>'goods-console-test',p_status=>'all',p_stock=>'out_of_stock')->>'total')::int=1
+ then 1 else 0 end as assert_stock_filter_separates_stopped_from_out_of_stock;
+reset role;
+-- 품절·소량 재고 칸의 건수. A=전시·품절, B=임시·판매중지, C=보관·소량(재고 4), D=임시·판매중지(재고 0),
+-- E=임시·소량(재고 3), F=임시·소량 지정인데 재고 0(품절로 센다), G=보관·품절.
+insert into public.goods(id,code,ip_id,name,type,price,stock,created_at) values
+ ('console-e','CONSOLE-E','goods-console-test','소량 검증 E','문구',1000,'low','2026-10-02T03:00:00Z'),
+ ('console-f','CONSOLE-F','goods-console-test','소량 검증 F','문구',1000,'low','2026-10-02T04:00:00Z'),
+ ('console-g','CONSOLE-G','goods-console-test','품절 검증 G','문구',1000,'ok','2026-10-02T05:00:00Z');
+update public.goods_variants set stock_qty=3 where good_id='console-e';
+update public.goods_variants set stock_qty=0 where good_id in ('console-f','console-g');
+update public.goods set stock='low' where id='console-c';
+update public.goods set archived_at=now() where id='console-g';
+set local role authenticated;
+select 1/case when public.admin_search_goods_console(p_ip_id=>'goods-console-test')->'stockCounts'='{"out_of_stock":2,"low":1}'::jsonb
+ and public.admin_search_goods_console(p_ip_id=>'goods-console-test',p_status=>'all')->'stockCounts'='{"out_of_stock":3,"low":2}'::jsonb
+ and public.admin_search_goods_console(p_ip_id=>'goods-console-test',p_status=>'archived')->'stockCounts'='{"out_of_stock":1,"low":1}'::jsonb
+ and public.admin_search_goods_console(p_ip_id=>'goods-console-test',p_status=>'published')->'stockCounts'='{"out_of_stock":1,"low":0}'::jsonb
+ and public.admin_search_goods_console(p_ip_id=>'goods-console-test',p_status=>'draft')->'stockCounts'='{"out_of_stock":1,"low":1}'::jsonb
+ then 1 else 0 end as assert_stock_counts_follow_status_and_all_other_conditions;
+-- 재고 칸은 자기 축(재고 조건)을 빼고 세고, 전시상태 칸은 자기 축(전시상태 조건)을 빼고 센다.
+select 1/case when public.admin_search_goods_console(p_ip_id=>'goods-console-test',p_stock=>'low')->'stockCounts'='{"out_of_stock":2,"low":1}'::jsonb
+ and public.admin_search_goods_console(p_ip_id=>'goods-console-test',p_stock=>'stopped')->'stockCounts'='{"out_of_stock":2,"low":1}'::jsonb
+ and public.admin_search_goods_console(p_ip_id=>'goods-console-test',p_stock=>'low')->'statusCounts'='{"all":2,"active":1,"draft":1,"published":0,"archived":1}'::jsonb
+ and (public.admin_search_goods_console(p_ip_id=>'goods-console-test',p_stock=>'low')->>'total')::int=1
+ then 1 else 0 end as assert_each_card_row_excludes_only_its_own_axis;
+-- 카드 숫자 = 그 카드를 눌렀을 때의 목록 총 개수.
+do $$ declare status_value text; bucket text; search record; card integer; clicked integer; begin
+ foreach status_value in array array['active','all','draft','published','archived'] loop
+  foreach bucket in array array['out_of_stock','low'] loop
+   for search in select * from (values ('','{}'::jsonb),('소량','{"field":"name"}'::jsonb),('','{"image":"without"}'::jsonb),('','{"payment":"bank"}'::jsonb)) v(q,f) loop
+    card:=(public.admin_search_goods_console(p_query=>search.q,p_ip_id=>'goods-console-test',p_status=>status_value,p_filters=>search.f)->'stockCounts'->>bucket)::integer;
+    clicked:=(public.admin_search_goods_console(p_query=>search.q,p_ip_id=>'goods-console-test',p_status=>status_value,p_stock=>bucket,p_filters=>search.f)->>'total')::integer;
+    if card is null or card<>clicked then raise exception 'stock card % differs from clicked total (status %, filters %): % vs %',bucket,status_value,search.f,card,clicked; end if;
+   end loop;
+  end loop;
+ end loop;
+end $$;
+select 1/case when public.admin_search_goods_console(p_query=>'소량',p_ip_id=>'goods-console-test',p_filters=>'{"field":"name"}')->'stockCounts'='{"out_of_stock":1,"low":1}'::jsonb
+ and public.admin_search_goods_console(p_ip_id=>'goods-console-test',p_status=>'all',p_filters=>'{"image":"without"}')->'stockCounts'='{"out_of_stock":2,"low":2}'::jsonb
+ and public.admin_search_goods_console(p_ip_id=>'goods-console-test',p_limit=>1,p_offset=>1000)->'stockCounts'='{"out_of_stock":2,"low":1}'::jsonb
+ and public.admin_search_goods_console(p_ip_id=>'goods-console-no-such-ip')->'stockCounts'='{"out_of_stock":0,"low":0}'::jsonb
+ then 1 else 0 end as assert_stock_counts_ignore_page_and_apply_search;
 do $$ begin
+ begin perform public.admin_search_goods_console(p_stock=>'sold_out'); raise exception 'unsupported stock filter accepted'; exception when invalid_parameter_value then null; end;
+ begin perform public.admin_search_goods_console(p_stock=>null); raise exception 'null stock filter accepted'; exception when invalid_parameter_value then null; end;
+ begin perform public.admin_search_goods_console(p_ip_id=>'goods-console-no-such-ip',p_stock=>'sold_out'); raise exception 'unsupported stock filter accepted without candidates'; exception when invalid_parameter_value then null; end;
+ begin perform public.admin_search_goods_console(p_filters=>'{"salePeriod":"open"}'); raise exception 'unsupported sale period accepted'; exception when invalid_parameter_value then null; end;
  begin perform public.admin_search_goods_console(p_filters=>'{"sort":"injected"}'); raise exception 'invalid sort accepted'; exception when invalid_parameter_value then null; end;
  begin perform public.admin_search_goods_console(p_filters=>'{"from":"2026-10-12","to":"2026-10-01"}'); raise exception 'invalid date range accepted'; exception when invalid_parameter_value then null; end;
  begin perform public.admin_search_goods_console(p_filters=>'{"unknown":true}'); raise exception 'unknown predicate accepted'; exception when invalid_parameter_value then null; end;
@@ -57,5 +132,8 @@ reset role;
 select 1/case when not has_function_privilege('anon','public.admin_search_goods_console(text,text,text,text,uuid,text,integer,integer,jsonb)','execute')
  and not has_function_privilege('service_role','public.admin_search_goods_console(text,text,text,text,uuid,text,integer,integer,jsonb)','execute')
  and not has_function_privilege('authenticated','private.admin_goods_console_matches(text,text,text,text,uuid,text,jsonb)','execute')
+ and not has_function_privilege('anon','private.admin_goods_stock_filter_matches(text,text,bigint)','execute')
+ and not has_function_privilege('authenticated','private.admin_goods_stock_filter_matches(text,text,bigint)','execute')
+ and not has_function_privilege('service_role','private.admin_goods_stock_filter_matches(text,text,bigint)','execute')
  then 1 else 0 end as assert_console_execute_boundary;
 rollback;

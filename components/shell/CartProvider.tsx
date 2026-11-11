@@ -1,6 +1,6 @@
 'use client';
 
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   createContext,
   useCallback,
@@ -9,11 +9,13 @@ import {
   useMemo,
   useRef,
   useState,
+  useTransition,
   type ReactNode,
 } from 'react';
 import {
   addCartSelectionAction,
   deleteCartItemAction,
+  releaseUnpaidCartOrdersAction,
   setCartItemQuantityAction,
   syncCartAction,
 } from '@/app/cart/actions';
@@ -381,4 +383,39 @@ export function useCart() {
   const value = useContext(Ctx);
   if (!value) throw new Error('useCart must be used within CartProvider');
   return value;
+}
+
+/**
+ * 장바구니·주문서 화면이 견적을 열기 전에 기다릴 값(ADR-0026).
+ *
+ * 카드 장바구니 주문은 결제가 끝날 때까지 장바구니를 남긴다. 고객이 결제창을 닫거나 실패·만료
+ * 뒤 장바구니·주문서로 돌아오면, 결제를 마치지 않은 이전 주문이 쿠폰·적립금·구매 한도·재고를
+ * 잡고 있어 견적이 막힐 수 있다. 그래서 이 화면들은 마운트될 때 한 번 서버에 그 주문을 닫아
+ * 달라고 요청하고, 닫힌 주문이 있으면 서버 화면(쿠폰 상태 등)을 다시 읽은 뒤에 견적을 연다.
+ * 로그인하지 않은 장바구니는 기다리지 않는다. 요청이 실패해도 화면을 막지 않는다 — 새 주문
+ * 생성이 같은 정리를 다시 한다.
+ */
+export function useReleaseUnpaidCartOrders(): boolean {
+  const { ready, mode } = useCart();
+  const router = useRouter();
+  const started = useRef(false);
+  const [settled, setSettled] = useState(false);
+  const [refreshing, startRefresh] = useTransition();
+  const server = ready && mode === 'server';
+
+  useEffect(() => {
+    if (!server || started.current) return;
+    started.current = true;
+    void releaseUnpaidCartOrdersAction().then(
+      (result) => {
+        if (result.released > 0) startRefresh(() => router.refresh());
+        setSettled(true);
+      },
+      () => setSettled(true),
+    );
+  }, [router, server]);
+
+  if (!ready) return false;
+  if (mode !== 'server') return true;
+  return settled && !refreshing;
 }

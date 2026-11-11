@@ -37,11 +37,12 @@ describe('ArtworkUploadField', () => {
     expect(html).toContain('id="ip-artwork-help"');
     expect(html).toContain('id="ip-artwork-guidance"');
     expect(html).toContain('선택 취소');
-    expect(html).toContain('flex-wrap:wrap');
-    expect(html).toContain('admin-artwork-layout');
-    expect(html).toContain('admin-artwork-preview');
-    expect(html).toContain('admin-artwork-controls');
-    expect(html).toContain('admin-artwork-actions');
+    /* 좁은 폭에서도 업로드 동작 버튼은 줄을 바꿔 넘치지 않는다. 미리보기·입력·동작 영역은 데이터 훅으로 찾는다. */
+    expect(html).toMatch(/<div class="[^"]*\bflex-wrap\b[^"]*" data-artwork-actions="">/);
+    expect(html).toContain('data-artwork-layout=""');
+    expect(html).toContain('data-artwork-preview=""');
+    expect(html).toContain('data-artwork-controls=""');
+    expect(html).toContain('data-artwork-actions=""');
   });
 
   it('renders an empty upload state without inventing an image path', () => {
@@ -76,7 +77,7 @@ describe('ArtworkUploadField', () => {
     expect(html).toContain('value=""');
     expect(html).toContain('현재 경로: 없음');
     /* 제거할 아트워크가 없으므로 제거 버튼은 잠겨 있어야 한다. */
-    expect(html).toMatch(/admin-artwork-remove[^>]*disabled=""/);
+    expect(html).toMatch(/<button[^>]*data-artwork-remove=""[^>]*disabled=""[^>]*>이미지 제거<\/button>/);
     /* 업로드는 아직 안 됐으니 "교체"가 아니라 "업로드"다. */
     expect(html).toContain('이미지 업로드');
     expect(html).not.toContain('이미지 교체');
@@ -158,9 +159,10 @@ describe('ArtworkUploadField', () => {
     );
 
     expect(html).toContain('data-upload-validity-message="이미지를 먼저 업로드해주세요."');
-    const fileInput = html.match(/<input[^>]*class="admin-artwork-input"[^>]*>/)?.[0];
+    const fileInput = html.match(/<input[^>]*data-artwork-input=""[^>]*>/)?.[0];
     expect(fileInput).toBeDefined();
-    expect(fileInput).not.toContain('disabled');
+    /* 클래스의 disabled: 변형이 아니라 disabled 속성 자체가 없어야 한다. */
+    expect(fileInput).not.toMatch(/\sdisabled=/);
   });
 
   /*
@@ -202,9 +204,9 @@ describe('ArtworkUploadField', () => {
     );
 
     expect(html).toContain('data-upload-state="empty"');
-    expect(html).not.toContain('class="btn btn-ghost admin-artwork-upload"');
+    expect(html).not.toContain('data-artwork-upload=""');
     expect(html).not.toContain('>이미지 업로드</button>');
     expect(html).not.toContain('>선택 취소</button>');
-    expect(html).not.toContain('admin-artwork-remove');
+    expect(html).not.toContain('data-artwork-remove');
   });
 });

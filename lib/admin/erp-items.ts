@@ -1,4 +1,4 @@
-import { categoryPath, type AdminCategoryErpMapping, type AdminCategoryNode } from './category';
+import type { AdminCategoryErpMapping, AdminCategoryNode } from './category';
 
 /**
  * ERP 품목 마스터 계약.
@@ -146,6 +146,72 @@ export function parseErpCategoryMappingRow(value: unknown): ErpCategoryMappingRo
   return { erpCategory: row.erp_category, itemCount, categoryId, updatedAt, fallbackCategoryId };
 }
 
+/** 한 번에 저장할 수 있는 ERP 분류 연결 수(`admin_set_erp_category_mappings`와 같은 상한). 연결 표가 한 번에 보여 주는 행 수이기도 하다. */
+export const ERP_CATEGORY_MAPPING_BATCH_LIMIT = 500;
+
+export interface ErpCategoryMappingEntry {
+  erpCategory: string;
+  /** 연결할 고객 카테고리. null이면 연결 해제. */
+  categoryId: string | null;
+}
+
+export interface ErpCategoryMappingBatch {
+  changed: number;
+  unchanged: number;
+  /** 저장하지 못한 행. index는 보낸 순서(0부터), reason은 DB 사유 코드. */
+  rejected: { index: number; reason: string }[];
+}
+
+function batchCount(value: unknown): number | null {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null;
+}
+
+/** `admin_set_erp_category_mappings` 결과 → 계약 타입. 형식이 다르면 null. */
+export function parseErpCategoryMappingBatch(value: unknown): ErpCategoryMappingBatch | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const result = value as Record<string, unknown>;
+  const changed = batchCount(result.changed);
+  const unchanged = batchCount(result.unchanged);
+  if (changed === null || unchanged === null || !Array.isArray(result.rejected)) return null;
+  const rejected: ErpCategoryMappingBatch['rejected'] = [];
+  for (const raw of result.rejected) {
+    if (!raw || typeof raw !== 'object') return null;
+    const entry = raw as Record<string, unknown>;
+    const index = batchCount(entry.index);
+    if (index === null || typeof entry.reason !== 'string') return null;
+    rejected.push({ index, reason: entry.reason });
+  }
+  return { changed, unchanged, rejected };
+}
+
+const ERP_CATEGORY_MAPPING_ERRORS: Record<string, string> = {
+  category_archived: '보관된 카테고리에는 연결할 수 없습니다.',
+  category_not_leaf: '하위 카테고리가 있는 분류에는 연결할 수 없습니다. 마지막 단계 카테고리를 골라주세요.',
+  category_not_found: '카테고리를 찾지 못했습니다. 새로고침한 뒤 다시 골라주세요.',
+  invalid_erp_category: 'ERP 분류 이름을 확인해주세요.',
+  invalid_category_id: '연결할 고객 카테고리를 다시 골라주세요.',
+  duplicate_erp_category: '같은 ERP 분류가 두 번 들어 있습니다. 다시 시도해주세요.',
+};
+
+/** DB 오류·거절 사유를 운영자 문구로 바꾼다. 모르는 사유면 null. */
+export function erpCategoryMappingErrorLabel(descriptor: string): string | null {
+  const key = Object.keys(ERP_CATEGORY_MAPPING_ERRORS).find((reason) => descriptor.includes(reason));
+  return key ? ERP_CATEGORY_MAPPING_ERRORS[key] : null;
+}
+
+/** 일괄 저장 결과 한 줄. 해제만 한 묶음이면 해제라고 말한다. */
+export function erpCategoryMappingBatchMessage(
+  result: Pick<ErpCategoryMappingBatch, 'changed' | 'unchanged'> & { rejected: readonly unknown[] },
+  clearedOnly: boolean,
+): string {
+  const count = (value: number) => value.toLocaleString('ko-KR');
+  const parts: string[] = [];
+  if (result.changed) parts.push(`ERP 분류 ${count(result.changed)}건의 연결을 ${clearedOnly ? '해제' : '저장'}했습니다.`);
+  if (result.unchanged) parts.push(`${count(result.unchanged)}건은 이미 같은 연결입니다.`);
+  if (result.rejected.length) parts.push(`${count(result.rejected.length)}건은 저장하지 못했습니다. 표에서 사유를 확인해주세요.`);
+  return parts.join(' ') || '바뀐 연결이 없습니다.';
+}
+
 /* DB(private.erp_item_text)처럼 공백 연속을 하나로 합치고 앞뒤 공백을 지운다. 대소문자는 그대로 비교한다. */
 function sameErpText(left: string, right: string): boolean {
   const normalize = (value: string) => value.replace(/\s+/g, ' ').trim();
@@ -193,53 +259,106 @@ export function formatErpSalePrice(value: number | null): string {
   return value === null ? '없음' : `${value.toLocaleString('ko-KR')}원`;
 }
 
+/* DB private.catalog_category_name_key와 같은 키: NFKC, 소문자, 공백 제거. */
 function comparable(value: string): string {
-  return value.normalize('NFKC').toLowerCase().replace(/\s+/g, '');
+  return value.normalize('NFKC').toLowerCase().replace(/[\s\u00a0\u1680\u2000-\u200b\u2028\u2029\u202f\u205f\u3000\ufeff]+/g, '');
 }
 
+/* ERP 분류 경로는 `>`로만 단계를 나눈다. '메모/수첩'처럼 이름에 든 '/'는 이름의 일부다(DB private.catalog_category_path_segments). */
 function segments(value: string): string[] {
-  return value.split(/\s*[>›/|]\s*/).map((part) => part.trim()).filter(Boolean);
+  return value.split('>').map((part) => part.trim()).filter(Boolean);
+}
+
+function pathKey(value: string): string {
+  return segments(value).map(comparable).join('>');
 }
 
 export type ErpCategorySuggestion = {
   categoryId: string;
-  /** 'erp_mapping' = 고객 카테고리의 ERP 분류 매핑과 일치, 'same_path' = 경로 일치, 'same_name' = 말단 이름 일치 */
-  basis: 'erp_mapping' | 'same_path' | 'same_name';
+  /** 'erp_mapping' = 고객 카테고리의 ERP 분류 매핑과 일치, 'same_path' = `대>중>소` 전체 경로 일치 */
+  basis: 'erp_mapping' | 'same_path';
   label: string;
 };
 
-/**
- * ERP 분류 원문에 맞는 고객 카테고리 활성 말단을 하나 제안한다.
- * 고객 카테고리 화면의 ERP 분류 매핑 → 경로 전체 → 말단 이름 순으로 보고,
- * 후보가 둘 이상이면 추정하지 않고 null을 돌려준다.
- */
-export function suggestErpCategoryTarget(
-  erpCategory: string,
+/** 연결 표가 행마다 묻는 값을 미리 만들어 둔 색인. 행마다 카테고리 전체를 다시 훑지 않게 한다. */
+export interface ErpCategoryIndex {
+  /** 연결할 수 있는 활성 말단. `대 > 중 > 소` 경로의 가나다순. */
+  readonly leaves: readonly { id: string; label: string }[];
+  isLeaf(id: string): boolean;
+  /** `대 > 중 > 소` 경로. 모르는 id면 null. */
+  pathLabel(id: string): string | null;
+  /**
+   * ERP 분류 원문에 맞는 고객 카테고리 활성 말단을 하나 제안한다.
+   * 고객 카테고리 화면의 ERP 분류 매핑 → 전체 경로 순으로 보고, 후보가 둘 이상이면 추정하지 않고 null을 돌려준다.
+   * 말단 이름만 같은 다른 경로는 제안하지 않는다(사이트 카테고리 ≠ ERP 1:1, 10/27 회의).
+   */
+  suggest(erpCategory: string): ErpCategorySuggestion | null;
+  /** DB가 돌려준 제안 말단(fallback_category_id)이 전체 경로 일치인지, 고객 카테고리 화면의 정본 ERP 매핑인지. */
+  fallbackBasis(erpCategory: string, fallbackCategoryId: string): ErpCategorySuggestion['basis'];
+}
+
+/* 2026-11-10 실측: 말단 300개·ERP 분류 257행에서 행마다 경로를 다시 만들면 제안 계산만 625ms였다(O(행×말단×카테고리)). */
+export function createErpCategoryIndex(
   categories: readonly AdminCategoryNode[],
   erpMappings: readonly Pick<AdminCategoryErpMapping, 'categoryId' | 'erpCode' | 'erpName'>[] = [],
-): ErpCategorySuggestion | null {
-  const leaves = categories.filter((category) => !category.archivedAt && category.childCount === 0);
-  const leafIds = new Set(leaves.map((leaf) => leaf.id));
-  const label = (id: string) => categoryPath(categories, id).join(' > ');
-  const target = comparable(erpCategory);
-  if (!target) return null;
-  const unique = (ids: string[], basis: ErpCategorySuggestion['basis']): ErpCategorySuggestion | null => {
+): ErpCategoryIndex {
+  const byId = new Map(categories.map((category) => [category.id, category]));
+  /* lib/admin/category의 categoryPath와 같은 순회(순환 방어 포함). 다만 Map을 id마다 새로 만들지 않는다. */
+  const pathOf = (id: string): string[] => {
+    const names: string[] = [];
+    const seen = new Set<string>();
+    let current = byId.get(id);
+    while (current && !seen.has(current.id)) {
+      seen.add(current.id);
+      names.unshift(current.name);
+      current = current.parentId ? byId.get(current.parentId) : undefined;
+    }
+    return names;
+  };
+  const labelOf = (id: string) => pathOf(id).join(' > ');
+  const keyOf = (id: string) => pathOf(id).map(comparable).join('>');
+
+  const leafIds = new Set<string>();
+  const leafIdsByPath = new Map<string, string[]>();
+  const collator = new Intl.Collator('ko');
+  const leaves: { id: string; label: string }[] = [];
+  for (const category of categories) {
+    if (category.archivedAt || category.childCount !== 0) continue;
+    const key = keyOf(category.id);
+    leafIds.add(category.id);
+    leafIdsByPath.set(key, [...(leafIdsByPath.get(key) ?? []), category.id]);
+    leaves.push({ id: category.id, label: labelOf(category.id) });
+  }
+  leaves.sort((left, right) => collator.compare(left.label, right.label));
+
+  const mappedIds = new Map<string, string[]>();
+  for (const mapping of erpMappings) {
+    if (!leafIds.has(mapping.categoryId)) continue;
+    for (const key of new Set([comparable(mapping.erpName), comparable(mapping.erpCode)])) {
+      mappedIds.set(key, [...(mappedIds.get(key) ?? []), mapping.categoryId]);
+    }
+  }
+
+  const unique = (ids: readonly string[], basis: ErpCategorySuggestion['basis']): ErpCategorySuggestion | null => {
     const distinct = [...new Set(ids)];
-    return distinct.length === 1 ? { categoryId: distinct[0], basis, label: label(distinct[0]) } : null;
+    return distinct.length === 1 ? { categoryId: distinct[0], basis, label: labelOf(distinct[0]) } : null;
   };
 
-  const mapped = erpMappings
-    .filter((mapping) => leafIds.has(mapping.categoryId)
-      && (comparable(mapping.erpName) === target || comparable(mapping.erpCode) === target))
-    .map((mapping) => mapping.categoryId);
-  if (mapped.length) return unique(mapped, 'erp_mapping');
-
-  const parts = segments(erpCategory).map(comparable);
-  const pathKey = parts.join('>');
-  const samePath = leaves.filter((leaf) => categoryPath(categories, leaf.id).map(comparable).join('>') === pathKey).map((leaf) => leaf.id);
-  if (samePath.length) return unique(samePath, 'same_path');
-
-  const last = parts.at(-1);
-  if (!last) return null;
-  return unique(leaves.filter((leaf) => comparable(leaf.name) === last).map((leaf) => leaf.id), 'same_name');
+  return {
+    leaves,
+    isLeaf: (id) => leafIds.has(id),
+    pathLabel: (id) => byId.has(id) ? labelOf(id) : null,
+    suggest(erpCategory) {
+      const target = comparable(erpCategory);
+      if (!target) return null;
+      const mapped = mappedIds.get(target);
+      if (mapped) return unique(mapped, 'erp_mapping');
+      const key = pathKey(erpCategory);
+      return key ? unique(leafIdsByPath.get(key) ?? [], 'same_path') : null;
+    },
+    fallbackBasis(erpCategory, fallbackCategoryId) {
+      const key = pathKey(erpCategory);
+      return key && keyOf(fallbackCategoryId) === key ? 'same_path' : 'erp_mapping';
+    },
+  };
 }

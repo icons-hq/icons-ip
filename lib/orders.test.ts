@@ -3,6 +3,7 @@ import {
   formatOrderDate,
   isOrderDetailStatus,
   isVisibleOrderStatus,
+  orderClaimProgressLabel,
   orderReferenceLabel,
   refundStatusLabel,
   orderStatusMeta,
@@ -63,3 +64,27 @@ describe('order presentation helpers', () => {
     expect(summarizeOrderItems([])).toEqual({ label: '주문한 굿즈', itemCount: 0 });
   });
 });
+
+/* 10/14 회의 S20 — 목록 배지와 상세 헤더가 같은 함수로 진행 중 클레임을 말한다. */
+describe('orderClaimProgressLabel', () => {
+  it.each([
+    ['cancel', 'requested', '취소 요청'],
+    ['cancel', 'processing', '취소 처리 중'],
+    ['cancel', 'needs_review', '취소 확인 중'],
+    ['return', 'in_review', '반품 요청'],
+    ['return', 'collecting', '반품 회수 중'],
+    ['exchange', 'collected', '교환 입고 완료'],
+    ['exchange', 'on_hold', '교환 보류'],
+  ] as const)('labels an open %s claim at %s', (claimType, stage, label) => {
+    expect(orderClaimProgressLabel('paid', { claimType, stage })).toBe(label);
+  });
+
+  it('adds no badge without an open claim or once the order itself is canceled', () => {
+    expect(orderClaimProgressLabel('paid', null)).toBeNull();
+    for (const stage of ['completed', 'rejected', 'withdrawn'] as const) {
+      expect(orderClaimProgressLabel('paid', { claimType: 'cancel', stage })).toBeNull();
+    }
+    expect(orderClaimProgressLabel('canceled', { claimType: 'cancel', stage: 'processing' })).toBeNull();
+  });
+});
+

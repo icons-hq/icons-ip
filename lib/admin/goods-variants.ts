@@ -16,4 +16,7 @@ export type AdminGoodsVariant = {
   isDefault: boolean;
   archivedAt: string | null;
   updatedAt?: string;
+  /** 옵션별 구매 제한(D7②): 주문 1건·회원 1명의 최대 수량. null = 제한 없음, undefined = 읽지 않음(저장 키에서 빠져 DB 값 유지). */
+  orderMaxQty?: number | null;
+  memberMaxQty?: number | null;
 };

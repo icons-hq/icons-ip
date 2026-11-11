@@ -1,6 +1,7 @@
 import { isUuid } from '@/lib/uuid';
 import type { ShipmentRecord } from '@/lib/orders/shipments';
 import type { OrderWithdrawalReasonType } from '@/lib/orders';
+import type { GoodsOptionSaleMode } from '@/lib/goods-option-sale-mode';
 import {
   ORDER_STAFF_CANCELLATION_REASON_CODES,
   ORDER_STAFF_CANCELLATION_REASON_LABELS,
@@ -19,6 +20,7 @@ import {
   normalizeTrackingNumber,
   type ShippingCarrierRegistry,
 } from '@/lib/orders/shipment';
+import { providerCancelsAutomatically } from '@/lib/payments/provider-capabilities';
 
 // DB의 order_status enum과 같은 순서를 유지한다 — 상태 필터의 표시 순서가
 // 사다리 순서 그 자체다(#250).
@@ -112,6 +114,11 @@ export interface AdminOrderItemRecord {
   variantName?: string | null;
   customInputs?: import('@/lib/goods-custom-inputs').GoodsCustomInputSelection | null;
   variantCode?: string | null;
+  /**
+   * 판매 방식(D5②). 'random'이면 고객이 고른 옵션이 아니라 주문 생성 때 DB가 재고 비례로 무작위 배정한 옵션이다.
+   * variantId·variantName·variantCode는 배정된 옵션 그대로다. 주문 상세(admin_order_detail)만 싣는다.
+   */
+  optionSaleMode?: GoodsOptionSaleMode;
   id: string;
   name: string;
   type: string;
@@ -469,7 +476,8 @@ export const ADMIN_STAFF_CANCELLATION_NOTE_LIMIT = 500;
  * 화면에 버튼을 그릴지만 정한다. 판정의 진실원은 DB가 주문·배송 건 잠금 아래에서
  * 다시 하는 검사다(진행 중 결제 포함). 결제 조건은 DB `admin_start_order_cancellation`의
  * `staff_cancellation_toss_only`와 같게 맞춘다 — 실패가 아닌 결제가 하나 이상이고
- * 모두 토스·결제완료일 때만 그린다. Korpay·무통장 주문에 버튼을 그리면 누를 때마다
+ * 모두 취소 API가 있는 카드 결제사(토스·나이스페이)·결제완료일 때만 그린다. Korpay·무통장
+ * 주문에 버튼을 그리면 누를 때마다
  * 거절되는 버튼이 된다. 출고지시 파일이 나간 배송 건이 있으면 창고의 출고 중단 확인을
  * 함께 받는다.
  */
@@ -479,7 +487,7 @@ export function adminStaffCancellationAvailability(
   if (order.status !== 'paid' && order.status !== 'confirmed') return { available: false };
   const livePayments = order.payments.filter((payment) => payment.status !== 'failed');
   if (!livePayments.length) return { available: false };
-  if (livePayments.some((payment) => payment.provider !== 'toss' || payment.status !== 'paid')) {
+  if (livePayments.some((payment) => !providerCancelsAutomatically(payment.provider) || payment.status !== 'paid')) {
     return { available: false };
   }
   const request = order.cancellationRequest;

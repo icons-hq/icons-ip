@@ -29,11 +29,25 @@ export async function loadGiftOrderList(includePending: boolean): Promise<OrderL
       const summary = summarizeOrderItems(gift.items);
       orders.push({ id: order.id, ...(order.orderNumber ? { orderNumber: order.orderNumber } : {}), giftId: gift.id, status: order.status, total: order.total, createdAt: order.createdAt, itemLabel: summary.label, itemCount: summary.itemCount, paymentMethod: order.paymentMethod });
     }
-    if (!page.hasMore) return orders;
+    if (!page.hasMore) return withGiftClaims(orders);
     const last = page.items.at(-1);
     if (!last || last.id === cursor?.id) throw new Error('gift_history_cursor_invalid');
     cursor = { createdAt: last.createdAt, id: last.id };
   }
+}
+
+/* 선물 주문도 목록 배지를 상세와 같은 규칙으로 보인다(10/14 회의 S20). 선물 클레임은 직접 SELECT가
+   아니라 보낸 사람 전용 투영 get_my_gift_latest_claim으로만 읽는다 — 상세와 같은 RPC·같은 파서다. */
+async function withGiftClaims(orders: OrderListItem[]): Promise<OrderListItem[]> {
+  if (!orders.length) return orders;
+  const client = await createClient();
+  const claims = await Promise.all(orders.map((order) => client.rpc('get_my_gift_latest_claim', { p_order_id: order.id })));
+  return orders.map((order, index) => {
+    const { data, error } = claims[index];
+    if (error) throw new Error('gift_claim_history_failed');
+    const claim = parseSafeClaim(data);
+    return { ...order, claim: claim ? { claimType: claim.claimType, stage: claim.stage } : null };
+  });
 }
 
 export async function loadGiftOrderDetail(userId: string, result: Extract<GiftCheckoutOrderResult, { kind: 'gift' }>): Promise<OrderDetail> {

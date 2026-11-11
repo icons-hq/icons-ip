@@ -8,7 +8,7 @@ import { RestockCta } from '@/components/shop/RestockCta';
 import { QuantityStepper } from '@/components/wc/QuantityStepper';
 import { WcButton } from '@/components/wc/WcButton';
 import type { Good, GoodOption } from '@/lib/data';
-import { defaultGoodOption, goodsPurchaseConditionProblem, initialGoodOption, isSelectableGoodOption, optionLabel, selectableGoodOptionId, soldOutPreviewPrice } from '@/lib/goods-options';
+import { defaultGoodOption, goodOptionPurchaseNotices, goodsPurchaseConditionProblem, initialGoodOption, isSelectableGoodOption, optionLabel, optionOrderLimitMessage, purchasableOptionQty, selectableGoodOptionId, soldOutPreviewPrice } from '@/lib/goods-options';
 import { goodsAggregationUnavailableLabel } from '@/lib/goods-aggregation';
 import { prepareGoodsCustomInputSelection } from '@/lib/goods-custom-inputs';
 import { GoodsCustomInputsFields } from './GoodsCustomInputs';
@@ -76,7 +76,7 @@ export function mergedCartQuantity(currentQuantity: number, addedQuantity: numbe
   return Math.max(0, Math.trunc(currentQuantity)) + Math.max(1, Math.trunc(addedQuantity));
 }
 
-export type PurchaseBlockReason = 'disabled' | 'soldout' | 'not_ready' | 'pending' | 'stock' | null;
+export type PurchaseBlockReason = 'disabled' | 'soldout' | 'not_ready' | 'pending' | 'stock' | 'limit' | null;
 
 export interface PurchaseBlockState {
   disabled: boolean;
@@ -85,6 +85,8 @@ export interface PurchaseBlockState {
   pending: boolean;
   nextQuantity: number;
   stockQty: number;
+  /** 고른 옵션의 주문당 최대 수량(D7②). null·없음 = 제한 없음. */
+  orderMaxQty?: number | null;
 }
 
 /**
@@ -92,21 +94,24 @@ export interface PurchaseBlockState {
  *
  * 이유를 하나로 모으는 것은 버튼의 비활성 조건과 "눌렀을 때 무슨 일이 일어나는가"가
  * 어긋나지 않게 하기 위해서다. `stock` 만은 버튼을 잠그지 않는다 — 재고를 넘겼다는
- * 사실은 카트가 자기 오류 문구로 말해야 사용자가 이유를 안다.
+ * 사실은 카트가 자기 오류 문구로 말해야 사용자가 이유를 안다. `limit`(담긴 수량을 합쳐 옵션별 주문당 최대 수량을
+ * 넘음, D7②)도 잠그지 않는다 — 누르면 카트에 보내지 않고 구매 블록이 확정 카피로 이유를 말한다. 재고가 한도보다
+ * 작으면 재고가 먼저 막으므로 `stock` 이다.
  */
 export function purchaseBlockReason(state: PurchaseBlockState): PurchaseBlockReason {
   if (state.disabled) return 'disabled';
   if (state.soldOut) return 'soldout';
   if (!state.ready) return 'not_ready';
   if (state.pending) return 'pending';
+  if (state.orderMaxQty && state.orderMaxQty <= state.stockQty && state.nextQuantity > state.orderMaxQty) return 'limit';
   if (state.nextQuantity > state.stockQty) return 'stock';
   return null;
 }
 
 /**
  * 바로구매의 이동 판정. 클라이언트 성공 신호는 확정의 진실원이 아니다 —
- * 카트 반영이 서버에서 정착(pending 해제)된 뒤, 오류가 없을 때만 체크아웃으로 간다.
- * 실패했는데 이동하면 방금 담은 수량이 빠진 카트로 결제 화면에 서는 셈이다.
+ * 카트 반영이 서버에서 정착(pending 해제)된 뒤, 오류가 없을 때만 장바구니로 간다.
+ * 실패했는데 이동하면 방금 담은 수량이 빠진 장바구니를 보여 주는 셈이다.
  */
 export function buyNowNavigation(state: {
   requested: boolean;
@@ -226,7 +231,7 @@ export function useGoodPurchase({
     });
     if (navigation === 'wait' || checkoutGen === handledCheckoutGenRef.current) return;
     handledCheckoutGenRef.current = checkoutGen;
-    if (navigation === 'navigate') router.push('/checkout');
+    if (navigation === 'navigate') router.push('/cart');
   }, [checkoutGen, cartPending, cartError, router]);
 
   const soldOut = isGoodSoldOut(good);
@@ -245,11 +250,19 @@ export function useGoodPurchase({
     ready: cart.ready,
     soldOut,
     stockQty,
+    orderMaxQty: selectedOption?.orderMaxQty ?? null,
   });
-  const inert = selectionRequired || (blocked !== null && blocked !== 'stock');
+  const inert = selectionRequired || (blocked !== null && blocked !== 'stock' && blocked !== 'limit');
+  /* 옵션별 주문당 최대 수량(D7②): 장바구니에 담긴 수량을 합쳐 넘으면 카트에 보내지 않는다 — 목록 담기·위시 카드와 같은
+     한도다(T7 리뷰 RV-4). 본품과 함께 고른 추가 구성 굿즈도 같은 규칙이다. */
+  const limitMessage = (selectedOption ? optionOrderLimitMessage(good, selectedOption, nextQuantity) : null)
+    ?? chosenAdditions.reduce<string | null>((found, choice) => found ?? (choice.good && choice.selectedOption
+      ? optionOrderLimitMessage(choice.good, choice.selectedOption,
+        mergedCartQuantity(cart.getQuantity(choice.goodId, choice.selectedOption.id), choice.quantity)) : null), null);
 
   const commit = async () => {
     if (!selectedOption || selectionRequired || committingRef.current) return false;
+    if (limitMessage) { setStatus(limitMessage); return false; }
     const selections = new Map(selectedGoods.map(item=>[item.id,prepareGoodsCustomInputSelection(item.customInputs,customInputValues[item.id] ?? {})]));
     for (const item of selectedGoods) {
       const prepared=selections.get(item.id)!;
@@ -322,9 +335,9 @@ export function useGoodPurchase({
       setStatus(null);
       void commit().then((ok) => { if (ok) setStatus(CART_ADDED_STATUS); });
     },
-    /* 바로구매는 장바구니 화면을 건너뛸 뿐이다. 담기와 같은 카트 계약을 거쳐
-       기존 주문 경로(체크아웃 → placeOrderAction → place_order)로 들어간다.
-       이동은 즉시 하지 않는다 — buyNowNavigation 이 카트 정착·오류를 본 뒤 결정한다. */
+    /* 바로구매는 LINE FRIENDS SQUARE와 같다(D2): 담기와 같은 카트 계약으로 담은 뒤 장바구니
+       (/cart)로 간다. 주문은 장바구니 전체로 만든다(주문 = 장바구니 전체). 같은 상품을 다시 담으면
+       수량이 합산된다. 이동은 즉시 하지 않는다 — buyNowNavigation 이 카트 정착·오류를 본 뒤 결정한다. */
     buyNow: () => {
       if (inert) return;
       setStatus(null);
@@ -420,10 +433,12 @@ function AdditionalChoices({ purchase }: { purchase: GoodPurchaseController }) {
         </label> : optionLabel(choice.selectedOption, 1) ? <p className="wc-buy-panel__state">{choice.selectedOption?.name}</p> : null}
         {!choice.selectedOption && (choice.good.options?.length ?? 0) <= 1 ? <p className="wc-buy-panel__state">현재 구매할 수 없는 옵션입니다. 추가 선택을 해제해주세요.</p> : null}
         {choice.selectedOption?.supply?.mode === 'preorder' ? <p className="wc-buy-panel__state">예약판매 · {goodsShipDateLabel(choice.selectedOption.supply.expectedShipDate)}</p> : null}
+        {/* 본품과 같은 판매 방식(D5② 랜덤)·옵션별 구매 제한(D7②) 안내 — 확정 카피. */}
+        {goodOptionPurchaseNotices(choice.good, choice.selectedOption).map(notice => <p className="wc-buy-panel__state" key={notice}>{notice}</p>)}
         <GoodsCustomInputsFields goodId={choice.goodId} config={choice.good.customInputs} values={purchase.customInputValues?.[choice.goodId]} disabled={purchase.disabled || purchase.busy} onChange={(id,value)=>purchase.setCustomInputValue?.(choice.goodId,id,value)} />
         <div className="wc-buy-panel__row">
           <span>추가 수량</span>
-          <QuantityStepper label={`${choice.name} 추가 수량`} max={Math.max(1, choice.selectedOption?.stockQty ?? 1)}
+          <QuantityStepper label={`${choice.name} 추가 수량`} max={Math.max(1, choice.selectedOption ? purchasableOptionQty(choice.selectedOption) : 1)}
             value={choice.quantity} onChange={(next) => purchase.setAdditionalQuantity?.(choice.goodId, next)} />
         </div>
       </div> : null}
@@ -620,13 +635,16 @@ export function GoodPurchasePanel({ otherPurchases, purchase }: { otherPurchases
         </label>
       ) : singleOptionLabel ? <p className="wc-buy-panel__option">{singleOptionLabel}</p> : null}
       {displayOption?.supply?.mode === 'preorder' ? <p className="wc-buy-panel__state">예약판매 · 주문 시 결제 · {goodsShipDateLabel(displayOption.supply.expectedShipDate)}</p> : null}
+      {/* 랜덤 판매(D5②)의 무작위 배정 안내, 옵션별 구매 제한(D7②)의 고른 옵션 안내 — 확정 카피. 남은 수량은 보이지 않는다. */}
+      {goodOptionPurchaseNotices(good, chosenOption ?? displayOption).map(notice => <p className="wc-buy-panel__state" key={notice}>{notice}</p>)}
       {foldedNote ? <p className="wc-buy-panel__state">{foldedNote}</p> : null}
       {restockOnly ? null : <GoodsCustomInputsFields goodId={good.id} config={good.customInputs} values={purchase.customInputValues?.[good.id]} disabled={disabled || purchase.busy} onChange={(id,value)=>purchase.setCustomInputValue?.(good.id,id,value)} />}
       <div className="wc-buy-panel__row" inert={purchase.busy || undefined}>
         <span className="wc-buy-panel__label">수량</span>
         {/* 재고가 0인데 판매중인 데이터는 없다. 그래도 max 0 이면 스테퍼가 0에 잠겨
             수량을 고를 수 없는 컨트롤이 되므로 최소 1은 남긴다. */}
-        <QuantityStepper max={Math.max(1, selectedOption?.stockQty ?? (good.options ? 0 : good.stockQty))} onChange={setQuantity} value={quantity} />
+        {/* 옵션별 주문당 최대 수량(D7②)이 있으면 재고보다 작은 쪽이 상한이다. 랜덤 판매는 풀 합계가 재고다. */}
+        <QuantityStepper max={Math.max(1, selectedOption ? purchasableOptionQty(selectedOption) : (good.options ? 0 : good.stockQty))} onChange={setQuantity} value={quantity} />
       </div>
       {restockOnly ? null : <AdditionalChoices purchase={purchase} />}
       <GoodsTransactionTerms good={good} quantity={quantity} />
@@ -651,7 +669,8 @@ export function GoodPurchasePanel({ otherPurchases, purchase }: { otherPurchases
           </WcButton>
         </div>
       )}
-      {!disabled ? <div className="wc-buy-panel__other-purchases"><SubscriptionPurchaseEntry available={otherPurchases?.subscription} goodId={good.id} />{good.transactionOffer?.fulfillment?.mode !== 'digital' ? <GiftPurchaseEntry available={otherPurchases?.gift} /> : null}</div> : null}
+      {/* 선물·정기배송은 거래 런타임 주문이라 랜덤 판매 굿즈(D5②)를 받지 않는다 — 막다른 진입을 두지 않는다. */}
+      {!disabled && good.optionSaleMode !== 'random' ? <div className="wc-buy-panel__other-purchases"><SubscriptionPurchaseEntry available={otherPurchases?.subscription} goodId={good.id} />{good.transactionOffer?.fulfillment?.mode !== 'digital' ? <GiftPurchaseEntry available={otherPurchases?.gift} /> : null}</div> : null}
       {/* 서버 확인 전에는 "완료"라고 하지 않는다(DESIGN §9) — 카트 저장이 끝난 뒤에만 채운다. 재입고 신청이 바뀐
           판매 상태로 거절되면 그 이유도 여기 남는다(신청 버튼은 담기·구매로 바뀌며 사라진다). */}
       <p aria-atomic="true" aria-live="polite" className={`wc-buy-panel__status${statusIsError ? ' is-error' : ''}`} role="status">

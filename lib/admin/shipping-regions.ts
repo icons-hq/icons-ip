@@ -31,6 +31,12 @@ export interface ShippingRegionExpiryState {
 }
 
 /** Warn for upcoming active versions and the latest started version, including a coverage gap. */
+/** 이 정책이 지금 견적에 쓰이는가. `private.apply_shipping_region_quote`와 같은 조건이다(활성·출고지 기본 택배사·적용 기간). */
+export function shippingRegionPolicyInEffect(policy: Pick<ShippingRegionPolicy, 'originId' | 'carrierCode' | 'status' | 'startsAt' | 'endsAt'>, origin: { id: string; defaultCarrier: string | null }, now: number): boolean {
+  if (policy.status !== 'active' || policy.originId !== origin.id || policy.carrierCode !== origin.defaultCarrier || !policy.startsAt) return false;
+  return Date.parse(policy.startsAt) <= now && (!policy.endsAt || now < Date.parse(policy.endsAt));
+}
+
 export function shippingRegionExpiryWarnings(policies: ShippingRegionExpiryPolicy[], now: number): ShippingRegionExpiryWarning[] {
   const latest = new Map<string, ShippingRegionExpiryPolicy>();
   const upcoming: ShippingRegionExpiryPolicy[] = [];

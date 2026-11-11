@@ -40,6 +40,26 @@ describe('거래확정 금액과 출처', () => {
     expect(result.orders[0]).toMatchObject({ total: 32001, detailTotal: null, detailDifference: null, ledgerDifference: 0 });
     expect(result.orders[0].issues.join(' ')).toContain('쿠폰 대상·금액');
   });
+  it('카테고리·IP 쿠폰 주문도 파일 전체를 거절하지 않고 수집된 대상 판정으로 배분한다', () => {
+    const source = settledExportFixture();
+    source.orders[0].coupon!.terms = { goodsScope: 'selected_categories', targetGoodIds: [], targetCategoryIds: ['30000000-0000-4000-8000-000000000001'] };
+    source.orders[0].items = source.orders[0].items.map((item, index) => ({ ...item, couponEligible: index < 2 }));
+    const parsed = parseSettledExportSnapshot(source);
+    expect(buildSettledExportModel(parsed).lines.map(row => row.couponAmount)).toEqual([501, 500, 0]);
+    const ip = settledExportFixture();
+    ip.orders[0].coupon!.terms = { goodsScope: 'selected_ips', targetGoodIds: [], targetIpIds: ['maple'] };
+    ip.orders[0].items = ip.orders[0].items.map((item, index) => ({ ...item, ipId: index < 2 ? 'maple' : 'other' }));
+    expect(buildSettledExportModel(parseSettledExportSnapshot(ip)).lines.map(row => row.couponAmount)).toEqual([501, 500, 0]);
+    // 이전 수집본(판정 없음)의 카테고리 쿠폰은 추정하지 않고 주문 원장을 남긴다.
+    const old = settledExportFixture();
+    old.orders[0].coupon!.terms = { goodsScope: 'selected_categories', targetGoodIds: [], targetCategoryIds: ['30000000-0000-4000-8000-000000000001'] };
+    const result = buildSettledExportModel(parseSettledExportSnapshot(old));
+    expect(result.lines.every(row => row.couponAmount === null)).toBe(true);
+    expect(result.orders[0].issues.join(' ')).toContain('쿠폰 대상·금액');
+    const unknown = settledExportFixture();
+    (unknown.orders[0].coupon!.terms as unknown as { goodsScope: string }).goodsScope = 'selected_brands';
+    expect(() => parseSettledExportSnapshot(unknown)).toThrow();
+  });
   it('결제시각이 없으면 주문 생성일로 대체하지 않는다', () => {
     const source = settledExportFixture(); source.orders[0].payments[0].approvedAt = null; source.orders[0].payments[0].timeSource = null;
     const result = buildSettledExportModel(source);

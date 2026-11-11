@@ -16,7 +16,6 @@ node scripts/admin-visual-fixture.mjs
 
 어드민 글꼴은 앱과 같은 `admin-font.css` 및 로컬 Pretendard 1.3.9를 사용한다.
 fixture는 저장소 `public/` 전체를 공개하지 않고 `/fonts/admin/PretendardVariable.woff2`와
-`/admin/seller-icons/{sales,claims,goods,reviews}.svg` 네 아이콘 및
 상품문의 합성 행에 쓰는 기존 `/generated/goods/g13.webp`의 정확한 경로에만
 GET·HEAD를 제공한다. 기존 글로벌 CDN import는 fixture에서 제거하므로
 캡처 전에 `document.fonts.load('400 14px "ICONS Admin Pretendard"')`가 완료됐는지 확인한다.
@@ -32,7 +31,7 @@ GET·HEAD를 제공한다. 기존 글로벌 CDN import는 fixture에서 제거�
 명시된 `create`·`goodId`는 보존하며 브라우저 주소 자체는 변경하지 않는다.
 
 `?view=orders&capture=1`은 실제 `OrderItemsScreen`에 합성 상품주문 6개를,
-`?view=claims&capture=1`은 실제 `ClaimQueueScreen`에 합성 반품 요청 4개를 표시한다.
+`?view=claims&capture=1`은 실제 `ClaimQueueKitScreen`에 합성 반품 요청 4개를 표시한다.
 상태·검색어·페이지는 합성 행을 대상으로만 작동한다. 날짜 등 나머지 조건은 조판 검수용이며,
 발주확인·엑셀·환불·수거 등 서버 작업의 성공을 재현하지 않는다.
 
@@ -44,7 +43,7 @@ GET·HEAD를 제공한다. 기존 글로벌 CDN import는 fixture에서 제거�
 node scripts/admin-visual-fixture/import-boundary-qa.mjs
 ```
 
-`cs-qna`는 상품 이미지와 행 안 답변 펼침, `cs-inquiries`는 문의 선택 후 목록 아래 좌우 응대 영역도 렌더한다. 답변·메모·고객 조회는 기존 fixture 경계로 차단하며 실제 저장 성공을 재현하지 않는다.
+`cs-qna`는 상품 이미지와 행 안 답변 펼침, `cs-inquiries`는 실제 페이지처럼 `inquiryId`가 있으면 목록 위 팝업에 좌우 응대 영역을 렌더한다. 답변·메모·고객 조회는 기존 fixture 경계로 차단하며 실제 저장 성공을 재현하지 않는다.
 
 이 검사는 화면 코드를 실행하지 않고 변환된 모듈의 named export 연결과
 `/api`·`/auth` 차단 응답을 확인한다. `overview`는 합성 문의·리뷰 데이터도 표시한다.

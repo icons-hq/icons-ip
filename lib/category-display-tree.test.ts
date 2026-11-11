@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { categoryDisplayParentChoices, parseCategoryDisplayDirectory, parseCategoryDisplayTreeChange } from './category-display';
 const id = (n: number) => `94931000-0000-4000-8000-${String(n).padStart(12, '0')}`;
-const node = (n: number, parent: number | null, depth: number, archivedAt: string | null = null) => ({ id: id(n), name: `전시 ${n}`, parentId: parent === null ? null : id(parent), depth, sortOrder: n, publicEnabled: archivedAt === null, archivedAt, legacyCategoryId: null });
+const node = (n: number, parent: number | null, depth: number, archivedAt: string | null = null) => ({ id: id(n), name: `전시 ${n}`, parentId: parent === null ? null : id(parent), depth, sortOrder: n, publicEnabled: archivedAt === null, archivedAt, legacyCategoryId: null, imagePath: null as string | null });
 const source = { id: id(99), name: '실제 상품분류', parentId: null, depth: 1, sortOrder: 0, publicEnabled: true };
 const directory = { categories: [node(1, null, 1), node(2, 1, 2), node(3, 2, 3), node(4, 3, 4), node(5, null, 1, '2026-10-14T00:00:00Z'), node(6, 5, 2)], sourceCategories: [source], revision: 9, checkedAt: '2026-10-14T00:00:00Z' };
 describe('독립 전시분류 계약', () => {
@@ -23,5 +23,17 @@ describe('독립 전시분류 계약', () => {
     for (const invalid of [{ ...change, name: '가'.repeat(21) }, { ...change, name: ' 앞뒤 공백 ' }, { ...change, name: '금지\n줄바꿈' }, { ...change, parentId: id(10) }, { ...change, position: 1.5 }, { ...change, extra: true }]) expect(parseCategoryDisplayTreeChange(invalid)).toBeNull();
     expect(parseCategoryDisplayTreeChange({ action: 'archive', id: id(1) })).toEqual({ action: 'archive', id: id(1) });
     expect(parseCategoryDisplayTreeChange({ action: 'restore', id: id(1), name: '불필요' })).toBeNull();
+  });
+});
+
+describe('전시분류 아이콘 이미지 (L5)', () => {
+  const icon = 'public-media/catalog/curation/94931000-0000-4000-8000-000000000301.png';
+  it('검증된 curation 업로드 경로만 받고, 배포 사이의 응답처럼 키가 없으면 빈 아이콘으로 읽는다', () => {
+    expect(parseCategoryDisplayDirectory({ ...directory, categories: [{ ...node(1, null, 1), imagePath: icon }] })?.categories[0].imagePath).toBe(icon);
+    const { imagePath: _omitted, ...legacy } = node(1, null, 1);
+    void _omitted;
+    expect(parseCategoryDisplayDirectory({ ...directory, categories: [legacy] })?.categories[0].imagePath).toBeNull();
+    expect(parseCategoryDisplayDirectory({ ...directory, categories: [{ ...node(1, null, 1), imagePath: 'https://external.example/icon.png' }] })).toBeNull();
+    expect(parseCategoryDisplayDirectory({ ...directory, categories: [{ ...node(1, null, 1), imagePath: 7 }] })).toBeNull();
   });
 });

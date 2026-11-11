@@ -4,6 +4,7 @@ import { loadGoodsRelations } from './goods-relations.server';
 import { GOODS_RELATION_KINDS, type GoodsRelation, type GoodsRelationFilters } from './goods-relations';
 import { GOODS_RELATIONS_EXPORT_LIMIT, goodsRelationKindLabel, goodsRelationStateLabel, type GoodsRelationsExport } from './goods-relations-export';
 import { kstDateTimeText } from './list-export';
+import { addSafeWorkbookInfoSheet, addWorkbookTable, tableColumn as column } from './workbook-table';
 
 export class GoodsRelationsExportError extends Error {
   constructor(readonly code: 'limit' | 'changed') {
@@ -41,27 +42,19 @@ export async function buildGoodsRelationsWorkbook(snapshot: GoodsRelationsExport
   const book = new ExcelJS.Workbook();
   const includesOtherComposition = snapshot.filters.kind === 'other_composition' || snapshot.rows.some(row => row.kind === 'other_composition');
   book.creator = 'ICONS'; book.created = new Date(snapshot.verifiedAt);
-  function sheet(name: string, headers: string[], values: (string | number)[][]) {
-    const page = book.addWorksheet(name);
-    page.columns = headers.map(header => ({ header, width: /ID|번호/.test(header) ? 38 : /제목|상품명|내용/.test(header) ? 36 : 23 }));
-    page.views = [{ state: 'frozen', ySplit: 1 }];
-    page.getRow(1).font = { name: '맑은 고딕', bold: true, size: 11 };
-    page.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEAF2EC' } };
-    for (const value of values) page.addRow(value).eachCell(cell => { cell.numFmt = typeof cell.value === 'number' ? '#,##0' : '@'; });
-    page.autoFilter = { from: { row: 1, column: 1 }, to: { row: Math.max(1, page.rowCount), column: headers.length } };
-  }
-  sheet('연관상품 편성', ['편성 ID', '노출 제목', '유형', '전시상태', '전시 사용', '대표 상품번호', '대표 상품코드', '대표 상품명', '구성 상품수', '공개 상품수', '시작 (KST)', '종료 (KST)', '등록 (KST)', '수정 (KST)', '편성 버전'], snapshot.rows.map(row => {
+  addWorkbookTable(book, '연관상품 편성', [column('편성 ID', 'code', 38), column('노출 제목', 'text', 36), column('유형', 'text', 20), column('전시상태', 'text', 12), column('전시 사용', 'text', 10), column('대표 상품번호', 'code', 24), column('대표 상품코드', 'code', 20), column('대표 상품명', 'text', 36), column('구성 상품수', 'count'), column('공개 상품수', 'count'), column('시작일시', 'date'), column('종료일시', 'date'), column('등록일시', 'date'), column('수정일시', 'date'), column('편성 버전', 'count')], snapshot.rows.map(row => {
     const representative = row.goods.find(good => good.id === row.representativeGoodId)!;
     return [row.id, row.title, goodsRelationKindLabel(row), goodsRelationStateLabel(row.state), row.enabled ? '사용' : '중지', representative.id, representative.code, representative.name, row.goods.length, row.goods.filter(good => good.public).length,
       kstDateTimeText(row.startsAt) || '제한 없음', kstDateTimeText(row.endsAt) || '제한 없음', kstDateTimeText(row.createdAt), kstDateTimeText(row.updatedAt), row.revision];
   }));
-  sheet('구성 상품', ['편성 ID', '노출 제목', '구성 순서', '대표 여부', '상품번호', '상품코드', '상품명', '현재 공개 가능', ...(includesOtherComposition ? ['구성 표시값'] : [])], snapshot.rows.flatMap(row => row.goods.map((good, index) => [row.id, row.title, index + 1, good.id === row.representativeGoodId ? '대표' : '', good.id, good.code, good.name, good.public ? '가능' : '불가', ...(includesOtherComposition ? [row.kind === 'other_composition' ? good.compositionLabel ?? '' : ''] : [])])));
-  sheet('조회 정보', ['항목', '내용'], [
+  addWorkbookTable(book, '구성 상품', [column('편성 ID', 'code', 38), column('노출 제목', 'text', 36), column('구성 순서', 'count'), column('대표 여부', 'text', 10), column('상품번호', 'code', 24), column('상품코드', 'code', 20), column('상품명', 'text', 36), column('현재 공개 가능', 'text', 16), ...(includesOtherComposition ? [column('구성 표시값', 'text', 23)] : [])], snapshot.rows.flatMap(row => row.goods.map((good, index) => [row.id, row.title, index + 1, good.id === row.representativeGoodId ? '대표' : '', good.id, good.code, good.name, good.public ? '가능' : '불가', ...(includesOtherComposition ? [row.kind === 'other_composition' ? good.compositionLabel ?? '' : ''] : [])])));
+  addSafeWorkbookInfoSheet(book, [
+    ['화면', '연관상품 관리'],
     ['조회 범위', '현재 검색 조건의 전체 페이지'], ['검색어', snapshot.filters.query || '전체'],
     ['유형', snapshot.filters.kind === 'all' ? '전체' : GOODS_RELATION_KINDS.find(item => item.value === snapshot.filters.kind)!.label],
     ['전시상태', goodsRelationStateLabel(snapshot.filters.state)], ['정렬', '수정일 최신순, 같은 시각은 편성 ID 오름차순'],
-    ['전체 편성 수', snapshot.rows.length], ['전체 구성 상품 행 수', snapshot.rows.reduce((sum, row) => sum + row.goods.length, 0)],
-    ['조회 시작 (KST)', kstDateTimeText(snapshot.startedAt)], ['재조회 완료 (KST)', kstDateTimeText(snapshot.verifiedAt)],
+    ['건수', `편성 ${snapshot.rows.length.toLocaleString('ko-KR')}개 · 구성 상품 ${snapshot.rows.reduce((sum, row) => sum + row.goods.length, 0).toLocaleString('ko-KR')}행`],
+    ['조회 시작 (KST)', kstDateTimeText(snapshot.startedAt)], ['내려받은 시각 (KST)', kstDateTimeText(snapshot.verifiedAt)],
     ['파일 한도', `${GOODS_RELATIONS_EXPORT_LIMIT.toLocaleString('ko-KR')}개 편성`],
     ['조회 방식', '전체 페이지를 두 번 읽어 순서·값·개수의 일치를 검사합니다. 저장된 시점 기록이나 단일 DB 스냅샷은 아닙니다.'],
     ['공개 기준', includesOtherComposition ? '다른 구성은 표시 설정이 켜져 있고 현재 상품 외에 공개 가능한 구성이 있어야 표시됩니다. 대표 상품의 공개 여부는 다른 구성의 노출을 제한하지 않습니다. 기존 유형은 대표 포함 공개 상품 2개 이상이어야 하며, 조회 뒤 상태와 기간은 달라질 수 있습니다.' : '전시중이어도 대표 상품을 포함해 현재 공개 가능한 상품이 2개 이상이어야 표시됩니다. 조회 뒤 상태와 기간은 달라질 수 있습니다.'],

@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { ShippingNoticeTemplatesScreen } from './ShippingNoticeTemplatesScreen';
+import { ShippingNoticeTemplateForm } from './ShippingNoticeTemplateForm';
 
 vi.mock('@/app/admin/shipping-notice-template-actions', () => ({
   saveShippingNoticeTemplateAction: vi.fn(),
@@ -26,8 +27,16 @@ describe('배송정보 템플릿 관리 화면', () => {
     expect(html).toContain('고객 공개 미리보기');
     expect(html).toContain('활성화');
     expect(html).toContain('상품 찾기');
-    expect(html).toContain('value="1"');
     expect(html).toContain('/admin/settings/shipping-notices');
+    /* kit 버튼의 기본 type은 button이다 — 초안 저장·활성화는 제출 버튼이어야 한다. */
+    const submit = (label: string) => new RegExp(`<button[^>]*type="submit"[^>]*>(?:(?!</button>)[\\s\\S])*${label}</button>`);
+    expect(html).toMatch(submit('초안 수정 저장'));
+    expect(html).toMatch(submit('활성화'));
+    /* 새 초안 등록은 화면 머리 오른쪽 버튼이 여는 팝업이다(템플릿 화면군 공통 위치). 팝업의 폼은 기본 버전 1로 시작한다. */
+    expect(html).toMatch(/<button[^>]*type="button"[^>]*>(?:<svg[\s\S]*?<\/svg>)?새 배송 안내 템플릿 등록<\/button>/);
+    const create = renderToStaticMarkup(<ShippingNoticeTemplateForm />);
+    expect(create).toContain('value="1"');
+    expect(create).toMatch(submit('새 초안 저장'));
   });
 
   it('활성 템플릿은 적용 대상에 적용 버튼을 노출한다', () => {
@@ -39,6 +48,7 @@ describe('배송정보 템플릿 관리 화면', () => {
       }], impactGoods: [{ id: 'good-1', name: '아크릴', templateId: null, templateVersion: null, publishedAt: '2026-09-10T00:00:00Z', updatedAt: '2026-09-10T01:00:00Z' }],
     }} />);
     expect(html).toContain('이 템플릿 적용');
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>이 템플릿 적용<\/button>/);
     expect(html).toContain('동시에 수정된 상품에는 적용하지 않습니다.');
   });
 });

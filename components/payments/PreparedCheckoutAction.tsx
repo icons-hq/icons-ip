@@ -1,5 +1,6 @@
 import type { PreparedCheckout } from '@/lib/payments/gateway';
 import { KorpayClientCheckout } from './KorpayClientCheckout';
+import { NicepayClientCheckout } from './NicepayClientCheckout';
 import { TossWidgetCheckout } from './TossWidgetCheckout';
 
 interface PreparedCheckoutActionProps {
@@ -45,6 +46,9 @@ export function PreparedCheckoutAction({ prepared }: PreparedCheckoutActionProps
     // provider가 준 값으로 어떤 SDK를 띄울지 고르지 않는다.
     if (prepared.provider === 'toss') {
       return <TossWidgetCheckout payload={prepared.action.payload} />;
+    }
+    if (prepared.provider === 'nicepay') {
+      return <NicepayClientCheckout payload={prepared.action.payload} />;
     }
     if (prepared.provider === 'korpay') {
       return <KorpayClientCheckout payload={prepared.action.payload} />;

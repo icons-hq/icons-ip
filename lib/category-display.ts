@@ -2,7 +2,8 @@ import { isUuid } from './uuid';
 import { isSafeInternalLink } from './home-catalog';
 import { normalizeHeroNewlines, type HomeHeroImageDim, type HomeHeroTextColor } from './home-hero';
 import { GOOD_TYPES, isGoodType } from './goods-taxonomy';
-import { SHOP_DEFAULT_SORT, SHOP_SORTS, type ShopListQuery } from './shop-catalog';
+import { SHOP_DEFAULT_SORT, SHOP_PREORDER_TYPE, SHOP_SORTS, type ShopListQuery } from './shop-catalog';
+import type { GoodsReviewSummary } from './goods-review-summary';
 import type { Good } from './data';
 import type { HomeHeroSlide } from './home-catalog';
 import type { GoodsMediaAsset } from './goods-media';
@@ -36,7 +37,11 @@ export interface CategoryDisplayValues {
   recommendations: { enabled: boolean; title: string; itemCount: number; goodIds: string[] };
 }
 export interface CategoryDisplayCategory { id: string; name: string; parentId: string | null; depth: number; sortOrder: number; publicEnabled: boolean }
-export interface CategoryDisplayNode extends CategoryDisplayCategory { archivedAt: string | null; legacyCategoryId: string | null }
+export interface CategoryDisplayNode extends CategoryDisplayCategory {
+  archivedAt: string | null; legacyCategoryId: string | null;
+  /** 모바일 카테고리 시트 아이콘(기존 curation 업로드 경로). 없으면 이름 첫 글자로 보인다(L5). */
+  imagePath: string | null;
+}
 export interface CategoryDisplaySnapshot { category: CategoryDisplayCategory; revision: number; values: CategoryDisplayValues; checkedAt: string }
 export interface CategoryDisplayDirectory { categories: CategoryDisplayNode[]; sourceCategories: CategoryDisplayCategory[]; revision: number; checkedAt: string }
 export type CategoryDisplayTreeChange = { action: 'create' | 'update'; id: string; name: string; parentId: string | null; position: number }
@@ -47,7 +52,11 @@ export interface CategoryDisplayPage {
   query: ShopListQuery; result: ShopListResult; navigation: CategoryDisplayNavigation[];
   banner: HomeHeroSlide | null; video: { asset: GoodsMediaAsset; poster: string | null } | null; recommendations: HomeProductCollectionBand | null;
 }
-export interface CategoryDisplayPageBatch { goods: Good[]; nextOffset: number | null; token: string; checkedAt: string }
+export interface CategoryDisplayPageBatch {
+  goods: Good[]; nextOffset: number | null; token: string; checkedAt: string;
+  /** 이 묶음 굿즈의 목록 카드 별점(CL-02). 리뷰 0건 굿즈는 키가 없다. */
+  reviewSummaries?: Record<string, GoodsReviewSummary>;
+}
 
 export function defaultCategoryDisplayValues(categoryId: string): CategoryDisplayValues {
   return { enabled: false, mode: 'categories', categoryIds: [categoryId], goodIds: [],
@@ -93,9 +102,11 @@ export function parseCategoryDisplayDirectory(value: unknown): CategoryDisplayDi
   const categories: CategoryDisplayNode[] = [];
   for (const item of value.categories) {
     const category = parseCategoryDisplayCategory(item);
+    /* imagePath 는 L5 migration 이후 어드민 목록에 실린다 — 배포 순서 사이(앱 먼저)의 응답에는 없을 수 있어 빈 값으로 읽는다. */
+    const nodeImage = item && categoryDisplayRecord(item) && item.imagePath !== undefined ? item.imagePath : null;
     if (!category || !categoryDisplayRecord(item) || item.archivedAt !== null && (typeof item.archivedAt !== 'string' || !Number.isFinite(Date.parse(item.archivedAt)))
-      || item.legacyCategoryId !== null && !isUuid(item.legacyCategoryId)) return null;
-    categories.push({ ...category, archivedAt: item.archivedAt as string | null, legacyCategoryId: item.legacyCategoryId as string | null });
+      || item.legacyCategoryId !== null && !isUuid(item.legacyCategoryId) || !imagePath(nodeImage)) return null;
+    categories.push({ ...category, archivedAt: item.archivedAt as string | null, legacyCategoryId: item.legacyCategoryId as string | null, imagePath: nodeImage });
   }
   const sourceCategories = value.sourceCategories.map(parseCategoryDisplayCategory);
   const byId = new Map(categories.map(category => [category.id, category]));
@@ -137,10 +148,26 @@ export function parseCategoryDisplayRequest(params: Record<string, string | stri
   const ips = [...new Set(array(params.ip))], types = [...new Set(array(params.type))];
   const price = (v: string | string[] | undefined) => v === undefined ? null : typeof v === 'string' && /^\d+$/.test(v) && Number.isSafeInteger(Number(v)) && Number(v) <= 100_000_000 ? Number(v) : NaN;
   const min = price(params.min), max = price(params.max);
-  if (ips.length > 100 || ips.some(id => !GOOD_ID.test(id)) || types.length > GOOD_TYPES.length || types.some(type => !isGoodType(type))
+  /* 타입 축은 굿즈 분류 + '예약판매'(옵션 공급 방식 파생 값, 컬렉션과 같은 축 — DB get_category_display_page 화이트리스트와 같다). */
+  if (ips.length > 100 || ips.some(id => !GOOD_ID.test(id)) || types.length > GOOD_TYPES.length + 1 || types.some(type => !isGoodType(type) && type !== SHOP_PREORDER_TYPE)
     || Number.isNaN(min) || Number.isNaN(max) || min !== null && max !== null && min > max
     || params.sort !== undefined && (typeof params.sort !== 'string' || !SHOP_SORTS.includes(params.sort as ShopListQuery['sort']))) return null;
   return { categoryId: params.displayCategory, query: { displayCategory: params.displayCategory, view: 'all', ips, types, priceMin: min, priceMax: max, sort: (params.sort as ShopListQuery['sort'] | undefined) ?? SHOP_DEFAULT_SORT.all } };
+}
+
+/** 다음 20개 응답의 카드 별점. 요청한 묶음의 굿즈 몫만 받고 형식이 틀린 값은 버린다 — 별점은 장식이라
+ *  목록을 실패시키지 않지만 틀린 숫자를 그리지도 않는다(lib/goods-review-summary.ts 와 같은 규칙). */
+export function categoryDisplayReviewSummaries(value: unknown, goodIds: readonly string[]): Record<string, GoodsReviewSummary> {
+  const output: Record<string, GoodsReviewSummary> = {};
+  if (!categoryDisplayRecord(value)) return output;
+  const allowed = new Set(goodIds);
+  for (const [id, summary] of Object.entries(value)) {
+    if (!allowed.has(id) || !categoryDisplayRecord(summary)) continue;
+    const { count, average } = summary;
+    if (!Number.isSafeInteger(count) || Number(count) < 1 || typeof average !== 'number' || !Number.isFinite(average) || average < 1 || average > 5) continue;
+    output[id] = { count: Number(count), average };
+  }
+  return output;
 }
 
 export function categoryDisplayQueryKey(categoryId: string, query: ShopListQuery): string {

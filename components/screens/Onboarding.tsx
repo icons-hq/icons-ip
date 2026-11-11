@@ -1,15 +1,29 @@
 'use client';
 
-import { startTransition, useActionState, type FormEvent } from 'react';
+import { startTransition, useActionState, useState, type FormEvent } from 'react';
 import { completeOnboardingAction, type OnboardingActionState } from '@/app/onboarding/actions';
 import { WcButton } from '@/components/wc/WcButton';
+import { DEMOGRAPHIC_GENDER_LABELS, DEMOGRAPHIC_GENDERS, DEMOGRAPHIC_NOTICE } from '@/lib/customer-demographics';
 import { LEGAL_DOCUMENT_LABELS, legalDocumentHref, type LegalDocumentSlug } from '@/lib/legal/links';
+import {
+  MARKETING_CHANNEL_FIELDS,
+  MARKETING_CHANNEL_LABELS,
+  MARKETING_CHANNELS,
+  MARKETING_CONSENT_NOTICE,
+  type MarketingChannelChoices,
+} from '@/lib/marketing-consent';
 
 interface OnboardingProps {
   birthDate: string;
   email: string;
   followedIpIds: string[];
-  initialMarketing: boolean;
+  /** 채널별 마케팅 정보 수신 동의의 현재 선택(10/14 회의 S4). */
+  initialMarketing: MarketingChannelChoices;
+  /**
+   * 선택 성별을 받을 수 있는 계정인지. 성별 동의는 일반 회원(role=user)만 저장되므로(설정 화면과 같은 기준)
+   * 운영자 초대 가입처럼 저장되지 않는 계정에는 묻지 않는다.
+   */
+  genderEligible: boolean;
   isConfigured: boolean;
   next: string;
   nickname: string;
@@ -115,6 +129,7 @@ export function Onboarding({
   birthDate,
   email,
   followedIpIds,
+  genderEligible,
   initialMarketing,
   isConfigured,
   next,
@@ -122,6 +137,9 @@ export function Onboarding({
   recommendedIps,
 }: OnboardingProps) {
   const [state, action, pending] = useActionState(completeOnboardingAction, emptyState);
+  /* 관심 IP는 선택 단계다(10/14 회의 S2 · D5). 건너뛰면 타일과 추천 목록 입력을 함께 내려
+     서버가 팔로우를 바꾸지 않는다 — 고르지 않은 채 제출해 이미 팔로우한 IP가 풀리는 일도 없다. */
+  const [ipPicksSkipped, setIpPicksSkipped] = useState(false);
   const initiallyFollowed = new Set(followedIpIds);
   const [birthYear = '', birthMonth = '', birthDay = ''] = birthDate.split('-');
 
@@ -137,7 +155,7 @@ export function Onboarding({
     <main className="wc-root wc-auth">
       <div className="wc-auth__panel">
         <h1 className="wc-auth__title">프로필을 완성해요</h1>
-        <p className="wc-auth__lede">서비스에서 쓸 닉네임과 생년월일, 그리고 최애가 필요해요.</p>
+        <p className="wc-auth__lede">서비스에서 쓸 닉네임과 생년월일을 알려주세요. 관심 IP는 골라도 되고 건너뛰어도 돼요.</p>
 
         <form action={action} className="wc-auth__form" data-onboarding-form onSubmit={handleSubmit}>
           <input type="hidden" name="next" value={next} />
@@ -219,28 +237,85 @@ export function Onboarding({
               <TermRow errorId="privacy-error" hasError={Boolean(state.errors?.privacy)} label="개인정보 처리방침 동의" name="privacy" required slug="privacy" />
               <ErrorText id="privacy-error">{state.errors?.privacy}</ErrorText>
             </li>
-            <li>
-              <TermRow defaultChecked={initialMarketing} label="마케팅 정보 수신 동의" name="marketing" required={false} />
-            </li>
+            {/* 마케팅 정보 수신 동의는 수단별 선택이다(LFS와 같은 이메일·SMS 두 줄, 10/14 회의 S4). */}
+            {MARKETING_CHANNELS.map((channel) => (
+              <li key={channel}>
+                <TermRow
+                  defaultChecked={initialMarketing[channel]}
+                  label={`${MARKETING_CONSENT_NOTICE.title} (${MARKETING_CHANNEL_LABELS[channel]})`}
+                  name={MARKETING_CHANNEL_FIELDS[channel]}
+                  required={false}
+                />
+              </li>
+            ))}
           </ul>
+          <p className="onboarding-consent-note">
+            {MARKETING_CONSENT_NOTICE.summary} {MARKETING_CONSENT_NOTICE.inApp} {MARKETING_CONSENT_NOTICE.sms} {MARKETING_CONSENT_NOTICE.change}
+          </p>
+
+          {/* 선택 성별(10/14 회의 S5). 기본은 미선택이고, 고른 경우에만 별도 수집·이용 동의를 받는다.
+              저장은 온보딩 완료 직후 같은 액션에서 기존 선택 동의 경로로 한다. */}
+          {genderEligible ? (
+            <fieldset
+              aria-describedby={state.errors?.gender ? 'gender-hint gender-error' : 'gender-hint'}
+              className="onboarding-birth-fieldset onboarding-gender-fieldset"
+            >
+              <legend>성별 <em className="wc-auth__opt">선택</em></legend>
+              <span className="onboarding-birth-hint" id="gender-hint">{DEMOGRAPHIC_NOTICE.purpose}</span>
+              <select aria-invalid={Boolean(state.errors?.gender)} aria-label="통계용 성별" defaultValue="" name="gender">
+                <option value="">선택 안 함</option>
+                {DEMOGRAPHIC_GENDERS.map((gender) => (
+                  <option key={gender} value={gender}>{DEMOGRAPHIC_GENDER_LABELS[gender]}</option>
+                ))}
+              </select>
+              <label className="onboarding-gender-consent">
+                <input name="genderConsent" type="checkbox" />
+                <span>위 안내에 따라 성별 정보를 수집·이용하는 데 동의합니다. <em className="wc-auth__opt">선택</em></span>
+              </label>
+              <details className="onboarding-gender-notice">
+                <summary>수집 항목·보관·철회 안내</summary>
+                <p>{DEMOGRAPHIC_NOTICE.collected}</p>
+                <p>{DEMOGRAPHIC_NOTICE.retention}</p>
+                <p>{DEMOGRAPHIC_NOTICE.choice}</p>
+              </details>
+              <ErrorText id="gender-error">{state.errors?.gender}</ErrorText>
+            </fieldset>
+          ) : null}
 
           {recommendedIps.length > 0 && (
-            <div className="wc-auth__picks">
+            <div className="wc-auth__picks" data-onboarding-ip-picks={ipPicksSkipped ? 'skipped' : 'open'}>
               <div className="wc-auth__picks-head">
-                <span className="wc-auth__picks-title">최애를 골라보세요</span>
-                <span className="wc-auth__picks-sub">팔로우한 IP 기준으로 홈과 알림이 맞춰져요</span>
+                <span className="wc-auth__picks-title" id="onboarding-ip-picks-title">
+                  관심 IP 고르기 <em className="wc-auth__opt">선택</em>
+                </span>
+                {ipPicksSkipped ? (
+                  <button autoFocus className="wc-auth__picks-skip" type="button" onClick={() => setIpPicksSkipped(false)}>
+                    다시 고르기
+                  </button>
+                ) : (
+                  <button className="wc-auth__picks-skip" type="button" onClick={() => setIpPicksSkipped(true)}>
+                    건너뛰기
+                  </button>
+                )}
               </div>
-              <div className="wc-auth__choice-grid">
-                {recommendedIps.map((ip) => (
-                  <IpPickTile
-                    key={ip.id}
-                    bg={ip.bg}
-                    defaultChecked={initiallyFollowed.has(ip.id)}
-                    id={ip.id}
-                    title={ip.title}
-                  />
-                ))}
-              </div>
+              {ipPicksSkipped ? (
+                <p className="wc-auth__picks-sub" role="status">관심 IP 고르기를 건너뛰었어요. 나중에 IP 페이지에서 팔로우할 수 있어요.</p>
+              ) : (
+                <>
+                  <p className="wc-auth__picks-sub">팔로우한 IP 기준으로 홈과 알림이 맞춰져요. 고르지 않아도 시작할 수 있어요.</p>
+                  <div aria-labelledby="onboarding-ip-picks-title" className="wc-auth__choice-grid" role="group">
+                    {recommendedIps.map((ip) => (
+                      <IpPickTile
+                        key={ip.id}
+                        bg={ip.bg}
+                        defaultChecked={initiallyFollowed.has(ip.id)}
+                        id={ip.id}
+                        title={ip.title}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           )}
 

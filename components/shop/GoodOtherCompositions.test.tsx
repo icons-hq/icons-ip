@@ -36,6 +36,21 @@ describe('다른 구성 공개 표시', () => {
     expect(html).not.toContain('<script>');
   });
 
+  /* L4b · CL-01·CL-02 — 다른 구성 카드도 상세가 내려 준 위시 상태·별점으로 하트와 별점을 단다. */
+  it('카드 action 슬롯에 목록 하트를, 별점은 리뷰가 있는 굿즈에만 넘긴다', () => {
+    renderToStaticMarkup(<GoodOtherCompositions data={data} reviewSummaries={{ 'good-c': { count: 2, average: 4.5 } }} wishlist={{ viewerId: 'viewer-1', goodIds: ['good-b'] }} />);
+    const [first, second] = mocks.card.mock.calls.map(([props]) => props as ProductCardProps);
+
+    expect(first.reviewSummary).toBeUndefined();
+    expect(second.reviewSummary).toEqual({ count: 2, average: 4.5 });
+    expect(first.action).toMatchObject({ props: { goodId: 'good-b', initialWished: true, label: '라벤더 세트', viewerId: 'viewer-1' } });
+    expect(second.action).toMatchObject({ props: { goodId: 'good-c', initialWished: false, viewerId: 'viewer-1' } });
+
+    mocks.card.mockClear();
+    renderToStaticMarkup(<GoodOtherCompositions data={data} />);
+    expect(mocks.card.mock.calls.every(([props]) => (props as ProductCardProps).action === undefined)).toBe(true);
+  });
+
   it('정상 0후보는 숨기고 전송 실패는 재시도 안내를 표시한다', () => {
     expect(renderToStaticMarkup(<GoodOtherCompositions data={{ groups: [], nextChangeAt: null }} />)).toBe('');
     expect(renderToStaticMarkup(<GoodOtherCompositions data={{ groups: [], nextChangeAt: null, unavailable: true }} />))

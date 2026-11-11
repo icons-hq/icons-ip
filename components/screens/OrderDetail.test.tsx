@@ -8,7 +8,14 @@ import { reasonReceipt } from '@/lib/orders/claim-reason-change.fixture';
 import { parseClaimReasonHistory } from '@/lib/orders/claim-reason-change';
 import { transactionDisplay, transactionLineId } from '@/test/fixtures/cart-transaction';
 
+/* 회수 계획은 서버 액션으로 문서를 읽는다 — 여기서는 주문 상세가 넘기는 배송 건 이름표만 본다(m27 CUST-2). */
+vi.mock('@/components/orders/ClaimCollectionPlan', () => ({
+  ClaimCollectionPlan: ({ shipmentLabels }: { shipmentLabels?: Readonly<Record<string, string>> }) =>
+    <ul aria-label="회수 계획 이름표">{Object.entries(shipmentLabels ?? {}).map(([id, label]) => <li key={id}>{`${id}=${label}`}</li>)}</ul>,
+}));
+
 vi.mock('next/navigation', () => ({
+  usePathname: () => '/orders/11111111-1111-4111-8111-111111111111',
   useRouter: () => ({ refresh: () => undefined }),
 }));
 
@@ -46,6 +53,18 @@ function order(overrides: Partial<OrderDetailData> = {}): OrderDetailData {
 }
 
 describe('OrderDetail', () => {
+  /* MY-01(10/14 S16): 주문 상세도 데스크톱 좌 메뉴 셸 안에 선다 — 영수증 지면은 셸 안 콘텐츠로 유지한다. */
+  it('sits inside the mypage shell with orders as the current menu, keeping the receipt surface', () => {
+    const html = renderToStaticMarkup(<OrderDetail order={order()} />);
+    const aside = html.slice(html.indexOf('aria-label="마이페이지 메뉴"'), html.indexOf('wc-mypage__content'));
+
+    expect(html).toContain('<main class="wc-root wc-mypage">');
+    expect(aside).toMatch(/aria-current="page" href="\/orders"|href="\/orders"[^>]*aria-current="page"/);
+    expect(html).toContain('class="wc-receipt order-detail-page"');
+    expect(html.indexOf('wc-mypage__content')).toBeLessThan(html.indexOf('wc-receipt order-detail-page'));
+    expect(html.match(/<h1/g)).toHaveLength(1);
+  });
+
   it('keeps the original purchase and actual exchange product in separate labeled sections', () => {
     const html = renderToStaticMarkup(<OrderDetail order={order({ reshipmentHistory: [orderReshipmentReceipt] })} />);
     expect(html).toContain('주문한 굿즈'); expect(html).toContain('홍실 아크릴 블록');
@@ -238,7 +257,7 @@ describe('OrderDetail', () => {
       />,
     );
 
-    expect(html).toContain('단순 변심 청약철회 기한이 지났습니다');
+    expect(html).toContain('단순 변심 반품·교환 기한이 지났습니다');
     expect(html).toContain('공급받은 날부터 3개월');
     expect(html).not.toContain('일 남음');
   });
@@ -278,15 +297,51 @@ describe('OrderDetail 무통장 입금 대기', () => {
   });
 });
 
+ it('회수 계획은 배송 건 머리와 같은 택배사 이름표를 받는다(m27 CUST-2)', () => {
+  const gimpo = shipmentFixture({ status: 'delivered', deliveredAt: '2026-09-08T00:00:00Z' });
+  const namyangju = shipmentFixture({ id: '00000000-0000-4000-8000-000000044702', originName: '남양주', status: 'delivered', deliveredAt: '2026-09-09T00:00:00Z',
+    carrier: 'epost', carrierLabel: '우체국택배', trackingNumber: '9876543210', trackingUrl: 'https://carrier.example.test/9876543210' });
+  const claim = { id: '22222222-2222-4222-8222-222222222222', status: 'requested' as const, claimType: 'return' as const, stage: 'requested' as const, reference: 3,
+    requestedAt: '2026-09-10T00:00:00.000Z', decidedAt: null, decisionNote: null, reshipCarrier: null, reshipTrackingNumber: null };
+  const html = renderToStaticMarkup(<OrderDetail viewerId="33333333-3333-4333-8333-333333333333"
+    order={order({ status: 'delivered', shipments: [gimpo, namyangju], cancellationRequest: claim })} />);
+  expect(html).toContain('한진택배 배송 · 배송 완료');
+  expect(html).toContain('우체국택배 배송 · 배송 완료');
+  expect(html).toContain(`<li>${gimpo.id}=한진택배 배송</li>`);
+  expect(html).toContain(`<li>${namyangju.id}=우체국택배 배송</li>`);
+  expect(html).not.toContain('배송 묶음');
+ });
+
+ it('회수 계획 이름표는 배송 건 머리와 같은 규칙이다 — 같은 택배사 번호·택배 아닌 수령·택배사 모름', () => {
+  const pickup = { method: 'pickup' as const, policy: null, providerName: null, canIssueReceipt: false };
+  const shipments = [
+    shipmentFixture({ id: '00000000-0000-4000-8000-000000044711' }),
+    shipmentFixture({ id: '00000000-0000-4000-8000-000000044712', delivery: pickup }),
+    shipmentFixture({ id: '00000000-0000-4000-8000-000000044713' }),
+    shipmentFixture({ id: '00000000-0000-4000-8000-000000044714', carrier: null, carrierLabel: null, status: 'ready', trackingNumber: null, trackingUrl: null, shippedAt: null }),
+  ];
+  const claim = { id: '22222222-2222-4222-8222-222222222222', status: 'requested' as const, claimType: 'exchange' as const, stage: 'requested' as const, reference: 4,
+    requestedAt: '2026-09-10T00:00:00.000Z', decidedAt: null, decisionNote: null, reshipCarrier: null, reshipTrackingNumber: null };
+  const html = renderToStaticMarkup(<OrderDetail viewerId="33333333-3333-4333-8333-333333333333"
+    order={order({ status: 'delivered', shipments, cancellationRequest: claim })} />);
+  const headings = [...html.matchAll(/<section class="order-receipt-section wc-shipment-details"><h3>(.+?) · /g)].map(match => match[1]);
+  const labels = [...html.matchAll(/<li>([0-9a-f-]{36})=(.+?)<\/li>/g)].map(match => match[2]);
+  expect(headings).toEqual(['한진택배 배송 1', '배송 묶음 2', '한진택배 배송 2', '배송 묶음 4']);
+  expect(labels).toEqual(headings);
+ });
+
  it('두 출고지 배송을 각각 추적하고 각 배송 완료시각을 분리한다', () => {
   const shipments = [shipmentFixture({status:'delivered',deliveredAt:'2026-09-08T00:00:00Z'}),shipmentFixture({id:'00000000-0000-4000-8000-000000044702',originName:'남양주',trackingNumber:'9876543210',trackingUrl:'https://carrier.example.test/9876543210'})];
   const html = renderToStaticMarkup(<OrderDetail order={order({shipments})} />);
-  expect(html).toContain('김포 · 배송 완료');
-  expect(html).toContain('남양주 · 배송 중');
+  /* 고객 화면은 출고지 이름 대신 배송 건의 택배사로 부르고, 같은 택배사면 번호를 붙인다(10/14 회의 S7 · R26). */
+  expect(html).toContain('한진택배 배송 1 · 배송 완료');
+  expect(html).toContain('한진택배 배송 2 · 배송 중');
   expect(html).toContain('123456789012');
   expect(html).toContain('9876543210');
-  expect(html).toContain('김포 배송조회');
-  expect(html).toContain('남양주 배송조회');
+  expect(html).toContain('한진택배 배송 1 배송조회');
+  expect(html).toContain('한진택배 배송 2 배송조회');
+  expect(html).not.toContain('김포');
+  expect(html).not.toContain('남양주');
  });
 
 /* 2026-10-12 브라우저 QA QA-8: 결제 취소가 도는 결제완료 주문의 상단 카드는 "배송 준비를
@@ -329,3 +384,38 @@ describe('진행 중인 취소의 상단 상태 카드', () => {
     expect(done).toContain('취소된 주문이에요');
   });
 });
+
+/* 10/14 회의 S20·S21 */
+describe('OrderDetail claim badge and line totals', () => {
+  it('shows the same claim badge as the order list in the header', () => {
+    const html = renderToStaticMarkup(<OrderDetail order={order({ status: 'paid', cancellationRequest: {
+      id: '22222222-2222-4222-8222-222222222222', status: 'requested', claimType: 'cancel', stage: 'requested', reference: 1,
+      requestedAt: '2026-08-01T07:00:00.000Z', decidedAt: null, decisionNote: null, reshipCarrier: null, reshipTrackingNumber: null,
+    } })} />);
+    expect(html).toMatch(/<div class="order-detail-status-row"><span class="order-status order-status--paid">결제완료<\/span><span class="order-list-badge order-claim-badge">취소 요청<\/span><\/div>/);
+  });
+
+  it('omits the line total when the quantity is one and keeps it for larger quantities', () => {
+    const single = renderToStaticMarkup(<OrderDetail order={order()} />);
+    expect(single).not.toContain('<strong class="mono">₩27,000</strong>');
+    const double = renderToStaticMarkup(<OrderDetail order={order({ items: [{ id: 'item-1', variantId: '00000000-0000-4000-8000-000000000001', goodId: 'g13', name: '홍실 아크릴 블록', type: '아크릴 블록', qty: 2, unitPrice: 27000 }] })} />);
+    expect(double).toContain('<strong class="mono">₩54,000</strong>');
+  });
+});
+
+/* 디지털 전용 주문은 교환을 받지 않는다 — 기한 안내도 실제 절차(취소·환불 검토 요청)로 말한다. */
+describe('OrderDetail digital-only deadline wording', () => {
+  const downloads = { orderId: ORDER_ID, canCancel: false, reviewRequired: false,
+    items: [{ itemId: 'item-1', name: '디지털 파일', files: [], available: true, firstProvidedAt: '2026-08-03T06:00:00.000Z' }] };
+
+  it('names the cancel and refund review instead of return or exchange', () => {
+    const before = renderToStaticMarkup(<OrderDetail downloads={downloads} order={order({ status: 'paid' })} />);
+    expect(before).toContain('단순 변심 취소·환불 검토 요청 기한');
+    expect(before).not.toContain('반품·교환 기한');
+
+    const expired = renderToStaticMarkup(<OrderDetail downloads={downloads} now={new Date('2026-08-20T06:00:00.000Z')}
+      order={order({ status: 'done', deliveredAt: '2026-08-03T06:00:00.000Z' })} />);
+    expect(expired).toContain('단순 변심 취소·환불 검토 요청 기한이 지났습니다. 파일 하자·오제공은');
+  });
+});
+

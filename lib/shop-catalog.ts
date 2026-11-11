@@ -19,8 +19,9 @@ export type ShopSort =
   | 'newest';
 
 /** 서버 페이지네이션(카테고리 전시 RPC `get_category_display_page`)도 받는 정렬 — DB 화이트리스트와 같아야 한다.
+ *  컬렉션 목록(`SHOP_VIEW_SORTS.all`)과 같은 7종이다 — 카테고리 전시도 같은 정렬 문법을 쓴다(LFS 패리티 2차 L5, 12 LD-13).
  *  클라이언트에서 정렬하는 목록은 뷰별 목록(`SHOP_VIEW_SORTS`)을 쓴다. */
-export const SHOP_SORTS: readonly ShopSort[] = ['recommended', 'newest', 'price_asc', 'price_desc'];
+export const SHOP_SORTS: readonly ShopSort[] = ['recommended', 'name_asc', 'name_desc', 'price_asc', 'price_desc', 'oldest', 'newest'];
 
 export const SHOP_SORT_LABELS: Record<ShopSort, string> = {
   recommended: '추천순',

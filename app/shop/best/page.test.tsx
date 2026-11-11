@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { CatalogSnapshot, HomeSnapshot } from '@/lib/catalog';
+import type { CollectionBanner } from '@/lib/collection-banners';
 import type { Good } from '@/lib/data';
 import type { HomeBestTab, HomeGoodsCard } from '@/lib/home-catalog';
 import Page, { metadata } from './page';
@@ -8,6 +9,14 @@ import Page, { metadata } from './page';
 const mocks = vi.hoisted(() => ({
   categoryBestTabs: [] as HomeBestTab[],
   popularTabs: [] as HomeBestTab[],
+  banners: [] as CollectionBanner[],
+  bannerSlots: [] as string[],
+}));
+vi.mock('@/lib/collection-banners.server', () => ({
+  getCollectionBanners: async (slot: string) => {
+    mocks.bannerSlots.push(slot);
+    return mocks.banners.filter((banner) => banner.slot === slot);
+  },
 }));
 vi.mock('@/lib/catalog-categories.server', () => ({ loadPublicCatalogCategories: async () => [] }));
 vi.mock('@/lib/wishlist-ids.server', () => ({ loadListingWishlist: async () => ({ viewerId: null, goodIds: [] }) }));
@@ -136,4 +145,22 @@ describe('/shop/best page', () => {
     expect(html).toContain('href="/shop"');
     expect(html).not.toContain('wc-product-grid');
   });
+
+  it('BEST 배너가 있으면 텍스트 제목 대신 배너가 머리말이 된다(CL-09)', async () => {
+    mocks.categoryBestTabs = [tab('카테고리', ['a'])];
+    mocks.banners = [collectionBanner('b1', 'best'), collectionBanner('n1', 'new')];
+    mocks.bannerSlots = [];
+    const html = renderToStaticMarkup(await Page({ searchParams: Promise.resolve({}) }));
+
+    expect(mocks.bannerSlots).toEqual(['best']);
+    expect(html).toContain('wc-collection-banners--contained');
+    expect(html).toContain('배너 b1');
+    expect(html).not.toContain('배너 n1');
+    expect(html).toMatch(/<h1 class="wc-sr-only">BEST<\/h1>/);
+    mocks.banners = [];
+  });
 });
+
+function collectionBanner(id: string, slot: CollectionBanner['slot']): CollectionBanner {
+  return { id, slot, title: `배너 ${id}`, subtitle: null, imageUrl: `https://cdn.test/${id}.webp`, mobileImageUrl: null, href: null, imageAlt: '', imageDim: 'none', textColor: 'black', endsAt: null };
+}

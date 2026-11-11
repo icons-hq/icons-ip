@@ -1,4 +1,5 @@
 import { isUuid } from '@/lib/uuid';
+import { RANDOM_OPTION_PROBLEMS, goodsOptionSaleModeErrorMessage } from '@/lib/goods-option-sale-mode';
 import { transactionExactKeys, transactionInstant, transactionInteger, transactionRecord } from '@/lib/goods-transaction-values';
 
 export const GOODS_GROUPS_PATH = '/admin/catalog/groups';
@@ -166,7 +167,8 @@ export function goodsGroupError(codeValue?: string, message?: string, dispatched
     goods_group_revision_changed: '다른 관리자가 그룹상품을 변경했습니다. 최신 저장본을 불러와 비교해주세요.', goods_group_changed: '그룹상품이 변경되었습니다. 최신 저장본을 불러와주세요.',
     goods_group_common_information_differs: '연결할 상품의 공통 상품정보가 다릅니다. 공통 정보를 맞춘 뒤 다시 연결해주세요.', goods_group_single_variant_required: '각 판매옵션에는 기본 옵션 하나만 있어야 합니다.',
     goods_aggregation_member_limit: '원상품에서 분리된 상품은 보관 상품을 포함해 최대 100개입니다.', invalid_goods_group_conversion: '그룹명·옵션명·옵션값과 선택 개수를 확인해주세요.' };
-  const known = Object.entries(messages).find(([key]) => message?.includes(key))?.[1];
+  const randomOption = message && RANDOM_OPTION_PROBLEMS.some((code) => message.includes(code)) ? goodsOptionSaleModeErrorMessage(message) : undefined;
+  const known = randomOption ?? Object.entries(messages).find(([key]) => message?.includes(key))?.[1];
   const rejected = ['22023', '23514', '23503', '23505', 'P0002', 'PT404', 'PT409'].includes(codeValue ?? '');
   return { error: known ?? (rejected ? '입력값과 현재 상품 상태를 확인해주세요.' : '처리 결과를 확인하지 못했습니다. 입력을 유지하고 진행 내역을 확인해주세요.'),
     ...(!rejected && dispatched ? { uncertain: true } : {}), ...(codeValue === 'PT409' || codeValue === '23505' ? { conflict: true } : {}) };

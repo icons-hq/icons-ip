@@ -8,6 +8,12 @@ import { saveFulfillmentOriginAction } from './fulfillment-actions';
 const form=()=>{const data=new FormData();Object.entries({id:'00000000-0000-4000-8000-000000042201',updatedAt:'2026-09-01T00:00:00Z',code:'gimpo',name:'변경 창고',defaultCarrier:'hanjin',baseFee:'4200',freeThreshold:'65000',returnAddress:'창고 주소',cutoff:'17:30',exportTemplate:'wms_csv',active:'true'}).forEach(([key,value])=>data.set(key,value));return data;};
 beforeEach(()=>{vi.clearAllMocks();mocks.auth.mockResolvedValue({ operatorAccess: legacyOperatorAccessFixture(),isConfigured:true,user:{id:'admin'},role:'admin',isStaff:true});mocks.rpc.mockResolvedValue({data:{id:'origin',updatedAt:'2026-09-02'},error:null});});
 describe('origin settings action',()=>{
+  it('새 출고지를 저장하면 그 출고지 탭으로 이동한다 (R22)',async()=>{
+    const data=form();data.delete('id');data.delete('updatedAt');data.set('code','busan');
+    await expect(saveFulfillmentOriginAction({},data)).rejects.toMatchObject({digest:expect.stringContaining(';/admin/settings/origins?origin=busan;')});
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_save_fulfillment_origin',expect.objectContaining({target_id:null}));
+    expect(mocks.revalidate).toHaveBeenCalledWith('/admin/settings/origins');
+  });
   it('preserves submitted values on conflicts and blocks staff writes',async()=>{
     mocks.rpc.mockResolvedValue({data:null,error:{message:'fulfillment_origin_conflict'}});
     const failed=await saveFulfillmentOriginAction({},form());

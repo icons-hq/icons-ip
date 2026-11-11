@@ -12,6 +12,8 @@ export interface AdminOrderItemRow {
   qty: number; unitPrice: number; itemAmount: number; shipmentId: string | null; shipmentStatus: string | null;
   originName: string | null; trackingNumber: string | null; carrierLabel: string | null;
   claim: { id: string; type: OrderClaimType; stage: OrderClaimStage } | null;
+  /** 주문 쿠폰·적립금·복수구매 할인을 품목에 나눈 값(`lib/admin/item-allocation`). 나눌 수 없으면 null. */
+  allocation?: import('./item-allocation').OrderItemAllocation | null;
 }
 export interface AdminOrderItemData {
   filters: AdminOrderItemFilters; rows: AdminOrderItemRow[]; total: number; orderCount: number; qty: number;
@@ -59,4 +61,9 @@ export function selectedConfirmableOrderIds(rows: AdminOrderItemRow[], selectedI
   const selected = new Set(selectedItemIds);
   return [...new Set(rows.filter(row => selected.has(row.id) && row.status === 'paid'
     && (!row.claim || !isOpenOrderClaimStage(row.claim.stage))).map(row => row.orderId))];
+}
+
+/** 닉네임이 없는 구매자는 주문별 파일·주문 목록과 같은 `fan_` 표기로 쓴다. 조회 RPC의 `이름 미등록`은 자리표시다. */
+export function orderItemBuyerLabel(row: Pick<AdminOrderItemRow, 'buyerName' | 'userId'>): string {
+  return !row.buyerName.trim() || row.buyerName === '이름 미등록' ? `fan_${row.userId.slice(0, 6)}` : row.buyerName;
 }

@@ -1,9 +1,16 @@
 'use client';
 
-import { useEffect, useId, useRef, type ReactNode } from 'react';
+import Link from 'next/link';
+import { createContext, useCallback, useContext, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
+import { X } from 'lucide-react';
+import { Button } from '@/components/admin/kit/ui/button';
 
-/** Native dialog keeps focus and Escape inside the selected record, even from a grid cell. */
+/**
+ * Native dialog keeps focus and Escape inside the selected record, even from a grid cell.
+ * The closed dialog stays `hidden` and only `open:flex` lays it out — an author display utility beats the UA
+ * `dialog:not([open])` rule, so a bare `flex` would spread the dialog into the page before `showModal()` runs.
+ */
 export function CustomerServiceDialog({ title, children, onClose, busy = false, wide = false }: {
   title: string;
   children: ReactNode;
@@ -12,15 +19,25 @@ export function CustomerServiceDialog({ title, children, onClose, busy = false, 
   wide?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  /** 정리 단계에서 우리가 직접 닫는 중. 그 close 이벤트는 브라우저가 닫은 것이 아니라 맞출 상태가 없다. */
+  const closingRef = useRef(false);
   const titleId = useId();
   useEffect(() => {
     const dialog = ref.current;
     if (!dialog) return;
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const overflow = document.body.style.overflow;
+    closingRef.current = false;
     dialog.showModal();
+    /* React의 autoFocus는 DOM에 autofocus 속성을 남기지 않아, 모달을 여는 순간 브라우저가 첫 버튼(닫기)으로 포커스를 옮긴다.
+       화면이 `data-dialog-autofocus`로 표시한 칸이 있으면 그 칸에서 바로 입력하게 한다(엑셀 비밀번호 창 등). */
+    const preferred = dialog.querySelector<HTMLElement>('[data-dialog-autofocus]');
+    if (preferred) preferred.focus({ preventScroll: true });
+    /* 열자마자 안쪽에 포커스 줄 곳이 없으면 body에 남는다 — 키보드 사용자가 팝업 안에서 시작하게 팝업 자체로 옮긴다. */
+    else if (!dialog.contains(document.activeElement)) dialog.focus({ preventScroll: true });
     document.body.style.overflow = 'hidden';
     return () => {
+      closingRef.current = true;
       dialog.close();
       document.body.style.overflow = overflow;
       if (previousFocus?.isConnected) previousFocus.focus({ preventScroll: true });
@@ -28,24 +45,93 @@ export function CustomerServiceDialog({ title, children, onClose, busy = false, 
   }, []);
 
   return <dialog
+    tabIndex={-1}
     aria-labelledby={titleId}
-    className={`admin-cs-dialog${wide ? ' admin-cs-dialog--wide' : ''}`}
-    onCancel={(event) => { event.preventDefault(); if (!busy) onClose(); }}
+    className={`admin-cs-dialog m-auto hidden max-h-[calc(100svh-2rem)] w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-xl border-0 bg-popover p-0 text-sm text-popover-foreground shadow-lg ring-1 ring-foreground/10 outline-none backdrop:bg-black/50 open:flex print:static print:max-h-none print:w-full print:max-w-none print:shadow-none print:ring-0 forced-colors:border forced-colors:border-[CanvasText] ${wide ? 'max-w-5xl' : 'max-w-xl'}`}
+    data-wide={wide || undefined}
+    onCancel={(event) => {
+      /* React는 버블링하지 않는 native cancel도 컴포넌트 트리로 전달한다. 안쪽 dialog(답변 템플릿 등)의
+         Esc가 바깥 팝업까지 닫지 않게 자기 dialog의 cancel만 처리한다. */
+      if (event.target !== event.currentTarget) return;
+      event.preventDefault();
+      /* Chrome close watcher는 사용자 활성화 없이 다시 누른 Esc의 cancel을 취소할 수 없게 보낸다. 그때는
+         dialog가 그대로 닫히므로 뒤따르는 close에서 상태를 맞춘다(여기서도 닫으면 onClose가 두 번 불린다). */
+      if (event.cancelable === false) return;
+      if (!busy) onClose();
+    }}
+    onClose={(event) => {
+      /* 브라우저가 dialog를 직접 닫은 경우(close watcher·Android 뒤로 가기 등). 열림 상태가 React에만 남으면
+         화면에서는 사라졌는데 같은 버튼으로 다시 열 수 없다. 안쪽 dialog의 close, 다시 열린 dialog
+         (StrictMode 재마운트), 언마운트 정리로 닫힌 dialog는 맞출 상태가 없다. */
+      if (event.target !== event.currentTarget || closingRef.current) return;
+      const dialog = event.currentTarget;
+      if (dialog.open || !dialog.isConnected) return;
+      if (busy) {
+        /* 처리 중에는 닫지 않는다. 다시 열어 서버 처리 결과(실패 사유·다음 할 일)를 볼 수 있게 한다. */
+        try { dialog.showModal(); } catch { /* 문서에서 빠지는 중이면 언마운트 정리가 상태를 맞춘다. */ }
+        return;
+      }
+      onClose();
+    }}
     ref={ref}
   >
-    <header className="admin-cs-dialog__header">
-      <h2 id={titleId}>{title}</h2>
-      <button aria-label="닫기" disabled={busy} onClick={onClose} type="button">×</button>
+    <header className="flex shrink-0 items-center justify-between gap-3 border-b px-4 py-3">
+      <h2 className="text-base leading-none font-semibold text-foreground" id={titleId}>{title}</h2>
+      <Button aria-label="닫기" className="print:hidden" disabled={busy} onClick={onClose} size="icon-sm" type="button" variant="ghost"><X /></Button>
     </header>
-    <div className="admin-cs-dialog__body">{children}</div>
+    <div className="admin-cs-dialog__body min-h-0 flex-1 overflow-y-auto p-4 text-left whitespace-normal print:overflow-visible">{children}</div>
   </dialog>;
+}
+
+/*
+ * 고객문의 목록 위 팝업(R4)의 대기(busy) 신호. 팝업 안 패널(답변 발송·종결·담당자 변경·내부 메모 저장)이 서버 액션을
+ * 기다리는 동안 팝업을 닫지 못하게 알린다. 닫으면 router.replace가 Next 액션 큐의 대기 중인 액션 상태를 버리고 패널이
+ * 사라져, 서버에서 끝난 처리의 결과(다른 운영자 답변 충돌 등 실패 사유)를 보지 못하고 성공해도 보낸 답변이 복구 초안으로
+ * 남는다. 클레임 팝업(claim-preview-busy)과 같은 방식이고, 쓰는 패널이 모두 어드민 화면이라 이 어드민 모듈에 둔다.
+ */
+type InquiryPreviewBusyReport = (source: string, busy: boolean) => void;
+const InquiryPreviewBusyReporter = createContext<InquiryPreviewBusyReport | null>(null);
+const InquiryPreviewBusy = createContext(false);
+
+/** 팝업 안 패널이 서버 액션을 기다리는 동안(busy) 팝업을 닫지 못하게 알린다. 팝업 밖(독립 상세 라우트)에서는 아무 일도 하지 않는다. */
+export function useInquiryPreviewBusy(busy: boolean) {
+  const report = useContext(InquiryPreviewBusyReporter);
+  const source = useId();
+  useEffect(() => {
+    if (!report || !busy) return;
+    report(source, true);
+    return () => report(source, false);
+  }, [busy, report, source]);
 }
 
 export function InquiryPreviewDialog({ children, closeHref }: { children: ReactNode; closeHref: string }) {
   const router = useRouter();
-  return <CustomerServiceDialog title="고객문의 상세 · 답변" onClose={() => router.replace(closeHref, { scroll: false })} wide>
-    {children}
-  </CustomerServiceDialog>;
+  const [busySources, setBusySources] = useState<readonly string[]>([]);
+  const report = useCallback<InquiryPreviewBusyReport>((source, busy) => {
+    setBusySources((current) => {
+      if (current.includes(source) === busy) return current;
+      return busy ? [...current, source] : current.filter((value) => value !== source);
+    });
+  }, []);
+  const busy = busySources.length > 0;
+  return <InquiryPreviewBusyReporter.Provider value={report}>
+    <InquiryPreviewBusy.Provider value={busy}>
+      <CustomerServiceDialog busy={busy} title="고객문의 상세 · 답변" onClose={() => { if (!busy) router.replace(closeHref, { scroll: false }); }} wide>
+        {children}
+      </CustomerServiceDialog>
+    </InquiryPreviewBusy.Provider>
+  </InquiryPreviewBusyReporter.Provider>;
+}
+
+/**
+ * 팝업 안 '← 문의 목록'. ×·Esc처럼 목록 스크롤을 두고 기록을 바꿔 쓰며 닫는다. 패널이 기다리는 동안에는 누를 수 없다
+ * (이동도 대기 중인 액션 상태를 버린다).
+ */
+export function InquiryPreviewBackLink({ href }: { href: string }) {
+  const busy = useContext(InquiryPreviewBusy);
+  return busy
+    ? <span aria-disabled="true" className="text-xs text-muted-foreground">← 문의 목록</span>
+    : <Link className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" href={href} replace scroll={false}>← 문의 목록</Link>;
 }
 
 /** 목록 안에서 답변을 펼칠 때는 배경을 잠그거나 모달 포커스 트랩을 만들지 않는다. */
@@ -62,18 +148,10 @@ export function CustomerServiceInlinePanel({ title, children, onClose, busy = fa
     heading.current?.focus({ preventScroll: true });
     return () => { if (previousFocus?.isConnected) previousFocus.focus({ preventScroll: true }); };
   }, []);
-  return <section aria-labelledby={titleId} className="admin-cs-inline" onKeyDown={event => {
+  return <section aria-labelledby={titleId} className="admin-cs-inline flex flex-col gap-3 rounded-xl border bg-card p-4 text-sm text-card-foreground" onKeyDown={event => {
     if (event.key === 'Escape' && !busy) { event.preventDefault(); event.stopPropagation(); onClose(); }
   }}>
-    <header className="admin-cs-inline__header"><h3 id={titleId} ref={heading} tabIndex={-1}>{title}</h3><button type="button" className="btn btn-sm btn-ghost" disabled={busy} onClick={onClose}>답변 접기</button></header>
-    <div className="admin-cs-inline__body">{children}</div>
-  </section>;
-}
-
-export function InquiryPreviewWorkspace({ children, closeHref, selected = false }: { children?: ReactNode; closeHref: string; selected?: boolean }) {
-  const router = useRouter();
-  return <section className="admin-inquiry-preview" aria-label="고객문의 내용 · 판매자 답변">
-    <header className="admin-inquiry-preview__header"><h2>고객문의 내용 · 판매자 답변</h2>{selected ? <button type="button" className="btn btn-sm btn-ghost" onClick={() => router.replace(closeHref, { scroll: false })}>선택 닫기</button> : null}</header>
-    {selected ? children : <p className="admin-inquiry-preview__empty">목록에서 문의 제목 또는 답변처리를 선택하면 문의 내용과 답변 영역을 함께 볼 수 있습니다.</p>}
+    <header className="flex items-center justify-between gap-3"><h3 className="text-base font-semibold text-foreground outline-none" id={titleId} ref={heading} tabIndex={-1}>{title}</h3><Button disabled={busy} onClick={onClose} size="sm" type="button" variant="outline">답변 접기</Button></header>
+    <div className="admin-cs-inline__body flex flex-col gap-3">{children}</div>
   </section>;
 }
