@@ -19,7 +19,7 @@ describe('고객 구매 분석 파일 경계', () => {
     const response = await GET(new Request('https://example.test/api/admin/customer-purchase-workbook?grain=month&from=2025-08-01&to=2025-08-31&compare=off'));
     expect(mocks.guard).toHaveBeenCalledWith('/admin/stats/customers');
     expect(mocks.report).toHaveBeenCalledWith(expect.objectContaining({ from: '2025-08-01', to: '2025-08-31', compare: false }));
-    expect(response.headers.get('Content-Disposition')).toContain('icons-customer-purchase-report.xlsx');
+    expect(decodeURIComponent(response.headers.get('Content-Disposition')!)).toMatch(/icons-신규재구매분석-\d{8}-\d{4}\.xlsx/);
     expect(response.headers.get('Cache-Control')).toBe('private, no-store');
   });
   it('집계 실패를 성공 파일로 변환하지 않는다', async () => {

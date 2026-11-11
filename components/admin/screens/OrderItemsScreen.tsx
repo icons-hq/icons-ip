@@ -15,7 +15,8 @@ import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { statusTone } from '@/lib/admin/status-tone';
 import { adminClaimStageLabel } from '@/lib/admin/claims';
 import { adminListExportHref } from '@/lib/admin/list-export';
-import { adminOrderItemsHref, selectedConfirmableOrderIds, type AdminOrderItemData } from '@/lib/admin/order-items';
+import { adminOrderItemsHref, orderItemBuyerLabel, selectedConfirmableOrderIds, type AdminOrderItemData } from '@/lib/admin/order-items';
+import { shipmentStatusLabel, type ShipmentStatus } from '@/lib/orders/shipments';
 import type { OrderItemAllocation } from '@/lib/admin/item-allocation';
 import { adminOrderDetailHrefFromBack, ADMIN_ORDER_SEARCH_FIELDS, ADMIN_ORDER_STATUSES, ADMIN_ORDER_STATUS_LABELS } from '@/lib/admin/orders';
 import { SALES_DATE_FIELDS } from '@/lib/admin/sales-list';
@@ -94,8 +95,8 @@ export function OrderItemsScreen({ data, canManage }: { data: AdminOrderItemData
           <div key="variant" className={META_CLASS}>{row.variantName ?? '기본 옵션'}<small>{row.variantCode ?? ''}</small><GoodsCustomInputsSummary selection={row.customInputs} /></div>,
           row.qty, formatKrwExact(row.unitPrice), formatKrwExact(row.itemAmount),
           <OrderItemAllocationCell key="allocation" allocation={row.allocation} />, row.allocation ? formatKrwExact(row.allocation.paidGoodsTotal) : '—',
-          row.buyerName, row.recipientName ?? '—',
-          <div key="shipment" className={META_CLASS}>{row.originName ?? '출고지 미연결'}{row.shipmentStatus ? <AdminStatusBadge tone={statusTone('shipment', row.shipmentStatus)}>{({ ready: '발송대기', shipping: '배송중', delivered: '배송완료', canceled: '취소' } as Record<string, string>)[row.shipmentStatus] ?? ''}</AdminStatusBadge> : null}<small>{row.carrierLabel} {row.trackingNumber}</small></div>,
+          orderItemBuyerLabel(row), row.recipientName ?? '—',
+          <div key="shipment" className={META_CLASS}>{row.originName ?? '출고지 미연결'}{row.shipmentStatus ? <AdminStatusBadge tone={statusTone('shipment', row.shipmentStatus)}>{shipmentStatusLabel(row.shipmentStatus as ShipmentStatus) ?? ''}</AdminStatusBadge> : null}<small>{row.carrierLabel} {row.trackingNumber}</small></div>,
           row.claim ? (canManage ? <Link key="claim" className="inline-flex flex-wrap items-center gap-1 underline-offset-4 hover:underline" href={`/admin/sales/claims/${ORDER_CLAIM_TYPE_SLUGS[row.claim.type]}/${row.claim.id}`}>{ORDER_CLAIM_TYPE_LABELS[row.claim.type]} <AdminStatusBadge tone={statusTone('claim', row.claim.stage)}>{adminClaimStageLabel(row.claim.type, row.claim.stage)}</AdminStatusBadge></Link> : <span key="claim" className="inline-flex flex-wrap items-center gap-1">{ORDER_CLAIM_TYPE_LABELS[row.claim.type]} <AdminStatusBadge tone={statusTone('claim', row.claim.stage)}>{adminClaimStageLabel(row.claim.type, row.claim.stage)}</AdminStatusBadge></span>) : '—',
           <Link key="detail" className="font-medium underline-offset-4 hover:underline" href={adminOrderDetailHrefFromBack(row.orderId, currentHref)}>{canManage ? '전체 상세·처리' : '전체 상세'}</Link>,
         ] }))}>

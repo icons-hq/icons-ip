@@ -10,7 +10,9 @@ describe('settlement workbook', () => {
     report.transactions[0].amount = '9007199254740993.12345678'; report.transactions[0].method = '=1+1';
     const bytes = await buildPgSettlementWorkbook(report, filters, new Date('2026-10-13T13:00:00Z'));
     const book = new ExcelJS.Workbook(); await book.xlsx.load(bytes as never);
-    expect(book.worksheets.map(sheet => sheet.name)).toEqual(['건별 정산내역', '일별 정산내역', '수수료 내역', '조회 정보']);
+    expect(book.worksheets.map(sheet => sheet.name)).toEqual(['건별 정산내역', '일별 정산내역', '수수료 내역', '내려받기 정보']);
+    expect(book.worksheets[0].getCell('A1').value).toBe('주문번호'); expect(book.worksheets[0].getCell('M1').value).toBe('승인 시각');
+    expect(book.worksheets[0].getCell('A1').font).toMatchObject({ name: '맑은 고딕', size: 10, bold: true }); expect(book.worksheets[0].getRow(1).height).toBe(22);
     expect(book.worksheets[0].getCell('E2').value).toBe('9007199254740993.12345678');
     expect(book.worksheets[0].getCell('E2').numFmt).toBe('@');
     expect(book.worksheets[0].getCell('D2').type).toBe(ExcelJS.ValueType.String);

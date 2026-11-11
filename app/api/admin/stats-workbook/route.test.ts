@@ -24,7 +24,8 @@ describe('통계 내려받기 경계', () => {
     expect(mocks.sales).toHaveBeenNthCalledWith(1, expect.objectContaining({ from: '2026-10-01', to: '2026-10-12', ipId: 'test', bucket: 'week' }), expect.any(Date));
     expect(mocks.sales).toHaveBeenNthCalledWith(2, expect.objectContaining({ from: '2026-09-19', to: '2026-09-30', ipId: 'test' }), expect.any(Date));
     expect(response.headers.get('cache-control')).toBe('private, no-store');
-    expect(response.headers.get('content-disposition')).toContain('icons-sales-report.xlsx');
+    expect(response.headers.get('content-disposition')).toMatch(/filename="icons-sales-report-\d{8}-\d{4}\.xlsx"/);
+    expect(decodeURIComponent(response.headers.get('content-disposition')!)).toMatch(/icons-판매분석-\d{8}-\d{4}\.xlsx/);
   });
   it.each(['sales', 'claims', 'customers'] as const)('%s 전년 비교는 같은 RPC를 두 범위로 조회하고 파일 조건을 보존한다', async kind => {
     const response = await GET(new Request(`https://example.test/api/admin/stats-workbook?report=${kind}&from=2024-02-29&to=2024-02-29&ip=sample&compare=year&bucket=month`));

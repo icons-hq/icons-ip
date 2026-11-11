@@ -3,7 +3,7 @@ import type { AdminCategoryNode } from './category';
 import {
   ERP_ITEMS_PATH,
   conflictingCategoryErpMapping,
-  erpCategoryFallbackBasis,
+  createErpCategoryIndex,
   erpItemRejectReasonLabel,
   erpItemsHref,
   formatErpSalePrice,
@@ -11,7 +11,6 @@ import {
   parseErpCategoryMappingRow,
   parseErpItemListPage,
   parseErpItemMatch,
-  suggestErpCategoryTarget,
 } from './erp-items';
 
 const node = (id: string, name: string, parentId: string | null, extra: Partial<AdminCategoryNode> = {}): AdminCategoryNode => ({
@@ -68,6 +67,10 @@ describe('목록 주소', () => {
   });
 });
 
+type Mapping = { categoryId: string; erpCode: string; erpName: string };
+const suggestErpCategoryTarget = (erpCategory: string, nodes: AdminCategoryNode[], mappings: Mapping[] = []) => createErpCategoryIndex(nodes, mappings).suggest(erpCategory);
+const erpCategoryFallbackBasis = (erpCategory: string, id: string, nodes: AdminCategoryNode[]) => createErpCategoryIndex(nodes).fallbackBasis(erpCategory, id);
+
 describe('ERP 분류 → 고객 카테고리 제안', () => {
   it('경로가 같은 활성 말단을 제안한다', () => {
     expect(suggestErpCategoryTarget('문구 > 키링', categories)).toEqual({ categoryId: 'keyring', basis: 'same_path', label: '문구 > 키링' });
@@ -104,6 +107,33 @@ describe('ERP 분류 → 고객 카테고리 제안', () => {
     expect(suggestErpCategoryTarget('KR-01', categories, [{ categoryId: 'living-keyring', erpCode: 'KR-01', erpName: '키링류' }]))
       .toEqual({ categoryId: 'living-keyring', basis: 'erp_mapping', label: '리빙 > 키링' });
     expect(suggestErpCategoryTarget('키링류', categories, [{ categoryId: 'archived', erpCode: 'X', erpName: '키링류' }])).toBeNull();
+  });
+
+  it('후보 말단이 둘 이상이면 추정하지 않고, 같은 말단을 이름·코드로 두 번 가리키면 하나로 본다', () => {
+    const twoLeaves = [{ categoryId: 'keyring', erpCode: 'A', erpName: '공용' }, { categoryId: 'photo', erpCode: 'B', erpName: '공용' }];
+    expect(suggestErpCategoryTarget('공용', categories, twoLeaves)).toBeNull();
+    /* 매핑이 하나라도 걸리면 경로 일치로 넘어가지 않는다(이름이 곧 경로여도 추정하지 않는다). */
+    expect(suggestErpCategoryTarget('문구 > 키링', categories, [{ categoryId: 'keyring', erpCode: 'A', erpName: '문구>키링' }, { categoryId: 'photo', erpCode: 'B', erpName: '문구>키링' }])).toBeNull();
+    expect(suggestErpCategoryTarget('같음', categories, [{ categoryId: 'keyring', erpCode: '같음', erpName: '같음' }])).toMatchObject({ categoryId: 'keyring', basis: 'erp_mapping' });
+    const sameNames = [node('a', '문구', null, { childCount: 1 }), node('a1', '키링', 'a'), node('b', '문구', null, { childCount: 1 }), node('b1', '키링', 'b')];
+    expect(suggestErpCategoryTarget('문구>키링', sameNames)).toBeNull();
+  });
+
+  it('활성 말단을 경로 가나다순으로 모으고, 모르는 카테고리는 경로가 없다고 답한다', () => {
+    const index = createErpCategoryIndex(categories);
+    expect(index.leaves).toEqual([
+      { id: 'living-keyring', label: '리빙 > 키링' },
+      { id: 'keyring', label: '문구 > 키링' },
+      { id: 'photo', label: '문구 > 포토카드' },
+    ]);
+    expect(index.isLeaf('keyring')).toBe(true);
+    /* 보관됐거나 하위가 있는 분류는 연결할 수 없다. */
+    expect(index.isLeaf('archived')).toBe(false);
+    expect(index.isLeaf('stationery')).toBe(false);
+    expect(index.pathLabel('archived')).toBe('리빙 > 보관 분류');
+    expect(index.pathLabel('없는 id')).toBeNull();
+    /* 순환이 있어도 멈춘다. */
+    expect(createErpCategoryIndex([node('x', '가', 'y'), node('y', '나', 'x')]).pathLabel('x')).toBe('나 > 가');
   });
 });
 

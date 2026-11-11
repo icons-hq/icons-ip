@@ -5,6 +5,8 @@ const mocks = vi.hoisted(() => ({ save: vi.fn(), read: vi.fn(), load: vi.fn(), r
 vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>('react'), useEffect: () => {}, useRef: (initial: unknown) => { const index = hooks.refIndex++; hooks.refs[index] ??= { current: initial }; return hooks.refs[index]; },
   useState: (initial: unknown) => { const index = hooks.index++; if (!(index in hooks.state)) hooks.state[index] = initial; return [hooks.state[index], (next: unknown) => { hooks.state[index] = typeof next === 'function' ? next(hooks.state[index]) : next; }]; } }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: mocks.refresh, replace: mocks.replace }) }));
+const navigationStart = vi.hoisted(() => vi.fn());
+vi.mock('@/lib/admin/navigation-pending', () => ({ startAdminNavigation: navigationStart }));
 vi.mock('@/app/admin/claim-type-conversion-actions', () => ({ convertClaimTypeAction: mocks.save, readClaimTypeChangeAction: mocks.read, loadClaimTypeContextAction: mocks.load }));
 const busy = vi.hoisted(() => vi.fn());
 vi.mock('@/components/admin/screens/ClaimPreviewDialog', () => ({ useClaimPreviewBusy: busy }));
@@ -54,4 +56,11 @@ it('목록 위 팝업(R8)에서 전환을 기다리는 동안 팝업을 닫지 �
  change('고객 합의 근거', receipt.agreement); change('고객과 교환', true); all(render()).find(e => e.type === 'form')!.props.onSubmit?.({ preventDefault: () => {} });
  render(); expect(busy).toHaveBeenLastCalledWith(true);
  finish({ error: '권한 변경', uncertain: false }); await settle(); render(); expect(busy).toHaveBeenLastCalledWith(false);
+});
+it('저장 뒤 화면 전환에도 메뉴 이동과 같은 대기 표시를 건다', async () => {
+ mocks.save.mockResolvedValue({ receipt: { ...receipt, id: '' } });
+ mocks.save.mockImplementationOnce(async (request: { id: string }) => ({ receipt: { ...receipt, id: request.id } }));
+ change('고객 합의 근거', receipt.agreement); change('고객과 교환', true); await submit();
+ expect(navigationStart).toHaveBeenCalledExactlyOnceWith(`/admin/sales/claims/exchanges/${receipt.claimId}`);
+ expect(mocks.replace).toHaveBeenCalledExactlyOnceWith(`/admin/sales/claims/exchanges/${receipt.claimId}`);
 });

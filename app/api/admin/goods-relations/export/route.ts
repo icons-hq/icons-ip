@@ -2,6 +2,7 @@ import { unstable_rethrow } from 'next/navigation';
 import { requireAdminScreenAccess } from '@/lib/admin/guard.server';
 import { GOODS_RELATIONS_PATH, normalizeGoodsRelationFilters } from '@/lib/admin/goods-relations';
 import { buildGoodsRelationsWorkbook, GoodsRelationsExportError, loadGoodsRelationsExport } from '@/lib/admin/goods-relations-export.server';
+import { adminListExportContentDisposition, kstFileStamp } from '@/lib/admin/list-export';
 
 export const runtime = 'nodejs';
 export async function GET(request: Request) {
@@ -9,10 +10,10 @@ export async function GET(request: Request) {
   const filters = normalizeGoodsRelationFilters(Object.fromEntries(new URL(request.url).searchParams));
   try {
     const snapshot = await loadGoodsRelationsExport(filters);
-    const bytes = await buildGoodsRelationsWorkbook(snapshot);
+    const bytes = await buildGoodsRelationsWorkbook(snapshot), stamp = kstFileStamp(new Date());
     return new Response(new Uint8Array(bytes), { headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'Content-Disposition': 'attachment; filename="icons-goods-relations.xlsx"',
+      'Content-Disposition': adminListExportContentDisposition(`icons-연관상품관리-${stamp}.xlsx`, `icons-goods-relations-${stamp}.xlsx`),
       'Cache-Control': 'private, no-store',
       'X-Content-Type-Options': 'nosniff',
       'X-ICONS-Export-Rows': String(snapshot.rows.length),

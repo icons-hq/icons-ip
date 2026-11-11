@@ -13,6 +13,8 @@ describe('demographic workbook disclosure boundary', () => {
     expect(values).toHaveLength(42);
     expect(book.getWorksheet('성별·연령별 고객수')!.getCell('C2').value).toBe(10);
     expect(book.getWorksheet('성별·연령별 고객수')!.getCell('C3').value).toBe('비공개');
+    expect(book.getWorksheet('성별·연령별 고객수')!.autoFilter).toBeTruthy(); expect(book.getWorksheet('성별·연령별 고객수')!.getCell('C2').numFmt).toBe('#,##0');
+    expect(book.worksheets.at(-1)?.name).toBe('내려받기 정보'); expect(JSON.stringify(book.worksheets.at(-1)?.getSheetValues())).toContain('2026-10-19 09:00');
     expect(JSON.stringify(values)).not.toMatch(/userId|email|birth_date|rawCount|total/);
     data.cells[0].count = 9; await expect(buildCustomerDemographicWorkbook(data)).rejects.toThrow('Invalid protected');
   });

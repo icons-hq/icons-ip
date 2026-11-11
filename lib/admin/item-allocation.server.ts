@@ -43,7 +43,7 @@ export async function loadOrderItemAllocationsForScreen(orderIds: readonly strin
 }
 
 /**
- * 스마트스토어 74·53열에서 DB가 비워 둔 버전 1 할인 주문 품목의 `상품별 총 주문금액`·`상품별 할인액`을
+ * ICONS 표준 양식(출고지시·배송현황 목록)에서 DB가 비워 둔 버전 1 할인 주문 품목의 `상품별 총 주문금액`·`상품별 할인액`을
  * 공통 배분으로 채운다. 이미 값이 있는 행(버전 2 원장·할인 없는 버전 1)은 그대로 둔다.
  */
 export function withLegacyItemAmounts<T extends { itemId: string; itemTotal: number | null; itemDiscount: number | null; sellerDiscount: number | null }>(
@@ -56,7 +56,7 @@ export function withLegacyItemAmounts<T extends { itemId: string; itemTotal: num
   return { ...line, itemTotal: found.allocation.paidGoodsTotal, itemDiscount: discount, sellerDiscount: discount };
 }
 
-/** 74열 출고지시: 버전 1 할인 주문의 비어 있는 품목 금액을 채운 사본을 돌려준다. */
+/** 출고지시: 버전 1 할인 주문의 비어 있는 품목 금액을 채운 사본을 돌려준다. */
 export async function withSmartStoreLegacyAllocations(data: ShipmentExportData, client?: Client): Promise<ShipmentExportData> {
   const pending = data.shipments.flatMap(shipment => shipment.lines ?? []).filter(line => line.smartstore && line.smartstore.itemTotal === null);
   if (!pending.length) return data;

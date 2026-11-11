@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -17,5 +19,15 @@ describe('OperationsDockPanel 문의 PC 알림 설정 (R2)', () => {
     expect(without).not.toContain('새 1:1 문의 PC 알림');
     const tasks = renderToStaticMarkup(<OperationsDockPanel section="tasks" pathname="/admin" onClose={vi.fn()} onAlertRead={vi.fn()} inquiryNotificationAccountId="operator-1" />);
     expect(tasks).not.toContain('새 1:1 문의 PC 알림');
+  });
+});
+
+describe('OperationsDockPanel 알림 항목 이동', () => {
+  const source = readFileSync(join(process.cwd(), 'components/admin/OperationsDockPanel.tsx'), 'utf8');
+
+  /* 읽음 처리에 실패하면 이동하지 않는다. 클릭만으로 대기를 걸면 본문이 30초 잠겼다. */
+  it('클릭으로는 대기를 시작하지 않고 처리 성공 뒤 이동 때 시작한다', () => {
+    expect(source).toMatch(/<Link className=\{linkClass\} data-admin-nav-skip="" href=\{item\.href\} onClick=/);
+    expect(source).toContain('if (href) { startAdminNavigation(href); router.push(href); onClose(); }');
   });
 });

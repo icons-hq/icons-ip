@@ -2,7 +2,8 @@ import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { AdminShell } from '@/components/admin/AdminShell';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
-import { adminSidebarDefaultOpen } from '@/lib/admin/sidebar-state.server';
+import { adminNavigationAccountId, parseAdminNavigationCookie } from '@/lib/admin/navigation-preferences';
+import { readAdminShellCookies } from '@/lib/admin/sidebar-state.server';
 
 export const metadata = {
   robots: { index: false, follow: false },
@@ -20,17 +21,21 @@ export const metadata = {
  * 아닌 경우에만 셸 자체를 숨긴다.
  */
 export default async function AdminContentLayout({ children }: { children: ReactNode }) {
-  const [auth, sidebarDefaultOpen] = await Promise.all([getCurrentAdminAuthState(), adminSidebarDefaultOpen()]);
+  const auth = await getCurrentAdminAuthState();
 
   if (auth.user && !auth.isStaff) {
     notFound();
   }
 
+  const admin = { id: auth.user?.id ?? '', email: auth.user?.email ?? null, role: auth.role ?? 'staff', operatorAccess: auth.operatorAccess };
+  const shellCookies = await readAdminShellCookies(adminNavigationAccountId(admin));
+
   return (
     <AdminShell
-      sidebarDefaultOpen={sidebarDefaultOpen}
+      initialNavigation={parseAdminNavigationCookie(shellCookies.navigationCookie)}
+      sidebarDefaultOpen={shellCookies.sidebarDefaultOpen}
       console="content"
-      admin={{ id: auth.user?.id ?? '', email: auth.user?.email ?? null, role: auth.role ?? 'staff', operatorAccess: auth.operatorAccess }}
+      admin={admin}
     >
       {children}
     </AdminShell>

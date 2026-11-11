@@ -25,6 +25,8 @@ export interface AdminLeaveGuard {
   blocked: boolean;
   /** 페이지가 내려가기 직전에 브라우저 복구 기록을 바로 쓴다. */
   onUnload?: () => void;
+  /** 같은 경로에서 쿼리만 바뀌어도 입력이 남는 화면이다. 그런 링크(페이지 넘김·검색)에는 묻지 않는다. */
+  survivesQueryChange?: boolean;
 }
 
 type LeaveAnchor = Pick<HTMLAnchorElement, 'href' | 'target' | 'hasAttribute'>;
@@ -39,23 +41,35 @@ export function leavesAdminPage(anchor: LeaveAnchor, currentHref: string): boole
   return destination.pathname !== current.pathname || destination.search !== current.search;
 }
 
+/** 같은 사이트·같은 경로에서 쿼리만 바뀌는 링크인가. */
+export function changesOnlyAdminQuery(anchor: Pick<LeaveAnchor, 'href'>, currentHref: string): boolean {
+  const current = new URL(currentHref);
+  const destination = new URL(anchor.href, current);
+  return destination.origin === current.origin && destination.pathname === current.pathname && destination.search !== current.search;
+}
+
 const guards = new Set<AdminLeaveGuard>();
 let bound: { win: Window; doc: Document } | null = null;
 let leaveConfirmedAt = Number.NEGATIVE_INFINITY;
 
-/** 링크가 아닌 이탈(로그아웃 등)에도 같은 확인을 쓴다. 등록된 경고가 없으면 묻지 않는다. */
-export function confirmAdminLeave(): boolean {
-  const active = [...guards];
+function confirmGuards(active: AdminLeaveGuard[]): boolean {
   if (!active.length) return true;
   if (active.some((guard) => guard.blocked) || !window.confirm(active[0].message)) return false;
   leaveConfirmedAt = Date.now();
   return true;
 }
 
+/** 링크가 아닌 이탈(로그아웃 등)에도 같은 확인을 쓴다. 등록된 경고가 없으면 묻지 않는다. */
+export function confirmAdminLeave(): boolean {
+  return confirmGuards([...guards]);
+}
+
 function handleClick(event: MouseEvent) {
   if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
   const anchor = (event.target as Partial<Element> | null)?.closest?.('a[href]') as LeaveAnchor | null | undefined;
-  if (!anchor || !leavesAdminPage(anchor, window.location.href) || confirmAdminLeave()) return;
+  if (!anchor || !leavesAdminPage(anchor, window.location.href)) return;
+  const queryOnly = changesOnlyAdminQuery(anchor, window.location.href);
+  if (confirmGuards([...guards].filter((guard) => !(queryOnly && guard.survivesQueryChange)))) return;
   event.preventDefault();
   event.stopPropagation();
 }

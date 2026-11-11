@@ -8,6 +8,7 @@ import { CATEGORY_TEMPLATES_PATH, usableTemplateCategory } from '@/lib/admin/cat
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { CategoryTemplatePicker } from './screens/CategoryTemplatesScreen';
+import { useCategoryTemplatesAvailable } from './CategoryTemplatesAvailability';
 import { GOOD_INPUT_CLASS, GOOD_NOTE_CLASS } from './GoodEditorParts';
 
 const LABEL_CLASS = 'text-sm leading-snug font-medium text-foreground';
@@ -76,6 +77,7 @@ export function CategoryAssignmentField({
   const [uncontrolledPrimary, setUncontrolledPrimary] = useState(value);
   const [templatePicker, setTemplatePicker] = useState(false), [templateError, setTemplateError] = useState('');
   const [mode, setMode] = useState<'search' | 'select'>('search'), [query, setQuery] = useState('');
+  const templatesAvailable = useCategoryTemplatesAvailable();
   const controlled = controlledPrimary !== undefined && onPrimaryChange !== undefined;
   const primary = controlled ? controlledPrimary : uncontrolledPrimary;
   const setPrimary = controlled ? onPrimaryChange : setUncontrolledPrimary;
@@ -104,7 +106,7 @@ export function CategoryAssignmentField({
           <button type="button" className={METHOD_CLASS} aria-pressed={mode === 'search'} onClick={() => setMode('search')}>카테고리명 검색</button>
           <button type="button" className={METHOD_CLASS} aria-pressed={mode === 'select'} onClick={() => setMode('select')}>카테고리명 선택</button>
         </span>
-        <button type="button" className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" onClick={() => setTemplatePicker(true)}>카테고리 템플릿</button>
+        {templatesAvailable ? <button type="button" className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" onClick={() => setTemplatePicker(true)}>자주 쓰는 카테고리</button> : null}
       </div>
       {/* R9: 카테고리가 하나도 없으면 검색·선택이 빈 채로 막히므로 먼저 등록할 곳을 알린다. 작성 중인 상품을 잃지 않게 새 탭으로 연다. */}
       {!activeLeaves.length ? <p role="status" className={`${GOOD_NOTE_CLASS} text-muted-foreground`}>{emptyGuide === 'here'
@@ -116,7 +118,7 @@ export function CategoryAssignmentField({
         {query.trim() ? <><p className="text-xs text-muted-foreground tabular-nums" role="status">검색 결과 {matches.length.toLocaleString('ko-KR')}개{matches.length > 50 ? ' · 앞의 50개를 표시합니다. 검색어를 더 입력해주세요.' : ''}</p>
           {matches.length ? <ul className="m-0 flex max-h-72 list-none flex-col overflow-y-auto rounded-lg border p-0" aria-label="카테고리 검색 결과">{matches.slice(0, 50).map(category => <li className="border-b last:border-b-0" key={category.id}><button type="button" className="flex min-h-11 w-full flex-col items-start justify-center gap-0.5 px-3 py-2 text-left text-sm wrap-anywhere text-foreground transition-colors outline-none hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset aria-pressed:bg-primary-soft aria-pressed:font-medium aria-pressed:text-primary-soft-foreground" aria-pressed={primary === category.id} onClick={() => choose(category.id)}>
             <span>{categoryPath(categories, category.id).join(' > ')}</span><small className="text-xs font-normal text-muted-foreground">{category.code}</small>
-          </button></li>)}</ul> : <p className="text-sm text-muted-foreground">일치하는 사용 가능한 말단 카테고리가 없습니다.</p>}</> : <p className="text-sm text-muted-foreground">카테고리명이나 코드를 입력하거나 카테고리명 선택을 이용해주세요.</p>}
+          </button></li>)}</ul> : <p className="text-sm text-muted-foreground">일치하는 사용 가능한 마지막 단계 카테고리가 없습니다.</p>}</> : <p className="text-sm text-muted-foreground">카테고리명이나 코드를 입력하거나 카테고리명 선택을 이용해주세요.</p>}
         {primary ? <div className="flex min-w-0 items-center justify-between gap-3 rounded-lg border bg-muted/40 px-3 py-2 text-sm"><span className="min-w-0 wrap-anywhere">{selectedArchived ? '보관됨 · ' : ''}{categoryPath(categories, primary).join(' > ') || primary}</span><button type="button" className={`${buttonVariants({ variant: 'outline', size: 'sm' })} shrink-0`} data-slot="button" onClick={() => choose('')}>선택 해제</button></div> : null}
       </div> : null}
       {/* 검색 방식에서도 대표 카테고리 값(name="categoryId")은 이 select가 제출한다. 숨길 때는 select와 감싼 칸을 함께 숨긴다. */}
@@ -127,14 +129,14 @@ export function CategoryAssignmentField({
         <option value="">미분류</option>
         {leaves.map((category) => <option aria-disabled={category.archivedAt ? 'true' : undefined} key={category.id} value={category.id}>{category.archivedAt ? '보관됨 · ' : ''}{categoryPath(categories, category.id).join(' > ')} ({category.code})</option>)}
       </NativeSelect>
-      <Link className="w-fit text-sm underline underline-offset-4" href={CATEGORY_TEMPLATES_PATH} target="_blank" rel="noreferrer">카테고리 템플릿 관리 ↗</Link>
+      {templatesAvailable ? <Link className="w-fit text-sm underline underline-offset-4" href={CATEGORY_TEMPLATES_PATH} target="_blank" rel="noreferrer">자주 쓰는 카테고리 관리 ↗</Link> : null}
       {templateError ? <p className="text-sm text-destructive" role="alert">{templateError}</p> : null}
       {templatePicker ? <CategoryTemplatePicker onClose={() => setTemplatePicker(false)} onSelect={template => {
         if (!template.usable || !usableTemplateCategory(categories, template.categoryId)) { setTemplateError('현재 사용할 수 없는 카테고리입니다. 최신 카테고리를 확인해주세요.'); setTemplatePicker(false); return; }
         choose(template.categoryId); setTemplatePicker(false);
       }} /> : null}
       <span className="text-xs text-muted-foreground" id="category-assignment-hint">
-        대표 말단 하나를 고릅니다. ERP 분류는 대표 카테고리를 사용합니다. 보관된 현재 값은 명시적으로 미분류를 선택해야 해제됩니다. 비워도 기존 유형과 전체 상품 판매는 유지됩니다.
+        마지막 단계 카테고리 하나를 대표로 고릅니다. ERP 분류는 대표 카테고리를 사용합니다. 보관된 현재 값은 명시적으로 미분류를 선택해야 해제됩니다. 비워도 기존 유형과 전체 상품 판매는 유지됩니다.
       </span>
       {error ? <span className="text-sm text-destructive" role="alert">{error}</span> : null}
       {additionalValue !== undefined && <details className="group/additional min-w-0 rounded-lg border" data-good-category-additional="" open={Boolean(additionalError) || additional.length > 0}><summary className="flex cursor-pointer list-none items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium outline-none select-none group-open/additional:rounded-b-none focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden"><ChevronRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open/additional:rotate-90 motion-reduce:transition-none" />추가 카테고리 (선택)</summary><div className="flex min-w-0 flex-col gap-3 border-t px-3 py-4">
@@ -145,7 +147,7 @@ export function CategoryAssignmentField({
           const id = event.target.value;
           if (id) setAdditional(current => [...new Set([...current, id])]);
         }}>
-          <option value="">추가할 말단 선택</option>
+          <option value="">추가할 카테고리 선택</option>
           {activeLeaves.filter(category => category.id !== primary && !additional.includes(category.id)).map(category =>
             <option key={category.id} value={category.id}>{categoryPath(categories, category.id).join(' > ')} ({category.code})</option>)}
         </NativeSelect>

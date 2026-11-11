@@ -10,7 +10,9 @@ describe('고객 구매 분석 엑셀', () => {
     const now = new Date('2026-10-13T16:00:00Z');
     const buffer = await buildCustomerPurchaseWorkbook(customerPurchaseFixture(), normalizeCustomerPurchaseFilters({}, now), now);
     const book = new ExcelJS.Workbook(); await book.xlsx.load(buffer as never);
-    expect(book.worksheets.map(sheet => sheet.name)).toEqual(['조회·비교 기간', '13개월 월간 추이', '조회 정보']);
+    expect(book.worksheets.map(sheet => sheet.name)).toEqual(['조회·비교 기간', '13개월 월간 추이', '내려받기 정보']);
+    expect(book.worksheets[0].getCell('H1').value).toBe('상품금액 합계'); expect(book.worksheets[0].getCell('H1').font).toMatchObject({ name: '맑은 고딕', size: 10, bold: true });
+    expect(book.worksheets[0].getCell('J2').numFmt).toBe('#,##0'); expect(book.worksheets[0].getCell('N2').numFmt).toBe('#,##0');
     expect(book.worksheets.map(sheet => sheet.rowCount).slice(0, 2)).toEqual([7, 40]);
     expect(book.worksheets[0].getCell('J2').value).toBe(36000);
     expect(book.worksheets[0].getCell('M2').value).toBe(34000);

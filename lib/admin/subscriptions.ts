@@ -2,6 +2,7 @@ import { isUuid } from '../uuid';
 import { SUBSCRIPTION_CYCLE_STATES, SUBSCRIPTION_PLAN_STATES, SUBSCRIPTION_PLAN_LABELS, type SubscriptionCycleState, type SubscriptionPlanState } from '../subscriptions/model';
 import { parseSubscriptionSchedule, type SubscriptionSchedule } from '../subscriptions/schedule';
 import { parseSubscriptionCyclePage, type SubscriptionCyclePage } from '../subscriptions/customer';
+import { kstDateTimeText } from './list-export';
 export interface AdminSubscriptionFilters { state: SubscriptionPlanState | null; query: string; page: number }
 export interface AdminSubscriptionRow {
   id: string; ownerId: string; buyerName: string; state: SubscriptionPlanState; revision: number; createdAt: string; updatedAt: string; nextRunAt: string | null;
@@ -59,5 +60,5 @@ export function parseAdminSubscriptionDetail(value: unknown): AdminSubscriptionD
 export function subscriptionScheduleLabel(schedule: SubscriptionSchedule) { return `${schedule.interval}${schedule.unit === 'week' ? '주' : '개월'}${schedule.monthEnd ? ' · 말일' : ''}`; }
 export function subscriptionExportRows(rows: readonly AdminSubscriptionRow[]) {
   return rows.map(row => [row.id, row.ownerId, row.buyerName, row.goodsLabel, SUBSCRIPTION_PLAN_LABELS[row.state], subscriptionScheduleLabel(row.schedule),
-    row.nextRunAt, row.renewalOnlineTotal, row.renewalCollectTotal, row.cycleCount, row.paidCycleCount, row.paidOnlineTotal, row.createdAt, row.updatedAt]);
+    kstDateTimeText(row.nextRunAt), row.renewalOnlineTotal, row.renewalCollectTotal, row.cycleCount, row.paidCycleCount, row.paidOnlineTotal, kstDateTimeText(row.createdAt), kstDateTimeText(row.updatedAt)]);
 }

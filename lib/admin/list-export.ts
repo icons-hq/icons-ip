@@ -78,8 +78,6 @@ export interface ListExportColumn {
 }
 
 export interface AdminListExportSheet {
-  /** Source workbook layout; unspecified consoles retain their existing layout. */
-  layout?: 'smartstore-delivery';
   screen: AdminListExportScreenId;
   /** 데이터 시트 이름. 화면 이름과 탭 이름을 쓴다. */
   title: string;
