@@ -3,6 +3,7 @@
 import { headers } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import {
+  PHONE_CODE_TTL_SECONDS,
   phoneVerificationConfig,
   requestPhoneVerificationCode,
   verifyPhoneVerificationCode,
@@ -74,7 +75,7 @@ export async function requestPhoneCodeAction(
       stage: 'code_sent',
       challengeId: result.challengeId,
       maskedPhone: result.maskedPhone,
-      message: `${result.maskedPhone}로 인증번호를 보냈어요. 5분 안에 입력해주세요.`,
+      message: `${result.maskedPhone}로 인증번호를 보냈어요. ${Math.round(PHONE_CODE_TTL_SECONDS / 60)}분 안에 입력해주세요.`,
     };
   } catch {
     return { errors: { form: '인증번호를 보내지 못했어요. 잠시 후 다시 시도해주세요.' } };

@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/lib/sms/phone-verification.server', () => ({
+  PHONE_CODE_TTL_SECONDS: 300,
   phoneVerificationConfig: () => mocks.config,
   requestPhoneVerificationCode: mocks.request,
   verifyPhoneVerificationCode: mocks.verify,

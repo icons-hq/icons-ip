@@ -745,15 +745,21 @@ describe('signup confirmation code', () => {
     expect(mocks.resend).not.toHaveBeenCalled();
   });
 
-  it('opens a new resend window for a code-step resend without a matching window cookie', async () => {
+  /* 이 브라우저에서 그 이메일로 가입을 시작한 창이 없으면 보내지 않는다 — 아무 이메일로나 확인 메일을 보내는 통로가 되지 않게. */
+  it('refuses a code-step resend for an email this browser did not sign up with', async () => {
+    await submitSignup('Fan@Icons.gg');
+    mocks.resend.mockClear();
     const data = new FormData();
     data.set('email', 'other@icons.gg');
 
-    await resendSignupCodeAction({}, data);
-    const payload = decodeSignedCookiePayload(latestCookieSet(AUTH_SIGNUP_RESEND_COOKIE_NAME)?.value ?? '');
-    expect(payload.resendCount).toBe(1);
-    expect(payload.windowStartedAt).toBe(Date.now());
-    expect(mocks.resend).toHaveBeenCalledOnce();
+    expect(await resendSignupCodeAction({}, data)).toEqual({
+      errors: { form: '코드를 다시 받으려면 [다른 이메일로 가입하기]를 눌러 같은 이메일로 회원가입을 다시 제출해주세요.' },
+      pendingSignupEmail: 'other@icons.gg',
+    });
+    mocks.cookies.clear();
+    data.set('email', 'Fan@Icons.gg');
+    expect((await resendSignupCodeAction({}, data)).errors?.form).toContain('회원가입을 다시 제출해주세요');
+    expect(mocks.resend).not.toHaveBeenCalled();
   });
 });
 

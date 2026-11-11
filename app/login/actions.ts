@@ -87,6 +87,7 @@ const SIGNUP_CONFIRMATION_SENT_MESSAGE = '가입 확인 메일을 보냈습니�
 const SIGNUP_CONFIRMATION_RESENT_MESSAGE = '새 확인 메일을 보냈습니다. 가장 최근에 받은 메일의 6자리 확인 코드를 입력해주세요.';
 const SIGNUP_CODE_FORMAT_MESSAGE = '메일로 받은 6자리 숫자를 입력해주세요.';
 const SIGNUP_CODE_EMAIL_MISSING_MESSAGE = '확인할 이메일을 찾지 못했습니다. 회원가입을 다시 시작해주세요.';
+const SIGNUP_CODE_RESTART_MESSAGE = '코드를 다시 받으려면 [다른 이메일로 가입하기]를 눌러 같은 이메일로 회원가입을 다시 제출해주세요.';
 const PASSWORD_RESET_SENT_MESSAGE = '해당 이메일로 가입한 계정이 있다면 재설정 메일을 보냈습니다. 요청한 브라우저에서 최신 링크를 열어주세요.';
 const SOCIAL_AUTH_PROVIDERS = new Set<SocialAuthProvider>(['google', 'apple', 'kakao']);
 const SOCIAL_AUTH_UNAVAILABLE_MESSAGE = '현재 해당 소셜 로그인을 사용할 수 없습니다. 잠시 후 다시 시도해주세요.';
@@ -496,6 +497,8 @@ function signupEmailFromForm(formData: FormData): string | null {
 
 /*
  * 코드 입력 단계의 [코드 다시 받기](1014-004). 회원가입 폼 재제출과 같은 10분 3회 창을 쓴다.
+ * 이 브라우저에서 그 이메일로 가입을 시작한 창(서명 쿠키)이 있을 때만 보낸다 — 아무 이메일로나 확인 메일을 보내는
+ * 통로가 되지 않게 한다. 창이 없으면(쿠키 만료·다른 브라우저) 회원가입을 다시 제출하면 된다.
  * 가입하지 않은 이메일이나 이미 확인된 이메일이어도 Supabase는 같은 응답을 주므로 결과 문장도 같다.
  */
 export async function resendSignupCodeAction(_state: AuthActionState, formData: FormData): Promise<AuthActionState> {
@@ -506,21 +509,17 @@ export async function resendSignupCodeAction(_state: AuthActionState, formData: 
   const { isConfigured } = getSupabaseConfig();
   if (!isConfigured) return { errors: { form: 'Supabase 환경변수를 설정한 뒤 가입할 수 있습니다.' }, pendingSignupEmail: email };
 
-  const supabase = await createClient();
-  const origin = await requestOrigin();
   const cookieStore = await cookies();
   const now = Date.now();
   const secret = signupResendSecret();
-  return resendSignupConfirmation({
-    supabase,
-    cookieStore,
-    origin,
-    email,
-    next,
-    now,
-    secret,
-    state: signupResendStateFromCookie(cookieStore.get(AUTH_SIGNUP_RESEND_COOKIE_NAME)?.value, now, secret),
-  });
+  const state = signupResendStateFromCookie(cookieStore.get(AUTH_SIGNUP_RESEND_COOKIE_NAME)?.value, now, secret);
+  if (secret && state?.emailHash !== emailHash(email, secret)) {
+    return { errors: { form: SIGNUP_CODE_RESTART_MESSAGE }, pendingSignupEmail: email };
+  }
+
+  const supabase = await createClient();
+  const origin = await requestOrigin();
+  return resendSignupConfirmation({ supabase, cookieStore, origin, email, next, now, secret, state });
 }
 
 /*
