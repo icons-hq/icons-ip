@@ -39,6 +39,14 @@ describe('목록 위 주문 상세 팝업 (S36-075)', () => {
     expect(screen.props).toMatchObject({ backHref: LIST, backLabel: '발주·발송 목록', canManage: true, canViewCustomer: false, actorId: 'actor', detail });
   });
 
+  it('주문 열람 권한이 없으면 팝업을 열지 않고, 판매 관리 권한이 없으면 처리 패널을 감춘다 (T05 통합용 props)', () => {
+    const detail = { order: { id: ORDER, orderNumber: '2026111110000001' } } as unknown as AdminOrderDetail;
+    const preview = { kind: 'loaded' as const, detail, production: null, downloads: null, canManage: true, canViewCustomer: true };
+    expect(OrderPreviewPopup({ preview, orderId: ORDER, closeHref: LIST, backLabel: '목록', canReadOrders: false })).toBeNull();
+    const popup = OrderPreviewPopup({ preview, orderId: ORDER, closeHref: LIST, backLabel: '목록', canManageSales: false }) as Element;
+    expect(nodes(popup.props.children as ReactNode).find(node => node.type === OrderDetailScreen)!.props.canManage).toBe(false);
+  });
+
   it.each([['forbidden', '권한이 없습니다'], ['not_found', '주문을 찾을 수 없습니다'], ['error', '불러오지 못했습니다']] as const)('읽지 못하면(%s) 목록은 두고 팝업에 이유를 보인다', (kind, text) => {
     const popup = OrderPreviewPopup({ preview: { kind }, orderId: ORDER, closeHref: LIST, backLabel: '목록' }) as Element;
     expect(popup.type).toBe(OrderPreviewDialog);

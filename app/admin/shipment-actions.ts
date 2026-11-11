@@ -21,6 +21,12 @@ const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]
 const INSTANT=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/;
 function selection(value:unknown):string[]|null {if(!Array.isArray(value)||!value.length||value.length>1000||!value.every(id=>typeof id==='string'&&UUID.test(id)))return null;return [...new Set((value as string[]).map(id=>id.toLowerCase()))];}
 async function staff(){const auth=await getCurrentAdminAuthState();return auth.isConfigured&&auth.user&&auth.isStaff&&hasAdminCapability(auth,'sales.manage')?auth:null;}
+/**
+ * 발송처리 화면의 행 운송장·배송 방법·택배 외 일괄 인계(S36-072·S36-X04) 액션이 요구하는 능력. 물류 출고 권한(sales.dispatch)과
+ * 통합할 때 이 한 줄만 바꾼다(DB는 private.dispatch_console_capability()가 같은 값을 둔다). 운영 강제 배송완료는 sales.manage 그대로다.
+ */
+const DISPATCH_CONSOLE_CAPABILITY='sales.manage' as const;
+async function dispatchStaff(){const auth=await getCurrentAdminAuthState();return auth.isConfigured&&auth.user&&auth.isStaff&&hasAdminCapability(auth,DISPATCH_CONSOLE_CAPABILITY)?auth:null;}
 function refresh(){revalidatePath('/admin/sales/dispatch');revalidatePath('/admin/sales/shipping');revalidatePath('/admin/sales/orders');revalidatePath('/orders');}
 /** 발송·인계 기록은 고객 주문 화면과 주문 상세(팝업 포함)에도 바로 보여야 한다. */
 function refreshDispatched(){refresh();revalidatePath('/orders/[orderId]','page');revalidatePath('/admin/sales/orders/[orderId]','page');}
@@ -134,7 +140,7 @@ type TrackingBatchRow={line:number;reference:string;ok:boolean;error?:string;shi
  * 합포장은 묶음 전체에 적용되고, 이미 발송된 배송 건의 운송장은 덮어쓰지 않는다(같은 번호는 그대로, 다르면 실패).
  */
 export async function registerShipmentTrackingAction(input:unknown):Promise<ShipmentTrackingRowResult>{
- if(!await staff())return {ok:false,error:'직원 권한이 필요합니다.'};
+ if(!await dispatchStaff())return {ok:false,error:'직원 권한이 필요합니다.'};
  if(!Array.isArray(input)||!input.length||input.length>DISPATCH_TARGET_LIMIT)return {ok:false,error:'운송장을 등록할 배송 건을 다시 확인해주세요.'};
  const carriers=await getShippingCarrierRegistry();const rows:{line:number;reference:string;carrier:string;trackingNumber:string}[]=[];
  for(const [index,value] of input.entries()){
@@ -166,7 +172,7 @@ export async function registerShipmentTrackingAction(input:unknown):Promise<Ship
 
 /** 발송처리 화면의 배송 방법 팝업(S36-072·S36-X04)이 여는 대상 정보. 고객이 고른 방법·처리 가능 여부·켜진 운영 조건. */
 export async function readDispatchDeliveryOptionsAction(ids:unknown):Promise<{ok:true;options:DispatchDeliveryOptions}|{ok:false;error:string}>{
- if(!await staff())return {ok:false,error:'직원 권한이 필요합니다.'};
+ if(!await dispatchStaff())return {ok:false,error:'직원 권한이 필요합니다.'};
  const keys=selection(ids);
  if(!keys||keys.length>DISPATCH_TARGET_LIMIT)return {ok:false,error:`배송 건을 1~${DISPATCH_TARGET_LIMIT}개 선택해주세요.`};
  try{
@@ -202,7 +208,7 @@ function dispatchRequest(input:unknown):DispatchDeliveryRequest|null{
  * 그대로이고, 고객이 고른 방법과 다르면 사유가 필요하다. 배송 건마다 결과를 돌려준다.
  */
 export async function applyDispatchDeliveryAction(input:unknown):Promise<{ok:true;receipt:DispatchDeliveryReceipt}|{ok:false;error:string}>{
- if(!await staff())return {ok:false,error:'직원 권한이 필요합니다.'};
+ if(!await dispatchStaff())return {ok:false,error:'직원 권한이 필요합니다.'};
  const request=dispatchRequest(input);
  if(!request)return {ok:false,error:dispatchDeliveryError('invalid_dispatch_delivery_request')};
  try{

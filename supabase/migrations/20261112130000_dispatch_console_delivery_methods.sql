@@ -7,12 +7,19 @@ begin;
 -- (guard_shipment_delivery_method)가 요구하는 method_selected·*_handoff 원장 행을 그대로 남기므로
 -- 주문 상세의 방식·인계 이력과 고객 주문 화면이 같은 기록을 읽는다.
 
+-- 발송처리 화면(행 운송장·배송 방법·택배 외 일괄 인계) RPC가 요구하는 운영자 능력을 한곳에 둔다. 물류 출고
+-- 권한(sales.dispatch)과 통합할 때 이 함수의 반환값만 바꾸고 아래 두 RPC 계약을 다시 등록한다. 운영 강제
+-- 배송완료(20261112130100)는 운송장 근거 없이 철회 기간을 여는 도구라 sales.manage를 그대로 쓴다.
+create function private.dispatch_console_capability() returns text
+language sql stable set search_path='' as $$ select 'sales.manage'::text $$;
+revoke all on function private.dispatch_console_capability() from public,anon,authenticated,service_role;
+
 -- 고른 배송 건의 현재 방법·고객이 고른 방법·처리 가능 여부와, 그 출고지들에서 켜진 운영 조건.
 create function public.admin_dispatch_delivery_options(p_shipment_ids uuid[]) returns jsonb
 language plpgsql stable security definer set search_path='' as $$
 declare ids uuid[];
 begin
- perform private.require_operator_capability('sales.manage',false);
+ perform private.require_operator_capability(private.dispatch_console_capability(),false);
  if p_shipment_ids is null or cardinality(p_shipment_ids) not between 1 and 100 or array_position(p_shipment_ids,null) is not null then
   raise invalid_parameter_value using message='invalid_dispatch_delivery_request';end if;
  select array_agg(distinct id order by id) into ids from unnest(p_shipment_ids) id;
@@ -54,7 +61,7 @@ declare actor uuid;reason_value text:=nullif(btrim(coalesce(p_reason,'')),'');ta
  policy private.fulfillment_delivery_policies;snapshot jsonb;evidence jsonb;selection_key uuid;event_key uuid;changed boolean;handed boolean;
  error_text text;results jsonb:='[]'::jsonb;changed_count integer:=0;handoff_count integer:=0;failed_count integer:=0;
 begin
- actor:=private.require_operator_capability('sales.manage',false);
+ actor:=private.require_operator_capability(private.dispatch_console_capability(),false);
  if p_operation_id is null or p_method is null or p_method not in('parcel','quick','pickup','direct','freight')
   or jsonb_typeof(p_targets) is distinct from 'array' or jsonb_array_length(p_targets) not between 1 and 100
   or length(reason_value)>1000
@@ -168,6 +175,6 @@ end $$;
 revoke all on function public.admin_dispatch_apply_delivery(jsonb,text,text,jsonb,uuid) from public,anon,authenticated,service_role;
 grant execute on function public.admin_dispatch_apply_delivery(jsonb,text,text,jsonb,uuid) to authenticated;
 
-select private.register_operator_rpc_contract('public.admin_dispatch_delivery_options(uuid[])'::regprocedure,'sales.manage','read',false);
-select private.register_operator_rpc_contract('public.admin_dispatch_apply_delivery(jsonb,text,text,jsonb,uuid)'::regprocedure,'sales.manage','write',false);
+select private.register_operator_rpc_contract('public.admin_dispatch_delivery_options(uuid[])'::regprocedure,private.dispatch_console_capability(),'read',false);
+select private.register_operator_rpc_contract('public.admin_dispatch_apply_delivery(jsonb,text,text,jsonb,uuid)'::regprocedure,private.dispatch_console_capability(),'write',false);
 commit;

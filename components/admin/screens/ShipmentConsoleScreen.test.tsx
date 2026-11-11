@@ -242,3 +242,26 @@ describe('발송처리 화면의 행 운송장·배송 방법 (S36-072·S36-X04)
   expect(mixed).toContain('출고지시 내보내기');expect(mixed).toContain('택배 외 발송처리');
  });
 });
+describe('물류 출고 권한 화면 숨김 (T05 통합용 props)',()=>{
+ it('판매 관리 권한이 없으면 발주확인·합포장 관리·고객 지연 안내·지연 메모·목록 엑셀을 숨기고 출고·운송장·택배 외 발송처리는 남긴다',()=>{
+  const delayed=renderToStaticMarkup(<ShipmentConsoleScreen actorId="actor" canManageSales={false} data={{...base,filters:{...base.filters,tab:'delayed'},rows:[row]}}/>);
+  expect(delayed).not.toContain('목록 엑셀 다운로드');expect(delayed).not.toContain('지연 메모');expect(delayed).not.toContain('지연 안내 결과');
+  expect(delayed).not.toContain('고객 지연 안내');expect(delayed).not.toContain('합포장 관리');expect(delayed).not.toContain('발송지연 안내여부');
+  expect(delayed).toContain('출고지시 내보내기');expect(delayed).toContain('택배 외 발송처리');expect(delayed).toContain('data-shipment-row-tracking=""');
+  expect(delayed).toContain('엑셀 일괄 운송장 등록');
+  const incoming=renderToStaticMarkup(<ShipmentConsoleScreen canManageSales={false} data={{...base,filters:{...base.filters,tab:'new'},rows:[row]}}/>);
+  expect(incoming).not.toContain('발주확인</button>');expect(incoming).not.toContain(`aria-label="배송 건 ${row.id.slice(-8).toUpperCase()} 선택"`);
+  const transit=renderToStaticMarkup(<ShipmentConsoleScreen canManageSales={false} data={{...base,surface:'shipping',filters:{...base.filters,tab:'transit'},rows:[{...row,status:'shipping',carrier:'hanjin',trackingNumber:'12345678'}]}}/>);
+  expect(transit).toContain('선택 배송완료');expect(transit).not.toContain('목록 엑셀 다운로드');
+ });
+ it('기본값은 지금 화면 그대로다',()=>{
+  const delayed=renderToStaticMarkup(<ShipmentConsoleScreen actorId="actor" data={{...base,filters:{...base.filters,tab:'delayed'},rows:[row]}}/>);
+  expect(delayed).toContain('목록 엑셀 다운로드');expect(delayed).toContain('지연 메모');expect(delayed).toContain('고객 지연 안내');expect(delayed).toContain('합포장 관리');
+ });
+ it('주문 열람 권한이 없으면 번호·인계 확인·제작 현황을 글자로 두고 상세 팝업·새 탭 링크를 만들지 않는다',()=>{
+  const html=renderToStaticMarkup(<ShipmentConsoleScreen canReadOrders={false} data={{...base,rows:[row,{...row,id:'60000000-0000-4000-8000-000000000002',delivery:shipmentDeliveryFixture()},
+   {...row,id:'60000000-0000-4000-8000-000000000003',production:{count:1,completed:0,ready:false,dueAt:null}}]}}/>);
+  expect(html).not.toContain('data-order-preview-link');expect(html).not.toContain('상세 열기 (새 탭)');expect(html).not.toContain('/admin/sales/orders/');
+  expect(html).toContain('방문수령 인계·수령 확인은 주문 상세에서 합니다.');expect(html).toContain('주문제작 0/1건 완료');
+ });
+});

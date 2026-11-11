@@ -39,11 +39,13 @@ function layoutLabel(layout:ShipmentExportLayout,seowonOnly:boolean){
 function defaultExportLayout(origins:readonly ShipmentConsoleOrigin[],originIds:readonly string[]):ShipmentExportLayout{
  return originIds.length>0&&originIds.every(id=>origins.find(origin=>origin.id===id)?.template==='seowon_xlsx')?'warehouse':'smartstore';
 }
-export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,readyHref,actorId,origins=[],originId=null,methodFilter=null,dispatchActions=false}:{actorId?:string;rows:ShipmentConsoleRow[];columns:ConsoleGridColumn[];gridRows:ConsoleGridRow[];tab:ShipmentConsoleTab;currentHref:string;readyHref:string;origins?:ShipmentConsoleOrigin[];originId?:string|null;
+export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,readyHref,actorId,origins=[],originId=null,methodFilter=null,dispatchActions=false,canManageSales=true}:{actorId?:string;rows:ShipmentConsoleRow[];columns:ConsoleGridColumn[];gridRows:ConsoleGridRow[];tab:ShipmentConsoleTab;currentHref:string;readyHref:string;origins?:ShipmentConsoleOrigin[];originId?:string|null;
  /** 목록의 배송방법 필터. 택배 외 한 방법만 모아 보면 그 건도 일괄 발송처리용으로 고른다. */
  methodFilter?:FulfillmentMethod|null;
  /** 발주·발송 화면: 행 운송장 칸·배송 방법·택배 외 발송처리(S36-072·S36-X04)를 연다. */
- dispatchActions?:boolean}){
+ dispatchActions?:boolean;
+ /** 판매 관리 권한. 없으면(물류 출고 권한) 발주확인·합포장 관리·고객 지연 안내(이력 포함)를 숨긴다. 출고지시·운송장·발송·배송완료는 그대로다. */
+ canManageSales?:boolean}){
  const [selected,setSelected]=useState<string[]>([]);const [pending,startTransition]=useTransition();const router=useRouter();
  const [deliveryDialog,setDeliveryDialog]=useState<{ids:string[];mode:ShipmentDeliveryDialogMode}|null>(null);
  const nonParcelBatch=shipmentConsoleNonParcelBatch(tab,methodFilter??undefined);
@@ -77,7 +79,7 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
  const layout=layoutChoice??defaultExportLayout(origins,selectedOrigins.length?selectedOrigins:originId?[originId]:exportOrigins.map(origin=>origin.id));
  // 서원 송장양식은 XLSX로만 주고받으므로 CSV를 골라도 남양주(서원) 파일은 XLSX로 만든다(출고지 기본 양식·기존 창고 양식일 때).
  const seowonCsvNote=format==='csv'&&layoutChoice!=='smartstore'&&origins.some(origin=>origin.active!==false&&origin.template==='seowon_xlsx')?<span className="text-muted-foreground">CSV를 골라도 남양주(서원) 송장양식은 XLSX로 받습니다.</span>:null;
- const hasBatchActions=tab==='new'||tab==='delayed'||rows.some(isParcelShipment)||Boolean(retainedIds?.length)||dispatchActions&&nonParcelBatch&&rows.length>0;
+ const hasBatchActions=tab==='new'&&canManageSales||tab==='delayed'||tab!=='new'&&rows.some(isParcelShipment)||Boolean(retainedIds?.length)||dispatchActions&&nonParcelBatch&&rows.length>0;
  /* 행의 운송장 칸·배송 방법 버튼이 결과를 표 위 알림에 올리고 팝업을 연다. 처리한 행은 목록에서 빠지므로 문구는 표가 보존한다. */
  function report(notice:ShipmentConsoleNotice){
   setFailures([]);
@@ -183,8 +185,8 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
      <Button type="button" size="sm" disabled={pending||!exportEligible} onClick={requestExport}>출고지시 내보내기</Button></>}
      {/* S36-X04: 고른 배송 건에 택배 외 방법을 한 번에 적용하고 실제 인계(발송)까지 기록한다. 택배 일괄 처리(출고지시·운송장)는 그대로다. */}
      {dispatchActions?<Button type="button" size="sm" variant={nonParcelBatch?'default':'outline'} disabled={pending||!ids.length||ids.length>DISPATCH_TARGET_LIMIT} title={ids.length?undefined:SELECT_FIRST} onClick={()=>setDeliveryDialog({ids:[...ids],mode:'dispatch'})}>택배 외 발송처리</Button>:null}</>}
-    {actorId&&(tab==='ready'||tab==='delayed')&&!nonParcelBatch?<Button type="button" size="sm" variant="outline" disabled={pending||ids.length<1||ids.length>100} onClick={()=>setPackSelection([...ids])}>합포장 관리</Button>:null}
-    {tab==='delayed'?<Button type="button" size="sm" variant="outline" disabled={pending||!ids.length} onClick={()=>setNoticeSelection([...ids])}>선택 주문 {orderIds.length}건 고객 지연 안내</Button>:null}
+    {actorId&&canManageSales&&(tab==='ready'||tab==='delayed')&&!nonParcelBatch?<Button type="button" size="sm" variant="outline" disabled={pending||ids.length<1||ids.length>100} onClick={()=>setPackSelection([...ids])}>합포장 관리</Button>:null}
+    {tab==='delayed'&&canManageSales?<Button type="button" size="sm" variant="outline" disabled={pending||!ids.length} onClick={()=>setNoticeSelection([...ids])}>선택 주문 {orderIds.length}건 고객 지연 안내</Button>:null}
     {/* 비활성 버튼이 고장처럼 보이지 않게 언제 눌리는지 말한다. */}
     {!ids.length&&!pending&&(tab==='new'||tab==='transit')?<span className="text-xs text-muted-foreground">{SELECT_FIRST}</span>:null}
     {pending?<span className="text-muted-foreground" role="status">처리 중…</span>:null}
@@ -197,7 +199,7 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
     {barcodeOrigins.map(origin=>originBarcodeGap(origin.id)>0?<span key={`barcode-${origin.id}`} className={WARNING} role="status">{`${origin.name} 미전달 발송 대기 건: ${shipmentBarcodeGapWarning(originBarcodeGap(origin.id))}`}</span>:null)}
    </div>:null}
   </ConsoleGrid>
-  {tab==='delayed'?<Button className="self-start" variant="outline" type="button" onClick={()=>setNoticeSelection([])}>고객 지연 안내 이력·결과</Button>:null}
+  {tab==='delayed'&&canManageSales?<Button className="self-start" variant="outline" type="button" onClick={()=>setNoticeSelection([])}>고객 지연 안내 이력·결과</Button>:null}
   {actorId&&packSelection!==null?<ShipmentPackPanel key={packSelection.join(',')} actorId={actorId} ids={packSelection} onClose={()=>setPackSelection(null)}/>:null}
   {noticeSelection!==null?<OrderDelayNoticePanel key={noticeSelection.join(',')} shipmentIds={noticeSelection} onClose={()=>setNoticeSelection(null)}/>:null}
   {completion?<CustomerServiceDialog title="배송완료 확인" busy={pending} onClose={()=>setCompletion(null)}>
