@@ -28,7 +28,9 @@ const mocks = vi.hoisted(() => ({
   resend: vi.fn(),
   resetPasswordForEmail: vi.fn(),
   verifyOtp: vi.fn(),
+  signInWithPassword: vi.fn(),
   getProfileForUser: vi.fn(),
+  cookieDeletes: [] as string[],
 }));
 
 vi.mock('@/lib/supabase/config', () => ({
@@ -44,6 +46,7 @@ vi.mock('@/lib/supabase/server', () => ({
       resend: mocks.resend,
       resetPasswordForEmail: mocks.resetPasswordForEmail,
       verifyOtp: mocks.verifyOtp,
+      signInWithPassword: mocks.signInWithPassword,
     },
   }),
 }));
@@ -74,6 +77,11 @@ vi.mock('next/headers', () => ({
         return;
       }
       mocks.cookies.set(name, value);
+    },
+    getAll: () => [...mocks.cookies.entries()].map(([name, value]) => ({ name, value })),
+    delete: (name: string) => {
+      mocks.cookieDeletes.push(name);
+      mocks.cookies.delete(name);
     },
   }),
 }));
@@ -611,12 +619,19 @@ describe('signup confirmation code', () => {
     consents: { terms: true, privacy: true }, onboarded_at: '2026-11-01T00:00:00.000Z', role: 'user', suspended_at: null,
   };
 
-  function codeForm(code: string, email = 'Fan@Icons.gg', next = '/community?sort=hot') {
+  function codeForm(code: string, email = 'Fan@Icons.gg', next = '/community?sort=hot', password: string | null = 'password1234') {
     const data = new FormData();
     data.set('email', email);
     data.set('code', code);
     data.set('next', next);
+    if (password !== null) data.set('password', password);
     return data;
+  }
+
+  /* GoTrue가 돌려주는 access token 모양(서명은 보지 않는다). AMR이 세션을 어떻게 만들었는지 말한다. */
+  function accessToken(methods: string[]) {
+    const payload = Buffer.from(JSON.stringify({ sub: 'user-1', amr: methods.map((method) => ({ method, timestamp: 1 })) })).toString('base64url');
+    return `header.${payload}.signature`;
   }
 
   beforeEach(() => {
@@ -630,10 +645,18 @@ describe('signup confirmation code', () => {
     mocks.signUp.mockReset();
     mocks.resend.mockReset();
     mocks.verifyOtp.mockReset();
+    mocks.signOut.mockReset();
+    mocks.signInWithPassword.mockReset();
     mocks.getProfileForUser.mockReset();
+    mocks.cookieDeletes.length = 0;
     mocks.signUp.mockResolvedValue({ data: { user: { id: 'user-1' }, session: null }, error: null });
     mocks.resend.mockResolvedValue({ data: { user: null, session: null }, error: null });
-    mocks.verifyOtp.mockResolvedValue({ data: { user: { id: 'user-1', email: 'fan@icons.gg' }, session: { access_token: 'x' } }, error: null });
+    mocks.verifyOtp.mockResolvedValue({ data: { user: { id: 'user-1', email: 'fan@icons.gg' }, session: { access_token: accessToken(['otp']) } }, error: null });
+    mocks.signOut.mockResolvedValue({ error: null });
+    mocks.signInWithPassword.mockResolvedValue({
+      data: { user: { id: 'user-1', email: 'fan@icons.gg' }, session: { access_token: accessToken(['password']) } },
+      error: null,
+    });
     mocks.getProfileForUser.mockResolvedValue(null);
   });
 
@@ -666,11 +689,59 @@ describe('signup confirmation code', () => {
     expect(state.errors?.form).toContain('비밀번호가 보안 조건을 충족하지 않습니다');
   });
 
-  it('verifies the code as an email OTP and continues to onboarding with the preserved next path', async () => {
+  /* 리뷰 F1 — 코드 확인 세션(AMR otp)은 '현재 비밀번호 요구' 가드를 면제받는다. 바로 닫고 비밀번호 로그인 세션으로 바꾼다. */
+  it('closes the code session and continues with a password session to onboarding', async () => {
     await expect(verifySignupCodeAction({}, codeForm(' 123 456 '))).rejects.toThrow(
       'NEXT_REDIRECT:/onboarding?next=%2Fcommunity%3Fsort%3Dhot',
     );
     expect(mocks.verifyOtp).toHaveBeenCalledWith({ email: 'fan@icons.gg', token: '123456', type: 'email' });
+    expect(mocks.signOut).toHaveBeenCalledWith({ scope: 'local' });
+    expect(mocks.signInWithPassword).toHaveBeenCalledWith({ email: 'fan@icons.gg', password: 'password1234' });
+    expect(mocks.verifyOtp.mock.invocationCallOrder[0]).toBeLessThan(mocks.signOut.mock.invocationCallOrder[0]);
+    expect(mocks.signOut.mock.invocationCallOrder[0]).toBeLessThan(mocks.signInWithPassword.mock.invocationCallOrder[0]);
+  });
+
+  it('sends the member to the sign-in screen when the password is not in screen memory (reload)', async () => {
+    await expect(verifySignupCodeAction({}, codeForm('123456', 'Fan@Icons.gg', '/community?sort=hot', null))).rejects.toThrow(
+      'NEXT_REDIRECT:/login?mode=signin&signup_confirmed=1&next=%2Fcommunity%3Fsort%3Dhot',
+    );
+    expect(mocks.signOut).toHaveBeenCalledWith({ scope: 'local' });
+    expect(mocks.signInWithPassword).not.toHaveBeenCalled();
+  });
+
+  it('never keeps a session whose AMR is not a password sign-in', async () => {
+    mocks.signInWithPassword.mockResolvedValueOnce({
+      data: { user: { id: 'user-1', email: 'fan@icons.gg' }, session: { access_token: accessToken(['password', 'otp']) } },
+      error: null,
+    });
+
+    await expect(verifySignupCodeAction({}, codeForm('123456'))).rejects.toThrow('NEXT_REDIRECT:/login?mode=signin&signup_confirmed=1');
+    expect(mocks.signOut).toHaveBeenCalledTimes(2);
+  });
+
+  it('sends the member to the sign-in screen when the password sign-in fails', async () => {
+    mocks.signInWithPassword.mockResolvedValueOnce({ data: { user: null, session: null }, error: { code: 'invalid_credentials', message: 'nope' } });
+
+    await expect(verifySignupCodeAction({}, codeForm('123456'))).rejects.toThrow('NEXT_REDIRECT:/login?mode=signin&signup_confirmed=1');
+    expect(mocks.signOut).toHaveBeenCalledOnce();
+  });
+
+  it('removes the session cookies itself when signing out the code session fails', async () => {
+    mocks.signOut.mockResolvedValueOnce({ error: { status: 500, message: 'auth unavailable' } });
+    mocks.cookies.set('sb-local-auth-token', 'otp-session');
+    mocks.cookies.set('sb-local-auth-token.1', 'otp-session-part');
+    mocks.cookies.set('icons_auth_next', 'keep');
+
+    await expect(verifySignupCodeAction({}, codeForm('123456', 'Fan@Icons.gg', '/', null))).rejects.toThrow('NEXT_REDIRECT:/login?mode=signin&signup_confirmed=1');
+    expect(mocks.cookieDeletes.sort()).toEqual(['sb-local-auth-token', 'sb-local-auth-token.1']);
+  });
+
+  it('does not touch the session when the code itself is wrong', async () => {
+    mocks.verifyOtp.mockResolvedValueOnce({ data: { user: null, session: null }, error: { code: 'otp_expired', message: 'Token has expired or is invalid' } });
+
+    await verifySignupCodeAction({}, codeForm('123456'));
+    expect(mocks.signOut).not.toHaveBeenCalled();
+    expect(mocks.signInWithPassword).not.toHaveBeenCalled();
   });
 
   it('goes straight to next for an already onboarded account and to the suspended page for a suspended one', async () => {

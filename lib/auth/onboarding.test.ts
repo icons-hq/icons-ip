@@ -14,6 +14,7 @@ import {
   passwordUpdateErrorMessage,
   postAuthenticationPath,
   safeNextPath,
+  signupConfirmedLoginPath,
   updatePasswordPath,
   updatePasswordSessionReadyPath,
   type ProfileForOnboarding,
@@ -247,6 +248,15 @@ describe('password reset paths and messages', () => {
     expect(updatePasswordPath('//evil.example')).toBe('/update-password');
     expect(updatePasswordSessionReadyPath('//evil.example')).toBe('/update-password?session_ready=1');
     expect(passwordResetSuccessLoginPath('https://evil.example')).toBe('/login?password_reset=success');
+  });
+
+  /* 가입 확인 코드로 이메일 확인은 끝났지만 비밀번호 로그인 세션을 만들지 못했을 때(새로고침 등, 리뷰 F1). */
+  it('builds the signup-confirmed sign-in route with a normalized next path', () => {
+    expect(signupConfirmedLoginPath('/community?sort=hot')).toBe(
+      '/login?mode=signin&signup_confirmed=1&next=%2Fcommunity%3Fsort%3Dhot',
+    );
+    expect(signupConfirmedLoginPath()).toBe('/login?mode=signin&signup_confirmed=1');
+    expect(signupConfirmedLoginPath('https://evil.example')).toBe('/login?mode=signin&signup_confirmed=1');
   });
 });
 

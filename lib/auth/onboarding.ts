@@ -208,6 +208,18 @@ export function signupCodeErrorMessage(error: AuthErrorLike | null | undefined):
   }
 }
 
+/** 가입 확인 코드로 이메일 확인을 마쳤지만 비밀번호 로그인 세션으로 바꾸지 못했을 때(새로고침 등) 가는 로그인 화면. */
+export const SIGNUP_CONFIRMED_MESSAGE = '가입 확인을 마쳤어요. 가입한 이메일과 비밀번호로 로그인해주세요.';
+
+export function signupConfirmedLoginPath(next: string = '/') {
+  const url = new URL('/login', 'https://icons.local');
+  url.searchParams.set('mode', 'signin');
+  url.searchParams.set('signup_confirmed', '1');
+  const safeNext = safeNextPath(next);
+  if (safeNext !== '/') url.searchParams.set('next', safeNext);
+  return `${url.pathname}${url.search}`;
+}
+
 export function authErrorLoginPath(code: string | null | undefined, next: string = '/') {
   const url = new URL('/login', 'https://icons.local');
   url.searchParams.set('mode', 'signin');

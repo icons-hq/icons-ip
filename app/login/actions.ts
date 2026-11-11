@@ -18,6 +18,7 @@ import {
   postAuthenticationPath,
   safeNextPath,
   signupCodeErrorMessage,
+  signupConfirmedLoginPath,
 } from '@/lib/auth/onboarding';
 import {
   AUTH_NEXT_RECOVERY_MAX_AGE_SECONDS,
@@ -30,6 +31,7 @@ import {
   type AuthNextPurpose,
 } from '@/lib/auth/recovery.server';
 import { getProfileForUser } from '@/lib/auth/server';
+import { isPasswordSessionAccessToken } from '@/lib/auth/session-amr';
 import { KAKAO_CHANNEL_LOGIN_SCOPE, kakaoChannelConfig } from '@/lib/kakao/channel-config.server';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/server';
@@ -522,10 +524,34 @@ export async function resendSignupCodeAction(_state: AuthActionState, formData: 
   return resendSignupConfirmation({ supabase, cookieStore, origin, email, next, now, secret, state });
 }
 
+/* Supabase SSR 세션 쿠키(sb-<ref>-auth-token, 큰 세션은 .0·.1 조각). */
+const SUPABASE_AUTH_COOKIE = /^sb-.+-auth-token(?:\.\d+)?$/;
+
+/*
+ * 가입 확인 코드로 만든 세션을 닫는다. 이 세션은 AMR이 otp라 운영 Auth의 '현재 비밀번호 요구' 가드를 면제받는다
+ * (recovery·magic link와 같은 판정 — docs/runbooks/supabase-auth-password-update-guards.md). 그래서 브라우저에 주지 않는다.
+ * signOut이 실패하면 auth-js가 로컬 세션을 지우지 않으므로, 이 응답이 세션 쿠키를 들고 나가지 않게 직접 지운다.
+ */
+async function closeSignupCodeSession(supabase: SupabaseServerClient) {
+  try {
+    const { error } = await supabase.auth.signOut({ scope: 'local' });
+    if (!error) return;
+  } catch {
+    // 아래에서 쿠키를 직접 지운다.
+  }
+  const cookieStore = await cookies();
+  for (const cookie of cookieStore.getAll()) {
+    if (SUPABASE_AUTH_COOKIE.test(cookie.name)) cookieStore.delete(cookie.name);
+  }
+}
+
 /*
  * 가입 확인 6자리 코드(1014-004). 메일 링크를 새 창에서 열지 않고 가입한 화면에서 그대로 확인을 끝낸다.
- * Supabase verifyOtp(type email)는 가입 확인 토큰을 먼저 보고(PKCE 가입의 pkce_ 토큰도 같은 코드로 통과),
- * 성공하면 세션 쿠키를 남긴다 — 그다음은 링크 콜백과 같은 로그인 뒤 경로(온보딩·정지 계정)를 탄다.
+ * Supabase verifyOtp(type email)는 가입 확인 토큰을 먼저 보고(PKCE 가입의 pkce_ 토큰도 같은 코드로 통과) 이메일을
+ * 확인한다. 이때 생긴 세션은 AMR otp라 현재 비밀번호 없이 비밀번호를 바꿀 수 있는 세션이므로(리뷰 F1) 바로 닫고,
+ * 가입 화면에서 입력한 비밀번호로 다시 로그인해 password 세션만 브라우저에 준다. 비밀번호는 화면 메모리에서만 이
+ * 요청에 실려 오고 저장하지 않는다. 비밀번호가 없거나(새로고침 등) 로그인이 안 되면 로그인 화면으로 보낸다 —
+ * 이메일 확인은 이미 끝났다. 그다음은 링크 콜백과 같은 로그인 뒤 경로(온보딩·정지 계정)를 탄다.
  * 코드 대입 시도는 GoTrue의 IP별 검증 한도(token_verifications)와 코드 만료가 막는다. 코드가 틀렸는지 만료됐는지는
  * GoTrue가 구분해 주지 않는다(otp_expired 하나).
  */
@@ -533,6 +559,7 @@ export async function verifySignupCodeAction(_state: AuthActionState, formData: 
   const email = signupEmailFromForm(formData);
   if (!email) return { errors: { form: SIGNUP_CODE_EMAIL_MISSING_MESSAGE } };
   const code = readString(formData, 'code').replace(/\s+/g, '');
+  const password = readString(formData, 'password');
   const next = safeNextPath(formData.get('next'));
   if (!/^\d{6}$/.test(code)) return { errors: { code: SIGNUP_CODE_FORMAT_MESSAGE }, pendingSignupEmail: email };
 
@@ -545,11 +572,20 @@ export async function verifySignupCodeAction(_state: AuthActionState, formData: 
     return { errors: { code: signupCodeErrorMessage(error) }, pendingSignupEmail: email };
   }
 
-  const profile = await getProfileForUser(supabase, data.user.id);
+  await closeSignupCodeSession(supabase);
+  if (!password) redirect(signupConfirmedLoginPath(next));
+
+  const { data: signIn, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+  if (signInError || !signIn.user || !isPasswordSessionAccessToken(signIn.session?.access_token)) {
+    if (!signInError && signIn.session) await closeSignupCodeSession(supabase);
+    redirect(signupConfirmedLoginPath(next));
+  }
+
+  const profile = await getProfileForUser(supabase, signIn.user.id);
   if (isAccountSuspended(profile) && next !== ACCOUNT_DELETION_PATH) {
     redirect(ACCOUNT_SUSPENDED_PATH);
   }
-  redirect(postAuthenticationPath(profile, data.user.email, next));
+  redirect(postAuthenticationPath(profile, signIn.user.email, next));
 }
 
 export async function requestPasswordResetAction(
