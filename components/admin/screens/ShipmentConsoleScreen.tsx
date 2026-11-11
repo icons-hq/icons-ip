@@ -7,7 +7,9 @@ import {AdminNotice,AdminStatusBadge} from '@/components/admin/console/AdminKit'
 import {AdminCountCard} from '@/components/admin/console/AdminCountCard';
 import {buttonVariants} from '@/components/admin/kit/ui/button';
 import {statusTone} from '@/lib/admin/status-tone';
-import {SHIPMENT_CONSOLE_TABS,SHIPMENT_SEARCH_FIELDS,isParcelShipment,shipmentConsoleHref,shipmentConsoleSelectable,type ShipmentConsoleData} from '@/lib/admin/shipment-dispatch';
+import {SHIPMENT_CONSOLE_TABS,SHIPMENT_SEARCH_FIELDS,isParcelShipment,shipmentConsoleHref,shipmentConsoleRowSelectable,shipmentConsoleSelectable,type ShipmentConsoleData} from '@/lib/admin/shipment-dispatch';
+import {ShipmentConsoleRowTracking} from './ShipmentConsoleRowTracking';
+import {ShipmentConsoleMethodButton} from './ShipmentConsoleMethodButton';
 import {adminOrderDetailHrefFromBack} from '@/lib/admin/orders';
 import {formatOrderDateTime,orderReferenceLabel} from '@/lib/orders';
 import {orderShipment} from '@/lib/orders/shipment';
@@ -61,12 +63,16 @@ export function ShipmentConsoleScreen({data,registeredCount,actorId,summaryAside
  /* 1440 화면(표 폭 약 1,100px)에 주요 열이 들어오게 나눈다. 상품·옵션은 폭을 비워 남는 자리를 모두 받고, 거의 '택배'인 배송 방식은 뒤로 보낸다.
     지연 안내 결과는 지연 탭이나 그 조건으로 찾을 때만 기본으로 보인다(조회항목 설정에서 언제든 켤 수 있다). */
  const showDelayNotice=isDispatch&&(filters.tab==='delayed'||Boolean(filters.delayNotice));
+ /* S36-072: 발송 대기·지연 탭은 행마다 택배사·운송장 칸을 두어 그 자리에서 발송처리한다. 배송 방법은 발주·발송 화면 전체에서 행 버튼으로 바꾼다. */
+ const rowTracking=isDispatch&&(filters.tab==='ready'||filters.tab==='delayed');
+ const activeCarriers=carriers.filter(carrier=>carrier.active).map(({code,label})=>({code,label}));
  const columns:ConsoleGridColumn[]=[{key:'reference',label:'배송건번호 / 주문번호',width:'176px'},{key:'items',label:'상품 · 옵션'},
   {key:'origin',label:'출고지',width:'72px'},
   {key:'buyer',label:'구매자명',width:'88px'},
   {key:'recipient',label:'수취인',width:'96px'},{key:'time',label:isDispatch?'주문 / 발주확인':'발송 / 배송완료',width:'156px'},
-  {key:'tracking',label:isDispatch?'발송·인계':'배송·수령 확인',width:isDispatch?'132px':'206px'},...(isDispatch?[{key:'notice',label:'지연 안내 결과',width:'128px',required:showDelayNotice,defaultVisible:showDelayNotice}]:[]),...(filters.tab==='delayed'?[{key:'delay',label:'지연 메모',width:'260px'}]:[]),
-  {key:'method',label:'배송 방식',width:'84px',...(isDispatch?{}:{defaultVisible:false})}];
+  {key:'tracking',label:isDispatch?'발송·인계':'배송·수령 확인',width:isDispatch?'132px':'206px'},...(rowTracking?[{key:'dispatch',label:'택배사 · 운송장',width:'176px'}]:[]),
+  ...(isDispatch?[{key:'notice',label:'지연 안내 결과',width:'128px',required:showDelayNotice,defaultVisible:showDelayNotice}]:[]),...(filters.tab==='delayed'?[{key:'delay',label:'지연 메모',width:'260px'}]:[]),
+  {key:'method',label:'배송 방식',width:isDispatch?'96px':'84px',...(isDispatch?{}:{defaultVisible:false})}];
  const gridRows=rows.map(row=>{
   const parcel=isParcelShipment(row);const tracking=parcel?orderShipment(carriers,row.carrier,row.trackingNumber):null;
   const methodLabel=row.delivery?DELIVERY_METHOD_LABELS[row.delivery.method]:parcel?'택배':'확인 필요';
@@ -75,7 +81,14 @@ export function ShipmentConsoleScreen({data,registeredCount,actorId,summaryAside
   /* 며칠 묵은 주문이 표에서 바로 보이게 한다. 신규주문은 주문한 날부터 센다. */
   const waitingDays=isDispatch&&row.status==='ready'?daysSince(row.confirmedAt??row.createdAt,now):0;
   const delayDays=isDispatch?dispatchDelayDays(row,now):null;
-  return {id:row.id,selectable:filters.tab==='delayed'||shipmentConsoleSelectable(row,filters.tab),selectLabel:`배송 건 ${commerceReferenceLabel(row.id, row.shipmentNumber)} 선택`,cells:[
+  const reference=commerceReferenceLabel(row.id, row.shipmentNumber);
+  /* 운송장 칸은 지금 발송할 수 있는 택배 건(예약 재고 할당·제작 완료)에만 둔다. 막힌 이유는 옆 발송·인계 칸이 보인다. */
+  const trackingCell=!rowTracking?null:row.status==='ready'&&parcel&&shipmentConsoleSelectable(row,'ready')
+   ?<ShipmentConsoleRowTracking key="dispatch" carriers={activeCarriers} defaultCarrier={origins.find(origin=>origin.id===row.originId)?.defaultCarrier??null} reference={reference} shipmentId={row.id}/>
+   :<span key="dispatch" className={CELL_NOTE}>{parcel?'예약 재고 할당·제작 완료 뒤 입력합니다.':'택배 외 배송 — 배송 방법·주문 상세에서 처리합니다.'}</span>;
+  /* 출고지시 전달 전 준비 건만 방법을 바꿀 수 있다(배송없음·디지털은 구매 때 정한 방식). 정확한 판정은 팝업이 서버에서 읽는다. */
+  const methodChangeable=isDispatch&&row.status==='ready'&&!row.exportedAt&&!row.trackingNumber&&row.delivery?.method!=='none'&&row.delivery?.method!=='digital';
+  return {id:row.id,selectable:shipmentConsoleRowSelectable(row,filters.tab,filters.method),selectLabel:`배송 건 ${reference} 선택`,cells:[
    <div key="id" className={CELL_STACK}><Link
     aria-label={`주문 ${orderReferenceLabel(row.orderId, row.orderNumber)} 상세 열기 (새 탭)`}
     className="font-medium tabular-nums underline-offset-4 hover:underline"
@@ -93,10 +106,11 @@ export function ShipmentConsoleScreen({data,registeredCount,actorId,summaryAside
       {filters.tab==='new'?<span className={waitingDays>=LONG_WAIT_DAYS?'text-xs font-semibold text-warning tabular-nums':CELL_NOTE}>{waitingDays?`${waitingDays}일째 대기`:'오늘 주문'}</span>:<AdminStatusBadge tone={row.exportedAt?'success':'neutral'}>{row.exportedAt?'출고지시 전달':'내보내기 전'}</AdminStatusBadge>}
       {row.preorderReady===false?<AdminStatusBadge tone="warning">예약 재고 할당 필요</AdminStatusBadge>:null}{row.production&&row.production.count>0?<p><Link className={CELL_LINK} href={detailHref}>주문제작 {row.production.completed}/{row.production.count}건 완료{row.production.ready?'':' · 제작 완료 전 발송 불가'}</Link></p>:null}</div>:
     <div key="tracking" className={CELL_STACK}>{transitDays>=LONG_TRANSIT_DAYS?<AdminStatusBadge tone="warning">{transitDays}일째 배송 중</AdminStatusBadge>:<AdminStatusBadge tone={statusTone('shipment',row.status)}>{shipmentStatusLabel(row.status)}</AdminStatusBadge>}{tracking?<a className={`${CELL_LINK} tabular-nums whitespace-nowrap`} href={tracking.trackingUrl} target="_blank" rel="noreferrer noopener">{tracking.carrierLabel} {tracking.trackingNumber}</a>:<AdminStatusBadge tone="warning">운송장 확인 필요</AdminStatusBadge>}</div>,
+   ...(trackingCell?[trackingCell]:[]),
    ...(isDispatch?[<div key="notice" className={CELL_STACK}><AdminStatusBadge tone={row.delayNotice?statusTone('delayNotice',row.delayNotice.status):'warning'}>{shipmentDelayNoticeLabel(row.delayNotice?.status)}</AdminStatusBadge>
     {row.delayNotice?.requestedAt?<><small className={CELL_NOTE}>앱 {ORDER_DELAY_STATUS_LABELS[row.delayNotice.inAppStatus??'prepared']} · 이메일 {ORDER_DELAY_STATUS_LABELS[row.delayNotice.emailStatus??'unknown']}</small><small className={`${CELL_NOTE} tabular-nums`}>{formatOrderDateTime(row.delayNotice.requestedAt)}</small></>:null}</div>]:[]),
    ...(filters.tab==='delayed'?[<DispatchDelayNoteForm key="delay" orderId={row.orderId} reference={orderReferenceLabel(row.orderId, row.orderNumber)} note={row.delayReason?{reason:row.delayReason,expectedShipDate:row.expectedShipDate,updatedAt:row.updatedAt}:null}/>]:[]),
-   <span key="method">{methodLabel}</span>,
+   methodChangeable?<div key="method" className={CELL_STACK}><span>{methodLabel}</span><ShipmentConsoleMethodButton reference={reference} shipmentId={row.id}/></div>:<span key="method">{methodLabel}</span>,
   ]};
  });
  /* 운송장 회신은 발송 대기·지연·배송중 탭의 매일 일이다. 그 탭에서는 목록 머리의 버튼으로 두어 표를 밀지 않고, 신규주문·배송완료 탭에서는 표 아래로 비킨다. 표가 100행까지 길어져 어느 탭이든 표 위·아래 한쪽에만 고정하지 않는다.
@@ -111,7 +125,7 @@ export function ShipmentConsoleScreen({data,registeredCount,actorId,summaryAside
  const longTransit=!isDispatch&&filters.tab==='transit'?rows.filter(row=>row.status==='shipping'&&row.shippedAt&&daysSince(row.shippedAt,now)>=LONG_TRANSIT_DAYS).length:null;
  return <section className="flex min-w-0 flex-col gap-4 text-sm" data-shipment-console={surface}>
   <SalesGuide title={isDispatch?'신규주문 확인부터 출고지별 발송까지 처리할 수 있습니다.':'발송한 배송 건과 실제 배송완료 상태를 확인할 수 있습니다.'}>
-   <p>{isDispatch&&hasParcelRows?'순서: 대상 선택 → 출고지시 내보내기 → 창고 회신 → 운송장 등록. 출고지별 배송 건을 확인하며, 퀵·직접배송·화물배송·방문수령·배송없음은 주문 상세에서 실제 인계와 수령을 확인합니다.':isDispatch?'택배 외 배송 방식은 주문 상세에서 확인합니다. 디지털 파일은 구매자의 다운로드 제공 이력으로 처리 상태를 확인합니다.':'택배의 실제 도착을 확인해 배송완료로 처리합니다. 택배 외 실물 상품은 주문 상세에서 수령 확인값과 인계 근거를 기록합니다. 디지털 파일은 다운로드 제공 이력으로 확인합니다.'}</p>
+   <p>{isDispatch&&hasParcelRows?'순서: 대상 선택 → 출고지시 내보내기 → 창고 회신 → 운송장 등록(회신 파일 또는 발송 대기 행의 택배사·운송장 칸). 배송 방법은 행의 [배송 방법]에서 그 출고지에 켜진 방법으로 바꾸고, 고객이 고른 방법과 다르면 사유를 남깁니다. 퀵·직접배송·화물배송은 [택배 외 발송처리]로 고른 건의 실제 인계를 한 번에 기록하고, 수령 완료와 방문수령·배송없음은 주문 상세에서 확인합니다.':isDispatch?'택배 외 배송 건은 행의 [배송 방법]에서 인계를 기록하거나, 배송방법 필터로 한 방법만 모은 뒤 [택배 외 발송처리]로 한 번에 기록합니다. 수령 완료는 주문 상세에서 확인하고, 디지털 파일은 구매자의 다운로드 제공 이력으로 처리 상태를 확인합니다.':'택배의 실제 도착을 확인해 배송완료로 처리합니다. 택배 외 실물 상품은 주문 상세에서 수령 확인값과 인계 근거를 기록합니다. 디지털 파일은 다운로드 제공 이력으로 확인합니다.'}</p>
    {isDispatch?<p>지연 안내 결과는 배송 건별 최근 발송 요청의 앱 알림과 이메일 기록입니다. 미리보기만 저장한 안내는 제외합니다. 발송 처리는 앱 알림 기록과 이메일 공급자 접수·발송 상태이며 고객의 수신·열람을 뜻하지 않습니다. 채널별 실패와 결과 불명은 안내 이력에서 확인합니다.</p>:null}
   </SalesGuide>
   <SalesStatusSummary aside={summaryAside} label="배송 처리 단계 · 배송 건 기준" items={SHIPMENT_CONSOLE_TABS[surface].map(tab=>({active:tab.id===filters.tab,label:tab.label,count:data.counts[tab.id],urgent:tab.id==='delayed'&&data.counts.delayed>0,tone:tab.id==='new'?'warning' as const:undefined,icon:tab.id==='transit'?Truck:tab.id==='delivered'?PackageCheck:undefined,href:shipmentConsoleHref(surface,filters,{tab:tab.id,page:1})}))}
@@ -144,7 +158,7 @@ export function ShipmentConsoleScreen({data,registeredCount,actorId,summaryAside
   {trackingImport}
   <div className="flex min-w-0 basis-full flex-col gap-3">
   <ShipmentConsoleGrid actorId={actorId} rows={rows} columns={columns} gridRows={gridRows} tab={filters.tab} origins={isDispatch?origins:[]} originId={filters.originId}
-   currentHref={shipmentConsoleHref(surface,filters)} readyHref={shipmentConsoleHref('dispatch',filters,{tab:'ready',page:1})}/>
+   currentHref={shipmentConsoleHref(surface,filters)} readyHref={shipmentConsoleHref('dispatch',filters,{tab:'ready',page:1})} methodFilter={filters.method??null} dispatchActions={isDispatch}/>
   <ConsolePagination label="배송 건 페이지" page={filters.page} pageSize={data.pageSize} total={data.total} hrefForPage={page=>shipmentConsoleHref(surface,filters,{page})}/>
   </div>
   </div>

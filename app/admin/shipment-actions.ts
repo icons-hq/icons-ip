@@ -11,10 +11,19 @@ import {shipmentMutationError,type ShipmentExportData} from '@/lib/admin/shipmen
 import {parseShipmentExportColumns,shipmentBarcodeGapWarning,type ShipmentExportLayout} from '@/lib/admin/shipment-workbook';
 import {exportPasswordError} from '@/lib/admin/export-password';
 import {encryptAdminWorkbook} from '@/lib/admin/encrypted-workbook.server';
+import {unstable_rethrow} from 'next/navigation';
+import {findShippingCarrier,isTrackingNumber,normalizeTrackingNumber} from '@/lib/orders/shipment';
+import {getShippingCarrierRegistry} from '@/lib/orders/shipment.server';
+import {enqueueOrderShippedEmails} from '@/lib/email/order-shipment-jobs.server';
+import {DISPATCH_HANDOFF_METHODS,DISPATCH_METHODS,DISPATCH_REASON_MAX_LENGTH,DISPATCH_TARGET_LIMIT,dispatchDeliveryError,parseDispatchDeliveryOptions,parseDispatchDeliveryReceipt,
+ type DispatchDeliveryOptions,type DispatchDeliveryReceipt,type DispatchHandoffInput,type DispatchMethod} from '@/lib/admin/dispatch-delivery';
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const INSTANT=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/;
 function selection(value:unknown):string[]|null {if(!Array.isArray(value)||!value.length||value.length>1000||!value.every(id=>typeof id==='string'&&UUID.test(id)))return null;return [...new Set((value as string[]).map(id=>id.toLowerCase()))];}
 async function staff(){const auth=await getCurrentAdminAuthState();return auth.isConfigured&&auth.user&&auth.isStaff&&hasAdminCapability(auth,'sales.manage')?auth:null;}
 function refresh(){revalidatePath('/admin/sales/dispatch');revalidatePath('/admin/sales/shipping');revalidatePath('/admin/sales/orders');revalidatePath('/orders');}
+/** 발송·인계 기록은 고객 주문 화면과 주문 상세(팝업 포함)에도 바로 보여야 한다. */
+function refreshDispatched(){refresh();revalidatePath('/orders/[orderId]','page');revalidatePath('/admin/sales/orders/[orderId]','page');}
 type Client=Awaited<ReturnType<typeof createClient>>;
 type ExportCredentials={password:string;passwordConfirmation:string};
 type ExportResult={error:string;file?:undefined;message?:undefined}|{file:{base64:string;mime:string;name:string;encryption?:'ECMA-376-Agile';sha256?:string};message:string;error?:undefined};
@@ -115,4 +124,94 @@ export async function saveShipmentExportColumnsAction(id:string,columns:unknown,
  const client=await createClient();const result=await client.rpc('admin_save_origin_export_columns',{target_id:id,target_columns:parsed,expected_updated_at:updatedAt});
  if(result.error)return {error:'다른 변경이 먼저 저장됐거나 양식이 올바르지 않습니다. 최신 출고지 설정을 확인해주세요.'};
  revalidatePath('/admin/settings/origins');return {message:'출고지시 양식을 저장했습니다.',updatedAt:result.data as string};
+}
+
+export type ShipmentTrackingRowInput={shipmentId:string;carrier:string;trackingNumber:string};
+export type ShipmentTrackingRowResult={ok:true;message:string;registered:string[];unchanged:string[];failed:{shipmentId:string;reason:string}[];queueWarning:boolean}|{ok:false;error:string};
+type TrackingBatchRow={line:number;reference:string;ok:boolean;error?:string;shipmentId?:string;orderId?:string;dispatched?:boolean;packedShipments?:{orderId:string;shipmentId:string}[]};
+/**
+ * 발송 대기 행의 택배사·운송장 칸(S36-072). 창고 회신 파일과 같은 일괄 등록 RPC에 1~100건을 그대로 넘긴다 —
+ * 합포장은 묶음 전체에 적용되고, 이미 발송된 배송 건의 운송장은 덮어쓰지 않는다(같은 번호는 그대로, 다르면 실패).
+ */
+export async function registerShipmentTrackingAction(input:unknown):Promise<ShipmentTrackingRowResult>{
+ if(!await staff())return {ok:false,error:'직원 권한이 필요합니다.'};
+ if(!Array.isArray(input)||!input.length||input.length>DISPATCH_TARGET_LIMIT)return {ok:false,error:'운송장을 등록할 배송 건을 다시 확인해주세요.'};
+ const carriers=await getShippingCarrierRegistry();const rows:{line:number;reference:string;carrier:string;trackingNumber:string}[]=[];
+ for(const [index,value] of input.entries()){
+  const {shipmentId,carrier,trackingNumber}=(typeof value==='object'&&value!==null?value:{}) as Record<string,unknown>;
+  if(typeof shipmentId!=='string'||!UUID.test(shipmentId)||rows.some(row=>row.reference===shipmentId.toLowerCase()))return {ok:false,error:'운송장을 등록할 배송 건을 다시 확인해주세요.'};
+  const selected=typeof carrier==='string'?findShippingCarrier(carriers,carrier):null;
+  if(!selected?.active)return {ok:false,error:shipmentMutationError('inactive_shipping_carrier')};
+  const tracking=typeof trackingNumber==='string'?normalizeTrackingNumber(trackingNumber):'';
+  if(!isTrackingNumber(tracking))return {ok:false,error:'운송장번호는 하이픈을 뺀 8~30자리 영숫자여야 합니다.'};
+  rows.push({line:index+1,reference:shipmentId.toLowerCase(),carrier:selected.code,trackingNumber:tracking});
+ }
+ try{
+  const result=await (await createClient()).rpc('admin_import_shipment_tracking_batch',{target_rows:rows});
+  if(result.error?.message&&/^(shipment_pack_|inactive_shipping_carrier$|invalid_tracking_)/.test(result.error.message))return {ok:false,error:shipmentMutationError(result.error.message)};
+  if(result.error||!Array.isArray(result.data)||result.data.length!==rows.length)return {ok:false,error:'등록 결과를 확인하지 못했습니다. 목록을 새로고침해 배송 상태를 확인해주세요.'};
+  const data=result.data as TrackingBatchRow[];
+  const registered=data.filter(row=>row.ok&&row.dispatched!==false).map(row=>row.reference);
+  const unchanged=data.filter(row=>row.ok&&row.dispatched===false).map(row=>row.reference);
+  const failed=data.filter(row=>!row.ok).map(row=>({shipmentId:row.reference,reason:shipmentMutationError(row.error??'')}));
+  const deliveries=data.filter(row=>row.ok&&row.dispatched!==false&&row.shipmentId&&row.orderId).flatMap(row=>row.packedShipments??[{orderId:row.orderId!,shipmentId:row.shipmentId!}]);
+  let queueWarning=false;
+  if(deliveries.length){try{await enqueueOrderShippedEmails([...new Map(deliveries.map(row=>[row.shipmentId,row])).values()]);}catch{queueWarning=true;}}
+  if(registered.length||unchanged.length)refreshDispatched();
+  const message=registered.length?`운송장 ${registered.length}건을 등록해 배송 중으로 옮겼습니다.${queueWarning?' 배송 메일 대기열 확인이 필요합니다. 주문 상세의 배송 안내 메일에서 확인해주세요.':' 배송 메일은 대기열에서 처리됩니다.'}`
+   :unchanged.length?'같은 운송장으로 이미 발송된 배송 건입니다. 그대로 두었습니다.':'운송장을 등록하지 못했습니다.';
+  return {ok:true,message,registered,unchanged,failed,queueWarning};
+ }catch(error){unstable_rethrow(error);return {ok:false,error:'등록 결과를 확인하지 못했습니다. 목록을 새로고침해 배송 상태를 확인해주세요.'};}
+}
+
+/** 발송처리 화면의 배송 방법 팝업(S36-072·S36-X04)이 여는 대상 정보. 고객이 고른 방법·처리 가능 여부·켜진 운영 조건. */
+export async function readDispatchDeliveryOptionsAction(ids:unknown):Promise<{ok:true;options:DispatchDeliveryOptions}|{ok:false;error:string}>{
+ if(!await staff())return {ok:false,error:'직원 권한이 필요합니다.'};
+ const keys=selection(ids);
+ if(!keys||keys.length>DISPATCH_TARGET_LIMIT)return {ok:false,error:`배송 건을 1~${DISPATCH_TARGET_LIMIT}개 선택해주세요.`};
+ try{
+  const {data,error}=await (await createClient()).rpc('admin_dispatch_delivery_options',{p_shipment_ids:keys});
+  const options=error?null:parseDispatchDeliveryOptions(data);
+  return options?{ok:true,options}:{ok:false,error:'배송 방법 정보를 불러오지 못했습니다. 잠시 후 다시 열어주세요.'};
+ }catch(error){unstable_rethrow(error);return {ok:false,error:'배송 방법 정보를 불러오지 못했습니다. 잠시 후 다시 열어주세요.'};}
+}
+
+export interface DispatchDeliveryRequest{targets:{shipmentId:string;updatedAt:string}[];method:DispatchMethod;reason:string;handoff:DispatchHandoffInput|null;operationId:string}
+function dispatchRequest(input:unknown):DispatchDeliveryRequest|null{
+ if(typeof input!=='object'||input===null)return null;
+ const {targets,method,reason,handoff,operationId}=input as Record<string,unknown>;
+ if(!Array.isArray(targets)||!targets.length||targets.length>DISPATCH_TARGET_LIMIT||!DISPATCH_METHODS.includes(method as DispatchMethod)
+  ||typeof reason!=='string'||reason.trim().length>DISPATCH_REASON_MAX_LENGTH||typeof operationId!=='string'||!UUID.test(operationId))return null;
+ const parsed:DispatchDeliveryRequest['targets']=[];
+ for(const target of targets){
+  const {shipmentId,updatedAt}=(typeof target==='object'&&target!==null?target:{}) as Record<string,unknown>;
+  if(typeof shipmentId!=='string'||!UUID.test(shipmentId)||typeof updatedAt!=='string'||!INSTANT.test(updatedAt)||parsed.some(row=>row.shipmentId===shipmentId.toLowerCase()))return null;
+  parsed.push({shipmentId:shipmentId.toLowerCase(),updatedAt});
+ }
+ let evidence:DispatchHandoffInput|null=null;
+ if(handoff!==null){
+  if(typeof handoff!=='object'||!DISPATCH_HANDOFF_METHODS.includes(method as DispatchMethod))return null;
+  const fields=handoff as Record<string,unknown>;const keys=['operatorName','providerName','providerPhone','handoffReference','occurredAt'] as const;
+  if(Object.keys(fields).some(key=>!(keys as readonly string[]).includes(key))||keys.some(key=>typeof fields[key]!=='string'||!(fields[key] as string).trim())||!INSTANT.test(String(fields.occurredAt)))return null;
+  evidence=Object.fromEntries(keys.map(key=>[key,(fields[key] as string).trim()])) as unknown as DispatchHandoffInput;
+ }
+ return {targets:parsed,method:method as DispatchMethod,reason:reason.trim(),handoff:evidence,operationId:operationId.toLowerCase()};
+}
+/**
+ * 고른 배송 건에 방법을 적용하고, 퀵·직접배송·화물배송이면 실제 인계 근거까지 남긴다. 배송비·결제 금액은
+ * 그대로이고, 고객이 고른 방법과 다르면 사유가 필요하다. 배송 건마다 결과를 돌려준다.
+ */
+export async function applyDispatchDeliveryAction(input:unknown):Promise<{ok:true;receipt:DispatchDeliveryReceipt}|{ok:false;error:string}>{
+ if(!await staff())return {ok:false,error:'직원 권한이 필요합니다.'};
+ const request=dispatchRequest(input);
+ if(!request)return {ok:false,error:dispatchDeliveryError('invalid_dispatch_delivery_request')};
+ try{
+  const {data,error}=await (await createClient()).rpc('admin_dispatch_apply_delivery',{p_targets:request.targets,p_method:request.method,
+   p_reason:request.reason||null,p_handoff:request.handoff,p_operation_id:request.operationId});
+  if(error)return {ok:false,error:dispatchDeliveryError(error.message)};
+  const receipt=parseDispatchDeliveryReceipt(data);
+  if(!receipt||receipt.operationId!==request.operationId||receipt.results.length!==request.targets.length)return {ok:false,error:dispatchDeliveryError()};
+  if(receipt.changed||receipt.handedOff)refreshDispatched();
+  return {ok:true,receipt};
+ }catch(error){unstable_rethrow(error);return {ok:false,error:dispatchDeliveryError()};}
 }

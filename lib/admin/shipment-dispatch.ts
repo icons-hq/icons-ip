@@ -41,8 +41,8 @@ export interface ShipmentConsoleData {
  delayNoticeFingerprint?:string;
 }
 export interface ShipmentExportData {shipments:{id:string;shipmentNumber?:string|null;orderNumber?:string|null;updatedAt:string;originId:string;originName:string;shippingFee:number;shippingCollectFee?:number;pack?:import('./shipment-packs').ShipmentPackSummary|null;isGift?:boolean;collector?:import('@/lib/goods-transaction').GoodsTransactionCollector|null;template:string;columns:ShipmentExportColumn[];lines:import('./shipment-workbook').ShipmentExportLine[]}[]}
-/** 양식·사용 여부는 출고지별 내려받기 버튼의 표시 기준입니다. */
-export interface ShipmentConsoleOrigin {id:string;name:string;template?:string;active?:boolean}
+/** 양식·사용 여부는 출고지별 내려받기 버튼의 표시 기준입니다. 기본 택배사는 행 운송장 칸이 미리 고릅니다. */
+export interface ShipmentConsoleOrigin {id:string;name:string;template?:string;active?:boolean;defaultCarrier?:string|null}
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const one=(value:string|string[]|undefined)=>typeof value==='string'?value.trim():'';
 function date(value:string){if(!/^\d{4}-\d{2}-\d{2}$/.test(value))return null;const d=new Date(value+'T00:00:00Z');return !Number.isNaN(d.valueOf())&&d.toISOString().slice(0,10)===value?value:null;}
@@ -98,4 +98,16 @@ export function shipmentConsoleSelectable(row:ShipmentConsoleRow,tab:ShipmentCon
  if(tab==='new')return true; // Order confirmation remains shared by every fulfillment method.
  if(tab==='delivered'||!isParcelShipment(row))return false;
  return tab==='transit'||row.preorderReady!==false&&row.production?.ready!==false;
+}
+/** 배송방법 필터로 퀵·방문수령·직접배송·화물배송 중 한 방법만 모아 본 목록. 택배 일괄 처리가 없어 그 건을 택배 외 일괄 발송처리용으로 고른다. */
+export function shipmentConsoleNonParcelBatch(tab:ShipmentConsoleTab,method?:FulfillmentMethod):boolean{
+ return tab==='ready'&&Boolean(method)&&!['parcel','none','digital'].includes(method!);
+}
+/**
+ * 표의 체크칸 대상. 택배 일괄 처리(발주확인·출고지시·배송완료)는 shipmentConsoleSelectable 그대로이고, 발송 지연 탭은 고객 안내 때문에 모두,
+ * 택배 외 한 방법만 모아 본 발송 대기 목록에서는 그 배송 건도 고른다(S36-X04). 섞인 목록의 전체 선택이 출고지시를 막지 않게 필터로 나눈다.
+ */
+export function shipmentConsoleRowSelectable(row:ShipmentConsoleRow,tab:ShipmentConsoleTab,method?:FulfillmentMethod):boolean{
+ if(tab==='delayed'||shipmentConsoleSelectable(row,tab))return true;
+ return shipmentConsoleNonParcelBatch(tab,method)&&row.status==='ready'&&row.delivery?.method===method;
 }
