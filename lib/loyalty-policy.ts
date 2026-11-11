@@ -1,12 +1,58 @@
-import { LOYALTY_GRADES, type LoyaltyGrade } from './loyalty';
+import { LOYALTY_GRADES, type GradeBenefitCadence, type LoyaltyGrade } from './loyalty';
 
 export const LOYALTY_POLICY_PATH = '/admin/marketing/customer-grades';
 export const CONFIGURABLE_GRADES = ['silver', 'gold', 'platinum'] as const;
 export type ConfigurableGrade = typeof CONFIGURABLE_GRADES[number];
 export type LoyaltyCriterion = { grade: ConfigurableGrade; enabled: boolean; amount: number | null; itemCount: number | null };
 export type LoyaltyPolicy = { tiers: LoyaltyCriterion[]; revision: number; updatedAt: string };
-export type GradeBenefitCoupon = { code: string; name: string; grade: ConfigurableGrade; status: string };
-export type LoyaltyPolicyData = { policy: LoyaltyPolicy; coupons: GradeBenefitCoupon[] };
+/** cadence 가 없으면 '승급 시 1회'로 읽는다(지급 방식 도입 전 응답). */
+export type GradeBenefitCoupon = { code: string; name: string; grade: ConfigurableGrade; status: string; cadence?: GradeBenefitCadence };
+/** 매월 등급 혜택 지급 한 달치 기록(private.loyalty_monthly_coupon_runs + 그 달 보유 쿠폰 원장). */
+export const MONTHLY_GRADE_COUPON_FINISH_REASONS = ['completed', 'no_monthly_coupons', 'coupons_closed', 'month_ended'] as const;
+export type MonthlyGradeCouponFinishReason = typeof MONTHLY_GRADE_COUPON_FINISH_REASONS[number];
+export type MonthlyGradeCouponRun = {
+  grantMonth: string;
+  startedAt: string;
+  finishedAt: string | null;
+  finishReason: MonthlyGradeCouponFinishReason | null;
+  members: number;
+  recipients: number;
+  granted: number;
+  coupons: { code: string; name: string; granted: number }[];
+};
+export type LoyaltyPolicyData = { policy: LoyaltyPolicy; coupons: GradeBenefitCoupon[]; monthlyRuns?: MonthlyGradeCouponRun[] };
+
+const count = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+const instant = (value: unknown): value is string => typeof value === 'string' && Number.isFinite(Date.parse(value));
+
+/** admin_get_loyalty_policy 의 monthlyRuns 검증. 없으면(도입 전 응답) 빈 기록, 하나라도 어긋나면 null. */
+export function parseMonthlyGradeCouponRuns(value: unknown): MonthlyGradeCouponRun[] | null {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) return null;
+  const runs: MonthlyGradeCouponRun[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== 'object') return null;
+    const run = item as Record<string, unknown>;
+    if (typeof run.grantMonth !== 'string' || !/^\d{4}-(0[1-9]|1[0-2])$/.test(run.grantMonth) || !instant(run.startedAt)
+      || !(run.finishedAt === null || instant(run.finishedAt))
+      || !(run.finishReason === null || (MONTHLY_GRADE_COUPON_FINISH_REASONS as readonly unknown[]).includes(run.finishReason))
+      || (run.finishedAt === null) !== (run.finishReason === null)
+      || !count(run.members) || !count(run.recipients) || !count(run.granted) || !Array.isArray(run.coupons)) return null;
+    const coupons: MonthlyGradeCouponRun['coupons'] = [];
+    for (const coupon of run.coupons) {
+      if (!coupon || typeof coupon !== 'object') return null;
+      const entry = coupon as Record<string, unknown>;
+      if (typeof entry.code !== 'string' || !entry.code || typeof entry.name !== 'string' || !entry.name || !count(entry.granted)) return null;
+      coupons.push({ code: entry.code, name: entry.name, granted: entry.granted });
+    }
+    runs.push({
+      grantMonth: run.grantMonth, startedAt: run.startedAt as string, finishedAt: run.finishedAt as string | null,
+      finishReason: run.finishReason as MonthlyGradeCouponFinishReason | null,
+      members: run.members as number, recipients: run.recipients as number, granted: run.granted as number, coupons,
+    });
+  }
+  return runs;
+}
 
 export function parseLoyaltyCriteria(value: unknown): LoyaltyCriterion[] | null {
   if (!Array.isArray(value) || value.length !== 3) return null;
