@@ -25,7 +25,6 @@ function render(overrides: Partial<React.ComponentProps<typeof Onboarding>> = {}
       initialMarketing={{ email: false, sms: false }}
       isConfigured
       next="/"
-      nickname=""
       recommendedIps={[]}
       {...overrides}
     />,
@@ -37,11 +36,14 @@ function source() {
 }
 
 describe('Onboarding form contracts', () => {
-  it('shows the same 1–30 character nickname contract enforced by the shared validator', () => {
+  /* 1014-004 — 필수 입력은 생년월일과 약관뿐이다. 닉네임은 묻지 않고 자동으로 만든다는 사실만 알린다. */
+  it('does not ask for a nickname and tells that one is created automatically and can be changed later', () => {
     const html = render();
 
-    expect(html).toContain('placeholder="닉네임 (1–30자)"');
-    expect(html).not.toContain('닉네임 (2–12자)');
+    expect(html).not.toContain('name="nickname"');
+    expect(html).not.toContain('닉네임 (1–30자)');
+    expect(html).toContain('닉네임은 자동으로 만들어 두니 설정에서 언제든 바꿀 수 있어요');
+    expect(html.match(/<em class="wc-auth__req">필수<\/em>/g)).toHaveLength(2);
   });
 
   it('submits through a prevented client event so validation errors cannot reset entered values', () => {

@@ -50,7 +50,6 @@ export default async function Page({ searchParams }: PageProps) {
       initialMarketing={marketingChannelChoices(marketingConsent)}
       isConfigured={auth.isConfigured}
       next={next}
-      nickname={auth.profile?.nickname ?? ''}
       recommendedIps={recommendedIps}
     />
   );

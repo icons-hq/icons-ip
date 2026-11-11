@@ -4,20 +4,21 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { meetsMinimumSignupAge } from '@/lib/age/minimum-age';
 import { addressBookOnboardingPath } from '@/lib/address-book';
+import { AUTO_NICKNAME_MAX_ATTEMPTS, generateAutoNickname } from '@/lib/auth/nickname';
 import { safeNextPath } from '@/lib/auth/onboarding';
 import { isDemographicGender, type DemographicGender } from '@/lib/customer-demographics';
 import { customerDemographicState, updateCustomerDemographicChoice } from '@/lib/customer-demographics.server';
 import { buildRecommendedIpFollowChanges, uniqueSelectedIpIds } from '@/lib/ip-follow';
 import { readMarketingChannelChoices } from '@/lib/marketing-consent';
 import { saveMyMarketingConsents } from '@/lib/marketing-consent.server';
-import { normalizeProfileNickname } from '@/lib/profile';
 import { updateProfileIdentity } from '@/lib/profile.server';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/server';
 
+type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
+
 export interface OnboardingActionState {
   errors?: {
-    nickname?: string;
     birthDate?: string;
     terms?: string;
     privacy?: string;
@@ -114,6 +115,37 @@ async function saveOnboardingGender(gender: DemographicGender) {
   }
 }
 
+/*
+ * 가입 간소화(10/14 회의 1014-004): 온보딩은 닉네임을 묻지 않는다. 닉네임이 없는 계정이면 자동 닉네임을
+ * 만들어 기존 프로필 저장 경로(service_update_profile_identity)로 저장하고, 이미 있으면(다시 온보딩하는
+ * 계정·운영자 초대 계정) 그대로 둔다. 닉네임은 설정 화면에서 언제든 바꿀 수 있다.
+ * 자동 닉네임이 다른 회원과 겹치면(unique 23505) 새 값으로 다시 시도한다.
+ */
+async function ensureProfileNickname(
+  supabase: SupabaseServerClient,
+  userId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('nickname')
+    .eq('id', userId)
+    .maybeSingle<{ nickname: string | null }>();
+  if (error) return { ok: false, error: '프로필을 확인하지 못했습니다. 다시 시도해주세요.' };
+  if (data?.nickname?.trim()) return { ok: true };
+
+  for (let attempt = 0; attempt < AUTO_NICKNAME_MAX_ATTEMPTS; attempt += 1) {
+    const result = await updateProfileIdentity({
+      userId,
+      nickname: generateAutoNickname(),
+      avatarPath: null,
+      replaceAvatar: false,
+    });
+    if (result.ok) return { ok: true };
+    if (result.errorCode !== '23505') break;
+  }
+  return { ok: false, error: '프로필을 저장하지 못했습니다. 다시 시도해주세요.' };
+}
+
 async function filterExistingRecommendedIpIds(
   supabase: Awaited<ReturnType<typeof createClient>>,
   recommendedIpIds: string[],
@@ -158,8 +190,6 @@ export async function completeOnboardingAction(
   _state: OnboardingActionState,
   formData: FormData,
 ): Promise<OnboardingActionState> {
-  const nicknameResult = normalizeProfileNickname(formData.get('nickname'));
-  const nickname = nicknameResult.ok ? nicknameResult.value : '';
   const birthDateResult = readBirthDate(formData);
   const birthDate = birthDateResult.value;
   const next = safeNextPath(formData.get('next'));
@@ -171,7 +201,6 @@ export async function completeOnboardingAction(
   const recommendedIpIds = uniqueSelectedIpIds(formData.getAll('recommendedIpIds'));
   const errors: NonNullable<OnboardingActionState['errors']> = {};
 
-  if (!nicknameResult.ok) errors.nickname = nicknameResult.error;
   if (birthDateResult.error) errors.birthDate = birthDateResult.error;
   if (!terms) errors.terms = '필수 약관에 동의해주세요.';
   if (!privacy) errors.privacy = '개인정보 처리방침에 동의해주세요.';
@@ -203,19 +232,8 @@ export async function completeOnboardingAction(
     selectedIpIds,
   });
 
-  const identityResult = await updateProfileIdentity({
-    userId: user.id,
-    nickname,
-    avatarPath: null,
-    replaceAvatar: false,
-  });
-
-  if (!identityResult.ok && identityResult.errorCode === '23505') {
-    return { errors: { nickname: '이미 사용 중인 닉네임입니다.' } };
-  }
-  if (!identityResult.ok) {
-    return { errors: { form: '프로필을 저장하지 못했습니다. 다시 시도해주세요.' } };
-  }
+  const nicknameResult = await ensureProfileNickname(supabase, user.id);
+  if (!nicknameResult.ok) return { errors: { form: nicknameResult.error } };
 
   const { error } = await supabase
     .from('profiles')

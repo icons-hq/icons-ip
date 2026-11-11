@@ -26,7 +26,6 @@ interface OnboardingProps {
   genderEligible: boolean;
   isConfigured: boolean;
   next: string;
-  nickname: string;
   recommendedIps: {
     bg: string;
     color: string;
@@ -133,7 +132,6 @@ export function Onboarding({
   initialMarketing,
   isConfigured,
   next,
-  nickname,
   recommendedIps,
 }: OnboardingProps) {
   const [state, action, pending] = useActionState(completeOnboardingAction, emptyState);
@@ -155,23 +153,14 @@ export function Onboarding({
     <main className="wc-root wc-auth">
       <div className="wc-auth__panel">
         <h1 className="wc-auth__title">프로필을 완성해요</h1>
-        <p className="wc-auth__lede">서비스에서 쓸 닉네임과 생년월일을 알려주세요. 관심 IP는 골라도 되고 건너뛰어도 돼요.</p>
+        {/* 가입 간소화(10/14 회의 1014-004) — 필수 입력은 생년월일과 약관 동의뿐이다. 닉네임은 서버가 자동으로
+            만들고(나중에 설정에서 변경), 관심 IP·성별·마케팅 수신은 선택이다. */}
+        <p className="wc-auth__lede">생년월일과 약관 동의만 확인하면 바로 시작할 수 있어요. 닉네임은 자동으로 만들어 두니 설정에서 언제든 바꿀 수 있어요.</p>
 
         <form action={action} className="wc-auth__form" data-onboarding-form onSubmit={handleSubmit}>
           <input type="hidden" name="next" value={next} />
 
           <input disabled value={email} aria-label="이메일" />
-          <div className="wc-auth__field">
-            <input
-              aria-describedby={state.errors?.nickname ? 'nickname-error' : undefined}
-              aria-invalid={Boolean(state.errors?.nickname)}
-              aria-label="닉네임"
-              defaultValue={nickname}
-              name="nickname"
-              placeholder="닉네임 (1–30자)"
-            />
-            <ErrorText id="nickname-error">{state.errors?.nickname}</ErrorText>
-          </div>
           <fieldset
             aria-describedby={state.errors?.birthDate ? 'birth-date-hint birth-date-error' : 'birth-date-hint'}
             className="onboarding-birth-fieldset"

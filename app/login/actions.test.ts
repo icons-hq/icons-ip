@@ -2,9 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   adminSignOutAction,
   requestPasswordResetAction,
+  resendSignupCodeAction,
   signOutAction,
   signInWithSocialAction,
   signUpWithEmailAction,
+  verifySignupCodeAction,
 } from './actions';
 
 const AUTH_SIGNUP_RESEND_COOKIE_NAME = 'icons_auth_signup_resend';
@@ -25,6 +27,8 @@ const mocks = vi.hoisted(() => ({
   signOut: vi.fn(),
   resend: vi.fn(),
   resetPasswordForEmail: vi.fn(),
+  verifyOtp: vi.fn(),
+  getProfileForUser: vi.fn(),
 }));
 
 vi.mock('@/lib/supabase/config', () => ({
@@ -39,12 +43,13 @@ vi.mock('@/lib/supabase/server', () => ({
       signOut: mocks.signOut,
       resend: mocks.resend,
       resetPasswordForEmail: mocks.resetPasswordForEmail,
+      verifyOtp: mocks.verifyOtp,
     },
   }),
 }));
 
 vi.mock('@/lib/auth/server', () => ({
-  getProfileForUser: vi.fn(),
+  getProfileForUser: mocks.getProfileForUser,
 }));
 
 vi.mock('next/navigation', () => ({
@@ -596,5 +601,158 @@ describe('sign-out actions', () => {
   it('keeps public logout on the shared home destination', async () => {
     await expect(signOutAction()).rejects.toThrow('NEXT_REDIRECT:/');
     expect(mocks.signOut).toHaveBeenCalledWith({ scope: 'local' });
+  });
+});
+
+/* 1014-004 — 가입 확인을 메일 링크 대신 같은 화면의 6자리 코드로 끝낸다. */
+describe('signup confirmation code', () => {
+  const ONBOARDED_PROFILE = {
+    email: 'fan@icons.gg', nickname: 'fan_abcd1234', birth_date: '2000-01-01', avatar_path: null,
+    consents: { terms: true, privacy: true }, onboarded_at: '2026-11-01T00:00:00.000Z', role: 'user', suspended_at: null,
+  };
+
+  function codeForm(code: string, email = 'Fan@Icons.gg', next = '/community?sort=hot') {
+    const data = new FormData();
+    data.set('email', email);
+    data.set('code', code);
+    data.set('next', next);
+    return data;
+  }
+
+  beforeEach(() => {
+    process.env.AUTH_SIGNUP_RESEND_SECRET = TEST_SIGNUP_RESEND_SECRET;
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-11T00:00:00.000Z'));
+    mocks.isConfigured = true;
+    mocks.headers = new Map<string, string>([['origin', 'https://iconsip.com']]);
+    mocks.cookies.clear();
+    mocks.cookieSetCalls.length = 0;
+    mocks.signUp.mockReset();
+    mocks.resend.mockReset();
+    mocks.verifyOtp.mockReset();
+    mocks.getProfileForUser.mockReset();
+    mocks.signUp.mockResolvedValue({ data: { user: { id: 'user-1' }, session: null }, error: null });
+    mocks.resend.mockResolvedValue({ data: { user: null, session: null }, error: null });
+    mocks.verifyOtp.mockResolvedValue({ data: { user: { id: 'user-1', email: 'fan@icons.gg' }, session: { access_token: 'x' } }, error: null });
+    mocks.getProfileForUser.mockResolvedValue(null);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    if (ORIGINAL_SIGNUP_RESEND_SECRET === undefined) {
+      delete process.env.AUTH_SIGNUP_RESEND_SECRET;
+    } else {
+      process.env.AUTH_SIGNUP_RESEND_SECRET = ORIGINAL_SIGNUP_RESEND_SECRET;
+    }
+  });
+
+  it('hands the normalized email to the code step whenever a confirmation mail was sent', async () => {
+    expect(await submitSignup('Fan@Icons.gg')).toMatchObject({ pendingSignupEmail: 'fan@icons.gg' });
+    expect(await submitSignup('Fan@Icons.gg')).toMatchObject({ pendingSignupEmail: 'fan@icons.gg' });
+
+    mocks.cookies.clear();
+    mocks.signUp.mockResolvedValueOnce({
+      data: { user: null, session: null },
+      error: { code: 'user_already_exists', message: 'User already registered' },
+    });
+    expect(await submitSignup('Fan@Icons.gg')).toMatchObject({ pendingSignupEmail: 'fan@icons.gg' });
+  });
+
+  it('does not open the code step for validation errors', async () => {
+    mocks.signUp.mockResolvedValueOnce({ data: { user: null, session: null }, error: { code: 'weak_password', message: 'weak' } });
+
+    const state = await submitSignup('Fan@Icons.gg');
+    expect(state.pendingSignupEmail).toBeUndefined();
+    expect(state.errors?.form).toContain('비밀번호가 보안 조건을 충족하지 않습니다');
+  });
+
+  it('verifies the code as an email OTP and continues to onboarding with the preserved next path', async () => {
+    await expect(verifySignupCodeAction({}, codeForm(' 123 456 '))).rejects.toThrow(
+      'NEXT_REDIRECT:/onboarding?next=%2Fcommunity%3Fsort%3Dhot',
+    );
+    expect(mocks.verifyOtp).toHaveBeenCalledWith({ email: 'fan@icons.gg', token: '123456', type: 'email' });
+  });
+
+  it('goes straight to next for an already onboarded account and to the suspended page for a suspended one', async () => {
+    mocks.getProfileForUser.mockResolvedValueOnce(ONBOARDED_PROFILE);
+    await expect(verifySignupCodeAction({}, codeForm('123456'))).rejects.toThrow('NEXT_REDIRECT:/community?sort=hot');
+
+    mocks.getProfileForUser.mockResolvedValueOnce({ ...ONBOARDED_PROFILE, suspended_at: '2026-11-01T00:00:00.000Z' });
+    await expect(verifySignupCodeAction({}, codeForm('123456'))).rejects.toThrow('NEXT_REDIRECT:/account-suspended');
+  });
+
+  it.each(['12345', '1234567', 'abcdef', ''])('rejects %j as a code before calling Supabase', async (code) => {
+    await expect(verifySignupCodeAction({}, codeForm(code))).resolves.toEqual({
+      errors: { code: '메일로 받은 6자리 숫자를 입력해주세요.' },
+      pendingSignupEmail: 'fan@icons.gg',
+    });
+    expect(mocks.verifyOtp).not.toHaveBeenCalled();
+  });
+
+  it('maps a wrong or expired code to one message without exposing Supabase details', async () => {
+    mocks.verifyOtp.mockResolvedValueOnce({ data: { user: null, session: null }, error: { code: 'otp_expired', message: 'Token has expired or is invalid' } });
+
+    const state = await verifySignupCodeAction({}, codeForm('123456'));
+    expect(state).toEqual({
+      errors: { code: '확인 코드가 맞지 않거나 만료됐어요. 가장 최근 메일의 코드를 확인하거나 코드를 다시 받아주세요.' },
+      pendingSignupEmail: 'fan@icons.gg',
+    });
+    expect(JSON.stringify(state)).not.toContain('Token has expired');
+
+    mocks.verifyOtp.mockResolvedValueOnce({ data: { user: null, session: null }, error: { code: 'over_request_rate_limit', message: 'rate' } });
+    expect((await verifySignupCodeAction({}, codeForm('123456'))).errors?.code).toBe('확인 시도가 너무 많습니다. 잠시 후 다시 시도해주세요.');
+  });
+
+  it('requires an email and a configured backend', async () => {
+    expect(await verifySignupCodeAction({}, codeForm('123456', ''))).toEqual({
+      errors: { form: '확인할 이메일을 찾지 못했습니다. 회원가입을 다시 시작해주세요.' },
+    });
+    mocks.isConfigured = false;
+    expect((await verifySignupCodeAction({}, codeForm('123456'))).errors?.form).toContain('Supabase 환경변수');
+    expect(mocks.verifyOtp).not.toHaveBeenCalled();
+  });
+
+  it('resends from the code step through the same 10-minute window as resubmitting the signup form', async () => {
+    const resendForm = () => {
+      const data = new FormData();
+      data.set('email', 'Fan@Icons.gg');
+      data.set('next', '/community?sort=hot');
+      return data;
+    };
+
+    await submitSignup('Fan@Icons.gg');
+    expect(await resendSignupCodeAction({}, resendForm())).toEqual({
+      message: '새 확인 메일을 보냈습니다. 가장 최근에 받은 메일의 6자리 확인 코드를 입력해주세요.',
+      pendingSignupEmail: 'fan@icons.gg',
+    });
+    expect(mocks.resend).toHaveBeenLastCalledWith({
+      type: 'signup',
+      email: 'fan@icons.gg',
+      options: { emailRedirectTo: 'https://iconsip.com/auth/callback' },
+    });
+    expect(decodeSignedCookiePayload(latestCookieSet(AUTH_NEXT_COOKIE_NAME)?.value ?? '')).toMatchObject({
+      next: '/community?sort=hot',
+      purpose: 'signup',
+    });
+
+    await resendSignupCodeAction({}, resendForm());
+    await submitSignup('Fan@Icons.gg');
+    mocks.resend.mockClear();
+    expect(await resendSignupCodeAction({}, resendForm())).toEqual({
+      errors: { form: '확인 메일 재요청이 너무 많습니다. 10분 후 다시 시도해주세요.' },
+      pendingSignupEmail: 'fan@icons.gg',
+    });
+    expect(mocks.resend).not.toHaveBeenCalled();
+  });
+
+  it('opens a new resend window for a code-step resend without a matching window cookie', async () => {
+    const data = new FormData();
+    data.set('email', 'other@icons.gg');
+
+    await resendSignupCodeAction({}, data);
+    const payload = decodeSignedCookiePayload(latestCookieSet(AUTH_SIGNUP_RESEND_COOKIE_NAME)?.value ?? '');
+    expect(payload.resendCount).toBe(1);
+    expect(payload.windowStartedAt).toBe(Date.now());
+    expect(mocks.resend).toHaveBeenCalledOnce();
   });
 });

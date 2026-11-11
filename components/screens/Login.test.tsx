@@ -7,10 +7,14 @@ const mocks = vi.hoisted(() => ({
   signUpState: {} as Record<string, unknown>,
   resetState: {} as Record<string, unknown>,
   socialState: {} as Record<string, unknown>,
+  verifyCodeState: {} as Record<string, unknown>,
+  resendCodeState: {} as Record<string, unknown>,
   signIn: vi.fn(),
   signUp: vi.fn(),
   reset: vi.fn(),
   social: vi.fn(),
+  verifyCode: vi.fn(),
+  resendCode: vi.fn(),
   savedEmail: null as string | null,
 }));
 
@@ -19,6 +23,8 @@ vi.mock('@/app/login/actions', () => ({
   signUpWithEmailAction: mocks.signUp,
   requestPasswordResetAction: mocks.reset,
   signInWithSocialAction: mocks.social,
+  verifySignupCodeAction: mocks.verifyCode,
+  resendSignupCodeAction: mocks.resendCode,
 }));
 vi.mock('react', async () => {
   const actual = await vi.importActual<typeof import('react')>('react');
@@ -28,7 +34,10 @@ vi.mock('react', async () => {
       if (action === mocks.signIn) return [mocks.signInState, vi.fn(), false];
       if (action === mocks.signUp) return [mocks.signUpState, vi.fn(), false];
       if (action === mocks.social) return [mocks.socialState, vi.fn(), false];
-      return [mocks.resetState, vi.fn(), false];
+      if (action === mocks.verifyCode) return [mocks.verifyCodeState, vi.fn(), false];
+      if (action === mocks.resendCode) return [mocks.resendCodeState, vi.fn(), false];
+      if (action === mocks.reset) return [mocks.resetState, vi.fn(), false];
+      throw new Error('Unexpected login action');
     },
     /* 정적 렌더는 서버 스냅샷(null)만 본다 — 이 기기에 저장된 이메일을 읽은 클라이언트 렌더를 흉내 낸다. */
     useSyncExternalStore: () => mocks.savedEmail,
@@ -50,6 +59,8 @@ describe('Login', () => {
     mocks.signUpState = {};
     mocks.resetState = {};
     mocks.socialState = {};
+    mocks.verifyCodeState = {};
+    mocks.resendCodeState = {};
     mocks.savedEmail = null;
   });
 
@@ -224,5 +235,84 @@ describe('Login 이메일 저장', () => {
       expect(() => saveLoginEmailChoice('fan@example.test', false)).not.toThrow();
       expect(readSavedLoginEmail()).toBeNull();
     });
+  });
+});
+
+/* 1014-004 — 확인 메일 링크를 새 창에서 여는 대신 같은 화면에서 6자리 코드를 입력한다. 링크도 그대로 동작한다. */
+describe('Login 가입 확인 코드 단계', () => {
+  beforeEach(() => {
+    mocks.signInState = {};
+    mocks.signUpState = {};
+    mocks.resetState = {};
+    mocks.socialState = {};
+    mocks.verifyCodeState = {};
+    mocks.resendCodeState = {};
+    mocks.savedEmail = null;
+  });
+
+  const sentState = {
+    message: '가입 확인 메일을 보냈습니다. 메일에 적힌 6자리 확인 코드를 아래에 입력해주세요.',
+    pendingSignupEmail: 'fan@icons.gg',
+  };
+
+  it('가입 전에는 코드가 메일로 간다는 사실만 알리고 기존 가입 폼을 그대로 둔다', () => {
+    const html = render({ initialMode: 'signup' });
+
+    expect(html).toContain('가입하면 입력한 이메일로 6자리 확인 코드를 보내 드려요.');
+    expect(html).toContain('name="password"');
+    expect(html).not.toContain('name="code"');
+    expect(html).not.toContain('data-signup-code-step');
+  });
+
+  it('확인 메일을 보내면 같은 화면에서 코드 입력 단계를 연다', () => {
+    mocks.signUpState = sentState;
+    const html = render({ initialMode: 'signup' });
+    const codeInput = html.match(/<input[^>]*name="code"[^>]*>/)?.[0] ?? '';
+
+    expect(html).toContain('data-signup-code-step');
+    expect(html).toContain('<strong>fan@icons.gg</strong>로 확인 메일을 보냈어요.');
+    expect(codeInput).toContain('autoComplete="one-time-code"');
+    expect(codeInput).toContain('inputMode="numeric"');
+    expect(codeInput).toContain('maxLength="6"');
+    expect(html.match(/<input type="hidden" name="email" value="fan@icons.gg"\/>/g)).toHaveLength(2);
+    expect(html.match(/<input type="hidden" name="next" value="\/community\?sort=hot"\/>/g)).toHaveLength(2);
+    expect(html).toContain('role="status"');
+    expect(html).toContain(sentState.message);
+    expect(html).toContain('확인하고 계속하기');
+    expect(html).toContain('코드 다시 받기');
+    expect(html).toContain('다른 이메일로 가입하기');
+    expect(html).toContain('메일의 확인 버튼을 눌러도 가입을 마칠 수 있어요.');
+    /* 단계에서는 비밀번호 폼과 SNS 가입을 접어 코드 입력에 집중한다. */
+    expect(html).not.toContain('name="password"');
+    expect(html).not.toContain('name="provider"');
+    expect(html).not.toContain('가입하면 입력한 이메일로 6자리 확인 코드를 보내 드려요.');
+  });
+
+  it('틀린 코드와 다시 받기 결과를 단계 안에서 보여 준다', () => {
+    mocks.signUpState = sentState;
+    mocks.verifyCodeState = { errors: { code: '확인 코드가 맞지 않거나 만료됐어요.' }, pendingSignupEmail: 'fan@icons.gg' };
+    mocks.resendCodeState = { message: '새 확인 메일을 보냈습니다.', pendingSignupEmail: 'fan@icons.gg' };
+    const html = render({ initialMode: 'signup' });
+
+    expect(html).toContain('확인 코드가 맞지 않거나 만료됐어요.');
+    expect(html).toMatch(/<input[^>]*aria-invalid="true"[^>]*name="code"/);
+    expect(html).toContain('새 확인 메일을 보냈습니다.');
+    expect(html).not.toContain(sentState.message);
+  });
+
+  it('다시 받기 한도에 걸린 가입 제출도 이미 받은 코드를 입력할 수 있게 단계를 연다', () => {
+    mocks.signUpState = { errors: { form: '확인 메일 재요청이 너무 많습니다. 10분 후 다시 시도해주세요.' }, pendingSignupEmail: 'fan@icons.gg' };
+    const html = render({ initialMode: 'signup' });
+
+    expect(html).toContain('data-signup-code-step');
+    expect(html).toContain('role="alert"');
+    expect(html).toContain('확인 메일 재요청이 너무 많습니다.');
+  });
+
+  it('로그인·재설정 모드는 가입 결과가 남아 있어도 코드 단계를 열지 않는다', () => {
+    mocks.signUpState = sentState;
+
+    expect(render()).not.toContain('data-signup-code-step');
+    expect(render({ initialMode: 'reset' })).not.toContain('data-signup-code-step');
   });
 });

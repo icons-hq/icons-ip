@@ -4,9 +4,11 @@ import Link from 'next/link';
 import { useActionState, useId, useState, useSyncExternalStore, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import {
   requestPasswordResetAction,
+  resendSignupCodeAction,
   signInWithEmailAction,
   signInWithSocialAction,
   signUpWithEmailAction,
+  verifySignupCodeAction,
   type AuthActionState,
 } from '@/app/login/actions';
 import { WcButton } from '@/components/wc/WcButton';
@@ -68,7 +70,9 @@ function Field({
   error,
   autoComplete,
   defaultValue,
+  inputMode,
   label,
+  maxLength,
   name,
   placeholder,
   type = 'text',
@@ -77,7 +81,9 @@ function Field({
   autoComplete: string;
   /** 비제어 입력의 처음 값 — 폼 액션이 끝나 폼이 초기화돼도 이 값으로 돌아온다. */
   defaultValue?: string;
+  inputMode?: 'numeric';
   label: string;
+  maxLength?: number;
   name: string;
   placeholder: string;
   type?: string;
@@ -106,6 +112,8 @@ function Field({
           defaultValue={defaultValue}
           aria-invalid={Boolean(error)}
           id={inputId}
+          inputMode={inputMode}
+          maxLength={maxLength}
           name={name}
           onBlur={() => isPassword && setCapsLockOn(false)}
           onKeyDown={updateCapsLock}
@@ -153,6 +161,84 @@ function SocialMark({ provider }: { provider: 'google' | 'apple' | 'kakao' }) {
   return <span aria-hidden>{provider === 'google' ? 'G' : 'K'}</span>;
 }
 
+/*
+ * 가입 확인 코드 단계(10/14 회의 1014-004). 확인 메일 링크를 새 창에서 여는 대신, 가입한 이 화면에서 메일의 6자리
+ * 코드를 입력해 가입을 이어 간다. 메일의 링크도 그대로 동작한다. 코드를 다시 받는 것은 회원가입 폼 재제출과
+ * 같은 10분 3회 창을 쓴다(app/login/actions.ts).
+ */
+function SignupCodeStep({
+  email,
+  isConfigured,
+  next,
+  onChangeEmail,
+  sentError,
+  sentMessage,
+  signInHref,
+}: {
+  email: string;
+  isConfigured: boolean;
+  next: string;
+  onChangeEmail: () => void;
+  /** 가입 제출이 남긴 오류(예: 다시 받기 한도). 코드는 이미 받은 메일로 입력할 수 있어 단계는 연다. */
+  sentError?: string;
+  sentMessage?: string;
+  signInHref: string;
+}) {
+  const [verifyState, verifyAction, verifyPending] = useActionState(verifySignupCodeAction, emptyState);
+  const [resendState, resendAction, resendPending] = useActionState(resendSignupCodeAction, emptyState);
+  const formError = verifyState.errors?.form ?? resendState.errors?.form ?? (resendState.message ? undefined : sentError);
+  const status = resendState.message ?? sentMessage;
+
+  return (
+    <div className="wc-auth__form" data-signup-code-step>
+      <p className="wc-auth__lede">
+        <strong>{email}</strong>로 확인 메일을 보냈어요.
+        <br />
+        메일에 적힌 6자리 확인 코드를 입력하면 이 화면에서 바로 가입이 이어져요.
+      </p>
+      <form action={verifyAction} className="wc-auth__form">
+        <input type="hidden" name="email" value={email} />
+        <input type="hidden" name="next" value={next} />
+        <Field
+          autoComplete="one-time-code"
+          error={verifyState.errors?.code}
+          inputMode="numeric"
+          label="확인 코드"
+          maxLength={6}
+          name="code"
+          placeholder="확인 코드 6자리"
+        />
+        {formError && (
+          <div className="wc-auth__alert" role="alert">
+            {formError}
+          </div>
+        )}
+        {!formError && status && (
+          <div aria-live="polite" className="wc-auth__status" role="status">
+            {status}
+          </div>
+        )}
+        <WcButton disabled={!isConfigured || verifyPending} type="submit" variant="primary">
+          {verifyPending ? '확인 중' : '확인하고 계속하기'}
+        </WcButton>
+      </form>
+      <form action={resendAction} className="wc-auth__switch">
+        <input type="hidden" name="email" value={email} />
+        <input type="hidden" name="next" value={next} />
+        <button className="wc-auth__picks-skip" disabled={!isConfigured || resendPending} type="submit">
+          {resendPending ? '보내는 중…' : '코드 다시 받기'}
+        </button>
+        <button className="wc-auth__picks-skip" onClick={onChangeEmail} type="button">
+          다른 이메일로 가입하기
+        </button>
+      </form>
+      <p className="wc-auth__legal">
+        메일의 확인 버튼을 눌러도 가입을 마칠 수 있어요. 이미 가입한 이메일이라면 <Link href={signInHref}>로그인</Link>해주세요.
+      </p>
+    </div>
+  );
+}
+
 export function Login({ initialError, initialMessage, initialMode, isConfigured, next }: LoginProps) {
   const [signInState, signInAction, signInPending] = useActionState(signInWithEmailAction, emptyState);
   const [signUpState, signUpAction, signUpPending] = useActionState(signUpWithEmailAction, emptyState);
@@ -180,6 +266,10 @@ export function Login({ initialError, initialMessage, initialMode, isConfigured,
   const modeHref = (m: LoginMode) => `/login?mode=${m}${next === '/' ? '' : `&next=${encodeURIComponent(next)}`}`;
   const resetHref = modeHref('reset');
   const signInHref = modeHref('signin');
+  /* 확인 메일을 보낸 가입 결과마다 코드 입력 단계를 연다. [다른 이메일로 가입하기]는 그 결과 하나만 접고,
+     다음 가입 제출의 새 결과는 다시 단계를 연다. */
+  const [dismissedSignUpState, setDismissedSignUpState] = useState<AuthActionState | null>(null);
+  const pendingSignupEmail = isSignUp && dismissedSignUpState !== signUpState ? signUpState.pendingSignupEmail : undefined;
 
   /* /login은 전역 헤더·푸터·모바일 탭바 안에서 열린다(CH-13) — 홈 진입은 헤더 로고가 맡으므로
      집중형 셸 시절의 'ICONS' 홈 링크를 패널 위에 따로 두지 않는다. 패널(448 플랫)은 그대로다. */
@@ -198,63 +288,78 @@ export function Login({ initialError, initialMessage, initialMode, isConfigured,
             Google·카카오·Apple로 가입했다면 재설정 없이 로그인 화면에서 같은 SNS 계정으로 로그인할 수 있어요.
           </p>
         ) : null}
+        {isSignUp && !pendingSignupEmail ? (
+          <p className="wc-auth__lede">가입하면 입력한 이메일로 6자리 확인 코드를 보내 드려요.</p>
+        ) : null}
 
-        <form action={isReset ? resetAction : isSignUp ? signUpAction : signInAction} className="wc-auth__form" onSubmit={rememberOnSubmit}>
-          <input type="hidden" name="next" value={next} />
-          <Field
-            autoComplete="email"
-            defaultValue={isSignIn ? savedEmail ?? undefined : undefined}
-            error={state.errors?.email}
-            key={isSignIn ? `email:${savedEmail ?? ''}` : 'email'}
-            label="이메일"
-            name="email"
-            placeholder="이메일"
-            type="email"
+        {pendingSignupEmail ? (
+          <SignupCodeStep
+            email={pendingSignupEmail}
+            isConfigured={isConfigured}
+            next={next}
+            onChangeEmail={() => setDismissedSignUpState(signUpState)}
+            sentError={signUpState.errors?.form}
+            sentMessage={signUpState.message}
+            signInHref={signInHref}
           />
-          {!isReset && (
+        ) : (
+          <form action={isReset ? resetAction : isSignUp ? signUpAction : signInAction} className="wc-auth__form" onSubmit={rememberOnSubmit}>
+            <input type="hidden" name="next" value={next} />
             <Field
-              autoComplete={isSignUp ? 'new-password' : 'current-password'}
-              error={state.errors?.password}
-              label="비밀번호"
-              name="password"
-              placeholder="비밀번호"
-              type="password"
+              autoComplete="email"
+              defaultValue={isSignIn ? savedEmail ?? undefined : undefined}
+              error={state.errors?.email}
+              key={isSignIn ? `email:${savedEmail ?? ''}` : 'email'}
+              label="이메일"
+              name="email"
+              placeholder="이메일"
+              type="email"
             />
-          )}
-          {isSignIn && (
-            <div className="wc-auth__agree-row">
-              <label>
-                <input checked={rememberEmail} onChange={(event) => setRememberChoice(event.target.checked)} type="checkbox" />
-                <span>이메일 저장</span>
-              </label>
-            </div>
-          )}
-          {isSignIn && (
-            <p className="wc-auth__aside-link">
-              <Link href={resetHref}>비밀번호를 잊으셨나요?</Link>
-            </p>
-          )}
-          {formError && (
-            <div className="wc-auth__alert" role="alert">
-              {formError}
-            </div>
-          )}
-          {formMessage && (
-            <div aria-live="polite" className="wc-auth__status" role="status">
-              {formMessage}
-            </div>
-          )}
-          <WcButton disabled={!isConfigured || pending} type="submit" variant="primary">
-            {pending
-              ? isReset ? '메일 보내는 중…' : '처리 중'
-              : isReset ? '재설정 메일 받기' : isSignUp ? '회원가입' : '로그인'}
-          </WcButton>
-          {!isSignUp && !isReset && (
-            <WcButton href={modeHref('signup')}>이메일 회원가입</WcButton>
-          )}
-        </form>
+            {!isReset && (
+              <Field
+                autoComplete={isSignUp ? 'new-password' : 'current-password'}
+                error={state.errors?.password}
+                label="비밀번호"
+                name="password"
+                placeholder="비밀번호"
+                type="password"
+              />
+            )}
+            {isSignIn && (
+              <div className="wc-auth__agree-row">
+                <label>
+                  <input checked={rememberEmail} onChange={(event) => setRememberChoice(event.target.checked)} type="checkbox" />
+                  <span>이메일 저장</span>
+                </label>
+              </div>
+            )}
+            {isSignIn && (
+              <p className="wc-auth__aside-link">
+                <Link href={resetHref}>비밀번호를 잊으셨나요?</Link>
+              </p>
+            )}
+            {formError && (
+              <div className="wc-auth__alert" role="alert">
+                {formError}
+              </div>
+            )}
+            {formMessage && (
+              <div aria-live="polite" className="wc-auth__status" role="status">
+                {formMessage}
+              </div>
+            )}
+            <WcButton disabled={!isConfigured || pending} type="submit" variant="primary">
+              {pending
+                ? isReset ? '메일 보내는 중…' : '처리 중'
+                : isReset ? '재설정 메일 받기' : isSignUp ? '회원가입' : '로그인'}
+            </WcButton>
+            {!isSignUp && !isReset && (
+              <WcButton href={modeHref('signup')}>이메일 회원가입</WcButton>
+            )}
+          </form>
+        )}
 
-        {isSignUp && (
+        {isSignUp && !pendingSignupEmail && (
           <p className="wc-auth__switch">
             이미 계정이 있나요? <Link href={signInHref}>로그인</Link>
           </p>
@@ -265,7 +370,7 @@ export function Login({ initialError, initialMessage, initialMode, isConfigured,
           </p>
         )}
 
-        {!isReset && (
+        {!isReset && !pendingSignupEmail && (
           <div className="wc-auth__social">
             <h2 className="wc-auth__social-title">SNS 계정으로 {isSignUp ? '시작' : '로그인'}</h2>
             <p className="wc-auth__social-sub">처음이라면 소셜 계정으로 바로 가입돼요.</p>

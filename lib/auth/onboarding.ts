@@ -135,7 +135,8 @@ export function authErrorMessage(code: string | null | undefined): string | unde
     case undefined:
       return undefined;
     case 'otp_expired':
-      return '인증 링크가 만료되었거나 이미 사용되었습니다. 최신 확인 메일의 링크를 열거나 회원가입을 다시 시도해주세요.';
+      /* 확인 코드로 가입을 마친 뒤 같은 메일의 링크를 열어도 여기로 온다 — 토큰은 한 번만 쓸 수 있다(1014-004). */
+      return '인증 링크가 만료되었거나 이미 사용되었습니다. 확인 코드로 이미 가입을 마쳤다면 로그인해주세요. 아니라면 최신 확인 메일의 링크를 열거나 회원가입을 다시 시도해주세요.';
     // PKCE code exchange 실패 — 이메일 확인 자체는 완료됐을 수 있다(다른 브라우저에서 링크를 열거나 중복 처리된 경우).
     case 'flow_state_expired':
     case 'flow_state_not_found':
@@ -185,6 +186,25 @@ export function authSignUpErrorMessage(error: AuthErrorLike | null | undefined):
       return '가입 요청을 처리하지 못했습니다. 받은편지함과 스팸함에서 최신 확인 메일을 확인하거나 로그인도 시도해보세요.';
     default:
       return GENERIC_SIGNUP_ERROR_MESSAGE;
+  }
+}
+
+/*
+ * 가입 확인 6자리 코드 검증 실패(1014-004). GoTrue는 틀린 코드와 만료된 코드를 같은 otp_expired로 돌려주므로
+ * 두 경우를 한 문장으로 말한다. 자세한 실패 사유는 이용자에게 보이지 않는다.
+ */
+export function signupCodeErrorMessage(error: AuthErrorLike | null | undefined): string {
+  switch (normalizeAuthCode(error?.code)) {
+    case 'otp_expired':
+      return '확인 코드가 맞지 않거나 만료됐어요. 가장 최근 메일의 코드를 확인하거나 코드를 다시 받아주세요.';
+    case 'over_request_rate_limit':
+    case 'over_email_send_rate_limit':
+      return '확인 시도가 너무 많습니다. 잠시 후 다시 시도해주세요.';
+    case 'email_address_invalid':
+    case 'validation_failed':
+      return '이메일 주소 형식을 확인해주세요. 예: you@icons.gg';
+    default:
+      return '확인 코드를 확인하지 못했습니다. 잠시 후 다시 시도해주세요.';
   }
 }
 

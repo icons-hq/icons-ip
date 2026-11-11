@@ -253,6 +253,12 @@ otp_expiry = 3600
 # subject = "You have been invited"
 # content_path = "./supabase/templates/invite.html"
 
+# 가입 확인 메일에 6자리 확인 코드({{ .Token }})와 확인 링크를 함께 담는다(10/14 회의 1014-004).
+# 로컬만 이 파일로 정한다 — 운영 Auth의 확인 메일 템플릿 반영은 사람 게이트다(docs/runbooks/signup-contact-channels.md).
+[auth.email.template.confirmation]
+subject = "ICONS 가입 확인 코드"
+content_path = "./supabase/templates/confirmation.html"
+
 [auth.email.template.recovery]
 subject = "ICONS 비밀번호 재설정"
 content_path = "./supabase/templates/recovery.html"
