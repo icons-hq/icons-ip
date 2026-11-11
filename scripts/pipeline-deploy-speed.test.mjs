@@ -87,6 +87,7 @@ describe('deployment job speed contract', () => {
       'scripts/staging-environment.mjs',
       'scripts/deploy-staging.mjs',
       'scripts/preview-supabase-mode.mjs',
+      'scripts/wait-supabase-branch-deployment.mjs',
     ]));
   });
 
