@@ -14,7 +14,7 @@ import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/admin/kit/ui/table';
-import { ERP_ITEM_FILE_BYTES_LIMIT } from '@/lib/admin/erp-item-import';
+import { ERP_ITEM_FILE_BYTES_LIMIT, normalizeErpText } from '@/lib/admin/erp-item-import';
 import { statusTone } from '@/lib/admin/status-tone';
 import {
   STOCK_CLIENT_ISSUE_LABELS,
@@ -43,7 +43,6 @@ import {
   type StockReconcileDocument,
   type StockReconcileItem,
 } from '@/lib/admin/stock-reconcile';
-import { normalizeErpText } from '@/lib/admin/erp-item-import';
 import { formatOrderDateTime } from '@/lib/orders';
 
 type Source = { label: string; table: string[][]; numericColumns: number[]; warnings: string[] };
