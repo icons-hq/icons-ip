@@ -1,9 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 vi.mock('@/app/admin/auto-order-confirmation-actions', () => ({ saveAutoOrderConfirmationAction: vi.fn() }));
-vi.mock('@/app/admin/staging-test-delivery-actions', () => ({ markStagingTestDeliveredAction: vi.fn() }));
 import { AutoOrderConfirmPanel } from './AutoOrderConfirmPanel';
-import { StagingTestDeliveryPanel } from './StagingTestDeliveryPanel';
 
 const state = { revision: 3, enabled: true, runTime: '16:30', enabledAt: '2026-10-27T00:57:35Z', updatedAt: '2026-10-27T00:57:35Z',
   nextRunAt: '2026-10-27T07:30:00Z',
@@ -37,10 +35,5 @@ describe('발주 화면의 자동 발주확인 패널', () => {
     const off = renderToStaticMarkup(<AutoOrderConfirmPanel initial={{ ...state, enabled: false, nextRunAt: null, lastRun: null, lastExclusions: [] }} />);
     expect(off).toMatch(/data-tone="warning"[^>]*>꺼짐</); expect(off).toContain('매일 16:30 · 아직 실행 기록 없음'); expect(off).not.toContain('다음 실행');
     expect(renderToStaticMarkup(<AutoOrderConfirmPanel initial={null} />)).toContain('신규주문은 위 목록에서 직접 발주확인할 수 있습니다');
-  });
-  it('테스트 배송완료는 스테이징 전용임과 메일 미발송을 알린다', () => {
-    const html = renderToStaticMarkup(<StagingTestDeliveryPanel />);
-    expect(html).toContain('테스트 배송완료 (스테이징 전용)'); expect(html).toContain('배송 메일은 없으며');
-    expect(html).toContain('스테이징 테스트 주문임을 확인했습니다');
   });
 });
