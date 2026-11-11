@@ -1,5 +1,6 @@
 \set ON_ERROR_STOP on
--- 1014-005·006 — 휴대폰 번호 인증(자체 인증번호). 봉인·한도·오입력 잠금·만료·옮기기·탈퇴 봉인 시 파기.
+-- 1014-005·006 — 휴대폰 번호 인증(자체 인증번호). 봉인·동의 전 수집 거절·한도·오입력 잠금·만료·
+-- 옮기기와 재인증 필요 표시·탈퇴 봉인 시 파기·보관 기한.
 begin;
 create function pg_temp.phone_error(q text, wanted text) returns void language plpgsql as $$begin
  begin execute q; exception when others then if position(wanted in sqlerrm)>0 then return; end if; raise; end;
@@ -32,9 +33,11 @@ create function pg_temp.age_challenges(seconds integer) returns void language sq
 
 insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
  select pg_temp.uid(n),'authenticated','authenticated','member-phone-'||n||'@example.test',now(),'{}','{}',now(),now()
- from generate_series(1,6) n;
+ from generate_series(1,8) n;
 update public.profiles set nickname='TEST 휴대폰'||right(id::text,2), birth_date='1990-01-01',
  consents='{"terms":true,"privacy":true}', onboarded_at=now() where id::text like 'a6271200-%';
+-- 7번 회원은 아직 약관·개인정보 동의 전(온보딩 1단계 전)이다.
+update public.profiles set birth_date=null, consents='{}', onboarded_at=null where id=pg_temp.uid(7);
 
 -- 봉인: 표는 어느 API 롤에도 열리지 않고, 서비스 RPC는 service_role에만, 본인 조회는 authenticated에만 열린다.
 select 1/case when not has_table_privilege('authenticated','private.member_phone_numbers','select')
@@ -54,12 +57,21 @@ select 1/case when not has_table_privilege('authenticated','private.member_phone
  and not has_function_privilege('authenticated','private.erase_member_phone(uuid)','execute')
  and not has_function_privilege('service_role','private.member_phone_rate_limited(text,text,integer,integer)','execute')
  and not has_function_privilege('service_role','private.prune_member_phone_verification_challenges(integer)','execute')
+ and not has_function_privilege('authenticated','private.member_phone_onboarding_ready(uuid)','execute')
  then 1 else 0 end as sealed;
 
 -- 형식이 틀린 입력은 거절한다.
 select pg_temp.phone_error($q$select public.service_issue_member_phone_verification(gen_random_uuid(),'a6271200-0000-4000-8000-000000000001','01012345678',rpad('a',43,'x'),null,rpad('b',43,'x'),300)$q$,'invalid_member_phone_verification');
 select pg_temp.phone_error($q$select public.service_issue_member_phone_verification(gen_random_uuid(),'a6271200-0000-4000-8000-000000000001','+821012345678','short',null,rpad('b',43,'x'),300)$q$,'invalid_member_phone_verification');
 select pg_temp.phone_error($q$select public.service_issue_member_phone_verification(gen_random_uuid(),'a6271200-0000-4000-8000-000000000001','+821012345678',rpad('a',43,'x'),null,rpad('b',43,'x'),30)$q$,'invalid_member_phone_verification');
+
+-- 약관·개인정보 동의와 생년월일(만 14세 확인) 전에는 번호를 받지 않고 요청 행도 남기지 않는다.
+select 1/case when pg_temp.issue(7,30,'+821077777777','phone pre',null,'303030')->>'reason'='onboarding_required'
+ and not exists(select 1 from private.member_phone_verification_challenges where user_id=pg_temp.uid(7))
+ then 1 else 0 end as consent_before_phone;
+update public.profiles set consents='{"terms":true,"privacy":false}', birth_date='2000-01-01' where id=pg_temp.uid(7);
+select 1/case when pg_temp.issue(7,30,'+821077777777','phone pre',null,'303030')->>'reason'='onboarding_required'
+ then 1 else 0 end as privacy_consent_required;
 
 -- 발송 요청: 진행 중 요청이 생기고 번호 원문은 진행 중에만 남는다. 60초 안 재요청은 간격으로 거절한다.
 select 1/case when (pg_temp.issue(1,1,'+821012345678','phone a','ip one','111111')->>'ok')::boolean then 1 else 0 end as issued;
@@ -125,24 +137,51 @@ select set_config('request.jwt.claim.sub', pg_temp.uid(1)::text, true);
 select set_config('request.jwt.claims', jsonb_build_object('sub', pg_temp.uid(1)::text, 'role', 'authenticated')::text, true);
 set local role authenticated;
 select 1/case when (public.my_member_phone_verification()->>'verified')::boolean
- and public.my_member_phone_verification()->>'phoneE164'='+821012345678' then 1 else 0 end as own_state;
+ and public.my_member_phone_verification()->>'phoneE164'='+821012345678'
+ and not (public.my_member_phone_verification()->>'reverificationRequired')::boolean then 1 else 0 end as own_state;
 reset role;
 select set_config('request.jwt.claim.sub', pg_temp.uid(2)::text, true);
 select set_config('request.jwt.claims', jsonb_build_object('sub', pg_temp.uid(2)::text, 'role', 'authenticated')::text, true);
 set local role authenticated;
 select 1/case when not (public.my_member_phone_verification()->>'verified')::boolean
- and public.my_member_phone_verification()->'phoneE164'='null'::jsonb then 1 else 0 end as other_state_empty;
+ and public.my_member_phone_verification()->'phoneE164'='null'::jsonb
+ and not (public.my_member_phone_verification()->>'reverificationRequired')::boolean then 1 else 0 end as other_state_empty;
 reset role;
 
--- 옮기기: 같은 번호를 다른 회원이 인증하면 이전 회원의 인증이 해제되고 이력이 남는다.
+-- 옮기기: 같은 번호를 다른 회원이 인증하면 번호가 그 회원으로 옮겨 가고, 이전 회원에게는 번호 없이 재인증 필요
+-- 표시만 남는다(사용자 결정 '옮기고 재인증 요구').
 select pg_temp.age_challenges(61);
 select pg_temp.issue(2,7,'+821012345678','phone a','ip two','777777');
 select pg_temp.keep('verify7', pg_temp.verify(2,7,'777777'));
 select 1/case when (pg_temp.r('verify7')->>'ok')::boolean
- and not exists(select 1 from private.member_phone_numbers where user_id=pg_temp.uid(1))
+ and (select phone_e164 is null and verified_at is null and released_at is not null from private.member_phone_numbers where user_id=pg_temp.uid(1))
  and (select phone_e164='+821012345678' from private.member_phone_numbers where user_id=pg_temp.uid(2))
  and (select count(*)=1 from private.member_phone_verification_events where user_id=pg_temp.uid(1) and event='released')
  then 1 else 0 end as moved_to_new_member;
+select set_config('request.jwt.claim.sub', pg_temp.uid(1)::text, true);
+select set_config('request.jwt.claims', jsonb_build_object('sub', pg_temp.uid(1)::text, 'role', 'authenticated')::text, true);
+set local role authenticated;
+select 1/case when not (public.my_member_phone_verification()->>'verified')::boolean
+ and public.my_member_phone_verification()->'phoneE164'='null'::jsonb
+ and (public.my_member_phone_verification()->>'reverificationRequired')::boolean then 1 else 0 end as released_member_must_reverify;
+reset role;
+
+-- 번호를 잃은 회원이 다시 인증하면(다른 번호) 재인증 필요 표시가 지워진다.
+select pg_temp.age_challenges(61);
+select pg_temp.issue(1,16,'+821016161616','phone k','ip one','161616');
+select pg_temp.verify(1,16,'161616');
+select 1/case when (select phone_e164='+821016161616' and verified_at is not null and released_at is null from private.member_phone_numbers where user_id=pg_temp.uid(1))
+ then 1 else 0 end as reverified_clears_flag;
+
+-- 요청 뒤 동의 조건이 깨지면 맞는 인증번호여도 기록하지 않고 요청을 닫는다.
+select pg_temp.age_challenges(61);
+select pg_temp.issue(8,17,'+821018181818','phone l',null,'171717');
+update public.profiles set consents='{"terms":true,"privacy":false}' where id=pg_temp.uid(8);
+select pg_temp.keep('verify17', pg_temp.verify(8,17,'171717'));
+select 1/case when pg_temp.r('verify17')->>'reason'='onboarding_required'
+ and (select status='refused' and phone_e164 is null from private.member_phone_verification_challenges where id=pg_temp.cid(17))
+ and not exists(select 1 from private.member_phone_numbers where user_id=pg_temp.uid(8))
+ then 1 else 0 end as verify_rechecks_consent;
 
 -- 회원이 번호를 바꾸면 회원당 한 행이 새 번호로 바뀐다.
 select pg_temp.age_challenges(61);
@@ -179,29 +218,34 @@ select 1/case when pg_temp.r('fail_first')='true'::jsonb and pg_temp.r('fail_aga
 update public.profiles set suspended_at=now(), suspension_reason='TEST 정지' where id=pg_temp.uid(6);
 select 1/case when pg_temp.issue(6,12,'+821066666666','phone g',null,'121212')->>'reason'='account_unavailable' then 1 else 0 end as suspended_refused;
 
--- 탈퇴 신청(계정 봉인): 같은 트랜잭션에서 번호와 진행 중 요청을 지우고, 이후 요청은 거절한다.
+-- 탈퇴 신청(계정 봉인): 같은 트랜잭션에서 번호·요청 행·인증 이력을 지우고, 이후 요청은 거절한다.
 select pg_temp.age_challenges(61);
 select pg_temp.issue(2,13,'+821022222222','phone h',null,'131313');
 insert into private.account_deletion_requests(deletion_event_id,subject_user_id,idempotency_key,status)
  values('a6271202-0000-4000-8000-000000000001',pg_temp.uid(2),'a6271202-0000-4000-8000-000000000002','blocked_active_obligation');
 insert into private.account_action_fences(subject_user_id,deletion_event_id) values(pg_temp.uid(2),'a6271202-0000-4000-8000-000000000001');
 select 1/case when not exists(select 1 from private.member_phone_numbers where user_id=pg_temp.uid(2))
- and (select status='superseded' and phone_e164 is null from private.member_phone_verification_challenges where id=pg_temp.cid(13))
+ and not exists(select 1 from private.member_phone_verification_challenges where user_id=pg_temp.uid(2))
+ and not exists(select 1 from private.member_phone_verification_events where user_id=pg_temp.uid(2))
  and pg_temp.issue(2,14,'+821022222222','phone h',null,'141414')->>'reason'='account_unavailable'
- and pg_temp.verify(2,13,'131313')->>'reason'='account_unavailable'
+ and pg_temp.verify(2,13,'131313')->>'reason'='not_found'
  and not exists(select 1 from private.member_phone_verification_challenges where id=pg_temp.cid(14))
  then 1 else 0 end as fence_erases_phone;
 
--- 보관 기한: 만료된 진행 중 요청은 번호 원문을 지우고 닫으며, 이틀 지난 요청 행은 삭제한다(매시 정리 작업).
+-- 보관 기한: 만료된 진행 중 요청은 번호 원문을 지우고 닫으며, 이틀 지난 요청 행과 1년 지난 인증·해제 이력은
+-- 삭제한다(매시 정리 작업).
 select pg_temp.age_challenges(61);
 select pg_temp.issue(1,15,'+821015151515','phone i',null,'151515');
 update private.member_phone_verification_challenges set expires_at=clock_timestamp()-interval '1 second', created_at=clock_timestamp()-interval '10 minutes' where id=pg_temp.cid(15);
 update private.member_phone_verification_challenges set created_at=created_at-interval '3 days', expires_at=expires_at-interval '3 days', resolved_at=resolved_at-interval '3 days' where user_id=pg_temp.uid(3);
+update private.member_phone_verification_events set occurred_at=occurred_at-interval '366 days' where user_id=pg_temp.uid(1) and event='released';
 select private.prune_member_phone_verification_challenges() as pruned \gset
-select 1/case when :pruned>=5
+select 1/case when :pruned>=6
  and (select status='expired' and phone_e164 is null and resolved_at is not null from private.member_phone_verification_challenges where id=pg_temp.cid(15))
  and not exists(select 1 from private.member_phone_verification_challenges where user_id=pg_temp.uid(3))
  and not exists(select 1 from private.member_phone_verification_challenges where status='pending' and expires_at<=clock_timestamp())
+ and not exists(select 1 from private.member_phone_verification_events where user_id=pg_temp.uid(1) and event='released')
+ and exists(select 1 from private.member_phone_verification_events where user_id=pg_temp.uid(1) and event='verified')
  then 1 else 0 end as retention_pruned;
 select 1/case when exists(select 1 from pg_catalog.pg_extension where extname='pg_cron')
  = exists(select 1 from cron.job where jobname='member-phone-verification-retention') then 1 else 0 end as retention_scheduled;

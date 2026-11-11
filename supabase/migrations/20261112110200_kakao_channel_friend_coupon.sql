@@ -6,23 +6,32 @@ begin;
 -- 앱이 카카오 API(채널 관계 조회, 어드민 키 방식)로 친구 관계를 확인한 뒤에만 이 RPC를 부른다 — 웹훅 본문이나
 -- 브라우저 신호는 확인 근거가 아니다. 발급은 기존 쿠폰 발급 함수(private.issue_coupon_code)를 그대로 쓰고 출처를
 -- kakao_channel로 남긴다. 한 회원은 한 채널에서 한 번만 받는다(채널을 차단했다 다시 추가해도 다시 받지 않는다).
--- 받을 수 있는 회원은 운영자 일괄 발급과 같다: 일반 회원·온보딩 완료·만 14세 이상·정지/탈퇴 봉인 아님.
+-- 받을 수 있는 회원은 운영자 일괄 발급과 같다: 일반 회원·온보딩 완료·만 14세 이상·정지/탈퇴 봉인 아님. 가입 수단과는
+-- 무관하다 — 이메일·Google·Apple로 가입한 회원도 마이페이지에서 카카오 계정을 연결하면 같은 확인을 거쳐 받는다.
+-- 쿠폰 정의는 발급 방식이 '지정 고객'(issuance_mode targeted)이어야 한다. 코드 발급(code) 쿠폰이면 채널 친구가
+-- 아니어도 코드 입력으로 받을 수 있으므로 이 출처로는 발급하지 않는다.
 -- 잠금 순서: 회원 advisory(hashtextextended(회원 id)) → 계정 행동 잠금 → (issue_coupon_code의 프로필·쿠폰 잠금).
 
 alter table public.user_coupons drop constraint user_coupons_issued_source_check;
 alter table public.user_coupons add constraint user_coupons_issued_source_check
   check (issued_source in ('code_entry', 'grade_benefit', 'admin_grant', 'kakao_channel'));
 
--- 쿠폰 발급 함수가 kakao_channel 출처를 받게 한다(정확히 한 군데만 바꾼다).
+-- 쿠폰 발급 함수가 kakao_channel 출처를 받고, 그 출처는 지정 고객 발급 쿠폰만 쓰게 한다(앵커마다 정확히 한 번 바꾼다).
 do $patch$
 declare
   definition text := pg_get_functiondef('private.issue_coupon_code(text,uuid,text)'::regprocedure);
-  anchor text := 'p_source not in (''code_entry'',''admin_grant'')';
+  source_anchor text := 'p_source not in (''code_entry'',''admin_grant'')';
+  mode_anchor text := 'if not found or coupon.status<>''active'' then raise check_violation using message=''coupon_not_found'';end if;';
 begin
-  if (length(definition) - length(replace(definition, anchor, ''))) / length(anchor) <> 1 then
-    raise exception 'issue_coupon_code anchor must appear exactly once';
+  if (length(definition) - length(replace(definition, source_anchor, ''))) / length(source_anchor) <> 1 then
+    raise exception 'issue_coupon_code source anchor must appear exactly once';
   end if;
-  execute replace(definition, anchor, 'p_source not in (''code_entry'',''admin_grant'',''kakao_channel'')');
+  if (length(definition) - length(replace(definition, mode_anchor, ''))) / length(mode_anchor) <> 1 then
+    raise exception 'issue_coupon_code mode anchor must appear exactly once';
+  end if;
+  definition := replace(definition, source_anchor, 'p_source not in (''code_entry'',''admin_grant'',''kakao_channel'')');
+  definition := replace(definition, mode_anchor, mode_anchor || E'\n  if p_source=''kakao_channel'' and coupon.issuance_mode<>''targeted'' then raise check_violation using message=''coupon_kakao_channel_requires_targeted'';end if;');
+  execute definition;
 end;
 $patch$;
 revoke all on function private.issue_coupon_code(text,uuid,text) from public, anon, authenticated, service_role;
@@ -34,7 +43,7 @@ create table private.kakao_channel_friend_rewards (
   channel_public_id text not null check (channel_public_id ~ '^_[A-Za-z0-9]{1,64}$'),
   coupon_code text not null references public.coupons(code),
   user_coupon_id uuid not null references public.user_coupons(id) on delete cascade,
-  granted_via text not null check (granted_via in ('login', 'onboarding', 'webhook')),
+  granted_via text not null check (granted_via in ('login', 'onboarding', 'webhook', 'settings')),
   granted_at timestamptz not null default clock_timestamp(),
   primary key (user_id, channel_public_id)
 );
@@ -90,7 +99,7 @@ begin
   if p_user_id is null
     or p_channel_public_id is null or p_channel_public_id !~ '^_[A-Za-z0-9]{1,64}$'
     or p_coupon_code is null or p_coupon_code !~ '^[A-Z0-9][A-Z0-9-]{2,23}$'
-    or p_granted_via is null or p_granted_via not in ('login', 'onboarding', 'webhook') then
+    or p_granted_via is null or p_granted_via not in ('login', 'onboarding', 'webhook', 'settings') then
     raise invalid_parameter_value using message = 'invalid_kakao_channel_reward';
   end if;
 
@@ -116,7 +125,8 @@ begin
   begin
     held_id := private.issue_coupon_code(p_coupon_code, p_user_id, 'kakao_channel');
   exception when check_violation or insufficient_privilege or invalid_parameter_value then
-    -- 쿠폰이 없거나 끝났거나 한도를 다 쓴 경우다. 원장을 남기지 않아 운영자가 쿠폰을 고치면 다음 확인 때 발급된다.
+    -- 쿠폰이 없거나 끝났거나 한도를 다 썼거나 지정 고객 발급 쿠폰이 아닌 경우다. 원장을 남기지 않아 운영자가 쿠폰을
+    -- 고치면 다음 확인 때 발급된다.
     return jsonb_build_object('status', 'unavailable', 'reason', sqlerrm);
   end;
 

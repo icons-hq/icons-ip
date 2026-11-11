@@ -8,36 +8,45 @@ begin;
 -- docs/runbooks/signup-contact-channels.md). 이 번호는 연락처 확인용이고 로그인 수단이 아니며, 성인 인증(KCP
 -- 휴대폰 본인확인, ADR-0024)을 대체하지 않는다.
 --
+-- 수집 시점: 약관·개인정보 동의와 만 14세 확인(온보딩 1단계)을 마친 계정만 인증번호를 요청할 수 있다. 동의 전에는
+-- 번호를 받지 않고, 만 14세 미만은 생년월일 저장부터 막히므로(ADR-0009) 번호가 남지 않는다.
+--
 -- 저장 원칙
 --   · 인증을 마친 번호만 private.member_phone_numbers에 회원당 하나 남긴다. 한 번호는 한 계정에서만 유효하다 —
---     다른 계정이 같은 번호를 인증하면 이전 계정의 인증을 해제하고 옮긴다(ADR-0024의 '차단하지 않고 옮긴다'와
---     같은 선택: 계정을 새로 만든 이용자가 CS 없이 막히지 않고, 어느 순간에도 번호당 인증 계정은 하나다).
+--     다른 계정이 같은 번호를 인증하면 번호를 그 계정으로 옮기고, 번호를 잃은 계정에는 번호 없이 '재인증 필요'
+--     표시(released_at)만 남긴다. 그 계정은 구매 같은 보호 액션 전에 다시 인증해야 한다(2026-11-11 사용자 결정
+--     '옮기고 재인증 요구' — 앱의 온보딩 게이트가 이 표시를 읽고, 스위치가 꺼져 있으면 읽지 않는다).
 --     인증 전에 '이미 쓰는 번호'라고 답하지 않는다 — 번호만 알면 가입 여부를 알아내는 조회가 된다.
 --   · 인증번호 원문은 저장하지 않는다. 앱 서버가 서버 비밀값으로 만든 HMAC(인증 요청 id에 결속)만 비교한다.
---     번호·IP 시도 한도도 HMAC 다이제스트로 센다. 요청 행의 번호 원문은 결과가 정해지면 지우고, 매시 정리 작업이
---     만료된 진행 중 요청의 번호를 지우며 이틀 지난 요청 행을 삭제한다(한도 창은 24시간).
---   · 탈퇴 신청(계정 봉인)이 생기면 주소록과 같은 방식으로 같은 트랜잭션에서 번호와 요청 행을 지운다.
+--     번호·IP 시도 한도도 HMAC 다이제스트(가명 처리)로 센다. 요청 행의 번호 원문은 결과가 정해지면 지우고, 매시
+--     정리 작업이 만료된 진행 중 요청의 번호를 지우며 이틀 지난 요청 행과 1년 지난 인증·해제 이력을 삭제한다.
+--   · 탈퇴 신청(계정 봉인)이 생기면 주소록과 같은 방식으로 같은 트랜잭션에서 번호·요청 행·이력을 지운다.
 --
 -- 잠금 순서: 계정 행동 잠금(private.is_account_write_fenced) → 회원 잠금('member-phone:user:') →
 -- 번호 잠금('member-phone:number:' + 다이제스트) → 행. 발송 요청과 확인이 같은 순서라 서로 교착하지 않는다.
 
+-- 회원당 한 행. 인증된 번호(phone_e164·verified_at)이거나, 다른 계정이 번호를 옮겨 가 재인증이 필요한 상태
+-- (번호 없음·released_at)다.
 create table private.member_phone_numbers (
   user_id uuid primary key references public.profiles(id) on delete cascade,
-  phone_e164 text not null unique check (phone_e164 ~ '^\+[1-9][0-9]{6,14}$'),
-  verified_at timestamptz not null,
-  updated_at timestamptz not null default clock_timestamp()
+  phone_e164 text unique check (phone_e164 is null or phone_e164 ~ '^\+[1-9][0-9]{6,14}$'),
+  verified_at timestamptz,
+  released_at timestamptz,
+  updated_at timestamptz not null default clock_timestamp(),
+  check ((phone_e164 is not null and verified_at is not null and released_at is null)
+    or (phone_e164 is null and verified_at is null and released_at is not null))
 );
 
 create table private.member_phone_verification_challenges (
   id uuid primary key,
   user_id uuid not null references public.profiles(id) on delete cascade,
-  -- 결과가 정해지면(verified·expired·exhausted·superseded·send_failed) 지운다.
+  -- 결과가 정해지면(verified·expired·exhausted·superseded·send_failed·refused) 지운다.
   phone_e164 text check (phone_e164 is null or phone_e164 ~ '^\+[1-9][0-9]{6,14}$'),
   phone_digest text not null check (phone_digest ~ '^[A-Za-z0-9_-]{32,128}$'),
   ip_digest text check (ip_digest is null or ip_digest ~ '^[A-Za-z0-9_-]{32,128}$'),
   code_digest text not null check (code_digest ~ '^[A-Za-z0-9_-]{32,128}$'),
   status text not null default 'pending'
-    check (status in ('pending', 'verified', 'expired', 'exhausted', 'superseded', 'send_failed')),
+    check (status in ('pending', 'verified', 'expired', 'exhausted', 'superseded', 'send_failed', 'refused')),
   attempts smallint not null default 0 check (attempts between 0 and 5),
   created_at timestamptz not null default clock_timestamp(),
   expires_at timestamptz not null,
@@ -56,7 +65,8 @@ create index member_phone_verification_challenges_ip_time
 create index member_phone_verification_challenges_created
   on private.member_phone_verification_challenges (created_at);
 
--- 인증·해제 이력(번호는 다이제스트로만). 같은 번호로 여러 계정을 돌려 쓰는지 운영자가 SQL로 추적하는 근거다.
+-- 인증·해제 이력(번호는 가명 처리한 다이제스트로만). 같은 번호로 여러 계정을 돌려 쓰는지 운영자가 SQL로 추적하는
+-- 근거다. 발생일부터 1년 보관하고(매시 정리 작업), 탈퇴 신청 시 그 회원의 이력은 바로 지운다.
 create table private.member_phone_verification_events (
   id bigint generated always as identity primary key,
   user_id uuid not null references public.profiles(id) on delete cascade,
@@ -79,7 +89,26 @@ revoke all on private.member_phone_numbers, private.member_phone_verification_ch
   private.member_phone_verification_events from public, anon, authenticated, service_role;
 
 comment on table private.member_phone_numbers is
-  '회원이 SMS 인증번호로 확인한 휴대폰 번호(E.164, 회원당 1개·번호당 1계정). 연락처 확인용이며 로그인 수단·성인 인증이 아니다. 서비스 롤 RPC로만 쓰고, 탈퇴 신청(계정 봉인) 시 지운다.';
+  '회원이 SMS 인증번호로 확인한 휴대폰 번호(E.164, 회원당 1개·번호당 1계정). 번호를 다른 계정에 옮겨 간 회원은 번호 없이 재인증 필요(released_at) 표시만 남는다. 연락처 확인용이며 로그인 수단·성인 인증이 아니다. 서비스 롤 RPC로만 쓰고, 탈퇴 신청(계정 봉인) 시 지운다.';
+
+-- 번호를 받아도 되는 계정: 약관·개인정보 동의와 만 14세 확인(온보딩 1단계)을 마쳤다. 만 나이 판정은 profiles 트리거
+-- (private.enforce_minimum_signup_age, ADR-0009)와 같은 KST 달력 규칙이다.
+create function private.member_phone_onboarding_ready(p_user_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1 from public.profiles p
+    where p.id = p_user_id
+      and p.consents->'terms' = 'true'::jsonb
+      and p.consents->'privacy' = 'true'::jsonb
+      and p.birth_date is not null
+      and pg_catalog.date_part('year', pg_catalog.age((pg_catalog.now() at time zone 'Asia/Seoul')::date, p.birth_date)) >= 14
+  );
+$$;
 
 -- 시도 한도. 숫자는 런북(docs/runbooks/signup-contact-channels.md)과 같아야 한다.
 create function private.member_phone_rate_limited(p_column text, p_value text, p_hour_limit integer, p_day_limit integer)
@@ -176,6 +205,10 @@ begin
   select p.suspended_at into profile_suspended from public.profiles p where p.id = p_user_id;
   if not found or profile_suspended is not null then
     return jsonb_build_object('ok', false, 'reason', 'account_unavailable');
+  end if;
+  -- 동의·만 14세 확인 전에는 번호를 받지 않는다(요청 행도 남기지 않는다).
+  if not private.member_phone_onboarding_ready(p_user_id) then
+    return jsonb_build_object('ok', false, 'reason', 'onboarding_required');
   end if;
 
   if exists (select 1 from private.member_phone_verification_challenges c where c.id = p_challenge_id) then
@@ -307,10 +340,18 @@ begin
   if exists (select 1 from public.profiles p where p.id = p_user_id and p.suspended_at is not null) then
     return jsonb_build_object('ok', false, 'reason', 'account_unavailable');
   end if;
+  -- 요청 뒤 동의·연령 조건이 깨졌으면 기록하지 않고 요청을 닫는다(번호 원문도 지운다).
+  if not private.member_phone_onboarding_ready(p_user_id) then
+    update private.member_phone_verification_challenges
+      set status = 'refused', resolved_at = now_at, phone_e164 = null
+      where id = challenge.id;
+    return jsonb_build_object('ok', false, 'reason', 'onboarding_required');
+  end if;
 
-  -- 같은 번호를 인증해 둔 다른 계정이 있으면 그 인증을 해제한다(옮기기).
+  -- 같은 번호를 인증해 둔 다른 계정이 있으면 번호를 옮기고, 그 계정에는 재인증 필요 표시만 남긴다.
   for released_user in
-    delete from private.member_phone_numbers n
+    update private.member_phone_numbers n
+      set phone_e164 = null, verified_at = null, released_at = now_at, updated_at = now_at
       where n.phone_e164 = challenge.phone_e164 and n.user_id <> p_user_id
       returning n.user_id
   loop
@@ -318,10 +359,11 @@ begin
       values (released_user, 'released', challenge.phone_digest, now_at);
   end loop;
 
-  insert into private.member_phone_numbers (user_id, phone_e164, verified_at, updated_at)
-    values (p_user_id, challenge.phone_e164, now_at, now_at)
+  insert into private.member_phone_numbers (user_id, phone_e164, verified_at, released_at, updated_at)
+    values (p_user_id, challenge.phone_e164, now_at, null, now_at)
     on conflict (user_id) do update
-      set phone_e164 = excluded.phone_e164, verified_at = excluded.verified_at, updated_at = excluded.updated_at;
+      set phone_e164 = excluded.phone_e164, verified_at = excluded.verified_at, released_at = null,
+        updated_at = excluded.updated_at;
   insert into private.member_phone_verification_events (user_id, event, phone_digest, occurred_at)
     values (p_user_id, 'verified', challenge.phone_digest, now_at);
   update private.member_phone_verification_challenges
@@ -332,7 +374,8 @@ begin
 end;
 $$;
 
--- 본인의 인증된 번호. 온보딩·설정 화면이 서버에서 읽어 가려진 번호로 보여 준다.
+-- 본인의 인증 상태. 온보딩·설정 화면이 서버에서 읽어 가려진 번호로 보여 주고, 스위치가 켜졌을 때 앱의 온보딩
+-- 게이트가 재인증 필요(reverificationRequired)를 읽어 보호 액션 전에 다시 인증하게 한다.
 create function public.my_member_phone_verification()
 returns jsonb
 language plpgsql
@@ -347,14 +390,15 @@ begin
     raise insufficient_privilege using message = 'member_phone_auth_required';
   end if;
   return coalesce(
-    (select jsonb_build_object('verified', true, 'phoneE164', n.phone_e164, 'verifiedAt', n.verified_at)
+    (select jsonb_build_object('verified', n.phone_e164 is not null, 'phoneE164', n.phone_e164, 'verifiedAt', n.verified_at,
+       'reverificationRequired', n.phone_e164 is null and n.released_at is not null)
       from private.member_phone_numbers n where n.user_id = actor),
-    jsonb_build_object('verified', false, 'phoneE164', null, 'verifiedAt', null)
+    jsonb_build_object('verified', false, 'phoneE164', null, 'verifiedAt', null, 'reverificationRequired', false)
   );
 end;
 $$;
 
--- 탈퇴 신청(계정 봉인) 행이 생기는 트랜잭션 안에서 번호와 진행 중 요청을 지운다. 주소록과 같은 잠금 순서다.
+-- 탈퇴 신청(계정 봉인) 행이 생기는 트랜잭션 안에서 번호·요청 행·인증 이력을 지운다. 주소록과 같은 잠금 순서다.
 create function private.erase_member_phone(p_user_id uuid)
 returns integer
 language plpgsql
@@ -372,9 +416,8 @@ begin
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('member-phone:user:' || p_user_id::text, 0));
   delete from private.member_phone_numbers where user_id = p_user_id;
   get diagnostics erased = row_count;
-  update private.member_phone_verification_challenges
-    set status = 'superseded', resolved_at = clock_timestamp(), phone_e164 = null
-    where user_id = p_user_id and status = 'pending';
+  delete from private.member_phone_verification_challenges where user_id = p_user_id;
+  delete from private.member_phone_verification_events where user_id = p_user_id;
   return erased;
 end;
 $$;
@@ -396,8 +439,8 @@ create trigger erase_fenced_member_phone
 after insert on private.account_action_fences
 for each row execute function private.erase_fenced_member_phone();
 
--- 보관 기한. 시간이 지난 진행 중 요청은 만료로 닫으며 번호 원문을 지우고, 이틀 지난 요청 행은 삭제한다.
--- 처리방침 초안(런북)의 '인증번호 요청 기록은 2일 뒤 파기'가 이 작업에 기댄다.
+-- 보관 기한. 시간이 지난 진행 중 요청은 만료로 닫으며 번호 원문을 지우고, 이틀 지난 요청 행과 1년 지난 인증·해제
+-- 이력은 삭제한다. 처리방침 초안(런북)의 '요청 기록 2일·인증 이력 1년 뒤 파기'가 이 작업에 기댄다.
 create function private.prune_member_phone_verification_challenges(p_limit integer default 5000)
 returns integer
 language plpgsql
@@ -408,6 +451,7 @@ as $$
 declare
   now_at timestamptz := clock_timestamp();
   pruned integer;
+  pruned_events integer;
 begin
   if p_limit is null or p_limit not between 1 and 50000 then
     raise invalid_parameter_value using message = 'invalid_member_phone_prune_limit';
@@ -423,10 +467,19 @@ begin
       limit p_limit
     );
   get diagnostics pruned = row_count;
-  return pruned;
+  delete from private.member_phone_verification_events
+    where ctid in (
+      select e.ctid from private.member_phone_verification_events e
+      where e.occurred_at < now_at - interval '1 year'
+      order by e.occurred_at
+      limit p_limit
+    );
+  get diagnostics pruned_events = row_count;
+  return pruned + pruned_events;
 end;
 $$;
 
+alter function private.member_phone_onboarding_ready(uuid) owner to postgres;
 alter function private.member_phone_rate_limited(text, text, integer, integer) owner to postgres;
 alter function public.service_issue_member_phone_verification(uuid, uuid, text, text, text, text, integer) owner to postgres;
 alter function public.service_fail_member_phone_verification(uuid, uuid) owner to postgres;
@@ -436,7 +489,8 @@ alter function private.erase_member_phone(uuid) owner to postgres;
 alter function private.erase_fenced_member_phone() owner to postgres;
 alter function private.prune_member_phone_verification_challenges(integer) owner to postgres;
 
-revoke all on function private.member_phone_rate_limited(text, text, integer, integer),
+revoke all on function private.member_phone_onboarding_ready(uuid),
+  private.member_phone_rate_limited(text, text, integer, integer),
   public.service_issue_member_phone_verification(uuid, uuid, text, text, text, text, integer),
   public.service_fail_member_phone_verification(uuid, uuid),
   public.service_verify_member_phone_verification(uuid, uuid, text),
