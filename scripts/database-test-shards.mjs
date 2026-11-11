@@ -114,6 +114,8 @@ const catalog = [
   sql('admin_benefit_issuances'),
   sql('admin_encrypted_export_audit', { admin: true }),
   sql('goods_custom_input_workbook', { admin: true }),
+  // 할인 프로모션 묶음(기간할인 원장 출처·중지 범위)과 전시 상품 여러 줄 조회(1014-109·112).
+  sql('discount_promotions', { admin: true }),
 ];
 
 const storefront = [
