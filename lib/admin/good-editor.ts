@@ -26,10 +26,13 @@ export const GOOD_LOCAL_DRAFT_FIELDS = ['serverDraftId', 'serverDraftRevision', 
 /**
  * 복구 안내를 두고 옵션 행이나 카테고리를 고치면 딸린 칸도 화면 값을 쓴다. 옵션 행과 축·동시편집 기준,
  * 카테고리와 그 상품속성은 이전 기록과 섞이면 맞지 않는다. 축이나 사용 여부만 고칠 때는 이전 옵션 행을 남긴다.
+ * 직접입력형 항목·판매기간을 고치면 서버 버전 비교값도 화면 값을 쓴다. 이전 기록의 오래된 버전과 짝지으면 동시 수정이 없어도 저장이 거절된다.
  */
 export const GOOD_LOCAL_DRAFT_LINKED_FIELDS = {
   variants: ['variantBaseline', 'optionUsage', 'optionAxisName0', 'optionAxisValues0', 'optionAxisName1', 'optionAxisValues1', 'optionAxisName2', 'optionAxisValues2'],
   categoryId: ['productAttributes', 'productAttributeDraft'],
+  customInputs: ['customInputsExpectedRevision'],
+  salePeriodEnabled: ['salePeriodRevision'], saleStartsAt: ['salePeriodRevision'], saleEndsAt: ['salePeriodRevision'],
 } as const;
 /** Failure/recovery owns even empty values; business defaults apply only to untouched new goods. */
 export function goodEditorValues(selected: AdminGoodRecord | null, state: AdminFormValuesState, initialIpId = '', noticeDefaults?: GoodNoticeDefaults): Record<string, string> {
