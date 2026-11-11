@@ -68,13 +68,23 @@ export function CurationProductPicker({ options, goods, selectedIds, limit, onAp
       <label className="flex min-w-0 flex-1 flex-col gap-2 text-sm font-medium">상품명 / 상품코드<Input onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="상품명 또는 상품코드를 입력하세요" value={query} /></label>
       <Button onClick={() => { setQuery(''); setPage(1); }} type="button" variant="ghost">초기화</Button>
     </div>
-    <div className="px-5"><GoodUrlAddField onAdd={(id) => {
+    <div className="px-5"><GoodUrlAddField<string> onAdd={(id) => {
       const option = options.find((candidate) => candidate.id === id && !candidate.archivedAt);
       if (!option) return { ok: false, message: GOOD_URL_ERRORS.notFound };
       if (selection.includes(id)) return { ok: false, message: GOOD_URL_ERRORS.exists };
       if (selection.length >= limit) return { ok: false, message: `최대 ${limit}개까지 선택할 수 있습니다.` };
       setSelection((current) => current.includes(id) ? current : [...current, id]);
       return { ok: true, message: `'${option.title}' 상품을 선택했습니다. 선택 완료를 눌러 반영해주세요.` };
+    }} bulk={{
+      /* 검색 목록과 같은 후보(보관 제외)에 있는 상품만 담는다. */
+      capacity: limit - selection.length,
+      classify: (match) => {
+        if (!options.some((candidate) => candidate.id === match.id && !candidate.archivedAt)) return { ok: false, reason: '이 목록에서 고를 수 없는 상품입니다.' };
+        if (selection.includes(match.id)) return { ok: false, reason: GOOD_URL_ERRORS.exists };
+        return { ok: true, id: match.id, item: match.id };
+      },
+      onAdd: (ids) => setSelection((current) => [...current, ...ids.filter((id) => !current.includes(id))].slice(0, limit)),
+      appliedHint: '선택 완료를 눌러 반영해주세요.',
     }} /></div>
     <div className="flex justify-between gap-3 px-5 py-4 text-sm"><span>조회 결과 <strong className="font-semibold tabular-nums">{matches.length}</strong>개</span><span>선택 <strong className="font-semibold tabular-nums">{selection.length}</strong> / {limit}개</span></div>
     <div className="mx-5 overflow-hidden rounded-lg border [&>[data-slot=table-container]]:max-h-[48dvh]">

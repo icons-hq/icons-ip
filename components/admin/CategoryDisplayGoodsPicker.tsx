@@ -14,8 +14,9 @@ import { Input } from '@/components/admin/kit/ui/input';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/admin/kit/ui/table';
 
-export function CategoryDisplayGoodsPicker({ selected, limit, onlyPublished = false, onApply, onClose }: {
-  selected: string[]; limit: number; onlyPublished?: boolean; onApply: (ids: string[], rows: StoryGoodCandidate[]) => void; onClose: () => void;
+/* 카테고리 전시·캠페인 굿즈 블록·할인 프로모션의 선택 상품이 같은 선택기를 쓴다(1014-112). `title`만 화면마다 다르다. */
+export function CategoryDisplayGoodsPicker({ selected, limit, onlyPublished = false, onApply, onClose, title = '전시 상품 선택' }: {
+  selected: string[]; limit: number; onlyPublished?: boolean; onApply: (ids: string[], rows: StoryGoodCandidate[]) => void; onClose: () => void; title?: string;
 }) {
   const [query, setQuery] = useState(''), [categoryId, setCategoryId] = useState(''), [applied, setApplied] = useState({ query: '', categoryId: '' });
   const [picked, setPicked] = useState(selected), [data, setData] = useState<StoryGoodCandidates | null>(null), [pending, setPending] = useState(true), [error, setError] = useState('');
@@ -40,14 +41,28 @@ export function CategoryDisplayGoodsPicker({ selected, limit, onlyPublished = fa
       .finally(() => { if (token === ticket.current) setPending(false); });
     return () => { ticket.current += 1; };
   }, [onlyPublished]);
-  return <CustomerServiceDialog title="전시 상품 선택" onClose={onClose} wide>
+  return <CustomerServiceDialog title={title} onClose={onClose} wide>
     <div className="flex min-w-0 flex-col gap-3">
       <form className="grid items-end gap-2.5 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]" onSubmit={event => { event.preventDefault(); void search(1, { query, categoryId }); }}>
         <label className="flex min-w-0 flex-col gap-1.5 text-sm font-medium">상품명 / 상품코드<Input value={query} maxLength={100} onChange={event => setQuery(event.target.value)} autoFocus /></label>
         <label className="flex min-w-0 flex-col gap-1.5 text-sm font-medium">상품 카테고리<NativeSelect className="w-full" value={categoryId} onChange={event => setCategoryId(event.target.value)}><option value="">전체</option>{data?.categories.map(category => <option key={category.id} value={category.id}>{category.path}</option>)}</NativeSelect></label>
         <Button type="submit" disabled={pending} variant="soft">검색</Button>
       </form>
-      <GoodUrlAddField disabled={pending} onAdd={async id => {
+      <GoodUrlAddField<StoryGoodCandidate> disabled={pending} bulk={{
+        /* 검색과 같은 후보(보관 상품·보관 IP 제외, 영상 상품은 공개 중인 상품만)만 담는다. */
+        capacity: limit - picked.length,
+        classify: match => {
+          if (!match.candidate) return { ok: false, reason: '상품 정보를 확인하지 못했습니다. 검색으로 골라주세요.' };
+          if (onlyPublished && !match.candidate.published) return { ok: false, reason: '고객 화면에 공개 중인 상품만 고를 수 있습니다.' };
+          if (picked.includes(match.id)) return { ok: false, reason: GOOD_URL_ERRORS.exists };
+          return { ok: true, id: match.id, item: match.candidate };
+        },
+        onAdd: rows => {
+          rows.forEach(row => known.current.set(row.id, row));
+          setPicked(current => [...current, ...rows.map(row => row.id).filter(id => !current.includes(id))].slice(0, limit));
+        },
+        appliedHint: '선택 완료를 눌러 반영해주세요.',
+      }} onAdd={async id => {
         if (picked.includes(id)) return { ok: false, message: GOOD_URL_ERRORS.exists };
         if (picked.length >= limit) return { ok: false, message: `최대 ${limit.toLocaleString()}개까지 선택할 수 있습니다.` };
         const row = await findGoodById(id, async page => {

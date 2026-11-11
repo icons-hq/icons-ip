@@ -70,7 +70,17 @@ export function ShoppingStoryGoodsPicker({ existingIds, sectionCount, onAdd, onC
         <div className="flex items-center justify-end gap-2 sm:col-span-2"><Button type="button" onClick={() => { setQuery(''); setFilters(DEFAULT_STORY_GOOD_FILTERS); void search(1, { query: '', filters: DEFAULT_STORY_GOOD_FILTERS }); }} variant="ghost">초기화</Button><Button type="submit" variant="soft">검색</Button></div>
       </fieldset>
     </form>
-    <GoodUrlAddField disabled={pending} onAdd={async id => {
+    <GoodUrlAddField<ShoppingStoryGoodOption> disabled={pending} bulk={{
+      /* 검색과 같은 후보(보관 상품·보관 IP 제외)만, 이 스토리에 아직 없는 상품만 담는다. */
+      capacity: capacity - picked.length,
+      classify: match => {
+        if (!match.candidate) return { ok: false, reason: '상품 정보를 확인하지 못했습니다. 검색으로 골라주세요.' };
+        if (existing.has(match.id) || picked.some(item => item.id === match.id)) return { ok: false, reason: GOOD_URL_ERRORS.exists };
+        return { ok: true, id: match.id, item: match.candidate };
+      },
+      onAdd: goods => setPicked(current => [...current, ...goods.filter(good => !current.some(item => item.id === good.id))].slice(0, capacity)),
+      appliedHint: '선택한 상품 추가를 눌러 반영해주세요.',
+    }} onAdd={async id => {
       if (existing.has(id) || picked.some(item => item.id === id)) return { ok: false, message: GOOD_URL_ERRORS.exists };
       if (picked.length >= capacity) return { ok: false, message: `더 추가할 수 없습니다. 추가 가능 ${capacity}개를 확인해주세요.` };
       const good = await findGoodById(id, async page => {

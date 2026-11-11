@@ -131,6 +131,10 @@ const STATUS_TONES = {
   sabangnetColumn: { confirmed: 'success', guessed: 'warning', remembered: 'neutral', known: 'neutral', unknown: 'warning', duplicate: 'warning', manual: 'neutral' },
   /** 카테고리 일괄 등록 줄별 결과 */
   categoryBulk: { created: 'success', skipped: 'neutral', failed: 'danger' },
+  /** 할인 프로모션 — lib/admin/discount-promotions DiscountPromotionPhase. 중지는 끝난 것과 같은 조용한 색이다 */
+  discountPromotion: { scheduled: 'info', running: 'success', ended: 'neutral', stopped: 'neutral' },
+  /** 전시 상품 여러 줄·엑셀 추가의 줄별 결과 — components/admin/GoodBulkAddPanel. 못 찾은 줄만 확인을 부른다 */
+  goodReference: { ready: 'success', blocked: 'neutral', missing: 'warning' },
   // [ops]
   /** 쿠폰 혜택상태(lib/admin/coupons couponPhase) — 중지는 coupon.archived(보관)와 같은 색이다. */
   couponPhase: { scheduled: 'info', live: 'success', ended: 'neutral', stopped: 'neutral' },

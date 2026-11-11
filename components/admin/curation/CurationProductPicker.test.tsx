@@ -44,4 +44,15 @@ describe('CurationProductPicker URL 추가', () => {
     expect(html).toContain('상품 URL로 추가');
     expect(html).toContain('placeholder="https://iconsip.com/shop/상품ID 또는 /shop/상품ID"');
   });
+
+  /* 1014-112 — 여러 줄 붙여넣기와 엑셀 한 열 추가는 검색 폼을 제출하지 않는 별도 묶음이다. */
+  it('여러 상품 한 번에 추가(여러 줄 붙여넣기·엑셀)를 둔다', () => {
+    const html = renderToStaticMarkup(<CurationProductPicker goods={[card('m1')]} limit={4} onApply={() => undefined} onClose={() => undefined}
+      options={[{ id: 'm1', title: '2단 필통', archivedAt: null }]} selectedIds={[]} />);
+    expect(html).toContain('여러 상품 한 번에 추가');
+    expect(html).toContain('여러 줄 붙여넣기');
+    expect(html).toContain('또는 엑셀로 추가(한 열)');
+    expect(html).toMatch(/<input[^>]*accept=".xlsx,.csv,.tsv,.txt"[^>]*type="file"/);
+    expect(html).toMatch(/<button[^>]*type="button"[^>]*>상품 확인<\/button>/);
+  });
 });
