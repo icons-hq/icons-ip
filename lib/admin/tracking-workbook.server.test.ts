@@ -52,7 +52,7 @@ describe('김포 원본 운송장 회신',()=>{
 });
 
 describe('남양주(서원) 송장양식 회신',()=>{
- const seowon=(phone:unknown,quantity:unknown,tracking:unknown,items='합성 키링_빨강',shipmentNumber:unknown='')=>[phone,'','04524','서울 중구 세종대로 110','',quantity,items,'합성 받는분','',shipmentNumber,'빨강','0880123456789','합성 키링 빨강',tracking];
+ const seowon=(phone:unknown,quantity:unknown,tracking:unknown,items='합성 키링_빨강',shipmentNumber:unknown='')=>[phone,'','04524','서울 중구 세종대로 110','',quantity,items,'합성 받는분','',shipmentNumber,'빨강','0880123456789','합성 키링 빨강','2026102710000001',tracking];
  async function workbook(rows:unknown[][],extraSheets:unknown[][][]=[]){
   const w=new ExcelJS.Workbook();w.addWorksheet('송장양식').addRows(rows);
   extraSheets.forEach((sheet,i)=>w.addWorksheet(`Sheet${i+1}`).addRows(sheet));return Buffer.from(await w.xlsx.writeBuffer());

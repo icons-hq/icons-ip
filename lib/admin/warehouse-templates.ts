@@ -1,4 +1,8 @@
-/** Header, position, formatting and reply identity belong to the same column definition. */
+/**
+ * Header, position, formatting and reply identity belong to the same column definition.
+ * 김포 WMS 원본 21열(A~U)은 헤더·순서를 바꾸지 않는다. `주문번호(쇼핑몰)`은 16자리 주문번호다(10/14 회의 1014-096, 옛 파일의 UUID 회신도 받는다).
+ * 옵션의 바코드·ERP 품명은 원본 오른쪽(V~W)에 덧붙인다(`appended`, 10/27 회의 1027T-046). 회신은 덧붙인 열이 남아 있어도, 지워져도 받는다.
+ */
 export const GIMPO_COLUMNS = [
   { key: 'collectedItem', header: '상품명(확정)+옵션(수집)+수량(조합용)', width: 48, text: true },
   { key: 'confirmedItem', header: '상품명(확정)+옵션(확정)+수량(조합용)', width: 48, text: true },
@@ -8,7 +12,7 @@ export const GIMPO_COLUMNS = [
   { key: 'otherPhone', header: '수취인전화번호2', width: 19, text: true },
   { key: 'deliveryNote', header: '배송메세지', width: 35, text: true },
   { key: 'sabangnetOrder', header: '주문번호(사방넷)', width: 25, text: true },
-  { key: 'orderId', header: '주문번호(쇼핑몰)', width: 40, text: true },
+  { key: 'orderNumber', header: '주문번호(쇼핑몰)', width: 22, text: true },
   { key: 'optionAlias', header: '옵션별칭', width: 22, text: true },
   { key: 'goodName', header: '상품명(확정)', width: 35, text: true },
   { key: 'collectedOption', header: '옵션(수집)', width: 22, text: true },
@@ -21,13 +25,20 @@ export const GIMPO_COLUMNS = [
   { key: 'recipient', header: '수취인명', width: 22, text: true },
   { key: 'shippingFee', header: '배송비(수집)', width: 14, text: false },
   { key: 'trackingNumber', header: '운송장번호', width: 25, text: true },
+  { key: 'barcode', header: '바코드', width: 20, text: true, appended: true },
+  { key: 'erpName', header: 'ERP 품명', width: 36, text: true, appended: true },
 ] as const;
+/** 제공 원본의 21열. 회신 판별은 이 21개 헤더가 A~U에 그대로 있는지로 한다. */
+export const GIMPO_TEMPLATE_HEADERS = GIMPO_COLUMNS.filter(column => !('appended' in column)).map(column => column.header);
+/** 원본 오른쪽에 덧붙인 열. 회신에 남아 있어도 값은 읽지 않는다. */
+export const GIMPO_APPENDED_HEADERS = GIMPO_COLUMNS.filter(column => 'appended' in column).map(column => column.header);
 /**
  * 서원(남양주) `260908_우체국 송장 입력 양식.xlsx`의 `송장양식` 시트. 7열의 헤더·순서·너비와
  * 헤더 색(`fill`: 노랑=필수, 회색=선택, 초록=피킹)은 원본 그대로다. 원본에는 받는 분 이름·주문 번호
- * 칸이 없다 — 7열은 건드리지 않고 오른쪽에 받는분성명·배송메시지·배송건번호·옵션명·바코드·ERP 품명을
+ * 칸이 없다 — 7열은 건드리지 않고 오른쪽에 받는분성명·배송메시지·배송건번호·옵션명·바코드·ERP 품명·주문번호를
  * 덧붙인다(`appended`). 서원 프로그램이 7열만 읽으면 덧붙인 열은 무시된다. 배송건번호는 송장이 등록되는
  * 단위(배송 건)의 16자리 번호라 회신에 남아 있으면 내용 대조 없이 그 배송 건을 바로 찾는다.
+ * 주문번호(10/14 회의 1014-096)는 맨 뒤에 덧붙여 앞서 덧붙인 열의 위치를 바꾸지 않는다. 회신 대조에는 쓰지 않는다.
  */
 export const SEOWON_SHEET_NAME = '송장양식';
 export const SEOWON_COLUMNS = [
@@ -45,6 +56,7 @@ export const SEOWON_COLUMNS = [
   { key: 'optionName', header: '옵션명', width: 24, fill: 'optional', text: true, appended: true },
   { key: 'barcode', header: '바코드', width: 20, fill: 'optional', text: true, appended: true },
   { key: 'erpName', header: 'ERP 품명', width: 36, fill: 'optional', text: true, appended: true },
+  { key: 'orderNumber', header: '주문번호', width: 20, fill: 'optional', text: true, appended: true },
 ] as const;
 /** 회신 파일에서 송장번호 열로 인정하는 헤더. 공백은 비교 전에 지운다. */
 export const SEOWON_REPLY_TRACKING_HEADERS = ['송장번호', '운송장번호', '등기번호', '운송장', '송장', '택배송장번호', '우체국송장번호'] as const;

@@ -3,7 +3,7 @@ import { commerceReferenceLabel, isCommerceNumber } from '@/lib/commerce-number'
 
 /**
  * 서원(남양주) 송장양식 교환 규칙. 내보내기와 회신 대조가 같은 행 규칙을 써야
- * 회신이 배송 건으로 돌아온다. 원형 7열 오른쪽에 받는분성명·배송메시지·배송건번호·옵션명·바코드·ERP 품명을
+ * 회신이 배송 건으로 돌아온다. 원형 7열 오른쪽에 받는분성명·배송메시지·배송건번호·옵션명·바코드·ERP 품명·주문번호를
  * 덧붙이고, 회신에 배송건번호가 남아 있으면 그 번호로 정확히 대조한다.
  */
 export type SeowonLine = Pick<ShipmentExportLine, 'recipient' | 'phone' | 'postalCode' | 'address' | 'goodName' | 'optionName' | 'qty' | 'deliveryNote'>
@@ -12,10 +12,10 @@ export interface SeowonExportRow {
   phone: string; otherPhone: ''; postalCode: string; address: string; freightType: '';
   quantity: number; items: string; recipient: string; deliveryNote: string; shipmentNumber: string;
   /** 덧붙인 열. 품목명(`items`)·회신 대조 키(`seowonRowKey`)에는 쓰지 않는다. */
-  optionName: string; barcode: string; erpName: string;
+  optionName: string; barcode: string; erpName: string; orderNumber: string;
 }
 /** 한 파일에 싣는 배송 건. 합포장(`packId`)은 운영자가 일부러 묶은 한 상자라 접미사를 함께 쓴다. */
-export interface SeowonExportShipment { id: string; shipmentNumber?: string | null; packId?: string | null; lines: readonly SeowonLine[] }
+export interface SeowonExportShipment { id: string; shipmentNumber?: string | null; orderNumber?: string | null; packId?: string | null; lines: readonly SeowonLine[] }
 
 const squash = (value: string) => value.normalize('NFC').replace(/\s+/g, ' ').trim();
 const digits = (value: string) => value.replace(/\D/g, '');
@@ -38,13 +38,13 @@ export function seowonItemName(goodName: string, optionName: string): string {
   return `${squash(goodName)}_${squash(optionName)}`;
 }
 
-/** 원본처럼 품목 하나가 한 행이다. 받는 분 이름 접미사·배송건번호는 `seowonExportTable`이 붙인다. */
-export function seowonExportRows(lines: readonly SeowonLine[], recipientSuffix = '', shipmentNumber = ''): SeowonExportRow[] {
+/** 원본처럼 품목 하나가 한 행이다. 받는 분 이름 접미사·배송건번호·주문번호는 `seowonExportTable`이 붙인다. */
+export function seowonExportRows(lines: readonly SeowonLine[], recipientSuffix = '', shipmentNumber = '', orderNumber = ''): SeowonExportRow[] {
   return lines.map(line => ({
     phone: formatSeowonPhone(line.phone), otherPhone: '', postalCode: /^\d{5}$/.test(line.postalCode) ? line.postalCode : '',
     address: squash(line.address), freightType: '', quantity: line.qty, items: seowonItemName(line.goodName, line.optionName),
     recipient: `${squash(line.recipient)}${recipientSuffix}`, deliveryNote: squash(line.deliveryNote), shipmentNumber,
-    optionName: squash(line.optionName), barcode: (line.barcode ?? '').trim(), erpName: squash(line.erpName ?? ''),
+    optionName: squash(line.optionName), barcode: (line.barcode ?? '').trim(), erpName: squash(line.erpName ?? ''), orderNumber,
   }));
 }
 
@@ -84,7 +84,7 @@ export function seowonExportSuffixes(shipments: readonly SeowonExportShipment[])
 /** 서원 원형 양식 한 파일의 행. 이름 접미사는 `seowonExportSuffixes`가 정한다. */
 export function seowonExportTable(shipments: readonly SeowonExportShipment[]): SeowonExportRow[] {
   const suffixes = seowonExportSuffixes(shipments);
-  return shipments.flatMap(shipment => seowonExportRows(shipment.lines, suffixes.get(shipment.id) ?? '', shipment.shipmentNumber ?? ''));
+  return shipments.flatMap(shipment => seowonExportRows(shipment.lines, suffixes.get(shipment.id) ?? '', shipment.shipmentNumber ?? '', shipment.orderNumber ?? ''));
 }
 
 /**

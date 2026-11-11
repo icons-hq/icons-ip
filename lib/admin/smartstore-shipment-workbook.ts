@@ -55,8 +55,11 @@ const ICONS_STANDARD_COLUMNS: readonly (ListExportColumn & { only?: 'instruction
   { header: '상품코드', kind: 'code', width: 14 },
   { header: '상품명', kind: 'text', width: 44 },
   { header: '옵션', kind: 'text', width: 30 },
-  /* 목록 조회(admin_delivery_list_export_lines)에는 옵션코드가 없다. */
+  /* 목록 조회(admin_delivery_list_export_lines)에는 옵션코드·바코드·ERP 품명이 없다. */
   { header: '옵션코드', kind: 'code', width: 16, only: 'instruction' },
+  /* 10/27 회의(1027T-046): 물류가 옵션별 바코드로 출고하도록 옵션의 바코드·ERP 품명을 싣는다. 값이 없으면 빈칸이다. */
+  { header: '바코드', kind: 'code', width: 18, only: 'instruction' },
+  { header: 'ERP 품명', kind: 'text', width: 36, only: 'instruction' },
   { header: '수량', kind: 'count', width: 8 },
   { header: '상품별 할인액', kind: 'amount', width: 14 },
   { header: '품목 실결제액(배송비 제외)', kind: 'amount', width: 24 },

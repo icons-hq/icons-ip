@@ -6,7 +6,7 @@ import {
 } from './smartstore-shipment-workbook';
 import { shipmentExportRowsCsv, type ShipmentExportLine } from './shipment-workbook';
 import type { ShipmentExportData } from './shipment-dispatch';
-import { warehouseExportTable, warehouseOperationalTable } from './warehouse-templates.server';
+import { assertWarehouseExportShipments, warehouseOperationalTable } from './warehouse-templates.server';
 import { ADMIN_LIST_EXPORT_SCREENS, kstDateTimeText, kstFileStamp, listExportSheetName, normalizeListExportCell, type ListExportCellValue } from './list-export';
 import { listExportPaymentMethodLabel } from './list-export-sheets';
 import { addSafeWorkbookInfoSheet, addWorkbookTable } from './workbook-table';
@@ -47,7 +47,9 @@ function standardRow(shipment: Shipment, line: ShipmentExportLine, index: number
     주문번호: saved.orderNumber, 상품주문번호: saved.productOrderNumber, 배송건번호: saved.shipmentNumber,
     구매자: iconsStandardBuyerName(saved.buyerName, saved.buyerId), 수취인: line.recipient, 연락처: line.phone, 우편번호: line.postalCode, 주소: line.address,
     배송메시지: line.deliveryNote, 출고지: shipment.originName, 택배사: line.carrier, 운송장번호: null,
-    상품번호: saved.goodId, 상품코드: line.goodCode, 상품명: line.goodName, 옵션: line.optionName, 옵션코드: line.variantCode, 수량: line.qty,
+    상품번호: saved.goodId, 상품코드: line.goodCode, 상품명: line.goodName, 옵션: line.optionName, 옵션코드: line.variantCode,
+    // 주문 시점 스냅샷 우선, 비면 지금 옵션에 등록된 값(출고 행 RPC가 칸마다 정한다). 둘 다 없으면 빈칸이다.
+    바코드: line.barcode?.trim() || null, 'ERP 품명': line.erpName?.trim() || null, 수량: line.qty,
     '상품별 할인액': money(saved.itemDiscount), '품목 실결제액(배송비 제외)': money(saved.itemTotal),
     결제일: iconsStandardDateText(saved.paidAt), 결제수단: listExportPaymentMethodLabel(saved.paymentMethod),
     주문일시: iconsStandardDateText(saved.orderedAt), 발주확인일: iconsStandardDateText(saved.confirmedAt), '발송 예정일': iconsStandardDateText(saved.expectedShipDate),
@@ -77,6 +79,7 @@ function instructionInfoLines(data: ShipmentExportData, rowCount: number, genera
     ['내려받은 시각 (KST)', kstDateTimeText(generatedAt.toISOString())],
     ['건수', `${data.shipments.length.toLocaleString('ko-KR')}건 · 엑셀 ${rowCount.toLocaleString('ko-KR')}행`],
     ['안내', '한 행은 상품주문 한 개입니다. 배송비는 같은 배송건번호의 첫 행에 한 번만 기록합니다. 기록되지 않은 금액·날짜는 빈칸입니다.'],
+    ['안내', '바코드·ERP 품명은 옵션에 등록된 값입니다(주문 당시 값이 있으면 그 값). 등록되지 않은 옵션은 빈칸입니다.'],
     ['안내', '운송장 회신은 택배사와 운송장번호를 채운 뒤 이 XLSX(또는 내려받은 CSV)를 발주·발송 관리의 "엑셀 일괄 운송장 등록"에 올립니다. 비밀번호를 건 XLSX는 해제하지 않고 그대로 올리고 "파일 비밀번호" 칸에 입력합니다. 상품주문번호는 전체 번호를 유지해주세요.'],
     ['안내', '택배사는 ICONS에 등록된 이름 또는 코드를, 운송장번호는 실제 발급된 8~30자리 영숫자를 텍스트로 입력합니다. 같은 배송 건의 상품은 같은 택배사와 운송장번호로 등록합니다.'],
     ['안내', '퀵서비스·방문수령·직접전달은 주문 상세의 인계·수령 확인에서 처리합니다.'],
@@ -93,7 +96,7 @@ export async function buildSmartStoreShipmentExport(data: ShipmentExportData, fi
   }
   if (!groups.size) throw new Error('내보낼 배송 건이 없습니다.');
   // Retain the existing gift, COD, packing and origin-contract validation.
-  for (const group of groups.values()) warehouseExportTable(group);
+  for (const group of groups.values()) assertWarehouseExportShipments(group);
   const itemIds = new Set<string>();
   const rows = data.shipments.flatMap(shipment => shipment.lines.map((line, index) => {
     const itemId = detail(line).itemId;
