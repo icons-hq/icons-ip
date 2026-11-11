@@ -14,8 +14,8 @@ begin;
 --     같은 선택: 계정을 새로 만든 이용자가 CS 없이 막히지 않고, 어느 순간에도 번호당 인증 계정은 하나다).
 --     인증 전에 '이미 쓰는 번호'라고 답하지 않는다 — 번호만 알면 가입 여부를 알아내는 조회가 된다.
 --   · 인증번호 원문은 저장하지 않는다. 앱 서버가 서버 비밀값으로 만든 HMAC(인증 요청 id에 결속)만 비교한다.
---     번호·IP 시도 한도도 HMAC 다이제스트로 센다. 요청 행의 번호 원문은 결과가 정해지면 지우고, 이틀 지난
---     요청 행은 다음 요청 때 지운다(한도 창은 24시간).
+--     번호·IP 시도 한도도 HMAC 다이제스트로 센다. 요청 행의 번호 원문은 결과가 정해지면 지우고, 매시 정리 작업이
+--     만료된 진행 중 요청의 번호를 지우며 이틀 지난 요청 행을 삭제한다(한도 창은 24시간).
 --   · 탈퇴 신청(계정 봉인)이 생기면 주소록과 같은 방식으로 같은 트랜잭션에서 번호와 요청 행을 지운다.
 --
 -- 잠금 순서: 계정 행동 잠금(private.is_account_write_fenced) → 회원 잠금('member-phone:user:') →
@@ -212,15 +212,6 @@ begin
     now_at, now_at + make_interval(secs => p_ttl_seconds)
   );
 
-  -- 한도 창(24시간)을 넘긴 오래된 요청은 조금씩 지운다.
-  delete from private.member_phone_verification_challenges
-    where ctid in (
-      select c.ctid from private.member_phone_verification_challenges c
-      where c.created_at < now_at - interval '2 days'
-      order by c.created_at
-      limit 200
-    );
-
   return jsonb_build_object('ok', true, 'expiresAt', now_at + make_interval(secs => p_ttl_seconds));
 end;
 $$;
@@ -405,6 +396,37 @@ create trigger erase_fenced_member_phone
 after insert on private.account_action_fences
 for each row execute function private.erase_fenced_member_phone();
 
+-- 보관 기한. 시간이 지난 진행 중 요청은 만료로 닫으며 번호 원문을 지우고, 이틀 지난 요청 행은 삭제한다.
+-- 처리방침 초안(런북)의 '인증번호 요청 기록은 2일 뒤 파기'가 이 작업에 기댄다.
+create function private.prune_member_phone_verification_challenges(p_limit integer default 5000)
+returns integer
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+declare
+  now_at timestamptz := clock_timestamp();
+  pruned integer;
+begin
+  if p_limit is null or p_limit not between 1 and 50000 then
+    raise invalid_parameter_value using message = 'invalid_member_phone_prune_limit';
+  end if;
+  update private.member_phone_verification_challenges
+    set status = 'expired', resolved_at = now_at, phone_e164 = null
+    where status = 'pending' and expires_at <= now_at;
+  delete from private.member_phone_verification_challenges
+    where ctid in (
+      select c.ctid from private.member_phone_verification_challenges c
+      where c.created_at < now_at - interval '2 days'
+      order by c.created_at
+      limit p_limit
+    );
+  get diagnostics pruned = row_count;
+  return pruned;
+end;
+$$;
+
 alter function private.member_phone_rate_limited(text, text, integer, integer) owner to postgres;
 alter function public.service_issue_member_phone_verification(uuid, uuid, text, text, text, text, integer) owner to postgres;
 alter function public.service_fail_member_phone_verification(uuid, uuid) owner to postgres;
@@ -412,6 +434,7 @@ alter function public.service_verify_member_phone_verification(uuid, uuid, text)
 alter function public.my_member_phone_verification() owner to postgres;
 alter function private.erase_member_phone(uuid) owner to postgres;
 alter function private.erase_fenced_member_phone() owner to postgres;
+alter function private.prune_member_phone_verification_challenges(integer) owner to postgres;
 
 revoke all on function private.member_phone_rate_limited(text, text, integer, integer),
   public.service_issue_member_phone_verification(uuid, uuid, text, text, text, text, integer),
@@ -419,13 +442,29 @@ revoke all on function private.member_phone_rate_limited(text, text, integer, in
   public.service_verify_member_phone_verification(uuid, uuid, text),
   public.my_member_phone_verification(),
   private.erase_member_phone(uuid),
-  private.erase_fenced_member_phone()
+  private.erase_fenced_member_phone(),
+  private.prune_member_phone_verification_challenges(integer)
   from public, anon, authenticated, service_role;
+-- cron 작업은 등록한 롤(postgres)로 돈다. 복원 뒤 소유자가 달라져도 실행되게 명시한다.
+grant execute on function private.prune_member_phone_verification_challenges(integer) to postgres;
 grant execute on function public.service_issue_member_phone_verification(uuid, uuid, text, text, text, text, integer),
   public.service_fail_member_phone_verification(uuid, uuid),
   public.service_verify_member_phone_verification(uuid, uuid, text)
   to service_role;
 grant execute on function public.my_member_phone_verification() to authenticated;
+
+-- pg_cron이 있는 배포만 등록한다. cron.schedule은 이름 기준 upsert라 재적용에 안전하다.
+do $$
+begin
+  if exists (select 1 from pg_catalog.pg_extension where extname = 'pg_cron') then
+    perform cron.schedule(
+      'member-phone-verification-retention',
+      '17 * * * *',
+      'select private.prune_member_phone_verification_challenges()'
+    );
+  end if;
+end;
+$$;
 
 notify pgrst, 'reload schema';
 

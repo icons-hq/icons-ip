@@ -26,6 +26,8 @@ begin
 end;
 $patch$;
 revoke all on function private.issue_coupon_code(text,uuid,text) from public, anon, authenticated, service_role;
+-- 운영자 내부 계약(20261020085516에서 등록)의 지문을 새 정의로 다시 등록한다.
+select private.register_operator_internal_contract('private.issue_coupon_code(text,uuid,text)'::regprocedure);
 
 create table private.kakao_channel_friend_rewards (
   user_id uuid not null references public.profiles(id) on delete cascade,

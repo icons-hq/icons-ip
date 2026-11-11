@@ -71,7 +71,7 @@ select 1/case when public.service_grant_kakao_channel_friend_coupon(pg_temp.uid(
  then 1 else 0 end as not_onboarded_skipped;
 
 -- 운영자·정지 회원도 대상이 아니다.
-update public.profiles set suspended_at=now() where id=pg_temp.uid(4);
+update public.profiles set suspended_at=now(), suspension_reason='TEST 정지' where id=pg_temp.uid(4);
 select 1/case when public.service_grant_kakao_channel_friend_coupon(pg_temp.uid(4),'_IconsTest','KAKAO-FRIEND','webhook')->>'reason'='customer_unavailable'
  then 1 else 0 end as suspended_skipped;
 

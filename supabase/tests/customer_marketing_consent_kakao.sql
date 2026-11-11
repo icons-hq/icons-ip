@@ -90,7 +90,7 @@ reset role;
 select 1/case when (public.service_member_sms_recipient(pg_temp.uid(4),'advertising')->>'ok')::boolean
  and public.service_member_sms_recipient(pg_temp.uid(4),'advertising')->>'smsConsentAgreedAt' is not null
  then 1 else 0 end as advertising_with_consent;
-update public.profiles set suspended_at=now() where id=pg_temp.uid(4);
+update public.profiles set suspended_at=now(), suspension_reason='TEST 정지' where id=pg_temp.uid(4);
 select 1/case when public.service_member_sms_recipient(pg_temp.uid(4),'transactional')->>'reason'='account_unavailable' then 1 else 0 end as suspended_unavailable;
 
 rollback;

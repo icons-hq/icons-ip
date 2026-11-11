@@ -53,6 +53,7 @@ select 1/case when not has_table_privilege('authenticated','private.member_phone
  and not has_function_privilege('service_role','public.my_member_phone_verification()','execute')
  and not has_function_privilege('authenticated','private.erase_member_phone(uuid)','execute')
  and not has_function_privilege('service_role','private.member_phone_rate_limited(text,text,integer,integer)','execute')
+ and not has_function_privilege('service_role','private.prune_member_phone_verification_challenges(integer)','execute')
  then 1 else 0 end as sealed;
 
 -- 형식이 틀린 입력은 거절한다.
@@ -101,7 +102,9 @@ select 1/case when pg_temp.verify(2,5,'555555')->>'reason'='not_found' then 1 el
 
 -- 만료된 요청은 맞는 번호여도 닫힌다.
 update private.member_phone_verification_challenges set expires_at=clock_timestamp()-interval '1 second', created_at=clock_timestamp()-interval '10 minutes' where id=pg_temp.cid(5);
-select 1/case when pg_temp.verify(1,5,'555555')->>'reason'='expired'
+-- 한 문장 안의 하위 조회는 문장 시작 시점 스냅샷이라 함수가 바꾼 행을 보지 못한다. 호출과 확인을 나눈다.
+select pg_temp.keep('verify5_expired', pg_temp.verify(1,5,'555555'));
+select 1/case when pg_temp.r('verify5_expired')->>'reason'='expired'
  and (select status='expired' and phone_e164 is null from private.member_phone_verification_challenges where id=pg_temp.cid(5))
  then 1 else 0 end as expired_closes;
 
@@ -134,7 +137,8 @@ reset role;
 -- 옮기기: 같은 번호를 다른 회원이 인증하면 이전 회원의 인증이 해제되고 이력이 남는다.
 select pg_temp.age_challenges(61);
 select pg_temp.issue(2,7,'+821012345678','phone a','ip two','777777');
-select 1/case when (pg_temp.verify(2,7,'777777')->>'ok')::boolean
+select pg_temp.keep('verify7', pg_temp.verify(2,7,'777777'));
+select 1/case when (pg_temp.r('verify7')->>'ok')::boolean
  and not exists(select 1 from private.member_phone_numbers where user_id=pg_temp.uid(1))
  and (select phone_e164='+821012345678' from private.member_phone_numbers where user_id=pg_temp.uid(2))
  and (select count(*)=1 from private.member_phone_verification_events where user_id=pg_temp.uid(1) and event='released')
@@ -172,7 +176,7 @@ select 1/case when pg_temp.r('fail_first')='true'::jsonb and pg_temp.r('fail_aga
  then 1 else 0 end as send_failure_closes;
 
 -- 정지 계정은 요청할 수 없다.
-update public.profiles set suspended_at=now() where id=pg_temp.uid(6);
+update public.profiles set suspended_at=now(), suspension_reason='TEST 정지' where id=pg_temp.uid(6);
 select 1/case when pg_temp.issue(6,12,'+821066666666','phone g',null,'121212')->>'reason'='account_unavailable' then 1 else 0 end as suspended_refused;
 
 -- 탈퇴 신청(계정 봉인): 같은 트랜잭션에서 번호와 진행 중 요청을 지우고, 이후 요청은 거절한다.
@@ -188,10 +192,18 @@ select 1/case when not exists(select 1 from private.member_phone_numbers where u
  and not exists(select 1 from private.member_phone_verification_challenges where id=pg_temp.cid(14))
  then 1 else 0 end as fence_erases_phone;
 
--- 이틀 지난 요청은 다음 요청 때 지운다.
-update private.member_phone_verification_challenges set created_at=created_at-interval '3 days', expires_at=expires_at-interval '3 days', resolved_at=coalesce(resolved_at,clock_timestamp())-interval '3 days', status=case when status='pending' then 'superseded' else status end, phone_e164=null where user_id=pg_temp.uid(1);
+-- 보관 기한: 만료된 진행 중 요청은 번호 원문을 지우고 닫으며, 이틀 지난 요청 행은 삭제한다(매시 정리 작업).
+select pg_temp.age_challenges(61);
 select pg_temp.issue(1,15,'+821015151515','phone i',null,'151515');
-select 1/case when not exists(select 1 from private.member_phone_verification_challenges where user_id=pg_temp.uid(1) and id<>pg_temp.cid(15))
- then 1 else 0 end as old_rows_pruned;
+update private.member_phone_verification_challenges set expires_at=clock_timestamp()-interval '1 second', created_at=clock_timestamp()-interval '10 minutes' where id=pg_temp.cid(15);
+update private.member_phone_verification_challenges set created_at=created_at-interval '3 days', expires_at=expires_at-interval '3 days', resolved_at=resolved_at-interval '3 days' where user_id=pg_temp.uid(3);
+select private.prune_member_phone_verification_challenges() as pruned \gset
+select 1/case when :pruned>=5
+ and (select status='expired' and phone_e164 is null and resolved_at is not null from private.member_phone_verification_challenges where id=pg_temp.cid(15))
+ and not exists(select 1 from private.member_phone_verification_challenges where user_id=pg_temp.uid(3))
+ and not exists(select 1 from private.member_phone_verification_challenges where status='pending' and expires_at<=clock_timestamp())
+ then 1 else 0 end as retention_pruned;
+select 1/case when exists(select 1 from pg_catalog.pg_extension where extname='pg_cron')
+ = exists(select 1 from cron.job where jobname='member-phone-verification-retention') then 1 else 0 end as retention_scheduled;
 
 rollback;
