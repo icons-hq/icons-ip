@@ -27,6 +27,8 @@
 
 ## 스테이징 테스트 배송완료 (A15)
 
+> 2026-11-11 보완(1014-083): 사용자 결정 "운영 전체 주문 허용"(원장 재작업 결정 묶음 3, 10/14 회의 요청 "아니면 지금 구매하고 배송 완료로 바꿀 수 있어요" / "어차피 테스트하면서 강제로도 해야 되니까")에 따라 화면의 도구는 환경 판별 없는 **강제 배송완료**(`admin_force_order_delivery_preview`·`admin_force_order_delivered`, `20261112130100`)로 바뀌었다. 전이(발주확인 이후 택배 주문의 남은 배송 건 → 배송완료, 메일 없음, 합포장 동반)와 정상 배송완료 이후 흐름은 아래와 같다. 안전장치는 환경 허용 행 대신 배송 처리 권한(`sales.manage`), 사유 필수(500자), 대상 미리보기 확인창과 확인 체크, operation ID 재전송, 감사(`admin.order.forced_delivered` — 사유·처리한 배송 건, 합포장으로 함께 옮긴 주문에도 같은 사유)다. 아래 스테이징 전용 함수·허용 행은 남아 있지만 화면은 더 이상 부르지 않는다.
+
 구매확정·리뷰 시험을 위해 스테이징에서만 발주확인 이후 택배 주문을 운송장 없이 배송완료로 기록한다(`admin_mark_staging_test_delivered`). 준비 → 배송완료로 바로 옮겨 발송 메일 대기열을 만들지 않는다. 합포장 소속 배송 건은 운영 배송완료와 같이 `lock_shipment_pack_scope`로 묶음 전체를 잠가 함께 옮긴다. DB에는 자신이 운영인지 알려 주는 기존 표식이 없어서, 검증된 스테이징 세션(`app.staging_seed_enabled`)에서만 실행되는 시드가 넣는 허용 행(`private.staging_test_tools`)이 없으면 거절한다(운영은 이 시드를 실행하지 않는다). 운영 프로젝트 ref가 담긴 토큰도 거절하고, 서버도 운영 배포·운영 Supabase·운영 도메인이면 화면과 액션을 닫는다.
 
 ## 결과와 검증 경계
@@ -36,4 +38,4 @@
 - CI·로컬 DB에서도 매분 틱이 돈다. 스모크는 실행 날짜를 미래로 고정하고 트랜잭션 안에서만 주문을 만들며, 경합 시험은 cron이 없는 복제 DB에서 돈다. 커밋된 결제완료 주문을 남기는 다른 스크립트가 KST 16:30 마감과 같은 분에 돌면 그 주문이 자동 발주확인될 수 있다.
 - 법정 청약철회는 여전히 앱 상태와 별개다(ADR-0017 §직접 신청과 청약철회 의사표시).
 
-검증: `supabase/tests/auto_order_confirmation.sql`(경계·제외·멱등·묶음·자정 이월·시각 변경·끄기·다시 켜기·주문별 오류 격리·권한·감사·수동 경로), `auto_order_confirmation_concurrency.sh`(고객 취소·수동 발주확인 경합, 잠금 대기 초과, id 순 잠금 교착 방지), `purchase_confirmation.sql`(소급), `staging_test_delivery.sql`(운영 형태 거절·메일 미생성·합포장 함께 처리).
+검증: `supabase/tests/auto_order_confirmation.sql`(경계·제외·멱등·묶음·자정 이월·시각 변경·끄기·다시 켜기·주문별 오류 격리·권한·감사·수동 경로), `auto_order_confirmation_concurrency.sh`(고객 취소·수동 발주확인 경합, 잠금 대기 초과, id 순 잠금 교착 방지), `purchase_confirmation.sql`(소급), `staging_test_delivery.sql`(운영 형태 거절·메일 미생성·합포장 함께 처리), `forced_order_delivery.sql`(허용 행 없는 운영 형태에서 권한·사유·확인창 미리보기·막는 사유·재전송·감사·합포장 동반).
