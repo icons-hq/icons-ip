@@ -180,7 +180,7 @@ export function gradeBenefitCountLines(counts: GradeBenefitCouponCounts): string
 
 /** 아직 오르지 않은 등급의 쿠폰 중 매월 지급분 — 장수만 알린다(내용은 오른 뒤 쿠폰함에서). */
 export function gradeBenefitMonthlyNote(counts: GradeBenefitCouponCounts): string | null {
-  return counts.monthly > 0 ? `그중 ${counts.monthly.toLocaleString('ko-KR')}장은 이 등급에 오른 뒤 매월 1일에 다시 지급돼요` : null;
+  return counts.monthly > 0 ? `그중 ${counts.monthly.toLocaleString('ko-KR')}장은 이 등급에 오른 뒤 돌아오는 매월 1일부터 한 장씩 지급돼요` : null;
 }
 
 /** 등급표 아래 '등급 적립금은 … 한도 안에서 쌓여요' 안내를 쓸지 — 표가 적립률 줄을 하나라도 그릴 때만. */
@@ -217,9 +217,9 @@ export function gradeBenefitCouponCopy(coupon: GradeBenefitCoupon, now: Date = n
     : coupon.recipientSegment === 'repeat_purchase'
       ? '구매한 적이 있는 회원에게만 지급돼요'
       : null;
-  /* 매월 지급은 그달 1일의 등급이 쿠폰 등급 이상이면 한 장 — 지난달 몫을 몰아서 주지 않는다(DB 정본). */
+  /* 매월 지급은 그달 1일에 다시 확인한 등급이 쿠폰 등급 이상이면 한 장 — 지난달 몫을 몰아서 주지 않는다(DB 정본). */
   const cadence = coupon.cadence === 'monthly'
-    ? '이 등급 이상이면 매월 1일에 한 장씩 지급돼요'
+    ? '매월 1일에 이 등급 이상이면 한 장씩 지급돼요'
     : '이 등급에 오를 때 한 번 지급돼요';
   return { benefit, condition: couponConditionLabel(coupon), validity, recipient, cadence };
 }

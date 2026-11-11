@@ -176,7 +176,7 @@ describe('grade benefit copy', () => {
   });
 
   it('notes how many coupons of an unreached grade come again on the 1st of each month', () => {
-    expect(gradeBenefitMonthlyNote({ goods: 2, shipping: 1, monthly: 2 })).toBe('그중 2장은 이 등급에 오른 뒤 매월 1일에 다시 지급돼요');
+    expect(gradeBenefitMonthlyNote({ goods: 2, shipping: 1, monthly: 2 })).toBe('그중 2장은 이 등급에 오른 뒤 돌아오는 매월 1일부터 한 장씩 지급돼요');
     expect(gradeBenefitMonthlyNote({ goods: 2, shipping: 1, monthly: 0 })).toBeNull();
   });
 
@@ -208,7 +208,7 @@ describe('grade benefit copy', () => {
       recipient: null,
       cadence: '이 등급에 오를 때 한 번 지급돼요',
     });
-    expect(gradeBenefitCouponCopy(coupon({ cadence: 'monthly' }), now).cadence).toBe('이 등급 이상이면 매월 1일에 한 장씩 지급돼요');
+    expect(gradeBenefitCouponCopy(coupon({ cadence: 'monthly' }), now).cadence).toBe('매월 1일에 이 등급 이상이면 한 장씩 지급돼요');
     expect(gradeBenefitCouponCopy(coupon({ benefitKind: 'shipping', minSubtotal: 0 }), now)).toMatchObject({
       benefit: '배송비 ₩3,000 할인',
       condition: '금액 제한 없음',

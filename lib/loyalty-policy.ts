@@ -18,6 +18,8 @@ export type MonthlyGradeCouponRun = {
   members: number;
   recipients: number;
   granted: number;
+  /** 등급 재산정이 실패해 그달 지급에서 뺀 회원 수(없던 응답은 0). */
+  skipped: number;
   coupons: { code: string; name: string; granted: number }[];
 };
 export type LoyaltyPolicyData = { policy: LoyaltyPolicy; coupons: GradeBenefitCoupon[]; monthlyRuns?: MonthlyGradeCouponRun[] };
@@ -37,7 +39,8 @@ export function parseMonthlyGradeCouponRuns(value: unknown): MonthlyGradeCouponR
       || !(run.finishedAt === null || instant(run.finishedAt))
       || !(run.finishReason === null || (MONTHLY_GRADE_COUPON_FINISH_REASONS as readonly unknown[]).includes(run.finishReason))
       || (run.finishedAt === null) !== (run.finishReason === null)
-      || !count(run.members) || !count(run.recipients) || !count(run.granted) || !Array.isArray(run.coupons)) return null;
+      || !count(run.members) || !count(run.recipients) || !count(run.granted)
+      || !(run.skipped === undefined || count(run.skipped)) || !Array.isArray(run.coupons)) return null;
     const coupons: MonthlyGradeCouponRun['coupons'] = [];
     for (const coupon of run.coupons) {
       if (!coupon || typeof coupon !== 'object') return null;
@@ -48,7 +51,8 @@ export function parseMonthlyGradeCouponRuns(value: unknown): MonthlyGradeCouponR
     runs.push({
       grantMonth: run.grantMonth, startedAt: run.startedAt as string, finishedAt: run.finishedAt as string | null,
       finishReason: run.finishReason as MonthlyGradeCouponFinishReason | null,
-      members: run.members as number, recipients: run.recipients as number, granted: run.granted as number, coupons,
+      members: run.members as number, recipients: run.recipients as number, granted: run.granted as number,
+      skipped: (run.skipped as number | undefined) ?? 0, coupons,
     });
   }
   return runs;

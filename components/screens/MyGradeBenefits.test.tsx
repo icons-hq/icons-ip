@@ -137,11 +137,14 @@ describe('MyGradeBenefits', () => {
     };
     const html = render({ benefits: monthlyBenefits });
 
-    expect(html).toContain('이 등급 이상이면 매월 1일에 한 장씩 지급돼요');
-    expect(html).toContain('그중 1장은 이 등급에 오른 뒤 매월 1일에 다시 지급돼요');
+    expect(html).toContain('매월 1일에 이 등급 이상이면 한 장씩 지급돼요');
+    expect(html).toContain('그중 1장은 이 등급에 오른 뒤 돌아오는 매월 1일부터 한 장씩 지급돼요');
     expect(render()).toContain('이 등급에 오를 때 한 번 지급돼요');
-    expect(render()).not.toContain('매월 1일에 다시 지급돼요');
-    expect(html).toContain('매월 지급 쿠폰은 매월 1일 그때 등급을 기준으로 다시 지급돼요');
+    expect(render()).not.toContain('그중 1장은');
+    /* 상단 안내는 승급 지급분과 매월 지급분을 나눠 쓴다 — 매월 쿠폰을 승급 때 받는다고 읽히지 않게. */
+    expect(html).toContain('승급 지급 쿠폰은 등급이 오를 때 새로 오른 등급까지 한 번 자동으로 지급돼요.');
+    expect(html).toContain('매월 지급 쿠폰은 등급에 오른 뒤 돌아오는 매월 1일부터, 그날 다시 확인한 등급을 기준으로 한 장씩 지급돼요.');
+    expect(html).toContain('최근 90일 실적으로 등급을 다시 확인한 뒤, 그 등급까지의 쿠폰을 한 장씩 지급');
     expect(html).toContain('지난달에 받지 못한 몫을 나중에 몰아서 드리지는 않아요');
   });
 
