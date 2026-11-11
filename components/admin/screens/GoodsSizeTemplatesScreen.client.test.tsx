@@ -31,7 +31,8 @@ function editor() {
   const host = all(GoodsSizeTemplatesScreen({ accountId: 'operator-a' })).find(node => typeof node.type === 'function' && node.type.name === 'SizeTemplateEditor');
   if (!host) throw new Error('SizeTemplateEditor');
   hooks.scope = 'editor'; hooks.index = 0;
-  return all((host.type as (props: typeof host.props) => ReactNode)(host.props));
+  const render = host.type as (props: Element['props']) => ReactNode;
+  return all(render(host.props));
 }
 function button(label: string) { const item = editor().find(node => node.type === Button && text(node) === label); if (!item) throw new Error(label); return item; }
 const nameInput = () => editor().find(node => node.type === Input)!;
