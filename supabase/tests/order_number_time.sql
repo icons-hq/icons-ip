@@ -83,7 +83,7 @@ insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,sh
 select pg_temp.ok((select array_agg(shipment_number order by id) from public.order_shipments where id in(pg_temp.tid(4,1),pg_temp.tid(4,2)))
   =array['2041030530000001','2041030530000002'],'shipment numbers keep the 16-digit format for both order formats');
 
--- 4-1) 형식 제약도 옛 16자리와 새 20자리만 받는다(불변 트리거를 끈 직접 변경으로 확인). 배송건번호는 16자리만이다.
+-- 4) 형식 제약도 옛 16자리와 새 20자리만 받는다(불변 트리거를 끈 직접 변경으로 확인). 배송건번호는 16자리만이다.
 set local session_replication_role=replica;
 select pg_temp.expect_error(format($q$update public.orders set order_number='20411231240010000001' where id=%L$q$,pg_temp.tid(1,2)),'orders_number_format');
 select pg_temp.expect_error(format($q$update public.orders set order_number='20411231235920000001' where id=%L$q$,pg_temp.tid(1,2)),'orders_number_format');
