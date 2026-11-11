@@ -57,7 +57,6 @@ Supabase 환경변수를 입력하지 않아도 로컬 개발 앱은 mock 데이
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
 ICONS_CATALOG_SOURCE=
 AUTH_SIGNUP_RESEND_SECRET=
 SITE_URL=https://iconsip.com
@@ -103,8 +102,8 @@ ADULT_VERIFICATION_CANARY_USER_ID=
 ```
 
 - `NEXT_PUBLIC_SUPABASE_URL`: Supabase 프로젝트 URL.
-- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`: Supabase publishable public key. 새 프로젝트는 이 값을 우선 사용한다.
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`: legacy Supabase anon public key. `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`가 없을 때 fallback으로만 사용한다.
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`: Supabase publishable key(`sb_publishable_…`). 브라우저에 노출되는 공개 키이며 `anon` 권한으로 RLS를 그대로 따른다. legacy `anon` JWT fallback은 없다.
+- `SUPABASE_SERVICE_ROLE_KEY`: 서버 전용 Supabase secret key(`sb_secret_…`). 변수 이름은 이 키가 해석되는 Postgres `service_role` 권한을 뜻하며 legacy `service_role` JWT는 받지 않는다. 로컬은 `npm run dev:local`이 `supabase status`의 `SECRET_KEY`를 주입한다. Supabase는 legacy JWT 키를 2026년 말까지 폐기한다. 전환 상태와 비활성화 절차는 [Supabase API 키 runbook](docs/runbooks/supabase-api-keys.md)을 따른다.
 - `ICONS_CATALOG_SOURCE`: 서버 전용 catalog/search source override. 값은 `mock` 또는 `supabase`만 허용한다. 비워두면 Vercel Preview는 `mock`, Supabase 환경변수가 있는 production/local은 `supabase`, Supabase 환경변수가 없으면 `mock`을 쓴다. GitHub Actions의 PR preview는 선택된 shared/isolated Supabase 자격 증명과 함께 `supabase`를 강제한다.
 - `AUTH_SIGNUP_RESEND_SECRET`: 회원가입 확인 메일 재전송 상태, 인증 `next`, 비밀번호 재설정 요청 제한 쿠키를 domain-separated HMAC으로 서명하는 서버 전용 secret. 긴 랜덤 값을 사용하고 `NEXT_PUBLIC_` prefix를 붙이지 않는다.
 - `SITE_URL`: secret이 아닌 서버 전용 canonical public origin이다. Production은 정확히 `https://iconsip.com`을 사용하며 토스 `successUrl`·`failUrl`, 나이스페이 `ReturnURL`, 코페이 `returnUrl` callback이 모두 이 origin 아래에서 생성된다. Preview/CI는 필요하면 각 환경의 일반 서버 origin을 둘 수 있지만 Korpay·NICEPAY 실자격 증명과 canary actor는 두지 않고 목적별 gate를 닫는다. `SITE_URL`만으로 live checkout이 열리지는 않는다.
@@ -320,7 +319,7 @@ Production `icons-ip`와 Preview `icons-ip-preview`는 계속 분리한다. **Pr
 
 git 연결 없이 만든 branch는 parent의 migration 이력을 플랫폼이 항목마다 다시 적용한다. 이 배포 run이 도는 중에 `supabase db push`를 실행하면 같은 migration을 두 쪽이 동시에 적용해 한쪽이 실패한다(2026-10-28 PR #596). 그래서 `scripts/wait-supabase-branch-deployment.mjs`가 Management API의 action run 단계 상태를 보고 run이 끝날 때까지 기다린다. branch의 `status` 필드는 deprecated라 로그에만 남긴다. 플랫폼 migrate가 실패해도 branch를 다시 만들지 않는다. migration마다 이력 행과 한 트랜잭션으로 커밋되므로 `db push`가 기록된 이력 다음부터 나머지를 적용한다. 이 push는 production처럼 `--include-all` 없이 실행되므로, main 최신 migration보다 이른 timestamp의 PR migration은 preview에서도 거부된다. job summary에는 플랫폼 run 결과와 push가 적용한 migration 목록이 남는다.
 
-Vercel CLI는 배포 직전에 선택된 `main` 또는 `pr-<number>`의 URL·publishable key·service role key를 다시 읽어 build/runtime에 주입한다. PR close 때 isolated branch를 삭제한다. 따라서 #321 같은 미머지 migration이 shared main이나 다른 PR branch에 누적되지 않는다.
+Vercel CLI는 배포 직전에 선택된 `main` 또는 `pr-<number>`의 URL·publishable key·secret key(`sb_secret_…`)를 다시 읽어 build/runtime에 주입한다. `supabase branches get`은 secret key를 마스킹하고 legacy JWT를 함께 주므로, 키는 그 branch ref의 `supabase projects api-keys --reveal`에서 `default` 새 키만 고른다. PR close 때 isolated branch를 삭제한다. 따라서 #321 같은 미머지 migration이 shared main이나 다른 PR branch에 누적되지 않는다.
 
 프리뷰 Supabase secret이 없으면 `deploy-vercel-preview`는 **건너뛴다**. 프리뷰가 운영 DB에 붙는 상태로 배포하지 않기 위한 기본값이며, 이유는 workflow warning과 job summary에 남는다.
 
@@ -328,7 +327,7 @@ Vercel CLI는 배포 직전에 선택된 `main` 또는 `pr-<number>`의 URL·pub
 
 프리뷰 parent 프로젝트는 Supabase Pro 조직 `icons` 안의 `icons-ip-preview`(ref `glwypjldklwpgdtymktm`, region `ap-northeast-2`)다. Production `icons-ip`는 이 parent나 PR branch의 대상이 아니다. PR별 DB는 새 Supabase 프로젝트를 수동으로 추가하는 것이 아니라 이 parent 아래 Preview Branch 기능으로 생성한다.
 
-DB 비밀번호와 service_role 키를 다루는 단계는 사람만 할 수 있다. 위저드가 대시보드를 열어주고, 붙여넣은 값을 GitHub Secrets·Vercel에 넣고, 마지막에 확인까지 한다.
+DB 비밀번호와 secret key(`sb_secret_…`)를 다루는 단계는 사람만 할 수 있다. 위저드가 대시보드를 열어주고, 붙여넣은 값을 GitHub Secrets·Vercel에 넣고, 마지막에 확인까지 한다.
 
 ```bash
 ./scripts/setup-preview-supabase.sh

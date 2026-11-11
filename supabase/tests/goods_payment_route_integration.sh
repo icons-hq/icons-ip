@@ -3,12 +3,12 @@ set -euo pipefail
 
 status_env="$(npx supabase status -o env 2>/dev/null)"
 api_url="$(printf '%s\n' "$status_env" | sed -n 's/^API_URL="\([^"]*\)"$/\1/p')"
-anon_key="$(printf '%s\n' "$status_env" | sed -n 's/^ANON_KEY="\([^"]*\)"$/\1/p')"
-service_role_key="$(printf '%s\n' "$status_env" | sed -n 's/^SERVICE_ROLE_KEY="\([^"]*\)"$/\1/p')"
+publishable_key="$(printf '%s\n' "$status_env" | sed -n 's/^PUBLISHABLE_KEY="\([^"]*\)"$/\1/p')"
+secret_key="$(printf '%s\n' "$status_env" | sed -n 's/^SECRET_KEY="\([^"]*\)"$/\1/p')"
 integration_suffix="$(date +%s)-$$"
 integration_email="goods-route-${integration_suffix}@example.test"
 
-if [[ -z "$api_url" || -z "$anon_key" || -z "$service_role_key" ]]; then
+if [[ -z "$api_url" || -z "$publishable_key" || -z "$secret_key" ]]; then
   echo "local Supabase API credentials are unavailable" >&2
   exit 1
 fi
@@ -71,8 +71,8 @@ SQL
 trap cleanup EXIT
 
 NEXT_PUBLIC_SUPABASE_URL="$api_url" \
-NEXT_PUBLIC_SUPABASE_ANON_KEY="$anon_key" \
-SUPABASE_SERVICE_ROLE_KEY="$service_role_key" \
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$publishable_key" \
+SUPABASE_SERVICE_ROLE_KEY="$secret_key" \
 RUN_LOCAL_GOODS_PAYMENT_INTEGRATION=true \
 GOODS_PAYMENT_INTEGRATION_SUFFIX="$integration_suffix" \
   npx vitest run supabase/tests/goods_payment_route.integration.test.ts
