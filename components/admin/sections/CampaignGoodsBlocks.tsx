@@ -1,6 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Plus } from 'lucide-react';
 import { resolveGoodReferencesAction } from '@/app/admin/good-reference-actions';
 import { CategoryDisplayGoodsPicker } from '@/components/admin/CategoryDisplayGoodsPicker';
@@ -73,6 +74,9 @@ export function CampaignGoodsBlocks({ sectionsText, onSectionsTextChange, campai
           <Link className={buttonVariants({ size: 'sm', variant: 'outline' })} data-slot="button" href={discountPromotionListHref({ campaign: campaignId })}>이 기획전 할인 보기</Link></div></>
         : <p className="text-xs text-muted-foreground">캠페인을 저장한 뒤 이 기획전 상품에 할인 프로모션을 만들 수 있습니다.</p>}
     </div>
-    {picker ? <CategoryDisplayGoodsPicker limit={GOODS_BLOCK_LIMIT} onApply={ids => apply(ids)} onClose={() => setPicker(null)} selected={picker.selected} title="상품 묶음에 넣을 상품 선택" /> : null}
+    {/* 선택기의 검색 폼이 캠페인 폼 안에 겹치지 않게(그리고 입력·제출 이벤트가 캠페인 폼까지 오르지 않게) 본문 밖에 띄운다. */}
+    {picker && typeof document !== 'undefined' ? createPortal(<div className="wc-admin" onChange={event => event.stopPropagation()} onSubmit={event => event.stopPropagation()}>
+      <CategoryDisplayGoodsPicker limit={GOODS_BLOCK_LIMIT} onApply={ids => apply(ids)} onClose={() => setPicker(null)} selected={picker.selected} title="상품 묶음에 넣을 상품 선택" />
+    </div>, document.body) : null}
   </div>;
 }
