@@ -1,6 +1,7 @@
 vi.mock('@/lib/account-goods-cleanup.server', () => ({ cleanupFencedGoodsAccount: vi.fn(async () => true) }));
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  checkKakaoChannelRewardAction,
   prepareProfileAvatarUploadAction,
   requestAccountDeletionAction,
   updateMarketingConsentAction,
@@ -24,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   rejectProfileAvatarClaim: vi.fn(),
   revalidatePath: vi.fn(),
   storageFrom: vi.fn(),
+  syncKakaoReward: vi.fn(),
   updateProfileIdentity: vi.fn(),
   upload: vi.fn(),
 }));
@@ -42,6 +44,9 @@ vi.mock('@/lib/supabase/server', () => ({
 }));
 vi.mock('next/cache', () => ({
   revalidatePath: mocks.revalidatePath,
+}));
+vi.mock('@/lib/kakao/channel-reward.server', () => ({
+  syncKakaoChannelFriendReward: mocks.syncKakaoReward,
 }));
 vi.mock('next/navigation', () => ({
   redirect: (path: string) => {
@@ -848,5 +853,64 @@ describe('updateMarketingConsentAction kakao channel', () => {
 
     const result = await updateMarketingConsentAction({}, kakaoForm(false));
     expect(result.message).toContain('이메일 수신 거부 · SMS 수신 거부 · 카카오톡 수신 거부');
+  });
+});
+
+/* 리뷰 F10 — 설정의 [친구 추가 쿠폰 받기]. 가입 수단과 무관하게 카카오 계정을 연결한 회원의 채널 관계를 다시 확인한다. */
+describe('checkKakaoChannelRewardAction', () => {
+  const KAKAO_ENV = {
+    ICONS_KAKAO_CHANNEL_ENABLED: 'true',
+    KAKAO_CHANNEL_PUBLIC_ID: '_IconsTest',
+    KAKAO_ADMIN_KEY: '0123456789abcdef0123456789abcdef',
+    ICONS_KAKAO_CHANNEL_COUPON_CODE: 'KAKAO-FRIEND',
+  } as const;
+  const original = Object.fromEntries(Object.keys(KAKAO_ENV).map((key) => [key, process.env[key]]));
+
+  beforeEach(() => {
+    Object.assign(process.env, KAKAO_ENV);
+    mocks.syncKakaoReward.mockReset();
+  });
+  afterEach(() => {
+    for (const [key, value] of Object.entries(original)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+
+  it('rechecks the friendship as a settings grant and reports the grant', async () => {
+    mocks.syncKakaoReward.mockResolvedValue('granted');
+
+    await expect(checkKakaoChannelRewardAction()).resolves.toEqual({
+      message: '카카오톡 채널 친구 추가 쿠폰을 쿠폰함에 넣었어요.',
+    });
+    expect(mocks.syncKakaoReward).toHaveBeenCalledWith({ userId: USER_ID, via: 'settings' });
+  });
+
+  it.each([
+    ['already_granted', { message: '이미 친구 추가 쿠폰을 받았어요. 쿠폰함에서 확인해주세요.' }],
+    ['not_friend', { errors: { form: '아직 ICONS 카카오톡 채널이 친구로 추가되지 않았어요. 채널을 추가한 뒤 다시 눌러주세요.' } }],
+    ['no_kakao_identity', { errors: { form: '카카오 계정을 먼저 연결해주세요.' } }],
+    ['relation_unknown', { errors: { form: '지금은 쿠폰을 확인할 수 없어요. 잠시 후 다시 시도해주세요.' } }],
+  ])('explains the %s outcome', async (outcome, expected) => {
+    mocks.syncKakaoReward.mockResolvedValue(outcome);
+
+    await expect(checkKakaoChannelRewardAction()).resolves.toEqual(expected);
+  });
+
+  it('does nothing while the kakao channel switch is off', async () => {
+    for (const key of Object.keys(KAKAO_ENV)) delete process.env[key];
+
+    await expect(checkKakaoChannelRewardAction()).resolves.toEqual({
+      errors: { form: '지금은 쿠폰을 확인할 수 없어요. 잠시 후 다시 시도해주세요.' },
+    });
+    expect(mocks.getCurrentAuthState).not.toHaveBeenCalled();
+    expect(mocks.syncKakaoReward).not.toHaveBeenCalled();
+  });
+
+  it('keeps the settings sign-in and onboarding gates', async () => {
+    mocks.getCurrentAuthState.mockResolvedValueOnce({ isConfigured: true, user: null, profile: null, isStaff: false });
+
+    await expect(checkKakaoChannelRewardAction()).rejects.toThrow('NEXT_REDIRECT:/login?next=%2Fsettings');
+    expect(mocks.syncKakaoReward).not.toHaveBeenCalled();
   });
 });

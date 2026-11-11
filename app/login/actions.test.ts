@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   adminSignOutAction,
+  linkKakaoAccountAction,
   requestPasswordResetAction,
   resendSignupCodeAction,
   signOutAction,
@@ -29,6 +30,8 @@ const mocks = vi.hoisted(() => ({
   resetPasswordForEmail: vi.fn(),
   verifyOtp: vi.fn(),
   signInWithPassword: vi.fn(),
+  getUser: vi.fn(),
+  linkIdentity: vi.fn(),
   getProfileForUser: vi.fn(),
   cookieDeletes: [] as string[],
 }));
@@ -47,6 +50,8 @@ vi.mock('@/lib/supabase/server', () => ({
       resetPasswordForEmail: mocks.resetPasswordForEmail,
       verifyOtp: mocks.verifyOtp,
       signInWithPassword: mocks.signInWithPassword,
+      getUser: mocks.getUser,
+      linkIdentity: mocks.linkIdentity,
     },
   }),
 }));
@@ -886,5 +891,84 @@ describe('signInWithSocialAction kakao channel scope', () => {
       provider: 'kakao',
       options: { redirectTo: 'https://iconsip.com/auth/callback' },
     });
+  });
+});
+
+/* 리뷰 F10 — 설정의 [카카오 계정 연결]. 가입 수단과 무관하게 카카오 identity를 붙이며 같은 동의 화면에서 채널을 추가한다. */
+describe('linkKakaoAccountAction', () => {
+  const KAKAO_ENV = {
+    ICONS_KAKAO_CHANNEL_ENABLED: 'true',
+    KAKAO_CHANNEL_PUBLIC_ID: '_IconsTest',
+    KAKAO_ADMIN_KEY: '0123456789abcdef0123456789abcdef',
+  } as const;
+  const original = Object.fromEntries(Object.keys(KAKAO_ENV).map((key) => [key, process.env[key]]));
+
+  beforeEach(() => {
+    process.env.AUTH_SIGNUP_RESEND_SECRET = TEST_SIGNUP_RESEND_SECRET;
+    Object.assign(process.env, KAKAO_ENV);
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-11T00:00:00.000Z'));
+    mocks.isConfigured = true;
+    mocks.headers = new Map<string, string>([['origin', 'https://iconsip.com']]);
+    mocks.cookies.clear();
+    mocks.cookieSetCalls.length = 0;
+    mocks.getUser.mockReset();
+    mocks.linkIdentity.mockReset();
+    mocks.getUser.mockResolvedValue({ data: { user: { id: 'user-1', email: 'fan@icons.gg', identities: [{ provider: 'email' }] } }, error: null });
+    mocks.linkIdentity.mockResolvedValue({ data: { provider: 'kakao', url: 'https://kauth.kakao.com/oauth/authorize?state=safe' }, error: null });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    for (const [key, value] of Object.entries(original)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    if (ORIGINAL_SIGNUP_RESEND_SECRET === undefined) delete process.env.AUTH_SIGNUP_RESEND_SECRET;
+    else process.env.AUTH_SIGNUP_RESEND_SECRET = ORIGINAL_SIGNUP_RESEND_SECRET;
+  });
+
+  it('links Kakao with the channel consent and returns the result to settings through a signed link state', async () => {
+    await expect(linkKakaoAccountAction()).rejects.toThrow('NEXT_REDIRECT:https://kauth.kakao.com/oauth/authorize?state=safe');
+    expect(mocks.linkIdentity).toHaveBeenCalledWith({
+      provider: 'kakao',
+      options: { redirectTo: 'https://iconsip.com/auth/callback', scopes: 'plusfriends' },
+    });
+    expect(decodeSignedCookiePayload(latestCookieSet(AUTH_NEXT_COOKIE_NAME)?.value ?? '')).toMatchObject({ next: '/settings', purpose: 'link' });
+    expect(latestCookieSet(AUTH_NEXT_COOKIE_NAME)?.options).toMatchObject({ httpOnly: true, maxAge: 10 * 60, path: '/auth/callback' });
+  });
+
+  it('does nothing while the kakao channel switch is off', async () => {
+    for (const key of Object.keys(KAKAO_ENV)) delete process.env[key];
+
+    expect(await linkKakaoAccountAction()).toEqual({
+      errors: { form: '지금은 카카오 계정을 연결할 수 없어요. 잠시 후 다시 시도해주세요.' },
+    });
+    expect(mocks.getUser).not.toHaveBeenCalled();
+    expect(mocks.linkIdentity).not.toHaveBeenCalled();
+  });
+
+  it('sends a signed-out visitor to sign in and back to settings', async () => {
+    mocks.getUser.mockResolvedValueOnce({ data: { user: null }, error: { code: 'session_not_found' } });
+
+    await expect(linkKakaoAccountAction()).rejects.toThrow('NEXT_REDIRECT:/login?next=%2Fsettings');
+    expect(mocks.linkIdentity).not.toHaveBeenCalled();
+  });
+
+  it('does not link a second Kakao identity', async () => {
+    mocks.getUser.mockResolvedValueOnce({ data: { user: { id: 'user-1', identities: [{ provider: 'kakao' }] } }, error: null });
+
+    expect(await linkKakaoAccountAction()).toEqual({ message: '이미 카카오 계정이 연결돼 있어요.' });
+    expect(mocks.linkIdentity).not.toHaveBeenCalled();
+  });
+
+  /* manual linking이 꺼진 운영(사람 게이트 전)에서는 GoTrue가 거절한다 — 안내만 하고 상태를 남기지 않는다. */
+  it('fails closed without auth-next state when Supabase refuses the link', async () => {
+    mocks.linkIdentity.mockResolvedValueOnce({ data: { provider: 'kakao', url: null }, error: { code: 'manual_linking_disabled', message: 'Manual linking is disabled' } });
+
+    const state = await linkKakaoAccountAction();
+    expect(state).toEqual({ errors: { form: '지금은 카카오 계정을 연결할 수 없어요. 잠시 후 다시 시도해주세요.' } });
+    expect(JSON.stringify(state)).not.toContain('Manual linking');
+    expect(latestCookieSet(AUTH_NEXT_COOKIE_NAME)).toBeUndefined();
   });
 });

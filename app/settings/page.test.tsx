@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CurrentAuthState } from '@/lib/auth/server';
 import Page, { metadata } from './page';
 
@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   accountDeletion: vi.fn(),
   auth: null as unknown as CurrentAuthState,
   avatarPresentation: vi.fn(),
+  getUser: vi.fn(),
   marketingConsent: vi.fn(),
   onboarded: true,
   settings: vi.fn<(props: Record<string, unknown>) => null>(() => null),
@@ -30,6 +31,9 @@ vi.mock('@/lib/profile-avatar.server', () => ({
 }));
 vi.mock('@/lib/marketing-consent.server', () => ({
   readMyMarketingConsentState: mocks.marketingConsent,
+}));
+vi.mock('@/lib/supabase/server', () => ({
+  createClient: async () => ({ auth: { getUser: mocks.getUser } }),
 }));
 vi.mock('next/navigation', () => ({
   redirect: (path: string) => {
@@ -170,5 +174,73 @@ describe('/settings page', () => {
 
   it('describes profile editing in page metadata', () => {
     expect(metadata.description).toContain('편집');
+  });
+});
+
+/* 리뷰 F10 — 카카오톡 채널 스위치가 켜졌을 때만 이 회원의 카카오 연결 상태를 읽어 설정의 카카오톡 채널 줄을 그린다. */
+describe('/settings page kakao channel', () => {
+  const KAKAO_ENV = {
+    ICONS_KAKAO_CHANNEL_ENABLED: 'true',
+    KAKAO_CHANNEL_PUBLIC_ID: '_IconsTest',
+    KAKAO_ADMIN_KEY: '0123456789abcdef0123456789abcdef',
+    ICONS_KAKAO_CHANNEL_COUPON_CODE: 'KAKAO-FRIEND',
+  } as const;
+  const original = Object.fromEntries(Object.keys(KAKAO_ENV).map((key) => [key, process.env[key]]));
+
+  beforeEach(() => {
+    mocks.auth = onboardedAuth(null);
+    mocks.onboarded = true;
+    mocks.settings.mockClear();
+    mocks.marketingConsent.mockResolvedValue(null);
+    mocks.avatarPresentation.mockResolvedValue({ avatarInitial: '아', avatarUrl: null });
+    mocks.accountDeletion.mockResolvedValue({
+      preview: { available: false, eligible: false, blockers: [] },
+      status: { status: 'not_requested', phase: 'none', nextAction: '/settings', blockers: [] },
+    });
+    mocks.getUser.mockReset();
+    mocks.getUser.mockResolvedValue({ data: { user: { id: 'user-1', identities: [{ provider: 'email' }] } }, error: null });
+  });
+  afterEach(() => {
+    for (const [key, value] of Object.entries(original)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+
+  const props = () => mocks.settings.mock.calls[0]?.[0] as Record<string, unknown>;
+
+  it('reads nothing and passes no kakao props while the switch is off', async () => {
+    for (const key of Object.keys(KAKAO_ENV)) delete process.env[key];
+
+    renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ kakao_link: 'linked' }) }));
+    expect(mocks.getUser).not.toHaveBeenCalled();
+    expect(props()).not.toHaveProperty('kakaoChannel');
+  });
+
+  it('offers the account link to a member without Kakao and ignores a forged success query', async () => {
+    Object.assign(process.env, KAKAO_ENV);
+
+    renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ kakao_link: 'linked' }) }));
+    expect(props().kakaoChannel).toEqual({ channelPublicId: '_IconsTest', linked: false, couponOffered: true });
+  });
+
+  it('confirms a finished link only when the Kakao identity is really there', async () => {
+    Object.assign(process.env, KAKAO_ENV);
+    mocks.getUser.mockResolvedValue({ data: { user: { id: 'user-1', identities: [{ provider: 'email' }, { provider: 'kakao' }] } }, error: null });
+
+    renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ kakao_link: 'linked' }) }));
+    expect(props().kakaoChannel).toEqual({
+      channelPublicId: '_IconsTest',
+      linked: true,
+      couponOffered: true,
+      notice: { tone: 'status', message: '카카오 계정을 연결했어요. 동의 화면에서 채널을 추가했다면 친구 추가 쿠폰이 쿠폰함에 들어가요.' },
+    });
+  });
+
+  it('explains a Kakao account already linked to another member', async () => {
+    Object.assign(process.env, KAKAO_ENV);
+
+    renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ kakao_link: 'identity_taken' }) }));
+    expect(props().kakaoChannel).toMatchObject({ linked: false, notice: { tone: 'alert' } });
   });
 });

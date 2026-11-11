@@ -23,7 +23,9 @@ import {
   rejectProfileAvatarClaim,
   updateProfileIdentity,
 } from '@/lib/profile.server';
+import { kakaoChannelRewardNotice, type KakaoRewardOutcome } from '@/lib/kakao/account-link';
 import { kakaoChannelConfig } from '@/lib/kakao/channel-config.server';
+import { syncKakaoChannelFriendReward } from '@/lib/kakao/channel-reward.server';
 import {
   MARKETING_KAKAO_OFFERED_FIELD,
   marketingChannelChoices,
@@ -383,4 +385,23 @@ export async function updateMarketingConsentAction(
   const kakaoOffered = formData.get(MARKETING_KAKAO_OFFERED_FIELD) === '1';
   const saved = kakaoOffered && result.state ? marketingChannelChoices(result.state, { withKakao: true }) : choices;
   return { message: marketingConsentResultMessage(saved, new Date()) };
+}
+
+/*
+ * 설정의 [친구 추가 쿠폰 받기](1014-014, 리뷰 F10). 카카오 계정을 연결한 회원이면 가입 수단과 무관하게, 카카오 채널 관계
+ * 조회 API로 친구 추가를 다시 확인한 뒤 회원·채널당 한 번 쿠폰을 발급한다(DB 멱등, 지정 고객 발급 쿠폰만).
+ * 카카오톡 채널 스위치가 꺼져 있으면 아무것도 하지 않는다.
+ */
+export async function checkKakaoChannelRewardAction(): Promise<SettingsActionState> {
+  if (!kakaoChannelConfig()) return kakaoChannelRewardState('disabled');
+
+  const required = await requireSettingsAuth();
+  if (!required.ok) return required.state;
+
+  return kakaoChannelRewardState(await syncKakaoChannelFriendReward({ userId: required.user.id, via: 'settings' }));
+}
+
+function kakaoChannelRewardState(outcome: KakaoRewardOutcome): SettingsActionState {
+  const notice = kakaoChannelRewardNotice(outcome);
+  return 'error' in notice ? { errors: { form: notice.error } } : { message: notice.message };
 }

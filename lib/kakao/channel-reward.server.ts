@@ -2,14 +2,18 @@ import 'server-only';
 
 import { timingSafeEqual } from 'node:crypto';
 import { createServiceClient } from '@/lib/supabase/service';
+import { hasKakaoIdentity, type KakaoRewardOutcome } from './account-link';
 import { kakaoChannelConfig, type KakaoChannelConfig } from './channel-config.server';
+
+export { hasKakaoIdentity, type KakaoRewardOutcome };
 
 /*
  * 카카오톡 채널 친구 추가 쿠폰(10/14 회의 1014-014). 스위치(ICONS_KAKAO_CHANNEL_ENABLED)가 꺼져 있으면 아무것도 하지 않는다.
  *
  * 확인 근거는 카카오 채널 관계 조회 API(GET /v2/api/talk/channels, 어드민 키 방식 — 회원번호로 조회)뿐이다.
- * 확인하는 때는 셋이다: 카카오 로그인 직후(동의 화면에서 채널을 추가한 회원), 온보딩을 마친 직후(첫 가입은
- * 온보딩 전이라 발급 대상이 아니다), 채널 웹훅(added) 수신 때. 웹훅 본문은 확인을 시작하는 신호일 뿐이다.
+ * 확인하는 때는 넷이다: 카카오 로그인 직후(동의 화면에서 채널을 추가한 회원), 온보딩을 마친 직후(첫 가입은
+ * 온보딩 전이라 발급 대상이 아니다), 채널 웹훅(added) 수신 때, 설정의 카카오 계정 연결 직후와 [친구 추가 쿠폰 받기]
+ * (가입 수단과 무관하게 카카오 계정을 연결한 회원, 리뷰 F10). 웹훅 본문은 확인을 시작하는 신호일 뿐이다.
  * 발급은 DB(service_grant_kakao_channel_friend_coupon)가 회원·채널당 한 번으로 멱등 처리한다. 이 확인이 실패해도
  * 로그인·온보딩은 막지 않는다 — 다음 확인 때 다시 시도된다.
  */
@@ -62,23 +66,13 @@ export async function fetchKakaoChannelRelation(
   }
 }
 
-export type KakaoRewardOutcome =
-  | 'disabled'
-  | 'no_coupon'
-  | 'no_kakao_identity'
-  | 'not_friend'
-  | 'relation_unknown'
-  | 'granted'
-  | 'already_granted'
-  | 'unavailable';
-
 function record(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
 }
 
 /** 회원의 카카오 identity가 있으면 채널 관계를 확인하고, 친구면 쿠폰을 한 번 발급한다. 던지지 않는다. */
 export async function syncKakaoChannelFriendReward(
-  input: { userId: string; via: 'login' | 'onboarding' | 'webhook'; kakaoUserId?: string },
+  input: { userId: string; via: 'login' | 'onboarding' | 'webhook' | 'settings'; kakaoUserId?: string },
   deps: KakaoRewardDependencies = {},
 ): Promise<KakaoRewardOutcome> {
   const config = deps.config === undefined ? kakaoChannelConfig() : deps.config;
@@ -115,11 +109,6 @@ export async function syncKakaoChannelFriendReward(
   } catch {
     return 'unavailable';
   }
-}
-
-/** 로그인 사용자의 identity 목록에 카카오가 있는지. 있을 때만 로그인 직후 확인한다(카카오 API 호출을 줄인다). */
-export function hasKakaoIdentity(identities: unknown): boolean {
-  return Array.isArray(identities) && identities.some((identity) => record(identity)?.provider === 'kakao');
 }
 
 function keysMatch(actual: string, expected: string) {

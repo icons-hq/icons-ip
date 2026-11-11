@@ -13,6 +13,11 @@ interface MockActionState {
 
 const mocks = vi.hoisted(() => ({
   deletionAction: vi.fn(),
+  kakaoLinkAction: vi.fn(),
+  kakaoLinkState: {} as MockActionState,
+  kakaoRewardAction: vi.fn(),
+  kakaoRewardPending: false,
+  kakaoRewardState: {} as MockActionState,
   deletionPending: false,
   deletionState: {} as { error?: string; message?: string },
   deletionSubmit: vi.fn(),
@@ -32,10 +37,12 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/app/login/actions', () => ({
+  linkKakaoAccountAction: mocks.kakaoLinkAction,
   requestPasswordResetAction: mocks.resetAction,
 }));
 
 vi.mock('@/app/settings/actions', () => ({
+  checkKakaoChannelRewardAction: mocks.kakaoRewardAction,
   requestAccountDeletionAction: mocks.deletionAction,
   updateMarketingConsentAction: mocks.marketingAction,
   updateProfileAction: mocks.profileAction,
@@ -60,6 +67,8 @@ vi.mock('react', async () => {
       if (action === mocks.resetAction) {
         return [mocks.resetState, mocks.resetSubmit, mocks.resetPending];
       }
+      if (action === mocks.kakaoLinkAction) return [mocks.kakaoLinkState, vi.fn(), false];
+      if (action === mocks.kakaoRewardAction) return [mocks.kakaoRewardState, vi.fn(), mocks.kakaoRewardPending];
       throw new Error('Unexpected settings action');
     },
   };
@@ -434,5 +443,59 @@ describe('Settings kakao marketing channel', () => {
     const html = render();
     expect(html).not.toContain('marketingKakao');
     expect(html).not.toContain('카카오톡');
+  });
+});
+
+/* 리뷰 F10 — 카카오톡 채널 스위치가 켜졌을 때만 [카카오 계정 연결]·채널 추가·[친구 추가 쿠폰 받기]를 그린다. */
+describe('Settings kakao channel section', () => {
+  beforeEach(() => {
+    mocks.kakaoLinkState = {};
+    mocks.kakaoRewardState = {};
+    mocks.kakaoRewardPending = false;
+  });
+
+  const section = (html: string) => {
+    const start = html.indexOf('<section aria-labelledby="settings-kakao-heading"');
+    expect(start).toBeGreaterThan(-1);
+    return html.slice(start, html.indexOf('</section>', start) + '</section>'.length);
+  };
+
+  it('offers members without Kakao the account link that also adds the channel', () => {
+    const html = section(render({ kakaoChannel: { channelPublicId: '_IconsTest', linked: false, couponOffered: true } }));
+
+    expect(html).toContain('id="kakao-channel"');
+    expect(html).toContain('data-kakao-account-link');
+    expect(html).toContain('<strong>카카오 계정 연결</strong>');
+    expect(html).toContain('같은 동의 화면에서 ICONS 카카오톡 채널을 추가할 수 있어요. 채널을 추가하면 친구 추가 쿠폰을 한 번 드려요.');
+    expect(html).not.toContain('data-kakao-channel-reward');
+    expect(html).not.toContain('pf.kakao.com');
+  });
+
+  it('gives a linked member the channel link and the coupon check with its own status region', () => {
+    mocks.kakaoRewardState = { errors: { form: '아직 ICONS 카카오톡 채널이 친구로 추가되지 않았어요. 채널을 추가한 뒤 다시 눌러주세요.' } };
+    const html = section(render({
+      kakaoChannel: { channelPublicId: '_IconsTest', linked: true, couponOffered: true, notice: { tone: 'status', message: '카카오 계정을 연결했어요.' } },
+    }));
+
+    expect(html).toContain('<div class="wc-auth__status" role="status">카카오 계정을 연결했어요.</div>');
+    expect(html).toContain('href="https://pf.kakao.com/_IconsTest/friend" rel="noopener noreferrer" target="_blank"');
+    expect(html).toContain('data-kakao-channel-reward');
+    expect(html).toContain('<strong>친구 추가 쿠폰 받기</strong>');
+    expect(html).toMatch(/aria-label="친구 추가 쿠폰 상태"[^>]*><div class="wc-auth__alert" role="alert">아직 ICONS 카카오톡 채널이/);
+    expect(html).not.toContain('data-kakao-account-link');
+  });
+
+  it('omits the coupon check when no friend coupon is configured', () => {
+    const html = section(render({ kakaoChannel: { channelPublicId: '_IconsTest', linked: true, couponOffered: false } }));
+
+    expect(html).toContain('pf.kakao.com/_IconsTest/friend');
+    expect(html).not.toContain('data-kakao-channel-reward');
+  });
+
+  it('draws nothing while the kakao channel switch is off', () => {
+    const html = render();
+
+    expect(html).not.toContain('settings-kakao-heading');
+    expect(html).not.toContain('카카오 계정 연결');
   });
 });

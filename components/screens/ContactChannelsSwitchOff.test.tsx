@@ -15,6 +15,7 @@ import { Settings } from './Settings';
  */
 
 vi.mock('@/app/login/actions', () => ({
+  linkKakaoAccountAction: vi.fn(),
   requestPasswordResetAction: vi.fn(),
   resendSignupCodeAction: vi.fn(),
   signInWithEmailAction: vi.fn(),
@@ -23,6 +24,7 @@ vi.mock('@/app/login/actions', () => ({
   verifySignupCodeAction: vi.fn(),
 }));
 vi.mock('@/app/settings/actions', () => ({
+  checkKakaoChannelRewardAction: vi.fn(),
   requestAccountDeletionAction: vi.fn(),
   updateMarketingConsentAction: vi.fn(),
   updateProfileAction: vi.fn(),

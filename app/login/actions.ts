@@ -32,6 +32,7 @@ import {
 } from '@/lib/auth/recovery.server';
 import { getProfileForUser } from '@/lib/auth/server';
 import { isPasswordSessionAccessToken } from '@/lib/auth/session-amr';
+import { hasKakaoIdentity, KAKAO_LINK_SETTINGS_PATH } from '@/lib/kakao/account-link';
 import { KAKAO_CHANNEL_LOGIN_SCOPE, kakaoChannelConfig } from '@/lib/kakao/channel-config.server';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/server';
@@ -93,6 +94,7 @@ const SIGNUP_CODE_RESTART_MESSAGE = '코드를 다시 받으려면 [다른 이�
 const PASSWORD_RESET_SENT_MESSAGE = '해당 이메일로 가입한 계정이 있다면 재설정 메일을 보냈습니다. 요청한 브라우저에서 최신 링크를 열어주세요.';
 const SOCIAL_AUTH_PROVIDERS = new Set<SocialAuthProvider>(['google', 'apple', 'kakao']);
 const SOCIAL_AUTH_UNAVAILABLE_MESSAGE = '현재 해당 소셜 로그인을 사용할 수 없습니다. 잠시 후 다시 시도해주세요.';
+const KAKAO_LINK_UNAVAILABLE_MESSAGE = '지금은 카카오 계정을 연결할 수 없어요. 잠시 후 다시 시도해주세요.';
 
 type CookieStore = Awaited<ReturnType<typeof cookies>>;
 
@@ -322,6 +324,34 @@ export async function signInWithSocialAction(
   }
 
   await rememberAuthNextPath(origin, next, 'oauth', Date.now(), secret);
+  redirect(data.url);
+}
+
+/*
+ * 설정의 [카카오 계정 연결](1014-014, 리뷰 F10). 이메일·Google·Apple로 가입한 회원도 카카오 계정을 연결하면서 같은 카카오
+ * 동의 화면에서 ICONS 카카오톡 채널을 추가할 수 있다(plusfriends 동의항목). Supabase identity linking이라 Auth의
+ * manual linking이 켜져 있어야 한다 — 운영은 사람 게이트이고, 꺼져 있으면 GoTrue가 거절해 이 안내로 끝난다
+ * (docs/runbooks/signup-contact-channels.md). 연결이 끝나면 /auth/callback이 채널 관계를 다시 확인해 쿠폰을 한 번
+ * 발급하고 설정으로 돌려보낸다. 카카오톡 채널 스위치가 꺼져 있으면 아무것도 하지 않는다.
+ */
+export async function linkKakaoAccountAction(): Promise<AuthActionState> {
+  const { isConfigured } = getSupabaseConfig();
+  const secret = authCookieSecret();
+  if (!kakaoChannelConfig() || !isConfigured || !secret) return { errors: { form: KAKAO_LINK_UNAVAILABLE_MESSAGE } };
+
+  const supabase = await createClient();
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError || !userData.user) redirect(`/login?next=${encodeURIComponent(KAKAO_LINK_SETTINGS_PATH)}`);
+  if (hasKakaoIdentity(userData.user.identities)) return { message: '이미 카카오 계정이 연결돼 있어요.' };
+
+  const origin = await requestOrigin();
+  const { data, error } = await supabase.auth.linkIdentity({
+    provider: 'kakao',
+    options: { redirectTo: authCallbackUrl(origin), scopes: KAKAO_CHANNEL_LOGIN_SCOPE },
+  });
+  if (error || !data.url) return { errors: { form: KAKAO_LINK_UNAVAILABLE_MESSAGE } };
+
+  await rememberAuthNextPath(origin, KAKAO_LINK_SETTINGS_PATH, 'link', Date.now(), secret);
   redirect(data.url);
 }
 
