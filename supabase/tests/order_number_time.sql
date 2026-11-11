@@ -231,4 +231,7 @@ select pg_temp.ok(not exists(select 1 from private.operator_rpc_contracts c join
  and (select count(*)=4 from private.operator_internal_contracts where signature in('private.resolve_shipment_reference(text)',
   'public.admin_import_item_tracking_batch(jsonb)','public.admin_mark_staging_test_delivered(text,uuid)',
   'private.admin_unpaid_bank_transfer_orders_console_before_numbers(text,integer,integer,text,text)')),'patched readers keep registered contracts');
+-- 주문번호·상품주문번호를 16자리 정규식으로 따로 보는 함수가 없다. 형식 판정은 private.is_commerce_number가 한다.
+select pg_temp.ok(not exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+  where n.nspname in('public','private') and p.prosrc ~ '\{8\}([12]|\[12\]|\[123\])\[0-9\]\{7\}'),'no reader hard-codes the 16-digit order or item format');
 rollback;

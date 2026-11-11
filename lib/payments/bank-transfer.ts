@@ -23,8 +23,10 @@ const DEPOSIT_CODE_EPOCH = Date.UTC(2000, 0, 1);
 /**
  * 입금자명에 붙일 주문코드(입금코드).
  *
- * 16자리 주문번호(`YYYYMMDD` + `1` + 일련 7자리)에서 만든다 — 주문일의 10일 주기 자리 1자리
- * (`(주문일 - 2000-01-01) mod 10`) + 그날 일련번호 끝 5자리, 숫자 6자리다. 입금 대기는 최대
+ * 주문번호에서 만든다 — 주문일의 10일 주기 자리 1자리(`(주문일 - 2000-01-01) mod 10`) + 그날 일련번호
+ * 끝 5자리, 숫자 6자리다. 주문번호는 16자리(`YYYYMMDD` + `1` + 일련 7자리)와 주문 시각을 넣은 20자리
+ * (`YYYYMMDD` + `HHmm` + `1` + 일련 7자리) 두 형식이고, 둘 다 앞 8자리가 주문일·끝 5자리가 일련번호 끝이라
+ * 규칙이 같다. 전환하는 날도 일련번호 카운터를 이어 쓰므로 두 형식의 코드가 겹치지 않는다. 입금 대기는 최대
  * 48시간이라 동시에 열린 주문의 주문일은 연속한 3일 안이고, 하루 주문이 10만 건을 넘지 않는 한
  * 입금 대기 주문 사이 코드가 겹치지 않는다. 한글 4자 이름과 붙여도 은행 입금자명 14바이트 안이다.
  *
@@ -55,7 +57,7 @@ export function bankTransferDepositNameWithCode(recipientName: string, code: str
   return trimmed ? `${trimmed}${code}` : code;
 }
 
-/** 주문서에 노출할 입금자명 예시. `orderReference`는 16자리 주문번호다(없는 옛 기록만 UUID). */
+/** 주문서에 노출할 입금자명 예시. `orderReference`는 주문번호(16·20자리)다(없는 옛 기록만 UUID). */
 export function bankTransferDepositName(recipientName: string, orderReference: string) {
   return bankTransferDepositNameWithCode(recipientName, bankTransferDepositCode(orderReference));
 }
