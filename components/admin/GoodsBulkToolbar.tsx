@@ -6,6 +6,7 @@ import { previewGoodsBulkAction, commitGoodsBulkAction, readGoodsBulkAction } fr
 import { GOODS_BULK_IP_LIMIT, GOODS_BULK_LABELS, goodsBulkError, goodsBulkShippingHref, goodsBulkSkipLabel, parseGoodsBulkRequest, type GoodsBulkCommand, type GoodsBulkKind, type GoodsBulkPreview, type GoodsBulkReceipt, type GoodsBulkSkipped } from '@/lib/admin/goods-bulk';
 import { isUuid } from '@/lib/uuid';
 import { parseGoodsPricePeriodInput } from '@/lib/admin/goods-price-periods';
+import { newDiscountPromotionHref } from '@/lib/admin/discount-promotions';
 import type { GoodsGroupIdentity, GoodsGroupResult } from '@/lib/admin/goods-groups';
 import { CustomerServiceDialog } from './screens/CustomerServiceDialog';
 import { GroupTable, useGoodsGroupSession } from './GoodsGroupOperation';
@@ -166,7 +167,8 @@ export function GoodsBulkToolbar({ kind, selectedIds, shippingGoodIds = selected
   return <div className="flex min-w-0 flex-col gap-2" data-goods-bulk={kind}>
     {kind === 'ip' ? <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2"><strong className="mr-1 text-sm font-semibold whitespace-nowrap">IP 전체 · {ipTitle ?? selectedIds[0]}</strong>
       <Button size="sm" variant="outline" type="button" disabled={locked || selectedIds.length !== 1} onClick={() => open('discount')}>IP 전체 즉시할인</Button>
-      <small className="text-xs text-muted-foreground">선택과 관계없이 이 IP의 보관하지 않은 전체 상품(최대 {GOODS_BULK_IP_LIMIT.toLocaleString('ko-KR')}개)에 적용합니다.</small>
+      {selectedIds.length === 1 ? <Link className={buttonVariants({ size: 'sm', variant: 'ghost' })} data-slot="button" href={newDiscountPromotionHref({ ip: selectedIds[0] })}>IP 할인 프로모션 만들기</Link> : null}
+      <small className="text-xs text-muted-foreground">선택과 관계없이 이 IP의 보관하지 않은 전체 상품(최대 {GOODS_BULK_IP_LIMIT.toLocaleString('ko-KR')}개)에 적용합니다. 묶음으로 조회·중지하려면 할인 프로모션으로 만드세요.</small>
     </div> : <div className="flex flex-wrap items-center gap-1.5"><strong className="mr-1 text-sm font-semibold whitespace-nowrap tabular-nums">{selectedIds.length}개 선택</strong>
       {commonCommands.map(([command, label]) =>
         <Button key={command} size="sm" variant="outline" type="button" disabled={unavailable} onClick={() => open(command)}>{label}</Button>)}
@@ -196,9 +198,9 @@ export function GoodsBulkToolbar({ kind, selectedIds, shippingGoodIds = selected
             {dialog.command === 'price' ? <p className={NOTE}>기본 판매가를 변경하며 옵션 추가금액과 재고수량은 유지합니다. 비율 계산 시 원 미만은 버립니다.</p> : null}
             {dialog.command === 'period' ? <label className={CHECK}><input type="checkbox" name="unlimited" value="true" />판매기간 제한 해제</label> : null}
             {dialog.command === 'period' || dialog.command === 'discount' ? <div className="grid gap-3 sm:grid-cols-2"><label className={FIELD}>시작 (한국 시간)<Input name="startsAt" type="datetime-local" /></label><label className={FIELD}>종료 (한국 시간)<Input name="endsAt" type="datetime-local" /></label></div> : null}
-            {dialog.command === 'discount' ? <p className={NOTE}>사용 중인 모든 옵션에 기간 할인을 등록합니다. 기존 활성 할인과 시간이 겹치거나 할인가가 맞지 않는 상품은 건너뛰고, 비교 결과와 저장 후에 그 목록을 보여 드립니다. 특정 상품만 다르게 할인하려면 먼저 그 상품에 할인을 등록해 두세요.</p> : null}
-            {dialog.command === 'discount_stop' ? <p className={NOTE}>{kind === 'ip' ? '이 IP의 보관하지 않은 전체 상품에서 진행 중이거나 예정된 기간 할인을 모두 중지합니다. IP 전체 할인뿐 아니라 상품별로 따로 걸어 둔 할인도 함께 중지되니, 변경 내용 확인에서 꺼질 할인을 상품별로 확인해주세요.'
-              : '선택 상품의 진행 중이거나 예정된 기간 할인을 모두 중지합니다. 변경 내용 확인에서 꺼질 할인을 상품별로 확인해주세요.'} 할인이 없는 상품은 건너뛰며, 기존 주문 금액과 할인 이력은 유지합니다.</p> : null}
+            {dialog.command === 'discount' ? <p className={NOTE}>사용 중인 모든 옵션에 기간 할인을 등록합니다. 기존 활성 할인과 시간이 겹치거나 할인가가 맞지 않는 상품은 건너뛰고, 비교 결과와 저장 후에 그 목록을 보여 드립니다. 기획전·IP 단위로 묶어 걸고 한두 상품만 다른 할인율로 정하거나 묶음으로 중지하려면 <Link className="font-medium text-primary underline-offset-4 hover:underline" href={newDiscountPromotionHref(kind === 'ip' ? { ip: dialog.ids[0] } : {})}>할인 프로모션</Link>을 쓰세요.</p> : null}
+            {dialog.command === 'discount_stop' ? <p className={NOTE}>{kind === 'ip' ? '이 IP의 보관하지 않은 전체 상품에서 진행 중이거나 예정된 기간 할인을 모두 중지합니다. IP 전체 할인뿐 아니라 상품별로 따로 걸어 둔 할인과 할인 프로모션이 건 할인도 함께 중지되니, 변경 내용 확인에서 꺼질 할인을 상품별로 확인해주세요.'
+              : '선택 상품의 진행 중이거나 예정된 기간 할인(할인 프로모션이 건 할인 포함)을 모두 중지합니다. 변경 내용 확인에서 꺼질 할인을 상품별로 확인해주세요.'} 할인이 없는 상품은 건너뛰며, 기존 주문 금액과 할인 이력은 유지합니다. 한 프로모션의 할인만 끄려면 할인 프로모션 상세에서 중지하세요.</p> : null}
             {dialog.command === 'archive' ? <p className={NOTE}>재고·진행 중 거래 등 보관 조건을 확인합니다. 보관된 상품은 목록에서 복원할 수 있습니다.</p> : null}
             {dialog.command === 'restore' ? <p className={NOTE}>보관을 해제합니다. 공개 전 필요한 상품정보와 KC 검토를 확인해주세요.</p> : null}
             {dialog.command === 'dissolve' ? <p className={NOTE}>그룹 연결을 해제합니다. 개별 상품·재고·주문 이력과 원상품의 합산 조건은 유지합니다.</p> : null}

@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
   adminCampaignDateTimeInput,
   adminCampaignSectionsInput,
+  campaignGoodsBlocks,
   normalizeAdminCampaignForm,
   normalizeAdminCoinExchangeOfferForm,
   parseAdminCampaignSections,
+  replaceCampaignGoodsBlock,
 } from './campaigns';
 
 const POOL_ID = '11111111-1111-4111-8111-111111111111';
@@ -363,5 +365,19 @@ describe('폼 초기값 변환', () => {
     expect(adminCampaignSectionsInput(null)).toBe('');
     expect(adminCampaignSectionsInput([{ type: 'attendance' }]))
       .toBe('[\n  {\n    "type": "attendance"\n  }\n]');
+  });
+});
+
+/* 1014-112 — 상품 묶음(goods) 블록은 선택기로 고른 상품을 본문 같은 자리에 되돌려 쓴다. 다른 블록과 키는 건드리지 않는다. */
+describe('캠페인 상품 묶음 블록 편집', () => {
+  const sections = [{ type: 'intro', copy: '오픈' }, { type: 'goods', good_ids: ['a', 'b'], anchor: 'pick' }, { type: 'goods', good_ids: ['c'] }];
+  it('본문 안 위치와 상품·목차를 읽는다', () => {
+    expect(campaignGoodsBlocks(sections)).toEqual([{ index: 1, goodIds: ['a', 'b'], anchor: 'pick' }, { index: 2, goodIds: ['c'], anchor: null }]);
+    expect(campaignGoodsBlocks([{ type: 'goods' }, 'x', null])).toEqual([]);
+  });
+  it('고른 상품으로 그 블록만 바꾸거나 끝에 새 블록을 더한다', () => {
+    expect(replaceCampaignGoodsBlock(sections, 1, ['d'])).toEqual([sections[0], { type: 'goods', good_ids: ['d'], anchor: 'pick' }, sections[2]]);
+    expect(replaceCampaignGoodsBlock(sections, null, ['e', 'f'])).toEqual([...sections, { type: 'goods', good_ids: ['e', 'f'] }]);
+    expect(parseAdminCampaignSections(JSON.stringify(replaceCampaignGoodsBlock(sections, null, ['e']))).ok).toBe(true);
   });
 });

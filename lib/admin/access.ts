@@ -64,6 +64,7 @@ const SCREEN_CAPABILITIES: Record<string, AdminCapability> = {
   'refund-transfers': 'sales.manage',
   qna: 'cs.manage', inquiries: 'cs.manage', 'inquiry-chat': 'cs.manage', reviews: 'cs.manage', 'review-insights': 'cs.manage', 'review-events': 'cs.manage', faq: 'cs.manage',
   members: 'platform.manage', curations: 'store.manage', 'coupon-register': 'marketing.manage', coupons: 'marketing.manage',
+  'discount-promotions': 'catalog.manage',
   'shopping-stories': 'store.manage',
   'store-presentation': 'store.manage',
   'category-display': 'store.manage',
