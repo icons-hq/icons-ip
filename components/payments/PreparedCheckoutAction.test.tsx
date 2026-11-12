@@ -37,6 +37,7 @@ function tossPayload() {
     provider: 'toss',
     clientKey: 'test_gck_iconsdocs00000000000001',
     customerKey: 'ANONYMOUS',
+    variantKey: 'ICONS',
     orderId: 'O0123456789abcdef0123456789abcdef',
     orderName: 'ICONS 굿즈 주문',
     amount: 31000,

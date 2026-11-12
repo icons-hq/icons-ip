@@ -106,13 +106,14 @@ export interface CancellationReconciliationDependencies {
    * 취소 API가 있는 카드 provider(toss·nicepay) 유상 캡처의 전액 취소. 게이트웨이가
    * 취소 API 발행 후 조회로 전액 취소를 검증한 결과(5-outcome)를 그대로 돌려준다(#389).
    * paymentKey는 로컬 원장의 결제 식별자다 — TID 기준 provider(nicepay)가 취소 대상을
-   * 찾는 데 쓰고, 주문번호 조회가 진실원인 toss는 쓰지 않는다.
+   * 찾는 데 쓰고, toss는 이 키로 결제를 조회·취소한다(주문서형 시크릿 키에 명시된 조회).
    */
   refundProviderPayment(input: {
     paymentId: string;
     provider: AutomatedCancelProvider;
     amount: number;
     reason: string;
+    /** 원장 `payments.payment_key` — 게이트웨이가 이 키로 조회·취소한다. */
     paymentKey: string;
   }): Promise<RefundOutcome>;
   completeRequest(input: {
@@ -329,6 +330,10 @@ function createDefaultDependencies(): CancellationReconciliationDependencies {
         idempotencyKey: `refund:${attempt.id}`,
         amount,
         reason,
+        // 원장 결제 키로 조회·취소한다 — 토스는 paymentKey 조회가 주문서형 시크릿 키(gsk)에
+        // 명시된 조회이고 orderId 조회는 아니다(공식문서 /reference/using-api/api-keys),
+        // 나이스페이는 TID 기준이다. 게이트웨이가 조회 응답의 키·주문(토스는 바인딩이 켜지면
+        // 상점 MID까지)을 다시 대조한다.
         providerPaymentKey: paymentKey,
       });
     },

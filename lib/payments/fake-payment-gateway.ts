@@ -2,6 +2,7 @@ import type {
   ConfirmOutcome,
   PaymentAttempt,
   PaymentGateway,
+  PaymentReconcileHint,
   PaymentRefundRequest,
   PaymentReturnInput,
   PreparedCheckout,
@@ -85,8 +86,10 @@ export class FakePaymentGateway implements PaymentGateway {
     ));
   }
 
-  async reconcile(attempt: PaymentAttempt): Promise<ReconcileOutcome> {
+  async reconcile(attempt: PaymentAttempt, hint?: PaymentReconcileHint): Promise<ReconcileOutcome> {
+    // 힌트는 provider 조회를 좁히는 선택 입력이라 스크립트된 관찰 순서를 바꾸지 않는다.
     void attempt;
+    void hint;
     return this.takeNext(this.reconcileResults, 'reconcile');
   }
 

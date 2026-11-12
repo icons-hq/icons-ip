@@ -9,7 +9,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 // 키·주문번호 형식은 toss-config.mjs 하나만 본다 — 사본이 갈라지면 유효한 발급
 // 키나 주문번호가 브라우저에서 조용히 거절된다. gsk(시크릿) 키는 gck 판정에
 // 걸려 자동으로 거절된다 — 브라우저에 시크릿 키가 실리는 경로를 막는다.
-import { isTossClientKey, isTossProviderOrderId } from '@/lib/payments/toss-config.mjs';
+import {
+  isTossClientKey,
+  isTossProviderOrderId,
+  isTossWidgetVariantKey,
+} from '@/lib/payments/toss-config.mjs';
 
 export const TOSS_PAYMENT_METHODS_ID = 'toss-payment-methods';
 export const TOSS_AGREEMENT_ID = 'toss-agreement';
@@ -21,6 +25,7 @@ const TOSS_PAYLOAD_KEYS = new Set([
   'provider',
   'clientKey',
   'customerKey',
+  'variantKey',
   'orderId',
   'orderName',
   'amount',
@@ -35,6 +40,11 @@ export interface TossCheckoutPayload {
   readonly provider: 'toss';
   readonly clientKey: string;
   readonly customerKey: 'ANONYMOUS';
+  /**
+   * 결제 UI variantKey — 결제의 MID를 정한다. 서버 env TOSS_WIDGET_VARIANT_KEY(결제 UI 바인딩)가
+   * 켜졌을 때만 prepare payload에 실린다. 없으면 SDK 기본 DEFAULT 결제 UI를 그린다(지금 동작).
+   */
+  readonly variantKey?: string;
   readonly orderId: string;
   readonly orderName: string;
   readonly amount: number;
@@ -115,6 +125,7 @@ export function parseTossCheckoutPayload(payload: unknown): TossCheckoutPayload 
       provider,
       clientKey,
       customerKey,
+      variantKey,
       orderId,
       orderName,
       amount,
@@ -126,6 +137,10 @@ export function parseTossCheckoutPayload(payload: unknown): TossCheckoutPayload 
     if (provider !== 'toss') return null;
     if (typeof clientKey !== 'string' || !isTossClientKey(clientKey)) return null;
     if (customerKey !== 'ANONYMOUS') return null;
+    // variantKey는 서버의 결제 UI 바인딩이 켜졌을 때만 실린다(없으면 SDK 기본 DEFAULT — 지금
+    // 동작). 실렸다면 서버가 보낼 수 있는 값(형식 안, DEFAULT 아님)이어야 한다 — 형식 밖 값을
+    // 조용히 넘기지 않고 payload째 버린다. 키만 있고 값이 undefined인 것도 거절한다.
+    if ('variantKey' in candidate && !isTossWidgetVariantKey(variantKey)) return null;
     if (typeof orderId !== 'string' || !isTossProviderOrderId(orderId)) return null;
     if (
       typeof orderName !== 'string'
@@ -143,6 +158,7 @@ export function parseTossCheckoutPayload(payload: unknown): TossCheckoutPayload 
       provider,
       clientKey,
       customerKey,
+      ...(typeof variantKey === 'string' ? { variantKey } : {}),
       orderId,
       orderName,
       amount: amount as number,
@@ -171,10 +187,33 @@ export async function mountTossPaymentWidgets(
 
   await widgets.setAmount({ currency: payload.currency, value: payload.amount });
 
-  const [paymentMethodWidget, agreementWidget] = await Promise.all([
-    widgets.renderPaymentMethods({ selector: TOSS_PAYMENT_METHODS_SELECTOR }),
+  // 결제 UI 바인딩이 켜졌으면 MID를 정하는 결제 UI(variant)를 명시한다. 결제 어드민에 그
+  // variant가 없으면 SDK가 InvalidVariantKeyError로 거부하고(SDK 2.8.1 타입 @throws), DEFAULT로
+  // 다시 그리지 않는다. 바인딩이 꺼져 있으면 variantKey 없이 그린다 — SDK 기본 DEFAULT, 지금
+  // 동작 그대로다. 약관 UI의 variantKey는 결제 UI와 독립이라(/guides/v2/payment-widget/admin
+  // 약관 설정) 어느 쪽이든 기본 약관 UI를 쓴다. 결제 UI의 언어는 코드가 아니라 결제 어드민의
+  // 결제 UI 구성이 정한다 — SDK에는 언어 파라미터가 없고, 기본 결제수단은 한글로만 제공된다
+  // (/guides/v2/payment-widget FAQ "영문으로 사용할 수 있나요? 아니요").
+  const rendered = await Promise.allSettled([
+    widgets.renderPaymentMethods(
+      payload.variantKey === undefined
+        ? { selector: TOSS_PAYMENT_METHODS_SELECTOR }
+        : { selector: TOSS_PAYMENT_METHODS_SELECTOR, variantKey: payload.variantKey },
+    ),
     widgets.renderAgreement({ selector: TOSS_AGREEMENT_SELECTOR }),
   ]);
+  const [paymentMethodsResult, agreementResult] = rendered;
+  if (paymentMethodsResult.status === 'rejected' || agreementResult.status === 'rejected') {
+    // 한쪽만 그려진 채로 남기지 않는다 — 결제 버튼은 실패 상태로 잠긴다.
+    await Promise.allSettled(rendered.flatMap((result) => (
+      result.status === 'fulfilled' ? [result.value.destroy()] : []
+    )));
+    throw paymentMethodsResult.status === 'rejected'
+      ? paymentMethodsResult.reason
+      : (agreementResult as PromiseRejectedResult).reason;
+  }
+  const paymentMethodWidget = paymentMethodsResult.value;
+  const agreementWidget = agreementResult.value;
 
   // 2026-09-01 문서 테스트 키 실측: 필수 약관은 기본 동의(체크) 상태로 렌더되고
   // agreementStatusChange는 초기 상태를 통지하지 않는다(변경 시에만 발화). 초기
@@ -218,6 +257,8 @@ interface TossWidgetCheckoutProps {
 export function TossWidgetCheckout({ payload }: TossWidgetCheckoutProps) {
   const parsed = useMemo(() => parseTossCheckoutPayload(payload), [payload]);
   const clientKey = parsed?.clientKey ?? null;
+  // 결제 UI 바인딩이 꺼져 있으면 undefined다(SDK 기본 DEFAULT) — 없는 것도 유효한 값이다.
+  const variantKey = parsed?.variantKey;
   const orderId = parsed?.orderId ?? null;
   const orderName = parsed?.orderName ?? null;
   const currency = parsed?.currency ?? null;
@@ -229,7 +270,7 @@ export function TossWidgetCheckout({ payload }: TossWidgetCheckoutProps) {
   const [mountRound, setMountRound] = useState(0);
   // 위젯을 다시 띄워야 하는 축(금액 제외). 마운트 결과를 이 키와 함께 들고 있어
   // payload가 바뀌면 effect에서 상태를 되돌리지 않고도 '불러오는 중'으로 돌아간다.
-  const mountKey = `${mountRound}|${clientKey}|${orderId}|${orderName}|${currency}|${successUrl}|${failUrl}`;
+  const mountKey = `${mountRound}|${clientKey}|${variantKey ?? ''}|${orderId}|${orderName}|${currency}|${successUrl}|${failUrl}`;
 
   const controllerRef = useRef<TossWidgetController | null>(null);
   // 마운트 effect는 금액을 deps에 넣지 않는다(금액 변경은 재렌더가 아니라
@@ -264,6 +305,7 @@ export function TossWidgetCheckout({ payload }: TossWidgetCheckoutProps) {
       provider: 'toss',
       clientKey,
       customerKey: 'ANONYMOUS',
+      ...(variantKey !== undefined ? { variantKey } : {}),
       orderId,
       orderName,
       amount: amountRef.current,
@@ -294,7 +336,7 @@ export function TossWidgetCheckout({ payload }: TossWidgetCheckoutProps) {
       controllerRef.current = null;
       void controller?.destroy();
     };
-  }, [mountKey, clientKey, orderId, orderName, currency, successUrl, failUrl]);
+  }, [mountKey, clientKey, variantKey, orderId, orderName, currency, successUrl, failUrl]);
 
   useEffect(() => {
     amountRef.current = amount;

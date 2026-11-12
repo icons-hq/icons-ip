@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { validateVercelBuildEnvironment } from './check-vercel-build-env.mjs';
+import {
+  formatVercelBuildReadback,
+  validateVercelBuildEnvironment,
+} from './check-vercel-build-env.mjs';
 
 const baseEnvironment = {
   VERCEL_ENV: 'preview',
@@ -111,6 +114,11 @@ describe('validateVercelBuildEnvironment', () => {
       korpayOrderCanaryConfigured: false,
       korpayTicketCanaryConfigured: false,
       tossConfigured: false,
+      tossMode: 'none',
+      // 결제 UI 바인딩(TOSS_WIDGET_VARIANT_KEY)이 없으면 null — DEFAULT 결제 UI, MID 대조 없음.
+      tossVariantKey: null,
+      tossMerchantIds: [],
+      tossDocsPublicKey: false,
       tossOrderCheckoutEnabled: false,
       tossTicketCheckoutEnabled: false,
       tossOrderCanaryConfigured: false,
@@ -208,6 +216,11 @@ describe('validateVercelBuildEnvironment', () => {
       korpayOrderCanaryConfigured: false,
       korpayTicketCanaryConfigured: false,
       tossConfigured: false,
+      tossMode: 'none',
+      // 결제 UI 바인딩(TOSS_WIDGET_VARIANT_KEY)이 없으면 null — DEFAULT 결제 UI, MID 대조 없음.
+      tossVariantKey: null,
+      tossMerchantIds: [],
+      tossDocsPublicKey: false,
       tossOrderCheckoutEnabled: false,
       tossTicketCheckoutEnabled: false,
       tossOrderCanaryConfigured: false,
@@ -287,12 +300,137 @@ describe('validateVercelBuildEnvironment', () => {
     expect(result.warnings[0]).toContain('docs/runbooks/toss-production-rollout.md');
   });
 
+  /*
+   * 문서 공개 테스트 키(test_g*k_docs_…)의 결제는 우리 상점 결제내역·웹훅에 남지 않는다. 결제 UI
+   * 바인딩이 켜져 있으면 런타임 MID 대조로 전부 needs_review가 된다. 심사 창 배포를 막지 않도록
+   * 빌드는 통과시키고 경고만 남긴다(키 값은 출력하지 않는다).
+   */
+  it('warns without failing when production carries the developer-docs public Toss keys', () => {
+    const docsKeys = {
+      NEXT_PUBLIC_TOSS_CLIENT_KEY: 'test_gck_docs_000000000000000000000001',
+      TOSS_SECRET_KEY: 'test_gsk_docs_000000000000000000000001',
+    };
+    const gateClosed = validateVercelBuildEnvironment(productionEnvironment(docsKeys));
+    expect(gateClosed).toMatchObject({ checked: true, tossConfigured: true, tossDocsPublicKey: true });
+    expect(gateClosed.warnings).toHaveLength(1);
+    expect(gateClosed.warnings[0]).toContain('developer-docs public test keys');
+    // 바인딩이 꺼져 있으면 런타임 MID 대조가 없으므로 그 문장은 싣지 않는다.
+    expect(gateClosed.warnings[0]).not.toContain('merchant check');
+    // 해결책은 계정의 상점 키로 교체하는 것이고, MID별 주문서형 키는 없다(/reference/using-api/api-keys).
+    expect(gateClosed.warnings[0]).toContain("account's own payment-widget keys");
+    expect(gateClosed.warnings[0]).not.toContain('keys issued for merchant');
+    expect(gateClosed.warnings[0]).toContain('docs/runbooks/toss-production-rollout.md');
+    expect(JSON.stringify(gateClosed)).not.toContain(docsKeys.TOSS_SECRET_KEY);
+    expect(JSON.stringify(gateClosed)).not.toContain(docsKeys.NEXT_PUBLIC_TOSS_CLIENT_KEY);
+
+    // 바인딩이 켜져 있으면 문서 공개 키는 테스트 키라 대조 MID는 테스트 모드 MID다.
+    const bound = validateVercelBuildEnvironment(productionEnvironment({
+      ...docsKeys,
+      TOSS_WIDGET_VARIANT_KEY: 'ICONS',
+    }));
+    expect(bound.warnings).toHaveLength(1);
+    expect(bound.warnings[0]).toContain('runtime merchant check (MID ticonsi0xvd|ticonsi8sr4)');
+
+    // 심사 창(공개 gate + 테스트 키)이면 테스트 모드 경고와 함께 두 줄이다.
+    const gateOpen = validateVercelBuildEnvironment(productionEnvironment({
+      ...docsKeys,
+      TOSS_ORDER_CHECKOUT_ENABLED: 'true',
+    }));
+    expect(gateOpen.warnings).toHaveLength(2);
+
+    // 한쪽만 문서 키여도 경고한다(페어가 아니면 configured는 아니다).
+    expect(validateVercelBuildEnvironment(productionEnvironment({
+      TOSS_SECRET_KEY: docsKeys.TOSS_SECRET_KEY,
+    })).warnings).toHaveLength(1);
+
+    // 상점 키(이름에 docs가 들어가도 `_docs_` 접두가 아니면)와 Preview는 경고하지 않는다.
+    expect(validateVercelBuildEnvironment(productionEnvironment({
+      NEXT_PUBLIC_TOSS_CLIENT_KEY: 'test_gck_iconsdocs00000000000001',
+      TOSS_SECRET_KEY: 'test_gsk_iconsdocs00000000000001',
+    }))).toMatchObject({ tossDocsPublicKey: false, warnings: [] });
+    expect(validateVercelBuildEnvironment({ ...baseEnvironment, ...docsKeys }))
+      .toMatchObject({ tossDocsPublicKey: false, warnings: [] });
+  });
+
+  /*
+   * 허용 MID는 키 모드별이다 — 테스트 키 결제의 mId는 `t` + 라이브 MID(2026-10-12 결제
+   * 어드민 실측). 심사 창(테스트 키)에서 readback이 라이브 MID를 말하면 canary 결과와
+   * 대조할 값이 틀린다. 결제 UI 바인딩이 꺼져 있으면 대조 자체가 없다고 읽힌다.
+   */
+  it('reads back the test-mode merchants and the bound payment UI on test keys', () => {
+    const testKeys = {
+      NEXT_PUBLIC_TOSS_CLIENT_KEY: 'test_gck_iconsdocs00000000000001',
+      TOSS_SECRET_KEY: 'test_gsk_iconsdocs00000000000001',
+      TOSS_ORDER_CHECKOUT_ENABLED: 'true',
+    };
+    const bound = validateVercelBuildEnvironment(productionEnvironment({
+      ...testKeys,
+      TOSS_WIDGET_VARIANT_KEY: 'ICONS',
+    }));
+    expect(bound).toMatchObject({
+      tossMode: 'test',
+      tossVariantKey: 'ICONS',
+      tossMerchantIds: ['ticonsi0xvd', 'ticonsi8sr4'],
+    });
+    const line = formatVercelBuildReadback(bound, 'production');
+    expect(line).toContain(
+      'Toss mode=test, Toss variant=ICONS, Toss merchant=ticonsi0xvd|ticonsi8sr4, docs public key=false',
+    );
+    expect(line).not.toContain('test_gsk_iconsdocs00000000000001');
+
+    // 바인딩 전(지금 상태) — DEFAULT 결제 UI, MID 대조 없음.
+    const unbound = validateVercelBuildEnvironment(productionEnvironment(testKeys));
+    expect(unbound).toMatchObject({ tossMode: 'test', tossVariantKey: null, tossMerchantIds: [] });
+    expect(formatVercelBuildReadback(unbound, 'production')).toContain(
+      'Toss mode=test, Toss variant=DEFAULT (unbound), Toss merchant check=off, docs public key=false',
+    );
+  });
+
+  it('reads back the Toss key mode, merchant, and reconciliation secret presence without values', () => {
+    const secret = 'reconciliation_secret_value_0001';
+    const result = validateVercelBuildEnvironment(productionEnvironment({
+      NEXT_PUBLIC_TOSS_CLIENT_KEY: 'live_gck_iconsdocs00000000000001',
+      TOSS_SECRET_KEY: 'live_gsk_iconsdocs00000000000001',
+      TOSS_ORDER_CHECKOUT_ENABLED: 'true',
+      TOSS_WIDGET_VARIANT_KEY: 'ICONS',
+      PAYMENT_RECONCILIATION_SECRET: secret,
+    }));
+    expect(result).toMatchObject({
+      tossMode: 'live',
+      tossVariantKey: 'ICONS',
+      tossMerchantIds: ['iconsi0xvd', 'iconsi8sr4'],
+      paymentReconciliationConfigured: true,
+    });
+
+    const line = formatVercelBuildReadback(result, 'production');
+    expect(line).toContain('Vercel production environment verified; ');
+    expect(line).toContain('Korpay configured=true (drain only; checkout gates retired); ');
+    expect(line).toContain('Toss configured=true, order checkout enabled=true');
+    expect(line).toContain(
+      'Toss mode=live, Toss variant=ICONS, Toss merchant=iconsi0xvd|iconsi8sr4, docs public key=false; ',
+    );
+    expect(line).toContain('NICEPAY configured=false, order checkout enabled=false, order canary configured=false; ');
+    expect(line).toContain('payment reconciliation secret configured=true');
+    expect(line).not.toContain(secret);
+    expect(line).not.toContain('live_gsk_iconsdocs00000000000001');
+    expect(line).not.toContain('live_gck_iconsdocs00000000000001');
+
+    const unconfigured = formatVercelBuildReadback(
+      validateVercelBuildEnvironment(productionEnvironment()),
+      'production',
+    );
+    expect(unconfigured).toContain('Toss configured=false');
+    expect(unconfigured).toContain('Toss mode=none, Toss variant=DEFAULT (unbound), Toss merchant check=off');
+    expect(unconfigured).toContain('payment reconciliation secret configured=false');
+  });
+
   it('keeps the build log quiet once the public Toss gate runs on live keys', () => {
     expect(validateVercelBuildEnvironment(productionEnvironment({
       TOSS_ORDER_CHECKOUT_ENABLED: 'true',
       TOSS_TICKET_CHECKOUT_ENABLED: 'true',
       NEXT_PUBLIC_TOSS_CLIENT_KEY: 'live_gck_iconsdocs00000000000001',
       TOSS_SECRET_KEY: 'live_gsk_iconsdocs00000000000001',
+      TOSS_WIDGET_VARIANT_KEY: 'ICONS',
     }))).toMatchObject({ tossConfigured: true, warnings: [] });
 
     // 테스트 키라도 공개 gate가 닫혀 있으면(canary만) 경고 대상이 아니다.
@@ -301,6 +439,128 @@ describe('validateVercelBuildEnvironment', () => {
       TOSS_SECRET_KEY: 'test_gsk_iconsdocs00000000000001',
       TOSS_ORDER_CANARY_USER_ID: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
     }))).toMatchObject({ warnings: [] });
+  });
+
+  describe('Toss 결제 UI 바인딩(TOSS_WIDGET_VARIANT_KEY·TOSS_ADDITIONAL_MERCHANT_IDS)', () => {
+    const liveKeys = {
+      NEXT_PUBLIC_TOSS_CLIENT_KEY: 'live_gck_iconsdocs00000000000001',
+      TOSS_SECRET_KEY: 'live_gsk_iconsdocs00000000000001',
+    };
+    const testKeys = {
+      NEXT_PUBLIC_TOSS_CLIENT_KEY: 'test_gck_iconsdocs00000000000001',
+      TOSS_SECRET_KEY: 'test_gsk_iconsdocs00000000000001',
+    };
+
+    /*
+     * 바인딩이 없으면 위젯이 SDK 기본 DEFAULT 결제 UI를 그리고, 우리 계정의 DEFAULT는 다른
+     * 서비스와 함께 쓰는 구 MID에 연결돼 있다 — 라이브 키로 그 상태를 배포하면 실결제가 ICONS
+     * 상점이 아닌 곳에 잡힌다. 런북 순서(결제 UI 생성 → env → 배포 → 라이브 키)를 빌드가 강제한다.
+     */
+    it('라이브 키는 결제 UI 바인딩 없이 production 빌드를 통과하지 못한다(gate와 무관)', () => {
+      for (const gates of [{}, { TOSS_ORDER_CHECKOUT_ENABLED: 'true' }]) {
+        let error;
+        try {
+          validateVercelBuildEnvironment(productionEnvironment({ ...liveKeys, ...gates }));
+        } catch (caught) {
+          error = caught;
+        }
+        expect(error?.message).toContain('live widget keys require TOSS_WIDGET_VARIANT_KEY');
+        expect(error?.message).toContain('docs/runbooks/toss-production-rollout.md');
+        expect(error?.message).not.toContain(liveKeys.TOSS_SECRET_KEY);
+      }
+      expect(validateVercelBuildEnvironment(productionEnvironment({
+        ...liveKeys,
+        TOSS_WIDGET_VARIANT_KEY: 'ICONS',
+      }))).toMatchObject({ tossMode: 'live', tossVariantKey: 'ICONS' });
+    });
+
+    it('테스트 키는 바인딩 없이도 통과한다 — 바인딩 전 지금 상태다', () => {
+      expect(validateVercelBuildEnvironment(productionEnvironment(testKeys))).toMatchObject({
+        tossMode: 'test',
+        tossVariantKey: null,
+        tossMerchantIds: [],
+        warnings: [],
+      });
+    });
+
+    it.each([
+      ['DEFAULT', 'DEFAULT'],
+      ['소문자 default', 'default'],
+      ['허용 밖 문자', 'ICONS UI'],
+      ['너무 긴 값', 'A'.repeat(51)],
+    ])('형식 밖 variantKey(%s)는 어느 target이든 빌드를 멈추고 값을 싣지 않는다', (_label, value) => {
+      for (const environment of [
+        productionEnvironment({ ...testKeys, TOSS_WIDGET_VARIANT_KEY: value }),
+        { ...baseEnvironment, TOSS_WIDGET_VARIANT_KEY: value },
+      ]) {
+        let error;
+        try {
+          validateVercelBuildEnvironment(environment);
+        } catch (caught) {
+          error = caught;
+        }
+        expect(error?.message).toContain('TOSS_WIDGET_VARIANT_KEY');
+        expect(error?.message).toContain('never DEFAULT');
+        if (value.length > 8) expect(error?.message).not.toContain(value);
+      }
+    });
+
+    it('빈 값·공백만 있는 variantKey는 바인딩 꺼짐으로 읽는다', () => {
+      for (const value of ['', '   ']) {
+        expect(validateVercelBuildEnvironment(productionEnvironment({
+          ...testKeys,
+          TOSS_WIDGET_VARIANT_KEY: value,
+        }))).toMatchObject({ tossVariantKey: null, tossMerchantIds: [] });
+      }
+    });
+
+    it('알리페이처럼 나중에 계약한 MID를 env로 더하면 키 모드별 허용 MID에 들어간다', () => {
+      const result = validateVercelBuildEnvironment(productionEnvironment({
+        ...testKeys,
+        TOSS_WIDGET_VARIANT_KEY: 'ICONS',
+        TOSS_ADDITIONAL_MERCHANT_IDS: ' iconsalipy1 , iconsi0xvd,iconsalipy1 ',
+      }));
+      // 중복·코드 상수에 이미 있는 MID는 걸러 내고, 테스트 키면 `t`를 붙인다.
+      expect(result.tossMerchantIds).toEqual(['ticonsi0xvd', 'ticonsi8sr4', 'ticonsalipy1']);
+      expect(formatVercelBuildReadback(result, 'production'))
+        .toContain('Toss merchant=ticonsi0xvd|ticonsi8sr4|ticonsalipy1');
+    });
+
+    it.each([
+      ['공백 낀 값', 'icons alipay'],
+      ['허용 밖 문자', 'icons-alipay'],
+      ['빈 항목', 'iconsalipy1,,'],
+      ['너무 긴 MID', 'a'.repeat(15)],
+    ])('형식 밖 추가 MID(%s)는 빌드를 멈춘다', (_label, value) => {
+      expect(() => validateVercelBuildEnvironment(productionEnvironment({
+        ...testKeys,
+        TOSS_WIDGET_VARIANT_KEY: 'ICONS',
+        TOSS_ADDITIONAL_MERCHANT_IDS: value,
+      }))).toThrow('Invalid Vercel production TOSS_ADDITIONAL_MERCHANT_IDS');
+    });
+
+    it('바인딩 없이 추가 MID만 놓이면 효과가 없다고 경고한다', () => {
+      const result = validateVercelBuildEnvironment(productionEnvironment({
+        ...testKeys,
+        TOSS_ADDITIONAL_MERCHANT_IDS: 'iconsalipy1',
+      }));
+      expect(result.tossMerchantIds).toEqual([]);
+      expect(result.warnings).toEqual([
+        expect.stringContaining('TOSS_ADDITIONAL_MERCHANT_IDS is ignored while TOSS_WIDGET_VARIANT_KEY is unset'),
+      ]);
+    });
+
+    it('production에 남은 구 연동 variant env는 읽지 않고 경고만 한다(값은 싣지 않는다)', () => {
+      const result = validateVercelBuildEnvironment(productionEnvironment({
+        ...testKeys,
+        NEXT_PUBLIC_TOSS_PAYMENT_METHOD_VARIANT_KEY: 'LEGACY_VARIANT_VALUE',
+      }));
+      expect(result.tossVariantKey).toBeNull();
+      expect(result.warnings).toEqual([
+        expect.stringContaining('NEXT_PUBLIC_TOSS_PAYMENT_METHOD_VARIANT_KEY is a legacy Toss variable and is ignored'),
+      ]);
+      expect(JSON.stringify(result)).not.toContain('LEGACY_VARIANT_VALUE');
+    });
   });
 
   it('rejects enabled Toss gates and canaries in preview while tolerating stale keys', () => {

@@ -92,12 +92,23 @@ export interface PaymentRefundRequest {
   readonly amount: number;
   readonly reason: string;
   /**
-   * 로컬 결제 원장(payments.payment_key)이 기록한 provider 결제 식별자. 주문번호로
-   * 조회할 수 없는 provider(나이스페이 웹표준은 거래조회·취소가 TID 기준)가 취소
-   * 대상을 찾는 데 쓴다. 주문번호 조회가 진실원인 provider(토스)는 쓰지 않는다.
+   * 로컬 결제 원장(payments.payment_key)이 기록한 provider 결제 식별자. 있으면 어댑터가
+   * 이 키로 결제를 조회·취소하고, 조회 응답이 이 attempt의 주문·금액과 맞는지 다시
+   * 대조한다. 나이스페이 웹표준은 거래조회·취소가 TID 기준이라 이 키가 필수이고, 토스는
+   * 주문서형 시크릿 키(gsk)에 명시된 조회가 paymentKey 조회라(공식문서
+   * /reference/using-api/api-keys) 키가 있으면 쓰고 없을 때만 주문번호 조회로 찾는다.
    * 취소 결과의 evidence.providerPaymentKey는 provider 응답에서 다시 읽어 호출자가
    * 이 값과 대조한다.
    */
+  readonly providerPaymentKey?: string;
+}
+
+/**
+ * reconcile에 덧붙이는 선택 힌트. 서명 없는 웹훅 본문처럼 신뢰할 수 없는 출처에서 올 수
+ * 있으므로 어댑터는 이 값을 확정 근거로 쓰지 않는다 — 조회 응답이 attempt와 일치할 때만
+ * 쓰고, 아니면 힌트 없이 판정한다.
+ */
+export interface PaymentReconcileHint {
   readonly providerPaymentKey?: string;
 }
 
@@ -108,6 +119,6 @@ export interface RefundOutcome extends PaymentOperationOutcome {
 export interface PaymentGateway {
   prepare(attempt: PaymentAttempt): Promise<PreparedCheckout>;
   confirm(returnInput: PaymentReturnInput): Promise<ConfirmOutcome>;
-  reconcile(attempt: PaymentAttempt): Promise<ReconcileOutcome>;
+  reconcile(attempt: PaymentAttempt, hint?: PaymentReconcileHint): Promise<ReconcileOutcome>;
   refund(request: PaymentRefundRequest): Promise<RefundOutcome>;
 }
