@@ -79,6 +79,7 @@ const operators = [
   sql('stock_reconcile_claim_shipments', { admin: true }),
   // 상품별 반품/교환지·회수 묶음(배송 건 × 반품지)·고객 회수 주소(S36-040·S36-044·QNA-031).
   sql('goods_return_addresses', { admin: true, kc: true }),
+  script('goods_return_address_concurrency.sh', 'RETURN_ADDRESS_TEST_SCOPE'),
   script('order_address_concurrency.sh', 'ORDER_ADDRESS_TEST_SCOPE'),
   sql('goods_media', { admin: true, kc: true }),
   script('goods_media_concurrency.sh', 'GOODS_MEDIA_TEST_SCOPE'),
