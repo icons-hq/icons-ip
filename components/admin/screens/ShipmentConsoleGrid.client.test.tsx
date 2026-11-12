@@ -157,7 +157,8 @@ it('이미 전달한 선택 건은 중복 출고 경고를 확인해야 다운�
  confirm.mockReturnValue(true);(trigger.props.onClick as ()=>void)();expect(text(ready())).toContain('비밀번호 확인');
 });
 
-it('바코드 칸이 있는 기존 창고 양식이면 내보내기 전에 바코드가 없는 옵션 수를 알리고 막지는 않는다',async()=>{
+/* 1027T-046 통합: ICONS 표준 양식도 출고지와 관계없이 모든 행에 바코드 칸이 있어, 고른 양식 기준으로 센다(표준 양식은 admin_smartstore_shipment_barcode_gaps). */
+it('고른 양식(ICONS 표준·기존 창고 양식)의 바코드 칸 기준으로 내보내기 전에 바코드가 없는 옵션 수를 알리고 막지는 않는다',async()=>{
  const seowon={id:'00000000-0000-4000-8000-000000042202',name:'남양주',template:'seowon_xlsx',active:true};
  const gimpo={id:'00000000-0000-4000-8000-000000042201',name:'김포',template:'wms_csv',active:true};
  const rows=[{...row,status:'ready' as const,pack:null,originId:seowon.id},{...row,id:ids[1],status:'ready' as const,pack:null,originId:gimpo.id}];
@@ -165,25 +166,25 @@ it('바코드 칸이 있는 기존 창고 양식이면 내보내기 전에 바�
  async function settle(){for(const effect of mocks.effects)effect();await Promise.all([...mocks.gaps.mock.results,...mocks.originGaps.mock.results].map(result=>result.value));await new Promise(resolve=>setTimeout(resolve,0));}
  mocks.gaps.mockResolvedValue(2);mocks.originGaps.mockImplementation(async(id:string)=>id===seowon.id?1:5);
  ready();await settle();
- // 출고지 전체 내려받기 버튼: 서원 양식 출고지만 센다(김포는 기본이 ICONS 표준 양식이라 바코드 칸이 없다).
- expect(mocks.originGaps.mock.calls).toEqual([[seowon.id]]);
+ // 출고지 전체 내려받기 버튼: 출고지마다 그 출고지의 기본 양식으로 센다(남양주=서원 송장양식, 김포=ICONS 표준 양식).
+ expect(mocks.originGaps.mock.calls).toEqual([[seowon.id,'warehouse'],[gimpo.id,'smartstore']]);
  // 출고지 경고는 다음 파일 한 묶음이 아니라 그 출고지의 미전달 발송 대기 건 전체를 센다(리뷰 M27-SHIP-2).
  expect(text(ready())).toContain('남양주 미전달 발송 대기 건: 바코드가 없는 옵션 1개 — 파일의 바코드 칸이 비어 있습니다.');
+ expect(text(ready())).toContain('김포 미전달 발송 대기 건: 바코드가 없는 옵션 5개 — 파일의 바코드 칸이 비어 있습니다.');
  expect(text(ready())).not.toContain('남양주 새 출고지시:');
  const grid=nodes(ready()).find(node=>node.type===ConsoleGrid)!;(grid.props.onSelectionChange as (ids:string[])=>void)(ids.slice(0,2));
  ready();await settle();
- // 섞인 선택은 기본이 ICONS 표준 양식이라 경고하지 않는다. 기존 창고 양식을 고르면 선택 전체를 넘기고,
- // 바코드 칸이 있는 출고지(서원)의 건만 세는 판정은 서버(admin_shipment_barcode_gaps)가 한다.
- expect(mocks.gaps).not.toHaveBeenCalled();
+ // 섞인 선택은 기본이 ICONS 표준 양식이고, 표준 양식은 모든 행에 바코드 칸이 있어 선택 전체를 그 양식 기준으로 센다.
+ expect(mocks.gaps).toHaveBeenLastCalledWith([ids[0],ids[1]],'smartstore');
+ expect(text(ready())).toContain('바코드가 없는 옵션 2개 — 파일의 바코드 칸이 비어 있습니다.');
+ // 기존 창고 양식을 고르면 같은 선택을 그 양식 기준으로 다시 센다. 바코드 칸이 있는 출고지(서원·김포)의 건만 세는 판정은 서버(admin_shipment_barcode_gaps)가 한다.
+ mocks.gaps.mockResolvedValue(1);
  const layout=nodes(ready()).find(node=>isSelect(node))!;(layout.props.onChange as (event:unknown)=>void)({target:{value:'warehouse'}});
  ready();await settle();
- expect(mocks.gaps).toHaveBeenLastCalledWith([ids[0],ids[1]]);
- expect(text(ready())).toContain('바코드가 없는 옵션 2개 — 파일의 바코드 칸이 비어 있습니다.');
+ expect(mocks.gaps).toHaveBeenLastCalledWith([ids[0],ids[1]],'warehouse');
+ expect(text(ready())).toContain('바코드가 없는 옵션 1개 — 파일의 바코드 칸이 비어 있습니다.');
  const exportButton=nodes(ready()).find(node=>isButton(node)&&text(node.props.children as ReactNode)==='출고지시 내보내기')!;
  expect(exportButton.props.disabled).toBe(false);
- // ICONS 표준 양식에는 바코드 칸이 없어 경고하지 않는다.
- (nodes(ready()).find(node=>isSelect(node))!.props.onChange as (event:unknown)=>void)({target:{value:'smartstore'}});
- expect(text(ready())).not.toContain('바코드가 없는 옵션');
 });
 
 it('방금 발주확인해 다른 페이지로 밀린 배송 건도 바코드 경고 대상에 넣고, 바코드 칸 판정은 서버에 맡긴다',async()=>{
@@ -204,7 +205,7 @@ it('방금 발주확인해 다른 페이지로 밀린 배송 건도 바코드 �
  mocks.gaps.mockResolvedValue(1);mocks.originGaps.mockResolvedValue(0);
  for(const effect of mocks.effects)effect();
  await Promise.all([...mocks.gaps.mock.results,...mocks.originGaps.mock.results].map(result=>result.value));await new Promise(resolve=>setTimeout(resolve,0));
- expect(mocks.gaps).toHaveBeenLastCalledWith([confirmedId]);
+ expect(mocks.gaps).toHaveBeenLastCalledWith([confirmedId],'warehouse');
  expect(text(ready())).toContain('바코드가 없는 옵션 1개 — 파일의 바코드 칸이 비어 있습니다.');
 });
 

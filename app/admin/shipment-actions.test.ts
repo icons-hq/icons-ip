@@ -57,7 +57,9 @@ describe('shipment action boundaries', () => {
       expect(line.smartstore).toMatchObject({ orderNumber: '2026111110000001', buyerName: null, buyerId: null, paidAt: null, paymentMethod: null,
         itemTotal: null, itemDiscount: null, sellerDiscount: null, regionalShippingFee: null, shippingDiscount: null });
     }
-    expect(mocks.rpc).toHaveBeenLastCalledWith('admin_mark_shipments_exported', { target_versions: [{ id: ID, updatedAt: STAMP }] });
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_mark_shipments_exported', { target_versions: [{ id: ID, updatedAt: STAMP }] });
+    // 물류도 ICONS 표준 양식 바코드 경고를 같은 출고 권한으로 센다(통합: admin_smartstore_shipment_barcode_gaps도 sales.dispatch).
+    expect(mocks.rpc).toHaveBeenLastCalledWith('admin_smartstore_shipment_barcode_gaps', { p_ids: [ID] });
   });
   it('주문 조회 권한이 있는 주매니저의 표준 양식 자료는 지금과 같다 (1014-084)', async () => {
     const exported = { shipments: [{ id: ID, updatedAt: STAMP, shippingFee: 3000, shippingCollectFee: 0,
@@ -89,7 +91,8 @@ describe('shipment action boundaries', () => {
     expect(result).toMatchObject({ file: { base64: Buffer.from('encrypted-workbook').toString('base64'), encryption: 'ECMA-376-Agile', sha256: 'a'.repeat(64) } });
     expect(mocks.rpc).toHaveBeenCalledWith('admin_smartstore_shipment_export', { p_ids: [ID] });
     expect(mocks.build).toHaveBeenCalledWith({ shipments: [{ id: ID, updatedAt: STAMP }] }, 'xlsx', 'smartstore');
-    expect(mocks.rpc).toHaveBeenLastCalledWith('admin_mark_shipments_exported', { target_versions: [{ id: ID, updatedAt: STAMP }] });
+    expect(mocks.rpc.mock.calls.map(([name]) => name)).toEqual(['admin_smartstore_shipment_export', 'admin_mark_shipments_exported', 'admin_smartstore_shipment_barcode_gaps']);
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_mark_shipments_exported', { target_versions: [{ id: ID, updatedAt: STAMP }] });
     expect(mocks.build.mock.invocationCallOrder[0]).toBeLessThan(mocks.rpc.mock.invocationCallOrder[1]);
     expect(mocks.encrypt.mock.invocationCallOrder[0]).toBeLessThan(mocks.rpc.mock.invocationCallOrder[1]);
   });
@@ -238,9 +241,21 @@ describe('내보내기 전 바코드 경고 조회', () => {
     expect(failedLookup.file).toBeDefined();
     expect(failedLookup.message).toBe('2건의 출고지시를 내려받았습니다.');
   });
-  it('ICONS 표준 양식과 실패한 내보내기는 바코드 빈칸을 세지 않는다', async () => {
-    await exportShipmentsAction([ID], 'xlsx', 'smartstore', credentials);
+  /* 1027T-046 통합: ICONS 표준 양식은 출고지와 관계없이 모든 행에 바코드 칸이 있어 admin_smartstore_shipment_barcode_gaps로 센다. */
+  it('ICONS 표준 양식은 표준 양식 기준으로 바코드 빈칸을 세고, 실패한 내보내기는 세지 않는다', async () => {
+    mocks.rpc.mockImplementation(async (name: string) => ({ error: null, data: name === 'admin_smartstore_shipment_export' ? { shipments: [{ id: ID, updatedAt: STAMP }] }
+      : name === 'admin_smartstore_shipment_barcode_gaps' ? 2 : 1 }));
+    const standard = await exportShipmentsAction([ID], 'xlsx', 'smartstore', credentials);
+    expect(standard.message).toContain('바코드가 없는 옵션 2개');
+    expect(mocks.rpc).toHaveBeenLastCalledWith('admin_smartstore_shipment_barcode_gaps', { p_ids: [ID] });
     expect(mocks.rpc).not.toHaveBeenCalledWith('admin_shipment_barcode_gaps', expect.anything());
+    mocks.rpc.mockClear();
+    mocks.rpc.mockResolvedValue({ error: null, data: 4 });
+    expect(await shipmentBarcodeGapsAction([ID], 'smartstore')).toBe(4);
+    expect(await originBarcodeGapsAction(ID, 'smartstore')).toBe(4);
+    expect(mocks.rpc.mock.calls).toEqual([['admin_smartstore_shipment_barcode_gaps', { p_ids: [ID] }], ['admin_smartstore_shipment_barcode_gaps', { p_origin_id: ID }]]);
+    expect(await shipmentBarcodeGapsAction([ID], 'bogus' as never)).toBeNull();
+    mocks.rpc.mockClear();
     mocks.rpc.mockImplementation(async (name: string) => name === 'admin_shipment_export'
       ? { error: null, data: { shipments: [{ id: ID, updatedAt: STAMP }] } }
       : { error: { message: 'shipment_changed' }, data: null });

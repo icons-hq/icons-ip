@@ -21,6 +21,12 @@ describe('목록 엑셀 다운로드 버튼', () => {
     expect(html).not.toContain('상품 한 줄');
   });
 
+  it('환불 송금 대기는 요청 한 건이 한 행이라 행 펼침 안내를 붙이지 않는다 (1007-047)', () => {
+    const html = renderToStaticMarkup(<AdminListExportButton href="/api/admin/list-export?screen=refund-transfers" total={2} />);
+    expect(html).toContain('전체 2건을 받습니다(최대 10,000건). 개인정보가 담긴 파일');
+    expect(html).not.toContain('상품 한 줄');
+  });
+
   it('상한을 넘는 조건은 버튼을 끄고 조건을 좁히라고 안내한다', () => {
     const html = renderToStaticMarkup(<AdminListExportButton href="/api/admin/list-export?screen=orders" total={10_001} />);
     expect(html).toContain('disabled=""');

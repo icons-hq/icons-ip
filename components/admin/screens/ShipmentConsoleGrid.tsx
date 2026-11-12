@@ -95,17 +95,18 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
  // 끝날 때(dataRound)마다 다시 한다. 다른 탭에서 바코드를 고친 경우는 내보내기 결과 문구가 실제로 내보낸 배송 건으로 다시 센 값을 알린다.
  // 출고지 경고는 탭을 열 때마다 부르므로 다음 파일 한 묶음 대신 그 출고지의 미전달 발송 대기 건 전체를 가볍게 센다(리뷰 M27-SHIP-2).
  const exportTab=tab==='ready'||tab==='delayed';
- const barcodeKey=exportTab&&layout==='warehouse'&&exportEligible?[...ids].sort().join(','):'';
- const barcodeOrigins=exportOrigins.filter(origin=>(layoutChoice??defaultExportLayout(origins,[origin.id]))==='warehouse');
- const originBarcodeKey=barcodeOrigins.map(origin=>origin.id).join(',');
+ // ICONS 표준 양식은 출고지와 관계없이 모든 행에 바코드 칸이 있어 그 양식 기준으로 센다(1027T-046). 양식이 바뀌면 키가 바뀌어 다시 센다.
+ const barcodeKey=exportTab&&exportEligible?`${layout}:${[...ids].sort().join(',')}`:'';
+ const originBarcodeKey=exportOrigins.map(origin=>`${origin.id}:${layoutChoice??defaultExportLayout(origins,[origin.id])}`).join(',');
  useEffect(()=>{
   if(!barcodeKey)return;let live=true;
-  shipmentBarcodeGapsAction(barcodeKey.split(',')).then(missing=>{if(live&&missing!==null)setBarcodeGaps({key:`${barcodeKey}#${dataRound}`,missing});},()=>{});
+  const [keyLayout,keyIds]=barcodeKey.split(':') as [ShipmentExportLayout,string];
+  shipmentBarcodeGapsAction(keyIds.split(','),keyLayout).then(missing=>{if(live&&missing!==null)setBarcodeGaps({key:`${barcodeKey}#${dataRound}`,missing});},()=>{});
   return()=>{live=false;};
  },[barcodeKey,dataRound]);
  useEffect(()=>{
   if(!originBarcodeKey)return;let live=true;
-  Promise.all(originBarcodeKey.split(',').map(id=>originBarcodeGapsAction(id).then(missing=>[id,missing] as const)))
+  Promise.all(originBarcodeKey.split(',').map(entry=>{const [id,originLayout]=entry.split(':') as [string,ShipmentExportLayout];return originBarcodeGapsAction(id,originLayout).then(missing=>[id,missing] as const);}))
    .then(entries=>{if(live)setOriginBarcodeGaps({key:`${originBarcodeKey}#${dataRound}`,counts:Object.fromEntries(entries.filter((entry):entry is readonly [string,number]=>entry[1]!==null))});},()=>{});
   return()=>{live=false;};
  },[originBarcodeKey,dataRound]);
@@ -199,7 +200,7 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
      <span className={CONTROL}><Label className="shrink-0 whitespace-nowrap" htmlFor="shipment-export-format">파일 형식</Label><NativeSelect id="shipment-export-format" size="sm" value={format} disabled={pending} onChange={event=>setFormat(event.target.value as 'xlsx'|'csv')}><option value="xlsx">Excel (.xlsx)</option><option value="csv">CSV</option></NativeSelect></span>{seowonCsvNote}</>:null}
     <span className="basis-full text-muted-foreground">선택 없이 출고지별 미전달 발송 대기 건을 버튼에 적힌 양식으로 받습니다(품목 1,000줄까지, 남으면 다시 눌러 이어 받기).</span>
     {exportOrigins.map(origin=><Button key={origin.id} type="button" size="sm" variant="outline" className="h-auto min-h-7 whitespace-normal text-left" disabled={pending} onClick={()=>exportOrigin(origin)}>{origin.name} 새 출고지시 전체 내려받기 ({layoutLabel(layoutChoice??defaultExportLayout(origins,[origin.id]),origin.template==='seowon_xlsx')})</Button>)}
-    {barcodeOrigins.map(origin=>originBarcodeGap(origin.id)>0?<span key={`barcode-${origin.id}`} className={WARNING} role="status">{`${origin.name} 미전달 발송 대기 건: ${shipmentBarcodeGapWarning(originBarcodeGap(origin.id))}`}</span>:null)}
+    {exportOrigins.map(origin=>originBarcodeGap(origin.id)>0?<span key={`barcode-${origin.id}`} className={WARNING} role="status">{`${origin.name} 미전달 발송 대기 건: ${shipmentBarcodeGapWarning(originBarcodeGap(origin.id))}`}</span>:null)}
    </div>:null}
   </ConsoleGrid>
   {tab==='delayed'&&canManageSales?<Button className="self-start" variant="outline" type="button" onClick={()=>setNoticeSelection([])}>고객 지연 안내 이력·결과</Button>:null}
