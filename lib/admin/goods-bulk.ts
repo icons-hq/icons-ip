@@ -112,6 +112,8 @@ export function goodsBulkError(code: string | null): string {
     good_has_stock: '할당 재고가 남아 있는 상품은 보관할 수 없습니다. 재고를 확인해주세요.',
     good_archived: '보관된 상품이 포함되어 있습니다. 복원한 뒤 변경해주세요.',
     goods_kc_review_required: '공개 전 KC 검토가 필요한 상품이 있습니다. 해당 상품을 확인해주세요.',
+    goods_type_category_required: '대표 카테고리에 상품 유형이 연결되지 않은 상품이 있습니다. 카테고리 관리에서 상품 유형을 연결한 뒤 공개해주세요.',
+    goods_type_category_changed: '카테고리 상품 유형이 저장된 유형과 다른 초안이 있습니다. 해당 상품을 저장해 유형을 반영하고 KC를 다시 검토해주세요.',
     goods_notice_required: '공개에 필요한 상품정보제공고시를 먼저 입력해주세요.',
     goods_group_auth_changed: '로그인 계정 또는 세션이 변경되었습니다. 화면을 다시 열어주세요.',
     operator_capability_required: '상품 관리 권한이 필요합니다.',

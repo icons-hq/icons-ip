@@ -4,7 +4,7 @@ import { useCallback, useRef, useState, type FormEvent } from 'react';
 import { saveGoodsGroupCommonAction } from '@/app/admin/goods-group-common-actions';
 import { goodsGroupCommonHref, goodsGroupHref, normalizeGoodsGroupCommonForm, type GoodsGroupCommonSnapshot } from '@/lib/admin/goods-group-common';
 import type { AdminCategoryNode } from '@/lib/admin/category';
-import { GOOD_TYPES } from '@/lib/goods-taxonomy';
+import { goodTypeFromCategory } from '@/lib/admin/good-workspace';
 import { GOODS_NOTICE_FIELDS, type GoodsNoticeInfo } from '@/lib/goods-notice';
 import { EMPTY_GOODS_AFTER_SALES, type GoodsAfterSalesValues } from '@/lib/goods-after-sales';
 import { parseGoodsSizeChart } from '@/lib/goods-size-chart';
@@ -19,6 +19,7 @@ import { Field, SelectField, TextArea } from './fields';
 import { CategoryAssignmentField } from './CategoryAssignmentField';
 import { GoodsAttributeEditor } from './GoodsAttributeEditor';
 import { GoodNoticePicker } from './GoodNoticePicker';
+import { GoodDerivedType } from './GoodDerivedType';
 import { GoodsOriginField } from './CountryNameFinder';
 import { GoodsAfterSalesFields } from './GoodsAfterSalesFields';
 import { GoodsAfterSalesTemplatePicker } from './screens/GoodsAfterSalesTemplatesScreen';
@@ -47,6 +48,8 @@ export function GoodsGroupCommonEditor({ snapshot: initialSnapshot, actorId, ses
   const formRef = useRef<HTMLFormElement | null>(null);
   const locked = session.blocked || operation.locked || operation.receipt !== null;
   const ready = goodsAttributeSubmissionReady(attributes, categoryId);
+  /* SHEET-003(ADR-0037): 상품 유형은 공통 대표 카테고리(없으면 가까운 상위)의 연결값이다. 저장하면 모든 연결 상품이 초안이 되고 이 값으로 맞춰진다. */
+  const typeState = goodTypeFromCategory({ categories, categoryId, initialCategoryId: snapshot.fields.categoryId, storedType: snapshot.fields.type, published: false });
   const onAttributes = useCallback((submission: string, _draft: string, initialize: boolean) => { setAttributes(submission); if (!initialize) setDirty(true); }, []);
   function leave(event: { preventDefault: () => void }) {
     if (operation.pending) event.preventDefault();
@@ -96,7 +99,8 @@ export function GoodsGroupCommonEditor({ snapshot: initialSnapshot, actorId, ses
         </AdminSectionCard>
         <AdminSectionCard title="연결 IP·유형·검색 설정"><AdminFormGrid>
           <SelectField name="ipId" label="연결 IP" defaultValue={snapshot.fields.ipId} error={errors.ipId}><option value="">선택</option>{ips.map(ip => <option key={ip.id} value={ip.id} disabled={Boolean(ip.archivedAt)}>{ip.title}</option>)}</SelectField>
-          <SelectField name="type" label="상품 유형" defaultValue={snapshot.fields.type} error={errors.type}><option value="">선택</option>{GOOD_TYPES.map(type => <option key={type} value={type}>{type}</option>)}</SelectField>
+          <GoodDerivedType state={typeState} storedType={snapshot.fields.type} published={false} categoryId={categoryId} categories={categories} />
+          <input type="hidden" name="type" value={typeState.submitted} />
           <Field name="nameEn" label="영문 상품명" defaultValue={snapshot.fields.nameEn} maxLength={200} error={errors.nameEn} />
         </AdminFormGrid><TextArea name="searchKeywords" label="검색 키워드" defaultValue={snapshot.fields.searchKeywords} maxLength={4200} error={errors.searchKeywords} /></AdminSectionCard>
         <AdminSectionCard title="상품정보고시"><GoodNoticePicker copyKcTemplate={false} onApply={applyNotice} readOnly={locked} /><AdminFormGrid>

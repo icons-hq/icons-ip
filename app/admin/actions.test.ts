@@ -663,6 +663,19 @@ describe('admin catalog actions', () => {
     });
   });
 
+  /* SHEET-003(ADR-0037): 상품 유형은 대표 카테고리의 연결값이다. 저장·공개가 이 규칙으로 막히면 카테고리 칸에 이유를 보이고 입력을 남긴다. */
+  it.each([
+    ['goods_type_category_locked', '유형이 다른 카테고리로 옮길 수 없습니다'],
+    ['goods_type_category_required', '상품 유형이 연결되어 있어야 공개할 수 있습니다'],
+    ['goods_type_category_changed', '카테고리에 연결된 상품 유형이 저장된 유형과 다릅니다'],
+  ])('상품 유형 규칙 %s를 카테고리 칸에 안내한다', async (message, text) => {
+    const form = goodForm();
+    mocks.rpc.mockResolvedValue({ data: null, error: { message } });
+    const result = await upsertAdminGoodAction({}, form);
+    expect(result.errors?.categoryId).toContain(text);
+    expect(result.errors?.categoryId).toContain('입력값은 유지됩니다.');
+  });
+
   /* 정가가 판매가 이하면 0%·음수 할인율이 나온다. RPC 도 막지만, 운영자에게는
      저장 실패가 아니라 그 칸의 에러로 보여야 고칠 수 있다. */
   it('rejects a compare-at price that is not above the sale price', async () => {

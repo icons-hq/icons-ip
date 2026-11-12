@@ -2,11 +2,30 @@
 -- in the same psql stdin. Never include it in migrations, seed.sql, or a deployed
 -- schema. It uses the real review RPC and creates explicit synthetic evidence;
 -- it does not disable a trigger, alter a policy, or add a production bypass.
+-- SHEET-003(ADR-0037): 상품 유형은 대표 카테고리(없으면 가까운 상위)에 연결한 값이고, 연결이 없으면 운영자
+-- 공개(set_good_published)가 거절한다. 카테고리 없이 유형만 직접 넣은 합성 상품을 그 유형이 연결된 합성 카테고리에
+-- 붙여 공개 경로를 그대로 지나게 한다. 유형은 바뀌지 않고(연결값 = 저장된 유형), 이미 카테고리가 있거나 그룹 상품이면
+-- 건드리지 않는다(카테고리 시험의 의미를 바꾸지 않는다).
+create or replace function pg_temp.link_goods_type_category_fixture(p_good_id text) returns void
+language plpgsql security definer set search_path='' as $$
+declare good public.goods; fixture_category uuid;
+begin
+  select * into good from public.goods where id=p_good_id;
+  if not found or good.category_id is not null or coalesce(good.type,'')=''
+    or exists(select 1 from private.goods_group_members where good_id=p_good_id) then return; end if;
+  fixture_category:=('47c47701'||left(md5('goods-type-fixture:'||good.type),24))::uuid;
+  insert into public.catalog_categories(id,code,name,depth,sort_order,good_type)
+    values(fixture_category,'test-type-'||left(md5('goods-type-fixture:'||good.type),12),'TEST-ONLY 상품 유형 '||good.type,1,0,good.type)
+    on conflict (id) do nothing;
+  update public.goods set category_id=fixture_category where id=p_good_id;
+end $$;
+
 create or replace function pg_temp.review_goods_kc_fixture(p_good_id text) returns void
 language plpgsql security definer set search_path='' as $$
 declare previous_actor text:=current_setting('request.jwt.claim.sub',true); config jsonb; models jsonb;
   fixture_actor uuid:=('47c47700'||left(md5(p_good_id),24))::uuid;
 begin
+  perform pg_temp.link_goods_type_category_fixture(p_good_id);
   if exists(select 1 from auth.users where id=fixture_actor and raw_app_meta_data->>'testFixture' is distinct from 'goods-kc') then
     raise exception 'KC test reviewer identity collision';
   end if;

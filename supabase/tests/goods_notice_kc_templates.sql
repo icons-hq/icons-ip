@@ -96,6 +96,8 @@ insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,fre
  values('00000000-0000-4000-8000-000000050930','kc-preset-tests','합성 출고지','hanjin',3000,30000,'배송 금지 검증 주소',true);
 update public.goods set image_path='public-media/kc-preset.webp',notice_made_on='2026',notice_as_manager='합성',notice_as_contact='합성',
   origin_id='00000000-0000-4000-8000-000000050930' where id='kc-preset-created';
+-- SHEET-003(ADR-0037): 공개는 대표 카테고리의 상품 유형 연결을 본다. KC 판정을 보려고 같은 유형이 연결된 합성 카테고리에 붙인다(유형은 그대로).
+select pg_temp.link_goods_type_category_fixture('kc-preset-created');
 set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000050901',true);
 do $$ begin

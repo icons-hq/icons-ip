@@ -4,6 +4,8 @@ import { describe, expect, it } from 'vitest';
 import { emptyGoodsKcWorkbookRow, GOODS_KC_WORKBOOK_LEGACY_HEADERS, GOODS_KC_WORKBOOK_SHEET } from './goods-kc-workbook';
 import { buildGoodsWorkbook, parseGoodsWorkbookWithKc } from './goods-workbook-file';
 import { emptyGoodsCustomInputWorkbookRow, exportGoodsCustomInputWorkbookRows } from './goods-custom-input-workbook';
+import { GOOD_TYPE_PUBLISH_REQUIRED } from './catalog';
+import { GOOD_TYPE_CATEGORY_MESSAGES } from './good-workspace';
 import {
   emptyGoodsWorkbookRow,
   exportGoodsWorkbookRows,
@@ -446,8 +448,10 @@ describe('goods Excel planning', () => {
     // 번호·코드가 모두 빈 행은 새 상품이다. 상품 URL로 기존 상품을 찾지 않고, 이미 쓰는 URL이면 덮지 않고 오류다.
     const byUrl = planGoodsWorkbookImport([{ row: 5, values: { ...values, productNo: '', code: '' } }], context)[0];
     expect(byUrl).toMatchObject({ kind: 'error', target: null });
+    // 공개로 내보낸 행이라 새 상품의 공개 조건(SHEET-003: 상품 유형이 연결된 대표 카테고리)도 함께 알린다.
     expect(byUrl.errors).toEqual([
       '5행: 이미 쓰는 상품 URL입니다(existing-good). 기존 상품을 고치려면 상품번호나 판매자상품코드를 그대로 두고, 새 상품이면 상품 URL을 비우거나 다른 값을 넣어 주세요.',
+      GOOD_TYPE_PUBLISH_REQUIRED,
     ]);
     // 상품번호와 판매자상품코드가 어긋나거나, 없는 번호·숫자가 아닌 번호는 오류다.
     const mismatch = planGoodsWorkbookImport([{ row: 5, values: { ...values, code: 'OTHER-CODE' } }], context)[0];
@@ -478,8 +482,8 @@ describe('goods Excel planning', () => {
       expect({ label, kind: group.kind, target: group.target }).toEqual({ label, kind: 'error', target: null });
       expect(group.errors.join()).toContain('이미 쓰는 상품 URL입니다(existing-good)');
     }
-    // 같은 행에서 상품 URL도 지우면 새 상품 초안이 된다(원래 상품은 그대로).
-    const fresh = planGoodsWorkbookImport([{ row: 5, values: { ...copy, id: '' } }], context)[0];
+    // 같은 행에서 상품 URL도 지우고 초안으로 두면 새 상품 초안이 된다(원래 상품은 그대로).
+    const fresh = planGoodsWorkbookImport([{ row: 5, values: { ...copy, id: '', publish: '' } }], context)[0];
     expect(fresh).toMatchObject({ kind: 'new', target: { name: '복사한 새 상품', price: 9900 } });
     expect(fresh.target?.previous_id ?? null).toBeNull();
   });
@@ -562,12 +566,15 @@ describe('goods Excel planning', () => {
         },
       ],
       imageNames: ['cover.png'],
+      // SHEET-003: 새 상품을 공개하려면 대표 카테고리(또는 상위)에 상품 유형이 연결되어 있어야 한다.
+      categories: [{ id: '00000000-0000-4000-8000-000000160150', code: 'paper', archived_at: null, parent_id: null, good_type: '문구' }],
     };
     const group = planGoodsWorkbookImport(
       [
         row({
           publish: '공개',
           type: '문구',
+          categoryCode: 'paper',
           preset: '문구',
           originCode: 'gimpo',
           imageFile: 'cover.png',
@@ -575,6 +582,7 @@ describe('goods Excel planning', () => {
       ],
       next,
     )[0];
+    expect(group.errors).toEqual([]);
     expect(group.kind).toBe('new');
     expect(group.images).toEqual([
       { field: 'image_path', source: 'cover.png', kind: 'file' },
@@ -642,6 +650,70 @@ describe('goods Excel planning', () => {
         { id: 'c', rows: 1 },
       ]),
     ).toEqual([['a', 'b'], ['c']]);
+  });
+});
+
+describe('상품 유형 열(SHEET-003·ADR-0037)', () => {
+  const root = '00000000-0000-4000-8000-000000160100';
+  const leaf = '00000000-0000-4000-8000-000000160101';
+  const doll = '00000000-0000-4000-8000-000000160102';
+  const none = '00000000-0000-4000-8000-000000160110';
+  const categories = [
+    { id: root, code: 'figure-root', archived_at: null, parent_id: null, good_type: '피규어' },
+    { id: leaf, code: 'figure-leaf', archived_at: null, parent_id: root, good_type: null },
+    { id: doll, code: 'doll-leaf', archived_at: null, parent_id: root, good_type: '인형' },
+    { id: none, code: 'no-type', archived_at: null, parent_id: null, good_type: null },
+  ];
+  const ctx: GoodsWorkbookContext = { ...context, categories };
+  it('반입은 유형 열을 무시하고 대표 카테고리(없으면 가까운 상위)의 연결값을 싣는다', () => {
+    const [group] = planGoodsWorkbookImport([row({ categoryCode: 'figure-leaf', type: '문구' })], ctx);
+    expect(group).toMatchObject({ kind: 'new', target: { type: '피규어', category_id: leaf } });
+    expect(group.warnings).toContain('상품 유형 열(‘문구’)은 반영하지 않습니다. 상품 유형은 대표 카테고리(없으면 가까운 상위)에 연결한 값(‘피규어’)으로 정해집니다.');
+    // 같은 값이거나 비우면 안내하지 않는다.
+    expect(planGoodsWorkbookImport([row({ categoryCode: 'figure-leaf', type: '피규어' })], ctx)[0].warnings.join()).not.toContain('상품 유형 열');
+    expect(planGoodsWorkbookImport([row({ categoryCode: 'figure-leaf' })], ctx)[0].warnings.join()).not.toContain('상품 유형 열');
+  });
+  it('연결이 없는 새 상품은 공개할 수 없고, 초안은 저장된다', () => {
+    expect(planGoodsWorkbookImport([row({ categoryCode: 'no-type', publish: '공개' })], ctx)[0].errors).toContain(GOOD_TYPE_PUBLISH_REQUIRED);
+    expect(planGoodsWorkbookImport([row({ publish: '공개' })], ctx)[0].errors).toContain(GOOD_TYPE_PUBLISH_REQUIRED);
+    expect(planGoodsWorkbookImport([row({ categoryCode: 'no-type' })], ctx)[0]).toMatchObject({ kind: 'new', target: { type: '' } });
+  });
+  it('유형 열만 바꾼 내보내기 파일은 변경 없음이고, 공개 상품은 유형이 바뀌는 카테고리로 옮길 수 없다', () => {
+    const record: GoodsImportExisting = { ...existing, good: { ...existing.good, type: '피규어', category_id: leaf } };
+    const withRecord: GoodsWorkbookContext = { ...ctx, existing: [record] };
+    const [exported] = exportGoodsWorkbookRows(record, withRecord);
+    expect(exported).toMatchObject({ type: '피규어', categoryCode: 'figure-leaf' });
+    expect(planGoodsWorkbookImport([{ row: 5, values: { ...exported, type: '인형' } }], withRecord)[0].kind).toBe('unchanged');
+    // 같은 유형(피규어)을 물려받는 카테고리로는 옮기고, 다른 유형·연결 없음은 막는다.
+    expect(planGoodsWorkbookImport([{ row: 5, values: { ...exported, categoryCode: 'figure-root' } }], withRecord)[0].errors).toEqual([]);
+    expect(planGoodsWorkbookImport([{ row: 5, values: { ...exported, categoryCode: 'doll-leaf' } }], withRecord)[0].errors).toContain(GOOD_TYPE_CATEGORY_MESSAGES.locked);
+    expect(planGoodsWorkbookImport([{ row: 5, values: { ...exported, categoryCode: 'no-type' } }], withRecord)[0].errors).toContain(GOOD_TYPE_CATEGORY_MESSAGES.required);
+    // 공개 상품은 연결값과 달라도 저장된 유형을 싣고(다른 칸 저장은 막지 않는다), 초안으로 되돌리면 유형이 바뀐다고 알린다.
+    const mismatched: GoodsImportExisting = { ...record, good: { ...record.good, category_id: doll } };
+    const mismatchCtx: GoodsWorkbookContext = { ...ctx, existing: [mismatched] };
+    const [stale] = exportGoodsWorkbookRows(mismatched, mismatchCtx);
+    expect(planGoodsWorkbookImport([{ row: 5, values: { ...stale, stockQty: '9' } }], mismatchCtx)[0]).toMatchObject({ kind: 'update', target: { type: '피규어' } });
+    expect(planGoodsWorkbookImport([{ row: 5, values: { ...stale, publish: '초안' } }], mismatchCtx)[0].warnings)
+      .toContain('초안으로 바뀌며 상품 유형이 ‘인형’으로 바뀌고 KC를 다시 검토해야 공개할 수 있습니다.');
+    // 공개 상품이 초안으로 바뀌면서 유형이 다른 카테고리로 옮기는 행은 막지 않고 경고한다(DB는 먼저 초안으로 바꾼 뒤 이동을 허용한다).
+    const toDraft = planGoodsWorkbookImport([{ row: 5, values: { ...exported, categoryCode: 'doll-leaf', publish: '초안' } }], withRecord)[0];
+    expect(toDraft.errors).toEqual([]);
+    expect(toDraft.warnings).toContain('초안으로 바뀌며 상품 유형이 ‘인형’으로 바뀌고 KC를 다시 검토해야 공개할 수 있습니다.');
+    // 공개를 유지하는 행은 여전히 막는다.
+    expect(planGoodsWorkbookImport([{ row: 5, values: { ...exported, categoryCode: 'doll-leaf', publish: '공개' } }], withRecord)[0].errors)
+      .toContain(GOOD_TYPE_CATEGORY_MESSAGES.locked);
+  });
+  it('내보내기의 유형 열은 대표 카테고리에서 정해진 유형이다(공개 중이면 저장된 유형)', () => {
+    const draft: GoodsImportExisting = { ...existing, good: { ...existing.good, published_at: null, first_published_at: null, type: '문구', category_id: leaf } };
+    expect(exportGoodsWorkbookRows(draft, ctx)[0].type).toBe('피규어');
+    const unlinked: GoodsImportExisting = { ...draft, good: { ...draft.good, category_id: none } };
+    expect(exportGoodsWorkbookRows(unlinked, ctx)[0].type).toBe('문구');
+    const published: GoodsImportExisting = { ...existing, good: { ...existing.good, type: '문구', category_id: leaf } };
+    expect(exportGoodsWorkbookRows(published, ctx)[0].type).toBe('문구');
+  });
+  it('같은 상품의 여러 옵션 행에서 유형 열이 달라도 오류로 보지 않는다', () => {
+    const rows = [row({ categoryCode: 'figure-leaf', variantName: 'A', variantCode: '', type: '문구' }), row({ categoryCode: 'figure-leaf', variantName: 'B', variantCode: '', type: '' }, 6)];
+    expect(planGoodsWorkbookImport(rows, ctx)[0].errors.join()).not.toContain('같은 상품의 상품 정보가 서로 다릅니다');
   });
 });
 

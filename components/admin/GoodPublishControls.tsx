@@ -123,7 +123,7 @@ export function GoodPublishControls({ id, publishedAt, archivedAt, readiness, un
       <details className={`group/readiness-guide ${FOLD_CLASS}`} data-good-readiness-guide="">
         <summary className={`${FOLD_SUMMARY_CLASS} text-xs text-muted-foreground`}><ChevronRight aria-hidden="true" className={`${FOLD_CHEVRON_CLASS} group-open/readiness-guide:rotate-90`} />판매 준비 안내</summary>
         <div className="mt-2 flex min-w-0 flex-col gap-2 rounded-lg border px-3 py-3 text-muted-foreground">
-          {!published && !archivedAt ? <p>공개하려면 상품 유형·대표 이미지·상품정보제공고시 7칸·출고지·옵션과 KC 검토 완료가 필요합니다. 연결 IP도 공개되어야 고객에게 보입니다.</p> : null}
+          {!published && !archivedAt ? <p>공개하려면 상품 유형이 연결된 대표 카테고리·대표 이미지·상품정보제공고시 7칸·출고지·옵션과 KC 검토 완료가 필요합니다. 연결 IP도 공개되어야 고객에게 보입니다.</p> : null}
           <p>게시·판매 설정·KC 검토는 별도 조건입니다. 준비 완료가 결제사 승인이나 실제 구매 성공을 보증하지는 않습니다.</p>
           <p>공개·초안 전환은 저장된 내용의 게시 상태만 바꿉니다. 저장하지 않은 입력은 함께 저장되지 않고 화면에 그대로 남습니다.</p>
           <p>모델·옵션·고시정보를 수정하면 실제 상품과 검토 근거가 달라질 수 있어 초안 전환과 KC 재검토가 필요합니다. 수정 후 KC 검토를 완료하고 다시 공개해주세요.</p>

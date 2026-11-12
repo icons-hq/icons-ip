@@ -158,7 +158,7 @@ export function CategoryAssignmentField({
         choose(template.categoryId); setTemplatePicker(false);
       }} /> : null}
       <span className="text-xs text-muted-foreground" id="category-assignment-hint">
-        마지막 단계 카테고리 하나를 대표로 고릅니다. ERP 분류는 대표 카테고리를 사용합니다. 보관된 현재 값은 명시적으로 미분류를 선택해야 해제됩니다. 비워도 기존 유형과 전체 상품 판매는 유지됩니다.
+        마지막 단계 카테고리 하나를 대표로 고릅니다. ERP 분류는 대표 카테고리를 사용합니다. 보관된 현재 값은 명시적으로 미분류를 선택해야 해제됩니다. 상품 유형은 대표 카테고리(없으면 가까운 상위)에 연결한 값이라, 비우거나 연결 없는 카테고리면 새로 공개할 수 없고 공개 중인 상품은 유형이 같은 카테고리로만 옮깁니다.
       </span>
       {error ? <span className="text-sm text-destructive" role="alert">{error}</span> : null}
       {additionalValue !== undefined && <details className="group/additional min-w-0 rounded-lg border" data-good-category-additional="" open={Boolean(additionalError) || additional.length > 0}><summary className="flex cursor-pointer list-none items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium outline-none select-none group-open/additional:rounded-b-none focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden"><ChevronRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open/additional:rotate-90 motion-reduce:transition-none" />추가 카테고리 (선택)</summary><div className="flex min-w-0 flex-col gap-3 border-t px-3 py-4">

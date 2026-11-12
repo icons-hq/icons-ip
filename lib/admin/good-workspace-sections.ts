@@ -254,6 +254,8 @@ export function goodWorkspaceSectionFailure(message: string): Partial<Record<Goo
   if (message.includes('goods_workspace_kc_variant_unresolved') || message.includes('invalid_goods_workspace_kc_variant')) {
     return { workspaceKc: 'KC 모델에 연결한 옵션을 저장된 옵션목록에서 찾지 못했습니다. 적용 옵션을 다시 선택해주세요. 상품은 저장되지 않았고 입력은 유지됩니다.' };
   }
+  // 화면이 확인한 상품 유형과 저장 시점의 대표 카테고리 연결값이 다르면 KC를 검토 완료로 두지 않고 전체를 거절한다.
+  if (message.includes('goods_type_category_changed')) return { workspaceKc: '카테고리에 연결된 상품 유형이 바뀌었습니다. 새로고침한 뒤 KC를 다시 확인해주세요.' };
   if (message.includes('goods_kc_review_changed')) return { workspaceKc: '다른 작업에서 KC 검토가 바뀌었습니다. 입력은 유지됩니다. 새로고침 후 KC 정보를 확인해주세요.' };
   if (message.includes('goods_kc_attestation_required') || message.includes('goods_kc_review_incomplete')) {
     return { workspaceKc: '사용 중인 옵션 연결과, KC 대상이면 제품군·제도·품목·모델·사업자와 인증·신고번호(안전인증·안전확인)를 확인한 뒤 확인을 체크해주세요. 아니면 확인 체크를 풀어 미검토로 저장합니다.' };

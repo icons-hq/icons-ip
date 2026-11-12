@@ -141,7 +141,7 @@ describe('어드민 굿즈 미리보기', () => {
     });
 
     expect(preview.good.name).toBe('(굿즈 이름 미입력)');
-    expect(preview.good.type).toBe('(유형 미입력)');
+    expect(preview.good.type).toBe('(카테고리 상품 유형 없음)');
     expect(preview.good.price).toBe(0);
     expect(preview.good.stock).toBe('ok');
     expect(preview.good.img).toContain('linear-gradient');

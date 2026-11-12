@@ -177,7 +177,7 @@ describe('대표 카테고리 찾기의 ERP 분류명', () => {
     categoryList = [root, { ...leaf('a', '가방'), erpNames: ['문구>키링'] }, leaf('b', '노트')];
     input().props.onChange!({ target: { value: '문구>키링' } });
     expect(options()).toHaveLength(1);
-    expect(optionText(0)).toContain('code-a · ERP 분류 문구>키링');
+    expect(optionText(0)).toContain('code-a'); expect(optionText(0)).toContain(' · ERP 분류 문구>키링');
     input().props.onChange!({ target: { value: '가방' } });
     expect(options()).toHaveLength(1);
     expect(optionText(0)).not.toContain('ERP 분류');

@@ -1,9 +1,12 @@
 import type { GoodsNoticeInfo } from '@/lib/goods-notice';
 import {
+  GOOD_TYPE_PUBLISH_REQUIRED,
   normalizeAdminGoodForm,
   normalizeGoodsSearchKeywords,
   validateGoodsSearchKeywords,
 } from './catalog';
+import { categoryGoodType } from './category';
+import { GOOD_TYPE_CATEGORY_MESSAGES } from './good-workspace';
 import { parseGoodsOptionRows } from './goods-option-editor';
 import { sanitizeGoodsDescription } from '@/lib/goods-description';
 import { parsePurchaseCostInput, type PurchaseTaxBasis } from './goods-purchase-costs';
@@ -14,6 +17,7 @@ import { goodsCustomInputWorkbookConfig, goodsCustomInputWorkbookOrphanErrors, p
   type GoodsCustomInputWorkbookInputRow } from './goods-custom-input-workbook';
 import type { GoodsAfterSalesSnapshot } from '@/lib/goods-after-sales';
 import type { GoodsSizeChartSnapshot } from '@/lib/goods-size-chart';
+import { resultParticle } from '@/lib/korean-particle';
 import { goodsGuidanceOrphanErrors, planGoodsAfterSalesWorkbook, planGoodsSizeWorkbook,
   GOODS_AFTER_SALES_WORKBOOK_SHEET, GOODS_SIZE_WORKBOOK_SHEET,
   type GoodsAfterSalesWorkbookInputRow, type GoodsSizeWorkbookInputRow, type GoodsImportGuidance } from './goods-guidance-workbook';
@@ -257,7 +261,8 @@ export type GoodsWorkbookContext = {
   ips: { id: string; archived_at: string | null }[];
   origins: { id: string; code: string; is_active: boolean }[];
   presets: { name: string; notice: GoodsNoticeInfo }[];
-  categories?: { id: string; code: string; archived_at: string | null }[];
+  /** 대표·추가 카테고리 코드와 상품 유형 연결(SHEET-003: 상품 유형 = 대표 카테고리(없으면 가까운 상위)의 연결값). */
+  categories?: { id: string; code: string; archived_at: string | null; parent_id?: string | null; good_type?: string | null }[];
   imageNames?: string[];
   kcRows?: GoodsKcWorkbookInputRow[] | null;
   customInputRows?: GoodsCustomInputWorkbookInputRow[] | null;
@@ -350,8 +355,34 @@ const integer = wholeWon;
 // Normalize only for comparison: preserve the raw stored/input text, blanks,
 // zero values, spaces and every other content change.
 const comparableCellText = (value: string) => value.replace(/\r\n?/g, '\n');
+/**
+ * SHEET-003(ADR-0037): 상품 유형 열은 내보내기에만 쓰고(대표 카테고리에서 정해진 저장 유형) 반입은 반영하지 않는다.
+ * 그래서 변경 여부·같은 상품 행 일치 비교에서도 뺀다.
+ */
+const IGNORED_ON_IMPORT_KEYS = new Set<GoodsWorkbookKey>(['type']);
 const canonical = (values: GoodsWorkbookRow) =>
-  JSON.stringify(GOODS_WORKBOOK_KEYS.map((key) => comparableCellText(values[key])));
+  JSON.stringify(GOODS_WORKBOOK_KEYS.filter((key) => !IGNORED_ON_IMPORT_KEYS.has(key)).map((key) => comparableCellText(values[key])));
+/**
+ * 상품에 적용되는 상품 유형(SHEET-003): 공개 중이면 저장된 유형, 초안은 대표 카테고리(없으면 가까운 상위)의 연결값(없으면 저장된 값).
+ * 내보내기의 상품 유형 열과 반입이 싣는 값이 같은 규칙이다(저장 때 DB 트리거가 같은 값으로 맞춘다).
+ */
+function goodsWorkbookAppliedType(
+  good: Record<string, unknown>,
+  categoryId: string | null,
+  typeNodes: readonly { id: string; parentId: string | null; goodType: string | null }[],
+): { applied: string; categoryType: string } {
+  const categoryType = categoryId ? categoryGoodType(typeNodes, categoryId) : '';
+  const stored = good.type == null ? '' : String(good.type);
+  return { categoryType, applied: good.published_at ? stored : categoryType || stored };
+}
+const goodsWorkbookTypeNodes = (categories: GoodsWorkbookContext['categories']) =>
+  (categories ?? []).map((category) => ({ id: category.id, parentId: category.parent_id ?? null, goodType: category.good_type ?? null }));
+/** 반입에서 상품 유형 열을 무시한다는 안내. 파일 값이 적용될 유형과 다를 때만 보인다. */
+export function goodsWorkbookTypeIgnoredWarning(fileType: string, appliedType: string): string | null {
+  const value = fileType.trim();
+  if (!value || value === appliedType) return null;
+  return `상품 유형 열(‘${value}’)은 반영하지 않습니다. 상품 유형은 대표 카테고리(없으면 가까운 상위)에 연결한 값${appliedType ? `(‘${appliedType}’)` : '(지금 연결 없음)'}으로 정해집니다.`;
+}
 const imagePairs = [
   ['imageUrl', 'imageFile', 'image_path'],
   ['galleryUrl0', 'galleryFile0', 'gallery_0'],
@@ -439,7 +470,8 @@ export function exportGoodsWorkbookRows(
     ipId: str(good.ip_id),
     id: str(good.id),
     publish: good.archived_at ? '보관' : good.published_at ? '공개' : '초안',
-    type: str(good.type),
+    /* SHEET-003: 대표 카테고리에서 정해진 유형(공개 중이면 저장된 유형). 반입은 이 열을 반영하지 않는다. */
+    type: goodsWorkbookAppliedType(good, str(good.category_id) || null, goodsWorkbookTypeNodes(context.categories)).applied,
     salePrice: discounted ? str(storedCompare) : str(good.price),
     instantDiscount: discounted ? String(storedCompare! - storedPrice) : '',
     showDiscountRate: good.show_discount_rate === false ? '아니오' : '예',
@@ -583,6 +615,7 @@ export function planGoodsWorkbookImport(
   const targets = inputRows.map((row) => resolveGoodsWorkbookTarget(row, context.existing));
   const rows = targets.map((target) => target.row);
   const matchedByNumberOnly = new Set(targets.flatMap((target) => target.matchedByNumberOnly ? [target.row.row] : []));
+  const typeNodes = goodsWorkbookTypeNodes(context.categories);
   const kcOrphans = goodsKcWorkbookOrphanErrors(context.kcRows ?? [], rows.map(row => row.values.code.trim().toUpperCase()));
   if (kcOrphans.length) throw new Error(kcOrphans.join('\n'));
   const customInputOrphans = goodsCustomInputWorkbookOrphanErrors(context.customInputRows ?? [], rows.map(row => row.values.code));
@@ -672,7 +705,7 @@ export function planGoodsWorkbookImport(
       if (
         GOODS_WORKBOOK_KEYS.some(
           (key) => !OPTION_KEYS.has(key)
-            && key !== 'searchKeywords'
+            && key !== 'searchKeywords' && !IGNORED_ON_IMPORT_KEYS.has(key)
             && comparableCellText(current[key]) !== comparableCellText(first[key]),
         )
         || normalizeGoodsSearchKeywords(current.searchKeywords).join('\n')
@@ -744,7 +777,6 @@ export function planGoodsWorkbookImport(
       'shippingNoticeTemplateCode', 'shippingNoticeTemplateVersion',
       'claimRestrictionReason', 'claimReturnFee', 'claimReturnFreeShippingFee', 'claimExchangeFee',
       'minOrderQty', 'maxOrderQty', 'memberLifetimeQtyLimit',
-      'type',
       'badge',
       'stock',
       'code',
@@ -764,6 +796,22 @@ export function planGoodsWorkbookImport(
     if (first.categoryCode && !category) errors.push('고객 카테고리 코드를 찾을 수 없습니다.');
     if (category?.archived_at && category.id !== record?.good.category_id) errors.push('보관한 카테고리에 새 상품을 연결할 수 없습니다.');
     form.set('categoryId', category?.id ?? '');
+    /*
+     * SHEET-003(ADR-0037): 상품 유형 열은 반영하지 않는다. 초안은 대표 카테고리(없으면 가까운 상위)의 연결값이고, 연결이 없으면
+     * 저장된 값을 그대로 둔다(그 초안은 공개할 수 없다). 공개 중이면 저장된 유형을 유지하고 유형이 바뀌는 카테고리 변경은 막는다.
+     */
+    const { categoryType, applied: appliedType } = goodsWorkbookAppliedType(record?.good ?? {}, category?.id ?? null, typeNodes);
+    const storedType = str(record?.good.type);
+    const publishedNow = Boolean(record?.good.published_at);
+    form.set('type', appliedType);
+    const typeWarning = goodsWorkbookTypeIgnoredWarning(first.type, appliedType);
+    if (typeWarning) group.warnings.push(typeWarning);
+    // 공개를 유지하는 행만 막는다. 초안으로 바꾸는 행은 DB(admin_save_good publish:false)가 먼저 초안으로 바꾼 뒤 카테고리 이동을 허용한다.
+    if (publishedNow && first.publish === '공개' && (category?.id ?? null) !== (str(record?.good.category_id) || null) && categoryType !== storedType)
+      errors.push(categoryType ? GOOD_TYPE_CATEGORY_MESSAGES.locked : GOOD_TYPE_CATEGORY_MESSAGES.required);
+    else if (first.publish === '공개' && !publishedNow && !categoryType) errors.push(GOOD_TYPE_PUBLISH_REQUIRED);
+    else if (publishedNow && first.publish !== '공개' && categoryType && categoryType !== storedType)
+      group.warnings.push(`초안으로 바뀌며 상품 유형이 ‘${categoryType}’${resultParticle(categoryType)} 바뀌고 KC를 다시 검토해야 공개할 수 있습니다.`);
     const additionalIds: string[] = [];
     for (const code of new Set(first.additionalCategoryCodes.split(/[\n,]+/).map(code => code.trim()).filter(Boolean))) {
       const additional = context.categories?.find(category => category.code === code);
@@ -847,7 +895,7 @@ export function planGoodsWorkbookImport(
     if (!normalized.ok)
       errors.push(
         ...Object.values(normalized.errors).filter((error): error is string =>
-          Boolean(error),
+          Boolean(error) && !errors.includes(error),
         ),
       );
     const active =

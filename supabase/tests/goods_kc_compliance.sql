@@ -31,6 +31,9 @@ insert into public.goods(id,ip_id,name,type,price,image_path,origin_id,notice_ma
 insert into public.goods_variants(id,good_id,name,attributes,price,is_default) values
  ('00000000-0000-4000-8000-000000047711','kc-test-good','합성 파랑','{"색상":"파랑"}',1000,false);
 update public.goods_variants set name='합성 빨강',attributes='{"색상":"빨강"}' where good_id='kc-test-good' and is_default;
+-- SHEET-003(ADR-0037): 공개는 대표 카테고리의 상품 유형 연결을 본다. KC 판정을 보려고 같은 유형이 연결된 합성 카테고리에 붙인다(유형은 그대로).
+select pg_temp.link_goods_type_category_fixture('kc-test-good');
+select pg_temp.link_goods_type_category_fixture('kc-other-good');
 select id as kc_default from public.goods_variants where good_id='kc-test-good' and is_default \gset
 select id as kc_other from public.goods_variants where good_id='kc-other-good' and is_default \gset
 set local role authenticated;
