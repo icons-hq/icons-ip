@@ -25,8 +25,8 @@ import { RecordList } from '../fields';
 import { GoodEditor } from '../GoodEditor';
 import { CatalogArchiveControl, CatalogArchiveFilter } from '../CatalogArchiveControls';
 import { GoodsListingColorsPanel } from '../GoodsListingColorsPanel';
-import { GOOD_OPERATION_PLACEHOLDER_COPY, GOOD_UNSAVED_BASE_COPY, GoodOperationDisabledNotice, GoodOperationGroup, GoodOperationSection, GoodWorkspaceProvider } from '../GoodWorkspace';
-import { GoodWorkspaceKcCard, GoodWorkspacePreorderRow } from '../GoodWorkspaceSections';
+import { GOOD_OPERATION_PLACEHOLDER_COPY, GOOD_UNSAVED_BASE_COPY, GoodOperationDisabledNotice, GoodOperationGroup, GoodOperationSection, GoodWorkspaceProvider, focusGoodWorkspaceTarget } from '../GoodWorkspace';
+import { GoodSavedPreorderSection, GoodWorkspaceKcCard, GoodWorkspacePreorderRow } from '../GoodWorkspaceSections';
 import { VariantStockAdjustmentForm } from '../VariantStockAdjustmentForm';
 import { GoodVariantsPanel } from '../GoodVariantsPanel';
 import { GoodPublishControls } from '../GoodPublishControls';
@@ -40,6 +40,7 @@ import { GoodsPricePeriodsPanel } from '../GoodsPricePeriodsPanel';
 import { GoodsPreordersPanel } from '../GoodsPreordersPanel';
 import { GoodsBenefitsPanel } from '../GoodsBenefitsPanel';
 import { GoodsAfterSalesPanel } from '../GoodsAfterSalesPanel';
+import { GoodsAfterSalesPhoneSuggestion } from '../GoodsAfterSalesFields';
 import { GoodSizeChartPanel } from '../GoodSizeChartPanel';
 import { GoodsTransactionTermsPanel } from '../GoodsTransactionTermsPanel';
 import { GoodsFulfillmentPanel } from '../GoodsFulfillmentPanel';
@@ -165,7 +166,8 @@ export function GoodSection({
       additional: <GoodOperationSection key="additional" id="additional" title={OPERATION.additional[0]} description={OPERATION.additional[1]}><GoodsAdditionalPanel goodId={selected.id} key={`additional-${selected.id}`} /></GoodOperationSection>,
       benefits: <GoodOperationSection key="benefits" id="benefits" title={OPERATION.benefits[0]} description={OPERATION.benefits[1]}><GoodsBenefitsPanel goodId={selected.id} key={`benefits-${accountId}-${selected.id}`} /></GoodOperationSection>,
       ...(ownership?.group ? {} : {
-        'after-sales': <GoodOperationSection key="after-sales" id="after-sales" title={OPERATION['after-sales'][0]} description={OPERATION['after-sales'][1]}><GoodsAfterSalesPanel goodId={selected.id} key={`after-sales-${accountId}-${selected.id}`} /></GoodOperationSection>,
+        /* ADM-004(복잡도 표 387행): 비어 있는 A/S 전화번호는 이 상품의 고시 A/S 연락처(저장값)로 미리 채운다. 저장은 안내 저장으로 따로 한다. */
+        'after-sales': <GoodsAfterSalesPhoneSuggestion.Provider key="after-sales" value={selected.notice?.asContact ?? ''}><GoodOperationSection id="after-sales" title={OPERATION['after-sales'][0]} description={OPERATION['after-sales'][1]}><GoodsAfterSalesPanel goodId={selected.id} key={`after-sales-${accountId}-${selected.id}`} /></GoodOperationSection></GoodsAfterSalesPhoneSuggestion.Provider>,
         'size-chart': <GoodOperationSection key="size-chart" id="size-chart" title={OPERATION['size-chart'][0]} description={OPERATION['size-chart'][1]}><GoodSizeChartPanel goodId={selected.id} accountId={accountId} key={`size-chart-${accountId}-${selected.id}`} /></GoodOperationSection>,
       }),
       prices: <GoodOperationSection key="prices" id="prices" title={OPERATION.prices[0]} description={OPERATION.prices[1]}><GoodsPricePeriodsPanel goodId={selected.id} variants={variants} key={`prices-${selected.id}`} /></GoodOperationSection>,
@@ -179,12 +181,25 @@ export function GoodSection({
       /* D5② 판매 방식(랜덤 판매): 옵션·가격 저장과 낙관 잠금(goods.updated_at)을 나눠 쓰므로 기본 입력이 잠기면 함께 잠그고,
          상품을 저장해 수정 시각이 바뀌면 다시 읽는다. */
       'option-sale-mode': <GoodOperationSection key="option-sale-mode" notice={policyNotice} id="option-sale-mode" title={OPERATION['option-sale-mode'][0]} description={OPERATION['option-sale-mode'][1]}><GoodsOptionSaleModePanel key={`option-sale-mode-${selected.id}`} goodId={selected.id} revision={`${selected.updatedAt ?? ''}:${state.attempt ?? 0}`} disabled={Boolean(policyDisabled)} /></GoodOperationSection>,
-      preorders: <GoodOperationSection key="preorders" id="preorders" title={OPERATION.preorders[0]} description={OPERATION.preorders[1]}><GoodsPreordersPanel goodId={selected.id} variants={variants} canActivate={canManageCosts} canReadOrders={canReadOrders} canAllocate={canManageSales} randomSale={selected.optionSaleMode === 'random'} key={`preorders-${selected.id}`} /></GoodOperationSection>,
+      /* 1027T-023: 예약판매 패널은 판매 정보 카드의 판매기간 바로 뒤로 옮겼다. 옛 자리에는 그 위치로 가는 링크만 남긴다(판매 방식 바로 뒤 — D5②). */
+      preorders: <div key="preorders" className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border px-4 py-3 text-sm" data-good-operation-moved="preorders">
+        <span className="font-medium text-foreground">{OPERATION.preorders[0]}</span>
+        <span className="min-w-0 flex-1 text-muted-foreground">판매 정보 카드의 판매기간 아래에서 설정합니다.</span>
+        <a className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" href="#good-operation-preorders" onClick={(event) => { event.preventDefault(); focusGoodWorkspaceTarget('good-operation-preorders'); }}>예약판매로 이동</a>
+      </div>,
       ...(cloneOperationId ? { clone: <GoodOperationSection key="clone" id="clone" title={OPERATION.clone[0]} description={OPERATION.clone[1]}><GoodClonePanel operationId={cloneOperationId} goodId={selected.id} goodName={selected.name} goodCode={selected.code} categoryId={selected.categoryId ?? null} key={`clone-${selected.id}`} /></GoodOperationSection> } : {}),
     }),
     archive: <GoodOperationSection key="archive" id="archive" title={OPERATION.archive[0]} description={OPERATION.archive[1]}><CatalogArchiveControl archivedAt={selected.archivedAt} id={selected.id} key={`${selected.id}:${selected.archivedAt ?? 'active'}`} kind="good" /></GoodOperationSection>,
   };
-  /* 저장 전 목록: 이 계정·상품에서 저장 뒤 실제로 보일 항목만, 같은 묶음·같은 순서로. 게시 상태는 판매 운영 맨 앞, 예약판매는 입력 줄이 따로 있다. */
+  /*
+   * 판매 정보 카드의 예약판매(1027T-023, 판매기간 바로 뒤). 등록 화면은 상품과 함께 저장하는 입력이고, 저장된 상품은 같은 자리(같은 id)의
+   * 별도 저장 패널이다 — "등록 화면을 떠나지 않고 같은 자리에서"(10/27 R13). 보관된 상품은 예약판매를 다루지 않는다.
+   */
+  const preorderSlot: ReactNode = !selected
+    ? <GoodWorkspacePreorderRow title={OPERATION.preorders[0]} canActivate={canManageCosts} serverError={state.errors?.workspacePreorders} disabled={pending} />
+    : selected.archivedAt ? null
+    : <GoodSavedPreorderSection title={OPERATION.preorders[0]}><GoodsPreordersPanel goodId={selected.id} variants={variants} canActivate={canManageCosts} canReadOrders={canReadOrders} canAllocate={canManageSales} randomSale={selected.optionSaleMode === 'random'} key={`preorders-${selected.id}`} /></GoodSavedPreorderSection>;
+  /* 저장 전 목록: 이 계정·상품에서 저장 뒤 실제로 보일 항목만, 같은 묶음·같은 순서로. 게시 상태는 판매 운영 맨 앞, 예약판매는 판매 정보 카드에 입력 칸이 있다. */
   const pendingOperations: Partial<Record<OperationId, boolean>> = { stock: true, publish: true, variants: !ownership?.group, costs: canManageCosts, 'listing-colors': true, additional: true, benefits: true, 'after-sales': !ownership?.group, 'size-chart': !ownership?.group, prices: true, 'transaction-terms': true, 'shipping-charge-group': true, 'subscription-policy': true, fulfillment: Boolean(accountId), production: Boolean(accountId), 'option-sale-mode': true, clone: Boolean(cloneOperationId), archive: true };
   const pendingOperationGroups = OPERATION_GROUPS.map((group) => ({ ...group, operations: (group.id === 'sales' ? ['stock', 'publish', 'variants', 'option-sale-mode'] as const : group.operations).filter((id) => pendingOperations[id]) })).filter((group) => group.operations.length);
 
@@ -264,6 +279,7 @@ export function GoodSection({
           initialIpId={initialIpId}
           readiness={readiness}
           kcSlot={kcSlot}
+          preorderSlot={preorderSlot}
         />
         </fieldset>
         {selected ? <section aria-labelledby="good-operation-hub-title" className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-sm text-card-foreground sm:p-5" data-good-operation-hub="saved">
@@ -287,7 +303,6 @@ export function GoodSection({
               <dd className="m-0 min-w-0"><ul className="m-0 flex list-none flex-wrap gap-x-1 p-0" data-good-operation-names="">{group.operations.map((id, index) => <li id={`good-operation-${id}`} key={id} data-good-operation-name={id}>{OPERATION[id][0]}{index < group.operations.length - 1 ? <span aria-hidden="true" className="text-muted-foreground"> · </span> : null}</li>)}</ul></dd>
             </div>)}
           </dl>
-          <GoodWorkspacePreorderRow title={OPERATION.preorders[0]} canActivate={canManageCosts} serverError={state.errors?.workspacePreorders} disabled={pending} />
         </section>}
       </div>
     </div>

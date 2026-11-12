@@ -45,7 +45,9 @@ describe('상품 옵션 ERP 식별자 입력', () => {
 
     expect(html).toContain('data-option-mode="single"');
     expect(html).toMatch(/<label class="[^"]*" for="goods-single-stock">재고수량 \(필수\)<\/label>/);
-    expect(html).toContain('ICONS에서 판매할 수량이며 주문하면 차감됩니다. 안전재고는 부족 알림 기준입니다.');
+    expect(html).toContain('ICONS에서 판매할 수량이며 주문하면 차감됩니다. 비워 두면 저장되지 않으니 재고가 없으면 0을 입력합니다. 안전재고는 부족 알림 기준입니다.');
+    const stock = html.match(/<input[^>]*id="goods-single-stock"[^>]*>/)?.[0] ?? '';
+    expect(stock).toContain('value="8"'); expect(stock).toContain('required=""');
     expect(html).toMatch(/<input type="radio" name="optionUsage" checked="" value="off"\/>설정안함/);
     expect(html).toContain('aria-label="기본 옵션명"');
     expect(html).toContain('GOOD-0001');
@@ -53,6 +55,24 @@ describe('상품 옵션 ERP 식별자 입력', () => {
     expect(html).not.toContain('기본 옵션 사용여부');
     expect(html).not.toContain('aria-label="옵션목록 편집표"');
     for (const legacy of ['기준 판매가', '추가금액', '옵션 판매가', '할당 재고', '조합 생성']) expect(html).not.toContain(legacy);
+  });
+
+  /* 0901-015(11/11 결정 "비우면 저장 불가"): 새 재고 칸은 빈 값이고 필수 입력이다. 옵션목록의 새 옵션도 같다. 0은 값으로 보인다. */
+  it('새 재고 칸은 0을 미리 채우지 않고 빈 필수 입력으로 시작하며, 0을 넣으면 0으로 보인다', () => {
+    const empty = renderToStaticMarkup(<GoodsOptionEditor onRowsChange={() => {}} baseline={[]} basePrice={10000}
+      rows={[{ name: '기본 옵션', code: '', attributes: {}, extraPrice: 0, stockQty: Number.NaN }]} />);
+    const input = (html: string, pattern: string) => html.match(new RegExp(`<input[^>]*${pattern}[^>]*>`))?.[0] ?? '';
+    const blank = input(empty, 'id="goods-single-stock"');
+    for (const attribute of ['value=""', 'required=""', 'placeholder="숫자 입력"']) expect(blank).toContain(attribute);
+    expect(empty).toContain('&quot;stockQty&quot;:null');
+    const zero = renderToStaticMarkup(<GoodsOptionEditor onRowsChange={() => {}} baseline={[]} basePrice={10000}
+      rows={[{ name: '기본 옵션', code: '', attributes: {}, extraPrice: 0, stockQty: 0 }]} />);
+    expect(input(zero, 'id="goods-single-stock"')).toContain('value="0"');
+    const options = renderToStaticMarkup(<GoodsOptionEditor onRowsChange={() => {}} baseline={[]} basePrice={10000} axisValues={{ optionUsage: 'on' }}
+      rows={[{ name: '빨강', code: '', attributes: { 색상: '빨강' }, extraPrice: 0, stockQty: 3 }, { name: '파랑', code: '', attributes: { 색상: '파랑' }, extraPrice: 0, stockQty: Number.NaN }]} />);
+    expect(input(options, 'aria-label="옵션 1 재고수량"')).toContain('value="3"');
+    expect(input(options, 'aria-label="옵션 2 재고수량"')).toContain('value=""');
+    expect(input(options, 'aria-label="옵션 2 재고수량"')).toContain('required=""');
   });
 
   /* 2026-10-07 리뷰: 중지된 기본 옵션만 남은 상품은 옵션 미사용 화면에서 사용여부를 되돌릴 칸이 없었다. */

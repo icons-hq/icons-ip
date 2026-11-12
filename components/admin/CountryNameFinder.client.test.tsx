@@ -18,7 +18,6 @@ vi.mock('react-dom', () => ({ createPortal: hooks.portal }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ replace: vi.fn() }) }));
 import { CountryNameFinder, CountryNamePicker, GoodsOriginField } from './CountryNameFinder';
 import { ConsolePagination } from './console/ConsolePagination';
-import { Field } from './fields';
 import { NativeSelect } from './kit/ui/native-select';
 
 type Element = ReactElement<Record<string, unknown>>;
@@ -136,7 +135,10 @@ it('원산지 필드는 기존 자유 입력을 유지하고 선택 적용 때 �
   expect((picker().props.onApply as (name: string) => boolean)('대한민국')).toBe(true);
   expect(field.value).toBe('대한민국'); expect(nativeInput).toHaveBeenCalledOnce();
   expect(querySelector).toHaveBeenLastCalledWith('input[name="noticeOrigin"]');
-  expect(nodes(renderField()).find(node => node.type === Field)!.props.name).toBe('noticeOrigin');
+  /* ADM-004(복잡도 표 209행): 찾기는 입력칸 바로 옆 아이콘 버튼이고 이름은 aria-label로 남는다. 입력은 지금처럼 자유 입력 noticeOrigin이다. */
+  const tree = nodes(renderField());
+  expect(tree.find(node => node.type === 'input')!.props).toMatchObject({ name: 'noticeOrigin', defaultValue: '직접 입력한 복수 원산지', placeholder: '대한민국' });
+  expect(tree.find(node => node.type === 'button')!.props).toMatchObject({ 'aria-label': '원산지 국가·지역 찾기', title: '원산지 국가·지역 찾기', type: 'button' });
   fieldProps = { ...fieldProps, readOnly: true }; expect((picker().props.onApply as (name: string) => boolean)('일본')).toBe(false);
   fieldProps = { ...fieldProps, readOnly: false, disabled: true }; expect((picker().props.onApply as (name: string) => boolean)('중국')).toBe(false);
   expect(field.value).toBe('대한민국'); expect(nativeInput).toHaveBeenCalledOnce();
