@@ -75,6 +75,7 @@ import { ADMIN_STOCK_LABELS, ADMIN_VOCABULARY, adminGoodsCopy } from '@/lib/admi
 import { ADMIN_SCREENS, type AdminScreen } from '@/lib/admin/navigation';
 import { ActionNotice, ErrorText, Field, SelectField, TextArea } from './fields';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
+import { resultParticle } from '@/lib/korean-particle';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/admin/kit/ui/dropdown-menu';
 
 /*
@@ -569,7 +570,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
             ? `저장된 유형(‘${storedType}’)이 연결된 카테고리를 대표로 고르면 공개를 유지한 채 맞출 수 있습니다. 다른 입력은 그대로 저장됩니다.`
             : <>공개 중에는 저장된 유형 ‘{storedType}’을 유지하고 다른 입력은 그대로 저장됩니다. {typeState.publishedMismatch === 'missing'
               ? '초안으로 전환한 뒤 다시 공개하려면 카테고리 관리에서 이 카테고리(또는 상위)에 상품 유형을 연결해야 합니다.'
-              : `초안으로 전환하면 ‘${typeState.category.type}’으로 바뀌고 KC를 다시 검토해야 공개할 수 있습니다.`}</>}
+              : `초안으로 전환하면 ‘${typeState.category.type}’${resultParticle(typeState.category.type)} 바뀌고 KC를 다시 검토해야 공개할 수 있습니다.`}</>}
         </AdminNotice></div> : null}
         {/*
           ADM-004(복잡도 표 190행): 용어 도움말은 고르는 동안(연결 IP·유형이 비어 있을 때)만 보인다. 입력칸이 아니라 안내 문구라 ADM-004 "복잡함 줄이기"

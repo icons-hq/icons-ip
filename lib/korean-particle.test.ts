@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { topicParticle } from './korean-particle';
+import { resultParticle, topicParticle } from './korean-particle';
 
 describe('topicParticle — 은/는', () => {
   it('한글 음절은 받침(종성) 유무로 고른다', () => {
@@ -29,5 +29,23 @@ describe('topicParticle — 은/는', () => {
     expect(topicParticle('레드!')).toBe('는');
     expect(topicParticle('  빨강  ')).toBe('은');
     expect(topicParticle('(한정)')).toBe('은');
+  });
+});
+
+describe('resultParticle — 로/으로', () => {
+  it('받침 없음·ㄹ 받침은 로, 그 밖의 받침은 으로', () => {
+    expect(resultParticle('피규어')).toBe('로');
+    expect(resultParticle('굴')).toBe('로');
+    expect(resultParticle('인형')).toBe('으로');
+    expect(resultParticle('문구')).toBe('로');
+    expect(resultParticle('키링')).toBe('으로');
+    expect(resultParticle('아크릴')).toBe('로');
+    expect(resultParticle('기타')).toBe('로');
+    expect(resultParticle('세트')).toBe('로');
+    expect(resultParticle('8')).toBe('로');
+    expect(resultParticle('3')).toBe('으로');
+  });
+  it('판정할 수 없으면 (으)로', () => {
+    expect(resultParticle('ABC')).toBe('(으)로');
   });
 });
