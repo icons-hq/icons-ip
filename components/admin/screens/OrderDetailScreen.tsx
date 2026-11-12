@@ -78,6 +78,8 @@ const ACTION_LABELS: Record<string, string> = {
 /** 같은 감사 action이라도 시스템이 남긴 기록은 출처(trigger)로 구분한다. */
 const TRIGGER_LABELS: Record<string, Record<string, string>> = {
   'admin.order.status_updated': { auto_order_confirmation: '자동 발주확인 (시스템)' },
+  /* 상품 편집의 예약 주문 발송 일정 일괄 변경(QNA-040)이 남긴 배송 건 일정 변경 — 주문 상세에서 하나씩 바꾼 변경과 나눈다. */
+  'admin.shipment.preorder_promise_changed': { goods_preorder_bulk: '예약 발송 일정 변경 (상품 일괄 · 고객 안내)' },
   /* 고객이 주문서·장바구니의 '결제 대기 주문 취소하고 계속'을 눌러 닫은 주문(ADR-0030). 재주문·장바구니 복귀의 자동 정리와 나눈다. */
   'system.order.unpaid_cart_order_closed': { customer_released: '고객이 진행 중인 미결제 주문을 취소하고 주문을 계속함' },
 };

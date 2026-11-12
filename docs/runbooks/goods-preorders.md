@@ -54,6 +54,7 @@
 6. 변경 사유(내부 기록)와 고객 안내 제목·내용(기본 문구 제공)을 확인하고 확정한다(`admin_apply_goods_preorder_schedule_change`). 잠금 순서는 요청 → 상품(일괄) → 주문 → 구매자 → 배송 건 → 지연 메모 → (교체 시) 상품·옵션 행 → 예약 조건이다. 주문 접수도 주문 → 구매자 → 상품·옵션 순이라 교착이 없고, 교체 때는 상품·옵션을 잠근 뒤 미리보기 지문(대상 배송 건·버전·새 날짜·접수 중 조건 버전)을 다시 계산해 그 사이 들어온 주문이 있으면 거절한다(`preorder_schedule_stale` — 옛 날짜로 남는 주문이 없다). 같으면 배송 건 약속일을 바꾸고 배송 건마다 변경 이력(`order_shipment_promise_changes.bulk_change_id`)과 주문 감사(`admin.shipment.preorder_promise_changed`, `trigger=goods_preorder_bulk`, 안내만이면 `noticeOnly`)를 남긴 뒤, 지연 안내 원장(`kind='preorder_schedule'`)에 주문마다 대상(구매자, 선물 주문은 받는 분)을 만들고 `admin_request_order_delay_notice`로 앱 알림·이메일을 요청한다.
 7. 요청 UUID 하나가 멱등 키다. 같은 요청을 다시 보내면 처음 결과를 돌려주고 일정·알림·조건 교체를 다시 하지 않는다. 같은 UUID에 다른 내용이면 거절한다. 한 번에 3,000개 배송 건까지 바꾼다(로컬 11/12 실측: 3,000건 확정 약 1.5초, 미리보기 약 60ms·1.4MB — authenticated 8초 한도 안). 넘으면 화면이 주문번호 순 앞의 3,000건을 먼저 고르고, 확정 뒤 다시 미리 보면 바뀐 건은 빠져 남은 건만 이어서 바꾼다(제외 목록은 대상 수까지).
 8. 지연 안내 이메일 발송 설정(`order_delay_notice_delivery_control.enabled`)이나 앱 이메일 설정이 꺼져 있으면 일정도 바꾸지 않는다. 배송 건 하나는 주문 상세에서 지금처럼 바꿀 수 있다.
+9. 안내 이메일은 지연 안내 이메일 cron(`/api/cron/order-delay-notices`, 매분 최대 25건)이 보낸다. 상한 3,000건을 한 번에 확정하면 모두 나가기까지 약 2시간이 걸린다(기존 cron 한계 — 일정 변경은 확정 즉시, 메일만 늦게 도착).
 
 결과·실패 이메일 재시도는 같은 영역의 최근 이력에서 다시 열고, 같은 안내는 발송관리의 고객 지연 안내 이력에도 남는다(거기서 열면 이메일 없는 일괄 결과 문서로 보인다). SMS 동작은 [지연 주문 고객 안내](./order-delay-notices.md)의 'SMS(예약 일정 변경 안내)'를 따른다. 교체 경합은 `goods_preorder_schedule_concurrency.sh`(교체 먼저: 주문은 기다렸다 새 날짜, 주문 먼저: 일괄 변경이 거절)로 확인한다.
 
