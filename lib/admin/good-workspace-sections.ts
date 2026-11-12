@@ -1,4 +1,6 @@
 import { isUuid } from '@/lib/uuid';
+import { adminGoodsCopy } from './vocabulary';
+import { GOOD_TYPE_CATEGORY_MESSAGES } from './good-workspace';
 import {
   MAX_GOODS_KC_MODELS, emptyGoodsKcModel, goodsKcReviewProblems, goodsKcSoleNotApplicable, kcModelFromTemplate, normalizeGoodsKcModels,
   planGoodsKcProductNotApplicable, type GoodsKcModelInput, type GoodsKcVariant,
@@ -9,6 +11,10 @@ import {
 } from './goods-kc-other-certifications';
 import { goodsOptionRowKey, type GoodsOptionRow } from './goods-option-editor';
 import { parseGoodsPreorderInput, type GoodsPreorderInput } from './goods-preorders';
+import {
+  GOOD_WORKSPACE_EXTRA_ERROR_SECTIONS, GOOD_WORKSPACE_EXTRA_KEYS, goodWorkspaceExtraSectionFailure, parseGoodWorkspaceExtraSections,
+  prepareGoodWorkspaceExtraSections, type GoodWorkspaceExtraDraft, type GoodWorkspaceExtraSubmission,
+} from './good-workspace-extra-sections';
 
 /*
  * 상품 등록 화면의 원자 저장 섹션(10/27 회의 R13·D6②).
@@ -18,12 +24,14 @@ import { parseGoodsPreorderInput, type GoodsPreorderInput } from './goods-preord
  * 새 옵션은 {attributes}(옵션값 조합) 참조로 바꾼다. DB가 저장 직후 활성 옵션, 없으면 이번 저장이 만든 옵션(사용 중지로
  * 등록해 바로 보관된 새 옵션 포함) 하나로 해석한다.
  * 섹션 입력은 브라우저 자동복구·서버 임시저장에 담지 않는다(KC 근거 참조 보호, DQ3).
+ * T15b(1027T-024): 나머지 설정 13개(판매 방식·매입단가·기간 할인·추가 구성·사은품·A/S·사이즈·색상칩·복수구매 할인/배송비·묶음그룹·
+ * 정기배송·수령 방식·제작)도 같은 방식으로 함께 저장한다(good-workspace-extra-sections.ts).
  */
 
 export const GOOD_WORKSPACE_SECTIONS_FIELD = 'workspaceSections';
 export const GOOD_WORKSPACE_OPERATION_FIELD = 'workspaceOperationId';
 /** 섹션 오류 필드 → 같은 자리의 운영 섹션 id(`good-operation-<id>`). */
-export const GOOD_WORKSPACE_ERROR_SECTIONS = { workspaceKc: 'kc', workspacePreorders: 'preorders' } as const;
+export const GOOD_WORKSPACE_ERROR_SECTIONS = { workspaceKc: 'kc', workspacePreorders: 'preorders', ...GOOD_WORKSPACE_EXTRA_ERROR_SECTIONS } as const;
 export type GoodWorkspaceErrorField = keyof typeof GOOD_WORKSPACE_ERROR_SECTIONS;
 
 export type GoodWorkspaceVariantRef = { id: string } | { attributes: Record<string, string> };
@@ -49,18 +57,20 @@ export interface GoodWorkspaceSectionsDraft {
   preorders: GoodWorkspacePreorderDraft[];
   /** KC 카드의 기타 인증(SHEET-014). 없거나 비어 있으면 섹션을 보내지 않는다. */
   otherCertifications?: GoodsOtherCertificationInput[];
+  /** T15b 나머지 설정. 키가 없는 섹션은 기본값(입력 안 함)이라 보내지 않는다. */
+  extras?: Partial<GoodWorkspaceExtraDraft>;
 }
-export const EMPTY_GOOD_WORKSPACE_SECTIONS: GoodWorkspaceSectionsDraft = { kc: { models: [], attested: false }, preorders: [], otherCertifications: [] };
+export const EMPTY_GOOD_WORKSPACE_SECTIONS: GoodWorkspaceSectionsDraft = { kc: { models: [], attested: false }, preorders: [], otherCertifications: [], extras: {} };
 
 /** 제출 형식(hidden input). 서버가 다시 검증한다. */
-export interface GoodWorkspaceSectionsSubmission {
+export interface GoodWorkspaceSectionsSubmission extends GoodWorkspaceExtraSubmission {
   kc: { status: 'unreviewed' | 'reviewed'; attested: boolean; models: (Omit<GoodsKcModelInput, 'variantIds'> & { variantRefs: GoodWorkspaceVariantRef[] })[] } | null;
   preorders: { variant: GoodWorkspaceVariantRef; values: { state: 'draft' | 'active'; capacityQty: string; startsAt: string; endsAt: string; expectedShipDate: string; approvalReference: string } }[];
   /** 입력한 기타 인증이 있을 때만 싣는다(새 상품이라 버전은 서버가 null로 확인한다). */
   otherCertifications?: GoodsOtherCertificationInput[];
 }
 /** admin_save_good_workspace의 sections 인자. */
-export interface GoodWorkspaceRpcSections {
+export interface GoodWorkspaceRpcSections extends GoodWorkspaceExtraSubmission {
   kc?: { status: 'unreviewed' | 'reviewed'; attested: boolean; expectedRevision: null; expectedContextFingerprint: null;
     models: (Omit<GoodsKcModelInput, 'variantIds'> & { variantRefs: GoodWorkspaceVariantRef[] })[] };
   preorders?: { variant: GoodWorkspaceVariantRef; policyId: null; expectedRevision: null; values: GoodsPreorderInput }[];
@@ -160,7 +170,10 @@ export function prepareGoodWorkspaceSections(draft: GoodWorkspaceSectionsDraft, 
     }
     preorders.push({ variant: variantRef(row), values });
   }
-  return { ok: true, value: { kc, preorders, ...(otherCertifications.length ? { otherCertifications } : {}) } };
+  /* T15b 나머지 설정: 매입단가 입력 권한은 예약 활성화와 같은 관리자(platform.manage+admin)다. 서버·DB가 다시 막는다. */
+  const extra = prepareGoodWorkspaceExtraSections(draft.extras, rows, { canManageCosts: canActivate });
+  if (!extra.ok) return extra;
+  return { ok: true, value: { kc, preorders, ...(otherCertifications.length ? { otherCertifications } : {}), ...extra.value } };
 }
 
 function record(value: unknown): value is Record<string, unknown> {
@@ -181,7 +194,8 @@ export function parseGoodWorkspaceSections(raw: FormDataEntryValue | null, canAc
   if (raw === null || raw === '') return { ok: true, sections: {} };
   let value: unknown;
   try { value = JSON.parse(String(raw)); } catch { return { ok: false, field: 'workspaceKc', error: 'KC·예약판매 입력을 확인하지 못했습니다. 새로고침 후 다시 입력해주세요.' }; }
-  if (!record(value) || Object.keys(value).some((key) => key !== 'kc' && key !== 'preorders' && key !== 'otherCertifications')) {
+  if (!record(value) || Object.keys(value).some((key) => key !== 'kc' && key !== 'preorders' && key !== 'otherCertifications'
+    && !(GOOD_WORKSPACE_EXTRA_KEYS as readonly string[]).includes(key))) {
     return { ok: false, field: 'workspaceKc', error: 'KC·예약판매 입력을 확인하지 못했습니다. 새로고침 후 다시 입력해주세요.' };
   }
   const sections: GoodWorkspaceRpcSections = {};
@@ -226,11 +240,34 @@ export function parseGoodWorkspaceSections(raw: FormDataEntryValue | null, canAc
     }
     if (entries.length) sections.otherCertifications = { entries, expectedRevision: null };
   }
-  return { ok: true, sections };
+  const extra = parseGoodWorkspaceExtraSections(value, { canManageCosts: canActivate });
+  if (!extra.ok) return extra;
+  return { ok: true, sections: { ...sections, ...extra.value } };
+}
+
+/**
+ * T15b(0901-008): 새 상품 원자 저장의 공개 결과(영수증 publish). 공개됐으면 null, 거절됐으면 저장은 끝났다는 문장과 이유.
+ * 이유는 기존 '저장 후 공개' 오류 안내와 같은 문장을 쓴다(판정은 서버 공개 경로 그대로). 결과가 없으면 공개 여부를 모르므로 거절로 다룬다.
+ */
+export function goodWorkspacePublishRejection(publish: unknown): { message: string; kc: boolean } | null {
+  const result = record(publish) ? publish as { published?: unknown; error?: unknown } : null;
+  if (result?.published === true) return null;
+  const reason = typeof result?.error === 'string' ? result.error : '';
+  const saved = adminGoodsCopy('굿즈를 저장했지만 공개하지 않았습니다.');
+  if (reason.includes('goods_kc_')) return { kc: true, message: `${saved} KC 검토를 마쳐야 공개할 수 있습니다. KC 정보에서 검토를 완료한 뒤 판매 준비에서 공개해주세요.` };
+  const why = reason.includes('goods_publish_incomplete') ? '상품 유형·대표 이미지·상품정보제공고시와 옵션을 채운 뒤 판매 준비에서 공개해주세요.'
+    : /invalid_good_origin|fulfillment_origin_required|fulfillment_origin_inactive/.test(reason) ? '활성 출고지를 고른 뒤 판매 준비에서 공개해주세요.'
+    : reason.includes('goods_type_category_required') ? GOOD_TYPE_CATEGORY_MESSAGES.required
+    : reason.includes('goods_type_category_changed') ? GOOD_TYPE_CATEGORY_MESSAGES.changed
+    : '공개 조건을 확인한 뒤 판매 준비에서 공개해주세요.';
+  return { kc: false, message: `${saved} ${why}` };
 }
 
 /** admin_save_good_workspace 오류 → 섹션 칸 안내. 섹션과 무관한 오류는 null(기본 저장 매핑이 맡는다). */
-export function goodWorkspaceSectionFailure(message: string): Partial<Record<GoodWorkspaceErrorField | 'form' | 'saleStartsAt', string>> | null {
+export function goodWorkspaceSectionFailure(message: string, code?: string): Partial<Record<GoodWorkspaceErrorField | 'form' | 'saleStartsAt', string>> | null {
+  /* T15b 나머지 설정의 실패는 래퍼가 섹션 이름을 담아 다시 던진다. 그 섹션 칸에 안내한다(아래 KC·예약판매 매핑보다 먼저 본다). */
+  const extraFailure = goodWorkspaceExtraSectionFailure(message, code);
+  if (extraFailure) return extraFailure;
   /*
    * 등록 화면에서 판매기간·예약 충돌은 이번 제출의 예약 활성화 때문이다. 저장된 상품의 '일반재고로 전환'은 여기 없으므로
    * 예약 조건 카드와 판매기간 칸에 등록 화면에서 할 수 있는 방법을 알린다. 다른 판매기간 오류는 기본 저장 매핑이 맡는다.
@@ -244,9 +281,9 @@ export function goodWorkspaceSectionFailure(message: string): Partial<Record<Goo
     return { form: '이미 처리된 저장 요청입니다. 입력은 유지됩니다. 목록을 새로고침해 저장된 상품을 확인해주세요.' };
   }
   if (message.includes('goods_workspace_draft_completed_sections_skipped')) {
-    return { form: '이 임시저장은 다른 저장에서 이미 상품으로 등록됐습니다. 이번 KC·예약판매 입력은 저장되지 않았고 입력은 유지됩니다. 상품 목록에서 등록된 상품을 열어 KC·예약판매를 확인한 뒤 입력해주세요.' };
+    return { form: '이 임시저장은 다른 저장에서 이미 상품으로 등록됐습니다. 이번 KC·예약판매·추가 설정 입력과 공개 요청은 처리되지 않았고 입력은 유지됩니다. 상품 목록에서 등록된 상품을 열어 확인한 뒤 입력해주세요.' };
   }
-  if (message.includes('goods_workspace_publish_unsupported')) return { form: '새 상품은 저장한 뒤 게시 상태에서 공개해주세요.' };
+  if (message.includes('goods_workspace_publish_unsupported')) return { form: '저장된 상품은 판매 준비의 게시 상태에서 공개해주세요.' };
   /* 옵션 참조 해석 실패는 래퍼가 섹션(kc·preorder)을 담아 알린다. 아래 예약판매 일반 매핑(preorder_)보다 먼저 본다. */
   if (message.includes('goods_workspace_preorder_variant_unresolved') || message.includes('invalid_goods_workspace_preorder_variant')) {
     return { workspacePreorders: '예약 대상 옵션을 저장된 옵션목록에서 찾지 못했습니다. 예약 대상 옵션을 다시 선택해주세요. 상품은 저장되지 않았고 입력은 유지됩니다.' };

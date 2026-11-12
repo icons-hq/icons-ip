@@ -2034,15 +2034,33 @@ describe('상품 등록 원자 저장', () => {
     await expect(upsertAdminGoodAction({}, workspaceForm({ kc: null, preorders: [] }))).resolves.toMatchObject({ savedGoodId: 'g100', message: expect.stringContaining('이미 상품으로 등록한 임시저장') });
   });
 
-  it('기본 입력 오류는 기존 매핑을 그대로 쓰고, 잘못된 작업 ID·공개 요청은 저장하지 않는다', async () => {
+  it('기본 입력 오류는 기존 매핑을 그대로 쓰고, 잘못된 작업 ID는 저장하지 않는다', async () => {
     mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'goods_compare_at_price_invalid' } });
     expect((await upsertAdminGoodAction({}, workspaceForm({ kc: null, preorders: [] }))).errors?.form).toContain('할인은 0원보다 크고');
     const bad = workspaceForm({ kc: null, preorders: [] }); bad.set('workspaceOperationId', 'not-a-uuid');
     expect((await upsertAdminGoodAction({}, bad)).errors?.form).toContain('새로고침');
-    const publish = workspaceForm({ kc: null, preorders: [] }); publish.set('intent', 'publish');
-    publish.set('imagePath', 'public-media/catalog/good/22222222-2222-4222-8222-222222222222.webp');
-    expect((await upsertAdminGoodAction({}, publish)).errors?.form).toContain('게시 상태에서 공개');
     expect(mocks.rpc).toHaveBeenCalledTimes(1);
+  });
+
+  /* T15b(0901-008): 새 상품의 저장 후 공개는 래퍼 한 번으로 저장한 뒤 공개를 시도하고, 거절되면 저장만 했다고 이유와 함께 알린다. */
+  it('새 상품 저장 후 공개는 같은 요청에 공개를 싣고, 거절되면 저장 성공과 공개 보류 이유를 함께 알린다', async () => {
+    const publish = () => { const form = workspaceForm({ kc: null, preorders: [] }); form.set('intent', 'publish');
+      form.set('imagePath', 'public-media/catalog/good/22222222-2222-4222-8222-222222222222.webp'); return form; };
+    mocks.rpc.mockResolvedValueOnce({ data: { id: 'new-good', publish: { requested: true, published: true, error: null } }, error: null });
+    const published = await upsertAdminGoodAction({}, publish());
+    expect(mocks.rpc.mock.calls.at(-1)?.[0]).toBe('admin_save_good_workspace');
+    expect(mocks.rpc.mock.calls.at(-1)?.[1].p_request.good.publish).toBe(true);
+    expect(published).toMatchObject({ savedGoodId: 'new-good', message: expect.stringContaining('공개했습니다') });
+    expect(published).not.toHaveProperty('publishBlocked');
+
+    mocks.rpc.mockResolvedValueOnce({ data: { id: 'new-good', publish: { requested: true, published: false, error: 'goods_publish_incomplete', code: '23514' } }, error: null });
+    const incomplete = await upsertAdminGoodAction({}, publish());
+    expect(incomplete).toMatchObject({ savedGoodId: 'new-good', publishBlocked: true, message: expect.stringContaining('저장했지만 공개하지 않았습니다') });
+    expect(incomplete.message).toContain('대표 이미지');
+    expect(incomplete.errors).toBeUndefined();
+
+    mocks.rpc.mockResolvedValueOnce({ data: { id: 'new-good', publish: { requested: true, published: false, error: 'goods_kc_review_required', code: '23514' } }, error: null });
+    expect(await upsertAdminGoodAction({}, publish())).toMatchObject({ savedGoodId: 'new-good', kcPublishBlocked: true, message: expect.stringContaining('KC 검토') });
   });
 });
 

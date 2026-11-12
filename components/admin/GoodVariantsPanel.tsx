@@ -1,14 +1,16 @@
 'use client';
 
 import { useActionState, useState } from 'react';
-import { ChevronRight } from 'lucide-react';
 import { setGoodsVariantActiveAction } from '@/app/admin/goods-variant-actions';
 import type { AdminGoodsVariant } from '@/lib/admin/goods-variants';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/admin/kit/ui/table';
 import { GOOD_NUMBER_INPUT_CLASS, GOOD_TABLE_FRAME_CLASS } from './GoodEditorParts';
 
-/* 템플릿 룩(ADR-0028). 저장된 옵션은 핵심 정보 표와 접힌 상세 정보 표로 나눠 보인다. */
+/*
+ * 템플릿 룩(ADR-0028). 저장된 옵션의 핵심 정보와 사용 중지·복원만 둔다. ADM-004 #313: 코드·ERP·바코드·안전재고 읽기 전용 표는 편집기 판매 정보 카드의
+ * 옵션 상세 정보 표와 겹쳐 뺐다(안전재고 부족 경보는 재고수량 칸에 남긴다).
+ */
 const HEAD_CLASS = 'px-3 text-xs font-medium whitespace-normal text-muted-foreground';
 const CELL_CLASS = 'px-3 py-2.5 align-top whitespace-normal';
 
@@ -31,44 +33,6 @@ function VariantAvailabilityForm({ variant, basePrice }: { variant: AdminGoodsVa
   </form>;
 }
 
-function VariantDetailsTable({ variants }: { variants: AdminGoodsVariant[] }) {
-  return <details className="group/variant-details min-w-0 rounded-lg border" data-good-variant-details="">
-    <summary className="flex cursor-pointer list-none items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium outline-none select-none group-open/variant-details:rounded-b-none focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
-      <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open/variant-details:rotate-90 motion-reduce:transition-none" />
-      옵션 상세 정보 · 코드·ERP·바코드·안전재고
-    </summary>
-    <div className="flex min-w-0 flex-col gap-3 border-t p-3">
-      <p className="text-sm text-muted-foreground">
-        옵션코드와 외부 식별자는 주문·물류 참조를 위해 보존된 값입니다. 안전재고는 판매 가능 수량에서 차감하지 않고 부족 경보에만 사용합니다.
-      </p>
-      <div className={GOOD_TABLE_FRAME_CLASS} role="region" aria-label="저장된 옵션 외부 식별자와 안전재고 상세" tabIndex={0}>
-        <Table className="min-w-[40rem] table-fixed">
-          <TableCaption className="sr-only">저장된 옵션의 코드·ERP 식별자·안전재고</TableCaption>
-          <TableHeader className="bg-muted/50"><TableRow className="hover:bg-transparent">
-            <TableHead scope="col" className={`w-[17%] ${HEAD_CLASS}`}>옵션</TableHead>
-            <TableHead scope="col" className={`w-[17%] ${HEAD_CLASS}`}>옵션코드</TableHead>
-            <TableHead scope="col" className={`w-[17%] ${HEAD_CLASS}`}>ERP 코드</TableHead>
-            <TableHead scope="col" className={`w-[19%] ${HEAD_CLASS}`}>ERP 품명</TableHead>
-            <TableHead scope="col" className={`w-[15%] ${HEAD_CLASS}`}>바코드</TableHead>
-            <TableHead scope="col" className={`w-[15%] ${HEAD_CLASS}`}>안전재고 기준</TableHead>
-          </TableRow></TableHeader>
-          <TableBody>{variants.map((variant) => <TableRow key={variant.id} data-variant-id={variant.id}>
-            <TableCell className={`${CELL_CLASS} wrap-anywhere`}>{variant.name}{variant.isDefault && variant.name !== '기본 옵션' ? ' (기본)' : ''}</TableCell>
-            <TableCell className={`${CELL_CLASS} wrap-anywhere tabular-nums`}>{variant.code}</TableCell>
-            <TableCell className={`${CELL_CLASS} wrap-anywhere tabular-nums`}>{variant.erpCode ?? '미설정'}</TableCell>
-            <TableCell className={`${CELL_CLASS} wrap-anywhere`}>{variant.erpName ?? '미설정'}</TableCell>
-            <TableCell className={`${CELL_CLASS} wrap-anywhere tabular-nums`}>{variant.barcode ?? '미설정'}</TableCell>
-            <TableCell className={`${CELL_CLASS} tabular-nums`}>{variant.lowStockThreshold == null ? '미설정' : <>
-              {variant.lowStockThreshold.toLocaleString('ko-KR')}개
-              {variant.stockQty <= variant.lowStockThreshold && <strong className="ml-1.5 text-xs font-medium text-[var(--wc-warning)]" data-tone="warning">재고 부족</strong>}
-            </>}</TableCell>
-          </TableRow>)}</TableBody>
-        </Table>
-      </div>
-    </div>
-  </details>;
-}
-
 export function GoodVariantsPanel({ goodId, variants, basePrice }: { goodId: string; variants: AdminGoodsVariant[]; basePrice: number }) {
   const selectedVariants = variants.filter((variant) => variant.goodId === goodId);
   const activeVariants = selectedVariants.filter((variant) => !variant.archivedAt);
@@ -79,7 +43,7 @@ export function GoodVariantsPanel({ goodId, variants, basePrice }: { goodId: str
       <div className="flex flex-col gap-1">
         <h2 id={`good-variants-${goodId}`} className="text-base leading-snug font-medium">옵션 목록</h2>
         <p className="text-sm text-muted-foreground">
-          옵션명·판매가·재고수량·사용 상태를 먼저 확인합니다. 외부 식별자와 안전재고는 접힌 상세 정보에서 확인하며, 사용 중지와 복원은 즉시 반영되고 위 상품 폼의 수정은 별도로 저장합니다.
+          옵션명·판매가·재고수량·사용 상태를 확인합니다. 옵션코드·ERP·바코드·안전재고는 위 판매 정보 카드의 옵션 상세 정보에서 확인·수정하며, 사용 중지와 복원은 즉시 반영되고 위 상품 폼의 수정은 별도로 저장합니다.
         </p>
       </div>
       {selectedVariants.length ? <>
@@ -101,14 +65,14 @@ export function GoodVariantsPanel({ goodId, variants, basePrice }: { goodId: str
             <TableBody>{selectedVariants.map((variant) => <TableRow key={variant.id} data-variant-id={variant.id}>
               <TableCell className={`${CELL_CLASS} wrap-anywhere`}>{variant.name}{variant.isDefault && variant.name !== '기본 옵션' ? ' (기본)' : ''}</TableCell>
               <TableCell className={`${CELL_CLASS} text-right font-medium tabular-nums`}>{variant.price.toLocaleString('ko-KR')}원</TableCell>
-              <TableCell className={`${CELL_CLASS} text-right tabular-nums`}>{variant.stockQty.toLocaleString('ko-KR')}개</TableCell>
+              <TableCell className={`${CELL_CLASS} text-right tabular-nums`}>{variant.stockQty.toLocaleString('ko-KR')}개
+                {variant.lowStockThreshold != null && variant.stockQty <= variant.lowStockThreshold && <strong className="ml-1.5 text-xs font-medium text-[var(--wc-warning)]" data-tone="warning">재고 부족</strong>}</TableCell>
               <TableCell className={variant.archivedAt ? `${CELL_CLASS} text-muted-foreground` : CELL_CLASS}>{variant.archivedAt ? '사용 중지' : '사용 중'}</TableCell>
               <TableCell className={CELL_CLASS}><VariantAvailabilityForm variant={variant} basePrice={basePrice} /></TableCell>
             </TableRow>)}</TableBody>
           </Table>
         </div>
-        <VariantDetailsTable variants={selectedVariants} />
-      </> : <p className="text-sm text-muted-foreground">등록된 옵션이 없습니다.</p>}
+      </> :<p className="text-sm text-muted-foreground">등록된 옵션이 없습니다.</p>}
     </section>
   );
 }

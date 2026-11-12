@@ -8,7 +8,7 @@ import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { goodSaveFields } from '@/lib/admin/good-save';
 import { goodsDraftIdentity, goodsDraftError, type GoodsDraftIdentity } from '@/lib/admin/goods-drafts';
 import {
-  GOOD_WORKSPACE_OPERATION_FIELD, GOOD_WORKSPACE_SECTIONS_FIELD, goodWorkspaceSectionFailure, parseGoodWorkspaceSections,
+  GOOD_WORKSPACE_OPERATION_FIELD, GOOD_WORKSPACE_SECTIONS_FIELD, goodWorkspacePublishRejection, goodWorkspaceSectionFailure, parseGoodWorkspaceSections,
   type GoodWorkspaceRpcSections,
 } from '@/lib/admin/good-workspace-sections';
 import { canAccessAdminScreen } from '@/lib/admin/access';
@@ -63,6 +63,8 @@ export interface AdminCatalogActionState extends AdminFormValuesState {
   savedIpId?: string;
   /** 저장 후 공개가 KC 검토에 막혀 같은 입력을 초안으로만 저장했다. `message`가 그 이유다. */
   kcPublishBlocked?: true;
+  /** 새 상품의 저장 후 공개가 KC 밖의 공개 조건에 막혀 저장만 했다(T15b). `message`가 그 이유다. */
+  publishBlocked?: true;
   /** 등록 화면 원자 저장이 KC 섹션을 함께 저장했다. 첫 저장 뒤 KC 유형 틀을 다시 얹지 않는다. */
   workspaceKcSaved?: true;
   stockAdjustment?: { variantId: string; stockQty: number; adjustmentId: string };
@@ -456,15 +458,16 @@ async function saveAdminGood(
   if (formData.has('shippingFeeType')) fulfillmentFields.shipping_fee_type = String(formData.get('shippingFeeType'));
   if (formData.has('individualFee')) fulfillmentFields.individual_fee = String(formData.get('individualFee'));
   /*
-   * 등록 화면(R13·D6②)은 작업 ID와 KC·예약판매 섹션을 함께 보낸다. 작업 ID가 있으면 기본 입력과 섹션을
+   * 등록 화면(R13·D6②·T15b)은 작업 ID와 KC·예약판매·나머지 설정 섹션을 함께 보낸다. 작업 ID가 있으면 기본 입력과 섹션을
    * admin_save_good_workspace 한 트랜잭션으로 저장한다(재시도 중복 방지 영수증 포함). 작업 ID가 없는
-   * 수정 화면·이전 화면은 지금처럼 admin_save_good으로 저장한다. 공개는 래퍼에서 하지 않는다.
+   * 수정 화면·이전 화면은 지금처럼 admin_save_good으로 저장한다. 새 상품의 '저장 후 공개'(0901-008)는 래퍼가 저장을 끝낸 뒤
+   * 같은 요청에서 기존 공개 경로로 시도하고, 거절되면 저장은 남기고 거절 이유를 영수증(publish)에 싣는다.
    */
   const workspaceOperation = formData.get(GOOD_WORKSPACE_OPERATION_FIELD);
   let workspaceSections: GoodWorkspaceRpcSections | null = null;
   if (workspaceOperation !== null) {
     if (!isUuid(workspaceOperation)) return { errors: { form: '저장 요청을 확인하지 못했습니다. 새로고침 후 다시 시도해주세요. 입력은 유지됩니다.' } };
-    if (value.publish) return { errors: { form: '새 상품은 저장한 뒤 게시 상태에서 공개해주세요.' } };
+    if (value.publish && value.previousId) return { errors: { form: '저장된 상품은 판매 준비의 게시 상태에서 공개해주세요.' } };
     const sections = parseGoodWorkspaceSections(formData.get(GOOD_WORKSPACE_SECTIONS_FIELD),
       canAccessAdminScreen(auth, null, { capability: 'platform.manage', adminOnly: true }));
     if (!sections.ok) return { errors: { [sections.field]: sections.error } };
@@ -492,7 +495,7 @@ async function saveAdminGood(
   }
 
   if (error) {
-    const sectionFailure = workspaceSections ? goodWorkspaceSectionFailure(error.message) : null;
+    const sectionFailure = workspaceSections ? goodWorkspaceSectionFailure(error.message, error.code) : null;
     if (sectionFailure) return { errors: sectionFailure as AdminFieldErrors };
     if (/goods_group_common_owned_by_group|goods_group_name_owned_by_group|goods_group_identity_immutable|goods_group_single_variant_required/.test(error.message)) return { errors: { form: '그룹의 공통정보 또는 옵션 구성은 그룹상품에서 수정해주세요. 입력은 유지됩니다. 최신 상품 상태를 다시 확인해주세요.' } };
     if (/goods_aggregation_policy_owned_by_root|goods_aggregation_policy_owned/.test(error.message)) return { errors: { form: '합산 배송·구매수량 조건은 합산 기준 상품에서 수정해주세요. 최신 상품 상태를 다시 확인해주세요.' } };
@@ -543,8 +546,12 @@ async function saveAdminGood(
   revalidateCatalog([...relatedIpPaths(value.ipId, previousIpPath), `/admin/catalog/ips/${value.ipId}`, `/shop/${savedId}`, ...(value.previousId ? [`/shop/${value.previousId}`] : [])]);
   if (data?.draftAlreadyCompleted) return { message: '이미 상품으로 등록한 임시저장입니다. 저장된 상품을 확인해주세요.', savedGoodId: savedId };
   if (kcPublishBlocked) return { message: kcPublishBlocked, kcPublishBlocked: true, savedGoodId: savedId };
-  return { message: value.publish ? adminGoodsCopy('굿즈를 저장하고 공개했습니다.') : adminGoodsCopy('굿즈를 저장했습니다.'), savedGoodId: savedId,
-    ...(workspaceSections && data?.kc ? { workspaceKcSaved: true as const } : {}) };
+  const workspaceKcSaved = workspaceSections && data?.kc ? { workspaceKcSaved: true as const } : {};
+  /* T15b: 새 상품의 저장 후 공개가 거절되면 저장은 끝났다. 성공으로 알리지 않고 저장만 했다는 것과 공개를 막은 이유를 보인다. */
+  const publishRejection = workspaceSections && value.publish ? goodWorkspacePublishRejection(data?.publish) : null;
+  if (publishRejection) return { message: publishRejection.message, savedGoodId: savedId, ...workspaceKcSaved,
+    ...(publishRejection.kc ? { kcPublishBlocked: true as const } : { publishBlocked: true as const }) };
+  return { message: value.publish ? adminGoodsCopy('굿즈를 저장하고 공개했습니다.') : adminGoodsCopy('굿즈를 저장했습니다.'), savedGoodId: savedId, ...workspaceKcSaved };
 }
 
 type AdminSupabase = Awaited<ReturnType<typeof createClient>>;

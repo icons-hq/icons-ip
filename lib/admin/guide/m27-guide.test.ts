@@ -156,13 +156,15 @@ describe('m27 가이드 — 상품 등록·목록·카테고리·랜덤 판매(R
   const text = guide('goods-sales');
   const section = (id: string) => ADMIN_GUIDE_TOPICS['goods-sales'].sections.find((item) => item.id === id);
 
-  it('등록 화면 한 번에 저장과 저장 뒤 이어서 설정 목록을 안내한다(R13·D6②)', () => {
+  it('등록 화면 한 번에 저장과 저장 뒤 항목(상태를 바꾸는 4개)을 안내한다(R13·D6②·T15b 1027T-024)', () => {
     const editor = repoFile('components/admin/GoodEditor.tsx');
-    expect(editor).toContain('기본 상품·이미지·옵션·고시·배송·구매 제한·판매 조건과 KC·예약판매 입력을 한 번에 저장합니다.');
-    /* 저장 전 운영 항목은 비활성 카드 18장이 아니라 이름 목록 한 장이다(자리표시 카드 제거). */
-    expect(repoFile('components/admin/sections/GoodSection.tsx')).toContain('저장하면 이어서 설정할 수 있어요');
-    expect(text).toContain('KC·예약판매 입력을 한 번에 저장');
-    expect(text).toContain('저장하면 이어서 설정할 수 있어요');
+    expect(editor).toContain('기본 상품·이미지·옵션·고시·배송·구매 제한·판매 조건과 KC·예약판매, 아래 함께 저장할 설정');
+    /* T15b: 저장 전에도 나머지 설정을 입력해 함께 저장한다. 저장 뒤에만 하는 것은 재고 조정·옵션 사용·복사·보관이다. */
+    expect(repoFile('components/admin/sections/GoodSection.tsx')).toContain('상품과 함께 저장할 설정');
+    expect(text).toContain('상품과 함께 저장할 설정 카드의 입력');
+    expect(text).toContain('재고 조정·옵션 사용·복사·보관만 저장한 뒤 같은 자리에서 합니다.');
+    expect(text).toContain('저장 막대에 저장 후 공개가 나오고');
+    expect(text).not.toContain('저장하면 이어서 설정할 수 있어요');
     expect(text).not.toContain('자리표시');
     expect(text).not.toContain('초안 저장 → KC 검토 → 공개');
     expect(text).not.toContain('고정 저장 영역은 기본 상품·이미지·옵션·고시·배송·판매 조건만 저장합니다.');

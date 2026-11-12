@@ -147,7 +147,7 @@ describe('등록 화면 원자 저장 섹션', () => {
     expect(goodWorkspaceSectionFailure('invalid_goods_workspace_kc_variant')).toEqual({ workspaceKc: expect.stringContaining('KC 모델에 연결한 옵션') });
     const skipped = goodWorkspaceSectionFailure('goods_workspace_draft_completed_sections_skipped');
     expect(skipped?.form).toContain('이미 상품으로 등록');
-    expect(skipped?.form).toContain('KC·예약판매 입력은 저장되지 않았');
+    expect(skipped?.form).toContain('KC·예약판매·추가 설정 입력과 공개 요청은 처리되지 않았');
     const conflict = goodWorkspaceSectionFailure('goods_sale_period_preorder_conflict');
     expect(conflict?.workspacePreorders).toContain('초안');
     expect(conflict?.saleStartsAt).toContain('판매기간');

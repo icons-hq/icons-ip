@@ -28,6 +28,11 @@ import { CatalogArchiveControl, CatalogArchiveFilter } from '../CatalogArchiveCo
 import { GoodsListingColorsPanel } from '../GoodsListingColorsPanel';
 import { GOOD_OPERATION_PLACEHOLDER_COPY, GOOD_UNSAVED_BASE_COPY, GoodOperationDisabledNotice, GoodOperationGroup, GoodOperationSection, GoodWorkspaceProvider, focusGoodWorkspaceTarget } from '../GoodWorkspace';
 import { GoodSavedPreorderSection, GoodWorkspaceKcCard, GoodWorkspacePreorderRow } from '../GoodWorkspaceSections';
+import {
+  GoodWorkspaceAdditionalSection, GoodWorkspaceAfterSalesSection, GoodWorkspaceBenefitsSection, GoodWorkspaceFulfillmentSection, GoodWorkspaceListingColorsSection,
+  GoodWorkspacePricePeriodsSection, GoodWorkspaceProductionSection, GoodWorkspacePurchaseCostsSection, GoodWorkspaceSaleModeSection, GoodWorkspaceShippingChargeGroupSection,
+  GoodWorkspaceSizeChartSection, GoodWorkspaceSubscriptionSection, GoodWorkspaceTransactionTermsSection,
+} from '../GoodWorkspaceExtraSections';
 import { VariantStockAdjustmentForm } from '../VariantStockAdjustmentForm';
 import { GoodVariantsPanel } from '../GoodVariantsPanel';
 import { GoodPublishControls } from '../GoodPublishControls';
@@ -200,9 +205,33 @@ export function GoodSection({
     ? <GoodWorkspacePreorderRow title={OPERATION.preorders[0]} canActivate={canManageCosts} serverError={state.errors?.workspacePreorders} disabled={pending} />
     : selected.archivedAt ? null
     : <GoodSavedPreorderSection title={OPERATION.preorders[0]}><GoodsPreordersPanel goodId={selected.id} variants={variants} canActivate={canManageCosts} canReadOrders={canReadOrders} canAllocate={canManageSales} randomSale={selected.optionSaleMode === 'random'} key={`preorders-${selected.id}`} /></GoodSavedPreorderSection>;
-  /* 저장 전 목록: 이 계정·상품에서 저장 뒤 실제로 보일 항목만, 같은 묶음·같은 순서로. 게시 상태는 판매 운영 맨 앞, 예약판매는 판매 정보 카드에 입력 칸이 있다. */
-  const pendingOperations: Partial<Record<OperationId, boolean>> = { stock: true, publish: true, variants: !ownership?.group, costs: canManageCosts, 'listing-colors': true, additional: true, benefits: true, 'after-sales': !ownership?.group, 'size-chart': !ownership?.group, prices: true, 'transaction-terms': true, 'shipping-charge-group': true, 'subscription-policy': true, fulfillment: Boolean(accountId), production: Boolean(accountId), 'option-sale-mode': true, clone: Boolean(cloneOperationId), archive: true };
-  const pendingOperationGroups = OPERATION_GROUPS.map((group) => ({ ...group, operations: (group.id === 'sales' ? ['stock', 'publish', 'variants', 'option-sale-mode'] as const : group.operations).filter((id) => pendingOperations[id]) })).filter((group) => group.operations.length);
+  /*
+   * T15b(11/11 묶음 10 1027T-024 "저장 전 전부 입력"): 등록 화면은 상태를 바꾸는 항목(재고 조정·옵션 사용·복사·보관)만 저장 뒤에 두고,
+   * 나머지 설정은 저장된 상품과 같은 묶음·같은 순서·같은 자리(같은 id)에서 입력해 기본 입력과 함께 한 번에 저장한다. 게시 상태는 저장 막대의
+   * '저장 후 공개'가 맡는다(0901-008). 보이는 항목은 저장된 상품과 같은 조건(계정 권한·그룹 소속)을 따른다.
+   */
+  const inline = (id: OperationId, body: ReactNode) => <GoodOperationSection key={id} id={id} title={OPERATION[id][0]} mode="inline">{body}</GoodOperationSection>;
+  const draftPanels: Partial<Record<OperationId, ReactNode>> = selected ? {} : {
+    'option-sale-mode': inline('option-sale-mode', <GoodWorkspaceSaleModeSection serverError={state.errors?.workspaceOptionSaleMode} />),
+    prices: inline('prices', <GoodWorkspacePricePeriodsSection serverError={state.errors?.workspacePrices} />),
+    additional: inline('additional', <GoodWorkspaceAdditionalSection serverError={state.errors?.workspaceAdditional} />),
+    benefits: inline('benefits', <GoodWorkspaceBenefitsSection serverError={state.errors?.workspaceBenefits} />),
+    'transaction-terms': inline('transaction-terms', <GoodWorkspaceTransactionTermsSection serverError={state.errors?.workspaceTransactionTerms} />),
+    ...(accountId ? { 'shipping-charge-group': inline('shipping-charge-group', <GoodWorkspaceShippingChargeGroupSection accountId={accountId} serverError={state.errors?.workspaceShippingChargeGroup} />) } : {}),
+    'subscription-policy': inline('subscription-policy', <GoodWorkspaceSubscriptionSection serverError={state.errors?.workspaceSubscriptionPolicy} />),
+    ...(accountId ? {
+      fulfillment: inline('fulfillment', <GoodWorkspaceFulfillmentSection accountId={accountId} serverError={state.errors?.workspaceFulfillment} />),
+      production: inline('production', <GoodWorkspaceProductionSection serverError={state.errors?.workspaceProduction} />),
+    } : {}),
+    'listing-colors': inline('listing-colors', <GoodWorkspaceListingColorsSection serverError={state.errors?.workspaceListingColors} />),
+    ...(ownership?.group ? {} : {
+      'after-sales': inline('after-sales', <GoodWorkspaceAfterSalesSection serverError={state.errors?.workspaceAfterSales} />),
+      'size-chart': inline('size-chart', <GoodWorkspaceSizeChartSection serverError={state.errors?.workspaceSizeChart} />),
+    }),
+    ...(canManageCosts ? { costs: inline('costs', <GoodWorkspacePurchaseCostsSection serverError={state.errors?.workspaceCosts} />) } : {}),
+  };
+  /* 저장 뒤에만 하는 항목: 이 계정·상품에서 저장 뒤 실제로 보일 것만, 저장된 상품과 같은 순서로. */
+  const afterSaveOperations = (['stock', 'variants', 'clone', 'archive'] as const).filter((id) => id === 'variants' ? !ownership?.group : id === 'clone' ? Boolean(cloneOperationId) : true);
 
   return (
     <GoodWorkspaceProvider completedKey={completedKey}>
@@ -295,16 +324,19 @@ export function GoodSection({
           })}
         </section> : <section aria-labelledby="good-operation-hub-title" className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-sm text-card-foreground sm:p-5" data-good-operation-hub="pending">
           <div className="flex flex-col gap-1">
-            <h3 className="text-base leading-snug font-medium" id="good-operation-hub-title">저장하면 이어서 설정할 수 있어요</h3>
+            <h3 className="text-base leading-snug font-medium" id="good-operation-hub-title">상품과 함께 저장할 설정</h3>
+            <p className="text-muted-foreground">필요한 설정만 입력하면 상품을 저장할 때 한 번에 함께 저장합니다. 하나라도 저장하지 못하면 아무것도 저장되지 않고 입력은 유지됩니다.</p>
+          </div>
+          {OPERATION_GROUPS.map((group) => {
+            const visible = group.operations.filter((id) => draftPanels[id]);
+            return visible.length ? <GoodOperationGroup id={group.id} key={group.id} title={group.title} names={visible.map((id) => OPERATION[id][0]).join(' · ')}>{visible.map((id) => draftPanels[id])}</GoodOperationGroup> : null;
+          })}
+          {/* 저장 뒤에만 하는 항목(재고 조정·옵션 사용·복사·보관)은 이름만 보인다. 입력은 저장 뒤 이 자리에서 한다. */}
+          <div className="flex min-w-0 flex-col gap-1.5 border-t pt-3" data-good-operation-after-save="">
+            <p className="font-medium text-foreground">저장한 뒤</p>
+            <ul className="m-0 flex list-none flex-wrap gap-x-1 p-0" data-good-operation-names="">{afterSaveOperations.map((id, index) => <li id={`good-operation-${id}`} key={id} data-good-operation-name={id}>{OPERATION[id][0]}{index < afterSaveOperations.length - 1 ? <span aria-hidden="true" className="text-muted-foreground"> · </span> : null}</li>)}</ul>
             <p className="text-muted-foreground" role="note">{GOOD_OPERATION_PLACEHOLDER_COPY}</p>
           </div>
-          {/* 저장 전 18개 운영 항목은 이름만 저장 뒤와 같은 묶음·같은 순서로 보인다(D6·R13). 입력은 저장 뒤 이 자리에서 한다. */}
-          <dl className="m-0 grid min-w-0 gap-x-4 gap-y-1.5 sm:grid-cols-[6rem_minmax(0,1fr)]">
-            {pendingOperationGroups.map((group) => <div className="contents" key={group.id}>
-              <dt className="text-muted-foreground">{group.title}</dt>
-              <dd className="m-0 min-w-0"><ul className="m-0 flex list-none flex-wrap gap-x-1 p-0" data-good-operation-names="">{group.operations.map((id, index) => <li id={`good-operation-${id}`} key={id} data-good-operation-name={id}>{OPERATION[id][0]}{index < group.operations.length - 1 ? <span aria-hidden="true" className="text-muted-foreground"> · </span> : null}</li>)}</ul></dd>
-            </div>)}
-          </dl>
         </section>}
       </div>
     </div>
