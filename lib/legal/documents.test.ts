@@ -5,15 +5,39 @@ import {
   LEGAL_DOCUMENTS,
   LEGAL_DOCUMENT_SLUGS,
   LEGAL_EFFECTIVE_DATES,
+  createLegalDocuments,
   getLegalDocument,
   legalDocumentHref,
   PENDING_PROCESSOR_LABEL,
   type LegalDocument,
 } from './documents';
 import { PRIVACY_ADDRESS_BOOK_REVISION, kstToday, koreanLegalDate } from './privacy-address-book-revision';
+import {
+  SHIPPING_BUNDLE_WORDING_REVISION,
+  shippingBundleWordingRevisionAnnounced,
+  shippingBundleWordingRevisionInEffect,
+} from './shipping-bundle-wording-revision';
 import { SOCIAL_LOGIN_LABELS } from './social-login';
 
-const documents = LEGAL_DOCUMENT_SLUGS.map((slug) => LEGAL_DOCUMENTS[slug]);
+/** KST 달력 날짜(`YYYY-MM-DD`)를 하루 단위로 옮긴다. */
+function shiftDay(date: string, days: number): string {
+  const shifted = new Date(`${date}T00:00:00Z`);
+  shifted.setUTCDate(shifted.getUTCDate() + days);
+  return shifted.toISOString().slice(0, 10);
+}
+
+/* '출고지' 표기 예약 개정(1027T-010)은 날짜(KST)로 상태가 갈린다 — 공지 전날·공지일·시행 전날·시행일을 개정 상수에서 파생해
+   고정한다(병합 때 날짜를 옮겨도 시험이 따라온다). LEGAL_DOCUMENTS(오늘 날짜)는 어느 상태든 성립해야 하는 검사에만 쓴다. */
+const { announcedDate: BUNDLE_ANNOUNCED, effectiveDate: BUNDLE_EFFECTIVE } = SHIPPING_BUNDLE_WORDING_REVISION;
+const BEFORE_BUNDLE = createLegalDocuments(BUSINESS_INFO, shiftDay(BUNDLE_ANNOUNCED, -1));
+const DURING_BUNDLE = createLegalDocuments(BUSINESS_INFO, BUNDLE_ANNOUNCED);
+const LAST_NOTICE_DAY = createLegalDocuments(BUSINESS_INFO, shiftDay(BUNDLE_EFFECTIVE, -1));
+const AFTER_BUNDLE = createLegalDocuments(BUSINESS_INFO, BUNDLE_EFFECTIVE);
+
+const documents = [
+  ...LEGAL_DOCUMENT_SLUGS.map((slug) => LEGAL_DOCUMENTS[slug]),
+  ...[BEFORE_BUNDLE, DURING_BUNDLE, AFTER_BUNDLE].flatMap((set) => LEGAL_DOCUMENT_SLUGS.map((slug) => set[slug])),
+];
 
 function source() {
   return readFileSync(new URL('./documents.ts', import.meta.url), 'utf8');
@@ -90,23 +114,104 @@ describe('법정 문서 레지스트리', () => {
     }
   });
 
-  /* 서비스 공개(오픈) 전이라 실사용자가 없다 — 세 문서는 개정 안내·이전 본문 없이 2026-11-06 최초 판 하나다.
-     오픈 뒤 개정부터는 약관 제3조·방침 제13조대로 사전 공지와 이전 본문 보존을 쓴다(page.test의 fixture가 렌더를 지킨다). */
-  it('오픈 전 최초 판이다 — 세 문서 모두 2026-11-06 시행이고 사전 공지·개정 안내·이전 본문이 없다', () => {
+  /* 서비스 공개(오픈) 전이라 실사용자가 없었다 — 세 문서는 개정 안내·이전 본문 없이 2026-11-06 최초 판 하나로 시작했다.
+     오픈 뒤 개정부터는 약관 제3조·방침 제13조대로 사전 공지와 이전 본문 보존을 쓴다(아래 '출고지' 표기 개정이 첫 사례다). */
+  it('공지 전에는 오픈 전 최초 판이다 — 세 문서 모두 2026-11-06 시행이고 사전 공지·개정 안내·이전 본문이 없다', () => {
     expect(Object.keys(LEGAL_EFFECTIVE_DATES).sort()).toEqual([...LEGAL_DOCUMENT_SLUGS].sort());
 
     for (const slug of LEGAL_DOCUMENT_SLUGS) {
-      const document = LEGAL_DOCUMENTS[slug];
+      const document = BEFORE_BUNDLE[slug];
       expect(document.effectiveDate, slug).toBe('2026-11-06');
       expect(document.effectiveDate, slug).toBe(LEGAL_EFFECTIVE_DATES[slug]);
       expect(document.pendingRevision, slug).toBeUndefined();
       expect(document.revisionChanges, slug).toBeUndefined();
       expect(document.previousVersion, slug).toBeUndefined();
-      /* 오픈 뒤 한 문서만 개정할 수 있도록 각 문서는 자기 슬러그의 시행일만 참조한다. */
+      /* 한 문서만 개정할 수 있도록 각 문서는 자기 슬러그의 시행일만 참조한다. */
       expect(source().match(new RegExp(`LEGAL_EFFECTIVE_DATES\\.${slug}`, 'g')), slug).toHaveLength(1);
     }
 
-    expect(source(), '문서 셋이 시행일 상수 하나를 공유하면 오픈 뒤 개별 개정을 할 수 없다').not.toMatch(/const EFFECTIVE_DATE\b/);
+    expect(source(), '문서 셋이 시행일 상수 하나를 공유하면 개별 개정을 할 수 없다').not.toMatch(/const EFFECTIVE_DATE\b/);
+  });
+
+  /* 1027T-010 '전부 제거' — 개인정보처리방침에는 '출고지'가 없어 이 개정과 무관하다. 어느 상태에서도 최초 판 그대로다. */
+  it('개인정보처리방침은 출고지 표기 개정과 무관하게 2026-11-06 최초 판 그대로다', () => {
+    for (const set of [BEFORE_BUNDLE, DURING_BUNDLE, LAST_NOTICE_DAY, AFTER_BUNDLE]) {
+      expect(set.privacy).toEqual(BEFORE_BUNDLE.privacy);
+      expect(plainText(set.privacy)).not.toContain('출고지');
+    }
+  });
+
+  /* 약관 제3조·방침 제13조 — 적용일자 7일 전부터 현행 본문과 함께 공지한다. 날짜는 병합·배포 때 정하지만 간격은 여기서 지킨다. */
+  it("'출고지' 표기 개정은 시행 7일 전 이상부터 공지하고, 공지 기간에는 현행 본문을 바꾸지 않는다", () => {
+    const days = (Date.parse(`${BUNDLE_EFFECTIVE}T00:00:00+09:00`) - Date.parse(`${BUNDLE_ANNOUNCED}T00:00:00+09:00`)) / 86_400_000;
+    expect(days, '시행 7일 전부터 공지').toBeGreaterThanOrEqual(7);
+    /* 오픈 전 최초 판(2026-11-06) 뒤의 개정이다 — 최초 판보다 앞선 날짜를 공지일로 쓰지 않는다. */
+    expect(BUNDLE_ANNOUNCED >= LEGAL_EFFECTIVE_DATES.terms && BUNDLE_ANNOUNCED >= LEGAL_EFFECTIVE_DATES.shipping).toBe(true);
+
+    for (const set of [DURING_BUNDLE, LAST_NOTICE_DAY]) {
+      for (const slug of ['terms', 'shipping'] as const) {
+        const during = set[slug];
+        /* 공지 기간의 현행 본문·시행일은 공지 전과 같다 — 사전 공지만 붙는다. */
+        expect(during.articles, slug).toEqual(BEFORE_BUNDLE[slug].articles);
+        expect(during.effectiveDate, slug).toBe('2026-11-06');
+        expect(during.previousVersion, slug).toBeUndefined();
+        expect(during.revisionChanges, slug).toBeUndefined();
+        expect(during.pendingRevision, slug).toMatchObject({
+          announcedDate: BUNDLE_ANNOUNCED,
+          effectiveDate: BUNDLE_EFFECTIVE,
+          heading: '배송 단위 표기(배송 묶음) 통일에 따른 개정 예정 안내',
+        });
+        const notice = during.pendingRevision!.changes.join('\n');
+        expect(notice, slug).toContain('개정 사유');
+        expect(notice, slug).toContain("'배송 묶음");
+        expect(notice, slug).toContain('바뀌지 않습니다');
+      }
+    }
+    expect(DURING_BUNDLE.terms.pendingRevision!.changes.join('\n')).toContain('제16조의2(반품과 교환)');
+    expect(DURING_BUNDLE.shipping.pendingRevision!.changes.join('\n')).toContain('1. 배송 안내');
+  });
+
+  /* 시행일부터 바뀐 본문이 현행이 되고, 직전 공개 본문을 이전 판으로 그대로 남긴다(약관 제3조 개정 이력). */
+  it("'출고지' 표기 개정은 시행일부터 본문에서 출고지를 배송 묶음으로 바꾸고 직전 본문을 이전 판으로 보존한다", () => {
+    for (const slug of ['terms', 'shipping'] as const) {
+      const before = BEFORE_BUNDLE[slug];
+      const after = AFTER_BUNDLE[slug];
+      expect(plainText(before), slug).toContain('출고지별');
+      expect(plainText(after), slug).not.toContain('출고지');
+      expect(plainText(after), slug).toContain('배송 묶음별');
+      expect(after.effectiveDate, slug).toBe(BUNDLE_EFFECTIVE);
+      expect(after.pendingRevision, slug).toBeUndefined();
+      expect(after.previousVersion, slug).toEqual({ effectiveDate: '2026-11-06', articles: before.articles });
+      expect(after.revisionChanges?.length, slug).toBeGreaterThan(0);
+      for (const change of after.revisionChanges!) expect(DURING_BUNDLE[slug].pendingRevision!.changes, slug).toContain(change);
+      /* 표기 말고는 바뀌지 않는다 — 조문 제목·수·표 머리글이 그대로다. */
+      expect(after.articles.map((article) => article.heading), slug).toEqual(before.articles.map((article) => article.heading));
+      expect(after.articles.map((article) => article.table?.columns ?? null), slug).toEqual(before.articles.map((article) => article.table?.columns ?? null));
+    }
+
+    const shippingRows = AFTER_BUNDLE.shipping.articles[0]!.table!.rows;
+    expect(shippingRows).toContainEqual(['배송 방법', '배송 묶음별 지정 택배사']);
+    expect(shippingRows.find(([label]) => label === '기본 배송비')?.[1]).toBe(
+      '굿즈 상세와 주문 화면에 표시된 배송 묶음별 배송 정책에 따릅니다. 배송 묶음이 다르면 배송비를 각각 더합니다.',
+    );
+    expect(shippingRows.find(([label]) => label === '무료 배송 조건')?.[1]).toMatch(/^같은 배송 묶음의 정책 적용 굿즈 할인 전 소계로 확인합니다/);
+    const procedure = AFTER_BUNDLE.shipping.articles.find((article) => article.heading.startsWith('6. '))!.list!.join('\n');
+    expect(procedure).toContain('배송 묶음별 반송 주소와 회수 방법을 안내합니다');
+    expect(procedure).toContain('배송 묶음별 반송 대상 굿즈와 수량의 실제 입고를 확인합니다');
+    expect(AFTER_BUNDLE.terms.articles.find((article) => article.heading.startsWith('제16조의2 '))!.paragraphs![0])
+      .toContain('환급·재배송은 배송 묶음별 실물 회수를 모두 확인한 뒤 진행합니다.');
+  });
+
+  it("'출고지' 표기 개정의 공지·시행은 한국 시간 날짜로 가른다", () => {
+    expect(shippingBundleWordingRevisionAnnounced(shiftDay(BUNDLE_ANNOUNCED, -1))).toBe(false);
+    expect(shippingBundleWordingRevisionAnnounced(BUNDLE_ANNOUNCED)).toBe(true);
+    expect(shippingBundleWordingRevisionAnnounced(shiftDay(BUNDLE_EFFECTIVE, -1))).toBe(true);
+    expect(shippingBundleWordingRevisionAnnounced(BUNDLE_EFFECTIVE)).toBe(false);
+    expect(shippingBundleWordingRevisionInEffect(shiftDay(BUNDLE_EFFECTIVE, -1))).toBe(false);
+    expect(shippingBundleWordingRevisionInEffect(BUNDLE_EFFECTIVE)).toBe(true);
+    /* 시행일 0시(KST)는 전날 15:00 UTC다. */
+    expect(kstToday(new Date(`${shiftDay(BUNDLE_EFFECTIVE, -1)}T14:59:59Z`))).toBe(shiftDay(BUNDLE_EFFECTIVE, -1));
+    expect(kstToday(new Date(`${shiftDay(BUNDLE_EFFECTIVE, -1)}T15:00:00Z`))).toBe(BUNDLE_EFFECTIVE);
   });
 
   it('오픈 전에 없던 과거 결제·개정 이력을 본문에 남기지 않는다', () => {
@@ -190,7 +295,8 @@ describe('승인된 배송 중 접수 정책과 고객지원 안내', () => {
     expect(text).toContain('의사표시와 최초 접수 시각');
     expect(text).toContain('1:1 문의(/my/inquiries)');
     expect(text).toContain('문의 접수만으로 환급이 승인되거나');
-    expect(text).toContain('출고지별 반송 대상 굿즈와 수량의 실제 입고');
+    /* 표기('출고지별'→'배송 묶음별', 1027T-010)는 개정 시행일로 바뀐다 — 오늘 날짜와 무관한 공통 부분만 본다. */
+    expect(text).toContain('반송 대상 굿즈와 수량의 실제 입고');
     expect(text).toContain('교환품 전체의 실제 배송 완료');
     expect(text).toContain('기존 신청 기한이 자동으로 연장되지는 않습니다');
     expect(text).not.toContain('취소는 발송 전');
@@ -443,11 +549,13 @@ describe('개인정보처리방침', () => {
 });
 
 describe('배송·반품 정책', () => {
-  const shipping = LEGAL_DOCUMENTS.shipping;
+  /* 시행일 뒤의 현행 본문('배송 묶음' 표기)을 본다 — 바뀐 것은 표기뿐이라 나머지 검사는 개정 전 본문에도 그대로 성립한다. */
+  const shipping = AFTER_BUNDLE.shipping;
   const text = plainText(shipping);
 
-  it('출고지별 DB 정책 안내와 합산 기준을 설명하고 고정 금액을 복제하지 않는다', () => {
-    expect(text).toContain('출고지별');
+  it('배송 묶음별 DB 정책 안내와 합산 기준을 설명하고 고정 금액을 복제하지 않는다', () => {
+    expect(text).toContain('배송 묶음별');
+    expect(text).not.toContain('출고지');
     expect(text).toContain('할인 전');
     expect(text).toContain('굿즈당 한 번');
     expect(text).not.toContain('3,000원');
