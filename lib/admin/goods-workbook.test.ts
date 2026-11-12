@@ -531,7 +531,7 @@ describe('goods Excel planning', () => {
     const owned = { ...context, variantCodeOwners: { 'DUP-OPT-1': 'GO-001' } };
     const copied = planGoodsWorkbookImport([row({ id: 'brand-new', variantCode: 'dup-opt-1' })], owned)[0];
     expect(copied).toMatchObject({ kind: 'error', target: null });
-    expect(copied.errors.join()).toContain('관리코드 DUP-OPT-1는 다른 상품(GO-001)의 옵션이 이미 쓰고 있습니다');
+    expect(copied.errors.join()).toContain('관리코드 DUP-OPT-1은 다른 상품(GO-001)의 옵션이 이미 쓰고 있습니다');
     // 같은 파일 안에서 관리코드가 겹쳐도(상품이 달라도) 미리보기에서 막는다.
     const dup = planGoodsWorkbookImport([row({ id: 'a1', name: '가', variantCode: 'SAME-1' }), row({ id: 'a2', name: '나', variantCode: 'same-1' })], context);
     expect(dup.map((group) => group.kind)).toEqual(['error', 'error']);

@@ -1,5 +1,5 @@
 import type { GoodsNoticeInfo } from '@/lib/goods-notice';
-import { conjunctionParticle, objectParticle, subjectParticle } from '@/lib/korean-particle';
+import { conjunctionParticle, objectParticle, subjectParticle, topicParticle } from '@/lib/korean-particle';
 import {
   GOOD_TYPE_PUBLISH_REQUIRED,
   normalizeAdminGoodForm,
@@ -945,7 +945,7 @@ export function planGoodsWorkbookImport(
       const ownCode = value.variantCode.trim().toUpperCase();
       const codeOwner = ownCode ? context.variantCodeOwners?.[ownCode] : undefined;
       if (codeOwner !== undefined && !variant && codeOwner !== (record ? str(record.good.code).toUpperCase() : '')) {
-        errors.push(`${row.row}행: 관리코드 ${ownCode}는 다른 상품(${codeOwner})의 옵션이 이미 쓰고 있습니다. 기존 행을 복사해 새 상품을 만들 때는 관리코드도 비우거나 새 값으로 바꿔 주세요.`);
+        errors.push(`${row.row}행: 관리코드 ${ownCode}${topicParticle(ownCode)} 다른 상품(${codeOwner})의 옵션이 이미 쓰고 있습니다. 기존 행을 복사해 새 상품을 만들 때는 관리코드도 비우거나 새 값으로 바꿔 주세요.`);
       }
       const attributes: Record<string, string> = Object.create(null);
       for (const [axis, optionValue] of [[value.axis1, value.value1], [value.axis2, value.value2], [value.axis3, value.value3]]) {
@@ -1081,7 +1081,7 @@ export function planGoodsWorkbookImport(
       if (!code) continue;
       const previous = seenVariantCodes.get(code);
       if (previous) {
-        const message = `관리코드 ${code}가 ${previous.row}행과 ${row.row}행에서 겹칩니다. 관리코드는 파일 안에서도 한 번만 쓸 수 있습니다.`;
+        const message = `관리코드 ${code}${subjectParticle(code)} ${previous.row}행과 ${row.row}행에서 겹칩니다. 관리코드는 파일 안에서도 한 번만 쓸 수 있습니다.`;
         for (const target of new Set([previous.group, group])) {
           if (!target.errors.includes(message)) target.errors.push(message);
           target.kind = 'error';

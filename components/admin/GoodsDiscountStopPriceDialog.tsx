@@ -6,6 +6,7 @@ import { readGoodsBulkAction } from '@/app/admin/goods-bulk-actions';
 import type { GoodsGroupIdentity } from '@/lib/admin/goods-groups';
 import { discountStopApplied, discountStopAwaitingResult, discountStopLossSummary, parseInlineSalePrice, type DiscountStopPricePhase } from '@/lib/admin/goods-list-inline';
 import { adminConfirm } from '@/lib/admin/confirm';
+import { resultParticle } from '@/lib/korean-particle';
 import { CustomerServiceDialog } from './screens/CustomerServiceDialog';
 import { AdminNotice } from './console/AdminKit';
 import { Button } from './kit/ui/button';
@@ -117,7 +118,7 @@ export function useDiscountStopPrice({ identity, onDone }: { identity?: GoodsGro
       busy.current = true;
       void adminConfirm({
         title: '판매가 변경 확인',
-        message: `${goal.goodName}의 판매가를 ${won(seenBasePrice)}에서 ${won(next)}(으)로 바꿉니다.${stopping ? ' 진행 중이거나 예정된 할인은 먼저 모두 멈추며 되돌리지 않습니다.' : ''}`,
+        message: `${goal.goodName}의 판매가를 ${won(seenBasePrice)}에서 ${won(next)}${resultParticle(won(next))} 바꿉니다.${stopping ? ' 진행 중이거나 예정된 할인은 먼저 모두 멈추며 되돌리지 않습니다.' : ''}`,
         confirmLabel: stopping ? '할인 중지 후 변경' : '판매가 변경',
       }).then(ok => { busy.current = false; if (ok) execute(goal, phase, next); });
     },

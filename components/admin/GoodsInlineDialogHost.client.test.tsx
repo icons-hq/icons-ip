@@ -104,7 +104,7 @@ describe('목록 화면 수준의 창 (리뷰 21·22 — 상품이 현재 페이
     await settle();
     /* QA2: 이전 판매가 → 새 판매가를 확인받은 뒤에만 실행한다. */
     expect(confirmations).toHaveLength(1);
-    expect(confirmations[0].message).toContain('10,000원에서 12,000원');
+    expect(confirmations[0].message).toContain('10,000원에서 12,000원으로');
     const view = render(null);
     expect(view.discount.target?.goodId).toBe('good-a');
     expect(view.discount.phase).toEqual({ step: 'price', stoppedHere: true, stopped: discounts, error: goodsBulkError('goods_bulk_busy') });
