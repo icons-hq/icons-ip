@@ -477,6 +477,21 @@ export interface StockDispatchWarnings {
   warnings: StockDispatchWarning[]; unreconciledCount: number; unreconciled: StockDispatchUnreconciled[];
 }
 
+/** 경고 목록의 옵션 표시 이름. 기본 옵션 하나뿐인 상품은 상품 이름만 쓴다. */
+export const stockWarningName = (row: { goodsName: string; optionName: string }) =>
+  row.optionName && row.optionName !== '기본 옵션' ? `${row.goodsName} / ${row.optionName}` : row.goodsName;
+
+/**
+ * 출고지시 내려받기 확인 단계에서 다시 알릴 재고 부족 요약(1007-011, QA 라운드 1 m9). 부족(창고 예상 < 출고 대기)만 세고,
+ * 이름은 앞에서 몇 개만 보인다. 부족이 없거나 경고를 불러오지 못했으면 null이다.
+ */
+export function stockShortageSummary(data: StockDispatchWarnings | null, limit = 5): { count: number; names: string[] } | null {
+  const shortages = data?.warnings.filter((warning) => warning.kind === 'shortage') ?? [];
+  if (!shortages.length) return null;
+  return { count: shortages.length, names: shortages.slice(0, limit).map((warning) => Number.isSafeInteger(warning.shortageQty)
+    ? `${stockWarningName(warning)} (부족 ${warning.shortageQty.toLocaleString('ko-KR')})` : stockWarningName(warning)) };
+}
+
 export function parseStockDispatchWarnings(value: unknown): StockDispatchWarnings | null {
   const row = record(value);
   if (!row || !Array.isArray(row.warnings) || !Array.isArray(row.unreconciled)) return null;

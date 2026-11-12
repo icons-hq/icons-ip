@@ -268,3 +268,60 @@ it('데이터를 바꾼 처리가 끝나면 이전 바코드 경고를 거두고
  expect(anchor.click).toHaveBeenCalledOnce();
  expect(text(ready())).toContain('1건의 출고지시를 내려받았습니다. 바코드가 없는 옵션 1개 — 파일의 바코드 칸이 비어 있습니다.');
 });
+
+/* QA 라운드 1 M1-b·m1 (CS·운영 S-T04-05 포함): 처리 결과 문구는 100행까지 길어지는 표 아래가 아니라 표 위에, 머리 막대 아래에 붙어 보인다. */
+it('배송완료·행 처리 결과를 표 위(표보다 앞) 고정 상자에 두고 닫을 수 있다',async()=>{
+ const order=(tree:ReturnType<typeof ShipmentConsoleGrid>)=>{const all=nodes(tree);return {notice:all.findIndex(node=>node.type===AdminNotice&&node.props.role==='status'),grid:all.findIndex(node=>node.type===ConsoleGrid)};};
+ mocks.complete.mockResolvedValue({message:'1건을 배송완료로 변경했습니다.',failed:[]});
+ select([ids[2]]);click('선택 배송완료');
+ const check=nodes(render()).find(node=>node.type==='input'&&node.props.type==='checkbox')!;(check.props.onChange as (event:unknown)=>void)({target:{checked:true}});
+ click('1건 배송완료 처리');await Promise.all(mocks.work);
+ const placed=order(render());
+ expect(placed.notice).toBeGreaterThanOrEqual(0);expect(placed.notice).toBeLessThan(placed.grid);
+ const box=nodes(render()).find(node=>node.props['data-shipment-console-notice']==='')!;
+ expect(String(box.props.className)).toContain('sticky');
+ expect(text(box.props.children as ReactNode)).toContain('1건을 배송완료로 변경했습니다.');
+ click('닫기');expect(nodes(render()).some(node=>node.type===AdminNotice&&node.props.role==='status')).toBe(false);
+ // 행의 운송장 칸·배송 방법 팝업이 올린 결과(표에서 행이 빠지는 처리)도 같은 자리다.
+ const readyProps={...props,tab:'ready' as const,dispatchActions:true,rows:props.rows.map(value=>({...value,status:'ready' as const}))};
+ mocks.states=[];mocks.index=0;
+ const provider=ShipmentConsoleGrid(readyProps) as ReactElement<{value:{report:(notice:{tone:'success';message:string})=>void}}>;
+ provider.props.value.report({tone:'success',message:'배송 건 2026111230000007: 운송장 1건을 등록해 배송 중으로 옮겼습니다.'});
+ mocks.index=0;const reported=order(ShipmentConsoleGrid(readyProps));
+ expect(reported.notice).toBeGreaterThanOrEqual(0);expect(reported.notice).toBeLessThan(reported.grid);
+});
+
+/* QA 라운드 1 m9: 맨 위 재고 경고는 행으로 내려가면 보이지 않는다. 파일을 받는 확인 단계에서 다시 알리고, 받을지는 운영자가 정한다. */
+it('재고 부족 옵션이 있으면 출고지시 내려받기 확인 단계(비밀번호 창·창고 양식 확인 창)에서 다시 알리고 막지는 않는다',async()=>{
+ const shortage={count:2,names:['QA 물류 키링 / A형 (부족 4)','QA 키링 B (부족 1)']};
+ const readyProps={...props,tab:'ready' as const,stockShortage:shortage,rows:props.rows.map(value=>({...value,status:'ready' as const,pack:null}))};
+ function ready(){mocks.index=0;return ShipmentConsoleGrid(readyProps);}
+ (nodes(ready()).find(node=>node.type===ConsoleGrid)!.props.onSelectionChange as (value:string[])=>void)([ids[0]]);
+ const exportButton=()=>nodes(ready()).find(node=>isButton(node)&&text(node.props.children as ReactNode)==='출고지시 내보내기')!;
+ (exportButton().props.onClick as ()=>void)();
+ // ICONS 표준 XLSX: 비밀번호 창 안에 경고가 함께 보인다.
+ expect(text(ready())).toContain('비밀번호 확인');
+ const stockNotice=()=>nodes(ready()).find(node=>node.type===AdminNotice&&node.props.title==='창고 재고보다 출고할 주문이 많은 옵션 2개');
+ expect(stockNotice()).toBeDefined();expect(text(stockNotice()!.props.children as ReactNode)).toContain('QA 물류 키링 / A형 (부족 4)');
+ (nodes(ready()).find(node=>isButton(node)&&text(node.props.children as ReactNode)==='취소')!.props.onClick as ()=>void)();
+ // 기존 창고 양식은 비밀번호가 없어도 같은 확인 창을 거친다.
+ const layout=nodes(ready()).find(node=>isSelect(node))!;(layout.props.onChange as (event:unknown)=>void)({target:{value:'warehouse'}});
+ (exportButton().props.onClick as ()=>void)();
+ expect(mocks.export).not.toHaveBeenCalled();
+ expect(stockNotice()).toBeDefined();
+ expect(nodes(ready()).some(node=>node.type===CustomerServiceDialog&&node.props.title==='출고지시 내려받기 확인')).toBe(true);
+ expect(nodes(ready()).some(node=>isInput(node)&&node.props.type==='password')).toBe(false);
+ mocks.export.mockResolvedValue({error:'합성 응답'});
+ const form=nodes(ready()).find(node=>node.type==='form')!;
+ (form.props.onSubmit as (event:unknown)=>void)({preventDefault:vi.fn(),currentTarget:{reset:vi.fn()}});await Promise.all(mocks.work);
+ expect(mocks.export).toHaveBeenLastCalledWith([ids[0]],'xlsx','warehouse',undefined);
+ // 경고가 없으면 기존 창고 양식은 확인 창 없이 바로 받는다(지금 동작 그대로).
+ mocks.states=[];mocks.work=[];mocks.export.mockClear();
+ const plainProps={...readyProps,stockShortage:null};
+ const plain=()=>{mocks.index=0;return ShipmentConsoleGrid(plainProps);};
+ (nodes(plain()).find(node=>node.type===ConsoleGrid)!.props.onSelectionChange as (value:string[])=>void)([ids[0]]);
+ (nodes(plain()).find(node=>isSelect(node))!.props.onChange as (event:unknown)=>void)({target:{value:'warehouse'}});
+ (nodes(plain()).find(node=>isButton(node)&&text(node.props.children as ReactNode)==='출고지시 내보내기')!.props.onClick as ()=>void)();await Promise.all(mocks.work);
+ expect(mocks.export).toHaveBeenLastCalledWith([ids[0]],'xlsx','warehouse',undefined);
+ expect(nodes(plain()).some(node=>node.type===CustomerServiceDialog)).toBe(false);
+});
