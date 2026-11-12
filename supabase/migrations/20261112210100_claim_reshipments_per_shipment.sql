@@ -26,7 +26,8 @@
 --   원칙 유지). 결정한 배송 건은 회수가 끝난 것으로 본다(claim_collections_complete).
 -- * 교환품 제작은 배송 건 단위다: 그 배송 건 입고(또는 회수 생략 결정) 때 작업을 만들고 시작·완료를 열며,
 --   재출고 때는 그 배송 건의 주문제작 품목만 제작 완료를 본다. 클레임이 바뀔 때마다(반품→교환 전환 포함) 준비된
---   품목의 작업을 확인해 만들고, 이 migration 전에 입고돼 진행 중인 교환은 한 번 백필한다.
+--   품목의 작업을 확인해 만들고, 이 migration 전에 입고돼 진행 중인 교환은 한 번 백필한다. 교환→반품 전환으로 취소된
+--   작업은 다시 교환이 되어 준비되면 되살린다(완료된 뒤 취소됐으면 완료 그대로, 아니면 대기·납기 새로).
 -- * 반품 전환·사유 정정으로 회수 생략 결정이 효력을 잃으면, 입고되지 않은 결정 배송 건이 있는 '입고완료' 클레임을
 --   '수거중'으로 되돌리고 회수 완료 시각을 비운다(감사 기록).
 -- * 한 배송 건이라도 재출고한 교환은 거부할 수 없고(보류에서의 거부 포함), 회수 정보 정정은 재출고한 배송 건만 잠근다.
@@ -188,33 +189,53 @@ returns boolean language sql stable set search_path='' as $$
   where w.claim_id=p_claim and w.shipment_id=p_shipment and c.claim_type='exchange' and c.reason_type='defect');
 $$;
 
--- 교환 주문제작 품목의 교환품 제작 작업을 만든다. 이미 있으면 그대로 둔다(먼저 정해진 기준 시각이 남는다).
-create function private.ensure_claim_production_jobs(p_claim uuid,p_items uuid[],p_basis timestamptz)
+-- 교환 클레임 품목 하나의 교환품 제작 작업을 연다. 없으면 만들고, 진행 중·완료된 작업은 그대로 둔다(먼저 정해진 기준 시각이
+-- 남는다). 교환→반품 전환으로 취소된 작업은 다시 교환이 되어 준비되면 되살린다: 완료된 뒤 취소됐으면 완료 그대로(이미 만든
+-- 교환품을 다시 만들지 않는다), 아니면 대기로 돌리고 기준 시각·납기를 새로 잡는다(시작 기록은 다시 남긴다 — 이전 시작·완료
+-- 이력은 order_production_events에 남는다). 이 브랜치가 작업을 입고완료 전에 일찍 만들어도 전환 왕복 뒤 막히지 않게 한다.
+create function private.open_claim_production_job(p_order uuid,p_item uuid,p_claim uuid,p_terms jsonb,p_basis timestamptz)
 returns void language sql volatile set search_path='' as $$
  insert into private.order_production_jobs(order_id,order_item_id,claim_id,terms,basis_at,due_at)
- select i.order_id,i.id,p_claim,i.production_terms_snapshot,p_basis,private.production_deadline(p_basis,i.production_terms_snapshot)
- from public.order_items i where i.id=any(p_items) and i.production_terms_snapshot is not null order by i.id
- on conflict do nothing;
+ values(p_order,p_item,p_claim,p_terms,p_basis,private.production_deadline(p_basis,p_terms))
+ on conflict(order_item_id,claim_id) where claim_id is not null do update set
+  state=case when order_production_jobs.completed_at is not null then 'completed' else 'pending' end,
+  revision=order_production_jobs.revision+1,
+  basis_at=case when order_production_jobs.completed_at is not null then order_production_jobs.basis_at else excluded.basis_at end,
+  due_at=case when order_production_jobs.completed_at is not null then order_production_jobs.due_at else excluded.due_at end,
+  started_at=case when order_production_jobs.completed_at is not null then order_production_jobs.started_at end,
+  updated_at=clock_timestamp()
+ where order_production_jobs.state='canceled';
 $$;
+
+-- 교환 주문제작 품목들의 교환품 제작 작업을 연다(open_claim_production_job).
+create function private.ensure_claim_production_jobs(p_claim uuid,p_items uuid[],p_basis timestamptz)
+returns void language plpgsql volatile set search_path='' as $$
+declare item record;begin
+ for item in select i.order_id,i.id,i.production_terms_snapshot terms from public.order_items i
+  where i.id=any(p_items) and i.production_terms_snapshot is not null order by i.id loop
+  perform private.open_claim_production_job(item.order_id,item.id,p_claim,item.terms,p_basis);
+ end loop;
+end $$;
 
 -- 교환품 제작을 시작할 수 있게 된 주문제작 품목(그 품목이 담긴 배송 건이 모두 입고됐거나 회수 생략으로 결정됨)의 제작 작업을 만든다.
 -- 기준 시각은 그 품목이 준비된 때다: 배송 건마다 입고·결정 중 이른 시각, 품목이 여러 배송 건에 걸치면 가장 늦은 배송 건.
 -- 반품 중에 입고된 뒤 교환으로 바뀐 클레임, 이 migration 전에 입고돼 진행 중인 교환도 같은 규칙으로 작업이 생긴다. 이미 있으면 그대로다.
 create function private.ensure_claim_ready_production_jobs(p_claim uuid)
-returns void language sql volatile set search_path='' as $$
- insert into private.order_production_jobs(order_id,order_item_id,claim_id,terms,basis_at,due_at)
- select i.order_id,i.id,c.id,i.production_terms_snapshot,ready.at,private.production_deadline(ready.at,i.production_terms_snapshot)
- from public.order_cancellation_requests c
- join public.order_items i on i.order_id=c.order_id and i.production_terms_snapshot is not null
- cross join lateral(select count(*) n,max(least(coalesce(x.collected_at,'infinity'::timestamptz),
-   coalesce((select w.waived_at from public.order_claim_collection_waivers w where w.claim_id=x.claim_id and w.shipment_id=x.shipment_id
-    and private.claim_collection_waived(x.claim_id,x.shipment_id)),'infinity'::timestamptz))) at
-  from public.order_claim_collections x cross join lateral jsonb_array_elements(x.items_snapshot) j
-  where x.claim_id=c.id and (j->>'orderItemId')::uuid=i.id) ready
- where c.id=p_claim and c.claim_type='exchange' and c.stage in('collecting','collected') and ready.n>0 and ready.at<'infinity'::timestamptz
- order by i.id
- on conflict do nothing;
-$$;
+returns void language plpgsql volatile set search_path='' as $$
+declare item record;begin
+ for item in select i.order_id,i.id,i.production_terms_snapshot terms,ready.at
+  from public.order_cancellation_requests c
+  join public.order_items i on i.order_id=c.order_id and i.production_terms_snapshot is not null
+  cross join lateral(select count(*) n,max(least(coalesce(x.collected_at,'infinity'::timestamptz),
+    coalesce((select w.waived_at from public.order_claim_collection_waivers w where w.claim_id=x.claim_id and w.shipment_id=x.shipment_id
+     and private.claim_collection_waived(x.claim_id,x.shipment_id)),'infinity'::timestamptz))) at
+   from public.order_claim_collections x cross join lateral jsonb_array_elements(x.items_snapshot) j
+   where x.claim_id=c.id and (j->>'orderItemId')::uuid=i.id) ready
+  where c.id=p_claim and c.claim_type='exchange' and c.stage in('collecting','collected') and ready.n>0 and ready.at<'infinity'::timestamptz
+  order by i.id loop
+  perform private.open_claim_production_job(item.order_id,item.id,p_claim,item.terms,item.at);
+ end loop;
+end $$;
 
 -- 교환품 제작을 시작·완료할 수 있는가. 클레임이 입고완료면 모두, 회수 중이면 그 품목이 담긴 배송 건이 모두 입고됐거나
 -- 회수 생략으로 결정된 때다(배송 건마다 재출고하므로 제작도 배송 건마다 연다).
@@ -1079,13 +1100,18 @@ declare definition text:=pg_get_functiondef('private.production_claim_changed()'
     or exists(select 1 from public.order_claim_reshipments r where r.claim_id=new.id and(r.shipment_id is null
      or exists(select 1 from public.order_shipment_items l where l.shipment_id=r.shipment_id and l.order_item_id=i.id))))
    and not exists(select 1 from private.order_production_jobs j where j.order_item_id=i.id and j.claim_id=new.id and j.state='completed')) then raise check_violation using message='production_incomplete';end if;$a$;
+ -- 클레임 입고완료 때 만드는 작업도 같은 열기 규칙(교환→반품→교환으로 취소된 작업은 되살린다)을 쓴다.
+ open_anchor text:=$a$insert into private.order_production_jobs(order_id,order_item_id,claim_id,terms,basis_at,due_at) values(new.order_id,item.id,new.id,item.production_terms_snapshot,basis,private.production_deadline(basis,item.production_terms_snapshot)) on conflict do nothing;$a$;
+ open_replacement text:=$a$perform private.open_claim_production_job(new.order_id,item.id,new.id,item.production_terms_snapshot,basis);$a$;
 begin
- if (length(definition)-length(replace(definition,anchor,'')))/length(anchor)<>1 then raise exception 'production_claim_changed anchor must appear once';end if;
- execute replace(definition,anchor,replacement);
+ if (length(definition)-length(replace(definition,anchor,'')))/length(anchor)<>1
+  or (length(definition)-length(replace(definition,open_anchor,'')))/length(open_anchor)<>1 then raise exception 'production_claim_changed anchors must appear once';end if;
+ execute replace(replace(definition,anchor,replacement),open_anchor,open_replacement);
 end $patch$;
 
 -- 교환품 제작 작업은 배송 건 입고 확인 때도 연다(그 배송 건의 주문제작 품목, 기준 시각은 그 입고 시각). 클레임 전체
--- 입고완료 때 만드는 기존 경로(production_claim_changed)는 그대로 남아, 이미 만든 작업은 건드리지 않는다.
+-- 입고완료 때 만드는 기존 경로(production_claim_changed)도 남는다. 진행 중·완료된 작업은 건드리지 않고, 교환→반품
+-- 전환으로 취소된 작업만 되살린다(open_claim_production_job).
 create function private.production_claim_collection_changed() returns trigger language plpgsql security definer set search_path='' as $$
 begin
  if new.collected_at is not null and old.collected_at is null
@@ -1168,6 +1194,7 @@ revoke all on function private.claim_production_ready(uuid,uuid) from public,ano
 revoke all on function private.record_claim_collection_waiver(public.order_cancellation_requests,uuid,text,uuid[],uuid,timestamptz) from public,anon,authenticated,service_role;
 revoke all on function private.production_claim_collection_changed() from public,anon,authenticated,service_role;
 revoke all on function private.ensure_claim_ready_production_jobs(uuid) from public,anon,authenticated,service_role;
+revoke all on function private.open_claim_production_job(uuid,uuid,uuid,jsonb,timestamptz) from public,anon,authenticated,service_role;
 revoke all on function private.production_claim_ready_jobs() from public,anon,authenticated,service_role;
 revoke all on function private.reopen_ineffective_collection_waivers() from public,anon,authenticated,service_role;
 revoke all on function public.admin_waive_order_claim_collection(uuid,uuid,jsonb) from public,anon,authenticated,service_role;
