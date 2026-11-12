@@ -92,7 +92,7 @@ language sql stable security definer set search_path = '' as $$
     select 1 from public.order_items oi join public.orders o on o.id = oi.order_id
     where oi.id = p_item_id
       and (oi.supply_source = 'stock' or exists(select 1 from private.goods_preorder_reservations r where r.order_item_id = oi.id and r.state = 'allocated'))
-      and coalesce((select s.status <> 'canceled' and s.fulfillment_partition <> 'digital' and (s.status in ('shipping','delivered') or s.shipped_at is not null)
+      and coalesce((select s.fulfillment_partition <> 'digital' and (s.status <> 'canceled' or s.shipped_at is not null) and (s.status in ('shipping','delivered') or s.shipped_at is not null)
           from public.order_shipment_items si join public.order_shipments s on s.id = si.shipment_id where si.order_item_id = oi.id limit 1),
         o.shipped_at is not null));
 $$;
@@ -160,8 +160,8 @@ begin
   if not found then raise no_data_found using message = 'claim_not_found'; end if;
   select * into ord from public.orders where id = target_order for update;
   select * into claim from public.order_cancellation_requests where id = p_claim_id for update;
-  if claim.claim_type <> 'return' then raise check_violation using message = 'defective_stock_return_only'; end if;
   if exists(select 1 from private.claim_defective_stock where claim_id = p_claim_id and state = 'planned') then
+    if claim.claim_type <> 'return' then raise check_violation using message = 'defective_stock_return_only'; end if;
     if claim.stage in ('rejected','withdrawn') or ord.status <> 'canceled' then
       raise check_violation using message = 'defective_stock_claim_not_completed';
     end if;

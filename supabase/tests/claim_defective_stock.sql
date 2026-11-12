@@ -97,7 +97,8 @@ select 1/case when (select (c->>'pending')::int = 1
  then 1 else 0 end as items_view_shows_choice_and_skips_non_returns;
 -- 처리완료 전에는 기록할 수 없다.
 select pg_temp.ds_error(format('select public.admin_record_claim_defective_stock(%L)', pg_temp.ds_id('claim', 1)), 'defective_stock_claim_not_completed');
-select pg_temp.ds_error(format('select public.admin_record_claim_defective_stock(%L)', pg_temp.ds_id('claim', 3)), 'defective_stock_return_only');
+-- 선택 행이 없으면 클레임 유형과 관계없이 결과 없음이다(무통장 취소 클레임의 [취소 확정] 뒤에도 같은 호출이 간다).
+select 1/case when public.admin_record_claim_defective_stock(pg_temp.ds_id('claim', 3)) = jsonb_build_object('claimId', pg_temp.ds_id('claim', 3), 'recorded', 0, 'total', 0, 'pending', 0) then 1 else 0 end as recording_a_non_return_without_choice_is_a_noop;
 select public.admin_record_order_claim_refund(pg_temp.ds_id('claim', 1), 'pg_cancel', 'filed', null);
 reset role;
 

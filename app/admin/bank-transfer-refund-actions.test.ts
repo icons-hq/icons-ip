@@ -125,6 +125,19 @@ describe('bank refund response binding and ambiguous outcomes', () => {
     expect(result).toMatchObject({ receipt: { ...receipt, kind: 'confirm_cancellation' }, notice: expect.stringContaining('불량 재고를 기록하지 못했습니다') });
     expect(JSON.stringify(result)).not.toContain('boom');
   });
+  it('기록할 선택이 없으면(결과 없음) 경고 없이 영수증만 돌려준다 — 무통장 취소 클레임도 같다', async () => {
+    mocks.rpc.mockImplementation(async (name: string) => name === 'admin_record_claim_defective_stock'
+      ? { data: { claimId: identity.claimId, recorded: 0, total: 0, pending: 0 }, error: null } : { data: { ...receipt, kind: 'complete_transfer' }, error: null });
+    const result = await recordBankRefundAction({ ...request, kind: 'complete_transfer' });
+    expect(result).toEqual({ receipt: { ...receipt, kind: 'complete_transfer' } });
+  });
+  it('취소 클레임 영수증도 취소 확정 뒤 기록 RPC를 부르되 결과 없음이면 notice가 없다', async () => {
+    mocks.rpc.mockImplementation(async (name: string) => name === 'admin_record_claim_defective_stock'
+      ? { data: { claimId: identity.claimId, recorded: 0, total: 0, pending: 0 }, error: null } : { data: { ...receipt, kind: 'confirm_cancellation' }, error: null });
+    const result = await recordBankRefundAction({ ...request, kind: 'confirm_cancellation' });
+    expect(result).not.toHaveProperty('notice');
+    expect(mocks.rpc).toHaveBeenLastCalledWith('admin_record_claim_defective_stock', { p_claim_id: identity.claimId });
+  });
   it('응답이 불확실했던 뒤의 복구 읽기도 확인한 영수증에 멱등으로 기록을 다시 시도한다', async () => {
     mocks.rpc.mockImplementation(async (name: string) => name === 'admin_record_claim_defective_stock'
       ? { data: { claimId: identity.claimId, recorded: 1, total: 1, pending: 0 }, error: null } : { data: { ...receipt, kind: 'confirm_cancellation' }, error: null });
