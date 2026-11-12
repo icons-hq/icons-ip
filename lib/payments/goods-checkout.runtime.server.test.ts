@@ -18,6 +18,8 @@ const mocks = vi.hoisted(() => ({
     bindCallbackNonce: vi.fn(),
     claimOrderAttempt: vi.fn(),
     finalizeOrderAttempt: vi.fn(),
+    claimOrderReconciliation: vi.fn(),
+    finalizeOrderReconciliation: vi.fn(),
   },
 }));
 
@@ -113,4 +115,34 @@ describe('createRuntimeGoodsPaymentCheckout', () => {
 
     expect(mocks.sendOrderConfirmationEmail).not.toHaveBeenCalled();
   });
+
+  /*
+   * 굿즈 웹훅의 paymentKey 힌트가 attempt 래퍼(billing binding 판정)를 지나 토스 게이트웨이까지
+   * 그대로 가는지 — 래퍼가 두 번째 인자를 버리면 굿즈 웹훅은 orderId 조회로만 판정된다.
+   */
+  it.each([['webhook-payment-key-hint'], [undefined]])(
+    '굿즈 웹훅 힌트(%s)는 attempt 래퍼를 지나 toss reconcile의 두 번째 인자로만 전달된다',
+    async (hint) => {
+      const attempt = attemptFor('toss');
+      const reconcile = vi.fn().mockResolvedValue(outcomeFor('toss', 'declined'));
+      mocks.getPaymentGateway.mockReturnValue({ reconcile });
+      mocks.repository.claimOrderReconciliation.mockResolvedValue({
+        status: 'claimed',
+        attempt,
+        claimToken: '50000000-0000-4000-8000-000000000208',
+      });
+      mocks.repository.finalizeOrderReconciliation.mockImplementation(
+        async (input: { outcome: ConfirmOutcome }) => input.outcome,
+      );
+
+      await expect(createRuntimeGoodsPaymentCheckout('toss').reconcilePayment({
+        attemptId: ATTEMPT_ID,
+        caseRef: 'case_goods_opaque_0208',
+        ...(hint ? { providerPaymentKeyHint: hint } : {}),
+      })).resolves.toMatchObject({ outcome: 'declined' });
+
+      expect(reconcile).toHaveBeenCalledTimes(1);
+      expect(reconcile.mock.calls[0]).toEqual(hint ? [attempt, { providerPaymentKey: hint }] : [attempt]);
+    },
+  );
 });

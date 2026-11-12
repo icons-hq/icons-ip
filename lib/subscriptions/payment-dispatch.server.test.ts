@@ -32,6 +32,19 @@ describe('attempt integration dispatch', () => {
     expect(dependencies.legacy.refund).toHaveBeenCalledWith(refund);
     expect(recurring.inspect).not.toHaveBeenCalled(); expect(dependencies.prepareRefund).not.toHaveBeenCalled();
   });
+  it('일반 결제 attempt의 힌트를 legacy reconcile 두 번째 인자로 넘긴다', async () => {
+    const { gateway, dependencies, input } = setup();
+    const hint = { providerPaymentKey: 'webhook-payment-key-hint' };
+    await gateway.reconcile(input.attempt, hint);
+    expect(dependencies.legacy.reconcile).toHaveBeenCalledTimes(1);
+    expect(dependencies.legacy.reconcile).toHaveBeenCalledWith(input.attempt, hint);
+  });
+  it('billing attempt는 웹훅 힌트를 받아도 binding 조회로만 판정한다', async () => {
+    const { gateway, dependencies, recurring, input } = setup(billingChargeFixture().binding);
+    await gateway.reconcile(input.attempt, { providerPaymentKey: 'webhook-payment-key-hint' });
+    expect(recurring.inspect).toHaveBeenCalledWith({ attempt: input.attempt, binding: input.binding });
+    expect(dependencies.legacy.reconcile).not.toHaveBeenCalled();
+  });
   it('billing attempt를 일반 결제창/콜백으로 보내지 않고 조회는 해당 binding으로 보낸다', async () => {
     const { gateway, dependencies, recurring, input } = setup(billingChargeFixture().binding);
     await expect(gateway.prepare(input.attempt)).rejects.toThrow('billing_checkout_not_supported');
