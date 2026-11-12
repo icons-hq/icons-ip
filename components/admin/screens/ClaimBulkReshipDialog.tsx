@@ -68,6 +68,7 @@ const PREVIOUS_FAILED = '앞 출고지의 재출고가 끝나지 않아 보내�
 const OUTCOME_UNKNOWN = '처리 결과를 확인하지 못했습니다. 요청 상세의 [저장 결과 확인]으로 결과를 확인해주세요.';
 const AUTH_CHANGED = '로그인 상태가 바뀌어 남은 줄을 보내지 않았습니다. 다시 로그인한 뒤 상세에서 확인해주세요.';
 const NOT_CONFIRMED = '최종 주소를 확인하지 않은 요청입니다.';
+const PENDING_OPERATION = '결과를 확인하지 않은 연락처·재출고 작업이 남아 있어 보내지 않았습니다. 요청 상세에서 저장 결과를 먼저 확인해주세요.';
 const RUNNING_LEAVE = '재출고를 등록하는 중입니다. 이동하면 남은 줄은 보내지 않습니다. 이동할까요?';
 const PRIVATE_LEAVE = '불러온 최종 주소는 보관하지 않습니다. 이동할까요?';
 
@@ -290,6 +291,11 @@ function ReshipTable({ identity, load, onDone, onRunning, scope }: {
     let claimRevision = context.claimRevision;
     let claimType = context.claimType;
     let stop: string | null = null;
+    /* 상세에서 결과를 아직 확인하지 않은 연락처 작업이 있으면 그 요청은 보내지 않는다(요청번호를 덮어쓰지 않는다). */
+    let pendingJournal: string | null = null;
+    try { pendingJournal = sessionStorage.getItem(claimContactJournalKey(identity, claim.orderId, claim.claimId)); }
+    catch { pendingJournal = 'unavailable'; }
+    if (pendingJournal !== null) stop = PENDING_OPERATION;
     for (const [index, row] of claim.rows.entries()) {
       if (stop) { fail(row, stop); continue; }
       if (Date.parse(context.expiresAt) <= Date.now()) { stop = EXPIRED; fail(row, EXPIRED); continue; }
