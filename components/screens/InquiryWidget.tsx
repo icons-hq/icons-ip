@@ -77,8 +77,7 @@ export function WidgetFaqTopics({ signedIn, onNavigate, initialTopic = null }: {
     <h3 id="inquiry-widget-topics-title">자주 찾는 문의</h3>
     <div className="wc-inquiry-widget__topic-buttons" role="group" aria-labelledby="inquiry-widget-topics-title">
       {FAQ_WIDGET_TOPICS.map((entry) => <button key={entry.id} type="button" aria-pressed={topic === entry.id}
-        aria-controls={topic === entry.id ? 'inquiry-widget-topic-answer' : undefined}
-        onClick={() => setTopic((value) => value === entry.id ? null : entry.id)}>{entry.label}</button>)}
+        aria-controls="inquiry-widget-topic-answer" onClick={() => setTopic((value) => value === entry.id ? null : entry.id)}>{entry.label}</button>)}
     </div>
     <div id="inquiry-widget-topic-answer" aria-live="polite">
       {topic ? <WidgetFaqTopicAnswer topic={topic} answer={current?.answer} error={current?.error} signedIn={signedIn} onNavigate={onNavigate} /> : null}
