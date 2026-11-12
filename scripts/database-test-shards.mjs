@@ -38,6 +38,8 @@ const operators = [
   sql('operator_logistics_dispatch'),
   sql('operator_email_invitations'),
   sql('operator_member_loyalty_projection'),
+  // 매월 등급 혜택 쿠폰(S36-062). 실행 월을 2031년으로 고정해 실제 매분 틱과 겹치지 않는다.
+  sql('loyalty_monthly_grade_coupons'),
   sql('operator_manual_recovery_guards'),
   sql('admin_operator_directory'),
   sql('readable_order_numbers'),

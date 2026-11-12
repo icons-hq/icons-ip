@@ -29,6 +29,8 @@ export type NotificationType =
   /* 회원 등급 승급(#329). 재산정·수동 보정이 승급을 확정한 트랜잭션에서 남긴다 —
      강등은 알리지 않고, 재승급은 같은 dedupe 키를 재부상시킨다. */
   | 'loyalty_grade_upgraded'
+  /* 매월 등급 혜택 쿠폰 지급(S36-062). 매월 1일 실행이 쿠폰을 지급한 트랜잭션에서 회원·월마다 한 건 남긴다. */
+  | 'loyalty_monthly_coupons_issued'
   /* 상품 Q&A 답변(#330). admin_answer_product_question RPC 가 답변을 저장한
      트랜잭션에서 남긴다 — 재답변도 같은 dedupe 키를 다시 띄운다. */
   | 'product_question_answered';

@@ -84,9 +84,10 @@ select 1/case when jsonb_array_length(pg_temp.l6_coupons(:'doc','welcome'))=0
   and (select array_agg(value->>'name' order by position) from jsonb_array_elements(pg_temp.l6_coupons(:'doc','platinum')) with ordinality as c(value,position)) = array['L6 등급 플래티넘 첫 구매']
   then 1 else 0 end as only_grantable_definitions_by_grade;
 
+-- cadence: 등급 혜택 지급 방식(승급 시 1회 기본, 매월 지급은 loyalty_monthly_grade_coupons.sql).
 select 1/case when (select value from jsonb_array_elements(pg_temp.l6_coupons(:'doc','gold')) where value->>'name'='L6 등급 골드 10%')
   - 'startsAt' = jsonb_build_object('name','L6 등급 골드 10%','benefitKind','goods','discountType','percent','discountValue',10,
-    'maxDiscountAmount',5000,'minSubtotal',50000,'goodsScope','all','recipientSegment','all','endsAt',null,'validDays',30)
+    'maxDiscountAmount',5000,'minSubtotal',50000,'goodsScope','all','recipientSegment','all','endsAt',null,'validDays',30,'cadence','upgrade')
   and (select value->>'benefitKind'='shipping' and value->'maxDiscountAmount'='null'::jsonb from jsonb_array_elements(pg_temp.l6_coupons(:'doc','gold')) where value->>'name'='L6 등급 골드 배송비')
   and (select value->>'recipientSegment'='first_purchase' and value->>'endsAt' is not null and value->'validDays'='null'::jsonb
     from jsonb_array_elements(pg_temp.l6_coupons(:'doc','platinum')))
@@ -99,12 +100,15 @@ select 1/case when (select bool_and((value->>'reached')::boolean) from jsonb_arr
   then 1 else 0 end as reached_follows_member_grade;
 
 -- 종류별 장수는 내용을 펼친 목록과 같다(최상위 회원 기준 — 다른 시드의 등급 쿠폰까지 포함한 전체 수).
+-- 매월 지급 장수도 같은 목록의 지급 방식과 맞는다.
 select 1/case when not exists (
     select 1 from jsonb_array_elements(:'doc'::jsonb->'grades') as grade(value)
     where (grade.value->'couponCounts'->>'goods')::integer
             <> (select count(*) from jsonb_array_elements(grade.value->'coupons') as c(value) where c.value->>'benefitKind'='goods')
        or (grade.value->'couponCounts'->>'shipping')::integer
             <> (select count(*) from jsonb_array_elements(grade.value->'coupons') as c(value) where c.value->>'benefitKind'='shipping')
+       or (grade.value->'couponCounts'->>'monthly')::integer
+            <> (select count(*) from jsonb_array_elements(grade.value->'coupons') as c(value) where c.value->>'cadence'='monthly')
   ) then 1 else 0 end as coupon_counts_match_full_lists;
 
 -- 오르지 않은 등급(SILVER 회원의 GOLD·PLATINUM)은 쿠폰 내용 없이 장수만: 이름·금액·조건이 어디에도 없다.

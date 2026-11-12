@@ -86,6 +86,31 @@ it('조건 수정 창에서 상하위 금액 충돌을 설명하고 수정한 �
   change('loyalty-gold-amount-preset', '500000'); applyCondition();
   expect(text(render())).toContain('500,000원 이상'); expect(mocks.save).not.toHaveBeenCalled();
 });
+it('연결 쿠폰마다 지급 방식을 적고 매월 지급 기록을 최근 달부터 보인다', () => {
+  const withMonthly: LoyaltyPolicyData = { ...data, coupons: [
+    { code: 'GOLD-MONTHLY', name: '골드 매월 쿠폰', grade: 'gold', status: 'active', cadence: 'monthly' },
+    { code: 'GOLD-UP', name: '골드 승급 쿠폰', grade: 'gold', status: 'active', cadence: 'upgrade' },
+  ], monthlyRuns: [
+    { grantMonth: '2026-12', startedAt: '2026-11-30T15:00:05Z', finishedAt: '2026-11-30T15:02:00Z', finishReason: 'completed',
+      members: 120, recipients: 118, granted: 236, skipped: 2, coupons: [{ code: 'GOLD-MONTHLY', name: '골드 매월 쿠폰', granted: 118 }] },
+    { grantMonth: '2026-11', startedAt: '2026-11-12T00:00:00Z', finishedAt: '2026-11-12T00:00:00Z', finishReason: 'no_monthly_coupons',
+      members: 0, recipients: 0, granted: 0, skipped: 0, coupons: [] },
+  ] };
+  const rendered = text(render(withMonthly));
+  expect(rendered).toContain('GOLD-MONTHLY · 활성 · 매월 1일');
+  expect(rendered).toContain('GOLD-UP · 활성 · 승급 시 1회');
+  expect(rendered).toContain('매월 1일 0시(한국 시간)에 그 시점 등급이 쿠폰 등급 이상인 회원에게 한 장씩 발급');
+  expect(rendered).toContain('2026년 12월');
+  expect(rendered).toContain('지급 완료 · 등급 확인 실패 2명 제외');
+  expect(rendered).not.toContain('매월 지급 쿠폰 없음 · 등급 확인 실패');
+  expect(rendered).toContain('118명 · 236장');
+  expect(rendered).toContain('매월 1일 지급 직전에는 대상 회원(SILVER 이상으로 기록된 회원)의 등급을 최근 90일 실적으로 다시 계산');
+  expect(rendered).toContain('매월 지급 쿠폰 없음');
+  expect(rendered.indexOf('2026년 12월')).toBeLessThan(rendered.indexOf('2026년 11월'));
+});
+it('매월 지급 기록이 없으면 빈 상태를 말한다', () => {
+  expect(text(render())).toContain('아직 매월 지급 기록이 없습니다.');
+});
 it('혜택 등록 링크에 해당 등급을 전달한다', () => {
   const hrefs = nodes(render()).map(node => node.props.href).filter(Boolean);
   expect(hrefs).toContain('/admin/sales/coupons/new?grade=silver');

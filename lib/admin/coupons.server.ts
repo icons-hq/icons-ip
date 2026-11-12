@@ -16,6 +16,7 @@ import { createClient } from '@/lib/supabase/server';
 import { parseCouponDefinitionRow } from '@/lib/coupons';
 import { parseCouponTargetCategories, parseCouponTargetGoods, parseCouponTargetIps } from '@/lib/coupon-targeting';
 import { parseCouponIssueSchedule } from './coupon-schedule';
+import { isGradeBenefitCadence, type GradeBenefitCadence } from '@/lib/loyalty';
 
 /* 쿠폰 콘솔 목록 로더 (#465).
  * 검색·상태·페이지는 서버 RPC가 적용하고, 화면에는 현재 페이지 정의만 내린다.
@@ -36,6 +37,7 @@ interface CouponRow {
   issued_count: number;
   status: string;
   grade_benefit: string | null;
+  grade_benefit_cadence?: string | null;
   used_count?: number | string | null;
   total_count?: number | string | null;
   recipient_segment: string;
@@ -52,6 +54,14 @@ type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 function toCount(value: number | string | null | undefined) {
   const parsed = typeof value === 'number' ? value : Number(value ?? 0);
   return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : 0;
+}
+
+/* 등급 혜택의 지급 방식. 등급 혜택이 없으면 늘 'upgrade'다. 등급 혜택이 있는데 값을 읽지 못했으면 편집 화면이
+   기본값('승급 시 1회')으로 그려 저장할 때 '매월'을 조용히 되돌릴 수 있다 — 추측하지 않고 실패시킨다. */
+function gradeBenefitCadence(row: CouponRow): GradeBenefitCadence {
+  if (row.grade_benefit === null) return 'upgrade';
+  if (isGradeBenefitCadence(row.grade_benefit_cadence)) return row.grade_benefit_cadence;
+  throw new Error('쿠폰의 등급 혜택 지급 방식을 확인할 수 없습니다.');
 }
 
 function toCouponRecord(row: CouponRow, usedCount = toCount(row.used_count)): AdminCouponRecord {
@@ -80,6 +90,7 @@ function toCouponRecord(row: CouponRow, usedCount = toCount(row.used_count)): Ad
     usedCount,
     status: row.status === 'archived' ? 'archived' : 'active',
     gradeBenefit: row.grade_benefit,
+    gradeBenefitCadence: gradeBenefitCadence(row),
     termsRevision: row.terms_revision,
     targetGoods,
     targetCategories,
@@ -93,6 +104,16 @@ async function requireStaffCouponAccess() {
   if (!auth.isStaff || !hasAdminCapability(auth, 'marketing.manage')) notFound();
 }
 
+/* 목록 RPC(v4)는 지급 방식을 싣지 않는다. 현재 페이지의 등급 혜택 쿠폰만 정의 표에서 한 번에 읽는다
+   (staff 는 RLS 로 정의를 읽는다). 못 읽으면 목록 전체를 실패시킨다 — 편집 화면이 기본값으로 덮어쓰지 않게. */
+async function loadGradeBenefitCadences(supabase: SupabaseServerClient, rows: CouponRow[]): Promise<Map<string, string>> {
+  const codes = rows.filter((row) => row.grade_benefit !== null).map((row) => row.code);
+  if (!codes.length) return new Map();
+  const { data, error } = await supabase.from('coupons').select('code,grade_benefit_cadence').in('code', codes);
+  if (error) throw new Error('쿠폰 목록을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
+  return new Map(((data ?? []) as { code: string; grade_benefit_cadence: string }[]).map((row) => [row.code, row.grade_benefit_cadence]));
+}
+
 async function loadSelectedCoupon(
   supabase: SupabaseServerClient,
   code: string,
@@ -100,7 +121,7 @@ async function loadSelectedCoupon(
   const [couponResult, usageResult] = await Promise.all([
     supabase
       .from('coupons')
-      .select(`${COUPON_COLUMNS},target_goods:admin_coupon_target_goods,target_categories:admin_coupon_target_categories,target_ips:admin_coupon_target_ips`)
+      .select(`${COUPON_COLUMNS},grade_benefit_cadence,target_goods:admin_coupon_target_goods,target_categories:admin_coupon_target_categories,target_ips:admin_coupon_target_ips`)
       .eq('code', code)
       .maybeSingle(),
     supabase
@@ -144,7 +165,8 @@ export async function getAdminCouponListData(
   }
 
   const rows = (listResult.data ?? []) as CouponRow[];
-  const records = rows.map((row) => toCouponRecord(row));
+  const cadences = await loadGradeBenefitCadences(supabase, rows);
+  const records = rows.map((row) => toCouponRecord({ ...row, grade_benefit_cadence: cadences.get(row.code) ?? null }));
   // PostgREST's count only sees the RPC's limited output. The RPC counts its
   // matching definitions before LIMIT/OFFSET, so later pages remain reachable.
   const total = toCount(rows[0]?.total_count);
