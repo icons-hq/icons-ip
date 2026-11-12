@@ -41,6 +41,8 @@ describe('검색 오버레이 한 덩어리 배경', () => {
 
   it('데스크톱에서 포커스로 드러난 뒤로·검색 버튼은 칸 안 흰 바탕이라 컬러형 헤더에서도 잉크색이다', () => {
     expect(decls('.wc-search .wc-search__aux:focus', '(min-width: 990px)').background).toBe('var(--wc-surface)');
+    /* 뒤로 버튼은 마크업에서 입력 칸보다 앞이라 층을 올려야 칸에 덮이지 않는다(포커스가 보여야 한다 — WCAG 2.4.7). */
+    expect(decls('.wc-search .wc-search__aux:focus', '(min-width: 990px)')['z-index']).toBe('1');
     expect(decls(`${COLOR} .wc-search .wc-search__aux:focus`, '(min-width: 990px)')).toEqual({ color: 'var(--wc-ink)' });
   });
 });

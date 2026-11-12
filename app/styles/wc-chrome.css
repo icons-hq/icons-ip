@@ -1024,10 +1024,12 @@
     white-space: nowrap;
   }
 
+  /* z-index: 뒤로 버튼은 마크업에서 입력 칸보다 앞이라 같은 층이면 칸에 덮여 포커스가 보이지 않는다(1014-047 확인 중 실측). */
   .wc-search .wc-search__aux:focus {
     position: absolute;
     top: 50%;
     right: calc(var(--wc-gutter) + 8px);
+    z-index: 1;
     background: var(--wc-surface);
     transform: translateY(-50%);
   }
