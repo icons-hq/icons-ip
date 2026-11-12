@@ -16,8 +16,9 @@ const name = (row: { goodsName: string; optionName: string }) =>
  * 그룹상품 전환 전 옵션의 주문은 지금 재고를 가진 승계 옵션으로 묶어 센다.
  * 데이터는 `loadStockDispatchWarnings(originId)`가 준다. 경고만 하고 출고를 막지 않는다 — 판단은 운영자가 한다.
  * 불러오지 못했거나(null) 경고할 것이 없으면 아무것도 그리지 않는다.
+ * canReconcile이 false면(재고 대조 화면 권한 catalog.manage가 없는 물류출고관리 등) 열 수 없는 재고 대조 링크 대신 요청 안내를 둔다.
  */
-export function StockDispatchWarning({ data }: { data: StockDispatchWarnings | null }) {
+export function StockDispatchWarning({ data, canReconcile = true }: { data: StockDispatchWarnings | null; canReconcile?: boolean }) {
   if (!data || (!data.warnings.length && !data.unreconciledCount)) return null;
   const shortages = data.warnings.filter((warning) => warning.kind === 'shortage');
   const mismatches = data.warnings.filter((warning) => warning.kind === 'mismatch');
@@ -39,7 +40,9 @@ export function StockDispatchWarning({ data }: { data: StockDispatchWarnings | n
       </ul> : null}
       {data.unreconciledCount && data.warnings.length ? <p className="text-muted-foreground">재고 파일로 대조한 적 없는 출고 대기 옵션도 {count(data.unreconciledCount)}개 있습니다.</p> : null}
       {!data.warnings.length && data.unreconciled.length ? <p className="text-muted-foreground">{data.unreconciled.slice(0, 3).map(name).join(', ')}{data.unreconciledCount > Math.min(3, data.unreconciled.length) ? ` 외 ${count(data.unreconciledCount - Math.min(3, data.unreconciled.length))}개` : ''}</p> : null}
-      <p>창고 실재고를 확인한 뒤 출고지시를 내려받아 주세요. <Link className="underline underline-offset-4" href={STOCK_RECONCILE_PATH}>재고 대조</Link>에서 최신 창고·ERP 재고 파일을 올리면 다시 계산합니다.</p>
+      {canReconcile
+        ? <p>창고 실재고를 확인한 뒤 출고지시를 내려받아 주세요. <Link className="underline underline-offset-4" href={STOCK_RECONCILE_PATH}>재고 대조</Link>에서 최신 창고·ERP 재고 파일을 올리면 다시 계산합니다.</p>
+        : <p>창고 실재고를 확인한 뒤 출고지시를 내려받아 주세요. 최신 창고·ERP 재고 파일 대조는 재고 대조 권한이 있는 운영자에게 요청해 주세요.</p>}
     </div>
   </AdminNotice>;
 }

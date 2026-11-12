@@ -35,4 +35,12 @@ describe('출고지시 전 재고 경고', () => {
     // 이름은 받은 목록에서 앞 3개까지, 나머지는 전체 건수에서 보인 이름 수를 뺀다.
     expect(unreconciled).toContain('배지 외 3개');
   });
+
+  /* 물류출고관리(1014-084)는 발송 화면의 경고는 보지만 재고 대조 화면(catalog.manage)은 열 수 없다. */
+  it('재고 대조 권한이 없으면 열 수 없는 링크 대신 요청 안내를 둔다', () => {
+    const html = renderToStaticMarkup(<StockDispatchWarning canReconcile={false} data={{ ...base, warnings: [{ ...warning, kind: 'shortage' }] }} />);
+    expect(html).toContain('창고 재고보다 출고할 주문이 많은 옵션 1개');
+    expect(html).not.toContain('href="/admin/catalog/stock-reconcile"');
+    expect(html).toContain('재고 대조 권한이 있는 운영자에게 요청해 주세요');
+  });
 });

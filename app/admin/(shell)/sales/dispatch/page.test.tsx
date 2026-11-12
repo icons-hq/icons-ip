@@ -12,8 +12,12 @@ const mocks = vi.hoisted(() => ({
   load: vi.fn(),
   loadAuto: vi.fn(),
   preview: vi.fn(),
+  stock: vi.fn(),
+  stockWarning: vi.fn(() => null),
 }));
 vi.mock('@/lib/admin/order-preview.server', () => ({ loadAdminOrderPreview: mocks.preview }));
+vi.mock('@/lib/admin/stock-reconcile.server', () => ({ loadStockDispatchWarnings: mocks.stock }));
+vi.mock('@/components/admin/StockDispatchWarning', () => ({ StockDispatchWarning: mocks.stockWarning }));
 vi.mock('@/components/admin/screens/ShipmentConsoleScreen', () => ({ ShipmentConsoleScreen: mocks.screen }));
 vi.mock('@/components/admin/screens/AutoOrderConfirmPanel', () => ({ AutoOrderConfirmPanel: mocks.autoPanel }));
 vi.mock('@/components/admin/screens/ForcedDeliveryPanel', () => ({ ForcedDeliveryPanel: mocks.forcedPanel }));
@@ -34,6 +38,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.load.mockResolvedValue({ counts: { new: 0, ready: 0, delayed: 0, transit: 0, delivered: 0 }, filters: {}, pageSize: 100, rows: [], total: 0, origins: [], carriers: [] });
   mocks.loadAuto.mockResolvedValue(autoState);
+  mocks.stock.mockResolvedValue(null);
   mocks.authState = { isConfigured: true, user: { id: '11111111-1111-4111-8111-111111111111', email: 'staff@icons.gg' }, role: 'staff', isStaff: true, operatorAccess: legacyOperatorAccessFixture() };
 });
 describe('AdminSalesDispatchPage shipment contract', () => {
@@ -96,6 +101,23 @@ describe('AdminSalesDispatchPage shipment contract', () => {
     expect(mocks.loadAuto).not.toHaveBeenCalled();
     expect(mocks.preview).not.toHaveBeenCalled();
     expect(mocks.load).toHaveBeenCalledOnce();
+  });
+  /* 1007-011(T07 통합): 출고지시를 내려받는 발송 대기·지연 탭에서만 재고 차이 경고를 읽어 목록 위에 둔다. */
+  it('발송 대기·지연 탭에서만 출고 전 재고 경고를 출고지 조건으로 읽어 목록 위에 두고, 재고 대조 권한이 없으면 링크를 빼게 한다', async () => {
+    const warnings = { warnings: [{ kind: 'shortage' }], unreconciledCount: 0 };
+    mocks.stock.mockResolvedValue(warnings);
+    await AdminSalesDispatchPage({ searchParams: Promise.resolve({ tab: 'new' }) });
+    expect(mocks.stock).not.toHaveBeenCalled();
+    const originId = 'abcdef00-0000-4000-8000-000000000001';
+    const shown = children(await AdminSalesDispatchPage({ searchParams: Promise.resolve({ tab: 'ready', originId }) }) as Element);
+    expect(mocks.stock).toHaveBeenCalledExactlyOnceWith(originId);
+    expect(shown.map(child => child.type)).toEqual([mocks.stockWarning, mocks.screen, mocks.autoPanel, mocks.forcedPanel]);
+    expect(shown[0].props).toEqual({ data: warnings, canReconcile: true });
+    mocks.authState.operatorAccess = configuredOperatorAccessFixture('logistics');
+    const logistics = children(await AdminSalesDispatchPage({ searchParams: Promise.resolve({ tab: 'delayed' }) }) as Element);
+    expect(mocks.stock).toHaveBeenLastCalledWith(null);
+    expect(logistics.map(child => child.type)).toEqual([mocks.stockWarning, mocks.screen]);
+    expect(logistics[0].props).toEqual({ data: warnings, canReconcile: false });
   });
   it('자동 발주확인 설정을 읽지 못해도 발주 목록은 그대로 연다', async () => {
     mocks.loadAuto.mockResolvedValue(null);
