@@ -6,18 +6,21 @@ import {
   orderPartialCancellationItemBlockerLabel,
   orderPartialCancellationPanelVisible,
   orderPartialCancellationReconcileMessage,
+  orderPartialCancellationResolutionMessage,
 } from './order-partial-cancellation';
 import { ORDER_PARTIAL_CANCELLATION_STATES } from '@/lib/orders/partial-cancellation';
 
 describe('부분 취소 패널 노출', () => {
   it.each([
-    ['스위치 OFF·기록 없음', { enabled: false, blockers: ['partial_cancel_disabled'], history: [] }, false],
-    ['스위치 OFF·기록 있음(켰다 끈 뒤)', { enabled: false, blockers: ['partial_cancel_disabled'], history: [{}] }, true],
-    ['켜짐·발송 전', { enabled: true, blockers: [], history: [] }, true],
-    ['켜짐·이미 발송', { enabled: true, blockers: ['shipment_already_dispatched'], history: [] }, false],
-    ['켜짐·취소된 주문', { enabled: true, blockers: ['order_not_partial_cancelable'], history: [] }, false],
-    ['켜짐·부분 취소 불가 결제', { enabled: true, blockers: ['partial_cancel_unsupported'], history: [] }, true],
-    ['켜짐·발송 전이지만 진행 중 클레임', { enabled: true, blockers: ['order_claim_in_progress'], history: [] }, true],
+    ['스위치 OFF·기록 없음', { enabled: false, canManage: true, blockers: ['partial_cancel_disabled'], history: [] }, false],
+    ['스위치 OFF·기록 있음(켰다 끈 뒤)', { enabled: false, canManage: true, blockers: ['partial_cancel_disabled'], history: [{}] }, true],
+    ['켜짐·발송 전', { enabled: true, canManage: true, blockers: [], history: [] }, true],
+    ['켜짐·이미 발송', { enabled: true, canManage: true, blockers: ['shipment_already_dispatched'], history: [] }, false],
+    ['켜짐·취소된 주문', { enabled: true, canManage: true, blockers: ['order_not_partial_cancelable'], history: [] }, false],
+    ['켜짐·부분 취소 불가 결제', { enabled: true, canManage: true, blockers: ['partial_cancel_unsupported'], history: [] }, true],
+    ['켜짐·발송 전이지만 진행 중 클레임', { enabled: true, canManage: true, blockers: ['order_claim_in_progress'], history: [] }, true],
+    ['조회 권한만·기록 없음', { enabled: true, canManage: false, blockers: [], history: [] }, false],
+    ['조회 권한만·기록 있음', { enabled: true, canManage: false, blockers: [], history: [{}] }, true],
   ])('%s', (_label, context, expected) => {
     expect(orderPartialCancellationPanelVisible(context)).toBe(expected);
   });
@@ -34,14 +37,24 @@ describe('부분 취소 운영 문구', () => {
     expect(orderPartialCancellationErrorMessage('partial_cancel_unsupported')).toContain('전액 환불로 돌리지 않습니다');
     expect(orderPartialCancellationErrorMessage('partial_cancel_item_preorder_item')).toContain('예약 판매 상품');
     expect(orderPartialCancellationErrorMessage('unknown_internal_code')).not.toContain('unknown_internal_code');
-    expect(orderPartialCancellationBlockerMessage('gift_order')).toContain('선물 주문');
+    expect(orderPartialCancellationErrorMessage('partial_cancel_shipment_packed')).toContain('합포장을 해제');
+    expect(orderPartialCancellationErrorMessage('partial_cancel_exceeds_balance')).toContain('남은 결제 금액');
+    expect(orderPartialCancellationErrorMessage('partial_cancel_resolution_reason_required')).toContain('해소 사유');
+    // 선물 주문은 막지 않는다(환불은 결제한 분에게) — 막힘 문구가 따로 없다.
+    expect(orderPartialCancellationBlockerMessage('gift_order')).not.toContain('선물');
     expect(orderPartialCancellationItemBlockerLabel(null)).toBeNull();
-    expect(orderPartialCancellationItemBlockerLabel('stock_topology_changed')).toBe('상품 통합·교환 이력 있음');
+    expect(orderPartialCancellationItemBlockerLabel('stock_topology_changed')).toBe('상품 통합·교환 재출고 이력 있음');
   });
 
   it('결제사 확인 결과: 진행하지 않음은 돈·재고가 그대로라고 말하고, 확인 필요는 출고가 막혀 있다고 말한다', () => {
     expect(orderPartialCancellationReconcileMessage('partial_cancel_rejected')).toContain('돈은 움직이지 않았고');
     expect(orderPartialCancellationReconcileMessage('provider_unavailable')).toContain('출고되지 않습니다');
     expect(orderPartialCancellationReconcileMessage('provider_identity_mismatch')).toContain('provider_identity_mismatch');
+  });
+
+  it('결제확인필요 해소를 하지 않은 이유는 아무것도 바꾸지 않았다고 말한다', () => {
+    expect(orderPartialCancellationResolutionMessage('balance_unexplained')).toContain('해소하지 않았습니다');
+    expect(orderPartialCancellationResolutionMessage('provider_unavailable')).toContain('조회하지 못했습니다');
+    expect(orderPartialCancellationResolutionMessage('anything_else')).not.toContain('anything_else');
   });
 });

@@ -20,8 +20,8 @@ const record = {
 
 describe('부분 취소 응답 좁히기', () => {
   it('스위치 OFF 문맥은 빈 기록과 함께 읽힌다', () => {
-    expect(parseOrderPartialCancellationContext({ enabled: false, blockers: ['partial_cancel_disabled'], history: [] })).toEqual({
-      enabled: false, blockers: ['partial_cancel_disabled'], provider: null, paymentAmount: null, balance: null, items: [], history: [],
+    expect(parseOrderPartialCancellationContext({ enabled: false, canManage: true, blockers: ['partial_cancel_disabled'], history: [] })).toEqual({
+      enabled: false, canManage: true, gift: false, blockers: ['partial_cancel_disabled'], provider: null, paymentAmount: null, balance: null, items: [], history: [],
     });
   });
 
@@ -30,8 +30,11 @@ describe('부분 취소 응답 좁히기', () => {
     expect(customer.staff).toBeUndefined();
     const [staff] = parseOrderPartialCancellationRecords([{ ...record, customerDecision: '통화 결정', note: null, warehouseStopConfirmed: true, lastErrorCode: null,
       balanceBefore: 40_000, paymentAmount: 40_000, createdBy: '운영자', transferEvidence: null, transferNote: null,
-      closedShipments: [{ shipmentId: SHIPMENT, shipmentNumber: '2026111230000002', originName: '김포', shippingFeeRefund: 3_000 }], refundAccount: null }]);
-    expect(staff.staff).toMatchObject({ customerDecision: '통화 결정', warehouseStopConfirmed: true, closedShipments: [{ shippingFeeRefund: 3_000 }] });
+      closedShipments: [{ shipmentId: SHIPMENT, shipmentNumber: '2026111230000002', originName: '김포', shippingFeeRefund: 3_000 }], refundAccount: null,
+      filedAt: null, resolution: 'not_moved', resolutionReason: '결제사 잔액 그대로', resolvedAt: '2026-11-12T03:00:00Z' }]);
+    expect(staff.staff).toMatchObject({ customerDecision: '통화 결정', warehouseStopConfirmed: true, closedShipments: [{ shippingFeeRefund: 3_000 }],
+      resolution: 'not_moved', resolutionReason: '결제사 잔액 그대로' });
+    expect(() => parseOrderPartialCancellationRecords([{ ...record, customerDecision: '통화 결정', closedShipments: [], resolution: 'forced' }])).toThrow();
   });
 
   it('금액 합이 맞지 않거나 상태가 모르는 값이면 거절한다', () => {
@@ -63,9 +66,15 @@ describe('품목·수량 선택', () => {
 
 describe('구매자 주문 상세 한 줄', () => {
   it("'A 1개 취소 · 환불 N원'에 함께 환불한 배송비를 덧붙인다", () => {
-    expect(orderPartialCancellationSummary({ items: record.items, refundAmount: 12_500, shippingRefundAmount: 3_000 }))
+    expect(orderPartialCancellationSummary({ items: record.items, refundAmount: 12_500, shippingRefundAmount: 3_000, storeCreditRestoreAmount: 0 }))
       .toBe('품절 굿즈 A (블루) 1개 취소 · 환불 12,500원 (배송비 3,000원 포함)');
-    expect(orderPartialCancellationSummary({ items: [{ ...record.items[0], variantName: null }], refundAmount: 9_500, shippingRefundAmount: 0 }))
+    expect(orderPartialCancellationSummary({ items: [{ ...record.items[0], variantName: null }], refundAmount: 9_500, shippingRefundAmount: 0, storeCreditRestoreAmount: 0 }))
       .toBe('품절 굿즈 A 1개 취소 · 환불 9,500원');
+  });
+  it('적립금 몫을 되돌렸으면 알림과 같은 사실을 덧붙인다(환불 0원이어도)', () => {
+    expect(orderPartialCancellationSummary({ items: record.items, refundAmount: 8_500, shippingRefundAmount: 0, storeCreditRestoreAmount: 1_000 }))
+      .toBe('품절 굿즈 A (블루) 1개 취소 · 환불 8,500원 · 적립금 1,000원 되돌림');
+    expect(orderPartialCancellationSummary({ items: record.items, refundAmount: 0, shippingRefundAmount: 0, storeCreditRestoreAmount: 2_000 }))
+      .toBe('품절 굿즈 A (블루) 1개 취소 · 환불 0원 · 적립금 2,000원 되돌림');
   });
 });

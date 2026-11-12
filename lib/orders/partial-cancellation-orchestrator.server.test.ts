@@ -5,10 +5,12 @@ vi.mock('../supabase/service', () => ({ createServiceClient: vi.fn(() => { throw
 
 import { PARTIAL_CANCEL_UNAVAILABLE_REASON, type PaymentAttempt, type RefundOutcome } from '../payments/gateway';
 import { createTossPaymentGateway } from '../payments/toss-gateway.server';
-import { reconcileOrderCancellation, type CancellationReconciliationDependencies } from './cancellation-orchestrator.server';
+import { cancellationRefundRequest, reconcileOrderCancellation, type CancellationReconciliationDependencies } from './cancellation-orchestrator.server';
 import type { OrderPartialCancellationServiceRow } from './partial-cancellation';
 import {
+  inspectOrderPartialCancellationResolution,
   orderPartialCancellationIdempotencyKey,
+  orderPartialCancellationRefundRequest,
   reconcileOrderPartialCancellation,
   type OrderPartialCancellationDependencies,
 } from './partial-cancellation-orchestrator.server';
@@ -113,7 +115,7 @@ describe('재고 부족 부분 취소 오케스트레이터', () => {
     ['결제 키 없음', row({ paymentKey: null })],
     ['결제가 이미 환불됨', row({ paymentStatus: 'refunded' })],
     ['결제 금액이 바뀜', row({ paymentLiveAmount: 39_000 })],
-    ['환불액이 잔액 이상', row({ refundAmount: 40_000 })],
+    ['환불액이 잔액보다 큼', row({ balanceBefore: 9_000, refundAmount: 9_500 })],
   ])('%s이면 결제사를 부르지 않고 확인 필요다', async (_label, loaded) => {
     const d = deps({}, loaded);
     await expect(reconcileOrderPartialCancellation({ partialCancellationId: ID, actorId: ACTOR }, d)).resolves.toEqual({ ok: false, code: 'payment_evidence_invalid' });
@@ -123,6 +125,45 @@ describe('재고 부족 부분 취소 오케스트레이터', () => {
   it('멱등키는 부분 취소마다 따로다(전액 취소·반품배송비 차감 키와 섞이지 않는다)', () => {
     expect(orderPartialCancellationIdempotencyKey('attempt-1', ID)).toBe(`refund:attempt-1:partial:${ID}`);
     expect(orderPartialCancellationIdempotencyKey('attempt-1', ID)).not.toBe(orderPartialCancellationIdempotencyKey('attempt-1', ORDER_ID));
+  });
+
+  it('남은 잔액 전부(환불액 = 시작 때 잔액)도 결제사 부분 취소로 보낸다. 잔액보다 크면 결제사를 부르지 않는다', async () => {
+    const whole = deps({ refund: vi.fn(async () => approved({ refundedAmount: 24_000, balanceAfter: 0 })) }, row({ paymentAmount: 24_000, paymentLiveAmount: 24_000, balanceBefore: 24_000, refundAmount: 24_000 }));
+    await expect(reconcileOrderPartialCancellation({ partialCancellationId: ID, actorId: ACTOR }, whole)).resolves.toEqual({ ok: true, status: 'completed' });
+    expect(whole.refund).toHaveBeenCalledWith(expect.objectContaining({ refundAmount: 24_000, expectedBalanceBefore: 24_000 }));
+    const over = deps({}, row({ balanceBefore: 9_000, refundAmount: 9_500 }));
+    await expect(reconcileOrderPartialCancellation({ partialCancellationId: ID, actorId: ACTOR }, over)).resolves.toEqual({ ok: false, code: 'payment_evidence_invalid' });
+    expect(over.refund).not.toHaveBeenCalled();
+  });
+});
+
+describe('결제확인필요 해소의 결제사 조회(돈을 움직이지 않는다)', () => {
+  const needsReview = row({ state: 'needs_review' });
+  const inspectWith = (inspection: Awaited<ReturnType<NonNullable<import('../payments/gateway').PaymentGateway['inspectBalance']>>>, load = needsReview) => ({
+    load: vi.fn(async () => load), inspect: vi.fn(async () => inspection),
+  });
+  it('잔액이 시작 때 그대로면 돈이 움직이지 않았다(진행하지 않음)', async () => {
+    const d = inspectWith({ kind: 'ok', status: 'DONE', balanceAmount: 40_000, lastCancel: null });
+    await expect(inspectOrderPartialCancellationResolution(ID, d)).resolves.toEqual({ ok: true, resolution: 'not_moved', observedBalance: 40_000 });
+    expect(d.inspect).toHaveBeenCalledWith({ paymentId: PAYMENT_ID, paymentAmount: 40_000, paymentKey: PAYMENT_KEY });
+  });
+  it('잔액이 이 취소만큼 줄었고 마지막 취소가 그 금액이면 그 거래 키로 적용한다', async () => {
+    const d = inspectWith({ kind: 'ok', status: 'PARTIAL_CANCELED', balanceAmount: 30_500, lastCancel: { cancelAmount: 9_500, transactionKey: 'CANCEL0001' } });
+    await expect(inspectOrderPartialCancellationResolution(ID, d)).resolves.toEqual({ ok: true, resolution: 'already_canceled', observedBalance: 30_500, transactionKey: 'CANCEL0001' });
+  });
+  it.each([
+    ['다른 취소가 낀 잔액', { kind: 'ok', status: 'PARTIAL_CANCELED', balanceAmount: 25_000, lastCancel: { cancelAmount: 15_000, transactionKey: 'CANCEL0002' } }, 'balance_unexplained'],
+    ['마지막 취소 금액이 다름', { kind: 'ok', status: 'PARTIAL_CANCELED', balanceAmount: 30_500, lastCancel: { cancelAmount: 9_000, transactionKey: 'CANCEL0003' } }, 'balance_unexplained'],
+    ['조회 불가', { kind: 'unavailable' }, 'provider_unavailable'],
+    ['대조 실패', { kind: 'mismatch' }, 'provider_mismatch'],
+    ['지원 안 함', { kind: 'not_supported' }, 'provider_mismatch'],
+  ] as const)('%s면 해소하지 않는다', async (_label, inspection, code) => {
+    await expect(inspectOrderPartialCancellationResolution(ID, inspectWith(inspection))).resolves.toEqual({ ok: false, code });
+  });
+  it('결제확인필요가 아니면 결제사를 조회하지 않는다', async () => {
+    const d = inspectWith({ kind: 'ok', status: 'DONE', balanceAmount: 40_000, lastCancel: null }, row({ state: 'processing' }));
+    await expect(inspectOrderPartialCancellationResolution(ID, d)).resolves.toEqual({ ok: false, code: 'not_needs_review' });
+    expect(d.inspect).not.toHaveBeenCalled();
   });
 });
 
@@ -176,10 +217,8 @@ describe('같은 결제의 다회 부분 취소(가짜 토스, 잔액 누적)', 
     const completed: Array<{ id: string; transactionKey: string }> = [];
     const partial = (id: string, refundAmount: number, balanceBefore: number) => reconcileOrderPartialCancellation({ partialCancellationId: id, actorId: ACTOR }, {
       load: async () => row({ id, refundAmount, balanceBefore }),
-      refund: input => toss.gateway.refund({
-        attempt: ATTEMPT, idempotencyKey: orderPartialCancellationIdempotencyKey(ATTEMPT.id, input.partialCancellationId), amount: input.refundAmount,
-        reason: 'ICONS 재고 부족 부분 취소', providerPaymentKey: input.paymentKey, partial: { expectedBalanceBefore: input.expectedBalanceBefore },
-      }),
+      // 기본 의존성과 같은 요청 조립(순수 함수)을 쓴다 — 조립이 바뀌면 이 시험이 같이 본다.
+      refund: input => toss.gateway.refund(orderPartialCancellationRefundRequest(ATTEMPT, input)),
       complete: async input => { completed.push({ id: input.id, transactionKey: input.transactionKey }); },
       reject: async () => undefined,
       markNeedsReview: async () => undefined,
@@ -203,12 +242,7 @@ describe('같은 결제의 다회 부분 취소(가짜 토스, 잔액 누적)', 
       }] }),
       preflightReconciliation: async () => 'allowed',
       reconcileExpiredPreparedGoods: async () => 'not_applicable',
-      refundProviderPayment: async ({ amount, reason, paymentKey, partial: remainder }) => toss.gateway.refund({
-        attempt: ATTEMPT,
-        idempotencyKey: remainder ? `refund:${ATTEMPT.id}:${remainder.scope ?? 'deduction'}:${remainder.requestId}` : `refund:${ATTEMPT.id}`,
-        amount: remainder ? remainder.refundAmount : amount, reason, providerPaymentKey: paymentKey,
-        ...(remainder ? { partial: { expectedBalanceBefore: remainder.expectedBalanceBefore ?? amount } } : {}),
-      }),
+      refundProviderPayment: async input => toss.gateway.refund(cancellationRefundRequest(ATTEMPT, input)),
       completeRequest,
       markNeedsReview: async () => undefined,
       partialRefunds: { load: async () => new Map([[PAYMENT_ID, 27_000]]) },
@@ -223,21 +257,45 @@ describe('같은 결제의 다회 부분 취소(가짜 토스, 잔액 누적)', 
     ]);
   });
 
-  it('부분 취소 누계가 결제 금액 이상이면 결제사를 부르지 않는다', async () => {
-    const refundProviderPayment = vi.fn();
-    const markNeedsReview = vi.fn(async () => undefined);
-    await expect(reconcileOrderCancellation({ requestId: 'req', actorId: ACTOR }, {
-      loadContext: async () => ({ requestId: 'req', orderId: ORDER_ID, status: 'processing', payments: [{
-        id: PAYMENT_ID, provider: 'toss', status: 'paid', amount: 40_000, paymentKey: PAYMENT_KEY, bankTransferRefundFiled: false,
-      }] }),
-      preflightReconciliation: async () => 'allowed',
-      reconcileExpiredPreparedGoods: async () => 'not_applicable',
-      refundProviderPayment,
-      completeRequest: vi.fn(),
-      markNeedsReview,
-      partialRefunds: { load: async () => new Map([[PAYMENT_ID, 40_000]]) },
-    })).resolves.toEqual({ ok: false, code: 'payment_evidence_invalid' });
-    expect(refundProviderPayment).not.toHaveBeenCalled();
+  it('부분 취소가 잔액을 모두 돌려줬으면 결제사를 부르지 않고 확정한다. 누계가 결제 금액보다 크면 확인 필요다', async () => {
+    const run = (refunded: number) => {
+      const refundProviderPayment = vi.fn();
+      const completeRequest = vi.fn(async () => undefined);
+      const result = reconcileOrderCancellation({ requestId: 'req', actorId: ACTOR }, {
+        loadContext: async () => ({ requestId: 'req', orderId: ORDER_ID, status: 'processing', payments: [{
+          id: PAYMENT_ID, provider: 'toss', status: 'paid', amount: 40_000, paymentKey: PAYMENT_KEY, bankTransferRefundFiled: false,
+        }] }),
+        preflightReconciliation: async () => 'allowed',
+        reconcileExpiredPreparedGoods: async () => 'not_applicable',
+        refundProviderPayment,
+        completeRequest,
+        markNeedsReview: vi.fn(async () => undefined),
+        partialRefunds: { load: async () => new Map([[PAYMENT_ID, refunded]]) },
+      });
+      return { result, refundProviderPayment, completeRequest };
+    };
+    const zero = run(40_000);
+    await expect(zero.result).resolves.toEqual({ ok: true, status: 'completed' });
+    expect(zero.refundProviderPayment).not.toHaveBeenCalled();
+    expect(zero.completeRequest).toHaveBeenCalledWith({ requestId: 'req', actorId: ACTOR, verifiedPaymentKeys: [PAYMENT_KEY] });
+    const over = run(41_000);
+    await expect(over.result).resolves.toEqual({ ok: false, code: 'payment_evidence_invalid' });
+    expect(over.refundProviderPayment).not.toHaveBeenCalled();
+  });
+
+  it('가짜 토스 잔액 조회: 해소 증거(잔액·마지막 취소 거래)를 원장 결제 키로만 읽는다', async () => {
+    const toss = statefulToss();
+    await toss.gateway.refund(orderPartialCancellationRefundRequest(ATTEMPT, { partialCancellationId: ID, paymentKey: PAYMENT_KEY, refundAmount: 9_500, expectedBalanceBefore: 40_000 }));
+    await expect(toss.gateway.inspectBalance!(ATTEMPT, PAYMENT_KEY)).resolves.toEqual({
+      kind: 'ok', status: 'PARTIAL_CANCELED', balanceAmount: 30_500, lastCancel: { cancelAmount: 9_500, transactionKey: 'CANCEL00000000000000000000000001' },
+    });
+    const posts = toss.posts.length;
+    await expect(toss.gateway.inspectBalance!(ATTEMPT, 'not a key')).resolves.toEqual({ kind: 'mismatch' });
+    await expect(inspectOrderPartialCancellationResolution(ID, {
+      load: async () => row({ state: 'needs_review' }),
+      inspect: async () => toss.gateway.inspectBalance!(ATTEMPT, PAYMENT_KEY),
+    })).resolves.toEqual({ ok: true, resolution: 'already_canceled', observedBalance: 30_500, transactionKey: 'CANCEL00000000000000000000000001' });
+    expect(toss.posts.length).toBe(posts);
   });
 
   it('반품배송비 차감 결정의 기준 금액은 부분 취소 뒤 잔액이고 잔액 기대값도 그 잔액이다', async () => {
