@@ -3,7 +3,7 @@ import { GOODS_GROUPS_PATH, parseGoodsGroupPage, type GoodsGroupPage } from './g
 import { isUuid } from '@/lib/uuid';
 import { transactionInteger, transactionRecord, transactionInstant } from '@/lib/goods-transaction-values';
 
-export const GROUP_SEARCH_FIELDS = [{ value: 'all', label: '전체' }, { value: 'goodId', label: '상품번호' }, { value: 'groupId', label: '그룹상품번호' }, { value: 'code', label: '판매자상품코드' }, { value: 'name', label: '그룹상품명' }, { value: 'maker', label: '제조사명' }] as const;
+export const GROUP_SEARCH_FIELDS = [{ value: 'all', label: '전체' }, { value: 'goodId', label: '상품 URL' }, { value: 'groupId', label: '그룹상품번호' }, { value: 'code', label: '판매자상품코드' }, { value: 'name', label: '그룹상품명' }, { value: 'maker', label: '제조사명' }] as const;
 export const GROUP_STATUSES = [{ value: 'all', label: '전체' }, { value: 'published', label: '공개 상품 포함' }, { value: 'draft', label: '전체 미공개' }, { value: 'archived', label: '연결 해제' }] as const;
 export const GROUP_SORTS = [{ value: 'created_desc', label: '그룹상품등록일순' }, { value: 'updated_desc', label: '그룹상품수정일순' }, { value: 'name_asc', label: '그룹상품명순' }] as const;
 export interface GoodsGroupFilters {

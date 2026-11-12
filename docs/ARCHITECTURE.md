@@ -141,7 +141,7 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 - `ip_public_slug_aliases` (slug, ip_id, created_at) — 공개 URL 변경 전의 canonical slug를 append-only로 보존한다. 별칭과 canonical slug 모두 고유하며, 대상 IP의 hard delete를 FK로 막는다. 예외는 공개된 적 없는 초안의 삭제(`admin_delete_draft_ip`)뿐이며 그때 지운 별칭은 감사 기록에 남는다.
 - `private.ip_public_history` (ip_id, first_public_at, evidence) — IP가 한 번이라도 공개된 적이 있다는 기록. `published_at`이 채워지는 모든 쓰기를 트리거가 남기고, 게시 상태 seam(2026-09-09) 전에 만든 IP는 저장 즉시 공개됐으므로 기록으로 백필했다. 미사용 초안 삭제를 막는 근거다.
 - `private.retired_ip_ids` (id, public_slug, retired_at, retired_by, audit_log_id) — 지운 초안의 내부 ID. ID 발급과 IP 삽입 트리거가 다시 쓰지 못하게 막는다.
-- `goods` (id, ip_id, name, type, price, compare_at_price, badge, stock, image_path, archived_at) — `type`은 표준 9종(`lib/goods-taxonomy.ts`와 같은 CHECK, 10/27 회의 R10에서 '기타' 추가), `badge`는 `NEW|EXCLUSIVE|null`. SALE 표기는 저장하지 않고 `compare_at_price > price`에서 파생한다(#326)
+- `goods` (id, product_no, ip_id, name, type, price, compare_at_price, badge, stock, image_path, archived_at) — 식별자는 셋이다: `id`는 공개 주소(어드민 표기 '상품 URL')이자 외래키, `product_no`는 시스템이 등록 순서대로 매기는 바뀌지 않는 숫자(어드민 '상품번호', private 순번 + 새 행에만 번호를 주는 BEFORE INSERT 트리거 — 수정 저장의 INSERT … ON CONFLICT는 번호를 쓰지 않는다 — + 갱신 차단 트리거, 재사용 없음 — [ADR-0038](./adr/0038-system-product-number.md)), `code`는 창고 품번으로 덮어쓸 수 있는 판매자상품코드다. `type`은 표준 9종(`lib/goods-taxonomy.ts`와 같은 CHECK, 10/27 회의 R10에서 '기타' 추가), `badge`는 `NEW|EXCLUSIVE|null`. SALE 표기는 저장하지 않고 `compare_at_price > price`에서 파생한다(#326)
 - KC의 모델·옵션별 근거·판단사유·검토 담당자·변경 이력은 `private.goods_kc_reviews`/`goods_kc_review_events`에 두고, `goods.kc_disclosures`에는 완료한 고객 고시만 allowlist projection한다. 신규 게시와 비공개→공개는 DB trigger가 검토 완료·현재 상품/옵션 일치를 요구한다. 도입 전 공개 미기록 행은 migration에서 변경하지 않으며 가격·할당 재고 편집을 유지한다. 모델 정체성 변경은 비공개에서만 허용하고 검토를 초기화한다. 검토 RPC와 엑셀은 revision+상품/옵션 fingerprint로 충돌을 거절하며, KC 시트 변경은 기존 상품/옵션 저장 transaction 안에서 미검토로만 저장한다. 실제 번호·근거·검토 완료는 고시 프리셋·상품 복제·seed가 승계하지 않는다([운영 절차](runbooks/goods-kc-review.md)).
 - `events` (id, ip_id?, title, mode, status, starts_at, ends_at, location, accent, image_path, archived_at)
 - `home_curations` (id, kind `hero|featured_ip|announcement|notice_strip|notice_bar|editor_pick|band_banner|best_tab|benefit|sales_best|review_best|product_mosaic|product_collection|collection_banner|search_terms`, ip_id?, title, image_path?, link_path, display_order, active_from/to, enabled, slot?, payload?) — `[active_from, active_to)` 노출 창을 가진 홈 운영 원장이다. 공개 RLS는 enabled·현재 창·연결 IP 미보관을 모두 검사하고, staff는 예약·종료·비활성 행까지 읽는다.
@@ -316,7 +316,7 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 
 | 테이블군 | 읽기 | 쓰기 |
 |---|---|---|
-| 일반 카탈로그(verticals/ips/goods/events) | **공개(anon)**는 게시·미보관 범위. 비공개 상품은 `catalog.read`, IP·이벤트 운영 원문은 `platform.manage`; 상품 선택용 IP는 별도 최소 projection | 상품은 `catalog.manage`, IP·이벤트는 `platform.manage` |
+| 일반 카탈로그(verticals/ips/goods/events) | **공개(anon)**는 게시·미보관 범위. 비공개 상품은 `catalog.read`, IP·이벤트 운영 원문은 `platform.manage`; 상품 선택용 IP는 별도 최소 projection | 상품은 `catalog.manage`(정의자 RPC로만 — anon·authenticated에는 goods 쓰기 테이블 권한이 없다), IP·이벤트는 `platform.manage` |
 | 홈 큐레이션(home_curations) | anon/authenticated는 enabled·현재 노출 창·미보관 연결 IP 행만, `store.manage`는 전체 | 직접 DML 없음. `store.manage`를 재검사하는 audited RPC only |
 | 카드 리워드 카탈로그(cards/card_pools/pool_odds/reward_policies) | **공개(anon)** | `platform.manage`를 재검사하는 audited RPC only. 단 신규 발급·개봉·게임·운영 활성화는 DB 전역 gate 기본 OFF |
 | 참여형 게임 카탈로그(games) | **공개(anon)** | `platform.manage`를 재검사하는 audited RPC only |

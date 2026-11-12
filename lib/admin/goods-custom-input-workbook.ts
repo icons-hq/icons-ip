@@ -10,7 +10,7 @@ import {
 
 export const GOODS_CUSTOM_INPUT_WORKBOOK_SHEET = '직접입력형 옵션';
 export const GOODS_CUSTOM_INPUT_WORKBOOK_HEADERS = {
-  goodCode: '상품코드',
+  goodCode: '판매자상품코드',
   mode: '변경 방식',
   enabled: '전체 사용',
   fieldId: '항목 ID',
@@ -21,6 +21,10 @@ export const GOODS_CUSTOM_INPUT_WORKBOOK_HEADERS = {
 export const GOODS_CUSTOM_INPUT_WORKBOOK_GROUP_LIMIT = GOODS_CUSTOM_INPUT_LIMIT * 2;
 export const GOODS_CUSTOM_INPUT_WORKBOOK_ROW_LIMIT = 500 * GOODS_CUSTOM_INPUT_WORKBOOK_GROUP_LIMIT;
 export type GoodsCustomInputWorkbookKey = keyof typeof GOODS_CUSTOM_INPUT_WORKBOOK_HEADERS;
+/** v6·v7 상품 양식의 직접입력형 시트 열 이름. v8에서 판매자상품코드로 바뀌었고 순서·뜻은 같다. */
+export const GOODS_CUSTOM_INPUT_WORKBOOK_LEGACY_HEADERS: Readonly<Record<GoodsCustomInputWorkbookKey, string>> = {
+  ...GOODS_CUSTOM_INPUT_WORKBOOK_HEADERS, goodCode: '상품코드',
+};
 export type GoodsCustomInputWorkbookRow = Record<GoodsCustomInputWorkbookKey, string>;
 export type GoodsCustomInputWorkbookInputRow = { row: number; values: GoodsCustomInputWorkbookRow; errors?: string[] };
 export type GoodsCustomInputWorkbookPlan =
@@ -76,7 +80,7 @@ export function planGoodsCustomInputWorkbookRows(rows: readonly GoodsCustomInput
   const errors = source.flatMap(row => (row.errors ?? []).map(error => `${GOODS_CUSTOM_INPUT_WORKBOOK_SHEET} ${row.row}행: ${error}`));
   const fail = (): GoodsCustomInputWorkbookPlan => ({ kind: 'error', errors: [...new Set(errors)], warnings: [] });
   if (!context.goodCode || source.length > GOODS_CUSTOM_INPUT_WORKBOOK_GROUP_LIMIT) {
-    errors.push(`직접입력형 옵션은 상품코드와 상품당 ${GOODS_CUSTOM_INPUT_WORKBOOK_GROUP_LIMIT}행 이내의 편집이 필요합니다.`);
+    errors.push(`직접입력형 옵션은 판매자상품코드와 상품당 ${GOODS_CUSTOM_INPUT_WORKBOOK_GROUP_LIMIT}행 이내의 편집이 필요합니다.`);
     return fail();
   }
   const existing = context.existing ?? EMPTY_GOODS_CUSTOM_INPUTS;
@@ -152,5 +156,5 @@ export function planGoodsCustomInputWorkbookRows(rows: readonly GoodsCustomInput
 export function goodsCustomInputWorkbookOrphanErrors(rows: readonly GoodsCustomInputWorkbookInputRow[], goodCodes: readonly string[]): string[] {
   const codes = new Set(goodCodes.map(code));
   return rows.flatMap(row => !code(row.values.goodCode) || !codes.has(code(row.values.goodCode))
-    ? [`직접입력형 옵션 ${row.row}행: 상품 시트에 같은 상품코드가 필요합니다. 자동코드는 초안 저장 후 다시 내려받아 연결해주세요.`] : []);
+    ? [`직접입력형 옵션 ${row.row}행: 상품 시트에 같은 판매자상품코드가 필요합니다. 자동코드는 초안 저장 후 다시 내려받아 연결해주세요.`] : []);
 }

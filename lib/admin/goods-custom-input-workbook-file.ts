@@ -2,7 +2,7 @@ import 'server-only';
 import type ExcelJS from 'exceljs';
 import { readSafeWorkbookCell } from './workbook-safety';
 import {
-  GOODS_CUSTOM_INPUT_WORKBOOK_HEADERS, GOODS_CUSTOM_INPUT_WORKBOOK_ROW_LIMIT, GOODS_CUSTOM_INPUT_WORKBOOK_SHEET,
+  GOODS_CUSTOM_INPUT_WORKBOOK_HEADERS, GOODS_CUSTOM_INPUT_WORKBOOK_LEGACY_HEADERS, GOODS_CUSTOM_INPUT_WORKBOOK_ROW_LIMIT, GOODS_CUSTOM_INPUT_WORKBOOK_SHEET,
   emptyGoodsCustomInputWorkbookRow, goodsCustomInputWorkbookOrphanErrors,
   type GoodsCustomInputWorkbookInputRow, type GoodsCustomInputWorkbookKey, type GoodsCustomInputWorkbookRow,
 } from './goods-custom-input-workbook';
@@ -57,8 +57,11 @@ export function readGoodsCustomInputWorksheet(workbook: ExcelJS.Workbook, versio
   goodCodes: readonly string[]): GoodsCustomInputWorkbookInputRow[] | null {
   const sheet = workbook.getWorksheet(GOODS_CUSTOM_INPUT_WORKBOOK_SHEET);
   if (!sheet) return null;
-  if (version !== latestVersion && version !== 'ICONS 상품 일괄 등록 v6') throw new Error('직접입력형 옵션 시트는 v6·v7 상품 양식에서 편집할 수 있습니다. 최신 양식을 내려받아주세요.');
-  if (sheet.getCell('A1').text !== version || KEYS.some((key, index) => sheet.getCell(4, index + 1).text !== GOODS_CUSTOM_INPUT_WORKBOOK_HEADERS[key]))
+  if (version !== latestVersion && version !== 'ICONS 상품 일괄 등록 v7' && version !== 'ICONS 상품 일괄 등록 v6')
+    throw new Error('직접입력형 옵션 시트는 v6~v8 상품 양식에서 편집할 수 있습니다. 최신 양식을 내려받아주세요.');
+  // v6·v7은 판매자상품코드 열 이름이 '상품코드'다(뜻·순서는 같다).
+  const headers = version === latestVersion ? GOODS_CUSTOM_INPUT_WORKBOOK_HEADERS : GOODS_CUSTOM_INPUT_WORKBOOK_LEGACY_HEADERS;
+  if (sheet.getCell('A1').text !== version || KEYS.some((key, index) => sheet.getCell(4, index + 1).text !== headers[key]))
     throw new Error('직접입력형 옵션 시트의 버전·열 이름·순서를 유지해주세요.');
   const result: GoodsCustomInputWorkbookInputRow[] = [];
   sheet.eachRow((row, number) => {
@@ -68,7 +71,7 @@ export function readGoodsCustomInputWorksheet(workbook: ExcelJS.Workbook, versio
     KEYS.forEach((key, index) => {
       const cell = readSafeWorkbookCell(row.getCell(index + 1), key === 'goodCode' || key === 'fieldId');
       values[key] = cell.value;
-      if (cell.error) errors.push(`${GOODS_CUSTOM_INPUT_WORKBOOK_HEADERS[key]}: ${cell.error}`);
+      if (cell.error) errors.push(`${headers[key]}: ${cell.error}`);
     });
     values.goodCode = values.goodCode.trim().toUpperCase();
     if (KEYS.some(key => values[key] !== '') || errors.length) result.push({ row: number, values, errors });

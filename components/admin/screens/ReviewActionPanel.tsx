@@ -62,7 +62,7 @@ export function ReviewActionPanel({ review, triggerLabel, accountId = '' }: { re
         <dl className={RECORD_META_CLASS}>
           <div className={RECORD_META_ITEM_CLASS}><dt>상품</dt><dd><Link className={RECORD_LINK_CLASS} href={goodReviewsHref(review.goodId)}>{review.goodName}</Link></dd></div>
           <div className={RECORD_META_ITEM_CLASS}><dt>리뷰 구분</dt><dd>{REVIEW_KIND_LABELS[review.kind ?? 'ordinary']}{review.repeatPurchase === true ? ' · 재구매' : review.repeatPurchase === null ? ' · 재구매 이력 미확인' : ''}</dd></div>
-          <div className={RECORD_META_ITEM_CLASS}><dt>상품번호</dt><dd className="tabular-nums">{review.goodId}</dd></div>
+          <div className={RECORD_META_ITEM_CLASS}><dt>상품 URL</dt><dd className="tabular-nums">{review.goodId}</dd></div>
           <div className={RECORD_META_ITEM_CLASS}><dt>작성자</dt><dd>@{review.authorName}</dd></div>
           <div className={RECORD_META_ITEM_CLASS}><dt>작성일</dt><dd className="tabular-nums">{formatReviewDateTime(review.createdAt)}</dd></div>
           <div className={RECORD_META_ITEM_CLASS}><dt>주문번호</dt><dd><Link className={RECORD_LINK_CLASS} href={`/admin/sales/orders/${review.orderId}`}>{orderReferenceLabel(review.orderId, review.orderNumber)}</Link></dd></div>

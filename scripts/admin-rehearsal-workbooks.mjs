@@ -5,7 +5,7 @@ import ExcelJS from 'exceljs';
 import JSZip from 'jszip';
 import sharp from 'sharp';
 
-const CURRENT_GOODS_WORKBOOK_VERSION = 'ICONS 상품 일괄 등록 v7';
+const CURRENT_GOODS_WORKBOOK_VERSION = 'ICONS 상품 일괄 등록 v8';
 
 /** Populate the actual downloaded template by header names, preserving its formatting. */
 export async function buildRehearsalWorkbooks({
@@ -27,7 +27,7 @@ export async function buildRehearsalWorkbooks({
     await workbook.xlsx.load(template);
     const sheet = workbook.getWorksheet('상품');
     if (!sheet || sheet.getCell('A1').text !== CURRENT_GOODS_WORKBOOK_VERSION)
-      throw new Error('Current goods v7 template required');
+      throw new Error('Current goods v8 template required');
     const headers = new Map();
     sheet.getRow(4).eachCell((cell, column) => headers.set(cell.text, column));
     const lastHeaderColumn = sheet.getColumn(Math.max(...headers.values())).letter;
@@ -35,13 +35,13 @@ export async function buildRehearsalWorkbooks({
     for (let product = 1; product <= count; product++)
       for (const option of [0, 1]) {
         const fields = {
-          상품코드: `${run.toUpperCase()}-${String(product).padStart(2, '0')}`,
+          판매자상품코드: `${run.toUpperCase()}-${String(product).padStart(2, '0')}`,
           상품명: `[연습] ${run} 상품 ${product}`,
           'IP ID': ipId,
           '게시 상태': mode === 'publish' ? '공개' : '초안',
           '상품 유형': '문구',
-          '기준 판매가': 12000,
-          '재고 표시': 'ok',
+          판매가: 12000,
+          판매상태: 'ok',
           '무통장 허용': '아니오',
           '카드 허용': '예',
           '판매 제한': 'none',
@@ -50,12 +50,12 @@ export async function buildRehearsalWorkbooks({
           '출고지 코드': originCode,
           '배송비 유형': 'policy',
           '개별 배송비': 0,
-          옵션코드: `${run.toUpperCase()}-${String(product).padStart(2, '0')}-${option ? 'B' : 'A'}`,
+          관리코드: `${run.toUpperCase()}-${String(product).padStart(2, '0')}-${option ? 'B' : 'A'}`,
           옵션명: option ? '파랑' : '빨강',
           '옵션 축 1': '색상',
           '옵션 값 1': option ? '파랑' : '빨강',
-          '옵션 판매가': option ? 13000 : 12000,
-          '옵션 재고': mode === 'draft-errors' && product === count ? -1 : 10,
+          옵션가: option ? 1000 : 0,
+          재고수량: mode === 'draft-errors' && product === count ? -1 : 10,
           '옵션 사용': '사용',
           'KC 초기화': '',
           제조자: '[연습용] 가상 제조자',

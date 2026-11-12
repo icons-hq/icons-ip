@@ -19,7 +19,7 @@ export type AdminProductQuestionSearchField = 'body' | 'good' | 'goodId' | 'id';
 export const ADMIN_PRODUCT_QUESTION_SEARCH_FIELDS = [
   { value: 'body', label: '문의 내용' },
   { value: 'good', label: '상품명' },
-  { value: 'goodId', label: '상품번호' },
+  { value: 'goodId', label: '상품 URL' },
   { value: 'id', label: '문의번호' },
 ] as const;
 export const ADMIN_PRODUCT_QUESTION_SORT_OPTIONS = [

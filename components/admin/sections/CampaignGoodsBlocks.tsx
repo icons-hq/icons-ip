@@ -28,7 +28,7 @@ export function CampaignGoodsBlocks({ sectionsText, onSectionsTextChange, campai
   const [message, setMessage] = useState('');
   const requested = useRef(new Set<string>());
   const ids = useMemo(() => [...new Set(blocks.flatMap(block => block.goodIds))], [blocks]);
-  /* 고른 상품의 이름을 한 번에 확인한다. 조회에 실패해도 상품번호로 보이고 편집은 막지 않는다. */
+  /* 고른 상품의 이름을 한 번에 확인한다. 조회에 실패해도 상품 URL로 보이고 편집은 막지 않는다. */
   useEffect(() => {
     const unknown = ids.filter(id => !requested.current.has(id) && id === id.trim() && id.length <= 200);
     if (!unknown.length) return;

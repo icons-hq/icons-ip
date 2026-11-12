@@ -246,7 +246,8 @@ describe('m27 가이드 — 상품 등록·목록·카테고리·랜덤 판매(R
     expect(groups.length).toBeGreaterThan(0);
     expect(groups.every((screen) => screen.navHidden)).toBe(true);
     expect(text).toContain('선택 해제');
-    expect(text).toContain('상품번호를 누르면');
+    expect(text).toContain('상품 URL을 누르면');
+    expect(text).toContain('상품번호나 상품명을 누르면 상품 수정이 열립니다');
     expect(text).toContain('판매대기(시작 전)');
     expect(text).toContain('사이드바에서 숨겼습니다');
   });
@@ -260,8 +261,14 @@ describe('m27 가이드 — 상품 등록·목록·카테고리·랜덤 판매(R
     expect(text).toContain('고객 화면에는 둘 다 품절로 보입니다');
   });
 
-  it('품절·소량 재고 칸의 건수 범위와 소량 재고 기준을 화면과 같게 안내한다', () => {
-    expect(text).toContain('재고 조건과 페이지를 제외한 같은 검색 조건으로 계산');
+  it('판매대기·품절·소량 재고·판매중지·판매종료 칸의 건수 범위와 소량 재고 기준을 화면과 같게 안내한다(SHEET-036)', () => {
+    const basis = '품절·소량 재고·판매중지는 판매상태 조건과 페이지를, 판매대기·판매종료는 판매기간 조건과 페이지를 제외한 같은 검색 조건으로 계산';
+    expect(text).toContain(basis);
+    expect(repoFile('components/admin/screens/GoodsListScreen.tsx')).toContain(basis.replace('품절·소량 재고·판매중지는', '품절·소량 재고·판매중지 건수는').replace('판매대기·판매종료는', '판매대기·판매종료 건수는'));
+    for (const label of ['판매대기 보기', '판매중지 보기', '판매종료 보기']) {
+      expect(text).toContain(label);
+      expect(repoFile('components/admin/screens/GoodsListScreen.tsx')).toContain(`label: '${label}'`);
+    }
     expect(text).toContain('수량으로 자동 분류하지 않습니다');
     expect(text).toContain('소량 재고 건수에는 들어가지 않습니다');
     expect(repoFile('components/admin/screens/GoodsListScreen.tsx')).toContain('수량으로 자동 분류하지 않습니다');

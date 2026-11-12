@@ -126,7 +126,7 @@ describe('사방넷 CSV 읽기', () => {
 });
 
 describe('사방넷 행 → ICONS 일괄 등록 행 변환', () => {
-  it('옵션 없는 상품은 기본 옵션 한 행이며 TAG가가 판매가보다 클 때만 소비자가가 된다', () => {
+  it('옵션 없는 상품은 기본 옵션 한 행이며 TAG가가 판매가보다 클 때만 판매가(할인 전)·즉시할인이 된다', () => {
     const { rows, warnings, ignoredColumns, products } = convert([
       sheetRow(5, { 상품명: '메이플 머그', 자체상품코드: 'mp-mug-01', 판매가: '15,000원', TAG가: '18000', 원가: '7000', 모델명: 'MUG-1' }),
       sheetRow(6, { 상품명: '메이플 스티커', 자체상품코드: 'MP-ST-01', 판매가: '3000', TAG가: '3000' }),
@@ -134,10 +134,10 @@ describe('사방넷 행 → ICONS 일괄 등록 행 변환', () => {
     expect(products).toBe(2);
     expect(rows).toHaveLength(2);
     expect(rows[0]).toMatchObject({ row: 5, errors: [], values: {
-      name: '메이플 머그', code: 'MP-MUG-01', ipId: 'maple', price: '15000', compareAtPrice: '18000', publish: '',
-      variantName: '기본 옵션', variantPrice: '15000', stockQty: '0', axis1: '', descriptionFormat: 'plain',
+      name: '메이플 머그', code: 'MP-MUG-01', ipId: 'maple', salePrice: '18000', instantDiscount: '3000', publish: '',
+      variantName: '기본 옵션', optionPrice: '0', stockQty: '0', axis1: '', descriptionFormat: 'plain',
     } });
-    expect(rows[1].values.compareAtPrice).toBe('');
+    expect(rows[1].values).toMatchObject({ salePrice: '3000', instantDiscount: '' });
     expect(ignoredColumns).toEqual(['원가', '모델명']);
     expect(warnings.size).toBe(0);
   });
@@ -146,10 +146,10 @@ describe('사방넷 행 → ICONS 일괄 등록 행 변환', () => {
     const { rows, warnings } = convert([
       sheetRow(7, { 상품명: '아크릴 키링', 판매가: '9000', '옵션제목(1)': '캐릭터', '옵션상세명칭(1)': '핑크빈, 슬라임(+1,000원),핑크빈, 주황버섯^^10' }),
     ]);
-    expect(rows.map((row) => [row.values.axis1, row.values.value1, row.values.variantName, row.values.variantPrice])).toEqual([
-      ['캐릭터', '핑크빈', '핑크빈', '9000'],
-      ['캐릭터', '슬라임', '슬라임', '10000'],
-      ['캐릭터', '주황버섯', '주황버섯', '9000'],
+    expect(rows.map((row) => [row.values.axis1, row.values.value1, row.values.variantName, row.values.salePrice, row.values.optionPrice])).toEqual([
+      ['캐릭터', '핑크빈', '핑크빈', '9000', '0'],
+      ['캐릭터', '슬라임', '슬라임', '9000', '1000'],
+      ['캐릭터', '주황버섯', '주황버섯', '9000', '0'],
     ]);
     expect(warnings.get(7)).toEqual(expect.arrayContaining([
       expect.stringContaining('(+금액)'), expect.stringContaining("같은 값 '핑크빈'"), expect.stringContaining('^^'),
@@ -160,8 +160,8 @@ describe('사방넷 행 → ICONS 일괄 등록 행 변환', () => {
     const { rows, warnings } = convert([
       sheetRow(8, { 상품명: '티셔츠', 판매가: '20000', '옵션상세명칭(1)': '블랙,화이트', '옵션제목(2)': '사이즈', '옵션상세명칭(2)': 'M,L(+2000)' }),
     ]);
-    expect(rows.map((row) => `${row.values.axis1}:${row.values.value1}/${row.values.axis2}:${row.values.value2}=${row.values.variantPrice}`)).toEqual([
-      '옵션:블랙/사이즈:M=20000', '옵션:블랙/사이즈:L=22000', '옵션:화이트/사이즈:M=20000', '옵션:화이트/사이즈:L=22000',
+    expect(rows.map((row) => `${row.values.axis1}:${row.values.value1}/${row.values.axis2}:${row.values.value2}=${row.values.salePrice}+${row.values.optionPrice}`)).toEqual([
+      '옵션:블랙/사이즈:M=20000+0', '옵션:블랙/사이즈:L=20000+2000', '옵션:화이트/사이즈:M=20000+0', '옵션:화이트/사이즈:L=20000+2000',
     ]);
     expect(rows[0].values.variantName).toBe('블랙 / M');
     expect(rows.every((row) => row.row === 8)).toBe(true);

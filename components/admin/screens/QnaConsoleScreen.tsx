@@ -141,7 +141,7 @@ export function QnaConsoleScreen({ data, now = new Date(), initialDetail, accoun
                   fields: [...ADMIN_PRODUCT_QUESTION_SEARCH_FIELDS],
                   fieldName: 'field',
                   fieldValue: filters.field ?? 'body',
-                  placeholder: '문의 내용 · 상품명 · 상품번호 · 문의번호',
+                  placeholder: '문의 내용 · 상품명 · 상품 URL · 문의번호',
                   value: filters.query,
                 }}
                 resetHref={adminProductQuestionResetHref()}
@@ -159,7 +159,7 @@ export function QnaConsoleScreen({ data, now = new Date(), initialDetail, accoun
               {/* 답변 상태 다음에 고객 질문이 먼저 온다. 상품·작성자는 그 아래 회색 줄이다. 공개는 기본 상태라 글자로 물러나고, 비노출만 배지로 보인다. */}
               <header className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm"><AdminStatusBadge tone={answerTone(Boolean(row.answerBody))}>{row.answerBody ? '답변 등록됨' : '답변 미등록'}</AdminStatusBadge><WaitingBadge days={waitingDays(row, now)} />{row.hidden ? <AdminStatusBadge data-question-status="hidden" tone={statusTone('questionVisibility', 'hidden')}>비노출</AdminStatusBadge> : null}{row.secret ? <SecretBadge /> : null}</header>
               <p className="text-sm leading-snug font-medium text-foreground wrap-anywhere">{productQuestionBodyPreview(row.body, 180)}</p>
-              <p className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-muted-foreground [&>*+*]:border-l [&>*+*]:pl-2.5"><Link className={META_LINK_CLASS} href={goodQuestionsHref(row.goodId)} rel="noopener noreferrer" target="_blank" title={row.goodName}><span className="truncate">{row.goodName}</span><ExternalLink aria-hidden="true" className="size-3 shrink-0" /></Link><span className="tabular-nums">상품번호 {row.goodId}</span><span>@{row.authorName}</span><time className="tabular-nums" dateTime={row.createdAt}>{formatAdminProductQuestionDateTime(row.createdAt)}</time>{row.answeredByName ? <span>답변 @{row.answeredByName}{row.answeredAt ? ` · ${formatAdminProductQuestionDateTime(row.answeredAt)}` : ''}</span> : null}{row.hidden ? null : <span data-question-status="visible">공개</span>}</p>
+              <p className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-muted-foreground [&>*+*]:border-l [&>*+*]:pl-2.5"><Link className={META_LINK_CLASS} href={goodQuestionsHref(row.goodId)} rel="noopener noreferrer" target="_blank" title={row.goodName}><span className="truncate">{row.goodName}</span><ExternalLink aria-hidden="true" className="size-3 shrink-0" /></Link><span className="tabular-nums">상품 URL {row.goodId}</span><span>@{row.authorName}</span><time className="tabular-nums" dateTime={row.createdAt}>{formatAdminProductQuestionDateTime(row.createdAt)}</time>{row.answeredByName ? <span>답변 @{row.answeredByName}{row.answeredAt ? ` · ${formatAdminProductQuestionDateTime(row.answeredAt)}` : ''}</span> : null}{row.hidden ? null : <span data-question-status="visible">공개</span>}</p>
             </div>
             {/* 고객문의 표처럼 줄 오른쪽 한 자리에 처리 버튼을 둔다. 펼친 답변 패널(section)은 줄 전체를 쓴다. */}
             <div className="contents [&>button]:justify-self-end [&>button]:self-center max-sm:[&>button]:col-start-2 max-sm:[&>button]:justify-self-start [&>section]:col-span-full"><QnaActionPanel inline accountId={accountId} question={row} triggerLabel={row.answerBody ? '답변 확인 · 수정' : '답변 등록'} /></div>

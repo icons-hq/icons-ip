@@ -22,7 +22,7 @@ describe('manual and workbook goods persistence contract', () => {
   it('keeps omitted manual fields absent while explicit blanks and workbook blanks clear them', () => {
     const omitted = manual({});
     const cleared = manual({ nameEn: '', searchKeywords: '', displayOrder: '', categoryId: '', shippingNoticeTemplate: '', descriptionFormat: 'plain' });
-    const [workbook] = planGoodsWorkbookImport([{ row: 5, values: { ...emptyGoodsWorkbookRow(), name: '합성 상품', ipId: 'ip' } }], {
+    const [workbook] = planGoodsWorkbookImport([{ row: 5, values: { ...emptyGoodsWorkbookRow(), name: '합성 상품', ipId: 'ip', stockQty: '0' } }], {
       existing: [], ips: [{ id: 'ip', archived_at: null }], origins: [], presets: [], mediaUrl: () => null,
     });
     expect(workbook.errors).toEqual([]);
@@ -38,7 +38,7 @@ describe('manual and workbook goods persistence contract', () => {
   it('uses the same normalized HTML, notice and sale policy fields for both inputs', () => {
     const html = '<h2>구성</h2><script>remove()</script><p>상품 설명</p>';
     const [workbook] = planGoodsWorkbookImport([{ row: 5, values: { ...emptyGoodsWorkbookRow(), name: '합성 상품', ipId: 'ip',
-      descriptionFormat: 'html', description: html, noticeMaker: '제조사', allowCardPayment: '아니오', searchKeywords: '여름, 여름, 굿즈', displayOrder: '0' } }], {
+      stockQty: '0', descriptionFormat: 'html', description: html, noticeMaker: '제조사', allowCardPayment: '아니오', searchKeywords: '여름, 여름, 굿즈', displayOrder: '0' } }], {
       existing: [], ips: [{ id: 'ip', archived_at: null }], origins: [], presets: [], mediaUrl: () => null,
     });
     const form = manual({ descriptionFormat: 'html', description: html, noticeMaker: '제조사', allowCardPayment: 'false', searchKeywords: '여름, 여름, 굿즈', displayOrder: '0' });

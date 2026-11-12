@@ -12,7 +12,8 @@ describe('운영 콘솔 어휘', () => {
     expect(adminGoodsCopy('추가상품과 추가 구성 굿즈를 확인합니다.')).toBe('추가구성상품과 추가구성상품을 확인합니다.');
   });
   it('실물 라벨과 확정 상태를 한 표에서 정의한다', () => {
-    expect(ADMIN_VOCABULARY).toMatchObject({ goods: '상품', goodsCode: '판매자상품코드',
+    // 식별자 셋은 한 값에 한 이름이다(ADR-0038): 시스템 순번·고객 화면 주소 끝 값·판매자가 관리하는 코드.
+    expect(ADMIN_VOCABULARY).toMatchObject({ goods: '상품', goodsCode: '판매자상품코드', goodsNumber: '상품번호', goodsUrl: '상품 URL',
       noticeInfo: '상품정보제공고시', claims: '취소·반품·교환 관리',
       confirmed: '발주확인', settled: '거래확정' });
     expect(ADMIN_SCREENS.find((screen) => screen.id === 'goods')?.label).toBe(ADMIN_VOCABULARY.goodsList);

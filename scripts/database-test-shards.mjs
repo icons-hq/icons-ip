@@ -126,6 +126,8 @@ const catalog = [
   // IP 내부 ID 자동 발급·미사용 초안 삭제(ADR-0039)다. 경합 검사는 쿠폰 대상 IP 저장과의 직렬화를 고정한다.
   sql('ip_draft_delete'),
   script('ip_draft_delete_coupon_concurrency.sh', 'IP_DRAFT_DELETE_TEST_SCOPE'),
+  // 시스템 순번 상품번호(불변·재사용 없음)와 상품 조회/수정의 번호 검색·정렬·판매대기/판매중지/판매종료 건수(S36-009·SHEET-036).
+  sql('goods_product_numbers', { admin: true }),
 ];
 
 const storefront = [
