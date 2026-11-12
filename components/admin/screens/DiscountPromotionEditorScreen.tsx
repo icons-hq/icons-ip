@@ -13,6 +13,7 @@ import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/compon
 import { parseGoodsPricePeriodInput } from '@/lib/admin/goods-price-periods';
 import type { GoodsGroupIdentity } from '@/lib/admin/goods-groups';
 import { statusTone } from '@/lib/admin/status-tone';
+import { formatOrderDateTime } from '@/lib/orders';
 import { isUuid } from '@/lib/uuid';
 import {
   DISCOUNT_PROMOTION_GOODS_LIMIT,
@@ -20,6 +21,8 @@ import {
   DISCOUNT_PROMOTION_TARGET_LABELS,
   discountPromotionError,
   discountPromotionHref,
+  discountPromotionListHref,
+  discountPromotionRuleLocked,
   discountPromotionSkipLabel,
   discountRuleLabel,
   parseDiscountPromotionRequest,
@@ -39,7 +42,8 @@ const NOTE = 'text-sm text-muted-foreground';
 const CHOICE = 'flex cursor-pointer items-center gap-2 text-sm';
 const won = (value: number | null) => value === null ? '판매 옵션 없음' : `${value.toLocaleString('ko-KR')}원`;
 const range = (min: number | null, max: number | null) => min === max ? won(min) : `${won(min)} ~ ${won(max)}`;
-const kst = (value: string) => new Date(value).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+/* 기간은 목록·상세와 같은 어드민 표기(24시간제, formatOrderDateTime)로 보인다(QA1 MD). */
+const kst = formatOrderDateTime;
 
 function exceptionsOf(drafts: Record<string, ExceptionDraft>): DiscountPromotionException[] | null {
   const result: DiscountPromotionException[] = [];
@@ -63,9 +67,11 @@ function previewOutcome(row: DiscountPromotionPreviewGood) {
  * 비교 표에서 한두 상품만 다른 할인율·금액·예외가로 바꾸거나 빼고(다시 계산), 확인한 뒤 등록한다.
  * 등록은 같은 요청번호로만 확정되고(멱등), 응답이 끊기면 결과 조회로 확인한다 — 일괄 변경과 같은 진행 기록을 쓴다.
  */
-export function DiscountPromotionEditorScreen({ identity, options, initial }: {
+export function DiscountPromotionEditorScreen({ identity, options, initial, returnTo = { href: discountPromotionListHref(), label: '목록으로' } }: {
   identity: GoodsGroupIdentity | null; options: DiscountPromotionTargetOptions;
   initial: { kind: DiscountPromotionTargetKind; campaignId: string | null; ipId: string | null; name: string };
+  /** 취소·돌아가기 목적지. 캠페인 편집에서 열었으면 그 캠페인 편집이다(QA1 MD). */
+  returnTo?: { href: string; label: string };
 }) {
   const session = useGoodsGroupSession(identity?.actorId ?? '', identity?.sessionId ?? null);
   const nameId = useId(), startsId = useId(), endsId = useId(), modeId = useId(), valueId = useId(), campaignSelectId = useId(), ipSelectId = useId();
@@ -188,9 +194,10 @@ export function DiscountPromotionEditorScreen({ identity, options, initial }: {
     {!identity || session.blocked ? <p className="text-sm text-destructive" role="alert">로그인 계정 또는 세션을 확인하지 못했습니다. 화면을 다시 열어주세요.</p> : null}
     {storageBroken ? <p className="text-sm text-destructive" role="alert">진행 기록을 확인하지 못했습니다. 브라우저 저장공간을 확인하고 화면을 다시 열어주세요.</p> : null}</>;
 
+  const back = <Link className={buttonVariants({ variant: 'outline' })} data-return-to="" data-slot="button" href={returnTo.href}>{returnTo.label}</Link>;
   if (receipt) {
     return <div className="flex min-w-0 flex-col gap-4" data-admin-screen="discount-promotion-new">
-      <AdminPageHeader title="새 할인 프로모션" />
+      <AdminPageHeader actions={back} title="새 할인 프로모션" />
       <AdminNotice title="할인 프로모션을 등록했습니다" tone="success"><p>상품 {receipt.goodsCount.toLocaleString('ko-KR')}개(옵션 {receipt.periodCount.toLocaleString('ko-KR')}개)에 할인을 걸었습니다.{receipt.skipped.length ? ` 건너뛴 상품 ${receipt.skipped.length.toLocaleString('ko-KR')}개는 아래와 같습니다.` : ''}</p>
         <div className="mt-2 flex flex-wrap gap-2"><Link className={buttonVariants({ size: 'sm' })} data-slot="button" href={discountPromotionHref(receipt.operationId)}>프로모션 상세 보기</Link></div></AdminNotice>
       {receipt.skipped.length ? <ul className="flex max-h-72 list-disc flex-col gap-1 overflow-auto rounded-lg border px-8 py-3 text-sm">{receipt.skipped.map(row => <li key={row.id}>{row.name}<small className="block text-xs text-muted-foreground">{row.code ?? row.id} · {discountPromotionSkipLabel(row.reason)}</small></li>)}</ul> : null}
@@ -199,7 +206,7 @@ export function DiscountPromotionEditorScreen({ identity, options, initial }: {
 
   const applied = preview ? preview.goods.filter(row => !row.skip).length : 0;
   return <div className="flex min-w-0 flex-col gap-4" data-admin-screen="discount-promotion-new">
-    <AdminPageHeader title="새 할인 프로모션" description="기획전·IP·선택 상품에 같은 할인을 한 번에 겁니다. 할인은 기존 기간 할인으로 저장되어 상품 상세·장바구니·주문에 같은 가격이 쓰이고, 한 상품에는 한 시점에 할인가가 하나만 적용됩니다." />
+    <AdminPageHeader actions={back} title="새 할인 프로모션" description="기획전·IP·선택 상품에 같은 할인을 한 번에 겁니다. 할인은 기존 기간 할인으로 저장되어 상품 상세·장바구니·주문에 같은 가격이 쓰이고, 한 상품에는 한 시점에 할인가가 하나만 적용됩니다." />
     {!preview ? <form className="flex min-w-0 flex-col gap-4" onSubmit={event => { event.preventDefault(); compare(exceptions ?? []); }}>
       <fieldset className="flex min-w-0 flex-col gap-4" disabled={locked}><legend className="sr-only">할인 프로모션 설정</legend>
         <AdminSectionCard title="기본 정보">
@@ -243,7 +250,7 @@ export function DiscountPromotionEditorScreen({ identity, options, initial }: {
             <AdminField inputId={valueId} label={ruleMode === 'rate' ? '할인율 (%)' : '할인 금액 (원)'}><Input className="text-right tabular-nums" id={valueId} max={ruleMode === 'rate' ? 99 : 2147483647} min={1} onChange={event => setRuleValue(event.target.value)} required step={1} type="number" value={ruleValue} /></AdminField>
           </AdminFormGrid>
         </AdminSectionCard>
-        <div className="flex flex-wrap justify-end gap-2"><Button type="submit">대상·할인 확인</Button></div>
+        <div className="flex flex-wrap justify-end gap-2"><Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={returnTo.href}>취소</Link><Button type="submit">대상·할인 확인</Button></div>
       </fieldset>
     </form> : <section aria-label="할인 프로모션 비교" className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground">
       <div className="flex flex-col gap-1">
@@ -254,13 +261,15 @@ export function DiscountPromotionEditorScreen({ identity, options, initial }: {
       <GroupTable label="할인 프로모션 대상" layout="fixed"><TableHeader><TableRow><TableHead className="w-[32%]">상품명·판매자상품코드</TableHead><TableHead className="w-[16%]">현재 판매가</TableHead><TableHead className="w-[26%]">할인 규칙</TableHead><TableHead>할인 후</TableHead></TableRow></TableHeader>
         <TableBody>{preview.goods.map(row => {
           const draft = drafts[row.id] ?? { mode: 'default', value: '' };
+          /* 기간이 겹치거나 판매 중인 옵션이 없어 건너뛴 줄은 규칙을 바꿔도 결과가 같다 — 고를 수 있는 것처럼 보이지 않게 잠근다(QA1 MD). */
+          const ruleLocked = discountPromotionRuleLocked(row.skip);
           return <TableRow className="data-[skipped]:text-muted-foreground" data-skipped={row.skip ? 'true' : undefined} key={row.id}>
             <TableCell className="whitespace-normal wrap-anywhere">{row.name}<small className="block text-xs text-muted-foreground">{row.code ?? row.id}{row.published ? '' : ' · 비공개'}</small></TableCell>
             <TableCell className="whitespace-normal tabular-nums">{range(row.priceMin, row.priceMax)}</TableCell>
             <TableCell className="whitespace-normal">{row.archived ? '—' : <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-              <AdminSelect aria-label={`${row.name} 할인 규칙`} disabled={locked} onChange={event => changeDraft(row.id, { mode: event.target.value as ExceptionDraft['mode'] })} value={draft.mode} wrapperClassName="min-w-0 flex-1">
+              <AdminSelect aria-label={`${row.name} 할인 규칙`} disabled={locked || ruleLocked} onChange={event => changeDraft(row.id, { mode: event.target.value as ExceptionDraft['mode'] })} value={draft.mode} wrapperClassName="min-w-0 flex-1">
                 {EXCEPTION_MODES.map(([value, label]) => <option key={value} value={value}>{value === 'default' ? `${label} (${discountRuleLabel(preview.request.rule)})` : label}</option>)}</AdminSelect>
-              {draft.mode === 'rate' || draft.mode === 'amount' || draft.mode === 'price' ? <Input aria-label={`${row.name} ${draft.mode === 'rate' ? '할인율' : draft.mode === 'amount' ? '할인 금액' : '예외가'}`} className="w-24 text-right tabular-nums" disabled={locked}
+              {draft.mode === 'rate' || draft.mode === 'amount' || draft.mode === 'price' ? <Input aria-label={`${row.name} ${draft.mode === 'rate' ? '할인율' : draft.mode === 'amount' ? '할인 금액' : '예외가'}`} className="w-24 text-right tabular-nums" disabled={locked || ruleLocked}
                 max={draft.mode === 'rate' ? 99 : 2147483647} min={1} onChange={event => changeDraft(row.id, { value: event.target.value })} step={1} type="number" value={draft.value} /> : null}
             </div>}</TableCell>
             <TableCell className="whitespace-normal">{previewOutcome(row)}{row.rule.source === 'exception' && !row.skip ? <small className="block text-xs text-muted-foreground">예외 · {discountRuleLabel(row.rule)}</small> : null}</TableCell>

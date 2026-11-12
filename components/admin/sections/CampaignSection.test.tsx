@@ -152,7 +152,7 @@ describe('CampaignSection', () => {
     expect(markup).toContain('상품 2/8개');
     expect(markup).toContain('maple-keyring');
     expect(markup).toMatch(/<button[^>]*type="button"[^>]*>상품 고르기<\/button>/);
-    expect(markup).toContain('href="/admin/sales/discount-promotions/new?campaign=autumn-attendance"');
+    expect(markup).toContain('href="/admin/sales/discount-promotions/new?campaign=autumn-attendance&amp;from=campaign"');
     expect(markup).toContain('href="/admin/sales/discount-promotions?campaign=autumn-attendance"');
     expect(markup).toContain('구성 코드 (고급 입력, 비우면 본문 없음)');
     expect(markup).toMatch(/<textarea[^>]*name="sections"/);
