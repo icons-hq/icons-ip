@@ -37,14 +37,23 @@ describe('운송장 업로드 후속 동선', () => {
     expect(html).toContain('이미 발송된 배송 건의 운송장은 덮어쓰지 않습니다.');expect(html).toContain('운송장 수정');
   });
 
-  it('목록에서는 접혀 있고 작업을 펼치면 파일 선택과 등록을 제공한다', () => {
+  /* QA 라운드 1 m2: 파일 선택이 안내보다 먼저 오고, 회신 양식 안내·붙여넣기는 접어 둔다. 등록 전 확인 전에는 등록할 수 없다. */
+  it('파일 선택·비밀번호·등록 전 확인을 안내보다 먼저 두고, 회신 양식 안내와 붙여넣기는 접어 둔다', () => {
     const html = renderToStaticMarkup(<DispatchTrackingImportPanel carriers={[]} />);
-    expect(html).not.toContain('<details');
     expect(html).toContain('type="file"');
     expect(html).toContain('일괄 등록');
-    /* kit Button은 type이 없으면 button이 된다 — 일괄 등록은 양식을 제출한다. */
-    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>일괄 등록</);
+    /* kit Button은 type이 없으면 button이 된다 — 일괄 등록은 양식을 제출한다. 확인 전에는 누를 수 없다. */
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*disabled=""[^>]*>일괄 등록<|<button[^>]*disabled=""[^>]*type="submit"[^>]*>일괄 등록</);
+    expect(html).toMatch(/<button[^>]*type="button"[^>]*>등록 전 확인</);
+    expect(html).toContain('[등록 전 확인]으로 읽은 내용을 본 뒤 등록할 수 있습니다.');
     expect(html).not.toContain('배송현황에서 결과 확인');
+    // 접힌 안내·붙여넣기(open 없음)는 파일 칸 뒤에 있다.
+    expect(html).toMatch(/<details (?:(?!open)[^>])*data-tracking-import-guide=""(?:(?!open)[^>])*>/);
+    expect(html).toMatch(/<details (?:(?!open)[^>])*data-tracking-import-paste=""(?:(?!open)[^>])*>/);
+    expect(html.indexOf('type="file"')).toBeLessThan(html.indexOf('data-tracking-import-guide'));
+    // 브라우저 파일 칸은 감추고 이 화면의 선택만 보인다('선택된 파일 없음'과 '선택 파일'이 함께 보이지 않게).
+    expect(html).toMatch(/<input[^>]*aria-hidden="true"[^>]*class="sr-only"[^>]*type="file"|<input[^>]*type="file"[^>]*class="sr-only"/);
+    expect(html).toContain('선택한 파일 없음');expect(html).not.toContain('선택 파일:');
   });
 
   it('부분 실패 보고서를 유지하며 성공 건이 있으면 필터를 보존한 배송현황으로 연결한다', () => {

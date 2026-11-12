@@ -8,7 +8,7 @@ import {isParcelShipment,shipmentConsoleNonParcelBatch,shipmentConsoleRowSelecta
 import {DISPATCH_TARGET_LIMIT} from '@/lib/admin/dispatch-delivery';
 import type {FulfillmentMethod} from '@/lib/goods-fulfillment';
 import {ShipmentConsoleActionsContext,type ShipmentConsoleActions,type ShipmentConsoleNotice,type ShipmentDeliveryDialogMode} from './ShipmentConsoleContext';
-import {ShipmentConsoleDeliveryDialog} from './ShipmentConsoleDeliveryDialog';
+import {ShipmentConsoleDeliveryDialog,type DispatchTargetSummary} from './ShipmentConsoleDeliveryDialog';
 import {shipmentBarcodeGapWarning,type ShipmentExportLayout} from '@/lib/admin/shipment-workbook';
 import {EXPORT_PASSWORD_HINT,EXPORT_PASSWORD_MAX_LENGTH,EXPORT_PASSWORD_MIN_LENGTH,exportPasswordError} from '@/lib/admin/export-password';
 import {ShipmentPackPanel} from './ShipmentPackPanel';
@@ -27,6 +27,10 @@ const WARNING='text-warning';
 const FIELD='flex min-w-0 flex-col gap-1.5 [&>span]:font-medium';
 const SELECT_FIRST='왼쪽 체크칸에서 배송 건을 고르면 누를 수 있습니다.';
 type ExportRequest={format:'xlsx'|'csv';layout:ShipmentExportLayout}&({kind:'selection';ids:string[]}|{kind:'origin';origin:ShipmentConsoleOrigin});
+/** 출고지시 내려받기 확인 단계에서 다시 알릴 재고 부족(1007-011, QA 라운드 1 m9). 페이지 위 재고 경고와 같은 자료다. */
+export interface ShipmentExportStockShortage {count:number;names:string[]}
+/* ICONS 표준 XLSX는 비밀번호를 받는 확인 단계를 거친다. 재고 부족 경고가 있으면 다른 양식도 같은 확인 단계를 거쳐 경고를 다시 보인다. */
+const needsExportPassword=(request:ExportRequest)=>request.layout==='smartstore'&&request.format==='xlsx';
 function download(file:{base64:string;mime:string;name:string}){
  const bytes=Uint8Array.from(atob(file.base64),c=>c.charCodeAt(0));const url=URL.createObjectURL(new Blob([bytes],{type:file.mime}));
  const anchor=document.createElement('a');anchor.href=url;anchor.download=file.name;anchor.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
@@ -39,7 +43,7 @@ function layoutLabel(layout:ShipmentExportLayout,seowonOnly:boolean){
 function defaultExportLayout(origins:readonly ShipmentConsoleOrigin[],originIds:readonly string[]):ShipmentExportLayout{
  return originIds.length>0&&originIds.every(id=>origins.find(origin=>origin.id===id)?.template==='seowon_xlsx')?'warehouse':'smartstore';
 }
-export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,readyHref,actorId,origins=[],originId=null,methodFilter=null,dispatchActions=false,canManageSales=true,workbarNote=null}:{actorId?:string;rows:ShipmentConsoleRow[];columns:ConsoleGridColumn[];gridRows:ConsoleGridRow[];tab:ShipmentConsoleTab;currentHref:string;readyHref:string;origins?:ShipmentConsoleOrigin[];originId?:string|null;
+export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,readyHref,actorId,origins=[],originId=null,methodFilter=null,dispatchActions=false,canManageSales=true,workbarNote=null,stockShortage=null}:{actorId?:string;rows:ShipmentConsoleRow[];columns:ConsoleGridColumn[];gridRows:ConsoleGridRow[];tab:ShipmentConsoleTab;currentHref:string;readyHref:string;origins?:ShipmentConsoleOrigin[];originId?:string|null;
  /** 목록의 배송방법 필터. 택배 외 한 방법만 모아 보면 그 건도 일괄 발송처리용으로 고른다. */
  methodFilter?:FulfillmentMethod|null;
  /** 발주·발송 화면: 행 운송장 칸·배송 방법·택배 외 발송처리(S36-072·S36-X04)를 연다. */
@@ -47,7 +51,9 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
  /** 판매 관리 권한. 없으면(물류 출고 권한) 발주확인·합포장 관리·고객 지연 안내(이력 포함)를 숨긴다. 출고지시·운송장·발송·배송완료는 그대로다. */
  canManageSales?:boolean;
  /** 작업 막대 끝에 둘 안내(택배가 섞인 발송 대기 목록의 택배 외 건 필터 안내). 막대가 없는 목록이면 안내만 담은 막대를 그린다. */
- workbarNote?:ReactNode}){
+ workbarNote?:ReactNode;
+ /** 창고 재고보다 출고할 주문이 많은 옵션. 있으면 출고지시를 내려받는 확인 단계에서 다시 알린다(막지는 않는다). */
+ stockShortage?:ShipmentExportStockShortage|null}){
  const [selected,setSelected]=useState<string[]>([]);const [pending,startTransition]=useTransition();const router=useRouter();
  const [deliveryDialog,setDeliveryDialog]=useState<{ids:string[];mode:ShipmentDeliveryDialogMode}|null>(null);
  const nonParcelBatch=shipmentConsoleNonParcelBatch(tab,methodFilter??undefined);
@@ -88,6 +94,9 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
   if(notice.tone==='danger'){setMessage('');setError(notice.message);}else{setError('');setPartial(notice.tone==='warning');setMessage(notice.message);}
  }
  const consoleActions:ShipmentConsoleActions|null=dispatchActions?{report,openDelivery:(ids,mode)=>setDeliveryDialog({ids:[...ids],mode})}:null;
+ /* 택배 외 발송처리·배송 방법 팝업에서 고른 건이 맞는지 확인하도록 목록의 수령인·상품을 함께 넘긴다(QA 라운드 1 m5). 화면 밖 건은 번호만 보인다. */
+ const targetSummaries:Record<string,DispatchTargetSummary>=Object.fromEntries(rows.map(row=>[row.id,{recipient:row.recipientName,
+  items:row.items.map(item=>`${item.name}${item.variantName?` · ${item.variantName}`:''} × ${item.qty}`)}]));
  const exportEligible=ids.length>0&&ids.every(id=>{const row=rows.find(item=>item.id===id);return row?shipmentConsoleSelectable(row,tab):Boolean(retainedIds?.includes(id));});
  // 10/27 회의 D10: 기존 창고 양식으로 받을 때, 바코드가 없는 옵션 수를 내보내기 전에 알린다. 경고일 뿐 내보내기를 막지 않는다.
  // 파일에 바코드 칸이 있는지(서원 송장양식, 바코드 열을 고른 표준 양식)는 서버가 배송 건 출고지의 설정으로 판정하므로
@@ -123,14 +132,14 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
   const resent=ids.filter(id=>rows.some(row=>row.id===id&&row.exportedAt)||downloadedIds.has(id)).length;
   if(resent&&!window.confirm(`이미 출고지시를 전달한 배송 건 ${resent}건이 포함돼 있습니다. 창고는 같은 건을 두 번 받으면 걸러내지 못해 중복 출고될 수 있습니다. 그래도 다시 내려받을까요?`))return;
   const request:ExportRequest={kind:'selection',ids:[...ids],format,layout};
-  if(layout==='smartstore'&&format==='xlsx'){setError('');setExportRequest(request);}
+  if(needsExportPassword(request)||stockShortage){setError('');setExportRequest(request);}
   else run('export',undefined,request);
  }
  function exportOrigin(origin:ShipmentConsoleOrigin){
   if(pending)return;
   const originLayout=layoutChoice??defaultExportLayout(origins,[origin.id]);
   const request:ExportRequest={kind:'origin',origin,format,layout:originLayout};
-  if(originLayout==='smartstore'&&format==='xlsx'){setError('');setExportRequest(request);}
+  if(needsExportPassword(request)||stockShortage){setError('');setExportRequest(request);}
   else run('export',undefined,request);
  }
  function run(kind:'confirm'|'export'|'complete',credentials?:{password:string;passwordConfirmation:string},requestedExport?:ExportRequest){
@@ -172,7 +181,20 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
    finally{setDataRound(round=>round+1);}
   });
  }
+ /* 처리 결과는 표 위에 둔다(QA 라운드 1 M1-b). 처리한 행은 목록에서 빠지고 표가 100행까지 길어지므로, 결과 상자는 머리 막대 아래에 붙어
+    표를 내려 보는 동안에도 보이고 [닫기]로 거둔다. 실패한 배송 건 목록은 상자 안에서만 스크롤한다. */
+ const notices=message||(error&&!exportRequest)||failures.length?<div className="sticky top-14 z-20 flex flex-col gap-2 print:static" data-shipment-console-notice="">
+  {message?<AdminNotice role="status" tone={partial?'warning':'success'}><span className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1"><span className="min-w-0">{message}</span>
+   <Button type="button" size="xs" variant="ghost" onClick={()=>setMessage('')}>닫기</Button></span></AdminNotice>:null}
+  {error&&!exportRequest?<AdminNotice role="alert" tone="danger"><span className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1"><span className="min-w-0">{error}</span>
+   <Button type="button" size="xs" variant="ghost" onClick={()=>setError('')}>닫기</Button></span></AdminNotice>:null}
+  {failures.length?<AdminNotice role="alert" tone="danger" title={`처리하지 못한 배송 건 ${failures.length.toLocaleString('ko-KR')}건`}><span className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+   <ul className="flex max-h-40 min-w-0 list-disc flex-col gap-1 overflow-y-auto pl-5">{failures.map(row=><li key={row.id}><span className="tabular-nums">{commerceReferenceLabel(row.id,rows.find(item=>item.id===row.id)?.shipmentNumber)}</span>: {row.reason}</li>)}</ul>
+   <Button type="button" size="xs" variant="ghost" onClick={()=>setFailures([])}>닫기</Button></span></AdminNotice>:null}
+ </div>:null;
+ const exportNeedsPassword=exportRequest?needsExportPassword(exportRequest):false;
  return <ShipmentConsoleActionsContext.Provider value={consoleActions}><div className="flex min-w-0 flex-col gap-3" data-shipment-console-grid="">
+  {notices}
   <ConsoleGrid caption="출고지별 배송 건 목록" preferencesKey={`sales-${tab==='transit'||tab==='delivered'?'shipping':'dispatch'}`} columns={columns} rows={gridRows} emptyLabel="조건에 맞는 배송 건이 없습니다."
    selectable={tab!=='delivered'&&hasBatchActions} selectedIds={ids} onSelectionChange={select}>
    {tab!=='delivered'&&hasBatchActions?<div className={WORKBAR} data-sales-workbar="">
@@ -217,29 +239,36 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
     </div>
    </div>
   </CustomerServiceDialog>:null}
-  {exportRequest?<CustomerServiceDialog title="엑셀 비밀번호 설정" busy={pending} onClose={()=>{setExportRequest(null);setError('');}}>
-   <form autoComplete="off" className="flex flex-col gap-3 text-sm leading-relaxed" data-encrypted-export="" onSubmit={event=>{
-    event.preventDefault();const form=event.currentTarget;const input=new FormData(form);
+  {exportRequest?<CustomerServiceDialog title={exportNeedsPassword?'엑셀 비밀번호 설정':'출고지시 내려받기 확인'} busy={pending} onClose={()=>{setExportRequest(null);setError('');}}>
+   <form autoComplete="off" className="flex flex-col gap-3 text-sm leading-relaxed" data-encrypted-export={exportNeedsPassword?'':undefined} data-export-confirm="" onSubmit={event=>{
+    event.preventDefault();
+    if(!exportNeedsPassword){run('export');return;}
+    const form=event.currentTarget;const input=new FormData(form);
     const password=input.get('password'),passwordConfirmation=input.get('passwordConfirmation');
     form.reset();input.delete('password');input.delete('passwordConfirmation');
     const invalid=exportPasswordError(password,passwordConfirmation);
     if(invalid||typeof password!=='string'||typeof passwordConfirmation!=='string'){setError(invalid??EXPORT_PASSWORD_HINT);return;}
     run('export',{password,passwordConfirmation});
    }}>
-    <p>{exportRequest.kind==='selection'?`선택한 ${exportRequest.ids.length}개 배송 건`:`${exportRequest.origin.name}의 아직 전달하지 않은 발송 대기 건`}을 ICONS 표준 양식으로 내려받습니다.</p>
-    <p className="text-muted-foreground">{EXPORT_PASSWORD_HINT}</p>
-    <label className={FIELD}><span>비밀번호</span><Input name="password" type="password" autoComplete="new-password" autoFocus data-dialog-autofocus="" minLength={EXPORT_PASSWORD_MIN_LENGTH} maxLength={EXPORT_PASSWORD_MAX_LENGTH} required disabled={pending} spellCheck={false}/></label>
-    <label className={FIELD}><span>비밀번호 확인</span><Input name="passwordConfirmation" type="password" autoComplete="new-password" minLength={EXPORT_PASSWORD_MIN_LENGTH} maxLength={EXPORT_PASSWORD_MAX_LENGTH} required disabled={pending} spellCheck={false}/></label>
-    <p className="text-muted-foreground">비밀번호는 저장하지 않습니다. 운송장 회신 파일을 올릴 때 같은 비밀번호를 입력합니다.</p>
+    <p>{exportRequest.kind==='selection'?`선택한 ${exportRequest.ids.length}개 배송 건`:`${exportRequest.origin.name}의 아직 전달하지 않은 발송 대기 건`}을 {exportNeedsPassword?'ICONS 표준 양식':layoutLabel(exportRequest.layout,exportRequest.kind==='origin'?exportRequest.origin.template==='seowon_xlsx':exportRequest.ids.every(id=>originTemplate(rows.find(row=>row.id===id)?.originId??'')==='seowon_xlsx'))}{exportRequest.format==='csv'?' CSV':''}로 내려받습니다.</p>
+    {/* 1007-011·QA 라운드 1 m9: 페이지 맨 위 재고 경고는 행으로 내려가면 보이지 않는다. 파일을 받기 직전에 다시 알리고, 받을지는 운영자가 정한다. */}
+    {stockShortage?<AdminNotice role="alert" tone="danger" title={`창고 재고보다 출고할 주문이 많은 옵션 ${stockShortage.count.toLocaleString('ko-KR')}개`}>
+     <p>{stockShortage.names.join(', ')}{stockShortage.count>stockShortage.names.length?` 외 ${(stockShortage.count-stockShortage.names.length).toLocaleString('ko-KR')}개`:''}</p>
+     <p className="text-muted-foreground">출고 대기 주문 전체 기준입니다. 고른 배송 건에 이 옵션이 있으면 창고 실재고를 확인한 뒤 내려받아 주세요. 내려받기를 막지는 않습니다.</p>
+    </AdminNotice>:null}
+    {exportNeedsPassword?<>
+     <p className="text-muted-foreground">{EXPORT_PASSWORD_HINT}</p>
+     <label className={FIELD}><span>비밀번호</span><Input name="password" type="password" autoComplete="new-password" autoFocus data-dialog-autofocus="" minLength={EXPORT_PASSWORD_MIN_LENGTH} maxLength={EXPORT_PASSWORD_MAX_LENGTH} required disabled={pending} spellCheck={false}/></label>
+     <label className={FIELD}><span>비밀번호 확인</span><Input name="passwordConfirmation" type="password" autoComplete="new-password" minLength={EXPORT_PASSWORD_MIN_LENGTH} maxLength={EXPORT_PASSWORD_MAX_LENGTH} required disabled={pending} spellCheck={false}/></label>
+     <p className="text-muted-foreground">비밀번호는 저장하지 않습니다. 운송장 회신 파일을 올릴 때 같은 비밀번호를 입력합니다.</p>
+    </>:null}
     {error?<p role="alert" className="text-destructive">{error}</p>:null}
     <div className="flex flex-wrap justify-end gap-2 border-t pt-3">
      <Button type="button" variant="outline" disabled={pending} onClick={()=>{setExportRequest(null);setError('');}}>취소</Button>
-     <Button type="submit" disabled={pending}>{pending?'파일 만드는 중…':'암호화 엑셀 다운로드'}</Button>
+     <Button type="submit" disabled={pending}>{pending?'파일 만드는 중…':exportNeedsPassword?'암호화 엑셀 다운로드':'출고지시 내려받기'}</Button>
     </div>
    </form>
   </CustomerServiceDialog>:null}
-  {message?<AdminNotice role="status" tone={partial?'warning':'success'}>{message}</AdminNotice>:null}{error&&!exportRequest?<AdminNotice role="alert" tone="danger">{error}</AdminNotice>:null}
-  {failures.length?<ul className="flex list-disc flex-col gap-1 pl-5 text-destructive">{failures.map(row=><li key={row.id}><span className="tabular-nums">{commerceReferenceLabel(row.id,rows.find(item=>item.id===row.id)?.shipmentNumber)}</span>: {row.reason}</li>)}</ul>:null}
-  {deliveryDialog?<ShipmentConsoleDeliveryDialog key={`${deliveryDialog.mode}:${deliveryDialog.ids.join(',')}`} mode={deliveryDialog.mode} onClose={()=>setDeliveryDialog(null)} onDone={report} shipmentIds={deliveryDialog.ids}/>:null}
+  {deliveryDialog?<ShipmentConsoleDeliveryDialog key={`${deliveryDialog.mode}:${deliveryDialog.ids.join(',')}`} mode={deliveryDialog.mode} onClose={()=>setDeliveryDialog(null)} onDone={report} shipmentIds={deliveryDialog.ids} summaries={targetSummaries}/>:null}
  </div></ShipmentConsoleActionsContext.Provider>;
 }

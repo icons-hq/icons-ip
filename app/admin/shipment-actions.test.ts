@@ -69,10 +69,20 @@ describe('shipment action boundaries', () => {
     await exportShipmentsAction([ID], 'xlsx', 'smartstore', credentials);
     expect(mocks.build).toHaveBeenCalledWith(exported, 'xlsx', 'smartstore');
   });
-  it('창고 고유 양식은 출고 전용 운영자도 받은 자료 그대로 만든다 (1014-084 범위 밖)', async () => {
-    const exported = { shipments: [{ id: ID, updatedAt: STAMP, shippingFee: 3000, lines: [{ orderId: ID, recipient: '수령인', unitPrice: 1000 }] }] };
+  /* QA 라운드 1 M2: 결정(1014-084 수령인 정보만)의 '내려받는 파일'은 창고 고유 양식도 포함한다. 단가·선결제 배송비만 비우고 수량·착불은 남긴다. */
+  it('창고 고유 양식도 출고 전용 운영자에게는 줄 단가·선결제 배송비를 비워 만든다 (1014-084)', async () => {
+    const exported = { shipments: [{ id: ID, updatedAt: STAMP, shippingFee: 3000, shippingCollectFee: 2500, lines: [{ orderId: ID, recipient: '수령인', qty: 2, unitPrice: 1000 }] }] };
     mocks.rpc.mockImplementation(async (name: string) => ({ error: null, data: name === 'admin_shipment_export' ? structuredClone(exported) : name === 'admin_shipment_barcode_gaps' ? 0 : 1 }));
     mocks.auth.mockResolvedValue({ operatorAccess: configuredOperatorAccessFixture('logistics'), isConfigured: true, user: { id: 'logistics' }, isStaff: true, role: 'staff' });
+    await exportShipmentsAction([ID], 'xlsx', 'warehouse');
+    expect(mocks.build).toHaveBeenCalledWith({ shipments: [{ ...exported.shipments[0], shippingFee: null, lines: [{ orderId: ID, recipient: '수령인', qty: 2, unitPrice: null }] }] },
+      'xlsx', 'warehouse', undefined, { recipientOnly: true });
+    expect(mocks.rpc.mock.calls.map(([name]) => name)).not.toContain('admin_order_item_allocation_inputs');
+  });
+  it('주문 조회 권한이 있는 주매니저의 창고 고유 양식 자료는 지금과 같다', async () => {
+    const exported = { shipments: [{ id: ID, updatedAt: STAMP, shippingFee: 3000, lines: [{ orderId: ID, recipient: '수령인', unitPrice: 1000 }] }] };
+    mocks.rpc.mockImplementation(async (name: string) => ({ error: null, data: name === 'admin_shipment_export' ? structuredClone(exported) : name === 'admin_shipment_barcode_gaps' ? 0 : 1 }));
+    mocks.auth.mockResolvedValue({ operatorAccess: configuredOperatorAccessFixture('primary'), isConfigured: true, user: { id: 'primary' }, isStaff: true, role: 'staff' });
     await exportShipmentsAction([ID], 'xlsx', 'warehouse');
     expect(mocks.build).toHaveBeenCalledWith(exported, 'xlsx', 'warehouse');
   });

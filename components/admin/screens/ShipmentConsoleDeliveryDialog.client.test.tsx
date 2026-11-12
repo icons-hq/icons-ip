@@ -58,6 +58,17 @@ it('택배 외 발송처리는 켜진 택배 외 방법만 보이고, 합포장 
   expect(button('1건 발송처리').props.disabled).toBe(true);
 });
 
+/* QA 라운드 1 m5: 고른 건이 맞는지 팝업 안에서 확인하도록 목록의 수령인·상품을 함께 보인다. 목록 밖 건은 그렇다고 적는다. */
+it('처리 대상 표에 목록에서 넘겨받은 수취인·상품을 함께 보인다', async () => {
+  await open();
+  mocks.index = 0; mocks.refIndex = 0;
+  const html = text(ShipmentConsoleDeliveryDialog({ shipmentIds: [FIRST, SECOND], mode: 'dispatch', onClose, onDone,
+    summaries: { [FIRST]: { recipient: '수령인하나', items: ['QA 키링 · A형 × 2', 'QA 스티커 × 1'] } } }) as Element);
+  expect(html).toContain('수취인 · 상품');
+  expect(html).toContain('수령인하나');expect(html).toContain('QA 키링 · A형 × 2');expect(html).toContain('QA 스티커 × 1');
+  expect(html).toContain('목록 밖 배송 건');
+});
+
 it('사유와 인계 근거를 받아 보낼 건만 같은 요청 번호로 보내고, 일부 실패는 표 위 알림과 팝업에 남긴다', async () => {
   await open();
   change(nodes(render()).find(node => node.type === Textarea && node.props.required === true)!, '고객 전화 요청');

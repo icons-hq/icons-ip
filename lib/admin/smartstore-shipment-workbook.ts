@@ -100,9 +100,14 @@ export function iconsStandardDateText(value: string | null | undefined): string 
   return text;
 }
 
-/** 화면·주문통합검색과 같은 구매자 표시 이름. 닉네임이 없으면 회원 ID 앞 6자리로 만든다. */
-export function iconsStandardBuyerName(name: string | null | undefined, buyerId: string): string {
-  return name?.trim() || `fan_${buyerId.slice(0, 6)}`;
+/**
+ * 화면·주문통합검색과 같은 구매자 표시 이름. 닉네임이 없으면 회원 ID 앞 6자리로 만든다.
+ * 구매자를 비워 보낸 응답(물류 출고 권한의 "수령인 정보만", 1014-084 — 닉네임·회원 ID 모두 null)은 빈칸(null)이다.
+ */
+export function iconsStandardBuyerName(name: string | null | undefined, buyerId: string | null | undefined): string | null {
+  const nickname = name?.trim();
+  if (nickname) return nickname;
+  return buyerId ? `fan_${buyerId.slice(0, 6)}` : null;
 }
 
 export function shippingChargeLabel(prepaid: number, collect: number): string {
