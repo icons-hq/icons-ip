@@ -52,6 +52,9 @@ end $$;
 
 select pg_temp.confirm_order(n) from generate_series(1,7)n;
 update public.orders set status='delivered',created_at=now()-interval '60 days',delivered_at=now()-interval '40 days' where id::text like 'c7160750-0000-4001-%';
+-- 리뷰는 구매확정된 주문에만 남는다(1014-079). 이 회귀는 유형 계약만 보므로 확정 기록 없이 거래확정 상태로 둔다 —
+-- 구매확정 기산점(confirmed_at)이 없는 한달사용 판정도 그대로다. 리뷰 등록과 함께 확정하는 길은 purchase_confirmation.sql이 본다.
+update public.orders set status='done',done_at=delivered_at where id::text like 'c7160750-0000-4001-%';
 update public.orders set created_at=now()-interval '100 days',delivered_at=now()-interval '60 days' where id='c7160750-0000-4001-8000-000000000001';
 insert into public.payment_attempts(id,provider,user_id,purpose,ref_id,amount,state,idempotency_key,provider_order_id,provider_product_code,payment_id,expires_at)
  select gen_random_uuid(),p.provider,p.user_id,p.purpose,p.ref_id,p.amount,'approved','review-types-attempt-'||p.id,'review-types-provider-'||p.id,'review-types-product-'||p.id,p.id,now()+interval '1 hour'

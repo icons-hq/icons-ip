@@ -110,10 +110,11 @@ values
 
 insert into public.orders (id, user_id, status, total, address, delivered_at)
 values
-  -- A: 배송완료 + 어제. 정상 작성 대상
+  -- A: 거래확정 + 어제 배송완료. 정상 작성 대상. 리뷰는 구매확정된 주문에만 남는다(1014-079) —
+  --    미확정 주문의 "리뷰 등록 = 구매확정" 경로는 purchase_confirmation.sql이 검증한다.
   (
     '50000000-0000-4000-8000-000000000951',
-    '00000000-0000-4000-8000-000000000951', 'delivered', 12000, '{}'::jsonb,
+    '00000000-0000-4000-8000-000000000951', 'done', 12000, '{}'::jsonb,
     now() - interval '1 day'
   ),
   -- B: 배송중. 아직 받지 않았다
@@ -132,6 +133,12 @@ values
     '50000000-0000-4000-8000-000000000954',
     '00000000-0000-4000-8000-000000000951', 'done', 12000, '{}'::jsonb,
     now() - interval '3 days'
+  ),
+  -- E: 배송완료 + 어제, 아직 구매확정 전. 확정 안내를 거치지 않는 작성 함수는 거절한다
+  (
+    '50000000-0000-4000-8000-000000000955',
+    '00000000-0000-4000-8000-000000000951', 'delivered', 12000, '{}'::jsonb,
+    now() - interval '1 day'
   );
 
 -- order_items는 주문 시점 스냅샷(이름·유형·IP)을 not null로 요구한다.
@@ -144,7 +151,8 @@ values
   ('50000000-0000-4000-8000-000000000951', 'review-goods', 1, 12000, '리뷰 굿즈', '문구', 'review-ip', (select id from public.goods_variants where good_id='review-goods' and is_default)),
   ('50000000-0000-4000-8000-000000000952', 'review-goods', 1, 12000, '리뷰 굿즈', '문구', 'review-ip', (select id from public.goods_variants where good_id='review-goods' and is_default)),
   ('50000000-0000-4000-8000-000000000953', 'review-goods', 1, 12000, '리뷰 굿즈', '문구', 'review-ip', (select id from public.goods_variants where good_id='review-goods' and is_default)),
-  ('50000000-0000-4000-8000-000000000954', 'review-goods', 1, 12000, '리뷰 굿즈', '문구', 'review-ip', (select id from public.goods_variants where good_id='review-goods' and is_default));
+  ('50000000-0000-4000-8000-000000000954', 'review-goods', 1, 12000, '리뷰 굿즈', '문구', 'review-ip', (select id from public.goods_variants where good_id='review-goods' and is_default)),
+  ('50000000-0000-4000-8000-000000000955', 'review-goods', 1, 12000, '리뷰 굿즈', '문구', 'review-ip', (select id from public.goods_variants where good_id='review-goods' and is_default));
 
 -- ---------------------------------------------------------------------------
 -- 구매자 세션
@@ -229,6 +237,29 @@ begin
 
   if accepted then
     raise exception 'rating outside 1..5 should be rejected';
+  end if;
+end;
+$$;
+
+-- 아직 구매확정 전인 주문은 확정 안내를 거치지 않는 이 함수로 리뷰를 남길 수 없다(1014-079).
+-- 리뷰 등록과 함께 확정하는 길은 create_good_review_v3이고, 리뷰는 늘 구매확정된 주문에만 남는다.
+do $$
+declare
+  accepted boolean := false;
+begin
+  begin
+    perform public.create_good_review(
+      '50000000-0000-4000-8000-000000000955', 'review-goods', 5, '확정 전에 남기는 리뷰입니다'
+    );
+    accepted := true;
+  exception
+    when check_violation then
+      if sqlerrm <> 'review_purchase_confirmation_required' then raise; end if;
+      accepted := false;
+  end;
+
+  if accepted then
+    raise exception 'review on an unconfirmed order should require purchase confirmation';
   end if;
 end;
 $$;

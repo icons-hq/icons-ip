@@ -23,7 +23,8 @@ create function pg_temp.best_order(n integer,stars integer,with_evidence boolean
 declare purchase uuid:=('93500000-0000-4000-8001-'||lpad(n::text,12,'0'))::uuid;payment uuid:=('93500000-0000-4000-8002-'||lpad(n::text,12,'0'))::uuid;
  attempt uuid:=('93500000-0000-4000-8003-'||lpad(n::text,12,'0'))::uuid;buyer uuid:=('93500000-0000-4000-8000-'||lpad((n%5+4)::text,12,'0'))::uuid;review uuid;
 begin
- insert into public.orders(id,user_id,status,total,address,delivered_at) values(purchase,buyer,'delivered',10000,'{}',clock_timestamp()-interval '2 days');
+ -- 리뷰는 구매확정된 주문에만 남는다(1014-079). 리뷰 등록과 함께 확정하는 길은 purchase_confirmation.sql이 본다.
+ insert into public.orders(id,user_id,status,total,address,delivered_at,done_at) values(purchase,buyer,'done',10000,'{}',clock_timestamp()-interval '2 days',clock_timestamp()-interval '1 day');
  insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
  select purchase,g.id,v.id,1,10000,g.name,g.type,g.ip_id from public.goods g join public.goods_variants v on v.good_id=g.id and v.is_default where g.id='review-best-good';
  insert into public.payments(id,user_id,purpose,ref_id,provider,amount,status,idempotency_key) values(payment,buyer,'order',purchase,'korpay',10000,'paid','review-best-payment-'||n);
