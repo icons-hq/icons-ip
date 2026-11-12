@@ -14,8 +14,10 @@ import {
 import {
   decideOrderClaimAction,
   recordOrderClaimCollectionAction,
+  planClaimDefectiveStockAction,
   recordOrderClaimRefundAction,
   recordOrderClaimReshipmentAction,
+  retryClaimDefectiveStockAction,
   type AdminClaimActionState,
 } from '@/app/admin/claim-actions';
 import {
@@ -38,6 +40,7 @@ import {
   type ReturnFeeDeduction,
 } from '@/lib/claims/return-fee-deduction';
 import { krwAmountWords } from '@/lib/format';
+import { DEFECTIVE_STOCK_PENDING_NOTICE, type ClaimDefectiveStock } from '@/lib/admin/defective-stock';
 import { AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
@@ -46,6 +49,7 @@ import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
 import { ChevronDown } from 'lucide-react';
 import { ClaimOriginCollection } from './ClaimOriginCollection';
+import { ClaimDefectiveStockChoice } from './ClaimDefectiveStockChoice';
 import { ClaimHoldControl } from '@/components/admin/ClaimHoldControl';
 import { BankTransferRefund } from '@/components/admin/BankTransferRefund';
 import { ReturnClaimWorkspace } from './ReturnClaimWorkspace';
@@ -91,6 +95,8 @@ const CLAIM_PANEL_ACTIONS = {
   collection: recordOrderClaimCollectionAction,
   refund: recordOrderClaimRefundAction,
   reship: recordOrderClaimReshipmentAction,
+  defectivePlan: planClaimDefectiveStockAction,
+  defectiveRetry: retryClaimDefectiveStockAction,
 } as const;
 type ClaimPanelAction = keyof typeof CLAIM_PANEL_ACTIONS;
 const PANEL_ACTION_FIELD = 'panelAction';
@@ -279,6 +285,8 @@ export interface ClaimActionPanelProps {
   refundAmount?: number | null;
   /** 반품배송비 차감 판정·결정(ADR-0031). 스위치가 꺼져 있고 결정이 없으면 null — 패널은 지금 그대로다. */
   refundDeduction?: ReturnFeeDeduction | null;
+  /** 반품 품목별 재고 처리 선택(QNA-035). 반품이 아니거나 읽지 못하면 null — 선택 칸을 그리지 않고 지금처럼 전부 복원한다. */
+  defectiveStock?: ClaimDefectiveStock | null;
   /** 처리 제목 바로 아래에 둘 요청 요약(교환이 무엇으로 바꾸려는지). */
   requestSummary?: ReactNode;
   /** 교환: 처리 제목 아래의 단계 표시. */
@@ -312,6 +320,7 @@ export function ClaimActionPanel({
   returnRefundSummary,
   refundAmount = null,
   refundDeduction = null,
+  defectiveStock = null,
   requestSummary = null,
   exchangeSteps = null,
   exchangeShipping = null,
@@ -542,6 +551,28 @@ export function ClaimActionPanel({
 
       {stage !== 'withdrawn' && bankTransfer && actorId && claimType !== 'exchange' ? <BankTransferRefund actorId={actorId} orderId={orderId} claimId={claimId} /> : null}
 
+      {bankTransfer && claimType === 'return' && defectiveStock && stage !== 'completed' && stage !== 'withdrawn' && stage !== 'rejected'
+        && defectiveStock.items.some((item) => item.state !== 'recorded') ? (
+        <form action={panelAction} className={FORM_CLASS}>
+          <PanelActionField kind="defectivePlan" />
+          <input name="claimId" type="hidden" value={claimId} />
+          <input name="claimType" type="hidden" value={claimType} />
+          <ClaimDefectiveStockChoice idPrefix="claim-bank-stock-disposition" items={defectiveStock.items} />
+          <Button className="w-fit" disabled={pending} size="sm" type="submit" variant="outline">품목별 재고 처리 저장</Button>
+          <p className={HINT_CLASS}>무통장 환불은 위 [취소 확정]을 누를 때 재고가 복원됩니다. 그 전에 저장해주세요.</p>
+        </form>
+      ) : null}
+
+      {claimType === 'return' && defectiveStock && defectiveStock.pending > 0 && stage === 'completed' ? (
+        <form action={panelAction} className={FORM_CLASS} data-claim-defective-pending="">
+          <PanelActionField kind="defectiveRetry" />
+          <input name="claimId" type="hidden" value={claimId} />
+          <input name="claimType" type="hidden" value={claimType} />
+          <AdminNotice title="불량 기록 필요" tone="warning">{DEFECTIVE_STOCK_PENDING_NOTICE}</AdminNotice>
+          <Button className="w-fit" disabled={pending} size="sm" type="submit" variant="outline">불량 기록 다시 시도</Button>
+        </form>
+      ) : null}
+
       {canFileRefund && !bankTransfer ? (
         <form action={panelAction} className={FORM_CLASS}>
           <PanelActionField kind="refund" />
@@ -576,6 +607,7 @@ export function ClaimActionPanel({
           <input name="stage" type="hidden" value="completed" />
           <RefundMethodField fixedMethod={fixedRefundMethod} id="claim-refund-complete-method" autoCancelLabel={autoCancelLabel} cancelScope={cancelScope} />
           <SettlementNoteField id="claim-refund-complete-note" />
+          {refundFinalizationPending && claimType === 'return' && defectiveStock ? <ClaimDefectiveStockChoice idPrefix="claim-stock-disposition" items={defectiveStock.items} /> : null}
           {refundFinalizationPending ? (
             <AdminNotice title="확정하면 되돌릴 수 없습니다" tone="warning">
               {autoCancelLabel && partialRefund

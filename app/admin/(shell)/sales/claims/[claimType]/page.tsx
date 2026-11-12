@@ -76,6 +76,7 @@ export default async function AdminSalesClaimsPage({
             backHref={closeHref}
             cancellationForm={workspace.cancellationForm}
             carriers={workspace.carriers}
+            defectiveStock={workspace.defectiveStock}
             detail={workspace.detail}
             detailHref={adminClaimDetailHref(claimType, previewId, filters)}
             embedded

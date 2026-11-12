@@ -9,6 +9,7 @@ import {
   type StockReconcileFileResult,
 } from '@/app/admin/stock-reconcile-actions';
 import { AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { DefectiveStockReference } from '@/components/admin/DefectiveStockReference';
 import { AdminSelect } from '@/components/admin/console/AdminSelect';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
@@ -377,6 +378,7 @@ export function StockReconcilePanel({ origins, initialSnapshot, now }: {
           : <AdminStatusBadge tone="warning">아직 반영 안 함</AdminStatusBadge>}
       </header>
       <StockReconcileResult snapshot={snapshot} showSame={showSame} onToggleSame={() => setShowSame((value) => !value)} />
+      <DefectiveStockReference items={snapshot.items.map((item) => ({ variantId: item.variantId, label: itemName(item) }))} />
       {conflicts.length ? <AdminNotice tone="warning" role="alert" title={`미리보기 뒤 재고가 바뀐 옵션 ${count(conflicts.length)}개가 있어 반영하지 않았습니다`}>
         <ul className="flex list-disc flex-col gap-1 pl-4">{conflicts.slice(0, 20).map((conflict) => <li key={conflict.variantId}>
           {itemName(conflict)} ({conflict.optionCode}) · {conflict.reason === 'changed' ? `차이 ${signed(conflict.previewDifference)} → ${signed(conflict.currentDifference)}` : conflict.reason === 'goods_archived' ? '상품을 보관함' : '옵션을 사용 중지함'}

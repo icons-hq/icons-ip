@@ -31,7 +31,7 @@ export default async function AdminSalesClaimDetailPage({
   /* 목록 위 팝업(?claimId=)과 같은 로더다(R8). */
   const workspace = await loadAdminClaimWorkspace(claimId);
   if (!workspace) notFound();
-  const { cancellationForm, carriers, detail } = workspace;
+  const { cancellationForm, carriers, defectiveStock, detail } = workspace;
   /* 유형 전환 전의 링크도 현재 요청의 큐로 연결한다. */
   if (detail.claim.claimType !== claimType) redirect(`${adminClaimBasePath(detail.claim.claimType)}/${claimId}`);
 
@@ -41,6 +41,7 @@ export default async function AdminSalesClaimDetailPage({
       backHref={adminClaimBackHref(claimType, query.back)}
       cancellationForm={cancellationForm}
       carriers={carriers}
+      defectiveStock={defectiveStock}
       detail={detail}
     />
   );

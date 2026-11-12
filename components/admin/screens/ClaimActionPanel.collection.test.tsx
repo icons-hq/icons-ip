@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { ClaimActionPanel, type ClaimActionPanelProps } from './ClaimActionPanel';
-vi.mock('@/app/admin/claim-actions', () => ({ decideOrderClaimAction: vi.fn(), recordOrderClaimCollectionAction: vi.fn(), recordOrderClaimOriginCollectionAction: vi.fn(), recordOrderClaimRefundAction: vi.fn(), recordOrderClaimReshipmentAction: vi.fn() }));
+vi.mock('@/app/admin/claim-actions', () => ({ decideOrderClaimAction: vi.fn(), recordOrderClaimCollectionAction: vi.fn(), recordOrderClaimOriginCollectionAction: vi.fn(), recordOrderClaimRefundAction: vi.fn(), recordOrderClaimReshipmentAction: vi.fn(), planClaimDefectiveStockAction: vi.fn(), retryClaimDefectiveStockAction: vi.fn() }));
 const base: ClaimActionPanelProps = { claimId: '10000000-0000-4000-8000-000000000001', claimType: 'cancel', orderId: '10000000-0000-4000-8000-000000000002', stage: 'requested', paymentProvider: null, recordedRefundMethod: null, carriers: [], heldFrom: null, cancellationForm: null, refundLedgerOpen: false, refundFiled: false, refundCompleted: false, collectionPolicy: 'origin', collectionComplete: true, collections: [] };
 describe('claim collection guidance', () => {
   it('철회 이후에는 수거 재개 안내와 처리 폼을 보여주지 않는다', () => {

@@ -30,7 +30,10 @@ import {
 } from '@/lib/admin/claim-bulk';
 import { adminClaimPendingReshipments, adminClaimWaiverDecisions } from '@/lib/admin/claim-reshipments';
 import { adminClaimBasePath } from '@/lib/admin/claims';
+import type { ClaimDefectiveItem } from '@/lib/admin/defective-stock';
 import { loadAdminClaimDetail } from '@/lib/admin/claims.server';
+import { stockDispositionField } from '@/lib/admin/defective-stock';
+import { loadClaimDefectiveStock } from '@/lib/admin/defective-stock.server';
 import { krw } from '@/lib/format';
 import {
   ORDER_CLAIM_TYPE_LABELS,
@@ -116,6 +119,11 @@ export async function previewOrderClaimBulkStepAction(input: unknown): Promise<A
       return { preview: { step, rows } };
     }
 
+    /* 반품이면 품목과 재고 처리 선택을 싣는다(QNA-035). 읽지 못하면 선택 칸 없이 지금처럼 전부 복원한다. */
+    const defectiveByClaim = claimType === 'return'
+      ? new Map((await loadClaimDefectiveStock(claimIds)).map((entry) => [entry.claimId, entry.items]))
+      : new Map<string, ClaimDefectiveItem[]>();
+
     const rows: AdminClaimBulkRefundRow[] = claimIds.map((claimId) => {
       const context = byId.get(claimId);
       if (!context) return { claimId, reference: '확인 불가', providerLabel: adminClaimBulkProviderLabel(null), amount: null, blocker: CLAIM_MISSING };
@@ -124,7 +132,8 @@ export async function previewOrderClaimBulkStepAction(input: unknown): Promise<A
       if (context.claimType !== claimType) return { ...base, blocker: wrongType(claimType) };
       if (context.refundBlocker) return { ...base, blocker: adminClaimBulkRefundBlockerMessage(context.refundBlocker) };
       if (context.refundAmount === null) return { ...base, blocker: adminClaimBulkRefundBlockerMessage('payment_missing') };
-      return { ...base, blocker: null };
+      const items = defectiveByClaim.get(claimId);
+      return { ...base, ...(items && items.length > 0 ? { items } : {}), blocker: null };
     });
     return { preview: { step, rows, totals: adminClaimBulkRefundTotals(rows) } };
   } catch (error) {
@@ -227,7 +236,17 @@ export async function runOrderClaimBulkRefundsAction(input: unknown): Promise<Ad
         const filed = await recordOrderClaimRefundAction({}, form({ ...base, stage: 'filed' }));
         if (filed.error) return { ok: false, message: filed.error };
       }
-      const completed = await recordOrderClaimRefundAction({}, form({ ...base, stage: 'completed' }));
+      const completeForm = form({ ...base, stage: 'completed' });
+      /* 품목별 재고 처리(QNA-035): 확인창에서 고른 불량 품목을 지금 품목 목록에 대어 단건 액션과 같은 필드로 싣는다. */
+      if (item.defectiveItemIds) {
+        const [stock] = await loadClaimDefectiveStock([item.claimId]);
+        const known = new Set((stock?.items ?? []).map((entry) => entry.orderItemId));
+        if (!stock || item.defectiveItemIds.some((id) => !known.has(id))) {
+          return { ok: false, message: '품목이 바뀌어 처리하지 않았습니다. 확인창을 다시 열어 불량 선택을 확인해주세요.' };
+        }
+        for (const entry of stock.items) completeForm.set(stockDispositionField(entry.orderItemId), item.defectiveItemIds.includes(entry.orderItemId) ? 'defective' : 'restore');
+      }
+      const completed = await recordOrderClaimRefundAction({}, completeForm);
       return completed.error
         ? { ok: false, message: completed.error }
         : { ok: true, message: completed.message ?? '환불 완료를 확정했습니다.' };

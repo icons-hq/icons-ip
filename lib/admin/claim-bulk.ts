@@ -1,5 +1,7 @@
 import { normalizeClaimTypeAgreement, type ConvertibleClaimType } from '@/lib/orders/claim-type-conversion';
 import { ORDER_CLAIM_TYPE_LABELS, type OrderClaimStage, type OrderClaimType } from '@/lib/orders/claims';
+import { isUuid } from '@/lib/uuid';
+import type { ClaimDefectiveItem } from './defective-stock';
 import { normalizeAdminClaimReceivedOn } from './claims';
 
 /**
@@ -514,6 +516,8 @@ export interface AdminClaimBulkRefundRow {
   amount: number | null;
   /** 반품배송비 차감액(ADR-0031). 금액(amount)은 이미 뺀 값이다. */
   deductionAmount?: number | null;
+  /** 반품 품목과 재고 처리 선택(QNA-035). 반품이고 처리할 행일 때만 싣는다 — 없으면 확인창은 선택 칸 없이 지금처럼 전부 복원한다. */
+  items?: ClaimDefectiveItem[];
   /** null이면 처리, 아니면 결과표에 남길 제외 사유. */
   blocker: string | null;
 }
@@ -630,7 +634,7 @@ export function normalizeAdminClaimBulkCollectInput(input: unknown, now: Date = 
 
 /** 일괄 환불 완료 확정 실행. 요청마다 확인창에서 본 금액을 함께 받아, 실행 직전 금액과 다르면 처리하지 않는다. */
 export function normalizeAdminClaimBulkRefundInput(input: unknown):
-  | { ok: true; value: { claimType: OrderClaimType; items: { claimId: string; expectedAmount: number }[] } }
+  | { ok: true; value: { claimType: OrderClaimType; items: { claimId: string; expectedAmount: number; defectiveItemIds?: string[] }[] } }
   | { ok: false; error: string } {
   if (!record(input) || !Array.isArray(input.items)) return { ok: false, error: '처리할 요청을 선택해주세요.' };
   const claimType = readClaimTypeValue(input.claimType);
@@ -638,11 +642,19 @@ export function normalizeAdminClaimBulkRefundInput(input: unknown):
   const ids = readIds(input.items.map((item) => (record(item) ? item.claimId : null)), ADMIN_CLAIM_BULK_LIMIT);
   if (!ids.ok) return ids;
   if (ids.claimIds.length !== input.items.length) return { ok: false, error: '같은 요청이 두 번 선택됐습니다. 새로고침한 뒤 다시 선택해주세요.' };
-  const items: { claimId: string; expectedAmount: number }[] = [];
+  const items: { claimId: string; expectedAmount: number; defectiveItemIds?: string[] }[] = [];
   for (const [index, raw] of (input.items as Record<string, unknown>[]).entries()) {
     const expectedAmount = typeof raw.expectedAmount === 'number' ? raw.expectedAmount : Number.NaN;
     if (!Number.isSafeInteger(expectedAmount) || expectedAmount < 0) return { ok: false, error: '확인한 환불 금액을 읽지 못했습니다. 확인창을 다시 열어주세요.' };
-    items.push({ claimId: ids.claimIds[index], expectedAmount });
+    /* 품목별 재고 처리(QNA-035): 배열이 있으면 '선택했다'는 뜻이다(빈 배열 = 전부 판매 재고 복원). 없으면 지금처럼 선택 없이 처리한다. */
+    if (raw.defectiveItemIds === undefined) { items.push({ claimId: ids.claimIds[index], expectedAmount }); continue; }
+    const defective = Array.isArray(raw.defectiveItemIds) && raw.defectiveItemIds.length <= 200
+      ? raw.defectiveItemIds.map((id) => (typeof id === 'string' && isUuid(id) ? id.toLowerCase() : null))
+      : null;
+    if (!defective || defective.some((id) => id === null) || new Set(defective).size !== defective.length) {
+      return { ok: false, error: '불량으로 고른 품목을 읽지 못했습니다. 확인창을 다시 열어주세요.' };
+    }
+    items.push({ claimId: ids.claimIds[index], expectedAmount, defectiveItemIds: defective as string[] });
   }
   return { ok: true, value: { claimType, items } };
 }

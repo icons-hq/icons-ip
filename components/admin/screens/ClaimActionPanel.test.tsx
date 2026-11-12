@@ -24,6 +24,8 @@ const actions = vi.hoisted(() => ({
   recordOrderClaimOriginCollectionAction: vi.fn(),
   recordOrderClaimRefundAction: vi.fn(),
   recordOrderClaimReshipmentAction: vi.fn(),
+  planClaimDefectiveStockAction: vi.fn(),
+  retryClaimDefectiveStockAction: vi.fn(),
 }));
 
 vi.mock('@/app/admin/claim-actions', () => actions);
@@ -59,6 +61,8 @@ async function renderAfterDecision(state: AdminClaimActionState, overrides: Part
       actions.recordOrderClaimOriginCollectionAction,
       actions.recordOrderClaimRefundAction,
       actions.recordOrderClaimReshipmentAction,
+      actions.planClaimDefectiveStockAction,
+      actions.retryClaimDefectiveStockAction,
     ]);
     return {
       ...actual,
