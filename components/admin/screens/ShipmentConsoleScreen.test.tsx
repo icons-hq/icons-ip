@@ -333,8 +333,8 @@ describe('배송현황 추가 운송장·택배 추적 표시 (QNA-019·QNA-028)
    // 추적 표시는 스위치를 따른다 — 값이 실려 와도 꺼져 있으면 그리지 않는다.
    const leaked=shipping([{...shipped,trackingSummary:{extraTrackings:[],deliveredBy:'manual',tracking:{total:1,delivered:0,latestStatus:'in_transit',latestAt:null,held:true}}}],false);
    expect(leaked).toBe(shipping([{...shipped,trackingSummary:{extraTrackings:[],deliveredBy:null,tracking:null}}],false));
-   // 추가 운송장 요약이 없던 행(발주·발송 목록·옛 응답)은 이 칸이 종전 그대로다.
-   const plain=shipping([shipped]);
+   // 추가 운송장 요약이 없던 행(발주·발송 목록·옛 응답)은 이 칸이 종전 그대로다(일괄 등록 안내의 서원 회신 설명은 행 밖이다).
+   const plain=shipping([shipped]).replace(/<section[^>]*aria-label="엑셀 일괄 운송장 등록"[\s\S]*?<\/section>/,'');
    for(const copy of [...TRACKING_COPY,'추가 운송장'])expect(plain).not.toContain(copy);
   });
   it('켜져 있으면 배송완료 건에 자동 확인·수동 처리를, 배송 중 건에 추적 진행과 보류를 보인다',()=>{

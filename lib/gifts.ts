@@ -16,7 +16,12 @@ export type GiftState = typeof GIFT_STATES[number];
 export type GiftParty = 'sender' | 'recipient';
 export interface GiftItem { goodId: string; variantId: string; name: string; variantName: string; qty: number; imagePath: string | null; customInputs: GoodsCustomInputSelection | null }
 export interface GiftInvitation { id: string; revision: number; message: string; senderLabel: string; expiresAt: string; items: GiftItem[] }
-export interface GiftShipment { id: string; status: 'ready' | 'shipping' | 'delivered' | 'canceled'; shippedAt: string | null; deliveredAt: string | null; expectedShipDate: string | null; carrier: string | null; trackingNumber: string | null }
+/** 나눠 보낸 상자의 추가 운송장(QNA-019). 상자를 받는 수령인 화면에만, 추가 운송장이 있는 배송 건에만 온다. */
+export interface GiftShipmentTracking { carrier: string; trackingNumber: string }
+export interface GiftShipment {
+  id: string; status: 'ready' | 'shipping' | 'delivered' | 'canceled'; shippedAt: string | null; deliveredAt: string | null; expectedShipDate: string | null;
+  carrier: string | null; trackingNumber: string | null; extraTrackings?: GiftShipmentTracking[];
+}
 export interface GiftOrder { orderNumber?: string; id: string; status: string; createdAt: string; expiresAt: string | null; total: number | null; paymentMethod: CheckoutPaymentMethod | null }
 export interface GiftDetail extends GiftInvitation {
   party: GiftParty; isRecipient: boolean; state: GiftState; recipientLabel: string | null; createdAt: string; acceptedAt: string | null;
@@ -28,6 +33,10 @@ export interface GiftFailure { error: string; uncertain?: boolean; conflict?: bo
 const uuid = (value: unknown): value is string => typeof value === 'string' && isUuid(value);
 const text = (value: unknown, max = 300): value is string => typeof value === 'string' && [...value].length <= max && !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(value);
 const nullableText = (value: unknown, max = 300): value is string | null => value === null || text(value, max);
+/** 추가 운송장은 대표 포함 20개까지라 배송 건마다 1~19개다. */
+const giftExtraTrackings = (value: unknown): value is GiftShipmentTracking[] => Array.isArray(value) && value.length >= 1 && value.length <= 19
+  && value.every(entry => transactionRecord(entry) && transactionExactKeys(entry, ['carrier', 'trackingNumber'])
+    && text(entry.carrier, 80) && entry.carrier.length > 0 && text(entry.trackingNumber, 40) && entry.trackingNumber.length > 0);
 const instant = (value: unknown): value is string => transactionInstant(value);
 const nullableInstant = (value: unknown): value is string | null => value === null || instant(value);
 
@@ -75,7 +84,9 @@ export function parseGiftDetail(value: unknown): GiftDetail | null {
   }
   const shipments: GiftShipment[] = []; const ids = new Set<string>();
   for (const row of value.shipments) {
-    if (!transactionRecord(row) || !transactionExactKeys(row, ['id', 'status', 'shippedAt', 'deliveredAt', 'expectedShipDate', 'carrier', 'trackingNumber'])
+    const extras = transactionRecord(row) && Object.hasOwn(row, 'extraTrackings');
+    if (!transactionRecord(row) || !transactionExactKeys(row, ['id', 'status', 'shippedAt', 'deliveredAt', 'expectedShipDate', 'carrier', 'trackingNumber', ...(extras ? ['extraTrackings'] : [])])
+      || extras && (!value.isRecipient || !giftExtraTrackings(row.extraTrackings))
       || !uuid(row.id) || ids.has(row.id) || !['ready', 'shipping', 'delivered', 'canceled'].includes(String(row.status))
       || !nullableInstant(row.shippedAt) || !nullableInstant(row.deliveredAt)
       || !(row.expectedShipDate === null || typeof row.expectedShipDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(row.expectedShipDate))

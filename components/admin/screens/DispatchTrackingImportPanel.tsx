@@ -74,7 +74,8 @@ export function DispatchTrackingImportPanel({ carriers, originId, shippingHref =
         <li>
           <strong className={STRONG}>남양주(서원) 송장양식</strong> — 내려받은 송장양식 오른쪽에 &lsquo;송장번호&rsquo; 열을 두고 번호를 채운 파일입니다.
           서원은 주문번호를 돌려주지 않아 받는분전화번호·주소·품목명·수량으로 배송 건을 찾으므로 이 칸들은 바꾸지 마세요.
-          한 배송 건의 줄은 빠짐없이 같은 송장번호로 채워주세요.
+          한 배송 건의 품목 줄은 빠짐없이 올리고, 줄마다 그 품목이 실린 송장번호를 채워주세요. 부피가 커 나눠 보내 줄마다 송장번호가 다르면
+          가장 앞 줄의 번호가 대표 운송장, 나머지가 추가 운송장으로 함께 등록됩니다(대표 포함 20개까지).
         </li>
       </ul>
       <p className={NOTE}>
