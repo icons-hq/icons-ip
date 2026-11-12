@@ -33,3 +33,38 @@ it('preserves distinct purchased, currently allocated and actually shipped produ
   expect(result?.order?.items[0]).toMatchObject({ goodId: 'original', currentGoodId: 'replacement', name: '상품', options: [{ goodId: 'replacement', goodName: '교환 실물' }] });
   expect(result?.claim.reshippedItems?.[0]).toMatchObject({ goodId: 'replacement', originalGoodId: 'original', name: '교환 실물' });
 });
+
+/* QA2 B1: 부분 취소된 버전 2 주문. 영수증 줄(수량 2)을 상세 품목의 살아 있는 수량과 '2 − 부분 취소 수량'으로 맞춘다. */
+it('loads a partially canceled claim against the receipt (original qty minus applied partial cancels)', async () => {
+  const value = payload();
+  mocks.rpc.mockResolvedValue({ data: { ...value, order: { ...value.order, items: [{ ...value.order.items[0], qty: 1 }],
+    partialCancels: [{ orderItemId: transactionLineId, canceledQty: 1 }] } }, error: null });
+  expect((await loadAdminClaimDetail(transactionQuoteId))?.order?.items[0].qty).toBe(1);
+  /* 모두 취소된 품목은 상세에서 빠지고 부분 취소 수량으로만 남는다. */
+  mocks.rpc.mockResolvedValue({ data: { ...value, order: { ...value.order, items: [], partialCancels: [{ orderItemId: transactionLineId, canceledQty: 2 }] } }, error: null });
+  expect((await loadAdminClaimDetail(transactionQuoteId))?.order?.items).toEqual([]);
+});
+
+it('keeps blocking a real receipt mismatch with a typed reason', async () => {
+  const value = payload();
+  mocks.rpc.mockResolvedValue({ data: { ...value, order: { ...value.order, items: [{ ...value.order.items[0], qty: 1 }] } }, error: null });
+  await expect(loadAdminClaimDetail(transactionQuoteId)).rejects.toMatchObject({ code: 'transaction_snapshot_mismatch' });
+  mocks.rpc.mockResolvedValue({ data: { ...value, order: { ...value.order, items: [{ ...value.order.items[0], qty: 1 }],
+    partialCancels: [{ orderItemId: transactionLineId, canceledQty: 2 }] } }, error: null });
+  await expect(loadAdminClaimDetail(transactionQuoteId)).rejects.toMatchObject({ code: 'transaction_snapshot_mismatch' });
+  mocks.rpc.mockResolvedValue({ data: { ...value, order: { ...value.order, partialCancels: 'broken' } }, error: null });
+  await expect(loadAdminClaimDetail(transactionQuoteId)).rejects.toMatchObject({ code: 'transaction_snapshot_mismatch' });
+  mocks.rpc.mockResolvedValue({ data: value, error: null });
+  mocks.transactions.mockRejectedValue(new Error('order_transaction_receipts_unavailable'));
+  await expect(loadAdminClaimDetail(transactionQuoteId)).rejects.toMatchObject({ code: 'transaction_receipt_unavailable' });
+  mocks.rpc.mockResolvedValue({ data: null, error: { message: 'operator_capability_required', code: '42501' } });
+  await expect(loadAdminClaimDetail(transactionQuoteId)).rejects.toMatchObject({ code: 'claim_access_denied' });
+});
+
+it('does not reconcile version 1 orders without a receipt (T12c partial cancels stay readable)', async () => {
+  const value = payload();
+  mocks.transactions.mockResolvedValue(new Map([[transactionOrder, null]]));
+  mocks.rpc.mockResolvedValue({ data: { ...value, order: { ...value.order, items: [{ ...value.order.items[0], qty: 1 }],
+    partialCancels: [{ orderItemId: transactionLineId, canceledQty: 1 }] } }, error: null });
+  expect((await loadAdminClaimDetail(transactionQuoteId))?.order?.transaction).toBeUndefined();
+});

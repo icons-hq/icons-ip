@@ -1,6 +1,7 @@
 import { legacyOperatorAccessFixture } from '@/lib/admin/access.test-fixtures';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { bulkDecideOrderClaimsAction } from './claim-actions';
+import { AdminClaimDetailLoadError } from '@/lib/admin/claim-transaction-snapshot';
 import {
   loadOrderClaimBulkReshipmentsAction,
   previewOrderClaimBulkStepAction,
@@ -452,6 +453,27 @@ describe('일괄 환불 완료 확정(runOrderClaimBulkRefundsAction)', () => {
     expect(mocks.reconcileOrderCancellation).toHaveBeenCalledTimes(1);
   });
 
+  /* QA2 S-T12b-06: 결과표 사유가 '환불 기록을 남기지 못했습니다'뿐이었다. 상세를 읽다 멈춘 이유·원장 기록 거절 이유를 그대로 보인다. */
+  it('건별 실패 사유는 원인 코드마다 다른 문구다', async () => {
+    stepRpc(new Map([[ID(1), fact(1, { stage: 'processing' })], [ID(2), fact(2, { stage: 'processing' })], [ID(3), fact(3, { stage: 'processing' })]]),
+      (name) => (name === 'admin_record_order_claim_refund' ? { data: null, error: { message: 'invalid settlement note' } } : name === 'admin_goods_manual_recovery_attempts' ? [] : null));
+    mocks.loadAdminClaimDetail.mockImplementation(async (id: string) => {
+      if (id === ID(1)) throw new AdminClaimDetailLoadError('transaction_snapshot_mismatch', 'Failed to load claim transaction snapshot');
+      if (id === ID(2)) throw new AdminClaimDetailLoadError('transaction_receipt_unavailable', 'Failed to load claim transaction receipt');
+      return detail(3, 'processing');
+    });
+    mocks.reconcileOrderCancellation.mockResolvedValue({ ok: true, status: 'completed' });
+    const state = await runOrderClaimBulkRefundsAction({ claimType: 'return', items: [
+      { claimId: ID(1), expectedAmount: 10000 }, { claimId: ID(2), expectedAmount: 20000 }, { claimId: ID(3), expectedAmount: 30000 }] });
+    expect(state.results?.map((result) => result.outcome)).toEqual(['failed', 'failed', 'failed']);
+    expect(state.results?.[0].message).toContain('결제 기록(거래 영수증)과 맞지 않아 처리하지 않았습니다');
+    expect(state.results?.[1].message).toContain('결제 기록(거래 영수증)을 읽지 못해');
+    expect(state.results?.[2].message).toContain('상계·정산 메모는 앞뒤 공백 없이 300자 이내로');
+    expect(state.results?.every((result) => !result.message.includes('환불 기록을 남기지 못했습니다'))).toBe(true);
+    /* 읽기에서 멈춘 건은 결제사 취소를 시작하지 않았다. */
+    expect(mocks.reconcileOrderCancellation).toHaveBeenCalledTimes(1);
+  });
+
   it('교환 목록이나 잘못된 금액은 처리하지 않는다', async () => {
     expect(await runOrderClaimBulkRefundsAction({ claimType: 'exchange', items: [{ claimId: ID(1), expectedAmount: 1 }] })).toEqual({ error: '취소와 반품 요청만 환불을 확정합니다.' });
     expect((await runOrderClaimBulkRefundsAction({ claimType: 'return', items: [{ claimId: ID(1), expectedAmount: -1 }] })).error).toContain('확인한 환불 금액');
@@ -584,6 +606,21 @@ describe('재출고 표(loadOrderClaimBulkReshipmentsAction)', () => {
       expect.stringMatching(/^TEST 김포: 회수 확인 전 출고지입니다\. 회수를 확인한 뒤/),
       expect.stringMatching(/^TEST 남양주: 일부 반품지만 입고된 출고지.*TEST 이천: 교환품 제작이 끝나지 않은 출고지/),
     ]);
+  });
+
+  it('한 요청을 읽지 못해도 나머지 요청의 재출고 표를 열고, 읽지 못한 요청은 이유와 번호로 뺀다(QA2 B1)', async () => {
+    mocks.carriers.mockResolvedValue([{ code: 'hanjin', label: '한진택배', active: true, trackingUrlTemplate: 'https://example.test/{trackingNumber}' }]);
+    stepRpc(new Map([[ID(1), fact(1, { claimType: 'exchange' })], [ID(2), fact(2, { claimType: 'exchange' })]]));
+    mocks.loadAdminClaimDetail.mockImplementation(async (id: string) => {
+      if (id === ID(1)) throw new AdminClaimDetailLoadError('transaction_snapshot_mismatch', 'Failed to load claim transaction snapshot');
+      return { claim: { id: ID(2), reference: 2, orderId: ORDER(2), claimType: 'exchange', stage: 'collected', collectionPolicy: 'origin', reshipTrackingNumber: null,
+        reshipmentTargets: [{ shipmentId: SHIP(1), originName: 'TEST 김포', collectionTracked: true, collectedAt: '2026-11-11T00:00:00Z', reshipped: false, orderItemIds: [],
+          waiver: null, productionRequired: false, productionPending: false }] }, order: { items: [] } };
+    });
+    const load = await loadOrderClaimBulkReshipmentsAction({ claimType: 'exchange', step: 'reship', claimIds: [ID(1), ID(2)] });
+    if (load.error !== undefined) throw new Error(load.error);
+    expect(load.claims.map((claim) => claim.claimId)).toEqual([ID(2)]);
+    expect(load.excluded).toEqual([{ claimId: ID(1), reference: 'C00001', reason: expect.stringContaining('결제 기록(거래 영수증)과 맞지 않아') }]);
   });
 
   it('교환 목록 밖이나 20건을 넘기면 열지 않는다', async () => {

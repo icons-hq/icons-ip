@@ -384,6 +384,10 @@ function staffCancellationError(message: string | null | undefined) {
   if (value.includes('order_claim_in_progress')) {
     return '이미 진행 중인 취소·반품·교환 요청이 있습니다. 취소·반품·교환 관리에서 그 요청을 처리해주세요.';
   }
+  /* 결제사 확인을 기다리는 재고 부족 부분 취소(ADR-0032). 클레임이 아니라 주문 상세의 부분 취소 칸에서 결제 확인을 마친다. */
+  if (value.includes('partial_cancel_in_progress')) {
+    return '재고 부족 부분 취소의 결제 확인을 먼저 마쳐주세요. 이 주문 상세의 재고 부족 부분 취소 칸에서 결제사 확인(결제확인필요 해소)을 끝낸 뒤 전액 취소할 수 있습니다.';
+  }
   if (value.includes('payment_reconciliation_required')) return '결제 결과가 아직 확정되지 않았습니다. 결제 상태를 먼저 확인해주세요.';
   if (value.includes('staff_cancellation_toss_only')) {
     return '토스·나이스페이 결제 주문만 이 화면에서 전액 취소할 수 있습니다. Korpay·무통장 주문은 기존 수동 절차를 따릅니다.';

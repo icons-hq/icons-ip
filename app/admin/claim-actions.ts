@@ -24,6 +24,7 @@ import {
   normalizeAdminClaimReshipmentForm,
 } from '@/lib/admin/claims';
 import { loadAdminClaimDetail } from '@/lib/admin/claims.server';
+import { adminClaimDetailLoadFailureMessage } from '@/lib/admin/claim-transaction-snapshot';
 import { DEFECTIVE_STOCK_PENDING_NOTICE, readStockDispositions } from '@/lib/admin/defective-stock';
 import { recordClaimDefectiveStock } from '@/lib/admin/defective-stock.server';
 import { CLAIM_EVIDENCE_MAX_FILES, CLAIM_WAIVER_REASON_MAX, CLAIM_WAIVER_REASON_MIN, claimWaiverReasonValid, normalizeClaimWaiverReason } from '@/lib/admin/claim-evidence';
@@ -158,6 +159,15 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string) {
   if (value.includes('claim_operational_fee_conflict')) return '다른 운영자가 금액을 변경했습니다. 최신 클레임을 다시 열어주세요.';
   if (value.includes('invalid_claim_operational_fee')) return '운영 확인액·비용 유형·메모·근거를 확인해주세요.';
   if (value.includes('unknown shipping carrier')) return '등록되지 않은 택배사입니다.';
+  /* 환불 원장 기록(admin_record_order_claim_refund)의 입력·권한 거절. 일괄 환불 결과표도 이 문구를 그대로 쓴다(QA2 S-T12b-06). */
+  if (value.includes('invalid settlement note')) return '상계·정산 메모는 앞뒤 공백 없이 300자 이내로 적어주세요.';
+  if (value.includes('invalid refund method') || value.includes('invalid refund stage')) return '환불 수단이나 처리 단계를 확인하지 못했습니다. 화면을 새로고침한 뒤 다시 시도해주세요.';
+  if (value.includes('bank_refund_method_required') || value.includes('bank_refund_confirmation_required') || value.includes('bank_refund_evidence_required')) {
+    return '무통장 결제는 결제사 취소가 아니라 환불 처리 칸의 [취소 확정]과 실제 송금 완료 증빙으로 환불합니다. 상세에서 처리해주세요.';
+  }
+  if (value.includes('operator_capability_required') || value.includes('staff required') || value.includes('staff_required')) {
+    return '이 처리를 할 권한이 없습니다. 반품·교환 처리 권한을 확인해주세요.';
+  }
   return fallback;
 }
 
@@ -630,8 +640,9 @@ export async function recordOrderClaimRefundAction(
   let current: Awaited<ReturnType<typeof loadAdminClaimDetail>>;
   try {
     current = await loadAdminClaimDetail(normalized.value.claimId);
-  } catch {
-    return { error: REFUND_FAILED };
+  } catch (error) {
+    /* 읽기에서 멈춘 이유(결제 기록 대조·권한·일시 오류)를 그대로 알린다. 아무것도 시작하지 않았다. */
+    return { error: adminClaimDetailLoadFailureMessage(error, REFUND_FAILED) };
   }
   if (!current) return { error: '클레임을 찾을 수 없습니다.' };
 
