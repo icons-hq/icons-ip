@@ -218,10 +218,10 @@ select 1/case when (:'preview'::jsonb->>'targetShipments')::int=8 and (:'preview
  and (select value->>'reason' from ps_preview_excluded where value->>'shipmentId'=pg_temp.ps_id('shipment',4)::text)='shipped'
  and (select value->>'reason' from ps_preview_excluded where value->>'shipmentId'=pg_temp.ps_id('shipment',5)::text)='cancellation_in_progress'
  and (select value->>'reason' from ps_preview_excluded where value->>'shipmentId'=pg_temp.ps_id('shipment',6)::text)='canceled'
- and (select value->>'reason' from ps_preview_excluded where value->>'shipmentId'=pg_temp.ps_id('shipment',7)::text)='unchanged'
+ and (select value->>'reason' from ps_preview_excluded where value->>'shipmentId'=pg_temp.ps_id('shipment',7)::text)='other_preorder' -- QA2: 묶음 상품의 예정일 때문에 같아진 건은 unchanged가 아니라 other_preorder
  and not exists(select 1 from ps_preview_excluded where value->>'shipmentId'=pg_temp.ps_id('shipment',13)::text)
  and (:'preview'::jsonb->>'excludedTotal')::int=5
- and :'preview'::jsonb->'excludedCounts'=jsonb_build_object('exported',1,'shipped',1,'cancellation_in_progress',1,'canceled',1,'unchanged',1)
+ and :'preview'::jsonb->'excludedCounts'=jsonb_build_object('exported',1,'shipped',1,'cancellation_in_progress',1,'canceled',1,'other_preorder',1)
  then 1 else 0 end as assert_targets_and_exclusion_reasons;
 select 1/case when (select (value->>'individuallyChanged')::boolean and value->>'currentDate'=(:'d0'::date+12)::text and value->>'newDate'=(:'d0'::date+15)::text
    from ps_preview_targets where value->>'shipmentId'=pg_temp.ps_id('shipment',2)::text)
@@ -419,7 +419,7 @@ set local role authenticated;
 select pg_temp.as_actor(pg_temp.ps_id('user',1));
 select public.admin_preview_goods_preorder_schedule_change('ps-main',null,:'d0'::date+15) as again \gset
 select 1/case when (:'again'::jsonb->>'targetShipments')::int=1 and :'again'::jsonb#>>'{targets,0,shipmentId}'=pg_temp.ps_id('shipment',2)::text
- and (:'again'::jsonb#>>'{targets,0,individuallyChanged}')::boolean and (:'again'::jsonb#>>'{excludedCounts,unchanged}')::int=8
+ and (:'again'::jsonb#>>'{targets,0,individuallyChanged}')::boolean and (:'again'::jsonb#>>'{excludedCounts,unchanged}')::int=7 and (:'again'::jsonb#>>'{excludedCounts,other_preorder}')::int=1
  and jsonb_array_length(:'again'::jsonb->'openPolicies')=0
  and jsonb_array_length(public.admin_list_goods_preorder_schedule_changes('ps-main'))=1
  and public.admin_list_goods_preorder_schedule_changes('ps-main')#>>'{0,id}'=pg_temp.ps_id('request',1)::text

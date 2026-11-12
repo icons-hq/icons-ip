@@ -38,6 +38,9 @@ const FIELD = 'flex w-full min-w-0 flex-col gap-1.5 text-sm [&>span]:font-medium
 const dateLabel = (date: string) => `${date.slice(0, 4)}년 ${Number(date.slice(5, 7))}월 ${Number(date.slice(8, 10))}일`;
 const page = <T,>(rows: readonly T[], number: number) => rows.slice((number - 1) * PAGE_SIZE, number * PAGE_SIZE);
 const paymentLabel = (status: string, method: string) => status === 'pending' ? method === 'bank_transfer' ? '입금 대기' : '결제 대기' : null;
+/** 접수 중 조건을 바꿀 수 있는 계정 주매니저·통합 매니저 본인에게는 '주매니저가 바꿔야'가 아니라 막힌 이유를 말한다. */
+export const PREORDER_SCHEDULE_POLICY_ACK_OWN = '이 날짜로는 접수 중 예약 조건을 바꿀 수 없어(위 안내) 지금은 그대로 두고, 새 주문에는 옛 날짜가 안내됩니다.';
+export const PREORDER_SCHEDULE_POLICY_ACK_KEEP = '접수 중 예약 조건을 바꾸지 않으면 새 주문에는 옛 날짜가 안내됩니다.';
 export const PREORDER_SCHEDULE_POLICY_ACK = '접수 중 조건은 계정 주매니저·통합 매니저가 새 날짜로 바꿔야 새 주문에도 같은 날짜가 안내됩니다.';
 /** 접수 중인 예약 조건을 날짜별로 묶는다. 랜덤 판매처럼 옵션이 많아도 한 줄로 읽히게 날짜마다 옵션 이름은 셋까지 보인다. */
 export function openPolicySummary(policies: readonly { variantName: string; expectedShipDate: string }[]): string {
@@ -86,6 +89,14 @@ export function PreorderSchedulePreviewStep({ preview, emailConfigured, smsAvail
   const policyDecided = !preview.openPolicies.length || policyMode !== null;
   const frozen = Boolean(request) && Boolean(error?.uncertain);
   const allChecked = excluded.size === 0;
+  /* 확정 버튼이 눌리지 않는 이유를 버튼 곁에 한 줄로 밝힌다(처리 중·결과 모름 단계는 제외). */
+  const confirmBlockedReason = pending || frozen ? null
+    : !emailReady ? '이메일 발송 설정이 준비되지 않아 확정할 수 없습니다.'
+    : tooMany ? `선택이 한 번에 바꿀 수 있는 ${preview.limit.toLocaleString('ko-KR')}건을 넘었습니다.`
+    : !selection.shipments ? '바꿀 배송 건을 하나 이상 선택해주세요.'
+    : !policyDecided ? (preview.policyBlockReason ? '접수 중 예약 조건은 이 날짜로 바꿀 수 없습니다. 위의 ‘확인했습니다’를 체크해야 확정할 수 있습니다.' : '접수 중 예약 조건을 새 날짜로 교체하거나 위의 ‘확인했습니다’를 체크해야 확정할 수 있습니다.')
+    : !reason.trim() ? '변경 사유를 입력해주세요.'
+    : !title.trim() || !body.trim() ? '고객 안내 제목과 내용을 입력해주세요.' : null;
   function edit() { setRequest(null); setError(null); }
   function toggle(shipmentId: string, checked: boolean) {
     edit();
@@ -116,12 +127,12 @@ export function PreorderSchedulePreviewStep({ preview, emailConfigured, smsAvail
   }
   return <div className="flex min-w-0 flex-col gap-4" data-preorder-schedule-preview="">
     <div className="flex min-w-0 flex-col gap-1">
-      <p className="text-base font-medium text-foreground">예약 주문 {selection.orders.toLocaleString('ko-KR')}건 일정도 바꾸고 안내할까요?</p>
-      <p className="text-muted-foreground">
+      <p className="text-base font-medium text-foreground">{selection.shipments ? `예약 주문 ${selection.orders.toLocaleString('ko-KR')}건 일정도 바꾸고 안내할까요?` : '지금 선택한 배송 건이 없어 바꿀 일정이 없습니다.'}</p>
+      {selection.shipments ? <p className="text-muted-foreground">
         {preview.variantName ? `옵션 '${preview.variantName}'의 ` : ''}미출고 예약 배송 건 {(selection.shipments - selection.noticeOnly).toLocaleString('ko-KR')}건의 발송 예정일을 {dateLabel(preview.expectedShipDate)}로 바꾸고
         {selection.noticeOnly ? `(따로 바꿔 둔 ${selection.noticeOnly.toLocaleString('ko-KR')}건은 일정 그대로 안내만)` : ''},
         주문 {selection.orders.toLocaleString('ko-KR')}건의 구매자(선물 주문은 받는 분 포함)에게 앱 알림·이메일을 보냅니다. 주문 당시 예정일은 보존하고 배송 건마다 변경 이력이 남습니다.
-      </p>
+      </p> : <p className="text-muted-foreground">{preview.targets.length ? '아래 표에서 바꿀 배송 건을 하나 이상 선택해주세요.' : '바꿀 미출고 예약 배송 건이 없습니다.'}</p>}
     </div>
     {!emailReady ? <AdminNotice role="status" tone="danger">{!preview.emailEnabled ? '지연 안내 이메일 발송 설정이 꺼져 있습니다.' : '이메일 공급자 또는 발송 서명 설정이 준비되지 않았습니다.'} 두 채널이 준비되어야 일정 변경과 안내를 진행할 수 있습니다.</AdminNotice> : null}
 
@@ -135,7 +146,7 @@ export function PreorderSchedulePreviewStep({ preview, emailConfigured, smsAvail
       {preview.policyBlockReason ? <p className="text-warning">{PREORDER_SCHEDULE_POLICY_BLOCK_LABELS[preview.policyBlockReason]}</p> : null}
       {!policyReplaceable || !replacePolicies ? <label className="flex items-start gap-2" data-preorder-schedule-policy-ack="">
         <input form={form} type="checkbox" checked={acknowledged} disabled={pending || frozen} onChange={(event) => { edit(); setAcknowledged(event.target.checked); }} />
-        <span>{PREORDER_SCHEDULE_POLICY_ACK} 확인했습니다(기록에 남습니다).</span>
+        <span>{!preview.canReplacePolicies ? PREORDER_SCHEDULE_POLICY_ACK : preview.policyBlockReason ? PREORDER_SCHEDULE_POLICY_ACK_OWN : PREORDER_SCHEDULE_POLICY_ACK_KEEP} 확인했습니다(기록에 남습니다).</span>
       </label> : null}
     </div> : null}
 
@@ -183,7 +194,7 @@ export function PreorderSchedulePreviewStep({ preview, emailConfigured, smsAvail
         </Table>
       </div>
       {preview.targets.length > PAGE_SIZE ? <ConsolePagination label="바꿀 배송 건 페이지" page={targetPage} pageSize={PAGE_SIZE} total={preview.targets.length} unit="건" onPageChange={setTargetPage} /> : null}
-    </div> : <AdminNotice tone="neutral">바꿀 예약 배송 건이 없습니다. 아래 제외 사유를 확인해주세요.</AdminNotice>}
+    </div> : <AdminNotice tone="neutral">{preview.excludedTotal ? '바꿀 예약 배송 건이 없습니다. 아래 제외 사유를 확인해주세요.' : '이 상품에는 일정을 바꿀 미출고 예약 배송 건이 없습니다.'}</AdminNotice>}
 
     {preview.excludedTotal ? <details className="min-w-0 rounded-lg border" data-preorder-schedule-excluded="">
       <summary className="cursor-pointer rounded-lg px-3 py-2.5 text-sm font-medium outline-none select-none focus-visible:ring-3 focus-visible:ring-ring/50">
@@ -231,6 +242,7 @@ export function PreorderSchedulePreviewStep({ preview, emailConfigured, smsAvail
         disabled={pending || !emailReady || tooMany || !selection.shipments || !reason.trim() || !title.trim() || !body.trim() || !policyDecided} onClick={() => apply()}>
         일정 변경하고 주문 {selection.orders.toLocaleString('ko-KR')}건 안내
       </Button>}
+      {confirmBlockedReason ? <p className="text-sm text-muted-foreground" role="status" data-preorder-schedule-blocked="">{confirmBlockedReason}</p> : null}
       {error?.stale ? <Button form={form} type="button" variant="outline" disabled={pending} onClick={onStale}>대상 다시 미리보기</Button> : null}
       <Button form={form} type="button" variant="outline" disabled={pending || frozen} onClick={onBack}>조건 다시 입력</Button>
     </div>
@@ -256,7 +268,7 @@ export function PreorderScheduleResultView({ change: initial }: { change: Preord
   }
   return <div className="flex min-w-0 flex-col gap-3" data-preorder-schedule-result="">
     <AdminNotice tone="success" title={`배송 건 ${change.shipmentCount.toLocaleString('ko-KR')}건을 ${dateLabel(change.expectedShipDate)} 일정으로 안내했습니다`}>
-      주문 {change.orderCount.toLocaleString('ko-KR')}건에 앱 알림을 보내고 이메일을 발송 대기열에 넣었습니다{change.smsQueued ? '(SMS는 수신 동의한 고객에게만)' : ''}. 제외한 배송 건 {change.excludedCount.toLocaleString('ko-KR')}건은 바꾸지 않았습니다.
+      주문 {change.orderCount.toLocaleString('ko-KR')}건에 앱 알림을 보내고 이메일을 발송 대기열에 넣었습니다{change.smsQueued ? '(SMS는 수신 동의한 고객에게만)' : ''}{change.excludedCount ? `. 제외한 배송 건 ${change.excludedCount.toLocaleString('ko-KR')}건은 바꾸지 않았습니다.` : '.'}
     </AdminNotice>
     {change.policyAction === 'replaced' ? <AdminNotice tone="info">접수 중이던 예약 조건({openPolicySummary(change.policies)})을 {dateLabel(change.expectedShipDate)} 새 버전으로 바꿨습니다. 이후 새 주문도 같은 날짜로 안내됩니다.</AdminNotice>
       : change.policyAction === 'acknowledged' ? <AdminNotice tone="warning">접수 중인 예약 조건({openPolicySummary(change.policies)})은 바꾸지 않았습니다. {PREORDER_SCHEDULE_POLICY_ACK}</AdminNotice> : null}
