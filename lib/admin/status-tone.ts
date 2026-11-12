@@ -147,6 +147,8 @@ const STATUS_TONES = {
   goodReference: { ready: 'success', blocked: 'neutral', missing: 'warning', overLimit: 'warning', notVisible: 'warning' },
   /** ERP 연결 상품 반영 미리보기 행 — components/admin/ErpLinkedGoodsPanel. 이미 있던 바코드가 바뀌는 행은 출고 대조 확인을 부른다 */
   erpLinkedGoods: { apply: 'info', barcode_changed: 'warning', skip: 'neutral', failed: 'danger' },
+  /** 상품 목록 옵션별 재고 창의 옵션별 저장 결과 — components/admin/GoodsOptionStockDialog. 저장하지 못했거나 결과를 모르는 옵션은 다시 확인을 부른다 */
+  optionStockEdit: { saved: 'success', recheck: 'warning', uncertain: 'warning' },
   // [ops]
   /** 쿠폰 혜택상태(lib/admin/coupons couponPhase) — 중지는 coupon.archived(보관)와 같은 색이다. */
   couponPhase: { scheduled: 'info', live: 'success', ended: 'neutral', stopped: 'neutral' },

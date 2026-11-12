@@ -1,7 +1,9 @@
+import { Children, isValidElement, type ReactElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 import { GoodsListScreen } from './GoodsListScreen';
+import { GoodsInlineDialogHost, GoodsInlineDialogNotice } from '../GoodsInlineDialogHost';
 import { GoodsListFiltersForm } from './GoodsListFiltersForm';
 import { GOODS_READINESS_REASONS, unknownGoodsReadiness, type GoodsReadinessReasonCode } from '@/lib/admin/goods-readiness';
 import { goodEditorHref, normalizeGoodsListFilters } from '@/lib/admin/goods-list';
@@ -17,15 +19,58 @@ describe('goods list screen', () => {
     const data = { filters: normalizeGoodsListFilters({ ipId: 'maple' }), goods: [good, multi, discounted], ips: [{ id: 'maple', title: '메이플', archivedAt: null }], total: 3 };
     const html = renderToStaticMarkup(<GoodsListScreen data={data} canIssueMarketingLinks bulkIdentity={identity} />);
     for (const label of ['판매가 10,000원 바로 수정', '판매상태 공개 시 판매중 바로 수정', '재고수량 7개 바로 수정']) expect(html).toContain(`aria-label="${label}"`);
-    // 판매가 바로 수정은 편집기의 판매가와 같은 뜻일 때만: 상품 할인·진행 중인 즉시할인 상품은 이유만 보인다.
+    // 판매가 바로 수정은 편집기의 판매가와 같은 뜻일 때만: 상품 할인(정가 표시) 상품은 이유와 상품 수정 링크만 보인다.
     expect(html.match(/판매가 [^"]*바로 수정/g)).toHaveLength(1);
     expect(html).toContain('상품 할인 중 · 판매가는 상품 수정에서 변경'); expect(html).toContain('#good-section-price');
-    expect(html).toContain('할인을 중지한 뒤 판매가를 바꿀 수 있습니다');
+    // 진행·예정 즉시할인 상품은 같은 칸이 '할인 중지 후 변경' 창을 연다(1027T-025).
+    expect(html).toContain('aria-label="판매가 10,000원 할인 중지 후 변경"'); expect(html).toContain('할인 진행·예정');
     expect(html.match(/재고수량 [^"]*바로 수정/g)).toHaveLength(2);
+    // 옵션을 읽지 못한(옵션별 재고 값이 없는) 여러 옵션 상품은 상세 재고 안의 상품 수정 링크로 고친다.
     expect(html).toContain('옵션별 재고 수정');
     expect(html).toContain('IP 전체 즉시할인');
     const readOnly = renderToStaticMarkup(<GoodsListScreen data={data} bulkIdentity={identity} />);
     expect(readOnly).not.toContain('바로 수정'); expect(readOnly).not.toContain('IP 전체 즉시할인');
+    expect(readOnly).not.toContain('할인 중지 후 변경');
+  });
+  it('옵션별 재고·할인 중지 창은 표 안이 아니라 화면 수준에서 열린다 — 표의 최소 폭·칸 굵기가 창에 걸리지 않고, 상품이 목록에서 빠져도 창이 남는다(리뷰 02·21·22·60)', () => {
+    const identity = { actorId: 'b9000000-0000-4000-8000-000000000001', sessionId: 'b9000000-0000-4000-8000-000000000002' };
+    type Node = ReactElement<Record<string, unknown>>;
+    const walk = (value: ReactNode): Node[] => Children.toArray(value).flatMap(node => isValidElement<Record<string, unknown>>(node) ? [node, ...walk(node.props.children as ReactNode)] : []);
+    const data = { filters: normalizeGoodsListFilters({}), goods: [], ips: [], total: 0 };
+    const tree = GoodsListScreen({ data, canIssueMarketingLinks: true, bulkIdentity: identity }) as Node;
+    // 화면 뿌리(section) 바로 안에 창 주인이 있고, 표(그리드)는 그 안의 한 자식일 뿐이다 — 창은 주인이 표 밖에 그린다.
+    const host = Children.only(tree.props.children as ReactNode) as Node;
+    expect(host.type).toBe(GoodsInlineDialogHost);
+    expect(host.props.identity).toEqual(identity);
+    const inside = walk(host.props.children as ReactNode);
+    const grid = inside.find(node => typeof node.props.className === 'string' && (node.props.className as string).includes('[&_table]:min-w-[1088px]'));
+    expect(grid).toBeTruthy();
+    expect(walk(grid!.props.children as ReactNode).some(node => node.type === GoodsInlineDialogHost)).toBe(false);
+    // 모두 저장하고 닫힌 창의 결과 문구는 표 밖, 목록 위에 남는다.
+    expect(inside.find(node => node.type === GoodsInlineDialogNotice)?.props.listedGoodIds).toEqual([]);
+    // 상품 관리 권한이 없으면 창 주인은 세션을 받지 않는다(할인 창은 열 수 없다).
+    const readOnly = GoodsListScreen({ data, bulkIdentity: identity }) as Node;
+    expect((Children.only(readOnly.props.children as ReactNode) as Node).props.identity).toBeUndefined();
+  });
+  it('옵션이 여러 개인 상품의 재고 칸은 칸 전체가 옵션별 재고 창을 열고, 상품 할인이 있으면 할인 진행 중이어도 상품 수정으로 보낸다(1014-106·1027T-025)', () => {
+    const identity = { actorId: 'b9000000-0000-4000-8000-000000000001', sessionId: 'b9000000-0000-4000-8000-000000000002' };
+    const ready = { ...unknownGoodsReadiness(), state: 'ready' as const, publication: 'published' as const, operation: 'active' as const, availableQty: 12, reasons: [] };
+    const options = [{ variantId: 'b9000000-0000-4000-8000-000000000021', name: '블루', code: 'OPT-B', stockQty: 5 }, { variantId: 'b9000000-0000-4000-8000-000000000022', name: '레드', code: 'OPT-R', stockQty: 4 },
+      { variantId: 'b9000000-0000-4000-8000-000000000023', name: '그린', code: 'OPT-G', stockQty: 3 }];
+    const multi = { id: 'good-m', code: 'M', name: '옵션 상품', ipId: 'maple', ipTitle: '메이플', publishedAt: '2026-10-01T00:00:00Z', archivedAt: null, stock: 'ok' as const, stockQty: 12,
+      activeStockQty: 12, lowStockOptionCount: 0, noticeComplete: true, priceMin: 10000, priceMax: 10000, basePrice: 10000, activeVariantCount: 3, inlineStock: null, inlineOptions: options, readiness: ready };
+    const both = { ...multi, id: 'good-both', compareAtPrice: 15000, activeDiscountEndsAt: '2026-11-20T00:00:00Z' };
+    const html = renderToStaticMarkup(<GoodsListScreen data={{ filters: normalizeGoodsListFilters({}), goods: [multi, both], ips: [], total: 2 }} canIssueMarketingLinks bulkIdentity={identity} />);
+    const row = (id: string) => (html.split('<tr').find(part => part.includes(`>${id}<`) || part.includes(`title="${id}"`)) ?? '').split('</tr>')[0];
+    // 칸을 채우는 값 버튼(R11)이고, 보이는 글자에 '옵션별 재고'가 있다. 창은 누르기 전에는 그리지 않는다.
+    expect(row('good-m')).toMatch(/data-inline-edit="cell"><button[^>]*aria-label="재고수량 12개 옵션별 재고 수정"/);
+    expect(row('good-m')).toContain('옵션별 재고</small>');
+    expect(html).not.toContain('<dialog');
+    // 옵션별 재고 창이 있으면 상세 재고 안의 상품 수정 링크는 두지 않는다(창 안에서 상품 수정으로 간다).
+    expect(row('good-m')).not.toContain('#good-section-variants">옵션별 재고 수정');
+    // 상품 할인과 진행 중인 즉시할인이 함께 있으면 판매가의 뜻이 정가라 창을 열지 않고 상품 수정으로 보낸다.
+    expect(row('good-both')).not.toContain('할인 중지 후 변경');
+    expect(row('good-both')).toMatch(/title="상품 할인·즉시할인 진행·예정 중\(~2026\.11\.20\) · 판매가는 상품 수정에서 변경" href="[^"]*#good-section-price">상품 할인 중<\/a>/);
   });
   it('R11: 판매가·재고수량은 칸 전체가 바로 수정이고, 같은 칸의 보조 링크는 덮개 위에 남는다', () => {
     const identity = { actorId: 'b9000000-0000-4000-8000-000000000001', sessionId: 'b9000000-0000-4000-8000-000000000002' };
@@ -277,7 +322,7 @@ describe('goods list screen', () => {
       expect(cell).toContain('대표 이미지 미입력 →');
       expect(cell).not.toContain('전시중 ·');
     });
-    it('옵션이 여럿인 상품의 재고 칸은 수량과 상세 재고 두 줄이고, 옵션별 수정은 상세 재고 안에 있다', () => {
+    it('옵션별 재고를 읽지 못한 여러 옵션 상품의 재고 칸은 수량과 상세 재고 두 줄이고, 상품 수정의 옵션별 재고 링크는 상세 재고 안에 있다', () => {
       const html = render([{ ...base, id: 'multi', activeVariantCount: 3, inlineStock: null, readiness: ready }]);
       expect(html).toMatch(/data-goods-list="stock-details">(?:(?!<\/details>)[\s\S])*옵션별 재고 수정<\/a><\/details>/);
     });

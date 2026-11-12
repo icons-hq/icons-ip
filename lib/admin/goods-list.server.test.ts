@@ -16,7 +16,8 @@ const row = { id: 'g1', code: 'CODE-1', name: '상품', ipId: 'ip', ipTitle: 'IP
 beforeEach(() => {
   vi.clearAllMocks(); mocks.visible = []; mocks.visibleError = false; mocks.selects = []; mocks.filters = [];
   mocks.from.mockImplementation((table: string) => {
-    const rows = table === 'goods_variants' ? [{ id: 'v1', good_id: 'g1', stock_qty: 7 }, { id: 'v2', good_id: 'g2', stock_qty: 1 }, { id: 'v3', good_id: 'g2', stock_qty: 2 }]
+    const rows = table === 'goods_variants' ? [{ id: 'v1', good_id: 'g1', stock_qty: 7, name: '기본', code: 'V-1' }, { id: 'v2', good_id: 'g2', stock_qty: 1, name: '블루', code: 'V-2' },
+      { id: 'v3', good_id: 'g2', stock_qty: 2, name: '레드', code: 'V-3' }]
       : table === 'goods' ? mocks.visible.map(id => ({ id })) : [];
     const result = Promise.resolve(table === 'goods' && mocks.visibleError ? { data: null, error: { message: 'denied' } } : { data: rows, error: null });
     const builder = { select: (columns: string) => { mocks.selects.push(`${table}:${columns}`); return builder; }, order: () => builder, in: () => builder,
@@ -67,8 +68,11 @@ describe('goods workspace server boundary', () => {
   it('enables inline stock editing only for goods with exactly one active option', async () => {
     mocks.rpc.mockResolvedValue({ data: { statusCounts: counts, rows: [row, { ...row, id: 'g2' }], total: 2 }, error: null });
     const result = await loadAdminGoodsList(normalizeGoodsListFilters({}));
-    expect(result.goods[0]).toMatchObject({ basePrice: 12000, compareAtPrice: null, activeDiscountEndsAt: null, activeVariantCount: 1, inlineStock: { variantId: 'v1', stockQty: 7 } });
+    expect(result.goods[0]).toMatchObject({ basePrice: 12000, compareAtPrice: null, activeDiscountEndsAt: null, activeVariantCount: 1, inlineStock: { variantId: 'v1', stockQty: 7 }, inlineOptions: null });
     expect(result.goods[1]).toMatchObject({ basePrice: 9000, compareAtPrice: 11000, activeDiscountEndsAt: '2026-10-30T00:00:00Z', activeVariantCount: 2, inlineStock: null });
+    // 옵션이 여럿이면 옵션별 재고 창이 옵션 이름·관리코드·실재고를 상품 수정의 옵션 순서로 받는다(1014-106).
+    expect(result.goods[1].inlineOptions).toEqual([{ variantId: 'v2', name: '블루', code: 'V-2', stockQty: 1 }, { variantId: 'v3', name: '레드', code: 'V-3', stockQty: 2 }]);
+    expect(mocks.selects).toContain('goods_variants:id,good_id,stock_qty,name,code');
   });
   it('corrects a page after a queue shrinks and retains all other scope', async () => {
     mocks.rpc.mockResolvedValueOnce({ data: { statusCounts: counts, rows: [], total: 20 }, error: null }).mockResolvedValueOnce({ data: { statusCounts: counts, rows: [row], total: 20 }, error: null });
