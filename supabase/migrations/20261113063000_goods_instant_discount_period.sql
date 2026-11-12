@@ -126,7 +126,7 @@ declare
   saved_id text;
   target_price bigint;
   target_compare bigint;
-  own_ids uuid[] := '{}';
+  own_ids uuid[] := array[]::uuid[];
   own_row private.goods_variant_price_periods;
   variant_row public.goods_variants;
   stopped boolean := false;

@@ -140,6 +140,12 @@ describe('즉시할인 기간', () => {
     expect(reopened).toEqual({ regularPrice: '12000', discountEnabled: true, discountValue: '1200', discountUnit: 'won', periodEnabled: true,
       periodStartsAt: '2026-12-01T00:00', periodEndsAt: '2026-12-08T00:00' });
     expect(resolveGoodsPrice(reopened, BEFORE_DECEMBER).period).toEqual({ amount: 1200, startsAt: '2026-11-30T15:00:00.000Z', endsAt: '2026-12-07T15:00:00.000Z' });
+    /* 화면은 분 단위라, 같은 분이면 저장된 시각(초·마이크로초 포함)을 그대로 보내 재저장이 원장을 바꾸지 않는다. 바꾼 시각은 입력값이다. */
+    const exact = { ...editable, period: { amount: 1200, startsAt: '2026-11-30T15:00:07.123456+00:00', endsAt: '2026-12-07T15:00:00+00:00' } };
+    const same = JSON.parse(instantDiscountPeriodRequest(resolveGoodsPrice(goodsPriceDraftFromValues({ price: '12000', compareAtPrice: '' }, exact), BEFORE_DECEMBER), exact));
+    expect(same).toMatchObject({ startsAt: '2026-11-30T15:00:07.123456+00:00', endsAt: '2026-12-07T15:00:00+00:00' });
+    const moved = JSON.parse(instantDiscountPeriodRequest(resolveGoodsPrice({ ...reopened, periodEndsAt: '2026-12-09T00:00' }, BEFORE_DECEMBER), editable));
+    expect(moved).toMatchObject({ startsAt: editable.period!.startsAt, endsAt: '2026-12-08T15:00:00.000Z' });
     /* 다른 곳에서 관리하는 할인은 기간으로 열지 않는다. */
     expect(goodsPriceDraftFromValues({ price: '12000', compareAtPrice: '' }, { ...editable, state: 'managed', reason: 'mixed', period: null })).toMatchObject({ discountEnabled: false, periodEnabled: false });
   });

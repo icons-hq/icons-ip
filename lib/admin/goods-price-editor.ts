@@ -216,9 +216,11 @@ export function resolveGoodsPrice(draft: GoodsPriceDraft, now = Date.now()): Goo
  */
 export function instantDiscountPeriodRequest(result: GoodsPriceResolution, state: GoodsInstantDiscountState | null | undefined): string {
   if (!state || state.state === 'managed') return '';
-  return JSON.stringify(result.period
-    ? { mode: 'period', amount: result.period.amount, startsAt: result.period.startsAt, endsAt: result.period.endsAt, expectedFingerprint: state.fingerprint }
-    : { mode: 'none', expectedFingerprint: state.fingerprint });
+  if (!result.period) return JSON.stringify({ mode: 'none', expectedFingerprint: state.fingerprint });
+  /* 화면 입력은 분 단위다. 저장된 기간과 같은 분이면 저장된 시각 그대로 보내 같은 값 재저장이 원장을 바꾸지 않게 한다. */
+  const keep = (input: string, saved: string | undefined) => saved && toKstDateTimeInput(input) === toKstDateTimeInput(saved) ? saved : input;
+  return JSON.stringify({ mode: 'period', amount: result.period.amount, startsAt: keep(result.period.startsAt, state.period?.startsAt),
+    endsAt: keep(result.period.endsAt, state.period?.endsAt), expectedFingerprint: state.fingerprint });
 }
 
 export type InstantDiscountPeriodRequest =
