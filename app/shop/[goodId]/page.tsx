@@ -167,6 +167,7 @@ export default async function Page({ params, searchParams }: PageProps) {
         detail={{ ...detail, sizeChart }}
         shippingPolicy={shippingPolicy}
         announcements={<GoodAnnouncements data={announcements} />}
+        bottomAnnouncements={<GoodAnnouncements data={announcements} placement="bottom" />}
         promotionBanner={presentation?.banner ? <ProductDetailBanner data={presentation} /> : undefined}
         reviewEventBanner={event ? <ReviewEventBanner event={event} /> : undefined}
         reviewHighlights={<ProductDetailReviewSummary goodId={goodId} data={presentation} />}

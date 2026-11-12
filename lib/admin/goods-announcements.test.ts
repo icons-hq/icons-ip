@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { goodsAnnouncementHref, goodsAnnouncementState, normalizeGoodsAnnouncementFilters, parseGoodsAnnouncementInput } from './goods-announcements';
+import { blankGoodsAnnouncement, goodsAnnouncementHref, goodsAnnouncementPlacement, goodsAnnouncementState, normalizeGoodsAnnouncementFilters, parseGoodsAnnouncementInput } from './goods-announcements';
 
 function form(extra: Record<string, string> = {}) {
   const data = new FormData();
@@ -31,6 +31,23 @@ describe('상품 공지 입력과 목록 계약', () => {
     expect(parsed.ok).toBe(true);
     if (parsed.ok) { expect(parsed.value.body).toContain('안내'); expect(parsed.value.body).toContain('https://example.test/notice.jpg'); expect(parsed.value.body).not.toMatch(/script|onclick|onerror|alert/); }
     expect(parseGoodsAnnouncementInput(form({ format: 'html', body: '<script>alert(1)</script>' }))).toMatchObject({ ok: false, errors: { body: expect.any(String) } });
+  });
+  /* 1027T-005: 위치는 상단·하단 중 하나다. 위치 칸이 없는 요청(칸 이전에 보관된 저장)은 위치를 보내지 않아 서버가 저장된 위치를 지킨다. */
+  it('노출 위치를 상단·하단으로 받고 칸이 없으면 위치를 보내지 않는다', () => {
+    expect(parseGoodsAnnouncementInput(form({ placement: 'bottom' }))).toMatchObject({ ok: true, value: { placement: 'bottom' } });
+    expect(parseGoodsAnnouncementInput(form({ placement: 'top' }))).toMatchObject({ ok: true, value: { placement: 'top' } });
+    const legacy = parseGoodsAnnouncementInput(form());
+    expect(legacy.ok).toBe(true);
+    if (legacy.ok) expect(legacy.value).not.toHaveProperty('placement');
+    expect(parseGoodsAnnouncementInput(form({ placement: 'middle' }))).toMatchObject({ ok: false, errors: { placement: expect.any(String) } });
+    expect(parseGoodsAnnouncementInput(form({ placement: '' }))).toMatchObject({ ok: false, errors: { placement: expect.any(String) } });
+  });
+  it('위치를 싣지 않는 응답은 상단, 모르는 값은 받지 않는다', () => {
+    expect(goodsAnnouncementPlacement(undefined)).toBe('top');
+    expect(goodsAnnouncementPlacement('bottom')).toBe('bottom');
+    expect(goodsAnnouncementPlacement('middle')).toBeNull();
+    expect(goodsAnnouncementPlacement(null)).toBeNull();
+    expect(blankGoodsAnnouncement('00000000-0000-4000-8000-000000062211').placement).toBe('top');
   });
   it('목록 조건과 페이지 크기를 링크에 보존한다', () => {
     const filters = normalizeGoodsAnnouncementFilters({ q: ' 휴무 ', field: 'reference', category: 'shipping', state: 'waiting', from: '2026-10-01', to: '2026-10-31', page: '2', pageSize: '50' });
