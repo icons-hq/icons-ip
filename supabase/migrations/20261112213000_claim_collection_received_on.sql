@@ -25,6 +25,8 @@
 -- * 회수 완료(입고완료·회수 완료일·알림)는 private.complete_order_claim_collection 하나로 적는다. 출고지 입고 확인, 다른
 --   출고지 입고 뒤의 회수 생략 결정, 효력을 잃었던 결정이 다시 효력을 얻는 정정(하자로 되돌림·교환으로 되돌림) 어느 순서로
 --   끝나도 같은 완료·알림이 한 번 된다. 실제로 입고된 배송 건이 없으면(모두 회수 생략) 완료하지 않는다.
+-- * 교환→반품→교환 왕복으로 취소된 교환품 제작 작업을 완료 전 상태로 되살리면 납기를 되살린 때부터 다시 센다
+--   (private.open_claim_production_job 앵커 치환, ADR-0041 8).
 -- * 레거시 회수 확인은 회수 근거 열이 없어, 함께 받은 근거(선택, 1~500자)를 감사 기록에 남긴다.
 -- * 목록(admin_search_order_claims_console)과 운영 상세(admin_order_claim_detail)가 입고일을 함께 돌려준다.
 begin;
@@ -72,9 +74,10 @@ begin
  where id=p_claim_id returning * into claim;
  -- 출고지 입고 확인은 그 감사 기록이 완료를 담는다. 결정·정정으로 끝난 완료는 따로 남긴다(되돌림 감사와 대칭).
  if p_cause is not null then
-  insert into public.audit_log(actor_id,action,target,diff) values((select auth.uid()),'admin.order.claim_collection_completed','order:'||claim.order_id::text,
+  -- 같은 거래의 결정·정정 감사(created_at=now())보다 뒤에 보이도록 실제 시각을 적는다(타임라인은 created_at·id 순).
+  insert into public.audit_log(actor_id,action,target,diff,created_at) values((select auth.uid()),'admin.order.claim_collection_completed','order:'||claim.order_id::text,
    jsonb_build_object('claimId',p_claim_id,'claimType',claim.claim_type,'reasonType',claim.reason_type,'stage',claim.stage,'heldFrom',claim.held_from,
-    'receivedOn',claim.collection_received_on,'cause',p_cause));
+    'receivedOn',claim.collection_received_on,'cause',p_cause),clock_timestamp());
  end if;
  -- 알림 중복 방지 키는 회차를 담는다(첫 회차는 예전 키 그대로). 되돌림 뒤 다시 끝난 때의 안내가 앞 회차의 안내에 막히지 않는다.
  select case when count(*)=0 then 'collected' else 'collected:'||(count(*)+1) end into completion_event
@@ -344,6 +347,23 @@ create trigger sync_claim_collection_completion after update of claim_type,reaso
   and(old.claim_type is distinct from new.claim_type or old.reason_type is distinct from new.reason_type))
  execute function private.sync_claim_collection_completion();
 
+-- 교환→반품→교환 왕복으로 취소된 교환품 제작 작업을 완료 전 상태로 되살릴 때는 납기를 되살린 때부터 다시 센다(ADR-0041 8).
+-- 부르는 쪽이 준 준비 시각(처음 입고·결정 시각)으로 다시 세면 왕복에 걸린 날만큼 이미 지난 납기로 되살아나 고객 화면에
+-- 지난 날짜가, 운영 패널에 기한 초과가 바로 뜬다. 기준 시각은 준비 시각과 지금 중 늦은 쪽이다. 처음 만들 때의 규칙과
+-- 완료 뒤 취소된 작업(완료 그대로)은 바꾸지 않는다. 다른 트랙의 함수라 앵커 치환(각 1회)으로 두 줄만 바꾼다.
+do $patch$
+declare definition text:=pg_get_functiondef('private.open_claim_production_job(uuid,uuid,uuid,jsonb,timestamptz)'::regprocedure);
+ basis_anchor text:=$a$else excluded.basis_at end,$a$;
+ basis_replacement text:=$a$else greatest(excluded.basis_at,clock_timestamp()) end,$a$;
+ due_anchor text:=$a$else excluded.due_at end,$a$;
+ due_replacement text:=$a$else private.production_deadline(greatest(excluded.basis_at,clock_timestamp()),excluded.terms) end,$a$;
+begin
+ if (length(definition)-length(replace(definition,basis_anchor,'')))/length(basis_anchor)<>1
+  or (length(definition)-length(replace(definition,due_anchor,'')))/length(due_anchor)<>1 then
+  raise exception 'open_claim_production_job anchors must appear once';end if;
+ execute replace(replace(definition,basis_anchor,basis_replacement),due_anchor,due_replacement);
+end $patch$;
+
 -- ---------------------------------------------------------------------------
 -- 5. 목록: 회수 완료일 열을 더한다(표시 열만 더하는 얇은 바깥 함수라 다시 만든다)
 -- ---------------------------------------------------------------------------
@@ -375,6 +395,7 @@ revoke all on function private.claim_collection_records(uuid) from public,anon,a
 revoke all on function private.reopen_ineffective_collection_waivers() from public,anon,authenticated,service_role;
 revoke all on function private.complete_order_claim_collection(uuid,text) from public,anon,authenticated,service_role;
 revoke all on function private.sync_claim_collection_completion() from public,anon,authenticated,service_role;
+revoke all on function private.open_claim_production_job(uuid,uuid,uuid,jsonb,timestamptz) from public,anon,authenticated,service_role;
 revoke all on function public.admin_waive_order_claim_collection(uuid,uuid,jsonb) from public,anon,authenticated,service_role;
 grant execute on function public.admin_waive_order_claim_collection(uuid,uuid,jsonb) to authenticated;
 revoke all on function public.admin_record_order_claim_origin_collection(uuid,uuid,text,date) from public,anon,authenticated,service_role;
@@ -400,6 +421,7 @@ do $$declare fn regprocedure;contract record;begin
   'private.claim_collection_records(uuid)'::regprocedure,
   'private.reopen_ineffective_collection_waivers()'::regprocedure,
   'public.admin_waive_order_claim_collection(uuid,uuid,jsonb)'::regprocedure,
+  'private.open_claim_production_job(uuid,uuid,uuid,jsonb,timestamptz)'::regprocedure,
   'public.admin_order_claim_detail(uuid)'::regprocedure] loop
   select * into contract from private.operator_rpc_contracts r where r.signature::regprocedure=fn;
   if found then perform private.register_operator_rpc_contract(fn,contract.capability,contract.guard_kind,contract.legacy_admin_only);

@@ -544,7 +544,8 @@ select pg_temp.po_assert(:'t1_back'::boolean and private.claim_collection_waived
  'restoring the defect reason makes the waiver count again');
 
 -- 교환→반품→교환 왕복(입고 경로, 리뷰 3차): 김포 입고로 일찍 생긴 작업을 시작한 뒤 반품으로 바꾸면 취소되고, 다시 교환으로
--- 바꾸면 대기로 되살아난다(시작은 다시 기록, 납기 새로). 남양주 입고·제작 완료 뒤 두 출고지 모두 재출고돼 종결된다.
+-- 바꾸면 대기로 되살아난다(시작은 다시 기록, 납기는 되살린 때부터 새로 — T11b가 open_claim_production_job을 앵커 치환).
+-- 남양주 입고·제작 완료 뒤 두 출고지 모두 재출고돼 종결된다.
 select public.admin_record_order_claim_origin_collection(pg_temp.po_id('claim',10),pg_temp.po_id('shipment',101),'TEST 김포 주문제작 입고');
 select set_config('request.jwt.claims',jsonb_build_object('sub',pg_temp.po_id('user',1),'role','authenticated','session_id',pg_temp.po_id('session',1))::text,true);
 select pg_temp.po_late_production(10,'start',101) as flip_started \gset
@@ -559,7 +560,8 @@ select public.admin_convert_order_claim_type(pg_temp.po_id('claim',10),pg_temp.p
  from public.order_cancellation_requests c where c.id=pg_temp.po_id('claim',10) \gset
 select pg_temp.po_assert(:'flip_back'::boolean
  and (select count(*)=1 and bool_and(state='pending' and started_at is null and completed_at is null and revision>:flip_revision_started
-   and basis_at=(select collected_at from public.order_claim_collections where claim_id=pg_temp.po_id('claim',10) and shipment_id=pg_temp.po_id('shipment',101)))
+   and basis_at>=(select collected_at from public.order_claim_collections where claim_id=pg_temp.po_id('claim',10) and shipment_id=pg_temp.po_id('shipment',101))
+   and basis_at>=now() and due_at>=now()+interval '3 days')
   from private.order_production_jobs where claim_id=pg_temp.po_id('claim',10))
  and pg_temp.po_can_start(10)
  and (select count(*)=1 from private.order_production_events e join private.order_production_jobs j on j.id=e.job_id where j.claim_id=pg_temp.po_id('claim',10) and e.kind='start'),

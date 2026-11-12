@@ -252,6 +252,21 @@ describe('ClaimDetailScreen', () => {
     expect(html).toContain('교환 사유 정정');
     expect(html).not.toContain('admin.order.claim_reason_changed');
   });
+  it('회수 생략 결정·결정 효력 회복으로 끝난 회수 완료를 원인과 함께 업무 용어로 표시한다', () => {
+    const at = NOW.toISOString();
+    const html = render({ timeline: [
+      { action: 'admin.order.claim_collection_waived', createdAt: at, actorName: 'cs_lead', diff: { originName: '남양주' } },
+      { action: 'admin.order.claim_collection_completed', createdAt: at, actorName: 'cs_lead', diff: { cause: 'collection_waiver_decided' } },
+      { action: 'admin.order.claim_reason_changed', createdAt: at, actorName: 'cs_lead', diff: {} },
+      { action: 'admin.order.claim_collection_completed', createdAt: at, actorName: 'cs_lead', diff: { cause: 'collection_waiver_effective' } },
+      { action: 'admin.order.claim_collection_completed', createdAt: at, actorName: 'cs_lead', diff: {} },
+    ] });
+    expect(html).toContain('회수 생략 결정으로 회수 완료');
+    expect(html).toContain('사유·유형 변경으로 회수 완료');
+    expect(html).toContain('</time> · 회수 완료 · @cs_lead');
+    expect(html).not.toContain('admin.order.claim_collection_completed');
+    expect(html.indexOf('회수 생략 결정 · 남양주')).toBeLessThan(html.indexOf('회수 생략 결정으로 회수 완료'));
+  });
   // 2026-10-12 점검 REF-2·REF-8: 토스 결제의 [환불 완료 확정]은 토스 전액 취소를 직접
   // 발행한다. "결제사 원장에서 먼저 확인하라"는 안내와 계좌 송금 선택지는 사실과 다르다.
   const tossPayment = { ...detail().payment!, provider: 'toss' };

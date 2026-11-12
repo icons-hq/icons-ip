@@ -97,6 +97,8 @@ const TIMELINE_LABELS: Record<string, string> = {
   'admin.order.claim_evidence_uploaded': '회수 생략 근거 사진 등록',
   'admin.order.claim_collection_waived': '회수 생략 결정',
   'admin.order.claim_collection_reopened': '회수 생략 무효로 수거중 복귀',
+  /* 출고지 입고 확인 밖에서 끝난 회수 완료(입고완료). 원인은 timelineLabel이 diff.cause로 가른다. */
+  'admin.order.claim_collection_completed': '회수 완료',
   'admin.order.claim_type_changed': '반품·교환 유형 전환',
   'admin.order.claim_reason_changed': '교환 사유 정정',
   'admin.order.cancellation_approved': '청약철회 승인 (레거시 경로)',
@@ -133,7 +135,17 @@ const OUTLINE_SM = `${cn(buttonVariants({ size: 'sm', variant: 'outline' }))} w-
 const ROW_INLINE = 'flex flex-wrap items-center gap-2';
 
 /* 배송 건(출고지)별 재출고(TKT-166)는 감사 기록에 출고지와 회수 생략 여부가 함께 있다. 같은 이름의 줄이 여러 개여도 어느 출고지인지 보이게 한다. */
+/* 회수 생략 결정·결정 효력 회복으로 끝난 회수 완료(입고완료)는 무엇 때문에 끝났는지 함께 보인다. */
+const COLLECTION_COMPLETED_CAUSE_LABELS: Record<string, string> = {
+  collection_waiver_decided: '회수 생략 결정으로 회수 완료',
+  collection_waiver_effective: '사유·유형 변경으로 회수 완료',
+};
+
 function timelineLabel(entry: AdminClaimDetail['timeline'][number]) {
+  if (entry.action === 'admin.order.claim_collection_completed') {
+    const cause = typeof entry.diff?.cause === 'string' ? COLLECTION_COMPLETED_CAUSE_LABELS[entry.diff.cause] : undefined;
+    return cause ?? TIMELINE_LABELS[entry.action];
+  }
   const label = TIMELINE_LABELS[entry.action] ?? entry.action;
   if (entry.action !== 'admin.order.claim_reshipped' && entry.action !== 'admin.order.claim_reshipment_delivered'
     && entry.action !== 'admin.order.claim_collection_waived') return label;
