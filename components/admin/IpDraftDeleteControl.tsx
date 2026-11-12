@@ -81,7 +81,7 @@ export function IpDraftDeleteControl({ canDelete, readiness }: { canDelete: bool
         </AdminNotice>
       ) : null}
       {deletable && !canDelete ? (
-        <p className="text-sm text-muted-foreground">미사용 IP 삭제는 관리자(admin)만 할 수 있습니다.</p>
+        <p className="text-sm text-muted-foreground">미사용 IP 삭제는 통합 매니저·계정 주매니저(권한 전환 전에는 기존 관리자)만 할 수 있습니다.</p>
       ) : null}
       {state.errors?.form ? <AdminNotice role="alert" tone="danger">{state.errors.form}</AdminNotice> : null}
       <div className="flex flex-wrap items-center gap-2">

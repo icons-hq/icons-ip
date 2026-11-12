@@ -101,7 +101,7 @@ export function ipDraftDeleteErrorMessage(error: { code?: unknown; message?: unk
   if (descriptor.includes('ip_not_draft')) return '초안 상태의 IP만 삭제할 수 있습니다. 새로고침해 게시 상태를 확인해주세요.';
   if (descriptor.includes('catalog_not_found')) return 'IP를 찾을 수 없습니다. IP 목록을 새로고침해주세요.';
   if (code === '42501' || code === '28000' || descriptor.includes('operator_capability_required') || descriptor.includes('auth_required')) {
-    return '미사용 IP 삭제는 관리자(admin)만 할 수 있습니다.';
+    return '미사용 IP 삭제는 통합 매니저·계정 주매니저(권한 전환 전에는 기존 관리자)만 할 수 있습니다.';
   }
   return 'IP를 삭제하지 못했습니다. 잠시 후 다시 시도해주세요.';
 }

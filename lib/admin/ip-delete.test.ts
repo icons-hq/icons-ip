@@ -57,7 +57,7 @@ describe('IP draft deletion readiness', () => {
     [{ message: 'ip_has_public_history' }, '공개된 적이 있는 IP는 삭제할 수 없습니다. 더 쓰지 않으면 보관해주세요.'],
     [{ message: 'ip_not_draft' }, '초안 상태의 IP만 삭제할 수 있습니다. 새로고침해 게시 상태를 확인해주세요.'],
     [{ message: 'catalog_not_found' }, 'IP를 찾을 수 없습니다. IP 목록을 새로고침해주세요.'],
-    [{ code: '42501', message: 'operator_capability_required' }, '미사용 IP 삭제는 관리자(admin)만 할 수 있습니다.'],
+    [{ code: '42501', message: 'operator_capability_required' }, '미사용 IP 삭제는 통합 매니저·계정 주매니저(권한 전환 전에는 기존 관리자)만 할 수 있습니다.'],
     [{ message: 'private provider detail' }, 'IP를 삭제하지 못했습니다. 잠시 후 다시 시도해주세요.'],
   ])('maps the delete rejection %j to operator language', (error, message) => {
     expect(ipDraftDeleteErrorMessage(error)).toBe(message);

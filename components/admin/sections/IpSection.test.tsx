@@ -434,7 +434,7 @@ describe('IpSection', () => {
 
     it('keeps the delete closed for staff without admin authority', () => {
       const html = render({ deletion: readiness, canDeleteDraft: false });
-      expect(html).toContain('미사용 IP 삭제는 관리자(admin)만 할 수 있습니다.');
+      expect(html).toContain('미사용 IP 삭제는 통합 매니저·계정 주매니저(권한 전환 전에는 기존 관리자)만 할 수 있습니다.');
       expect(html).toMatch(/<button[^>]*disabled=""[^>]*>(?:<svg[\s\S]*?<\/svg>)?\s*삭제<\/button>/);
     });
 

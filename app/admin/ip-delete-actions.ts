@@ -13,7 +13,7 @@ export interface AdminIpDeleteActionState {
 
 const INTERNAL_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 const RETRY_ERROR = 'IP를 삭제하지 못했습니다. 잠시 후 다시 시도해주세요.';
-const ADMIN_ONLY_ERROR = '미사용 IP 삭제는 관리자(admin)만 할 수 있습니다.';
+const ADMIN_ONLY_ERROR = '미사용 IP 삭제는 통합 매니저·계정 주매니저(권한 전환 전에는 기존 관리자)만 할 수 있습니다.';
 
 /*
  * 미사용 IP 초안 삭제(S36-004 · ADR-0039). 되돌릴 수 없는 물리 삭제라 화면 권한도 legacy admin·platform.manage만 연다.

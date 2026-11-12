@@ -57,7 +57,7 @@ describe('deleteAdminDraftIpAction', () => {
   ])('keeps the irreversible delete away from %s', async (_label, arrange) => {
     arrange();
     await expect(deleteAdminDraftIpAction({}, form())).resolves.toEqual({
-      errors: { form: '미사용 IP 삭제는 관리자(admin)만 할 수 있습니다.' },
+      errors: { form: '미사용 IP 삭제는 통합 매니저·계정 주매니저(권한 전환 전에는 기존 관리자)만 할 수 있습니다.' },
     });
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
