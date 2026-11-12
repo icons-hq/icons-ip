@@ -434,7 +434,7 @@ describe('goods Excel planning', () => {
     expect(old.rows[0]).toMatchObject({ layout: 'v7', values: { productNo: '', salePrice: '12000', instantDiscount: '2000', optionPrice: '500' } });
     expect(planGoodsWorkbookImport(old.rows, ctx)[0].kind).toBe('unchanged');
   });
-  it('상품번호 → 판매자상품코드 → 상품 URL 순서로 수정할 상품을 찾고, 서로 다른 상품을 가리키면 덮어쓰지 않는다(ADR-0038)', () => {
+  it('상품번호 → 판매자상품코드 순서로 수정할 상품을 찾고, 서로 다른 상품을 가리키면 덮어쓰지 않는다(ADR-0038)', () => {
     const [values] = exportGoodsWorkbookRows(existing, context);
     expect(values.productNo).toBe('1042');
     // 상품번호만 있어도 같은 상품이다(판매자상품코드를 채워 묶고 경고로 알린다).
@@ -443,12 +443,12 @@ describe('goods Excel planning', () => {
     expect(byNumber.warnings).toContain('판매자상품코드가 비어 있어 상품번호로 찾은 기존 상품을 수정합니다.');
     // 판매자상품코드만 있으면 지금처럼 그 상품이고, 상품번호는 비교에서 채운다.
     expect(planGoodsWorkbookImport([{ row: 5, values: { ...values, productNo: '' } }], context)[0].kind).toBe('unchanged');
-    // 번호·코드가 모두 빈 행은 상품 URL로 찾는다.
+    // 번호·코드가 모두 빈 행은 새 상품이다. 상품 URL로 기존 상품을 찾지 않고, 이미 쓰는 URL이면 덮지 않고 오류다.
     const byUrl = planGoodsWorkbookImport([{ row: 5, values: { ...values, productNo: '', code: '' } }], context)[0];
-    expect(byUrl).toMatchObject({ kind: 'unchanged', code: 'GO-001' });
-    const byUrlChanged = planGoodsWorkbookImport([{ row: 5, values: { ...values, productNo: '', code: '', stockQty: '3' } }], context)[0];
-    expect(byUrlChanged.kind).toBe('update');
-    expect(byUrlChanged.warnings).toContain('판매자상품코드·상품번호가 비어 있어 상품 URL로 찾은 기존 상품을 수정합니다.');
+    expect(byUrl).toMatchObject({ kind: 'error', target: null });
+    expect(byUrl.errors).toEqual([
+      '5행: 이미 쓰는 상품 URL입니다(existing-good). 기존 상품을 고치려면 상품번호나 판매자상품코드를 그대로 두고, 새 상품이면 상품 URL을 비우거나 다른 값을 넣어 주세요.',
+    ]);
     // 상품번호와 판매자상품코드가 어긋나거나, 없는 번호·숫자가 아닌 번호는 오류다.
     const mismatch = planGoodsWorkbookImport([{ row: 5, values: { ...values, code: 'OTHER-CODE' } }], context)[0];
     expect(mismatch).toMatchObject({ kind: 'error', target: null });
@@ -460,6 +460,28 @@ describe('goods Excel planning', () => {
         .toContain('상품번호는 내려받은 숫자 그대로 두거나, 새 상품이면 비워 주세요.');
     // 새 상품(번호·코드·URL이 기존과 다름)은 지금처럼 새로 만든다.
     expect(planGoodsWorkbookImport([row({ code: 'NEW-9', id: 'brand-new' })], context)[0].kind).toBe('new');
+    expect(planGoodsWorkbookImport([row({ id: 'brand-new' })], context)[0].kind).toBe('new');
+    expect(planGoodsWorkbookImport([row()], context)[0].kind).toBe('new');
+  });
+  /*
+   * 리뷰 재현(T17a-RV ①②): 내보낸 파일에서 기존 상품 행을 복사해 새 상품을 만들며 상품번호·판매자상품코드만 지우고
+   * 상품 URL을 남기면, 원래 상품의 이름·가격·옵션을 덮어쓰면 안 된다. v8 파일과 구형 v7 파일 모두 그 행은 오류이고 저장 대상이 없다.
+   */
+  it('기존 행을 복사해 상품번호·판매자상품코드만 지운 행은 v8·v7 파일 모두 원래 상품을 덮지 않고 오류다', async () => {
+    const [exported] = exportGoodsWorkbookRows(existing, context);
+    const copy = { ...exported, productNo: '', code: '', variantCode: '', name: '복사한 새 상품', salePrice: '9900', stockQty: '3' };
+    for (const [label, rows] of [
+      ['v8', (await parseGoodsWorkbookWithKc(await buildGoodsWorkbook([copy]))).rows],
+      ['v7', (await parseGoodsWorkbookWithKc(await v3Workbook([copy], GOODS_WORKBOOK_V7_VERSION))).rows],
+    ] as const) {
+      const [group] = planGoodsWorkbookImport(rows, context);
+      expect({ label, kind: group.kind, target: group.target }).toEqual({ label, kind: 'error', target: null });
+      expect(group.errors.join()).toContain('이미 쓰는 상품 URL입니다(existing-good)');
+    }
+    // 같은 행에서 상품 URL도 지우면 새 상품 초안이 된다(원래 상품은 그대로).
+    const fresh = planGoodsWorkbookImport([{ row: 5, values: { ...copy, id: '' } }], context)[0];
+    expect(fresh).toMatchObject({ kind: 'new', target: { name: '복사한 새 상품', price: 9900 } });
+    expect(fresh.target?.previous_id ?? null).toBeNull();
   });
   it('구형(v3~v7) 가격 열은 판매가·즉시할인·옵션가로 옮기고, 옮길 수 없는 값은 구형 열 이름으로 알린다', async () => {
     const { goodsWorkbookPricesFromLegacy } = await import('./goods-workbook');

@@ -263,7 +263,7 @@ describe('goods list screen', () => {
       expect(html).toMatch(/aria-describedby="goods-list-query-hint"/);
       expect(html).toMatch(/<p class="sr-only" id="goods-list-query-hint">/);
       // 검색 대상 '전체'의 안내는 ERP 품명·바코드까지 말한다(TKT-074).
-      expect(html).toMatch(/placeholder="상품명, 상품번호, 판매자상품코드, ERP 코드·품명, 바코드"/);
+      expect(html).toMatch(/placeholder="상품명·번호·코드·ERP 품명·바코드"/);
       expect(html).toMatch(/title="전체 검색은 [^"]*ERP 품명·바코드에서 찾습니다/);
     });
   });

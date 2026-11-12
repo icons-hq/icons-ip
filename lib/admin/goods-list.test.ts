@@ -21,11 +21,16 @@ describe('goods list navigation', () => {
       expect(GOODS_LIST_SEARCH_HINTS[item.value].placeholder.length).toBeGreaterThan(0);
       expect(GOODS_LIST_SEARCH_HINTS[item.value].title.length).toBeGreaterThan(0);
     }
-    expect(GOODS_LIST_SEARCH_HINTS.all.placeholder).toContain('ERP 코드·품명');
-    expect(GOODS_LIST_SEARCH_HINTS.all.placeholder).toContain('바코드');
+    expect(GOODS_LIST_SEARCH_HINTS.all.placeholder).toBe('상품명·번호·코드·ERP 품명·바코드');
+    // 1440 화면의 검색어 칸(약 254px, text-sm)에 잘리지 않게 입력 칸 안내를 짧게 쓴다(리뷰 T17a-RV ③). 자세한 안내는 말풍선에 있다.
+    // 한글 14px·영숫자 8.5px·문장부호·공백 4.5px로 어림한 폭이 240px 이하다.
+    const width = (text: string) => [...text].reduce((sum, ch) => sum + (/[가-힣]/.test(ch) ? 14 : /[A-Za-z0-9]/.test(ch) ? 8.5 : 4.5), 0);
+    for (const item of GOODS_LIST_SEARCH_FIELDS) expect(width(GOODS_LIST_SEARCH_HINTS[item.value].placeholder)).toBeLessThanOrEqual(240);
+    expect(width('상품명, 상품번호, 판매자상품코드, ERP 코드·품명, 바코드')).toBeGreaterThan(254);
     expect(GOODS_LIST_SEARCH_HINTS.all.title).toContain('ERP 품명');
     expect(GOODS_LIST_SEARCH_HINTS.all.title).toContain('바코드');
-    expect(GOODS_LIST_SEARCH_HINTS.erp.placeholder).toContain('ERP 품명');
+    expect(GOODS_LIST_SEARCH_HINTS.erp.placeholder).toContain('ERP 코드·품명');
+    expect(GOODS_LIST_SEARCH_HINTS.erp.title).toContain('ERP 품명');
     expect(GOODS_LIST_SEARCH_HINTS.barcode.placeholder).toContain('바코드');
     expect(GOODS_LIST_SEARCH_HINTS.number.title).toContain('쉼표나 공백');
   });
