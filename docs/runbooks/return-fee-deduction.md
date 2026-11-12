@@ -70,6 +70,8 @@ where singleton;
 | `provider_cancellation_incomplete` | 취소 API는 200인데 사후 조회 잔액이 그대로 | 잠시 뒤 다시 확정한다. 같은 멱등키라 중복 취소되지 않는다 |
 | `refund_deduction_evidence_required`(DB) | 부분 취소 확인 없이 확정하려 했다 | [환불 완료 확정]을 다시 누른다(결제사 조회가 이미 반영된 취소로 수렴한다) |
 | 결제확인필요 뒤 전액 취소를 원함 | 차감을 정한 요청은 금액이 바뀌지 않는다 | 고객과 합의해 전액 환불이 필요하면 부분 취소 뒤 남은 반품배송비를 상점관리자에서 따로 취소하고 원장을 대조한다(개발 담당과 함께) |
+| 부분 취소 전에 상점관리자에서 전액 취소해 버림(`provider_balance_mismatch`, `CANCELED_balance_mismatch`) | 돈은 이미 전액 돌아갔는데 차감 결정이 남아 있다 | 개발 담당이 service role로 `select public.service_fallback_order_claim_refund_deduction(<요청 id>, <결제 id>, <처리자 id>)`를 실행해 결정을 전액 환불로 돌린 뒤 [환불 완료 확정]을 누른다(전액 취소 경로가 이미 취소된 결제로 수렴한다). 실행 전후를 처리 이력에 남긴다 |
+| `NOT_ALLOWED_PARTIAL_REFUND` | 결제사가 이 결제의 부분 환불을 거절했다 | 자동 처리된다 — 조회로 잔액 그대로를 확인한 뒤 차감 없이 전액 취소한다 |
 
 ## 끄기
 

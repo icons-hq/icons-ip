@@ -1179,6 +1179,9 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
     }
 
     let cancelSucceeded = false;
+    // 결제사가 이 결제의 부분 환불을 받지 않는다고 거절했다(NOT_ALLOWED_PARTIAL_REFUND). 조회가 잔액 그대로를
+    // 확인하면 돈이 움직이지 않은 것이라 '부분 취소 불가'로 돌려준다 — 호출자가 전액 환불로 돌린다.
+    let partialRefundRejected = false;
     try {
       const cancelResult = await providerRequest(
         `/v1/payments/${encodeURIComponent(paymentKey)}/cancel`,
@@ -1193,6 +1196,8 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
       const code = errorCode(cancelResult.payload);
       if (cancelResult.status === 200) {
         cancelSucceeded = true;
+      } else if (code === 'NOT_ALLOWED_PARTIAL_REFUND') {
+        partialRefundRejected = true;
       } else if (code !== null && CANCEL_REJECTED_CODES.has(code)) {
         return baseOutcome(attempt, 'needs_review', 'provider_cancel_rejected', {
           providerPaymentKey: paymentKey,
@@ -1211,6 +1216,12 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
 
     const after = await inquirePartial();
     if (after.kind === 'applied') return settled(after.payment, 'provider_partial_cancel_confirmed');
+    if (partialRefundRejected && (after.kind === 'unchanged' || after.kind === 'unavailable')) {
+      return baseOutcome(attempt, 'declined', PARTIAL_CANCEL_UNAVAILABLE_REASON, {
+        providerPaymentKey: paymentKey,
+        resultCode: 'NOT_ALLOWED_PARTIAL_REFUND',
+      }) as RefundOutcome;
+    }
     if (after.kind === 'unchanged' || after.kind === 'unavailable') {
       // 취소 API가 200을 줬는데 잔액이 그대로면 provider 상태가 어긋난 것이다 — 자동 종결하지 않는다.
       return baseOutcome(

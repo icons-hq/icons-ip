@@ -215,11 +215,28 @@ describe('토스 부분 취소', () => {
   });
 
   it('취소 거절 코드는 결제확인필요다', async () => {
-    const toss = server([json(200, payment()), json(400, { code: 'NOT_ALLOWED_PARTIAL_REFUND', message: 'x' })]);
+    const toss = server([json(200, payment()), json(400, { code: 'NOT_CANCELABLE_AMOUNT', message: 'x' })]);
     await expect(gateway(toss.fetchImpl).refund(request())).resolves.toMatchObject({
-      outcome: 'needs_review', reasonCode: 'provider_cancel_rejected', evidence: { resultCode: 'NOT_ALLOWED_PARTIAL_REFUND' },
+      outcome: 'needs_review', reasonCode: 'provider_cancel_rejected', evidence: { resultCode: 'NOT_CANCELABLE_AMOUNT' },
     });
     expect(toss.calls).toHaveLength(2);
+  });
+
+  it('부분 환불 불가 거절(NOT_ALLOWED_PARTIAL_REFUND)은 조회로 잔액 그대로를 확인한 뒤에만 부분 취소 불가로 돌려준다', async () => {
+    const unchanged = server([json(200, payment()), json(403, { code: 'NOT_ALLOWED_PARTIAL_REFUND', message: 'x' }), json(200, payment())]);
+    await expect(gateway(unchanged.fetchImpl).refund(request())).resolves.toEqual({
+      attemptId: ATTEMPT.id,
+      provider: 'toss',
+      outcome: 'declined',
+      reasonCode: 'provider_partial_cancel_unavailable',
+      evidence: { providerPaymentKey: PAYMENT_KEY, resultCode: 'NOT_ALLOWED_PARTIAL_REFUND' },
+    });
+    expect(unchanged.calls).toHaveLength(3);
+    // 거절 응답과 달리 조회가 이미 반영된 취소를 보이면 그 사실을 따른다.
+    const applied = server([json(200, payment()), json(403, { code: 'NOT_ALLOWED_PARTIAL_REFUND', message: 'x' }), json(200, partiallyCanceled(3000))]);
+    await expect(gateway(applied.fetchImpl).refund(request())).resolves.toMatchObject({
+      outcome: 'approved', reasonCode: 'provider_partial_cancel_confirmed',
+    });
   });
 
   it('다른 상점(MID)의 결제는 이미 부분 취소된 것처럼 보여도 수렴하지 않고 격리한다', async () => {
