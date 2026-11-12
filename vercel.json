@@ -51,6 +51,10 @@
     {
       "path": "/api/cron/stock-safety-digest",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/delivery-tracking",
+      "schedule": "*/10 * * * *"
     }
   ],
   "git": {
