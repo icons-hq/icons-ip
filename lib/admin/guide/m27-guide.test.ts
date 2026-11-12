@@ -178,9 +178,12 @@ describe('m27 가이드 — 상품 등록·목록·카테고리·랜덤 판매(R
     for (const label of ['title="구매 제한"', 'legend="최소/최대 구매수량"', 'legend="1인 최대 구매수량"', '<legend>옵션별 구매 제한 (선택)</legend>', '최대 구매수량(주문당)']) {
       expect(fields).toContain(label);
     }
-    for (const label of ['구매 제한 줄', '최소/최대 구매수량', '1인 최대 구매수량', '옵션별 구매 제한', '최대 구매수량(주문당)']) {
+    /* 11/11 ADM-011·1027T-021 결정 "펼친 채로": 구매 제한은 접힌 줄이 아니라 판매기간·예약판매 아래 펼친 소항목이다. */
+    for (const label of ['펼쳐진 구매 제한', '최소/최대 구매수량', '1인 최대 구매수량', '옵션별 구매 제한', '최대 구매수량(주문당)']) {
       expect(text).toContain(label);
     }
+    expect(text).not.toContain('구매 제한 줄');
+    expect(fields).not.toContain('<GoodFoldedRow title="구매 제한"');
     expect(text).not.toContain('판매 조건의 주문당 수량 제한');
     expect(text).toContain(`'옵션명'은 한 번에 N개까지 주문할 수 있습니다.`);
     /* 고객 화면 문구는 옵션명 끝 받침에 맞춰 은/는을 고른다(m27 QA-1). 가이드의 '옵션명'은 받침이 있어 '은'이다. */

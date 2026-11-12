@@ -42,7 +42,8 @@ export function GoodNoticePicker({ onApply, readOnly=false, copyKcTemplate=true,
   function apply(preset: Preset) {
     onApply(preset.notice,copyKcTemplate?preset.kcTemplate:undefined);
     setDismissed(suggestion?.type ?? ''); setSuggestion(null);
-    setMessage(`${preset.name} 템플릿의 7개 항목을 복사했습니다.${copyKcTemplate&&preset.kcTemplate?' KC 유형 틀을 새 미검토 모델로 불러옵니다. 신규 상품은 초안을 저장한 뒤 KC 영역에서 입력을 이어가세요.':''}`);
+    /* TKT-006: 등록 화면과 저장된 상품 모두 KC 틀을 같은 화면 KC 정보의 새 미검토 모델로 채운다(공개 판정은 그대로). */
+    setMessage(`${preset.name} 템플릿의 7개 항목을 복사했습니다.${copyKcTemplate&&preset.kcTemplate?' KC 유형 틀을 KC 정보의 새 미검토 모델로 불러옵니다. 옵션·번호·사업자는 이 상품에 맞게 확인해 입력해주세요.':''}`);
   }
   const shown = suggestion && suggestion.type === suggestType && !readOnly ? suggestion : null;
   return <div className="flex min-w-0 flex-col gap-3" data-good-notice-picker="">

@@ -24,7 +24,7 @@ import { collapseRandomGoodOptions, goodCompareAtPrice, optionPriceRange } from 
 import { parseGoodsVariantPricing } from '@/lib/goods-sales';
 import { parseGoodsVariantSupply } from '@/lib/goods-preorders';
 import { parseRandomAllocationLimit } from '@/lib/goods-option-sale-mode';
-import { parseGoodsKcDisclosures } from '@/lib/goods-kc';
+import { parseGoodsKcDisclosures, parseGoodsOtherCertificationDisclosures } from '@/lib/goods-kc';
 import { imageBg, normalizePublicMediaPath, PUBLIC_MEDIA_BUCKET } from '@/lib/media';
 import { resolvePublicIpLinks } from '@/lib/ip-identity.server';
 import { isRarityKey } from '@/lib/rarity';
@@ -1068,6 +1068,7 @@ export async function getCatalogIp(id: string): Promise<Ip | null> {
 
 interface GoodDetailRow {
   kc_disclosures?: unknown;
+  other_certification_disclosures?: unknown;
   description: string | null;
   description_format?: 'plain' | 'html';
   description_image_paths?: string[];
@@ -1172,7 +1173,7 @@ export async function getCatalogGoodDetail(
   const detailQuery = supabase
     .from('goods')
     /* supabase-js 는 select 를 문자열 리터럴로 받아야 행 타입을 추론한다 — 쪼개면 안 된다. */
-    .select('description,description_format,description_image_paths,gallery_paths,detail_image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,kc_disclosures,ips!inner(id)')
+    .select('description,description_format,description_image_paths,gallery_paths,detail_image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,kc_disclosures,other_certification_disclosures,ips!inner(id)')
     .eq('id', goodId)
     .is('archived_at', null)
     .not('published_at', 'is', null)
@@ -1198,7 +1199,9 @@ export async function getCatalogGoodDetail(
 
   const row = result.data as GoodDetailRow;
   const kcDisclosures = parseGoodsKcDisclosures(row.kc_disclosures ?? []);
-  if (!kcDisclosures) throw new Error('Failed to load verified product safety information');
+  // 기타 인증(SHEET-014)도 KC 고지와 같은 allowlist parser로 읽는다. 형식이 어긋나면 안전정보를 빼고 보이지 않고 실패한다.
+  const otherCertifications = parseGoodsOtherCertificationDisclosures(row.other_certification_disclosures ?? []);
+  if (!kcDisclosures || !otherCertifications) throw new Error('Failed to load verified product safety information');
   const imageUrlForPath = (path: string) => supabase.storage
     .from(PUBLIC_MEDIA_BUCKET)
     .getPublicUrl(normalizePublicMediaPath(path)).data.publicUrl;
@@ -1235,6 +1238,7 @@ export async function getCatalogGoodDetail(
     descriptionFormat: row.description_format ?? 'plain',
     descriptionImagePaths: row.description_image_paths ?? [],
     kcDisclosures,
+    otherCertifications,
     gallery: (row.gallery_paths ?? []).map((path) => imageBg(imageUrlForPath(path))),
     detailImageUrl: row.detail_image_path ? imageUrlForPath(row.detail_image_path) : null,
     notice: {

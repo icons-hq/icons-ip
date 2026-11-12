@@ -1,12 +1,19 @@
 import { isUuid } from '@/lib/uuid';
-import { emptyGoodsKcModel, goodsKcReviewProblems, goodsKcSoleNotApplicable, normalizeGoodsKcModels, planGoodsKcProductNotApplicable, type GoodsKcModelInput, type GoodsKcVariant } from './goods-kc';
+import {
+  MAX_GOODS_KC_MODELS, emptyGoodsKcModel, goodsKcReviewProblems, goodsKcSoleNotApplicable, kcModelFromTemplate, normalizeGoodsKcModels,
+  planGoodsKcProductNotApplicable, type GoodsKcModelInput, type GoodsKcVariant,
+} from './goods-kc';
+import type { GoodsKcPresetTemplate } from './goods-notice-presets';
+import {
+  goodsOtherCertificationProblems, goodsOtherCertificationsSaveError, normalizeGoodsOtherCertifications, type GoodsOtherCertificationInput,
+} from './goods-kc-other-certifications';
 import { goodsOptionRowKey, type GoodsOptionRow } from './goods-option-editor';
 import { parseGoodsPreorderInput, type GoodsPreorderInput } from './goods-preorders';
 
 /*
  * 상품 등록 화면의 원자 저장 섹션(10/27 회의 R13·D6②).
  *
- * 등록 화면은 KC·예약판매를 1단계 입력과 함께 받아 public.admin_save_good_workspace 하나로 저장한다.
+ * 등록 화면은 KC(기타 인증 포함)·예약판매를 1단계 입력과 함께 받아 public.admin_save_good_workspace 하나로 저장한다.
  * 새 옵션은 저장 전 id가 없으므로 화면은 옵션을 행 키로 가리키고, 제출할 때 저장된 옵션은 {id},
  * 새 옵션은 {attributes}(옵션값 조합) 참조로 바꾼다. DB가 저장 직후 활성 옵션, 없으면 이번 저장이 만든 옵션(사용 중지로
  * 등록해 바로 보관된 새 옵션 포함) 하나로 해석한다.
@@ -37,19 +44,27 @@ export interface GoodWorkspacePreorderDraft {
   expectedShipDate: string;
   approvalReference: string;
 }
-export interface GoodWorkspaceSectionsDraft { kc: GoodWorkspaceKcDraft; preorders: GoodWorkspacePreorderDraft[] }
-export const EMPTY_GOOD_WORKSPACE_SECTIONS: GoodWorkspaceSectionsDraft = { kc: { models: [], attested: false }, preorders: [] };
+export interface GoodWorkspaceSectionsDraft {
+  kc: GoodWorkspaceKcDraft;
+  preorders: GoodWorkspacePreorderDraft[];
+  /** KC 카드의 기타 인증(SHEET-014). 없거나 비어 있으면 섹션을 보내지 않는다. */
+  otherCertifications?: GoodsOtherCertificationInput[];
+}
+export const EMPTY_GOOD_WORKSPACE_SECTIONS: GoodWorkspaceSectionsDraft = { kc: { models: [], attested: false }, preorders: [], otherCertifications: [] };
 
 /** 제출 형식(hidden input). 서버가 다시 검증한다. */
 export interface GoodWorkspaceSectionsSubmission {
   kc: { status: 'unreviewed' | 'reviewed'; attested: boolean; models: (Omit<GoodsKcModelInput, 'variantIds'> & { variantRefs: GoodWorkspaceVariantRef[] })[] } | null;
   preorders: { variant: GoodWorkspaceVariantRef; values: { state: 'draft' | 'active'; capacityQty: string; startsAt: string; endsAt: string; expectedShipDate: string; approvalReference: string } }[];
+  /** 입력한 기타 인증이 있을 때만 싣는다(새 상품이라 버전은 서버가 null로 확인한다). */
+  otherCertifications?: GoodsOtherCertificationInput[];
 }
 /** admin_save_good_workspace의 sections 인자. */
 export interface GoodWorkspaceRpcSections {
   kc?: { status: 'unreviewed' | 'reviewed'; attested: boolean; expectedRevision: null; expectedContextFingerprint: null;
     models: (Omit<GoodsKcModelInput, 'variantIds'> & { variantRefs: GoodWorkspaceVariantRef[] })[] };
   preorders?: { variant: GoodWorkspaceVariantRef; policyId: null; expectedRevision: null; values: GoodsPreorderInput }[];
+  otherCertifications?: { entries: GoodsOtherCertificationInput[]; expectedRevision: null };
 }
 
 /** 새 옵션 행 키를 KC 편집기가 다룰 수 있는 고정 uuid 형식으로 바꾼다. 저장된 옵션은 id 그대로다. */
@@ -63,6 +78,21 @@ export function goodWorkspaceVariantId(row: Pick<GoodsOptionRow, 'id' | 'attribu
     hex += hash.toString(16).padStart(8, '0');
   }
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+}
+
+/**
+ * TKT-006·TKT-086: 등록 화면에서 고시 프리셋의 KC 틀을 같은 화면 KC 입력에 미검토 모델로 채운다(함께 저장해도 남는다).
+ * 틀은 제품군·제도·해당 없음 안내만 채우고 옵션·번호·사업자·근거는 비운다. 확인 체크는 언제나 풀어 미검토 초안으로 둔다.
+ * KC 입력이 비었거나 상품 전체 해당 없음뿐이면 틀로 바꾸고(해당 없음 틀은 '대상 아님' 미확인 상태), 다른 모델이 있으면 뒤에 더한다.
+ * 적용할 수 없으면(제품군·제도 조합 오류·최대 개수) null.
+ */
+export function goodWorkspaceKcWithTemplate(kc: GoodWorkspaceKcDraft, template: GoodsKcPresetTemplate): GoodWorkspaceKcDraft | null {
+  const model = kcModelFromTemplate(template.family, template.scheme, template.publicNote);
+  if (!model) return null;
+  if (!kc.models.length || goodsKcSoleNotApplicable(kc.models)) {
+    return { models: [model], attested: false, productNotApplicable: model.scheme === 'not_applicable' };
+  }
+  return kc.models.length >= MAX_GOODS_KC_MODELS ? null : { models: [...kc.models, model], attested: false };
 }
 
 /** KC 편집기·옵션 선택에 쓰는 옵션 목록(화면 id·이름·관리코드·사용 여부). */
@@ -91,8 +121,9 @@ export function prepareGoodWorkspaceSections(draft: GoodWorkspaceSectionsDraft, 
   let kc: GoodWorkspaceSectionsSubmission['kc'] = null;
   if (draft.kc.models.length || draft.kc.attested) {
     const variants = goodWorkspaceKcVariants(rows);
-    /* 등록 화면의 해당 없음은 체크 한 번으로 끝난다. 체크 뒤 옵션을 바꿀 수 있으니 연결 옵션은 제출 시점의 옵션으로 다시 맞춘다. */
-    const models = draft.kc.productNotApplicable && draft.kc.attested && goodsKcSoleNotApplicable(draft.kc.models) ? planGoodsKcProductNotApplicable(draft.kc.models, variants).models : draft.kc.models;
+    /* 등록 화면의 해당 없음(해당 없음 모델 1개)은 '대상 아님' 칸으로만 보이고 옵션 연결 칸이 없다. 확인 체크와 무관하게 연결 옵션은
+       제출 시점의 사용 옵션 전체로 다시 맞추고, 제품군·고객 안내 등 나머지 값은 그대로 둔다(체크를 푼 뒤 옵션을 바꿔도 저장된다). */
+    const models = goodsKcSoleNotApplicable(draft.kc.models) ? planGoodsKcProductNotApplicable(draft.kc.models, variants).models : draft.kc.models;
     if (draft.kc.attested) {
       const problems = goodsKcReviewProblems(models, variants);
       if (problems.length) return { ok: false, field: 'workspaceKc', error: `KC 검토 완료 전 확인: ${problems[0]}` };
@@ -105,6 +136,11 @@ export function prepareGoodWorkspaceSections(draft: GoodWorkspaceSectionsDraft, 
     kc = { status: draft.kc.attested ? 'reviewed' : 'unreviewed', attested: draft.kc.attested,
       models: normalized.map(({ variantIds, ...model }) => ({ ...model, variantRefs: variantIds.map((id) => variantRef(byId.get(id)!)) })) };
   }
+  /* 기타 인증은 KC 카드 안 입력이다. 종류·인증번호가 빠지면 같은 카드에 알리고 저장하지 않는다. */
+  const otherEntries = draft.otherCertifications ?? [];
+  const otherProblems = otherEntries.length ? goodsOtherCertificationProblems(otherEntries) : [];
+  if (otherProblems.length) return { ok: false, field: 'workspaceKc', error: otherProblems[0] };
+  const otherCertifications = otherEntries.length ? normalizeGoodsOtherCertifications(otherEntries)! : [];
   const preorders: GoodWorkspaceSectionsSubmission['preorders'] = [];
   const used = new Set<string>();
   for (const [index, entry] of draft.preorders.entries()) {
@@ -124,7 +160,7 @@ export function prepareGoodWorkspaceSections(draft: GoodWorkspaceSectionsDraft, 
     }
     preorders.push({ variant: variantRef(row), values });
   }
-  return { ok: true, value: { kc, preorders } };
+  return { ok: true, value: { kc, preorders, ...(otherCertifications.length ? { otherCertifications } : {}) } };
 }
 
 function record(value: unknown): value is Record<string, unknown> {
@@ -145,13 +181,13 @@ export function parseGoodWorkspaceSections(raw: FormDataEntryValue | null, canAc
   if (raw === null || raw === '') return { ok: true, sections: {} };
   let value: unknown;
   try { value = JSON.parse(String(raw)); } catch { return { ok: false, field: 'workspaceKc', error: 'KC·예약판매 입력을 확인하지 못했습니다. 새로고침 후 다시 입력해주세요.' }; }
-  if (!record(value) || Object.keys(value).some((key) => key !== 'kc' && key !== 'preorders')) {
+  if (!record(value) || Object.keys(value).some((key) => key !== 'kc' && key !== 'preorders' && key !== 'otherCertifications')) {
     return { ok: false, field: 'workspaceKc', error: 'KC·예약판매 입력을 확인하지 못했습니다. 새로고침 후 다시 입력해주세요.' };
   }
   const sections: GoodWorkspaceRpcSections = {};
   if (value.kc !== null && value.kc !== undefined) {
     const kc = value.kc;
-    const invalid = { ok: false as const, field: 'workspaceKc' as const, error: 'KC 입력 형식과 모델별 필수 정보·근거를 확인해주세요.' };
+    const invalid = { ok: false as const, field: 'workspaceKc' as const, error: 'KC 입력 형식과 모델별 필수 정보를 확인해주세요.' };
     if (!record(kc) || !['unreviewed', 'reviewed'].includes(String(kc.status)) || typeof kc.attested !== 'boolean'
       || (kc.status === 'reviewed') !== kc.attested || !Array.isArray(kc.models)) return invalid;
     const models: NonNullable<GoodWorkspaceRpcSections['kc']>['models'] = [];
@@ -183,6 +219,13 @@ export function parseGoodWorkspaceSections(raw: FormDataEntryValue | null, canAc
     }
     if (preorders.length) sections.preorders = preorders;
   }
+  if (value.otherCertifications !== undefined) {
+    const entries = normalizeGoodsOtherCertifications(value.otherCertifications);
+    if (!entries || goodsOtherCertificationProblems(entries).length) {
+      return { ok: false, field: 'workspaceKc', error: '기타 인증마다 인증 종류와 인증번호를 확인해주세요. 같은 인증은 한 번만 입력합니다.' };
+    }
+    if (entries.length) sections.otherCertifications = { entries, expectedRevision: null };
+  }
   return { ok: true, sections };
 }
 
@@ -213,7 +256,10 @@ export function goodWorkspaceSectionFailure(message: string): Partial<Record<Goo
   }
   if (message.includes('goods_kc_review_changed')) return { workspaceKc: '다른 작업에서 KC 검토가 바뀌었습니다. 입력은 유지됩니다. 새로고침 후 KC 정보를 확인해주세요.' };
   if (message.includes('goods_kc_attestation_required') || message.includes('goods_kc_review_incomplete')) {
-    return { workspaceKc: '사용 중인 옵션 연결과, KC 대상 제도는 모델별 필수 정보·원본 증빙을 확인한 뒤 검토 완료 확인을 체크해주세요. 아니면 확인 체크를 풀어 미검토로 저장합니다.' };
+    return { workspaceKc: '사용 중인 옵션 연결과, KC 대상이면 제품군·제도·품목·모델·사업자와 인증·신고번호(안전인증·안전확인)를 확인한 뒤 확인을 체크해주세요. 아니면 확인 체크를 풀어 미검토로 저장합니다.' };
+  }
+  if (/goods_other_certification|invalid_goods_other_certifications/.test(message)) {
+    return { workspaceKc: `${goodsOtherCertificationsSaveError(message)} 상품은 저장되지 않았고 입력은 유지됩니다.` };
   }
   if (/invalid_goods_kc|goods_kc_variant/.test(message)) return { workspaceKc: 'KC 입력 형식과 제품군·제도 조합을 확인해주세요.' };
   if (/preorder_|invalid_preorder_policy|goods_variant_inactive/.test(message)) {

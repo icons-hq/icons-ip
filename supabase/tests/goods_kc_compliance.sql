@@ -47,9 +47,17 @@ select jsonb_build_object('family','children','scheme','safety_confirmation','pr
 select pg_temp.kc_expect_error(format('select public.admin_save_goods_kc(%L,%L::jsonb,%L,null,%L,true)','kc-test-good',
  jsonb_build_array(:'kc_model'::jsonb)::text,'reviewed',:'kc_unset'::jsonb->>'contextFingerprint'),'goods_kc_review_incomplete','23514');
 select jsonb_set(:'kc_model'::jsonb,'{variantIds}',jsonb_build_array(:'kc_default','00000000-0000-4000-8000-000000047711')) as kc_complete_model \gset
-select pg_temp.kc_expect_error(format('select public.admin_save_goods_kc(%L,%L::jsonb,%L,null,%L,true)','kc-test-good',
- jsonb_build_array(jsonb_set(:'kc_complete_model'::jsonb,'{basis}',to_jsonb(E'\t\n'||chr(160))))::text,'reviewed',:'kc_unset'::jsonb->>'contextFingerprint'),
- 'goods_kc_review_incomplete','23514');
+-- 1007-034(ADR-0036): 내부 검토 근거는 선택 입력이다. 공백뿐인 판단 사유와 빈 근거 참조도 검토 문제가 아니고,
+-- 고객 게시 항목인 인증·신고번호는 그대로 필수다(저장하지 않고 판정만 본다).
+reset role;
+select 1/case when cardinality(private.goods_kc_review_problems('kc-test-good',private.normalize_goods_kc_models(jsonb_build_array(
+   jsonb_set(jsonb_set(:'kc_complete_model'::jsonb,'{basis}',to_jsonb(E'\t\n'||chr(160))),'{evidence}',
+     '{"applicability":"","certificate":"","testReport":"","declaration":""}'::jsonb)))))=0
+ and private.goods_kc_review_problems('kc-test-good',jsonb_build_array(jsonb_set(:'kc_complete_model'::jsonb,'{identifier}','""')))
+   @> array['인증·신고번호가 필요합니다.']
+ then 1 else 0 end as assert_evidence_optional_identifier_required;
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000047701',true);
 select pg_temp.kc_expect_error(format('select public.admin_save_goods_kc(%L,%L::jsonb,%L,null,%L,true)','kc-test-good',
  jsonb_build_array(jsonb_set(:'kc_complete_model'::jsonb,'{identifier}','""'))::text,'reviewed',:'kc_unset'::jsonb->>'contextFingerprint'),
  'goods_kc_review_incomplete','23514');

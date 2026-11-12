@@ -36,6 +36,24 @@ describe('고객 상세 KC 고시', () => {
     expect(html.match(/적용 옵션은 KC 인증 대상이 아닙니다\./g)).toHaveLength(2);
     expect(html).toContain('<th scope="row">적용 옵션</th><td style="white-space:pre-wrap">빨강</td>');
   });
+  /* SHEET-014(ADR-0036): 고객 노출을 고른 기타 인증만 KC 고지 뒤 '기타 인증' 표로 잇는다. KC 문구는 그대로다. */
+  it('기타 인증은 KC 고지 뒤 같은 영역에 표로 잇고, KC 고지 문구를 바꾸지 않는다', () => {
+    const other = [{ kind: '방송통신기자재 적합성평가', agency: '국립전파연구원', number: 'R-R-TEST-0001' }, { kind: 'KS 인증', agency: '', number: 'KS-1' }];
+    const html = renderToStaticMarkup(<GoodsKcDisclosure disclosures={[notApplicable]} otherCertifications={other} />);
+    expect(html).toContain('KC 인증 대상이 아닌 상품입니다.');
+    expect(html.indexOf('KC 인증 대상이 아닌 상품입니다.')).toBeLessThan(html.indexOf('<caption class="wc-pdp-notice__caption">기타 인증</caption>'));
+    expect(html).toContain('<th scope="row">방송통신기자재 적합성평가</th><td style="white-space:pre-wrap">인증번호 R-R-TEST-0001 · 인증기관 국립전파연구원</td>');
+    expect(html).toContain('<th scope="row">KS 인증</th><td style="white-space:pre-wrap">인증번호 KS-1</td>');
+    expect(html.match(/<section/g)).toHaveLength(1);
+  });
+  it('KC 고지가 없어도 기타 인증만으로 제품 안전정보를 보이고, 둘 다 없으면 그리지 않는다', () => {
+    const html = renderToStaticMarkup(<GoodsKcDisclosure disclosures={[]} otherCertifications={[{ kind: 'KS 인증', agency: '', number: 'KS-1' }]} />);
+    expect(html).toContain('<h2 class="wc-pdp-panel__title">제품 안전정보</h2>');
+    expect(html).toContain('KS-1');
+    expect(html).not.toContain('KC 인증');
+    expect(renderToStaticMarkup(<GoodsKcDisclosure disclosures={[]} otherCertifications={[]} />)).toBe('');
+    expect(renderToStaticMarkup(<GoodsKcDisclosure disclosures={[]} />)).toBe('');
+  });
   it('KC 대상 제도는 단독이어도 기존 항목을 모두 보여준다', () => {
     const html = renderToStaticMarkup(<GoodsKcDisclosure disclosures={[certified]} />);
     for (const label of ['제품군', '적용 제도', '품목 분류', '모델명', '적용 옵션', '수입업자', '안전확인 신고번호']) {

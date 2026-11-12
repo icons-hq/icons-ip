@@ -2,22 +2,27 @@
 
 import { useCallback, useEffect, useId, useState, useTransition } from 'react';
 import type { GoodsKcTemplateRequest } from './useGoodsKcTemplate';
-import { readGoodsKcAction, saveGoodsKcAction } from '@/app/admin/goods-kc-actions';
+import { readGoodsKcAction, readGoodsOtherCertificationsAction, saveGoodsKcAction, saveGoodsOtherCertificationsAction } from '@/app/admin/goods-kc-actions';
 import { GoodsKcDisclosure } from '@/components/shop/GoodsKcDisclosure';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { Label } from '@/components/admin/kit/ui/label';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import {
-  GOODS_KC_EVIDENCE_LABELS, MAX_GOODS_KC_MODELS, emptyGoodsKcModel, goodsKcReviewProblems, planGoodsKcProductNotApplicable,
+  GOODS_KC_EVIDENCE_LABELS, MAX_GOODS_KC_MODELS, emptyGoodsKcModel, goodsKcChoice, goodsKcProductNotApplicableConfirm, goodsKcReviewProblems, goodsKcSubjectModel,
+  planGoodsKcProductNotApplicable,
   goodsKcEditorRefresh, goodsKcProductNotApplicableNote, goodsKcSoleNotApplicable, publicGoodsKcDisclosures, kcModelFromTemplate,
-  type AdminGoodsKc, type GoodsKcModelInput, type GoodsKcVariant,
+  type AdminGoodsKc, type GoodsKcChoice, type GoodsKcModelInput, type GoodsKcVariant,
 } from '@/lib/admin/goods-kc';
 import {
-  GOODS_KC_BUSINESS_LABELS, GOODS_KC_FAMILY_LABELS, GOODS_KC_SCHEME_LABELS, goodsKcNeedsIdentifier, goodsKcSchemeAllowed,
-  type GoodsKcFamily, type GoodsKcScheme,
+  GOODS_OTHER_CERTIFICATIONS_RELOAD_LABEL, MAX_GOODS_OTHER_CERTIFICATIONS, emptyGoodsOtherCertification, goodsOtherCertificationProblems,
+  publicGoodsOtherCertifications, type AdminGoodsOtherCertifications, type GoodsOtherCertificationInput,
+} from '@/lib/admin/goods-kc-other-certifications';
+import {
+  GOODS_KC_BUSINESS_LABELS, GOODS_KC_FAMILY_LABELS, GOODS_KC_SCHEME_LABELS, GOODS_OTHER_CERTIFICATION_KIND_SUGGESTIONS,
+  GOODS_OTHER_CERTIFICATION_TEXT_LIMIT, goodsKcNeedsIdentifier, goodsKcSchemeAllowed, type GoodsKcFamily, type GoodsKcScheme,
 } from '@/lib/goods-kc';
 import { GOOD_INPUT_CLASS, GOOD_NOTE_CLASS, GOOD_SUBPANEL_CLASS, GOOD_TEXTAREA_CLASS } from './GoodEditorParts';
-import { useGoodWorkspaceSections, type GoodsKcPanelStash } from './GoodWorkspace';
+import { GOOD_DETACHED_FORM_ID, useGoodWorkspaceSections, useGoodWorkspaceStash, type GoodsKcPanelStash } from './GoodWorkspace';
 
 /* 템플릿 룩(ADR-0028). 입력 라벨 글자만 굵게 하고 입력값은 보통 굵기로 둔다(라벨이 입력을 감싼다). */
 const FIELD_CLASS = 'flex min-w-0 flex-col gap-2 text-sm';
@@ -42,6 +47,8 @@ export function ModelFields({ model, index, variants, disabled, onChange, onRemo
       onChange={(event) => onChange({ ...model, [key]: event.target.value })} /></label>;
   }
   const needsNumber = model.scheme && goodsKcNeedsIdentifier(model.scheme);
+  const evidenceValues = [model.basis, ...Object.keys(GOODS_KC_EVIDENCE_LABELS).map((key) => model.evidence[key as keyof GoodsKcModelInput['evidence']])];
+  const evidenceTotal = evidenceValues.length, evidenceFilled = evidenceValues.filter((value) => value?.trim()).length;
   return <fieldset className="m-0 flex min-w-0 flex-col gap-4 rounded-lg border p-4" data-kc-model="" disabled={disabled}>
     <legend className="float-left w-full p-0 text-sm font-medium">{label}{model.modelName ? ` · ${model.modelName}` : ''}</legend>
     <div className={FIELD_GRID_CLASS}>
@@ -58,7 +65,7 @@ export function ModelFields({ model, index, variants, disabled, onChange, onRemo
       {field('businessName', '사업자명')}
       {(needsNumber || model.identifier) ? field('identifier', model.scheme === 'safety_certification' ? '안전인증번호' : '인증·신고번호', 100) : null}
     </div>
-    {model.scheme && !needsNumber && <p className="text-sm text-muted-foreground">이 제도에는 공통 인증·신고번호를 요구하지 않습니다. 실제 원본 자료는 아래 근거 참조에 연결해주세요.</p>}
+    {model.scheme && !needsNumber && <p className="text-sm text-muted-foreground">이 제도에는 공통 인증·신고번호를 요구하지 않습니다. 원본 자료 위치는 아래 내부 검토 근거에 남길 수 있습니다(선택).</p>}
     <fieldset className="m-0 min-w-0 border-0 p-0"><legend className="float-left mb-2 w-full p-0 text-sm font-medium">적용 옵션</legend>
       <div className="clear-both flex flex-col gap-1.5">{variants.map((variant) => <label key={variant.id} className={CHECK_LABEL_CLASS}>
         <input className="mt-0.5" type="checkbox" checked={model.variantIds.includes(variant.id)} aria-label={`${label} 적용 옵션 ${variant.name}`}
@@ -71,7 +78,9 @@ export function ModelFields({ model, index, variants, disabled, onChange, onRemo
     </fieldset>
     <label className={FIELD_CLASS}><span className="font-medium">고객 안내{hint}</span><textarea className={GOOD_TEXTAREA_CLASS} data-slot="textarea" aria-label={`${label} 고객 안내${hint}`} rows={2} maxLength={1000} value={model.publicNote}
       onChange={(event) => onChange({ ...model, publicNote: event.target.value })} /></label>
-    <details className={DETAILS_CLASS} open><summary className={SUMMARY_CLASS}>내부 검토 근거{hint} · 고객에게 공개되지 않습니다</summary>
+    {/* ADM-004(복잡도 표 335행): 고객에게 보이지 않는 내부 근거는 기본으로 접고, 몇 칸을 채웠는지만 요약에 보인다.
+        1007-034(ADR-0036 자가 신고): 내부 근거는 모든 제도에서 선택 입력이라 비워도 검토를 완료할 수 있다. */}
+    <details className={DETAILS_CLASS} data-kc-evidence=""><summary className={SUMMARY_CLASS}>{`내부 검토 근거 (선택) · 고객에게 공개되지 않습니다 · ${evidenceFilled}/${evidenceTotal}칸 입력`}</summary>
       <div className={DETAILS_BODY_CLASS}>
         <label className={FIELD_CLASS}><span className="font-medium">적용 판단 사유</span><textarea className={GOOD_TEXTAREA_CLASS} data-slot="textarea" aria-label={`${label} 적용 판단 사유`} rows={3} maxLength={2000} value={model.basis}
           onChange={(event) => onChange({ ...model, basis: event.target.value })} /></label>
@@ -81,7 +90,7 @@ export function ModelFields({ model, index, variants, disabled, onChange, onRemo
               onChange={(event) => onChange({ ...model, evidence: { ...model.evidence, [key]: event.target.value } })} />
           </label>)}
         </div>
-        <small className="text-xs text-muted-foreground">실제 원본 자료를 찾을 수 있는 사내 문서번호나 접근 제한 문서 주소를 입력하세요. 이 입력으로 인증을 발급하거나 원본의 진위를 자동 확인하지 않습니다.</small>
+        <small className="text-xs text-muted-foreground">실제 원본 자료를 찾을 수 있는 사내 문서번호나 접근 제한 문서 주소를 남길 수 있습니다. 비워도 검토를 완료할 수 있고, 이 입력으로 인증을 발급하거나 원본의 진위를 자동 확인하지 않습니다.</small>
       </div>
     </details>
     <button type="button" className={`${buttonVariants({ variant: 'outline', size: 'sm' })} self-start`} data-slot="button" onClick={onRemove}>이 모델 입력 제거</button>
@@ -89,40 +98,69 @@ export function ModelFields({ model, index, variants, disabled, onChange, onRemo
 }
 
 export const GOODS_KC_NOT_APPLICABLE_ATTESTATION = '이 상품은 KC 안전인증·안전확인·공급자적합성확인·안전기준준수 대상이 아님을 확인했습니다.';
+/** KC 대상 자가 신고(1007-034)의 확인 체크. 근거 참조가 아니라 고객에게 게시하는 KC 표시가 실제 제품과 같은지를 확인한다. */
+export const GOODS_KC_SUBJECT_ATTESTATION = '실제 제품의 KC 표시(인증 종류·인증·신고번호)와 모델·사업자·적용 옵션이 일치함을 확인했습니다.';
+export const GOODS_KC_SUBJECT_GUIDE = 'KC 대상은 인증 종류(제품군·적용 제도)와 고객 상세에 게시하는 품목 분류·모델명·사업자를 입력하고, 안전인증·안전확인이면 인증·신고번호를 넣습니다. 내부 검토 근거는 선택입니다.';
+
+/**
+ * 'KC 인증 대상 여부'(1007-034 자가 신고). 대상 아님은 상품 전체 해당 없음, 대상은 모델별 인증 정보 입력이다.
+ * 라디오는 소속 폼을 떼어(GOOD_DETACHED_FORM_ID) 상품 저장의 FormData·검증에 섞이지 않고, 같은 이름끼리 묶여 화살표로 옮겨 다닌다.
+ */
+export function GoodsKcSubjectChoice({ value, disabled, onChange }: {
+  value: GoodsKcChoice | null; disabled: boolean; onChange: (choice: GoodsKcChoice) => void;
+}) {
+  const name = useId();
+  /* legend 문구 바로 앞을 시험이 대조한다 — legend 모양은 fieldset의 자식 선택 유틸리티로 입힌다. */
+  return <fieldset className="m-0 flex min-w-0 flex-col gap-2 border-0 p-0 [&>legend]:float-left [&>legend]:mb-1 [&>legend]:w-full [&>legend]:p-0 [&>legend]:text-sm [&>legend]:font-medium"
+    disabled={disabled} data-kc-subject-choice="">
+    <legend>KC 인증 대상 여부</legend>
+    <div className="clear-both flex min-w-0 flex-wrap gap-x-6 gap-y-2">
+      <label className={CHECK_LABEL_CLASS}><input className="mt-0.5" type="radio" name={name} form={GOOD_DETACHED_FORM_ID} value="not_applicable"
+        checked={value === 'not_applicable'} onChange={() => onChange('not_applicable')} /><span>대상 아님 · 상품 전체 KC 해당 없음</span></label>
+      <label className={CHECK_LABEL_CLASS}><input className="mt-0.5" type="radio" name={name} form={GOOD_DETACHED_FORM_ID} value="subject"
+        checked={value === 'subject'} onChange={() => onChange('subject')} /><span>대상 · 인증 종류와 번호 입력</span></label>
+    </div>
+  </fieldset>;
+}
 
 /** "상품 전체 KC 해당 없음": one confirmation replaces the model list with a single
  * not-applicable model covering every active option. On a saved product the button
  * saves it as reviewed through the same attested save contract. On the create screen
  * nothing is saved yet, so the checkbox alone sets that state (`checkOnly`) and the
  * save button carries it; the option list is re-linked at submit. */
-export function ProductNotApplicable({ variants, models, disabled, onNoteChange, onComplete, checkOnly = false, checked = false, onClear }: {
+export function ProductNotApplicable({ variants, models, disabled, onNoteChange, onComplete, checkOnly = false, checked = false, onUncheck, initialConfirmed = false }: {
   variants: readonly GoodsKcVariant[]; models: readonly GoodsKcModelInput[]; disabled: boolean;
   onNoteChange: (publicNote: string) => void; onComplete: (models: GoodsKcModelInput[]) => void;
   /** 등록 화면: 저장 전이라 체크 하나로 해당 없음 상태를 만든다. 버튼이 없다. */
   checkOnly?: boolean;
   checked?: boolean;
-  onClear?: () => void;
+  /** 등록 화면에서 확인 체크를 풀었다(해당 없음 모델은 미검토로 남는다). */
+  onUncheck?: () => void;
+  /** 저장된 상품: 운영자가 '대상 아님'을 방금 골라 연 칸이면 확인 체크를 켠 채로 시작한다. */
+  initialConfirmed?: boolean;
 }) {
   const active = variants.filter((variant) => variant.active);
-  const [confirmed, setConfirmed] = useState(false);
+  const [confirmed, setConfirmed] = useState(initialConfirmed);
   // 해당 없음 모델 1개가 이미 있으면 이 칸은 그 모델의 고객 안내를 그대로 보여주고 고친다.
   // 따로 들고 있으면 아래 모델 칸에서 고친 안내가 접힌 칸의 이전 값으로 덮인다.
   const [draftNote, setDraftNote] = useState('');
   const sole = goodsKcSoleNotApplicable(models);
   const note = goodsKcProductNotApplicableNote(models, draftNote);
   function complete() {
+    /* 해당 없음 모델 1개(프리셋 틀 포함)는 제품군·안내를 지킨 채 옵션만 다시 연결한다. 입력이 있는 다른 모델을 지울 때만 이름을 들어 묻는다. */
     const plan = planGoodsKcProductNotApplicable(models, variants, draftNote);
-    if (plan.discarded && !window.confirm(`입력한 KC 모델 ${plan.discarded}개를 지우고 상품 전체 해당 없음으로 검토를 완료합니다. 계속할까요?`)) return;
+    const confirm = goodsKcProductNotApplicableConfirm(plan, { completing: !checkOnly });
+    if (confirm && !window.confirm(confirm)) return;
     onComplete(plan.models);
   }
   /* legend 문구 바로 앞을 시험이 대조한다 — legend 모양은 fieldset의 자식 선택 유틸리티로 입힌다. */
   return <fieldset className="m-0 flex min-w-0 flex-col gap-3 rounded-lg border bg-muted/30 p-4 [&>legend]:float-left [&>legend]:w-full [&>legend]:p-0 [&>legend]:text-sm [&>legend]:font-medium [&>legend]:text-foreground" disabled={disabled} data-kc-not-applicable="">
     <legend>상품 전체 KC 해당 없음</legend>
     <p className="text-sm text-muted-foreground">{!active.length ? '사용 중인 옵션이 없습니다. 옵션을 저장한 뒤 해당 없음으로 검토를 완료할 수 있습니다.'
-      : checkOnly ? (checked ? `사용 중인 옵션 ${active.length}개가 모두 연결됩니다. 저장하기를 누르면 해당 없음으로 검토 완료됩니다. 더 입력할 것은 없습니다.` : 'KC 대상이 아닌 상품은 확인 체크 하나로 끝납니다. 모델·사업자·판단 근거는 입력하지 않아도 됩니다.')
+      : checkOnly ? (checked ? `사용 중인 옵션 ${active.length}개가 모두 연결됩니다. 저장하기를 누르면 해당 없음으로 검토 완료됩니다. 더 입력할 것은 없습니다.` : '아래 확인을 체크하면 해당 없음으로 검토 완료됩니다. 체크하지 않으면 미검토로 함께 저장합니다. 모델·사업자·판단 근거는 입력하지 않아도 됩니다.')
       : `KC 대상이 아닌 상품은 확인 체크 후 바로 검토를 끝낼 수 있습니다. 사용 중인 옵션 ${active.length}개가 모두 연결되고, 모델·사업자·판단 근거는 입력하지 않아도 됩니다.`}</p>
     <label className={CHECK_LABEL_CLASS}><input className="mt-0.5" type="checkbox" checked={checkOnly ? checked : confirmed} disabled={!active.length && !(checkOnly && checked)}
-      onChange={(event) => { if (!checkOnly) setConfirmed(event.target.checked); else if (event.target.checked) complete(); else onClear?.(); }} /><span>{GOODS_KC_NOT_APPLICABLE_ATTESTATION}</span></label>
+      onChange={(event) => { if (!checkOnly) setConfirmed(event.target.checked); else if (event.target.checked) complete(); else onUncheck?.(); }} /><span>{GOODS_KC_NOT_APPLICABLE_ATTESTATION}</span></label>
     <details className={`${DETAILS_CLASS} bg-background`}><summary className={SUMMARY_CLASS}>고객 안내 추가 (선택)</summary>
       <div className={DETAILS_BODY_CLASS}>
         <textarea className={GOOD_TEXTAREA_CLASS} data-slot="textarea" aria-label="해당 없음 고객 안내" rows={2} maxLength={1000} value={note}
@@ -142,6 +180,10 @@ export function GoodsKcEditor({ goodId, configuration, onSaved, templateRequest,
 }) {
   const [models, setModels] = useState(initialDraft?.models ?? configuration.models);
   const [attested, setAttested] = useState(initialDraft?.attested ?? false);
+  /* 'KC 인증 대상 여부'(1007-034). 처음에는 입력에서 읽고, 운영자가 고르면 그 값을 따른다. */
+  const [choice, setChoice] = useState<GoodsKcChoice | null>(() => goodsKcChoice(initialDraft?.models ?? configuration.models));
+  /* 운영자가 '대상 아님'을 고른 횟수. 고를 때마다 해당 없음 칸을 확인 체크를 켠 채로 새로 연다. */
+  const [notApplicablePick, setNotApplicablePick] = useState(0);
   // 기본 상품 저장이 KC 버전을 올려도 편집기를 다시 마운트하지 않는다. 입력 중인 모델은 지키고
   // 새 버전(기대 revision·맥락 지문)만 받아, 다시 저장할 때 충돌하지 않게 한다.
   const [seenConfiguration, setSeenConfiguration] = useState(configuration);
@@ -150,6 +192,7 @@ export function GoodsKcEditor({ goodId, configuration, onSaved, templateRequest,
     const refreshed = goodsKcEditorRefresh(seenConfiguration, configuration, models);
     setSeenConfiguration(configuration);
     setModels(refreshed.models);
+    if (refreshed.models !== models) setChoice(goodsKcChoice(refreshed.models));
     if (configuration.revision !== seenConfiguration.revision || configuration.contextFingerprint !== seenConfiguration.contextFingerprint) setAttested(false);
     setRefreshNotice(refreshed.keptUnsavedInput
       ? '기본 상품 저장으로 KC 검토가 다시 열렸습니다. 입력 중인 KC 내용은 그대로 두었으니 확인 체크 후 다시 저장해주세요.'
@@ -168,7 +211,7 @@ export function GoodsKcEditor({ goodId, configuration, onSaved, templateRequest,
     const model=kcModelFromTemplate(templateRequest.template.family,templateRequest.template.scheme,templateRequest.template.publicNote);
     if (readOnly) setError('KC 유형 틀은 비공개 상품의 미검토 모델에 적용할 수 있습니다.');
     else if (!model || models.length>=MAX_GOODS_KC_MODELS) setError('KC 모델의 최대 개수와 유형 틀을 확인해주세요.');
-    else {setModels([...models,model]);setAttested(false);setError(null);}
+    else {setModels([...models,model]);setChoice(goodsKcChoice([...models,model]));setAttested(false);setError(null);}
   }
   useEffect(()=>{if(appliedTemplate) onTemplateApplied?.(appliedTemplate);},[appliedTemplate,onTemplateApplied]);
   const dirty=JSON.stringify(models)!==JSON.stringify(configuration.models);
@@ -190,12 +233,19 @@ export function GoodsKcEditor({ goodId, configuration, onSaved, templateRequest,
   }
   function save(status: 'unreviewed' | 'reviewed') { persist(models, status, attested); }
   function completeNotApplicable(next: GoodsKcModelInput[]) { change(next); persist(next, 'reviewed', true); }
+  /* 대상 아님: 해당 없음 칸을 연다(입력한 모델은 완료 버튼을 누를 때 확인 뒤 바꾼다). 대상: 모델이 없거나 해당 없음뿐이면
+     사용 중인 옵션을 모두 연결한 새 모델 1개로 시작한다. */
+  function choose(next: GoodsKcChoice) {
+    setChoice(next);
+    if (next === 'not_applicable') setNotApplicablePick((value) => value + 1);
+    else if (!models.length || goodsKcSoleNotApplicable(models)) change([goodsKcSubjectModel(configuration.variants)]);
+  }
   // 저장된 검토가 상품 전체 해당 없음 1개로 완료됐으면 결과를 위에 요약하고 모델 상세는 접는다.
   // 저장값으로만 판단해 입력 중에 화면 구조가 바뀌지 않게 하고, 미저장 입력이 생기면 펼친다.
   const notApplicableReviewed = configuration.status === 'reviewed' && goodsKcSoleNotApplicable(configuration.models);
   const linked = configuration.variants.filter((variant) => variant.active).length;
   const modelDetails = <>
-    <p className="text-sm text-muted-foreground">KC 대상 상품은 아래에서 모델별로 제도·번호·근거를 입력합니다.</p>
+    <p className="text-sm text-muted-foreground">{GOODS_KC_SUBJECT_GUIDE}</p>
     {models.map((model, index) => <ModelFields key={index} model={model} index={index} variants={configuration.variants} disabled={pending || readOnly}
       onChange={(next) => change(models.map((item, position) => position === index ? next : item))}
       onRemove={() => change(models.filter((_, position) => position !== index))} />)}
@@ -218,7 +268,7 @@ export function GoodsKcEditor({ goodId, configuration, onSaved, templateRequest,
     {!readOnly && <>
       <label className={CHECK_LABEL_CLASS}><input className="mt-0.5" type="checkbox" checked={attested} disabled={pending || problems.length > 0}
         onChange={(event) => setAttested(event.target.checked)} />
-        <span>원본 근거와 실제 모델·사업자·대상 옵션이 일치하고, 해당 제도의 필수 사항을 확인했습니다.</span>
+        <span>{GOODS_KC_SUBJECT_ATTESTATION}</span>
       </label>
       <div className="flex flex-wrap gap-2">
         <button type="button" className={buttonVariants({ variant: 'outline' })} data-slot="button" disabled={pending} onClick={() => save('unreviewed')}>{pending ? '저장 중…' : '미검토로 저장'}</button>
@@ -240,9 +290,13 @@ export function GoodsKcEditor({ goodId, configuration, onSaved, templateRequest,
         <div className="flex min-w-0 flex-col gap-4 border-t p-3">{modelDetails}</div>
       </details>
     </> : <>
-      <ProductNotApplicable variants={configuration.variants} models={models} disabled={pending || readOnly}
-        onNoteChange={(publicNote) => change([{ ...models[0], publicNote }])} onComplete={completeNotApplicable} />
-      {modelDetails}
+      <GoodsKcSubjectChoice value={choice} disabled={pending || readOnly} onChange={choose} />
+      {choice === 'not_applicable' ? <ProductNotApplicable key={`not-applicable-${notApplicablePick}`} initialConfirmed={notApplicablePick > 0}
+        variants={configuration.variants} models={models} disabled={pending || readOnly}
+        onNoteChange={(publicNote) => change([{ ...models[0], publicNote }])} onComplete={completeNotApplicable} /> : null}
+      {/* 해당 없음 모델(미검토)이나 아직 지우지 않은 대상 모델이 있으면 기존처럼 모델 입력을 펼쳐 둔다(선택 칸·고객 안내를 고칠 수 있다). */}
+      {choice === 'subject' || (choice === 'not_applicable' && models.length > 0) ? modelDetails : null}
+      {choice === null ? <p className="text-sm text-muted-foreground">KC 대상 여부를 고르면 입력칸이 열립니다. 대상이 아니면 상품 전체 KC 해당 없음으로 바로 끝나고, 대상이면 인증 종류·번호와 모델·사업자를 입력합니다.</p> : null}
     </>}
     {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
     <details className={DETAILS_CLASS}><summary className={SUMMARY_CLASS}>최근 검토 이력</summary><div className={DETAILS_BODY_CLASS}>{configuration.history.length ? <ol className="flex list-decimal flex-col gap-1 pl-5 text-sm">
@@ -292,7 +346,7 @@ export function GoodsKcPanel({ goodId,templateRequest,onTemplateApplied,refreshK
   const visible = loaded?.goodId === goodId ? loaded : null;
   return <section className={`${GOOD_SUBPANEL_CLASS} text-sm`} aria-labelledby={`kc-review-${goodId}`} data-kc-panel="">
     <div className="flex flex-col gap-1"><h2 id={`kc-review-${goodId}`} className="text-base leading-snug font-medium">KC 정보</h2>
-      <p className="text-sm text-muted-foreground">KC 대상이 아니면 상품 전체 KC 해당 없음으로 바로 검토를 끝내고, KC 대상이면 모델·옵션별로 제도와 근거를 입력합니다.
+      <p className="text-sm text-muted-foreground">KC 인증 대상 여부를 고릅니다. 대상이 아니면 상품 전체 KC 해당 없음으로 바로 검토를 끝내고, 대상이면 인증 종류·번호와 모델·사업자·적용 옵션을 입력합니다(내부 검토 근거는 선택).
         신규 공개와 비공개 후 재공개에는 검토 완료가 필요하며, 기존 공개 미기록 상품은 자동 승인하거나 중지하지 않습니다.</p>
     </div>
     {notice?.goodId === goodId && <p className={`${GOOD_NOTE_CLASS} font-medium text-[var(--wc-success)]`} role="status">{notice.message}</p>}
@@ -302,5 +356,111 @@ export function GoodsKcPanel({ goodId,templateRequest,onTemplateApplied,refreshK
         onSaved={(configuration, message) => { remember({ draft: null }); setLoaded({ goodId, configuration }); setNotice({ goodId, message }); setSavedEpoch((value) => value + 1); }} /> : null}
     <button type="button" className={`${buttonVariants({ variant: 'outline' })} self-start`} data-slot="button" disabled={pending} onClick={() => { remember({ configuration: null, draft: null }); setLoaded(null); setRefresh((value) => value + 1); }}>저장된 KC 정보 다시 불러오기</button>
     <small className="text-xs text-muted-foreground">저장 실패 시 현재 입력은 유지됩니다. 내부 증빙 참조는 브라우저 자동복구 저장소에 보관하지 않으므로, 작업을 중단하기 전에 미검토로 저장해주세요.</small>
+    <GoodsOtherCertificationsPanel goodId={goodId} />
   </section>;
+}
+
+export const GOODS_OTHER_CERTIFICATIONS_GUIDE = 'KC 외 인증(예: 전파법 적합성평가)을 여러 건 입력합니다. 고객 상세에 표시를 고른 인증만 상품 상세의 제품 안전정보에 KC 고지와 함께 보입니다. 판매자가 신고하는 정보라 공개 조건이 아니고 검토 단계가 없습니다.';
+
+/** 기타 인증 입력 목록(SHEET-014). 등록 화면은 상품과 함께, 저장된 상품은 이 자리에서 따로 저장한다. 입력에는 name이 없어 상품 저장에 섞이지 않는다. */
+export function GoodsOtherCertificationsFields({ entries, disabled, onChange }: {
+  entries: readonly GoodsOtherCertificationInput[]; disabled: boolean; onChange: (entries: GoodsOtherCertificationInput[]) => void;
+}) {
+  const id = useId();
+  const problems = entries.length ? goodsOtherCertificationProblems(entries) : [];
+  const visible = publicGoodsOtherCertifications(entries);
+  const update = (index: number, changes: Partial<GoodsOtherCertificationInput>) => onChange(entries.map((entry, position) => position === index ? { ...entry, ...changes } : entry));
+  function field(index: number, key: 'kind' | 'agency' | 'number', title: string) {
+    const entry = entries[index];
+    return <label className={FIELD_CLASS}><span className="font-medium">{title}</span><input className={GOOD_INPUT_CLASS} data-slot="input" aria-label={`기타 인증 ${index + 1} ${title}`}
+      list={key === 'kind' ? `${id}-kinds` : undefined} value={entry[key]} maxLength={GOODS_OTHER_CERTIFICATION_TEXT_LIMIT} disabled={disabled}
+      onChange={(event) => update(index, { [key]: event.target.value })} /></label>;
+  }
+  return <div className="flex min-w-0 flex-col gap-3" data-kc-other-certifications="">
+    <datalist id={`${id}-kinds`}>{GOODS_OTHER_CERTIFICATION_KIND_SUGGESTIONS.map((kind) => <option key={kind} value={kind} />)}</datalist>
+    {!entries.length ? <p className="text-sm text-muted-foreground">입력한 기타 인증이 없습니다. 필요 없으면 비워 두세요.</p> : null}
+    {entries.map((entry, index) => <fieldset key={index} className="m-0 flex min-w-0 flex-col gap-3 rounded-lg border p-4" disabled={disabled} data-kc-other-certification="">
+      <legend className="float-left w-full p-0 text-sm font-medium">기타 인증 {index + 1}{entry.kind.trim() ? ` · ${entry.kind.trim()}` : ''}</legend>
+      <div className={FIELD_GRID_CLASS}>{field(index, 'kind', '인증 종류')}{field(index, 'agency', '인증기관 (선택)')}{field(index, 'number', '인증번호')}</div>
+      <label className={CHECK_LABEL_CLASS}><input className="mt-0.5" type="checkbox" checked={entry.visible} aria-label={`기타 인증 ${index + 1} 고객 상세에 표시`}
+        onChange={(event) => update(index, { visible: event.target.checked })} /><span>고객 상세에 표시</span></label>
+      <button type="button" className={`${buttonVariants({ variant: 'outline', size: 'sm' })} self-start`} data-slot="button"
+        onClick={() => onChange(entries.filter((_, position) => position !== index))}>이 인증 빼기</button>
+    </fieldset>)}
+    <div><button type="button" className={buttonVariants({ variant: 'outline' })} data-slot="button" disabled={disabled || entries.length >= MAX_GOODS_OTHER_CERTIFICATIONS}
+      onClick={() => onChange([...entries, emptyGoodsOtherCertification()])}>기타 인증 추가</button></div>
+    {problems.length ? <div className={GOOD_NOTE_CLASS}><strong className="font-medium">저장 전 확인</strong><ul className="mt-1 flex list-disc flex-col gap-1 pl-5 text-muted-foreground">{problems.map((problem, index) => <li key={index}>{problem}</li>)}</ul></div> : null}
+    {visible.length ? <GoodsKcDisclosure title="고객 상세 미리보기 · 기타 인증" disclosures={[]} otherCertifications={visible} /> : null}
+  </div>;
+}
+
+interface GoodsOtherCertificationsStash {
+  configuration: AdminGoodsOtherCertifications | null;
+  /** 저장하지 않은 입력. null이면 저장된 값을 그대로 보여준다. */
+  entries: GoodsOtherCertificationInput[] | null;
+  error: string | null;
+}
+
+/** 저장된 상품의 기타 인증. KC 검토와 따로 저장하고, 공개 중에도 고칠 수 있다(공개 조건이 아니다). 기본 폼과 함께 다시 마운트돼도 입력을 이어 쓴다. */
+export function GoodsOtherCertificationsPanel({ goodId }: { goodId: string }) {
+  const [state, setState] = useGoodWorkspaceStash<GoodsOtherCertificationsStash>(`kc-other-certifications:${goodId}`,
+    () => ({ configuration: null, entries: null, error: null }));
+  const [notice, setNotice] = useState<string | null>(null);
+  const [reload, setReload] = useState(0);
+  const [pending, startTransition] = useTransition();
+  const loaded = Boolean(state.configuration);
+  useEffect(() => {
+    if (loaded) return;
+    let canceled = false;
+    startTransition(async () => {
+      try {
+        const result = await readGoodsOtherCertificationsAction(goodId);
+        if (!canceled) setState((current) => result.ok ? { ...current, configuration: result.configuration, error: null } : { ...current, error: result.error });
+      } catch { if (!canceled) setState((current) => ({ ...current, error: '기타 인증을 불러오지 못했습니다.' })); }
+    });
+    return () => { canceled = true; };
+  }, [goodId, loaded, reload, setState]);
+  const configuration = state.configuration;
+  const entries = state.entries ?? configuration?.entries ?? [];
+  const dirty = Boolean(configuration && state.entries && JSON.stringify(state.entries) !== JSON.stringify(configuration.entries));
+  const problems = entries.length ? goodsOtherCertificationProblems(entries) : [];
+  function save() {
+    if (!configuration) return;
+    setNotice(null);
+    startTransition(async () => {
+      try {
+        const result = await saveGoodsOtherCertificationsAction(goodId, { entries, expectedRevision: configuration.revision });
+        if (result.ok) { setState({ configuration: result.configuration, entries: null, error: null }); setNotice(result.message); }
+        /* 버전 충돌: 서버가 함께 돌려준 최신 저장값으로 버전만 바꾸고 입력은 그대로 둔다. 다시 저장하면 최신 값을 덮어쓰고,
+           최신 값으로 바꾸려면 아래 다시 불러오기를 누른다(안내 문구가 이 두 길을 그대로 말한다). */
+        else if ('latest' in result) setState((current) => ({ ...current, configuration: result.latest, entries: current.entries ?? entries, error: result.error }));
+        else setState((current) => ({ ...current, error: result.error }));
+      } catch { setState((current) => ({ ...current, error: '기타 인증을 저장하지 못했습니다. 입력은 유지되므로 다시 시도해주세요.' })); }
+    });
+  }
+  /* 저장된 값으로 다시 시작한다. 저장하지 않은 입력이 있으면 지우기 전에 묻는다. */
+  function reloadSaved() {
+    if (dirty && !window.confirm('저장하지 않은 기타 인증 입력을 지우고 저장된 값으로 바꿉니다. 계속할까요?')) return;
+    setNotice(null);
+    setState({ configuration: null, entries: null, error: null });
+    setReload((value) => value + 1);
+  }
+  return <div className="flex min-w-0 flex-col gap-3 border-t pt-4" data-kc-other-panel="">
+    <div className="flex flex-col gap-1"><h3 className="text-sm font-medium">기타 인증 <span className="font-normal text-muted-foreground">· 별도 저장</span></h3>
+      <p className="text-sm text-muted-foreground">{GOODS_OTHER_CERTIFICATIONS_GUIDE} 공개 중에도 고칠 수 있습니다.</p></div>
+    {notice ? <p className={`${GOOD_NOTE_CLASS} font-medium text-[var(--wc-success)]`} role="status">{notice}</p> : null}
+    {!configuration ? (state.error ? <div className="flex flex-col items-start gap-2"><p className="text-sm text-destructive" role="alert">{state.error}</p>
+      <button type="button" className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" disabled={pending}
+        onClick={() => { setState((current) => ({ ...current, error: null })); setReload((value) => value + 1); }}>{GOODS_OTHER_CERTIFICATIONS_RELOAD_LABEL}</button></div>
+      : <p className="text-sm text-muted-foreground" role="status">기타 인증을 불러오는 중입니다…</p>) : <>
+      <GoodsOtherCertificationsFields entries={entries} disabled={pending} onChange={(next) => { setNotice(null); setState((current) => ({ ...current, entries: next, error: null })); }} />
+      {configuration.updatedAt ? <small className="text-xs text-muted-foreground">마지막 저장 · {configuration.updatedByName ?? '운영자'} · {new Date(configuration.updatedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}</small> : null}
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" className={buttonVariants({ variant: dirty ? 'default' : 'outline' })} data-slot="button" disabled={pending || !dirty || problems.length > 0} onClick={save}>{pending ? '저장 중…' : '기타 인증 저장'}</button>
+        <button type="button" className={buttonVariants({ variant: 'outline' })} data-slot="button" disabled={pending} onClick={reloadSaved}>{GOODS_OTHER_CERTIFICATIONS_RELOAD_LABEL}</button>
+        {dirty ? <span className="text-sm text-muted-foreground">저장하지 않은 기타 인증이 있습니다.</span> : null}
+      </div>
+      {state.error ? <p className="text-sm text-destructive" role="alert">{state.error}</p> : null}
+    </>}
+  </div>;
 }

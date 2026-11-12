@@ -82,6 +82,39 @@ export function parseGoodsKcDisclosures(value: unknown): GoodsKcDisclosure[] | n
   return result;
 }
 
+/**
+ * 기타 인증(SHEET-014·ADR-0036)의 고객 표시 항목. 고객 노출을 고른 항목만 DB가
+ * goods.other_certification_disclosures로 내보내고, 노출 여부·작성자는 담지 않는다.
+ */
+export interface GoodsOtherCertificationDisclosure { kind: string; agency: string; number: string }
+export const MAX_GOODS_OTHER_CERTIFICATIONS = 20;
+export const GOODS_OTHER_CERTIFICATION_TEXT_LIMIT = 100;
+/** 자주 쓰는 인증 종류 제안. 자유 입력이며 MD 품목별 인증 종류 목록이 오면 채운다. */
+export const GOODS_OTHER_CERTIFICATION_KIND_SUGGESTIONS = [
+  '방송통신기자재 적합성평가(적합인증)', '방송통신기자재 적합성평가(적합등록)', '어린이보호포장', '생활화학제품 안전기준확인',
+] as const;
+
+/** Strict allowlist like parseGoodsKcDisclosures: any private field fails closed. */
+export function parseGoodsOtherCertificationDisclosures(value: unknown): GoodsOtherCertificationDisclosure[] | null {
+  if (!Array.isArray(value) || value.length > MAX_GOODS_OTHER_CERTIFICATIONS) return null;
+  const result: GoodsOtherCertificationDisclosure[] = [];
+  for (const row of value) {
+    if (!record(row) || Object.keys(row).length !== 3 || Object.keys(row).some((key) => !['kind', 'agency', 'number'].includes(key))) return null;
+    const { kind, agency, number } = row;
+    // 길이는 DB char_length처럼 코드 포인트로 센다.
+    if (typeof kind !== 'string' || !kind.trim() || [...kind].length > GOODS_OTHER_CERTIFICATION_TEXT_LIMIT
+      || typeof agency !== 'string' || [...agency].length > GOODS_OTHER_CERTIFICATION_TEXT_LIMIT
+      || typeof number !== 'string' || !number.trim() || [...number].length > GOODS_OTHER_CERTIFICATION_TEXT_LIMIT) return null;
+    result.push({ kind, agency, number });
+  }
+  return result;
+}
+
+/** 고객 상세 표의 한 줄: 종류 | 인증번호(인증기관). */
+export function goodsOtherCertificationRow(certification: GoodsOtherCertificationDisclosure): [string, string] {
+  return [certification.kind, `인증번호 ${certification.number}${certification.agency ? ` · 인증기관 ${certification.agency}` : ''}`];
+}
+
 /** `sole` marks the only disclosure of a product: a not-applicable row then
  * covers every option, so the customer table states it for the product and
  * omits the option list. Otherwise it is stated for the listed options. */

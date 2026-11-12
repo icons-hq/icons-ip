@@ -572,7 +572,8 @@ export function normalizeAdminCurationForm(formData: FormData): AdminCurationFor
   let slot: string | null = null;
   if (kind === 'best_tab') {
     if (BEST_TAB_SLOTS.has(rawSlot)) slot = rawSlot;
-    else errors.slot = '탭 슬롯을 선택해주세요.';
+    /* 1007-054: 화면 라벨(상품 모음 위치)과 같은 말로 안내한다. 코드의 slot 이름은 화면에 보이지 않는다. */
+    else errors.slot = '상품 모음 위치를 선택해주세요.';
   } else if (kind === 'collection_banner') {
     if (isCollectionBannerSlot(rawSlot)) slot = rawSlot;
     else errors.slot = '배너를 보일 컬렉션을 선택해주세요.';

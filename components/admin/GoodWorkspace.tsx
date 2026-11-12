@@ -31,6 +31,9 @@ interface SectionsContext {
   /** 고시 카드 안의 KC 패널은 기본 폼과 함께 다시 마운트된다. 입력 중인 KC가 기본 저장으로 사라지지 않게 키 밖에 맡긴다. */
   readKcPanelStash: (goodId: string) => GoodsKcPanelStash | null;
   rememberKcPanel: (goodId: string, changes: Partial<Omit<GoodsKcPanelStash, 'goodId'>>) => void;
+  /** 판매 정보 카드 안의 예약판매 패널(별도 저장)도 기본 폼과 함께 다시 마운트된다. 입력 중인 값을 키 밖에 맡긴다. undefined는 지운다. */
+  readPanelStash: (key: string) => unknown;
+  rememberPanel: (key: string, value: unknown) => void;
 }
 /** 저장된 상품의 KC 패널이 다시 마운트돼도 이어 쓸 값(불러온 설정과 입력 중인 모델). */
 export interface GoodsKcPanelStash {
@@ -64,17 +67,49 @@ export function GoodWorkspaceProvider({ completedKey = null, children }: { compl
     const current = kcPanelStash.current?.goodId === goodId ? kcPanelStash.current : { goodId, configuration: null, draft: null };
     kcPanelStash.current = { ...current, ...changes };
   }, []);
+  const panelStash = useRef(new Map<string, unknown>());
+  const readPanelStash = useCallback((key: string) => panelStash.current.get(key), []);
+  const rememberPanel = useCallback((key: string, value: unknown) => {
+    if (value === undefined) panelStash.current.delete(key); else panelStash.current.set(key, value);
+  }, []);
   const publishOptionRows = useCallback((rows: GoodsOptionRow[]) => {
     setOptionRows((current) => JSON.stringify(current) === JSON.stringify(rows) ? current : rows);
   }, []);
   const openValue = useMemo(() => ({ open, setOpen }), [open, setOpen]);
-  const sectionsValue = useMemo(() => ({ sections, setSections, optionRows, publishOptionRows, sectionErrors, setSectionErrors, operationId, readKcPanelStash, rememberKcPanel }),
-    [sections, optionRows, publishOptionRows, sectionErrors, operationId, readKcPanelStash, rememberKcPanel]);
+  const sectionsValue = useMemo(() => ({ sections, setSections, optionRows, publishOptionRows, sectionErrors, setSectionErrors, operationId, readKcPanelStash, rememberKcPanel, readPanelStash, rememberPanel }),
+    [sections, optionRows, publishOptionRows, sectionErrors, operationId, readKcPanelStash, rememberKcPanel, readPanelStash, rememberPanel]);
   return <OpenState.Provider value={openValue}><Sections.Provider value={sectionsValue}>{children}</Sections.Provider></OpenState.Provider>;
 }
 
 /** 등록 화면 섹션 상태. provider 밖(다른 화면·테스트)에서는 null이다. */
 export function useGoodWorkspaceSections() { return useContext(Sections); }
+
+/**
+ * 기본 폼 안에 놓인 독립 패널의 입력 상태. 기본 폼이 저장 시도마다 다시 마운트돼도(R14) 같은 `key`면 입력 중인 값을 이어 쓴다.
+ * 패널이 저장에 성공하면 `forget`으로 지워 다음 마운트가 서버 값에서 시작하게 한다. provider 밖에서는 보통 상태다.
+ */
+export function useGoodWorkspaceStash<T>(key: string, initial: () => T): readonly [T, Dispatch<SetStateAction<T>>, () => void] {
+  const workspace = useContext(Sections);
+  const read = workspace?.readPanelStash, remember = workspace?.rememberPanel;
+  const [value, setValue] = useState<T>(() => (read?.(key) as T | undefined) ?? initial());
+  useEffect(() => { remember?.(key, value); }, [remember, key, value]);
+  const forget = useCallback(() => remember?.(key, undefined), [remember, key]);
+  return [value, setValue, forget] as const;
+}
+
+/**
+ * 기본 폼 안에 그리지만 상품 저장에 섞이면 안 되는 독립 입력(판매 정보 카드의 예약판매)의 `form` 속성 값.
+ * 이 id의 form은 만들지 않는다. 소속 폼이 없는 입력은 상품 저장의 FormData·브라우저 검증·Enter 제출에 들어가지 않는다(HTML form owner 규칙).
+ */
+export const GOOD_DETACHED_FORM_ID = 'good-detached-controls';
+
+/** 소속 폼이 없는 입력 묶음의 브라우저 검증. 첫 잘못된 칸에서 말풍선을 보이고 멈춘다. */
+export function reportDetachedValidity(group: HTMLElement | null): boolean {
+  for (const control of group?.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>('input, select, textarea') ?? []) {
+    if (!control.reportValidity()) return false;
+  }
+  return true;
+}
 
 /**
  * 펼침 상태를 키 밖 상태에 맞추고, 사용자가 바꾼 것만 기록한다(10/27 회의 R14).
@@ -356,6 +391,23 @@ export function GoodFoldedRow({ id, title, summary, errorCount = 0, isDefault = 
     </summary>
     <div className="flex min-w-0 flex-col gap-4 border-t px-3 py-4">{children}</div>
   </GoodWorkspaceDetails>;
+}
+
+/**
+ * 카드 안의 펼친 소항목(10/27 회의 R12·R13 — 판매 정보 카드의 판매기간·예약판매·구매 제한). 접지 않고 제목·현재 값 한 줄과 입력을 바로 보인다.
+ * `id`는 오류·판매 준비 링크의 대상이다. `mode`는 저장 방식(상품과 함께 저장·별도 저장)을 제목 옆에 밝힌다.
+ */
+export function GoodEditorSubsection({ id, title, summary, mode, errorCount = 0, children }: {
+  id: string; title: string; summary?: ReactNode; mode?: string; errorCount?: number; children: ReactNode;
+}) {
+  return <section aria-labelledby={`${id}-title`} className="flex min-w-0 scroll-mt-24 flex-col gap-4 border-t pt-5 outline-none" data-good-subsection="" id={id} tabIndex={-1}>
+    <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
+      <h4 className="text-sm font-medium text-foreground" data-good-section-title="" id={`${id}-title`}>{title}</h4>
+      {mode ? <span className="text-xs text-muted-foreground" data-good-operation-mode="">{mode}</span> : null}
+      {errorCount || summary ? <span className="min-w-0 text-xs text-muted-foreground wrap-anywhere" data-good-section-summary="">{errorCount ? <strong className="font-medium text-destructive">{errorCount}개 확인 필요</strong> : summary}</span> : null}
+    </div>
+    {children}
+  </section>;
 }
 
 /** Native details keep every named input mounted when a section is folded. */

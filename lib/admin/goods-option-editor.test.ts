@@ -3,6 +3,7 @@ import {
   applyErpItemToGoodsOption, applyGoodsOptionBulkEdit, collapseGoodsOptionRows, goodsOptionCollapseNotice, generateGoodsOptionRows, goodsOptionRowKey, goodsOptionStockTotals,
   initialGoodsOptionRows, isSingleGoodsOption, parseGoodsOptionBulkEdit, parseGoodsOptionRows, removeGoodsOptionRows, restoreGoodsOptionRows,
   inheritRandomOptionLimits, predictGoodsOptionCodes, selectErpItemForGoodsOption, type GoodsOptionRow,
+  emptyNewGoodsOptionStock, goodsOptionRowsForImport, goodsOptionStockMissing, shouldAutoFillErpSalePrice, GOODS_OPTION_STOCK_REQUIRED,
 } from './goods-option-editor';
 import { planGoodsOptionImport } from './goods-option-import';
 describe('goods option editing', () => {
@@ -13,7 +14,10 @@ describe('goods option editing', () => {
     if (!result.ok) throw new Error();
     expect(result.rows).toHaveLength(4); expect(result.rows[0]).toBe(existing);
     expect(result.rows[3].attributes).toEqual({ 색상: '파랑', 사이즈: 'M', 구성: '선물' });
-    expect(parseGoodsOptionRows(JSON.stringify(result.rows), 1000)).toEqual(result);
+    /* 0901-015: 새 조합의 재고 칸은 비어 있어 그대로는 저장하지 않는다. 재고를 넣으면(0 포함) 저장 계약은 그대로다. */
+    expect(parseGoodsOptionRows(JSON.stringify(result.rows), 1000)).toEqual({ ok: false, error: '옵션 2(빨강 / M / 선물): 재고수량을 입력해주세요. 재고가 없으면 0을 입력합니다.' });
+    const filled = result.rows.map((row) => Number.isFinite(row.stockQty) ? row : { ...row, stockQty: 0 });
+    expect(parseGoodsOptionRows(JSON.stringify(filled), 1000)).toEqual({ ok: true, rows: filled });
     expect(generateGoodsOptionRows(Array.from({ length: 4 }, (_, i) => ({ name: `축${i}`, values: 'A' })), [])).toMatchObject({ ok: false });
     expect(parseGoodsOptionRows(JSON.stringify([{ ...existing, attributes: { ...existing.attributes, 네번째: '금지' } }]), 1000)).toMatchObject({ ok: false });
   });
@@ -21,9 +25,9 @@ describe('goods option editing', () => {
     const existing = [{ id: '11111111-1111-4111-8111-111111111111', name: '빨강 / M', code: 'RED-M', attributes: { 색상: '빨강', 사이즈: 'M' }, extraPrice: 500, stockQty: 4, expectedStockQty: 4 }];
     expect(generateGoodsOptionRows([{ name: '색상', values: '빨강, 파랑' }, { name: '사이즈', values: 'M, L' }], existing)).toEqual({ ok: true, rows: [
       existing[0],
-      { name: '빨강 / L', code: '', attributes: { 색상: '빨강', 사이즈: 'L' }, extraPrice: 0, stockQty: 0 },
-      { name: '파랑 / M', code: '', attributes: { 색상: '파랑', 사이즈: 'M' }, extraPrice: 0, stockQty: 0 },
-      { name: '파랑 / L', code: '', attributes: { 색상: '파랑', 사이즈: 'L' }, extraPrice: 0, stockQty: 0 },
+      { name: '빨강 / L', code: '', attributes: { 색상: '빨강', 사이즈: 'L' }, extraPrice: 0, stockQty: Number.NaN },
+      { name: '파랑 / M', code: '', attributes: { 색상: '파랑', 사이즈: 'M' }, extraPrice: 0, stockQty: Number.NaN },
+      { name: '파랑 / L', code: '', attributes: { 색상: '파랑', 사이즈: 'L' }, extraPrice: 0, stockQty: Number.NaN },
     ] });
     expect(generateGoodsOptionRows([{ name: '색', values: Array.from({ length: 101 }, (_, i) => `색${i}`).join(',') }], [])).toMatchObject({ ok: false });
     expect(parseGoodsOptionRows('[{"name":"단일","code":"","attributes":{},"extraPrice":-1,"stockQty":0}]', 1000)).toMatchObject({ ok: false });
@@ -63,6 +67,67 @@ describe('goods option editing', () => {
     expect(restoreGoodsOptionRows(JSON.stringify(rows))).toEqual(rows);
     expect(parseGoodsOptionRows(JSON.stringify([{ ...rows[0], erpCode: 'x'.repeat(121) }]), 1000)).toMatchObject({ ok: false });
     expect(parseGoodsOptionRows(JSON.stringify([{ ...rows[0], externalUpdatedAt: 'stale' }]), 1000)).toMatchObject({ ok: false });
+  });
+});
+
+/* 0901-015(11/11 결정 "비우면 저장 불가"): 새 재고 칸은 빈 값으로 시작하고, 비우면 저장을 막고, 0은 직접 입력하면 저장된다. */
+describe('재고수량 빈 칸', () => {
+  it('새 상품의 기본 옵션은 빈 재고 칸으로 시작하고 저장된 옵션은 저장된 재고를 쓴다', () => {
+    const [fresh] = initialGoodsOptionRows([], 0);
+    expect(Number.isNaN(fresh.stockQty)).toBe(true);
+    expect(goodsOptionStockMissing([fresh])).toBe(1);
+    expect(goodsOptionStockTotals([fresh])).toEqual({ total: 0, active: 0 });
+    expect(initialGoodsOptionRows([{ id: '11111111-1111-4111-8111-111111111111', goodId: 'g', name: '기본 옵션', code: 'G-01', price: 1000, stockQty: 0, isDefault: true, archivedAt: null }], 1000)[0].stockQty).toBe(0);
+  });
+
+  it('빈 재고는 제출 JSON에서 null이고 서버 정규화가 막으며, 0은 저장한다', () => {
+    const [fresh] = initialGoodsOptionRows([], 0);
+    expect(JSON.parse(JSON.stringify([fresh]))[0].stockQty).toBeNull();
+    expect(parseGoodsOptionRows(JSON.stringify([fresh]), 1000)).toEqual({ ok: false, error: GOODS_OPTION_STOCK_REQUIRED });
+    expect(parseGoodsOptionRows(JSON.stringify([{ ...fresh, stockQty: 0 }]), 1000)).toMatchObject({ ok: true });
+    /* 키가 아예 없는 행도 입력하지 않은 재고로 본다. */
+    const withoutStock: Partial<GoodsOptionRow> = { ...fresh, stockQty: 0 };
+    delete withoutStock.stockQty;
+    expect(parseGoodsOptionRows(JSON.stringify([withoutStock]), 1000)).toEqual({ ok: false, error: GOODS_OPTION_STOCK_REQUIRED });
+    const rows = [{ ...fresh, name: '빨강', attributes: { 색상: '빨강' }, stockQty: 3 }, { ...fresh, name: '파랑', attributes: { 색상: '파랑' } }];
+    expect(parseGoodsOptionRows(JSON.stringify(rows), 1000)).toEqual({ ok: false, error: `옵션 2(파랑): ${GOODS_OPTION_STOCK_REQUIRED}` });
+  });
+
+  it('실패·자동복구·임시저장으로 되살릴 때 빈 재고 칸을 0으로 바꾸지 않는다', () => {
+    const [fresh] = initialGoodsOptionRows([], 0);
+    const restored = restoreGoodsOptionRows(JSON.stringify([fresh, { ...fresh, name: '파랑', attributes: { 색상: '파랑' }, stockQty: 0 }]))!;
+    expect(Number.isNaN(restored[0].stockQty)).toBe(true);
+    expect(restored[1].stockQty).toBe(0);
+  });
+
+  it('다른 상품 옵션 불러오기는 빈 칸을 0으로 비교하고, 적용 결과의 새 옵션·빈 옵션 재고 칸은 다시 비운다', () => {
+    const [fresh] = initialGoodsOptionRows([], 0);
+    const source = { id: 'source', code: 'SRC', name: '원본', basePrice: 10000, version: 'a'.repeat(64), rows: [{ name: '빨강', attributes: { 색상: '빨강' }, price: 10000 }] };
+    expect(planGoodsOptionImport({ current: [fresh], source, basePrice: 10000, includePrices: false }).ok).toBe(false);
+    const planned = planGoodsOptionImport({ current: goodsOptionRowsForImport([fresh]), source, basePrice: 10000, includePrices: false });
+    if (!planned.ok) throw new Error(planned.error);
+    const applied = emptyNewGoodsOptionStock(planned.plan.rows, [fresh]);
+    expect(applied).toHaveLength(1);
+    expect(Number.isNaN(applied[0].stockQty)).toBe(true);
+    /* 직접 0을 넣은 기존 옵션은 그대로 0이다. */
+    const kept = { ...fresh, name: '빨강', attributes: { 색상: '빨강' }, stockQty: 0 };
+    const again = planGoodsOptionImport({ current: goodsOptionRowsForImport([kept]), source, basePrice: 10000, includePrices: false });
+    if (!again.ok) throw new Error(again.error);
+    expect(emptyNewGoodsOptionStock(again.plan.rows, [kept])[0].stockQty).toBe(0);
+  });
+});
+
+/* 1007-045(11/11 결정 "빈 칸 자동"): 판매가 칸이 비어 있을 때만 ERP 판매가를 바로 넣는다. 0원 입력은 값이다. */
+describe('ERP 판매가 빈 칸 자동 입력', () => {
+  it('빈 판매가 칸만 채우고, 0원 입력·0원 ERP 판매가·옵션가가 있는 옵션은 건드리지 않는다', () => {
+    expect(shouldAutoFillErpSalePrice({ salePrice: 12000, regularPrice: '', single: true, extraPrice: 0 })).toBe(true);
+    expect(shouldAutoFillErpSalePrice({ salePrice: 12000, regularPrice: '  ', single: false, extraPrice: 0 })).toBe(true);
+    expect(shouldAutoFillErpSalePrice({ salePrice: 12000, regularPrice: '0', single: true, extraPrice: 0 })).toBe(false);
+    expect(shouldAutoFillErpSalePrice({ salePrice: 12000, regularPrice: '9900', single: true, extraPrice: 0 })).toBe(false);
+    expect(shouldAutoFillErpSalePrice({ salePrice: 0, regularPrice: '', single: true, extraPrice: 0 })).toBe(false);
+    expect(shouldAutoFillErpSalePrice({ salePrice: null, regularPrice: '', single: true, extraPrice: 0 })).toBe(false);
+    expect(shouldAutoFillErpSalePrice({ salePrice: 12000, regularPrice: '', single: false, extraPrice: 500 })).toBe(false);
+    expect(shouldAutoFillErpSalePrice({ salePrice: 12000, regularPrice: '', single: true, extraPrice: 500 })).toBe(true);
   });
 });
 
