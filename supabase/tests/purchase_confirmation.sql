@@ -264,4 +264,18 @@ select 1/case when has_function_privilege('authenticated','public.create_good_re
  and not has_function_privilege('anon','public.my_review_targets_v3(uuid,text,integer)','execute')
  and not has_function_privilege('authenticated','private.purchase_confirmation_block_reason(uuid)','execute')
  then 1 else 0 end as review_confirmation_sealed_acl;
+-- 자동 작업 잠금 순서(1014-079 후속): 후보 조회는 잠그지 않는 eligible 쌍둥이로 고르고, 주문마다 기다리지 않고 잠근 뒤
+-- 원래 eligible로 다시 본다. 쌍둥이 본문이 eligible과 갈라지면(계정 차단 읽기 외의 차이) 여기서 멈춘다.
+-- 다른 트랜잭션과의 경합은 purchase_confirmation_concurrency.py가 본다.
+select 1/case when (select prosrc from pg_proc where oid='private.purchase_confirmation_candidate(uuid)'::regprocedure)
+  =replace((select prosrc from pg_proc where oid='private.purchase_confirmation_eligible(uuid)'::regprocedure),
+   'not private.is_account_write_fenced(o.user_id)','not exists(select 1 from private.account_action_fences fence where fence.subject_user_id=o.user_id)')
+ and (select 'lock_timeout=100ms'=any(proconfig) and prosrc like '%purchase_confirmation_candidate(o.id)%'
+   and prosrc not like '%purchase_confirmation_eligible(o.id)%' and prosrc like '%pg_try_advisory_xact_lock%' and prosrc not like '% for update;%'
+  from pg_proc where oid='public.settle_delivered_orders()'::regprocedure)
+ and not has_function_privilege('authenticated','private.purchase_confirmation_candidate(uuid)','execute')
+ and not has_function_privilege('service_role','private.purchase_confirmation_candidate(uuid)','execute')
+ and has_function_privilege('service_role','public.settle_delivered_orders()','execute')
+ and not has_function_privilege('authenticated','public.settle_delivered_orders()','execute')
+ then 1 else 0 end as worker_lock_order_contract;
 rollback;
