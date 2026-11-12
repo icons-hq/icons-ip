@@ -269,7 +269,17 @@ $$;
 revoke all on function public.release_unpaid_checkout_orders(uuid, uuid[]) from public, anon, authenticated, service_role;
 grant execute on function public.release_unpaid_checkout_orders(uuid, uuid[]) to service_role;
 
--- 결제 화면의 '다시 결제' 판단. 장바구니 출처는 지금 모양 그대로, 바로구매는 출처와 상품 상세 굿즈를 더한다.
+-- 다시 구매하기(service_retry_direct_order)로 만든 초안의 원 주문. 같은 주문의 다시 구매는 한 번이다 — 두 탭·뒤로 가기의
+-- 재호출은 살아 있는 그 초안을 돌려주고, 그 초안이 이미 무통장 접수·결제 완료 주문을 만들었으면 그 주문으로 안내한다.
+alter table private.checkout_drafts add column retry_order_id uuid references public.orders (id);
+create unique index checkout_drafts_retry_order_key on private.checkout_drafts (retry_order_id) where retry_order_id is not null;
+comment on column private.checkout_drafts.retry_order_id is
+  '바로구매 다시 구매하기의 원 주문(ADR-0030). 주문당 다시 구매 초안 하나 — 재호출은 살아 있는 이 초안을 돌려준다.';
+
+-- 결제 화면의 '다시 결제' 판단. 장바구니 출처는 지금 모양 그대로, 바로구매는 출처와 상품 상세 굿즈를 더한다. 바로구매는
+-- 이 주문의 다시 구매 초안(retry_order_id)이 이미 무통장 접수·결제 완료·결제 확인 중인 주문을 만들었으면 그 주문
+-- (retryOrderId)도 더한다 — 결제 화면이 처음 그릴 때부터 '이미 다시 주문했어요'와 그 주문으로 잇고 다시 구매하기를 감춘다
+-- (새로고침에도 같다). 본인 주문만(service role 전용).
 create or replace function public.service_get_order_cart_retention(p_user_id uuid, p_order_id uuid)
 returns jsonb
 language sql
@@ -279,7 +289,11 @@ set search_path = ''
 as $$
   select pg_catalog.jsonb_build_object('state', hold.state, 'releaseReason', hold.release_reason)
     || case when hold.source in ('direct_checkout', 'direct_transaction')
-      then pg_catalog.jsonb_build_object('source', 'direct', 'baseGoodId', hold.base_good_id) else '{}'::jsonb end
+      then pg_catalog.jsonb_build_object('source', 'direct', 'baseGoodId', hold.base_good_id, 'retryOrderId', (
+        select draft.order_id from private.checkout_drafts as draft
+        where draft.retry_order_id = hold.order_id and draft.user_id = p_user_id and draft.order_id is not null
+          and (private.checkout_draft_order_settled(draft.order_id) or private.checkout_draft_order_payment_unresolved(draft.order_id))))
+      else '{}'::jsonb end
   from private.cart_order_holds as hold
   where hold.order_id = p_order_id and hold.user_id = p_user_id;
 $$;
@@ -287,12 +301,6 @@ revoke all on function public.service_get_order_cart_retention(uuid, uuid) from 
 grant execute on function public.service_get_order_cart_retention(uuid, uuid) to service_role;
 
 -- ── 바로구매 초안 ─────────────────────────────────────────────────────────────────
--- 다시 구매하기(service_retry_direct_order)로 만든 초안의 원 주문. 같은 주문의 다시 구매는 한 번이다 — 두 탭·뒤로 가기의
--- 재호출은 살아 있는 그 초안을 돌려주고, 그 초안이 이미 무통장 접수·결제 완료 주문을 만들었으면 그 주문으로 안내한다.
-alter table private.checkout_drafts add column retry_order_id uuid references public.orders (id);
-create unique index checkout_drafts_retry_order_key on private.checkout_drafts (retry_order_id) where retry_order_id is not null;
-comment on column private.checkout_drafts.retry_order_id is
-  '바로구매 다시 구매하기의 원 주문(ADR-0030). 주문당 다시 구매 초안 하나 — 재호출은 살아 있는 이 초안을 돌려준다.';
 
 create function public.service_create_checkout_direct_draft(p_user_id uuid, p_base_good_id text, p_lines jsonb)
 returns uuid

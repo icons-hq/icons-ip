@@ -445,6 +445,21 @@ describe('CheckoutOrder 바로구매 다시 구매(ADR-0030)', () => {
     expect(html).toContain('<a class="checkout-retry-secondary" href="/shop/g2">굿즈 상세에서 다시 고르기</a>');
     expect(html).not.toContain('같은 굿즈 다시 담기');
   });
+
+  /* 두 탭 다시 구매(UI 재리뷰 4): 다른 탭에서 다시 구매로 이미 접수·결제한 뒤 이 결제 화면을 처음 그리거나 새로 그려도
+     (늦은 탭의 not_retryable 뒤 router.refresh) 처음부터 그 주문으로 잇고 다시 구매하기·이 주문 닫기를 감춘다. */
+  it.each([
+    ['취소된 원 주문', { status: 'canceled' as const, expiresAt: null }],
+    ['결제가 닫힌 원 주문', { paymentAttempt: { state: 'declined', expiresAt: '2099-08-07T06:10:00.000Z', provider: 'toss' } }],
+  ])('다시 구매로 이미 주문했으면 처음부터 그 주문으로 잇는다: %s', (_label, patch) => {
+    const reordered = '00000000-0000-4000-8000-0000000000e9';
+    const html = renderToStaticMarkup(<CheckoutOrder order={{ ...order, directGoodId: 'g2', directRetryOrderId: reordered, ...patch }} />);
+    expect(html).toContain('이미 다시 주문했어요');
+    expect(html).toContain(`<a class="btn btn-holo" href="/orders/${reordered}">다시 주문한 주문 보기</a>`);
+    expect(html).not.toContain('다시 구매하기</button>');
+    expect(html).not.toContain('이 주문 닫고 굿즈 상세에서 다시 고르기');
+    expect(html).not.toContain('같은 구성으로 다시 구매할 수 있어요');
+  });
 });
 
 describe('prepareRetryable', () => {
