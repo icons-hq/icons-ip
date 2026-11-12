@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { claimCollectionRowLabel, customerShipmentGroupLabels, parseGoodShippingPolicy, parseShippingNoticeSnapshot, parseShippingQuote, parseShippingQuoteItems, shipmentGroupLabel, shippingGroupLabel, shippingGroupsNotice, shippingPolicyDescription } from './fulfillment';
+import { claimCollectionRowLabel, customerShipmentGroupLabels, parseGoodShippingPolicy, parseGoodShippingRegionFees, parseShippingNoticeSnapshot, parseShippingQuote, parseShippingQuoteItems, SHIPPING_REGION_FEE_LIST_LIMIT, shipmentGroupLabel, shippingGroupLabel, shippingGroupsNotice, shippingPolicyDescription, shippingRegionFeeDescription, type GoodShippingRegionFees } from './fulfillment';
 
 describe('shipping quote contract', () => {
   it('accepts server groups and rejects inconsistent or missing totals', () => {
@@ -89,4 +89,51 @@ it('견적 묶음의 택배사 이름은 문자열이거나 null 이다', () => 
   expect(parseShippingQuote({totalFee:3000,groups:[{...group,carrierLabel:null}]})?.groups[0].carrierLabel).toBeNull();
   expect(parseShippingQuote({totalFee:3000,groups:[group]})).not.toBeNull();
   expect(parseShippingQuote({totalFee:3000,groups:[{...group,carrierLabel:42}]})).toBeNull();
+});
+
+/* S36-038: 상세 배송 안내의 지역별 추가 배송비. 금액은 DB가 주문서 견적 함수로 정한 값 그대로다. */
+describe('good shipping region fee summary', () => {
+  const listed: GoodShippingRegionFees = { state: 'listed', regions: [{ label: '제주', minFee: 3000, maxFee: 3000 }, { label: '도서산간', minFee: 5000, maxFee: 7000 }],
+    feeUnit: 'per_shipment', waivedAtFreeThreshold: false, truncated: false, nextChangeAt: null };
+  it('parses the RPC shape and rejects anything that would invent or bend an amount', () => {
+    expect(parseGoodShippingRegionFees(listed)).toEqual(listed);
+    expect(parseGoodShippingRegionFees({ ...listed, state: 'none', regions: [], feeUnit: null })).toMatchObject({ state: 'none', regions: [] });
+    for (const broken of [
+      { ...listed, regions: [{ label: '제주', minFee: 0, maxFee: 3000 }] },
+      { ...listed, regions: [{ label: '제주', minFee: 5000, maxFee: 3000 }] },
+      { ...listed, regions: [{ label: ' ', minFee: 3000, maxFee: 3000 }] },
+      { ...listed, regions: [{ label: '제주', minFee: 3000.5, maxFee: 3000.5 }] },
+      { ...listed, state: 'none' },
+      { ...listed, regions: [] },
+      { ...listed, feeUnit: null },
+      { ...listed, feeUnit: 'per_order' },
+      { ...listed, nextChangeAt: 'later' },
+      { ...listed, truncated: 'no' },
+      null,
+    ]) expect(parseGoodShippingRegionFees(broken)).toBeNull();
+  });
+  it('lists regions with their unit and keeps the plain sentence for everything that is not listed', () => {
+    expect(shippingRegionFeeDescription(listed)).toBe('지역별 추가 배송비: 제주 +₩3,000 · 도서산간 +₩5,000~₩7,000(배송 묶음당 1회).');
+    expect(shippingRegionFeeDescription({ ...listed, feeUnit: 'per_good', waivedAtFreeThreshold: true }))
+      .toBe('지역별 추가 배송비: 제주 +₩3,000 · 도서산간 +₩5,000~₩7,000(굿즈당 1회, 무료배송 조건을 채우면 면제).');
+    for (const state of ['none', 'unresolved'] as const) expect(shippingRegionFeeDescription({ ...listed, state, regions: [], feeUnit: null })).toBeNull();
+    expect(shippingRegionFeeDescription(null)).toBeNull();
+    expect(shippingRegionFeeDescription(undefined)).toBeNull();
+  });
+  it('shortens long region lists without dropping the fact that more regions exist', () => {
+    const many = { ...listed, regions: Array.from({ length: SHIPPING_REGION_FEE_LIST_LIMIT + 3 }, (_, index) => ({ label: `섬${index + 1}`, minFee: 1000 + index, maxFee: 1000 + index })) };
+    const text = shippingRegionFeeDescription(many)!;
+    expect(text).toContain(`섬${SHIPPING_REGION_FEE_LIST_LIMIT}`); expect(text).not.toContain(`섬${SHIPPING_REGION_FEE_LIST_LIMIT + 1} `);
+    expect(text).toContain('외 3개 지역');
+    expect(shippingRegionFeeDescription({ ...listed, truncated: true })).toContain('₩7,000 외 지역(');
+  });
+  it('carries the template remote area notice through the snapshot and public policy', () => {
+    const snapshot = { templateId: 't', templateVersion: 1, code: 'basic', name: '기본', shippingNotice: '배송', returnExchangeNotice: '반품', csName: 'CS', csPhone: '02', csEmail: '' };
+    expect(parseShippingNoticeSnapshot(snapshot)).not.toHaveProperty('remoteAreaNotice');
+    expect(parseShippingNoticeSnapshot({ ...snapshot, remoteAreaNotice: '제주 1~2일 추가' })).toMatchObject({ remoteAreaNotice: '제주 1~2일 추가' });
+    expect(parseShippingNoticeSnapshot({ ...snapshot, remoteAreaNotice: 1 })).toBeNull();
+    const policy = { originId: 'origin', originName: '김포', baseFee: 3000, freeThreshold: null, feeType: 'policy', individualFee: 0 };
+    expect(parseGoodShippingPolicy({ ...policy, remoteAreaNotice: '제주 1~2일 추가' })).toMatchObject({ remoteAreaNotice: '제주 1~2일 추가' });
+    expect(parseGoodShippingPolicy({ ...policy, remoteAreaNotice: null })).toBeNull();
+  });
 });

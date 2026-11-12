@@ -35,6 +35,14 @@ describe('배송정보 템플릿 계약', () => {
     expect(control).toMatchObject({ ok: false, errors: { shippingNotice: expect.any(String) } });
   });
 
+  it('도서산간 안내는 선택 칸이며 길이·제어 문자를 검증한다', () => {
+    const base = { code: 'basic', version: '2', name: '기본', shippingNotice: '', returnExchangeNotice: '', csName: '', csPhone: '', csEmail: '' };
+    expect(parseShippingNoticeTemplateInput(base)).toMatchObject({ ok: true, value: { remote_area_notice: '' } });
+    expect(parseShippingNoticeTemplateInput({ ...base, remoteAreaNotice: ' 제주\n도서산간 ' })).toMatchObject({ ok: true, value: { remote_area_notice: '제주\n도서산간' } });
+    expect(parseShippingNoticeTemplateInput({ ...base, remoteAreaNotice: '가'.repeat(4001) })).toMatchObject({ ok: false, errors: { remoteAreaNotice: expect.stringContaining('4000') } });
+    expect(parseShippingNoticeTemplateInput({ ...base, remoteAreaNotice: '도서\u0001산간' })).toMatchObject({ ok: false, errors: { remoteAreaNotice: expect.any(String) } });
+  });
+
   it('템플릿과 상품 검색 조건을 URL에 보존한다', () => {
     const filters = normalizeShippingNoticeTemplateFilters({ q: ' 기본 ', good: 'g-1', page: '2' });
     expect(filters).toEqual({ query: '기본', goodQuery: 'g-1', page: 2 });

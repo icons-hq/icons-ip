@@ -17,6 +17,8 @@ interface ShippingNoticeTemplateRow {
   name: string;
   shipping_notice: string;
   return_exchange_notice: string;
+  /** 배포 전 DB(칸 이전)에서는 없을 수 있다. */
+  remote_area_notice?: string | null;
   cs_name: string;
   cs_phone: string;
   cs_email: string;
@@ -47,6 +49,7 @@ function mapTemplate(row: ShippingNoticeTemplateRow): ShippingNoticeTemplate {
     name: row.name,
     shippingNotice: row.shipping_notice,
     returnExchangeNotice: row.return_exchange_notice,
+    remoteAreaNotice: row.remote_area_notice ?? '',
     csName: row.cs_name,
     csPhone: row.cs_phone,
     csEmail: row.cs_email,
@@ -65,7 +68,7 @@ export async function loadShippingNoticeTemplates(
   const supabase = await createClient();
   let query = supabase
     .from('shipping_notice_templates')
-    .select('id,code,version,name,shipping_notice,return_exchange_notice,cs_name,cs_phone,cs_email,confirmation_evidence,status,confirmed_by,confirmed_at,created_at,updated_at', { count: 'exact' });
+    .select('id,code,version,name,shipping_notice,return_exchange_notice,remote_area_notice,cs_name,cs_phone,cs_email,confirmation_evidence,status,confirmed_by,confirmed_at,created_at,updated_at', { count: 'exact' });
   if (filters.query) {
     const escaped = filters.query.replace(/[\\%_]/g, '\\$&');
     query = query.ilike('name', `%${escaped}%`);
@@ -106,7 +109,7 @@ export async function loadActiveShippingNoticeTemplateOptions(): Promise<Shippin
   for (let page = 0; ; page += 1) {
     const { data, error } = await supabase
       .from('shipping_notice_templates')
-      .select('id,code,version,name,shipping_notice,return_exchange_notice,cs_name,cs_phone,cs_email,status,confirmed_by,confirmed_at,confirmation_evidence,created_at,updated_at')
+      .select('id,code,version,name,shipping_notice,return_exchange_notice,remote_area_notice,cs_name,cs_phone,cs_email,status,confirmed_by,confirmed_at,confirmation_evidence,created_at,updated_at')
       .eq('status', 'active')
       .order('code')
       .order('version', { ascending: false })
@@ -124,6 +127,7 @@ export async function loadActiveShippingNoticeTemplateOptions(): Promise<Shippin
     name: row.name,
     shippingNotice: row.shipping_notice,
     returnExchangeNotice: row.return_exchange_notice,
+    remoteAreaNotice: row.remote_area_notice ?? '',
     csName: row.cs_name,
     csPhone: row.cs_phone,
     csEmail: row.cs_email,

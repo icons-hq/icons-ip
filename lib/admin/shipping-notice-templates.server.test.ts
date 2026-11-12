@@ -7,7 +7,7 @@ vi.mock('@/lib/supabase/server', () => ({ createClient: mocks.createClient }));
 beforeEach(() => {
   mocks.range.mockReset().mockResolvedValue({ data: [{
     id: 'template-1', code: 'basic', version: 1, name: '기본', shipping_notice: '배송',
-    return_exchange_notice: '반품', cs_name: 'CS', cs_phone: '02', cs_email: 'help@example.com',
+    return_exchange_notice: '반품', remote_area_notice: '제주 1~2일 추가', cs_name: 'CS', cs_phone: '02', cs_email: 'help@example.com',
     status: 'active', confirmed_by: 'staff', confirmed_at: '2026-09-10T00:00:00Z',
     confirmation_evidence: 'private', created_at: '2026-09-09T00:00:00Z', updated_at: '2026-09-10T00:00:00Z',
   }], error: null });
@@ -20,7 +20,7 @@ describe('활성 배송정보 템플릿 옵션 로더', () => {
     const options = await loadActiveShippingNoticeTemplateOptions();
     expect(options).toEqual([{
       id: 'template-1', code: 'basic', version: 1, name: '기본', shippingNotice: '배송',
-      returnExchangeNotice: '반품', csName: 'CS', csPhone: '02', csEmail: 'help@example.com',
+      returnExchangeNotice: '반품', remoteAreaNotice: '제주 1~2일 추가', csName: 'CS', csPhone: '02', csEmail: 'help@example.com',
     }]);
     expect(JSON.stringify(options)).not.toContain('private');
     expect(mocks.range).toHaveBeenCalledWith(0, 999);

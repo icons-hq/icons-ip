@@ -1,12 +1,31 @@
 import { parseGoodClaimPolicy, type GoodClaimPolicy } from './goods-claim-policy';
 import { krw } from './format';
 import { isGoodsShipDate } from './goods-preorders';
+import type { ShippingRegionFeeUnit } from './shipping-regions';
 
 export type ShippingFeeType = 'policy' | 'free' | 'individual';
 export interface ShippingNoticeSnapshot {
   templateId: string; version: number; code: string; name: string;
   shippingNotice: string; returnExchangeNotice: string;
+  /** 제주·도서산간 안내(S36-038). 이 칸 이전에 적용한 스냅샷에는 없다. */
+  remoteAreaNotice?: string;
   csName: string; csPhone: string; csEmail: string;
+}
+/** 상세 배송 안내의 지역별 추가 배송비 한 줄 — 같은 지역명에 금액이 여럿이면 최소~최대. */
+export interface GoodShippingRegionFee { label: string; minFee: number; maxFee: number }
+/**
+ * `get_good_shipping_region_fees` — 지역표 추가료 행마다 주문서 견적 함수로 이 굿즈 1개를 견적한 값(S36-038).
+ * listed 일 때만 금액을 보이고, none(규칙 없음·이 굿즈에 붙지 않음)·unresolved(한 금액으로 말할 수 없음)는 지금 문장을 둔다.
+ */
+export interface GoodShippingRegionFees {
+  state: 'listed' | 'none' | 'unresolved';
+  regions: GoodShippingRegionFee[];
+  feeUnit: ShippingRegionFeeUnit | null;
+  /** 무료배송 기준을 채우면 이 굿즈의 지역 추가 배송비가 면제되는가(같은 견적 함수로 기준 금액을 견적한 결과). */
+  waivedAtFreeThreshold: boolean;
+  /** 지역 후보가 많아 일부만 견적했다. */
+  truncated: boolean;
+  nextChangeAt: string | null;
 }
 export interface GoodShippingPolicy {
   originId: string; originName: string; baseFee: number; freeThreshold: number | null;
@@ -15,7 +34,9 @@ export interface GoodShippingPolicy {
   returnAddress?: string;
   shippingNotice?: string;
   returnExchangeNotice?: string;
+  remoteAreaNotice?: string;
   cs?: { name: string; phone: string; email: string };
+  regionFees?: GoodShippingRegionFees;
 }
 export interface ShippingQuoteGroup {
   originId: string; originCode: string; originName: string; policySubtotal: number;
@@ -32,9 +53,11 @@ const object = (value: unknown): value is Record<string, unknown> => Boolean(val
 export function parseShippingNoticeSnapshot(value: unknown): ShippingNoticeSnapshot | null {
   if (!object(value) || !['templateId', 'code', 'name', 'shippingNotice', 'returnExchangeNotice', 'csName', 'csPhone', 'csEmail'].every((key) => typeof value[key] === 'string')
     || !amount(value.templateVersion) || value.templateVersion < 1) return null;
+  if (value.remoteAreaNotice !== undefined && typeof value.remoteAreaNotice !== 'string') return null;
   return {
     templateId: String(value.templateId), version: value.templateVersion, code: String(value.code), name: String(value.name),
     shippingNotice: String(value.shippingNotice), returnExchangeNotice: String(value.returnExchangeNotice),
+    ...(typeof value.remoteAreaNotice === 'string' ? { remoteAreaNotice: value.remoteAreaNotice } : {}),
     csName: String(value.csName), csPhone: String(value.csPhone), csEmail: String(value.csEmail),
   };
 }
@@ -62,7 +85,7 @@ export function parseGoodShippingPolicy(value: unknown): GoodShippingPolicy | nu
     || !amount(value.baseFee) || !amount(value.individualFee)
     || (value.freeThreshold !== null && !amount(value.freeThreshold))
     || !['policy', 'free', 'individual'].includes(String(value.feeType))) return null;
-  for (const key of ['returnAddress', 'shippingNotice', 'returnExchangeNotice']) {
+  for (const key of ['returnAddress', 'shippingNotice', 'returnExchangeNotice', 'remoteAreaNotice']) {
     if (value[key] !== undefined && typeof value[key] !== 'string') return null;
   }
   if (value.cs !== undefined && (!object(value.cs) || !['name', 'phone', 'email'].every((key) => typeof (value.cs as Record<string, unknown>)[key] === 'string'))) return null;
@@ -73,8 +96,38 @@ export function parseGoodShippingPolicy(value: unknown): GoodShippingPolicy | nu
     ...(typeof value.returnAddress === 'string' ? { returnAddress: value.returnAddress } : {}),
     ...(typeof value.shippingNotice === 'string' ? { shippingNotice: value.shippingNotice } : {}),
     ...(typeof value.returnExchangeNotice === 'string' ? { returnExchangeNotice: value.returnExchangeNotice } : {}),
+    ...(typeof value.remoteAreaNotice === 'string' ? { remoteAreaNotice: value.remoteAreaNotice } : {}),
     ...(object(value.cs) ? { cs: { name: String(value.cs.name), phone: String(value.cs.phone), email: String(value.cs.email) } } : {}),
   };
+}
+const REGION_FEE_STATES = ['listed', 'none', 'unresolved'] as const;
+/** 형식이 하나라도 어긋나면 금액을 싣지 않는다(null → 지금 문장). 금액을 고쳐 쓰지 않는다. */
+export function parseGoodShippingRegionFees(value: unknown): GoodShippingRegionFees | null {
+  if (!object(value) || !REGION_FEE_STATES.includes(value.state as GoodShippingRegionFees['state']) || !Array.isArray(value.regions)
+    || value.regions.length > 1000 || typeof value.waivedAtFreeThreshold !== 'boolean' || typeof value.truncated !== 'boolean'
+    || !(value.feeUnit === null || value.feeUnit === 'per_shipment' || value.feeUnit === 'per_good')
+    || !(value.nextChangeAt === null || (typeof value.nextChangeAt === 'string' && Number.isFinite(Date.parse(value.nextChangeAt))))) return null;
+  const regions: GoodShippingRegionFee[] = [];
+  for (const row of value.regions) {
+    if (!object(row) || typeof row.label !== 'string' || !row.label.trim() || row.label.length > 100
+      || !amount(row.minFee) || !amount(row.maxFee) || row.minFee < 1 || row.minFee > row.maxFee) return null;
+    regions.push({ label: row.label, minFee: row.minFee, maxFee: row.maxFee });
+  }
+  if ((value.state === 'listed') !== (regions.length > 0) || (value.state === 'listed' && value.feeUnit === null)) return null;
+  return { state: value.state as GoodShippingRegionFees['state'], regions, feeUnit: value.feeUnit as ShippingRegionFeeUnit | null,
+    waivedAtFreeThreshold: value.waivedAtFreeThreshold, truncated: value.truncated, nextChangeAt: value.nextChangeAt as string | null };
+}
+/** 한 줄에 보이는 지역 수. 나머지는 '외 N개 지역'으로 줄이고 주문서에서 확인하게 한다. */
+export const SHIPPING_REGION_FEE_LIST_LIMIT = 8;
+/** 상세 배송 안내의 지역별 추가 배송비 문장 — 'listed'가 아니면 null(지금 문장을 둔다). 금액은 DB가 견적한 값 그대로다. */
+export function shippingRegionFeeDescription(fees: GoodShippingRegionFees | null | undefined): string | null {
+  if (!fees || fees.state !== 'listed' || !fees.regions.length) return null;
+  const shown = fees.regions.slice(0, SHIPPING_REGION_FEE_LIST_LIMIT)
+    .map(region => `${region.label} +${krw(region.minFee)}${region.maxFee > region.minFee ? `~${krw(region.maxFee)}` : ''}`);
+  const rest = fees.regions.length - shown.length;
+  const more = rest > 0 ? ` 외 ${rest.toLocaleString('ko-KR')}개 지역` : fees.truncated ? ' 외 지역' : '';
+  const notes = [fees.feeUnit === 'per_good' ? '굿즈당 1회' : '배송 묶음당 1회', ...(fees.waivedAtFreeThreshold ? ['무료배송 조건을 채우면 면제'] : [])];
+  return `지역별 추가 배송비: ${shown.join(' · ')}${more}(${notes.join(', ')}).`;
 }
 export function parseShippingQuoteItems(value: unknown): ShippingQuoteItem[] | null {
   if (!Array.isArray(value) || value.length > 1000) return null;
