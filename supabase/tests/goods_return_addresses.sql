@@ -279,7 +279,8 @@ select pg_temp.ra_assert((select collected_at is null from public.order_claim_co
  and private.order_claim_withdrawal_blocker((select c from public.order_cancellation_requests c where c.id=pg_temp.ra_id('claim',1)))='claim_withdrawal_collection_started'
  and (select count(*) from public.audit_log where action='admin.order.claim_origin_collected' and diff->>'claimId'=pg_temp.ra_id('claim',1)::text)=1,
  'one bundle of a shipment is a physical receipt but not the shipment receipt');
--- 재고 대조 흐름: 서울 묶음의 A만 돌아왔다. B는 아직이다.
+-- 재고 대조 흐름: 서울 묶음의 A만 돌아왔다. B는 아직이다. 묶음 단위 치환(20261113001400)은 배송 건 기준 통합 migration
+-- 20261113120000 뒤에 적용돼야 성립한다 — 그 파일이 앞에 남아 있으면 이 단언이 실패해 누락을 드러낸다.
 select pg_temp.ra_assert((select returned_since_qty from private.stock_reconcile_flows(array[pg_temp.ra_variant('ra-good-a')],now()-interval '1 hour'))=1
  and (select returned_since_qty from private.stock_reconcile_flows(array[pg_temp.ra_variant('ra-good-b')],now()-interval '1 hour'))=0,
  'stock reconcile counts the returned item when its own bundle arrives');
