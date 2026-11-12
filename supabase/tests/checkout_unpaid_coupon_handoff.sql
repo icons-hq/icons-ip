@@ -215,8 +215,11 @@ select set_config('request.jwt.claim.sub','d8000000-0000-4000-8000-000000000004'
 set local role authenticated;
 select public.quote_goods_sales_for_address_with_coupon(jsonb_build_array(jsonb_build_object('goodId','d8-a','variantId',:'variant_a','qty',1)),
  :'destination',:'fresh_first_coupon') as fresh_card_quote \gset
+-- 쿠폰 칸·쿠폰함의 받는 회원 판정(계산 열)도 같은 기준이라 첫구매 쿠폰을 '사용 조건 미충족'으로 숨기지 않는다.
+select coalesce(public.coupon_recipient_state(c),'none') as fresh_card_recipient from public.coupons as c where c.code='D8FIRST3K' \gset
 reset role;
 select 1/case when (:'fresh_card_quote'::jsonb->'coupon'->>'reason') is null and (:'fresh_card_quote'::jsonb->'coupon'->>'discount')::int=3000
+ and :'fresh_card_recipient'='none'
  and (select o_reason='coupon_first_purchase_pending' from private.evaluate_coupon_target_lines_at(:'fresh_first_coupon','d8000000-0000-4000-8000-000000000004',
   pg_temp.d8_lines('d8-a',1,12000),null,now()))
  then 1 else 0 end as assert_first_purchase_not_blocked_by_replaceable_card_order;
@@ -229,9 +232,11 @@ reset role;
 set local role authenticated;
 select public.quote_goods_sales_for_address_with_coupon(jsonb_build_array(jsonb_build_object('goodId','d8-a','variantId',:'variant_a','qty',1)),
  :'destination',:'fresh_first_coupon') as fresh_bank_quote \gset
+select public.coupon_recipient_state(c) as fresh_bank_recipient from public.coupons as c where c.code='D8FIRST3K' \gset
 reset role;
 select 1/case when (select status='canceled' from public.orders where id=:'fresh_card_order')
  and (:'fresh_bank_quote'::jsonb->'coupon'->>'reason')='coupon_first_purchase_pending'
+ and :'fresh_bank_recipient'='coupon_first_purchase_pending'
  then 1 else 0 end as assert_bank_pending_still_blocks_first_purchase;
 
 -- ── 6. 주문 내역·주문 상세의 다시 결제 진입 출처(QA1 S-D2-15, service_list_order_retry_sources) ─────────────────────────

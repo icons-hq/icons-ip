@@ -128,6 +128,24 @@ grant execute on function private.evaluate_user_coupon(uuid, uuid, bigint) to po
 comment on function private.evaluate_user_coupon(uuid, uuid, bigint) is
   '장바구니 쿠폰 선택 판정(apply_cart_coupon·apply_cart_coupon_code). 다음 새 주문이 닫을 결제 대기 주문이 잡은 쿠폰도 받는다 — 주문 생성의 쿠폰 확인·소비는 evaluate_order_user_coupon(엄격)이 한다.';
 
+-- 화면의 받는 회원 판정(쿠폰 정의의 계산 열 coupon_recipient_state — 쿠폰함·장바구니·주문서 쿠폰 칸이 읽는다)도 같은 기준이다.
+-- 다음 새 주문이 닫을 결제 대기 카드 주문 때문에 첫구매 쿠폰을 '진행 중인 다른 주문'으로 막아 보이지 않는다.
+do $$
+declare
+  v_definition text;
+  v_anchor constant text := 'exists(select 1 from public.orders where user_id=actor and status=''pending'')';
+begin
+  v_definition := pg_catalog.pg_get_functiondef('public.coupon_recipient_state(public.coupons)'::regprocedure);
+  if (pg_catalog.length(v_definition) - pg_catalog.length(pg_catalog.replace(v_definition, v_anchor, ''))) / pg_catalog.length(v_anchor) <> 1 then
+    raise exception 'coupon_replace_unpaid_recipient_anchor_changed';
+  end if;
+  execute pg_catalog.replace(v_definition, v_anchor,
+    'exists(select 1 from public.orders where user_id=actor and status=''pending'' and not private.unpaid_order_replaceable(id,actor))');
+end;
+$$;
+revoke all on function public.coupon_recipient_state(public.coupons) from public, anon, authenticated, service_role;
+grant execute on function public.coupon_recipient_state(public.coupons) to authenticated;
+
 -- ── 4. 결제 대기·입금 대기 주문이 잡은 본인 쿠폰 ─────────────────────────────────────
 create function public.get_my_unpaid_order_coupons()
 returns jsonb
