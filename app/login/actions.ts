@@ -36,6 +36,7 @@ import { hasKakaoIdentity, KAKAO_LINK_SETTINGS_PATH } from '@/lib/kakao/account-
 import { KAKAO_CHANNEL_LOGIN_SCOPE, kakaoChannelConfig } from '@/lib/kakao/channel-config.server';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/server';
+import { AUTH_SESSION_ONLY_COOKIE, sessionOnlyPreferenceCookie } from '@/lib/supabase/session-persistence';
 import { CANONICAL_AUTH_ORIGIN, trustedAuthOrigin } from '@/lib/auth/trusted-origin';
 
 export interface AuthActionState {
@@ -355,15 +356,37 @@ export async function linkKakaoAccountAction(): Promise<AuthActionState> {
   redirect(data.url);
 }
 
+/*
+ * '로그인 상태 유지'(SHEET-005 — MD-0004 '로그인 정보 저장', 결정 "상태 유지 체크 추가"). 로그인 화면의 체크(기본 체크)는
+ * keepSignedIn=1 로 온다. 체크하면 지금처럼 세션을 400일 유지하고, 끄면 이 브라우저에 '유지하지 않음' 표시(세션 쿠키)를 남겨
+ * 세션 쿠키도 브라우저 세션 쿠키로 쓴다 — 브라우저를 닫으면 로그아웃된다(lib/supabase/session-persistence.ts).
+ * 이메일 로그인 폼의 항목이다(카페24 회원 로그인 폼과 같은 자리). 소셜 로그인 세션은 OAuth 콜백이 쓰므로 지금처럼 유지된다.
+ */
+function keepSignedInFrom(formData: FormData): boolean {
+  return formData.get('keepSignedIn') === '1';
+}
+
+async function rememberSessionPersistence(keepSignedIn: boolean) {
+  const cookieStore = await cookies();
+  if (keepSignedIn) {
+    if (cookieStore.get(AUTH_SESSION_ONLY_COOKIE)) cookieStore.delete(AUTH_SESSION_ONLY_COOKIE);
+    return;
+  }
+  const preference = sessionOnlyPreferenceCookie((await requestOrigin()).startsWith('https://'));
+  cookieStore.set(preference.name, preference.value, preference.options);
+}
+
 export async function signInWithEmailAction(_state: AuthActionState, formData: FormData): Promise<AuthActionState> {
   const parsed = validateCredentials(formData);
   if (!parsed.ok) return parsed.state;
   const { email, next, password } = parsed.credentials;
+  const keepSignedIn = keepSignedInFrom(formData);
 
   const { isConfigured } = getSupabaseConfig();
   if (!isConfigured) return { errors: { form: 'Supabase 환경변수를 설정한 뒤 로그인할 수 있습니다.' } };
 
-  const supabase = await createClient();
+  /* 이 응답에서 표시 쿠키를 막 바꾸므로 요청의 표시 대신 이번 선택으로 세션 쿠키 속성을 정한다. */
+  const supabase = await createClient({ sessionOnly: !keepSignedIn });
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
@@ -372,6 +395,7 @@ export async function signInWithEmailAction(_state: AuthActionState, formData: F
   if (error || !data.user) {
     return { errors: { form: '이메일 또는 비밀번호를 확인해주세요.' } };
   }
+  await rememberSessionPersistence(keepSignedIn);
 
   const profile = await getProfileForUser(supabase, data.user.id);
   if (isAccountSuspended(profile) && next !== ACCOUNT_DELETION_PATH) {
@@ -683,7 +707,11 @@ async function signOutLocally() {
   try {
     const supabase = await createClient();
     const { error } = await supabase.auth.signOut({ scope: 'local' });
-    return !error;
+    if (error) return false;
+    /* 세션이 끝났으니 '로그인 상태 유지' 표시도 걷는다 — 다음 로그인이 자기 선택으로 다시 정한다(SHEET-005). */
+    const cookieStore = await cookies();
+    if (cookieStore.get(AUTH_SESSION_ONLY_COOKIE)) cookieStore.delete(AUTH_SESSION_ONLY_COOKIE);
+    return true;
   } catch {
     return false;
   }

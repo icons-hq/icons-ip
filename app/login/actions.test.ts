@@ -615,6 +615,22 @@ describe('sign-out actions', () => {
     await expect(signOutAction()).rejects.toThrow('NEXT_REDIRECT:/');
     expect(mocks.signOut).toHaveBeenCalledWith({ scope: 'local' });
   });
+
+  /* SHEET-005 — 세션이 끝나면 '로그인 상태 유지'를 끈 표시도 걷는다. 로그아웃이 실패하면 세션이 남으므로 표시도 남긴다. */
+  it("clears the '로그인 상태 유지' marker only after the local session actually ends", async () => {
+    mocks.cookies.set('icons_auth_session_only', '1');
+    mocks.cookieDeletes.length = 0;
+    mocks.signOut.mockResolvedValueOnce({ error: { code: 'network_error', message: 'private detail' } });
+    const data = new FormData();
+    data.set('next', '/admin');
+
+    await adminSignOutAction({}, data);
+    expect(mocks.cookies.get('icons_auth_session_only')).toBe('1');
+
+    await expect(signOutAction()).rejects.toThrow('NEXT_REDIRECT:/');
+    expect(mocks.cookieDeletes).toEqual(['icons_auth_session_only']);
+    expect(mocks.cookies.has('icons_auth_session_only')).toBe(false);
+  });
 });
 
 /* 1014-004 — 가입 확인을 메일 링크 대신 같은 화면의 6자리 코드로 끝낸다. */
