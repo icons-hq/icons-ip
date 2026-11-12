@@ -21,8 +21,18 @@ const record = {
 describe('부분 취소 응답 좁히기', () => {
   it('스위치 OFF 문맥은 빈 기록과 함께 읽힌다', () => {
     expect(parseOrderPartialCancellationContext({ enabled: false, canManage: true, blockers: ['partial_cancel_disabled'], history: [] })).toEqual({
-      enabled: false, canManage: true, gift: false, blockers: ['partial_cancel_disabled'], provider: null, paymentAmount: null, balance: null, items: [], history: [],
+      enabled: false, canManage: true, gift: false, calculationVersion: null, v1Allocation: null, blockers: ['partial_cancel_disabled'], provider: null,
+      paymentAmount: null, balance: null, items: [], history: [],
     });
+  });
+
+  it('버전 1 주문 문맥은 계산 버전과 배분 원장 상태(얼렸는지·막힌 이유)를 읽는다', () => {
+    const parsed = parseOrderPartialCancellationContext({ enabled: true, canManage: true, blockers: ['partial_cancel_v1_allocation_mismatch'], history: [],
+      calculationVersion: 1, v1Allocation: { frozen: false, issue: 'amount_mismatch' } });
+    expect(parsed).toMatchObject({ calculationVersion: 1, v1Allocation: { frozen: false, issue: 'amount_mismatch' } });
+    expect(parseOrderPartialCancellationContext({ enabled: true, canManage: true, blockers: [], history: [], calculationVersion: 2, v1Allocation: null }))
+      .toMatchObject({ calculationVersion: 2, v1Allocation: null });
+    expect(() => parseOrderPartialCancellationContext({ enabled: true, canManage: true, blockers: [], history: [], v1Allocation: { frozen: true, issue: 3 } })).toThrow();
   });
 
   it('구매자 기록에는 운영 필드가 없고, 운영자 기록에는 고객 결정·닫힌 배송 건이 있다', () => {

@@ -79,6 +79,33 @@ describe('품목별 쿠폰·적립금 배분(10/14 회의 A5)', () => {
     expect(parseLegacyCouponTerms({ goodsScope: 'selected_brands', targetGoodIds: [] })).toBeUndefined();
   });
 
+  it('DB의 버전 1 파생 배분(order_partial_cancellation_v1.sql 주문 1)과 같은 값으로 나눈다 — 내림 뒤 끝수는 나머지가 큰 품목부터', () => {
+    const items = [
+      { id: '1b0c3444-90dc-fd36-73b8-5142e99447d8', goodId: 'partial-cancel-v1-a', amount: 20000 },
+      { id: '04f0dae8-e70c-f323-ac79-9d139d9b70fe', goodId: 'partial-cancel-v1-b', amount: 10000 },
+      { id: '629e55f3-1ef4-1c37-33ba-61182a03dac8', goodId: 'partial-cancel-v1-c', amount: 5000 },
+    ];
+    expect(allocateLegacyOrderDiscounts({ couponDiscount: 1000, storeCredits: 2000, items,
+      coupon: { discountAmount: 1000, eligibleSubtotal: 35000, terms: { goodsScope: 'all', targetGoodIds: [] } } }))
+      .toEqual({ coupon: [571, 286, 143], credits: [1143, 571, 286], issues: [] });
+  });
+
+  it('버전 1 주문도 첫 부분 취소 때 얼린 배분 원장이 모든 품목에 있으면 다시 나누지 않고 그 값을 쓴다', () => {
+    const input = legacyInputFromSettled();
+    const legacy = orderItemAllocations(input);
+    const frozenInput: OrderAllocationInput = { ...input, items: input.items.map(item => {
+      const value = legacy.get(item.id)!;
+      return { ...item, allocation: { volumeDiscount: value.volumeDiscount, couponDiscount: value.couponDiscount, storeCreditDiscount: value.storeCreditDiscount,
+        paidGoodsTotal: value.paidGoodsTotal } };
+    }) };
+    const recorded = orderItemAllocations(frozenInput);
+    expect([...recorded.values()].every(value => value.source === 'recorded')).toBe(true);
+    expect([...recorded.entries()].map(([id, value]) => [id, { ...value, source: 'legacy' }])).toEqual([...legacy.entries()]);
+    // 원장이 일부 품목에만 있으면(있을 수 없는 상태) 공통 배분으로 나눈다.
+    expect(orderItemAllocations({ ...frozenInput, items: [{ ...frozenInput.items[0], allocation: null }, ...frozenInput.items.slice(1)] }).get(input.items[1].id)?.source)
+      .toBe('legacy');
+  });
+
   it('DB 응답에서 형식이 어긋난 주문만 버린다', () => {
     const valid = { orderId: 'o1', calculationVersion: 1, couponDiscount: 0, storeCredits: 0, volumeDiscount: 0, coupon: null,
       items: [{ id: 'i1', goodId: 'g', qty: 1, unitPrice: 1000, regularUnitPrice: null, allocation: null }] };

@@ -36,6 +36,19 @@ def start(order, operation, item='a', qty=1, expected=9500, warehouse='false'):
                       f"'합성 고객 결정 기록',null,{warehouse},{expected},'{uid('operation', operation)}',null);")
 
 
+def uid_v1(kind, number):
+    return str(uuid.UUID(hashlib.md5(f'partial-cancel-v1:{kind}:{number}'.encode()).hexdigest()))
+
+
+def start_v1(order, operation, item, expected, account=None):
+    claims = ("select set_config('request.jwt.claims', json_build_object('role','authenticated','sub','%s','session_id','%s')::text, true);"
+              "set local role authenticated;") % (uid_v1('user', 1), uid_v1('session', 1))
+    items = f"""jsonb_build_array(jsonb_build_object('orderItemId','{uid_v1('item-' + item, order)}','qty',1))"""
+    refund_account = "'{\"bankName\":\"TEST 합성은행\",\"accountNumber\":\"000000001234\",\"accountHolder\":\"TEST 구매자\"}'" if account else 'null'
+    return claims + (f"select public.admin_start_order_partial_cancellation('{uid_v1('order', order)}',{items},"
+                     f"'합성 고객 결정 기록',null,false,{expected},'{uid_v1('operation', operation)}',{refund_account});")
+
+
 def mark_exported(order):
     shipment = uid('shipment-1', order)
     updated = sql(f"select to_json(updated_at)#>>'{{}}' from public.order_shipments where id='{shipment}';")
@@ -77,6 +90,10 @@ def race(label, first, second, expected_error=None):
 fixture = Path(__file__).with_name('order_partial_cancellation.sql').read_text()
 fixture = fixture[fixture.index('create function pg_temp.pc_id'):fixture.index('-- END FIXTURE')]
 sql('begin;create schema partial_test;grant usage on schema partial_test to authenticated;' + fixture.replace('pg_temp.', 'partial_test.') + 'commit;')
+# 버전 1 주문(ADR-0032 보완, T12c): 쿠폰 기록·배송비 스냅숏이 있는 합성 버전 1 주문. 첫 부분 취소가 파생 배분 원장을 얼린다.
+fixture_v1 = Path(__file__).with_name('order_partial_cancellation_v1.sql').read_text()
+fixture_v1 = fixture_v1[fixture_v1.index('create function pg_temp.pv_id'):fixture_v1.index('-- END FIXTURE')]
+sql('begin;' + fixture_v1.replace('pg_temp.', 'partial_test.') + 'commit;')
 sql("update private.return_fee_deduction_settings set partial_cancel_enabled=true,partial_cancel_evidence='합성 동시성 시험',partial_cancel_enabled_at=clock_timestamp() where singleton;")
 
 # 같은 주문에 두 번: 두 번째는 주문 잠금을 기다린 뒤 처리 중인 부분 취소를 보고 거절된다(결제사 잔액 기대값이 엇갈리지 않게).
@@ -94,5 +111,19 @@ assert sql(f"select count(*) from private.order_partial_cancellations where orde
 assert sql(f"select count(*) from private.order_partial_cancellations where order_id='{uid('order', 2)}';") == '1'
 assert sql(f"select count(*) from private.order_partial_cancellations where order_id='{uid('order', 5)}';") == '0'
 assert sql(f"select exported_at is null from public.order_shipments where id='{uid('shipment-1', 6)}';") == 't'
-assert sql("select sum(stock_qty) from public.goods_variants where good_id like 'partial-cancel-%';") == '30'
+assert sql("select sum(stock_qty) from public.goods_variants where good_id in ('partial-cancel-a','partial-cancel-b','partial-cancel-c');") == '30'
 print('PASS 4 races: one in-flight partial per order, replayed operation, export and partial serialized; stock unchanged before provider confirmation', flush=True)
+
+# 버전 1 주문의 첫 부분 취소 두 건이 동시에 시작해도 파생 배분 원장은 하나다(주문 행 잠금 + 기본 키).
+# 무통장(4): 두 번째는 주문 잠금을 기다린 뒤 첫 시작이 얼린 원장을 그대로 쓰고 같이 적용된다.
+race('v1-bank-two-firsts', start_v1(4, 201, 'a', 9714, account=True), start_v1(4, 202, 'b', 9714, account=True))
+# 토스(10): 두 번째는 기다린 뒤 결제사 확인 중인 첫 부분 취소를 보고 거절되고, 원장은 첫 시작의 것 하나다.
+race('v1-toss-two-firsts', start_v1(10, 203, 'a', 10000), start_v1(10, 204, 'b', 10000), 'partial_cancel_in_progress')
+assert sql(f"select count(*) from private.order_v1_price_allocation_heads where order_id='{uid_v1('order', 4)}';") == '1'
+assert sql(f"select count(*) from private.order_v1_price_allocations where order_id='{uid_v1('order', 4)}';") == '3'
+assert sql(f"select count(*) from private.order_partial_cancellations where order_id='{uid_v1('order', 4)}' and state='awaiting_transfer';") == '2'
+assert sql(f"select frozen_operation_id from private.order_v1_price_allocation_heads where order_id='{uid_v1('order', 4)}';") == uid_v1('operation', 201)
+assert sql(f"select count(*) from private.order_v1_price_allocation_heads where order_id='{uid_v1('order', 10)}';") == '1'
+assert sql(f"select count(*) from private.order_partial_cancellations where order_id='{uid_v1('order', 10)}';") == '1'
+assert sql(f"select count(*) from public.audit_log where action='admin.order.v1_allocation_frozen' and target in ('order:{uid_v1('order', 4)}','order:{uid_v1('order', 10)}');") == '2'
+print('PASS 2 v1 races: concurrent first partial cancellations freeze exactly one derived allocation ledger per order', flush=True)

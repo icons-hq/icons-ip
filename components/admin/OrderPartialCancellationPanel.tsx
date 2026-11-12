@@ -28,6 +28,7 @@ import {
   orderPartialCancellationBlockerMessage,
   orderPartialCancellationItemBlockerLabel,
   orderPartialCancellationPanelVisible,
+  orderPartialCancellationV1AllocationIssueMessage,
 } from '@/lib/admin/order-partial-cancellation';
 import { statusTone } from '@/lib/admin/status-tone';
 import { krw } from '@/lib/format';
@@ -187,8 +188,13 @@ export function OrderPartialCancellationPanelView({ orderId, context, onReload }
       <p className="text-muted-foreground">창고 재고가 모자란 상품을 고객이 결정한 대로 일부만 취소하고 나머지를 출고합니다. 그 상품·수량의 결제 배분액(할인·쿠폰·적립금 반영)만 환불하고, 남는 상품이 없어진 배송 건의 배송비는 함께 환불합니다.</p>
     </div>
     {context.enabled && context.canManage && context.gift ? <AdminNotice role="status" tone="info">선물 주문입니다. 환불은 결제한 분에게 돌아가고, 고객 결정은 결제한 분의 결정으로 기록합니다.</AdminNotice> : null}
-    {context.enabled && context.canManage && context.blockers.length ? <AdminNotice role="status" tone="warning">{orderPartialCancellationBlockerMessage(context.blockers[0])}</AdminNotice> : null}
+    {context.enabled && context.canManage && context.blockers.length ? <AdminNotice role="status" tone="warning">
+      {orderPartialCancellationBlockerMessage(context.blockers[0])}
+      {context.blockers[0]?.startsWith('partial_cancel_v1_allocation_') && orderPartialCancellationV1AllocationIssueMessage(context.v1Allocation?.issue)
+        ? ` (${orderPartialCancellationV1AllocationIssueMessage(context.v1Allocation?.issue)})` : null}
+    </AdminNotice> : null}
     {open ? <form className="flex min-w-0 flex-col gap-3" onSubmit={event => { event.preventDefault(); void preview(); }}>
+      {context.calculationVersion === 1 ? <p className={HINT}>{context.v1Allocation?.frozen ? '확정된 상품별 금액 배분으로 계산합니다.' : '이 주문은 첫 부분 취소를 확정할 때 상품별 금액 배분을 확정합니다.'}</p> : null}
       <ul className="flex flex-col gap-2">{context.items.map(item => {
         const blocked = orderPartialCancellationItemBlockerLabel(item.blocker);
         const value = draft[item.orderItemId] ?? 0;

@@ -7,6 +7,7 @@ import {
   orderPartialCancellationPanelVisible,
   orderPartialCancellationReconcileMessage,
   orderPartialCancellationResolutionMessage,
+  orderPartialCancellationV1AllocationIssueMessage,
 } from './order-partial-cancellation';
 import { ORDER_PARTIAL_CANCELLATION_STATES } from '@/lib/orders/partial-cancellation';
 
@@ -18,6 +19,7 @@ describe('부분 취소 패널 노출', () => {
     ['켜짐·이미 발송', { enabled: true, canManage: true, blockers: ['shipment_already_dispatched'], history: [] }, false],
     ['켜짐·취소된 주문', { enabled: true, canManage: true, blockers: ['order_not_partial_cancelable'], history: [] }, false],
     ['켜짐·부분 취소 불가 결제', { enabled: true, canManage: true, blockers: ['partial_cancel_unsupported'], history: [] }, true],
+    ['켜짐·배분을 확정할 수 없는 버전 1 주문', { enabled: true, canManage: true, blockers: ['partial_cancel_v1_allocation_mismatch'], history: [] }, true],
     ['켜짐·발송 전이지만 진행 중 클레임', { enabled: true, canManage: true, blockers: ['order_claim_in_progress'], history: [] }, true],
     ['조회 권한만·기록 없음', { enabled: true, canManage: false, blockers: [], history: [] }, false],
     ['조회 권한만·기록 있음', { enabled: true, canManage: false, blockers: [], history: [{}] }, true],
@@ -44,6 +46,18 @@ describe('부분 취소 운영 문구', () => {
     expect(orderPartialCancellationBlockerMessage('gift_order')).not.toContain('선물');
     expect(orderPartialCancellationItemBlockerLabel(null)).toBeNull();
     expect(orderPartialCancellationItemBlockerLabel('stock_topology_changed')).toBe('상품 통합·교환 재출고 이력 있음');
+  });
+
+  it('버전 1 주문: 배분을 확정할 수 없는 이유를 운영 문구로 옮긴다(원문 코드는 노출하지 않는다)', () => {
+    expect(orderPartialCancellationErrorMessage('partial_cancel_v1_allocation_mismatch')).toContain('상품별 환불액을 확정할 수 없습니다');
+    expect(orderPartialCancellationErrorMessage('partial_cancel_v1_allocation_unavailable')).toContain('운영자 전액 취소');
+    expect(orderPartialCancellationBlockerMessage('partial_cancel_v1_allocation_mismatch')).not.toContain('partial_cancel');
+    for (const code of ['amount_mismatch', 'shipping_snapshot_mismatch', 'coupon_amount_mismatch', 'coupon_target_mismatch', 'credit_mismatch',
+      'coupon_unrecorded', 'unsupported_discount', 'items_missing']) {
+      expect(orderPartialCancellationV1AllocationIssueMessage(code)).toMatch(/[가-힣]/);
+    }
+    expect(orderPartialCancellationV1AllocationIssueMessage('anything_else')).toBeNull();
+    expect(orderPartialCancellationV1AllocationIssueMessage(null)).toBeNull();
   });
 
   it('결제사 확인 결과: 진행하지 않음은 돈·재고가 그대로라고 말하고, 확인 필요는 출고가 막혀 있다고 말한다', () => {

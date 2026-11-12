@@ -180,10 +180,15 @@ export function buildSettledExportModel(snapshot: SettledExportSnapshot): Settle
     const calculationVersion = order.calculationVersion ?? 1;const isV2 = calculationVersion === 2;
     const gross = items.map(item => multiply(item.qty, item.unitPrice));
     const saved = items.map(item => item.allocation);
-    if (isV2) {
+    // 배분 원장: 버전 2는 주문할 때 기록한 원장, 버전 1은 재고 부족 부분 취소를 시작할 때 DB가 공통 규칙으로 얼린 원장(ADR-0032 보완)이
+    // 있으면 그것을 쓴다(다시 나누지 않는다). 원장이 없는 버전 1 주문만 아래 공통 배분으로 나눈다.
+    const recorded = isV2 || (items.length > 0 && saved.every(Boolean));
+    if (recorded) {
       if (saved.some((a, index) => !a || a.subtotal !== gross[index] || a.netSubtotal !== a.subtotal - a.volumeDiscount || a.paidGoodsTotal !== a.netSubtotal - a.couponDiscount - a.storeCreditDiscount)
         || sum(saved.map(a => a!.volumeDiscount)) !== order.volumeDiscount || sum(saved.map(a => a!.couponDiscount)) !== order.couponDiscount
         || sum(saved.map(a => a!.storeCreditDiscount)) !== order.storeCredits || sum(saved.map(a => a!.paidGoodsTotal)) + order.shippingFee !== order.total) invalid();
+    }
+    if (isV2) {
       const components = order.shippingComponents ?? [];
       if (sum(components.map(c => c.shippingCouponDiscount ?? 0)) !== (order.shippingCouponDiscount ?? 0) || order.coupons && (sum(order.coupons.filter(c => c.benefitKind === 'goods').map(c => c.discountAmount)) !== order.couponDiscount || sum(order.coupons.filter(c => c.benefitKind === 'shipping').map(c => c.discountAmount)) !== (order.shippingCouponDiscount ?? 0))) invalid();
       if (!components.length || components.some(c => c.baseFee + c.regionalFee + (c.installationFee ?? 0) - (c.shippingCouponDiscount ?? 0) !== c.totalFee || (c.shippingCouponDiscount ?? 0) > c.baseFee + c.regionalFee || c.paymentMode === 'collect' && (c.shippingCouponDiscount ?? 0) !== 0 || !order.shipments.some(s => s.id === c.shipmentId))
@@ -197,7 +202,8 @@ export function buildSettledExportModel(snapshot: SettledExportSnapshot): Settle
     const remaining = items.map((item, index) => {
       const cut = item.partialCancel;
       if (!cut) return null;
-      const a = saved[index]!;
+      const a = saved[index];
+      if (!a) invalid();
       const activeGross = multiply(cut.activeQty, item.unitPrice);
       if (cut.netAmount !== multiply(cut.canceledQty, item.unitPrice) - cut.volumeDiscount || cut.volumeDiscount > a.volumeDiscount
         || cut.couponDiscount > a.couponDiscount || cut.storeCreditDiscount > a.storeCreditDiscount || cut.paidAmount > a.paidGoodsTotal) invalid();
@@ -210,7 +216,7 @@ export function buildSettledExportModel(snapshot: SettledExportSnapshot): Settle
     const partialRefunded = order.partialRefundedAmount ?? 0;
     const qtyOf = (item: SettledExportItem, index: number) => remaining[index]?.qty ?? item.qty;
     const grossOf = (index: number) => remaining[index]?.gross ?? gross[index];
-    const before = isV2 ? saved.map((a, index) => remaining[index] ? remaining[index]!.gross - remaining[index]!.volume : a!.netSubtotal) : gross;
+    const before = recorded ? saved.map((a, index) => remaining[index] ? remaining[index]!.gross - remaining[index]!.volume : a!.netSubtotal) : gross;
     if (!items.length) issues.push('주문 품목 미기록');
     if (order.partialRefundedAmount !== undefined) {
       const cuts = remaining.flatMap(entry => entry ? [entry.cut] : []);
@@ -223,12 +229,12 @@ export function buildSettledExportModel(snapshot: SettledExportSnapshot): Settle
     if (!payment) issues.push(order.payments.length ? '결제 원장 중복: 금액·시각 확인 필요' : '결제 원장 미기록');
     if (!paidAt) issues.push('결제 승인·입금확인 시각 미기록');
     if (payment && payment.status !== 'paid') issues.push(`결제 상태 확인 필요: ${payment.status}`);
-    const legacy = isV2 ? null : allocateLegacyOrderDiscounts({ couponDiscount: order.couponDiscount, storeCredits: order.storeCredits, coupon: order.coupon,
+    const legacy = recorded ? null : allocateLegacyOrderDiscounts({ couponDiscount: order.couponDiscount, storeCredits: order.storeCredits, coupon: order.coupon,
       items: items.map((item, index) => ({ id: item.id, goodId: item.goodId, ipId: item.ipId, couponEligible: item.couponEligible, amount: before[index] })) });
     if (legacy) issues.push(...legacy.issues);
-    const coupon = isV2 ? saved.map((a, index) => remaining[index]?.coupon ?? a!.couponDiscount) : legacy!.coupon;
+    const coupon = recorded ? saved.map((a, index) => remaining[index]?.coupon ?? a!.couponDiscount) : legacy!.coupon;
     const afterCoupon = coupon ? before.map((amount, index) => amount - coupon[index]) : null;
-    const credits = isV2 ? saved.map((a, index) => remaining[index]?.credit ?? a!.storeCreditDiscount) : legacy!.credits;
+    const credits = recorded ? saved.map((a, index) => remaining[index]?.credit ?? a!.storeCreditDiscount) : legacy!.credits;
     const shipmentMap = new Map(order.shipments.map(shipment => [shipment.id, shipment]));
     const assigned = new Set<string>();
     const settledLine = (item: SettledExportItem, index: number): SettledExportLine => {
@@ -254,7 +260,7 @@ export function buildSettledExportModel(snapshot: SettledExportSnapshot): Settle
       const componentSales = afterCoupon && credits ? afterCoupon[index] - credits[index] : null;
       if (rest && componentSales !== null && componentSales !== rest.paid) rowIssues.push(`부분 취소 배분 끝수 차이 ${(componentSales - rest.paid).toLocaleString('ko-KR')}원(판매금액은 남은 결제 몫)`);
       return {
-        shippingCouponDiscount, installationFee, volumeDiscount: isV2 ? rest?.volume ?? saved[index]!.volumeDiscount : 0, shippingCollectFee, collectState: shipment?.collectState ? SHIPPING_COLLECT_STATE_LABEL[shipment.collectState] : '해당 없음', calculationVersion,
+        shippingCouponDiscount, installationFee, volumeDiscount: recorded ? rest?.volume ?? saved[index]!.volumeDiscount : 0, shippingCollectFee, collectState: shipment?.collectState ? SHIPPING_COLLECT_STATE_LABEL[shipment.collectState] : '해당 없음', calculationVersion,
         doneAt: order.doneAt, orderId: order.id, trackingNumber: shipment?.trackingNumber ?? null, erpName: item.erpName, qty,
         salesAmount: rest ? rest.paid : componentSales, shippingFee, paidAt,
         regularAmount, productDiscount, beforeCouponAmount: before[index], couponAmount: coupon?.[index] ?? null, creditAmount: credits?.[index] ?? null,

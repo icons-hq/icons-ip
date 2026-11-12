@@ -21,7 +21,7 @@ const ITEM_B = 'aaaaaaaa-0000-4000-8000-00000000000b';
 
 function context(overrides: Partial<OrderPartialCancellationContext> = {}): OrderPartialCancellationContext {
   return {
-    enabled: true, canManage: true, gift: false, blockers: [], provider: 'toss', paymentAmount: 40_000, balance: 40_000,
+    enabled: true, canManage: true, gift: false, calculationVersion: 2, v1Allocation: null, blockers: [], provider: 'toss', paymentAmount: 40_000, balance: 40_000,
     items: [
       { orderItemId: ITEM_A, goodName: '품절 상품 A', variantName: '블루', variantCode: 'A-01', orderedQty: 2, canceledQty: 0, activeQty: 2, unitPrice: 10_000,
         shipmentId: 'bbbbbbbb-0000-4000-8000-000000000001', shipmentNumber: '2026111230000001', originName: '남양주', exported: false, blocker: null },
@@ -112,6 +112,30 @@ describe('재고 부족 부분 취소 패널', () => {
     expect(html).toContain('[해소]');
     expect(html).toContain('상점관리자 잔액 그대로');
     expect(html).not.toContain('결제사가 이 결제의 부분 취소를 받지 않아');
+  });
+
+  it('버전 1 주문은 같은 양식에 첫 부분 취소 때 금액 배분을 확정한다는 안내를 한 줄 둔다', () => {
+    const html = view(context({ calculationVersion: 1, v1Allocation: { frozen: false, issue: null } }));
+    expect(html).toContain('이 주문은 첫 부분 취소를 확정할 때 상품별 금액 배분을 확정합니다.');
+    expect(html).not.toContain('버전 1');
+    expect(html).toContain('취소 내용 확인');
+    expect(view(context({ calculationVersion: 1, v1Allocation: { frozen: true, issue: null } }))).toContain('확정된 상품별 금액 배분으로 계산합니다.');
+    expect(view(context())).not.toContain('금액 배분');
+  });
+
+  it('배분을 확정할 수 없는 버전 1 주문은 양식 없이 이유와 자세한 사유를 보인다', () => {
+    const mismatch = view(context({ calculationVersion: 1, v1Allocation: { frozen: false, issue: 'amount_mismatch' },
+      blockers: ['partial_cancel_v1_allocation_mismatch'] }));
+    expect(mismatch).toContain('결제 금액이 상품·쿠폰·적립금·배송비 기록과 맞지 않아');
+    expect(mismatch).toContain('상품 결제 몫과 배송비의 합이 결제 금액과 다릅니다.');
+    expect(mismatch).toContain('운영자 전액 취소로 처리합니다');
+    expect(mismatch).not.toContain('취소 내용 확인');
+    const unavailable = view(context({ calculationVersion: 1, v1Allocation: { frozen: false, issue: 'coupon_unrecorded' },
+      blockers: ['partial_cancel_v1_allocation_unavailable'] }));
+    expect(unavailable).toContain('상품별 금액 배분을 확정할 수 없는 주문');
+    expect(unavailable).toContain('주문 당시 쿠폰 대상·금액 기록이 없습니다.');
+    expect(unavailable).toContain('운영자 전액 취소로 처리합니다');
+    expect(unavailable).not.toContain('굿즈');
   });
 
   it('환불 0원(전액 할인 상품만) 기록은 결제사를 부르지 않았다고 보인다', () => {

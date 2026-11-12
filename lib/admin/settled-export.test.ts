@@ -178,6 +178,51 @@ describe('거래확정 재고 부족 부분 취소(ADR-0032)', () => {
     expect(model.orders[0]).toMatchObject({ qty: 3, total: 30902, detailTotal: 30902, paymentAmount: 30902, detailDifference: 0, ledgerDifference: 0, couponDiscount: 751 });
   });
 
+  // 버전 1 주문(ADR-0032 보완): 첫 부분 취소 때 DB가 공통 배분 규칙으로 얼린 원장이 품목 배분(allocation)으로 실린다.
+  function legacyV1Snapshot() {
+    const snapshot = settledExportFixture(); snapshot.schemaVersion = 2; const order = snapshot.orders[0];
+    order.calculationVersion = 1; order.volumeDiscount = 0; order.shippingCollectTotal = 0; order.shippingComponents = [];
+    order.items.forEach(item => { item.allocation = null; });
+    order.shipments.forEach(shipment => { shipment.shippingCollectFee = 0; shipment.collectState = null; });
+    return snapshot;
+  }
+  function frozen(snapshot: ReturnType<typeof legacyV1Snapshot>) {
+    const baseline = buildSettledExportModel(parseSettledExportSnapshot(snapshot));
+    const copy = structuredClone(snapshot);
+    copy.orders[0].items.forEach(item => {
+      const line = baseline.lines.find(entry => entry.itemId === item.id)!;
+      const subtotal = item.unitPrice * item.qty;
+      item.allocation = { subtotal, volumeDiscount: 0, netSubtotal: subtotal, couponDiscount: line.couponAmount!, storeCreditDiscount: line.creditAmount!,
+        paidGoodsTotal: line.salesAmount! };
+    });
+    return { baseline, copy };
+  }
+
+  it('버전 1 주문도 얼린 배분 원장이 있으면 그 값을 쓰고, 공통 배분으로 나눈 값과 한 칸도 다르지 않다', () => {
+    const { baseline, copy } = frozen(legacyV1Snapshot());
+    expect(baseline.orders[0].issues).toEqual(expect.not.arrayContaining(['쿠폰 대상·금액의 주문 당시 기록 미기록 또는 불일치']));
+    const model = buildSettledExportModel(parseSettledExportSnapshot(copy));
+    expect(model.lines).toEqual(baseline.lines);
+    expect(model.orders).toEqual(baseline.orders);
+    // 원장 합계가 주문 원장과 맞지 않으면 다시 나누지 않고 거절한다.
+    copy.orders[0].items[0].allocation!.couponDiscount += 1; copy.orders[0].items[0].allocation!.paidGoodsTotal -= 1;
+    expect(() => buildSettledExportModel(parseSettledExportSnapshot(copy))).toThrow();
+  });
+
+  it('부분 취소가 있는 버전 1 주문은 얼린 원장 − 취소분으로 남은 몫을 쓰고 결제 원장과 맞춘다', () => {
+    const { baseline, copy } = frozen(legacyV1Snapshot()); const order = copy.orders[0]; const c = order.items[2];
+    const line = baseline.lines.find(entry => entry.itemId === c.id)!;
+    cut(c, { canceledQty: 1, activeQty: 0, partialCanceledPaidAmount: line.salesAmount, partialCanceledGrossAmount: 9000, partialCanceledVolumeDiscount: 0,
+      partialCanceledCouponDiscount: line.couponAmount, partialCanceledStoreCreditDiscount: line.creditAmount, shipmentId: null });
+    cut(order.shipments[1], { closedByPartialCancel: true });
+    cut(order, { partialRefundedAmount: line.salesAmount! + 2000 });
+    const model = buildSettledExportModel(parseSettledExportSnapshot(copy));
+    expect(model.lines.map(entry => entry.itemId)).toEqual([order.items[0].id, order.items[1].id]);
+    expect(model.lines.map(entry => entry.salesAmount)).toEqual(baseline.lines.slice(0, 2).map(entry => entry.salesAmount));
+    expect(model.orders[0]).toMatchObject({ itemCount: 2, total: 32001 - line.salesAmount! - 2000, detailDifference: 0, ledgerDifference: 0 });
+    expect(model.orders[0].issues).not.toContain('부분 취소 환불 합계와 취소분 배분 불일치');
+  });
+
   it('수량이 맞지 않거나 이전 계산 버전이거나 환불 합계가 빠진 부분 취소 기록은 거절한다', () => {
     const wrongQty = settledExportV2Fixture(); cut(wrongQty.orders[0].items[2], { ...cancelC, activeQty: 1 }); cut(wrongQty.orders[0], { partialRefundedAmount: 8600 });
     expect(() => parseSettledExportSnapshot(wrongQty)).toThrow();

@@ -301,8 +301,11 @@ select pg_temp.pc_assert((select account_number is null and purged_at is not nul
 -- 6. 막힘 이유·진행하지 않음·확인 필요·창고 출고 중단 확인 ----------------------------------------------------------------------
 set local role authenticated;
 select pg_temp.pc_auth();
+-- 주문 7은 버전 1 주문인데 쿠폰 할인 1,000원의 주문 당시 쿠폰 기록이 없다 — 파생 배분을 확정할 수 없어 막는다(ADR-0032 보완, T12c).
 select pg_temp.pc_assert(public.admin_order_partial_cancellation_context(pg_temp.pc_id('order', 4))->'blockers' ? 'partial_cancel_unsupported'
- and public.admin_order_partial_cancellation_context(pg_temp.pc_id('order', 7))->'blockers' ? 'legacy_order', 'unsupported_payments_and_legacy_orders_blocked');
+ and public.admin_order_partial_cancellation_context(pg_temp.pc_id('order', 7))->'blockers' ? 'partial_cancel_v1_allocation_unavailable'
+ and public.admin_order_partial_cancellation_context(pg_temp.pc_id('order', 7))#>>'{v1Allocation,issue}' = 'coupon_unrecorded',
+ 'unsupported_payments_and_unallocatable_v1_orders_blocked');
 select pg_temp.pc_error($$select pg_temp.pc_start('a:1@4', 5, 9500)$$, 'partial_cancel_unsupported');
 select pg_temp.pc_start('a:1@5', 6, 9500);
 reset role;

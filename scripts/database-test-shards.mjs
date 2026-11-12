@@ -94,6 +94,8 @@ const operators = [
   sql('claim_return_intake_import', { admin: true }),
   // 재고 부족 품목·수량 부분 취소(QNA-020·ADR-0032): 스위치 OFF 불변, 결제사 확인 뒤 적용, 다회 잔액 누적, 무통장 송금 대기, 출고 경합.
   sql('order_partial_cancellation'),
+  // 버전 1 주문의 부분 취소(ADR-0032 보완): 첫 부분 취소 때 얼리는 파생 배분 원장, 합계 보존·결정성·막힘·기존 경로 불변. 경합은 아래 스크립트가 함께 본다.
+  sql('order_partial_cancellation_v1'),
   script('order_partial_cancellation_concurrency.sh', 'PARTIAL_CANCEL_TEST_SCOPE'),
   script('order_address_concurrency.sh', 'ORDER_ADDRESS_TEST_SCOPE'),
   sql('goods_media', { admin: true, kc: true }),
