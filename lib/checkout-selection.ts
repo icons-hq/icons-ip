@@ -1,6 +1,7 @@
 import { cartItemKey, type CartItem } from './cart';
 import { couponErrorNeedsPendingOrder } from './coupons';
 import { goodsCustomInputValues } from './goods-custom-inputs';
+import { goodsPurchaseReasonMessage, quoteLineOptionLimitMessage, type GoodsSalesQuoteGood, type GoodsSalesQuoteLine } from './goods-sales';
 
 /*
  * 장바구니 선택 주문·선택 삭제의 순수 판정(ADR-0030 · 10/14 회의 1014-031·035·036, SHEET-007).
@@ -92,4 +93,61 @@ export function quoteMayBeBlockedByPendingOrder(quote: PendingOrderQuoteSignals)
 /** 거래 런타임 견적의 막힘 가운데 결제 대기 주문이 원인일 수 있는 사유(구매 한도·쿠폰). */
 export function transactionIssuesMayBeBlockedByPendingOrder(issues: readonly { code: string }[]): boolean {
   return issues.some((issue) => issue.code === 'purchase_limit' || issue.code === 'coupon_unavailable');
+}
+
+/** 견적이 판정해 선택에서 뺀 줄의 사유(ADR-0030 확정 동작 2). */
+export interface QuoteLineExclusion {
+  readonly message: string;
+  /** 회원 누적 한도처럼 결제 대기 주문이 원인일 수 있다 — 화면이 그 주문을 알리고 고객이 누를 때만 닫는다. */
+  readonly pendingOrderMayBlock: boolean;
+}
+
+/** 견적 제외의 키. 줄 식별에 수량을 더한다 — 고객이 수량을 바꾸면 그 줄을 다시 고를 수 있고 견적이 다시 판정한다. */
+export function quoteExclusionKey(line: Pick<CartItem, 'goodId' | 'variantId' | 'customInputs' | 'qty'>): string {
+  return `${cartLineKey(line)}|${line.qty}`;
+}
+
+/** 견적이 지금 고른 줄(옵션 단위)을 그대로 덮는지. 다른 선택의 견적으로 줄을 빼지 않는다. */
+export function quoteCoversSelection(selected: readonly Pick<CartItem, 'goodId' | 'variantId'>[], quote: { readonly lines: readonly Pick<GoodsSalesQuoteLine, 'goodId' | 'variantId'>[] }): boolean {
+  const chosen = new Set(selected.map((item) => cartItemKey(item.goodId, item.variantId)));
+  const quoted = new Set(quote.lines.map((line) => cartItemKey(line.goodId, line.variantId)));
+  return chosen.size === quoted.size && [...chosen].every((key) => quoted.has(key));
+}
+
+/**
+ * 견적이 판정한 '주문할 수 없는 줄'(ADR-0030 확정 동작 2 — 주문할 수 없는 줄은 선택에서 자동으로 빠지고 전체 주문을 막지
+ * 않는다). 화면을 연 뒤의 품절·판매기간 종료·재고 부족(줄 불가), 회원 누적 한도·주문당 수량(굿즈 사유 — 그 굿즈의 고른 줄
+ * 모두), 옵션별 한도(옵션 사유)를 받은 고른 줄을 사유와 함께 돌려준다. 견적 줄은 옵션 단위라 같은 옵션의 직접입력 줄은 함께 빠진다.
+ */
+export function quoteExcludedLines(
+  selected: readonly CartItem[],
+  quote: { readonly lines: readonly GoodsSalesQuoteLine[]; readonly goods: readonly GoodsSalesQuoteGood[] },
+  optionName: (item: CartItem) => string,
+): Map<string, QuoteLineExclusion> {
+  const excluded = new Map<string, QuoteLineExclusion>();
+  const quoteLines = new Map(quote.lines.map((line) => [cartItemKey(line.goodId, line.variantId), line]));
+  const goodReasons = new Map(quote.goods.flatMap((good) => (good.reason ? [[good.goodId, good.reason] as const] : [])));
+  for (const item of selected) {
+    const line = quoteLines.get(cartItemKey(item.goodId, item.variantId));
+    const goodReason = goodReasons.get(item.goodId);
+    let exclusion: QuoteLineExclusion | null = null;
+    if (line && !line.available) {
+      const left = line.supply?.availableQty ?? 0;
+      exclusion = {
+        message: left > 0 && left < line.qty
+          ? `재고가 ${left}개만 남아 이번 주문에서 빠졌어요. 수량을 줄이면 다시 고를 수 있어요.`
+          : '판매 상태나 재고가 바뀌어 이번 주문에서 빠졌어요.',
+        pendingOrderMayBlock: false,
+      };
+    } else if (goodReason) {
+      exclusion = { message: goodsPurchaseReasonMessage(goodReason), pendingOrderMayBlock: goodReason === 'member_purchase_limit_exceeded' };
+    } else if (line?.optionLimit?.reason) {
+      exclusion = {
+        message: quoteLineOptionLimitMessage(line, optionName(item)) ?? '옵션 구매 한도를 확인해주세요.',
+        pendingOrderMayBlock: line.optionLimit.reason === 'option_member_limit_exceeded',
+      };
+    }
+    if (exclusion) excluded.set(quoteExclusionKey(item), exclusion);
+  }
+  return excluded;
 }

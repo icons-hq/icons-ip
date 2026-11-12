@@ -31,7 +31,10 @@ import { GoodsSalePeriodRefresh } from '@/components/shop/GoodsSalePeriodRefresh
 import { goodsSaleUnavailableLabel } from '@/lib/goods-sale-period';
 import { ADULT_GOOD_LABEL } from '@/lib/adult-goods';
 import { adultVerificationHref } from '@/lib/identity/adult-verification-routes';
-import { cartLineKey, cartOrderButtonLabel, cartSelectionQuantity, pruneCartSelection, quoteMayBeBlockedByPendingOrder, selectedCartLines, toggleAllCartLines, toggleCartLineSelection } from '@/lib/checkout-selection';
+import {
+  cartLineKey, cartOrderButtonLabel, cartSelectionQuantity, pruneCartSelection, quoteCoversSelection, quoteExcludedLines, quoteExclusionKey, quoteMayBeBlockedByPendingOrder,
+  selectedCartLines, toggleAllCartLines, toggleCartLineSelection, type QuoteLineExclusion,
+} from '@/lib/checkout-selection';
 import { CheckoutPendingOrderRelease } from './CheckoutPendingOrderRelease';
 
 interface CartLine {
@@ -51,6 +54,8 @@ interface CartLine {
   optionLimitMessage?: string | null;
   /** 랜덤 전환 전에 비기본 옵션 키로 담은 줄(D5②)을 '랜덤' 한 줄로 다시 담는 호출 순서. 있으면 스테퍼 대신 다시 담기다. */
   refold?: CartQuantityStep[] | null;
+  /** 견적이 판정해 선택에서 뺀 사유(ADR-0030) — 화면을 연 뒤의 품절·판매기간 종료·구매 한도. 수량을 바꾸면 다시 판정한다. */
+  excludedReason?: string | null;
 }
 
 /* 고른 줄로 주문서를 열지 못한 이유(ADR-0030). 로그인·프로필 미완료는 화면을 옮겨 안내한다. */
@@ -68,6 +73,8 @@ const CART_ORDER_ERRORS: Record<Exclude<CheckoutDraftActionError, 'auth_required
 
 /* 랜덤 전환 전에 담은 줄의 안내. 이 줄의 수량을 바꾸면 DB가 키 줄로 합쳐 화면이 갑자기 바뀌므로 다시 담기 하나만 둔다. */
 const RANDOM_REFOLD_NOTICE = '판매 방식이 바뀌기 전에 담은 줄이에요. 다시 담으면 랜덤 한 줄로 합쳐집니다.';
+
+const NO_EXCLUSIONS: ReadonlyMap<string, QuoteLineExclusion> = new Map();
 
 function isSoldOut(good: Good) {
   return good.stock === 'soldout' || good.stockQty <= 0;
@@ -173,7 +180,7 @@ function CartLineRow({ line, selection }: { line: CartLine; selection: CartLineS
   const href = `/shop/${goodId}`;
 
   return (
-    <li className={`wc-cart__line wc-cart__line--selectable${isUnavailable(line) ? ' wc-cart__line--unavailable' : ''}`}>
+    <li className={`wc-cart__line wc-cart__line--selectable${isUnavailable(line) || line.excludedReason ? ' wc-cart__line--unavailable' : ''}`}>
       <CartLineCheck label={good.name} selection={selection} />
       {/* 바로 옆 이름 링크와 목적지가 같다 — 접근성 트리에서는 숨긴다(ProductCard 와 같은 규칙). */}
       <Link
@@ -189,7 +196,8 @@ function CartLineRow({ line, selection }: { line: CartLine; selection: CartLineS
         <PriceBlock showDiscountRate={good.showDiscountRate} compareAtPrice={good.compareAtPrice} price={good.price} />
         {goodsCustomInputProblem(good.customInputs,customInputs) && <p className="wc-cart__line-state">{goodsCustomInputProblem(good.customInputs,customInputs)} <Link href={href}>내용 다시 확인</Link></p>}
         {stateLabel ? <p className="wc-cart__line-state">{stateLabel}</p> : null}
-        {optionLimitMessage ? <p className="wc-cart__line-state">{optionLimitMessage}</p> : null}
+        {optionLimitMessage && !line.excludedReason ? <p className="wc-cart__line-state">{optionLimitMessage}</p> : null}
+        {line.excludedReason ? <p className="wc-cart__line-state">{line.excludedReason}</p> : null}
         {refold && !soldOut ? <p className="wc-cart__line-state">{RANDOM_REFOLD_NOTICE}</p> : null}
         {supply?.mode === 'preorder' ? <p className="wc-cart__line-state">{goodsShipDateLabel(supply.expectedShipDate)}</p> : null}
       </div>
@@ -258,20 +266,37 @@ export function Cart({
   /* 결제를 마치지 않은 이전 주문이 쿠폰·구매 한도를 잡고 있으면 견적 전에 닫는다(ADR-0026). */
   const released = useReleaseUnpaidCartOrders();
 
-  /* 고를 수 있는지는 카탈로그 판매 상태로 정한다(견적이 아니다). 견적은 고른 줄만 받으므로, 견적 결과로 선택을 바꾸면
-     줄이 견적에서 빠졌다 들어왔다 하며 선택이 흔들린다. 견적이 고른 줄의 재고 변화를 알리면 주문을 막고 문구가 말한다. */
+  /* 고를 수 있는지는 카탈로그 판매 상태로 먼저 정한다. 화면을 연 뒤의 품절·판매기간 종료·구매 한도는 견적이 알리므로,
+     견적이 '주문할 수 없다'고 판정한 줄도 선택에서 빼고 사유를 줄에 보인다(ADR-0030 확정 동작 2 — 전체 주문을 막지 않는다).
+     견적은 고른 줄만 받으므로 빠진 줄은 다음 견적에 없다 — 그래서 뺀 기록은 다음 카탈로그 새로고침(또는 그 줄의 수량
+     변경)까지 유지해, 견적과 선택이 서로를 바꾸며 흔들리지 않게 한다. */
+  const [exclusionState, setExclusionState] = useState<{ catalog: CatalogSnapshot['goods']; lines: ReadonlyMap<string, QuoteLineExclusion> }>(
+    () => ({ catalog: catalog.goods, lines: NO_EXCLUSIONS }));
+  const exclusions = exclusionState.catalog === catalog.goods ? exclusionState.lines : NO_EXCLUSIONS;
   const goodsById = useMemo(() => new Map(catalog.goods.map((good) => [good.id, good])), [catalog.goods]);
   const selectable = useCallback((item: CartItem) => {
     const catalogGood = goodsById.get(item.goodId);
     if (catalogGood?.masked) return false;
+    if (exclusions.has(quoteExclusionKey(item))) return false;
     return !isUnavailable({ ...item, good: cartOptionGood(catalogGood, item.variantId) });
-  }, [goodsById]);
+  }, [exclusions, goodsById]);
   const selectedItems = useMemo(() => selectedCartLines(items, deselected, selectable), [items, deselected, selectable]);
   /* 견적·쿠폰 대상 소계·배송비·예상 총액은 고른 줄 기준이다(1014-032). */
   const shipping = useShippingQuote(selectedItems, ready && released && transactionMode === 'legacy', couponState.selectedUserCouponId ?? '');
   const precheckout = useGoodsSalesPrecheckoutQuote(selectedItems, ready && released && transactionActive);
   const productQuote = transactionActive ? precheckout : shipping;
   const sales = productQuote.sales;
+  /* 지금 고른 줄의 견적이 주문할 수 없는 줄을 새로 알리면 선택에서 뺀다(렌더 중 파생 상태 갱신). 견적이 지금 선택을 덮을
+     때만 보고, 새로 뺄 줄이 있을 때만 갱신한다 — 뺀 뒤의 견적은 남은 줄만 판정하므로 흔들리지 않는다. */
+  const foundExclusions = sales && quoteCoversSelection(selectedItems, sales)
+    ? quoteExcludedLines(selectedItems, sales, (item) => {
+      const good = cartOptionGood(goodsById.get(item.goodId), item.variantId);
+      return optionLabel(cartLineOption(good, item.variantId), good?.options?.length ?? 0) ?? good?.name ?? item.goodId;
+    })
+    : NO_EXCLUSIONS;
+  if ([...foundExclusions.keys()].some((key) => !exclusions.has(key))) {
+    setExclusionState({ catalog: catalog.goods, lines: new Map([...exclusions, ...foundExclusions]) });
+  }
 
   const lines = useMemo<CartLine[]>(() => {
     const ipsById = new Map(catalog.ips.map((ip) => [ip.id, ip]));
@@ -295,9 +320,10 @@ export function Cart({
         orderMaxQty: quoteLine?.optionLimit?.orderMaxQty ?? option?.orderMaxQty ?? null,
         optionLimitMessage: good ? quoteLineOptionLimitMessage(quoteLine, optionName ?? good.name) : null,
         refold: good ? randomCartLineFold(catalogGood, items, item, mode === 'server' ? 'server' : 'local', good.stockQty) : null,
+        excludedReason: exclusions.get(quoteExclusionKey(item))?.message ?? null,
       };
     });
-  }, [catalog.ips, goodsById, items, mode, sales]);
+  }, [catalog.ips, exclusions, goodsById, items, mode, sales]);
 
   const selectedKeys = new Set(selectedItems.map(cartLineKey));
   const selectedLines = lines.filter((line) => selectedKeys.has(cartLineKey(line)));
@@ -310,6 +336,8 @@ export function Cart({
   ), 0);
   /* 주문할 수 없는 줄은 선택에서 빠질 뿐 나머지 주문을 막지 않는다(ADR-0030). */
   const unavailableCount = lines.length - selectableLines.length;
+  /* 견적이 회원 누적 한도로 뺀 줄은 결제 대기 주문이 원인일 수 있다 — 그 주문을 알리고 고객이 누를 때만 닫는다. */
+  const excludedByPendingOrder = items.some((item) => exclusions.get(quoteExclusionKey(item))?.pendingOrderMayBlock === true);
   /* 표시용 예상치다. 실제 청구액은 place_order가 같은 정책으로 다시 계산한다. */
   const shippingFee = shipping.quote?.totalFee ?? 0;
   const shippingFinal = shipping.quote?.checkoutAllowed === true && shipping.quote.finalTotalFee !== null;
@@ -509,6 +537,7 @@ export function Cart({
               {unavailableCount > 0 ? (
                 <p className="wc-cart__warning" role="alert">
                   {`주문할 수 없는 굿즈 ${unavailableCount}개는 주문에서 빠져요. 삭제하거나 수량을 조정하면 다시 고를 수 있어요.`}
+                  {excludedByPendingOrder ? <CheckoutPendingOrderRelease onReleased={() => { setExclusionState({ catalog: catalog.goods, lines: NO_EXCLUSIONS }); productQuote.refresh(); router.refresh(); }} /> : null}
                 </p>
               ) : null}
               {selectedItems.length === 0 && selectableLines.length > 0 ? (

@@ -408,13 +408,29 @@ describe('Cart 랜덤 판매·옵션별 구매 제한 품목 줄', () => {
     expect(html).not.toContain('까지 주문할 수 있습니다');
   });
 
-  it('견적이 옵션 한도 위반을 알리면 품목 줄에 확정 카피를 보이고 주문을 막는다', () => {
+  /* 견적이 판정한 불가 줄은 체크된 채 남아 전체 주문을 막지 않는다 — 선택에서 빼고 사유를 줄에 보인다(ADR-0030 확정 동작 2). */
+  it('견적이 옵션 한도 위반을 알리면 그 줄을 선택에서 빼고 품목 줄에 확정 카피를 보인다', () => {
     mocks.quoteLineExtras.set(BLUE_VARIANT, { optionLimit: { orderMaxQty: 2, memberMaxQty: 3, memberReservedQty: 2, memberRemainingQty: 1,
       reason: 'option_member_limit_exceeded' } });
     const html = render([{ goodId: 'g16', variantId: BLUE_VARIANT, qty: 2 }]);
     expect(html).toContain('&#x27;파랑&#x27;은 1인당 3개까지 구매할 수 있습니다.');
-    expect(html).toContain('1인당 구매 수량이 정해진 옵션이 있어요.');
+    expect(html).toContain('주문할 수 없는 굿즈 1개는 주문에서 빠져요');
+    expect(html).toMatch(/<input aria-label="아크릴 키링[^"]*선택" disabled="" type="checkbox"\/>/);
+    /* 1인 누적 한도는 결제 대기 주문이 잡고 있을 수 있다 — 그 주문을 알리고 고객이 누를 때만 닫는다. */
+    expect(html).toContain('진행 중인 미결제 주문 취소하고 계속');
     expect(checkoutEnabled(html)).toBe(false);
+  });
+
+  it('화면을 연 뒤 재고가 줄어든 줄은 빼고 나머지 줄로 주문할 수 있다', () => {
+    mocks.quoteLineExtras.set(BLUE_VARIANT, { available: false, supply: { mode: 'stock', availableQty: 1, policyId: null, policyRevision: null, state: 'stock',
+      startsAt: null, endsAt: null, expectedShipDate: null, calculatedAt: '2026-09-10T00:00:00Z', nextChangeAt: null } });
+    const html = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }, { goodId: 'g16', variantId: BLUE_VARIANT, qty: 2 }]);
+    expect(html).toContain('재고가 1개만 남아 이번 주문에서 빠졌어요. 수량을 줄이면 다시 고를 수 있어요.');
+    /* 막힘 판정은 남은 고른 줄로만 한다 — 남은 줄(g13)은 주문할 수 있다. */
+    expect(html).not.toContain('현재 판매 상태나 재고가 변경된 굿즈가 있어요');
+    expect(mocks.quotedItems.map((item) => item.goodId)).toEqual(['g13']);
+    expect(checkoutEnabled(html)).toBe(true);
+    expect(html).toContain('1개 주문하기');
   });
 });
 
