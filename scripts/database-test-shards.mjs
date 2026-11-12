@@ -79,6 +79,9 @@ const operators = [
   sql('stock_reconcile_claim_shipments', { admin: true }),
   // 반품배송비 차감(QNA-033·ADR-0031): 스위치 OFF 불변, 접수 때 결정, 카드 부분 취소 확인 뒤 확정 환불액, 무통장 송금액.
   sql('claim_refund_deduction'),
+  // 반품 불량 재고 분리(QNA-035): 불량 품목은 복원 제외·원장 기록·재고 대조 흐름 제외, 같은 클레임 동시 기록 멱등.
+  sql('claim_defective_stock'),
+  script('claim_defective_stock_concurrency.sh', 'CLAIM_DEFECTIVE_TEST_SCOPE'),
   script('order_address_concurrency.sh', 'ORDER_ADDRESS_TEST_SCOPE'),
   sql('goods_media', { admin: true, kc: true }),
   script('goods_media_concurrency.sh', 'GOODS_MEDIA_TEST_SCOPE'),
