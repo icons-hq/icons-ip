@@ -51,4 +51,8 @@ describe('검색 오버레이 한 덩어리 배경', () => {
       'outline-color': 'var(--store-theme-ink)',
     });
   });
+
+  it('메가메뉴(흰 패널) 안 포커스 링은 헤더 글자색이 아니라 기본 링이라 어두운 프리셋에서도 보인다', () => {
+    expect(decls(`${COLOR} .wc-mega :focus-visible`)).toEqual({ 'outline-color': 'var(--wc-focus)' });
+  });
 });

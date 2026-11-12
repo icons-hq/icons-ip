@@ -1,3 +1,4 @@
+import revisionDates from './shipping-bundle-wording-revision.json';
 import { kstToday } from './privacy-address-book-revision';
 
 /*
@@ -12,8 +13,7 @@ import { kstToday } from './privacy-address-book-revision';
  *
  * 공지일은 이 개정이 실제로 운영에 나간 날(KST)이어야 하고, 시행일은 그 날부터 7일 이상 뒤여야 한다.
  * 기본값은 '예약 없음'(null)이다 — 공지·개정이 모두 꺼져 현행 본문이 그대로 나간다. 날짜는 운영 배포 직전에 한 커밋으로
- * 넣는다(docs/runbooks/order-claim-intake.md '표기 개정 날짜 커밋'). 날짜가 들어 있는데 공지일이 오늘(KST)보다 이르면
- * production 빌드가 막힌다(scripts/check-vercel-build-env.mjs).
+ * 넣는다(docs/runbooks/order-claim-intake.md '표기 개정 날짜 커밋'). production 빌드는 형식·간격만 검사한다(scripts/check-vercel-build-env.mjs).
  * 이용자에게 불리한 변경이 아니므로(표기만 바뀌고 배송비·절차는 그대로) 약관 제3조의 30일 공지 대상이 아니다.
  */
 export interface ShippingBundleWordingRevision {
@@ -23,7 +23,12 @@ export interface ShippingBundleWordingRevision {
   effectiveDate: string;
 }
 
-export const SHIPPING_BUNDLE_WORDING_REVISION: ShippingBundleWordingRevision | null = null;
+/* 날짜는 JSON 한 곳(shipping-bundle-wording-revision.json)에 둔다 — 앱과 production 빌드 가드(scripts/check-vercel-build-env.mjs)가 같은 값을 읽는다.
+   둘 다 null 이면 예약 없음. 개정 날짜는 시행 뒤에도 남는다(그날부터 본문이 바뀐 채 유지되어야 하므로). */
+export const SHIPPING_BUNDLE_WORDING_REVISION: ShippingBundleWordingRevision | null =
+  typeof revisionDates.announcedDate === 'string' && typeof revisionDates.effectiveDate === 'string'
+    ? { announcedDate: revisionDates.announcedDate, effectiveDate: revisionDates.effectiveDate }
+    : null;
 
 /** '출고지' 표기 개정을 사전 공지하는 중인가(공지일 0시 KST 부터 시행일 전날까지). 예약이 없으면 늘 false. */
 export function shippingBundleWordingRevisionAnnounced(

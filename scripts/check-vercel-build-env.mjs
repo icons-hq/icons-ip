@@ -33,31 +33,37 @@ const TOSS_CANARY_NAMES = [
 const NICEPAY_CREDENTIAL_NAMES = ['NICEPAY_MID', 'NICEPAY_MERCHANT_KEY'];
 
 const SHIPPING_BUNDLE_REVISION_FILE = fileURLToPath(
-  new URL('../lib/legal/shipping-bundle-wording-revision.ts', import.meta.url),
+  new URL('../lib/legal/shipping-bundle-wording-revision.json', import.meta.url),
 );
 
-function kstDate(now) {
-  return new Date(now.getTime() + 9 * 3_600_000).toISOString().slice(0, 10);
+/*
+ * 약관·배송 정책 '출고지' 표기 개정(1027T-010)의 날짜 파일(lib/legal/shipping-bundle-wording-revision.json)은 앱과 이 가드가 같은
+ * 값을 읽는다. 개정 날짜는 시행 뒤에도 남으므로 '공지일이 오늘보다 이르다'는 이유로 막지 않는다 — 늘 참이어야 하는 것만 본다:
+ * 둘 다 null(예약 없음)이거나 둘 다 YYYY-MM-DD 이고, 시행일 >= 공지일 + 7일, 공지일 >= 법정 문서 최초 판(2026-11-06).
+ * '공지일 = 실제 운영 배포일'은 런북 절차(배포 직전 날짜 커밋)로 지킨다. 해석할 수 없으면 실패한다.
+ */
+const LEGAL_FIRST_EDITION = '2026-11-06';
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+function isRealDate(value) {
+  return DATE_PATTERN.test(value) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
 }
 
-/*
- * 약관·배송 정책 '출고지' 표기 개정(1027T-010)의 공지일은 실제 운영 배포일(KST)이어야 한다. 날짜가 들어 있는데 공지일이
- * 오늘보다 이르면 사전 공지 시작일이 사실과 달라지거나 이미 시행 중인 채 나가므로 production 빌드를 멈춘다.
- * 날짜가 null(예약 없음)이면 아무것도 하지 않는다. 소스는 TS 파일이라 상수 두 줄을 문자열로 읽는다.
- */
-export function validateLegalRevisionDates(source, now = new Date()) {
-  const announced = /announcedDate:\s*'(\d{4}-\d{2}-\d{2})'/.exec(source)?.[1];
-  const effective = /effectiveDate:\s*'(\d{4}-\d{2}-\d{2})'/.exec(source)?.[1];
-  if (!announced && !effective) return;
-  if (!announced || !effective) {
-    throw new Error('Invalid legal revision dates: announcedDate and effectiveDate must be set together');
+export function validateLegalRevisionDates(source) {
+  let parsed;
+  try {
+    parsed = JSON.parse(source);
+  } catch {
+    throw new Error('Invalid legal revision dates: shipping-bundle-wording-revision.json is not valid JSON');
   }
-  const today = kstDate(now);
-  if (announced < today) {
-    throw new Error(
-      `Stale legal revision announcedDate ${announced}: it must equal the production deploy date (today ${today} KST)`
-      + ' - update lib/legal/shipping-bundle-wording-revision.ts before deploying',
-    );
+  const announced = parsed?.announcedDate;
+  const effective = parsed?.effectiveDate;
+  if (announced === null && effective === null) return;
+  if (typeof announced !== 'string' || typeof effective !== 'string' || !isRealDate(announced) || !isRealDate(effective)) {
+    throw new Error('Invalid legal revision dates: announcedDate and effectiveDate must both be null or both YYYY-MM-DD');
+  }
+  if (announced < LEGAL_FIRST_EDITION) {
+    throw new Error(`Invalid legal revision dates: announcedDate ${announced} is before the first edition ${LEGAL_FIRST_EDITION}`);
   }
   const days = (Date.parse(`${effective}T00:00:00+09:00`) - Date.parse(`${announced}T00:00:00+09:00`)) / 86_400_000;
   if (!(days >= 7)) {
@@ -97,10 +103,7 @@ export function validateVercelBuildEnvironment(environment, options = {}) {
     );
   }
   if (target === 'production') {
-    validateLegalRevisionDates(
-      options.revisionSource ?? readFileSync(SHIPPING_BUNDLE_REVISION_FILE, 'utf8'),
-      options.now,
-    );
+    validateLegalRevisionDates(options.revisionSource ?? readFileSync(SHIPPING_BUNDLE_REVISION_FILE, 'utf8'));
   }
   const missing = required.filter((name) => !isPresent(environment[name]));
 
