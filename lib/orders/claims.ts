@@ -523,17 +523,30 @@ export const ORDER_CLAIM_INTAKE_NOTICES: Record<OrderClaimType, string> = {
 /**
  * 접수 안내. 반품배송비 차감(ADR-0031)이 꺼져 있으면 위 문구 그대로다. 켜져 있으면 반품 안내의 '전액' 문장을
  * 단순 변심 반품의 차감 규칙(편도, 최초 무료배송이면 왕복, 하자·오배송은 차감 없음)으로 바꾼다.
+ * 재고 부족 부분 취소(ADR-0032)가 적용된 주문이면 취소·반품 안내의 '결제금액 전액'을 '남은 결제 금액'으로 바꾼다
+ * (이미 일부 취소한 금액은 다시 돌려주지 않는다). 부분 취소가 없으면 문구는 그대로다.
  */
 export function orderClaimIntakeNotice(
   claimType: OrderClaimType,
   deduction: { enabled: boolean; oneWayAmount: number | null } | null = null,
+  { partiallyCanceled = false }: { partiallyCanceled?: boolean } = {},
 ): string {
   const notice = ORDER_CLAIM_INTAKE_NOTICES[claimType];
-  if (claimType !== 'return' || !deduction?.enabled || !deduction.oneWayAmount) return notice;
+  const fullRefund = '승인된 환불은 최초 선결제 배송비를 포함한 결제금액 전액으로 처리합니다.';
+  const amount = partiallyCanceled ? '이미 일부 취소한 금액을 뺀 남은 결제 금액' : '최초 선결제 배송비를 포함한 결제금액';
+  if (claimType === 'cancel') {
+    return partiallyCanceled
+      ? notice.replace('승인되면 최초 배송비를 포함한 결제금액 전액이 취소되고', '승인되면 이미 일부 취소한 금액을 뺀 남은 결제 금액이 취소되고')
+      : notice;
+  }
+  if (claimType !== 'return') return notice;
+  if (!deduction?.enabled || !deduction.oneWayAmount) {
+    return partiallyCanceled ? notice.replace(fullRefund, `승인된 환불은 ${amount}으로 처리합니다.`) : notice;
+  }
   const oneWay = `${deduction.oneWayAmount.toLocaleString('ko-KR')}원`;
   const roundTrip = `${(deduction.oneWayAmount * 2).toLocaleString('ko-KR')}원`;
   return notice.replace(
-    '승인된 환불은 최초 선결제 배송비를 포함한 결제금액 전액으로 처리합니다.',
-    `승인된 환불은 최초 선결제 배송비를 포함한 결제금액으로 처리하며, 단순 변심 반품은 반품배송비 ${oneWay}(최초 무료배송 주문은 왕복 ${roundTrip})을 빼고 환불합니다. 굿즈 하자·오배송은 빼지 않습니다. 결제 수단이 부분 취소를 지원하지 않으면 전액 환불하고 반품배송비는 따로 안내합니다.`,
+    fullRefund,
+    `승인된 환불은 ${amount}으로 처리하며, 단순 변심 반품은 반품배송비 ${oneWay}(최초 무료배송 주문은 왕복 ${roundTrip})을 빼고 환불합니다. 굿즈 하자·오배송은 빼지 않습니다. 결제 수단이 부분 취소를 지원하지 않으면 ${partiallyCanceled ? '남은 결제 금액을 모두' : '전액'} 환불하고 반품배송비는 따로 안내합니다.`,
   );
 }

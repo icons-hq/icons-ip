@@ -124,6 +124,11 @@ begin
   if exists(select 1 from unnest(ids) x where not exists(select 1 from public.order_items oi where oi.id = x and oi.order_id = claim.order_id)) then
     raise check_violation using message = 'defective_stock_item_not_in_order';
   end if;
+  -- 재고 부족 부분 취소(ADR-0032)로 남은 수량이 없는 품목은 고를 수 없다. 불량 수량은 살아 있는 수량이다
+  -- (부분 취소분은 이미 판매 재고로 복원됐고, restore_order_item_supply도 남은 수량만 복원한다). 출고 판정보다 먼저 본다.
+  if exists(select 1 from unnest(ids) x where coalesce(private.order_item_active_qty(x), 0) <= 0) then
+    raise check_violation using message = 'defective_stock_item_fully_canceled';
+  end if;
   if exists(select 1 from unnest(ids) x where not private.defective_stock_item_eligible(x)) then
     raise check_violation using message = 'defective_stock_item_not_shipped';
   end if;
@@ -135,7 +140,7 @@ begin
     raise unique_violation using message = 'defective_stock_item_in_other_claim';
   end if;
   delete from private.claim_defective_stock d where d.claim_id = p_claim_id and d.state = 'planned' and not (d.order_item_id = any(ids));
-  for item in select oi.id, oi.qty from public.order_items oi where oi.id = any(ids) order by oi.id loop
+  for item in select oi.id, private.order_item_active_qty(oi.id) as qty from public.order_items oi where oi.id = any(ids) order by oi.id loop
     insert into private.claim_defective_stock(claim_id, order_item_id, qty, planned_by) values (p_claim_id, item.id, item.qty, actor)
     on conflict (order_item_id) do nothing;
   end loop;
@@ -203,10 +208,12 @@ begin
         or exists(select 1 from private.bank_transfer_claim_refunds b where b.claim_id = c.id or b.order_id = c.order_id)),
       'pending', (select count(*) from private.claim_defective_stock d where d.claim_id = c.id and d.state = 'planned'),
       'items', (select coalesce(jsonb_agg(jsonb_build_object(
-          'orderItemId', oi.id, 'name', oi.good_name_snapshot, 'variantName', oi.variant_name_snapshot, 'qty', oi.qty,
+          'orderItemId', oi.id, 'name', oi.good_name_snapshot, 'variantName', oi.variant_name_snapshot, 'qty', private.order_item_active_qty(oi.id),
           'defective', d.id is not null, 'state', d.state) order by oi.good_id, oi.id), '[]'::jsonb)
         from public.order_items oi left join private.claim_defective_stock d on d.order_item_id = oi.id and d.claim_id = c.id
-        where oi.order_id = c.order_id and (d.id is not null or private.defective_stock_item_eligible(oi.id)))
+        -- 부분 취소로 남은 수량이 없는 품목은 고를 수 없어 싣지 않는다(이미 선택된 품목은 늘 싣는다).
+        where oi.order_id = c.order_id and (d.id is not null
+          or (private.defective_stock_item_eligible(oi.id) and coalesce(private.order_item_active_qty(oi.id), 0) > 0)))
     ) order by c.id)
     from public.order_cancellation_requests c where c.id = any(p_claim_ids) and c.claim_type = 'return'), '[]'::jsonb);
 end $$;

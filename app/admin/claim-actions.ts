@@ -98,6 +98,7 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string) {
   if (value.includes('defective_stock_item_in_other_claim') || value.includes('defective_stock_plan_conflict')) return '다른 반품 요청에서 이미 불량으로 고른 품목입니다. 이력을 확인해주세요.';
   if (value.includes('defective_stock_item_not_in_order') || value.includes('defective_stock_return_only')) return '이 반품 요청의 품목이 아닙니다. 화면을 새로고침한 뒤 다시 시도해주세요.';
   if (value.includes('defective_stock_item_not_shipped')) return '출고되지 않았거나 디지털인 품목은 불량으로 고를 수 없습니다. 화면을 새로고침해주세요.';
+  if (value.includes('defective_stock_item_fully_canceled')) return '재고 부족 부분 취소로 남은 수량이 없는 품목은 불량으로 고를 수 없습니다. 화면을 새로고침해주세요.';
   if (value.includes('claim_collections_incomplete')) return '모든 출고지의 회수를 확인한 뒤 환불·재출고를 진행해주세요.';
   if (value.includes('origin_collection_required')) return '출고지별 회수 확인에서 각 배송 건의 입고를 기록해주세요.';
   if (value.includes('claim_return_address_required')) return '회수 주소가 없는 상품이 있습니다. 상품의 반품/교환지를 고르거나 출고지 설정에 반품 주소를 등록한 뒤 다시 진행해주세요.';

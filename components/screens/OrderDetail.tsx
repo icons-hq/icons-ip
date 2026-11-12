@@ -419,6 +419,7 @@ export function OrderDetail({
               refund={order.refund}
               eligibility={order.claimEligibility}
               orderId={order.id}
+              partiallyCanceled={partialCancellations.length > 0}
               returnFeePolicy={returnFeePolicy}
               returnPickup={returnPickup}
               status={order.status}

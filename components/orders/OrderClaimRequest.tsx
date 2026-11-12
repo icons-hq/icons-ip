@@ -149,6 +149,7 @@ export function OrderClaimRequest({
   collectionWaived = false,
   eligibility,
   orderId,
+  partiallyCanceled = false,
   refund = null,
   returnFeePolicy = null,
   returnPickup = NO_RETURN_PICKUP,
@@ -159,6 +160,8 @@ export function OrderClaimRequest({
   collectionWaived?: boolean;
   eligibility: OrderClaimEligibility | null;
   orderId: string;
+  /** 재고 부족 부분 취소(ADR-0032)가 적용된 주문인지. 그러면 접수 안내의 '결제금액 전액'이 '남은 결제 금액'이 된다. */
+  partiallyCanceled?: boolean;
   refund?: OrderRefundSummary | null;
   returnFeePolicy?: { enabled: boolean; oneWayAmount: number | null } | null;
   /** 방문 회수(반품 자동 회수 접수, QNA-032)·직접 발송 묶음 수. 둘 다 0이면 지금 반송 안내 그대로다. */
@@ -284,7 +287,7 @@ export function OrderClaimRequest({
                 </label>
               ))}
             </fieldset>
-            <p className="money-caption">{orderClaimIntakeNotice(claimType, returnFeePolicy)}</p>
+            <p className="money-caption">{orderClaimIntakeNotice(claimType, returnFeePolicy, { partiallyCanceled })}</p>
 
             <fieldset className="order-cancellation-reason">
               <legend>신청 사유</legend>

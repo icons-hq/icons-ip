@@ -95,3 +95,23 @@ describe('접수 안내(orderClaimIntakeNotice)', () => {
     expect(parseReturnFeeDeductionPolicy(null)).toEqual({ enabled: false, oneWayAmount: null });
   });
 });
+
+describe('접수 안내 — 재고 부족 부분 취소 뒤(orderClaimIntakeNotice, ADR-0032)', () => {
+  it('부분 취소가 없으면 세 번째 인자가 문구를 바꾸지 않는다', () => {
+    for (const type of ['cancel', 'return', 'exchange'] as const) {
+      expect(orderClaimIntakeNotice(type, null, { partiallyCanceled: false })).toBe(orderClaimIntakeNotice(type));
+    }
+    expect(orderClaimIntakeNotice('return', { enabled: true, oneWayAmount: 3000 }, { partiallyCanceled: false }))
+      .toBe(orderClaimIntakeNotice('return', { enabled: true, oneWayAmount: 3000 }));
+  });
+
+  it('부분 취소가 있으면 취소·반품의 결제금액 전액을 남은 결제 금액으로 바꾸고 교환은 그대로다', () => {
+    const cancel = orderClaimIntakeNotice('cancel', null, { partiallyCanceled: true });
+    expect(cancel).toContain('승인되면 이미 일부 취소한 금액을 뺀 남은 결제 금액이 취소되고');
+    expect(cancel).not.toContain('결제금액 전액');
+    const ret = orderClaimIntakeNotice('return', null, { partiallyCanceled: true });
+    expect(ret).toContain('승인된 환불은 이미 일부 취소한 금액을 뺀 남은 결제 금액으로 처리합니다.');
+    expect(ret).not.toContain('결제금액 전액');
+    expect(orderClaimIntakeNotice('exchange', null, { partiallyCanceled: true })).toBe(ORDER_CLAIM_INTAKE_NOTICES.exchange);
+  });
+});

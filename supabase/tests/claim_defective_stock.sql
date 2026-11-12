@@ -325,3 +325,152 @@ select 1/case when pg_temp.ds_returned((select id from public.goods_variants whe
  and pg_temp.ds_returned(pg_temp.ds_id('variant', 2)) = 0 then 1 else 0 end as defective_return_keeps_exchange_pickup_on_v1_and_excludes_only_its_own;
 
 rollback;
+
+-- 재고 부족 부분 취소(T12b, ADR-0032) 뒤 반품 불량(T14b): 불량 수량은 살아 있는 수량(order_item_active_qty)이다. 남은 수량이 없는 품목은
+-- 고를 수 없고 목록에서 빠지며, 복원은 '불량이면 건너뜀, 아니면 남은 수량만'이다(웨이브 2 통합 5e). 합성 주문은
+-- order_partial_cancellation.sql의 픽스처(-- END FIXTURE까지)를 그대로 쓴다 — 그 픽스처를 바꾸면 이 절도 함께 맞춘다.
+begin;
+create function pg_temp.pc_id(kind text, n integer) returns uuid language sql immutable as $$select md5('partial-cancel:'||kind||':'||n)::uuid$$;
+create function pg_temp.pc_assert(ok boolean, label text) returns void language plpgsql as $$begin
+ if ok is distinct from true then raise exception 'Partial cancellation assertion failed: %', label; end if; end $$;
+create function pg_temp.pc_error(q text, expected text) returns void language plpgsql as $$begin
+ begin execute q; exception when others then if sqlstate = expected or sqlerrm = expected then return; end if; raise; end;
+ raise exception 'Expected partial cancellation rejection: %', expected; end $$;
+create function pg_temp.pc_auth(actor integer default 1) returns void language plpgsql as $$begin
+ perform set_config('request.jwt.claim.sub', '', true);
+ perform set_config('request.jwt.claims', jsonb_build_object('role', 'authenticated', 'sub', pg_temp.pc_id('user', actor),
+  'session_id', pg_temp.pc_id('session', actor))::text, true);
+end $$;
+grant execute on function pg_temp.pc_id(text, integer), pg_temp.pc_assert(boolean, text), pg_temp.pc_error(text, text), pg_temp.pc_auth(integer) to authenticated, service_role;
+
+insert into auth.users(id, aud, role, email, email_confirmed_at, raw_app_meta_data, raw_user_meta_data)
+ select pg_temp.pc_id('user', n), 'authenticated', 'authenticated', 'partial-cancel-'||n||'@example.test', clock_timestamp(), '{}', '{}' from generate_series(1, 3) n;
+insert into auth.sessions(id, user_id, created_at, updated_at, not_after)
+ select pg_temp.pc_id('session', n), pg_temp.pc_id('user', n), clock_timestamp(), clock_timestamp(), clock_timestamp() + interval '1 hour' from generate_series(1, 3) n;
+update public.profiles set nickname = 'TEST 부분취소 '||right(id::text, 6),
+ role = case when id = pg_temp.pc_id('user', 1) then 'admin'::public.user_role else 'user'::public.user_role end
+ where id in (select pg_temp.pc_id('user', n) from generate_series(1, 3) n);
+insert into private.operator_memberships(profile_id, manager_role) values (pg_temp.pc_id('user', 1), 'primary');
+insert into public.fulfillment_origins(id, code, name, default_carrier, base_fee, return_address, is_active)
+ select pg_temp.pc_id('origin', n), 'partial-cancel-origin-'||n, 'TEST 부분취소 출고지 '||n, 'hanjin', 3000, 'TEST 반품 주소', true from generate_series(1, 2) n;
+insert into public.ips(id, title, vertical_key) values ('partial-cancel-ip', 'TEST 부분취소 IP', 'character');
+insert into public.goods(id, ip_id, name, type, price, stock, stock_qty, origin_id) values
+ ('partial-cancel-a', 'partial-cancel-ip', 'TEST 품절 상품 A', '문구', 10000, 'ok', 10, pg_temp.pc_id('origin', 1)),
+ ('partial-cancel-b', 'partial-cancel-ip', 'TEST 남는 상품 B', '문구', 10000, 'ok', 10, pg_temp.pc_id('origin', 1)),
+ ('partial-cancel-c', 'partial-cancel-ip', 'TEST 다른 출고지 상품 C', '문구', 5000, 'ok', 10, pg_temp.pc_id('origin', 2));
+create function pg_temp.pc_stock(good text) returns integer language sql as $$
+ select stock_qty from public.goods_variants where good_id = good and is_default$$;
+
+-- 주문 n: A 2개(10,000원·쿠폰 1,000원) + B 1개(10,000원)는 출고지 1, C 1개(5,000원)는 출고지 2. 배송비 배송 건마다 3,000원.
+-- 결제 40,000원 = 굿즈 결제 몫 34,000원 + 배송비 6,000원. n=8은 A에 적립금 2,000원(결제 38,000원).
+-- provider: 1·2·5·6·8 토스, 3 무통장, 4 나이스페이, 7 토스(버전 1 주문 — 배분 원장 없음). 9 이후는 리뷰 보완 시험(9절)용이고
+-- a_coupon(A 쿠폰)·b_coupon(B 쿠폰)·ship_fee(배송 건마다 배송비)·initial(시작 상태)로 금액·상태를 바꾼다.
+create function pg_temp.pc_order(n integer, provider text, version integer default 2, a_coupon bigint default 1000, b_coupon bigint default 0,
+  ship_fee bigint default 3000, initial text default 'confirmed') returns void language plpgsql as $$
+declare credit bigint := case when n = 8 then 2000 else 0 end;
+  total bigint := (20000 - a_coupon - credit) + (10000 - b_coupon) + 5000 + 2 * ship_fee;
+begin
+ insert into public.orders(id, user_id, status, total, shipping_fee, discount_total, store_credit_total, calculation_version, address,
+   payment_method, created_at, confirmed_at)
+ values (pg_temp.pc_id('order', n), pg_temp.pc_id('user', 2), initial::public.order_status, total, 2 * ship_fee, a_coupon + b_coupon, credit, 1,
+   '{"recipientName":"TEST 수령인","phone":"01000000000","postalCode":"12345","address1":"TEST 합성 주소"}',
+   (case when provider = 'bank_transfer' then 'bank_transfer' else 'card' end)::public.order_payment_method,
+   case when n = 2 then '2031-04-01T03:00:00Z'::timestamptz else '2031-03-01T03:00:00Z'::timestamptz end,
+   case when initial = 'confirmed' then clock_timestamp() - interval '1 hour' end);
+ insert into public.order_items(id, order_id, good_id, variant_id, qty, unit_price, good_name_snapshot, good_type_snapshot, good_ip_id_snapshot)
+ select pg_temp.pc_id('item-'||g.id, n), pg_temp.pc_id('order', n), g.id, v.id, case when g.id = 'partial-cancel-a' then 2 else 1 end, g.price,
+   g.name, '문구', 'partial-cancel-ip'
+ from public.goods g join public.goods_variants v on v.good_id = g.id and v.is_default where g.id like 'partial-cancel-%';
+ if version = 2 then
+  -- 버전 2 주문은 거래 계약 묶음이 있어야 품목을 넣을 수 있다. 합성 주문은 품목을 넣은 뒤 버전을 올린다(배분 원장만 쓴다).
+  update public.orders set calculation_version = 2 where id = pg_temp.pc_id('order', n);
+  insert into private.order_price_allocations(order_item_id, order_id, calculation_version, subtotal, volume_discount, net_subtotal, coupon_discount, store_credit_discount, paid_goods_total)
+  values (pg_temp.pc_id('item-partial-cancel-a', n), pg_temp.pc_id('order', n), 2, 20000, 0, 20000, a_coupon, credit, 20000 - a_coupon - credit),
+   (pg_temp.pc_id('item-partial-cancel-b', n), pg_temp.pc_id('order', n), 2, 10000, 0, 10000, b_coupon, 0, 10000 - b_coupon),
+   (pg_temp.pc_id('item-partial-cancel-c', n), pg_temp.pc_id('order', n), 2, 5000, 0, 5000, 0, 0, 5000);
+ end if;
+ insert into public.order_shipments(id, order_id, origin_id, origin_name_snapshot, shipping_fee, shipping_fee_snapshot)
+ select pg_temp.pc_id('shipment-'||o, n), pg_temp.pc_id('order', n), pg_temp.pc_id('origin', o), 'TEST 부분취소 출고지 '||o, ship_fee, '{}' from generate_series(1, 2) o;
+ insert into public.order_shipment_items(order_id, shipment_id, order_item_id, qty)
+ select i.order_id, pg_temp.pc_id('shipment-'||case when i.good_id = 'partial-cancel-c' then 2 else 1 end, n), i.id, i.qty
+ from public.order_items i where i.order_id = pg_temp.pc_id('order', n);
+ insert into public.payments(id, user_id, provider, purpose, ref_id, amount, status, payment_key, idempotency_key, created_at)
+ values (pg_temp.pc_id('payment', n), pg_temp.pc_id('user', 2), provider::public.payment_provider, 'order', pg_temp.pc_id('order', n), total, 'paid',
+   case when provider = 'bank_transfer' then 'bank_transfer:'||pg_temp.pc_id('order', n) else 'TEST-PC-KEY-'||n end, 'partial-cancel-payment-'||n, clock_timestamp() - interval '2 hours');
+ insert into public.payment_attempts(id, provider, user_id, purpose, ref_id, amount, currency, state, idempotency_key, provider_order_id, provider_product_code, payment_id, expires_at)
+ values (pg_temp.pc_id('attempt', n), provider::public.payment_provider, pg_temp.pc_id('user', 2), 'order', pg_temp.pc_id('order', n), total, 'KRW', 'approved',
+   'partial-cancel-attempt-'||n, 'TEST-PC-ORDER-'||n, 'TEST-PC-PRODUCT-'||n, pg_temp.pc_id('payment', n), clock_timestamp() + interval '1 hour');
+end $$;
+select pg_temp.pc_order(1, 'toss'), pg_temp.pc_order(2, 'toss'), pg_temp.pc_order(3, 'bank_transfer'), pg_temp.pc_order(4, 'nicepay'),
+ pg_temp.pc_order(5, 'toss'), pg_temp.pc_order(6, 'toss'), pg_temp.pc_order(7, 'toss', 1), pg_temp.pc_order(8, 'toss');
+-- 9: A 전액 할인(결제 몫 0원), 10: B 전액 할인·배송비 0원(A·C를 빼면 남는 잔액 0원), 17·18·24: 발주확인 전(paid), 20: 무통장, 나머지 토스.
+select pg_temp.pc_order(9, 'toss', 2, 20000), pg_temp.pc_order(10, 'toss', 2, 1000, 10000, 0), pg_temp.pc_order(20, 'bank_transfer');
+select pg_temp.pc_order(n, 'toss', 2, 1000, 0, 3000, 'paid') from unnest(array[17, 18, 24]) n;
+select pg_temp.pc_order(n, 'toss') from unnest(array[11, 12, 13, 14, 15, 16, 19, 21, 22, 23]) n;
+create function pg_temp.pc_items(spec text) returns jsonb language sql as $$
+ -- 'a:1,c:1@2' → 주문 2의 A 1개·C 1개
+ select jsonb_agg(jsonb_build_object('orderItemId', pg_temp.pc_id('item-partial-cancel-'||split_part(part, ':', 1), split_part(spec, '@', 2)::integer),
+   'qty', split_part(part, ':', 2)::integer))
+ from unnest(string_to_array(split_part(spec, '@', 1), ',')) part$$;
+create function pg_temp.pc_start(spec text, op integer, expected bigint, decision text default 'TEST 11/12 통화 — 품절 상품만 취소하고 나머지 먼저 받기',
+  warehouse boolean default false, account jsonb default null) returns jsonb language sql as $$
+ select public.admin_start_order_partial_cancellation(pg_temp.pc_id('order', split_part(spec, '@', 2)::integer), pg_temp.pc_items(spec), decision, null,
+  warehouse, expected, pg_temp.pc_id('operation', op), account)$$;
+create function pg_temp.pc_head(op integer) returns private.order_partial_cancellations language sql security definer as $$
+ select * from private.order_partial_cancellations where operation_id = pg_temp.pc_id('operation', op)$$;
+grant execute on function pg_temp.pc_items(text), pg_temp.pc_start(text, integer, bigint, text, boolean, jsonb), pg_temp.pc_stock(text), pg_temp.pc_head(integer) to authenticated;
+update private.return_fee_deduction_settings set partial_cancel_enabled = true, partial_cancel_evidence = 'TEST 부분 취소 뒤 반품 불량', partial_cancel_enabled_at = clock_timestamp() where singleton;
+-- 주문 2·5: A 2개 중 1개를 재고 부족 부분 취소(결제사 확인 기록까지). 주문 6: A 2개 모두 부분 취소.
+set local role authenticated; select pg_temp.pc_auth();
+select pg_temp.pc_start('a:1@2', 31, 9500), pg_temp.pc_start('a:1@5', 32, 9500), pg_temp.pc_start('a:2@6', 33, 19000);
+reset role;
+select public.service_complete_order_partial_cancellation((pg_temp.pc_head(31)).id, 9500, 'TEST-PC-KEY-2', 'TEST-PC-TX-31', pg_temp.pc_id('user', 1)),
+ public.service_complete_order_partial_cancellation((pg_temp.pc_head(32)).id, 9500, 'TEST-PC-KEY-5', 'TEST-PC-TX-32', pg_temp.pc_id('user', 1)),
+ public.service_complete_order_partial_cancellation((pg_temp.pc_head(33)).id, 19000, 'TEST-PC-KEY-6', 'TEST-PC-TX-33', pg_temp.pc_id('user', 1));
+select pg_temp.pc_assert(private.order_item_active_qty(pg_temp.pc_id('item-partial-cancel-a', 2)) = 1
+ and private.order_item_active_qty(pg_temp.pc_id('item-partial-cancel-a', 5)) = 1
+ and private.order_item_active_qty(pg_temp.pc_id('item-partial-cancel-a', 6)) = 0, 'partial_cancel_leaves_live_qty');
+update public.order_shipments s set status = 'shipping', shipped_at = now(), carrier = 'hanjin',
+ tracking_number = 'TESTPD' || lpad((abs(hashtext(s.id::text)) % 100000000)::text, 8, '0')
+ where order_id in (pg_temp.pc_id('order', 2), pg_temp.pc_id('order', 5), pg_temp.pc_id('order', 6)) and status = 'ready';
+update public.order_shipments set status = 'delivered', delivered_at = now()
+ where order_id in (pg_temp.pc_id('order', 2), pg_temp.pc_id('order', 5), pg_temp.pc_id('order', 6)) and status = 'shipping';
+insert into public.order_cancellation_requests(id, order_id, requested_by, reason, reason_type, claim_type, stage, collection_policy, collected_at, requested_at)
+ select pg_temp.pc_id('defect-claim', n), pg_temp.pc_id('order', n), pg_temp.pc_id('user', 2), 'TEST 부분 취소 뒤 반품', 'defect', 'return', 'collected', 'legacy',
+  clock_timestamp() - interval '10 minutes', clock_timestamp() - interval '1 hour' from unnest(array[2, 5, 6]) n;
+select pg_temp.pc_auth();
+-- 고를 수 있는 품목 목록의 수량은 살아 있는 수량이고, 남은 수량이 없는 품목(주문 6의 A)은 싣지 않는다.
+select pg_temp.pc_assert((select (x->'items') @> jsonb_build_array(jsonb_build_object('orderItemId', pg_temp.pc_id('item-partial-cancel-a', 2), 'qty', 1))
+   from jsonb_array_elements(public.admin_claim_defective_items(array[pg_temp.pc_id('defect-claim', 2)])) x), 'defective_items_show_live_qty');
+select pg_temp.pc_assert((select not ((x->'items') @> jsonb_build_array(jsonb_build_object('orderItemId', pg_temp.pc_id('item-partial-cancel-a', 6))))
+   from jsonb_array_elements(public.admin_claim_defective_items(array[pg_temp.pc_id('defect-claim', 6)])) x), 'defective_items_hide_fully_canceled');
+select pg_temp.pc_error(format('select public.admin_plan_claim_defective_stock(%L, array[%L]::uuid[])', pg_temp.pc_id('defect-claim', 6), pg_temp.pc_id('item-partial-cancel-a', 6)),
+ 'defective_stock_item_fully_canceled');
+-- 주문 2: A를 불량으로 고르면 계획 수량은 살아 있는 수량 1이다.
+select public.admin_plan_claim_defective_stock(pg_temp.pc_id('defect-claim', 2), array[pg_temp.pc_id('item-partial-cancel-a', 2)]);
+select pg_temp.pc_assert((select qty from private.claim_defective_stock where claim_id = pg_temp.pc_id('defect-claim', 2)) = 1, 'planned_defective_qty_is_live_qty');
+reset role;
+create temp table pd_stock_before as select good_id, stock_qty from public.goods_variants where good_id like 'partial-cancel-%' and is_default;
+update public.order_cancellation_requests set stage = 'processing', status = 'processing' where id in (pg_temp.pc_id('defect-claim', 2), pg_temp.pc_id('defect-claim', 5));
+insert into public.order_cancellation_claims(order_id, requested_by, previous_status)
+ select pg_temp.pc_id('order', n), pg_temp.pc_id('user', 1), 'delivered' from unnest(array[2, 5]) n;
+select pg_temp.pc_auth();
+select public.finalize_order_cancellation_with_provider_evidence(pg_temp.pc_id('order', 2), 'TEST 부분 취소 뒤 불량 반품', array['TEST-PC-KEY-2']);
+-- 복원: 주문 2는 불량 A를 건너뛰고(재고 그대로) B·C는 1개씩 복원한다.
+select pg_temp.pc_assert(pg_temp.pc_stock('partial-cancel-a') = (select stock_qty from pd_stock_before where good_id = 'partial-cancel-a')
+ and pg_temp.pc_stock('partial-cancel-b') = (select stock_qty from pd_stock_before where good_id = 'partial-cancel-b') + 1
+ and pg_temp.pc_stock('partial-cancel-c') = (select stock_qty from pd_stock_before where good_id = 'partial-cancel-c') + 1, 'defective_item_skips_restore_after_partial_cancel');
+-- 확정 직후 기록(앱이 이어서 부른다). 기록 수량은 살아 있는 수량 1이다.
+select pg_temp.pc_assert((public.admin_record_claim_defective_stock(pg_temp.pc_id('defect-claim', 2)))->>'recorded' = '1', 'defective_record_after_finalize');
+select pg_temp.pc_assert((select qty from private.claim_defective_stock where claim_id = pg_temp.pc_id('defect-claim', 2) and state = 'recorded') = 1
+ and (select (diff->>'qty')::integer from public.audit_log where action = 'order.claim_defective_stock_recorded'
+   and diff->>'claimId' = pg_temp.pc_id('defect-claim', 2)::text) = 1, 'recorded_defective_qty_is_live_qty');
+-- 주문 5: 불량이 아니면 A는 남은 수량(1)만 복원한다(부분 취소분은 이미 복원했다).
+select public.finalize_order_cancellation_with_provider_evidence(pg_temp.pc_id('order', 5), 'TEST 부분 취소 뒤 반품', array['TEST-PC-KEY-5']);
+select pg_temp.pc_assert(pg_temp.pc_stock('partial-cancel-a') = (select stock_qty from pd_stock_before where good_id = 'partial-cancel-a') + 1
+ and pg_temp.pc_stock('partial-cancel-b') = (select stock_qty from pd_stock_before where good_id = 'partial-cancel-b') + 2, 'non_defective_restores_only_live_qty');
+select pg_temp.pc_assert((select count(*) from public.audit_log where action = 'order.option_stock_restored' and target = 'order:' || pg_temp.pc_id('order', 2)::text
+   and diff->>'orderItemId' = pg_temp.pc_id('item-partial-cancel-a', 2)::text) = 0
+ and (select (diff->>'delta')::integer from public.audit_log where action = 'order.option_stock_restored' and target = 'order:' || pg_temp.pc_id('order', 5)::text
+   and diff->>'orderItemId' = pg_temp.pc_id('item-partial-cancel-a', 5)::text) = 1, 'restore_audit_matches_live_qty');
+rollback;
