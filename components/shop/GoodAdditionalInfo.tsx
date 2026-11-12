@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import type { Good } from '@/lib/data';
 import { krw } from '@/lib/format';
+import { goodClaimAvailability } from '@/lib/goods-claim-policy';
 import { shippingPolicyDescription, shippingRegionFeeDescription, type GoodShippingPolicy } from '@/lib/fulfillment';
 import { goodsShipDateLabel } from '@/lib/goods-preorders';
 import { goodsQuantityDeliveryLabel } from '@/lib/goods-transaction-presentation';
@@ -65,19 +66,32 @@ function ShippingGuide({ goods, policy }: { goods: readonly Good[]; policy?: Goo
   );
 }
 
+/* 제한이 반품·교환 한쪽뿐이면 어느 쪽인지 밝힌다(가능한 쪽까지 제한으로 읽히지 않게). */
+const CLAIM_RESTRICTION_SCOPE = { both: null, return: '반품 제한 · 교환 가능', exchange: '교환 제한 · 반품 가능' } as const;
+
+/*
+ * 교환 · 반품 안내(S36-040·S36-044). 가능/제한 표시는 굿즈의 반품·교환 조건에서 파생하고(goodClaimAvailability) 신청을
+ * 막지 않는다. 교환·반품지는 굿즈가 고른 반품지, 없으면 출고지 반품 주소다(get_good_shipping_policy가 정한다).
+ */
 function ReturnGuide({ policy }: { policy?: GoodShippingPolicy | null }) {
   const terms = policy?.claimPolicy;
+  const availability = goodClaimAvailability(terms);
   return (
     <div className="wc-pdp-guide">
       <ul className="wc-pdp-guide__list">
-        {terms?.restrictionReason && <li style={{ whiteSpace: 'pre-wrap' }}>굿즈별 확인 조건: {terms.restrictionReason} · 고객센터에 사유를 접수하면 개별 확인합니다.</li>}
+        {availability ? <li data-claim-availability={availability.restricted ? 'restricted' : 'available'} style={{ whiteSpace: 'pre-wrap' }}>
+          <strong>{availability.label}</strong>
+          {availability.restricted && CLAIM_RESTRICTION_SCOPE[availability.scope] ? ` · ${CLAIM_RESTRICTION_SCOPE[availability.scope]}` : null}
+        </li> : null}
+        {availability ? <li>{availability.restricted ? '제한된 굿즈도 주문 상세에서 교환·반품을 신청할 수 있고, 담당자가 개별 확인합니다. ' : ''}굿즈 하자·오배송은 교환·반품 제한과 관계없이 교환·반품할 수 있습니다.</li> : null}
+        {terms?.restrictionReason && !availability?.restricted && <li style={{ whiteSpace: 'pre-wrap' }}>굿즈별 확인 조건: {terms.restrictionReason} · 고객센터에 사유를 접수하면 개별 확인합니다.</li>}
         {terms && <>
           <li>고객 귀책 반품비(편도): {terms.returnFee === null ? '확인 후 안내' : krw(terms.returnFee)}</li>
           <li>최초 무료배송 후 반품비(왕복 합계): {terms.returnFreeShippingFee === null ? '확인 후 안내' : krw(terms.returnFreeShippingFee)}</li>
           <li>고객 귀책 교환비(왕복 합계): {terms.exchangeFee === null ? '확인 후 안내' : krw(terms.exchangeFee)}</li>
         </>}
         {policy?.returnExchangeNotice && <li style={{ whiteSpace: 'pre-wrap' }}>{policy.returnExchangeNotice}</li>}
-        {policy?.returnAddress && <li>회수 주소: {policy.returnAddress} · 먼저 고객센터에 접수한 뒤 안내에 따라 보내주세요.</li>}
+        {policy?.returnAddress && <li>교환·반품지: {policy.returnAddress} · 주문 상세에서 교환·반품을 신청하고 승인 안내를 받은 뒤 보내주세요.</li>}
         {policy?.cs && (policy.cs.name || policy.cs.phone || policy.cs.email) && <li>고객센터: {[policy.cs.name, policy.cs.phone, policy.cs.email].filter(Boolean).join(' · ')}</li>}
         <li>굿즈를 받은 날부터 7일 이내에 청약철회를 신청할 수 있습니다.</li>
         <li>단순 변심으로 반품하는 경우 반송비는 구매자가 부담하며 착불로 보내주세요.</li>

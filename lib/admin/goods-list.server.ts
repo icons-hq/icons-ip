@@ -6,6 +6,7 @@ import { loadActiveShippingNoticeTemplateOptions } from './shipping-notice-templ
 import { createClient } from '@/lib/supabase/server';
 import { getAdminCatalogRecords, type AdminIpRecord } from './catalog.server';
 import { loadGoodsFulfillmentOptions } from './fulfillment-origins.server';
+import { loadGoodsReturnAddressOptions } from './return-addresses.server';
 import { loadAdminGoodsVariants } from './goods-variants.server';
 import { loadAdminGoodsReadiness, parseGoodsReadiness } from './goods-readiness.server';
 import { imageBg, imageUrlFromBg, publicMediaUrl } from '@/lib/media';
@@ -127,7 +128,7 @@ async function loadGoodsListInlineValues(ids: string[]) {
 /** Editor requests one good and its options; opening the list never loads these. */
 export async function loadAdminGoodEditor(goodId?: string) {
   const supabase = await createClient();
-  const [records, ipOptions, variants, verticals, origins, categories, shippingNoticeOptions, readiness, ownership, hasCategoryTemplates] = await Promise.all([
+  const [records, ipOptions, variants, verticals, origins, categories, shippingNoticeOptions, readiness, ownership, hasCategoryTemplates, returnAddresses] = await Promise.all([
     getAdminCatalogRecords({ include: goodId ? ['goods'] : [], ...(goodId ? { goodId } : {}) }),
     loadGoodsIpOptions(),
     goodId ? loadAdminGoodsVariants(goodId) : Promise.resolve([]),
@@ -138,6 +139,7 @@ export async function loadAdminGoodEditor(goodId?: string) {
     goodId ? loadAdminGoodsReadiness(goodId) : Promise.resolve(null),
     goodId ? loadGoodsEditorOwnership(goodId) : Promise.resolve(null),
     hasUsableCategoryTemplates(),
+    loadGoodsReturnAddressOptions(),
   ]);
   if (verticals.error) throw new Error('상품 편집 정보를 불러오지 못했습니다.');
   // The preview needs IP presentation only, so avoid the public snapshot's full
@@ -151,7 +153,7 @@ export async function loadAdminGoodEditor(goodId?: string) {
     tagline: ip.tagline ?? '', synopsis: ip.synopsis ?? '',
   }));
   const goods = records.goods.map(good => ownership?.goodId === good.id && !ownership.aggregation.editable ? { ...good, ...ownership.aggregation.sharedPolicy } : good);
-  return { ownership, records: { ...records, goods, ips: ipOptions }, variants, catalogIps, origins, categories, shippingNoticeOptions, readiness, hasCategoryTemplates };
+  return { ownership, records: { ...records, goods, ips: ipOptions }, variants, catalogIps, origins, returnAddresses, categories, shippingNoticeOptions, readiness, hasCategoryTemplates };
 }
 
 /** IP presentation for product selection, without the IP operating workspace. */

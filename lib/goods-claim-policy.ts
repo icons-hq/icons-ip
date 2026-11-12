@@ -26,3 +26,19 @@ export function parseGoodClaimPolicy(value: unknown): GoodClaimPolicy | null {
     restrictionReason: row.restrictionReason as string | null, returnFee: row.returnFee as number | null,
     returnFreeShippingFee: freeReturn as number | null, exchangeFee: row.exchangeFee as number | null };
 }
+
+/**
+ * 상품 상세 '교환 · 반품 안내'의 가능/제한 표시(S36-044). 상품의 반품·교환 조건에서 파생한다 — 조건이 하나라도
+ * '제한'이면 '교환·반품 제한(사유)', 아니면(미검토 포함, 기본 정책) '교환·반품 가능'이다. 이 표시는 고지일 뿐이라
+ * 고객의 신청을 막지 않고, 하자·오배송은 제한할 수 없다는 문장을 함께 둔다(전자상거래법 제17조 제3항).
+ */
+export type GoodClaimAvailability =
+  | { restricted: false; label: '교환·반품 가능' }
+  | { restricted: true; label: string; scope: 'both' | 'return' | 'exchange' };
+export function goodClaimAvailability(policy: GoodClaimPolicy | null | undefined): GoodClaimAvailability | null {
+  if (!policy) return null;
+  const returnLimited = policy.returnAllowed === false, exchangeLimited = policy.exchangeAllowed === false;
+  if (!returnLimited && !exchangeLimited) return { restricted: false, label: '교환·반품 가능' };
+  const reason = policy.restrictionReason?.trim() || '개별 확인';
+  return { restricted: true, label: `교환·반품 제한(${reason})`, scope: returnLimited && exchangeLimited ? 'both' : returnLimited ? 'return' : 'exchange' };
+}

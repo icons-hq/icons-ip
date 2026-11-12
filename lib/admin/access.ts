@@ -63,7 +63,7 @@ export function hasAdminCapability(source: AdminAccessSource, capability: AdminC
 
 const SCREEN_CAPABILITIES: Record<string, AdminCapability> = {
   overview: 'home', guide: 'home', goods: 'catalog.read', 'goods-create': 'catalog.manage', 'goods-groups': 'catalog.manage', 'goods-groups-create': 'catalog.manage', 'goods-import': 'catalog.manage',
-  'fulfillment-origins': 'catalog.manage', 'shipping-settings-templates': 'catalog.manage',
+  'fulfillment-origins': 'catalog.manage', 'return-addresses': 'catalog.manage', 'shipping-settings-templates': 'catalog.manage',
   'stock-reconcile': 'catalog.manage',
   'shipping-notice-templates': 'catalog.manage', 'notice-presets': 'catalog.manage', categories: 'catalog.manage',
   'erp-items': 'catalog.manage', announcements: 'catalog.announcements', 'goods-photos': 'catalog.manage', 'goods-event-templates': 'catalog.manage', 'category-templates': 'catalog.manage', 'goods-after-sales-templates': 'catalog.manage', 'size-templates': 'catalog.manage',

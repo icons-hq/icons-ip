@@ -43,7 +43,7 @@ export const ADMIN_QA_ROUTES = [
   ['stats/sales', '판매분석'], ['stats/claims', '취소/반품/교환 분석'], ['stats/customers', '고객분석'],
   ['stats/traffic', '방문·유입 분석'], ['stats/marketing', '마케팅 링크 성과'],
   ['settings/operations', '운영 준비'], ['settings/store-credits', '적립금 정책'],
-  ['settings/store', '판매자 정보 관리'], ['settings/origins', '배송정보 관리'],
+  ['settings/store', '판매자 정보 관리'], ['settings/origins', '배송정보 관리'], ['settings/return-addresses', '반품/교환지 관리'],
   ['settings/shipping-templates', '배송정보 템플릿 관리'],
   ['settings/shipping-regions', '지역별 추가배송비 관리'], ['settings/shipping-notices', '배송 안내 템플릿 관리'],
   ['settings/carriers', '택배사 관리'], ['check-in', '현장 티켓 검표'], ['guide', '사용 가이드'],
