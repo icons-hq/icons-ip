@@ -76,11 +76,11 @@ insert into public.verticals(key,label,color) values('other-cert-tests','기타 
 insert into public.ips(id,title,vertical_key,published_at) values('other-cert-tests','기타 인증 합성검증','other-cert-tests',now());
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,free_threshold,return_address,is_active)
  values('00000000-0000-4000-8000-000000140030','other-cert-tests','합성 출고지','hanjin',3000,30000,'배송 금지 검증 주소',true);
-insert into public.goods(id,ip_id,name,type,price,image_path,origin_id,notice_maker,notice_origin,notice_material,
+insert into public.goods(id,ip_id,name,type,price,origin_id,notice_maker,notice_origin,notice_material,
  notice_size,notice_made_on,notice_as_manager,notice_as_contact) values
- ('other-cert-good','other-cert-tests','합성 기타 인증 상품','문구',1000,'public-media/other-cert.webp','00000000-0000-4000-8000-000000140030',
+ ('other-cert-good','other-cert-tests','합성 기타 인증 상품','문구',1000,'00000000-0000-4000-8000-000000140030',
   '합성 제조자','합성 국가','합성 소재','합성 크기','2026-11','합성 CS','02-000'),
- ('other-cert-archived','other-cert-tests','합성 보관 상품','문구',1000,'public-media/other-cert.webp','00000000-0000-4000-8000-000000140030',
+ ('other-cert-archived','other-cert-tests','합성 보관 상품','문구',1000,'00000000-0000-4000-8000-000000140030',
   '합성 제조자','합성 국가','합성 소재','합성 크기','2026-11','합성 CS','02-000');
 -- 새 상품은 projection을 직접 넣어도 빈 목록으로 시작한다(복사·일반 writer 포함).
 insert into public.goods(id,ip_id,name,type,price,other_certification_disclosures)
