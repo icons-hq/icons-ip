@@ -26,12 +26,16 @@ import type { ShipmentConsoleNotice, ShipmentDeliveryDialogMode } from './Shipme
  * 이유를 보이며, 서버는 잠근 뒤 같은 조건을 다시 본다(행별 결과).
  */
 const FIELD = 'flex min-w-0 flex-col gap-1.5';
+/** 목록에서 넘겨받는 배송 건 요약(수령인·상품). 고른 건이 맞는지 팝업 안에서 확인하는 용도다(QA 라운드 1 m5). */
+export interface DispatchTargetSummary { recipient: string | null; items: string[] }
 const NOTE = 'text-xs text-muted-foreground';
 const kstNow = () => new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 16);
 
-export function ShipmentConsoleDeliveryDialog({ shipmentIds, mode, onClose, onDone }: {
+export function ShipmentConsoleDeliveryDialog({ shipmentIds, mode, onClose, onDone, summaries = {} }: {
   shipmentIds: string[];
   mode: ShipmentDeliveryDialogMode;
+  /** 배송 건 id별 수령인·상품. 목록 밖(다른 페이지) 건은 없을 수 있다. */
+  summaries?: Readonly<Record<string, DispatchTargetSummary>>;
   onClose: () => void;
   /** 처리 결과(일부 실패 포함)를 표 위 알림으로 보존한다. */
   onDone: (notice: ShipmentConsoleNotice) => void;
@@ -126,10 +130,14 @@ export function ShipmentConsoleDeliveryDialog({ shipmentIds, mode, onClose, onDo
             <Table>
               <caption className="sr-only">처리할 배송 건</caption>
               <TableHeader><TableRow className="bg-muted/50">
-                <TableHead scope="col">배송건번호</TableHead><TableHead scope="col">고객이 고른 방법</TableHead><TableHead scope="col">지금</TableHead><TableHead scope="col">이번 처리</TableHead>
+                <TableHead scope="col">배송건번호</TableHead><TableHead scope="col">수취인 · 상품</TableHead><TableHead scope="col">고객이 고른 방법</TableHead><TableHead scope="col">지금</TableHead><TableHead scope="col">이번 처리</TableHead>
               </TableRow></TableHeader>
               <TableBody>{plan.map((step) => <TableRow key={step.shipment.id}>
                 <TableCell className="tabular-nums">{reference(step.shipment)}<small className="block text-xs text-muted-foreground">{step.shipment.originName}</small></TableCell>
+                <TableCell className="min-w-40 whitespace-normal">{summaries[step.shipment.id] ? <>
+                  <span className="block">{summaries[step.shipment.id].recipient || '수취인 미기록'}</span>
+                  {summaries[step.shipment.id].items.map((item, index) => <small className="block text-xs text-muted-foreground" key={`${step.shipment.id}:${index}`}>{item}</small>)}
+                </> : <span className="text-xs text-muted-foreground">목록 밖 배송 건</span>}</TableCell>
                 <TableCell>{dispatchMethodLabel(step.shipment.customerMethod)}</TableCell>
                 <TableCell>{dispatchMethodLabel(step.shipment.method)}</TableCell>
                 <TableCell className="whitespace-normal">{step.kind === 'apply'

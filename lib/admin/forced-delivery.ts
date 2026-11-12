@@ -9,6 +9,14 @@ import { isUuid } from '@/lib/uuid';
  * 재전송으로 감사에 남는다. 택배는 운송장 없이, 택배 외 방식은 '강제 배송완료' 증거로 옮긴다. 디지털 파일은 제외한다.
  */
 export const FORCED_DELIVERY_REASON_MAX_LENGTH = 500;
+/** 발주·발송 화면의 강제 배송완료 카드 앵커와, 주문번호를 미리 채워 여는 주소 검색어(QA1 S-T04-05). */
+export const FORCED_DELIVERY_ANCHOR = 'forced-delivery';
+export const FORCED_DELIVERY_ORDER_PARAM = 'forceDelivery';
+
+/** 주문 상세(전용 화면·목록 위 팝업)에서 그 주문으로 강제 배송완료 카드를 연다. 사유·확인창·감사 규칙은 그대로다. */
+export function forcedDeliveryHref(orderNumber: string): string {
+  return `/admin/sales/dispatch?${FORCED_DELIVERY_ORDER_PARAM}=${encodeURIComponent(orderNumber)}#${FORCED_DELIVERY_ANCHOR}`;
+}
 export const FORCED_DELIVERY_BLOCKERS = ['requires_confirmed', 'nothing_to_deliver', 'claim_in_progress', 'digital_access_only', 'preorder_allocation_required', 'production_incomplete'] as const;
 export type ForcedDeliveryBlocker = typeof FORCED_DELIVERY_BLOCKERS[number];
 

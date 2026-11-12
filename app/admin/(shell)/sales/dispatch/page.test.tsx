@@ -119,6 +119,20 @@ describe('AdminSalesDispatchPage shipment contract', () => {
     expect(logistics.map(child => child.type)).toEqual([mocks.stockWarning, mocks.screen]);
     expect(logistics[0].props).toEqual({ data: warnings, canReconcile: false });
   });
+  /* QA1 S-T04-05: 주문 상세의 [강제 배송완료]가 ?forceDelivery=<주문번호>로 이 카드를 연다. 형식이 맞는 번호만 채우고, 다른 번호면 새로 그린다. */
+  it('주문 상세에서 넘긴 주문번호를 강제 배송완료 카드에 채운다', async () => {
+    const forced = async (query: Record<string, string>) => children(await AdminSalesDispatchPage({ searchParams: Promise.resolve(query) }) as Element)
+      .find(child => child.type === mocks.forcedPanel) as (Element & { key: unknown }) | undefined;
+    const opened = await forced({ forceDelivery: '20261112140010000034' });
+    expect(opened?.props.initialOrderNumber).toBe('20261112140010000034');
+    expect(opened?.key).toBe('20261112140010000034');
+    const plain = await forced({});
+    expect(plain?.props.initialOrderNumber).toBeNull();
+    expect(plain?.key).toBe('');
+    expect((await forced({ forceDelivery: 'not-a-number' }))?.props.initialOrderNumber).toBeNull();
+    mocks.authState.operatorAccess = configuredOperatorAccessFixture('logistics');
+    expect(await forced({ forceDelivery: '20261112140010000034' })).toBeUndefined();
+  });
   it('자동 발주확인 설정을 읽지 못해도 발주 목록은 그대로 연다', async () => {
     mocks.loadAuto.mockResolvedValue(null);
     const [list, panel] = children(await AdminSalesDispatchPage({ searchParams: Promise.resolve({}) }) as Element);

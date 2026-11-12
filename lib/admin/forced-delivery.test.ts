@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FORCED_DELIVERY_BLOCKERS, forcedDeliveryBlockerLabel, forcedDeliveryError, forcedDeliveryExportedPending, forcedDeliveryTargets, normalizeForcedDeliveryOrderNumber, parseForcedDeliveryPreview, parseForcedDeliveryReceipt } from './forced-delivery';
+import { FORCED_DELIVERY_BLOCKERS, forcedDeliveryBlockerLabel, forcedDeliveryError, forcedDeliveryExportedPending, forcedDeliveryHref, forcedDeliveryTargets, normalizeForcedDeliveryOrderNumber, parseForcedDeliveryPreview, parseForcedDeliveryReceipt } from './forced-delivery';
 
 describe('운영 강제 배송완료 값 (1014-083)', () => {
   it('주문번호는 공백·하이픈을 빼고 주문번호 형식(주문번호 모듈 판정)일 때만 받는다', () => {
@@ -28,5 +28,11 @@ describe('운영 강제 배송완료 값 (1014-083)', () => {
     expect(forcedDeliveryError('P0002', 'forced_delivery_order_not_found')).toBe('주문번호에 해당하는 주문이 없습니다.');
     expect(forcedDeliveryError('42501')).toContain('배송 처리 권한');
     expect(forcedDeliveryError(undefined, 'order cancellation in progress')).toContain('클레임');
+    /* QA1 S-T04-05: 이미 배송완료·취소된 주문은 '먼저 발주확인'이 아니라 처리할 배송 건이 없다고 알린다. */
+    expect(forcedDeliveryError('23514', 'forced_delivery_nothing_to_deliver')).toContain('이미 배송완료됐거나 취소된 주문');
+    expect(forcedDeliveryBlockerLabel('nothing_to_deliver')).not.toContain('발주확인');
+  });
+  it('주문 상세에서 강제 배송완료 카드를 그 주문번호로 여는 주소', () => {
+    expect(forcedDeliveryHref('20261112140010000034')).toBe('/admin/sales/dispatch?forceDelivery=20261112140010000034#forced-delivery');
   });
 });

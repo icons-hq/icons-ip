@@ -19,6 +19,12 @@ type Shipments = ShipmentExportData['shipments'];
 type Shipment = Shipments[number];
 type Line = Shipment['lines'][number];
 type Cell = string | number;
+/**
+ * 출고지시 파일을 받는 사람의 열람 범위. recipientOnly는 주문 조회 권한(sales.read)이 없는 출고 전용 운영자(1014-084 "수령인 정보만")다 —
+ * 결제 금액(김포 21열의 주문금액/수량)과 선결제 배송비(배송비(수집)·배송 운영 안내의 선불 배송비)를 빈칸으로 두고,
+ * 수량·착불 배송비·합포장 착불 합계·착불 수납 정보는 남긴다(2026-11-12 "착불 금액은 보이게").
+ */
+export interface WarehouseExportReader { recipientOnly?: boolean }
 
 
 const postalCode = (value: string) => /^\d{5}$/.test(value) ? value : '';
@@ -28,7 +34,7 @@ function validCollector(value: unknown) {
     && ['name', 'method', 'refundContact', 'instructions'].every(key => typeof value[key] === 'string' && value[key].trim() && !/[\u0000-\u001f\u007f]/.test(value[key]));
 }
 
-function gimpoCells(shipment: Shipment, line: Line, index: number): Cell[] {
+function gimpoCells(shipment: Shipment, line: Line, index: number, recipientOnly: boolean): Cell[] {
   // 10/27 회의(D10②)·11/03 결정: ERP 품명이 있으면 상품명(확정)·옵션(확정)과 두 조합 열을 ERP 품명으로 맞춘다.
   // 옵션(수집)은 쇼핑몰에서 수집한 옵션명 그대로다. 회신 대조는 주문번호(쇼핑몰)로만 하므로 조합 열이 바뀌어도 된다.
   const erpName = line.erpName?.trim();
@@ -39,8 +45,9 @@ function gimpoCells(shipment: Shipment, line: Line, index: number): Cell[] {
     // 10/14 회의(1014-096): 주문번호(쇼핑몰)는 UUID 대신 표시 주문번호다. 회신 대조 키라 `warehouseExportTable`이 번호를 먼저 확인한다.
     otherPhone: '', deliveryNote: line.deliveryNote, sabangnetOrder: '', orderNumber: shipment.orderNumber ?? '',
     optionAlias: '', goodName: confirmedGood, collectedOption: line.optionName, confirmedOption,
-    supplyPrice: '', unitPrice: line.unitPrice, qty: line.qty, ea: '', postalCode: postalCode(line.postalCode),
-    recipient: line.recipient, shippingFee: index === 0 ? shipment.shippingFee : 0, trackingNumber: '',
+    // 주문금액/수량은 이름과 달리 줄 단가 한 칸이다(수량은 바로 옆 수량 열). 수령인 정보만 받는 계정은 단가·배송비(수집)를 공급단가처럼 빈칸으로 둔다.
+    supplyPrice: '', unitPrice: recipientOnly ? '' : line.unitPrice, qty: line.qty, ea: '', postalCode: postalCode(line.postalCode),
+    recipient: line.recipient, shippingFee: recipientOnly ? '' : index === 0 ? shipment.shippingFee : 0, trackingNumber: '',
     // 10/27 회의(1027T-046): 원본 21열 오른쪽에 옵션의 바코드·ERP 품명을 덧붙인다. 없으면 빈칸이다.
     barcode: (line.barcode ?? '').trim(), erpName: erpName ?? '',
   };
@@ -85,7 +92,7 @@ export function assertWarehouseExportShipments(shipments: Shipments) {
 }
 
 /** Export one origin using its native contract; callers only serialize the resulting table. */
-export function warehouseExportTable(shipments: Shipments) {
+export function warehouseExportTable(shipments: Shipments, { recipientOnly = false }: WarehouseExportReader = {}) {
   const first = assertWarehouseExportShipments(shipments);
   if (first.template === 'seowon_xlsx') return {
     headers: SEOWON_EXPORT_HEADERS, widths: SEOWON_COLUMNS.map(column => column.width),
@@ -95,8 +102,8 @@ export function warehouseExportTable(shipments: Shipments) {
       .map(row => SEOWON_COLUMNS.map(column => row[column.key])),
   };
   // 김포 21열에는 주문금액/수량·배송비(수집) 칸이 있다. 금액을 지어내지 않도록 주문 당시 값이 없으면 만들지 않는다.
-  // (ICONS 표준 양식은 위 계약 확인만 쓰고 자기 금액 칸은 비운 값을 빈칸으로 둔다.)
-  if (first.template === 'wms_csv' && shipments.some(shipment => !Number.isSafeInteger(shipment.shippingFee) || shipment.shippingFee < 0
+  // (ICONS 표준 양식은 위 계약 확인만 쓰고 자기 금액 칸은 비운 값을 빈칸으로 둔다. 수령인 정보만 받는 계정은 금액 칸을 쓰지 않으므로 확인하지 않는다.)
+  if (first.template === 'wms_csv' && !recipientOnly && shipments.some(shipment => !Number.isSafeInteger(shipment.shippingFee) || shipment.shippingFee < 0
     || shipment.lines.some(line => !Number.isSafeInteger(line.unitPrice) || line.unitPrice < 0))) {
     throw new Error('출고지시 금액 정보를 확인해주세요.');
   }
@@ -107,7 +114,7 @@ export function warehouseExportTable(shipments: Shipments) {
   if (first.template === 'wms_csv') return {
     headers: GIMPO_EXPORT_HEADERS, widths: GIMPO_COLUMNS.map(column => column.width),
     textColumns: GIMPO_COLUMNS.map(column => column.text),
-    rows: shipments.flatMap(shipment => shipment.lines.map((line, index) => gimpoCells(shipment, line, index))),
+    rows: shipments.flatMap(shipment => shipment.lines.map((line, index) => gimpoCells(shipment, line, index, recipientOnly))),
   };
   return {
     headers: first.columns.map(column => column.header),
@@ -117,8 +124,11 @@ export function warehouseExportTable(shipments: Shipments) {
   };
 }
 
-/** Native warehouse column counts stay fixed; extra instructions have their own table. */
-export function warehouseOperationalTable(shipments: Shipments) {
+/**
+ * Native warehouse column counts stay fixed; extra instructions have their own table.
+ * 수령인 정보만 받는 계정은 선불 배송비를 비우고, 착불 배송비·수납 정보·합포장 착불 합계는 그대로 본다.
+ */
+export function warehouseOperationalTable(shipments: Shipments, { recipientOnly = false }: WarehouseExportReader = {}) {
   const selected = shipments.filter(shipment => shipment.isGift || (shipment.shippingCollectFee ?? 0) > 0 || shipment.pack);
   if (!selected.length) return null;
   return {
@@ -126,7 +136,7 @@ export function warehouseOperationalTable(shipments: Shipments) {
     widths: [40, 40, 14, 50, 16, 20, 24, 36, 50, 36, 40, 18, 20, 60],
     rows: selected.map(shipment => [shipmentReference(shipment), orderReference(shipment), shipment.isGift ? '선물' : '일반',
       shipment.isGift ? '수령인용 명세에 가격·할인·결제정보를 표시하지 마세요. 내부 출고 파일은 포장에 동봉하지 마세요.' : '',
-      (shipment.shippingFee as number | null) ?? '', (shipment.shippingCollectFee as number | null | undefined) === null ? '' : shipment.shippingCollectFee ?? 0, shipment.collector?.name ?? '', shipment.collector?.method ?? '',
+      recipientOnly ? '' : (shipment.shippingFee as number | null) ?? '', (shipment.shippingCollectFee as number | null | undefined) === null ? '' : shipment.shippingCollectFee ?? 0, shipment.collector?.name ?? '', shipment.collector?.method ?? '',
       shipment.collector?.instructions ?? '', shipment.collector?.refundContact ?? '', shipment.pack?.id ?? '', shipment.pack?.count ?? '', shipment.pack?.collectFee ?? '', shipment.pack ? '같은 합포장번호의 모든 상품을 하나로 포장하고 동일 택배사·송장을 회신해주세요. 원래 주문번호·배송비·착불 금액을 유지합니다.' : ''] as Cell[]),
   };
 }
@@ -176,6 +186,8 @@ export interface WarehouseTrackingParseResult {
   kind: 'gimpo';
   rows: { line: number; reference: string; trackingNumber: string }[];
   issues: TrackingImportParseResult['issues'];
+  /** 운송장 칸을 비운 줄(아직 출고하지 않은 주문). 오류가 아니라 건너뛴 줄로 따로 센다(QA 라운드 1 m8). */
+  skipped: { line: number; reference: string }[];
 }
 export interface SeowonTrackingParseResult { kind: 'seowon'; rows: SeowonReplyRow[]; issues: TrackingImportParseResult['issues'] }
 export type TrackingWorkbookParseResult = TrackingImportParseResult | WarehouseTrackingParseResult | SeowonTrackingParseResult | SmartStoreTrackingParseResult;
@@ -205,6 +217,7 @@ export function parseWarehouseReply(sheet: ExcelJS.Worksheet): WarehouseTracking
     extra.add(header);
   }
   const rows: WarehouseTrackingParseResult['rows'] = [], issues: WarehouseTrackingParseResult['issues'] = [];
+  const blanks: WarehouseTrackingParseResult['skipped'] = [];
   const blocked = new Set<string>();
   for (let line = 2; line <= sheet.rowCount; line++) {
     const source = sheet.getRow(line);
@@ -215,18 +228,31 @@ export function parseWarehouseReply(sheet: ExcelJS.Worksheet): WarehouseTracking
     const reference = cells.find(cell => cell.key === 'orderNumber')!.value.trim().toLowerCase();
     const tracking = cells.find(cell => cell.key === 'trackingNumber')!.value;
     const trackingNumber = normalizeTrackingNumber(tracking.trim());
+    const blank = !tracking.trim();
     const reason = cells.find(cell => cell.error)?.error
       ?? (!isGimpoOrderReference(reference) ? '주문번호(쇼핑몰)에 ICONS 출고 파일의 전체 주문번호를 그대로 유지해주세요.' : undefined)
-      ?? (!isTrackingNumber(trackingNumber) || /[\r\n\t]/.test(tracking) ? '운송장번호는 텍스트 형식의 8~30자리 영숫자여야 합니다.' : undefined);
+      ?? (!blank && (!isTrackingNumber(trackingNumber) || /[\r\n\t]/.test(tracking)) ? '운송장번호는 텍스트 형식의 8~30자리 영숫자여야 합니다.' : undefined);
     if (reason) { issues.push({ line, reference, reason }); if (isGimpoOrderReference(reference)) blocked.add(reference); }
+    else if (blank) blanks.push({ line, reference });
     else rows.push({ line, reference, trackingNumber });
+  }
+  // 운송장 칸을 비운 주문은 아직 출고하지 않은 것으로 보고 건너뛴다. 같은 주문(한 배송 건)의 다른 줄에는 운송장이 있으면
+  // 일부만 채운 것이라 어느 쪽이 맞는지 알 수 없으므로 그 주문 전체를 등록하지 않는다(덮어쓰기·부분 발송 방지).
+  const filled = new Set(rows.map(row => row.reference));
+  const skipped: WarehouseTrackingParseResult['skipped'] = [];
+  for (const row of blanks) {
+    if (blocked.has(row.reference)) issues.push({ line: row.line, reference: row.reference, reason: '같은 주문의 다른 행에 오류가 있습니다. 해당 주문의 모든 행을 함께 고쳐주세요.' });
+    else if (filled.has(row.reference)) {
+      issues.push({ line: row.line, reference: row.reference, reason: '같은 주문의 일부 행만 운송장번호가 비어 있습니다. 한 주문의 모든 행에 같은 운송장번호를 채우거나 모두 비워 주세요.' });
+      blocked.add(row.reference);
+    } else skipped.push(row);
   }
   const valid = rows.filter(row => {
     if (!blocked.has(row.reference)) return true;
     issues.push({ line: row.line, reference: row.reference, reason: '같은 주문의 다른 행에 오류가 있습니다. 해당 주문의 모든 행을 함께 고쳐주세요.' });
     return false;
   });
-  return { kind: 'gimpo', rows: valid, issues: issues.sort((a, b) => a.line - b.line) };
+  return { kind: 'gimpo', rows: valid, issues: issues.sort((a, b) => a.line - b.line), skipped };
 }
 
 const compact = (value: string) => value.replace(/\s/g, '');

@@ -172,6 +172,7 @@ select pg_temp.ld_as(2);
 select public.admin_search_shipments_notice_console('ready',p_query=>'합성수령인1',p_field=>'recipient') as manager_ready \gset
 select public.admin_search_shipments_console('ready',p_query=>'합성수령인1',p_field=>'recipient') as manager_shipping \gset
 select public.admin_smartstore_shipment_export(array[pg_temp.ld_id(4,1)]) as manager_export \gset
+select public.admin_shipment_export(array[pg_temp.ld_id(4,1)]) as manager_warehouse_export \gset
 select pg_temp.ld_assert(:'manager_ready'::jsonb#>>'{rows,0,buyerName}'='합성물류구매자' and :'manager_ready'::jsonb#>>'{rows,0,total}'='5000'
  and :'manager_ready'::jsonb#>>'{rows,0,paymentMethod}'='card' and :'manager_ready'::jsonb#>>'{rows,0,shippingFee}'='3000'
  and :'manager_shipping'::jsonb#>>'{rows,0,buyerName}'='합성물류구매자' and :'manager_shipping'::jsonb#>>'{rows,0,total}'='5000'
@@ -179,8 +180,9 @@ select pg_temp.ld_assert(:'manager_ready'::jsonb#>>'{rows,0,buyerName}'='합성�
  and :'manager_export'::jsonb#>>'{shipments,0,lines,0,smartstore,buyerId}'=pg_temp.ld_id(1,9)::text
  and :'manager_export'::jsonb#>>'{shipments,0,lines,0,smartstore,paymentMethod}'='card'
  and :'manager_export'::jsonb#>>'{shipments,0,lines,0,smartstore,itemTotal}'='1000'
- and :'manager_export'::jsonb#>>'{shipments,0,shippingFee}'='3000' and :'manager_export'::jsonb#>>'{shipments,0,lines,0,unitPrice}'='1000',
- 'primary keeps buyer, totals, payment and item amounts in lists and the standard export');
+ and :'manager_export'::jsonb#>>'{shipments,0,shippingFee}'='3000' and :'manager_export'::jsonb#>>'{shipments,0,lines,0,unitPrice}'='1000'
+ and :'manager_warehouse_export'::jsonb#>>'{shipments,0,shippingFee}'='3000' and :'manager_warehouse_export'::jsonb#>>'{shipments,0,lines,0,unitPrice}'='1000',
+ 'primary keeps buyer, totals, payment and item amounts in lists, the standard export and the warehouse export');
 select pg_temp.ld_assert((public.admin_search_shipments_notice_console('ready',p_query=>'합성물류구매자',p_field=>'buyer')->>'total')='3'
  and (public.admin_search_shipments_notice_console('ready',p_query=>'ld-buyer-oracle-77',p_field=>'buyer')->>'total')='3'
  and (public.admin_search_shipments_notice_console('ready',p_query=>'f5d10000-0000-0004',p_field=>'shipment',p_payment_method=>'bank_transfer')->>'total')='0'
@@ -221,12 +223,26 @@ select pg_temp.ld_assert(:'logistics_export'::jsonb#>'{shipments,0,lines,0,smart
  "productPrice":null,"optionPrice":null,"itemTotal":null,"itemDiscount":null,"sellerDiscount":null,"regionalShippingFee":null,"shippingDiscount":null}'::jsonb
  and :'logistics_export'::jsonb#>>'{shipments,0,lines,0,recipient}'='합성수령인1'
  and :'logistics_export'::jsonb#>>'{shipments,0,lines,0,smartstore,orderNumber}'=:'manager_export'::jsonb#>>'{shipments,0,lines,0,smartstore,orderNumber}'
- and (:'logistics_export'::jsonb#>'{shipments,0,lines,0}')-'smartstore'=(:'manager_export'::jsonb#>'{shipments,0,lines,0}')-'smartstore'
+ -- 줄 단가(김포 21열의 주문금액/수량)와 선결제 배송비도 비어 온다(QA 라운드 1 M2). 수량·수령인 등 나머지 줄 값은 주매니저와 같다.
+ and (:'logistics_export'::jsonb#>'{shipments,0,lines,0}')-'smartstore'-'unitPrice'=(:'manager_export'::jsonb#>'{shipments,0,lines,0}')-'smartstore'-'unitPrice'
+ and :'logistics_export'::jsonb#>'{shipments,0,lines,0,unitPrice}'='null'::jsonb and :'logistics_export'::jsonb#>'{shipments,0,shippingFee}'='null'::jsonb
+ and :'logistics_export'::jsonb#>>'{shipments,0,lines,0,qty}'='1'
  -- 배송 건의 착불 배송비·착불 수납 정보는 DB가 비우지 않는다(사용자 결정 2026-11-12 "착불 금액은 보이게"). 선결제 배송비는 표준 양식 파일에서 앱이 비운다.
  and :'logistics_export'::jsonb#>'{shipments,0,shippingCollectFee}' is not null
  and :'logistics_export'::jsonb#>'{shipments,0,shippingCollectFee}'=:'manager_export'::jsonb#>'{shipments,0,shippingCollectFee}'
  and (:'logistics_export'::jsonb#>'{shipments,0,collector}') is not distinct from (:'manager_export'::jsonb#>'{shipments,0,collector}'),
  'standard export detail blanks buyer, payment and item amounts for dispatch-only operators');
+-- 창고 고유 양식 자료(김포 21열·서원·일반 양식·배송 운영 안내, QA 라운드 1 M2): 선결제 배송비와 줄 단가만 비고
+-- 수량·수령인·번호·착불 배송비·착불 수납 정보·합포장 요약은 주매니저와 같다.
+select public.admin_shipment_export(array[pg_temp.ld_id(4,1)]) as logistics_warehouse_export \gset
+select pg_temp.ld_assert(:'logistics_warehouse_export'::jsonb#>'{shipments,0,shippingFee}'='null'::jsonb
+ and :'logistics_warehouse_export'::jsonb#>'{shipments,0,lines,0,unitPrice}'='null'::jsonb
+ and :'logistics_warehouse_export'::jsonb#>>'{shipments,0,lines,0,qty}'='1'
+ and :'logistics_warehouse_export'::jsonb#>>'{shipments,0,lines,0,recipient}'='합성수령인1'
+ and :'logistics_warehouse_export'::jsonb#>>'{shipments,0,orderNumber}'=:'manager_warehouse_export'::jsonb#>>'{shipments,0,orderNumber}'
+ and (:'logistics_warehouse_export'::jsonb#>'{shipments,0}')-'shippingFee'-'lines'=(:'manager_warehouse_export'::jsonb#>'{shipments,0}')-'shippingFee'-'lines'
+ and (:'logistics_warehouse_export'::jsonb#>'{shipments,0,lines,0}')-'unitPrice'=(:'manager_warehouse_export'::jsonb#>'{shipments,0,lines,0}')-'unitPrice',
+ 'warehouse export blanks only the prepaid shipping fee and unit price for dispatch-only operators');
 -- 발주확인은 하지 못하고, 발주확인 전 주문은 내보내지 못한다.
 select pg_temp.ld_error(format('select public.admin_update_order_status(%L,%L,null,null)',pg_temp.ld_id(2,2),'confirmed'),'42501');
 select pg_temp.ld_error(format('select public.admin_shipment_export(array[%L]::uuid[])',pg_temp.ld_id(4,2)),'shipment_not_ready');

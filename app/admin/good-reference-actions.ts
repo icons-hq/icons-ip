@@ -3,6 +3,7 @@ import { unstable_rethrow } from 'next/navigation';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { ERP_ITEM_FILE_BYTES_LIMIT } from '@/lib/admin/erp-item-import';
 import { GOOD_REFERENCE_LIMIT, GOOD_REFERENCE_MAX_LENGTH, type GoodReferenceMatch } from '@/lib/admin/good-references';
+import type { GoodDisplayVisibilityRow } from '@/lib/admin/good-visibility';
 
 /*
  * 전시 상품 선택기(홈 큐레이션·카테고리 전시·쇼핑스토리·캠페인 굿즈 블록·할인 프로모션)의 여러 줄·엑셀 추가(1014-112).
@@ -19,6 +20,22 @@ export async function resolveGoodReferencesAction(refs: unknown): Promise<GoodRe
       || new Set(refs).size !== refs.length) return { ok: false, error: '조회할 상품 URL·판매자상품코드를 확인해주세요.' };
     const { resolveGoodReferences } = await import('@/lib/admin/good-references.server');
     return { ok: true, matches: await resolveGoodReferences(refs as string[]) };
+  } catch (error) {
+    unstable_rethrow(error);
+    return { ok: false, error: '상품을 확인하지 못했습니다. 잠시 후 다시 시도해주세요.' };
+  }
+}
+
+export type GoodDisplayVisibilityResult = { ok: true; goods: GoodDisplayVisibilityRow[] } | { ok: false; error: string };
+/** 저장된 전시 구성(카테고리 전시·캠페인 상품 묶음·홈 전시)의 상품 이름과 고객 화면에 보이지 않는 이유를 다시 읽는다(QA1 MD). */
+export async function readGoodsDisplayVisibilityAction(ids: unknown): Promise<GoodDisplayVisibilityResult> {
+  try {
+    if (!await requireAdminActionAccess('/admin', { capability: 'catalog.read' })) return { ok: false, error: ACCESS_DENIED };
+    if (!Array.isArray(ids) || ids.length < 1 || ids.length > GOOD_REFERENCE_LIMIT
+      || ids.some(id => typeof id !== 'string' || id !== id.trim() || !id || [...id].length > GOOD_REFERENCE_MAX_LENGTH)
+      || new Set(ids).size !== ids.length) return { ok: false, error: '조회할 상품 URL을 확인해주세요.' };
+    const { readGoodsDisplayVisibility } = await import('@/lib/admin/good-references.server');
+    return { ok: true, goods: await readGoodsDisplayVisibility(ids as string[]) };
   } catch (error) {
     unstable_rethrow(error);
     return { ok: false, error: '상품을 확인하지 못했습니다. 잠시 후 다시 시도해주세요.' };

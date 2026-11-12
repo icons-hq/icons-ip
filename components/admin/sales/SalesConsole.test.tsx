@@ -76,6 +76,21 @@ describe('sales filter and result forms', () => {
     expect(closed).toMatch(/class="sr-only"[^>]*>번호 · 이름</);
     expect(closed).toContain('title="번호 · 이름"');
   });
+  /* QA1 S-T06-02: 주문통합검색 검색칸이 좁아 20자리 주문번호가 앞 15자리만 보였다. 번호 검색 화면은 20자리가 다 보이는 폭을 지킨다. */
+  it('주문번호 검색칸은 20자리가 다 보이는 폭을 지키고, 다른 화면의 검색칸은 그대로다', () => {
+    const options = [{ value: 'all', label: '전체' }, { value: 'order', label: '주문번호' }];
+    const wide = renderToStaticMarkup(<SalesFilterPanel currentHref="/admin/sales/orders" id="w" more={<span />}
+      search={{ value: '20261112140010000034', field: 'all', options, placeholder: '검색어 입력', fitsOrderNumber: true }} />);
+    const input = wide.match(/<input id="w-query"[^>]*>/)?.[0] ?? '';
+    expect(input).toContain('min-w-[min(100%,calc(20ch_+_3rem))]');
+    expect(input).not.toContain('min-w-0');
+    expect(wide).toContain('min-w-[min(100%,calc(20ch_+_11.25rem))]');
+    expect(wide).toContain('value="20261112140010000034"');
+    const plain = renderToStaticMarkup(<SalesFilterPanel currentHref="/admin/sales/dispatch" id="p" more={<span />}
+      search={{ value: '', field: 'all', options, placeholder: '검색어 입력' }} />);
+    expect(plain).not.toContain('20ch');
+    expect(plain).toContain('min-w-[min(100%,17rem)]');
+  });
   it('keeps the operational guide folded by default without submitting or loading any action', () => {
     const html = renderToStaticMarkup(<SalesGuide title="반품 처리 안내"><p>회수 근거를 확인한 뒤 처리합니다.</p></SalesGuide>);
     expect(html).toMatch(/<details [^>]*data-sales-guide=""/);

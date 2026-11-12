@@ -8,7 +8,8 @@ begin;
 --   · 사유 필수, 확인창용 미리보기는 대상·출고지시 전달 여부·막는 사유만 읽고 바꾸지 않는다
 --   · 택배는 운송장 없이, 택배 외(퀵·방문수령 등)는 'forced_delivered' 증거로 배송완료한다. 택배 발송 메일은 없고
 --     주문이 배송완료되면 고객 앱 알림('배송이 완료됐어요')은 정상 배송완료와 같이 생긴다
---   · 예외: 디지털 파일(구매자 내려받기로만 제공 시작), 발주확인 전, 진행 중 클레임, 예약 재고 미할당
+--   · 예외: 디지털 파일(구매자 내려받기로만 제공 시작), 발주확인 전, 진행 중 클레임, 예약 재고 미할당.
+--     이미 끝난 주문(배송완료·거래확정·취소)은 '발주확인 먼저'가 아니라 '처리할 배송 건 없음'으로 막는다(QA1 S-T04-05)
 --   · 배송 방식 가드는 강제 증거 외에는 여전히 실제 인계·일회 수령 확인값을 요구한다
 --   · 구매확정 기한 저장·합포장 동반 처리·감사(사유)·같은 요청 재전송은 정상 배송완료·테스트 도구와 같다
 -- ============================================================================
@@ -95,6 +96,13 @@ select order_number as digital_number from public.orders where id=:'digital_orde
 delete from public.order_shipment_items where order_id=:'digital_order';
 delete from public.order_shipments where order_id=:'digital_order';
 select pg_temp.add_digital_shipment(:'digital_order',10) as only_digital \gset
+-- 취소된 주문(QA1 S-T04-05): 옮길 배송 건이 없고 이미 끝난 주문이라 '발주확인 먼저'가 아니라 '처리할 배송 건 없음'으로 막는다.
+select pg_temp.order_with(11,'confirmed') as canceled_order \gset
+select order_number as canceled_number from public.orders where id=:'canceled_order' \gset
+set local session_replication_role=replica;
+update public.order_shipments set status='canceled' where order_id=:'canceled_order';
+update public.orders set status='canceled' where id=:'canceled_order';
+set local session_replication_role=origin;
 
 -- 운영과 같은 모양: 스테이징 허용 행이 없어도 강제 배송완료는 열려 있다.
 delete from private.staging_test_tools;
@@ -129,6 +137,7 @@ select 1/case when :'preview'::jsonb->'blockers'='[]'::jsonb and (:'preview'::js
  and (select status='confirmed' from public.orders where id=:'ready_order') then 1 else 0 end as assert_preview_reads_only;
 select 1/case when public.admin_force_order_delivery_preview(:'paid_number')->'blockers'='["requires_confirmed"]'::jsonb
  and public.admin_force_order_delivery_preview(:'claimed_number')->'blockers'='["claim_in_progress"]'::jsonb
+ and public.admin_force_order_delivery_preview(:'canceled_number')->'blockers'='["nothing_to_deliver"]'::jsonb
  and public.admin_force_order_delivery_preview(:'quick_number')->'blockers'='[]'::jsonb
  and public.admin_force_order_delivery_preview(:'quick_number')#>>'{shipments,0,method}'='quick'
  and public.admin_force_order_delivery_preview(:'digital_number')->'blockers'='["digital_access_only"]'::jsonb
@@ -144,6 +153,7 @@ select pg_temp.expect_error(format('select public.admin_force_order_delivered(%L
 select pg_temp.expect_error(format('select public.admin_force_order_delivered(%L,%L,gen_random_uuid())',:'paid_number','TEST 사유'),'forced_delivery_requires_confirmed');
 select pg_temp.expect_error(format('select public.admin_force_order_delivered(%L,%L,gen_random_uuid())',:'claimed_number','TEST 사유'),'order cancellation in progress');
 select pg_temp.expect_error(format('select public.admin_force_order_delivered(%L,%L,gen_random_uuid())',:'digital_number','TEST 사유'),'forced_delivery_digital_access_only');
+select pg_temp.expect_error(format('select public.admin_force_order_delivered(%L,%L,gen_random_uuid())',:'canceled_number','TEST 사유'),'forced_delivery_nothing_to_deliver');
 
 select public.admin_force_order_delivered(:'ready_number','구매확정·리뷰 시험 주문','f0dd0000-0000-4000-8000-0000000000c1') as delivered \gset
 select 1/case when public.admin_force_order_delivered(:'ready_number','구매확정·리뷰 시험 주문','f0dd0000-0000-4000-8000-0000000000c1')=:'delivered'::jsonb
@@ -154,7 +164,11 @@ select public.admin_force_order_delivered(:'shipping_number','배송 조회가 �
 select public.admin_force_order_delivered(:'quick_number','퀵 인계 기록을 놓친 시험 주문','f0dd0000-0000-4000-8000-0000000000c2') as quick_delivered \gset
 select public.admin_force_order_delivered(:'pickup_number','방문수령 시험 주문',gen_random_uuid()) as pickup_delivered \gset
 select public.admin_force_order_delivered(:'mixed_number','디지털이 섞인 시험 주문',gen_random_uuid()) as mixed_delivered \gset
-select pg_temp.expect_error(format('select public.admin_force_order_delivered(%L,%L,gen_random_uuid())',:'ready_number','TEST 사유'),'forced_delivery_requires_confirmed');
+-- 이미 배송완료한 주문을 다시 고르면 '처리할 배송 건 없음'이다(신규주문의 '발주확인 먼저'와 가른다).
+select pg_temp.expect_error(format('select public.admin_force_order_delivered(%L,%L,gen_random_uuid())',:'ready_number','TEST 사유'),'forced_delivery_nothing_to_deliver');
+select 1/case when public.admin_force_order_delivery_preview(:'ready_number')->'blockers'='["nothing_to_deliver"]'::jsonb
+ and public.admin_force_order_delivery_preview(:'paid_number')->'blockers'='["requires_confirmed"]'::jsonb
+ then 1 else 0 end as assert_finished_order_reason;
 reset role;
 select 1/case when (select status='delivered' and delivered_at is not null and shipped_at is not null from public.orders where id=:'ready_order')
  and (select bool_and(status='delivered' and carrier is null and tracking_number is null and delivered_at is not null) from public.order_shipments where order_id=:'ready_order')

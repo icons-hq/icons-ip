@@ -20,6 +20,18 @@ describe('non-parcel customer shipment display', () => {
     const html = renderToStaticMarkup(<ShipmentDetails shipments={[completed]} />);
     expect(html).toContain('방문수령 완료'); expect(html).not.toContain('일회 수령 확인값 발급');
   });
+  /* QA 라운드 1 m4: 발송처리 화면에서 판매자가 바꾼 건을 '고객 요청으로'라고 안내하지 않는다. 출처를 모르면 주체 없이 쓴다. */
+  it('names who changed the delivery method after the order in the fee note', () => {
+    const note = (changedBy?: 'store' | 'customer') => renderToStaticMarkup(<ShipmentDetails shipments={[shipmentFixture({ status: 'ready',
+      delivery: shipmentDeliveryFixture({ customerMethod: 'parcel', ...(changedBy ? { changedBy } : {}) }) })]} />);
+    expect(note('store')).toContain('판매자가 배송 방식을 변경했으며 주문 당시 배송비를 유지합니다.');
+    expect(note('store')).not.toContain('고객 요청으로');
+    expect(note('customer')).toContain('고객 요청으로 배송 방식을 변경했으며 주문 당시 배송비를 유지합니다.');
+    expect(note()).toContain('주문 후 배송 방식이 변경되었으며 주문 당시 배송비를 유지합니다.');
+    const prepaid = shipmentDeliveryFixture({ changedBy: 'store' });
+    const checkout = renderToStaticMarkup(<ShipmentDetails shipments={[shipmentFixture({ delivery: { ...prepaid, policy: { ...prepaid.policy!, version: 2, feeRule: 'checkout_prepaid' } } })]} />);
+    expect(checkout).toContain('주문서에서 선택한 방식과 선결제 비용을 기준으로 제공합니다.');
+  });
   it('does not turn a malformed method response into a parcel tracking action', () => {
     const html = renderToStaticMarkup(<ShipmentDetails shipments={[shipmentFixture({ delivery: null })]} />);
     expect(html).toContain('확인 필요'); expect(html).not.toContain('운송장번호'); expect(html).not.toContain('배송조회');

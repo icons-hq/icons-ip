@@ -2,6 +2,7 @@ import 'server-only';
 import { createClient } from '@/lib/supabase/server';
 import { parseShoppingStoryGoods } from './shopping-stories.server';
 import { GOOD_REFERENCE_LIMIT, GOOD_REFERENCE_MAX_LENGTH, type GoodReferenceMatch } from './good-references';
+import { displayGoodVisibility, parseGoodVisibility, type GoodDisplayVisibilityRow } from './good-visibility';
 import type { StoryGoodCandidate } from './shopping-story-picker';
 
 const record = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -34,11 +35,34 @@ export async function resolveGoodReferences(refs: string[]): Promise<GoodReferen
       || typeof row.archived !== 'boolean' || typeof row.published !== 'boolean') throw failure();
     if (row.status !== 'found') {
       if (row.id !== null || row.candidate !== null) throw failure();
-      return { ref: refs[index], status: row.status as 'not_found' | 'ambiguous', matchedBy: null, id: null, name: null, code: null, archived: false, published: false, candidate: null };
+      return { ref: refs[index], status: row.status as 'not_found' | 'ambiguous', matchedBy: null, id: null, name: null, code: null, archived: false, published: false, visibility: 'missing' as const, candidate: null };
     }
     if (!['id', 'code'].includes(String(row.matchedBy)) || !text(row.id, 64) || !text(row.name, 200) || !(row.code === null || text(row.code, 120))) throw failure();
-    const candidate = row.archived ? null : parseCandidate(row.candidate);
+    const parsed = row.archived ? null : parseCandidate(row.candidate), candidate = parsed && parsed.id === row.id ? parsed : null;
+    /* 보이지 않는 이유는 후보 행(관련상품 찾기와 같은 모양)이 싣는다. 보관 상품은 후보가 없고 담을 수도 없다. */
     return { ref: refs[index], status: 'found' as const, matchedBy: row.matchedBy as 'id' | 'code', id: row.id, name: row.name, code: row.code as string | null,
-      archived: row.archived, published: row.published, candidate: candidate && candidate.id === row.id ? candidate : null };
+      archived: row.archived, published: row.published, visibility: displayGoodVisibility({ archived: row.archived, published: row.published, visibility: candidate?.visibility }), candidate };
+  });
+}
+
+/**
+ * 저장된 전시 구성을 다시 열 때 상품번호로 이름·판매자상품코드·고객 화면에 보이지 않는 이유만 읽는다(admin_goods_display_visibility).
+ * 담기용 후보(가격·재고·판매 지표)를 계산하지 않는 가벼운 읽기다. 없는 상품번호는 결과에 없다.
+ */
+export async function readGoodsDisplayVisibility(ids: string[]): Promise<GoodDisplayVisibilityRow[]> {
+  if (!ids.length || ids.length > GOOD_REFERENCE_LIMIT || new Set(ids).size !== ids.length || ids.some(id => id !== id.trim() || !text(id, GOOD_REFERENCE_MAX_LENGTH))) {
+    throw new Error('조회할 상품 URL을 확인해주세요.');
+  }
+  const client = await createClient();
+  const { data, error } = await client.rpc('admin_goods_display_visibility', { p_ids: ids });
+  const failure = () => new Error('상품을 확인하지 못했습니다. 잠시 후 다시 시도해주세요.');
+  if (error || !Array.isArray(data) || data.length > ids.length) throw failure();
+  const asked = new Set(ids), seen = new Set<string>();
+  return data.map(row => {
+    const visibility = record(row) ? parseGoodVisibility(row.visibility) : null;
+    if (!record(row) || !text(row.id, GOOD_REFERENCE_MAX_LENGTH) || !asked.has(row.id) || seen.has(row.id) || !text(row.name, 200)
+      || !(row.code === null || text(row.code, 120)) || !visibility) throw failure();
+    seen.add(row.id);
+    return { id: row.id, name: row.name, code: row.code as string | null, visibility };
   });
 }

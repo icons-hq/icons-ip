@@ -141,8 +141,10 @@ const STATUS_TONES = {
   stockDigest: { queued: 'info', processing: 'info', sent: 'success', failed: 'danger', unknown: 'warning', suppressed: 'neutral' },
   /** 할인 프로모션 — lib/admin/discount-promotions DiscountPromotionPhase. 중지는 끝난 것과 같은 조용한 색이다 */
   discountPromotion: { scheduled: 'info', running: 'success', ended: 'neutral', stopped: 'neutral' },
-  /** 전시 상품 여러 줄·엑셀 추가의 줄별 결과 — components/admin/GoodBulkAddPanel. 못 찾은 줄만 확인을 부른다 */
-  goodReference: { ready: 'success', blocked: 'neutral', missing: 'warning' },
+  /** 전시 상품 여러 줄·엑셀 추가의 줄별 결과 — components/admin/GoodBulkAddPanel. 못 찾은 줄·한도를 넘어 담지 못한 줄은 확인을 부른다.
+   *  notVisible은 담았거나 담을 상품이 고객 화면에 보이지 않음(비공개·보관됨·찾을 수 없음)이다 — 운영자가 숨긴 리뷰·문의(hidden)와 달리
+   *  담기는 막지 않지만 그 전시에서 빠지므로 전시 목록·결과 줄에서 확인을 부른다(components/admin/DisplayGoodVisibility) */
+  goodReference: { ready: 'success', blocked: 'neutral', missing: 'warning', overLimit: 'warning', notVisible: 'warning' },
   /** ERP 연결 상품 반영 미리보기 행 — components/admin/ErpLinkedGoodsPanel. 이미 있던 바코드가 바뀌는 행은 출고 대조 확인을 부른다 */
   erpLinkedGoods: { apply: 'info', barcode_changed: 'warning', skip: 'neutral', failed: 'danger' },
   // [ops]

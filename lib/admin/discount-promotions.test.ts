@@ -5,6 +5,7 @@ import {
   discountPromotionHref,
   discountPromotionListHref,
   discountPromotionPhase,
+  discountPromotionRuleLocked,
   discountPromotionSkipLabel,
   discountRuleLabel,
   newDiscountPromotionHref,
@@ -126,5 +127,18 @@ describe('할인 프로모션 화면 문구', () => {
     expect(newDiscountPromotionHref({ ip: 'maple' })).toBe('/admin/sales/discount-promotions/new?ip=maple');
     expect(discountPromotionListHref({ campaign: 'hongsil-open', page: 2 })).toBe('/admin/sales/discount-promotions?campaign=hongsil-open&page=2');
     expect(discountPromotionListHref()).toBe('/admin/sales/discount-promotions');
+  });
+});
+
+/* QA1 MD: 캠페인 편집에서 연 새 프로모션은 그 캠페인 편집으로 돌아가고, 규칙을 바꿔도 결과가 같은 건너뜀 줄은 규칙 선택을 잠근다. */
+describe('할인 프로모션 QA1 정리', () => {
+  it('캠페인 편집에서 연 새 프로모션 주소에 출처를 남긴다(기획전이 있을 때만)', () => {
+    expect(newDiscountPromotionHref({ campaign: 'hongsil-open', from: 'campaign' })).toBe('/admin/sales/discount-promotions/new?campaign=hongsil-open&from=campaign');
+    expect(newDiscountPromotionHref({ campaign: 'hongsil-open' })).toBe('/admin/sales/discount-promotions/new?campaign=hongsil-open');
+    expect(newDiscountPromotionHref({ ip: 'maple', from: 'campaign' })).toBe('/admin/sales/discount-promotions/new?ip=maple');
+  });
+  it('기간 겹침·판매 옵션 없음·보관은 규칙을 잠그고, 할인 제외·할인가 범위 밖은 열어 둔다', () => {
+    for (const skip of ['price_period_overlap', 'price_period_variant_inactive', 'good_archived']) expect(discountPromotionRuleLocked(skip), skip).toBe(true);
+    for (const skip of [null, undefined, '', 'discount_promotion_excluded', 'goods_bulk_price_invalid']) expect(discountPromotionRuleLocked(skip), String(skip)).toBe(false);
   });
 });

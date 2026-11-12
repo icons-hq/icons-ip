@@ -111,6 +111,20 @@ const TIMELINE_LABELS: Record<string, string> = {
   'admin.order.staff_cancellation_started': '운영자 전액 취소 시작',
 };
 
+/* 환불 계좌 열람의 경로(감사 diff.purpose, QA1 S-T03-04). 요청 상세 열람과 환불 송금 대기 목록 엑셀이 같은 감사 액션을 남긴다.
+   계좌 원문은 감사에도 타임라인에도 없다 — 열람자·시각·경로만 보인다. */
+const ACCOUNT_VIEW_ROUTES: Record<string, string> = {
+  prepare_bank_transfer: '요청 상세',
+  list_export: '환불 송금 대기 목록 엑셀',
+};
+
+function timelineLabel(entry: { action: string; diff: Record<string, unknown> | null }) {
+  const label = TIMELINE_LABELS[entry.action] ?? entry.action;
+  if (entry.action !== 'admin.order.bank_refund_account_viewed') return label;
+  const route = typeof entry.diff?.purpose === 'string' ? ACCOUNT_VIEW_ROUTES[entry.diff.purpose] : undefined;
+  return route ? `${label} (${route})` : label;
+}
+
 const PAYMENT_PROVIDER_LABELS: Record<string, string> = {
   bank_transfer: '무통장 입금',
   toss: '토스페이먼츠',

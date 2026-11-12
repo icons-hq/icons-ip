@@ -38,6 +38,9 @@ import {
 } from '@/lib/collection-banners';
 import { SEARCH_TERM_LIMIT, SEARCH_TERM_LIST_NAME_LIMIT, SEARCH_TERM_MAX_LENGTH, searchTermFieldIssues } from '@/lib/search-terms';
 import { ArtworkUploadField } from '../ArtworkUploadField';
+import { DisplayGoodVisibilityNote } from '../DisplayGoodVisibility';
+import { hiddenDisplayGoodsNotice, type DisplayGoodVisibility } from '@/lib/admin/good-visibility';
+import { useGoodReferenceInfo } from '../useGoodReferenceInfo';
 import { ActionNotice, ErrorText } from '../fields';
 
 const EMPTY_STATE: AdminCurationActionState = {};
@@ -324,6 +327,17 @@ function CurationForm({
   const productCountValid = Number(values.productItemCount) >= productCountMin && Number(values.productItemCount) <= productCountMax;
   const targetGroups = useMemo(() => adminCurationTargetGroupsFor({ events: eventOptions, goods: goodOptions, ips: ipOptions }, selected?.linkPath ?? null), [eventOptions, goodOptions, ipOptions, selected?.linkPath]);
   const names = useMemo(() => new Map(goodOptions.map((good) => [good.id, good.title])), [goodOptions]);
+  /* 공개 홈 상품 목록에 없는 상품은 고객 화면에 보이지 않는다 — 담기는 막지 않고 목록·미리보기에 이유(초안·IP 초안·성인(19금)·보관됨)를
+     적는다(QA1 MD). 상품 선택 창의 노출 상태와 같은 기준이고, 이유는 그 상품들만 가볍게 읽는다. 읽기 전이거나 이유가 공개인데 홈 목록에
+     없으면 '고객 화면 미노출', 대상 목록에도 없으면 '찾을 수 없음'이다. */
+  const publicIds = useMemo(() => new Set(preview.goods.map((good) => good.id)), [preview.goods]);
+  const reasons = useGoodReferenceInfo(values.goodIds.filter((goodId) => !publicIds.has(goodId)));
+  const visibilityOf = (goodId: string): DisplayGoodVisibility => {
+    if (publicIds.has(goodId)) return 'public';
+    const reason = reasons.info.get(goodId)?.visibility;
+    if (reason && reason !== 'public') return reason;
+    return goodOptions.some((good) => good.id === goodId && good.archivedAt) ? 'archived' : names.has(goodId) ? 'hidden' : 'missing';
+  };
   const draft = buildDraftCurationPreview(id, { ...values, kind }, preview.goods, preview.latestGoods, preview.productRankings);
   const reviewStatistics = preview.productRankings?.reviewStatistics ?? [];
   /* 고를 수 있는 리뷰 상품은 공개 홈 선정과 같은 판정이다 — 그룹 범위 요약(preview.goods 의 reviewSummary)이 있으면 그 평균 3 이상. */
@@ -502,8 +516,8 @@ function CurationForm({
           {showManualProducts ? <>
           <div className="flex items-center justify-between gap-3"><h4 className={SECTION_TITLE}>전시할 상품 <span className="text-xs font-normal text-muted-foreground tabular-nums">{values.goodIds.length} / {productLimit}</span></h4><Button onClick={() => setPicker(true)} size="sm" type="button" variant="outline"><Plus aria-hidden="true" />상품 추가</Button></div>
           <input name="goodIds" type="hidden" value={values.goodIds.join(', ')} />
-          <p className={HELP}>선택한 순서대로 전시합니다. {kind === 'review_best' ? '공개 평점 3점 미만이거나 비노출인 상품은 자동으로 제외합니다.' : '비노출 상품은 공개 홈에 표시되지 않습니다.'}</p>
-          <ol className={ORDER_LIST}>{values.goodIds.map((goodId, index) => <li className={ORDER_ROW} key={`${goodId}-${index}`}><span className={ORDER_NUMBER}>{index + 1}</span><span className="min-w-0"><strong className="block text-xs font-medium [overflow-wrap:anywhere]">{names.get(goodId) ?? '현재 선택 상품'}</strong><small className="text-[11px] text-muted-foreground [overflow-wrap:anywhere]">{goodId}</small></span><div className="flex gap-0.5"><Button aria-label={`${names.get(goodId) ?? goodId} 위로`} disabled={index === 0} onClick={() => update('goodIds', moveCurationProduct(values.goodIds, index, -1))} size="icon-sm" type="button" variant="ghost"><ArrowUp aria-hidden="true" /></Button><Button aria-label={`${names.get(goodId) ?? goodId} 아래로`} disabled={index === values.goodIds.length - 1} onClick={() => update('goodIds', moveCurationProduct(values.goodIds, index, 1))} size="icon-sm" type="button" variant="ghost"><ArrowDown aria-hidden="true" /></Button><Button aria-label={`${names.get(goodId) ?? goodId} 삭제`} onClick={() => update('goodIds', values.goodIds.filter((_, current) => current !== index))} size="icon-sm" type="button" variant="ghost"><X aria-hidden="true" /></Button></div></li>)}</ol>
+          <p className={HELP}>선택한 순서대로 전시합니다. {kind === 'review_best' ? '공개 평점 3점 미만이거나 고객 화면에 보이지 않는 상품은 자동으로 제외합니다.' : '초안 등 고객 화면에 보이지 않는 상품도 담을 수 있지만 공개 홈에는 보이지 않습니다(목록에 이유 표시).'}</p>
+          <ol className={ORDER_LIST}>{values.goodIds.map((goodId, index) => <li className={ORDER_ROW} key={`${goodId}-${index}`}><span className={ORDER_NUMBER}>{index + 1}</span><span className="min-w-0"><strong className="block text-xs font-medium [overflow-wrap:anywhere]">{names.get(goodId) ?? '현재 선택 상품'}</strong><small className="text-[11px] text-muted-foreground [overflow-wrap:anywhere]">{goodId}</small><DisplayGoodVisibilityNote visibility={visibilityOf(goodId)} /></span><div className="flex gap-0.5"><Button aria-label={`${names.get(goodId) ?? goodId} 위로`} disabled={index === 0} onClick={() => update('goodIds', moveCurationProduct(values.goodIds, index, -1))} size="icon-sm" type="button" variant="ghost"><ArrowUp aria-hidden="true" /></Button><Button aria-label={`${names.get(goodId) ?? goodId} 아래로`} disabled={index === values.goodIds.length - 1} onClick={() => update('goodIds', moveCurationProduct(values.goodIds, index, 1))} size="icon-sm" type="button" variant="ghost"><ArrowDown aria-hidden="true" /></Button><Button aria-label={`${names.get(goodId) ?? goodId} 삭제`} onClick={() => update('goodIds', values.goodIds.filter((_, current) => current !== index))} size="icon-sm" type="button" variant="ghost"><X aria-hidden="true" /></Button></div></li>)}</ol>
           {values.goodIds.length === 0 ? <p className={EMPTY_NOTE}>선택한 상품이 없습니다.</p> : null}<ErrorText>{state.errors?.goodIds}</ErrorText>
           </> : null}
         </section> : null}
@@ -543,7 +557,7 @@ function CurationForm({
     </form>
     <aside className={`flex h-[780px] min-h-0 min-w-0 flex-col border-t bg-muted/40 xl:h-auto print:hidden${fullPreview ? ' border-t-0' : ' md:col-span-2 xl:col-span-1 xl:border-t-0'}`} aria-label="스토어 미리보기">
       <header className="flex items-center gap-3 border-b bg-background px-4 py-3"><h3 className="text-sm font-medium whitespace-nowrap">미리보기</h3><NativeSelect aria-label="미리보기 범위" className="min-w-0 max-w-[180px] flex-1" onChange={(event) => setPreviewScope(event.target.value as 'draft' | 'public')} size="sm" value={previewScope}><option value="draft">편집 중인 구성</option><option value="public">현재 공개 홈</option></NativeSelect><span className="ml-auto text-xs text-muted-foreground tabular-nums">{device === 'mobile' ? '390px' : '1212px'}</span></header>
-      {previewScope === 'draft' ? <div className="grid gap-1.5 border-b bg-background px-4 py-3 text-xs text-muted-foreground [&_strong]:font-medium [&_strong]:text-warning"><span>편집 중인 내용입니다. 적용하면 노출 설정에 따라 반영됩니다.</span>{!values.enabled ? <strong>현재 비노출로 설정되어 있습니다.</strong> : null}{draft.missingGoodIds.length && showManualProducts ? <strong>비노출 또는 없는 상품 {draft.missingGoodIds.length}개는 미리보기에 표시되지 않습니다.</strong> : null}{kind === 'benefit' && !preview.cardRewardsEnabled && isCardRewardDestination(values.linkPath) ? <strong>카드 리워드가 중지되어 카드팩·게임으로 가는 이 혜택 타일은 노출되지 않습니다. 다른 화면으로 가는 혜택 타일은 그대로 보입니다.</strong> : null}
+      {previewScope === 'draft' ? <div className="grid gap-1.5 border-b bg-background px-4 py-3 text-xs text-muted-foreground [&_strong]:font-medium [&_strong]:text-warning"><span>편집 중인 내용입니다. 적용하면 노출 설정에 따라 반영됩니다.</span>{!values.enabled ? <strong>현재 비노출로 설정되어 있습니다.</strong> : null}{draft.missingGoodIds.length && showManualProducts ? <strong data-display-hidden-goods="">{hiddenDisplayGoodsNotice(draft.missingGoodIds.map((goodId) => ({ name: names.get(goodId) ?? goodId, visibility: visibilityOf(goodId) })))} 미리보기에도 보이지 않습니다.</strong> : null}{kind === 'benefit' && !preview.cardRewardsEnabled && isCardRewardDestination(values.linkPath) ? <strong>카드 리워드가 중지되어 카드팩·게임으로 가는 이 혜택 타일은 노출되지 않습니다. 다른 화면으로 가는 혜택 타일은 그대로 보입니다.</strong> : null}
         {kind === 'collection_banner' && !preview.cardRewardsEnabled && values.linkPath && isCardRewardDestination(values.linkPath) ? <strong>카드 리워드가 중지되어 카드팩·게임으로 가는 이 컬렉션 배너는 노출되지 않습니다. 배너가 없으면 컬렉션은 지금처럼 시작합니다.</strong> : null}
         {isShellNoticeKind(kind) && !values.pageTypes.includes('home') ? <strong>홈이 노출 화면에 없어 공개 홈에서는 보이지 않습니다. 미리보기는 모양만 보여줍니다.</strong> : null}
         {kind === 'sales_best' && !preview.productRankings?.salesAvailable ? <strong>판매량을 불러오지 못했습니다. 새로고침 후 다시 확인해주세요.</strong> : null}

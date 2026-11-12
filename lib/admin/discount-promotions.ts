@@ -74,6 +74,13 @@ export function discountPromotionPhase(promotion: Pick<DiscountPromotionSummary,
   return at < Date.parse(promotion.endsAt) ? 'running' : 'ended';
 }
 
+/**
+ * 규칙을 바꿔도 결과가 같은 건너뜀(기간이 겹치는 할인·판매 중인 옵션 없음·보관). 비교 표에서 그 줄의 규칙 선택을 잠근다.
+ * 할인 제외(운영자가 고른 예외)와 할인가 범위 밖은 규칙을 바꾸면 달라지므로 열어 둔다.
+ */
+const RULE_LOCKED_SKIPS = new Set(['price_period_overlap', 'price_period_variant_inactive', 'good_archived']);
+export function discountPromotionRuleLocked(skip: string | null | undefined) { return Boolean(skip) && RULE_LOCKED_SKIPS.has(skip!); }
+
 const SKIP_LABELS: Record<string, string> = {
   discount_promotion_excluded: '예외로 할인에서 제외',
   good_archived: '보관된 상품',
@@ -92,10 +99,12 @@ export function discountRuleLabel(rule: { mode: DiscountPromotionExceptionMode; 
 }
 
 export function discountPromotionHref(id: string) { return `${DISCOUNT_PROMOTIONS_PATH}/${encodeURIComponent(id)}`; }
-export function newDiscountPromotionHref(prefill: { campaign?: string; ip?: string } = {}) {
+/** 새 프로모션 주소. `from: 'campaign'`은 캠페인 편집에서 연 경우다 — 그 화면의 취소·돌아가기가 캠페인 편집으로 간다(QA1 MD). */
+export function newDiscountPromotionHref(prefill: { campaign?: string; ip?: string; from?: 'campaign' } = {}) {
   const params = new URLSearchParams();
   if (prefill.campaign) params.set('campaign', prefill.campaign);
   else if (prefill.ip) params.set('ip', prefill.ip);
+  if (prefill.campaign && prefill.from === 'campaign') params.set('from', 'campaign');
   const query = params.toString();
   return `${DISCOUNT_PROMOTIONS_PATH}/new${query ? `?${query}` : ''}`;
 }

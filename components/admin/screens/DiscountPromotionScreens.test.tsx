@@ -40,6 +40,21 @@ describe('할인 프로모션 목록', () => {
     expect(html).toContain('2 / 3개');
     expect(html).toContain('href="/admin/sales/discount-promotions/new"');
   });
+  /* QA1 MD: 목록에서도 건너뛴 상품 수를 보이고, 첫 열 폭을 먼저 잡고 기간을 두 줄로 줄여 이름·등록 정보가 4~5줄로 접히지 않게 한다. */
+  it('건너뛴 상품 수와 두 줄 기간을 보이고 첫 열에 폭을 준다', () => {
+    const html = renderToStaticMarkup(<DiscountPromotionListScreen campaign={null} canManage data={{ checkedAt: '2026-11-25T00:00:00+00:00', total: 1, rows: [summary] }} page={1} />);
+    expect(html).toMatch(/data-promotion-skipped=""[^>]*>건너뜀 1개</);
+    expect(html).toContain('<span>2026. 11. 20. 09:00 ~</span><span>2026. 11. 30. 09:00</span>');
+    expect(html).toMatch(/<colgroup>\s*<col style="width:240px"\/>/);
+    const allApplied = renderToStaticMarkup(<DiscountPromotionListScreen campaign={null} canManage data={{ checkedAt: '2026-11-25T00:00:00+00:00', total: 1, rows: [{ ...summary, appliedCount: 3 }] }} page={1} />);
+    expect(allApplied).not.toContain('data-promotion-skipped');
+  });
+  it('기획전으로 거른 목록은 내부 ID 대신 기획전 제목으로 알린다', () => {
+    const html = renderToStaticMarkup(<DiscountPromotionListScreen campaign="hongsil-open" campaignTitle="홍실 오픈 기획전" canManage data={{ checkedAt: '2026-11-25T00:00:00+00:00', total: 1, rows: [summary] }} page={1} />);
+    expect(html).toContain('기획전 ‘홍실 오픈 기획전’의 할인만 보고 있습니다');
+    expect(html).not.toContain('기획전 hongsil-open의');
+    expect(html).toContain('href="/admin/sales/discount-promotions/new?campaign=hongsil-open"');
+  });
   it('기획전으로 거르면 그 기획전 할인만 본다고 말하고, 조회만 가능하면 새로 만들기를 감춘다', () => {
     const html = renderToStaticMarkup(<DiscountPromotionListScreen campaign="hongsil-open" canManage={false} data={{ checkedAt: '2026-11-25T00:00:00+00:00', total: 0, rows: [] }} page={1} />);
     expect(html).toContain('기획전 hongsil-open의 할인만 보고 있습니다');
@@ -58,6 +73,18 @@ describe('새 할인 프로모션', () => {
     expect(html).toMatch(/<option[^>]*selected=""[^>]*value="hongsil-open"|<option[^>]*value="hongsil-open"[^>]*selected=""/);
     expect(html).toContain('정률 할인 (%)');
     expect(html).toMatch(/<button[^>]*type="submit"[^>]*>대상·할인 확인<\/button>/);
+  });
+  /* QA1 MD: 캠페인에서 연 새 프로모션에는 취소와 캠페인 편집으로 돌아가는 버튼이 있다. 다른 경로로 열면 목록으로 돌아간다. */
+  it('캠페인 편집에서 열면 취소·돌아가기가 그 캠페인 편집으로 간다', () => {
+    const options = { campaigns: [{ id: 'hongsil-open', title: '홍실 오픈 기획전', status: 'published', startsAt: summary.startsAt, endsAt: summary.endsAt, goodsCount: 8 }], ips: [] };
+    const html = renderToStaticMarkup(<DiscountPromotionEditorScreen identity={identity} options={options}
+      initial={{ kind: 'campaign', campaignId: 'hongsil-open', ipId: null, name: '홍실 오픈 기획전 할인' }}
+      returnTo={{ href: '/admin/display/campaigns?campaign=hongsil-open', label: '캠페인 편집으로' }} />);
+    expect(html).toMatch(/<a[^>]*href="\/admin\/display\/campaigns\?campaign=hongsil-open"[^>]*>캠페인 편집으로<\/a>/);
+    expect(html).toMatch(/<a[^>]*href="\/admin\/display\/campaigns\?campaign=hongsil-open"[^>]*>취소<\/a>/);
+    const plain = renderToStaticMarkup(<DiscountPromotionEditorScreen identity={identity} options={options} initial={{ kind: 'campaign', campaignId: null, ipId: null, name: '' }} />);
+    expect(plain).toMatch(/<a[^>]*href="\/admin\/sales\/discount-promotions"[^>]*>목록으로<\/a>/);
+    expect(plain).toMatch(/<a[^>]*href="\/admin\/sales\/discount-promotions"[^>]*>취소<\/a>/);
   });
 });
 

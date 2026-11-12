@@ -10,7 +10,9 @@ begin;
 --   · 차이 = 파일 − (재고수량 + 출고 대기 + 회수 뒤 재고 미반영 + 기준 시각 뒤 출고 − 기준 시각 뒤 회수)
 --     취소 주문·미배정 예약은 세지 않고, 그룹상품 교환 재출고는 출고로, 그룹상품 전환 뒤 주문은 승계 옵션으로 센다.
 --     기준 시각 뒤 회수(클레임 회수·회수 기록 없는 복원)와 회수 뒤 복원 전 수량을 가른다. 기준 시각 뒤 수동 조정은 표시만 한다
---   · 확정은 미리보기 뒤 주문이 들어와도(차이 불변) 반영하고, 수동 조정이 끼면 아무것도 바꾸지 않는다
+--   · 확정은 잠금 뒤 다시 잰 '맞춘 뒤' 재고수량이 미리보기와 같을 때만 반영한다(QA1 S-T07-01). 미리보기 뒤 주문으로
+--     맞춘 뒤 값이 바뀌거나 수동 조정이 끼면 아무것도 바꾸지 않고 바뀐 옵션(미리보기 값·지금 값·이유)을 돌려준다.
+--     같으면 반영하고 결과·감사는 반영 시점 값(반영 전 재고수량·출고 대기 등)이다. 같은 옵션은 주문으로 함께 움직여도 막지 않는다
 --   · 같은 확정의 재전송은 처음 결과, 다른 사유의 재확정은 거절. 옵션별·실행별 감사 기록. 상품 주소가 바뀌어도 기록이 따라간다
 --   · 출고 전 경고: 최근 파일 기준 부족·차이와 대조 기록 없는 옵션(승계 옵션 기준)
 --   · 요약 메일: 기본 꺼짐, 설정 시각 전에는 만들지 않고 날짜당 한 번, 운영자 전체·출고지 담당자 자기 출고지만,
@@ -260,10 +262,8 @@ select 1/case when (select bool_and((i->>'difference')::integer=0 and (i->>'targ
 -- ---------------------------------------------------------------------------
 -- 미리보기: 매칭·사유
 -- ---------------------------------------------------------------------------
-set local role authenticated;
-select pg_temp.as_actor('5a0c0000-0000-4000-8000-000000000001');
-select public.admin_preview_stock_reconcile('5a0c0000-0000-4000-8000-0000000000a1',now()-interval '2 hours','TEST 서원 재고.xlsx',
- jsonb_build_array(
+-- 같은 파일을 뒤에서 다시 미리보기하므로 행을 변수로 둔다.
+select jsonb_build_array(
   jsonb_build_object('row',2,'optionCode',lower(:'v1_code'),'qty',20),
   jsonb_build_object('row',3,'erpCode','stockrc-erp-2','barcode','9999999999999','qty',3),
   jsonb_build_object('row',4,'optionCode','STOCKRC-G2-EXTRA','qty',4),
@@ -275,7 +275,11 @@ select public.admin_preview_stock_reconcile('5a0c0000-0000-4000-8000-0000000000a
   jsonb_build_object('row',10,'optionCode',:'v5_code','qty',1),
   jsonb_build_object('row',11,'barcode','8800000000011','optionCode',:'v2_code','qty',1),
   jsonb_build_object('row',12,'optionCode','STOCKRC-OLD-1','qty',1)
- )) as preview_one \gset
+ ) as rows_one \gset
+set local role authenticated;
+select pg_temp.as_actor('5a0c0000-0000-4000-8000-000000000001');
+select public.admin_preview_stock_reconcile('5a0c0000-0000-4000-8000-0000000000a1',now()-interval '2 hours','TEST 서원 재고.xlsx',
+ :'rows_one'::jsonb) as preview_one \gset
 reset role;
 select (:'preview_one'::jsonb)->>'id' as snap_one \gset
 select 1/case when (:'preview_one'::jsonb->>'matchedCount')::integer=2 and (:'preview_one'::jsonb->>'issueCount')::integer=9
@@ -311,33 +315,72 @@ select pg_temp.expect_state($$select public.admin_get_stock_safety_digest()$$,'4
 reset role;
 
 -- ---------------------------------------------------------------------------
--- 확정: 미리보기 뒤 주문은 차이를 바꾸지 않는다
+-- 확정(QA1 S-T07-01): 미리보기 뒤 주문이 들어와 '맞춘 뒤' 재고수량이 달라지면(10 → 11로 본 V1이 지금은 9 → 10)
+-- 반영 전체를 거절하고 바뀐 옵션을 미리보기 값·지금 값·이유와 함께 돌려준다. 차이는 그대로라 예전에는 알림 없이 반영됐다.
 -- ---------------------------------------------------------------------------
 select private.change_goods_variant_stock('stock-rc-g1',:'v1',-1);
 select pg_temp.order_with(8,:'v1','stock-rc-g1',1,'paid') as o_after_preview \gset
 set local role authenticated;
 select pg_temp.as_actor('5a0c0000-0000-4000-8000-000000000001');
 select pg_temp.expect_error(format('select public.admin_apply_stock_reconcile(%L,1,%L)',:'snap_one','TEST 대조'),'stock_reconcile_preview_mismatch');
-select public.admin_apply_stock_reconcile(:'snap_one',2,'TEST 서원 재고 대조') as applied_one \gset
+select public.admin_apply_stock_reconcile(:'snap_one',2,'TEST 서원 재고 대조') as conflict_one \gset
+reset role;
+select 1/case when :'conflict_one'::jsonb->>'status'='conflict'
+ and jsonb_array_length(:'conflict_one'::jsonb->'conflicts')=1
+ and (select c->>'reason'='pending_changed' and (c->>'previewTargetQty')::integer=11 and (c->>'currentTargetQty')::integer=10
+   and (c->>'previewStockQty')::integer=10 and (c->>'currentStockQty')::integer=9
+   and (c->>'previewPendingQty')::integer=8 and (c->>'currentPendingQty')::integer=9
+   and (c->>'previewDifference')::integer=1 and (c->>'currentDifference')::integer=1
+  from jsonb_array_elements(:'conflict_one'::jsonb->'conflicts') c where c->>'variantId'=:'v1')
+ and (select stock_qty from public.goods_variants where id=:'v1')=9
+ and (select stock_qty from public.goods_variants where id=:'v2')=5
+ and (select applied_at is null from private.stock_reconcile_snapshots where id=:'snap_one')
+ and not exists(select 1 from private.stock_reconcile_snapshot_items where snapshot_id=:'snap_one'
+   and (stock_before is not null or applied_delta is not null))
+ and not exists(select 1 from public.audit_log where action in('admin.good.stock_reconciled','admin.stock_reconcile.applied')
+   and (diff->>'snapshotId'=:'snap_one' or target='stock_reconcile:'||:'snap_one'))
+ then 1 else 0 end as assert_apply_rejects_target_moved_after_preview;
+
+-- 같은 파일로 다시 미리보기하면 지금 값(V1 9 → 10)이 보이고, 확인한 그 값으로 반영된다. 결과·감사는 반영 시점 값이다.
+set local role authenticated;
+select pg_temp.as_actor('5a0c0000-0000-4000-8000-000000000001');
+select (public.admin_preview_stock_reconcile('5a0c0000-0000-4000-8000-0000000000a1',now()-interval '2 hours','TEST 서원 재고.xlsx',
+ :'rows_one'::jsonb))->>'id' as snap_one_b \gset
+select public.admin_apply_stock_reconcile(:'snap_one_b',2,'TEST 서원 재고 대조') as applied_one \gset
 reset role;
 select 1/case when :'applied_one'::jsonb->>'status'='applied' and (:'applied_one'::jsonb->>'replayed')::boolean=false
  and (select stock_qty from public.goods_variants where id=:'v1')=10
  and (select stock_qty from public.goods_variants where id=:'v2')=3
  and (select stock_qty from public.goods where id='stock-rc-g2')=3
  and (select applied_at is not null and apply_result->>'increased'='1' and apply_result->>'decreased'='1' and apply_result->>'totalDelta'='-1'
-  from private.stock_reconcile_snapshots where id=:'snap_one')
- and (select applied_delta=1 and stock_after=10 from private.stock_reconcile_snapshot_items where snapshot_id=:'snap_one' and variant_id=:'v1')
- and (select count(*)=2 from public.audit_log where action='admin.good.stock_reconciled' and diff->>'snapshotId'=:'snap_one')
- and exists(select 1 from public.audit_log where action='admin.stock_reconcile.applied' and target='stock_reconcile:'||:'snap_one'
+  from private.stock_reconcile_snapshots where id=:'snap_one_b')
+ and (select stock_qty=9 and target_qty=10 and applied_delta=1 and stock_after=10 and stock_before=9 and applied_pending_qty=9
+   and applied_shipped_since_qty=1 and applied_returned_since_qty=0 and applied_awaiting_return_qty=0
+  from private.stock_reconcile_snapshot_items where snapshot_id=:'snap_one_b' and variant_id=:'v1')
+ and (select (i->>'stockBefore')::integer=9 and (i->>'appliedPendingQty')::integer=9 and (i->>'stockAfter')::integer=10
+  from jsonb_array_elements(:'applied_one'::jsonb->'snapshot'->'items') i where i->>'variantId'=:'v1')
+ and (select count(*)=2 from public.audit_log where action='admin.good.stock_reconciled' and diff->>'snapshotId'=:'snap_one_b')
+ and exists(select 1 from public.audit_log where action='admin.good.stock_reconciled' and diff->>'snapshotId'=:'snap_one_b'
+  and diff->>'variantId'=:'v1' and (diff->>'from')::integer=9 and (diff->>'to')::integer=10 and (diff->>'pendingQty')::integer=9
+  and (diff->>'previewStockQty')::integer=9 and (diff->>'previewPendingQty')::integer=9)
+ and exists(select 1 from public.audit_log where action='admin.stock_reconcile.applied' and target='stock_reconcile:'||:'snap_one_b'
   and diff->>'reason'='TEST 서원 재고 대조')
- then 1 else 0 end as assert_apply_keeps_difference_through_new_orders;
--- 같은 확정의 재전송은 처음 결과, 다른 사유는 거절.
+ then 1 else 0 end as assert_reapply_after_new_preview;
+-- 같은 확정의 재전송은 처음 결과, 다른 사유는 거절. 반영한 미리보기 전의 옛 미리보기는 재고가 바뀌어 거절된다(이중 반영 없음).
 set local role authenticated;
 select pg_temp.as_actor('5a0c0000-0000-4000-8000-000000000001');
-select 1/case when (public.admin_apply_stock_reconcile(:'snap_one',2,'TEST 서원 재고 대조')->>'replayed')::boolean then 1 else 0 end as assert_apply_replay;
-select pg_temp.expect_error(format('select public.admin_apply_stock_reconcile(%L,2,%L)',:'snap_one','다른 사유'),'stock_reconcile_already_applied');
+select 1/case when (public.admin_apply_stock_reconcile(:'snap_one_b',2,'TEST 서원 재고 대조')->>'replayed')::boolean then 1 else 0 end as assert_apply_replay;
+select pg_temp.expect_error(format('select public.admin_apply_stock_reconcile(%L,2,%L)',:'snap_one_b','다른 사유'),'stock_reconcile_already_applied');
+select public.admin_apply_stock_reconcile(:'snap_one',2,'TEST 옛 미리보기') as stale_one \gset
 reset role;
-select 1/case when (select stock_qty from public.goods_variants where id=:'v1')=10 then 1 else 0 end as assert_replay_no_second_change;
+select 1/case when (select stock_qty from public.goods_variants where id=:'v1')=10
+ and :'stale_one'::jsonb->>'status'='conflict'
+ and (select c->>'reason'='pending_and_stock_changed' and (c->>'currentStockQty')::integer=10
+  from jsonb_array_elements(:'stale_one'::jsonb->'conflicts') c where c->>'variantId'=:'v1')
+ and (select c->>'reason'='stock_changed' and (c->>'previewStockQty')::integer=5 and (c->>'currentStockQty')::integer=3
+   and (c->>'previewTargetQty')::integer=3 and (c->>'currentTargetQty')::integer=3
+  from jsonb_array_elements(:'stale_one'::jsonb->'conflicts') c where c->>'variantId'=:'v2')
+ then 1 else 0 end as assert_replay_no_second_change;
 
 -- 수동 재고 조정이 끼면 아무것도 바꾸지 않고 달라진 옵션을 돌려준다. 기준 시각 뒤 조정은 다음 미리보기에 표시된다.
 set local role authenticated;
@@ -350,7 +393,9 @@ select public.admin_preview_stock_reconcile(null,now()-interval '1 minute','TEST
  jsonb_build_object('row',1,'optionCode',:'v2_code','qty',4))) as preview_adjusted \gset
 reset role;
 select 1/case when :'conflict_two'::jsonb->>'status'='conflict'
- and (select count(*)=1 from jsonb_array_elements(:'conflict_two'::jsonb->'conflicts') c where c->>'variantId'=:'v2' and c->>'reason'='changed')
+ and (select count(*)=1 from jsonb_array_elements(:'conflict_two'::jsonb->'conflicts') c where c->>'variantId'=:'v2' and c->>'reason'='stock_changed'
+   and (c->>'previewStockQty')::integer=3 and (c->>'currentStockQty')::integer=4 and (c->>'previewTargetQty')=(c->>'currentTargetQty'))
+ and jsonb_array_length(:'conflict_two'::jsonb->'conflicts')=1
  and (select stock_qty from public.goods_variants where id=:'v1')=10 and (select stock_qty from public.goods_variants where id=:'v2')=4
  and (select applied_at is null from private.stock_reconcile_snapshots where id=:'snap_two')
  -- 같은 트랜잭션이라 앞선 대조 반영(−2)도 기준 시각 뒤 변경으로 함께 잡힌다: 수동 조정 +1과 합쳐 2건·−1.
@@ -399,6 +444,77 @@ select 1/case when (select w->>'kind'='shortage' and (w->>'shortageQty')::intege
  and (:'warnings_all'::jsonb->>'unreconciledCount')::integer=1
  and (select count(*)=1 from jsonb_array_elements(:'warnings_all'::jsonb->'unreconciled') u where u->>'variantId'=:'v4')
  then 1 else 0 end as assert_dispatch_shortage_and_unreconciled;
+
+-- ---------------------------------------------------------------------------
+-- 맞춘 뒤 값이 그대로면 반영한다(QA1 S-T07-01): 미리보기 뒤 출고만 끼거나(출고 대기 → 기준 시각 뒤 출고),
+-- 같은 옵션에 주문이 들어와 재고수량과 맞춘 뒤 값이 함께 움직인 경우. 결과·옵션별 감사는 반영 시점 값이다.
+-- 출고 전 경고 시험 뒤에 둔다(이 주문들이 창고A 출고 대기 옵션 수를 바꾸지 않게).
+-- ---------------------------------------------------------------------------
+insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id) values
+ ('stock-rc-moment','stock-rc-ip','TEST 재고대조 반영 시점','문구',10000,'ok',5,'5a0c0000-0000-4000-8000-0000000000a1'),
+ ('stock-rc-same','stock-rc-ip','TEST 재고대조 같은 옵션','문구',10000,'ok',4,'5a0c0000-0000-4000-8000-0000000000a1');
+select (select id from public.goods_variants where good_id='stock-rc-moment' and is_default) as v_moment,
+ (select code from public.goods_variants where good_id='stock-rc-moment' and is_default) as v_moment_code,
+ (select id from public.goods_variants where good_id='stock-rc-same' and is_default) as v_same,
+ (select code from public.goods_variants where good_id='stock-rc-same' and is_default) as v_same_code \gset
+-- 반영 시점 옵션: 발주확인 주문 2개(재고수량은 주문 때 뺐다) → 재고 3·출고 대기 2. 파일 9 → 맞춘 뒤 7(3 → 7).
+select private.change_goods_variant_stock('stock-rc-moment',:'v_moment',-2);
+select pg_temp.order_with(31,:'v_moment','stock-rc-moment',2,'confirmed') as o_moment \gset
+set local role authenticated;
+select pg_temp.as_actor('5a0c0000-0000-4000-8000-000000000001');
+select public.admin_preview_stock_reconcile(null,now()-interval '1 hour','TEST 반영 시점',jsonb_build_array(
+ jsonb_build_object('row',1,'optionCode',:'v_moment_code','qty',9),jsonb_build_object('row',2,'optionCode',:'v_same_code','qty',4))) as preview_moment \gset
+reset role;
+select (:'preview_moment'::jsonb)->>'id' as snap_moment \gset
+-- 미리보기 뒤: 반영 시점 옵션의 주문이 출고되고(출고 대기 2 → 기준 시각 뒤 출고 2), 같은 옵션에 결제 주문 1개가 들어온다(재고 4 → 3, 맞춘 뒤 4 → 3).
+set local session_replication_role=replica;
+update public.order_shipments set status='shipping',carrier='hanjin',tracking_number='STOCKRC000031',shipped_at=now() where order_id=:'o_moment';
+update public.orders set status='shipping',shipped_at=now() where id=:'o_moment';
+set local session_replication_role=origin;
+select private.change_goods_variant_stock('stock-rc-same',:'v_same',-1);
+select pg_temp.order_with(32,:'v_same','stock-rc-same',1,'paid') as o_same \gset
+set local role authenticated;
+select pg_temp.as_actor('5a0c0000-0000-4000-8000-000000000001');
+select public.admin_apply_stock_reconcile(:'snap_moment',1,'TEST 반영 시점 값') as applied_moment \gset
+reset role;
+select 1/case when (:'preview_moment'::jsonb->>'changedCount')::integer=1
+ and (select (i->>'stockQty')::integer=3 and (i->>'pendingQty')::integer=2 and (i->>'targetQty')::integer=7
+  from jsonb_array_elements(:'preview_moment'::jsonb->'items') i where i->>'variantId'=:'v_moment')
+ and :'applied_moment'::jsonb->>'status'='applied'
+ and (select stock_qty from public.goods_variants where id=:'v_moment')=7
+ and (select stock_qty from public.goods_variants where id=:'v_same')=3
+ and (select stock_qty=3 and pending_qty=2 and shipped_since_qty=0 and stock_before=3 and applied_pending_qty=0 and applied_shipped_since_qty=2
+   and applied_delta=4 and stock_after=7
+  from private.stock_reconcile_snapshot_items where snapshot_id=:'snap_moment' and variant_id=:'v_moment')
+ and (select stock_qty=4 and pending_qty=0 and stock_before=3 and applied_pending_qty=1 and applied_delta is null and stock_after is null
+  from private.stock_reconcile_snapshot_items where snapshot_id=:'snap_moment' and variant_id=:'v_same')
+ and (select (i->>'stockBefore')::integer=3 and (i->>'appliedPendingQty')::integer=0 and (i->>'appliedShippedSinceQty')::integer=2
+   and (i->>'stockAfter')::integer=7
+  from jsonb_array_elements(:'applied_moment'::jsonb->'snapshot'->'items') i where i->>'variantId'=:'v_moment')
+ and (select (i->>'stockBefore')::integer=3 and (i->>'appliedPendingQty')::integer=1 and i->'stockAfter'='null'::jsonb
+  from jsonb_array_elements(:'applied_moment'::jsonb->'snapshot'->'items') i where i->>'variantId'=:'v_same')
+ and (select count(*)=1 from public.audit_log where action='admin.good.stock_reconciled' and diff->>'snapshotId'=:'snap_moment')
+ and exists(select 1 from public.audit_log where action='admin.good.stock_reconciled' and diff->>'snapshotId'=:'snap_moment'
+  and diff->>'variantId'=:'v_moment' and (diff->>'from')::integer=3 and (diff->>'to')::integer=7 and (diff->>'delta')::integer=4
+  and (diff->>'pendingQty')::integer=0 and (diff->>'shippedSinceQty')::integer=2
+  and (diff->>'previewStockQty')::integer=3 and (diff->>'previewPendingQty')::integer=2)
+ then 1 else 0 end as assert_apply_records_values_at_apply_time;
+
+-- 같은 옵션도 미리보기 뒤 재고수량을 직접 바꿔 반영할 것이 생기면 거절한다(대조 기록만 남기기 포함).
+set local role authenticated;
+select pg_temp.as_actor('5a0c0000-0000-4000-8000-000000000001');
+select (public.admin_preview_stock_reconcile(null,now(),'TEST 같은 옵션 조정',jsonb_build_array(
+ jsonb_build_object('row',1,'optionCode',:'v_same_code','qty',4))))->>'id' as snap_same \gset
+select public.admin_adjust_stock(gen_random_uuid(),'stock-rc-same',:'v_same',3,2,'TEST 입고');
+select public.admin_apply_stock_reconcile(:'snap_same',0,'TEST 같은 옵션 조정') as conflict_same \gset
+reset role;
+select 1/case when :'conflict_same'::jsonb->>'status'='conflict'
+ and (select c->>'reason'='stock_changed' and (c->>'previewStockQty')::integer=3 and (c->>'currentStockQty')::integer=5
+   and (c->>'previewTargetQty')::integer=3 and (c->>'currentTargetQty')::integer=3
+  from jsonb_array_elements(:'conflict_same'::jsonb->'conflicts') c where c->>'variantId'=:'v_same')
+ and (select stock_qty from public.goods_variants where id=:'v_same')=5
+ and (select applied_at is null from private.stock_reconcile_snapshots where id=:'snap_same')
+ then 1 else 0 end as assert_same_option_direct_change_rejected;
 
 -- ---------------------------------------------------------------------------
 -- 안전재고 요약 메일 설정
