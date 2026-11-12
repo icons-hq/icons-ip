@@ -3,12 +3,11 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useId, useRef, useState, useTransition } from 'react';
-import { adjustAdminStockAction } from '@/app/admin/actions';
-import { readGoodsOptionStocksAction } from '@/app/admin/goods-list-inline-actions';
+import { adjustGoodsOptionStocksAction, readGoodsOptionStocksAction, type GoodsOptionStockSaveResult } from '@/app/admin/goods-list-inline-actions';
 import { statusTone } from '@/lib/admin/status-tone';
 import {
   OPTION_STOCK_REASON_MAX, OPTION_STOCK_STATUS_LABELS, applyOptionStockOutcomes, applyOptionStockRead, openOptionStockRows, optionStockNeedsRead, optionStockSummary,
-  planOptionStockSave, type GoodsListOptionStock, type OptionStockOutcome, type OptionStockRequest, type OptionStockRow,
+  planOptionStockSave, type GoodsListOptionStock, type OptionStockRequest, type OptionStockRow,
 } from '@/lib/admin/goods-list-inline';
 import { CustomerServiceDialog } from './screens/CustomerServiceDialog';
 import { GroupTable } from './GoodsGroupOperation';
@@ -19,33 +18,25 @@ import { GOOD_INPUT_CLASS, GOOD_NUMBER_INPUT_CLASS } from './GoodEditorParts';
 
 /*
  * 옵션이 여러 개인 상품의 목록 재고 칸(1014-106·107·1027T-025, 묶음 15 '옵션별 재고 바로 수정').
- * 옵션마다 기존 실재고 조정(admin_adjust_stock)을 차례로 부른다. 이 창에서 본 수량을 기대값으로 보내므로
- * 그사이 판매·다른 수정으로 바뀐 옵션만 거절되어 '다시 확인'이 되고, 나머지 옵션은 저장된다.
+ * 바뀐 옵션을 한 번의 서버 요청(adjustGoodsOptionStocksAction)으로 보내고, 서버가 옵션마다 기존 실재고 조정(admin_adjust_stock)을
+ * 차례로 부른다. 이 창에서 본 수량을 기대값으로 보내므로 그사이 판매·다른 수정으로 바뀐 옵션만 거절되어 '다시 확인'이 되고,
+ * 나머지 옵션은 저장된다. 목록 갱신은 서버가 묶음 끝에 한 번 한다.
  * 창과 상태는 목록 화면 수준(GoodsInlineDialogHost)에 있다 — 저장 뒤 목록이 다시 그려지며 그 상품이 현재 페이지에서
- * 빠져도(품절 필터·정렬) 창과 옵션별 결과가 남는다. 거절된 옵션의 새 현재 수량은 그 상품만 새로 읽어 보인다.
+ * 빠져도(품절 필터·정렬) 창과 옵션별 결과가 남는다. 거절된 옵션의 새 현재 수량은 서버가 같은 응답에 다시 읽어 준다.
  */
 
 const UNCERTAIN = '저장 결과를 확인하지 못했습니다. 같은 수량으로 다시 저장하면 한 번만 반영됩니다.';
 
-/** 옵션마다 한 건씩 차례로 조정한다. 한 옵션의 거절·응답 끊김은 그 옵션의 결과로만 남고 다른 옵션을 막지 않는다. */
-export async function saveGoodsOptionStocks(good: { goodId: string; ipId: string }, requests: readonly OptionStockRequest[]): Promise<OptionStockOutcome[]> {
-  const outcomes: OptionStockOutcome[] = [];
-  for (const request of requests) {
-    const data = new FormData();
-    data.set('adjustmentId', request.requestId); data.set('goodId', good.goodId); data.set('ipId', good.ipId); data.set('variantId', request.variantId);
-    data.set('expectedStockQty', String(request.expectedStockQty)); data.set('delta', String(request.nextStockQty - request.expectedStockQty));
-    data.set('reason', request.reason);
-    try {
-      const result = await adjustAdminStockAction({}, data);
-      const message = result.errors ? result.errors.form ?? Object.values(result.errors).find(Boolean) : undefined;
-      /* 거절(기대 수량과 다름·이미 쓴 요청·옵션 없음 등)은 반영되지 않은 것이 확실하다. */
-      outcomes.push(message ? { variantId: request.variantId, state: 'rejected', message }
-        : { variantId: request.variantId, state: 'saved', stockQty: result.stockAdjustment?.stockQty ?? request.nextStockQty });
-    } catch {
-      outcomes.push({ variantId: request.variantId, state: 'uncertain', message: UNCERTAIN });
-    }
+/**
+ * 바뀐 옵션을 한 번에 저장한다. 서버가 거절한 묶음(권한·입력)은 아무 옵션도 바꾸지 않았다는 뜻이다.
+ * 응답을 받지 못하면 보낸 옵션 모두 결과를 모른다 — 같은 요청번호·같은 값으로 다시 보내면 옵션마다 한 번만 반영된다.
+ */
+export async function saveGoodsOptionStocks(good: { goodId: string; ipId: string }, requests: readonly OptionStockRequest[]): Promise<GoodsOptionStockSaveResult> {
+  try {
+    return await adjustGoodsOptionStocksAction(good.goodId, good.ipId, requests);
+  } catch {
+    return { ok: true, outcomes: requests.map(request => ({ variantId: request.variantId, state: 'uncertain' as const, message: UNCERTAIN })) };
   }
-  return outcomes;
 }
 
 /** 창을 열 때 재고 칸이 넘기는 상품 값. `options`는 목록이 읽은 옵션별 실재고(이 창의 첫 기대값)다. */
@@ -76,9 +67,10 @@ export function useOptionStockDialog({ onSaved }: { onSaved?: (target: OptionSto
     },
     close() {
       if (busy.current || !rows) return;
-      const touched = rows.some(row => row.status === 'saved' || row.status === 'recheck' || row.status === 'uncertain');
+      /* 저장 결과를 모르는 옵션이 있으면 서버의 화면 갱신이 없었을 수 있어 목록을 다시 읽는다(나머지는 서버가 이미 갱신했다). */
+      const unknown = rows.some(row => row.status === 'uncertain');
       setRows(null); setTarget(null); setSummary('');
-      if (touched) router.refresh();
+      if (unknown) router.refresh();
     },
     change(variantId: string, patch: Partial<Pick<OptionStockRow, 'input' | 'reason'>>) {
       setRows(current => current?.map(row => row.variantId === variantId ? { ...row, ...patch } : row) ?? null);
@@ -103,25 +95,35 @@ export function useOptionStockDialog({ onSaved }: { onSaved?: (target: OptionSto
       if (!plan.requests.length) { setSummary('바뀐 수량이 없습니다.'); return; }
       setSummary('');
       run(async () => {
-        const outcomes = await saveGoodsOptionStocks(goal, plan.requests);
+        const result = await saveGoodsOptionStocks(goal, plan.requests);
+        if (!result.ok) { setSummary(`${result.error} 아무 옵션도 저장하지 않았습니다.`); return; }
+        const { outcomes } = result;
         if (outcomes.every(outcome => outcome.state === 'saved')) {
-          setRows(null); setTarget(null); onSaved?.(goal, outcomes.length); router.refresh();
+          setRows(null); setTarget(null); onSaved?.(goal, outcomes.length);
           return;
         }
         let next = applyOptionStockOutcomes(plan.rows, outcomes, newRequestId);
         let note = '';
         if (outcomes.some(outcome => outcome.state === 'rejected')) {
-          const fresh = await readGoodsOptionStocksAction(goal.goodId).catch(() => null);
-          if (fresh?.ok) next = applyOptionStockRead(next, fresh.options); else note = READ_FAILED;
+          if (result.options) next = applyOptionStockRead(next, result.options); else note = READ_FAILED;
         }
         setRows(next); setSummary(`${optionStockSummary(outcomes)}${note}`);
-        router.refresh();
       });
     },
   };
 }
 
 export type OptionStockDialogFlow = ReturnType<typeof useOptionStockDialog>;
+
+/*
+ * 좁은 폭(모바일)에서는 표를 옵션마다 두 줄 카드로 바꾼다 — 1줄 옵션명·현재 수량, 2줄 새 수량·사유 입력. 가로로 밀지 않고 입력·저장한다.
+ * 넓은 폭(sm 이상)은 표 그대로다. 화면 전용 CSS 없이 kit 표 부품에 Tailwind 반응형 유틸리티만 얹는다(ADR-0028).
+ */
+const NARROW_TABLE = 'max-sm:block sm:min-w-[30rem]';
+const NARROW_ROW = 'max-sm:grid max-sm:grid-cols-2 max-sm:items-start max-sm:gap-x-3 max-sm:gap-y-2 max-sm:px-3 max-sm:py-3';
+const NARROW_CELL = 'max-sm:block max-sm:min-w-0 max-sm:p-0 max-sm:whitespace-normal';
+/** 넓은 폭에서는 표 머리글이 말하므로 화면에서 숨기고, 좁은 폭에서는 입력 위 이름표로 보인다. */
+const NARROW_LABEL = 'mb-1 block text-xs text-muted-foreground sm:sr-only';
 
 /** 옵션별 재고 창. 옵션마다 현재·새 수량·사유를 두고, 저장 뒤 옵션마다 결과(저장됨·다시 확인·결과 확인 필요)를 밝힌다. */
 export function GoodsOptionStockDialog({ flow }: {
@@ -144,22 +146,25 @@ export function GoodsOptionStockDialog({ flow }: {
       <p className="text-sm"><strong className="font-semibold">{target.goodName}</strong>{target.goodCode ? <small className="ml-1.5 text-xs text-muted-foreground">{target.goodCode}</small> : null}</p>
       <p className="text-sm text-muted-foreground">옵션마다 새 수량을 입력하고 저장합니다. 이 창을 연 때의 수량을 기준으로 저장해서, 그사이 판매나 다른 수정으로 수량이 바뀐 옵션은 저장하지 않고 다시 확인을 요청합니다. 저장한 옵션마다 실재고 조정 기록과 사유가 남습니다(사유를 비우면 바뀐 수량이 사유로 남습니다).</p>
       <fieldset className="m-0 min-w-0 border-0 p-0" disabled={pending}><legend className="sr-only">옵션별 재고수량</legend>
-        <GroupTable label="옵션별 재고수량" layout="fixed" className="min-w-[30rem]">
-          <TableHeader><TableRow><TableHead className="w-[36%]">옵션</TableHead><TableHead className="w-[18%] text-right">현재</TableHead><TableHead className="w-[18%]">새 수량</TableHead><TableHead>사유 (선택)</TableHead></TableRow></TableHeader>
-          <TableBody>{rows.map((row, index) => {
+        <GroupTable label="옵션별 재고수량" layout="fixed" className={NARROW_TABLE}>
+          <TableHeader className="max-sm:hidden"><TableRow><TableHead className="w-[36%]">옵션</TableHead><TableHead className="w-[18%] text-right">현재</TableHead><TableHead className="w-[18%]">새 수량</TableHead><TableHead>사유 (선택)</TableHead></TableRow></TableHeader>
+          <TableBody className="max-sm:block">{rows.map((row, index) => {
             const messageId = `${prefix}-message-${index}`;
+            const qtyId = `${prefix}-qty-${index}`, reasonId = `${prefix}-reason-${index}`;
             const label = row.status === 'idle' || row.status === 'invalid' ? null : OPTION_STOCK_STATUS_LABELS[row.status];
-            return <TableRow key={row.variantId} data-option-stock={row.status}>
-              <TableCell className="align-top whitespace-normal wrap-anywhere">{row.name}<small className="block text-xs text-muted-foreground">{row.code}</small>
+            return <TableRow key={row.variantId} data-option-stock={row.status} className={NARROW_ROW}>
+              <TableCell className={`align-top whitespace-normal wrap-anywhere ${NARROW_CELL}`}>{row.name}<small className="block text-xs text-muted-foreground">{row.code}</small>
                 {label ? <AdminStatusBadge className="mt-1" tone={statusTone('optionStockEdit', row.status)}>{label}</AdminStatusBadge> : null}
                 {row.message ? <small id={messageId} role={row.status === 'saved' ? undefined : 'alert'} className={`mt-1 block text-xs ${row.status === 'invalid' ? 'text-destructive' : 'text-foreground'}`}>{row.message}</small> : null}
               </TableCell>
-              <TableCell className="text-right align-top tabular-nums">{row.seen === null ? '확인 필요' : `${row.seen.toLocaleString('ko-KR')}개`}</TableCell>
-              <TableCell className="align-top"><input aria-label={`${row.name} 새 수량`} inputMode="numeric" value={row.input} onChange={event => flow.change(row.variantId, { input: event.target.value })}
-                className={GOOD_NUMBER_INPUT_CLASS} data-slot="input" readOnly={row.missing} {...(index === 0 ? { 'data-dialog-autofocus': '' } : {})}
-                aria-invalid={row.status === 'invalid' ? true : undefined} aria-describedby={row.message ? messageId : undefined} /></TableCell>
-              <TableCell className="align-top"><input aria-label={`${row.name} 사유`} value={row.reason} maxLength={OPTION_STOCK_REASON_MAX} placeholder="비우면 자동 기록" readOnly={row.missing}
-                onChange={event => flow.change(row.variantId, { reason: event.target.value })} className={GOOD_INPUT_CLASS} data-slot="input" /></TableCell>
+              <TableCell className={`text-right align-top tabular-nums ${NARROW_CELL}`}><span className="text-xs text-muted-foreground sm:sr-only">현재 </span>{row.seen === null ? '확인 필요' : `${row.seen.toLocaleString('ko-KR')}개`}</TableCell>
+              <TableCell className={`align-top ${NARROW_CELL}`}><label className={NARROW_LABEL} htmlFor={qtyId}>새 수량</label>
+                <input id={qtyId} aria-label={`${row.name} 새 수량`} inputMode="numeric" value={row.input} onChange={event => flow.change(row.variantId, { input: event.target.value })}
+                  className={GOOD_NUMBER_INPUT_CLASS} data-slot="input" readOnly={row.missing} {...(index === 0 ? { 'data-dialog-autofocus': '' } : {})}
+                  aria-invalid={row.status === 'invalid' ? true : undefined} aria-describedby={row.message ? messageId : undefined} /></TableCell>
+              <TableCell className={`align-top ${NARROW_CELL}`}><label className={NARROW_LABEL} htmlFor={reasonId}>사유 (선택)</label>
+                <input id={reasonId} aria-label={`${row.name} 사유`} value={row.reason} maxLength={OPTION_STOCK_REASON_MAX} placeholder="비우면 자동 기록" readOnly={row.missing}
+                  onChange={event => flow.change(row.variantId, { reason: event.target.value })} className={GOOD_INPUT_CLASS} data-slot="input" /></TableCell>
             </TableRow>;
           })}</TableBody>
         </GroupTable>

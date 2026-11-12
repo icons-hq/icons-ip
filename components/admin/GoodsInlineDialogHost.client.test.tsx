@@ -17,11 +17,10 @@ vi.mock('react', async () => ({
   useRef: (initial: unknown) => { const index = hooks.refIndex++; hooks.refs[index] ??= { current: initial }; return hooks.refs[index]; },
   useTransition: () => [false, (task: () => unknown) => { hooks.tasks.push(Promise.resolve(task())); }],
 }));
-const mocks = vi.hoisted(() => ({ preview: vi.fn(), commit: vi.fn(), read: vi.fn(), adjust: vi.fn(), readOptions: vi.fn(), refresh: vi.fn() }));
+const mocks = vi.hoisted(() => ({ preview: vi.fn(), commit: vi.fn(), read: vi.fn(), adjustBatch: vi.fn(), readOptions: vi.fn(), refresh: vi.fn() }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: mocks.refresh }) }));
 vi.mock('@/app/admin/goods-bulk-actions', () => ({ previewGoodsBulkAction: mocks.preview, commitGoodsBulkAction: mocks.commit, readGoodsBulkAction: mocks.read }));
-vi.mock('@/app/admin/actions', () => ({ adjustAdminStockAction: mocks.adjust }));
-vi.mock('@/app/admin/goods-list-inline-actions', () => ({ readGoodsOptionStocksAction: mocks.readOptions }));
+vi.mock('@/app/admin/goods-list-inline-actions', () => ({ readGoodsOptionStocksAction: mocks.readOptions, adjustGoodsOptionStocksAction: mocks.adjustBatch }));
 
 import { goodsBulkError, type GoodsBulkRequest } from '@/lib/admin/goods-bulk';
 import { GoodsInlineDialogHost } from './GoodsInlineDialogHost';
@@ -53,10 +52,9 @@ beforeEach(() => {
 
 describe('목록 화면 수준의 창 (리뷰 21·22 — 상품이 현재 페이지에서 빠져도 결과가 남는다)', () => {
   it('옵션별 재고: 저장 뒤 그 상품의 행이 목록에서 빠져도 창과 옵션별 결과(저장됨·다시 확인)가 남고, 다시 확인 줄은 새로 읽은 수량을 보인다', async () => {
-    mocks.adjust.mockImplementation(async (_state: unknown, data: FormData) => data.get('variantId') === 'v-red'
-      ? { errors: { form: '실재고가 변경되었습니다. 최신 수량을 확인한 뒤 다시 시도해주세요.' } }
-      : { message: '실재고를 조정했습니다.', stockAdjustment: { variantId: String(data.get('variantId')), stockQty: 8, adjustmentId: 'next' } });
-    mocks.readOptions.mockResolvedValue({ ok: true, options: [{ variantId: 'v-blue', name: '블루', code: 'B', stockQty: 8 }, { variantId: 'v-red', name: '레드', code: 'R', stockQty: 0 }] });
+    // 서버 묶음 저장: 블루 저장, 레드는 그사이 바뀌어 거절 — 거절 옵션의 현재 수량(0)을 같은 응답에 돌려준다.
+    mocks.adjustBatch.mockResolvedValue({ ok: true, outcomes: [{ variantId: 'v-blue', state: 'saved', stockQty: 8 }, { variantId: 'v-red', state: 'rejected', message: '실재고가 변경되었습니다. 최신 수량을 확인한 뒤 다시 시도해주세요.' }],
+      options: [{ variantId: 'v-blue', name: '블루', code: 'B', stockQty: 8 }, { variantId: 'v-red', name: '레드', code: 'R', stockQty: 0 }] });
     render(row).value.openOptionStock({ goodId: 'good-a', ipId: 'ip-a', goodName: '상품 A', goodCode: 'A', editorHref: '/admin/catalog/goods?goodId=good-a',
       options: [{ variantId: 'v-blue', name: '블루', code: 'B', stockQty: 5 }, { variantId: 'v-red', name: '레드', code: 'R', stockQty: 1 }] });
     let view = render(row);
@@ -69,12 +67,14 @@ describe('목록 화면 수준의 창 (리뷰 21·22 — 상품이 현재 페이
     expect(view.stock.target?.goodId).toBe('good-a');
     expect(view.stock.rows?.map(item => [item.variantId, item.status, item.seen])).toEqual([['v-blue', 'saved', 8], ['v-red', 'recheck', 0]]);
     expect(view.stock.summary).toContain('1개 옵션은 저장하지 않았습니다');
-    expect(mocks.readOptions).toHaveBeenCalledWith('good-a');
-    expect(mocks.refresh).toHaveBeenCalled();
+    // 한 번의 서버 요청으로 보내고(화면 갱신은 서버가 한 번), 따로 다시 읽거나 화면을 또 새로 고치지 않는다.
+    expect(mocks.adjustBatch).toHaveBeenCalledTimes(1);
+    expect(mocks.readOptions).not.toHaveBeenCalled();
+    expect(mocks.refresh).not.toHaveBeenCalled();
   });
 
   it('옵션별 재고: 모두 저장되면 창을 닫고 목록 위 결과 문구를 남긴다(그 상품이 목록에서 빠져도 결과가 보인다)', async () => {
-    mocks.adjust.mockResolvedValue({ message: '실재고를 조정했습니다.', stockAdjustment: { variantId: 'v-blue', stockQty: 8, adjustmentId: 'next' } });
+    mocks.adjustBatch.mockResolvedValue({ ok: true, outcomes: [{ variantId: 'v-blue', state: 'saved', stockQty: 8 }] });
     render(row).value.openOptionStock({ goodId: 'good-a', ipId: 'ip-a', goodName: '상품 A', goodCode: 'A', editorHref: '/x', options: [{ variantId: 'v-blue', name: '블루', code: 'B', stockQty: 5 }, { variantId: 'v-red', name: '레드', code: 'R', stockQty: 1 }] });
     render(row).stock.change('v-blue', { input: '8' });
     render(row).stock.save();

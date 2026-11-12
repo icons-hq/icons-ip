@@ -1,11 +1,11 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({ preview: vi.fn(), commit: vi.fn(), read: vi.fn(), adjust: vi.fn() }));
+const mocks = vi.hoisted(() => ({ preview: vi.fn(), commit: vi.fn(), read: vi.fn(), adjust: vi.fn(), adjustBatch: vi.fn() }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock('@/app/admin/goods-bulk-actions', () => ({ previewGoodsBulkAction: mocks.preview, commitGoodsBulkAction: mocks.commit, readGoodsBulkAction: mocks.read }));
 vi.mock('@/app/admin/actions', () => ({ adjustAdminStockAction: mocks.adjust }));
-vi.mock('@/app/admin/goods-list-inline-actions', () => ({ readGoodsOptionStocksAction: vi.fn() }));
+vi.mock('@/app/admin/goods-list-inline-actions', () => ({ readGoodsOptionStocksAction: vi.fn(), adjustGoodsOptionStocksAction: mocks.adjustBatch }));
 import { GoodsInlineOptionStock, GoodsInlinePrice, GoodsInlineSale, GoodsInlineStock, InlineEditor, runSingleGoodBulk } from './GoodsInlineEdit';
 import { GoodsInlineDialogHost } from './GoodsInlineDialogHost';
 import { saveGoodsOptionStocks } from './GoodsOptionStockDialog';
@@ -95,30 +95,22 @@ describe('상품 목록 바로 수정 (A9)', () => {
     expect(html).not.toContain('<dialog');
     expect(renderToStaticMarkup(stock)).not.toContain('<button');
   });
-  it('옵션별 재고는 옵션마다 이 창에서 본 수량을 기대값으로 실재고 조정을 차례로 부르고, 거절·응답 끊김은 그 옵션의 결과로만 남긴다', async () => {
-    const order: string[] = [];
-    mocks.adjust.mockImplementation(async (_state: unknown, data: FormData) => {
-      const variantId = String(data.get('variantId'));
-      order.push(variantId);
-      if (variantId === 'v-red') return { errors: { form: '실재고가 변경되었습니다. 최신 수량을 확인한 뒤 다시 시도해주세요.' } };
-      if (variantId === 'v-green') throw new Error('network');
-      return { message: '실재고를 조정했습니다.', stockAdjustment: { variantId, stockQty: 8, adjustmentId: 'next' } };
-    });
+  it('옵션별 재고는 바뀐 옵션을 한 번의 서버 요청으로 보내고(옵션별 조정·화면 갱신 1회는 서버 몫), 응답을 받지 못하면 보낸 옵션 모두 결과를 모른다고 한다', async () => {
     const requests = [
       { variantId: 'v-blue', requestId: 'b9000000-0000-4000-8000-0000000000c1', expectedStockQty: 5, nextStockQty: 8, reason: '입고 반영' },
       { variantId: 'v-red', requestId: 'b9000000-0000-4000-8000-0000000000c2', expectedStockQty: 4, nextStockQty: 9, reason: '입고 반영' },
       { variantId: 'v-green', requestId: 'b9000000-0000-4000-8000-0000000000c3', expectedStockQty: 3, nextStockQty: 0, reason: '실사' },
     ];
-    const outcomes = await saveGoodsOptionStocks({ goodId: 'good-a', ipId: 'ip-a' }, requests);
-    expect(order).toEqual(['v-blue', 'v-red', 'v-green']);
-    expect(outcomes).toEqual([
-      { variantId: 'v-blue', state: 'saved', stockQty: 8 },
-      { variantId: 'v-red', state: 'rejected', message: '실재고가 변경되었습니다. 최신 수량을 확인한 뒤 다시 시도해주세요.' },
-      { variantId: 'v-green', state: 'uncertain', message: expect.stringContaining('한 번만 반영') },
-    ]);
-    const sent = mocks.adjust.mock.calls.map(call => Object.fromEntries((call[1] as FormData).entries()));
-    expect(sent[0]).toEqual({ adjustmentId: 'b9000000-0000-4000-8000-0000000000c1', goodId: 'good-a', ipId: 'ip-a', variantId: 'v-blue', expectedStockQty: '5', delta: '3', reason: '입고 반영' });
-    expect(sent[2]).toMatchObject({ expectedStockQty: '3', delta: '-3', reason: '실사' });
+    const reply = { ok: true, outcomes: [{ variantId: 'v-blue', state: 'saved', stockQty: 8 }, { variantId: 'v-red', state: 'rejected', message: '실재고가 변경되었습니다.' }, { variantId: 'v-green', state: 'saved', stockQty: 0 }],
+      options: [{ variantId: 'v-red', name: '레드', code: 'R', stockQty: 2 }] };
+    mocks.adjustBatch.mockResolvedValueOnce(reply);
+    expect(await saveGoodsOptionStocks({ goodId: 'good-a', ipId: 'ip-a' }, requests)).toEqual(reply);
+    expect(mocks.adjustBatch).toHaveBeenCalledTimes(1);
+    expect(mocks.adjustBatch).toHaveBeenCalledWith('good-a', 'ip-a', requests);
+    // 옵션마다 따로 부르던 기존 재고 조정 액션(옵션마다 화면 갱신)은 쓰지 않는다.
+    expect(mocks.adjust).not.toHaveBeenCalled();
+    mocks.adjustBatch.mockRejectedValueOnce(new Error('network'));
+    expect(await saveGoodsOptionStocks({ goodId: 'good-a', ipId: 'ip-a' }, requests)).toEqual({ ok: true, outcomes: requests.map(request => ({ variantId: request.variantId, state: 'uncertain', message: expect.stringContaining('한 번만 반영') })) });
   });
   it("결과가 불명확한 저장 뒤의 '처리 결과 조회' 버튼은 덮개 위에 남아 수정 폼을 열지 않는다", () => {
     const markup = renderToStaticMarkup(<InlineEditor fillCell label="판매가" display="10,000원" onSubmit={() => undefined} pending={false} error="처리 결과가 불명확합니다." recovery onRecover={() => undefined} editing={false} setEditing={() => undefined}><span /></InlineEditor>);

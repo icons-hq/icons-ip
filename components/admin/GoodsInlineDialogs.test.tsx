@@ -115,6 +115,23 @@ describe('옵션별 재고 창 (1014-106·107)', () => {
     expect(html).toContain('href="/admin/catalog/goods?goodId=good-a#good-section-variants"');
     expect(buttons(html)).toEqual(['닫기', '저장']);
   });
+  it('좁은 폭(모바일)에서는 표 대신 옵션마다 두 줄(옵션명·현재 수량 / 새 수량·사유)로 쌓아 가로로 밀지 않고, 넓은 폭은 표 그대로다', () => {
+    const html = render();
+    const classes = (pattern: RegExp) => (pattern.exec(html)?.[1] ?? '').split(/\s+/);
+    // 표: 좁은 폭에서는 블록(최소 폭 없음), 넓은 폭에서만 30rem 최소 폭.
+    expect(classes(/<table class="([^"]*)" data-slot="table">/)).toEqual(expect.arrayContaining(['max-sm:block', 'sm:min-w-[30rem]', 'table-fixed']));
+    expect(classes(/<table class="([^"]*)"/)).not.toContain('min-w-[30rem]');
+    // 머리글은 좁은 폭에서 숨기고, 입력 위 이름표가 대신 말한다(넓은 폭에서는 화면에서만 숨긴 이름표).
+    expect(classes(/<thead data-slot="table-header" class="([^"]*)"/)).toContain('max-sm:hidden');
+    const row = classes(/<tr data-slot="table-row" class="([^"]*)" data-option-stock="saved"/);
+    expect(row).toEqual(expect.arrayContaining(['max-sm:grid', 'max-sm:grid-cols-2']));
+    expect(html.match(/<label class="[^"]*\bsm:sr-only\b[^"]*" for="[^"]+">새 수량<\/label>/g)).toHaveLength(rows.length);
+    expect(html.match(/<label class="[^"]*\bsm:sr-only\b[^"]*" for="[^"]+">사유 \(선택\)<\/label>/g)).toHaveLength(rows.length);
+    // 칸은 좁은 폭에서 블록·줄바꿈 허용이라 입력이 칸 폭을 넘지 않는다.
+    const cells = [...html.matchAll(/<td data-slot="table-cell" class="([^"]*)"/g)].map(match => match[1].split(/\s+/));
+    expect(cells.every(cell => ['max-sm:block', 'max-sm:p-0', 'max-sm:whitespace-normal', 'max-sm:min-w-0'].every(name => cell.includes(name)))).toBe(true);
+    expect(html).toMatch(/<span class="[^"]*\bsm:sr-only\b[^"]*">현재 <\/span>8개/);
+  });
   it('저장하는 동안은 입력·닫기를 잠근다', () => {
     const html = render({ pending: true });
     expect(html).toMatch(/<fieldset[^>]*disabled=""/);
