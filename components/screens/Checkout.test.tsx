@@ -467,3 +467,35 @@ describe('Checkout 주문서 초안', () => {
     expect(html).toContain('<a class="checkout-back" href="/cart">← 장바구니 수정</a>');
   });
 });
+
+/* 1014-020 '너무 정보가 많아요'(결정 "주문서 안내 정리") — 국내 배송·배대지, 적립금 사용 기준, 결제수단 변경 안내만 한 줄 요약
+   접기로 줄이고, 결제 전에 봐야 하는 주문 내용(품목·금액)·결제수단별 안내·결제 버튼 아래 안내·오류는 펼친 채 둔다. */
+describe('Checkout 안내 정리', () => {
+  const notes = (html: string) => [...html.matchAll(/<details class="checkout-note">([\s\S]*?)<\/details>/g)].map((match) => match[1]!);
+  const outsideNotes = (html: string) => html.replace(/<details class="checkout-note">[\s\S]*?<\/details>/g, '');
+
+  it('보조 설명 셋만 접힌 상태로 그리고 요약 한 줄을 보인다', () => {
+    const html = render({ paymentAvailable: true, bankTransferAvailable: true });
+    const folded = notes(html);
+    expect(folded).toHaveLength(3);
+    expect(html).not.toContain('<details class="checkout-note" open');
+    expect(folded[0]).toContain('<summary>국내 배송·원화 결제만 제공해요</summary>');
+    expect(folded[0]).toContain('국내 배송대행지 주소도 사용할 수 있으며, 이후 해외 운송은 고객이 별도로 진행합니다.');
+    expect(folded[1]).toContain('<summary>적립금 사용 기준</summary>');
+    expect(folded[1]).toContain('1원 단위로 굿즈 금액에 사용합니다. 배송비는 제외하며 쿠폰 적용 뒤 남은 금액에 적용됩니다.');
+    expect(folded[2]).toContain('<summary>결제수단 변경 안내</summary>');
+    expect(folded[2]).toContain('<p id="checkout-method-note">결제수단은 주문을 만들 때 고정됩니다. 바꾸려면 주문을 취소하고 다시 만들어야 해요.</p>');
+    /* 접힌 설명도 결제수단 칸의 설명으로 읽힌다. */
+    expect(html).toContain('aria-describedby="checkout-method-note"');
+  });
+
+  it('주문 내용·결제 금액·결제수단별 안내·결제 버튼 아래 안내는 접지 않는다', () => {
+    const html = render({ paymentAvailable: true, bankTransferAvailable: true });
+    const visible = outsideNotes(html);
+    for (const text of ['주문 확인', '홍실 아크릴 블록', '굿즈 금액', '배송비', '결제 금액', '결제 후 바로 확정됩니다. 재고 선점 15분.',
+      checkoutSubmitCaption(null, 'card'), checkoutSubcopy(null, 'card'), '쿠폰 할인', '적립금 잔액과 이 주문의 사용 조건을 확인합니다.']) {
+      expect(visible, text).toContain(text);
+    }
+    expect(visible).toMatch(/<button[^>]*checkout-submit[^>]*>/);
+  });
+});
