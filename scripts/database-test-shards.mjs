@@ -123,6 +123,9 @@ const catalog = [
   sql('goods_custom_input_workbook', { admin: true }),
   // 할인 프로모션 묶음(기간할인 원장 출처·중지 범위)과 전시 상품 여러 줄 조회(1014-109·112).
   sql('discount_promotions', { admin: true }),
+  // IP 내부 ID 자동 발급·미사용 초안 삭제(ADR-0039)다. 경합 검사는 쿠폰 대상 IP 저장과의 직렬화를 고정한다.
+  sql('ip_draft_delete'),
+  script('ip_draft_delete_coupon_concurrency.sh', 'IP_DRAFT_DELETE_TEST_SCOPE'),
 ];
 
 const storefront = [

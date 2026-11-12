@@ -11,6 +11,7 @@ import {
 import type { RarityKey } from '@/lib/rarity';
 import { readAdminGoodsSalePolicy, type AdminGoodsSalePolicyInput } from './goods-sale-policy';
 import { GOODS_HTML_IMAGE_MAX, GOODS_HTML_MAX_LENGTH, sanitizeGoodsDescription, type GoodsDescriptionFormat } from '@/lib/goods-description';
+import { IP_PUBLIC_SLUG_ERROR_MESSAGES, normalizeIpPublicSlug, validateIpPublicSlug } from '@/lib/ip-identity';
 
 export type AdminFieldErrors = Record<string, string>;
 
@@ -21,9 +22,17 @@ export interface AdminCatalogContext {
   verticalKeys: ReadonlySet<string>;
 }
 
-export interface AdminIpFormValue {
-  previousId: string | null;
-  id: string;
+/**
+ * IP 폼 값. 새 IP는 내부 ID 없이 공개 URL로 등록하고 내부 ID는 DB(`admin_create_ip`)가 공개 URL로 발급한다
+ * (S36-003 · ADR-0039). 기존 IP는 목록·상세에서 고른 내부 ID(`previousId`)의 기본 정보만 고친다 —
+ * 공개 URL은 IP 상세의 공개 URL 폼(`admin_update_ip_identity`)이 바꾼다.
+ */
+export type AdminIpFormValue = AdminIpFormFields & (
+  | { previousId: null; id: null; publicSlug: string }
+  | { previousId: string; id: string; publicSlug: null }
+);
+
+interface AdminIpFormFields {
   title: string;
   sub: string | null;
   verticalKey: string;
@@ -440,17 +449,27 @@ export function gameContextFromRecords(records: {
 }
 
 /*
- * 초안 저장과 공개 저장의 검증 요건은 지금 같다(ID·이름·버티컬) — 초안이라고 이 셋을
- * 비울 수는 없다(DB 제약이기도 하다). 공개 전용 요건이 생기면 `publish` 가 true 일 때만
- * 여기서 더 검사한다.
+ * 초안 저장과 공개 저장의 검증 요건은 지금 같다(새 IP는 공개 URL, 기존 IP는 내부 ID·이름·버티컬) —
+ * 초안이라고 이 칸들을 비울 수는 없다(DB 제약이기도 하다). 공개 전용 요건이 생기면 `publish` 가
+ * true 일 때만 여기서 더 검사한다.
  */
 export function normalizeAdminIpForm(
   formData: FormData,
   context: AdminCatalogContext,
 ): AdminFormResult<AdminIpFormValue> {
   const errors: AdminFieldErrors = {};
-  const id = readSlug(formData, 'id', errors, 'ID를 입력해주세요.');
-  const previousId = readPreviousId(formData, id, errors);
+  let identity: { previousId: null; id: null; publicSlug: string } | { previousId: string; id: string; publicSlug: null };
+  if (readString(formData, 'previousId')) {
+    /* 기존 IP: 읽기 전용 내부 ID가 고른 레코드와 같아야 한다(#181 저장 의도). */
+    const id = readSlug(formData, 'id', errors, 'ID를 입력해주세요.');
+    identity = { previousId: readPreviousId(formData, id, errors) ?? id, id, publicSlug: null };
+  } else {
+    /* 새 IP: 사람은 공개 URL만 넣는다. 내부 ID는 처음 저장할 때 DB가 이 주소로 발급한다. */
+    const publicSlug = normalizeIpPublicSlug(formData.get('publicSlug'));
+    const slugError = validateIpPublicSlug(publicSlug);
+    if (slugError) errors.publicSlug = IP_PUBLIC_SLUG_ERROR_MESSAGES[slugError];
+    identity = { previousId: null, id: null, publicSlug };
+  }
   const title = readString(formData, 'title');
   const verticalKey = readString(formData, 'verticalKey');
   const publish = readString(formData, 'intent') === 'publish' ? true : null;
@@ -465,8 +484,7 @@ export function normalizeAdminIpForm(
   return {
     ok: true,
     value: {
-      previousId,
-      id,
+      ...identity,
       title,
       sub: nullableString(formData, 'sub'),
       verticalKey,

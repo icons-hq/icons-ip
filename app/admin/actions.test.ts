@@ -220,9 +220,10 @@ function stockAdjustmentForm() {
   return formData;
 }
 
+/* 새 IP 등록 폼(S36-003): 사람은 이름·공개 URL만 넣고 내부 ID는 DB가 발급한다. */
 function ipForm() {
   const formData = new FormData();
-  formData.set('id', 'hwasan');
+  formData.set('publicSlug', 'hwasan');
   formData.set('title', '화산강림');
   formData.set('sub', '리디 · 로판');
   formData.set('verticalKey', 'rofan');
@@ -231,6 +232,15 @@ function ipForm() {
   formData.set('glyph', '화산');
   formData.set('featured', 'on');
   formData.set('fansCount', '42');
+  return formData;
+}
+
+/* 기존 IP 기본 정보 수정 폼: 고른 내부 ID(previousId)와 읽기 전용 내부 ID를 보낸다. */
+function ipEditForm() {
+  const formData = ipForm();
+  formData.delete('publicSlug');
+  formData.set('previousId', 'hwasan');
+  formData.set('id', 'hwasan');
   return formData;
 }
 
@@ -474,8 +484,54 @@ describe('admin catalog actions', () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
-  it('calls the admin IP RPC without overwriting the fan count cache', async () => {
+  /* S36-003 · ADR-0039 — 새 IP는 내부 ID를 보내지 않고, DB가 공개 URL로 발급한 ID를 돌려받는다. */
+  it('creates a new IP by public URL and returns the system-issued internal ID', async () => {
+    mocks.rpc.mockResolvedValue({ data: 'hwasan-2', error: null });
     await expect(upsertAdminIpAction({}, ipForm())).resolves.toEqual({
+      message: 'IP를 등록했습니다.',
+      savedIpId: 'hwasan-2',
+    });
+
+    expect(mocks.rpc).toHaveBeenCalledTimes(1);
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_create_ip', {
+      target_public_slug: 'hwasan',
+      target_title: '화산강림',
+      target_sub: '리디 · 로판',
+      target_vertical_key: 'rofan',
+      target_tagline: '매화는 다시 핀다',
+      target_synopsis: '화산파의 부활',
+      target_glyph: '화산',
+      target_bg: null,
+      target_image_path: null,
+      target_publish: null,
+    });
+    const paths = mocks.revalidatePath.mock.calls.map(([path]) => path);
+    expect(paths).toEqual(expect.arrayContaining(['/ip/hwasan-2', '/ip/hwasan', '/admin/catalog/ips', '/admin/catalog/ips/hwasan-2']));
+  });
+
+  it('does not report a new IP as saved when the issued ID is missing', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: null });
+    await expect(upsertAdminIpAction({}, ipForm())).resolves.toEqual({
+      errors: { form: 'IP를 등록했지만 결과를 확인하지 못했습니다. IP 목록에서 확인해주세요.' },
+    });
+  });
+
+  it.each([
+    ['ip_public_slug_taken', { publicSlug: '이미 사용 중인 공개 URL입니다. 다른 주소를 입력해주세요.' }],
+    ['invalid_ip_public_slug', { publicSlug: '공개 URL은 영문 소문자·숫자·하이픈만 사용할 수 있습니다.' }],
+    ['invalid_ip_title', { title: 'IP 이름을 입력해주세요.' }],
+    ['invalid_ip_vertical', { verticalKey: '등록된 IP 분류를 선택해주세요.' }],
+    ['ip_directory_conflict', { form: '다른 운영자가 IP 노출 순서를 저장하는 중입니다. 잠시 후 다시 저장해주세요.' }],
+  ])('puts the %s create rejection next to its field and keeps the input', async (message, errors) => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message } });
+    const formData = ipForm();
+    await expect(upsertAdminIpAction({}, formData)).resolves.toEqual({
+      errors, values: collectFormValues(formData), attempt: 1,
+    });
+  });
+
+  it('edits an existing IP through the save-intent RPC without overwriting the fan count cache', async () => {
+    await expect(upsertAdminIpAction({}, ipEditForm())).resolves.toEqual({
       message: 'IP를 저장했습니다.',
     });
 
@@ -490,40 +546,48 @@ describe('admin catalog actions', () => {
       target_bg: null,
       target_image_path: null,
       target_featured: null,
-      target_previous_id: null,
+      target_previous_id: 'hwasan',
       target_publish: null,
     });
   });
 
   /* 게시 상태(20260907130000) — "저장 후 공개"만 true 를 보내고, 나머지는 상태를 건드리지 않는다. */
   it('publishes an IP in the same RPC call when the form asks for it', async () => {
+    mocks.rpc.mockResolvedValue({ data: 'hwasan', error: null });
     const formData = ipForm();
     formData.set('intent', 'publish');
 
     await expect(upsertAdminIpAction({}, formData)).resolves.toEqual({
-      message: 'IP를 저장하고 공개했습니다.',
+      message: 'IP를 등록하고 공개했습니다.',
+      savedIpId: 'hwasan',
     });
-    expect(mocks.rpc).toHaveBeenCalledWith('admin_upsert_ip', expect.objectContaining({
-      target_id: 'hwasan',
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_create_ip', expect.objectContaining({
+      target_public_slug: 'hwasan',
       target_publish: true,
     }));
     expect(mocks.revalidatePath.mock.calls.map(([path]) => path)).toContain('/search');
     expect(mocks.revalidatePath.mock.calls.map(([path]) => path)).toContain('/ip/hwasan');
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/admin/catalog/ips');
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/admin/catalog/ips/hwasan');
+
+    const editing = ipEditForm();
+    editing.set('intent', 'publish');
+    await expect(upsertAdminIpAction({}, editing)).resolves.toEqual({ message: 'IP를 저장하고 공개했습니다.' });
+    expect(mocks.rpc).toHaveBeenLastCalledWith('admin_upsert_ip', expect.objectContaining({ target_id: 'hwasan', target_publish: true }));
   });
 
   it('keeps the publish state out of a plain draft save', async () => {
+    mocks.rpc.mockResolvedValue({ data: 'hwasan', error: null });
     const formData = ipForm();
     formData.set('intent', 'draft');
 
-    await expect(upsertAdminIpAction({}, formData)).resolves.toEqual({ message: 'IP를 저장했습니다.' });
-    expect(mocks.rpc).toHaveBeenCalledWith('admin_upsert_ip', expect.objectContaining({ target_publish: null }));
+    await expect(upsertAdminIpAction({}, formData)).resolves.toEqual({ message: 'IP를 등록했습니다.', savedIpId: 'hwasan' });
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_create_ip', expect.objectContaining({ target_publish: null }));
   });
 
   it('explains that an archived IP has to be restored before it can be published', async () => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: 'catalog_item_archived' } });
-    const formData = ipForm();
+    const formData = ipEditForm();
     formData.set('intent', 'publish');
 
     await expect(upsertAdminIpAction({}, formData)).resolves.toEqual({
@@ -857,7 +921,6 @@ describe('admin catalog actions', () => {
 
   /* #181 — RPC가 막은 덮어쓰기를 운영자가 이해할 수 있는 문구로 옮긴다. */
   it.each([
-    ['IP', upsertAdminIpAction, ipForm],
     ['굿즈', upsertAdminGoodAction, goodForm],
     ['카드', upsertAdminCardAction, cardForm],
     ['이벤트', upsertAdminEventAction, eventForm],
@@ -872,7 +935,7 @@ describe('admin catalog actions', () => {
   });
 
   it.each([
-    ['IP', upsertAdminIpAction, ipForm],
+    ['IP', upsertAdminIpAction, ipEditForm],
     ['굿즈', upsertAdminGoodAction, goodForm],
     ['카드', upsertAdminCardAction, cardForm],
     ['이벤트', upsertAdminEventAction, eventForm],
@@ -969,7 +1032,7 @@ describe('admin catalog actions', () => {
       await expect(upsertAdminIpAction({ attempt: 2 }, formData)).resolves.toEqual({
         errors: { title: 'IP 이름을 입력해주세요.' },
         values: {
-          id: 'hwasan',
+          publicSlug: 'hwasan',
           title: '',
           sub: '리디 · 로판',
           verticalKey: 'rofan',
@@ -1013,7 +1076,12 @@ describe('admin catalog actions', () => {
     });
 
     it('does not carry values or an attempt on success', async () => {
+      mocks.rpc.mockResolvedValue({ data: 'hwasan', error: null });
       await expect(upsertAdminIpAction({ values: { id: 'stale' }, attempt: 3 }, ipForm())).resolves.toEqual({
+        message: 'IP를 등록했습니다.',
+        savedIpId: 'hwasan',
+      });
+      await expect(upsertAdminIpAction({ values: { id: 'stale' }, attempt: 3 }, ipEditForm())).resolves.toEqual({
         message: 'IP를 저장했습니다.',
       });
     });

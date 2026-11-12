@@ -2,7 +2,7 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { Plus } from 'lucide-react';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
-import { AdminSectionCard, AdminStatusBadge } from '../console/AdminKit';
+import { AdminNotice, AdminSectionCard, AdminStatusBadge } from '../console/AdminKit';
 import { ConsoleGrid } from '../console/ConsoleGrid';
 import { IpDirectoryControls } from '../IpDirectoryControls';
 import { IpIdentityForm } from '../IpIdentityForm';
@@ -14,7 +14,12 @@ import { statusTone } from '@/lib/admin/status-tone';
 /* 작업 탭은 셸의 콘솔 전환과 같은 모양(muted 바탕 위 현재 탭만 흰 바탕)이다. */
 const TAB_CLASS = 'inline-flex h-7 shrink-0 items-center rounded-md px-3 text-sm font-medium whitespace-nowrap text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 aria-[current=page]:bg-background aria-[current=page]:text-primary-soft-foreground aria-[current=page]:shadow-sm';
 
-export function IpWorkspaceScreen({ data, children }: { data: AdminIpWorkspaceData; children?: ReactNode }) {
+export function IpWorkspaceScreen({ created = false, data, children }: {
+  /** IP 등록 화면에서 처음 저장한 직후다(`?created=1`). 발급된 내부 ID를 알린다. */
+  created?: boolean;
+  data: AdminIpWorkspaceData;
+  children?: ReactNode;
+}) {
   const { ip, tab, related, relatedTotal } = data;
   const label = tab === 'goods' ? ADMIN_VOCABULARY.goods : tab === 'pools' ? '카드풀' : '이벤트';
   const relatedHref = tab === 'goods' ? `/admin/catalog/goods?ipId=${encodeURIComponent(ip.id)}` : tab === 'pools' ? '/admin/catalog/pools' : '/admin/catalog/events';
@@ -28,13 +33,19 @@ export function IpWorkspaceScreen({ data, children }: { data: AdminIpWorkspaceDa
           <h2 className="text-xl leading-tight font-bold tracking-tight text-foreground">{ip.title}</h2>
           <AdminStatusBadge tone={statusTone('publication', adminIpPublishState(ip))}>{ADMIN_IP_PUBLISH_STATE_LABELS[adminIpPublishState(ip)]}</AdminStatusBadge>
         </div>
-        <p className="text-sm text-muted-foreground">{ip.id}</p>
+        <p className="text-sm text-muted-foreground">내부 ID(변경 불가) {ip.id}</p>
       </div>
       <div className="ml-auto flex flex-wrap items-center gap-2">
         <Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={`${IP_INDEX_PATH}?vertical=${encodeURIComponent(ip.verticalKey)}`}>IP 목록</Link>
         <Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={`${ipWorkspaceHref(ip.id, 'basic')}#ip-publish`}>게시 상태 변경</Link>
       </div>
     </header>
+    {created ? (
+      <AdminNotice role="status" title="IP를 등록했습니다" tone="success">
+        내부 ID <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs text-foreground">{ip.id}</code>는 시스템이 발급했고 바꿀 수 없습니다.
+        고객이 여는 주소는 아래 공개 URL에서 바꿀 수 있습니다.
+      </AdminNotice>
+    ) : null}
     <nav aria-label="IP 작업 탭" className="flex w-fit max-w-full items-center overflow-x-auto rounded-lg bg-muted p-0.5">
       {IP_WORKSPACE_TABS.map((entry) => <Link key={entry.id} href={ipWorkspaceHref(ip.id, entry.id)}
         className={TAB_CLASS} aria-current={tab === entry.id ? 'page' : undefined}>

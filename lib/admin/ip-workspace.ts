@@ -1,4 +1,5 @@
 import type { AdminIpRecord } from './catalog.server';
+import type { AdminIpDeleteReadiness } from './ip-delete';
 import type { AdminIpIdentity } from '@/lib/ip-identity';
 
 export const IP_INDEX_PATH = '/admin/catalog/ips';
@@ -17,6 +18,8 @@ export interface AdminIpWorkspaceData {
   ip: AdminIpRecord;
   /** Public slug/alias metadata is an isolated identity seam; legacy callers may omit it. */
   identity?: AdminIpIdentity | null;
+  /** 초안 IP의 삭제 가능 여부(DB 판정). 기본정보 탭의 초안에서만 읽는다. */
+  deletion?: AdminIpDeleteReadiness | null;
   tab: IpWorkspaceTab;
   verticals: { key: string; label: string; color: string }[];
   directory: AdminIpSummary[];

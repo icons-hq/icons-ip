@@ -28,8 +28,14 @@ import { useAdminLeaveGuard } from '../useAdminLeaveGuard';
 import { ADMIN_LEAVE_RECOVERABLE_MESSAGE } from '@/lib/admin/leave-guard';
 import { FormGroup, MasterDetail, SECTION_CARD, SectionHeading } from './SectionLayout';
 import { RecordStatusLabel } from './RecordStatusLabel';
+import { IpDraftDeleteControl } from '../IpDraftDeleteControl';
+import type { AdminIpDeleteReadiness } from '@/lib/admin/ip-delete';
+import { IP_PUBLIC_SLUG_MAX_LENGTH } from '@/lib/ip-identity';
 
-const LOCAL_DRAFT_FIELDS = ['id', 'title', 'sub', 'verticalKey', 'tagline', 'glyph', 'synopsis', 'imagePath'] as const;
+const IP_NEW_IDENTITY_HINT = `공개 URL은 고객이 여는 주소(/ip/공개 URL)입니다. 영문 소문자·숫자·하이픈으로 ${IP_PUBLIC_SLUG_MAX_LENGTH}자까지 씁니다. 내부 ID는 처음 저장할 때 이 주소로 자동 발급되고 바꿀 수 없습니다.`;
+const IP_EXISTING_IDENTITY_HINT = '내부 ID는 상품·카드·주문이 가리키는 참조 번호라 바꿀 수 없습니다. 공개 URL은 이 화면 아래의 공개 URL에서 바꿉니다.';
+
+const LOCAL_DRAFT_FIELDS = ['publicSlug', 'title', 'sub', 'verticalKey', 'tagline', 'glyph', 'synopsis', 'imagePath'] as const;
 const EMPTY_BANNER_STATE: AdminIpHallBannerActionState = {};
 
 /*
@@ -84,6 +90,8 @@ export function IpHallBannerForm({ ip }: { ip: AdminIpRecord }) {
 
 export function IpSection({
   accountId,
+  canDeleteDraft = false,
+  deletion = null,
   hideRecordList = false,
   action,
   onSelect,
@@ -94,6 +102,10 @@ export function IpSection({
   verticals,
 }: {
   accountId: string;
+  /** 미사용 초안 삭제 권한(legacy admin·platform.manage). 서버가 다시 판정한다. */
+  canDeleteDraft?: boolean;
+  /** 선택한 IP의 삭제 가능 여부(DB 판정). 초안일 때만 삭제 패널을 그린다. */
+  deletion?: AdminIpDeleteReadiness | null;
   hideRecordList?: boolean;
   action: (payload: FormData) => void;
   onSelect: (ip: AdminIpRecord | null) => void;
@@ -161,9 +173,12 @@ export function IpSection({
           )}
         </div>}
         <input name="previousId" type="hidden" value={selected?.id ?? ''} />
-        <FormGroup title="기본 정보">
+        {/* 사람은 이름과 공개 URL만 넣는다. 내부 ID는 처음 저장할 때 시스템이 공개 URL로 발급하고 바꾸지 않는다(S36-003 · ADR-0039). */}
+        <FormGroup hint={selected ? IP_EXISTING_IDENTITY_HINT : IP_NEW_IDENTITY_HINT} title="기본 정보">
           <AdminFormGrid>
-            <Field defaultValue={field('id')} error={state.errors?.id} label="IP 코드 · ID (필수)" name="id" placeholder="rilakkuma" readOnly={Boolean(selected)} />
+            {selected
+              ? <Field defaultValue={selected.id} error={state.errors?.id} label="내부 ID (변경 불가)" name="id" readOnly />
+              : <Field defaultValue={field('publicSlug')} error={state.errors?.publicSlug} label="공개 URL (필수)" maxLength={IP_PUBLIC_SLUG_MAX_LENGTH} name="publicSlug" placeholder="maplestory" />}
             <Field defaultValue={field('title')} error={state.errors?.title} label="IP 이름 (필수)" name="title" placeholder="리락쿠마" />
             <Field defaultValue={field('sub')} label="보조 설명" name="sub" placeholder="San-X · 캐릭터 IP" />
             <SelectField defaultValue={field('verticalKey')} error={state.errors?.verticalKey} label="IP 분류 (필수)" name="verticalKey">
@@ -236,6 +251,9 @@ export function IpSection({
           key={`${selected.id}:${selected.archivedAt ?? 'active'}`}
           kind="ip"
         />
+      )}
+      {selected && deletion?.id === selected.id && deletion.state === 'draft' && publishState === 'draft' && (
+        <IpDraftDeleteControl canDelete={canDeleteDraft} key={selected.id} readiness={deletion} />
       )}
     </>
   );

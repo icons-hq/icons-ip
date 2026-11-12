@@ -37,4 +37,25 @@ describe('IP routes', () => {
     expect(result.props.children[1].props.accountId).toBe('operator');
     expect(result.props.children[1].props.records).toEqual([]);
   });
+  /* S36-003·S36-004 — 등록 직후 알림과 미사용 초안 삭제 권한(legacy admin·platform.manage)을 상세에 넘긴다. */
+  it('passes the registration notice, the delete readiness and the admin-only delete authority to the IP detail', async () => {
+    const { legacyOperatorAccessFixture } = await import('@/lib/admin/access.test-fixtures');
+    const deletion = { id: 'hwasan', deletable: true };
+    mocks.workspace.mockResolvedValue({ ip: { id: 'hwasan' }, verticals: [], tab: 'basic', deletion });
+    mocks.guard.mockResolvedValue({ user: { id: 'operator' }, role: 'admin', isStaff: true, operatorAccess: legacyOperatorAccessFixture('admin') });
+    const admin = await WorkspacePage({ params: Promise.resolve({ ipId: 'hwasan' }), searchParams: Promise.resolve({ created: '1' }) });
+    expect(admin.props.created).toBe(true);
+    expect(admin.props.children.props).toMatchObject({ canDeleteDraft: true, deletion, selectedId: 'hwasan' });
+
+    mocks.guard.mockResolvedValue({ user: { id: 'operator' }, role: 'staff', isStaff: true, operatorAccess: legacyOperatorAccessFixture('staff') });
+    const staff = await WorkspacePage({ params: Promise.resolve({ ipId: 'hwasan' }), searchParams: Promise.resolve({}) });
+    expect(staff.props.created).toBe(false);
+    expect(staff.props.children.props.canDeleteDraft).toBe(false);
+  });
+  it('confirms a deletion on the index only for a valid internal ID', async () => {
+    const deleted = await IndexPage({ searchParams: Promise.resolve({ deleted: 'test-ip' }) });
+    expect(deleted.props.deletedId).toBe('test-ip');
+    const forged = await IndexPage({ searchParams: Promise.resolve({ deleted: '<script>' }) });
+    expect(forged.props.deletedId).toBeNull();
+  });
 });

@@ -14,6 +14,13 @@ export const RESERVED_IP_PUBLIC_SLUGS = new Set(['aouad']);
 
 export type IpPublicSlugValidationError = 'required' | 'format' | 'reserved';
 
+/** 공개 URL 칸의 오류 문구. 새 IP 등록과 공개 URL 변경이 같은 문구를 쓴다. */
+export const IP_PUBLIC_SLUG_ERROR_MESSAGES: Record<IpPublicSlugValidationError, string> = {
+  required: '공개 URL을 입력해주세요.',
+  format: '공개 URL은 영문 소문자·숫자·하이픈만 사용할 수 있습니다.',
+  reserved: '이 공개 URL은 시스템 경로로 예약되어 있습니다.',
+};
+
 export interface AdminIpIdentity {
   internalId: string;
   publicSlug: string;

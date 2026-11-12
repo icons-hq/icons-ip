@@ -102,7 +102,7 @@ describe('admin IP identity action', () => {
 
   it.each([
     ['non staff', { user: { id: 'user-1', email: 'user@icons.test' }, role: 'user', isStaff: false }, '관리자 권한이 필요합니다.'],
-    ['duplicate', null, '이미 사용 중인 공개 URL입니다. 다른 슬러그를 입력해주세요.'],
+    ['duplicate', null, '이미 사용 중인 공개 URL입니다. 다른 주소를 입력해주세요.'],
   ] as const)('maps %s to an operator result', async (_label, state, message) => {
     if (state) {
       mocks.adminState = { ...mocks.adminState, ...state };
