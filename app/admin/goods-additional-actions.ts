@@ -30,9 +30,10 @@ export async function readGoodsAdditionalAction(goodIdValue: unknown): Promise<{
 }
 export async function searchGoodsAdditionalAction(goodIdValue: unknown, queryValue: unknown): Promise<{ ok: true; items: AdminAdditionalGood[] } | Failure> {
   if (!await requireAdminActionAccess('/admin/catalog/goods')) return { ok: false, error: STAFF_REQUIRED };
-  const id = goodId(goodIdValue);
+  /* T15b: 등록 화면(아직 저장 전인 새 상품)은 기준 상품이 없다(null). 저장된 상품은 자기 자신을 결과에서 뺀다. */
+  const id = goodIdValue === null ? '' : goodId(goodIdValue);
   const query = typeof queryValue === 'string' ? queryValue.trim() : '';
-  if (!id || !query || query.length > 100) return { ok: false, error: '검색할 상품명이나 상품코드를 입력해주세요.' };
+  if (id === null || !query || query.length > 100) return { ok: false, error: '검색할 상품명이나 상품코드를 입력해주세요.' };
   try {
     const client = await createClient();
     const { data, error } = await client.rpc('admin_search_goods_additional', { p_base_good_id: id, p_query: query });

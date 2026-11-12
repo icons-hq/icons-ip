@@ -246,6 +246,9 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
   const atomicSections = !selected && workspace ? workspace : null;
   const publishOptionRows = workspace?.publishOptionRows;
   useEffect(() => { const current = restoreGoodsOptionRows(values.variants); if (current) publishOptionRows?.(current); }, [values.variants, publishOptionRows]);
+  /* T15b: 등록 화면의 묶음그룹은 지금 출고지의 그룹만 고른다. */
+  const publishOriginId = workspace?.publishOriginId;
+  useEffect(() => { publishOriginId?.(values.originId ?? ''); }, [values.originId, publishOriginId]);
   const editorRef = useRef<HTMLFormElement | null>(null);
   const baselineFingerprint = useRef<string | null>(null);
   const recovered = Boolean(preservedFormValues(state, selected?.id));
@@ -318,9 +321,9 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
       setDirty(recoveryUnsaved.current || goodEditorFingerprint(data) !== baselineFingerprint.current);
     });
   }, [formRef]);
-  /* 등록 화면 KC(기타 인증 포함)·예약판매 입력은 폼 밖이라 폼 지문에 잡히지 않는다. 떠나기 경고에는 함께 센다. */
+  /* 등록 화면 KC(기타 인증 포함)·예약판매·함께 저장할 설정 입력은 폼 밖이라 폼 지문에 잡히지 않는다. 떠나기 경고에는 함께 센다. */
   const sectionsDirty = Boolean(atomicSections && (atomicSections.sections.kc.models.length || atomicSections.sections.kc.attested || atomicSections.sections.preorders.length
-    || atomicSections.sections.otherCertifications?.length));
+    || atomicSections.sections.otherCertifications?.length || Object.keys(atomicSections.sections.extras ?? {}).length));
   useAdminLeaveGuard({ dirty: (dirty || sectionsDirty) && !pending && !draftBusy, message: ADMIN_LEAVE_RECOVERABLE_MESSAGE });
   const [suggestedCode, setSuggestedCode] = useState(selected?.code ?? '');
   const setRows: Dispatch<SetStateAction<GoodsOptionRow[]>> = useCallback((update) => {
@@ -503,7 +506,11 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
   const showCardProgress = !selected?.archivedAt;
   /* 저장 후 공개는 이름대로 공개될 때만 보인다: 저장할 입력이 있고, 공개 조건을 채웠고, 이번 저장이 KC 검토를 되돌리지 않을 때. 나머지 공개는 판매 준비 카드가 맡는다. */
   const kcContextChanged = Boolean(selected && !published && kcDone && dirty && goodKcContextChanged(lockedValues, typedValues, initialGoodsOptionRows(variants, Number(lockedValues.price)), rows));
-  const publishOnSave = Boolean(selected) && showPublishProgress && dirty && !remaining.length && !kcContextChanged;
+  /*
+   * T15b(0901-008): 새 상품도 공개 조건과 KC(함께 저장할 입력)를 채우면 저장 막대에 '저장 후 공개'가 나온다. 래퍼가 저장을 끝낸 뒤 같은 요청에서
+   * 기존 공개 경로로 공개를 시도하고, 거절되면 저장은 남기고 이유를 알린다. 화면의 남은 필수 표시는 안내일 뿐 판정은 서버가 한다.
+   */
+  const publishOnSave = selected ? showPublishProgress && dirty && !remaining.length && !kcContextChanged : Boolean(atomicSections) && !remaining.length;
   useEffect(() => { onPublishOnSaveChange?.(publishOnSave); }, [publishOnSave, onPublishOnSaveChange]);
   /* 저장할 변경이 없으면 저장하기는 초안·공개 중 어느 상품에서나 같은 보조 모양이다. 입력이 바뀌면 다시 주 색이 된다. */
     function changeCustomInputs(customInputs: string) { setValues((current) => ({ ...current, customInputs })); setDirty(true); }
@@ -516,15 +523,18 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
   const shippingDefault = values.shippingFeeType === 'policy' && !values.shippingNoticeTemplate && values.originId === DEFAULT_FULFILLMENT_ORIGIN_ID && Boolean(origin);
   /* KC를 끝낸 뒤에도 지난 공개 보류 안내가 남지 않게 지금 서버 판정을 함께 본다. */
   const kcBlockedVisible = Boolean(state.kcPublishBlocked && state.message && !published && readiness?.publicReview !== 'current' && !draftSaved);
+  /* T15b: 새 상품의 저장 후 공개가 KC 밖의 공개 조건에 막혔다. 저장은 끝났고 공개는 판매 준비에서 이어서 한다. */
+  const publishBlockedVisible = Boolean(state.publishBlocked && state.message && !published && !draftSaved);
   const statusLabel = pending ? '저장 중…' : draftSaved ? '임시저장 완료' : Object.keys(errors).some((key) => errors[key]) ? '저장 실패 · 입력값 유지' : dirty ? '미저장 변경 있음'
-    : kcBlockedVisible ? '초안 저장 완료 · 공개 보류' : state.kcPublishBlocked ? (published ? '저장된 내용과 같음' : '기본 상품 저장 완료') : state.message ? '기본 상품 저장 완료' : selected ? '저장된 내용과 같음' : '새 초안 · 아직 저장 전';
+    : kcBlockedVisible || publishBlockedVisible ? '초안 저장 완료 · 공개 보류' : state.kcPublishBlocked || state.publishBlocked ? (published ? '저장된 내용과 같음' : '기본 상품 저장 완료') : state.message ? '기본 상품 저장 완료' : selected ? '저장된 내용과 같음' : '새 초안 · 아직 저장 전';
   /* 저장 다음에 무엇을 하는지 저장 안내를 열지 않아도 보이게 한다. */
   const kcLink = <a className="text-foreground underline underline-offset-4" href="#good-operation-kc" onClick={(event) => { event.preventDefault(); focusGoodWorkspaceTarget('good-operation-kc'); }}>KC 정보로 이동</a>;
   const kcIsNextStep = Boolean(selected && readiness && !kcDone);
   /* 남은 것이 KC 하나면 아래 다음 단계 문장이 이미 말한다. 같은 일을 저장 막대에 두 번 적지 않는다. */
   const showRemainingCount = showPublishProgress && remaining.length > 0 && !(kcIsNextStep && remaining.length === 1 && remaining[0].key === 'kc');
   const nextStep: ReactNode = selected?.archivedAt ? null : published ? <span className="inline-flex items-center gap-1 text-warning"><AlertTriangle aria-hidden="true" className="size-3.5 shrink-0" />저장하면 공개 중인 상품 화면에 바로 반영됩니다.</span>
-    : !selected ? '다음 단계: 저장하면 화면 맨 위에 판매 준비가 열리고, 거기서 공개합니다.'
+    : !selected ? (publishOnSave ? '다음 단계: 저장 후 공개를 누르면 함께 저장할 설정까지 저장한 뒤 바로 공개합니다. 공개 조건에 막히면 저장만 하고 이유를 알려 드립니다.'
+      : '다음 단계: 필수 입력과 KC를 마치면 저장 후 공개로 저장과 함께 공개할 수 있습니다. 저장만 하면 화면 맨 위 판매 준비에서 공개합니다.')
     : kcIsNextStep ? <>KC 검토를 마치면 공개할 수 있습니다. {kcLink}</>
     : kcContextChanged ? '바꾼 상품명·상품 유형(카테고리)·IP·고시정보나 옵션을 저장하면 KC를 다시 검토해야 공개할 수 있습니다.'
     : remaining.length ? '필수 입력을 마치면 공개할 수 있습니다.'
@@ -706,13 +716,13 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
       <div className="fixed right-(--admin-content-inset) bottom-(--admin-content-inset) left-(--admin-content-left) z-20 grid min-w-0 grid-cols-1 items-center gap-x-4 gap-y-1.5 border-t bg-background px-4 py-2 after:pointer-events-none md:gap-y-2 md:py-3 after:absolute after:inset-x-0 after:top-full after:h-(--admin-content-inset) after:bg-sidebar md:px-6 xl:grid-cols-[minmax(10rem,1fr)_auto] print:hidden" aria-label="기본 상품 저장" data-good-workspace-save="">
         <div className="flex min-w-0 flex-col gap-0.5">
           <GoodWorkspaceDetails stateId="good-save-info" className="group/save-info relative min-w-0" data-good-save-info="" onKeyDown={(event) => { if (event.key === 'Escape' && event.currentTarget.open) { event.currentTarget.open = false; event.currentTarget.querySelector('summary')?.focus(); } }}><summary className="flex w-fit cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden"><strong className="text-sm font-medium" role="status">{statusLabel}</strong><span className="text-xs text-muted-foreground underline underline-offset-4">저장 안내</span></summary>
-            <div className="absolute bottom-[calc(100%+1.25rem)] left-0 z-30 flex w-[min(32.5rem,calc(100vw-2rem))] flex-col gap-2 rounded-xl border bg-popover p-4 text-sm text-popover-foreground shadow-md [&>p]:text-muted-foreground"><p>{atomicSections ? '기본 상품·이미지·옵션·고시·배송·구매 제한·판매 조건과 KC·예약판매 입력을 한 번에 저장합니다. 하나라도 실패하면 아무것도 저장되지 않고 입력은 유지됩니다. 나머지 설정은 저장 뒤 같은 자리에서 입력합니다.'
+            <div className="absolute bottom-[calc(100%+1.25rem)] left-0 z-30 flex w-[min(32.5rem,calc(100vw-2rem))] flex-col gap-2 rounded-xl border bg-popover p-4 text-sm text-popover-foreground shadow-md [&>p]:text-muted-foreground"><p>{atomicSections ? '기본 상품·이미지·옵션·고시·배송·구매 제한·판매 조건과 KC·예약판매, 아래 함께 저장할 설정(판매 방식·기간 할인·추가 구성·사은품·A/S·사이즈·색상칩·할인·배송비·묶음그룹·정기배송·수령 방식·제작·공급가)을 한 번에 저장합니다. 하나라도 실패하면 아무것도 저장되지 않고 입력은 유지됩니다. 재고 조정·옵션 사용·복사·보관만 저장 뒤 같은 자리에서 합니다.'
               : '기본 상품·이미지·옵션·고시·배송·구매 제한·판매 조건만 저장합니다. KC·재고 조정·혜택은 각 영역에서 별도 저장합니다.'}</p>
             <p>{selected ? '입력 임시저장은 현재 브라우저에 보관합니다.' : '임시저장은 내 계정에 최대 40건을 보관합니다. 업로드를 마친 이미지와 입력값을 불러올 수 있으며, 상품 등록·공개는 저장하기에서 따로 확정합니다.'} 브라우저 자동 복구도 함께 유지됩니다.</p>
-            {dirty && <p>브라우저 복구 기록은 서버 저장이 아닙니다. KC·예약판매 입력은 복구되지 않습니다.</p>}
+            {dirty && <p>브라우저 복구 기록은 서버 저장이 아닙니다. KC·예약판매·함께 저장할 설정 입력은 복구되지 않습니다.</p>}
             {selected?.publishedAt && <p>저장하면 공개 중인 상품 화면에 반영됩니다.</p>}
             {/* ADM-004(복잡도 표 25·27행): 등록 화면의 순서 안내는 한 문장으로 줄이고, 저장된 초안의 순서는 판매 준비 카드(다음 할 일·판매 준비 안내)가 말한다. */}
-            {atomicSections ? <p>KC까지 입력해 저장한 뒤 판매 준비에서 공개하며, KC를 검토 완료로 저장했더라도 그 뒤 상품명·유형·IP·고시정보(제조자·제조국·소재·크기)나 옵션 구성을 바꾸면 KC를 다시 검토합니다.</p> : null}
+            {atomicSections ? <p>공개 조건과 KC까지 채우면 저장 후 공개로 저장과 함께 공개하고(막히면 저장만 하고 판매 준비에서 공개), KC를 검토 완료로 저장했더라도 그 뒤 상품명·유형·IP·고시정보(제조자·제조국·소재·크기)나 옵션 구성을 바꾸면 KC를 다시 검토합니다.</p> : null}
             </div>
           </GoodWorkspaceDetails>
           {nextStep ? <p className="text-xs text-muted-foreground" data-good-next-step="">{nextStep}</p> : null}
@@ -732,11 +742,13 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
           </span>}
           {!attributesReady ? <span className="text-xs text-muted-foreground" role="status">상품속성 조회 후 저장할 수 있습니다.</span> : null}
           <button className={`${buttonVariants({ variant: saveIsPrimary ? 'default' : 'outline' })} md:min-w-24 ${SAVE_BAR_BUTTON_CLASS}`} data-slot="button" disabled={pending || draftBusy || !attributesReady || Boolean(selected?.archivedAt)} name="intent" value="save">{pending ? '저장 중…' : '저장하기'}</button>
-          {publishOnSave && <button className={`${buttonVariants({ variant: 'outline' })} ${SAVE_BAR_BUTTON_CLASS}`} data-slot="button" disabled={pending || !attributesReady} name="intent" value="publish">저장 후 공개</button>}
+          {publishOnSave && <button className={`${buttonVariants({ variant: 'outline' })} ${SAVE_BAR_BUTTON_CLASS}`} data-slot="button" disabled={pending || draftBusy || !attributesReady} name="intent" value="publish">저장 후 공개</button>}
           <Link className={`${buttonVariants({ variant: 'ghost' })} aria-disabled:pointer-events-none aria-disabled:opacity-50 ${SAVE_BAR_BUTTON_CLASS}`} data-slot="button" href={listHref} aria-disabled={pending || draftBusy} onNavigate={(event) => { if (pending || draftBusy) event.preventDefault(); }}>취소</Link>
         </div>
         {localSaveMessage ? <p className={`text-xs xl:col-span-2 ${localSaveMessage.ok ? 'text-success' : 'text-destructive'}`} role="status">{localSaveMessage.text}</p> : null}
-        {justPublished && !dirty ? <AdminNotice className="xl:col-span-2" tone="success"><span role="status">공개했습니다. <a className="underline underline-offset-4" href={`/shop/${selected?.id}`} rel="noreferrer" target="_blank">고객 화면에서 보기</a></span></AdminNotice> : draftSaved ? null : kcBlockedVisible ? <AdminNotice className="xl:col-span-2" tone="warning"><span role="alert">{state.message}</span>{selected && <> <a href="#good-operation-kc" className="underline underline-offset-4" onClick={(event) => { event.preventDefault(); focusGoodWorkspaceTarget('good-operation-kc'); }}>KC 정보 열기</a></>}</AdminNotice> : state.kcPublishBlocked ? null : <div className="empty:hidden xl:col-span-2"><ActionNotice state={state} /></div>}
+        {justPublished && !dirty ? <AdminNotice className="xl:col-span-2" tone="success"><span role="status">공개했습니다. <a className="underline underline-offset-4" href={`/shop/${selected?.id}`} rel="noreferrer" target="_blank">고객 화면에서 보기</a></span></AdminNotice> : draftSaved ? null : kcBlockedVisible ? <AdminNotice className="xl:col-span-2" tone="warning"><span role="alert">{state.message}</span>{selected && <> <a href="#good-operation-kc" className="underline underline-offset-4" onClick={(event) => { event.preventDefault(); focusGoodWorkspaceTarget('good-operation-kc'); }}>KC 정보 열기</a></>}</AdminNotice>
+          : publishBlockedVisible ? <AdminNotice className="xl:col-span-2" tone="warning"><span role="alert">{state.message}</span>{selected && <> <a href="#good-operation-publish" className="underline underline-offset-4" onClick={(event) => { event.preventDefault(); focusGoodWorkspaceTarget('good-operation-publish'); }}>판매 준비로 이동</a></>}</AdminNotice>
+          : state.kcPublishBlocked || state.publishBlocked ? null : <div className="empty:hidden xl:col-span-2"><ActionNotice state={state} /></div>}
       </div>
     </form>
     {draftOpen ? <GoodsDraftLibraryDialog onClose={() => setDraftOpen(false)} onLoad={loaded => {

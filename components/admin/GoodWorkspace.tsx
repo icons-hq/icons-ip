@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { Check, ChevronDown, ChevronRight } from 'lucide-react';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { GOOD_EDITOR_CARDS, GOOD_EDITOR_SECTIONS, goodCurrentCard, goodFieldSection, orderedGoodErrors, type GoodEditorCardKey } from '@/lib/admin/good-workspace';
+import { pruneGoodWorkspaceExtras } from '@/lib/admin/good-workspace-extra-sections';
 import { EMPTY_GOOD_WORKSPACE_SECTIONS, GOOD_WORKSPACE_ERROR_SECTIONS, type GoodWorkspaceErrorField, type GoodWorkspaceSectionsDraft } from '@/lib/admin/good-workspace-sections';
 import { initialGoodsOptionRows, type GoodsOptionRow } from '@/lib/admin/goods-option-editor';
 import type { AdminGoodsKc, GoodsKcModelInput } from '@/lib/admin/goods-kc';
@@ -23,6 +24,9 @@ interface SectionsContext {
   /** 기본 폼의 현재 옵션 행. KC 적용 옵션·예약 대상 옵션을 고르는 데 쓴다. */
   optionRows: GoodsOptionRow[];
   publishOptionRows: (rows: GoodsOptionRow[]) => void;
+  /** 기본 폼의 지금 출고지. 등록 화면의 묶음그룹은 이 출고지의 그룹만 고른다(T15b). */
+  originId: string;
+  publishOriginId: (originId: string) => void;
   /** 저장 시도의 클라이언트 검증 오류(서버 오류는 액션 상태가 싣는다). */
   sectionErrors: Partial<Record<GoodWorkspaceErrorField, string>>;
   setSectionErrors: (errors: Partial<Record<GoodWorkspaceErrorField, string>>) => void;
@@ -74,10 +78,16 @@ export function GoodWorkspaceProvider({ completedKey = null, children }: { compl
   }, []);
   const publishOptionRows = useCallback((rows: GoodsOptionRow[]) => {
     setOptionRows((current) => JSON.stringify(current) === JSON.stringify(rows) ? current : rows);
+    /* 옵션 키가 바뀌면 사라진 옵션의 매입단가 입력은 화면에서 지울 수 없으므로 함께 정리한다. */
+    setSections((current) => {
+      const pruned = pruneGoodWorkspaceExtras(current.extras, rows);
+      return pruned === current.extras ? current : { ...current, extras: pruned };
+    });
   }, []);
+  const [originId, publishOriginId] = useState('');
   const openValue = useMemo(() => ({ open, setOpen }), [open, setOpen]);
-  const sectionsValue = useMemo(() => ({ sections, setSections, optionRows, publishOptionRows, sectionErrors, setSectionErrors, operationId, readKcPanelStash, rememberKcPanel, readPanelStash, rememberPanel }),
-    [sections, optionRows, publishOptionRows, sectionErrors, operationId, readKcPanelStash, rememberKcPanel, readPanelStash, rememberPanel]);
+  const sectionsValue = useMemo(() => ({ sections, setSections, optionRows, publishOptionRows, originId, publishOriginId, sectionErrors, setSectionErrors, operationId, readKcPanelStash, rememberKcPanel, readPanelStash, rememberPanel }),
+    [sections, optionRows, publishOptionRows, originId, sectionErrors, operationId, readKcPanelStash, rememberKcPanel, readPanelStash, rememberPanel]);
   return <OpenState.Provider value={openValue}><Sections.Provider value={sectionsValue}>{children}</Sections.Provider></OpenState.Provider>;
 }
 
@@ -303,8 +313,8 @@ export function GoodOptionalFields({ id, title, summary, children, hasErrors = f
   </GoodWorkspaceDetails>;
 }
 
-/** 저장 전 이어서 설정 카드의 이유 문구. 카드에 한 번만 보인다. */
-export const GOOD_OPERATION_PLACEHOLDER_COPY = '상품을 저장하면 이 자리에서 바로 입력할 수 있습니다.';
+/** 등록 화면 '저장한 뒤' 항목(재고 조정·옵션 사용·복사·보관)의 이유 문구. 카드에 한 번만 보인다(T15b). */
+export const GOOD_OPERATION_PLACEHOLDER_COPY = '재고 조정·옵션 사용·복사·보관은 상품의 상태를 바꾸는 일이라, 상품을 저장한 뒤 이 자리에서 합니다.';
 export const GOOD_UNSAVED_BASE_COPY = '위 기본 정보에 저장하지 않은 변경이 있습니다. 먼저 저장하세요.';
 
 /** 고정 저장 영역의 저장하기 버튼으로 포커스를 옮긴다(Enter로 바로 저장할 수 있게). */
@@ -360,9 +370,12 @@ export function GoodOperationSection({ id, title, description, children, mode = 
   </details>;
 }
 
-/** 저장 뒤 이어서 설정 카드의 접이식 묶음. 기본은 접힘이고, `#good-operation-*` 링크는 조상 details를 열어 들어온다. */
-export function GoodOperationGroup({ id, title, names, children }: { id: string; title: string; names: string; children: ReactNode }) {
-  return <GoodWorkspaceDetails stateId={`good-operation-group-${id}`} className="group/operation-group min-w-0 rounded-lg border" data-good-operation-group={id}>
+/**
+ * 이어서 설정 카드의 접이식 묶음. 기본은 접힘이고, `#good-operation-*` 링크는 조상 details를 열어 들어온다.
+ * 등록 화면('상품과 함께 저장할 설정')은 `defaultOpen`으로 묶음을 펼쳐 둬 섹션 이름이 보이게 하고, 그 안 섹션은 접힌 채로 둔다.
+ */
+export function GoodOperationGroup({ id, title, names, defaultOpen = false, children }: { id: string; title: string; names: string; defaultOpen?: boolean; children: ReactNode }) {
+  return <GoodWorkspaceDetails stateId={`good-operation-group-${id}`} defaultOpen={defaultOpen} className="group/operation-group min-w-0 rounded-lg border" data-good-operation-group={id}>
     <summary className="flex min-h-11 cursor-pointer list-none items-center gap-3 rounded-lg px-3 py-2 outline-none select-none group-open/operation-group:rounded-b-none focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
       <span className="shrink-0 text-sm font-medium text-foreground">{title}</span>
       <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{names}</span>

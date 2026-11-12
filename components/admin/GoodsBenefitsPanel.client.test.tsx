@@ -8,12 +8,16 @@ vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>
 }));
 vi.mock('@/app/admin/goods-benefit-actions', () => ({ saveGoodsBenefitsAction: mocks.save, loadGoodsBenefitsAction: mocks.load, listGoodsEventTemplatesAction: vi.fn(), saveGoodsEventTemplateAction: vi.fn() }));
 vi.mock('@/lib/media', () => ({ publicMediaUrl: (path: string) => { if (!path) throw new Error('Empty paths must not reach the configured media normalizer'); return `https://cdn.example/${path}`; } }));
-import { GoodsBenefitsPanel } from './GoodsBenefitsPanel';
+import { GoodsBenefitFields, GoodsBenefitsPanel } from './GoodsBenefitsPanel';
 const values = { eventText: '행사 안내', giftText: '사은품 설명', giftImagePaths: [] };
 const snapshot = { ...values, goodId: 'good-1', goodName: '상품', revision: 1, updatedAt: '2026-10-13T14:00:00Z' };
 type Element = ReactElement<{ children?: ReactNode; onClick?: () => void; onSubmit?: (event: { preventDefault: () => void }) => void; onChange?: (event: { target: { value: string } }) => void; disabled?: boolean; value?: string }>;
-function all(node: ReactNode): Element[] { return Array.isArray(node) ? node.flatMap(all) : isValidElement(node) ? [node as Element, ...all((node.props as { children?: ReactNode }).children)] : []; }
-function text(node: ReactNode): string { return Array.isArray(node) ? node.map(text).join('') : isValidElement(node) ? text((node.props as { children?: ReactNode }).children) : typeof node === 'string' ? node : ''; }
+/* 입력 부품(GoodsBenefitFields — 등록 화면과 같이 쓴다)은 훅이 없는 함수라 그 자리에서 펼쳐 같은 입력을 찾는다. */
+function children(node: ReactElement): ReactNode {
+  return node.type === GoodsBenefitFields ? GoodsBenefitFields(node.props as Parameters<typeof GoodsBenefitFields>[0]) : (node.props as { children?: ReactNode }).children;
+}
+function all(node: ReactNode): Element[] { return Array.isArray(node) ? node.flatMap(all) : isValidElement(node) ? [node as Element, ...all(children(node))] : []; }
+function text(node: ReactNode): string { return Array.isArray(node) ? node.map(text).join('') : isValidElement(node) ? text(children(node)) : typeof node === 'string' ? node : ''; }
 function render() { hooks.index = 0; hooks.refIndex = 0; hooks.effects = []; return GoodsBenefitsPanel({ goodId: 'good-1' }); }
 function button(label: string) { const element = all(render()).find(item => item.type === 'button' && text(item) === label); if (!element) throw new Error(label); return element; }
 function submit() { const form = all(render()).find(item => item.type === 'form'); if (!form) throw new Error('missing form'); form.props.onSubmit?.({ preventDefault: () => {} }); }
