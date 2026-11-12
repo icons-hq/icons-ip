@@ -207,6 +207,8 @@ begin
   if p_limit is null or p_limit not between 1 and 200 then raise invalid_parameter_value using message = 'invalid_delivery_tracking_limit'; end if;
   select * into settings from private.delivery_tracking_settings where singleton;
   if not found or not settings.auto_delivery_enabled then return jsonb_build_object('enabled', false, 'completed', '[]'::jsonb, 'held', '[]'::jsonb); end if;
+  -- 운영자 처리·다른 작업과 겹친 배송 건은 3초 넘게 기다리지 않고 다음 회차에 다시 본다(cron 시간 안에 끝나게).
+  perform set_config('lock_timeout', '3s', true);
   for candidate in
     select s.id from public.order_shipments s join public.orders o on o.id = s.order_id
     where s.status = 'shipping' and s.delivery_method = 'parcel' and s.tracking_number is not null
@@ -246,7 +248,10 @@ begin
             'trackings', (select jsonb_agg(entry - 'shipmentId') from jsonb_array_elements(basis_value) entry where entry->>'shipmentId' = member.id::text)));
         completed := completed || jsonb_build_array(jsonb_build_object('shipmentId', member.id, 'orderId', member.order_id, 'deliveredAt', delivered_value));
       end loop;
-    exception when others then
+    exception when lock_not_available or deadlock_detected then
+      -- 잠금이 겹친 건은 보류로 남기지 않는다(다음 회차에 그대로 다시 본다).
+      null;
+    when others then
       -- 바꾸지 못한 이유(취소·반품 진행, 묶음 변경 등)를 남기고 6시간 뒤 다시 본다. 운영자는 배송현황에서 수동으로 처리할 수 있다.
       insert into private.shipment_auto_deliveries(shipment_id, state, attempts, last_error, updated_at)
       values (candidate, 'held', 1, left(sqlerrm, 200), now())
