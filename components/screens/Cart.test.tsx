@@ -635,6 +635,11 @@ describe('origin quote and option lines', () => {
     const second = html.slice(html.indexOf('<h2>택배 배송</h2>'));
     expect(second.indexOf('품절된 키링')).toBeLessThan(second.indexOf('</section>'));
   });
+  /* 첫 견적 전에는 택배사 이름을 모르므로 묶지 않는다 — 이름 없는 머리가 잠깐 보였다 바뀌지 않게. */
+  it('첫 견적 전에는 배송 묶음 머리를 그리지 않는다', () => {
+    mocks.quote=null;
+    expect(render([{goodId:'g13',variantId:DEFAULT_VARIANT,qty:1}])).not.toContain('wc-shipping-group');
+  });
   it('blocks checkout while the current cart has no server quote', () => {
     mocks.quote=null;
     const html=render([{goodId:'g13',variantId:DEFAULT_VARIANT,qty:1}]);

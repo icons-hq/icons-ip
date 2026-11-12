@@ -361,7 +361,9 @@ export function Cart({
   if ([...quoteGroups.values()].some((group) => carrierLabels.get(group.originId) !== (group.carrierLabel ?? null))) {
     setCarrierLabels(new Map([...carrierLabels, ...[...quoteGroups.values()].map((group) => [group.originId, group.carrierLabel ?? null] as const)]));
   }
-  const displayGroups = transactionActive ? [] : [...new Set(lines.flatMap((line) => (line.good?.originId ? [line.good.originId] : [])))]
+  /* 첫 견적 전에는 지금처럼 묶지 않는다 — 택배사 이름을 모르는 머리가 잠깐 보였다 바뀌지 않게. */
+  const groupsKnown = quoteGroups.size > 0 || carrierLabels.size > 0;
+  const displayGroups = transactionActive || !groupsKnown ? [] : [...new Set(lines.flatMap((line) => (line.good?.originId ? [line.good.originId] : [])))]
     .map((originId) => {
       const quote = quoteGroups.get(originId) ?? null;
       return { originId, carrierLabel: quote ? quote.carrierLabel ?? null : carrierLabels.get(originId) ?? null, quote };
