@@ -98,6 +98,8 @@ const catalog = [
   script('admin_body_templates_concurrency.sh', 'BODY_TEMPLATE_TEST_SCOPE'),
   script('review_best_concurrency.sh', 'REVIEW_BEST_TEST_SCOPE'),
   sql('shipment_delay_notice_filter', { admin: true }),
+  // 상품 단위 예약 일정 일괄 변경·안내(QNA-040) — 같은 지연 안내 원장·지연 탭 안내 결과 요약 뒤.
+  sql('goods_preorder_schedule_bulk'),
   sql('admin_review_sorting', { admin: true }),
   run(
     'review_helpful_regression.py',
