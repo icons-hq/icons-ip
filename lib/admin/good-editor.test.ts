@@ -1,6 +1,18 @@
 import { expect, it } from 'vitest';
 import { goodEditorValues, createGoodEditorDraft, buildGoodEditorPreview, GOOD_LOCAL_DRAFT_FIELDS, GOOD_LOCAL_DRAFT_LINKED_FIELDS } from './good-editor';
 import { createAdminLocalAutosave, withLocalRecoveryValues } from './local-autosave';
+/* 배송 안내 템플릿의 선택 칸 '도서산간 안내'(T19)를 미리보기 배송 정책에도 싣는다 — 공개 상세(GoodAdditionalInfo)와 같은 자리. */
+it('고른 배송 안내 템플릿의 도서산간 안내를 미리보기 배송 정책에 싣고, 비어 있으면 싣지 않는다', () => {
+  const origin = { id: 'origin-gimpo', name: '김포', defaultCarrier: null, baseFee: 3000, freeThreshold: 50000, returnAddress: '김포 반품지', active: true };
+  const option = { version: 1, code: 'NOTICE', name: '기본 안내', shippingNotice: '배송 안내', returnExchangeNotice: '교환 안내', csName: 'CS', csPhone: '0212345678', csEmail: 'cs@example.test' };
+  const values = goodEditorValues(null, { values: { previousId: '', originId: origin.id, shippingNoticeTemplate: 'NOTICE@1' } });
+  const build = (remoteAreaNotice?: string) => buildGoodEditorPreview({ values, imageUrls: {}, selected: null, catalogIps: [], origins: [origin] as never,
+    shippingNoticeOptions: [{ ...option, ...(remoteAreaNotice === undefined ? {} : { remoteAreaNotice }) }] }).shippingPolicy;
+  expect(build('제주·도서산간은 2~3일 더 걸립니다.')?.remoteAreaNotice).toBe('제주·도서산간은 2~3일 더 걸립니다.');
+  expect(build('')).not.toHaveProperty('remoteAreaNotice');
+  expect(build()).not.toHaveProperty('remoteAreaNotice');
+  expect(build()?.shippingNotice).toBe('배송 안내');
+});
 it('미저장 직접입력형 항목을 상품 미리보기에 전달하고 제출 리비전은 보존한다', () => {
   const customInputs=JSON.stringify({enabled:true,fields:[{id:'11111111-1111-4111-8111-111111111111',name:' 각인 문구 ',active:true}]});
   const values=goodEditorValues(null,{values:{previousId:'',customInputs,customInputsExpectedRevision:'0'}});

@@ -419,3 +419,16 @@ describe('OrderDetail digital-only deadline wording', () => {
   });
 });
 
+describe('OrderDetail 리뷰 칸 (ADR-0035 리뷰 등록 = 구매확정)', () => {
+  it('구매확정할 수 없어 막힌 리뷰는 그 이유(보류 사유 포함)를 보이고, 작성 시작 전이면 시작일이 먼저다', () => {
+    const target = { orderId: ORDER_ID, goodId: 'g13', goodName: '홍실 아크릴 블록', goodBg: null, orderedAt: '2026-08-01T06:00:00.000Z',
+      deliveredAt: '2026-08-03T06:00:00.000Z', deadlineAt: '2026-09-02T06:00:00.000Z', writable: false, review: null, kind: 'ordinary' as const };
+    const render = (purchaseConfirmation: unknown, opensAt?: string) => renderToStaticMarkup(<OrderDetail now={new Date('2026-08-05T06:00:00.000Z')}
+      order={order({ status: 'delivered', deliveredAt: '2026-08-03T06:00:00.000Z' })}
+      reviewTargets={[{ ...target, opensAt: opensAt ?? null, purchaseConfirmation } as never]} />);
+    expect(render({ required: true, block: 'held', holdReason: '사진 확인 중' })).toContain('이 주문의 구매확정이 보류되어 있습니다(사유: 사진 확인 중).');
+    expect(render({ required: true, block: 'claim_in_progress', holdReason: null })).toContain('취소·반품·교환 신청이 진행 중인 주문은 구매확정할 수 없어');
+    expect(render({ required: false, block: null, holdReason: null })).toContain('현재 작성할 수 없습니다');
+    expect(render({ required: true, block: 'held', holdReason: null }, '2026-08-10T06:00:00.000Z')).toContain('부터 작성 가능');
+  });
+});

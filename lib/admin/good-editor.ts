@@ -120,6 +120,8 @@ export function buildGoodEditorPreview({ values, imageUrls, selected, catalogIps
     individualFee: Number(values.individualFee) || 0, returnAddress: origin.returnAddress,
     claimPolicy: readGoodsClaimPolicy(form).value ?? null,
     ...(notice ? { shippingNotice: notice.shippingNotice, returnExchangeNotice: notice.returnExchangeNotice,
+      /* 배송 안내 템플릿의 선택 칸 '도서산간 안내'(T19)도 공개 상세처럼 미리보기에 싣는다. */
+      ...(notice.remoteAreaNotice ? { remoteAreaNotice: notice.remoteAreaNotice } : {}),
       cs: { name: notice.csName, phone: notice.csPhone, email: notice.csEmail } } : {}),
   } : null;
   const ip = catalogIps.find(ip => ip.id === values.ipId) ?? null;

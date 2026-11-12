@@ -3,6 +3,7 @@ import type { OrderDownloads as OrderDownloadsDocument } from '@/lib/order-downl
 import { OrderProductionStatus } from '@/components/orders/OrderProductionStatus';
 import type { OrderProduction } from '@/lib/order-production';
 import { REVIEW_KIND_LABELS, targetReviewDaysRemaining } from '@/lib/review-types';
+import { reviewConfirmationBlockMessage } from '@/lib/review-purchase-confirmation';
 
 import { GoodsCustomInputsSummary } from '@/components/shop/GoodsCustomInputs';
 import { ShipmentDetails } from '@/components/shop/ShipmentDetails';
@@ -126,7 +127,10 @@ function OrderReviewEntry({
                 </Link>
               ) : (
                 <span className="faint" style={{ fontSize: 12.5 }}>
-                  {target.opensAt && Date.parse(target.opensAt) > now.getTime() ? `${formatReviewDate(target.opensAt)}부터 작성 가능` : '현재 작성할 수 없습니다'}
+                  {target.opensAt && Date.parse(target.opensAt) > now.getTime() ? `${formatReviewDate(target.opensAt)}부터 작성 가능`
+                    /* 리뷰 등록 = 구매확정(ADR-0035): 구매확정할 수 없어 막힌 주문은 그 이유(보류 사유 포함)를 보인다. */
+                    : target.purchaseConfirmation?.block ? reviewConfirmationBlockMessage(target.purchaseConfirmation.block, target.purchaseConfirmation.holdReason)
+                    : '현재 작성할 수 없습니다'}
                 </span>
               )}
             </li>
