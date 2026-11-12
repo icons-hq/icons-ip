@@ -291,6 +291,33 @@ describe('교환품 배송완료 확인 성공', () => {
     ]);
   });
 
+  it('출고지별 재출고는 송장마다 배송 건 RPC로 확인하고, 배송 건 없는 옛 주문 전체 행은 null로 보낸다(TKT-166)', async () => {
+    mocks.rpc.mockResolvedValue({ data: 'delivered', error: null });
+    const form = receiptForm('exchange');
+    form.set('reshipmentShipment', SHIPMENT_ID);
+    expect(await recordOrderClaimReshipmentDeliveryAction({}, form)).toEqual({
+      message: '이 송장의 교환품 배송완료를 확인했습니다. 모든 송장이 확인되면 이후 신청은 기존 신청 기한과 조건을 따릅니다.',
+    });
+    expect(mocks.rpc).toHaveBeenLastCalledWith('admin_record_order_claim_shipment_reshipment_delivery', {
+      p_claim_id: CLAIM_ID, p_shipment_id: SHIPMENT_ID, p_evidence: RAW_EVIDENCE.trim(),
+    });
+    form.set('reshipmentShipment', 'order');
+    await recordOrderClaimReshipmentDeliveryAction({}, form);
+    expect(mocks.rpc).toHaveBeenLastCalledWith('admin_record_order_claim_shipment_reshipment_delivery', {
+      p_claim_id: CLAIM_ID, p_shipment_id: null, p_evidence: RAW_EVIDENCE.trim(),
+    });
+    mocks.rpc.mockClear(); mocks.revalidatePath.mockClear();
+    form.set('reshipmentShipment', 'not-a-shipment');
+    expectPreservedFailure(await recordOrderClaimReshipmentDeliveryAction({ attempt: 3 }, form), form, '교환품 배송완료를 기록하지 못했습니다. 최신 상태를 확인해주세요.');
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('출고지가 둘 이상인 교환을 옛 단일 확인으로 보내면 배송 건마다 확인하라고 안내한다', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'reshipment_shipment_required' } });
+    const form = receiptForm('exchange');
+    expectPreservedFailure(await recordOrderClaimReshipmentDeliveryAction({ attempt: 3 }, form), form, '출고지가 둘 이상인 교환은 배송 건마다 재출고·배송완료를 확인해주세요.');
+  });
+
   it('회수 완료 토큰을 교환품 배송완료로 잘못 인정하지 않는다', async () => {
     mocks.rpc.mockResolvedValue({ data: 'collected', error: null });
     const form = receiptForm('exchange');

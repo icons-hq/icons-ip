@@ -43,6 +43,7 @@ import {
 } from '@/lib/payments/provider-capabilities';
 import { createClient } from '@/lib/supabase/server';
 import { adminPaymentCancelFailureMessage } from '@/lib/admin/payment-cancel-error';
+import { isUuid } from '@/lib/uuid';
 
 /* 어드민 클레임 콘솔 액션(#252).
  *
@@ -123,6 +124,7 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string) {
   if (value.includes('reshipment_variant_unavailable')) return '선택한 재출고 상품을 사용할 수 없습니다. 최신 목록에서 같은 상품의 옵션이나 같은 그룹의 상품을 선택해주세요.';
   if (value.includes('invalid reshipment items')) return '재출고할 주문 품목과 상품을 확인해주세요.';
   if (value.includes('reshipment_conflict')) return '이미 다른 운송장이나 상품으로 재출고한 교환입니다. 처리 이력을 확인해주세요.';
+  if (value.includes('reshipment_shipment_required')) return '출고지가 둘 이상인 교환은 배송 건마다 재출고·배송완료를 확인해주세요.';
   if (value.includes('insufficient_or_overflowing_stock') || value.includes('stock_aggregate_overflow')) return '재고 수량을 적용할 수 없습니다. 최신 재고와 회수 수량을 확인해주세요.';
   if (value.includes('stock_out_of_range')) return '재출고할 옵션 재고가 부족합니다. 최신 옵션 수량을 확인해주세요.';
   if (value.includes('invalid rejection reason')) return '거부 사유는 앞뒤 공백 없이 10자 이상 200자 이하로 입력해주세요.';
@@ -439,14 +441,24 @@ export async function recordOrderClaimReshipmentDeliveryAction(
   if (access.error) return fail(access.error.error ?? failureMessage);
   const normalized = normalizeAdminClaimEvidenceForm(formData);
   if (!normalized.ok) return fail(normalized.error);
+  /* 배송 건별 재출고(TKT-166)는 송장마다 확인한다. 'order'는 배송 건 없는 옛 주문 전체 행이고,
+     값이 없으면 이 표 이전의 클레임 단위 기록(옛 단일 열)이다. */
+  const shipment = formData.get('reshipmentShipment');
+  if (shipment !== null && shipment !== 'order' && !isUuid(shipment)) return fail(failureMessage);
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc('admin_record_order_claim_reshipment_delivery', {
-    p_claim_id: normalized.value.claimId, p_evidence: normalized.value.evidence,
-  });
+  const { data, error } = shipment === null
+    ? await supabase.rpc('admin_record_order_claim_reshipment_delivery', {
+      p_claim_id: normalized.value.claimId, p_evidence: normalized.value.evidence,
+    })
+    : await supabase.rpc('admin_record_order_claim_shipment_reshipment_delivery', {
+      p_claim_id: normalized.value.claimId, p_shipment_id: shipment === 'order' ? null : shipment, p_evidence: normalized.value.evidence,
+    });
   if (error) return fail(rpcErrorMessage(error.message, failureMessage));
   if (data !== 'delivered') return fail(failureMessage);
   revalidateClaimSurfaces(normalized.value.claimId, 'exchange');
-  return { message: '교환품의 실제 배송완료를 확인했습니다. 이후 신청은 기존 신청 기한과 조건을 따릅니다.' };
+  return { message: shipment === null
+    ? '교환품의 실제 배송완료를 확인했습니다. 이후 신청은 기존 신청 기한과 조건을 따릅니다.'
+    : '이 송장의 교환품 배송완료를 확인했습니다. 모든 송장이 확인되면 이후 신청은 기존 신청 기한과 조건을 따릅니다.' };
 }
 
 interface ManualRecoveryAttemptRow {

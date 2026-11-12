@@ -230,9 +230,11 @@ async function mutate(raw: unknown, command: Command): Promise<OperationResponse
     async function dispatch(version: string, payload: SealedChange | SealedDestination | null) {
       const common = { ...scopeArgs(auth, input), p_operation_id: input.operationId, p_expected_claim_revision: claims.expectedClaimRevision,
         p_expected_context: expectedContext(claims), p_request_hmac: codec.requestHmac(claims, input, version), p_hmac_key_version: version, p_confirmed: true };
+      // 재출고는 배송 건(출고지)마다 기록한다(TKT-166·QNA-039). 회수 생략은 근거 사진 id와 함께 같은 거래로 넘긴다.
       const args = command === 'change' ? { ...common, p_target: claims.target, p_expected_claim_type: claims.expectedClaimType, p_sealed_change: payload }
-        : { ...common, p_sealed_destination: payload, p_carrier: (input as ReshipmentRequest).carrier, p_tracking_number: (input as ReshipmentRequest).trackingNumber, p_items: (input as ReshipmentRequest).items };
-      const receipt = fromDb('OperationReceipt', await rpc(auth, command === 'change' ? 'service_change_order_claim_contact' : 'service_record_order_claim_reshipment_v2', args));
+        : { ...common, p_sealed_destination: payload, p_shipment_id: (input as ReshipmentRequest).shipmentId, p_carrier: (input as ReshipmentRequest).carrier,
+          p_tracking_number: (input as ReshipmentRequest).trackingNumber, p_items: (input as ReshipmentRequest).items, p_collection_waiver: (input as ReshipmentRequest).collectionWaiver };
+      const receipt = fromDb('OperationReceipt', await rpc(auth, command === 'change' ? 'service_change_order_claim_contact' : 'service_record_order_claim_shipment_reshipment', args));
       if (!receiptMatches(receipt, auth, scope)) return fail('claim_contact_outcome_unknown');
       return operationResponse(auth, input.requestId, receipt);
     }

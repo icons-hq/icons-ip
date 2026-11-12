@@ -72,6 +72,19 @@ describe('OrderDetail', () => {
     expect(html).not.toContain('REPLACEMENT-BLUE');
   });
 
+  it('교환 소포를 배송 묶음마다 택배사·운송장·배송조회로 보이고 회수 없이 보낸 소포를 안내한다(TKT-166)', () => {
+    const parcel = { claimId: '93942000-0000-4000-8000-000000000011', reshipmentId: '93942000-0000-4000-8000-000000000021', carrier: 'hanjin', carrierLabel: '한진택배',
+      trackingNumber: 'EXCHANGE0001', trackingUrl: 'https://carrier.example.test/track?no=EXCHANGE0001', reshippedAt: '2026-11-10T01:00:00.000Z', deliveredAt: null,
+      collectionWaived: false, items: [{ orderItemId: '93942000-0000-4000-8000-000000000013', name: '교환 출고 파랑 상품', variantName: '파랑', qty: 1 }] };
+    const html = renderToStaticMarkup(<OrderDetail order={order({ reshipmentHistory: [orderReshipmentReceipt], reshipmentParcels: [parcel,
+      { ...parcel, reshipmentId: '93942000-0000-4000-8000-000000000022', trackingNumber: 'EXCHANGE0002', trackingUrl: 'https://carrier.example.test/track?no=EXCHANGE0002',
+        collectionWaived: true, deliveredAt: '2026-11-11T01:00:00.000Z' }] })} />);
+    expect(html).toContain('교환 배송 2건'); expect(html).toContain('EXCHANGE0001'); expect(html).toContain('EXCHANGE0002');
+    expect(html).toContain('href="https://carrier.example.test/track?no=EXCHANGE0001"'); expect(html).toContain('href="https://carrier.example.test/track?no=EXCHANGE0002"');
+    expect(html).toContain('회수 없이 다시 보내드려요'); expect(html).toContain('도착 확인'); expect(html).toContain('배송 중');
+    expect(html).not.toContain('교환으로 받은 굿즈');
+  });
+
   it('주문 내역에서도 온라인 결제금액과 착불·복수할인 원영수증을 유지한다', () => {
     const value = order({ transaction: transactionDisplay, total: 16000, shippingFee: 0, discountTotal: 1000, storeCreditTotal: 1000, giftId: ORDER_ID, address: null,
       items: [{ ...order().items[0], id: transactionLineId, goodId: 'renamed-good', qty: 2, unitPrice: 10000 }], shipments: [] });

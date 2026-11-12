@@ -44,6 +44,7 @@ import { ClaimExchangeSteps, ClaimProgressSummary } from './ClaimProgressSummary
 import { ClaimContactOperations } from '@/components/admin/ClaimContactOperations';
 import { adminPaymentCancelErrorLabel } from '@/lib/admin/payment-cancel-error';
 import { ClaimContactHistory } from '@/components/claim-contact/ClaimContactHistory';
+import { adminClaimPendingReshipments } from '@/lib/admin/claim-reshipments';
 
 /* 어드민 클레임 상세(#252) — 템플릿 룩 kit Card(ADR-0028).
  *
@@ -93,6 +94,7 @@ const TIMELINE_LABELS: Record<string, string> = {
   'admin.order.claim_refund_completed': '환불 완료',
   'admin.order.claim_reshipped': '교환 재출고',
   'admin.order.claim_reshipment_delivered': '교환품 배송완료 확인',
+  'admin.order.claim_evidence_uploaded': '회수 생략 근거 사진 등록',
   'admin.order.claim_type_changed': '반품·교환 유형 전환',
   'admin.order.claim_reason_changed': '교환 사유 정정',
   'admin.order.cancellation_approved': '청약철회 승인 (레거시 경로)',
@@ -127,6 +129,14 @@ const SLA_TEXT_CLASS = 'inline-flex items-center gap-1 tabular-nums text-muted-f
 const SECTION_LINK_CLASS = 'inline-flex h-7 items-center rounded-md px-3 text-sm font-medium whitespace-nowrap text-muted-foreground transition-colors hover:bg-background hover:text-foreground';
 const OUTLINE_SM = `${cn(buttonVariants({ size: 'sm', variant: 'outline' }))} w-fit`;
 const ROW_INLINE = 'flex flex-wrap items-center gap-2';
+
+/* 배송 건(출고지)별 재출고(TKT-166)는 감사 기록에 출고지와 회수 생략 여부가 함께 있다. 같은 이름의 줄이 여러 개여도 어느 출고지인지 보이게 한다. */
+function timelineLabel(entry: AdminClaimDetail['timeline'][number]) {
+  const label = TIMELINE_LABELS[entry.action] ?? entry.action;
+  if (entry.action !== 'admin.order.claim_reshipped' && entry.action !== 'admin.order.claim_reshipment_delivered') return label;
+  const origin = typeof entry.diff?.originName === 'string' && entry.diff.originName ? ` · ${entry.diff.originName}` : '';
+  return `${label}${origin}${entry.diff?.collectionWaived === true ? ' (회수 생략)' : ''}`;
+}
 
 function Row({ label, value }: { label: string; value: ReactNode }) {
   return (
@@ -183,8 +193,9 @@ export function ClaimDetailScreen({
 
   const collectionContactBody = actorId && claim.claimType !== 'cancel' ? <>
     <ClaimCollectionPlan actorId={actorId} claimId={claim.id} operator carriers={carriers} />
+    {/* 재출고는 배송 건(출고지)마다 최종 주소를 확인하고 등록한다. 회수 확인 전 배송 건은 하자·오배송 교환일 때만 회수 없이 보낼 수 있다. */}
     <ClaimContactOperations actorId={actorId} orderId={claim.orderId} claimId={claim.id}
-      canReship={claim.claimType === 'exchange' && claim.stage === 'collected' && claim.collectionPolicy !== null && claim.collectionComplete}
+      reshipTargets={claim.collectionPolicy !== null ? adminClaimPendingReshipments(claim) : []}
       carriers={carriers} reshipItems={order?.items ?? []} />
     <ClaimContactHistory actorId={actorId} orderId={claim.orderId} claimId={claim.id} operator />
   </> : null;
@@ -331,8 +342,8 @@ export function ClaimDetailScreen({
                     </ul>
                   </section>
                   <p className="text-xs text-muted-foreground">
-                    {V.claimRequest}은 주문 단위 전액으로만 처리됩니다. 일부 품목만 불량이면 전체 반품 또는
-                    협의 재발송으로 안내하고, 부분 환불을 약속하지 마세요.
+                    {V.claimRequest}은 주문 단위 전액으로만 처리됩니다. 일부 품목만 불량이면 전체 반품, 또는 교환에서
+                    하자·오배송 배송 건을 회수 없이 재출고하는 것으로 안내하고, 부분 환불을 약속하지 마세요.
                   </p>
                   <Link className={OUTLINE_SM} data-slot="button" href={adminOrderSearchHref(order.id)}>
                     주문 통합검색에서 열기
@@ -348,14 +359,16 @@ export function ClaimDetailScreen({
             <CardHeading>요청 내용</CardHeading>
             <CardContent className="flex min-w-0 flex-col gap-3">
               <p className="break-words whitespace-pre-wrap">{claim.reason}</p>
-              {claim.staffNote || claim.decisionNote || claim.holdReason || claim.lastErrorCode || claim.reshipTrackingNumber || claim.reshippedItems?.length ? <div>
+              {claim.staffNote || claim.decisionNote || claim.holdReason || claim.lastErrorCode || claim.reshipTrackingNumber || claim.reshipments?.length || claim.reshippedItems?.length ? <div>
                 {claim.staffNote ? <Row label="운영 메모" value={claim.staffNote} /> : null}
                 {claim.decisionNote ? <Row label="거부 사유" value={claim.decisionNote} /> : null}
                 {claim.holdReason ? <Row label="보류 사유" value={claim.holdReason} /> : null}
                 {claim.lastErrorCode ? (
                   <Row label="결제사 확인 오류" value={adminPaymentCancelErrorLabel(claim.lastErrorCode)} />
                 ) : null}
-                {claim.reshipTrackingNumber ? (
+                {claim.reshipments?.length ? claim.reshipments.map(row => <Row key={row.id} label={`재출고 운송장${row.originName ? ` · ${row.originName}` : ''}`}
+                  value={`${row.carrierLabel ?? row.carrier} ${row.trackingNumber}${row.collectionWaived ? ' · 회수 생략' : ''}`} />)
+                  : claim.reshipTrackingNumber ? (
                   <Row
                     label="재출고 운송장"
                     value={`${claim.reshipCarrier ?? ''} ${claim.reshipTrackingNumber}`}
@@ -375,7 +388,7 @@ export function ClaimDetailScreen({
                     <li className="break-words" key={`${entry.action}-${index}`}>
                       <time className="text-muted-foreground tabular-nums" dateTime={entry.createdAt}>{formatOrderDateTime(entry.createdAt)}</time>
                       {' · '}
-                      {TIMELINE_LABELS[entry.action] ?? entry.action}
+                      {timelineLabel(entry)}
                       {entry.actorName ? ` · @${entry.actorName}` : ''}
                     </li>
                   ))}
@@ -417,7 +430,7 @@ export function ClaimDetailScreen({
                 reshipItems={order?.items}
                 stage={claim.stage}
                 exchangeSteps={claim.claimType === 'exchange' ? <ClaimExchangeSteps claim={claim} /> : undefined}
-                exchangeShipping={claim.claimType === 'exchange' ? <ClaimReshipmentDelivery claim={claim} /> : undefined}
+                exchangeShipping={claim.claimType === 'exchange' ? <ClaimReshipmentDelivery carriers={carriers} claim={claim} /> : undefined}
                 secondaryActions={claim.claimType === 'exchange' ? <>
                   <ClaimWithdrawal claimId={claim.id} stage={claim.stage} operator />
                   <ClaimTypeConversion embedded={embedded} key={`${claim.id}-${claim.claimType}`} claimId={claim.id} />

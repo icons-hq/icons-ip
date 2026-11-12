@@ -5,6 +5,7 @@ import { Check } from 'lucide-react';
 import { formatOrderDateTime, refundStatusLabel } from '@/lib/orders';
 import { statusTone } from '@/lib/admin/status-tone';
 import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { adminClaimReshipmentProgress } from '@/lib/admin/claim-reshipments';
 import type { ReactNode } from 'react';
 
 type Fact = { label: string; value: ReactNode; detail: string; href: string; link: string };
@@ -20,13 +21,19 @@ const EXCHANGE_STEP_CAPTION: Record<ExchangeStepState, string> = { done: '완료
 export function ClaimExchangeSteps({ claim }: Pick<AdminClaimDetail, 'claim'>) {
   if (claim.stage === 'rejected' || claim.stage === 'withdrawn') return null;
   const effective = orderClaimEffectiveStage(claim.stage, claim.heldFrom);
-  /* 재출고만 하면 요청은 처리완료가 된다. 고객 도착은 따로 기록하므로, 기록이 없으면 '도착 확인'을 완료로 칠하지 않는다. */
-  const current = claim.stage === 'completed' ? (claim.reshipDeliveredAt ? EXCHANGE_STEPS.length : 3)
+  const progress = adminClaimReshipmentProgress(claim);
+  /* 모든 배송 건을 재출고하면 요청은 처리완료가 된다. 고객 도착은 송장마다 따로 기록하므로, 모두 확인되기 전에는 '도착 확인'을 완료로 칠하지 않는다.
+     출고지가 둘 이상이면 한 곳을 먼저 재출고해도(회수 생략 포함) 재출고 단계가 지금 할 일이다. */
+  const current = claim.stage === 'completed' ? (progress.delivered >= progress.total ? EXCHANGE_STEPS.length : 3)
     : effective === 'requested' || effective === 'in_review' ? 0
-      : effective === 'collecting' || !claim.collectionComplete ? 1
-        : !claim.reshippedAt ? 2 : 3;
+      : progress.reshipped > 0 ? 2
+        : effective === 'collecting' || !claim.collectionComplete ? 1
+          : 2;
+  const counted = progress.total > 1;
+  const labels = EXCHANGE_STEPS.map((label, index) => !counted ? label
+    : index === 2 ? `${label} ${progress.reshipped}/${progress.total}` : index === 3 ? `${label} ${progress.delivered}/${progress.total}` : label);
   return <ol aria-label="교환 처리 단계" className="grid grid-cols-2 gap-2 sm:grid-cols-4" data-claim-exchange-steps="">
-    {EXCHANGE_STEPS.map((label, index) => {
+    {labels.map((label, index) => {
       const state: ExchangeStepState = index < current ? 'done' : index === current ? 'current' : 'todo';
       return <li aria-current={state === 'current' ? 'step' : undefined} className="flex min-w-0 items-center gap-2 rounded-lg border bg-background px-2.5 py-1.5 text-muted-foreground data-[step-state=current]:border-primary data-[step-state=current]:bg-primary-soft data-[step-state=current]:text-primary-soft-foreground data-[step-state=done]:text-foreground" data-step-state={state} key={label}>
         <span aria-hidden="true" className={CLAIM_STEP_MARK_CLASS} data-step-state={state}>{state === 'done' ? <Check className="size-3.5" /> : index + 1}</span>
@@ -54,14 +61,25 @@ export function ClaimProgressSummary({ claim, refund }: Props) {
     }
   }
 
+  const progress = adminClaimReshipmentProgress(claim);
   const settlement: Fact = claim.claimType === 'exchange'
-    ? {
-      label: '교환 배송',
-      value: claim.reshipDeliveredAt ? '배송완료 확인' : claim.reshippedAt ? '재출고 기록됨' : '재출고 기록 없음',
-      detail: claim.reshipDeliveredAt ? `배송완료 ${formatOrderDateTime(claim.reshipDeliveredAt)}`
-        : claim.reshippedAt ? `재출고 ${formatOrderDateTime(claim.reshippedAt)} · 배송완료 미확인` : '재출고와 배송완료를 각각 확인합니다.',
-      href: '#claim-process', link: '교환 처리 보기',
-    }
+    ? progress.total > 1 || (claim.reshipments ?? []).length > 0
+      ? {
+        /* 배송 건(출고지)별 재출고: 송장마다 재출고·배송완료를 센다. */
+        label: '교환 배송',
+        value: progress.reshipped === 0 ? '재출고 기록 없음'
+          : progress.delivered >= progress.total ? '배송완료 확인'
+            : progress.reshipped >= progress.total ? '재출고 완료' : `재출고 ${progress.reshipped}/${progress.total}`,
+        detail: `${progress.total > 1 ? `출고지 ${progress.total}곳 · ` : ''}배송완료 확인 ${progress.delivered}/${progress.total}${progress.waived ? ` · 회수 생략 ${progress.waived}곳` : ''}`,
+        href: '#claim-process', link: '교환 처리 보기',
+      }
+      : {
+        label: '교환 배송',
+        value: claim.reshipDeliveredAt ? '배송완료 확인' : claim.reshippedAt ? '재출고 기록됨' : '재출고 기록 없음',
+        detail: claim.reshipDeliveredAt ? `배송완료 ${formatOrderDateTime(claim.reshipDeliveredAt)}`
+          : claim.reshippedAt ? `재출고 ${formatOrderDateTime(claim.reshippedAt)} · 배송완료 미확인` : '재출고와 배송완료를 각각 확인합니다.',
+        href: '#claim-process', link: '교환 처리 보기',
+      }
     : {
       label: '환불 기록',
       value: refund?.status === 'awaiting_transfer' ? '환불 송금 대기' : refund?.completedAt ? '환불 완료 기록됨' : refund?.status === 'done' ? '환불 완료 시각 미기록' : refund?.filedAt ? '환불 접수 기록됨' : refund ? '환불 확인 전' : '환불 기록 없음',

@@ -214,6 +214,36 @@ export interface AdminClaimCollection {
   evidence: string | null;
 }
 
+/** 교환 재출고 대상 배송 건(출고지). shipmentId가 null이면 배송 건 없는 옛 주문 전체다(TKT-166). */
+export interface AdminClaimReshipmentTarget {
+  shipmentId: string | null;
+  originName: string | null;
+  /** 출고지별 회수 확인을 쓰는 배송 건인지. 아니면 클레임 단계(입고완료)가 재출고 조건이다. */
+  collectionTracked: boolean;
+  collectedAt: string | null;
+  reshipped: boolean;
+  orderItemIds: string[];
+}
+
+/** 배송 건 하나의 재출고 기록. 회수 생략이면 사유와 근거 사진이 함께 남는다(QNA-039). */
+export interface AdminClaimReshipment {
+  id: string;
+  shipmentId: string | null;
+  originName: string | null;
+  carrier: string;
+  carrierLabel: string | null;
+  trackingNumber: string;
+  reshippedAt: string;
+  reshippedByName: string | null;
+  collectionWaived: boolean;
+  waiverReason: string | null;
+  waiverEvidence: { id: string; mimeType: string; size: number }[];
+  deliveredAt: string | null;
+  deliveredByName: string | null;
+  deliveryEvidence: string | null;
+  items: { orderItemId: string; name: string; variantName: string; variantCode: string; qty: number }[];
+}
+
 export interface AdminClaimDetail {
   gift?: { giftId: string; requesterRole: 'payer' | 'recipient'; requesterName: string } | null;
   sellerIntake?: SellerClaimReceipt | null;
@@ -252,6 +282,11 @@ export interface AdminClaimDetail {
     reshipDeliveredByName: string | null;
     reshipDeliveryEvidence: string | null;
     reshippedItems?: { orderItemId: string; goodId?: string; originalGoodId?: string; name: string; variantId: string; variantName: string; variantCode: string; qty: number }[];
+    /** 배송 건별 재출고 대상과 기록. 이 표가 비어 있으면 옛 단일 열(reship*)이 기록이다. */
+    reshipmentTargets?: AdminClaimReshipmentTarget[];
+    reshipments?: AdminClaimReshipment[];
+    /** 하자·오배송 교환이고 출고지별 회수를 쓰면 회수 없이 재출고할 수 있다. */
+    collectionWaiverAllowed?: boolean;
     lastErrorCode: string | null;
     handlerName: string | null;
     updatedAt: string;
@@ -281,6 +316,31 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function text(value: unknown): string | null {
   return typeof value === 'string' && value.length > 0 ? value : null;
+}
+
+function reshipmentTargets(value: unknown): AdminClaimReshipmentTarget[] {
+  return (Array.isArray(value) ? value : []).filter(isRecord).map((target) => ({
+    shipmentId: text(target.shipmentId), originName: text(target.originName),
+    collectionTracked: target.collectionTracked === true, collectedAt: text(target.collectedAt), reshipped: target.reshipped === true,
+    orderItemIds: (Array.isArray(target.orderItemIds) ? target.orderItemIds : []).filter((id): id is string => typeof id === 'string'),
+  }));
+}
+
+function reshipments(value: unknown): AdminClaimReshipment[] {
+  return (Array.isArray(value) ? value : []).filter(isRecord).map((row) => ({
+    id: String(row.id ?? ''), shipmentId: text(row.shipmentId), originName: text(row.originName),
+    carrier: String(row.carrier ?? ''), carrierLabel: text(row.carrierLabel), trackingNumber: String(row.trackingNumber ?? ''),
+    reshippedAt: String(row.reshippedAt ?? ''), reshippedByName: text(row.reshippedByName),
+    collectionWaived: row.collectionWaived === true, waiverReason: text(row.waiverReason),
+    waiverEvidence: (Array.isArray(row.waiverEvidence) ? row.waiverEvidence : []).filter(isRecord).map((file) => ({
+      id: String(file.id ?? ''), mimeType: String(file.mimeType ?? ''), size: toNumber(file.size as number | string),
+    })),
+    deliveredAt: text(row.deliveredAt), deliveredByName: text(row.deliveredByName), deliveryEvidence: text(row.deliveryEvidence),
+    items: (Array.isArray(row.items) ? row.items : []).filter(isRecord).map((item) => ({
+      orderItemId: String(item.orderItemId ?? ''), name: String(item.name ?? ''), variantName: String(item.variantName ?? ''),
+      variantCode: String(item.variantCode ?? ''), qty: toNumber(item.qty as number | string),
+    })),
+  }));
 }
 
 function nullableNumber(value: unknown): number | null {
@@ -377,6 +437,9 @@ export async function loadAdminClaimDetail(
         orderItemId: String(item.orderItemId ?? ''), goodId: text(item.goodId) ?? undefined, originalGoodId: text(item.originalGoodId) ?? undefined, name: String(item.name ?? ''), variantId: String(item.variantId ?? ''),
         variantName: String(item.variantName ?? ''), variantCode: String(item.variantCode ?? ''), qty: toNumber(item.qty as number | string),
       })),
+      reshipmentTargets: reshipmentTargets(claim.reshipmentTargets),
+      reshipments: reshipments(claim.reshipments),
+      collectionWaiverAllowed: claim.collectionWaiverAllowed === true,
       lastErrorCode: text(claim.lastErrorCode),
       handlerName: text(claim.handlerName),
       updatedAt: String(claim.updatedAt ?? ''),

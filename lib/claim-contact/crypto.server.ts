@@ -258,6 +258,16 @@ function createCodec(environment: Environment, backendOrigin: string, activeKeyV
       }
       const items = [...input.items].sort((a, b) => a.orderItemId < b.orderItemId ? -1 : a.orderItemId > b.orderItemId ? 1 : 0);
       tail = [input.carrier, input.trackingNumber, items.map(item => [item.orderItemId, item.variantId]), true, true];
+      // 배송 건 단위 재출고(TKT-166·QNA-039): 배송 건과 회수 생략도 같은 요청번호의 내용에 묶는다.
+      // 둘 다 없는 요청은 이전 요청과 같은 서명 원문을 유지한다.
+      const shipmentId = input.shipmentId ?? null, waiver = input.collectionWaiver ?? null;
+      if (shipmentId !== null && !uuid(shipmentId)) return fail();
+      if (waiver !== null && (!exact(waiver, ['reason', 'evidenceFileIds']) || !validText(waiver.reason) || waiver.reason.trim() !== waiver.reason
+        || Array.from(waiver.reason).length < 10 || Array.from(waiver.reason).length > 500 || !Array.isArray(waiver.evidenceFileIds)
+        || waiver.evidenceFileIds.length < 1 || waiver.evidenceFileIds.length > 5 || !waiver.evidenceFileIds.every(uuid)
+        || new Set(waiver.evidenceFileIds).size !== waiver.evidenceFileIds.length)) return fail();
+      if (shipmentId !== null) tail.push(['shipment/v1', shipmentId]);
+      if (waiver !== null) tail.push(['collection-waiver/v1', waiver.reason, [...waiver.evidenceFileIds].sort()]);
     }
     const preimage = [`claim-contact/${command}-request/v1`, environment, backendOrigin, claims.actorId, claims.sessionId, input.operationId,
       claims.orderId, claims.claimId, claims.target, claims.expectedClaimType, claims.expectedClaimRevision, sourceArray(claims.source),
