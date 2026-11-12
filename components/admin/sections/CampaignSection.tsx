@@ -1,14 +1,16 @@
 'use client';
 
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
-import { AdminFormGrid, AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { AdminField, AdminFormGrid, AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { ConsoleGrid, type ConsoleGridColumn } from '@/components/admin/console/ConsoleGrid';
 import { ConsoleListCard } from '@/components/admin/console/ConsoleListCard';
 import { Button } from '@/components/admin/kit/ui/button';
+import { Textarea } from '@/components/admin/kit/ui/textarea';
 import { statusTone } from '@/lib/admin/status-tone';
 import { formatOrderDateTime } from '@/lib/orders';
 import { ChevronDown, Plus } from 'lucide-react';
-import { useState } from 'react';
+import { useId, useState } from 'react';
+import { CampaignGoodsBlocks } from './CampaignGoodsBlocks';
 import type { AdminCampaignActionState } from '@/app/admin/campaign-actions';
 import { CAMPAIGN_CTA_LABEL_MAX_LENGTH } from '@/lib/campaigns';
 import {
@@ -23,7 +25,7 @@ import {
   parseAdminCampaignSections,
   type AdminCampaignRecord,
 } from '@/lib/admin/campaigns';
-import { ErrorText, Field, FormShell, RecordList, SelectField, TextArea } from '../fields';
+import { ErrorText, Field, FormShell, RecordList, SelectField } from '../fields';
 import { SettingsFormGroup } from '../screens/StoreSettingsFormGroup';
 
 /*
@@ -78,7 +80,7 @@ function SectionSchemaHelp() {
           최상위는 블록 배열이고 최대 {ADMIN_CAMPAIGN_MAX_SECTIONS}개까지입니다. 모든 블록은
           {' '}<code>type</code>이 필수이고 <code>anchor</code>(1~20자, 상세 목차 링크)를 선택으로
           받습니다. 목록에 없는 키는 저장되지 않습니다 — 오타는 조용히 통과하는 대신 거절됩니다.
-          블록을 고르는 편집 화면은 아직 없어 이 코드를 직접 입력합니다.
+          상품 묶음(goods) 블록의 상품은 위 ‘기획전 상품·할인’에서 선택기로 고를 수 있고, 다른 블록은 이 코드를 직접 입력합니다.
         </p>
         <ul className="list-disc space-y-1 pl-5 text-xs leading-relaxed text-muted-foreground">
           {ADMIN_CAMPAIGN_SECTION_SPECS.map((spec) => (
@@ -139,6 +141,9 @@ function CampaignEditor({
      서버 응답으로 확인하는 왕복은 편집을 포기하게 만든다. */
   const [sectionsError, setSectionsError] = useState<string | null>(null);
   const sectionsMessage = sectionsError ?? state.errors?.sections;
+  /* 굿즈 블록 선택기(1014-112)와 구성 코드 입력이 같은 값을 본다. 저장은 지금처럼 폼의 sections 한 칸이다. */
+  const [sectionsText, setSectionsText] = useState(() => adminCampaignSectionsInput(selected?.sections));
+  const sectionsInputId = useId();
   const filledImages = [selected?.heroImagePath, selected?.cardImagePath, selected?.bannerImagePath].filter(Boolean).length;
   const blockCount = selected?.sections.length ?? 0;
   /* 경로·코드 입력은 담당자 몫이라 접어 둔다. 값이 있거나 오류가 있으면 펴서 보인다. */
@@ -244,6 +249,9 @@ function CampaignEditor({
         />
       </AdminFormGrid>
       </SettingsFormGroup>
+      <SettingsFormGroup description="본문 상품 묶음에 진열할 상품을 고르고, 저장된 기획전 상품에 할인을 겁니다." title="기획전 상품·할인">
+        <CampaignGoodsBlocks campaignId={selected?.id ?? null} disabled={pending} onSectionsTextChange={next => { setSectionsText(next); setSectionsError(null); }} sectionsText={sectionsText} />
+      </SettingsFormGroup>
       <details className="group/advanced border-t pt-4" open={advancedOpen}>
       <summary className="flex cursor-pointer list-none items-center gap-3 [&::-webkit-details-marker]:hidden">
         <span className="text-[15px] font-semibold text-foreground">이미지·랜딩 구성</span>
@@ -279,12 +287,20 @@ function CampaignEditor({
 
       <SettingsFormGroup title="랜딩 구성">
       <div className="flex flex-col gap-2 [&_textarea]:min-h-40 [&_textarea]:font-mono [&_textarea]:text-[12.5px] [&_textarea]:leading-relaxed">
-        <TextArea
-          defaultValue={adminCampaignSectionsInput(selected?.sections)}
-          label="구성 코드 (비우면 본문 없음)"
-          name="sections"
-          placeholder='예: [{ "type": "intro", "copy": "..." }]'
-        />
+        {/* 고급 입력: 굿즈 묶음 상품은 위 '기획전 상품·할인'에서 고르는 것이 기본이고, 여기는 블록 전체를 직접 고칠 때 쓴다. */}
+        <AdminField inputId={sectionsInputId} label="구성 코드 (고급 입력, 비우면 본문 없음)">
+          <Textarea
+            aria-describedby={sectionsMessage ? 'campaign-sections-error' : undefined}
+            aria-invalid={Boolean(sectionsMessage)}
+            className="text-sm"
+            id={sectionsInputId}
+            name="sections"
+            onChange={(event) => setSectionsText(event.target.value)}
+            placeholder='예: [{ "type": "intro", "copy": "..." }]'
+            rows={3}
+            value={sectionsText}
+          />
+        </AdminField>
         <ErrorText id={sectionsMessage ? 'campaign-sections-error' : undefined}>
           {sectionsMessage}
         </ErrorText>

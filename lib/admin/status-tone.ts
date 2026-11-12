@@ -136,6 +136,10 @@ const STATUS_TONES = {
   stockReconcile: { same: 'neutral', increase: 'info', decrease: 'warning', shortage: 'danger', adjusted: 'warning' },
   /** 안전재고 요약 메일 발송 — lib/admin/stock-safety-digest */
   stockDigest: { queued: 'info', processing: 'info', sent: 'success', failed: 'danger', unknown: 'warning', suppressed: 'neutral' },
+  /** 할인 프로모션 — lib/admin/discount-promotions DiscountPromotionPhase. 중지는 끝난 것과 같은 조용한 색이다 */
+  discountPromotion: { scheduled: 'info', running: 'success', ended: 'neutral', stopped: 'neutral' },
+  /** 전시 상품 여러 줄·엑셀 추가의 줄별 결과 — components/admin/GoodBulkAddPanel. 못 찾은 줄만 확인을 부른다 */
+  goodReference: { ready: 'success', blocked: 'neutral', missing: 'warning' },
   // [ops]
   /** 쿠폰 혜택상태(lib/admin/coupons couponPhase) — 중지는 coupon.archived(보관)와 같은 색이다. */
   couponPhase: { scheduled: 'info', live: 'success', ended: 'neutral', stopped: 'neutral' },
