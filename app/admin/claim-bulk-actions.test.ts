@@ -561,6 +561,31 @@ describe('재출고 표(loadOrderClaimBulkReshipmentsAction)', () => {
     ]);
   });
 
+  it('입고도 회수 생략 결정도 없는 출고지는 제작 대기보다 입고 안내를 먼저 사유로 든다', async () => {
+    mocks.carriers.mockResolvedValue([{ code: 'hanjin', label: '한진택배', active: true, trackingUrlTemplate: 'https://example.test/{trackingNumber}' }]);
+    const base = { waiver: null, productionRequired: true, productionPending: true, collectionTracked: true, collectedAt: null, reshipped: false, orderItemIds: [] as string[] };
+    const bundle = (n: number, collectedAt: string | null) => ({ bundleId: `0000000${n}-0000-4000-8000-0000000000b0`, returnAddressId: null, returnName: '', returnAddress: '주소', returnPhone: '', items: [], collectedAt, collectorName: null, evidence: null, receivedOn: null });
+    const collection = (shipmentId: string, bundles: ReturnType<typeof bundle>[]) => ({ shipmentId, originId: 'o', originName: 'x', returnAddress: '', items: [], collectedAt: null, collectedBy: null, collectorName: null, evidence: null, bundles });
+    const claim = (id: string, allowed: boolean, targets: object[], collections: object[] = []) => ({
+      claim: { id, reference: 1, orderId: ORDER(1), claimType: 'exchange', stage: 'collecting', collectionPolicy: 'origin', reshipTrackingNumber: null, collectionWaiverAllowed: allowed, reshipmentTargets: targets, collections },
+      order: { items: [] },
+    });
+    mocks.loadAdminClaimDetail.mockImplementation(async (id: string) => id === ID(1)
+      /* 단순 변심: 주문제작이라도 입고 전이면 회수가 먼저다. */
+      ? claim(ID(1), false, [{ ...base, shipmentId: SHIP(1), originName: 'TEST 김포' }])
+      /* 하자·오배송 + 묶음 일부 입고: 결정 칸이 닫혀 입고 안내(일부 입고)를 든다. 입고를 마친 제작 대기 출고지는 그대로 제작 사유다. */
+      : id === ID(2) ? claim(ID(2), true, [{ ...base, shipmentId: SHIP(2), originName: 'TEST 남양주' }, { ...base, shipmentId: SHIP(3), originName: 'TEST 이천', collectedAt: '2026-11-11T00:00:00Z' }],
+        [collection(SHIP(2), [bundle(1, '2026-11-11T00:00:00Z'), bundle(2, null)])])
+      : null);
+    const load = await loadOrderClaimBulkReshipmentsAction({ claimType: 'exchange', step: 'reship', claimIds: [ID(1), ID(2)] });
+    if (load.error !== undefined) throw new Error(load.error);
+    expect(load.claims).toEqual([]);
+    expect(load.excluded?.map(item => item.reason)).toEqual([
+      expect.stringMatching(/^TEST 김포: 회수 확인 전 출고지입니다\. 회수를 확인한 뒤/),
+      expect.stringMatching(/^TEST 남양주: 일부 반품지만 입고된 출고지.*TEST 이천: 교환품 제작이 끝나지 않은 출고지/),
+    ]);
+  });
+
   it('교환 목록 밖이나 20건을 넘기면 열지 않는다', async () => {
     expect(await loadOrderClaimBulkReshipmentsAction({ claimType: 'return', step: 'reship', claimIds: [ID(1)] })).toEqual({ error: '처리할 작업을 선택해주세요.' });
     expect((await loadOrderClaimBulkReshipmentsAction({ claimType: 'exchange', step: 'reship', claimIds: Array.from({ length: 21 }, (_, n) => ID(n)) })).error)

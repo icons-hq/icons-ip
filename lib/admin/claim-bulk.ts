@@ -745,6 +745,7 @@ export const ADMIN_CLAIM_BULK_RESHIP_WAIVER_REASON = '회수 확인 전 출고�
 export const ADMIN_CLAIM_BULK_RESHIP_DECISION_REASON = '주문제작 상품이 있는 회수 확인 전 출고지입니다. 상세에서 회수 생략을 먼저 결정해 교환품 제작을 시작합니다.';
 export const ADMIN_CLAIM_BULK_RESHIP_PRODUCTION_REASON = '교환품 제작이 끝나지 않은 출고지입니다. 주문제작 처리에서 제작을 마친 뒤 재출고합니다.';
 export const ADMIN_CLAIM_BULK_RESHIP_COLLECTION_REASON = '회수 확인 전 출고지입니다. 회수를 확인한 뒤 재출고합니다.';
+export const ADMIN_CLAIM_BULK_RESHIP_PARTIAL_REASON = '일부 반품지만 입고된 출고지입니다. 남은 반품지의 입고를 확인한 뒤 재출고합니다.';
 
 /** 한 줄의 재출고 입력. 화면이 보내기 전에 확인하고, 형식은 DB가 다시 본다. */
 export function adminClaimBulkReshipRowError(input: { carrier: string; trackingNumber: string; items: readonly { variantId: string }[] }) {

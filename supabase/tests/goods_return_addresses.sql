@@ -406,4 +406,41 @@ select pg_temp.ra_assert((select count(*) from public.order_claim_collection_bun
  and (select collected_at is not null from public.order_claim_collections where claim_id=pg_temp.ra_id('claim',13)),
  'the default bundle was created from the shipment row and collected');
 
+-- 배포 경합(옛 앱 본문의 회수 확인이 묶음 backfill 뒤에 실행): 배송 건 행만 입고되고 묶음은 미입고로 남으면
+-- 배송 건 행 입고(UPDATE) 트리거가 단일 미입고 묶음에 입고 열을 옮겨 재고 대조 흐름에서 그 반품이 빠지지 않게 한다.
+insert into public.orders(id,user_id,status,total,shipping_fee,address,shipped_at,delivered_at,created_at)
+ values(pg_temp.ra_id('order',14),pg_temp.ra_id('user',2),'delivered',1000,0,
+  jsonb_build_object('recipientName','합성 고객','phone','010-0000-0000','postalCode','12345','address1','합성시 반품로 1','address2','101호'),
+  now()-interval '4 days',now()-interval '3 days',now()-interval '5 days');
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
+ values(pg_temp.ra_id('item',16),pg_temp.ra_id('order',14),'ra-good-b',pg_temp.ra_variant('ra-good-b'),1,1000,'TEST 출고지 반품 굿즈','문구','ra-ip');
+insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,status,carrier,tracking_number,shipped_at,delivered_at)
+ values(pg_temp.ra_id('shipment',14),pg_temp.ra_id('order',14),pg_temp.ra_id('origin',1),'TEST 김포',0,'{}','delivered','hanjin','RASALE000014',now()-interval '4 days',now()-interval '3 days');
+insert into public.order_shipment_items(order_id,shipment_id,order_item_id,qty) values(pg_temp.ra_id('order',14),pg_temp.ra_id('shipment',14),pg_temp.ra_id('item',16),1);
+insert into public.order_cancellation_requests(id,order_id,requested_by,reason,claim_type,stage,reason_type)
+ values(pg_temp.ra_id('claim',14),pg_temp.ra_id('order',14),pg_temp.ra_id('user',2),'TEST 옛 본문 입고','return','requested','change_of_mind');
+select pg_temp.ra_as(1);
+select public.admin_decide_order_claim(pg_temp.ra_id('claim',14),'approve',null);
+select returned_since_qty as b_before from private.stock_reconcile_flows(array[pg_temp.ra_variant('ra-good-b')],now()-interval '1 hour') \gset
+-- 트리거를 끄고 옛 본문의 결과(배송 건 행만 입고)를 만든 뒤, 복구 함수가 입고 열을 묶음에 옮긴다.
+alter table public.order_claim_collections disable trigger order_claim_collections_sync_bundle_receipt;
+update public.order_claim_collections set collected_at=clock_timestamp(),collected_by=pg_temp.ra_id('user',1),evidence='옛 본문 입고',received_on=pg_temp.ra_today()
+ where claim_id=pg_temp.ra_id('claim',14);
+alter table public.order_claim_collections enable trigger order_claim_collections_sync_bundle_receipt;
+select pg_temp.ra_assert((select collected_at is null from public.order_claim_collection_bundles where claim_id=pg_temp.ra_id('claim',14))
+ and (select returned_since_qty from private.stock_reconcile_flows(array[pg_temp.ra_variant('ra-good-b')],now()-interval '1 hour'))=:b_before,
+ 'without the sync the shipment-only receipt is missing from the stock flow');
+select private.sync_single_collection_bundle_receipt(pg_temp.ra_id('claim',14),pg_temp.ra_id('shipment',14));
+select pg_temp.ra_assert((select collected_at is not null and evidence='옛 본문 입고' and received_on=pg_temp.ra_today() from public.order_claim_collection_bundles where claim_id=pg_temp.ra_id('claim',14))
+ and (select returned_since_qty from private.stock_reconcile_flows(array[pg_temp.ra_variant('ra-good-b')],now()-interval '1 hour'))=:b_before+1,
+ 'the recovery step copies the receipt to the single bundle and the stock flow counts the return');
+-- 입고 UPDATE 트리거: 같은 상황이 트리거만으로 동기화된다. 묶음이 갈린 배송 건(클레임 12)은 건드리지 않는다.
+update public.order_claim_collections set collected_at=null,collected_by=null,evidence=null,received_on=null where claim_id=pg_temp.ra_id('claim',14);
+update public.order_claim_collection_bundles set collected_at=null,collected_by=null,evidence=null,received_on=null where claim_id=pg_temp.ra_id('claim',14);
+update public.order_claim_collections set collected_at=clock_timestamp(),collected_by=pg_temp.ra_id('user',1),evidence='옛 본문 입고',received_on=pg_temp.ra_today()
+ where claim_id=pg_temp.ra_id('claim',14);
+select pg_temp.ra_assert((select collected_at is not null from public.order_claim_collection_bundles where claim_id=pg_temp.ra_id('claim',14)),'the update trigger syncs a single uncollected bundle');
+select pg_temp.ra_assert((select count(*) from public.order_claim_collection_bundles where claim_id=pg_temp.ra_id('claim',12) and collected_at is not null)=1
+ and (select collected_at is null from public.order_claim_collections where claim_id=pg_temp.ra_id('claim',12)),'split shipments are not synced by the trigger');
+
 rollback;

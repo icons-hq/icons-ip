@@ -132,7 +132,7 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string) {
   if (value.includes('collection_waiver_conflict')) return '이 출고지는 이미 다른 사유·사진으로 회수 생략을 기록했습니다. 처리 이력을 확인해주세요.';
   if (value.includes('collection_waiver_not_allowed')) return '회수 생략은 하자·오배송 교환에서만 쓸 수 있습니다.';
   if (value.includes('collection_waiver_not_needed')) return '이미 회수를 확인한 출고지입니다. 회수 생략 없이 진행해주세요.';
-  if (value.includes('collection_waiver_partially_received')) return '이 출고지의 일부 반품지에서 이미 입고가 확인되어 회수 생략을 할 수 없습니다. 남은 반품지의 입고를 기다리거나 일부 입고 처리 절차를 따르세요.';
+  if (value.includes('collection_waiver_partially_received')) return '이 출고지의 일부 반품지에서 이미 입고가 확인되어 회수 생략을 할 수 없습니다. 남은 반품지의 입고를 확인하고, 도착하지 않으면 고객에게 확인한 뒤 판단하세요.';
   if (value.includes('collection_waiver_unavailable')) return '출고지별 회수를 쓰지 않는 교환은 회수를 생략할 수 없습니다.';
   if (value.includes('collection_waiver_evidence_required')) return '회수 생략 근거 사진을 1~5장 올려주세요.';
   if (value.includes('invalid_collection_waiver_reason')) return '회수 생략 사유를 10~500자로 적어주세요.';

@@ -6,6 +6,7 @@ import {
   ADMIN_CLAIM_BULK_DB_ITEM_RESERVE_MS,
   ADMIN_CLAIM_BULK_REFUND_ITEM_RESERVE_MS,
   ADMIN_CLAIM_BULK_RESHIP_COLLECTION_REASON,
+  ADMIN_CLAIM_BULK_RESHIP_PARTIAL_REASON,
   ADMIN_CLAIM_BULK_RESHIP_DECISION_REASON,
   ADMIN_CLAIM_BULK_RESHIP_PRODUCTION_REASON,
   ADMIN_CLAIM_BULK_RESHIP_WAIVER_REASON,
@@ -28,7 +29,7 @@ import {
   type AdminClaimBulkState,
   type AdminClaimBulkStepPreviewState,
 } from '@/lib/admin/claim-bulk';
-import { adminClaimPendingReshipments, adminClaimWaiverDecisions } from '@/lib/admin/claim-reshipments';
+import { adminClaimPendingReshipments, adminClaimShipmentPartiallyReceived, adminClaimWaiverDecisions } from '@/lib/admin/claim-reshipments';
 import { adminClaimBasePath } from '@/lib/admin/claims';
 import { loadAdminClaimDetail } from '@/lib/admin/claims.server';
 import { krw } from '@/lib/format';
@@ -278,8 +279,11 @@ export async function loadOrderClaimBulkReshipmentsAction(input: unknown): Promi
           .filter((target) => !target.reshipped && !pendingKeys.has(target.shipmentId ?? 'order'))
           .map((target) => ({
             originName: target.originName ?? '주문 전체',
+            // 입고도 회수 생략 결정도 없는 배송 건은 제작 대기보다 입고 안내가 먼저다(입고 전에는 제작 여부와 무관하게 회수가 필요하다).
             reason: decisionKeys.has(target.shipmentId ?? 'order') ? ADMIN_CLAIM_BULK_RESHIP_DECISION_REASON
-              : target.productionPending ? ADMIN_CLAIM_BULK_RESHIP_PRODUCTION_REASON : ADMIN_CLAIM_BULK_RESHIP_COLLECTION_REASON,
+              : (target.collectionTracked ? target.collectedAt === null : detail.claim.stage !== 'collected') && target.waiver === null
+                ? (adminClaimShipmentPartiallyReceived(detail.claim, target.shipmentId) ? ADMIN_CLAIM_BULK_RESHIP_PARTIAL_REASON : ADMIN_CLAIM_BULK_RESHIP_COLLECTION_REASON)
+                : ADMIN_CLAIM_BULK_RESHIP_PRODUCTION_REASON,
           })),
       ];
       const rows = pending.filter((target) => target.collected || target.waived).map((target) => ({
