@@ -5,11 +5,11 @@ import ExcelJS from 'exceljs';
 import {encryptAdminWorkbook} from '@/lib/admin/encrypted-workbook.server';
 import {GIMPO_EXPORT_HEADERS,SEOWON_EXPORT_HEADERS} from '@/lib/admin/warehouse-templates';
 import {SEOWON_REPLY_REASONS} from '@/lib/admin/seowon-exchange';
-const mocks = vi.hoisted(() => ({ auth: vi.fn(), rpc: vi.fn(), enqueue: vi.fn(), carriers: vi.fn(), refresh: vi.fn(), origins: vi.fn(), lookup: vi.fn() }));
+const mocks = vi.hoisted(() => ({ auth: vi.fn(), rpc: vi.fn(), enqueue: vi.fn(), carriers: vi.fn(), refresh: vi.fn(), origins: vi.fn() }));
 vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: mocks.auth }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ rpc: mocks.rpc,
   from: (table: string) => table === 'order_items' || table === 'order_shipment_items'
-    ? { select: () => ({ in: async () => mocks.lookup(table) }) }
+    ? (() => { throw new Error(`사용자 세션으로 ${table}를 직접 읽으면 물류 계정은 RLS에 막힌다`); })()
     : ({ select: () => ({ eq: (_column: string, template: string) => ({ eq: async () => mocks.origins(template) }) }) }) }) }));
 vi.mock('@/lib/orders/shipment.server', () => ({ getShippingCarrierRegistry: mocks.carriers }));
 vi.mock('@/lib/email/transactional.server',()=>({sendOrderShippedEmail:vi.fn(),sendOrderConfirmationEmail:vi.fn()}));
@@ -230,19 +230,22 @@ describe('bulk tracking action', () => {
       expect(result.report?.failed).toEqual([{line:2,reference:item,reason:expect.stringContaining('같은 배송 건에 운송장이 빈 줄이 있어 등록하지 않았습니다')}]);
       expect(result.report?.failed[0].reason).not.toContain('형식');
     });
-    it('미리보기는 같은 배송 건에 빈 줄이 있는 채운 줄을 등록할 줄에서 빼 결과와 건수를 맞춘다(T22i)',async()=>{
-      mocks.lookup.mockImplementation(async(table:string)=>table==='order_items'
-        ?{data:[{id:'i1',product_order_number:item},{id:'i2',product_order_number:second}],error:null}
-        :{data:[{order_item_id:'i1',shipment_id:'s1'},{order_item_id:'i2',shipment_id:'s1'}],error:null});
-      const result=await previewAdminOrderTrackingImportAction(csvForm(`${header}\r\n${item},,한진택배,123456789012\r\n${second},,한진택배,\r\n`));
-      expect(result.preview).toMatchObject({format:'ICONS 표준 양식',ready:0,skipped:1,issueCount:1});
-      expect(result.preview?.issues[0]).toMatchObject({line:2,reason:expect.stringContaining('같은 배송 건에 운송장이 빈 줄')});
-      // 다른 배송 건이면 그대로 등록할 줄이다.
-      mocks.lookup.mockImplementation(async(table:string)=>table==='order_items'
-        ?{data:[{id:'i1',product_order_number:item},{id:'i2',product_order_number:second}],error:null}
-        :{data:[{order_item_id:'i1',shipment_id:'s1'},{order_item_id:'i2',shipment_id:'s2'}],error:null});
-      const apart=await previewAdminOrderTrackingImportAction(csvForm(`${header}\r\n${item},,한진택배,123456789012\r\n${second},,한진택배,\r\n`));
-      expect(apart.preview).toMatchObject({ready:1,skipped:1,issueCount:0});
+    it('미리보기는 같은 배송 건에 빈 줄이 있는 채운 줄을 등록할 줄에서 빼 결과와 건수를 맞춘다 — 물류 계정과 주매니저 모두(T22i·QA2)',async()=>{
+      const linkRpc=(shipments:[string,string])=>mocks.rpc.mockImplementation(async(name:string)=>name==='admin_tracking_reply_shipment_links'
+        ?{error:null,data:[{reference:item.toLowerCase(),shipmentId:shipments[0]},{reference:second.toLowerCase(),shipmentId:shipments[1]}]}
+        :{error:{message:'unexpected'},data:null});
+      for(const role of ['logistics','primary'] as const){
+        mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: role }, role: 'staff', isStaff: true, operatorAccess: configuredOperatorAccessFixture(role) });
+        linkRpc(['s1','s1']);
+        const result=await previewAdminOrderTrackingImportAction(csvForm(`${header}\r\n${item},,한진택배,123456789012\r\n${second},,한진택배,\r\n`));
+        expect(result.preview).toMatchObject({format:'ICONS 표준 양식',ready:0,skipped:1,issueCount:1});
+        expect(result.preview?.issues[0]).toMatchObject({line:2,reason:expect.stringContaining('같은 배송 건에 운송장이 빈 줄')});
+        expect(mocks.rpc).toHaveBeenCalledWith('admin_tracking_reply_shipment_links',{p_references:expect.arrayContaining([item,second])});
+        // 다른 배송 건이면 그대로 등록할 줄이다.
+        linkRpc(['s1','s2']);
+        const apart=await previewAdminOrderTrackingImportAction(csvForm(`${header}\r\n${item},,한진택배,123456789012\r\n${second},,한진택배,\r\n`));
+        expect(apart.preview).toMatchObject({ready:1,skipped:1,issueCount:0});
+      }
     });
     it('표준 양식 CSV는 256KB를 넘어도 받고, 일반 세 칸 CSV는 종전 한도를 유지하며 그대로 처리한다',async()=>{
       const padding='합성 메시지 '.repeat(50);

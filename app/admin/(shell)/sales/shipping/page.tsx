@@ -18,9 +18,11 @@ export default async function AdminSalesShippingPage({searchParams}:{searchParam
   const previewId=canReadOrders?adminOrderPreviewId(params.orderId):null;
   const [data,preview]=await Promise.all([getShipmentConsoleData(filters,'shipping'),previewId?loadAdminOrderPreview(auth,previewId):Promise.resolve(null)]);
   const registered=params.registered;
+  const extra=params.extra;
+  const registeredExtraCount=typeof extra==='string'&&/^\d{1,4}$/.test(extra)&&Number(extra)>=1&&Number(extra)<=1000?Number(extra):null;
   const registeredCount=typeof registered==='string'&&/^\d{1,4}$/.test(registered)&&Number(registered)>=1&&Number(registered)<=1000?Number(registered):null;
   return <>
-    <ShipmentConsoleScreen data={data} registeredCount={registeredCount} canManageSales={canManageSales} canReadOrders={canReadOrders}/>
+    <ShipmentConsoleScreen data={data} registeredCount={registeredCount} registeredExtraCount={registeredExtraCount} canManageSales={canManageSales} canReadOrders={canReadOrders}/>
     {previewId&&preview?<OrderPreviewPopup key={previewId} actorId={auth.user.id} closeHref={shipmentConsoleHref('shipping',filters)} orderId={previewId} preview={preview} canManageSales={canManageSales} canReadOrders={canReadOrders}/>:null}
   </>;
 }

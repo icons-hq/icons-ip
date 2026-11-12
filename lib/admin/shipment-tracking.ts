@@ -1,5 +1,5 @@
 import { isUuid } from '@/lib/uuid';
-import { isTrackingEventStatus, type TrackingEventStatus } from '@/lib/fulfillment/tracking/types';
+import { isTrackingEventStatus, TRACKING_EVENT_STATUS_LABELS, type TrackingEventStatus } from '@/lib/fulfillment/tracking/types';
 
 /**
  * 배송현황의 추가 운송장·자동 배송완료 표시(`admin_shipment_tracking_summaries`, QNA-019·QNA-028).
@@ -75,4 +75,15 @@ export function parseShipmentTrackingSummaries(value: unknown, ids: readonly str
     };
   }
   return { autoDelivery: value.autoDelivery, shipments };
+}
+
+/**
+ * 배송현황 추적 표시 문구(QA2 물류). 최근 이벤트가 '배달 완료'여도 도착하지 않은 운송장이 남아 있으면(도착 n/m, n<m)
+ * 배송 건은 아직 도착하지 않았으므로 '이동 중'으로 읽힌다 — 자동 배송완료는 모든 운송장이 도착해야 한다.
+ */
+export function trackingProgressLabel(progress: Pick<ShipmentTrackingProgress, 'latestStatus' | 'delivered' | 'total'>): string {
+  const allArrived = progress.total > 0 && progress.delivered >= progress.total;
+  const status = progress.latestStatus === 'delivered' && !allArrived ? '이동 중'
+    : progress.latestStatus ? TRACKING_EVENT_STATUS_LABELS[progress.latestStatus] : '기록 없음';
+  return `택배 추적 ${status} · 도착 ${progress.delivered}/${progress.total}`;
 }

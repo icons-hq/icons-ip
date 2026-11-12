@@ -123,6 +123,14 @@ describe('배송 건 콘솔',()=>{
   expect(transit).not.toContain('운송장 확인 필요');
   expect(transit).not.toContain('선택 배송완료');
  });
+ it('재고 부족 부분 취소가 진행 중인 배송 건은 발송 대기 행에 표시하고 선택을 막되 주문 확인은 유지한다(QA2)',()=>{
+  const held={...row,partialCancelInProgress:true};
+  const ready=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[held]}}/>);
+  expect(ready).toContain('부분 취소 진행 중');expect(ready).not.toContain(`aria-label="배송 건 ${row.id.slice(-8).toUpperCase()} 선택"`);
+  expect(renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[row]}}/>)).not.toContain('부분 취소 진행 중');
+  const incoming=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,filters:{...base.filters,tab:'new'},rows:[held]}}/>);
+  expect(incoming).toContain(`aria-label="배송 건 ${row.id.slice(-8).toUpperCase()} 선택"`);
+ });
  it('실재고가 미할당된 예약 배송 건은 출고 파일 선택을 막고 주문 확인은 유지한다',()=>{
   const held={...row,preorderReady:false};
   const ready=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[held]}}/>);
@@ -405,5 +413,9 @@ describe('배송현황 추가 운송장·택배 추적 표시 (QNA-019·QNA-028)
    expect(transit).toContain('택배 추적 배송 출발 · 도착 1/2');expect(transit).toContain('자동 배송완료 보류');expect(transit).toContain('택배 추적이 켜져 있습니다');
    const done=shipping([{...delivered,trackingSummary:{extraTrackings:[],deliveredBy:'tracking',tracking:null}},{...delivered,id:'60000000-0000-4000-8000-000000000003',trackingSummary:{extraTrackings:[],deliveredBy:'manual',tracking:null}}],true,'delivered');
    expect(done).toContain('자동 확인 · 택배 추적');expect(done).toContain('수동 처리');
+  });
+  it('도착하지 않은 운송장이 있으면 최근 이벤트가 배달 완료여도 이동 중으로 보인다(QA2)',()=>{
+   const html=shipping([{...shipped,trackingSummary:{extraTrackings:[extra],deliveredBy:null,tracking:{total:2,delivered:1,latestStatus:'delivered',latestAt:'2026-11-11T03:00:00Z',held:false}}}],true);
+   expect(html).toContain('택배 추적 이동 중 · 도착 1/2');expect(html).not.toContain('배달 완료 · 도착 1/2');
   });
 });

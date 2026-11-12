@@ -31,6 +31,10 @@ export async function getShipmentConsoleData(filters:ShipmentConsoleFilters,surf
  const trackingResult=surface==='shipping'&&ids.length?await client.rpc('admin_shipment_tracking_summaries',{p_ids:ids}):null;
  const tracking=trackingResult?parseShipmentTrackingSummaries(trackingResult.data,ids):null;
  if(trackingResult&&(trackingResult.error||!tracking))throw new Error('운송장 정보를 확인하지 못했습니다. 목록을 새로고침해주세요.');
+ // 발송 대기 행의 '부분 취소 진행 중' 표시(재고 부족 부분 취소가 결제사 확인 중이면 출고지시가 막힌다). 배송 건 id만 읽는다.
+ const flagged=surface==='dispatch'&&ids.length?await client.rpc('admin_shipment_partial_cancel_flags',{p_ids:ids}):null;
+ // 표시 보조일 뿐 출고 차단은 DB가 한다 — 읽지 못하면 표시 없이 목록을 그대로 보인다.
+ const partialCancelIds=new Set<string>(!flagged?.error&&Array.isArray(flagged?.data)?(flagged!.data as unknown[]).filter((id):id is string=>typeof id==='string'):[]);
  const rows=result.data.rows.map((row:unknown)=>{
   if(!deliveryObject(row))throw new Error('배송 건 목록을 불러오지 못했습니다.');
   const rawPack=packing.data[row.id as string];const pack=rawPack===null?null:parseShipmentPackSummary(rawPack);
@@ -43,7 +47,7 @@ export async function getShipmentConsoleData(filters:ShipmentConsoleFilters,surf
   if(surface!=='dispatch')return {...row,delivery,pack,collect:collectSummary,production:productionSummary,...(tracking?{trackingSummary:tracking.shipments[row.id as string]}:{})};
   const delayNotice=parseShipmentDelayNotice(row.delayNotice);
   if(!delayNotice)throw new Error('지연 안내 상태를 확인하지 못했습니다. 목록을 새로고침해주세요.');
-  return {...row,delivery,delayNotice,pack,collect:collectSummary,production:productionSummary};
+  return {...row,delivery,delayNotice,pack,collect:collectSummary,production:productionSummary,...(partialCancelIds.has(row.id as string)?{partialCancelInProgress:true}:{})};
  });
  const originRows=(origins.data??[]) as {id:string;name:string;export_template?:string;is_active?:boolean;default_carrier?:string|null}[];
  return {...result.data,rows,surface,filters,pageSize,carriers,...(tracking?{autoDelivery:tracking.autoDelivery}:{}),

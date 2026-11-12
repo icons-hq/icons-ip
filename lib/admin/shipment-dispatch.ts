@@ -37,6 +37,8 @@ export interface ShipmentConsoleRow {
  /** 착불 배송비와 착불 수납 정보(읽기 전용). 착불이 없으면 null이다. 출고 전용 운영자에게도 보인다(2026-11-12 "착불 금액은 보이게"). */
  collect?:import('./shipment-collect').ShipmentCollectSummary|null;
  production?:import('@/lib/order-production').ShipmentProductionSummary;
+ /** 재고 부족 부분 취소가 결제사 확인 중인 주문의 배송 건(QA2 물류). 출고지시·발송이 막힌다. 금액은 담지 않는다. */
+ partialCancelInProgress?:boolean;
  /** 배송현황만: 추가 운송장(QNA-019)과 스위치가 켜진 때의 자동 배송완료 표시(QNA-028). */
  trackingSummary?:import('./shipment-tracking').ShipmentTrackingSummary;
 }
@@ -112,7 +114,7 @@ export function isParcelShipment(row:Pick<ShipmentConsoleRow,'delivery'>):boolea
 export function shipmentConsoleSelectable(row:ShipmentConsoleRow,tab:ShipmentConsoleTab):boolean{
  if(tab==='new')return true; // Order confirmation remains shared by every fulfillment method.
  if(tab==='delivered'||!isParcelShipment(row))return false;
- return tab==='transit'||row.preorderReady!==false&&row.production?.ready!==false;
+ return tab==='transit'||row.preorderReady!==false&&row.production?.ready!==false&&row.partialCancelInProgress!==true;
 }
 /** 배송방법 필터로 퀵·방문수령·직접배송·화물배송 중 한 방법만 모아 본 목록. 택배 일괄 처리가 없어 그 건을 택배 외 일괄 발송처리용으로 고른다. */
 export function shipmentConsoleNonParcelBatch(tab:ShipmentConsoleTab,method?:FulfillmentMethod):boolean{

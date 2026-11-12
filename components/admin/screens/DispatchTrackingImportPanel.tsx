@@ -54,6 +54,8 @@ export function DispatchTrackingImportPanel({ carriers, originId, shippingHref =
         const [path, query] = shippingHref.split('?');
         const params = new URLSearchParams(query);
         params.set('registered', String(result.report.succeeded.length));
+        // 분리배송 추가 운송장을 함께 저장했다는 안내가 이동 뒤 화면까지 이어지게 한다(QA2 물류).
+        if (result.report.extraTrackings) params.set('extra', String(result.report.extraTrackings));
         router.push(`${path}?${params}`);
       }
       return result;

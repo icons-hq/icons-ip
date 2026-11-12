@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseShipmentTrackingSummaries } from './shipment-tracking';
+import { parseShipmentTrackingSummaries, trackingProgressLabel } from './shipment-tracking';
 
 const extra = { id: '00000000-0000-4000-8000-0000000000e1', carrier: 'epost', trackingNumber: 'XT10000002', source: 'warehouse_reply', createdAt: '2026-11-12T01:00:00Z' };
 const progress = { total: 2, delivered: 1, latestStatus: 'out_for_delivery', latestAt: '2026-11-12T03:00:00Z', held: false };
@@ -24,5 +24,14 @@ describe('배송현황 추가 운송장·추적 표시 응답', () => {
       { autoDelivery: true, shipments: { a: { extraTrackings: [], deliveredBy: null, tracking: { ...progress, delivered: 3 } } } },
       { autoDelivery: true, shipments: { a: { extraTrackings: [], deliveredBy: null, tracking: { ...progress, latestStatus: 'teleported' } } } },
     ]) expect(parseShipmentTrackingSummaries(broken, ['a'])).toBeNull();
+  });
+});
+
+describe('trackingProgressLabel', () => {
+  it('도착하지 않은 운송장이 남아 있으면 최근 이벤트가 배달 완료여도 이동 중으로 읽힌다', () => {
+    expect(trackingProgressLabel({ latestStatus: 'delivered', delivered: 1, total: 2 })).toBe('택배 추적 이동 중 · 도착 1/2');
+    expect(trackingProgressLabel({ latestStatus: 'delivered', delivered: 2, total: 2 })).toBe('택배 추적 배달 완료 · 도착 2/2');
+    expect(trackingProgressLabel({ latestStatus: 'out_for_delivery', delivered: 1, total: 2 })).toBe('택배 추적 배송 출발 · 도착 1/2');
+    expect(trackingProgressLabel({ latestStatus: null, delivered: 0, total: 1 })).toBe('택배 추적 기록 없음 · 도착 0/1');
   });
 });

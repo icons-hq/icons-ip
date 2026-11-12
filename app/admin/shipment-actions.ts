@@ -47,7 +47,7 @@ function exportInputError(format:unknown,layout:unknown,credentials?:ExportCrede
 async function exportShipments(client:Client,keys:string[],format:'xlsx'|'csv',layout:ShipmentExportLayout,credentials?:ExportCredentials,note='',readsOrderAmounts=true):Promise<ExportResult>{
  const result=await client.rpc(layout==='smartstore'?'admin_smartstore_shipment_export':'admin_shipment_export',{p_ids:keys});
  const exportError=result.error?.message??'';
- if(result.error||!result.data)return {error:exportError.startsWith('shipment_pack_')||exportError.startsWith('production_')||['shipment_item_export_mismatch','shipment_price_allocation_missing'].includes(exportError)?shipmentMutationError(exportError):'발송 대기 상태와 취소 요청을 확인해주세요. 출고지시를 만들지 못했습니다.'};
+ if(result.error||!result.data)return {error:exportError.startsWith('shipment_pack_')||exportError.startsWith('production_')||['shipment_item_export_mismatch','shipment_price_allocation_missing'].includes(exportError)?shipmentMutationError(exportError):exportError==='order cancellation in progress'?'재고 부족 부분 취소 또는 취소 요청이 진행 중인 주문이 포함되어 있어 출고지시를 만들지 못했습니다. 취소 처리가 끝난 뒤 다시 시도해주세요.':'발송 대기 상태와 취소 요청을 확인해주세요. 출고지시를 만들지 못했습니다.'};
  let data=result.data as ShipmentExportData;
  // 버전 1 할인 주문의 품목 금액은 거래확정 엑셀과 같은 공통 배분으로 채운다(10/14 회의 A5).
  // 1014-084 사용자 결정 "수령인 정보만": 주문 조회 권한(sales.read)이 없는 출고 전용 운영자가 받는 출고지시 파일은 어느 양식이든
