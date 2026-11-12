@@ -1,7 +1,7 @@
 import ExcelJS from 'exceljs';
 import { findCountryName } from './country-names';
 import { describe, expect, it } from 'vitest';
-import { emptyGoodsKcWorkbookRow, GOODS_KC_WORKBOOK_HEADERS, GOODS_KC_WORKBOOK_LEGACY_HEADERS, GOODS_KC_WORKBOOK_SHEET } from './goods-kc-workbook';
+import { emptyGoodsKcWorkbookRow, GOODS_KC_WORKBOOK_LEGACY_HEADERS, GOODS_KC_WORKBOOK_SHEET } from './goods-kc-workbook';
 import { buildGoodsWorkbook, parseGoodsWorkbookWithKc } from './goods-workbook-file';
 import { emptyGoodsCustomInputWorkbookRow, exportGoodsCustomInputWorkbookRows } from './goods-custom-input-workbook';
 import {
@@ -14,7 +14,6 @@ import {
   GOODS_WORKBOOK_V3_VERSION,
   GOODS_WORKBOOK_V4_VERSION,
   GOODS_WORKBOOK_V7_VERSION,
-  GOODS_WORKBOOK_VERSION,
   goodsWorkbookLayout,
   partitionGoodsExports,
   planGoodsWorkbookImport,
