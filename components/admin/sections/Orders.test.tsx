@@ -21,6 +21,8 @@ const orderActions = vi.hoisted(() => ({
 }));
 
 vi.mock('@/app/admin/order-actions', () => orderActions);
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock('@/app/admin/shipment-tracking-actions', () => ({ addShipmentExtraTrackingAction: vi.fn(), removeShipmentExtraTrackingAction: vi.fn() }));
 
 const ORDER_ID = '11111111-1111-4111-8111-111111111111';
 const SHIPMENT_ID = '00000000-0000-4000-8000-000000044701';
@@ -738,10 +740,22 @@ describe('OrdersSection', () => {
     expect(html).toContain('data-confirm="운송장번호를 수정할까요? 변경 이력이 감사 로그에 남습니다."');
   });
 
+  it('운송장 수정 아래에서 배송 건의 추가 운송장을 보고 고친다(QNA-019)', () => {
+    const none = renderToStaticMarkup(<OrdersSection data={orderData({ status: 'shipping', shipments: [shipmentFixture()] })} />);
+    expect(none).toMatch(/<details class="group rounded-lg border px-3 py-2"><summary[^>]*>추가 운송장<svg/);
+    expect(none).toContain('붙은 추가 운송장이 없습니다.');
+    const extra = { id: '00000000-0000-4000-8000-0000000000e1', carrier: 'hanjin', carrierLabel: '한진택배', trackingNumber: '223456789012', trackingUrl: 'https://carrier.example.test/track?no=223456789012' };
+    const html = renderToStaticMarkup(<OrdersSection data={orderData({ status: 'shipping', shipments: [shipmentFixture({ extraTrackings: [extra] })] })} />);
+    expect(html).toMatch(/<details class="group rounded-lg border px-3 py-2" open=""><summary[^>]*>추가 운송장 1개<svg/);
+    expect(html).toContain('223456789012');
+    expect(html).toContain('추가 운송장 저장');
+  });
+
   it('배송 전 주문에는 운송장 수정 폼을 노출하지 않는다', () => {
     const html = renderToStaticMarkup(<OrdersSection data={orderData()} />);
 
     expect(html).not.toContain('운송장 수정');
+    expect(html).not.toContain('추가 운송장');
   });
   it('퀵·방문수령은 운송장을 요구하지 않고 필터를 보존한 주문 상세 인계 확인으로 연결한다', () => {
     const html = renderToStaticMarkup(<OrdersSection data={orderData({ status: 'shipping', shipments: [shipmentFixture({
