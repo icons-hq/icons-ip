@@ -309,7 +309,10 @@ export async function signInWithSocialAction(
 
   const next = safeNextPath(formData.get('next'));
   const origin = await requestOrigin();
-  const supabase = await createClient();
+  /* '로그인 상태 유지'(SHEET-005)를 소셜 로그인에도 적용한다 — 끄고 소셜 버튼을 누르면 콜백이 만드는 세션도 브라우저 세션
+     쿠키다(lib/auth/callback.server.ts). PKCE 확인값 쿠키도 같은 선택으로 쓴다. */
+  const keepSignedIn = socialKeepSignedInFrom(formData);
+  const supabase = await createClient({ sessionOnly: !keepSignedIn });
   /* 카카오톡 채널 스위치가 켜졌을 때만 카카오 로그인에 채널 관계 동의항목(plusfriends)을 더 요청한다 — 동의 화면에
      채널 추가 항목이 보이고, 친구 추가 쿠폰을 확인할 수 있다(1014-014). 꺼져 있으면 요청은 예전과 같다. */
   const channelScope = provider === 'kakao' && kakaoChannelConfig() ? KAKAO_CHANNEL_LOGIN_SCOPE : null;
@@ -325,6 +328,7 @@ export async function signInWithSocialAction(
   }
 
   await rememberAuthNextPath(origin, next, 'oauth', Date.now(), secret);
+  await rememberSessionPersistence(keepSignedIn);
   redirect(data.url);
 }
 
@@ -360,10 +364,16 @@ export async function linkKakaoAccountAction(): Promise<AuthActionState> {
  * '로그인 상태 유지'(SHEET-005 — MD-0004 '로그인 정보 저장', 결정 "상태 유지 체크 추가"). 로그인 화면의 체크(기본 체크)는
  * keepSignedIn=1 로 온다. 체크하면 지금처럼 세션을 400일 유지하고, 끄면 이 브라우저에 '유지하지 않음' 표시(세션 쿠키)를 남겨
  * 세션 쿠키도 브라우저 세션 쿠키로 쓴다 — 브라우저를 닫으면 로그아웃된다(lib/supabase/session-persistence.ts).
- * 이메일 로그인 폼의 항목이다(카페24 회원 로그인 폼과 같은 자리). 소셜 로그인 세션은 OAuth 콜백이 쓰므로 지금처럼 유지된다.
+ * 체크 칸은 이메일 로그인 폼 안에 있고, 같은 화면의 소셜 로그인도 이 선택을 따른다(오케스트레이터 결정 11/12 — 끄고 소셜 버튼을
+ * 누른 사람도 같은 선택을 기대하고, 공용 PC 개인정보 보호 쪽이 안전). 소셜 세션은 OAuth 콜백이 쓰므로 표시 쿠키로 넘긴다.
  */
 function keepSignedInFrom(formData: FormData): boolean {
   return formData.get('keepSignedIn') === '1';
+}
+
+/** 소셜 폼은 체크 칸이 없어 화면의 선택을 숨은 칸(keepSignedIn=1|0)으로 보낸다. 값이 없는 호출은 기본값(유지)이다. */
+function socialKeepSignedInFrom(formData: FormData): boolean {
+  return formData.get('keepSignedIn') !== '0';
 }
 
 async function rememberSessionPersistence(keepSignedIn: boolean) {

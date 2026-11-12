@@ -494,6 +494,8 @@ export function Login({ initialError, initialMessage, initialMode, isConfigured,
             <p className="wc-auth__social-sub">처음이라면 소셜 계정으로 바로 가입돼요.</p>
             <form action={socialAction} className="wc-auth__social-row">
               <input type="hidden" name="next" value={next} />
+              {/* '로그인 상태 유지'(SHEET-005)는 소셜 로그인에도 적용한다 — 위 이메일 폼의 체크 상태를 함께 보낸다(가입 화면은 체크 칸이 없어 기본값 유지). */}
+              <input type="hidden" name="keepSignedIn" value={keepSignedIn ? '1' : '0'} />
               <button
                 aria-label="Google로 계속하기"
                 className="wc-auth__social-btn"

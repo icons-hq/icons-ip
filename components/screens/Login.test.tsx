@@ -229,6 +229,18 @@ describe('Login 이메일 저장', () => {
     expect(render({ initialMode: 'reset' })).not.toContain('로그인 상태 유지');
   });
 
+  /* 같은 화면의 소셜 로그인도 이 선택을 따른다(오케스트레이터 결정 11/12) — 소셜 폼이 체크 상태를 숨은 칸으로 함께 보낸다.
+     가입 화면에는 체크 칸이 없어 기본값(유지)을 보낸다. */
+  it('소셜 로그인 폼이 로그인 상태 유지 선택을 숨은 칸(keepSignedIn)으로 함께 보낸다', () => {
+    for (const mode of ['signin', 'signup'] as const) {
+      const html = render({ initialMode: mode });
+      const start = html.indexOf('wc-auth__social-row');
+      expect(start, mode).toBeGreaterThan(-1);
+      const social = html.slice(start, html.indexOf('</form>', start));
+      expect(social, mode).toMatch(/<input type="hidden" name="keepSignedIn" value="1"\/>/);
+    }
+  });
+
   describe('저장소', () => {
     let store: Map<string, string>;
     beforeEach(() => {
