@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { GOOD_REFERENCE_LIMIT, isGoodReferenceHeader, parseGoodReferenceLines } from './good-references';
 
 describe('전시 상품 여러 줄 붙여넣기(1014-112)', () => {
-  it('URL은 상품번호로, 코드·상품번호는 그대로 입력 순서대로 읽는다', () => {
+  it('주소는 상품 URL 값(주소 끝)으로, 판매자상품코드·상품 URL 값은 그대로 입력 순서대로 읽는다', () => {
     const parsed = parseGoodReferenceLines(['https://iconsip.com/shop/maple-keyring', 'GC-0001', '/shop/hongsil-card?x=1', 'plain-good-id'].join('\n'));
     expect(parsed.refs).toEqual(['maple-keyring', 'GC-0001', 'hongsil-card', 'plain-good-id']);
     expect(parsed.invalid).toEqual([]);

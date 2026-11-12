@@ -46,8 +46,8 @@ export async function resolveGoodReferences(refs: string[]): Promise<GoodReferen
 }
 
 /**
- * 저장된 전시 구성을 다시 열 때 상품번호로 이름·판매자상품코드·고객 화면에 보이지 않는 이유만 읽는다(admin_goods_display_visibility).
- * 담기용 후보(가격·재고·판매 지표)를 계산하지 않는 가벼운 읽기다. 없는 상품번호는 결과에 없다.
+ * 저장된 전시 구성을 다시 열 때 상품 URL로 이름·판매자상품코드·고객 화면에 보이지 않는 이유만 읽는다(admin_goods_display_visibility).
+ * 담기용 후보(가격·재고·판매 지표)를 계산하지 않는 가벼운 읽기다. 없는 상품 URL은 결과에 없다.
  */
 export async function readGoodsDisplayVisibility(ids: string[]): Promise<GoodDisplayVisibilityRow[]> {
   if (!ids.length || ids.length > GOOD_REFERENCE_LIMIT || new Set(ids).size !== ids.length || ids.some(id => id !== id.trim() || !text(id, GOOD_REFERENCE_MAX_LENGTH))) {

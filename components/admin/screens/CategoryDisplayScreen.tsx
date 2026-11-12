@@ -31,7 +31,7 @@ const CHECK = 'flex w-fit items-center gap-2 text-sm';
 const HELP = 'text-xs leading-relaxed text-muted-foreground [overflow-wrap:anywhere]';
 const FIELDSET = 'grid min-w-0 gap-3';
 const SEGMENT = 'h-7 rounded-md px-2.5 text-[0.8rem] text-muted-foreground hover:bg-transparent hover:text-foreground aria-pressed:bg-background aria-pressed:text-primary-soft-foreground aria-pressed:shadow-sm';
-/* 다시 열어도 상품번호만 보이지 않게 저장된 상품의 이름·판매자상품코드·공개 여부를 불러와 보인다(QA1 MD). 확인 전이면 상품번호로 보인다. */
+/* 다시 열어도 상품 URL만 보이지 않게 저장된 상품의 이름·판매자상품코드·공개 여부를 불러와 보인다(QA1 MD). 확인 전이면 상품 URL로 보인다. */
 function SelectedGoods({ ids, info, disabled, onChange }: { ids: string[]; info: ReadonlyMap<string, DisplayGoodInfo>; disabled: boolean; onChange: (ids: string[]) => void }) {
   const [page, setPage] = useState(1), currentPage = Math.min(page, Math.max(1, Math.ceil(ids.length / 20)));
   function move(index: number, delta: number) { const next = [...ids], target = index + delta; if (target < 0 || target >= ids.length) return; [next[index], next[target]] = [next[target], next[index]]; onChange(next); }
