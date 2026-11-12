@@ -11,11 +11,17 @@
 --   출고지별 회수는 입고일 가운데 가장 늦은 날이다(입고일이 없는 옛 확인 행은 확인 시각의 KST 날짜). 레거시 회수는
 --   입고 확인 때 받은 날이다. 환급 기한은 이 날부터 센다. 비어 있으면(옛 기록) 화면은 예전처럼 collected_at을 쓴다.
 -- * collected_at(확인 시각)·collected_by는 그대로 처리 시각·처리자다. 지우거나 덮지 않는다.
--- * 진입점: admin_record_order_claim_origin_collection(uuid,uuid,text,date)·admin_record_order_claim_collection(uuid,text,date)를
+-- * 진입점: admin_record_order_claim_origin_collection(uuid,uuid,text,date)·admin_record_order_claim_collection(uuid,text,date,text)를
 --   새로 둔다. 옛 3·2인자 함수는 입고일 없이(=오늘) 새 함수를 부른다. DB가 앱보다 먼저 배포돼도 옛 앱이 그대로 동작한다.
--- * 회수 생략(ADR-0041)으로 이미 재출고한 배송 건의 늦은 입고 확인은 막지 않는다. 재고는 바꾸지 않는다(재출고 때
---   이미 회수품을 복원하지 않기로 정했다). 운영 상세는 그 배송 건을 collectionWaived로 표시하고, 목록 일괄 회수 확인은
---   그 배송 건을 고르지 않는다.
+-- * 회수 생략(ADR-0041)의 진실원은 결정 표다(private.claim_collection_waived — 재출고 전에 결정만 한 배송 건 포함,
+--   재출고 행의 collection_waived는 사본이다). 결정한 배송 건의 늦은 입고 확인은 클레임이 열려 있는 동안 막지 않는다.
+--   재고는 바꾸지 않는다(재출고는 결정대로 회수품을 복원하지 않는다). 운영 상세는 그 배송 건을 collectionWaived로
+--   표시하고, 목록 일괄 회수 확인은 그 배송 건을 고르지 않는다. 결정한 배송 건이 아직 돌아오지 않았으면 회수 완료
+--   알림은 "모두 입고"가 아니라 일부는 회수 없이 다시 보내드린다고 말한다.
+-- * 클레임의 회수 완료일(collection_received_on)은 회수가 처음 끝날 때마다 확인된 출고지 행에서 다시 센다. 회수 생략
+--   결정이 무효가 돼 단계가 수거중으로 돌아가(collected_at이 빈다) 다시 완료되면 새 완료일로 바뀐다. 앱의 환급 기한은
+--   collected_at이 있을 때만 센다.
+-- * 레거시 회수 확인은 회수 근거 열이 없어, 함께 받은 근거(선택, 1~500자)를 감사 기록에 남긴다.
 -- * 목록(admin_search_order_claims_console)과 운영 상세(admin_order_claim_detail)가 입고일을 함께 돌려준다.
 begin;
 
@@ -77,17 +83,20 @@ begin
  where claim_id=p_claim_id and shipment_id=p_shipment_id;
  insert into public.audit_log(actor_id,action,target,diff) values(actor,'admin.order.claim_origin_collected','order:'||order_key::text,
   jsonb_build_object('claimId',p_claim_id,'shipmentId',p_shipment_id,'originId',collection.origin_id,'items',collection.items_snapshot,'returnAddress',address_value,'evidence',p_evidence,
-   'receivedOn',received,'collectionWaived',exists(select 1 from public.order_claim_reshipments r where r.claim_id=p_claim_id and r.shipment_id=p_shipment_id and r.collection_waived)));
+   'receivedOn',received,'collectionWaived',private.claim_collection_waived(p_claim_id,p_shipment_id)));
  -- 회수 완료는 처음 한 번만 적고 알린다. 회수 생략 배송 건은 회수가 끝난 것으로 보므로(ADR-0041) 그 배송 건이
  -- 늦게 도착해 확인돼도 완료일·단계·알림을 다시 만들지 않는다.
  if claim.collected_at is null and private.claim_collections_complete(p_claim_id) then
+   -- 회수 완료일은 지금 확인된 출고지 행에서 다시 센다. 회수 생략 결정이 무효가 돼 단계가 수거중으로 돌아갔다가 다시
+   -- 완료되는 경우에도 이전 완료일이 남지 않는다.
    update public.order_cancellation_requests set collected_at=clock_timestamp(),
-     collection_received_on=coalesce(collection_received_on,private.claim_collection_received_on(p_claim_id)),
+     collection_received_on=private.claim_collection_received_on(p_claim_id),
      stage=case when stage='collecting' then 'collected' else stage end,updated_at=clock_timestamp() where id=p_claim_id returning * into claim;
    -- 회수 없이 다시 보낸 배송 건이 아직 돌아오지 않았으면 "모두 입고"라고 알리지 않는다(일괄 회수 확인도 같은 경로다).
-   if exists(select 1 from public.order_claim_collections x join public.order_claim_reshipments r on r.claim_id=x.claim_id and r.shipment_id=x.shipment_id and r.collection_waived
-     where x.claim_id=p_claim_id and x.collected_at is null) then
-     perform private.notify_order_claim(p_claim_id,'collected','반송한 굿즈의 입고가 확인됐어요','반송하신 굿즈의 입고가 확인되어 후속 처리를 준비합니다. 일부 상품은 회수 없이 다시 보내드렸어요.');
+   -- 진실원은 결정 표다(재출고 전에 결정만 한 배송 건 포함).
+   if exists(select 1 from public.order_claim_collections x
+     where x.claim_id=p_claim_id and x.collected_at is null and private.claim_collection_waived(x.claim_id,x.shipment_id)) then
+     perform private.notify_order_claim(p_claim_id,'collected','반송한 굿즈의 입고가 확인됐어요','반송하신 굿즈의 입고가 확인되어 후속 처리를 준비합니다. 일부 상품은 회수 없이 다시 보내드려요.');
    else
      perform private.notify_order_claim(p_claim_id,'collected','반송한 굿즈가 모두 입고됐어요','모든 출고지의 입고가 확인되어 후속 처리를 준비합니다.');
    end if;
@@ -109,7 +118,7 @@ end $function$;
 -- ---------------------------------------------------------------------------
 -- 3. 레거시 회수 확인(출고지별 회수 이전 클레임, 입고일)
 -- ---------------------------------------------------------------------------
-create function public.admin_record_order_claim_collection(p_claim_id uuid, p_stage text, p_received_on date)
+create function public.admin_record_order_claim_collection(p_claim_id uuid, p_stage text, p_received_on date, p_evidence text)
  returns text
  language plpgsql
  security definer
@@ -130,6 +139,11 @@ begin
 
   if p_stage not in ('collecting', 'collected') then
     raise check_violation using message = 'invalid collection stage';
+  end if;
+  -- 레거시 회수에는 근거 열이 없어 감사 기록에만 남긴다. 출고지별 회수 확인 근거와 같은 규칙이다.
+  if p_evidence is not null and (p_evidence <> btrim(p_evidence) or char_length(p_evidence) not between 1 and 500
+    or translate(p_evidence, E'\n\r\t', '') ~ '[[:cntrl:]]') then
+    raise check_violation using message = 'invalid_collection_evidence';
   end if;
 
   select (o.created_at at time zone 'Asia/Seoul')::date into v_order_day
@@ -192,7 +206,8 @@ begin
       'claimType', v_claim.claim_type,
       'from', v_claim.stage,
       'to', p_stage,
-      'receivedOn', v_received
+      'receivedOn', v_received,
+      'evidence', p_evidence
     )
   );
 
@@ -219,7 +234,7 @@ create or replace function public.admin_record_order_claim_collection(p_claim_id
 as $function$
 begin
   perform private.require_operator_capability('sales.manage',false);
-  return public.admin_record_order_claim_collection(p_claim_id,p_stage,null::date);
+  return public.admin_record_order_claim_collection(p_claim_id,p_stage,null::date,null::text);
 end $function$;
 
 -- ---------------------------------------------------------------------------
@@ -234,7 +249,7 @@ as $function$
  select coalesce(jsonb_agg(jsonb_build_object('shipmentId',x.shipment_id,'originId',x.origin_id,'originName',x.origin_name_snapshot,
   'returnAddress',x.return_address_snapshot,'items',x.items_snapshot,'collectedAt',x.collected_at,'collectedBy',x.collected_by,'collectorName',(select nickname from public.profiles where id=x.collected_by),'evidence',x.evidence,
   'receivedOn',x.received_on,
-  'collectionWaived',exists(select 1 from public.order_claim_reshipments r where r.claim_id=x.claim_id and r.shipment_id=x.shipment_id and r.collection_waived))
+  'collectionWaived',private.claim_collection_waived(x.claim_id,x.shipment_id))
   order by x.origin_id,x.shipment_id),'[]') from public.order_claim_collections x where x.claim_id=target_claim;
 $function$;
 
@@ -285,15 +300,15 @@ revoke all on function public.admin_record_order_claim_origin_collection(uuid,uu
 grant execute on function public.admin_record_order_claim_origin_collection(uuid,uuid,text,date) to authenticated;
 revoke all on function public.admin_record_order_claim_origin_collection(uuid,uuid,text) from public,anon,authenticated,service_role;
 grant execute on function public.admin_record_order_claim_origin_collection(uuid,uuid,text) to authenticated;
-revoke all on function public.admin_record_order_claim_collection(uuid,text,date) from public,anon,authenticated,service_role;
-grant execute on function public.admin_record_order_claim_collection(uuid,text,date) to authenticated;
+revoke all on function public.admin_record_order_claim_collection(uuid,text,date,text) from public,anon,authenticated,service_role;
+grant execute on function public.admin_record_order_claim_collection(uuid,text,date,text) to authenticated;
 revoke all on function public.admin_record_order_claim_collection(uuid,text) from public,anon,authenticated,service_role;
 grant execute on function public.admin_record_order_claim_collection(uuid,text) to authenticated;
 revoke all on function public.admin_search_order_claims_console(text,text,text,date,date,text,integer,integer,text,text,text) from public,anon,authenticated,service_role;
 grant execute on function public.admin_search_order_claims_console(text,text,text,date,date,text,integer,integer,text,text,text) to authenticated;
 
 select private.register_operator_rpc_contract('public.admin_record_order_claim_origin_collection(uuid,uuid,text,date)'::regprocedure,'sales.manage','write',false);
-select private.register_operator_rpc_contract('public.admin_record_order_claim_collection(uuid,text,date)'::regprocedure,'sales.manage','write',false);
+select private.register_operator_rpc_contract('public.admin_record_order_claim_collection(uuid,text,date,text)'::regprocedure,'sales.manage','write',false);
 select private.register_operator_rpc_contract('public.admin_search_order_claims_console(text,text,text,date,date,text,integer,integer,text,text,text)'::regprocedure,'sales.manage','read',false);
 
 -- 재정의한 함수의 등록된 계약을 새 본문·ACL로 다시 적는다(분류는 기존 행 그대로).

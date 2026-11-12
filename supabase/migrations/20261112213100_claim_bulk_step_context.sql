@@ -11,8 +11,9 @@
 -- * refundBlocker: 일괄 환불 완료 확정에서 뺄 사유 코드(없으면 null). 무통장(계좌 송금 절차)·가상계좌(환불계좌 필요)·
 --   코페이(취소 API 없음, drain 전용 수동 확인)·결제 없음·회수 미완료·보류·종결 등. 최종 판정은 처리 RPC·
 --   오케스트레이터가 다시 한다.
--- * collections: 출고지(배송 건)별 회수 사실. 회수 생략으로 이미 재출고한 배송 건(waived)과 반송 주소가 없는 배송 건은
---   앱이 일괄 회수 확인 대상에서 뺀다.
+-- * collections: 출고지(배송 건)별 회수 사실. 회수 생략을 결정한 배송 건(waived — 진실원은 결정 표
+--   private.claim_collection_waived, 재출고 전에 결정만 한 배송 건 포함)과 반송 주소가 없는 배송 건은 앱이 일괄 회수
+--   확인 대상에서 뺀다.
 -- 운영자(sales.manage)만 부른다. 결제 증빙 원장(private)의 결제수단은 가상계좌 판정에만 쓰고 그대로 내보내지 않는다.
 begin;
 
@@ -54,7 +55,7 @@ begin
   'collectedAt',c.collected_at,'collectionReceivedOn',c.collection_received_on,
   'collections',coalesce((select jsonb_agg(jsonb_build_object('shipmentId',x.shipment_id,'originName',x.origin_name_snapshot,
     'collectedAt',x.collected_at,'receivedOn',x.received_on,
-    'waived',exists(select 1 from public.order_claim_reshipments r where r.claim_id=x.claim_id and r.shipment_id=x.shipment_id and r.collection_waived),
+    'waived',private.claim_collection_waived(x.claim_id,x.shipment_id),
     'returnAddressReady',btrim(x.return_address_snapshot)<>'' or exists(select 1 from public.fulfillment_origins o where o.id=x.origin_id and coalesce(btrim(o.return_address),'')<>''))
     order by x.origin_name_snapshot,x.shipment_id) from public.order_claim_collections x where x.claim_id=c.id),'[]'::jsonb),
   'paymentProvider',pay.provider,'paymentStatus',pay.status,
