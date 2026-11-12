@@ -261,15 +261,30 @@ export function canRejectOrderClaim(
 /**
  * 환급 SLA — 약관 제16조 "굿즈를 반환받은 날부터 3영업일".
  *
- * 기산점은 입고 확인(`collectedAt`)이다. 접수일이 아니다 — 물건이 돌아오기 전에는
- * 환급 의무가 시작하지 않는다. 취소처럼 회수가 없는 유형은 승인 시점이 없으므로
- * 기산점 자체가 없고, 화면은 남은 시간을 지어내지 않는다.
+ * 기산점은 운영자가 회수 확인 때 적은 실제 입고일(`collectionReceivedOn`, KST 날짜)이다(1027T-033).
+ * 확인 버튼을 늦게 누른 시각을 반환일로 대신하지 않는다. 기한은 입고일부터 3영업일째 되는 날의 끝(KST)이다.
+ * 입고일이 없는 옛 기록(2026-11-12 이전 확인)은 예전처럼 입고 확인 시각(`collectedAt`)부터 센다.
+ * 접수일이 아니다 — 물건이 돌아오기 전에는 환급 의무가 시작하지 않는다. 취소처럼 회수가 없는
+ * 유형은 승인 시점이 없으므로 기산점 자체가 없고, 화면은 남은 시간을 지어내지 않는다.
  *
  * 영업일은 주말만 제외한다. 공휴일 달력은 앱에 없고, 있는 척하면 실제보다 빠른
  * 기한을 약속하게 된다.
  */
 const REFUND_SLA_BUSINESS_DAYS = 3;
 const DAY_MS = 24 * 60 * 60 * 1000;
+const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+const RECEIVED_ON_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/** 실제 입고일(KST 날짜)부터 3영업일째 되는 날의 끝(KST 23:59:59.999). 날짜가 아니면 null이다. */
+export function orderClaimRefundDueAt(receivedOn: string): Date | null {
+  const match = RECEIVED_ON_PATTERN.exec(receivedOn);
+  if (!match) return null;
+  const day = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+  if (Number.isNaN(day.getTime()) || day.toISOString().slice(0, 10) !== receivedOn) return null;
+  /* UTC 자정으로 둔 달력 날짜라 getUTCDay가 그 날짜의 요일이다. 기한일 다음 날 KST 자정 1ms 전이 기한이다. */
+  const dueDay = addBusinessDays(day, REFUND_SLA_BUSINESS_DAYS);
+  return new Date(dueDay.getTime() + DAY_MS - KST_OFFSET_MS - 1);
+}
 
 export function addBusinessDays(from: Date, days: number) {
   const result = new Date(from.getTime());
@@ -294,6 +309,8 @@ export function orderClaimSlaState(
     stage: OrderClaimStage;
     collectedAt: string | null;
     completedAt: string | null;
+    /** 회수 확인 때 적은 실제 입고일(KST `YYYY-MM-DD`). 있으면 이 날이 기산점이다. */
+    collectionReceivedOn?: string | null;
   },
   now: Date,
 ): OrderClaimSlaState {
@@ -303,7 +320,7 @@ export function orderClaimSlaState(
   if (input.claimType === 'exchange') {
     return { label: '재출고 대기', tone: 'muted', dueAt: null };
   }
-  if (!input.collectedAt) {
+  if (!input.collectedAt && !input.collectionReceivedOn) {
     return {
       label: input.claimType === 'cancel' ? '회수 없음' : '입고 전',
       tone: 'muted',
@@ -311,12 +328,14 @@ export function orderClaimSlaState(
     };
   }
 
-  const collected = new Date(input.collectedAt);
-  if (Number.isNaN(collected.getTime())) {
-    return { label: '입고 전', tone: 'muted', dueAt: null };
+  let due: Date | null = input.collectionReceivedOn ? orderClaimRefundDueAt(input.collectionReceivedOn) : null;
+  if (!due) {
+    const collected = new Date(input.collectedAt ?? '');
+    if (Number.isNaN(collected.getTime())) {
+      return { label: '입고 전', tone: 'muted', dueAt: null };
+    }
+    due = addBusinessDays(collected, REFUND_SLA_BUSINESS_DAYS);
   }
-
-  const due = addBusinessDays(collected, REFUND_SLA_BUSINESS_DAYS);
   const remaining = due.getTime() - now.getTime();
   if (remaining <= 0) {
     return { label: '기한 초과', tone: 'danger', dueAt: due.toISOString() };

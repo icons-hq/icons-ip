@@ -51,6 +51,8 @@ interface ClaimQueueRow {
   order_total: number | string;
   requested_at: string;
   collected_at: string | null;
+  /** 회수 완료일(실제 입고일, KST 날짜). 2026-11-12 이전 기록은 null이다. */
+  collection_received_on?: string | null;
   completed_at: string | null;
   refund_method: string | null;
   handler_name: string | null;
@@ -100,6 +102,7 @@ function toRow(row: ClaimQueueRow): AdminClaimRow {
     orderTotal: toNumber(row.order_total),
     requestedAt: row.requested_at,
     collectedAt: row.collected_at,
+    collectionReceivedOn: row.collection_received_on ?? null,
     completedAt: row.completed_at,
     refundMethod: (isOrderClaimRefundMethod(row.refund_method)
       ? row.refund_method
@@ -212,6 +215,10 @@ export interface AdminClaimCollection {
   collectedBy: string | null;
   collectorName: string | null;
   evidence: string | null;
+  /** 운영자가 적은 실제 입고일(KST 날짜). 2026-11-12 이전 확인은 null이다. */
+  receivedOn?: string | null;
+  /** 회수 생략(ADR-0041)으로 이미 재출고한 배송 건. 늦게 도착한 입고 확인은 재고를 바꾸지 않는다. */
+  collectionWaived?: boolean;
 }
 
 /** 교환 재출고 대상 배송 건(출고지). shipmentId가 null이면 배송 건 없는 옛 주문 전체다(TKT-166). */
@@ -270,6 +277,8 @@ export interface AdminClaimDetail {
     decidedAt: string | null;
     collectingAt: string | null;
     collectedAt: string | null;
+    /** 회수 완료일(실제 입고일, KST 날짜). 환급 기한은 이 날부터 센다. 옛 기록은 null이라 collectedAt을 쓴다. */
+    collectionReceivedOn?: string | null;
     collectionPolicy: 'origin' | 'legacy' | null;
     collectionComplete: boolean;
     collections: AdminClaimCollection[];
@@ -414,6 +423,7 @@ export async function loadAdminClaimDetail(
       decidedAt: text(claim.decidedAt),
       collectingAt: text(claim.collectingAt),
       collectedAt: text(claim.collectedAt),
+      collectionReceivedOn: text(claim.collectionReceivedOn),
       collectionPolicy: claim.collectionPolicy === 'origin' || claim.collectionPolicy === 'legacy' ? claim.collectionPolicy : null,
       collectionComplete: claim.collectionComplete === true,
       collections: (Array.isArray(claim.collections) ? claim.collections : []).filter(isRecord).map((collection) => ({
@@ -424,6 +434,7 @@ export async function loadAdminClaimDetail(
         })),
         collectedAt: text(collection.collectedAt), collectedBy: text(collection.collectedBy),
         collectorName: text(collection.collectorName), evidence: text(collection.evidence),
+        receivedOn: text(collection.receivedOn), collectionWaived: collection.collectionWaived === true,
       })),
       completedAt: text(claim.completedAt),
       reshipCarrier: text(claim.reshipCarrier),

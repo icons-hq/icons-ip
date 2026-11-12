@@ -231,7 +231,7 @@ describe.each(receiptActions)('$name', (contract) => {
 describe('회수 확인 성공', () => {
   it.each([
     ['collecting', '이 출고지의 회수를 확인했습니다. 남은 출고지를 확인해주세요.'],
-    ['collected', '모든 출고지의 회수를 확인했습니다. 다음 처리 단계와 환급 기한을 확인해주세요.'],
+    ['collected', '모든 출고지의 회수를 확인했습니다. 환급 기한은 가장 늦은 실제 입고일부터 셉니다. 다음 처리 단계를 확인해주세요.'],
   ])('%s 응답은 정규화한 인자와 해당 반품 화면만 재검증한다', async (data, message) => {
     mocks.rpc.mockResolvedValue({ data, error: null });
 
@@ -240,10 +240,12 @@ describe('회수 확인 성공', () => {
       receiptForm('return'),
     );
 
+    /* 입고일 칸이 없는 옛 양식은 null(=DB가 오늘)로 보낸다. */
     expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith('admin_record_order_claim_origin_collection', {
       p_claim_id: CLAIM_ID,
       p_shipment_id: SHIPMENT_ID,
       p_evidence: RAW_EVIDENCE.trim(),
+      p_received_on: null,
     });
     expect(state).toEqual({ message });
     expect(mocks.revalidatePath.mock.calls).toEqual([
@@ -253,6 +255,30 @@ describe('회수 확인 성공', () => {
       ['/admin/sales/dispatch'],
       ['/orders'],
     ]);
+  });
+
+  /* 1027T-033: 확인 버튼을 늦게 누른 시각이 아니라 운영자가 적은 실제 입고일을 함께 남긴다. */
+  it('실제 입고일을 함께 보내고, 미래 날짜는 RPC 전에 거절한다', async () => {
+    mocks.rpc.mockResolvedValue({ data: 'collecting', error: null });
+    const form = receiptForm('return');
+    form.set('receivedOn', '2026-01-02');
+    await recordOrderClaimOriginCollectionAction({}, form);
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_record_order_claim_origin_collection', expect.objectContaining({ p_received_on: '2026-01-02' }));
+
+    mocks.rpc.mockClear();
+    const future = receiptForm('return');
+    future.set('receivedOn', '2999-01-01');
+    const state = await recordOrderClaimOriginCollectionAction({}, future);
+    expect(state.error).toBe('실제 입고일은 오늘이나 그 이전 날짜로 입력해주세요.');
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('DB가 주문일 이전 입고일을 거절하면 운영자 문구로 옮긴다', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'invalid_collection_received_on' } });
+    const form = receiptForm('return');
+    form.set('receivedOn', '2020-01-01');
+    const state = await recordOrderClaimOriginCollectionAction({}, form);
+    expect(state.error).toBe('실제 입고일은 주문일부터 오늘 사이의 날짜로 입력해주세요.');
   });
 
   it('유효하지 않은 배송 건이면 RPC 전에 원문 식별자와 근거를 보존한다', async () => {

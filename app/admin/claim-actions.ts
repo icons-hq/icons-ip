@@ -93,6 +93,7 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string) {
   if (value.includes('claim_collection_conflict')) return '이미 다른 근거로 회수 확인된 배송 건입니다. 이력을 확인해주세요.';
   if (value.includes('claim_collection_not_found')) return '이 클레임에 속한 회수 배송 건을 찾을 수 없습니다.';
   if (value.includes('invalid_collection_evidence')) return '회수 확인 근거를 500자 이내로 입력해주세요.';
+  if (value.includes('invalid_collection_received_on')) return '실제 입고일은 주문일부터 오늘 사이의 날짜로 입력해주세요.';
   if (value.includes('invalid_reshipment_delivery_evidence')) return '교환품 배송완료 확인 근거를 500자 이내로 입력해주세요.';
   if (value.includes('reshipment_delivery_conflict')) return '이미 기록된 배송완료 확인과 다릅니다. 담당자와 근거를 확인해주세요.';
   if (value.includes('claim_not_reshipped') || value.includes('claim_reshipment_not_dispatched')) return '재출고 운송장이 기록된 교환만 배송완료를 확인할 수 있습니다.';
@@ -366,16 +367,18 @@ export async function recordOrderClaimCollectionAction(
   if (!normalized.ok) return { error: normalized.error };
 
   const supabase = await createClient();
+  /* 실제 입고일(1027T-033)은 입고 확인 때만 보낸다. 비우면 DB가 오늘로 적는다. */
   const { error } = await supabase.rpc('admin_record_order_claim_collection', {
     p_claim_id: normalized.value.claimId,
     p_stage: normalized.value.stage,
+    p_received_on: normalized.value.receivedOn,
   });
   if (error) return { error: rpcErrorMessage(error.message, COLLECTION_FAILED) };
 
   revalidateClaimSurfaces(normalized.value.claimId, readClaimType(formData));
   return {
     message: normalized.value.stage === 'collected'
-      ? adminGoodsCopy('반송 굿즈 입고를 확인했습니다. 실제 반환받은 날을 기준으로 환급 기한을 확인해주세요.')
+      ? adminGoodsCopy(`반송 굿즈 입고를 확인했습니다. 환급 기한은 실제 입고일(${normalized.value.receivedOn ?? '오늘'})부터 셉니다.`)
       : '수거중으로 표시했습니다.',
   };
 }
@@ -390,16 +393,18 @@ export async function recordOrderClaimOriginCollectionAction(
   const normalized = normalizeAdminClaimOriginCollectionForm(formData);
   if (!normalized.ok) return fail(normalized.error);
   const supabase = await createClient();
+  /* 실제 입고일(1027T-033)을 함께 남긴다. 비우면 DB가 오늘로 적는다. 환급 기한은 모든 출고지 중 가장 늦은 입고일부터 센다. */
   const { data, error } = await supabase.rpc('admin_record_order_claim_origin_collection', {
     p_claim_id: normalized.value.claimId,
     p_shipment_id: normalized.value.shipmentId,
     p_evidence: normalized.value.evidence,
+    p_received_on: normalized.value.receivedOn,
   });
   if (error) return fail(rpcErrorMessage(error.message, COLLECTION_FAILED));
   if (data !== 'collecting' && data !== 'collected') return fail(COLLECTION_FAILED);
   revalidateClaimSurfaces(normalized.value.claimId, readClaimType(formData));
   return { message: data === 'collected'
-    ? '모든 출고지의 회수를 확인했습니다. 다음 처리 단계와 환급 기한을 확인해주세요.'
+    ? '모든 출고지의 회수를 확인했습니다. 환급 기한은 가장 늦은 실제 입고일부터 셉니다. 다음 처리 단계를 확인해주세요.'
     : '이 출고지의 회수를 확인했습니다. 남은 출고지를 확인해주세요.' };
 }
 

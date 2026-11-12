@@ -11,6 +11,7 @@ import {
   adminClaimReasonOptions,
   adminClaimReasonText,
   adminClaimRejectionPresets,
+  adminClaimTodayKst,
   ADMIN_CLAIM_REASON_OPTIONS,
   ADMIN_CLAIM_REJECTION_PRESETS,
   normalizeAdminClaimCollectionForm,
@@ -18,6 +19,7 @@ import {
   normalizeAdminClaimOperationalFeeForm,
   normalizeAdminClaimDecisionForm,
   normalizeAdminClaimFilters,
+  normalizeAdminClaimReceivedOn,
   normalizeAdminClaimRefundForm,
   normalizeAdminClaimReshipmentForm,
   type AdminClaimFilters,
@@ -30,7 +32,22 @@ describe('출고지별 회수 확인 입력', () => {
   it('정확한 클레임·배송 건과 회수 확인 근거를 받는다', () => {
     expect(normalizeAdminClaimOriginCollectionForm(formData({ claimId: CLAIM_ID, shipmentId,
       evidence: '  창고 회신 R-001: 상품 2개 수량 대조 완료  ' }))).toEqual({ ok: true,
-      value: { claimId: CLAIM_ID, shipmentId, evidence: '창고 회신 R-001: 상품 2개 수량 대조 완료' } });
+      value: { claimId: CLAIM_ID, shipmentId, evidence: '창고 회신 R-001: 상품 2개 수량 대조 완료', receivedOn: null } });
+  });
+  /* 1027T-033: 실제 입고일은 KST 달력 날짜이고, 비우면 DB가 오늘로 적는다. 미래·형식 밖 날짜는 받지 않는다. */
+  it('실제 입고일을 날짜로 받고 미래·형식 밖 값은 거절한다', () => {
+    expect(normalizeAdminClaimOriginCollectionForm(formData({ claimId: CLAIM_ID, shipmentId, evidence: '입고 확인', receivedOn: '2026-01-02' })))
+      .toMatchObject({ ok: true, value: { receivedOn: '2026-01-02' } });
+    for (const receivedOn of ['2999-01-01', '2026-02-30', '2026/01/02', 'yesterday']) {
+      expect(normalizeAdminClaimOriginCollectionForm(formData({ claimId: CLAIM_ID, shipmentId, evidence: '입고 확인', receivedOn })))
+        .toEqual({ ok: false, error: '실제 입고일은 오늘이나 그 이전 날짜로 입력해주세요.' });
+    }
+  });
+  it('KST 오늘은 UTC 날짜가 아니라 한국 날짜다', () => {
+    expect(adminClaimTodayKst(new Date('2026-11-11T15:30:00.000Z'))).toBe('2026-11-12');
+    expect(normalizeAdminClaimReceivedOn('2026-11-12', new Date('2026-11-11T15:30:00.000Z'))).toEqual({ ok: true, value: '2026-11-12' });
+    expect(normalizeAdminClaimReceivedOn('2026-11-13', new Date('2026-11-11T15:30:00.000Z')).ok).toBe(false);
+    expect(normalizeAdminClaimReceivedOn('', new Date())).toEqual({ ok: true, value: null });
   });
   it.each(['', '  ', '가'.repeat(501)])('확인 근거가 비었거나 너무 길면 거절한다', (evidence) => {
     expect(normalizeAdminClaimOriginCollectionForm(formData({ claimId: CLAIM_ID, shipmentId, evidence })).ok).toBe(false);
@@ -41,7 +58,7 @@ describe('출고지별 회수 확인 입력', () => {
   it('여러 줄로 적은 근거를 보존하고 표시할 수 없는 제어문자는 거절한다', () => {
     const evidence = '창고 회신 R-001\n상품 A\t2개 대조 완료';
     expect(normalizeAdminClaimOriginCollectionForm(formData({ claimId: CLAIM_ID, shipmentId, evidence })))
-      .toEqual({ ok: true, value: { claimId: CLAIM_ID, shipmentId, evidence } });
+      .toEqual({ ok: true, value: { claimId: CLAIM_ID, shipmentId, evidence, receivedOn: null } });
     expect(normalizeAdminClaimOriginCollectionForm(formData({ claimId: CLAIM_ID, shipmentId, evidence: `근거${String.fromCharCode(1)}` })).ok).toBe(false);
   });
 });
