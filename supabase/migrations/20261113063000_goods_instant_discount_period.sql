@@ -144,8 +144,9 @@ begin
     where id = coalesce(nullif(target_good->>'previous_id', ''), target_good->>'id') for update;
 
   -- 한 상품에 할인은 하나다: 진행·예정 기간 할인이 있는 상품에 기간 없는 즉시할인(정가 표시)을 새로 걸거나 바꾸지 않는다.
-  -- 이미 함께 있던 상품의 다른 입력 저장은 막지 않는다(정가 값이 그대로면 통과).
-  if target_good ? 'compare_at_price' and coalesce(target_good->>'compare_at_price', '') ~ '^[0-9]{1,10}$' then
+  -- 이미 함께 있던 상품의 다른 입력 저장은 막지 않는다(정가 값이 그대로면 통과). 즉시할인 기간 지시가 있는 저장은 아래에서
+  -- 상품 편집이 다루는 기간 할인을 먼저 멈추거나(none) 정가 표시를 거절한다(period).
+  if not target_good ? 'instant_discount_period' and target_good ? 'compare_at_price' and coalesce(target_good->>'compare_at_price', '') ~ '^[0-9]{1,10}$' then
     target_compare := (target_good->>'compare_at_price')::bigint;
     target_price := case when coalesce(target_good->>'price', '') ~ '^[0-9]{1,10}$' then (target_good->>'price')::bigint
       else previous.price end;
