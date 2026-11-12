@@ -69,5 +69,7 @@ export function goodsDraftError(message?: string): string {
   if (message?.includes('goods_draft_changed')) return '다른 창에서 임시저장이 변경되었습니다. 현재 입력은 유지됩니다. 최신 내용을 불러오거나 새 임시저장으로 저장해주세요.';
   if (message?.includes('goods_draft_not_found')) return '임시저장을 찾을 수 없습니다. 목록을 다시 조회해주세요.';
   if (message?.includes('unverified_artwork')) return '이미지 업로드가 완료되지 않았거나 사용할 수 없습니다. 해당 이미지를 다시 확인해주세요. 입력은 유지됩니다.';
-  return '임시저장 처리 결과를 확인하지 못했습니다. 목록에서 저장 여부를 확인해주세요. 입력은 유지됩니다.';
+  if (message?.includes('invalid_goods_draft')) return '서버가 임시저장 값을 받아들이지 않았습니다(원인 코드 invalid_goods_draft). 상품명 1~100자와 입력 크기를 확인하고, 계속되면 화면을 새로 고친 뒤 운영 담당자에게 알려주세요. 입력은 유지됩니다.';
+  const code = message?.match(/^[a-z][a-z0-9_]{2,60}$/)?.[0];
+  return `임시저장 처리 결과를 확인하지 못했습니다${code ? `(원인 코드 ${code})` : ''}. 목록에서 저장 여부를 확인해주세요. 입력은 유지됩니다.`;
 }
