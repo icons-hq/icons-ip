@@ -43,7 +43,7 @@ import { checkoutDraftReturnHref, directCheckoutCopy, type CheckoutDraft } from 
 import { useDirectCheckoutQuote, useDraftStoreCreditQuote } from './CheckoutDraftQuotes';
 import { CheckoutDirectCoupon } from './CheckoutDirectCoupon';
 import { CheckoutPendingOrderRelease } from './CheckoutPendingOrderRelease';
-import { quoteMayBeBlockedByPendingOrder } from '@/lib/checkout-selection';
+import { mergePendingOrderCauses, pendingOrderCausesFromQuote, quoteMayBeBlockedByPendingOrder } from '@/lib/checkout-selection';
 
 /* 결제 대기 주문의 최소 결제 금액. DB 트리거(orders_korpay_minimum_amount)가 같은 값으로
    막는다 — 쿠폰·적립금은 그 아래로 깎지 않으므로 굿즈 금액+배송비가 기준이다. */
@@ -284,11 +284,16 @@ export function Checkout({
   const unavailable = lines.some(({ good, qty,customInputs }) => (
     !good || Boolean(goodsCustomInputProblem(good.customInputs,customInputs)) || good.stock === 'soldout' || good.stockQty < qty
   ));
-  /* 재고가 모자란 굿즈 — 본인 결제 대기 주문이 그 재고를 잡고 있으면 해소 안내 대상이다(ADR-0030). */
+  /* 결제 대기 주문 해소 안내(ADR-0030)의 원인 조건 — 그 굿즈(옵션)를 담은 주문(재고·회원 누적 한도), 그 쿠폰을 쓴 주문(쿠폰 사용),
+     첫구매 예약만 모든 결제 대기 주문(견적 사유·주문 생성의 첫구매 거절). 재고가 모자란 굿즈는 본인 결제 대기 주문이 잡고 있을 수 있다. */
   const stockGoodIds = [...new Set([
     ...lines.flatMap(({ good, goodId, qty }) => (good && (good.stock === 'soldout' || good.stockQty < qty) ? [goodId] : [])),
     ...(shipping.sales?.lines ?? []).flatMap((line) => (!line.available && line.supply && line.supply.availableQty < line.qty ? [line.goodId] : [])),
   ])];
+  const pendingOrderCauses = mergePendingOrderCauses(
+    shipping.sales ? pendingOrderCausesFromQuote(shipping.sales) : {},
+    { stockGoodIds, firstPurchase: pendingOrder },
+  );
   /*
    * 한 굿즈라도 무통장을 막았으면 주문 전체가 막힌다 — 주문 단위로 선점 창이
    * 정해지므로 품목별로 다른 기한을 줄 수 없다. 서버도 place_order에서 같은
@@ -645,11 +650,7 @@ export function Checkout({
             {draftReturnNeeded ? <> <Link href={draftReturnHref}>{draft?.source === 'direct' ? '굿즈로 돌아가기' : '장바구니로 돌아가기'}</Link></> : null}</p>}
           {/* 결제 대기 주문(다른 탭의 바로구매·장바구니 주문)이 쿠폰·구매 한도·재고를 잡고 있을 수 있다 — 주문서를 열기만 해서는 그
               결제를 끊지 않으므로 실제로 찾았을 때만 그 주문을 알리고, 고객이 확인했을 때만 닫는다(ADR-0030). 경고 글과 나눈 상자다. */}
-          <CheckoutPendingOrderRelease
-            holdsBenefits={pendingOrder || Boolean(shipping.sales && quoteMayBeBlockedByPendingOrder(shipping.sales))}
-            onReleased={retryAfterRelease}
-            stockGoodIds={stockGoodIds}
-          />
+          <CheckoutPendingOrderRelease causes={pendingOrderCauses} onReleased={retryAfterRelease} />
           <button className="btn btn-holo checkout-submit" disabled={submitting || cartPending || couponPending || unavailable || !methodAvailable || !shippingReady || !shipping.sales || Boolean(purchaseProblem) || !creditReady || couponSelectionChanged || draftStale || Boolean(blockingOrderId)}>
             {submitting
               ? '재고를 확인하는 중'

@@ -91,9 +91,77 @@ export function quoteMayBeBlockedByPendingOrder(quote: PendingOrderQuoteSignals)
     || quote.lines.some((line) => line.optionLimit?.reason === 'option_member_limit_exceeded');
 }
 
-/** 거래 런타임 견적의 막힘 가운데 결제 대기 주문이 원인일 수 있는 사유(구매 한도·쿠폰). */
-export function transactionIssuesMayBeBlockedByPendingOrder(issues: readonly { code: string }[]): boolean {
-  return issues.some((issue) => issue.code === 'purchase_limit' || issue.code === 'coupon_unavailable');
+/**
+ * 막힘의 원인일 수 있는 결제 대기 주문을 고르는 조건(ADR-0030). 결제 대기 주문은 그 주문이 담은 굿즈·옵션의 재고와 회원 누적
+ * 한도, 그 주문이 쓴 쿠폰만 잡는다 — 그래서 막힘마다 그 굿즈·옵션·쿠폰을 담은(쓴) 주문만 원인으로 본다. 어느 결제 대기 주문이든
+ * 원인일 수 있는 것은 첫구매 예약뿐이다. 원인 주문이 없으면 화면은 해소 안내 없이 사유만 보인다.
+ */
+export interface PendingOrderCauses {
+  /** 첫구매 쿠폰이 결제 대기 주문에 예약돼 있다(DB coupon_first_purchase_reserved·pending). */
+  readonly firstPurchase?: boolean;
+  /** 이 보유 쿠폰을 쓴 결제 대기 주문(DB coupon_already_used). */
+  readonly userCouponIds?: readonly string[];
+  /** 회원 누적 구매 한도에 걸린 굿즈. */
+  readonly limitGoodIds?: readonly string[];
+  /** 옵션별 회원 누적 한도에 걸린 옵션. */
+  readonly limitVariantIds?: readonly string[];
+  /** 재고가 모자란 굿즈. */
+  readonly stockGoodIds?: readonly string[];
+}
+
+export type PendingOrderCauseKind = 'firstPurchase' | 'coupon' | 'limit' | 'stock';
+
+const NO_IDS: readonly string[] = [];
+
+/** 원인 조건을 합친다(같은 값은 한 번만). */
+export function mergePendingOrderCauses(...causes: readonly PendingOrderCauses[]): PendingOrderCauses {
+  const union = (pick: (cause: PendingOrderCauses) => readonly string[] | undefined) => [...new Set(causes.flatMap((cause) => pick(cause) ?? NO_IDS))].sort();
+  return {
+    firstPurchase: causes.some((cause) => cause.firstPurchase === true),
+    userCouponIds: union((cause) => cause.userCouponIds),
+    limitGoodIds: union((cause) => cause.limitGoodIds),
+    limitVariantIds: union((cause) => cause.limitVariantIds),
+    stockGoodIds: union((cause) => cause.stockGoodIds),
+  };
+}
+
+/** 원인 조건이 하나라도 있는지. 없으면 결제 대기 주문을 읽지도 않는다. */
+export function hasPendingOrderCause(causes: PendingOrderCauses): boolean {
+  return causes.firstPurchase === true || [causes.userCouponIds, causes.limitGoodIds, causes.limitVariantIds, causes.stockGoodIds]
+    .some((ids) => (ids?.length ?? 0) > 0);
+}
+
+/** 원인 조건의 값 비교용 열쇠(효과 의존성). */
+export function pendingOrderCauseKey(causes: PendingOrderCauses): string {
+  const merged = mergePendingOrderCauses(causes);
+  return JSON.stringify([merged.firstPurchase, merged.userCouponIds, merged.limitGoodIds, merged.limitVariantIds, merged.stockGoodIds]);
+}
+
+/** legacy 견적의 사유에서 원인 조건을 읽는다: 쿠폰(첫구매 예약·사용 처리), 회원 누적 한도(굿즈), 옵션 누적 한도(옵션). */
+export function pendingOrderCausesFromQuote(quote: {
+  readonly coupon?: { readonly reason: string | null; readonly userCouponId?: string | null } | null;
+  readonly goods: readonly { readonly goodId: string; readonly reason: string | null }[];
+  readonly lines: readonly { readonly variantId: string; readonly optionLimit?: { readonly reason: string | null } }[];
+}): PendingOrderCauses {
+  const couponReason = quote.coupon?.reason ?? null;
+  return {
+    firstPurchase: couponErrorNeedsPendingOrder(couponReason),
+    userCouponIds: couponReason === 'coupon_already_used' && quote.coupon?.userCouponId ? [quote.coupon.userCouponId] : [],
+    limitGoodIds: quote.goods.flatMap((good) => (good.reason === 'member_purchase_limit_exceeded' ? [good.goodId] : [])),
+    limitVariantIds: quote.lines.flatMap((line) => (line.optionLimit?.reason === 'option_member_limit_exceeded' ? [line.variantId] : [])),
+  };
+}
+
+/** 거래 런타임 견적 이슈에서 원인 조건을 읽는다: 구매 한도(그 굿즈), 쿠폰(지금 고른 쿠폰), 지금 주문할 수 없음(그 굿즈 재고). */
+export function pendingOrderCausesFromTransactionIssues(
+  issues: readonly { readonly code: string; readonly goodId?: string | null }[],
+  selectedUserCouponIds: readonly string[],
+): PendingOrderCauses {
+  return {
+    limitGoodIds: issues.flatMap((issue) => (issue.code === 'purchase_limit' && issue.goodId ? [issue.goodId] : [])),
+    userCouponIds: issues.some((issue) => issue.code === 'coupon_unavailable') ? selectedUserCouponIds : [],
+    stockGoodIds: transactionIssueStockGoodIds(issues),
+  };
 }
 
 /** 거래 런타임 견적이 지금 주문할 수 없다고 한 굿즈(판매기간·재고). 본인 결제 대기 주문이 그 재고를 잡고 있을 수 있다. */
@@ -103,7 +171,7 @@ export function transactionIssueStockGoodIds(issues: readonly { code: string; go
 
 /** 견적이 지금 고른 줄을 옵션별 수량까지 그대로 덮는지. 다른 선택·바뀌기 전 수량의 견적으로 줄을 빼거나 체크를 풀지 않는다. */
 export function quoteCoversSelection(
-  selected: readonly Pick<CartItem, 'goodId' | 'variantId' | 'qty'>[],
+  selected: readonly Pick<CartItem, 'goodId' | 'variantId' | 'qty' | 'customInputs'>[],
   quote: { readonly lines: readonly Pick<GoodsSalesQuoteLine, 'goodId' | 'variantId' | 'qty'>[] },
 ): boolean {
   const chosen = new Map<string, number>();
@@ -187,6 +255,8 @@ export interface QuoteLimitNote {
   readonly lines: ReadonlyMap<string, string>;
   /** 회원 누적 한도처럼 결제 대기 주문이 원인일 수 있다. */
   readonly pendingOrderMayBlock: boolean;
+  /** 결제 대기 주문 원인 조건: 회원 누적 한도에 걸린 굿즈·옵션별 누적 한도에 걸린 옵션. */
+  readonly pendingCauses: PendingOrderCauses;
 }
 
 /**
@@ -199,7 +269,7 @@ export function quoteLimitNotes(
   quote: { readonly lines: readonly GoodsSalesQuoteLine[]; readonly goods: readonly GoodsSalesQuoteGood[] },
   optionName: (item: CartItem) => string,
 ): Map<string, QuoteLimitNote> {
-  const notes = new Map<string, { lines: Map<string, string>; pendingOrderMayBlock: boolean }>();
+  const notes = new Map<string, { lines: Map<string, string>; pendingOrderMayBlock: boolean; limitGoodIds: Set<string>; limitVariantIds: Set<string> }>();
   const quoteLines = new Map(quote.lines.map((line) => [cartItemKey(line.goodId, line.variantId), line]));
   const goods = new Map(quote.goods.map((good) => [good.goodId, good]));
   for (const item of selected) {
@@ -211,12 +281,21 @@ export function quoteLimitNotes(
     const message = goodMessage
       ?? (optionReason ? quoteLineOptionLimitMessage(line, optionName(item)) ?? '옵션 구매 한도를 확인해주세요.' : null);
     if (!message) continue;
-    const note = notes.get(item.goodId) ?? { lines: new Map<string, string>(), pendingOrderMayBlock: false };
+    const note = notes.get(item.goodId)
+      ?? { lines: new Map<string, string>(), pendingOrderMayBlock: false, limitGoodIds: new Set<string>(), limitVariantIds: new Set<string>() };
     note.lines.set(cartLineKey(item), message);
-    note.pendingOrderMayBlock ||= goodMessage ? good?.reason === 'member_purchase_limit_exceeded' : optionReason === 'option_member_limit_exceeded';
+    if (goodMessage ? good?.reason === 'member_purchase_limit_exceeded' : optionReason === 'option_member_limit_exceeded') {
+      note.pendingOrderMayBlock = true;
+      if (goodMessage) note.limitGoodIds.add(item.goodId);
+      else note.limitVariantIds.add(item.variantId);
+    }
     notes.set(item.goodId, note);
   }
-  return notes;
+  return new Map([...notes].map(([goodId, note]) => [goodId, {
+    lines: note.lines,
+    pendingOrderMayBlock: note.pendingOrderMayBlock,
+    pendingCauses: { limitGoodIds: [...note.limitGoodIds], limitVariantIds: [...note.limitVariantIds] },
+  }]));
 }
 
 /** 장바구니 줄 하나의 식별·수량·체크 — 굿즈 줄 집합 서명의 재료. */
@@ -247,6 +326,10 @@ export interface UnpaidCheckoutOrder {
   readonly itemName: string | null;
   readonly itemCount: number;
   readonly goodIds: readonly string[];
+  /** 담긴 옵션(옵션별 누적 한도의 원인 판정). */
+  readonly variantIds: readonly string[];
+  /** 이 주문이 쓴 보유 쿠폰(쿠폰 사용 처리의 원인 판정). */
+  readonly userCouponIds: readonly string[];
   /** 닫을 수 있다. false면 결제 승인을 확인하고 있거나 결과를 알 수 없어 닫지 않는다. */
   readonly releasable: boolean;
 }
@@ -266,6 +349,8 @@ export function parseUnpaidCheckoutOrders(value: unknown): UnpaidCheckoutOrder[]
       || (order.itemName !== null && typeof order.itemName !== 'string')
       || typeof order.itemCount !== 'number' || !Number.isSafeInteger(order.itemCount) || order.itemCount < 0
       || !Array.isArray(order.goodIds) || order.goodIds.some((goodId) => typeof goodId !== 'string')
+      || !Array.isArray(order.variantIds) || order.variantIds.some((variantId) => typeof variantId !== 'string' || !UNPAID_ORDER_ID.test(variantId))
+      || !Array.isArray(order.userCouponIds) || order.userCouponIds.some((couponId) => typeof couponId !== 'string' || !UNPAID_ORDER_ID.test(couponId))
       || typeof order.releasable !== 'boolean') return null;
     orders.push({
       id: order.id.toLowerCase(),
@@ -274,23 +359,50 @@ export function parseUnpaidCheckoutOrders(value: unknown): UnpaidCheckoutOrder[]
       itemName: order.itemName as string | null,
       itemCount: order.itemCount,
       goodIds: order.goodIds as string[],
+      variantIds: (order.variantIds as string[]).map((variantId) => variantId.toLowerCase()),
+      userCouponIds: (order.userCouponIds as string[]).map((couponId) => couponId.toLowerCase()),
       releasable: order.releasable,
     });
   }
   return orders;
 }
 
-/**
- * 지금 막힘의 원인일 수 있는 결제 대기 주문. 쿠폰·첫구매 혜택·회원 누적 한도는 어느 결제 대기 주문이든 잡을 수 있고(holdsBenefits),
- * 재고 부족은 그 굿즈를 담은 주문만 잡는다(stockGoodIds).
- */
-export function relevantUnpaidCheckoutOrders(
-  orders: readonly UnpaidCheckoutOrder[],
-  { holdsBenefits, stockGoodIds }: { holdsBenefits: boolean; stockGoodIds: readonly string[] },
-): UnpaidCheckoutOrder[] {
-  if (holdsBenefits) return [...orders];
-  const stock = new Set(stockGoodIds);
-  return orders.filter((order) => order.goodIds.some((goodId) => stock.has(goodId)));
+/** 이 결제 대기 주문이 지금 막힘의 원인일 수 있는 이유(첫구매 예약·쿠폰·구매 한도·재고). 없으면 원인이 아니다. */
+export function unpaidOrderCauseKinds(order: UnpaidCheckoutOrder, causes: PendingOrderCauses): PendingOrderCauseKind[] {
+  const has = (ids: readonly string[] | undefined, values: readonly string[]) => Boolean(ids?.length) && values.some((value) => ids!.includes(value));
+  const kinds: PendingOrderCauseKind[] = [];
+  if (causes.firstPurchase) kinds.push('firstPurchase');
+  if (has(causes.userCouponIds?.map((id) => id.toLowerCase()), order.userCouponIds)) kinds.push('coupon');
+  if (has(causes.limitGoodIds, order.goodIds) || has(causes.limitVariantIds?.map((id) => id.toLowerCase()), order.variantIds)) kinds.push('limit');
+  if (has(causes.stockGoodIds, order.goodIds)) kinds.push('stock');
+  return kinds;
+}
+
+/** 지금 막힘의 원인일 수 있는 결제 대기 주문 — 그 굿즈·옵션·쿠폰을 담은(쓴) 주문, 첫구매 예약이면 모든 결제 대기 주문. */
+export function relevantUnpaidCheckoutOrders(orders: readonly UnpaidCheckoutOrder[], causes: PendingOrderCauses): UnpaidCheckoutOrder[] {
+  return orders.filter((order) => unpaidOrderCauseKinds(order, causes).length > 0);
+}
+
+const CAUSE_LABELS: Record<PendingOrderCauseKind, string> = { coupon: '쿠폰', firstPurchase: '첫구매 혜택', limit: '구매 한도', stock: '재고' };
+
+/** 받침이 있으면 '을', 없으면 '를'. */
+function objectParticle(word: string): string {
+  const code = word.charCodeAt(word.length - 1) - 0xac00;
+  return code >= 0 && code < 11172 && code % 28 !== 0 ? '을' : '를';
+}
+
+/** 해소 상자의 안내: 원인 주문 건수와 그 주문들이 잡은 것. 첫구매 예약은 어느 주문인지 몰라 '있을 수 있어요'로 말한다. */
+export function unpaidOrderCauseMessage(orders: readonly UnpaidCheckoutOrder[], causes: PendingOrderCauses): string {
+  const kinds = new Set(orders.flatMap((order) => unpaidOrderCauseKinds(order, causes)));
+  const count = orders.length;
+  const only = kinds.size === 1 ? [...kinds][0] : null;
+  if (only === 'coupon') return `결제 대기 주문 ${count}건이 이 쿠폰을 쓰고 있어요.`;
+  if (only === 'firstPurchase') return `결제 대기 주문 ${count}건이 첫구매 혜택을 잡고 있을 수 있어요.`;
+  if (only === 'limit') return `결제 대기 주문 ${count}건이 이 굿즈의 구매 한도를 잡고 있어요.`;
+  if (only === 'stock') return `결제 대기 주문 ${count}건이 이 굿즈의 재고를 잡고 있어요.`;
+  const labels = (['coupon', 'firstPurchase', 'limit', 'stock'] as const).filter((kind) => kinds.has(kind)).map((kind) => CAUSE_LABELS[kind]);
+  const subject = labels.join('·') || '혜택';
+  return `결제 대기 주문 ${count}건이 ${subject}${objectParticle(subject)} 잡고 있${kinds.has('firstPurchase') ? '을 수 있' : ''}어요.`;
 }
 
 /** 확인창의 주문 한 줄 요약 — 첫 굿즈 이름과 나머지 품목 수. */

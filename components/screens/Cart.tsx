@@ -32,9 +32,9 @@ import { goodsSaleUnavailableLabel } from '@/lib/goods-sale-period';
 import { ADULT_GOOD_LABEL } from '@/lib/adult-goods';
 import { adultVerificationHref } from '@/lib/identity/adult-verification-routes';
 import {
-  cartGoodSignature, cartLineKey, cartOrderButtonLabel, cartSelectionQuantity, pruneCartSelection, quoteCoversSelection, quoteExclusionKey, quoteLimitNotes,
-  quoteMayBeBlockedByPendingOrder, quoteUnavailableLines, selectedCartLines, toggleAllCartLines, toggleCartLineSelection, type QuoteLimitNote,
-  type CartLineCheckState, type QuoteLineExclusion,
+  cartGoodSignature, cartLineKey, cartOrderButtonLabel, cartSelectionQuantity, mergePendingOrderCauses, pendingOrderCausesFromQuote, pruneCartSelection,
+  quoteCoversSelection, quoteExclusionKey, quoteLimitNotes, quoteUnavailableLines, selectedCartLines, toggleAllCartLines, toggleCartLineSelection,
+  type CartLineCheckState, type QuoteLimitNote, type QuoteLineExclusion,
 } from '@/lib/checkout-selection';
 import { CheckoutPendingOrderRelease } from './CheckoutPendingOrderRelease';
 import { PendingOrderResolution } from '@/components/checkout/PendingOrderResolution';
@@ -396,16 +396,24 @@ export function Cart({
     total + (line.good ? line.good.price * line.qty : 0)
   ), 0);
   /* 주문할 수 없는 줄은 선택에서 빠질 뿐 나머지 주문을 막지 않는다(ADR-0030). 수량을 줄이면 살 수 있는 줄(남은 재고가 있다)이
-     있을 때만 수량 조정을 권한다 — 품절·판매기간 종료는 수량으로 풀리지 않는다. */
-  const unavailableCount = lines.length - selectableLines.length;
-  const reducibleUnavailable = lines.some((line) => !selectable(line) && (exclusions.get(quoteExclusionKey(line))?.reducible === true
+     있을 때만 수량 조정을 권한다 — 품절·판매기간 종료는 수량으로 풀리지 않는다. 개수는 주문 버튼·배지·전체 비우기 확인과 같은
+     수량 합이다. */
+  const unavailableLines = lines.filter((line) => !selectable(line));
+  const unavailableCount = cartSelectionQuantity(unavailableLines);
+  const reducibleUnavailable = unavailableLines.some((line) => (exclusions.get(quoteExclusionKey(line))?.reducible === true
     || Boolean(line.good && !line.masked && !isSoldOut(line.good) && !goodsSaleUnavailableLabel(line.good.salePeriod) && line.qty > line.good.stockQty)));
-  /* 결제 대기 주문 해소 안내(ADR-0030)의 원인: 쿠폰·첫구매 혜택·회원 누적 한도(어느 결제 대기 주문이든)와 재고 부족(그 굿즈를
-     담은 결제 대기 주문). 본인 결제 대기 주문이 재고를 잡고 있으면 카탈로그부터 품절·재고 부족으로 보인다. */
-  const holdsBenefits = Boolean(sales && quoteMayBeBlockedByPendingOrder(sales)) || [...limitNotes.values()].some((note) => note.pendingOrderMayBlock);
+  /* 결제 대기 주문 해소 안내(ADR-0030)의 원인 조건: 재고 부족·회원 누적 한도는 그 굿즈(옵션)를 담은 결제 대기 주문, 쿠폰 사용은
+     그 쿠폰을 쓴 주문, 첫구매 예약만 모든 결제 대기 주문이다 — 무관한 결제 대기 주문의 취소를 권하지 않는다. 본인 결제 대기 주문이
+     재고를 잡고 있으면 카탈로그부터 품절·재고 부족으로 보인다. */
   const stockGoodIds = [...new Set(lines.flatMap((line) => (line.good && !line.masked && !goodsSaleUnavailableLabel(line.good.salePeriod)
     && (isSoldOut(line.good) || line.qty > line.good.stockQty || exclusions.get(quoteExclusionKey(line))?.stockShort === true) ? [line.goodId] : [])))];
-  const limitNoteCount = [...limitNotes.values()].reduce((count, note) => count + note.lines.size, 0);
+  const pendingOrderCauses = mergePendingOrderCauses(
+    sales ? pendingOrderCausesFromQuote(sales) : {},
+    ...[...limitNotes.values()].map((note) => note.pendingCauses),
+    { stockGoodIds },
+  );
+  /* 구매 조건 때문에 체크를 푼 굿즈의 수량 합(주문 버튼과 같은 단위). */
+  const limitNoteCount = cartSelectionQuantity(items.filter((item) => limitNoteMessages.has(cartLineKey(item))));
   /* 배송 묶음 머리·순서는 카탈로그(굿즈의 출고지, 장바구니 줄 순서)로 정한다 — 고른 줄의 견적은 고르지 않은 묶음을 모르므로,
      줄을 해제해도 그 묶음 머리가 사라지거나 줄이 묶음 밖으로 흩어지지 않게 한다. 묶음 이름(택배사)은 견적이 알려 준 값을
      기억해 쓴다. 거래 런타임 장바구니는 배송 묶음을 주문서에서 계산하므로 묶지 않는다. */
@@ -641,11 +649,7 @@ export function Cart({
               {/* 결제 대기 주문(다른 탭의 바로구매 등)이 쿠폰·한도·재고를 잡고 있을 수 있다 — 장바구니를 열기만 해서는 그 결제를
                   끊지 않으므로 실제로 찾았을 때만 그 주문을 알리고, 고객이 확인했을 때만 닫는다(ADR-0030). 경고 글과 나눈 상자다. */}
               {mode === 'server' ? (
-                <CheckoutPendingOrderRelease
-                  holdsBenefits={holdsBenefits}
-                  onReleased={releaseRetry}
-                  stockGoodIds={stockGoodIds}
-                />
+                <CheckoutPendingOrderRelease causes={pendingOrderCauses} onReleased={releaseRetry} />
               ) : null}
               {selectedItems.length === 0 && selectableLines.length > 0 ? (
                 <p className="wc-cart__warning" role="status">주문할 굿즈를 골라주세요.</p>

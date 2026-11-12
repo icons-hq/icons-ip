@@ -3,7 +3,10 @@
 import Link from 'next/link';
 import { useEffect, useId, useRef, useState } from 'react';
 import { loadUnpaidCheckoutOrdersAction, releaseUnpaidCheckoutOrdersAction } from '@/app/cart/actions';
-import { relevantUnpaidCheckoutOrders, unpaidCheckoutOrderSummary, type UnpaidCheckoutOrder } from '@/lib/checkout-selection';
+import {
+  hasPendingOrderCause, pendingOrderCauseKey, relevantUnpaidCheckoutOrders, unpaidCheckoutOrderSummary, unpaidOrderCauseMessage,
+  type PendingOrderCauses, type UnpaidCheckoutOrder,
+} from '@/lib/checkout-selection';
 import { krw } from '@/lib/format';
 import { orderReferenceLabel } from '@/lib/orders';
 
@@ -19,21 +22,22 @@ const RELEASE_NOTICES: Partial<Record<ReleasePhase, { role: 'status' | 'alert'; 
 export interface CheckoutPendingOrderReleaseProps {
   /** 결제 대기 주문을 닫은 뒤 부모가 견적·선택을 다시 읽는다. */
   onReleased: () => void;
-  /** 쿠폰·첫구매 혜택·회원 누적 한도처럼 어느 결제 대기 주문이든 원인일 수 있는 막힘이 있다. */
-  holdsBenefits?: boolean;
-  /** 재고가 모자라 막힌 굿즈 — 결제 대기 주문이 이 굿즈를 담고 있을 때만 안내한다. */
-  stockGoodIds?: readonly string[];
+  /**
+   * 지금 막힘의 원인일 수 있는 결제 대기 주문을 고르는 조건 — 재고·회원 누적 한도는 그 굿즈(옵션)를 담은 주문, 쿠폰 사용은 그
+   * 쿠폰을 쓴 주문, 첫구매 예약만 모든 결제 대기 주문이다. 원인 주문이 없으면 아무것도 그리지 않는다(화면은 사유만 보인다).
+   */
+  causes: PendingOrderCauses;
 }
 
 /**
  * 견적이 결제를 마치지 않은 주문의 쿠폰·첫구매 예약·구매 한도·재고 때문에 막혔을 수 있을 때(ADR-0030). 장바구니·주문서를
- * 열기만 해서는 다른 탭의 결제창을 끊지 않으므로, 막힘이 있을 때 결제 대기 주문을 읽어 실제로 찾았을 때만 안내하고(못 찾으면
- * 아무것도 그리지 않는다 — 화면은 사유만 보인다), 고객이 '결제 대기 주문 취소하고 계속'을 누르면 취소될 주문(주문번호·굿즈·
- * 금액)을 보이는 확인 단계를 거쳐, 확인한 주문만 출처(장바구니·바로구매)와 무관하게 ADR-0026 닫기 경로로 닫는다. 결제 승인을
- * 확인 중인 주문은 닫지 않는다. 경고(사유) 글과 나눈 상자에 실제 버튼·밑줄 링크로 둔다. 부모는 막힘이 없어도 그려 둔다 —
- * 막힘이 풀린 뒤에도 취소 결과 안내가 남는다.
+ * 열기만 해서는 다른 탭의 결제창을 끊지 않으므로, 막힘이 있을 때 결제 대기 주문을 읽어 그 막힘의 원인일 수 있는 주문을 실제로
+ * 찾았을 때만 안내하고(무관한 결제 대기 주문은 권하지 않는다), 고객이 '결제 대기 주문 취소하고 계속'을 누르면 취소될 주문
+ * (주문번호·굿즈·금액)을 보이는 확인 단계를 거쳐, 확인한 주문만 출처(장바구니·바로구매)와 무관하게 ADR-0026 닫기 경로로 닫는다.
+ * 결제 승인을 확인 중인 주문은 닫지 않는다. 확인 단계는 Esc나 '돌아가기'로 닫고 연 버튼으로 포커스를 돌려준다. 경고(사유) 글과
+ * 나눈 상자에 실제 버튼·밑줄 링크로 둔다. 부모는 막힘이 없어도 그려 둔다 — 막힘이 풀린 뒤에도 취소 결과 안내가 남는다.
  */
-export function CheckoutPendingOrderRelease({ onReleased, holdsBenefits = false, stockGoodIds = [] }: CheckoutPendingOrderReleaseProps) {
+export function CheckoutPendingOrderRelease({ onReleased, causes }: CheckoutPendingOrderReleaseProps) {
   const [orders, setOrders] = useState<readonly UnpaidCheckoutOrder[] | null>(null);
   const [phase, setPhase] = useState<ReleasePhase>('idle');
   const [loadKey, setLoadKey] = useState(0);
@@ -42,10 +46,11 @@ export function CheckoutPendingOrderRelease({ onReleased, holdsBenefits = false,
   const titleId = useId();
   const bodyId = useId();
 
-  /* 막힘이 있을 때만 원인일 수 있는 결제 대기 주문을 읽는다. 읽지 못하면 안내하지 않는다(사유만 남는다). */
-  const cause = `${holdsBenefits ? 'benefits' : ''}|${[...new Set(stockGoodIds)].sort().join(',')}`;
+  /* 막힘이 있을 때만 결제 대기 주문을 읽는다. 읽지 못하면 안내하지 않는다(사유만 남는다). */
+  const causeKey = pendingOrderCauseKey(causes);
+  const caused = hasPendingOrderCause(causes);
   useEffect(() => {
-    if (cause === '|') return;
+    if (!caused) return;
     let active = true;
     void loadUnpaidCheckoutOrdersAction().then((result) => {
       if (active) setOrders(result.ok ? result.orders : []);
@@ -55,20 +60,18 @@ export function CheckoutPendingOrderRelease({ onReleased, holdsBenefits = false,
     return () => {
       active = false;
     };
-  }, [cause, loadKey]);
+  }, [caused, causeKey, loadKey]);
 
-  /* 확인 단계를 닫으면(돌아가기) 연 버튼으로 포커스를 돌려준다. */
+  /* 확인 단계를 닫으면(돌아가기·Esc) 연 버튼으로 포커스를 돌려준다. */
   useEffect(() => {
     if (phase === 'idle' && confirmWasOpen.current) triggerRef.current?.focus();
     confirmWasOpen.current = phase === 'confirm';
   }, [phase]);
 
-  const relevant = relevantUnpaidCheckoutOrders(orders ?? [], { holdsBenefits, stockGoodIds });
+  const relevant = relevantUnpaidCheckoutOrders(orders ?? [], causes);
   const releasable = relevant.filter((order) => order.releasable);
   const checking = relevant.filter((order) => !order.releasable);
   const notice = RELEASE_NOTICES[phase];
-  const stock = new Set(stockGoodIds);
-  const holdsStock = releasable.some((order) => order.goodIds.some((goodId) => stock.has(goodId)));
 
   const release = async () => {
     if (phase === 'releasing' || !releasable.length) return;
@@ -104,18 +107,18 @@ export function CheckoutPendingOrderRelease({ onReleased, holdsBenefits = false,
   const count = releasable.length;
   return (
     <div className="checkout-pending-release">
-      <p>
-        {!holdsBenefits
-          ? `결제 대기 주문 ${count}건이 이 굿즈의 재고를 잡고 있어요.`
-          : holdsStock
-            ? `결제 대기 주문 ${count}건이 쿠폰·구매 한도나 재고를 잡고 있을 수 있어요.`
-            : `결제 대기 주문 ${count}건이 쿠폰·첫구매 혜택·구매 한도를 잡고 있을 수 있어요.`}
-      </p>
+      <p>{unpaidOrderCauseMessage(releasable, causes)}</p>
       <Link className="checkout-pending-release__link" href={count === 1 ? `/orders/${encodeURIComponent(releasable[0].id)}` : '/orders?pending=1'}>
         결제 대기 주문 보기
       </Link>
       {phase === 'confirm' || phase === 'releasing' ? (
-        <div aria-describedby={bodyId} aria-labelledby={titleId} className="checkout-pending-release__confirm" role="alertdialog">
+        <div aria-describedby={bodyId} aria-labelledby={titleId} className="checkout-pending-release__confirm" role="alertdialog"
+          onKeyDown={(event) => {
+            if (event.key === 'Escape' && phase === 'confirm') {
+              event.stopPropagation();
+              setPhase('idle');
+            }
+          }}>
           <strong id={titleId}>{`결제하지 않은 주문 ${count}건을 취소할까요?`}</strong>
           <p id={bodyId}>청구된 금액은 없고, 다른 창에서 진행 중인 결제는 끝나요. 이 주문이 쓰던 쿠폰·적립금·재고는 돌아와요.</p>
           <ul aria-label="취소할 결제 대기 주문" className="checkout-pending-release__orders">

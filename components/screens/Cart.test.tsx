@@ -422,7 +422,8 @@ describe('Cart 랜덤 판매·옵션별 구매 제한 품목 줄', () => {
       reason: 'option_member_limit_exceeded' } });
     const html = render([{ goodId: 'g16', variantId: BLUE_VARIANT, qty: 2 }]);
     expect(html).toContain('&#x27;파랑&#x27;은 1인당 3개까지 구매할 수 있습니다.');
-    expect(html).toContain('구매 조건에 맞지 않는 굿즈 1개는 체크를 풀었어요');
+    /* 개수는 주문 버튼·배지·전체 비우기 확인과 같은 수량 합이다(줄 수가 아니다). */
+    expect(html).toContain('구매 조건에 맞지 않는 굿즈 2개는 체크를 풀었어요');
     expect(html).not.toContain('주문할 수 없는 굿즈');
     expect(html).toMatch(/<input aria-label="아크릴 키링[^"]*선택" type="checkbox"\/>/);
     expect(checkoutEnabled(html)).toBe(false);
@@ -456,7 +457,7 @@ describe('Cart 랜덤 판매·옵션별 구매 제한 품목 줄', () => {
       startsAt: null, endsAt: null, expectedShipDate: null, calculatedAt: '2026-09-10T00:00:00Z', nextChangeAt: null } });
     const html = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }, { goodId: 'g16', variantId: BLUE_VARIANT, qty: 2 }]);
     expect(html).toContain('재고가 1개만 남아 이번 주문에서 빠졌어요. 수량을 줄이면 다시 고를 수 있어요.');
-    expect(html).toContain('주문할 수 없는 굿즈 1개는 주문에서 빠져요. 수량을 줄이면 다시 고를 수 있어요.');
+    expect(html).toContain('주문할 수 없는 굿즈 2개는 주문에서 빠져요. 수량을 줄이면 다시 고를 수 있어요.');
     /* 막힘 판정은 남은 고른 줄로만 한다 — 남은 줄(g13)은 주문할 수 있다. */
     expect(html).not.toContain('현재 판매 상태나 재고가 변경된 굿즈가 있어요');
     expect(mocks.quotedItems.map((item) => item.goodId)).toEqual(['g13']);
