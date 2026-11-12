@@ -12,6 +12,7 @@ import { MAX_ADDITIONAL_GOODS, parseAdditionalGoodIds, type AdminAdditionalGood 
 import { goodsTermsDraft, parseGoodsDeliveryTermsInput, prepareGoodsTermsInput, sameGoodsTerms, type DeliveryTermsInput, type GoodsTermsDraft, type VolumeTermsInput } from './goods-transaction-terms';
 import { goodsSubscriptionPolicyError, parseGoodsSubscriptionDraft, type GoodsSubscriptionDraft } from './goods-subscription-policy';
 import { goodsOptionRowKey, type GoodsOptionRow } from './goods-option-editor';
+import { adminGoodsCopy } from './vocabulary';
 import type { GoodsTransactionAdminTerms } from '@/lib/goods-transaction';
 
 /*
@@ -192,7 +193,7 @@ export function prepareGoodWorkspaceExtraSections(extras: Partial<GoodWorkspaceE
   }
   if (extras.additional?.length) {
     const ids = parseAdditionalGoodIds(extras.additional.map((item) => item.goodId));
-    if (!ids) return fail('additional', `추가 구성 상품은 서로 다른 상품 ${MAX_ADDITIONAL_GOODS}개까지 연결할 수 있습니다.`);
+    if (!ids) return fail('additional', adminGoodsCopy(`추가 구성 상품은 서로 다른 상품 ${MAX_ADDITIONAL_GOODS}개까지 연결할 수 있습니다.`));
     value.additional = ids;
   }
   const benefits = extras.benefits;
@@ -394,7 +395,7 @@ function shippingChargeGroupError(message: string) {
 function additionalError(message: string) {
   if (message.includes('additional_good_unavailable')) return '판매 중이 아닌 상품은 추가 구성으로 연결할 수 없습니다. 연결할 상품을 다시 확인해주세요.';
   if (message.includes('cycle')) return '서로를 추가 구성으로 연결할 수 없습니다. 연결할 상품을 다시 확인해주세요.';
-  return '추가 구성 상품을 저장하지 못했습니다. 연결할 상품을 다시 확인해주세요.';
+  return adminGoodsCopy('추가 구성 상품을 저장하지 못했습니다. 연결할 상품을 다시 확인해주세요.');
 }
 
 /** admin_save_good_workspace의 섹션 실패('goods_workspace_section_failed:<섹션>:<원래 오류>') → 그 섹션 칸 안내. 아니면 null. */
