@@ -171,7 +171,7 @@ export function goodsLimitNoteMessage(good: GoodsSalesQuoteGood): string | null 
         : goodsPurchaseReasonMessage(good.reason);
     case 'member_purchase_limit_exceeded':
       if (good.memberRemainingQty === 0) {
-        return `회원 누적 구매 한도${good.memberLifetimeQtyLimit !== null ? `(${good.memberLifetimeQtyLimit}개)` : ''}에 도달했어요. 결제 대기 중인 주문도 한도에 들어가요.`;
+        return `회원 누적 구매 한도${good.memberLifetimeQtyLimit !== null ? `(${good.memberLifetimeQtyLimit}개)` : ''}에 도달했어요.`;
       }
       return good.memberRemainingQty !== null
         ? `회원 누적 구매 한도로 ${good.memberRemainingQty}개까지 더 구매할 수 있어요. 수량을 줄여 골라주세요.`

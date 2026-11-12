@@ -1,8 +1,8 @@
 /* ------------------------------------------------------------------
    결제 대기 주문 해소·바로구매 다시 구매하기 (ADR-0030)
-   장바구니·주문서의 '결제 대기 주문 취소하고 계속'은 빨간 경고 글과 나눈 회색 안내 상자다 — 사유(경고)는 그대로 빨간 글이고,
-   해소는 상자 안의 실제 버튼(wc-btn, 터치 44px)과 밑줄 링크로 고른다. 누르면 같은 상자 안에 취소될 주문을 보이는 확인
-   단계가 열린다(주문 상세 취소 확인과 같은 자리 확인 패턴).
+   장바구니·주문서의 '결제 대기 주문 취소하고 계속'은 빨간 경고 글과 나눈 테두리 상자다 — 회색 요약 칸에서도 흰 주문서에서도
+   구분된다. 사유(경고)는 그대로 빨간 글이고, 해소는 상자 안의 실제 버튼(wc-btn, 터치 44px)과 밑줄 링크로 고른다. 누르면 같은
+   상자 안에 취소될 주문을 보이는 확인 단계가 열린다(주문 상세 취소 확인과 같은 자리 확인 패턴).
    ------------------------------------------------------------------ */
 
 .checkout-pending-release {
@@ -11,7 +11,8 @@
   gap: 10px;
   margin: 12px 0 0;
   padding: 14px 16px;
-  background: var(--wc-surface-grey);
+  border: 1px solid var(--wc-line-control);
+  background: var(--wc-surface);
   font-size: 13px;
   line-height: 1.6;
   color: var(--wc-ink);
@@ -51,8 +52,7 @@
   flex-direction: column;
   gap: 10px;
   padding: 14px 16px;
-  border: 1px solid var(--wc-line-control);
-  background: var(--wc-surface);
+  background: var(--wc-surface-grey);
 }
 
 .checkout-pending-release__confirm strong {
@@ -99,7 +99,7 @@
 }
 
 @media (forced-colors: active) {
-  .checkout-pending-release {
+  .checkout-pending-release__confirm {
     border: 1px solid CanvasText;
   }
 }
