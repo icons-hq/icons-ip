@@ -54,7 +54,7 @@ import { shipmentStatusLabel, type ShipmentRecord, type ShipmentStatus } from '@
 import { bankTransferDepositNameWithCode } from '@/lib/payments/bank-transfer';
 import type { OrderItemAllocation } from './item-allocation';
 import { DELIVERY_METHOD_LABELS, deliveryStatusLabel, type ShipmentDeliverySummary } from '@/lib/shipment-delivery';
-import type { RefundTransferRow } from './refund-transfers';
+import { refundTransferRowKey, type RefundTransferRow } from './refund-transfers';
 
 interface ColumnSpec<Row> extends ListExportColumn {
   value: (row: Row) => ListExportCellValue | undefined;
@@ -451,7 +451,7 @@ interface RefundTransferLine { row: RefundTransferRow; account: RefundTransferEx
 
 export function refundTransfersListExportSheet(input: {
   rows: RefundTransferRow[];
-  /** 요청 id → 계좌. 계좌 열을 켰으면 모든 요청의 값이 있어야 한다(없으면 파일을 만들지 않는다). */
+  /** 줄 키(`refundTransferRowKey`: 요청 id 또는 부분 취소) → 계좌. 계좌 열을 켰으면 모든 줄의 값이 있어야 한다(없으면 파일을 만들지 않는다). */
   accounts: ReadonlyMap<string, RefundTransferExportAccount> | null;
   /** 이번 내려받기의 계좌 열람 기록 id. 발급 감사 기록이 이 열람을 가리킨다. */
   accountExportId: string | null;
@@ -461,12 +461,12 @@ export function refundTransfersListExportSheet(input: {
 }): AdminListExportSheet {
   const includeAccount = input.includeAccount ?? REFUND_TRANSFER_EXPORT_INCLUDES_ACCOUNT;
   const accounts = input.accounts;
-  if (includeAccount && (!accounts || !input.accountExportId || input.rows.some(row => !accounts.has(row.claimId)))) {
+  if (includeAccount && (!accounts || !input.accountExportId || input.rows.some(row => !accounts.has(refundTransferRowKey(row))))) {
     throw new Error('환불 계좌를 확인하지 못해 파일을 만들지 않았습니다. 잠시 후 다시 내려받아 주세요.');
   }
-  const lines = input.rows.map<RefundTransferLine>(row => ({ row, account: includeAccount ? accounts?.get(row.claimId) ?? null : null }));
+  const lines = input.rows.map<RefundTransferLine>(row => ({ row, account: includeAccount ? accounts?.get(refundTransferRowKey(row)) ?? null : null }));
   const columns: ColumnSpec<RefundTransferLine>[] = [
-    column(V.claimNumber, 'code', 10, ({ row }) => orderClaimReferenceLabel(row.reference)),
+    column(V.claimNumber, 'code', 10, ({ row }) => (row.kind === 'partial_cancellation' ? `${row.sequence}차 부분 취소` : orderClaimReferenceLabel(row.reference))),
     column('송금 대기 금액', 'amount', 14, ({ row }) => row.amount),
     column('결제자', 'text', 16, ({ row }) => row.payerName || '이름 미등록'),
     ...(includeAccount ? [
@@ -476,11 +476,11 @@ export function refundTransfersListExportSheet(input: {
       column<RefundTransferLine>('계좌 상태', 'text', 18, ({ account }) => (account ? REFUND_TRANSFER_ACCOUNT_STATUS_LABELS[account.status] : null)),
     ] : []),
     column('대기 일수', 'count', 10, ({ row }) => refundTransferWaitingDays(row.confirmedAt, input.now)),
-    column('유형', 'text', 12, ({ row }) => `${row.gift ? '선물 · ' : ''}${row.claimType === 'cancel' ? '취소' : '반품'}`),
+    column('유형', 'text', 12, ({ row }) => `${row.gift ? '선물 · ' : ''}${row.kind === 'partial_cancellation' ? '부분 취소' : row.claimType === 'cancel' ? '취소' : '반품'}`),
     column('주문번호', 'code', 22, ({ row }) => orderReferenceLabel(row.orderId, row.orderNumber)),
     column('취소 확정일', 'text', 17, ({ row }) => nullable(kstDateTimeText(row.confirmedAt))),
     column('환불 접수일', 'text', 17, ({ row }) => (row.filedAt ? nullable(kstDateTimeText(row.filedAt)) : '미접수')),
-    column('요청자', 'text', 16, ({ row }) => row.requesterName || '이름 미등록'),
+    column('요청자', 'text', 16, ({ row }) => (row.kind === 'partial_cancellation' ? '운영자 처리' : row.requesterName || '이름 미등록')),
   ];
   return {
     screen: 'refund-transfers',
@@ -490,6 +490,7 @@ export function refundTransfersListExportSheet(input: {
     conditions: [['대상', '송금 대기 중인 무통장 환불 전체']],
     notes: [
       '한 행은 송금을 기다리는 무통장 환불 요청 한 건입니다. 결제자에게 송금 대기 금액을 보낸 뒤 요청 상세에서 송금 완료를 기록해야 이 목록에서 빠집니다.',
+      ...(input.rows.some(row => row.kind === 'partial_cancellation') ? ['유형이 "부분 취소"인 행은 재고 부족 부분 취소의 환불입니다. 송금 완료는 주문 상세의 부분 취소 기록에서 적습니다.'] : []),
       ...(includeAccount ? [
         '은행·계좌번호·예금주는 고객이 환불 접수 때 등록한 계좌 원문입니다. 계좌 상태가 "확인됨"이 아닌 요청은 계좌 칸이 비어 있으니 요청 상세에서 확인한 뒤 송금하세요.',
         '이 파일을 내려받을 때 요청마다 계좌 열람 기록(담당자·시각)이 남았습니다. 송금에만 쓰고, 송금이 끝나면 파일을 삭제해주세요.',

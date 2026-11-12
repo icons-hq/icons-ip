@@ -22,7 +22,6 @@ const ORDER_BLOCKERS: Record<string, string> = {
   payment_reconciliation_required: '결제 결과가 아직 확정되지 않았습니다. 결제 상태를 먼저 확인해주세요.',
   payment_unavailable: '결제 기록이 한 건의 결제완료가 아니라 부분 취소할 수 없습니다.',
   partial_cancel_unsupported: '이 결제는 결제사 부분 취소를 받지 않아 품목 부분 취소를 진행할 수 없습니다(나이스페이·코페이·토스 가상계좌·정기배송). 전액 환불로 돌리지 않습니다. 고객과 다시 상의해 운영자 전액 취소 여부를 정해주세요.',
-  gift_order: '선물 주문은 결제한 분과 받는 분이 달라 부분 취소하지 않습니다. 운영자 전액 취소를 검토해주세요.',
   legacy_order: '금액 배분 기록이 없는 이전 주문이라 품목별 환불액을 정할 수 없습니다.',
 };
 
@@ -34,7 +33,7 @@ const ITEM_BLOCKERS: Record<string, string> = {
   digital_item: '디지털·배송없음 상품',
   allocation_missing: '금액 배분 기록 없음',
   shipment_missing: '배송 건 확인 필요',
-  stock_topology_changed: '상품 통합·교환 이력 있음',
+  stock_topology_changed: '상품 통합·교환 재출고 이력 있음',
   order_item_not_found: '품목 없음',
 };
 
@@ -47,9 +46,12 @@ const START_ERRORS: Record<string, string> = {
   partial_cancel_refund_account_required: '무통장 주문은 환불받을 계좌(은행·계좌번호·예금주)를 모두 입력해주세요.',
   partial_cancel_refund_account_not_allowed: '카드 결제 주문에는 환불계좌를 받지 않습니다.',
   partial_cancel_leaves_nothing: '남는 상품이 없습니다. 주문 전체를 취소하려면 운영자 전액 취소를 쓰세요.',
-  partial_cancel_remaining_balance_zero: '부분 취소 뒤 남는 결제 금액이 없습니다. 운영자 전액 취소를 쓰세요.',
-  partial_cancel_refund_zero: '고른 상품의 환불액이 0원입니다(전액 할인). 부분 취소로 처리할 수 없습니다.',
-  partial_cancel_qty_exceeds_remaining: '남은 수량보다 많이 고를 수 없습니다.',
+  partial_cancel_exceeds_balance: '환불액이 남은 결제 금액보다 큽니다. 새로고침해 남은 금액을 확인해주세요.',
+  partial_cancel_shipment_packed: '이 상품을 빼면 합포장으로 묶인 배송 건이 비게 됩니다. 출고 관리에서 먼저 합포장을 해제한 뒤 다시 시도해주세요.',
+  partial_cancel_resolution_reason_required: '해소 사유를 5~500자로 입력해주세요.',
+  invalid_partial_cancel_resolution: '해소 방법을 확인해주세요.',
+  partial_cancel_not_needs_review: '결제확인필요 상태가 아닙니다. 새로고침해주세요.',
+  partial_cancel_resolution_evidence_mismatch: '결제사 잔액이 해소 근거와 맞지 않습니다. 다시 조회해주세요.',  partial_cancel_qty_exceeds_remaining: '남은 수량보다 많이 고를 수 없습니다.',
   partial_cancel_item_not_found: '이 주문의 상품이 아닙니다. 새로고침해주세요.',
   invalid_partial_cancel_items: '취소할 상품과 수량을 확인해주세요.',
   partial_cancel_operation_conflict: '같은 요청 번호가 다른 주문에 쓰였습니다. 새로고침해주세요.',
@@ -76,16 +78,32 @@ const RECONCILE_ERRORS: Record<string, string> = {
   not_ready: '결제사 확인을 기다리는 부분 취소가 아닙니다. 새로고침해주세요.',
 };
 
+/** 결제확인필요 해소의 결제사 조회 결과(해소하지 않은 이유). */
+const RESOLUTION_ERRORS: Record<string, string> = {
+  not_found: '부분 취소 기록을 찾을 수 없습니다.',
+  not_needs_review: '결제확인필요 상태가 아닙니다. 새로고침해주세요.',
+  local_state_unavailable: '부분 취소 상태를 읽지 못했습니다. 잠시 뒤 다시 시도해주세요.',
+  provider_unavailable: '결제사 잔액을 조회하지 못했습니다. 잠시 뒤 다시 시도해주세요.',
+  provider_mismatch: '결제사가 돌려준 결제가 원장의 결제와 다릅니다. 해소하지 않았습니다. 결제사 상점관리자와 원장을 대조해주세요.',
+  balance_unexplained: '결제사 잔액이 시작 때 잔액도, 이 취소를 뺀 잔액도 아닙니다(다른 취소가 끼었을 수 있음). 해소하지 않았습니다. 상점관리자의 취소 내역을 대조해주세요.',
+};
+
+/** 해소 기록 라벨. */
+export const ORDER_PARTIAL_CANCELLATION_RESOLUTION_LABELS: Record<'not_moved' | 'already_canceled', string> = {
+  not_moved: '결제사 잔액 그대로(돈이 움직이지 않음) — 진행하지 않음',
+  already_canceled: '결제사 취소 확인 — 그 거래로 적용',
+};
+
 /* 발송 전이 아닌 주문(이미 발송·취소 등)만 막는 이유. 기록이 없으면 패널을 그리지 않는다 — 모든 주문 상세에 막힘 안내를 띄우지 않는다. */
 const HIDDEN_WHEN_ONLY = new Set(['order_not_partial_cancelable', 'shipment_already_dispatched', 'order_not_found']);
 
 /**
  * 주문 상세에 부분 취소 패널을 그릴지. 스위치가 꺼져 있고 기록이 없으면 그리지 않는다(스위치 OFF면 화면이 지금과 같다).
- * 켜져 있어도 기록이 없고 발송 전 주문이 아니면 그리지 않는다.
+ * 켜져 있어도 기록이 없고 발송 전 주문이 아니면 그리지 않는다. 조회 권한(sales.read)만 있으면 기록이 있을 때만 읽기로 그린다.
  */
-export function orderPartialCancellationPanelVisible(context: { enabled: boolean; blockers: readonly string[]; history: readonly unknown[] }) {
+export function orderPartialCancellationPanelVisible(context: { enabled: boolean; canManage: boolean; blockers: readonly string[]; history: readonly unknown[] }) {
   if (context.history.length > 0) return true;
-  if (!context.enabled) return false;
+  if (!context.enabled || !context.canManage) return false;
   return context.blockers.length === 0 || !context.blockers.every(code => HIDDEN_WHEN_ONLY.has(code));
 }
 
@@ -115,4 +133,8 @@ export function orderPartialCancellationReconcileMessage(code: string) {
   if (RECONCILE_ERRORS[code]) return RECONCILE_ERRORS[code];
   if (code.startsWith('provider_')) return `결제사 확인이 끝나지 않았습니다(${code}). 런북의 결제확인필요 조치를 따라주세요. 그동안 이 주문은 출고되지 않습니다.`;
   return '결제사 확인을 마치지 못했습니다. 최신 상태를 확인해주세요.';
+}
+
+export function orderPartialCancellationResolutionMessage(code: string) {
+  return RESOLUTION_ERRORS[code] ?? '결제확인필요를 해소하지 못했습니다. 최신 상태를 확인해주세요.';
 }

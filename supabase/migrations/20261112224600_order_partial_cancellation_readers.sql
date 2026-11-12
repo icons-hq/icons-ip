@@ -186,15 +186,11 @@ $a$ if not found then raise no_data_found using message='order_item_not_found';e
  if item.qty<=0 then return;end if;$a$
 ]);
 
--- 재고 대조: 출고 대기 수량은 살아 있는 수량이고, 부분 취소의 복원 기록은 '취소·환불 복원'(창고를 떠난 뒤 돌아옴)으로 세지 않는다
--- (창고를 떠난 적 없는 수량이라 출고 대기에서 이미 빠졌다).
+-- 재고 대조: 출고 대기 수량은 살아 있는 수량이다. 부분 취소의 복원은 별도 감사 액션(order.option_stock_partially_restored)이라
+-- '취소·환불 복원'(order.option_stock_restored)으로 세지 않는다(창고를 떠난 적 없는 수량이라 출고 대기에서 이미 빠졌다).
 select private.t12b_patch_function('private.stock_reconcile_flows(uuid[],timestamp with time zone)'::regprocedure, array[
 $a$select oi.id as item_id,oi.order_id,oi.qty::bigint as qty,m.holder_id,$a$,
-$a$select oi.id as item_id,oi.order_id,(oi.qty-private.order_item_partially_canceled_qty(oi.id))::bigint as qty,m.holder_id,$a$,
-$a$and a.action='order.option_stock_restored'
-      and a.diff->>'orderItemId'=u.item_id::text$a$,
-$a$and a.action='order.option_stock_restored'
-      and a.diff->>'orderItemId'=u.item_id::text and a.diff->>'partialCancellationId' is null$a$
+$a$select oi.id as item_id,oi.order_id,(oi.qty-private.order_item_partially_canceled_qty(oi.id))::bigint as qty,m.holder_id,$a$
 ]);
 
 -- 5. 환불 금액: 뒤의 전액 취소·반품은 남은 잔액(결제액 − 부분 환불)을 돌려준다.
@@ -263,7 +259,12 @@ $a$      sum(item.qty) as qty,$a$,
 $a$      sum(private.order_item_active_qty(item.id)) as qty,$a$,
 $a$where allocation.order_item_id=item.id),0)) as revenue$a$,
 $a$where allocation.order_item_id=item.id),0)
-        -(select c.gross_amount from private.order_item_partial_cancel_totals(item.id) c)) as revenue$a$
+        -(select c.gross_amount from private.order_item_partial_cancel_totals(item.id) c)) as revenue$a$,
+-- 모두 취소된 굿즈만 있으면 순위에서 뺀다(수량 0 줄을 만들지 않는다).
+$a$    group by item.good_id
+    order by revenue desc, qty desc, item.good_id$a$,
+$a$    group by item.good_id having sum(private.order_item_active_qty(item.id)) > 0
+    order by revenue desc, qty desc, item.good_id$a$
 ]);
 
 select private.t12b_patch_function('private.store_analytics_paid_orders(timestamp with time zone,timestamp with time zone)'::regprocedure, array[
@@ -306,6 +307,146 @@ $a$      and refund.status in ('requested', 'failed', 'awaiting_transfer')
   ),$a$
 ]);
 
+-- 11. 반품·교환: 회수 완료 판정은 회수 수량을 살아 있는 수량과 맞춘다(회수 스냅샷은 부분 취소로 줄어든 배송 건 품목 수량이다).
+select private.t12b_patch_function('private.claim_collections_complete(uuid)'::regprocedure, array[
+$a$where x.claim_id=c.id and (j->>'orderItemId')::uuid=i.id),0)<>i.qty))$a$,
+$a$where x.claim_id=c.id and (j->>'orderItemId')::uuid=i.id),0)<>private.order_item_active_qty(i.id)))$a$
+]);
+
+-- 교환 재출고는 살아 있는 수량만 보낸다(배송된 수량). 묶음 재출고는 모두 취소된 품목을 넣지 않는다.
+-- T14a(20261113000100)의 collection_waiver_partially_received 앵커(회수 생략 줄)와 겹치지 않게 item.qty 주변만 바꾼다.
+select private.t12b_patch_function('private.record_order_claim_shipment_reshipment(uuid,uuid,text,text,jsonb,jsonb)'::regprocedure, array[
+$a$selected_variant,variant.name,variant.code,item.qty,record_id);$a$,
+$a$selected_variant,variant.name,variant.code,private.order_item_active_qty(item.id),record_id);$a$,
+$a$'variantName',choice.variant_name,'variantCode',choice.variant_code,'qty',item.qty));$a$,
+$a$'variantName',choice.variant_name,'variantCode',choice.variant_code,'qty',private.order_item_active_qty(item.id)));$a$
+]);
+
+select private.t12b_patch_function('private.record_group_claim_reshipment(uuid,text,text,jsonb)'::regprocedure, array[
+$a$ for item in select * from public.order_items where order_id=claim.order_id order by good_id,id loop$a$,
+$a$ for item in select * from public.order_items where order_id=claim.order_id and private.order_item_active_qty(id)>0 order by good_id,id loop$a$,
+$a$'variantName',choice.variant_name,'variantCode',choice.variant_code,'qty',item.qty));$a$,
+$a$'variantName',choice.variant_name,'variantCode',choice.variant_code,'qty',private.order_item_active_qty(item.id)));$a$
+]);
+
+-- 클레임 상세의 주문 품목은 살아 있는 수량이고, 모두 취소된 품목은 보이지 않는다.
+select private.t12b_patch_function('private.admin_order_claim_detail_before_operational_fee(uuid)'::regprocedure, array[
+$a$            'qty', item.qty,$a$,
+$a$            'qty', private.order_item_active_qty(item.id),$a$,
+$a$          from public.order_items as item
+          where item.order_id = orders.id
+        ), '[]'::jsonb)$a$,
+$a$          from public.order_items as item
+          where item.order_id = orders.id and private.order_item_active_qty(item.id) > 0
+        ), '[]'::jsonb)$a$
+]);
+
+-- 12. 회원 누적 구매 한도는 취소된 수량을 세지 않는다(품절로 일부 취소된 고객이 다시 살 수 있게).
+select private.t12b_patch_function('private.member_goods_reserved_qty(uuid,text)'::regprocedure, array[
+$a$  select coalesce(sum(item.qty::bigint),0)
+  from public.order_items item join public.orders orders on orders.id=item.order_id$a$,
+$a$  select coalesce(sum(private.order_item_active_qty(item.id)::bigint),0)
+  from public.order_items item join public.orders orders on orders.id=item.order_id$a$
+]);
+
+select private.t12b_patch_function('private.member_variant_reserved_qty(uuid,uuid)'::regprocedure, array[
+$a$  select coalesce(sum(item.qty::bigint),0)::bigint$a$,
+$a$  select coalesce(sum(private.order_item_active_qty(item.id)::bigint),0)::bigint$a$
+]);
+
+-- 판매 분석: 굿즈 순위·시간대 보고·홈 랭킹은 매출 보고와 같이 부분 취소 몫을 뺀다. 구매 고객 세그먼트는 모두 취소된 품목을 구매로 세지 않는다.
+select private.t12b_patch_function('public.admin_sales_goods_page(timestamp with time zone,timestamp with time zone,text,integer,integer)'::regprocedure, array[
+$a$      sum(item.qty) as qty,$a$,
+$a$      sum(private.order_item_active_qty(item.id)) as qty,$a$,
+$a$where allocation.order_item_id=item.id),0)) as revenue$a$,
+$a$where allocation.order_item_id=item.id),0)
+        -(select c.gross_amount from private.order_item_partial_cancel_totals(item.id) c)) as revenue$a$,
+-- 모두 취소된 굿즈만 있으면 순위에서 뺀다(수량 0 줄을 만들지 않는다).
+$a$    group by item.good_id
+  ), totals as ($a$,
+$a$    group by item.good_id having sum(private.order_item_active_qty(item.id)) > 0
+  ), totals as ($a$
+]);
+
+select private.t12b_patch_function('public.admin_sales_hourly_report(date,text,timestamp with time zone)'::regprocedure, array[
+$a$    select r.side,r.day_starts_at,r.ends_at,o.id,o.total,o.created_at$a$,
+$a$    select r.side,r.day_starts_at,r.ends_at,o.id,o.total-private.order_partial_refunded_amount(o.id) as total,o.created_at$a$,
+$a$max(item.good_ip_id_snapshot) as ip_id,sum(item.qty) as qty,$a$,
+$a$max(item.good_ip_id_snapshot) as ip_id,sum(private.order_item_active_qty(item.id)) as qty,$a$,
+$a$where allocation.order_item_id=item.id),0)) as revenue$a$,
+$a$where allocation.order_item_id=item.id),0)
+      -(select c.gross_amount from private.order_item_partial_cancel_totals(item.id) c)) as revenue$a$,
+-- 모두 취소된 굿즈만 있으면 순위에서 뺀다(수량 0 줄을 만들지 않는다).
+$a$    group by w.period,s.side,item.good_id
+  ), ranked as ($a$,
+$a$    group by w.period,s.side,item.good_id having sum(private.order_item_active_qty(item.id)) > 0
+  ), ranked as ($a$
+]);
+
+select private.t12b_patch_function('public.get_home_sales_rankings()'::regprocedure, array[
+$a$    select period,item.good_id,sum(item.qty::bigint) quantity$a$,
+$a$    select period,item.good_id,sum(private.order_item_active_qty(item.id)::bigint) quantity$a$
+]);
+
+select private.t12b_patch_function('private.customer_segment_members(jsonb,timestamp with time zone)'::regprocedure, array[
+$a$exists(select 1 from public.order_items i join scope_goods g on g.id=i.good_id where i.order_id=o.id)))$a$,
+$a$exists(select 1 from public.order_items i join scope_goods g on g.id=i.good_id where i.order_id=o.id and private.order_item_active_qty(i.id)>0)))$a$,
+$a$item.qty>0
+    and item.created_at<=p_at and (days is null or item.created_at>=p_at-make_interval(days=>days))
+    and not exists(select 1 from valid_orders o join public.order_items i on i.order_id=o.id where o.user_id=c.id and i.good_id=item.good_id and o.created_at>=item.created_at))$a$,
+$a$item.qty>0
+    and item.created_at<=p_at and (days is null or item.created_at>=p_at-make_interval(days=>days))
+    and not exists(select 1 from valid_orders o join public.order_items i on i.order_id=o.id where o.user_id=c.id and i.good_id=item.good_id and o.created_at>=item.created_at
+      and private.order_item_active_qty(i.id)>0))$a$,
+$a$where item.user_id=c.id
+    and item.created_at<=p_at and (days is null or item.created_at>=p_at-make_interval(days=>days))
+    and not exists(select 1 from valid_orders o join public.order_items i on i.order_id=o.id where o.user_id=c.id and i.good_id=item.good_id and o.created_at>=item.created_at))$a$,
+$a$where item.user_id=c.id
+    and item.created_at<=p_at and (days is null or item.created_at>=p_at-make_interval(days=>days))
+    and not exists(select 1 from valid_orders o join public.order_items i on i.order_id=o.id where o.user_id=c.id and i.good_id=item.good_id and o.created_at>=item.created_at
+      and private.order_item_active_qty(i.id)>0))$a$
+]);
+
+-- 13. 거래확정 엑셀(수집 함수)·주문 품목 조회: 부분 취소가 있을 때만 취소 수량·남은 수량·부분 취소 몫을 덧붙인다.
+select private.t12b_patch_function('private.collect_settled_export_for_search(date,date,text,text,text)'::regprocedure, array[
+$a$    'shippingCollectFee',s.shipping_collect_fee,'collectState',(select obligation.state from private.shipping_collect_obligations obligation where obligation.shipment_id=s.id)
+   ) order by s.id)$a$,
+$a$    'shippingCollectFee',s.shipping_collect_fee,'collectState',(select obligation.state from private.shipping_collect_obligations obligation where obligation.shipment_id=s.id)
+   ) || case when private.shipment_closed_by_partial_cancel(s.id) then jsonb_build_object('closedByPartialCancel', true) else '{}'::jsonb end order by s.id)$a$,
+$a$    'erpCode',identity.erp_code,'erpName',identity.erp_name,'barcode',identity.barcode,'erpCapturedAt',identity.captured_at
+   ) order by assignment.shipment_id nulls last,item.id)$a$,
+$a$    'erpCode',identity.erp_code,'erpName',identity.erp_name,'barcode',identity.barcode,'erpCapturedAt',identity.captured_at
+   ) || private.order_item_partial_cancel_report_fields(item.id) order by assignment.shipment_id nulls last,item.id)$a$,
+$a$    where item.order_id=o.id),'[]')
+  ) order by o.created_at desc,o.id desc)$a$,
+$a$    where item.order_id=o.id),'[]')
+  ) || private.order_partial_cancel_report_fields(o.id) order by o.created_at desc,o.id desc)$a$
+]);
+
+select private.t12b_patch_function('public.admin_search_order_items_console(text,date,date,text,integer,integer,text,text,text,text)'::regprocedure, array[
+$a$   i.qty,i.unit_price,i.qty::bigint*i.unit_price::bigint amount,$a$,
+$a$   private.order_item_active_qty(i.id) qty,i.unit_price,private.order_item_active_qty(i.id)::bigint*i.unit_price::bigint amount,$a$,
+$a$'stage',claim.stage) end) document$a$,
+$a$'stage',claim.stage) end) || private.order_item_partial_cancel_console_fields(i.id) document$a$
+]);
+
+-- 14. 환불 송금 대기 목록(T03): 무통장 부분 취소의 송금 대기를 같은 줄 순서(대기 시작 시각)로 합친다. 없으면 지금과 같다.
+select private.t12b_patch_function('public.admin_list_bank_transfer_refunds_numbered(integer,integer)'::regprocedure, array[
+$a$ select count(*) into total from private.bank_transfer_claim_refunds where state='awaiting_transfer';$a$,
+$a$ select count(*)+(select count(*) from private.order_partial_cancellations where provider='bank_transfer' and state='awaiting_transfer')
+  into total from private.bank_transfer_claim_refunds where state='awaiting_transfer';$a$,
+$a$  where lifecycle.state='awaiting_transfer' order by lifecycle.confirmed_at,lifecycle.claim_id limit p_limit offset p_offset$a$,
+$a$  where lifecycle.state='awaiting_transfer'
+  union all
+  select head.applied_at,head.id,jsonb_build_object('kind','partial_cancellation','partialCancellationId',head.id,'orderId',purchase.id,
+   'orderNumber',purchase.order_number,'sequence',head.sequence,'amount',head.refund_amount,'confirmedAt',head.applied_at,'filedAt',head.filed_at,
+   'updatedAt',head.updated_at,'gift',exists(select 1 from private.gift_intents g where g.order_id=purchase.id),'payerName',payer.nickname) row_data
+  from private.order_partial_cancellations head join public.orders purchase on purchase.id=head.order_id
+  left join public.profiles payer on payer.id=purchase.user_id
+  where head.provider='bank_transfer' and head.state='awaiting_transfer'
+  order by 1,2 limit p_limit offset p_offset$a$
+]);
+
 -- 재정의한 함수의 등록된 계약을 새 본문·ACL로 다시 적는다(분류는 기존 행 그대로).
 do $$declare fn regprocedure; contract record; begin
   foreach fn in array array[
@@ -338,7 +479,20 @@ do $$declare fn regprocedure; contract record; begin
     'private.store_analytics_paid_orders(timestamp with time zone,timestamp with time zone)'::regprocedure,
     'private.store_credit_order_transition()'::regprocedure,
     'public.purge_expired_claim_refund_accounts()'::regprocedure,
-    'private.account_deletion_blockers(uuid)'::regprocedure] loop
+    'private.account_deletion_blockers(uuid)'::regprocedure,
+    'private.claim_collections_complete(uuid)'::regprocedure,
+    'private.record_order_claim_shipment_reshipment(uuid,uuid,text,text,jsonb,jsonb)'::regprocedure,
+    'private.record_group_claim_reshipment(uuid,text,text,jsonb)'::regprocedure,
+    'private.admin_order_claim_detail_before_operational_fee(uuid)'::regprocedure,
+    'private.member_goods_reserved_qty(uuid,text)'::regprocedure,
+    'private.member_variant_reserved_qty(uuid,uuid)'::regprocedure,
+    'public.admin_sales_goods_page(timestamp with time zone,timestamp with time zone,text,integer,integer)'::regprocedure,
+    'public.admin_sales_hourly_report(date,text,timestamp with time zone)'::regprocedure,
+    'public.get_home_sales_rankings()'::regprocedure,
+    'private.customer_segment_members(jsonb,timestamp with time zone)'::regprocedure,
+    'private.collect_settled_export_for_search(date,date,text,text,text)'::regprocedure,
+    'public.admin_search_order_items_console(text,date,date,text,integer,integer,text,text,text,text)'::regprocedure,
+    'public.admin_list_bank_transfer_refunds_numbered(integer,integer)'::regprocedure] loop
     select * into contract from private.operator_rpc_contracts r where r.signature::regprocedure = fn;
     if found then perform private.register_operator_rpc_contract(fn, contract.capability, contract.guard_kind, contract.legacy_admin_only);
     elsif exists(select 1 from private.operator_internal_contracts r where r.signature::regprocedure = fn) then

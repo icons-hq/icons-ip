@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { PARTIAL_CANCEL_UNAVAILABLE_REASON, type PaymentAttempt, type RefundOutcome } from '../payments/gateway';
+import { PARTIAL_CANCEL_UNAVAILABLE_REASON, type PaymentAttempt, type PaymentRefundRequest, type RefundOutcome } from '../payments/gateway';
 import {
   providerCancelsAutomatically,
   type AutomatedCancelProvider,
@@ -165,6 +165,31 @@ export function parsePaymentPartialRefunds(value: unknown): ReadonlyMap<string, 
     result.set(row.paymentId, row.refundedAmount);
   }
   return result;
+}
+
+/**
+ * 결제사 취소 요청 조립(기본 의존성이 쓰는 순수 함수 — 시험이 같은 조립을 쓴다).
+ * 부분 취소는 취소마다 멱등키가 다르다 — 토스는 같은 키의 첫 응답을 15일간 재생하므로 전액 취소 키(`refund:{attemptId}`)를 쓰면
+ * 뒤의 전액 취소가 이 부분 취소의 응답을 받는다. 차감 결정은 요청당 하나(`deduction`), 부분 취소 뒤의 남은 잔액은 `remainder`다.
+ * 원장 결제 키로 조회·취소한다 — 토스는 paymentKey 조회가 주문서형 시크릿 키(gsk)에 명시된 조회이고(공식문서
+ * /reference/using-api/api-keys), 나이스페이는 TID 기준이다. 게이트웨이가 조회 응답의 키·주문(바인딩이 켜지면 MID까지)을 다시 대조한다.
+ */
+export function cancellationRefundRequest(attempt: PaymentAttempt, input: {
+  amount: number; reason: string; paymentKey: string;
+  partial?: { refundAmount: number; requestId: string; expectedBalanceBefore?: number; scope?: 'deduction' | 'remainder' };
+}): PaymentRefundRequest {
+  const { amount, reason, paymentKey, partial } = input;
+  if (partial) {
+    return {
+      attempt,
+      idempotencyKey: `refund:${attempt.id}:${partial.scope ?? 'deduction'}:${partial.requestId}`,
+      amount: partial.refundAmount,
+      reason,
+      providerPaymentKey: paymentKey,
+      partial: { expectedBalanceBefore: partial.expectedBalanceBefore ?? amount },
+    };
+  }
+  return { attempt, idempotencyKey: `refund:${attempt.id}`, amount, reason, providerPaymentKey: paymentKey };
 }
 
 /** 남은 잔액을 결제사 부분 취소로 돌려줄 때의 취소 사유(토스 cancelReason ≤200자). */
@@ -428,29 +453,7 @@ function createDefaultDependencies(): CancellationReconciliationDependencies {
         expiresAt: row.expires_at,
       };
       const gateway = createRuntimeAttemptPaymentGateway(service, provider, getPaymentGateway(provider));
-      if (partial) {
-        // 부분 취소는 취소마다 멱등키가 다르다 — 토스는 같은 키의 첫 응답을 15일간 재생하므로 전액 취소 키
-        // (`refund:{attemptId}`)를 쓰면 뒤의 전액 취소가 이 부분 취소의 응답을 받는다. 차감 결정은 요청당 하나다.
-        return gateway.refund({
-          attempt,
-          idempotencyKey: `refund:${attempt.id}:${partial.scope ?? 'deduction'}:${partial.requestId}`,
-          amount: partial.refundAmount,
-          reason,
-          providerPaymentKey: paymentKey,
-          partial: { expectedBalanceBefore: partial.expectedBalanceBefore ?? amount },
-        });
-      }
-      return gateway.refund({
-        attempt,
-        idempotencyKey: `refund:${attempt.id}`,
-        amount,
-        reason,
-        // 원장 결제 키로 조회·취소한다 — 토스는 paymentKey 조회가 주문서형 시크릿 키(gsk)에
-        // 명시된 조회이고 orderId 조회는 아니다(공식문서 /reference/using-api/api-keys),
-        // 나이스페이는 TID 기준이다. 게이트웨이가 조회 응답의 키·주문(토스는 바인딩이 켜지면
-        // 상점 MID까지)을 다시 대조한다.
-        providerPaymentKey: paymentKey,
-      });
+      return gateway.refund(cancellationRefundRequest(attempt, { amount, reason, paymentKey, partial }));
     },
     async reconcileExpiredPreparedGoods({ requestId, actorId }) {
       const { data, error } = await service.rpc(
@@ -665,8 +668,15 @@ export async function reconcileOrderCancellation(
     /* 결제사에 남은 잔액. 부분 취소가 없었으면 결제 금액 그대로다. */
     const alreadyRefunded = partialRefunds.get(payment.id) ?? 0;
     const remaining = payment.amount - alreadyRefunded;
-    if (!Number.isSafeInteger(remaining) || remaining <= 0) {
+    if (!Number.isSafeInteger(remaining) || remaining < 0) {
       return markNeedsReview(dependencies, input, 'payment_evidence_invalid');
+    }
+    if (remaining === 0 && alreadyRefunded > 0) {
+      // 앞선 재고 부족 부분 취소들이 결제사 잔액을 모두 돌려줬다(각각 조회로 확인해 적은 것). 더 취소할 돈이 없다 — 결제사를
+      // 부르지 않고 완료한다(finalizer의 확정 환불액은 0원). 반품배송비 차감은 판정 단계에서 fee_exceeds_payment로 빠진다.
+      if (pendingDeduction?.paymentId === payment.id) return markNeedsReview(dependencies, input, 'payment_evidence_invalid');
+      verifiedPaymentKeys.push(payment.paymentKey);
+      continue;
     }
 
     if (pendingDeduction && deductionDependencies && pendingDeduction.paymentId === payment.id) {

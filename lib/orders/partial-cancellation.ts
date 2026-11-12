@@ -51,6 +51,12 @@ export interface OrderPartialCancellationRecord {
     createdBy: string | null;
     transferEvidence: string | null;
     transferNote: string | null;
+    /** 무통장 송금 대기 시작(환불 송금 대기 목록의 줄 순서). */
+    filedAt: string | null;
+    /** 결제확인필요 해소(결제 담당). */
+    resolution: 'not_moved' | 'already_canceled' | null;
+    resolutionReason: string | null;
+    resolvedAt: string | null;
     closedShipments: OrderPartialCancellationClosedShipment[];
     refundAccount: { maskedAccount: string; maskedHolder: string; purged: boolean } | null;
   };
@@ -74,6 +80,10 @@ export interface OrderPartialCancellationContextItem {
 
 export interface OrderPartialCancellationContext {
   enabled: boolean;
+  /** 시작·해소·송금 권한(sales.manage). 거짓이면 기록만 읽는다(sales.read). */
+  canManage: boolean;
+  /** 선물 주문 — 환불은 결제한 분에게, 고객 결정은 결제한 분의 결정이다. */
+  gift: boolean;
   blockers: string[];
   provider: string | null;
   paymentAmount: number | null;
@@ -168,6 +178,11 @@ function provider(value: unknown): OrderPartialCancellationProvider {
   if (value !== 'toss' && value !== 'bank_transfer') throw new Error('invalid partial cancellation');
   return value;
 }
+function resolution(value: unknown): 'not_moved' | 'already_canceled' | null {
+  if (value === null || value === undefined) return null;
+  if (value !== 'not_moved' && value !== 'already_canceled') throw new Error('invalid partial cancellation');
+  return value;
+}
 function array(value: unknown): unknown[] {
   if (!Array.isArray(value)) throw new Error('invalid partial cancellation');
   return value;
@@ -214,6 +229,10 @@ export function parseOrderPartialCancellationRecord(value: unknown): OrderPartia
       createdBy: optionalText(row.createdBy),
       transferEvidence: optionalText(row.transferEvidence),
       transferNote: optionalText(row.transferNote),
+      filedAt: optionalText(row.filedAt),
+      resolution: resolution(row.resolution),
+      resolutionReason: optionalText(row.resolutionReason),
+      resolvedAt: optionalText(row.resolvedAt),
       closedShipments: array(row.closedShipments).map(parseClosedShipment),
       refundAccount: account ? { maskedAccount: text(account.maskedAccount), maskedHolder: text(account.maskedHolder), purged: account.purged === true } : null,
     };
@@ -231,6 +250,8 @@ export function parseOrderPartialCancellationContext(value: unknown): OrderParti
   if (typeof row.enabled !== 'boolean') throw new Error('invalid partial cancellation');
   return {
     enabled: row.enabled,
+    canManage: row.canManage === true,
+    gift: row.gift === true,
     blockers: array(row.blockers ?? []).map(text),
     provider: optionalText(row.provider),
     paymentAmount: optionalAmount(row.paymentAmount),
@@ -322,8 +343,9 @@ export function orderPartialCancellationItemsLabel(items: readonly Pick<OrderPar
   return items.map((item) => `${item.goodName}${item.variantName ? ` (${item.variantName})` : ''} ${KRW.format(item.qty)}개`).join(', ');
 }
 
-/** 구매자 주문 상세 한 줄: 'A 1개 취소 · 환불 N원' (+ 배송비 함께 환불). */
-export function orderPartialCancellationSummary(record: Pick<OrderPartialCancellationRecord, 'items' | 'refundAmount' | 'shippingRefundAmount'>) {
+/** 구매자 주문 상세 한 줄: 'A 1개 취소 · 환불 N원' (+ 배송비 함께 환불) (+ · 적립금 N원 되돌림). 알림 문장과 같은 사실을 말한다. */
+export function orderPartialCancellationSummary(record: Pick<OrderPartialCancellationRecord, 'items' | 'refundAmount' | 'shippingRefundAmount' | 'storeCreditRestoreAmount'>) {
   const shipping = record.shippingRefundAmount > 0 ? ` (배송비 ${won(record.shippingRefundAmount)} 포함)` : '';
-  return `${orderPartialCancellationItemsLabel(record.items)} 취소 · 환불 ${won(record.refundAmount)}${shipping}`;
+  const credit = record.storeCreditRestoreAmount > 0 ? ` · 적립금 ${won(record.storeCreditRestoreAmount)} 되돌림` : '';
+  return `${orderPartialCancellationItemsLabel(record.items)} 취소 · 환불 ${won(record.refundAmount)}${shipping}${credit}`;
 }

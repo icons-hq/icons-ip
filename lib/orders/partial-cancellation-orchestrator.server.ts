@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { PARTIAL_CANCEL_UNAVAILABLE_REASON, type PaymentAttempt, type RefundOutcome } from '../payments/gateway';
+import { PARTIAL_CANCEL_UNAVAILABLE_REASON, type PaymentAttempt, type PaymentBalanceInspection, type PaymentRefundRequest, type RefundOutcome } from '../payments/gateway';
 import { getPaymentGateway } from '../payments/runtime-gateway';
 import { createServiceClient } from '../supabase/service';
 import { createRuntimeAttemptPaymentGateway } from '../subscriptions/payment-dispatch.server';
@@ -61,58 +61,74 @@ export function orderPartialCancellationIdempotencyKey(attemptId: string, partia
   return `refund:${attemptId}:partial:${partialCancellationId}`;
 }
 
+/** 결제사 부분 취소 요청 조립(기본 의존성이 쓰는 순수 함수 — 시험이 같은 조립을 쓴다). */
+export function orderPartialCancellationRefundRequest(attempt: PaymentAttempt, input: {
+  partialCancellationId: string; paymentKey: string; refundAmount: number; expectedBalanceBefore: number;
+}): PaymentRefundRequest {
+  return {
+    attempt,
+    idempotencyKey: orderPartialCancellationIdempotencyKey(attempt.id, input.partialCancellationId),
+    amount: input.refundAmount,
+    reason: ORDER_PARTIAL_CANCEL_REFUND_REASON,
+    providerPaymentKey: input.paymentKey,
+    partial: { expectedBalanceBefore: input.expectedBalanceBefore },
+  };
+}
+
+type ServiceClient = ReturnType<typeof createServiceClient>;
+
+async function loadServiceRow(service: ServiceClient, id: string) {
+  const { data, error } = await service.rpc('service_order_partial_cancellation', { p_id: id });
+  if (error) throw new Error('partial cancellation lookup failed');
+  return parseOrderPartialCancellationServiceRow(data);
+}
+
+/** 원장 결제의 토스 결제 시도(주문 결제 하나). 금액이 원장 결제와 다르면 쓰지 않는다. */
+async function loadTossAttempt(service: ServiceClient, paymentId: string, paymentAmount: number): Promise<PaymentAttempt> {
+  const { data, error } = await service
+    .from('payment_attempts')
+    .select('id,provider,purpose,ref_id,amount,currency,idempotency_key,provider_order_id,provider_product_code,expires_at')
+    .eq('payment_id', paymentId)
+    .maybeSingle();
+  if (error) throw new Error('payment attempt lookup failed');
+  if (!data) throw new Error('payment attempt missing');
+  const row = data as Record<string, unknown>;
+  if (
+    row.provider !== 'toss'
+    || row.purpose !== 'order'
+    || typeof row.id !== 'string'
+    || typeof row.ref_id !== 'string'
+    || row.amount !== paymentAmount
+    || typeof row.currency !== 'string'
+    || typeof row.idempotency_key !== 'string'
+    || typeof row.provider_order_id !== 'string'
+    || typeof row.provider_product_code !== 'string'
+    || typeof row.expires_at !== 'string'
+  ) {
+    throw new Error('invalid payment attempt state');
+  }
+  return {
+    id: row.id,
+    provider: 'toss',
+    purpose: 'order',
+    refId: row.ref_id,
+    amount: row.amount as number,
+    currency: row.currency,
+    idempotencyKey: row.idempotency_key,
+    providerOrderId: row.provider_order_id,
+    providerProductCode: row.provider_product_code,
+    expiresAt: row.expires_at,
+  };
+}
+
 function createDefaultDependencies(): OrderPartialCancellationDependencies {
   const service = createServiceClient();
   return {
-    async load(id) {
-      const { data, error } = await service.rpc('service_order_partial_cancellation', { p_id: id });
-      if (error) throw new Error('partial cancellation lookup failed');
-      return parseOrderPartialCancellationServiceRow(data);
-    },
+    load: (id) => loadServiceRow(service, id),
     async refund({ partialCancellationId, paymentId, paymentAmount, paymentKey, refundAmount, expectedBalanceBefore }) {
-      const { data, error } = await service
-        .from('payment_attempts')
-        .select('id,provider,purpose,ref_id,amount,currency,idempotency_key,provider_order_id,provider_product_code,expires_at')
-        .eq('payment_id', paymentId)
-        .maybeSingle();
-      if (error) throw new Error('payment attempt lookup failed');
-      if (!data) throw new Error('payment attempt missing');
-      const row = data as Record<string, unknown>;
-      if (
-        row.provider !== 'toss'
-        || row.purpose !== 'order'
-        || typeof row.id !== 'string'
-        || typeof row.ref_id !== 'string'
-        || row.amount !== paymentAmount
-        || typeof row.currency !== 'string'
-        || typeof row.idempotency_key !== 'string'
-        || typeof row.provider_order_id !== 'string'
-        || typeof row.provider_product_code !== 'string'
-        || typeof row.expires_at !== 'string'
-      ) {
-        throw new Error('invalid payment attempt state');
-      }
-      const attempt: PaymentAttempt = {
-        id: row.id,
-        provider: 'toss',
-        purpose: 'order',
-        refId: row.ref_id,
-        amount: row.amount as number,
-        currency: row.currency,
-        idempotencyKey: row.idempotency_key,
-        providerOrderId: row.provider_order_id,
-        providerProductCode: row.provider_product_code,
-        expiresAt: row.expires_at,
-      };
+      const attempt = await loadTossAttempt(service, paymentId, paymentAmount);
       const gateway = createRuntimeAttemptPaymentGateway(service, 'toss', getPaymentGateway('toss'));
-      return gateway.refund({
-        attempt,
-        idempotencyKey: orderPartialCancellationIdempotencyKey(attempt.id, partialCancellationId),
-        amount: refundAmount,
-        reason: ORDER_PARTIAL_CANCEL_REFUND_REASON,
-        providerPaymentKey: paymentKey,
-        partial: { expectedBalanceBefore },
-      });
+      return gateway.refund(orderPartialCancellationRefundRequest(attempt, { partialCancellationId, paymentKey, refundAmount, expectedBalanceBefore }));
     },
     async complete({ id, actorId, refundedAmount, paymentKey, transactionKey }) {
       const { error } = await service.rpc('service_complete_order_partial_cancellation', {
@@ -194,7 +210,7 @@ export async function reconcileOrderPartialCancellation(
     || row.paymentLiveAmount !== row.paymentAmount
     || row.balanceBefore > row.paymentAmount
     || row.refundAmount <= 0
-    || row.refundAmount >= row.balanceBefore
+    || row.refundAmount > row.balanceBefore
   ) {
     return needsReview(dependencies, target, 'payment_evidence_invalid');
   }
@@ -236,4 +252,66 @@ export async function reconcileOrderPartialCancellation(
     return { ok: false, code: 'partial_cancel_rejected' };
   }
   return needsReview(dependencies, target, reviewCode(refund));
+}
+
+export type OrderPartialCancellationResolutionEvidence =
+  | { ok: true; resolution: 'not_moved'; observedBalance: number }
+  | { ok: true; resolution: 'already_canceled'; observedBalance: number; transactionKey: string }
+  | { ok: false; code: 'not_found' | 'not_needs_review' | 'local_state_unavailable' | 'provider_unavailable' | 'provider_mismatch' | 'balance_unexplained' };
+
+export interface OrderPartialCancellationResolutionDependencies {
+  load(id: string): Promise<OrderPartialCancellationServiceRow | null>;
+  inspect(input: { paymentId: string; paymentAmount: number; paymentKey: string }): Promise<PaymentBalanceInspection>;
+}
+
+function createDefaultResolutionDependencies(): OrderPartialCancellationResolutionDependencies {
+  const service = createServiceClient();
+  return {
+    load: (id) => loadServiceRow(service, id),
+    async inspect({ paymentId, paymentAmount, paymentKey }) {
+      const attempt = await loadTossAttempt(service, paymentId, paymentAmount);
+      const gateway = createRuntimeAttemptPaymentGateway(service, 'toss', getPaymentGateway('toss'));
+      if (!gateway.inspectBalance) return { kind: 'not_supported' };
+      return gateway.inspectBalance(attempt, paymentKey);
+    },
+  };
+}
+
+/**
+ * 결제확인필요 해소의 증거(ADR-0032). 결제사를 조회만 한다(취소를 발행하지 않는다). 잔액이 시작 때 잔액 그대로면 돈이 움직이지
+ * 않았고(→ 진행하지 않음), '시작 때 잔액 − 환불액'이고 마지막 취소가 그 금액이면 이미 취소됐다(→ 그 거래 키로 적용). 둘 다
+ * 아니면(다른 취소가 끼었거나 결제사 화면과 대조가 필요한 상태) 해소하지 않는다. DB 해소 함수가 같은 값을 다시 대조한다.
+ */
+export async function inspectOrderPartialCancellationResolution(
+  partialCancellationId: string,
+  provided?: OrderPartialCancellationResolutionDependencies,
+): Promise<OrderPartialCancellationResolutionEvidence> {
+  let dependencies: OrderPartialCancellationResolutionDependencies;
+  let row: OrderPartialCancellationServiceRow | null;
+  try {
+    dependencies = provided ?? createDefaultResolutionDependencies();
+    row = await dependencies.load(partialCancellationId);
+  } catch {
+    return { ok: false, code: 'local_state_unavailable' };
+  }
+  if (!row) return { ok: false, code: 'not_found' };
+  if (row.provider !== 'toss' || row.state !== 'needs_review') return { ok: false, code: 'not_needs_review' };
+  if (typeof row.paymentKey !== 'string' || !row.paymentKey) return { ok: false, code: 'provider_mismatch' };
+  let inspection: PaymentBalanceInspection;
+  try {
+    inspection = await dependencies.inspect({ paymentId: row.paymentId, paymentAmount: row.paymentAmount, paymentKey: row.paymentKey });
+  } catch {
+    return { ok: false, code: 'provider_unavailable' };
+  }
+  if (inspection.kind === 'unavailable') return { ok: false, code: 'provider_unavailable' };
+  if (inspection.kind !== 'ok') return { ok: false, code: 'provider_mismatch' };
+  if (inspection.balanceAmount === row.balanceBefore) {
+    return { ok: true, resolution: 'not_moved', observedBalance: inspection.balanceAmount };
+  }
+  const last = inspection.lastCancel;
+  if (row.refundAmount > 0 && inspection.balanceAmount === row.balanceBefore - row.refundAmount
+    && last && last.cancelAmount === row.refundAmount && TRANSACTION_KEY.test(last.transactionKey)) {
+    return { ok: true, resolution: 'already_canceled', observedBalance: inspection.balanceAmount, transactionKey: last.transactionKey };
+  }
+  return { ok: false, code: 'balance_unexplained' };
 }

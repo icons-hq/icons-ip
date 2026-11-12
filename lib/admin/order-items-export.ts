@@ -10,6 +10,8 @@ import { ADMIN_VOCABULARY } from './vocabulary';
 
 
 export function orderItemsExportSheet(rows: AdminOrderItemRow[], filters: AdminOrderItemFilters, fingerprint: string): AdminListExportSheet {
+  // 재고 부족 부분 취소(ADR-0032)가 있는 행이 있을 때만 '취소 수량' 열을 둔다. 수량·상품 금액·실결제액은 남은 몫이다.
+  const partial = rows.some(row => row.partialCancel);
   return {
     screen: 'orders', title: '상품주문별 조회', recordCount: rows.length,
     columns: [
@@ -18,6 +20,7 @@ export function orderItemsExportSheet(rows: AdminOrderItemRow[], filters: AdminO
       { header: '상품 URL', kind: 'code', width: 28 }, { header: '상품명', kind: 'text', width: 36 },
       { header: '옵션', kind: 'text', width: 20 }, { header: '옵션코드', kind: 'code', width: 18 },
       { header: '직접 입력 옵션', kind: 'text', width: 36 }, { header: '수량', kind: 'count', width: 8 },
+      ...(partial ? [{ header: '취소 수량', kind: 'count' as const, width: 10 }] : []),
       { header: '판매가', kind: 'amount', width: 12 }, { header: '상품 금액', kind: 'amount', width: 12 },
       { header: '복수구매 할인(품목)', kind: 'amount', width: 18 }, { header: '쿠폰 할인(품목)', kind: 'amount', width: 18 },
       { header: '적립금 사용(품목)', kind: 'amount', width: 18 }, { header: '품목 실결제액(배송비 제외)', kind: 'amount', width: 24 },
@@ -27,8 +30,10 @@ export function orderItemsExportSheet(rows: AdminOrderItemRow[], filters: AdminO
       { header: ADMIN_VOCABULARY.claimRequest, kind: 'text', width: 20 },
     ],
     rows: rows.map(row => [row.productOrderNumber ?? row.id, row.orderNumber ?? row.orderId, ADMIN_ORDER_STATUS_LABELS[row.status], kstDateTimeText(row.createdAt), row.goodId,
-      row.goodName, row.variantName, row.variantCode, goodsCustomInputSummary(row.customInputs), row.qty, row.unitPrice, row.itemAmount,
-      row.allocation?.volumeDiscount ?? null, row.allocation?.couponDiscount ?? null, row.allocation?.storeCreditDiscount ?? null, row.allocation?.paidGoodsTotal ?? null,
+      row.goodName, row.variantName, row.variantCode, goodsCustomInputSummary(row.customInputs), row.partialCancel?.activeQty ?? row.qty,
+      ...(partial ? [row.partialCancel?.canceledQty ?? 0] : []), row.unitPrice, row.partialCancel?.activeItemAmount ?? row.itemAmount,
+      row.allocation?.volumeDiscount ?? null, row.allocation?.couponDiscount ?? null, row.allocation?.storeCreditDiscount ?? null,
+      row.allocation ? row.allocation.paidGoodsTotal - (row.partialCancel?.paidAmount ?? 0) : null,
       orderItemBuyerLabel(row), row.recipientName, row.originName,
       row.shipmentStatus ? shipmentStatusLabel(row.shipmentStatus as ShipmentStatus) ?? null : null,
       row.carrierLabel, row.trackingNumber, row.claim ? `${ORDER_CLAIM_TYPE_LABELS[row.claim.type]} · ${ORDER_CLAIM_STAGE_LABELS[row.claim.stage]}` : null]),
@@ -41,7 +46,8 @@ export function orderItemsExportSheet(rows: AdminOrderItemRow[], filters: AdminO
       ['중복 제외 주문 수', String(new Set(rows.map(row => row.orderId)).size)]],
     notes: ['한 행은 상품주문 한 개입니다. 상품명·옵션·판매가는 주문 당시 기록입니다.',
       '상품 금액은 판매가 × 수량입니다. 품목 배분 열은 주문의 복수구매·쿠폰·적립금을 거래확정 엑셀과 같은 규칙으로 품목에 나눈 값이며 배송비는 포함하지 않습니다. 주문 당시 기록이 없어 나눌 수 없으면 빈칸입니다.',
-      '취소·반품·환급 및 발주확인의 처리 단위는 주문 전체입니다.'],
+      '취소·반품·환급 및 발주확인의 처리 단위는 주문 전체입니다.',
+      ...(partial ? ['취소 수량은 재고 부족 부분 취소로 뺀 수량입니다. 그 행의 수량·상품 금액·품목 실결제액은 남은 몫이고, 복수구매·쿠폰·적립금 배분 열은 주문 당시 값입니다.'] : [])],
     filters: { view: 'items', field: filters.field, query: filters.query || null, status: filters.status, from: filters.from, to: filters.to,
       dateField: filters.dateField ?? 'ordered', paymentMethod: filters.paymentMethod ?? null, sort: filters.sort ?? 'newest', fingerprint },
   };

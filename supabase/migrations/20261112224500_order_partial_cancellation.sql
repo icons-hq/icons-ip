@@ -18,8 +18,14 @@
 --    출고지시·발송·다른 클레임을 막는다(결제사 취소와 출고가 엇갈리지 않게).
 --  * 무통장: 결제사가 없으므로 시작 때 바로 적용하고 송금 대기(awaiting_transfer, 송금액 = 배분액)로 둔다. 운영자가 송금 증빙을
 --    적으면 completed. 송금 대기·증빙 모델은 T03·ADR-0010과 같다(비종결 상태 → 불변 송금 증빙으로 종결).
---  * 부분 취소를 받지 않는 결제(나이스페이 계약 전·코페이·토스 가상계좌·정기배송 바인딩)와 선물 주문·버전 1 주문, 예약 판매·제작·
---    디지털·통합 이력 품목은 판정 단계에서 막고 이유를 보인다.
+--  * 부분 취소를 받지 않는 결제(나이스페이 계약 전·코페이·토스 가상계좌·정기배송 바인딩)와 버전 1 주문, 예약 판매·주문제작·
+--    디지털·통합 이력 품목은 판정 단계에서 막고 이유를 보인다('재고 부족' 부분 취소의 대상이 아니거나 재고 복원 단위가 품목 전체).
+--  * 선물 주문도 연다 — 환불은 결제자에게(결제사 취소는 원결제수단, 무통장은 결제자 계좌), 결정 기록은 결제자의 결정이다.
+--  * 환불액 0원(전액 할인·적립금 품목)은 결제사를 부르지 않고 바로 적용·완료한다(적립금 몫만 되돌림). 남는 잔액이 0원이 되는
+--    부분 취소는 남은 잔액 전부를 결제사 부분 취소로 보낸다(결제 상태는 그대로 두고 부분 취소 누적으로 표현).
+--  * 합포장 팩 멤버 배송 건을 닫게 되면 먼저 합포장을 해제하게 한다(shipment_packed, 팩을 암묵적으로 바꾸지 않음).
+--  * 결제확인필요(needs_review)는 결제 담당(레거시 admin + 세션)이 사유와 함께 해소한다: 결제사 조회로 돈이 안 움직였음을
+--    확인하면 진행하지 않음, 이미 취소됐으면 그 거래 키로 적용을 강제(재고 승계가 바뀌었으면 승계를 따라 복원).
 begin;
 
 -- 1. 스위치(T12a 행의 별도 칸). 켤 때는 근거와 켠 시각이 필요하다. 행의 감사·리비전 트리거가 이 칸 변경도 남긴다.
@@ -50,10 +56,10 @@ create table private.order_partial_cancellations (
   note text check (note is null or (note = btrim(note) and char_length(note) between 1 and 500 and translate(note, E'\n\r\t', '') !~ '[[:cntrl:]]')),
   warehouse_stop_confirmed boolean not null,
   payment_amount bigint not null check (payment_amount > 0),
-  balance_before bigint not null check (balance_before > 0 and balance_before <= payment_amount),
+  balance_before bigint not null check (balance_before >= 0 and balance_before <= payment_amount),
   goods_refund_amount bigint not null check (goods_refund_amount >= 0),
   shipping_refund_amount bigint not null check (shipping_refund_amount >= 0),
-  refund_amount bigint not null check (refund_amount > 0),
+  refund_amount bigint not null check (refund_amount >= 0),
   store_credit_restore_amount bigint not null default 0 check (store_credit_restore_amount >= 0),
   state text not null check (state in ('processing', 'needs_review', 'rejected', 'completed', 'awaiting_transfer')),
   last_error_code text check (last_error_code is null or last_error_code ~ '^[a-z0-9_]{1,64}$'),
@@ -65,6 +71,14 @@ create table private.order_partial_cancellations (
   applied_at timestamptz,
   completed_at timestamptz,
   rejected_at timestamptz,
+  -- 무통장: 환불계좌를 받아 송금 대기로 접수한 시각·운영자(T03 환불 접수와 같은 단계, 송금 대기 목록·엑셀이 읽는다).
+  filed_at timestamptz,
+  filed_by uuid references public.profiles(id) on delete restrict,
+  -- 결제확인필요 해소(결제 담당 판단). 사유·결과는 감사 기록에도 남는다.
+  resolved_by uuid references public.profiles(id) on delete restrict,
+  resolved_at timestamptz,
+  resolution text check (resolution is null or resolution in ('not_moved', 'already_canceled')),
+  resolution_reason text check (resolution_reason is null or (resolution_reason = btrim(resolution_reason) and char_length(resolution_reason) between 5 and 500)),
   transfer_operation_id uuid unique,
   transferred_by uuid references public.profiles(id) on delete restrict,
   transferred_at timestamptz,
@@ -72,17 +86,20 @@ create table private.order_partial_cancellations (
   transfer_note text check (transfer_note is null or (transfer_note = btrim(transfer_note) and char_length(transfer_note) between 2 and 300)),
   updated_at timestamptz not null default clock_timestamp(),
   unique (order_id, sequence),
-  constraint order_partial_cancellations_amounts check (refund_amount = goods_refund_amount + shipping_refund_amount and refund_amount < balance_before),
+  constraint order_partial_cancellations_amounts check (refund_amount = goods_refund_amount + shipping_refund_amount and refund_amount <= balance_before),
+  constraint order_partial_cancellations_resolution check ((resolution is null) = (resolved_at is null and resolved_by is null and resolution_reason is null)),
+  constraint order_partial_cancellations_filed check ((provider = 'bank_transfer' and refund_amount > 0) = (filed_at is not null and filed_by is not null)),
   constraint order_partial_cancellations_applied check ((state in ('completed', 'awaiting_transfer')) = (applied_at is not null)),
   constraint order_partial_cancellations_completed check ((state = 'completed') = (completed_at is not null)),
   constraint order_partial_cancellations_rejected check ((state = 'rejected') = (rejected_at is not null)),
   constraint order_partial_cancellations_provider_state check (
     provider = 'toss' and state <> 'awaiting_transfer' and transfer_operation_id is null
-      and (state <> 'completed' or (provider_confirmed_at is not null and provider_transaction_key is not null))
+      and (state <> 'completed' or refund_amount = 0 or (provider_confirmed_at is not null and provider_transaction_key is not null))
     -- 무통장은 시작 트랜잭션 안에서 processing으로 넣고 같은 트랜잭션에서 바로 적용해 송금 대기로 넘긴다(실패하면 함께 롤백).
     or provider = 'bank_transfer' and state in ('processing', 'awaiting_transfer', 'completed') and provider_confirmed_at is null and provider_transaction_key is null),
+  -- 송금 증빙은 돈을 보낸 무통장 완료에만 있다(0원 환불은 송금 없이 바로 완료).
   constraint order_partial_cancellations_transfer check (
-    (provider = 'bank_transfer' and state = 'completed') = (transfer_operation_id is not null and transferred_by is not null
+    (provider = 'bank_transfer' and state = 'completed' and refund_amount > 0) = (transfer_operation_id is not null and transferred_by is not null
       and transferred_at is not null and transfer_evidence is not null and transfer_note is not null))
 );
 -- 한 주문에 결제사 확인을 기다리는 부분 취소는 하나뿐이다(잔액 기대값이 서로 엇갈리지 않게).
@@ -278,7 +295,6 @@ begin
     blockers := array_append(blockers, 'payment_reconciliation_required');
   end if;
   if purchase.calculation_version is distinct from 2 then blockers := array_append(blockers, 'legacy_order'); end if;
-  if exists(select 1 from private.gift_intents g where g.order_id = p_order_id) then blockers := array_append(blockers, 'gift_order'); end if;
   select count(*) into payment_count from public.payments p where p.purpose = 'order' and p.ref_id = p_order_id and p.status <> 'failed';
   pay := private.order_partial_cancellation_payment(p_order_id);
   if payment_count <> 1 or pay.id is null or pay.status <> 'paid' or pay.amount <= 0 or pay.amount <> purchase.total then
@@ -400,6 +416,10 @@ begin
       into shipment_left from public.order_shipment_items l where l.shipment_id = ship_id;
     if shipment_left = 0 then
       select * into ship from public.order_shipments where id = ship_id;
+      -- 합포장 팩에 묶인 배송 건을 닫으면 같은 팩의 다른 배송 건이 출고·해제되지 못한다. 먼저 합포장을 해제한다.
+      if exists(select 1 from private.shipment_pack_members m where m.shipment_id = ship.id and m.released_at is null) then
+        raise check_violation using message = 'partial_cancel_shipment_packed';
+      end if;
       shipping := shipping + ship.shipping_fee;
       closed := closed || jsonb_build_object('shipmentId', ship.id, 'shipmentNumber', ship.shipment_number, 'originName', ship.origin_name_snapshot,
         'shippingFeeRefund', ship.shipping_fee, 'shippingCollectFee', ship.shipping_collect_fee, 'exported', ship.exported_at is not null);
@@ -409,8 +429,8 @@ begin
     into remaining from public.order_shipment_items l where l.order_id = p_order_id;
   if remaining <= 0 then raise check_violation using message = 'partial_cancel_leaves_nothing'; end if;
   balance := pay.amount - private.payment_partial_refunded_amount(pay.id);
-  if goods + shipping <= 0 then raise check_violation using message = 'partial_cancel_refund_zero'; end if;
-  if balance - (goods + shipping) <= 0 then raise check_violation using message = 'partial_cancel_remaining_balance_zero'; end if;
+  -- 환불액 0원은 결제사를 부르지 않고 바로 적용한다. 남는 잔액이 0원이면 남은 잔액 전부를 결제사 부분 취소로 보낸다.
+  if goods + shipping > balance then raise check_violation using message = 'partial_cancel_exceeds_balance'; end if;
   return jsonb_build_object('orderId', p_order_id, 'orderNumber', purchase.order_number, 'paymentId', pay.id, 'provider', pay.provider,
     'paymentAmount', pay.amount, 'balanceBefore', balance, 'goodsRefundAmount', goods, 'shippingRefundAmount', shipping,
     'refundAmount', goods + shipping, 'balanceAfter', balance - goods - shipping, 'storeCreditRestoreAmount', credit,
@@ -420,7 +440,10 @@ revoke all on function private.order_partial_cancellation_plan(uuid, jsonb) from
 
 -- 6. 수량 단위 재고 복원(재고 품목·통합 이력 없음만). 주문 전체 취소의 복원(restore_order_item_supply)은 다음 migration에서
 --    이미 부분 취소로 복원한 수량을 빼고 남은 수량만 복원하도록 바뀐다.
-create function private.restore_order_item_partial_supply(p_order_item_id uuid, p_qty integer, p_partial_cancellation_id uuid, p_reason text)
+-- p_follow_successor: 결제사 취소 뒤 상품 통합(재고 승계)이 바뀌어 적용이 막힌 건을 결제 담당이 해소할 때만 참이다. 그때는 승계를 따라
+-- 지금의 실물 옵션에 되돌린다(주문 전체 취소의 승계 복원과 같은 대상). 예약 판매 품목은 언제나 거절한다.
+create function private.restore_order_item_partial_supply(p_order_item_id uuid, p_qty integer, p_partial_cancellation_id uuid, p_reason text,
+  p_follow_successor boolean default false)
 returns void language plpgsql set search_path = '' as $$
 declare item public.order_items; physical record; target record;
 begin
@@ -433,20 +456,22 @@ begin
   select * into target from private.resolve_goods_stock_successor(physical.good_id, physical.variant_id);
   perform 1 from public.goods where id = any(array[item.good_id, physical.good_id, target.good_id]) order by id for update nowait;
   perform 1 from public.goods_variants where id = any(array[item.variant_id, physical.variant_id, target.variant_id]) order by id for update nowait;
-  if item.supply_source <> 'stock' or target.hop_count > 0 or physical.good_id <> item.good_id
-    or exists(select 1 from private.group_claim_reshipment_allocations where order_item_id = item.id) then
+  if item.supply_source <> 'stock' then raise check_violation using message = 'partial_cancel_item_preorder_item'; end if;
+  if not p_follow_successor and (target.hop_count > 0 or physical.good_id <> item.good_id
+    or exists(select 1 from private.group_claim_reshipment_allocations where order_item_id = item.id)) then
     raise check_violation using message = 'partial_cancel_item_stock_topology_changed';
   end if;
   perform private.apply_group_physical_stock_deltas(jsonb_build_array(jsonb_build_object('goodId', target.good_id, 'variantId', target.variant_id, 'delta', p_qty)));
-  insert into public.audit_log(actor_id, action, target, diff) values(auth.uid(), 'order.option_stock_restored', 'order:' || item.order_id::text,
+  -- 주문 전체 취소의 복원(order.option_stock_restored, 품목마다 한 번)과 다른 액션이다 — 재고 대조·불량 재고 방어선이 둘을 섞지 않는다.
+  insert into public.audit_log(actor_id, action, target, diff) values(auth.uid(), 'order.option_stock_partially_restored', 'order:' || item.order_id::text,
     jsonb_build_object('orderItemId', item.id, 'goodId', target.good_id, 'variantId', target.variant_id, 'delta', p_qty,
       'originalGoodId', item.good_id, 'originalVariantId', item.variant_id, 'physicalGoodId', physical.good_id, 'physicalVariantId', physical.variant_id,
       'generationKind', physical.generation_kind, 'generationId', physical.generation_id, 'operationPath', target.operation_path,
       'supplySource', item.supply_source, 'preorderPolicyId', item.preorder_policy_id, 'reason', p_reason,
-      'partialCancellationId', p_partial_cancellation_id));
+      'partialCancellationId', p_partial_cancellation_id, 'followedSuccessor', p_follow_successor));
 exception when lock_not_available then raise sqlstate 'PT409' using message = 'goods_group_retry';
 end $$;
-revoke all on function private.restore_order_item_partial_supply(uuid, integer, uuid, text) from public, anon, authenticated, service_role;
+revoke all on function private.restore_order_item_partial_supply(uuid, integer, uuid, text, boolean) from public, anon, authenticated, service_role;
 
 -- 7. 취소한 품목에 배분된 적립금 몫을 적립금으로 되돌린다. 주문 전체 취소의 되돌림(release_order_store_credits)과 같은 방식이고,
 --    사용 배정(store_credit_allocations)의 금액을 그만큼 줄여 뒤의 전체 취소가 남은 몫만 되돌리게 한다.
@@ -512,10 +537,13 @@ begin
   label := left(coalesce(private.partial_cancellation_items_label(p_id), '일부 굿즈'), 200);
   if p_event = 'applied' then
     title := '주문 일부가 취소됐어요';
-    body := format('재고가 부족해 %s를 취소했습니다. %s', label,
-      case when head.provider = 'bank_transfer'
-        then format('환불 %s은 등록하신 환불계좌로 송금해 드립니다. 나머지 굿즈는 그대로 보내드립니다.', private.format_krw(head.refund_amount))
-        else format('%s을 결제사에서 부분 취소했습니다(카드사 처리에 영업일 기준 3~4일). 나머지 굿즈는 그대로 보내드립니다.', private.format_krw(head.refund_amount)) end);
+    body := format('재고가 부족해 %s를 취소했습니다. %s%s나머지 굿즈는 그대로 보내드립니다.', label,
+      case when head.refund_amount = 0 then '돌려드릴 결제 금액은 없습니다. '
+        when head.provider = 'bank_transfer'
+        then format('환불 %s은 등록하신 환불계좌로 송금해 드립니다. ', private.format_krw(head.refund_amount))
+        else format('%s을 결제사에서 부분 취소했습니다(카드사 처리에 영업일 기준 3~4일). ', private.format_krw(head.refund_amount)) end,
+      case when head.store_credit_restore_amount > 0
+        then format('사용하신 적립금 %s은 적립금으로 되돌려 드렸습니다. ', private.format_krw(head.store_credit_restore_amount)) else '' end);
   elsif p_event = 'transferred' then
     title := '부분 취소 환불을 송금했어요';
     body := format('취소한 %s의 환불 %s을 환불계좌로 송금했습니다.', label, private.format_krw(head.refund_amount));
@@ -530,7 +558,7 @@ end $$;
 revoke all on function private.notify_order_partial_cancellation(uuid, text) from public, anon, authenticated, service_role;
 
 -- 8. 적용: 결제사 확인 뒤(토스) 또는 시작 때(무통장) 한 트랜잭션에서 재고·배송 건·적립금·카드팩을 바꾼다. 호출자가 주문을 잠근다.
-create function private.apply_order_partial_cancellation(p_id uuid, p_actor uuid, p_next_state text) returns void
+create function private.apply_order_partial_cancellation(p_id uuid, p_actor uuid, p_next_state text, p_follow_successor boolean default false) returns void
 language plpgsql security definer set search_path = '' as $$
 declare head private.order_partial_cancellations; purchase public.orders; line record; ship_id uuid; obligation private.shipping_collect_obligations;
   policy record; remaining numeric;
@@ -563,7 +591,7 @@ begin
     if not found then
       update public.order_shipment_items set qty = qty - line.qty where order_item_id = line.order_item_id and order_id = line.order_id;
     end if;
-    perform private.restore_order_item_partial_supply(line.order_item_id, line.qty, p_id, '재고 부족 부분 취소');
+    perform private.restore_order_item_partial_supply(line.order_item_id, line.qty, p_id, '재고 부족 부분 취소', p_follow_successor);
   end loop;
   for ship_id in select shipment_id from private.order_partial_cancellation_shipments where partial_cancellation_id = p_id order by shipment_id loop
     if exists(select 1 from public.order_shipment_items where shipment_id = ship_id) then
@@ -607,7 +635,7 @@ begin
         where c.partial_cancellation_id = p_id), '[]'::jsonb)));
   perform private.notify_order_partial_cancellation(p_id, 'applied');
 end $$;
-revoke all on function private.apply_order_partial_cancellation(uuid, uuid, text) from public, anon, authenticated, service_role;
+revoke all on function private.apply_order_partial_cancellation(uuid, uuid, text, boolean) from public, anon, authenticated, service_role;
 
 -- 9. 화면이 읽는 모양.
 create function private.order_partial_cancellation_json(p_id uuid, p_staff boolean) returns jsonb
@@ -625,7 +653,8 @@ language sql stable security definer set search_path = '' as $$
   || case when p_staff then jsonb_build_object('customerDecision', head.customer_decision, 'note', head.note,
       'warehouseStopConfirmed', head.warehouse_stop_confirmed, 'lastErrorCode', head.last_error_code, 'balanceBefore', head.balance_before,
       'paymentAmount', head.payment_amount, 'createdBy', (select nickname from public.profiles where id = head.created_by),
-      'transferEvidence', head.transfer_evidence, 'transferNote', head.transfer_note,
+      'transferEvidence', head.transfer_evidence, 'transferNote', head.transfer_note, 'filedAt', head.filed_at,
+      'resolution', head.resolution, 'resolutionReason', head.resolution_reason, 'resolvedAt', head.resolved_at,
       'closedShipments', coalesce((select jsonb_agg(jsonb_build_object('shipmentId', s.id, 'shipmentNumber', s.shipment_number,
           'originName', s.origin_name_snapshot, 'shippingFeeRefund', c.shipping_fee_refund) order by s.shipment_number)
         from private.order_partial_cancellation_shipments c join public.order_shipments s on s.id = c.shipment_id
@@ -640,16 +669,21 @@ revoke all on function private.order_partial_cancellation_json(uuid, boolean) fr
 -- 10. 운영자 RPC.
 -- 10-1. 주문 상세 패널. 스위치가 꺼져 있고 기록이 없으면 {enabled:false, history:[]} — 화면은 아무것도 그리지 않는다.
 -- 운영자 능력 검사가 행 잠금을 쓰므로 PostgREST 읽기 전용 트랜잭션에 걸리지 않게 VOLATILE이다(cs_reply_read_transaction_mode).
+-- 기록 읽기는 주문 조회 권한(sales.read)이면 열린다(상담 운영자도 일부 취소 사실을 본다). 시작·해소·송금 같은 처리는 sales.manage다.
 create function public.admin_order_partial_cancellation_context(p_order_id uuid) returns jsonb
 language plpgsql security definer set search_path = '' as $$
-declare enabled boolean; blockers text[]; history jsonb; pay public.payments; items jsonb;
+declare enabled boolean; blockers text[]; history jsonb; pay public.payments; items jsonb; can_manage boolean;
 begin
-  perform private.require_operator_capability('sales.manage', false);
+  perform private.require_operator_capability('sales.read', false);
+  can_manage := public.has_operator_capability('sales.manage', false);
   enabled := private.order_partial_cancel_enabled();
   select coalesce(jsonb_agg(private.order_partial_cancellation_json(head.id, true) order by head.sequence), '[]'::jsonb) into history
   from private.order_partial_cancellations head where head.order_id = p_order_id;
   if not enabled then
-    return jsonb_build_object('enabled', false, 'blockers', jsonb_build_array('partial_cancel_disabled'), 'history', history);
+    return jsonb_build_object('enabled', false, 'canManage', can_manage, 'blockers', jsonb_build_array('partial_cancel_disabled'), 'history', history);
+  end if;
+  if not can_manage then
+    return jsonb_build_object('enabled', true, 'canManage', false, 'blockers', '[]'::jsonb, 'history', history);
   end if;
   if not exists(select 1 from public.orders where id = p_order_id) then raise no_data_found using message = 'order_not_found'; end if;
   blockers := private.order_partial_cancellation_blockers(p_order_id);
@@ -664,7 +698,8 @@ begin
   left join public.order_shipment_items link on link.order_item_id = item.id and link.order_id = item.order_id
   left join public.order_shipments ship on ship.id = link.shipment_id
   where item.order_id = p_order_id;
-  return jsonb_build_object('enabled', true, 'blockers', to_jsonb(blockers), 'provider', pay.provider, 'paymentAmount', pay.amount,
+  return jsonb_build_object('enabled', true, 'canManage', true, 'blockers', to_jsonb(blockers), 'provider', pay.provider, 'paymentAmount', pay.amount,
+    'gift', exists(select 1 from private.gift_intents g where g.order_id = p_order_id),
     'balance', case when pay.id is null then null else pay.amount - private.payment_partial_refunded_amount(pay.id) end,
     'items', items, 'history', history);
 end $$;
@@ -687,7 +722,7 @@ create function public.admin_start_order_partial_cancellation(p_order_id uuid, p
 returns jsonb language plpgsql security definer set search_path = '' as $$
 declare v_actor uuid := (select auth.uid()); decision text := nullif(btrim(coalesce(p_customer_decision, '')), '');
   v_note text := nullif(btrim(coalesce(p_note, '')), ''); existing private.order_partial_cancellations; plan jsonb; v_id uuid;
-  v_sequence integer; line jsonb; closed jsonb; v_state text;
+  v_sequence integer; line jsonb; closed jsonb; v_state text; zero boolean;
 begin
   perform private.require_actor_operator_capability(v_actor, 'sales.manage', false);
   if p_operation_id is null then raise invalid_parameter_value using message = 'invalid_partial_cancel_operation'; end if;
@@ -717,7 +752,8 @@ begin
   if (plan->>'warehouseStopRequired')::boolean and p_warehouse_stop_confirmed is distinct from true then
     raise check_violation using message = 'warehouse_stop_confirmation_required';
   end if;
-  if plan->>'provider' = 'bank_transfer' then
+  zero := (plan->>'refundAmount')::bigint = 0;
+  if plan->>'provider' = 'bank_transfer' and not zero then
     if p_refund_account is null or jsonb_typeof(p_refund_account) <> 'object' or (select count(*) from jsonb_object_keys(p_refund_account)) <> 3
       or not p_refund_account ?& array['bankName', 'accountNumber', 'accountHolder']
       or coalesce(p_refund_account->>'bankName', '') !~ '^\S(.{0,38}\S)?$' or coalesce(p_refund_account->>'accountNumber', '') !~ '^[0-9-]{8,30}$'
@@ -729,14 +765,16 @@ begin
     raise check_violation using message = 'partial_cancel_refund_account_not_allowed';
   end if;
   select coalesce(max(sequence), 0) + 1 into v_sequence from private.order_partial_cancellations where order_id = p_order_id;
-  v_state := case when plan->>'provider' = 'bank_transfer' then 'awaiting_transfer' else 'processing' end;
+  -- 0원 환불은 결제사·송금 없이 바로 적용·완료한다. 무통장은 결제사가 없어 바로 적용하고 송금 대기로 둔다.
+  v_state := case when zero then 'completed' when plan->>'provider' = 'bank_transfer' then 'awaiting_transfer' else 'processing' end;
   insert into private.order_partial_cancellations(order_id, payment_id, provider, sequence, reason_code, customer_decision, note,
     warehouse_stop_confirmed, payment_amount, balance_before, goods_refund_amount, shipping_refund_amount, refund_amount,
-    store_credit_restore_amount, state, operation_id, created_by)
+    store_credit_restore_amount, state, operation_id, created_by, filed_at, filed_by)
   values (p_order_id, (plan->>'paymentId')::uuid, (plan->>'provider')::public.payment_provider, v_sequence, 'out_of_stock', decision, v_note,
     (plan->>'warehouseStopRequired')::boolean, (plan->>'paymentAmount')::bigint, (plan->>'balanceBefore')::bigint,
     (plan->>'goodsRefundAmount')::bigint, (plan->>'shippingRefundAmount')::bigint, (plan->>'refundAmount')::bigint,
-    (plan->>'storeCreditRestoreAmount')::bigint, 'processing', p_operation_id, v_actor)
+    (plan->>'storeCreditRestoreAmount')::bigint, 'processing', p_operation_id, v_actor,
+    case when v_state = 'awaiting_transfer' then clock_timestamp() end, case when v_state = 'awaiting_transfer' then v_actor end)
   returning id into v_id;
   for line in select value from jsonb_array_elements(plan->'lines') loop
     insert into private.order_partial_cancellation_items(partial_cancellation_id, order_id, order_item_id, shipment_id, qty, canceled_qty_before,
@@ -762,6 +800,8 @@ begin
       (p_refund_account->>'bankName') || ' ' || public.mask_refund_account_number(p_refund_account->>'accountNumber'),
       public.mask_refund_account_holder(p_refund_account->>'accountHolder'));
     perform private.apply_order_partial_cancellation(v_id, v_actor, 'awaiting_transfer');
+  elsif v_state = 'completed' then
+    perform private.apply_order_partial_cancellation(v_id, v_actor, 'completed');
   end if;
   return jsonb_build_object('id', v_id, 'state', v_state, 'provider', plan->>'provider', 'refundAmount', (plan->>'refundAmount')::bigint, 'replayed', false);
 end $$;
@@ -939,6 +979,154 @@ $$;
 revoke all on function public.service_order_payment_partial_refunds(uuid) from public, anon, authenticated, service_role;
 grant execute on function public.service_order_payment_partial_refunds(uuid) to service_role;
 
+-- 11-2. 결제확인필요 해소(결제 담당 = sales.manage + 레거시 관리자, 로그인 세션, 사유 필수, 감사 기록).
+--  not_moved: 서버가 결제사 조회로 잔액이 시작 때 잔액 그대로임(돈이 움직이지 않음)을 확인했다 → 진행하지 않음(rejected).
+--  already_canceled: 결제사 조회로 잔액이 '시작 때 잔액 − 환불액'이고 그 취소 거래 키를 확인했다 → 그 키로 적용을 강제한다.
+--    재고 승계(상품 통합)가 그 사이 바뀌어 수량 단위 복원이 막혔으면 승계를 따라 지금의 실물 옵션에 복원한다.
+create function public.admin_resolve_order_partial_cancellation(p_id uuid, p_resolution text, p_reason text, p_provider_transaction_key text,
+  p_observed_balance bigint) returns jsonb
+language plpgsql security definer set search_path = '' as $$
+declare v_actor uuid := (select auth.uid()); v_session uuid; head private.order_partial_cancellations; pay public.payments;
+  reason text := nullif(btrim(coalesce(p_reason, '')), ''); topology boolean := false;
+begin
+  begin v_session := (auth.jwt()->>'session_id')::uuid;
+  exception when invalid_text_representation then raise insufficient_privilege using message = 'bank_refund_permission_required'; end;
+  perform private.require_bank_transfer_refund_identity(v_actor, v_session);
+  if p_resolution is null or p_resolution not in ('not_moved', 'already_canceled') then
+    raise invalid_parameter_value using message = 'invalid_partial_cancel_resolution';
+  end if;
+  if reason is null or char_length(reason) not between 5 and 500 or translate(reason, E'\n\r\t', '') ~ '[[:cntrl:]]' then
+    raise check_violation using message = 'partial_cancel_resolution_reason_required';
+  end if;
+  select * into head from private.order_partial_cancellations where id = p_id;
+  if not found then raise no_data_found using message = 'partial_cancellation_not_found'; end if;
+  perform 1 from public.orders where id = head.order_id for update;
+  perform s.id from public.order_shipments s where s.order_id = head.order_id order by s.id for update;
+  select * into pay from public.payments where id = head.payment_id for update;
+  select * into head from private.order_partial_cancellations where id = p_id for update;
+  if head.provider <> 'toss' or head.state <> 'needs_review' then raise check_violation using message = 'partial_cancel_not_needs_review'; end if;
+  if p_resolution = 'not_moved' then
+    if p_observed_balance is distinct from head.balance_before then raise check_violation using message = 'partial_cancel_resolution_evidence_mismatch'; end if;
+    update private.order_partial_cancellations set state = 'rejected', rejected_at = clock_timestamp(), last_error_code = 'manual_not_moved',
+      resolution = 'not_moved', resolution_reason = reason, resolved_by = v_actor, resolved_at = clock_timestamp() where id = p_id;
+  else
+    if p_observed_balance is distinct from head.balance_before - head.refund_amount
+      or p_provider_transaction_key is null or p_provider_transaction_key !~ '^[\x21-\x7e]{1,64}$' then
+      raise check_violation using message = 'partial_cancel_resolution_evidence_mismatch';
+    end if;
+    update private.order_partial_cancellations set provider_confirmed_at = clock_timestamp(), provider_transaction_key = p_provider_transaction_key,
+      resolution = 'already_canceled', resolution_reason = reason, resolved_by = v_actor, resolved_at = clock_timestamp() where id = p_id;
+    begin
+      perform private.apply_order_partial_cancellation(p_id, v_actor, 'completed', false);
+    exception when check_violation then
+      if sqlerrm <> 'partial_cancel_item_stock_topology_changed' then raise; end if;
+      topology := true;
+    end;
+    if topology then perform private.apply_order_partial_cancellation(p_id, v_actor, 'completed', true); end if;
+  end if;
+  insert into public.audit_log(actor_id, action, target, diff)
+  values (v_actor, 'admin.order.partial_cancellation_resolved', 'order:' || head.order_id::text,
+    jsonb_build_object('partialCancellationId', p_id, 'resolution', p_resolution, 'reason', reason, 'observedBalance', p_observed_balance,
+      'providerTransactionKey', p_provider_transaction_key, 'followedSuccessor', topology, 'previousCode', head.last_error_code));
+  return jsonb_build_object('id', p_id, 'state', case when p_resolution = 'not_moved' then 'rejected' else 'completed' end, 'followedSuccessor', topology);
+end $$;
+revoke all on function public.admin_resolve_order_partial_cancellation(uuid, text, text, text, bigint) from public, anon, authenticated, service_role;
+grant execute on function public.admin_resolve_order_partial_cancellation(uuid, text, text, text, bigint) to authenticated;
+
+-- 11-3. 환불 송금 대기 엑셀(T03)의 무통장 부분 취소 계좌 원문. 서버가 증명한 운영자·세션으로 클레임 계좌 반출(service_export_bank_
+--   transfer_refund_accounts)과 같은 판정을 하고, 같은 반출 번호(p_export_id)로 줄마다 열람 감사를 남긴다(원문은 남기지 않는다).
+create function public.service_export_order_partial_cancellation_refund_accounts(p_actor_id uuid, p_session_id uuid, p_export_id uuid, p_items jsonb)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare actor uuid := p_actor_id; target record; head private.order_partial_cancellations; account private.order_partial_cancellation_refund_accounts;
+  results jsonb[] := '{}'; revealed integer := 0; order_ids uuid[]; ids uuid[]; happened timestamptz;
+begin
+  if actor is null or p_session_id is null or p_export_id is null or jsonb_typeof(p_items) is distinct from 'array' or jsonb_array_length(p_items) > 10000
+    or exists(select 1 from jsonb_array_elements(p_items) item where jsonb_typeof(item) is distinct from 'object'
+      or exists(select 1 from jsonb_object_keys(item) k where k not in ('partialCancellationId', 'orderId'))
+      or coalesce(item->>'partialCancellationId', '') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+      or coalesce(item->>'orderId', '') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') then
+    raise invalid_parameter_value using message = 'invalid_bank_refund_export';
+  end if;
+  select coalesce(array_agg(distinct (item->>'orderId')::uuid), '{}'), coalesce(array_agg(distinct (item->>'partialCancellationId')::uuid), '{}')
+    into order_ids, ids from jsonb_array_elements(p_items) item;
+  if cardinality(ids) <> jsonb_array_length(p_items) then raise invalid_parameter_value using message = 'invalid_bank_refund_export'; end if;
+  if not exists(select 1 from auth.sessions where id = p_session_id and user_id = actor and (not_after is null or not_after > statement_timestamp()))
+    or not exists(select 1 from public.profiles where id = actor) then
+    raise insufficient_privilege using message = 'refund_account_auth_changed';
+  end if;
+  if not private.has_operator_capability(actor, 'sales.manage', true) then raise insufficient_privilege using message = 'bank_refund_permission_required'; end if;
+  perform private.lock_operator_subjects(array[actor] || coalesce((select array_agg(purchase.user_id) from public.orders purchase where purchase.id = any(order_ids)), '{}'));
+  perform private.require_actor_operator_capability(actor, 'sales.manage', true);
+  perform id from auth.sessions where id = p_session_id and user_id = actor and (not_after is null or not_after > clock_timestamp()) for share;
+  if not found then raise insufficient_privilege using message = 'refund_account_auth_changed'; end if;
+  perform purchase.id from public.orders purchase where purchase.id = any(order_ids) order by purchase.id for update;
+  perform h.id from private.order_partial_cancellations h where h.id = any(ids) order by h.id for update;
+  happened := clock_timestamp();
+  for target in select (item.value->>'partialCancellationId')::uuid id, (item.value->>'orderId')::uuid order_id
+    from jsonb_array_elements(p_items) with ordinality item(value, ord) order by item.ord loop
+    select * into head from private.order_partial_cancellations where id = target.id and order_id = target.order_id;
+    if head.id is null or head.provider <> 'bank_transfer' or head.state <> 'awaiting_transfer' then
+      raise sqlstate 'PT409' using message = 'bank_refund_export_changed';
+    end if;
+    select * into account from private.order_partial_cancellation_refund_accounts where partial_cancellation_id = head.id;
+    if account.partial_cancellation_id is not null and account.purged_at is null and account.account_number is not null then
+      insert into public.audit_log(actor_id, action, target, diff)
+      values (actor, 'admin.order.partial_cancellation_account_viewed', 'order:' || head.order_id::text,
+        jsonb_build_object('partialCancellationId', head.id, 'purpose', 'list_export', 'exportId', p_export_id, 'maskedAccount', account.masked_account));
+      revealed := revealed + 1;
+      results := array_append(results, jsonb_build_object('partialCancellationId', head.id, 'status', 'revealed',
+        'bankName', account.bank_name, 'accountNumber', account.account_number, 'accountHolder', account.account_holder));
+    else
+      results := array_append(results, jsonb_build_object('partialCancellationId', head.id, 'status', 'unavailable',
+        'bankName', null, 'accountNumber', null, 'accountHolder', null));
+    end if;
+  end loop;
+  insert into public.audit_log(actor_id, action, target, diff)
+  values (actor, 'admin.list_export.partial_cancel_refund_accounts_revealed', 'admin_screen:refund-transfers',
+    jsonb_build_object('exportId', p_export_id, 'partialCancellationCount', jsonb_array_length(p_items), 'revealedCount', revealed, 'at', happened));
+  return jsonb_build_object('exportId', p_export_id, 'rows', to_jsonb(results));
+end $$;
+revoke all on function public.service_export_order_partial_cancellation_refund_accounts(uuid, uuid, uuid, jsonb) from public, anon, authenticated, service_role;
+grant execute on function public.service_export_order_partial_cancellation_refund_accounts(uuid, uuid, uuid, jsonb) to service_role;
+
+-- 11-4. 보고·조회가 덧붙이는 필드. 부분 취소가 없으면 빈 객체라 기존 문서 모양이 한 글자도 바뀌지 않는다.
+-- 거래확정 엑셀 품목: 부분 취소 수량·남은 수량과 취소분의 배분(복수구매 할인 뒤 금액·복수구매 할인·쿠폰·적립금·결제 몫).
+-- 엑셀은 이 값으로 수량과 금액 열을 남은 몫으로 쓴다(원래 배분 − 취소분).
+create function private.order_item_partial_cancel_report_fields(p_order_item_id uuid) returns jsonb
+language sql stable security definer set search_path = '' as $$
+  select case when totals.qty > 0 then jsonb_build_object('canceledQty', totals.qty, 'activeQty', item.qty - totals.qty,
+      'partialCanceledPaidAmount', totals.paid_amount, 'partialCanceledGrossAmount', totals.gross_amount,
+      'partialCanceledVolumeDiscount', totals.volume_discount, 'partialCanceledCouponDiscount', totals.coupon_discount,
+      'partialCanceledStoreCreditDiscount', totals.store_credit_discount)
+    else '{}'::jsonb end
+  from public.order_items item cross join lateral private.order_item_partial_cancel_totals(item.id) totals
+  where item.id = p_order_item_id;
+$$;
+revoke all on function private.order_item_partial_cancel_report_fields(uuid) from public, anon, authenticated, service_role;
+
+-- 거래확정 엑셀 주문: 적용된 부분 취소 환불 합계와 건별 요약.
+create function private.order_partial_cancel_report_fields(p_order_id uuid) returns jsonb
+language sql stable security definer set search_path = '' as $$
+  select case when exists(select 1 from private.order_partial_cancellations h where h.order_id = p_order_id and h.applied_at is not null)
+    then jsonb_build_object('partialRefundedAmount', private.order_partial_refunded_amount(p_order_id),
+      'partialCancellations', (select jsonb_agg(jsonb_build_object('sequence', h.sequence, 'state', h.state, 'refundAmount', h.refund_amount,
+          'shippingRefundAmount', h.shipping_refund_amount, 'appliedAt', h.applied_at) order by h.sequence)
+        from private.order_partial_cancellations h where h.order_id = p_order_id and h.applied_at is not null))
+    else '{}'::jsonb end;
+$$;
+revoke all on function private.order_partial_cancel_report_fields(uuid) from public, anon, authenticated, service_role;
+
+-- 주문 품목 조회: 취소 수량과 남은 금액(남은 수량 × 판매가), 취소분 결제 몫(배분 후 금액에서 뺀다).
+create function private.order_item_partial_cancel_console_fields(p_order_item_id uuid) returns jsonb
+language sql stable security definer set search_path = '' as $$
+  select case when totals.qty > 0 then jsonb_build_object('canceledQty', totals.qty, 'activeQty', item.qty - totals.qty,
+      'activeItemAmount', (item.qty - totals.qty)::bigint * item.unit_price::bigint, 'partialCanceledPaidAmount', totals.paid_amount)
+    else '{}'::jsonb end
+  from public.order_items item cross join lateral private.order_item_partial_cancel_totals(item.id) totals
+  where item.id = p_order_item_id;
+$$;
+revoke all on function private.order_item_partial_cancel_console_fields(uuid) from public, anon, authenticated, service_role;
+
 -- 12. 구매자 주문 상세. 본인 주문의 적용된 부분 취소만(결제사 확인 전·진행하지 않은 건은 보이지 않는다).
 create function public.get_my_order_partial_cancellations(p_order_id uuid) returns jsonb
 language sql stable security definer set search_path = '' as $$
@@ -949,7 +1137,7 @@ $$;
 revoke all on function public.get_my_order_partial_cancellations(uuid) from public, anon, authenticated, service_role;
 grant execute on function public.get_my_order_partial_cancellations(uuid) to authenticated;
 
-select private.register_operator_rpc_contract('public.admin_order_partial_cancellation_context(uuid)'::regprocedure, 'sales.manage', 'read', false);
+select private.register_operator_rpc_contract('public.admin_order_partial_cancellation_context(uuid)'::regprocedure, 'sales.read', 'read', false);
 select private.register_operator_rpc_contract('public.admin_preview_order_partial_cancellation(uuid,jsonb)'::regprocedure, 'sales.manage', 'read', false);
 select private.register_operator_rpc_contract('public.admin_start_order_partial_cancellation(uuid,jsonb,text,text,boolean,bigint,uuid,jsonb)'::regprocedure, 'sales.manage', 'write', false);
 select private.register_operator_rpc_contract('public.admin_record_order_partial_cancellation_transfer(uuid,text,text,uuid)'::regprocedure, 'sales.manage', 'write', true);
@@ -957,6 +1145,8 @@ select private.register_operator_rpc_contract('public.admin_view_order_partial_c
 select private.register_operator_rpc_contract('public.service_complete_order_partial_cancellation(uuid,bigint,text,text,uuid)'::regprocedure, 'sales.manage', 'service_finish', false);
 select private.register_operator_rpc_contract('public.service_reject_order_partial_cancellation(uuid,text,uuid)'::regprocedure, 'sales.manage', 'service_finish', false);
 select private.register_operator_rpc_contract('public.service_mark_order_partial_cancellation_needs_review(uuid,text,uuid)'::regprocedure, 'sales.manage', 'service_finish', false);
+select private.register_operator_rpc_contract('public.admin_resolve_order_partial_cancellation(uuid,text,text,text,bigint)'::regprocedure, 'sales.manage', 'write', true);
+select private.register_operator_rpc_contract('public.service_export_order_partial_cancellation_refund_accounts(uuid,uuid,uuid,jsonb)'::regprocedure, 'sales.manage', 'service_start', true);
 
 commit;
 notify pgrst, 'reload schema';

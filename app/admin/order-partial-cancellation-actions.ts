@@ -5,6 +5,7 @@ import { hasAdminCapability } from '@/lib/admin/access';
 import {
   orderPartialCancellationErrorMessage,
   orderPartialCancellationReconcileMessage,
+  orderPartialCancellationResolutionMessage,
 } from '@/lib/admin/order-partial-cancellation';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import {
@@ -15,16 +16,19 @@ import {
   type OrderPartialCancellationPlan,
   type OrderPartialCancellationState,
 } from '@/lib/orders/partial-cancellation';
-import { reconcileOrderPartialCancellation } from '@/lib/orders/partial-cancellation-orchestrator.server';
+import {
+  inspectOrderPartialCancellationResolution,
+  reconcileOrderPartialCancellation,
+} from '@/lib/orders/partial-cancellation-orchestrator.server';
 import { createClient } from '@/lib/supabase/server';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export type PartialCancellationActionResult<T> = { ok: true; value: T } | { ok: false; error: string };
 
-async function staff() {
+async function staff(capability: 'sales.manage' | 'sales.read' = 'sales.manage') {
   const auth = await getCurrentAdminAuthState();
-  return auth.isConfigured && auth.user && auth.isStaff && hasAdminCapability(auth, 'sales.manage') ? auth : null;
+  return auth.isConfigured && auth.user && auth.isStaff && hasAdminCapability(auth, capability) ? auth : null;
 }
 
 function uuid(value: unknown): string | null {
@@ -40,9 +44,12 @@ function refresh(orderId: string) {
   revalidatePath('/orders');
 }
 
-/** 주문 상세 패널의 문맥. 스위치가 꺼져 있고 기록이 없으면 enabled false · 빈 기록이다(화면은 아무것도 그리지 않는다). */
+/**
+ * 주문 상세 패널의 문맥. 스위치가 꺼져 있고 기록이 없으면 enabled false · 빈 기록이다(화면은 아무것도 그리지 않는다).
+ * 주문 조회 권한(sales.read)이면 기록을 읽는다 — 처리 권한(sales.manage)은 DB가 canManage로 알려준다.
+ */
 export async function loadOrderPartialCancellationAction(orderId: unknown): Promise<PartialCancellationActionResult<OrderPartialCancellationContext>> {
-  if (!await staff()) return { ok: false, error: '관리자 권한이 필요합니다.' };
+  if (!await staff('sales.read')) return { ok: false, error: '관리자 권한이 필요합니다.' };
   const id = uuid(orderId);
   if (!id) return { ok: false, error: '주문을 확인해주세요.' };
   const { data, error } = await (await createClient()).rpc('admin_order_partial_cancellation_context', { p_order_id: id });
@@ -106,7 +113,7 @@ export async function startOrderPartialCancellationAction(input: StartOrderParti
   const account = refundAccount(input.refundAccount);
   if (!orderId || !operationId || !items || account === undefined
     || typeof input.customerDecision !== 'string' || (input.note !== null && input.note !== undefined && typeof input.note !== 'string')
-    || typeof input.expectedRefundAmount !== 'number' || !Number.isSafeInteger(input.expectedRefundAmount) || input.expectedRefundAmount <= 0) {
+    || typeof input.expectedRefundAmount !== 'number' || !Number.isSafeInteger(input.expectedRefundAmount) || input.expectedRefundAmount < 0) {
     return { ok: false, error: '부분 취소 입력을 확인해주세요.' };
   }
   const { data, error } = await (await createClient()).rpc('admin_start_order_partial_cancellation', {
@@ -128,6 +135,11 @@ export async function startOrderPartialCancellationAction(input: StartOrderParti
   if (!partialCancellationId) {
     refresh(orderId);
     return { ok: false, error: '부분 취소 요청을 확인하지 못했습니다. 새로고침해 기록을 확인해주세요.' };
+  }
+  if (started?.state === 'completed') {
+    // 환불 0원(전액 할인 상품만 고름) — 결제사·송금 없이 DB가 바로 적용했다.
+    refresh(orderId);
+    return { ok: true, value: { state: 'completed', message: '부분 취소를 적용했습니다. 환불할 금액이 0원이라 결제사를 부르지 않았습니다. 재고를 되돌리고 배송 건에서 그 상품을 뺐으며 구매자에게 알렸습니다.' } };
   }
   if (started?.provider === 'bank_transfer') {
     refresh(orderId);
@@ -161,6 +173,38 @@ export async function retryOrderPartialCancellationAction(input: { orderId: unkn
   const id = uuid(input.partialCancellationId);
   if (!orderId || !id) return { ok: false, error: '부분 취소 기록을 확인해주세요.' };
   return reconcile(orderId, id, auth.user.id);
+}
+
+/**
+ * 결제확인필요 해소(결제 담당 = sales.manage + 레거시 관리자, 로그인 세션 — DB가 다시 판정한다). 서버가 결제사 잔액을 조회만 해
+ * 돈이 움직이지 않았으면 진행하지 않음으로, 이미 취소됐으면 그 거래 키로 적용한다. 운영자는 해소 방법을 고르지 않는다(사유만 적는다).
+ */
+export async function resolveOrderPartialCancellationAction(input: { orderId: unknown; partialCancellationId: unknown; reason: unknown }): Promise<PartialCancellationActionResult<string>> {
+  if (!await staff()) return { ok: false, error: '관리자 권한이 필요합니다.' };
+  const orderId = uuid(input.orderId);
+  const id = uuid(input.partialCancellationId);
+  const reason = typeof input.reason === 'string' ? input.reason.trim() : '';
+  if (!orderId || !id) return { ok: false, error: '부분 취소 기록을 확인해주세요.' };
+  if (reason.length < 5 || reason.length > 500) return { ok: false, error: orderPartialCancellationErrorMessage('partial_cancel_resolution_reason_required') };
+  let evidence: Awaited<ReturnType<typeof inspectOrderPartialCancellationResolution>>;
+  try {
+    evidence = await inspectOrderPartialCancellationResolution(id);
+  } catch {
+    evidence = { ok: false, code: 'local_state_unavailable' };
+  }
+  if (!evidence.ok) return { ok: false, error: orderPartialCancellationResolutionMessage(evidence.code) };
+  const { error } = await (await createClient()).rpc('admin_resolve_order_partial_cancellation', {
+    p_id: id,
+    p_resolution: evidence.resolution,
+    p_reason: reason,
+    p_provider_transaction_key: evidence.resolution === 'already_canceled' ? evidence.transactionKey : null,
+    p_observed_balance: evidence.observedBalance,
+  });
+  refresh(orderId);
+  if (error) return { ok: false, error: orderPartialCancellationErrorMessage(error.message) };
+  return { ok: true, value: evidence.resolution === 'not_moved'
+    ? '결제사 잔액이 시작 때 그대로라 돈이 움직이지 않았습니다. 이 부분 취소를 진행하지 않음으로 닫았습니다. 주문·재고는 그대로입니다.'
+    : '결제사에서 이미 취소된 것을 확인하고 그 거래로 부분 취소를 적용했습니다. 재고를 되돌리고 배송 건에서 그 상품을 뺐으며 구매자에게 알렸습니다.' };
 }
 
 /** 무통장 부분 취소의 송금 완료(불변 송금 증빙). */

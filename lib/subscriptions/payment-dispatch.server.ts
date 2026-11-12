@@ -75,6 +75,11 @@ export function createAttemptAwarePaymentGateway(provider: PaymentCheckoutProvid
       if (!input) return billingOutcome(attempt, 'needs_review', 'billing_not_dispatched');
       return billing.inspect(input);
     },
+    async inspectBalance(attempt, providerPaymentKey) {
+      // 정기배송(billing) 결제는 부분 취소 대상이 아니다(ADR-0031·0032). 일반 결제만 legacy 조회로 넘긴다.
+      if (await bindingFor(attempt) || !dependencies.legacy.inspectBalance) return { kind: 'not_supported' as const };
+      return dependencies.legacy.inspectBalance(attempt, providerPaymentKey);
+    },
     async refund(request) {
       const binding = await bindingFor(request.attempt);
       if (!binding) return dependencies.legacy.refund(request);

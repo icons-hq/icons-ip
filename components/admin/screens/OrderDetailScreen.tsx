@@ -283,7 +283,8 @@ export function OrderDetailScreen({
         </TableRow>)}</TableBody>
       </Table></div> : <p className="text-muted-foreground">주문 상품 기록이 없습니다.</p>}
     </AdminSectionCard>
-    {canManage ? <OrderPartialCancellationPanel key={order.id} orderId={order.id} /> : null}
+    {/* 기록은 조회 권한(sales.read)에도 보인다 — 처리 버튼은 DB가 알려주는 canManage로만 그린다. */}
+    <OrderPartialCancellationPanel key={order.id} orderId={order.id} />
     <div className="grid min-w-0 gap-6 md:grid-cols-2">
       <AdminSectionCard title="주문 정보">
         <dl className={FACTS}>
