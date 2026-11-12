@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useRef, useState, type FormEvent } from 'react';
+import { useId, useRef, useState, type FormEvent } from 'react';
 import { cancelOperatorInvitationAction, createOperatorInvitationsAction, reissueOperatorInvitationAction, retryOperatorInvitationEmailAction } from '@/app/admin/operator-invitation-actions';
 import { ConsolePagination } from '@/components/admin/console/ConsolePagination';
 import { Plus, Search, UserPlus, X } from 'lucide-react';
@@ -14,18 +14,24 @@ import { AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminK
 import { statusTone } from '@/lib/admin/status-tone';
 import { CHECK_LABEL_TOP, DIALOG_BODY, DIALOG_FOOTER, DIALOG_FORM, DIALOG_HEADER, DIALOG_TITLE, FIELD_HINT, FIELD_LABEL, NATIVE_DIALOG_WIDE, NOTE, OPERATOR_CARD, OPERATOR_GUIDE, OPERATOR_TABLE, RESULT_HEADING } from '@/components/admin/settings-kit';
 import { MANAGER_ROLE_LABELS } from '@/lib/admin/access';
-import { ASSIGNABLE_MANAGER_ROLES, OPERATOR_DIRECTORY_PATH, OPERATOR_DUTIES, isAssignableManagerRole, isOperatorDuty } from '@/lib/admin/operator-directory';
+import { ASSIGNABLE_MANAGER_ROLES, MANAGER_ROLE_SUMMARIES, OPERATOR_DIRECTORY_PATH, OPERATOR_DUTIES, isAssignableManagerRole, isOperatorDuty } from '@/lib/admin/operator-directory';
 import { ROW_DANGER_BUTTON_CLASS } from './cs-kit-classes';
 import { OPERATOR_INVITATION_STATUSES, OPERATOR_INVITATION_STATUS_LABELS, invitationEmailLabel, normalizeOperatorInvitationInput, type OperatorInvitationInput, type OperatorInvitationList, type OperatorInvitationRecord, type OperatorInvitationWriteResult } from '@/lib/admin/operator-invitations';
 
 type Draft = Omit<OperatorInvitationInput, 'id'>;
 const emptyDraft = (): Draft => ({ name: '', email: '', managerRole: 'deputy', duty: 'other' });
-function InvitationFields({ draft, index, disabled, onChange }: { draft: Draft; index: number; disabled: boolean; onChange: (value: Draft) => void }) {
-  return <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-[1fr_1.7fr_1.5fr_1fr]">
-    <label className={FIELD_LABEL}>이름<Input aria-label={`초대 ${index} 이름`} required maxLength={100} value={draft.name} disabled={disabled} autoComplete="off" onChange={event => onChange({ ...draft, name: event.target.value })} /></label>
-    <label className={FIELD_LABEL}>이메일<Input aria-label={`초대 ${index} 이메일`} type="email" required maxLength={320} value={draft.email} disabled={disabled} autoComplete="off" onChange={event => onChange({ ...draft, email: event.target.value })} /></label>
-    <label className={FIELD_LABEL}>매니저 권한<NativeSelect className="w-full" aria-label={`초대 ${index} 매니저 권한`} value={draft.managerRole} disabled={disabled} onChange={event => { if (isAssignableManagerRole(event.target.value)) onChange({ ...draft, managerRole: event.target.value }); }}>{ASSIGNABLE_MANAGER_ROLES.map(role => <option value={role} key={role}>{MANAGER_ROLE_LABELS[role]}</option>)}</NativeSelect></label>
-    <label className={FIELD_LABEL}>담당업무<NativeSelect className="w-full" aria-label={`초대 ${index} 담당업무`} value={draft.duty} disabled={disabled} onChange={event => { if (isOperatorDuty(event.target.value)) onChange({ ...draft, duty: event.target.value }); }}>{OPERATOR_DUTIES.map(duty => <option value={duty.value} key={duty.value}>{duty.label}</option>)}</NativeSelect></label>
+export function InvitationFields({ draft, index, disabled, onChange }: { draft: Draft; index: number; disabled: boolean; onChange: (value: Draft) => void }) {
+  /* 재초대 창은 초대 내역 행마다 따로 그려지므로 설명 id를 행끼리 겹치지 않게 만든다. */
+  const roleHintId = useId();
+  return <div className="flex min-w-0 flex-col gap-2">
+    <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-[1fr_1.7fr_1.5fr_1fr]">
+      <label className={FIELD_LABEL}>이름<Input aria-label={`초대 ${index} 이름`} required maxLength={100} value={draft.name} disabled={disabled} autoComplete="off" onChange={event => onChange({ ...draft, name: event.target.value })} /></label>
+      <label className={FIELD_LABEL}>이메일<Input aria-label={`초대 ${index} 이메일`} type="email" required maxLength={320} value={draft.email} disabled={disabled} autoComplete="off" onChange={event => onChange({ ...draft, email: event.target.value })} /></label>
+      <label className={FIELD_LABEL}>매니저 권한<NativeSelect className="w-full" aria-label={`초대 ${index} 매니저 권한`} aria-describedby={roleHintId} value={draft.managerRole} disabled={disabled} onChange={event => { if (isAssignableManagerRole(event.target.value)) onChange({ ...draft, managerRole: event.target.value }); }}>{ASSIGNABLE_MANAGER_ROLES.map(role => <option value={role} key={role}>{MANAGER_ROLE_LABELS[role]}</option>)}</NativeSelect></label>
+      <label className={FIELD_LABEL}>담당업무<NativeSelect className="w-full" aria-label={`초대 ${index} 담당업무`} value={draft.duty} disabled={disabled} onChange={event => { if (isOperatorDuty(event.target.value)) onChange({ ...draft, duty: event.target.value }); }}>{OPERATOR_DUTIES.map(duty => <option value={duty.value} key={duty.value}>{duty.label}</option>)}</NativeSelect></label>
+    </div>
+    {/* QA1 S-T05-01: 고른 권한으로 할 수 있는 일을 창 안에서 바로 읽는다(판매자 가이드의 역할별 업무 범위와 같은 문장). */}
+    <p className={FIELD_HINT} data-operator-role-summary="" id={roleHintId}><strong className="font-medium text-foreground">{MANAGER_ROLE_LABELS[draft.managerRole]}</strong> — {MANAGER_ROLE_SUMMARIES[draft.managerRole]}</p>
   </div>;
 }
 
