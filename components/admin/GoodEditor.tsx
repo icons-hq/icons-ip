@@ -67,7 +67,7 @@ import { GoodsDraftLibraryDialog } from './GoodsDraftLibraryDialog';
 import { saveGoodsDraftAction } from '@/app/admin/goods-draft-actions';
 import { collectGoodsDraftValues, validGoodsDraftIdentity, type GoodsDraft, type GoodsDraftIdentity } from '@/lib/admin/goods-drafts';
 import { GoodWorkspaceNavigation, GoodWorkspaceErrors, GoodOptionalFields, GoodEditorSection, GoodEditorSubsection, GoodFoldedRow, GoodWorkspaceDetails, focusGoodWorkspaceTarget, useFocusFirstGoodError, useGoodWorkspaceSections } from './GoodWorkspace';
-import { GOOD_WORKSPACE_ERROR_SECTIONS, GOOD_WORKSPACE_OPERATION_FIELD, GOOD_WORKSPACE_SECTIONS_FIELD, prepareGoodWorkspaceSections } from '@/lib/admin/good-workspace-sections';
+import { GOOD_WORKSPACE_ERROR_SECTIONS, GOOD_WORKSPACE_OPERATION_FIELD, GOOD_WORKSPACE_SECTIONS_FIELD, goodWorkspaceKcWithTemplate, prepareGoodWorkspaceSections } from '@/lib/admin/good-workspace-sections';
 import { DEFAULT_FULFILLMENT_ORIGIN_ID } from '@/lib/admin/fulfillment-origins';
 import { GOOD_EDITOR_SECTIONS, GOOD_PUBLISHED_LOCKS, changedGoodLockedFields, goodErrorsByCard, goodFieldSection, goodKcContextChanged, goodPublishRequirements, goodRemainingByCard, goodTypeSuggestion, type GoodEditorSectionKey } from '@/lib/admin/good-workspace';
 import { ADMIN_STOCK_LABELS, ADMIN_VOCABULARY, adminGoodsCopy } from '@/lib/admin/vocabulary';
@@ -309,8 +309,9 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
       setDirty(recoveryUnsaved.current || goodEditorFingerprint(data) !== baselineFingerprint.current);
     });
   }, [formRef]);
-  /* 등록 화면 KC·예약판매 입력은 폼 밖이라 폼 지문에 잡히지 않는다. 떠나기 경고에는 함께 센다. */
-  const sectionsDirty = Boolean(atomicSections && (atomicSections.sections.kc.models.length || atomicSections.sections.kc.attested || atomicSections.sections.preorders.length));
+  /* 등록 화면 KC(기타 인증 포함)·예약판매 입력은 폼 밖이라 폼 지문에 잡히지 않는다. 떠나기 경고에는 함께 센다. */
+  const sectionsDirty = Boolean(atomicSections && (atomicSections.sections.kc.models.length || atomicSections.sections.kc.attested || atomicSections.sections.preorders.length
+    || atomicSections.sections.otherCertifications?.length));
   useAdminLeaveGuard({ dirty: (dirty || sectionsDirty) && !pending && !draftBusy, message: ADMIN_LEAVE_RECOVERABLE_MESSAGE });
   const [suggestedCode, setSuggestedCode] = useState(selected?.code ?? '');
   const setRows: Dispatch<SetStateAction<GoodsOptionRow[]>> = useCallback((update) => {
@@ -430,7 +431,17 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
       if (input instanceof HTMLInputElement) { input.value = notice[field.key] ?? ''; input.dispatchEvent(new Event('input', { bubbles: true })); }
     }
     // Omitted means notice-only copy; explicit null cancels a queued classification.
-    if (kcTemplate !== undefined) onApplyKcTemplate?.(kcTemplate);
+    if (kcTemplate === undefined) return;
+    /* TKT-006·TKT-086: 등록 화면은 KC 틀을 같은 화면 KC 입력의 새 미검토 모델로 바로 채운다. 함께 저장해도 남고, 저장된 상품용 대기 틀은 둘 필요가 없다. */
+    if (atomicSections) {
+      if (kcTemplate) atomicSections.setSections((current) => {
+        const kc = goodWorkspaceKcWithTemplate(current.kc, kcTemplate);
+        return kc ? { ...current, kc } : current;
+      });
+      onApplyKcTemplate?.(null);
+      return;
+    }
+    onApplyKcTemplate?.(kcTemplate);
   }
   /*
    * 공개 미리보기·상세 HTML 정리는 무겁다(R19). 입력과 무관한 상태 변화(오류·안내·업로드 진행)에는 다시 계산하지 않고,

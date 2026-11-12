@@ -93,15 +93,16 @@ function GoodScreenForm({
   const selected=records.find((record)=>record.id===selectedId)??null;
   useEffect(()=>{
     if (!hideRecordList || !state.savedGoodId || initialSelectedId === state.savedGoodId) return;
-    // 등록 화면에서 KC를 함께 저장했으면 고시 프리셋의 KC 유형 틀을 저장된 KC 위에 다시 얹지 않는다.
-    if (state.workspaceKcSaved) discardKcTemplate(); else bindSavedGood(state.savedGoodId);
+    // TKT-006·TKT-086: 등록 화면은 고시 프리셋의 KC 유형 틀을 같은 화면 KC 입력에 미검토 모델로 바로 채워 함께 저장한다.
+    // 아직 반영되지 않은 대기 틀이 남았으면 버리지 않고 저장된 상품의 KC 정보로 넘긴다(새 미검토 모델로 추가된다).
+    bindSavedGood(state.savedGoodId);
     if (!initialSelectedId) onCreated?.(state.savedGoodId);
     const url=new URL(listHref,'https://admin.invalid');
     url.searchParams.delete('create');
     url.searchParams.set('goodId',state.savedGoodId);
     // 같은 자리에서 이어 입력하도록 KC로 점프하지 않고 스크롤을 유지한다(R13).
     router.replace(`${url.pathname}?${url.searchParams}`,{scroll:false});
-  },[hideRecordList,initialSelectedId,listHref,router,state.savedGoodId,state.workspaceKcSaved,bindSavedGood,discardKcTemplate,onCreated]);
+  },[hideRecordList,initialSelectedId,listHref,router,state.savedGoodId,bindSavedGood,onCreated]);
 
   return (
     <GoodSection

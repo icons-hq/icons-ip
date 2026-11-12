@@ -354,7 +354,11 @@ describe('GoodSection', () => {
     const card = (html: string, id: string) => { const start = html.indexOf(`id="good-operation-${id}"`); const next = html.indexOf('<details id="good-operation-', start + 1); return html.slice(start, next < 0 ? undefined : next); };
     expect(card(create, 'kc')).toContain('상품과 함께 저장');
     expect(card(create, 'kc')).toContain('상품 전체 KC 해당 없음');
-    expect(card(create, 'kc')).toContain('KC 모델 추가');
+    /* 1007-034·SHEET-014: KC 대상 여부를 먼저 고르고(고르기 전에는 모델 입력을 열지 않는다), 기타 인증도 같은 카드에서 함께 저장한다. */
+    expect(card(create, 'kc')).toContain('<legend>KC 인증 대상 여부</legend>');
+    expect(card(create, 'kc')).toContain('대상 · 인증 종류와 번호 입력');
+    expect(card(create, 'kc')).not.toContain('KC 모델 추가');
+    expect(card(create, 'kc')).toContain('기타 인증 추가');
     expect(card(create, 'preorders')).toContain('예약 조건 추가');
     expect(create).toMatch(/<details id="good-operation-kc"[^>]*open=""/);
     /* 1027T-023(11/11 "펼친 채로"): 예약판매는 접힌 줄이 아니라 판매 정보 카드의 판매기간 바로 뒤에 펼친 소항목이고, 이어서 설정 카드에는 없다. */
@@ -373,8 +377,11 @@ describe('GoodSection', () => {
     const form = create.slice(create.indexOf('<form'), create.indexOf('</form>'));
     expect(form).toContain('type="hidden" name="workspaceOperationId"');
     expect(form).toContain('type="hidden" name="workspaceSections"');
-    /* KC 입력은 폼 안에 있어도 name이 없어 제출·자동복구·임시저장에 실리지 않는다(DQ3). */
-    expect(card(create, 'kc').slice(0, card(create, 'kc').indexOf('id="good-section-delivery"'))).not.toMatch(/<(input|select|textarea)\b[^>]*\sname=/);
+    /* KC 입력은 폼 안에 있어도 name이 없어 제출·자동복구·임시저장에 실리지 않는다(DQ3). 'KC 인증 대상 여부' 라디오만 묶음 이름이 있고,
+       소속 폼을 떼어(form="good-detached-controls") 상품 폼의 FormData·자동복구에 들어가지 않는다. */
+    const kcCard = card(create, 'kc').slice(0, card(create, 'kc').indexOf('id="good-section-delivery"'));
+    expect(kcCard).not.toMatch(/<(input|select|textarea)\b(?![^>]*form="good-detached-controls")[^>]*\sname=/);
+    expect(kcCard.match(/<input[^>]*\sname=/g)?.every((input) => input.includes('type="radio"') && input.includes('form="good-detached-controls"'))).toBe(true);
     expect(saved).not.toContain('name="workspaceOperationId"');
     expect(card(saved, 'kc')).toContain('별도 저장');
     /* 저장 뒤 KC는 고시 카드, 게시 상태는 판매 준비 카드에 있다. */

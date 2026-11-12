@@ -337,7 +337,7 @@ export function GoodDetailView({
             <img alt={`${good.name} 상세 이미지`} className="wc-pdp-panel__image" src={detail.detailImageUrl} />
           ) : null}
           {ip ? <GoodIpStory ip={ip} /> : null}
-          <GoodsKcDisclosure disclosures={detail.kcDisclosures ?? []} />
+          <GoodsKcDisclosure disclosures={detail.kcDisclosures ?? []} otherCertifications={detail.otherCertifications ?? []} />
           <InquiryEntry goodId={good.id} />
           {reviewEventBanner}
           {ip ? <GoodIpCard className="wc-pdp-ipcard--panel" ip={ip} /> : null}

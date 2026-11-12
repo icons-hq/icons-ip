@@ -24,4 +24,6 @@ export interface GoodDetailContent {
   detailImageUrl: string | null;
   notice: GoodsNoticeInfo;
   kcDisclosures?: import('./goods-kc').GoodsKcDisclosure[];
+  /** 고객 노출을 고른 기타 인증(SHEET-014). 제품 안전정보의 KC 고지 뒤에 보인다. */
+  otherCertifications?: import('./goods-kc').GoodsOtherCertificationDisclosure[];
 }

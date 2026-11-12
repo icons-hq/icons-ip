@@ -84,6 +84,17 @@ export function goodsKcProductNotApplicableModel(variants: readonly GoodsKcVaria
 export function goodsKcSoleNotApplicable(models: readonly GoodsKcModelInput[]): boolean {
   return models.length === 1 && models[0].scheme === 'not_applicable';
 }
+/** 화면의 'KC 인증 대상 여부'(1007-034 자가 신고). */
+export type GoodsKcChoice = 'not_applicable' | 'subject';
+/** 입력에서 읽은 선택: 해당 없음 모델 1개뿐이면 대상 아님, 다른 모델이 있으면 대상, 모델이 없으면 아직 고르지 않았다. */
+export function goodsKcChoice(models: readonly GoodsKcModelInput[]): GoodsKcChoice | null {
+  if (!models.length) return null;
+  return goodsKcSoleNotApplicable(models) ? 'not_applicable' : 'subject';
+}
+/** '대상'을 고르면 시작하는 모델 1개. 제도·번호·모델·사업자는 비우고, 사용 중인 옵션을 모두 연결해 둔다(화면에서 고친다). */
+export function goodsKcSubjectModel(variants: readonly GoodsKcVariant[]): GoodsKcModelInput {
+  return { ...emptyGoodsKcModel(), variantIds: variants.filter((variant) => variant.active).map((variant) => variant.id.toLowerCase()).sort() };
+}
 /** A basic goods save can bump the KC review underneath an open editor (context
  * change invalidates it). Unsaved model input must survive that refresh, so the
  * editor adopts the new server revision but keeps what the MD is typing; with no
@@ -178,7 +189,10 @@ export function normalizeGoodsKcModels(value: unknown): GoodsKcModelInput[] | nu
 /** These are data/review completeness requirements, not a product's legal
  * classification or an authenticity check of a certificate. Mirrors
  * private.goods_kc_review_problems: a not-applicable model only needs its
- * family, scheme and options; model, business, basis and note are optional. */
+ * family, scheme and options; model, business, basis and note are optional.
+ * 1007-034(ADR-0036, 자가 신고): a KC-subject model needs its customer posting
+ * fields (family·scheme·category·model·business) and, for 안전인증·안전확인, the
+ * certification number. The internal basis and evidence references are optional. */
 export function goodsKcReviewProblems(models: readonly GoodsKcModelInput[], variants?: readonly GoodsKcVariant[]): string[] {
   const normalized = normalizeGoodsKcModels(models);
   if (!normalized) return ['KC 입력 형식과 제품군·제도 조합을 확인해주세요.'];
@@ -194,7 +208,6 @@ export function goodsKcReviewProblems(models: readonly GoodsKcModelInput[], vari
     if (subject && (!model.productCategory || !model.modelName || !model.businessRole || !model.businessName)) {
       problems.push(`${label}: 품목 분류·모델명·사업자 구분·사업자명을 입력해주세요.`);
     }
-    if (subject && (!model.basis || !model.evidence.applicability)) problems.push(`${label}: 적용 판단 사유와 근거 참조를 입력해주세요.`);
     if (!model.variantIds.length) problems.push(`${label}: 적용 옵션을 선택해주세요.`);
     for (const id of model.variantIds) {
       coverage.add(id);
@@ -202,11 +215,7 @@ export function goodsKcReviewProblems(models: readonly GoodsKcModelInput[], vari
     }
     if (model.scheme && goodsKcNeedsIdentifier(model.scheme)) {
       if (!model.identifier) problems.push(`${label}: 인증·신고번호를 입력해주세요.`);
-      if (!model.evidence.certificate) problems.push(`${label}: 인증·신고 문서 근거를 입력해주세요.`);
     } else if (model.identifier) problems.push(`${label}: 선택한 제도에는 인증·신고번호를 입력하지 않습니다.`);
-    if (model.scheme === 'supplier_conformity' && (!model.evidence.testReport || !model.evidence.declaration)) {
-      problems.push(`${label}: 시험성적서와 공급자 확인서의 근거 참조를 입력해주세요.`);
-    }
   }
   for (const variant of variants ?? []) {
     if (variant.active && !coverage.has(variant.id)) problems.push(`${variant.name}: 사용 중인 옵션의 KC 모델 연결이 필요합니다.`);

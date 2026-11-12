@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  GOODS_KC_PUBLISH_BLOCKED_COPY, emptyGoodsKcModel, goodsKcEditorRefresh, goodsKcProductNotApplicableModel, goodsKcPublishBlockedMessage, goodsKcReviewProblems,
-  normalizeGoodsKcModels, parseAdminGoodsKc, parseGoodsKcSaveInput, publicGoodsKcDisclosures, kcModelFromTemplate,
+  GOODS_KC_PUBLISH_BLOCKED_COPY, emptyGoodsKcModel, goodsKcChoice, goodsKcEditorRefresh, goodsKcProductNotApplicableModel, goodsKcPublishBlockedMessage,
+  goodsKcReviewProblems, goodsKcSubjectModel, normalizeGoodsKcModels, parseAdminGoodsKc, parseGoodsKcSaveInput, publicGoodsKcDisclosures, kcModelFromTemplate,
 } from './goods-kc';
 import { goodsKcDisclosureRows, goodsKcSchemeAllowed, parseGoodsKcDisclosures, type GoodsKcScheme } from '@/lib/goods-kc';
 
@@ -28,15 +28,18 @@ describe('모델별 KC 검토', () => {
     expect(goodsKcReviewProblems([draft],variants).join(' ')).toContain('적용 옵션');
     expect(publicGoodsKcDisclosures([draft],variants)).toEqual([]);
   });
-  it('미검토 입력은 저장할 수 있지만 번호와 근거가 없으면 완료할 수 없다', () => {
+  /* 1007-034(ADR-0036 자가 신고): 번호(안전인증·안전확인)는 필수로 남고, 판단 사유·근거 참조는 선택이다. */
+  it('미검토 입력은 저장할 수 있지만 인증·신고번호가 없으면 완료할 수 없고, 근거 참조는 비워도 된다', () => {
     expect(normalizeGoodsKcModels([emptyGoodsKcModel()])).toEqual([emptyGoodsKcModel()]);
     const problems = goodsKcReviewProblems([emptyGoodsKcModel()], variants);
     expect(problems.length).toBeGreaterThan(0);
     expect(problems.some((problem) => problem.includes('옵션'))).toBe(true);
-    const incomplete = { ...model(), identifier: '', evidence: { ...model().evidence, certificate: '' } };
-    expect(goodsKcReviewProblems([incomplete], variants.slice(0, 1)).join(' ')).toContain('번호');
-    expect(goodsKcReviewProblems([incomplete], variants.slice(0, 1)).join(' ')).toContain('문서');
-    expect(goodsKcReviewProblems([{ ...model(), basis: '\t\n\u00a0' }], variants.slice(0, 1)).join(' ')).toContain('판단 사유');
+    const noEvidence = { ...model(), basis: '', evidence: { applicability: '', certificate: '', testReport: '', declaration: '' } };
+    expect(goodsKcReviewProblems([{ ...noEvidence, identifier: '' }], variants.slice(0, 1))).toEqual(['모델 1: 인증·신고번호를 입력해주세요.']);
+    expect(goodsKcReviewProblems([noEvidence], variants.slice(0, 1))).toEqual([]);
+    expect(goodsKcReviewProblems([{ ...model(), basis: '\t\n\u00a0' }], variants.slice(0, 1))).toEqual([]);
+    expect(parseGoodsKcSaveInput({ models: [noEvidence], status: 'reviewed', expectedRevision: 1,
+      expectedContextFingerprint: 'a'.repeat(64), attested: true })?.status).toBe('reviewed');
   });
 
   it('제품군과 제도를 검증하고 공급자적합성에 공통 인증번호를 요구하지 않는다', () => {
@@ -60,13 +63,22 @@ describe('모델별 KC 검토', () => {
     expect(goodsKcReviewProblems([{ ...minimal, scheme: '' }], variants).join(' ')).toContain('제품군');
   });
 
-  it('같은 최소 입력은 KC 대상 제도에서 검토 완료할 수 없다', () => {
+  it('같은 최소 입력은 KC 대상 제도에서 검토 완료할 수 없다(고객 게시 항목은 필수로 남는다)', () => {
     for (const scheme of ['safety_certification', 'safety_confirmation', 'supplier_conformity', 'safety_standard_compliance'] as GoodsKcScheme[]) {
       expect(goodsKcSchemeAllowed('living', scheme)).toBe(true);
       const subject = { ...emptyGoodsKcModel(), family: 'living' as const, scheme, variantIds: [first, second] };
       expect(goodsKcReviewProblems([subject], variants).join(' '), scheme).toContain('사업자');
-      expect(goodsKcReviewProblems([subject], variants).join(' '), scheme).toContain('근거');
+      expect(goodsKcReviewProblems([subject], variants).join(' '), scheme).not.toContain('근거');
     }
+  });
+
+  it('KC 대상 여부는 입력에서 읽고, 대상을 고르면 사용 중인 옵션을 모두 연결한 빈 모델로 시작한다', () => {
+    expect(goodsKcChoice([])).toBeNull();
+    expect(goodsKcChoice([goodsKcProductNotApplicableModel(variants)])).toBe('not_applicable');
+    expect(goodsKcChoice([model()])).toBe('subject');
+    expect(goodsKcChoice([goodsKcProductNotApplicableModel(variants), model()])).toBe('subject');
+    const stopped = { id: '00000000-0000-4000-8000-00000000000A', code: 'OPTION-03', name: '중지', active: false };
+    expect(goodsKcSubjectModel([variants[1], stopped, variants[0]])).toEqual({ ...emptyGoodsKcModel(), variantIds: [first, second] });
   });
 
   it('상품 전체 해당 없음은 사용 중인 옵션 전부를 모델 1개에 연결하고 바로 검토 완료할 수 있다', () => {

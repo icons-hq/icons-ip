@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { emptyGoodsKcModel, goodsKcProductNotApplicableModel } from './goods-kc';
 import type { GoodsOptionRow } from './goods-option-editor';
 import {
-  EMPTY_GOOD_WORKSPACE_SECTIONS, goodWorkspaceKcVariants, goodWorkspaceSectionFailure, goodWorkspaceVariantId,
+  EMPTY_GOOD_WORKSPACE_SECTIONS, goodWorkspaceKcVariants, goodWorkspaceKcWithTemplate, goodWorkspaceSectionFailure, goodWorkspaceVariantId,
   parseGoodWorkspaceSections, prepareGoodWorkspaceSections, type GoodWorkspaceSectionsDraft,
 } from './good-workspace-sections';
 
@@ -128,9 +128,52 @@ describe('등록 화면 원자 저장 섹션', () => {
     expect(goodWorkspaceSectionFailure('invalid_goods_sale_period')).toBeNull();
   });
 
+  /* TKT-006·TKT-086: 등록 화면은 프리셋 KC 틀을 같은 화면 KC 입력에 미검토 모델로 채우고, 함께 저장해도 틀이 남는다. */
+  it('고시 프리셋의 KC 틀은 등록 화면 KC 입력에 미검토 모델로 들어가 함께 저장된다', () => {
+    const notApplicableTemplate = { family: 'living' as const, scheme: 'not_applicable' as const, publicNote: '합성 해당 없음 안내' };
+    const filled = goodWorkspaceKcWithTemplate(EMPTY_GOOD_WORKSPACE_SECTIONS.kc, notApplicableTemplate);
+    expect(filled).toEqual({ models: [{ ...emptyGoodsKcModel(), family: 'living', scheme: 'not_applicable', publicNote: '합성 해당 없음 안내' }],
+      attested: false, productNotApplicable: true });
+    const prepared = prepareGoodWorkspaceSections({ ...EMPTY_GOOD_WORKSPACE_SECTIONS, kc: filled! }, rows, false);
+    if (!prepared.ok) throw new Error(prepared.error);
+    /* 확인 체크가 없으므로 미검토 초안이고, 틀은 옵션·번호·근거를 채우지 않는다. */
+    expect(prepared.value.kc).toMatchObject({ status: 'unreviewed', attested: false,
+      models: [{ family: 'living', scheme: 'not_applicable', publicNote: '합성 해당 없음 안내', identifier: '', modelName: '', basis: '', variantRefs: [] }] });
+    /* 원클릭 해당 없음 위에 KC 대상 틀을 고르면 대상 모델로 바뀌고 확인 체크가 풀린다. */
+    const oneClick = { models: [goodsKcProductNotApplicableModel(goodWorkspaceKcVariants(rows))], attested: true, productNotApplicable: true };
+    expect(goodWorkspaceKcWithTemplate(oneClick, { family: 'children', scheme: 'safety_confirmation', publicNote: '' }))
+      .toEqual({ models: [{ ...emptyGoodsKcModel(), family: 'children', scheme: 'safety_confirmation' }], attested: false, productNotApplicable: false });
+    /* 이미 입력한 대상 모델이 있으면 지우지 않고 뒤에 더한다. */
+    const subject = { ...emptyGoodsKcModel(), family: 'living' as const, scheme: 'safety_certification' as const, modelName: '입력한 모델' };
+    expect(goodWorkspaceKcWithTemplate({ models: [subject], attested: true }, notApplicableTemplate)?.models).toHaveLength(2);
+    expect(goodWorkspaceKcWithTemplate({ models: [subject], attested: true }, notApplicableTemplate)?.attested).toBe(false);
+    expect(goodWorkspaceKcWithTemplate({ models: [subject], attested: false }, { family: 'other', scheme: 'safety_certification', publicNote: '' })).toBeNull();
+    expect(goodWorkspaceKcWithTemplate({ models: Array.from({ length: 50 }, () => subject), attested: false }, notApplicableTemplate)).toBeNull();
+  });
+
+  /* SHEET-014: 기타 인증은 KC 카드 안 입력이고, 입력이 있을 때만 섹션을 보낸다(없으면 기존 저장과 같은 결과). */
+  it('기타 인증은 입력이 있을 때만 싣고, 종류·번호가 빠지면 KC 카드에 알린다', () => {
+    const entries = [{ kind: ' 방송통신기자재 적합성평가 ', agency: '', number: 'R-R-TEST-0001', visible: true }];
+    const prepared = prepareGoodWorkspaceSections({ ...EMPTY_GOOD_WORKSPACE_SECTIONS, otherCertifications: entries }, rows, false);
+    expect(prepared).toEqual({ ok: true, value: { kc: null, preorders: [],
+      otherCertifications: [{ kind: '방송통신기자재 적합성평가', agency: '', number: 'R-R-TEST-0001', visible: true }] } });
+    expect(prepareGoodWorkspaceSections({ ...EMPTY_GOOD_WORKSPACE_SECTIONS, otherCertifications: [{ ...entries[0], number: '' }] }, rows, false))
+      .toEqual({ ok: false, field: 'workspaceKc', error: '기타 인증 1: 인증 종류와 인증번호를 입력해주세요.' });
+    if (!prepared.ok) throw new Error(prepared.error);
+    const parsed = parseGoodWorkspaceSections(JSON.stringify(prepared.value), false);
+    expect(parsed).toEqual({ ok: true, sections: { otherCertifications: { entries: prepared.value.otherCertifications, expectedRevision: null } } });
+    expect(parseGoodWorkspaceSections(JSON.stringify({ otherCertifications: [] }), false)).toEqual({ ok: true, sections: {} });
+    expect(parseGoodWorkspaceSections(JSON.stringify({ otherCertifications: [{ ...entries[0], number: ' ' }] }), false)).toMatchObject({ ok: false, field: 'workspaceKc' });
+    expect(parseGoodWorkspaceSections(JSON.stringify({ otherCertifications: { entries } }), false)).toMatchObject({ ok: false, field: 'workspaceKc' });
+    expect(goodWorkspaceSectionFailure('goods_other_certification_incomplete')?.workspaceKc).toContain('상품은 저장되지 않았고 입력은 유지됩니다.');
+    expect(goodWorkspaceSectionFailure('goods_other_certifications_changed')?.workspaceKc).toContain('기타 인증이 바뀌었습니다');
+  });
+
   it('래퍼 오류를 섹션 칸 안내로 옮긴다', () => {
     expect(goodWorkspaceSectionFailure('goods_workspace_operation_conflict')?.form).toContain('이미 처리된 저장 요청');
     expect(goodWorkspaceSectionFailure('goods_kc_attestation_required')?.workspaceKc).toContain('확인');
+    expect(goodWorkspaceSectionFailure('goods_kc_review_incomplete')?.workspaceKc).toContain('인증·신고번호');
+    expect(goodWorkspaceSectionFailure('goods_kc_review_incomplete')?.workspaceKc).not.toContain('증빙');
     expect(goodWorkspaceSectionFailure('preorder_admin_required')?.workspacePreorders).toContain('관리자');
     expect(goodWorkspaceSectionFailure('goods_kc_review_changed')?.workspaceKc).toContain('KC');
     expect(goodWorkspaceSectionFailure('goods_compare_at_price_invalid')).toBeNull();

@@ -6,7 +6,7 @@ vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: mocks.auth }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ rpc: mocks.rpc }) }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidate }));
 vi.mock('next/navigation', () => ({ unstable_rethrow: vi.fn() }));
-import { readGoodsKcAction, saveGoodsKcAction } from './goods-kc-actions';
+import { readGoodsKcAction, readGoodsOtherCertificationsAction, saveGoodsKcAction, saveGoodsOtherCertificationsAction } from './goods-kc-actions';
 
 const contextFingerprint = 'a'.repeat(64);
 const configuration = { revision: 1, status: 'unreviewed', models: [emptyGoodsKcModel()], contextFingerprint,
@@ -53,6 +53,23 @@ describe('KC 조회·저장 서버 경계', () => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: 'goods_kc_review_incomplete' } });
     const result = await saveGoodsKcAction('g1', input);
     expect(result).toMatchObject({ ok: false, error: expect.stringContaining('사용 중인 옵션 연결') });
+    /* 1007-034: 근거 참조는 선택이라 안내가 증빙을 요구하지 않는다. */
+    expect(result).toMatchObject({ ok: false, error: expect.stringContaining('인증·신고번호') });
+    expect(result.ok ? '' : result.error).not.toContain('증빙');
+  });
+  /* 1007-034(ADR-0036): KC 대상은 근거 참조 없이 게시 항목과 번호, 확인 체크로 검토 완료를 요청한다. */
+  it('KC 대상 모델은 근거 참조가 비어도 확인 체크와 함께 검토 완료를 요청한다', async () => {
+    const variant = { id: '00000000-0000-4000-8000-000000000001', code: 'OPTION-1', name: '기본', active: true };
+    const models = [{ ...emptyGoodsKcModel(), family: 'living' as const, scheme: 'safety_confirmation' as const, productCategory: '합성 분류',
+      modelName: '합성 모델', businessRole: 'importer' as const, businessName: '합성 수입자', identifier: 'TEST-ONLY-SD-1', variantIds: [variant.id] }];
+    const reviewed = { ...configuration, revision: 2, status: 'reviewed', models, variants: [variant], reviewedAt: '2026-11-12T00:00:00Z', reviewerName: '합성 검토자' };
+    mocks.rpc.mockResolvedValue({ data: { changed: true, configuration: reviewed }, error: null });
+    expect(await saveGoodsKcAction('g1', { ...input, models, status: 'reviewed', expectedRevision: 1, attested: true })).toMatchObject({ ok: true });
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_save_goods_kc', expect.objectContaining({ p_models: models, p_status: 'reviewed', p_attested: true }));
+    mocks.rpc.mockClear();
+    /* 번호가 없으면 서버에 보내지 않는다. */
+    expect(await saveGoodsKcAction('g1', { ...input, models: [{ ...models[0], identifier: '' }], status: 'reviewed', expectedRevision: 1, attested: true })).toMatchObject({ ok: false });
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
   it('stale 응답은 변경 충돌로 설명하고 성공/재검토를 꾸미지 않는다', async () => {
     mocks.rpc.mockResolvedValue({ data: null, error: { code: 'PT409', message: 'goods_kc_review_changed' } });
@@ -67,5 +84,43 @@ describe('KC 조회·저장 서버 경계', () => {
     mocks.rpc.mockResolvedValue({ data: { changed: true }, error: null });
     expect(await saveGoodsKcAction('g1', input)).toMatchObject({ ok: false, error: expect.stringContaining('결과를 확인하지 못했습니다') });
     expect(mocks.revalidate).not.toHaveBeenCalled();
+  });
+});
+
+describe('기타 인증 조회·저장 서버 경계(SHEET-014)', () => {
+  const entries = [{ kind: '방송통신기자재 적합성평가', agency: '국립전파연구원', number: 'R-R-TEST-0001', visible: true },
+    { kind: '내부 보관 인증', agency: '', number: 'INTERNAL-1', visible: false }];
+  const saved = { revision: 1, entries, publishedAt: null, archivedAt: null, updatedAt: '2026-11-12T00:00:00Z', updatedByName: '합성 운영자' };
+  it('일반 회원은 읽거나 저장하지 못한다', async () => {
+    mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'buyer' }, isStaff: false });
+    expect(await readGoodsOtherCertificationsAction('g1')).toMatchObject({ ok: false });
+    expect(await saveGoodsOtherCertificationsAction('g1', { entries, expectedRevision: null })).toMatchObject({ ok: false });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+  it('저장은 버전과 함께 RPC 하나로 보내고, 고객에게 보일 건수를 알린다', async () => {
+    mocks.rpc.mockResolvedValue({ data: { changed: true, configuration: saved }, error: null });
+    const result = await saveGoodsOtherCertificationsAction('g1', { entries, expectedRevision: null });
+    expect(result).toMatchObject({ ok: true, configuration: saved, message: '기타 인증 2건을 저장했습니다. 고객 상세에는 1건이 보입니다.' });
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_save_goods_other_certifications', { p_good_id: 'g1', p_entries: entries, p_expected_revision: null });
+    expect(mocks.revalidate).toHaveBeenCalled();
+  });
+  it('빈 종류·번호나 조작된 요청은 서버에 보내지 않는다', async () => {
+    expect(await saveGoodsOtherCertificationsAction('g1', { entries: [{ ...entries[0], number: '' }], expectedRevision: null })).toMatchObject({ ok: false });
+    expect(await saveGoodsOtherCertificationsAction('g1', { entries, expectedRevision: null, actorId: 'someone' })).toMatchObject({ ok: false });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+  it('버전 충돌·모호한 성공은 입력을 지키는 안내로 돌려준다', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { code: 'PT409', message: 'goods_other_certifications_changed' } });
+    expect(await saveGoodsOtherCertificationsAction('g1', { entries, expectedRevision: 1 })).toMatchObject({ ok: false, error: expect.stringContaining('다시 불러와') });
+    mocks.rpc.mockResolvedValue({ data: { changed: true }, error: null });
+    expect(await saveGoodsOtherCertificationsAction('g1', { entries, expectedRevision: 1 })).toMatchObject({ ok: false, error: expect.stringContaining('결과를 확인하지 못했습니다') });
+    expect(mocks.revalidate).not.toHaveBeenCalled();
+  });
+  it('조회 응답은 엄격하게 읽는다', async () => {
+    mocks.rpc.mockResolvedValue({ data: saved, error: null });
+    expect(await readGoodsOtherCertificationsAction('g1')).toEqual({ ok: true, configuration: saved });
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_read_goods_other_certifications', { p_good_id: 'g1' });
+    mocks.rpc.mockResolvedValue({ data: { ...saved, entries: [{ ...entries[0], visible: 'yes' }] }, error: null });
+    expect(await readGoodsOtherCertificationsAction('g1')).toMatchObject({ ok: false });
   });
 });

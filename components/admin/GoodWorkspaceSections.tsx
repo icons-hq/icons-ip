@@ -3,12 +3,16 @@
 import type { ReactNode } from 'react';
 import { GoodsKcDisclosure } from '@/components/shop/GoodsKcDisclosure';
 import {
-  MAX_GOODS_KC_MODELS, emptyGoodsKcModel, goodsKcReviewProblems, goodsKcSoleNotApplicable, publicGoodsKcDisclosures, type GoodsKcModelInput,
+  MAX_GOODS_KC_MODELS, emptyGoodsKcModel, goodsKcChoice, goodsKcReviewProblems, goodsKcSoleNotApplicable, goodsKcSubjectModel,
+  planGoodsKcProductNotApplicable, publicGoodsKcDisclosures, type GoodsKcChoice, type GoodsKcModelInput,
 } from '@/lib/admin/goods-kc';
-import { goodWorkspaceKcVariants, type GoodWorkspacePreorderDraft } from '@/lib/admin/good-workspace-sections';
+import { goodWorkspaceKcVariants, type GoodWorkspaceKcDraft, type GoodWorkspacePreorderDraft } from '@/lib/admin/good-workspace-sections';
 import { goodsOptionRowKey } from '@/lib/admin/goods-option-editor';
-import { ModelFields, ProductNotApplicable } from './GoodsKcPanel';
-import { GOOD_DETACHED_FORM_ID, GoodEditorSubsection, GoodWorkspaceDetails, useGoodWorkspaceSections } from './GoodWorkspace';
+import {
+  GOODS_KC_SUBJECT_ATTESTATION, GOODS_KC_SUBJECT_GUIDE, GOODS_OTHER_CERTIFICATIONS_GUIDE, GoodsKcSubjectChoice, GoodsOtherCertificationsFields,
+  ModelFields, ProductNotApplicable,
+} from './GoodsKcPanel';
+import { GOOD_DETACHED_FORM_ID, GoodEditorSubsection, useGoodWorkspaceSections } from './GoodWorkspace';
 import { GOOD_INPUT_CLASS, GOOD_NOTE_CLASS, GOOD_NUMBER_INPUT_CLASS, GOOD_TEXTAREA_CLASS } from './GoodEditorParts';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
@@ -19,45 +23,66 @@ import { NativeSelect } from '@/components/admin/kit/ui/native-select';
  * 저장 뒤에는 같은 자리(같은 id)의 독립 KC·예약판매 패널이 저장값을 읽어 이어서 관리한다.
  */
 
-export const GOOD_WORKSPACE_KC_ATTESTATION = '원본 근거와 실제 모델·사업자·대상 옵션이 일치하고, 해당 제도의 필수 사항을 확인했습니다.';
+/** 등록 화면 KC 확인 체크 문구. 저장된 상품의 KC 정보와 같은 자가 신고 확인이다(1007-034). */
+export const GOOD_WORKSPACE_KC_ATTESTATION = GOODS_KC_SUBJECT_ATTESTATION;
 
+/*
+ * 등록 화면 KC 카드(1007-034 자가 신고 · SHEET-014 기타 인증 · TKT-006 KC 틀). 'KC 인증 대상 여부'를 먼저 고른다.
+ * 대상 아님은 확인 체크 하나로 끝나고(고르는 순간 체크된다), 대상은 사용 중인 옵션을 모두 연결한 모델 1개로 시작해 인증 종류·번호·
+ * 모델·사업자를 넣는다. 내부 검토 근거는 선택이다. 기타 인증은 KC와 별개로 여러 건 넣고 상품과 함께 저장한다.
+ */
 export function GoodWorkspaceKcCard({ serverError, disabled = false }: { serverError?: string; disabled?: boolean }) {
   const workspace = useGoodWorkspaceSections();
   if (!workspace) return null;
   const { sections, setSections, optionRows, sectionErrors } = workspace;
-  const { models, attested, productNotApplicable = false } = sections.kc;
+  const { models, attested } = sections.kc;
+  const otherCertifications = sections.otherCertifications ?? [];
   const variants = goodWorkspaceKcVariants(optionRows);
-  /* 해당 없음을 체크하면 거기서 끝나 보이게 모델 칸을 그리지 않는다. 연결 옵션은 제출할 때 현재 옵션으로 다시 맞춘다. */
-  const notApplicable = productNotApplicable && attested && goodsKcSoleNotApplicable(models);
-  const problems = !notApplicable && models.length ? goodsKcReviewProblems(models, variants) : [];
-  const change = (next: GoodsKcModelInput[], nextAttested = false) => setSections((current) => ({ ...current, kc: { models: next, attested: nextAttested } }));
-  const status = notApplicable ? 'KC 해당 없음 · 저장하면 검토 완료로 함께 저장됩니다.'
-    : !models.length ? 'KC 미입력 · 저장 뒤에도 이 자리의 KC 정보에서 검토할 수 있습니다.'
+  const choice = goodsKcChoice(models);
+  const problems = choice === 'subject' ? goodsKcReviewProblems(models, variants) : [];
+  const setKc = (kc: GoodWorkspaceKcDraft) => setSections((current) => ({ ...current, kc }));
+  const change = (next: GoodsKcModelInput[]) => setKc({ models: next, attested: false });
+  function choose(next: GoodsKcChoice) {
+    if (next === 'not_applicable') {
+      /* 고르는 순간 상품 전체 해당 없음을 확인한 것으로 체크한다(아래 체크를 풀면 미검토로 저장). 입력한 대상 모델이 있으면 지우기 전에 묻는다. */
+      const plan = planGoodsKcProductNotApplicable(models, variants);
+      if (plan.discarded && !window.confirm(`입력한 KC 모델 ${plan.discarded}개를 지우고 상품 전체 KC 해당 없음으로 바꿉니다. 계속할까요?`)) return;
+      setKc({ models: plan.models, attested: true, productNotApplicable: true });
+    } else if (!models.length || goodsKcSoleNotApplicable(models)) setKc({ models: [goodsKcSubjectModel(variants)], attested: false });
+  }
+  const status = choice === null ? 'KC 미입력 · KC 인증 대상 여부를 고르세요. 비워 두고 저장해도 저장 뒤 이 자리의 KC 정보에서 입력할 수 있습니다.'
+    : choice === 'not_applicable' ? (attested ? 'KC 해당 없음 · 저장하면 검토 완료로 함께 저장됩니다.' : 'KC 해당 없음 · 확인 체크 전이라 저장하면 미검토로 함께 저장됩니다.')
     : attested ? '저장하면 KC 검토 완료로 함께 저장됩니다.' : '저장하면 KC 미검토로 함께 저장됩니다. 검토 완료는 아래 확인을 체크하세요.';
   const error = sectionErrors.workspaceKc ?? serverError;
   return <div className="flex min-w-0 flex-col gap-4 text-sm" data-good-workspace-kc="">
     <p className="font-medium" role="status">{status}</p>
-    <ProductNotApplicable checkOnly checked={notApplicable} variants={variants} models={models} disabled={disabled}
+    <GoodsKcSubjectChoice value={choice} disabled={disabled} onChange={choose} />
+    {choice === 'not_applicable' ? <ProductNotApplicable checkOnly checked={attested} variants={variants} models={models} disabled={disabled}
       onNoteChange={(publicNote) => setSections((current) => ({ ...current, kc: { ...current.kc, models: [{ ...current.kc.models[0], publicNote }] } }))}
-      onComplete={(next) => setSections((current) => ({ ...current, kc: { models: next, attested: true, productNotApplicable: true } }))} onClear={() => change([])} />
-    {notApplicable ? null : <GoodWorkspaceDetails stateId="good-kc-models" className="min-w-0 rounded-lg border" data-good-kc-models="" forceOpen={models.length > 0}>
-      <summary className="cursor-pointer rounded-lg px-3 py-2.5 text-sm font-medium outline-none select-none marker:text-muted-foreground focus-visible:ring-3 focus-visible:ring-ring/50">KC 대상 상품이면 모델·옵션별로 입력</summary>
-      <div className="flex min-w-0 flex-col gap-4 border-t p-3">
-        <p className="text-sm text-muted-foreground">적용 옵션은 위 옵션목록의 현재 옵션입니다. 검토 완료는 확인 체크가 있을 때만 저장합니다.</p>
-        {models.map((model, index) => <ModelFields key={index} model={model} index={index} variants={variants} disabled={disabled}
-          onChange={(next) => change(models.map((item, position) => position === index ? next : item))}
-          onRemove={() => change(models.filter((_, position) => position !== index))} />)}
-        <div><button type="button" className={buttonVariants({ variant: 'outline' })} data-slot="button" disabled={disabled || models.length >= MAX_GOODS_KC_MODELS}
-          onClick={() => change([...models, emptyGoodsKcModel()])}>KC 모델 추가</button></div>
-        {problems.length > 0 && <div className={GOOD_NOTE_CLASS}><strong className="font-medium">검토 완료 전 확인</strong><ul className="mt-1 flex list-disc flex-col gap-1 pl-5 text-muted-foreground">{problems.map((problem, index) => <li key={index}>{problem}</li>)}</ul></div>}
-        {models.length > 0 && problems.length === 0 && <GoodsKcDisclosure title="고객 고시 미리보기" disclosures={publicGoodsKcDisclosures(models, variants)} />}
-        {models.length > 0 && <label className="flex items-start gap-2 text-sm">
-          <input className="mt-0.5" type="checkbox" checked={attested} disabled={disabled || problems.length > 0}
-            onChange={(event) => setSections((current) => ({ ...current, kc: { ...current.kc, attested: event.target.checked } }))} />
-          <span>{GOOD_WORKSPACE_KC_ATTESTATION}</span>
-        </label>}
-      </div>
-    </GoodWorkspaceDetails>}
+      onComplete={(next) => setKc({ models: next, attested: true, productNotApplicable: true })}
+      onUncheck={() => setSections((current) => ({ ...current, kc: { ...current.kc, attested: false } }))} /> : null}
+    {/* 1027T 원칙("펼친 채로"): '대상'을 고르면 모델 입력을 접힌 줄이 아니라 바로 보인다. 마지막 모델을 빼면 고르기 전으로 돌아간다. */}
+    {choice === 'subject' ? <div className="flex min-w-0 flex-col gap-4" data-good-kc-models="">
+      <p className="text-sm text-muted-foreground">{GOODS_KC_SUBJECT_GUIDE} 적용 옵션은 위 옵션목록의 현재 옵션입니다.</p>
+      {models.map((model, index) => <ModelFields key={index} model={model} index={index} variants={variants} disabled={disabled}
+        onChange={(next) => change(models.map((item, position) => position === index ? next : item))}
+        onRemove={() => change(models.filter((_, position) => position !== index))} />)}
+      <div><button type="button" className={buttonVariants({ variant: 'outline' })} data-slot="button" disabled={disabled || models.length >= MAX_GOODS_KC_MODELS}
+        onClick={() => change([...models, emptyGoodsKcModel()])}>KC 모델 추가</button></div>
+      {problems.length > 0 && <div className={GOOD_NOTE_CLASS}><strong className="font-medium">검토 완료 전 확인</strong><ul className="mt-1 flex list-disc flex-col gap-1 pl-5 text-muted-foreground">{problems.map((problem, index) => <li key={index}>{problem}</li>)}</ul></div>}
+      {problems.length === 0 && <GoodsKcDisclosure title="고객 고시 미리보기" disclosures={publicGoodsKcDisclosures(models, variants)} />}
+      <label className="flex items-start gap-2 text-sm">
+        <input className="mt-0.5" type="checkbox" checked={attested} disabled={disabled || problems.length > 0}
+          onChange={(event) => setSections((current) => ({ ...current, kc: { ...current.kc, attested: event.target.checked } }))} />
+        <span>{GOOD_WORKSPACE_KC_ATTESTATION}</span>
+      </label>
+    </div> : null}
+    <div className="flex min-w-0 flex-col gap-3 border-t pt-4" data-good-workspace-other-certifications="">
+      <div className="flex flex-col gap-1"><h3 className="text-sm font-medium">기타 인증 <span className="font-normal text-muted-foreground">· 상품과 함께 저장</span></h3>
+        <p className="text-sm text-muted-foreground">{GOODS_OTHER_CERTIFICATIONS_GUIDE}</p></div>
+      <GoodsOtherCertificationsFields entries={otherCertifications} disabled={disabled}
+        onChange={(next) => setSections((current) => ({ ...current, otherCertifications: next }))} />
+    </div>
     {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
     <small className="text-xs text-muted-foreground">KC 내부 근거 참조는 브라우저 자동복구·임시저장에 담지 않습니다. 화면을 닫기 전에 저장해주세요.</small>
   </div>;
