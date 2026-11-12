@@ -90,7 +90,7 @@ function Panel({ goodId, disabledReason, showDisabledReason = true, identity, sc
   } catch { if (alive.current && scope.canApply(ticket)) { setUncertain(true); setMessage('저장 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.'); } }
   finally { busy.current = false; if (alive.current) setPending(false); }
  }
- return <div className="flex min-w-0 flex-col gap-4" data-goods-fulfillment=""><p className="text-sm text-muted-foreground">고객이 주문서에서 선택할 수령 방식과 선결제 비용을 설정합니다. 택배 배송비은 기존 배송비 정책을 사용하며 설치비는 별도로 선결제합니다.</p>
+ return <div className="flex min-w-0 flex-col gap-4" data-goods-fulfillment=""><p className="text-sm text-muted-foreground">고객이 주문서에서 선택할 수령 방식과 선결제 비용을 설정합니다. 택배 배송비는 기존 배송비 정책을 사용하며 설치비는 별도로 선결제합니다.</p>
   <button type="button" className={`${buttonVariants({ variant: 'outline' })} self-start`} data-slot="button" disabled={pending || uncertain || Boolean(pendingFile)} onClick={() => { void read(); }}>현재 배송·제공 설정 불러오기</button>
   {draft ? <form className="flex min-w-0 flex-col gap-4" onSubmit={e => { e.preventDefault(); void save(); }}><fieldset className="m-0 flex min-w-0 flex-col gap-4 rounded-lg border p-4" disabled={pending || uncertain || Boolean(pendingFile) || Boolean(disabledReason)}><legend className="float-left w-full p-0 text-sm font-medium text-foreground">상품 제공 방식</legend>
    <GoodsFulfillmentDraftFields draft={draft} onChange={setDraft} onUpload={file => { void upload(file); }} fieldId={fieldId} />

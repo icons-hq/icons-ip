@@ -17,7 +17,7 @@ export function ShippingSettingsFulfillmentFields({ value, onChange, error }: { 
       <label className={FIELD_LABEL} htmlFor="shipping-settings-fulfillment-mode">수령 유형<NativeSelect className="w-full" id="shipping-settings-fulfillment-mode" value={value.mode} onChange={e => onChange({ ...value, mode: e.target.value as typeof value.mode, confirmed: false })}>
         <option value="shipping">배송수단 선택</option><option value="no_delivery">배송없음 · 직접전달</option>
       </NativeSelect></label>
-      <p className={NOTE}>고객에게 허용할 수령 방식을 선택합니다. 택배는 위 배송비 규칙을 사용하고, 다른 배송비과 설치비는 주문서에서 선결제합니다. 설치비는 상품 수량만큼 부과합니다.</p>
+      <p className={NOTE}>고객에게 허용할 수령 방식을 선택합니다. 택배는 위 배송비 규칙을 사용하고, 다른 배송비와 설치비는 주문서에서 선결제합니다. 설치비는 상품 수량만큼 부과합니다.</p>
       <p className={NOTE}>택배 이외 수령 방식은 <Link className="font-medium text-foreground underline underline-offset-4" href="/admin/settings/origins" target="_blank" rel="noreferrer">출고지·배송정보 관리</Link>에서 해당 방식의 연락처·인계 장소·수령 절차를 활성화해야 주문할 수 있습니다.</p>
       {value.mode === 'shipping' ? value.methods.map(m => <div key={m.method} className="flex min-w-0 flex-col gap-3 rounded-lg border p-3">
         <label className={`${CHECK_LABEL} font-medium`}><input type="checkbox" checked={m.enabled} onChange={e => updateMethod(m.method, { enabled: e.target.checked })} />{FULFILLMENT_METHOD_LABELS[m.method]}</label>
