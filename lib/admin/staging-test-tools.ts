@@ -1,10 +1,12 @@
+import { commerceNumberPattern } from '@/lib/commerce-number';
 import { transactionExactKeys, transactionInstant, transactionInteger, transactionRecord } from '@/lib/goods-transaction-values';
 import { isUuid } from '@/lib/uuid';
 
 /** 스테이징 전용 테스트 도구(ADR-0025). 운영은 서버와 DB가 각각 거절한다. */
 export const PRODUCTION_SUPABASE_PROJECT_REF = 'sbutbsghcxmxmxgrshwq';
 export const PRODUCTION_SITE_HOST = 'iconsip.com';
-export const ORDER_NUMBER_PATTERN = /^[0-9]{8}1[0-9]{7}$/;
+/** 주문번호 16자리(옛 형식)와 20자리(주문 시각 형식)를 모두 받는다. DB `private.is_commerce_number(…, 1)`과 같은 규칙이다. */
+export const ORDER_NUMBER_PATTERN = commerceNumberPattern('order');
 
 export interface StagingTestDeliveryReceipt {
   orderId: string; orderNumber: string; status: string; deliveredShipments: number; orderCount: number; deliveredAt: string;
@@ -26,6 +28,6 @@ export function stagingTestDeliveryError(code?: string, message?: string) {
   if (message?.includes('cancellation in progress')) return '취소 요청이 진행 중인 주문입니다. 클레임을 먼저 정리해주세요.';
   if (message?.includes('nothing_to_deliver')) return '배송완료로 옮길 배송 건이 없습니다.';
   if (message?.includes('shipment_pack_changed')) return '합포장 구성이 바뀌었습니다. 새로고침 후 다시 시도해주세요.';
-  if (message?.includes('invalid_staging_test_delivery')) return '주문번호 16자리를 확인해주세요.';
+  if (message?.includes('invalid_staging_test_delivery')) return '주문번호 전체(16자리 또는 20자리)를 확인해주세요.';
   return '처리 결과를 확인하지 못했습니다. 주문 상세에서 현재 상태를 확인해주세요.';
 }

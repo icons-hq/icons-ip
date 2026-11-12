@@ -29,7 +29,8 @@ select order_number from public.orders where id='52000000-0000-4000-8000-0000000
 select order_number as second_order_number from public.orders where id='52000000-0000-4000-8000-000000000002' \gset
 select shipment_number as first_number from public.order_shipments where id='62000000-0000-4000-8000-000000000001' \gset
 select shipment_number as second_number from public.order_shipments where id='62000000-0000-4000-8000-000000000002' \gset
-select 1/case when :'order_number' ~ '^[0-9]{8}1[0-9]{7}$' and :'first_number' ~ '^[0-9]{8}3[0-9]{7}$' then 1 else 0 end as assert_fixture_numbers_issued;
+-- 주문번호는 시각 전환 전 16자리, 전환 뒤 20자리다(order_number_time.sql). 배송건번호는 늘 16자리다.
+select 1/case when private.is_commerce_number(:'order_number',1::smallint) and private.is_commerce_number(:'first_number',3::smallint) then 1 else 0 end as assert_fixture_numbers_issued;
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000271401',true);

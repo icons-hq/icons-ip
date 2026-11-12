@@ -41,6 +41,7 @@ const operators = [
   sql('operator_manual_recovery_guards'),
   sql('admin_operator_directory'),
   sql('readable_order_numbers'),
+  sql('order_number_time'),
   sql('erp_read'),
   run(
     'erp_read_concurrency.py',
