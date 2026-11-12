@@ -137,7 +137,8 @@ function CouponEditor({
   function next() {
     if (pending || !form.current) return;
     const name = form.current.elements.namedItem('name') as HTMLInputElement | null;
-    if (!name?.reportValidity()) return;
+    if (!name) return;
+    /* 브라우저 기본 검증 말풍선 대신 화면 안내로 묻는다. */
     if (!name.value.trim()) { setStepError('혜택 이름을 입력해주세요.'); name.focus(); return; }
     const values = new FormData(form.current);
     if (values.get('goodsScope') === 'selected_goods' && values.get('targetGoodIds') === '[]') {
@@ -160,7 +161,7 @@ function CouponEditor({
       action={action}
       className="flex min-w-0 flex-col rounded-xl border bg-card text-sm text-card-foreground"
       key={adminFormRemountKey(state, selected)}
-      noValidate={step === 1}
+      noValidate
       onSubmit={event => { if (step === 1) { event.preventDefault(); next(); } }}
     >
       <input name="previousCode" type="hidden" value={defaults?.code ?? ''} />
@@ -349,7 +350,7 @@ export function CouponSection({
   onStatusResult?: (message: string) => void;
 }) {
   /* 취소·목록으로는 링크가 아니라 router.replace로 떠나 공용 경고가 클릭을 가로채지 못한다. 같은 확인을 직접 거친다. */
-  const leaveEditor = () => { if (confirmAdminLeave()) onSelect(null); };
+  const leaveEditor = () => { void confirmAdminLeave().then((leave) => { if (leave) onSelect(null); }); };
   if (selected || mode === 'create') return <section className="flex min-w-0 flex-col gap-3">
     {selected || copySource ? <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card px-4 py-3.5 sm:px-6"><h2 className="text-lg font-semibold tracking-tight">{copySource ? '복사한 혜택 설정' : '혜택 정보'}</h2><Button type="button" variant="outline" onClick={leaveEditor}>목록으로</Button></div> : null}
     {savedCode ? <AdminNotice role="status" tone="success">{savedCode} 쿠폰을 저장했습니다.</AdminNotice> : null}

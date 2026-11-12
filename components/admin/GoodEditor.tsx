@@ -80,6 +80,7 @@ import { ActionNotice, ErrorText, Field, SelectField, TextArea } from './fields'
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { resultParticle } from '@/lib/korean-particle';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/admin/kit/ui/dropdown-menu';
+import { adminConfirm } from '@/lib/admin/confirm';
 
 /*
  * 고시정보 입력 (#171). 항목·라벨·폼 이름은 lib/goods-notice.ts 하나에서 나온다.
@@ -751,8 +752,8 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
           : state.kcPublishBlocked || state.publishBlocked ? null : <div className="empty:hidden xl:col-span-2"><ActionNotice state={state} /></div>}
       </div>
     </form>
-    {draftOpen ? <GoodsDraftLibraryDialog onClose={() => setDraftOpen(false)} onLoad={loaded => {
-      if (dirty && !window.confirm('현재 입력을 선택한 임시저장 내용으로 바꾸시겠습니까? 저장하지 않은 입력은 이 화면에서 사라집니다.')) return false;
+    {draftOpen ? <GoodsDraftLibraryDialog onClose={() => setDraftOpen(false)} onLoad={async loaded => {
+      if (dirty && !await adminConfirm('현재 입력을 선택한 임시저장 내용으로 바꾸시겠습니까? 저장하지 않은 입력은 이 화면에서 사라집니다.')) return false;
       onLoadServerDraft(loaded); return true;
     }}/> : null}
     <GoodPreviewPanel detail={previewWithAttributes} ip={previewIp} shippingPolicy={shippingPolicy} />

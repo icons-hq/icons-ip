@@ -14,6 +14,7 @@ import { reloadCategoryDisplayTreeAction, updateCategoryDisplayNodeImageAction, 
 import { CATEGORY_DISPLAY_ADMIN_PATH, categoryDisplayParentChoices, type CategoryDisplayDirectory, type CategoryDisplayTreeChange } from '@/lib/category-display';
 import { createClient } from '@/lib/supabase/client';
 import { inquiryDraftSessionId } from '@/lib/admin/inquiry-drafts';
+import { adminConfirm } from '@/lib/admin/confirm';
 
 export function CategoryDisplayTree({ initial, selectedId, actorId, sessionId }: { initial: CategoryDisplayDirectory; selectedId: string | null; actorId: string; sessionId: string | null }) {
   const [directory, setDirectory] = useState(initial), [creating, setCreating] = useState(!selectedId);
@@ -41,7 +42,7 @@ export function CategoryDisplayTree({ initial, selectedId, actorId, sessionId }:
     return () => { alive.current = false; subscription.unsubscribe(); };
   }, [actorId, sessionId]);
   useAdminLeaveGuard({ dirty: dirty || uncertain || imageUncertain, message: '저장하지 않은 전시분류 입력을 두고 이동할까요?' });
-  function applyImage(imagePath: string | null) {
+  async function applyImage(imagePath: string | null) {
     if (!selected || blockedRef.current) return;
     /* 다른 전시분류 작업이 진행 중이거나 충돌로 멈춘 동안 도착한 아이콘은 적용하지 않는다 — 조용히 버리지 않고 다시 올리게 안내한다. */
     if (pending || conflict || request.current) {
@@ -51,7 +52,7 @@ export function CategoryDisplayTree({ initial, selectedId, actorId, sessionId }:
         : '진행 중인 전시분류 작업이 끝나지 않아 카테고리 아이콘을 적용하지 않았습니다. 작업이 끝난 뒤 이미지를 다시 올려주세요.');
       return;
     }
-    if (!imageRequest.current && imagePath === null && !window.confirm('카테고리 아이콘을 해제할까요? 모바일 카테고리 시트에는 이름 첫 글자로 보입니다.')) return;
+    if (!imageRequest.current && imagePath === null && !await adminConfirm('카테고리 아이콘을 해제할까요? 모바일 카테고리 시트에는 이름 첫 글자로 보입니다.')) return;
     imageRequest.current ??= { nodeId: selected.id, imagePath, revision: directory.revision, operationId: crypto.randomUUID() };
     const attempt = imageRequest.current;
     setMessage('');
@@ -109,8 +110,8 @@ export function CategoryDisplayTree({ initial, selectedId, actorId, sessionId }:
     if (index + delta < 0 || index + delta >= currentSiblings.length) return;
     submit({ action: 'update', id: selected.id, name: selected.name, parentId: selected.parentId, position: index + delta });
   }
-  function reload() {
-    if (pending || uncertain || blocked || dirty && !window.confirm('현재 전시분류 입력을 버리고 최신 저장본을 불러올까요?')) return;
+  async function reload() {
+    if (pending || uncertain || blocked || dirty && !await adminConfirm('현재 전시분류 입력을 버리고 최신 저장본을 불러올까요?')) return;
     startTransition(async () => {
       const result = await reloadCategoryDisplayTreeAction(actorId).catch(() => ({ error: '최신 전시분류를 불러오지 못했습니다. 입력은 유지됩니다.' }));
       if (!alive.current || blockedRef.current) return;
@@ -133,8 +134,8 @@ export function CategoryDisplayTree({ initial, selectedId, actorId, sessionId }:
         style={{ paddingInlineStart: `${12 + (node.depth - 1) * 18}px` }}><span>{node.name}</span>{node.archivedAt ? <AdminStatusBadge tone={statusTone('publication', 'archived')}>보관됨</AdminStatusBadge> : null}</Link>)}{!directory.categories.length ? <Empty className="rounded-none border-0"><EmptyHeader><EmptyMedia variant="icon"><FolderTree aria-hidden="true" /></EmptyMedia><EmptyTitle>아직 전시분류가 없습니다</EmptyTitle><EmptyDescription>오른쪽에서 첫 전시분류를 만들면 이곳에 목록이 쌓입니다.</EmptyDescription></EmptyHeader></Empty> : null}</nav>
       <form className="flex min-w-0 flex-col gap-3.5" onSubmit={event => { event.preventDefault(); save(); }}>
         {/* 지금 누를 수 없는 전환 버튼을 흐리게 남기지 않는다 — 입력 칸 제목과 말이 겹쳐 제목처럼 보인다. */}
-        {!creating || selected ? <div className="flex flex-wrap gap-2">{!creating ? <Button variant="outline" type="button" disabled={locked} onClick={() => { if (dirty && !window.confirm('현재 전시분류 입력을 버리고 새 분류를 만들까요?')) return; setCreating(true); setName(''); setParentId(''); setMessage(''); }}>새 전시분류</Button> : null}
-          {selected && creating ? <Button variant="outline" type="button" disabled={locked} onClick={() => { if (dirty && !window.confirm('새 전시분류 입력을 버릴까요?')) return; setCreating(false); setName(selected.name); setParentId(selected.parentId ?? ''); setMessage(''); }}>선택한 분류 편집</Button> : null}</div> : null}
+        {!creating || selected ? <div className="flex flex-wrap gap-2">{!creating ? <Button variant="outline" type="button" disabled={locked} onClick={async () => { if (dirty && !await adminConfirm('현재 전시분류 입력을 버리고 새 분류를 만들까요?')) return; setCreating(true); setName(''); setParentId(''); setMessage(''); }}>새 전시분류</Button> : null}
+          {selected && creating ? <Button variant="outline" type="button" disabled={locked} onClick={async () => { if (dirty && !await adminConfirm('새 전시분류 입력을 버릴까요?')) return; setCreating(false); setName(selected.name); setParentId(selected.parentId ?? ''); setMessage(''); }}>선택한 분류 편집</Button> : null}</div> : null}
         <fieldset className="flex min-w-0 flex-col gap-3" disabled={locked}><legend className="float-left w-full p-0 text-sm font-medium">{creating ? '새 전시분류 만들기' : '선택한 전시분류 설정'}</legend>
           <label className="flex flex-col gap-2 text-sm font-medium">전시분류명 · 20자<Input value={name} onChange={event => setName(event.target.value)} maxLength={Math.max(40, selected?.name.length ?? 0)} required /></label>
           <label className="flex flex-col gap-2 text-sm font-medium">상위 전시분류<AdminSelect value={parentId} onChange={event => setParentId(event.target.value)} wrapperClassName="w-full"><option value="">최상위</option>{parents.map(node => <option key={node.id} value={node.id}>{'　'.repeat(node.depth - 1)}{node.name}</option>)}
@@ -144,7 +145,7 @@ export function CategoryDisplayTree({ initial, selectedId, actorId, sessionId }:
         </fieldset>
         <div className="flex flex-wrap gap-2"><Button type="submit" disabled={pending || conflict || blocked || imageUncertain || imageBusy}>{pending ? '저장 중…' : uncertain ? '같은 요청 결과 확인' : creating ? '전시분류 만들기' : '이름·상위 분류 저장'}</Button>
           {!creating && selected ? <><Button variant="outline" type="button" disabled={locked || dirty || peerIndex <= 0} onClick={() => move(-1)}>위로</Button><Button variant="outline" type="button" disabled={locked || dirty || peerIndex >= peerCount - 1} onClick={() => move(1)}>아래로</Button>
-            <Button variant="outline" type="button" disabled={locked || dirty} onClick={() => { if (selected.archivedAt || window.confirm('이 전시분류와 하위 공개 전시를 숨길까요? 상품 연결과 상단 콘텐츠는 보존됩니다.')) submit({ action: selected.archivedAt ? 'restore' : 'archive', id: selected.id }); }}>{selected.archivedAt ? '보관 해제' : '보관'}</Button></> : null}
+            <Button variant="outline" type="button" disabled={locked || dirty} onClick={async () => { if (selected.archivedAt || await adminConfirm('이 전시분류와 하위 공개 전시를 숨길까요? 상품 연결과 상단 콘텐츠는 보존됩니다.')) submit({ action: selected.archivedAt ? 'restore' : 'archive', id: selected.id }); }}>{selected.archivedAt ? '보관 해제' : '보관'}</Button></> : null}
           <Button variant="ghost" type="button" disabled={pending || uncertain || blocked || imageBusy} onClick={reload}>최신 분류 불러오기</Button></div>
         {message ? <p className={`text-sm${error ? ' text-destructive' : ''}`} role={error ? 'alert' : 'status'}>{message}</p> : null}
         {createdId ? <Link className="text-sm underline underline-offset-4" href={`${CATEGORY_DISPLAY_ADMIN_PATH}?id=${createdId}`}>새 전시분류의 상품·상단 콘텐츠 구성하기</Link> : null}

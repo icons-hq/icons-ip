@@ -182,7 +182,7 @@ export function Header({
               <DropdownMenuItem render={<Link href="/" prefetch={false} rel="noopener noreferrer" target="_blank" />}><ExternalLink />쇼핑몰 바로가기</DropdownMenuItem>
               <DropdownMenuSeparator />
             </DropdownMenuGroup>
-            <DropdownMenuItem disabled={signOutPending} onClick={() => { if (confirmAdminLeave()) signOutFormRef.current?.requestSubmit(); }}>
+            <DropdownMenuItem disabled={signOutPending} onClick={() => { void confirmAdminLeave().then((leave) => { if (leave) signOutFormRef.current?.requestSubmit(); }); }}>
               <LogOut />
               {signOutPending ? '로그아웃 중…' : '로그아웃'}
             </DropdownMenuItem>

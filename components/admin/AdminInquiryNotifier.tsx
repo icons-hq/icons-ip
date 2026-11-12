@@ -8,6 +8,7 @@ import { getSupabaseConfig } from '@/lib/supabase/config';
 import { startAdminNavigation } from '@/lib/admin/navigation-pending';
 import { adminProductQuestionHref, DEFAULT_ADMIN_PRODUCT_QUESTION_FILTERS, productQuestionBodyPreview } from '@/lib/admin/product-questions';
 import { Button } from '@/components/admin/kit/ui/button';
+import { confirmAdminLeave } from '@/lib/admin/leave-guard';
 
 /*
  * 새 1:1 문의·상품 문의 PC 브라우저 알림(R2, 10/27 회의 D2① · 1027T-002 "현행+상품 Q&A 알림").
@@ -382,7 +383,7 @@ function useNotifierEffect(accountId: string, enabled: boolean, onCount: (count:
       },
       notify: (inquiry) => {
         // 권한 회수·OS 거부는 생성자가 던지지 않는다(오류 이벤트). 던지면 생성자 자체가 막힌 브라우저다.
-        if (!showInquiryNotification(inquiry, () => openNotifiedInquiry(inquiry.id, (href) => router.push(href)))) {
+        if (!showInquiryNotification(inquiry, () => openNotifiedInquiry(inquiry.id, (href) => { void confirmAdminLeave().then((leave) => { if (leave) router.push(href); }); }))) {
           markInquiryNotificationsUnsupported(accountId);
         }
       },
@@ -401,7 +402,7 @@ function useNotifierEffect(accountId: string, enabled: boolean, onCount: (count:
           return parseProductQuestionRows(data);
         },
         notify: (question) => {
-          if (!showProductQuestionNotification(question, () => openNotifiedProductQuestion(question.id, (href) => router.push(href)))) {
+          if (!showProductQuestionNotification(question, () => openNotifiedProductQuestion(question.id, (href) => { void confirmAdminLeave().then((leave) => { if (leave) router.push(href); }); }))) {
             markInquiryNotificationsUnsupported(accountId);
           }
         },

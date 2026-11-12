@@ -13,7 +13,7 @@ import { GOOD_INPUT_CLASS } from './GoodEditorParts';
 const empty: GoodsDraftPage = { rows: [], total: 0, page: 1, pageSize: 20 };
 const time = (value: string) => new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', dateStyle: 'short', timeStyle: 'short' }).format(new Date(value));
 const LABEL_CLASS = 'text-sm leading-snug font-medium text-foreground';
-export function GoodsDraftLibraryDialog({ onClose, onLoad }: { onClose: () => void; onLoad: (draft: GoodsDraft) => boolean }) {
+export function GoodsDraftLibraryDialog({ onClose, onLoad }: { onClose: () => void; onLoad: (draft: GoodsDraft) => boolean | Promise<boolean> }) {
   const [data, setData] = useState(empty);
   const [query, setQuery] = useState('');
   const [archived, setArchived] = useState(false);
@@ -48,7 +48,7 @@ export function GoodsDraftLibraryDialog({ onClose, onLoad }: { onClose: () => vo
   async function load(row: GoodsDraftSummary) {
     const result = await getGoodsDraftAction(row.id);
     if (!result.data) { setError(result.error ?? '불러오지 못했습니다.'); return; }
-    if (onLoad(result.data)) onClose();
+    if (await onLoad(result.data)) onClose();
   }
   async function archive(row: GoodsDraftSummary) {
     const result = await setGoodsDraftArchivedAction(row, !row.archived);

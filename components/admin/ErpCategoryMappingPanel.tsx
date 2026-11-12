@@ -22,6 +22,7 @@ import { Input } from './kit/ui/input';
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from './kit/ui/table';
 import { useAdminLeaveGuard } from './useAdminLeaveGuard';
 import { useErpItemsWorkspace } from './ErpItemsWorkspace';
+import { adminConfirm } from '@/lib/admin/confirm';
 
 /* 선택지는 칸을 열 때만 그려 행이 늘어도 가볍다. 한 번에 저장할 수 있는 만큼만 보여 '전체 선택'이 보이는 행만 고르게 한다. */
 const VISIBLE_LIMIT = ERP_CATEGORY_MAPPING_BATCH_LIMIT;
@@ -287,7 +288,7 @@ export function ErpCategoryMappingPanel({ rows, categories, categoryErpMappings 
     });
   };
 
-  const submitBulk = (event: FormEvent<HTMLFormElement>) => {
+  const submitBulk = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (bulkPending || !selectedRows.length) return;
     const action = ((event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null)?.name;
@@ -295,7 +296,7 @@ export function ErpCategoryMappingPanel({ rows, categories, categoryErpMappings 
     if (action === 'unlink') {
       const linkedRows = selectedRows.filter((row) => savedOf(row));
       if (!linkedRows.length) return;
-      if (!window.confirm(`선택한 ERP 분류 중 직접 연결한 ${count(linkedRows.length)}건의 연결을 해제할까요? 같은 경로나 ERP 분류 매핑이 맞는 카테고리가 있으면 자동 연결로 돌아갑니다.`)) return;
+      if (!await adminConfirm(`선택한 ERP 분류 중 직접 연결한 ${count(linkedRows.length)}건의 연결을 해제할까요? 같은 경로나 ERP 분류 매핑이 맞는 카테고리가 있으면 자동 연결로 돌아갑니다.`)) return;
       saveBatch(linkedRows.map((row) => ({ erpCategory: row.erpCategory, categoryId: null })));
       return;
     }
@@ -305,12 +306,12 @@ export function ErpCategoryMappingPanel({ rows, categories, categoryErpMappings 
       const current = savedOf(row) || row.fallbackCategoryId;
       return current && current !== bulkTarget;
     }).length;
-    if (replaced && !window.confirm(`이미 다른 카테고리에 연결된 ${count(replaced)}건(자동 연결 포함)이 들어 있습니다. 선택한 ${count(selectedRows.length)}건을 모두 ‘${index.pathLabel(bulkTarget) ?? ''}’에 연결할까요?`)) return;
+    if (replaced && !await adminConfirm(`이미 다른 카테고리에 연결된 ${count(replaced)}건(자동 연결 포함)이 들어 있습니다. 선택한 ${count(selectedRows.length)}건을 모두 ‘${index.pathLabel(bulkTarget) ?? ''}’에 연결할까요?`)) return;
     saveBatch(selectedRows.map((row) => ({ erpCategory: row.erpCategory, categoryId: bulkTarget })));
   };
-  const saveSuggestions = () => {
+  const saveSuggestions = async () => {
     if (bulkPending || !suggestedEntries.length) return;
-    if (!window.confirm(`제안된 카테고리로 ERP 분류 ${count(suggestedEntries.length)}건을 연결할까요? 상품은 바뀌지 않고, 연결은 표에서 다시 바꿀 수 있습니다.`)) return;
+    if (!await adminConfirm(`제안된 카테고리로 ERP 분류 ${count(suggestedEntries.length)}건을 연결할까요? 상품은 바뀌지 않고, 연결은 표에서 다시 바꿀 수 있습니다.`)) return;
     saveBatch(suggestedEntries);
   };
 

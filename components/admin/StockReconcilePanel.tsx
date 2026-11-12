@@ -48,6 +48,7 @@ import {
   type StockReconcilePlan,
 } from '@/lib/admin/stock-reconcile';
 import { formatOrderDateTime } from '@/lib/orders';
+import { adminConfirm } from '@/lib/admin/confirm';
 
 type Source = { label: string; table: string[][]; numericColumns: number[]; warnings: string[] };
 export interface StockReconcileOrigin { id: string; name: string; active: boolean }
@@ -312,7 +313,7 @@ export function StockReconcilePanel({ origins, initialSnapshot, now }: {
   const changedCount = snapshot ? snapshot.items.filter((item) => item.targetQty !== item.stockQty).length : 0;
   /* 서버가 그린 시각 기준이다. 화면을 오래 열어 둔 사이 만료되면 DB가 거절하고 같은 안내를 보인다. */
   const expired = snapshot ? Date.parse(now) - Date.parse(snapshot.createdAt) > 24 * 60 * 60 * 1000 : false;
-  const apply = () => {
+  const apply = async () => {
     if (!snapshot || snapshot.appliedAt) return;
     const trimmed = reason.trim();
     if (!trimmed || trimmed.length > STOCK_RECONCILE_REASON_LIMIT) { setError('반영 사유를 200자 이내로 입력해주세요.'); return; }
@@ -320,7 +321,7 @@ export function StockReconcilePanel({ origins, initialSnapshot, now }: {
     const confirmText = changedCount
       ? `옵션 ${count(changedCount)}개의 재고수량을 파일에 맞춰 바꿉니다${shortages ? `(부족 ${count(shortages)}개는 0으로)` : ''}. 반영할까요?`
       : '바뀌는 옵션이 없습니다. 이 파일로 대조했다는 기록만 남길까요?';
-    if (!window.confirm(confirmText)) return;
+    if (!await adminConfirm(confirmText)) return;
     setError(''); setMessage(''); setConflicts([]);
     startWorking(async () => {
       let result: Awaited<ReturnType<typeof applyStockReconcileAction>>;

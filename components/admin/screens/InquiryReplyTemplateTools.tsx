@@ -15,6 +15,7 @@ import { Button } from '@/components/admin/kit/ui/button';
 import { CustomerServiceDialog } from './CustomerServiceDialog';
 import { CsEditorDraftNotice, CsTemplateDraftList } from './CsEditorDraftNotice';
 import { COUNTER_CLASS, FIELD_LABEL_CLASS, KIT_INPUT_CLASS, KIT_TEXTAREA_CLASS, LATEST_CLASS, TEMPLATE_BODY_CLASS, TEMPLATE_EDITOR_CLASS, TEMPLATE_NOTICE_CLASS, TEMPLATE_ROW_CLASS, TEMPLATE_SEARCH_CLASS } from './cs-kit-classes';
+import { adminConfirm } from '@/lib/admin/confirm';
 
 export function InquiryReplyTemplateTools({ body, onInsert, disabled = false, accountId = '', label = '답변 템플릿 불러오기', triggerVariant = 'outline' }: { body: string; onInsert: (value: string) => void; disabled?: boolean; accountId?: string; label?: string; triggerVariant?: 'outline' | 'ghost' }) {
   const [open, setOpen] = useState(false), [pending, setPending] = useState(false), [uncertain, setUncertain] = useState(false);
@@ -106,10 +107,10 @@ export function InquiryReplyTemplateTools({ body, onInsert, disabled = false, ac
       await acceptReceipt(result.receipt);
     });
   }
-  function insert(row: InquiryReplyTemplate) {
+  async function insert(row: InquiryReplyTemplate) {
     const result = applyInquiryReplyTemplate(body, row.body);
     if (!result.ok) { setError(result.error); return; }
-    if (result.replaces && !window.confirm(REPLY_TEMPLATE_REPLACE_CONFIRM)) return;
+    if (result.replaces && !await adminConfirm(REPLY_TEMPLATE_REPLACE_CONFIRM)) return;
     onInsert(result.body); setOpen(false);
   }
   return <>

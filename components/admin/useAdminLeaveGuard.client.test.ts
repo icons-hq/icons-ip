@@ -21,7 +21,10 @@ vi.mock('react', async () => ({
   },
 }));
 
+import { stubAdminConfirm } from '@/lib/admin/confirm.test-support';
+import { setAdminConfirmHandler } from '@/lib/admin/confirm';
 import { useAdminLeaveGuard } from './useAdminLeaveGuard';
+let leaveConfirm: ReturnType<typeof stubAdminConfirm>;
 import { ADMIN_LEAVE_CONFIRM_MESSAGE } from '@/lib/admin/leave-guard';
 
 type Options = Parameters<typeof useAdminLeaveGuard>[0];
@@ -53,12 +56,14 @@ class FakeForm extends EventTarget {
 beforeEach(() => {
   hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.jobs = [];
   vi.useFakeTimers();
-  vi.stubGlobal('window', Object.assign(new EventTarget(), { confirm: vi.fn(() => false), location: { href: 'https://iconsip.com/admin/settings/store' } }));
+  leaveConfirm = stubAdminConfirm(false);
+  vi.stubGlobal('window', Object.assign(new EventTarget(), { location: { href: 'https://iconsip.com/admin/settings/store' } }));
   vi.stubGlobal('document', new EventTarget());
   vi.stubGlobal('MutationObserver', class { constructor(callback: () => void) { mutate = callback; } observe() {} disconnect() {} });
 });
 afterEach(() => {
   for (const effect of hooks.effects) { if (typeof effect.cleanup === 'function') effect.cleanup(); }
+  setAdminConfirmHandler(null);
   vi.unstubAllGlobals();
   vi.useRealTimers();
 });
@@ -71,19 +76,21 @@ describe('useAdminLeaveGuard', () => {
     expect(render({ dirty: true }).dirty).toBe(true);
     expect(unloadBlocked()).toBe(true);
     expect(clickLink()).toBe(true);
-    expect(window.confirm).toHaveBeenCalledWith(ADMIN_LEAVE_CONFIRM_MESSAGE);
+    expect(leaveConfirm).toHaveBeenCalledWith(ADMIN_LEAVE_CONFIRM_MESSAGE);
 
     render({ dirty: false });
     expect(unloadBlocked()).toBe(false);
   });
 
-  it('화면 문구를 쓰고, 문구가 바뀌면 새 문구로 묻는다', () => {
+  it('화면 문구를 쓰고, 문구가 바뀌면 새 문구로 묻는다', async () => {
     render({ dirty: true, message: '착불 입력이 있습니다.' });
     clickLink();
-    expect(window.confirm).toHaveBeenLastCalledWith('착불 입력이 있습니다.');
+    expect(leaveConfirm).toHaveBeenLastCalledWith('착불 입력이 있습니다.');
+    /* 앞의 확인창이 닫힌 뒤의 다음 이동이다. */
+    for (let i = 0; i < 20; i += 1) await Promise.resolve();
     render({ dirty: true, message: '다른 문구' });
     clickLink();
-    expect(window.confirm).toHaveBeenLastCalledWith('다른 문구');
+    expect(leaveConfirm).toHaveBeenLastCalledWith('다른 문구');
   });
 
   it('쿼리만 바뀌어도 입력이 남는 화면은 그런 링크에 묻지 않는다(옵션을 켠 화면만)', () => {
@@ -95,16 +102,16 @@ describe('useAdminLeaveGuard', () => {
     };
     render({ dirty: true, survivesQueryChange: true });
     expect(clickQueryLink()).toBe(false);
-    expect(window.confirm).not.toHaveBeenCalled();
+    expect(leaveConfirm).not.toHaveBeenCalled();
     render({ dirty: true });
     expect(clickQueryLink()).toBe(true);
-    expect(window.confirm).toHaveBeenCalledOnce();
+    expect(leaveConfirm).toHaveBeenCalledOnce();
   });
 
   it('저장 결과를 기다리는 동안은 묻지 않고 막는다', () => {
     render({ blocked: true });
     expect(clickLink()).toBe(true);
-    expect(window.confirm).not.toHaveBeenCalled();
+    expect(leaveConfirm).not.toHaveBeenCalled();
     expect(unloadBlocked()).toBe(true);
   });
 

@@ -21,6 +21,7 @@ import { ConsoleListCard } from '../console/ConsoleListCard';
 import { AdminStatusBadge } from '../console/AdminKit';
 import { AdminCountCard, type AdminCountTone } from '../console/AdminCountCard';
 import { csChipTone } from '../screens/cs-kit-classes';
+import { confirmAdminSubmit } from '@/lib/admin/confirm';
 
 const emptyState: AdminCatalogActionState = {};
 const reportStatuses: CommunityReportStatus[] = ['open', 'reviewing', 'resolved', 'dismissed'];
@@ -49,17 +50,11 @@ function ReportFilterCard({ active, count, icon, label, onSelect, tone, quiet = 
 }
 
 export function confirmCommunityCommentHide(event: FormEvent<HTMLFormElement>) {
-  const confirmed = window.confirm(
-    '이 댓글을 숨기고 연결된 신고를 해결합니다. 현재 화면에서는 되돌릴 수 없습니다. 계속할까요?',
-  );
-  if (!confirmed) event.preventDefault();
+  confirmAdminSubmit(event, '이 댓글을 숨기고 연결된 신고를 해결합니다. 현재 화면에서는 되돌릴 수 없습니다. 계속할까요?');
 }
 
 export function confirmCommunityPostHide(event: FormEvent<HTMLFormElement>) {
-  const confirmed = window.confirm(
-    '이 포스트를 숨기고 연결된 신고를 처리완료로 바꿉니다. 현재 화면에서는 되돌릴 수 없습니다. 계속할까요?',
-  );
-  if (!confirmed) event.preventDefault();
+  confirmAdminSubmit(event, '이 포스트를 숨기고 연결된 신고를 처리완료로 바꿉니다. 현재 화면에서는 되돌릴 수 없습니다. 계속할까요?');
 }
 
 function ReportStatusForm({ report, label }: { report: AdminReportRecord; label: string }) {

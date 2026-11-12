@@ -21,6 +21,7 @@ import type { ShopListQuery } from '@/lib/shop-catalog';
 import { categoryDisplayHref } from '@/lib/routes';
 import { createClient } from '@/lib/supabase/client';
 import { inquiryDraftSessionId } from '@/lib/admin/inquiry-drafts';
+import { adminConfirm } from '@/lib/admin/confirm';
 
 type Slot = 'main' | 'recommend' | 'video';
 /* 카테고리 전시 편집(템플릿 룩, ADR-0028). 입력은 네이티브 요소에 kit Input·Textarea와 같은 모양을 입힌다 — 폼 값·상태 계약은 그대로다. */
@@ -99,7 +100,7 @@ function CategoryDisplayEditor({ directory, initial, actorId, sessionId }: { dir
     setStored(result.snapshot); setValues(result.snapshot.values); setUncertain(false); setConflict(false); request.current = null; setMessage('저장했습니다. 공개 전시를 확인해주세요.'); setError(false);
   }
   async function reload() {
-    if (pending || uncertain || blocked || busy.pc || busy.mobile || (dirty && !window.confirm('현재 입력을 버리고 최신 저장본을 불러올까요?'))) return;
+    if (pending || uncertain || blocked || busy.pc || busy.mobile || (dirty && !await adminConfirm('현재 입력을 버리고 최신 저장본을 불러올까요?'))) return;
     setPending(true); setMessage('');
     let result: CategoryDisplaySaveResult;
     try { result = await reloadCategoryDisplayAction(initial.category.id); }

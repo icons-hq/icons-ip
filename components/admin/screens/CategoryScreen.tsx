@@ -40,6 +40,7 @@ import {
   type AdminCategoryNode,
 } from '@/lib/admin/category';
 import { ERP_ITEMS_PATH } from '@/lib/admin/erp-items';
+import { adminConfirm } from '@/lib/admin/confirm';
 
 const EMPTY: AdminCategoryActionState = {};
 /* 입력 묶음 상자(kit 카드 안의 작은 상자)와 라벨 위·입력 아래 칸(템플릿 룩, ADR-0028). */
@@ -207,9 +208,9 @@ export function CategoryScreen({ data, legacyTypes = [], canManagePlatform = tru
   const selected = data.categories.find((category) => category.id === selectedId) ?? firstCategoryInTree(data.categories);
   const editForm = useRef<HTMLFormElement>(null);
   /* 오른쪽 입력 묶음은 고른 항목마다 새로 그려져 저장 안 한 입력이 사라진다 — 말없이 잃지 않게 한 번 묻는다. */
-  function selectCategory(category: AdminCategoryNode) {
+  async function selectCategory(category: AdminCategoryNode) {
     if (category.id === selected?.id) return;
-    if (categoryFormChanged(editForm.current, selected, data.categories) && !window.confirm('저장하지 않은 변경이 있습니다. 다른 카테고리를 고르면 입력이 사라집니다. 이동할까요?')) return;
+    if (categoryFormChanged(editForm.current, selected, data.categories) && !await adminConfirm('저장하지 않은 변경이 있습니다. 다른 카테고리를 고르면 입력이 사라집니다. 이동할까요?')) return;
     setSelectedId(category.id);
   }
   return <section className="flex min-w-0 flex-col gap-4" data-admin-screen="categories">

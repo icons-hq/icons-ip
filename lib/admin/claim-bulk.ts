@@ -244,13 +244,14 @@ export async function runAdminClaimBulkSequentially<T>(
  * 일괄 버튼을 눌렀을 때 보낼지 정한다(화면 쪽 사전 확인). 서버가 같은 규칙으로 다시 검사한다.
  * 확인 창은 누른 작업의 문구로 한 번만 띄운다.
  */
-export function planAdminClaimBulkSubmit(
+export async function planAdminClaimBulkSubmit(
   input: { claimType: OrderClaimType; count: number; decision: string | null; note: string },
-  confirm: (message: string) => boolean,
-):
+  confirm: (message: string) => boolean | Promise<boolean>,
+): Promise<
   | { kind: 'invalid'; error: string }
   | { kind: 'dismissed' }
-  | { kind: 'submit'; decision: AdminClaimBulkDecision } {
+  | { kind: 'submit'; decision: AdminClaimBulkDecision }
+> {
   if (input.count <= 0) return { kind: 'invalid', error: '처리할 요청을 선택해주세요.' };
   if (input.count > ADMIN_CLAIM_BULK_LIMIT) {
     return { kind: 'invalid', error: `한 번에 ${ADMIN_CLAIM_BULK_LIMIT}건까지 처리할 수 있습니다. 선택을 줄여 다시 실행해주세요.` };
@@ -263,7 +264,7 @@ export function planAdminClaimBulkSubmit(
     const note = input.note.trim();
     if (note.length < 10 || note.length > 200) return { kind: 'invalid', error: '거부 사유를 10자 이상 200자 이하로 입력해주세요.' };
   }
-  return confirm(adminClaimBulkConfirmation(input.claimType, decision, input.count))
+  return (await confirm(adminClaimBulkConfirmation(input.claimType, decision, input.count)))
     ? { kind: 'submit', decision }
     : { kind: 'dismissed' };
 }

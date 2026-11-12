@@ -81,6 +81,7 @@ import { Textarea } from '@/components/admin/kit/ui/textarea';
 import { adminPaymentCancelErrorCopy } from '@/lib/admin/payment-cancel-error';
 import { ShipmentExtraTrackingsPanel } from '@/components/admin/ShipmentExtraTrackingsPanel';
 import { Ban, BadgeCheck, ChevronDown, ClipboardCheck, Hourglass, ListChecks, PackageCheck, Truck, type LucideIcon } from 'lucide-react';
+import { adminConfirm, confirmAdminSubmit } from '@/lib/admin/confirm';
 
 /*
  * 주문 통합검색 — 템플릿 룩(ADR-0028). 조회 조건·처리 동선·열 구성·확인 문구는 그대로이고, 화면을 kit 부품과
@@ -174,8 +175,9 @@ function openCancellationRequest(order: AdminOrderRecord) {
   return request && isOpenOrderClaimStage(request.stage) ? request : null;
 }
 
+/* 확인창(AlertDialog)에서 확인하기 전에는 제출이 나가지 않는다. 확인하면 같은 버튼으로 다시 제출한다. */
 function confirmAction(event: React.FormEvent<HTMLFormElement>, message: string) {
-  if (!window.confirm(message)) event.preventDefault();
+  confirmAdminSubmit(event, message);
 }
 
 /*
@@ -291,15 +293,15 @@ export type OrderCancellationSubmitPlan =
  * 보낸다 — 양식 action은 끝나면 비제어 입력을 초기화해서, 서버가 거절해도 운영자가 고른
  * 사유·메모가 비워진다.
  */
-export function planOrderCancellationSubmit(
+export async function planOrderCancellationSubmit(
   formData: FormData,
   confirmation: string,
-  confirm: (message: string) => boolean,
+  confirm: (message: string) => boolean | Promise<boolean>,
   validate?: CancellationFormValidator,
-): OrderCancellationSubmitPlan {
+): Promise<OrderCancellationSubmitPlan> {
   const errors = validate?.(formData) ?? null;
   if (errors && Object.keys(errors).length) return { kind: 'invalid', errors };
-  return confirm(confirmation) ? { kind: 'dispatch' } : { kind: 'dismissed' };
+  return (await confirm(confirmation)) ? { kind: 'dispatch' } : { kind: 'dismissed' };
 }
 
 /**
@@ -492,6 +494,7 @@ function OrderStatusAction({
   return (
     <form
       action={action}
+      noValidate
       className={status === 'shipping'
         ? 'flex flex-col items-start gap-2 sm:col-span-2'
         : 'flex flex-wrap items-center gap-2'}
@@ -536,6 +539,7 @@ function UpdateTrackingForm({
   return (
     <form
       action={action}
+      noValidate
       className="flex flex-col items-start gap-2"
       data-confirm={confirmation}
       onSubmit={(event) => confirmAction(event, confirmation)}
@@ -579,6 +583,7 @@ function ApproveCancellationForm({
   return (
     <form
       action={cancellation.action}
+      noValidate
       className="flex flex-wrap items-center gap-2"
       data-confirm={confirmation}
       onSubmit={(event) => cancellation.submit(event, confirmation, 'approve', orderId)}
@@ -607,6 +612,7 @@ function RejectCancellationForm({
   return (
     <form
       action={cancellation.action}
+      noValidate
       className="flex flex-col items-start gap-2 rounded-lg border border-destructive/30 bg-muted/40 p-3 sm:col-span-2"
       data-confirm={confirmation}
       onSubmit={(event) => cancellation.submit(event, confirmation, 'reject', orderId)}
@@ -663,6 +669,7 @@ function ReconcileCancellationForm({
   return (
     <form
       action={cancellation.action}
+      noValidate
       className="flex flex-wrap items-center gap-2"
       data-confirm={confirmation}
       onSubmit={(event) => cancellation.submit(event, confirmation, 'reconcile', orderId)}
@@ -806,6 +813,7 @@ function ManualKorpayCancellationForm({
   return (
     <form
       action={cancellation.action}
+      noValidate
       className="flex flex-col items-start gap-2 rounded-lg border border-destructive/30 bg-muted/40 p-3 sm:col-span-2"
       data-confirm={confirmation}
       onSubmit={(event) => cancellation.submit(event, confirmation, 'korpayRecovery', orderId)}
@@ -1227,11 +1235,11 @@ export function OrdersSection({ data, canManage = true }: { data: AdminOrderCons
     pending: cancellationPending,
     submitted: submittedCancellation,
     clientErrors: cancellationClientErrors,
-    submit: (event, confirmation, intent, orderId, validate) => {
+    submit: async (event, confirmation, intent, orderId, validate) => {
       /* 양식 action으로 보내지 않는다 — 끝나면 입력이 초기화된다(planOrderCancellationSubmit). */
       event.preventDefault();
       const formData = new FormData(event.currentTarget);
-      const plan = planOrderCancellationSubmit(formData, confirmation, (message) => window.confirm(message), validate);
+      const plan = await planOrderCancellationSubmit(formData, confirmation, adminConfirm, validate);
       if (plan.kind === 'invalid') {
         setCancellationClientErrors({ intent, orderId, errors: plan.errors });
         return;

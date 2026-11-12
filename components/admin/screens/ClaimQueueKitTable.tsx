@@ -58,6 +58,7 @@ import { statusTone } from '@/lib/admin/status-tone';
 import { ClaimBulkStepDialog, type ClaimBulkStepSession } from './ClaimBulkStepDialog';
 import { ClaimKitBulkResult } from './ClaimKitBulkResult';
 import { ClaimPreviewLink } from './ClaimPreviewDialog';
+import { adminConfirm } from '@/lib/admin/confirm';
 
 export { ClaimKitBulkResult } from './ClaimKitBulkResult';
 
@@ -500,9 +501,9 @@ export function ClaimQueueKitTable({
   const selectedIds = Object.keys(selection).filter((id) => selection[id] && eligible.has(id));
   const overLimit = selectedIds.length > ADMIN_CLAIM_BULK_LIMIT;
 
-  function decide(decision: AdminClaimBulkDecision) {
+  async function decide(decision: AdminClaimBulkDecision) {
     if (deciding) return;
-    const plan = planAdminClaimBulkSubmit({ claimType, count: selectedIds.length, decision, note }, (message) => window.confirm(message));
+    const plan = await planAdminClaimBulkSubmit({ claimType, count: selectedIds.length, decision, note }, adminConfirm);
     if (plan.kind === 'invalid') { setClientError(plan.error); return; }
     setClientError('');
     if (plan.kind === 'dismissed') return;
@@ -641,7 +642,7 @@ export function ClaimQueueKitTable({
         {(['approve', 'review'] as const).map((decision) => <ActionBarItem
           disabled={deciding || overLimit}
           key={decision}
-          onSelect={(event) => { event.preventDefault(); decide(decision); }}
+          onSelect={(event) => { event.preventDefault(); return decide(decision); }}
           variant={decision === 'approve' ? 'default' : 'secondary'}
         >{ADMIN_CLAIM_BULK_ACTION_LABELS[decision]}</ActionBarItem>)}
         {/* 단계 처리(회수 확인·환불 완료 확정·재출고)는 확인창에서 건수·금액·제외 사유를 본 뒤 실행한다. */}

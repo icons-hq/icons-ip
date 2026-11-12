@@ -29,6 +29,7 @@ import {
 import { GOODS_LIST_PATH } from '@/lib/admin/goods-list';
 import { statusTone } from '@/lib/admin/status-tone';
 import { useErpItemsWorkspace } from './ErpItemsWorkspace';
+import { adminConfirm } from '@/lib/admin/confirm';
 
 const PREVIEW_REQUEST_FAILED = '연결 상품과 비교하지 못했습니다. 다시 비교해주세요.';
 const COMMIT_REQUEST_FAILED = '반영 결과를 받지 못했습니다. 같은 미리보기에서 다시 반영하면 이미 반영한 행은 다시 바꾸지 않습니다.';
@@ -109,9 +110,9 @@ export function ErpLinkedGoodsPanel() {
     return next;
   });
 
-  const commit = () => {
+  const commit = async () => {
     if (!loaded || pending || !chosen.length) return;
-    if (!window.confirm(erpLinkedGoodsConfirmation(chosen))) return;
+    if (!await adminConfirm(erpLinkedGoodsConfirmation(chosen))) return;
     const request = { operationId: loaded.preview.operationId, keys: chosen.map((row) => row.key) };
     setStatus(null);
     startTransition(async () => {

@@ -1,5 +1,6 @@
 import { Children, isValidElement, type ReactElement, type ReactNode } from 'react';
-import { beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { setAdminConfirmHandler } from '@/lib/admin/confirm';
 import type { CsTemplateWorkspace } from '@/lib/admin/cs-editor-drafts';
 const mocks = vi.hoisted(() => ({ list: vi.fn(), save: vi.fn(), archive: vi.fn(), latest: vi.fn(), states: [] as unknown[], index: 0,
   value: null as CsTemplateWorkspace | null, recovery: null as CsTemplateWorkspace | null, persisted: null as CsTemplateWorkspace | null }));
@@ -82,15 +83,15 @@ it('저장 완료 뒤 목록 실패에서도 저장한 초안을 다시 불확�
 /* R3(MD-0011): 리뷰·상품문의 답변도 같은 대체 동작과 안내 문구를 쓴다. */
 it('작성 중인 답글이 있으면 확인 뒤에만 템플릿으로 바꾸고, 비어 있으면 바로 바꾼다', async () => {
   const onInsert = vi.fn(); const confirm = vi.fn(() => false);
-  vi.stubGlobal('window', { confirm });
+  setAdminConfirmHandler(async (request) => (confirm as unknown as (message: string) => boolean)(request.message));
   const draw = (body: string) => { mocks.index = 0; return CsReplyTemplateTools({ accountId: 'staff', surface: 'review', body, onInsert }) as Element; };
   click(button(draw('미저장 리뷰 답글'), '답변 템플릿 불러오기')); await settle();
   expect(text(draw('미저장 리뷰 답글'))).toContain('템플릿을 고르면 작성 중인 내용을 템플릿으로 바꿉니다.');
   const pick = (body: string) => click(button(nodes(draw(body)).find(node => node.type === 'article' && text(node).includes('기존 A'))!, '불러오기'));
-  pick('미저장 리뷰 답글');
+  pick('미저장 리뷰 답글'); await settle();
   expect(confirm).toHaveBeenCalledWith('작성 중인 내용을 템플릿으로 바꿀까요?');
   expect(onInsert).not.toHaveBeenCalled();
-  confirm.mockReturnValue(true); pick('미저장 리뷰 답글');
+  confirm.mockReturnValue(true); pick('미저장 리뷰 답글'); await settle();
   expect(onInsert).toHaveBeenLastCalledWith('A 본문');
   mocks.states = []; confirm.mockClear();
   click(button(draw(''), '답변 템플릿 불러오기')); await settle(); pick('');
@@ -118,3 +119,5 @@ it('마지막 페이지의 마지막 템플릿을 삭제하면 비어 버린 페
   expect(mocks.list.mock.calls.map(([input]) => (input as { page: number }).page)).toEqual([1, 2, 2, 1]);
   expect(pagination().props).toMatchObject({ page: 1, total: 20 }); expect(text(render())).toContain('기존 A');
 });
+
+afterEach(() => { setAdminConfirmHandler(null); });

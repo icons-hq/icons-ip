@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { deleteErpItemsAction } from '@/app/admin/erp-item-actions';
 import { ConsoleBulkActionBar } from '@/components/admin/console/ConsoleBulkActionBar';
 import { ConsoleGrid, type ConsoleGridColumn, type ConsoleGridRow } from '@/components/admin/console/ConsoleGrid';
+import { adminConfirm } from '@/lib/admin/confirm';
 
 function deleteConfirmation(count: number) {
   return `선택한 ERP 품목 ${count.toLocaleString('ko-KR')}건을 지울까요? 지운 품목은 옵션 ERP 품명 제안에 나오지 않습니다. 이미 상품 옵션에 넣은 ERP 코드·품명은 바뀌지 않습니다. 같은 품목을 다시 반입하면 되살릴 수 있습니다.`;
@@ -28,10 +29,10 @@ export function ErpItemListGrid({ columns, rows, emptyLabel, canDelete = true }:
   const visible = new Set(rows.map((row) => row.id));
   const ids = selected.filter((id) => visible.has(id));
 
-  const remove = (event: FormEvent<HTMLFormElement>) => {
+  const remove = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!canDelete || !ids.length || pending) return;
-    if (!window.confirm(deleteConfirmation(ids.length))) return;
+    if (!await adminConfirm(deleteConfirmation(ids.length))) return;
     const codes = [...ids];
     setStatus(null);
     startTransition(async () => {

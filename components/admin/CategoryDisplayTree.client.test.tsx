@@ -1,5 +1,8 @@
 import { Children, isValidElement, type ReactElement, type ReactNode } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { stubAdminConfirm } from '@/lib/admin/confirm.test-support';
+import { setAdminConfirmHandler } from '@/lib/admin/confirm';
+let leaveConfirm: ReturnType<typeof stubAdminConfirm>;
 const hooks = vi.hoisted(() => ({ values: [] as unknown[], index: 0, effects: new Map<number, { deps?: unknown[]; cleanup?: () => void }>(), jobs: [] as (() => void)[], pending: false }));
 const mocks = vi.hoisted(() => ({ save: vi.fn(), reload: vi.fn(), image: vi.fn(), auth: null as null | ((event: string, session: { user: { id: string }; access_token: string } | null) => void) }));
 vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>('react'),
@@ -34,12 +37,13 @@ function click(label: string) { const button = render().find(node => isButton(no
 function submit() { const form = render().find(node => node.type === 'form')!; (form.props.onSubmit as (event: unknown) => void)({ preventDefault() {} }); }
 function authenticate(actorId = actor, session = sessionId) { mocks.auth?.('SIGNED_IN', { user: { id: actorId }, access_token: `x.${Buffer.from(JSON.stringify({ session_id: session })).toString('base64url')}.x` }); }
 beforeEach(() => {
+  leaveConfirm = stubAdminConfirm(true);
   hooks.values = []; hooks.effects.clear(); hooks.jobs = []; hooks.pending = false; vi.clearAllMocks();
-  vi.stubGlobal('window', Object.assign(new EventTarget(), { confirm: vi.fn(() => true) })); vi.stubGlobal('document', new EventTarget());
+  vi.stubGlobal('window', new EventTarget()); vi.stubGlobal('document', new EventTarget());
   props = { initial, selectedId: id(1), actorId: actor, sessionId }; mocks.save.mockResolvedValue({ error: '연결을 확인하지 못했습니다.', uncertain: true }); mocks.reload.mockResolvedValue({ directory: initial });
   render(); authenticate();
 });
-afterEach(() => { for (const effect of hooks.effects.values()) effect.cleanup?.(); vi.unstubAllGlobals(); });
+afterEach(() => { for (const effect of hooks.effects.values()) effect.cleanup?.(); setAdminConfirmHandler(null); vi.unstubAllGlobals(); });
 it('이름·부모 변경은 전시 노드 명령 하나만 보내며 결과 불명확 재시도는 원 UUID와 입력을 재사용한다', async () => {
   change('전시분류명', '새 전시 이름'); change('상위 전시분류', id(2)); submit(); await flush();
   expect(mocks.save.mock.calls[0][0]).toEqual({ action: 'update', id: id(1), name: '새 전시 이름', parentId: id(2), position: 0 });
@@ -97,7 +101,7 @@ it('아이콘을 올리면 선택한 전시분류에 현재 revision 으로 바�
   expect(artwork().props.path).toBe(ICON);
 });
 it('아이콘 해제는 확인을 받고, 이름·상위 분류를 고치는 동안에는 아이콘을 바꾸지 않는다', async () => {
-  (window.confirm as ReturnType<typeof vi.fn>).mockReturnValueOnce(false);
+  leaveConfirm.mockReturnValueOnce(false);
   (artwork().props.onChange as (path: string | null) => void)(null); await flush();
   expect(mocks.image).not.toHaveBeenCalled();
   change('전시분류명', '고치는 중');

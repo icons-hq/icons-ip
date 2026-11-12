@@ -52,10 +52,10 @@ export function ConsoleDateRangeFields({
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
           <label className="sr-only" htmlFor={`${idPrefix}-from`}>시작일</label>
-          <Input className="w-36" id={`${idPrefix}-from`} name={fromName} onChange={(event) => setRange({ ...range, from: event.target.value })} type="date" value={range.from} />
+          <Input className="w-36" data-admin-query="" id={`${idPrefix}-from`} name={fromName} onChange={(event) => setRange({ ...range, from: event.target.value })} type="date" value={range.from} />
           <span aria-hidden="true" className="text-muted-foreground">~</span>
           <label className="sr-only" htmlFor={`${idPrefix}-to`}>종료일</label>
-          <Input className="w-36" id={`${idPrefix}-to`} name={toName} onChange={(event) => setRange({ ...range, to: event.target.value })} type="date" value={range.to} />
+          <Input className="w-36" data-admin-query="" id={`${idPrefix}-to`} name={toName} onChange={(event) => setRange({ ...range, to: event.target.value })} type="date" value={range.to} />
         </div>
       </div>
     </div>

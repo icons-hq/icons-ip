@@ -293,7 +293,7 @@ describe('ClaimActionPanel 확인과 취소 안내', () => {
     const declined = { nativeEvent: { submitter }, currentTarget: form, preventDefault: vi.fn() };
     const confirm = vi.fn(() => false);
 
-    expect(confirmClaimPanelSubmit(declined as unknown as React.FormEvent<HTMLFormElement>, confirm)).toBe(false);
+    expect(await confirmClaimPanelSubmit(declined as unknown as React.FormEvent<HTMLFormElement>, confirm)).toBe(false);
     expect(confirm).toHaveBeenCalledWith('승인할까요?');
     // 양식의 기본 제출(양식 action)은 늘 막는다. 보내는 쪽이 직접 보낸다.
     expect(declined.preventDefault).toHaveBeenCalledOnce();
@@ -302,7 +302,7 @@ describe('ClaimActionPanel 확인과 취소 안내', () => {
       nativeEvent: { submitter: { getAttribute: () => null } }, currentTarget: form, preventDefault: vi.fn(),
     };
     const unused = vi.fn(() => false);
-    expect(confirmClaimPanelSubmit(plain as unknown as React.FormEvent<HTMLFormElement>, unused)).toBe(true);
+    expect(await confirmClaimPanelSubmit(plain as unknown as React.FormEvent<HTMLFormElement>, unused)).toBe(true);
     expect(unused).not.toHaveBeenCalled();
   });
 });

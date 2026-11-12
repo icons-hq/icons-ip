@@ -1,5 +1,7 @@
 import { isValidElement, type ReactElement, type ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { stubAdminConfirm } from '@/lib/admin/confirm.test-support';
+import { setAdminConfirmHandler } from '@/lib/admin/confirm';
 import type { AdminCategoryNode } from '@/lib/admin/category';
 
 const hooks = vi.hoisted(() => ({
@@ -98,6 +100,7 @@ beforeEach(() => {
   hooks.saveMany.mockReset();
   hooks.leaveGuard.mockReset();
   hooks.workspace = null;
+  setAdminConfirmHandler(null);
   vi.unstubAllGlobals();
 });
 
@@ -412,11 +415,11 @@ describe('ERP 분류 일괄 연결', () => {
   };
   const box = (tree: ReactNode) => find(tree, (element) => element.type === 'input' && (element.props as { type?: string }).type === 'checkbox')[0];
   const submit = async (panel: ReactNode, name: 'link' | 'unlink') => {
-    bulkForm(panel).props.onSubmit({ preventDefault: () => undefined, nativeEvent: { submitter: { name } } });
+    await bulkForm(panel).props.onSubmit({ preventDefault: () => undefined, nativeEvent: { submitter: { name } } });
     await Promise.all(hooks.pending.splice(0));
   };
   const statusLine = (panel: ReactNode) => text(find(panel, (element) => (element.props as { role?: string }).role === 'status' && element.type === 'p')[0]);
-  const stubConfirm = (answer: boolean) => { const confirm = vi.fn<(message: string) => boolean>(() => answer); vi.stubGlobal('window', { confirm }); return confirm; };
+  const stubConfirm = (answer: boolean) => stubAdminConfirm(answer);
   const okResult = (changed: number, message = '저장했습니다.') => ({ ok: true, changed, unchanged: 0, rejected: [], message });
 
   it('체크한 행을 고른 카테고리로 한 번에 연결하고 표에 바로 반영한다', async () => {
@@ -686,17 +689,17 @@ describe('ERP 분류 일괄 연결', () => {
     expect(button(panel, '제안대로 2건 연결')).toBeDefined();
     rowOf(panel, '문구 > 키링').onDraftChange('문구 > 키링', PHOTO);
     panel = render(rowsWithSuggestion);
-    button(panel, '제안대로 1건 연결').props.onClick?.();
+    await button(panel, '제안대로 1건 연결').props.onClick?.();
     await Promise.all(hooks.pending.splice(0));
     expect(confirm.mock.calls[0][0]).toContain('ERP 분류 1건을 연결할까요?');
     expect(hooks.saveMany).toHaveBeenCalledWith([{ erpCategory: '문구 > 포토카드', categoryId: PHOTO }]);
     expect(find(render(rowsWithSuggestion), (element) => isButton(element) && text(element).includes('제안대로'))).toHaveLength(0);
   });
 
-  it('제안 일괄 저장을 취소하면 보내지 않는다', () => {
+  it('제안 일괄 저장을 취소하면 보내지 않는다', async () => {
     stubConfirm(false);
     const panel = render([needLink('문구 > 포토카드')]);
-    button(panel, '제안대로 1건 연결').props.onClick?.();
+    await button(panel, '제안대로 1건 연결').props.onClick?.();
     expect(hooks.saveMany).not.toHaveBeenCalled();
   });
 
@@ -730,7 +733,7 @@ describe('ERP 분류 일괄 연결', () => {
       return (element.type as (props: Props) => ReactNode)(element.props);
     };
     stubConfirm(true);
-    button(draw(), '제안대로 1건 연결').props.onClick?.();
+    await button(draw(), '제안대로 1건 연결').props.onClick?.();
     await Promise.all(hooks.pending.splice(0));
     expect(hooks.saveMany).toHaveBeenCalledWith([{ erpCategory: 'zz 분류1', categoryId: KEYRING }]);
     expect(find(drawRow(), (element) => isSelect(element))[0].props.value).toBe(KEYRING);

@@ -6,6 +6,7 @@ import { Search } from 'lucide-react';
 import { AdminNotice, AdminPageHeader, AdminSectionCard } from '../console/AdminKit';
 import { useAdminLeaveGuard } from '../useAdminLeaveGuard';
 import { Button } from '@/components/admin/kit/ui/button';
+import { adminConfirm } from '@/lib/admin/confirm';
 import { STORE_PRESENTATION_PATH, STORE_THEME_COLORS, storeThemeForeground,
   type StorePresentation, type StorePresentationSection, type StorePresentationSnapshot } from '@/lib/store-presentation';
 
@@ -97,8 +98,8 @@ function PresentationForm({ snapshot, section }: { snapshot: StorePresentationSn
       </aside>
     </div>
     <div className="flex flex-col items-stretch justify-end gap-3 sm:flex-row sm:items-center">{message ? <p className={`text-sm sm:mr-auto ${error ? 'text-destructive' : 'text-success'}`} role={error ? 'alert' : 'status'}>{message}</p> : null}<Button disabled={pending} type="submit">{pending ? '저장 중…' : uncertain ? '같은 요청 결과 확인' : '설정 저장'}</Button>
-      <Button type="button" variant="outline" disabled={pending || uncertain || !dirty} onClick={() => {
-        if (!window.confirm('저장하지 않은 변경을 취소하고 마지막 저장값으로 돌아갈까요?')) return;
+      <Button type="button" variant="outline" disabled={pending || uncertain || !dirty} onClick={async () => {
+        if (!await adminConfirm('저장하지 않은 변경을 취소하고 마지막 저장값으로 돌아갈까요?')) return;
         setValues(current => ({ ...current, [section]: savedValues })); request.current = null; setMessage('입력 변경을 취소했습니다.'); setError(false);
       }}>변경 취소</Button></div>
     {section === 'listing' ? <p className="text-sm text-muted-foreground">상품목록·NEW·BEST·검색·찜한상품·관련상품에 적용합니다. 홈 큐레이션의 별도 디자인과 관리자 미리보기는 유지됩니다.</p> : null}

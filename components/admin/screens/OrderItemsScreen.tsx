@@ -24,6 +24,7 @@ import { OrderPreviewLink, OrderPreviewNewTabLink } from './OrderPreview';
 import { SALES_DATE_FIELDS } from '@/lib/admin/sales-list';
 import { formatOrderDateTime, orderReferenceLabel } from '@/lib/orders';
 import { isOpenOrderClaimStage, ORDER_CLAIM_TYPE_LABELS, ORDER_CLAIM_TYPE_SLUGS } from '@/lib/orders/claims';
+import { adminConfirm } from '@/lib/admin/confirm';
 
 const fields = [...ADMIN_ORDER_SEARCH_FIELDS, { value: 'item', label: '상품주문번호' }];
 const statuses = [{ value: 'all', label: '전체 상태' }, ...ADMIN_ORDER_STATUSES.map(value => ({ value, label: ADMIN_ORDER_STATUS_LABELS[value] }))];
@@ -58,8 +59,8 @@ export function OrderItemsScreen({ data, canManage }: { data: AdminOrderItemData
   const orderIds = selectedConfirmableOrderIds(data.rows, selection);
   /** 재고 부족 부분 취소가 있는 상품주문이 있을 때만 '취소 수량' 열을 둔다(수량·상품금액·배분 후 금액은 남은 몫). */
   const partial = data.rows.some(row => row.partialCancel);
-  function confirm() {
-    if (pending || !orderIds.length || !window.confirm(`선택한 상품주문이 포함된 주문 전체 ${orderIds.length}건을 발주확인할까요? 선택하지 않은 같은 주문의 품목도 함께 처리됩니다.`)) return;
+  async function confirm() {
+    if (pending || !orderIds.length || !await adminConfirm(`선택한 상품주문이 포함된 주문 전체 ${orderIds.length}건을 발주확인할까요? 선택하지 않은 같은 주문의 품목도 함께 처리됩니다.`)) return;
     setError(''); setMessage('');
     startTransition(async () => {
       try {

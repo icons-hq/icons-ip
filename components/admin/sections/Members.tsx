@@ -31,6 +31,7 @@ import { CONSOLE_TABLE_FRAME_CLASS, ConsoleListCard, ConsoleTableHeader } from '
 import { AdminNotice, AdminStatusBadge } from '../console/AdminKit';
 import { ADMIN_COUNT_CARD_GRID_CLASS, AdminCountCard } from '../console/AdminCountCard';
 import { ROW_DANGER_BUTTON_CLASS } from '../screens/cs-kit-classes';
+import { confirmAdminSubmit } from '@/lib/admin/confirm';
 
 const emptyMutationState: AdminMemberMutationActionState = {};
 const dateFormatter = new Intl.DateTimeFormat('ko-KR', {
@@ -43,10 +44,7 @@ function formatDate(value: string) {
 }
 
 export function confirmMemberSuspension(event: FormEvent<HTMLFormElement>) {
-  const confirmed = window.confirm(
-    '이 회원을 정지하면 포스트·댓글 작성, 구매·예매, 카드팩 개봉, 게임 플레이를 새로 진행할 수 없습니다. 계속할까요?',
-  );
-  if (!confirmed) event.preventDefault();
+  confirmAdminSubmit(event, '이 회원을 정지하면 포스트·댓글 작성, 구매·예매, 카드팩 개봉, 게임 플레이를 새로 진행할 수 없습니다. 계속할까요?');
 }
 
 /** 권한 값(user·staff·admin)은 DB 계약이고 화면은 운영팀 말로 보인다. */

@@ -1,5 +1,7 @@
 import { isValidElement, type ReactElement, type ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { stubAdminConfirm } from '@/lib/admin/confirm.test-support';
+import { setAdminConfirmHandler } from '@/lib/admin/confirm';
 
 const hooks = vi.hoisted(() => ({
   state: [] as unknown[],
@@ -84,6 +86,7 @@ beforeEach(() => {
   hooks.preview.mockReset().mockResolvedValue(preview(ROWS));
   hooks.commit.mockReset();
   hooks.workspace = null;
+  setAdminConfirmHandler(null);
   vi.unstubAllGlobals();
 });
 
@@ -119,14 +122,13 @@ describe('연결 상품 반영 패널', () => {
   });
 
   it('고른 행만 확인한 뒤 반영하고, 막힌 행은 사유와 함께 남긴다', async () => {
-    const confirm = vi.fn(() => true);
-    vi.stubGlobal('window', { confirm });
+    const confirm = stubAdminConfirm(true);
     hooks.commit.mockResolvedValueOnce({ ok: true, receipt: { state: 'completed', operationId: 'op-1', applied: { price: 1, barcode: 0, goods: 1 },
       failed: [] }, message: '상품 1개에 판매가 1건을 반영했습니다.' });
     button(render(), '전체 품목과 비교').props.onClick?.();
     await settle();
     checkbox(render(), '아크릴 키링 기본 옵션 바코드 반영').props.onChange?.({ target: { checked: false } });
-    button(render(), '선택한 1건 반영').props.onClick?.();
+    await button(render(), '선택한 1건 반영').props.onClick?.();
     await settle();
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('연결 상품 1개에 판매가 1건을 반영할까요?'));
     expect(hooks.commit).toHaveBeenCalledWith({ operationId: 'op-1', keys: [`${A}:price`] });
@@ -137,16 +139,16 @@ describe('연결 상품 반영 패널', () => {
   });
 
   it('확인창에서 취소하면 보내지 않고, 상품 저장 규칙에 막힌 행은 사유 표로 보인다', async () => {
-    vi.stubGlobal('window', { confirm: vi.fn(() => false) });
+    stubAdminConfirm(false);
     button(render(), '전체 품목과 비교').props.onClick?.();
     await settle();
-    button(render(), '선택한 2건 반영').props.onClick?.();
+    await button(render(), '선택한 2건 반영').props.onClick?.();
     expect(hooks.commit).not.toHaveBeenCalled();
-    vi.stubGlobal('window', { confirm: vi.fn(() => true) });
+    stubAdminConfirm(true);
     hooks.commit.mockResolvedValueOnce({ ok: true, receipt: { state: 'completed', operationId: 'op-1', applied: { price: 0, barcode: 1, goods: 1 },
       failed: [{ key: `${A}:price`, field: 'price', goodId: 'good-a', goodName: '아크릴 키링', optionName: '기본 옵션', error: 'goods_notice_required' }] },
       message: '상품 1개에 바코드 1건을 반영했습니다. 1건은 상품 저장 규칙에 막혀 반영하지 못했습니다. 아래 사유를 확인해주세요.' });
-    button(render(), '선택한 2건 반영').props.onClick?.();
+    await button(render(), '선택한 2건 반영').props.onClick?.();
     await settle();
     const tree = render();
     expect(text(tree)).toContain('1건은 상품 저장 규칙에 막혀 반영하지 못했습니다.');
@@ -154,23 +156,23 @@ describe('연결 상품 반영 패널', () => {
   });
 
   it('요청 오류는 미리보기를 남겨 고쳐서 다시 반영하게 하고, 거절 결과는 다시 비교하라고 한다', async () => {
-    vi.stubGlobal('window', { confirm: vi.fn(() => true) });
+    stubAdminConfirm(true);
     button(render(), '전체 품목과 비교').props.onClick?.();
     await settle();
     hooks.commit.mockResolvedValueOnce({ ok: false, error: '다른 작업이 같은 상품을 저장하고 있습니다. 잠시 뒤 다시 반영해주세요.' });
-    button(render(), '선택한 2건 반영').props.onClick?.();
+    await button(render(), '선택한 2건 반영').props.onClick?.();
     await settle();
     let tree = render();
     expect(text(tree)).toContain('다른 작업이 같은 상품을 저장하고 있습니다.');
     expect(button(tree, '선택한 2건 반영')).toBeDefined();
     hooks.commit.mockRejectedValueOnce(new Error('socket'));
-    button(tree, '선택한 2건 반영').props.onClick?.();
+    await button(tree, '선택한 2건 반영').props.onClick?.();
     await settle();
     tree = render();
     expect(text(tree)).toContain('같은 미리보기에서 다시 반영하면 이미 반영한 행은 다시 바꾸지 않습니다.');
     hooks.commit.mockResolvedValueOnce({ ok: true, receipt: { state: 'rejected', operationId: 'op-1', error: 'erp_goods_apply_changed' },
       message: '미리보기 뒤 상품이나 ERP 값이 바뀌어 아무것도 반영하지 않았습니다. 다시 비교해주세요.' });
-    button(tree, '선택한 2건 반영').props.onClick?.();
+    await button(tree, '선택한 2건 반영').props.onClick?.();
     await settle();
     tree = render();
     expect(text(tree)).toContain('아무것도 반영하지 않았습니다. 다시 비교해주세요.');

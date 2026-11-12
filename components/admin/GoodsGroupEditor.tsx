@@ -13,6 +13,7 @@ import { Input } from './kit/ui/input';
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from './kit/ui/table';
 import { GoodsGroupProductPicker, GroupCompleted, GroupOperationStatus, GroupTable, useGoodsGroupOperation, useGoodsGroupSession } from './GoodsGroupOperation';
 import { useAdminLeaveGuard } from './useAdminLeaveGuard';
+import { adminConfirm } from '@/lib/admin/confirm';
 
 /* 셸의 콘솔 전환과 같은 탭 모양(템플릿 룩, ADR-0028). */
 const TAB = 'inline-flex h-7 items-center rounded-md px-3 text-sm font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground aria-[current=page]:bg-background aria-[current=page]:text-primary-soft-foreground aria-[current=page]:shadow-sm';
@@ -110,9 +111,9 @@ export function GoodsGroupEditor({ initial, newGroupId, actorId, sessionId, titl
     const metadata = { ...identity, version: 1 as const, command: 'archive' as const, groupId: stored.id, expectedRevision: stored.revision, operationId: crypto.randomUUID() };
     operation.execute(metadata, () => archiveGoodsGroupAction(metadata));
   }
-  function reload() {
+  async function reload() {
     if (!stored || !identity || operation.locked || session.blocked || pending || !session.current()) return;
-    if (JSON.stringify(values) !== JSON.stringify(valuesOf(stored)) && !window.confirm('현재 입력을 두고 최신 저장본을 불러올까요?')) return;
+    if (JSON.stringify(values) !== JSON.stringify(valuesOf(stored)) && !await adminConfirm('현재 입력을 두고 최신 저장본을 불러올까요?')) return;
     startTransition(async () => {
       try { const result = await readGoodsGroupAction(stored.id, identity); if (!session.current()) return;
         if ('error' in result) { setError(result.error); if (result.authChanged) session.deny(); }

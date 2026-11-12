@@ -7,6 +7,7 @@ import type { GoodsNoticeInfo } from '@/lib/goods-notice';
 import { ConsolePagination } from '@/components/admin/console/ConsolePagination';
 import { Button } from '@/components/admin/kit/ui/button';
 import { GOOD_INPUT_CLASS } from './GoodEditorParts';
+import { adminConfirm } from '@/lib/admin/confirm';
 
 type Preset = GoodsNoticePresetPageData['presets'][number];
 
@@ -57,7 +58,7 @@ export function GoodNoticePicker({ onApply, readOnly=false, copyKcTemplate=true,
         const result = await loadLastSavedGoodNotice();
         if (result.notice) {
           /* 어느 상품에서 오는지 보고 고르게 한다 — 담당자가 여럿이면 방금 저장한 상품이 내 상품이 아닐 수 있다. */
-          if (!window.confirm(`‘${result.name}’의 고시정보 7개로 지금 입력을 모두 바꿀까요?`)) return;
+          if (!await adminConfirm(`‘${result.name}’의 고시정보 7개로 지금 입력을 모두 바꿀까요?`)) return;
           onApply(result.notice); setMessage(`${result.name}의 최근 저장값 7개를 복사했습니다.`);
         }
         else setMessage(result.error ?? '최근 값이 없습니다.');

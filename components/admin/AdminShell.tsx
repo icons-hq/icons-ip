@@ -16,6 +16,7 @@ import { AdminKitPortalHost } from './kit/portal-container';
 import { OperationsDock } from './OperationsDock';
 import { AdminInquiryNotifier } from './AdminInquiryNotifier';
 import { AdminNumberWheelGuard } from './AdminNumberWheelGuard';
+import { AdminConfirmHost } from './AdminConfirmHost';
 import { hasAdminCapability, NO_OPERATOR_ACCESS, type OperatorAccess } from '@/lib/admin/access';
 import { adminNavigationAccountId, type SavedAdminNavigation } from '@/lib/admin/navigation-preferences';
 
@@ -121,6 +122,8 @@ export function AdminShell({
       {inquiryNotifications ? <AdminInquiryNotifier accountId={admin.id} /> : null}
       {/* R18: 포커스된 어드민 number 입력 위의 휠은 값을 바꾸지 않고 페이지만 스크롤한다(셸에 한 번). */}
       <AdminNumberWheelGuard />
+      {/* 확인창(되돌릴 수 없는 작업·이탈 경고)의 공용 호스트. 어드민에는 브라우저 기본 confirm이 없다. */}
+      <AdminConfirmHost />
     </div>
     </AdminNavigationPendingProvider>
     </TooltipProvider>

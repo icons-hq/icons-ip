@@ -20,6 +20,7 @@ import { GOOD_INPUT_CLASS, GOOD_NUMBER_INPUT_CLASS, GOOD_SUBPANEL_CLASS, GOOD_TA
 import { GoodsOptionImportPicker } from './GoodsOptionImportDialog';
 import { GoodWorkspaceDetails } from './GoodWorkspace';
 import type { GoodsOptionImportContext } from '@/lib/admin/goods-option-import';
+import { adminConfirm } from '@/lib/admin/confirm';
 
 type GoodsOptionEditorProps = {
   rows: GoodsOptionRow[];
@@ -347,9 +348,9 @@ export function GoodsOptionEditor({
   function update(key: string, changes: Partial<GoodsOptionRow>) {
     setRows((current) => current.map((row) => goodsOptionRowKey(row) === key ? { ...row, ...changes } : row));
   }
-  function changeOptionUsage(next: OptionUsage) {
+  async function changeOptionUsage(next: OptionUsage) {
     if (next === 'off' && !single) {
-      if (!window.confirm(goodsOptionCollapseNotice(rows))) return;
+      if (!await adminConfirm(goodsOptionCollapseNotice(rows))) return;
       setRows((current) => collapseGoodsOptionRows(current));
       setAxes(EMPTY_AXES);
     }

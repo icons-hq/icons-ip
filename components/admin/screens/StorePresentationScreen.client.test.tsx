@@ -1,5 +1,8 @@
 import { Children, isValidElement, type ReactElement, type ReactNode } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { stubAdminConfirm } from '@/lib/admin/confirm.test-support';
+import { setAdminConfirmHandler } from '@/lib/admin/confirm';
+let leaveConfirm: ReturnType<typeof stubAdminConfirm>;
 
 const hooks = vi.hoisted(() => ({ values: [] as unknown[], index: 0, effects: new Map<number, { deps: unknown[]; cleanup?: () => void }>(), jobs: [] as (() => void)[] }));
 const mocks = vi.hoisted(() => ({ save: vi.fn() }));
@@ -29,16 +32,16 @@ const checkbox = () => render().find(node => node.type === 'input' && node.props
 const isButton = (node: Element) => node.type === 'button' || node.type === Button;
 function edit() { (checkbox().props.onChange as (event: unknown) => void)({ target: { checked: !DEFAULT_STORE_PRESENTATION.common.showHomeSearch } }); render(); }
 function unloadBlocked() { const event = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(event); return event.defaultPrevented; }
-function cancel() { const button = render().find(node => isButton(node) && text(node) === '변경 취소')!; expect(button.props.disabled).toBe(false); (button.props.onClick as () => void)(); render(); }
+async function cancel() { const button = render().find(node => isButton(node) && text(node) === '변경 취소')!; expect(button.props.disabled).toBe(false); await (button.props.onClick as () => Promise<void>)(); render(); }
 async function save() { const form = render().find(node => node.type === 'form')!; (form.props.onSubmit as (event: unknown) => void)({ preventDefault() {} }); for (let i = 0; i < 8; i++) { await Promise.resolve(); render(); } }
-beforeEach(() => { hooks.values = []; hooks.effects.clear(); hooks.jobs = []; vi.clearAllMocks(); vi.stubGlobal('window', Object.assign(new EventTarget(), { confirm: vi.fn(() => true) })); vi.stubGlobal('document', new EventTarget()); render(); });
-afterEach(() => { for (const effect of hooks.effects.values()) effect.cleanup?.(); vi.unstubAllGlobals(); });
+beforeEach(() => { leaveConfirm = stubAdminConfirm(true); hooks.values = []; hooks.effects.clear(); hooks.jobs = []; vi.clearAllMocks(); vi.stubGlobal('window', new EventTarget()); vi.stubGlobal('document', new EventTarget()); render(); });
+afterEach(() => { for (const effect of hooks.effects.values()) effect.cleanup?.(); setAdminConfirmHandler(null); vi.unstubAllGlobals(); });
 
-it('미저장 전시 설정의 이동을 보호하고 명시적으로 취소한 경우에만 저장값으로 되돌린다', () => {
+it('미저장 전시 설정의 이동을 보호하고 명시적으로 취소한 경우에만 저장값으로 되돌린다', async () => {
   edit(); expect(unloadBlocked()).toBe(true);
-  vi.mocked(window.confirm).mockReturnValueOnce(false); cancel();
+  leaveConfirm.mockReturnValueOnce(false); await cancel();
   expect(checkbox().props.checked).toBe(!DEFAULT_STORE_PRESENTATION.common.showHomeSearch);
-  cancel(); expect(checkbox().props.checked).toBe(DEFAULT_STORE_PRESENTATION.common.showHomeSearch);
+  await cancel(); expect(checkbox().props.checked).toBe(DEFAULT_STORE_PRESENTATION.common.showHomeSearch);
   expect(unloadBlocked()).toBe(false); expect(mocks.save).not.toHaveBeenCalled();
 });
 

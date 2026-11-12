@@ -16,6 +16,7 @@ import { GOOD_DETACHED_FORM_ID, GoodEditorSubsection, useGoodWorkspaceSections }
 import { GOOD_INPUT_CLASS, GOOD_NOTE_CLASS, GOOD_NUMBER_INPUT_CLASS, GOOD_TEXTAREA_CLASS } from './GoodEditorParts';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
+import { adminConfirm } from '@/lib/admin/confirm';
 
 /*
  * 등록 화면의 원자 저장 섹션(10/27 회의 R13·D6②). 입력은 GoodWorkspaceProvider(폼 키 밖)에 두고,
@@ -42,13 +43,13 @@ export function GoodWorkspaceKcCard({ serverError, disabled = false }: { serverE
   const problems = choice === 'subject' ? goodsKcReviewProblems(models, variants) : [];
   const setKc = (kc: GoodWorkspaceKcDraft) => setSections((current) => ({ ...current, kc }));
   const change = (next: GoodsKcModelInput[]) => setKc({ models: next, attested: false });
-  function choose(next: GoodsKcChoice) {
+  async function choose(next: GoodsKcChoice) {
     if (next === 'not_applicable') {
       /* 고르는 순간 상품 전체 해당 없음을 확인한 것으로 체크한다(아래 체크를 풀면 미검토로 저장). 해당 없음 모델(프리셋 틀 포함)은 지키고,
          입력이 있는 대상 모델을 지울 때만 그 모델을 들어 묻는다('대상'을 고를 때 생긴 빈 모델은 묻지 않는다). */
       const plan = planGoodsKcProductNotApplicable(models, variants);
       const confirm = goodsKcProductNotApplicableConfirm(plan, { completing: false });
-      if (confirm && !window.confirm(confirm)) return;
+      if (confirm && !await adminConfirm(confirm)) return;
       setKc({ models: plan.models, attested: true, productNotApplicable: true });
     } else if (!models.length || goodsKcSoleNotApplicable(models)) setKc({ models: [goodsKcSubjectModel(variants)], attested: false });
   }

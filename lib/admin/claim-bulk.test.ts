@@ -257,19 +257,19 @@ describe('adminClaimBulkSelectable', () => {
 
 describe('planAdminClaimBulkSubmit', () => {
   const allow = () => true;
-  it('선택·작업·거부 사유를 서버에 보내기 전에 확인한다', () => {
-    expect(planAdminClaimBulkSubmit({ claimType: 'cancel', count: 0, decision: 'review', note: '' }, allow)).toEqual({ kind: 'invalid', error: '처리할 요청을 선택해주세요.' });
-    expect(planAdminClaimBulkSubmit({ claimType: 'cancel', count: 51, decision: 'review', note: '' }, allow)).toMatchObject({ kind: 'invalid' });
-    expect(planAdminClaimBulkSubmit({ claimType: 'cancel', count: 1, decision: null, note: '' }, allow)).toEqual({ kind: 'invalid', error: '처리할 작업을 선택해주세요.' });
-    expect(planAdminClaimBulkSubmit({ claimType: 'cancel', count: 2, decision: 'reject', note: ' 짧다 ' }, allow)).toEqual({ kind: 'invalid', error: '거부 사유를 10자 이상 200자 이하로 입력해주세요.' });
+  it('선택·작업·거부 사유를 서버에 보내기 전에 확인한다', async () => {
+    expect(await planAdminClaimBulkSubmit({ claimType: 'cancel', count: 0, decision: 'review', note: '' }, allow)).toEqual({ kind: 'invalid', error: '처리할 요청을 선택해주세요.' });
+    expect(await planAdminClaimBulkSubmit({ claimType: 'cancel', count: 51, decision: 'review', note: '' }, allow)).toMatchObject({ kind: 'invalid' });
+    expect(await planAdminClaimBulkSubmit({ claimType: 'cancel', count: 1, decision: null, note: '' }, allow)).toEqual({ kind: 'invalid', error: '처리할 작업을 선택해주세요.' });
+    expect(await planAdminClaimBulkSubmit({ claimType: 'cancel', count: 2, decision: 'reject', note: ' 짧다 ' }, allow)).toEqual({ kind: 'invalid', error: '거부 사유를 10자 이상 200자 이하로 입력해주세요.' });
   });
 
-  it('누른 작업의 확인 문구로 묻고, 취소하면 보내지 않는다', () => {
+  it('누른 작업의 확인 문구로 묻고, 취소하면 보내지 않는다', async () => {
     const asked: string[] = [];
     const deny = (message: string) => { asked.push(message); return false; };
-    expect(planAdminClaimBulkSubmit({ claimType: 'cancel', count: 3, decision: 'approve', note: '' }, deny)).toEqual({ kind: 'dismissed' });
+    expect(await planAdminClaimBulkSubmit({ claimType: 'cancel', count: 3, decision: 'approve', note: '' }, deny)).toEqual({ kind: 'dismissed' });
     expect(asked[0]).toBe(adminClaimBulkConfirmation('cancel', 'approve', 3));
-    expect(planAdminClaimBulkSubmit({ claimType: 'return', count: 2, decision: 'reject', note: '반품 가능 기간이 지났습니다.' }, allow)).toEqual({ kind: 'submit', decision: 'reject' });
+    expect(await planAdminClaimBulkSubmit({ claimType: 'return', count: 2, decision: 'reject', note: '반품 가능 기간이 지났습니다.' }, allow)).toEqual({ kind: 'submit', decision: 'reject' });
   });
 });
 

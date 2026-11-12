@@ -1,5 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { stubAdminConfirm } from '@/lib/admin/confirm.test-support';
+import { setAdminConfirmHandler } from '@/lib/admin/confirm';
 import type { AdminMemberDetail, AdminMemberSummary } from '@/lib/admin/members';
 import { confirmMemberSuspension, MembersSection } from './Members';
 
@@ -226,17 +228,21 @@ describe('MembersSection', () => {
     expect(html.indexOf('fan@example.test')).toBeLessThan(html.indexOf('@운영이호'));
   });
 
-  it('운영자가 영향 확인을 거절하면 정지 제출을 취소한다', () => {
+  it('운영자가 영향 확인을 거절하면 정지 제출을 취소한다', async () => {
     const preventDefault = vi.fn();
-    const confirm = vi.fn(() => false);
-    vi.stubGlobal('window', { confirm });
+    const confirm = stubAdminConfirm(false);
+    const form = { isConnected: true, requestSubmit: vi.fn() };
 
-    confirmMemberSuspension({ preventDefault } as unknown as Parameters<typeof confirmMemberSuspension>[0]);
+    confirmMemberSuspension({ preventDefault, currentTarget: form } as unknown as Parameters<typeof confirmMemberSuspension>[0]);
+    await vi.waitFor(() => expect(confirm).toHaveBeenCalled());
 
     expect(confirm).toHaveBeenCalledWith(
       '이 회원을 정지하면 포스트·댓글 작성, 구매·예매, 카드팩 개봉, 게임 플레이를 새로 진행할 수 없습니다. 계속할까요?',
     );
     expect(preventDefault).toHaveBeenCalledOnce();
+    await Promise.resolve();
+    expect(form.requestSubmit).not.toHaveBeenCalled();
+    setAdminConfirmHandler(null);
   });
 
   it('상태 변경 성공 뒤 stale 제재 form을 다시 제출하지 못하게 숨긴다', () => {
@@ -252,12 +258,17 @@ describe('MembersSection', () => {
     expect(html).not.toContain('name="reason"');
   });
 
-  it('운영자가 영향을 확인하면 정지 제출을 허용한다', () => {
+  it('운영자가 영향을 확인하기 전에는 보내지 않고, 확인하면 같은 폼을 다시 제출한다', async () => {
     const preventDefault = vi.fn();
-    vi.stubGlobal('window', { confirm: vi.fn(() => true) });
+    const confirm = stubAdminConfirm(true);
+    const form = { isConnected: true, requestSubmit: vi.fn() };
+    const event = { preventDefault, currentTarget: form } as unknown as Parameters<typeof confirmMemberSuspension>[0];
 
-    confirmMemberSuspension({ preventDefault } as unknown as Parameters<typeof confirmMemberSuspension>[0]);
-
-    expect(preventDefault).not.toHaveBeenCalled();
+    confirmMemberSuspension(event);
+    expect(preventDefault).toHaveBeenCalledOnce();
+    expect(form.requestSubmit).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(form.requestSubmit).toHaveBeenCalledOnce());
+    expect(confirm).toHaveBeenCalledOnce();
+    setAdminConfirmHandler(null);
   });
 });

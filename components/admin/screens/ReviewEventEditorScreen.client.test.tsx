@@ -1,6 +1,7 @@
 import { Children, isValidElement, type ReactElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { setAdminConfirmHandler } from '@/lib/admin/confirm';
 import { newReviewEventValues, reviewEventDayOffset, REVIEW_EVENT_CREDIT_POLICY_OFF, type ReviewEventCreditPolicy } from '@/lib/review-events';
 
 type TemplatePickerProps = { onSelect: (template: { title: string; description: string }) => void; onClose: () => void };
@@ -145,16 +146,16 @@ describe('ReviewEventEditorScreen wording templates (SHEET-017)', () => {
     expect(markup).toContain('적립금 정책이 꺼져 있어도 템플릿 저장은 됩니다.');
   });
 
-  it('replaces only the title and description, asking first when typed wording differs', () => {
+  it('replaces only the title and description, asking first when typed wording differs', async () => {
     const confirm = vi.fn(() => false);
-    vi.stubGlobal('window', { confirm });
+    setAdminConfirmHandler(async (request) => (confirm as unknown as (message: string) => boolean)(request.message));
     change('이벤트명', '가을 이벤트'); change('1인당 적립금', '3000');
     click('템플릿 불러오기');
-    picker()!.props.onSelect(template);
+    await picker()!.props.onSelect(template);
     expect(confirm).toHaveBeenCalledWith('작성 중인 이벤트명·내용을 템플릿 문구로 바꿀까요?');
     expect(field('이벤트명').props.value).toBe('가을 이벤트');
     confirm.mockReturnValue(true);
-    picker()!.props.onSelect(template);
+    await picker()!.props.onSelect(template);
     expect(field('이벤트명').props.value).toBe(template.title);
     expect(field('내용').props.value).toBe(template.description);
     expect(field('1인당 적립금').props.value).toBe(3000);
@@ -164,7 +165,7 @@ describe('ReviewEventEditorScreen wording templates (SHEET-017)', () => {
 
   it('refuses a template whose wording breaks the event field rules instead of failing later on save', () => {
     const confirm = vi.fn(() => true);
-    vi.stubGlobal('window', { confirm });
+    setAdminConfirmHandler(async (request) => (confirm as unknown as (message: string) => boolean)(request.message));
     change('이벤트명', '가을 이벤트');
     click('템플릿 불러오기');
     picker()!.props.onSelect({ ...template, title: `${template.title} ` });
@@ -175,7 +176,7 @@ describe('ReviewEventEditorScreen wording templates (SHEET-017)', () => {
 
   it('loads into empty fields without asking', () => {
     const confirm = vi.fn(() => false);
-    vi.stubGlobal('window', { confirm });
+    setAdminConfirmHandler(async (request) => (confirm as unknown as (message: string) => boolean)(request.message));
     click('템플릿 불러오기');
     picker()!.props.onSelect(template);
     expect(confirm).not.toHaveBeenCalled();
@@ -315,3 +316,5 @@ describe('ReviewEventEditorScreen disabled reasons (1027T-026·027)', () => {
     expect(html()).toContain('조건을 고치는 중에는 보관할 수 없습니다. 먼저 이벤트를 저장해주세요.');
   });
 });
+
+afterEach(() => { setAdminConfirmHandler(null); });

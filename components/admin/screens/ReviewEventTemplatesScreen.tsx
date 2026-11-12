@@ -14,6 +14,7 @@ import { ConsolePagination } from '../console/ConsolePagination';
 import { Button, buttonVariants } from '../kit/ui/button';
 import { Input } from '../kit/ui/input';
 import { TableBody, TableCell, TableHead, TableRow } from '../kit/ui/table';
+import { adminConfirm } from '@/lib/admin/confirm';
 
 /*
  * SHEET-017(MD-0013): 리뷰이벤트 문구 템플릿. 이벤트명·내용만 저장해 두고 등록 화면에서 불러온다.
@@ -63,8 +64,8 @@ export function ReviewEventTemplateEditor({ template, initial, onClose, onSaved,
     newId.current ??= crypto.randomUUID();
     void run({ kind: 'save', id: template?.id ?? newId.current, revision: template?.revision ?? 0, operationId: crypto.randomUUID(), values: trimmed });
   }
-  function remove() {
-    if (!template || locked || conflict || !window.confirm(DELETE_CONFIRM)) return;
+  async function remove() {
+    if (!template || locked || conflict || !await adminConfirm(DELETE_CONFIRM)) return;
     void run({ kind: 'delete', id: template.id, revision: template.revision, operationId: crypto.randomUUID() });
   }
   const invalid = (name: 'title' | 'description') => errors[name] ? { 'aria-invalid': true as const, 'aria-describedby': `review-event-template-${name}-error` } : {};

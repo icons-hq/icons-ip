@@ -1099,7 +1099,7 @@ describe('운영자 전액 취소 제출 순서', () => {
     const { planOrderCancellationSubmit, staffCancellationClientErrors } = await import('./Orders');
     const confirm = vi.fn(() => true);
 
-    const plan = planOrderCancellationSubmit(
+    const plan = await planOrderCancellationSubmit(
       staffForm({ reasonCode: 'other', note: '짧음' }),
       confirmation,
       confirm,
@@ -1114,7 +1114,7 @@ describe('운영자 전액 취소 제출 순서', () => {
     const { planOrderCancellationSubmit, staffCancellationClientErrors } = await import('./Orders');
     const confirm = vi.fn(() => true);
 
-    const plan = planOrderCancellationSubmit(
+    const plan = await planOrderCancellationSubmit(
       staffForm({ reasonCode: 'out_of_stock', note: '' }),
       confirmation,
       confirm,
@@ -1132,17 +1132,17 @@ describe('운영자 전액 취소 제출 순서', () => {
     const form = staffForm({ reasonCode: 'test_payment_cleanup', warehouseStopConfirmed: 'confirmed' });
 
     const accepted = vi.fn(() => true);
-    expect(planOrderCancellationSubmit(form, confirmation, accepted, validate)).toEqual({ kind: 'dispatch' });
+    expect(await planOrderCancellationSubmit(form, confirmation, accepted, validate)).toEqual({ kind: 'dispatch' });
     expect(accepted).toHaveBeenCalledWith(confirmation);
 
     const declined = vi.fn(() => false);
-    expect(planOrderCancellationSubmit(form, confirmation, declined, validate)).toEqual({ kind: 'dismissed' });
+    expect(await planOrderCancellationSubmit(form, confirmation, declined, validate)).toEqual({ kind: 'dismissed' });
   });
 
   it('검사기가 없는 양식은 확인 창만 거친다', async () => {
     const { planOrderCancellationSubmit } = await import('./Orders');
     const confirm = vi.fn(() => true);
-    expect(planOrderCancellationSubmit(new FormData(), confirmation, confirm)).toEqual({ kind: 'dispatch' });
+    expect(await planOrderCancellationSubmit(new FormData(), confirmation, confirm)).toEqual({ kind: 'dispatch' });
     expect(confirm).toHaveBeenCalledOnce();
   });
 

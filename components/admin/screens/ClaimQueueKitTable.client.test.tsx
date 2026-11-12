@@ -1,6 +1,7 @@
 import { isValidElement, type ReactElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { setAdminConfirmHandler } from '@/lib/admin/confirm';
 
 /*
  * R8 일괄 처리 화면 쪽 규칙(취소·반품·교환 kit 목록 공통): 지금 페이지에서 처리할 수 있는 선택만 보내고,
@@ -102,17 +103,17 @@ function selected() {
 }
 
 /** 처리 막대의 버튼을 누른다. 거부는 팝오버의 사유 칸을 채운 뒤 팝오버 안 실행 버튼을 누른다. */
-function act(decision: 'approve' | 'review' | 'reject', note = '') {
+async function act(decision: 'approve' | 'review' | 'reject', note = '') {
   select([A, B, C]);
   if (decision === 'reject') {
     const reason = all(render()).find((element) => element.props.claimType === 'cancel' && typeof element.props.onChange === 'function');
     (reason?.props.onChange as (value: string) => void)(note);
     const run = all(render()).find((element) => element.type === Button && text(element).endsWith('건 거부'));
-    (run?.props.onClick as () => void)();
+    await (run?.props.onClick as () => Promise<void>)();
     return;
   }
   const item = all(render()).find((element) => element.type === ActionBarItem && element.props.children === ADMIN_CLAIM_BULK_ACTION_LABELS[decision]);
-  (item?.props.onSelect as (event: unknown) => void)({ preventDefault: () => undefined });
+  await (item?.props.onSelect as (event: unknown) => Promise<void>)({ preventDefault: () => undefined });
 }
 
 beforeEach(() => {
@@ -120,12 +121,12 @@ beforeEach(() => {
   hooks.actionState = {};
   hooks.table = null;
   vi.clearAllMocks();
-  vi.stubGlobal('window', { confirm: mocks.confirm });
+  setAdminConfirmHandler(async (request) => mocks.confirm(request.message) as boolean);
 });
 
-it('처리할 수 없는 행은 선택해도 보내지 않고, 확인한 뒤에만 지금 페이지의 선택을 보낸다', () => {
+it('처리할 수 없는 행은 선택해도 보내지 않고, 확인한 뒤에만 지금 페이지의 선택을 보낸다', async () => {
   mocks.confirm.mockReturnValue(true);
-  act('approve');
+  await act('approve');
   expect(mocks.confirm).toHaveBeenCalledWith(expect.stringContaining('선택한 2건의 취소를 승인할까요?'));
   expect(mocks.run).toHaveBeenCalledTimes(1);
   const sent = mocks.run.mock.calls[0][0] as FormData;
@@ -134,29 +135,29 @@ it('처리할 수 없는 행은 선택해도 보내지 않고, 확인한 뒤에�
   expect(sent.get('decision')).toBe('approve');
 });
 
-it('검토중 표시도 확인 문구를 거쳐 같은 선택을 보낸다', () => {
+it('검토중 표시도 확인 문구를 거쳐 같은 선택을 보낸다', async () => {
   mocks.confirm.mockReturnValue(true);
-  act('review');
+  await act('review');
   expect(mocks.run).toHaveBeenCalledTimes(1);
   expect((mocks.run.mock.calls[0][0] as FormData).get('decision')).toBe('review');
   expect((mocks.run.mock.calls[0][0] as FormData).getAll('claimIds')).toEqual([A, B]);
 });
 
-it('확인을 취소하거나 거부 사유가 짧으면 보내지 않는다', () => {
+it('확인을 취소하거나 거부 사유가 짧으면 보내지 않는다', async () => {
   mocks.confirm.mockReturnValue(false);
-  act('approve');
+  await act('approve');
   expect(mocks.run).not.toHaveBeenCalled();
 
   mocks.confirm.mockReturnValue(true);
-  act('reject', '짧은 사유');
+  await act('reject', '짧은 사유');
   expect(mocks.run).not.toHaveBeenCalled();
   const alert = all(render()).find((element) => element.props.role === 'alert');
   expect(text(alert)).toBe('거부 사유를 10자 이상 200자 이하로 입력해주세요.');
 });
 
-it('거부 사유를 채우면 선택한 모든 건에 같은 사유를 실어 보낸다', () => {
+it('거부 사유를 채우면 선택한 모든 건에 같은 사유를 실어 보낸다', async () => {
   mocks.confirm.mockReturnValue(true);
-  act('reject', '반품 가능 기간이 지났습니다.');
+  await act('reject', '반품 가능 기간이 지났습니다.');
   expect(mocks.run).toHaveBeenCalledTimes(1);
   const sent = mocks.run.mock.calls[0][0] as FormData;
   expect(sent.get('decision')).toBe('reject');
@@ -178,7 +179,7 @@ it('시간 예산으로 남은 건만 선택에 남기고, 다시 실행하면 �
 
   mocks.confirm.mockReturnValue(true);
   const item = all(render()).find((element) => element.type === ActionBarItem && element.props.children === ADMIN_CLAIM_BULK_ACTION_LABELS.approve);
-  (item?.props.onSelect as (event: unknown) => void)({ preventDefault: () => undefined });
+  await (item?.props.onSelect as (event: unknown) => Promise<void>)({ preventDefault: () => undefined });
   expect((mocks.run.mock.calls[0][0] as FormData).getAll('claimIds')).toEqual([B]);
 });
 
@@ -213,7 +214,7 @@ describe('반품↔교환 일괄 전환', () => {
     (fields(claimType)?.props.onConfirmed as (value: boolean) => void)(confirmed);
   }
 
-  it('반품 목록은 교환으로, 교환 목록은 반품으로 바꾸는 버튼이 있고 취소 목록에는 없다', () => {
+  it('반품 목록은 교환으로, 교환 목록은 반품으로 바꾸는 버튼이 있고 취소 목록에는 없다', async () => {
     expect(adminClaimBulkConversionLabel('return')).toBe('선택 건 교환 전환');
     expect(adminClaimBulkConversionLabel('exchange')).toBe('선택 건 반품 전환');
     expect(labels('return')).toHaveLength(1);
@@ -222,7 +223,7 @@ describe('반품↔교환 일괄 전환', () => {
     expect(all(render('cancel')).some((element) => text(element).endsWith(' 전환'))).toBe(false);
   });
 
-  it('합의 확인 전에는 실행 버튼이 잠기고, 무통장 계좌 안내는 반품으로 바꿀 때만 보인다', () => {
+  it('합의 확인 전에는 실행 버튼이 잠기고, 무통장 계좌 안내는 반품으로 바꿀 때만 보인다', async () => {
     fill('return', AGREEMENT, false);
     expect(runButton('return')?.props.disabled).toBe(true);
     expect(fields('return')?.props.needsAccountNotice).toBe(false);
@@ -231,14 +232,14 @@ describe('반품↔교환 일괄 전환', () => {
     expect(runButton('return')?.props.disabled).toBe(false);
   });
 
-  it('합의 근거가 짧으면 보내지 않고 입력 칸 옆에 사유를 보여 준다', () => {
+  it('합의 근거가 짧으면 보내지 않고 입력 칸 옆에 사유를 보여 준다', async () => {
     fill('return', '한', true);
     (runButton('return')?.props.onClick as () => void)();
     expect(mocks.run).not.toHaveBeenCalled();
     expect(text(all(render('return')).find((element) => element.props.role === 'alert'))).toBe('고객 합의 근거를 2자 이상 500자 이하로 입력해주세요.');
   });
 
-  it('처리할 수 있는 선택만 합의 근거와 함께 보내고, 동의는 실행마다 다시 받는다', () => {
+  it('처리할 수 있는 선택만 합의 근거와 함께 보내고, 동의는 실행마다 다시 받는다', async () => {
     fill('exchange', AGREEMENT, true);
     (runButton('exchange')?.props.onClick as () => void)();
     expect(mocks.run).toHaveBeenCalledTimes(1);
@@ -248,7 +249,7 @@ describe('반품↔교환 일괄 전환', () => {
     expect(sent.get('decision')).toBe(ADMIN_CLAIM_BULK_CONVERT);
     expect(sent.get('agreement')).toBe(AGREEMENT);
     expect(sent.get('confirmed')).toBe('true');
-    /* window.confirm 대신 팝오버의 합의 확인을 쓴다. */
+    /* 확인창 대신 팝오버의 합의 확인을 쓴다. */
     expect(mocks.confirm).not.toHaveBeenCalled();
     expect(fields('exchange')?.props.confirmed).toBe(false);
     expect(fields('exchange')?.props.agreement).toBe(AGREEMENT);
@@ -279,7 +280,7 @@ describe('반품↔교환 일괄 전환', () => {
   });
 });
 
-it('결과표는 번호·결과·사유 세 열이고 요청번호가 같은 목록 위 팝업을 연다', () => {
+it('결과표는 번호·결과·사유 세 열이고 요청번호가 같은 목록 위 팝업을 연다', async () => {
   const html = renderToStaticMarkup(<ClaimKitBulkResult previewHrefBase="/admin/sales/claims/returns?stage=open&page=1" state={{
     summary: '처리됨 1건 · 실패 1건',
     results: [
@@ -298,7 +299,7 @@ it('결과표는 번호·결과·사유 세 열이고 요청번호가 같은 목
 });
 
 /* 사람 눈 판정(4·5라운드): 처리 막대가 체크 뒤에야 떠서 승인 버튼을 찾아 헤맸다. 떠 있는 막대를 항상 띄우면 줄을 가리므로, 체크 전에는 표 위에 흐린 버튼으로 보인다. */
-it('체크 전에는 표 위에 흐린 처리 버튼을 보이고, 체크하면 떠 있는 막대에 넘긴다', () => {
+it('체크 전에는 표 위에 흐린 처리 버튼을 보이고, 체크하면 떠 있는 막대에 넘긴다', async () => {
   const idle = () => all(render()).find((element) => (element.props as Record<string, unknown>)['data-claims-bulk-idle'] === '');
   expect(idle()).toBeTruthy();
   const buttons = all(idle()!.props.children as ReactNode).filter((element) => element.type === Button);
@@ -308,7 +309,7 @@ it('체크 전에는 표 위에 흐린 처리 버튼을 보이고, 체크하면 
 });
 
 /* 10/27 회의·MD-0032·0033: 체크 전에도 반품↔교환 전환이 있다는 것이 처리 막대와 같은 순서로 보여야 한다. */
-it('체크 전 흐린 버튼에 반품·교환 목록은 전환을 함께 보이고 취소 목록에는 넣지 않는다', () => {
+it('체크 전 흐린 버튼에 반품·교환 목록은 전환을 함께 보이고 취소 목록에는 넣지 않는다', async () => {
   const labels = (claimType: OrderClaimType) => {
     const idle = all(render(claimType)).find((element) => (element.props as Record<string, unknown>)['data-claims-bulk-idle'] === '');
     return all(idle!.props.children as ReactNode).filter((element) => element.type === Button).map((button) => button.props.children);
@@ -320,7 +321,7 @@ it('체크 전 흐린 버튼에 반품·교환 목록은 전환을 함께 보이
 });
 
 /* 1027T-033·SHEET-049·SHEET-052: 단계 버튼은 확인창을 열고, 창을 닫으면 결과를 목록 아래로 넘긴다. */
-it('단계 버튼은 고른 건과 KST 오늘로 확인창을 열고, 이미 열려 있으면 다시 열지 않는다', () => {
+it('단계 버튼은 고른 건과 KST 오늘로 확인창을 열고, 이미 열려 있으면 다시 열지 않는다', async () => {
   select([A, B, C]);
   const step = all(render()).find((element) => element.type === ActionBarItem && element.props.children === ADMIN_CLAIM_BULK_STEP_LABELS.refund);
   (step?.props.onSelect as (event: unknown) => void)({ preventDefault: () => undefined });
@@ -332,7 +333,7 @@ it('단계 버튼은 고른 건과 KST 오늘로 확인창을 열고, 이미 열
   expect(again?.props.disabled).toBe(true);
 });
 
-it('확인창을 닫으면 결과표로 넘기고 실패·미처리 건만 선택에 남긴다', () => {
+it('확인창을 닫으면 결과표로 넘기고 실패·미처리 건만 선택에 남긴다', async () => {
   select([A, B]);
   const step = all(render()).find((element) => element.type === ActionBarItem && element.props.children === ADMIN_CLAIM_BULK_STEP_LABELS.refund);
   (step?.props.onSelect as (event: unknown) => void)({ preventDefault: () => undefined });
@@ -350,7 +351,7 @@ it('확인창을 닫으면 결과표로 넘기고 실패·미처리 건만 선�
   expect(selected()).toEqual([B]);
 });
 
-it('단계 확인창을 그냥 닫으면 선택과 결과를 바꾸지 않는다', () => {
+it('단계 확인창을 그냥 닫으면 선택과 결과를 바꾸지 않는다', async () => {
   select([A, B]);
   const step = all(render()).find((element) => element.type === ActionBarItem && element.props.children === ADMIN_CLAIM_BULK_STEP_LABELS.refund);
   (step?.props.onSelect as (event: unknown) => void)({ preventDefault: () => undefined });

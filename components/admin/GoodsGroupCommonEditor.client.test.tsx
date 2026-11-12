@@ -1,5 +1,9 @@
 import { Children, isValidElement, type ReactElement, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { stubAdminConfirm } from '@/lib/admin/confirm.test-support';
+import { setAdminConfirmHandler } from '@/lib/admin/confirm';
+let leaveConfirm: ReturnType<typeof stubAdminConfirm>;
+let lastLink: { click: ReturnType<typeof vi.fn> } | null = null;
 const hooks = vi.hoisted(() => ({ values: [] as unknown[], index: 0, effects: new Map<number, { deps: unknown[]; cleanup?: () => void }>(), jobs: [] as (() => void)[], pending: false }));
 const mocks = vi.hoisted(() => ({ save: vi.fn(), read: vi.fn(), auth: null as null | ((event: string, session: { user: { id: string }; access_token: string } | null) => void) }));
 vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>('react'),
@@ -34,6 +38,7 @@ const storage = new Map<string,string>(), originalFormData = FormData;
 const storageApi = { get length() { return storage.size; }, key: (index: number) => [...storage.keys()][index] ?? null,
   getItem: vi.fn((key: string) => storage.get(key) ?? null), setItem: vi.fn((key: string, value: string) => { storage.set(key,value); }), removeItem: vi.fn((key: string) => { storage.delete(key); }) };
 class LinkTarget {
+  click = vi.fn();
   constructor(readonly href: string, readonly target = '', readonly download = false) {}
   closest() { return this; }
   hasAttribute(name: string) { return name === 'download' && this.download; }
@@ -48,7 +53,8 @@ function navigate(href = '/admin', options: { target?: string; download?: boolea
   const event = new Event('click', { cancelable: true });
   const { target, download, ...mouse } = options;
   Object.assign(event, { button: 0, metaKey: false, ctrlKey: false, shiftKey: false, altKey: false }, mouse);
-  Object.defineProperty(event, 'target', { value: new LinkTarget(new URL(href, window.location.href).href, target, download) });
+  const link = new LinkTarget(new URL(href, window.location.href).href, target, download); lastLink = link;
+  Object.defineProperty(event, 'target', { value: link });
   document.dispatchEvent(event); return event;
 }
 function render(snapshot = commonTestSnapshot()) { hooks.index = 0; const result = GoodsGroupCommonEditor({ snapshot, ...identity, categories: [], ips: [] }); for (const job of hooks.jobs.splice(0)) job(); return nodes(result); }
@@ -59,50 +65,53 @@ function submit() { const form = render().find(node => node.type==='form')!; (fo
 function click(label: string) { const button = render().find(node => (node.type==='button' || node.type===Button) && text(node)===label)!; expect(button).toBeDefined(); expect(button.props.disabled).not.toBe(true); (button.props.onClick as ()=>void)(); }
 function saved() { return JSON.parse([...storage.values()][0]) as GoodsGroupRecovery; }
 beforeEach(async () => {
+  leaveConfirm = stubAdminConfirm(false); lastLink = null;
   hooks.values=[]; hooks.effects.clear(); hooks.jobs=[]; hooks.pending=false; storage.clear(); vi.clearAllMocks();
   const submitted = [...commonTestForm().entries()]; submitted.push(['description','PRIVATE COMMON CONTENT']);
   vi.stubGlobal('FormData', class extends originalFormData { constructor(form?: unknown) { super(); if (form) for (const [key,value] of submitted) this.set(key,value); } });
   storageApi.setItem.mockImplementation((key,value)=>{storage.set(key,value);});
-  vi.stubGlobal('window',Object.assign(new EventTarget(),{localStorage:storageApi, location: new URL('https://admin.test/admin/catalog/goods?groupCommon=test'), confirm: vi.fn(() => false)}));
+  vi.stubGlobal('window',Object.assign(new EventTarget(),{localStorage:storageApi, location: new URL('https://admin.test/admin/catalog/goods?groupCommon=test')}));
   vi.stubGlobal('document', new DocumentTarget()); vi.stubGlobal('Element', LinkTarget);
   mocks.save.mockResolvedValue({error:'응답 유실',uncertain:true}); mocks.read.mockResolvedValue({error:'조회 실패',uncertain:true});
   render(); authenticate(); await flush();
   const attributes = render().find(node=>node.type===GoodsAttributeEditor)!;
   (attributes.props.onChange as (submission:string,draft:string,initialize:boolean)=>void)(String(commonTestForm().get('productAttributes')),'[]',true); await flush();
 });
-afterEach(()=>{for(const effect of hooks.effects.values())effect.cleanup?.();vi.unstubAllGlobals();});
+afterEach(()=>{for(const effect of hooks.effects.values())effect.cleanup?.();setAdminConfirmHandler(null);vi.unstubAllGlobals();});
 describe('그룹 공통정보 편집 복구',()=>{
   it('미저장 공통정보를 두고 공통 사이드바로 이동할 때 취소하면 입력을 유지한다',()=>{
     const attributes = render().find(node => node.type === GoodsAttributeEditor)!;
     (attributes.props.onChange as (submission:string,draft:string,initialize:boolean)=>void)(String(commonTestForm().get('productAttributes')), '[]', false);
     render();
-    expect(navigate().defaultPrevented).toBe(true); expect(window.confirm).toHaveBeenCalledOnce(); expect(mocks.save).not.toHaveBeenCalled();
+    expect(navigate().defaultPrevented).toBe(true); expect(leaveConfirm).toHaveBeenCalledOnce(); expect(mocks.save).not.toHaveBeenCalled();
     expect(render().find(node=>node.type==='fieldset')!.props.disabled).toBe(false);
   });
-  it('일반 내부 링크 이동을 승인하면 자체 Link에서 중복 확인하지 않는다',()=>{
+  it('일반 내부 링크 이동을 승인하면 자체 Link에서 중복 확인하지 않는다',async()=>{
     const attributes = render().find(node => node.type === GoodsAttributeEditor)!;
     (attributes.props.onChange as (submission:string,draft:string,initialize:boolean)=>void)(String(commonTestForm().get('productAttributes')), '[]', false);
-    vi.mocked(window.confirm).mockReturnValue(true);
+    leaveConfirm.mockReturnValue(true);
     const cancel = render().find(node => node.props.onNavigate && text(node) === '취소')!;
-    expect(navigate(String(cancel.props.href)).defaultPrevented).toBe(false);
+    /* 확인창은 클릭을 먼저 멈춘 뒤 한 번만 묻고, 승인하면 같은 링크를 다시 눌러 이동을 잇는다. */
+    expect(navigate(String(cancel.props.href)).defaultPrevented).toBe(true); await flush();
+    expect(lastLink!.click).toHaveBeenCalledOnce();
     const preventDefault = vi.fn(); (cancel.props.onNavigate as (event: unknown)=>void)({ preventDefault });
-    expect(preventDefault).not.toHaveBeenCalled(); expect(window.confirm).toHaveBeenCalledOnce();
+    expect(preventDefault).not.toHaveBeenCalled(); expect(leaveConfirm).toHaveBeenCalledOnce();
   });
   it('새 탭·다운로드·수정키·중간 클릭·같은 문서 앵커는 보호창 없이 허용한다',()=>{
     const attributes = render().find(node => node.type === GoodsAttributeEditor)!;
     (attributes.props.onChange as (submission:string,draft:string,initialize:boolean)=>void)(String(commonTestForm().get('productAttributes')), '[]', false); render();
     for (const options of [{ target: '_blank' }, { download: true }, { metaKey: true }, { ctrlKey: true }, { shiftKey: true }, { altKey: true }, { button: 1 }]) expect(navigate('/admin', options).defaultPrevented).toBe(false);
     expect(navigate(`${window.location.href}#details`).defaultPrevented).toBe(false);
-    expect(window.confirm).not.toHaveBeenCalled();
+    expect(leaveConfirm).not.toHaveBeenCalled();
   });
   it('저장 진행 중 내부 이동을 막고 저장 완료 후에는 이동 보호를 해제한다',async()=>{
     const attributes = render().find(node => node.type === GoodsAttributeEditor)!;
     (attributes.props.onChange as (submission:string,draft:string,initialize:boolean)=>void)(String(commonTestForm().get('productAttributes')), '[]', false);
     let resolve!: (value: unknown) => void;
     mocks.save.mockImplementation(() => new Promise(done => { resolve = done; })); submit(); render();
-    expect(navigate().defaultPrevented).toBe(true); expect(window.confirm).not.toHaveBeenCalled();
+    expect(navigate().defaultPrevented).toBe(true); expect(leaveConfirm).not.toHaveBeenCalled();
     resolve({ value: { ...commonTestReceipt, operationId: saved().operationId } }); await flush();
-    expect(navigate().defaultPrevented).toBe(false); expect(window.confirm).not.toHaveBeenCalled();
+    expect(navigate().defaultPrevented).toBe(false); expect(leaveConfirm).not.toHaveBeenCalled();
   });
   it('서버 재검증 뒤에도 완료 결과를 유지하고 다시 저장하지 않는다',async()=>{
     mocks.save.mockImplementation(async (metadata: GoodsGroupRecovery) => ({ value: { ...commonTestReceipt, operationId: metadata.operationId } }));

@@ -40,7 +40,7 @@ describe('저장된 상품의 기타 인증 패널 — 다시 불러오기·버�
     /* 정적 렌더로는 클릭할 수 없어 배선을 대조한다(GoodsKcPanel.test의 refreshKey 배선 검사와 같은 방식). */
     const panel = readFileSync('components/admin/GoodsKcPanel.tsx', 'utf8');
     expect(panel).toContain("else if ('latest' in result) setState((current) => ({ ...current, configuration: result.latest, entries: current.entries ?? entries, error: result.error }));");
-    expect(panel).toContain("if (dirty && !window.confirm('저장하지 않은 기타 인증 입력을 지우고 저장된 값으로 바꿉니다. 계속할까요?')) return;");
+    expect(panel).toContain("if (dirty && !await adminConfirm('저장하지 않은 기타 인증 입력을 지우고 저장된 값으로 바꿉니다. 계속할까요?')) return;");
     expect(panel).toContain('setState({ configuration: null, entries: null, error: null });');
   });
 });

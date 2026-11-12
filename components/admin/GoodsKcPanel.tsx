@@ -23,6 +23,7 @@ import {
 } from '@/lib/goods-kc';
 import { GOOD_INPUT_CLASS, GOOD_NOTE_CLASS, GOOD_SUBPANEL_CLASS, GOOD_TEXTAREA_CLASS } from './GoodEditorParts';
 import { GOOD_DETACHED_FORM_ID, useGoodWorkspaceSections, useGoodWorkspaceStash, type GoodsKcPanelStash } from './GoodWorkspace';
+import { adminConfirm } from '@/lib/admin/confirm';
 
 /* 템플릿 룩(ADR-0028). 입력 라벨 글자만 굵게 하고 입력값은 보통 굵기로 둔다(라벨이 입력을 감싼다). */
 const FIELD_CLASS = 'flex min-w-0 flex-col gap-2 text-sm';
@@ -146,11 +147,11 @@ export function ProductNotApplicable({ variants, models, disabled, onNoteChange,
   const [draftNote, setDraftNote] = useState('');
   const sole = goodsKcSoleNotApplicable(models);
   const note = goodsKcProductNotApplicableNote(models, draftNote);
-  function complete() {
+  async function complete() {
     /* 해당 없음 모델 1개(프리셋 틀 포함)는 제품군·안내를 지킨 채 옵션만 다시 연결한다. 입력이 있는 다른 모델을 지울 때만 이름을 들어 묻는다. */
     const plan = planGoodsKcProductNotApplicable(models, variants, draftNote);
     const confirm = goodsKcProductNotApplicableConfirm(plan, { completing: !checkOnly });
-    if (confirm && !window.confirm(confirm)) return;
+    if (confirm && !await adminConfirm(confirm)) return;
     onComplete(plan.models);
   }
   /* legend 문구 바로 앞을 시험이 대조한다 — legend 모양은 fieldset의 자식 선택 유틸리티로 입힌다. */
@@ -439,8 +440,8 @@ export function GoodsOtherCertificationsPanel({ goodId }: { goodId: string }) {
     });
   }
   /* 저장된 값으로 다시 시작한다. 저장하지 않은 입력이 있으면 지우기 전에 묻는다. */
-  function reloadSaved() {
-    if (dirty && !window.confirm('저장하지 않은 기타 인증 입력을 지우고 저장된 값으로 바꿉니다. 계속할까요?')) return;
+  async function reloadSaved() {
+    if (dirty && !await adminConfirm('저장하지 않은 기타 인증 입력을 지우고 저장된 값으로 바꿉니다. 계속할까요?')) return;
     setNotice(null);
     setState({ configuration: null, entries: null, error: null });
     setReload((value) => value + 1);

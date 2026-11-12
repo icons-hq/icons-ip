@@ -1,5 +1,6 @@
 import { Children, isValidElement, type ReactElement, type ReactNode } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { setAdminConfirmHandler } from '@/lib/admin/confirm';
 import type { ShipmentConsoleRow } from '@/lib/admin/shipment-dispatch';
 const mocks = vi.hoisted(() => ({ complete: vi.fn(), export: vi.fn(), exportOrigin: vi.fn(), gaps: vi.fn(), originGaps: vi.fn(), refresh: vi.fn(), states: [] as unknown[], index: 0, work: [] as Promise<void>[], effects: [] as (() => void | (() => void))[] }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: mocks.refresh, push: vi.fn() }) }));
@@ -147,14 +148,14 @@ it('김포 등 다른 출고지와 섞이면 ICONS 표준 양식이 기본이다
  // 버튼마다 실제 양식을 적는다.
  expect(text(ready(seowonOnly))).toContain('김포 새 출고지시 전체 내려받기 (ICONS 표준 양식)');
 });
-it('이미 전달한 선택 건은 중복 출고 경고를 확인해야 다운로드 단계로 간다',()=>{
+it('이미 전달한 선택 건은 중복 출고 경고를 확인해야 다운로드 단계로 간다',async()=>{
  const readyProps={...props,tab:'ready' as const,rows:[{...row,status:'ready' as const,exportedAt:'2026-10-20T00:00:00Z'}]};
  function ready(){mocks.index=0;return ShipmentConsoleGrid(readyProps);}
- const confirm=vi.fn(()=>false);vi.stubGlobal('window',{confirm});
+ const confirm=vi.fn(()=>false);setAdminConfirmHandler(async request=>(confirm as unknown as (message: string) => boolean)(request.message));
  const grid=nodes(ready()).find(node=>node.type===ConsoleGrid)!;(grid.props.onSelectionChange as (ids:string[])=>void)([ids[0]]);
  const trigger=nodes(ready()).find(node=>isButton(node)&&text(node.props.children as ReactNode)==='출고지시 내보내기')!;
- (trigger.props.onClick as ()=>void)();expect(confirm).toHaveBeenCalledOnce();expect(text(ready())).not.toContain('비밀번호 확인');expect(mocks.export).not.toHaveBeenCalled();
- confirm.mockReturnValue(true);(trigger.props.onClick as ()=>void)();expect(text(ready())).toContain('비밀번호 확인');
+ await (trigger.props.onClick as ()=>Promise<void>)();expect(confirm).toHaveBeenCalledOnce();expect(text(ready())).not.toContain('비밀번호 확인');expect(mocks.export).not.toHaveBeenCalled();
+ confirm.mockReturnValue(true);await (trigger.props.onClick as ()=>Promise<void>)();expect(text(ready())).toContain('비밀번호 확인');
 });
 
 /* 1027T-046 통합: ICONS 표준 양식도 출고지와 관계없이 모든 행에 바코드 칸이 있어, 고른 양식 기준으로 센다(표준 양식은 admin_smartstore_shipment_barcode_gaps). */
@@ -325,3 +326,5 @@ it('재고 부족 옵션이 있으면 출고지시 내려받기 확인 단계(�
  expect(mocks.export).toHaveBeenLastCalledWith([ids[0]],'xlsx','warehouse',undefined);
  expect(nodes(plain()).some(node=>node.type===CustomerServiceDialog)).toBe(false);
 });
+
+afterEach(()=>{setAdminConfirmHandler(null);});

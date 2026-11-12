@@ -22,6 +22,7 @@ import { CustomerServiceRecordNavigation, useCustomerServiceRecord } from './Cus
 import { ReviewBestPanel } from './ReviewBestPanel';
 import { CsEditorDraftNotice } from './CsEditorDraftNotice';
 import { ACTION_FEEDBACK_CLASS, DISCLOSURE_SUMMARY_CLASS, RECORD_CHANGED_CLASS, RECORD_META_CLASS, RECORD_META_ITEM_CLASS, RECORD_SECTION_CLASS, REPLY_FORM_CLASS } from './cs-kit-classes';
+import { confirmAdminSubmit } from '@/lib/admin/confirm';
 
 const EMPTY_STATE: AdminReviewActionState = {};
 const RECORD_LINK_CLASS = 'font-medium text-foreground underline underline-offset-4 hover:text-muted-foreground';
@@ -112,7 +113,7 @@ export function ReviewActionPanel({ review, triggerLabel, accountId = '' }: { re
           <summary className={DISCLOSURE_SUMMARY_CLASS}>리뷰 노출 관리{hidden ? ' · 블라인드 상태' : ''}<ChevronDown aria-hidden="true" className="size-4 transition-transform group-open/visibility:rotate-180" /></summary>
           <form action={statusAction} className="mt-3 flex flex-col items-start gap-2" onSubmit={(event) => {
             const message = hidden ? '이 리뷰를 다시 공개할까요? 공개 즉시 평점 평균과 목록에 다시 반영됩니다.' : `${review.rating}점 리뷰를 블라인드할까요? 공개 목록과 평점 평균에서 즉시 빠지고 사유가 감사 로그에 남습니다.`;
-            if (!window.confirm(message)) event.preventDefault();
+            confirmAdminSubmit(event, message);
           }}>
             <input name="reviewId" type="hidden" value={review.id} />
             <input name="status" type="hidden" value={hidden ? 'visible' : 'hidden'} />

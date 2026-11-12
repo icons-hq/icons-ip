@@ -16,6 +16,7 @@ import { Button } from '@/components/admin/kit/ui/button';
 import { CustomerServiceDialog } from './CustomerServiceDialog';
 import { CsEditorDraftNotice, CsTemplateDraftList } from './CsEditorDraftNotice';
 import { COUNTER_CLASS, FIELD_LABEL_CLASS, KIT_INPUT_CLASS, KIT_TEXTAREA_CLASS, LATEST_CLASS, TEMPLATE_BODY_CLASS, TEMPLATE_EDITOR_CLASS, TEMPLATE_ROW_CLASS, TEMPLATE_SEARCH_CLASS } from './cs-kit-classes';
+import { adminConfirm } from '@/lib/admin/confirm';
 
 export function CsReplyTemplateTools({ surface, body, onInsert, disabled = false, accountId = '' }: {
   surface: CsReplySurface; body: string; onInsert: (body: string) => void; disabled?: boolean; accountId?: string;
@@ -70,10 +71,10 @@ export function CsReplyTemplateTools({ surface, body, onInsert, disabled = false
     setSelected(value.selected); setLatest(null); setError(''); setMessage(value.pending ? '이전 저장 결과를 먼저 확인해주세요. 자동으로 다시 저장하지 않습니다.' : '편집 초안을 복구했습니다. 저장하면 기존 버전을 다시 검사합니다.');
   }
   function discard() { recovery.discard(); setSelected(null); setLatest(null); setError(''); setMessage(''); }
-  function insert(template: CsReplyTemplate) {
+  async function insert(template: CsReplyTemplate) {
     const result = applyCsReplyTemplate(body, template.body, limit);
     if (!result.ok) { setError(result.error); return; }
-    if (result.replaces && !window.confirm(REPLY_TEMPLATE_REPLACE_CONFIRM)) return;
+    if (result.replaces && !await adminConfirm(REPLY_TEMPLATE_REPLACE_CONFIRM)) return;
     onInsert(result.body); setOpen(false);
   }
   async function accept(template: CsReplyTemplate, readback = false) {

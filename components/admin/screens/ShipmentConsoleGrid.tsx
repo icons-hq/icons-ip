@@ -21,6 +21,7 @@ import {Input} from '@/components/admin/kit/ui/input';
 import {Label} from '@/components/admin/kit/ui/label';
 import {directionParticle} from '@/lib/korean-particle';
 import {NativeSelect} from '@/components/admin/kit/ui/native-select';
+import { adminConfirm } from '@/lib/admin/confirm';
 /* 배송 건 처리 막대·출고지시 팝업(템플릿 룩, ADR-0028). 처리 순서·확인·양식 선택 계약은 그대로다. */
 const WORKBAR='flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2 print:hidden';
 const CONTROL='flex min-w-0 max-w-full items-center gap-1.5';
@@ -130,10 +131,10 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
   const expanded=new Set(rows.filter(row=>ids.includes(row.id)).flatMap(row=>row.pack?.shipmentIds??[row.id]));
   setCompletion({ids:[...ids],total:expanded.size,acknowledged:false});
  }
- function requestExport(){
+ async function requestExport(){
   if(pending||!exportEligible)return;
   const resent=ids.filter(id=>rows.some(row=>row.id===id&&row.exportedAt)||downloadedIds.has(id)).length;
-  if(resent&&!window.confirm(`이미 출고지시를 전달한 배송 건 ${resent}건이 포함돼 있습니다. 창고는 같은 건을 두 번 받으면 걸러내지 못해 중복 출고될 수 있습니다. 그래도 다시 내려받을까요?`))return;
+  if(resent&&!await adminConfirm(`이미 출고지시를 전달한 배송 건 ${resent}건이 포함돼 있습니다. 창고는 같은 건을 두 번 받으면 걸러내지 못해 중복 출고될 수 있습니다. 그래도 다시 내려받을까요?`))return;
   const request:ExportRequest={kind:'selection',ids:[...ids],format,layout};
   if(needsExportPassword(request)||stockShortage){setError('');setExportRequest(request);}
   else run('export',undefined,request);

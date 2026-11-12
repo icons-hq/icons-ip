@@ -12,6 +12,7 @@ import { Input } from '@/components/admin/kit/ui/input';
 import { NativeSelect, NativeSelectOption } from '@/components/admin/kit/ui/native-select';
 import type { OperationsDockSection } from './OperationsDock';
 import { InquiryNotificationToggle } from './AdminInquiryNotifier';
+import { confirmAdminLeave } from '@/lib/admin/leave-guard';
 
 async function read<T>(query: URLSearchParams, signal?: AbortSignal): Promise<T> {
   const response = await fetch(`/api/admin/operations-dock?${query}`, { cache: 'no-store', signal });
@@ -51,6 +52,12 @@ export function OperationsDockPanel({ section, pathname, onClose, onAlertRead, c
   }, [section, category, state, search, pathname, refresh]);
   function reload() { setLoading(true); setRefresh(value => value + 1); }
   function update(action: 'read' | 'hide' | 'restore', ids: string[] | null, href?: string) {
+    if (!alerts) return;
+    /* 알림을 눌러 다른 화면으로 가면 입력 중이던 화면의 변경이 사라진다. 읽음 처리 전에 먼저 묻는다. */
+    if (href) { void confirmAdminLeave().then((leave) => { if (leave) run(action, ids, href); }); return; }
+    run(action, ids);
+  }
+  function run(action: 'read' | 'hide' | 'restore', ids: string[] | null, href?: string) {
     if (!alerts) return;
     startTransition(async () => {
       try {

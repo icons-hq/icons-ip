@@ -1,5 +1,7 @@
 import { Children, isValidElement, type ReactElement, type ReactNode } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { stubAdminConfirm } from '@/lib/admin/confirm.test-support';
+import { setAdminConfirmHandler } from '@/lib/admin/confirm';
 
 const hooks = vi.hoisted(() => ({ values: [] as unknown[], index: 0, effects: new Map<number, { deps: unknown[]; cleanup?: () => void }>(), jobs: [] as (() => void)[] }));
 const mocks = vi.hoisted(() => ({ reload: vi.fn(), auth: null as null | ((event: string, session: { user: { id: string }; access_token: string } | null) => void) }));
@@ -36,12 +38,13 @@ const isButton = (node: Element) => node.type === 'button' || node.type === Butt
 function reload() { const button = render().find(node => isButton(node) && text(node) === '최신 저장본 불러오기')!; expect(button.props.disabled).not.toBe(true); (button.props.onClick as () => void)(); }
 
 beforeEach(() => {
+  stubAdminConfirm(true);
   hooks.values = []; hooks.effects.clear(); hooks.jobs = []; vi.clearAllMocks();
-  vi.stubGlobal('window', Object.assign(new EventTarget(), { confirm: vi.fn(() => true) })); vi.stubGlobal('document', new EventTarget());
+  vi.stubGlobal('window', new EventTarget()); vi.stubGlobal('document', new EventTarget());
   render();
   (titleInput().props.onChange as (event: unknown) => void)({ target: { value: '보존할 미저장 제목' } });
 });
-afterEach(() => { for (const effect of hooks.effects.values()) effect.cleanup?.(); vi.unstubAllGlobals(); });
+afterEach(() => { for (const effect of hooks.effects.values()) effect.cleanup?.(); setAdminConfirmHandler(null); vi.unstubAllGlobals(); });
 
 it('최신 저장본 통신 실패 뒤 입력을 유지하고 저장·재조회를 다시 허용한다', async () => {
   mocks.reload.mockRejectedValueOnce(new Error('Failed to fetch'));

@@ -55,6 +55,7 @@ import { BankTransferRefund } from '@/components/admin/BankTransferRefund';
 import { ReturnClaimWorkspace } from './ReturnClaimWorkspace';
 import { useClaimPreviewBusy } from './ClaimPreviewDialog';
 import { ClaimRejectionReasonField } from './ClaimRejectionReasonField';
+import { adminConfirm } from '@/lib/admin/confirm';
 
 /* 클레임 액션 패널(#252).
  *
@@ -132,14 +133,14 @@ function PanelActionField({ kind }: { kind: ClaimPanelAction }) {
  * 양식의 기본 제출은 늘 막고, 보낼지만 돌려준다. 보내는 쪽은 transition으로 직접 보낸다 —
  * 양식 action 자리는 비워 둔다(ignoreUnconfirmedClaimSubmit).
  */
-export function confirmClaimPanelSubmit(
+export async function confirmClaimPanelSubmit(
   event: React.FormEvent<HTMLFormElement>,
-  confirm: (message: string) => boolean = (message) => window.confirm(message),
-): boolean {
+  confirm: (message: string) => boolean | Promise<boolean> = adminConfirm,
+): Promise<boolean> {
   event.preventDefault();
   const submitter = (event.nativeEvent as SubmitEvent).submitter ?? null;
   const message = submitter?.getAttribute('data-confirm') ?? event.currentTarget.getAttribute('data-confirm');
-  return !message || confirm(message);
+  return !message || (await confirm(message));
 }
 
 /*
@@ -333,9 +334,10 @@ export function ClaimActionPanel({
   /* 레거시 회수 확인의 실제 입고일 기본값·상한(KST 오늘). */
   const [today] = useState(() => adminClaimTodayKst());
   /* 확인을 통과한 제출만 보낸다. 누른 버튼의 name·value(결정)를 함께 싣는다. */
-  const submitConfirmed = (event: React.FormEvent<HTMLFormElement>) => {
-    if (!confirmClaimPanelSubmit(event)) return;
+  const submitConfirmed = async (event: React.FormEvent<HTMLFormElement>) => {
+    /* 확인창을 기다리는 사이 이벤트가 비워지므로 보낼 값은 누른 시점에 담아 둔다. */
     const formData = new FormData(event.currentTarget, (event.nativeEvent as SubmitEvent).submitter ?? null);
+    if (!(await confirmClaimPanelSubmit(event))) return;
     startTransition(() => panelAction(formData));
   };
 

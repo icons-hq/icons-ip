@@ -178,6 +178,8 @@ function ActionBar(props: ActionBarProps) {
 
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
+        /* ICONS: 막대 위에 뜬 확인창·대화상자의 Esc는 그 창만 닫는다. 막대의 선택까지 지우지 않는다(창이 열린 직후 포커스가 아직 막대에 있어도 같다). */
+        if ((event.target instanceof Element && event.target.closest('[role="alertdialog"], [role="dialog"]')) || ownerDocument.querySelector('[role="alertdialog"]')) return;
         propsRef.current.onEscapeKeyDown?.(event);
         if (!event.defaultPrevented) {
           propsRef.current.onOpenChange?.(false);
