@@ -84,9 +84,14 @@ function wholeNumber(raw: string): number {
  */
 function StockQtyInput({ value, onChange, ...props }: { value: number; onChange: (value: number) => void; id?: string; 'aria-label'?: string; className?: string }) {
   const empty = !Number.isFinite(value);
+  /* 저장을 눌러 검증에 걸린 빈 칸만 오류로 칠한다(처음부터 빨갛게 보이지 않게). 값을 넣으면 풀린다. */
+  const [rejected, setRejected] = useState(false);
+  const flagged = empty && rejected;
   return <input {...props} data-slot="input" aria-describedby="goods-option-stock-guidance" value={empty ? '' : value} min={0} step={1} type="number" required placeholder="숫자 입력"
+    aria-invalid={flagged ? true : undefined} className={`${props.className ?? ''}${flagged ? ' border-destructive ring-1 ring-destructive/40' : ''}`}
     ref={(input) => { input?.setCustomValidity(empty ? GOODS_OPTION_STOCK_REQUIRED : ''); }}
-    onChange={(event) => onChange(event.target.value === '' ? Number.NaN : Number(event.target.value))} />;
+    onInvalid={() => setRejected(true)}
+    onChange={(event) => { setRejected(false); onChange(event.target.value === '' ? Number.NaN : Number(event.target.value)); }} />;
 }
 
 function OptionDetailTable({ rows, single, predictedCodes, update, erpRows, onErpChange, onErpSelect, onErpPrice, notice, canSearchErp, structureLocked }: {

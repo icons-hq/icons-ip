@@ -5,6 +5,8 @@ import { useEffect, useId, useRef, useState, useTransition } from 'react';
 import { readGoodsBulkAction } from '@/app/admin/goods-bulk-actions';
 import type { GoodsGroupIdentity } from '@/lib/admin/goods-groups';
 import { discountStopApplied, discountStopAwaitingResult, discountStopLossSummary, parseInlineSalePrice, type DiscountStopPricePhase } from '@/lib/admin/goods-list-inline';
+import { adminConfirm } from '@/lib/admin/confirm';
+import { resultParticle } from '@/lib/korean-particle';
 import { CustomerServiceDialog } from './screens/CustomerServiceDialog';
 import { AdminNotice } from './console/AdminKit';
 import { Button } from './kit/ui/button';
@@ -68,6 +70,24 @@ export function useDiscountStopPrice({ identity, onDone }: { identity?: GoodsGro
     run(async () => setPhase(await reviewDiscountStop(identity, goal.goodId, seen, Boolean(goal.instant))),
       () => setPhase({ step: 'review-failed', message: '멈출 할인을 확인하지 못했습니다. 다시 확인해주세요.', retry: true }), false);
   }
+  /** 확인받은 뒤 실제 실행. */
+  function execute(goal: DiscountStopTarget, phase: Extract<DiscountStopPricePhase, { step: 'ready' | 'price' }>, next: number) {
+    if (!identity || busy.current) return;
+    if (phase.step === 'ready') {
+      const review = phase.review;
+      const done = { price: next, stoppedHere: true };
+      setSubmitted(done);
+      /* 확정 응답을 받기 전에 실패하면 할인이 멈췄는지 알 수 없다 — 결과 조회로 끝낸다. */
+      run(async () => apply(goal, await stopDiscountThenChangePrice(identity, goal.goodId, review, seenBasePrice, next, setPhase), done),
+        () => setPhase({ step: 'stop-uncertain', review, operationId: review.operationId, message: UNEXPECTED }), true);
+    } else {
+      const stop = { stoppedHere: phase.stoppedHere, stopped: phase.stopped, ...(phase.stoppedInstant ? { stoppedInstant: phase.stoppedInstant } : {}) };
+      const done = { price: next, stoppedHere: stop.stoppedHere };
+      setSubmitted(done);
+      run(async () => apply(goal, await changePriceAfterStop(identity, goal.goodId, seenBasePrice, next, stop), done),
+        () => setPhase({ step: 'price', ...stop, error: UNEXPECTED }), true);
+    }
+  }
   return {
     target, phase, seenBasePrice, input, inputError, pending, committing,
     setInput(value: string) { setInput(value); setInputError(''); },
@@ -93,20 +113,14 @@ export function useDiscountStopPrice({ identity, onDone }: { identity?: GoodsGro
       if (next === seenBasePrice) { setInputError('지금 판매가와 같습니다. 바꿀 판매가를 입력해주세요.'); return; }
       setInputError('');
       const goal = target;
-      if (phase.step === 'ready') {
-        const review = phase.review;
-        const done = { price: next, stoppedHere: true };
-        setSubmitted(done);
-        /* 확정 응답을 받기 전에 실패하면 할인이 멈췄는지 알 수 없다 — 결과 조회로 끝낸다. */
-        run(async () => apply(goal, await stopDiscountThenChangePrice(identity, goal.goodId, review, seenBasePrice, next, setPhase), done),
-          () => setPhase({ step: 'stop-uncertain', review, operationId: review.operationId, message: UNEXPECTED }), true);
-      } else {
-        const stop = { stoppedHere: phase.stoppedHere, stopped: phase.stopped, ...(phase.stoppedInstant ? { stoppedInstant: phase.stoppedInstant } : {}) };
-        const done = { price: next, stoppedHere: stop.stoppedHere };
-        setSubmitted(done);
-        run(async () => apply(goal, await changePriceAfterStop(identity, goal.goodId, seenBasePrice, next, stop), done),
-          () => setPhase({ step: 'price', ...stop, error: UNEXPECTED }), true);
-      }
+      /* 돈이 걸린 변경이라 실행 전에 이전 → 새 판매가를 한 번 더 확인받는다(QA2). 확인창이 떠 있는 동안은 busy로 거듭 제출을 막는다. */
+      const stopping = phase.step === 'ready';
+      busy.current = true;
+      void adminConfirm({
+        title: '판매가 변경 확인',
+        message: `${goal.goodName}의 판매가를 ${won(seenBasePrice)}에서 ${won(next)}${resultParticle(won(next))} 바꿉니다.${stopping ? ' 진행 중이거나 예정된 할인은 먼저 모두 멈추며 되돌리지 않습니다.' : ''}`,
+        confirmLabel: stopping ? '할인 중지 후 변경' : '판매가 변경',
+      }).then(ok => { busy.current = false; if (ok) execute(goal, phase, next); });
     },
     /** 결과를 모르는 단계의 처리 결과 조회(`seal`이면 미처리 요청 종료). */
     recover(seal: boolean) {
@@ -173,7 +187,7 @@ export function GoodsDiscountStopPriceDialog({ flow }: {
           <small className="ml-1.5 text-xs text-muted-foreground">{target.hasOptions ? '할인 전 기본 판매가 · 옵션 추가금 유지' : '할인 전 판매가'}</small></p>
         <label className="text-sm font-medium" htmlFor={inputId}>새 판매가 (원)</label>
         <input id={inputId} ref={inputRef} name="price" inputMode="numeric" value={flow.input} onChange={event => flow.setInput(event.target.value)}
-          className={`${GOOD_NUMBER_INPUT_CLASS} sm:max-w-48`} data-slot="input" data-dialog-autofocus=""
+          className={`${GOOD_NUMBER_INPUT_CLASS} sm:max-w-48`} data-slot="input" data-dialog-autofocus="" onFocus={event => event.currentTarget.select()}
           aria-invalid={flow.inputError ? true : undefined} aria-describedby={flow.inputError ? errorId : undefined} />
         {flow.inputError ? <small id={errorId} role="alert" className="text-xs text-destructive">{flow.inputError}</small> : null}
       </fieldset>

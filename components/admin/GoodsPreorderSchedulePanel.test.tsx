@@ -90,7 +90,7 @@ describe('예약 일정 일괄 변경 미리보기', () => {
   it('기본 고객 문구는 굿즈명으로 채우고 고객 이메일·이름은 보이지 않는다', () => {
     const html = preview();
     expect(html).toContain('예약 주문 발송 일정 변경 안내');
-    expect(html).toContain('주문하신 &#x27;홍실 2차 랜덤 포토카드&#x27;의 발송 예정일이 변경되었습니다.');
+    expect(html).toContain('&#x27;홍실 2차 랜덤 포토카드&#x27; 예약 배송의 발송 예정일이 변경되었습니다.');
     expect(html).not.toMatch(/@example|buyer|구매자 이름/);
   });
 

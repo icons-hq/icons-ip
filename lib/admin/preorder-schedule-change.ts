@@ -25,7 +25,7 @@ export const PREORDER_SCHEDULE_EXCLUSION_REASONS = [
 export type PreorderScheduleExclusionReason = (typeof PREORDER_SCHEDULE_EXCLUSION_REASONS)[number];
 export const PREORDER_SCHEDULE_EXCLUSION_LABELS: Record<PreorderScheduleExclusionReason, string> = {
   cancellation_in_progress: '취소 처리 중',
-  other_preorder: '다른 예약 상품과 함께 발송(앞당기는 변경)',
+  other_preorder: '다른 예약 상품과 함께 발송(그 상품의 예정일보다 앞당길 수 없음)',
   unchanged: '이미 같은 발송 예정일(안내함)',
   exported: '출고지시됨',
   not_open: '진행 중인 주문 아님',
@@ -180,12 +180,12 @@ export const PREORDER_SCHEDULE_SMS_REASON_LABELS: Record<string, string> = {
   lease_expired: '발송 결과를 확인하지 못했습니다. 중복을 막기 위해 다시 보내지 않습니다.',
 };
 
-/** 고객 안내 기본 문구. 고객에게 가는 글이라 굿즈명을 그대로 쓰고 '상품'이라는 운영 어휘를 넣지 않는다. */
+/** 고객 안내 기본 문구. 선물 받는 분에게도 같은 글이 가므로 '주문하신'처럼 주문자만 가리키는 말을 쓰지 않는다. 고객에게 가는 글이라 굿즈명을 그대로 쓰고 '상품'이라는 운영 어휘를 넣지 않는다. */
 export function defaultPreorderScheduleCopy(goodName: string): { title: string; body: string } {
   const name = goodName.trim();
   return {
     title: '예약 주문 발송 일정 변경 안내',
-    body: `주문하신 '${name}'의 발송 예정일이 변경되었습니다. 기다려 주셔서 감사드리며, 바뀐 일정에 맞춰 준비해 보내드리겠습니다.`
+    body: `'${name}' 예약 배송의 발송 예정일이 변경되었습니다. 기다려 주셔서 감사드리며, 바뀐 일정에 맞춰 준비해 보내드리겠습니다.`
       .slice(0, PREORDER_SCHEDULE_BODY_MAX),
   };
 }

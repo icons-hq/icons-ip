@@ -41,6 +41,9 @@ export function ShippingNoticeTemplateForm({ template }: { template?: ShippingNo
     'aria-describedby': state.errors?.[name] ? `${prefix}-${name}-error` : undefined,
   });
   return <form action={action} className="flex min-w-0 flex-col gap-3">
+    {/* 결과 안내는 폼 맨 위에 둔다. 등록 팝업은 저장 뒤 칸이 비워지고 열린 채 남으므로 맨 아래 문장은 첫 화면 밖이다(QA2). */}
+    {state.errors?.form ? <AdminNotice role="alert" tone="danger">{state.errors.form}</AdminNotice> : null}
+    {state.message ? <AdminNotice role="status" tone="success">{state.message}</AdminNotice> : null}
     <fieldset key={state.attempt ?? 0} disabled={pending || locked} className="m-0 flex min-w-0 flex-col gap-5 border-0 p-0">
       <input name="id" type="hidden" value={template?.id ?? ''} />
       <input name="updatedAt" type="hidden" value={value('updatedAt', template?.updatedAt ?? '')} />
@@ -77,8 +80,6 @@ export function ShippingNoticeTemplateForm({ template }: { template?: ShippingNo
       </AdminFormGrid>
       <Button className="w-fit" type="submit"><Check aria-hidden="true" />{pending ? '저장 중…' : template ? '초안 수정 저장' : '새 초안 저장'}</Button>
     </fieldset>
-    {state.errors?.form ? <AdminNotice role="alert" tone="danger">{state.errors.form}</AdminNotice> : null}
-    {state.message ? <AdminNotice role="status" tone="success">{state.message}</AdminNotice> : null}
   </form>;
 }
 

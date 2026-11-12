@@ -83,6 +83,9 @@ function DeleteReturnAddress({ entry }: { entry: ReturnAddress }) {
 }
 
 export function ReturnAddressesScreen({ addresses, canEdit }: { addresses: ReturnAddress[]; canEdit: boolean }) {
+  /* 목록이 비었을 때만 처음부터 펼친다. 첫 반품지를 등록하면 목록 길이가 바뀌는데, 길이로 열림을 정하면 폼이 접혀 완료 문장이 사라진다(QA2).
+     이후에는 운영자가 연 상태를 그대로 둔다. */
+  const [addOpen, setAddOpen] = useState(addresses.length === 0);
   return <div className="flex min-w-0 flex-col gap-4" data-admin-screen="return-addresses">
     <AdminPageHeader title="반품/교환지 관리" description="상품마다 고를 반품/교환지를 등록합니다. 상품에서 비우면 출고지 설정의 반품 주소를 씁니다." />
     <AdminNotice tone="info">
@@ -109,7 +112,7 @@ export function ReturnAddressesScreen({ addresses, canEdit }: { addresses: Retur
           </div>
         </details>)}
       </div> : <p className="text-muted-foreground">등록한 반품/교환지가 없습니다. 모든 상품이 출고지 반품 주소를 씁니다.</p>}
-      {canEdit ? <details className="group rounded-lg border" open={addresses.length === 0}>
+      {canEdit ? <details className="group rounded-lg border" open={addOpen} onToggle={(event) => setAddOpen(event.currentTarget.open)}>
         <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1.5 px-3 py-2 text-sm font-medium hover:bg-muted [&::-webkit-details-marker]:hidden"><Plus aria-hidden="true" className="size-4" />반품지 추가<ChevronDown aria-hidden="true" className="ml-auto size-3.5 text-muted-foreground transition-transform group-open:rotate-180" /></summary>
         <div className="border-t p-4"><ReturnAddressForm canEdit /></div>
       </details> : <p className="text-sm text-muted-foreground">현재 계정은 반품/교환지를 조회할 수 있습니다. 변경 권한이 있는 매니저에게 요청해주세요.</p>}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GOODS_DRAFT_INVALID_VALUES_MESSAGE, GOODS_DRAFT_MAX_BYTES, collectGoodsDraftValues, goodsDraftIdentity, parseGoodsDraft, parseGoodsDraftPage, validateGoodsDraftValues } from './goods-drafts';
+import { GOODS_DRAFT_INVALID_VALUES_MESSAGE, GOODS_DRAFT_MAX_BYTES, collectGoodsDraftValues, goodsDraftError, goodsDraftIdentity, parseGoodsDraft, parseGoodsDraftPage, validateGoodsDraftValues } from './goods-drafts';
 import { GOOD_LOCAL_DRAFT_FIELDS, createGoodEditorDraft } from './good-editor';
 const id='76000000-0000-4000-8000-000000000001';
 const summary={id,name:'미완성 상품',imagePath:null,revision:2,updatedAt:'2026-10-13T01:00:00Z',archived:false,completedGoodId:null};
@@ -35,5 +35,17 @@ describe('server registration drafts',()=>{
     expect(parseGoodsDraft({...summary,values:{name:'미완성 상품',password:'bad'}})).toBeNull();
     expect(parseGoodsDraftPage({rows:[summary],total:1,page:1,pageSize:20})?.rows).toEqual([summary]);
     expect(parseGoodsDraftPage({rows:[{...summary,revision:0}],total:1,page:1,pageSize:20})).toBeNull();
+  });
+  /* QA2: 웨이브 2의 반품/교환지 id가 서버 임시저장 값에 실리는데 DB 허용 키에 없어 [임시저장]이 매번 실패했다. 키는 DB 허용 키와 같아야 한다. */
+  it('반품/교환지 id는 서버 임시저장 값에 실린다',()=>{
+    const values=collectGoodsDraftValues([['name','상품'],['claimReturnAddressId',id],['unknown','x']]);
+    expect(values).toEqual({name:'상품',claimReturnAddressId:id});
+    expect(validateGoodsDraftValues(values)).toBe(true);
+  });
+  it('DB가 값을 거절하면 원인 코드를 보이고 입력 유지 안내를 남긴다',()=>{
+    expect(goodsDraftError('invalid_goods_draft')).toContain('invalid_goods_draft');
+    expect(goodsDraftError('some_new_error')).toContain('원인 코드 some_new_error');
+    expect(goodsDraftError('goods_draft_limit')).toContain('최대 40건');
+    expect(goodsDraftError(undefined)).not.toContain('원인 코드');
   });
 });

@@ -112,7 +112,7 @@ export function GoodsOptionImportDialog({ context, categories, currentRows, base
   const blocked = Boolean(context.blockedReason) || context.pending;
   return <CustomerServiceDialog title="다른 상품 옵션 불러오기" onClose={onClose} wide>
     <section className="flex min-w-0 flex-col gap-4 text-sm" data-good-option-import-dialog="">
-      <p className="text-muted-foreground">상품 하나의 선택형 옵션을 현재 작성 중인 상품에 가져옵니다. 같은 조합은 기존 ID·재고·관리코드를 유지하고, 새 조합은 재고 0으로 만듭니다. 적용 후 상품을 저장해야 반영됩니다.</p>
+      <p className="text-muted-foreground">상품 하나의 선택형 옵션을 현재 작성 중인 상품에 가져옵니다. 같은 조합은 기존 ID·재고·관리코드를 유지하고, 새 조합은 재고 칸을 비워 두니 저장 전에 직접 입력해주세요(재고가 없으면 0). 적용 후 상품을 저장해야 반영됩니다.</p>
       {context.blockedReason && <p className="text-destructive" role="alert">{context.blockedReason}</p>}
       <div className="grid min-w-0 items-end gap-3 sm:grid-cols-[9.5rem_minmax(0,1fr)_minmax(0,1fr)_auto]" role="search" aria-label="옵션을 가져올 상품 검색">
         <div className="flex min-w-0 flex-col gap-2">

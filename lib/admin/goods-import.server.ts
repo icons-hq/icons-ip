@@ -151,8 +151,20 @@ export async function loadGoodsWorkbookContext(
     ips.push(...(result.data ?? []));
     if ((result.data?.length ?? 0) < 1000) break;
   }
+  // 관리코드(옵션코드)는 전체에서 유일하다. 파일의 관리코드를 쓰는 상품을 미리 읽어 새 행·다른 상품의 중복을 미리보기에서 잡는다.
+  const variantCodes = [...new Set(rows.map((row) => row.values.variantCode.trim().toUpperCase()).filter(Boolean))];
+  const variantCodeOwners: Record<string, string> = {};
+  for (let start = 0; start < variantCodes.length; start += 100) {
+    const result = await client.from('goods_variants').select('code, goods!inner(code)').in('code', variantCodes.slice(start, start + 100));
+    if (result.error) throw new Error('현재 옵션 관리코드를 읽지 못했습니다. 다시 시도해주세요.');
+    for (const row of (result.data ?? []) as unknown as { code: string; goods: { code: string } | { code: string }[] }[]) {
+      const owner = Array.isArray(row.goods) ? row.goods[0] : row.goods;
+      if (owner) variantCodeOwners[String(row.code).toUpperCase()] = String(owner.code).toUpperCase();
+    }
+  }
   const canManageGuidance = canAccessAdminScreen(auth, null, { capability: 'catalog.manage' });
   return {
+    variantCodeOwners,
     existing: ((records.data ?? []) as GoodsImportExisting[]).map(record => {
       const kcReview = record.kcReview == null ? null : parseAdminGoodsKc(record.kcReview);
       if (record.kcReview != null && !kcReview) throw new Error('현재 KC 검토 정보를 읽지 못했습니다. 다시 시도해주세요.');

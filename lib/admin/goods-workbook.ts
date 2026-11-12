@@ -1,4 +1,5 @@
 import type { GoodsNoticeInfo } from '@/lib/goods-notice';
+import { conjunctionParticle, objectParticle, subjectParticle, topicParticle } from '@/lib/korean-particle';
 import {
   GOOD_TYPE_PUBLISH_REQUIRED,
   normalizeAdminGoodForm,
@@ -269,6 +270,8 @@ export type GoodsWorkbookContext = {
   /** 대표·추가 카테고리 코드와 상품 유형 연결(SHEET-003: 상품 유형 = 대표 카테고리(없으면 가까운 상위)의 연결값). */
   categories?: { id: string; code: string; archived_at: string | null; parent_id?: string | null; good_type?: string | null }[];
   imageNames?: string[];
+  /** 읽은 관리코드(옵션코드)의 소유 상품(관리코드는 전체에서 유일). 새 행의 중복 관리코드를 적용 전에 미리보기에서 잡는다. */
+  variantCodeOwners?: Record<string, string>;
   kcRows?: GoodsKcWorkbookInputRow[] | null;
   customInputRows?: GoodsCustomInputWorkbookInputRow[] | null;
   afterSalesRows?: GoodsAfterSalesWorkbookInputRow[] | null;
@@ -600,7 +603,7 @@ function resolveGoodsWorkbookTarget(row: GoodsWorkbookInputRow, existing: readon
     if (!PRODUCT_NO_PATTERN.test(number)) errors.push('상품번호는 내려받은 숫자 그대로 두거나, 새 상품이면 비워 주세요.');
     else if (!byNumber) errors.push(`상품번호 ${number}인 상품을 찾을 수 없습니다. 새 상품은 상품번호를 비워 주세요.`);
     else if (code && str(byNumber.good.code).toUpperCase() !== code)
-      errors.push(`상품번호 ${number}와 판매자상품코드 ${code}가 서로 다른 상품을 가리킵니다. 판매자상품코드는 상품 수정 화면에서 바꿔 주세요.`);
+      errors.push(`상품번호 ${number}${conjunctionParticle(number)} 판매자상품코드 ${code}${subjectParticle(code)} 서로 다른 상품을 가리킵니다. 판매자상품코드는 상품 수정 화면에서 바꿔 주세요.`);
     else { record = byNumber; matchedByNumberOnly = !code; }
   } else if (code) record = existing.find((item) => str(item.good.code).toUpperCase() === code);
   else if (url && existing.some((item) => str(item.good.id) === url))
@@ -656,7 +659,7 @@ export function planGoodsWorkbookImport(
       { ...row, values: { ...row.values, code } },
     ]);
   }
-  return [...grouped].map(([key, source]) => {
+  const planned = [...grouped].map(([key, source]) => {
     const sourceCode = source[0].values.code;
     const record = sourceCode
       ? context.existing.find(
@@ -832,6 +835,18 @@ export function planGoodsWorkbookImport(
     else if (first.publish === '공개' && !publishedNow && !categoryType) errors.push(GOOD_TYPE_PUBLISH_REQUIRED);
     else if (publishedNow && first.publish !== '공개' && categoryType && categoryType !== storedType)
       group.warnings.push(`초안으로 바뀌며 상품 유형이 ‘${categoryType}’${resultParticle(categoryType)} 바뀌고 KC를 다시 검토해야 공개할 수 있습니다.`);
+    /*
+     * 공개를 유지하는 행이 상품명·IP·고시의 제조사·원산지·재질·크기를 바꾸면 DB(KC 가드 goods_kc_reassessment_required)가 적용 때 거절한다.
+     * 검증은 통과시키고 적용에서 원인 없이 실패하지 않도록 같은 판정을 미리보기에서 한다.
+     */
+    if (record && publishedNow && first.publish === '공개') {
+      const changed = ([
+        ['상품명', first.name, record.good.name], ['IP', first.ipId, record.good.ip_id],
+        ['제조사', first.noticeMaker, record.good.notice_maker], ['원산지', first.noticeOrigin, record.good.notice_origin],
+        ['재질', first.noticeMaterial, record.good.notice_material], ['크기', first.noticeSize, record.good.notice_size],
+      ] as const).filter(([, next, previous]) => str(next).trim() !== str(previous).trim()).map(([label]) => label);
+      if (changed.length) errors.push(`공개 상품의 ${changed.join('·')}${objectParticle(changed.at(-1)!)} 바꾸면 KC 재검토가 필요해 저장되지 않습니다. 게시 상태를 초안으로 바꿔 함께 올리거나, 상품을 먼저 초안으로 전환한 뒤 바꿔 주세요.`);
+    }
     const additionalIds: string[] = [];
     for (const code of new Set(first.additionalCategoryCodes.split(/[\n,]+/).map(code => code.trim()).filter(Boolean))) {
       const additional = context.categories?.find(category => category.code === code);
@@ -927,6 +942,11 @@ export function planGoodsWorkbookImport(
         (variant) =>
           variant.code.toUpperCase() === value.variantCode.toUpperCase(),
       );
+      const ownCode = value.variantCode.trim().toUpperCase();
+      const codeOwner = ownCode ? context.variantCodeOwners?.[ownCode] : undefined;
+      if (codeOwner !== undefined && !variant && codeOwner !== (record ? str(record.good.code).toUpperCase() : '')) {
+        errors.push(`${row.row}행: 관리코드 ${ownCode}${topicParticle(ownCode)} 다른 상품(${codeOwner})의 옵션이 이미 쓰고 있습니다. 기존 행을 복사해 새 상품을 만들 때는 관리코드도 비우거나 새 값으로 바꿔 주세요.`);
+      }
       const attributes: Record<string, string> = Object.create(null);
       for (const [axis, optionValue] of [[value.axis1, value.value1], [value.axis2, value.value2], [value.axis3, value.value3]]) {
         if (!axis && !optionValue) continue;
@@ -1053,6 +1073,24 @@ export function planGoodsWorkbookImport(
     };
     return group;
   });
+  // 같은 파일 안에서 관리코드가 겹치면(한 상품 안이든 상품 사이든) 적용 때 DB 유일 제약으로 실패하므로 미리보기에서 막는다.
+  const seenVariantCodes = new Map<string, { group: GoodsImportGroup; row: number }>();
+  for (const group of planned) {
+    for (const row of group.source) {
+      const code = row.values.variantCode.trim().toUpperCase();
+      if (!code) continue;
+      const previous = seenVariantCodes.get(code);
+      if (previous) {
+        const message = `관리코드 ${code}${subjectParticle(code)} ${previous.row}행과 ${row.row}행에서 겹칩니다. 관리코드는 파일 안에서도 한 번만 쓸 수 있습니다.`;
+        for (const target of new Set([previous.group, group])) {
+          if (!target.errors.includes(message)) target.errors.push(message);
+          target.kind = 'error';
+          target.target = null;
+        }
+      } else seenVariantCodes.set(code, { group, row: row.row });
+    }
+  }
+  return planned;
 }
 /** Never split a product's option rows across files. */
 export function partitionGoodsExports(

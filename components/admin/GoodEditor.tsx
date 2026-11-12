@@ -73,7 +73,7 @@ import { collectGoodsDraftValues, validGoodsDraftIdentity, type GoodsDraft, type
 import { GoodWorkspaceNavigation, GoodWorkspaceErrors, GoodOptionalFields, GoodEditorSection, GoodEditorSubsection, GoodFoldedRow, GoodWorkspaceDetails, focusGoodWorkspaceTarget, useFocusFirstGoodError, useGoodWorkspaceSections } from './GoodWorkspace';
 import { GOOD_WORKSPACE_ERROR_SECTIONS, GOOD_WORKSPACE_OPERATION_FIELD, GOOD_WORKSPACE_SECTIONS_FIELD, goodWorkspaceKcWithTemplate, prepareGoodWorkspaceSections } from '@/lib/admin/good-workspace-sections';
 import { DEFAULT_FULFILLMENT_ORIGIN_ID } from '@/lib/admin/fulfillment-origins';
-import { GOOD_EDITOR_SECTIONS, GOOD_PUBLISHED_LOCKS, changedGoodLockedFields, goodErrorsByCard, goodFieldSection, goodKcContextChanged, goodPublishRequirements, goodRemainingByCard, goodTypeFromCategory, type GoodEditorSectionKey } from '@/lib/admin/good-workspace';
+import { GOOD_EDITOR_SECTIONS, GOOD_TYPE_CATEGORY_MESSAGES, GOOD_PUBLISHED_LOCKS, changedGoodLockedFields, goodErrorsByCard, goodFieldSection, goodKcContextChanged, goodPublishRequirements, goodRemainingByCard, goodTypeFromCategory, type GoodEditorSectionKey } from '@/lib/admin/good-workspace';
 import { ADMIN_STOCK_LABELS, ADMIN_VOCABULARY, adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { ADMIN_SCREENS, type AdminScreen } from '@/lib/admin/navigation';
 import { ActionNotice, ErrorText, Field, SelectField, TextArea } from './fields';
@@ -86,6 +86,8 @@ import { adminConfirm } from '@/lib/admin/confirm';
  * 고시정보 입력 (#171). 항목·라벨·폼 이름은 lib/goods-notice.ts 하나에서 나온다.
  * 여기에 필드를 직접 늘리면 공개 상세페이지 표와 어긋난다.
  */
+/** 저장 때 붙은 '유형이 다른 카테고리로 옮길 수 없음' 오류인지. 같은 유형 카테고리를 다시 고르면 다음 저장을 기다리지 않고 지운다. */
+const typeMoveMessage = (message: string | undefined) => Boolean(message) && (Object.values(GOOD_TYPE_CATEGORY_MESSAGES) as string[]).includes(message as string);
 function GoodsNoticeFields({
   notice,
   state,
@@ -297,7 +299,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
   }
   const draftSaved = Boolean(localSaveMessage?.ok);
   const [missingAttributes, setMissingAttributes] = useState<readonly string[]>([]);
-  const collectedErrors: Record<string, string | undefined> = draftSaved ? {} : { ...state.errors, ...clientErrors };
+  const collectedErrors: Record<string, string | undefined> = draftSaved ? {} : { /* 가장 최근 저장 시도가 브라우저 검증에서 멈췄다면 지난 서버 오류는 이미 고친 것이다(요약에 남기지 않는다). */ ...(Object.keys(clientErrors).length ? {} : state.errors), ...clientErrors };
   /* 빠졌던 필수 상품속성을 채우면 다음 저장을 기다리지 않고 오류를 지운다. */
   const errors = collectedErrors.productAttributes?.includes('필수 상품속성') && !missingAttributes.length ? { ...collectedErrors, productAttributes: undefined } : collectedErrors;
   /* 방금 공개했는지. 공개 버튼은 저장 폼 밖이라 저장 막대의 지난 저장 안내가 남는다. */
@@ -568,7 +570,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
       {/* 1. 기본 정보 */}
       <GoodEditorSection title="기본 정보" id="good-section-basic" summary={values.name || '상품명 미입력'} errorCount={errorCount('category', 'basic', 'attributes')}>
         <div className="min-w-0 scroll-mt-24 outline-none" id="good-section-category" tabIndex={-1}>
-          <OwnedFields locked={groupOwned} fields={['categoryId']} values={initial}><GoodCategoryField categories={categories} primary={categoryId} onPrimaryChange={setCategoryId} error={errors.categoryId ?? typeState.categoryChangeProblem ?? undefined} /></OwnedFields>
+          <OwnedFields locked={groupOwned} fields={['categoryId']} values={initial}><GoodCategoryField categories={categories} primary={categoryId} onPrimaryChange={setCategoryId} error={(typeMoveMessage(errors.categoryId) && !typeState.categoryChangeProblem ? undefined : errors.categoryId) ?? typeState.categoryChangeProblem ?? undefined} /></OwnedFields>
         </div>
         {/* TKT-009: 잠금 안내의 버튼 하나 → 확인창 1회 → 바로 초안 전환·잠금 해제. 판매 준비 카드의 초안으로 되돌리기와 같은 서버 계약이다. */}
         {locked && selected && <div className="flex min-w-0 flex-col gap-2" data-good-lock=""><AdminNotice title="공개 중 잠금: 상품명·상품 유형·연결 IP·제조자·제조국·소재·크기" tone="neutral">실제 모델과 검토 근거를 일치시키기 위한 잠금입니다. 상품 유형이 바뀌는 대표 카테고리 변경도 막힙니다. 초안으로 전환 후 수정하고 KC를 재검토해야 재공개할 수 있습니다.</AdminNotice>
@@ -607,7 +609,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
         2. 판매 정보: 판매가 → 할인 → 재고수량 → 옵션 순서는 회귀 금지(MD 피드백). 그 뒤 판매기간 → 예약판매 → 구매 제한을 접지 않고 펼쳐 둔다
         (11/11 ADM-011·1027T-021·1027T-023 결정 "둘 다 펼친 채로" — 10/27 회의 R12·R13 원안).
       */}
-      <GoodEditorSection title="판매 정보" id="good-section-price" errorCount={errorCount('price', 'variants', 'period', 'limits') + (errors.workspacePreorders ? 1 : 0)} summary={`판매가 ${priceResult.regularPrice ? formatWon(priceResult.regularPrice) : '미입력'}${priceDraft.discountEnabled ? priceResult.discountAmount > 0 && priceResult.salePrice !== null ? ` · ${priceResult.period ? '기간 ' : ''}할인가 ${formatWon(priceResult.salePrice)}` : ' · 할인 입력 확인' : ' · 할인 없음'}${dirty ? ' · 미저장 입력' : ''}`}>
+      <GoodEditorSection title="판매 정보" id="good-section-price" errorCount={errorCount('price', 'variants', 'period', 'limits') + (errors.workspacePreorders ? 1 : 0)} summary={`판매가 ${priceResult.regularPrice ? formatWon(priceResult.regularPrice) : '미입력'}${priceDraft.discountEnabled ? priceResult.discountAmount > 0 && priceResult.salePrice !== null ? ` · ${priceResult.period ? '기간 ' : ''}할인가 ${formatWon(priceResult.salePrice)}` : ' · 할인 입력 확인' : instantDiscount?.summary ? ` · 진행·예정 기간 할인 ${instantDiscount.summary.minPrice === instantDiscount.summary.maxPrice ? formatWon(instantDiscount.summary.minPrice) : `${formatWon(instantDiscount.summary.minPrice)}~${formatWon(instantDiscount.summary.maxPrice)}`}` : ' · 할인 없음'}${dirty ? ' · 미저장 입력' : ''}`}>
         <GoodsPriceFields draft={priceDraft} onDraftChange={setPriceDraft} result={priceResult} errors={errors} instant={instantDiscount} showDiscountRate={initial.showDiscountRate} />
         <div className="flex min-w-0 scroll-mt-24 flex-col gap-3 border-t pt-5 outline-none" id="good-section-variants" tabIndex={-1}>
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1"><h2 className="text-sm font-medium text-foreground">재고수량 / 옵션</h2><span className="text-xs text-muted-foreground">{stockSummary}</span></div>

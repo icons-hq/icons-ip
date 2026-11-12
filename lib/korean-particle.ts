@@ -56,3 +56,15 @@ export function objectParticle(word: string): '을' | '를' | '을(를)' {
   const final = hasFinalConsonant(word);
   return final === null ? '을(를)' : final ? '을' : '를';
 }
+
+/** 주격 조사 이/가. 판정할 수 없으면 '이(가)'. */
+export function subjectParticle(word: string): '이' | '가' | '이(가)' {
+  const final = hasFinalConsonant(word);
+  return final === null ? '이(가)' : final ? '이' : '가';
+}
+
+/** 접속 조사 과/와('A와 B'). 판정할 수 없으면 '과(와)'. */
+export function conjunctionParticle(word: string): '과' | '와' | '과(와)' {
+  const final = hasFinalConsonant(word);
+  return final === null ? '과(와)' : final ? '과' : '와';
+}

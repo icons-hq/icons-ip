@@ -200,7 +200,7 @@ export function ErpLinkedGoodsPanel() {
             </TableCell>
             <TableHead scope="row" className="h-auto py-2 align-top font-normal whitespace-normal text-foreground">
               <Link className="underline underline-offset-4" href={editorHref(row.goodId)} target="_blank" rel="noreferrer">{row.goodName}</Link>
-              <span className="block text-xs text-muted-foreground">{row.isDefault ? `${row.optionName} · 기본 옵션` : row.optionName}{row.published ? '' : ' · 비공개'}</span>
+              <span className="block text-xs text-muted-foreground">{row.isDefault && row.optionName !== '기본 옵션' ? `${row.optionName} · 기본 옵션` : row.optionName}{row.published ? '' : ' · 비공개'}</span>
             </TableHead>
             <TableCell className="align-top"><span className="font-mono text-xs tabular-nums">{row.erpCode}</span></TableCell>
             <TableCell className="align-top">{ERP_LINKED_GOODS_FIELD_LABELS[row.field]}</TableCell>

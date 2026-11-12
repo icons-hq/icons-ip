@@ -261,7 +261,8 @@ export function prepareGoodWorkspaceExtraSections(extras: Partial<GoodWorkspaceE
     value.fulfillment = values;
   }
   const production = extras.production;
-  if (production && (production.enabled || production.leadDays || production.dayBasis !== 'calendar' || production.closedDates.trim() || production.publicNote.trim())) {
+  /* 사용을 끈 주문제작은 새 상품에 아무 설정도 만들지 않는다. 켰다 끄며 남은 기간·안내·확인 체크는 저장 대상이 아니다. */
+  if (production && production.enabled) {
     const values = productionValues(production);
     if (typeof values === 'string') return fail('production', values);
     value.production = values;
