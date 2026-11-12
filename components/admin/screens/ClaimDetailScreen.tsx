@@ -85,7 +85,7 @@ const TIMELINE_LABELS: Record<string, string> = {
   'admin.order.claim_collected': '수거·입고',
   'admin.order.claim_origin_collected': '출고지 회수 확인',
   'admin.order.claim_contact_changed': '회수·재배송 주소 정정',
-  'admin.order.claim_collection_corrected': '회수 방법·송장 정정',
+  'admin.order.claim_collection_corrected': '회수 방법·운송장 정정',
   'admin.order.claim_fee_issue': '반품·교환 배송비 청구',
   'order.claim_fee_report_payment': '배송비 고객 입금 알림',
   'admin.order.claim_fee_confirm_payment': '배송비 실제 입금 확인',
@@ -329,7 +329,7 @@ export function ClaimDetailScreen({
           {' · 접수 '}
           <time dateTime={claim.requestedAt}>{formatOrderDateTime(claim.requestedAt)}</time>
         </p>
-        {sla.tone !== 'muted' ? <span className={SLA_TEXT_CLASS} data-sla-tone={sla.tone}><Clock aria-hidden="true" className="size-3.5" />환급 기한 {sla.label}</span> : null}
+        {sla.tone !== 'muted' ? <span className={SLA_TEXT_CLASS} data-sla-tone={sla.tone}><Clock aria-hidden="true" className="size-3.5" />{claim.claimType === 'return' ? '환급 기한' : '처리 기한'} {sla.label}</span> : null}
         <div className="ml-auto flex flex-wrap items-center gap-2">
           {awaitsOperator ? <Link className={`${buttonVariants({ variant: 'soft' })} lg:hidden`} data-slot="button" href="#claim-process">처리하기</Link> : null}
           {embedded && detailHref ? <ClaimPreviewFullScreenLink href={detailHref} /> : null}

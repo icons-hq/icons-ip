@@ -108,6 +108,6 @@ export function StoreNavigationForm({ settings, canEdit, operationId }: { settin
     </section>
     {state.error ? <p role="alert" className="text-sm text-destructive">{state.error}</p> : null}
     {state.message ? <p role="status" className="text-sm text-success">{state.message}</p> : null}
-    {canEdit ? <Button className="self-start" type="submit" disabled={pending}>{pending ? '저장 중…' : '공개 메뉴 저장'}</Button> : <p className="text-sm text-muted-foreground">관리자(admin)만 메뉴 설정을 저장할 수 있습니다.</p>}
+    {canEdit ? <Button className="self-start" type="submit" disabled={pending}>{pending ? '저장 중…' : '공개 메뉴 저장'}</Button> : <p className="text-sm text-muted-foreground">최고 관리자만 메뉴 설정을 저장할 수 있습니다.</p>}
   </form>;
 }

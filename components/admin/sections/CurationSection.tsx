@@ -488,7 +488,7 @@ function CurationForm({
           <CurationSelect error={state.errors?.salesPeriod} label={values.salesExposure === 'all' ? '기본 베스트 유형' : '베스트 유형'} name="salesPeriod" onChange={(event) => update('salesPeriod', event.target.value as HomeSalesPeriod)} value={values.salesPeriod}>
             {HOME_SALES_PERIODS.map((period) => <option key={period} value={period}>{HOME_SALES_PERIOD_LABELS[period]} 베스트</option>)}
           </CurationSelect>
-          <p className={HELP}>실시간은 오늘, 일간은 어제, 주간·월간은 어제까지 7일·30일을 한국시간으로 집계합니다. 확인된 결제 승인시각 기준 판매수량순이며 구매확정 전 결제도 포함합니다.</p>
+          <p className={HELP}>실시간은 오늘, 일간은 어제, 주간·월간은 어제까지 7일·30일을 KST으로 집계합니다. 확인된 결제 승인시각 기준 판매수량순이며 구매확정 전 결제도 포함합니다.</p>
           <p className={HELP}>취소·반품 완료 주문과 비노출 상품은 제외하고 품절 상품은 포함합니다. 같은 판매수량은 찜수·등록일순으로 정렬합니다. 부족하면 찜한 상품으로 보충하며 판매·찜이 모두 없으면 채우지 않습니다.</p>
           {values.salesExposure === 'all' ? <p className={HELP}>네 가지 유형을 모두 표시하고 선택한 기본 유형이 먼저 열립니다. 해당 기간에 상품이 없으면 빈 상태로 안내합니다.</p> : null}
         </section> : null}

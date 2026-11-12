@@ -21,7 +21,7 @@ export async function saveOperationsContactAction(previous: OperationsContactAct
   const fail = (errors: Record<string, string>): OperationsContactActionState => ({ errors, updatedAt: previous.updatedAt });
   try {
     const auth = await requireAdminActionAccess(OPERATIONS_SETTINGS_PATH, { adminOnly: true });
-    if (!auth) return fail({ form: '담당자 정보 변경은 관리자(admin)만 할 수 있습니다.' });
+    if (!auth) return fail({ form: '담당자 정보 변경은 최고 관리자만 할 수 있습니다.' });
 
     const scope = formString(data, 'scope');
     const originId = formString(data, 'originId');

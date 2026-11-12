@@ -151,13 +151,13 @@ describe('MembersSection', () => {
     expect(html).toMatch(/<button(?=[^>]*type="submit")(?=[^>]*pointer-coarse:min-h-11)[^>]*>(?:<svg[\s\S]*?<\/svg>)? 회원 정지<\/button>/);
   });
 
-  it('검색·상세 보기·정지·등급 보정은 각자의 폼을 제출한다', () => {
+  it('검색·상세·정지·등급 보정은 각자의 폼을 제출한다', () => {
     hooks.detailState = { member: detail };
     const html = renderToStaticMarkup(
       <MembersSection actor={{ id: 'staff-a', role: 'staff' }} initialMembers={summaries} />,
     );
     /* kit Button은 type을 주지 않으면 type="button"이 된다 — 폼 안 동작은 제출 버튼이어야 한다. */
-    for (const label of ['검색', '상세 보기', '회원 정지', '등급 보정', '실적으로 재산정']) {
+    for (const label of ['검색', '상세', '회원 정지', '등급 보정', '실적으로 재산정']) {
       expect(html).toMatch(new RegExp(`<button(?=[^>]*type="submit")[^>]*>(?:<svg[\\s\\S]*?</svg>)? ${label}</button>`));
     }
   });
@@ -193,14 +193,14 @@ describe('MembersSection', () => {
     expect(searchPendingHtml).not.toContain('name="reason"');
   });
 
-  /* 같은 말로 보이는 버튼을 두지 않는다 — 고객 상세는 닉네임 링크, 줄의 버튼은 이 화면의 상세 보기 하나다. */
+  /* 같은 말로 보이는 버튼을 두지 않는다 — 고객 상세는 닉네임 링크, 줄의 버튼은 이 화면의 상세 하나다. */
   it('줄마다 버튼은 하나만 두고 권한은 운영자 말로 보인다', () => {
     const html = renderToStaticMarkup(
       <MembersSection actor={{ id: 'staff-a', role: 'staff' }} initialMembers={summaries} />,
     );
 
-    expect(html).not.toContain('고객 상세 열기');
-    expect(html.match(/ 상세 보기<\/button>/g)).toHaveLength(2);
+    expect(html).not.toContain('고객 상세');
+    expect(html.match(/ 상세<\/button>/g)).toHaveLength(2);
     expect(html).toMatch(new RegExp(`<a[^>]*href="/admin/customers/${summaries[0].id}"[^>]*>@팬일호</a>`));
     expect(html).toMatch(/data-tone="neutral"[^>]*>직원</);
     expect(html).not.toMatch(/>(?:user|staff|admin)</);

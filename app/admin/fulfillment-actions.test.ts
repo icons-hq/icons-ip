@@ -19,7 +19,7 @@ describe('origin settings action',()=>{
     const failed=await saveFulfillmentOriginAction({},form());
     expect(failed).toMatchObject({attempt:1,values:{baseFee:'4200',name:'변경 창고'},errors:{form:expect.stringContaining('다른 관리자')}});
     mocks.auth.mockResolvedValue({ operatorAccess: legacyOperatorAccessFixture(),isConfigured:true,user:{id:'staff'},role:'staff',isStaff:true});mocks.rpc.mockClear();
-    expect(await saveFulfillmentOriginAction({},form())).toMatchObject({errors:{form:expect.stringContaining('admin')}});
+    expect(await saveFulfillmentOriginAction({},form())).toMatchObject({errors:{form:expect.stringContaining('최고 관리자')}});
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
   it('normalizes money and returns the saved version while invalidating settings and shopping',async()=>{

@@ -25,7 +25,7 @@ import { useClaimPreviewBusy } from './ClaimPreviewDialog';
  * 동안 늦게 도착한 입고를 확인할 수 있고, 재고는 바뀌지 않는다(재출고는 결정대로 회수품을 복원하지 않는다).
  * 회수 묶음(S36-040): 한 배송 건 안에서 상품별 반품지가 갈리면 반품지마다 묶음이 나뉘고, 묶음마다 입고를 확인한다. 배송 건의
  * 모든 묶음이 입고돼야 그 배송 건이 회수 완료다. 묶음이 하나면 지금까지처럼 배송 건 하나로 확인한다.
- * 반품 자동 회수 접수(QNA-032): 스위치를 켠 뒤 접수 큐에 들어간 묶음에만 접수 상태·회수 송장이 보이고, 자동 수거 실패는 다시 접수한다.
+ * 반품 자동 회수 접수(QNA-032): 스위치를 켠 뒤 접수 큐에 들어간 묶음에만 접수 상태·회수 운송장이 보이고, 자동 수거 실패는 다시 접수한다.
  */
 export function ClaimOriginCollection({ claimId, claimType, collection, canRecord }: {
   claimId: string;
@@ -81,7 +81,7 @@ function ReturnDestination({ address, name, phone }: { address: string; name?: s
   </div>;
 }
 
-/* 회수 묶음 하나의 자동 회수 접수. 접수되면 회수 송장, 실패하면 이유·자동 재시도와 [다시 접수], 취소되면 그 이유를 보인다. */
+/* 회수 묶음 하나의 자동 회수 접수. 접수되면 회수 운송장, 실패하면 이유·자동 재시도와 [다시 접수], 취소되면 그 이유를 보인다. */
 function ReturnPickupStatus({ bundleId, canRetry, claimId, pickup }: { bundleId: string; canRetry: boolean; claimId: string; pickup: AdminReturnPickup }) {
   const [state, action, pending] = useActionState(retryClaimReturnPickupAction, {});
   useClaimPreviewBusy(pending);
@@ -90,7 +90,7 @@ function ReturnPickupStatus({ bundleId, canRetry, claimId, pickup }: { bundleId:
     <p className="flex flex-wrap items-center gap-2">
       <span className="text-xs text-muted-foreground">자동 회수 접수</span>
       <AdminStatusBadge tone={statusTone('claimReturnPickup', pickup.state)}>{RETURN_PICKUP_STATE_LABELS[pickup.state]}</AdminStatusBadge>
-      {pickup.trackingNumber ? <span className="tabular-nums">{pickup.carrierLabel ?? pickup.carrier} · 회수 송장 {pickup.trackingNumber}</span> : null}
+      {pickup.trackingNumber ? <span className="tabular-nums">{pickup.carrierLabel ?? pickup.carrier} · 회수 운송장 {pickup.trackingNumber}</span> : null}
     </p>
     {pickup.requestedAt ? <p className="text-xs text-muted-foreground">접수 {formatOrderDateTime(pickup.requestedAt)}</p> : null}
     {failed ? <p className="text-xs text-destructive">

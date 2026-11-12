@@ -31,7 +31,7 @@ const ROW_TARGET = 'min-w-0 [&>a]:block [&>a]:truncate [&>a]:text-sm [&>a]:under
 const TABS = 'flex-1 flex-col gap-3';
 /* 탭의 건수는 확인할 것이 있을 때만 주의색(낮은 평점은 위험색)이다 — 0건·집계 실패는 조용히 둔다. */
 const TAB_LIST = 'h-8 max-w-full justify-start overflow-x-auto [&_strong]:font-semibold [&_strong]:tabular-nums [&_[data-attention=warning]_strong]:text-warning [&_[data-attention=danger]_strong]:text-destructive';
-const TAB_PANEL = 'flex min-w-0 flex-col gap-3';
+const TAB_PANEL = 'flex min-w-0 flex-col gap-3 rounded-md focus-visible:ring-3 focus-visible:ring-ring/50';
 const METRIC_LINK = 'inline-flex min-h-11 min-w-11 items-center justify-end gap-1 text-lg font-semibold tabular-nums underline-offset-4 hover:underline';
 
 function AttentionColumn({ label, children }: { label: string; children: ReactNode }) {

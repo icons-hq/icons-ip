@@ -27,7 +27,7 @@ function priceLabel(min: number | null | undefined, max: number | null | undefin
 }
 
 /* 기본 조회가 '보관 제외'라 그 칸도 둔다 — 어느 칸을 보고 있는지 항상 한 칸이 켜진다. */
-const STATUS_ITEMS = [{ label: '전체', status: 'all', icon: Boxes }, { label: '보관 제외', status: 'active', icon: Package }, { label: '임시저장', status: 'draft', icon: FilePen }, { label: '전시중', status: 'published', icon: Eye }, { label: '보관', status: 'archived', icon: Archive }] as const;
+const STATUS_ITEMS = [{ label: '전체', status: 'all', icon: Boxes }, { label: '보관 제외', status: 'active', icon: Package }, { label: '초안', status: 'draft', icon: FilePen }, { label: '공개', status: 'published', icon: Eye }, { label: '보관', status: 'archived', icon: Archive }] as const;
 /*
  * 판매 조건 칸(SHEET-036 — 스마트스토어 상단 건수처럼 판매대기·판매중지·판매종료를 더한다). 품절·소량 재고·판매중지는 판매상태 조건(stock),
  * 판매대기·판매종료는 판매기간 조건(salePeriod)으로 거른다. 숫자는 그 칸의 조건 축만 뺀 같은 검색 조건에서 서버가 센 값이라
@@ -42,7 +42,7 @@ const CONDITION_ITEMS = [
 ] as const;
 /* 준비 사유는 고쳐야 할 일이다 — 파란 링크가 아니라 주의색으로 말한다. */
 const REASON_LINK = 'inline-flex items-center gap-1 text-[0.8rem] leading-snug font-medium text-warning underline-offset-4 hover:underline';
-/* 주 배지가 이미 말하는 사유(임시저장=초안, 보관)는 경고로 다시 적지 않는다. */
+/* 주 배지가 이미 말하는 사유(초안, 보관)는 경고로 다시 적지 않는다. */
 const REASONS_SAID_BY_BADGE: ReadonlySet<string> = new Set(['draft', 'archived']);
 const SECONDARY = 'block text-xs leading-snug text-muted-foreground';
 /* 같은 칸의 바로 수정 덮개(R11) 위에 남아야 하는 보조 링크. */
@@ -59,17 +59,17 @@ const MENU_ITEM = 'flex items-center rounded-md px-2 py-1.5 text-sm outline-none
 type GoodsSaleStatus = { label: string; tone: AdminTone; detail: string | null; showsSaleValue: boolean };
 function goodsSaleStatus(good: AdminGoodSummary, readiness: AdminGoodsReadiness): GoodsSaleStatus {
   if (good.archivedAt) return { label: '보관', tone: statusTone('publication', 'archived'), detail: null, showsSaleValue: false };
-  if (!good.publishedAt) return { label: '임시저장', tone: statusTone('publication', 'draft'), detail: null, showsSaleValue: false };
-  if (good.stock === 'soldout') return { label: '판매중지', tone: statusTone('operation', 'stopped'), detail: '전시중', showsSaleValue: true };
+  if (!good.publishedAt) return { label: '초안', tone: statusTone('publication', 'draft'), detail: null, showsSaleValue: false };
+  if (good.stock === 'soldout') return { label: '판매중지', tone: statusTone('operation', 'stopped'), detail: '공개', showsSaleValue: true };
   if (readiness.state === 'ready' || readiness.state === 'review_required') {
-    return { label: '판매중', tone: statusTone('operation', 'active'), detail: `전시중 · ${GOODS_READINESS_STATE_LABELS[readiness.state]}`, showsSaleValue: true };
+    return { label: '판매중', tone: statusTone('operation', 'active'), detail: `공개 · ${GOODS_READINESS_STATE_LABELS[readiness.state]}`, showsSaleValue: true };
   }
   const blockers = readiness.reasons.filter(reason => reason.kind === 'blocking');
-  if (blockers.length === 1 && blockers[0].code === 'stock_unavailable') return { label: '품절', tone: statusTone('stock', 'soldout'), detail: '전시중', showsSaleValue: false };
-  return { label: GOODS_READINESS_STATE_LABELS[readiness.state], tone: statusTone('readiness', readiness.state), detail: '전시중', showsSaleValue: false };
+  if (blockers.length === 1 && blockers[0].code === 'stock_unavailable') return { label: '품절', tone: statusTone('stock', 'soldout'), detail: '공개', showsSaleValue: false };
+  return { label: GOODS_READINESS_STATE_LABELS[readiness.state], tone: statusTone('readiness', readiness.state), detail: '공개', showsSaleValue: false };
 }
 
-/** 표의 날짜는 같은 폭의 한 표기로 쓴다(2026.11.09, 한국 시각). */
+/** 표의 날짜는 같은 폭의 한 표기로 쓴다(2026.11.09, KST). */
 const tableDate = (value: string | null | undefined) => value ? kstDay(new Date(value)).replaceAll('-', '.') : '—';
 
 export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingLinks = false, bulkIdentity }: { data: AdminGoodsListData; shippingRegionExpiry?: ShippingRegionExpiryState; canIssueMarketingLinks?: boolean; bulkIdentity?: GoodsGroupIdentity }) {
@@ -125,7 +125,7 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
     {/* 넓은 화면에서는 목록 제목·정렬과 일괄 변경·조회항목 설정이 한 줄이다(표 ConsoleGrid의 뿌리를 contents로 풀어 이 줄에 참여시킨다). 폭이 모자라면 두 줄로 내려간다. */}
     <section aria-label="상품목록" className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground xl:flex-row xl:flex-wrap xl:items-center xl:gap-y-2">
       <div className="flex flex-wrap items-center gap-2 xl:flex-none">
-        <h3 className="mr-1 text-base leading-snug font-semibold">상품목록 <span className="text-sm font-normal text-muted-foreground">(총 <strong className="font-semibold text-foreground tabular-nums">{total.toLocaleString('ko-KR')}</strong>개)</span></h3>
+        <h2 className="mr-1 text-base leading-snug font-semibold">상품목록 <span className="text-sm font-normal text-muted-foreground">(총 <strong className="font-semibold text-foreground tabular-nums">{total.toLocaleString('ko-KR')}</strong>개)</span></h2>
         <CustomerServiceListSelect label="상품 정렬" value={filters.sort ?? "created_desc"} options={GOODS_LIST_SORT_OPTIONS.map(option => ({ ...option, href: goodsListHref({ ...filters, sort: option.value }, 1) }))} />
         <CustomerServiceListSelect label="상품 목록수" value={String(pageSize)} options={GOODS_LIST_PAGE_SIZES.map(size => ({ value: String(size), label: `${size}개씩`, href: goodsListHref({ ...filters, pageSize: size }, 1) }))} />
       </div>
@@ -150,7 +150,7 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
         const qtyLabel = readiness.availableQty === null ? '확인 필요' : `${readiness.availableQty.toLocaleString('ko-KR')}개`;
         const sale = goodsSaleStatus(good, readiness);
         const saleBadge = <AdminStatusBadge tone={sale.tone}>{sale.label}</AdminStatusBadge>;
-        /* 수량 강조는 고객에게 팔고 있는 상품에만 둔다. 임시저장·보관 상품의 0개는 처리할 일이 아니다. */
+        /* 수량 강조는 고객에게 팔고 있는 상품에만 둔다. 초안·보관 상품의 0개는 처리할 일이 아니다. */
         const selling = Boolean(good.publishedAt && !good.archivedAt);
         const soldOut = selling && readiness.availableQty === 0;
         /* 안전재고 부족 경보(옵션 수량 기준)를 먼저, 없으면 소량 재고 표시를 쓴다 — 어휘는 '상세 재고'·판매상태 필터와 같다. */
@@ -173,9 +173,9 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
           <dt className="text-xs text-muted-foreground">운영 상태</dt><dd>{readiness.operation === 'stopped' ? '판매 중지' : readiness.operation === 'active' ? '운영 중' : '확인 필요'}</dd>
         </dl>{extra}</details>;
         /* 사유가 둘째 줄을 쓰면 전시 여부만 앞에 남긴다(설정 준비 상태는 사유가 말한다) — 칸이 두 줄을 넘지 않게. */
-        const saleDetail = sale.detail && reasons.length ? '전시중' : sale.detail;
+        const saleDetail = sale.detail && reasons.length ? '공개' : sale.detail;
         const editorHref = goodEditorHref(filters, good.id);
-        return { id: good.id, href: editorHref, cells: [
+        return { id: good.id, href: editorHref, hrefTabStop: false, cells: [
           /* 상품번호(첫 칸)는 표가 수정 화면 링크로 감싼다. 서버가 번호를 아직 싣지 않으면 '—'다. */
           <span className="tabular-nums" data-goods-list="product-no" key="productNo">{good.productNo ?? '—'}</span>,
           /* 상품명은 한 줄로 줄이고 전체 이름은 말풍선에 둔다 — 줄 높이가 고르게 유지되어 첫 화면에 상품이 더 보인다. */
@@ -183,7 +183,7 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
             {good.imageUrl ? <Image className="size-11 shrink-0 rounded-md border object-cover" src={good.imageUrl} alt="" width={44} height={44} unoptimized /> : <span className="grid size-11 shrink-0 place-content-center rounded-md bg-muted text-center text-[11px] leading-tight font-normal text-muted-foreground" aria-label="대표 이미지 없음">이미지<br />없음</span>}
             <span className="flex w-0 min-w-0 flex-1 flex-col gap-0.5"><Link className={NAME_LINK} href={editorHref} title={good.name}>{good.name}</Link><small className="truncate text-xs font-normal text-muted-foreground" title={good.code}>{good.code}</small></span>
           </span>,
-          <Link key="edit" className={buttonVariants({ variant: 'outline', size: 'xs' })} data-slot="button" href={editorHref}>수정</Link>,
+          <Link key="edit" className={buttonVariants({ variant: 'outline', size: 'xs' })} data-slot="button" href={editorHref} tabIndex={-1}>수정</Link>,
           /* 판매가 칸(A9·1027T-025·TKT-033): 할인이 없으면 바로 고친다. 진행·예정 즉시할인(기간)이나 기간 없는 즉시할인(정가 표시)이 있으면
              같은 칸이 '할인 중지 후 변경' 창을 연다 — 같은 부품이라 할인이 멈춰 목록이 새로 그려져도 창이 남는다. 기간 없는 즉시할인 상품의
              판매가는 할인 전 판매가(정가 표시)이고, 창이 그 즉시할인도 함께 멈춘다. */
@@ -198,7 +198,7 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
                 <Link className={SECONDARY_LINK} href={`${goodEditorHref(filters, good.id)}#good-section-price`}
                   title={good.activeDiscountEndsAt ? `상품 할인·즉시할인 진행·예정 중(~${tableDate(good.activeDiscountEndsAt)}) · 판매가는 상품 수정에서 변경` : '상품 할인 중 · 판매가는 상품 수정에서 변경'}>상품 할인 중</Link></span>
               : <span key="price">{price}</span>,
-          /* 칸은 두 줄이다. 첫 줄은 주 배지(판매중·판매중지는 배지가 곧 값 버튼)와, 그 밖의 상태의 판매 값(임시저장은 아직 안 파는 상품이라 공개 시 값이라고 말한다).
+          /* 칸은 두 줄이다. 첫 줄은 주 배지(판매중·판매중지는 배지가 곧 값 버튼)와, 그 밖의 상태의 판매 값(초안은 아직 안 파는 상품이라 공개 시 값이라고 말한다).
              둘째 줄은 전시 여부와 준비 사유다. 사유는 하나면 바로 링크로, 여럿이면 건수 한 줄로 접는다. 판매 값의 연필은 배지 옆 자리가 모자라 뺀다(값 위에 커서를 올리면 테두리가 보인다). */
           <div key="readiness" className="flex min-w-0 flex-col items-start gap-0.5 whitespace-normal" data-goods-list="sale-status">
             <div className="flex w-full min-w-0 flex-wrap items-center gap-x-0.5">
@@ -226,7 +226,7 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
           <span key="createdAt" className="whitespace-nowrap tabular-nums">{tableDate(good.createdAt)}</span>,
           <span key="updatedAt" className="whitespace-nowrap tabular-nums">{tableDate(good.updatedAt)}</span>,
           /* R15: 고객에게 보이는 상품은 고객 화면을 새 탭으로, 공개 전·보관·판매 제한 상품은 편집기 미리보기로 연다.
-             보조 문구는 같은 행의 상태 칸(임시저장·보관·전시중)과 같은 사유로 쓴다. 전시 중인데 안 보이면 판매 제한·IP 비공개다.
+             보조 문구는 같은 행의 상태 칸(초안·보관·공개)과 같은 사유로 쓴다. 전시 중인데 안 보이면 판매 제한·IP 비공개다.
              상품 URL은 긴 영문 값이라 열 폭만큼 앞부분을 보이고 전체 값은 말풍선에 둔다(복사·브라우저 찾기는 전체 값 그대로). 주 색 링크는 첫 칸 하나만이라 흐린 글자다. */
           good.customerVisible
             ? <span key="goodId" className={`flex items-center gap-0.5 text-muted-foreground ${FILL_CELL}`}><a className={`${GOOD_ID_LINK} min-w-0 flex-1`} title={good.id} data-goods-list="good-id" href={goodDetailHref(good.id)} target="_blank" rel="noopener noreferrer">{good.id}<span className="sr-only"> 고객 화면 새 탭으로 열기</span></a><ArrowUpRight aria-hidden="true" className="size-3.5 shrink-0" /></span>

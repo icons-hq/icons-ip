@@ -43,7 +43,7 @@ describe('SettledScreen', () => {
     const filters = { from: '2026-10-02', to: '2026-10-02', query: 'GAP1530', page: 2, field: 'recipient' as const };
     const html = renderToStaticMarkup(<SettledScreen data={data({ filters, total: 21 })}
       exportRequestId="10000000-0000-4000-8000-000000004951" now={NOW} />);
-    expect(html).toContain('<option value="recipient" selected="">수취인</option>');
+    expect(html).toContain('<option value="recipient" selected="">수령인</option>');
     expect(html).toContain('name="field" value="recipient"');
     expect(html).toContain('field=recipient');
     expect(html).toContain('field%3Drecipient');

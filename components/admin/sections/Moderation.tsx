@@ -33,7 +33,7 @@ const TOUCH_TARGET = 'pointer-coarse:h-11';
 const STATUS_ORDER: Record<CommunityReportStatus, number> = { open: 0, reviewing: 1, resolved: 2, dismissed: 3 };
 type ReportFilter = 'all' | CommunityReportStatus;
 
-/* 다른 문의·리뷰 화면과 같은 날짜 표기(한국 시각, 초 없음). */
+/* 다른 문의·리뷰 화면과 같은 날짜 표기(KST, 초 없음). */
 const reportTimeFormatter = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
 const isActiveReport = (report: AdminReportRecord) => report.status === 'open' || report.status === 'reviewing';
 /* 숨김 버튼은 댓글·포스트 모두 같은 모양이다. 카드마다 빨간 버튼이 쌓이면 신고 내용보다 버튼이 먼저 보여, 평소에는 보통 글자의 테두리 버튼이고 끝난 신고만 흐리다. 되돌리기 어려운 일은 확인창이 지킨다. */

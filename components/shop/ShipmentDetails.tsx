@@ -21,7 +21,7 @@ export function ShipmentDetails({ shipments, items = [], admin = false, transact
      고객은 택배 배송 건의 택배사로 부르고, 택배사를 모르면 '배송 묶음 N'이다(R26).
      어드민은 출고지별로 처리하므로 이름을 그대로 본다. */
   const carriers = shipments.map(shipment => ({ carrierLabel: shipment.delivery === undefined || shipment.delivery?.method === 'parcel' ? shipment.carrierLabel : null }));
-  return <div aria-label="배송 건별 정보">{shipments.map((shipment, index) => {
+  return <div aria-label="배송 건별 정보" role="group">{shipments.map((shipment, index) => {
     const groupName = admin ? shipment.originName : shipmentGroupLabel(carriers, index);
     const candidates = transactionShipping?.filter(group => group.originId === shipment.originId) ?? [];
     const charge = candidates.length === 1 ? candidates[0] : candidates.find(group => group.components.every(component => items.some(item => item.goodId === component.goodId && shipment.orderItemIds.includes(item.id))));

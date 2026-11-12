@@ -23,7 +23,7 @@ describe('배송 건 콘솔',()=>{
    const html=renderToStaticMarkup(<ShipmentConsoleScreen canReadOrders={false} data={{...base,surface,filters:{...base.filters,tab:'ready'},rows}}/>);
    expect(html).not.toContain('구매자명');expect(html).not.toContain('/admin/sales/orders/');expect(html).not.toContain('name="paymentMethod"');
    expect(html).not.toContain('주문금액 높은순');expect(html).not.toContain('>결제일<');expect(html).not.toContain('value="buyer"');
-   expect(html).toContain('받는 분');expect(html).toContain('상품 · 파랑');expect(html).toContain('배송건번호 · 주문번호 · 수취인');
+   expect(html).toContain('받는 분');expect(html).toContain('상품 · 파랑');expect(html).toContain('배송건번호 · 주문번호 · 수령인');
   }
   const dispatch=renderToStaticMarkup(<ShipmentConsoleScreen canReadOrders={false} data={{...base,rows}}/>);
   expect(dispatch).toMatch(/aria-haspopup="dialog"[^>]*>퀵 인계·수령 확인<\/button>/);expect(dispatch).toContain('<span>주문제작 1/1건 완료</span>');
@@ -56,15 +56,15 @@ describe('배송 건 콘솔',()=>{
   for(const method of ['parcel','quick','pickup','direct','freight','none','digital']) expect(html).toContain(`value="${method}"`);
   expect(html).toContain('디지털 파일 제공 이력');expect(html).not.toContain('디지털 파일 다운로드 인계·수령 확인');
  });
- it.each(['dispatch','shipping'] as const)('구매자와 수취인을 각각 기본 열로 보여준다: %s',surface=>{
+ it.each(['dispatch','shipping'] as const)('구매자와 수령인을 각각 기본 열로 보여준다: %s',surface=>{
   const html=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,surface,filters:{...base.filters,tab:surface==='dispatch'?'ready':'delivered'},
-   rows:[{...row,buyerName:'서로 다른 구매자',recipientName:'별도 수취인'}]}}/>);
-  expect(html).toContain('구매자명');expect(html).toContain('서로 다른 구매자');expect(html).toContain('별도 수취인');
+   rows:[{...row,buyerName:'서로 다른 구매자',recipientName:'별도 수령인'}]}}/>);
+  expect(html).toContain('구매자명');expect(html).toContain('서로 다른 구매자');expect(html).toContain('별도 수령인');
   expect(html).toContain('조회항목 설정');
   const missing=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,surface,filters:{...base.filters,tab:surface==='dispatch'?'ready':'delivered'},
    rows:[{...row,buyerName:'구매자만 확인',recipientName:null}]}}/>);
   expect(missing).toContain('미기록');
-  /* 수취인 칸이 구매자명으로 채워지지 않는다. 긴 이름을 자르는 title에도 같은 값이 있으므로 보이는 글자 칸만 센다. */
+  /* 수령인 칸이 구매자명으로 채워지지 않는다. 긴 이름을 자르는 title에도 같은 값이 있으므로 보이는 글자 칸만 센다. */
   expect((missing.match(/>구매자만 확인</g)??[])).toHaveLength(1);
  });
  it('원본 안내여부 필터를 실제 채널 결과로 구분하고 검색 폼의 중복 hidden 값을 만들지 않는다',()=>{
@@ -187,7 +187,7 @@ describe('배송 건 콘솔',()=>{
   /* 같은 날 안에서는 23시간이 지나도 오늘이다. */
   expect(renderToStaticMarkup(<ShipmentConsoleScreen now={new Date('2026-09-14T14:30:00Z')} data={{...base,filters:{...base.filters,tab:'new'},rows:[{...row,createdAt:'2026-09-13T15:10:00Z',confirmedAt:null}]}}/>)).toContain('>오늘 주문<');
  });
- it('긴 구매자·수취인 이름은 한 줄로 자르고 전체 값을 title에 둔다',()=>{
+ it('긴 구매자·수령인 이름은 한 줄로 자르고 전체 값을 title에 둔다',()=>{
   const name='메이플20년차모험가_민지';
   const html=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[{...row,buyerName:name,recipientName:name}]}}/>);
   expect(html.match(new RegExp(`class="block truncate [^"]*" title="${name}"`,'g'))).toHaveLength(2);
@@ -313,17 +313,17 @@ describe('리뷰 반영: 주문번호 글자 팝업·택배 외 필터 안내',(
 });
 describe('QA 라운드 1 물류: 1440 화면 열 구성·변경 표시·안내',()=>{
  const header=(html:string)=>html.slice(html.indexOf('<thead'),html.indexOf('</thead>'));
- it('구매자는 수취인 칸 아래 줄에 두고, 발송 상태와 운송장 입력을 한 칸에 모아 열 수를 줄인다',()=>{
+ it('구매자는 수령인 칸 아래 줄에 두고, 발송 상태와 운송장 입력을 한 칸에 모아 열 수를 줄인다',()=>{
   const html=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[row]}}/>);
   const heads=[...header(html).matchAll(/<th[^>]*data-slot="table-head"[^>]*>(?:<label[\s\S]*?<\/label>)?([^<]*)/g)].map(match=>match[1]).filter(Boolean);
-  expect(heads).toEqual(['배송건번호 / 주문번호','상품 · 옵션','출고지','수취인 / 구매자','주문 / 발주확인','발송 · 운송장','배송 방식']);
+  expect(heads).toEqual(['배송건번호 / 주문번호','상품 · 옵션','출고지','수령인 / 구매자','주문 / 발주확인','발송 · 운송장','배송 방식']);
   expect(html).toContain('aria-label="구매자 구매자"');
   // 발송 상태 배지와 운송장 입력이 같은 칸이다.
   const cell=html.slice(html.indexOf('내보내기 전'),html.indexOf('data-shipment-row-tracking'));
   expect(cell).not.toContain('</td>');
   // 출고 전용 운영자는 구매자 줄도 머리글도 없다.
   const logistics=renderToStaticMarkup(<ShipmentConsoleScreen canReadOrders={false} data={{...base,rows:[row]}}/>);
-  expect(header(logistics)).toContain('>수취인<');expect(logistics).not.toContain('aria-label="구매자 ');
+  expect(header(logistics)).toContain('>수령인<');expect(logistics).not.toContain('aria-label="구매자 ');
  });
  it('고객이 고른 방식과 다르게 바뀐 배송 건에 변경 표시를 둔다 (m3)',()=>{
   const changed=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[{...row,delivery:shipmentDeliveryFixture({method:'quick',customerMethod:'parcel',changedBy:'store'})}]}}/>);

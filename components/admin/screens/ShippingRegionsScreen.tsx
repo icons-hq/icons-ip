@@ -82,11 +82,11 @@ function ShippingRegionEditor({ policy, initialCopy, origins, carriers, canEdit,
           <option value="">선택해주세요</option>{carriers.map((carrier) => <option key={carrier.code} value={carrier.code}>{carrier.label}{carrier.active ? '' : ' · 비활성'}</option>)}
         </NativeSelect></label>
         <label className={FIELD_LABEL}>정책 이름<Input value={input.name} maxLength={100} onChange={(event) => change({ name: event.target.value })} /></label>
-        <label className={FIELD_LABEL}>적용 시작 · 한국 시각<Input type="datetime-local" value={koreaInput(input.startsAt)} onChange={(event) => change({ startsAt: fromKoreaInput(event.target.value) })} /></label>
+        <label className={FIELD_LABEL}>적용 시작 · KST<Input type="datetime-local" value={koreaInput(input.startsAt)} onChange={(event) => change({ startsAt: fromKoreaInput(event.target.value) })} /></label>
         <label className={FIELD_LABEL}>적용 종료 방식<NativeSelect className="w-full" value={yesNo(input.openEnded)} onChange={(event) => {
           const openEnded = fromYesNo(event.target.value); change({ openEnded, ...(openEnded ? { endsAt: null } : {}) });
         }}><option value="">미확인</option><option value="yes">무기한</option><option value="no">종료 일시 지정</option></NativeSelect></label>
-        <label className={FIELD_LABEL}>적용 종료 · 한국 시각<Input type="datetime-local" disabled={input.openEnded === true} value={koreaInput(input.endsAt)}
+        <label className={FIELD_LABEL}>적용 종료 · KST<Input type="datetime-local" disabled={input.openEnded === true} value={koreaInput(input.endsAt)}
           onChange={(event) => change({ endsAt: fromKoreaInput(event.target.value) })} /></label>
       </div>
       <label className={FIELD_LABEL}>물류사 원본 회신·계약 근거<Textarea rows={3} maxLength={2000} value={input.sourceEvidence}

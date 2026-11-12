@@ -126,7 +126,7 @@ describe('ClaimQueueKitScreen (admin kit)', () => {
     const group = html.match(/<div[^>]*aria-label="조회기간 빠른 선택"[^>]*>[\s\S]*?<\/div>/)?.[0] ?? '';
     expect(group).not.toBe('');
     expect([...group.matchAll(/<button[^>]*>([^<]+)<\/button>/g)].map((match) => match[1])).toEqual(['오늘', '1주', '1개월', '3개월']);
-    expect(html.indexOf('aria-label="기간 기준"')).toBeLessThan(html.indexOf('aria-label="조회기간 빠른 선택"'));
+    expect(html.indexOf('for="claim-filter-dateField"')).toBeLessThan(html.indexOf('aria-label="조회기간 빠른 선택"'));
   });
 
   it('표 도구 막대의 열 설정은 순서·틀고정까지 다루는 조회항목 설정이다(DESIGN.md §어드민 콘솔)', () => {
@@ -230,13 +230,13 @@ function returns(overrides: Partial<AdminClaimConsoleData> = {}): AdminClaimCons
 }
 
 /** kit Select 트리거(aria-label)가 지금 보여 주는 값. Base UI Select는 선택값을 select-value 칸에 그린다. */
-function selectValue(html: string, label: string) {
-  const at = html.indexOf(`aria-label="${label}"`);
+function selectValue(html: string, label: string, id?: string) {
+  const at = id ? html.indexOf(`id="${id}"`) : html.indexOf(`aria-label="${label}"`);
   return at < 0 ? null : html.slice(at).match(/data-slot="select-value"[^>]*>(?:<span>)?([^<]*)</)?.[1] ?? null;
 }
 
 describe('ClaimQueueKitScreen — 반품·교환 목록', () => {
-  it.each([['recipient', '수취인명'], ['item', '상품주문번호'], ['product', '상품 URL']] as const)('%s 상세조건과 전체 주문 처리 경계를 표시한다', (field, label) => {
+  it.each([['recipient', '수령인명'], ['item', '상품주문번호'], ['product', '상품 URL']] as const)('%s 상세조건과 전체 주문 처리 경계를 표시한다', (field, label) => {
     const source = returns(); source.filters = { ...source.filters, field, query: '번호_%', page: 2 };
     const html = renderToStaticMarkup(<ClaimQueueKitScreen data={source} now={RETURN_NOW} />);
     expect(selectValue(html, '검색 항목')).toBe(label);
@@ -250,7 +250,7 @@ describe('ClaimQueueKitScreen — 반품·교환 목록', () => {
   it('결제일 기간 검색을 목록·단계 링크·엑셀 주소에 함께 보존한다', () => {
     const source = returns(); source.filters = { ...source.filters, dateField: 'paid', from: '2026-10-02', to: '2026-10-02' };
     const html = renderToStaticMarkup(<ClaimQueueKitScreen data={source} now={RETURN_NOW} />);
-    expect(selectValue(html, '기간 기준')).toBe('결제일');
+    expect(selectValue(html, '기간 기준', 'claim-filter-dateField')).toBe('결제일');
     expect(html).toContain('dateField=paid');
     expect(html).toMatch(/aria-label="반품보류 1건"[^>]*href="[^"]*dateField=paid/);
     expect(html).toMatch(new RegExp(`href="[^"]*dateField=paid[^"]*claimId=${RETURN_ID}"`));

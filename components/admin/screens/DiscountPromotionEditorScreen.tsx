@@ -126,7 +126,7 @@ export function DiscountPromotionEditorScreen({ identity, options, initial, retu
   function request(withExceptions: DiscountPromotionException[]) {
     const period = parseGoodsPricePeriodInput({ state: 'draft', discountPrice: null, startsAt, endsAt });
     if (!name.trim()) return '프로모션 이름을 입력해주세요.';
-    if (!period?.startsAt || !period.endsAt) return '한국 시간 기준 시작·종료를 입력해주세요. 종료는 시작보다 늦어야 합니다.';
+    if (!period?.startsAt || !period.endsAt) return 'KST 기준 시작·종료를 입력해주세요. 종료는 시작보다 늦어야 합니다.';
     const ids = kind === 'campaign' ? (campaignId ? [campaignId] : []) : kind === 'ip' ? (ipId ? [ipId] : []) : goods.map(good => good.id);
     if (!ids.length) return kind === 'goods' ? '할인할 상품을 선택해주세요.' : `할인할 ${kind === 'campaign' ? '기획전' : 'IP'}을 선택해주세요.`;
     const parsed = parseDiscountPromotionRequest({ name: name.trim(), startsAt: period.startsAt, endsAt: period.endsAt, target: { kind, ids },
@@ -199,7 +199,7 @@ export function DiscountPromotionEditorScreen({ identity, options, initial, retu
     return <div className="flex min-w-0 flex-col gap-4" data-admin-screen="discount-promotion-new">
       <AdminPageHeader actions={back} title="새 할인 프로모션" />
       <AdminNotice title="할인 프로모션을 등록했습니다" tone="success"><p>상품 {receipt.goodsCount.toLocaleString('ko-KR')}개(옵션 {receipt.periodCount.toLocaleString('ko-KR')}개)에 할인을 걸었습니다.{receipt.skipped.length ? ` 건너뛴 상품 ${receipt.skipped.length.toLocaleString('ko-KR')}개는 아래와 같습니다.` : ''}</p>
-        <div className="mt-2 flex flex-wrap gap-2"><Link className={buttonVariants({ size: 'sm' })} data-slot="button" href={discountPromotionHref(receipt.operationId)}>프로모션 상세 보기</Link></div></AdminNotice>
+        <div className="mt-2 flex flex-wrap gap-2"><Link className={buttonVariants({ size: 'sm' })} data-slot="button" href={discountPromotionHref(receipt.operationId)}>프로모션 상세</Link></div></AdminNotice>
       {receipt.skipped.length ? <ul className="flex max-h-72 list-disc flex-col gap-1 overflow-auto rounded-lg border px-8 py-3 text-sm">{receipt.skipped.map(row => <li key={row.id}>{row.name}<small className="block text-xs text-muted-foreground">{row.code ?? row.id} · {discountPromotionSkipLabel(row.reason)}</small></li>)}</ul> : null}
     </div>;
   }
@@ -213,7 +213,7 @@ export function DiscountPromotionEditorScreen({ identity, options, initial, retu
           <AdminFormGrid>
             <AdminField inputId={nameId} label="프로모션 이름"><Input id={nameId} maxLength={DISCOUNT_PROMOTION_NAME_MAX} onChange={event => setName(event.target.value)} placeholder="예: 오픈 기획전 10%" required value={name} /></AdminField>
             <div />
-            <AdminField hint="한국 시간 기준입니다. 이미 지난 기간은 등록할 수 없습니다." inputId={startsId} label="할인 시작"><Input id={startsId} onChange={event => setStartsAt(event.target.value)} required type="datetime-local" value={startsAt} /></AdminField>
+            <AdminField hint="KST 기준입니다. 이미 지난 기간은 등록할 수 없습니다." inputId={startsId} label="할인 시작"><Input id={startsId} onChange={event => setStartsAt(event.target.value)} required type="datetime-local" value={startsAt} /></AdminField>
             <AdminField inputId={endsId} label="할인 종료"><Input id={endsId} onChange={event => setEndsAt(event.target.value)} required type="datetime-local" value={endsAt} /></AdminField>
           </AdminFormGrid>
         </AdminSectionCard>
@@ -255,7 +255,7 @@ export function DiscountPromotionEditorScreen({ identity, options, initial, retu
     </form> : <section aria-label="할인 프로모션 비교" className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground">
       <div className="flex flex-col gap-1">
         <h3 className="text-base font-semibold">{preview.request.name}</h3>
-        <p className="text-sm tabular-nums">{kst(preview.request.startsAt)} ~ {kst(preview.request.endsAt)} (한국 시간) · {DISCOUNT_PROMOTION_TARGET_LABELS[preview.target.kind]}{preview.target.label ? ` · ${preview.target.label}` : ''} · 일괄 {discountRuleLabel(preview.request.rule)}</p>
+        <p className="text-sm tabular-nums">{kst(preview.request.startsAt)} ~ {kst(preview.request.endsAt)} (KST) · {DISCOUNT_PROMOTION_TARGET_LABELS[preview.target.kind]}{preview.target.label ? ` · ${preview.target.label}` : ''} · 일괄 {discountRuleLabel(preview.request.rule)}</p>
         <p className="text-sm tabular-nums">대상 {preview.goods.length.toLocaleString('ko-KR')}개 · 적용 {applied.toLocaleString('ko-KR')}개 · 건너뜀 {(preview.goods.length - applied).toLocaleString('ko-KR')}개 · 예외 {preview.request.exceptions.length.toLocaleString('ko-KR')}개</p>
       </div>
       <GroupTable label="할인 프로모션 대상" layout="fixed"><TableHeader><TableRow><TableHead className="w-[32%]">상품명·판매자상품코드</TableHead><TableHead className="w-[16%]">현재 판매가</TableHead><TableHead className="w-[26%]">할인 규칙</TableHead><TableHead>할인 후</TableHead></TableRow></TableHeader>

@@ -36,7 +36,7 @@ export interface AdminCurationTargetSource {
 /* 고정 화면은 라우트가 코드에 있으므로 항상 실재한다. */
 const FIXED_TARGETS: AdminCurationTargetOption[] = [
   { label: '홈', path: '/' },
-  { label: 'IP 허브', path: '/ip' },
+  { label: '온라인 팝업', path: '/ip' },
   { label: '굿즈샵', path: '/shop' },
   { label: '카드팩', path: '/packs' },
   { label: '오프라인 팝업', path: '/offline-popups' },

@@ -78,14 +78,14 @@ export function ReviewInsightsScreen({ data,filters,history = { kind: 'error' } 
       </TableRow>)}</TableBody></Table></div>}
       <ConsolePagination label="리뷰 분석 페이지" page={data.page} pageSize={data.pageSize} total={data.total} unit="개" hrefForPage={page => reviewInsightHref(filters, { page })} />
     </section>
-    <details className="rounded-xl border bg-muted/30 px-4 py-3 text-xs leading-relaxed text-muted-foreground"><summary className="cursor-pointer text-sm font-medium text-foreground">집계 기준과 진단 조건 <span className="ml-1 text-xs font-normal text-muted-foreground tabular-nums">{data.asOf} 기준 · 한국시간</span></summary><ul className="mt-2 flex list-disc flex-col gap-1.5 pl-5">
+    <details className="rounded-xl border bg-muted/30 px-4 py-3 text-xs leading-relaxed text-muted-foreground"><summary className="cursor-pointer text-sm font-medium text-foreground">집계 기준과 진단 조건 <span className="ml-1 text-xs font-normal text-muted-foreground tabular-nums">{data.asOf} 기준 · KST</span></summary><ul className="mt-2 flex list-disc flex-col gap-1.5 pl-5">
       <li>상품과 IP가 현재 공개·미보관인 상품을 집계하며 품절 상품도 포함합니다. 평점·사진 비중·미답글은 어제까지 작성된 현재 공개 리뷰 기준입니다. 삭제·블라인드와 공개 상태 변경은 다음 조회에 반영됩니다.</li>
       <li>사진 리뷰 비중은 사진이 있는 리뷰 수 ÷ 전체 공개 리뷰 수입니다. 내 스토어 전체 비중보다 낮은 상품을 표시합니다. 리뷰가 없는 상품은 사진 비중 진단에서 제외합니다.</li>
       <li>작성률은 {data.cohortFrom}~{data.asOf} 배송완료 주문의 상품 중 리뷰가 작성된 비율입니다. 같은 주문의 동일 상품은 옵션·입력 문구와 관계없이 1건입니다. 블라인드한 리뷰도 작성 사실에 포함하며 취소된 주문은 제외합니다.</li>
       <li>주문 대비 리뷰가 적은 상품은 내 스토어 전체 작성률보다 낮은 상품입니다. 배송완료 기록이 없는 상품은 제외합니다. 3점 이하 신규 리뷰와 상품 평균 4.6 미만은 서로 다른 지표입니다.</li>
       <li>평점은 리뷰가 있는 상품별 평균을 다시 평균합니다. 내 스토어 기준은 검색어와 무관하며 진단 건수·목록에만 검색 조건을 적용합니다.</li>
       <li>3개월 전 비교는 현재 기준일에서 달력 3개월을 뺀 같은 날짜의 첫 성공 관측값을 사용합니다. 현재 평점은 지금 공개 상태로 다시 집계하며 과거 평점은 관측 당시 상태를 보존합니다. 날짜를 놓친 기록은 다른 날이나 현재 데이터로 채우지 않습니다.</li>
-      {history.kind === 'ready' ? <li>비교 기준일: 현재 {history.data.asOf} / 3개월 전 {history.data.comparisonAsOf}. {past ? <>과거 관측 시각: {observedAt} 한국시간. 전체 평점 {rating(past.averageRating)} (상품 {past.ratedProductCount.toLocaleString('ko-KR')}개, 공개 리뷰 {past.reviewCount.toLocaleString('ko-KR')}건), 최근 6개월 평점 {rating(past.sixMonthRating)} (상품 {past.sixMonthRatedProductCount.toLocaleString('ko-KR')}개, 공개 리뷰 {past.sixMonthReviewCount.toLocaleString('ko-KR')}건; {past.sixMonthFrom}~{past.asOf}).</> : reviewRatingComparisonText(data.summary.averageRating, history, 'averageRating')}</li> : <li>과거 비교를 불러오지 못했습니다. 현재 평점과 상품 목록은 조회한 값입니다.</li>}
+      {history.kind === 'ready' ? <li>비교 기준일: 현재 {history.data.asOf} / 3개월 전 {history.data.comparisonAsOf}. {past ? <>과거 관측 시각: {observedAt} KST. 전체 평점 {rating(past.averageRating)} (상품 {past.ratedProductCount.toLocaleString('ko-KR')}개, 공개 리뷰 {past.reviewCount.toLocaleString('ko-KR')}건), 최근 6개월 평점 {rating(past.sixMonthRating)} (상품 {past.sixMonthRatedProductCount.toLocaleString('ko-KR')}개, 공개 리뷰 {past.sixMonthReviewCount.toLocaleString('ko-KR')}건; {past.sixMonthFrom}~{past.asOf}).</> : reviewRatingComparisonText(data.summary.averageRating, history, 'averageRating')}</li> : <li>과거 비교를 불러오지 못했습니다. 현재 평점과 상품 목록은 조회한 값입니다.</li>}
     </ul></details>
   </div>;
 }

@@ -37,9 +37,9 @@ export function RevenueTrend({ data, days = 30 }: { data: AdminDailyRevenue[]; d
         </CardAction>
       </CardHeader>
       <CardContent>
-        {hasRevenue ? <div className="h-60 w-full min-w-0 sm:h-72">
+        {hasRevenue ? <><div aria-label={`매출 추이 차트. 최근 ${days}일 날짜별 상품·티켓 매출이며 같은 값은 아래 표에서 읽을 수 있습니다.`} className="h-60 w-full min-w-0 sm:h-72" role="img">
           <ResponsiveContainer height="100%" width="100%">
-            <AreaChart data={data} margin={{ bottom: 0, left: 0, right: 8, top: 8 }}>
+            <AreaChart accessibilityLayer={false} data={data} margin={{ bottom: 0, left: 0, right: 8, top: 8 }}>
               <defs>
                 <linearGradient id="adminGoodsRevenue" x1="0" x2="0" y1="0" y2="1">
                   <stop offset="0%" stopColor={GOODS_COLOR} stopOpacity={0.35} />
@@ -80,7 +80,12 @@ export function RevenueTrend({ data, days = 30 }: { data: AdminDailyRevenue[]; d
               <Area dataKey="goods" fill="url(#adminGoodsRevenue)" isAnimationActive={false} stroke={GOODS_COLOR} strokeWidth={2} type="monotone" />
             </AreaChart>
           </ResponsiveContainer>
-        </div> : <div className="flex min-h-60 flex-col items-center justify-center gap-2 rounded-lg bg-muted/50 p-6 text-center sm:min-h-72" role="status">
+        </div>
+        <table className="sr-only">
+          <caption>매출 추이 값 (최근 {days}일, 결제 완료 기준)</caption>
+          <thead><tr><th scope="col">날짜</th><th scope="col">상품</th><th scope="col">티켓</th></tr></thead>
+          <tbody>{data.map(day => <tr key={day.date}><th scope="row">{dayLabel(day.date)}</th><td>{formatKrw(day.goods)}</td><td>{formatKrw(day.tickets)}</td></tr>)}</tbody>
+        </table></> : <div className="flex min-h-60 flex-col items-center justify-center gap-2 rounded-lg bg-muted/50 p-6 text-center sm:min-h-72" role="status">
           <strong className="text-sm font-medium">최근 {days}일 결제 완료 매출이 없습니다.</strong>
           <p className="text-sm text-muted-foreground">결제가 완료되면 날짜별 매출이 여기에 표시됩니다.</p>
         </div>}

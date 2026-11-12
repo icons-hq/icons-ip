@@ -76,6 +76,6 @@ export function InquiryLinkedOrderSummary({ order, canOpenOrders }: {
     <p className="flex flex-wrap items-center gap-2"><span>연결 주문 {orderReferenceLabel(order.id, order.orderNumber)}</span>
       {order.status ? <AdminStatusBadge tone={statusTone('order', order.status)}>{orderStatusLabel(order.status)}</AdminStatusBadge> : null}</p>
     <p className="text-muted-foreground">{order.title ?? '주문 상품'} · {order.quantity}개{typeof order.amount === 'number' ? ` · ${order.amount.toLocaleString('ko-KR')}원` : ''}</p>
-    {canOpenOrders ? <Link className={RECORD_LINK_CLASS} href={`/admin/sales/orders/${order.id}`}>주문 상세 보기</Link> : null}
+    {canOpenOrders ? <Link className={RECORD_LINK_CLASS} href={`/admin/sales/orders/${order.id}`}>주문 상세</Link> : null}
   </div>;
 }

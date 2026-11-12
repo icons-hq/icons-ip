@@ -81,10 +81,10 @@ function PreorderEditor({ goodId, variants, policy, canActivate, onSaved, onActi
         <input className={GOOD_NUMBER_INPUT_CLASS} data-slot="input" form={form} type="number" min={1} max={2147483647} step={1} value={capacityQty} onChange={(event) => change({ capacityQty: event.target.value })}
           placeholder="미설정" required={state === 'active'} disabled={pending} />
       </label>
-      <label className={FIELD_CLASS}><span className="font-medium">접수 시작 (한국 시간)</span>
+      <label className={FIELD_CLASS}><span className="font-medium">접수 시작 (KST)</span>
         <input className={GOOD_INPUT_CLASS} data-slot="input" form={form} type="datetime-local" value={startsAt} onChange={(event) => change({ startsAt: event.target.value })} required={state === 'active'} disabled={pending} />
       </label>
-      <label className={FIELD_CLASS}><span className="font-medium">접수 종료 (한국 시간)</span>
+      <label className={FIELD_CLASS}><span className="font-medium">접수 종료 (KST)</span>
         <input className={GOOD_INPUT_CLASS} data-slot="input" form={form} type="datetime-local" value={endsAt} onChange={(event) => change({ endsAt: event.target.value })} required={state === 'active'} disabled={pending} />
       </label>
       <label className={FIELD_CLASS}><span className="font-medium">발송 예정일</span>
@@ -152,10 +152,10 @@ function RandomPreorderEditor({ goodId, variants, policies, canActivate, onSaved
   }
   return <div className="flex min-w-0 flex-col gap-4" data-random-preorder-editor="" ref={group} role="group" aria-label="랜덤 판매 예약">
     <div className="grid min-w-0 gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,10.5rem),1fr))]">
-      <label className={FIELD_CLASS}><span className="font-medium">접수 시작 (한국 시간)</span>
+      <label className={FIELD_CLASS}><span className="font-medium">접수 시작 (KST)</span>
         <input className={GOOD_INPUT_CLASS} data-slot="input" form={form} type="datetime-local" value={startsAt} onChange={(event) => change({ startsAt: event.target.value })} required={state === 'active'} disabled={pending} />
       </label>
-      <label className={FIELD_CLASS}><span className="font-medium">접수 종료 (한국 시간)</span>
+      <label className={FIELD_CLASS}><span className="font-medium">접수 종료 (KST)</span>
         <input className={GOOD_INPUT_CLASS} data-slot="input" form={form} type="datetime-local" value={endsAt} onChange={(event) => change({ endsAt: event.target.value })} required={state === 'active'} disabled={pending} />
       </label>
       <label className={FIELD_CLASS}><span className="font-medium">발송 예정일</span>
@@ -260,7 +260,7 @@ export function PreorderReceipt({ policy, variant, pendingQty, canActivate, onSa
     <strong className="font-medium">{variant?.name ?? '이전 옵션'} · {policy.state === 'active' ? '승인된 예약 조건' : '접수 중지'}{policy.selected ? ' · 현재 선택' : ''}</strong>
     <span className="text-muted-foreground tabular-nums">승인 {policy.capacityQty?.toLocaleString('ko-KR') ?? '미설정'}개 · 미할당 예약 {policy.reservedQty.toLocaleString('ko-KR')}개 · 실물 할당 누적 {policy.allocatedQty.toLocaleString('ko-KR')}개</span>
     <span className="text-muted-foreground tabular-nums">승인 물량 중 미사용 {policy.remainingQty?.toLocaleString('ko-KR') ?? '미설정'}개</span>
-    <span className="text-muted-foreground tabular-nums">{at(policy.startsAt)} ~ {at(policy.endsAt)} (한국 시간)</span>
+    <span className="text-muted-foreground tabular-nums">{at(policy.startsAt)} ~ {at(policy.endsAt)} (KST)</span>
     <span className="text-muted-foreground">{goodsShipDateLabel(policy.expectedShipDate)}</span>
     <p className="text-xs whitespace-pre-wrap text-muted-foreground wrap-anywhere">승인 근거: {policy.approvalReference}</p>
     <div className="mt-1.5 flex flex-wrap gap-2 empty:hidden">

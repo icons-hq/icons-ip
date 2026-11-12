@@ -93,7 +93,7 @@ function GradeBenefitFields({ grade, cadence, errors }: { grade: string; cadence
       </SelectField>
       <ul className="flex list-disc flex-col gap-1 pl-5 text-xs leading-relaxed text-muted-foreground [grid-column:1/-1]" data-grade-cadence-help="">
         <li>승급 시 1회: 이 등급에 오를 때(건너뛰어 오를 때 포함) 한 번 발급하고, 이미 받은 회원에게는 다시 발급하지 않습니다.</li>
-        <li>매월 1일: 매월 1일 0시(한국 시간)에 그 시점 이 등급 이상인 회원에게 한 장씩 발급하고 알림을 보냅니다. 지급 직전에 대상 회원의 등급을 최근 90일 실적으로 다시 계산하므로 실적이 줄어든 회원은 그때 강등되어 받지 않습니다. 지난달 몫은 소급하지 않으며, 이번 달 지급이 끝난 뒤 바꾸면 다음 달 1일부터 발급합니다. 발급 한도는 모든 달을 합친 장수입니다.</li>
+        <li>매월 1일: 매월 1일 0시(KST)에 그 시점 이 등급 이상인 회원에게 한 장씩 발급하고 알림을 보냅니다. 지급 직전에 대상 회원의 등급을 최근 90일 실적으로 다시 계산하므로 실적이 줄어든 회원은 그때 강등되어 받지 않습니다. 지난달 몫은 소급하지 않으며, 이번 달 지급이 끝난 뒤 바꾸면 다음 달 1일부터 발급합니다. 발급 한도는 모든 달을 합친 장수입니다.</li>
       </ul>
     </> : null}
   </>;

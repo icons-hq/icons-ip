@@ -14,7 +14,7 @@ export async function saveFulfillmentOriginAction(previous: FulfillmentActionSta
   const values = Object.fromEntries([...data.entries()].filter((entry): entry is [string, string] => typeof entry[1] === 'string'));
   const fail = (errors: Record<string, string>) => withPreservedFormValues({ errors }, previous, data);
   try {
-    if (!await requireAdminActionAccess(FULFILLMENT_ORIGINS_PATH, { capability: 'platform.manage', adminOnly: true })) return fail({ form: '출고지 설정 변경은 관리자(admin)만 할 수 있습니다.' });
+    if (!await requireAdminActionAccess(FULFILLMENT_ORIGINS_PATH, { capability: 'platform.manage', adminOnly: true })) return fail({ form: '출고지 설정 변경은 최고 관리자만 할 수 있습니다.' });
     const result = parseFulfillmentOriginInput(values);
     if (!result.ok) return fail(result.errors);
     if (values.id && (!isUuid(values.id) || !values.updatedAt || Number.isNaN(Date.parse(values.updatedAt)))) return fail({ form: '최신 출고지 설정을 다시 열어주세요.' });

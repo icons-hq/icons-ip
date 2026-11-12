@@ -124,7 +124,7 @@ export function dispatchMethodLabel(value: FulfillmentMethod): string {
   return FULFILLMENT_METHOD_LABELS[value];
 }
 
-/** 화면 입력 → 서버 액션 입력. 시각은 한국 시각 datetime-local 값이다. */
+/** 화면 입력 → 서버 액션 입력. 시각은 KST datetime-local 값이다. */
 export function dispatchHandoffFromForm(form: Record<string, string>): DispatchHandoffInput | null {
   const operatorName = form.operatorName?.trim() ?? '', providerName = form.providerName?.trim() ?? '', providerPhone = form.providerPhone?.trim() ?? '';
   const handoffReference = form.handoffReference?.trim() ?? '', local = form.occurredAt?.trim() ?? '';

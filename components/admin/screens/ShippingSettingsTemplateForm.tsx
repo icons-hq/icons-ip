@@ -91,7 +91,7 @@ export function ShippingSettingsTemplateForm({ template, newId, origins, regions
             <option value="preserve">상품에 저장된 확장 배송비 유지</option><option value="replace">이 템플릿의 확장 배송비로 변경</option>
           </NativeSelect></label>
           {deliveryMode === 'preserve' ? <p className={NOTE}>기존 템플릿도 이 방식으로 동작합니다. 상품의 수량별·착불 설정은 유지되며, 사용 중인 수량별 배송비가 있으면 위 기본 배송비보다 우선합니다.</p>
-            : <><GoodsDeliveryPricingFields value={deliveryDraft} onChange={setDeliveryDraft} /><p className={NOTE}>‘사용 안 함’으로 적용하면 상품의 기존 확장 배송비를 명시적으로 비활성화합니다. 기본 배송비 설정과 선결제로 돌아갑니다. 초안도 실제 운임 계산에는 적용하지 않습니다.</p></>}
+            : <><GoodsDeliveryPricingFields value={deliveryDraft} onChange={setDeliveryDraft} /><p className={NOTE}>‘사용 안 함’으로 적용하면 상품의 기존 확장 배송비를 명시적으로 비활성화합니다. 기본 배송비 설정과 선결제로 돌아갑니다. 초안도 실제 배송비 계산에는 적용하지 않습니다.</p></>}
           {error('delivery')}
         </div>
         <div className="flex min-w-0 flex-col gap-2 sm:col-span-2">
@@ -107,7 +107,7 @@ export function ShippingSettingsTemplateForm({ template, newId, origins, regions
           <strong className="font-medium">출고지의 현재 배송정보</strong>
           {origin ? <><p className="text-muted-foreground">{origin.name} · {origin.active ? '활성' : '비활성'} · 기본 배송비 {shippingSettingsMoney(origin.baseFee)} · {origin.freeThreshold === null ? '무료 기준 없음' : `${shippingSettingsMoney(origin.freeThreshold)} 이상 무료`}</p><p className="text-muted-foreground">기본 택배사 {origin.defaultCarrier ?? '미설정'} · 반송 주소 {origin.returnAddress || '미설정'}</p></> : <p className="text-muted-foreground">선택한 출고지의 정보를 확인합니다.</p>}
           <p className="text-muted-foreground">{region?.label ?? '지역 배송 정책에서 적용 상태를 확인해주세요.'} {region?.detail}</p>
-          <p className="text-muted-foreground">출고지와 묶음그룹의 지역 추가료 적용 범위를 함께 확인합니다. 최종 운임은 주문 주소와 상품 구성으로 계산합니다.</p>
+          <p className="text-muted-foreground">출고지와 묶음그룹의 지역 추가료 적용 범위를 함께 확인합니다. 최종 배송비은 주문 주소와 상품 구성으로 계산합니다.</p>
         </div>
         {(['claimReturnAllowed', 'claimExchangeAllowed'] as const).map((key, index) => <label className={FIELD_LABEL} key={key} htmlFor={`shipping-settings-${key}`}>{index ? '교환 조건' : '반품 조건'}<NativeSelect className="w-full" {...props(key)} defaultValue={String((index ? policy?.exchangeAllowed : policy?.returnAllowed) ?? '')}><option value="">미검토 · 기본 정책 확인</option><option value="true">기본 정책에 따라 가능</option><option value="false">제한 사유와 개별 확인 필요</option></NativeSelect>{error(key)}</label>)}
         {([['claimReturnFee', '고객 귀책 반품비 · 편도 (원)', policy?.returnFee], ['claimReturnFreeShippingFee', '최초 무료배송 후 반품비 · 왕복 합계 (원)', policy?.returnFreeShippingFee], ['claimExchangeFee', '고객 귀책 교환비 · 왕복 합계 (원)', policy?.exchangeFee]] as const).map(([key, label, value]) => <label className={FIELD_LABEL} key={key} htmlFor={`shipping-settings-${key}`}>{label}<Input {...props(key)} type="number" min={0} max={1000000} step={1} defaultValue={value ?? ''} placeholder="미확인이면 비워두세요" />{error(key)}</label>)}

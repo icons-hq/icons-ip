@@ -32,7 +32,7 @@ export function GoodsRelationsExportButton({ href, total }: { href: string; tota
     finally { if (!controller.signal.aborted) { request.current = null; setPending(false); } }
   }
   return <div className="flex min-w-0 flex-wrap items-center gap-2" data-goods-relations="export">
-    <Button variant="outline" type="button" disabled={pending || total > GOODS_RELATIONS_EXPORT_LIMIT} onClick={download}><Download aria-hidden="true" />{pending ? '엑셀 만드는 중…' : '목록 엑셀 다운로드'}</Button>
+    <Button variant="outline" type="button" disabled={pending || total > GOODS_RELATIONS_EXPORT_LIMIT} onClick={download}><Download aria-hidden="true" />{pending ? '엑셀 만드는 중…' : '엑셀 다운로드'}</Button>
     <small className="text-xs text-muted-foreground wrap-anywhere">{total > GOODS_RELATIONS_EXPORT_LIMIT ? '최대 2,000개 편성입니다. 검색 조건을 좁혀주세요.' : `같은 조건의 전체 ${total.toLocaleString('ko-KR')}개 편성과 구성 상품을 받습니다.`}</small>
     {message ? <p className="w-full text-sm" role="status">{message}</p> : null}{error ? <p role="alert" className="w-full text-sm text-destructive">{error}</p> : null}
   </div>;

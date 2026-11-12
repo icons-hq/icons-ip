@@ -68,11 +68,11 @@ function RegionFields({ policy, onChange, tsv, onTsvChange, disabled, carriers, 
         {policy.carrierCode && !carriers.some(carrier => carrier.code === policy.carrierCode) ? <option value={policy.carrierCode}>{policy.carrierCode} · 현재 목록 확인 필요</option> : null}
       </NativeSelect></label>
       <p className={`${NOTE} self-end`}>출고지 기본 택배사: {carriers.find(carrier => carrier.code === originCarrier)?.label ?? originCarrier ?? '미설정'}. 실제 계약 택배사와 일치하는지 확인해주세요.</p>
-      <label className={FIELD_LABEL}>적용 시작 · 한국 시각<Input type="datetime-local" step="any" value={localDate(policy.startsAt)} onChange={event => patch({ startsAt: serverDate(event.target.value) })} /></label>
+      <label className={FIELD_LABEL}>적용 시작 · KST<Input type="datetime-local" step="any" value={localDate(policy.startsAt)} onChange={event => patch({ startsAt: serverDate(event.target.value) })} /></label>
       <label className={FIELD_LABEL}>적용 종료 방식<NativeSelect className="w-full" value={policy.openEnded === null ? '' : String(policy.openEnded)} onChange={event => {
         const openEnded = event.target.value === '' ? null : event.target.value === 'true'; patch({ openEnded, ...(openEnded ? { endsAt: null } : {}) });
       }}><option value="">미확인</option><option value="true">무기한</option><option value="false">종료 일시 지정</option></NativeSelect></label>
-      <label className={FIELD_LABEL}>적용 종료 · 한국 시각<Input type="datetime-local" step="any" value={localDate(policy.endsAt)} disabled={policy.openEnded === true} onChange={event => patch({ endsAt: serverDate(event.target.value) })} /></label>
+      <label className={FIELD_LABEL}>적용 종료 · KST<Input type="datetime-local" step="any" value={localDate(policy.endsAt)} disabled={policy.openEnded === true} onChange={event => patch({ endsAt: serverDate(event.target.value) })} /></label>
       <label className={FIELD_LABEL}>표에 없는 지역<NativeSelect className="w-full" value={policy.unlistedDisposition ?? ''} onChange={event => patch({ unlistedDisposition: event.target.value === '' ? null : event.target.value as 'standard' | 'manual_review' })}>
         <option value="">미확인</option><option value="standard">추가료 없음</option><option value="manual_review">개별 확인 필요</option></NativeSelect></label>
     </div>

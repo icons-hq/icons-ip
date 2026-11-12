@@ -13,7 +13,7 @@ it('메시지 이력 조회는 같은 조회 키로 GET 폼을 제출한다', ()
   expect(html).toMatch(/<button[^>]*type="submit"[^>]*>검색<\/button>/);
   for (const name of ['state', 'q', 'start', 'end']) expect(html).toContain(`name="${name}"`);
   expect(html).toContain('value="가을"');
-  expect(html).toMatch(/<button[^>]*type="button"[^>]*disabled=""[^>]*>조회 결과 엑셀 다운로드<\/button>/);
+  expect(html).toMatch(/<button[^>]*type="button"[^>]*disabled=""[^>]*>엑셀 다운로드<\/button>/);
   expect(html).toContain('조건에 맞는 메시지가 없습니다.');
 });
 

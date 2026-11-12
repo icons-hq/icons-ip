@@ -42,7 +42,7 @@ export function normalizeReturnAddressInput(input: Partial<Record<ReturnAddressF
 /** RPC 오류 → 운영자 문구. 입력값은 화면에 그대로 남긴다. */
 export function returnAddressErrorMessage(error: { code?: string; message?: string } | null | undefined): string {
   const message = error?.message ?? '';
-  if (error?.code === '42501') return '반품/교환지 변경은 관리자(admin)만 할 수 있습니다.';
+  if (error?.code === '42501') return '반품/교환지 변경은 최고 관리자만 할 수 있습니다.';
   if (message.includes('return_address_name_taken')) return '같은 이름의 반품지가 이미 있습니다. 다른 이름으로 저장해주세요.';
   if (message.includes('return_address_conflict')) return '다른 관리자가 이 반품지를 수정했습니다. 입력값을 복사한 뒤 새로고침해 최신 내용을 확인해주세요.';
   if (message.includes('return_address_in_use')) return '이 반품지를 고른 상품이 있어 지울 수 없습니다. 상품의 반품/교환지를 먼저 바꿔주세요.';

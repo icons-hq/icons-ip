@@ -213,7 +213,7 @@ describe('화면별 로더 재사용', () => {
     expect(at('수취인')).toBe('수령');
   });
 
-  it.each([['recipient', '수취인명'], ['item', '상품주문번호'], ['product', '상품 URL']] as const)(
+  it.each([['recipient', '수령인명'], ['item', '상품주문번호'], ['product', '상품 URL']] as const)(
     '%s 조건의 모든 요청을 읽고 일치하지 않은 같은 주문 품목도 보존한다', async (field, label) => {
       const rows = Array.from({ length: 101 }, (_, index) => ({ id: `claim-${index}`, reference: index + 1,
         orderId: index === 0 ? ORDER_ID : `order-${index}`, claimType: 'return', stage: 'requested',

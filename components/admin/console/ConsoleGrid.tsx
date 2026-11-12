@@ -44,6 +44,8 @@ export interface ConsoleGridRow {
   cells: ReactNode[];
   /** 상세로 가는 링크. 첫 번째 셀이 이 링크로 감싸진다. */
   href?: string;
+  /** false면 첫 칸 링크를 Tab에서 뺀다. 같은 행에 같은 목적지의 대표 링크가 따로 있을 때만 쓴다(ADM-016 #8). */
+  hrefTabStop?: boolean;
   /** `false`면 이 행은 일괄 선택 대상에서 빠진다. 기본 `true`. */
   selectable?: boolean;
   /** 체크박스 접근성 이름. 기본 `'{id} 선택'`. */
@@ -361,7 +363,7 @@ export function ConsoleGrid({
                       >
                         {/* 표에서는 행 전체를 링크로 만들 수 없다. 첫 셀만 상세 링크가 된다. */}
                         {index === 0 && row.href ? (
-                          <Link className="font-medium text-primary underline-offset-4 hover:underline" href={row.href}>{cell}</Link>
+                          <Link className="font-medium text-primary underline-offset-4 hover:underline" href={row.href} tabIndex={row.hrefTabStop === false ? -1 : undefined}>{cell}</Link>
                         ) : cell}
                       </td>
                     );

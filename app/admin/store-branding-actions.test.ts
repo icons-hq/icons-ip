@@ -10,7 +10,7 @@ const stamp='2026-10-12T01:00:00.000001Z';
 const operation='00000000-0000-4000-8000-000000016001';
 beforeEach(()=>{mocks.allow=true;mocks.rpc.mockReset().mockResolvedValue({data:'2026-10-12T02:00:00.000001Z',error:null});mocks.updateTag.mockClear();mocks.revalidatePath.mockClear();});
 it('관리자 권한 및 입력 검증을 통과한 요청만 저장한다',async()=>{
-  mocks.allow=false;expect((await saveStoreBrandingAction(DEFAULT_STORE_BRANDING,stamp,operation)).error).toContain('admin');
+  mocks.allow=false;expect((await saveStoreBrandingAction(DEFAULT_STORE_BRANDING,stamp,operation)).error).toContain('최고 관리자');
   mocks.allow=true;expect((await saveStoreBrandingAction({...DEFAULT_STORE_BRANDING,showIntroduction:true},stamp,operation)).error).toContain('입력값');
   expect((await saveStoreBrandingAction(DEFAULT_STORE_BRANDING,stamp,'bad')).error).toContain('다시 열어');expect(mocks.rpc).not.toHaveBeenCalled();
 });

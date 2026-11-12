@@ -14,6 +14,18 @@ export interface AdminConfirmRequest {
   cancelLabel?: string;
   /** 되돌릴 수 없는 작업이면 확인 버튼을 위험색으로 그린다. */
   destructive?: boolean;
+  /** 사유 같은 글을 받는 확인창이면 입력칸 설명. `adminPrompt`가 이 요청을 쓰고, 호스트가 확인 때 `value`에 입력을 적는다. */
+  input?: AdminConfirmInput_;
+  /** 입력이 있는 확인에서 호스트가 확인 직전에 입력값(앞뒤 공백 제거)을 넘기는 통로. `adminPrompt`가 채운다. */
+  receive?: (value: string) => void;
+}
+
+export interface AdminConfirmInput_ {
+  label: string;
+  placeholder?: string;
+  /** 글자 수(공백 제외 앞뒤 trim 기준, 코드포인트). 범위를 벗어나면 확인 버튼이 눌리지 않는다. */
+  minLength?: number;
+  maxLength?: number;
 }
 
 export type AdminConfirmInput = string | AdminConfirmRequest;
@@ -45,6 +57,16 @@ export function adminConfirm(input: AdminConfirmInput): Promise<boolean> {
   if (inflight.has(key)) return Promise.resolve(false);
   inflight.add(key);
   return handler(request).finally(() => { inflight.delete(key); });
+}
+
+/**
+ * 사유 같은 글을 받는 확인창. 브라우저 기본 `prompt()` 대신 쓴다. 취소·닫기·호스트 없음은 null,
+ * 확인하면 입력한 글(앞뒤 공백 제거)을 돌려준다.
+ */
+export async function adminPrompt(request: AdminConfirmRequest & { input: AdminConfirmInput_ }): Promise<string | null> {
+  let value = '';
+  const ok = await adminConfirm({ ...request, receive: (next) => { value = next; } });
+  return ok ? value : null;
 }
 
 type SubmitEventLike = {

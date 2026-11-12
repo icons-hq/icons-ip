@@ -133,7 +133,7 @@ describe('CardPoolSection', () => {
       <CardPoolSection cards={[]} creating draftActiveFrom="2026-07-15T02:00:00.000Z" draftId="22222222-2222-4222-8222-222222222222" ipOptions={[{ id: 'hwasan', title: '화산강림', archivedAt: null }]} oddsOperationId="33333333-3333-4333-8333-333333333333" onSelect={vi.fn()} operationId="44444444-4444-4444-8444-444444444444" records={[pool]} selected={null} />,
     );
     expect(creating).not.toContain('data-record-detail="prompt"');
-    expect(creating).toContain('>새 카드풀 등록</h3>');
+    expect(creating).toContain('>새 카드풀 등록</h2>');
   });
 
   it('즉시 적용 주의는 저장할 수 있을 때만 주의색이고, 저장 전 카드풀의 잠긴 칸은 조용한 안내 하나뿐이다', () => {

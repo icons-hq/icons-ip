@@ -79,7 +79,7 @@ function EditorFields({ announcement, action, pending, state, backHref, uncertai
       <Field label="전시 여부" error={errors.enabled}><div className={INLINE}><label className={CHOICE}><input type="radio" name="enabled" value="true" checked={enabled} onChange={() => setEnabled(true)} />전시</label><label className={CHOICE}><input type="radio" name="enabled" value="false" checked={!enabled} onChange={() => setEnabled(false)} />전시중지</label></div></Field>
       <Field label="전시 기간" error={errors.startsAt || errors.endsAt}><label className={CHOICE}><input checked={usePeriod} type="checkbox" onChange={event => setUsePeriod(event.target.checked)} />기간 설정</label>
         {usePeriod ? <div className={PERIOD}><label className={PERIOD_FIELD}>시작일시<Input className="w-56" type="datetime-local" name="startsAt" value={startsAt} onChange={event => setStartsAt(event.target.value)} /></label><span aria-hidden="true" className="pb-1.5 text-muted-foreground">~</span><label className={PERIOD_FIELD}>종료일시<Input className="w-56" type="datetime-local" name="endsAt" value={endsAt} onChange={event => setEndsAt(event.target.value)} /></label></div> : null}
-        <p className={NOTE}>한국 시각 기준입니다. 시작 일시부터 표시하고 종료 일시에는 내려갑니다. 비워 둔 경계는 제한하지 않습니다.</p>
+        <p className={NOTE}>KST 기준입니다. 시작 일시부터 표시하고 종료 일시에는 내려갑니다. 비워 둔 경계는 제한하지 않습니다.</p>
       </Field>
       <Field label="스토어홈 팝업" error={errors.popup || errors.popupStartsAt || errors.popupEndsAt}>
         <label className={CHOICE}><input type="checkbox" checked={popupSelected} onChange={event => setPopupSelected(event.target.checked)} />이 공지를 홈 팝업으로 표시</label>

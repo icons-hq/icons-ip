@@ -130,7 +130,7 @@ const GOODS_PAYMENT_ATTEMPT_STATE_LABELS: Record<
   approved: '승인 완료',
   declined: '승인 거절',
   canceled: '취소 완료',
-  unknown: '결과 불명',
+  unknown: '결과 미확인',
   needs_review: '운영 확인 필요',
 };
 
@@ -1196,7 +1196,7 @@ export function OrdersSection({ data, canManage = true }: { data: AdminOrderCons
   const currentHref = adminOrdersHref(data.filters);
   const eligible = new Set(data.items.filter((order) => canManage && order.status === 'paid' && !openCancellationRequest(order)).map((order) => order.id));
   const selectedIds = selection.filter((id) => eligible.has(id));
-  /* 1440 화면(표 폭 1,100px)에 진행 중인 요청까지 잘리지 않고 들어오게 나눈다. 진행 중인 요청 칸은 '취소 결제확인필요'가 한 줄에 들어가는 폭이고, 상품 칸이 남는 자리를 받는다. 수취인명은 조회항목 설정에서 켠다. */
+  /* 1440 화면(표 폭 1,100px)에 진행 중인 요청까지 잘리지 않고 들어오게 나눈다. 진행 중인 요청 칸은 '취소 결제확인필요'가 한 줄에 들어가는 폭이고, 상품 칸이 남는 자리를 받는다. 수령인명은 조회항목 설정에서 켠다. */
   const columns: ConsoleGridColumn[] = [
     {key:'reference',label:'주문번호',width:'164px'}, {key:'status',label:'주문상태',width:'98px'},
     {key:'items',label:'상품명 / 옵션'},
@@ -1204,7 +1204,7 @@ export function OrdersSection({ data, canManage = true }: { data: AdminOrderCons
     {key:'ordered',label:'주문일시',width:'144px'}, {key:'buyer',label:'구매자명',width:'104px'},
     {key:'detail',label:canManage?'주문 처리':'주문 상세',width:'78px'},
     {key:'claim',label:'취소·반품·교환',width:'146px'},
-    {key:'recipient',label:'수취인명',width:'80px',defaultVisible:false},
+    {key:'recipient',label:'수령인명',width:'80px',defaultVisible:false},
   ];
   const rows = data.items.map((order) => {
     const request = canManage ? openCancellationRequest(order) : null;
@@ -1218,7 +1218,7 @@ export function OrdersSection({ data, canManage = true }: { data: AdminOrderCons
       formatKrwExact(order.total), order.items.reduce((qty,item)=>qty+item.qty,0),
       <time key="created" className="tabular-nums whitespace-nowrap" dateTime={order.createdAt}>{formatOrderDateTime(order.createdAt)}</time>,
       <span key="buyer" className="block max-w-20 truncate" title={order.buyerName}>{order.buyerName}</span>,
-      <Link key="detail" className="font-medium underline-offset-4 hover:underline" aria-label={`${canManage ? '상세·처리' : '상세 보기'} 주문 ${orderReferenceLabel(order.id, order.orderNumber)}${request?` · ${cancellationReasonAccessibleName(request)}`:''}`} href={`${adminOrdersHref(data.filters,{orderId:order.id})}#sales-order-detail`}>{canManage ? '상세·처리' : '상세 보기'}</Link>,
+      <Link key="detail" className="font-medium underline-offset-4 hover:underline" tabIndex={-1} aria-label={`${canManage ? '처리' : '상세'} 주문 ${orderReferenceLabel(order.id, order.orderNumber)}${request?` · ${cancellationReasonAccessibleName(request)}`:''}`} href={`${adminOrdersHref(data.filters,{orderId:order.id})}#sales-order-detail`}>{canManage ? '처리' : '상세'}</Link>,
       request?<div key="claim" className="flex flex-col items-start gap-1"><Link className="inline-flex flex-wrap items-center gap-1 underline-offset-4 hover:underline" href={`/admin/sales/claims/${ORDER_CLAIM_TYPE_SLUGS[request.claimType]}/${request.id}`}>{ORDER_CLAIM_TYPE_LABELS[request.claimType]} <AdminStatusBadge tone={statusTone('claim', request.stage)}>{adminClaimStageLabel(request.claimType, request.stage)}</AdminStatusBadge></Link><CancellationReasonBadge row request={request}/></div>:'-',
       <span key="recipient">{order.address?.recipientName??'-'}</span>,
     ]};
@@ -1284,9 +1284,9 @@ export function OrdersSection({ data, canManage = true }: { data: AdminOrderCons
           </AdminNotice>
         </section>
       ) : null}
-      {/* 주문 상세·처리는 목록 위에 연다(ADM-016 #30) — 주문을 누르면 표 아래 패널로 점프하지 않고 그 자리에서 이어 본다. 클레임 목록과 같다. */}
+      {/* 주문 처리는 목록 위에 연다(ADM-016 #30) — 주문을 누르면 표 아래 패널로 점프하지 않고 그 자리에서 이어 본다. 클레임 목록과 같다. */}
       {selected ? <details id="sales-order-detail" className="group scroll-mt-4 rounded-xl border bg-card text-card-foreground" open={Boolean(data.filters.orderId)} key={selected.id}>
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 font-medium [&::-webkit-details-marker]:hidden">주문 {orderReferenceLabel(selected.id, selected.orderNumber)} {canManage ? '상세·처리' : '상세 보기'}<ChevronDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" /></summary>
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 font-medium [&::-webkit-details-marker]:hidden">주문 {orderReferenceLabel(selected.id, selected.orderNumber)} {canManage ? '처리' : '상세'}<ChevronDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" /></summary>
         <OrderDetail cancellation={cancellation} carriers={data.carriers} filters={data.filters} order={selected} canManage={canManage} />
       </details> : data.filters.orderId ? (
         <AdminNotice role="status" tone="warning">

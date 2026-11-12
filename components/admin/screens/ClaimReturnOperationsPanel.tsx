@@ -131,7 +131,7 @@ function ReturnIntakeUpload({ columns }: { columns: ReturnIntakeColumns }) {
   return <section aria-label="반품입고 회신 업로드" className={SECTION} data-claim-return-intake="">
     <h2 className="text-base font-medium text-foreground">반품입고 회신 업로드</h2>
     <p className={NOTE}>
-      창고의 반품입고 회신 파일을 그대로 올리면 회수 송장 또는 주문번호·연락처로 반품·교환 요청을 찾습니다. <strong className="font-medium text-foreground">등록 전 확인</strong>으로
+      창고의 반품입고 회신 파일을 그대로 올리면 회수 운송장 또는 주문번호·연락처로 반품·교환 요청을 찾습니다. <strong className="font-medium text-foreground">등록 전 확인</strong>으로
       맞춘 결과를 본 뒤 확정하면 회수 묶음마다 입고완료로 기록되고, 실제 입고일은 파일의 입고일입니다. 한 번에 {RETURN_INTAKE_ROW_LIMIT.toLocaleString('ko-KR')}줄까지 올립니다.
     </p>
     <details className="w-full rounded-lg border px-3 py-2 [&_summary]:cursor-pointer [&_summary]:font-medium [&_summary]:text-foreground" data-return-intake-columns="">
@@ -139,7 +139,7 @@ function ReturnIntakeUpload({ columns }: { columns: ReturnIntakeColumns }) {
       <ul className={`${NOTE} mt-2 flex list-disc flex-col gap-1 pl-5`}>
         {RETURN_INTAKE_FIELDS.map(field => <li key={field}><strong className="font-medium text-foreground">{RETURN_INTAKE_FIELD_LABELS[field]}</strong>: {columns[field].join(' · ')}</li>)}
       </ul>
-      <p className={`${NOTE} mt-2`}>입고일과 회수 송장 또는 주문번호 열이 있어야 합니다. 주문번호로 찾을 때는 연락처도 함께 맞아야 합니다. 다른 열(이름·주소 등)은 읽지 않습니다.</p>
+      <p className={`${NOTE} mt-2`}>입고일과 회수 운송장 또는 주문번호 열이 있어야 합니다. 주문번호로 찾을 때는 연락처도 함께 맞아야 합니다. 다른 열(이름·주소 등)은 읽지 않습니다.</p>
     </details>
     <div className="flex flex-col items-start gap-2">
       <Label htmlFor="claim-return-intake-file">XLSX·CSV 파일</Label>
@@ -190,7 +190,7 @@ function IntakePreview({ preview }: { preview: ClaimReturnIntakePreview }) {
         <caption className="sr-only">반품입고 회신을 맞춘 결과</caption>
         <TableHeader><TableRow className="bg-muted/50">
           <TableHead scope="col">줄</TableHead><TableHead scope="col">결과</TableHead><TableHead scope="col">요청번호</TableHead>
-          <TableHead scope="col">반품지</TableHead><TableHead scope="col">상품</TableHead><TableHead scope="col">입고일</TableHead><TableHead scope="col">회수 송장</TableHead>
+          <TableHead scope="col">반품지</TableHead><TableHead scope="col">상품</TableHead><TableHead scope="col">입고일</TableHead><TableHead scope="col">회수 운송장</TableHead>
         </TableRow></TableHeader>
         <TableBody>{preview.rows.map(row => <TableRow data-return-intake-status={row.status} key={row.rowNumber}>
           <TableCell className="tabular-nums">{row.rowNumber}</TableCell>

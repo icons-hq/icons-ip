@@ -108,7 +108,7 @@ export function ShipmentExtraTrackingsPanel({ shipmentId, reference, carriers, d
       </div>
       <div className={FIELD_CLASS}><Label htmlFor={`${fieldId}-reason`}>사유</Label>
         <Textarea id={`${fieldId}-reason`} rows={2} value={reason} maxLength={SHIPMENT_EXTRA_TRACKING_REASON_LIMIT} disabled={pending}
-          placeholder="예: 서원 분리배송 연결 송장 확인" onChange={event => setReason(event.target.value)} /></div>
+          placeholder="예: 서원 분리배송 추가 운송장 확인" onChange={event => setReason(event.target.value)} /></div>
       {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
       <Button className="self-start" size="sm" type="submit" disabled={pending}>{pending ? '저장 중…' : '추가 운송장 저장'}</Button>
     </form>}

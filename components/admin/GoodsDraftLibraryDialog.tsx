@@ -64,7 +64,7 @@ export function GoodsDraftLibraryDialog({ onClose, onLoad }: { onClose: () => vo
         <Button type="button" variant="outline" disabled={busy} onClick={() => { void run(() => refresh()); }}>조회</Button>
       </div>
       {error ? <p className="text-destructive" role="alert">{error}</p> : null}<p className="text-muted-foreground" role="status">{busy ? '불러오는 중…' : message}</p>
-      <p className="text-muted-foreground tabular-nums">총 {data.total}건 · 저장시각은 한국시간입니다.</p>
+      <p className="text-muted-foreground tabular-nums">총 {data.total}건 · 저장시각은 KST입니다.</p>
       {!busy && !data.rows.length ? <p className="rounded-lg border border-dashed py-10 text-center text-muted-foreground">저장된 임시저장이 없습니다.</p> : null}
       <ul className="m-0 flex min-w-0 list-none flex-col rounded-lg border p-0 empty:hidden">{data.rows.map(row => <li className="grid grid-cols-[4rem_minmax(0,1fr)] items-center gap-3 border-b p-3 last:border-b-0 sm:grid-cols-[4rem_minmax(0,1fr)_auto]" key={row.id}>
         {row.imagePath ? <img className="size-16 rounded-md bg-muted object-contain" src={publicMediaUrl(row.imagePath) ?? ''} alt=""/> : <span className="grid size-16 place-items-center rounded-md bg-muted text-xs text-muted-foreground">사진 없음</span>}

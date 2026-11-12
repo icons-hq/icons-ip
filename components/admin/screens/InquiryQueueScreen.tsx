@@ -104,6 +104,7 @@ export function InquiryQueueScreen({
     return {
       id: row.id,
       href: adminInquiryDetailHref(row.id, filters),
+      hrefTabStop: false,
       cells: [
         <span className="tabular-nums" key="reference">{inquiryReferenceLabel(row.reference)}</span>,
         <span key="category">{adminGoodsCopy(INQUIRY_CATEGORY_LABELS[row.category])}</span>,
@@ -121,7 +122,7 @@ export function InquiryQueueScreen({
             <span className="text-xs text-muted-foreground tabular-nums" title="미답변 24시간 경과">{overdueDays}일 경과</span>
           ) : null}
         </span>,
-        <InquiryPreviewLink button className={buttonVariants({ size: 'xs', variant: row.status === 'open' ? 'soft' : 'ghost' })} href={adminInquiryPreviewHref(row.id, filters)} key="action">답변처리</InquiryPreviewLink>,
+        <InquiryPreviewLink button tabStop={false} className={buttonVariants({ size: 'xs', variant: row.status === 'open' ? 'soft' : 'ghost' })} href={adminInquiryPreviewHref(row.id, filters)} key="action">답변 처리</InquiryPreviewLink>,
         <span className="block max-w-[4.5rem] truncate" key="buyer" title={`@${row.buyerName}`}>@{row.buyerName}</span>,
         /* 기한이 지난 줄은 상태 칸의 경과일이 대기 시간을 이미 말한다 — 같은 뜻의 '최근 N일 전'을 또 적지 않는다. */
         <span key="times">
@@ -203,7 +204,7 @@ export function InquiryQueueScreen({
           rows={rowsForGrid}
         >
           {/* 안내는 조회항목 설정과 한 줄에 둔다 — 표가 한 줄 위로 올라온다. */}
-          <p className="text-xs text-muted-foreground">답변처리를 누르면 목록 위 팝업에서 문의와 연결 주문을 보고 바로 답변합니다.</p>
+          <p className="text-xs text-muted-foreground">답변 처리를 누르면 목록 위 팝업에서 문의와 연결 주문을 보고 바로 답변합니다.</p>
         </ConsoleGrid>
 
         <ConsolePagination

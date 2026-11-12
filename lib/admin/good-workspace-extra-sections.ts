@@ -203,7 +203,7 @@ export function prepareGoodWorkspaceExtraSections(extras: Partial<GoodWorkspaceE
       const row = rowFor(entry.optionKey);
       if (!row) return fail('pricePeriods', `${label}: 대상 옵션을 다시 선택해주세요.`);
       const period = parseGoodsPricePeriodInput({ state: entry.state, discountPrice: entry.discountPrice.trim(), startsAt: entry.startsAt, endsAt: entry.endsAt });
-      if (!period) return fail('pricePeriods', `${label}: 할인가(1원 이상)와 한국 시간 기준 시작·종료를 확인해주세요. 활성에는 모든 값이 필요합니다.`);
+      if (!period) return fail('pricePeriods', `${label}: 할인가(1원 이상)와 KST 기준 시작·종료를 확인해주세요. 활성에는 모든 값이 필요합니다.`);
       entries.push({ variant: variantRef(row), period });
     }
     value.pricePeriods = entries;

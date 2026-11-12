@@ -22,7 +22,7 @@ export function GoodsProductionFields({ draft, onChange, idPrefix = 'production'
    {draft.dayBasis === 'business' ? <AdminField label="휴무일 (YYYY-MM-DD, 한 줄에 하나)" inputId={`${idPrefix}-closed`}><textarea className={`${GOOD_TEXTAREA_CLASS} tabular-nums`} data-slot="textarea" id={`${idPrefix}-closed`} rows={4} value={draft.closedDates} onChange={e => onChange({ ...draft, closedDates: e.target.value })} /><small className="text-xs text-muted-foreground">공휴일을 자동 조회하지 않습니다. 발송하지 않는 공휴일·휴무일을 직접 등록해주세요.</small></AdminField> : null}
    <AdminField label="고객에게 표시할 제작 안내" inputId={`${idPrefix}-public`}><input className={GOOD_INPUT_CLASS} data-slot="input" id={`${idPrefix}-public`} maxLength={1000} value={draft.publicNote} onChange={e => onChange({ ...draft, publicNote: e.target.value })} /></AdminField>
    <AdminField label="설정 근거 (관리자만 표시)" inputId={`${idPrefix}-evidence`}><input className={GOOD_INPUT_CLASS} data-slot="input" id={`${idPrefix}-evidence`} minLength={2} maxLength={1000} required value={draft.evidence} onChange={e => onChange({ ...draft, evidence: e.target.value })} /></AdminField>
-   <p className="text-sm text-muted-foreground">결제 확인 당일은 계산에서 제외하고 마지막 날 한국 시간 자정 전까지를 발송 예정 기한으로 표시합니다. 기존 주문의 기간·휴무일은 바뀌지 않습니다. 제작 시작 후 취소도 접수하며 담당자가 검토합니다. 예약판매와 동시에 적용할 수 없습니다.</p>
+   <p className="text-sm text-muted-foreground">결제 확인 당일은 계산에서 제외하고 마지막 날 KST 자정 전까지를 발송 예정 기한으로 표시합니다. 기존 주문의 기간·휴무일은 바뀌지 않습니다. 제작 시작 후 취소도 접수하며 담당자가 검토합니다. 예약판매와 동시에 적용할 수 없습니다.</p>
    <label className={CHECK_LABEL_CLASS}><input type="checkbox" checked={draft.confirmed} onChange={e => onChange({ ...draft, confirmed: e.target.checked })} required />발송 예정 기간·계산 기준·취소 검토 절차를 확인했습니다.</label>
  </>;
 }

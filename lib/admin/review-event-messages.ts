@@ -7,7 +7,7 @@ export function reviewEventError(message: string | undefined): string {
     review_event_changed: '다른 운영자가 변경했습니다. 입력은 유지됩니다. 최신 이벤트를 다시 열어 확인해주세요.',
     review_event_review_changed: '선정한 리뷰가 변경되었습니다. 최신 리뷰를 확인하고 선정을 다시 저장해주세요.',
     review_event_terms_locked: '이벤트가 시작되면 조건을 바꾸거나 보관할 수 없습니다.',
-    review_event_start_tomorrow: '이벤트는 한국 시각으로 내일부터 시작할 수 있습니다.',
+    review_event_start_tomorrow: '이벤트는 KST으로 내일부터 시작할 수 있습니다.',
     review_event_credit_policy: '적립금 정책의 활성 여부·보유 상한·유효기간을 확인해주세요.',
     invalid_review_event: '입력값을 확인해주세요. 이벤트명 1~15자, 내용 1~30자, 종료일은 시작일 +1~31일, 발표일은 종료일 +3~10일입니다.',
     review_event_selection_closed: '응모 마감 후, 발표 전에만 선정을 저장할 수 있습니다.',

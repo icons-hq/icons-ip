@@ -351,7 +351,7 @@ export function StockReconcilePanel({ origins, initialSnapshot, now }: {
         <p className={HINT} id="stock-reconcile-origin-hint">고르면 다른 출고지 상품의 행은 반영하지 않습니다. 창고 한 곳의 재고 파일이면 그 출고지를 고르세요.</p>
       </div>
       <div className="flex min-w-0 flex-col gap-2">
-        <label className="text-sm leading-snug font-medium" htmlFor="stock-reconcile-as-of">파일의 재고 기준 시각 (한국 시간)</label>
+        <label className="text-sm leading-snug font-medium" htmlFor="stock-reconcile-as-of">파일의 재고 기준 시각 (KST)</label>
         <Input id="stock-reconcile-as-of" type="datetime-local" step={60} value={asOf} disabled={busy} className="w-60" aria-describedby="stock-reconcile-as-of-hint"
           onChange={(event) => setAsOf(event.target.value)} />
         <p className={HINT} id="stock-reconcile-as-of-hint">ERP·창고에서 재고를 내려받은 시각입니다(7일 안). 그 뒤에 출고한 주문은 파일에 아직 들어 있고, 그 뒤에 회수한 반품·교환은 아직 없다고 보고 계산합니다.</p>
@@ -385,7 +385,7 @@ export function StockReconcilePanel({ origins, initialSnapshot, now }: {
 
     {source && plan ? <div className="flex min-w-0 flex-col gap-4 border-t pt-4" data-stock-reconcile="plan">
       <header className="flex flex-col gap-1">
-        <h4 className="text-base leading-snug font-medium wrap-anywhere">파일 확인 · {source.label}</h4>
+        <h3 className="text-base leading-snug font-medium wrap-anywhere">파일 확인 · {source.label}</h3>
         <p className={`${HINT} tabular-nums`}>비어 있지 않은 {count(plan.dataRowCount)}행 · 대조할 행 {count(plan.rows.length)} · 대조하지 않는 행 {count(plan.issues.length)}</p>
       </header>
       <div className="flex max-w-[35rem] min-w-0 flex-col gap-2">
@@ -437,7 +437,7 @@ export function StockReconcilePanel({ origins, initialSnapshot, now }: {
 
     {snapshot ? <div className="flex min-w-0 flex-col gap-4 border-t pt-4" data-stock-reconcile="preview">
       <header className="flex flex-wrap items-center gap-2">
-        <h4 className="text-base leading-snug font-medium">{snapshot.appliedAt ? '반영한 대조' : '미리보기'}</h4>
+        <h3 className="text-base leading-snug font-medium">{snapshot.appliedAt ? '반영한 대조' : '미리보기'}</h3>
         {snapshot.appliedAt ? <AdminStatusBadge tone="success">반영 {formatOrderDateTime(snapshot.appliedAt)}{snapshot.appliedByName ? ` · ${snapshot.appliedByName}` : ''}</AdminStatusBadge>
           : <AdminStatusBadge tone="warning">아직 반영 안 함</AdminStatusBadge>}
       </header>

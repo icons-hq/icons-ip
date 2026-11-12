@@ -93,7 +93,7 @@ describe('주문 통합검색 목록 엑셀', () => {
     /* 주문 통합검색은 수취인 이름만 싣고 연락처·주소는 담지 않는다. */
     expect(sheet.columns.map((column) => column.header)).not.toContain('연락처');
     expect(sheet.conditions).toEqual([
-      ['검색 대상', '수취인'], ['검색어', '김수취'], ['주문 상태', '전체 상태'], ['주문일', '2026-10-01 ~ 종료 제한 없음'],
+      ['검색 대상', '수령인'], ['검색어', '김수취'], ['주문 상태', '전체 상태'], ['주문일', '2026-10-01 ~ 종료 제한 없음'],
     ]);
     expect(sheet.filters).toEqual({ field: 'recipient', query: '김수취', status: 'all', from: '2026-10-01', to: null });
   });

@@ -13,6 +13,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from './kit/ui/alert-dialog';
+import { Label } from './kit/ui/label';
+import { Textarea } from './kit/ui/textarea';
 
 interface PendingConfirm {
   id: number;
@@ -49,12 +51,13 @@ export function AdminConfirmHost() {
   const queue = useRef<PendingConfirm[]>([]);
   const active = useRef<PendingConfirm | null>(null);
   const nextId = useRef(0);
+  const [text, setText] = useState('');
 
   useEffect(() => {
     const unregister = setAdminConfirmHandler((request) => new Promise<boolean>((resolve) => {
       const pending: PendingConfirm = { id: nextId.current++, request, resolve, settled: false, container: openModalDialog() };
       if (active.current) queue.current.push(pending);
-      else { active.current = pending; setCurrent(pending); }
+      else { active.current = pending; setText(''); setCurrent(pending); }
     }));
     return () => {
       unregister();
@@ -73,11 +76,16 @@ export function AdminConfirmHost() {
     if (active.current !== pending) return;
     const next = queue.current.shift() ?? null;
     active.current = next;
+    setText('');
     setCurrent(next);
   }
 
   if (!current) return null;
   const { request } = current;
+  const input = request.input;
+  const inputId = `admin-confirm-input-${current.id}`;
+  const length = [...text.trim()].length;
+  const inputInvalid = Boolean(input) && (length < (input?.minLength ?? 0) || length > (input?.maxLength ?? Number.MAX_SAFE_INTEGER));
   return (
     <AdminKitPortalContainerProvider container={current.container} key={current.id}>
     <AlertDialog open onOpenChange={(open) => { if (!open) settle(current, false); }}>
@@ -86,9 +94,14 @@ export function AdminConfirmHost() {
           <AlertDialogTitle>{request.title ?? '확인'}</AlertDialogTitle>
           <AlertDialogDescription className="whitespace-pre-line text-foreground">{request.message}</AlertDialogDescription>
         </AlertDialogHeader>
+        {input ? <div className="flex flex-col gap-1.5">
+          <Label htmlFor={inputId}>{input.label}</Label>
+          <Textarea autoFocus id={inputId} onChange={event => setText(event.target.value)} placeholder={input.placeholder} rows={3} value={text} />
+          {input.minLength || input.maxLength ? <p className="text-xs text-muted-foreground tabular-nums">{length}자{input.minLength && input.maxLength ? ` · ${input.minLength}~${input.maxLength}자` : input.maxLength ? ` · 최대 ${input.maxLength}자` : ` · ${input.minLength}자 이상`}</p> : null}
+        </div> : null}
         <AlertDialogFooter>
           <AlertDialogCancel>{request.cancelLabel ?? '취소'}</AlertDialogCancel>
-          <AlertDialogAction onClick={() => settle(current, true)} variant={request.destructive ? 'danger' : 'default'}>{request.confirmLabel ?? '확인'}</AlertDialogAction>
+          <AlertDialogAction disabled={inputInvalid} onClick={() => { if (input) request.receive?.(text.trim()); settle(current, true); }} variant={request.destructive ? 'danger' : 'default'}>{request.confirmLabel ?? '확인'}</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

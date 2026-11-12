@@ -1785,7 +1785,7 @@ describe('admin catalog actions', () => {
 
     it('blocks staff users — role management is admin-only', async () => {
       await expect(setAdminUserRoleAction({}, roleForm())).resolves.toEqual({
-        errors: { form: '최고 관리자(admin) 권한이 필요합니다.' },
+        errors: { form: '최고 관리자 권한이 필요합니다.' },
       });
       expect(mocks.rpc).not.toHaveBeenCalled();
     });
@@ -1799,7 +1799,7 @@ describe('admin catalog actions', () => {
       };
 
       await expect(setAdminUserRoleAction({}, roleForm())).resolves.toEqual({
-        errors: { form: '최고 관리자(admin) 권한이 필요합니다.' },
+        errors: { form: '최고 관리자 권한이 필요합니다.' },
       });
       expect(mocks.rpc).not.toHaveBeenCalled();
     });
@@ -2065,7 +2065,7 @@ describe('상품 등록 원자 저장', () => {
 });
 
 describe('일반 상품 판매기간 제출', () => {
-  it('한국시간과 CAS 리비전을 기존 상품 트랜잭션에 보내고 구버전 폼은 생략한다', async () => {
+  it('KST과 CAS 리비전을 기존 상품 트랜잭션에 보내고 구버전 폼은 생략한다', async () => {
     const form = goodForm();
     await upsertAdminGoodAction({}, form);
     expect(mocks.rpc.mock.calls.at(-1)?.[1].target_good).not.toHaveProperty('sale_period');

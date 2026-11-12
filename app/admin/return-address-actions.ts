@@ -8,7 +8,7 @@ import { createClient } from '@/lib/supabase/server';
 
 export type ReturnAddressActionState = { message?: string; errors?: Record<string, string>; values?: Record<string, string>; updatedAt?: string; deleted?: boolean; attempt?: number };
 
-const FORBIDDEN = '반품/교환지 변경은 관리자(admin)만 할 수 있습니다.';
+const FORBIDDEN = '반품/교환지 변경은 최고 관리자만 할 수 있습니다.';
 const value = (data: FormData, key: string) => { const raw = data.get(key); return typeof raw === 'string' ? raw : ''; };
 const validStamp = (stamp: string) => Boolean(stamp) && !Number.isNaN(Date.parse(stamp));
 

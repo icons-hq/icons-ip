@@ -301,7 +301,7 @@ describe('OrdersSection', () => {
 
     expect(html).toContain('aria-label="검색 유형"');
     expect(html).toContain('name="field"');
-    expect(html).toContain('<option value="recipient">수취인</option>');
+    expect(html).toContain('<option value="recipient">수령인</option>');
     expect(html).toContain('<option value="tracking" selected="">운송장번호</option>');
     expect(html).toContain('placeholder="검색어를 입력하세요"');
   });
@@ -614,7 +614,7 @@ describe('OrdersSection', () => {
     })} />);
 
     expect(html).toContain('data-order-row-reason');
-    expect(html).toContain(`aria-label="상세·처리 주문 ${ORDER_ID.slice(0, 8)} · 청약철회 상품 하자·오배송"`);
+    expect(html).toContain(`aria-label="처리 주문 ${ORDER_ID.slice(0, 8)} · 청약철회 상품 하자·오배송"`);
     expect(html).toContain('상품 하자·오배송');
     expect(html).toContain('data-order-reason="defect"');
     expect(html).toContain('공급받은 날부터 3개월');
@@ -648,7 +648,7 @@ describe('OrdersSection', () => {
 
     expect(html).toContain('운영자 전액 취소 · 품절·출고 불가');
     expect(html).toContain('data-order-reason="staff"');
-    expect(html).toContain(`aria-label="상세·처리 주문 ${ORDER_ID.slice(0, 8)} · 운영자 전액 취소 · 품절·출고 불가"`);
+    expect(html).toContain(`aria-label="처리 주문 ${ORDER_ID.slice(0, 8)} · 운영자 전액 취소 · 품절·출고 불가"`);
     expect(html).not.toContain('단순 변심');
     expect(html).not.toContain('공급받은 날부터 7일');
     expect(html).toContain('운영자가 시작한 발송 전 전액 취소');
@@ -712,7 +712,7 @@ describe('OrdersSection', () => {
     })} />);
 
     expect(html).not.toContain('data-order-row-reason');
-    expect(html).toContain(`aria-label="상세·처리 주문 ${ORDER_ID.slice(0, 8)}"`);
+    expect(html).toContain(`aria-label="처리 주문 ${ORDER_ID.slice(0, 8)}"`);
     // 상세에는 남는다 — 어떤 사유로 종결됐는지는 사후에도 필요하다.
     expect(html).toContain('data-order-reason="defect"');
   });
@@ -894,11 +894,11 @@ describe('OrdersSection', () => {
 describe('주문 통합검색 목록 엑셀 다운로드', () => {
   it('적용된 검색 조건 그대로의 다운로드 주소를 필터 옆에 둔다', () => {
     const data = orderData();
-    data.filters = { ...data.filters, field: 'recipient', query: '배송 수취인', status: 'paid', from: '2026-10-01', page: 3 };
+    data.filters = { ...data.filters, field: 'recipient', query: '배송 수령인', status: 'paid', from: '2026-10-01', page: 3 };
     data.total = 57;
     const html = renderToStaticMarkup(<OrdersSection data={data} />);
     expect(html).toContain('목록 엑셀 다운로드');
-    expect(html).toContain('data-export-href="/api/admin/list-export?screen=orders&amp;status=paid&amp;from=2026-10-01&amp;query=%EB%B0%B0%EC%86%A1+%EC%88%98%EC%B7%A8%EC%9D%B8&amp;field=recipient"');
+    expect(html).toContain('data-export-href="/api/admin/list-export?screen=orders&amp;status=paid&amp;from=2026-10-01&amp;query=%EB%B0%B0%EC%86%A1+%EC%88%98%EB%A0%B9%EC%9D%B8&amp;field=recipient"');
     expect(html).toContain('전체 57건을 받습니다');
     expect(html.indexOf('data-sales-filters')).toBeGreaterThan(-1);
     expect(html.indexOf('data-sales-filters')).toBeLessThan(html.indexOf('목록 엑셀 다운로드'));
@@ -907,7 +907,7 @@ describe('주문 통합검색 목록 엑셀 다운로드', () => {
 
 it('query-only mode offers order search without any processing controls', () => {
   const html = renderToStaticMarkup(<OrdersSection data={orderData({ status: 'paid' })} canManage={false} />);
-  expect(html).toContain('상세 보기');
+  expect(html).toContain('상세');
   for (const text of ['선택 주문 발주확인', '배송 건별 운송장 등록', '판매자 직접 반품·교환 접수', '결제·환불', 'href="/admin/sales/dispatch"']) expect(html).not.toContain(text);
 });
 

@@ -41,7 +41,7 @@ export function StatsSalesHourlyScreen({ report, filters }: { report: AdminSales
       <StatsSummaryTile label="오늘 집계 주문수" value={current ? `${current.orderCount.toLocaleString('ko-KR')}건` : '—'}><small className="text-xs text-muted-foreground tabular-nums">비교일 동일 시간: {comparison ? `${comparison.orderCount.toLocaleString('ko-KR')}건` : '—'}</small>{current && comparison ? <StatsRateChange current={current.orderCount} previous={comparison.orderCount} /> : <small className="text-xs text-muted-foreground">집계 마감까지 완료된 시간대가 없습니다.</small>}</StatsSummaryTile>
     </div>
     <details className="rounded-lg border bg-muted/40 px-4 py-3 text-sm"><summary className="cursor-pointer font-medium">집계 기준 확인</summary><ul className="mt-2 flex list-disc flex-col gap-1.5 pl-5 text-xs leading-relaxed text-muted-foreground">
-      <li>현재 진행 중인 시간을 제외한 한국시간 정시 구간입니다. 비교일도 같은 완료 시간까지만 집계합니다. 00시에는 오늘 완료된 시간대가 없으며 직전 1시간은 전날 23시부터 오늘 00시 직전입니다.</li>
+      <li>현재 진행 중인 시간을 제외한 KST 정시 구간입니다. 비교일도 같은 완료 시간까지만 집계합니다. 00시에는 오늘 완료된 시간대가 없으며 직전 1시간은 전날 23시부터 오늘 00시 직전입니다.</li>
       <li>주문수는 상품 주문서 수, 주문매출은 배송비·할인·적립금을 반영한 주문 총액입니다. 주문 생성시각으로 나누며 카드 승인시각 기준이 아닙니다. 티켓 예매는 포함하지 않습니다.</li>
       <li>조회 시점에 결제완료·발주확인·배송중·배송완료·거래확정인 주문만 포함합니다. 취소되면 이후 조회의 과거 시간 값도 달라질 수 있습니다.</li>
       <li>상품금액은 주문 당시 수량×단가에서 복수구매 할인을 뺀 금액입니다. 혼합 IP 주문의 총액을 IP별로 나누지 않으며 IP 조건은 상품 TOP10에만 적용합니다. 비교값은 현재 순위에 오른 같은 상품의 값입니다.</li>

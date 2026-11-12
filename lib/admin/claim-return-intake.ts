@@ -3,14 +3,14 @@ import type { OrderClaimType } from '@/lib/orders/claims';
 
 /*
  * 반품입고 회신 업로드(QNA-034·ADR-0034). 서원 반품입고 파일 양식이 오기 전이라 열 이름 대응표(DB 설정
- * `private.return_pickup_settings.intake_columns`)로 네 칸만 읽는다: 회수 송장·주문번호·연락처·입고일. 나머지 열(이름·주소 등)은 읽지 않고
+ * `private.return_pickup_settings.intake_columns`)로 네 칸만 읽는다: 회수 운송장·주문번호·연락처·입고일. 나머지 열(이름·주소 등)은 읽지 않고
  * 서버로도 보내지 않는다. 회수 묶음에 맞추는 일은 DB가 하고(미리보기), 확정은 회수 묶음마다 회수 확인 경로로 기록한다.
  */
 
 export const RETURN_INTAKE_FIELDS = ['trackingNumber', 'orderNumber', 'phone', 'receivedOn'] as const;
 export type ReturnIntakeField = (typeof RETURN_INTAKE_FIELDS)[number];
 export type ReturnIntakeColumns = Record<ReturnIntakeField, string[]>;
-export const RETURN_INTAKE_FIELD_LABELS: Record<ReturnIntakeField, string> = { trackingNumber: '회수 송장', orderNumber: '주문번호', phone: '연락처', receivedOn: '입고일' };
+export const RETURN_INTAKE_FIELD_LABELS: Record<ReturnIntakeField, string> = { trackingNumber: '회수 운송장', orderNumber: '주문번호', phone: '연락처', receivedOn: '입고일' };
 /** 한 파일의 데이터 줄 상한. DB 미리보기·확정도 같은 수다. */
 export const RETURN_INTAKE_ROW_LIMIT = 1000;
 /** 머리글 줄을 찾는 범위(파일 위쪽 안내 줄을 건너뛴다). */
@@ -70,7 +70,7 @@ const usable = (found: Partial<Record<ReturnIntakeField, number>>) =>
   found.receivedOn !== undefined && (found.trackingNumber !== undefined || found.orderNumber !== undefined);
 
 /**
- * 표(줄 × 칸 문자열)에서 대응표의 네 칸만 읽는다. 머리글 줄은 위에서 열 줄 안에서 입고일과 회수 송장 또는 주문번호가 함께 있는 첫 줄이다.
+ * 표(줄 × 칸 문자열)에서 대응표의 네 칸만 읽는다. 머리글 줄은 위에서 열 줄 안에서 입고일과 회수 운송장 또는 주문번호가 함께 있는 첫 줄이다.
  * 데이터 줄 번호(rowNumber)는 파일의 줄 번호(1부터)다 — 확정 근거에 그대로 남는다. 네 칸이 모두 빈 줄은 건너뛴다.
  * `lineErrors`는 파일을 읽을 때 그 줄에서 난 오류(수식 등)다 — 그 줄은 보내지 않고 '읽지 못한 줄'로 보인다.
  */
@@ -82,7 +82,7 @@ export function mapReturnIntakeTable(table: readonly (readonly string[])[], colu
     if (usable(candidate)) { headerIndex = index; found = candidate; break; }
   }
   if (headerIndex < 0) {
-    return { error: `열 이름을 찾지 못했습니다. 첫 줄 근처에 입고일 열과 회수 송장 또는 주문번호 열이 있어야 합니다. 지금 대응표: ${RETURN_INTAKE_FIELDS.map(field => `${RETURN_INTAKE_FIELD_LABELS[field]}(${columns[field].join('·')})`).join(' / ')}` };
+    return { error: `열 이름을 찾지 못했습니다. 첫 줄 근처에 입고일 열과 회수 운송장 또는 주문번호 열이 있어야 합니다. 지금 대응표: ${RETURN_INTAKE_FIELDS.map(field => `${RETURN_INTAKE_FIELD_LABELS[field]}(${columns[field].join('·')})`).join(' / ')}` };
   }
   const rows: ReturnIntakeRow[] = [];
   const issues: ReturnIntakeIssue[] = [];
@@ -97,7 +97,7 @@ export function mapReturnIntakeTable(table: readonly (readonly string[])[], colu
     if (lineErrors[line]) { issues.push({ line, reason: lineErrors[line] }); continue; }
     if (!values.trackingNumber && !values.orderNumber && !values.phone && !values.receivedOn) continue;
     if (values.trackingNumber.length > 60 || values.orderNumber.length > 60 || values.phone.length > 40) {
-      issues.push({ line, reason: '회수 송장·주문번호·연락처 칸의 내용이 너무 깁니다.' });
+      issues.push({ line, reason: '회수 운송장·주문번호·연락처 칸의 내용이 너무 깁니다.' });
       continue;
     }
     rows.push({ rowNumber: line, trackingNumber: values.trackingNumber || null, orderNumber: values.orderNumber || null,

@@ -15,7 +15,7 @@ export async function readGoodsAttributesAction(categoryId: string | null, goodI
   catch { return { error: '상품속성을 불러오지 못했습니다. 입력은 유지됩니다. 다시 조회해주세요.' }; }
 }
 export async function saveGoodsAttributeSchemaAction(categoryId: string, fields: unknown, expectedRevision: number, operationId: string) {
-  if (!await requireAdminActionAccess(GOODS_ATTRIBUTES_PATH, { adminOnly: true, capability: 'platform.manage' })) return { error: '속성 정의는 관리자만 저장할 수 있습니다.' };
+  if (!await requireAdminActionAccess(GOODS_ATTRIBUTES_PATH, { adminOnly: true, capability: 'platform.manage' })) return { error: '속성 정의는 최고 관리자만 저장할 수 있습니다.' };
   if (!isUuid(categoryId) || !isUuid(operationId) || !parseGoodsAttributeFields(fields) || !Number.isSafeInteger(expectedRevision) || expectedRevision < 0) return { error: '항목명·유형·단위·선택값을 확인해주세요. 항목은 최대 30개, 선택값은 항목당 최대 100개입니다.' };
   try {
     const client = await createClient(); const { data, error } = await client.rpc('admin_save_goods_attribute_schema', { p_category_id: categoryId, p_fields: fields, p_expected_revision: expectedRevision, p_operation_id: operationId });

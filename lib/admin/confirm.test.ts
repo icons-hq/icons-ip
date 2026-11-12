@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { adminConfirm, confirmAdminSubmit, setAdminConfirmHandler } from './confirm';
+import { adminConfirm, adminPrompt, confirmAdminSubmit, setAdminConfirmHandler } from './confirm';
 
 afterEach(() => { setAdminConfirmHandler(null); });
 
@@ -40,6 +40,29 @@ describe('adminConfirm', () => {
     void adminConfirm('A');
     void adminConfirm('B');
     expect(handler).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('adminPrompt', () => {
+  const request = { message: '이미 쓴 금액은 차감 예정액으로 남습니다.', input: { label: '회수 사유', minLength: 2, maxLength: 500 } };
+
+  it('호스트가 없으면 null이다(사유 없이 실행되지 않는다)', async () => {
+    expect(await adminPrompt(request)).toBeNull();
+  });
+
+  it('확인하면 호스트가 적은 입력값을, 취소하면 null을 돌려준다', async () => {
+    setAdminConfirmHandler(async (asked) => { asked.receive?.('고객 요청'); return true; });
+    expect(await adminPrompt(request)).toBe('고객 요청');
+    setAdminConfirmHandler(async (asked) => { asked.receive?.('버려질 글'); return false; });
+    expect(await adminPrompt(request)).toBeNull();
+  });
+
+  it('요청 객체를 바꾸지 않아 같은 요청을 다시 써도 이전 입력이 남지 않는다', async () => {
+    setAdminConfirmHandler(async (asked) => { asked.receive?.('처음'); return true; });
+    await adminPrompt(request);
+    expect('receive' in request).toBe(false);
+    setAdminConfirmHandler(async () => true);
+    expect(await adminPrompt(request)).toBe('');
   });
 });
 

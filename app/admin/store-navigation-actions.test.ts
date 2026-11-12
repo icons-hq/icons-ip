@@ -14,7 +14,7 @@ beforeEach(() => {
   mocks.updateTag.mockClear(); mocks.revalidatePath.mockClear();
 });
 it('admin 권한과 구조·요청 식별자 검증을 통과한 경우만 DB를 호출한다', async () => {
-  mocks.allow = false; expect((await saveStoreNavigationAction(DEFAULT_STORE_NAVIGATION, stamp, operation)).error).toContain('admin');
+  mocks.allow = false; expect((await saveStoreNavigationAction(DEFAULT_STORE_NAVIGATION, stamp, operation)).error).toContain('최고 관리자');
   mocks.allow = true; expect((await saveStoreNavigationAction([], stamp, operation)).error).toContain('7개');
   expect((await saveStoreNavigationAction(DEFAULT_STORE_NAVIGATION, stamp, 'bad')).error).toContain('다시 열어');
   expect(mocks.rpc).not.toHaveBeenCalled();

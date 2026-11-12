@@ -49,7 +49,7 @@ export function StoreCreditConsoleScreen({ data, policy }: { data: StoreCreditCo
         <form action="/api/admin/store-credit-workbook" className="flex flex-wrap items-center justify-between gap-3" method="get">
           {Object.entries({mode:filters.mode,query:filters.query,from:filters.from,to:filters.to,kind:filters.kind}).map(([name,value]) => <input key={name} type="hidden" name={name} value={value} />)}
           <label className="flex min-w-0 flex-1 basis-72 items-start gap-2 text-xs text-muted-foreground"><input className="mt-0.5" type="checkbox" name="privacyConfirmed" value="yes" required />고객·금액 내역이 포함된 암호화되지 않은 파일의 업무용 보관·삭제 책임을 확인합니다.</label>
-          <button className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" type="submit" disabled={data.total > 10000}><Download aria-hidden="true" />검색 결과 엑셀{data.total > 10000 ? ' · 10,000행 초과' : ''}</button>
+          <button className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" type="submit" disabled={data.total > 10000}><Download aria-hidden="true" />엑셀 다운로드{data.total > 10000 ? ' · 10,000행 초과' : ''}</button>
         </form>
       </ConsoleGrid>
       <ConsolePagination className="px-4" label="적립금 내역 페이지" page={filters.page} pageSize={filters.pageSize} total={data.total} hrefForPage={page => storeCreditConsoleHref({ ...filters,page })} />

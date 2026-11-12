@@ -17,7 +17,7 @@ export const SHIPMENT_CONSOLE_TABS:Record<ShipmentConsoleSurface,readonly {id:Sh
 };
 export const SHIPMENT_SEARCH_FIELDS = [
  {value:'all',label:'전체'},{value:'order',label:'주문번호'},{value:'shipment',label:'배송건번호'},
- {value:'buyer',label:'구매자명'},{value:'recipient',label:'수취인명'},{value:'tracking',label:'운송장번호'},{value:'product',label:'상품명 · 옵션'},
+ {value:'buyer',label:'구매자명'},{value:'recipient',label:'수령인명'},{value:'tracking',label:'운송장번호'},{value:'product',label:'상품명 · 옵션'},
 ] as const;
 export interface ShipmentConsoleFilters extends SalesListOptions {
  tab:ShipmentConsoleTab;originId:string|null;query:string;from:string|null;to:string|null;page:number;

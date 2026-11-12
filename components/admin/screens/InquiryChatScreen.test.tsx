@@ -19,16 +19,16 @@ function render(props: Partial<Parameters<typeof InquiryChatScreen>[0]> = {}) {
   return renderToStaticMarkup(<InquiryChatScreen accountId={ACCOUNT} filters={normalizeInquiryChatFilters({})} data={data} detail={null} selected={false} canReadOrders={false} canViewCustomer={false} {...props} />);
 }
 describe('ICONS 상담 콘솔', () => {
-  it('검색·상태·담당자·기간·읽음·정렬과 실제 안읽음 집계를 표시한다', () => {
+  it('검색·상태·담당자·기간·읽음·정렬과 실제 안 읽음 집계를 표시한다', () => {
     const html = render();
-    expect(html).toContain('대화내용, 닉네임, 태그 검색'); expect(html).toContain('안읽은 메시지 2개 전체 보기');
+    expect(html).toContain('대화내용, 닉네임, 태그 검색'); expect(html).toContain('안 읽은 메시지 2개 전체 보기');
     for (const label of ['담당자', '대화 기간', '읽음 여부', '대화 정렬']) expect(html).toContain(`aria-label="${label}"`);
     expect(html).toContain('상담할 대화를 선택해 주세요'); expect(html).not.toContain('name="body"');
   });
   it('선택한 대화·답변·사진·자주 쓰는 문구·내부 메모를 같은 화면에서 제공한다', () => {
     const html = render({ detail, selected: true });
-    for (const label of ['합성 고객 메시지', '상담완료', '사진 첨부', '자주 쓰는 문구', '내부 메모', '담당자 관리']) expect(html).toContain(label);
-    expect(html).toContain(`name="inquiryId" value="${ID}"`); expect(html).not.toContain('고객 상세 보기');
+    for (const label of ['합성 고객 메시지', '상담 완료', '사진 첨부', '자주 쓰는 문구', '내부 메모', '담당자 관리']) expect(html).toContain(label);
+    expect(html).toContain(`name="inquiryId" value="${ID}"`); expect(html).not.toContain('고객 상세');
     /* 구매이력 카드는 주문 조회 권한과 무관하게 상담 화면에 있다(1014-103). 미리 읽은 이력이 없으면 다시 불러오는 버튼이 보인다. */
     expect(html).toContain('구매이력'); expect(html).toContain('구매이력 불러오기');
     /* Enter 전송과 같은 폼을 버튼으로도 제출한다(kit Button은 type을 주지 않으면 button이 된다). */
@@ -48,13 +48,13 @@ describe('ICONS 상담 콘솔', () => {
     expect(html).toMatch(/<a aria-label="이전 페이지"[^>]*href="\/admin\/cs\/chat\?status=open"/);
     expect(html).toMatch(/<a aria-label="다음 페이지"[^>]*href="\/admin\/cs\/chat\?status=open&amp;page=3"/);
   });
-  /* 처리할 숫자(대기)만 주의색이다 — 안읽음 표시는 회색으로 물러나 대기와 섞이지 않고, 진행중은 진행 색이다. */
+  /* 처리할 숫자(대기)만 주의색이다 — 안 읽음 표시는 회색으로 물러나 대기와 섞이지 않고, 진행중은 진행 색이다. */
   it('대기 건수만 강조하고 빈 화면에서 대기 상담으로 안내한다', () => {
     const html = render({ data: { ...data, rows: [{ ...data.rows[0], status: 'answered', unreadCount: 2 }], counts: { all: 3, open: 2, answered: 1, closed: 0 } } });
     expect(html).toMatch(/text-warning[^>]*>2<\/strong>/);
     expect(html).toMatch(/data-tone="info"[^>]*>진행중</);
     expect(html).toMatch(/<a(?=[^>]*href="\/admin\/cs\/chat\?status=open")[^>]*>대기 상담 2건 보기<\/a>/);
-    expect(html).not.toMatch(/border-warning-border[^>]*aria-label="안읽은 메시지/);
+    expect(html).not.toMatch(/border-warning-border[^>]*aria-label="안 읽은 메시지/);
     expect(render({ filters: normalizeInquiryChatFilters({ status: 'open' }) })).not.toContain('대기 상담 1건 보기');
   });
   it('정상 빈 목록과 존재하지 않는 선택 대화를 구분한다', () => {

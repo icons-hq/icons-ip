@@ -114,12 +114,12 @@ export function InquiryChatConversation({ accountId, detail }: { accountId: stri
       <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-full border bg-muted text-sm font-semibold text-foreground @max-2xl/chat:hidden" aria-hidden="true">{inquiry.buyerName.slice(0, 1)}</span>
       <div className="min-w-0 flex-1"><strong className="block truncate font-medium text-foreground">{inquiry.buyerName}</strong><p className="truncate text-xs text-muted-foreground" title={inquiry.title}>{inquiry.title}</p></div>
       <span className="max-w-24 truncate text-xs text-muted-foreground @max-2xl/chat:max-w-18">{inquiry.assigneeName ?? '담당자 미배정'}</span>
-      {inquiry.status !== 'closed' ? <Button className="print:hidden" disabled={busy} onClick={() => setCloseRequested(true)} size="sm" type="button" variant="outline"><CircleCheck aria-hidden="true" />상담완료</Button> : <AdminStatusBadge tone={statusTone('inquiry', 'closed')}>상담완료</AdminStatusBadge>}
+      {inquiry.status !== 'closed' ? <Button className="print:hidden" disabled={busy} onClick={() => setCloseRequested(true)} size="sm" type="button" variant="outline"><CircleCheck aria-hidden="true" />상담 완료</Button> : <AdminStatusBadge tone={statusTone('inquiry', 'closed')}>상담 완료</AdminStatusBadge>}
     </header>
-    {closeRequested && inquiry.status !== 'closed' ? <div className="flex shrink-0 flex-col gap-2 border-b border-warning-border bg-warning-soft px-4 py-2.5" role="group" aria-label="상담완료 확인">
+    {closeRequested && inquiry.status !== 'closed' ? <div className="flex shrink-0 flex-col gap-2 border-b border-warning-border bg-warning-soft px-4 py-2.5" role="group" aria-label="상담 완료 확인">
       <p className="text-sm">상담을 완료하면 이 대화에 추가 답변을 보낼 수 없습니다. 완료할까요?</p>
       <form action={closeAction} className="flex flex-wrap gap-2"><input type="hidden" name="inquiryId" value={inquiry.id} />
-        <Button disabled={busy} size="sm" type="submit">{closePending ? '완료 처리 중' : '상담완료 확인'}</Button>
+        <Button disabled={busy} size="sm" type="submit">{closePending ? '완료 처리 중' : '상담 완료 확인'}</Button>
         <Button disabled={closePending} onClick={() => setCloseRequested(false)} size="sm" type="button" variant="outline">계속 상담</Button>
       </form><Feedback state={closeState} />
     </div> : null}

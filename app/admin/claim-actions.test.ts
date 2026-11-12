@@ -356,7 +356,7 @@ describe('교환품 배송완료 확인 성공', () => {
     const form = receiptForm('exchange');
     form.set('reshipmentShipment', SHIPMENT_ID);
     expect(await recordOrderClaimReshipmentDeliveryAction({}, form)).toEqual({
-      message: '이 송장의 교환품 배송완료를 확인했습니다. 모든 송장이 확인되면 이후 신청은 기존 신청 기한과 조건을 따릅니다.',
+      message: '이 운송장의 교환품 배송완료를 확인했습니다. 모든 운송장이 확인되면 이후 신청은 기존 신청 기한과 조건을 따릅니다.',
     });
     expect(mocks.rpc).toHaveBeenLastCalledWith('admin_record_order_claim_shipment_reshipment_delivery', {
       p_claim_id: CLAIM_ID, p_shipment_id: SHIPMENT_ID, p_evidence: RAW_EVIDENCE.trim(),

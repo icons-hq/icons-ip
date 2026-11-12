@@ -99,7 +99,7 @@ it('연결 쿠폰마다 지급 방식을 적고 매월 지급 기록을 최근 �
   const rendered = text(render(withMonthly));
   expect(rendered).toContain('GOLD-MONTHLY · 활성 · 매월 1일');
   expect(rendered).toContain('GOLD-UP · 활성 · 승급 시 1회');
-  expect(rendered).toContain('매월 1일 0시(한국 시간)에 그 시점 등급이 쿠폰 등급 이상인 회원에게 한 장씩 발급');
+  expect(rendered).toContain('매월 1일 0시(KST)에 그 시점 등급이 쿠폰 등급 이상인 회원에게 한 장씩 발급');
   expect(rendered).toContain('2026년 12월');
   expect(rendered).toContain('지급 완료 · 등급 확인 실패 2명 제외');
   expect(rendered).not.toContain('매월 지급 쿠폰 없음 · 등급 확인 실패');

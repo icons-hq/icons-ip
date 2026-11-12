@@ -25,7 +25,7 @@ export function CustomerServiceResultsHeader({ title, total, pageSize, pageSizeO
 }) {
   return <div className="flex flex-wrap items-center justify-between gap-3" data-cs-results-header="">
     <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
-      <h3 className="text-base leading-snug font-semibold text-foreground">{title} <span className="text-sm font-normal text-muted-foreground">(총 <strong className="font-semibold text-foreground tabular-nums">{total.toLocaleString('ko-KR')}</strong>개)</span></h3>
+      <h2 className="text-base leading-snug font-semibold text-foreground">{title} <span className="text-sm font-normal text-muted-foreground">(총 <strong className="font-semibold text-foreground tabular-nums">{total.toLocaleString('ko-KR')}</strong>건)</span></h2>
       {aside}
     </div>
     <div className="flex flex-wrap items-center gap-2">

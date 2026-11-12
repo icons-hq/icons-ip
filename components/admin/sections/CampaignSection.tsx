@@ -238,7 +238,7 @@ function CampaignEditor({
         <Field
           defaultValue={adminCampaignDateTimeInput(selected?.startsAt)}
           error={state.errors?.startsAt}
-          label="시작 (한국 시각)"
+          label="시작 (KST)"
           name="startsAt"
           required
           type="datetime-local"
@@ -246,7 +246,7 @@ function CampaignEditor({
         <Field
           defaultValue={adminCampaignDateTimeInput(selected?.endsAt)}
           error={state.errors?.endsAt}
-          label="종료 (한국 시각)"
+          label="종료 (KST)"
           name="endsAt"
           required
           type="datetime-local"

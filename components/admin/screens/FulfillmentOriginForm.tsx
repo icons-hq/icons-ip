@@ -60,7 +60,7 @@ export function FulfillmentOriginForm({ origin, carriers, canEdit }: { origin?: 
               <option value="">설정 전</option>{carriers.map((carrier) => <option key={carrier.code} value={carrier.code} disabled={!carrier.active}>{carrier.label}{carrier.active ? '' : ' · 비활성'}</option>)}
             </NativeSelect>
           </AdminField>
-          {input('cutoff', '출고 마감 시각 (한국 시간)', 'time')}
+          {input('cutoff', '출고 마감 시각 (KST)', 'time')}
         </AdminFormGrid>
       </SettingsFormGroup>
       <SettingsFormGroup title="배송비">

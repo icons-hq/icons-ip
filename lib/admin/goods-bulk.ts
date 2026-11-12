@@ -27,7 +27,7 @@ export interface GoodsBulkRequest { kind: GoodsBulkKind; ids: string[]; command:
 export interface GoodsBulkGood { id: string; name: string; code: string | null; price: number; nextPrice: number; priceMin: number | null; priceMax: number | null; nextMin: number | null; nextMax: number | null; published: boolean; archived: boolean; stopped: boolean; skip?: string | null; discounts?: GoodsBulkActiveDiscounts | null; instantDiscount?: GoodsBulkInstantDiscount }
 export interface GoodsBulkPreview { state: 'ready'; operationId: string; request: GoodsBulkRequest; groups: { id: string; name: string; revision: number }[]; goods: GoodsBulkGood[]; expiresAt: string }
 export interface GoodsBulkReceipt { state: 'completed' | 'rejected' | 'unresolved' | 'sealed'; operationId: string; goodsCount: number; groupsCount: number; error: string | null; skipped?: GoodsBulkSkipped[] }
-export const GOODS_BULK_LABELS: Record<GoodsBulkCommand, string> = { publish: '전시중으로 변경', unpublish: '전시 중지', start: '판매 재개', stop: '판매 중지', archive: '선택 보관', restore: '선택 복원', price: '판매가 변경', discount: '즉시할인 등록', discount_stop: '기간 할인 중지', period: '판매기간 변경', dissolve: '그룹 해제' };
+export const GOODS_BULK_LABELS: Record<GoodsBulkCommand, string> = { publish: '공개로 변경', unpublish: '전시 중지', start: '판매 재개', stop: '판매 중지', archive: '선택 보관', restore: '선택 복원', price: '판매가 변경', discount: '즉시할인 등록', discount_stop: '기간 할인 중지', period: '판매기간 변경', dissolve: '그룹 해제' };
 
 export function parseGoodsBulkRequest(value: unknown): GoodsBulkRequest | null {
   if (!record(value) || !exact(value, ['kind', 'ids', 'command', 'values']) || !['goods', 'groups', 'ip'].includes(String(value.kind))

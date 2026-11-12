@@ -50,7 +50,7 @@ const TOTAL_COLUMNS: ConsoleGridColumn[] = [
   { key: 'amount', label: '거래금액', align: 'end' }, { key: 'fee', label: '수수료', align: 'end' }, { key: 'payout', label: '지급액', align: 'end' },
 ];
 function TransactionDetails({ row }: { row: PgSettlementTransaction }) {
-  return <details className="min-w-50 text-xs"><summary className="cursor-pointer underline-offset-4 hover:underline">상세 보기</summary><dl className="mt-3 grid gap-2">
+  return <details className="min-w-50 text-xs"><summary className="cursor-pointer underline-offset-4 hover:underline">상세</summary><dl className="mt-3 grid gap-2">
     <div className={DETAIL_ROW}><dt className={DETAIL_TERM}>승인 시각</dt><dd className={DETAIL_VALUE}>{formatOrderDateTime(row.approvedAt)}</dd></div>
     {row.canceledAt ? <div className={DETAIL_ROW}><dt className={DETAIL_TERM}>취소 시각</dt><dd className={DETAIL_VALUE}>{formatOrderDateTime(row.canceledAt)}</dd></div> : null}
     {row.cancelAmount !== null ? <div className={DETAIL_ROW}><dt className={DETAIL_TERM}>취소금액</dt><dd className={DETAIL_VALUE}>{AMOUNT(row.cancelAmount)}</dd></div> : null}

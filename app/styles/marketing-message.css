@@ -9,6 +9,8 @@
   .wc-marketing-message h2 { font-size: 20px; line-height: 1.5; margin: 0; overflow-wrap: anywhere; }
   .wc-marketing-message__body { white-space: pre-wrap; line-height: 1.75; font-size: 14px; margin: 0; overflow-wrap: anywhere; }
   .wc-marketing-message__image img { display: block; width: 100%; height: auto; border-radius: 6px; }
+  /* 취소선 원가는 이 메시지 안에서 글자 대비(4.5:1)를 지킨다 — 공개 기본값(비활성 회색)은 흰 바탕에서 2.6:1이다(ADM-016 #9). */
+  .wc-marketing-message .wc-price__original { color: var(--wc-ink-tertiary); }
   .wc-marketing-message__products { display: grid; gap: 12px; min-width: 0; }
   .wc-marketing-message__product { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--wc-hairline); border-radius: 6px; min-width: 0; }
   .wc-marketing-message__product img { width: 100%; aspect-ratio: 1; object-fit: contain; background: var(--wc-surface-grey-2); border-radius: 4px; }

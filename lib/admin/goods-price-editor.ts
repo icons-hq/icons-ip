@@ -22,7 +22,7 @@ export type GoodsPriceDraft = {
   discountUnit: GoodsDiscountUnit;
   /** 특정기간만 할인(즉시할인 기간). 꺼져 있으면 기간 없는 즉시할인이다. */
   periodEnabled?: boolean;
-  /** 한국 시간 datetime-local 입력 원문(YYYY-MM-DDTHH:mm). */
+  /** KST datetime-local 입력 원문(YYYY-MM-DDTHH:mm). */
   periodStartsAt?: string;
   periodEndsAt?: string;
 };
@@ -155,9 +155,9 @@ export function goodsPriceDraftFromValues(values: Readonly<Record<string, string
   return { regularPrice: regularPrice === '0' ? '' : regularPrice, discountEnabled: false, discountValue: '', discountUnit: 'won', ...noPeriod };
 }
 
-const PERIOD_ERROR = '할인 시작·종료를 한국 시간으로 모두 입력해주세요. 종료는 시작보다 늦어야 합니다.';
+const PERIOD_ERROR = '할인 시작·종료를 KST으로 모두 입력해주세요. 종료는 시작보다 늦어야 합니다.';
 
-/** 특정기간만 할인의 기간 입력(한국 시간)을 ISO로 바꾼다. `now`보다 종료가 이르면(이미 끝난 할인) 오류다. */
+/** 특정기간만 할인의 기간 입력(KST)을 ISO로 바꾼다. `now`보다 종료가 이르면(이미 끝난 할인) 오류다. */
 function discountPeriod(draft: GoodsPriceDraft, now: number): { startsAt: string; endsAt: string } | { error: string } {
   const parsed = parseGoodsPricePeriodInput({ state: 'draft', discountPrice: null, startsAt: draft.periodStartsAt?.trim() || null, endsAt: draft.periodEndsAt?.trim() || null });
   if (!parsed?.startsAt || !parsed.endsAt) return { error: PERIOD_ERROR };

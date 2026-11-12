@@ -92,7 +92,7 @@ export function ShipmentConsoleScreen({data,registeredCount,actorId,summaryAside
  const hasParcelRows=!rows.length||rows.some(isParcelShipment);
  const currentHref=shipmentConsoleHref(surface,filters);
  /* 1440 화면(표 폭 약 1,090px)에 주요 열이 가로 스크롤 없이 들어오게 나눈다(QA 라운드 1 M1-a). 상품·옵션은 폭을 비워 남는 자리를 모두 받고,
-    거의 '택배'인 배송 방식은 뒤로 보낸다. 구매자는 수취인 칸 아래 줄에 두고, 발송 대기·지연 탭의 운송장 입력은 발송 상태 칸 아래에 둔다.
+    거의 '택배'인 배송 방식은 뒤로 보낸다. 구매자는 수령인 칸 아래 줄에 두고, 발송 대기·지연 탭의 운송장 입력은 발송 상태 칸 아래에 둔다.
     지연 안내 결과는 지연 탭이나 그 조건으로 찾을 때만 기본으로 보인다(조회항목 설정에서 언제든 켤 수 있다). */
  const showDelayNotice=isDispatch&&(filters.tab==='delayed'||Boolean(filters.delayNotice));
  /* 고객 지연 안내 결과·지연 메모는 판매 관리(고객 응대) 일이다. */
@@ -102,7 +102,7 @@ export function ShipmentConsoleScreen({data,registeredCount,actorId,summaryAside
  const activeCarriers=carriers.filter(carrier=>carrier.active).map(({code,label})=>({code,label}));
  const columns:ConsoleGridColumn[]=[{key:'reference',label:'배송건번호 / 주문번호',width:'184px'},{key:'items',label:'상품 · 옵션'},
   {key:'origin',label:'출고지',width:'72px'},
-  {key:'recipient',label:canReadOrders?'수취인 / 구매자':'수취인',width:'96px'},{key:'time',label:isDispatch?'주문 / 발주확인':'발송 / 배송완료',width:'156px'},
+  {key:'recipient',label:canReadOrders?'수령인 / 구매자':'수령인',width:'96px'},{key:'time',label:isDispatch?'주문 / 발주확인':'발송 / 배송완료',width:'156px'},
   {key:'tracking',label:rowTracking?'발송 · 운송장':isDispatch?'발송·인계':'배송·수령 확인',width:rowTracking?'184px':isDispatch?'132px':'206px'},
   ...(delayNoticeColumn?[{key:'notice',label:'지연 안내 결과',width:'128px',required:showDelayNotice,defaultVisible:showDelayNotice}]:[]),...(delayNoteColumn?[{key:'delay',label:'지연 메모',width:'260px'}]:[]),
   {key:'method',label:'배송 방식',width:isDispatch?'96px':'84px',...(isDispatch?{}:{defaultVisible:false})}];
@@ -148,6 +148,7 @@ export function ShipmentConsoleScreen({data,registeredCount,actorId,summaryAside
     label={`배송 건 ${reference}의 주문 상세 팝업 열기`}
    >{reference}</OrderPreviewLink>:<span className="font-medium tabular-nums">{reference}</span>}
     {canReadOrders?<OrderPreviewNewTabLink href={detailHref} label={`주문 ${orderReferenceLabel(row.orderId, row.orderNumber)} 상세 열기 (새 탭)`}/>:null}</span>{canReadOrders?<OrderPreviewLink
+    tabStop={false}
     className={`${CELL_NOTE} tabular-nums whitespace-nowrap underline-offset-4 hover:underline`}
     href={adminOrderPreviewHref(currentHref,row.orderId)}
     label={`주문 ${orderReferenceLabel(row.orderId, row.orderNumber)} 상세 팝업 열기`}
@@ -203,7 +204,7 @@ export function ShipmentConsoleScreen({data,registeredCount,actorId,summaryAside
   <SalesFilterPanel currentHref={currentHref} id={`sales-${surface}`}
    hiddenFieldExclusions={['delayNotice']}
    date={{from:filters.from,to:filters.to,field:filters.dateField??'ordered',options:SALES_DATE_FIELDS.filter(option=>option.value!=='settled'&&(canReadOrders||option.value!=='paid'))}}
-   search={{value:filters.query,field:filters.field??'all',options:canReadOrders?SHIPMENT_SEARCH_FIELDS:SHIPMENT_SEARCH_FIELDS.filter(option=>option.value!=='buyer'),placeholder:canReadOrders?'배송건번호 · 주문번호 · 구매자':'배송건번호 · 주문번호 · 수취인'}}
+   search={{value:filters.query,field:filters.field??'all',options:canReadOrders?SHIPMENT_SEARCH_FIELDS:SHIPMENT_SEARCH_FIELDS.filter(option=>option.value!=='buyer'),placeholder:canReadOrders?'배송건번호 · 주문번호 · 구매자':'배송건번호 · 주문번호 · 수령인'}}
    resetHref={`/admin/sales/${surface}?tab=${filters.tab}`}
    moreActive={Boolean(filters.method||filters.originId||(canReadOrders&&filters.paymentMethod)||filters.delayNotice)}
    more={<>

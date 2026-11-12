@@ -89,7 +89,7 @@ export function parseSellerClaimInput(input: unknown): { ok: true; requestId: st
   if (!agreementEvidence || agreementEvidence.length > 1000 || controls.test(agreementEvidence)) return fail('고객 합의 근거를 1~1,000자로 입력해주세요.');
   if (input.agreementConfirmed !== true) return fail('고객의 주문 전체 접수 동의를 확인해주세요.');
   const customerRequestedAt = parseKstInput(string(input.customerRequestedAt));
-  if (!customerRequestedAt) return fail('고객 요청 시각을 한국 시간으로 입력해주세요.');
+  if (!customerRequestedAt) return fail('고객 요청 시각을 KST으로 입력해주세요.');
   if (input.source === 'inquiry' ? !isUuid(input.inquiryId) : input.inquiryId !== null) return fail('이 주문에 연결된 고객문의를 선택해주세요.');
 
   let address: SellerClaimAddress | null = null;

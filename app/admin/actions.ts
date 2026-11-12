@@ -79,7 +79,7 @@ async function requireStaffAction(capability: AdminCapability = 'platform.manage
 
 /* 역할 부여·회수는 staff가 아니라 admin 전용 — RPC도 내부에서 재검사한다. */
 async function requireAdminAction(): Promise<AdminCatalogActionState | null> {
-  return await requireAdminActionAccess('/admin', { adminOnly: true }) ? null : { errors: { form: '최고 관리자(admin) 권한이 필요합니다.' } };
+  return await requireAdminActionAccess('/admin', { adminOnly: true }) ? null : { errors: { form: '최고 관리자 권한이 필요합니다.' } };
 }
 
 function revalidateCatalog(paths: string[]) {
@@ -564,7 +564,7 @@ function instantDiscountPeriodFailure(message: string): AdminFieldErrors | null 
   if (message.includes('instant_discount_period_conflict')) return { discountValue: '진행 중이거나 예정된 기간 할인이 있는 상품에는 기간 없는 즉시할인을 함께 걸 수 없습니다. 특정기간만 할인으로 바꾸거나 기간 할인을 먼저 중지해주세요.' };
   if (message.includes('instant_discount_period_ended')) return { discountPeriod: '할인 종료 시각이 이미 지났습니다. 종료를 지금 이후로 입력해주세요.' };
   if (message.includes('instant_discount_period_price_invalid')) return { discountValue: '기간 할인 금액은 가장 낮은 옵션 판매 금액보다 작아야 합니다(옵션마다 같은 금액을 뺍니다).' };
-  if (message.includes('invalid_instant_discount_period')) return { discountPeriod: '할인 시작·종료를 한국 시간으로 모두 입력해주세요. 종료는 시작보다 늦어야 합니다.' };
+  if (message.includes('invalid_instant_discount_period')) return { discountPeriod: '할인 시작·종료를 KST으로 모두 입력해주세요. 종료는 시작보다 늦어야 합니다.' };
   if (message.includes('price_period_overlap')) return { discountPeriod: '같은 기간에 걸린 다른 기간 할인(끝난 할인 포함)과 겹칩니다. 시작을 지금 이후로 바꾸거나 기간을 다시 확인해주세요.' };
   return null;
 }

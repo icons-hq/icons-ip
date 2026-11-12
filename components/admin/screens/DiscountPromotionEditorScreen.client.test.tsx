@@ -85,8 +85,8 @@ it('겹침·판매 옵션 없음으로 건너뛴 줄만 규칙 선택을 잠그�
   expect(select('QA qa-pr6').props.disabled).toBe(true);
   /* 할인가가 범위를 벗어난 줄은 다른 할인율로 고치면 할인되므로 열어 둔다. */
   expect(select('QA qa-pr7').props.disabled).toBe(false);
-  const summary = screen.find(node => node.type === 'p' && text(node.props.children as ReactNode).includes('(한국 시간)'))!;
-  expect(text(summary.props.children as ReactNode)).toContain('2026. 11. 12. 14:01 ~ 2026. 11. 19. 14:01 (한국 시간)');
+  const summary = screen.find(node => node.type === 'p' && text(node.props.children as ReactNode).includes('(KST)'))!;
+  expect(text(summary.props.children as ReactNode)).toContain('2026. 11. 12. 14:01 ~ 2026. 11. 19. 14:01 (KST)');
   const whole = text(screen[0]);
   expect(whole).toContain('건너뜀 · 기간이 겹치는 즉시할인이 이미 있음 (개별 할인 2026. 11. 12. 00:00 ~ 2026. 12. 12. 13:55)');
   expect(whole).not.toMatch(/오전|오후/);

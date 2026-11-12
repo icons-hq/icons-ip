@@ -10,7 +10,7 @@ import { createClient } from '@/lib/supabase/server';
 export type StoreNavigationActionState = { message?: string; error?: string; updatedAt?: string };
 export async function saveStoreNavigationAction(input: unknown, stamp: string, operationId: string): Promise<StoreNavigationActionState> {
   try {
-    if (!await requireAdminActionAccess(STORE_SETTINGS_PATH, { adminOnly: true, capability: 'store.manage' })) return { error: '메뉴 설정은 관리자(admin)만 저장할 수 있습니다.' };
+    if (!await requireAdminActionAccess(STORE_SETTINGS_PATH, { adminOnly: true, capability: 'store.manage' })) return { error: '메뉴 설정은 최고 관리자만 저장할 수 있습니다.' };
     const navigation = parseStoreNavigation(input);
     if (!navigation) return { error: '7개 메뉴를 중복 없이 설정해주세요. 메뉴명은 1~20자이며 카테고리는 항상 노출해야 합니다.' };
     if (!stamp || Number.isNaN(Date.parse(stamp)) || !isUuid(operationId)) return { error: '설정을 다시 열어 최신 저장 정보를 확인해주세요.' };

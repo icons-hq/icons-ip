@@ -111,12 +111,12 @@ export function GoodsPriceFields({ draft, onDraftChange, result, errors, instant
         </label>
         <div className="flex min-w-0 flex-col gap-3" data-good-price-period="" hidden={periodOff}>
           <div className="grid min-w-0 gap-x-6 gap-y-4 sm:grid-cols-2">
-            <AdminField inputId="goods-discount-start" label="할인 시작 · 한국시간" hint={PERIOD_HINT} error={periodError}>
+            <AdminField inputId="goods-discount-start" label="할인 시작 · KST" hint={PERIOD_HINT} error={periodError}>
               <input ref={startRef} className={GOOD_INPUT_CLASS} data-slot="input" id="goods-discount-start" name="discountStartsAt" type="datetime-local" disabled={periodOff || locked} required
                 aria-describedby={`goods-discount-start-hint${periodError ? ' goods-discount-start-error' : ''}`} aria-invalid={periodError ? 'true' : undefined}
                 value={draft.periodStartsAt ?? ''} onChange={(event) => change({ periodStartsAt: event.target.value })} />
             </AdminField>
-            <AdminField inputId="goods-discount-end" label="할인 종료 · 한국시간">
+            <AdminField inputId="goods-discount-end" label="할인 종료 · KST">
               <input className={GOOD_INPUT_CLASS} data-slot="input" id="goods-discount-end" name="discountEndsAt" type="datetime-local" disabled={periodOff || locked} required
                 aria-invalid={periodError ? 'true' : undefined} value={draft.periodEndsAt ?? ''} onChange={(event) => change({ periodEndsAt: event.target.value })} />
             </AdminField>

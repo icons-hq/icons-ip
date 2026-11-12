@@ -67,7 +67,7 @@ export function InquiryOperatorHistoryScreen({ data, filters }: { data: InquiryO
       처리 기간은 시작일이 종료일보다 늦지 않은 날짜로, 최대 1년(366일)까지 고를 수 있습니다.
     </AdminNotice> : null}
     <ConsoleListCard title="운영자별 집계" total={data.operators.length} unit="명"
-      description={`${data.from} ~ ${data.to}(한국 시간) 답변·완료·담당 변경 기록이 있는 운영자입니다. 마지막 처리 순입니다.`}>
+      description={`${data.from} ~ ${data.to}(KST) 답변·완료·담당 변경 기록이 있는 운영자입니다. 마지막 처리 순입니다.`}>
       <ConsoleGrid caption="운영자별 문의 처리 집계" preferencesKey="cs-inquiry-operator-history" columns={SUMMARY_COLUMNS}
         emptyLabel="이 기간에 문의를 처리한 운영자가 없습니다."
         rows={data.operators.map(row => {

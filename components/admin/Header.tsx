@@ -122,7 +122,7 @@ export function Header({
         <nav aria-label="판매자 바로가기" className="hidden items-center gap-1 lg:flex">
           <Link className={buttonVariants({ variant: 'ghost', size: 'sm' })} href="/admin/guide" prefetch={false}>
             <BookOpen aria-hidden="true" />
-            판매자 가이드
+            사용 가이드
           </Link>
           <Link className={buttonVariants({ variant: 'ghost', size: 'sm' })} href="/" prefetch={false} rel="noopener noreferrer" target="_blank">
             쇼핑몰 바로가기
@@ -178,7 +178,7 @@ export function Header({
               </DropdownMenuGroup>
             ) : null}
             <DropdownMenuGroup className="md:hidden">
-              <DropdownMenuItem render={<Link href="/admin/guide" prefetch={false} />}><BookOpen />판매자 가이드</DropdownMenuItem>
+              <DropdownMenuItem render={<Link href="/admin/guide" prefetch={false} />}><BookOpen />사용 가이드</DropdownMenuItem>
               <DropdownMenuItem render={<Link href="/" prefetch={false} rel="noopener noreferrer" target="_blank" />}><ExternalLink />쇼핑몰 바로가기</DropdownMenuItem>
               <DropdownMenuSeparator />
             </DropdownMenuGroup>

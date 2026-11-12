@@ -17,7 +17,7 @@ describe('구매 제한 카드', () => {
     expect(html).not.toContain('<details');
     expect(html).not.toContain('<summary');
     expect(html).toMatch(/^<section aria-labelledby="good-section-limits-title"[^>]*id="good-section-limits"/);
-    expect(html).toContain('<h4 class="text-sm font-medium text-foreground" data-good-section-title="" id="good-section-limits-title">구매 제한</h4>');
+    expect(html).toContain('<h2 class="text-sm font-medium text-foreground" data-good-section-title="" id="good-section-limits-title">구매 제한</h2>');
     expect(summary(html)).toBe('최소/최대 구매수량 설정안함 · 1인 최대 구매수량 설정안함');
     for (const name of ['orderQuantityLimitEnabled', 'memberPurchaseLimitEnabled']) expect(html).toContain(`name="${name}"`);
     expect(html).toContain('aria-label="빨강 최대 구매수량(주문당)"');

@@ -274,7 +274,7 @@ export function ReviewConsoleScreen({
                 count: counts.awaitingReply,
                 href: adminReviewHref(filters, { page: 1, reply: 'without', reviewId: null }),
                 icon: MessageSquareText,
-                label: '답글 미등록',
+                label: '미답글',
                 tone: csChipTone('question', 'awaiting'),
               },
               {

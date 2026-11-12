@@ -98,7 +98,7 @@ export function DeliveryPoliciesPanel({ originId, canEdit = false }: { originId:
   const reload = () => setRefresh((value) => value + 1);
   const saved = (text: string) => { setNotice({ originId, text }); reload(); };
   return <section aria-labelledby={`delivery-policies-${originId}`} className="flex min-w-0 flex-col gap-3 border-t pt-4" data-delivery-policies="">
-    <h4 className="text-sm font-medium" id={`delivery-policies-${originId}`}>배송·직접전달 운영 조건</h4>
+    <h3 className="text-sm font-medium" id={`delivery-policies-${originId}`}>배송·직접전달 운영 조건</h3>
     <p className="text-sm text-muted-foreground">상품에서 허용한 방식은 주문서에서 선택할 수 있습니다. 결제 이후에는 고객 요청과 기존 비용 유지 동의를 기록해 변경합니다. 활성 정책의 조건은 보존되며, 변경은 새 버전으로 등록합니다.</p>
     {notice?.originId === originId && <AdminNotice role="status" tone="success">{notice.text}</AdminNotice>}
     {!visible ? <p className="text-sm text-muted-foreground" role="status">운영 조건을 불러오는 중입니다…</p> : visible.error ? <p className={ALERT} role="alert">{visible.error}</p> : <>

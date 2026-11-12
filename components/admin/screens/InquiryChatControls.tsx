@@ -38,7 +38,7 @@ export function InquiryChatControls({ filters, staffOptions }: { filters: Inquir
       {CHAT_PERIOD_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
     </NativeSelect></label>
     <label className="min-w-0"><span className="sr-only">읽음 여부</span><NativeSelect className={SELECT_CLASS} size="sm" aria-label="읽음 여부" value={draft.read} onChange={event => setDraft({ ...draft, read: event.target.value as InquiryChatFilters['read'] })}>
-      <option value="all">읽음 여부 전체</option><option value="unread">안읽음</option><option value="read">읽음</option>
+      <option value="all">읽음 여부 전체</option><option value="unread">안 읽음</option><option value="read">읽음</option>
     </NativeSelect></label>
     <label className="min-w-0"><span className="sr-only">대화 정렬</span><NativeSelect className={SELECT_CLASS} size="sm" aria-label="대화 정렬" value={filters.sort} onChange={event => change({ sort: event.target.value as InquiryChatFilters['sort'] })}>
       <option value="recent">최근 대화순</option><option value="oldest">오래된 대화순</option>

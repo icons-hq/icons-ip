@@ -80,6 +80,6 @@ export function ShoppingStoriesAdminScreen({ data }: { data: AdminShoppingStoryL
       </div>
     </CustomerServiceDialog> : null}
     <AdminNotice tone="warning">삭제하면 운영 목록과 공개 화면에서 내려가며, 복원 기능은 제공하지 않습니다.</AdminNotice>
-    <p className="text-xs leading-relaxed text-muted-foreground">기간은 한국 시각이며 시작 시각부터 종료 시각 직전까지 공개됩니다. 기간을 비우면 즉시·무기한 전시됩니다.</p>
+    <p className="text-xs leading-relaxed text-muted-foreground">기간은 KST이며 시작 시각부터 종료 시각 직전까지 공개됩니다. 기간을 비우면 즉시·무기한 전시됩니다.</p>
   </section>;
 }

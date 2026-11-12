@@ -13,7 +13,7 @@ function selectedGrade(html: string) { return html.match(/<select[^>]*name="grad
 function selectedCadence(html: string) { return html.match(/<select[^>]*name="gradeBenefitCadence"[^>]*>(.*?)<\/select>/s)?.[1].match(/<option value="([^"]*)" selected=""/)?.[1]; }
 it('등급 혜택을 고르면 지급 방식(승급 시 1회 기본·매월 1일)을 함께 고른다', () => {
   expect(selectedCadence(render())).toBe('upgrade');
-  expect(render()).toContain('매월 1일 0시(한국 시간)에 그 시점 이 등급 이상인 회원에게 한 장씩 발급');
+  expect(render()).toContain('매월 1일 0시(KST)에 그 시점 이 등급 이상인 회원에게 한 장씩 발급');
   expect(render()).toContain('지급 직전에 대상 회원의 등급을 최근 90일 실적으로 다시 계산하므로 실적이 줄어든 회원은 그때 강등되어 받지 않습니다');
   expect(selectedCadence(render({ gradeBenefit: 'gold', gradeBenefitCadence: 'monthly' }))).toBe('monthly');
   const copy = { id: 'COPY', code: 'COPY', name: '복사본', gradeBenefit: 'gold', gradeBenefitCadence: 'monthly', targetGoodIds: [], targetGoods: [] } as unknown as AdminCouponRecord;

@@ -344,7 +344,7 @@ export function MembersSection({
       <ConsoleListCard
         actions={suspendedCount ? <Button aria-pressed={showingSuspended} className={ROW_DANGER_BUTTON_CLASS} onClick={() => setSuspendedOnly((value) => !value)} size="sm" type="button" variant="outline">{showingSuspended ? '전체 회원 보기' : `정지 ${suspendedCount.toLocaleString('ko-KR')}명만 보기`}</Button> : undefined}
         aria-label="회원 검색 결과"
-        description="이메일은 일부만 보입니다. 전체 이메일과 운영 정보는 상세 보기에서 확인합니다."
+        description="이메일은 일부만 보입니다. 전체 이메일과 운영 정보는 상세에서 확인합니다."
         title={<>회원 목록 <span className="text-sm font-normal text-muted-foreground tabular-nums">{searchState.members.length.toLocaleString('ko-KR')}명 표시</span></>}
       >
         {searchState.members.length ? <div aria-label="회원 목록 가로 스크롤" className={`${CONSOLE_TABLE_FRAME_CLASS} [&>[data-slot=table-container]]:overflow-visible`} role="region" tabIndex={0}><Table className="min-w-[44rem]"><caption className="sr-only">회원 목록</caption>
@@ -364,7 +364,7 @@ export function MembersSection({
                 <TableCell className="px-3 text-right"><form action={detailAction} onSubmit={() => setSelectedProfileId(member.id)}>
                   <input name="profileId" type="hidden" value={member.id} />
                   <Button aria-expanded={activeDetail?.id === member.id} className={TOUCH_TARGET_CLASS} disabled={detailPending} size="sm" type="submit" variant="outline">
-                    <User aria-hidden="true" /> {detailPending ? '불러오는 중' : '상세 보기'}
+                    <User aria-hidden="true" /> {detailPending ? '불러오는 중' : '상세'}
                   </Button>
                 </form></TableCell>
               </TableRow>

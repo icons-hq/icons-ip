@@ -52,7 +52,7 @@ export function AdminGiftsScreen({ data }: { data: AdminGiftData }) {
         {[...query].map(([name, value]) => <input key={name} type="hidden" name={name} value={value} />)}
         <SalesSelect name="pageSize" value={String(filters.pageSize)} options={[50, 100, 200].map(size => ({ value: String(size), label: `${size}개씩 보기` }))} label="목록 수" size="sm" />
         <Button size="sm" type="submit" variant="outline">적용</Button></form>
-      <EncryptedWorkbookDownloadButton href={`/api/admin/gifts/export${query.size ? `?${query}` : ''}`} label="암호화 엑셀 다운로드" disabled={data.total > 10000} />
+      <EncryptedWorkbookDownloadButton href={`/api/admin/gifts/export${query.size ? `?${query}` : ''}`} label="엑셀 다운로드" disabled={data.total > 10000} />
     </div></ConsoleGrid>
     <ConsolePagination label="선물 목록 페이지" page={data.page} pageSize={data.pageSize} total={data.total} hrefForPage={page => adminGiftsHref(filters, page)} />
     <p className="text-muted-foreground">현재 검색 조건의 전체 선물을 받습니다. 최대 10,000건이며 내려받은 기록이 남습니다.</p></div>

@@ -257,7 +257,7 @@ export function InquiryDetailScreen({
           {inquiry.goodId ? (
             <ContextCard title={adminGoodsCopy('연결 굿즈')}>
               <ContextRow label="상품" value={inquiry.goodName ?? inquiry.goodId} />
-              <Link className={CONTEXT_LINK_CLASS} data-slot="button" href={`/shop/${inquiry.goodId}`}>{adminGoodsCopy(' 굿즈 상세 보기 ')}</Link>
+              <Link className={CONTEXT_LINK_CLASS} data-slot="button" href={`/shop/${inquiry.goodId}`}>{adminGoodsCopy(' 굿즈 상세 ')}</Link>
             </ContextCard>
           ) : null}
 
@@ -273,7 +273,7 @@ export function InquiryDetailScreen({
               <AdminNotice role="alert" tone="danger">정지된 계정입니다 ({formatInquiryDateTime(buyer.suspendedAt)}).</AdminNotice>
             ) : null}
             {canViewCustomer ? <Link className={CONTEXT_LINK_CLASS} data-slot="button" href={`/admin/customers/${buyer.id}`}>
-              고객 상세 열기
+              고객 상세
             </Link> : null}
           </ContextCard>
           <InquiryAssignmentPanel assigneeId={inquiry.assigneeId} assigneeName={inquiry.assigneeName} inquiryId={inquiry.id} staffOptions={staffOptions} />

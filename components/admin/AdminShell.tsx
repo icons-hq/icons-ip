@@ -50,7 +50,7 @@ export function AdminShell({
   const isChat = screen?.id === 'inquiry-chat';
   const isHome = pathname === '/admin';
   const access = admin.operatorAccess ?? NO_OPERATOR_ACCESS;
-  /* R2(D2①): 새 1:1 문의 PC 알림은 쇼핑 칸의 문의 담당(cs.manage)에게만. 켜고 끄기는 업무 도구 '알림'에 둔다. */
+  /* R2(D2①): 새 1:1 문의·상품 문의 PC 알림은 쇼핑 칸의 문의 담당(cs.manage)에게만. 켜고 끄기는 업무 도구 '알림'에 둔다. */
   const inquiryNotifications = consoleId === 'shopping' && Boolean(admin.id) && hasAdminCapability(access, 'cs.manage');
   /* 전환 링크는 그 콘솔에서 볼 수 있는 화면이 있을 때만 만든다. */
   const consoles = ADMIN_CONSOLES.map((item) => ({ ...item, href: adminConsoleHomeHref(item.id, admin.role, access) }))

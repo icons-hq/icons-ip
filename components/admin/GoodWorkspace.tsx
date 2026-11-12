@@ -415,7 +415,7 @@ export function GoodEditorSubsection({ id, title, summary, mode, errorCount = 0,
 }) {
   return <section aria-labelledby={`${id}-title`} className="flex min-w-0 scroll-mt-24 flex-col gap-4 border-t pt-5 outline-none" data-good-subsection="" id={id} tabIndex={-1}>
     <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
-      <h4 className="text-sm font-medium text-foreground" data-good-section-title="" id={`${id}-title`}>{title}</h4>
+      <h2 className="text-sm font-medium text-foreground" data-good-section-title="" id={`${id}-title`}>{title}</h2>
       {mode ? <span className="text-xs text-muted-foreground" data-good-operation-mode="">{mode}</span> : null}
       {errorCount || summary ? <span className="min-w-0 text-xs text-muted-foreground wrap-anywhere" data-good-section-summary="">{errorCount ? <strong className="font-medium text-destructive">{errorCount}개 확인 필요</strong> : summary}</span> : null}
     </div>

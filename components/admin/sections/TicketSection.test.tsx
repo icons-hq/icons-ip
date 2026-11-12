@@ -143,7 +143,7 @@ describe('TicketSection', () => {
 
     expect(html).toMatch(/<span class="line-clamp-2[^"]*">7월 25일 1회차<\/span>/);
     expect(html).toMatch(/data-tone="success"[^>]*>잔여 68</);
-    expect(html).toContain('>7월 25일 1회차 수정</h3>');
-    expect(renderTicketSection(null)).toContain('>새 티켓 회차 등록</h3>');
+    expect(html).toContain('>7월 25일 1회차 수정</h2>');
+    expect(renderTicketSection(null)).toContain('>새 티켓 회차 등록</h2>');
   });
 });

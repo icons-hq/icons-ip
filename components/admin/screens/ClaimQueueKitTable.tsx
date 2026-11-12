@@ -15,7 +15,7 @@ import { ConsoleTableSettings, type ConsoleTableSettingsColumn } from '@/compone
 import type { DataTableFeatures } from '@/components/admin/kit/lib/data-table-features';
 import { ActionBar, ActionBarClose, ActionBarGroup, ActionBarItem, ActionBarSelection, ActionBarSeparator } from '@/components/admin/kit/ui/action-bar';
 import Link from 'next/link';
-import { ConsoleFilterActions, CONSOLE_FILTER_CARD_CLASS } from '@/components/admin/console/ConsoleFilterPanel';
+import { ConsoleFilterActions, ConsoleFilterField, CONSOLE_FILTER_CARD_CLASS } from '@/components/admin/console/ConsoleFilterPanel';
 import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
 import { Checkbox } from '@/components/admin/kit/ui/checkbox';
 import { Input } from '@/components/admin/kit/ui/input';
@@ -328,13 +328,14 @@ function ClaimSearchFields({ field, fieldOptions, onField, onQuery, query, typeL
       maxLength={100}
       onChange={(event) => onQuery(event.target.value)}
       onKeyDown={(event) => { if (event.key === 'Enter' && event.nativeEvent.isComposing) event.preventDefault(); }}
-      placeholder="주문번호 · 요청번호 · 구매자 · 수취인 · 상품 URL"
+      placeholder="주문번호 · 요청번호 · 구매자 · 수령인 · 상품 URL"
       value={query}
     />
   </div>;
 }
 
 const CUSTOM_REASON = '__custom';
+const ALL_OPTION = '__all';
 
 /**
  * 거부 사유(R7) — kit 판. ClaimRejectionReasonField와 같은 규칙: 유형에 맞는 확정 문장만 고를 수 있고,
@@ -461,6 +462,9 @@ export function ClaimQueueKitTable({
    */
   const columns = useMemo(() => buildColumns(claimType, dateLabel), [claimType, dateLabel]);
   const currentHref = adminClaimHref(claimType, filters);
+  const filterId = 'claim-filter';
+  const reasonSelectItems = useMemo(() => [{ value: ALL_OPTION, label: '전체' }, ...claimKitFilterOptions(claimType).reason], [claimType]);
+  const stageSelectItems = useMemo(() => [{ value: ALL_OPTION, label: '전체' }, ...claimKitFilterOptions(claimType).stage], [claimType]);
 
   const { draftColumnFilters, pending, preferences, savePreferences, table } = useConsoleTable({
     columns,
@@ -588,17 +592,34 @@ export function ClaimQueueKitTable({
   return <div className="flex min-w-0 flex-col gap-3" data-admin-kit="claims-table" data-pending={busy ? 'true' : undefined}>
     <form aria-label={`${typeLabel} 요청 조회 조건`} className={CONSOLE_FILTER_CARD_CLASS} data-console-filters="" onSubmit={applyConditions}>
       <ClaimSearchFields field={draftField} fieldOptions={searchFieldOptions} onField={setDraftField} onQuery={setDraftQuery} query={draftQuery} typeLabel={typeLabel} />
-      <DataTableToolbar
-        className="p-0"
-        filtersEnd={<>
+      <div className="flex flex-wrap items-end gap-3">
+        {([['reason', `${typeLabel}사유`, reasonSelectItems], ['stage', `${typeLabel}처리상태`, stageSelectItems]] as const).map(([columnId, label, items]) => {
+          const current = draftColumnFilters.find((filter) => filter.id === columnId)?.value;
+          const value = Array.isArray(current) && typeof current[0] === 'string' ? current[0] : ALL_OPTION;
+          return <ConsoleFilterField htmlFor={`${filterId}-${columnId}`} key={columnId} label={label}>
+            <Select items={items} onValueChange={(next) => { if (typeof next === 'string') table.getColumn(columnId)?.setFilterValue(next === ALL_OPTION ? undefined : [next]); }} value={value}>
+              <SelectTrigger className="w-44" id={`${filterId}-${columnId}`}><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {items.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </ConsoleFilterField>;
+        })}
+        <ConsoleFilterField htmlFor={`${filterId}-dateField`} label="기간 기준">
           <Select items={dateFieldOptions} onValueChange={(value) => { if (typeof value === 'string') setDraftDateField(value); }} value={draftDateField}>
-            <SelectTrigger aria-label="기간 기준" className="w-32"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-32" id={`${filterId}-dateField`}><SelectValue /></SelectTrigger>
             <SelectContent>
               {dateFieldOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
             </SelectContent>
           </Select>
+        </ConsoleFilterField>
+        <ConsoleFilterField label="기간">
           <KitDatePresets disabled={busy} from={draftFrom} onSelect={onDatePreset} to={draftTo} />
-        </>}
+        </ConsoleFilterField>
+      </div>
+      <DataTableToolbar
+        className="p-0"
+        hideFilters={['reason', 'stage']}
         hideReset
         table={table}
         viewOptions={<ConsoleTableSettings columns={PREFERENCE_COLUMNS_BY_TYPE[claimType]} onSave={savePreferences} preferences={preferences} />}

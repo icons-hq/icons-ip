@@ -35,7 +35,7 @@ import { ShippingCollectPanel } from '@/components/admin/ShippingCollectPanel';
 import { OrderPartialCancellationPanel } from '@/components/admin/OrderPartialCancellationPanel';
 
 const SOURCE_LABELS: Record<AdminOrderTimelineSource, string> = {
-  order: '주문', payment: '결제', refund: '환불', status: '상태 변경', shipment: '배송·송장',
+  order: '주문', payment: '결제', refund: '환불', status: '상태 변경', shipment: '배송·운송장',
   claim: V.claims, inquiry: '문의', email: '메일', note: '운영자 메모',
 };
 const ACTION_LABELS: Record<string, string> = {
@@ -181,7 +181,7 @@ function TimelineEntry({ entry, digital = false }: { entry: AdminOrderTimelineEn
       <time className="tabular-nums" dateTime={entry.occurredAt}>{dateTime(entry.occurredAt)}</time>
       {entry.actorName ? <span>{entry.actorName}</span> : null}
     </div>
-    <h4 className="mt-2.5 mb-1 text-sm font-medium text-foreground wrap-anywhere">{digital && entry.source === 'shipment' && entry.action === 'delivered' ? '파일 제공 시작' : entryTitle(entry)}</h4>
+    <h3 className="mt-2.5 mb-1 text-sm font-medium text-foreground wrap-anywhere">{digital && entry.source === 'shipment' && entry.action === 'delivered' ? '파일 제공 시작' : entryTitle(entry)}</h3>
     {entry.fromStatus && entry.toStatus ? <p className={EVENT_TEXT}>{stateLabel(entry.fromStatus)} → {stateLabel(entry.toStatus)}</p> : null}
     {entry.amount != null ? <p className={`${EVENT_TEXT} tabular-nums`}>{money(entry.amount)}{entry.provider ? ` · ${entry.provider === 'korpay' ? 'Korpay' : entry.provider === 'toss' ? 'Toss' : entry.provider === 'nicepay' ? 'NICEPAY' : '결제사'}` : ''}</p> : null}
     {status ? <p className={`${EVENT_TEXT} text-muted-foreground`}>현재 상태 · {status}</p> : null}
@@ -298,7 +298,7 @@ export function OrderDetailScreen({
         <dl className={FACTS}>
           <div className={FACT_ROW}><dt className={FACT_TERM}>현재 상태</dt><dd className={FACT_VALUE}><OrderStatusBadge status={order.status} /></dd></div>
           <div className={FACT_ROW}><dt className={FACT_TERM}>주문 일시</dt><dd className={FACT_VALUE}>{dateTime(order.createdAt)}</dd></div>
-          <div className={FACT_ROW}><dt className={FACT_TERM}>주문자</dt><dd className={FACT_VALUE}>{order.buyerName || '이름 미등록'}{order.buyerEmail ? <span className="mt-1 block text-xs text-muted-foreground">{order.buyerEmail}</span> : null}{canViewCustomer ? <Link className="mt-1 block w-fit underline underline-offset-4" href={`/admin/customers/${order.userId}`}>고객 상세 열기</Link> : null}</dd></div>
+          <div className={FACT_ROW}><dt className={FACT_TERM}>주문자</dt><dd className={FACT_VALUE}>{order.buyerName || '이름 미등록'}{order.buyerEmail ? <span className="mt-1 block text-xs text-muted-foreground">{order.buyerEmail}</span> : null}{canViewCustomer ? <Link className="mt-1 block w-fit underline underline-offset-4" href={`/admin/customers/${order.userId}`}>고객 상세</Link> : null}</dd></div>
           {goodsTotalMatches ? <div className={FACT_ROW}><dt className={FACT_TERM}>상품 금액</dt><dd className={`${FACT_VALUE} tabular-nums`}>{money(goodsTotal)}</dd></div> : null}
           <div className={FACT_ROW}><dt className={FACT_TERM}>배송비</dt><dd className={`${FACT_VALUE} tabular-nums`}>{money(order.shippingFee)}</dd></div>
           <div className={FACT_ROW}><dt className={FACT_TERM}>쿠폰 할인</dt><dd className={`${FACT_VALUE} tabular-nums`}>{minus(order.discountTotal)}</dd></div>

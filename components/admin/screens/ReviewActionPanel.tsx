@@ -57,7 +57,7 @@ export function ReviewActionPanel({ review, triggerLabel, accountId = '' }: { re
   const imageUrls = draft.source.imageUrls ?? review.imageUrls;
 
   return <>
-    <Button className={review.adminReply ? 'text-muted-foreground' : undefined} onClick={() => setOpen(true)} size="xs" type="button" variant={review.adminReply ? 'ghost' : 'soft'}>{triggerLabel ?? (review.adminReply ? '상세 · 답글 수정' : '상세 · 답글 등록')}</Button>
+    <Button className={review.adminReply ? 'text-muted-foreground' : undefined} onClick={() => setOpen(true)} size="xs" type="button" variant={review.adminReply ? 'ghost' : 'soft'}>{triggerLabel ?? (review.adminReply ? '답글 수정' : '답글 등록')}</Button>
     {open ? <CustomerServiceDialog title="리뷰 상세" busy={busy} onClose={() => setOpen(false)}>
       <div className="flex min-w-0 flex-col gap-5 text-sm">
         <dl className={RECORD_META_CLASS}>

@@ -61,7 +61,7 @@ describe('반품입고 회신 열 이름 대응표', () => {
     const many = [['송장번호', '입고일'], ...Array.from({ length: 1001 }, (_, index) => [`RP${index}`, '2026-11-12'])];
     expect(mapReturnIntakeTable(many, columns)).toHaveProperty('error');
     const long = mapReturnIntakeTable([['송장번호', '입고일'], ['X'.repeat(61), '2026-11-12']], columns);
-    expect('issues' in long && long.issues).toEqual([{ line: 2, reason: '회수 송장·주문번호·연락처 칸의 내용이 너무 깁니다.' }]);
+    expect('issues' in long && long.issues).toEqual([{ line: 2, reason: '회수 운송장·주문번호·연락처 칸의 내용이 너무 깁니다.' }]);
   });
   it('미리보기·확정 결과는 DB 모양 그대로만 받는다', () => {
     const preview = { rows: [{ rowNumber: 3, status: 'matched', matchedBy: 'tracking', claimId: '00000000-0000-4000-8000-000000000001', claimType: 'return',

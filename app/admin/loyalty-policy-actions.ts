@@ -13,7 +13,7 @@ export type LoyaltyPolicySaveResult = { receipt: { revision: number; updatedAt: 
 
 export async function readLoyaltyPolicyAction(): Promise<{ data: LoyaltyPolicyData } | Failure> {
   try {
-    if (!await requireAdminActionAccess(LOYALTY_POLICY_PATH, { adminOnly: true })) return { error: '회원등급 설정은 관리자(admin)만 조회할 수 있습니다.' };
+    if (!await requireAdminActionAccess(LOYALTY_POLICY_PATH, { adminOnly: true })) return { error: '회원등급 설정은 최고 관리자만 조회할 수 있습니다.' };
     return { data: await loadAdminLoyaltyPolicy() };
   } catch (error) {
     unstable_rethrow(error);
@@ -23,7 +23,7 @@ export async function readLoyaltyPolicyAction(): Promise<{ data: LoyaltyPolicyDa
 
 export async function saveLoyaltyPolicyAction(input: unknown, expectedRevision: number, operationId: string): Promise<LoyaltyPolicySaveResult> {
   try {
-    if (!await requireAdminActionAccess(LOYALTY_POLICY_PATH, { adminOnly: true })) return { error: '회원등급 설정은 관리자(admin)만 저장할 수 있습니다.' };
+    if (!await requireAdminActionAccess(LOYALTY_POLICY_PATH, { adminOnly: true })) return { error: '회원등급 설정은 최고 관리자만 저장할 수 있습니다.' };
     const tiers = parseLoyaltyCriteria(input);
     if (!tiers || !Number.isSafeInteger(expectedRevision) || expectedRevision < 1 || !isUuid(operationId)) return { error: '등급별 사용 여부와 승급 조건을 확인해주세요.' };
     const client = await createClient();

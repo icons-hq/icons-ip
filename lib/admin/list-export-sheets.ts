@@ -246,7 +246,7 @@ export function unpaidListExportSheet(input: {
     ...table(columns, input.rows),
     recordCount: input.rows.length,
     conditions: [['검색어', queryText(input.filters.query)],
-      ...(input.filters.state ? [['결제상태', input.filters.state === 'missing' ? '원장 없음' : adminUnpaidAttemptStateLabel(input.filters.state)] as [string, string]] : [])],
+      ...(input.filters.state ? [['결제상태', input.filters.state === 'missing' ? '결제 기록 없음' : adminUnpaidAttemptStateLabel(input.filters.state)] as [string, string]] : [])],
     notes: ['한 행은 입금을 기다리는 무통장 입금 주문 한 건입니다. 입금 대조에 필요하지 않은 주소·연락처는 담지 않습니다.'],
     filters: { query: input.filters.query || null, ...(input.filters.state ? { state: input.filters.state } : {}), ...(input.filters.sort ? { sort: input.filters.sort } : {}) },
   };
@@ -364,7 +364,7 @@ export function claimsListExportSheet(input: {
     column('접수일시', 'text', 17, ({ claim }) => nullable(kstDateTimeText(claim.requestedAt))),
     column('입고 확인일시', 'text', 17, ({ claim }) => nullable(kstDateTimeText(claim.collectedAt))),
     column('완료일시', 'text', 17, ({ claim }) => nullable(kstDateTimeText(claim.completedAt))),
-    column('환급 기한', 'text', 12, ({ claim }) => orderClaimSlaState(claim, now).label),
+    column(claimType === 'return' ? '환급 기한' : '처리 기한', 'text', 12, ({ claim }) => orderClaimSlaState(claim, now).label),
     column('환불 수단', 'text', 12, ({ claim }) => (claim.refundMethod ? ORDER_CLAIM_REFUND_METHOD_LABELS[claim.refundMethod] : '미접수')),
     column('처리자', 'text', 14, ({ claim }) => claim.handlerName ?? '미배정'),
     column(V.goods + '명', 'text', 32, ({ item }) => blank(item?.name)),
@@ -401,7 +401,7 @@ export function claimsListExportSheet(input: {
     notes: [
       `한 행은 요청 주문의 ${V.goods} 한 줄입니다. ${V.claimRequest}은 주문 단위로 처리되며 결제금액은 같은 요청의 행마다 반복됩니다.`,
       ...(withDelivery ? ['배송지와 운송장은 원래 주문의 출고 정보입니다. 회수 주소는 요청 상세에서 확인합니다.'] : []),
-      `환급 기한은 내려받은 시각 기준입니다.`,
+      `${claimType === 'return' ? '환급' : '처리'} 기한은 내려받은 시각 기준입니다.`,
     ],
     filters: {
       ...(filters.dateField ? { dateField: filters.dateField } : {}),

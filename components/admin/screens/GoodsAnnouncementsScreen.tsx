@@ -15,7 +15,7 @@ function kstPeriodParts(value: string) {
   const parts = Object.fromEntries(KST_PERIOD_FORMAT.formatToParts(new Date(value)).map(part => [part.type, part.value]));
   return { year: parts.year, date: `${parts.month}.${parts.day} ${parts.hour}:${parts.minute}` };
 }
-/** 목록의 전시·노출 기간을 한 줄로 줄인다(같은 해면 끝 날짜의 연도를 생략한다). 한국 시각이고, 전체 일시는 칸의 말풍선에 둔다. */
+/** 목록의 전시·노출 기간을 한 줄로 줄인다(같은 해면 끝 날짜의 연도를 생략한다). KST이고, 전체 일시는 칸의 말풍선에 둔다. */
 export function compactKstPeriod(startsAt: string | null, endsAt: string | null) {
   if (!startsAt && !endsAt) return '제한 없음';
   const start = startsAt ? kstPeriodParts(startsAt) : null, end = endsAt ? kstPeriodParts(endsAt) : null;
@@ -46,7 +46,7 @@ export function GoodsAnnouncementsScreen({ data }: { data: GoodsAnnouncementList
         <span className="whitespace-nowrap" key="device">{GOODS_ANNOUNCEMENT_DEVICES.find(item => item.value === row.device)?.label}</span>, <span className="whitespace-nowrap" key="goods">{row.allGoods ? '전체 상품' : `${row.goodCount}개 상품`}</span>,
         <span className="whitespace-nowrap tabular-nums" key="period" title={`${row.startsAt ? formatOrderDateTime(row.startsAt) : '제한 없음'} ~ ${row.endsAt ? formatOrderDateTime(row.endsAt) : '제한 없음'}`}>{compactKstPeriod(row.startsAt, row.endsAt)}</span>,
         ...[row.createdAt, row.updatedAt].map((value, index) => <span className="whitespace-nowrap tabular-nums" key={index ? 'updated' : 'created'} title={value ? formatOrderDateTime(value) : undefined}>{value ? kstDay(new Date(value)).replaceAll('-', '.') : '—'}</span>),
-      ] }))}><p className="text-sm text-muted-foreground">공지 제목을 누르면 내용과 적용 상품을 수정합니다. 기간은 한국 시각 기준입니다.</p></ConsoleGrid>
+      ] }))}><p className="text-sm text-muted-foreground">공지 제목을 누르면 내용과 적용 상품을 수정합니다. 기간은 KST 기준입니다.</p></ConsoleGrid>
       <ConsolePagination page={filters.page} total={total} pageSize={filters.pageSize} hrefForPage={page => goodsAnnouncementHref(filters, page)} />
     </section>
   </section>;

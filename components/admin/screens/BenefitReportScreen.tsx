@@ -73,7 +73,7 @@ export function BenefitReportScreen({ data, comparison, issuances = null, filter
       { label: '쿠폰 할인금액', current: data.summary.discountAmount, previous: comparison.summary.discountAmount, format: krw },
     ]} /> : null}
     <details className="rounded-lg border bg-muted/40 px-4 py-3"><summary className="cursor-pointer font-medium">집계 기준 확인</summary><ul className="mt-2 flex list-disc flex-col gap-1 pl-5 text-muted-foreground">
-      <li>한국시간 기준, 최대 366일입니다. 발급수는 발급일, 결제 사용수·할인·주문금액은 쿠폰 적용일, 복구수는 복구일 기준입니다.</li>
+      <li>KST 기준, 최대 366일입니다. 발급수는 발급일, 결제 사용수·할인·주문금액은 쿠폰 적용일, 복구수는 복구일 기준입니다.</li>
       <li>결제 사용수는 조회 시점에 결제완료·발주확인·배송중·배송완료·거래확정인 주문만 포함합니다. 결제 대기와 취소·반품으로 복구된 사용은 제외됩니다.</li>
       <li>기간 발급분 사용률은 해당 기간에 발급된 쿠폰 중 현재 결제가 유지되는 사용 비율입니다. 기간 사용수 ÷ 기간 발급수와는 다르며, 조회 후 취소에 따라 달라질 수 있습니다.</li>
       <li>사용 주문금액은 할인·적립금 적용 후 주문 총액입니다. 검색·할인종류·대상 필터는 현재 쿠폰 설정을 기준으로 합니다. 주·월의 일부 기간은 조회기간 안의 실적만 합산합니다.</li>

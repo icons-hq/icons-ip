@@ -127,7 +127,7 @@ function ShipmentReshipments({ claim, carriers }: { claim: Claim; carriers?: Shi
         </li>;
       })}
     </ul>
-    {progress.total > 1 && progress.reshipped < progress.total && progress.reshipped > 0 ? <p className="text-muted-foreground">모든 출고지를 재출고하면 교환이 종결됩니다. 먼저 보낸 송장은 고객 주문 상세에 바로 보입니다.</p> : null}
+    {progress.total > 1 && progress.reshipped < progress.total && progress.reshipped > 0 ? <p className="text-muted-foreground">모든 출고지를 재출고하면 교환이 종결됩니다. 먼저 보낸 운송장은 고객 주문 상세에 바로 보입니다.</p> : null}
   </section>;
 }
 

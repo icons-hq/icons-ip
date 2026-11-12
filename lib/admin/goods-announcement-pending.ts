@@ -77,7 +77,7 @@ export function goodsAnnouncementPendingDisplayValue(field: string, value: strin
   if (field === 'enabled') return ({ true: '전시', false: '전시중지' } as Record<string, string>)[value] ?? value;
   if (field === 'allGoods') return ({ true: '전체 상품', false: '선택 상품' } as Record<string, string>)[value] ?? value;
   if (['important', 'usePeriod', 'useImportantPeriod'].includes(field)) return ({ true: '설정함', false: '설정안함' } as Record<string, string>)[value] ?? value;
-  if (field.endsWith('At') && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) return `${value.replace('T', ' ')} (한국 시간)`;
+  if (field.endsWith('At') && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) return `${value.replace('T', ' ')} (KST)`;
   if (field === 'goodIds') {
     try { const ids: unknown = JSON.parse(value); if (Array.isArray(ids) && ids.every(id => typeof id === 'string')) return ids.length ? ids.join(', ') : '개별 선택 없음'; }
     catch { /* Preserve unrecognized submitted text for the operator to inspect. */ }

@@ -115,7 +115,7 @@ export function GoodsDescriptionTools({ accountId, formRef, disabled }: {
   }
   const active = dialog && !blocked && dialog.target.ticket.epoch === snapshot.epoch ? dialog : null;
   return <>
-    <div className="flex min-w-0 flex-wrap items-end gap-2" aria-label="상세설명 추가 도구" data-description-tools="">
+    <div className="flex min-w-0 flex-wrap items-end gap-2" role="group" aria-label="상세설명 추가 도구" data-description-tools="">
       <button className={TOOL_BUTTON_CLASS} data-slot="button" type="button" disabled={blocked} onClick={() => open('text')}>글자 서식</button>
       <button className={TOOL_BUTTON_CLASS} data-slot="button" type="button" disabled={blocked} onClick={() => open('quote')}>인용 넣기</button>
       <label className="flex min-w-0 flex-col gap-1.5 text-xs font-medium text-muted-foreground">구분선 모양<select className={`${SELECT_CLASS} w-auto min-w-28`} disabled={blocked} value={dividerStyle} onInput={event => event.stopPropagation()}
@@ -181,7 +181,7 @@ function DescriptionToolDialog({ kind, initialText, onClose, onApply }: { kind: 
           <p className="text-xs text-muted-foreground">https·http·mailto·tel 주소 또는 /로 시작하는 내부 경로를 사용할 수 있습니다.</p></>}
       {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
       {/* wc-goods-description은 상세설명 내용의 표식이다(공개 화면의 같은 이름). 관리자 미리보기 상자 모양만 유틸리티로 둔다. */}
-      {preview?.ok ? <div aria-label="서식 미리보기" className="max-h-60 min-w-0 overflow-auto rounded-lg border p-4 wrap-anywhere wc-goods-description" dangerouslySetInnerHTML={{ __html: sanitizeGoodsDescription(preview.value).html }} /> : null}
+      {preview?.ok ? <div role="group" aria-label="서식 미리보기" className="max-h-60 min-w-0 overflow-auto rounded-lg border p-4 wrap-anywhere wc-goods-description" dangerouslySetInnerHTML={{ __html: sanitizeGoodsDescription(preview.value).html }} /> : null}
       <div className="flex flex-wrap gap-2"><button type="button" className={buttonVariants()} data-slot="button" onClick={submit}>상세설명에 넣기</button><button type="button" className={buttonVariants({ variant: 'outline' })} data-slot="button" onClick={onClose}>취소</button></div>
     </div>
   </CustomerServiceDialog>;

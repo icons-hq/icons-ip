@@ -45,7 +45,7 @@ export async function saveGoodsPricePeriodAction(formData: FormData): Promise<Mu
   if (!goodId || goodId.length > 200 || !isUuid(variantId) || (periodId !== null && !isUuid(periodId))
     || (periodId !== null && (!revisionText || !/^[1-9]\d*$/.test(revisionText) || !Number.isSafeInteger(revision) || revision! > 2147483647))
     || (periodId === null && revision !== null) || !period) {
-    return { ok: false, error: '옵션·할인가·한국 시간 기준 시작과 종료를 확인해주세요. 활성화에는 모든 값이 필요합니다.' };
+    return { ok: false, error: '옵션·할인가·KST 기준 시작과 종료를 확인해주세요. 활성화에는 모든 값이 필요합니다.' };
   }
   try {
     const client = await createClient();

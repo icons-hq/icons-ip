@@ -48,5 +48,5 @@ export function CategoryTree({ categories, activeId, onSelect }: { categories: A
     </ul>;
   }
 
-  return <div aria-label="고객 카테고리 트리">{branch(null) ?? <p className="text-sm text-muted-foreground">등록된 카테고리가 없습니다.</p>}</div>;
+  return <div role="group" aria-label="고객 카테고리 트리">{branch(null) ?? <p className="text-sm text-muted-foreground">등록된 카테고리가 없습니다.</p>}</div>;
 }

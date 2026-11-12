@@ -55,7 +55,7 @@ export function ShippingNoticeTemplateForm({ template }: { template?: ShippingNo
           <Input {...inputProps('name')} defaultValue={value('name', template?.name ?? '')} maxLength={SHIPPING_NOTICE_TEMPLATE_NAME_MAX} placeholder="기본 배송 안내" required />
         </AdminField>
       </AdminFormGrid>
-      <AdminField label="배송 안내" inputId={`${prefix}-shippingNotice`} error={state.errors?.shippingNotice} hint="운임 숫자와 출고지 주소는 출고지 설정에서 읽습니다.">
+      <AdminField label="배송 안내" inputId={`${prefix}-shippingNotice`} error={state.errors?.shippingNotice} hint="배송비 숫자와 출고지 주소는 출고지 설정에서 읽습니다.">
         <Textarea {...inputProps('shippingNotice')} defaultValue={value('shippingNotice', template?.shippingNotice ?? '')} maxLength={SHIPPING_NOTICE_TEMPLATE_NOTICE_MAX} rows={5} placeholder="배송 방법과 출고 관련 고객 안내를 입력하세요." />
       </AdminField>
       <AdminField label="도서산간 안내" inputId={`${prefix}-remoteAreaNotice`} error={state.errors?.remoteAreaNotice} hint="선택 입력입니다. 상품 상세 배송 안내에 그대로 보입니다. 제주·도서산간 추가 배송비 금액은 지역별 추가배송비 정책에서 읽어 따로 표시합니다.">

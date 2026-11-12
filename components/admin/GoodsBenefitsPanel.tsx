@@ -29,7 +29,7 @@ export function GoodsBenefitFields({ values, onChange, onPickPhoto, onOpenTempla
 }) {
   return <>
     <label className={FIELD_CLASS}><span className="font-medium">사은품</span><input className={GOOD_INPUT_CLASS} data-slot="input" value={values.giftText} maxLength={100} onChange={event => { const giftText = event.target.value; onChange(current => ({ ...current, giftText })); }} /><small className={COUNT_CLASS}>{Array.from(values.giftText).length}/100</small></label>
-    <div className="grid min-w-0 gap-4 md:grid-cols-3" aria-label="사은품 이미지">
+    <div className="grid min-w-0 gap-4 md:grid-cols-3" role="group" aria-label="사은품 이미지">
       {[0, 1, 2].map(index => <div className="flex min-w-0 flex-col gap-2" key={`${index}:${values.giftImagePaths[index] ?? ''}`}>
         <ArtworkUploadField kind="good" name={`giftImage${index}`} fieldId={`${fieldPrefix}-${index}`} label={`사은품 이미지 ${index + 1}`} currentPath={values.giftImagePaths[index] || null} currentUrl={values.giftImagePaths[index] ? publicMediaUrl(values.giftImagePaths[index]) : null} onPathChange={path => onChange(current => withGiftImage(current, index, path))} autoUpload allowRemove compact showCropGuide={false} showPath={false} showGuidance={index === 0} />
         <button type="button" className={`${buttonVariants({ variant: 'outline', size: 'sm' })} self-start whitespace-normal`} data-slot="button" onClick={() => onPickPhoto(index)}>사진 보관함에서 선택</button>

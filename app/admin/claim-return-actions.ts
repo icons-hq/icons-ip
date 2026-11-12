@@ -49,7 +49,7 @@ export async function retryClaimReturnPickupAction(_previous: ClaimReturnPickupR
   const state = data && typeof data === 'object' && !Array.isArray(data) ? (data as Record<string, unknown>).state : null;
   return { message: state === 'cancel_pending'
     ? '수거 취소를 다시 요청하도록 했습니다. 몇 분 뒤 결과가 보입니다.'
-    : state === 'pending' ? '회수 접수를 다시 요청하도록 했습니다. 몇 분 뒤 회수 송장이 보입니다.' : '이미 다시 요청한 회수 접수입니다. 몇 분 뒤 새로고침해주세요.' };
+    : state === 'pending' ? '회수 접수를 다시 요청하도록 했습니다. 몇 분 뒤 회수 운송장이 보입니다.' : '이미 다시 요청한 회수 접수입니다. 몇 분 뒤 새로고침해주세요.' };
 }
 
 export interface ClaimReturnIntakePreview {

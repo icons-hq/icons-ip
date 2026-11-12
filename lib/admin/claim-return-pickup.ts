@@ -2,7 +2,7 @@ import type { OrderClaimType } from '@/lib/orders/claims';
 import { parseReturnIntakeColumns, type ReturnIntakeColumns } from './claim-return-intake';
 
 /*
- * 반품 자동 회수 접수(QNA-032·ADR-0034)의 운영 표시. 회수 묶음마다 접수 상태·회수 송장·실패 이유를 보이고, 자동 수거 실패는 다시 접수할 수
+ * 반품 자동 회수 접수(QNA-032·ADR-0034)의 운영 표시. 회수 묶음마다 접수 상태·회수 운송장·실패 이유를 보이고, 자동 수거 실패는 다시 접수할 수
  * 있다. 상태는 DB 큐(`private.claim_return_pickups`)의 값 그대로다. 스위치를 켠 적 없으면 묶음에 'pickup'이 없어 아무것도 그리지 않는다.
  */
 
@@ -24,7 +24,7 @@ const ERROR_LABELS: Record<string, string> = {
   adapter_unavailable: '회수 접수 연결 설정을 확인해야 합니다',
   pickup_timeout: '택배사 응답 시간이 지났습니다',
   pickup_failed: '택배사에 연결하지 못했습니다',
-  invalid_tracking: '택배사가 준 회수 송장 형식이 틀립니다',
+  invalid_tracking: '택배사가 준 회수 운송장 형식이 틀립니다',
   invalid_work_item: '접수 정보 형식이 틀립니다',
   upstream_error: '택배사가 접수를 거절했습니다',
 };

@@ -22,11 +22,12 @@ vi.mock('react', async () => ({
   },
 }));
 
-import { adminConfirm } from '@/lib/admin/confirm';
+import { adminConfirm, adminPrompt } from '@/lib/admin/confirm';
 import { AdminConfirmHost } from './AdminConfirmHost';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel } from './kit/ui/alert-dialog';
+import { Textarea } from './kit/ui/textarea';
 
-type Node = ReactElement<{ children?: ReactNode; onClick?: () => void; onOpenChange?: (open: boolean) => void; variant?: string }>;
+type Node = ReactElement<{ children?: ReactNode; onClick?: () => void; onChange?: (event: { target: { value: string } }) => void; onOpenChange?: (open: boolean) => void; variant?: string; disabled?: boolean }>;
 function all(node: ReactNode): Node[] {
   return Children.toArray(node).flatMap((child) => isValidElement(child) ? [child as Node, ...all((child.props as { children?: ReactNode }).children)] : []);
 }
@@ -116,6 +117,31 @@ describe('AdminConfirmHost', () => {
     expect(text(tree)).toContain('결제 전액 취소');
     expect(text(action())).toBe('취소 승인');
     expect(action().props.variant).toBe('danger');
+  });
+
+  it('입력칸이 있는 확인은 글자 수를 채워야 확인 버튼이 눌리고, 확인하면 입력값을 돌려준다', async () => {
+    const settled = vi.fn();
+    void adminPrompt({ message: '혜택을 회수합니다.', confirmLabel: '회수', input: { label: '회수 사유', minLength: 2, maxLength: 500 } }).then(settled);
+    render();
+    expect(action().props.disabled).toBe(true);
+    all(render()).find((node) => node.type === Textarea)!.props.onChange!({ target: { value: ' 고객 요청 ' } });
+    expect(action().props.disabled).toBe(false);
+    action().props.onClick!();
+    await flush();
+    expect(settled).toHaveBeenCalledExactlyOnceWith('고객 요청');
+  });
+
+  it('입력칸이 있는 확인을 취소하면 null이고, 다음 확인은 빈 입력으로 시작한다', async () => {
+    const first = vi.fn();
+    void adminPrompt({ message: '회수', input: { label: '사유', minLength: 2 } }).then(first);
+    render();
+    all(render()).find((node) => node.type === Textarea)!.props.onChange!({ target: { value: '남는 글' } });
+    dialog().props.onOpenChange!(false);
+    await flush();
+    expect(first).toHaveBeenCalledExactlyOnceWith(null);
+    void adminPrompt({ message: '다시 회수', input: { label: '사유', minLength: 2 } });
+    render();
+    expect(action().props.disabled).toBe(true);
   });
 
   it('호스트가 사라지면 남은 확인은 모두 취소로 푼다', async () => {

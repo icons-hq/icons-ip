@@ -132,7 +132,7 @@ export function CategoryErpMappingTable({ categories, mappings }: {
     </div>
     <div ref={tableScroller} className="relative max-h-[520px] min-w-0 overflow-auto rounded-lg border bg-card outline-none focus-visible:ring-3 focus-visible:ring-ring/50 print:max-h-none print:overflow-visible [&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-10 [&_thead_th]:bg-muted" role="region" aria-label="카테고리별 ERP 분류 매핑" tabIndex={0}>
       <table className="w-full min-w-[1040px] table-fixed caption-top text-sm" data-slot="table">
-        <caption className="px-2 py-2 text-left text-sm text-muted-foreground">마지막 단계 카테고리별 ERP 코드·품명. 검증 시각은 한국 시간입니다.</caption>
+        <caption className="px-2 py-2 text-left text-sm text-muted-foreground">마지막 단계 카테고리별 ERP 코드·품명. 검증 시각은 KST입니다.</caption>
         <colgroup><col className="w-[26%]" /><col className="w-36" /><col /><col className="w-44" /><col className="w-48" /><col className="w-32" /></colgroup>
         <TableHeader><TableRow className="bg-muted/50"><TableHead scope="col">카테고리 경로</TableHead><TableHead scope="col">ERP 코드</TableHead><TableHead scope="col">ERP 품명</TableHead><TableHead scope="col">출처</TableHead><TableHead scope="col">검증 시각</TableHead><TableHead scope="col">저장</TableHead></TableRow></TableHeader>
         <TableBody>

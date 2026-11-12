@@ -1006,7 +1006,7 @@ describe('GoodSection', () => {
   it('재고수량·옵션 카드는 옵션 없는 상품의 재고수량을 먼저 보여준다', () => {
     const html = renderGoodSection(good);
     const card = html.slice(html.indexOf('id="good-section-variants"'), html.indexOf('id="good-section-notice"'));
-    expect(card).toContain('재고수량 / 옵션</h4>');
+    expect(card).toContain('재고수량 / 옵션</h2>');
     expect(card).toContain('옵션 없음 · 재고수량 12개');
     expect(card.indexOf('for="goods-single-stock">재고수량')).toBeLessThan(card.indexOf('>옵션</legend>'));
     /* 섹션 이동 띠는 14개 링크에서 카드 7개로 줄었다. */

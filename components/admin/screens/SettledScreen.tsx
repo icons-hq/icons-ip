@@ -93,7 +93,7 @@ export function SettledScreen({
         date={{ from: filters.from, to: filters.to, field: filters.dateField ?? 'ordered', options: SALES_DATE_FIELDS }}
         now={now}
         search={{
-          placeholder: '주문번호 · 구매자 · 수취인 · 운송장',
+          placeholder: '주문번호 · 구매자 · 수령인 · 운송장',
           value: filters.query,
           field: filters.field ?? 'all',
           options: SALES_ORDER_SEARCH_FIELDS,

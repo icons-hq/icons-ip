@@ -48,7 +48,7 @@ export function GoodsListFiltersForm({ data }: { data: AdminGoodsListData }) {
       <summary className={`${buttonVariants({ variant: 'ghost', size: 'sm' })} my-2 w-fit cursor-pointer list-none lg:absolute lg:right-[7.75rem] lg:bottom-full lg:my-0 lg:mb-2.5 [&::-webkit-details-marker]:hidden`} data-slot="button">상세검색 <ChevronDown aria-hidden="true" className="transition-transform group-open/advanced:rotate-180" /></summary>
       <div className="border-t">
       <SearchRow label="전시상태"><fieldset className="flex flex-wrap gap-x-5 gap-y-1 sm:pt-1"><legend className="sr-only">전시상태</legend>
-        {[{ value: 'active', label: '보관 제외' }, { value: 'all', label: '전체' }, { value: 'draft', label: '임시저장' }, { value: 'published', label: '전시중' }, { value: 'archived', label: '보관' }].map(item => <label className={CHOICE} key={item.value}><input type="radio" name="status" value={item.value} defaultChecked={filters.status === item.value} />{item.label}</label>)}
+        {[{ value: 'active', label: '보관 제외' }, { value: 'all', label: '전체' }, { value: 'draft', label: '초안' }, { value: 'published', label: '공개' }, { value: 'archived', label: '보관' }].map(item => <label className={CHOICE} key={item.value}><input type="radio" name="status" value={item.value} defaultChecked={filters.status === item.value} />{item.label}</label>)}
       </fieldset></SearchRow>
       <SearchRow label={<label htmlFor="goods-list-date-field">기간</label>}><div className="flex flex-wrap items-center gap-2">
         <AdminSelect id="goods-list-date-field" name="dateField" defaultValue={filters.dateField ?? 'created'} wrapperClassName="w-36">{GOODS_LIST_DATE_FIELDS.map(option => <option value={option.value} key={option.value}>{option.label}</option>)}</AdminSelect>

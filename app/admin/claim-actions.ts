@@ -477,7 +477,7 @@ export async function recordOrderClaimReshipmentDeliveryAction(
   if (access.error) return fail(access.error.error ?? failureMessage);
   const normalized = normalizeAdminClaimEvidenceForm(formData);
   if (!normalized.ok) return fail(normalized.error);
-  /* 배송 건별 재출고(TKT-166)는 송장마다 확인한다. 'order'는 배송 건 없는 옛 주문 전체 행이고,
+  /* 배송 건별 재출고(TKT-166)는 운송장마다 확인한다. 'order'는 배송 건 없는 옛 주문 전체 행이고,
      값이 없으면 이 표 이전의 클레임 단위 기록(옛 단일 열)이다. */
   const shipment = formData.get('reshipmentShipment');
   if (shipment !== null && shipment !== 'order' && !isUuid(shipment)) return fail(failureMessage);
@@ -494,7 +494,7 @@ export async function recordOrderClaimReshipmentDeliveryAction(
   revalidateClaimSurfaces(normalized.value.claimId, 'exchange');
   return { message: shipment === null
     ? '교환품의 실제 배송완료를 확인했습니다. 이후 신청은 기존 신청 기한과 조건을 따릅니다.'
-    : '이 송장의 교환품 배송완료를 확인했습니다. 모든 송장이 확인되면 이후 신청은 기존 신청 기한과 조건을 따릅니다.' };
+    : '이 운송장의 교환품 배송완료를 확인했습니다. 모든 운송장이 확인되면 이후 신청은 기존 신청 기한과 조건을 따릅니다.' };
 }
 
 /**

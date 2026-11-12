@@ -56,7 +56,7 @@ export function GoodVariantsPanel({ goodId, variants, basePrice }: { goodId: str
         </p>
       </div>
       {selectedVariants.length ? <>
-        <div className="grid min-w-0 gap-2.5 sm:grid-cols-2" aria-label="옵션 재고 요약">
+        <div className="grid min-w-0 gap-2.5 sm:grid-cols-2" role="group" aria-label="옵션 재고 요약">
           <div className="flex flex-col gap-1 rounded-lg bg-muted/50 p-3"><span className="text-xs text-muted-foreground">사용 중 옵션</span><strong className="text-sm font-semibold tabular-nums">{activeVariants.length}개 · 재고수량 {activeAllocatedStock.toLocaleString('ko-KR')}개</strong></div>
           <div className="flex flex-col gap-1 rounded-lg bg-muted/50 p-3"><span className="text-xs text-muted-foreground">전체 옵션</span><strong className="text-sm font-semibold tabular-nums">{selectedVariants.length}개 · 재고수량 {totalAllocatedStock.toLocaleString('ko-KR')}개</strong></div>
           <p className="text-xs text-muted-foreground sm:col-span-2">전체 옵션 합계에는 사용 중지 옵션의 보존 재고가 포함됩니다. 실제 판매 가능 수량과 예약 가용 수량은 서버 판정값을 따릅니다.</p>

@@ -242,7 +242,7 @@ function PhotoEditorBody({ sourcePath, onApply, onCancel }: Props) {
       <p className={PHOTO_HINT_CLASS}>사진 편집: 5MB 이하 · 400만 픽셀 이하 · 가로·세로 4096px 이하</p>
       {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
       {/* 투명 영역이 보이도록 바둑판 배경(토큰 색) 위에 미리보기를 놓는다. */}
-      <div className="grid min-h-40 min-w-0 place-items-center overflow-hidden rounded-lg border bg-muted bg-[conic-gradient(var(--border)_25%,transparent_0_50%,var(--border)_0_75%,transparent_0)] bg-size-[16px_16px]" aria-label="사진 편집 미리보기">
+      <div className="grid min-h-40 min-w-0 place-items-center overflow-hidden rounded-lg border bg-muted bg-[conic-gradient(var(--border)_25%,transparent_0_50%,var(--border)_0_75%,transparent_0)] bg-size-[16px_16px]" role="group" aria-label="사진 편집 미리보기">
         {preview ? <div className="relative inline-block max-w-full min-w-0 leading-none" aria-busy={!ready}>
           {/* Canvas output is an ephemeral local Blob, never a product path. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -284,7 +284,7 @@ function PhotoEditorBody({ sourcePath, onApply, onCancel }: Props) {
           <div className={PHOTO_COORDINATES_CLASS}>{([['x', '왼쪽 위치'], ['y', '위쪽 위치'], ['width', '자를 너비'], ['height', '자를 높이']] as const).map(([key, label]) => <label className={PHOTO_LABEL_CLASS} key={key}>{label} (px)<input className={PHOTO_INPUT_CLASS} data-slot="input" type="number" min={key === 'width' || key === 'height' ? 1 : 0} max={key === 'x' || key === 'width' ? oriented.width : oriented.height} step={1} value={crop[key]}
             onChange={event => { if (event.target.value !== '') changeCrop({ [key]: Number(event.target.value) }); }} /></label>)}</div>
         </div>}
-        <div className={PHOTO_BUTTONS_CLASS} aria-label="보정과 추가 도구">{([['adjust', '색상 보정'], ['mosaic', '모자이크'], ['text', '텍스트'], ['bubble', '말풍선'], ['signature', '텍스트 서명'], ['sticker', '스티커'], ['logo', '로고·서명'], ['presentation', '액자·도형']] as const).map(([key, label]) => <button className={PHOTO_TOGGLE_CLASS} data-slot="toggle" key={key} type="button" aria-pressed={!cropping && tool === key} onClick={() => { setTool(key); setCropping(false); setComparing(false); if (key === 'logo' && recipe.logo) setSelection({ kind: 'logo', id: recipe.logo.assetId }); }}>{label}</button>)}</div>
+        <div className={PHOTO_BUTTONS_CLASS} role="group" aria-label="보정과 추가 도구">{([['adjust', '색상 보정'], ['mosaic', '모자이크'], ['text', '텍스트'], ['bubble', '말풍선'], ['signature', '텍스트 서명'], ['sticker', '스티커'], ['logo', '로고·서명'], ['presentation', '액자·도형']] as const).map(([key, label]) => <button className={PHOTO_TOGGLE_CLASS} data-slot="toggle" key={key} type="button" aria-pressed={!cropping && tool === key} onClick={() => { setTool(key); setCropping(false); setComparing(false); if (key === 'logo' && recipe.logo) setSelection({ kind: 'logo', id: recipe.logo.assetId }); }}>{label}</button>)}</div>
         {!cropping && tool === 'adjust' && <div className="flex min-w-0 flex-col gap-2.5">
           <div className={PHOTO_BUTTONS_CLASS}>
             <button type="button" className={PHOTO_BUTTON_CLASS} data-slot="button" disabled={logoBusy} onClick={() => void straighten()}>자동 수평 맞춤</button>
@@ -317,7 +317,7 @@ function PhotoEditorBody({ sourcePath, onApply, onCancel }: Props) {
         </div>}
         {!cropping && tool === 'presentation' && crop && <div className={PHOTO_PANEL_CLASS}>
           <p className="text-sm">테두리와 도형은 자르기를 마친 사진에 적용합니다. 사진 크기는 유지하며 테두리는 안쪽에 그립니다.</p>
-          <div className={PHOTO_PRESETS_CLASS} aria-label="액자 스타일">{PHOTO_FRAME_STYLES.map(style => <button className={PHOTO_PRESET_CLASS} type="button" key={style.value} aria-pressed={(recipe.frameStyle ?? 'solid') === style.value}
+          <div className={PHOTO_PRESETS_CLASS} role="group" aria-label="액자 스타일">{PHOTO_FRAME_STYLES.map(style => <button className={PHOTO_PRESET_CLASS} type="button" key={style.value} aria-pressed={(recipe.frameStyle ?? 'solid') === style.value}
             onClick={() => edit(current => ({ ...current, frameStyle: style.value }))}>
             {style.value !== 'solid' && <GoodsPhotoDecorationPreview paths={photoDecoratedFrameGeometry({ width: 100, height: 100 }, { frameStyle: style.value, frameWidth: 9, frameColor: '#000000', mask: 'none' })} />}
             <span>{style.label}</span>

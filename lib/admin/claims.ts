@@ -142,7 +142,7 @@ export const ADMIN_CLAIM_SEARCH_FIELDS = [
   { value: 'order', label: '주문·클레임번호' },
   { value: 'buyer', label: '구매자' },
   { value: 'email', label: '구매자 이메일' },
-  { value: 'recipient', label: '수취인명' },
+  { value: 'recipient', label: '수령인명' },
   { value: 'item', label: '상품주문번호' },
   { value: 'product', label: '상품 URL' },
 ] as const;

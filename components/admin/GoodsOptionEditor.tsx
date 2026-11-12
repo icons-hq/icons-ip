@@ -169,7 +169,7 @@ function OptionInputs({ axes, rows, hidden, setAxes, setRows }: {
   const extraAxisShown = extraAxisOpen || axes.slice(2).some((axis) => axis.name.trim() || axis.values.trim());
   return <section className={GOOD_SUBPANEL_CLASS} aria-labelledby="goods-option-inputs-title" data-good-option-inputs="" hidden={hidden}>
     <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-      <h5 id="goods-option-inputs-title" className="text-sm leading-snug font-medium text-foreground">옵션 입력</h5>
+      <h3 id="goods-option-inputs-title" className="text-sm leading-snug font-medium text-foreground">옵션 입력</h3>
       <span className="text-xs text-muted-foreground">옵션명 최대 {GOODS_OPTION_AXIS_LIMIT}개 · 옵션 최대 {GOODS_OPTION_ROW_LIMIT}개</span>
     </div>
     {axes.map((axis, index) => <div className="grid min-w-0 gap-x-4 gap-y-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]" hidden={index >= 2 && !extraAxisShown} key={index}>
@@ -227,7 +227,7 @@ function OptionList({ rows, basePrice, update, setRows }: {
   const bulkTone = bulkMessage?.failed ? 'warning' : 'success';
   return <section className={GOOD_SUBPANEL_CLASS} aria-labelledby="goods-option-list-title">
     <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-      <h5 id="goods-option-list-title" className="text-sm leading-snug font-medium text-foreground">옵션목록 (총 {rows.length.toLocaleString('ko-KR')}개)</h5>
+      <h3 id="goods-option-list-title" className="text-sm leading-snug font-medium text-foreground">옵션목록 (총 {rows.length.toLocaleString('ko-KR')}개)</h3>
       <span className="text-xs text-muted-foreground">옵션가는 판매가(할인하면 할인가)에 더하는 금액입니다.</span>
     </div>
     <div className="flex min-w-0 flex-wrap items-end gap-x-3 gap-y-2 rounded-lg bg-muted/50 p-3" role="group" aria-label="선택목록 일괄수정">

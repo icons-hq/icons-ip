@@ -135,8 +135,8 @@ export function GoodWorkspacePricePeriodsSection({ serverError }: { serverError?
         </NativeSelect></div>
       <div className="grid min-w-0 gap-3 [grid-template-columns:repeat(auto-fit,minmax(min(100%,11.25rem),1fr))]">
         <label className={FIELD_LABEL_CLASS}>기간 할인가 (원)<input className={GOOD_NUMBER_INPUT_CLASS} data-slot="input" type="number" min={1} step={1} value={entry.discountPrice} onChange={(event) => update(entry.key, { discountPrice: event.target.value })} /></label>
-        <label className={FIELD_LABEL_CLASS}>시작 (한국 시간)<input className={GOOD_INPUT_CLASS} data-slot="input" type="datetime-local" value={entry.startsAt} onChange={(event) => update(entry.key, { startsAt: event.target.value })} /></label>
-        <label className={FIELD_LABEL_CLASS}>종료 (한국 시간)<input className={GOOD_INPUT_CLASS} data-slot="input" type="datetime-local" value={entry.endsAt} onChange={(event) => update(entry.key, { endsAt: event.target.value })} /></label>
+        <label className={FIELD_LABEL_CLASS}>시작 (KST)<input className={GOOD_INPUT_CLASS} data-slot="input" type="datetime-local" value={entry.startsAt} onChange={(event) => update(entry.key, { startsAt: event.target.value })} /></label>
+        <label className={FIELD_LABEL_CLASS}>종료 (KST)<input className={GOOD_INPUT_CLASS} data-slot="input" type="datetime-local" value={entry.endsAt} onChange={(event) => update(entry.key, { endsAt: event.target.value })} /></label>
       </div>
       <div className={FIELD_LABEL_CLASS}><label htmlFor={`${entry.key}-state`}>사용 상태</label>
         <NativeSelect className="w-full sm:w-fit" id={`${entry.key}-state`} value={entry.state} onChange={(event) => update(entry.key, { state: event.target.value === 'active' ? 'active' : 'draft' })}>

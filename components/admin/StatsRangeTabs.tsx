@@ -50,7 +50,7 @@ export function StatsRangeTabs({ base, filters, now = new Date(), exportDisabled
       </StatsFilterRow>
       {/* 조회 카드 바닥 줄(콘솔 조회 카드와 같다): 왼쪽에 집계 기준·내보내기, 오른쪽에 [초기화][조회]. */}
       <ConsoleFilterActions start={<>
-        <div className="flex flex-col gap-0.5 text-xs text-muted-foreground"><p>한국시간 기준 · 최대 366일 · 주별은 월요일 시작</p>
+        <div className="flex flex-col gap-0.5 text-xs text-muted-foreground"><p>KST 기준 · 최대 366일 · 주별은 월요일 시작</p>
           {comparisonMode === 'year' ? <p>{ADMIN_STATS_YEAR_COMPARISON_NOTE}</p> : null}</div>
         {!filters.rangeError ? exportDisabledReason ? <p className="text-sm text-muted-foreground" role="status">{exportDisabledReason}</p> : <a className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" href={`${exportHref}${exportHref.includes('?') ? '&' : '?'}report=${screen}`}><Download aria-hidden="true" />엑셀 다운로드</a> : null}
       </>}>

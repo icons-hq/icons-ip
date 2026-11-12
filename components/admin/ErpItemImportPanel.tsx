@@ -300,7 +300,7 @@ export function ErpItemImportPanel({ defaultOpen = false, unlinkedErpCategories 
 
     {source && plan ? <div className="flex min-w-0 flex-col gap-4 border-t pt-4" data-erp-items="preview">
       <header className="flex flex-col gap-1">
-        <h4 className="text-base leading-snug font-medium wrap-anywhere">미리보기 · {source.label}</h4>
+        <h3 className="text-base leading-snug font-medium wrap-anywhere">미리보기 · {source.label}</h3>
         <p className={`${HINT} tabular-nums`}>
           비어 있지 않은 {plan.dataRowCount.toLocaleString('ko-KR')}행 · 반입 가능 {plan.rows.length.toLocaleString('ko-KR')}건 · 오류 {plan.issues.length.toLocaleString('ko-KR')}건
           {plan.duplicateCount ? ` · 중복 ${plan.duplicateCount.toLocaleString('ko-KR')}건` : ''}

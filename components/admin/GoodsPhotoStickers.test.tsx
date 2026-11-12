@@ -33,7 +33,7 @@ it('자체 6종을 각각 추가하고 위치·크기·색·회전·불투명도
 it('8개 한도에서 추가를 막고 방향키 이동은 입력창을 가로채지 않는다', () => {
   for (let i = 0; i < 8; i++) click('별 스티커 추가');
   expect(button('별 스티커 추가').props.disabled).toBe(true); click('하트 스티커 추가'); expect(recipe.stickers).toHaveLength(8);
-  const group = nodes(render()).find(node => node.props.role === 'group')!, target = {}, preventDefault = vi.fn();
+  const group = nodes(render()).find(node => node.props.role === 'group' && node.props.onKeyDown)!, target = {}, preventDefault = vi.fn();
   const key = group.props.onKeyDown as (event: unknown) => void;
   key({ key: 'ArrowRight', shiftKey: true, target, currentTarget: target, preventDefault });
   key({ key: 'ArrowDown', shiftKey: false, target: {}, currentTarget: target, preventDefault });

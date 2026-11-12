@@ -56,11 +56,11 @@ describe('출고지 회수 칸의 자동 회수 접수', () => {
     expect(html).not.toContain('data-claim-return-pickup');
     expect(html).toContain('TEST 김포 회수 확인');
   });
-  it('접수되면 회수 송장을 보인다', () => {
+  it('접수되면 회수 운송장을 보인다', () => {
     const html = renderToStaticMarkup(<ClaimOriginCollection canRecord claimId={CLAIM} claimType="return"
       collection={collection({ ...pickup, state: 'requested', trackingNumber: 'FAKE0123456789', requestedAt: '2026-11-12T03:00:00Z' })} />);
     expect(html).toContain('회수 접수됨');
-    expect(html).toContain('한진택배 · 회수 송장 FAKE0123456789');
+    expect(html).toContain('한진택배 · 회수 운송장 FAKE0123456789');
     expect(html).not.toContain('회수 다시 접수');
   });
   it('자동 수거 실패는 이유·시도 횟수와 다시 접수 버튼을 보인다(권한이 없으면 버튼 없음)', () => {

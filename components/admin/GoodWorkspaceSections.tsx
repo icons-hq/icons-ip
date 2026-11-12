@@ -130,8 +130,8 @@ export function GoodWorkspacePreorderCard({ canActivate, serverError, disabled =
       <div className="grid min-w-0 gap-3 [grid-template-columns:repeat(auto-fit,minmax(min(100%,10.5rem),1fr))]">
         <label className={PREORDER_LABEL_CLASS}>승인 예약 물량<input className={GOOD_NUMBER_INPUT_CLASS} data-slot="input" form={form} type="number" min={1} max={2147483647} step={1} inputMode="numeric" value={entry.capacityQty} placeholder="미설정"
           onChange={(event) => update(entry.key, { capacityQty: event.target.value })} /></label>
-        <label className={PREORDER_LABEL_CLASS}>접수 시작 (한국 시간)<input className={GOOD_INPUT_CLASS} data-slot="input" form={form} type="datetime-local" value={entry.startsAt} onChange={(event) => update(entry.key, { startsAt: event.target.value })} /></label>
-        <label className={PREORDER_LABEL_CLASS}>접수 종료 (한국 시간)<input className={GOOD_INPUT_CLASS} data-slot="input" form={form} type="datetime-local" value={entry.endsAt} onChange={(event) => update(entry.key, { endsAt: event.target.value })} /></label>
+        <label className={PREORDER_LABEL_CLASS}>접수 시작 (KST)<input className={GOOD_INPUT_CLASS} data-slot="input" form={form} type="datetime-local" value={entry.startsAt} onChange={(event) => update(entry.key, { startsAt: event.target.value })} /></label>
+        <label className={PREORDER_LABEL_CLASS}>접수 종료 (KST)<input className={GOOD_INPUT_CLASS} data-slot="input" form={form} type="datetime-local" value={entry.endsAt} onChange={(event) => update(entry.key, { endsAt: event.target.value })} /></label>
         <label className={PREORDER_LABEL_CLASS}>발송 예정일<input className={GOOD_INPUT_CLASS} data-slot="input" form={form} type="date" value={entry.expectedShipDate} min={entry.endsAt.slice(0, 10) || undefined} onChange={(event) => update(entry.key, { expectedShipDate: event.target.value })} /></label>
       </div>
       <label className={PREORDER_LABEL_CLASS}>승인 문서·확인 근거
