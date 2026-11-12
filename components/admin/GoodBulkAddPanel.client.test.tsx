@@ -24,8 +24,12 @@ type Element = ReactElement<Record<string, unknown>>;
 const nodes = (node: ReactNode): Element[] => Children.toArray(node).flatMap(value => isValidElement<Record<string, unknown>>(value) ? [value, ...nodes(value.props.children as ReactNode)] : []);
 const text = (node: ReactNode): string => Children.toArray(node).map(value => isValidElement<Record<string, unknown>>(value) ? text(value.props.children as ReactNode) : String(value)).join('');
 const match = (ref: string, extra: Partial<GoodReferenceMatch> = {}): GoodReferenceMatch => ({
-  ref, status: 'found', matchedBy: 'code', id: ref.toLowerCase(), name: `QA 상품 ${ref}`, code: ref, archived: false, published: true, candidate: null, ...extra,
+  ref, status: 'found', matchedBy: 'code', id: ref.toLowerCase(), name: `QA 상품 ${ref}`, code: ref, archived: false, published: true, visibility: 'public', candidate: null, ...extra,
 });
+/* 공개 표시 부품(DisplayGoodVisibilityNote·Badge)은 children 없이 그리므로 펼쳐서 읽는다. */
+const deep = (node: ReactNode): string => Children.toArray(node).map(value => !isValidElement<Record<string, unknown>>(value) ? String(value)
+  : typeof value.type === 'function' && /^DisplayGoodVisibility/.test(value.type.name) ? deep((value.type as (props: Record<string, unknown>) => ReactNode)(value.props))
+  : deep(value.props.children as ReactNode)).join('');
 
 let options: GoodBulkAddOptions<string>;
 function render() { hooks.index = 0; hooks.refIndex = 0; return nodes(GoodBulkAddPanel({ options })); }
@@ -42,32 +46,33 @@ beforeEach(() => {
   options = { capacity: 10, classify: found => ({ ok: true, id: found.id, item: found.id }), onAdd: vi.fn(), appliedHint: '선택 완료를 눌러 반영해주세요.' };
 });
 
-describe('여러 상품 한 번에 추가 — 비공개 상품(QA1 MD major)', () => {
-  it('공개 전 상품도 추가 가능으로 담되, 그 줄과 합계에 비공개와 이유를 함께 보인다', async () => {
-    mocks.resolve.mockResolvedValueOnce({ ok: true, matches: [match('QA-PR1'), match('QA-PR9', { published: false })] });
-    await paste('QA-PR1\nQA-PR9');
-    const [publicRow, hiddenRow] = rows();
+describe('여러 상품 한 번에 추가 — 고객 화면에 보이지 않는 상품(QA1 MD major·후속)', () => {
+  it('초안·성인(19금) 상품도 추가 가능으로 담되, 그 줄과 합계·담은 안내에 이유를 CONTEXT.md 말로 보인다', async () => {
+    mocks.resolve.mockResolvedValueOnce({ ok: true, matches: [match('QA-PR1'), match('QA-PR9', { published: false, visibility: 'draft' }), match('QA-PR19', { published: false, visibility: 'restricted' })] });
+    await paste('QA-PR1\nQA-PR9\nQA-PR19');
+    const [publicRow, draftRow, adultRow] = rows();
     expect(publicRow.props['data-good-bulk-row']).toBe('ready');
-    expect(text(publicRow.props.children as ReactNode)).not.toContain('비공개');
-    expect(hiddenRow.props['data-good-bulk-row']).toBe('ready');
-    expect(text(hiddenRow.props.children as ReactNode)).toContain('추가 가능');
-    const note = nodes(hiddenRow.props.children as ReactNode).find(node => node.props['data-good-visibility'] === 'unpublished')!;
-    expect(text(note.props.children as ReactNode)).toBe('비공개공개 전까지 고객 화면에 보이지 않습니다.');
-    expect(render().some(node => node.props.role === 'status' && text(node.props.children as ReactNode).includes('추가 가능 2개 (비공개 1개 포함)'))).toBe(true);
+    expect(deep(publicRow.props.children as ReactNode)).not.toMatch(/초안|미노출|성인/);
+    expect(draftRow.props['data-good-bulk-row']).toBe('ready');
+    expect(deep(draftRow.props.children as ReactNode)).toContain('추가 가능');
+    expect(deep(draftRow.props.children as ReactNode)).toContain('초안공개 전까지 고객 화면에 보이지 않습니다.');
+    expect(deep(adultRow.props.children as ReactNode)).toContain('성인(19금)홈 전시·캠페인·쇼핑스토리에는 나오지 않고, 카테고리 전시에서는 성인 인증을 마친 회원에게만 보입니다.');
+    expect(deep(render()[0]).match(/비공개/)).toBeNull();
+    expect(render().some(node => node.props.role === 'status' && text(node.props.children as ReactNode).includes('추가 가능 3개 (고객 화면 미노출 2개 포함)'))).toBe(true);
 
     addAll();
-    expect(options.onAdd).toHaveBeenCalledWith(['qa-pr1', 'qa-pr9']);
+    expect(options.onAdd).toHaveBeenCalledWith(['qa-pr1', 'qa-pr9', 'qa-pr19']);
     const message = render().filter(node => node.props.role === 'status').map(node => text(node.props.children as ReactNode)).join('\n');
-    expect(message).toContain('2개를 선택에 담았습니다. 그중 비공개 1개는 공개 전까지 고객 화면에 보이지 않습니다. 선택 완료를 눌러 반영해주세요.');
+    expect(message).toContain('3개를 선택에 담았습니다. 그중 2개(초안 1개, 성인(19금) 1개)는 고객 화면에 보이지 않습니다. 선택 완료를 눌러 반영해주세요.');
   });
 
-  it('홈 전시처럼 선택기가 공개 여부를 따로 판정하면 그 판정을 따른다', async () => {
-    options = { ...options, classify: found => ({ ok: true, id: found.id, item: found.id, unpublished: found.id === 'qa-pr1' }) };
-    mocks.resolve.mockResolvedValueOnce({ ok: true, matches: [match('QA-PR1'), match('QA-PR9', { published: false })] });
+  it('홈 전시처럼 선택기가 고객 화면 노출을 따로 판정하면 그 판정을 따른다', async () => {
+    options = { ...options, classify: found => ({ ok: true, id: found.id, item: found.id, visibility: found.id === 'qa-pr1' ? 'hidden' : 'public' }) };
+    mocks.resolve.mockResolvedValueOnce({ ok: true, matches: [match('QA-PR1'), match('QA-PR9', { published: false, visibility: 'draft' })] });
     await paste('QA-PR1\nQA-PR9');
     const [first, second] = rows();
-    expect(text(first.props.children as ReactNode)).toContain('비공개');
-    expect(text(second.props.children as ReactNode)).not.toContain('비공개');
+    expect(deep(first.props.children as ReactNode)).toContain('고객 화면 미노출고객 화면에 보이지 않습니다.');
+    expect(deep(second.props.children as ReactNode)).not.toContain('초안');
   });
 });
 

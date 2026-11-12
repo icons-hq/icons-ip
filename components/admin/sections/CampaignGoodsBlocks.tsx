@@ -11,7 +11,7 @@ import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
 import { ADMIN_CAMPAIGN_MAX_SECTIONS, campaignGoodsBlocks, parseAdminCampaignSections, replaceCampaignGoodsBlock } from '@/lib/admin/campaigns';
 import { discountPromotionListHref, newDiscountPromotionHref } from '@/lib/admin/discount-promotions';
 import type { StoryGoodCandidate } from '@/lib/admin/shopping-story-picker';
-import { hiddenDisplayGoodsNotice } from '@/lib/admin/good-references';
+import { hiddenDisplayGoodsNotice } from '@/lib/admin/good-visibility';
 
 /** 캠페인 굿즈 블록 한 개에 넣을 수 있는 상품 수(DB validate_campaign_sections와 같다). */
 const GOODS_BLOCK_LIMIT = 8;
@@ -29,7 +29,7 @@ export function CampaignGoodsBlocks({ sectionsText, onSectionsTextChange, campai
   const [picker, setPicker] = useState<{ index: number | null; selected: string[] } | null>(null);
   const [message, setMessage] = useState('');
   /* 고른 상품의 이름·공개 여부를 한 번에 확인한다. 조회에 실패해도 상품번호로 보이고 편집은 막지 않는다.
-     공개 전 상품도 묶음에 둘 수 있지만 기획전 본문에는 보이지 않으므로 상품마다 '비공개'로 알린다(QA1 MD). */
+     초안 등 고객 화면에 보이지 않는 상품도 묶음에 둘 수 있지만 기획전 본문에는 나오지 않으므로 상품마다 그 이유를 배지로 알린다(QA1 MD). */
   const goods = useGoodReferenceInfo(useMemo(() => blocks.flatMap(block => block.goodIds), [blocks]));
   /** 묶음 하나에서 기획전 본문에 보이지 않을 상품을 이름과 이유로 모은다. */
   function hiddenNotice(goodIds: readonly string[]) {

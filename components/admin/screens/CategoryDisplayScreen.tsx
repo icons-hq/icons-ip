@@ -16,7 +16,7 @@ import { useGoodReferenceInfo } from '../useGoodReferenceInfo';
 import { previewCategoryDisplayAction, reloadCategoryDisplayAction, saveCategoryDisplayAction, type CategoryDisplaySaveResult } from '@/app/admin/category-display-actions';
 import { parseCategoryDisplayValues, type CategoryDisplayDirectory, type CategoryDisplayPage, type CategoryDisplaySnapshot, type CategoryDisplayValues } from '@/lib/category-display';
 import type { StoryGoodCandidate } from '@/lib/admin/shopping-story-picker';
-import { hiddenDisplayGoodsNotice, type DisplayGoodInfo } from '@/lib/admin/good-references';
+import { hiddenDisplayGoodsNotice, type DisplayGoodInfo } from '@/lib/admin/good-visibility';
 import type { ShopListQuery } from '@/lib/shop-catalog';
 import { categoryDisplayHref } from '@/lib/routes';
 import { createClient } from '@/lib/supabase/client';

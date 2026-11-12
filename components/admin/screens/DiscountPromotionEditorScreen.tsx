@@ -264,7 +264,7 @@ export function DiscountPromotionEditorScreen({ identity, options, initial, retu
           /* 기간이 겹치거나 판매 중인 옵션이 없어 건너뛴 줄은 규칙을 바꿔도 결과가 같다 — 고를 수 있는 것처럼 보이지 않게 잠근다(QA1 MD). */
           const ruleLocked = discountPromotionRuleLocked(row.skip);
           return <TableRow className="data-[skipped]:text-muted-foreground" data-skipped={row.skip ? 'true' : undefined} key={row.id}>
-            <TableCell className="whitespace-normal wrap-anywhere">{row.name}<small className="block text-xs text-muted-foreground">{row.code ?? row.id}{row.published ? '' : ' · 비공개'}</small></TableCell>
+            <TableCell className="whitespace-normal wrap-anywhere">{row.name}<small className="block text-xs text-muted-foreground">{row.code ?? row.id}{row.published ? '' : ' · 초안'}</small></TableCell>
             <TableCell className="whitespace-normal tabular-nums">{range(row.priceMin, row.priceMax)}</TableCell>
             <TableCell className="whitespace-normal">{row.archived ? '—' : <div className="flex min-w-0 flex-wrap items-center gap-1.5">
               <AdminSelect aria-label={`${row.name} 할인 규칙`} disabled={locked || ruleLocked} onChange={event => changeDraft(row.id, { mode: event.target.value as ExceptionDraft['mode'] })} value={draft.mode} wrapperClassName="min-w-0 flex-1">

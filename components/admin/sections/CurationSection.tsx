@@ -39,7 +39,8 @@ import {
 import { SEARCH_TERM_LIMIT, SEARCH_TERM_LIST_NAME_LIMIT, SEARCH_TERM_MAX_LENGTH, searchTermFieldIssues } from '@/lib/search-terms';
 import { ArtworkUploadField } from '../ArtworkUploadField';
 import { DisplayGoodVisibilityNote } from '../DisplayGoodVisibility';
-import { hiddenDisplayGoodsNotice, type DisplayGoodVisibility } from '@/lib/admin/good-references';
+import { hiddenDisplayGoodsNotice, type DisplayGoodVisibility } from '@/lib/admin/good-visibility';
+import { useGoodReferenceInfo } from '../useGoodReferenceInfo';
 import { ActionNotice, ErrorText } from '../fields';
 
 const EMPTY_STATE: AdminCurationActionState = {};
@@ -326,13 +327,17 @@ function CurationForm({
   const productCountValid = Number(values.productItemCount) >= productCountMin && Number(values.productItemCount) <= productCountMax;
   const targetGroups = useMemo(() => adminCurationTargetGroupsFor({ events: eventOptions, goods: goodOptions, ips: ipOptions }, selected?.linkPath ?? null), [eventOptions, goodOptions, ipOptions, selected?.linkPath]);
   const names = useMemo(() => new Map(goodOptions.map((good) => [good.id, good.title])), [goodOptions]);
-  /* 공개 홈 상품 목록에 없는 상품은 고객 화면에 보이지 않는다 — 담기는 막지 않고 목록·미리보기에 이유를 적는다(QA1 MD).
-     상품 선택 창의 노출 상태와 같은 기준이다. 보관된 상품과 지워진 상품은 따로 부른다. */
-  const visibilityOf = useMemo(() => {
-    const publicIds = new Set(preview.goods.map((good) => good.id));
-    const archived = new Set(goodOptions.filter((good) => good.archivedAt).map((good) => good.id));
-    return (goodId: string): DisplayGoodVisibility => publicIds.has(goodId) ? 'public' : archived.has(goodId) ? 'archived' : names.has(goodId) ? 'unpublished' : 'missing';
-  }, [preview.goods, goodOptions, names]);
+  /* 공개 홈 상품 목록에 없는 상품은 고객 화면에 보이지 않는다 — 담기는 막지 않고 목록·미리보기에 이유(초안·IP 초안·성인(19금)·보관됨)를
+     적는다(QA1 MD). 상품 선택 창의 노출 상태와 같은 기준이고, 이유는 그 상품들만 가볍게 읽는다. 읽기 전이거나 이유가 공개인데 홈 목록에
+     없으면 '고객 화면 미노출', 대상 목록에도 없으면 '찾을 수 없음'이다. */
+  const publicIds = useMemo(() => new Set(preview.goods.map((good) => good.id)), [preview.goods]);
+  const reasons = useGoodReferenceInfo(values.goodIds.filter((goodId) => !publicIds.has(goodId)));
+  const visibilityOf = (goodId: string): DisplayGoodVisibility => {
+    if (publicIds.has(goodId)) return 'public';
+    const reason = reasons.info.get(goodId)?.visibility;
+    if (reason && reason !== 'public') return reason;
+    return goodOptions.some((good) => good.id === goodId && good.archivedAt) ? 'archived' : names.has(goodId) ? 'hidden' : 'missing';
+  };
   const draft = buildDraftCurationPreview(id, { ...values, kind }, preview.goods, preview.latestGoods, preview.productRankings);
   const reviewStatistics = preview.productRankings?.reviewStatistics ?? [];
   /* 고를 수 있는 리뷰 상품은 공개 홈 선정과 같은 판정이다 — 그룹 범위 요약(preview.goods 의 reviewSummary)이 있으면 그 평균 3 이상. */
@@ -511,7 +516,7 @@ function CurationForm({
           {showManualProducts ? <>
           <div className="flex items-center justify-between gap-3"><h4 className={SECTION_TITLE}>전시할 상품 <span className="text-xs font-normal text-muted-foreground tabular-nums">{values.goodIds.length} / {productLimit}</span></h4><Button onClick={() => setPicker(true)} size="sm" type="button" variant="outline"><Plus aria-hidden="true" />상품 추가</Button></div>
           <input name="goodIds" type="hidden" value={values.goodIds.join(', ')} />
-          <p className={HELP}>선택한 순서대로 전시합니다. {kind === 'review_best' ? '공개 평점 3점 미만이거나 비공개인 상품은 자동으로 제외합니다.' : '비공개 상품도 담을 수 있지만 공개 전까지 공개 홈에 보이지 않습니다.'}</p>
+          <p className={HELP}>선택한 순서대로 전시합니다. {kind === 'review_best' ? '공개 평점 3점 미만이거나 고객 화면에 보이지 않는 상품은 자동으로 제외합니다.' : '초안 등 고객 화면에 보이지 않는 상품도 담을 수 있지만 공개 홈에는 보이지 않습니다(목록에 이유 표시).'}</p>
           <ol className={ORDER_LIST}>{values.goodIds.map((goodId, index) => <li className={ORDER_ROW} key={`${goodId}-${index}`}><span className={ORDER_NUMBER}>{index + 1}</span><span className="min-w-0"><strong className="block text-xs font-medium [overflow-wrap:anywhere]">{names.get(goodId) ?? '현재 선택 상품'}</strong><small className="text-[11px] text-muted-foreground [overflow-wrap:anywhere]">{goodId}</small><DisplayGoodVisibilityNote visibility={visibilityOf(goodId)} /></span><div className="flex gap-0.5"><Button aria-label={`${names.get(goodId) ?? goodId} 위로`} disabled={index === 0} onClick={() => update('goodIds', moveCurationProduct(values.goodIds, index, -1))} size="icon-sm" type="button" variant="ghost"><ArrowUp aria-hidden="true" /></Button><Button aria-label={`${names.get(goodId) ?? goodId} 아래로`} disabled={index === values.goodIds.length - 1} onClick={() => update('goodIds', moveCurationProduct(values.goodIds, index, 1))} size="icon-sm" type="button" variant="ghost"><ArrowDown aria-hidden="true" /></Button><Button aria-label={`${names.get(goodId) ?? goodId} 삭제`} onClick={() => update('goodIds', values.goodIds.filter((_, current) => current !== index))} size="icon-sm" type="button" variant="ghost"><X aria-hidden="true" /></Button></div></li>)}</ol>
           {values.goodIds.length === 0 ? <p className={EMPTY_NOTE}>선택한 상품이 없습니다.</p> : null}<ErrorText>{state.errors?.goodIds}</ErrorText>
           </> : null}
