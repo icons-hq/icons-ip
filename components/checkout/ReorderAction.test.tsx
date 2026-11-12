@@ -6,6 +6,7 @@ import {
   ReorderOutcomeNotice,
   reorderCancellationRequested,
   reorderCanceledOrder,
+  reorderCheckoutHref,
   reorderNavigatesToCheckout,
   runReorder,
   type ReorderDependencies,
@@ -17,6 +18,7 @@ vi.mock('next/navigation', () => ({
 vi.mock('@/app/checkout/reorder-actions', () => ({
   restoreCanceledOrderToCartAction: vi.fn(),
 }));
+vi.mock('@/app/checkout/draft-actions', () => ({ createCartRetryDraftAction: vi.fn() }));
 
 const orderId = '7ad4c967-3d48-44da-a665-64731ac33f62';
 
@@ -32,7 +34,7 @@ describe('runReorder', () => {
   it('기존 고객 취소 경로로 취소한 뒤 품목을 다시 담는다', async () => {
     const dependencies = deps();
 
-    await expect(runReorder(orderId, 'cancel_then_reorder', dependencies)).resolves.toEqual({ kind: 'restored', reapply: null });
+    await expect(runReorder(orderId, 'cancel_then_reorder', dependencies)).resolves.toEqual({ kind: 'restored', reapply: null, checkoutHref: null });
     expect(dependencies.cancel).toHaveBeenCalledWith(orderId);
     expect(dependencies.restore).toHaveBeenCalledWith(orderId);
   });
@@ -40,13 +42,13 @@ describe('runReorder', () => {
   it('이미 취소된 주문(sweep이 먼저 닫음)도 다시 담는다', async () => {
     const dependencies = deps({ cancel: vi.fn().mockResolvedValue('already_canceled') });
 
-    await expect(runReorder(orderId, 'cancel_then_reorder', dependencies)).resolves.toEqual({ kind: 'restored', reapply: null });
+    await expect(runReorder(orderId, 'cancel_then_reorder', dependencies)).resolves.toEqual({ kind: 'restored', reapply: null, checkoutHref: null });
   });
 
   it('취소된 주문의 다시 담기는 취소를 부르지 않는다', async () => {
     const dependencies = deps();
 
-    await expect(runReorder(orderId, 'reorder', dependencies)).resolves.toEqual({ kind: 'restored', reapply: null });
+    await expect(runReorder(orderId, 'reorder', dependencies)).resolves.toEqual({ kind: 'restored', reapply: null, checkoutHref: null });
     expect(dependencies.cancel).not.toHaveBeenCalled();
   });
 
@@ -72,7 +74,7 @@ describe('runReorder', () => {
     const skipped = [{ name: '홍실 키링 (파랑)', reason: 'out_of_stock' as const }];
     await expect(runReorder(orderId, 'cancel_then_reorder', deps({
       restore: vi.fn().mockResolvedValue({ ok: true, restoredLines: 1, skipped, coupon: 'restored', storeCreditUsed: 0 }),
-    }))).resolves.toEqual({ kind: 'partial', skipped, reapply: null });
+    }))).resolves.toEqual({ kind: 'partial', skipped, reapply: null, checkoutHref: null });
     await expect(runReorder(orderId, 'cancel_then_reorder', deps({
       restore: vi.fn().mockResolvedValue({ ok: true, restoredLines: 0, skipped, coupon: 'none', storeCreditUsed: 0 }),
     }))).resolves.toEqual({ kind: 'nothing_restored', skipped });
@@ -84,19 +86,19 @@ describe('runReorder', () => {
     const couponLost = await runReorder(orderId, 'cancel_then_reorder', deps({
       restore: vi.fn().mockResolvedValue({ ok: true, restoredLines: 2, skipped: [], coupon: 'not_restored', storeCreditUsed: 0 }),
     }));
-    expect(couponLost).toEqual({ kind: 'restored', reapply: { coupon: 'reselect', storeCredit: 0 } });
+    expect(couponLost).toEqual({ kind: 'restored', reapply: { coupon: 'reselect', storeCredit: 0 }, checkoutHref: null });
     expect(reorderNavigatesToCheckout(couponLost)).toBe(false);
 
     const creditUsed = await runReorder(orderId, 'cancel_then_reorder', deps({
       restore: vi.fn().mockResolvedValue({ ok: true, restoredLines: 2, skipped: [], coupon: 'restored', storeCreditUsed: 2500 }),
     }));
-    expect(creditUsed).toEqual({ kind: 'restored', reapply: { coupon: null, storeCredit: 2500 } });
+    expect(creditUsed).toEqual({ kind: 'restored', reapply: { coupon: null, storeCredit: 2500 }, checkoutHref: null });
     expect(reorderNavigatesToCheckout(creditUsed)).toBe(false);
 
     const couponBack = await runReorder(orderId, 'cancel_then_reorder', deps({
       restore: vi.fn().mockResolvedValue({ ok: true, restoredLines: 2, skipped: [], coupon: 'restored', storeCreditUsed: 0 }),
     }));
-    expect(couponBack).toEqual({ kind: 'restored', reapply: null });
+    expect(couponBack).toEqual({ kind: 'restored', reapply: null, checkoutHref: null });
     expect(reorderNavigatesToCheckout(couponBack)).toBe(true);
   });
 
@@ -107,7 +109,7 @@ describe('runReorder', () => {
         couponReselectAt: 'checkout', storeCreditUsed: 0,
       }),
     }));
-    expect(outcome).toEqual({ kind: 'restored', reapply: { coupon: 'reselect_checkout', storeCredit: 0 } });
+    expect(outcome).toEqual({ kind: 'restored', reapply: { coupon: 'reselect_checkout', storeCredit: 0 }, checkoutHref: null });
     expect(reorderNavigatesToCheckout(outcome)).toBe(false);
   });
 
@@ -118,18 +120,18 @@ describe('runReorder', () => {
     const conditionsUnmet = await runReorder(orderId, 'cancel_then_reorder', deps({
       restore: vi.fn().mockResolvedValue({ ok: true, restoredLines: 1, skipped, coupon: 'conditions_unmet', storeCreditUsed: 0 }),
     }));
-    expect(conditionsUnmet).toEqual({ kind: 'partial', skipped, reapply: { coupon: 'conditions_unmet', storeCredit: 0 } });
+    expect(conditionsUnmet).toEqual({ kind: 'partial', skipped, reapply: { coupon: 'conditions_unmet', storeCredit: 0 }, checkoutHref: null });
 
     const fullButUnmet = await runReorder(orderId, 'cancel_then_reorder', deps({
       restore: vi.fn().mockResolvedValue({ ok: true, restoredLines: 2, skipped: [], coupon: 'conditions_unmet', storeCreditUsed: 0 }),
     }));
-    expect(fullButUnmet).toEqual({ kind: 'restored', reapply: { coupon: 'conditions_unmet', storeCredit: 0 } });
+    expect(fullButUnmet).toEqual({ kind: 'restored', reapply: { coupon: 'conditions_unmet', storeCredit: 0 }, checkoutHref: null });
     expect(reorderNavigatesToCheckout(fullButUnmet)).toBe(false);
 
     const unavailable = await runReorder(orderId, 'reorder', deps({
       restore: vi.fn().mockResolvedValue({ ok: true, restoredLines: 2, skipped: [], coupon: 'unavailable', storeCreditUsed: 0 }),
     }));
-    expect(unavailable).toEqual({ kind: 'restored', reapply: { coupon: 'unavailable', storeCredit: 0 } });
+    expect(unavailable).toEqual({ kind: 'restored', reapply: { coupon: 'unavailable', storeCredit: 0 }, checkoutHref: null });
     expect(reorderNavigatesToCheckout(unavailable)).toBe(false);
   });
 
@@ -137,8 +139,8 @@ describe('runReorder', () => {
   it('취소 단계를 마친 결과만 주문 취소로 본다', () => {
     const skipped = [{ name: '리바이 아크릴 스탠드', reason: 'unavailable' as const }];
     for (const outcome of [
-      { kind: 'restored', reapply: null },
-      { kind: 'partial', skipped, reapply: null },
+      { kind: 'restored', reapply: null, checkoutHref: null },
+      { kind: 'partial', skipped, reapply: null, checkoutHref: null },
       { kind: 'nothing_restored', skipped },
       { kind: 'restore_failed' },
     ] as const) {
@@ -156,7 +158,7 @@ describe('runReorder', () => {
     for (const kind of ['cancel_blocked', 'cancel_failed', 'restore_failed'] as const) {
       expect(reorderCancellationRequested({ kind })).toBe(false);
     }
-    expect(reorderCancellationRequested({ kind: 'restored', reapply: null })).toBe(false);
+    expect(reorderCancellationRequested({ kind: 'restored', reapply: null, checkoutHref: null })).toBe(false);
   });
 
   it('취소 뒤 담기가 실패하면 그 사실을 따로 알린다', async () => {
@@ -177,14 +179,17 @@ describe('runReorder', () => {
   });
 });
 
+/* 다시 담은 줄만 주문하는 주문서(선택 주문 초안, ADR-0030) — 초안 없는 /checkout은 장바구니 전체 주문서다. */
+const DRAFT = '/checkout?draft=70000000-0000-4000-8000-0000000000d1';
+
 describe('ReorderOutcomeNotice', () => {
   it('복수 쿠폰은 실제 선택 UI가 있는 주문서로 안내한다', () => {
     const html = renderToStaticMarkup(
       <ReorderOutcomeNotice mode="reorder" orderId={orderId}
-        outcome={{ kind: 'restored', reapply: { coupon: 'reselect_checkout', storeCredit: 0 } }} />,
+        outcome={{ kind: 'restored', reapply: { coupon: 'reselect_checkout', storeCredit: 0 }, checkoutHref: DRAFT }} />,
     );
     expect(html).toContain('주문서에서 사용할 쿠폰을 다시 골라주세요.');
-    expect(html).toContain('href="/checkout">주문서에서 쿠폰 다시 고르기</a>');
+    expect(html).toContain(`href="${DRAFT}">주문서에서 쿠폰 다시 고르기</a>`);
     expect(html).not.toContain('장바구니에서 쿠폰 고르기');
   });
 
@@ -200,7 +205,7 @@ describe('ReorderOutcomeNotice', () => {
   it('입력 설정이 달라진 품목의 값과 다시 입력할 곳을 안내한다', () => {
     const html = renderToStaticMarkup(
       <ReorderOutcomeNotice mode="reorder" orderId={orderId} outcome={{
-        kind: 'partial', skipped: [{ name: '키링 / 각인 문구: ALPHA', reason: 'custom_inputs_changed' }], reapply: null,
+        kind: 'partial', skipped: [{ name: '키링 / 각인 문구: ALPHA', reason: 'custom_inputs_changed' }], reapply: null, checkoutHref: DRAFT,
       }} />,
     );
     expect(html).toContain('키링 / 각인 문구: ALPHA(직접입력형 옵션 확인 필요)');
@@ -213,14 +218,14 @@ describe('ReorderOutcomeNotice', () => {
       <ReorderOutcomeNotice
         mode="cancel_then_reorder"
         orderId={orderId}
-        outcome={{ kind: 'restored', reapply: { coupon: 'reselect', storeCredit: 2500 } }}
+        outcome={{ kind: 'restored', reapply: { coupon: 'reselect', storeCredit: 2500 }, checkoutHref: DRAFT }}
       />,
     );
 
     expect(html).toContain('주문은 취소됐어요. 굿즈를 장바구니에 다시 담았어요.');
     expect(html).toContain('장바구니에서 쿠폰을 다시 골라주세요');
     expect(html).toContain('적립금 2,500원은 주문서에서 다시 입력해주세요');
-    expect(html.indexOf('href="/cart"')).toBeLessThan(html.indexOf('href="/checkout"'));
+    expect(html.indexOf('href="/cart"')).toBeLessThan(html.indexOf(`href="${DRAFT}"`));
   });
 
   it('적립금만 다시 입력하면 되면 주문서를 먼저 권한다', () => {
@@ -228,14 +233,14 @@ describe('ReorderOutcomeNotice', () => {
       <ReorderOutcomeNotice
         mode="reorder"
         orderId={orderId}
-        outcome={{ kind: 'restored', reapply: { coupon: null, storeCredit: 1000 } }}
+        outcome={{ kind: 'restored', reapply: { coupon: null, storeCredit: 1000 }, checkoutHref: DRAFT }}
       />,
     );
 
     expect(html).not.toContain('주문은 취소됐어요');
     expect(html).not.toContain('쿠폰');
     expect(html).toContain('적립금 1,000원은 주문서에서 다시 입력해주세요');
-    expect(html.indexOf('href="/checkout"')).toBeLessThan(html.indexOf('href="/cart"'));
+    expect(html.indexOf(`href="${DRAFT}"`)).toBeLessThan(html.indexOf('href="/cart"'));
   });
 
   it('일부만 담겨 쿠폰 조건에 못 미치면 사실대로 알리고 장바구니를 먼저 권한다', () => {
@@ -247,6 +252,7 @@ describe('ReorderOutcomeNotice', () => {
           kind: 'partial',
           skipped: [{ name: '홍실 키링 (파랑)', reason: 'sold_out' }],
           reapply: { coupon: 'conditions_unmet', storeCredit: 0 },
+          checkoutHref: DRAFT,
         }}
       />,
     );
@@ -255,7 +261,7 @@ describe('ReorderOutcomeNotice', () => {
     expect(html).toContain('지금 담긴 굿즈로는 사용 조건(최소 주문 금액 등)에 맞지 않아 할인되지 않아요');
     expect(html).toContain('장바구니에서 쿠폰 확인하기');
     expect(html).not.toContain('다시 골라주세요');
-    expect(html.indexOf('href="/cart"')).toBeLessThan(html.indexOf('href="/checkout"'));
+    expect(html.indexOf('href="/cart"')).toBeLessThan(html.indexOf(`href="${DRAFT}"`));
   });
 
   /* QA-3: 일부만 담긴 결과도 주문이 취소됐다는 사실을 먼저 말한다. */
@@ -264,6 +270,7 @@ describe('ReorderOutcomeNotice', () => {
       kind: 'partial' as const,
       skipped: [{ name: '리바이 아크릴 스탠드', reason: 'unavailable' as const }],
       reapply: { coupon: 'conditions_unmet' as const, storeCredit: 0 },
+      checkoutHref: DRAFT,
     };
     const canceled = renderToStaticMarkup(
       <ReorderOutcomeNotice mode="cancel_then_reorder" orderId={orderId} outcome={outcome} />,
@@ -282,14 +289,14 @@ describe('ReorderOutcomeNotice', () => {
       <ReorderOutcomeNotice
         mode="reorder"
         orderId={orderId}
-        outcome={{ kind: 'restored', reapply: { coupon: 'unavailable', storeCredit: 0 } }}
+        outcome={{ kind: 'restored', reapply: { coupon: 'unavailable', storeCredit: 0 }, checkoutHref: DRAFT }}
       />,
     );
 
     expect(html).toContain('만료·사용 완료·사용 중단 등으로 지금 쓸 수 없어 이번 주문에는 적용되지 않아요');
     expect(html).not.toContain('다시 골라주세요');
     expect(html).not.toContain('장바구니에서 쿠폰');
-    expect(html.indexOf('href="/checkout"')).toBeLessThan(html.indexOf('href="/cart"'));
+    expect(html.indexOf(`href="${DRAFT}"`)).toBeLessThan(html.indexOf('href="/cart"'));
   });
 
   /* 2026-10-12 QA-1: 취소가 즉시 끝나지 않으면(경합·시계 차이) 취소됐다고 말하지 않고,
@@ -333,5 +340,25 @@ describe('ReorderAction', () => {
       .toContain('이 주문 취소하고 다시 주문하기');
     expect(renderToStaticMarkup(<ReorderAction mode="reorder" orderId={orderId} />))
       .toContain('같은 굿즈 다시 담기');
+  });
+
+  /* 장바구니가 남은 주문은 그 주문의 줄로 주문서 초안을 만들어 다시 결제한다 — 장바구니 전체 주문서(/checkout)로 보내지 않는다. */
+  it('장바구니가 남은 주문의 다시 결제는 초안 없는 주문서로 보내지 않는다', () => {
+    const html = renderToStaticMarkup(<ReorderAction mode="retry_from_cart" orderId={orderId} />);
+    expect(html).toContain('다시 결제하기');
+    expect(html).not.toContain('href="/checkout"');
+  });
+});
+
+/* 주문서 초안을 만들지 못했으면(다른 탭이 장바구니를 바꿈 등) 장바구니 전체 주문서 대신 장바구니에서 고르게 한다(ADR-0030). */
+describe('ReorderOutcomeNotice — 주문서 초안 없음', () => {
+  it('다시 담은 줄의 주문서가 없으면 장바구니에서 골라 주문하게 한다', () => {
+    const html = renderToStaticMarkup(
+      <ReorderOutcomeNotice mode="reorder" orderId={orderId} outcome={{ kind: 'restored', reapply: { coupon: null, storeCredit: 1000 }, checkoutHref: null }} />,
+    );
+    expect(html).toContain('href="/cart">장바구니에서 골라 주문하기</a>');
+    expect(html).not.toContain('href="/checkout"');
+    expect(reorderCheckoutHref({ kind: 'restored', reapply: null, checkoutHref: null })).toBe('/cart');
+    expect(reorderCheckoutHref({ kind: 'restored', reapply: null, checkoutHref: DRAFT })).toBe(DRAFT);
   });
 });

@@ -1,5 +1,7 @@
 import 'server-only';
-import { parseCheckoutDraftView, type CheckoutDraft, type CheckoutDraftCoupon, type ClosedCheckoutDraft } from './checkout-draft';
+import type { CartItem } from './cart';
+import { checkoutDraftHref, normalizeCheckoutDraftId, parseCheckoutDraftView, type CheckoutDraft, type CheckoutDraftCoupon, type ClosedCheckoutDraft } from './checkout-draft';
+import { cartLineIdentityPayload } from './checkout-selection';
 import type { ShippingQuoteItem } from './fulfillment';
 import type { ShippingDestination } from './shipping-regions';
 import { parseStoreCreditCheckoutQuote, type StoreCreditCheckoutQuote } from './store-credits';
@@ -42,5 +44,24 @@ export async function loadCheckoutDraft(userId: string, draftId: string): Promis
     return parseCheckoutDraftView(data) ?? 'error';
   } catch {
     return 'error';
+  }
+}
+
+/**
+ * 지금 계정 장바구니에 있는 줄로 선택 주문 초안을 만들고 주문서 주소를 돌려준다(ADR-0030). 주문서는 그 줄만 주문한다 —
+ * 장바구니의 다른 줄이 끼어들지 않는다. 줄이 장바구니와 다르거나(다른 탭) 만들지 못하면 null이고, 호출자는 장바구니로
+ * 보내 고르게 한다.
+ */
+export async function createSelectionDraftHref(userId: string, items: readonly CartItem[]): Promise<string | null> {
+  if (!items.length) return null;
+  try {
+    const { data, error } = await createServiceClient().rpc('service_create_checkout_selection_draft', {
+      p_user_id: userId,
+      p_lines: items.map((line) => ({ ...cartLineIdentityPayload(line), qty: line.qty })),
+    });
+    const draftId = error ? null : normalizeCheckoutDraftId(data);
+    return draftId ? checkoutDraftHref(draftId) : null;
+  } catch {
+    return null;
   }
 }
