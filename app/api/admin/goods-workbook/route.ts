@@ -7,7 +7,7 @@ import {
   loadGoodsImportBatch,
 } from '@/lib/admin/goods-import.server';
 import { normalizeGoodsListFilters } from '@/lib/admin/goods-list';
-import type { GoodsWorkbookRow } from '@/lib/admin/goods-workbook';
+import { goodsWorkbookRowFromStored, type GoodsWorkbookRow } from '@/lib/admin/goods-workbook';
 import type { GoodsKcWorkbookRow } from '@/lib/admin/goods-kc-workbook';
 import type { GoodsCustomInputWorkbookRow } from '@/lib/admin/goods-custom-input-workbook';
 import type { GoodsAfterSalesWorkbookRow, GoodsSizeWorkbookRow } from '@/lib/admin/goods-guidance-workbook';
@@ -41,7 +41,7 @@ export async function GET(request: Request) {
           ? group.errors.join(' / ')
           : goodsImportErrorMessage(batch.results[index]?.error);
         for (const row of group.source) {
-          rows.push(row.values);
+          rows.push(goodsWorkbookRowFromStored(row.values));
           errors!.push(message);
         }
         kcRows.push(...(group.kcSource ?? []).map(row => row.values));

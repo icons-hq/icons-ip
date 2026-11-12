@@ -2,11 +2,14 @@ import ExcelJS from 'exceljs';
 import { describe, expect, it } from 'vitest';
 import { EMPTY_GOODS_AFTER_SALES, type GoodsAfterSalesSnapshot } from '@/lib/goods-after-sales';
 import { emptyGoodsSizeChartValues, type GoodsSizeChartSnapshot } from '@/lib/goods-size-chart';
-import { emptyGoodsWorkbookRow, exportGoodsWorkbookRows, GOODS_WORKBOOK_V6_VERSION, planGoodsWorkbookImport,
+import { emptyGoodsWorkbookRow, exportGoodsWorkbookRows, GOODS_WORKBOOK_V6_VERSION, GOODS_WORKBOOK_V7_VERSION, goodsWorkbookLayout, planGoodsWorkbookImport,
   type GoodsImportExisting, type GoodsWorkbookContext } from './goods-workbook';
+import { GOODS_KC_WORKBOOK_LEGACY_HEADERS, GOODS_KC_WORKBOOK_SHEET } from './goods-kc-workbook';
+import { GOODS_CUSTOM_INPUT_WORKBOOK_LEGACY_HEADERS, GOODS_CUSTOM_INPUT_WORKBOOK_SHEET } from './goods-custom-input-workbook';
 import { buildGoodsWorkbook, parseGoodsWorkbookWithKc } from './goods-workbook-file';
 import { emptyGoodsCustomInputWorkbookRow } from './goods-custom-input-workbook';
-import { GOODS_AFTER_SALES_WORKBOOK_HEADERS, GOODS_AFTER_SALES_WORKBOOK_SHEET, GOODS_SIZE_WORKBOOK_HEADERS, GOODS_SIZE_WORKBOOK_SHEET,
+import { GOODS_AFTER_SALES_WORKBOOK_HEADERS, GOODS_AFTER_SALES_WORKBOOK_LEGACY_HEADERS, GOODS_AFTER_SALES_WORKBOOK_SHEET, GOODS_SIZE_WORKBOOK_HEADERS,
+  GOODS_SIZE_WORKBOOK_LEGACY_HEADERS, GOODS_SIZE_WORKBOOK_SHEET,
   emptyGoodsAfterSalesWorkbookRow, emptyGoodsSizeWorkbookRow, exportGoodsAfterSalesWorkbookRows, exportGoodsSizeWorkbookRows,
   planGoodsAfterSalesWorkbook, planGoodsSizeWorkbook } from './goods-guidance-workbook';
 
@@ -21,7 +24,17 @@ const sizeRows = () => exportGoodsSizeWorkbookRows([{ goodCode: '001', snapshot:
 const record: GoodsImportExisting = { good: { id: 'guidance-test', code: '001', name: '안내 시험', type: '문구', ip_id: 'ip', price: 1000,
   archived_at: null, description: '기'.repeat(2100), description_format: 'plain' }, variants: [], fingerprint: 'fingerprint', afterSales, sizeChart };
 const context: GoodsWorkbookContext = { existing: [record], ips: [{ id: 'ip', archived_at: null }], origins: [], presets: [], mediaUrl: () => null };
-const product = { ...emptyGoodsWorkbookRow(), code: '001', ipId: 'ip', name: '안내 시험', price: '1000' };
+const product = { ...emptyGoodsWorkbookRow(), code: '001', ipId: 'ip', name: '안내 시험', salePrice: '1000' };
+/** 현재 양식 파일을 구형 열 구성으로 바꾼다: 상품번호 열을 빼고 그 버전의 열 이름(상품코드 등)을 쓴다. */
+function toLegacyLayout(book: ExcelJS.Workbook, version: string) {
+  const sheet = book.getWorksheet('상품')!;
+  sheet.spliceColumns(1, 1);
+  sheet.getCell('A1').value = version;
+  sheet.getRow(4).values = goodsWorkbookLayout(version)!.columns.map((column) => column.header);
+  book.getWorksheet(GOODS_KC_WORKBOOK_SHEET)!.getRow(4).values = Object.values(GOODS_KC_WORKBOOK_LEGACY_HEADERS);
+  const custom = book.getWorksheet(GOODS_CUSTOM_INPUT_WORKBOOK_SHEET);
+  if (custom) custom.getRow(4).values = Object.values(GOODS_CUSTOM_INPUT_WORKBOOK_LEGACY_HEADERS);
+}
 const asValues = exportGoodsAfterSalesWorkbookRows([{ goodCode: '001', snapshot: afterSales }]);
 const sizeValues = exportGoodsSizeWorkbookRows([{ goodCode: '001', snapshot: sizeChart }]);
 async function bookWithGuidance() {
@@ -92,7 +105,7 @@ describe('goods guidance workbook planning', () => {
   it('plans new explicitly coded goods and rejects side rows without a matching product', () => {
     expect(planGoodsWorkbookImport([{ row: 5, values: product }], { ...context, existing: [], afterSalesRows: [asRow({ revision: '0' })] })[0])
       .toMatchObject({ kind: 'new', guidance: { afterSales: { expectedRevision: 0 } }, target: { code: '001' } });
-    expect(() => planGoodsWorkbookImport([{ row: 5, values: product }], { ...context, afterSalesRows: [asRow({ goodCode: 'OTHER' })] })).toThrow('같은 상품코드');
+    expect(() => planGoodsWorkbookImport([{ row: 5, values: product }], { ...context, afterSalesRows: [asRow({ goodCode: 'OTHER' })] })).toThrow('같은 판매자상품코드');
   });
   it('keeps empty zero-revision snapshots absent and exports cleared revisions explicitly', () => {
     expect(exportGoodsAfterSalesWorkbookRows([{ goodCode: '001', snapshot: { ...afterSales, ...EMPTY_GOODS_AFTER_SALES, revision: 0, updatedAt: null } }])).toEqual([]);
@@ -111,10 +124,25 @@ describe('actual v7 guidance workbook files', () => {
     expect(parsed.afterSalesRows?.map(row => row.values)).toEqual(asValues);
     expect(parsed.sizeRows?.map(row => row.values)).toEqual(sizeValues);
   });
+  it('v7 파일의 A/S·사이즈 시트는 그때의 열 이름(상품코드)으로 그대로 읽는다', async () => {
+    const book = await bookWithGuidance();
+    book.eachSheet(sheet => { if (sheet.name !== '작성 안내') sheet.getCell('A1').value = GOODS_WORKBOOK_V7_VERSION; });
+    toLegacyLayout(book, GOODS_WORKBOOK_V7_VERSION);
+    book.getWorksheet(GOODS_AFTER_SALES_WORKBOOK_SHEET)!.getRow(4).values = Object.values(GOODS_AFTER_SALES_WORKBOOK_LEGACY_HEADERS);
+    book.getWorksheet(GOODS_SIZE_WORKBOOK_SHEET)!.getRow(4).values = Object.values(GOODS_SIZE_WORKBOOK_LEGACY_HEADERS);
+    const parsed = await parseGoodsWorkbookWithKc(await bytes(book));
+    expect(parsed.rows[0]).toMatchObject({ layout: 'v7', values: { code: '001', salePrice: '1000', productNo: '' } });
+    expect(parsed.afterSalesRows?.map(row => row.values)).toEqual(asValues);
+    expect(parsed.sizeRows?.map(row => row.values)).toEqual(sizeValues);
+    // v8 열 이름을 v7 표기 파일에 붙이면 받지 않는다(버전과 열 이름이 함께 간다).
+    book.getWorksheet(GOODS_SIZE_WORKBOOK_SHEET)!.getRow(4).values = Object.values(GOODS_SIZE_WORKBOOK_HEADERS);
+    await expect(parseGoodsWorkbookWithKc(await bytes(book))).rejects.toThrow('열 이름');
+  });
   it('retains v6 custom input support but rejects new guidance sheets attached to a v6 workbook', async () => {
     const custom = { ...emptyGoodsCustomInputWorkbookRow(), goodCode: '001', mode: '전체 해제', revision: '0' };
     const book = new ExcelJS.Workbook(); await book.xlsx.load((await buildGoodsWorkbook([product], undefined, [], [custom])) as never);
     book.eachSheet(sheet => { if (sheet.name !== '작성 안내') sheet.getCell('A1').value = GOODS_WORKBOOK_V6_VERSION; });
+    toLegacyLayout(book, GOODS_WORKBOOK_V6_VERSION);
     await expect(parseGoodsWorkbookWithKc(await bytes(book))).rejects.toThrow('v7');
     book.removeWorksheet(GOODS_AFTER_SALES_WORKBOOK_SHEET); book.removeWorksheet(GOODS_SIZE_WORKBOOK_SHEET);
     expect(await parseGoodsWorkbookWithKc(await bytes(book))).toMatchObject({ customInputRows: [{ values: custom }], afterSalesRows: null, sizeRows: null });
@@ -128,11 +156,11 @@ describe('actual v7 guidance workbook files', () => {
     expect(parsed.afterSalesRows?.[0].errors?.join()).toContain('수식'); expect(parsed.sizeRows?.[0].errors?.join()).toContain('수식');
     expect(parsed.afterSalesRows?.[0].errors?.join()).toContain('전화번호는 숫자 대신 텍스트');
     book.getWorksheet(GOODS_AFTER_SALES_WORKBOOK_SHEET)!.getCell('A5').value = 1;
-    await expect(parseGoodsWorkbookWithKc(await bytes(book))).rejects.toThrow('같은 상품코드');
+    await expect(parseGoodsWorkbookWithKc(await bytes(book))).rejects.toThrow('같은 판매자상품코드');
   });
   it('rejects orphan side rows, modified headers and excess row counts', async () => {
     const book = await bookWithGuidance(); book.getWorksheet(GOODS_SIZE_WORKBOOK_SHEET)!.getCell('A5').value = 'ORPHAN';
-    await expect(parseGoodsWorkbookWithKc(await bytes(book))).rejects.toThrow('같은 상품코드');
+    await expect(parseGoodsWorkbookWithKc(await bytes(book))).rejects.toThrow('같은 판매자상품코드');
     book.getWorksheet(GOODS_SIZE_WORKBOOK_SHEET)!.getCell('A4').value = '다른 열';
     await expect(parseGoodsWorkbookWithKc(await bytes(book))).rejects.toThrow('열 이름');
     await expect(buildGoodsWorkbook([product], undefined, [], [], Array.from({ length: 501 }, () => asValues[0]))).rejects.toThrow('500');

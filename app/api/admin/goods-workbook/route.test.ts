@@ -23,7 +23,7 @@ const values = {
   name: '테스트 상품',
   ipId: 'ip',
   code: '0001',
-  price: '0',
+  salePrice: '0',
   stockQty: '0',
 };
 describe('downloadable goods XLSX', () => {
@@ -70,7 +70,8 @@ describe('downloadable goods XLSX', () => {
     expect(response.headers.get('cache-control')).toBe('private, no-store');
     const book = new ExcelJS.Workbook();
     await book.xlsx.load(Buffer.from(await response.arrayBuffer()) as never);
-    expect(book.getWorksheet('상품')?.getCell('A4').text).toBe('상품코드');
+    expect(book.getWorksheet('상품')?.getCell('A4').text).toBe('상품번호');
+    expect(book.getWorksheet('상품')?.getCell('B4').text).toBe('판매자상품코드');
     expect(book.getWorksheet('작성 안내')).toBeTruthy();
     expect(book.getWorksheet(GOODS_CUSTOM_INPUT_WORKBOOK_SHEET)?.getCell('G4').text).toBe('정의 버전');
   });
@@ -112,6 +113,13 @@ describe('downloadable goods XLSX', () => {
       (await parseGoodsWorkbook(Buffer.from(await response.arrayBuffer())))[0]
         .values,
     ).toEqual(values);
+  });
+  it('v8 배포 전에 검증한 작업(v7 행)의 실패 행도 판매가·즉시할인·옵션가 열로 다시 쓴다', async () => {
+    const legacy = { ...values, salePrice: undefined, price: '10000', compareAtPrice: '12000', variantPrice: '10500' };
+    mocks.batch.mockResolvedValue({ plan: [{ kind: 'error', source: [{ values: legacy }], errors: ['오류'] }], results: {} });
+    const response = await GET(new Request('http://localhost/api/admin/goods-workbook?mode=failures&batch=mine'));
+    const [row] = await parseGoodsWorkbook(Buffer.from(await response.arrayBuffer()));
+    expect(row.values).toMatchObject({ code: '0001', salePrice: '12000', instantDiscount: '2000', optionPrice: '500' });
   });
   it('includes every option row from failed products while excluding successes', async () => {
     mocks.batch.mockResolvedValue({
