@@ -265,10 +265,9 @@ function ReshipTable({ identity, load, onDone, onRunning, scope }: {
         setProgress((count) => count + 1);
       });
       if (outcome === 'auth_lost') authLost = true;
-      if (!alive.current) return;
     }
-    if (!alive.current) return;
-    /* 주소는 처리가 끝나면 바로 지운다. 결과표에는 요청번호·출고지·결과만 남는다. */
+    /* 표가 도중에 다시 그려져도(로그인 세션 교체) 결과는 창에 넘긴다 — 이미 등록한 줄을 결과에서 잃지 않는다.
+       주소는 처리가 끝나면 바로 지운다. 결과표에는 요청번호·출고지·결과만 남는다. */
     setContexts({}); setDestinationConfirmed(false); setDispatchConfirmed(false);
     const all = [...results, ...excludedResults(load)];
     const ordered = load.claims.flatMap((claim) => all.filter((entry) => entry.claimId === claim.claimId))
