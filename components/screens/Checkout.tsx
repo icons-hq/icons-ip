@@ -23,7 +23,9 @@ import { GoodsCustomInputsSummary } from '@/components/shop/GoodsCustomInputs';
 import { goodsCustomInputProblem } from '@/lib/goods-custom-inputs';
 import { cartItemKey } from '@/lib/cart';
 import { cartLineOption, cartOptionGood, goodAtQuotedPrice, optionLabel } from '@/lib/goods-options';
-import { goodsPurchaseReasonMessage, goodsSalesQuoteProblem, quoteLineOptionLimitMessage } from '@/lib/goods-sales';
+import { GOODS_LINE_UNAVAILABLE_MESSAGE, goodsPurchaseReasonMessage, goodsSalesQuoteProblem, quoteLineOptionLimitMessage } from '@/lib/goods-sales';
+import { goodsSalePeriodOrderNotice } from '@/lib/goods-sale-period';
+import { GoodsSalePeriodRefresh } from '@/components/shop/GoodsSalePeriodRefresh';
 import { PLACE_ORDER_OPTION_LIMIT_MESSAGES, PLACE_ORDER_RANDOM_OPTION_LIMIT_MESSAGE, PLACE_ORDER_RANDOM_OPTION_MESSAGE } from '@/lib/goods-option-sale-mode';
 import { couponErrorNeedsPendingOrder, MIN_PAYABLE_TOTAL, type UserCouponSummary } from '@/lib/coupons';
 import { PendingOrderResolution } from '@/components/checkout/PendingOrderResolution';
@@ -284,6 +286,8 @@ export function Checkout({
   const unavailable = lines.some(({ good, qty,customInputs }) => (
     !good || Boolean(goodsCustomInputProblem(good.customInputs,customInputs)) || good.stock === 'soldout' || good.stockQty < qty
   ));
+  /* 판매기간이 끝났거나 시작 전인 굿즈는 공통 '재고 변경' 안내 대신 그 굿즈와 이유를 말한다(QA1 S-D2-11). 주문은 지금처럼 잠긴다. */
+  const salePeriodNotice = goodsSalePeriodOrderNotice(lines.flatMap(({ good }) => (good ? [good] : [])), direct ? 'direct' : 'cart');
   /* 결제 대기 주문 해소 안내(ADR-0030)의 원인 조건 — 그 굿즈(옵션)를 담은 주문(재고·회원 누적 한도), 그 쿠폰을 쓴 주문(쿠폰 사용),
      첫구매 예약만 모든 결제 대기 주문(견적 사유·주문 생성의 첫구매 거절). 재고가 모자란 굿즈는 본인 결제 대기 주문이 잡고 있을 수 있다. */
   const stockGoodIds = [...new Set([
@@ -462,6 +466,8 @@ export function Checkout({
 
   return (
     <main className="wc-root wc-receipt checkout-page">
+      {/* 주문서를 연 채 판매기간이 끝나거나 시작되면 카탈로그를 다시 읽어 그 굿즈를 바로 알린다(QA1 S-D2-11, 장바구니와 같은 경계). */}
+      <GoodsSalePeriodRefresh goods={lines.flatMap((line) => (line.good ? [line.good] : []))} />
       <header className="wc-receipt__head">
         <div className="wrap">
           <h1 className="wc-receipt__title">배송지와 결제 금액을 확인해주세요</h1>
@@ -576,16 +582,16 @@ export function Checkout({
             />
           )}
 
-          <fieldset className="checkout-method" disabled={submitting} aria-describedby="checkout-credit-note">
+          <fieldset className="checkout-method checkout-credit" disabled={submitting} aria-describedby="checkout-credit-note">
             <legend>적립금 사용</legend>
-            <label htmlFor="checkout-store-credits">사용 금액 (원)</label>
+            <label className="checkout-credit__label" htmlFor="checkout-store-credits">사용 금액 (원)</label>
             <input id="checkout-store-credits" type="text" inputMode="numeric" value={storeCreditInput}
               disabled={credits.quote?.enabled === false || !shippingReady} aria-invalid={Boolean(creditProblem)}
               onChange={event => setStoreCreditInput(event.target.value)} placeholder="0" />
-            {credits.quote ? <p id="checkout-credit-note">{credits.quote.enabled
+            {credits.quote ? <p className="checkout-credit__note" id="checkout-credit-note">{credits.quote.enabled
               ? !shippingReady ? `보유 ${krw(credits.quote.available)} · 사용 한도는 배송지 확인 후 안내합니다.`
                 : `보유 ${krw(credits.quote.available)} · 이 주문에서 최대 ${krw(credits.quote.maxUse)} 사용 가능${credits.quote.minUse ? ` · 최소 ${krw(credits.quote.minUse)}` : ''}`
-              : '현재 적립금 사용을 준비 중입니다.'}</p> : <p id="checkout-credit-note">적립금 잔액과 이 주문의 사용 조건을 확인합니다.</p>}
+              : '현재 적립금 사용을 준비 중입니다.'}</p> : <p className="checkout-credit__note" id="checkout-credit-note">적립금 잔액과 이 주문의 사용 조건을 확인합니다.</p>}
             <details className="checkout-note">
               <summary>적립금 사용 기준</summary>
               <p>1원 단위로 굿즈 금액에 사용합니다. 배송비는 제외하며 쿠폰 적용 뒤 남은 금액에 적용됩니다.</p>
@@ -600,7 +606,7 @@ export function Checkout({
           {shipping.quote?.groups.map((group, index, groups) => <section className="wc-shipping-group" key={group.originId}><h3>{shippingGroupLabel(groups, index)}</h3><ShippingGroupSummary group={group} /></section>)}
           {shipping.loading ? <p role="status">현재 가격과 배송비를 확인하고 있어요.</p> : null}
           {shipping.error ? <div role="alert"><p>{shipping.error}</p><button type="button" onClick={shipping.refresh}>가격·배송비 다시 확인</button></div> : null}
-          {purchaseProblem ? <p className="checkout-error" role="alert">{copyFor(purchaseProblem)}
+          {purchaseProblem && !(salePeriodNotice && purchaseProblem === GOODS_LINE_UNAVAILABLE_MESSAGE) ? <p className="checkout-error" role="alert">{copyFor(purchaseProblem)}
             {/* 첫구매 예약처럼 DB가 결제 대기 주문 때문이라고 알린 쿠폰 막힘은 그 주문 목록으로 잇는다(#540, 무통장 입금 대기 포함). */}
             {couponErrorNeedsPendingOrder(shipping.sales?.coupon?.reason) ? <PendingOrderResolution /> : null}
             {direct && !quoteMayBeBlockedByPendingOrder(shipping.sales ?? { goods: [], lines: [] }) ? <> <Link href={draftReturnHref}>굿즈로 돌아가기</Link></> : null}
@@ -651,7 +657,7 @@ export function Checkout({
             <p id="checkout-method-note">결제수단은 주문을 만들 때 고정됩니다. 바꾸려면 주문을 취소하고 다시 만들어야 해요.</p>
           </details>
 
-          {unavailable && <p className="checkout-error" role="alert">{copyFor(STOCK_CHANGED_COPY)}
+          {(unavailable || salePeriodNotice) && <p className="checkout-error" role="alert">{salePeriodNotice ?? copyFor(STOCK_CHANGED_COPY)}
             {draft ? <> <Link href={draftReturnHref}>{direct ? '굿즈로 돌아가기' : '장바구니로 돌아가기'}</Link></> : null}</p>}
           {!methodAvailable && <p className="checkout-error" role="alert">선택한 결제수단을 지금은 쓸 수 없어요. 다른 수단을 골라주세요.</p>}
           {submitError && <p className="checkout-error" role="alert">{submitError}{pendingOrder ? <PendingOrderResolution /> : null}

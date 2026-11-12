@@ -112,14 +112,14 @@ function OptionDetailTable({ rows, single, predictedCodes, update, erpRows, onEr
         ERP 품명을 입력해 반입된 ERP 품목을 고르면 ERP 코드·바코드를 채우고 카테고리·판매가를 제안합니다. ERP 코드·바코드는 관리코드와 따로 저장하며 선행 0을 유지합니다. 비워 두면 미설정입니다. 관리코드는 ICONS 자체 옵션코드이고 비워 두면 저장할 때 만듭니다.
       </p>
       <div className={GOOD_TABLE_FRAME_CLASS} role="region" aria-label="옵션 ERP 정보와 안전재고 상세" tabIndex={0}>
-        <Table className="min-w-[54rem] table-fixed">
+        <Table className="min-w-[58rem] table-fixed">
           <TableCaption className="sr-only">옵션별 관리코드·ERP 품명·ERP 코드·바코드·안전재고 기준</TableCaption>
           <TableHeader className="bg-muted/50"><TableRow className="hover:bg-transparent">
             <TableHead scope="col" className={`w-[15%] ${TABLE_HEAD_CLASS}`}>옵션</TableHead>
             <TableHead scope="col" className={`w-[17%] ${TABLE_HEAD_CLASS}`}>{ADMIN_VOCABULARY.optionCode}</TableHead>
-            <TableHead scope="col" className={`w-[26%] ${TABLE_HEAD_CLASS}`}>ERP 품명</TableHead>
+            <TableHead scope="col" className={`w-[23%] ${TABLE_HEAD_CLASS}`}>ERP 품명</TableHead>
             <TableHead scope="col" className={`w-[14%] ${TABLE_HEAD_CLASS}`}>ERP 코드</TableHead>
-            <TableHead scope="col" className={`w-[14%] ${TABLE_HEAD_CLASS}`}>바코드</TableHead>
+            <TableHead scope="col" className={`w-[17%] ${TABLE_HEAD_CLASS}`}>바코드</TableHead>
             <TableHead scope="col" className={`w-[14%] ${TABLE_HEAD_CLASS}`}>안전재고 기준</TableHead>
           </TableRow></TableHeader>
           <TableBody>{rows.map((row, index) => {

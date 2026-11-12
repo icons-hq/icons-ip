@@ -141,9 +141,10 @@ describe('장바구니 주문 다시 결제(ADR-0026·0030)', () => {
     expect(mocks.rpc).toHaveBeenCalledWith('service_create_checkout_retry_draft', { p_user_id: userId, p_order_id: orderId });
   });
 
-  it('장바구니에 남은 줄이 없으면 장바구니로 보낸다', async () => {
+  /* QA1 S-D2-15: 모든 줄이 체크된 장바구니로 보내지 않는다 — 아무 줄도 체크하지 않은 채 열고 그 사실을 알린다. */
+  it('장바구니에 남은 줄이 없으면 아무 줄도 체크하지 않은 장바구니로 보낸다', async () => {
     mocks.rpc.mockResolvedValue({ data: null, error: null });
-    await expect(createCartRetryDraftAction(orderId)).resolves.toEqual({ ok: true, href: '/cart' });
+    await expect(createCartRetryDraftAction(orderId)).resolves.toEqual({ ok: true, href: '/cart?retry=empty' });
   });
 
   it('잘못된 주문 번호·로그인 전에는 DB에 닿지 않는다', async () => {

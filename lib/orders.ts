@@ -1,4 +1,4 @@
-import type { CheckoutPaymentMethod, CheckoutAddress } from './checkout';
+import type { CheckoutPaymentMethod, CheckoutAddress, OrderRetrySource } from './checkout';
 import { commerceReferenceLabel } from './commerce-number';
 import type { ShipmentRecord } from './orders/shipments';
 import { isOpenOrderClaimStage, ORDER_CLAIM_TYPE_LABELS, type OrderClaimEligibility, type OrderClaimStage, type OrderClaimType } from './orders/claims';
@@ -111,6 +111,8 @@ export interface OrderListItem {
   paymentMethod: CheckoutPaymentMethod;
   /** 가장 최근 클레임의 유형·단계. 목록 배지가 상세 헤더와 같은 규칙으로 진행 중 클레임을 말한다. */
   claim?: Pick<OrderCancellationRequestSummary, 'claimType' | 'stage'> | null;
+  /** 결제 대기이거나 결제 없이 닫힌 장바구니·바로구매 카드 주문의 다시 결제 진입(QA1 S-D2-15). 아니면 없다. */
+  retry?: OrderRetrySource | null;
 }
 
 export interface OrderDetailItem {
@@ -228,6 +230,23 @@ export function isOrderCancellationRequestStatus(value: string): value is OrderC
 
 export function orderStatusMeta(status: OrderDetailStatus): OrderStatusPresentation {
   return STATUS_PRESENTATION[status];
+}
+
+/**
+ * 고객 주문 내역·상세의 상태 표기. 결제를 마치지 않은 주문은 결제수단으로 말한다 — 카드는 '결제 대기', 무통장은 '입금 대기'
+ * (QA1 S-D2-12·S-D2-15·S-T06-01: 입금 대기 주문 제목이 카드 승인 확인 문구와 같았고, 목록에 '입금 대기'와 '결제대기'가 함께 붙었다).
+ */
+export function customerOrderStatusMeta(status: OrderDetailStatus, paymentMethod: CheckoutPaymentMethod | null | undefined): OrderStatusPresentation {
+  const base = STATUS_PRESENTATION[status];
+  if (status !== 'pending') return base;
+  return paymentMethod === 'bank_transfer'
+    ? {
+        ...base,
+        label: '입금 대기',
+        title: '입금을 기다리고 있어요',
+        body: '안내된 계좌로 기한 안에 입금하면 확인 후 주문이 확정돼요. 진행하지 않을 주문은 아래에서 취소할 수 있어요.',
+      }
+    : { ...base, label: '결제 대기' };
 }
 
 /**

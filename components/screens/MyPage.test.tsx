@@ -96,6 +96,24 @@ function render(overrides: Partial<React.ComponentProps<typeof MyPage>> = {}) {
   );
 }
 
+function recentOrders(html: string) {
+  const start = html.indexOf('class="wc-mydash__orders"');
+  return html.slice(start, html.indexOf('</ul>', start));
+}
+
+function pendingRecent(paymentMethod: 'card' | 'bank_transfer') {
+  return render({ dashboard: { ...filled, orders: { counts: { paid: 0, confirmed: 0, shipping: 0, delivered: 0, done: 0 }, recent: [order({ status: 'pending', paymentMethod })] } } });
+}
+
+describe('MyPage recent orders pending label', () => {
+  it('labels a pending bank transfer order as deposit waiting and a card order as payment waiting', () => {
+    const bank = recentOrders(pendingRecent('bank_transfer'));
+    expect(bank).toContain('입금 대기');
+    expect(bank).not.toContain('결제대기');
+    expect(recentOrders(pendingRecent('card'))).toContain('결제 대기');
+  });
+});
+
 function section(html: string, start: string, end: string) {
   return html.slice(html.indexOf(start), html.indexOf(end));
 }

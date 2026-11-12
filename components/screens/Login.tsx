@@ -242,7 +242,9 @@ export function SignupCodeStep({
   const [verifyState, verifyAction, verifyPending] = useActionState(verifySignupCodeAction, emptyState);
   const [resendState, resendAction, resendPending] = useActionState(resendSignupCodeAction, emptyState);
   const formError = verifyState.errors?.form ?? resendState.errors?.form ?? (resendState.message ? undefined : sentError);
-  const status = resendState.message ?? sentMessage;
+  /* 처음 보낸 안내('메일을 보냈습니다')는 코드 확인이 실패하면 거둔다 — 오류와 성공 신호가 함께 보이지 않게(QA1 S-T02-01).
+     코드를 다시 받은 안내는 그대로 보인다. */
+  const status = resendState.message ?? (verifyState.errors ? undefined : sentMessage);
 
   /* 비밀번호는 DOM에 그리지 않고 제출 순간에만 폼 데이터에 붙인다. 확인에 성공하면 화면이 이동하므로 이 탭의
      기억(받은 코드 입력하기)은 보내기 전에 지우고, 실패해 단계에 남으면 아래 효과가 다시 기억한다. */
@@ -399,14 +401,17 @@ export function Login({ initialError, initialMessage, initialMode, isConfigured,
         {isSignUp && !pendingSignupEmail ? (
           <p className="wc-auth__lede">가입하면 입력한 이메일로 6자리 확인 코드를 보내 드려요.</p>
         ) : null}
+        {/* 새로고침·메일 앱 전환 뒤 이어서 가입하는 길 — 가입 폼보다 먼저 눈에 띄게 상자와 버튼으로 둔다(QA1 S-T02-02:
+            작은 한 줄이라 이메일을 다시 입력할 뻔했다). */}
         {resumableSignupEmail ? (
-          <div className="wc-auth__switch" data-signup-code-resume>
-            <span>
-              <strong>{resumableSignupEmail}</strong>로 받은 확인 코드가 있나요?
-            </span>
-            <button className="wc-auth__picks-skip" onClick={() => setReopenedSignupEmail(resumableSignupEmail)} type="button">
+          <div className="wc-auth__resume" data-signup-code-resume role="group" aria-labelledby="signup-code-resume-title">
+            <p className="wc-auth__resume-title" id="signup-code-resume-title">가입을 이어서 하시겠어요?</p>
+            <p className="wc-auth__resume-body">
+              <strong>{resumableSignupEmail}</strong>로 확인 코드를 보냈어요. 메일의 6자리 코드를 입력하면 가입이 이어져요.
+            </p>
+            <WcButton onClick={() => setReopenedSignupEmail(resumableSignupEmail)}>
               받은 코드 입력하기
-            </button>
+            </WcButton>
           </div>
         ) : null}
 

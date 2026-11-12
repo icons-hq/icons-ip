@@ -1,5 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { resultParticle, topicParticle } from './korean-particle';
+import { directionParticle, objectParticle, resultParticle, topicParticle } from './korean-particle';
+
+describe('directionParticle — 로/으로', () => {
+  it('받침 없음·ㄹ 받침은 로, 그 밖의 받침은 으로', () => {
+    expect(directionParticle('ICONS 표준 양식')).toBe('으로');
+    expect(directionParticle('기존 창고 양식')).toBe('으로');
+    expect(directionParticle('서원 송장양식')).toBe('으로');
+    expect(directionParticle('파일')).toBe('로');
+    expect(directionParticle('택배사')).toBe('로');
+    expect(directionParticle('8')).toBe('로');
+    expect(directionParticle('7')).toBe('로');
+    expect(directionParticle('3')).toBe('으로');
+    expect(directionParticle('2')).toBe('로');
+  });
+  it('판정 불가는 (으)로', () => {
+    expect(directionParticle('CSV')).toBe('(으)로');
+  });
+});
 
 describe('topicParticle — 은/는', () => {
   it('한글 음절은 받침(종성) 유무로 고른다', () => {
@@ -47,5 +64,20 @@ describe('resultParticle — 로/으로', () => {
   });
   it('판정할 수 없으면 (으)로', () => {
     expect(resultParticle('ABC')).toBe('(으)로');
+  });
+  it('끝의 괄호 덧붙임은 앞말을 따른다', () => {
+    expect(resultParticle('아크릴(L)')).toBe('로');
+    expect(resultParticle('인형 (대형)')).toBe('으로');
+  });
+});
+
+/* QA1 고객: 직접입력 필수 안내가 '각인 문구을(를)'처럼 두 조사를 다 적었다. */
+describe('objectParticle — 을/를', () => {
+  it('받침 유무로 고르고, 판정할 수 없으면 둘 다 적는다', () => {
+    expect(objectParticle('각인 문구')).toBe('를');
+    expect(objectParticle('이니셜')).toBe('을');
+    expect(objectParticle('문구 3')).toBe('을');
+    expect(objectParticle('문구 2')).toBe('를');
+    expect(objectParticle('Name')).toBe('을(를)');
   });
 });

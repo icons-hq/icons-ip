@@ -115,6 +115,9 @@ export function ShipmentConsoleScreen({data,registeredCount,actorId,summaryAside
   <Info aria-hidden="true" className="size-4 shrink-0 text-info"/>
   택배 외 배송 건 {nonParcelReady.length}건은 여기서 고를 수 없습니다. 배송방법 필터로 모아 [택배 외 발송처리]로 처리합니다:
   {nonParcelMethods.map(method=><Link className={buttonVariants({variant:'outline',size:'xs'})} data-slot="button" href={shipmentConsoleHref('dispatch',filters,{method,page:1})} key={method}>{DELIVERY_METHOD_LABELS[method]} {nonParcelReady.filter(row=>row.delivery!.method===method).length}건만 보기</Link>)}
+ </span>:isDispatch&&filters.tab==='new'&&!canManageSales?<span className="flex basis-full items-center gap-x-2 text-sm text-foreground" data-receipt-hint="">
+  <Info aria-hidden="true" className="size-4 shrink-0 text-info"/>
+  발주확인은 계정 주매니저가 합니다. 물류 계정은 발송 대기부터 처리합니다.
  </span>:null;
  /* 택배 외 수령 확인을 어디서 기록하는지. 출고 전용 운영자(1014-084)는 주문 상세를 열 수 없어 행의 인계·수령 확인 팝업을 가리킨다(QA 라운드 1 m7). */
  const receiptPlace=canReadOrders?'주문 상세':"행의 '인계·수령 확인'";
@@ -225,7 +228,7 @@ export function ShipmentConsoleScreen({data,registeredCount,actorId,summaryAside
   {trackingImport}
   <div className="flex min-w-0 basis-full flex-col gap-3">
   <ShipmentConsoleGrid actorId={actorId} rows={rows} columns={columns} gridRows={gridRows} tab={filters.tab} origins={isDispatch?origins:[]} originId={filters.originId}
-   currentHref={shipmentConsoleHref(surface,filters)} readyHref={shipmentConsoleHref('dispatch',filters,{tab:'ready',page:1})} methodFilter={filters.method??null} dispatchActions={isDispatch} canManageSales={canManageSales} workbarNote={workbarNote}
+   currentHref={shipmentConsoleHref(surface,filters)} readyHref={shipmentConsoleHref('dispatch',filters,{tab:'ready',page:1})} methodFilter={filters.method??null} dispatchActions={isDispatch} canManageSales={canManageSales} canReadOrders={canReadOrders} workbarNote={workbarNote}
    stockShortage={isDispatch?stockShortage:null}/>
   <ConsolePagination label="배송 건 페이지" page={filters.page} pageSize={data.pageSize} total={data.total} hrefForPage={page=>shipmentConsoleHref(surface,filters,{page})}/>
   </div>

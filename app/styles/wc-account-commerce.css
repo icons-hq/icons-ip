@@ -173,6 +173,51 @@
   color: var(--wc-success);
 }
 
+/* 버튼 위 오류 요약의 한 줄(온보딩, QA1 S-T02-02) — 그 칸으로 가는 밑줄 링크를 둔다. */
+.wc-auth__alert-line {
+  margin: 0;
+}
+
+.wc-auth__alert-line + .wc-auth__alert-line {
+  margin-top: 4px;
+}
+
+.wc-auth__alert-line a {
+  color: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* 가입 확인 코드 이어 하기(QA1 S-T02-02) — 새로고침 뒤 가입 폼 위에서 먼저 보이는 회색 상자. 이메일은 칸 안에서 줄을 바꾼다. */
+.wc-auth__resume {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 20px;
+  padding: 16px;
+  background: var(--wc-surface-grey);
+}
+
+.wc-auth__resume-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--wc-ink);
+}
+
+.wc-auth__resume-body {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--wc-ink-sub);
+  overflow-wrap: anywhere;
+}
+
+.wc-auth__resume-body strong {
+  color: var(--wc-ink);
+}
+
 /* 잉크 60px CTA (R-05: 448×60·18/700·r2). wc-btn(h50·r4) 위에 지면이 재조율한다. */
 .wc-auth .wc-btn {
   height: 60px;
@@ -2323,6 +2368,39 @@ button.wc-settings__link-row[aria-disabled="true"] strong {
   font-size: 13px;
 }
 
+/* 다시 결제 진입(QA1 S-D2-15) — 결제 대기·결제 없이 닫힌 주문의 [다시 결제하기]·[다시 구매하기]·[주문 취소]. 주문 내역에서는 그 주문
+   카드에 붙은 아래 띠(같은 헤어라인, 오른쪽 정렬, 36 버튼)이고, 주문 상세에서는 안내 상자 오른쪽의 버튼 묶음이다. */
+.wc-receipt .order-retry-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.wc-receipt .orders-list .order-retry-actions {
+  padding: 10px 18px;
+  border: 1px solid var(--wc-hairline);
+  border-top: 0;
+  background: var(--wc-surface);
+}
+
+.wc-receipt .orders-list .order-retry-actions .btn {
+  min-height: 36px;
+  padding: 0 14px;
+  font-size: 13px;
+}
+
+.wc-receipt .order-retry-actions .checkout-error {
+  flex-basis: 100%;
+  margin: 0;
+  text-align: right;
+}
+
+.wc-receipt .order-detail-deposit .order-retry-actions {
+  flex: none;
+}
+
 /* 섹션 헤딩 — 번호 스텝 대신 잉크 헤딩 한 줄. */
 .wc-receipt .checkout-section-heading {
   display: flex;
@@ -3335,6 +3413,30 @@ button.wc-settings__link-row[aria-disabled="true"] strong {
   font-size: 12.5px;
   line-height: 1.5;
   color: var(--wc-ink-tertiary);
+}
+
+/* 적립금 사용 칸(QA1 고객 — '사용 금액 (원)'·준비 중 안내가 주변 안내보다 크게 그려졌다). 쿠폰 칸과 같은 위계: 라벨 12/600,
+   안내 13/400 보조 글자, 입력 40. */
+.wc-receipt .checkout-credit {
+  gap: 6px;
+}
+
+.wc-receipt .checkout-credit__label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--wc-ink-sub);
+}
+
+.wc-receipt .checkout-credit input {
+  height: 40px;
+  font-size: 14px;
+}
+
+.wc-receipt .checkout-credit__note {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--wc-ink-sub);
 }
 
 .wc-receipt .money-caption {
@@ -4368,6 +4470,21 @@ button.wc-settings__link-row[aria-disabled="true"] strong {
 
 .wc-coupon-card__meta .wc-coupon-card__condition {
   font-weight: 700;
+}
+
+/* 결제를 마치지 않은 주문이 잡은 쿠폰(QA1 S-D2-08) — 사용 완료처럼 흐리지 않고 그 주문으로 가는 길을 보인다. */
+.wc-coupon-card__pending {
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--wc-ink-sub);
+}
+
+.wc-coupon-card__pending a {
+  color: var(--wc-ink);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .wc-coupon-empty__link {

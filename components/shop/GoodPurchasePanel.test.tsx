@@ -401,6 +401,20 @@ describe('GoodPurchasePanel', () => {
     expect(free).not.toMatch(/aria-disabled="true" aria-label="수량 늘리기"/);
   });
 
+  /* QA1 S-D2-09: 굿즈 주문당 최대 수량(옵션 합산)을 넘겨 3까지 올라가고 주문서에서야 막혔다 — 상세에서 멈추고 안내한다. */
+  it('굿즈 주문당 최대 수량도 스테퍼 상한이고 상세에서 안내한다', () => {
+    const options = [{id:'a',name:'A타입',price:8000,stockQty:20,code:'A',attributes:{},isDefault:true}];
+    const capped = { ...good, options, orderQuantityLimitEnabled: true, minOrderQty: null, maxOrderQty: 2 };
+    const atMax = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({good:capped,selectedOption:options[0],quantity:2})} />);
+    expect(atMax).toMatch(/aria-disabled="true" aria-label="수량 늘리기"/);
+    expect(atMax).toContain('같은 굿즈의 옵션을 합산하여 주문당 최대 2개까지 구매할 수 있습니다.');
+    const below = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({good:capped,selectedOption:options[0],quantity:1})} />);
+    expect(below).not.toMatch(/aria-disabled="true" aria-label="수량 늘리기"/);
+    const unlimited = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({good:{...capped,orderQuantityLimitEnabled:false},selectedOption:options[0],quantity:2})} />);
+    expect(unlimited).not.toMatch(/aria-disabled="true" aria-label="수량 늘리기"/);
+    expect(unlimited).not.toContain('주문당 최대');
+  });
+
   /* T7 리뷰 RV-5: 추가 구성 굿즈도 본품과 같은 판매 방식·옵션별 제한 안내(확정 카피)를 보인다. */
   it('추가 구성 굿즈가 랜덤 판매면 무작위 배정 안내를, 옵션별 제한이 있으면 고른 옵션의 안내를 보인다', () => {
     const random = {id:'00000000-0000-4000-8000-0000000000a1',name:'랜덤',price:5000,stockQty:6,code:'',attributes:{},isDefault:true,orderMaxQty:null,memberMaxQty:null};
@@ -541,8 +555,8 @@ describe('GoodPurchasePanel', () => {
       .toEqual(['wc-buy-panel__status', CART_ADDED_STATUS]);
     expect(status(renderToStaticMarkup(<GoodPurchasePanel purchase={controller({ message: '현재 재고보다 많이 담을 수 없습니다.' })} />)))
       .toEqual(['wc-buy-panel__status is-error', '현재 재고보다 많이 담을 수 없습니다.']);
-    expect(status(renderToStaticMarkup(<GoodPurchasePanel purchase={controller({ message: '아크릴 블록: 각인 문구을(를) 1~100자로 입력해주세요.' })} />)))
-      .toEqual(['wc-buy-panel__status is-error', '아크릴 블록: 각인 문구을(를) 1~100자로 입력해주세요.']);
+    expect(status(renderToStaticMarkup(<GoodPurchasePanel purchase={controller({ message: '아크릴 블록: 각인 문구를 1~100자로 입력해주세요.' })} />)))
+      .toEqual(['wc-buy-panel__status is-error', '아크릴 블록: 각인 문구를 1~100자로 입력해주세요.']);
     /* 비어 있으면 기본 상태 줄 그대로(빈 줄은 CSS 가 자리를 접는다). */
     expect(status(renderToStaticMarkup(<GoodPurchasePanel purchase={controller()} />))).toEqual(['wc-buy-panel__status', '']);
   });

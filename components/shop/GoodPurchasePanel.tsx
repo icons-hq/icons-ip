@@ -113,6 +113,11 @@ export function purchaseBlockReason(state: PurchaseBlockState): PurchaseBlockRea
   return null;
 }
 
+/** 굿즈 주문당 최대 수량(옵션 합산). 제한이 없으면 무한대 — 수량 스테퍼 상한을 재고·옵션 한도와 함께 정한다(QA1 S-D2-09). */
+export function goodOrderMaxQty(good: Pick<Good, 'orderQuantityLimitEnabled' | 'maxOrderQty'>): number {
+  return good.orderQuantityLimitEnabled && good.maxOrderQty && good.maxOrderQty > 0 ? good.maxOrderQty : Number.POSITIVE_INFINITY;
+}
+
 /** 바로구매 주문서를 열지 못한 이유(ADR-0030). 로그인·프로필 미완료는 화면을 옮겨 안내한다. */
 export const DIRECT_BUY_ERRORS: Record<Exclude<CheckoutDraftActionError, 'auth_required' | 'onboarding_required'>, string> = {
   account_suspended: '정지된 계정은 새 주문을 만들 수 없어요.',
@@ -499,7 +504,7 @@ function AdditionalChoices({ purchase }: { purchase: GoodPurchaseController }) {
         <GoodsCustomInputsFields goodId={choice.goodId} config={choice.good.customInputs} values={purchase.customInputValues?.[choice.goodId]} disabled={purchase.disabled || purchase.busy} onChange={(id,value)=>purchase.setCustomInputValue?.(choice.goodId,id,value)} />
         <div className="wc-buy-panel__row">
           <span>추가 수량</span>
-          <QuantityStepper label={`${choice.name} 추가 수량`} max={Math.max(1, choice.selectedOption ? purchasableOptionQty(choice.selectedOption) : 1)}
+          <QuantityStepper label={`${choice.name} 추가 수량`} max={Math.max(1, choice.selectedOption ? Math.min(purchasableOptionQty(choice.selectedOption), choice.good ? goodOrderMaxQty(choice.good) : Number.POSITIVE_INFINITY) : 1)}
             value={choice.quantity} onChange={(next) => purchase.setAdditionalQuantity?.(choice.goodId, next)} />
         </div>
       </div> : null}
@@ -676,7 +681,8 @@ export function GoodPurchasePanel({ otherPurchases, purchase }: { otherPurchases
           운영자가 고르는 재고 표시라 실재고와 연동되지 않고(표시광고법 '품절임박' 실재고 연동 요건,
           docs/online-popup/01-report.md), 품절은 재입고 알림 CTA 가 글로 대신 말한다. */}
       {purchase.unavailableLabel ? <p className="wc-buy-panel__state">{purchase.unavailableLabel}</p> : null}
-      {good.orderQuantityLimitEnabled && good.minOrderQty && good.maxOrderQty ? <p className="wc-buy-panel__state">{good.transactionOffer?.aggregation ? '같은 굿즈에서 나뉜 항목을' : '같은 굿즈의 옵션을'} 합산하여 주문당 {good.minOrderQty.toLocaleString('ko-KR')}–{good.maxOrderQty.toLocaleString('ko-KR')}개 구매할 수 있습니다.</p> : null}
+      {good.orderQuantityLimitEnabled && good.minOrderQty && good.maxOrderQty ? <p className="wc-buy-panel__state">{good.transactionOffer?.aggregation ? '같은 굿즈에서 나뉜 항목을' : '같은 굿즈의 옵션을'} 합산하여 주문당 {good.minOrderQty.toLocaleString('ko-KR')}–{good.maxOrderQty.toLocaleString('ko-KR')}개 구매할 수 있습니다.</p>
+        : good.orderQuantityLimitEnabled && good.maxOrderQty ? <p className="wc-buy-panel__state">{good.transactionOffer?.aggregation ? '같은 굿즈에서 나뉜 항목을' : '같은 굿즈의 옵션을'} 합산하여 주문당 최대 {good.maxOrderQty.toLocaleString('ko-KR')}개까지 구매할 수 있습니다.</p> : null}
       {good.memberPurchaseLimitEnabled && good.memberLifetimeQtyLimit ? <p className="wc-buy-panel__state">회원 누적 최대 {good.memberLifetimeQtyLimit.toLocaleString('ko-KR')}개 · 결제 대기 주문 포함</p> : null}
       {(good.options?.length ?? 0) > 1 ? (
         <label className="wc-buy-panel__option">
@@ -704,8 +710,9 @@ export function GoodPurchasePanel({ otherPurchases, purchase }: { otherPurchases
         <span className="wc-buy-panel__label">수량</span>
         {/* 재고가 0인데 판매중인 데이터는 없다. 그래도 max 0 이면 스테퍼가 0에 잠겨
             수량을 고를 수 없는 컨트롤이 되므로 최소 1은 남긴다. */}
-        {/* 옵션별 주문당 최대 수량(D7②)이 있으면 재고보다 작은 쪽이 상한이다. 랜덤 판매는 풀 합계가 재고다. */}
-        <QuantityStepper max={Math.max(1, selectedOption ? purchasableOptionQty(selectedOption) : (good.options ? 0 : good.stockQty))} onChange={setQuantity} value={quantity} />
+        {/* 옵션별 주문당 최대 수량(D7②)이 있으면 재고보다 작은 쪽이 상한이다. 랜덤 판매는 풀 합계가 재고다. 굿즈 주문당 최대 수량
+            (옵션 합산)도 상한이다 — 주문서에 가서야 막히지 않게 상세에서 멈춘다(QA1 S-D2-09). */}
+        <QuantityStepper max={Math.max(1, Math.min(selectedOption ? purchasableOptionQty(selectedOption) : (good.options ? 0 : good.stockQty), goodOrderMaxQty(good)))} onChange={setQuantity} value={quantity} />
       </div>
       {restockOnly ? null : <AdditionalChoices purchase={purchase} />}
       <GoodsTransactionTerms good={good} quantity={quantity} />

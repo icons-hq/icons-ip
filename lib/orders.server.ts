@@ -21,6 +21,7 @@ import { isOrderClaimStage, isOrderClaimType } from './orders/claims';
 import { loadOrderShipments } from './orders/shipments.server';
 import { getShippingCarrierRegistry } from './orders/shipment.server';
 import { createClient } from '@/lib/supabase/server';
+import { loadOrderRetrySources } from './checkout.server';
 import { attachRandomItemsToShipments, readMyOrderItems } from './orders/customer-items.server';
 
 interface OrderListRow {
@@ -135,7 +136,6 @@ export async function loadOrders(userId: string, {includePending=false}:{include
      읽으면 자기 /orders에서 남의 클레임까지 받아 온다. 요청자(requested_by)로는 거르지 않는다 —
      운영자 전액 취소처럼 운영자가 접수한 클레임도 고객 목록에 보여야 한다. */
   const latestClaimByOrderId = new Map<string, NonNullable<OrderListItem['claim']>>();
-  const requestedOrderIds = new Set<string>();
   if (userOrderRows.length) {
     /* 주문마다 가장 최근 클레임 하나가 목록 배지가 된다 — 상세와 같은 기준(requested_at 최신). */
     const { data: requestData, error: requestError } = await supabase
@@ -148,7 +148,6 @@ export async function loadOrders(userId: string, {includePending=false}:{include
       throw new Error(`Failed to load order cancellation requests: ${requestError.message}`);
     }
     for (const request of (requestData ?? []) as CancellationRequestOrderRow[]) {
-      requestedOrderIds.add(request.order_id);
       if (latestClaimByOrderId.has(request.order_id)) continue;
       /* 모르는 값은 배지를 만들지 않는다 — 상세가 판정을 보여준다. */
       if (isOrderClaimType(request.claim_type) && isOrderClaimStage(request.stage)) {
@@ -157,11 +156,9 @@ export async function loadOrders(userId: string, {includePending=false}:{include
     }
   }
 
-  /* 결제 대기 카드 주문은 복구 목록(includePending)이 아니면 취소 요청이 남아 있는 것만 보인다.
-     무통장 입금 대기는 접수 = 주문 완료(ADR-0026)라 기본 목록에 '입금 대기'로 보인다. */
-  const orderRows = userOrderRows.filter((order) => (
-    includePending || order.status !== 'pending' || order.payment_method === 'bank_transfer' || requestedOrderIds.has(order.id)
-  ));
+  /* 결제 대기 카드 주문도 '결제 대기'로 보인다(QA1 S-D2-15) — 결제 화면을 닫은 고객이 그 주문을 다시 찾아 결제하거나 취소한다.
+     무통장 입금 대기는 접수 = 주문 완료(ADR-0026)라 '입금 대기'로 보인다. */
+  const orderRows = userOrderRows;
 
   orderRows.sort((left, right) => (
     right.created_at.localeCompare(left.created_at) || right.id.localeCompare(left.id)
@@ -170,8 +167,14 @@ export async function loadOrders(userId: string, {includePending=false}:{include
   if (orderRows.length === 0) return giftOrders.sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));
 
   const orderIds = orderRows.map((order) => order.id);
+  /* 결제 대기이거나 결제 없이 닫힌 카드 주문의 다시 결제 진입(QA1 S-D2-15) — 출처(장바구니·바로구매)를 보류 원장에서 한 번에 읽는다. */
+  const retryCandidates = orderRows.filter((order) => (normalizeCheckoutPaymentMethod(order.payment_method) ?? 'card') === 'card'
+    && (order.status === 'pending' || order.status === 'canceled'));
   /* 랜덤 판매 굿즈(D5②)의 배정 행은 고객 직접 읽기에서 빠진다 — 마스킹 RPC로 읽어야 수량·요약이 맞다. */
-  const { data: itemData, error: itemError } = await readMyOrderItems<OrderListItemRow&{id:string}>(supabase, orderIds, 'id,order_id,good_id,qty,unit_price,good_name_snapshot,option_sale_mode');
+  const [{ data: itemData, error: itemError }, retrySources] = await Promise.all([
+    readMyOrderItems<OrderListItemRow&{id:string}>(supabase, orderIds, 'id,order_id,good_id,qty,unit_price,good_name_snapshot,option_sale_mode'),
+    loadOrderRetrySources(userId, retryCandidates.map((order) => order.id)),
+  ]);
 
   if (itemError) {
     throw new Error(`Failed to load order items: ${itemError.message}`);
@@ -203,6 +206,7 @@ export async function loadOrders(userId: string, {includePending=false}:{include
       itemCount: summary.itemCount,
       paymentMethod: normalizeCheckoutPaymentMethod(order.payment_method) ?? 'card',
       claim: latestClaimByOrderId.get(order.id) ?? null,
+      retry: retrySources.get(order.id.toLowerCase()) ?? null,
     };
   })].sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));
 }

@@ -86,7 +86,7 @@ function writeSupplement(workbook: ExcelJS.Workbook, supplement: NonNullable<Ret
 }
 
 /** 출고지시 파일의 맨 뒤 안내. 회신 방법과 선물·착불 주의를 머리글 위가 아니라 여기에 둔다. */
-function instructionInfoLines(data: ShipmentExportData, rowCount: number, generatedAt: Date): [string, string][] {
+function instructionInfoLines(data: ShipmentExportData, rowCount: number, generatedAt: Date, recipientOnly = false): [string, string][] {
   return [
     ['화면', ADMIN_LIST_EXPORT_SCREENS.dispatch.label],
     ['양식', 'ICONS 표준 양식'],
@@ -97,13 +97,13 @@ function instructionInfoLines(data: ShipmentExportData, rowCount: number, genera
     ['안내', '바코드·ERP 품명은 옵션에 등록된 값입니다(주문 당시 값이 있으면 그 값). 등록되지 않은 옵션은 빈칸입니다.'],
     ['안내', '운송장 회신은 택배사와 운송장번호를 채운 뒤 이 XLSX(또는 내려받은 CSV)를 발주·발송 관리의 "엑셀 일괄 운송장 등록"에 올립니다. 비밀번호를 건 XLSX는 해제하지 않고 그대로 올리고 "파일 비밀번호" 칸에 입력합니다. 상품주문번호는 전체 번호를 유지해주세요.'],
     ['안내', '택배사는 ICONS에 등록된 이름 또는 코드를, 운송장번호는 실제 발급된 8~30자리 영숫자를 텍스트로 입력합니다. 같은 배송 건의 상품은 같은 택배사와 운송장번호로 등록합니다.'],
-    ['안내', '퀵서비스·방문수령·직접전달은 주문 상세의 인계·수령 확인에서 처리합니다.'],
+    ['안내', recipientOnly ? '퀵서비스·방문수령·직접전달은 발주·발송 관리 목록의 인계·수령 확인에서 처리합니다.' : '퀵서비스·방문수령·직접전달은 주문 상세의 인계·수령 확인에서 처리합니다.'],
     ['안내', '합포장·선물·착불 조건이 있으면 별도 배송 운영 안내도 확인해주세요. 선물 주문의 배송 안내는 수취인 연락처를 이용하고, 내부 출고 파일을 수령인에게 동봉하지 마세요.'],
     ['개인정보', '개인정보가 담긴 파일입니다. 업무 목적 밖으로 공유하지 말고, 확인이 끝나면 삭제해주세요.'],
   ];
 }
 
-export async function buildSmartStoreShipmentExport(data: ShipmentExportData, fileFormat: 'xlsx' | 'csv', generatedAt = new Date()) {
+export async function buildSmartStoreShipmentExport(data: ShipmentExportData, fileFormat: 'xlsx' | 'csv', generatedAt = new Date(), reader: { recipientOnly?: boolean } = {}) {
   const groups = new Map<string, Shipment[]>();
   for (const shipment of data.shipments) {
     const group = groups.get(shipment.originId) ?? [];
@@ -136,6 +136,6 @@ export async function buildSmartStoreShipmentExport(data: ShipmentExportData, fi
   workbook.modified = generatedAt;
   addWorkbookTable(workbook, listExportSheetName(ADMIN_LIST_EXPORT_SCREENS.dispatch.label), ICONS_INSTRUCTION_COLUMNS, rows);
   if (supplement) writeSupplement(workbook, supplement);
-  addSafeWorkbookInfoSheet(workbook, instructionInfoLines(data, rows.length, generatedAt));
+  addSafeWorkbookInfoSheet(workbook, instructionInfoLines(data, rows.length, generatedAt, reader.recipientOnly === true));
   return { bytes: Buffer.from(await workbook.xlsx.writeBuffer()), mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', extension: 'xlsx' };
 }

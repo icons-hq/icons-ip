@@ -422,4 +422,39 @@ assert first_retry['draftId'] == second_retry['draftId']
 assert sql(f"select count(*) from private.checkout_drafts where retry_order_id='{declined_order}';") == '1'
 assert sql(f"select status from public.orders where id='{declined_order}';") == 'canceled'
 print('PASS two tabs press 다시 구매하기 for the same order at once; one retry draft; no deadlock', flush=True)
-print(json.dumps({'cases': 14, 'database': database, 'sourceDatabaseWrites': 0}, ensure_ascii=False), flush=True)
+
+# 15. 결제 대기 카드 주문(holder)이 잡은 쿠폰을 두 탭이 동시에 각자의 바로구매 주문서(무통장)로 낸다(QA1 S-D2-08). 두 접수는
+#     계정 advisory에서 차례로 온다. 먼저 온 쪽이 holder를 닫고 쿠폰을 쓰고, 다음 쪽은 입금 대기 주문이 쿠폰을 잡고 있어
+#     coupon_already_used로 거절된다 — 같은 쿠폰이 두 주문에 '사용'되지 않는다. 어느 탭이 먼저인지는 단정하지 않는다.
+sql("insert into public.coupons(code,name,discount_type,discount_value,min_subtotal,starts_at,status) values"
+    "('RETAINEDHAND1K','TEST 결제 대기 쿠폰 넘김 1천','fixed',1000,0,now()-interval '1 day','active');")
+handoff_coupon = sql(f"insert into public.user_coupons(coupon_code,user_id,issued_source,usable_from) values('RETAINEDHAND1K','{buyer}','admin_grant',now()-interval '1 minute') returning id;").splitlines()[-1]
+holder_draft = sql('begin;' + service(f"select public.service_create_checkout_direct_draft('{buyer}','retained-a',{direct_lines});") + 'commit;').splitlines()[-1]
+holder = sql('begin;' + service(f"select public.place_direct_order('{buyer}','{holder_draft}',{literal(address)},'dd270000-0000-4000-8000-000000000024','card',0,'{handoff_coupon}');") + 'commit;').splitlines()[-1]
+sql('begin;' + service(f"select public.prepare_goods_payment_attempt('{buyer}','{holder}','toss');") + 'commit;')
+assert sql(f"select status||':'||used_order_id from public.user_coupons where id='{handoff_coupon}';") == f'used:{holder}'
+handoff_drafts = [sql('begin;' + service(f"select public.service_create_checkout_direct_draft('{buyer}','retained-a',{direct_lines});") + 'commit;').splitlines()[-1] for _ in range(2)]
+handoff_keys = ['dd270000-0000-4000-8000-000000000025', 'dd270000-0000-4000-8000-000000000026']
+gate = start('handoff-gate', f"select pg_advisory_xact_lock(hashtextextended('{buyer}',0));select pg_sleep(1.5);")
+wait_state('handoff-gate', 'Timeout', gate)
+handoff_tabs = []
+for index, (draft, key) in enumerate(zip(handoff_drafts, handoff_keys)):
+    tab = start(f'handoff-tab-{index}', service(f"select public.place_direct_order('{buyer}','{draft}',{literal(address)},'{key}','bank_transfer',0,'{handoff_coupon}');"))
+    wait_state(f'handoff-tab-{index}', 'Lock', tab)
+    handoff_tabs.append(tab)
+finish(gate)
+outcomes = [tab.communicate(timeout=30) + (tab.returncode,) for tab in handoff_tabs]
+if any('deadlock detected' in outcome[1] for outcome in outcomes):
+    raise RuntimeError(f'deadlock: {outcomes}')
+placed_tabs = [outcome for outcome in outcomes if outcome[2] == 0]
+rejected_tabs = [outcome for outcome in outcomes if outcome[2] != 0]
+if len(placed_tabs) != 1 or len(rejected_tabs) != 1 or 'coupon_already_used' not in rejected_tabs[0][1]:
+    raise RuntimeError(f'Expected one order with the coupon and one coupon_already_used: {outcomes}')
+handoff_order = placed_tabs[0][0].strip().splitlines()[-1]
+assert sql(f"select status from public.orders where id='{holder}';") == 'canceled'
+assert sql(f"select status||':'||used_order_id from public.user_coupons where id='{handoff_coupon}';") == f'used:{handoff_order}'
+assert sql(f"select count(*) from public.coupon_redemptions where user_coupon_id='{handoff_coupon}' and status='applied';") == '1'
+assert sql(f"select status||':'||payment_method||':'||discount_total from public.orders where id='{handoff_order}';") == 'pending:bank_transfer:1000'
+assert sql(f"select count(*) from public.orders where user_id='{buyer}' and checkout_key in ('{handoff_keys[0]}','{handoff_keys[1]}');") == '1'
+print('PASS two tabs submit new orders with a coupon held by a pending card order; holder closed once; coupon used by one order; no deadlock', flush=True)
+print(json.dumps({'cases': 15, 'database': database, 'sourceDatabaseWrites': 0}, ensure_ascii=False), flush=True)

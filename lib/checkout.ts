@@ -141,6 +141,41 @@ export function directRetryReorderId(value: unknown): string | null {
 }
 
 /**
+ * 주문 내역·주문 상세의 다시 결제 진입(QA1 S-D2-15, service_list_order_retry_sources). 결제 대기(`awaitingPayment`)이거나 결제
+ * 없이 닫힌 카드 주문의 출처다 — 장바구니 출처는 그 주문의 줄 가운데 장바구니에 남은 것만 고른 주문서로, 바로구매 출처는 같은
+ * 굿즈·옵션 주문서로 잇는다. `retryOrderId`는 그 바로구매 주문의 다시 구매로 이미 만든 주문이다.
+ */
+export interface OrderRetrySource {
+  readonly source: 'cart' | 'direct';
+  readonly awaitingPayment: boolean;
+  /** 결제 대기 주문의 결제 승인이 아직 확정되지 않았는지(승인 확인 중·결과 불명·승인 뒤 취소 환불 진행 중). 참이면 다시 결제·취소를 권하지 않는다. */
+  readonly paymentUnresolved: boolean;
+  readonly baseGoodId: string | null;
+  readonly retryOrderId: string | null;
+}
+
+/** 목록 RPC 응답을 주문 id별로 읽는다. 모양이 틀린 줄은 버린다 — 그 주문은 다시 결제 진입 없이 지금처럼 보인다. */
+export function parseOrderRetrySources(value: unknown): Map<string, OrderRetrySource> {
+  const sources = new Map<string, OrderRetrySource>();
+  if (!Array.isArray(value)) return sources;
+  for (const row of value) {
+    if (typeof row !== 'object' || row === null || Array.isArray(row)) continue;
+    const { orderId, source, awaitingPayment, paymentUnresolved, baseGoodId, retryOrderId } = row as Record<string, unknown>;
+    if (typeof orderId !== 'string' || !RETRY_ORDER_ID.test(orderId) || (source !== 'cart' && source !== 'direct') || typeof awaitingPayment !== 'boolean') continue;
+    const goodId = typeof baseGoodId === 'string' && baseGoodId.trim() ? baseGoodId.trim() : null;
+    if (source === 'direct' && !goodId) continue;
+    sources.set(orderId.toLowerCase(), {
+      source,
+      awaitingPayment,
+      paymentUnresolved: awaitingPayment && paymentUnresolved === true,
+      baseGoodId: source === 'direct' ? goodId : null,
+      retryOrderId: source === 'direct' && typeof retryOrderId === 'string' && RETRY_ORDER_ID.test(retryOrderId) ? retryOrderId.toLowerCase() : null,
+    });
+  }
+  return sources;
+}
+
+/**
  * 보류 원장의 상태로 본 "결제 없이 장바구니를 남긴 주문"인지(ADR-0026). 바로구매 보류(ADR-0030)는 장바구니를 읽지도
  * 바꾸지도 않은 주문이라 해당하지 않는다. 결제를 기다리는 보류와 결제 없이
  * 닫혀 풀린 보류만 해당한다 — 결제가 확정돼 장바구니에서 이미 뺀 보류(consumed)와, 새 주문이 장바구니를
@@ -427,7 +462,9 @@ export function checkoutReorderMode(
      거절) 결제 기한이 지난 주문이면 주문서에서 새로 결제한다. 바로구매 주문(ADR-0030)은 같은 조건에서
      그 상품 상세로 보내 다시 구매하게 한다 — 새 주문이 이 주문을 닫는다. */
   const retryMode = order.cartRetained ? 'retry_from_cart' : order.directGoodId ? 'retry_direct' : null;
-  if (retryMode) {
+  /* 결제가 잡혔다가 환불된 취소 주문(승인과 취소가 겹친 주문)은 '결제 없이' 닫힌 주문이 아니다 — 다시 결제 진입 대신 일반 취소 안내로 간다. */
+  const paidThenCanceled = order.status === 'canceled' && order.paymentStatus !== null;
+  if (retryMode && !paidThenCanceled) {
     if (order.status === 'canceled') return retryMode;
     if (
       order.status !== 'pending'
@@ -539,6 +576,8 @@ export interface CheckoutPaymentResultFocus {
   readonly outcome: CheckoutPaymentResultOutcome;
   /** 결제 없이 장바구니를 남긴 주문인지(ADR-0026). 다시 담지 않고 주문서에서 다시 결제하게 한다. */
   readonly cartRetained?: boolean;
+  /** 바로구매 주문인지(ADR-0030). 결제 화면의 '다시 구매하기'로 같은 굿즈·옵션 주문서를 다시 연다. */
+  readonly directRetry?: boolean;
 }
 
 export function checkoutPaymentResultOutcome(

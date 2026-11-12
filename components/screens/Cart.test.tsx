@@ -10,6 +10,7 @@ import type { GoodsSalesPrecheckoutQuote, GoodsSalesQuoteGood, GoodsSalesQuoteLi
 import { goodsSalesPrecheckoutQuote } from '@/test/fixtures/goods-sales-precheckout';
 import CartLoading from '@/app/cart/loading';
 import { Cart } from './Cart';
+import { cartLineKey } from '@/lib/checkout-selection';
 
 const mocks = vi.hoisted(() => ({
   items: [] as CartItem[],
@@ -787,5 +788,43 @@ describe('Cart 선택 바', () => {
     expect(html).toContain('<input disabled="" type="checkbox"/><span>전체 선택 (0/0)</span>');
     expect(html).toContain('<button class="wc-cart__select-action" disabled="" type="button">선택 삭제</button>');
     expect(html).toContain('<button aria-expanded="false" class="wc-cart__select-action" type="button">전체 비우기</button>');
+  });
+});
+
+/* QA1 고객 시험 후속(S-D2-06·15·17). */
+describe('Cart 선택 잇기·주문 버튼 사유', () => {
+  const lineOf = (html: string, marker: string) => html.split('<li class="wc-cart__line').find((chunk) => chunk.includes(marker)) ?? '';
+  const two: CartItem[] = [{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }, { goodId: 'g16', variantId: BLUE_VARIANT, qty: 1 }];
+
+  it('다시 결제할 줄이 장바구니에 없으면 아무 줄도 체크하지 않은 채 열고 이유를 알린다(S-D2-15)', () => {
+    mocks.items = two;
+    const html = renderToStaticMarkup(<Cart catalog={{ goods, ips: [] }} couponState={emptyCouponState} retryEmpty />);
+    expect(html).toContain('이 주문의 굿즈가 장바구니에 남아 있지 않아요. 주문할 굿즈를 골라 다시 주문해주세요.');
+    expect(lineOf(html, '홍실 아크릴 블록')).toContain('<input aria-label="홍실 아크릴 블록 선택" type="checkbox"/>');
+    expect(lineOf(html, '아크릴 키링')).toContain('<input aria-label="아크릴 키링 · 파랑 선택" type="checkbox"/>');
+    expect(html).toContain('0개 주문하기');
+  });
+
+  it('비로그인 때 푼 줄은 로그인 화면을 다녀와도 풀린 채다(S-D2-17)', () => {
+    const values = new Map<string, string>([['icons.cart.deselected', JSON.stringify({ keys: [cartLineKey(two[1])], savedAt: Date.now() })]]);
+    vi.stubGlobal('window', { sessionStorage: { getItem: (key: string) => values.get(key) ?? null, setItem: vi.fn(), removeItem: vi.fn() } });
+    try {
+      const html = render(two);
+      expect(lineOf(html, '아크릴 키링')).toContain('<input aria-label="아크릴 키링 · 파랑 선택" type="checkbox"/>');
+      expect(lineOf(html, '홍실 아크릴 블록')).toContain('type="checkbox" checked=""');
+      expect(html).toContain('1개 주문하기');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('주문 버튼이 꺼진 사유를 하단 고정 바 안에도 둔다(S-D2-06)', () => {
+    mocks.coupon = { userCouponId: fix5k.id, couponCode: 'CPNFIX5K', eligibleSubtotal: 12000, discount: 0, reason: 'coupon_min_subtotal' };
+    const html = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }], { selectedUserCouponId: fix5k.id, coupons: [fix5k] });
+    const bar = html.slice(html.indexOf('<div class="wc-cart__cta-bar">'));
+    expect(bar).toContain('<p class="wc-cart__cta-reason">선택한 쿠폰의 적용 조건이 바뀌었어요. 쿠폰을 다시 선택하거나 적용을 해제해주세요.</p>');
+    expect(checkoutEnabled(html)).toBe(false);
+    mocks.coupon = null;
+    expect(render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }])).not.toContain('wc-cart__cta-reason');
   });
 });

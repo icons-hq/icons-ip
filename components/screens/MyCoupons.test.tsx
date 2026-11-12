@@ -69,6 +69,21 @@ describe('MyCoupons 티켓 카드', () => {
     expect(html).toContain('기간 만료');
   });
 
+  /* QA1 S-D2-08: 결제하지 않은 주문이 잡은 쿠폰은 '사용 완료'가 아니다. */
+  it('결제 대기·입금 대기 주문이 잡은 쿠폰은 그 주문에 사용 중이라고 보이고 주문으로 잇는다', () => {
+    const order = { orderId: '33333333-3333-4333-8333-333333333333', orderNumber: '2026083100000001', paymentMethod: 'card' as const, replaceable: true };
+    const card = { ...heldCoupon({ id: 'card', status: 'used', usedAt: '2026-08-10T00:00:00Z' }), pendingOrder: order };
+    const bank = { ...heldCoupon({ id: 'bank', status: 'used', usedAt: '2026-08-10T00:00:00Z' }), pendingOrder: { ...order, paymentMethod: 'bank_transfer' as const, replaceable: false } };
+    const html = renderToStaticMarkup(<MyCoupons checkoutRules={LEGACY} coupons={[card, bank]} />);
+    expect(html).toContain('wc-coupon-card--pending');
+    expect(html).toContain('결제 대기 주문에 사용 중');
+    expect(html).toContain('입금 대기 주문에 사용 중');
+    expect(html).not.toContain('사용 완료');
+    expect(html).toContain('결제하지 않고 다른 주문에서 이 쿠폰을 고르면 그 주문은 닫히고 새 주문에 써요.');
+    expect(html).toContain('입금 기한 안에 입금하지 않아 주문이 취소되면 쿠폰이 돌아와요.');
+    expect(html).toContain('href="/orders/33333333-3333-4333-8333-333333333333">주문 보기</a>');
+  });
+
   it('정의가 변경되어도 발급 당시 시작과 만료를 KST로 표시한다', () => {
     const coupon = heldCoupon({ id: 'snapshot', expiresAt: '2026-10-20T14:59:00Z' });
     coupon.usableFrom = '2026-10-13T15:00:00Z';

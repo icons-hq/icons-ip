@@ -202,7 +202,22 @@ describe('bulk tracking action', () => {
     it('안전 검사에 걸린 줄은 등록하지 않고 사유를 남긴다',async()=>{
       const result=await bulkRegisterAdminOrderTrackingAction({},csvForm(`${header}\r\n${item},,한진택배,=1+1\r\n${second},,한진택배,\r\n`));
       expect(mocks.rpc).not.toHaveBeenCalled();
-      expect(result.report?.failed.map(row=>[row.line,row.reason])).toEqual([[2,'수식은 사용할 수 없습니다.'],[3,'운송장번호가 비어 있습니다.']]);
+      expect(result.report?.failed.map(row=>[row.line,row.reason])).toEqual([[2,'수식은 사용할 수 없습니다.']]);
+      // 운송장 칸만 비운 줄은 실패가 아니라 건너뛴 줄이다(QA 라운드 1b, 김포 회신과 같은 기준).
+      expect(result.report?.skipped).toBe(1);
+    });
+    it('운송장 칸만 비운 줄은 DB에 빈 값으로 보내 배송 건 가드를 받되 그 줄의 거절은 실패로 세지 않는다',async()=>{
+      mocks.rpc.mockResolvedValue({error:null,data:[
+        {line:2,reference:item,ok:true,dispatched:true,shipmentId:'s1',orderId:'o1'},
+        {line:3,reference:second,ok:false,error:'invalid_tracking_number'},
+      ]});
+      const result=await bulkRegisterAdminOrderTrackingAction({},csvForm(`${header}\r\n${item},,한진택배,123456789012\r\n${second},,한진택배,\r\n`));
+      expect(mocks.rpc).toHaveBeenCalledWith('admin_import_item_tracking_batch',{target_rows:[
+        {line:2,reference:item,carrier:'hanjin',trackingNumber:'123456789012'},
+        {line:3,reference:second,carrier:'',trackingNumber:''},
+      ]});
+      expect(result.report?.failed).toEqual([]);
+      expect(result.report?.skipped).toBe(1);
     });
     it('표준 양식 CSV는 256KB를 넘어도 받고, 일반 세 칸 CSV는 종전 한도를 유지하며 그대로 처리한다',async()=>{
       const padding='합성 메시지 '.repeat(50);

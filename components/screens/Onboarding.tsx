@@ -136,6 +136,20 @@ function IpPickTile({
   );
 }
 
+/** 버튼 위 오류 요약(QA1 S-T02-02) — 칸 순서대로, 그 칸의 오류 문구로 잇는다. */
+function onboardingFieldErrors(errors: Partial<Record<string, string>> | undefined): { anchor: string; label: string; message: string }[] {
+  const fields = [
+    { key: 'birthDate', anchor: 'birth-date-error', label: '생년월일' },
+    { key: 'terms', anchor: 'terms-error', label: '이용약관 동의' },
+    { key: 'privacy', anchor: 'privacy-error', label: '개인정보 처리방침 동의' },
+    { key: 'gender', anchor: 'gender-error', label: '통계용 성별' },
+  ];
+  return fields.flatMap((field) => {
+    const message = errors?.[field.key];
+    return message ? [{ anchor: field.anchor, label: field.label, message }] : [];
+  });
+}
+
 export function Onboarding({
   birthDate,
   email,
@@ -382,6 +396,17 @@ export function Onboarding({
           {state.errors?.form && (
             <div className="wc-auth__alert" role="alert">
               {state.errors.form}
+            </div>
+          )}
+          {/* 칸 오류는 그 칸에 붙고, 모바일에서는 화면 위쪽이라 버튼 근처에서 보이지 않았다(QA1 S-T02-02) — 버튼 위에 무엇을 고칠지
+              모아 보이고 그 칸으로 잇는다. */}
+          {!state.errors?.form && onboardingFieldErrors(state.errors).length > 0 && (
+            <div className="wc-auth__alert" data-onboarding-error-summary role="alert">
+              {onboardingFieldErrors(state.errors).map((error) => (
+                <p className="wc-auth__alert-line" key={error.anchor}>
+                  <a href={`#${error.anchor}`}>{error.label}</a>: {error.message}
+                </p>
+              ))}
             </div>
           )}
 

@@ -14,6 +14,7 @@ import { ClaimContactHistory } from '@/components/claim-contact/ClaimContactHist
 import { ClaimCollectionPlan } from '@/components/orders/ClaimCollectionPlan';
 import { OrderClaimFees } from '@/components/orders/ClaimFeePanel';
 import { OrderCancellation } from '@/components/orders/OrderCancellation';
+import { OrderRetryActions } from '@/components/orders/OrderRetryActions';
 import { OrderReshipmentHistory } from '@/components/orders/OrderReshipmentHistory';
 import { OrderClaimRequest } from '@/components/orders/OrderClaimRequest';
 import { PurchaseConfirmationPanel } from '@/components/orders/PurchaseConfirmationPanel';
@@ -26,7 +27,7 @@ import {
 } from '@/lib/reviews';
 import { Icon } from '@/components/ui/Icon';
 import { MypageShell } from '@/components/wc/MypageShell';
-import type { CheckoutPaymentReading } from '@/lib/checkout';
+import type { CheckoutPaymentReading, OrderRetrySource } from '@/lib/checkout';
 import { orderDetailCardPaymentNotice } from '@/lib/checkout-status-copy';
 import { krw } from '@/lib/format';
 import { shippingFeeLabel } from '@/lib/shipping';
@@ -34,6 +35,7 @@ import { customerShipmentGroupLabels } from '@/lib/fulfillment';
 import { GoodsTransactionSummary } from '@/components/checkout/GoodsTransactionSummary';
 import { transactionReceiptNames } from '@/lib/checkout-transaction';
 import {
+  customerOrderStatusMeta,
   formatOrderDate,
   formatOrderDateTime,
   ORDER_WITHDRAWAL_DEADLINE_LABELS,
@@ -211,8 +213,11 @@ export function OrderDetail({
   downloads,
   claimTypeHistory = [],
   claimReasonHistory = [],
+  retry = null,
 }: {
   viewerId?: string;
+  /** 결제 대기이거나 결제 없이 닫힌 장바구니·바로구매 카드 주문의 다시 결제 진입(QA1 S-D2-15). 아니면 null. */
+  retry?: OrderRetrySource | null;
   /**
    * 결제 대기 카드 주문의 결제 국면. 결제 화면과 같은 규칙으로 page가 원장에서 읽어 넘긴다.
    * 없으면(읽지 못함) 결제 상태를 단정하지 않는다.
@@ -233,7 +238,13 @@ export function OrderDetail({
   const at = now ?? new Date();
   const hasPhysicalItems = order.items.some(item => order.transaction?.lines.find(line => line.lineId === item.id)?.fulfillment?.mode !== 'digital' && !downloads?.items.some(file => file.itemId === item.id));
   const digitalOnly = order.items.length > 0 && !hasPhysicalItems;
-  const status = { ...orderDetailHeaderPresentation(order.status, order.cancellationRequest) };
+  /* 결제를 마치지 않은 주문은 결제수단으로 말한다 — 무통장은 '입금 대기'·'입금을 기다리고 있어요'(QA1 S-D2-12). 진행 중인 취소
+     클레임이 있으면 그 단계로 말한다(orderDetailHeaderPresentation). */
+  const headerBase = orderDetailHeaderPresentation(order.status, order.cancellationRequest);
+  const paymentStatusMeta = customerOrderStatusMeta(order.status, order.paymentMethod);
+  const status = headerBase === orderStatusMeta(order.status)
+    ? { ...paymentStatusMeta }
+    : { ...headerBase, label: paymentStatusMeta.label };
   if (digitalOnly && !(order.cancellationRequest?.claimType === 'cancel' && isOpenOrderClaimStage(order.cancellationRequest.stage)) && ['paid', 'confirmed', 'shipping', 'delivered', 'done'].includes(order.status)) {
     status.label = order.status === 'delivered' ? '파일 제공 시작' : order.status === 'done' ? '구매확정' : '결제완료';
     status.title = order.status === 'done' ? '구매확정된 디지털 주문이에요' : downloads?.items.some(item => item.available) ? '구매한 파일을 받을 수 있어요' : '파일 제공 상태를 확인해주세요';
@@ -294,6 +305,25 @@ export function OrderDetail({
               </p>
             </div>
             <Link className="btn btn-holo" href={`/checkout/${order.id}`}>입금 안내 보기</Link>
+          </div>
+        </div>
+      )}
+
+      {/* 결제가 끝나지 않아 결제 없이 취소된 장바구니·바로구매 주문(QA1 S-D2-15) — 결제 화면을 닫았어도 여기서 다시 결제한다. */}
+      {order.status === 'canceled' && retry && !retry.awaitingPayment && (
+        <div className="wrap">
+          <div className="order-detail-deposit card">
+            <div>
+              <strong>결제가 끝나지 않아 결제 없이 취소된 주문이에요</strong>
+              <p>
+                {retry.source === 'cart'
+                  ? '청구된 금액은 없어요. 이 주문의 굿즈 가운데 장바구니에 남은 것만 골라 주문서를 다시 열 수 있어요.'
+                  : retry.retryOrderId
+                    ? '청구된 금액은 없어요. 같은 구성으로 이미 다시 주문했어요. 다시 주문한 주문에서 결제·입금 상태를 확인해주세요.'
+                    : '청구된 금액은 없어요. 같은 굿즈·옵션·수량으로 주문서를 다시 열 수 있어요. 장바구니는 바뀌지 않아요.'}
+              </p>
+            </div>
+            <OrderRetryActions layout="detail" orderId={order.id} retry={retry} />
           </div>
         </div>
       )}

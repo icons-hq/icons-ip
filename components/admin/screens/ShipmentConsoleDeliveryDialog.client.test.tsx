@@ -69,6 +69,15 @@ it('처리 대상 표에 목록에서 넘겨받은 수취인·상품을 함께 �
   expect(html).toContain('목록 밖 배송 건');
 });
 
+it('방문수령 완료 위치 안내는 주문 조회 권한이 없으면 발송관리 행의 인계·수령 확인을 가리킨다(QA 라운드 1b)', async () => {
+  await open();
+  mocks.index = 0; mocks.refIndex = 0;
+  const html = (canReadOrders: boolean) => { mocks.index = 0; mocks.refIndex = 0; return text(ShipmentConsoleDeliveryDialog({ shipmentIds: [FIRST, SECOND], mode: 'dispatch', onClose, onDone, canReadOrders }) as Element); };
+  expect(html(true)).toContain('주문 상세에서 완료합니다');
+  expect(html(false)).toContain("발송관리 행의 '인계·수령 확인'에서 완료합니다");
+  expect(html(false)).not.toContain('주문 상세');
+});
+
 it('사유와 인계 근거를 받아 보낼 건만 같은 요청 번호로 보내고, 일부 실패는 표 위 알림과 팝업에 남긴다', async () => {
   await open();
   change(nodes(render()).find(node => node.type === Textarea && node.props.required === true)!, '고객 전화 요청');

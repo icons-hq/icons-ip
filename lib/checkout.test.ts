@@ -4,6 +4,7 @@ import {
   cartRetentionKeepsCart,
   directRetryGoodId,
   directRetryReorderId,
+  parseOrderRetrySources,
   checkoutAddressErrors,
   checkoutDeadlineTimeLabel,
   checkoutEffectivePaymentStatus,
@@ -264,6 +265,13 @@ describe('checkoutReorderMode', () => {
   const prepared = (expiresAt: string) => ({
     ...order,
     paymentAttempt: { state: 'prepared', expiresAt, provider: 'toss' },
+  });
+
+  it('결제가 잡혔다가 환불된 취소 주문은 결제 없이 닫힌 주문으로 다루지 않는다', () => {
+    const canceled = { ...order, status: 'canceled', paymentStatus: 'refunded', paymentAttempt: null };
+    expect(checkoutReorderMode({ ...canceled, cartRetained: true }, 'closed', now)).toBe('reorder');
+    expect(checkoutReorderMode({ ...canceled, directGoodId: 'g2' }, 'closed', now)).toBe('reorder');
+    expect(checkoutReorderMode({ ...canceled, paymentStatus: null, cartRetained: true }, 'closed', now)).toBe('retry_from_cart');
   });
 
   it('승인 거절된 결제 대기 주문은 즉시 취소 뒤 다시 담을 수 있다', () => {
@@ -538,5 +546,25 @@ describe('bankTransferMethodNote', () => {
     expect(bankTransferMethodNote({ accountConfigured: true, goodsAllow: false })).toBe('이 주문에는 무통장을 쓸 수 없는 굿즈가 있어요.');
     expect(bankTransferMethodNote({ accountConfigured: true, goodsAllow: null })).toContain('확인한 뒤');
     expect(bankTransferMethodNote({ accountConfigured: true, goodsAllow: true })).toContain('24시간 안에 입금');
+  });
+});
+
+/* QA1 S-D2-15: 주문 내역·상세의 다시 결제 진입 출처(service_list_order_retry_sources). */
+describe('parseOrderRetrySources', () => {
+  const cartId = '11111111-1111-4111-8111-111111111111';
+  const directId = '22222222-2222-4222-8222-222222222222';
+  const reorderId = '33333333-3333-4333-8333-333333333333';
+  it('주문 id별로 출처를 읽고, 틀린 줄은 버린다', () => {
+    const sources = parseOrderRetrySources([
+      { orderId: cartId.toUpperCase(), source: 'cart', awaitingPayment: true, paymentUnresolved: true, baseGoodId: null, retryOrderId: null },
+      { orderId: directId, source: 'direct', awaitingPayment: false, baseGoodId: ' g2 ', retryOrderId: reorderId.toUpperCase() },
+      { orderId: reorderId, source: 'direct', awaitingPayment: false, baseGoodId: null, retryOrderId: null },
+      { orderId: 'nope', source: 'cart', awaitingPayment: true },
+      { orderId: reorderId, source: 'gift', awaitingPayment: true },
+    ]);
+    expect([...sources.keys()]).toEqual([cartId, directId]);
+    expect(sources.get(cartId)).toEqual({ source: 'cart', awaitingPayment: true, paymentUnresolved: true, baseGoodId: null, retryOrderId: null });
+    expect(sources.get(directId)).toEqual({ source: 'direct', awaitingPayment: false, paymentUnresolved: false, baseGoodId: 'g2', retryOrderId: reorderId });
+    expect(parseOrderRetrySources(null).size).toBe(0);
   });
 });

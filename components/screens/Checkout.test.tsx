@@ -499,3 +499,19 @@ describe('Checkout 안내 정리', () => {
     expect(visible).toMatch(/<button[^>]*checkout-submit[^>]*>/);
   });
 });
+
+/* QA1 S-D2-11: 주문서를 연 채 판매기간이 끝나면 '재고가 변경된 굿즈' 공통 안내만 두 번 보였다. */
+it('판매기간이 끝난 굿즈는 그 굿즈와 이유를 한 번 말하고 주문을 잠근다', () => {
+  const original = goods[0].salePeriod;
+  goods[0].salePeriod = { startsAt: '2026-11-01T00:00:00.000Z', endsAt: '2026-11-11T00:00:00.000Z', state: 'ended', calculatedAt: '2026-11-12T00:00:00.000Z', nextChangeAt: null };
+  try {
+    const html = render({ paymentAvailable: true, bankTransferAvailable: true, quote: { lines: [{ goodId: 'g13', variantId: '00000000-0000-4000-8000-000000000001', qty: 1,
+      regularPrice: 12000, effectivePrice: 12000, pricePeriodId: null, startsAt: null, endsAt: null, available: false }] } });
+    expect(html).toContain('판매기간이 끝난 굿즈가 있어요: 홍실 아크릴 블록. 장바구니에서 이 굿즈를 빼고 다시 주문해주세요.');
+    expect(html).not.toContain('현재 판매 상태나 재고가 변경된 굿즈가 있어요');
+    expect(html).not.toContain('재고가 변경된 굿즈가 있어요. 장바구니에서 수량을 확인해주세요.');
+    expect(html).toMatch(/<button class="btn btn-holo checkout-submit" disabled=""/);
+  } finally {
+    goods[0].salePeriod = original;
+  }
+});

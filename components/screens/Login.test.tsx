@@ -355,6 +355,17 @@ describe('Login 가입 확인 코드 단계', () => {
     expect(html).not.toContain(sentState.message);
   });
 
+  /* QA1 S-T02-01: 틀린 코드 오류와 초록 '메일을 보냈습니다' 상자가 함께 보였다. */
+  it('코드 확인이 실패하면 처음 보낸 안내를 거둔다', () => {
+    mocks.signUpState = sentState;
+    mocks.verifyCodeState = { errors: { code: '확인 코드가 맞지 않거나 만료됐어요.' }, pendingSignupEmail: 'fan@icons.gg' };
+    const html = render({ initialMode: 'signup' });
+
+    expect(html).toContain('확인 코드가 맞지 않거나 만료됐어요.');
+    expect(html).not.toContain(sentState.message);
+    expect(html).not.toContain('role="status"');
+  });
+
   it('다시 받기 한도에 걸린 가입 제출도 이미 받은 코드를 입력할 수 있게 단계를 연다', () => {
     mocks.signUpState = { errors: { form: '확인 메일 재요청이 너무 많습니다. 10분 후 다시 시도해주세요.' }, pendingSignupEmail: 'fan@icons.gg' };
     const html = render({ initialMode: 'signup' });
@@ -377,8 +388,11 @@ describe('Login 가입 확인 코드 단계', () => {
     const html = render({ initialMode: 'signup' });
 
     expect(html).toContain('data-signup-code-resume');
-    expect(html).toContain('<strong>fan@icons.gg</strong>로 받은 확인 코드가 있나요?');
-    expect(html).toMatch(/<button class="wc-auth__picks-skip" type="button">받은 코드 입력하기<\/button>/);
+    /* QA1 S-T02-02: 작은 한 줄이 아니라 가입 폼 위의 상자와 버튼이다. */
+    expect(html).toContain('가입을 이어서 하시겠어요?');
+    expect(html).toContain('<strong>fan@icons.gg</strong>로 확인 코드를 보냈어요. 메일의 6자리 코드를 입력하면 가입이 이어져요.');
+    expect(html).toMatch(/<button class="wc-btn" type="button">받은 코드 입력하기<\/button>/);
+    expect(html.indexOf('data-signup-code-resume')).toBeLessThan(html.indexOf('name="password"'));
     /* 누르기 전에는 가입 폼 그대로다 — 이미 가입을 마친 이메일이어도 새 가입을 막지 않는다. */
     expect(html).toContain('name="password"');
     expect(html).not.toContain('data-signup-code-step');

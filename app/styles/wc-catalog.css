@@ -2841,6 +2841,23 @@
   .wc-pdp-sheet__dim {
     display: none;
   }
+
+  /* 위시 카드 [구매하기]의 시트(anyWidth)는 넓은 화면에서도 연다 — 바닥에 붙이지 않고 화면 가운데 560 폭 대화상자로 세워
+     아래쪽이 화면 밖으로 잘리지 않게 한다(QA1 S-D2-16). 높이는 콘텐츠를 따르고 화면 85%에서 멈춰 본문만 스크롤한다. */
+  .wc-pdp-sheet__dim.wc-pdp-sheet__dim--any-width {
+    display: block;
+  }
+
+  .wc-pdp-sheet.wc-pdp-sheet--any-width {
+    display: flex;
+    inset: 0;
+    width: min(560px, calc(100vw - 48px));
+    height: fit-content;
+    margin: auto;
+    padding-bottom: 20px;
+    border-radius: var(--wc-radius-sheet);
+    animation: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -3474,6 +3491,21 @@
   font-size: 12px;
   line-height: 1.6;
   color: var(--wc-danger);
+}
+
+/* 진행 중인(결제 대기) 주문이 잡은 쿠폰 안내(QA1 S-D2-08) — 경고가 아니라 사실과 그 주문으로 가는 길이다. */
+.wc-cart__coupon-pending {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--wc-ink-sub);
+}
+
+.wc-cart__coupon-pending a {
+  color: var(--wc-ink);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .wc-cart__coupon-clear {

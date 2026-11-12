@@ -57,6 +57,13 @@
    예전 기준(700px)은 701–989px 에서 런처를 바닥 24px 에 두어 탭바·구매바와 겹쳤다(CH-16). */
 @media (max-width: 989px) {
   .wc-root .wc-inquiry-widget__launcher { right: 16px; bottom: calc(80px + env(safe-area-inset-bottom)); }
+  /* 아래로 스크롤하는 동안은 런처를 비켜 본문(요약 금액·배송비 안내)을 가리지 않는다. 위로 스크롤하면 돌아온다.
+     키보드 포커스가 오면 바로 보인다. */
+  .wc-root .wc-inquiry-widget__launcher { transition: opacity var(--wc-duration-default), transform var(--wc-duration-default); }
+  .wc-root .wc-inquiry-widget__launcher[data-tucked='true']:not(:focus-visible) { opacity: 0; transform: translateY(24px); pointer-events: none; }
+}
+@media (max-width: 989px) and (prefers-reduced-motion: reduce) {
+  .wc-root .wc-inquiry-widget__launcher { transition: none; }
 }
 @media (max-width: 700px) {
   .wc-root .wc-inquiry-widget__panel { right: 0; bottom: 0; width: 100%; height: 90dvh; border: 0; border-radius: 20px 20px 0 0; }
