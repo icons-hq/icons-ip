@@ -84,6 +84,10 @@ export interface OrderPartialCancellationContext {
   canManage: boolean;
   /** 선물 주문 — 환불은 결제한 분에게, 고객 결정은 결제한 분의 결정이다. */
   gift: boolean;
+  /** 주문 계산 버전(처리 권한 문맥에만). 버전 1 주문은 첫 부분 취소 때 금액 배분을 확정한다(ADR-0032 보완). */
+  calculationVersion: number | null;
+  /** 버전 1 주문의 배분 원장 상태: 얼렸는지, 확정할 수 없으면 그 이유 코드. 버전 1이 아니면 null. */
+  v1Allocation: { frozen: boolean; issue: string | null } | null;
   blockers: string[];
   provider: string | null;
   paymentAmount: number | null;
@@ -245,6 +249,12 @@ export function parseOrderPartialCancellationRecords(value: unknown): OrderParti
   return array(value).map(parseOrderPartialCancellationRecord);
 }
 
+function parseV1Allocation(value: unknown): OrderPartialCancellationContext['v1Allocation'] {
+  if (value === null || value === undefined) return null;
+  const row = record(value);
+  return { frozen: row.frozen === true, issue: optionalText(row.issue) };
+}
+
 export function parseOrderPartialCancellationContext(value: unknown): OrderPartialCancellationContext {
   const row = record(value);
   if (typeof row.enabled !== 'boolean') throw new Error('invalid partial cancellation');
@@ -252,6 +262,8 @@ export function parseOrderPartialCancellationContext(value: unknown): OrderParti
     enabled: row.enabled,
     canManage: row.canManage === true,
     gift: row.gift === true,
+    calculationVersion: typeof row.calculationVersion === 'number' && Number.isSafeInteger(row.calculationVersion) ? row.calculationVersion : null,
+    v1Allocation: parseV1Allocation(row.v1Allocation),
     blockers: array(row.blockers ?? []).map(text),
     provider: optionalText(row.provider),
     paymentAmount: optionalAmount(row.paymentAmount),

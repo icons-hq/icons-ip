@@ -5,7 +5,8 @@
  * 버전 1(legacy) 주문은 원장이 없으므로 주문 당시 쿠폰 기록(대상·대상 품목 합계)과 사용 적립금을
  * 거래확정 엑셀과 **같은 규칙**으로 나눈다 — 쿠폰은 대상 품목 금액 비례, 적립금은 쿠폰 차감 뒤 금액
  * 비례, 나머지는 큰 나머지 순·품목 UUID 순으로 1원씩 준다. 주문 당시 기록이 없거나 합계가 맞지 않으면
- * 추정하지 않고 배분하지 않는다.
+ * 추정하지 않고 배분하지 않는다. 버전 1 주문의 재고 부족 부분 취소는 첫 부분 취소 때 DB가 이 규칙을 그대로
+ * 계산해 불변 원장(`private.order_v1_price_allocations`)으로 얼리고(ADR-0032 보완), 그 뒤에는 화면·엑셀도 그 원장을 읽는다.
  */
 
 export const COUPON_TARGET_SCOPES = ['all', 'selected_goods', 'selected_categories', 'selected_ips'] as const;
@@ -109,12 +110,17 @@ export interface OrderAllocationInput {
   }[];
 }
 
-/** 주문 한 건의 품목별 배분. 배분할 수 없는 주문은 빈 Map이다(화면·엑셀은 빈칸으로 둔다). */
+/**
+ * 주문 한 건의 품목별 배분. 배분할 수 없는 주문은 빈 Map이다(화면·엑셀은 빈칸으로 둔다).
+ * 버전 1 주문도 재고 부족 부분 취소를 시작한 적이 있으면 DB가 그때 같은 규칙으로 얼린 배분 원장(ADR-0032 보완)을 싣는다 —
+ * 그 값을 그대로 쓴다(다시 계산하지 않는다).
+ */
 export function orderItemAllocations(order: OrderAllocationInput): Map<string, OrderItemAllocation> {
   const result = new Map<string, OrderItemAllocation>();
   if (!order.items.length) return result;
-  if (order.calculationVersion === 2) {
-    if (order.items.some(item => !item.allocation)) return result;
+  const recorded = order.items.every(item => item.allocation);
+  if (order.calculationVersion === 2 || recorded) {
+    if (!recorded) return result;
     for (const item of order.items) result.set(item.id, { source: 'recorded', ...item.allocation! });
     return result;
   }
