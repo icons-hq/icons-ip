@@ -100,7 +100,7 @@ export function GoodSection({
   initialIpId,
   initialQuery='',
   hideRecordList=false, listHref='/admin/catalog/goods',
-  accountId='', origins=[], noticeDefaults, categories=[], shippingNoticeOptions=[], canManageCosts=false, canReadOrders=true, canManageSales=true, canSearchErp=true, canManageMedia=false, cloneOperationId, readiness, regionSummaries = [],
+  accountId='', origins=[], noticeDefaults, categories=[], shippingNoticeOptions=[], canManageCosts=false, canReadOrders=true, canManageSales=true, canSearchErp=true, canOpenIp=false, canManageMedia=false, cloneOperationId, readiness, regionSummaries = [],
 }: {
   action: (payload: FormData) => void;
   adjustmentId: string; ownership?: GoodsEditorOwnership | null;
@@ -116,7 +116,7 @@ export function GoodSection({
   initialQuery?: string;
   hideRecordList?: boolean; listHref?: string;
   accountId?: string; origins?: GoodsFulfillmentOrigin[]; noticeDefaults?: GoodNoticeDefaults;
-  categories?: AdminCategoryNode[]; shippingNoticeOptions?: GoodsShippingNoticeOption[]; canManageCosts?: boolean; canReadOrders?: boolean; canManageSales?: boolean; canSearchErp?: boolean; canManageMedia?: boolean; cloneOperationId?: string; readiness?: AdminGoodsReadiness | null; regionSummaries?: GoodShippingRegionSummary[];
+  categories?: AdminCategoryNode[]; shippingNoticeOptions?: GoodsShippingNoticeOption[]; canManageCosts?: boolean; canReadOrders?: boolean; canManageSales?: boolean; canSearchErp?: boolean; canOpenIp?: boolean; canManageMedia?: boolean; cloneOperationId?: string; readiness?: AdminGoodsReadiness | null; regionSummaries?: GoodShippingRegionSummary[];
 }) {
   const [archiveFilter, setArchiveFilter] = useState<AdminCatalogArchiveFilter>(
     selected?.archivedAt ? 'archived' : 'active',
@@ -266,6 +266,7 @@ export function GoodSection({
           onPublishOnSaveChange={setPublishOnSave}
           listHref={listHref}
           canSearchErp={canSearchErp}
+          canOpenIp={canOpenIp}
           canActivatePreorders={canManageCosts}
           onApplyKcTemplate={kcTemplate.apply}
           regionSummaries={regionSummaries} origins={origins} noticeDefaults={noticeDefaults} categories={categories} shippingNoticeOptions={shippingNoticeOptions} accountId={accountId}

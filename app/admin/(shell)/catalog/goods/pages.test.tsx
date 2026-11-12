@@ -84,6 +84,18 @@ describe('goods directory routes', () => {
     expect(screen.props.listHref).toContain('q=CODE');
     expect(screen.props.adjustmentId).toMatch(/^[0-9a-f-]{36}$/);
   });
+  /* 1027T-016(T18): MD(상품 관리 능력)는 옵션 ERP 품명 제안을 쓰고, IP 운영 화면 링크는 플랫폼 관리 능력에만 연다. */
+  it.each([
+    { capabilities: ['catalog.read', 'catalog.manage'], canSearchErp: true, canOpenIp: false },
+    { capabilities: ['catalog.read', 'catalog.manage', 'platform.manage'], canSearchErp: true, canOpenIp: true },
+    { capabilities: ['catalog.read'], canSearchErp: false, canOpenIp: false },
+  ])('ERP 품명 제안과 IP 화면 링크 권한을 따로 넘긴다: %j', async ({ capabilities, canSearchErp, canOpenIp }) => {
+    mocks.guard.mockResolvedValue({ user: { id: 'staff' }, operatorAccess: { mode: 'configured', managerRole: 'deputy', capabilities, revision: 1, setupRequired: false } });
+    const result = await Page({ searchParams: Promise.resolve({ goodId: 'g999' }) });
+    const screen = editorScreen(result.props.children);
+    expect(screen.props.canSearchErp).toBe(canSearchErp);
+    expect(screen.props.canOpenIp).toBe(canOpenIp);
+  });
   /* 운영 책임자 피드백(2026-11-10): 비어 있는 '카테고리 템플릿' 버튼이 무엇인지 알 수 없었다. 등록된 게 있을 때만 대표 카테고리 옆에 보인다. */
   it.each([true, false])('자주 쓰는 카테고리 유무(%s)를 대표 카테고리 칸까지 전한다', async (hasCategoryTemplates) => {
     mocks.editor.mockResolvedValueOnce({ records: { goods: [], ips: [] }, catalogIps: [], variants: [], origins: [{ id: 'origin' }], hasCategoryTemplates });

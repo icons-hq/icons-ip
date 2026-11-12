@@ -191,12 +191,14 @@ const EDITOR_TAB_CLASS = 'inline-flex h-7 items-center rounded-md px-3 text-sm f
 const SAVE_BAR_BUTTON_CLASS = 'max-md:h-7 max-md:gap-1 max-md:px-1.5 max-md:text-[0.8rem]';
 const SHARED_QUANTITY_FIELDS = ['orderQuantityLimitEnabled','minOrderQty','maxOrderQty','memberPurchaseLimitEnabled','memberLifetimeQtyLimit'];
 
-function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, pending, selected, state, initialIpId, variants, origins, noticeDefaults, categories, shippingNoticeOptions, regionSummaries, formRef, onSubmitCapture, onApplyKcTemplate, onSaveLocalDraft, onLoadServerDraft, onEditingStateChange, onPublishOnSaveChange, canSearchErp = true, canActivatePreorders = false, listHref = '/admin/catalog/goods', readiness = null, kcSlot = null, preorderSlot = null, restoredFromBrowser = false }: {
+function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, pending, selected, state, initialIpId, variants, origins, noticeDefaults, categories, shippingNoticeOptions, regionSummaries, formRef, onSubmitCapture, onApplyKcTemplate, onSaveLocalDraft, onLoadServerDraft, onEditingStateChange, onPublishOnSaveChange, canSearchErp = true, canOpenIp = false, canActivatePreorders = false, listHref = '/admin/catalog/goods', readiness = null, kcSlot = null, preorderSlot = null, restoredFromBrowser = false }: {
   accountId: string; ownership?: GoodsEditorOwnership | null;
   action: (payload: FormData) => void; catalogIps: Ip[];
   ipOptions: { id: string; title: string; archivedAt: string | null }[];
   pending: boolean; selected: AdminGoodRecord | null; state: AdminCatalogActionState;
   canSearchErp?: boolean;
+  /** 연결 IP 상세(공개 상태 확인) 링크. IP 화면은 platform.manage라 ERP 품명 제안(catalog.manage)과 따로 게이트한다. */
+  canOpenIp?: boolean;
   /** 등록 화면 예약판매 활성화 권한(platform.manage+admin). 서버·DB가 다시 검사한다. */
   canActivatePreorders?: boolean;
   initialIpId?: string; variants: AdminGoodsVariant[]; origins: GoodsFulfillmentOrigin[]; noticeDefaults?: GoodNoticeDefaults;
@@ -560,7 +562,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
           지시 범위다 — 묶음 10의 "펼친 채로" 원칙은 입력 섹션 대상이라 여기에 걸리지 않는다(오케스트레이터 판단, T15a 리뷰).
         */}
         {!locked && !groupOwned && (!values.ipId || !values.type) ? <p className="-mt-2 text-xs text-muted-foreground" data-good-identity-help="">연결 IP는 브랜드·작품, 카테고리는 쇼핑 분류, 유형은 상품의 형태입니다.</p> : null}
-        {canSearchErp && values.ipId && <a className="w-fit text-sm underline underline-offset-4" href={`/admin/catalog/ips/${encodeURIComponent(values.ipId)}`} target="_blank" rel="noreferrer">연결 IP의 공개 상태 확인 (새 탭)</a>}
+        {canOpenIp && values.ipId && <a className="w-fit text-sm underline underline-offset-4" href={`/admin/catalog/ips/${encodeURIComponent(values.ipId)}`} target="_blank" rel="noreferrer">연결 IP의 공개 상태 확인 (새 탭)</a>}
         <div className="min-w-0 scroll-mt-24 outline-none" id="good-section-attributes" tabIndex={-1}>
           <OwnedFields locked={groupOwned} fields={[]} values={initial}><GoodsAttributeEditor categoryId={categoryId} goodId={selected?.id ?? null} initialSubmission={initial.productAttributes} initialDraft={initial.productAttributeDraft} error={errors.productAttributes} onChange={onAttributeChange} onRequiredMissing={setMissingAttributes} /></OwnedFields>
         </div>

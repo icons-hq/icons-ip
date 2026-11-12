@@ -109,7 +109,7 @@ const good: AdminGoodRecord = {
 function renderGoodSection(
   selected: AdminGoodRecord | null,
   state: Parameters<typeof GoodSection>[0]['state'] = {},
-  options: Pick<Parameters<typeof GoodSection>[0],'initialQuery'|'initialIpId'|'variants'|'canSearchErp'|'ownership'|'accountId'|'cloneOperationId'|'canManageCosts'|'canManageMedia'|'readiness'> = {},
+  options: Pick<Parameters<typeof GoodSection>[0],'initialQuery'|'initialIpId'|'variants'|'canSearchErp'|'canOpenIp'|'ownership'|'accountId'|'cloneOperationId'|'canManageCosts'|'canManageMedia'|'readiness'> = {},
 ) {
   return renderToStaticMarkup(
     <GoodsKcTemplateProvider selectionKey={selected ? `good:${selected.id}` : 'create:any'}>
@@ -146,10 +146,22 @@ describe('GoodSection', () => {
   });
 
   it('플랫폼 관리 권한이 없는 상품 매니저에게 IP 운영 화면 링크를 노출하지 않는다', () => {
-    expect(renderGoodSection(good)).toContain('/admin/catalog/ips/hwasan');
-    const html = renderGoodSection(good, {}, { canSearchErp: false });
-    expect(html).not.toContain('/admin/catalog/ips/hwasan');
-    expect(html).toContain('name="ipId"');
+    expect(renderGoodSection(good, {}, { canOpenIp: true })).toContain('/admin/catalog/ips/hwasan');
+    for (const html of [renderGoodSection(good), renderGoodSection(good, {}, { canSearchErp: false })]) {
+      expect(html).not.toContain('/admin/catalog/ips/hwasan');
+      expect(html).toContain('name="ipId"');
+    }
+  });
+
+  /* 1027T-016(T18): 옵션 ERP 품명 제안은 상품 관리 권한(catalog.manage)으로 열고, IP 운영 화면(platform.manage) 링크는 따로 게이트한다. */
+  it('ERP 품명 제안과 IP 운영 화면 링크를 서로 다른 권한으로 연다', () => {
+    const md = renderGoodSection(good, {}, { canSearchErp: true, canOpenIp: false });
+    expect(md).toContain('data-erp-item-combobox=""');
+    expect(md).not.toContain('/admin/catalog/ips/hwasan');
+    const platformOnly = renderGoodSection(good, {}, { canSearchErp: false, canOpenIp: true });
+    expect(platformOnly).not.toContain('data-erp-item-combobox=""');
+    expect(platformOnly).toContain('aria-label="옵션 1 ERP 품명"');
+    expect(platformOnly).toContain('/admin/catalog/ips/hwasan');
   });
   /*
    * TKT-073(#506 완료 기준 1) — 입력 순서는 현행 유지(11/11 S36-007·TKT-001 결정 "현행 유지(회의 결정)")이고, 섹션 순서·오류 요약 순서와
