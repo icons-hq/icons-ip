@@ -872,9 +872,13 @@ export function planGoodsWorkbookImport(
           errors.push(`${row.row}행: 옵션 축 이름이 중복됩니다.`);
         attributes[axis] = optionValue;
       }
+      // 0901-015: 재고는 비워 둘 수 없다(신규·수정 모두). 재고가 없으면 0을 직접 적고, 빈칸을 0으로 바꿔 덮어쓰지 않는다.
+      const stockText = value.stockQty.trim();
+      if (!stockText)
+        errors.push(`${row.row}행: 재고수량(옵션 재고)을 입력해주세요. 재고가 없으면 0을 입력합니다.`);
       if (
         !integer(value.optionPrice || '0') ||
-        !integer(value.stockQty || '0')
+        (stockText && !integer(stockText))
       )
         errors.push(
           `${row.row}행: 옵션가·재고수량은 0~2,147,483,647 정수입니다.`,
@@ -895,7 +899,7 @@ export function planGoodsWorkbookImport(
         name: value.variantName || '기본 옵션',
         attributes,
         extraPrice: integer(value.optionPrice || '0') ? Number(value.optionPrice || 0) : 0,
-        stockQty: Number(value.stockQty || 0),
+        stockQty: Number(stockText || 0),
         lowStockThreshold: value.lowStockThreshold ? Number(value.lowStockThreshold) : null,
         isActive: value.variantActive ? value.variantActive === '사용' : !variant?.archived_at,
         erpCode: value.erpCode, erpName: value.erpName, barcode: value.barcode,

@@ -143,7 +143,7 @@ describe('goods workbook server boundary', () => {
   });
   it('새 직접입력 ID는 서버가 저장한 plan에서 한 번 만들고 준비된 미리보기를 다시 열면 유지한다', async () => {
     const actual = await vi.importActual<typeof import('@/lib/admin/goods-workbook')>('@/lib/admin/goods-workbook');
-    const values = { ...actual.emptyGoodsWorkbookRow(), code: 'TEST-NEW', name: 'TEST 상품', ipId: 'test-ip' };
+    const values = { ...actual.emptyGoodsWorkbookRow(), code: 'TEST-NEW', name: 'TEST 상품', ipId: 'test-ip', stockQty: '0' };
     const custom = { ...emptyGoodsCustomInputWorkbookRow(), goodCode: values.code, mode: '편집', enabled: '예',
       name: 'TEST 주문 문구', action: '사용', revision: '0' };
     const uploading = { id: 'batch', actor_id: 'staff', state: 'uploading', workbook_name: 'test.xlsx', has_images: false, plan: [], results: {} };

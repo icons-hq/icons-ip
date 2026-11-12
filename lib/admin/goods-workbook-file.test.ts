@@ -200,6 +200,14 @@ describe('real xlsx boundary', () => {
     expect(image?.[2]).toContain('대표·갤러리 9칸(추가 이미지 1~9)·상세 이미지마다');
     expect(image?.[2]).toContain('갤러리 4칸짜리 v3 양식도 그대로 올릴 수 있으며, 이때 기존 상품의 갤러리 5~9는 저장된 이미지를 유지합니다.');
   });
+  it('작성 안내 시트는 재고수량 빈칸을 0으로 바꾸지 않고 0을 직접 입력하라고 안내한다(0901-015)', async () => {
+    const book = new ExcelJS.Workbook();
+    await book.xlsx.load((await buildGoodsWorkbook([values])) as never);
+    const rows = book.getWorksheet('작성 안내')!.getSheetValues().filter(Boolean) as unknown[][];
+    const blanks = String(rows.find((row) => row[1] === '빈칸과 숫자 0')?.[2] ?? '');
+    expect(blanks).toContain('재고수량은 비워 둘 수 없습니다. 재고가 없으면 0을 입력합니다');
+    expect(blanks).not.toMatch(/재고수량[^.]*빈칸은 0/);
+  });
   it('작성 안내 시트는 상세 HTML의 https 호스팅 이미지가 그대로 표시된다고 안내한다', async () => {
     const book = new ExcelJS.Workbook();
     await book.xlsx.load((await buildGoodsWorkbook([values])) as never);

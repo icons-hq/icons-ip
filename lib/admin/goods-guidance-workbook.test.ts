@@ -24,7 +24,7 @@ const sizeRows = () => exportGoodsSizeWorkbookRows([{ goodCode: '001', snapshot:
 const record: GoodsImportExisting = { good: { id: 'guidance-test', code: '001', name: '안내 시험', type: '문구', ip_id: 'ip', price: 1000,
   archived_at: null, description: '기'.repeat(2100), description_format: 'plain' }, variants: [], fingerprint: 'fingerprint', afterSales, sizeChart };
 const context: GoodsWorkbookContext = { existing: [record], ips: [{ id: 'ip', archived_at: null }], origins: [], presets: [], mediaUrl: () => null };
-const product = { ...emptyGoodsWorkbookRow(), code: '001', ipId: 'ip', name: '안내 시험', salePrice: '1000' };
+const product = { ...emptyGoodsWorkbookRow(), code: '001', ipId: 'ip', name: '안내 시험', salePrice: '1000', stockQty: '0' };
 /** 현재 양식 파일을 구형 열 구성으로 바꾼다: 상품번호 열을 빼고 그 버전의 열 이름(상품코드 등)을 쓴다. */
 function toLegacyLayout(book: ExcelJS.Workbook, version: string) {
   const sheet = book.getWorksheet('상품')!;

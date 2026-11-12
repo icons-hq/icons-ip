@@ -88,6 +88,8 @@ const row = (
     ...emptyGoodsWorkbookRow(),
     name: '신규 상품',
     ipId: 'ip',
+    // 0901-015: 재고수량은 비울 수 없다 — 시험 행은 0을 직접 적는다.
+    stockQty: '0',
     ...values,
   },
 });
@@ -468,6 +470,27 @@ describe('goods Excel planning', () => {
     expect(goodsWorkbookPricesFromLegacy({ price: '12000', compareAtPrice: '12000', variantPrice: '12000' }).errors).toEqual(['소비자가는 기준 판매가보다 커야 합니다.']);
     expect(goodsWorkbookPricesFromLegacy({ price: '12000', compareAtPrice: '12,000원', variantPrice: '' }).errors).toEqual(['기준 판매가·소비자가는 0 이상의 정수입니다.']);
     expect(goodsWorkbookPricesFromLegacy({ price: '12000', compareAtPrice: '', variantPrice: '11000' }).errors).toEqual(['옵션 판매가는 기준 판매가보다 낮게 입력할 수 없습니다.']);
+  });
+  it('재고수량 빈칸은 신규·수정 모두 그 행을 거절하고, 0을 직접 적으면 저장한다(0901-015)', () => {
+    const blank = '5행: 재고수량(옵션 재고)을 입력해주세요. 재고가 없으면 0을 입력합니다.';
+    const [fresh] = planGoodsWorkbookImport([row({ code: 'STOCK-NEW', stockQty: '' })], context);
+    expect(fresh).toMatchObject({ kind: 'error', target: null });
+    expect(fresh.errors).toContain(blank);
+    expect(planGoodsWorkbookImport([row({ code: 'STOCK-NEW', stockQty: '  ' })], context)[0].errors).toContain(blank);
+    expect(planGoodsWorkbookImport([row({ code: 'STOCK-NEW', stockQty: '0' })], context)[0])
+      .toMatchObject({ kind: 'new', target: { variants: [{ stockQty: 0 }] } });
+    // 기존 상품(재고 7) 행의 재고 칸을 지우면 0으로 덮지 않고 거절한다.
+    const [values] = exportGoodsWorkbookRows(existing, context);
+    expect(values.stockQty).toBe('7');
+    const cleared = planGoodsWorkbookImport([{ row: 5, values: { ...values, stockQty: '' } }], context)[0];
+    expect(cleared).toMatchObject({ kind: 'error', target: null });
+    expect(cleared.errors).toContain(blank);
+    expect(planGoodsWorkbookImport([{ row: 5, values: { ...values, stockQty: '0' } }], context)[0])
+      .toMatchObject({ kind: 'update', target: { variants: [{ id: variantId, stockQty: 0, expectedStockQty: 7 }] } });
+    // 숫자가 아닌 재고는 지금처럼 정수 오류다(빈칸 오류와 겹치지 않는다).
+    const text = planGoodsWorkbookImport([row({ code: 'STOCK-TEXT', stockQty: '열 개' })], context)[0];
+    expect(text.errors).toContain('5행: 옵션가·재고수량은 0~2,147,483,647 정수입니다.');
+    expect(text.errors).not.toContain(blank);
   });
   it('keeps errors scoped to a complete product group and allows other products', () => {
     const groups = planGoodsWorkbookImport(
