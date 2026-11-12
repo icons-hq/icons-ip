@@ -16,7 +16,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
   const data = await loadAdminStoreSettings();
   const sections = (Object.keys(SECTION_CAPABILITIES) as StoreSettingsSection[]).filter(key => hasAdminCapability(auth, SECTION_CAPABILITIES[key]));
   const capability = section === 'business' || section === 'bank_transfer' ? 'seller.manage' : 'store.manage';
-  const canEdit = canAccessAdminScreen(auth, null, { capability, adminOnly: true });
+  /* 문의 자동 안내는 이 탭을 여는 모든 운영자(store.manage)가 저장한다 — 매니저 권한 전환 전 호환 단계의 기존 운영자 포함
+     (TKT-019·099, 사용자 결정 "아무나 가능하게"). 다른 탭의 호환 단계 admin 전용 저장은 그대로다. */
+  const canEdit = canAccessAdminScreen(auth, null, { capability, adminOnly: section !== 'inquiry_auto_replies' });
   const history = auth.operatorAccess?.mode === 'configured'
     ? data.history.filter(entry => entry.target === `store_settings:${section}`) : data.history;
   return <StoreSettingsScreen {...data} history={history} sections={sections} canEdit={canEdit}

@@ -147,6 +147,11 @@ const storefront = [
     'inquiry_satisfaction_regression.py',
     `python3 -B supabase/tests/inquiry_satisfaction_regression.py --container ${databaseContainer} --scope ci --output-dir output/inquiry-satisfaction-regression`,
   ),
+  // 1014-103 상담 중 고객 구매이력(그 문의 고객 범위·열람 감사)과 1014-105 처리 이력·운영자별 처리 이력(매니저 관리 권한·열람 감사).
+  // 상담하기 목록·읽음·태그와 그 대화 고객의 구매이력 권한은 legacy helper 없이 명시적 매니저 역할로 확인한다.
+  sql('inquiry_chat_console'),
+  sql('inquiry_purchase_history_scope'),
+  sql('operator_inquiry_history'),
   sql('admin_sales_read_contract_gaps', { admin: true }),
   script('admin_sales_read_contract_gaps_concurrency.sh', 'SALES_READ_GAP_TEST_SCOPE'),
   sql('admin_claim_detail_search', { admin: true }),

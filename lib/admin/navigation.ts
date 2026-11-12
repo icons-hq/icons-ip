@@ -120,6 +120,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
       { id: 'review-events', label: '리뷰 이벤트', href: '/admin/cs/review-events', status: 'ready' },
       { id: 'review-insights', label: '리뷰 인사이트', href: '/admin/cs/review-insights', status: 'ready' },
       { id: 'faq', label: 'FAQ 관리', href: '/admin/cs/faq', status: 'ready' },
+      { id: 'inquiry-operator-history', label: '운영자별 처리 이력', href: '/admin/cs/operator-history', status: 'ready', keywords: ['담당자 처리 기록', '답변 기록'] },
     ],
   },
   /* 고객을 다루는 화면(회원·등급·세그먼트·판매방해 고객)을 한곳에 둔다. 권한은 화면마다 그대로다. */

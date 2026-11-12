@@ -19,6 +19,7 @@ export const ADMIN_QA_ROUTES = [
   ['cs/qna', '문의 관리'], ['cs/reviews', '리뷰 관리'],
   ['cs/chat', '상담하기'],
   ['cs/review-events', '리뷰 이벤트'], ['cs/review-insights', '리뷰 인사이트'],
+  ['cs/operator-history', '운영자별 처리 이력'],
   ['catalog/ips', 'IP'], ['catalog/ips?create=1', 'IP 등록'],
   ['catalog/goods', '상품 조회/수정'], ['catalog/goods?create=1', '상품 등록'],
   ['catalog/groups', '그룹상품 조회/수정'], ['catalog/groups/new?mode=assemble', '그룹상품 등록'],

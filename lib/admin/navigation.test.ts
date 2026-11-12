@@ -71,7 +71,7 @@ describe('어드민 IA 정의', () => {
     expect(ids('claims')).toEqual(['claims-cancels', 'claims-returns', 'claims-exchanges', 'refund-transfers']);
     expect(ids('catalog')).toEqual(['goods', 'goods-create', 'goods-groups-create', 'goods-groups', 'goods-import', 'goods-photos', 'categories',
       'erp-items', 'related-goods', 'announcements']);
-    expect(ids('cs')).toEqual(['inquiries', 'inquiry-chat', 'qna', 'reviews', 'review-events', 'review-insights', 'faq']);
+    expect(ids('cs')).toEqual(['inquiries', 'inquiry-chat', 'qna', 'reviews', 'review-events', 'review-insights', 'faq', 'inquiry-operator-history']);
     expect(ids('customers')).toEqual(['members', 'customer-grades', 'customer-segments', 'purchase-restrictions']);
     expect(ids('store')).toEqual(['curations', 'category-display', 'campaigns', 'shopping-stories', 'product-detail-presentation', 'store-presentation']);
     expect(ids('display')).toEqual(['coupon-register', 'coupons', 'discount-promotions', 'store-credit-console', 'marketing-messages', 'notifications', 'emails', 'marketing-links']);

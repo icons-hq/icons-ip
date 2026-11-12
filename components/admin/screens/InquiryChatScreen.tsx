@@ -7,24 +7,24 @@ import { Input } from '@/components/admin/kit/ui/input';
 import { ADMIN_INQUIRY_CHAT_PAGE_SIZE, ADMIN_INQUIRY_CHAT_PATH, CHAT_STATUS_OPTIONS, inquiryChatHref, type InquiryChatContext, type InquiryChatData, type InquiryChatFilters } from '@/lib/admin/inquiry-chat';
 import type { AdminInquiryDetail } from '@/lib/admin/inquiries.server';
 import { formatInquiryDateTime, INQUIRY_CATEGORY_LABELS, inquiryElapsedLabel, inquiryReferenceLabel } from '@/lib/inquiries';
-import { orderReferenceLabel } from '@/lib/orders';
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { InquiryChatControls } from './InquiryChatControls';
 import { InquiryChatConversation } from './InquiryChatConversation';
 import { InquiryAssignmentPanel, InquiryInternalNotesPanel } from './InquiryWorkspacePanel';
-import { CustomerHistoryPanel } from './CustomerHistoryPanel';
+import { InquiryLinkedOrderSummary, InquiryPurchaseHistoryPanel } from './InquiryPurchaseHistoryPanel';
+import { InquiryProcessingHistoryList } from './InquiryProcessingHistory';
 import { InquiryChatTags } from './InquiryChatTags';
 import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { statusTone } from '@/lib/admin/status-tone';
 import { CHAT_CONTEXT_CARD_CLASS, INQUIRY_LIVE_CLASS } from './cs-kit-classes';
-import type { CustomerHistoryState } from '@/app/admin/customer-actions';
-
-type PurchaseHistory = NonNullable<CustomerHistoryState['history']>;
+import type { InquiryPurchaseHistory } from '@/lib/admin/inquiry-purchase-history';
 
 const TEXT_LINK_CLASS = 'font-medium text-foreground underline underline-offset-4 hover:text-muted-foreground';
 
-/* 구매이력(A7, ADR-0020 그대로): sales.read 역할이면 page가 고객 주문 첫 페이지를 미리 읽어
-   버튼 없이 바로 보여 준다. 권한이 없으면 카드 자체를 만들지 않는다.
+/* 구매이력(A7·1014-103): 상담 화면을 여는 모든 운영자 역할(부매니저·대행사 포함)이 그 문의 고객의 주문을 금액·상태와 함께 본다
+   (사용자 결정 2026-11-11 "전부 다 아무나 볼 수 있게"). page가 첫 페이지를 미리 읽어 버튼 없이 바로 보여 주고, 열람은 DB가 감사한다.
+   주문 상세로 가는 링크만 주문 조회 권한(sales.read)이 있을 때 둔다.
+ * 처리 이력(1014-105): 담당 지정·변경·답변·완료를 누가 언제 했는지 접어 둔다. 운영자별 집계는 운영자 관리 권한의 별도 화면이다.
  *
  * 템플릿 룩(ADR-0028). 셸이 몰입 모드로 본문 높이를 정하고, 이 화면은 그 높이를 꽉 채운다(h-full min-h-0).
  * 배치는 이 화면이 놓인 폭(컨테이너)을 본다 — 사이드바를 접고 펴도 같은 기준이다.
@@ -36,10 +36,16 @@ export function InquiryChatScreen({ accountId, filters, data, detail, chatContex
   accountId: string; filters: InquiryChatFilters; data: InquiryChatData; detail: AdminInquiryDetail | null;
   chatContext?: InquiryChatContext | null;
   selected: boolean; canReadOrders: boolean; canViewCustomer: boolean;
-  purchaseHistory?: PurchaseHistory | null; purchaseHistoryError?: boolean;
+  purchaseHistory?: InquiryPurchaseHistory | null; purchaseHistoryError?: boolean;
   /** 대기 시간 기준 시각. 테스트 주입용. */
   now?: Date;
 }) {
+  /* 연결 주문: 주문 조회 권한이면 문의 맥락(주문 상세와 같은 값), 아니면 구매이력 RPC의 그 고객 주문 요약. 둘 다 없으면(불러오기 실패) 줄을 비운다. */
+  const purchase = detail && purchaseHistory?.inquiryId === detail.inquiry.id ? purchaseHistory : null;
+  const linkedOrder = detail?.order && canReadOrders
+    ? { id: detail.order.id, orderNumber: detail.order.orderNumber, status: detail.order.status, title: detail.order.leadItemName, quantity: detail.order.itemCount, amount: detail.order.total }
+    : purchase?.linkedOrder ?? null;
+  const linkedKnown = canReadOrders || Boolean(purchase);
   return <section className={`@container/chat group/chat flex h-full min-h-0 min-w-0 flex-col bg-background text-sm print:h-auto ${INQUIRY_LIVE_CLASS} [&>.inquiry-live:not(:empty)]:border-b [&>.inquiry-live:not(:empty)]:p-2`} data-selected={selected ? 'true' : 'false'} aria-label="ICONS 실시간 상담">
     <div className="sr-only"><strong>ICONS 고객 상담</strong><span>문의 내용과 답변은 ICONS 고객에게 표시됩니다.</span></div>
     <InquiryLiveUpdates audience="staff" />
@@ -93,13 +99,13 @@ export function InquiryChatScreen({ accountId, filters, data, detail, chatContex
           {/* details는 flex 상자가 되지 못하는 브라우저가 있어 카드 모양만 입히고 안쪽 간격은 div가 맡는다. */}
           <details className="group min-w-0 rounded-xl border bg-card p-4 text-sm text-card-foreground"><summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-medium text-foreground [&::-webkit-details-marker]:hidden">담당자 관리<ChevronDown aria-hidden="true" className="size-4 text-muted-foreground transition-transform group-open:rotate-180" /></summary><div className="mt-3"><InquiryAssignmentPanel key={detail.inquiry.id} framed={false} inquiryId={detail.inquiry.id}
             assigneeId={detail.inquiry.assigneeId} assigneeName={detail.inquiry.assigneeName} staffOptions={detail.staffOptions} /></div></details>
-          {canReadOrders ? <section className={CHAT_CONTEXT_CARD_CLASS}><h2 className="text-sm font-medium text-foreground">구매이력</h2>
-            {detail.order ? <div className="flex flex-col gap-1 text-sm"><p>연결 주문 {orderReferenceLabel(detail.order.id, detail.order.orderNumber)}</p><p className="text-muted-foreground">{detail.order.leadItemName ?? '주문 상품'} · {detail.order.itemCount}개</p>
-              <Link className={TEXT_LINK_CLASS} href={`/admin/sales/orders/${detail.order.id}`}>주문 상세 보기</Link></div> : <p className="text-sm text-muted-foreground">연결된 주문이 없습니다.</p>}
+          <section className={CHAT_CONTEXT_CARD_CLASS}><h2 className="text-sm font-medium text-foreground">구매이력</h2>
+            {linkedOrder ? <InquiryLinkedOrderSummary order={linkedOrder} canOpenOrders={canReadOrders} />
+              : linkedKnown ? <p className="text-sm text-muted-foreground">연결된 주문이 없습니다.</p> : null}
             {purchaseHistoryError ? <p className="bg-transparent text-sm text-destructive" role="alert">구매이력을 자동으로 불러오지 못했습니다. 아래에서 다시 불러와 주세요.</p> : null}
-            <CustomerHistoryPanel key={detail.buyer.id} framed={false} userId={detail.buyer.id} canReadClaims={false} title="전체 구매이력"
-              initialHistory={purchaseHistory?.userId === detail.buyer.id ? purchaseHistory : null} />
-          </section> : null}
+            <InquiryPurchaseHistoryPanel key={detail.inquiry.id} inquiryId={detail.inquiry.id} canOpenOrders={canReadOrders}
+              initialHistory={purchaseHistory?.inquiryId === detail.inquiry.id ? purchaseHistory : null} />
+          </section>
           <section className={CHAT_CONTEXT_CARD_CLASS}><h2 className="text-sm font-medium text-foreground">이전 대화이력</h2>
             {chatContext ? <>{chatContext.previous.length ? <ul className="flex flex-col divide-y">{chatContext.previous.map(previous => <li key={previous.id}>
               <Link className="flex flex-col gap-1 py-2 transition-colors hover:text-muted-foreground" href={inquiryChatHref(filters, {}, previous.id)} scroll={false}><strong className="text-xs font-medium text-foreground">{previous.title}</strong><span className="text-[0.65rem] text-muted-foreground">{CHAT_STATUS_OPTIONS.find(option => option.value === previous.status)?.label} · {formatInquiryDateTime(previous.lastMessageAt)}</span></Link>
@@ -107,6 +113,8 @@ export function InquiryChatScreen({ accountId, filters, data, detail, chatContex
               {chatContext.previousCount > 20 ? <p className="text-xs text-muted-foreground">최근 20개 대화를 표시합니다. 전체 {chatContext.previousCount}개</p> : null}</> : <p className="text-sm text-muted-foreground">총 {detail.buyer.inquiryCount}건 · 진행 중 {detail.buyer.openInquiryCount}건</p>}
             {canViewCustomer ? <Link className={`${TEXT_LINK_CLASS} text-sm`} href={`/admin/customers/${detail.buyer.id}?tab=inquiries`}>고객 상세 보기</Link> : null}
           </section>
+          {/* 처리 이력(1014-105)은 참고 기록이라 구매이력·이전 대화 아래에 접어 둔다. */}
+          {detail.history ? <details className="group min-w-0 rounded-xl border bg-card p-4 text-sm text-card-foreground" data-inquiry-history-card=""><summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-medium text-foreground [&::-webkit-details-marker]:hidden">처리 이력<ChevronDown aria-hidden="true" className="size-4 text-muted-foreground transition-transform group-open:rotate-180" /></summary><div className="mt-3"><InquiryProcessingHistoryList result={detail.history} /></div></details> : null}
           <div className={CHAT_CONTEXT_CARD_CLASS}><InquiryInternalNotesPanel key={`${accountId}:${detail.inquiry.id}`} framed={false} accountId={accountId} inquiryId={detail.inquiry.id} notes={detail.notes} /></div>
         </aside> : null}
       </div>

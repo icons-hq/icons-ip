@@ -20,6 +20,11 @@ do $$ begin
   perform public.admin_save_store_settings('business','{"phone":"02-111-1111"}',null);
   raise exception 'staff write allowed';
 exception when insufficient_privilege then null; end $$;
+-- TKT-019·099: 같은 RPC에서 문의 자동 안내 섹션만 호환 단계 staff에게 열린다(권한 거절이 아니라 입력 검사까지 간다).
+do $$ begin
+  perform public.admin_save_store_settings('inquiry_auto_replies','{}',null);
+  raise exception 'invalid auto reply payload allowed';
+exception when invalid_parameter_value then null; end $$;
 do $$ begin
   perform public.admin_save_shipping_carrier('test426','연습택배','https://carrier.example.test/{trackingNumber}',true,null);
   raise exception 'staff carrier write allowed';
