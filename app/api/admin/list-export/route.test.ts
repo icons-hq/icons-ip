@@ -71,7 +71,8 @@ describe('목록 엑셀 다운로드 라우트', () => {
     const response = await POST(request('screen=dispatch&tab=ready&query=%ED%99%8D&page=4'));
     expect(runtime).toBe('nodejs');
     expect(maxDuration).toBe(60);
-    expect(mocks.guard).toHaveBeenCalledWith('/admin/sales/dispatch');
+    // 화면은 출고 전용 권한으로 열리지만 목록 엑셀은 예전처럼 sales.manage로 받는다(1014-084).
+    expect(mocks.guard).toHaveBeenCalledWith('/admin/sales/dispatch', { capability: 'sales.manage' });
     expect(mocks.load).toHaveBeenCalledWith('dispatch', { screen: 'dispatch', tab: 'ready', query: '홍', page: '4' }, new Date('2026-10-07T06:04:00.000Z'), 'staff');
     expect(mocks.record).toHaveBeenCalledWith('staff', sheet, 'a'.repeat(64));
     expect(mocks.build.mock.invocationCallOrder[0]).toBeLessThan(mocks.encrypt.mock.invocationCallOrder[0]);

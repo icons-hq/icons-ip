@@ -1,7 +1,8 @@
 import { isUuid } from '@/lib/uuid';
 import { isCommerceNumber } from '@/lib/commerce-number';
 import { transactionExactKeys, transactionInteger, transactionRecord } from '@/lib/goods-transaction-values';
-export interface ShipmentPackSummary { id: string; revision: number; count: number; shipmentIds: string[]; collectFee: number; canRelease: boolean }
+/** collectFee는 묶음 착불 배송비다. 주문 조회 권한이 없는 출고 전용 운영자에게는 비어 온다(1014-084 수령인 정보만). */
+export interface ShipmentPackSummary { id: string; revision: number; count: number; shipmentIds: string[]; collectFee: number | null; canRelease: boolean }
 export interface ShipmentPackRow { orderNumber?: string; shipmentNumber?: string; id: string; orderId: string; originName: string; buyerName: string; recipientName: string | null; status: string; exportedAt: string | null; updatedAt: string; shippingFee: number; collectFee: number; ready: boolean; pack: ShipmentPackSummary | null }
 export interface ShipmentPackDocument { version: string; canCreate: boolean; rows: ShipmentPackRow[] }
 export function shipmentPackIds(value: unknown, max = 100): string[] | null {
@@ -11,7 +12,7 @@ export function shipmentPackIds(value: unknown, max = 100): string[] | null {
 export function parseShipmentPackSummary(value: unknown): ShipmentPackSummary | null {
  if (!transactionRecord(value) || !transactionExactKeys(value, ['id', 'revision', 'count', 'shipmentIds', 'collectFee', 'canRelease']) || !isUuid(value.id)
   || !transactionInteger(value.revision, 1) || !transactionInteger(value.count, 2, 100) || !shipmentPackIds(value.shipmentIds)
-  || (value.shipmentIds as string[]).length !== value.count || !transactionInteger(value.collectFee, 0) || typeof value.canRelease !== 'boolean') return null;
+  || (value.shipmentIds as string[]).length !== value.count || (value.collectFee !== null && !transactionInteger(value.collectFee, 0)) || typeof value.canRelease !== 'boolean') return null;
  return value as unknown as ShipmentPackSummary;
 }
 export function parseShipmentPackDocument(value: unknown): ShipmentPackDocument | null {

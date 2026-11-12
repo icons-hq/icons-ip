@@ -1,4 +1,4 @@
-import { legacyOperatorAccessFixture } from '@/lib/admin/access.test-fixtures';
+import { configuredOperatorAccessFixture, legacyOperatorAccessFixture } from '@/lib/admin/access.test-fixtures';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { applyDispatchDeliveryAction, completeShipmentsAction, exportPendingOriginShipmentsAction, exportShipmentsAction, originBarcodeGapsAction, readDispatchDeliveryOptionsAction, registerShipmentTrackingAction, saveShipmentExportColumnsAction, shipmentBarcodeGapsAction } from './shipment-actions';
 import { DEFAULT_SHIPMENT_EXPORT_COLUMNS } from '@/lib/admin/shipment-workbook';
@@ -25,6 +25,54 @@ beforeEach(() => {
 });
 
 describe('shipment action boundaries', () => {
+  it('물류출고관리는 출고지시를 내려받고 배송완료하며, 출고 권한이 없는 매니저는 RPC 전에 막는다 (1014-084)', async () => {
+    mocks.auth.mockResolvedValue({ operatorAccess: configuredOperatorAccessFixture('logistics'), isConfigured: true, user: { id: 'logistics' }, isStaff: true, role: 'staff' });
+    expect(await exportShipmentsAction([ID], 'xlsx', 'warehouse')).toMatchObject({ message: '1건의 출고지시를 내려받았습니다.' });
+    mocks.rpc.mockResolvedValueOnce({ data: [{ id: ID, ok: true }], error: null });
+    expect(await completeShipmentsAction([ID])).toEqual({ message: '1건을 배송완료로 변경했습니다.', failed: [] });
+    for (const role of ['deputy', 'influencer', 'agency'] as const) {
+      mocks.rpc.mockClear();
+      mocks.auth.mockResolvedValue({ operatorAccess: configuredOperatorAccessFixture(role), isConfigured: true, user: { id: role }, isStaff: true, role: 'staff' });
+      expect(await exportShipmentsAction([ID], 'xlsx', 'warehouse')).toEqual({ error: '직원 권한이 필요합니다.' });
+      expect(await completeShipmentsAction([ID])).toEqual({ error: '직원 권한이 필요합니다.' });
+      expect(await shipmentBarcodeGapsAction([ID])).toBeNull();
+      expect(mocks.rpc).not.toHaveBeenCalled();
+    }
+  });
+  it('수령인 정보만: 출고 전용 운영자의 표준 양식은 구매자·결제·금액을 모든 줄에서 비우고 금액 배분을 읽지 않는다 (1014-084)', async () => {
+    const detail = { itemId: SECOND, buyerName: '구매자', buyerId: ID, paidAt: STAMP, paymentMethod: 'card', productPrice: null, optionPrice: null,
+      itemTotal: null, itemDiscount: 300, sellerDiscount: 300, regionalShippingFee: 3000, shippingDiscount: 500, orderNumber: '2026111110000001' };
+    const exported = { shipments: [{ id: ID, updatedAt: STAMP, shippingFee: 3000, shippingCollectFee: 4000,
+      pack: { id: SECOND, revision: 1, count: 2, shipmentIds: [ID, SECOND], collectFee: 4000, canRelease: true },
+      lines: [{ orderId: ID, recipient: '수령인', smartstore: detail }, { orderId: ID, recipient: '수령인', smartstore: { ...detail, itemTotal: 1700 } }] }] };
+    mocks.rpc.mockImplementation(async (name: string) => ({ error: null, data: name === 'admin_smartstore_shipment_export' ? structuredClone(exported) : 1 }));
+    mocks.auth.mockResolvedValue({ operatorAccess: configuredOperatorAccessFixture('logistics'), isConfigured: true, user: { id: 'logistics' }, isStaff: true, role: 'staff' });
+    expect(await exportShipmentsAction([ID], 'xlsx', 'smartstore', credentials)).toMatchObject({ file: { encryption: 'ECMA-376-Agile' } });
+    expect(mocks.rpc.mock.calls.map(([name]) => name)).not.toContain('admin_order_item_allocation_inputs');
+    const built = mocks.build.mock.calls[0][0] as typeof exported;
+    expect(built.shipments[0]).toMatchObject({ id: ID, shippingFee: null, shippingCollectFee: null, pack: { collectFee: null, count: 2 } });
+    for (const line of built.shipments[0].lines) {
+      expect(line.recipient).toBe('수령인');
+      expect(line.smartstore).toMatchObject({ orderNumber: '2026111110000001', buyerName: null, buyerId: null, paidAt: null, paymentMethod: null,
+        itemTotal: null, itemDiscount: null, sellerDiscount: null, regionalShippingFee: null, shippingDiscount: null });
+    }
+    expect(mocks.rpc).toHaveBeenLastCalledWith('admin_mark_shipments_exported', { target_versions: [{ id: ID, updatedAt: STAMP }] });
+  });
+  it('주문 조회 권한이 있는 주매니저의 표준 양식 자료는 지금과 같다 (1014-084)', async () => {
+    const exported = { shipments: [{ id: ID, updatedAt: STAMP, shippingFee: 3000, shippingCollectFee: 0,
+      lines: [{ orderId: ID, recipient: '수령인', smartstore: { itemId: SECOND, buyerName: '구매자', paymentMethod: 'card', itemTotal: 1700, itemDiscount: 300 } }] }] };
+    mocks.rpc.mockImplementation(async (name: string) => ({ error: null, data: name === 'admin_smartstore_shipment_export' ? structuredClone(exported) : 1 }));
+    mocks.auth.mockResolvedValue({ operatorAccess: configuredOperatorAccessFixture('primary'), isConfigured: true, user: { id: 'primary' }, isStaff: true, role: 'staff' });
+    await exportShipmentsAction([ID], 'xlsx', 'smartstore', credentials);
+    expect(mocks.build).toHaveBeenCalledWith(exported, 'xlsx', 'smartstore');
+  });
+  it('창고 고유 양식은 출고 전용 운영자도 받은 자료 그대로 만든다 (1014-084 범위 밖)', async () => {
+    const exported = { shipments: [{ id: ID, updatedAt: STAMP, shippingFee: 3000, lines: [{ orderId: ID, recipient: '수령인', unitPrice: 1000 }] }] };
+    mocks.rpc.mockImplementation(async (name: string) => ({ error: null, data: name === 'admin_shipment_export' ? structuredClone(exported) : name === 'admin_shipment_barcode_gaps' ? 0 : 1 }));
+    mocks.auth.mockResolvedValue({ operatorAccess: configuredOperatorAccessFixture('logistics'), isConfigured: true, user: { id: 'logistics' }, isStaff: true, role: 'staff' });
+    await exportShipmentsAction([ID], 'xlsx', 'warehouse');
+    expect(mocks.build).toHaveBeenCalledWith(exported, 'xlsx', 'warehouse');
+  });
   it('counts all affected package members once even when only one member was selected', async () => {
     mocks.rpc.mockResolvedValue({data:[{id:ID,ok:true,affectedIds:[ID,SECOND]}],error:null});
     expect(await completeShipmentsAction([ID])).toEqual({message:'2건을 배송완료로 변경했습니다.',failed:[]});

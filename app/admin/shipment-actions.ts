@@ -5,6 +5,7 @@ import {getCurrentAdminAuthState} from '@/lib/auth/admin';
 import {createClient} from '@/lib/supabase/server';
 import {buildShipmentExport} from '@/lib/admin/shipment-workbook.server';
 import {withSmartStoreLegacyAllocations} from '@/lib/admin/item-allocation.server';
+import {recipientOnlyShipmentExport} from '@/lib/admin/shipment-export-recipient-only';
 import {seowonExportLabels} from '@/lib/admin/seowon-exchange';
 import {randomUUID} from 'node:crypto';
 import {shipmentMutationError,type ShipmentExportData} from '@/lib/admin/shipment-dispatch';
@@ -20,7 +21,8 @@ import {DISPATCH_HANDOFF_METHODS,DISPATCH_METHODS,DISPATCH_REASON_MAX_LENGTH,DIS
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const INSTANT=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/;
 function selection(value:unknown):string[]|null {if(!Array.isArray(value)||!value.length||value.length>1000||!value.every(id=>typeof id==='string'&&UUID.test(id)))return null;return [...new Set((value as string[]).map(id=>id.toLowerCase()))];}
-async function staff(){const auth=await getCurrentAdminAuthState();return auth.isConfigured&&auth.user&&auth.isStaff&&hasAdminCapability(auth,'sales.manage')?auth:null;}
+/** 출고지시·배송완료는 출고 전용 권한(sales.dispatch, 1014-084)으로 한다. sales.manage도 이 권한을 포함한다. */
+async function staff(){const auth=await getCurrentAdminAuthState();return auth.isConfigured&&auth.user&&auth.isStaff&&hasAdminCapability(auth,'sales.dispatch')?auth:null;}
 /**
  * 발송처리 화면의 행 운송장·배송 방법·택배 외 일괄 인계(S36-072·S36-X04) 액션이 요구하는 능력. 물류 출고 권한(sales.dispatch)과
  * 통합할 때 이 한 줄만 바꾼다(DB는 private.dispatch_console_capability()가 같은 값을 둔다). 운영 강제 배송완료는 sales.manage 그대로다.
@@ -38,13 +40,19 @@ function exportInputError(format:unknown,layout:unknown,credentials?:ExportCrede
  return layout==='smartstore'&&format==='xlsx'?exportPasswordError(credentials?.password,credentials?.passwordConfirmation):null;
 }
 /** Build and encrypt successfully before recording a warehouse handover. */
-async function exportShipments(client:Client,keys:string[],format:'xlsx'|'csv',layout:ShipmentExportLayout,credentials?:ExportCredentials,note=''):Promise<ExportResult>{
+async function exportShipments(client:Client,keys:string[],format:'xlsx'|'csv',layout:ShipmentExportLayout,credentials?:ExportCredentials,note='',readsOrderAmounts=true):Promise<ExportResult>{
  const result=await client.rpc(layout==='smartstore'?'admin_smartstore_shipment_export':'admin_shipment_export',{p_ids:keys});
  const exportError=result.error?.message??'';
  if(result.error||!result.data)return {error:exportError.startsWith('shipment_pack_')||exportError.startsWith('production_')||['shipment_item_export_mismatch','shipment_price_allocation_missing'].includes(exportError)?shipmentMutationError(exportError):'발송 대기 상태와 취소 요청을 확인해주세요. 출고지시를 만들지 못했습니다.'};
  let data=result.data as ShipmentExportData;
  // 버전 1 할인 주문의 품목 금액은 거래확정 엑셀과 같은 공통 배분으로 채운다(10/14 회의 A5).
- if(layout==='smartstore'){try{data=await withSmartStoreLegacyAllocations(data,client);}catch{return {error:'주문 당시 금액 배분을 확인하지 못했습니다. 잠시 후 다시 내려받아 주세요.'};}}
+ // 1014-084 사용자 결정 "수령인 정보만": 주문 조회 권한(sales.read)이 없는 출고 전용 운영자의 ICONS 표준 양식은 구매자·결제·금액 칸을
+ // 모든 줄에서 비운다. DB가 줄의 구매자·결제·품목 금액을 비워 보내고 여기서 배송비까지 비우므로 금액 배분도 읽지 않는다(일부 줄만 채우지 않게).
+ // 창고 고유 양식(김포 21열·서원)은 그대로다. 통합: T03 빌더의 null 금액 타입과 합치면 아래 cast를 지운다.
+ if(layout==='smartstore'){
+  if(readsOrderAmounts){try{data=await withSmartStoreLegacyAllocations(data,client);}catch{return {error:'주문 당시 금액 배분을 확인하지 못했습니다. 잠시 후 다시 내려받아 주세요.'};}}
+  else data=recipientOnlyShipmentExport(data) as unknown as ShipmentExportData;
+ }
  try{
   let file=await buildShipmentExport(data,format,layout);let sha256:string|undefined;
   if(layout==='smartstore'&&format==='xlsx'){
@@ -71,14 +79,14 @@ async function exportShipments(client:Client,keys:string[],format:'xlsx'|'csv',l
  }catch(error){return {error:error instanceof Error?error.message:'출고지시 파일을 만들지 못했습니다.'};}
 }
 export async function exportShipmentsAction(ids:unknown,format:'xlsx'|'csv',layout:ShipmentExportLayout='smartstore',credentials?:ExportCredentials):Promise<ExportResult>{
- if(!await staff())return {error:'직원 권한이 필요합니다.'};const keys=selection(ids);
+ const auth=await staff();if(!auth)return {error:'직원 권한이 필요합니다.'};const keys=selection(ids);
  if(!keys)return {error:'내보낼 배송 건을 1~1,000개 선택해주세요.'};
  const invalid=exportInputError(format,layout,credentials);if(invalid)return {error:invalid};
- return exportShipments(await createClient(),keys,format,layout,credentials);
+ return exportShipments(await createClient(),keys,format,layout,credentials,'',hasAdminCapability(auth,'sales.read'));
 }
 /** The origin batch has the same selected layout and password contract as a selected-row export. */
 export async function exportPendingOriginShipmentsAction(originId:unknown,format:'xlsx'|'csv',layout:ShipmentExportLayout='smartstore',credentials?:ExportCredentials):Promise<ExportResult>{
- if(!await staff())return {error:'직원 권한이 필요합니다.'};
+ const auth=await staff();if(!auth)return {error:'직원 권한이 필요합니다.'};
  if(typeof originId!=='string'||!UUID.test(originId))return {error:'출고지를 선택해주세요.'};
  const invalid=exportInputError(format,layout,credentials);if(invalid)return {error:invalid};
  const client=await createClient();
@@ -89,7 +97,7 @@ export async function exportPendingOriginShipmentsAction(originId:unknown,format
  if(!keys)return {error:'발송 대기 배송 건을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.'};
  if(!keys.length)return {error:'이 출고지에 아직 전달하지 않은 발송 대기 배송 건이 없습니다. 발주확인과 예약 재고 할당·제작·취소 요청을 확인해주세요.'};
  const rest=Number(value.total)-keys.length;
- return exportShipments(client,keys,format,layout,credentials,rest>0?` 남은 ${rest.toLocaleString('ko-KR')}건은 다시 눌러 이어서 받아주세요.`:'');
+ return exportShipments(client,keys,format,layout,credentials,rest>0?` 남은 ${rest.toLocaleString('ko-KR')}건은 다시 눌러 이어서 받아주세요.`:'',hasAdminCapability(auth,'sales.read'));
 }
 /**
  * 내보내기 전 경고(10/27 회의 D10): 선택한 배송 건에서 출고 파일의 바코드 칸이 비는 옵션 수.

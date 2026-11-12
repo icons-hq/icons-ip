@@ -1,4 +1,4 @@
-const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
+const { configuredOperatorAccessFixture, legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { bulkRegisterAdminOrderTrackingAction } from './order-actions';
 import ExcelJS from 'exceljs';
@@ -44,6 +44,17 @@ beforeEach(() => {
     data: target_rows.map((row) => ({ ...row, ok: true, dispatched: true, orderId: `00000000-0000-4000-8000-${String(row.line).padStart(12, '0')}`, shipmentId: `10000000-0000-4000-8000-${String(row.line).padStart(12, '0')}` })) }));
 });
 describe('bulk tracking action', () => {
+  it('물류출고관리는 운송장 회신을 등록하고, 출고 권한이 없는 매니저는 RPC 전에 막는다 (1014-084)',async()=>{
+    mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'logistics' }, role: 'staff', isStaff: true, operatorAccess: configuredOperatorAccessFixture('logistics') });
+    expect((await bulkRegisterAdminOrderTrackingAction({},form('00000001,hanjin,12345678'))).report?.succeeded).toEqual(['00000001']);
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_import_shipment_tracking_batch',expect.anything());
+    mocks.rpc.mockClear();
+    for(const role of ['deputy','influencer','agency'] as const){
+      mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: role }, role: 'staff', isStaff: true, operatorAccess: configuredOperatorAccessFixture(role) });
+      expect((await bulkRegisterAdminOrderTrackingAction({},form('00000001,hanjin,12345678'))).errors?.form).toBe('관리자 권한이 필요합니다.');
+    }
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
   it('queues every original order in an imported package once and retains parser failures for the DB preflight',async()=>{
     const members=[{orderId:'order-one',shipmentId:'shipment-one'},{orderId:'order-two',shipmentId:'shipment-two'}];
     mocks.rpc.mockResolvedValue({error:null,data:[{line:1,reference:'00000001',ok:true,orderId:'order-one',shipmentId:'shipment-one',packedShipments:members},{line:2,reference:'00000002',ok:false,error:'invalid_tracking_input'}]});

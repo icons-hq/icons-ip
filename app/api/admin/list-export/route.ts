@@ -44,7 +44,10 @@ export async function POST(request: Request) {
   const params = new URL(request.url).searchParams;
   const screen = params.get('screen');
   const definition = isAdminListExportScreenId(screen) ? ADMIN_LIST_EXPORT_SCREENS[screen] : null;
-  const auth = await requireAdminScreenAccess(definition?.href ?? '/admin');
+  /* 발주·발송과 배송현황 목록 엑셀은 화면을 여는 출고 전용 권한(1014-084)이 아니라 예전처럼 sales.manage로 받는다. */
+  const auth = definition?.id === 'dispatch' || definition?.id === 'shipping'
+    ? await requireAdminScreenAccess(definition.href, { capability: 'sales.manage' })
+    : await requireAdminScreenAccess(definition?.href ?? '/admin');
   if (!definition) return errorResponse('내려받을 화면을 확인해주세요.', 400);
 
   try {

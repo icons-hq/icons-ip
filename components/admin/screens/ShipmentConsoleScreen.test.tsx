@@ -6,9 +6,29 @@ import {shipmentDeliveryFixture} from '@/lib/shipment-delivery.fixture';
 vi.mock('next/navigation',()=>({useRouter:()=>({refresh:vi.fn()}),usePathname:()=>'/admin/sales/dispatch'}));
 vi.mock('@/app/admin/order-actions',()=>({bulkConfirmAdminOrdersAction:vi.fn(),bulkRegisterAdminOrderTrackingAction:vi.fn(),saveAdminOrderDispatchDelayAction:vi.fn()}));
 vi.mock('@/app/admin/shipment-actions',()=>({completeShipmentsAction:vi.fn(),exportShipmentsAction:vi.fn(),exportPendingOriginShipmentsAction:vi.fn()}));
+vi.mock('@/app/admin/dispatch-delivery-actions',()=>({readDispatchShipmentDeliveryAction:vi.fn(),recordDispatchShipmentDeliveryAction:vi.fn()}));
 const base:ShipmentConsoleData={surface:'dispatch',filters:{tab:'ready',originId:null,query:'',from:null,to:null,page:1},rows:[],total:2,pageSize:100,counts:{new:0,ready:2,delayed:0,transit:0,delivered:0},carriers:[{code:'hanjin',label:'한진택배',active:true,trackingUrlTemplate:'https://example.test/{trackingNumber}'}],origins:[{id:'one',name:'김포',template:'wms_csv',active:true},{id:'two',name:'남양주',template:'seowon_xlsx',active:true},{id:'three',name:'중지된 창고',template:'standard',active:false}]};
 const row={id:'60000000-0000-4000-8000-000000000001',orderId:'50000000-0000-4000-8000-000000000001',originId:'one',originName:'김포',status:'ready' as const,createdAt:'2026-09-08T00:00:00Z',confirmedAt:'2026-09-08T01:00:00Z',buyerName:'구매자',recipientName:'받는 분',total:30000,paymentMethod:'card',shippingFee:3000,carrier:null,trackingNumber:null,shippedAt:null,deliveredAt:null,exportedAt:null,updatedAt:'2026-09-08T00:00:00Z',delayReason:null,expectedShipDate:null,items:[{id:'item-1',name:'상품',variantName:'파랑',qty:2}]};
 describe('배송 건 콘솔',()=>{
+ it('주문 조회 권한이 없는 출고 전용 운영자에게는 구매자·결제·금액 조건과 주문 상세 링크 없이 택배 외 인계 팝업을 둔다 (1014-084 수령인 정보만)',()=>{
+  const rows=[{...row,buyerName:null as unknown as string,total:null as unknown as number,paymentMethod:null as unknown as string,shippingFee:null as unknown as number,production:{count:1,completed:1,ready:true}},
+   {...row,id:'60000000-0000-4000-8000-000000000002',delivery:shipmentDeliveryFixture({method:'quick'})}] as ShipmentConsoleData['rows'];
+  for(const surface of ['dispatch','shipping'] as const){
+   const html=renderToStaticMarkup(<ShipmentConsoleScreen canReadOrders={false} data={{...base,surface,filters:{...base.filters,tab:'ready'},rows}}/>);
+   expect(html).not.toContain('구매자명');expect(html).not.toContain('/admin/sales/orders/');expect(html).not.toContain('name="paymentMethod"');
+   expect(html).not.toContain('주문금액 높은순');expect(html).not.toContain('>결제일<');expect(html).not.toContain('value="buyer"');
+   expect(html).toContain('받는 분');expect(html).toContain('상품 · 파랑');expect(html).toContain('배송건번호 · 주문번호 · 수취인');
+  }
+  const dispatch=renderToStaticMarkup(<ShipmentConsoleScreen canReadOrders={false} data={{...base,rows}}/>);
+  expect(dispatch).toMatch(/aria-haspopup="dialog"[^>]*>퀵 인계·수령 확인<\/button>/);expect(dispatch).toContain('<span>주문제작 1/1건 완료</span>');
+ });
+ it('주문 조회 권한이 있는 주매니저 화면은 지금과 같다 (1014-084)',()=>{
+  const data={...base,rows:[row,{...row,id:'60000000-0000-4000-8000-000000000002',delivery:shipmentDeliveryFixture({method:'quick'})}]} as ShipmentConsoleData;
+  const html=renderToStaticMarkup(<ShipmentConsoleScreen data={data}/>);
+  expect(renderToStaticMarkup(<ShipmentConsoleScreen data={data} canReadOrders/>)).toBe(html);
+  expect(html).toContain('구매자명');expect(html).toContain('/admin/sales/orders/');expect(html).toContain('name="paymentMethod"');
+  expect(html).toContain('주문금액 높은순');expect(html).toContain('>결제일<');expect(html).toMatch(/<a [^>]*href="\/admin\/sales\/orders\/[^"]*"[^>]*>퀵 인계·수령 확인<\/a>/);
+ });
  it('지원하는 모든 배송방법을 검색하고 다운로드 방식은 파일 제공 이력으로 연결한다',()=>{
   const html=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[{...row,delivery:shipmentDeliveryFixture({method:'digital'})}]}}/>);
   for(const method of ['parcel','quick','pickup','direct','freight','none','digital']) expect(html).toContain(`value="${method}"`);
@@ -282,10 +302,13 @@ describe('물류 출고 권한 화면 숨김 (T05 통합용 props)',()=>{
   const delayed=renderToStaticMarkup(<ShipmentConsoleScreen actorId="actor" data={{...base,filters:{...base.filters,tab:'delayed'},rows:[row]}}/>);
   expect(delayed).toContain('목록 엑셀 다운로드');expect(delayed).toContain('지연 메모');expect(delayed).toContain('고객 지연 안내');expect(delayed).toContain('합포장 관리');
  });
- it('주문 열람 권한이 없으면 번호·인계 확인·제작 현황을 글자로 두고 상세 팝업·새 탭 링크를 만들지 않는다',()=>{
+ /* 택배 외 실물 배송의 인계·수령은 출고 전용 운영자도 이 화면의 팝업에서 기록한다(1014-084, 오케스트레이터 판단 — 발송·배송완료를 택배로 좁히지 않음). */
+ it('주문 열람 권한이 없으면 번호·제작 현황을 글자로 두고 상세 팝업·새 탭 링크를 만들지 않으며, 택배 외 인계·수령은 이 화면의 팝업으로 기록한다',()=>{
   const html=renderToStaticMarkup(<ShipmentConsoleScreen canReadOrders={false} data={{...base,rows:[row,{...row,id:'60000000-0000-4000-8000-000000000002',delivery:shipmentDeliveryFixture()},
-   {...row,id:'60000000-0000-4000-8000-000000000003',production:{count:1,completed:0,ready:false,dueAt:null}}]}}/>);
+   {...row,id:'60000000-0000-4000-8000-000000000003',production:{count:1,completed:0,ready:false,dueAt:null}},
+   {...row,id:'60000000-0000-4000-8000-000000000004',delivery:shipmentDeliveryFixture({method:'digital'})}]}}/>);
   expect(html).not.toContain('data-order-preview-link');expect(html).not.toContain('상세 열기 (새 탭)');expect(html).not.toContain('/admin/sales/orders/');
-  expect(html).toContain('방문수령 인계·수령 확인은 주문 상세에서 합니다.');expect(html).toContain('주문제작 0/1건 완료');
+  expect(html).toMatch(/aria-haspopup="dialog"[^>]*>방문수령 인계·수령 확인<\/button>/);expect(html).toContain('주문제작 0/1건 완료');
+  expect(html).toContain('디지털 파일 제공 이력은 주문 상세에서 합니다.');
  });
 });

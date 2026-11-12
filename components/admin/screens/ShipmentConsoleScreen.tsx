@@ -22,7 +22,8 @@ import {DispatchTrackingImportPanel} from './DispatchTrackingImportPanel';
 import {DispatchDelayNoteForm} from './DispatchDelayNoteForm';
 import {AdminListExportButton} from '@/components/admin/AdminListExportButton';
 import {adminListExportHref} from '@/lib/admin/list-export';
-import {SALES_DATE_FIELDS,SHIPMENT_PAGE_SIZES} from '@/lib/admin/sales-list';
+import {SALES_DATE_FIELDS,SALES_SORT_OPTIONS,SHIPMENT_PAGE_SIZES} from '@/lib/admin/sales-list';
+import {DispatchDeliveryRecordButton} from '@/components/admin/DispatchDeliveryRecordPanel';
 import {SalesFilterField,SalesFilterPanel,SalesGuide,SalesResultsHeader,SalesSelect,SalesStatusSummary,kstDayDiff} from '@/components/admin/sales/SalesConsole';
 import {SHIPMENT_DELAY_NOTICE_OPTIONS,shipmentDelayNoticeLabel} from '@/lib/admin/shipment-delay-notice';
 import {ORDER_DELAY_STATUS_LABELS} from '@/lib/admin/order-delay-notices';
@@ -59,7 +60,10 @@ export function ShipmentConsoleScreen({data,registeredCount,actorId,summaryAside
  summaryAside?:ReactNode;
  /** 판매 관리 권한. 없으면(물류 출고 권한) 발주확인·합포장 관리·고객 지연 안내(결과 열·이력 포함)·지연 메모 열·목록 엑셀을 숨긴다. 출고·운송장·발송·배송완료는 그대로다. */
  canManageSales?:boolean;
- /** 주문 상세 열람 권한. 없으면 주문 상세 링크를 글자로 두고 목록 위 상세 팝업(S36-075)을 열지 않는다. */
+ /**
+  * 주문 조회 권한(sales.read). 없으면 출고 전용 운영자(1014-084 "수령인 정보만")다 — 구매자 열·구매자 검색·결제수단 거르기·결제일 기준·금액순 정렬과
+  * 주문 상세로 가는 링크·목록 위 상세 팝업(S36-075)을 두지 않고, 택배 외 배송은 이 화면의 팝업에서 인계·수령을 기록한다. DB도 같은 값을 비워 보낸다.
+  */
  canReadOrders?:boolean;
  /** 배송 경과일 기준 시각. 테스트 주입용. */
  now?:Date}){
@@ -76,7 +80,7 @@ export function ShipmentConsoleScreen({data,registeredCount,actorId,summaryAside
  const activeCarriers=carriers.filter(carrier=>carrier.active).map(({code,label})=>({code,label}));
  const columns:ConsoleGridColumn[]=[{key:'reference',label:'배송건번호 / 주문번호',width:'176px'},{key:'items',label:'상품 · 옵션'},
   {key:'origin',label:'출고지',width:'72px'},
-  {key:'buyer',label:'구매자명',width:'88px'},
+  ...(canReadOrders?[{key:'buyer',label:'구매자명',width:'88px'}]:[]),
   {key:'recipient',label:'수취인',width:'96px'},{key:'time',label:isDispatch?'주문 / 발주확인':'발송 / 배송완료',width:'156px'},
   {key:'tracking',label:isDispatch?'발송·인계':'배송·수령 확인',width:isDispatch?'132px':'206px'},...(rowTracking?[{key:'dispatch',label:'택배사 · 운송장',width:'176px'}]:[]),
   ...(delayNoticeColumn?[{key:'notice',label:'지연 안내 결과',width:'128px',required:showDelayNotice,defaultVisible:showDelayNotice}]:[]),...(delayNoteColumn?[{key:'delay',label:'지연 메모',width:'260px'}]:[]),
@@ -117,13 +121,17 @@ export function ShipmentConsoleScreen({data,registeredCount,actorId,summaryAside
     {canReadOrders?<OrderPreviewNewTabLink href={detailHref} label={`주문 ${orderReferenceLabel(row.orderId, row.orderNumber)} 상세 열기 (새 탭)`}/>:null}</span>{row.pack?<AdminStatusBadge tone="neutral">합포장 {row.pack.id.slice(-8).toUpperCase()} · {row.pack.count}건</AdminStatusBadge>:null}</div>,
    /* 출고 전 대조에 쓰는 칸이라 품목·옵션·수량을 줄이지 않는다(10/14 회의 요청). 긴 이름은 잘지 않고 줄을 바꾸며, 수량은 첫 줄 오른쪽에 둔다. */
    <ul key="items" className="flex min-w-44 flex-col gap-1">{row.items.map(item=><li key={item.id}><span className="flex min-w-0 items-baseline gap-1"><span className="min-w-0 flex-1 wrap-anywhere">{item.name}{item.variantName?` · ${item.variantName}`:''}</span><span className="shrink-0 whitespace-nowrap">× {item.qty}</span></span><GoodsCustomInputsSummary selection={item.customInputs} /></li>)}</ul>,
-   <span key="origin" className={`${CELL_ONE_LINE} max-w-12`} title={row.originName}>{row.originName}</span>,<span key="buyer" className={`${CELL_ONE_LINE} max-w-16`} title={row.buyerName}>{row.buyerName}</span>,<span key="recipient" className={`${CELL_ONE_LINE} max-w-18`} title={row.recipientName||undefined}>{row.recipientName||'미기록'}</span>,
+   <span key="origin" className={`${CELL_ONE_LINE} max-w-12`} title={row.originName}>{row.originName}</span>,...(canReadOrders?[<span key="buyer" className={`${CELL_ONE_LINE} max-w-16`} title={row.buyerName}>{row.buyerName}</span>]:[]),<span key="recipient" className={`${CELL_ONE_LINE} max-w-18`} title={row.recipientName||undefined}>{row.recipientName||'미기록'}</span>,
    <div key="time" className={`${CELL_STACK} tabular-nums whitespace-nowrap`}>{formatOrderDateTime(isDispatch?row.createdAt:row.shippedAt??row.createdAt)}{isDispatch&&!row.confirmedAt?<AdminStatusBadge tone="warning">발주확인 전</AdminStatusBadge>:<small className={CELL_NOTE}>{(isDispatch?row.confirmedAt:row.deliveredAt)?formatOrderDateTime((isDispatch?row.confirmedAt:row.deliveredAt)!):'배송완료 전'}</small>}</div>,
    !parcel?<div key="method-action" className={CELL_STACK}>{row.delivery?<AdminStatusBadge tone={statusTone('shipment',row.status)}>{deliveryStatusLabel(row.delivery.method,row.status)}</AdminStatusBadge>:<AdminStatusBadge tone="warning">배송 방식 확인 필요</AdminStatusBadge>}
-    {canReadOrders?<Link className={CELL_LINK} href={detailHref} target="_blank" rel="noopener noreferrer">{row.delivery?.method==='digital'?'디지털 파일 제공 이력':`${methodLabel} 인계·수령 확인`}</Link>:<span className={CELL_NOTE}>{row.delivery?.method==='digital'?'디지털 파일 제공 이력':`${methodLabel} 인계·수령 확인`}은 주문 상세에서 합니다.</span>}</div>:
+    {/* 주문 조회 권한이 있으면 주문 상세에서 처리한다. 출고 전용 운영자(1014-084)는 택배 외 실물 배송의 인계·수령을 이 화면의 팝업에서 기록하고,
+        구매자 내려받기로 끝나는 디지털 파일이나 방식을 아직 알 수 없는 건은 주문 상세를 열 권한이 없으니 글자로만 둔다. */}
+    {canReadOrders?<Link className={CELL_LINK} href={detailHref} target="_blank" rel="noopener noreferrer">{row.delivery?.method==='digital'?'디지털 파일 제공 이력':`${methodLabel} 인계·수령 확인`}</Link>
+     :row.delivery&&row.delivery.method!=='digital'?<DispatchDeliveryRecordButton shipmentId={row.id} shipmentNumber={row.shipmentNumber} label={`${methodLabel} 인계·수령 확인`}/>
+     :<span className={CELL_NOTE}>{row.delivery?.method==='digital'?'디지털 파일 제공 이력':`${methodLabel} 인계·수령 확인`}은 주문 상세에서 합니다.</span>}</div>:
     isDispatch?<div key="export" className={CELL_STACK}>{delayDays!==null?<AdminStatusBadge tone="danger">발송 지연 · {delayDays}일째</AdminStatusBadge>:null}
       {filters.tab==='new'?<span className={waitingDays>=LONG_WAIT_DAYS?'text-xs font-semibold text-warning tabular-nums':CELL_NOTE}>{waitingDays?`${waitingDays}일째 대기`:'오늘 주문'}</span>:<AdminStatusBadge tone={row.exportedAt?'success':'neutral'}>{row.exportedAt?'출고지시 전달':'내보내기 전'}</AdminStatusBadge>}
-      {row.preorderReady===false?<AdminStatusBadge tone="warning">예약 재고 할당 필요</AdminStatusBadge>:null}{row.production&&row.production.count>0?<p>{canReadOrders?<Link className={CELL_LINK} href={detailHref}>주문제작 {row.production.completed}/{row.production.count}건 완료{row.production.ready?'':' · 제작 완료 전 발송 불가'}</Link>:<span className={CELL_NOTE}>주문제작 {row.production.completed}/{row.production.count}건 완료{row.production.ready?'':' · 제작 완료 전 발송 불가'}</span>}</p>:null}</div>:
+      {row.preorderReady===false?<AdminStatusBadge tone="warning">예약 재고 할당 필요</AdminStatusBadge>:null}{row.production&&row.production.count>0?<p>{canReadOrders?<Link className={CELL_LINK} href={detailHref}>주문제작 {row.production.completed}/{row.production.count}건 완료{row.production.ready?'':' · 제작 완료 전 발송 불가'}</Link>:<span>주문제작 {row.production.completed}/{row.production.count}건 완료{row.production.ready?'':' · 제작 완료 전 발송 불가'}</span>}</p>:null}</div>:
     <div key="tracking" className={CELL_STACK}>{transitDays>=LONG_TRANSIT_DAYS?<AdminStatusBadge tone="warning">{transitDays}일째 배송 중</AdminStatusBadge>:<AdminStatusBadge tone={statusTone('shipment',row.status)}>{shipmentStatusLabel(row.status)}</AdminStatusBadge>}{tracking?<a className={`${CELL_LINK} tabular-nums whitespace-nowrap`} href={tracking.trackingUrl} target="_blank" rel="noreferrer noopener">{tracking.carrierLabel} {tracking.trackingNumber}</a>:<AdminStatusBadge tone="warning">운송장 확인 필요</AdminStatusBadge>}</div>,
    ...(trackingCell?[trackingCell]:[]),
    ...(delayNoticeColumn?[<div key="notice" className={CELL_STACK}><AdminStatusBadge tone={row.delayNotice?statusTone('delayNotice',row.delayNotice.status):'warning'}>{shipmentDelayNoticeLabel(row.delayNotice?.status)}</AdminStatusBadge>
@@ -152,10 +160,10 @@ export function ShipmentConsoleScreen({data,registeredCount,actorId,summaryAside
   {!isDispatch&&registeredCount?<AdminNotice role="status" tone="success">운송장 {registeredCount.toLocaleString('ko-KR')}건을 등록했습니다. 배송 메일은 대기열에서 처리됩니다.</AdminNotice>:null}
   <SalesFilterPanel currentHref={currentHref} id={`sales-${surface}`}
    hiddenFieldExclusions={['delayNotice']}
-   date={{from:filters.from,to:filters.to,field:filters.dateField??'ordered',options:SALES_DATE_FIELDS.filter(option=>option.value!=='settled')}}
-   search={{value:filters.query,field:filters.field??'all',options:SHIPMENT_SEARCH_FIELDS,placeholder:'배송건번호 · 주문번호 · 구매자'}}
+   date={{from:filters.from,to:filters.to,field:filters.dateField??'ordered',options:SALES_DATE_FIELDS.filter(option=>option.value!=='settled'&&(canReadOrders||option.value!=='paid'))}}
+   search={{value:filters.query,field:filters.field??'all',options:canReadOrders?SHIPMENT_SEARCH_FIELDS:SHIPMENT_SEARCH_FIELDS.filter(option=>option.value!=='buyer'),placeholder:canReadOrders?'배송건번호 · 주문번호 · 구매자':'배송건번호 · 주문번호 · 수취인'}}
    resetHref={`/admin/sales/${surface}?tab=${filters.tab}`}
-   moreActive={Boolean(filters.method||filters.originId||filters.paymentMethod||filters.delayNotice)}
+   moreActive={Boolean(filters.method||filters.originId||(canReadOrders&&filters.paymentMethod)||filters.delayNotice)}
    more={<>
    <SalesFilterField label="처리상태" htmlFor="sales-shipment-tab">
     <SalesSelect id="sales-shipment-tab" name="tab" value={filters.tab} options={SHIPMENT_CONSOLE_TABS[surface].map(tab=>({value:tab.id,label:tab.label}))}/>
@@ -164,13 +172,14 @@ export function ShipmentConsoleScreen({data,registeredCount,actorId,summaryAside
     options={[{value:'',label:'전체'},...FULFILLMENT_METHODS.map(method=>({value:method,label:FULFILLMENT_METHOD_LABELS[method]}))]}/></SalesFilterField>
    <SalesFilterField label="출고지" htmlFor="sales-shipment-origin"><SalesSelect id="sales-shipment-origin" name="originId" value={filters.originId??''}
     options={[{value:'',label:'전체 출고지'},...origins.map(origin=>({value:origin.id,label:origin.name}))]}/></SalesFilterField>
-   <SalesFilterField label="결제수단" htmlFor="sales-shipment-payment"><SalesSelect id="sales-shipment-payment" name="paymentMethod" value={filters.paymentMethod??''}
-    options={[{value:'',label:'전체'},{value:'card',label:'카드'},{value:'bank_transfer',label:'무통장 입금'}]}/></SalesFilterField>
+   {canReadOrders?<SalesFilterField label="결제수단" htmlFor="sales-shipment-payment"><SalesSelect id="sales-shipment-payment" name="paymentMethod" value={filters.paymentMethod??''}
+    options={[{value:'',label:'전체'},{value:'card',label:'카드'},{value:'bank_transfer',label:'무통장 입금'}]}/></SalesFilterField>:null}
    {delayNoticeColumn?<SalesFilterField label="발송지연 안내여부" htmlFor="sales-shipment-delay-notice"><SalesSelect id="sales-shipment-delay-notice" name="delayNotice" value={filters.delayNotice??''} options={SHIPMENT_DELAY_NOTICE_OPTIONS}/></SalesFilterField>:null}
    </>}/>
   <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-3 rounded-xl border bg-card p-4 text-card-foreground" data-sales-results="">
   <div className="min-w-0 flex-1 basis-96">
-  <SalesResultsHeader currentHref={currentHref} total={data.total} pageSize={data.pageSize} pageSizes={SHIPMENT_PAGE_SIZES} sort={filters.sort??'oldest'} unit="개 배송 건">
+  <SalesResultsHeader currentHref={currentHref} total={data.total} pageSize={data.pageSize} pageSizes={SHIPMENT_PAGE_SIZES} sort={filters.sort??'oldest'} unit="개 배송 건"
+   sortOptions={canReadOrders?SALES_SORT_OPTIONS:SALES_SORT_OPTIONS.filter(option=>option.value!=='amount_high'&&option.value!=='amount_low')}>
    {canManageSales?<AdminListExportButton href={adminListExportHref(surface,currentHref)} total={data.total}/>:null}
   </SalesResultsHeader>
   </div>

@@ -1,4 +1,4 @@
-const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
+const { configuredOperatorAccessFixture, legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AdminSalesDispatchPage from './page';
 
@@ -84,6 +84,18 @@ describe('AdminSalesDispatchPage shipment contract', () => {
     expect(mocks.preview).toHaveBeenCalledWith(mocks.authState, orderId);
     expect(shown.slice(0, 3).map(child => child.type)).toEqual([mocks.screen, mocks.autoPanel, mocks.forcedPanel]);
     expect(shown[3].props).toMatchObject({ orderId, closeHref: '/admin/sales/dispatch?tab=ready&page=1' });
+  });
+  /* 1014-084: 출고 전용 운영자는 발송 목록만 연다. 자동 발주확인·강제 배송완료(sales.manage)는 읽지도 놓지도 않고,
+     주문 상세 팝업(sales.read)은 `?orderId=`가 있어도 불러오지 않는다. */
+  it('물류출고관리는 발송 목록만 열고 자동 발주확인·강제 배송완료·주문 상세 팝업은 읽지도 놓지도 않는다 (1014-084)', async () => {
+    mocks.authState.operatorAccess = configuredOperatorAccessFixture('logistics');
+    const shown = children(await AdminSalesDispatchPage({ searchParams: Promise.resolve({ orderId: '50000000-0000-4000-8000-000000000001' }) }) as Element);
+    expect(shown.map(child => child.type)).toEqual([mocks.screen]);
+    expect(shown[0].props).toMatchObject({ canManageSales: false, canReadOrders: false });
+    expect(shown[0].props.summaryAside).toBeUndefined();
+    expect(mocks.loadAuto).not.toHaveBeenCalled();
+    expect(mocks.preview).not.toHaveBeenCalled();
+    expect(mocks.load).toHaveBeenCalledOnce();
   });
   it('자동 발주확인 설정을 읽지 못해도 발주 목록은 그대로 연다', async () => {
     mocks.loadAuto.mockResolvedValue(null);

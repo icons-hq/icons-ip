@@ -58,6 +58,16 @@ async function requireStaffAction() {
   return { auth, error: null };
 }
 
+/** 운송장 회신 등록은 출고 전용 권한(sales.dispatch, 1014-084)으로 한다. sales.manage도 이 권한을 포함한다. */
+async function requireDispatchAction() {
+  const auth = await getCurrentAdminAuthState();
+  if (!auth.isConfigured || !auth.user) redirect(loginPath());
+  if (!auth.isStaff || !hasAdminCapability(auth, 'sales.dispatch')) {
+    return { auth: null, error: { errors: { form: '관리자 권한이 필요합니다.' } } as AdminOrderActionState };
+  }
+  return { auth, error: null };
+}
+
 function revalidateOrderSurfaces(orderId?: string) {
   revalidatePath('/admin');
   revalidatePath('/orders');
@@ -592,7 +602,7 @@ async function registerSeowonReply(parsed: SeowonTrackingParseResult, requestedO
 export async function bulkRegisterAdminOrderTrackingAction(
   _state: AdminTrackingImportState, formData: FormData,
 ): Promise<AdminTrackingImportState> {
-  const access = await requireStaffAction();
+  const access = await requireDispatchAction();
   if (access.error) return { errors: { form: access.error.errors?.form } };
   const carriers = await getShippingCarrierRegistry();
   let parsed: TrackingWorkbookParseResult;
