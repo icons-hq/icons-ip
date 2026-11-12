@@ -67,9 +67,14 @@ select public.admin_reassign_inquiry(operator_history_test.id(101),operator_hist
 select operator_history_test.actor(9);
 select public.admin_close_inquiry(operator_history_test.id(101));
 reset role;
--- 한 트랜잭션 안의 기록은 시각이 같아 순서를 고정한다(실제 운영에서는 처리 시각이 다르다).
-update public.audit_log set created_at=now()-case action when 'admin.inquiry.assigned' then interval '50 minutes'
-  when 'admin.inquiry.answered' then interval '49 minutes' when 'admin.inquiry.reassigned' then interval '40 minutes' else interval '30 minutes' end
+-- 첫 답변의 담당 지정(트리거)·답변 감사는 한 트랜잭션의 now()라 운영에서도 시각이 같다. 시각은 고치지 않는다.
+-- 감사 ID는 처리 순서와 반대로 정렬되게 바꿔 둔다 — ID가 아니라 처리 순서(담당 지정→답변→담당 변경→완료)로 정렬해야 통과한다.
+select operator_history_test.ok((select count(distinct created_at)=1 and count(*)=6 from public.audit_log
+  where target in('inquiries:'||operator_history_test.id(101),'inquiries:'||operator_history_test.id(102))
+    and action in('admin.inquiry.assigned','admin.inquiry.answered','admin.inquiry.reassigned','admin.inquiry.closed')),
+  'processing audits written in one transaction share one timestamp');
+update public.audit_log set id=('0000000'||case action when 'admin.inquiry.answered' then '0' when 'admin.inquiry.closed' then '1'
+    when 'admin.inquiry.reassigned' then '2' else '3' end||'-0000-4000-8000-'||case when target like '%'||operator_history_test.id(101)::text then '000000000101' else '000000000102' end)::uuid
 where target in('inquiries:'||operator_history_test.id(101),'inquiries:'||operator_history_test.id(102))
   and action in('admin.inquiry.assigned','admin.inquiry.answered','admin.inquiry.reassigned','admin.inquiry.closed');
 update public.inquiries set last_message_at=now()-interval '8 days' where id=operator_history_test.id(102);
@@ -123,7 +128,7 @@ select operator_history_test.ok((select (item->>'reassignments')::int=1 and (ite
   from operator_rows where item->>'operatorId'=operator_history_test.id(5)::text),'agency: one reassignment');
 select operator_history_test.ok((select (item->>'closes')::int=1 and (item->>'answers')::int=0
   from operator_rows where item->>'operatorId'=operator_history_test.id(9)::text),'closing operator: one completion; the automatic close counts for nobody');
-select operator_history_test.ok((select (item->>'lastAt')::timestamptz=now()-interval '30 minutes' from operator_rows where item->>'operatorId'=operator_history_test.id(9)::text),'last processing time');
+select operator_history_test.ok((select (item->>'lastAt')::timestamptz=now() from operator_rows where item->>'operatorId'=operator_history_test.id(9)::text),'last processing time');
 create temp table operator_detail on commit drop as
   select public.admin_operator_inquiry_history(operator_history_test.today()-1,operator_history_test.today(),operator_history_test.id(5),1)->'detail' as body;
 select operator_history_test.ok((select (body->>'total')::int=1 and body#>>'{items,0,kind}'='reassigned' and body#>>'{items,0,inquiryId}'=operator_history_test.id(101)::text

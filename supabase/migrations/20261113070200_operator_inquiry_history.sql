@@ -10,6 +10,9 @@
 -- admin.inquiry.closed(완료), admin.inquiry.reassigned(담당 변경·인계), admin.inquiry.assigned(첫 답변으로 담당 자동 지정).
 -- 7일 무응답 자동 종결은 감사 기록이 없어 문의의 종결 시각으로 '자동 종결'을 보인다. 새 기록 표나 트리거를 만들지 않는다.
 -- 운영자별 집계는 답변·완료·담당 변경만 센다(첫 답변 자동 지정은 답변의 결과라 따로 세지 않는다).
+--
+-- 순서: 첫 답변의 담당 지정(트리거)과 답변 감사는 한 트랜잭션의 now()라 시각이 같다. 시각이 같으면 처리 순서
+-- (담당 지정 0 → 답변 1 → 담당 변경 2 → 완료 3)로 정하고, 그다음에야 감사 ID로 고정한다(ID만으로는 순서가 무작위다).
 
 -- 집계·운영자별 목록이 감사 기록 전체를 훑지 않게 문의 처리 기록만 담는 부분 인덱스를 둔다.
 create index audit_log_inquiry_processing_idx on public.audit_log (created_at, actor_id)
@@ -42,12 +45,17 @@ begin
 
   with picked as (
     select a.id, a.created_at, a.action, a.actor_id, a.diff,
+      case a.action when 'admin.inquiry.assigned' then 0 when 'admin.inquiry.answered' then 1
+        when 'admin.inquiry.reassigned' then 2 else 3 end as step,
       case when a.diff->>'before' ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then (a.diff->>'before')::uuid end as before_id,
       case when a.diff->>'after' ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then (a.diff->>'after')::uuid end as after_id
     from public.audit_log a
     where a.target = 'inquiries:' || thread.id::text
       and a.action in ('admin.inquiry.assigned', 'admin.inquiry.reassigned', 'admin.inquiry.answered', 'admin.inquiry.closed')
-    order by a.created_at desc, a.id desc
+    order by a.created_at desc,
+      case a.action when 'admin.inquiry.assigned' then 0 when 'admin.inquiry.answered' then 1
+        when 'admin.inquiry.reassigned' then 2 else 3 end desc,
+      a.id desc
     limit event_limit
   )
   select coalesce(jsonb_agg(jsonb_build_object(
@@ -62,7 +70,7 @@ begin
       'toName', case when p.action in ('admin.inquiry.reassigned', 'admin.inquiry.assigned') and p.after_id is not null
         then coalesce(nullif(btrim(after_profile.nickname), ''), '운영자_' || left(p.after_id::text, 6)) end,
       'reason', case when p.action = 'admin.inquiry.reassigned' then nullif(btrim(p.diff->>'reason'), '') end
-    ) order by p.created_at, p.id), '[]'::jsonb)
+    ) order by p.created_at, p.step, p.id), '[]'::jsonb)
   into events
   from picked p
   left join public.profiles actor on actor.id = p.actor_id
@@ -149,9 +157,10 @@ begin
               then coalesce(nullif(btrim(before_profile.nickname), ''), '운영자_' || left(r.before_id::text, 6)) end,
             'toName', case when r.action = 'admin.inquiry.reassigned' and r.after_id is not null
               then coalesce(nullif(btrim(after_profile.nickname), ''), '운영자_' || left(r.after_id::text, 6)) end
-          ) order by r.created_at desc, r.id desc)
+          ) order by r.created_at desc, r.step desc, r.id desc)
         from (
           select a.id, a.created_at, a.action,
+            case a.action when 'admin.inquiry.answered' then 1 when 'admin.inquiry.reassigned' then 2 else 3 end as step,
             case when a.target ~* '^inquiries:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then substr(a.target, 11)::uuid end as inquiry_id,
             case when a.diff->>'before' ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then (a.diff->>'before')::uuid end as before_id,
             case when a.diff->>'after' ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then (a.diff->>'after')::uuid end as after_id
@@ -160,7 +169,9 @@ begin
             and a.action in ('admin.inquiry.answered', 'admin.inquiry.closed', 'admin.inquiry.reassigned')
             and a.created_at >= range_start and a.created_at < range_end
             and a.target like 'inquiries:%'
-          order by a.created_at desc, a.id desc
+          order by a.created_at desc,
+            case a.action when 'admin.inquiry.answered' then 1 when 'admin.inquiry.reassigned' then 2 else 3 end desc,
+            a.id desc
           limit page_size offset (page - 1) * page_size
         ) r
         left join public.inquiries i on i.id = r.inquiry_id
