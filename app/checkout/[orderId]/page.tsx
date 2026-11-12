@@ -45,6 +45,7 @@ export default async function Page({ params, searchParams }: PageProps) {
         order.paymentMethod === 'bank_transfer' ? await getBankTransferAccount() : null
       }
       paymentFailCode={paymentFailCode}
+      autoRetry={query.retry === '1'}
     />
   );
 }

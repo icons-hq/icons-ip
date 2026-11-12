@@ -106,6 +106,7 @@ const DRAFT_RETURN_ERRORS = new Set<string>(['cart_changed', 'checkout_draft_exp
   'empty_cart', 'out_of_stock', 'goods_sale_not_open', 'preorder_sale_not_open', 'preorder_capacity_exceeded', 'option_order_limit_exceeded',
   'option_member_limit_exceeded', 'random_option_unavailable', 'random_option_limit_exceeded', 'member_purchase_limit_exceeded',
   'order_quantity_above_maximum', 'order_quantity_below_minimum', 'adult_verification_required']);
+const SALE_PERIOD_REJECTIONS = new Set<string>(['goods_sale_not_open']);
 const STOCK_CHANGED_COPY = '재고가 변경된 굿즈가 있어요. 장바구니에서 수량을 확인해주세요.';
 
 interface CheckoutProps {
@@ -218,6 +219,8 @@ export function Checkout({
   /* 쿠폰 칸의 변경 액션이 진행 중이면 결제를 잠근다(R25) — 끝나기 전의 주문은 이전 쿠폰으로 나가 거절된다. */
   const [couponPending, setCouponPending] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  /* 접수 거절 코드. 판매기간 거절이면 굿즈 이름을 말하는 한 줄 안내(salePeriodNotice)가 일반 문구를 대신한다(T22i·QA1c S-D2-11). */
+  const [submitErrorCode, setSubmitErrorCode] = useState<string | null>(null);
   const [pendingOrder, setPendingOrder] = useState(false);
   /* 초안 주문이 장바구니 변경·초안 만료로 거절되면 고른 화면(장바구니·상품 상세)으로 돌아가는 링크를 붙인다. */
   const [draftReturnNeeded, setDraftReturnNeeded] = useState(false);
@@ -383,6 +386,7 @@ export function Checkout({
 
     setSubmitting(true);
     setSubmitError(null);
+    setSubmitErrorCode(null);
     setPendingOrder(false);
     setDraftReturnNeeded(false);
     checkoutKey.current ??= crypto.randomUUID();
@@ -397,6 +401,9 @@ export function Checkout({
     }
     if (!result.ok) {
       if(result.error==='cart_changed') await refresh();
+      setSubmitErrorCode(result.error);
+      /* 주문서를 연 뒤 판매기간이 바뀌었으면 카탈로그를 다시 읽어 그 굿즈 이름을 알린다. */
+      if (SALE_PERIOD_REJECTIONS.has(result.error)) router.refresh();
       setSubmitError(result.pendingOrder ? '진행 중인 다른 주문을 완료하거나 취소한 뒤 다시 시도해주세요.'
         : draft?.source === 'selection' && result.error === 'cart_changed' ? SELECTION_CART_CHANGED_COPY
           : direct && result.error === 'checkout_draft_expired' ? DIRECT_DRAFT_EXPIRED_COPY
@@ -660,7 +667,7 @@ export function Checkout({
           {(unavailable || salePeriodNotice) && <p className="checkout-error" role="alert">{salePeriodNotice ?? copyFor(STOCK_CHANGED_COPY)}
             {draft ? <> <Link href={draftReturnHref}>{direct ? '굿즈로 돌아가기' : '장바구니로 돌아가기'}</Link></> : null}</p>}
           {!methodAvailable && <p className="checkout-error" role="alert">선택한 결제수단을 지금은 쓸 수 없어요. 다른 수단을 골라주세요.</p>}
-          {submitError && <p className="checkout-error" role="alert">{submitError}{pendingOrder ? <PendingOrderResolution /> : null}
+          {submitError && !(salePeriodNotice && submitErrorCode && SALE_PERIOD_REJECTIONS.has(submitErrorCode)) && <p className="checkout-error" role="alert">{submitError}{pendingOrder ? <PendingOrderResolution /> : null}
             {blockingOrderId ? <> <Link href={`/orders/${encodeURIComponent(blockingOrderId)}`}>주문 보기</Link></> : null}
             {draftReturnNeeded ? <> <Link href={draftReturnHref}>{draft?.source === 'direct' ? '굿즈로 돌아가기' : '장바구니로 돌아가기'}</Link></> : null}</p>}
           {/* 결제 대기 주문(다른 탭의 바로구매·장바구니 주문)이 쿠폰·구매 한도·재고를 잡고 있을 수 있다 — 주문서를 열기만 해서는 그

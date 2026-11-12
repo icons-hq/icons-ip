@@ -2,7 +2,6 @@ import Link from 'next/link';
 import { GoodsCustomInputsSummary } from '@/components/shop/GoodsCustomInputs';
 import { ListingReturnLink } from '@/components/shell/ListingReturn';
 import { BankTransferDeadlineGate } from '@/components/checkout/BankTransferDeadline';
-import { checkoutDeadlineTimeLabel } from '@/lib/checkout';
 import { BANK_TRANSFER_EXPIRED_COPY } from '@/lib/checkout-status-copy';
 import type { CheckoutOrderSnapshot } from '@/lib/checkout.server';
 import { krw } from '@/lib/format';
@@ -51,7 +50,6 @@ export function OrderComplete({ order, bankTransferAccount, depositDeadlinePasse
   /* 기한이 지났지만 아직 정리(자동 취소) 전인 무통장 주문은 계좌를 안내하지 않는다. 화면을 연 채
      기한이 지나도 클라이언트가 안내를 닫는다(BankTransferDeadlineGate). */
   const deadline = order.expiresAt ? formatOrderDateTime(order.expiresAt) : '';
-  const deadlineTime = checkoutDeadlineTimeLabel(order.expiresAt);
   const total = order.transaction?.totals.onlineTotal ?? order.total;
   const collectShipping = order.transaction?.totals.collectShippingTotal ?? 0;
 
@@ -113,7 +111,7 @@ export function OrderComplete({ order, bankTransferAccount, depositDeadlinePasse
                     </div>
                   </dl>
                   <p className="money-caption">
-                    입금자명 끝의 주문코드를 지우지 말아주세요. 기한{deadlineTime ? `(${deadlineTime})` : ''} 안에 입금이 확인되지 않으면 주문은 자동 취소돼요.
+                    입금자명 끝의 주문코드를 지우지 말아주세요. 기한{deadline ? `(${deadline})` : ''} 안에 입금이 확인되지 않으면 주문은 자동 취소돼요.
                   </p>
                 </>
               ) : (

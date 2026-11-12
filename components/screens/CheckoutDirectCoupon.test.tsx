@@ -21,7 +21,7 @@ const render = (coupons: UserCouponSummary[], selectedUserCouponId: string | nul
 describe('CheckoutDirectCoupon — 진행 중인 주문이 잡은 쿠폰', () => {
   it('목록에 두고, 이 주문을 접수하면 그 주문이 닫히고 쿠폰을 여기에 쓴다고 알린다', () => {
     const markup = render([held]);
-    expect(markup).toContain(`<option value="${held.id}">첫구매 3천원 · ₩3,000 할인 · 진행 중인 주문에서 사용 중</option>`);
+    expect(markup).toContain(`<option value="${held.id}">첫구매 3천원 · ₩3,000 할인 · 주문 진행 중</option>`);
     expect(markup).toContain('‘첫구매 3천원’ 쿠폰은 진행 중인 주문에서 사용 중이에요. 이 주문을 접수하면 그 주문은 결제 없이 닫히고 쿠폰을 여기에 써요.');
     expect(markup).toContain(`href="/orders/${order.orderId}">진행 중인 주문 확인</a>`);
     expect(markup).not.toContain('사용할 수 있는 쿠폰이 없어요');

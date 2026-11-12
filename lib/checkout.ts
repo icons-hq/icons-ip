@@ -143,7 +143,7 @@ export function directRetryReorderId(value: unknown): string | null {
 /**
  * 주문 내역·주문 상세의 다시 결제 진입(QA1 S-D2-15, service_list_order_retry_sources). 결제 대기(`awaitingPayment`)이거나 결제
  * 없이 닫힌 카드 주문의 출처다 — 장바구니 출처는 그 주문의 줄 가운데 장바구니에 남은 것만 고른 주문서로, 바로구매 출처는 같은
- * 굿즈·옵션 주문서로 잇는다. `retryOrderId`는 그 바로구매 주문의 다시 구매로 이미 만든 주문이다.
+ * 굿즈·옵션 주문서로 잇는다. `retryOrderId`는 그 주문의 다시 결제(바로구매는 다시 구매, 장바구니는 다시 결제 초안)로 이미 만든 주문이다.
  */
 export interface OrderRetrySource {
   readonly source: 'cart' | 'direct';
@@ -169,7 +169,7 @@ export function parseOrderRetrySources(value: unknown): Map<string, OrderRetrySo
       awaitingPayment,
       paymentUnresolved: awaitingPayment && paymentUnresolved === true,
       baseGoodId: source === 'direct' ? goodId : null,
-      retryOrderId: source === 'direct' && typeof retryOrderId === 'string' && RETRY_ORDER_ID.test(retryOrderId) ? retryOrderId.toLowerCase() : null,
+      retryOrderId: typeof retryOrderId === 'string' && RETRY_ORDER_ID.test(retryOrderId) ? retryOrderId.toLowerCase() : null,
     });
   }
   return sources;
