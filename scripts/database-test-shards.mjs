@@ -86,6 +86,9 @@ const operators = [
   // 상품별 반품/교환지·회수 묶음(배송 건 × 반품지)·고객 회수 주소(S36-040·S36-044·QNA-031).
   sql('goods_return_addresses', { admin: true, kc: true }),
   script('goods_return_address_concurrency.sh', 'RETURN_ADDRESS_TEST_SCOPE'),
+  // 반품 자동 회수 접수(QNA-032)·반품입고 파일 반영(QNA-034·ADR-0034): 스위치 OFF 불변, 회수 묶음별 접수 큐·재시도·취소, 파일 매칭·확정.
+  sql('claim_return_pickup', { admin: true }),
+  sql('claim_return_intake_import', { admin: true }),
   script('order_address_concurrency.sh', 'ORDER_ADDRESS_TEST_SCOPE'),
   sql('goods_media', { admin: true, kc: true }),
   script('goods_media_concurrency.sh', 'GOODS_MEDIA_TEST_SCOPE'),
