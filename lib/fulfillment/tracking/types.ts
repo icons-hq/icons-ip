@@ -54,25 +54,45 @@ export interface TrackingPollResult extends TrackingTarget {
 }
 
 const EVENT_KEY_LIMIT = 200;
+/** 원본 상한. DB도 같은 8KB를 jsonb 문자열로 다시 재고, 넘으면 같은 잘림 표시로 바꿔 남긴다(거절하지 않는다). */
 const RAW_BYTES_LIMIT = 8192;
+/** 추적 서비스 시계가 이보다 앞선 이벤트는 버린다. DB도 같은 한도를 넘는 이벤트가 섞인 운송장은 기록하지 않는다. */
+const FUTURE_LIMIT_MS = 24 * 60 * 60 * 1000;
 const ERROR_CODE = /^[a-z0-9_]{1,64}$/;
-const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?(?:Z|[+-]\d{2}:\d{2})$/;
+const INSTANT = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,6})?)?(?:Z|[+-](\d{2}):(\d{2}))$/;
 
 function record(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
 /**
- * 어댑터가 만든 이벤트를 DB가 받는 모양으로 다듬는다. 형식이 틀린 이벤트는 버리고 나머지를 남긴다(한 이벤트 때문에 그 운송장
- * 기록 전체를 잃지 않게). 설명·지점은 DB 길이에 맞춰 자르고, 원본이 8KB를 넘으면 원본 대신 잘렸다는 표시만 남긴다.
+ * DB(timestamptz)가 읽는 ISO 8601 시각이면 그 시각(ms)을 돌려준다. JS는 달력에 없는 날짜(2월 30일)를 다음 달로 넘겨 읽지만 DB는
+ * 거절하므로 날짜·시각·시간대 칸을 따로 확인한다.
  */
-export function normalizeTrackingEvents(events: unknown): TrackingEvent[] {
+function instant(value: string): number | null {
+  const match = INSTANT.exec(value);
+  const time = match ? Date.parse(value) : Number.NaN;
+  if (!match || !Number.isFinite(time)) return null;
+  const [year, month, day, hour, minute, second, zoneHour, zoneMinute] = match.slice(1).map(part => Number(part ?? 0));
+  const calendar = new Date(0);
+  calendar.setUTCFullYear(year, month - 1, day);
+  const real = calendar.getUTCFullYear() === year && calendar.getUTCMonth() === month - 1 && calendar.getUTCDate() === day;
+  return real && hour <= 23 && minute <= 59 && second <= 59 && zoneHour <= 15 && zoneMinute <= 59 ? time : null;
+}
+
+/**
+ * 어댑터가 만든 이벤트를 DB가 받는 모양으로 다듬는다. 형식이 틀린 이벤트와 하루 넘게 미래인 이벤트는 버리고 나머지를 남긴다(한
+ * 이벤트 때문에 그 운송장 기록 전체를 잃지 않게). 설명·지점은 DB 길이에 맞춰 자르고, 원본이 8KB를 넘으면 원본 대신 잘렸다는 표시만
+ * 남긴다. `now`는 미래 판정 기준 시각(ms)이다.
+ */
+export function normalizeTrackingEvents(events: unknown, now: number = Date.now()): TrackingEvent[] {
   if (!Array.isArray(events)) return [];
   const seen = new Set<string>();
   return events.slice(0, 100).flatMap((event): TrackingEvent[] => {
     if (!record(event) || typeof event.eventKey !== 'string' || !event.eventKey.trim() || event.eventKey.length > EVENT_KEY_LIMIT
-      || !isTrackingEventStatus(event.status) || typeof event.occurredAt !== 'string' || !INSTANT.test(event.occurredAt)
-      || !Number.isFinite(Date.parse(event.occurredAt)) || seen.has(event.eventKey)) return [];
+      || !isTrackingEventStatus(event.status) || typeof event.occurredAt !== 'string' || seen.has(event.eventKey)) return [];
+    const occurred = instant(event.occurredAt);
+    if (occurred === null || occurred > now + FUTURE_LIMIT_MS) return [];
     seen.add(event.eventKey);
     const raw = record(event.raw) ? event.raw : {};
     const fits = new TextEncoder().encode(JSON.stringify(raw)).length <= RAW_BYTES_LIMIT;
