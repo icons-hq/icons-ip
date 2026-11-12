@@ -8,11 +8,16 @@ import { ORDER_DELAY_STATUS_LABELS, type OrderDelayChannelStatus } from './order
  * 서버 응답(admin_preview/apply/read_goods_preorder_schedule_change)은 고객 이메일·이름·연락처를 싣지 않는다 — 주문번호·배송 건·날짜·채널 결과뿐이다.
  */
 
-/** DB 한도(admin_apply_goods_preorder_schedule_change). 한 번에 바꾸는 배송 건 수. */
-export const PREORDER_SCHEDULE_LIMIT = 2000;
+/**
+ * DB 한도(admin_apply_goods_preorder_schedule_change). 한 번에 바꾸는 배송 건 수. 로컬 실측(11/12): 3,000건 확정 약 1.5초·
+ * 미리보기 약 60ms·응답 1.4MB — authenticated 8초 문장 한도 안이다. 넘으면 화면이 주문번호 순 앞의 N건만 먼저 고른다.
+ */
+export const PREORDER_SCHEDULE_LIMIT = 3000;
 export const PREORDER_SCHEDULE_TITLE_MAX = 80;
 export const PREORDER_SCHEDULE_BODY_MAX = 350;
 export const PREORDER_SCHEDULE_REASON_MAX = 2000;
+/** 운영자가 뺄 수 있는 배송 건 수의 서버 상한(대상 수까지 — 상한을 넘는 대상의 나머지를 자동으로 뺀다). */
+export const PREORDER_SCHEDULE_EXCLUDED_MAX = 50000;
 
 export const PREORDER_SCHEDULE_EXCLUSION_REASONS = [
   'cancellation_in_progress', 'other_preorder', 'unchanged', 'exported', 'not_open', 'shipped', 'canceled',
@@ -20,8 +25,8 @@ export const PREORDER_SCHEDULE_EXCLUSION_REASONS = [
 export type PreorderScheduleExclusionReason = (typeof PREORDER_SCHEDULE_EXCLUSION_REASONS)[number];
 export const PREORDER_SCHEDULE_EXCLUSION_LABELS: Record<PreorderScheduleExclusionReason, string> = {
   cancellation_in_progress: '취소 처리 중',
-  other_preorder: '다른 예약 상품과 함께 발송(앞당기지 않음)',
-  unchanged: '이미 같은 발송 예정일',
+  other_preorder: '다른 예약 상품과 함께 발송(앞당기는 변경)',
+  unchanged: '이미 같은 발송 예정일(안내함)',
   exported: '출고지시됨',
   not_open: '진행 중인 주문 아님',
   shipped: '발송됨',
@@ -38,10 +43,14 @@ export interface PreorderScheduleTarget {
   paymentMethod: string;
   currentDate: string;
   originalDate: string;
+  /** 고객이 마지막으로 안내받은 날짜(마지막 일괄 변경의 날짜, 없으면 주문 당시 날짜). 안내 문구의 이전 날짜다. */
+  knownDate: string;
   newDate: string;
+  /** 일정은 그대로 두고 안내만 한다 — 주문 상세에서 따로 바꾼 날짜가 새 날짜와 같지만 고객은 아직 모른다. */
+  noticeOnly: boolean;
   /** 운영자가 주문 상세에서 배송 건마다 바꾼 날짜가 지금 날짜다. 기본 포함, 화면에서 뺄 수 있다. */
   individuallyChanged: boolean;
-  /** 같은 배송 건에 다른 예약 상품이 함께 있다. 새 날짜는 그 상품의 주문 당시 예정일보다 앞서지 않는다. */
+  /** 같은 배송 건에 다른 예약 상품이 함께 있다. 늦출 때 새 날짜는 그 상품의 주문 당시 예정일 이상이다. */
   otherPreorder: boolean;
   version: number;
 }
@@ -55,19 +64,31 @@ export interface PreorderScheduleExcluded {
   currentDate: string | null;
   reason: PreorderScheduleExclusionReason;
 }
-export interface PreorderSchedulePolicyNotice {
+/** 접수 중(또는 접수 예정)인 예약 조건 중 새 날짜와 다른 것. 이 조건으로 들어오는 새 주문은 이 날짜로 약속된다. */
+export interface PreorderScheduleOpenPolicy {
   variantId: string;
   variantName: string;
+  policyId: string;
+  revision: number;
   expectedShipDate: string;
   startsAt: string;
   endsAt: string;
+  remainingQty: number;
 }
+export type PreorderSchedulePolicyBlock = 'before_sale_end' | 'random_option_state';
+export const PREORDER_SCHEDULE_POLICY_BLOCK_LABELS: Record<PreorderSchedulePolicyBlock, string> = {
+  before_sale_end: '새 발송 예정일이 접수 종료일보다 빨라 예약 조건을 바꿀 수 없습니다. 접수 기간부터 조정해야 합니다.',
+  random_option_state: '랜덤 판매 옵션 중 접수 중지·물량 소진된 옵션이 있어 모든 옵션을 한 번에 바꿀 수 없습니다.',
+};
+export type PreorderSchedulePolicyMode = 'replace' | 'acknowledge';
 export interface PreorderSchedulePreview {
   goodId: string;
   goodName: string;
   randomSale: boolean;
   variantId: string | null;
   variantName: string | null;
+  /** 판매 중인 옵션 수. 상한을 넘을 때 '옵션별로 나누기'를 안내할지 정한다. */
+  variantCount: number;
   expectedShipDate: string;
   fingerprint: string;
   targets: PreorderScheduleTarget[];
@@ -77,8 +98,10 @@ export interface PreorderSchedulePreview {
   excludedTotal: number;
   targetShipments: number;
   targetOrders: number;
-  /** 접수 중(또는 접수 예정)인 예약 조건 중 새 날짜와 다른 것 — 이후 새 주문은 그 날짜로 안내된다. */
-  acceptingPolicies: PreorderSchedulePolicyNotice[];
+  openPolicies: PreorderScheduleOpenPolicy[];
+  policyBlockReason: PreorderSchedulePolicyBlock | null;
+  /** 이 운영자가 접수 중 조건을 새 날짜로 교체할 수 있다(활성화 권한: 계정 주매니저·통합 매니저). */
+  canReplacePolicies: boolean;
   emailEnabled: boolean;
   smsEnabled: boolean;
   limit: number;
@@ -90,6 +113,7 @@ export interface PreorderScheduleChangedShipment {
   originName: string;
   fromDate: string;
   toDate: string;
+  noticeOnly: boolean;
 }
 export interface PreorderScheduleChangeTarget {
   id: string;
@@ -125,6 +149,9 @@ export interface PreorderScheduleChange {
   shipmentCount: number;
   orderCount: number;
   excludedCount: number;
+  /** 접수 중 예약 조건을 새 날짜로 바꿨는지(replaced), 그대로 두기로 확인했는지(acknowledged). 해당 없으면 null. */
+  policyAction: 'replaced' | 'acknowledged' | null;
+  policies: { variantName: string; expectedShipDate: string }[];
   targets: PreorderScheduleChangeTarget[];
 }
 export interface PreorderScheduleChangeSummary {
@@ -169,11 +196,16 @@ export function preorderScheduleError(code: string): string {
     good_not_found: '상품을 찾을 수 없습니다. 목록에서 다시 열어주세요.',
     goods_variant_not_found: '선택한 옵션을 찾을 수 없습니다. 옵션을 다시 골라주세요.',
     preorder_schedule_random_whole_good: '랜덤 판매 상품은 옵션 하나만 바꿀 수 없습니다. 상품 전체의 예약 주문을 함께 바꿉니다.',
-    preorder_schedule_stale: '미리보기 뒤 예약 주문이 바뀌었습니다(새 주문·배송 건 변경 등). 대상을 다시 미리 본 뒤 확정해주세요.',
+    preorder_schedule_stale: '미리보기 뒤 예약 주문이나 예약 조건이 바뀌었습니다(새 주문·배송 건 변경 등). 대상을 다시 미리 본 뒤 확정해주세요.',
     preorder_schedule_no_targets: '바꿀 예약 배송 건이 없습니다. 제외 사유를 확인해주세요.',
-    preorder_schedule_too_many: `한 번에 바꿀 수 있는 배송 건은 ${PREORDER_SCHEDULE_LIMIT.toLocaleString('ko-KR')}건까지입니다. 옵션별로 나누어 바꿔주세요.`,
+    preorder_schedule_too_many: `한 번에 바꿀 수 있는 배송 건은 ${PREORDER_SCHEDULE_LIMIT.toLocaleString('ko-KR')}건까지입니다. 앞의 건부터 나누어 바꿔주세요.`,
     preorder_schedule_idempotency_conflict: '같은 요청의 내용이 바뀌었습니다. 대상을 다시 미리 본 뒤 확정해주세요.',
     preorder_schedule_change_not_found: '일정 변경 기록을 찾을 수 없습니다.',
+    preorder_schedule_policy_decision_required: '접수 중인 예약 조건을 새 날짜로 바꿀지, 그대로 둘지 골라주세요.',
+    preorder_schedule_policy_not_replaceable: '접수 중인 예약 조건을 새 날짜로 바꿀 수 없습니다. 그대로 두기를 확인하거나 예약 조건을 먼저 조정해주세요.',
+    preorder_admin_required: '접수 중인 예약 조건은 계정 주매니저·통합 매니저만 바꿀 수 있습니다. 그대로 두기를 확인해주세요.',
+    preorder_policy_changed: '예약 조건이 다른 화면에서 바뀌었습니다. 대상을 다시 미리 본 뒤 확정해주세요.',
+    preorder_policy_not_configured: '예약 조건을 새 날짜로 활성화할 수 없습니다. 접수 기간과 발송 예정일을 확인해주세요.',
     delay_notice_delivery_disabled: '지연 안내 이메일 발송 설정이 꺼져 있어 일정 변경과 안내를 진행할 수 없습니다.',
     delay_notice_not_found: '안내 기록을 찾을 수 없습니다.',
   };
@@ -187,18 +219,21 @@ const count = (value: unknown, max = PREORDER_SCHEDULE_LIMIT * 2): value is numb
 const instant = (value: unknown): value is string => typeof value === 'string' && Number.isFinite(Date.parse(value));
 const optionalInstant = (value: unknown) => value === null || instant(value);
 const exclusion = (value: unknown): value is PreorderScheduleExclusionReason => (PREORDER_SCHEDULE_EXCLUSION_REASONS as readonly unknown[]).includes(value);
+const policyBlock = (value: unknown): value is PreorderSchedulePolicyBlock => Object.hasOwn(PREORDER_SCHEDULE_POLICY_BLOCK_LABELS, String(value));
 
 function parseTarget(value: unknown): PreorderScheduleTarget | null {
   if (!object(value) || !isUuid(value.shipmentId) || !isUuid(value.orderId) || !text(value.orderNumber) || !text(value.shipmentLabel)
     || !text(value.originName) || !text(value.orderStatus) || !text(value.paymentMethod) || !isGoodsShipDate(value.currentDate)
-    || !isGoodsShipDate(value.originalDate) || !isGoodsShipDate(value.newDate) || value.newDate === value.currentDate
-    || typeof value.individuallyChanged !== 'boolean' || typeof value.otherPreorder !== 'boolean'
+    || !isGoodsShipDate(value.originalDate) || !isGoodsShipDate(value.knownDate) || !isGoodsShipDate(value.newDate)
+    || typeof value.noticeOnly !== 'boolean' || typeof value.individuallyChanged !== 'boolean' || typeof value.otherPreorder !== 'boolean'
+    /* 같은 날짜는 '안내만'(개별 변경을 처음 알림)일 때만 대상이다. */
+    || (value.newDate === value.currentDate) !== value.noticeOnly || (value.noticeOnly && !value.individuallyChanged)
     || typeof value.version !== 'number' || !Number.isSafeInteger(value.version)) return null;
   return {
     shipmentId: value.shipmentId, orderId: value.orderId, orderNumber: value.orderNumber, shipmentLabel: value.shipmentLabel,
     originName: value.originName, orderStatus: value.orderStatus, paymentMethod: value.paymentMethod, currentDate: value.currentDate,
-    originalDate: value.originalDate, newDate: value.newDate, individuallyChanged: value.individuallyChanged, otherPreorder: value.otherPreorder,
-    version: value.version,
+    originalDate: value.originalDate, knownDate: value.knownDate, newDate: value.newDate, noticeOnly: value.noticeOnly,
+    individuallyChanged: value.individuallyChanged, otherPreorder: value.otherPreorder, version: value.version,
   };
 }
 function parseExcluded(value: unknown): PreorderScheduleExcluded | null {
@@ -208,6 +243,14 @@ function parseExcluded(value: unknown): PreorderScheduleExcluded | null {
   return {
     shipmentId: value.shipmentId, orderId: value.orderId, orderNumber: value.orderNumber, shipmentLabel: value.shipmentLabel,
     originName: value.originName, orderStatus: value.orderStatus, currentDate: value.currentDate as string | null, reason: value.reason,
+  };
+}
+function parseOpenPolicy(value: unknown): PreorderScheduleOpenPolicy | null {
+  if (!object(value) || !isUuid(value.variantId) || !text(value.variantName) || !isUuid(value.policyId) || !count(value.revision, 2147483647)
+    || !isGoodsShipDate(value.expectedShipDate) || !instant(value.startsAt) || !instant(value.endsAt) || !count(value.remainingQty, 2147483647)) return null;
+  return {
+    variantId: value.variantId, variantName: value.variantName, policyId: value.policyId, revision: value.revision,
+    expectedShipDate: value.expectedShipDate, startsAt: value.startsAt, endsAt: value.endsAt, remainingQty: value.remainingQty,
   };
 }
 function parseList<T>(value: unknown, parse: (row: unknown) => T | null, max: number): T[] | null {
@@ -224,15 +267,15 @@ function parseList<T>(value: unknown, parse: (row: unknown) => T | null, max: nu
 /** 불완전한 미리보기는 대상이 맞는지 알 수 없으니 확정 화면을 열지 않는다(fail closed). */
 export function parsePreorderSchedulePreview(value: unknown): PreorderSchedulePreview | null {
   if (!object(value) || !text(value.goodId) || !text(value.goodName) || typeof value.randomSale !== 'boolean'
-    || (value.variantId !== null && !isUuid(value.variantId)) || !optionalText(value.variantName) || !isGoodsShipDate(value.expectedShipDate)
-    || !text(value.fingerprint) || !/^[0-9a-f]{32}$/.test(value.fingerprint) || typeof value.emailEnabled !== 'boolean'
-    || typeof value.smsEnabled !== 'boolean' || !count(value.targetShipments, Number.MAX_SAFE_INTEGER) || !count(value.targetOrders, Number.MAX_SAFE_INTEGER)
+    || (value.variantId !== null && !isUuid(value.variantId)) || !optionalText(value.variantName) || !count(value.variantCount, 10000)
+    || !isGoodsShipDate(value.expectedShipDate) || !text(value.fingerprint) || !/^[0-9a-f]{32}$/.test(value.fingerprint)
+    || typeof value.emailEnabled !== 'boolean' || typeof value.smsEnabled !== 'boolean' || typeof value.canReplacePolicies !== 'boolean'
+    || (value.policyBlockReason !== null && !policyBlock(value.policyBlockReason))
+    || !count(value.targetShipments, Number.MAX_SAFE_INTEGER) || !count(value.targetOrders, Number.MAX_SAFE_INTEGER)
     || !count(value.excludedTotal, Number.MAX_SAFE_INTEGER) || !count(value.limit) || !object(value.excludedCounts)) return null;
   const targets = parseList(value.targets, parseTarget, Number.MAX_SAFE_INTEGER);
   const excluded = parseList(value.excluded, parseExcluded, 500);
-  const policies = parseList(value.acceptingPolicies, (row) => object(row) && isUuid(row.variantId) && text(row.variantName)
-    && isGoodsShipDate(row.expectedShipDate) && instant(row.startsAt) && instant(row.endsAt)
-    ? { variantId: row.variantId, variantName: row.variantName, expectedShipDate: row.expectedShipDate, startsAt: row.startsAt, endsAt: row.endsAt } : null, 500);
+  const policies = parseList(value.openPolicies, parseOpenPolicy, 500);
   if (!targets || !excluded || !policies || targets.length !== value.targetShipments
     || new Set(targets.map((target) => target.orderId)).size !== value.targetOrders) return null;
   const excludedCounts: Partial<Record<PreorderScheduleExclusionReason, number>> = {};
@@ -242,17 +285,18 @@ export function parsePreorderSchedulePreview(value: unknown): PreorderSchedulePr
   }
   return {
     goodId: value.goodId, goodName: value.goodName, randomSale: value.randomSale, variantId: value.variantId as string | null,
-    variantName: value.variantName as string | null, expectedShipDate: value.expectedShipDate, fingerprint: value.fingerprint,
-    targets, excluded, excludedCounts, excludedTotal: value.excludedTotal, targetShipments: value.targetShipments,
-    targetOrders: value.targetOrders, acceptingPolicies: policies, emailEnabled: value.emailEnabled, smsEnabled: value.smsEnabled,
-    limit: value.limit,
+    variantName: value.variantName as string | null, variantCount: value.variantCount, expectedShipDate: value.expectedShipDate,
+    fingerprint: value.fingerprint, targets, excluded, excludedCounts, excludedTotal: value.excludedTotal, targetShipments: value.targetShipments,
+    targetOrders: value.targetOrders, openPolicies: policies, policyBlockReason: value.policyBlockReason as PreorderSchedulePolicyBlock | null,
+    canReplacePolicies: value.canReplacePolicies, emailEnabled: value.emailEnabled, smsEnabled: value.smsEnabled, limit: value.limit,
   };
 }
 
 function parseChangedShipment(value: unknown): PreorderScheduleChangedShipment | null {
   if (!object(value) || !isUuid(value.shipmentId) || !text(value.label) || !text(value.originName)
-    || !isGoodsShipDate(value.fromDate) || !isGoodsShipDate(value.toDate)) return null;
-  return { shipmentId: value.shipmentId, label: value.label, originName: value.originName, fromDate: value.fromDate, toDate: value.toDate };
+    || !isGoodsShipDate(value.fromDate) || !isGoodsShipDate(value.toDate) || typeof value.noticeOnly !== 'boolean'
+    || value.noticeOnly !== (value.fromDate === value.toDate)) return null;
+  return { shipmentId: value.shipmentId, label: value.label, originName: value.originName, fromDate: value.fromDate, toDate: value.toDate, noticeOnly: value.noticeOnly };
 }
 function parseChangeTarget(value: unknown): PreorderScheduleChangeTarget | null {
   if (!object(value) || !isUuid(value.id) || !isUuid(value.orderId) || !text(value.orderNumber)
@@ -277,15 +321,18 @@ export function parsePreorderScheduleChange(value: unknown): PreorderScheduleCha
     || !text(value.customerBody) || !optionalText(value.actorName) || !instant(value.createdAt) || !isUuid(value.noticeId)
     || !optionalInstant(value.requestedAt) || typeof value.emailEnabled !== 'boolean' || typeof value.smsQueued !== 'boolean'
     || !count(value.shipmentCount) || value.shipmentCount < 1 || !count(value.orderCount) || value.orderCount < 1
-    || !count(value.excludedCount, Number.MAX_SAFE_INTEGER)) return null;
+    || !count(value.excludedCount, Number.MAX_SAFE_INTEGER)
+    || (value.policyAction !== null && value.policyAction !== 'replaced' && value.policyAction !== 'acknowledged')) return null;
   const targets = parseList(value.targets, parseChangeTarget, PREORDER_SCHEDULE_LIMIT * 2);
-  if (!targets || !targets.length || new Set(targets.map((target) => target.orderId)).size !== value.orderCount) return null;
+  const policies = parseList(value.policies, (row) => object(row) && text(row.variantName) && isGoodsShipDate(row.expectedShipDate)
+    ? { variantName: row.variantName, expectedShipDate: row.expectedShipDate } : null, 500);
+  if (!targets || !targets.length || !policies || new Set(targets.map((target) => target.orderId)).size !== value.orderCount) return null;
   return {
     id: value.id, goodId: value.goodId, goodName: value.goodName, variantId: value.variantId as string | null, variantName: value.variantName as string | null,
     expectedShipDate: value.expectedShipDate, reason: value.reason, title: value.title, customerBody: value.customerBody,
     actorName: value.actorName as string | null, createdAt: value.createdAt, noticeId: value.noticeId, requestedAt: value.requestedAt as string | null,
     emailEnabled: value.emailEnabled, smsQueued: value.smsQueued, shipmentCount: value.shipmentCount, orderCount: value.orderCount,
-    excludedCount: value.excludedCount, targets,
+    excludedCount: value.excludedCount, policyAction: value.policyAction as PreorderScheduleChange['policyAction'], policies, targets,
   };
 }
 
@@ -298,6 +345,25 @@ export function parsePreorderScheduleChangeSummaries(value: unknown): PreorderSc
     } : null, 20);
 }
 
+/** 새 날짜가 입력한 날짜와 다른 대상(다른 예약 상품의 주문 당시 예정일까지 늦춰짐) — 드러내고 기본 해제한다. */
+export function preorderScheduleDateDiffers(preview: Pick<PreorderSchedulePreview, 'expectedShipDate'>, target: PreorderScheduleTarget): boolean {
+  return !target.noticeOnly && target.newDate !== preview.expectedShipDate;
+}
+
+/**
+ * 처음 미리볼 때 빼 두는 배송 건: 새 날짜가 입력과 다른 대상, 그리고 상한을 넘으면 주문번호 순으로 앞의 N건 뒤의 나머지.
+ * 다시 미리보면 바뀐 건은 '이미 같은 발송 예정일'로 빠져 남은 건만 이어 처리한다.
+ */
+export function defaultPreorderScheduleExclusions(preview: Pick<PreorderSchedulePreview, 'targets' | 'expectedShipDate' | 'limit'>): Set<string> {
+  const excluded = new Set(preview.targets.filter((target) => preorderScheduleDateDiffers(preview, target)).map((target) => target.shipmentId));
+  let taken = 0;
+  for (const target of preview.targets) {
+    if (excluded.has(target.shipmentId)) continue;
+    if (taken >= preview.limit) excluded.add(target.shipmentId); else taken++;
+  }
+  return excluded;
+}
+
 /** 미리보기의 대상 중 운영자가 뺀 배송 건을 뺀 나머지. 확정 버튼의 건수와 서버에 보내는 제외 목록이 같은 계산을 쓴다. */
 export function preorderScheduleSelection(preview: Pick<PreorderSchedulePreview, 'targets'>, excluded: ReadonlySet<string>) {
   const included = preview.targets.filter((target) => !excluded.has(target.shipmentId));
@@ -306,10 +372,11 @@ export function preorderScheduleSelection(preview: Pick<PreorderSchedulePreview,
     excludedShipmentIds: preview.targets.filter((target) => excluded.has(target.shipmentId)).map((target) => target.shipmentId).sort(),
     shipments: included.length,
     orders: new Set(included.map((target) => target.orderId)).size,
+    noticeOnly: included.filter((target) => target.noticeOnly).length,
   };
 }
 
-/** 고객 안내에 붙는 날짜 줄(DB 문구와 같은 규칙) — 미리보기에서 고객이 받을 문장을 보인다. */
+/** 고객 안내에 붙는 날짜 줄(DB 문구와 같은 규칙) — 이전 날짜는 고객이 마지막으로 안내받은 날짜다. */
 export function preorderScheduleDateLine(fromDates: readonly string[], toDates: readonly string[]): string {
   const from = [...new Set(fromDates)].sort();
   const to = [...new Set(toDates)].sort();

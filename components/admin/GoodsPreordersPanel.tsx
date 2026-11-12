@@ -17,7 +17,7 @@ import { Label } from '@/components/admin/kit/ui/label';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { GOOD_INPUT_CLASS, GOOD_NOTE_CLASS, GOOD_NUMBER_INPUT_CLASS, GOOD_SUBPANEL_CLASS, GOOD_TEXTAREA_CLASS } from './GoodEditorParts';
 import { GOOD_DETACHED_FORM_ID, GoodWorkspaceDetails, reportDetachedValidity, useGoodWorkspaceStash } from './GoodWorkspace';
-import { GoodsPreorderSchedulePanel } from './GoodsPreorderSchedulePanel';
+import { GoodsPreorderSchedulePanel, type PreorderScheduleSuggestion } from './GoodsPreorderSchedulePanel';
 
 /* 템플릿 룩(ADR-0028). 라벨이 입력을 감싸므로 라벨 글자만 굵게 한다. */
 const FIELD_CLASS = 'flex min-w-0 flex-col gap-2 text-sm';
@@ -41,8 +41,10 @@ export function stockSupplyBlockedText(pending: readonly (readonly [name: string
     pending.map(([name, qty]) => `${name} ${qty.toLocaleString('ko-KR')}개`).join(' · ')}`;
 }
 
-function PreorderEditor({ goodId, variants, policy, canActivate, onSaved }: {
+function PreorderEditor({ goodId, variants, policy, canActivate, onSaved, onActivated }: {
   goodId: string; variants: AdminGoodsVariant[]; policy?: AdminGoodsPreorder; canActivate: boolean; onSaved: (message: string) => void;
+  /** QNA-040: 새 발송 예정일로 활성화하면 이미 받은 예약 주문도 그 날짜로 바꿀지 묻는다. */
+  onActivated?: (expectedShipDate: string, variantId: string) => void;
 }) {
   const [draft, setDraft, forget] = useGoodWorkspaceStash<PreorderEditorDraft>(`preorder:${goodId}:${policy?.id ?? 'new'}:${policy?.revision ?? 0}`, () => ({
     variantId: policy?.variantId ?? variants.find((variant) => !variant.archivedAt)?.id ?? '', state: 'draft', capacityQty: String(policy?.capacityQty ?? ''),
@@ -63,7 +65,7 @@ function PreorderEditor({ goodId, variants, policy, canActivate, onSaved }: {
     data.set('policy', JSON.stringify({ state, capacityQty, startsAt, endsAt, expectedShipDate, approvalReference }));
     startTransition(async () => {
       const result = await saveGoodsPreorderAction(data);
-      if (result.ok) { forget(); onSaved(result.message); } else setError(result.error);
+      if (result.ok) { forget(); onSaved(result.message); if (state === 'active' && expectedShipDate) onActivated?.(expectedShipDate, variantId); } else setError(result.error);
     });
   }
   return <div className="flex min-w-0 flex-col gap-4" data-preorder-editor="" ref={group} role="group" aria-label={policy ? '예약 초안' : '새 예약 조건'}>
@@ -113,8 +115,9 @@ function PreorderEditor({ goodId, variants, policy, canActivate, onSaved }: {
  * 랜덤 판매 상품의 예약 등록. 모든 판매 중 옵션이 같은 접수 기간·발송 예정일·승인 근거를 쓰고 승인 예약 물량만 옵션별로 정한다
  * (옵션마다 일정이 다르면 고객의 발송 예정일로 배정 옵션이 드러난다). 옵션마다 가장 최근 초안을 이어 쓴다.
  */
-function RandomPreorderEditor({ goodId, variants, policies, canActivate, onSaved }: {
+function RandomPreorderEditor({ goodId, variants, policies, canActivate, onSaved, onActivated }: {
   goodId: string; variants: AdminGoodsVariant[]; policies: AdminGoodsPreorder[]; canActivate: boolean; onSaved: (message: string) => void;
+  onActivated?: (expectedShipDate: string) => void;
 }) {
   /* 목록은 만든 시각 내림차순이라 옵션마다 처음 만나는 초안이 가장 최근이다. */
   const drafts = new Map<string, AdminGoodsPreorder>();
@@ -144,7 +147,7 @@ function RandomPreorderEditor({ goodId, variants, policies, canActivate, onSaved
     });
     startTransition(async () => {
       const result = await saveRandomGoodsPreordersAction(goodId, state, { startsAt, endsAt, expectedShipDate, approvalReference }, options);
-      if (result.ok) { forget(); onSaved(result.message); } else setError(result.error);
+      if (result.ok) { forget(); onSaved(result.message); if (state === 'active' && expectedShipDate) onActivated?.(expectedShipDate); } else setError(result.error);
     });
   }
   return <div className="flex min-w-0 flex-col gap-4" data-random-preorder-editor="" ref={group} role="group" aria-label="랜덤 판매 예약">
@@ -385,6 +388,9 @@ export function GoodsPreordersPanel({ goodId, variants, canActivate = false, can
   const pendingByVariant = pendingPreorderReservationsByVariant(visible?.policies ?? []);
   const reload = () => setRefresh((value) => value + 1);
   const saved = (message: string) => { setNotice({ goodId, message }); reload(); };
+  /* 예약 조건을 새 날짜로 활성화한 직후 '기존 예약 주문도 이 날짜로' 미리보기 입구(QNA-040). 주문 관리 권한이 있을 때만 보인다. */
+  const [scheduleSuggestion, setScheduleSuggestion] = useState<PreorderScheduleSuggestion | null>(null);
+  const activated = (expectedShipDate: string, variantId: string | null) => setScheduleSuggestion({ expectedShipDate, variantId: randomSale ? null : variantId, key: Date.now() });
   return <div className={`${GOOD_SUBPANEL_CLASS} text-sm`} data-preorders-panel="">
     <div className="flex flex-col gap-1">
       <p className="text-sm text-muted-foreground">승인된 미래 공급 물량을 실제 옵션 재고와 구별하여 관리합니다. 물량·접수 기간·발송 예정일·승인 근거가 모두 있어야 활성화할 수 있습니다.
@@ -398,16 +404,16 @@ export function GoodsPreordersPanel({ goodId, variants, canActivate = false, can
       {randomSale && <RandomPreorderBulkActions goodId={goodId} variants={activeVariants} policies={visible.policies ?? []} canActivate={canActivate} onSaved={saved} />}
       {visible.policies?.map((policy) => randomSale && policy.state === 'draft' ? null : <div key={`${policy.id}:${policy.revision}`} className="min-w-0">
         {policy.state === 'draft' ? <GoodWorkspaceDetails stateId={`good-preorder-draft-${policy.id}`} className={DETAILS_CLASS}><summary className={SUMMARY_CLASS}>예약 초안 · {selectedVariants.find((variant) => variant.id === policy.variantId)?.name ?? '이전 옵션'}</summary>
-          <div className="border-t p-3"><PreorderEditor goodId={goodId} variants={selectedVariants} policy={policy} canActivate={canActivate} onSaved={saved} /></div>
+          <div className="border-t p-3"><PreorderEditor goodId={goodId} variants={selectedVariants} policy={policy} canActivate={canActivate} onSaved={saved} onActivated={activated} /></div>
         </GoodWorkspaceDetails> : <div className="rounded-lg border p-3"><PreorderReceipt policy={policy} variant={selectedVariants.find((variant) => variant.id === policy.variantId)}
           pendingQty={pendingByVariant.get(policy.variantId) ?? 0} canActivate={canActivate} onSaved={saved} randomSale={randomSale} /></div>}
       </div>)}
       {randomSale
         ? randomOpen ? <p className="text-sm text-muted-foreground">접수 중인 예약이 있습니다. 새 예약은 모든 옵션의 접수를 중지한 뒤 등록할 수 있습니다.</p>
-          : <GoodWorkspaceDetails stateId={`good-preorder-random-${goodId}`} className={DETAILS_CLASS} defaultOpen={!visible.policies?.length}><summary className={SUMMARY_CLASS}>랜덤 판매 예약 (모든 옵션)</summary><div className="border-t p-3"><RandomPreorderEditor key={key} goodId={goodId} variants={activeVariants} policies={visible.policies ?? []} canActivate={canActivate} onSaved={saved} /></div></GoodWorkspaceDetails>
-        : <GoodWorkspaceDetails stateId={`good-preorder-new-${goodId}`} className={DETAILS_CLASS}><summary className={SUMMARY_CLASS}>새 예약 조건</summary><div className="border-t p-3"><PreorderEditor key={key} goodId={goodId} variants={selectedVariants} canActivate={canActivate} onSaved={saved} /></div></GoodWorkspaceDetails>}
+          : <GoodWorkspaceDetails stateId={`good-preorder-random-${goodId}`} className={DETAILS_CLASS} defaultOpen={!visible.policies?.length}><summary className={SUMMARY_CLASS}>랜덤 판매 예약 (모든 옵션)</summary><div className="border-t p-3"><RandomPreorderEditor key={key} goodId={goodId} variants={activeVariants} policies={visible.policies ?? []} canActivate={canActivate} onSaved={saved} onActivated={(date) => activated(date, null)} /></div></GoodWorkspaceDetails>
+        : <GoodWorkspaceDetails stateId={`good-preorder-new-${goodId}`} className={DETAILS_CLASS}><summary className={SUMMARY_CLASS}>새 예약 조건</summary><div className="border-t p-3"><PreorderEditor key={key} goodId={goodId} variants={selectedVariants} canActivate={canActivate} onSaved={saved} onActivated={activated} /></div></GoodWorkspaceDetails>}
       {/* QNA-040: 예약 주문의 발송 예정일 일괄 변경·고객 안내. 주문 약속일을 바꾸므로 입고 할당과 같은 주문 관리 권한일 때만. */}
-      {canReadOrders && canAllocate ? <GoodsPreorderSchedulePanel goodId={goodId} variants={selectedVariants} randomSale={randomSale} /> : null}
+      {canReadOrders && canAllocate ? <GoodsPreorderSchedulePanel goodId={goodId} variants={selectedVariants} randomSale={randomSale} suggestion={scheduleSuggestion} /> : null}
       {canReadOrders ? <PreorderReservations goodId={goodId} revision={refresh} onSaved={saved} canAllocate={canAllocate} /> : null}
     </>}
     <button className={`${buttonVariants({ variant: 'outline' })} self-start`} data-slot="button" form={form} type="button" onClick={reload}>저장된 예약 조건 새로고침</button>

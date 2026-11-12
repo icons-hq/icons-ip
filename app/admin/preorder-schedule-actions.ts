@@ -2,11 +2,13 @@
 
 import { revalidatePath } from 'next/cache';
 import { unstable_rethrow } from 'next/navigation';
+import { canAccessAdminScreen } from '@/lib/admin/access';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
+import { revalidateGoodsSurfaces } from '@/lib/admin/revalidate-goods.server';
 import {
-  PREORDER_SCHEDULE_BODY_MAX, PREORDER_SCHEDULE_LIMIT, PREORDER_SCHEDULE_REASON_MAX, PREORDER_SCHEDULE_TITLE_MAX,
+  PREORDER_SCHEDULE_BODY_MAX, PREORDER_SCHEDULE_EXCLUDED_MAX, PREORDER_SCHEDULE_REASON_MAX, PREORDER_SCHEDULE_TITLE_MAX,
   parsePreorderScheduleChange, parsePreorderScheduleChangeSummaries, parsePreorderSchedulePreview, preorderScheduleError,
-  type PreorderScheduleChange, type PreorderScheduleChangeSummary, type PreorderSchedulePreview,
+  type PreorderScheduleChange, type PreorderScheduleChangeSummary, type PreorderSchedulePolicyMode, type PreorderSchedulePreview,
 } from '@/lib/admin/preorder-schedule-change';
 import { emailDispatcherFromEnvironment } from '@/lib/email/dispatcher.server';
 import { isGoodsShipDate } from '@/lib/goods-preorders';
@@ -18,6 +20,7 @@ import { isUuid } from '@/lib/uuid';
  * 상품 단위 예약 일정 일괄 변경·안내(QNA-040). 주문 배송 건의 약속일과 고객 안내를 바꾸므로 sales.manage다
  * (배송 건마다 바꾸는 admin_change_shipment_preorder_date·지연 안내와 같은 권한). 화면은 상품 편집의 예약판매 영역에 있다.
  * 미리보기·확정·결과의 판정은 전부 DB RPC가 하고, 이 액션은 입력 모양과 채널 준비 상태만 확인한다.
+ * 접수 중 예약 조건을 새 날짜로 교체(policyMode 'replace')하는 것은 예약 활성화와 같은 권한(platform.manage, 계정 주매니저·통합 매니저)이다.
  */
 const SCREEN = '/admin/catalog/goods';
 const STAFF_REQUIRED = '예약 주문 일정 변경은 주문 관리 권한이 있는 운영자 계정에서 할 수 있습니다.';
@@ -36,6 +39,8 @@ export interface PreorderScheduleApplyInput extends PreorderSchedulePreviewInput
   body: string;
   fingerprint: string;
   excludedShipmentIds: string[];
+  /** 접수 중 예약 조건이 있을 때만: 새 날짜로 교체 또는 그대로 둔다는 확인. */
+  policyMode: PreorderSchedulePolicyMode | null;
 }
 
 function goodId(value: unknown) { const key = typeof value === 'string' ? value.trim() : ''; return key && key.length <= 200 ? key : null; }
@@ -70,14 +75,16 @@ function applyInput(input: unknown): PreorderScheduleApplyInput | null {
   const base = previewInput(input);
   if (!base || !record(input) || !isUuid(input.requestId) || typeof input.reason !== 'string' || typeof input.title !== 'string'
     || typeof input.body !== 'string' || typeof input.fingerprint !== 'string' || !/^[0-9a-f]{32}$/.test(input.fingerprint)
-    || !Array.isArray(input.excludedShipmentIds) || input.excludedShipmentIds.length > PREORDER_SCHEDULE_LIMIT
-    || !input.excludedShipmentIds.every(isUuid)) return null;
+    || !Array.isArray(input.excludedShipmentIds) || input.excludedShipmentIds.length > PREORDER_SCHEDULE_EXCLUDED_MAX
+    || !input.excludedShipmentIds.every(isUuid)
+    || (input.policyMode !== null && input.policyMode !== 'replace' && input.policyMode !== 'acknowledge')) return null;
   const reason = input.reason.trim(), title = input.title.trim(), body = input.body.trim();
   if (!reason || reason.length > PREORDER_SCHEDULE_REASON_MAX || !title || title.length > PREORDER_SCHEDULE_TITLE_MAX || /[\r\n]/.test(title)
     || /\p{Cc}/u.test(title) || !body || body.length > PREORDER_SCHEDULE_BODY_MAX) return null;
   return {
     ...base, requestId: input.requestId.toLowerCase(), reason, title, body, fingerprint: input.fingerprint,
     excludedShipmentIds: [...new Set(input.excludedShipmentIds.map((id) => id.toLowerCase()))].sort(),
+    policyMode: input.policyMode as PreorderSchedulePolicyMode | null,
   };
 }
 
@@ -87,9 +94,13 @@ function revalidateOrderSurfaces() {
 }
 
 export async function applyPreorderScheduleChangeAction(input: unknown): Promise<PreorderScheduleChangeResult> {
-  if (!await requireAdminActionAccess(SCREEN, { capability: 'sales.manage' })) return { ok: false, error: STAFF_REQUIRED };
+  const auth = await requireAdminActionAccess(SCREEN, { capability: 'sales.manage' });
+  if (!auth) return { ok: false, error: STAFF_REQUIRED };
   const request = applyInput(input);
   if (!request) return { ok: false, error: preorderScheduleError('invalid_preorder_schedule_change') };
+  if (request.policyMode === 'replace' && !canAccessAdminScreen(auth, null, { capability: 'platform.manage', adminOnly: true })) {
+    return { ok: false, error: preorderScheduleError('preorder_admin_required') };
+  }
   /* 지연 안내처럼 이메일 채널이 준비되지 않으면 두 채널 최초 요청을 막는다. 이미 처리된 같은 요청이면 결과를 읽어 보인다. */
   if (!emailDispatcherFromEnvironment()) {
     const existing = await readChange(request.requestId);
@@ -100,12 +111,14 @@ export async function applyPreorderScheduleChangeAction(input: unknown): Promise
     const { data, error } = await client.rpc('admin_apply_goods_preorder_schedule_change', {
       p_request_id: request.requestId, p_good_id: request.goodId, p_variant_id: request.variantId, p_expected_ship_date: request.expectedShipDate,
       p_reason: request.reason, p_customer_title: request.title, p_customer_body: request.body, p_preview_fingerprint: request.fingerprint,
-      p_excluded_shipments: request.excludedShipmentIds, p_sms_requested: Boolean(smsNotificationConfig()),
+      p_excluded_shipments: request.excludedShipmentIds, p_sms_requested: Boolean(smsNotificationConfig()), p_policy_mode: request.policyMode,
     });
-    if (error) return { ok: false, error: preorderScheduleError(error.message), stale: error.message === 'preorder_schedule_stale' };
+    if (error) return { ok: false, error: preorderScheduleError(error.message), stale: ['preorder_schedule_stale', 'preorder_policy_changed'].includes(error.message) };
     const change = parsePreorderScheduleChange(data);
     if (!change || change.id !== request.requestId) return { ok: false, error: '일정 변경 결과를 확인하지 못했습니다. 같은 요청의 결과를 확인해주세요.', uncertain: true };
     revalidateOrderSurfaces();
+    /* 접수 중 조건을 새 날짜로 바꿨으면 공개 상세·목록의 발송 예정일도 새로 읽는다. */
+    if (change.policyAction === 'replaced') revalidateGoodsSurfaces();
     return { ok: true, change };
   } catch (error) {
     unstable_rethrow(error);

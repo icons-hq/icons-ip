@@ -10,6 +10,10 @@ import {Button} from '@/components/admin/kit/ui/button';
 import {Input} from '@/components/admin/kit/ui/input';
 import {Table,TableBody,TableCell,TableHead,TableHeader,TableRow} from '@/components/admin/kit/ui/table';
 import {Textarea} from '@/components/admin/kit/ui/textarea';
+import {readPreorderScheduleChangeAction} from '@/app/admin/preorder-schedule-actions';
+import {PreorderScheduleResultView} from '@/components/admin/GoodsPreorderSchedulePanel';
+import type {OrderDelayNoticeSummary as HistoryItem} from '@/lib/admin/order-delay-notices';
+import type {PreorderScheduleChange} from '@/lib/admin/preorder-schedule-change';
 /* 고객 지연 안내 카드(템플릿 룩, ADR-0028). 주문별 수신자·채널 결과는 kit 표다. */
 const FIELD='flex w-full min-w-0 flex-col gap-1.5 [&>span]:font-medium';
 
@@ -19,11 +23,14 @@ export function OrderDelayNoticePanel({shipmentIds,onClose}:{shipmentIds:string[
  const [receipt,setReceipt]=useState<OrderDelayNoticeActionResult>({});
  const [attemptId,setAttemptId]=useState<string|null>(null);
  const [history,setHistory]=useState<OrderDelayNoticeSummary[]|null>(null);
+ /* 예약 일정 일괄 변경 안내(QNA-040)는 대상 전원의 이메일을 싣지 않는 일괄 결과 문서(20건씩)로 연다. */
+ const [scheduleResult,setScheduleResult]=useState<PreorderScheduleChange|null>(null);
  const [pending,startTransition]=useTransition();const requestId=useRef<string|null>(null);
  const notice=receipt.notice;
  const emailReady=Boolean(notice?.emailEnabled&&receipt.emailConfigured);
  function change(){requestId.current=null;setAttemptId(null);setReceipt({});}
  function perform(action:()=>Promise<OrderDelayNoticeActionResult>){
+  setScheduleResult(null);
   startTransition(async()=>{
    try {const result=await action();setReceipt(previous=>result.notice?result:{...previous,...result});}
    catch {setReceipt(previous=>({...previous,error:'연결이 끊겼습니다. 같은 안내의 결과 새로고침으로 접수 여부를 먼저 확인해주세요.'}));}
@@ -33,6 +40,15 @@ export function OrderDelayNoticePanel({shipmentIds,onClose}:{shipmentIds:string[
   event.preventDefault();if(pending)return;
   requestId.current??=crypto.randomUUID();const id=requestId.current;setAttemptId(id);
   perform(()=>prepareOrderDelayNoticeAction({requestId:id,shipmentIds,title,body,expectedShipDate:knownDate?date:null}));
+ }
+ function openHistory(item:HistoryItem){
+  if(item.kind!=='preorder_schedule'){perform(()=>readOrderDelayNoticeAction(item.id));return;}
+  const changeId=item.scheduleChangeId;
+  if(!changeId){setReceipt(previous=>({...previous,error:'예약 일정 일괄 변경 기록을 찾지 못했습니다.'}));return;}
+  startTransition(async()=>{
+   try {const result=await readPreorderScheduleChangeAction(changeId);if(result.ok){setReceipt({});setScheduleResult(result.change);}else setReceipt(previous=>({...previous,error:result.error}));}
+   catch {setReceipt(previous=>({...previous,error:'예약 일정 일괄 변경 결과를 불러오지 못했습니다.'}));}
+  });
  }
  function loadHistory(){
   startTransition(async()=>{
@@ -94,6 +110,7 @@ export function OrderDelayNoticePanel({shipmentIds,onClose}:{shipmentIds:string[
   <div aria-live="polite">{pending?<p className="text-muted-foreground" role="status">안내 기록을 확인하고 있습니다…</p>:null}{receipt.error?<p role="alert" className="text-destructive">{receipt.error}</p>:null}</div>
   {!notice&&attemptId?<Button type="button" variant="outline" disabled={pending} onClick={()=>perform(()=>readOrderDelayNoticeAction(attemptId))}>같은 미리보기 접수 확인</Button>:null}
   <Button type="button" variant="outline" disabled={pending} onClick={loadHistory}>최근 안내·미리보기 이력 불러오기</Button>
-  {history?<ul className="flex w-full flex-col gap-1.5">{history.length?history.map(item=><li key={item.id}><Button className="h-auto min-h-7 whitespace-normal text-left" type="button" size="sm" variant="ghost" disabled={pending} onClick={()=>perform(()=>readOrderDelayNoticeAction(item.id))}>{formatOrderDateTime(item.createdAt)} · {item.title} · {item.requestedAt?'요청 결과':'미요청'}</Button></li>):<li className="text-muted-foreground">이전 안내 기록이 없습니다.</li>}</ul>:null}
+  {scheduleResult?<PreorderScheduleResultView key={scheduleResult.id} change={scheduleResult}/>:null}
+  {history?<ul className="flex w-full flex-col gap-1.5">{history.length?history.map(item=><li key={item.id}><Button className="h-auto min-h-7 whitespace-normal text-left" type="button" size="sm" variant="ghost" disabled={pending} onClick={()=>openHistory(item)}>{formatOrderDateTime(item.createdAt)} · {item.title} · {item.kind==='preorder_schedule'?'예약 일정 일괄 변경':item.requestedAt?'요청 결과':'미요청'}</Button></li>):<li className="text-muted-foreground">이전 안내 기록이 없습니다.</li>}</ul>:null}
  </section>;
 }

@@ -33,13 +33,19 @@ export interface OrderDelayNotice {
   expiresAt: string;
   requestedAt: string | null;
   emailEnabled: boolean;
+  /** 안내 종류. 'preorder_schedule'(예약 일정 일괄 변경 안내, QNA-040)는 이 화면 대신 일괄 결과 문서로 연다. 이전 응답엔 없다. */
+  kind?: OrderDelayNoticeKind;
   targets: OrderDelayNoticeTarget[];
 }
+export type OrderDelayNoticeKind = 'dispatch_delay' | 'preorder_schedule';
 export interface OrderDelayNoticeSummary {
   id: string;
   title: string;
   createdAt: string;
   requestedAt: string | null;
+  kind?: OrderDelayNoticeKind;
+  /** kind='preorder_schedule'이면 그 안내를 만든 일괄 변경 — 지연 탭은 이 ID로 이메일 없는 결과 문서를 연다. */
+  scheduleChangeId?: string | null;
 }
 export interface PrepareOrderDelayNotice {
   requestId: string;
@@ -89,10 +95,10 @@ const optionalString = (value: unknown) =>
   value === null || typeof value === 'string';
 
 /**
- * 한 안내의 최대 대상 행. 발송 지연 안내는 배송 건 100개(주문당 구매자·선물 받는 분 2행)이고, 같은 원장을 쓰는
- * 예약 일정 일괄 변경 안내(QNA-040)는 배송 건 2,000개까지 담는다 — 지연 탭 이력에서 그 안내를 열어도 결과를 읽는다.
+ * 한 안내의 최대 대상 행: 발송 지연 안내는 배송 건 100개(주문당 구매자·선물 받는 분 2행). 같은 원장의 예약 일정 일괄 변경 안내는
+ * 대상 전원의 닉네임·이메일을 한 표에 싣지 않도록 이 화면에서 읽지 않고, 이메일 없는 일괄 결과 문서(20건씩)로 연다.
  */
-export const ORDER_DELAY_NOTICE_MAX_TARGETS = 4000;
+export const ORDER_DELAY_NOTICE_MAX_TARGETS = 200;
 
 /** Fail closed on incomplete server receipts; a request is never called successful from a boolean alone. */
 export function parseOrderDelayNotice(value: unknown): OrderDelayNotice | null {
@@ -158,6 +164,7 @@ export function orderDelayNoticeError(code: string): string {
       '같은 요청의 내용이 변경되었습니다. 새 미리보기를 만들어주세요.',
     delay_notice_delivery_disabled: ORDER_DELAY_ERROR_LABELS.delivery_disabled,
     invalid_delay_notice: '배송 건과 고객 문구·예정일을 확인해주세요.',
+    delay_notice_preorder_schedule: '예약 일정 일괄 변경 안내는 이력의 일괄 결과에서 확인합니다.',
   };
   return (
     errors[code] ??

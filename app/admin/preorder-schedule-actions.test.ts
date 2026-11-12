@@ -6,7 +6,8 @@ import {
 } from './preorder-schedule-actions';
 import { scheduleChange, scheduleIds, schedulePreview } from '@/lib/admin/preorder-schedule-change.fixture';
 
-const mocks = vi.hoisted(() => ({ auth: vi.fn(), rpc: vi.fn(), dispatcher: vi.fn(), sms: vi.fn(), revalidate: vi.fn() }));
+const mocks = vi.hoisted(() => ({ auth: vi.fn(), rpc: vi.fn(), dispatcher: vi.fn(), sms: vi.fn(), revalidate: vi.fn(), goods: vi.fn() }));
+vi.mock('@/lib/admin/revalidate-goods.server', () => ({ revalidateGoodsSurfaces: mocks.goods }));
 vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: mocks.auth }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ rpc: mocks.rpc }) }));
 vi.mock('@/lib/email/dispatcher.server', () => ({ emailDispatcherFromEnvironment: mocks.dispatcher }));
@@ -17,7 +18,7 @@ const json = (value: unknown) => JSON.parse(JSON.stringify(value));
 const applyInput = (overrides: Record<string, unknown> = {}) => ({
   requestId: scheduleIds.change.toUpperCase(), goodId: ' hsq-second ', variantId: null, expectedShipDate: '2026-12-09', reason: ' 공급처 입고 일정 변경 ',
   title: ' 예약 주문 발송 일정 변경 안내 ', body: ' 발송 예정일이 바뀌었습니다. ', fingerprint: '0123456789abcdef0123456789abcdef',
-  excludedShipmentIds: [scheduleIds.shipment3, scheduleIds.shipment2, scheduleIds.shipment3], ...overrides,
+  excludedShipmentIds: [scheduleIds.shipment3, scheduleIds.shipment2, scheduleIds.shipment3], policyMode: null, ...overrides,
 });
 
 beforeEach(() => {
@@ -71,8 +72,9 @@ describe('예약 일정 일괄 변경 서버 액션', () => {
     expect(mocks.rpc).toHaveBeenCalledWith('admin_apply_goods_preorder_schedule_change', {
       p_request_id: scheduleIds.change, p_good_id: 'hsq-second', p_variant_id: null, p_expected_ship_date: '2026-12-09', p_reason: '공급처 입고 일정 변경',
       p_customer_title: '예약 주문 발송 일정 변경 안내', p_customer_body: '발송 예정일이 바뀌었습니다.', p_preview_fingerprint: '0123456789abcdef0123456789abcdef',
-      p_excluded_shipments: [scheduleIds.shipment2, scheduleIds.shipment3], p_sms_requested: false,
+      p_excluded_shipments: [scheduleIds.shipment2, scheduleIds.shipment3], p_sms_requested: false, p_policy_mode: null,
     });
+    expect(mocks.goods).not.toHaveBeenCalled();
     expect(mocks.revalidate).toHaveBeenCalledWith('/admin/sales/dispatch');
     mocks.sms.mockReturnValue({ sender: {}, advertisingOptOut: null });
     await applyPreorderScheduleChangeAction(applyInput());
@@ -86,6 +88,7 @@ describe('예약 일정 일괄 변경 서버 액션', () => {
     ['지문 형식', { fingerprint: 'stale' }],
     ['요청 UUID 아님', { requestId: 'request' }],
     ['제외 배송 건 형식', { excludedShipmentIds: ['nope'] }],
+    ['접수 중 조건 결정 값', { policyMode: 'both' }],
   ])('%s는 DB 전에 거절한다', async (_label, overrides) => {
     expect(await applyPreorderScheduleChangeAction(applyInput(overrides))).toMatchObject({ ok: false });
     expect(mocks.rpc).not.toHaveBeenCalled();
@@ -109,6 +112,18 @@ describe('예약 일정 일괄 변경 서버 액션', () => {
     mocks.rpc.mockResolvedValueOnce({ data: { id: scheduleIds.change }, error: null });
     expect(await applyPreorderScheduleChangeAction(applyInput())).toMatchObject({ ok: false, uncertain: true });
     expect(mocks.revalidate).not.toHaveBeenCalled();
+  });
+
+  it('접수 중 조건 교체는 활성화 권한(계정 주매니저·통합 매니저)만 고르고, 교체했으면 공개 상세도 새로 읽는다', async () => {
+    expect(await applyPreorderScheduleChangeAction(applyInput({ policyMode: 'replace' }))).toMatchObject({ ok: false, error: expect.stringContaining('계정 주매니저') });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'primary' }, isStaff: true, operatorAccess: configuredOperatorAccessFixture('primary') });
+    mocks.rpc.mockResolvedValue({ data: json(scheduleChange({ policyAction: 'replaced', policies: [{ variantName: '기본 옵션', expectedShipDate: '2026-12-02' }] })), error: null });
+    expect(await applyPreorderScheduleChangeAction(applyInput({ policyMode: 'replace' }))).toMatchObject({ ok: true, change: { policyAction: 'replaced' } });
+    expect(mocks.rpc.mock.calls[0][1]).toMatchObject({ p_policy_mode: 'replace' });
+    expect(mocks.goods).toHaveBeenCalledOnce();
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'preorder_policy_changed' } });
+    expect(await applyPreorderScheduleChangeAction(applyInput({ policyMode: 'acknowledge' }))).toMatchObject({ ok: false, stale: true });
   });
 
   it('실패한 이메일 재시도는 그 일정 변경의 안내 원장으로만 하고 결과를 다시 읽는다', async () => {

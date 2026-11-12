@@ -22,6 +22,8 @@ async function run(
     const client = await createClient();
     const { data, error } = await client.rpc(name, args);
     if (error) return { error: orderDelayNoticeError(error.message) };
+    /* 예약 일정 일괄 변경 안내는 대상 전원의 이메일을 싣지 않는 일괄 결과 문서로만 연다(QNA-040). */
+    if (data && typeof data === 'object' && (data as { kind?: unknown }).kind === 'preorder_schedule') return { error: orderDelayNoticeError('delay_notice_preorder_schedule') };
     const notice = parseOrderDelayNotice(data);
     if (!notice) return { error: orderDelayNoticeError('invalid_result') };
     return {
@@ -140,7 +142,9 @@ export async function listOrderDelayNoticesAction(): Promise<{
           typeof row.id === 'string' &&
           isUuid(row.id) &&
           typeof row.title === 'string' &&
-          typeof row.createdAt === 'string',
+          typeof row.createdAt === 'string' &&
+          (row.kind === undefined || row.kind === 'dispatch_delay' || row.kind === 'preorder_schedule') &&
+          (row.scheduleChangeId === undefined || row.scheduleChangeId === null || isUuid(row.scheduleChangeId)),
       )
     )
       return { error: '이전 안내 기록을 불러오지 못했습니다.' };
