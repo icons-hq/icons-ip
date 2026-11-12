@@ -11,7 +11,7 @@ import { Textarea } from '@/components/admin/kit/ui/textarea';
 import { CHECK_LABEL, CHECK_LABEL_TOP, NOTE } from '@/components/admin/settings-kit';
 import { ADMIN_ORDER_STATUS_LABELS } from '@/lib/admin/orders';
 import {
-  FORCED_DELIVERY_REASON_MAX_LENGTH, forcedDeliveryBlockerLabel, forcedDeliveryExportedPending, forcedDeliveryTargets, normalizeForcedDeliveryOrderNumber,
+  FORCED_DELIVERY_ANCHOR, FORCED_DELIVERY_REASON_MAX_LENGTH, forcedDeliveryBlockerLabel, forcedDeliveryExportedPending, forcedDeliveryTargets, normalizeForcedDeliveryOrderNumber,
   type ForcedDeliveryPreview,
 } from '@/lib/admin/forced-delivery';
 import { commerceReferenceLabel } from '@/lib/commerce-number';
@@ -32,11 +32,15 @@ const EFFECTS = [
  * 강제 배송완료(1014-083, 2026-11-11 결정 '운영 전체 주문 허용'). 구매확정·리뷰를 시험하려고 운영에서도 주문을
  * 배송완료로 바꾼다. 안전장치: 사유 필수, 대상을 보여 주는 확인창(구매자·배송 건·배송 방법·출고지시 전달 여부·합포장
  * 동반 주문·막는 사유), 확인 체크(출고지시를 전달한 건이 있으면 창고 확인 체크 추가), 같은 요청 번호 재전송, 감사 기록.
- * 처리할 주문 목록을 밀어내지 않도록 접어 둔다.
+ * 처리할 주문 목록을 밀어내지 않도록 접어 둔다. 주문 상세(전용 화면·목록 위 팝업)의 [강제 배송완료]로 열면 그 주문번호를 채우고
+ * 펼친 채로 연다(QA1 S-T04-05) — 사유·확인창·감사 규칙은 같다.
  */
-export function ForcedDeliveryPanel() {
+export function ForcedDeliveryPanel({ initialOrderNumber = null }: {
+  /** 주문 상세에서 고른 주문번호(서버가 형식을 확인한 값). 있으면 카드를 펼치고 사유 칸으로 바로 간다. */
+  initialOrderNumber?: string | null;
+} = {}) {
   const router = useRouter();
-  const [orderNumber, setOrderNumber] = useState(''), [reason, setReason] = useState('');
+  const [orderNumber, setOrderNumber] = useState(initialOrderNumber ?? ''), [reason, setReason] = useState('');
   const [preview, setPreview] = useState<{ preview: ForcedDeliveryPreview; reason: string } | null>(null);
   const [acknowledged, setAcknowledged] = useState(false), [warehouseChecked, setWarehouseChecked] = useState(false);
   const [pending, setPending] = useState(false), [message, setMessage] = useState(''), [error, setError] = useState(''), [dialogError, setDialogError] = useState('');
@@ -79,9 +83,11 @@ export function ForcedDeliveryPanel() {
     router.refresh();
   }
 
-  return <SalesDisclosureCard closeLabel="접기" openLabel="펼치기" status={<AdminStatusBadge tone="warning">감사 기록</AdminStatusBadge>}
+  return <SalesDisclosureCard closeLabel="접기" defaultOpen={Boolean(initialOrderNumber)} id={FORCED_DELIVERY_ANCHOR} openLabel="펼치기" status={<AdminStatusBadge tone="warning">감사 기록</AdminStatusBadge>}
     summary="실제 배송과 관계없이 주문을 배송완료로 기록합니다. 시험 주문의 구매확정·리뷰 확인처럼 꼭 필요할 때만 씁니다." title="강제 배송완료">
-    <ul className={`${NOTE} flex list-disc flex-col gap-1 pl-5`}>{EFFECTS.map(effect => <li key={effect}>{effect}</li>)}<li>처리자·사유·처리한 배송 건은 감사 기록과 주문 기록에 남습니다.</li></ul>
+    <ul className={`${NOTE} flex list-disc flex-col gap-1 pl-5`}>{EFFECTS.map(effect => <li key={effect}>{effect}</li>)}<li>처리자·사유·처리한 배송 건은 감사 기록과 주문 기록에 남습니다.</li>
+      <li>주문 상세(목록에서 주문번호를 눌러 여는 상세 포함)의 [강제 배송완료]를 누르면 그 주문번호를 채워 이 카드를 엽니다.</li></ul>
+    {initialOrderNumber && orderNumber === initialOrderNumber ? <AdminNotice role="status" tone="info">주문 상세에서 고른 주문 <span className="tabular-nums">{initialOrderNumber}</span>를 채웠습니다. 사유를 입력하고 대상 확인을 눌러주세요.</AdminNotice> : null}
     <form className="flex min-w-0 flex-col gap-4" data-forced-delivery="" onSubmit={event => { event.preventDefault(); void review(); }}>
       <fieldset className="m-0 flex min-w-0 flex-col gap-3 border-0 p-0" disabled={pending}>
         <legend className="mb-1 text-sm text-muted-foreground">강제 배송완료할 주문</legend>
@@ -89,7 +95,7 @@ export function ForcedDeliveryPanel() {
           <Input autoComplete="off" className="max-w-xs tabular-nums" id="forced-delivery-order" inputMode="numeric" maxLength={32} onChange={event => setOrderNumber(event.target.value)} value={orderNumber} />
         </AdminField>
         <AdminField hint={`예: 구매확정·리뷰 시험 주문. ${FORCED_DELIVERY_REASON_MAX_LENGTH}자까지 감사 기록에 남습니다.`} inputId="forced-delivery-reason" label="사유 (필수)">
-          <Textarea className="max-w-xl" id="forced-delivery-reason" maxLength={FORCED_DELIVERY_REASON_MAX_LENGTH} onChange={event => setReason(event.target.value)} rows={2} value={reason} />
+          <Textarea autoFocus={Boolean(initialOrderNumber)} className="max-w-xl" id="forced-delivery-reason" maxLength={FORCED_DELIVERY_REASON_MAX_LENGTH} onChange={event => setReason(event.target.value)} rows={2} value={reason} />
         </AdminField>
       </fieldset>
       <div className="flex flex-col gap-2">

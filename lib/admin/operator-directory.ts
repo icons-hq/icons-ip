@@ -13,6 +13,17 @@ export type OperatorDuty = typeof OPERATOR_DUTIES[number]['value'];
 export type OperatorAssignedDuty = OperatorDuty | 'representative';
 export const ASSIGNABLE_MANAGER_ROLES = MANAGER_ROLES.filter(role => role !== 'owner');
 export type AssignableManagerRole = Exclude<ManagerRole, 'owner'>;
+/**
+ * 초대 창 권한 선택칸 아래에 보이는 역할별 한 줄 설명(QA1 S-T05-01). 판매자 가이드의 역할별 업무 범위
+ * (`guide/topics/getting-started.ts` 표, 물류출고관리는 `members-roles.ts` 매니저 초대 절)와 같은 내용이다.
+ */
+export const MANAGER_ROLE_SUMMARIES: Record<AssignableManagerRole, string> = {
+  primary: '전체 업무와 매니저 관리를 합니다. 다른 주매니저의 권한을 직접 회수하거나 통합 매니저를 승계받을 수는 없습니다.',
+  deputy: '상품·문의/리뷰·스토어·프로모션을 관리하고 판매자 정보를 조회합니다.',
+  influencer: '부매니저 업무에 주문 조회·구매 제한 관리·통계 조회를 더합니다. 발송·취소·환불·정산 처리는 할 수 없습니다.',
+  agency: '부매니저 업무에 통계 조회를 더합니다.',
+  logistics: '상품 공지사항 관리와 출고지시 내려받기·운송장 회신 등록·발송·배송완료(퀵·방문수령 등 택배 외 배송의 인계·수령 기록 포함)만 할 수 있습니다. 발주확인·강제 배송완료·취소·환불·반품·교환, 주문 상세·고객 정보, 상품 관리는 할 수 없고 목록과 출고지시 파일에서는 수령인 정보만 봅니다.',
+};
 export type OperatorFilters = { query: string; role: 'operators' | 'all' | 'unassigned' | AdminAssignableRole | ManagerRole; status: 'all' | 'active' | 'suspended'; page: number; pageSize: 20 | 50 | 100 };
 export type OperatorRecord = { id: string; nickname: string; maskedEmail: string; role: AdminAssignableRole; managerRole: ManagerRole | null; membershipRevision: number; createdAt: string; suspendedAt: string | null; duty: OperatorAssignedDuty | null; dutyRevision: number };
 export type OperatorDirectoryData = { rows: OperatorRecord[]; total: number; filters: OperatorFilters; mode: 'legacy' | 'configured'; revision: number; actorManagerRole: ManagerRole | null; actorMembershipRevision: number; setupCandidates: OperatorRecord[] };

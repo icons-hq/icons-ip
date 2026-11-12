@@ -45,6 +45,10 @@ describe('delivery method contracts', () => {
     expect(parseShipmentDeliverySummary(null)).toBeNull();
     expect(parseShipmentDeliverySummary({ method: 'parcel' })).toEqual({ method: 'parcel', policy: null, providerName: null, canIssueReceipt: false });
     expect(parseShipmentDeliverySummary({ method: 'pickup', policy: null })).toBeNull();
+    // QA 라운드 1 m3·m4: 고객이 고른 방식과 변경 출처는 아는 값만 싣는다. 모르는 값이 와도 요약 전체를 버리지 않는다.
+    expect(parseShipmentDeliverySummary({ method: 'parcel', customerMethod: 'quick', changedBy: 'store' })).toEqual({ method: 'parcel', policy: null, providerName: null,
+      canIssueReceipt: false, customerMethod: 'quick', changedBy: 'store' });
+    expect(parseShipmentDeliverySummary({ method: 'parcel', customerMethod: 'teleport', changedBy: 'robot' })).toEqual({ method: 'parcel', policy: null, providerName: null, canIssueReceipt: false });
     expect(deliveryStatusLabel('pickup', 'ready')).toBe('방문수령 준비');
     expect(deliveryStatusLabel('pickup', 'delivered')).toBe('방문수령 완료');
     expect(deliveryStatusLabel('quick', 'shipping')).toBe('퀵 배송 중');

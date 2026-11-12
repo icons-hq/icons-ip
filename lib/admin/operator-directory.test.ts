@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { ASSIGNABLE_MANAGER_ROLES, canChangeOperator, canRevokeOperator, normalizeOperatorFilters, operatorDirectoryHref, parseOperatorDirectory, validateOperatorSetup, type OperatorRecord } from './operator-directory';
+import { ASSIGNABLE_MANAGER_ROLES, MANAGER_ROLE_SUMMARIES, canChangeOperator, canRevokeOperator, normalizeOperatorFilters, operatorDirectoryHref, parseOperatorDirectory, validateOperatorSetup, type OperatorRecord } from './operator-directory';
+import { MEMBERS_ROLES_TOPIC } from './guide/topics/members-roles';
 import { MANAGER_ROLE_LABELS } from './access';
 import { normalizeOperatorInvitationInput } from './operator-invitations';
 const actorId = '81000000-0000-4000-8000-000000000001';
@@ -48,5 +49,15 @@ describe('operator directory', () => {
     expect(MANAGER_ROLE_LABELS.logistics).toBe('물류출고관리');
     expect(normalizeOperatorInvitationInput({ id: '85000000-0000-4000-8000-000000000001', email: ' Warehouse@Example.test ', name: '물류 담당', managerRole: 'logistics', duty: 'logistics' }))
       .toEqual({ id: '85000000-0000-4000-8000-000000000001', email: 'warehouse@example.test', name: '물류 담당', managerRole: 'logistics', duty: 'logistics' });
+  });
+  /* QA1 S-T05-01: 초대 창에서 고른 권한의 업무 범위를 한 줄로 보인다. 가이드의 역할별 업무 범위와 같은 내용이다. */
+  it('초대할 수 있는 역할마다 할 수 있는 일 한 줄 설명이 있고, 물류출고관리는 출고만 한다고 적는다', () => {
+    expect(Object.keys(MANAGER_ROLE_SUMMARIES).sort()).toEqual([...ASSIGNABLE_MANAGER_ROLES].sort());
+    for (const role of ASSIGNABLE_MANAGER_ROLES) expect(MANAGER_ROLE_SUMMARIES[role].length).toBeGreaterThan(10);
+    const logistics = MANAGER_ROLE_SUMMARIES.logistics;
+    for (const can of ['출고지시 내려받기', '운송장 회신 등록', '발송', '배송완료', '상품 공지사항 관리', '수령인 정보만']) expect(logistics).toContain(can);
+    for (const cannot of ['발주확인', '취소·환불·반품·교환', '고객 정보', '상품 관리는 할 수 없']) expect(logistics).toContain(cannot);
+    const guide = MEMBERS_ROLES_TOPIC.sections.find(section => section.id === 'roles')?.paragraphs?.find(text => text.startsWith('창고·물류 담당자에게'));
+    for (const phrase of ['출고지시 내려받기·운송장 회신 등록·발송·배송완료', '상품 공지사항 관리', '수령인 정보만']) expect(guide).toContain(phrase);
   });
 });

@@ -3,7 +3,7 @@ import { formatOrderDateTime } from '@/lib/orders';
 import { krw } from '@/lib/format';
 import { shipmentStatusLabel, type ShipmentRecord } from '@/lib/orders/shipments';
 import { goodsShipDateLabel } from '@/lib/goods-preorders';
-import { DELIVERY_METHOD_LABELS, deliveryStatusLabel } from '@/lib/shipment-delivery';
+import { DELIVERY_METHOD_LABELS, deliveryFeeRuleNote, deliveryStatusLabel } from '@/lib/shipment-delivery';
 import { ShipmentReceiptConfirmation } from './ShipmentReceiptConfirmation';
 import type { GoodsTransactionShippingGroup } from '@/lib/goods-transaction';
 import { ShippingChargeDetailsDisplay } from './ShippingChargeDetailsDisplay';
@@ -59,7 +59,7 @@ export function ShipmentDetails({ shipments, items = [], admin = false, transact
       <p style={{ margin: 0 }}>{shipment.delivery.policy.appointmentInstructions}</p>
       <p style={{ margin: 0 }}>{shipment.delivery.policy.completionInstructions}<br />대리수령: {shipment.delivery.policy.allowDelegate ? '안내 조건에 따라 가능' : '불가'}</p>
       <p style={{ margin: 0 }}>{shipment.delivery.policy.cancellationInstructions}</p>
-      <small className="muted">{shipment.delivery.policy.feeRule === 'checkout_prepaid' ? '주문서에서 선택한 방식과 선결제 비용을 기준으로 제공합니다.' : '고객 요청으로 배송 방식을 변경했으며 주문 당시 배송비를 유지합니다.'}</small>
+      <small className="muted">{deliveryFeeRuleNote(shipment.delivery.policy, shipment.delivery.changedBy)}</small>
       {!admin && shipment.delivery.canIssueReceipt ? <ShipmentReceiptConfirmation key={`${shipment.id}:${shipment.delivery.policy.policyId}`} shipmentId={shipment.id} /> : null}
     </div> : null}
     {items.some(item => shipment.orderItemIds.includes(item.id)) ? <ul>{items.filter(item => shipment.orderItemIds.includes(item.id)).map(item => <li key={item.id}>{item.name}{item.variantName ? ` · ${item.variantName}` : ''} × {item.qty}

@@ -29,7 +29,20 @@ function warehouseRow(reference=order,tracking:unknown='001234567890') {const ro
 describe('김포 원본 운송장 회신',()=>{
  it('21열 원본을 감지하고 동일 주문 다행을 DB 그룹 검증에 전달한다',async()=>{
   const parsed=await parseTrackingWorkbook(await bytes([[...GIMPO_EXPORT_HEADERS],warehouseRow(),warehouseRow()]),carriers);
-  expect(parsed).toEqual({kind:'gimpo',rows:[{line:2,reference:order,trackingNumber:'001234567890'},{line:3,reference:order,trackingNumber:'001234567890'}],issues:[]});
+  expect(parsed).toEqual({kind:'gimpo',rows:[{line:2,reference:order,trackingNumber:'001234567890'},{line:3,reference:order,trackingNumber:'001234567890'}],issues:[],skipped:[]});
+ });
+ /* QA 라운드 1 m8: 운송장 칸을 비운 주문은 형식 오류가 아니라 아직 출고하지 않은 건으로 건너뛰고 따로 센다. 일부 행만 비운 주문은 막는다. */
+ it('운송장 칸을 모두 비운 주문은 건너뛴 줄로 세고, 같은 주문의 일부 행만 비우면 그 주문을 등록하지 않는다',async()=>{
+  const second='00000000-0000-4000-8000-000000000043',third='00000000-0000-4000-8000-000000000044';
+  const parsed=await parseTrackingWorkbook(await bytes([[...GIMPO_EXPORT_HEADERS],warehouseRow(order,''),warehouseRow(order,'  '),warehouseRow(second),
+   warehouseRow(third,'001234567891'),warehouseRow(third,'')]),carriers);
+  if(!('kind' in parsed)||parsed.kind!=='gimpo')throw new Error('gimpo reply expected');
+  expect(parsed.skipped).toEqual([{line:2,reference:order},{line:3,reference:order}]);
+  expect(parsed.rows).toEqual([{line:4,reference:second,trackingNumber:'001234567890'}]);
+  expect(parsed.issues.map(issue=>[issue.line,issue.reason])).toEqual([
+   [5,'같은 주문의 다른 행에 오류가 있습니다. 해당 주문의 모든 행을 함께 고쳐주세요.'],
+   [6,'같은 주문의 일부 행만 운송장번호가 비어 있습니다. 한 주문의 모든 행에 같은 운송장번호를 채우거나 모두 비워 주세요.']]);
+  expect(parsed.issues.some(issue=>issue.reason.includes('8~30자리'))).toBe(false);
  });
  it('숫자·수식 운송장 행이 있으면 같은 주문의 정상 행도 등록하지 않는다',async()=>{
   const parsed=await parseTrackingWorkbook(await bytes([[...GIMPO_EXPORT_HEADERS],warehouseRow(),warehouseRow(order,1234567890),warehouseRow('00000000-0000-4000-8000-000000000043')]),carriers);

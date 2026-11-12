@@ -313,6 +313,12 @@ export interface StockReconcileItem {
   /** 기준 시각 뒤 사람이 바꾼 재고(재고 조정·다른 대조 반영). 계산에 넣지 않고 표시만 한다. */
   adjustedSinceCount: number; adjustedSinceQty: number;
   difference: number; targetQty: number; appliedDelta: number | null; stockAfter: number | null; preorder: boolean;
+  /**
+   * 반영할 때 잠금 뒤 다시 잰 반영 시점 값(QA1 S-T07-01). 미리보기 값(stockQty·pendingQty 등)과 다를 수 있다 — 예: 미리보기 뒤
+   * 출고된 주문은 출고 대기에서 기준 시각 뒤 출고로 옮겨 간다. 반영 전 미리보기와 이 값이 생기기 전 반영 기록은 null이다.
+   */
+  stockBefore: number | null; appliedPendingQty: number | null; appliedShippedSinceQty: number | null;
+  appliedReturnedSinceQty: number | null; appliedAwaitingReturnQty: number | null;
 }
 export interface StockReconcileIssue { row: number; key: string; fileQty: number | null; reason: StockReconcileIssueReason }
 export interface StockReconcileApplyResult { changed: number; increased: number; decreased: number; shortages: number; totalDelta: number }
@@ -337,6 +343,11 @@ function nullableText(value: unknown): string | null | undefined {
   return value === null || value === undefined ? null : typeof value === 'string' ? value : undefined;
 }
 function time(value: unknown): string | null { return typeof value === 'string' && Number.isFinite(Date.parse(value)) ? value : null; }
+/** 없거나 null이면 null, 0 이상 정수면 그 값, 그 밖은 undefined(모르는 모양). */
+function optionalCount(value: unknown): number | null | undefined {
+  if (value === null || value === undefined) return null;
+  return int(value, { min: 0 }) ?? undefined;
+}
 
 function parseApplyResult(value: unknown): StockReconcileApplyResult | null | undefined {
   if (value === null || value === undefined) return null;
@@ -361,14 +372,39 @@ function parseItem(value: unknown): StockReconcileItem | null {
   const difference = int(row.difference); const targetQty = int(row.targetQty, { min: 0 });
   const appliedDelta = row.appliedDelta === null ? null : int(row.appliedDelta);
   const stockAfter = row.stockAfter === null ? null : int(row.stockAfter, { min: 0 });
+  const stockBefore = optionalCount(row.stockBefore); const appliedPendingQty = optionalCount(row.appliedPendingQty);
+  const appliedShippedSinceQty = optionalCount(row.appliedShippedSinceQty); const appliedReturnedSinceQty = optionalCount(row.appliedReturnedSinceQty);
+  const appliedAwaitingReturnQty = optionalCount(row.appliedAwaitingReturnQty);
   if (!variantId || !UUID.test(variantId) || goodId === null || goodsCode === null || goodsName === null || optionName === null || optionCode === null
     || sourceRow === null || !matchKind || !Object.hasOwn(STOCK_MATCH_KIND_LABELS, matchKind) || fileQty === null || stockQty === null
     || pendingQty === null || shippedSinceQty === null || returnedSinceQty === null || awaitingReturnQty === null
     || adjustedSinceCount === null || adjustedSinceQty === null || difference === null || targetQty === null
-    || (row.appliedDelta !== null && appliedDelta === null) || (row.stockAfter !== null && stockAfter === null) || typeof row.preorder !== 'boolean') return null;
+    || (row.appliedDelta !== null && appliedDelta === null) || (row.stockAfter !== null && stockAfter === null) || typeof row.preorder !== 'boolean'
+    || stockBefore === undefined || appliedPendingQty === undefined || appliedShippedSinceQty === undefined
+    || appliedReturnedSinceQty === undefined || appliedAwaitingReturnQty === undefined
+    /* 반영 시점 값은 다섯 칸이 함께 있거나 함께 없다(DB 제약과 같다). */
+    || [appliedPendingQty, appliedShippedSinceQty, appliedReturnedSinceQty, appliedAwaitingReturnQty].some((value) => (value === null) !== (stockBefore === null))) return null;
   return { variantId, goodId, goodsCode, goodsName, optionName, optionCode, sourceRow, matchKind, fileQty, stockQty, pendingQty,
     shippedSinceQty, returnedSinceQty, awaitingReturnQty, adjustedSinceCount, adjustedSinceQty, difference, targetQty, appliedDelta,
-    stockAfter, preorder: row.preorder };
+    stockAfter, preorder: row.preorder, stockBefore, appliedPendingQty, appliedShippedSinceQty, appliedReturnedSinceQty, appliedAwaitingReturnQty };
+}
+
+/**
+ * 결과 표에 그릴 값. 반영한 기록은 반영 시점 값(반영 전 재고수량·출고 대기 등)과 실제 반영 뒤 재고수량을 쓴다(QA1 S-T07-01) —
+ * 미리보기 뒤 출고·주문이 끼어도 표의 칸끼리 계산이 맞는다. 반영 시점 값이 없는 옛 기록과 반영 전 미리보기는 그대로다.
+ * 반영할 것이 없던 옵션은 반영 뒤에도 반영 전 재고수량 그대로다.
+ */
+export function stockReconcileDisplayItem(item: StockReconcileItem, applied: boolean): StockReconcileItem {
+  if (!applied || item.stockBefore === null) return item;
+  return {
+    ...item,
+    stockQty: item.stockBefore,
+    pendingQty: item.appliedPendingQty ?? item.pendingQty,
+    shippedSinceQty: item.appliedShippedSinceQty ?? item.shippedSinceQty,
+    returnedSinceQty: item.appliedReturnedSinceQty ?? item.returnedSinceQty,
+    awaitingReturnQty: item.appliedAwaitingReturnQty ?? item.awaitingReturnQty,
+    targetQty: item.stockAfter ?? item.stockBefore,
+  };
 }
 
 function parseIssue(value: unknown): StockReconcileIssue | null {
@@ -411,9 +447,24 @@ export function parseStockReconcileSummaries(value: unknown): StockReconcileSumm
   return rows.some((entry) => !entry) ? null : rows as StockReconcileSummary[];
 }
 
+/**
+ * 반영을 거절한 이유(QA1 S-T07-01). DB `admin_apply_stock_reconcile`이 잠금 뒤 다시 잰 값으로 정한다.
+ * 출고 대기 변동: 미리보기 뒤 주문·취소·출고·회수로 맞춘 뒤 재고수량이 달라짐. 재고 변동: 재고 조정·다른 대조로 재고수량을 직접 바꿈.
+ */
+export type StockReconcileConflictReason = 'pending_changed' | 'stock_changed' | 'pending_and_stock_changed' | 'goods_archived' | 'option_stopped';
+export const STOCK_RECONCILE_CONFLICT_REASON_LABELS: Record<StockReconcileConflictReason, string> = {
+  pending_changed: '출고 대기 변동 — 미리보기 뒤 주문·취소·출고·회수가 있었습니다',
+  stock_changed: '재고 변동 — 미리보기 뒤 재고 조정이나 다른 대조로 재고수량을 바꿨습니다',
+  pending_and_stock_changed: '출고 대기·재고 변동 — 주문·출고와 재고 조정이 함께 있었습니다',
+  goods_archived: '상품을 보관함',
+  option_stopped: '옵션을 사용 중지함',
+};
 export interface StockReconcileConflict {
   variantId: string; goodsName: string; optionName: string; optionCode: string;
-  previewDifference: number; currentDifference: number; reason: 'changed' | 'goods_archived' | 'option_stopped';
+  /** 미리보기 때와 지금(잠금 뒤 다시 잰) 재고수량·출고 대기·맞춘 뒤 재고수량·차이. */
+  previewStockQty: number; currentStockQty: number; previewPendingQty: number; currentPendingQty: number;
+  previewTargetQty: number; currentTargetQty: number; previewDifference: number; currentDifference: number;
+  reason: StockReconcileConflictReason;
 }
 export type StockReconcileApplyOutcome =
   | { status: 'applied'; replayed: boolean; snapshot: StockReconcileDocument }
@@ -430,11 +481,16 @@ export function parseStockReconcileApplyOutcome(value: unknown): StockReconcileA
   const conflicts: StockReconcileConflict[] = [];
   for (const entry of row.conflicts) {
     const item = record(entry);
-    const variantId = text(item?.variantId); const previewDifference = int(item?.previewDifference); const currentDifference = int(item?.currentDifference);
-    const reason = text(item?.reason);
-    if (!item || !variantId || previewDifference === null || currentDifference === null || !reason || !['changed', 'goods_archived', 'option_stopped'].includes(reason)) return null;
+    const variantId = text(item?.variantId); const reason = text(item?.reason);
+    const counts = ['previewStockQty', 'currentStockQty', 'previewPendingQty', 'currentPendingQty', 'previewTargetQty', 'currentTargetQty']
+      .map((key) => int(item?.[key], { min: 0 }));
+    const previewDifference = int(item?.previewDifference); const currentDifference = int(item?.currentDifference);
+    if (!item || !variantId || counts.some((count) => count === null) || previewDifference === null || currentDifference === null
+      || !reason || !Object.hasOwn(STOCK_RECONCILE_CONFLICT_REASON_LABELS, reason)) return null;
+    const [previewStockQty, currentStockQty, previewPendingQty, currentPendingQty, previewTargetQty, currentTargetQty] = counts as number[];
     conflicts.push({ variantId, goodsName: text(item.goodsName) ?? '', optionName: text(item.optionName) ?? '', optionCode: text(item.optionCode) ?? '',
-      previewDifference, currentDifference, reason: reason as StockReconcileConflict['reason'] });
+      previewStockQty, currentStockQty, previewPendingQty, currentPendingQty, previewTargetQty, currentTargetQty, previewDifference, currentDifference,
+      reason: reason as StockReconcileConflictReason });
   }
   return { status: 'conflict', conflicts };
 }
@@ -443,7 +499,7 @@ export function parseStockReconcileApplyOutcome(value: unknown): StockReconcileA
  * 행 상태(표시용)
  * ------------------------------------------------------------------------- */
 export type StockReconcileRowState = 'same' | 'increase' | 'decrease' | 'shortage';
-/** 반영 전에는 미리보기 값, 반영 뒤에는 실제 반영 값으로 판정한다. 부족은 지금 창고 실물보다 출고 대기(와 회수 뒤 미반영)가 많은 것이다. */
+/** 반영 전에는 미리보기 값, 반영 뒤에는 실제 반영 값(stockReconcileDisplayItem)으로 판정한다. 부족은 지금 창고 실물보다 출고 대기(와 회수 뒤 미반영)가 많은 것이다. */
 export function stockReconcileRowState(item: Pick<StockReconcileItem, 'stockQty' | 'difference' | 'targetQty'>): StockReconcileRowState {
   if (item.stockQty + item.difference < 0) return 'shortage';
   if (item.targetQty > item.stockQty) return 'increase';
@@ -475,6 +531,21 @@ export interface StockDispatchUnreconciled { variantId: string; goodsName: strin
 export interface StockDispatchWarnings {
   originId: string | null; checkedAt: string; batchVariantCount: number; latestAsOf: string | null;
   warnings: StockDispatchWarning[]; unreconciledCount: number; unreconciled: StockDispatchUnreconciled[];
+}
+
+/** 경고 목록의 옵션 표시 이름. 기본 옵션 하나뿐인 상품은 상품 이름만 쓴다. */
+export const stockWarningName = (row: { goodsName: string; optionName: string }) =>
+  row.optionName && row.optionName !== '기본 옵션' ? `${row.goodsName} / ${row.optionName}` : row.goodsName;
+
+/**
+ * 출고지시 내려받기 확인 단계에서 다시 알릴 재고 부족 요약(1007-011, QA 라운드 1 m9). 부족(창고 예상 < 출고 대기)만 세고,
+ * 이름은 앞에서 몇 개만 보인다. 부족이 없거나 경고를 불러오지 못했으면 null이다.
+ */
+export function stockShortageSummary(data: StockDispatchWarnings | null, limit = 5): { count: number; names: string[] } | null {
+  const shortages = data?.warnings.filter((warning) => warning.kind === 'shortage') ?? [];
+  if (!shortages.length) return null;
+  return { count: shortages.length, names: shortages.slice(0, limit).map((warning) => Number.isSafeInteger(warning.shortageQty)
+    ? `${stockWarningName(warning)} (부족 ${warning.shortageQty.toLocaleString('ko-KR')})` : stockWarningName(warning)) };
 }
 
 export function parseStockDispatchWarnings(value: unknown): StockDispatchWarnings | null {

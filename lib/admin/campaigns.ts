@@ -105,6 +105,15 @@ export type AdminCoinExchangeOfferFormResult =
   | { ok: true; value: AdminCoinExchangeOfferFormValue }
   | { ok: false; errors: AdminFieldErrors };
 
+export const ADMIN_CAMPAIGNS_PATH = '/admin/display/campaigns';
+/**
+ * 캠페인 관리 주소. 편집 중인 캠페인을 `?campaign=`으로 남긴다 — 할인 프로모션 등 다른 화면으로 갔다가
+ * 돌아가기·뒤로 가기·새로고침해도 같은 캠페인 편집으로 연다(QA1 MD). 없는 캠페인이면 목록이 열린다.
+ */
+export function adminCampaignHref(id: string | null = null) {
+  return id ? `${ADMIN_CAMPAIGNS_PATH}?${new URLSearchParams({ campaign: id })}` : ADMIN_CAMPAIGNS_PATH;
+}
+
 /* ── 본문 블록 스키마 ─────────────────────────────────────────────────────── */
 
 export const ADMIN_CAMPAIGN_MAX_SECTIONS = 20;

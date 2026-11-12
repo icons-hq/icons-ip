@@ -19,6 +19,7 @@ import { ADMIN_VOCABULARY as V } from '@/lib/admin/vocabulary';
 import { ADMIN_ORDER_STATUS_LABELS, type AdminOrderStatus } from '@/lib/admin/orders';
 import { adminClaimStageLabel } from '@/lib/admin/claims';
 import { isParcelShipment } from '@/lib/admin/shipment-dispatch';
+import { forcedDeliveryHref } from '@/lib/admin/forced-delivery';
 import { statusTone } from '@/lib/admin/status-tone';
 import { krw } from '@/lib/format';
 import { formatOrderDateTime, refundStatusLabel } from '@/lib/orders';
@@ -248,6 +249,9 @@ export function OrderDetailScreen({
         {canManage && !addressNotRequired && !canceled ? <OrderAddressButton orderId={order.id} /> : null}
         {canManage && ['shipping', 'delivered', 'done'].includes(order.status) ? <SellerClaimIntakeButton orderId={order.id} /> : null}
         {canManage && (order.status === 'pending' || order.status === 'paid') ? <SellerClaimIntakeButton orderId={order.id} mode="cancel" /> : null}
+        {/* QA1 S-T04-05: 발주확인 뒤 발송 전·배송 중 주문은 발주·발송 화면의 강제 배송완료 카드를 이 주문번호로 바로 연다(사유·확인창·감사는 카드에서). */}
+        {canManage && order.orderNumber && (order.status === 'confirmed' || order.status === 'shipping')
+          ? <Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={forcedDeliveryHref(order.orderNumber)}>강제 배송완료</Link> : null}
       </div>
     </header>
     {canceled && canManage ? <div data-order-cancel-result="">

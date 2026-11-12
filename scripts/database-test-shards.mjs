@@ -166,6 +166,8 @@ const storefront = [
   sql('auto_order_confirmation'),
   script('auto_order_confirmation_concurrency.sh', 'AUTO_ORDER_CONFIRM_TEST_SCOPE'),
   sql('stock_reconcile_safety_digest'),
+  // QA1 S-T07-01: 재고 대조 반영과 같은 옵션 주문의 재고 차감이 겹칠 때(주문 먼저 → 거절, 반영 먼저 → 주문이 반영 값에서 뺌).
+  script('stock_reconcile_apply_concurrency.sh', 'STOCK_RECONCILE_RACE_TEST_SCOPE'),
   sql('staging_test_delivery'),
   sql('dispatch_console_delivery'),
   sql('forced_order_delivery'),
@@ -180,6 +182,8 @@ const storefront = [
   // 예전 story/marketing 단계의 쇼핑 스토리·마케팅·상품 상세 연출·리뷰 이벤트다.
   sql('shopping_stories', { kc: true }),
   sql('shopping_story_goods_picker', { kc: true }),
+  // QA1 MD 후속: 전시 구성 상품의 고객 화면 미노출 이유(초안·IP 초안·판매 제한·보관)와 다시 열기용 가벼운 읽기.
+  sql('goods_display_visibility', { kc: true }),
   sql('goods_relation_visual_compositions', { kc: true }),
   sql('goods_other_compositions', { admin: true, kc: true }),
   sql('story_navigation_and_home_layout'),

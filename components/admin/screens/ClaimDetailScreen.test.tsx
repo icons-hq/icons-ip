@@ -247,6 +247,17 @@ describe('ClaimDetailScreen', () => {
     const html = render({ claim: { ...detail().claim, claimType } });
     expect(html.includes('교환 사유 정정 및 이력')).toBe(claimType === 'exchange');
   });
+  it('환불 계좌 열람을 경로와 함께 보이고 계좌 원문은 싣지 않는다(QA1 S-T03-04)', () => {
+    const html = render({ timeline: [
+      { action: 'admin.order.bank_refund_account_viewed', createdAt: NOW.toISOString(), actorName: 'finance', diff: { claimId: 'c1', purpose: 'list_export', revision: 3, exportId: 'export-id-not-rendered' } },
+      { action: 'admin.order.bank_refund_account_viewed', createdAt: NOW.toISOString(), actorName: 'cs_lead', diff: { claimId: 'c1', purpose: 'prepare_bank_transfer', revision: 3 } },
+    ] });
+    expect(html).toContain('송금 목적 환불계좌 열람 (환불 송금 대기 목록 엑셀)');
+    expect(html).toContain('송금 목적 환불계좌 열람 (요청 상세)');
+    expect(html).toContain('@finance');
+    expect(html).not.toContain('admin.order.bank_refund_account_viewed');
+    expect(html).not.toContain('export-id-not-rendered');
+  });
   it('사유 정정 감사 이력을 업무 용어로 표시한다', () => {
     const html = render({ timeline: [{ action: 'admin.order.claim_reason_changed', createdAt: NOW.toISOString(), actorName: 'cs_lead', diff: {} }] });
     expect(html).toContain('교환 사유 정정');

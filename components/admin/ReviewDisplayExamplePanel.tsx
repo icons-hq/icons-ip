@@ -25,6 +25,11 @@ const FRAME_CONTENT_STYLE = { '--wc-sticky-chrome-h': '0px' } as CSSProperties;
 
 const block = (event: SyntheticEvent) => { event.preventDefault(); };
 
+/** 예시 문서를 맨 위로 되돌린다. 문서가 아직 없으면(처음 그리는 중) 할 일이 없다. */
+export function resetReviewExampleScroll(frame: Pick<HTMLIFrameElement, 'contentWindow'> | null) {
+  frame?.contentWindow?.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+}
+
 /** 예시 안쪽. 아무것도 누르거나 보낼 수 없다. */
 export function ReviewExampleFrameContent({ children }: { children: ReactNode }) {
   return <div data-review-example-content="" inert onAuxClickCapture={block} onClickCapture={block} onSubmitCapture={block} style={FRAME_CONTENT_STYLE}>{children}</div>;
@@ -53,6 +58,8 @@ function ReviewExampleFrame({ device, children }: { device: ReviewExampleDevice;
     observer.observe(stage);
     return () => observer.disconnect();
   }, []);
+  /* 같은 iframe의 폭만 바꾸므로 모바일에서 내려 본 위치가 PC 예시에 그대로 남는다 — 모바일·PC를 바꾸면 예시 맨 위(①)부터 보인다. */
+  useEffect(() => { resetReviewExampleScroll(frameRef.current); }, [device]);
   /* 관리자 쪽 틀만 유틸리티로 그린다(ADR-0028) — iframe 안은 공개 스토어프런트 그대로다. */
   return <div className="min-w-0 overflow-hidden rounded-lg bg-muted" data-device={device} data-review-example-stage="" ref={stageRef}>
     <div className="mx-auto" style={{ width: stageWidth > 0 ? viewport * scale : '100%', height: STAGE_HEIGHT }}>

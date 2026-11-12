@@ -14,6 +14,15 @@ describe('admin shopping story readback',()=>{
   expect(parseShoppingStoryGoods([good])).toMatchObject([{published:false,imageUrl:'/generated/goods/g2.png',price:1000,soldOut:false}]);
   expect(parseShoppingStoryGoods([{...good,variants:[{...good.variants[0],supply:null}]}])).toBeNull();
  });
+ /* QA1 MD 후속: 후보 행의 visibility(고객 화면에 보이지 않는 이유)는 공개 여부와 맞을 때만 받고, 모르는 값이면 이유 없이 둔다. */
+ it('keeps the display visibility reason only when it agrees with the published flag',()=>{
+  expect(parseShoppingStoryGoods([{...good,visibility:'draft'}])?.[0].visibility).toBe('draft');
+  expect(parseShoppingStoryGoods([{...good,published:true,visibility:'public'}])?.[0].visibility).toBe('public');
+  expect(parseShoppingStoryGoods([{...good,visibility:'public'}])?.[0]).not.toHaveProperty('visibility');
+  expect(parseShoppingStoryGoods([{...good,published:true,visibility:'draft'}])?.[0]).not.toHaveProperty('visibility');
+  expect(parseShoppingStoryGoods([{...good,visibility:'unpublished'}])?.[0]).not.toHaveProperty('visibility');
+  expect(parseShoppingStoryGoods([good])?.[0]).not.toHaveProperty('visibility');
+ });
  it('rejects orphaned or duplicate links instead of silently rendering partial saved state',()=>{
   const source={...row,bodyHtml:'<p>본문</p>',imagePaths:[],goods:[good],sections:[{id,title:'관련상품',imageShape:'square',goodIds:[good.id]}]};
   expect(parseAdminShoppingStory(source)?.goods).toHaveLength(1);
