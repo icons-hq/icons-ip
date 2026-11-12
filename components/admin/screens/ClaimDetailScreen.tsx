@@ -118,13 +118,6 @@ const ACCOUNT_VIEW_ROUTES: Record<string, string> = {
   list_export: '환불 송금 대기 목록 엑셀',
 };
 
-function timelineLabel(entry: { action: string; diff: Record<string, unknown> | null }) {
-  const label = TIMELINE_LABELS[entry.action] ?? entry.action;
-  if (entry.action !== 'admin.order.bank_refund_account_viewed') return label;
-  const route = typeof entry.diff?.purpose === 'string' ? ACCOUNT_VIEW_ROUTES[entry.diff.purpose] : undefined;
-  return route ? `${label} (${route})` : label;
-}
-
 const PAYMENT_PROVIDER_LABELS: Record<string, string> = {
   bank_transfer: '무통장 입금',
   toss: '토스페이먼츠',
@@ -161,6 +154,10 @@ function timelineLabel(entry: AdminClaimDetail['timeline'][number]) {
     return cause ?? TIMELINE_LABELS[entry.action];
   }
   const label = TIMELINE_LABELS[entry.action] ?? entry.action;
+  if (entry.action === 'admin.order.bank_refund_account_viewed') {
+    const route = typeof entry.diff?.purpose === 'string' ? ACCOUNT_VIEW_ROUTES[entry.diff.purpose] : undefined;
+    return route ? `${label} (${route})` : label;
+  }
   if (entry.action !== 'admin.order.claim_reshipped' && entry.action !== 'admin.order.claim_reshipment_delivered'
     && entry.action !== 'admin.order.claim_collection_waived') return label;
   const origin = typeof entry.diff?.originName === 'string' && entry.diff.originName ? ` · ${entry.diff.originName}` : '';
