@@ -76,7 +76,9 @@ it('runs actual route + service + AES + PostgREST + SQL save/history/replay/seal
 it('commits actual encrypted reshipment destination and reads it back', async () => {
   actor(1); sql(`update public.order_cancellation_requests set stage='collected',collected_at=clock_timestamp() where id='${claim(3)}';`);
   const context = await post(contextRoute, '/api/admin/claim-contact/context', contextRequest(3, 'reshipment'));
-  const input = { requestId: randomUUID(), orderId: order(3), claimId: claim(3), operationId: randomUUID(), signedContext: context.signedContext, carrier: 'hanjin', trackingNumber: 'REALHTTP0003', items: [], destinationConfirmed: true, dispatchConfirmed: true };
+  // 재출고는 배송 건(출고지)마다 기록한다(ADR-0041). 이 교환의 재출고 대상은 원주문의 배송 건 하나이고 회수 생략은 없다.
+  const shipmentId = sql(`select id from public.order_shipments where order_id='${order(3)}';`);
+  const input = { requestId: randomUUID(), orderId: order(3), claimId: claim(3), operationId: randomUUID(), signedContext: context.signedContext, shipmentId, carrier: 'hanjin', trackingNumber: 'REALHTTP0003', items: [], collectionWaiver: null, destinationConfirmed: true, dispatchConfirmed: true };
   const saved = await post(reshipRoute, '/api/admin/claim-contact/reshipment', input); expect(saved.receipt.state).toBe('saved');
   const history = await post(historyRoute, '/api/admin/claim-contact/history', historyRequest(3)); expect(history.reshipmentDestination.source).toBe('v2_confirmed'); expect(history.reshipmentDestination.address).toEqual(context.address);
   const replay = await post(reshipRoute, '/api/admin/claim-contact/reshipment', input); expect(replay.receipt).toEqual(saved.receipt);
