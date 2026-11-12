@@ -542,38 +542,35 @@ function noticeFromPreset(
 }
 /** 상품번호는 1부터 매기는 양의 정수다(상품 목록·내보내기 그대로). */
 const PRODUCT_NO_PATTERN = /^[1-9]\d{0,15}$/;
-const MATCHED_WITHOUT_CODE = {
-  number: '판매자상품코드가 비어 있어 상품번호로 찾은 기존 상품을 수정합니다.',
-  url: '판매자상품코드·상품번호가 비어 있어 상품 URL로 찾은 기존 상품을 수정합니다.',
-} as const;
+const MATCHED_BY_NUMBER_ONLY = '판매자상품코드가 비어 있어 상품번호로 찾은 기존 상품을 수정합니다.';
 /**
- * 반입 키(ADR-0038): 상품번호 → 판매자상품코드 → 상품 URL(번호·코드가 모두 빈 행만) 순서로 수정할 기존 상품을 찾는다.
- * 찾으면 그 상품의 판매자상품코드·상품번호를 행에 채워 같은 상품의 행끼리 묶이고, 내려받은 파일과 같으면 '변경 없음'이 된다.
- * 상품번호와 판매자상품코드가 서로 다른 상품을 가리키면 덮어쓰지 않고 오류다(판매자상품코드는 상품 수정 화면에서 바꾼다).
+ * 반입 키(ADR-0038): 상품번호 → 판매자상품코드 순서로 수정할 기존 상품을 찾는다. 찾으면 그 상품의 판매자상품코드·상품번호를
+ * 행에 채워 같은 상품의 행끼리 묶이고, 내려받은 파일과 같으면 '변경 없음'이 된다. 상품번호와 판매자상품코드가 서로 다른 상품을
+ * 가리키면 덮어쓰지 않고 오류다(판매자상품코드는 상품 수정 화면에서 바꾼다).
+ * 상품 URL은 키가 아니다(구형 파일도 같다). 번호·코드가 모두 빈 행은 새 상품이고, 그 상품 URL을 이미 다른 상품이 쓰면 오류다 —
+ * 기존 행을 복사해 새 상품을 만들며 URL만 남긴 행이 원래 상품을 덮지 않게 한다.
  */
 function resolveGoodsWorkbookTarget(row: GoodsWorkbookInputRow, existing: readonly GoodsImportExisting[]): {
-  row: GoodsWorkbookInputRow; matchedWithoutCode: keyof typeof MATCHED_WITHOUT_CODE | null;
+  row: GoodsWorkbookInputRow; matchedByNumberOnly: boolean;
 } {
   const values = { ...row.values };
   const number = values.productNo.trim(), code = values.code.trim().toUpperCase(), url = values.id.trim();
   const errors = [...(row.errors ?? [])];
   let record: GoodsImportExisting | undefined;
-  let matchedWithoutCode: keyof typeof MATCHED_WITHOUT_CODE | null = null;
+  let matchedByNumberOnly = false;
   if (number) {
     const byNumber = PRODUCT_NO_PATTERN.test(number) ? existing.find((item) => str(item.good.product_no) === number) : undefined;
     if (!PRODUCT_NO_PATTERN.test(number)) errors.push('상품번호는 내려받은 숫자 그대로 두거나, 새 상품이면 비워 주세요.');
     else if (!byNumber) errors.push(`상품번호 ${number}인 상품을 찾을 수 없습니다. 새 상품은 상품번호를 비워 주세요.`);
     else if (code && str(byNumber.good.code).toUpperCase() !== code)
       errors.push(`상품번호 ${number}와 판매자상품코드 ${code}가 서로 다른 상품을 가리킵니다. 판매자상품코드는 상품 수정 화면에서 바꿔 주세요.`);
-    else { record = byNumber; if (!code) matchedWithoutCode = 'number'; }
+    else { record = byNumber; matchedByNumberOnly = !code; }
   } else if (code) record = existing.find((item) => str(item.good.code).toUpperCase() === code);
-  else if (url) {
-    record = existing.find((item) => str(item.good.id) === url);
-    if (record) matchedWithoutCode = 'url';
-  }
+  else if (url && existing.some((item) => str(item.good.id) === url))
+    errors.push(`이미 쓰는 상품 URL입니다(${url}). 기존 상품을 고치려면 상품번호나 판매자상품코드를 그대로 두고, 새 상품이면 상품 URL을 비우거나 다른 값을 넣어 주세요.`);
   values.code = record ? str(record.good.code).toUpperCase() : code;
   if (record) values.productNo = str(record.good.product_no);
-  return { row: { ...row, values, errors }, matchedWithoutCode };
+  return { row: { ...row, values, errors }, matchedByNumberOnly };
 }
 export function planGoodsWorkbookImport(
   inputRows: GoodsWorkbookInputRow[],
@@ -585,7 +582,7 @@ export function planGoodsWorkbookImport(
     );
   const targets = inputRows.map((row) => resolveGoodsWorkbookTarget(row, context.existing));
   const rows = targets.map((target) => target.row);
-  const matchedWithoutCode = new Map(targets.flatMap((target) => target.matchedWithoutCode ? [[target.row.row, target.matchedWithoutCode] as const] : []));
+  const matchedByNumberOnly = new Set(targets.flatMap((target) => target.matchedByNumberOnly ? [target.row.row] : []));
   const kcOrphans = goodsKcWorkbookOrphanErrors(context.kcRows ?? [], rows.map(row => row.values.code.trim().toUpperCase()));
   if (kcOrphans.length) throw new Error(kcOrphans.join('\n'));
   const customInputOrphans = goodsCustomInputWorkbookOrphanErrors(context.customInputRows ?? [], rows.map(row => row.values.code));
@@ -635,10 +632,7 @@ export function planGoodsWorkbookImport(
       afterSalesSource: (context.afterSalesRows ?? []).filter(row => row.values.goodCode.trim().toUpperCase() === first.code),
       sizeSource: (context.sizeRows ?? []).filter(row => row.values.goodCode.trim().toUpperCase() === first.code),
     };
-    if (record) group.warnings.push(...new Set(source.flatMap((row) => {
-      const via = matchedWithoutCode.get(row.row);
-      return via ? [MATCHED_WITHOUT_CODE[via]] : [];
-    })));
+    if (record && source.some((row) => matchedByNumberOnly.has(row.row))) group.warnings.push(MATCHED_BY_NUMBER_ONLY);
     if (record?.variants.some(variant => (!variant.archived_at || variant.is_default) && Object.keys(variant.attributes).length > 2)
       && source.some(row => row.layout === 'v3' || row.layout === 'v4')) errors.push('3축 옵션 상품은 최신 양식(v8)으로 다시 내려받아 수정해주세요. 구형 양식에는 세 번째 옵션 축이 없어 적용할 수 없습니다.');
     if (!['', '예'].includes(first.kcReset)) errors.push('KC 초기화는 비워두거나 예를 선택해주세요.');

@@ -98,8 +98,8 @@ export async function loadGoodsWorkbookContext(
   const names = [
     ...new Set(rows.map((row) => row.values.preset).filter(Boolean)),
   ];
-  // 반입 키(ADR-0038): 상품번호 → 판매자상품코드 → 상품 URL(번호·코드가 모두 빈 행만). 상품번호는 상품 URL로 바꿔 함께 읽는다.
-  // 판매자상품코드로 이미 읽는 상품은 다시 넣지 않는다(합쳐 500건 상한).
+  // 반입 키(ADR-0038): 상품번호 → 판매자상품코드. 상품번호는 상품 URL로 바꿔 함께 읽는다. 번호·코드가 모두 빈 행(새 상품)의
+  // 상품 URL은 키가 아니라 '이미 쓰는 URL인지' 확인하려고 함께 읽는다. 판매자상품코드로 이미 읽는 상품은 다시 넣지 않는다(합쳐 500건 상한).
   const numbers = [...new Set(rows.map((row) => row.values.productNo.trim()).filter((value) => /^[1-9]\d{0,15}$/.test(value)))];
   const numbered = numbers.length
     ? await client.from('goods').select('id,code').in('product_no', numbers)
