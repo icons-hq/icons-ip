@@ -227,6 +227,33 @@ describe('ReviewEventEditorScreen disabled reasons (1027T-026·027)', () => {
     expect(html()).toMatch(/data-review-event-message=""[^>]*tabindex="-1"[^>]*>.*role="alert">/s);
   });
 
+  /* 리뷰: 새 이벤트 첫 저장은 상세로 옮겨 가며 결과 문장 없이 포커스가 몸통에 남았다. 혜택과 같은 한 번용 saved 표시로 상세 맨 위에 보인다. */
+  it('moves a new event to its detail with the one-time saved flag', async () => {
+    const event = { ...newReviewEventValues(), id: ID, number: 9, title: '후기 이벤트', description: '별점과 무관한 후기', revision: 1, createdAt: '2026-11-12T01:00:00Z', updatedAt: '2026-11-12T01:00:00Z', archivedAt: null, announcedAt: null, state: 'scheduled', canEdit: true, entryCount: 0, selectedCount: 0, awardedCount: 0, revokedCount: 0 };
+    mocks.save.mockResolvedValue({ event });
+    change('이벤트명', '후기 이벤트'); change('내용', '별점과 무관한 후기');
+    save();
+    await vi.waitFor(() => expect(mocks.replace).toHaveBeenCalledWith(`/admin/cs/review-events/${ID}?saved=1`));
+  });
+
+  it('shows the first-save result at the top of the detail, focuses it and clears the flag', () => {
+    detail('scheduled', { canEdit: true });
+    props = { ...props, justSaved: true };
+    const node = { childElementCount: 1, scrollIntoView: vi.fn(), focus: vi.fn() };
+    mocks.ref.current = node;
+    const replaceState = vi.fn();
+    vi.stubGlobal('window', { history: { replaceState }, location: { pathname: `/admin/cs/review-events/${ID}`, search: '?saved=1' } });
+    expect(html()).toMatch(/data-review-event-message=""[^>]*>.*role="status">리뷰이벤트를 저장했습니다\. 시작 전에는 이 화면에서 조건을 고칠 수 있습니다\./s);
+    mocks.effects = []; render();
+    const [message, flag] = mocks.effects;
+    expect(message.deps).toEqual([1]);
+    message.effect();
+    expect(node.focus).toHaveBeenCalledWith({ preventScroll: true });
+    flag.effect();
+    expect(replaceState).toHaveBeenCalledWith(null, '', `/admin/cs/review-events/${ID}`);
+    vi.unstubAllGlobals();
+  });
+
   /* ③: 정책 꺼짐으로 저장을 막으면 위 주의 안내와 아래 오류가 같은 문장을 두 번 말했다. 오류가 나오면 주의 안내는 제목만 남긴다. */
   it('says the policy-off sentence once after a refused save', () => {
     props = { ...props, creditPolicy: OFF };

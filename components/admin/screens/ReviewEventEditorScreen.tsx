@@ -19,6 +19,7 @@ import { AdminSelect } from '../console/AdminSelect';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { FIELD_LABEL_CLASS, KIT_INPUT_CLASS, KIT_TEXTAREA_CLASS, ROW_DANGER_BUTTON_CLASS } from './cs-kit-classes';
 import { ReviewEventTemplateEditor, ReviewEventTemplatePicker } from './ReviewEventTemplatesScreen';
+import { withAdminSavedFlag, withoutAdminSavedFlag } from '@/lib/admin/saved-flag';
 
 const PANEL_CLASS = 'flex min-w-0 flex-col gap-4 rounded-xl border bg-card p-4 text-card-foreground sm:p-5';
 const PANEL_TITLE_CLASS = 'text-base font-semibold text-foreground';
@@ -30,6 +31,8 @@ type Request = { operationId: string; revision: number } & ({ kind: 'save'; valu
 /** 저장값은 한국 시각 날짜(YYYY-MM-DD)다. 목록 화면과 같은 표기로 보인다. */
 const eventDate = (value: string) => `${value.replaceAll('-', '. ')}.`;
 const REASON_CLASS = 'text-sm leading-relaxed text-muted-foreground';
+/** 새 이벤트를 처음 저장하고 상세로 옮겨 온 화면이 맨 위에 보이는 결과(한 번용 saved 표시). */
+const FIRST_SAVED_NOTICE = '리뷰이벤트를 저장했습니다. 시작 전에는 이 화면에서 조건을 고칠 수 있습니다.';
 /*
  * 1027T-026·027: 누를 수 없는 버튼 옆에 그 이유를 적는다(이유 문장은 aria-describedby로 버튼에 잇는다).
  * 판정은 버튼의 disabled 조건과 같은 값이다 — 상태(scheduled·active·closed·ready)는 서버가 준 값 그대로 읽는다.
@@ -54,15 +57,17 @@ function selectionLockedReason(event: ReviewEventWorkspace['event']): string | n
  * - 1인당 적립금·유효기간은 정책과 바로 비교해 필드 옆에 알리고, 저장을 누르면 나머지 필드도 필드별로 알린다.
  * - 제목·내용 앞뒤 공백은 잘라서 검증한다. 시작일을 바꾸면 종료·발표일이 범위 안으로 따라 움직인다.
  */
-export function ReviewEventEditorScreen({ id, workspace, targetLabels = [], query = '', filter = 'all', creditPolicy, policyHref = null }: {
+export function ReviewEventEditorScreen({ id, workspace, targetLabels = [], query = '', filter = 'all', creditPolicy, policyHref = null, justSaved = false }: {
   id: string; workspace: ReviewEventWorkspace | null; targetLabels?: ReviewEventTarget[]; query?: string; filter?: string;
   /** 생략하면 workspace.creditPolicy. null은 정책을 읽지 못한 상태(저장 판단은 서버가 한다). */
   creditPolicy?: ReviewEventCreditPolicy | null;
   policyHref?: string | null;
+  /** 등록 화면에서 처음 저장하고 옮겨 왔다(주소의 한 번용 saved 표시). 맨 위 결과 자리에 저장 결과를 보이고 포커스한다. */
+  justSaved?: boolean;
 }) {
   const router = useRouter(), [saved, setSaved] = useState(workspace?.event ?? null), [values, setValues] = useState<ReviewEventValues>(workspace?.event ?? newReviewEventValues());
   const [selected, setSelected] = useState(workspace?.selected ?? []), [reason, setReason] = useState(''), [dirtySelection, setDirtySelection] = useState(false), [dirtyTerms, setDirtyTerms] = useState(false);
-  const [error, setError] = useState(''), [notice, setNotice] = useState(''), [retry, setRetry] = useState<Request | null>(null), [pending, start] = useTransition();
+  const [error, setError] = useState(''), [notice, setNotice] = useState(justSaved ? FIRST_SAVED_NOTICE : ''), [retry, setRetry] = useState<Request | null>(null), [pending, start] = useTransition();
   const [attempted, setAttempted] = useState(false);
   /* SHEET-017: 문구 템플릿 팝업(불러오기·현재 문구 저장). 템플릿 저장은 적립금 정책과 무관하다. */
   const [templateDialog, setTemplateDialog] = useState<'pick' | 'save' | null>(null);
@@ -70,13 +75,17 @@ export function ReviewEventEditorScreen({ id, workspace, targetLabels = [], quer
    * 1027T-026·027: 저장·선정·발표 버튼은 화면 아래에 있고 결과 문장은 맨 위에 있다. 누른 사람이 아래에 머물면 막힌 이유도
    * 결과도 보이지 않아 버튼이 안 눌리는 것처럼 보였다 — 결과가 나올 때마다 그 문장으로 화면과 포커스를 옮긴다.
    */
-  const [messageTick, setMessageTick] = useState(0), messageRef = useRef<HTMLDivElement>(null);
+  const [messageTick, setMessageTick] = useState(justSaved ? 1 : 0), messageRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const node = messageRef.current;
     if (!messageTick || !node?.childElementCount) return;
     node.scrollIntoView({ block: 'center' }); node.focus({ preventScroll: true });
   }, [messageTick]);
   const showMessage = () => setMessageTick(tick => tick + 1);
+  /* 처음 저장하고 옮겨 온 표시는 결과를 보인 뒤 주소에서 지운다(새로고침·뒤로 가기에 다시 뜨지 않게). */
+  useEffect(() => {
+    if (justSaved) window.history.replaceState(null, '', withoutAdminSavedFlag(`${window.location.pathname}${window.location.search}`));
+  }, [justSaved]);
   const blocked = pending || !!retry, editable = !saved || saved.canEdit, canSelect = !!saved && ['closed', 'ready'].includes(saved.state), selectedAmount = selected.length * values.creditAmount;
   const policy = creditPolicy === undefined ? workspace?.creditPolicy ?? null : creditPolicy;
   const selectionLocked = workspace && saved && !canSelect ? selectionLockedReason(saved) : null;
@@ -96,9 +105,9 @@ export function ReviewEventEditorScreen({ id, workspace, targetLabels = [], quer
     if ('error' in result) { setError(result.error); setRetry(result.uncertain ? input : null); showMessage(); return; }
     setRetry(null); setSaved(result.event); if (input.kind === 'save') { setValues(result.event); setDirtyTerms(false); } if (input.kind === 'select') setDirtySelection(false);
     setNotice(input.kind === 'publish' ? '발표와 적립금 지급을 저장 후 다시 확인했습니다.' : input.kind === 'revoke' ? '선정 혜택 회수를 저장 후 다시 확인했습니다.' : '저장한 내용을 다시 확인했습니다.');
-    /* 새 이벤트는 상세 화면으로 옮겨 가며 맨 위에서 시작한다. 상세 화면에서 한 일만 결과 문장으로 옮긴다. */
+    /* 새 이벤트는 한 번용 saved 표시를 붙여 상세로 옮겨 가고, 상세가 맨 위 결과 자리에 저장 결과를 보인다. 상세에서 한 일은 이 화면의 결과 문장으로 옮긴다. */
     if (workspace) showMessage();
-    if (!workspace) router.replace(`${REVIEW_EVENTS_ADMIN_PATH}/${id}`); router.refresh();
+    if (!workspace) router.replace(withAdminSavedFlag(`${REVIEW_EVENTS_ADMIN_PATH}/${id}`)); router.refresh();
   }); }
   function save() {
     const trimmed = trimReviewEventText(values);

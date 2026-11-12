@@ -8,10 +8,9 @@ import { CouponSection } from '@/components/admin/sections/CouponSection';
 import type { ConfigurableGrade } from '@/lib/loyalty-policy';
 import {
   adminCouponListHref,
-  withAdminCouponSavedFlag,
-  withoutAdminCouponSavedFlag,
   type AdminCouponListData,
 } from '@/lib/admin/coupons';
+import { withAdminSavedFlag, withoutAdminSavedFlag } from '@/lib/admin/saved-flag';
 
 const emptyState: AdminCouponActionState = {};
 
@@ -31,7 +30,7 @@ export function CouponScreen({ data, mode = 'list', initialGrade, justSaved = fa
    */
   const [savedCode] = useState(justSaved ? selectedCode : null);
   useEffect(() => {
-    if (justSaved) window.history.replaceState(null, '', withoutAdminCouponSavedFlag(`${window.location.pathname}${window.location.search}`));
+    if (justSaved) window.history.replaceState(null, '', withoutAdminSavedFlag(`${window.location.pathname}${window.location.search}`));
   }, [justSaved]);
   /* ①: 목록 줄의 중지·재개 결과. 줄은 상태가 바뀌면 새로 그려져 확인 창 안 문장이 함께 사라지므로 목록 위 결과 자리로 올린다. */
   const [statusResult, setStatusResult] = useState<{ id: number; message: string } | null>(null);
@@ -42,7 +41,7 @@ export function CouponScreen({ data, mode = 'list', initialGrade, justSaved = fa
     const target = state.openTargetIssuance ? `/admin/sales/coupons/issue?couponCode=${encodeURIComponent(state.savedCode)}` : adminCouponListHref(data.filters, { selectedCode: state.savedCode });
     /* 같은 화면에서 고친 저장은 이 화면의 결과 문장이 그대로 남는다. 등록 화면에서 처음 저장할 때만 표시를 붙이고,
        결과 문장이 있는 맨 위에서 시작한다. */
-    if (mode === 'create') router.replace(withAdminCouponSavedFlag(target));
+    if (mode === 'create') router.replace(withAdminSavedFlag(target));
     else router.replace(target, { scroll: false });
   }, [state.savedCode, state.openTargetIssuance, router, data.filters, mode]);
   const source = data.records.find((record) => record.id === selectedCode)
