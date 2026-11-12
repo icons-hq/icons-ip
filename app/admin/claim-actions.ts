@@ -24,6 +24,7 @@ import {
   normalizeAdminClaimReshipmentForm,
 } from '@/lib/admin/claims';
 import { loadAdminClaimDetail } from '@/lib/admin/claims.server';
+import { CLAIM_EVIDENCE_MAX_FILES, CLAIM_WAIVER_REASON_MAX, CLAIM_WAIVER_REASON_MIN, claimWaiverReasonValid, normalizeClaimWaiverReason } from '@/lib/admin/claim-evidence';
 import { ADMIN_CANCELLATION_RECHECK_LABELS } from '@/lib/admin/orders';
 import { withPreservedFormValues, type AdminFormValuesState } from '@/lib/admin/form-state';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
@@ -111,7 +112,7 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string) {
   if (value.includes('claim_type_has_no_collection')) return '이 클레임에는 회수 확인이 필요하지 않습니다. 최신 처리 이력을 확인해주세요.';
   if (value.includes('claim_type_has_no_reshipment')) return '교환 클레임만 재출고를 기록할 수 있습니다.';
   if (value.includes('claim_not_rejectable')) {
-    return '처리에 착수한 클레임은 거부할 수 없습니다. 결제 취소를 마치거나, 사람이 판단할 일이면 보류로 남겨주세요.';
+    return '처리에 착수했거나 교환품을 재출고하기 시작한 클레임은 거부할 수 없습니다. 결제 취소나 남은 출고지 재출고를 마치거나, 사람이 판단할 일이면 보류로 남겨주세요.';
   }
   if (value.includes('claim_refund_account_missing')) {
     return '등록된 환불계좌가 없습니다. 무통장 주문은 결제한 분이 주문 상세에서 환불계좌를 등록한 뒤 다시 진행해주세요. 선물 주문은 선물 요청 화면에서 등록합니다.';
@@ -126,6 +127,14 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string) {
   if (value.includes('invalid reshipment items')) return '재출고할 주문 품목과 상품을 확인해주세요.';
   if (value.includes('reshipment_conflict')) return '이미 다른 운송장이나 상품으로 재출고한 교환입니다. 처리 이력을 확인해주세요.';
   if (value.includes('reshipment_shipment_required')) return '출고지가 둘 이상인 교환은 배송 건마다 재출고·배송완료를 확인해주세요.';
+  if (value.includes('reshipment_shipment_not_found')) return '이 교환의 재출고 대상 출고지가 아닙니다. 최신 정보를 다시 확인해주세요.';
+  if (value.includes('collection_waiver_conflict')) return '이 출고지는 이미 다른 사유·사진으로 회수 생략을 기록했습니다. 처리 이력을 확인해주세요.';
+  if (value.includes('collection_waiver_not_allowed')) return '회수 생략은 하자·오배송 교환에서만 쓸 수 있습니다.';
+  if (value.includes('collection_waiver_not_needed')) return '이미 회수를 확인한 출고지입니다. 회수 생략 없이 진행해주세요.';
+  if (value.includes('collection_waiver_unavailable')) return '출고지별 회수를 쓰지 않는 교환은 회수를 생략할 수 없습니다.';
+  if (value.includes('collection_waiver_evidence_required')) return '회수 생략 근거 사진을 1~5장 올려주세요.';
+  if (value.includes('invalid_collection_waiver_reason')) return '회수 생략 사유를 10~500자로 적어주세요.';
+  if (value.includes('production_incomplete')) return '주문제작 상품의 교환품 제작이 끝난 뒤 재출고할 수 있습니다. 주문 상세의 주문제작 처리를 확인해주세요.';
   if (value.includes('insufficient_or_overflowing_stock') || value.includes('stock_aggregate_overflow')) return '재고 수량을 적용할 수 없습니다. 최신 재고와 회수 수량을 확인해주세요.';
   if (value.includes('stock_out_of_range')) return '재출고할 옵션 재고가 부족합니다. 최신 옵션 수량을 확인해주세요.';
   if (value.includes('invalid rejection reason')) return '거부 사유는 앞뒤 공백 없이 10자 이상 200자 이하로 입력해주세요.';
@@ -464,6 +473,44 @@ export async function recordOrderClaimReshipmentDeliveryAction(
   return { message: shipment === null
     ? '교환품의 실제 배송완료를 확인했습니다. 이후 신청은 기존 신청 기한과 조건을 따릅니다.'
     : '이 송장의 교환품 배송완료를 확인했습니다. 모든 송장이 확인되면 이후 신청은 기존 신청 기한과 조건을 따릅니다.' };
+}
+
+/**
+ * 회수 생략을 재출고보다 먼저 결정한다(주문제작 상품이 있는 출고지, QNA-039·ADR-0041).
+ *
+ * 결정하면 그 출고지의 교환품 제작이 열리고, 제작이 끝나면 회수·재배송 연락처 처리에서 회수 확인 없이 재출고한다.
+ * 사유·근거 사진·하자 교환 여부·입고 여부는 DB(admin_waive_order_claim_collection)가 다시 검사한다.
+ */
+export async function waiveOrderClaimCollectionAction(
+  previous: AdminClaimActionState,
+  formData: FormData,
+): Promise<AdminClaimActionState> {
+  const failureMessage = '회수 생략을 기록하지 못했습니다. 최신 상태를 확인해주세요.';
+  const fail = (error: string) => withPreservedFormValues({ error }, previous, formData, { exclude: ['evidenceFileId'] });
+  const access = await requireStaffAction();
+  if (access.error) return fail(access.error.error ?? failureMessage);
+  const claimId = formData.get('claimId'), shipmentId = formData.get('shipmentId');
+  if (!isUuid(claimId) || !isUuid(shipmentId)) return fail(failureMessage);
+  if (formData.get('confirmed') !== 'on') return fail('회수 없이 교환품 제작을 시작한다는 확인에 체크해주세요.');
+  const reason = normalizeClaimWaiverReason(String(formData.get('reason') ?? ''));
+  if (!claimWaiverReasonValid(reason)) return fail(`회수 생략 사유를 ${CLAIM_WAIVER_REASON_MIN}~${CLAIM_WAIVER_REASON_MAX}자로 적어주세요.`);
+  const evidenceValues = formData.getAll('evidenceFileId');
+  const evidenceFileIds = evidenceValues.filter(isUuid);
+  if (evidenceFileIds.length !== evidenceValues.length || evidenceFileIds.length < 1 || evidenceFileIds.length > CLAIM_EVIDENCE_MAX_FILES
+    || new Set(evidenceFileIds).size !== evidenceFileIds.length) {
+    return fail(`회수 생략 근거 사진을 1~${CLAIM_EVIDENCE_MAX_FILES}장 올려주세요.`);
+  }
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc('admin_waive_order_claim_collection', {
+    p_claim_id: claimId, p_shipment_id: shipmentId, p_waiver: { reason, evidenceFileIds },
+  });
+  if (error) return fail(rpcErrorMessage(error.message, failureMessage));
+  const result = typeof data === 'object' && data !== null && !Array.isArray(data) ? data as Record<string, unknown> : null;
+  if (!result || result.claimId !== claimId || result.shipmentId !== shipmentId) return fail(failureMessage);
+  revalidateClaimSurfaces(claimId, 'exchange');
+  return { message: result.productionPending === true
+    ? '회수 생략을 기록했습니다. 주문 상세의 주문제작 처리에서 교환품 제작을 마치면 회수 없이 재출고합니다.'
+    : '회수 생략을 기록했습니다. 회수·재배송 연락처 처리에서 회수 없이 재출고합니다.' };
 }
 
 interface ManualRecoveryAttemptRow {

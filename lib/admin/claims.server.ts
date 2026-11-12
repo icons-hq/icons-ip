@@ -221,6 +221,14 @@ export interface AdminClaimCollection {
   collectionWaived?: boolean;
 }
 
+/** 배송 건 하나의 회수 생략 결정(사유·근거 사진). 하자·오배송 교환인 동안에만 회수를 대신한다(QNA-039). */
+export interface AdminClaimCollectionWaiver {
+  reason: string;
+  waivedAt: string;
+  waivedByName: string | null;
+  evidence: { id: string; mimeType: string; size: number }[];
+}
+
 /** 교환 재출고 대상 배송 건(출고지). shipmentId가 null이면 배송 건 없는 옛 주문 전체다(TKT-166). */
 export interface AdminClaimReshipmentTarget {
   shipmentId: string | null;
@@ -230,6 +238,12 @@ export interface AdminClaimReshipmentTarget {
   collectedAt: string | null;
   reshipped: boolean;
   orderItemIds: string[];
+  /** 회수 생략을 먼저 결정한 배송 건(주문제작 상품). 결정이 없으면 null이다. */
+  waiver: AdminClaimCollectionWaiver | null;
+  /** 주문제작 상품이 있어 교환품을 새로 만들어야 하는 배송 건인지. */
+  productionRequired: boolean;
+  /** 교환품 제작이 아직 끝나지 않아 재출고를 기다리는지. */
+  productionPending: boolean;
 }
 
 /** 배송 건 하나의 재출고 기록. 회수 생략이면 사유와 근거 사진이 함께 남는다(QNA-039). */
@@ -327,11 +341,25 @@ function text(value: unknown): string | null {
   return typeof value === 'string' && value.length > 0 ? value : null;
 }
 
+function evidenceFiles(value: unknown) {
+  return (Array.isArray(value) ? value : []).filter(isRecord).map((file) => ({
+    id: String(file.id ?? ''), mimeType: String(file.mimeType ?? ''), size: toNumber(file.size as number | string),
+  }));
+}
+
+function collectionWaiver(value: unknown): AdminClaimCollectionWaiver | null {
+  if (!isRecord(value) || !text(value.reason) || !text(value.waivedAt)) return null;
+  return { reason: String(value.reason), waivedAt: String(value.waivedAt), waivedByName: text(value.waivedByName), evidence: evidenceFiles(value.evidence) };
+}
+
 function reshipmentTargets(value: unknown): AdminClaimReshipmentTarget[] {
   return (Array.isArray(value) ? value : []).filter(isRecord).map((target) => ({
     shipmentId: text(target.shipmentId), originName: text(target.originName),
     collectionTracked: target.collectionTracked === true, collectedAt: text(target.collectedAt), reshipped: target.reshipped === true,
     orderItemIds: (Array.isArray(target.orderItemIds) ? target.orderItemIds : []).filter((id): id is string => typeof id === 'string'),
+    waiver: collectionWaiver(target.waiver),
+    productionRequired: target.productionRequired === true,
+    productionPending: target.productionPending === true,
   }));
 }
 
@@ -341,9 +369,7 @@ function reshipments(value: unknown): AdminClaimReshipment[] {
     carrier: String(row.carrier ?? ''), carrierLabel: text(row.carrierLabel), trackingNumber: String(row.trackingNumber ?? ''),
     reshippedAt: String(row.reshippedAt ?? ''), reshippedByName: text(row.reshippedByName),
     collectionWaived: row.collectionWaived === true, waiverReason: text(row.waiverReason),
-    waiverEvidence: (Array.isArray(row.waiverEvidence) ? row.waiverEvidence : []).filter(isRecord).map((file) => ({
-      id: String(file.id ?? ''), mimeType: String(file.mimeType ?? ''), size: toNumber(file.size as number | string),
-    })),
+    waiverEvidence: evidenceFiles(row.waiverEvidence),
     deliveredAt: text(row.deliveredAt), deliveredByName: text(row.deliveredByName), deliveryEvidence: text(row.deliveryEvidence),
     items: (Array.isArray(row.items) ? row.items : []).filter(isRecord).map((item) => ({
       orderItemId: String(item.orderItemId ?? ''), name: String(item.name ?? ''), variantName: String(item.variantName ?? ''),

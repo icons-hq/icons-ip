@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { getCurrentAuthState } from '@/lib/auth/server';
 import { createClient } from '@/lib/supabase/server';
 import { giftError, type GiftFailure } from '@/lib/gifts';
-import { loadGiftClaimContext } from '@/lib/gift-claims.server';
+import { loadGiftClaimContext, withGiftClaimParcelViews } from '@/lib/gift-claims.server';
 import { parseGiftClaimOutcome, type GiftClaimOutcome, type GiftClaimContext } from '@/lib/gift-claims';
 import { normalizeRefundAccount } from '@/lib/orders/claims';
 import { isUuid } from '@/lib/uuid';
@@ -16,7 +16,7 @@ async function mutate(name: string, args: Record<string, unknown>, actorId: stri
     if (error) return giftError(error);
     const outcome = parseGiftClaimOutcome(data);
     if (!outcome || outcome.context.giftId !== args.p_gift_id || outcome.receipt.operationId !== args.p_operation_id) return giftError();
-    revalidatePath(`/gifts/${args.p_gift_id}`); return outcome;
+    revalidatePath(`/gifts/${args.p_gift_id}`); return { receipt: outcome.receipt, context: await withGiftClaimParcelViews(outcome.context) };
   } catch (error) { unstable_rethrow(error); return giftError(); }
 }
 export async function requestGiftClaimAction(giftId: string, type: 'return' | 'exchange', reason: 'change_of_mind' | 'defect', operationId: string, actorId: string) {

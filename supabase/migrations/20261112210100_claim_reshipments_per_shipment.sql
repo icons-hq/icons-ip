@@ -20,10 +20,17 @@
 --   같은 한 쌍이다). 대상이 둘 이상이면 그 열은 비어 있고 배송 건 행이 진실원이다.
 -- * 회수 생략은 판매자 귀책 사유(하자·오배송, reason_type='defect') 교환에서만, 출고지별 회수를 쓰는 클레임의
 --   아직 입고되지 않은 배송 건에만 쓴다. 사유 10~500자와 근거 사진 1~5장(20261112210000 원장)이 필요하다.
---   금액 상한은 두지 않는다. 회수 생략한 배송 건은 회수가 끝난 것으로 본다(claim_collections_complete).
+--   금액 상한은 두지 않는다. 회수 생략은 배송 건마다 결정으로 남는다(public.order_claim_collection_waivers):
+--   주문제작이 아닌 배송 건은 재출고와 같은 요청에서, 주문제작 상품이 있는 배송 건은 먼저
+--   admin_waive_order_claim_collection으로 결정해 교환품 제작을 연 뒤 제작이 끝나면 재출고한다(제작 완료 뒤 재출고
+--   원칙 유지). 결정한 배송 건은 회수가 끝난 것으로 본다(claim_collections_complete).
+-- * 교환품 제작은 배송 건 단위다: 그 배송 건 입고(또는 회수 생략 결정) 때 작업을 만들고 시작·완료를 열며,
+--   재출고 때는 그 배송 건의 주문제작 품목만 제작 완료를 본다.
+-- * 한 배송 건이라도 재출고한 교환은 거부할 수 없고(보류에서의 거부 포함), 회수 정보 정정은 재출고한 배송 건만 잠근다.
 -- * 진입점: 재출고는 최종 주소 확인(10분 결속)을 거치는 service_record_order_claim_shipment_reshipment가 배송
 --   건마다 받는다. 옛 service_record_order_claim_reshipment_v2·admin_record_order_claim_reshipment·
 --   admin_record_order_claim_reshipment_delivery는 대상 배송 건이 하나인 교환에서만 동작하게 감싼다.
+-- * 고객: 구매자·선물 받은 분 모두 배송 건 소포(운송장) 목록을 받는다(get_my_order_claim_reshipments, gift_claim_context).
 begin;
 
 -- ---------------------------------------------------------------------------
@@ -65,6 +72,28 @@ create index order_claim_reshipments_order_idx on public.order_claim_reshipments
 alter table public.order_claim_reshipments enable row level security;
 -- 고객·운영 화면은 보안 정의 RPC로만 읽는다. 처리자·회수 생략 사유·배송완료 근거는 운영 정보다.
 revoke all on public.order_claim_reshipments from public,anon,authenticated,service_role;
+
+-- 회수 생략 결정(배송 건마다 한 번). 주문제작이 아닌 배송 건은 재출고와 같은 요청으로 남기고, 주문제작 상품이 있는
+-- 배송 건은 먼저 결정해 교환품 제작을 시작한 뒤 제작이 끝나면 재출고한다(제작 완료 뒤 재출고 원칙). 결정은 클레임이
+-- 하자·오배송 교환인 동안에만 회수를 대신한다(private.claim_collection_waived). 고칠 수 없고 재출고 행이 사본을 남긴다.
+create table public.order_claim_collection_waivers(
+ claim_id uuid not null references public.order_cancellation_requests(id) on delete restrict,
+ shipment_id uuid not null,
+ order_id uuid not null references public.orders(id) on delete restrict,
+ reason text not null,
+ evidence_file_ids uuid[] not null,
+ waived_by uuid not null references public.profiles(id) on delete restrict,
+ waived_at timestamptz not null,
+ primary key(claim_id,shipment_id),
+ constraint order_claim_collection_waivers_collection_fkey foreign key(claim_id,shipment_id) references public.order_claim_collections(claim_id,shipment_id) on delete restrict,
+ constraint order_claim_collection_waivers_reason_check check(reason=btrim(reason) and char_length(reason) between 10 and 500
+  and translate(reason,E'\n\r\t','')!~'[[:cntrl:]]'),
+ constraint order_claim_collection_waivers_evidence_check check(cardinality(evidence_file_ids) between 1 and 5 and array_position(evidence_file_ids,null) is null)
+);
+create index order_claim_collection_waivers_order_idx on public.order_claim_collection_waivers(order_id);
+alter table public.order_claim_collection_waivers enable row level security;
+-- 사유·근거 사진·처리자는 운영 정보다. 운영 상세 RPC로만 읽는다.
+revoke all on public.order_claim_collection_waivers from public,anon,authenticated,service_role;
 
 -- 재출고 품목 원장 → 배송 건 재출고 연결. 이 migration 전 기록(클레임당 한 쌍)은 null로 남는다.
 alter table public.order_claim_reshipment_items add column reshipment_id uuid references public.order_claim_reshipments(id) on delete restrict;
@@ -131,14 +160,60 @@ returns boolean language sql stable set search_path='' as $$
     and r.order_item_id=(s->>'orderItemId')::uuid and r.variant_id=(s->>'variantId')::uuid)) end;
 $$;
 
--- 회수 생략으로 재출고한 배송 건은 회수가 끝난 것으로 본다. 그 밖의 판정은 그대로다.
+-- 회수 생략 입력 {reason, evidenceFileIds}: 사유 10~500자(줄바꿈만 허용), 근거 사진 1~5장(중복 없음, 정렬해 돌려준다).
+create function private.claim_collection_waiver_values(p_waiver jsonb,out reason text,out evidence uuid[])
+language plpgsql immutable set search_path='' as $$
+begin
+ if jsonb_typeof(p_waiver) is distinct from 'object' or not(p_waiver ?& array['reason','evidenceFileIds'])
+  or (select count(*) from jsonb_object_keys(p_waiver))<>2 or jsonb_typeof(p_waiver->'reason') is distinct from 'string'
+  or jsonb_typeof(p_waiver->'evidenceFileIds') is distinct from 'array' then
+  raise check_violation using message='invalid_collection_waiver';end if;
+ reason:=p_waiver->>'reason';
+ if reason<>btrim(reason) or char_length(reason) not between 10 and 500
+  or translate(reason,E'\n\r\t','')~'[[:cntrl:]]' then raise check_violation using message='invalid_collection_waiver_reason';end if;
+ if jsonb_array_length(p_waiver->'evidenceFileIds') not between 1 and 5 or exists(select 1 from jsonb_array_elements(p_waiver->'evidenceFileIds') e
+  where jsonb_typeof(e) is distinct from 'string' or e#>>'{}' !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') then
+  raise check_violation using message='collection_waiver_evidence_required';end if;
+ select array_agg(distinct (e#>>'{}')::uuid order by (e#>>'{}')::uuid) into evidence from jsonb_array_elements(p_waiver->'evidenceFileIds') e;
+ if cardinality(evidence)<>jsonb_array_length(p_waiver->'evidenceFileIds') then raise check_violation using message='collection_waiver_evidence_required';end if;
+end $$;
+
+-- 회수 생략 결정이 지금 회수를 대신하는가. 하자·오배송 교환인 동안에만이다(유형·사유가 바뀌면 다시 회수해야 한다).
+create function private.claim_collection_waived(p_claim uuid,p_shipment uuid)
+returns boolean language sql stable set search_path='' as $$
+ select exists(select 1 from public.order_claim_collection_waivers w join public.order_cancellation_requests c on c.id=w.claim_id
+  where w.claim_id=p_claim and w.shipment_id=p_shipment and c.claim_type='exchange' and c.reason_type='defect');
+$$;
+
+-- 교환 주문제작 품목의 교환품 제작 작업을 만든다. 이미 있으면 그대로 둔다(먼저 정해진 기준 시각이 남는다).
+create function private.ensure_claim_production_jobs(p_claim uuid,p_items uuid[],p_basis timestamptz)
+returns void language sql volatile set search_path='' as $$
+ insert into private.order_production_jobs(order_id,order_item_id,claim_id,terms,basis_at,due_at)
+ select i.order_id,i.id,p_claim,i.production_terms_snapshot,p_basis,private.production_deadline(p_basis,i.production_terms_snapshot)
+ from public.order_items i where i.id=any(p_items) and i.production_terms_snapshot is not null order by i.id
+ on conflict do nothing;
+$$;
+
+-- 교환품 제작을 시작·완료할 수 있는가. 클레임이 입고완료면 모두, 회수 중이면 그 품목이 담긴 배송 건이 모두 입고됐거나
+-- 회수 생략으로 결정된 때다(배송 건마다 재출고하므로 제작도 배송 건마다 연다).
+create function private.claim_production_ready(p_claim uuid,p_item uuid)
+returns boolean language sql stable set search_path='' as $$
+ select exists(select 1 from public.order_cancellation_requests c where c.id=p_claim and c.claim_type='exchange' and(c.stage='collected'
+  or c.stage='collecting'
+   and exists(select 1 from public.order_claim_collections x cross join lateral jsonb_array_elements(x.items_snapshot) j
+    where x.claim_id=c.id and (j->>'orderItemId')::uuid=p_item)
+   and not exists(select 1 from public.order_claim_collections x cross join lateral jsonb_array_elements(x.items_snapshot) j
+    where x.claim_id=c.id and (j->>'orderItemId')::uuid=p_item and x.collected_at is null and not private.claim_collection_waived(x.claim_id,x.shipment_id))));
+$$;
+
+-- 회수 생략으로 재출고했거나 회수 생략을 결정한 배송 건은 회수가 끝난 것으로 본다. 그 밖의 판정은 그대로다.
 create or replace function private.claim_collections_complete(target_claim uuid)
 returns boolean language sql stable set search_path='' as $$
  select coalesce((select not c.collection_required or c.collection_policy='legacy' or
    (exists(select 1 from public.order_items i where i.order_id=c.order_id)
     and exists(select 1 from public.order_claim_collections x where x.claim_id=c.id)
     and not exists(select 1 from public.order_claim_collections x where x.claim_id=c.id and x.collected_at is null
-     and not exists(select 1 from public.order_claim_reshipments r where r.claim_id=x.claim_id and r.shipment_id=x.shipment_id and r.collection_waived))
+     and not private.claim_collection_waived(x.claim_id,x.shipment_id))
     and not exists(select 1 from public.order_items i where i.order_id=c.order_id and coalesce(i.fulfillment_terms_snapshot->>'mode','shipping')<>'digital' and
       coalesce((select sum((j->>'qty')::bigint) from public.order_claim_collections x cross join lateral jsonb_array_elements(x.items_snapshot) j
        where x.claim_id=c.id and (j->>'orderItemId')::uuid=i.id),0)<>i.qty))
@@ -148,11 +223,35 @@ $$;
 -- ---------------------------------------------------------------------------
 -- 3. 배송 건 재출고 기록(재고 이동의 유일한 쓰기 경로)
 -- ---------------------------------------------------------------------------
+-- 회수 생략 결정을 남긴다(호출자가 주문 → 배송 건 → 클레임 순으로 잠근 뒤). 같은 결정이 이미 있으면 그대로 돌려주고,
+-- 다른 결정이면 거절한다. 그 배송 건의 주문제작 품목은 결정 시각을 기준으로 교환품 제작 작업을 만든다.
+create function private.record_claim_collection_waiver(p_claim public.order_cancellation_requests,p_shipment_id uuid,p_reason text,p_evidence uuid[],p_actor uuid,p_at timestamptz)
+returns public.order_claim_collection_waivers language plpgsql set search_path='' as $$
+declare target record;decision public.order_claim_collection_waivers;begin
+ select * into decision from public.order_claim_collection_waivers where claim_id=p_claim.id and shipment_id=p_shipment_id;
+ if found then
+  if decision.reason=p_reason and decision.evidence_file_ids=p_evidence then return decision;end if;
+  raise unique_violation using message='collection_waiver_conflict';
+ end if;
+ select * into target from private.claim_reshipment_targets(p_claim.id) t where t.shipment_id is not distinct from p_shipment_id;
+ if not found then raise check_violation using message='reshipment_shipment_not_found';end if;
+ if not target.collection_tracked then raise check_violation using message='collection_waiver_unavailable';end if;
+ if p_claim.reason_type<>'defect' then raise check_violation using message='collection_waiver_not_allowed';end if;
+ if target.collected_at is not null then raise check_violation using message='collection_waiver_not_needed';end if;
+ if (select count(*) from private.claim_evidence_files f where f.id=any(p_evidence) and f.claim_id=p_claim.id)<>cardinality(p_evidence) then
+  raise check_violation using message='collection_waiver_evidence_required';end if;
+ insert into public.order_claim_collection_waivers(claim_id,shipment_id,order_id,reason,evidence_file_ids,waived_by,waived_at)
+ values(p_claim.id,p_shipment_id,p_claim.order_id,p_reason,p_evidence,p_actor,p_at) returning * into decision;
+ perform private.ensure_claim_production_jobs(p_claim.id,target.item_ids,p_at);
+ return decision;
+end $$;
+
 create function private.record_order_claim_shipment_reshipment(p_claim_id uuid,p_shipment_id uuid,p_carrier text,p_tracking_number text,p_items jsonb,p_waiver jsonb default null)
 returns text language plpgsql set search_path='' as $$
 declare
  actor uuid:=(select auth.uid());carrier text:=nullif(btrim(p_carrier),'');tracking text:=nullif(btrim(p_tracking_number),'');
- waived boolean:=p_waiver is not null and p_waiver<>'null'::jsonb;waiver_reason text;evidence uuid[];
+ requested_waiver boolean:=p_waiver is not null and p_waiver<>'null'::jsonb;waived boolean:=false;decided boolean:=false;
+ waiver_reason text;evidence uuid[];decision public.order_claim_collection_waivers;
  selections jsonb;requested jsonb;order_key uuid;order_state public.order_status;claim public.order_cancellation_requests;
  target record;existing public.order_claim_reshipments;record_id uuid;item record;source_variant uuid;selected_variant uuid;
  variant public.goods_variants;grouped boolean;physical record;successor record;choice record;allocations jsonb:='[]';entry jsonb;
@@ -175,20 +274,7 @@ begin
   raise check_violation using message='invalid reshipment items';end if;
  select coalesce(jsonb_agg(jsonb_build_object('orderItemId',(x->>'orderItemId')::uuid,'variantId',(x->>'variantId')::uuid)
   order by (x->>'orderItemId')::uuid),'[]') into selections from jsonb_array_elements(p_items) x;
- if waived then
-  if jsonb_typeof(p_waiver) is distinct from 'object' or not(p_waiver ?& array['reason','evidenceFileIds'])
-   or (select count(*) from jsonb_object_keys(p_waiver))<>2 or jsonb_typeof(p_waiver->'reason') is distinct from 'string'
-   or jsonb_typeof(p_waiver->'evidenceFileIds') is distinct from 'array' then
-   raise check_violation using message='invalid_collection_waiver';end if;
-  waiver_reason:=p_waiver->>'reason';
-  if waiver_reason<>btrim(waiver_reason) or char_length(waiver_reason) not between 10 and 500
-   or translate(waiver_reason,E'\n\r\t','')~'[[:cntrl:]]' then raise check_violation using message='invalid_collection_waiver_reason';end if;
-  if jsonb_array_length(p_waiver->'evidenceFileIds') not between 1 and 5 or exists(select 1 from jsonb_array_elements(p_waiver->'evidenceFileIds') e
-   where jsonb_typeof(e) is distinct from 'string' or e#>>'{}' !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') then
-   raise check_violation using message='collection_waiver_evidence_required';end if;
-  select array_agg(distinct (e#>>'{}')::uuid order by (e#>>'{}')::uuid) into evidence from jsonb_array_elements(p_waiver->'evidenceFileIds') e;
-  if cardinality(evidence)<>jsonb_array_length(p_waiver->'evidenceFileIds') then raise check_violation using message='collection_waiver_evidence_required';end if;
- end if;
+ if requested_waiver then select v.reason,v.evidence into waiver_reason,evidence from private.claim_collection_waiver_values(p_waiver) v;end if;
  select order_id into order_key from public.order_cancellation_requests where id=p_claim_id;
  if not found then raise no_data_found using message='claim_not_found';end if;
  -- Cancellation, payment finalization and claim operations all lock order first.
@@ -197,6 +283,18 @@ begin
  select * into claim from public.order_cancellation_requests where id=p_claim_id for update;
  if claim.claim_type<>'exchange' then raise exception using message='claim_type_has_no_reshipment';end if;
  perform private.lock_goods_stock_successor_topology();
+ -- 먼저 결정한 회수 생략(주문제작 배송 건)은 그 결정이 이 재출고의 회수 생략이다. 같은 요청에 다른 사유·사진을 실으면 거절한다.
+ if p_shipment_id is not null and claim.reason_type='defect' then
+  select * into decision from public.order_claim_collection_waivers w where w.claim_id=p_claim_id and w.shipment_id=p_shipment_id;
+  decided:=found;
+ end if;
+ if decided then
+  if requested_waiver and(decision.reason<>waiver_reason or decision.evidence_file_ids<>evidence) then
+   raise unique_violation using message='collection_waiver_conflict';end if;
+  waived:=true;waiver_reason:=decision.reason;evidence:=decision.evidence_file_ids;
+ else
+  waived:=requested_waiver;
+ end if;
  select * into existing from public.order_claim_reshipments where claim_id=p_claim_id and shipment_id is not distinct from p_shipment_id for update;
  if found then
   -- 같은 배송 건·같은 운송장·같은 선택의 재전송만 같은 결과다. 재고는 다시 움직이지 않는다.
@@ -217,7 +315,7 @@ begin
  if not found then raise check_violation using message='reshipment_shipment_not_found';end if;
  if not waived then
   if target.collection_tracked and target.collected_at is null then raise check_violation using message='claim_collections_incomplete';end if;
- else
+ elsif not decided then
   if not target.collection_tracked then raise check_violation using message='collection_waiver_unavailable';end if;
   if claim.reason_type<>'defect' then raise check_violation using message='collection_waiver_not_allowed';end if;
   if target.collected_at is not null then raise check_violation using message='collection_waiver_not_needed';end if;
@@ -231,6 +329,12 @@ begin
  if not exists(select 1 from public.shipping_carriers c where c.code=carrier and c.is_active) then raise check_violation using message='unknown shipping carrier';end if;
  if exists(select 1 from jsonb_array_elements(selections) s where not((s->>'orderItemId')::uuid=any(target.item_ids))) then
   raise check_violation using message='invalid reshipment items';end if;
+ -- 재출고와 같은 요청의 회수 생략은 여기서 결정으로 남긴다. 주문제작 품목은 제작 작업이 막 생겨 아래 검사에서 거절되고
+ -- 결정도 함께 되돌린다 — 그 배송 건은 회수 생략을 먼저 결정(admin_waive_order_claim_collection)해 제작을 시작한다.
+ if waived and not decided then
+  decision:=private.record_claim_collection_waiver(claim,p_shipment_id,waiver_reason,evidence,actor,clock_timestamp());
+ end if;
+ -- 제작 완료 뒤 재출고: 이 배송 건의 주문제작 품목만 본다(다른 출고지의 제작은 그 출고지 재출고가 기다린다).
  if exists(select 1 from public.order_items i where i.id=any(target.item_ids) and i.production_terms_snapshot is not null
   and not exists(select 1 from private.order_production_jobs j where j.order_item_id=i.id and j.claim_id=p_claim_id and j.state='completed')) then
   raise check_violation using message='production_incomplete';end if;
@@ -346,6 +450,47 @@ begin
  perform private.notify_order_claim(p_claim_id,'reshipped:'||coalesce(p_shipment_id::text,'order'),title,body);
  return case when completed then 'completed' else 'reshipped' end;
 exception when lock_not_available then raise sqlstate 'PT409' using message='goods_group_retry';
+end $$;
+
+-- 회수 생략을 재출고보다 먼저 결정한다(주문제작 상품이 있는 배송 건). 결정 시각을 기준으로 그 배송 건의 교환품 제작을
+-- 열고, 제작이 끝나면 회수 확인 없이 재출고한다. 재고는 움직이지 않는다(재출고 때 보낸 옵션만 뺀다). 같은 결정의
+-- 재전송은 같은 결과다. 클레임을 고쳐 쓰는 다른 처리와 같이 claim_revision을 올려, 열려 있던 최종 주소 확인을 새로 받게 한다.
+create function public.admin_waive_order_claim_collection(p_claim_id uuid,p_shipment_id uuid,p_waiver jsonb)
+returns jsonb language plpgsql security definer set search_path='' as $$
+declare actor uuid:=(select auth.uid());reason text;evidence uuid[];order_key uuid;order_state public.order_status;
+ claim public.order_cancellation_requests;decision public.order_claim_collection_waivers;target record;replayed boolean:=false;at_value timestamptz:=clock_timestamp();
+begin
+ perform private.require_operator_capability('sales.manage',false);
+ if actor is null or not public.has_operator_capability('sales.manage',false) then raise insufficient_privilege using message='staff required';end if;
+ if p_claim_id is null or p_shipment_id is null then raise check_violation using message='reshipment_shipment_not_found';end if;
+ select v.reason,v.evidence into reason,evidence from private.claim_collection_waiver_values(p_waiver) v;
+ select order_id into order_key from public.order_cancellation_requests where id=p_claim_id;
+ if not found then raise no_data_found using message='claim_not_found';end if;
+ select status into order_state from public.orders where id=order_key for update;
+ perform 1 from public.order_shipments where order_id=order_key order by id for update;
+ select * into claim from public.order_cancellation_requests where id=p_claim_id for update;
+ if claim.claim_type<>'exchange' then raise exception using message='claim_type_has_no_reshipment';end if;
+ select * into decision from public.order_claim_collection_waivers where claim_id=p_claim_id and shipment_id=p_shipment_id;
+ if found then
+  if decision.reason<>reason or decision.evidence_file_ids<>evidence then raise unique_violation using message='collection_waiver_conflict';end if;
+  replayed:=true;
+ else
+  if claim.stage not in('collecting','collected') or order_state not in('shipping','delivered','done')
+   or exists(select 1 from public.order_cancellation_claims where order_id=order_key) then
+   raise exception using message='claim_not_reshippable';end if;
+  if exists(select 1 from public.order_claim_reshipments where claim_id=p_claim_id and shipment_id=p_shipment_id) then
+   raise unique_violation using message='reshipment_conflict';end if;
+  decision:=private.record_claim_collection_waiver(claim,p_shipment_id,reason,evidence,actor,at_value);
+  update public.order_cancellation_requests set updated_at=at_value where id=p_claim_id;
+  insert into public.audit_log(actor_id,action,target,diff) values(actor,'admin.order.claim_collection_waived','order:'||order_key::text,
+   jsonb_build_object('claimId',p_claim_id,'claimType','exchange','shipmentId',p_shipment_id,
+    'originName',(select origin_name_snapshot from public.order_claim_collections where claim_id=p_claim_id and shipment_id=p_shipment_id),
+    'waiverReason',reason,'evidenceFileIds',to_jsonb(evidence)));
+ end if;
+ select * into target from private.claim_reshipment_targets(p_claim_id) t where t.shipment_id=p_shipment_id;
+ return jsonb_build_object('claimId',p_claim_id,'shipmentId',p_shipment_id,'waivedAt',decision.waived_at,'replayed',replayed,
+  'productionPending',exists(select 1 from public.order_items i where i.id=any(target.item_ids) and i.production_terms_snapshot is not null
+   and not exists(select 1 from private.order_production_jobs j where j.order_item_id=i.id and j.claim_id=p_claim_id and j.state='completed')));
 end $$;
 
 -- 옛 클레임 단위 쓰기: 종결된 기록의 재생과, 대상 배송 건이 하나뿐인 교환의 재출고만 받는다.
@@ -750,11 +895,21 @@ returns jsonb language sql stable security definer set search_path='' as $$
  from public.order_claim_reshipments r where r.claim_id=p_claim;
 $$;
 
+-- 대상 배송 건마다: 회수 확인, 재출고 여부, 효력 있는 회수 생략 결정(사유·사진·처리자), 주문제작 품목과 그 교환품 제작이
+-- 아직 끝나지 않았는지(제작 대기면 재출고하지 않는다).
 create function private.claim_reshipment_targets_json(p_claim uuid)
 returns jsonb language sql stable security definer set search_path='' as $$
  select coalesce(jsonb_agg(jsonb_build_object('shipmentId',t.shipment_id,'originName',t.origin_name,'collectionTracked',t.collection_tracked,
   'collectedAt',t.collected_at,'reshipped',exists(select 1 from public.order_claim_reshipments r where r.claim_id=p_claim and r.shipment_id is not distinct from t.shipment_id),
-  'orderItemIds',to_jsonb(t.item_ids)) order by t.origin_name nulls last,t.shipment_id),'[]'::jsonb)
+  'orderItemIds',to_jsonb(t.item_ids),
+  'waiver',(select jsonb_build_object('reason',w.reason,'waivedAt',w.waived_at,'waivedByName',(select nickname from public.profiles where id=w.waived_by),
+    'evidence',(select coalesce(jsonb_agg(jsonb_build_object('id',f.id,'mimeType',f.mime_type,'size',f.size_bytes) order by v.n),'[]'::jsonb)
+     from unnest(w.evidence_file_ids) with ordinality v(id,n) join private.claim_evidence_files f on f.id=v.id))
+   from public.order_claim_collection_waivers w where w.claim_id=p_claim and w.shipment_id=t.shipment_id and private.claim_collection_waived(p_claim,t.shipment_id)),
+  'productionRequired',exists(select 1 from public.order_items i where i.id=any(t.item_ids) and i.production_terms_snapshot is not null),
+  'productionPending',exists(select 1 from public.order_items i where i.id=any(t.item_ids) and i.production_terms_snapshot is not null
+   and not exists(select 1 from private.order_production_jobs j where j.order_item_id=i.id and j.claim_id=p_claim and j.state='completed')))
+  order by t.origin_name nulls last,t.shipment_id),'[]'::jsonb)
  from private.claim_reshipment_targets(p_claim) t;
 $$;
 
@@ -822,12 +977,133 @@ begin
 end $patch$;
 
 -- ---------------------------------------------------------------------------
+-- 7b. 클레임 단위로 '재출고 시작'을 보던 다른 판정을 배송 건 기준으로 맞춘다(다른 트랙이 같은 함수를 이어 고치므로 앵커 치환)
+-- ---------------------------------------------------------------------------
+-- 거부: 한 출고지라도 재출고했으면 거부로 닫지 않는다(보류에서의 거부 포함). 재출고 1/2인 교환을 거부하면 나간 소포의
+-- 재고 차감·배송 기록이 남은 채 교환이 사라지고, 배송완료 대기(claim_reshipment_delivery_pending)도 판정 밖으로 빠진다.
+do $patch$
+declare definition text:=pg_get_functiondef('private.decide_order_claim(uuid,text,text)'::regprocedure);
+ anchor text:=$a$    if v_effective_stage not in ('requested', 'in_review', 'collecting', 'collected') then
+      raise exception using message = 'claim_not_rejectable';
+    end if;$a$;
+ replacement text:=$a$    if v_effective_stage not in ('requested', 'in_review', 'collecting', 'collected') then
+      raise exception using message = 'claim_not_rejectable';
+    end if;
+
+    /*
+     * 한 출고지라도 교환품을 재출고했으면 거부할 수 없다(TKT-166·ADR-0041).
+     * 나간 소포의 재고 차감과 배송 기록이 남으므로, 남은 출고지를 재출고해 종결하거나 보류한다.
+     */
+    if v_claim.reshipped_at is not null
+      or exists (select 1 from public.order_claim_reshipments as reshipment where reshipment.claim_id = p_claim_id)
+    then
+      raise exception using message = 'claim_not_rejectable';
+    end if;$a$;
+begin
+ if (length(definition)-length(replace(definition,anchor,'')))/length(anchor)<>1 then raise exception 'decide_order_claim anchor must appear once';end if;
+ execute replace(definition,anchor,replacement);
+end $patch$;
+
+-- 회수 정보 정정: 첫 재출고 뒤에도 아직 재출고하지 않은 출고지는 정정할 수 있다. 클레임 단위 잠금은 모든 대상 배송 건을
+-- 재출고했을 때(옛 한 쌍 재출고는 그대로 잠금)이고, 재출고한 배송 건 행에는 reshipped=true를 싣는다. 이 키는 배송 건
+-- 재출고가 있는 행에만 실린다 — 정확한 키를 요구하는 옛 앱 파서가 배포 틈에 기존 클레임을 읽지 못하는 일이 없게 한다.
+do $patch$
+declare definition text:=pg_get_functiondef('private.claim_collection_document(uuid)'::regprocedure);
+ claim_anchor text:=$a$  and c.reshipped_at is null and not exists(select 1 from public.order_cancellation_claims where order_id=c.order_id)$a$;
+ claim_replacement text:=$a$  and(c.reshipped_at is null or c.reship_tracking_number is null and exists(select 1 from private.claim_reshipment_targets(c.id) t
+   where not exists(select 1 from public.order_claim_reshipments r where r.claim_id=c.id and r.shipment_id is not distinct from t.shipment_id)))
+  and not exists(select 1 from public.order_cancellation_claims where order_id=c.order_id)$a$;
+ row_anchor text:=$a$'collectedAt',x.collected_at,'updatedAt',p.updated_at) order by s.id)$a$;
+ row_replacement text:=$a$'collectedAt',x.collected_at,'updatedAt',p.updated_at)
+  ||case when exists(select 1 from public.order_claim_reshipments r where r.claim_id=c.id and r.shipment_id=s.id) then jsonb_build_object('reshipped',true) else '{}'::jsonb end order by s.id)$a$;
+begin
+ if (length(definition)-length(replace(definition,claim_anchor,'')))/length(claim_anchor)<>1
+  or (length(definition)-length(replace(definition,row_anchor,'')))/length(row_anchor)<>1 then raise exception 'claim_collection_document anchors must appear once';end if;
+ execute replace(replace(definition,claim_anchor,claim_replacement),row_anchor,row_replacement);
+end $patch$;
+
+do $patch$
+declare definition text:=pg_get_functiondef('public.admin_save_claim_collection_plan(uuid,uuid,bigint,integer,jsonb,uuid,uuid,uuid)'::regprocedure);
+ anchor text:=$a$if (private.claim_collection_document(p_claim)->>'editable')::boolean is distinct from true or not exists(select 1 from public.order_shipments where id=p_shipment and order_id=order_key) then$a$;
+ replacement text:=$a$if (private.claim_collection_document(p_claim)->>'editable')::boolean is distinct from true or not exists(select 1 from public.order_shipments where id=p_shipment and order_id=order_key)
+  or exists(select 1 from public.order_claim_reshipments where claim_id=p_claim and shipment_id=p_shipment) then$a$;
+begin
+ if (length(definition)-length(replace(definition,anchor,'')))/length(anchor)<>1 then raise exception 'admin_save_claim_collection_plan anchor must appear once';end if;
+ execute replace(definition,anchor,replacement);
+end $patch$;
+
+-- 교환품 제작: 시작·완료는 클레임 전체 입고가 아니라 그 품목이 담긴 배송 건의 입고(또는 회수 생략 결정)로 연다.
+do $patch$
+declare definition text:=pg_get_functiondef('private.order_production_document(uuid,boolean)'::regprocedure);
+ start_anchor text:=$a$else exists(select 1 from public.order_cancellation_requests where id=j.claim_id and claim_type='exchange' and stage='collected') end),
+ 'canComplete'$a$;
+ complete_anchor text:=$a$else exists(select 1 from public.order_cancellation_requests where id=j.claim_id and claim_type='exchange' and stage='collected') end),
+ 'history'$a$;
+begin
+ if (length(definition)-length(replace(definition,start_anchor,'')))/length(start_anchor)<>1
+  or (length(definition)-length(replace(definition,complete_anchor,'')))/length(complete_anchor)<>1 then raise exception 'order_production_document anchors must appear once';end if;
+ execute replace(replace(definition,start_anchor,$a$else private.claim_production_ready(j.claim_id,j.order_item_id) end),
+ 'canComplete'$a$),complete_anchor,$a$else private.claim_production_ready(j.claim_id,j.order_item_id) end),
+ 'history'$a$);
+end $patch$;
+
+-- 첫 재출고(reshipped_at)의 제작 완료 검사는 재출고한 배송 건의 주문제작 품목만 본다. 배송 건 기록이 없는 옛 재출고는
+-- 주문 전체 그대로다. 남은 배송 건은 그 배송 건 재출고 때 private.record_order_claim_shipment_reshipment가 본다.
+do $patch$
+declare definition text:=pg_get_functiondef('private.production_claim_changed()'::regprocedure);
+ anchor text:=$a$if exists(select 1 from public.order_items i where i.order_id=new.order_id and i.production_terms_snapshot is not null and not exists(select 1 from private.order_production_jobs j where j.order_item_id=i.id and j.claim_id=new.id and j.state='completed')) then raise check_violation using message='production_incomplete';end if;$a$;
+ replacement text:=$a$if exists(select 1 from public.order_items i where i.order_id=new.order_id and i.production_terms_snapshot is not null
+   and(not exists(select 1 from public.order_claim_reshipments r where r.claim_id=new.id)
+    or exists(select 1 from public.order_claim_reshipments r where r.claim_id=new.id and(r.shipment_id is null
+     or exists(select 1 from public.order_shipment_items l where l.shipment_id=r.shipment_id and l.order_item_id=i.id))))
+   and not exists(select 1 from private.order_production_jobs j where j.order_item_id=i.id and j.claim_id=new.id and j.state='completed')) then raise check_violation using message='production_incomplete';end if;$a$;
+begin
+ if (length(definition)-length(replace(definition,anchor,'')))/length(anchor)<>1 then raise exception 'production_claim_changed anchor must appear once';end if;
+ execute replace(definition,anchor,replacement);
+end $patch$;
+
+-- 교환품 제작 작업은 배송 건 입고 확인 때도 연다(그 배송 건의 주문제작 품목, 기준 시각은 그 입고 시각). 클레임 전체
+-- 입고완료 때 만드는 기존 경로(production_claim_changed)는 그대로 남아, 이미 만든 작업은 건드리지 않는다.
+create function private.production_claim_collection_changed() returns trigger language plpgsql security definer set search_path='' as $$
+begin
+ if new.collected_at is not null and old.collected_at is null
+  and exists(select 1 from public.order_cancellation_requests c where c.id=new.claim_id and c.claim_type='exchange') then
+  perform private.ensure_claim_production_jobs(new.claim_id,array(select distinct (j->>'orderItemId')::uuid from jsonb_array_elements(new.items_snapshot) j),new.collected_at);
+ end if;
+ return null;
+end $$;
+create trigger production_claim_collection_changed after update of collected_at on public.order_claim_collections
+ for each row execute function private.production_claim_collection_changed();
+
+-- 선물 받은 분에게 배송 건 재출고 소포(운송장)를 싣는다. 정확한 키를 요구하는 옛 앱 파서가 배포 틈에 기존 선물을 읽지
+-- 못하는 일이 없게 배송 건 재출고 기록이 있을 때만 싣고, 옛 한 쌍 재출고는 claim.reship*로 그대로 보인다.
+do $patch$
+declare definition text:=pg_get_functiondef('private.gift_claim_context(uuid,uuid)'::regprocedure);
+ anchor text:=$a$return jsonb_build_object('giftId',gift.id,'isSender',p_actor=gift.sender_id,'isRecipient',p_actor=gift.recipient_id,$a$;
+ replacement text:=$a$return (case when p_actor=gift.recipient_id and exists(select 1 from public.order_claim_reshipments r where r.order_id=gift.order_id)
+  then jsonb_build_object('reshipmentParcels',(select coalesce(jsonb_agg(p.value order by p.n),'[]'::jsonb)
+   from jsonb_array_elements(private.order_claim_reshipment_parcels(gift.order_id)) with ordinality p(value,n) where p.value->>'reshipmentId' is not null))
+  else '{}'::jsonb end)||jsonb_build_object('giftId',gift.id,'isSender',p_actor=gift.sender_id,'isRecipient',p_actor=gift.recipient_id,$a$;
+begin
+ if (length(definition)-length(replace(definition,anchor,'')))/length(anchor)<>1 then raise exception 'gift_claim_context anchor must appear once';end if;
+ execute replace(definition,anchor,replacement);
+end $patch$;
+
+-- ---------------------------------------------------------------------------
 -- 8. 권한 봉인과 운영자 계약
 -- ---------------------------------------------------------------------------
 revoke all on function private.claim_reshipment_targets(uuid) from public,anon,authenticated,service_role;
 revoke all on function private.claim_reshipment_delivery_pending(public.order_cancellation_requests) from public,anon,authenticated,service_role;
 revoke all on function private.claim_reshipment_selections_match(public.order_claim_reshipments,jsonb) from public,anon,authenticated,service_role;
 revoke all on function private.claim_collections_complete(uuid) from public,anon,authenticated,service_role;
+revoke all on function private.claim_collection_waiver_values(jsonb) from public,anon,authenticated,service_role;
+revoke all on function private.claim_collection_waived(uuid,uuid) from public,anon,authenticated,service_role;
+revoke all on function private.ensure_claim_production_jobs(uuid,uuid[],timestamptz) from public,anon,authenticated,service_role;
+revoke all on function private.claim_production_ready(uuid,uuid) from public,anon,authenticated,service_role;
+revoke all on function private.record_claim_collection_waiver(public.order_cancellation_requests,uuid,text,uuid[],uuid,timestamptz) from public,anon,authenticated,service_role;
+revoke all on function private.production_claim_collection_changed() from public,anon,authenticated,service_role;
+revoke all on function public.admin_waive_order_claim_collection(uuid,uuid,jsonb) from public,anon,authenticated,service_role;
+grant execute on function public.admin_waive_order_claim_collection(uuid,uuid,jsonb) to authenticated;
 revoke all on function private.record_order_claim_shipment_reshipment(uuid,uuid,text,text,jsonb,jsonb) from public,anon,authenticated,service_role;
 revoke all on function private.record_order_claim_reshipment_physical(uuid,text,text,jsonb) from public,anon,authenticated,service_role;
 revoke all on function private.order_all_items_delivered(uuid) from public,anon,authenticated,service_role;
@@ -854,6 +1130,7 @@ grant execute on function public.get_my_order_claim_reshipments(uuid) to authent
 
 select private.register_operator_rpc_contract('public.service_record_order_claim_shipment_reshipment(uuid,uuid,uuid,uuid,uuid,uuid,integer,jsonb,jsonb,text,text,text,text,jsonb,jsonb,boolean)'::regprocedure,'sales.manage','service_start',false);
 select private.register_operator_rpc_contract('public.admin_record_order_claim_shipment_reshipment_delivery(uuid,uuid,text)'::regprocedure,'sales.manage','write',false);
+select private.register_operator_rpc_contract('public.admin_waive_order_claim_collection(uuid,uuid,jsonb)'::regprocedure,'sales.manage','write',false);
 select private.register_operator_internal_contract('private.record_order_claim_shipment_reshipment(uuid,uuid,text,text,jsonb,jsonb)'::regprocedure);
 select private.register_operator_internal_contract('private.claim_reshipment_targets(uuid)'::regprocedure);
 select private.register_operator_internal_contract('private.claim_reshipment_delivery_pending(public.order_cancellation_requests)'::regprocedure);
@@ -873,7 +1150,13 @@ do $$declare fn regprocedure;contract record;begin
   'private.contact_blocker(public.order_cancellation_requests,text,text)'::regprocedure,
   'public.get_my_gift_latest_claim(uuid)'::regprocedure,
   'public.service_read_order_claim_contact_history(uuid,uuid,uuid,uuid,text,integer,jsonb)'::regprocedure,
-  'public.admin_order_claim_detail(uuid)'::regprocedure] loop
+  'public.admin_order_claim_detail(uuid)'::regprocedure,
+  'private.decide_order_claim(uuid,text,text)'::regprocedure,
+  'private.claim_collection_document(uuid)'::regprocedure,
+  'public.admin_save_claim_collection_plan(uuid,uuid,bigint,integer,jsonb,uuid,uuid,uuid)'::regprocedure,
+  'private.order_production_document(uuid,boolean)'::regprocedure,
+  'private.production_claim_changed()'::regprocedure,
+  'private.gift_claim_context(uuid,uuid)'::regprocedure] loop
   select * into contract from private.operator_rpc_contracts r where r.signature::regprocedure=fn;
   if found then perform private.register_operator_rpc_contract(fn,contract.capability,contract.guard_kind,contract.legacy_admin_only);
   elsif exists(select 1 from private.operator_internal_contracts r where r.signature::regprocedure=fn) then

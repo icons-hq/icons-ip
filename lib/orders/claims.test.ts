@@ -81,6 +81,15 @@ describe('단계 전이표', () => {
     expect(canRejectOrderClaim('on_hold', 'needs_review')).toBe(false);
   });
 
+  /* 한 출고지라도 교환품을 재출고했으면(재출고 1/2) 수거중·입고완료·그 보류여도 거부할 수 없다 — 나간 소포의 재고 차감과
+     배송 기록이 남는다(TKT-166·ADR-0041). DB가 같은 claim_not_rejectable로 막는다. */
+  it('재출고가 시작된 교환은 단계와 무관하게 거부할 수 없다', () => {
+    expect(canRejectOrderClaim('collecting', null, true)).toBe(false);
+    expect(canRejectOrderClaim('collected', null, true)).toBe(false);
+    expect(canRejectOrderClaim('on_hold', 'collecting', true)).toBe(false);
+    expect(canRejectOrderClaim('collecting', null, false)).toBe(true);
+  });
+
   it('종결 단계에서는 더 갈 곳이 없다', () => {
     for (const claimType of ORDER_CLAIM_TYPES) {
       expect(orderClaimNextStages(claimType, 'completed')).toEqual([]);

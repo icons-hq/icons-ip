@@ -4,6 +4,7 @@ import {
   decideOrderClaimAction,
   recordOrderClaimOriginCollectionAction,
   recordOrderClaimReshipmentDeliveryAction,
+  waiveOrderClaimCollectionAction,
   type AdminClaimActionState,
 } from './claim-actions';
 
@@ -351,5 +352,44 @@ describe('교환품 배송완료 확인 성공', () => {
     const state = await recordOrderClaimReshipmentDeliveryAction({ attempt: 3 }, form);
 
     expectPreservedFailure(state, form, '교환품 배송완료를 기록하지 못했습니다. 최신 상태를 확인해주세요.');
+  });
+});
+
+/* 주문제작 출고지의 회수 생략 결정(리뷰 #2, ADR-0041): 사유·사진·확인을 앱이 먼저 좁히고 DB가 다시 검사한다. */
+describe('waiveOrderClaimCollectionAction', () => {
+  const EVIDENCE_ID = 'abcdef03-1234-4123-8123-123456789abc';
+  function waiverForm() {
+    const form = new FormData();
+    form.set('claimId', CLAIM_ID); form.set('shipmentId', SHIPMENT_ID);
+    form.set('reason', '고객 사진으로\n인쇄 불량을 확인했습니다'); form.append('evidenceFileId', EVIDENCE_ID); form.set('confirmed', 'on');
+    return form;
+  }
+  it('결정을 RPC로 보내고 제작 대기면 주문제작 처리로 안내한다', async () => {
+    mocks.rpc.mockResolvedValue({ data: { claimId: CLAIM_ID, shipmentId: SHIPMENT_ID, productionPending: true, replayed: false }, error: null });
+    expect(await waiveOrderClaimCollectionAction({}, waiverForm())).toEqual({
+      message: '회수 생략을 기록했습니다. 주문 상세의 주문제작 처리에서 교환품 제작을 마치면 회수 없이 재출고합니다.',
+    });
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_waive_order_claim_collection', {
+      p_claim_id: CLAIM_ID, p_shipment_id: SHIPMENT_ID, p_waiver: { reason: '고객 사진으로 인쇄 불량을 확인했습니다', evidenceFileIds: [EVIDENCE_ID] },
+    });
+    expect(mocks.revalidatePath).toHaveBeenCalledWith(`/admin/sales/claims/exchanges/${CLAIM_ID}`);
+  });
+  it('확인·사유·사진이 모자라면 RPC를 부르지 않는다', async () => {
+    const unconfirmed = waiverForm(); unconfirmed.delete('confirmed');
+    expect((await waiveOrderClaimCollectionAction({}, unconfirmed)).error).toBe('회수 없이 교환품 제작을 시작한다는 확인에 체크해주세요.');
+    const short = waiverForm(); short.set('reason', '짧음');
+    expect((await waiveOrderClaimCollectionAction({}, short)).error).toBe('회수 생략 사유를 10~500자로 적어주세요.');
+    const noPhoto = waiverForm(); noPhoto.delete('evidenceFileId');
+    expect((await waiveOrderClaimCollectionAction({}, noPhoto)).error).toBe('회수 생략 근거 사진을 1~5장 올려주세요.');
+    const duplicated = waiverForm(); duplicated.append('evidenceFileId', EVIDENCE_ID);
+    expect((await waiveOrderClaimCollectionAction({}, duplicated)).error).toBe('회수 생략 근거 사진을 1~5장 올려주세요.');
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+  it('DB 거절을 운영자 문구로 옮긴다', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'collection_waiver_conflict' } });
+    expect((await waiveOrderClaimCollectionAction({}, waiverForm())).error).toBe('이 출고지는 이미 다른 사유·사진으로 회수 생략을 기록했습니다. 처리 이력을 확인해주세요.');
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'collection_waiver_not_needed' } });
+    expect((await waiveOrderClaimCollectionAction({}, waiverForm())).error).toBe('이미 회수를 확인한 출고지입니다. 회수 생략 없이 진행해주세요.');
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 });

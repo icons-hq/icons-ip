@@ -28,18 +28,22 @@ const CHECK ='flex items-start gap-2 leading-relaxed';
 
 /**
  * 아직 재출고하지 않은 배송 건(출고지) 하나(TKT-166). shipmentId가 null이면 배송 건 없는 옛 주문 전체다.
- * collected가 false면 회수 확인 전이라 waivable(하자·오배송 교환)일 때만 '회수 없이 재출고'로 보낼 수 있다.
+ * collected가 false면 회수 확인 전이라 waivable(하자·오배송 교환)일 때만 '회수 없이 재출고'로 보낼 수 있고,
+ * waived면 회수 생략을 이미 결정한 배송 건(주문제작)이라 사유·사진을 다시 받지 않고 회수 없이 보낸다.
  */
 export interface ClaimContactReshipTarget {
   shipmentId: string | null;
   originName: string | null;
   collected: boolean;
   waivable: boolean;
+  waived?: boolean;
   orderItemIds: readonly string[];
 }
 type Props = { actorId: string; orderId: string; claimId: string; carriers: ShippingCarrierRegistry; reshipItems: readonly AdminClaimReshipItem[];
   /** 지금 재출고를 등록할 수 있는 배송 건. 비어 있으면 재출고 등록 버튼을 그리지 않는다. */
-  reshipTargets: readonly ClaimContactReshipTarget[] };
+  reshipTargets: readonly ClaimContactReshipTarget[];
+  /** 아직 재출고하지 않은 대상 배송 건 수(등록할 수 없는 배송 건 포함). 1이면 이번 재출고가 교환을 종결한다. 없으면 reshipTargets 수다. */
+  remainingTargets?: number };
 type Draft = { recipientName: string; phone: string; postalCode: string; address1: string; address2: string; agreement: string; customerConfirmed: boolean; handoffConfirmed: boolean;
   carrier: string; trackingNumber: string; items: Record<string, string>; destinationConfirmed: boolean; dispatchConfirmed: boolean;
   waiveCollection: boolean; waiverReason: string; evidence: ClaimEvidenceFile[] };
@@ -68,7 +72,7 @@ function receiptMatches(receipt: OperationReceipt, journal: ClaimContactJournal)
     && receipt.target === journal.target && receipt.expectedClaimType === journal.expectedClaimType && receipt.expectedClaimRevision === journal.expectedClaimRevision;
 }
 
-export function ClaimContactOperationPanel({ identity, scope, orderId, claimId, carriers, reshipItems, reshipTargets }: Omit<Props, 'actorId'> & {
+export function ClaimContactOperationPanel({ identity, scope, orderId, claimId, carriers, reshipItems, reshipTargets, remainingTargets }: Omit<Props, 'actorId'> & {
   identity: ClaimContactIdentity; scope: ClaimContactScope;
 }) {
   const router = useRouter(), key = claimContactJournalKey(identity, orderId, claimId);
@@ -135,7 +139,7 @@ export function ClaimContactOperationPanel({ identity, scope, orderId, claimId, 
         setContext(result); setReshipTarget(command === 'reshipment' ? shipment : null);
         setDraft({ ...blank(), recipientName: result.address?.recipientName ?? '', phone: result.address?.phone ?? '', postalCode: result.address?.postalCode.trim() ?? '', address1: result.address?.address1.trim() ?? '', address2: result.address?.address2 ?? '',
           carrier: carriers.find(carrier => carrier.active)?.code ?? '', items: Object.fromEntries(reshipItems.map(item => [item.id, item.currentVariantId])),
-          waiveCollection: command === 'reshipment' && shipment !== null && !shipment.collected });
+          waiveCollection: command === 'reshipment' && shipment !== null && !shipment.collected && !shipment.waived });
       }
     } catch { if (run.valid()) setError('현재 주소를 읽지 못했습니다. 다시 확인해주세요.'); }
     finally { end(); }
@@ -148,7 +152,7 @@ export function ClaimContactOperationPanel({ identity, scope, orderId, claimId, 
     if (!retry && context!.command === 'reshipment') {
       /* 회수 확인 전 배송 건은 회수 생략(사유·근거 사진)으로만 보낼 수 있다. DB가 같은 조건을 다시 확인한다. */
       if (!reshipTarget) { setError('재출고할 배송 건을 다시 골라주세요.'); return; }
-      if (!reshipTarget.collected && !(reshipTarget.waivable && draft.waiveCollection)) { setError('이 배송 건의 회수 확인이 먼저 필요합니다. 하자·오배송 교환은 회수 없이 재출고할 수 있습니다.'); return; }
+      if (!reshipTarget.collected && !reshipTarget.waived && !(reshipTarget.waivable && draft.waiveCollection)) { setError('이 배송 건의 회수 확인이 먼저 필요합니다. 하자·오배송 교환은 회수 없이 재출고할 수 있습니다.'); return; }
       if (draft.waiveCollection && (!claimWaiverReasonValid(draft.waiverReason) || draft.evidence.length < 1)) {
         setError(`회수 생략 사유(${CLAIM_WAIVER_REASON_MIN}~${CLAIM_WAIVER_REASON_MAX}자)와 근거 사진 1장 이상을 남겨주세요.`); return;
       }
@@ -217,7 +221,10 @@ export function ClaimContactOperationPanel({ identity, scope, orderId, claimId, 
     } finally { if (alive.current) setUploading(false); }
   }
   const targetItems = reshipTarget ? reshipItems.filter(item => reshipTarget.orderItemIds.includes(item.id)) : [];
-  const lastTarget = reshipTargets.length === 1;
+  /* 교환을 종결하는지는 등록할 수 있는 배송 건 수가 아니라 아직 재출고하지 않은 대상 전체로 정한다(입고 전 출고지도 남은 대상이다). */
+  const lastTarget = (remainingTargets ?? reshipTargets.length) === 1;
+  /* 회수 없이 보내는 재출고: 같은 요청에서 회수 생략을 고르거나, 회수 생략을 먼저 결정한 배송 건이다. */
+  const waivedDispatch = draft.waiveCollection || Boolean(reshipTarget?.waived);
   return <section aria-label="회수·재배송 연락처 처리" className="flex min-w-0 flex-col gap-3 text-sm break-words" data-claim-contact="">
     <h3 className="text-sm leading-snug font-medium text-foreground">회수·재배송 연락처</h3>
     <p className="text-muted-foreground">수거·재배송을 시작하기 전에 받는 분, 연락처와 주소 전체를 수정합니다. 지역 요금이 달라지거나 요금 근거를 확인할 수 없는 변경은 저장하지 않습니다.</p>
@@ -252,7 +259,9 @@ export function ClaimContactOperationPanel({ identity, scope, orderId, claimId, 
             <label className={CHECK}><input className="mt-0.5" type="checkbox" checked={draft.customerConfirmed} onChange={event => patch({ customerConfirmed: event.target.checked })} /><span>고객과 변경 내용을 확인했습니다.</span></label>
             <label className={CHECK}><input className="mt-0.5" type="checkbox" checked={draft.handoffConfirmed} onChange={event => patch({ handoffConfirmed: event.target.checked })} /><span>{context.target === 'collection' ? '택배사 수거가 시작되지 않은 것을 확인했습니다.' : '교환품을 아직 발송하지 않은 것을 확인했습니다.'}</span></label>
           </> : <>
-            {reshipTarget && !reshipTarget.collected ? <div className="flex min-w-0 flex-col gap-3 rounded-lg border p-3" data-claim-collection-waiver="">
+            {reshipTarget?.waived ? <AdminNotice tone="warning" title="이 배송 건은 회수 생략을 결정했습니다.">
+              회수 확인 없이 재출고하고 회수 상품 재고는 복원하지 않습니다. 결정한 사유와 근거 사진은 출고지별 재출고에서 확인합니다.</AdminNotice>
+            : reshipTarget && !reshipTarget.collected ? <div className="flex min-w-0 flex-col gap-3 rounded-lg border p-3" data-claim-collection-waiver="">
               <AdminNotice tone="warning" title="이 배송 건은 아직 회수를 확인하지 않았습니다.">{reshipTarget.waivable
                 ? '하자·오배송 교환은 사유와 근거 사진을 남기고 회수 없이 재출고할 수 있습니다.' : '회수를 확인한 뒤에 재출고합니다.'}</AdminNotice>
               {reshipTarget.waivable ? <>
@@ -281,7 +290,7 @@ export function ClaimContactOperationPanel({ identity, scope, orderId, claimId, 
             </div>
             <label className={CHECK}><input className="mt-0.5" type="checkbox" checked={draft.destinationConfirmed} onChange={event => patch({ destinationConfirmed: event.target.checked })} /><span>표시된 최종 주소가 실제 발송할 주소와 같습니다.</span></label>
             <label className={CHECK}><input className="mt-0.5" type="checkbox" checked={draft.dispatchConfirmed} onChange={event => patch({ dispatchConfirmed: event.target.checked })} /><span>전체 수량과 실제 발송 정보를 확인했습니다.</span></label>
-            <p className="text-muted-foreground">{draft.waiveCollection
+            <p className="text-muted-foreground">{waivedDispatch
               ? '회수 상품 재고는 복원하지 않고, 선택한 상품의 재고만 줄입니다. 고객에게는 회수 없이 다시 보내드린다고 안내합니다. 결제금액과 카드팩은 유지됩니다.'
               : '이 배송 건에서 회수한 상품의 재고를 복원하고 선택한 상품으로 전체 수량을 재출고합니다. 결제금액과 카드팩은 유지됩니다.'}</p>
           </>}

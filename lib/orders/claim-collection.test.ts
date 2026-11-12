@@ -12,4 +12,12 @@ describe('claim collection corrections', () => {
   expect(parseClaimCollectionDocument({ ...doc, secret: 'must reject' })).toBeNull();
   expect(parseClaimCollectionDocument({ ...doc, rows: [{ trackingNumber: 'private incomplete' }] })).toBeNull();
  });
+ /* 출고지별 재출고(TKT-166): 재출고한 배송 건 행에만 reshipped=true가 오고, 그 행만 정정이 잠긴다. 다른 값은 받지 않는다. */
+ it('accepts the per-origin reshipped lock only as an explicit true', () => {
+  const row = { shipmentId: '00000000-0000-4000-8000-000000000003', originName: 'TEST 김포', revision: 0, method: 'not_requested', carrier: null, trackingNumber: null,
+   evidence: '', requestedOnce: true, collectedAt: null, updatedAt: null };
+  const doc = { claimId: '00000000-0000-4000-8000-000000000001', orderId: '00000000-0000-4000-8000-000000000002', claimRevision: 3, editable: true, rows: [row, { ...row, shipmentId: '00000000-0000-4000-8000-000000000004', reshipped: true }], history: [] };
+  expect(parseClaimCollectionDocument(doc)?.rows.map(item => item.reshipped ?? false)).toEqual([false, true]);
+  expect(parseClaimCollectionDocument({ ...doc, rows: [{ ...row, reshipped: false }] })).toBeNull();
+ });
 });

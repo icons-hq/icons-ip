@@ -238,6 +238,8 @@ export interface ClaimActionPanelProps {
   carriers: ShippingCarrierRegistry;
   /** 보류 해제 시 돌아갈 단계. 거부 가능 여부가 여기서 갈린다. */
   heldFrom: OrderClaimStage | null;
+  /** 교환품을 한 출고지라도 재출고했는가. 그러면 거부할 수 없다(TKT-166). */
+  reshipmentStarted?: boolean;
   /** 코페이 취소 접수 양식. 접수 채널이 이메일이라 콘솔이 붙여넣을 본문을 만든다. */
   cancellationForm: string | null;
   /** 환불 원장 행이 열려 있는가. 없으면 완료를 적을 대상 자체가 없다. */
@@ -274,6 +276,7 @@ export function ClaimActionPanel({
   claimId,
   claimType,
   heldFrom,
+  reshipmentStarted = false,
   orderId,
   refundCompleted,
   refundFiled,
@@ -311,7 +314,7 @@ export function ClaimActionPanel({
   const canReview = stage === 'requested';
   const canHold = next.includes('on_hold');
   const canResume = stage === 'on_hold';
-  const canReject = canRejectOrderClaim(stage, heldFrom);
+  const canReject = canRejectOrderClaim(stage, heldFrom, reshipmentStarted);
   const collectionReady = collectionPolicy !== null && collectionComplete;
   const cancellationWithoutCollection = claimType === 'cancel' && collectionPolicy !== null && collectionComplete && collections.length === 0;
   const canRecordOrigin = collectionPolicy === 'origin'

@@ -13,6 +13,7 @@ vi.mock('@/app/admin/claim-actions', () => ({
   recordOrderClaimOriginCollectionAction: vi.fn(),
   recordOrderClaimReshipmentDeliveryAction: vi.fn(),
   recordOrderClaimOperationalFeeAction: vi.fn(),
+  waiveOrderClaimCollectionAction: vi.fn(),
 }));
 
 const CLAIM_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -70,8 +71,8 @@ describe('클레임 팝업 하위 패널의 처리 중 알림', () => {
       trackingNumber: '123456789012', reshippedAt: '2026-10-26T00:00:00Z', reshippedByName: null, collectionWaived: false, waiverReason: null, waiverEvidence: [],
       deliveredAt: null, deliveredByName: null, deliveryEvidence: null, items: [] };
     const perOrigin = { ...exchange, reshipTrackingNumber: null, reshipCarrier: null,
-      reshipmentTargets: [{ shipmentId: collection.shipmentId, originName: '김포 창고', collectionTracked: true, collectedAt: '2026-10-25T00:00:00Z', reshipped: true, orderItemIds: [] },
-        { shipmentId: 'ffffffff-ffff-4fff-8fff-ffffffffffff', originName: '남양주 창고', collectionTracked: true, collectedAt: '2026-10-25T00:00:00Z', reshipped: true, orderItemIds: [] }],
+      reshipmentTargets: [{ shipmentId: collection.shipmentId, originName: '김포 창고', collectionTracked: true, collectedAt: '2026-10-25T00:00:00Z', reshipped: true, orderItemIds: [], waiver: null, productionRequired: false, productionPending: false },
+        { shipmentId: 'ffffffff-ffff-4fff-8fff-ffffffffffff', originName: '남양주 창고', collectionTracked: true, collectedAt: '2026-10-25T00:00:00Z', reshipped: true, orderItemIds: [], waiver: null, productionRequired: false, productionPending: false }],
       reshipments: [row, { ...row, id: 'abababab-abab-4bab-8bab-abababababab', shipmentId: 'ffffffff-ffff-4fff-8fff-ffffffffffff', originName: '남양주 창고', trackingNumber: '223456789012' }],
     } as AdminClaimDetail['claim'];
     const html = renderToStaticMarkup(<ClaimReshipmentDelivery claim={perOrigin} />);

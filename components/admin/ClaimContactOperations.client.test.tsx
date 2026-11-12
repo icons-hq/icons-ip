@@ -43,7 +43,7 @@ const reshipItems: AdminClaimReshipItem[] = [{ id: id(10), goodId: 'synthetic-go
 const key = () => claimContactJournalKey(identity, orderId, claimId);
 type Element = ReactElement<Record<string, unknown>>;
 const singleTarget: ClaimContactReshipTarget = { shipmentId: id(30), originName: null, collected: true, waivable: false, orderItemIds: [id(10)] };
-let nodes: Element[], storage: Map<string, string>, reshipTargets: ClaimContactReshipTarget[], contextOverrides: Partial<ContextResponse>;
+let nodes: Element[], storage: Map<string, string>, reshipTargets: ClaimContactReshipTarget[], remainingTargets: number | undefined, contextOverrides: Partial<ContextResponse>;
 const text = (node: ReactNode): string => Children.toArray(node).map(value => isValidElement<Record<string, unknown>>(value) ? text(value.props.children as ReactNode) : String(value)).join('');
 const memory = () => JSON.stringify([...hooks.frames.values()].map(frame => frame.values));
 const screen = () => nodes.filter(node => ['p', 'h3', 'h4', 'legend', 'button'].includes(String(node.type))).map(node => text(node)).join('\n');
@@ -59,7 +59,7 @@ function render() {
       } else { nodes.push(value); visit(value.props.children as ReactNode, pathKey); }
     });
   }
-  visit(<ClaimContactOperations actorId={identity.actorId} orderId={orderId} claimId={claimId} reshipTargets={reshipTargets} carriers={carriers} reshipItems={reshipItems} />, 'root');
+  visit(<ClaimContactOperations actorId={identity.actorId} orderId={orderId} claimId={claimId} reshipTargets={reshipTargets} remainingTargets={remainingTargets} carriers={carriers} reshipItems={reshipItems} />, 'root');
   for (const [pathKey, frame] of hooks.frames) if (!seen.has(pathKey)) { for (const effect of frame.effects.values()) effect.cleanup?.(); hooks.frames.delete(pathKey); }
 }
 function effects() { for (const frame of hooks.frames.values()) for (const effect of frame.jobs.splice(0)) effect(); }
@@ -107,7 +107,7 @@ function context(input: ContextRequest): ContextResponse {
     expiresAt: new Date(Date.parse(NOW) + 600_000).toISOString(), ...contextOverrides };
 }
 beforeEach(async () => {
-  vi.useFakeTimers(); vi.setSystemTime(new Date(NOW)); vi.clearAllMocks(); hooks.frames.clear(); storage = new Map(); reshipTargets = [singleTarget]; contextOverrides = {};
+  vi.useFakeTimers(); vi.setSystemTime(new Date(NOW)); vi.clearAllMocks(); hooks.frames.clear(); storage = new Map(); reshipTargets = [singleTarget]; remainingTargets = undefined; contextOverrides = {};
   vi.stubGlobal('sessionStorage', { getItem: (name: string) => storage.get(name) ?? null, setItem: (name: string, value: string) => storage.set(name, value),
     removeItem: (name: string) => storage.delete(name), key: (index: number) => [...storage.keys()][index] ?? null, get length() { return storage.size; } });
   vi.stubGlobal('localStorage', { setItem: vi.fn(() => { throw new Error('Raw contact must not use localStorage'); }) });
@@ -361,6 +361,25 @@ describe('separate contact correction and actual reshipment', () => {
     submit(); await flush();
     expect(mocks.reship).toHaveBeenCalledTimes(1);
     expect(mocks.reship.mock.calls[0][0]).toMatchObject({ shipmentId: id(32), collectionWaiver: { reason: '고객 사진으로 인쇄 불량을 확인했습니다', evidenceFileIds: [id(40)] } });
+  });
+  it('ends the exchange only when no other origin is still waiting, even if it cannot be registered yet', async () => {
+    /* 단순 변심 두 출고지에서 김포만 입고: 등록할 수 있는 곳은 김포 하나지만 남양주가 남아 교환을 종결하지 않는다(리뷰 #5). */
+    reshipTargets = [{ shipmentId: id(30), originName: '합성 김포', collected: true, waivable: false, orderItemIds: [id(10)] }]; remainingTargets = 2;
+    await mount(); await load('합성 김포 재출고 등록');
+    expect(button('이 배송 건 재출고 등록')).toBeDefined(); expect(button('재출고 등록하고 교환 종결')).toBeUndefined();
+    remainingTargets = 1; await mount(); await load('합성 김포 재출고 등록');
+    expect(button('재출고 등록하고 교환 종결')).toBeDefined();
+  });
+  it('reships a made-to-order origin whose waiver was decided earlier without asking for the waiver again', async () => {
+    reshipTargets = [{ shipmentId: id(33), originName: '합성 김포', collected: false, waivable: false, waived: true, orderItemIds: [id(10)] }];
+    await mount(); await load('합성 김포 재출고 등록 (회수 없이)');
+    expect(screen()).toContain('이 배송 건은 회수 생략을 결정했습니다.');
+    expect(nodes.some(node => node.type === 'label' && text(node).startsWith('회수 생략 사유'))).toBe(false);
+    expect(screen()).toContain('회수 상품 재고는 복원하지 않고');
+    change('재출고 운송장번호', 'MT12345678'); change('표시된 최종 주소', true); change('전체 수량과 실제 발송', true);
+    mocks.reship.mockImplementationOnce(async (input: ReshipmentRequest) => operationResult(input)); submit(); await flush();
+    expect(mocks.reship).toHaveBeenCalledTimes(1);
+    expect(mocks.reship.mock.calls[0][0]).toMatchObject({ shipmentId: id(33), collectionWaiver: null });
   });
   it('does not offer an uncollected origin that cannot be waived', async () => {
     reshipTargets = [];

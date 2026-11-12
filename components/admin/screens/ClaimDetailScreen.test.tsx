@@ -381,6 +381,28 @@ describe('ClaimDetailScreen', () => {
     expect(delivered).not.toContain('환불 기록');
   });
 
+  it('주문제작 출고지는 회수 생략을 먼저 기록해 제작을 열고, 제작 대기 동안 그 이유를 보인다(리뷰 #2)', () => {
+    const gimpo = '00000000-0000-4000-8000-0000000000d1', namyangju = '00000000-0000-4000-8000-0000000000d2';
+    const base = detail();
+    const target = { collectionTracked: true, collectedAt: null, reshipped: false, orderItemIds: [], waiver: null, productionRequired: true, productionPending: true };
+    const claim = { ...base.claim, claimType: 'exchange' as const, stage: 'collecting' as const, reasonType: 'defect' as const, collectionPolicy: 'origin' as const,
+      collectionComplete: false, reshippedAt: null, collectionWaiverAllowed: true, reshipments: [],
+      reshipmentTargets: [{ ...target, shipmentId: gimpo, originName: '김포' }, { ...target, shipmentId: namyangju, originName: '남양주', productionRequired: false, productionPending: false }] };
+    const before = renderToStaticMarkup(<ClaimDetailScreen backHref="/admin/sales/claims/exchanges" carriers={CARRIERS} cancellationForm={null}
+      detail={{ ...base, claim, payment: null, timeline: [] }} now={NOW} />);
+    expect(before).toContain('김포 회수 없이 교환품 제작 시작'); expect(before).toContain(`data-claim-waiver-decision="${gimpo}"`);
+    expect(before).not.toContain(`data-claim-waiver-decision="${namyangju}"`);
+    expect(before).toContain('회수 없이 보내려면 아래에서 회수 생략을 먼저 기록해 제작을 시작합니다');
+    const waiver = { reason: '고객 사진으로 인쇄 불량 확인', waivedAt: NOW.toISOString(), waivedByName: 'cs_lead', evidence: [{ id: '00000000-0000-4000-8000-0000000000e1', mimeType: 'image/jpeg', size: 2048 }] };
+    const decided = { ...claim, reshipmentTargets: [{ ...claim.reshipmentTargets[0], waiver }, claim.reshipmentTargets[1]] };
+    const waiting = renderToStaticMarkup(<ClaimDetailScreen backHref="/admin/sales/claims/exchanges" carriers={CARRIERS} cancellationForm={null}
+      detail={{ ...base, claim: decided, payment: null, timeline: [{ action: 'admin.order.claim_collection_waived', createdAt: NOW.toISOString(), actorName: 'cs_lead', diff: { originName: '김포' } }] }} now={NOW} />);
+    expect(waiting).not.toContain('data-claim-waiver-decision'); expect(waiting).toContain('제작 대기');
+    expect(waiting).toContain('주문제작 상품의 교환품 제작이 끝나면 재출고할 수 있습니다'); expect(waiting).toContain('회수 생략 결정 ·');
+    expect(waiting).toContain('href="/api/admin/claim-evidence/00000000-0000-4000-8000-0000000000e1"'); expect(waiting).toContain('회수 생략 결정 · 김포');
+    expect(waiting).not.toContain('김포 재출고 등록');
+  });
+
   it('김포·남양주 교환은 출고지마다 재출고 칸을 두고 한 곳만 보내면 재출고 1/2로 남긴다(TKT-166·QNA-039)', () => {
     const gimpo = '00000000-0000-4000-8000-0000000000a1', namyangju = '00000000-0000-4000-8000-0000000000a2';
     const row = { id: '00000000-0000-4000-8000-0000000000b1', shipmentId: gimpo, originName: '김포', carrier: 'hanjin', carrierLabel: '한진택배', trackingNumber: 'GIMPO0000001',
@@ -389,8 +411,8 @@ describe('ClaimDetailScreen', () => {
     const base = detail();
     const claim = { ...base.claim, claimType: 'exchange' as const, stage: 'collecting' as const, reasonType: 'defect' as const, collectionPolicy: 'origin' as const,
       collectionComplete: false, reshippedAt: NOW.toISOString(), collectionWaiverAllowed: true,
-      reshipmentTargets: [{ shipmentId: gimpo, originName: '김포', collectionTracked: true, collectedAt: NOW.toISOString(), reshipped: true, orderItemIds: [] },
-        { shipmentId: namyangju, originName: '남양주', collectionTracked: true, collectedAt: null, reshipped: false, orderItemIds: [] }],
+      reshipmentTargets: [{ shipmentId: gimpo, originName: '김포', collectionTracked: true, collectedAt: NOW.toISOString(), reshipped: true, orderItemIds: [], waiver: null, productionRequired: false, productionPending: false },
+        { shipmentId: namyangju, originName: '남양주', collectionTracked: true, collectedAt: null, reshipped: false, orderItemIds: [], waiver: null, productionRequired: false, productionPending: false }],
       reshipments: [row] };
     const partial = renderToStaticMarkup(<ClaimDetailScreen backHref="/admin/sales/claims/exchanges" carriers={CARRIERS} cancellationForm={null}
       detail={{ ...base, claim, payment: null, timeline: [{ action: 'admin.order.claim_reshipped', createdAt: NOW.toISOString(), actorName: 'cs_lead', diff: { originName: '김포', collectionWaived: false } }] }} now={NOW} />);

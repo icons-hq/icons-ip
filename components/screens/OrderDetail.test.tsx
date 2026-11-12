@@ -83,6 +83,11 @@ describe('OrderDetail', () => {
     expect(html).toContain('href="https://carrier.example.test/track?no=EXCHANGE0001"'); expect(html).toContain('href="https://carrier.example.test/track?no=EXCHANGE0002"');
     expect(html).toContain('회수 없이 다시 보내드려요'); expect(html).toContain('도착 확인'); expect(html).toContain('배송 중');
     expect(html).not.toContain('교환으로 받은 굿즈');
+    /* 소포로 오지 않은 다른 교환(선물 받은 분 화면의 이 기능 전 교환)의 굿즈 이력은 소포 목록 아래에 그대로 남는다. */
+    const older = { ...orderReshipmentReceipt, claimId: '93942000-0000-4000-8000-000000000031' };
+    const mixed = renderToStaticMarkup(<OrderDetail order={order({ reshipmentHistory: [orderReshipmentReceipt, older], reshipmentParcels: [parcel] })} />);
+    expect(mixed).toContain('교환 배송'); expect(mixed).toContain('교환으로 받은 굿즈');
+    expect(mixed.match(/교환 출고 파랑 상품/g)).toHaveLength(2);
   });
 
   it('주문 내역에서도 온라인 결제금액과 착불·복수할인 원영수증을 유지한다', () => {
