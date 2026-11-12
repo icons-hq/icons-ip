@@ -1,7 +1,34 @@
 import { describe, expect, it } from 'vitest';
-import { GOODS_LIST_STOCK_OPTIONS, goodsConsoleFilterValues, goodsListHref, goodEditorHref, normalizeGoodsListFilters } from './goods-list';
+import { GOODS_LIST_SEARCH_FIELDS, GOODS_LIST_SEARCH_HINTS, GOODS_LIST_SORT_OPTIONS, GOODS_LIST_STOCK_OPTIONS, goodsConsoleFilterValues, goodsListHref, goodEditorHref, normalizeGoodsListFilters } from './goods-list';
 
 describe('goods list navigation', () => {
+  it('상품번호(시스템 순번)와 상품 URL을 다른 검색 대상으로 두고, 예전 상품번호순 주소는 새 상품번호순으로 연다(S36-009·S36-X02)', () => {
+    expect(GOODS_LIST_SEARCH_FIELDS.map(item => [item.value, item.label])).toEqual([
+      ['all', '전체'], ['name', '상품명'], ['number', '상품번호'], ['id', '상품 URL'], ['code', '판매자상품코드·관리코드'], ['erp', 'ERP 코드·품명'], ['barcode', '바코드'],
+    ]);
+    const filters = normalizeGoodsListFilters({ field: 'number', q: '12, 15', sort: 'number_asc' });
+    expect(filters).toMatchObject({ field: 'number', query: '12, 15', sort: 'number_asc' });
+    expect(goodsConsoleFilterValues(filters)).toMatchObject({ field: 'number', sort: 'number_asc' });
+    expect(new URL(goodsListHref(filters), 'https://icons.test').searchParams.get('field')).toBe('number');
+    expect(GOODS_LIST_SORT_OPTIONS.find(option => option.value === 'number_asc')?.label).toBe('상품번호순');
+    expect(GOODS_LIST_SORT_OPTIONS.some(option => (option.value as string) === 'id_asc')).toBe(false);
+    expect(normalizeGoodsListFilters({ sort: 'id_asc' }).sort).toBe('number_asc');
+    for (const sort of ['constructor', 'toString', '__proto__']) expect(normalizeGoodsListFilters({ sort }).sort).toBe('created_desc');
+    expect(normalizeGoodsListFilters({ field: 'id' }).field).toBe('id');
+  });
+  it('검색어 칸 안내는 검색 대상마다 따로 있고, 전체 안내는 ERP 품명·바코드까지 말한다(TKT-074)', () => {
+    for (const item of GOODS_LIST_SEARCH_FIELDS) {
+      expect(GOODS_LIST_SEARCH_HINTS[item.value].placeholder.length).toBeGreaterThan(0);
+      expect(GOODS_LIST_SEARCH_HINTS[item.value].title.length).toBeGreaterThan(0);
+    }
+    expect(GOODS_LIST_SEARCH_HINTS.all.placeholder).toContain('ERP 코드·품명');
+    expect(GOODS_LIST_SEARCH_HINTS.all.placeholder).toContain('바코드');
+    expect(GOODS_LIST_SEARCH_HINTS.all.title).toContain('ERP 품명');
+    expect(GOODS_LIST_SEARCH_HINTS.all.title).toContain('바코드');
+    expect(GOODS_LIST_SEARCH_HINTS.erp.placeholder).toContain('ERP 품명');
+    expect(GOODS_LIST_SEARCH_HINTS.barcode.placeholder).toContain('바코드');
+    expect(GOODS_LIST_SEARCH_HINTS.number.title).toContain('쉼표나 공백');
+  });
   it('validates detail filters and retains them through editor, paging and export links', () => {
     const filters = normalizeGoodsListFilters({ field: 'code', q: 'GOODS', dateField: 'updated', from: '2026-10-01', to: '2026-10-12', sort: 'price_desc', pageSize: '50', originId: '00000000-0000-4000-8000-000000042201', payment: 'bank', saleType: 'preorder', image: 'without', restriction: 'adult' });
     expect(filters).toMatchObject({ field: 'code', dateField: 'updated', from: '2026-10-01', to: '2026-10-12', sort: 'price_desc', pageSize: 50, payment: 'bank', saleType: 'preorder', image: 'without', restriction: 'adult' });

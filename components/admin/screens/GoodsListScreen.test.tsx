@@ -103,20 +103,27 @@ describe('goods list screen', () => {
     expect(html).toContain('<option value="ended" selected="">판매기간 종료</option>');
     expect(html.indexOf('name="salePeriod"')).toBeLessThan(html.indexOf('data-goods-search="advanced"'));
   });
-  it('상품번호 열: 고객에게 보이는 상품은 고객 화면을 새 탭으로, 아니면 편집기 미리보기로 연다. 상품명은 지금처럼 수정 화면이다', () => {
+  it('상품 URL 열: 고객에게 보이는 상품은 고객 화면을 새 탭으로, 아니면 편집기 미리보기로 연다. 상품번호(첫 열)·상품명은 수정 화면이다', () => {
     const base = { code: 'A', name: '상품 A', ipId: 'maple', ipTitle: '메이플', archivedAt: null, stock: 'ok' as const, stockQty: 1, activeStockQty: 1, lowStockOptionCount: 0, noticeComplete: true };
     const filters = normalizeGoodsListFilters({ q: '상품' });
     const html = renderToStaticMarkup(<GoodsListScreen data={{ filters, total: 2, ips: [], goods: [
-      { ...base, id: 'good-public', publishedAt: '2026-10-01T00:00:00Z', customerVisible: true },
-      { ...base, id: 'good-draft', publishedAt: null, customerVisible: false },
+      { ...base, id: 'good-public', productNo: 1042, publishedAt: '2026-10-01T00:00:00Z', customerVisible: true },
+      { ...base, id: 'good-draft', productNo: null, publishedAt: null, customerVisible: false },
     ] }} />);
-    expect(html).toContain('>상품번호</th>');
+    expect(html).toContain('>상품 URL</th>');
     expect(html).toMatch(/<a [^>]*data-goods-list="good-id" href="\/shop\/good-public" target="_blank" rel="noopener noreferrer">good-public/);
     expect(html).toContain(`href="${goodEditorHref(filters, 'good-draft').replaceAll('&', '&amp;')}#good-preview"`);
     expect(html).toContain('공개 전 · 미리보기');
-    // 상품명(첫 열)은 수정 화면으로 간다.
-    expect(html).toContain(`hover:underline" href="${goodEditorHref(filters, 'good-public').replaceAll('&', '&amp;')}">`);
-    // 상품번호는 열로 옮겼으므로 접힌 추가 정보에 다시 두지 않는다.
+    // 상품번호(첫 열)는 주 색 링크로 수정 화면에 간다. 번호를 아직 못 읽은 상품은 '—'다.
+    const editor = goodEditorHref(filters, 'good-public').replaceAll('&', '&amp;');
+    expect(html).toContain(`<a class="font-medium text-primary underline-offset-4 hover:underline" href="${editor}"><span class="tabular-nums" data-goods-list="product-no">1042</span></a>`);
+    expect(html).toMatch(/data-goods-list="product-no">—<\/span>/);
+    // 상품명도 수정 화면이지만 주 색이 아니다.
+    const nameLink = /<a [^>]*title="상품 A"[^>]*>상품 A<\/a>/.exec(html)?.[0] ?? '';
+    expect(nameLink).toContain(`href="${editor}"`);
+    expect(nameLink).toMatch(/class="[^"]*\btext-foreground\b/);
+    expect(nameLink).not.toContain('text-primary');
+    // 상품번호·상품 URL은 열로 있으므로 접힌 추가 정보에 다시 두지 않는다.
     expect(html).not.toMatch(/<dt[^>]*>상품번호<\/dt>/);
   });
   it('상품번호 보조 문구는 고객 화면에 안 보이는 사유와 같은 행의 상태 배지와 어긋나지 않는다', () => {
@@ -196,14 +203,16 @@ describe('goods list screen', () => {
       expect(row(html, 'draft')).not.toMatch(/(font-semibold text-destructive|text-warning)[^>]*>0개</);
     });
   });
-  it('1440 화면에서 끝 열까지 들어오고, 긴 영문이 많은 상품번호는 맨 뒤 열이다', () => {
+  it('1440 화면에서 끝 열까지 들어오고, 첫 열은 상품번호, 긴 영문이 많은 상품 URL은 맨 뒤 열이다(S36-009)', () => {
     const html = renderToStaticMarkup(<GoodsListScreen data={{ filters: normalizeGoodsListFilters({}), goods: [], ips: [], total: 0, counts: { all: 0, active: 0, draft: 0, published: 0, archived: 0 } }} canIssueMarketingLinks />);
     const widths = [...html.matchAll(/<col style="width:(\d+)px"/g)].map(match => Number(match[1]));
-    expect(widths.length).toBe(9);
+    expect(widths.length).toBe(10);
     // 체크박스 칸(40) 포함 1100px(1440 화면의 표 영역) 안에 든다.
     expect(widths.reduce((sum, width) => sum + width, 40)).toBeLessThanOrEqual(1100);
     const headers = [...html.matchAll(/<th[^>]*scope="col"[^>]*>([^<]+)<\/th>/g)].map(match => match[1]);
-    expect(headers.at(-1)).toBe('상품번호');
+    expect(headers[0]).toBe('상품번호');
+    expect(headers[1]).toBe('상품명 · 판매자상품코드');
+    expect(headers.at(-1)).toBe('상품 URL');
     expect(html).toContain('아직 등록한 상품이 없습니다');
   });
   describe('첫 화면에 상품이 더 보이게 위쪽을 줄인다', () => {
@@ -230,7 +239,9 @@ describe('goods list screen', () => {
       expect(html.match(/data-goods-search="row"/g)?.length).toBeGreaterThanOrEqual(2);
       expect(html).toMatch(/aria-describedby="goods-list-query-hint"/);
       expect(html).toMatch(/<p class="sr-only" id="goods-list-query-hint">/);
-      expect(html).toMatch(/title="상품번호는 쉼표나 공백으로/);
+      // 검색 대상 '전체'의 안내는 ERP 품명·바코드까지 말한다(TKT-074).
+      expect(html).toMatch(/placeholder="상품명, 상품번호, 판매자상품코드, ERP 코드·품명, 바코드"/);
+      expect(html).toMatch(/title="전체 검색은 [^"]*ERP 품명·바코드에서 찾습니다/);
     });
   });
   describe('표의 긴 값과 칸 줄 수', () => {
@@ -242,14 +253,14 @@ describe('goods list screen', () => {
     const cellOf = (html: string) => html.split('data-goods-list="sale-status"')[1]?.split('</td>')[0] ?? '';
     it('상품명·코드·IP는 한 줄로 줄이고 전체 값은 말풍선에 둔다', () => {
       const html = render([{ ...base, id: 'good-a', readiness: ready, categoryName: '긴 카테고리 이름' }]);
-      expect(html).toMatch(/<strong class="[^"]*\btruncate\b[^"]*" title="아주 긴 상품명이 있어도 한 줄로 줄어드는 상품">/);
+      expect(html).toMatch(/<a (?=[^>]*class="[^"]*\btruncate\b)(?=[^>]*title="아주 긴 상품명이 있어도 한 줄로 줄어드는 상품")[^>]*>/);
       expect(html).toMatch(/<small class="[^"]*\btruncate\b[^"]*" title="CODE-1">/);
       expect(html).toMatch(/<span class="truncate" title="아주 긴 IP 이름">/);
     });
-    it('상품번호는 앞부분이 읽히는 폭이고 전체 값은 말풍선, 보조 문구는 한 줄이다', () => {
+    it('상품 URL은 앞부분이 읽히는 폭이고 전체 값은 말풍선, 보조 문구는 한 줄이다', () => {
       const html = render([{ ...base, id: 'long-good-id-1234567890', publishedAt: null, customerVisible: false, readiness: { ...ready, state: 'blocked' as const, reasons: [reason('draft')] } }]);
       const widths = [...html.matchAll(/<col style="width:(\d+)px"/g)].map(match => Number(match[1]));
-      expect(widths.at(-1)).toBeGreaterThanOrEqual(112);
+      expect(widths.at(-1)).toBeGreaterThanOrEqual(88);
       expect(html).toMatch(/title="long-good-id-1234567890" data-goods-list="good-id"/);
       expect(html).toMatch(/long-good-id-1234567890<small class="[^"]*\btruncate\b[^"]*">공개 전 · 미리보기<\/small>/);
     });
@@ -289,6 +300,33 @@ describe('goods list screen', () => {
     // 재고 칸은 나머지 검색 조건을 그대로 들고 간다.
     expect(render({ status: 'published', q: '키링', ipId: 'maple' })).toMatch(/<a(?=[^>]*aria-label="소량 재고 보기 1,234건")(?=[^>]*href="[^"]*status=published[^"]*stock=low[^"]*q=%ED%82%A4%EB%A7%81[^"]*ipId=maple)/);
   });
+  it('판매대기·판매중지·판매종료 칸은 건수와 함께 그 목록으로 가고, 켜진 칸을 다시 누르면 그 조건을 푼다(SHEET-036)', () => {
+    const counts = { all: 20, active: 15, draft: 3, published: 12, archived: 5 };
+    const stockCounts = { out_of_stock: 4, low: 1 };
+    const saleStateCounts = { scheduled: 2, stopped: 3, ended: 0 };
+    const render = (values: Record<string, string>, extra: object = { saleStateCounts }) => renderToStaticMarkup(<GoodsListScreen data={{ filters: normalizeGoodsListFilters(values), goods: [], ips: [], total: 0, counts, stockCounts, ...extra }} />);
+    const html = render({});
+    // 스마트스토어처럼 판매대기 → 품절 → 소량 재고 → 판매중지 → 판매종료 순서다.
+    const labels = [...html.matchAll(/aria-label="(판매대기 보기|품절 보기|소량 재고 보기|판매중지 보기|판매종료 보기) [^"]*"/g)].map(match => match[1]);
+    expect(labels).toEqual(['판매대기 보기', '품절 보기', '소량 재고 보기', '판매중지 보기', '판매종료 보기']);
+    expect(html).toMatch(/<a(?=[^>]*aria-label="판매대기 보기 2건")(?=[^>]*data-tone="info")(?=[^>]*href="[^"]*salePeriod=scheduled)/);
+    expect(html).toMatch(/<a(?=[^>]*aria-label="판매중지 보기 3건")(?=[^>]*data-tone="danger")(?=[^>]*href="[^"]*stock=stopped)/);
+    expect(html).toMatch(/<a(?=[^>]*aria-label="판매종료 보기 0건")(?=[^>]*data-tone="default")(?=[^>]*href="[^"]*salePeriod=ended)/);
+    // 판매기간 칸과 판매상태 칸은 서로 다른 조건이라 함께 켤 수 있고, 켜진 칸을 다시 누르면 자기 조건만 푼다.
+    const both = render({ salePeriod: 'scheduled', stock: 'stopped', q: '키링' });
+    expect(both).toMatch(/<a(?=[^>]*aria-current="true")(?=[^>]*aria-label="판매대기 보기 2건")(?=[^>]*href="[^"]*stock=stopped[^"]*q=%ED%82%A4%EB%A7%81)/);
+    expect(both).not.toMatch(/<a(?=[^>]*aria-label="판매대기 보기 2건")(?=[^>]*href="[^"]*salePeriod=)/);
+    expect(both).toMatch(/<a(?=[^>]*aria-current="true")(?=[^>]*aria-label="판매중지 보기 3건")(?=[^>]*href="[^"]*stock=all[^"]*salePeriod=scheduled)/);
+    expect(both).toMatch(/<a(?=[^>]*aria-label="판매종료 보기 0건")(?=[^>]*href="[^"]*salePeriod=ended)/);
+    expect(both).not.toMatch(/<a(?=[^>]*aria-current="true")(?=[^>]*aria-label="판매종료 보기 0건")/);
+    // 건수를 읽지 못해도 칸은 조회 링크로 남고 집계 없음으로 말한다.
+    for (const missing of [null, undefined]) {
+      const fallback = render({}, { saleStateCounts: missing });
+      expect(fallback).toMatch(/<a(?=[^>]*aria-label="판매대기 보기 집계 없음")(?=[^>]*href="[^"]*salePeriod=scheduled)/);
+      expect(fallback).toMatch(/<a(?=[^>]*aria-label="판매중지 보기 집계 없음")(?=[^>]*href="[^"]*stock=stopped)/);
+      expect(fallback).toMatch(/<a(?=[^>]*aria-label="품절 보기 4건")/);
+    }
+  });
   it('재고 칸 아래에 품절·소량 재고의 기준을 글자로 보이고, 소량 재고에 수량 기준이 없다는 것을 밝힌다', () => {
     const html = renderToStaticMarkup(<GoodsListScreen data={{ filters: normalizeGoodsListFilters({}), goods: [], ips: [], total: 0, stockCounts: { out_of_stock: 1, low: 2 } }} />);
     expect(html).toMatch(/<div(?=[^>]*aria-describedby="goods-list-stock-basis")(?=[^>]*role="group")/);
@@ -297,7 +335,7 @@ describe('goods list screen', () => {
     expect(basis).toContain('소량 재고: 판매상태를 소량 재고로 지정하고 재고가 남은 상품');
     expect(basis).toContain('수량으로 자동 분류하지 않습니다');
     expect(html).toContain('옵션별 안전재고 기준 이하 경고는 재고수량 칸에 부족 N개 옵션으로 표시되고 소량 재고 건수에는 들어가지 않습니다');
-    expect(html).toContain('품절·소량 재고 건수는 재고 조건과 페이지를 제외한 같은 검색 조건으로 계산합니다');
+    expect(html).toContain('품절·소량 재고·판매중지 건수는 판매상태 조건과 페이지를, 판매대기·판매종료 건수는 판매기간 조건과 페이지를 제외한 같은 검색 조건으로 계산합니다');
   });
   it('재고 건수를 읽지 못하면 칸은 조회 링크로 남고 집계 없음으로 말한다', () => {
     for (const stockCounts of [null, undefined]) {
