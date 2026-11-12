@@ -123,4 +123,17 @@ it('바로구매 초안이면 장바구니가 아니라 초안 줄을 주문하�
   expect(JSON.parse([...storage.values()][0])).toMatchObject({ draftId });
   expect(all(render()).some(node => node.props.href === '/shop/transaction-good')).toBe(true);
 });
-
+/* 같은 주문서를 다른 탭·뒤로 가기로 다시 내면 DB가 원 주문과 함께 거절한다(ADR-0030 완료 기준 5) — 원 주문으로 잇고 다시 주문하지 않는다. */
+it('같은 주문서로 이미 주문했으면 원 주문 보기를 보이고 결제를 잠근다', async () => {
+  const draftId = '00000000-0000-4000-8000-0000000000d1';
+  const usedOrder = '00000000-0000-4000-8000-0000000000e1';
+  props = { ...props, draft: { id: draftId, source: 'direct', baseGoodId: 'transaction-good', expiresAt: '2099-01-01T00:00:00Z', stale: false, usedOrderId: null, lines: transactionInput.items } };
+  for (const effect of hooks.effects) effect.cleanup?.(); resetHooks(); render(); effects(); authenticate(); await flush();
+  mocks.place.mockResolvedValueOnce({ ok: false, error: 'draft_used', uncertain: false, orderId: usedOrder });
+  await submit(); await flush();
+  expect(text(render())).toContain('이미 주문한 주문서예요');
+  expect(all(render()).some(node => node.props.href === `/orders/${usedOrder}`)).toBe(true);
+  expect(button('결제하기').props.disabled).toBe(true);
+  await submit(); await flush();
+  expect(mocks.place).toHaveBeenCalledTimes(1);
+});
