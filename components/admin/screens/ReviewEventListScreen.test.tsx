@@ -36,6 +36,13 @@ describe('ReviewEventListScreen', () => {
     expect(html.indexOf('엑셀 다운로드')).toBeLessThan(html.indexOf('data-slot="table"'));
   });
 
+  /* SHEET-017: 문구 템플릿 관리는 목록 머리에서 연다. 등록은 여전히 주 버튼이다. */
+  it('머리에 문구 템플릿 링크를 두고 이벤트 등록을 주 버튼으로 남긴다', () => {
+    const html = render([]);
+    expect(html).toMatch(/href="\/admin\/cs\/review-events\/templates"[^>]*>문구 템플릿</);
+    expect(html.indexOf('문구 템플릿')).toBeLessThan(html.indexOf('이벤트 등록'));
+  });
+
   it('진행 중인 이벤트에는 할 일 표시를 달지 않는다', () => {
     const html = render([{ state: 'active' }]);
     expect(html).not.toContain('필요');

@@ -1,12 +1,17 @@
 import { Children, isValidElement, type ReactElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { newReviewEventValues, reviewEventDayOffset, REVIEW_EVENT_CREDIT_POLICY_OFF, type ReviewEventCreditPolicy } from '@/lib/review-events';
 
-const mocks = vi.hoisted(() => ({ states: [] as unknown[], index: 0, save: vi.fn(), replace: vi.fn(), refresh: vi.fn() }));
+type TemplatePickerProps = { onSelect: (template: { title: string; description: string }) => void; onClose: () => void };
+type TemplateEditorProps = { initial?: { title: string; description: string }; onSaved: () => void; onClose: () => void };
+const mocks = vi.hoisted(() => ({ states: [] as unknown[], index: 0, save: vi.fn(), replace: vi.fn(), refresh: vi.fn(),
+  TemplatePicker: vi.fn<(props: TemplatePickerProps) => null>(() => null),
+  TemplateEditor: vi.fn<(props: TemplateEditorProps) => null>(() => null) }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ replace: mocks.replace, refresh: mocks.refresh }) }));
 vi.mock('@/app/admin/review-event-actions', () => ({ saveReviewEventAction: mocks.save, archiveReviewEventAction: vi.fn(), publishReviewEventAction: vi.fn(),
   revokeReviewEventAwardAction: vi.fn(), selectReviewEventEntriesAction: vi.fn(), searchReviewEventTargetsAction: vi.fn() }));
+vi.mock('./ReviewEventTemplatesScreen', () => ({ ReviewEventTemplatePicker: mocks.TemplatePicker, ReviewEventTemplateEditor: mocks.TemplateEditor }));
 vi.mock('../ReviewEventTargetPicker', () => ({ ReviewEventTargetPicker: () => null }));
 vi.mock('../ReviewEventExportButton', () => ({ ReviewEventExportButton: () => null }));
 vi.mock('react', async () => {
@@ -115,5 +120,76 @@ describe('ReviewEventEditorScreen (R6)', () => {
     change('이벤트명', ' 후기 이벤트 '); change('내용', '별점과 무관한 후기 ');
     save();
     expect(mocks.save).toHaveBeenCalledWith(ID, 0, expect.any(String), expect.objectContaining({ title: '후기 이벤트', description: '별점과 무관한 후기', creditAmount: newReviewEventValues().creditAmount }));
+  });
+});
+
+/* SHEET-017: 등록 화면에서 문구 템플릿을 불러오고, 지금 문구를 템플릿으로 남긴다. 적립금 정책이 꺼져 있어도 된다. */
+describe('ReviewEventEditorScreen wording templates (SHEET-017)', () => {
+  const template = { id: '93100000-0000-4000-8000-000000000101', title: '포토리뷰 이벤트', description: '사진과 함께 후기를 남겨주세요', revision: 1, createdAt: '2026-11-11T01:00:00Z', updatedAt: '2026-11-11T01:00:00Z' };
+  function click(label: string) { (nodes(render()).find(node => node.type === 'button' && text(node.props.children as ReactNode) === label)!.props.onClick as () => void)(); }
+  function picker() { return nodes(render()).find(node => node.type === mocks.TemplatePicker) as ReactElement<Parameters<typeof mocks.TemplatePicker>[0]> | undefined; }
+  function templateForm() { return nodes(render()).find(node => node.type === mocks.TemplateEditor) as ReactElement<Parameters<typeof mocks.TemplateEditor>[0]> | undefined; }
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it('offers loading and saving templates while the credit policy blocks the event save', () => {
+    props = { ...props, creditPolicy: OFF };
+    const markup = html();
+    expect(markup).toContain('템플릿 불러오기');
+    expect(markup).toContain('현재 문구를 템플릿으로 저장');
+    expect(markup).toContain('href="/admin/cs/review-events/templates"');
+    expect(markup).toContain('적립금 정책이 꺼져 있어도 템플릿 저장은 됩니다.');
+  });
+
+  it('replaces only the title and description, asking first when typed wording differs', () => {
+    const confirm = vi.fn(() => false);
+    vi.stubGlobal('window', { confirm });
+    change('이벤트명', '가을 이벤트'); change('1인당 적립금', '3000');
+    click('템플릿 불러오기');
+    picker()!.props.onSelect(template);
+    expect(confirm).toHaveBeenCalledWith('작성 중인 이벤트명·내용을 템플릿 문구로 바꿀까요?');
+    expect(field('이벤트명').props.value).toBe('가을 이벤트');
+    confirm.mockReturnValue(true);
+    picker()!.props.onSelect(template);
+    expect(field('이벤트명').props.value).toBe(template.title);
+    expect(field('내용').props.value).toBe(template.description);
+    expect(field('1인당 적립금').props.value).toBe(3000);
+    expect(picker()).toBeUndefined();
+    expect(html()).toContain('이벤트를 저장해야 반영됩니다');
+  });
+
+  it('refuses a template whose wording breaks the event field rules instead of failing later on save', () => {
+    const confirm = vi.fn(() => true);
+    vi.stubGlobal('window', { confirm });
+    change('이벤트명', '가을 이벤트');
+    click('템플릿 불러오기');
+    picker()!.props.onSelect({ ...template, title: `${template.title} ` });
+    expect(confirm).not.toHaveBeenCalled();
+    expect(field('이벤트명').props.value).toBe('가을 이벤트');
+    expect(html()).toContain('불러올 수 없습니다');
+  });
+
+  it('loads into empty fields without asking', () => {
+    const confirm = vi.fn(() => false);
+    vi.stubGlobal('window', { confirm });
+    click('템플릿 불러오기');
+    picker()!.props.onSelect(template);
+    expect(confirm).not.toHaveBeenCalled();
+    expect(field('이벤트명').props.value).toBe(template.title);
+  });
+
+  it('opens the template form with the trimmed current wording', () => {
+    change('이벤트명', ' 후기 이벤트 '); change('내용', '사용 후기 ');
+    click('현재 문구를 템플릿으로 저장');
+    expect(templateForm()!.props.initial).toEqual({ title: '후기 이벤트', description: '사용 후기' });
+    templateForm()!.props.onSaved();
+    expect(templateForm()).toBeUndefined();
+    expect(html()).toContain('템플릿으로 저장했습니다');
+    expect(mocks.save).not.toHaveBeenCalled();
+  });
+
+  it('hides the template controls once the event terms are locked', () => {
+    const event = { ...newReviewEventValues(), id: ID, number: 7, title: '가을 포토리뷰', description: '후기', revision: 1, createdAt: '2026-10-01T00:00:00Z', updatedAt: '2026-10-01T00:00:00Z', archivedAt: null, announcedAt: null, state: 'active', canEdit: false, entryCount: 0, selectedCount: 0, awardedCount: 0, revokedCount: 0 } as const;
+    props = { ...props, workspace: { event, total: 0, page: 1, pageSize: 50, canPay: true, creditPolicy: ON, selected: [], rows: [] }, creditPolicy: undefined };
+    expect(html()).not.toContain('템플릿 불러오기');
   });
 });

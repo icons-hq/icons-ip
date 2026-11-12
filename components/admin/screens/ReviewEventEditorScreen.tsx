@@ -6,7 +6,8 @@ import { useState, useTransition } from 'react';
 import { archiveReviewEventAction, publishReviewEventAction, revokeReviewEventAwardAction, saveReviewEventAction, selectReviewEventEntriesAction } from '@/app/admin/review-event-actions';
 import { REVIEW_EVENTS_ADMIN_PATH, REVIEW_EVENTS_PATH, REVIEW_EVENT_CREDIT_POLICY_OFF, isReviewEventDate, newReviewEventValues, parseReviewEventValues, reviewEventCreditPolicyLabel, reviewEventCreditPolicyProblem, reviewEventDayOffset, reviewEventFieldErrors,
   reviewEventToday, reviewEventStateLabel, reviewEventProblemLabel, trimReviewEventText, withReviewEventEndsOn, withReviewEventStartsOn,
-  type ReviewEventCreditPolicy, type ReviewEventField, type ReviewEventFieldErrors, type ReviewEventValues, type ReviewEventWorkspace, type ReviewEventSelection, type ReviewEventTarget } from '@/lib/review-events';
+  REVIEW_EVENT_TEMPLATES_ADMIN_PATH, REVIEW_EVENT_TEMPLATE_REPLACE_CONFIRM, REVIEW_EVENT_TEMPLATE_UNUSABLE, reviewEventTemplateNeedsConfirm, reviewEventTemplateUsable, trimReviewEventTemplateText, withReviewEventTemplate,
+  type ReviewEventCreditPolicy, type ReviewEventField, type ReviewEventFieldErrors, type ReviewEventValues, type ReviewEventWorkspace, type ReviewEventSelection, type ReviewEventTarget, type ReviewEventTemplate } from '@/lib/review-events';
 import { AdminNotice, AdminPageHeader, AdminStatusBadge } from '../console/AdminKit';
 import { ConsolePagination } from '../console';
 import { statusTone } from '@/lib/admin/status-tone';
@@ -17,6 +18,7 @@ import { REVIEW_EVENT_ENTRY_FILTERS, reviewEventExportHref } from '@/lib/admin/r
 import { AdminSelect } from '../console/AdminSelect';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { FIELD_LABEL_CLASS, KIT_INPUT_CLASS, KIT_TEXTAREA_CLASS, ROW_DANGER_BUTTON_CLASS } from './cs-kit-classes';
+import { ReviewEventTemplateEditor, ReviewEventTemplatePicker } from './ReviewEventTemplatesScreen';
 
 const PANEL_CLASS = 'flex min-w-0 flex-col gap-4 rounded-xl border bg-card p-4 text-card-foreground sm:p-5';
 const PANEL_TITLE_CLASS = 'text-base font-semibold text-foreground';
@@ -42,6 +44,8 @@ export function ReviewEventEditorScreen({ id, workspace, targetLabels = [], quer
   const [selected, setSelected] = useState(workspace?.selected ?? []), [reason, setReason] = useState(''), [dirtySelection, setDirtySelection] = useState(false), [dirtyTerms, setDirtyTerms] = useState(false);
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [retry, setRetry] = useState<Request | null>(null), [pending, start] = useTransition();
   const [attempted, setAttempted] = useState(false);
+  /* SHEET-017: 문구 템플릿 팝업(불러오기·현재 문구 저장). 템플릿 저장은 적립금 정책과 무관하다. */
+  const [templateDialog, setTemplateDialog] = useState<'pick' | 'save' | null>(null);
   const blocked = pending || !!retry, editable = !saved || saved.canEdit, canSelect = !!saved && ['closed', 'ready'].includes(saved.state), selectedAmount = selected.length * values.creditAmount;
   const policy = creditPolicy === undefined ? workspace?.creditPolicy ?? null : creditPolicy;
   const fieldErrors: ReviewEventFieldErrors = editable ? { ...(attempted ? reviewEventFieldErrors(trimReviewEventText(values)) : {}), ...reviewEventCreditPolicyProblem(values, policy) } : {};
@@ -69,6 +73,14 @@ export function ReviewEventEditorScreen({ id, workspace, targetLabels = [], quer
     if (!normalized) { setError('제목·내용·대상·기간·선정수·혜택 금액을 확인해주세요.'); return; }
     run({ ...request('save'), kind: 'save', values: normalized });
   }
+  /** 불러오기는 이벤트명·내용만 바꾼다. 작성 중인 문구가 있고 다르면 먼저 묻는다(답변 템플릿과 같은 바꾸기 동작). */
+  function applyTemplate(template: ReviewEventTemplate) {
+    /* 목록이 이미 막지만, 규칙에 맞지 않는 문구는 이벤트 칸에 넣지 않는다(저장 단계에서야 실패하지 않게). */
+    if (!reviewEventTemplateUsable(template)) { setError(REVIEW_EVENT_TEMPLATE_UNUSABLE); return; }
+    if (reviewEventTemplateNeedsConfirm(values, template) && !window.confirm(REVIEW_EVENT_TEMPLATE_REPLACE_CONFIRM)) return;
+    setValues(current => withReviewEventTemplate(current, template)); setDirtyTerms(true); setTemplateDialog(null);
+    setError(''); setNotice('템플릿 문구를 불러왔습니다. 이벤트를 저장해야 반영됩니다.');
+  }
   function select(entry: ReviewEventWorkspace['rows'][number], checked: boolean) { if (checked && entry.reviewUpdatedAt) setSelected(current => [...current.filter(item => item.id !== entry.id), { id: entry.id, reviewUpdatedAt: entry.reviewUpdatedAt!, reviewFingerprint: entry.reviewFingerprint }]); else setSelected(current => current.filter(item => item.id !== entry.id)); setDirtySelection(true); }
   const detailPath = `${REVIEW_EVENTS_ADMIN_PATH}/${id}`;
   /* 응모마감·발표대기 이벤트는 이 화면에서 할 일이 맨 아래 있다 — 머리에서 바로 그 자리로 보낸다(판정은 서버 상태 그대로). */
@@ -93,6 +105,12 @@ export function ReviewEventEditorScreen({ id, workspace, targetLabels = [], quer
     {/* 잠긴 칸은 입력 칸 테두리를 흐리게 해 고칠 수 있는 칸처럼 보이지 않게 한다. */}
     <fieldset className="flex min-w-0 flex-col gap-4 [&_input:disabled]:border-border [&_select:disabled]:border-border" disabled={blocked || !editable}>
       <section className={PANEL_CLASS}><h2 className={PANEL_TITLE_CLASS}>이벤트 정보</h2><div className="grid gap-4 md:grid-cols-2"><label className={LABEL_CLASS}><span className={FIELD_LABEL_CLASS}>이벤트명 ({[...values.title].length}/15)</span><input className={KIT_INPUT_CLASS} data-slot="input" value={values.title} onChange={event => change('title', event.target.value)} placeholder="최대 15자" {...invalid('title')} />{fieldError('title')}</label><label className={LABEL_CLASS}><span className={FIELD_LABEL_CLASS}>내용 ({[...values.description].length}/30)</span><input className={KIT_INPUT_CLASS} data-slot="input" value={values.description} onChange={event => change('description', event.target.value)} placeholder="최대 30자" {...invalid('description')} />{fieldError('description')}</label></div>
+        {editable ? <div className="flex flex-col gap-1.5" data-review-event-templates="">
+          <div className="flex flex-wrap items-center gap-2"><button type="button" className={buttonVariants({ size: 'sm', variant: 'outline' })} data-slot="button" onClick={() => setTemplateDialog('pick')}>템플릿 불러오기</button>
+            <button type="button" className={buttonVariants({ size: 'sm', variant: 'ghost' })} data-slot="button" onClick={() => setTemplateDialog('save')}>현재 문구를 템플릿으로 저장</button>
+            <Link className={`text-sm ${TEXT_LINK_CLASS}`} href={REVIEW_EVENT_TEMPLATES_ADMIN_PATH} target="_blank" rel="noopener noreferrer">템플릿 관리 ↗</Link></div>
+          <p className={HELP_CLASS}>템플릿은 이벤트명·내용만 담습니다. 적립금 정책이 꺼져 있어도 템플릿 저장은 됩니다.</p>
+        </div> : null}
         <label className={`${LABEL_CLASS} md:max-w-xs`}><span className={FIELD_LABEL_CLASS}>이벤트 대상</span><AdminSelect value={values.targetType} onChange={event => { const targetType = event.target.value as ReviewEventValues['targetType']; setValues(current => ({ ...current, targetType, goodIds: [], categoryIds: [] })); setDirtyTerms(true); }}><option value="all">전체 상품</option><option value="goods">상품 지정</option><option value="categories">카테고리 지정</option></AdminSelect></label>
         {values.targetType !== 'all' ? <ReviewEventTargetPicker key={values.targetType} type={values.targetType} ids={values.targetType === 'goods' ? values.goodIds : values.categoryIds} initialLabels={targetLabels} onChange={ids => change(values.targetType === 'goods' ? 'goodIds' : 'categoryIds', ids)} /> : null}
         {fieldError('target')}
@@ -119,5 +137,9 @@ export function ReviewEventEditorScreen({ id, workspace, targetLabels = [], quer
       {canSelect ? <div className="flex flex-col items-start gap-3 border-t pt-4"><p className="text-sm">현재 선택 <strong className="font-semibold text-foreground tabular-nums">{selected.length}명 · {selectedAmount.toLocaleString('ko-KR')}원</strong></p><label className={`${LABEL_CLASS} w-full`}><span className={FIELD_LABEL_CLASS}>선정 사유</span><textarea className={`${KIT_TEXTAREA_CLASS} min-h-20`} data-slot="textarea" value={reason} disabled={blocked} onChange={event => setReason(event.target.value)} maxLength={500} placeholder="별점과 무관한 선정 기준과 사유를 2자 이상 작성하세요" /></label><button type="button" className={buttonVariants({ variant: 'soft' })} data-slot="button" disabled={blocked || selected.length > 1000 || reason.trim().length < 2} onClick={() => run({ ...request('select'), kind: 'select', entries: selected, reason })}>선정 저장</button><p className={HELP_CLASS}>선정 저장은 발표나 지급을 하지 않습니다. 고객당 리뷰 하나만 선정할 수 있습니다.</p></div> : null}
       {!saved.announcedAt && !saved.archivedAt ? <div className="flex scroll-mt-16 flex-col items-start gap-3 border-t pt-4" id="review-event-publish"><h3 className="text-base font-semibold text-foreground">당첨자 발표 및 적립금 지급</h3><p className="text-sm">저장된 {saved.selectedCount}명에게 총 {(saved.selectedCount * saved.creditAmount).toLocaleString('ko-KR')}원을 지급합니다. 발표와 전체 지급은 함께 처리됩니다.</p>{!workspace.canPay ? <AdminNotice tone="warning">현재 계정에는 혜택 지급 권한이 없습니다.</AdminNotice> : !workspace.creditPolicy.enabled ? <AdminNotice tone="warning">적립금 정책이 비활성 상태입니다.</AdminNotice> : null}<button type="button" className={buttonVariants()} data-slot="button" disabled={blocked || dirtySelection || dirtyTerms || !workspace.canPay || !workspace.creditPolicy.enabled || saved.state !== 'ready'} onClick={() => { if (window.confirm(saved.selectedCount ? `저장된 ${saved.selectedCount}명에게 총 ${(saved.selectedCount * saved.creditAmount).toLocaleString('ko-KR')}원 지급과 당첨자 공개를 확정할까요?` : '선정된 고객이 0명입니다. 당첨자 없음으로 발표를 확정할까요?')) run({ ...request('publish'), kind: 'publish' }); }}>발표 및 지급 확정</button><p className={HELP_CLASS}>리뷰 삭제·비공개·구매 취소·반품 완료 시 이 이벤트에서 지급한 혜택을 회수합니다. 이미 사용된 금액은 이후 적립금에서 차감되며, 현금 결제액은 바뀌지 않습니다.</p></div> : null}
     </section> : null}
+    {/* 팝업은 잠기는 fieldset 밖에 둔다 — 안에 두면 이벤트 입력이 잠길 때 템플릿 입력까지 잠긴다. */}
+    {templateDialog === 'pick' ? <ReviewEventTemplatePicker onClose={() => setTemplateDialog(null)} onSelect={applyTemplate} /> : null}
+    {templateDialog === 'save' ? <ReviewEventTemplateEditor template={null} initial={trimReviewEventTemplateText(values)} onClose={() => setTemplateDialog(null)}
+      onSaved={() => { setTemplateDialog(null); setError(''); setNotice('현재 이벤트명·내용을 템플릿으로 저장했습니다. 이벤트 저장과는 별개입니다.'); }} /> : null}
   </div>;
 }

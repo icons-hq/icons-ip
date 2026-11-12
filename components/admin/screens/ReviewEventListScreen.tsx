@@ -10,7 +10,7 @@ import { Input } from '@/components/admin/kit/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableRow } from '@/components/admin/kit/ui/table';
 import { reviewEventExportHref } from '@/lib/admin/review-event-export';
 import { statusTone } from '@/lib/admin/status-tone';
-import { REVIEW_EVENTS_ADMIN_PATH, REVIEW_EVENT_STATES, reviewEventStateLabel, reviewEventAdminHref, type ReviewEventList, type ReviewEventState } from '@/lib/review-events';
+import { REVIEW_EVENTS_ADMIN_PATH, REVIEW_EVENT_STATES, REVIEW_EVENT_TEMPLATES_ADMIN_PATH, reviewEventStateLabel, reviewEventAdminHref, type ReviewEventList, type ReviewEventState } from '@/lib/review-events';
 import { FIELD_LABEL_CLASS } from './cs-kit-classes';
 
 const LABEL_CLASS = 'flex min-w-0 flex-col gap-1.5';
@@ -32,7 +32,10 @@ function AnnounceDue({ days }: { days: number }) {
 export function ReviewEventListScreen({ data, now = new Date() }: { data: ReviewEventList; /** 발표일 계산 기준 시각. 테스트 주입용. */ now?: Date }) {
   const { filters, rows, total } = data;
   return <div className="flex min-w-0 flex-col gap-4" data-review-events="list">
-    <AdminPageHeader title="리뷰이벤트" description="구매 리뷰를 모집하고, 선정한 고객에게 적립금 혜택을 지급합니다." actions={<Link className={buttonVariants()} data-slot="button" href={`${REVIEW_EVENTS_ADMIN_PATH}/new`}><Plus aria-hidden="true" />이벤트 등록</Link>} />
+    <AdminPageHeader title="리뷰이벤트" description="구매 리뷰를 모집하고, 선정한 고객에게 적립금 혜택을 지급합니다." actions={<>
+      {/* SHEET-017: 이벤트명·내용 문구 템플릿. 등록 화면의 "템플릿 불러오기"와 같은 목록이다. */}
+      <Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={REVIEW_EVENT_TEMPLATES_ADMIN_PATH}>문구 템플릿</Link>
+      <Link className={buttonVariants()} data-slot="button" href={`${REVIEW_EVENTS_ADMIN_PATH}/new`}><Plus aria-hidden="true" />이벤트 등록</Link></>} />
     <form className="flex flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground" method="get">
       <div className="grid gap-x-5 gap-y-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[minmax(0,2fr)_repeat(5,minmax(0,1fr))]">
         <label className={`${LABEL_CLASS} sm:col-span-2 lg:col-span-1`}><span className={FIELD_LABEL_CLASS}>이벤트명·번호</span><Input name="q" defaultValue={filters.query} maxLength={100} /></label>

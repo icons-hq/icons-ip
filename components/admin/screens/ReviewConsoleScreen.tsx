@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Award, ChevronDown, ExternalLink, Flag, ListFilter, MessageSquareText } from 'lucide-react';
 import { REVIEW_KIND_LABELS, REVIEW_KIND_OPTIONS, REVIEW_REPEAT_OPTIONS } from '@/lib/review-types';
 import { ReviewTypePolicyPanel } from '../ReviewTypePolicyPanel';
+import { ReviewDisplayExample } from '../ReviewDisplayExample';
 import {
   ConsoleCountChips,
   ConsoleFilterField,
@@ -329,6 +330,9 @@ export function ReviewConsoleScreen({
 
       {/* 설정은 목록을 밀지 않게 아래에 둔다 — 첫 화면은 처리할 리뷰가 차지한다. */}
       {accountId ? <ReviewTypePolicyPanel accountId={accountId} /> : null}
+
+      {/* SHEET-027: 고객 화면에서 리뷰가 어떻게 보이는지 늘 확인할 수 있는 예시(합성 데이터, DB에 저장하지 않음). */}
+      <ReviewDisplayExample />
 
       <p className="text-sm leading-relaxed text-muted-foreground">
         일반 리뷰는 배송완료된 주문의 구매자가 주문·상품당 한 번, 배송완료 후 90일까지 작성합니다. 한달사용 리뷰는 설정된 기간에 별도로 한 번 작성합니다.
