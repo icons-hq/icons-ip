@@ -37,10 +37,21 @@ export interface UserCouponSummary {
   coupon: CouponSummary;
   eligibilityReason?: string | null;
   usableFrom?: string;
+  /** 이 쿠폰을 잡고 있는 결제 대기(카드)·입금 대기(무통장) 주문. 사용 처리됐지만 그 주문의 결제가 아직 끝나지 않았다. */
+  pendingOrder?: CouponPendingOrder | null;
 }
 
-/** 쿠폰함 티켓 카드가 구분하는 표시 상태. 만료는 DB 상태가 아니라 파생이다. */
-export type CouponDisplayState = 'usable' | 'used' | 'expired' | 'ineligible';
+/** 쿠폰을 잡고 있는 결제를 마치지 않은 주문(get_my_unpaid_order_coupons). */
+export interface CouponPendingOrder {
+  orderId: string;
+  orderNumber: string | null;
+  paymentMethod: 'card' | 'bank_transfer';
+  /** 다음 새 주문이 이 주문을 닫고 쿠폰을 쓴다 — 결제 대기 카드 주문이고 결제 승인을 확인하고 있지 않다(ADR-0030, QA1 S-D2-08). */
+  replaceable: boolean;
+}
+
+/** 쿠폰함 티켓 카드가 구분하는 표시 상태. 만료는 DB 상태가 아니라 파생이다. `pending`은 결제를 마치지 않은 주문이 잡고 있다. */
+export type CouponDisplayState = 'usable' | 'pending' | 'used' | 'expired' | 'ineligible';
 
 /** 결제사 최소 결제액(원). 진실원은 20260813242000 가드와 place_order 의
  * c_min_payable_total — 값이 어긋나면 미리보기가 결제 불가 주문을 약속한다. */
@@ -60,12 +71,12 @@ export function couponEffectiveExpiresAt(
 }
 
 export function couponDisplayState(
-  userCoupon: Pick<UserCouponSummary, 'status' | 'expiresAt' | 'eligibilityReason' | 'usableFrom'> & {
+  userCoupon: Pick<UserCouponSummary, 'status' | 'expiresAt' | 'eligibilityReason' | 'usableFrom' | 'pendingOrder'> & {
     coupon: Pick<CouponSummary, 'endsAt' | 'startsAt' | 'status' | 'usesValiditySnapshot'>;
   },
   now: number = Date.now(),
 ): CouponDisplayState {
-  if (userCoupon.status === 'used') return 'used';
+  if (userCoupon.status === 'used') return userCoupon.pendingOrder ? 'pending' : 'used';
   const effectiveExpiry = couponEffectiveExpiresAt(userCoupon);
   if (effectiveExpiry && Date.parse(effectiveExpiry) < now) return 'expired';
   const usableFrom = userCoupon.coupon.usesValiditySnapshot ? userCoupon.usableFrom ?? userCoupon.coupon.startsAt : userCoupon.coupon.startsAt;
@@ -73,17 +84,39 @@ export function couponDisplayState(
   return 'usable';
 }
 
+/**
+ * 장바구니·주문서에서 고를 수 있는 쿠폰인지. 쓸 수 있는 쿠폰과, 다음 새 주문이 닫을 결제 대기 카드 주문이 잡은 쿠폰이다
+ * (ADR-0030 '새 주문은 출처 무관 이전 미결제 점유 닫기', QA1 S-D2-08) — 그 주문을 닫고 나면 쓸 수 있는지(기간·자격)도 본다.
+ * 입금 대기 주문·결제 승인을 확인 중인 주문이 잡은 쿠폰은 고를 수 없다.
+ */
+export function couponSelectable(
+  held: Pick<UserCouponSummary, 'status' | 'expiresAt' | 'eligibilityReason' | 'usableFrom' | 'pendingOrder'> & {
+    coupon: Pick<CouponSummary, 'endsAt' | 'startsAt' | 'status' | 'usesValiditySnapshot'>;
+  },
+  now: number = Date.now(),
+): boolean {
+  if (held.status === 'used') {
+    return held.pendingOrder?.replaceable === true && couponDisplayState({ ...held, status: 'active', pendingOrder: null }, now) === 'usable';
+  }
+  return couponDisplayState(held, now) === 'usable';
+}
+
+/** 진행 중인(결제 대기) 주문이 잡고 있어, 고르면 다음 새 주문이 그 주문을 닫고 쓰는 쿠폰인지. */
+export function couponHeldByReplaceableOrder(held: Pick<UserCouponSummary, 'status' | 'pendingOrder'>): boolean {
+  return held.status === 'used' && held.pendingOrder?.replaceable === true;
+}
+
 /** 카트·주문서가 공유하는 미리보기 할인. 조건 미달·만료 선택은 0원으로 접고,
  * 결제사 최소 결제액을 지키도록 place_order 와 같은 캡을 건다 — 주문 제출 시
  * RPC 가 같은 규칙으로 확정하므로 미리보기와 청구액이 어긋나지 않는다. */
 export function couponPreviewDiscount(
-  applied: Pick<UserCouponSummary, 'status' | 'expiresAt' | 'coupon' | 'eligibilityReason' | 'usableFrom'> | null,
+  applied: Pick<UserCouponSummary, 'status' | 'expiresAt' | 'coupon' | 'eligibilityReason' | 'usableFrom' | 'pendingOrder'> | null,
   subtotal: number,
   shippingFee: number,
   now: number = Date.now(),
 ): number {
   if (!applied) return 0;
-  if (couponDisplayState(applied, now) !== 'usable') return 0;
+  if (!couponSelectable(applied, now)) return 0;
   // A target-only discount requires the server's item quote; the whole-basket
   // compatibility helper must never silently discount non-target goods.
   if (applied.coupon.goodsScope && applied.coupon.goodsScope !== 'all' || applied.coupon.benefitKind === 'shipping') return 0;
@@ -248,4 +281,36 @@ export function parseUserCouponRows(value: unknown): UserCouponSummary[] | null 
       usedAt: row.used_at as string | null, eligibilityReason: row.coupons.recipient_reason as string | null, coupon });
   }
   return coupons;
+}
+
+/**
+ * get_my_unpaid_order_coupons 응답 — 보유 쿠폰 id별로 그 쿠폰을 잡은 결제를 마치지 않은 주문. 모양이 하나라도 틀리면 null(화면은
+ * 지금처럼 그 쿠폰을 사용 완료로 보고 고르지 못하게 한다).
+ */
+export function parseUnpaidOrderCoupons(value: unknown): Map<string, CouponPendingOrder> | null {
+  if (!Array.isArray(value)) return null;
+  const holds = new Map<string, CouponPendingOrder>();
+  for (const row of value) {
+    if (!object(row) || typeof row.userCouponId !== 'string' || !UUID.test(row.userCouponId)
+      || typeof row.orderId !== 'string' || !UUID.test(row.orderId)
+      || !(row.orderNumber === null || typeof row.orderNumber === 'string')
+      || (row.paymentMethod !== 'card' && row.paymentMethod !== 'bank_transfer')
+      || typeof row.replaceable !== 'boolean') return null;
+    holds.set(row.userCouponId.toLowerCase(), {
+      orderId: row.orderId.toLowerCase(),
+      orderNumber: row.orderNumber as string | null,
+      paymentMethod: row.paymentMethod,
+      replaceable: row.paymentMethod === 'card' && row.replaceable,
+    });
+  }
+  return holds;
+}
+
+/** 사용 처리된 보유 쿠폰에 그 쿠폰을 잡은 결제를 마치지 않은 주문을 붙인다. */
+export function attachCouponPendingOrders(coupons: readonly UserCouponSummary[], holds: ReadonlyMap<string, CouponPendingOrder> | null): UserCouponSummary[] {
+  if (!holds?.size) return [...coupons];
+  return coupons.map((held) => {
+    const pendingOrder = held.status === 'used' ? holds.get(held.id.toLowerCase()) : undefined;
+    return pendingOrder ? { ...held, pendingOrder } : held;
+  });
 }

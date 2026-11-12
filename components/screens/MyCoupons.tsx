@@ -31,10 +31,16 @@ import type { CouponCombinationPolicy } from '@/lib/coupon-combinations';
 
 const STATE_LABELS: Record<CouponDisplayState, string> = {
   usable: '사용 가능',
+  pending: '결제 대기 주문에 사용 중',
   used: '사용 완료',
   expired: '기간 만료',
   ineligible: '사용 조건 미충족',
 };
+
+/** 결제를 마치지 않은 주문이 잡은 쿠폰의 배지(QA1 S-D2-08) — 아직 결제하지 않았으니 '사용 완료'가 아니다. 무통장은 입금 대기다. */
+function couponStateLabel(held: UserCouponSummary, state: CouponDisplayState): string {
+  return state === 'pending' && held.pendingOrder?.paymentMethod === 'bank_transfer' ? '입금 대기 주문에 사용 중' : STATE_LABELS[state];
+}
 
 /** 지금 주문서 계약. 쿠폰 안내는 이것을 따른다 — 장바구니·주문서 쿠폰 칸과 같은 판정이다(R25). */
 export interface MyCouponsCheckoutRules {
@@ -92,7 +98,7 @@ function CouponTicketCard({ held, combinable }: { held: UserCouponSummary; combi
         {gradeBadge ? (
           <span className={`wc-coupon-card__badge ${gradeBadge.className}`}>{gradeBadge.label}</span>
         ) : null}
-        <span className="wc-coupon-card__state">{STATE_LABELS[state]}</span>
+        <span className="wc-coupon-card__state">{couponStateLabel(held, state)}</span>
       </div>
       {grade ? null : <p className="wc-coupon-card__code">{held.coupon.code}</p>}
       <p className="wc-coupon-card__name">{held.coupon.name}</p>
@@ -106,6 +112,16 @@ function CouponTicketCard({ held, combinable }: { held: UserCouponSummary; combi
         <div><dt>사용 대상</dt><dd>{couponTargetingLabel(held.coupon)}</dd></div>
       </dl>
       {state === 'ineligible' ? <p>{mapCouponActionError(held.coupon.status === 'archived' ? 'coupon_archived' : held.eligibilityReason ?? 'coupon_not_started')}</p> : null}
+      {state === 'pending' && held.pendingOrder ? (
+        <p className="wc-coupon-card__pending">
+          {held.pendingOrder.paymentMethod === 'bank_transfer'
+            ? '입금 기한 안에 입금하지 않아 주문이 취소되면 쿠폰이 돌아와요.'
+            : held.pendingOrder.replaceable
+              ? '결제하지 않고 다른 주문에서 이 쿠폰을 고르면 그 주문은 닫히고 새 주문에 써요.'
+              : '결제 결과를 확인하고 있어요. 결제되지 않으면 쿠폰이 돌아와요.'}
+          {' '}<Link href={`/orders/${encodeURIComponent(held.pendingOrder.orderId)}`}>주문 보기</Link>
+        </p>
+      ) : null}
     </li>
   );
 }

@@ -140,6 +140,23 @@ describe('CouponPicker — 표시', () => {
     expect(markup).toContain('쿠폰 대상 굿즈를 담으면 사용할 수 있어요.');
   });
 
+  /* QA1 S-D2-08: 결제 대기 주문이 잡은 쿠폰도 고를 수 있고, 무엇이 닫히는지와 그 주문으로 가는 길을 함께 보인다. */
+  it.each([
+    ['cart', '이 쿠폰으로 주문하면 그 주문은 결제 없이 닫히고 쿠폰을 새 주문에 써요.'],
+    ['checkout', '이 주문을 접수하면 그 주문은 결제 없이 닫히고 쿠폰을 여기에 써요.'],
+  ] as const)('진행 중인 주문이 잡은 쿠폰을 안내와 함께 목록에 둔다(%s)', (surface, copy) => {
+    const held: UserCouponSummary = { ...fix5k, status: 'used', usedAt: '2026-08-31T00:00:00Z',
+      pendingOrder: { orderId: '33333333-3333-4333-8333-333333333333', orderNumber: '2026083100000001', paymentMethod: 'card', replaceable: true } };
+    const markup = html({ surface, couponState: state([held]) });
+    expect(markup).toContain(`<option value="${held.id}">5천원 할인 · ₩5,000 할인 · 진행 중인 주문에서 사용 중</option>`);
+    expect(markup).toContain(`‘5천원 할인’ 쿠폰은 진행 중인 주문에서 사용 중이에요. ${copy}`);
+    expect(markup).toContain('href="/orders/33333333-3333-4333-8333-333333333333">진행 중인 주문 확인</a>');
+    expect(markup).not.toContain('사용할 수 있는 쿠폰이 없어요');
+    /* 결제 승인을 확인 중인 주문·거래 런타임 주문서는 지금처럼 고를 수 없다. */
+    expect(html({ surface, couponState: state([{ ...held, pendingOrder: { ...held.pendingOrder!, replaceable: false } }]) })).not.toContain(`<option value="${held.id}"`);
+    expect(html({ surface, couponState: state([held]), shippingCouponsAtCheckout: true })).not.toContain(`<option value="${held.id}"`);
+  });
+
   it('제출 중이면 모든 컨트롤을 잠근다', () => {
     const markup = html({ disabled: true });
     expect(markup).toMatch(/<select[^>]*disabled=""/);

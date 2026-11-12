@@ -10,7 +10,11 @@ import {
   couponDisplayState,
   couponExpiryLabel,
   couponPreviewDiscount,
+  couponSelectable,
+  attachCouponPendingOrders,
   mapCouponActionError,
+  parseUnpaidOrderCoupons,
+  type CouponPendingOrder,
 } from './coupons';
 
 function noEnd(expiresAt: string | null) {
@@ -83,6 +87,56 @@ describe('couponDisplayState', () => {
       expiresAt: '2026-12-31T00:00:00Z',
       coupon: { endsAt: '2026-08-30T00:00:00Z' },
     }, base)).toBe('expired');
+  });
+});
+
+/* QA1 S-D2-08: 결제 대기 주문이 잡은(사용 처리된) 쿠폰은 '사용 완료'가 아니고, 다음 새 주문이 닫을 주문이면 고를 수 있다. */
+describe('결제를 마치지 않은 주문이 잡은 쿠폰', () => {
+  const base = Date.parse('2026-08-31T00:00:00Z');
+  const cardHold: CouponPendingOrder = { orderId: '33333333-3333-4333-8333-333333333333', orderNumber: '2026083100000001', paymentMethod: 'card', replaceable: true };
+  const held = { status: 'used' as const, ...noEnd(null), pendingOrder: cardHold };
+
+  it('사용 처리됐어도 그 주문이 결제 전이면 pending이다', () => {
+    expect(couponDisplayState(held, base)).toBe('pending');
+    expect(couponDisplayState({ ...held, pendingOrder: null }, base)).toBe('used');
+  });
+
+  it('다음 새 주문이 닫을 결제 대기 카드 주문의 쿠폰만 고를 수 있고, 그 주문을 닫은 뒤의 기간도 본다', () => {
+    expect(couponSelectable(held, base)).toBe(true);
+    expect(couponSelectable({ ...held, pendingOrder: { ...cardHold, replaceable: false } }, base)).toBe(false);
+    expect(couponSelectable({ ...held, pendingOrder: { ...cardHold, paymentMethod: 'bank_transfer', replaceable: false } }, base)).toBe(false);
+    expect(couponSelectable({ ...held, ...noEnd('2026-08-30T00:00:00Z') }, base)).toBe(false);
+    expect(couponSelectable({ status: 'used', ...noEnd(null) }, base)).toBe(false);
+    expect(couponSelectable({ status: 'active', ...noEnd(null) }, base)).toBe(true);
+  });
+
+  it('응답을 쿠폰별로 읽고 무통장 주문은 넘길 수 없는 것으로 접는다', () => {
+    const holds = parseUnpaidOrderCoupons([
+      { userCouponId: '11111111-1111-4111-8111-111111111111', orderId: cardHold.orderId.toUpperCase(), orderNumber: cardHold.orderNumber, paymentMethod: 'card', replaceable: true },
+      { userCouponId: '22222222-2222-4222-8222-222222222222', orderId: cardHold.orderId, orderNumber: null, paymentMethod: 'bank_transfer', replaceable: true },
+    ]);
+    expect(holds?.get('11111111-1111-4111-8111-111111111111')).toEqual(cardHold);
+    expect(holds?.get('22222222-2222-4222-8222-222222222222')?.replaceable).toBe(false);
+    expect(parseUnpaidOrderCoupons([{ userCouponId: 'x', orderId: cardHold.orderId, orderNumber: null, paymentMethod: 'card', replaceable: true }])).toBeNull();
+    expect(parseUnpaidOrderCoupons([{ userCouponId: '11111111-1111-4111-8111-111111111111', orderId: cardHold.orderId, orderNumber: null, paymentMethod: 'cash', replaceable: true }])).toBeNull();
+    expect(parseUnpaidOrderCoupons({})).toBeNull();
+  });
+
+  it('사용 처리된 쿠폰에만 그 주문을 붙인다', () => {
+    const used = { id: '11111111-1111-4111-8111-111111111111', status: 'used' as const, issuedAt: '2026-08-01T00:00:00Z', expiresAt: null, usedAt: '2026-08-30T00:00:00Z',
+      coupon: { code: 'CPNFIX5K', name: '5천원', discountType: 'fixed' as const, discountValue: 5000, maxDiscountAmount: null, minSubtotal: 0, endsAt: null, gradeBenefit: null } };
+    const active = { ...used, id: '22222222-2222-4222-8222-222222222222', status: 'active' as const, usedAt: null };
+    const holds = new Map([[used.id, cardHold], [active.id, cardHold]]);
+    const [first, second] = attachCouponPendingOrders([used, active], holds);
+    expect(first.pendingOrder).toEqual(cardHold);
+    expect(second.pendingOrder).toBeUndefined();
+    expect(attachCouponPendingOrders([used], null)[0].pendingOrder).toBeUndefined();
+  });
+
+  it('미리보기 할인도 넘길 수 있는 쿠폰이면 계산한다', () => {
+    const coupon = { code: 'CPNFIX5K', name: '5천원', discountType: 'fixed' as const, discountValue: 5000, maxDiscountAmount: null, minSubtotal: 0, endsAt: null, gradeBenefit: null };
+    expect(couponPreviewDiscount({ status: 'used', expiresAt: null, coupon, pendingOrder: cardHold }, 20000, 3000, base)).toBe(5000);
+    expect(couponPreviewDiscount({ status: 'used', expiresAt: null, coupon, pendingOrder: { ...cardHold, replaceable: false } }, 20000, 3000, base)).toBe(0);
   });
 });
 

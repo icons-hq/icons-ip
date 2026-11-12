@@ -4325,6 +4325,21 @@ button.wc-settings__link-row[aria-disabled="true"] strong {
   font-weight: 700;
 }
 
+/* 결제를 마치지 않은 주문이 잡은 쿠폰(QA1 S-D2-08) — 사용 완료처럼 흐리지 않고 그 주문으로 가는 길을 보인다. */
+.wc-coupon-card__pending {
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--wc-ink-sub);
+}
+
+.wc-coupon-card__pending a {
+  color: var(--wc-ink);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .wc-coupon-empty__link {
   font-size: 14px;
   font-weight: 600;

@@ -3476,6 +3476,21 @@
   color: var(--wc-danger);
 }
 
+/* 진행 중인(결제 대기) 주문이 잡은 쿠폰 안내(QA1 S-D2-08) — 경고가 아니라 사실과 그 주문으로 가는 길이다. */
+.wc-cart__coupon-pending {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--wc-ink-sub);
+}
+
+.wc-cart__coupon-pending a {
+  color: var(--wc-ink);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .wc-cart__coupon-clear {
   margin: 8px 0 0;
   padding: 0;
