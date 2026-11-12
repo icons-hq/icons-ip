@@ -45,4 +45,10 @@ describe('검색 오버레이 한 덩어리 배경', () => {
     expect(decls('.wc-search .wc-search__aux:focus', '(min-width: 990px)')['z-index']).toBe('1');
     expect(decls(`${COLOR} .wc-search .wc-search__aux:focus`, '(min-width: 990px)')).toEqual({ color: 'var(--wc-ink)' });
   });
+
+  it('컬러형 헤더의 머리말 행·검색 패널 안 포커스 링은 헤더 글자색이고 기본형은 기본 링 그대로다', () => {
+    expect(decls(`${COLOR} :is(.wc-header__bar, .wc-gnb-wrap, .wc-search) :focus-visible`)).toEqual({
+      'outline-color': 'var(--store-theme-ink)',
+    });
+  });
 });

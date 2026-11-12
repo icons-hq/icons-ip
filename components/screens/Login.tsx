@@ -37,6 +37,12 @@ function savableEmail(value: string): string | null {
   return email.length <= MAX_SAVED_EMAIL_LENGTH && /^[^\s@]+@[^\s@]+$/.test(email) ? email : null;
 }
 
+/** 소셜 폼의 keepSignedIn 숨은 칸 값. 체크 칸은 로그인 모드에만 있으므로 가입 모드는 상태와 무관하게 늘 기본값(유지)이다 —
+ *  로그인 모드에서 끈 체크가 [이메일 회원가입]으로 넘어간 뒤에도 남아 가입 세션을 몰래 세션 쿠키로 만들지 않는다. */
+export function socialKeepSignedInValue(isSignUp: boolean, keepSignedIn: boolean): '1' | '0' {
+  return isSignUp || keepSignedIn ? '1' : '0';
+}
+
 export function readSavedLoginEmail(): string | null {
   try {
     const value = window.localStorage.getItem(SAVED_LOGIN_EMAIL_KEY);
@@ -495,7 +501,7 @@ export function Login({ initialError, initialMessage, initialMode, isConfigured,
             <form action={socialAction} className="wc-auth__social-row">
               <input type="hidden" name="next" value={next} />
               {/* '로그인 상태 유지'(SHEET-005)는 소셜 로그인에도 적용한다 — 위 이메일 폼의 체크 상태를 함께 보낸다(가입 화면은 체크 칸이 없어 기본값 유지). */}
-              <input type="hidden" name="keepSignedIn" value={keepSignedIn ? '1' : '0'} />
+              <input type="hidden" name="keepSignedIn" value={socialKeepSignedInValue(isSignUp, keepSignedIn)} />
               <button
                 aria-label="Google로 계속하기"
                 className="wc-auth__social-btn"

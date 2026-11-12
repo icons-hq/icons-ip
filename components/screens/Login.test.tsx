@@ -9,6 +9,7 @@ import {
   savePendingSignupEmail,
   SAVED_LOGIN_EMAIL_KEY,
   SignupCodeStep,
+  socialKeepSignedInValue,
 } from './Login';
 
 const mocks = vi.hoisted(() => ({
@@ -239,6 +240,15 @@ describe('Login 이메일 저장', () => {
       const social = html.slice(start, html.indexOf('</form>', start));
       expect(social, mode).toMatch(/<input type="hidden" name="keepSignedIn" value="1"\/>/);
     }
+  });
+
+  /* 로그인 모드에서 체크를 끈 뒤 [이메일 회원가입]으로 넘어가도 컴포넌트 상태(keepSignedIn=false)가 남는다 — 가입 화면엔 체크 칸이 없으니
+     소셜 가입 숨은 칸은 늘 '1'이어야 한다. */
+  it('소셜 숨은 칸은 가입 모드에서 체크 상태와 무관하게 늘 1이고, 로그인 모드에서만 체크를 따른다', () => {
+    expect(socialKeepSignedInValue(false, true)).toBe('1');
+    expect(socialKeepSignedInValue(false, false)).toBe('0');
+    expect(socialKeepSignedInValue(true, false)).toBe('1');
+    expect(socialKeepSignedInValue(true, true)).toBe('1');
   });
 
   describe('저장소', () => {

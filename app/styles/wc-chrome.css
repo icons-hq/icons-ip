@@ -963,6 +963,12 @@
   background: linear-gradient(var(--wc-accent-tint), var(--wc-accent-tint)), var(--wc-surface);
 }
 
+/* 컬러형 헤더의 포커스 링 — 기본 링(#5B74FF)은 테마 색 15종 중 14종에서 3:1 미만이라(WCAG 1.4.11·2.4.7) 색 바탕 위의 머리말 행과
+   검색 패널 안에서는 헤더 글자색(대비가 보장된 짝)으로 그린다. 기본형 헤더는 흰 바탕이라 기본 링 그대로다. */
+.wc-chrome .wc-header[data-store-header="color"] :is(.wc-header__bar, .wc-gnb-wrap, .wc-search) :focus-visible {
+  outline-color: var(--store-theme-ink);
+}
+
 @media (max-width: 989px) {
   /* MC-04 — 모바일 칩은 한 줄로 두고 가로로 넘긴다. 여러 줄로 접히면 패널이 본문을 한 뼘 더 가린다. */
   .wc-search .wc-search__chips {
