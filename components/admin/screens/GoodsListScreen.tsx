@@ -17,6 +17,7 @@ import { GOODS_LIST_PAGE_SIZE, GOODS_LIST_PAGE_SIZES, GOODS_LIST_SORT_OPTIONS, g
 import { goodDetailHref } from '@/lib/goods-display';
 import type { GoodsGroupIdentity } from '@/lib/admin/goods-groups';
 import { GoodsInlineOptionStock, GoodsInlinePrice, GoodsInlineSale, GoodsInlineStock } from '../GoodsInlineEdit';
+import { GoodsInlineDialogHost, GoodsInlineDialogNotice } from '../GoodsInlineDialogHost';
 import { GoodsIpBulkDiscount } from '../GoodsIpBulkDiscount';
 import { kstDay } from '@/lib/admin/kst';
 
@@ -84,7 +85,9 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
   /* 바로 수정과 IP 전체 할인은 상품 관리 권한과 현재 로그인 세션이 확인된 경우에만 연다. */
   const inlineIdentity = canIssueMarketingLinks ? bulkIdentity : undefined;
   const filteredIp = filters.ipId ? data.ips.find(ip => ip.id === filters.ipId && !ip.archivedAt) : undefined;
-  return <section className="relative flex min-w-0 flex-col gap-4" data-admin-screen="goods-list">
+  /* 옵션별 재고·할인 중지 후 변경 창은 표 밖(이 화면 수준)에서 연다. 표의 선택자·칸 굵기가 창에 걸리지 않고,
+     저장 뒤 그 상품이 현재 페이지에서 빠져도(필터·정렬) 창과 결과가 남는다(GoodsInlineDialogHost). */
+  return <section className="relative flex min-w-0 flex-col gap-4" data-admin-screen="goods-list"><GoodsInlineDialogHost identity={inlineIdentity}>
     {/* R21: 그룹상품 탭은 메뉴와 함께 숨겼다 — 전환할 탭이 하나뿐이라 탭 줄을 그리지 않는다(그룹상품 라우트·권한은 그대로).
         등록·일괄 작업은 다른 화면처럼 오른쪽 위다. 넓은 화면에서는 셸 제목 줄의 빈자리에 올려 표가 밀리지 않게 한다. */}
     <div className="flex flex-wrap items-center gap-2 lg:absolute lg:right-0 lg:bottom-full lg:mb-4 print:hidden" data-goods-list="actions">
@@ -117,6 +120,7 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
       <p className="text-xs leading-snug text-muted-foreground" data-goods-list="stock-basis" id="goods-list-stock-basis">품절: 판매중지가 아닌 상품 중 사용 옵션 재고 0개 · 소량 재고: 판매상태를 소량 재고로 지정하고 재고가 남은 상품(수량으로 자동 분류하지 않습니다) · 판매중지: 판매상태를 판매중지로 바꾼 상품 · 판매대기·판매종료: 판매기간 시작 전·종료 후</p>
     </div>
     <GoodsListFiltersForm data={data} />
+    <GoodsInlineDialogNotice />
     {/* 넓은 화면에서는 목록 제목·정렬과 일괄 변경·조회항목 설정이 한 줄이다(표 ConsoleGrid의 뿌리를 contents로 풀어 이 줄에 참여시킨다). 폭이 모자라면 두 줄로 내려간다. */}
     <section aria-label="상품목록" className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground xl:flex-row xl:flex-wrap xl:items-center xl:gap-y-2">
       <div className="flex flex-wrap items-center gap-2 xl:flex-none">
@@ -232,5 +236,5 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
       </details>
       </div>
     </section>
-  </section>;
+  </GoodsInlineDialogHost></section>;
 }

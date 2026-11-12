@@ -38,13 +38,16 @@ export function optionStockDefaultReason(from: number, to: number) {
 }
 
 /**
- * 창의 한 줄 상태. `seen`은 운영자가 이 창에서 본 수량(저장할 때의 기대값)이다.
- * 다시 확인 중인 줄은 `seen`이 null이라 목록이 새로 읽은 현재 수량을 그대로 보여 주고, 그 값을 기대값으로 다시 저장한다.
+ * 창의 한 줄 상태. `seen`은 운영자가 이 창에서 보고 있는 현재 수량(저장할 때의 기대값)이다.
+ * 거절된 줄은 `seen`을 비우고 그 상품의 옵션 수량을 새로 읽어 채운다 — 창은 목록 페이지와 따로 남아 있으므로
+ * (필터·정렬로 그 상품이 목록에서 빠져도) 목록이 다시 그린 값에 기대지 않는다. 새 값을 보인 뒤에만 그 값으로 다시 저장한다.
+ * `missing`은 새로 읽었는데 사용 중인 옵션에 없다는 뜻이다(보관 등).
  */
 export type OptionStockRowStatus = 'idle' | 'saved' | 'recheck' | 'uncertain' | 'invalid';
 export interface OptionStockRow {
   variantId: string; name: string; code: string;
   seen: number | null;
+  missing?: boolean;
   input: string; reason: string;
   /** 한 번의 조정을 멱등하게 만드는 요청번호. 화면에 그리지 않는다. 반영되지 않은 것이 확실할 때만 새로 만든다. */
   requestId: string;
@@ -53,14 +56,23 @@ export interface OptionStockRow {
 export const OPTION_STOCK_STATUS_LABELS: Record<Exclude<OptionStockRowStatus, 'idle' | 'invalid'>, string> = {
   saved: '저장됨', recheck: '다시 확인', uncertain: '결과 확인 필요',
 };
+const OPTION_MISSING = '이 옵션은 지금 사용 중인 옵션에 없습니다. 상품 수정의 옵션에서 확인해주세요.';
 
-export function openOptionStockRows(options: GoodsListOptionStock[], newId: () => string): OptionStockRow[] {
+export function openOptionStockRows(options: readonly GoodsListOptionStock[], newId: () => string): OptionStockRow[] {
   return options.map(option => ({ variantId: option.variantId, name: option.name, code: option.code, seen: option.stockQty,
     input: String(option.stockQty), reason: '', requestId: newId(), status: 'idle', message: '' }));
 }
-/** 줄의 현재 수량: 이 창에서 본 값, 다시 확인 중이면 목록이 새로 읽은 값. 옵션이 목록에서 사라졌으면 null. */
-export function optionStockCurrent(row: OptionStockRow, live: readonly GoodsListOptionStock[]): number | null {
-  return row.seen ?? live.find(option => option.variantId === row.variantId)?.stockQty ?? null;
+/** 현재 수량을 아직 읽지 못한 줄(거절 뒤 새로 읽기 전·읽기 실패)이 있는가. 있으면 저장 전에 먼저 읽어 보인다. */
+export function optionStockNeedsRead(rows: readonly OptionStockRow[]): boolean {
+  return rows.some(row => row.seen === null && !row.missing);
+}
+/** 새로 읽은 사용 옵션 수량을 현재 수량이 빈 줄에만 채운다. 이미 보고 있는 줄의 기대값은 바꾸지 않는다. */
+export function applyOptionStockRead(rows: readonly OptionStockRow[], options: readonly GoodsListOptionStock[]): OptionStockRow[] {
+  return rows.map(row => {
+    if (row.seen !== null) return row;
+    const option = options.find(item => item.variantId === row.variantId);
+    return option ? { ...row, seen: option.stockQty, missing: false } : { ...row, missing: true, status: 'recheck', message: OPTION_MISSING };
+  });
 }
 
 export interface OptionStockRequest { variantId: string; requestId: string; expectedStockQty: number; nextStockQty: number; reason: string }
@@ -71,18 +83,17 @@ export type OptionStockPlan =
 
 /**
  * 저장할 줄을 고른다. 바뀌지 않은 줄은 보내지 않는다. 잘못 입력한 줄이 하나라도 있으면 아무것도 보내지 않고
- * 그 줄에 이유를 붙여 돌려준다(일부만 조용히 저장하지 않는다).
+ * 그 줄에 이유를 붙여 돌려준다(일부만 조용히 저장하지 않는다). 현재 수량이 없는 줄(사라진 옵션)은 보내지 않고 다른 줄을 막지도 않는다.
  */
-export function planOptionStockSave(rows: OptionStockRow[], live: readonly GoodsListOptionStock[]): OptionStockPlan {
+export function planOptionStockSave(rows: readonly OptionStockRow[]): OptionStockPlan {
   const requests: OptionStockRequest[] = [];
   let invalid = false;
   const checked = rows.map((row): OptionStockRow => {
-    const current = optionStockCurrent(row, live);
+    const current = row.seen;
     const next = parseInlineStockQty(row.input);
     const reason = row.reason.trim();
     const fail = (message: string): OptionStockRow => { invalid = true; return { ...row, status: 'invalid', message }; };
-    /* 다시 확인 중에 목록에서 사라진 옵션(보관 등)은 보낼 기대값이 없다. 다른 줄은 막지 않고 이 줄만 남겨 둔다. */
-    if (current === null) return { ...row, status: 'recheck', message: '이 옵션은 지금 사용 중인 옵션에 없습니다. 상품 수정의 옵션에서 확인해주세요.' };
+    if (current === null) return row;
     if (next === null) return fail('0 이상의 정수로 입력해주세요.');
     if (next === current) return row.status === 'invalid' ? { ...row, status: 'idle', message: '' } : row;
     if ([...reason].length > OPTION_STOCK_REASON_MAX) return fail(`사유는 ${OPTION_STOCK_REASON_MAX}자 이하로 입력해주세요.`);

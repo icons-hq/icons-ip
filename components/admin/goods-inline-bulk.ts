@@ -70,27 +70,31 @@ export async function stopDiscountThenChangePrice(identity: GoodsGroupIdentity, 
       : { step: 'review-failed', message: receipt.error, retry: true } };
   }
   if (receipt.value.state !== 'completed') return { phase: { step: 'review-failed', message: goodsBulkError(receipt.value.error), retry: true } };
-  const stopped = { step: 'price', stoppedHere: true, stopped: review.discounts, error: '' } as const;
-  onStopped?.(stopped);
-  return changePriceAfterStop(identity, goodId, seenBasePrice, nextPrice, stopped);
+  const stop = { stoppedHere: true, stopped: review.discounts };
+  onStopped?.({ step: 'price', ...stop, error: '' });
+  return changePriceAfterStop(identity, goodId, seenBasePrice, nextPrice, stop);
 }
 
-/** 할인이 멈춘 상태에서 판매가만 바꾼다(처음 이어서, 또는 실패 뒤 다시 시도). */
+/**
+ * 할인이 멈춘 상태에서 판매가만 바꾼다(처음 이어서, 또는 실패 뒤 다시 시도). 단계(`step`)는 결과로만 정한다 —
+ * 넘겨받은 값은 할인 중지 사실(`stoppedHere`·`stopped`)만 읽는다(단계 객체를 펼쳐 결과 단계를 덮지 않는다).
+ */
 export async function changePriceAfterStop(identity: GoodsGroupIdentity, goodId: string, seenBasePrice: number, nextPrice: number,
   stop: { stoppedHere: boolean; stopped: GoodsBulkActiveDiscounts | null }): Promise<DiscountStopPriceStep> {
+  const { stoppedHere, stopped } = stop;
   let current = seenBasePrice;
   try {
     const result = await runSingleGoodBulk(identity, goodId, 'price', { mode: 'set', value: nextPrice }, row => {
       current = row.price;
       return row.price === seenBasePrice ? null : priceAfterStopStaleMessage(row.price);
     });
-    if (result.ok) return { phase: { step: 'price', ...stop, error: '' }, done: true };
-    if (result.operationId) return { phase: { step: 'price-uncertain', ...stop, operationId: result.operationId, message: result.message } };
+    if (result.ok) return { phase: { step: 'price', stoppedHere, stopped, error: '' }, done: true };
+    if (result.operationId) return { phase: { step: 'price-uncertain', stoppedHere, stopped, operationId: result.operationId, message: result.message } };
     /* 그사이 다른 곳에서 바뀐 기본 판매가는 창의 '현재 판매가'로 보이고 다시 시도의 기대값이 된다. */
-    return { phase: { step: 'price', ...stop, error: result.message }, ...(current !== seenBasePrice ? { seenBasePrice: current } : {}) };
+    return { phase: { step: 'price', stoppedHere, stopped, error: result.message }, ...(current !== seenBasePrice ? { seenBasePrice: current } : {}) };
   } catch {
     // The preview call itself failed, so no price request exists to commit.
-    return { phase: { step: 'price', ...stop, error: '판매가 변경을 시작하지 못했습니다. 잠시 후 다시 시도해주세요.' } };
+    return { phase: { step: 'price', stoppedHere, stopped, error: '판매가 변경을 시작하지 못했습니다. 잠시 후 다시 시도해주세요.' } };
   }
 }
 
@@ -109,4 +113,10 @@ export async function recoverDiscountStopPrice(identity: GoodsGroupIdentity, pha
   if (state === 'completed') return { phase: { step: 'price', stoppedHere: phase.stoppedHere, stopped: phase.stopped, error: '' }, done: true };
   return { phase: { step: 'price', stoppedHere: phase.stoppedHere, stopped: phase.stopped,
     error: state === 'sealed' ? '미처리 요청을 종료했습니다. 판매가는 바뀌지 않았습니다.' : goodsBulkError(error) } };
+}
+
+/** 창이 끝난 뒤 목록에 남길 결과 문구(창은 그 상품이 목록에서 빠져도 결과를 잃지 않게 화면 수준에서 연다). */
+export function discountStopPriceDoneNotice(goodName: string, price: number, stoppedHere: boolean) {
+  const won = `${price.toLocaleString('ko-KR')}원`;
+  return stoppedHere ? `‘${goodName}’ 할인을 멈추고 판매가를 ${won}으로 바꿨습니다.` : `‘${goodName}’ 판매가를 ${won}으로 바꿨습니다.`;
 }

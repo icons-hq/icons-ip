@@ -60,6 +60,26 @@ describe('할인 중지 후 판매가 변경 (1027T-025)', () => {
     expect(onStopped).toHaveBeenCalledWith({ step: 'price', stoppedHere: true, stopped: discounts, error: '' });
   });
 
+  it('한 번에 진행하다 판매가 확정 응답이 끊기면 결과를 모르는 단계(price-uncertain)로 멈추고 그 요청번호를 남긴다', async () => {
+    const review = { operationId: 'b9000000-0000-4000-8000-0000000000a1', discounts };
+    // 할인 중지 확정은 받았고, 판매가 확정은 서버에 반영됐을 수 있으나 응답이 끊겼다(호출 실패·불명확 응답 두 경우).
+    for (const failure of [() => Promise.reject(new Error('network')), () => Promise.resolve({ error: '처리 결과가 불명확합니다.', uncertain: true })]) {
+      vi.clearAllMocks();
+      mocks.commit.mockImplementation(async (operationId: string) => operationId === review.operationId ? receipt(operationId, 'completed') : failure());
+      const onStopped = vi.fn();
+      const step = await stopDiscountThenChangePrice(identity, 'good-a', review, 10000, 12000, onStopped);
+      const priceOperation = mocks.preview.mock.calls[0][0];
+      expect(step.done).toBeUndefined();
+      expect(step.phase).toEqual({ step: 'price-uncertain', stoppedHere: true, stopped: discounts, operationId: priceOperation, message: expect.stringContaining('불명확') });
+      expect(onStopped).toHaveBeenCalledWith({ step: 'price', stoppedHere: true, stopped: discounts, error: '' });
+    }
+    // 같은 단계에서 다시 시도해도 결과 단계는 넘겨받은 값이 아니라 결과로 정해진다.
+    mocks.commit.mockResolvedValueOnce({ error: '처리 결과가 불명확합니다.', uncertain: true });
+    const retried = await changePriceAfterStop(identity, 'good-a', 10000, 12000, { step: 'price', stoppedHere: true, stopped: discounts, error: 'x' } as never);
+    expect(retried.phase).toMatchObject({ step: 'price-uncertain', stoppedHere: true });
+    expect(Object.keys(retried.phase)).not.toContain('error');
+  });
+
   it('판매가 변경이 실패하면 할인은 멈춘 채 두고(되돌리지 않음) 실패 사유와 함께 판매가만 다시 시도하게 한다', async () => {
     const review = { operationId: 'b9000000-0000-4000-8000-0000000000a1', discounts };
     mocks.commit.mockImplementation(async (operationId: string) => operationId === review.operationId ? receipt(operationId, 'completed') : receipt(operationId, 'rejected', 'goods_bulk_busy'));

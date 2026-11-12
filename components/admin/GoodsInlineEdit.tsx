@@ -12,8 +12,7 @@ import { goodsBulkError } from '@/lib/admin/goods-bulk';
 import type { GoodsGroupIdentity } from '@/lib/admin/goods-groups';
 import type { GoodsListOptionStock } from '@/lib/admin/goods-list-inline';
 import { runSingleGoodBulk } from './goods-inline-bulk';
-import { GoodsDiscountStopPriceDialog, useDiscountStopPrice } from './GoodsDiscountStopPriceDialog';
-import { GoodsOptionStockDialog, useOptionStockDialog } from './GoodsOptionStockDialog';
+import { useGoodsInlineDialogs } from './GoodsInlineDialogHost';
 
 /*
  * 상품 목록에서 바로 수정(A9). 새 쓰기 경로를 만들지 않는다.
@@ -24,6 +23,7 @@ import { GoodsOptionStockDialog, useOptionStockDialog } from './GoodsOptionStock
  *   '판매가 변경'을 차례로 부르고, 판매가가 실패하면 할인이 이미 멈췄다고 밝힌 뒤 같은 창에서 다시 시도한다(1027T-025).
  * - 재고수량: 기존 실재고 조정(admin_adjust_stock)을 쓴다. 본 수량을 기대값으로 보내므로
  *   그사이 판매·조정이 있으면 거절된다. 옵션이 여럿이면 옵션별 재고 창에서 옵션마다 같은 조정을 부른다(1014-106·107).
+ * 두 창은 칸 안이 아니라 목록 화면 수준(GoodsInlineDialogHost)에서 열린다. 칸은 값 버튼과 창에 넘길 상품 값만 갖는다.
  */
 
 export { runSingleGoodBulk } from './goods-inline-bulk';
@@ -92,9 +92,12 @@ function useInlineState() {
   return { router, editing, setEditing: (value: boolean) => { setEditing(value); if (value) setError(''); }, error, setError, recovery, setRecovery, pending, start };
 }
 
+/** 할인 진행·예정·옵션별 재고처럼 값 아래 붙는 한 줄. 좁은 칸에서도 한 줄로 칸 오른쪽에 맞추고, 칸의 강조 굵기를 물려받지 않는다. */
+const INLINE_NOTE_CLASS = 'text-right text-xs font-normal whitespace-nowrap text-muted-foreground';
+
 /**
- * 판매가 칸. `discountEndsAt`(진행·예정 즉시할인의 마지막 종료 시각)이 있으면 칸 안 입력 대신 '할인 중지 후 변경' 창을 연다.
- * 창의 상태는 이 부품이 들고 있다 — 할인이 멈춰 목록이 새로 그려지고(`discountEndsAt`이 사라져도) 같은 창에서 결과를 이어 보인다.
+ * 판매가 칸. `discountEndsAt`(진행·예정 즉시할인의 마지막 종료 시각)이 있으면 칸 안 입력 대신 목록 화면의 '할인 중지 후 변경' 창을 연다.
+ * 창과 그 상태는 목록 화면(GoodsInlineDialogHost)이 들고 있다 — 할인이 멈춰 목록이 다시 그려지거나 그 상품이 목록에서 빠져도 창이 남는다.
  */
 export function GoodsInlinePrice({ goodId, basePrice, display, valueText, identity, hasOptions, discountEndsAt = null, goodName = '', goodCode = null }: {
   goodId: string; basePrice: number; display: ReactNode; valueText?: string; identity: GoodsGroupIdentity; hasOptions: boolean;
@@ -102,7 +105,7 @@ export function GoodsInlinePrice({ goodId, basePrice, display, valueText, identi
 }) {
   const state = useInlineState();
   const inputId = useId();
-  const discountStop = useDiscountStopPrice({ goodId, basePrice, identity });
+  const dialogs = useGoodsInlineDialogs();
   const discounted = Boolean(discountEndsAt);
   function save(form: FormData) {
     const raw = String(form.get('price') ?? '').replaceAll(',', '').trim();
@@ -129,20 +132,20 @@ export function GoodsInlinePrice({ goodId, basePrice, display, valueText, identi
       if (result.value.state === 'completed') state.router.refresh();
     });
   }
-  /* 할인 중인 상품의 값 버튼은 칸 안 입력 대신 창을 연다. 창이 열려 있는 동안 칸 입력은 열지 않는다. */
+  const discountNote = discounted ? <small className={INLINE_NOTE_CLASS}>할인 진행·예정</small> : null;
+  /* 창을 여는 곳(목록 화면)이 없으면 할인 중인 판매가는 값과 이유만 보인다. */
+  if (discounted && !dialogs) return <span className="grid justify-items-end gap-0.5">{display}{discountNote}</span>;
+  /* 할인 중인 상품의 값 버튼은 칸 안 입력 대신 목록 화면의 창을 연다. */
   function setEditing(value: boolean) {
-    if (value && (discounted || discountStop.phase)) { if (!discountStop.phase) discountStop.open(); return; }
+    if (value && discounted) { dialogs?.openDiscountStop({ goodId, goodName, goodCode, basePrice, hasOptions }); return; }
     state.setEditing(value);
   }
-  return <>
-    <InlineEditor fillCell label="판매가" action={discounted ? '할인 중지 후 변경' : undefined} note={discounted ? <small className="text-xs text-muted-foreground">할인 진행·예정</small> : null}
-      display={display} valueText={valueText} onSubmit={save} pending={state.pending} error={state.error} recovery={Boolean(state.recovery)} onRecover={recover} editing={state.editing} setEditing={setEditing}>
-      <label htmlFor={inputId} className="sr-only">기본 판매가 (원)</label>
-      <input id={inputId} name="price" inputMode="numeric" defaultValue={basePrice} autoFocus className={INLINE_INPUT_CLASS} data-slot="input" />
-      <small className="text-xs text-muted-foreground">{hasOptions ? '기본 판매가 · 옵션 추가금 유지' : '판매가'}</small>
-    </InlineEditor>
-    <GoodsDiscountStopPriceDialog goodName={goodName} goodCode={goodCode} hasOptions={hasOptions} flow={discountStop} />
-  </>;
+  return <InlineEditor fillCell label="판매가" action={discounted ? '할인 중지 후 변경' : undefined} note={discountNote}
+    display={display} valueText={valueText} onSubmit={save} pending={state.pending} error={state.error} recovery={Boolean(state.recovery)} onRecover={recover} editing={state.editing && !discounted} setEditing={setEditing}>
+    <label htmlFor={inputId} className="sr-only">기본 판매가 (원)</label>
+    <input id={inputId} name="price" inputMode="numeric" defaultValue={basePrice} autoFocus className={INLINE_INPUT_CLASS} data-slot="input" />
+    <small className="text-xs text-muted-foreground">{hasOptions ? '기본 판매가 · 옵션 추가금 유지' : '판매가'}</small>
+  </InlineEditor>;
 }
 
 /** `display`: 값 버튼에 그릴 내용. 주지 않으면 판매상태 이름 글자다. 무엇을 그리든 누르면 판매중·판매중지를 고른다. */
@@ -214,19 +217,19 @@ export function GoodsInlineStock({ goodId, ipId, variantId, stockQty }: {
 }
 
 /**
- * 옵션이 여러 개인 상품의 재고수량 칸(1014-106·107). 칸 어디를 눌러도 옵션별 재고 창이 열리고, 옵션마다 현재·새 수량·사유를
- * 넣어 같은 실재고 조정을 옵션별로 부른다. `display`는 목록의 판매 가능 수량이고, 창은 옵션별 실재고를 고친다.
+ * 옵션이 여러 개인 상품의 재고수량 칸(1014-106·107). 칸 어디를 눌러도 목록 화면의 옵션별 재고 창이 열리고, 옵션마다 현재·새 수량·사유를
+ * 넣어 같은 실재고 조정을 옵션별로 부른다. `display`는 목록의 판매 가능 수량이고, 창은 옵션별 실재고(`options`, 창의 첫 기대값)를 고친다.
  */
 export function GoodsInlineOptionStock({ goodId, ipId, goodName, goodCode, options, display, editorHref }: {
   goodId: string; ipId: string; goodName: string; goodCode: string | null; options: GoodsListOptionStock[]; display: string; editorHref: string;
 }) {
-  const dialog = useOptionStockDialog({ goodId, ipId, options });
-  return <>
-    <InlineEditor fillCell label="재고수량" action="옵션별 재고 수정" valueText={display}
-      display={<span className="grid justify-items-end"><span>{display}</span><small className="text-xs font-normal text-muted-foreground">옵션별 재고</small></span>}
-      onSubmit={() => undefined} pending={dialog.pending} error="" recovery={false} onRecover={() => undefined} editing={false} setEditing={value => { if (value) dialog.open(); }}>
-      {null}
-    </InlineEditor>
-    <GoodsOptionStockDialog goodName={goodName} goodCode={goodCode} live={options} editorHref={editorHref} flow={dialog} />
-  </>;
+  const dialogs = useGoodsInlineDialogs();
+  const note = <small className={INLINE_NOTE_CLASS}>옵션별 재고</small>;
+  /* 창을 여는 곳(목록 화면)이 없으면 수량만 보인다. */
+  if (!dialogs) return <span className="grid justify-items-end gap-0.5">{display}{note}</span>;
+  return <InlineEditor fillCell label="재고수량" action="옵션별 재고 수정" display={display} note={note}
+    onSubmit={() => undefined} pending={false} error="" recovery={false} onRecover={() => undefined} editing={false}
+    setEditing={value => { if (value) dialogs.openOptionStock({ goodId, ipId, goodName, goodCode, editorHref, options }); }}>
+    {null}
+  </InlineEditor>;
 }

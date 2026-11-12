@@ -1,7 +1,9 @@
+import { Children, isValidElement, type ReactElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 import { GoodsListScreen } from './GoodsListScreen';
+import { GoodsInlineDialogHost, GoodsInlineDialogNotice } from '../GoodsInlineDialogHost';
 import { GoodsListFiltersForm } from './GoodsListFiltersForm';
 import { GOODS_READINESS_REASONS, unknownGoodsReadiness, type GoodsReadinessReasonCode } from '@/lib/admin/goods-readiness';
 import { goodEditorHref, normalizeGoodsListFilters } from '@/lib/admin/goods-list';
@@ -29,6 +31,26 @@ describe('goods list screen', () => {
     const readOnly = renderToStaticMarkup(<GoodsListScreen data={data} bulkIdentity={identity} />);
     expect(readOnly).not.toContain('바로 수정'); expect(readOnly).not.toContain('IP 전체 즉시할인');
     expect(readOnly).not.toContain('할인 중지 후 변경');
+  });
+  it('옵션별 재고·할인 중지 창은 표 안이 아니라 화면 수준에서 열린다 — 표의 최소 폭·칸 굵기가 창에 걸리지 않고, 상품이 목록에서 빠져도 창이 남는다(리뷰 02·21·22·60)', () => {
+    const identity = { actorId: 'b9000000-0000-4000-8000-000000000001', sessionId: 'b9000000-0000-4000-8000-000000000002' };
+    type Node = ReactElement<Record<string, unknown>>;
+    const walk = (value: ReactNode): Node[] => Children.toArray(value).flatMap(node => isValidElement<Record<string, unknown>>(node) ? [node, ...walk(node.props.children as ReactNode)] : []);
+    const data = { filters: normalizeGoodsListFilters({}), goods: [], ips: [], total: 0 };
+    const tree = GoodsListScreen({ data, canIssueMarketingLinks: true, bulkIdentity: identity }) as Node;
+    // 화면 뿌리(section) 바로 안에 창 주인이 있고, 표(그리드)는 그 안의 한 자식일 뿐이다 — 창은 주인이 표 밖에 그린다.
+    const host = Children.only(tree.props.children as ReactNode) as Node;
+    expect(host.type).toBe(GoodsInlineDialogHost);
+    expect(host.props.identity).toEqual(identity);
+    const inside = walk(host.props.children as ReactNode);
+    const grid = inside.find(node => typeof node.props.className === 'string' && (node.props.className as string).includes('[&_table]:min-w-[1088px]'));
+    expect(grid).toBeTruthy();
+    expect(walk(grid!.props.children as ReactNode).some(node => node.type === GoodsInlineDialogHost)).toBe(false);
+    // 모두 저장하고 닫힌 창의 결과 문구는 표 밖, 목록 위에 남는다.
+    expect(inside.some(node => node.type === GoodsInlineDialogNotice)).toBe(true);
+    // 상품 관리 권한이 없으면 창 주인은 세션을 받지 않는다(할인 창은 열 수 없다).
+    const readOnly = GoodsListScreen({ data, bulkIdentity: identity }) as Node;
+    expect((Children.only(readOnly.props.children as ReactNode) as Node).props.identity).toBeUndefined();
   });
   it('옵션이 여러 개인 상품의 재고 칸은 칸 전체가 옵션별 재고 창을 열고, 상품 할인이 있으면 할인 진행 중이어도 상품 수정으로 보낸다(1014-106·1027T-025)', () => {
     const identity = { actorId: 'b9000000-0000-4000-8000-000000000001', sessionId: 'b9000000-0000-4000-8000-000000000002' };
