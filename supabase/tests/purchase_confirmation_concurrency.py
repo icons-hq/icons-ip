@@ -304,6 +304,87 @@ for round_index in range(3):
         and round_readback['reviewsOnUnconfirmed'] == 0 and round_readback['reviews'] == len(reviewers) and round_readback['paidPayments'] == 4, (round_index, round_readback)
     stress.append(round_readback)
 
+# T14c review fix: the buyer confirmation identity (review registration and the
+# [구매확정] button) takes the account-action lock before the profile, like
+# operator customer RPCs (lock_operator_subjects: account action -> profile),
+# payments and gifts. Previously profile -> account action deadlocked with them.
+admin = prefix + '-0000-4000-8000-000000000001'
+admin_claims = json.dumps({'sub': admin, 'role': 'authenticated', 'session_id': prefix + '-0000-4000-9000-000000000001'})
+def as_buyer(n):
+    return "select set_config('request.jwt.claim.sub','%s',true);select set_config('request.jwt.claims','%s',true);set local role authenticated;" % (worker_user(n), claims_for(n))
+def review_sql(n, order_id, ack):
+    return as_buyer(n) + "select public.create_good_review_v3('%s','%s',5,'TEST lock order review','{}','ordinary',%s,'%s','%s');" % (order_id, good, 'true' if ack else 'false', worker_user(n), worker_session(n))
+def button_sql(n, order_id):
+    return as_buyer(n) + "select public.confirm_my_purchase('%s','confirm',0,'%s','%s','%s',true);" % (order_id, uuid.uuid4(), worker_user(n), worker_session(n))
+def note_sql(n):
+    return "select set_config('request.jwt.claim.sub','%s',true);select set_config('request.jwt.claims','%s',true);set local role authenticated;select public.admin_add_customer_note('%s','TEST lock order note','%s');" % (admin, admin_claims, worker_user(n), uuid.uuid4())
+def started(name, statement):
+    process = subprocess.Popen(['docker', 'exec', '-i', container, 'psql', '-X', '-U', 'postgres', '-d', 'postgres', '-qAt', '-v', 'ON_ERROR_STOP=1'],
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    process.stdin.write("begin;set local application_name='%s';set local lock_timeout='20s';%scommit;" % (name, statement))
+    process.stdin.close(); process.stdin = None
+    return process
+def wait_event(name, kind, process):
+    for _ in range(200):
+        if sql("select coalesce(wait_event_type,'')||':'||coalesce(wait_event,'') from pg_stat_activity where application_name='%s'" % name).startswith(kind):
+            return
+        if process.poll() is not None:
+            raise RuntimeError(name + ' ended before ' + kind + ': ' + str(process.communicate()))
+        time.sleep(0.02)
+    raise RuntimeError(name + ' never reached ' + kind)
+fresh = iter(range(1000, 2000))
+def new_delivered(n, done=False):
+    order_id = worker_order(next(fresh))
+    due_orders([(worker_user(n), order_id)])
+    if done:
+        sql("update public.orders set status='done',done_at=clock_timestamp() where id='%s'" % order_id)
+    return order_id
+# Phase C, deterministic: the scripted operator takes the account-action lock,
+# waits until the buyer path has started, then asks for the profile (exactly the
+# lock_operator_subjects order). The buyer path must wait on the account-action
+# lock without holding the profile, so both commit.
+operator_races = {}
+for label, n, statement in (
+    ('review-delivered', 0, lambda order_id: review_sql(0, order_id, True)),
+    ('review-done', 1, lambda order_id: review_sql(1, order_id, False)),
+    ('button', 2, lambda order_id: button_sql(2, order_id)),
+):
+    order_id = new_delivered(n, done=(label == 'review-done'))
+    operator_name, buyer_name = 'op-%s-%s' % (prefix, label), 'buyer-%s-%s' % (prefix, label)
+    operator = started(operator_name, "select private.lock_account_action_subject('%s');select pg_sleep(1.5);select 1 from public.profiles where id='%s' for share;select pg_sleep(0.3);" % (worker_user(n), worker_user(n)))
+    wait_event(operator_name, 'Timeout:PgSleep', operator)
+    buyer = started(buyer_name, statement(order_id))
+    wait_event(buyer_name, 'Lock:', buyer)
+    operator_out, operator_err = operator.communicate(timeout=30)
+    buyer_out, buyer_err = buyer.communicate(timeout=30)
+    assert operator.returncode == 0 and buyer.returncode == 0 and '40P01' not in operator_err + buyer_err, (label, operator_err[-800:], buyer_err[-800:])
+    operator_races[label] = 'both-committed-after-lock-wait'
+# Phase D, real RPC: admin_add_customer_note (lock_operator_subjects on the
+# buyer) at the same moment as review registration or the [구매확정] button on
+# that buyer, eight customers at once for five rounds.
+note_races = {'pairs': 0, 'deadlocks': 0}
+for round_index in range(5):
+    targets = [(n, new_delivered(n)) for n in range(3, 11)]
+    barrier = threading.Barrier(len(targets) * 2)
+    def note_or_buyer(index):
+        n, order_id = targets[index // 2]
+        barrier.wait(timeout=20)
+        if index % 2 == 0:
+            return run("begin;set local lock_timeout='20s';" + note_sql(n) + 'commit;')
+        statement = review_sql(n, order_id, True) if (index // 2 + round_index) % 2 == 0 else button_sql(n, order_id)
+        return run("begin;set local lock_timeout='20s';" + statement + 'commit;')
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(targets) * 2) as pool:
+        outcomes = list(pool.map(note_or_buyer, range(len(targets) * 2)))
+    for result in outcomes:
+        error = result.stderr.decode()
+        note_races['deadlocks'] += error.count('40P01') + error.count('deadlock detected')
+        assert result.returncode == 0, error[-1500:]
+    note_races['pairs'] += len(targets)
+    done_count = sql("select count(*) from public.orders where id=any(array['%s']::uuid[]) and status='done'" % "','".join(order_id for _, order_id in targets))
+    assert done_count == str(len(targets)), (round_index, done_count)
+assert note_races['deadlocks'] == 0, note_races
+
 print(json.dumps({'prefix': prefix, 'duplicateCalls': 12, 'workerBuyerCalls': 12, 'claimBuyerCalls': 8, 'readback': readback, 'claimRaceBuyerRejected': claim_results[4:].count('rejected'),
     'reviewRace': review_race, 'duplicateReviews': duplicate_reviews, 'claimReviewRace': claim_review_race, 'reviewReadback': review_readback,
-    'workerPhaseA': {'workerSeconds': worker_seconds, 'heldStatuses': held_statuses, 'holders': holder_results}, 'workerStress': stress}, indent=2, ensure_ascii=False))
+    'workerPhaseA': {'workerSeconds': worker_seconds, 'heldStatuses': held_statuses, 'holders': holder_results}, 'workerStress': stress,
+    'operatorRaces': operator_races, 'operatorNoteRaces': note_races}, indent=2, ensure_ascii=False))

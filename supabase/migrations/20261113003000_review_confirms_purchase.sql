@@ -1,12 +1,25 @@
 begin;
 -- 1014-079(2026-11-12 사용자 결정): "리뷰 쓰며 함께 확정으로 진행하되 구매확정만 누를 수 있어야 하며,
--- 일정 기간이 지나면 자동으로 확정되는것도 켜놔야함". 리뷰는 늘 구매확정된 주문에만 남는다.
+-- 일정 기간이 지나면 자동으로 확정되는것도 켜놔야함". 새로 등록되는 리뷰는 구매확정된 주문에만 남는다.
 --  - 미확정(배송완료) 주문의 리뷰 등록은 확정 안내 확인을 받아 같은 트랜잭션에서 구매확정한다.
 --    확정 자체는 [구매확정] 버튼과 같은 private.change_purchase_confirmation(구매자 직접 확정)을 그대로 부른다 —
---    done 전이·적립금 지급 trigger·이력·감사·잠금 순서를 복제하지 않는다.
---  - 리뷰 없이 [구매확정]만 누르는 confirm_my_purchase 길과 자동 구매확정 작업은 바꾸지 않는다.
---    자동 구매확정 정책 값(기본 꺼짐)도 이 migration이 켜지 않는다 — 운영값은 배포 뒤 어드민에서 저장한다.
+--    done 전이·적립금 지급 trigger·이력·감사를 복제하지 않는다.
+--  - 리뷰 없이 [구매확정]만 누르는 confirm_my_purchase 길은 그대로 쓴다. 자동 구매확정 정책 값(기본 꺼짐)도 이 migration이
+--    켜지 않는다 — 운영값은 배포 뒤 어드민에서 저장한다.
 --  - 이미 쓴 리뷰가 있는 미확정 주문은 소급 확정하지 않는다(과거 기록 불변). 리뷰 수정·삭제는 확정하지 않는다.
+--    그래서 도입 전 미확정 주문의 리뷰와 확정 뒤 반품·취소된 주문의 리뷰는 거래확정 상태가 아닐 수 있다.
+
+-- 구매자 구매확정 세션 검사는 프로필(NO KEY UPDATE) → 계정 작업 잠금 순서였다. 운영자 고객 RPC(lock_operator_subjects:
+-- 계정 작업 → 프로필 FOR SHARE)와 같은 고객에서 겹치면 교착한다. 프로필 전에 계정 작업 잠금을 잡아 결제·선물·운영자
+-- 경로와 같은 '행위자 → 계정 작업 → 프로필' 순서로 맞춘다. [구매확정] 버튼(confirm_my_purchase)도 이 함수를 쓴다.
+do $$
+declare source text:=pg_get_functiondef('private.purchase_confirmation_identity(uuid,uuid,boolean)'::regprocedure);
+ anchor text:='else perform 1 from public.profiles where id=p_actor for no key update;';
+begin
+ if (length(source)-length(replace(source,anchor,'')))/length(anchor)<>1 then raise exception 'purchase_confirmation_identity_source_changed';end if;
+ execute replace(source,anchor,'else perform private.lock_account_action_subject(p_actor);perform 1 from public.profiles where id=p_actor for no key update;');
+end $$;
+revoke all on function private.purchase_confirmation_identity(uuid,uuid,boolean) from public,anon,authenticated,service_role;
 
 -- 구매확정을 막는 이유. 막을지 말지는 purchase_confirmation_eligible + 보류 하나로만 정하고, 여기서는 막힌 이유만 고른다
 -- (판정이 두 군데로 갈라지지 않게 eligible이 참이면 보류 말고는 막지 않는다). null = 확정할 수 있거나 이미 확정됨.
@@ -37,7 +50,7 @@ begin
  source:=pg_get_functiondef(signature);
  if (length(source)-length(replace(source,anchor,'')))/length(anchor)<>1 then raise exception 'review_confirms_purchase_create_source_changed';end if;
  execute replace(source,anchor,
-  '-- 1014-079: 리뷰는 구매확정된 주문에만 남는다. 미확정 주문은 create_good_review_v3가 확정한 뒤 이 함수를 부른다.
+  '-- 1014-079: 새 리뷰는 구매확정된 주문에만 남는다. 미확정 주문은 create_good_review_v3가 확정한 뒤 이 함수를 부른다.
  if ordered.status=''delivered'' then raise check_violation using message=''review_purchase_confirmation_required'';end if;
  '||anchor);
 end $$;
@@ -48,25 +61,29 @@ end $$;
 create function public.create_good_review_v3(target_order_id uuid,target_good_id text,target_rating integer,target_body text,target_image_paths text[],target_kind text,
  p_acknowledged boolean,p_actor uuid,p_session uuid) returns jsonb
 language plpgsql security definer set search_path='' as $$
-declare actor uuid:=auth.uid();ordered public.orders;confirmation_revision bigint;reason text;created uuid;confirmed boolean:=false;
+declare actor uuid:=auth.uid();current_status public.order_status;ordered public.orders;confirmation_revision bigint;reason text;created uuid;confirmed boolean:=false;
 begin
  if actor is null then raise invalid_authorization_specification using message='auth_required';end if;
- -- 잠금 순서: 행위자 잠금(결제·선물·리뷰 경로 공통의 첫 잠금) → 구매확정 세션 검사(프로필 NO KEY UPDATE → 계정 작업 잠금)
- -- → 주문 → 확정 행. 계정 작업 잠금보다 프로필을 먼저 잡아야 [구매확정] 버튼·자동 작업(프로필 → 계정 작업)과 엇갈리지 않고,
- -- 행위자 잠금을 먼저 잡아 결제·선물 경로(행위자 → 계정 작업 → 프로필)와도 엇갈리지 않는다.
- -- 뒤에 부르는 create_good_review_v2의 계정 잠금(gift_lock_subjects·lock_operator_subjects)은 이미 쥔 잠금을 다시 잡을 뿐이다.
- perform pg_advisory_xact_lock(hashtextextended(actor::text,0));
- perform private.purchase_confirmation_identity(p_actor,p_session,false);
- select * into ordered from public.orders where id=target_order_id and user_id=actor for update;
- if not found then raise no_data_found using message='review_order_not_found';end if;
- if ordered.status='delivered' then
-  if p_acknowledged is distinct from true then raise invalid_parameter_value using message='review_purchase_confirmation_ack_required';end if;
-  reason:=private.purchase_confirmation_block_reason(ordered.id);
-  if reason is not null then raise check_violation using message='review_purchase_confirmation_blocked',detail=reason;end if;
-  -- 정책 저장의 소급 기한 채우기도 확정 행 revision을 올리므로, 확정 행을 잠근 뒤의 revision으로 확정한다.
-  select c.revision into confirmation_revision from private.order_purchase_confirmations c where c.order_id=ordered.id for update;
-  perform private.change_purchase_confirmation(ordered.id,'confirm','리뷰 등록과 함께 확정',coalesce(confirmation_revision,0),gen_random_uuid(),p_actor,p_session,false);
-  confirmed:=true;
+ -- 구매확정이 필요한 주문(배송완료·미확정)만 구매확정 경계를 지난다. 이미 확정된 주문 등은 create_good_review_v2로 바로 넘겨
+ -- 프로필을 NO KEY UPDATE로 잡지 않는다(v2는 행위자 → 계정 작업 → 프로필 FOR SHARE만 잡는다). 판정은 잠근 뒤 다시 한다.
+ select o.status into current_status from public.orders o where o.id=target_order_id and o.user_id=actor;
+ if current_status='delivered' then
+  -- 잠금 순서: 행위자 → 계정 작업 → 프로필(NO KEY UPDATE, purchase_confirmation_identity) → 주문 → 확정 행.
+  -- 결제·선물(행위자 → 계정 작업 → 프로필)·운영자 고객 RPC(계정 작업 → 프로필)·[구매확정] 버튼과 같은 순서다.
+  -- 뒤에 부르는 create_good_review_v2의 계정 잠금(gift_lock_subjects·lock_operator_subjects)은 이미 쥔 잠금을 다시 잡을 뿐이다.
+  perform pg_advisory_xact_lock(hashtextextended(actor::text,0));
+  perform private.purchase_confirmation_identity(p_actor,p_session,false);
+  select * into ordered from public.orders where id=target_order_id and user_id=actor for update;
+  -- 잠그는 사이 자동 구매확정 등으로 확정됐으면 확정 없이 리뷰만 저장한다.
+  if ordered.status='delivered' then
+   if p_acknowledged is distinct from true then raise invalid_parameter_value using message='review_purchase_confirmation_ack_required';end if;
+   reason:=private.purchase_confirmation_block_reason(ordered.id);
+   if reason is not null then raise check_violation using message='review_purchase_confirmation_blocked',detail=reason;end if;
+   -- 정책 저장의 소급 기한 채우기도 확정 행 revision을 올리므로, 확정 행을 잠근 뒤의 revision으로 확정한다.
+   select c.revision into confirmation_revision from private.order_purchase_confirmations c where c.order_id=ordered.id for update;
+   perform private.change_purchase_confirmation(ordered.id,'confirm','리뷰 등록과 함께 확정',coalesce(confirmation_revision,0),gen_random_uuid(),p_actor,p_session,false);
+   confirmed:=true;
+  end if;
  end if;
  created:=public.create_good_review_v2(target_order_id,target_good_id,target_rating,target_body,coalesce(target_image_paths,'{}'::text[]),target_kind);
  return jsonb_build_object('reviewId',created,'purchaseConfirmed',confirmed);

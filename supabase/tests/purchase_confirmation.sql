@@ -278,4 +278,9 @@ select 1/case when (select prosrc from pg_proc where oid='private.purchase_confi
  and has_function_privilege('service_role','public.settle_delivered_orders()','execute')
  and not has_function_privilege('authenticated','public.settle_delivered_orders()','execute')
  then 1 else 0 end as worker_lock_order_contract;
+-- 구매자 구매확정 세션 검사(리뷰 등록·[구매확정] 버튼)는 운영자 고객 RPC(lock_operator_subjects)·결제·선물 경로와 같이
+-- 계정 작업 잠금을 프로필보다 먼저 잡는다. 같은 고객에 겹친 실제 경합은 purchase_confirmation_concurrency.py가 본다.
+select 1/case when (select position('lock_account_action_subject(p_actor)' in prosrc) between 1 and position('for no key update' in prosrc)
+  from pg_proc where oid='private.purchase_confirmation_identity(uuid,uuid,boolean)'::regprocedure)
+ then 1 else 0 end as confirmation_identity_lock_order;
 rollback;
