@@ -11,6 +11,13 @@ import {
   type ReviewFormErrors,
 } from '@/lib/reviews';
 import { createClient } from '@/lib/supabase/server';
+import {
+  parseReviewCreateResult,
+  REVIEW_CONFIRMATION_FIELD,
+  reviewConfirmationError,
+  type ReviewConfirmationErrors,
+} from '@/lib/review-purchase-confirmation';
+import { isUuid } from '@/lib/uuid';
 
 /* 리뷰 작성·수정·삭제(#254).
  *
@@ -18,13 +25,17 @@ import { createClient } from '@/lib/supabase/server';
  * 판정한다. 여기서는 사진 업로드와 오류 문구 변환만 한다 — 자격 검사를 화면 근처로
  * 옮기면 새 진입점을 만드는 사람이 검사 하나를 빠뜨린다.
  *
+ * 리뷰 등록은 구매확정을 겸한다(1014-079, ADR-0035). 아직 확정하지 않은 주문이면 화면이
+ * 받은 확인 체크를 그대로 넘기고, 확정할지·막을지는 create_good_review_v3가 같은 트랜잭션에서
+ * 정한다. 확정은 [구매확정] 버튼과 같은 DB 함수를 타므로 적립금 지급도 그쪽 원장이 한 번만 한다.
+ *
  * 리뷰 유형별 보상 자격과 선정·지급은 DB의 별도 정책/원장에서 판정한다. */
 
 const USER_UPLOADS_BUCKET = 'user-uploads';
 const REVIEWS_PATH = '/my/reviews';
 
 export interface ReviewActionState {
-  errors?: ReviewFormErrors;
+  errors?: ReviewFormErrors & ReviewConfirmationErrors;
   message?: string;
   /** 성공한 저장마다 새로 생기는 값. 화면이 입력창을 비우는 신호다. */
   resultKey?: string;
@@ -33,9 +44,16 @@ export interface ReviewActionState {
 const CREATE_FAILED = '리뷰를 등록하지 못했습니다. 잠시 후 다시 시도해주세요.';
 const UPDATE_FAILED = '리뷰를 수정하지 못했습니다. 잠시 후 다시 시도해주세요.';
 const UPLOAD_FAILED = '리뷰 사진을 업로드하지 못했습니다. 다시 시도해주세요.';
+const AUTH_CHANGED = '로그인 상태를 확인하지 못했습니다. 화면을 새로 고친 뒤 다시 등록해주세요.';
 
 /** RPC가 던진 도메인 오류를 사용자 문구로. 모르는 오류는 일반 실패로 접는다. */
-function rpcErrorMessage(message: string | null | undefined, fallback: string): ReviewFormErrors {
+function rpcErrorMessage(
+  message: string | null | undefined,
+  fallback: string,
+  details?: string | null,
+): ReviewFormErrors & ReviewConfirmationErrors {
+  const confirmation = reviewConfirmationError(message, details);
+  if (confirmation) return confirmation;
   const value = (message ?? '').toLowerCase();
   if (value.includes('account_suspended')) {
     return { form: '정지된 계정은 리뷰를 남길 수 없습니다.' };
@@ -116,6 +134,22 @@ async function removeReviewImages(
   await supabase.storage.from(USER_UPLOADS_BUCKET).remove(paths);
 }
 
+/**
+ * 구매확정 경계가 요구하는 행위자·로그인 세션.
+ *
+ * 쿠키의 사용자와 검증된 토큰 주체가 같을 때만 세션 ID를 쓴다. DB가 이 값을 토큰과 한 번 더
+ * 대조하므로, 여기서 만든 값이 다른 계정의 확정으로 이어지지 않는다.
+ */
+async function reviewActorSession(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+): Promise<{ actorId: string; sessionId: string } | null> {
+  const { data, error } = await supabase.auth.getClaims();
+  const sessionId = data?.claims.session_id;
+  if (error || data?.claims.sub !== userId || !isUuid(sessionId)) return null;
+  return { actorId: userId, sessionId };
+}
+
 export async function createReviewAction(
   _state: ReviewActionState,
   formData: FormData,
@@ -128,29 +162,41 @@ export async function createReviewAction(
   if (!normalized.ok) return { errors: normalized.errors };
 
   const supabase = await createClient();
+  const identity = await reviewActorSession(supabase, user.id);
+  if (!identity) return { errors: { form: AUTH_CHANGED } };
   const uploaded = await uploadReviewImages(supabase, user.id, normalized.value.images);
   if (!uploaded.ok) return { errors: { images: UPLOAD_FAILED } };
 
-  const { error } = await supabase.rpc('create_good_review_v2', {
+  /* 확인 체크는 고객이 안내를 본 기록일 뿐이다. 확정이 필요한 주문인지, 확정할 수 있는지는
+     DB가 주문을 잠근 뒤 판정하고, 이미 확정된 주문이면 체크 없이 리뷰만 저장한다. */
+  const { data, error } = await supabase.rpc('create_good_review_v3', {
     target_kind: kind,
     target_body: normalized.value.body,
     target_good_id: normalized.value.goodId,
     target_image_paths: uploaded.paths,
     target_order_id: normalized.value.orderId,
     target_rating: normalized.value.rating,
+    p_acknowledged: formData.get(REVIEW_CONFIRMATION_FIELD) === 'on',
+    p_actor: identity.actorId,
+    p_session: identity.sessionId,
   });
 
   if (error) {
     /* 저장이 실패했으면 방금 올린 사진은 어디에도 붙지 않는다. 남겨 두면
        사용자 폴더에 아무 리뷰와도 연결되지 않은 파일만 쌓인다. */
     await removeReviewImages(supabase, uploaded.paths);
-    return { errors: rpcErrorMessage(error.message, CREATE_FAILED) };
+    return { errors: rpcErrorMessage(error.message, CREATE_FAILED, error.details) };
   }
 
+  const orderId = normalized.value.orderId;
   revalidatePath(REVIEWS_PATH);
   revalidatePath(`/shop/${normalized.value.goodId}`);
   revalidatePath('/admin/cs/review-events');
   revalidatePath('/admin/cs/review-events/[eventId]', 'page');
+  /* 결과를 읽지 못해도 리뷰는 이미 저장됐다. 확정 여부를 모르면 확정된 것처럼 주문 화면도 새로 그린다. */
+  if (parseReviewCreateResult(data)?.purchaseConfirmed !== false) {
+    for (const path of [`/orders/${orderId}`, `/admin/sales/orders/${orderId}`, '/admin/sales/settled', '/my/store-credits']) revalidatePath(path);
+  }
   redirect(REVIEWS_PATH);
 }
 

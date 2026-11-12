@@ -15,6 +15,7 @@ import { ReviewDeleteButton } from './ReviewDeleteButton';
 import { ReviewEventBanner } from '@/components/reviews/ReviewEventBanner';
 import { ScheduledHomeRefresh } from '@/components/home/ScheduledHomeRefresh';
 import type { GoodsReviewEvents, MyReviewEventEntry, PublicReviewEvent } from '@/lib/review-events';
+import { REVIEW_CONFIRMATION_LIST_HINT, reviewConfirmationBlockMessage } from '@/lib/review-purchase-confirmation';
 
 /* 내 리뷰(#254).
  *
@@ -22,7 +23,10 @@ import type { GoodsReviewEvents, MyReviewEventEntry, PublicReviewEvent } from '@
  * 리뷰를 고치러 갈 곳이 없고, 작성한 것만 있으면 남은 기한을 알 수 없다.
  *
  * 기한이 지난 항목도 감추지 않는다. 사라진 항목은 "왜 못 쓰는지"를 설명하지 못한다 —
- * 리뷰를 쓰려고 들어온 사람이 자기 주문이 없어졌다고 읽게 된다. */
+ * 리뷰를 쓰려고 들어온 사람이 자기 주문이 없어졌다고 읽게 된다.
+ *
+ * 리뷰 등록은 구매확정을 겸한다(1014-079). 아직 확정하지 않은 주문의 작성 카드에는 그 사실을,
+ * 구매확정할 수 없어 막힌 항목에는 기한 대신 막힌 이유를 적는다. */
 
 function Stars({ rating }: { rating: number }) {
   return (
@@ -58,6 +62,17 @@ function DeadlineNote({ target, now }: { target: MyReviewTarget; now: Date }) {
   );
 }
 
+/** 작성 기간 안인데 구매확정할 수 없어 막힌 대상만 그 이유를 돌려준다. 기간 밖이면 기한 안내가 먼저다. */
+function confirmationBlockNote(target: MyReviewTarget, now: Date) {
+  const confirmation = target.purchaseConfirmation;
+  if (!confirmation?.block || target.review) return null;
+  const daysLeft = targetReviewDaysRemaining(target, now);
+  const opened = !target.opensAt || Date.parse(target.opensAt) <= now.getTime();
+  return opened && daysLeft !== null && daysLeft > 0
+    ? reviewConfirmationBlockMessage(confirmation.block, confirmation.holdReason)
+    : null;
+}
+
 function WritableCard({ target, now, event }: { target: MyReviewTarget; now: Date; event?: PublicReviewEvent }) {
   return (
     <li className="wc-mypage__card">
@@ -68,6 +83,7 @@ function WritableCard({ target, now, event }: { target: MyReviewTarget; now: Dat
           </Link>
           <span className="wc-mypage__card-meta">주문 {orderReferenceLabel(target.orderId, target.orderNumber)}</span>
           <DeadlineNote now={now} target={target} />
+          {target.purchaseConfirmation?.required ? <span className="wc-mypage__hint">{REVIEW_CONFIRMATION_LIST_HINT}</span> : null}
         </div>
         <Link className="wc-mypage__headbar-link" href={newReviewHref(target.orderId, target.goodId, target.kind)}>
           {REVIEW_KIND_LABELS[target.kind ?? 'ordinary']} 쓰기
@@ -218,12 +234,15 @@ export function MyReviews({
             <h2 id="review-expired-heading">현재 작성할 수 없는 리뷰 {expired.length}건</h2>
           </div>
           <ul className="wc-mypage__rows">
-            {expired.map((target) => (
-              <li key={`${target.orderId}:${target.goodId}:${target.kind ?? 'ordinary'}`}>
-                <Link href={`/shop/${target.goodId}`}>{target.goodName} · {REVIEW_KIND_LABELS[target.kind ?? 'ordinary']}</Link>
-                <DeadlineNote now={now} target={target} />
-              </li>
-            ))}
+            {expired.map((target) => {
+              const blockNote = confirmationBlockNote(target, now);
+              return (
+                <li key={`${target.orderId}:${target.goodId}:${target.kind ?? 'ordinary'}`}>
+                  <Link href={`/shop/${target.goodId}`}>{target.goodName} · {REVIEW_KIND_LABELS[target.kind ?? 'ordinary']}</Link>
+                  {blockNote ? <span className="wc-mypage__hint">{blockNote}</span> : <DeadlineNote now={now} target={target} />}
+                </li>
+              );
+            })}
           </ul>
         </section>
       ) : null}
