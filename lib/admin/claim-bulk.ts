@@ -333,6 +333,16 @@ export interface AdminClaimBulkCollection {
   /** 회수 생략(ADR-0041)으로 이미 재출고한 배송 건. */
   waived: boolean;
   returnAddressReady: boolean;
+  /** 회수 묶음(배송 건 × 반품지, S36-040). 둘 이상이면 일괄 회수 확인도 묶음마다 한다. 없으면 묶음 하나(배송 건 키)다. */
+  bundles?: AdminClaimBulkCollectionBundle[];
+}
+
+/** 서버가 읽은 회수 묶음 하나. returnName이 비면 출고지 반품 주소를 쓰는 묶음이다. */
+export interface AdminClaimBulkCollectionBundle {
+  bundleId: string;
+  returnName: string;
+  collectedAt: string | null;
+  returnAddressReady: boolean;
 }
 
 /** 단계 일괄 처리가 읽는 한 요청의 사실(admin_order_claim_bulk_context). */
@@ -387,9 +397,18 @@ export function parseAdminClaimBulkContexts(value: unknown): AdminClaimBulkConte
       const receivedOn = record(collection) ? nullableText(collection.receivedOn) : undefined;
       if (!record(collection) || typeof collection.shipmentId !== 'string' || !CONTEXT_UUID.test(collection.shipmentId)
         || typeof collection.originName !== 'string' || collectedAt === undefined || receivedOn === undefined) return null;
+      /* 묶음 키가 없는 응답(이 기능 전 DB)은 묶음 하나로 본다 — 배송 건 키로 확인한다. */
+      const bundles: AdminClaimBulkCollectionBundle[] = [];
+      for (const bundle of Array.isArray(collection.bundles) ? collection.bundles : []) {
+        const bundleCollectedAt = record(bundle) ? nullableText(bundle.collectedAt) : undefined;
+        if (!record(bundle) || typeof bundle.bundleId !== 'string' || !CONTEXT_UUID.test(bundle.bundleId) || bundleCollectedAt === undefined
+          || (bundle.returnName !== undefined && typeof bundle.returnName !== 'string')) return null;
+        bundles.push({ bundleId: bundle.bundleId, returnName: typeof bundle.returnName === 'string' ? bundle.returnName : '',
+          collectedAt: bundleCollectedAt, returnAddressReady: bundle.returnAddressReady === true });
+      }
       collections.push({
         shipmentId: collection.shipmentId, originName: collection.originName, collectedAt, receivedOn,
-        waived: collection.waived === true, returnAddressReady: collection.returnAddressReady === true,
+        waived: collection.waived === true, returnAddressReady: collection.returnAddressReady === true, bundles,
       });
     }
     const deduction = record(row.refundDeduction) && row.refundDeduction.applicable === true
@@ -417,10 +436,16 @@ export function parseAdminClaimBulkContexts(value: unknown): AdminClaimBulkConte
 
 /* ---- 회수 확인 ------------------------------------------------------------- */
 
-/** 이번에 회수 확인할 출고지 하나. 레거시 회수(출고지별 회수 이전 요청)는 shipmentId가 null인 요청 전체다. */
+/**
+ * 이번에 회수 확인할 출고지 하나. 레거시 회수(출고지별 회수 이전 요청)는 shipmentId가 null인 요청 전체다.
+ * 반품지가 갈린 배송 건(S36-040)은 회수 묶음마다 한 줄이고 bundleId가 있다. 묶음이 하나면 bundleId는 null(배송 건 키)이다.
+ */
 export interface AdminClaimBulkCollectTarget {
   shipmentId: string | null;
   originName: string | null;
+  bundleId?: string | null;
+  /** 묶음의 반품지 이름. 빈 문자열이면 출고지 반품 주소다. */
+  returnName?: string | null;
 }
 
 export interface AdminClaimBulkCollectPlan {
@@ -434,7 +459,7 @@ export interface AdminClaimBulkCollectPlan {
 /* 출고지별 회수 확인 RPC가 받는 단계와 같다(admin_record_order_claim_origin_collection). */
 const ORIGIN_COLLECTABLE_STAGES = new Set<OrderClaimStage>(['collecting', 'collected', 'processing', 'needs_review']);
 export const ADMIN_CLAIM_BULK_WAIVED_ORIGIN_REASON = '회수 생략으로 결정한 출고지입니다. 늦게 도착했으면 요청이 열려 있는 동안 상세에서 입고를 확인해주세요(재고는 바뀌지 않습니다).';
-export const ADMIN_CLAIM_BULK_RETURN_ADDRESS_REASON = '출고지 설정에 반송 주소가 없습니다. 등록한 뒤 확인해주세요.';
+export const ADMIN_CLAIM_BULK_RETURN_ADDRESS_REASON = '회수 주소가 없습니다. 상품의 반품/교환지나 출고지 설정의 반품 주소를 등록한 뒤 확인해주세요.';
 
 function collectBlocked(reason: string): AdminClaimBulkCollectPlan {
   return { targets: [], skipped: [], blocker: reason };
@@ -459,6 +484,15 @@ export function adminClaimBulkCollectPlan(context: AdminClaimBulkContext): Admin
   for (const collection of context.collections) {
     if (collection.collectedAt !== null) continue;
     if (collection.waived) skipped.push({ originName: collection.originName, reason: ADMIN_CLAIM_BULK_WAIVED_ORIGIN_REASON });
+    else if ((collection.bundles?.length ?? 0) > 1) {
+      /* 반품지가 갈린 배송 건: 묶음마다 다른 창고에 도착하므로 묶음 단위로 고르고 확인한다. */
+      for (const bundle of collection.bundles ?? []) {
+        if (bundle.collectedAt !== null) continue;
+        const target = { shipmentId: collection.shipmentId, originName: collection.originName, bundleId: bundle.bundleId, returnName: bundle.returnName };
+        if (!bundle.returnAddressReady) skipped.push({ originName: adminClaimBulkCollectTargetLabel(target), reason: ADMIN_CLAIM_BULK_RETURN_ADDRESS_REASON });
+        else targets.push(target);
+      }
+    }
     else if (!collection.returnAddressReady) skipped.push({ originName: collection.originName, reason: ADMIN_CLAIM_BULK_RETURN_ADDRESS_REASON });
     else targets.push({ shipmentId: collection.shipmentId, originName: collection.originName });
   }
@@ -467,7 +501,13 @@ export function adminClaimBulkCollectPlan(context: AdminClaimBulkContext): Admin
 }
 
 export function adminClaimBulkCollectTargetLabel(target: AdminClaimBulkCollectTarget) {
-  return target.originName ?? '주문 전체';
+  const origin = target.originName ?? '주문 전체';
+  return target.bundleId ? `${origin} · ${target.returnName || '출고지 반품 주소'}` : origin;
+}
+
+/** 확인창 체크 키. 회수 묶음이면 묶음, 아니면 배송 건(레거시는 주문 전체) 단위다. */
+export function adminClaimBulkCollectTargetKey(claimId: string, target: AdminClaimBulkCollectTarget) {
+  return `${claimId}:${target.bundleId ?? target.shipmentId ?? 'order'}`;
 }
 
 /* ---- 환불 완료 확정 -------------------------------------------------------- */
@@ -596,11 +636,11 @@ function hasControlCharacter(value: string) {
 }
 
 /**
- * 일괄 회수 확인 실행. 고른 요청마다 확인창에서 본 출고지(shipmentIds, 레거시는 빈 배열)와 공통 입고일·근거를 받는다.
- * 근거는 단건 회수 확인과 같은 규칙(1~500자, 표시할 수 없는 문자 거절)이다.
+ * 일괄 회수 확인 실행. 고른 요청마다 확인창에서 본 출고지(shipmentIds, 레거시는 빈 배열)와 반품지가 갈린 배송 건의
+ * 회수 묶음(bundleIds, 선택), 공통 입고일·근거를 받는다. 근거는 단건 회수 확인과 같은 규칙(1~500자, 표시할 수 없는 문자 거절)이다.
  */
 export function normalizeAdminClaimBulkCollectInput(input: unknown, now: Date = new Date()):
-  | { ok: true; value: { claimType: OrderClaimType; receivedOn: string; evidence: string; items: { claimId: string; shipmentIds: string[] }[] } }
+  | { ok: true; value: { claimType: OrderClaimType; receivedOn: string; evidence: string; items: { claimId: string; shipmentIds: string[]; bundleIds: string[] }[] } }
   | { ok: false; error: string } {
   if (!record(input) || !Array.isArray(input.items)) return { ok: false, error: '처리할 요청을 선택해주세요.' };
   const claimType = readClaimTypeValue(input.claimType);
@@ -614,16 +654,22 @@ export function normalizeAdminClaimBulkCollectInput(input: unknown, now: Date = 
   const ids = readIds(input.items.map((item) => (record(item) ? item.claimId : null)), ADMIN_CLAIM_BULK_LIMIT);
   if (!ids.ok) return ids;
   if (ids.claimIds.length !== input.items.length) return { ok: false, error: '같은 요청이 두 번 선택됐습니다. 새로고침한 뒤 다시 선택해주세요.' };
-  const items: { claimId: string; shipmentIds: string[] }[] = [];
-  for (const [index, raw] of (input.items as Record<string, unknown>[]).entries()) {
-    if (!Array.isArray(raw.shipmentIds)) return { ok: false, error: '회수 확인할 출고지를 다시 골라주세요.' };
-    const shipmentIds: string[] = [];
-    for (const value of raw.shipmentIds) {
-      const id = typeof value === 'string' ? value.trim().toLowerCase() : '';
-      if (!UUID_PATTERN.test(id) || shipmentIds.includes(id)) return { ok: false, error: '회수 확인할 출고지를 다시 골라주세요.' };
-      shipmentIds.push(id);
+  const items: { claimId: string; shipmentIds: string[]; bundleIds: string[] }[] = [];
+  const readKeys = (value: unknown): string[] | null => {
+    if (!Array.isArray(value)) return null;
+    const keys: string[] = [];
+    for (const raw of value) {
+      const id = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
+      if (!UUID_PATTERN.test(id) || keys.includes(id)) return null;
+      keys.push(id);
     }
-    items.push({ claimId: ids.claimIds[index], shipmentIds });
+    return keys;
+  };
+  for (const [index, raw] of (input.items as Record<string, unknown>[]).entries()) {
+    const shipmentIds = readKeys(raw.shipmentIds);
+    const bundleIds = raw.bundleIds === undefined ? [] : readKeys(raw.bundleIds);
+    if (!shipmentIds || !bundleIds) return { ok: false, error: '회수 확인할 출고지를 다시 골라주세요.' };
+    items.push({ claimId: ids.claimIds[index], shipmentIds, bundleIds });
   }
   return { ok: true, value: { claimType, receivedOn: receivedOn.value, evidence, items } };
 }
@@ -709,6 +755,7 @@ export const ADMIN_CLAIM_BULK_RESHIP_WAIVER_REASON = '회수 확인 전 출고�
 export const ADMIN_CLAIM_BULK_RESHIP_DECISION_REASON = '주문제작 상품이 있는 회수 확인 전 출고지입니다. 상세에서 회수 생략을 먼저 결정해 교환품 제작을 시작합니다.';
 export const ADMIN_CLAIM_BULK_RESHIP_PRODUCTION_REASON = '교환품 제작이 끝나지 않은 출고지입니다. 주문제작 처리에서 제작을 마친 뒤 재출고합니다.';
 export const ADMIN_CLAIM_BULK_RESHIP_COLLECTION_REASON = '회수 확인 전 출고지입니다. 회수를 확인한 뒤 재출고합니다.';
+export const ADMIN_CLAIM_BULK_RESHIP_PARTIAL_REASON = '일부 반품지만 입고된 출고지입니다. 남은 반품지의 입고를 확인한 뒤 재출고합니다.';
 
 /** 한 줄의 재출고 입력. 화면이 보내기 전에 확인하고, 형식은 DB가 다시 본다. */
 export function adminClaimBulkReshipRowError(input: { carrier: string; trackingNumber: string; items: readonly { variantId: string }[] }) {

@@ -406,6 +406,7 @@ export function OrderDetail({
           {!activeCancelClaim ? (
             <OrderClaimRequest
               claim={isCancelClaim ? null : claimRequest}
+              collectionWaived={Boolean(claimRequest && order.reshipmentParcels?.some(parcel => parcel.claimId === claimRequest.id && parcel.collectionWaived))}
               refund={order.refund}
               eligibility={order.claimEligibility}
               orderId={order.id}

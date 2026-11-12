@@ -593,12 +593,15 @@ export function normalizeAdminClaimOperationalFeeForm(
 
 export function normalizeAdminClaimOriginCollectionForm(
   formData: FormData,
-): AdminClaimFormResult<{ claimId: string; shipmentId: string; evidence: string; receivedOn: string | null }> {
+): AdminClaimFormResult<{ claimId: string; shipmentId: string; bundleId: string | null; evidence: string; receivedOn: string | null }> {
   const normalized = normalizeAdminClaimEvidenceForm(formData);
   if (!normalized.ok) return normalized;
   const shipmentId = readString(formData, 'shipmentId').toLowerCase();
   if (!UUID_PATTERN.test(shipmentId)) return { ok: false, error: '회수 확인할 배송 건을 선택해주세요.' };
+  /* 회수 묶음(배송 건 × 반품지, S36-040): 반품지가 갈린 배송 건은 묶음을 골라 확인한다. 비우면 배송 건의 유일한 묶음이다. */
+  const bundleId = readString(formData, 'bundleId').toLowerCase();
+  if (bundleId && !UUID_PATTERN.test(bundleId)) return { ok: false, error: '회수 확인할 반품지를 다시 선택해주세요.' };
   const receivedOn = normalizeAdminClaimReceivedOn(formData.get('receivedOn'));
   if (!receivedOn.ok) return receivedOn;
-  return { ok: true, value: { ...normalized.value, shipmentId, receivedOn: receivedOn.value } };
+  return { ok: true, value: { ...normalized.value, shipmentId, bundleId: bundleId || null, receivedOn: receivedOn.value } };
 }

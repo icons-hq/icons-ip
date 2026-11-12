@@ -6,6 +6,7 @@ import {
   ADMIN_CLAIM_BULK_DB_ITEM_RESERVE_MS,
   ADMIN_CLAIM_BULK_REFUND_ITEM_RESERVE_MS,
   ADMIN_CLAIM_BULK_RESHIP_COLLECTION_REASON,
+  ADMIN_CLAIM_BULK_RESHIP_PARTIAL_REASON,
   ADMIN_CLAIM_BULK_RESHIP_DECISION_REASON,
   ADMIN_CLAIM_BULK_RESHIP_PRODUCTION_REASON,
   ADMIN_CLAIM_BULK_RESHIP_WAIVER_REASON,
@@ -28,7 +29,7 @@ import {
   type AdminClaimBulkState,
   type AdminClaimBulkStepPreviewState,
 } from '@/lib/admin/claim-bulk';
-import { adminClaimPendingReshipments, adminClaimWaiverDecisions } from '@/lib/admin/claim-reshipments';
+import { adminClaimPendingReshipments, adminClaimShipmentPartiallyReceived, adminClaimWaiverDecisions } from '@/lib/admin/claim-reshipments';
 import { adminClaimBasePath } from '@/lib/admin/claims';
 import { loadAdminClaimDetail } from '@/lib/admin/claims.server';
 import { krw } from '@/lib/format';
@@ -165,13 +166,16 @@ export async function runOrderClaimBulkCollectionsAction(input: unknown): Promis
         return state.error ? { ok: false, message: state.error } : { ok: true, message: `입고를 확인했습니다(실제 입고일 ${receivedOn}).` };
       }
 
-      /* 확인창에서 고른 출고지 가운데 아직 남은 것만 확인한다. 그 사이 다른 운영자가 확인한 출고지는 건너뛴다. */
-      const chosen = plan.targets.filter((target) => target.shipmentId !== null && item.shipmentIds.includes(target.shipmentId));
+      /* 확인창에서 고른 출고지(반품지가 갈린 배송 건은 회수 묶음) 가운데 아직 남은 것만 확인한다. 그 사이 다른 운영자가
+         확인한 출고지·묶음은 건너뛴다. */
+      const chosen = plan.targets.filter((target) => target.bundleId
+        ? item.bundleIds.includes(target.bundleId)
+        : target.shipmentId !== null && item.shipmentIds.includes(target.shipmentId));
       if (chosen.length === 0) return { ok: false, excluded: true, message: '고른 출고지의 회수 확인이 이미 끝났거나 확인할 수 없는 상태로 바뀌었습니다. 상세에서 확인해주세요.' };
       const done: string[] = [];
       for (const target of chosen) {
         const state = await recordOrderClaimOriginCollectionAction({}, form({
-          claimId: item.claimId, claimType, shipmentId: target.shipmentId ?? '', evidence, receivedOn,
+          claimId: item.claimId, claimType, shipmentId: target.shipmentId ?? '', ...(target.bundleId ? { bundleId: target.bundleId } : {}), evidence, receivedOn,
         }));
         const label = adminClaimBulkCollectTargetLabel(target);
         if (state.error) {
@@ -183,7 +187,7 @@ export async function runOrderClaimBulkCollectionsAction(input: unknown): Promis
       return { ok: true, message: `${done.join('·')} 회수를 확인했습니다(실제 입고일 ${receivedOn}).${rest > 0 ? ` 남은 출고지 ${rest}곳은 따로 확인해주세요.` : ''}` };
     }, {
       startedAt,
-      reserveMs: (item) => ADMIN_CLAIM_BULK_DB_ITEM_RESERVE_MS * (Math.max(1, item.shipmentIds.length) + 1),
+      reserveMs: (item) => ADMIN_CLAIM_BULK_DB_ITEM_RESERVE_MS * (Math.max(1, item.shipmentIds.length + item.bundleIds.length) + 1),
     });
 
     return {
@@ -276,8 +280,11 @@ export async function loadOrderClaimBulkReshipmentsAction(input: unknown): Promi
           .filter((target) => !target.reshipped && !pendingKeys.has(target.shipmentId ?? 'order'))
           .map((target) => ({
             originName: target.originName ?? '주문 전체',
+            // 입고도 회수 생략 결정도 없는 배송 건은 제작 대기보다 입고 안내가 먼저다(입고 전에는 제작 여부와 무관하게 회수가 필요하다).
             reason: decisionKeys.has(target.shipmentId ?? 'order') ? ADMIN_CLAIM_BULK_RESHIP_DECISION_REASON
-              : target.productionPending ? ADMIN_CLAIM_BULK_RESHIP_PRODUCTION_REASON : ADMIN_CLAIM_BULK_RESHIP_COLLECTION_REASON,
+              : (target.collectionTracked ? target.collectedAt === null : detail.claim.stage !== 'collected') && target.waiver === null
+                ? (adminClaimShipmentPartiallyReceived(detail.claim, target.shipmentId) ? ADMIN_CLAIM_BULK_RESHIP_PARTIAL_REASON : ADMIN_CLAIM_BULK_RESHIP_COLLECTION_REASON)
+                : ADMIN_CLAIM_BULK_RESHIP_PRODUCTION_REASON,
           })),
       ];
       const rows = pending.filter((target) => target.collected || target.waived).map((target) => ({

@@ -18,6 +18,8 @@ import {
   runAdminClaimBulkSequentially,
   ADMIN_CLAIM_BULK_REFUND_ITEM_RESERVE_MS,
   adminClaimBulkCollectPlan,
+  adminClaimBulkCollectTargetKey,
+  adminClaimBulkCollectTargetLabel,
   adminClaimBulkContinuation,
   adminClaimBulkGuideText,
   adminClaimBulkRefundTotals,
@@ -336,6 +338,24 @@ describe('adminClaimBulkCollectPlan', () => {
     expect(adminClaimBulkCollectPlan(context({ collectionRequired: false })).blocker).toBe('회수가 필요하지 않은 요청입니다.');
   });
 
+  /* S36-040: 반품지가 갈린 배송 건은 회수 묶음마다 한 줄로 고르고, 입고된 묶음은 빼며, 주소 없는 묶음은 사유와 남긴다. */
+  it('반품지가 갈린 배송 건은 회수 묶음마다 확인 대상이다', () => {
+    const bundle = (n: number, extra: Record<string, unknown> = {}) => ({ bundleId: SHIP(70 + n), returnName: '', collectedAt: null, returnAddressReady: true, ...extra });
+    const plan = adminClaimBulkCollectPlan(context({ collections: [
+      origin(1, { bundles: [bundle(1), bundle(2, { returnName: '서울 반품지' }), bundle(3, { returnName: '부산 반품지', collectedAt: '2026-11-10T00:00:00Z' }),
+        bundle(4, { returnName: '제주 반품지', returnAddressReady: false })] }),
+      origin(2, { bundles: [bundle(5)] }),
+    ] }));
+    expect(plan.targets).toEqual([
+      { shipmentId: SHIP(1), originName: '출고지 1', bundleId: SHIP(71), returnName: '' },
+      { shipmentId: SHIP(1), originName: '출고지 1', bundleId: SHIP(72), returnName: '서울 반품지' },
+      { shipmentId: SHIP(2), originName: '출고지 2' },
+    ]);
+    expect(plan.skipped.map((entry) => entry.originName)).toEqual(['출고지 1 · 제주 반품지']);
+    expect(plan.targets.map(adminClaimBulkCollectTargetLabel)).toEqual(['출고지 1 · 출고지 반품 주소', '출고지 1 · 서울 반품지', '출고지 2']);
+    expect(plan.targets.map((target) => adminClaimBulkCollectTargetKey(ID(1), target))).toEqual([`${ID(1)}:${SHIP(71)}`, `${ID(1)}:${SHIP(72)}`, `${ID(1)}:${SHIP(2)}`]);
+  });
+
   it('레거시 회수는 수거중일 때 요청 전체 입고 확인 한 번이다', () => {
     expect(adminClaimBulkCollectPlan(context({ collectionPolicy: 'legacy' })).targets).toEqual([{ shipmentId: null, originName: null }]);
     expect(adminClaimBulkCollectPlan(context({ collectionPolicy: 'legacy', stage: 'collected' })).blocker).toBe('회수 확인이 이미 끝났습니다.');
@@ -367,8 +387,11 @@ describe('단계 일괄 입력', () => {
 
   it('회수 확인 실행은 입고일(오늘까지)·근거(1~500자)·출고지 목록을 받는다', () => {
     const base = { claimType: 'exchange', receivedOn: '2026-11-12', evidence: ' 회신 대조 ', items: [{ claimId: ID(1), shipmentIds: [SHIP(1)] }] };
-    expect(normalizeAdminClaimBulkCollectInput(base, now)).toEqual({ ok: true, value: { claimType: 'exchange', receivedOn: '2026-11-12', evidence: '회신 대조', items: [{ claimId: ID(1), shipmentIds: [SHIP(1)] }] } });
+    expect(normalizeAdminClaimBulkCollectInput(base, now)).toEqual({ ok: true, value: { claimType: 'exchange', receivedOn: '2026-11-12', evidence: '회신 대조', items: [{ claimId: ID(1), shipmentIds: [SHIP(1)], bundleIds: [] }] } });
     expect(normalizeAdminClaimBulkCollectInput({ ...base, receivedOn: '2026-11-13' }, now).ok).toBe(false);
+    expect(normalizeAdminClaimBulkCollectInput({ ...base, items: [{ claimId: ID(1), shipmentIds: [], bundleIds: [SHIP(71).toUpperCase()] }] }, now))
+      .toMatchObject({ ok: true, value: { items: [{ claimId: ID(1), shipmentIds: [], bundleIds: [SHIP(71)] }] } });
+    expect(normalizeAdminClaimBulkCollectInput({ ...base, items: [{ claimId: ID(1), shipmentIds: [], bundleIds: ['seoul'] }] }, now).ok).toBe(false);
     expect(normalizeAdminClaimBulkCollectInput({ ...base, receivedOn: '' }, now).ok).toBe(false);
     expect(normalizeAdminClaimBulkCollectInput({ ...base, evidence: `근거${String.fromCharCode(1)}` }, now).ok).toBe(false);
     expect(normalizeAdminClaimBulkCollectInput({ ...base, items: [{ claimId: ID(1), shipmentIds: [SHIP(1), SHIP(1)] }] }, now).ok).toBe(false);

@@ -13,6 +13,21 @@ it('고른 배송 안내 템플릿의 도서산간 안내를 미리보기 배송
   expect(build()).not.toHaveProperty('remoteAreaNotice');
   expect(build()?.shippingNotice).toBe('배송 안내');
 });
+/* S36-040: 미리보기의 교환·반품지는 공개 상세처럼 고른 반품지, 비우면 출고지 반품 주소다. 기타 인증(SHEET-014)도 저장된 공개 사본을 싣는다. */
+it('미리보기 교환·반품지는 고른 반품지를 먼저 쓰고 기타 인증을 공개 상세처럼 싣는다', () => {
+  const origin = { id: 'origin-gimpo', name: '김포', defaultCarrier: null, baseFee: 3000, freeThreshold: 50000, returnAddress: '김포 반품지', active: true };
+  const seoul = { id: '11111111-1111-4111-8111-111111111111', name: '서울 반품지', address: '서울특별시 합성구 반품로 1' };
+  const build = (claimReturnAddressId: string) => buildGoodEditorPreview({ values: goodEditorValues(null, { values: { previousId: '', originId: origin.id, claimReturnAddressId } }),
+    imageUrls: {}, selected: null, catalogIps: [], origins: [origin] as never, returnAddresses: [seoul], shippingNoticeOptions: [] });
+  expect(build(seoul.id).shippingPolicy?.returnAddress).toBe('서울특별시 합성구 반품로 1');
+  expect(build('').shippingPolicy?.returnAddress).toBe('김포 반품지');
+  /* 주소록에서 지워진 반품지(선택지에 없음)는 출고지 주소로 보인다 — 저장 때 DB가 다시 판정한다. */
+  expect(build('22222222-2222-4222-8222-222222222222').shippingPolicy?.returnAddress).toBe('김포 반품지');
+  const certification = { kind: '어린이보호포장', agency: 'TEST 기관', number: 'CB000-0000' };
+  const preview = buildGoodEditorPreview({ values: goodEditorValues(null, { values: { previousId: '' } }), imageUrls: {},
+    selected: { otherCertifications: [certification] } as never, catalogIps: [], origins: [], shippingNoticeOptions: [] });
+  expect(preview.detail.otherCertifications).toHaveLength(1);
+});
 it('미저장 직접입력형 항목을 상품 미리보기에 전달하고 제출 리비전은 보존한다', () => {
   const customInputs=JSON.stringify({enabled:true,fields:[{id:'11111111-1111-4111-8111-111111111111',name:' 각인 문구 ',active:true}]});
   const values=goodEditorValues(null,{values:{previousId:'',customInputs,customInputsExpectedRevision:'0'}});

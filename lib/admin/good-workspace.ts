@@ -26,7 +26,7 @@ export const GOOD_EDITOR_SECTIONS = [
   { key: 'description', label: '상세설명', fields: ['description', 'descriptionFormat', 'detailImagePath', 'descriptionUploadPath', 'descriptionImageAlt'] },
   { key: 'notice', label: '상품정보제공고시', fields: GOODS_NOTICE_FIELDS.map((field) => field.formName) },
   { key: 'shipping', label: '출고지·배송비', fields: ['originId', 'shippingFeeType', 'individualFee', 'shippingNoticeTemplate'] },
-  { key: 'claims', label: '반품·교환', fields: [ 'claimReturnAllowed', 'claimExchangeAllowed', 'claimReturnFee', 'claimReturnFreeShippingFee', 'claimExchangeFee', 'claimRestrictionReason'] },
+  { key: 'claims', label: '반품·교환', fields: [ 'claimReturnAllowed', 'claimExchangeAllowed', 'claimReturnFee', 'claimReturnFreeShippingFee', 'claimExchangeFee', 'claimRestrictionReason', 'claimReturnAddressId'] },
   { key: 'sale', label: '결제·판매 제한', fields: ['allowCardPayment', 'allowBankTransfer', 'saleRestriction'] },
   { key: 'information', label: '추가 설정', fields: ['additionalCategoryIds', 'customInputs', 'customInputsExpectedRevision', 'badge', 'stock', 'nameEn', 'displayOrder', 'searchKeywords', 'code', 'defaultVariantCode', 'id'] },
 ] as const;

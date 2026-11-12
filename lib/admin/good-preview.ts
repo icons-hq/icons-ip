@@ -7,7 +7,7 @@ import { restoreGoodsOptionRows, type GoodsOptionRow } from './goods-option-edit
 import { collapseRandomGoodOptions, optionPriceRange } from '@/lib/goods-options';
 import type { GoodsOptionLimitPolicy, GoodsOptionSaleMode } from '@/lib/goods-option-sale-mode';
 import { sanitizeGoodsDescription } from '@/lib/goods-description';
-import { parseGoodsKcDisclosures, type GoodsKcDisclosure } from '@/lib/goods-kc';
+import { parseGoodsKcDisclosures, parseGoodsOtherCertificationDisclosures, type GoodsKcDisclosure, type GoodsOtherCertificationDisclosure } from '@/lib/goods-kc';
 
 /*
  * 어드민 굿즈 미리보기 (#184).
@@ -34,6 +34,8 @@ export interface GoodPreviewInput {
   stockQty: number;
   /** Only the saved, current review projection; never unsaved internal evidence. */
   kcDisclosures?: readonly GoodsKcDisclosure[];
+  /** 저장된 기타 인증 공개 사본(SHEET-014). 고객 상세와 같은 parser를 거친다. */
+  otherCertifications?: readonly GoodsOtherCertificationDisclosure[];
   /** 저장된 판매 방식(goods.option_sale_mode). 랜덤 판매면 공개 상세처럼 옵션을 '랜덤' 한 줄로 접는다(S36-051). */
   optionSaleMode?: GoodsOptionSaleMode;
 }
@@ -136,5 +138,6 @@ export function buildGoodPreview(input: GoodPreviewInput): GoodDetailContent {
     detailImageUrl: imageUrls.detailImagePath ?? null,
     notice: previewNotice(values),
     kcDisclosures: parseGoodsKcDisclosures(input.kcDisclosures ?? []) ?? [],
+    otherCertifications: parseGoodsOtherCertificationDisclosures(input.otherCertifications ?? []) ?? [],
   };
 }

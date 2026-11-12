@@ -47,6 +47,28 @@ describe('claim collection guidance', () => {
     expect(closed).not.toContain('늦은 입고 확인');
   });
 
+  /* S36-040: 한 배송 건 안에서 상품별 반품지가 갈리면 회수 칸이 반품지별 묶음으로 나뉘고, 묶음마다 입고를 확인한다. */
+  it('반품지가 갈린 배송 건은 반품지별 묶음과 묶음 키 확인 양식을 보인다', () => {
+    const bundle = { returnAddressId: null, returnName: '', returnPhone: '', collectorName: null, evidence: null, receivedOn: null };
+    const collections = [{ shipmentId: '20000000-0000-4000-8000-000000000003', originId: 'o1', originName: 'TEST 김포', returnAddress: '김포 반송지 / 서울 반품로 1',
+      items: [], collectedAt: null, collectedBy: null, collectorName: null, evidence: null, receivedOn: null, collectionWaived: false,
+      bundles: [
+        { ...bundle, bundleId: '30000000-0000-4000-8000-000000000001', returnAddress: '김포 반송지', items: [{ orderItemId: 'i2', name: '출고지 굿즈', qty: 1 }],
+          collectedAt: '2026-11-12T00:00:00.000Z', collectorName: '운영자', evidence: '김포 입고', receivedOn: '2026-11-12' },
+        { ...bundle, bundleId: '30000000-0000-4000-8000-000000000002', returnAddressId: 'r1', returnName: '서울 반품지', returnAddress: '서울 반품로 1', returnPhone: '02-1234-5678',
+          items: [{ orderItemId: 'i1', name: '서울 굿즈', qty: 1 }], collectedAt: null },
+      ] }];
+    const html = renderToStaticMarkup(<ClaimActionPanel {...base} claimType="return" stage="collecting" collectionComplete={false} collections={collections} />);
+    expect(html).toContain('반품지 2곳으로 나눠 회수합니다');
+    expect(html).toContain('일부 입고 1/2');
+    expect(html).toContain('반품지 1/2 · 출고지 반품 주소');
+    expect(html).toContain('반품지 2/2 · 서울 반품지');
+    expect(html).toContain('서울 반품로 1 · 02-1234-5678');
+    expect(html).toContain('name="bundleId" value="30000000-0000-4000-8000-000000000002"');
+    expect(html).not.toContain('value="30000000-0000-4000-8000-000000000001"');
+    expect(html).toContain('서울 반품지 회수 확인</button>');
+  });
+
   it('레거시 회수 입고 확인은 실제 입고일과 선택 근거(감사 기록)를 받는다', () => {
     const html = renderToStaticMarkup(<ClaimActionPanel {...base} claimType="return" stage="collecting" collectionPolicy="legacy" collectionComplete={false} />);
     expect(html).toMatch(/name="receivedOn"[^>]*type="date"|type="date"[^>]*name="receivedOn"/);

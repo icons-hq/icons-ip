@@ -8,6 +8,7 @@ import type { AdminCatalogActionState } from '@/app/admin/actions';
 import type { AdminGoodRecord } from '@/lib/admin/catalog.server';
 import type { AdminGoodsVariant } from '@/lib/admin/goods-variants';
 import type { GoodsFulfillmentOrigin } from '@/lib/admin/fulfillment-origins';
+import type { ReturnAddressOption } from '@/lib/admin/return-addresses';
 import type { GoodNoticeDefaults } from '@/lib/admin/good-editor';
 import type { GoodShippingRegionSummary } from '@/lib/admin/good-shipping-summary';
 import type { AdminCategoryNode } from '@/lib/admin/category';
@@ -100,7 +101,7 @@ export function GoodSection({
   initialIpId,
   initialQuery='',
   hideRecordList=false, listHref='/admin/catalog/goods',
-  accountId='', origins=[], noticeDefaults, categories=[], shippingNoticeOptions=[], canManageCosts=false, canReadOrders=true, canManageSales=true, canSearchErp=true, canOpenIp=false, canManageMedia=false, cloneOperationId, readiness, regionSummaries = [],
+  accountId='', origins=[], returnAddresses, noticeDefaults, categories=[], shippingNoticeOptions=[], canManageCosts=false, canReadOrders=true, canManageSales=true, canSearchErp=true, canOpenIp=false, canManageMedia=false, cloneOperationId, readiness, regionSummaries = [],
 }: {
   action: (payload: FormData) => void;
   adjustmentId: string; ownership?: GoodsEditorOwnership | null;
@@ -115,7 +116,7 @@ export function GoodSection({
   initialIpId?: string;
   initialQuery?: string;
   hideRecordList?: boolean; listHref?: string;
-  accountId?: string; origins?: GoodsFulfillmentOrigin[]; noticeDefaults?: GoodNoticeDefaults;
+  accountId?: string; origins?: GoodsFulfillmentOrigin[]; returnAddresses?: ReturnAddressOption[]; noticeDefaults?: GoodNoticeDefaults;
   categories?: AdminCategoryNode[]; shippingNoticeOptions?: GoodsShippingNoticeOption[]; canManageCosts?: boolean; canReadOrders?: boolean; canManageSales?: boolean; canSearchErp?: boolean; canOpenIp?: boolean; canManageMedia?: boolean; cloneOperationId?: string; readiness?: AdminGoodsReadiness | null; regionSummaries?: GoodShippingRegionSummary[];
 }) {
   const [archiveFilter, setArchiveFilter] = useState<AdminCatalogArchiveFilter>(
@@ -269,7 +270,7 @@ export function GoodSection({
           canOpenIp={canOpenIp}
           canActivatePreorders={canManageCosts}
           onApplyKcTemplate={kcTemplate.apply}
-          regionSummaries={regionSummaries} origins={origins} noticeDefaults={noticeDefaults} categories={categories} shippingNoticeOptions={shippingNoticeOptions} accountId={accountId}
+          regionSummaries={regionSummaries} origins={origins} returnAddresses={returnAddresses} noticeDefaults={noticeDefaults} categories={categories} shippingNoticeOptions={shippingNoticeOptions} accountId={accountId}
           variants={variants.filter((variant) => variant.goodId === selected?.id)}
           action={action}
           catalogIps={catalogIps}

@@ -15,6 +15,9 @@ import { GOODS_DESCRIPTION_MAX_LENGTH, GOODS_GALLERY_MAX } from '@/lib/admin/cat
 import type { AdminGoodRecord } from '@/lib/admin/catalog.server';
 import type { AdminGoodsVariant } from '@/lib/admin/goods-variants';
 import type { GoodsFulfillmentOrigin } from '@/lib/admin/fulfillment-origins';
+import type { ReturnAddressOption } from '@/lib/admin/return-addresses';
+/* 기본값을 매 렌더 새 배열로 만들면 미리보기 useMemo가 매번 다시 계산된다. */
+const NO_RETURN_ADDRESSES: ReturnAddressOption[] = [];
 import { GoodsSalePeriodFields } from './GoodsSalePeriodFields';
 import type { AdminGoodsReadiness } from '@/lib/admin/goods-readiness';
 import { goodEditorValues, createGoodEditorDraft, goodEditorFingerprint, buildGoodEditorPreview, GOOD_LOCAL_DRAFT_FIELDS, GOOD_LOCAL_DRAFT_LINKED_FIELDS, type GoodNoticeDefaults } from '@/lib/admin/good-editor';
@@ -193,7 +196,7 @@ const EDITOR_TAB_CLASS = 'inline-flex h-7 items-center rounded-md px-3 text-sm f
 const SAVE_BAR_BUTTON_CLASS = 'max-md:h-7 max-md:gap-1 max-md:px-1.5 max-md:text-[0.8rem]';
 const SHARED_QUANTITY_FIELDS = ['orderQuantityLimitEnabled','minOrderQty','maxOrderQty','memberPurchaseLimitEnabled','memberLifetimeQtyLimit'];
 
-function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, pending, selected, state, initialIpId, variants, origins, noticeDefaults, categories, shippingNoticeOptions, regionSummaries, formRef, onSubmitCapture, onApplyKcTemplate, onSaveLocalDraft, onLoadServerDraft, onEditingStateChange, onPublishOnSaveChange, canSearchErp = true, canOpenIp = false, canActivatePreorders = false, listHref = '/admin/catalog/goods', readiness = null, kcSlot = null, preorderSlot = null, restoredFromBrowser = false }: {
+function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, pending, selected, state, initialIpId, variants, origins, returnAddresses = NO_RETURN_ADDRESSES, noticeDefaults, categories, shippingNoticeOptions, regionSummaries, formRef, onSubmitCapture, onApplyKcTemplate, onSaveLocalDraft, onLoadServerDraft, onEditingStateChange, onPublishOnSaveChange, canSearchErp = true, canOpenIp = false, canActivatePreorders = false, listHref = '/admin/catalog/goods', readiness = null, kcSlot = null, preorderSlot = null, restoredFromBrowser = false }: {
   accountId: string; ownership?: GoodsEditorOwnership | null;
   action: (payload: FormData) => void; catalogIps: Ip[];
   ipOptions: { id: string; title: string; archivedAt: string | null }[];
@@ -204,6 +207,8 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
   /** 등록 화면 예약판매 활성화 권한(platform.manage+admin). 서버·DB가 다시 검사한다. */
   canActivatePreorders?: boolean;
   initialIpId?: string; variants: AdminGoodsVariant[]; origins: GoodsFulfillmentOrigin[]; noticeDefaults?: GoodNoticeDefaults;
+  /** 반품/교환지 주소록(S36-040). 비운 상품은 출고지 반품 주소를 쓴다. */
+  returnAddresses?: ReturnAddressOption[];
   categories: AdminCategoryNode[]; shippingNoticeOptions: GoodsShippingNoticeOption[]; regionSummaries: GoodShippingRegionSummary[];
   formRef: ReturnType<typeof useAdminLocalAutosave>['formRef']; onSubmitCapture: (event: FormEvent<HTMLFormElement>) => void;
   onApplyKcTemplate?:(template:GoodsKcPresetTemplate|null)=>void;
@@ -471,8 +476,8 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
   const previewValues = useDeferredValue(typedValues);
   const previewImageUrls = useDeferredValue(imageUrls);
   const { ip: previewIp, detail: previewDetail, shippingPolicy } = useMemo(() => buildGoodEditorPreview({
-    values: previewValues, imageUrls: previewImageUrls, selected, catalogIps, origins, shippingNoticeOptions,
-  }), [previewValues, previewImageUrls, selected, catalogIps, origins, shippingNoticeOptions]);
+    values: previewValues, imageUrls: previewImageUrls, selected, catalogIps, origins, returnAddresses, shippingNoticeOptions,
+  }), [previewValues, previewImageUrls, selected, catalogIps, origins, returnAddresses, shippingNoticeOptions]);
   const previewWithAttributes = useMemo(() => ({ ...previewDetail, attributes: attributePreview }), [previewDetail, attributePreview]);
   const notice = Object.fromEntries(GOODS_NOTICE_FIELDS.map((field) => [field.key, initial[field.formName]])) as GoodsNoticeInfo;
   const htmlDescription = values.descriptionFormat === 'html';
@@ -665,7 +670,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
           <OwnedFields locked={aggregationOwned} fields={SHARED_SHIPPING_FIELDS} values={initial}><GoodsFulfillmentFields regionSummaries={regionSummaries} origins={origins} value={{ originId: initial.originId || null, shippingFeeType: initial.shippingFeeType as 'policy' | 'free' | 'individual', individualFee: Number(initial.individualFee) }} errors={errors} /></OwnedFields>
           <GoodsShippingNoticeField options={shippingNoticeOptions} value={initial.shippingNoticeTemplate} error={errors.shippingNoticeTemplate} />
         </GoodFoldedRow>
-        <GoodsClaimPolicyFields values={initial} current={values} errors={errors as Record<string, string>} />
+        <GoodsClaimPolicyFields values={initial} current={values} errors={errors as Record<string, string>} returnAddresses={returnAddresses} />
         <GoodsSalePolicyFields values={initial} current={values} errors={errors} />
       </GoodEditorSection>
 

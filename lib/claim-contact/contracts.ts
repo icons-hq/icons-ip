@@ -992,6 +992,7 @@ export const CLAIM_CONTACT_ERRORS = {
   claim_collections_incomplete: errorDefinition(409, '이 배송 건의 회수 확인이 먼저 필요합니다. 하자·오배송 교환은 회수 없이 재출고할 수 있습니다.', '23514'),
   collection_waiver_not_allowed: errorDefinition(409, '회수 없이 재출고는 하자·오배송 교환에서만 쓸 수 있습니다.', '23514'),
   collection_waiver_not_needed: errorDefinition(409, '이미 회수를 확인한 배송 건입니다. 회수 생략 없이 재출고해주세요.', '23514'),
+  collection_waiver_partially_received: errorDefinition(409, '이 배송 건은 일부 반품지에서 이미 입고가 확인되어 회수 없이 재출고할 수 없습니다. 남은 반품지의 입고를 확인한 뒤 재출고해주세요.', '23514'),
   collection_waiver_unavailable: errorDefinition(409, '출고지별 회수를 쓰지 않는 교환은 회수 없이 재출고할 수 없습니다.', '23514'),
   collection_waiver_evidence_required: errorDefinition(400, '회수 생략 근거 사진을 1~5장 올려주세요.', '23514'),
   invalid_collection_waiver_reason: errorDefinition(400, '회수 생략 사유를 10~500자로 적어주세요.', '23514'),

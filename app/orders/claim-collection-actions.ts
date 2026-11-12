@@ -6,7 +6,7 @@ import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { parseGoodsGroupIdentity } from '@/lib/admin/goods-groups';
 import { transactionInteger } from '@/lib/goods-transaction-values';
 import { isUuid } from '@/lib/uuid';
-import { claimCollectionError, normalizeClaimCollectionValues, parseClaimCollectionDocument } from '@/lib/orders/claim-collection';
+import { claimCollectionError, normalizeClaimCollectionValues, parseClaimCollectionDocument, parseClaimReturnBundles, withClaimReturnBundles } from '@/lib/orders/claim-collection';
 export async function readClaimCollectionAction(claimId: unknown, rawIdentity: unknown, operator: boolean) {
   const identity = parseGoodsGroupIdentity(rawIdentity);
   if (!identity || !isUuid(claimId) || typeof operator !== 'boolean') return { error: claimCollectionError('22023') };
@@ -15,7 +15,11 @@ export async function readClaimCollectionAction(claimId: unknown, rawIdentity: u
     const { data, error } = await (await createClient()).rpc(operator ? 'admin_read_claim_collection_plan' : 'read_my_claim_collection_plan', { p_claim: claimId, p_actor: identity.actorId, p_session: identity.sessionId });
     if (!error && data === null && !operator) return { document: null };
     const document = error ? null : parseClaimCollectionDocument(data);
-    return document?.claimId === claimId ? { document } : { error: claimCollectionError(error?.code, error?.message) };
+    if (document?.claimId !== claimId) return { error: claimCollectionError(error?.code, error?.message) };
+    // 회수 주소(묶음)는 문서에 키를 더하지 않고 별도 RPC로 읽어 합친다(이전 앱 파서와의 배포 창 호환).
+    const bundleRead = await (await createClient()).rpc(operator ? 'admin_read_claim_return_bundles' : 'read_my_claim_return_bundles', { p_claim: claimId, p_actor: identity.actorId, p_session: identity.sessionId });
+    const bundles = bundleRead.error ? null : parseClaimReturnBundles(bundleRead.data);
+    return bundles ? { document: withClaimReturnBundles(document, bundles) } : { error: claimCollectionError(bundleRead.error?.code, bundleRead.error?.message) };
   } catch (error) { unstable_rethrow(error); return { error: claimCollectionError() }; }
 }
 export async function saveClaimCollectionAction(claimId: unknown, shipmentId: unknown, revision: unknown, claimRevision: unknown, rawValues: unknown, operationId: unknown, rawIdentity: unknown) {
@@ -28,6 +32,9 @@ export async function saveClaimCollectionAction(claimId: unknown, shipmentId: un
     const document = error ? null : parseClaimCollectionDocument(data);
     if (!document || document.claimId !== claimId) return { error: claimCollectionError(error?.code, error?.message), uncertain: !error || !['22023', 'PT409', '42501', 'P0002'].includes(error.code) };
     revalidatePath('/admin/sales/claims', 'layout'); revalidatePath(`/orders/${document.orderId}`);
-    return { document };
+    // 저장은 끝났다. 회수 주소(별도 RPC)를 읽지 못해도 저장 결과를 숨기지 않고, 주소는 다시 확인에서 보인다.
+    const bundleRead = await (await createClient()).rpc('admin_read_claim_return_bundles', { p_claim: claimId, p_actor: identity.actorId, p_session: identity.sessionId });
+    const bundles = bundleRead.error ? null : parseClaimReturnBundles(bundleRead.data);
+    return { document: bundles ? withClaimReturnBundles(document, bundles) : document };
   } catch (error) { unstable_rethrow(error); return { error: claimCollectionError(), uncertain: true }; }
 }

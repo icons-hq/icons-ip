@@ -13,6 +13,7 @@ import { Textarea } from '@/components/admin/kit/ui/textarea';
 import { useAdminLeaveGuard } from '@/components/admin/useAdminLeaveGuard';
 import {
   ADMIN_CLAIM_BULK_STEP_LABELS,
+  adminClaimBulkCollectTargetKey,
   adminClaimBulkCollectTargetLabel,
   adminClaimBulkContinuation,
   adminClaimBulkSummary,
@@ -115,9 +116,6 @@ export async function runClaimBulkInChunks<T extends { claimId: string }>(
   return { results, error: null };
 }
 
-function originKey(claimId: string, shipmentId: string | null) {
-  return `${claimId}:${shipmentId ?? 'order'}`;
-}
 
 function ClaimBulkPreviewDialog({ claimType, onClose, previewHrefBase, session }: {
   claimType: OrderClaimType;
@@ -152,9 +150,11 @@ function ClaimBulkPreviewDialog({ claimType, onClose, previewHrefBase, session }
 
   async function runCollect(rows: AdminClaimBulkCollectRow[]) {
     const items = rows.filter((row) => row.blocker === null)
-      .map((row) => ({ row, targets: row.targets.filter((target) => !unchecked[originKey(row.claimId, target.shipmentId)]) }))
+      .map((row) => ({ row, targets: row.targets.filter((target) => !unchecked[adminClaimBulkCollectTargetKey(row.claimId, target)]) }))
       .filter((entry) => entry.targets.length > 0)
-      .map(({ row, targets }) => ({ claimId: row.claimId, shipmentIds: targets.flatMap((target) => target.shipmentId ? [target.shipmentId] : []) }));
+      .map(({ row, targets }) => ({ claimId: row.claimId,
+        shipmentIds: targets.flatMap((target) => target.shipmentId && !target.bundleId ? [target.shipmentId] : []),
+        bundleIds: targets.flatMap((target) => target.bundleId ? [target.bundleId] : []) }));
     if (items.length === 0) { setInputError('회수 확인할 출고지를 하나 이상 골라주세요.'); return; }
     if (!receivedOn || receivedOn > session.today) { setInputError('실제 입고일은 오늘이나 그 이전 날짜로 입력해주세요.'); return; }
     if (!evidence.trim() || evidence.trim().length > 500) { setInputError('회수 확인 근거를 500자 이내로 입력해주세요.'); return; }
@@ -229,7 +229,7 @@ export function CollectStep({ evidence, evidenceId, inputError, onEvidence, onRe
   unchecked: Record<string, boolean>;
 }) {
   const ready = rows.filter((row) => row.blocker === null);
-  const chosen = ready.map((row) => row.targets.filter((target) => !unchecked[originKey(row.claimId, target.shipmentId)]).length);
+  const chosen = ready.map((row) => row.targets.filter((target) => !unchecked[adminClaimBulkCollectTargetKey(row.claimId, target)]).length);
   const claimCount = chosen.filter((count) => count > 0).length;
   const originCount = chosen.reduce((sum, count) => sum + count, 0);
   const excludedCount = rows.length - ready.length;
@@ -254,7 +254,7 @@ export function CollectStep({ evidence, evidenceId, inputError, onEvidence, onRe
             <TableCell className="tabular-nums">{row.reference}</TableCell>
             <TableCell className="whitespace-normal">{row.blocker ? <span className="text-muted-foreground">처리하지 않음</span>
               : <div className="flex flex-col gap-1.5">{row.targets.map((target) => {
-                const key = originKey(row.claimId, target.shipmentId);
+                const key = adminClaimBulkCollectTargetKey(row.claimId, target);
                 return <label className="flex items-center gap-2" key={key}>
                   <Checkbox checked={!unchecked[key]} disabled={running} onCheckedChange={(value) => onToggle(key, !!value)} />
                   <span>{adminClaimBulkCollectTargetLabel(target)}</span>

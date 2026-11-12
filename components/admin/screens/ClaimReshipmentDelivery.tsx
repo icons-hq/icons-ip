@@ -4,7 +4,7 @@ import { useActionState } from 'react';
 import { recordOrderClaimReshipmentDeliveryAction } from '@/app/admin/claim-actions';
 import type { AdminClaimDetail, AdminClaimReshipment, AdminClaimReshipmentTarget } from '@/lib/admin/claims.server';
 import { claimEvidenceUrl } from '@/lib/admin/claim-evidence';
-import { adminClaimReshipmentProgress, adminClaimWaiverDecisions } from '@/lib/admin/claim-reshipments';
+import { adminClaimReshipmentProgress, adminClaimShipmentPartiallyReceived, adminClaimWaiverDecisions } from '@/lib/admin/claim-reshipments';
 import { ClaimCollectionWaiverDecision } from './ClaimCollectionWaiverDecision';
 import { adminFormRemountKey, preservedFormValues } from '@/lib/admin/form-state';
 import { adminClaimCopy } from '@/lib/admin/vocabulary';
@@ -62,6 +62,7 @@ function WaiverRecord({ caption, reason, evidence }: { caption: string; reason: 
   </div>;
 }
 
+const PARTIAL_RECEIPT = '이 출고지의 일부 반품지에서 이미 입고가 확인되어 회수 생략을 할 수 없습니다. 남은 반품지의 입고를 확인하고, 도착하지 않으면 고객에게 확인한 뒤 판단하세요.';
 const PRODUCTION_WAIT = '주문제작 상품의 교환품 제작이 끝나면 재출고할 수 있습니다. 제작 시작·완료는 주문 상세의 주문제작 처리에서 기록합니다.';
 
 /** 아직 재출고하지 않은 배송 건: 회수 확인·회수 생략 결정·교환품 제작 대기 중 지금 무엇을 기다리는지 보인다. */
@@ -72,6 +73,7 @@ function PendingTarget({ claim, target, name, decide }: { claim: Claim; target: 
     : target.waiver ? '회수·재배송 연락처 처리에서 회수 없이 재출고를 등록합니다.'
       : !target.collectionTracked ? '입고 확인 뒤 회수·재배송 연락처 처리에서 재출고를 등록합니다.'
         : target.collectedAt ? `회수 확인 ${formatOrderDateTime(target.collectedAt)} · 회수·재배송 연락처 처리에서 재출고를 등록합니다.`
+          : claim.collectionWaiverAllowed && adminClaimShipmentPartiallyReceived(claim, target.shipmentId) ? PARTIAL_RECEIPT
           : !claim.collectionWaiverAllowed ? '회수 확인 전입니다. 회수를 확인한 뒤 재출고합니다.'
             : target.productionRequired ? '회수 확인 전입니다. 주문제작 상품은 교환품을 새로 만들어야 해서, 회수 없이 보내려면 아래에서 회수 생략을 먼저 기록해 제작을 시작합니다.'
               : '회수 확인 전입니다. 하자·오배송 교환이라 회수 없이 재출고할 수도 있습니다.';

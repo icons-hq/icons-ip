@@ -67,4 +67,34 @@ describe('GoodAdditionalInfo', () => {
     expect(perGood).toContain('<li>지역별 추가 배송비: 제주 +₩3,000(굿즈당 1회). 최종 배송비는 주문서에서 주소를 입력한 뒤 확인합니다.');
     expect(perGood).not.toContain('배송 묶음당 1회');
   });
+
+  /* S36-040·S36-044: 교환·반품지는 굿즈가 고른 반품지(없으면 출고지 반품 주소, DB가 정한다)이고, 가능/제한은 조건에서 파생한다.
+     제한 표시는 신청을 막지 않고, 하자·오배송은 제한할 수 없다는 문장을 함께 둔다. */
+  it('교환·반품 안내에 반품지와 가능/제한 표시를 싣고 제한 상품도 신청할 수 있다고 말한다', () => {
+    const terms = { returnAllowed: null, exchangeAllowed: true, restrictionReason: null, returnFee: 3000, returnFreeShippingFee: null, exchangeFee: 6000 };
+    const policy = { originId: 'origin', originName: '김포', baseFee: 3000, freeThreshold: 30000, feeType: 'policy' as const, individualFee: 0,
+      returnAddress: '서울특별시 합성구 반품로 1', claimPolicy: terms };
+    const returnSection = (html: string) => html.slice(html.indexOf('pdp-return-heading'), html.indexOf('pdp-seller-heading'));
+    const available = returnSection(renderToStaticMarkup(<GoodAdditionalInfo notice={notice} goods={[good]} shippingPolicy={policy} />));
+    expect(available).toContain('<li data-claim-availability="available" style="white-space:pre-wrap"><strong>교환·반품 가능</strong></li>');
+    expect(available).toContain('<li>굿즈 하자·오배송은 교환·반품 제한과 관계없이 교환·반품할 수 있습니다.</li>');
+    expect(available).toContain('<li>교환·반품지: 서울특별시 합성구 반품로 1 · 주문 상세에서 교환·반품을 신청하고 승인 안내를 받은 뒤 보내주세요.</li>');
+    expect(available).not.toContain('<strong>교환·반품 제한');
+    expect(available).not.toContain('김포');
+
+    const restricted = returnSection(renderToStaticMarkup(<GoodAdditionalInfo notice={notice} goods={[good]}
+      shippingPolicy={{ ...policy, claimPolicy: { ...terms, returnAllowed: false, exchangeAllowed: false, restrictionReason: '포장을 뜯으면 반품할 수 없습니다' } }} />));
+    expect(restricted).toContain('<strong>교환·반품 제한(포장을 뜯으면 반품할 수 없습니다)</strong></li>');
+    expect(restricted).toContain('제한된 굿즈도 주문 상세에서 교환·반품을 신청할 수 있고, 담당자가 개별 확인합니다. 굿즈 하자·오배송은 교환·반품 제한과 관계없이 교환·반품할 수 있습니다.');
+    /* 사유가 제한 표시에 들어가므로 '굿즈별 확인 조건'으로 한 번 더 쓰지 않는다. */
+    expect(restricted).not.toContain('굿즈별 확인 조건');
+
+    const returnOnly = returnSection(renderToStaticMarkup(<GoodAdditionalInfo notice={notice} goods={[good]}
+      shippingPolicy={{ ...policy, claimPolicy: { ...terms, returnAllowed: false, restrictionReason: '위생용품' } }} />));
+    expect(returnOnly).toContain('<strong>교환·반품 제한(위생용품)</strong> · 반품 제한 · 교환 가능</li>');
+
+    /* 정책을 읽지 못하면 가능/제한을 말하지 않는다(지어낸 표시 없음). */
+    const unknown = returnSection(renderToStaticMarkup(<GoodAdditionalInfo notice={notice} goods={[good]} />));
+    expect(unknown).not.toContain('data-claim-availability');
+  });
 });
