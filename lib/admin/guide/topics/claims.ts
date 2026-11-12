@@ -1,4 +1,4 @@
-import { ADMIN_CLAIM_BULK_ACTION_LABELS, ADMIN_CLAIM_BULK_LIMIT, ADMIN_CLAIM_BULK_OUTCOME_LABELS } from '@/lib/admin/claim-bulk';
+import { ADMIN_CLAIM_BULK_ACTION_LABELS, ADMIN_CLAIM_BULK_LIMIT, ADMIN_CLAIM_BULK_OUTCOME_LABELS, ADMIN_CLAIM_BULK_RESHIP_LIMIT, ADMIN_CLAIM_BULK_STEP_LABELS } from '@/lib/admin/claim-bulk';
 import { ADMIN_LIST_EXPORT_BUTTON_LABEL, ADMIN_LIST_EXPORT_ROW_LIMIT } from '@/lib/admin/list-export';
 import type { AdminGuideTopic } from '../types';
 
@@ -108,7 +108,17 @@ export const CLAIMS_TOPIC: AdminGuideTopic = {
           detail: [
             '결제사 취소가 겹치지 않도록 한 건씩 순서대로 처리합니다. 토스 결제의 취소 승인은 건마다 토스 전액 취소를 발행하고, 반품·교환 승인은 수거를 시작합니다. 선택 건 거부는 취소·반품·교환 관리 모두 아래 처리 막대의 "선택 건 거부"를 누르면 뜨는 거부 사유 칸에 적은 사유를 선택한 모든 건에 씁니다.',
             `건별 결과는 목록 아래 표에서 번호·결과(${Object.values(ADMIN_CLAIM_BULK_OUTCOME_LABELS).join('·')})·사유로 확인합니다. 처리 시간이 길어 남은 건은 처리하지 않고 미처리로 표시하며, 미처리 건은 선택된 채로 남으니 다시 실행합니다.`,
-            '반품·교환의 회수 확인·재출고·환불 완료 확정은 상세에서 한 건씩 처리합니다.',
+            '회수 없이 재출고(하자·오배송, 근거 사진 필요)와 환불계좌를 새로 받아야 하는 무통장 건은 상세에서 한 건씩 처리합니다.',
+          ],
+        },
+        {
+          text: `회수 확인·환불 완료 확정·재출고도 처리 막대에서 한 번에 처리합니다. 반품 관리는 "${ADMIN_CLAIM_BULK_STEP_LABELS.collect}"·"${ADMIN_CLAIM_BULK_STEP_LABELS.refund}", 교환 관리는 "${ADMIN_CLAIM_BULK_STEP_LABELS.collect}"·"${ADMIN_CLAIM_BULK_STEP_LABELS.reship}", 취소 관리는 "${ADMIN_CLAIM_BULK_STEP_LABELS.refund}"이 있습니다.`,
+          detail: [
+            '버튼을 누르면 확인창이 열리고, 고른 건 가운데 그 단계를 할 수 있는 건과 뺄 건(사유)을 서버가 지금 다시 읽어 보여 줍니다. 확인창에서 실행한 뒤에는 건마다 상세와 같은 처리를 한 건씩 순서대로 하고, 건별 결과(제외 포함)는 창과 목록 아래 표에 남습니다.',
+            `"${ADMIN_CLAIM_BULK_STEP_LABELS.collect}"은 실제 입고일(기본 오늘, 미래 날짜 불가)과 회수 확인 근거를 한 번 적어 고른 건의 남은 출고지에 함께 남깁니다. 아직 도착하지 않은 출고지는 확인창에서 체크를 풀어 뺍니다. 회수 없이 재출고한 출고지와 반송 주소가 없는 출고지는 일괄에서 빠집니다.`,
+            `"${ADMIN_CLAIM_BULK_STEP_LABELS.refund}"은 확인창에 처리 건수와 환불 합계(결제사별)를 먼저 보입니다. 토스·나이스페이 결제만 건마다 결제사 전액 취소를 발행하고, 무통장·가상계좌·코페이 결제와 회수가 끝나지 않은 건은 사유와 함께 뺍니다. 확인창을 연 뒤 금액이 바뀐 건은 처리하지 않습니다. 입고완료 건은 환불 접수를 먼저 기록합니다. 일부가 실패해도 이미 취소된 건은 되돌리지 않고 건별 결과로 남습니다.`,
+            `"${ADMIN_CLAIM_BULK_STEP_LABELS.reship}"는 한 번에 최대 ${ADMIN_CLAIM_BULK_RESHIP_LIMIT}건입니다. 최종 주소를 불러와 요청마다 확인하고(10분 안에 등록), 회수를 확인한 출고지마다 택배사·운송장·재출고 상품을 적어 한 줄씩 등록합니다. 같은 요청의 다음 출고지는 최종 주소를 다시 확인해 처음과 같을 때만 보냅니다. 결과를 확인하지 못한 줄은 그 요청 상세의 "저장 결과 확인"으로 확인합니다.`,
+            '처리 시간이 길어 남은 건은 같은 확인 아래 이어서 처리합니다. 창을 닫거나 화면을 옮기면 남은 건은 처리되지 않습니다.',
           ],
         },
         {
@@ -133,7 +143,8 @@ export const CLAIMS_TOPIC: AdminGuideTopic = {
           detail: [
             '한 출고지에만 도착했으면 나머지는 미입고로 유지합니다. 모든 필요한 회수가 확인되기 전에는 환급·재고 복원을 종결할 수 없습니다.',
             '확인한 반송 주소와 품목·수량은 접수 건의 근거로 보존합니다. 주소가 없으면 설정과 실제 안내 주소를 확인하며, 설정 변경으로 기존 안내를 조용히 바꾸지 않습니다.',
-            '기존 환급 기한과 비용 부담 규칙을 유지합니다. 실제 굿즈 반환 시각을 기록하고, 운영자가 확인 버튼을 늦게 누른 시각을 반환 시각으로 대신하지 않습니다.',
+            '회수 확인에는 창고에 실제로 도착한 날(실제 입고일, 기본 오늘·미래 날짜 불가)을 함께 적습니다. 환급 기한은 모든 출고지 가운데 가장 늦은 입고일부터 영업일 3일째 되는 날의 끝까지입니다. 운영자가 확인 버튼을 늦게 누른 시각을 반환일로 대신하지 않으며, 비용 부담 규칙은 그대로입니다.',
+            '회수 없이 재출고한 출고지(하자·오배송 교환)는 "회수 생략 · 재출고됨"으로 보입니다. 나머지 출고지가 남아 있는 동안 그 상품이 늦게 도착하면 입고를 확인할 수 있지만 재고는 바뀌지 않습니다. 다시 팔 수 있는 상품이면 재고 조정에서 반영합니다.',
           ],
         },
         {
