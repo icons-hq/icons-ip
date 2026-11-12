@@ -48,8 +48,11 @@ comment on column public.goods.product_no is
 -- 2. 상품번호 발급. 같은 상품 URL(id)의 행이 이미 있으면(수정 저장의 INSERT … ON CONFLICT) 그 번호를 싣고 순번을 쓰지 않는다.
 --    없으면 다음 순번을 쓴다. 값을 직접 넣을 수 없다. 다른 BEFORE INSERT 검사가 먼저 거절하면 순번을 쓰지 않도록
 --    이름을 맨 뒤(zz_)로 둔다 — 같은 시점의 트리거는 이름 순서로 돈다.
+--    SECURITY INVOKER다: BEFORE INSERT 트리거는 RLS WITH CHECK보다 먼저 돌므로, 정의자 권한이면 RLS가 거절할 직접 INSERT도 번호를
+--    하나씩 써 버린다. 순번 권한은 소유자(postgres — 상품을 저장하는 정의자 RPC의 소유자)에게만 있어, 다른 역할의 새 행은
+--    nextval이 권한 오류로 끝나고 번호를 쓰지 않는다.
 create function private.assign_goods_product_no() returns trigger
-language plpgsql security definer set search_path = '' as $$
+language plpgsql security invoker set search_path = '' as $$
 declare existing_no bigint;
 begin
   if new.product_no is not null then
@@ -66,6 +69,8 @@ end $$;
 revoke all on function private.assign_goods_product_no() from public, anon, authenticated, service_role;
 create trigger zz_goods_assign_product_no before insert on public.goods
   for each row execute function private.assign_goods_product_no();
+-- 심층 방어: 상품 쓰기는 정의자 RPC로만 한다. anon·authenticated에 남아 있던 goods 쓰기 테이블 권한을 거둔다(읽기와 RLS는 그대로).
+revoke insert, update, delete, truncate on table public.goods from public, anon, authenticated;
 
 -- 3. 상품번호 불변. 값 지정·NULL·다른 번호로 바꾸는 갱신을 모두 막는다.
 create function private.guard_goods_product_no() returns trigger
