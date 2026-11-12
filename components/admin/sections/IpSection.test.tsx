@@ -14,6 +14,7 @@ vi.mock('../../../app/admin/ip-publish-actions', () => ({
   unpublishAdminIpAction: vi.fn(),
 }));
 vi.mock('@/app/admin/ip-banner-actions', () => ({ saveAdminIpHallBannerAction: vi.fn() }));
+vi.mock('@/app/admin/ip-delete-actions', () => ({ deleteAdminDraftIpAction: vi.fn() }));
 
 const ip: AdminIpRecord = {
   id: 'hwasan',
@@ -277,7 +278,7 @@ describe('IpSection', () => {
       errors: { verticalKey: '등록된 버티컬을 선택해주세요.' },
       values: {
         previousId: '',
-        id: 'new-ip',
+        publicSlug: 'new-ip',
         title: '새 IP 이름',
         sub: '보조 설명 유지',
         verticalKey: 'global',
@@ -310,7 +311,8 @@ describe('IpSection', () => {
         />,
       );
 
-      expect(html).toMatch(/name="id"[^>]*value="new-ip"|value="new-ip"[^>]*name="id"/);
+      expect(html).toMatch(/name="publicSlug"[^>]*value="new-ip"|value="new-ip"[^>]*name="publicSlug"/);
+      expect(html).not.toContain('name="id"');
       expect(html).toMatch(/name="title"[^>]*value="새 IP 이름"|value="새 IP 이름"[^>]*name="title"/);
       expect(html).toContain('보조 설명 유지');
       expect(html).toContain('태그라인 유지');
@@ -372,6 +374,86 @@ describe('IpSection', () => {
       expect(html).not.toContain('새 IP 이름');
       expect(html).not.toContain('uploaded.png');
       expect(html).toMatch(/name="title"[^>]*value="화산강림"|value="화산강림"[^>]*name="title"/);
+    });
+  });
+
+  /* S36-003 · ADR-0039 — 사람은 이름·공개 URL만 넣고, 내부 ID는 시스템이 발급해 이후 바꾸지 않는다. */
+  describe('internal ID issuance', () => {
+    it('asks a new IP for its public URL instead of an internal ID', () => {
+      const html = renderToStaticMarkup(
+        <IpSection accountId="operator-a" action={vi.fn()} onSelect={vi.fn()} pending={false} records={[]} selected={null} state={{}} verticals={[]} />,
+      );
+      expect(html).not.toContain('name="id"');
+      expect(html).not.toContain('IP 코드');
+      expect(html).toContain('공개 URL (필수)');
+      expect(html).toMatch(/name="publicSlug"/);
+      expect(html).toContain('maxLength="80"');
+      expect(html).toContain('내부 ID는 처음 저장할 때 이 주소로 자동 발급되고 바꿀 수 없습니다.');
+    });
+
+    it('shows a saved IP its internal ID as read-only and leaves the public URL to the identity form', () => {
+      const html = renderToStaticMarkup(
+        <IpSection accountId="operator-a" action={vi.fn()} onSelect={vi.fn()} pending={false} records={[ip]} selected={ip} state={{}} verticals={[]} />,
+      );
+      expect(html).toContain('내부 ID (변경 불가)');
+      expect(html).toMatch(/<input[^>]*readOnly=""[^>]*name="id" value="hwasan"|<input[^>]*name="id"[^>]*readOnly=""/);
+      expect(html).not.toContain('name="publicSlug"');
+      expect(html).toContain('공개 URL은 이 화면 아래의 공개 URL에서 바꿉니다.');
+    });
+
+    it('shows the public URL rejection next to the field after a failed create', () => {
+      const html = renderToStaticMarkup(
+        <IpSection accountId="operator-a" action={vi.fn()} onSelect={vi.fn()} pending={false} records={[]} selected={null}
+          state={{ errors: { publicSlug: '이미 사용 중인 공개 URL입니다. 다른 주소를 입력해주세요.' }, values: { previousId: '', publicSlug: 'taken' }, attempt: 1 }} verticals={[]} />,
+      );
+      expect(html).toContain('이미 사용 중인 공개 URL입니다. 다른 주소를 입력해주세요.');
+      expect(html).toMatch(/name="publicSlug"[^>]*value="taken"|value="taken"[^>]*name="publicSlug"/);
+    });
+  });
+
+  /* S36-004 · ADR-0039 — 공개된 적 없고 연결 0건인 초안만 admin이 지운다. 판정은 DB가 하고 화면은 근거를 보인다. */
+  describe('unused draft deletion', () => {
+    const draft = { ...ip, publishedAt: null };
+    const zero = { goods: 0, cards: 0, card_pools: 0, reward_policies: 0, events: 0, home_curations: 0, coupons: 0, order_items: 0, ip_follows: 0, posts: 0, other: 0 };
+    const readiness = { id: 'hwasan', title: '화산강림', publicSlug: 'hwasan', state: 'draft' as const, publicHistory: false,
+      aliases: [], references: zero, referenceTotal: 0, deletable: true };
+    const render = (props: Partial<Parameters<typeof IpSection>[0]>) => renderToStaticMarkup(
+      <IpSection accountId="operator-a" action={vi.fn()} onSelect={vi.fn()} pending={false} records={[draft]} selected={draft}
+        state={{}} verticals={[]} {...props} />,
+    );
+
+    it('offers an enabled delete with the zero-reference evidence to an admin', () => {
+      const html = render({ deletion: readiness, canDeleteDraft: true });
+      expect(html).toContain('미사용 초안 삭제');
+      expect(html).toContain('data-ip-draft-delete="deletable"');
+      for (const label of ['공개 이력', '상품', '카드풀', '뽑기권 발급 정책', '홈 전시', '쿠폰', '주문 품목', '팔로우']) expect(html).toContain(label);
+      expect(html).toContain('없음');
+      expect(html).not.toContain('기타 연결');
+      expect(html).toMatch(/<button(?![^>]*disabled="")[^>]*>(?:<svg[\s\S]*?<\/svg>)?\s*삭제<\/button>/);
+    });
+
+    it('keeps the delete closed for staff without admin authority', () => {
+      const html = render({ deletion: readiness, canDeleteDraft: false });
+      expect(html).toContain('미사용 IP 삭제는 관리자(admin)만 할 수 있습니다.');
+      expect(html).toMatch(/<button[^>]*disabled=""[^>]*>(?:<svg[\s\S]*?<\/svg>)?\s*삭제<\/button>/);
+    });
+
+    it('blocks an IP with linked goods and says why', () => {
+      const html = render({ deletion: { ...readiness, references: { ...zero, goods: 2 }, referenceTotal: 2, deletable: false }, canDeleteDraft: true });
+      expect(html).toContain('data-ip-draft-delete="blocked"');
+      expect(html).toContain('연결된 항목이 있어 삭제할 수 없습니다: 상품 2건');
+      expect(html).toMatch(/<button[^>]*disabled=""[^>]*>(?:<svg[\s\S]*?<\/svg>)?\s*삭제<\/button>/);
+    });
+
+    it('blocks a draft that was public once', () => {
+      const html = render({ deletion: { ...readiness, publicHistory: true, deletable: false }, canDeleteDraft: true });
+      expect(html).toContain('공개된 적이 있는 IP는 삭제할 수 없습니다. 더 쓰지 않으면 보관해주세요.');
+    });
+
+    it('never offers deletion for a published IP, a stale readiness or a missing judgement', () => {
+      expect(render({ selected: ip, records: [ip], deletion: readiness, canDeleteDraft: true })).not.toContain('미사용 초안 삭제');
+      expect(render({ deletion: { ...readiness, id: 'other' }, canDeleteDraft: true })).not.toContain('미사용 초안 삭제');
+      expect(render({ deletion: null, canDeleteDraft: true })).not.toContain('미사용 초안 삭제');
     });
   });
 

@@ -22,5 +22,14 @@ describe('IP workspace screen', () => {
     expect(html).toMatch(/<h2 class="[^"]*text-xl[^"]*">화산강림<\/h2><span[^>]*data-tone="neutral"[^>]*>초안<\/span>/);
     expect(html).toContain('href="/admin/catalog/ips/hwasan#ip-publish"');
     expect(html).toContain('게시 상태 변경');
+    expect(html).toContain('내부 ID(변경 불가) hwasan');
+    expect(html).not.toContain('IP를 등록했습니다');
+  });
+  /* S36-003 — 등록 직후(?created=1)에는 시스템이 발급한 내부 ID를 알린다. */
+  it('announces the system-issued internal ID right after registration', () => {
+    const html = renderToStaticMarkup(<IpWorkspaceScreen created data={{ ...data, tab: 'basic', related: [], relatedTotal: 0 }} />);
+    expect(html).toContain('data-admin-notice="success"');
+    expect(html).toContain('IP를 등록했습니다');
+    expect(html).toMatch(/내부 ID <code[^>]*>hwasan<\/code>는 시스템이 발급했고 바꿀 수 없습니다./);
   });
 });

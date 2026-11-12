@@ -1,9 +1,12 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { upsertAdminIpAction, type AdminCatalogActionState } from '@/app/admin/actions';
 import { IpSection } from '@/components/admin/sections/IpSection';
 import type { AdminCatalogRecords } from '@/lib/admin/catalog.server';
+import type { AdminIpDeleteReadiness } from '@/lib/admin/ip-delete';
+import { ipWorkspaceHref } from '@/lib/admin/ip-workspace';
 import type { CatalogSnapshot } from '@/lib/catalog';
 import { useSelectedRecord } from './record-selection';
 
@@ -18,12 +21,16 @@ const emptyState: AdminCatalogActionState = {};
  */
 export function IpScreen({
   accountId,
+  canDeleteDraft = false,
+  deletion = null,
   records,
   verticals,
   selectedId = null,
   hideRecordList = false,
 }: {
   accountId: string;
+  canDeleteDraft?: boolean;
+  deletion?: AdminIpDeleteReadiness | null;
   records: AdminCatalogRecords['ips'];
   verticals: CatalogSnapshot['verticals'];
   selectedId?: string | null;
@@ -31,14 +38,25 @@ export function IpScreen({
 }) {
   const [state, action, pending] = useActionState(upsertAdminIpAction, emptyState);
   const { selected, select } = useSelectedRecord(records, selectedId);
+  const router = useRouter();
+  /*
+   * 새 IP를 처음 저장하면 시스템이 발급한 내부 ID의 상세로 옮긴다(S36-003). 상세 머리와 기본 정보에서 그 ID를
+   * '내부 ID(변경 불가)'로 보고, 이어서 IP관 배너·공개 URL·게시 상태를 다룬다. 옮기는 동안에는 두 번 등록되지 않게 저장을 잠근다.
+   */
+  const createdId = !selectedId && !state.errors ? state.savedIpId ?? null : null;
+  useEffect(() => {
+    if (createdId) router.replace(`${ipWorkspaceHref(createdId)}?created=1`);
+  }, [createdId, router]);
 
   return (
     <IpSection
       accountId={accountId}
       action={action}
+      canDeleteDraft={canDeleteDraft}
+      deletion={deletion}
       hideRecordList={hideRecordList}
       onSelect={select}
-      pending={pending}
+      pending={pending || Boolean(createdId)}
       records={records}
       selected={selected}
       state={state}

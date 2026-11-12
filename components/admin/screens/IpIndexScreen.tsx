@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { Plus } from 'lucide-react';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
-import { AdminPageHeader, AdminStatusBadge } from '../console/AdminKit';
+import { AdminNotice, AdminPageHeader, AdminStatusBadge } from '../console/AdminKit';
 import { AdminSelect } from '../console/AdminSelect';
 import { ConsoleFilterField, ConsoleFilterPanel } from '../console/ConsoleFilterPanel';
 import { ConsoleGrid } from '../console/ConsoleGrid';
@@ -11,11 +11,14 @@ import { IP_INDEX_PATH, IP_INDEX_PAGE_SIZE, ipIndexHref, ipWorkspaceHref, type A
 import { ADMIN_IP_PUBLISH_STATE_LABELS, adminIpPublishState } from '@/lib/admin/ip-publish';
 import { statusTone } from '@/lib/admin/status-tone';
 
-export function IpIndexScreen({ data }: { data: AdminIpIndexData }) {
+export function IpIndexScreen({ data, deletedId = null }: { data: AdminIpIndexData; deletedId?: string | null }) {
   const { filters, ips, total, verticals } = data;
   return <section className="flex min-w-0 flex-col gap-4">
     <AdminPageHeader title="IP" description="IP 분류별로 IP를 찾고 연결된 콘텐츠를 관리합니다."
       actions={<Link className={buttonVariants()} data-slot="button" href={`${IP_INDEX_PATH}?create=1`}><Plus aria-hidden="true" />IP 등록</Link>} />
+    {deletedId ? <AdminNotice role="status" title="IP를 삭제했습니다" tone="success">
+      내부 ID {deletedId}는 다시 발급하지 않습니다. 삭제한 내용은 감사 로그에 남았습니다.
+    </AdminNotice> : null}
     <ConsoleFilterPanel action={IP_INDEX_PATH} search={{ name: 'q', label: 'IP 이름·ID', value: filters.query }}
       statusFilter={{ value: filters.status, options: [
         { value: 'active', label: '보관 제외' }, { value: 'all', label: '전체' },

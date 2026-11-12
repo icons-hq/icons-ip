@@ -49,6 +49,7 @@ import type { AdminCapability } from '@/lib/admin/access';
 import { loadGoodsIpOptions } from '@/lib/admin/goods-list.server';
 import { createClient } from '@/lib/supabase/server';
 import { RANDOM_OPTION_PROBLEMS, goodsOptionSaleModeErrorMessage } from '@/lib/goods-option-sale-mode';
+import { IP_PUBLIC_SLUG_ERROR_MESSAGES } from '@/lib/ip-identity';
 import { GOOD_OPTION_LIMIT_ERROR_FIELD } from '@/lib/admin/good-workspace';
 
 /*
@@ -57,6 +58,8 @@ import { GOOD_OPTION_LIMIT_ERROR_FIELD } from '@/lib/admin/good-workspace';
  */
 export interface AdminCatalogActionState extends AdminFormValuesState {
   savedGoodId?: string;
+  /** 새 IP 등록이 발급한 내부 ID. 등록 화면은 이 IP 상세로 옮겨 간다. */
+  savedIpId?: string;
   /** 저장 후 공개가 KC 검토에 막혀 같은 입력을 초안으로만 저장했다. `message`가 그 이유다. */
   kcPublishBlocked?: true;
   /** 등록 화면 원자 저장이 KC 섹션을 함께 저장했다. 첫 저장 뒤 KC 유형 틀을 다시 얹지 않는다. */
@@ -328,25 +331,32 @@ export async function upsertAdminIpAction(
   if (!result.ok) return fail({ errors: result.errors });
 
   const value = result.value;
+  const fields = {
+    target_title: value.title,
+    target_sub: value.sub,
+    target_vertical_key: value.verticalKey,
+    target_tagline: value.tagline,
+    target_synopsis: value.synopsis,
+    target_glyph: value.glyph,
+    target_bg: value.bg,
+    target_image_path: value.imagePath,
+    /* null 이면 게시 상태를 건드리지 않는다(신규는 초안). "저장 후 공개"만 true 를 보낸다. */
+    target_publish: value.publish,
+  };
+  let data: unknown = null;
   let error: { message: string } | null;
   try {
     const supabase = await createClient();
-    ({ error } = await supabase.rpc('admin_upsert_ip', {
-      target_id: value.id,
-      target_title: value.title,
-      target_sub: value.sub,
-      target_vertical_key: value.verticalKey,
-      target_tagline: value.tagline,
-      target_synopsis: value.synopsis,
-      target_glyph: value.glyph,
-      target_bg: value.bg,
-      target_image_path: value.imagePath,
-      // Exposure controls own this value; metadata saves preserve the latest DB flag.
-      target_featured: null,
-      target_previous_id: value.previousId,
-      /* null 이면 게시 상태를 건드리지 않는다(신규는 초안). "저장 후 공개"만 true 를 보낸다. */
-      target_publish: value.publish,
-    }));
+    /* 새 IP는 내부 ID를 보내지 않는다 — admin_create_ip가 공개 URL로 발급해 돌려준다(S36-003 · ADR-0039). */
+    ({ data, error } = value.previousId === null
+      ? await supabase.rpc('admin_create_ip', { target_public_slug: value.publicSlug, ...fields })
+      : await supabase.rpc('admin_upsert_ip', {
+        target_id: value.id,
+        ...fields,
+        // Exposure controls own this value; metadata saves preserve the latest DB flag.
+        target_featured: null,
+        target_previous_id: value.previousId,
+      }));
   } catch (error) {
     unstable_rethrow(error);
     return fail(rpcFailure('IP를 저장하지 못했습니다. 다시 시도해주세요.'));
@@ -354,16 +364,41 @@ export async function upsertAdminIpAction(
 
   if (error) {
     return fail(
-      catalogWriteIntentFailure(error.message)
+      ipCreateFailure(error.message)
+        ?? catalogWriteIntentFailure(error.message)
         ?? artworkClaimFailure(error.message)
         ?? archivedCatalogFailure(error.message)
         ?? rpcFailure('IP를 저장하지 못했습니다. 다시 시도해주세요.'),
     );
   }
 
+  const savedId = value.previousId === null
+    ? (typeof data === 'string' && /^[a-z0-9][a-z0-9-]*$/.test(data) ? data : null)
+    : value.id;
+  /* 등록은 됐지만 발급된 ID를 읽지 못했다 — 다시 저장하면 같은 공개 URL로 중복 등록을 시도하게 되므로 입력을 되살리지 않는다. */
+  if (!savedId) return rpcFailure('IP를 등록했지만 결과를 확인하지 못했습니다. IP 목록에서 확인해주세요.');
+
   /* 게시 전환은 검색 결과도 바꾼다 — 보관 액션이 비우는 표면과 맞춘다. */
-  revalidateCatalog([`/ip/${value.id}`, '/search', '/admin/catalog/ips', `/admin/catalog/ips/${value.id}`]);
+  revalidateCatalog([
+    `/ip/${savedId}`, ...(value.publicSlug && value.publicSlug !== savedId ? [`/ip/${value.publicSlug}`] : []),
+    '/search', '/admin/catalog/ips', `/admin/catalog/ips/${savedId}`,
+  ]);
+  if (value.previousId === null) {
+    return { message: value.publish ? 'IP를 등록하고 공개했습니다.' : 'IP를 등록했습니다.', savedIpId: savedId };
+  }
   return { message: value.publish ? 'IP를 저장하고 공개했습니다.' : 'IP를 저장했습니다.' };
+}
+
+/* 새 IP 등록(admin_create_ip)의 거절을 입력 칸 옆에 운영자 말로 붙인다. */
+function ipCreateFailure(message: string): AdminCatalogActionState | null {
+  if (message.includes('ip_public_slug_taken')) {
+    return { errors: { publicSlug: '이미 사용 중인 공개 URL입니다. 다른 주소를 입력해주세요.' } };
+  }
+  if (message.includes('invalid_ip_public_slug')) return { errors: { publicSlug: IP_PUBLIC_SLUG_ERROR_MESSAGES.format } };
+  if (message.includes('invalid_ip_title')) return { errors: { title: 'IP 이름을 입력해주세요.' } };
+  if (message.includes('invalid_ip_vertical')) return { errors: { verticalKey: '등록된 IP 분류를 선택해주세요.' } };
+  if (message.includes('ip_directory_conflict')) return rpcFailure('다른 운영자가 IP 노출 순서를 저장하는 중입니다. 잠시 후 다시 저장해주세요.');
+  return null;
 }
 
 /* 섹션 입력(KC 근거 참조 포함)과 작업 ID는 화면의 키 밖 상태가 보존한다. 실패 상태 값에 되싣지 않는다. */

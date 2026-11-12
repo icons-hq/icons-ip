@@ -14,5 +14,16 @@ describe('IP index', () => {
     expect(html).toContain('name="vertical"');
     expect(html).toContain('href="/admin/catalog/ips/hwasan"');
     expect(html).toContain('href="/admin/catalog/ips?create=1"');
+    expect(html).not.toContain('IP를 삭제했습니다');
+  });
+
+  /* S36-004 — 미사용 초안을 지운 뒤 돌아온 목록은 지운 내부 ID가 다시 발급되지 않음을 알린다. */
+  it('confirms a deleted draft once after returning from the delete action', () => {
+    const html = renderToStaticMarkup(<IpIndexScreen deletedId="test-ip" data={{
+      filters: { query: '', vertical: '', page: 1, status: 'active' }, total: 0, verticals: [], ips: [],
+    }} />);
+    expect(html).toContain('data-admin-notice="success"');
+    expect(html).toContain('IP를 삭제했습니다');
+    expect(html).toContain('내부 ID test-ip는 다시 발급하지 않습니다.');
   });
 });

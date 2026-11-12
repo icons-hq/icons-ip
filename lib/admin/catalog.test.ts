@@ -243,9 +243,11 @@ describe('admin catalog form normalization', () => {
     });
   });
 
-  it('normalizes a valid IP form', () => {
+  /* S36-003 · ADR-0039 — 새 IP는 내부 ID 없이 공개 URL로 등록하고, 내부 ID는 DB가 공개 URL로 발급한다. */
+  it('normalizes a valid new IP form around its public URL', () => {
     const formData = new FormData();
-    formData.set('id', ' hwasan ');
+    formData.set('publicSlug', ' hwasan ');
+    formData.set('id', 'ignored-for-new-ip');
     formData.set('title', ' 화산강림 ');
     formData.set('sub', '리디 · 로판');
     formData.set('verticalKey', 'rofan');
@@ -261,7 +263,8 @@ describe('admin catalog form normalization', () => {
       ok: true,
       value: {
         previousId: null,
-        id: 'hwasan',
+        id: null,
+        publicSlug: 'hwasan',
         title: '화산강림',
         sub: '리디 · 로판',
         verticalKey: 'rofan',
@@ -284,7 +287,7 @@ describe('admin catalog form normalization', () => {
     ['', null],
   ])('maps the IP form intent %j to publish %j', (intent, publish) => {
     const formData = new FormData();
-    formData.set('id', 'hwasan');
+    formData.set('publicSlug', 'hwasan');
     formData.set('title', '화산강림');
     formData.set('verticalKey', 'rofan');
     if (intent) formData.set('intent', intent);
@@ -345,7 +348,7 @@ describe('admin catalog form normalization', () => {
 
   it('rejects missing required IP fields and unknown verticals', () => {
     const formData = new FormData();
-    formData.set('id', ' ');
+    formData.set('publicSlug', ' ');
     formData.set('title', ' ');
     formData.set('verticalKey', 'unknown');
     formData.set('fansCount', '-1');
@@ -353,10 +356,36 @@ describe('admin catalog form normalization', () => {
     expect(normalizeAdminIpForm(formData, context)).toEqual({
       ok: false,
       errors: {
-        id: 'ID를 입력해주세요.',
+        publicSlug: '공개 URL을 입력해주세요.',
         title: 'IP 이름을 입력해주세요.',
         verticalKey: '등록된 IP 분류를 선택해주세요.',
       },
+    });
+  });
+
+  it.each([
+    ['Hwasan', '공개 URL은 영문 소문자·숫자·하이픈만 사용할 수 있습니다.'],
+    ['hwasan-', '공개 URL은 영문 소문자·숫자·하이픈만 사용할 수 있습니다.'],
+    ['a'.repeat(81), '공개 URL은 영문 소문자·숫자·하이픈만 사용할 수 있습니다.'],
+    ['aouad', '이 공개 URL은 시스템 경로로 예약되어 있습니다.'],
+  ])('rejects the new IP public URL %j', (publicSlug, message) => {
+    const formData = new FormData();
+    formData.set('publicSlug', publicSlug);
+    formData.set('title', '화산강림');
+    formData.set('verticalKey', 'rofan');
+    expect(normalizeAdminIpForm(formData, context)).toEqual({ ok: false, errors: { publicSlug: message } });
+  });
+
+  it('edits an existing IP by its internal ID and never reads a public URL from the basic form', () => {
+    const formData = new FormData();
+    formData.set('previousId', 'hwasan');
+    formData.set('id', 'hwasan');
+    formData.set('publicSlug', 'ignored');
+    formData.set('title', '화산강림');
+    formData.set('verticalKey', 'rofan');
+    expect(normalizeAdminIpForm(formData, context)).toMatchObject({
+      ok: true,
+      value: { previousId: 'hwasan', id: 'hwasan', publicSlug: null },
     });
   });
 
