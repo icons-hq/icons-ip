@@ -508,7 +508,7 @@ describe('goods Excel planning', () => {
     // 상품번호와 판매자상품코드가 어긋나거나, 없는 번호·숫자가 아닌 번호는 오류다.
     const mismatch = planGoodsWorkbookImport([{ row: 5, values: { ...values, code: 'OTHER-CODE' } }], context)[0];
     expect(mismatch).toMatchObject({ kind: 'error', target: null });
-    expect(mismatch.errors.join()).toContain('상품번호 1042와 판매자상품코드 OTHER-CODE가 서로 다른 상품을 가리킵니다');
+    expect(mismatch.errors.join()).toContain('상품번호 1042와 판매자상품코드 OTHER-CODE이(가) 서로 다른 상품을 가리킵니다');
     expect(planGoodsWorkbookImport([{ row: 5, values: { ...values, productNo: '999999' } }], context)[0].errors.join())
       .toContain('상품번호 999999인 상품을 찾을 수 없습니다');
     for (const productNo of ['1,042', '0', 'abc', '-1'])
@@ -518,6 +518,17 @@ describe('goods Excel planning', () => {
     expect(planGoodsWorkbookImport([row({ code: 'NEW-9', id: 'brand-new' })], context)[0].kind).toBe('new');
     expect(planGoodsWorkbookImport([row({ id: 'brand-new' })], context)[0].kind).toBe('new');
     expect(planGoodsWorkbookImport([row()], context)[0].kind).toBe('new');
+    // QA2: 기존 행을 복사해 새 상품을 만들 때 관리코드가 남아 있으면 적용 전에 미리보기에서 막는다(적용 단계 실패는 상품번호를 쓴다).
+    const owned = { ...context, variantCodeOwners: { 'DUP-OPT-1': 'GO-001' } };
+    const copied = planGoodsWorkbookImport([row({ id: 'brand-new', variantCode: 'dup-opt-1' })], owned)[0];
+    expect(copied).toMatchObject({ kind: 'error', target: null });
+    expect(copied.errors.join()).toContain('관리코드 DUP-OPT-1는 다른 상품(GO-001)의 옵션이 이미 쓰고 있습니다');
+    // 같은 파일 안에서 관리코드가 겹쳐도(상품이 달라도) 미리보기에서 막는다.
+    const dup = planGoodsWorkbookImport([row({ id: 'a1', name: '가', variantCode: 'SAME-1' }), row({ id: 'a2', name: '나', variantCode: 'same-1' })], context);
+    expect(dup.map((group) => group.kind)).toEqual(['error', 'error']);
+    expect(dup[0].errors.join()).toContain('관리코드 SAME-1');
+    // 관리코드를 비운 새 행은 영향이 없다.
+    expect(planGoodsWorkbookImport([row({ id: 'brand-new', variantCode: '' })], owned)[0].kind).toBe('new');
   });
   /*
    * 리뷰 재현(T17a-RV ①②): 내보낸 파일에서 기존 상품 행을 복사해 새 상품을 만들며 상품번호·판매자상품코드만 지우고

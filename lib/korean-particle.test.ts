@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { directionParticle, objectParticle, resultParticle, topicParticle } from './korean-particle';
+import { conjunctionParticle, subjectParticle, directionParticle, objectParticle, resultParticle, topicParticle } from './korean-particle';
 
 describe('directionParticle — 로/으로', () => {
   it('받침 없음·ㄹ 받침은 로, 그 밖의 받침은 으로', () => {
@@ -79,5 +79,16 @@ describe('objectParticle — 을/를', () => {
     expect(objectParticle('문구 3')).toBe('을');
     expect(objectParticle('문구 2')).toBe('를');
     expect(objectParticle('Name')).toBe('을(를)');
+  });
+});
+
+describe('subjectParticle·conjunctionParticle — 이/가·과/와', () => {
+  it('숫자·코드의 읽는 끝소리를 따른다(QA2: 40와·QT-0006가)', () => {
+    expect(conjunctionParticle('40')).toBe('과');
+    expect(conjunctionParticle('12')).toBe('와');
+    expect(subjectParticle('QT-0006')).toBe('이');
+    expect(subjectParticle('QT-0005')).toBe('가');
+    expect(subjectParticle('ABC')).toBe('이(가)');
+    expect(conjunctionParticle('ABC')).toBe('과(와)');
   });
 });
