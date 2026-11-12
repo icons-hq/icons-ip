@@ -28,8 +28,9 @@ it('확정할 수 없는 준비 작업이면 잠긴 이유와 [대상 다시 확
   const html = render({ initial: batch() });
   expect(executeButton(html)).toContain('disabled=""');
   expect(executeButton(html)).toContain('aria-describedby="coupon-issue-execute-reason"');
-  expect(html).toContain('이 확인 결과는 유효 시간(2026. 11. 12. 오전 10:15:00까지)이 지났거나 다른 로그인 세션·다른 운영자가 만든 작업이라 확정할 수 없습니다. [대상 다시 확인]을 누른 뒤 [발급 대상 확인]으로 새로 확인해주세요.');
+  expect(html).toContain('이 확인 결과는 유효 시간(2026. 11. 12. 오전 10:15:00까지)이 지났거나 다른 로그인 세션·다른 운영자가 만든 작업이라 확정할 수 없습니다. [대상 다시 확인]을 누르면 같은 고객이 다시 채워지니 [발급 대상 확인]으로 새로 확인해주세요.');
   expect(html).toMatch(/<button[^>]*>대상 다시 확인<\/button>/);
+  expect(render({ initial: batch({ targetKind: 'segment', segmentName: 'VIP 세그먼트' }) })).toContain('[대상 다시 확인]을 누른 뒤 세그먼트를 다시 골라 [발급 대상 확인]으로 새로 확인해주세요.');
 });
 
 it('확정할 수 있는 작업은 확인란이 남은 이유만 말하고, 다시 확인 버튼은 두지 않는다', () => {

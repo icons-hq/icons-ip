@@ -24,7 +24,9 @@ import { Textarea } from '@/components/admin/kit/ui/textarea';
  */
 function executeBlockedReason(batch: CouponIssueBatch, confirmed: boolean, uncertain: boolean): string | null {
   if (batch.status !== 'prepared') return null;
-  if (!batch.canExecute) return `이 확인 결과는 유효 시간(${new Date(batch.validUntil).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}까지)이 지났거나 다른 로그인 세션·다른 운영자가 만든 작업이라 확정할 수 없습니다. [대상 다시 확인]을 누른 뒤 [발급 대상 확인]으로 새로 확인해주세요.`;
+  if (!batch.canExecute) return `이 확인 결과는 유효 시간(${new Date(batch.validUntil).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}까지)이 지났거나 다른 로그인 세션·다른 운영자가 만든 작업이라 확정할 수 없습니다. ${batch.targetKind === 'customers'
+    ? '[대상 다시 확인]을 누르면 같은 고객이 다시 채워지니 [발급 대상 확인]으로 새로 확인해주세요.'
+    : '[대상 다시 확인]을 누른 뒤 세그먼트를 다시 골라 [발급 대상 확인]으로 새로 확인해주세요.'}`;
   if (!confirmed && !uncertain) return '대상과 새 발급 수를 확인했다는 확인란에 체크하면 확정할 수 있습니다.';
   return null;
 }
@@ -46,6 +48,11 @@ export function CouponIssueWorkspace({ coupon, actorId, sessionId, initial = nul
   }, [justSaved]);
   const executeReason = batch && !pending && !session.blocked ? executeBlockedReason(batch, confirmed, uncertain) : null;
   function changed() { setBatch(null); setConfirmed(false); setError(''); previewRequest.current = null; }
+  /* 확정할 수 없는 준비 작업을 다시 준비한다. 작업 조회로 화면이 새로 열려 입력이 비었으면 그 작업의 고객을 다시 채운다(판정은 새 확인이 다시 한다). */
+  function reprepare() {
+    if (batch?.targetKind === 'customers' && !couponIssueCustomerIds(ids)) { setKind('customers'); setIds(batch.rows.map(row => row.userId).join('\n')); }
+    changed();
+  }
   function find() { const current = ++searchSequence.current; start(async () => {
     const result = await findCouponIssueCustomersAction(query); if (!session.current() || current !== searchSequence.current) return;
       if ('rows' in result && result.rows) { setCustomers(result.rows); setError(result.rows.length ? '' : '조건에 맞는 고객이 없습니다.'); } else setError(result.error ?? '고객을 조회하지 못했습니다.');
@@ -91,7 +98,8 @@ export function CouponIssueWorkspace({ coupon, actorId, sessionId, initial = nul
       <div className="flex flex-wrap gap-2">
         {batch.status === 'prepared' ? <Button aria-describedby={executeReason ? 'coupon-issue-execute-reason' : undefined} type="button" disabled={pending || session.blocked || !batch.canExecute || !confirmed && !uncertain} onClick={execute}>{uncertain ? '같은 발급 요청 결과 확인' : '쿠폰 발급 확정'}</Button> : null}
         <Button type="button" variant="outline" disabled={pending || session.blocked} onClick={read}>현재 작업 결과 조회</Button>
-        {['failed','invalid'].includes(batch.status) || batch.status === 'prepared' && !batch.canExecute ? <Button type="button" variant="outline" disabled={blocked} onClick={changed}>대상 다시 확인</Button> : null}
+        {['failed','invalid'].includes(batch.status) ? <Button type="button" variant="outline" disabled={blocked} onClick={changed}>대상 다시 확인</Button>
+          : batch.status === 'prepared' && !batch.canExecute ? <Button type="button" variant="outline" disabled={blocked} onClick={reprepare}>대상 다시 확인</Button> : null}
       </div>
       {executeReason ? <p className="text-sm leading-relaxed text-muted-foreground" id="coupon-issue-execute-reason">{executeReason}</p> : null}
     </AdminSectionCard> : null}
