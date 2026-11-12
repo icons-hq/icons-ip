@@ -54,6 +54,7 @@ import { shipmentStatusLabel, type ShipmentRecord, type ShipmentStatus } from '@
 import { bankTransferDepositNameWithCode } from '@/lib/payments/bank-transfer';
 import type { OrderItemAllocation } from './item-allocation';
 import { DELIVERY_METHOD_LABELS, deliveryStatusLabel, type ShipmentDeliverySummary } from '@/lib/shipment-delivery';
+import type { RefundTransferRow } from './refund-transfers';
 
 interface ColumnSpec<Row> extends ListExportColumn {
   value: (row: Row) => ListExportCellValue | undefined;
@@ -412,5 +413,90 @@ export function claimsListExportSheet(input: {
       to: filters.to,
       query: filters.query || null,
     },
+  };
+}
+
+/* ------------------------------------------------------------------------- */
+/* 환불 송금 대기 — 송금할 무통장 환불 요청 한 건이 한 행 */
+
+/**
+ * 환불 송금 대기 엑셀의 계좌 열(은행·계좌번호·예금주·계좌 상태) 스위치. 이 한 곳에서 켜고 끈다.
+ * 2026-11-11 사용자 결정(1007-047·048 "계좌 포함 + 비밀번호 엑셀")으로 켰다. 켜져 있으면 내려받을 때마다 서버가 요청별 계좌 열람을
+ * 기록하고(`service_export_bank_transfer_refund_accounts`) 그 계좌를 싣는다. 끄면 계좌 열람 없이 화면과 같은 열만 남는다.
+ * 어느 쪽이든 파일은 비밀번호를 건 엑셀로만 내려간다.
+ */
+export const REFUND_TRANSFER_EXPORT_INCLUDES_ACCOUNT = true;
+
+export type RefundTransferAccountStatus = 'revealed' | 'not_filed' | 'unavailable';
+export interface RefundTransferExportAccount {
+  status: RefundTransferAccountStatus;
+  bankName: string | null;
+  accountNumber: string | null;
+  accountHolder: string | null;
+}
+const REFUND_TRANSFER_ACCOUNT_STATUS_LABELS: Record<RefundTransferAccountStatus, string> = {
+  revealed: '확인됨', not_filed: '환불 접수 전', unavailable: '요청 상세 확인 필요',
+};
+
+const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+/** 화면(`RefundTransfersScreen`)과 같이 한국 달력으로 센 대기 일수. */
+function refundTransferWaitingDays(confirmedAt: string, now: Date) {
+  const from = Date.parse(confirmedAt);
+  if (Number.isNaN(from)) return null;
+  return Math.max(0, Math.floor((now.getTime() + KST_OFFSET_MS) / DAY_MS) - Math.floor((from + KST_OFFSET_MS) / DAY_MS));
+}
+
+interface RefundTransferLine { row: RefundTransferRow; account: RefundTransferExportAccount | null }
+
+export function refundTransfersListExportSheet(input: {
+  rows: RefundTransferRow[];
+  /** 요청 id → 계좌. 계좌 열을 켰으면 모든 요청의 값이 있어야 한다(없으면 파일을 만들지 않는다). */
+  accounts: ReadonlyMap<string, RefundTransferExportAccount> | null;
+  /** 이번 내려받기의 계좌 열람 기록 id. 발급 감사 기록이 이 열람을 가리킨다. */
+  accountExportId: string | null;
+  now: Date;
+  /** 시험용. 기본은 `REFUND_TRANSFER_EXPORT_INCLUDES_ACCOUNT`. */
+  includeAccount?: boolean;
+}): AdminListExportSheet {
+  const includeAccount = input.includeAccount ?? REFUND_TRANSFER_EXPORT_INCLUDES_ACCOUNT;
+  const accounts = input.accounts;
+  if (includeAccount && (!accounts || !input.accountExportId || input.rows.some(row => !accounts.has(row.claimId)))) {
+    throw new Error('환불 계좌를 확인하지 못해 파일을 만들지 않았습니다. 잠시 후 다시 내려받아 주세요.');
+  }
+  const lines = input.rows.map<RefundTransferLine>(row => ({ row, account: includeAccount ? accounts?.get(row.claimId) ?? null : null }));
+  const columns: ColumnSpec<RefundTransferLine>[] = [
+    column(V.claimNumber, 'code', 10, ({ row }) => orderClaimReferenceLabel(row.reference)),
+    column('송금 대기 금액', 'amount', 14, ({ row }) => row.amount),
+    column('결제자', 'text', 16, ({ row }) => row.payerName || '이름 미등록'),
+    ...(includeAccount ? [
+      column<RefundTransferLine>('은행', 'text', 14, ({ account }) => blank(account?.bankName)),
+      column<RefundTransferLine>('계좌번호', 'code', 22, ({ account }) => blank(account?.accountNumber)),
+      column<RefundTransferLine>('예금주', 'text', 14, ({ account }) => blank(account?.accountHolder)),
+      column<RefundTransferLine>('계좌 상태', 'text', 18, ({ account }) => (account ? REFUND_TRANSFER_ACCOUNT_STATUS_LABELS[account.status] : null)),
+    ] : []),
+    column('대기 일수', 'count', 10, ({ row }) => refundTransferWaitingDays(row.confirmedAt, input.now)),
+    column('유형', 'text', 12, ({ row }) => `${row.gift ? '선물 · ' : ''}${row.claimType === 'cancel' ? '취소' : '반품'}`),
+    column('주문번호', 'code', 22, ({ row }) => orderReferenceLabel(row.orderId, row.orderNumber)),
+    column('취소 확정일', 'text', 17, ({ row }) => nullable(kstDateTimeText(row.confirmedAt))),
+    column('환불 접수일', 'text', 17, ({ row }) => (row.filedAt ? nullable(kstDateTimeText(row.filedAt)) : '미접수')),
+    column('요청자', 'text', 16, ({ row }) => row.requesterName || '이름 미등록'),
+  ];
+  return {
+    screen: 'refund-transfers',
+    title: ADMIN_LIST_EXPORT_SCREENS['refund-transfers'].label,
+    ...table(columns, lines),
+    recordCount: input.rows.length,
+    conditions: [['대상', '송금 대기 중인 무통장 환불 전체']],
+    notes: [
+      '한 행은 송금을 기다리는 무통장 환불 요청 한 건입니다. 결제자에게 송금 대기 금액을 보낸 뒤 요청 상세에서 송금 완료를 기록해야 이 목록에서 빠집니다.',
+      ...(includeAccount ? [
+        '은행·계좌번호·예금주는 고객이 환불 접수 때 등록한 계좌 원문입니다. 계좌 상태가 "확인됨"이 아닌 요청은 계좌 칸이 비어 있으니 요청 상세에서 확인한 뒤 송금하세요.',
+        '이 파일을 내려받을 때 요청마다 계좌 열람 기록(담당자·시각)이 남았습니다. 송금에만 쓰고, 송금이 끝나면 파일을 삭제해주세요.',
+      ] : []),
+      '선물 주문도 환불은 결제자 기준입니다. 요청자와 결제자를 혼동하지 마세요.',
+      '대기 일수는 취소 확정일부터 내려받은 날까지 한국 날짜로 셉니다.',
+    ],
+    filters: includeAccount ? { accountExportId: input.accountExportId } : {},
   };
 }

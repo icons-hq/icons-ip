@@ -14,7 +14,7 @@ import { trackingImportCommand } from './warehouse-templates.server';
 import { encryptAdminWorkbook } from './encrypted-workbook.server';
 
 const HEADERS = ['주문번호', '상품주문번호', '배송건번호', '구매자', '수취인', '연락처', '우편번호', '주소', '배송메시지', '출고지', '택배사', '운송장번호',
-  '상품번호', '상품코드', '상품명', '옵션', '옵션코드', '수량', '상품별 할인액', '품목 실결제액(배송비 제외)', '결제일', '결제수단', '주문일시', '발주확인일', '발송 예정일',
+  '상품번호', '상품코드', '상품명', '옵션', '옵션코드', '바코드', 'ERP 품명', '수량', '상품별 할인액', '품목 실결제액(배송비 제외)', '결제일', '결제수단', '주문일시', '발주확인일', '발송 예정일',
   '배송비 형태', '배송비 합계', '제주/도서 추가배송비', '배송비 할인액'];
 const detail: SmartStoreShipmentDetail = {
   orderNumber: '2026102010000001', productOrderNumber: '2026102020000001', shipmentNumber: '2026102030000001',
@@ -25,7 +25,7 @@ const detail: SmartStoreShipmentDetail = {
 };
 const line = { shipmentId: '60000000-0000-4000-8000-000000000003', orderId: '60000000-0000-4000-8000-000000000004', recipient: '합성 수취인', phone: '01001234567',
   postalCode: '00123', address: '합성 기본 주소 합성 상세 주소', goodCode: '000123', variantCode: '000123-RED', goodName: '=합성 상품', optionName: '빨강', qty: 2, unitPrice: 12500,
-  deliveryNote: '문 앞\n부탁합니다', carrier: '한진택배', smartstore: detail };
+  deliveryNote: '문 앞\n부탁합니다', carrier: '한진택배', barcode: '0880000000011', erpCode: 'ERP-RED', erpName: 'ERP 합성 키링 빨강', smartstore: detail };
 const shipment = { id: line.shipmentId, updatedAt: '2026-10-20T00:00:00Z', originId: '60000000-0000-4000-8000-000000000005', originName: '김포',
   template: 'wms_csv', shippingFee: 3000, columns: [...DEFAULT_SHIPMENT_EXPORT_COLUMNS], lines: [line] };
 const carriers = [{ code: 'hanjin', label: '한진택배', active: true, trackingUrlTemplate: 'https://example.test/{trackingNumber}' }];
@@ -41,7 +41,7 @@ describe('ICONS 표준 양식 출고지시', () => {
     expect(sheet.getRow(1).values).toEqual([undefined, ...HEADERS]);
     expect(sheet.columnCount).toBe(HEADERS.length);
     expect(sheet.views[0]).toMatchObject({ state: 'frozen', ySplit: 1 });
-    expect(sheet.autoFilter).toBe('A1:AC2');
+    expect(sheet.autoFilter).toBe('A1:AE2');
     expect(sheet.getRow(1).height).toBe(22);
     for (let column = 1; column <= HEADERS.length; column++) {
       expect(sheet.getCell(1, column).font).toMatchObject({ name: '맑은 고딕', size: 10, bold: true });
@@ -66,7 +66,7 @@ describe('ICONS 표준 양식 출고지시', () => {
     expect(value(sheet, '상품주문번호').value).toBe(detail.productOrderNumber);
     expect(value(sheet, '상품주문번호').value).not.toBe(line.shipmentId);
     expect(value(sheet, '배송건번호').value).toBe(detail.shipmentNumber);
-    for (const [header, expected] of [['연락처', line.phone], ['우편번호', line.postalCode], ['상품코드', line.goodCode], ['옵션코드', line.variantCode]]) {
+    for (const [header, expected] of [['연락처', line.phone], ['우편번호', line.postalCode], ['상품코드', line.goodCode], ['옵션코드', line.variantCode], ['바코드', line.barcode]]) {
       expect(value(sheet, header).value).toBe(expected); expect(value(sheet, header).numFmt).toBe('@');
     }
     // 빈 운송장 칸도 입력 전에 텍스트 서식이어야 앞자리 0을 지킨다.
@@ -89,6 +89,55 @@ describe('ICONS 표준 양식 출고지시', () => {
     expect(value(bank.worksheets[0], '결제수단').value).toBe('무통장 입금');
   });
 
+  it('옵션의 바코드(앞자리 0 보존)·ERP 품명을 옵션코드 뒤에 싣고 값이 없으면 빈칸으로 둔다(1027T-046)', async () => {
+    const sheet = (await exported()).worksheets[0];
+    expect(HEADERS.slice(HEADERS.indexOf('옵션코드'), HEADERS.indexOf('수량') + 1)).toEqual(['옵션코드', '바코드', 'ERP 품명', '수량']);
+    expect(value(sheet, '바코드').value).toBe('0880000000011');
+    expect(value(sheet, '바코드').type).toBe(ExcelJS.ValueType.String);
+    expect(value(sheet, 'ERP 품명').value).toBe('ERP 합성 키링 빨강');
+    // ERP 코드는 ICONS 표준 양식에 싣지 않는다(요청은 품명·바코드).
+    expect(HEADERS).not.toContain('ERP 코드');
+    const blank = await load((await buildShipmentExport({ shipments: [{ ...shipment, lines: [{ ...line, barcode: '  ', erpName: '' }] }] }, 'xlsx', 'smartstore')).bytes);
+    expect(value(blank.worksheets[0], '바코드').value).toBeNull();
+    expect(value(blank.worksheets[0], '바코드').numFmt).toBe('@');
+    expect(value(blank.worksheets[0], 'ERP 품명').value).toBeNull();
+    // 바코드·ERP 키가 없는 옛 응답 행도 빈칸으로 내보낸다.
+    const legacy = Object.fromEntries(Object.entries(line).filter(([key]) => !['barcode', 'erpCode', 'erpName'].includes(key))) as typeof line;
+    const old = await load((await buildShipmentExport({ shipments: [{ ...shipment, lines: [legacy] }] }, 'xlsx', 'smartstore')).bytes);
+    expect(value(old.worksheets[0], '바코드').value).toBeNull();
+    expect(value(old.worksheets[0], 'ERP 품명').value).toBeNull();
+    const info = new Map<string, string[]>();
+    (await exported()).getWorksheet('내려받기 정보')!.eachRow(row => { const key = String(row.getCell(1).value); info.set(key, [...(info.get(key) ?? []), String(row.getCell(2).value)]); });
+    expect(info.get('안내')!.join(' ')).toContain('바코드·ERP 품명');
+  });
+
+  it('금액·결제 칸을 비운 응답(null)도 빈칸으로 만들고 다른 칸은 그대로 둔다(물류 출고 권한 결정 대기)', async () => {
+    const blankDetail = { ...detail, paymentMethod: null, paidAt: null, itemDiscount: null, sellerDiscount: null, itemTotal: null,
+      regionalShippingFee: null, shippingDiscount: null } as unknown as SmartStoreShipmentDetail;
+    const blank = { ...shipment, shippingFee: null, shippingCollectFee: null,
+      lines: [{ ...line, unitPrice: null, smartstore: blankDetail }, { ...line, unitPrice: null, smartstore: { ...blankDetail, itemId: '60000000-0000-4000-8000-000000000016' } }] };
+    const sheet = (await load((await buildShipmentExport({ shipments: [blank] } as unknown as ShipmentExportData, 'xlsx', 'smartstore')).bytes)).worksheets[0];
+    for (const row of [2, 3]) {
+      for (const header of ['결제일', '결제수단', '상품별 할인액', '품목 실결제액(배송비 제외)', '배송비 형태', '배송비 합계', '제주/도서 추가배송비', '배송비 할인액']) {
+        expect(value(sheet, header, row).value, `${header} ${row}`).toBeNull();
+      }
+      expect(value(sheet, '상품주문번호', row).value).toMatch(/^\d{16}$/);
+      expect(value(sheet, '수량', row).value).toBe(2);
+    }
+    expect(value(sheet, '바코드').value).toBe('0880000000011');
+    // 비운 값(null)이 아니라 잘못된 숫자는 여전히 거절한다.
+    await expect(buildShipmentExport({ shipments: [{ ...shipment, shippingFee: -1 }] }, 'xlsx', 'smartstore')).rejects.toThrow('금액');
+    await expect(buildShipmentExport({ shipments: [{ ...shipment, lines: [{ ...line, unitPrice: 0.5 }] }] }, 'xlsx', 'smartstore')).rejects.toThrow('상품주문 정보');
+  });
+
+  it('주문번호·상품주문번호 칸은 새 번호 체계(20자리)도 잘리지 않는 텍스트 칸이다', async () => {
+    const sheet = (await exported()).worksheets[0];
+    for (const header of ['주문번호', '상품주문번호']) {
+      expect(sheet.getColumn(HEADERS.indexOf(header) + 1).width).toBeGreaterThanOrEqual(20);
+      expect(value(sheet, header).numFmt).toBe('@');
+    }
+  });
+
   it('출고지를 한 시트에 모으고 배송비를 배송 건의 첫 행에 한 번만 쓴다', async () => {
     const secondLine = { ...line, smartstore: { ...detail, itemId: '60000000-0000-4000-8000-000000000006' } };
     const other = { ...shipment, id: '60000000-0000-4000-8000-000000000007', originId: '60000000-0000-4000-8000-000000000008', originName: '남양주', template: 'seowon_xlsx', shippingFee: 4000,
@@ -96,7 +145,7 @@ describe('ICONS 표준 양식 출고지시', () => {
     const book = await load((await buildShipmentExport({ shipments: [{ ...shipment, lines: [line, secondLine] }, other] }, 'xlsx', 'smartstore')).bytes);
     expect(book.worksheets.map(sheet => sheet.name)).toEqual(['발주(주문)확인 발송관리', '내려받기 정보']);
     expect(book.worksheets[0].rowCount).toBe(4);
-    expect(book.worksheets[0].autoFilter).toBe('A1:AC4');
+    expect(book.worksheets[0].autoFilter).toBe('A1:AE4');
     expect([2, 3, 4].map(row => value(book.worksheets[0], '배송비 합계', row).value)).toEqual([3000, 0, 4000]);
     expect([2, 3, 4].map(row => value(book.worksheets[0], '출고지', row).value)).toEqual(['김포', '김포', '남양주']);
     expect(book.getWorksheet('내려받기 정보')!.getCell('B3').value).toBe('김포, 남양주');

@@ -37,8 +37,9 @@ export interface SmartStoreShipmentDetail {
  * 그 파일에서 항상 비는 열만 `only`로 덜어 낸다. 열 이름은 주문통합검색 엑셀과 `CONTEXT.md`를 따른다.
  */
 const ICONS_STANDARD_COLUMNS: readonly (ListExportColumn & { only?: 'instruction' | 'list' })[] = [
-  { header: '주문번호', kind: 'code', width: 20 },
-  { header: '상품주문번호', kind: 'code', width: 20 },
+  /* 새 번호 체계의 20자리 주문번호·상품주문번호도 잘리지 않게 22자 너비를 둔다. */
+  { header: '주문번호', kind: 'code', width: 22 },
+  { header: '상품주문번호', kind: 'code', width: 22 },
   { header: '배송건번호', kind: 'code', width: 20 },
   { header: '구매자', kind: 'text', width: 16 },
   { header: '수취인', kind: 'text', width: 12 },
@@ -55,8 +56,11 @@ const ICONS_STANDARD_COLUMNS: readonly (ListExportColumn & { only?: 'instruction
   { header: '상품코드', kind: 'code', width: 14 },
   { header: '상품명', kind: 'text', width: 44 },
   { header: '옵션', kind: 'text', width: 30 },
-  /* 목록 조회(admin_delivery_list_export_lines)에는 옵션코드가 없다. */
+  /* 목록 조회(admin_delivery_list_export_lines)에는 옵션코드·바코드·ERP 품명이 없다. */
   { header: '옵션코드', kind: 'code', width: 16, only: 'instruction' },
+  /* 10/27 회의(1027T-046): 물류가 옵션별 바코드로 출고하도록 옵션의 바코드·ERP 품명을 싣는다. 값이 없으면 빈칸이다. */
+  { header: '바코드', kind: 'code', width: 18, only: 'instruction' },
+  { header: 'ERP 품명', kind: 'text', width: 36, only: 'instruction' },
   { header: '수량', kind: 'count', width: 8 },
   { header: '상품별 할인액', kind: 'amount', width: 14 },
   { header: '품목 실결제액(배송비 제외)', kind: 'amount', width: 24 },

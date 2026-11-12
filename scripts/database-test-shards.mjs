@@ -49,6 +49,7 @@ const operators = [
     `READABLE_ORDER_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=${databaseContainer} PGDATABASE=postgres python3 supabase/tests/readable_order_numbers_concurrency.py`,
   ),
   sql('smartstore_shipment_workbook'),
+  sql('warehouse_reply_order_numbers'),
   sql('admin_seller_cancel_intake'),
   sql('purchase_restriction_bulk_release'),
   sql('admin_order_item_console', { kc: true }),
@@ -113,6 +114,7 @@ const catalog = [
   sql('admin_sales_hourly_report'),
   sql('admin_benefit_issuances'),
   sql('admin_encrypted_export_audit', { admin: true }),
+  sql('refund_transfer_list_export'),
   sql('goods_custom_input_workbook', { admin: true }),
 ];
 
