@@ -139,7 +139,8 @@ begin
   select * into claim from public.order_cancellation_requests where id = p_claim_id;
   if not found or claim.claim_type <> 'return' or claim.reason_type <> 'change_of_mind' then return null; end if;
   select * into purchase from public.orders where id = claim.order_id;
-  basis := case when coalesce(purchase.shipping_fee, 0) = 0 then 'round_trip' else 'one_way' end;
+  -- 왕복은 '최초 배송비를 한 푼도 내지 않은' 주문만이다. 선결제 배송비(shipping_fee)와 착불(shipping_collect_total) 둘 다 0원일 때.
+  basis := case when coalesce(purchase.shipping_fee, 0) = 0 and coalesce(purchase.shipping_collect_total, 0) = 0 then 'round_trip' else 'one_way' end;
   fee := settings.one_way_amount::bigint * case when basis = 'round_trip' then 2 else 1 end;
   select count(*) into payment_count from public.payments p
    where p.purpose = 'order' and p.ref_id = claim.order_id and p.status <> 'failed';
@@ -150,6 +151,10 @@ begin
     when payment_count <> 1 or pay.id is null or pay.amount <= 0 then 'payment_unavailable'
     when exists(select 1 from private.gift_intents g where g.order_id = claim.order_id) then 'gift_order'
     when pay.provider not in ('toss', 'bank_transfer') then 'partial_cancel_unsupported'
+    -- 정기배송(billing) 결제는 결제사 부분 취소 계약이 없다 — 차감을 결정하지 않고 전액 환불 + 배송비 청구로 간다.
+    when exists(select 1 from public.payment_attempts a
+      join private.payment_provider_bindings b on b.attempt_id = a.id
+      where a.purpose = 'order' and a.ref_id = claim.order_id) then 'partial_cancel_unsupported'
     when pay.provider = 'toss' and exists(select 1 from public.payment_attempts a
       join private.payment_provider_evidence e on e.payment_attempt_id = a.id
       where a.purpose = 'order' and a.ref_id = claim.order_id
@@ -162,7 +167,7 @@ begin
     'reason', reason,
     'oneWayAmount', settings.one_way_amount,
     'basis', basis,
-    'initialShippingFee', coalesce(purchase.shipping_fee, 0),
+    'initialShippingFee', coalesce(purchase.shipping_fee, 0) + coalesce(purchase.shipping_collect_total, 0),
     'deductionAmount', fee,
     'paymentId', pay.id,
     'provider', pay.provider,
@@ -313,7 +318,7 @@ language sql stable security definer set search_path = '' as $$
   select jsonb_build_object('claimId', d.claim_id, 'state', d.state,
     'paymentAmount', d.payment_amount, 'deductionAmount', d.deduction_amount,
     'refundAmount', case when d.state = 'not_applied' then d.payment_amount else d.refund_amount end,
-    'basis', d.basis, 'oneWayAmount', d.one_way_amount, 'reason', d.not_applied_reason)
+    'basis', d.basis, 'oneWayAmount', d.one_way_amount, 'reason', d.not_applied_reason, 'provider', d.provider)
   from private.claim_refund_deductions d
   join public.orders o on o.id = d.order_id
   where d.order_id = p_order_id and auth.uid() is not null and o.user_id = auth.uid()

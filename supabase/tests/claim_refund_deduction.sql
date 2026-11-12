@@ -3,7 +3,7 @@
 --  1. 스위치 OFF: 판정·화면 필드·일괄 금액·환불 원장·알림이 지금과 같다(결정 행 없음).
 --  2. 스위치 ON(편도 3,000원): 단순 변심 반품 카드 결제 30,000원 → 접수 때 차감 3,000원·환불 27,000원 결정, 원장 27,000원,
 --     부분 취소 확인 없이 finalizer가 확정하지 않고, 확인 뒤 환불 원장·결제·결정이 27,000원으로 맞는다.
---  3. 최초 무료배송 왕복, 하자 사유 없음, 나이스페이·결제액 이하 차감은 판정만(전액), 부분 취소 불가 → 전액 환불로 돌림.
+--  3. 최초 무료배송 왕복(착불로 첫 배송비를 냈으면 편도), 정기배송 결제는 차감 없음, 하자 사유 없음, 나이스페이·결제액 이하 차감은 판정만(전액), 부분 취소 불가 → 전액 환불로 돌림.
 --  4. 무통장 반품: 송금 대기 금액·송금 목록·계좌 열람 판정이 27,000원.
 --  5. 배송비 청구 이중 청구 방지, 결정 불변, 스위치 감사·삭제 금지.
 begin;
@@ -260,6 +260,51 @@ select 1/case when (select state = 'completed' and amount = 27000 from private.b
  and exists(select 1 from public.audit_log where action = 'admin.order.bank_refund_confirm_cancellation' and target = 'order:'||pg_temp.rd_id('order', 4)
    and diff#>>'{refundDeduction,refundAmount}' = '27000' and (diff->>'amount')::bigint = 30000)
  then 1 else 0 end as bank_transfer_completes_with_deducted_amount;
+
+-- 4b. 첫 배송비를 낸 방식과 결제 경로에 따른 판정 --------------------------------------------------------------------------
+-- 주문 9: 착불로 첫 배송비 3,000원을 낸 주문(선결제 배송비 0원). 무료배송이 아니므로 편도다.
+-- 주문 10: 정기배송(billing) 결제. 결제사 부분 취소 계약이 없어 차감하지 않는다.
+reset role;
+insert into public.orders(id, user_id, status, total, shipping_fee, shipping_collect_total, address, payment_method, created_at, delivered_at)
+ select pg_temp.rd_id('order', n), pg_temp.rd_id('user', 2), 'delivered'::public.order_status, 27000, 0, case when n = 9 then 3000 else 0 end,
+  '{"recipientName":"TEST 구매자","phone":"01000000000","postalCode":"12345","address1":"TEST 합성 주소"}', 'card'::public.order_payment_method,
+  clock_timestamp() - interval '3 days', clock_timestamp() - interval '1 day' from generate_series(9, 10) n;
+insert into public.order_items(id, order_id, good_id, variant_id, good_name_snapshot, good_type_snapshot, good_ip_id_snapshot, qty, unit_price)
+ select pg_temp.rd_id('item', n), pg_temp.rd_id('order', n), 'refund-deduction-good-9', v.id, 'TEST 반품배송비 상품', '문구', 'refund-deduction-ip', 2, 13500
+ from generate_series(9, 10) n join public.goods_variants v on v.good_id = 'refund-deduction-good-9' and v.is_default;
+insert into public.payments(id, user_id, provider, purpose, ref_id, amount, status, payment_key, idempotency_key, created_at)
+ select pg_temp.rd_id('payment', n), pg_temp.rd_id('user', 2), 'toss'::public.payment_provider, 'order', pg_temp.rd_id('order', n), 27000,
+  'paid'::public.payment_status, 'TEST-RD-KEY-'||n, 'refund-deduction-test-'||n, clock_timestamp() - interval '3 days' from generate_series(9, 10) n;
+insert into public.payment_attempts(id, provider, user_id, purpose, ref_id, amount, currency, state, idempotency_key, provider_order_id, provider_product_code, payment_id, expires_at)
+ values (pg_temp.rd_id('attempt', 10), 'toss', pg_temp.rd_id('user', 2), 'order', pg_temp.rd_id('order', 10), 27000, 'KRW', 'approved',
+  'refund-deduction-attempt-10', 'TEST-RD-ORDER-10', 'TEST-RD-PRODUCT-10', pg_temp.rd_id('payment', 10), clock_timestamp() + interval '1 hour');
+-- billing 바인딩은 구독 주기·프로필 원장이 필요한 무거운 행이라 FK·트리거를 끄고 합성한다(이 트랜잭션에서만).
+set local session_replication_role = replica;
+insert into private.payment_provider_bindings(attempt_id, integration, owner_id, profile_id, merchant_id, environment, credential_id, cycle_id, write_key_version, first_dispatched_at)
+ values (pg_temp.rd_id('attempt', 10), 'toss_billing', pg_temp.rd_id('user', 2), pg_temp.rd_id('profile', 10), 'TEST-MID', 'test',
+  pg_temp.rd_id('credential', 10), pg_temp.rd_id('cycle', 10), 'v1', clock_timestamp());
+set local session_replication_role = origin;
+insert into public.order_cancellation_requests(id, order_id, requested_by, reason, reason_type, claim_type, stage, collection_policy, collected_at, requested_at)
+ select pg_temp.rd_id('claim', n), pg_temp.rd_id('order', n), pg_temp.rd_id('user', 2), 'TEST 반품배송비 차감 검증', 'change_of_mind', 'return', 'collected', 'legacy',
+  clock_timestamp() - interval '30 minutes', clock_timestamp() - interval '2 days' from generate_series(9, 10) n;
+-- 착불 첫 배송비는 왕복이 아니라 편도: 3,000원 차감·24,000원 환불. 근거(최초 배송비)에는 착불분이 남는다.
+select 1/case when private.return_fee_deduction_plan(pg_temp.rd_id('claim', 9)) @> '{"applicable": true, "basis": "one_way", "deductionAmount": 3000, "refundAmount": 24000, "initialShippingFee": 3000, "paymentAmount": 27000}'
+ then 1 else 0 end as collect_shipping_is_one_way_not_free_shipping;
+-- 정기배송 결제는 차감 결정이 없고 전액 환불로 간다.
+select 1/case when private.return_fee_deduction_plan(pg_temp.rd_id('claim', 10)) @> '{"applicable": false, "reason": "partial_cancel_unsupported", "refundAmount": 27000}'
+ and private.claim_refund_deduction_notice(pg_temp.rd_id('claim', 10), 'filed') is null
+ then 1 else 0 end as billing_payment_is_not_deducted;
+select pg_temp.rd_auth();
+set local role authenticated;
+select public.admin_record_order_claim_refund(pg_temp.rd_id('claim', 9), 'pg_cancel', 'filed', null);
+select public.admin_record_order_claim_refund(pg_temp.rd_id('claim', 10), 'pg_cancel', 'filed', null);
+reset role;
+select 1/case when (select basis = 'one_way' and deduction_amount = 3000 and refund_amount = 24000 and initial_shipping_fee = 3000
+   from private.claim_refund_deductions where claim_id = pg_temp.rd_id('claim', 9))
+ and not exists(select 1 from private.claim_refund_deductions where claim_id = pg_temp.rd_id('claim', 10))
+ and (select amount = 27000 from public.refunds where payment_id = pg_temp.rd_id('payment', 10))
+ and not exists(select 1 from public.notifications where source_id = pg_temp.rd_id('claim', 10)::text and body like '%반품배송비%')
+ then 1 else 0 end as collect_decision_one_way_and_billing_has_no_decision;
 
 -- 5. 스위치를 다시 꺼도 이미 정한 결정은 그대로, 새 판정은 없다 ------------------------------------------------------------
 update private.return_fee_deduction_settings set enabled = false where singleton;

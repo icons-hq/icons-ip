@@ -75,6 +75,19 @@ describe('attempt integration dispatch', () => {
     expect(recurring.refund).toHaveBeenCalledWith({ ...refund, binding: input.binding, writeKeyVersion: 'v1', firstDispatchedAt: '2026-10-14T00:59:00Z' });
     expect(dependencies.legacy.refund).not.toHaveBeenCalled();
   });
+  it('billing 결제의 부분 취소 요청은 돈을 움직이지 않고 부분 취소 불가로 돌려준다', async () => {
+    const { gateway, dependencies, recurring, input } = setup(billingChargeFixture().binding);
+    const refund = { ...billingRefundFixture(), partial: { expectedBalanceBefore: input.attempt.amount } };
+    expect(await gateway.refund(refund)).toMatchObject({ outcome: 'declined', reasonCode: 'provider_partial_cancel_unavailable' });
+    expect(recurring.refund).not.toHaveBeenCalled(); expect(dependencies.prepareRefund).not.toHaveBeenCalled();
+    expect(dependencies.legacy.refund).not.toHaveBeenCalled();
+  });
+  it('일반 결제의 부분 취소 요청은 legacy gateway가 그대로 받는다', async () => {
+    const { gateway, dependencies, input } = setup();
+    const refund = { ...billingRefundFixture(), partial: { expectedBalanceBefore: input.attempt.amount } };
+    await gateway.refund(refund);
+    expect(dependencies.legacy.refund).toHaveBeenCalledWith(refund);
+  });
 });
 
 describe('payment dispatch repository', () => {

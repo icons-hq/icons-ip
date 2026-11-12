@@ -128,6 +128,8 @@ export interface MyOrderRefundDeduction {
   refundAmount: number;
   basis: 'one_way' | 'round_trip';
   oneWayAmount: number;
+  /** 결제수단(toss·bank_transfer). 옛 응답에는 없을 수 있다 — 없으면 카드 문구를 쓴다. */
+  provider: string | null;
 }
 
 /** get_my_order_claim_refund_deduction 응답. 결정이 없거나 모양이 어긋나면 null. */
@@ -143,7 +145,7 @@ export function parseMyOrderRefundDeduction(value: unknown): MyOrderRefundDeduct
   if (!state || paymentAmount === null || deductionAmount === null || refundAmount === null || oneWayAmount === null || !basis) return null;
   if (state !== 'not_applied' && refundAmount + deductionAmount !== paymentAmount) return null;
   if (state === 'not_applied' && refundAmount !== paymentAmount) return null;
-  return { state, paymentAmount, deductionAmount, refundAmount, basis, oneWayAmount };
+  return { state, paymentAmount, deductionAmount, refundAmount, basis, oneWayAmount, provider: typeof value.provider === 'string' ? value.provider : null };
 }
 
 /** 구매자 주문 상세 문구. 차감을 정한 뒤부터 보인다. */
@@ -158,9 +160,12 @@ export function myOrderRefundDeductionCopy(deduction: MyOrderRefundDeduction): {
     };
   }
   const done = deduction.state === 'applied';
+  const tail = deduction.provider === 'bank_transfer'
+    ? '환불은 등록하신 환불계좌로 송금해 드립니다.'
+    : '카드 부분 취소는 카드사 처리에 영업일 기준 3~4일이 걸릴 수 있습니다.';
   return {
     title: `반품배송비 ${krwAmountWords(deduction.deductionAmount)} 차감, 환불 ${krwAmountWords(deduction.refundAmount)}`,
-    body: `단순 변심 반품이라 결제 금액 ${krwAmountWords(deduction.paymentAmount)}에서 ${basis}를 뺀 금액을 ${done ? '환불했습니다' : '환불합니다'}. 카드 부분 취소는 카드사 처리에 영업일 기준 3~4일이 걸릴 수 있습니다.`,
+    body: `단순 변심 반품이라 결제 금액 ${krwAmountWords(deduction.paymentAmount)}에서 ${basis}를 뺀 금액을 ${done ? '환불했습니다' : '환불합니다'}. ${tail}`,
   };
 }
 

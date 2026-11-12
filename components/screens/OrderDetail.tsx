@@ -17,7 +17,7 @@ import { OrderCancellation } from '@/components/orders/OrderCancellation';
 import { OrderReshipmentHistory } from '@/components/orders/OrderReshipmentHistory';
 import { OrderClaimRequest } from '@/components/orders/OrderClaimRequest';
 import { OrderRefundDeduction } from '@/components/orders/OrderRefundDeduction';
-import type { MyOrderRefundDeduction } from '@/lib/claims/return-fee-deduction';
+import type { MyOrderRefundDeduction, ReturnFeeDeductionPolicy } from '@/lib/claims/return-fee-deduction';
 import { PurchaseConfirmationPanel } from '@/components/orders/PurchaseConfirmationPanel';
 import { newInquiryHref } from '@/lib/inquiries';
 import type { MyReviewTarget } from '@/lib/reviews.server';
@@ -214,6 +214,7 @@ export function OrderDetail({
   claimTypeHistory = [],
   claimReasonHistory = [],
   refundDeduction = null,
+  returnFeePolicy = null,
 }: {
   viewerId?: string;
   /**
@@ -233,6 +234,7 @@ export function OrderDetail({
   claimReasonHistory?: ClaimReasonHistory[] | null;
   /** 반품배송비 차감 결정(ADR-0031). 결정이 없으면 null — 아무것도 그리지 않는다. */
   refundDeduction?: MyOrderRefundDeduction | null;
+  returnFeePolicy?: ReturnFeeDeductionPolicy | null;
 }) {
   const date = formatOrderDate(order.createdAt);
   const at = now ?? new Date();
@@ -377,6 +379,7 @@ export function OrderDetail({
               refund={order.refund}
               eligibility={order.claimEligibility}
               orderId={order.id}
+              returnFeePolicy={returnFeePolicy}
               status={order.status}
             />
           ) : null}

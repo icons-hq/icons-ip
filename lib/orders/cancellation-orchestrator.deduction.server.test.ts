@@ -382,6 +382,19 @@ describe('기본 의존성 — 차감 결정 RPC와 게이트웨이 요청', () 
     });
   });
 
+  it('정기배송(billing) 결제의 부분 취소 거절도 돈이 움직이지 않은 채 전액 환불로 돌아간다', async () => {
+    rpcWith({ claimId: REQUEST_ID, provider: 'toss', ...planned });
+    // attempt 래퍼가 billing 바인딩 결제의 partial 요청에 돌려주는 결과(증거 없음)
+    defaultMocks.gatewayRefund
+      .mockResolvedValueOnce({ attemptId: ATTEMPT_ID, provider: 'toss', outcome: 'declined', reasonCode: 'provider_partial_cancel_unavailable' })
+      .mockResolvedValueOnce(approvedRefund());
+
+    await expect(reconcileOrderCancellation({ requestId: REQUEST_ID, actorId: ACTOR_ID }))
+      .resolves.toEqual({ ok: true, status: 'completed' });
+    expect(defaultMocks.rpc).not.toHaveBeenCalledWith('service_record_order_claim_partial_refund', expect.anything());
+    expect(defaultMocks.rpc).toHaveBeenCalledWith('service_fallback_order_claim_refund_deduction', expect.anything());
+  });
+
   it('차감 결정 응답의 모양이 어긋나면 결제사 호출 전에 멈춘다', async () => {
     rpcWith({ ...planned, refundAmount: 28000 });
 

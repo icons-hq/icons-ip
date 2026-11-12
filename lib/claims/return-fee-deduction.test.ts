@@ -62,6 +62,15 @@ describe('문구', () => {
     expect(parseMyOrderRefundDeduction({ state: 'applied', paymentAmount: 30000, deductionAmount: 3000, refundAmount: 30000, basis: 'one_way', oneWayAmount: 3000 })).toBeNull();
     expect(parseMyOrderRefundDeduction(null)).toBeNull();
   });
+
+  it('무통장은 환불계좌 송금 문구로, 카드는 카드사 문구로 끝난다', () => {
+    const base = { state: 'applied', paymentAmount: 30000, deductionAmount: 3000, refundAmount: 27000, basis: 'one_way', oneWayAmount: 3000 };
+    const bank = parseMyOrderRefundDeduction({ ...base, provider: 'bank_transfer' });
+    expect(bank && myOrderRefundDeductionCopy(bank).body).toContain('환불은 등록하신 환불계좌로 송금해 드립니다.');
+    expect(bank && myOrderRefundDeductionCopy(bank).body).not.toContain('카드');
+    const card = parseMyOrderRefundDeduction({ ...base, provider: 'toss' });
+    expect(card && myOrderRefundDeductionCopy(card).body).toContain('카드 부분 취소는 카드사 처리에');
+  });
 });
 
 describe('접수 안내(orderClaimIntakeNotice)', () => {
