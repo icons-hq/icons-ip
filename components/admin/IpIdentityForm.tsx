@@ -32,7 +32,7 @@ export function IpIdentityForm({ identity }: { identity: AdminIpIdentity }) {
   return (
     <section className={SECTION_CARD}>
       <SectionHeading
-        description={<>내부 참조 ID <code className={CODE}>{identity.internalId}</code>는 유지됩니다. URL을 바꾸면 이전 주소는 별칭으로 계속 연결되고 다시 사용할 수 없습니다.</>}
+        description={<>내부 ID <code className={CODE}>{identity.internalId}</code>는 시스템이 발급해 바뀌지 않습니다. 공개 URL을 바꾸면 이전 주소는 별칭으로 계속 연결되고 다른 IP가 다시 쓸 수 없습니다.</>}
         title="공개 URL"
       />
       <form action={formAction} className="flex flex-col gap-4" key={formKey}>
@@ -40,7 +40,7 @@ export function IpIdentityForm({ identity }: { identity: AdminIpIdentity }) {
         <input name="previousId" type="hidden" value={identity.internalId} />
         <input name="expectedPublicSlug" type="hidden" value={identity.publicSlug} />
         <div className="flex min-w-0 flex-col gap-2">
-          <Label htmlFor={inputId}>공개 슬러그</Label>
+          <Label htmlFor={inputId}>공개 URL</Label>
           <Input
             aria-describedby={helpId}
             aria-invalid={state.errors?.publicSlug ? 'true' : undefined}
@@ -53,7 +53,7 @@ export function IpIdentityForm({ identity }: { identity: AdminIpIdentity }) {
             required
           />
           <p className="text-sm text-muted-foreground" id={helpId}>
-            영문 소문자·숫자·하이픈, 최대 80자
+            /ip/ 뒤에 붙는 주소입니다. 영문 소문자·숫자·하이픈, 최대 80자
           </p>
           {state.errors?.publicSlug ? <p className="text-sm text-destructive" role="alert">{state.errors.publicSlug}</p> : null}
         </div>
