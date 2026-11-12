@@ -132,7 +132,9 @@ describe('Orders', () => {
         <Orders orders={[]} paymentResult="failed" paymentFocus={{ orderId, outcome: 'not_approved', cartRetained: true }} />,
       );
       expect(html).toContain('장바구니는 그대로 있으니');
-      expect(html).toContain('href="/checkout"');
+      /* 그 주문의 결제 화면에서 그 주문의 줄로만 주문서 초안을 만든다 — 초안 없는 /checkout(장바구니 전체)이 아니다(ADR-0030). */
+      expect(html).toContain(`href="/checkout/${orderId}"`);
+      expect(html).not.toContain('href="/checkout"');
       expect(html).not.toContain('주문 정리하고 다시 주문하기');
       const canceled = renderToStaticMarkup(
         <Orders orders={[]} paymentResult="failed" paymentFocus={{ orderId, outcome: 'canceled', cartRetained: true }} />,

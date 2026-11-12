@@ -1,0 +1,143 @@
+/* ------------------------------------------------------------------
+   장바구니 선택 주문·선택 삭제 (ADR-0030 · 10/14 회의 1014-031·035·036)
+   카트 행 앞에 체크 칸을 하나 더 세우고, 목록 위에 [전체 선택 | 선택 삭제 · 전체 비우기] 바를 둔다.
+   행의 썸네일·정보·밴드·줄 금액 배치(wc-catalog.css 카트 절, CT-04)는 그대로다 — 밴드와 줄 금액은
+   원래대로 모든 칸을 가로지른다(grid-column 1 / -1).
+   ------------------------------------------------------------------ */
+
+.wc-cart__line.wc-cart__line--selectable {
+  grid-template-columns: 24px 80px minmax(0, 1fr);
+}
+
+.wc-cart__line-check {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 2px;
+}
+
+/* 누르는 영역은 44×44(DESIGN.md touch-target). 칸(24)은 그대로 두고 라벨의 보이지 않는 여백을 바깥 여백·칸 사이(16)로
+   넓힌다 — 오른쪽은 10px만 넓혀 썸네일(목적지 링크)과 겹치지 않는다. 체크박스 자체는 그 여백 위에 올려, 체크박스를 직접
+   누르는 클릭(보조기술·자동화 포함)은 라벨의 여백이 아니라 입력에 닿는다. 여백을 누르면 라벨이 같은 입력을 바꾼다. */
+.wc-cart__line-check::before {
+  content: '';
+  position: absolute;
+  top: -11px;
+  right: -10px;
+  bottom: -11px;
+  left: -10px;
+}
+
+.wc-cart__line-check input {
+  position: relative;
+  z-index: 1;
+}
+
+.wc-cart__line-check input,
+.wc-cart__select-all input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--wc-ink);
+  cursor: pointer;
+}
+
+.wc-cart__line-check input:disabled,
+.wc-cart__select-all input:disabled {
+  cursor: default;
+}
+
+/* 선택 바 — 목록 위 한 줄. 데스크톱 목록 칼럼의 2px 잉크 선 아래에 선다. */
+.wc-cart__select-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--wc-hairline);
+}
+
+.wc-cart__select-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--wc-ink);
+  cursor: pointer;
+}
+
+.wc-cart__select-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 모바일 터치 영역 44px(DESIGN.md touch-target). 데스크톱(990+)은 포인터라 32px로 줄인다. */
+.wc-cart__select-action {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--wc-line-control);
+  background: var(--wc-surface);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--wc-ink);
+  cursor: pointer;
+}
+
+.wc-cart__select-action:disabled {
+  color: var(--wc-ink-disabled);
+  cursor: default;
+}
+
+/* 전체 비우기 확인 — 주소록 삭제 확인(MyAddresses)과 같은 자리 확인 패턴이다. */
+.wc-cart__clear-confirm {
+  margin: 12px 0 0;
+  padding: 16px;
+  background: var(--wc-surface-grey);
+}
+
+.wc-cart__clear-confirm p {
+  margin: 0 0 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--wc-ink);
+}
+
+.wc-cart__clear-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* 선택 주문 안내(선택한 굿즈만 주문, 나머지는 장바구니에 남음). */
+.wc-cart__selection-note {
+  margin: 12px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--wc-ink-tertiary);
+}
+
+@media (min-width: 990px) {
+  .wc-cart__line.wc-cart__line--selectable {
+    grid-template-columns: 24px 64px minmax(0, 1fr);
+  }
+
+  .wc-cart__select-all {
+    min-height: 32px;
+  }
+
+  .wc-cart__select-action {
+    min-height: 32px;
+  }
+}
+
+@media (forced-colors: active) {
+  .wc-cart__clear-confirm {
+    border: 1px solid CanvasText;
+  }
+}

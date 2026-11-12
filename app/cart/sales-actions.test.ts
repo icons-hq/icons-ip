@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-const mocks = vi.hoisted(() => ({ quote: vi.fn(), precheckout: vi.fn() }));
+const mocks = vi.hoisted(() => ({ quote: vi.fn(), precheckout: vi.fn(), rpc: vi.fn(), parse: vi.fn() }));
 vi.mock('@/lib/goods-sales.server', () => ({ loadGoodsSalesQuote: mocks.quote, loadGoodsSalesPrecheckoutQuote: mocks.precheckout }));
-import { quoteGoodsSalesAction, quoteGoodsSalesPrecheckoutAction } from './sales-actions';
+vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ rpc: mocks.rpc }) }));
+vi.mock('@/lib/shipping-regions', async (importOriginal) => ({ ...await importOriginal<typeof import('@/lib/shipping-regions')>(),
+  parseAddressGoodsSalesQuote: mocks.parse }));
+import { quoteGoodsSalesAction, quoteGoodsSalesPrecheckoutAction, quoteGoodsSalesWithCouponAction } from './sales-actions';
 import { goodsSalesPrecheckoutQuote } from '@/test/fixtures/goods-sales-precheckout';
 beforeEach(() => vi.resetAllMocks());
 describe('public sales quote action', () => {
@@ -51,3 +54,26 @@ describe('precheckout sales action', () => {
     expect(mocks.quote).not.toHaveBeenCalled();
   });
 });
+
+/* 바로구매 주문서(ADR-0030)의 견적은 장바구니 쿠폰 선택이 아니라 주문서에서 고른 쿠폰으로 계산한다. */
+describe('direct checkout sales quote action', () => {
+  const items = [{ goodId: 'g1', variantId: '00000000-0000-4000-8000-000000000001', qty: 1 }];
+  const coupon = '11111111-1111-4111-8111-111111111111';
+  it('품목·배송지·고른 쿠폰만 DB 견적으로 넘긴다', async () => {
+    mocks.rpc.mockResolvedValue({ data: { raw: true }, error: null });
+    mocks.parse.mockReturnValue({ subtotal: 1000 });
+    expect(await quoteGoodsSalesWithCouponAction([{ ...items[0], price: 1 }], null, coupon.toUpperCase())).toEqual({ ok: true, quote: { subtotal: 1000 } });
+    expect(mocks.rpc).toHaveBeenCalledWith('quote_goods_sales_for_address_with_coupon', { items, destination: null, p_user_coupon_id: coupon });
+    await quoteGoodsSalesWithCouponAction(items, null, null);
+    expect(mocks.rpc).toHaveBeenLastCalledWith('quote_goods_sales_for_address_with_coupon', { items, destination: null, p_user_coupon_id: null });
+  });
+  it('쿠폰 모양이 틀리거나 견적이 실패하면 할인·무료 결제를 약속하지 않는다', async () => {
+    expect(await quoteGoodsSalesWithCouponAction(items, null, 'not-a-coupon')).toMatchObject({ ok: false });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'boom' } });
+    expect(await quoteGoodsSalesWithCouponAction(items, null, null)).toMatchObject({ ok: false });
+    mocks.rpc.mockRejectedValue(new Error('offline'));
+    expect(await quoteGoodsSalesWithCouponAction(items, null, null)).toMatchObject({ ok: false });
+  });
+});
+

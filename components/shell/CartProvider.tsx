@@ -16,6 +16,7 @@ import {
   addCartSelectionAction,
   deleteCartItemAction,
   releaseUnpaidCartOrdersAction,
+  removeCartLinesAction,
   setCartItemQuantityAction,
   syncCartAction,
 } from '@/app/cart/actions';
@@ -57,6 +58,8 @@ interface CartCtx {
   setQuantity: (goodId: string, qty: number, stockQty: number, variantId: string, customInputs?: GoodsCustomInputSelection) => Promise<void>;
   addSelection: (baseGoodId: string, selection: readonly CartSelectionItem[]) => Promise<boolean>;
   remove: (goodId: string, variantId: string, customInputs?: GoodsCustomInputSelection) => Promise<void>;
+  /** 여러 줄을 한 번에 지운다(선택 삭제·전체 비우기, ADR-0030). 반영이 확정되면 true. */
+  removeLines: (lines: readonly CartItem[]) => Promise<boolean>;
   refresh: () => Promise<void>;
   resetForSignOut: () => void;
 }
@@ -325,6 +328,55 @@ export function CartProvider({ children }: { children: ReactNode }) {
     await setQuantity(goodId, 0, Number.MAX_SAFE_INTEGER, variantId,customInputs);
   }, [setQuantity]);
 
+  /* 선택 삭제·전체 비우기(ADR-0030). 화면이 넘긴 줄만 지운다 — 전체 비우기도 다른 탭에서 막 담겨 아직 보이지
+     않은 줄은 남긴다. 계정 장바구니는 서버가 확정한 목록으로 다시 그린다. */
+  const removeLines = useCallback(async (targets: readonly CartItem[]) => {
+    if (!ready || pendingRef.current || !targets.length) return false;
+    const keys = new Set(targets.map((item) => cartItemKey(item.goodId, item.variantId, item.customInputs)));
+    const previous = itemsRef.current;
+    const next = previous.filter((item) => !keys.has(cartItemKey(item.goodId, item.variantId, item.customInputs)));
+    setError(null);
+    if (modeRef.current === 'local') {
+      keepAsLocal(next);
+      return true;
+    }
+    replaceItems(next);
+    replacePending(true);
+    const operationVersion = operationVersionRef.current;
+    try {
+      /* 화면 줄에는 카탈로그 굿즈 등이 붙어 있다 — 줄 식별만 서버로 보낸다. */
+      const result = await removeCartLinesAction(targets.map(({ goodId, variantId, qty, customInputs }) => (
+        { goodId, variantId, qty, ...(customInputs ? { customInputs } : {}) })));
+      if (operationVersion !== operationVersionRef.current) return false;
+      if (result.ok) {
+        replaceItems(result.items);
+        replaceMode(result.mode);
+        return true;
+      }
+      if (result.mode === 'local' && !result.error) {
+        keepAsLocal(next);
+        return true;
+      }
+      replaceItems(previous);
+      setError(result.error ?? '장바구니를 저장하지 못했습니다.');
+      return false;
+    } catch {
+      if (operationVersion === operationVersionRef.current) {
+        replaceItems(previous);
+        setError('장바구니를 저장하지 못했습니다. 다시 시도해주세요.');
+      }
+      return false;
+    } finally {
+      if (operationVersion === operationVersionRef.current) {
+        replacePending(false);
+        if (syncQueuedRef.current) {
+          syncQueuedRef.current = false;
+          window.setTimeout(() => void syncRef.current(), 0);
+        }
+      }
+    }
+  }, [keepAsLocal, ready, replaceItems, replaceMode, replacePending]);
+
   const removeLegacyItem = useCallback((goodId: string) => {
     if (pendingRef.current || modeRef.current !== 'local') return;
     const remaining = pendingLocalItemsRef.current.filter((item) => item.variantId || item.goodId !== goodId);
@@ -365,9 +417,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
     addSelection,
     setQuantity,
     remove,
+    removeLines,
     refresh: sync,
     resetForSignOut,
-  }), [add, addSelection, count, error, items, legacyItems, mode, pending, ready, remove, removeLegacyItem, resetForSignOut, setQuantity, sync]);
+  }), [add, addSelection, count, error, items, legacyItems, mode, pending, ready, remove, removeLegacyItem, removeLines, resetForSignOut, setQuantity, sync]);
 
   return (
     <Ctx.Provider value={value}>
@@ -394,8 +447,12 @@ export function useCart() {
  * 달라고 요청하고, 닫힌 주문이 있으면 서버 화면(쿠폰 상태 등)을 다시 읽은 뒤에 견적을 연다.
  * 로그인하지 않은 장바구니는 기다리지 않는다. 요청이 실패해도 화면을 막지 않는다 — 새 주문
  * 생성이 같은 정리를 다시 한다.
+ *
+ * `scope`: 장바구니·장바구니 주문서는 'cart'(장바구니 출처 주문만 닫는다 — 다른 탭의 바로구매 결제창을 끊지 않는다),
+ * 바로구매 주문서는 'none'(아무것도 닫지 않는다 — 보기만으로 다른 탭의 결제를 끊지 않는다, ADR-0030). 견적이 결제 대기
+ * 주문 때문에 막히면 화면이 그 주문을 알리고, 고객이 누를 때만 출처와 무관하게 닫는다(CheckoutPendingOrderRelease).
  */
-export function useReleaseUnpaidCartOrders(): boolean {
+export function useReleaseUnpaidCartOrders(scope: 'cart' | 'none' = 'cart'): boolean {
   const { ready, mode } = useCart();
   const router = useRouter();
   const started = useRef(false);
@@ -404,7 +461,7 @@ export function useReleaseUnpaidCartOrders(): boolean {
   const server = ready && mode === 'server';
 
   useEffect(() => {
-    if (!server || started.current) return;
+    if (scope === 'none' || !server || started.current) return;
     started.current = true;
     void releaseUnpaidCartOrdersAction().then(
       (result) => {
@@ -413,9 +470,9 @@ export function useReleaseUnpaidCartOrders(): boolean {
       },
       () => setSettled(true),
     );
-  }, [router, server]);
+  }, [router, scope, server]);
 
   if (!ready) return false;
-  if (mode !== 'server') return true;
+  if (mode !== 'server' || scope === 'none') return true;
   return settled && !refreshing;
 }

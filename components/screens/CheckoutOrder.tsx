@@ -11,6 +11,8 @@ import {
   type PrepareGoodsPaymentActionState,
 } from '@/app/checkout/actions';
 import { ReorderAction } from '@/components/checkout/ReorderAction';
+import { CheckoutDirectRetryButton } from './CheckoutDirectRetryButton';
+import { CheckoutRetryButton } from './CheckoutRetryButton';
 import { ListingReturnLink } from '@/components/shell/ListingReturn';
 import { PreparedCheckoutAction } from '@/components/payments/PreparedCheckoutAction';
 import {
@@ -291,8 +293,12 @@ export function CheckoutOrder({
               <p>{statusCopy?.body ?? closedCopy.body}</p>
               {giftReturn}
               {reorderMode === 'retry_from_cart' ? (
-                <Link className="btn btn-holo" href="/checkout">다시 결제하기</Link>
-              ) : reorderMode && (
+                <CheckoutRetryButton orderId={order.id} />
+              ) : reorderMode === 'retry_direct' && order.directGoodId ? (
+                /* 바로구매 주문(ADR-0030 확정 동작 8)은 장바구니와 무관하다 — '다시 구매하기'가 이 주문을 결제 없이 닫고 같은 구성으로
+                   바로구매 주문서를 다시 연다. 구성을 바꾸려면 보조 링크로 굿즈 상세에 간다. */
+                <CheckoutDirectRetryButton goodId={order.directGoodId} orderId={order.id} />
+              ) : reorderMode && reorderMode !== 'retry_direct' && (
                 <ReorderAction
                   mode={reorderMode}
                   onCanceled={markReorderCanceled}
@@ -339,12 +345,13 @@ export function CheckoutOrder({
                 </>
               )}
               {state === 'closed' && giftReturn}
-              {state === 'closed' && reorderMode === 'retry_from_cart' && (
-                <Link className="btn btn-holo" href={order.status === 'canceled' ? '/cart' : '/checkout'}>
-                  {order.status === 'canceled' ? '장바구니 보기' : '다시 결제하기'}
-                </Link>
+              {state === 'closed' && reorderMode === 'retry_from_cart' && (order.status === 'canceled'
+                ? <Link className="btn btn-holo" href="/cart">장바구니 보기</Link>
+                : <CheckoutRetryButton orderId={order.id} />)}
+              {state === 'closed' && reorderMode === 'retry_direct' && order.directGoodId && (
+                <CheckoutDirectRetryButton goodId={order.directGoodId} orderId={order.id} />
               )}
-              {state === 'closed' && reorderMode && reorderMode !== 'retry_from_cart' && (
+              {state === 'closed' && reorderMode && reorderMode !== 'retry_from_cart' && reorderMode !== 'retry_direct' && (
                 <ReorderAction
                   mode={reorderMode}
                   onCanceled={markReorderCanceled}

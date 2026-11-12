@@ -19,6 +19,10 @@ import { goodsPurchaseVolumePreview } from '@/lib/goods-transaction-presentation
 import { GoodsTransactionTerms } from './GoodsTransactionTerms';
 import { FULFILLMENT_METHOD_LABELS } from '@/lib/goods-fulfillment';
 import { GiftPurchaseEntry } from '@/components/gifts/GiftPurchaseEntry';
+import { createDirectCheckoutDraftAction, type CheckoutDraftActionError } from '@/app/checkout/draft-actions';
+import { onboardingPath } from '@/lib/auth/onboarding';
+import type { CartItem } from '@/lib/cart';
+import { buyNowReturnPath, savePendingBuyNow, takePendingBuyNow } from '@/lib/checkout-buy-now';
 import { SubscriptionPurchaseEntry } from '@/components/subscriptions/SubscriptionPurchaseEntry';
 import type { AddToCartResultItem } from './AddToCartResultDialog';
 
@@ -32,8 +36,9 @@ import type { AddToCartResultItem } from './AddToCartResultDialog';
  * 두 표면이 각자 수량을 들면 아래 바로 산 개수와 위에서 고른 개수가 갈린다.
  *
  * 금액·재고의 최종 판정은 언제나 서버다. 여기 계산은 "지금 담으면 얼마인가"를
- * 미리 보여 주기 위한 표시용 파생이고, 본품과 추가굿즈는 한 번의 카트
- * 반영을 거쳐 기존 place_order의 가격·수량·재고 판정을 통과한다.
+ * 미리 보여 주기 위한 표시용 파생이다. [장바구니]는 본품과 추가굿즈를 한 번의 카트 반영으로
+ * 담고(수량 합산), [구매하기]는 같은 선택만 바로구매 주문서 초안으로 만든다 — 장바구니를 읽지도
+ * 바꾸지도 않는다(ADR-0030). 어느 쪽이든 주문 생성이 가격·수량·재고를 다시 판정한다.
  */
 
 export const CART_ADDED_STATUS = '장바구니에 담았어요.';
@@ -108,20 +113,17 @@ export function purchaseBlockReason(state: PurchaseBlockState): PurchaseBlockRea
   return null;
 }
 
-/**
- * 바로구매의 이동 판정. 클라이언트 성공 신호는 확정의 진실원이 아니다 —
- * 카트 반영이 서버에서 정착(pending 해제)된 뒤, 오류가 없을 때만 장바구니로 간다.
- * 실패했는데 이동하면 방금 담은 수량이 빠진 장바구니를 보여 주는 셈이다.
- */
-export function buyNowNavigation(state: {
-  requested: boolean;
-  cartPending: boolean;
-  cartError: string | null;
-}): 'navigate' | 'wait' | 'abort' {
-  if (!state.requested) return 'abort';
-  if (state.cartPending) return 'wait';
-  return state.cartError ? 'abort' : 'navigate';
-}
+/** 바로구매 주문서를 열지 못한 이유(ADR-0030). 로그인·프로필 미완료는 화면을 옮겨 안내한다. */
+export const DIRECT_BUY_ERRORS: Record<Exclude<CheckoutDraftActionError, 'auth_required' | 'onboarding_required'>, string> = {
+  account_suspended: '정지된 계정은 새 주문을 만들 수 없어요.',
+  invalid_request: '선택한 굿즈와 수량을 확인해주세요.',
+  cart_changed: '선택한 굿즈와 수량을 확인해주세요.',
+  adult_verification_required: '19금 굿즈는 성인 인증을 마친 회원만 구매할 수 있어요. 마이 > 성인 인증에서 인증해주세요.',
+  additional_good_unavailable: '추가 구성 굿즈의 판매 또는 연결 상태가 변경되었습니다. 선택을 다시 확인해주세요.',
+  goods_unavailable: '판매 상태가 바뀌었어요. 새로고침한 뒤 다시 확인해주세요.',
+  custom_inputs_changed: '직접입력형 옵션 설정이 변경되었습니다. 내용을 다시 확인해주세요.',
+  unavailable: '주문서를 열지 못했어요. 잠시 후 다시 시도해주세요.',
+};
 
 export interface GoodPurchaseController {
   good: Good;
@@ -215,24 +217,40 @@ export function useGoodPurchase({
   const selectionRequired = !selectedOption || chosenAdditions.some((choice) => !choice.selectedOption);
   const stockQty = selectedOption?.stockQty ?? 0;
   const [status, setStatus] = useState<string | null>(null);
-  /* 바로구매 요청은 세대 번호로 든다 — 소비 표시는 ref 에 적어 effect 가 상태를 되쓰지
-     않는다(리셋 setState 는 캐스케이딩 렌더 lint 에 걸리고, 실제로도 파생이 아니라 소비다). */
-  const [checkoutGen, setCheckoutGen] = useState(0);
-  const handledCheckoutGenRef = useRef(0);
   const committingRef = useRef(false);
+  /* 바로구매 주문서 초안을 만드는 중이다(서버 왕복). 담기의 카트 반영 중(cart.pending)과 같이 버튼을 aria-disabled 로 잠근다. */
+  const [buying, setBuying] = useState(false);
+  const resumeCheckedRef = useRef(false);
 
-  const cartPending = cart.pending;
-  const cartError = cart.error;
+  /* 로그인 전에 누른 [구매하기]를 로그인 뒤 이어서 진행한다(ADR-0030). 계정 장바구니가 준비되면(로그인·프로필 완료) 이 탭의
+     세션 저장소에서 이 굿즈의 선택을 한 번 꺼내 주문서를 연다. 실패하면 고른 선택을 화면에 되살리고 이유를 말한다. */
+  const cartReady = cart.ready;
+  const cartMode = cart.mode;
   useEffect(() => {
-    const navigation = buyNowNavigation({
-      requested: checkoutGen !== handledCheckoutGenRef.current,
-      cartPending,
-      cartError,
-    });
-    if (navigation === 'wait' || checkoutGen === handledCheckoutGenRef.current) return;
-    handledCheckoutGenRef.current = checkoutGen;
-    if (navigation === 'navigate') router.push('/cart');
-  }, [checkoutGen, cartPending, cartError, router]);
+    if (resumeCheckedRef.current || disabled || !cartReady || cartMode !== 'server') return;
+    resumeCheckedRef.current = true;
+    const pending = takePendingBuyNow(good.id);
+    if (!pending) return;
+    committingRef.current = true;
+    void (async () => {
+      try {
+        const result = await createDirectCheckoutDraftAction(good.id, pending.entries);
+        if (result.ok) {
+          router.push(result.href);
+          return;
+        }
+        setSelectedId(pending.selection.variantId);
+        setQuantityState(pending.selection.quantity);
+        setCustomInputValues(pending.selection.customInputValues);
+        setAdditionalSelections(pending.selection.additions);
+        setStatus(result.error === 'auth_required' || result.error === 'onboarding_required' ? DIRECT_BUY_ERRORS.unavailable : DIRECT_BUY_ERRORS[result.error]);
+      } catch {
+        setStatus(DIRECT_BUY_ERRORS.unavailable);
+      } finally {
+        committingRef.current = false;
+      }
+    })();
+  }, [cartMode, cartReady, disabled, good.id, router]);
 
   const soldOut = isGoodSoldOut(good);
   const unavailableAddition = chosenAdditions.find((choice) => !choice.good || choice.good.stock === 'soldout' || goodsPurchaseConditionProblem(choice.good));
@@ -260,23 +278,66 @@ export function useGoodPurchase({
       ? optionOrderLimitMessage(choice.good, choice.selectedOption,
         mergedCartQuantity(cart.getQuantity(choice.goodId, choice.selectedOption.id), choice.quantity)) : null), null);
 
-  const commit = async () => {
-    if (!selectedOption || selectionRequired || committingRef.current) return false;
-    if (limitMessage) { setStatus(limitMessage); return false; }
+  /* 바로구매는 장바구니와 무관하다 — 담긴 수량을 합치지 않고 고른 수량만으로 옵션별 주문당 최대 수량을 본다(1014-037). */
+  const buyLimitMessage = (selectedOption ? optionOrderLimitMessage(good, selectedOption, quantity) : null)
+    ?? chosenAdditions.reduce<string | null>((found, choice) => found ?? (choice.good && choice.selectedOption
+      ? optionOrderLimitMessage(choice.good, choice.selectedOption, choice.quantity) : null), null);
+
+  /* 본품과 고른 추가 구성의 줄. 직접입력값을 검증해 확정 선택으로 바꾼다 — 담기와 바로구매가 같은 줄을 쓴다. */
+  const selectionLines = (): { ok: true; lines: (CartItem & { stockQty: number })[] } | { ok: false; message: string } => {
     const selections = new Map(selectedGoods.map(item=>[item.id,prepareGoodsCustomInputSelection(item.customInputs,customInputValues[item.id] ?? {})]));
     for (const item of selectedGoods) {
       const prepared=selections.get(item.id)!;
-      if (!prepared.ok) {setStatus(`${item.name}: ${prepared.error}`);return false;}
+      if (!prepared.ok) return { ok: false, message: `${item.name}: ${prepared.error}` };
     }
     const inputsFor=(id:string)=>{const prepared=selections.get(id)!;return prepared.ok && prepared.selection ? {customInputs:prepared.selection} : {};};
+    return { ok: true, lines: [
+      { goodId: good.id, variantId: selectedOption!.id, qty: quantity, stockQty, ...inputsFor(good.id) },
+      ...chosenAdditions.map((choice) => ({ goodId: choice.goodId, variantId: choice.selectedOption!.id,
+        qty: choice.quantity, stockQty: choice.selectedOption!.stockQty, ...inputsFor(choice.goodId) })),
+    ] };
+  };
+
+  const commit = async () => {
+    if (!selectedOption || selectionRequired || committingRef.current) return false;
+    if (limitMessage) { setStatus(limitMessage); return false; }
+    const prepared = selectionLines();
+    if (!prepared.ok) { setStatus(prepared.message); return false; }
     committingRef.current = true;
     try {
-      return await cart.addSelection(good.id, [
-        { goodId: good.id, variantId: selectedOption.id, qty: quantity, stockQty, ...inputsFor(good.id) },
-        ...chosenAdditions.map((choice) => ({ goodId: choice.goodId, variantId: choice.selectedOption!.id,
-          qty: choice.quantity, stockQty: choice.selectedOption!.stockQty, ...inputsFor(choice.goodId) })),
-      ]);
+      return await cart.addSelection(good.id, prepared.lines);
     } finally { committingRef.current = false; }
+  };
+
+  /* 바로구매(ADR-0030 · 1014-033·037): 고른 줄만 주문서 초안으로 만들고 주문서로 간다. 장바구니를 읽지도 바꾸지도 않는다.
+     로그인 전이면 선택을 이 탭의 세션 저장소에 두고 로그인(·프로필)으로 보낸다 — 돌아오면 위 effect 가 이어서 연다. */
+  const startBuyNow = async () => {
+    if (!selectedOption || selectionRequired || committingRef.current) return;
+    if (buyLimitMessage) { setStatus(buyLimitMessage); return; }
+    const prepared = selectionLines();
+    if (!prepared.ok) { setStatus(prepared.message); return; }
+    const entries: CartItem[] = prepared.lines.map(({ goodId, variantId, qty, customInputs }) => ({ goodId, variantId, qty, ...(customInputs ? { customInputs } : {}) }));
+    committingRef.current = true;
+    setBuying(true);
+    try {
+      const result = await createDirectCheckoutDraftAction(good.id, entries);
+      if (result.ok) {
+        router.push(result.href);
+        return;
+      }
+      if (result.error === 'auth_required' || result.error === 'onboarding_required') {
+        savePendingBuyNow({ goodId: good.id, entries, selection: { variantId: selectedOption.id, quantity, additions: additionalSelections, customInputValues } });
+        const back = buyNowReturnPath(good.id, selectedOption.id);
+        router.push(result.error === 'auth_required' ? `/login?next=${encodeURIComponent(back)}` : onboardingPath(back));
+        return;
+      }
+      setStatus(DIRECT_BUY_ERRORS[result.error]);
+    } catch {
+      setStatus(DIRECT_BUY_ERRORS.unavailable);
+    } finally {
+      committingRef.current = false;
+      setBuying(false);
+    }
   };
 
   const volumePreview = selectionRequired ? null : goodsPurchaseVolumePreview([{ good, option: selectedOption, quantity },
@@ -303,7 +364,7 @@ export function useGoodPurchase({
     restockVariantIds,
     disabled,
     inert,
-    inFlight: !selectionRequired && blocked === 'pending',
+    inFlight: !selectionRequired && (blocked === 'pending' || buying),
     /* 카트가 낸 오류가 먼저다 — 담기에 실패한 화면에 "담았어요"가 남으면 안 된다. */
     message: conditionProblem ?? cart.error ?? status,
     additionalChoices,
@@ -335,13 +396,13 @@ export function useGoodPurchase({
       setStatus(null);
       void commit().then((ok) => { if (ok) setStatus(CART_ADDED_STATUS); });
     },
-    /* 바로구매는 LINE FRIENDS SQUARE와 같다(D2): 담기와 같은 카트 계약으로 담은 뒤 장바구니
-       (/cart)로 간다. 주문은 장바구니 전체로 만든다(주문 = 장바구니 전체). 같은 상품을 다시 담으면
-       수량이 합산된다. 이동은 즉시 하지 않는다 — buyNowNavigation 이 카트 정착·오류를 본 뒤 결정한다. */
+    /* 바로구매는 그 상품만 주문한다(ADR-0030 · 10/14 회의 1014-033·038, 사용자 LFS 실측 11/11): 고른 옵션·수량·추가 구성·
+       직접입력값만 주문서 초안으로 만들어 주문서로 간다. 장바구니를 읽지도 바꾸지도 않고, 같은 상품이 장바구니에 있어도
+       주문 수량은 고른 수량 그대로다(1014-037). 담기의 수량 합산 규칙은 담기에만 쓴다. */
     buyNow: () => {
-      if (inert) return;
+      if (inert || buying) return;
       setStatus(null);
-      void commit().then((ok) => { if (ok) setCheckoutGen((gen) => gen + 1); });
+      void startBuyNow();
     },
   };
 }
@@ -656,7 +717,8 @@ export function GoodPurchasePanel({ otherPurchases, purchase }: { otherPurchases
       </div>
       {good.transactionOffer?.fulfillment ? <div className="wc-buy-panel__state"><p>제공 방식: {good.transactionOffer.fulfillment.methods.map(m => FULFILLMENT_METHOD_LABELS[m.method]).join(' · ')}</p>
         <p>{good.transactionOffer.fulfillment.publicNote}</p>{good.transactionOffer.fulfillment.mode === 'digital' ? <p>결제한 계정에서 구매한 파일을 받습니다. 파일 제공 후 취소 요청은 담당자가 검토합니다. 디지털 굿즈의 선물하기는 제공하지 않습니다.</p> : null}</div> : null}
-      {good.transactionOffer ? <p className="wc-buy-panel__state">현재 선택한 굿즈 기준입니다. 장바구니 수량·쿠폰·적립금·배송비를 반영한 결제 금액은 주문서에서 확인해주세요.</p> : null}
+      {/* 두 버튼의 주문 범위가 다르다(ADR-0030): 구매하기는 이 굿즈만, 장바구니는 담아 둔 굿즈와 함께 골라 주문한다. */}
+      {good.transactionOffer ? <p className="wc-buy-panel__state">현재 선택한 굿즈 기준이에요. &lsquo;구매하기&rsquo;는 이 굿즈만 주문하고, &lsquo;장바구니&rsquo;에 담으면 담아 둔 다른 굿즈와 함께 골라 주문할 수 있어요. 쿠폰·적립금·배송비를 반영한 결제 금액은 주문서에서 확인해주세요.</p> : null}
       {cta.kind === 'unavailable' ? <WcButton disabled variant="primary">{cta.label}</WcButton> : cta.kind === 'restock' ? (
         <RestockCta disabled={disabled} goodId={good.id} initialRequested={cta.requested} onStaleState={stale.onStale} optionName={cta.optionName} variantId={cta.variantId} />
       ) : (

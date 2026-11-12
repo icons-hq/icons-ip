@@ -16,6 +16,8 @@ export interface CartTransactionInput {
   deliveryChoices: CheckoutDeliveryChoices;
   userCouponId: string | null; userCouponIds?: string[];
   storeCreditAmount: number;
+  /** 바로구매 초안(ADR-0030). 있으면 장바구니가 아니라 그 초안 줄로 견적·주문한다(`items`는 화면 표시·견적 대조용). */
+  draftId?: string;
 }
 export interface CartTransactionOrderInput extends CartTransactionInput {
   quoteId: string;
@@ -28,18 +30,26 @@ export function cartTransactionRequestTooLarge(value: unknown): boolean {
 }
 export interface CartTransactionRecovery {
   version: 1; expectedActorId: string; sessionId: string; quoteId: string; checkoutKey: string; paymentMethod: CheckoutPaymentMethod;
+  /** 바로구매 초안 주문의 복구(ADR-0030). 없으면 장바구니 주문이다. */
+  draftId?: string;
 }
 
 export function parseCartTransactionRecovery(value: unknown): CartTransactionRecovery | null {
-  if (!transactionRecord(value) || !transactionExactKeys(value, ['version', 'expectedActorId', 'sessionId', 'quoteId', 'checkoutKey', 'paymentMethod']) || value.version !== 1) return null;
+  if (!transactionRecord(value) || !transactionExactKeys(value, ['version', 'expectedActorId', 'sessionId', 'quoteId', 'checkoutKey', 'paymentMethod', ...(Object.hasOwn(value, 'draftId') ? ['draftId'] : [])]) || value.version !== 1) return null;
   const expectedActorId = normalizeCheckoutKey(value.expectedActorId), sessionId = normalizeCheckoutKey(value.sessionId);
   const quoteId = normalizeCheckoutKey(value.quoteId), checkoutKey = normalizeCheckoutKey(value.checkoutKey), paymentMethod = normalizeCheckoutPaymentMethod(value.paymentMethod);
-  return expectedActorId && sessionId && quoteId && checkoutKey && paymentMethod ? { version: 1, expectedActorId, sessionId, quoteId, checkoutKey, paymentMethod } : null;
+  const draftId = Object.hasOwn(value, 'draftId') ? normalizeCheckoutKey(value.draftId) : undefined;
+  if (draftId === null) return null;
+  return expectedActorId && sessionId && quoteId && checkoutKey && paymentMethod
+    ? { version: 1, expectedActorId, sessionId, quoteId, checkoutKey, paymentMethod, ...(draftId ? { draftId } : {}) } : null;
 }
 
 /** The request carries intentions only; every price and allocation comes from the DB. */
 export function parseCartTransactionInput(value: unknown): CartTransactionInput | null {
-  if (!transactionRecord(value) || !transactionExactKeys(value, ['expectedActorId', 'items', 'address', 'deliveryChoices', 'userCouponId', 'storeCreditAmount', ...(Object.hasOwn(value, 'userCouponIds') ? ['userCouponIds'] : [])]) || cartTransactionRequestTooLarge(value)) return null;
+  if (!transactionRecord(value) || !transactionExactKeys(value, ['expectedActorId', 'items', 'address', 'deliveryChoices', 'userCouponId', 'storeCreditAmount',
+    ...(Object.hasOwn(value, 'userCouponIds') ? ['userCouponIds'] : []), ...(Object.hasOwn(value, 'draftId') ? ['draftId'] : [])]) || cartTransactionRequestTooLarge(value)) return null;
+  const draftId = Object.hasOwn(value, 'draftId') ? normalizeCheckoutKey(value.draftId) : undefined;
+  if (draftId === null) return null;
   const expectedActorId = normalizeCheckoutKey(value.expectedActorId), address = transactionRecord(value.address) && transactionExactKeys(value.address, ['kind']) && value.address.kind === 'none' ? { kind: 'none' as const } : normalizeCheckoutAddress(value.address);
   const items = normalizeCartItems(value.items), userCouponId = value.userCouponId === null ? null : normalizeCheckoutKey(value.userCouponId);
   const storeCreditAmount = normalizeStoreCreditAmount(value.storeCreditAmount);
@@ -49,11 +59,13 @@ export function parseCartTransactionInput(value: unknown): CartTransactionInput 
     || value.userCouponId !== null && !userCouponId || !transactionRecord(value.deliveryChoices)) return null;
   const goods = new Set(items.map(item => item.goodId));
   if (Object.entries(value.deliveryChoices).some(([id, mode]) => !goods.has(id) || mode !== 'prepaid' && mode !== 'collect' && (!transactionRecord(mode) || !transactionExactKeys(mode, ['method', 'paymentMode']) || !FULFILLMENT_METHODS.includes(mode.method as FulfillmentMethod) || !['prepaid', 'collect'].includes(String(mode.paymentMode))))) return null;
-  return { expectedActorId, items, address, userCouponId, ...(Array.isArray(value.userCouponIds) ? { userCouponIds: value.userCouponIds as string[] } : {}), storeCreditAmount, deliveryChoices: { ...value.deliveryChoices } as CheckoutDeliveryChoices };
+  return { expectedActorId, items, address, userCouponId, ...(Array.isArray(value.userCouponIds) ? { userCouponIds: value.userCouponIds as string[] } : {}), storeCreditAmount,
+    deliveryChoices: { ...value.deliveryChoices } as CheckoutDeliveryChoices, ...(draftId ? { draftId } : {}) };
 }
 
 export function parseCartTransactionOrderInput(value: unknown): CartTransactionOrderInput | null {
-  if (!transactionRecord(value) || !transactionExactKeys(value, ['expectedActorId', 'items', 'address', 'deliveryChoices', 'userCouponId', 'storeCreditAmount', 'quoteId', 'checkoutKey', 'paymentMethod', ...(Object.hasOwn(value, 'userCouponIds') ? ['userCouponIds'] : [])])) return null;
+  if (!transactionRecord(value) || !transactionExactKeys(value, ['expectedActorId', 'items', 'address', 'deliveryChoices', 'userCouponId', 'storeCreditAmount', 'quoteId', 'checkoutKey', 'paymentMethod',
+    ...(Object.hasOwn(value, 'userCouponIds') ? ['userCouponIds'] : []), ...(Object.hasOwn(value, 'draftId') ? ['draftId'] : [])])) return null;
   const { quoteId: rawQuoteId, checkoutKey: rawKey, paymentMethod: rawMethod, ...rest } = value;
   const input = parseCartTransactionInput(rest), quoteId = normalizeCheckoutKey(rawQuoteId), checkoutKey = normalizeCheckoutKey(rawKey), paymentMethod = normalizeCheckoutPaymentMethod(rawMethod);
   return input && quoteId && checkoutKey && paymentMethod ? { ...input, quoteId, checkoutKey, paymentMethod } : null;

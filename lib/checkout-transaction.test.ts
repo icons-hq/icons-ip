@@ -31,3 +31,17 @@ it('영수증은 온라인 결제와 착불 합계를 각각 검증하고 모르
   expect(parseCheckoutTransactionReceipt({ ...receipt, display: { ...transactionDisplay, totals: { ...transactionDisplay.totals, onlineTotal: 19000 } } })).toBeNull();
   expect(transactionReceiptNames(transactionDisplay, [{ id: transactionDisplay.lines[0].lineId, name: '주문 당시 이름' }])).toEqual({ 'transaction-good': '주문 당시 이름' });
 });
+
+/* 바로구매 초안(ADR-0030): 거래 런타임 요청·복구 식별자에 초안 id만 더한다(줄·배송지는 서버 초안·견적에 있다). */
+it('바로구매 초안 id를 요청·복구에 싣고, 모양이 틀린 id는 받지 않는다', () => {
+  const draftId = '00000000-0000-4000-8000-0000000000d1';
+  expect(parseCartTransactionInput({ ...transactionInput, draftId })).toEqual({ ...transactionInput, draftId });
+  expect(parseCartTransactionInput({ ...transactionInput, draftId: 'bad' })).toBeNull();
+  const { quoteId, checkoutKey, paymentMethod } = transactionRecovery;
+  expect(parseCartTransactionOrderInput({ ...transactionInput, draftId, quoteId, checkoutKey, paymentMethod })).toMatchObject({ draftId });
+  expect(parseCartTransactionRecovery({ ...transactionRecovery, draftId })).toEqual({ ...transactionRecovery, draftId });
+  expect(parseCartTransactionRecovery({ ...transactionRecovery, draftId: 'bad' })).toBeNull();
+  /* 초안이 없는 지금 요청은 그대로다. */
+  expect(parseCartTransactionInput(transactionInput)).not.toHaveProperty('draftId');
+});
+

@@ -24,6 +24,8 @@ import { couponErrorNeedsPendingOrder } from '@/lib/coupons';
 import { normalizeCartItems } from '@/lib/cart';
 import { bindStoreAnalyticsOrder } from '@/lib/store-analytics.server';
 import { goodsCustomInputValues } from '@/lib/goods-custom-inputs';
+import { isClosedCheckoutDraft, normalizeCheckoutDraftId } from '@/lib/checkout-draft';
+import { loadCheckoutDraft } from '@/lib/checkout-draft.server';
 
 type PlaceOrderActionError =
   | PlaceOrderErrorCode
@@ -34,7 +36,11 @@ type PlaceOrderActionError =
 
 export type PlaceOrderActionResult =
   | { ok: true; orderId: string }
-  | { ok: false; error: PlaceOrderActionError; pendingOrder?: boolean };
+  /**
+   * `orderId`: `checkout_draft_used`면 이 주문서로 이미 접수·결제한 원 주문, `checkout_payment_in_progress`면 결제 승인을
+   * 확인하고 있는 주문(ADR-0030). 화면이 그 주문으로 안내하고 결제 버튼을 잠근다.
+   */
+  | { ok: false; error: PlaceOrderActionError; pendingOrder?: boolean; orderId?: string };
 
 export interface PrepareGoodsPaymentActionState {
   readonly prepared?: PreparedCheckout;
@@ -111,6 +117,11 @@ export async function prepareGoodsPaymentAction(
   }
 }
 
+/**
+ * 주문을 만든다. 초안(`draftIdValue`, ADR-0030)이 있으면 그 초안의 줄만 주문한다 — 장바구니 선택 주문은
+ * `place_order_with_cart_selection`, 바로구매는 `place_direct_order`. 초안이 없으면 지금처럼 장바구니 전체
+ * 스냅샷(`expectedCartValue`)으로 주문한다. 초안의 줄과 결제사 파생은 서버가 다시 읽는다(화면 신호를 믿지 않는다).
+ */
 export async function placeOrderAction(
   addressValue: unknown,
   checkoutKeyValue: unknown,
@@ -118,7 +129,11 @@ export async function placeOrderAction(
   storeCreditAmountValue: unknown = 0,
   expectedUserCouponIdValue: unknown = undefined,
   expectedCartValue?: unknown,
+  draftIdValue?: unknown,
 ): Promise<PlaceOrderActionResult> {
+  if (draftIdValue !== undefined && draftIdValue !== null) {
+    return placeDraftOrder(addressValue, checkoutKeyValue, paymentMethodValue, storeCreditAmountValue, expectedUserCouponIdValue, draftIdValue);
+  }
   const auth = await getCurrentAuthState();
   if (!auth.isConfigured || !auth.user) return { ok: false, error: 'auth_required' };
   if (isAccountSuspended(auth.profile)) return { ok: false, error: 'account_suspended' };
@@ -158,7 +173,7 @@ export async function placeOrderAction(
   }
 
   let data: unknown;
-  let error: { message: string } | null;
+  let error: { message: string; details?: string | null } | null;
   try {
     const service = createServiceClient();
     const result = await service.rpc('place_order_with_cart_snapshot', {
@@ -176,8 +191,106 @@ export async function placeOrderAction(
     return { ok: false, error: 'unavailable' };
   }
 
-  if (error) return { ok: false, error: mapPlaceOrderError(error.message),
-    ...(couponErrorNeedsPendingOrder(error.message) ? { pendingOrder: true } : {}) };
+  if (error) {
+    const code = mapPlaceOrderError(error.message);
+    return { ok: false, error: code, ...blockingOrder(code, error),
+      ...(couponErrorNeedsPendingOrder(error.message) ? { pendingOrder: true } : {}) };
+  }
+
+  const orderId = normalizeOrderReference(data);
+  if (!orderId) return { ok: false, error: 'unavailable' };
+  await bindStoreAnalyticsOrder(orderId, auth.user.id);
+  return { ok: true, orderId };
+}
+
+/**
+ * 주문을 막은 주문(DB detail = 주문 id): 같은 주문서의 재제출이면 이미 접수·결제한 원 주문(checkout_draft_used), 결제 승인을
+ * 확인하는 주문이 있으면 그 주문(checkout_payment_in_progress, ADR-0026·0030). 모양이 틀리면 주문 없이 안내만 한다.
+ */
+function blockingOrder(code: PlaceOrderErrorCode, error: { details?: string | null }): { orderId: string } | Record<string, never> {
+  if (code !== 'checkout_draft_used' && code !== 'checkout_payment_in_progress') return {};
+  const orderId = normalizeOrderReference(error.details ?? null);
+  return orderId ? { orderId } : {};
+}
+
+async function placeDraftOrder(
+  addressValue: unknown,
+  checkoutKeyValue: unknown,
+  paymentMethodValue: unknown,
+  storeCreditAmountValue: unknown,
+  userCouponIdValue: unknown,
+  draftIdValue: unknown,
+): Promise<PlaceOrderActionResult> {
+  const auth = await getCurrentAuthState();
+  if (!auth.isConfigured || !auth.user) return { ok: false, error: 'auth_required' };
+  if (isAccountSuspended(auth.profile)) return { ok: false, error: 'account_suspended' };
+  if (!isOnboarded(auth.profile, auth.user.email)) return { ok: false, error: 'onboarding_required' };
+
+  const draftId = normalizeCheckoutDraftId(draftIdValue);
+  const address = normalizeCheckoutAddress(addressValue);
+  if (!address) return { ok: false, error: 'invalid_address' };
+  const checkoutKey = normalizeCheckoutKey(checkoutKeyValue);
+  const paymentMethod = normalizeCheckoutPaymentMethod(paymentMethodValue);
+  const storeCreditAmount = normalizeStoreCreditAmount(storeCreditAmountValue);
+  const userCouponId = userCouponIdValue === null || userCouponIdValue === undefined ? null : normalizeOrderReference(userCouponIdValue);
+  if (!draftId || !checkoutKey || !paymentMethod || storeCreditAmount === null
+    || (userCouponIdValue !== null && userCouponIdValue !== undefined && userCouponId === null)) return { ok: false, error: 'invalid_request' };
+
+  const draft = await loadCheckoutDraft(auth.user.id, draftId);
+  if (draft === 'error') return { ok: false, error: 'unavailable' };
+  if (!draft) return { ok: false, error: 'checkout_draft_expired' };
+  /* 만료된 주문서는 줄이 없다. 이미 주문한 주문서면 원 주문으로, 아니면 고른 화면으로 돌려보낸다. 살아 있는 주문서는
+     이미 주문했어도 DB에 맡긴다 — 같은 checkout key의 재요청은 원래 주문을 돌려줘야 한다(멱등). */
+  if (isClosedCheckoutDraft(draft)) {
+    return draft.usedOrderId ? { ok: false, error: 'checkout_draft_used', orderId: draft.usedOrderId } : { ok: false, error: 'checkout_draft_expired' };
+  }
+
+  // 카드 gate는 초안 줄로 파생한 provider의 것이다 — 19금 굿즈가 섞이면 나이스페이다. 장바구니 전체가 아니다.
+  let available: boolean;
+  try {
+    available = paymentMethod === 'bank_transfer'
+      ? await bankTransferCheckoutEnabled()
+      : goodsCheckoutPaymentsEnabled(auth.user.id, await deriveGoodsCartProvider(draft.lines.map(item => item.goodId)));
+  } catch {
+    return { ok: false, error: 'unavailable' };
+  }
+  if (!available) return { ok: false, error: 'payment_unavailable' };
+
+  let data: unknown;
+  let error: { message: string; details?: string | null } | null;
+  try {
+    const service = createServiceClient();
+    const result = draft.source === 'direct'
+      ? await service.rpc('place_direct_order', {
+        p_user_id: auth.user.id,
+        p_draft_id: draft.id,
+        p_address: address,
+        p_checkout_key: checkoutKey,
+        p_payment_method: paymentMethod,
+        p_store_credit_amount: storeCreditAmount,
+        p_user_coupon_id: userCouponId,
+      })
+      : await service.rpc('place_order_with_cart_selection', {
+        p_user_id: auth.user.id,
+        p_draft_id: draft.id,
+        p_address: address,
+        p_checkout_key: checkoutKey,
+        p_payment_method: paymentMethod,
+        p_store_credit_amount: storeCreditAmount,
+        p_expected_user_coupon_id: userCouponId,
+      });
+    data = result.data;
+    error = result.error;
+  } catch {
+    return { ok: false, error: 'unavailable' };
+  }
+
+  if (error) {
+    const code = mapPlaceOrderError(error.message);
+    /* 같은 주문서의 재제출(다른 탭·뒤로 가기)·결제 확인 중인 주문: DB detail이 그 주문 id다. */
+    return { ok: false, error: code, ...blockingOrder(code, error),
+      ...(couponErrorNeedsPendingOrder(error.message) ? { pendingOrder: true } : {}) };
+  }
 
   const orderId = normalizeOrderReference(data);
   if (!orderId) return { ok: false, error: 'unavailable' };

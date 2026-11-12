@@ -31,7 +31,10 @@ vi.mock('@/components/shell/CartProvider', () => ({
   useCart: () => ({ ready: true, pending: false, error: null, addSelection: cart.addSelection, refresh: vi.fn(),
     getQuantity: (goodId: string, variantId: string) => cart.quantities.get(`${goodId}:${variantId}`) ?? 0 }),
 }));
-vi.mock('next/navigation', () => ({ usePathname: () => '/shop/g1', useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
+const router = vi.hoisted(() => ({ push: vi.fn() }));
+const direct = vi.hoisted(() => ({ create: vi.fn(async () => ({ ok: true, draftId: 'd', href: '/checkout?draft=d' })) }));
+vi.mock('next/navigation', () => ({ usePathname: () => '/shop/g1', useRouter: () => ({ push: router.push, refresh: vi.fn() }) }));
+vi.mock('@/app/checkout/draft-actions', () => ({ createDirectCheckoutDraftAction: direct.create }));
 
 import type { Good, GoodOption } from '@/lib/data';
 import { purchaseBlockReason, useGoodPurchase } from './GoodPurchasePanel';
@@ -58,6 +61,8 @@ beforeEach(() => {
   hooks.refs = [];
   cart.quantities.clear();
   cart.addSelection.mockClear();
+  direct.create.mockClear();
+  router.push.mockClear();
 });
 
 describe('purchaseBlockReason 옵션별 주문당 최대 수량', () => {
@@ -79,13 +84,24 @@ describe('상품 상세 담기의 옵션별 주문당 최대 수량', () => {
     expect(render({ good }).message).toBe("'파랑'은 한 번에 2개까지 주문할 수 있습니다.");
   });
 
-  it('바로구매도 같은 한도에서 멈춘다', async () => {
+  /* 바로구매는 장바구니와 무관하다(ADR-0030 · 1014-037): 담긴 수량을 합치지 않고 고른 수량만으로 한도를 본다. */
+  it('바로구매는 장바구니에 담긴 수량을 합치지 않고, 고른 수량이 한도 안이면 그 수량 그대로 주문서를 연다', async () => {
     cart.quantities.set('g1:a', 1);
     const purchase = render({ good });
     purchase.setQuantity(2);
     render({ good }).buyNow();
     await flush();
     expect(cart.addSelection).not.toHaveBeenCalled();
+    expect(direct.create).toHaveBeenCalledWith('g1', [{ goodId: 'g1', variantId: 'a', qty: 2 }]);
+    expect(router.push).toHaveBeenCalledWith('/checkout?draft=d');
+  });
+
+  it('바로구매도 고른 수량이 옵션 한도를 넘으면 주문서를 열지 않고 확정 카피를 보인다', async () => {
+    const purchase = render({ good });
+    purchase.setQuantity(3);
+    render({ good }).buyNow();
+    await flush();
+    expect(direct.create).not.toHaveBeenCalled();
     expect(render({ good }).message).toContain('한 번에 2개까지 주문할 수 있습니다.');
   });
 

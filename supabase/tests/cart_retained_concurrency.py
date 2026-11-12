@@ -213,4 +213,134 @@ assert sql(f"select qty from public.cart_items where user_id='{buyer}' and varia
 sql('drop trigger aaa_test_cart_retained_pause on public.cart_items;drop trigger aaa_test_cart_retained_pause on public.order_items;'
     'drop function private.test_cart_retained_cart_pause();drop function private.test_cart_retained_order_pause();')
 print('PASS order creation and other-tab cart quantity change wait in lock order either way; no deadlock', flush=True)
-print(json.dumps({'cases': 5, 'database': database, 'sourceDatabaseWrites': 0}, ensure_ascii=False), flush=True)
+# 6. 장바구니 선택 주문(ADR-0030): 고른 줄(A)로 주문이 품목을 쓰는 동안 다른 탭이 고르지 않은 줄(C)을 바꾼다.
+#    다른 탭은 사용자 advisory에서 기다리고, 주문은 A만 담아 끝난다. 고르지 않은 C는 다른 탭 값으로 남는다.
+variant_c = sql("select id from public.goods_variants where good_id='retained-c' and is_default;")
+sql("""create function private.test_cart_selection_order_pause() returns trigger language plpgsql as $$begin
+ if exists(select 1 from public.orders where id=new.order_id and checkout_key in ('dd270000-0000-4000-8000-000000000009'::uuid,'dd270000-0000-4000-8000-000000000010'::uuid)) then
+  perform pg_advisory_xact_lock(2710053);end if;
+ return new;end$$;
+create trigger aaa_test_cart_selection_pause before insert on public.order_items for each row execute function private.test_cart_selection_order_pause();""")
+sql('begin;' + as_buyer(f"select public.set_cart_item_quantity('retained-a','{variant}',0);select public.set_cart_item_quantity('retained-a','{variant}',1);"
+    f"select public.set_cart_item_quantity('retained-c','{variant_c}',1);") + 'commit;')
+selected = sql(f"select jsonb_agg(jsonb_build_object('good_id',good_id,'variant_id',variant_id,'qty',qty,'input_revision',input_revision,'input_values',input_values)) from public.cart_items where user_id='{buyer}' and good_id='retained-a';")
+draft = sql('begin;' + service(f"select public.service_create_checkout_selection_draft('{buyer}',{literal(selected)});") + 'commit;').splitlines()[-1]
+holder = start('selection-hold', 'select pg_advisory_xact_lock(2710053);select pg_sleep(1.5);')
+wait_state('selection-hold', 'Timeout', holder)
+placer = start('selection-order', service(f"select public.place_order_with_cart_selection('{buyer}','{draft}',{literal(address)},'dd270000-0000-4000-8000-000000000009','card',0,null);"))
+wait_state('selection-order', 'Lock', placer)
+mutation = start('selection-other-line', as_buyer(f"select public.set_cart_item_quantity('retained-c','{variant_c}',2);"))
+wait_state('selection-other-line', 'Lock', mutation)
+finish(holder)
+selection_order = finish(placer).strip().splitlines()[-1]
+finish(mutation)
+assert sql(f"select string_agg(good_id,',' order by good_id) from public.order_items where order_id='{selection_order}';") == 'retained-a'
+assert sql(f"select jsonb_array_length(lines)||':'||(lines->0->>'goodId') from private.cart_order_holds where order_id='{selection_order}';") == '1:retained-a'
+assert sql(f"select qty from public.cart_items where user_id='{buyer}' and good_id='retained-c';") == '2'
+print('PASS selection order holds only selected line while other tab changes an unselected line; no deadlock', flush=True)
+
+# 7. 두 탭 바로구매(ADR-0030): 첫 바로구매가 품목을 쓰는 동안 둘째 바로구매는 사용자 advisory에서 기다렸다가 첫 주문을
+#    닫고(출처 무관 supersede) 새 주문을 만든다. 장바구니는 두 주문 모두 건드리지 않는다.
+cart_before = cart()
+direct_lines = f"jsonb_build_array(jsonb_build_object('good_id','retained-a','variant_id','{variant}','qty',1))"
+draft_1 = sql('begin;' + service(f"select public.service_create_checkout_direct_draft('{buyer}','retained-a',{direct_lines});") + 'commit;').splitlines()[-1]
+draft_2 = sql('begin;' + service(f"select public.service_create_checkout_direct_draft('{buyer}','retained-a',{direct_lines});") + 'commit;').splitlines()[-1]
+holder = start('direct-hold', 'select pg_advisory_xact_lock(2710053);select pg_sleep(1.5);')
+wait_state('direct-hold', 'Timeout', holder)
+first_tab = start('direct-first', service(f"select public.place_direct_order('{buyer}','{draft_1}',{literal(address)},'dd270000-0000-4000-8000-000000000010','card',0,null);"))
+wait_state('direct-first', 'Lock', first_tab)
+second_tab = start('direct-second', service(f"select public.place_direct_order('{buyer}','{draft_2}',{literal(address)},'dd270000-0000-4000-8000-000000000011','card',0,null);"))
+wait_state('direct-second', 'Lock', second_tab)
+finish(holder)
+first_order = finish(first_tab).strip().splitlines()[-1]
+second_order = finish(second_tab).strip().splitlines()[-1]
+assert sql(f"select status from public.orders where id='{first_order}';") == 'canceled'
+assert sql(f"select state||':'||release_reason from private.cart_order_holds where order_id='{first_order}';") == 'released:superseded'
+assert sql(f"select status from public.orders where id='{second_order}';") == 'pending'
+assert sql(f"select source from private.cart_order_holds where order_id='{second_order}';") == 'direct_checkout'
+assert cart() == cart_before
+sql('drop trigger aaa_test_cart_selection_pause on public.order_items;drop function private.test_cart_selection_order_pause();')
+print('PASS two-tab direct orders serialize; second supersedes first; cart untouched; no deadlock', flush=True)
+
+# 8·9. 두 탭이 같은 주문서(초안)를 새 checkout key로 무통장 동시 제출한다(완료 기준 5). 첫 탭이 품목을 쓰는 동안 둘째 탭은
+#      사용자 advisory에서 기다렸다가, 첫 주문이 무통장으로 접수됐으므로 checkout_draft_used(원 주문 id)로 거절된다.
+sql("""create function private.test_cart_draft_used_pause() returns trigger language plpgsql as $$begin
+ if exists(select 1 from public.orders where id=new.order_id and checkout_key in ('dd270000-0000-4000-8000-000000000012'::uuid,'dd270000-0000-4000-8000-000000000014'::uuid)) then
+  perform pg_advisory_xact_lock(2710054);end if;
+ return new;end$$;
+create trigger aaa_test_cart_draft_used_pause before insert on public.order_items for each row execute function private.test_cart_draft_used_pause();""")
+
+
+def two_tab_bank(label, place_first, place_second, first_key, second_key):
+    holder = start(f'{label}-hold', 'select pg_advisory_xact_lock(2710054);select pg_sleep(1.5);')
+    wait_state(f'{label}-hold', 'Timeout', holder)
+    first_tab = start(f'{label}-first', service(place_first))
+    wait_state(f'{label}-first', 'Lock', first_tab)
+    second_tab = start(f'{label}-second', service(place_second))
+    wait_state(f'{label}-second', 'Lock', second_tab)
+    finish(holder)
+    placed = finish(first_tab).strip().splitlines()[-1]
+    rejected = second_tab.communicate(timeout=30)
+    if 'deadlock detected' in rejected[1] or not second_tab.returncode or 'checkout_draft_used' not in rejected[1] or placed not in rejected[1]:
+        raise RuntimeError(f'Expected checkout_draft_used with the first order: {rejected}')
+    assert sql(f"select count(*) from public.orders where user_id='{buyer}' and checkout_key in ('{first_key}','{second_key}');") == '1'
+    assert sql(f"select status||':'||payment_method from public.orders where id='{placed}';") == 'pending:bank_transfer'
+    return placed
+
+
+cart_before = cart()
+bank_draft = sql('begin;' + service(f"select public.service_create_checkout_direct_draft('{buyer}','retained-a',{direct_lines});") + 'commit;').splitlines()[-1]
+place = "select public.place_direct_order('{0}','{1}',{2},'{3}','bank_transfer',0,null);"
+two_tab_bank('draft-direct', place.format(buyer, bank_draft, literal(address), 'dd270000-0000-4000-8000-000000000012'),
+             place.format(buyer, bank_draft, literal(address), 'dd270000-0000-4000-8000-000000000013'),
+             'dd270000-0000-4000-8000-000000000012', 'dd270000-0000-4000-8000-000000000013')
+assert cart() == cart_before
+print('PASS two tabs submit the same direct draft by bank transfer; one order; second rejected as used; cart untouched; no deadlock', flush=True)
+
+selected_c = sql(f"select jsonb_agg(jsonb_build_object('good_id',good_id,'variant_id',variant_id,'qty',qty,'input_revision',input_revision,'input_values',input_values)) from public.cart_items where user_id='{buyer}' and good_id='retained-c';")
+selection_draft = sql('begin;' + service(f"select public.service_create_checkout_selection_draft('{buyer}',{literal(selected_c)});") + 'commit;').splitlines()[-1]
+place = "select public.place_order_with_cart_selection('{0}','{1}',{2},'{3}','bank_transfer',0,null);"
+selection_bank = two_tab_bank('draft-selection', place.format(buyer, selection_draft, literal(address), 'dd270000-0000-4000-8000-000000000014'),
+                              place.format(buyer, selection_draft, literal(address), 'dd270000-0000-4000-8000-000000000015'),
+                              'dd270000-0000-4000-8000-000000000014', 'dd270000-0000-4000-8000-000000000015')
+assert sql(f"select string_agg(good_id||':'||qty,',' order by good_id) from public.order_items where order_id='{selection_bank}';") == 'retained-c:2'
+assert sql(f"select count(*) from public.cart_items where user_id='{buyer}' and good_id='retained-c';") == '0'
+assert sql(f"select count(*) from public.cart_items where user_id='{buyer}' and good_id='retained-a';") == '1'
+sql('drop trigger aaa_test_cart_draft_used_pause on public.order_items;drop function private.test_cart_draft_used_pause();')
+print('PASS two tabs submit the same selection draft by bank transfer; one order consumes selected line once; second rejected as used; no deadlock', flush=True)
+
+# 10. 같은 주문서의 첫 카드 주문 결제 확정(finalize)이 진행 중일 때 같은 초안을 새 키로 다시 낸다. 재제출은 초안의 이전 주문
+#     행에서 기다렸다가(사용자 advisory → 주문 → account-action, finalize와 같은 방향이라 교착 없음) 결제 완료를 보고
+#     checkout_draft_used로 거절된다. 두 번째 주문은 없고 초안은 원 주문을 그대로 가리킨다.
+cart_before = cart()
+finalize_draft = sql('begin;' + service(f"select public.service_create_checkout_direct_draft('{buyer}','retained-a',{direct_lines});") + 'commit;').splitlines()[-1]
+paid_first = sql('begin;' + service(f"select public.place_direct_order('{buyer}','{finalize_draft}',{literal(address)},'dd270000-0000-4000-8000-000000000016','card',0,null);") + 'commit;').splitlines()[-1]
+paid_attempt = claimed_attempt(paid_first, '3', 'dd270000-0000-4000-8000-000000000103')
+finalizer = start('draft-finalize', service(f"select public.finalize_goods_payment_attempt('{paid_attempt}','dd270000-0000-4000-8000-000000000103','approved',null,'TEST-RETAINED-CONC-10');")
+                  + 'select pg_sleep(1.5);')
+wait_state('draft-finalize', 'Timeout', finalizer)
+resubmit = start('draft-resubmit', service(f"select public.place_direct_order('{buyer}','{finalize_draft}',{literal(address)},'dd270000-0000-4000-8000-000000000017','bank_transfer',0,null);"))
+wait_state('draft-resubmit', 'Lock', resubmit)
+assert 'approved' in finish(finalizer)
+finish(resubmit, 'checkout_draft_used')
+assert sql(f"select count(*) from public.orders where user_id='{buyer}' and checkout_key='dd270000-0000-4000-8000-000000000017';") == '0'
+assert sql(f"select status from public.orders where id='{paid_first}';") == 'paid'
+assert sql(f"select order_id from private.checkout_drafts where id='{finalize_draft}';") == paid_first
+assert cart() == cart_before
+print('PASS same draft resubmitted while the first payment finalizes waits on that order and is rejected as used; one order; no deadlock', flush=True)
+
+# 11. 첫 주문의 결제가 승인 확인 중인데 리스(10분)가 지났다(승인 API가 늦거나 서버가 결과를 잃음). 같은 초안의 재제출은
+#     그 주문을 떼어 내고(detach) 새 주문을 만들지 않고 checkout_payment_in_progress(원 주문)로 거절된다.
+lease_draft = sql('begin;' + service(f"select public.service_create_checkout_direct_draft('{buyer}','retained-a',{direct_lines});") + 'commit;').splitlines()[-1]
+confirming_first = sql('begin;' + service(f"select public.place_direct_order('{buyer}','{lease_draft}',{literal(address)},'dd270000-0000-4000-8000-000000000018','card',0,null);") + 'commit;').splitlines()[-1]
+confirming_attempt = claimed_attempt(confirming_first, '4', 'dd270000-0000-4000-8000-000000000104')
+sql(f"update public.payment_attempts set claim_expires_at=clock_timestamp()-interval '1 second' where id='{confirming_attempt}';")
+lease_resubmit = start('draft-expired-lease', service(f"select public.place_direct_order('{buyer}','{lease_draft}',{literal(address)},'dd270000-0000-4000-8000-000000000019','card',0,null);"))
+rejected = lease_resubmit.communicate(timeout=30)
+if not lease_resubmit.returncode or 'checkout_payment_in_progress' not in rejected[1] or confirming_first not in rejected[1]:
+    raise RuntimeError(f'Expected checkout_payment_in_progress with the first order: {rejected}')
+assert sql(f"select count(*) from public.orders where user_id='{buyer}' and checkout_key='dd270000-0000-4000-8000-000000000019';") == '0'
+assert sql(f"select o.status||':'||h.state from public.orders o join private.cart_order_holds h on h.order_id=o.id where o.id='{confirming_first}';") == 'pending:awaiting_payment'
+assert sql(f"select order_id from private.checkout_drafts where id='{lease_draft}';") == confirming_first
+print('PASS same draft resubmitted while the first payment is confirming past its lease is rejected without detaching; one order', flush=True)
+print(json.dumps({'cases': 11, 'database': database, 'sourceDatabaseWrites': 0}, ensure_ascii=False), flush=True)

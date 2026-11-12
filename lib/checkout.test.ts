@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   bankTransferMethodNote,
+  cartRetentionKeepsCart,
+  directRetryGoodId,
   checkoutAddressErrors,
   checkoutDeadlineTimeLabel,
   checkoutEffectivePaymentStatus,
@@ -477,6 +479,44 @@ describe('장바구니 유지 주문(ADR-0026)', () => {
 
   it('승인 확인 중인 이전 주문 때문에 막힌 새 주문은 별도 사유로 안내한다', () => {
     expect(mapPlaceOrderError('checkout_payment_in_progress')).toBe('checkout_payment_in_progress');
+  });
+});
+
+describe('바로구매 주문(ADR-0030)', () => {
+  const now = Date.parse('2026-10-27T05:00:00.000Z');
+  const direct: CheckoutClosureInput = {
+    status: 'pending',
+    paymentMethod: 'card',
+    paymentStatus: null,
+    paymentAttempt: { state: 'declined', expiresAt: '2026-10-27T05:10:00.000Z', provider: 'toss' },
+    hasActiveCancellationRequest: false,
+    directGoodId: 'g2',
+  };
+
+  it('결제 없이 끝난 바로구매는 장바구니에 다시 담지 않고 그 굿즈 상세에서 다시 구매하게 한다', () => {
+    expect(checkoutReorderMode(direct, 'payment_closed', now)).toBe('retry_direct');
+    expect(checkoutReorderMode({ ...direct, status: 'canceled', paymentAttempt: null }, 'closed', now)).toBe('retry_direct');
+    expect(checkoutReorderMode({ ...direct, hasActiveCancellationRequest: true }, 'payment_closed', now)).toBeNull();
+    expect(readCheckoutPayment({ ...direct, expiresAt: null }, now)).toMatchObject({ reorderMode: 'retry_direct', directGoodId: 'g2' });
+  });
+
+  it('보류 원장: 바로구매 보류는 장바구니를 남긴 주문이 아니고, 결제 대기·결제 없이 닫힌 보류만 다시 구매를 권한다', () => {
+    const retention = { state: 'awaiting_payment', releaseReason: null, source: 'direct', baseGoodId: 'g2' };
+    expect(cartRetentionKeepsCart(retention)).toBe(false);
+    expect(directRetryGoodId(retention)).toBe('g2');
+    expect(directRetryGoodId({ ...retention, state: 'released', releaseReason: 'superseded' })).toBe('g2');
+    expect(directRetryGoodId({ ...retention, state: 'released', releaseReason: 'detached' })).toBeNull();
+    expect(directRetryGoodId({ ...retention, state: 'consumed' })).toBeNull();
+    /* 장바구니 보류의 모양은 그대로다. */
+    expect(directRetryGoodId({ state: 'awaiting_payment', releaseReason: null })).toBeNull();
+    expect(cartRetentionKeepsCart({ state: 'awaiting_payment', releaseReason: null })).toBe(true);
+  });
+
+  it('주문서 초안 만료는 별도 사유로 안내한다', () => {
+    expect(mapPlaceOrderError('checkout_draft_expired')).toBe('checkout_draft_expired');
+    expect(mapPlaceOrderError('checkout_draft_unavailable')).toBe('checkout_draft_expired');
+    /* 같은 주문서로 이미 접수·결제한 주문이 있다(재제출) — 만료와 나눠 원 주문으로 안내한다. */
+    expect(mapPlaceOrderError('checkout_draft_used')).toBe('checkout_draft_used');
   });
 });
 

@@ -13,10 +13,19 @@ import { bindStoreAnalyticsOrder } from '@/lib/store-analytics.server';
 import { loadGoodsTransactionOffers } from '@/lib/goods-transaction-offers.server';
 import type { GoodsTransactionOffer } from '@/lib/goods-transaction-offers';
 import { loadGoodsTransactionRuntimeMode } from '@/lib/checkout-transaction.server';
+import { loadCheckoutDraft } from '@/lib/checkout-draft.server';
+import { isClosedCheckoutDraft } from '@/lib/checkout-draft';
 
-export type CartTransactionError = 'invalid_request' | 'order_too_large' | 'auth_changed' | 'account_unavailable' | 'checkout_unavailable' | 'payment_unavailable' | 'cart_changed' | 'coupon_changed' | 'quote_changed' | 'checkout_conflict' | 'payment_in_progress' | 'unavailable';
-export type CartTransactionQuoteResult = { ok: true; quote: GoodsTransactionQuote; offers: GoodsTransactionOffer[] } | { ok: false; error: CartTransactionError };
-export type CartTransactionPlaceResult = { ok: true; orderId: string } | { ok: false; error: CartTransactionError; uncertain: boolean };
+export type CartTransactionError = 'invalid_request' | 'order_too_large' | 'auth_changed' | 'account_unavailable' | 'checkout_unavailable' | 'payment_unavailable' | 'cart_changed' | 'coupon_changed' | 'quote_changed' | 'checkout_conflict' | 'payment_in_progress'
+  /** 바로구매 초안(ADR-0030)이 만료됐거나 이 계정의 것이 아니다. */
+  | 'draft_expired'
+  /**
+   * 같은 주문서로 이미 무통장 접수·결제한 주문이 있다(다른 탭·뒤로 가기, ADR-0030). `orderId`가 그 주문이다.
+   * `payment_in_progress`도 `orderId`(결제 승인을 확인하고 있는 주문)를 함께 준다.
+   */
+  | 'draft_used' | 'unavailable';
+export type CartTransactionQuoteResult = { ok: true; quote: GoodsTransactionQuote; offers: GoodsTransactionOffer[] } | { ok: false; error: CartTransactionError; orderId?: string };
+export type CartTransactionPlaceResult = { ok: true; orderId: string } | { ok: false; error: CartTransactionError; uncertain: boolean; orderId?: string };
 
 async function authorize(expectedActorId: string, allowExisting = false): Promise<CartTransactionError | null> {
   const auth = await getCurrentAuthState();
@@ -27,6 +36,8 @@ async function authorize(expectedActorId: string, allowExisting = false): Promis
 function rpcError(message: string): CartTransactionError {
   // 이전 장바구니 주문의 결제를 승인 확인하는 중이면 새 주문을 받지 않는다(ADR-0026).
   if (message.includes('checkout_payment_in_progress')) return 'payment_in_progress';
+  if (message.includes('checkout_draft_used')) return 'draft_used';
+  if (message.includes('checkout_draft_expired')) return 'draft_expired';
   if (message.includes('transaction_quote_too_large')) return 'order_too_large';
   if (message.includes('transaction_runtime_disabled')) return 'checkout_unavailable';
   if (message.includes('cart_snapshot_changed')) return 'cart_changed';
@@ -39,6 +50,15 @@ function rpcError(message: string): CartTransactionError {
   if (message.includes('transaction_actor_unavailable')) return 'account_unavailable';
   if (message.includes('transaction_payment_method_unavailable') || message.includes('transaction_new_payment_disabled')) return 'payment_unavailable';
   return 'unavailable';
+}
+/**
+ * 주문을 막은 주문: 같은 주문서 재제출 거절(checkout_draft_used)의 원 주문, 결제 승인을 확인하는 주문
+ * (checkout_payment_in_progress). DB detail이 주문 id다.
+ */
+function usedOrder(error: { message: string; details?: string | null }): { orderId: string } | Record<string, never> {
+  const code = rpcError(error.message);
+  const orderId = code === 'draft_used' || code === 'payment_in_progress' ? normalizeOrderReference(error.details ?? null) : null;
+  return orderId ? { orderId } : {};
 }
 function quoteFitsCart(quote: GoodsTransactionQuote, input: CartTransactionInput) {
   if (quote.state === 'blocked') return true;
@@ -54,14 +74,21 @@ export async function quoteCartTransactionAction(value: unknown): Promise<CartTr
   const denied = await authorize(input.expectedActorId); if (denied) return { ok: false, error: denied };
   if (await loadGoodsTransactionRuntimeMode() !== 'transaction') return { ok: false, error: 'checkout_unavailable' };
   try {
+    const coupons = input.userCouponIds ? { p_user_coupon_ids: input.userCouponIds } : { p_user_coupon_id: input.userCouponId };
+    /* 바로구매 초안(ADR-0030)은 장바구니가 아니라 그 초안 줄로 견적한다 — 장바구니 쿠폰 선택과 비교하지 않는다. */
     const [{ data, error }, offers] = await Promise.all([
-      createServiceClient().rpc(input.userCouponIds ? 'quote_cart_goods_transaction_combined' : 'quote_cart_goods_transaction', {
-        p_user_id: input.expectedActorId, p_expected_cart: cartTransactionSnapshot(input.items), p_address: input.address,
-        p_delivery_choices: input.deliveryChoices, ...(input.userCouponIds ? { p_user_coupon_ids: input.userCouponIds } : { p_user_coupon_id: input.userCouponId }), p_store_credit_amount: input.storeCreditAmount,
-      }),
+      input.draftId
+        ? createServiceClient().rpc(input.userCouponIds ? 'quote_direct_goods_transaction_combined' : 'quote_direct_goods_transaction', {
+          p_user_id: input.expectedActorId, p_draft_id: input.draftId, p_address: input.address,
+          p_delivery_choices: input.deliveryChoices, ...coupons, p_store_credit_amount: input.storeCreditAmount,
+        })
+        : createServiceClient().rpc(input.userCouponIds ? 'quote_cart_goods_transaction_combined' : 'quote_cart_goods_transaction', {
+          p_user_id: input.expectedActorId, p_expected_cart: cartTransactionSnapshot(input.items), p_address: input.address,
+          p_delivery_choices: input.deliveryChoices, ...coupons, p_store_credit_amount: input.storeCreditAmount,
+        }),
       loadGoodsTransactionOffers([...new Set(input.items.map(item => item.goodId))]),
     ]);
-    if (error) return { ok: false, error: rpcError(error.message) };
+    if (error) return { ok: false, error: rpcError(error.message), ...usedOrder(error) };
     const quote = parseGoodsTransactionQuote(data);
     return quote && offers && quoteFitsCart(quote, input) ? { ok: true, quote, offers } : { ok: false, error: 'unavailable' };
   } catch { return { ok: false, error: 'unavailable' }; }
@@ -80,11 +107,16 @@ export async function placeCartTransactionAction(value: unknown): Promise<CartTr
   } catch { return { ok: false, error: 'unavailable', uncertain: false }; }
   if (!available) return { ok: false, error: 'payment_unavailable', uncertain: false };
   try {
-    const { data, error } = await createServiceClient().rpc('place_cart_goods_transaction', {
-      p_user_id: input.expectedActorId, p_expected_cart: cartTransactionSnapshot(input.items), p_address: input.address,
-      p_quote_id: input.quoteId, p_checkout_key: input.checkoutKey, p_payment_method: input.paymentMethod,
-    });
-    if (error) return { ok: false, error: rpcError(error.message), uncertain: !/^(?:PT409|22[0-9A-Z]{3}|23[0-9A-Z]{3}|42501|P0001)$/.test(error.code ?? '') };
+    const { data, error } = input.draftId
+      ? await createServiceClient().rpc('place_direct_goods_transaction', {
+        p_user_id: input.expectedActorId, p_draft_id: input.draftId, p_address: input.address,
+        p_quote_id: input.quoteId, p_checkout_key: input.checkoutKey, p_payment_method: input.paymentMethod,
+      })
+      : await createServiceClient().rpc('place_cart_goods_transaction', {
+        p_user_id: input.expectedActorId, p_expected_cart: cartTransactionSnapshot(input.items), p_address: input.address,
+        p_quote_id: input.quoteId, p_checkout_key: input.checkoutKey, p_payment_method: input.paymentMethod,
+      });
+    if (error) return { ok: false, error: rpcError(error.message), uncertain: !/^(?:PT409|22[0-9A-Z]{3}|23[0-9A-Z]{3}|42501|P0001)$/.test(error.code ?? ''), ...usedOrder(error) };
     const orderId = normalizeOrderReference(data);
     if (!orderId) return { ok: false, error: 'unavailable', uncertain: true };
     // Analytics must never turn an already committed order into a failed request.
@@ -99,13 +131,23 @@ export async function resumeCartTransactionAction(value: unknown): Promise<CartT
   const denied = await authorize(input.expectedActorId, true); if (denied) return { ok: false, error: denied, uncertain: false };
   try {
     const runtimeReady = await loadGoodsTransactionRuntimeMode() === 'transaction';
-    const allowNew = runtimeReady && (input.paymentMethod === 'bank_transfer' ? await bankTransferCheckoutEnabled()
-      : goodsCheckoutPaymentsEnabled(input.expectedActorId, await deriveUserCartProvider(input.expectedActorId)));
-    const { data, error } = await createServiceClient().rpc('resume_cart_goods_transaction', {
-      p_user_id: input.expectedActorId, p_quote_id: input.quoteId, p_checkout_key: input.checkoutKey,
-      p_payment_method: input.paymentMethod, p_allow_new: allowNew,
-    });
-    if (error) return { ok: false, error: rpcError(error.message), uncertain: !/^(?:PT409|22[0-9A-Z]{3}|23[0-9A-Z]{3}|42501|P0001)$/.test(error.code ?? '') };
+    /* 바로구매 초안(ADR-0030)의 결제사는 그 초안 줄로 파생한다. 장바구니 주문은 지금처럼 서버 장바구니로 본다. */
+    const loaded = input.draftId ? await loadCheckoutDraft(input.expectedActorId, input.draftId) : null;
+    /* 만료된 주문서는 줄이 없어 결제사를 파생할 수 없다 — 같은 키의 원래 주문만 돌려받고 새 결제를 열지 않는다. */
+    const draft = loaded && loaded !== 'error' && !isClosedCheckoutDraft(loaded) ? loaded : null;
+    const provider = draft ? await deriveGoodsCartProvider(draft.lines.map(line => line.goodId)) : await deriveUserCartProvider(input.expectedActorId);
+    const allowNew = runtimeReady && (!input.draftId || draft !== null) && (input.paymentMethod === 'bank_transfer' ? await bankTransferCheckoutEnabled()
+      : goodsCheckoutPaymentsEnabled(input.expectedActorId, provider));
+    const { data, error } = input.draftId
+      ? await createServiceClient().rpc('resume_direct_goods_transaction', {
+        p_user_id: input.expectedActorId, p_draft_id: input.draftId, p_quote_id: input.quoteId, p_checkout_key: input.checkoutKey,
+        p_payment_method: input.paymentMethod, p_allow_new: allowNew,
+      })
+      : await createServiceClient().rpc('resume_cart_goods_transaction', {
+        p_user_id: input.expectedActorId, p_quote_id: input.quoteId, p_checkout_key: input.checkoutKey,
+        p_payment_method: input.paymentMethod, p_allow_new: allowNew,
+      });
+    if (error) return { ok: false, error: rpcError(error.message), uncertain: !/^(?:PT409|22[0-9A-Z]{3}|23[0-9A-Z]{3}|42501|P0001)$/.test(error.code ?? ''), ...usedOrder(error) };
     const orderId = normalizeOrderReference(data);
     return orderId ? { ok: true, orderId } : { ok: false, error: 'unavailable', uncertain: true };
   } catch { return { ok: false, error: 'unavailable', uncertain: true }; }

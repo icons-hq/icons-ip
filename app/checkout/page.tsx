@@ -11,7 +11,9 @@ import { loadCheckoutAddressPrefill, loadLatestPendingCheckoutOrderId } from '@/
 import { loadCartCouponState } from '@/lib/coupons.server';
 import { bankTransferCheckoutEnabled } from '@/lib/payments/bank-transfer.server';
 import { goodsCheckoutPaymentsEnabled } from '@/lib/payments/goods-checkout-availability';
-import { deriveUserCartProvider } from '@/lib/payments/goods-sale-restriction.server';
+import { deriveGoodsCartProvider, deriveUserCartProvider } from '@/lib/payments/goods-sale-restriction.server';
+import { checkoutDraftHref, checkoutDraftReturnHref, isClosedCheckoutDraft, normalizeCheckoutDraftId, type CheckoutDraft } from '@/lib/checkout-draft';
+import { loadCheckoutDraft } from '@/lib/checkout-draft.server';
 import { loadGoodsTransactionRuntimeMode } from '@/lib/checkout-transaction.server';
 import { GoodsTransactionCheckout } from '@/components/screens/GoodsTransactionCheckout';
 import Link from 'next/link';
@@ -25,18 +27,61 @@ interface PageProps {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
 
-export default async function Page({ searchParams }: PageProps) {
-  const auth = await getCurrentAuthState();
-  if (!auth.user) redirect(`/login?next=${encodeURIComponent('/checkout')}`);
-  if (!isOnboarded(auth.profile, auth.user.email)) redirect(onboardingPath('/checkout'));
+type DraftOrigin = Pick<CheckoutDraft, 'source' | 'baseGoodId'>;
 
+/* 주문서를 열 수 없을 때. 본인 주문서면(만료돼도 출처가 남는다) 고른 화면으로 — 바로구매는 굿즈 상세로 돌려보낸다. */
+function DraftUnavailable({ draft, error }: { draft: DraftOrigin | null; error: boolean }) {
+  return (
+    <main className="wc-root wc-receipt checkout-page">
+      <div className="wrap checkout-empty card">
+        <h1>{error ? '주문서를 불러오지 못했어요' : '주문서를 다시 열어주세요'}</h1>
+        <p>{error ? '잠시 후 다시 시도해주세요.'
+          : draft ? '주문서를 연 지 오래되어 다시 열어야 해요. 고른 화면에서 다시 주문해주세요.'
+            : '주문서를 연 지 오래되었거나 이 계정의 주문서가 아니에요. 고른 화면에서 다시 주문해주세요.'}</p>
+        <Link className="btn btn-holo" href={checkoutDraftReturnHref(draft)}>{draft?.source === 'direct' ? '굿즈로 돌아가기' : '장바구니로 돌아가기'}</Link>
+        {draft ? null : <Link className="btn btn-ghost" href="/shop">굿즈 둘러보기</Link>}
+      </div>
+    </main>
+  );
+}
+
+/* 이 주문서로 이미 무통장 접수·결제한 주문이 있다(다른 탭·뒤로 가기). 같은 주문서로 다시 주문하지 않고 원 주문으로 잇는다. */
+function DraftUsed({ draft, orderId }: { draft: DraftOrigin; orderId: string }) {
+  return (
+    <main className="wc-root wc-receipt checkout-page">
+      <div className="wrap checkout-empty card">
+        <h1>이미 주문한 주문서예요</h1>
+        <p>이 주문서로 만든 주문이 있어요. 주문 내용과 결제·입금 상태를 확인해주세요.</p>
+        <Link className="btn btn-holo" href={`/orders/${encodeURIComponent(orderId)}`}>주문 보기</Link>
+        <Link className="btn btn-ghost" href={checkoutDraftReturnHref(draft)}>{draft.source === 'direct' ? '굿즈로 돌아가기' : '장바구니로 돌아가기'}</Link>
+      </div>
+    </main>
+  );
+}
+
+export default async function Page({ searchParams }: PageProps) {
   /* 토스 failUrl은 이 화면으로 돌아온다(?code=…&message=…). code는 외부
      문자열이라 형식만 통과시키고, message는 아예 읽지 않는다. */
   const params = (await searchParams) ?? {};
+  /* 주문서 초안(ADR-0030 — 장바구니 선택 주문·바로구매). 없으면 지금처럼 장바구니 전체 주문서다. */
+  const draftRequested = params.draft !== undefined;
+  const draftId = typeof params.draft === 'string' ? normalizeCheckoutDraftId(params.draft) : null;
+  const returnPath = draftId ? checkoutDraftHref(draftId) : '/checkout';
+  const auth = await getCurrentAuthState();
+  if (!auth.user) redirect(`/login?next=${encodeURIComponent(returnPath)}`);
+  if (!isOnboarded(auth.profile, auth.user.email)) redirect(onboardingPath(returnPath));
+
   const rawFailCode = typeof params.code === 'string' ? params.code : null;
   const paymentFailCode = rawFailCode && /^[A-Z_]{2,64}$/.test(rawFailCode)
     ? rawFailCode
     : null;
+
+  const draftView = draftId ? await loadCheckoutDraft(auth.user.id, draftId) : null;
+  if (draftView === 'error') return <DraftUnavailable draft={null} error />;
+  if (draftRequested && !draftView) return <DraftUnavailable draft={null} error={false} />;
+  if (draftView?.usedOrderId) return <DraftUsed draft={draftView} orderId={draftView.usedOrderId} />;
+  if (draftView && isClosedCheckoutDraft(draftView)) return <DraftUnavailable draft={draftView} error={false} />;
+  const draft = draftView;
 
   const [catalog, addressPrefill, resumeOrderId, couponState, transactionMode, couponPolicy] = await Promise.all([
     getAdultGoodsAccess().then(adultGoods => getCatalogSnapshot({ adultGoods })),
@@ -47,9 +92,11 @@ export default async function Page({ searchParams }: PageProps) {
     loadCouponCombinationPolicy(),
   ]);
 
-  /* 카드 결제 가능 여부는 서버 카트 구성으로 파생한 provider의 gate다 — 19금 굿즈가
-     섞이면 나이스페이다. 주문 액션이 실제 카트로 다시 판정하고, DB prepare가 최종 강제한다. */
-  const cardProvider = await deriveUserCartProvider(auth.user.id).catch(() => 'toss' as const);
+  /* 카드 결제 가능 여부는 이 주문서 품목으로 파생한 provider의 gate다 — 19금 굿즈가
+     섞이면 나이스페이다. 초안이면 그 줄(장바구니에만 있는 19금 굿즈는 끼지 않는다), 아니면 서버 카트 전체로 판정한다.
+     주문 액션이 같은 품목으로 다시 판정하고, DB prepare가 최종 강제한다. */
+  const cardProvider = await (draft ? deriveGoodsCartProvider(draft.lines.map(line => line.goodId)) : deriveUserCartProvider(auth.user.id))
+    .catch(() => 'toss' as const);
   const paymentAvailable = goodsCheckoutPaymentsEnabled(auth.user.id, cardProvider);
 
   /* 확정은 place_order 가 한다 — 주문서는 카트에 적용해 둔 선택을 미리 보여주고, 같은 선택(cart_coupon_selections)을 바꾸게 한다(R25). */
@@ -60,7 +107,7 @@ export default async function Page({ searchParams }: PageProps) {
   if (transactionMode === 'unavailable') return <main className="wc-root checkout-page"><div className="wrap card"><h1>주문 조건을 확인하지 못했어요</h1><p>잠시 후 다시 확인해주세요.</p><Link href="/cart">장바구니로 돌아가기</Link></div></main>;
   if (transactionMode === 'transaction') return <GoodsTransactionCheckout key={auth.user.id} accountId={auth.user.id} catalog={{ goods: catalog.goods, ips: catalog.ips }} addressPrefill={addressPrefill}
     resumeOrderId={resumeOrderId} paymentAvailable={paymentAvailable} bankTransferAvailable={await bankTransferCheckoutEnabled()}
-    userCouponId={couponState.selectedUserCouponId} coupons={couponState.coupons} couponPolicy={couponPolicy} paymentFailCode={paymentFailCode} />;
+    userCouponId={couponState.selectedUserCouponId} coupons={couponState.coupons} couponPolicy={couponPolicy} paymentFailCode={paymentFailCode} draft={draft} />;
 
   return (
     <Checkout
@@ -74,6 +121,7 @@ export default async function Page({ searchParams }: PageProps) {
       appliedCoupon={appliedCoupon}
       couponState={couponState}
       paymentFailCode={paymentFailCode}
+      draft={draft}
     />
   );
 }

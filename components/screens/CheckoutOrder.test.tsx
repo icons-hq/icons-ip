@@ -17,6 +17,7 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
 }));
 vi.mock('@/app/checkout/reorder-actions', () => ({ restoreCanceledOrderToCartAction: vi.fn() }));
+vi.mock('@/app/checkout/draft-actions', () => ({ createCartRetryDraftAction: vi.fn(), createDirectRetryDraftAction: vi.fn() }));
 /* 직전 목록 링크(목적지·문구 판정)는 ListingReturn.client.test 가 본다 — 여기서는 닫힌 주문이 그 링크를 쓰는지만 표식으로 본다. */
 vi.mock('@/components/shell/ListingReturn', () => ({
   ListingReturnLink: ({ children, className }: { children?: ReactNode; className?: string }) => (
@@ -406,8 +407,9 @@ describe('CheckoutOrder 한 번에 결제(S8)·장바구니 유지(D3)', () => {
         order={{ ...order, cartRetained: true, paymentAttempt: { state: 'declined', expiresAt: '2099-08-07T06:10:00.000Z', provider: 'toss' } }}
       />,
     );
-    expect(html).toContain('href="/checkout"');
-    expect(html).toContain('다시 결제하기');
+    /* 다시 결제는 그 주문의 줄로 주문서 초안을 만드는 버튼이다(ADR-0030) — 장바구니 전체 주문서 링크가 아니다. */
+    expect(html).toContain('<button class="btn btn-holo" type="button">다시 결제하기</button>');
+    expect(html).not.toContain('href="/checkout"');
     expect(html).toContain('장바구니는 그대로 있으니');
     expect(html).not.toContain('이 주문 취소하고 다시 주문하기');
   });
@@ -416,6 +418,28 @@ describe('CheckoutOrder 한 번에 결제(S8)·장바구니 유지(D3)', () => {
     const html = renderToStaticMarkup(<CheckoutOrder order={{ ...order, cartRetained: true, status: 'canceled', expiresAt: null }} />);
     expect(html).toContain('결제 없이 취소된 주문이에요');
     expect(html).toContain('href="/cart"');
+    expect(html).not.toContain('같은 굿즈 다시 담기');
+  });
+});
+
+describe('CheckoutOrder 바로구매 다시 구매(ADR-0030)', () => {
+  /* 확정 동작 8: '다시 구매하기'는 서버 액션이다 — 이 주문을 닫고 같은 구성으로 바로구매 주문서를 연다. 굿즈 상세는 보조 링크다. */
+  it('결제 없이 끝난 바로구매는 장바구니가 아니라 같은 구성으로 다시 구매하게 한다', () => {
+    const html = renderToStaticMarkup(
+      <CheckoutOrder order={{ ...order, directGoodId: 'g2', paymentAttempt: { state: 'declined', expiresAt: '2099-08-07T06:10:00.000Z', provider: 'toss' } }} />,
+    );
+    expect(html).toContain('<button class="btn btn-holo" type="button">다시 구매하기</button>');
+    expect(html).toContain('<a class="checkout-retry-secondary" href="/shop/g2">굿즈 상세에서 다시 고르기</a>');
+    expect(html).toContain('같은 구성으로 주문서가 열려요');
+    expect(html).not.toContain('다시 결제하기');
+    expect(html).not.toContain('이 주문 취소하고 다시 주문하기');
+  });
+
+  it('결제 없이 취소된 바로구매도 같은 구성으로 다시 구매하게 한다', () => {
+    const html = renderToStaticMarkup(<CheckoutOrder order={{ ...order, directGoodId: 'g2', status: 'canceled', expiresAt: null }} />);
+    expect(html).toContain('같은 구성으로 다시 구매할 수 있어요');
+    expect(html).toContain('<button class="btn btn-holo" type="button">다시 구매하기</button>');
+    expect(html).toContain('href="/shop/g2"');
     expect(html).not.toContain('같은 굿즈 다시 담기');
   });
 });

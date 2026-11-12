@@ -165,6 +165,8 @@ const storefront = [
   sql('bank_transfer_order_number_code'),
   sql('order_item_allocation_inputs'),
   sql('cart_retained_until_payment', { admin: true, kc: true }),
+  // 바로구매·장바구니 선택 주문·선택 삭제(ADR-0030)는 장바구니 보류 계약(ADR-0026) 바로 뒤다.
+  sql('checkout_selection_direct', { admin: true, kc: true }),
   sql('home_collection_banners', { admin: true }),
   sql('ip_hall_banners', { admin: true }),
   // 예전 story/marketing 단계의 쇼핑 스토리·마케팅·상품 상세 연출·리뷰 이벤트다.

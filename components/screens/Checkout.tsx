@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { PendingOrderResolution } from '@/components/checkout/PendingOrderResolution';
 import { useRouter } from 'next/navigation';
 import { useMemo, useRef, useState, type FormEvent } from 'react';
 import { placeOrderAction } from '@/app/checkout/actions';
@@ -27,6 +26,7 @@ import { cartLineOption, cartOptionGood, goodAtQuotedPrice, optionLabel } from '
 import { goodsPurchaseReasonMessage, goodsSalesQuoteProblem, quoteLineOptionLimitMessage } from '@/lib/goods-sales';
 import { PLACE_ORDER_OPTION_LIMIT_MESSAGES, PLACE_ORDER_RANDOM_OPTION_LIMIT_MESSAGE, PLACE_ORDER_RANDOM_OPTION_MESSAGE } from '@/lib/goods-option-sale-mode';
 import { couponErrorNeedsPendingOrder, MIN_PAYABLE_TOTAL, type UserCouponSummary } from '@/lib/coupons';
+import { PendingOrderResolution } from '@/components/checkout/PendingOrderResolution';
 import type { CartCouponState } from '@/lib/coupons.server';
 import { normalizeStoreCreditAmount } from '@/lib/store-credits';
 import { goodsShipDateLabel } from '@/lib/goods-preorders';
@@ -39,12 +39,18 @@ import { ShippingGroupSummary } from '@/components/shop/ShippingGroupSummary';
 import { shippingGroupLabel, shippingGroupsNotice } from '@/lib/fulfillment';
 import { parseShippingDestination } from '@/lib/shipping-regions';
 import { orderCompleteHref } from '@/lib/routes';
+import { checkoutDraftReturnHref, directCheckoutCopy, type CheckoutDraft } from '@/lib/checkout-draft';
+import { useDirectCheckoutQuote, useDraftStoreCreditQuote } from './CheckoutDraftQuotes';
+import { CheckoutDirectCoupon } from './CheckoutDirectCoupon';
+import { CheckoutPendingOrderRelease } from './CheckoutPendingOrderRelease';
+import { quoteMayBeBlockedByPendingOrder } from '@/lib/checkout-selection';
 
 /* 결제 대기 주문의 최소 결제 금액. DB 트리거(orders_korpay_minimum_amount)가 같은 값으로
    막는다 — 쿠폰·적립금은 그 아래로 깎지 않으므로 굿즈 금액+배송비가 기준이다. */
 const BELOW_MINIMUM_PAYMENT_COPY = `결제 금액이 최소 결제 금액(${krw(MIN_PAYABLE_TOTAL)})보다 적어 주문할 수 없어요. 굿즈를 더 담아주세요.`;
 
-const actionErrors = {
+/** 주문 생성 거절 안내(장바구니 주문서 기준). 바로구매 주문서는 directCheckoutCopy로 굿즈 상세를 가리키게 바꾼다. */
+export const checkoutActionErrorCopy = {
   account_suspended: '정지된 계정은 새 주문을 만들 수 없어요.',
   goods_custom_inputs_changed: '직접 입력 옵션 설정이 변경되었습니다. 장바구니에서 내용을 다시 확인해주세요.',
   cart_changed: '장바구니가 변경되었습니다. 새로 불러온 전체 굿즈와 수량을 확인한 뒤 다시 주문해주세요.',
@@ -81,9 +87,24 @@ const actionErrors = {
   preorder_policy_not_configured: '굿즈의 예약 조건을 확인 중입니다. 잠시 후 다시 시도해주세요.',
   shipping_region_unresolved: '배송지의 배송 가능 여부와 배송비가 변경되었습니다. 배송지와 최신 배송비를 다시 확인해주세요.',
   payment_below_minimum: BELOW_MINIMUM_PAYMENT_COPY,
-  checkout_payment_in_progress: '앞서 결제한 주문의 승인 결과를 확인하고 있어요. 확인이 끝난 뒤 다시 시도해주세요.',
+  /* 결제 승인을 확인하고 있는 주문이 있다(ADR-0026·0030). 그 주문(detail)으로 안내하고 결제 버튼을 잠근다. */
+  checkout_payment_in_progress: '결제 확인 중인 주문이 있어요. 그 주문의 결제 결과를 확인한 뒤 다시 시도해주세요.',
+  checkout_draft_expired: '주문서를 연 지 오래되어 다시 열어야 해요. 장바구니에서 다시 주문해주세요.',
+  /* 같은 주문서(초안)로 이미 무통장 접수·결제한 주문이 있다 — 다른 탭·뒤로 가기의 재제출(ADR-0030). */
+  checkout_draft_used: '이미 주문한 주문서예요. 주문 내용과 결제·입금 상태를 확인해주세요.',
   unavailable: '주문을 만들지 못했어요. 잠시 후 다시 시도해주세요.',
 } as const;
+const actionErrors = checkoutActionErrorCopy;
+
+/* 주문서 초안(ADR-0030)에서만 쓰는 안내. 선택 주문은 장바구니에서 고른 줄, 바로구매는 상품 상세에서 고른 굿즈다. */
+const SELECTION_CART_CHANGED_COPY = '장바구니에서 고른 굿즈의 수량이나 구성이 바뀌었어요. 장바구니에서 다시 골라 주문해주세요.';
+const DIRECT_DRAFT_EXPIRED_COPY = '주문서를 연 지 오래되어 다시 열어야 해요. 굿즈 상세에서 다시 구매해주세요.';
+/* 고른 화면(장바구니·굿즈 상세)에서 다시 고르면 풀리는 거절. 초안 주문서는 그 화면으로 돌아가는 링크를 붙인다. */
+const DRAFT_RETURN_ERRORS = new Set<string>(['cart_changed', 'checkout_draft_expired', 'goods_custom_inputs_changed', 'restricted_good_blocked',
+  'empty_cart', 'out_of_stock', 'goods_sale_not_open', 'preorder_sale_not_open', 'preorder_capacity_exceeded', 'option_order_limit_exceeded',
+  'option_member_limit_exceeded', 'random_option_unavailable', 'random_option_limit_exceeded', 'member_purchase_limit_exceeded',
+  'order_quantity_above_maximum', 'order_quantity_below_minimum', 'adult_verification_required']);
+const STOCK_CHANGED_COPY = '재고가 변경된 굿즈가 있어요. 장바구니에서 수량을 확인해주세요.';
 
 interface CheckoutProps {
   catalog: Pick<CatalogSnapshot, 'goods' | 'ips'>;
@@ -99,6 +120,11 @@ interface CheckoutProps {
   couponState: CartCouponState;
   /** 토스 failUrl 쿼리에서 서버가 형식 검증까지 마친 실패 코드. */
   paymentFailCode?: string | null;
+  /**
+   * 주문서 초안(ADR-0030). 있으면 그 줄만 표시·견적·주문한다 — 장바구니 선택 주문(selection)·바로구매(direct).
+   * 없으면 지금처럼 계정 장바구니 전체다.
+   */
+  draft?: CheckoutDraft | null;
 }
 
 const addressFieldOrder: CheckoutAddressField[] = [
@@ -116,6 +142,43 @@ const addressFieldOrder: CheckoutAddressField[] = [
  * 구성에서 버튼은 활성인데 제출이 조용히 무시된다. 서버도 placeOrderAction에서
  * 같은 수단별 판정을 한다.
  */
+/**
+ * 주문서 머리 안내. 장바구니 전체 주문은 지금 문구 그대로이고, 선택 주문은 고르지 않은 굿즈가 남는다는 것을,
+ * 바로구매는 장바구니를 바꾸지 않는다는 것을 덧붙인다(ADR-0030).
+ */
+export function checkoutSubcopy(source: CheckoutDraft['source'] | null, paymentMethod: CheckoutPaymentMethod): string {
+  if (source === 'direct') {
+    return paymentMethod === 'bank_transfer'
+      ? '고른 굿즈만 주문해요. 주문을 접수하면 입금 계좌와 기한을 안내해요. 장바구니는 바뀌지 않아요.'
+      : '고른 굿즈만 주문해요. 결제하기를 누르면 바로 결제 화면이 열려요. 장바구니는 바뀌지 않아요.';
+  }
+  if (source === 'selection') {
+    return paymentMethod === 'bank_transfer'
+      ? '장바구니에서 고른 굿즈만 주문해요. 접수한 굿즈만 장바구니에서 빠지고, 고르지 않은 굿즈는 그대로 남아요.'
+      : '장바구니에서 고른 굿즈만 주문해요. 결제하기를 누르면 바로 결제 화면이 열리고, 고르지 않은 굿즈는 결제 뒤에도 장바구니에 남아요.';
+  }
+  return paymentMethod === 'bank_transfer'
+    ? '주문을 접수하면 입금 계좌와 기한을 안내해요. 접수한 굿즈는 장바구니에서 빠져요.'
+    : '결제하기를 누르면 바로 결제 화면이 열려요. 결제를 마치기 전까지 장바구니는 그대로예요.';
+}
+
+/** 결제 버튼 아래 안내. 장바구니 전체 주문은 지금 문구 그대로다. */
+export function checkoutSubmitCaption(source: CheckoutDraft['source'] | null, paymentMethod: CheckoutPaymentMethod): string {
+  if (source === 'direct') {
+    return paymentMethod === 'bank_transfer'
+      ? '주문이 접수되면 입금 계좌와 기한을 안내해요. 장바구니는 바뀌지 않아요.'
+      : '다음 화면에서 결제수단을 고르고 결제를 마쳐요. 장바구니는 바뀌지 않아요.';
+  }
+  if (source === 'selection') {
+    return paymentMethod === 'bank_transfer'
+      ? '주문이 접수되면 입금 계좌와 기한을 안내해요. 고른 굿즈만 장바구니에서 빠져요.'
+      : '다음 화면에서 결제수단을 고르고 결제를 마쳐요. 결제가 끝나면 고른 굿즈만 장바구니에서 빠져요.';
+  }
+  return paymentMethod === 'bank_transfer'
+    ? '주문이 접수되면 입금 계좌와 기한을 안내해요. 접수한 굿즈는 장바구니에서 빠져요.'
+    : '다음 화면에서 결제수단을 고르고 결제를 마쳐요. 결제가 끝나면 주문한 굿즈가 장바구니에서 빠져요.';
+}
+
 export function checkoutMethodAvailable(
   paymentMethod: CheckoutPaymentMethod,
   gates: { card: boolean; bankTransfer: boolean },
@@ -132,17 +195,33 @@ export function Checkout({
   appliedCoupon,
   couponState,
   paymentFailCode = null,
+  draft = null,
 }: CheckoutProps) {
   const router = useRouter();
-  const { items, ready, mode, pending: cartPending, error: cartError, refresh } = useCart();
-  /* 결제를 마치지 않은 이전 장바구니 주문이 쿠폰·적립금·구매 한도를 잡고 있으면 먼저 닫는다(ADR-0026). */
-  const released = useReleaseUnpaidCartOrders();
+  const { items: cartItems, ready, mode, pending: cartPending, error: cartError, refresh } = useCart();
+  /* 초안이 있으면 그 줄만 주문한다(선택 주문·바로구매). 장바구니 전체가 아니다(ADR-0030). */
+  const items = draft ? draft.lines : cartItems;
+  const direct = draft?.source === 'direct';
+  const draftReturnHref = checkoutDraftReturnHref(draft);
+  /* 바로구매 주문서의 안내는 장바구니가 아니라 굿즈 상세로 돌려보낸다(ADR-0030 — 바로구매는 장바구니를 거치지 않는다). */
+  const copyFor = (message: string) => (direct ? directCheckoutCopy(message) : message);
+  /* 결제를 마치지 않은 이전 주문이 쿠폰·적립금·구매 한도를 잡고 있으면 먼저 닫는다(ADR-0026). 장바구니 주문서는 장바구니
+     출처만 닫고, 바로구매 주문서는 아무것도 닫지 않는다 — 보기만으로 다른 탭의 결제를 끊지 않는다. 견적이 그 주문 때문에
+     막히면 아래 안내가 그 주문을 알리고 고객이 누를 때만 닫는다(ADR-0030). */
+  const released = useReleaseUnpaidCartOrders(direct ? 'none' : 'cart');
+  /* 바로구매 쿠폰은 이 주문서에서 따로 고른다 — 장바구니 쿠폰 선택은 바꾸지 않는다. */
+  const [directCouponId, setDirectCouponId] = useState<string | null>(null);
   const checkoutKey = useRef<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   /* 쿠폰 칸의 변경 액션이 진행 중이면 결제를 잠근다(R25) — 끝나기 전의 주문은 이전 쿠폰으로 나가 거절된다. */
   const [couponPending, setCouponPending] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [pendingOrder, setPendingOrder] = useState(false);
+  /* 초안 주문이 장바구니 변경·초안 만료로 거절되면 고른 화면(장바구니·상품 상세)으로 돌아가는 링크를 붙인다. */
+  const [draftReturnNeeded, setDraftReturnNeeded] = useState(false);
+  /* 주문을 막은 주문(ADR-0030): 같은 주문서로 이미 접수·결제한 주문이거나 결제 승인을 확인하고 있는 주문. 있으면 그 주문으로
+     안내하고 결제 버튼을 잠근다 — 같은 주문서로 두 번 청구되지 않게. */
+  const [blockingOrderId, setBlockingOrderId] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<CheckoutAddressErrors>({});
   /* 카드 게이트가 닫혀 있으면 열려 있는 무통장으로 시작한다 — 고를 수 없는
      라디오가 선택된 채 뜨지 않게. 두 게이트 prop은 서버가 내려주는 고정값이다. */
@@ -162,10 +241,18 @@ export function Checkout({
   const prefillNotice = prefilled && sameCheckoutDestination(prefilled, address)
     ? checkoutAddressPrefillNotice(addressPrefill.source) : null;
   const destination = parseShippingDestination({ postalCode: address.postalCode, address1: address.address1 });
-  const shipping = useShippingQuote(items, ready && released, appliedCoupon?.id ?? '', destination);
+  const cartQuote = useShippingQuote(items, ready && released && !direct, appliedCoupon?.id ?? '', destination);
+  const directQuote = useDirectCheckoutQuote(items, ready && released && direct, directCouponId, destination);
+  const shipping = direct ? directQuote : cartQuote;
+  /* 이 주문서의 쿠폰: 바로구매는 주문서에서 고른 쿠폰, 아니면 장바구니 쿠폰 선택이다. */
+  const orderCoupon = direct ? couponState.coupons.find((held) => held.id === directCouponId) ?? null : appliedCoupon;
   const [storeCreditInput, setStoreCreditInput] = useState('');
   const requestedStoreCredits = normalizeStoreCreditAmount(storeCreditInput);
-  const credits = useStoreCreditQuote(requestedStoreCredits, shipping.sales?.calculatedAt ?? null, destination);
+  /* 적립금 사용 한도도 이 주문서의 품목 기준이다 — 초안이면 그 줄과 쿠폰으로, 아니면 장바구니 전체로 묻는다. */
+  const cartCredits = useStoreCreditQuote(requestedStoreCredits, draft ? null : shipping.sales?.calculatedAt ?? null, destination);
+  const draftCredits = useDraftStoreCreditQuote(requestedStoreCredits, draft ? shipping.sales?.calculatedAt ?? null : null, destination, items,
+    direct ? { kind: 'direct', userCouponId: directCouponId } : { kind: 'cart' });
+  const credits = draft ? draftCredits : cartCredits;
   const creditProblem = requestedStoreCredits === null ? '적립금은 0 이상의 원 단위 정수로 입력해주세요.'
     : requestedStoreCredits > 0 && credits.quote && !credits.quote.valid ? actionErrors.store_credit_rejected : null;
   const creditReady = requestedStoreCredits === 0 || (requestedStoreCredits !== null && credits.quote?.valid === true);
@@ -191,12 +278,17 @@ export function Checkout({
   const shippingFee = shipping.quote?.totalFee ?? 0;
   const shippingReady = shipping.quote?.checkoutAllowed === true && shipping.quote.finalTotalFee !== null;
   const couponDiscount = shipping.sales?.coupon?.discount ?? 0;
-  const couponSelectionChanged = Boolean(shipping.sales && (shipping.sales.coupon?.userCouponId ?? null) !== (appliedCoupon?.id ?? null));
-  const quotedCouponName = !couponSelectionChanged && appliedCoupon ? appliedCoupon.coupon.name : shipping.sales?.coupon?.couponCode;
+  const couponSelectionChanged = Boolean(shipping.sales && (shipping.sales.coupon?.userCouponId ?? null) !== (orderCoupon?.id ?? null));
+  const quotedCouponName = !couponSelectionChanged && orderCoupon ? orderCoupon.coupon.name : shipping.sales?.coupon?.couponCode;
   const couponLabel = quotedCouponName ? `쿠폰 할인 (${quotedCouponName})` : '쿠폰 할인';
   const unavailable = lines.some(({ good, qty,customInputs }) => (
     !good || Boolean(goodsCustomInputProblem(good.customInputs,customInputs)) || good.stock === 'soldout' || good.stockQty < qty
   ));
+  /* 재고가 모자란 굿즈 — 본인 결제 대기 주문이 그 재고를 잡고 있으면 해소 안내 대상이다(ADR-0030). */
+  const stockGoodIds = [...new Set([
+    ...lines.flatMap(({ good, goodId, qty }) => (good && (good.stock === 'soldout' || good.stockQty < qty) ? [goodId] : [])),
+    ...(shipping.sales?.lines ?? []).flatMap((line) => (!line.available && line.supply && line.supply.availableQty < line.qty ? [line.goodId] : [])),
+  ])];
   /*
    * 한 굿즈라도 무통장을 막았으면 주문 전체가 막힌다 — 주문 단위로 선점 창이
    * 정해지므로 품목별로 다른 기한을 줄 수 없다. 서버도 place_order에서 같은
@@ -253,9 +345,20 @@ export function Checkout({
     });
   };
 
+  /* 선택 주문 초안을 만든 뒤 다른 탭에서 고른 줄이 바뀌었다 — 주문하면 DB가 PT409로 거절하므로 먼저 막는다. */
+  const draftStale = draft?.stale === true;
+  /* 고객이 결제 대기 주문을 취소했으면 견적·적립금·쿠폰 상태를 다시 읽는다. */
+  const retryAfterRelease = () => {
+    setSubmitError(null);
+    setPendingOrder(false);
+    shipping.refresh();
+    credits.refresh();
+    router.refresh();
+  };
+
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (submitting || cartPending || couponPending || mode !== 'server' || unavailable || !methodAvailable || !shippingReady || !shipping.sales || purchaseProblem || !creditReady || couponSelectionChanged) return;
+    if (submitting || cartPending || couponPending || mode !== 'server' || unavailable || !methodAvailable || !shippingReady || !shipping.sales || purchaseProblem || !creditReady || couponSelectionChanged || draftStale || blockingOrderId) return;
 
     const nextFieldErrors = checkoutAddressErrors(address);
     if (Object.keys(nextFieldErrors).length > 0) {
@@ -272,10 +375,12 @@ export function Checkout({
     setSubmitting(true);
     setSubmitError(null);
     setPendingOrder(false);
+    setDraftReturnNeeded(false);
     checkoutKey.current ??= crypto.randomUUID();
     let result: Awaited<ReturnType<typeof placeOrderAction>>;
     try {
-      result = await placeOrderAction(address, checkoutKey.current, selectedPaymentMethod, requestedStoreCredits, shipping.sales.coupon?.userCouponId ?? null, items);
+      result = await placeOrderAction(address, checkoutKey.current, selectedPaymentMethod, requestedStoreCredits,
+        direct ? directCouponId : shipping.sales.coupon?.userCouponId ?? null, items, draft?.id);
     } catch {
       setSubmitError(actionErrors.unavailable);
       setSubmitting(false);
@@ -283,7 +388,12 @@ export function Checkout({
     }
     if (!result.ok) {
       if(result.error==='cart_changed') await refresh();
-      setSubmitError(result.pendingOrder ? '진행 중인 다른 주문을 완료하거나 취소한 뒤 다시 시도해주세요.' : actionErrors[result.error]);
+      setSubmitError(result.pendingOrder ? '진행 중인 다른 주문을 완료하거나 취소한 뒤 다시 시도해주세요.'
+        : draft?.source === 'selection' && result.error === 'cart_changed' ? SELECTION_CART_CHANGED_COPY
+          : direct && result.error === 'checkout_draft_expired' ? DIRECT_DRAFT_EXPIRED_COPY
+            : copyFor(actionErrors[result.error]));
+      setDraftReturnNeeded(Boolean(draft) && DRAFT_RETURN_ERRORS.has(result.error));
+      if (result.error === 'checkout_draft_used' || result.error === 'checkout_payment_in_progress') setBlockingOrderId(result.orderId ?? null);
       setPendingOrder(result.pendingOrder === true);
       shipping.refresh();
       credits.refresh();
@@ -350,8 +460,13 @@ export function Checkout({
       <header className="wc-receipt__head">
         <div className="wrap">
           <h1 className="wc-receipt__title">배송지와 결제 금액을 확인해주세요</h1>
-          <p className="wc-receipt__subcopy">{paymentMethod === 'bank_transfer' ? '주문을 접수하면 입금 계좌와 기한을 안내해요. 접수한 굿즈는 장바구니에서 빠져요.' : '결제하기를 누르면 바로 결제 화면이 열려요. 결제를 마치기 전까지 장바구니는 그대로예요.'}</p>
+          <p className="wc-receipt__subcopy">{checkoutSubcopy(draft?.source ?? null, paymentMethod)}</p>
           {paymentFailNotice}
+          {draftStale ? (
+            <p className="checkout-error" role="alert">
+              {SELECTION_CART_CHANGED_COPY} <Link href={draftReturnHref}>장바구니로 돌아가기</Link>
+            </p>
+          ) : null}
         </div>
       </header>
 
@@ -433,14 +548,24 @@ export function Checkout({
             <div className="checkout-total"><dt>결제 금액</dt><dd>{shippingReady && creditReady ? krw(subtotal + shippingFee - couponDiscount - usedStoreCredits) : '배송비·사용 조건 확인 후 표시'}</dd></div>
           </dl>
 
-          <CouponPicker
-            appliedCoupon={appliedCoupon}
-            couponState={couponState}
-            disabled={submitting}
-            onPendingChange={setCouponPending}
-            quote={shipping.sales?.coupon ?? null}
-            surface="checkout"
-          />
+          {direct ? (
+            <CheckoutDirectCoupon
+              couponState={couponState}
+              disabled={submitting}
+              onSelect={setDirectCouponId}
+              quote={shipping.sales?.coupon ?? null}
+              selectedUserCouponId={directCouponId}
+            />
+          ) : (
+            <CouponPicker
+              appliedCoupon={appliedCoupon}
+              couponState={couponState}
+              disabled={submitting}
+              onPendingChange={setCouponPending}
+              quote={shipping.sales?.coupon ?? null}
+              surface="checkout"
+            />
+          )}
 
           <fieldset className="checkout-method" disabled={submitting} aria-describedby="checkout-credit-note">
             <legend>적립금 사용</legend>
@@ -463,8 +588,10 @@ export function Checkout({
           {shipping.quote?.groups.map((group, index, groups) => <section className="wc-shipping-group" key={group.originId}><h3>{shippingGroupLabel(groups, index)}</h3><ShippingGroupSummary group={group} /></section>)}
           {shipping.loading ? <p role="status">현재 가격과 배송비를 확인하고 있어요.</p> : null}
           {shipping.error ? <div role="alert"><p>{shipping.error}</p><button type="button" onClick={shipping.refresh}>가격·배송비 다시 확인</button></div> : null}
-          {purchaseProblem ? <p className="checkout-error" role="alert">{purchaseProblem}
+          {purchaseProblem ? <p className="checkout-error" role="alert">{copyFor(purchaseProblem)}
+            {/* 첫구매 예약처럼 DB가 결제 대기 주문 때문이라고 알린 쿠폰 막힘은 그 주문 목록으로 잇는다(#540, 무통장 입금 대기 포함). */}
             {couponErrorNeedsPendingOrder(shipping.sales?.coupon?.reason) ? <PendingOrderResolution /> : null}
+            {direct && !quoteMayBeBlockedByPendingOrder(shipping.sales ?? { goods: [], lines: [] }) ? <> <Link href={draftReturnHref}>굿즈로 돌아가기</Link></> : null}
           </p> : null}
           {couponSelectionChanged ? <p className="checkout-error" role="alert">다른 화면에서 선택한 쿠폰이 변경되었습니다. <button type="button" onClick={() => router.refresh()}>현재 쿠폰 다시 확인</button></p> : null}
 
@@ -510,20 +637,26 @@ export function Checkout({
             결제수단은 주문을 만들 때 고정됩니다. 바꾸려면 주문을 취소하고 다시 만들어야 해요.
           </p>
 
-          {unavailable && <p className="checkout-error" role="alert">재고가 변경된 굿즈가 있어요. 장바구니에서 수량을 확인해주세요.</p>}
+          {unavailable && <p className="checkout-error" role="alert">{copyFor(STOCK_CHANGED_COPY)}
+            {draft ? <> <Link href={draftReturnHref}>{direct ? '굿즈로 돌아가기' : '장바구니로 돌아가기'}</Link></> : null}</p>}
           {!methodAvailable && <p className="checkout-error" role="alert">선택한 결제수단을 지금은 쓸 수 없어요. 다른 수단을 골라주세요.</p>}
-          {submitError && <p className="checkout-error" role="alert">{submitError}{pendingOrder ? <PendingOrderResolution /> : null}</p>}
-          <button className="btn btn-holo checkout-submit" disabled={submitting || cartPending || couponPending || unavailable || !methodAvailable || !shippingReady || !shipping.sales || Boolean(purchaseProblem) || !creditReady || couponSelectionChanged}>
+          {submitError && <p className="checkout-error" role="alert">{submitError}{pendingOrder ? <PendingOrderResolution /> : null}
+            {blockingOrderId ? <> <Link href={`/orders/${encodeURIComponent(blockingOrderId)}`}>주문 보기</Link></> : null}
+            {draftReturnNeeded ? <> <Link href={draftReturnHref}>{draft?.source === 'direct' ? '굿즈로 돌아가기' : '장바구니로 돌아가기'}</Link></> : null}</p>}
+          {/* 결제 대기 주문(다른 탭의 바로구매·장바구니 주문)이 쿠폰·구매 한도·재고를 잡고 있을 수 있다 — 주문서를 열기만 해서는 그
+              결제를 끊지 않으므로 실제로 찾았을 때만 그 주문을 알리고, 고객이 확인했을 때만 닫는다(ADR-0030). 경고 글과 나눈 상자다. */}
+          <CheckoutPendingOrderRelease
+            holdsBenefits={pendingOrder || Boolean(shipping.sales && quoteMayBeBlockedByPendingOrder(shipping.sales))}
+            onReleased={retryAfterRelease}
+            stockGoodIds={stockGoodIds}
+          />
+          <button className="btn btn-holo checkout-submit" disabled={submitting || cartPending || couponPending || unavailable || !methodAvailable || !shippingReady || !shipping.sales || Boolean(purchaseProblem) || !creditReady || couponSelectionChanged || draftStale || Boolean(blockingOrderId)}>
             {submitting
               ? '재고를 확인하는 중'
               : selectedPaymentMethod === 'bank_transfer' ? '주문하고 입금 안내 받기' : '결제하기'}
           </button>
-          <p className="money-caption">
-            {selectedPaymentMethod === 'bank_transfer'
-              ? '주문이 접수되면 입금 계좌와 기한을 안내해요. 접수한 굿즈는 장바구니에서 빠져요.'
-              : '다음 화면에서 결제수단을 고르고 결제를 마쳐요. 결제가 끝나면 주문한 굿즈가 장바구니에서 빠져요.'}
-          </p>
-          <Link className="checkout-back" href="/cart">← 장바구니 수정</Link>
+          <p className="money-caption">{checkoutSubmitCaption(draft?.source ?? null, selectedPaymentMethod)}</p>
+          <Link className="checkout-back" href={draftReturnHref}>{draft?.source === 'direct' ? '← 굿즈로 돌아가기' : '← 장바구니 수정'}</Link>
         </aside>
       </form>
     </main>

@@ -75,6 +75,18 @@ describe('주문 상세', () => {
     expect(html).toContain('결제 대기 주문 자동 취소 (재주문·장바구니 복귀)');
     expect(html).toContain('장바구니 보류 해제 (결제 확인 필요 주문)');
   });
+  /* 고객이 '결제 대기 주문 취소하고 계속'을 눌러 닫은 주문은 자동 정리가 아니다 — 고객 동작으로 적고 취소 주체도 구매자다(ADR-0030). */
+  it('고객이 결제 대기 주문을 취소하고 계속한 기록은 고객 동작으로 적는다', () => {
+    const released = { id: 'released', source: 'status', occurredAt: '2026-11-12T09:00:00Z', action: 'system.order.unpaid_cart_order_closed', actorName: null, trigger: 'customer_released' } as const;
+    const html = renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, order: { ...detail.order, status: 'canceled' }, timeline: [released] }} noteOperationId="operation" />);
+    expect(html).toContain('고객이 진행 중인 미결제 주문을 취소하고 주문을 계속함');
+    expect(html).not.toContain('결제 대기 주문 자동 취소 (재주문·장바구니 복귀)');
+    expect(html).toContain('· 구매자');
+    expect(html).not.toContain('시스템 자동 처리');
+    const automatic = renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, order: { ...detail.order, status: 'canceled' }, timeline: [{ ...released, trigger: 'new_direct_order' }] }} noteOperationId="operation" />);
+    expect(automatic).toContain('결제 대기 주문 자동 취소 (재주문·장바구니 복귀)');
+    expect(automatic).toContain('시스템 자동 처리');
+  });
   /* 사람 눈 판정: 뭘 샀는지가 화면 아래 글머리 한 줄이었고, 금액은 나열만 돼 최종 결제금액 줄이 없었다. */
   it('주문 상품을 맨 위 표로 보이고 금액 칸은 최종 결제금액으로 끝난다', () => {
     const html = renderToStaticMarkup(<OrderDetailScreen detail={detail} noteOperationId="operation" />);

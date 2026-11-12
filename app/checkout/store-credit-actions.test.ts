@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-const mocks = vi.hoisted(() => ({ load: vi.fn() }));
+const mocks = vi.hoisted(() => ({ load: vi.fn(), loadDraft: vi.fn() }));
 vi.mock('@/lib/store-credits.server', () => ({ loadMyStoreCreditCheckout: mocks.load }));
-import { quoteCheckoutStoreCreditsAction } from './store-credit-actions';
+vi.mock('@/lib/checkout-draft.server', () => ({ loadDraftStoreCreditCheckout: mocks.loadDraft }));
+import { quoteCheckoutStoreCreditsAction, quoteDraftStoreCreditsAction } from './store-credit-actions';
 beforeEach(() => vi.resetAllMocks());
 describe('checkout store credits', () => {
   it('loads the authenticated account without accepting a client identity or totals', async () => {
@@ -26,3 +27,24 @@ describe('checkout store credits', () => {
     expect(await quoteCheckoutStoreCreditsAction(0)).toMatchObject({ ok: false, error: expect.not.stringContaining('private') });
   });
 });
+
+/* 주문서 초안(ADR-0030)의 적립금 사용 한도는 그 주문서 품목과 쿠폰으로 계산한다(1014-032). */
+describe('checkout draft store credits', () => {
+  const VARIANT = '00000000-0000-4000-8000-000000000002';
+  const items = [{ goodId: 'g2', variantId: VARIANT, qty: 2 }];
+  it('선택 주문은 장바구니 쿠폰, 바로구매는 주문서에서 고른 쿠폰으로 품목 기준 한도를 묻는다', async () => {
+    mocks.loadDraft.mockResolvedValue({ valid: true });
+    expect(await quoteDraftStoreCreditsAction(1000, null, items, { kind: 'cart' })).toMatchObject({ ok: true });
+    expect(mocks.loadDraft).toHaveBeenLastCalledWith(1000, null, items, { kind: 'cart' });
+    const coupon = '11111111-1111-4111-8111-111111111111';
+    expect(await quoteDraftStoreCreditsAction(0, null, items, { kind: 'direct', userCouponId: coupon.toUpperCase() })).toMatchObject({ ok: true });
+    expect(mocks.loadDraft).toHaveBeenLastCalledWith(0, null, items, { kind: 'direct', userCouponId: coupon });
+  });
+  it('품목·쿠폰 모양이 틀리면 묻지 않는다', async () => {
+    for (const [itemsInput, coupon] of [[[], { kind: 'cart' }], [items, { kind: 'direct', userCouponId: 'x' }], [items, null], [[{ goodId: 'g2', variantId: 'x', qty: 1 }], { kind: 'cart' }]] as const) {
+      expect(await quoteDraftStoreCreditsAction(0, null, itemsInput, coupon)).toMatchObject({ ok: false });
+    }
+    expect(mocks.loadDraft).not.toHaveBeenCalled();
+  });
+});
+

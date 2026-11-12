@@ -10,6 +10,7 @@ import {
   type RestoreOrderSkippedLine,
 } from '@/app/checkout/reorder-actions';
 import { submitOrderCancellation } from '@/components/orders/OrderCancellation';
+import { CheckoutRetryButton } from '@/components/screens/CheckoutRetryButton';
 import type { CheckoutReorderMode } from '@/lib/checkout';
 import { krwAmountWords } from '@/lib/format';
 
@@ -22,7 +23,8 @@ import { krwAmountWords } from '@/lib/format';
  *    그 사실만 알린다.
  * 2) DB가 취소를 확정한 주문만 서버 액션이 품목을 장바구니에 다시 담고, 원 주문의
  *    쿠폰을 장바구니에 다시 선택한다.
- * 3) 모두 담기고 다시 챙길 혜택이 없으면 주문서(/checkout)로 보낸다. 쿠폰이 이번 주문에
+ * 3) 모두 담기고 다시 챙길 혜택이 없으면 다시 담은 줄만 주문하는 주문서(선택 주문 초안 — ADR-0030, 초안 없는
+ *    /checkout은 장바구니 전체를 주문한다)로 보내고, 초안을 만들지 못하면 장바구니로 보내 고르게 한다. 쿠폰이 이번 주문에
  *    할인되지 않거나 적립금을 쓴 주문이면 자동으로 넘기지 않고 사실대로 안내한다 — 모르고
  *    정가로 결제하지 않게 한다. 쿠폰을 장바구니에서 해결할 수 있으면(다시 고르기·사용
  *    조건 확인) 장바구니를 먼저 권하고, 다시 고를 수 없는 쿠폰(만료·사용 완료 등)이면
@@ -55,11 +57,13 @@ const COUPON_NOTICES: Partial<Record<RestoreOrderCouponResult, ReorderCouponNoti
 };
 
 export type ReorderOutcome =
-  | { readonly kind: 'restored'; readonly reapply: ReorderBenefitsToReapply | null }
+  /** `checkoutHref`: 다시 담은 줄만 주문하는 주문서. null이면 장바구니로 보낸다(ADR-0030). */
+  | { readonly kind: 'restored'; readonly reapply: ReorderBenefitsToReapply | null; readonly checkoutHref: string | null }
   | {
       readonly kind: 'partial';
       readonly skipped: readonly RestoreOrderSkippedLine[];
       readonly reapply: ReorderBenefitsToReapply | null;
+      readonly checkoutHref: string | null;
     }
   | { readonly kind: 'nothing_restored'; readonly skipped: readonly RestoreOrderSkippedLine[] }
   | { readonly kind: 'cancel_requested' }
@@ -109,8 +113,9 @@ export async function runReorder(
     ? 'reselect_checkout' : COUPON_NOTICES[restored.coupon] ?? null;
   const storeCredit = Math.max(0, restored.storeCreditUsed);
   const reapply = coupon || storeCredit > 0 ? { coupon, storeCredit } : null;
-  if (restored.skipped.length > 0) return { kind: 'partial', skipped: restored.skipped, reapply };
-  return { kind: 'restored', reapply };
+  const checkoutHref = restored.checkoutHref ?? null;
+  if (restored.skipped.length > 0) return { kind: 'partial', skipped: restored.skipped, reapply, checkoutHref };
+  return { kind: 'restored', reapply, checkoutHref };
 }
 
 /**
@@ -135,9 +140,14 @@ export function reorderCancellationRequested(outcome: ReorderOutcome): boolean {
   return outcome.kind === 'cancel_requested';
 }
 
-/** 고객이 다시 챙길 것이 없을 때만 안내 없이 주문서로 넘긴다. */
+/** 고객이 다시 챙길 것이 없을 때만 안내 없이 넘긴다 — 다시 담은 줄의 주문서, 만들지 못했으면 장바구니로. */
 export function reorderNavigatesToCheckout(outcome: ReorderOutcome): boolean {
   return outcome.kind === 'restored' && outcome.reapply === null;
+}
+
+/** 다시 담은 뒤 갈 곳. 다시 담은 줄만 주문하는 주문서, 없으면 장바구니다(초안 없는 /checkout은 장바구니 전체 주문서다). */
+export function reorderCheckoutHref(outcome: ReorderOutcome): string {
+  return (outcome.kind === 'restored' || outcome.kind === 'partial') && outcome.checkoutHref ? outcome.checkoutHref : '/cart';
 }
 
 const SKIP_REASON_LABELS: Record<RestoreOrderSkippedLine['reason'], string> = {
@@ -198,10 +208,15 @@ export function ReorderOutcomeNotice({
   const canceledPrefix = mode === 'cancel_then_reorder' ? '주문은 취소됐어요. ' : '';
   /* 쿠폰을 고르고 조건을 확인하는 곳은 장바구니다 — 장바구니에서 해결할 수 있는 쿠폰
      안내일 때만 장바구니를 먼저 권한다. 다시 고를 수 없는 쿠폰은 주문서를 먼저 권한다. */
+  /* 주문서는 다시 담은 줄만 주문한다(선택 주문 초안). 초안을 만들지 못했으면 주문서 대신 장바구니에서 고르게 한다 —
+     초안 없는 /checkout은 장바구니 전체를 주문한다(ADR-0030). */
+  const checkoutHref = reorderCheckoutHref(outcome);
+  const checkoutReady = checkoutHref !== '/cart';
   const benefitLinks = (reapply: ReorderBenefitsToReapply | null) => {
+    if (!checkoutReady) return <Link className="btn btn-holo" href="/cart">장바구니에서 골라 주문하기</Link>;
     if (reapply?.coupon === 'reselect_checkout') return (
       <>
-        <Link className="btn btn-holo" href="/checkout">주문서에서 쿠폰 다시 고르기</Link>
+        <Link className="btn btn-holo" href={checkoutHref}>주문서에서 쿠폰 다시 고르기</Link>
         <Link className="btn btn-ghost" href="/cart">장바구니 보기</Link>
       </>
     );
@@ -209,11 +224,11 @@ export function ReorderOutcomeNotice({
     return cartFirst ? (
       <>
         <Link className="btn btn-holo" href="/cart">{cartFirst}</Link>
-        <Link className="btn btn-ghost" href="/checkout">주문서로 가기</Link>
+        <Link className="btn btn-ghost" href={checkoutHref}>주문서로 가기</Link>
       </>
     ) : (
       <>
-        <Link className="btn btn-holo" href="/checkout">주문서로 가기</Link>
+        <Link className="btn btn-holo" href={checkoutHref}>주문서로 가기</Link>
         <Link className="btn btn-ghost" href="/cart">장바구니 보기</Link>
       </>
     );
@@ -298,7 +313,7 @@ export function ReorderAction({ orderId, mode, onCanceled, onRequested }: Reorde
     if (reorderCanceledOrder(mode, result)) onCanceled?.();
     if (reorderCancellationRequested(result)) onRequested?.();
     if (reorderNavigatesToCheckout(result)) {
-      router.push('/checkout');
+      router.push(reorderCheckoutHref(result));
       return;
     }
     setOutcome(result);
@@ -310,9 +325,10 @@ export function ReorderAction({ orderId, mode, onCanceled, onRequested }: Reorde
 
   const label = mode === 'cancel_then_reorder' ? '이 주문 취소하고 다시 주문하기' : '같은 굿즈 다시 담기';
 
-  /* 장바구니가 그대로 남은 주문(ADR-0026)은 다시 담지 않는다. 주문서가 이 주문을 닫고 새로 결제한다. */
+  /* 장바구니가 그대로 남은 주문(ADR-0026)은 다시 담지 않는다. 그 주문의 줄로 주문서 초안을 만들어 새로 결제한다 —
+     초안 없는 /checkout은 장바구니 전체를 주문하므로 쓰지 않는다(ADR-0030). */
   if (mode === 'retry_from_cart') {
-    return <div className="checkout-reorder"><Link className="btn btn-holo" href="/checkout">다시 결제하기</Link></div>;
+    return <div className="checkout-reorder"><CheckoutRetryButton orderId={orderId} /></div>;
   }
 
   if (outcome) {

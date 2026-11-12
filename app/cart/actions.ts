@@ -17,6 +17,8 @@ import { parseCartAdditionRequest, parseCartAdditionSnapshot } from '@/lib/cart-
 import { readCompleteIdPages } from '@/lib/supabase/complete-id-pages';
 import { adultGoodsRestrictions } from '@/lib/adult-goods';
 import { getAdultGoodsAccess } from '@/lib/adult-goods-access.server';
+import { normalizeOrderReference } from '@/lib/checkout';
+import { cartLineIdentityPayload, parseUnpaidCheckoutOrders, type UnpaidCheckoutOrder } from '@/lib/checkout-selection';
 
 const SYNC_ERROR = '장바구니를 동기화하지 못했습니다. 다시 시도해주세요.';
 const SAVE_ERROR = '장바구니를 저장하지 못했습니다. 다시 시도해주세요.';
@@ -182,6 +184,25 @@ export async function deleteCartItemAction(goodIdValue: unknown, variantIdValue:
   return setCartItemQuantityAction(goodIdValue, 0, variantIdValue, customInputsValue);
 }
 
+/** DB 일괄 삭제가 받는 줄 수 상한(remove_cart_lines). 장바구니 스냅샷 계약과 같은 값이다. */
+const MAX_REMOVE_LINES = 19239;
+
+/**
+ * 장바구니 선택 삭제·전체 비우기(ADR-0030 · 1014-035·036). 화면이 보고 있는 줄만 넘긴다 — 전체 비우기도
+ * 다른 탭에서 막 담겨 아직 보이지 않은 줄은 지우지 않는다. 이미 없는 줄은 DB가 조용히 건너뛴다.
+ */
+export async function removeCartLinesAction(linesValue: unknown): Promise<CartActionResult> {
+  const lines = normalizeCartItems(linesValue);
+  if (!Array.isArray(linesValue) || !lines.length || lines.length !== linesValue.length || lines.length > MAX_REMOVE_LINES) {
+    return { ok: false, mode: 'server', error: INPUT_ERROR };
+  }
+  const context = await currentCartAuth();
+  if (!context) return { ok: false, mode: 'local' };
+  const { error } = await context.supabase.rpc('remove_cart_lines', { p_lines: lines.map(cartLineIdentityPayload) });
+  if (error) return { ok: false, mode: 'server', error: SAVE_ERROR };
+  return serverMutationResult(context.supabase, context.user.id);
+}
+
 export async function addCartSelectionAction(baseGoodIdValue: unknown, entriesValue: unknown): Promise<CartActionResult> {
   const baseGoodId = typeof baseGoodIdValue === 'string' ? baseGoodIdValue.trim() : '';
   const entries = parseCartAdditionRequest(entriesValue);
@@ -223,3 +244,56 @@ export async function releaseUnpaidCartOrdersAction(): Promise<{ released: numbe
     return { released: 0 };
   }
 }
+
+export type UnpaidCheckoutOrdersResult = { readonly ok: true; readonly orders: readonly UnpaidCheckoutOrder[] } | { readonly ok: false };
+
+/**
+ * 견적이 결제 대기 주문 때문에 막혔을 수 있을 때 확인창에 보일 결제 대기 주문(ADR-0030) — 로그인 사용자 것만, 닫을 수 있는
+ * 주문과 결제 승인을 확인하는 주문을 나눠 읽는다. 읽지 못하면 ok:false — 화면은 해소 안내 없이 사유만 보인다.
+ */
+export async function loadUnpaidCheckoutOrdersAction(): Promise<UnpaidCheckoutOrdersResult> {
+  const user = authenticatedCartUser(await getCurrentAuthState());
+  if (!user) return { ok: false };
+  try {
+    const { data, error } = await createServiceClient().rpc('service_list_unpaid_checkout_orders', { p_user_id: user.id });
+    const orders = error ? null : parseUnpaidCheckoutOrders(data);
+    return orders ? { ok: true, orders } : { ok: false };
+  } catch {
+    return { ok: false };
+  }
+}
+
+export type ReleaseUnpaidCheckoutOrdersResult =
+  | {
+      readonly ok: true;
+      /** 이번에 닫은 결제 대기 카드 주문 수. */
+      readonly released: number;
+      /** 결제 승인을 확인 중이거나 결과를 알 수 없어 닫지 않은 주문이 있다 — 확인이 끝난 뒤 다시 시도한다. */
+      readonly confirming: boolean;
+    }
+  | { readonly ok: false };
+
+/**
+ * '결제 대기 주문 취소하고 계속'(ADR-0030). 고객이 확인창에서 본 결제 대기 주문(orderIds)을 확인했을 때만 부른다 — 주문서·
+ * 장바구니를 열기만 해서는 다른 탭의 결제창을 끊지 않는다. 그 주문들을 출처(장바구니·바로구매)와 무관하게 ADR-0026 닫기
+ * 경로로 닫고, 결제 승인을 확인 중인 주문은 닫지 않는다. 확인창 뒤에 새로 생긴 주문은 닫지 않는다.
+ */
+export async function releaseUnpaidCheckoutOrdersAction(orderIdsValue: unknown): Promise<ReleaseUnpaidCheckoutOrdersResult> {
+  const orderIds = Array.isArray(orderIdsValue) ? orderIdsValue.map((value) => normalizeOrderReference(value)) : [];
+  if (!orderIds.length || orderIds.length > 20 || orderIds.some((orderId) => !orderId) || new Set(orderIds).size !== orderIds.length) {
+    return { ok: false };
+  }
+  const user = authenticatedCartUser(await getCurrentAuthState());
+  if (!user) return { ok: false };
+  try {
+    const { data, error } = await createServiceClient().rpc('release_unpaid_checkout_orders', { p_user_id: user.id, p_order_ids: orderIds });
+    if (error || !data || typeof data !== 'object' || Array.isArray(data)) return { ok: false };
+    const value = data as Record<string, unknown>;
+    const released = typeof value.released === 'number' && Number.isSafeInteger(value.released) && value.released > 0 ? value.released : 0;
+    const confirming = typeof value.confirming === 'number' && value.confirming > 0;
+    return { ok: true, released, confirming };
+  } catch {
+    return { ok: false };
+  }
+}
+

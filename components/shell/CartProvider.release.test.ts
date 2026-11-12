@@ -47,6 +47,10 @@ function ReleaseProbe() {
   return useReleaseUnpaidCartOrders();
 }
 
+function NoReleaseProbe() {
+  return useReleaseUnpaidCartOrders('none');
+}
+
 function render() {
   hooks.stateIndex = 0;
   hooks.refIndex = 0;
@@ -100,6 +104,16 @@ describe('useReleaseUnpaidCartOrders', () => {
   it('로그인하지 않은 장바구니는 기다리지 않고 서버에 요청하지 않는다', () => {
     hooks.ctx = { ready: true, mode: 'local' };
     expect(render()).toBe(true);
+    expect(hooks.release).not.toHaveBeenCalled();
+  });
+
+  /* 바로구매 주문서(ADR-0030)는 열기만 해서 다른 탭의 결제를 끊지 않는다 — 아무것도 닫지 않고 바로 견적을 연다. */
+  it('바로구매 주문서는 미결제 주문을 닫지 않고 바로 견적을 연다', () => {
+    hooks.stateIndex = 0;
+    hooks.refIndex = 0;
+    hooks.effects = [];
+    expect(NoReleaseProbe()).toBe(true);
+    for (const effect of hooks.effects) effect();
     expect(hooks.release).not.toHaveBeenCalled();
   });
 });

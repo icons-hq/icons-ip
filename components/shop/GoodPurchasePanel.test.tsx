@@ -11,7 +11,6 @@ import {
   GoodRailBuyBox,
   addToCartResultStep,
   addedCartItems,
-  buyNowNavigation,
   foldedPurchaseInputsNote,
   isGoodSoldOut,
   mergedCartQuantity,
@@ -128,29 +127,28 @@ describe('purchaseBlockReason', () => {
   });
 });
 
-describe('buyNowNavigation', () => {
-  it('요청이 없으면 이동하지 않는다', () => {
-    expect(buyNowNavigation({ requested: false, cartPending: false, cartError: null })).toBe('abort');
+/* 바로구매(ADR-0030 · 10/14 회의 1014-033·037·038): [구매하기]는 그 상품만 주문서 초안으로 만든다 — 장바구니에 담지도,
+   장바구니로 가지도 않는다(10/27 'LFS = 담고 장바구니' 해석은 사용자 11/11 LFS 실측으로 뒤집혔다). */
+describe('바로구매', () => {
+  const source = readFileSync('components/shop/GoodPurchasePanel.tsx', 'utf8');
+  const buyNowBody = source.slice(source.indexOf('const startBuyNow = async () => {'), source.indexOf('  return {\n    good,'));
+
+  it('구매하기는 장바구니에 담지 않고 바로구매 초안으로 주문서를 연다(D2 정정)', () => {
+    expect(buyNowBody).toContain('createDirectCheckoutDraftAction(good.id, entries)');
+    expect(buyNowBody).toContain('router.push(result.href)');
+    expect(buyNowBody).not.toContain('addSelection');
+    expect(source).not.toContain("router.push('/cart')");
   });
 
-  it('카트 반영이 끝나기 전에는 기다린다 — 클라이언트 성공 신호는 진실원이 아니다', () => {
-    expect(buyNowNavigation({ requested: true, cartPending: true, cartError: null })).toBe('wait');
+  it('바로구매 한도는 장바구니에 담긴 수량과 합치지 않는다(1014-037)', () => {
+    expect(source).toContain('optionOrderLimitMessage(good, selectedOption, quantity)');
+    expect(buyNowBody).toContain('if (buyLimitMessage)');
   });
 
-  it('반영이 정착하고 오류가 없을 때만 장바구니로 간다', () => {
-    expect(buyNowNavigation({ requested: true, cartPending: false, cartError: null })).toBe('navigate');
-  });
-
-  it('구매하기는 LFS처럼 담은 뒤 주문서가 아니라 장바구니로 이동한다(D2)', () => {
-    const source = readFileSync('components/shop/GoodPurchasePanel.tsx', 'utf8');
-    expect(source).toContain("if (navigation === 'navigate') router.push('/cart');");
-    expect(source).not.toContain("router.push('/checkout')");
-  });
-
-  it('카트가 오류를 냈으면 이동을 접는다 — 담기지 않은 채 장바구니로 가지 않는다', () => {
-    expect(
-      buyNowNavigation({ requested: true, cartPending: false, cartError: '재고 초과' }),
-    ).toBe('abort');
+  it('로그인 전이면 선택을 세션 저장소에 두고 로그인 뒤 상품 상세로 돌아온다 — 직접입력값을 주소에 싣지 않는다', () => {
+    expect(buyNowBody).toContain('savePendingBuyNow(');
+    expect(buyNowBody).toContain('buyNowReturnPath(good.id, selectedOption.id)');
+    expect(buyNowBody).toContain('/login?next=');
   });
 });
 

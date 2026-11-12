@@ -109,3 +109,45 @@ it('주소록 배송지를 고르면 폼을 채우고 배송 메모는 두며, �
   expect(all(render()).find(node => node.type === PostcodeField)!.props.value).toBe('');
   expect(field('checkout-deliveryNote').props.value).toBe('문 앞');
 });
+/* 주문서 초안(ADR-0030): 바로구매는 장바구니가 아니라 초안 줄로, 초안 id를 실어 견적·주문하고 장바구니 쿠폰을 이어받지 않는다. */
+it('바로구매 초안이면 장바구니가 아니라 초안 줄을 주문하고, 복구 식별자에 초안 id를 더한다', async () => {
+  const draftId = '00000000-0000-4000-8000-0000000000d1';
+  props = { ...props, draft: { id: draftId, source: 'direct', baseGoodId: 'transaction-good', expiresAt: '2099-01-01T00:00:00Z', stale: false, usedOrderId: null, lines: transactionInput.items } };
+  /* 장바구니에는 다른 굿즈가 들어 있다 — 주문서는 그것을 보지 않는다. */
+  mocks.cart = { ...(mocks.cart as object), items: [{ ...transactionInput.items[0], goodId: 'other-good', qty: 9 }] };
+  for (const effect of hooks.effects) effect.cleanup?.(); resetHooks(); render(); effects(); authenticate(); await flush();
+  expect(text(render())).toContain('2개'); expect(text(render())).not.toContain('9개');
+  await submit(); await flush();
+  const placed = mocks.place.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+  expect(placed).toMatchObject({ draftId, items: transactionInput.items, userCouponId: null });
+  expect(JSON.parse([...storage.values()][0])).toMatchObject({ draftId });
+  expect(all(render()).some(node => node.props.href === '/shop/transaction-good')).toBe(true);
+});
+/* 같은 주문서를 다른 탭·뒤로 가기로 다시 내면 DB가 원 주문과 함께 거절한다(ADR-0030 완료 기준 5) — 원 주문으로 잇고 다시 주문하지 않는다. */
+it('같은 주문서로 이미 주문했으면 원 주문 보기를 보이고 결제를 잠근다', async () => {
+  const draftId = '00000000-0000-4000-8000-0000000000d1';
+  const usedOrder = '00000000-0000-4000-8000-0000000000e1';
+  props = { ...props, draft: { id: draftId, source: 'direct', baseGoodId: 'transaction-good', expiresAt: '2099-01-01T00:00:00Z', stale: false, usedOrderId: null, lines: transactionInput.items } };
+  for (const effect of hooks.effects) effect.cleanup?.(); resetHooks(); render(); effects(); authenticate(); await flush();
+  mocks.place.mockResolvedValueOnce({ ok: false, error: 'draft_used', uncertain: false, orderId: usedOrder });
+  await submit(); await flush();
+  expect(text(render())).toContain('이미 주문한 주문서예요');
+  expect(all(render()).some(node => node.props.href === `/orders/${usedOrder}`)).toBe(true);
+  expect(button('결제하기').props.disabled).toBe(true);
+  await submit(); await flush();
+  expect(mocks.place).toHaveBeenCalledTimes(1);
+});
+/* 그 주문의 결제 승인을 확인하고 있으면 새 주문을 만들지 않는다 — '결제 확인 중인 주문이 있어요'와 그 주문으로 잇고 결제를 잠근다. */
+it('결제 확인 중인 주문이 있으면 그 주문 보기를 보이고 결제를 잠근다', async () => {
+  const draftId = '00000000-0000-4000-8000-0000000000d1';
+  const confirming = '00000000-0000-4000-8000-0000000000e2';
+  props = { ...props, draft: { id: draftId, source: 'direct', baseGoodId: 'transaction-good', expiresAt: '2099-01-01T00:00:00Z', stale: false, usedOrderId: null, lines: transactionInput.items } };
+  for (const effect of hooks.effects) effect.cleanup?.(); resetHooks(); render(); effects(); authenticate(); await flush();
+  mocks.place.mockResolvedValueOnce({ ok: false, error: 'payment_in_progress', uncertain: false, orderId: confirming });
+  await submit(); await flush();
+  expect(text(render())).toContain('결제 확인 중인 주문이 있어요');
+  expect(all(render()).some(node => node.props.href === `/orders/${confirming}`)).toBe(true);
+  expect(button('결제하기').props.disabled).toBe(true);
+  await submit(); await flush();
+  expect(mocks.place).toHaveBeenCalledTimes(1);
+});
