@@ -88,6 +88,12 @@ const object = (value: unknown): value is Record<string, unknown> =>
 const optionalString = (value: unknown) =>
   value === null || typeof value === 'string';
 
+/**
+ * 한 안내의 최대 대상 행. 발송 지연 안내는 배송 건 100개(주문당 구매자·선물 받는 분 2행)이고, 같은 원장을 쓰는
+ * 예약 일정 일괄 변경 안내(QNA-040)는 배송 건 2,000개까지 담는다 — 지연 탭 이력에서 그 안내를 열어도 결과를 읽는다.
+ */
+export const ORDER_DELAY_NOTICE_MAX_TARGETS = 4000;
+
 /** Fail closed on incomplete server receipts; a request is never called successful from a boolean alone. */
 export function parseOrderDelayNotice(value: unknown): OrderDelayNotice | null {
   if (
@@ -103,7 +109,7 @@ export function parseOrderDelayNotice(value: unknown): OrderDelayNotice | null {
     typeof value.emailEnabled !== 'boolean' ||
     !Array.isArray(value.targets) ||
     value.targets.length < 1 ||
-    value.targets.length > 200
+    value.targets.length > ORDER_DELAY_NOTICE_MAX_TARGETS
   )
     return null;
   if (
