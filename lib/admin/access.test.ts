@@ -57,6 +57,19 @@ describe('manager authorization contract', () => {
     expect(canAccessAdminScreen(configuredOperatorAccessFixture('primary'), createScreen)).toBe(true);
   });
 
+  /* 1014-105: 운영자별 처리 이력은 운영자 활동 기록이라 매니저 관리 권한(통합·주매니저, 전환 전 호환 단계는 admin)으로만 연다. */
+  it('운영자별 처리 이력은 매니저 관리 권한으로만 접근한다', () => {
+    const screen = adminScreenForPath('/admin/cs/operator-history');
+    expect(screen).toMatchObject({ id: 'inquiry-operator-history', label: '운영자별 처리 이력' });
+    for (const role of ['owner', 'primary'] as const) expect(canAccessAdminScreen(configuredOperatorAccessFixture(role), screen), role).toBe(true);
+    for (const role of ['deputy', 'influencer', 'agency', 'logistics'] as const) {
+      expect(canAccessAdminScreen(configuredOperatorAccessFixture(role), screen), role).toBe(false);
+      expect(visibleAdminNavGroups('staff', configuredOperatorAccessFixture(role)).flatMap(group => group.screens).map(item => item.id), role).not.toContain('inquiry-operator-history');
+    }
+    expect(canAccessAdminScreen({ role: 'admin', operatorAccess: legacyOperatorAccessFixture('admin') }, screen)).toBe(true);
+    expect(canAccessAdminScreen({ role: 'staff', operatorAccess: legacyOperatorAccessFixture('staff') }, screen)).toBe(false);
+    expect(canAccessAdminScreen(NO_OPERATOR_ACCESS, screen)).toBe(false);
+  });
   it('상담 콘솔은 문의 응대 권한으로만 접근한다', () => {
     const screen = adminScreenForPath('/admin/cs/chat');
     expect(canAccessAdminScreen({ ...configuredOperatorAccessFixture('primary'), capabilities: ['home', 'cs.manage'] }, screen)).toBe(true);
