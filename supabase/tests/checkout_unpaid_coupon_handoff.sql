@@ -18,12 +18,13 @@ insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,ra
  ('d8000000-0000-4000-8000-000000000001','authenticated','authenticated','d8-admin@example.test',now(),'{}','{}',now(),now()),
  ('d8000000-0000-4000-8000-000000000002','authenticated','authenticated','d8-buyer@example.test',now(),'{}','{}',now(),now()),
  ('d8000000-0000-4000-8000-000000000003','authenticated','authenticated','d8-other@example.test',now(),'{}','{}',now(),now()),
- ('d8000000-0000-4000-8000-000000000004','authenticated','authenticated','d8-first@example.test',now(),'{}','{}',now(),now());
+ ('d8000000-0000-4000-8000-000000000004','authenticated','authenticated','d8-first@example.test',now(),'{}','{}',now(),now()),
+ ('d8000000-0000-4000-8000-000000000005','authenticated','authenticated','d8-refund@example.test',now(),'{}','{}',now(),now());
 update public.profiles set email='d8-'||right(id::text,1)||'@example.test',nickname='TEST D8 '||right(id::text,1),birth_date='2000-01-01',
  onboarded_at=now(),consents='{"terms":true,"privacy":true}',
  role=case when id='d8000000-0000-4000-8000-000000000001' then 'admin'::public.user_role else 'user'::public.user_role end
  where id in('d8000000-0000-4000-8000-000000000001','d8000000-0000-4000-8000-000000000002','d8000000-0000-4000-8000-000000000003',
-  'd8000000-0000-4000-8000-000000000004');
+  'd8000000-0000-4000-8000-000000000004','d8000000-0000-4000-8000-000000000005');
 insert into public.ips(id,title,vertical_key,published_at) values('d8-ip','TEST D8 IP','character',now());
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,return_address,is_active)
  values('d8000000-0000-4000-8000-000000000010','d8-origin','TEST D8 출고지','hanjin',3000,'TEST 합성 반송지',true);
@@ -240,6 +241,40 @@ select 1/case when (select status='canceled' from public.orders where id=:'fresh
  then 1 else 0 end as assert_bank_pending_still_blocks_first_purchase;
 
 -- ── 6. 주문 내역·주문 상세의 다시 결제 진입 출처(QA1 S-D2-15, service_list_order_retry_sources) ─────────────────────────
+-- 결제 승인과 취소가 겹쳐 결제됐다가 환불된 장바구니 카드 주문(계정 5): 승인 확인 중에는 결제 대기이되 결제 미확정이고,
+-- 환불로 닫힌 뒤에는 보류가 released여도 '결제 없이 닫힌 주문'이 아니다(청구·환불된 주문).
+select set_config('request.jwt.claim.sub','d8000000-0000-4000-8000-000000000005',true);
+set local role authenticated;
+select public.set_cart_item_quantity('d8-a',:'variant_a',1);
+reset role;
+set local role service_role;
+select public.service_create_checkout_selection_draft('d8000000-0000-4000-8000-000000000005',jsonb_build_array(
+  jsonb_build_object('good_id','d8-a','variant_id',:'variant_a','qty',1,'input_revision',0,'input_values','{}'::jsonb))) as refund_draft \gset
+select public.place_order_with_cart_selection('d8000000-0000-4000-8000-000000000005',:'refund_draft',:'address',
+ 'd8000000-0000-4000-8000-000000000201','card',0,null) as refund_order \gset
+select public.prepare_goods_payment_attempt('d8000000-0000-4000-8000-000000000005',:'refund_order','toss')->>'id' as refund_attempt \gset
+select public.bind_goods_payment_callback_nonce(:'refund_attempt',repeat('e',64));
+reset role;
+select provider_order_id as refund_provider from public.payment_attempts where id=:'refund_attempt' \gset
+set local role service_role;
+select public.claim_goods_payment_attempt('toss',:'refund_provider',repeat('e',64),'d8000000-0000-4000-8000-000000000244');
+select public.service_list_order_retry_sources('d8000000-0000-4000-8000-000000000005',array[:'refund_order']::uuid[]) as sources_confirming \gset
+select public.request_order_claim(:'refund_order','d8000000-0000-4000-8000-000000000005','cancel','결제와 겹친 취소','change_of_mind') as refund_claim_result \gset
+select public.finalize_goods_payment_attempt(:'refund_attempt','d8000000-0000-4000-8000-000000000244','approved',null,'TEST-D8-REFUND') as refund_finalized \gset
+reset role;
+select id as refund_request from public.order_cancellation_requests where order_id=:'refund_order' \gset
+set local role service_role;
+select public.complete_order_cancellation_request(:'refund_request',array['TEST-D8-REFUND'],null);
+select public.service_list_order_retry_sources('d8000000-0000-4000-8000-000000000005',array[:'refund_order']::uuid[]) as sources_refunded \gset
+reset role;
+select 1/case when (select status='canceled' from public.orders where id=:'refund_order')
+ and exists(select 1 from public.payments where purpose='order' and ref_id=:'refund_order'::uuid and status='refunded')
+ and (select state='released' from private.cart_order_holds where order_id=:'refund_order')
+ then 1 else 0 end as assert_refunded_cancel_order_is_released_hold_with_refunded_payment;
+select 1/case when :'sources_confirming'::jsonb=jsonb_build_array(jsonb_build_object('orderId',:'refund_order','source','cart','awaitingPayment',true,
+   'paymentUnresolved',true,'baseGoodId',null,'retryOrderId',null))
+ and :'sources_refunded'::jsonb='[]'::jsonb
+ then 1 else 0 end as assert_refunded_cancel_order_is_not_a_closed_without_payment_retry_source;
 set local role service_role;
 select public.service_list_order_retry_sources('d8000000-0000-4000-8000-000000000002',array[:'old_order',:'new_order']::uuid[]) as sources_buyer \gset
 select public.service_list_order_retry_sources('d8000000-0000-4000-8000-000000000003',array[:'plain_order']::uuid[]) as sources_declined \gset
@@ -247,13 +282,13 @@ select public.service_list_order_retry_sources('d8000000-0000-4000-8000-00000000
 select public.service_list_order_retry_sources('d8000000-0000-4000-8000-000000000002',array[:'plain_order']::uuid[]) as sources_other \gset
 reset role;
 select 1/case when :'sources_buyer'::jsonb=jsonb_build_array(jsonb_build_object('orderId',:'old_order','source','cart','awaitingPayment',false,
-   'baseGoodId',null,'retryOrderId',null))
+   'paymentUnresolved',false,'baseGoodId',null,'retryOrderId',null))
  -- 승인 거절로 결제 대기인 바로구매 주문: 다시 결제 진입(결제 화면)으로 잇는다.
  and :'sources_declined'::jsonb=jsonb_build_array(jsonb_build_object('orderId',:'plain_order','source','direct','awaitingPayment',true,
-   'baseGoodId','d8-b','retryOrderId',null))
+   'paymentUnresolved',false,'baseGoodId','d8-b','retryOrderId',null))
  -- 새 주문이 닫은 바로구매 카드 주문만 — 무통장 입금 대기 주문은 보류가 없어 진입이 없다.
  and :'sources_fresh'::jsonb=jsonb_build_array(jsonb_build_object('orderId',:'fresh_card_order','source','direct','awaitingPayment',false,
-   'baseGoodId','d8-b','retryOrderId',null))
+   'paymentUnresolved',false,'baseGoodId','d8-b','retryOrderId',null))
  and :'sources_other'::jsonb='[]'::jsonb
  and public.service_list_order_retry_sources(null,array[:'old_order']::uuid[])='[]'::jsonb
  then 1 else 0 end as assert_order_retry_sources_own_unpaid_or_closed_only;

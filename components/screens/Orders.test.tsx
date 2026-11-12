@@ -307,10 +307,18 @@ describe('Orders 다시 결제 진입', () => {
 
   it('결제 대기 카드 주문을 결제 대기로 보이고 다시 결제·주문 취소로 잇는다', () => {
     const html = renderToStaticMarkup(<Orders orders={[orderItem({ status: 'pending',
-      retry: { source: 'cart', awaitingPayment: true, baseGoodId: null, retryOrderId: null } })]} />);
+      retry: { source: 'cart', awaitingPayment: true, paymentUnresolved: false, baseGoodId: null, retryOrderId: null } })]} />);
     expect(html).toContain('>결제 대기</span>');
     expect(html).toContain(`<a class="btn btn-holo btn-sm" href="/checkout/${id}">다시 결제하기</a>`);
     expect(html).toContain(`<a class="btn btn-ghost btn-sm" href="/orders/${id}#order-cancellation">주문 취소</a>`);
+  });
+
+  it('결제 승인 확인 중인 결제 대기 주문은 결제 상태 보기 하나만 두고 다시 결제·주문 취소를 뺀다', () => {
+    const html = renderToStaticMarkup(<Orders orders={[orderItem({ status: 'pending',
+      retry: { source: 'cart', awaitingPayment: true, paymentUnresolved: true, baseGoodId: null, retryOrderId: null } })]} />);
+    expect(html).toContain(`<a class="btn btn-ghost btn-sm" href="/checkout/${id}">결제 상태 보기</a>`);
+    expect(html).not.toContain('다시 결제하기');
+    expect(html).not.toContain('#order-cancellation');
   });
 
   it('무통장 입금 대기는 상태 하나(입금 대기)로만 말한다', () => {
@@ -322,18 +330,18 @@ describe('Orders 다시 결제 진입', () => {
 
   it('결제 없이 취소된 장바구니 주문은 그 주문의 줄로 다시 결제한다', () => {
     const html = renderToStaticMarkup(<Orders orders={[orderItem({ status: 'canceled',
-      retry: { source: 'cart', awaitingPayment: false, baseGoodId: null, retryOrderId: null } })]} />);
+      retry: { source: 'cart', awaitingPayment: false, paymentUnresolved: false, baseGoodId: null, retryOrderId: null } })]} />);
     expect(html).toContain('<button class="btn btn-holo" type="button">다시 결제하기</button>');
     expect(html).not.toContain('href="/cart"');
   });
 
   it('결제 없이 취소된 바로구매 주문은 같은 구성으로 다시 구매하고, 목록에서는 보조 동작을 두지 않는다', () => {
     const html = renderToStaticMarkup(<Orders orders={[orderItem({ status: 'canceled',
-      retry: { source: 'direct', awaitingPayment: false, baseGoodId: 'g2', retryOrderId: null } })]} />);
+      retry: { source: 'direct', awaitingPayment: false, paymentUnresolved: false, baseGoodId: 'g2', retryOrderId: null } })]} />);
     expect(html).toContain('<button class="btn btn-holo" type="button">다시 구매하기</button>');
     expect(html).not.toContain('굿즈 상세에서 다시 고르기');
     const reordered = renderToStaticMarkup(<Orders orders={[orderItem({ status: 'canceled',
-      retry: { source: 'direct', awaitingPayment: false, baseGoodId: 'g2', retryOrderId: '22222222-2222-4222-8222-222222222222' } })]} />);
+      retry: { source: 'direct', awaitingPayment: false, paymentUnresolved: false, baseGoodId: 'g2', retryOrderId: '22222222-2222-4222-8222-222222222222' } })]} />);
     expect(reordered).toContain('href="/orders/22222222-2222-4222-8222-222222222222">다시 주문한 주문 보기</a>');
     expect(reordered).not.toContain('다시 구매하기');
   });
