@@ -3,7 +3,8 @@
 -- Use an isolated local database only.
 begin;
 insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) values
- ('00000000-0000-4000-8000-000000061301','authenticated','authenticated','goods-number-staff@example.test',now(),'{}','{}',now(),now());
+ ('00000000-0000-4000-8000-000000061301','authenticated','authenticated','goods-number-staff@example.test',now(),'{}','{}',now(),now()),
+ ('00000000-0000-4000-8000-000000061302','authenticated','authenticated','goods-number-member@example.test',now(),'{}','{}',now(),now());
 update public.profiles set role='staff' where id='00000000-0000-4000-8000-000000061301';
 insert into private.operator_memberships(profile_id,manager_role) values ('00000000-0000-4000-8000-000000061301','primary');
 update private.operator_access_state set configured=true where id;
@@ -23,6 +24,13 @@ select 1/case when (select is_nullable='NO' and is_identity='NO' and column_defa
  and not has_sequence_privilege('authenticated','private.goods_product_no_seq','usage,select,update')
  and not has_sequence_privilege('service_role','private.goods_product_no_seq','usage,select,update')
  and not has_function_privilege('authenticated','private.assign_goods_product_no()','execute')
+ and not (select prosecdef from pg_proc where oid='private.assign_goods_product_no()'::regprocedure)
+ -- 상품 쓰기는 정의자 RPC로만 한다(심층 방어). 읽기는 그대로 공개다.
+ and not has_table_privilege('anon','public.goods','insert') and not has_table_privilege('anon','public.goods','update')
+ and not has_table_privilege('anon','public.goods','delete') and not has_table_privilege('anon','public.goods','truncate')
+ and not has_table_privilege('authenticated','public.goods','insert') and not has_table_privilege('authenticated','public.goods','update')
+ and not has_table_privilege('authenticated','public.goods','delete') and not has_table_privilege('authenticated','public.goods','truncate')
+ and has_table_privilege('anon','public.goods','select') and has_table_privilege('authenticated','public.goods','select')
  and not has_function_privilege('authenticated','private.guard_goods_product_no()','execute')
  and not has_function_privilege('anon','private.admin_goods_sale_period_matches(text,timestamptz,timestamptz)','execute')
  and not has_function_privilege('authenticated','private.admin_goods_sale_period_matches(text,timestamptz,timestamptz)','execute')
@@ -125,6 +133,38 @@ end $$;
 select 1/case when (select last_value from private.goods_product_no_seq)=:seq_saved
  and (select product_no from public.goods where id='number-save')=:number_save
  then 1 else 0 end as assert_admin_and_workbook_updates_do_not_consume_numbers;
+-- 4-3. 권한 없는 직접 INSERT는 번호를 쓰지 않는다(리뷰 T17a-RV 재검토). anon·일반 회원은 테이블 권한에서, 쓰기 권한이 남은
+-- service_role의 새 행은 발급 트리거(SECURITY INVOKER)의 순번 권한에서 nextval 전에 끝난다.
+do $$
+declare seq_before bigint := (select last_value from private.goods_product_no_seq);
+begin
+  perform set_config('request.jwt.claim.sub','',true);
+  execute 'set local role anon';
+  begin
+    insert into public.goods(id,code,ip_id,name,type,price,stock) values('number-anon','NUMBER-ANON','goods-number-save','익명 직접 등록','문구',1,'ok');
+    raise exception 'anon direct insert accepted';
+  exception when insufficient_privilege then null; end;
+  execute 'reset role';
+  perform set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000061302',true);
+  execute 'set local role authenticated';
+  begin
+    insert into public.goods(id,code,ip_id,name,type,price,stock) values('number-member','NUMBER-MEMBER','goods-number-save','회원 직접 등록','문구',1,'ok');
+    raise exception 'member direct insert accepted';
+  exception when insufficient_privilege then null; end;
+  execute 'reset role';
+  execute 'set local role service_role';
+  begin
+    insert into public.goods(id,code,ip_id,name,type,price,stock) values('number-service','NUMBER-SERVICE','goods-number-save','서비스 직접 등록','문구',1,'ok');
+    raise exception 'service role direct insert of a new product accepted';
+  exception when insufficient_privilege then null; end;
+  execute 'reset role';
+  if (select last_value from private.goods_product_no_seq) <> seq_before
+    or exists(select 1 from public.goods where id in ('number-anon','number-member','number-service')) then
+    raise exception 'denied direct inserts consumed product numbers or saved rows';
+  end if;
+end $$;
+select 1/case when (select last_value from private.goods_product_no_seq)=:seq_saved
+ then 1 else 0 end as assert_denied_direct_inserts_do_not_consume_numbers;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000061301',true);
 set local role authenticated;
 select public.admin_save_good('{"id":"number-save-next","code":"NUMBER-SAVE-NEXT","name":"다음 새 상품","ip_id":"goods-number-save","type":"문구","price":5000,"origin_id":"00000000-0000-4000-8000-000000061303","publish":false,"variant_baseline":[],"variants":[{"code":"NUMBER-SAVE-NEXT-01","name":"기본 옵션","attributes":{},"extraPrice":0,"stockQty":1}]}');
