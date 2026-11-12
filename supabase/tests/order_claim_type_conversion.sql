@@ -46,6 +46,9 @@ update public.orders set payment_method='bank_transfer' where id in(pg_temp.conv
 update public.order_cancellation_requests set claim_type='return' where id=pg_temp.convert_id('claim',9);
 update public.order_cancellation_requests set reshipped_at=clock_timestamp() where id=pg_temp.convert_id('claim',11);
 create temp table conversion_before as select * from public.order_cancellation_requests where id in(select pg_temp.convert_id('claim',n)from generate_series(1,12)n);
+-- 반품 불량 재고(QNA-035): 무통장 반품(요청 2)에 '불량'을 저장해 둔 상태에서 교환으로 바꾸고 다시 반품으로 바꾼다(QA2 S-T14b-03).
+insert into private.claim_defective_stock(claim_id,order_item_id,qty,planned_by)
+ values(pg_temp.convert_id('claim',2),pg_temp.convert_id('item',2),1,pg_temp.convert_id('user',1));
 create function pg_temp.do_convert(n integer,op integer,destination text,account jsonb default null) returns jsonb language plpgsql as $$
 declare ctx jsonb;begin
  ctx:=public.admin_order_claim_type_change_context(pg_temp.convert_id('claim',n));
@@ -64,10 +67,19 @@ select 1/case when :'receipt'::jsonb->>'fromType'='return' and :'receipt'::jsonb
  and public.admin_read_order_claim_type_change(pg_temp.convert_id('op',2))=:'receipt'::jsonb
  and public.admin_convert_order_claim_type(pg_temp.convert_id('claim',2),pg_temp.convert_id('op',2),0,'exchange','합성 상담에서 유형 및 비용 처리 합의',true,null)=:'receipt'::jsonb then 1 else 0 end as exact_replay;
 select pg_temp.convert_error('select public.admin_convert_order_claim_type(pg_temp.convert_id(''claim'',2),pg_temp.convert_id(''op'',2),0,''return'',''합성 상담에서 유형 및 비용 처리 합의'',true,null)','23505');
+-- 부분 취소가 없는 주문의 클레임 상세는 부분 취소 수량을 빈 배열로 싣는다(앱의 영수증 대조가 원 수량 그대로 맞춘다).
+select 1/case when public.admin_order_claim_detail(pg_temp.convert_id('claim',2))#>'{order,partialCancels}'='[]'::jsonb then 1 else 0 end as claim_detail_without_partial_cancels;
 reset role;
+select 1/case when not exists(select 1 from private.claim_defective_stock where claim_id=pg_temp.convert_id('claim',2))
+ and (select (diff->>'defectivePlanCleared')::integer=1 from public.audit_log where id=pg_temp.convert_id('op',2)) then 1 else 0 end as conversion_clears_saved_defective_choice;
 select 1/case when (select purge_after is not null from private.claim_refund_accounts where claim_id=pg_temp.convert_id('claim',2))then 1 else 0 end as unnecessary_account_scheduled;
 set local role authenticated;
 select pg_temp.do_convert(2,22,'return');
+reset role;
+-- 다시 반품이 돼도 이전 '불량' 선택은 되살아나지 않는다(기본은 판매 재고 복원). 지운 것이 없으면 감사에 0으로 남는다.
+select 1/case when not exists(select 1 from private.claim_defective_stock where claim_id=pg_temp.convert_id('claim',2))
+ and (select (diff->>'defectivePlanCleared')::integer=0 from public.audit_log where id=pg_temp.convert_id('op',22)) then 1 else 0 end as reconversion_starts_without_saved_choice;
+set local role authenticated;
 select pg_temp.convert_error('select pg_temp.do_convert(3,3,''return'')','claim_conversion_account_required');
 select pg_temp.do_convert(3,3,'return','{"bankName":"합성은행","accountNumber":"8765432190","accountHolder":"합성고객"}');
 select pg_temp.convert_error('select public.admin_convert_order_claim_type(pg_temp.convert_id(''claim'',3),pg_temp.convert_id(''op'',3),0,''return'',''합성 상담에서 유형 및 비용 처리 합의'',true,''{"bankName":"합성은행","accountNumber":"8765432191","accountHolder":"합성고객"}'')','23505');

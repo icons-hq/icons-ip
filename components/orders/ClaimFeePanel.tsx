@@ -8,7 +8,11 @@ import { CLAIM_FEE_ACTIONS, CLAIM_FEE_POLICY_PATH, CLAIM_FEE_STATES, normalizeCl
 import { formatOrderDateTime } from '@/lib/orders';
 import { krw } from '@/lib/format';
 import { useClaimPreviewBusy } from '@/components/orders/claim-preview-busy';
-type Props = { actorId: string; claimId: string; operator?: boolean };
+type Props = {
+ actorId: string; claimId: string; operator?: boolean;
+ /** 운영 화면: 반품배송비 차감(ADR-0031) 판정·결정이 있을 때의 안내(returnFeeDeductionFeePanelNote). 없으면 '환불액에서 차감하지 않음' 문구 그대로다. */
+ deductionNote?: string | null;
+};
 type Request = { invoiceId: string | null; kind: ClaimFeeKind; values: ClaimFeeValues; revision: number; claimRevision: number; operationId: string };
 export function ClaimFeePanel(props: Props) {
  return <ClaimContactSession actorId={props.actorId}>{(identity, scope) => <FeePanel key={`${props.claimId}:${identity.sessionId}`} {...props} identity={identity} scope={scope} />}</ClaimContactSession>;
@@ -33,7 +37,7 @@ function OrderFees({ actorId, orderId, identity, scope }: { actorId: string; ord
   {documents?.length === 0 ? <p>본인에게 청구된 배송비가 없습니다.</p> : null}{documents?.map(d => <FeePanel key={`${d.claimId}:${d.revision}`} actorId={actorId} claimId={d.claimId} initial={d} identity={identity} scope={scope} />)}
   {error ? <p role="alert">{error}</p> : null}</section>;
 }
-function FeePanel({ claimId, operator = false, initial = null, identity, scope }: Props & { initial?: ClaimFeeDocument | null; identity: ClaimContactIdentity; scope: ClaimContactScope }) {
+function FeePanel({ claimId, operator = false, deductionNote = null, initial = null, identity, scope }: Props & { initial?: ClaimFeeDocument | null; identity: ClaimContactIdentity; scope: ClaimContactScope }) {
  const router = useRouter(), alive = useRef(true), busy = useRef(false), dispatched = useRef<Request | null>(null);
  const [document, setDocument] = useState<ClaimFeeDocument | null>(initial), [selected, setSelected] = useState<{ kind: ClaimFeeKind; invoice: ClaimFeeInvoice | null } | null>(null);
  const [amount, setAmount] = useState(''), [payerRole, setPayerRole] = useState<'buyer' | 'requester'>('buyer'), [customerNote, setCustomerNote] = useState(''), [evidence, setEvidence] = useState(''), [occurredAt, setOccurredAt] = useState(''), [confirmed, setConfirmed] = useState(false);
@@ -72,7 +76,7 @@ function FeePanel({ claimId, operator = false, initial = null, identity, scope }
  }
  return <section className="claim-fees" aria-label="반품 교환 배송비">
   <h3>반품·교환 배송비</h3>
-  <p>{operator ? '고객과 합의한 배송비를 별도로 청구합니다. 원 주문 환불액에서는 차감하지 않습니다. 입금·반환은 실제 거래 내역을 확인한 뒤 기록해주세요.' : '합의된 배송비 청구 내역입니다. 입금 알림 후 판매자가 실제 입금을 확인합니다. 주문 환불과 배송비 반환은 각각 확인해주세요.'}</p>
+  <p>{operator ? deductionNote ? `고객과 합의한 배송비를 별도로 청구합니다. ${deductionNote} 입금·반환은 실제 거래 내역을 확인한 뒤 기록해주세요.` : '고객과 합의한 배송비를 별도로 청구합니다. 원 주문 환불액에서는 차감하지 않습니다. 입금·반환은 실제 거래 내역을 확인한 뒤 기록해주세요.' : '합의된 배송비 청구 내역입니다. 입금 알림 후 판매자가 실제 입금을 확인합니다. 주문 환불과 배송비 반환은 각각 확인해주세요.'}</p>
   <div className="claim-fees__actions"><button className="btn btn-sm btn-ghost" type="button" disabled={pending} onClick={() => { void read(); }}>배송비 청구 내역 확인</button>{operator ? <><Link href={CLAIM_FEE_POLICY_PATH}>배송비 청구 정책</Link><Link href="/admin/sales/claims/returns/fees">입금·반환 목록</Link></> : null}</div>
   {document && !document.invoices.length ? <p>청구 내역이 없습니다.</p> : null}
   {operator && document && !document.policy?.enabled ? <p>새 배송비 청구가 꺼져 있습니다. 기존 청구의 입금 확인·취소·반환은 계속 처리할 수 있습니다.</p> : null}

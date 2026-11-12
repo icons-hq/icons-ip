@@ -17,6 +17,7 @@ import {
   ADMIN_CLAIM_BULK_RESHIP_LIMIT,
   adminClaimBulkReshipRowError,
   adminClaimBulkSummary,
+  type AdminClaimBulkReshipClaim,
   type AdminClaimBulkResult,
   type AdminClaimBulkReshipLoad,
   type AdminClaimBulkReshipRow,
@@ -26,6 +27,7 @@ import { adminClaimCopy } from '@/lib/admin/vocabulary';
 import {
   CLAIM_BULK_RESHIP_AUTH_CHANGED,
   CLAIM_BULK_RESHIP_EXPIRED,
+  CLAIM_BULK_RESHIP_PENDING_EXCLUDED,
   registerClaimReshipments,
   reshipRowKey,
   type ClaimBulkReshipContext,
@@ -53,7 +55,7 @@ import { ClaimKitBulkResult } from './ClaimKitBulkResult';
  */
 
 type ReadyContext = { status: 'ready' } & ClaimBulkReshipContext;
-type ContextState = { status: 'loading' } | ReadyContext | { status: 'unavailable'; message: string };
+type ContextState = { status: 'loading' } | ReadyContext | { status: 'unavailable'; message: string; pendingOperation?: true };
 type RowDraft = ClaimBulkReshipDraft;
 
 const LOAD_LOST = '재출고할 요청을 불러오지 못했습니다. 창을 닫고 다시 실행해주세요.';
@@ -138,7 +140,13 @@ function ReshipTable({ identity, load, onDone, onRunning, scope }: {
   scope: ClaimContactScope;
 }) {
   const router = useRouter();
-  const [contexts, setContexts] = useState<Record<string, ContextState>>({});
+  /* 이 탭에 결과를 확인하지 않은 재출고 작업이 남은 요청(XC3)은 주소를 열지 않고 처음부터 뺀다 — 등록을 눌러서야 실패로 알게 하지 않는다.
+     요청번호는 상세 화면과 같은 탭 저장소 키다. 저장소를 읽지 못하면 남은 작업이 있다고 본다(보내지 않는 쪽). */
+  const pendingOperation = (claim: AdminClaimBulkReshipClaim) => {
+    try { return sessionStorage.getItem(claimContactJournalKey(identity, claim.orderId, claim.claimId)) !== null; } catch { return true; }
+  };
+  const [contexts, setContexts] = useState<Record<string, ContextState>>(() => Object.fromEntries(load.claims
+    .filter((claim) => pendingOperation(claim)).map((claim) => [claim.claimId, { status: 'unavailable', message: CLAIM_BULK_RESHIP_PENDING_EXCLUDED, pendingOperation: true } as const])));
   const [drafts, setDrafts] = useState<Record<string, RowDraft>>(() => initialDrafts(load));
   const [destinationConfirmed, setDestinationConfirmed] = useState(false);
   const [dispatchConfirmed, setDispatchConfirmed] = useState(false);
@@ -154,7 +162,8 @@ function ReshipTable({ identity, load, onDone, onRunning, scope }: {
     /* 탭을 가리면 불러온 주소와 주소 확인 체크를 지운다(상세의 연락처 처리와 같은 규칙). 운송장 입력은 남긴다. */
     const hide = () => {
       if (document.visibilityState === 'visible') return;
-      setContexts((current) => (Object.values(current).some((context) => context.status === 'ready') ? {} : current));
+      setContexts((current) => (Object.values(current).some((context) => context.status === 'ready')
+        ? Object.fromEntries(Object.entries(current).filter(([, context]) => context.status === 'unavailable' && context.pendingOperation)) : current));
       setDestinationConfirmed(false);
     };
     document.addEventListener('visibilitychange', hide);
@@ -181,8 +190,11 @@ function ReshipTable({ identity, load, onDone, onRunning, scope }: {
     const ticket = scope.capture();
     if (!ticket || phase !== 'idle') return;
     setPhase('loading'); setError(''); setDestinationConfirmed(false);
-    setContexts(Object.fromEntries(load.claims.map((claim) => [claim.claimId, { status: 'loading' } as const])));
+    const pending = new Set(load.claims.filter((claim) => pendingOperation(claim)).map((claim) => claim.claimId));
+    setContexts(Object.fromEntries(load.claims.map((claim) => [claim.claimId, pending.has(claim.claimId)
+      ? { status: 'unavailable', message: CLAIM_BULK_RESHIP_PENDING_EXCLUDED, pendingOperation: true } as const : { status: 'loading' } as const])));
     for (const claim of load.claims) {
+      if (pending.has(claim.claimId)) continue;
       let next: ContextState;
       try {
         const response = await fetchClaimContactContext({ requestId: crypto.randomUUID(), orderId: claim.orderId, claimId: claim.claimId, target: 'reshipment', command: 'reshipment' }, { expectedIdentity: identity });
@@ -207,6 +219,10 @@ function ReshipTable({ identity, load, onDone, onRunning, scope }: {
   }
 
   const readyClaims = load.claims.filter((claim) => contexts[claim.claimId]?.status === 'ready');
+  const loadableCount = load.claims.filter((claim) => {
+    const context = contexts[claim.claimId];
+    return !(context?.status === 'unavailable' && context.pendingOperation);
+  }).length;
   const readyRows = readyClaims.reduce((sum, claim) => sum + claim.rows.length, 0);
 
   async function register() {
@@ -269,7 +285,7 @@ function ReshipTable({ identity, load, onDone, onRunning, scope }: {
   const busy = phase !== 'idle';
   return <div className="flex min-w-0 flex-col gap-4 text-sm" data-claim-bulk-reship="">
     <div className="flex flex-wrap items-center gap-2">
-      <Button disabled={busy} onClick={() => { void loadAddresses(); }} variant={hasPrivate ? 'outline' : 'default'}>{hasPrivate ? '최종 주소 다시 불러오기' : `최종 주소 불러오기 (${load.claims.length}건)`}</Button>
+      <Button disabled={busy} onClick={() => { void loadAddresses(); }} variant={hasPrivate ? 'outline' : 'default'}>{hasPrivate ? '최종 주소 다시 불러오기' : `최종 주소 불러오기 (${loadableCount}건)`}</Button>
       <p className="text-xs text-muted-foreground">주소는 확인 시간 10분 동안만 보이고, 탭을 가리거나 등록이 끝나면 지웁니다.</p>
     </div>
     {load.claims.map((claim) => {
@@ -277,8 +293,12 @@ function ReshipTable({ identity, load, onDone, onRunning, scope }: {
       return <section aria-label={`요청 ${claim.reference} 재출고`} className="flex min-w-0 flex-col gap-3 rounded-lg border p-3" data-claim-bulk-reship-claim={claim.claimId} key={claim.claimId}>
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h4 className="font-medium tabular-nums">{claim.reference}</h4>
-          {claim.skipped.length > 0 ? <p className="text-xs text-muted-foreground">{claim.skipped.map((entry) => `${entry.originName}: 상세에서 처리`).join(' · ')}</p> : null}
         </div>
+        {/* 이 표에서 뺀 출고지는 첫 화면에서 이유까지 보인다(제작 대기·회수 확인 전 등). 등록한 뒤 결과표에도 같은 이유가 남는다. */}
+        {claim.skipped.length > 0 ? <div className="flex flex-col gap-1 rounded-lg bg-muted/50 px-3 py-2 text-xs" data-claim-bulk-reship-skipped="">
+          <p className="font-medium">이 표에서 뺀 출고지 · 상세에서 처리</p>
+          <ul className="flex flex-col gap-0.5 text-muted-foreground">{claim.skipped.map((entry, index) => <li key={`${entry.originName}:${index}`}>{entry.originName} — {adminClaimCopy(entry.reason)}</li>)}</ul>
+        </div> : null}
         <div data-private="true">{context?.status === 'ready'
           ? <p className="rounded-lg bg-muted/50 px-3 py-2">{context.address.recipientName} · {context.address.phone}<br />({context.address.postalCode}) {context.address.address1} {context.address.address2}</p>
           : context?.status === 'loading' ? <p className="text-muted-foreground" role="status">최종 주소를 불러오는 중입니다…</p>

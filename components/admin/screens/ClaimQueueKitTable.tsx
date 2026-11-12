@@ -629,6 +629,11 @@ export function ClaimQueueKitTable({
         <Button disabled={busy} type="submit" variant="soft">검색</Button>
       </ConsoleFilterActions>
     </form>
+    {/* 일괄 처리 결과(선택 건 승인·거부·검토중·전환·단계 처리)는 목록 위, 조회 조건 바로 아래에 둔다 — 처리 막대가 화면 아래에 있어도
+        결과표가 목록 끝(첫 화면 밖)에 붙지 않게 한다(QA2 S-T11a-02). */}
+    {overLimit ? <p className="text-sm text-destructive" role="alert">한 번에 {ADMIN_CLAIM_BULK_LIMIT}건까지 처리할 수 있습니다. 선택을 줄여주세요.</p> : null}
+    {error && !rejectOpen && !convertOpen ? <p className="text-sm text-destructive" role="alert">{adminClaimCopy(error)}</p> : null}
+    <ClaimKitBulkResult previewHrefBase={currentHref} state={stepResult ?? state} />
     {/* 처리 막대는 체크하면 화면 아래에 뜬다. 체크 전에는 같은 버튼을 흐리게 보여 어디서 처리하는지 알린다(발주 화면의 '선택 주문 0건'과 같은 약속). */}
     {selectedIds.length === 0 ? <div aria-label="일괄 처리(요청을 체크하면 쓸 수 있습니다)" className="flex flex-wrap items-center gap-1.5" data-claims-bulk-idle="" role="group">
       <span className="text-xs text-muted-foreground">0건 선택</span>
@@ -705,9 +710,6 @@ export function ClaimQueueKitTable({
       {deciding ? <span className="text-sm text-muted-foreground" role="status">처리 중… 한 건씩 순서대로 처리합니다.</span> : null}
     </ActionBar>
 
-    {overLimit ? <p className="text-sm text-destructive" role="alert">한 번에 {ADMIN_CLAIM_BULK_LIMIT}건까지 처리할 수 있습니다. 선택을 줄여주세요.</p> : null}
-    {error && !rejectOpen && !convertOpen ? <p className="text-sm text-destructive" role="alert">{adminClaimCopy(error)}</p> : null}
-    <ClaimKitBulkResult previewHrefBase={currentHref} state={stepResult ?? state} />
     {stepSession ? <ClaimBulkStepDialog claimType={claimType} onClose={closeStep} previewHrefBase={currentHref} session={stepSession} /> : null}
   </div>;
 }

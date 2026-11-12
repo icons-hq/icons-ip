@@ -8,6 +8,12 @@ import 'server-only';
 import { readGoodsCustomInputSnapshot, type GoodsCustomInputSelection } from '@/lib/goods-custom-inputs';
 
 import { createClient } from '@/lib/supabase/server';
+import {
+  AdminClaimDetailLoadError,
+  claimItemsMatchTransaction,
+  parseClaimPartialCancels,
+  parseClaimSnapshotItems,
+} from './claim-transaction-snapshot';
 import { parseReturnFeeDeduction, type ReturnFeeDeduction } from '@/lib/claims/return-fee-deduction';
 import {
   isOrderClaimReasonType,
@@ -414,7 +420,10 @@ export async function loadAdminClaimDetail(
     p_claim_id: claimId,
   });
 
-  if (error) throw new Error(`Failed to load claim: ${error.message}`);
+  if (error) {
+    const denied = /operator_capability_required|staff[ _]required|insufficient_privilege/i.test(error.message ?? '') || error.code === '42501';
+    throw new AdminClaimDetailLoadError(denied ? 'claim_access_denied' : 'claim_unavailable', `Failed to load claim: ${error.message}`);
+  }
   if (!isRecord(data)) return null;
 
   const claim = isRecord(data.claim) ? data.claim : null;
@@ -432,19 +441,28 @@ export async function loadAdminClaimDetail(
     const value = data.gift;
     if (!isRecord(value) || Object.keys(value).length !== 3 || typeof value.giftId !== 'string' || !isUuid(value.giftId)
       || (value.requesterRole !== 'payer' && value.requesterRole !== 'recipient') || typeof value.requesterName !== 'string'
-      || !value.requesterName.trim()) throw new Error('Failed to load gift claim requester');
+      || !value.requesterName.trim()) throw new AdminClaimDetailLoadError('gift_requester_invalid', 'Failed to load gift claim requester');
     gift = { giftId: value.giftId, requesterRole: value.requesterRole, requesterName: value.requesterName };
   }
-  const transaction = typeof order?.id === 'string' ? (await loadAdminOrderTransactions([order.id])).get(order.id)?.display : undefined;
-  if (transaction && (transaction.totals.onlineTotal !== toNumber(order?.total as number | string)
-    || !Array.isArray(order?.items) || transaction.lines.length !== order.items.length
-    || transaction.lines.some(line => !(order.items as unknown[]).some(item => isRecord(item) && item.id === line.lineId
-      && item.variantId === line.variantId && toNumber(item.qty as number | string) === line.qty && toNumber(item.unitPrice as number | string) === line.unitPrice)))) {
-    throw new Error('Failed to load claim transaction snapshot');
+  let transaction: GoodsTransactionDisplay | undefined;
+  try {
+    transaction = typeof order?.id === 'string' ? (await loadAdminOrderTransactions([order.id])).get(order.id)?.display : undefined;
+  } catch (cause) {
+    throw new AdminClaimDetailLoadError('transaction_receipt_unavailable', `Failed to load claim transaction receipt: ${cause instanceof Error ? cause.message : 'unknown'}`);
+  }
+  /* 버전 2 주문은 원 거래 영수증과 대조한다. 품목은 살아 있는 수량이라 영수증 줄을 '원 수량 − 적용된 부분 취소 수량'으로 맞춘다
+     (claim-transaction-snapshot.ts). 어긋나면 환불·재출고를 시작하지 않도록 멈춘다. 버전 1 주문은 영수증이 없어 지나간다. */
+  if (transaction) {
+    const items = parseClaimSnapshotItems(order?.items);
+    const partialCancels = parseClaimPartialCancels(order?.partialCancels);
+    if (!items || !partialCancels
+      || !claimItemsMatchTransaction(transaction, { total: toNumber(order?.total as number | string), items, partialCancels })) {
+      throw new AdminClaimDetailLoadError('transaction_snapshot_mismatch', 'Failed to load claim transaction snapshot');
+    }
   }
 
   const sellerIntake = data.sellerIntake == null ? null : parseSellerClaimReceipt(data.sellerIntake);
-  if (data.sellerIntake != null && !sellerIntake) throw new Error('Failed to load seller claim intake evidence');
+  if (data.sellerIntake != null && !sellerIntake) throw new AdminClaimDetailLoadError('seller_intake_invalid', 'Failed to load seller claim intake evidence');
 
   return {
     gift,

@@ -149,7 +149,8 @@ select pg_temp.pc_assert((pg_temp.pc_start('a:1@1', 1, 9500)) @> '{"state": "pro
 select pg_temp.pc_assert(public.admin_order_partial_cancellation_context(pg_temp.pc_id('order', 1))->'blockers' ? 'partial_cancel_in_progress', 'in_flight_blocker');
 select pg_temp.pc_error($$select public.admin_preview_order_partial_cancellation(pg_temp.pc_id('order', 1), pg_temp.pc_items('b:1@1'))$$, 'partial_cancel_in_progress');
 select pg_temp.pc_error($$select public.admin_shipment_export(array[pg_temp.pc_id('shipment-1', 1)])$$, 'order cancellation in progress');
-select pg_temp.pc_error($$select public.admin_start_order_cancellation(pg_temp.pc_id('order', 1), 'out_of_stock', null, false)$$, 'order_claim_in_progress');
+-- 운영자 전액 취소는 클레임이 아니라 결제사 확인을 기다리는 부분 취소 때문에 막혔다고 전용 코드로 알린다(QA2 S-T12b-07).
+select pg_temp.pc_error($$select public.admin_start_order_cancellation(pg_temp.pc_id('order', 1), 'out_of_stock', null, false)$$, 'partial_cancel_in_progress');
 select pg_temp.pc_assert(not ((public.admin_origin_pending_export_ids(pg_temp.pc_id('origin', 1))->'ids') ? pg_temp.pc_id('shipment-1', 1)::text)
  and ((public.admin_origin_pending_export_ids(pg_temp.pc_id('origin', 1))->'ids') ? pg_temp.pc_id('shipment-1', 2)::text), 'in_flight_excluded_from_pending_exports');
 reset role;
@@ -482,6 +483,12 @@ select public.admin_record_order_claim_origin_collection(:'return_claim', pg_tem
 -- 회수 스냅샷은 부분 취소로 줄어든 배송 건 수량(A 1개)이다. 살아 있는 수량과 맞으므로 회수가 끝난다.
 select pg_temp.pc_assert((public.admin_order_claim_detail(:'return_claim')#>>'{claim,collectionComplete}')::boolean
  and (public.admin_order_claim_detail(:'return_claim')#>>'{claim,stage}') = 'collected', 'origin_collections_complete_with_live_quantity');
+-- 클레임 상세는 품목별 적용된 부분 취소 수량을 함께 싣는다(QA2 B1). 품목은 살아 있는 수량(A 1개)이고, 앱은 원 거래 영수증의 A 2개를
+-- '2 − 1'로 대조한다. 부분 취소가 없는 품목(B·C)은 싣지 않는다.
+select pg_temp.pc_assert(public.admin_order_claim_detail(:'return_claim')#>'{order,partialCancels}'
+   = jsonb_build_array(jsonb_build_object('orderItemId', pg_temp.pc_id('item-partial-cancel-a', 12), 'canceledQty', 1))
+ and (select jsonb_object_agg(item->>'goodId', (item->>'qty')::integer) from jsonb_array_elements(public.admin_order_claim_detail(:'return_claim')#>'{order,items}') item)
+   = '{"partial-cancel-a": 1, "partial-cancel-b": 1, "partial-cancel-c": 1}'::jsonb, 'claim_detail_partial_cancels_for_receipt');
 select public.admin_record_order_claim_refund(:'return_claim', 'pg_cancel', 'filed', null);
 reset role;
 select pg_temp.pc_assert((select amount = 30500 and status = 'requested' from public.refunds where payment_id = pg_temp.pc_id('payment', 12)), 'return_refund_intent_is_remaining_balance');
@@ -529,6 +536,17 @@ select pg_temp.pc_ship(14);
 insert into public.order_cancellation_requests(id, order_id, requested_by, reason, reason_type, claim_type, stage, collection_policy, collected_at, requested_at)
  values (pg_temp.pc_id('claim', 14), pg_temp.pc_id('order', 14), pg_temp.pc_id('user', 2), 'TEST 묶음 교환', 'defect', 'exchange', 'collected', 'legacy',
   clock_timestamp() - interval '10 minutes', clock_timestamp() - interval '1 hour');
+select pg_temp.pc_auth();
+-- 모두 취소된 품목(C)은 상세 품목에서 빠지고 부분 취소 수량(C 1개 = 원 수량)으로만 남는다 — 앱은 영수증의 C 줄을 '1 − 1 = 0'으로 맞춘다.
+set local role authenticated;
+select pg_temp.pc_auth();
+select pg_temp.pc_assert(public.admin_order_claim_detail(pg_temp.pc_id('claim', 14))#>'{order,partialCancels}' @> jsonb_build_array(
+   jsonb_build_object('orderItemId', pg_temp.pc_id('item-partial-cancel-a', 14), 'canceledQty', 1),
+   jsonb_build_object('orderItemId', pg_temp.pc_id('item-partial-cancel-c', 14), 'canceledQty', 1))
+ and jsonb_array_length(public.admin_order_claim_detail(pg_temp.pc_id('claim', 14))#>'{order,partialCancels}') = 2
+ and (select jsonb_object_agg(item->>'goodId', (item->>'qty')::integer) from jsonb_array_elements(public.admin_order_claim_detail(pg_temp.pc_id('claim', 14))#>'{order,items}') item)
+   = '{"partial-cancel-a": 1, "partial-cancel-b": 1}'::jsonb, 'claim_detail_fully_canceled_item_only_in_partial_cancels');
+reset role;
 select pg_temp.pc_auth();
 select private.record_group_claim_reshipment(pg_temp.pc_id('claim', 14), 'hanjin', 'TESTPC99990014', '[]'::jsonb);
 select pg_temp.pc_assert((select jsonb_object_agg(i.good_id, a.qty) from private.group_claim_reshipment_allocations a join public.order_items i on i.id = a.order_item_id

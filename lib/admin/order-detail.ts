@@ -21,6 +21,8 @@ export interface AdminOrderTimelineEntry {
   fromStatus?: string | null;
   toStatus?: string | null;
   carrier?: string | null;
+  /** 택배사 이름(레지스트리). 로더가 채운다 — 화면은 코드(epost 등)를 그대로 보이지 않는다. */
+  carrierLabel?: string | null;
   trackingNumber?: string | null;
   shipmentId?: string | null;
   originName?: string | null;

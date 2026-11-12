@@ -17,7 +17,7 @@ import type { AdminClaimDetail } from '@/lib/admin/claims.server';
 import { adminClaimStageLabel } from '@/lib/admin/claims';
 import { ADMIN_WITHDRAWAL_RETURN_SHIPPING_LABELS, adminOrderSearchHref } from '@/lib/admin/orders';
 import { krw } from '@/lib/format';
-import { returnFeeDeductionBasisLabel } from '@/lib/claims/return-fee-deduction';
+import { returnFeeDeductionBasisLabel, returnFeeDeductionFeePanelNote } from '@/lib/claims/return-fee-deduction';
 import { statusTone } from '@/lib/admin/status-tone';
 import {
   formatOrderDateTime,
@@ -111,6 +111,30 @@ const TIMELINE_LABELS: Record<string, string> = {
   'system.order.cancellation_needs_review': '결제 취소 확인 필요 (자동)',
   'admin.order.cancellation_reconcile_started': '결제 취소 다시 확인',
   'admin.order.staff_cancellation_started': '운영자 전액 취소 시작',
+  'admin.order.claim_operational_fee_recorded': '운영 확인액 기록',
+  /* 반품 불량 재고(QNA-035). */
+  'admin.order.claim_defective_stock_planned': '품목별 재고 처리 선택 저장',
+  'order.claim_defective_stock_recorded': '불량 재고 기록',
+  'admin.order.claim_defective_stock_recorded': '불량 재고 기록',
+  /* 반품 자동 회수 접수(QNA-032). */
+  'system.order.claim_return_pickup_requested': '반품 자동 회수 접수 (자동)',
+  'system.order.claim_return_pickup_canceled': '반품 자동 회수 취소 (자동)',
+  'admin.order.claim_return_pickup_retried': '반품 자동 회수 다시 접수',
+  /* 반품배송비 차감(ADR-0031). */
+  'admin.order.claim_refund_deduction_decided': '반품배송비 차감 결정',
+  'admin.order.claim_refund_deduction_confirmed': '반품배송비 차감 확인 · 부분 환불',
+  'system.order.claim_refund_deduction_confirmed': '반품배송비 차감 확인 · 부분 환불 (자동)',
+  'admin.order.claim_refund_deduction_not_applied': '반품배송비 차감 안 함 · 전액 환불',
+  'system.order.claim_refund_deduction_not_applied': '반품배송비 차감 안 함 · 전액 환불 (자동)',
+  /* 재고 부족 부분 취소(ADR-0032). 주문 단위 기록이라 이 요청 전후의 부분 취소도 함께 보인다. */
+  'admin.order.partial_cancellation_started': '재고 부족 부분 취소 시작',
+  'admin.order.partial_cancellation_applied': '재고 부족 부분 취소 적용',
+  'admin.order.partial_cancellation_completed': '재고 부족 부분 취소 환불 완료',
+  'admin.order.partial_cancellation_transferred': '재고 부족 부분 취소 송금 완료',
+  'admin.order.partial_cancellation_rejected': '재고 부족 부분 취소 진행 안 함',
+  'admin.order.partial_cancellation_needs_review': '재고 부족 부분 취소 결제 확인 필요',
+  'admin.order.partial_cancellation_resolved': '재고 부족 부분 취소 결제 확인 해소',
+  'admin.order.partial_cancellation_account_viewed': '부분 취소 환불계좌 열람',
 };
 
 /* 환불 계좌 열람의 경로(감사 diff.purpose, QA1 S-T03-04). 요청 상세 열람과 환불 송금 대기 목록 엑셀이 같은 감사 액션을 남긴다.
@@ -123,6 +147,7 @@ const ACCOUNT_VIEW_ROUTES: Record<string, string> = {
 const PAYMENT_PROVIDER_LABELS: Record<string, string> = {
   bank_transfer: '무통장 입금',
   toss: '토스페이먼츠',
+  nicepay: '나이스페이',
   korpay: 'Korpay',
 };
 
@@ -438,7 +463,7 @@ export function ClaimDetailScreen({
             </CardContent>
           </Card>
           {/* 배송비 청구와 운영 확인액은 승인에 앞서 채우는 칸이 아니다 — 주문 맥락과 요청 아래에 둔다. */}
-          {actorId && claim.claimType !== 'cancel' ? <Card><CardContent className="min-w-0"><ClaimFeePanel actorId={actorId} claimId={claim.id} operator /></CardContent></Card> : null}
+          {actorId && claim.claimType !== 'cancel' ? <Card><CardContent className="min-w-0"><ClaimFeePanel actorId={actorId} claimId={claim.id} operator deductionNote={claim.claimType === 'return' ? returnFeeDeductionFeePanelNote(refundDeduction) : null} /></CardContent></Card> : null}
           <ClaimOperationalFeePanel claimId={claim.id} claimType={claim.claimType} fee={claim.operationalFee} />
         </div>
         <div className="flex min-w-0 flex-col gap-4">

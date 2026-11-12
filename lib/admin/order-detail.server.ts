@@ -7,6 +7,7 @@ import { parseRegionalShippingSnapshot } from '@/lib/shipping-regions';
 import { loadOrderItemAllocationsForScreen } from './item-allocation.server';
 import { shipmentExtraTrackings, type ShipmentExtraTrackingRow } from '@/lib/orders/shipments';
 import { getShippingCarrierRegistry } from '@/lib/orders/shipment.server';
+import { shippingCarrierLabel } from '@/lib/orders/shipment';
 
 export async function getAdminOrderDetail(orderId: string, canManage = true): Promise<AdminOrderDetail | null> {
   const supabase = await createClient();
@@ -24,7 +25,8 @@ export async function getAdminOrderDetail(orderId: string, canManage = true): Pr
   const extraResult = tracked ? await supabase.from('order_shipment_extra_trackings').select('id,shipment_id,carrier,tracking_number,created_at').eq('order_id', orderId) : { data: [], error: null };
   if (extraResult.error) throw new Error('추가 운송장을 불러오지 못했습니다.');
   const extraRows = (extraResult.data ?? []) as (ShipmentExtraTrackingRow & { shipment_id: string })[];
-  const carriers = extraRows.length ? await getShippingCarrierRegistry() : [];
+  /* 추가 운송장과 타임라인의 운송장 줄(택배사 코드)은 레지스트리 이름으로 보인다. */
+  const carriers = extraRows.length || detail.timeline.some(entry => entry.carrier) ? await getShippingCarrierRegistry() : [];
   const [deliveries, transactions, allocations] = await Promise.all([loadAdminOrderDeliveries([orderId]), loadAdminOrderTransactions([orderId]), loadOrderItemAllocationsForScreen([orderId])]);
   const delivery = deliveries.get(orderId), transaction = transactions.get(orderId)?.display;
   if (!delivery || transaction && (transaction.totals.onlineTotal !== detail.order.total || transaction.lines.length !== detail.items.length
@@ -35,5 +37,6 @@ export async function getAdminOrderDetail(orderId: string, canManage = true): Pr
   }), order: { ...detail.order, ...(delivery.orderNumber ? { orderNumber: delivery.orderNumber } : {}), address: delivery.address ?? {}, isGift: delivery.isGift, ...(delivery.addressNeedsReview ? { addressNeedsReview: true } : {}), ...(transaction ? { transaction } : {}) }, emailJobs,
     itemAllocations: Object.fromEntries([...allocations ?? []].map(([itemId, loaded]) => [itemId, loaded.allocation])),
     ...(allocations ? {} : { itemAllocationsUnavailable: true as const }),
-    timeline: canManage ? detail.timeline : detail.timeline.filter(entry => ['order', 'shipment'].includes(entry.source)) };
+    timeline: (canManage ? detail.timeline : detail.timeline.filter(entry => ['order', 'shipment'].includes(entry.source)))
+      .map(entry => entry.carrier ? { ...entry, carrierLabel: shippingCarrierLabel(carriers, entry.carrier) } : entry) };
 }

@@ -33,6 +33,7 @@ import { adminClaimPendingReshipments, adminClaimShipmentPartiallyReceived, admi
 import { adminClaimBasePath } from '@/lib/admin/claims';
 import type { ClaimDefectiveItem } from '@/lib/admin/defective-stock';
 import { loadAdminClaimDetail } from '@/lib/admin/claims.server';
+import { adminClaimDetailLoadFailureMessage } from '@/lib/admin/claim-transaction-snapshot';
 import { stockDispositionField } from '@/lib/admin/defective-stock';
 import { loadClaimDefectiveStock } from '@/lib/admin/defective-stock.server';
 import { krw } from '@/lib/format';
@@ -282,8 +283,18 @@ export async function loadOrderClaimBulkReshipmentsAction(input: unknown): Promi
     const registry = await getShippingCarrierRegistry();
     const claims: AdminClaimBulkReshipClaim[] = [];
     const excluded: { claimId: string; reference: string | null; reason: string }[] = [];
+    let references: Map<string, string> | null = null;
     for (const claimId of claimIds) {
-      const detail = await loadAdminClaimDetail(claimId);
+      /* 한 요청을 읽지 못해도 나머지 요청의 재출고 표는 연다. 읽지 못한 요청은 이유와 함께 제외한다(QA2 S-T12b-06). */
+      let detail: Awaited<ReturnType<typeof loadAdminClaimDetail>>;
+      try {
+        detail = await loadAdminClaimDetail(claimId);
+      } catch (error) {
+        unstable_rethrow(error);
+        references ??= await referencesOf(await createClient(), claimIds);
+        excluded.push({ claimId, reference: references.get(claimId) ?? null, reason: adminClaimDetailLoadFailureMessage(error, PREVIEW_FAILED) });
+        continue;
+      }
       if (!detail) { excluded.push({ claimId, reference: null, reason: CLAIM_MISSING }); continue; }
       const reference = orderClaimReferenceLabel(detail.claim.reference);
       if (detail.claim.claimType !== 'exchange') { excluded.push({ claimId, reference, reason: wrongType('exchange') }); continue; }
