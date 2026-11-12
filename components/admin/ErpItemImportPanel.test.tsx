@@ -12,6 +12,7 @@ const hooks = vi.hoisted(() => ({
   refresh: vi.fn(),
   importRows: vi.fn(),
   readFile: vi.fn(),
+  workspace: null as null | { comparePasted: ReturnType<typeof vi.fn>; showUnlinkedCategories: ReturnType<typeof vi.fn> },
 }));
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: hooks.refresh }) }));
@@ -20,6 +21,8 @@ vi.mock('react', async () => {
   const actual = await vi.importActual<typeof import('react')>('react');
   return {
     ...actual,
+    /* 화면 연결(ErpItemsWorkspace)은 시험마다 hooks.workspace로 준다. 없으면 단독 렌더다. */
+    useContext: () => hooks.workspace,
     useMemo: (factory: () => unknown) => factory(),
     useRef: (initial: unknown) => {
       const index = hooks.refIndex++;
@@ -54,10 +57,10 @@ type Props = {
   'aria-label'?: string;
 };
 
-function render() {
+function render(props?: Parameters<typeof ErpItemImportPanel>[0]) {
   hooks.stateIndex = 0;
   hooks.refIndex = 0;
-  return ErpItemImportPanel();
+  return ErpItemImportPanel(props);
 }
 
 function find(node: ReactNode, predicate: (element: ReactElement<Props>) => boolean): ReactElement<Props>[] {
@@ -94,6 +97,7 @@ beforeEach(() => {
   hooks.refresh.mockReset();
   hooks.importRows.mockReset().mockImplementation(async (rows: unknown[]) => ({ ok: true, inserted: rows.length, updated: 0, unchanged: 0, rejected: [] }));
   hooks.readFile.mockReset();
+  hooks.workspace = null;
 });
 
 describe('ERP 품목 반입 패널', () => {
@@ -135,6 +139,37 @@ describe('ERP 품목 반입 패널', () => {
       { row: 3, code: 'A2', reason: 'missing_name' },
       { row: 4, code: 'A3', reason: 'invalid_name' },
     ]);
+  });
+
+  /* 1027T-016·1027T-X04: 반입이 끝나면 방금 반입한 품목으로 연결 상품과 비교하고, 붙여넣은 분류 중 연결 필요인 분류를 연결 표로 안내한다. */
+  it('반입을 마치면 반입된 ERP 코드로 연결 상품 비교를 시작하고 미연결 분류 N건을 연결 표로 안내한다', async () => {
+    hooks.workspace = { comparePasted: vi.fn(), showUnlinkedCategories: vi.fn() };
+    const props = { unlinkedErpCategories: ['문구 > 키링', '문구  >  스티커', '다른 분류'] };
+    const pasted = '품번\t품명\t카테고리\nA1\t키링\t문구 > 키링\nA2\t스티커\t문구 > 스티커\nA3\t노트\t문구 > 노트\nA4\t스티커2\t문구 > 스티커';
+    find(render(props), (element) => element.props.id === 'erp-item-paste')[0].props.onChange?.({ target: { value: pasted } });
+    button(render(props), '붙여넣은 표 확인').props.onClick?.();
+    hooks.importRows.mockResolvedValueOnce({ ok: true, inserted: 3, updated: 0, unchanged: 0, rejected: [{ row: 4, code: 'A3', reason: 'invalid_name' }] });
+    button(render(props), '4건 반입').props.onClick?.();
+    await settle();
+    expect(hooks.workspace.comparePasted).toHaveBeenCalledOnce();
+    expect(hooks.workspace.comparePasted).toHaveBeenCalledWith(['A1', 'A2', 'A4']);
+    const tree = render(props);
+    expect(find(tree, (element) => (element.props as { title?: unknown }).title === '미연결 분류 2건')).toHaveLength(1);
+    expect(text(tree)).toContain('문구 > 키링 · 문구 > 스티커');
+    expect(text(tree)).toContain('방금 반입한 품목과 연결 상품의 판매가·바코드를 비교했습니다.');
+    button(tree, '연결하기').props.onClick?.();
+    expect(hooks.workspace.showUnlinkedCategories).toHaveBeenCalledOnce();
+  });
+
+  it('모든 분류가 연결돼 있고 화면 연결이 없으면(단독 렌더) 안내를 덧붙이지 않는다', async () => {
+    find(render(), (element) => element.props.id === 'erp-item-paste')[0].props.onChange?.({ target: { value: '품번\t품명\t카테고리\nA1\t키링\t문구 > 키링' } });
+    button(render(), '붙여넣은 표 확인').props.onClick?.();
+    button(render(), '1건 반입').props.onClick?.();
+    await settle();
+    const tree = render({ unlinkedErpCategories: ['다른 분류'] });
+    expect(text(tree)).toContain('추가 1');
+    expect(find(tree, (element) => String((element.props as { title?: unknown }).title ?? '').includes('미연결 분류'))).toHaveLength(0);
+    expect(text(tree)).not.toContain('연결 상품의 판매가·바코드를 비교했습니다');
   });
 
   it('붙여넣기의 닫히지 않은 큰따옴표는 뒤 행을 삼키지 않고 미리보기 경고로 알린다', () => {

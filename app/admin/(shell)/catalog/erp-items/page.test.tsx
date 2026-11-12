@@ -1,4 +1,4 @@
-const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
+const { configuredOperatorAccessFixture, legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import Page from './page';
@@ -14,7 +14,8 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn() }),
 }));
 vi.mock('@/lib/admin/erp-items.server', () => ({ loadErpItemsWorkspace: mocks.load }));
-vi.mock('@/app/admin/erp-item-actions', () => ({ importErpItemsAction: vi.fn(), readErpItemFileAction: vi.fn(), setErpCategoryMappingAction: vi.fn(), deleteErpItemsAction: vi.fn() }));
+vi.mock('@/app/admin/erp-item-actions', () => ({ importErpItemsAction: vi.fn(), readErpItemFileAction: vi.fn(), setErpCategoryMappingAction: vi.fn(), deleteErpItemsAction: vi.fn(),
+  previewErpLinkedGoodsAction: vi.fn(), commitErpLinkedGoodsAction: vi.fn() }));
 
 beforeEach(() => {
   mocks.auth = { isConfigured: true, user: { id: 'staff' }, isStaff: true, operatorAccess: legacyOperatorAccessFixture(), role: 'staff' };
@@ -37,5 +38,23 @@ describe('ERP 품목 라우트', () => {
     expect(mocks.load).toHaveBeenCalledWith({ query: '키링', page: 2 });
     expect(html).toContain('ERP 품목');
     expect(html).toContain('value="키링"');
+  });
+
+  /* 1027T-016(사용자 결정 2026-11-11 "MD 권한"): 부매니저도 상품 관리 권한으로 화면을 열고 반입한다. 삭제는 플랫폼 관리 권한에만 보인다. */
+  it('부매니저(MD)는 화면을 열지만 품목 삭제 안내는 보지 않고, 물류출고관리는 열지 못한다', async () => {
+    const withItems = { filters: { query: '', page: 1 }, page: { total: 1, items: [
+      { code: '000123', name: '아크릴 키링', category: null, salePrice: null, barcode: null, mappedCategoryId: null, importedAt: '2026-10-07T03:00:00Z', updatedAt: '2026-10-07T03:00:00Z' },
+    ] }, erpCategories: [], categories: [], categoryErpMappings: [] };
+    mocks.load.mockResolvedValue(withItems);
+    mocks.auth = { isConfigured: true, user: { id: 'md' }, isStaff: true, operatorAccess: configuredOperatorAccessFixture('deputy'), role: 'staff' };
+    const deputy = renderToStaticMarkup(await Page({ searchParams: Promise.resolve({}) }));
+    expect(deputy).toContain('id="erp-item-paste"');
+    expect(deputy).not.toContain('체크하면 삭제 버튼이 나타납니다');
+    mocks.auth = { isConfigured: true, user: { id: 'staff' }, isStaff: true, operatorAccess: legacyOperatorAccessFixture(), role: 'staff' };
+    expect(renderToStaticMarkup(await Page({ searchParams: Promise.resolve({}) }))).toContain('체크하면 삭제 버튼이 나타납니다');
+    mocks.auth = { isConfigured: true, user: { id: 'logistics' }, isStaff: true, operatorAccess: configuredOperatorAccessFixture('logistics'), role: 'staff' };
+    mocks.load.mockClear();
+    await expect(Page({ searchParams: Promise.resolve({}) })).rejects.toThrow();
+    expect(mocks.load).not.toHaveBeenCalled();
   });
 });

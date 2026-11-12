@@ -8,6 +8,8 @@ import { ConsolePagination } from '@/components/admin/console/ConsolePagination'
 import { ErpCategoryMappingPanel } from '@/components/admin/ErpCategoryMappingPanel';
 import { ErpItemImportPanel } from '@/components/admin/ErpItemImportPanel';
 import { ErpItemListGrid } from '@/components/admin/ErpItemListGrid';
+import { ErpItemsWorkspace } from '@/components/admin/ErpItemsWorkspace';
+import { ErpLinkedGoodsPanel } from '@/components/admin/ErpLinkedGoodsPanel';
 import { ErpItemsImportButton } from './ErpItemsImportButton';
 import { CATEGORY_PATH, categoryPath } from '@/lib/admin/category';
 import {
@@ -18,6 +20,8 @@ import {
   formatErpSalePrice,
 } from '@/lib/admin/erp-items';
 import type { ErpItemsWorkspaceData } from '@/lib/admin/erp-items.server';
+import { unlinkedErpCategories } from '@/lib/admin/erp-import-follow-up';
+import { ERP_LINKED_GOODS_SECTION_ID } from '@/lib/admin/erp-linked-goods';
 import { kstDay } from '@/lib/admin/kst';
 
 const COLUMNS: ConsoleGridColumn[] = [
@@ -30,7 +34,11 @@ const COLUMNS: ConsoleGridColumn[] = [
   { key: 'importedAt', label: '최근 반입', width: '110px' },
 ];
 
-export function ErpItemsScreen({ data }: { data: ErpItemsWorkspaceData }) {
+/**
+ * ERP 품목(1027T-016·1027T-X04·SHEET-042). 상품 관리 권한(catalog.manage)이면 MD도 읽고 반입하고 분류를 연결한다.
+ * 품목 삭제는 플랫폼 관리 권한(platform.manage)에만 보인다(`canDelete`, 서버 액션·RPC도 같은 권한을 따로 확인한다).
+ */
+export function ErpItemsScreen({ data, canDelete = false }: { data: ErpItemsWorkspaceData; canDelete?: boolean }) {
   const { filters, page, categories } = data;
   const categoryLabel = (id: string | null) => {
     if (!id) return <span className="text-muted-foreground">연결 없음</span>;
@@ -54,20 +62,29 @@ export function ErpItemsScreen({ data }: { data: ErpItemsWorkspaceData }) {
     ],
   }));
 
-  return <section className="flex min-w-0 flex-col gap-4" data-admin-screen="erp-items">
+  return <section className="flex min-w-0 flex-col gap-4" data-admin-screen="erp-items"><ErpItemsWorkspace>
     <AdminPageHeader
       title="ERP 품목"
       description="반입해 둔 품목은 상품 옵션에 ERP 품명을 입력할 때 코드·바코드·카테고리·판매가로 제안됩니다. ERP와 자동으로 연동되지 않으니 신제품이 생기면 다시 반입해주세요."
       actions={<ErpItemsImportButton defaultOpen={importOpen} />}
     />
 
-    <ErpItemImportPanel defaultOpen={importOpen} />
+    <ErpItemImportPanel defaultOpen={importOpen} unlinkedErpCategories={unlinkedErpCategories(data.erpCategories)} />
+
+    {/* 1027T-X04: 붙여넣은 값이 연결 상품과 다르면 미리보기 뒤 고른 행만 판매가·바코드를 반영한다. */}
+    <AdminSectionCard
+      title="연결 상품 반영"
+      id={ERP_LINKED_GOODS_SECTION_ID}
+      summary="반입한 ERP 판매가·바코드를 같은 ERP 코드의 상품 옵션과 비교해, 확인한 행만 상품에 반영합니다."
+    >
+      <ErpLinkedGoodsPanel />
+    </AdminSectionCard>
 
     {/* 반입 결과 목록을 먼저 보이고 분류 연결(설정)은 그 아래에 둔다. */}
     <AdminSectionCard
       title="반입된 품목"
       id="erp-item-list"
-      summary={`총 ${page.total.toLocaleString('ko-KR')}건 · ERP 코드 순. 지울 품목은 줄 왼쪽 칸을 체크하면 삭제 버튼이 나타납니다.`}
+      summary={`총 ${page.total.toLocaleString('ko-KR')}건 · ERP 코드 순.${canDelete ? ' 지울 품목은 줄 왼쪽 칸을 체크하면 삭제 버튼이 나타납니다.' : ''}`}
     >
       {/* next/form: 검색도 페이지 넘김처럼 화면을 다시 불러오지 않아, 아래 연결 표에서 고르던 값이 남는다. */}
       <Form action={ERP_ITEMS_PATH} className="flex flex-wrap items-center gap-2" prefetch={false} role="search">
@@ -77,6 +94,7 @@ export function ErpItemsScreen({ data }: { data: ErpItemsWorkspaceData }) {
         {filters.query ? <Link className="text-sm underline underline-offset-4" href={ERP_ITEMS_PATH}>전체 품목 보기</Link> : null}
       </Form>
       <ErpItemListGrid
+        canDelete={canDelete}
         columns={COLUMNS}
         rows={rows}
         emptyLabel={filters.query ? '조건에 맞는 ERP 품목이 없습니다.' : '아직 반입한 ERP 품목이 없습니다. 위에서 품목 생성 데이터를 반입해주세요.'}
@@ -92,5 +110,5 @@ export function ErpItemsScreen({ data }: { data: ErpItemsWorkspaceData }) {
       <ErpCategoryMappingPanel rows={data.erpCategories} categories={categories} categoryErpMappings={data.categoryErpMappings} />
       <p className="text-sm text-muted-foreground"><Link className="text-foreground underline underline-offset-4" href={CATEGORY_PATH}>카테고리 관리</Link>에서 마지막 단계 카테고리를 만들거나 보관합니다. 카테고리마다 ERP 코드·품명을 적어 CSV로 내보내는 일도 카테고리 관리의 <Link className="text-foreground underline underline-offset-4" href={`${CATEGORY_PATH}#category-erp-mapping`}>ERP 분류 매핑</Link>에서 합니다.</p>
     </AdminSectionCard>
-  </section>;
+  </ErpItemsWorkspace></section>;
 }

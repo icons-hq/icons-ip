@@ -57,6 +57,19 @@ describe('manager authorization contract', () => {
     expect(canAccessAdminScreen(configuredOperatorAccessFixture('primary'), createScreen)).toBe(true);
   });
 
+  /* 1027T-016(사용자 결정 2026-11-11 "MD 권한"): ERP 품목 화면 읽기·반입·분류 연결은 상품 관리 권한이다. 품목 삭제는 화면이 따로 platform.manage를 본다. */
+  it('ERP 품목 화면은 상품 관리 권한을 가진 MD·인플루언서·대행사에게 열리고, 물류출고관리에게는 닫힌다', () => {
+    const screen = adminScreenForPath('/admin/catalog/erp-items');
+    expect(adminScreenCapability('erp-items')).toBe('catalog.manage');
+    for (const role of ['owner', 'primary', 'deputy', 'influencer', 'agency'] as const) {
+      expect(canAccessAdminScreen(configuredOperatorAccessFixture(role), screen), role).toBe(true);
+      expect(canAccessAdminScreen(configuredOperatorAccessFixture(role), screen, { intent: 'write' }), role).toBe(true);
+    }
+    expect(canAccessAdminScreen(configuredOperatorAccessFixture('logistics'), screen)).toBe(false);
+    expect(hasAdminCapability(configuredOperatorAccessFixture('deputy'), 'platform.manage')).toBe(false);
+    expect(visibleAdminNavGroups('staff', configuredOperatorAccessFixture('deputy')).flatMap(group => group.screens).map(entry => entry.id)).toContain('erp-items');
+  });
+
   it('상담 콘솔은 문의 응대 권한으로만 접근한다', () => {
     const screen = adminScreenForPath('/admin/cs/chat');
     expect(canAccessAdminScreen({ ...configuredOperatorAccessFixture('primary'), capabilities: ['home', 'cs.manage'] }, screen)).toBe(true);

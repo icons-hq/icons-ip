@@ -11,6 +11,7 @@ const hooks = vi.hoisted(() => ({
   save: vi.fn(),
   saveMany: vi.fn(),
   leaveGuard: vi.fn(),
+  workspace: null as null | { registerUnlinked: (handler: (() => void) | null) => void },
 }));
 
 vi.mock('next/navigation', () => ({
@@ -23,6 +24,9 @@ vi.mock('react', async () => {
   const actual = await vi.importActual<typeof import('react')>('react');
   return {
     ...actual,
+    /* 화면 연결(ErpItemsWorkspace)은 시험이 hooks.workspace로 줄 때만 있고, 그때 등록 효과를 바로 실행한다. */
+    useContext: () => hooks.workspace,
+    useEffect: (effect: () => unknown) => { if (hooks.workspace) effect(); },
     useMemo: (factory: () => unknown) => factory(),
     useRef: (current: unknown) => ({ current }),
     useState: (initial: unknown) => {
@@ -93,6 +97,7 @@ beforeEach(() => {
   hooks.save.mockReset();
   hooks.saveMany.mockReset();
   hooks.leaveGuard.mockReset();
+  hooks.workspace = null;
   vi.unstubAllGlobals();
 });
 
@@ -169,6 +174,30 @@ describe('ERP 분류 연결 표', () => {
     expect(text(panel)).toContain('연결 필요만');
     const tree = await renderRow({ rows: pathRows });
     expect(text(tree)).toContain('같은 경로의 ‘문구 > 키링’ 카테고리에 자동으로 연결됩니다. 다른 카테고리를 쓰려면 골라 저장해주세요.');
+  });
+
+  /* 1027T-016: 반입 결과의 '미연결 분류 N건 — 연결하기'가 이 표를 연결 필요만 보이게 열고 그 자리로 옮긴다. */
+  it('반입 결과의 연결하기는 검색어를 비우고 연결 필요만 보이게 표를 연다', () => {
+    const handlers: (() => void)[] = [];
+    hooks.workspace = { registerUnlinked: (handler) => { if (handler) handlers.push(handler); } };
+    const scrolled = vi.fn();
+    const focused = vi.fn();
+    vi.stubGlobal('document', { getElementById: (id: string) => id === 'erp-category-mapping' ? { scrollIntoView: scrolled, focus: focused } : null });
+    const pathRows: Row[] = [
+      { erpCategory: '문구>키링', itemCount: 2, categoryId: null, updatedAt: null, fallbackCategoryId: KEYRING },
+      { erpCategory: '문구>스티커', itemCount: 1, categoryId: null, updatedAt: null, fallbackCategoryId: null },
+    ];
+    const render = () => { hooks.stateIndex = 0; return ErpCategoryMappingPanel({ rows: pathRows, categories, categoryErpMappings: [] }); };
+    const filter = (panel: ReactNode) => find(panel, (element) => (element.props as { id?: string }).id === 'erp-category-filter')[0].props as unknown as { value: string; onChange: (event: { target: { value: string } }) => void };
+    filter(render()).onChange({ target: { value: '키링' } });
+    expect(find(render(), (element) => Boolean(element.props.row)).map((element) => element.props.row?.erpCategory)).toEqual(['문구>키링']);
+    expect(handlers.length).toBeGreaterThan(0);
+    handlers.at(-1)?.();
+    const panel = render();
+    expect(filter(panel).value).toBe('');
+    expect(find(panel, (element) => Boolean(element.props.row)).map((element) => element.props.row?.erpCategory)).toEqual(['문구>스티커']);
+    expect(scrolled).toHaveBeenCalledWith({ block: 'start' });
+    expect(focused).toHaveBeenCalledWith({ preventScroll: true });
   });
 
   it('고른 말단의 정본 ERP 분류 매핑이 이 ERP 분류와 다르면 저장 전에 경고한다', async () => {

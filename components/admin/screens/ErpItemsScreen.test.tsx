@@ -7,6 +7,7 @@ import { ErpItemsScreen } from './ErpItemsScreen';
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock('@/app/admin/erp-item-actions', () => ({
   importErpItemsAction: vi.fn(), readErpItemFileAction: vi.fn(), setErpCategoryMappingAction: vi.fn(), searchErpItemsAction: vi.fn(), deleteErpItemsAction: vi.fn(),
+  previewErpLinkedGoodsAction: vi.fn(), commitErpLinkedGoodsAction: vi.fn(),
 }));
 
 const node = (id: string, name: string, parentId: string | null, extra: Partial<AdminCategoryNode> = {}): AdminCategoryNode => ({
@@ -114,7 +115,7 @@ describe('ERP 품목 화면', () => {
   });
 
   it('목록은 선행 0을 그대로 보이고, 연결된 고객 카테고리 경로·판매가·KST 반입일을 보여 준다', () => {
-    const html = renderToStaticMarkup(<ErpItemsScreen data={data()} />);
+    const html = renderToStaticMarkup(<ErpItemsScreen data={data()} canDelete />);
     expect(html).toContain('>000123<');
     expect(html).toContain('>0088012345678<');
     expect(html).toContain('12,000원');
@@ -141,7 +142,29 @@ describe('ERP 품목 화면', () => {
     // 찾는 품목이 없다고 반입 칸을 열지는 않는다.
     expect(fold.exec(renderToStaticMarkup(<ErpItemsScreen data={data({ filters: { query: '없는 품목', page: 1 }, page: { total: 0, items: [] } })} />))?.[0]).not.toContain('open=');
     // 삭제 버튼은 고른 뒤에 나타나므로 그 방법을 말한다.
-    expect(renderToStaticMarkup(<ErpItemsScreen data={data()} />)).toContain('체크하면 삭제 버튼이 나타납니다');
+    expect(renderToStaticMarkup(<ErpItemsScreen data={data()} canDelete />)).toContain('체크하면 삭제 버튼이 나타납니다');
+  });
+
+  /* 1027T-016: MD(catalog.manage)는 읽기·반입·분류 연결을 하고, 품목 삭제(platform.manage)는 보지 않는다. */
+  it('삭제 권한이 없으면 목록의 선택 칸과 삭제 안내를 그리지 않고, 반입·분류 연결은 그대로 둔다', () => {
+    const html = renderToStaticMarkup(<ErpItemsScreen data={data()} />);
+    expect(html).not.toContain('체크하면 삭제 버튼이 나타납니다');
+    expect(html).not.toContain('aria-label="000123 아크릴 키링 선택"');
+    expect(html).not.toContain('선택 삭제');
+    expect(html).toContain('id="erp-item-paste"');
+    expect(html).toContain('aria-label="문구 &gt; 포토카드 고객 카테고리"');
+  });
+
+  /* 1027T-X04: 반입한 ERP 판매가·바코드를 연결 상품과 비교해 확인한 행만 반영하는 구역을 반입 아래에 둔다. */
+  it('연결 상품 반영 구역은 반입 다음, 품목 목록 앞에 있고 무엇을 바꾸는지 먼저 알린다', () => {
+    const html = renderToStaticMarkup(<ErpItemsScreen data={data()} />);
+    const order = ['id="erp-item-import"', 'id="erp-linked-goods"', 'id="erp-item-list"', 'id="erp-category-mapping"'].map((marker) => html.indexOf(marker));
+    expect(order.every((position) => position >= 0)).toBe(true);
+    expect([...order].sort((left, right) => left - right)).toEqual(order);
+    expect(html).toContain('연결 상품 반영');
+    expect(html).toContain('할인 중인 상품(기간 할인 진행·예정, 즉시할인)은 건너뜁니다.');
+    expect(html).toContain('ERP에 바코드가 없으면 상품 바코드를 지우지 않습니다.');
+    expect(html).toMatch(/<button[^>]*>전체 품목과 비교<\/button>/);
   });
 
   it('빈 목록과 분류 없음 상태를 안내한다', () => {
