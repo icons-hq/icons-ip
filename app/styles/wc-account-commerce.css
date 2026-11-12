@@ -2368,6 +2368,39 @@ button.wc-settings__link-row[aria-disabled="true"] strong {
   font-size: 13px;
 }
 
+/* 다시 결제 진입(QA1 S-D2-15) — 결제 대기·결제 없이 닫힌 주문의 [다시 결제하기]·[다시 구매하기]·[주문 취소]. 주문 내역에서는 그 주문
+   카드에 붙은 아래 띠(같은 헤어라인, 오른쪽 정렬, 36 버튼)이고, 주문 상세에서는 안내 상자 오른쪽의 버튼 묶음이다. */
+.wc-receipt .order-retry-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.wc-receipt .orders-list .order-retry-actions {
+  padding: 10px 18px;
+  border: 1px solid var(--wc-hairline);
+  border-top: 0;
+  background: var(--wc-surface);
+}
+
+.wc-receipt .orders-list .order-retry-actions .btn {
+  min-height: 36px;
+  padding: 0 14px;
+  font-size: 13px;
+}
+
+.wc-receipt .order-retry-actions .checkout-error {
+  flex-basis: 100%;
+  margin: 0;
+  text-align: right;
+}
+
+.wc-receipt .order-detail-deposit .order-retry-actions {
+  flex: none;
+}
+
 /* 섹션 헤딩 — 번호 스텝 대신 잉크 헤딩 한 줄. */
 .wc-receipt .checkout-section-heading {
   display: flex;
