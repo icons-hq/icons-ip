@@ -58,7 +58,9 @@ export function GoodsPriceFields({ draft, onDraftChange, result, errors, instant
   const periodOn = Boolean(draft.periodEnabled);
   const periodOff = discountOff || !periodOn;
   const regularError = result.regularPriceError ?? errors.regularPrice ?? errors.price ?? (draft.discountEnabled ? undefined : errors.compareAtPrice);
-  const discountError = result.discountError ?? errors.discountValue ?? (draft.discountEnabled ? errors.compareAtPrice : undefined);
+  /* 할인을 '설정함'으로 바꾸자마자 빈 금액 칸에 오류가 뜨지 않게 한다. 저장을 눌러 검증에 걸리면(errors.discountValue) 그때 보인다. */
+  const discountBlank = draft.discountEnabled && draft.discountValue.trim() === '';
+  const discountError = (discountBlank ? undefined : result.discountError) ?? errors.discountValue ?? (draft.discountEnabled ? errors.compareAtPrice : undefined);
   const periodError = result.periodError ?? errors.discountPeriod;
   const request = instantDiscountPeriodRequest(result, instant === undefined ? undefined : instant);
 
