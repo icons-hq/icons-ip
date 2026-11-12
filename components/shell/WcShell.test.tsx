@@ -68,14 +68,28 @@ beforeEach(() => {
 });
 
 describe('White Catalog 전역 셸', () => {
-  /* 초대·비밀번호 변경·정지 안내는 집중형 셸, 게임은 자기완결 번들, 어드민은 자체 작업대다.
+  /* 초대·비밀번호 변경·정지 안내는 집중형 셸, 게임·캠페인은 자기완결 번들, 어드민은 자체 작업대다.
    * 공용 크롬이 새어 들어가면 각 표면이 헤더를 두 개 갖는다. */
-  it('집중형 인증·게임·어드민에서는 크롬과 푸터를 모두 비운다', () => {
+  it('집중형 인증·게임·캠페인·어드민에서는 공용 크롬을 비운다', () => {
     for (const pathname of ['/update-password', '/account-suspended', '/manager-invitation', '/games/roulette', '/admin', '/ip/aouad']) {
       mocks.pathname = pathname;
 
       expect(renderToStaticMarkup(<Nav />), pathname).toBe('');
+    }
+  });
+
+  /* 1014-X36 "인증 화면 빼고 전부" — 사업자 정보·법정 고지 푸터는 인증 집중 셸과 어드민에서만 비우고,
+   * 내비가 없는 게임·캠페인에도 그 아래에 둔다(탭바가 없어 모바일 바닥을 탭바 몫만큼 열지 않는다). */
+  it('푸터는 인증 집중 셸·어드민에서만 비우고 게임·캠페인에는 둔다', () => {
+    for (const pathname of ['/update-password', '/account-suspended', '/manager-invitation', '/admin']) {
+      mocks.pathname = pathname;
       expect(renderToStaticMarkup(<SiteFooter />), pathname).toBe('');
+    }
+    for (const pathname of ['/games/roulette', '/games/hyosan-memories', '/ip/aouad']) {
+      mocks.pathname = pathname;
+      const html = renderToStaticMarkup(<SiteFooter />);
+      expect(html, pathname).toContain('<footer class="wc-root wc-footer wc-footer--standalone">');
+      expect(html, pathname).toContain('href="/legal/terms"');
     }
   });
 

@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import postcss, { type AtRule } from 'postcss';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BUSINESS_INFO, businessInfoRows } from '@/lib/legal/business-info';
@@ -66,6 +68,46 @@ describe('SiteFooter 법정 고지 링크', () => {
     expect(render()).toContain('href="/legal/terms"');
   });
 
+  /* 1014-X36 "인증 화면 빼고 전부" — 캠페인(/ip/aouad)·게임(/games)은 내비·문의 위젯이 없는 독립 경험이어도
+     통신판매업자 신원 정보와 약관 링크는 하단에 둔다. 비밀번호 변경·계정 정지·매니저 초대와 어드민에만 없다. */
+  it.each(['/ip/aouad', '/games', '/games/hyosan-memories'])('%s 하단에도 사업자 정보와 법정 고지 링크를 그린다', (pathname) => {
+    mocks.pathname = pathname;
+    const html = render();
+
+    expect(html).toContain('<footer class="wc-root wc-footer wc-footer--standalone">');
+    expect(html).toContain(`${BUSINESS_INFO.companyName} 사업자 정보`);
+    for (const href of ['/legal/terms', '/legal/privacy', '/legal/shipping']) expect(html).toContain(`href="${href}"`);
+  });
+
+  it.each(['/update-password', '/account-suspended', '/manager-invitation', '/admin', '/admin/orders'])('%s 에서는 푸터를 그리지 않는다', (pathname) => {
+    mocks.pathname = pathname;
+
+    expect(render()).toBe('');
+  });
+
+  it('공용 크롬이 있는 화면의 푸터는 독립 경험 표시 없이 그린다', () => {
+    for (const pathname of ['/', '/shop', '/login', '/legal/terms']) {
+      mocks.pathname = pathname;
+      expect(render(), pathname).toContain('<footer class="wc-root wc-footer">');
+    }
+  });
+
+  /* 독립 경험에는 모바일 탭바(62)가 없다 — 탭바 몫(122)으로 연 바닥을 데스크톱과 같은 60으로 되돌린다. */
+  it('독립 경험 푸터는 모바일에서 탭바 몫의 바닥을 열지 않는다', () => {
+    const sheet = postcss.parse(readFileSync(new URL('../../app/styles/wc-chrome.css', import.meta.url), 'utf8'));
+    const bottoms: Record<string, string> = {};
+    sheet.walkRules((rule) => {
+      const parent = rule.parent;
+      const media = parent && parent.type === 'atrule' && (parent as AtRule).name === 'media' ? (parent as AtRule).params : 'base';
+      if (media !== '(max-width: 989px)') return;
+      for (const selector of rule.selectors) {
+        rule.walkDecls('padding-bottom', (decl) => { bottoms[selector.trim()] = decl.value; });
+      }
+    });
+    expect(bottoms['.wc-footer']).toBe('max(122px, calc(var(--wc-store-analytics-clearance, 0px) + 16px))');
+    expect(bottoms['.wc-footer.wc-footer--standalone']).toBe('max(60px, calc(var(--wc-store-analytics-clearance, 0px) + 16px))');
+  });
+
   it('사업자 정보를 접이식 블록으로 푸터에 표기한다', () => {
     const html = render();
 
@@ -86,9 +128,10 @@ describe('SiteFooter 법정 고지 링크', () => {
     expect(html).not.toContain('토스페이먼츠 안전 결제');
   });
 
-  /* S3에서 홈이 공용 셸 위로 올라오면서 '/'는 더 이상 예외가 아니다 — 푸터를 그린다. */
-  it('집중형 인증 셸·어드민·게임에서는 푸터를 렌더하지 않는다', () => {
-    for (const pathname of ['/update-password', '/account-suspended', '/manager-invitation', '/admin', '/games/roulette', '/ip/aouad']) {
+  /* S3에서 홈이 공용 셸 위로 올라오면서 '/'는 더 이상 예외가 아니다 — 푸터를 그린다.
+     게임·캠페인은 1014-X36부터 푸터를 그린다(위 '하단에도 사업자 정보' 시험). */
+  it('집중형 인증 셸·어드민에서는 푸터를 렌더하지 않는다', () => {
+    for (const pathname of ['/update-password', '/account-suspended', '/manager-invitation', '/admin']) {
       mocks.pathname = pathname;
       expect(render(), pathname).toBe('');
     }

@@ -1729,6 +1729,11 @@
     padding-bottom: max(122px, calc(var(--wc-store-analytics-clearance, 0px) + 16px));
   }
 
+  /* 캠페인·게임(독립 경험)에는 탭바가 없다 — 탭바 몫을 열지 않고 데스크톱과 같은 바닥을 쓴다(1014-X36). */
+  .wc-footer.wc-footer--standalone {
+    padding-bottom: max(60px, calc(var(--wc-store-analytics-clearance, 0px) + 16px));
+  }
+
   /* 줄이 바뀔 때 첫 링크 앞에 구분선과 들여쓰기가 남지 않게 간격으로 구분한다. */
   .wc-footer__primary ul {
     display: grid;
