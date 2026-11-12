@@ -128,6 +128,12 @@ reset role;
 select pg_temp.ra_assert((select return_address_id from public.goods where id='ra-good-a')=:'seoul_id'::uuid
  and (select return_address_id from public.goods where id='ra-good-b') is null
  and (select claim_return_allowed from public.goods where id='ra-good-a'),'policy save keeps the return address when the key is absent');
+-- 상품 복사본은 원본의 반품지를 그대로 가진다.
+select pg_temp.ra_as(1);
+set local role authenticated;
+select public.admin_clone_good(pg_temp.ra_id('clone-op',1),'ra-good-a','ra-good-a-copy','RA-GOOD-A-COPY','TEST 서울 반품 굿즈 복사');
+reset role;
+select pg_temp.ra_assert((select return_address_id from public.goods where id='ra-good-a-copy')=:'seoul_id'::uuid,'a cloned good keeps the return address');
 select pg_temp.ra_assert(exists(select 1 from public.audit_log where action='catalog.good.claim_policy_updated' and target='goods:ra-good-a'
  and diff#>>'{after,returnAddressId}'=:'seoul_id' and diff#>'{before,returnAddressId}'='null'::jsonb),'return address change is audited');
 -- 공개 상세: A는 서울 반품지, 비운 B는 출고지 반품 주소, 제한 상품은 조건을 그대로 싣는다.

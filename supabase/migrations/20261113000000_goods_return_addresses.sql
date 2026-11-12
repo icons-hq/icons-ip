@@ -161,11 +161,28 @@ begin
  execute replace(replace(definition,address_anchor,address_replacement),join_anchor,join_replacement);
 end $migration$;
 
+-- 상품 복사·그룹상품 만들기도 반품·교환 조건과 함께 반품지를 그대로 옮긴다(복사본이 원본 설정을 유지하는 규칙).
+do $migration$
+declare fn regprocedure;definition text;
+ anchor text:=$a$'exchangeFee',source_good.claim_exchange_fee),$a$;
+ replacement text:=$a$'exchangeFee',source_good.claim_exchange_fee,'returnAddressId',source_good.return_address_id),$a$;
+begin
+ foreach fn in array array[
+  'private.admin_clone_good_before_discount_display(uuid,text,text,text,text)'::regprocedure,
+  'private.create_goods_group_product(text,uuid,text,uuid)'::regprocedure] loop
+  definition:=pg_get_functiondef(fn);
+  if (length(definition)-length(replace(definition,anchor,'')))/length(anchor)<>1 then raise exception '% claim policy anchor must appear once',fn;end if;
+  execute replace(definition,anchor,replacement);
+ end loop;
+end $migration$;
+
 -- 재정의한 함수의 등록된 계약을 새 본문·ACL로 다시 적는다(분류는 기존 행 그대로).
 do $$declare fn regprocedure;contract record;begin
  foreach fn in array array[
   'public.admin_save_good_claim_policy(text,jsonb,timestamptz)'::regprocedure,
-  'public.get_good_shipping_policy(text)'::regprocedure] loop
+  'public.get_good_shipping_policy(text)'::regprocedure,
+  'private.admin_clone_good_before_discount_display(uuid,text,text,text,text)'::regprocedure,
+  'private.create_goods_group_product(text,uuid,text,uuid)'::regprocedure] loop
   select * into contract from private.operator_rpc_contracts r where r.signature::regprocedure=fn;
   if found then perform private.register_operator_rpc_contract(fn,contract.capability,contract.guard_kind,contract.legacy_admin_only);
   elsif exists(select 1 from private.operator_internal_contracts r where r.signature::regprocedure=fn) then
