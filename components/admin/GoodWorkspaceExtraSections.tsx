@@ -216,12 +216,18 @@ export function GoodWorkspaceBenefitsSection({ serverError }: { serverError?: st
 }
 
 /** A/S 안내·판매자 특이사항. 비워 두면 저장하지 않는다. */
-export function GoodWorkspaceAfterSalesSection({ serverError }: { serverError?: string }) {
-  const { value, set, error } = useExtra('afterSales');
+export function GoodWorkspaceAfterSalesSection({ serverError, phoneDefault = '' }: { serverError?: string; phoneDefault?: string }) {
+  const { value: stored, set, error, workspace } = useExtra('afterSales');
+  /* 스토어 기본 A/S 연락처(설정)가 있으면 새 상품의 전화번호 칸에 미리 보인다(T22i). 값은 안내를 입력하기 전까지 저장 대상에 넣지 않는다 —
+     전화번호만 든 안내는 저장 검사(전화번호·안내 모두 필요)에 걸리기 때문이다. 직접 고치면 그때부터 입력한 값으로 저장된다. */
+  const touched = Boolean(workspace?.sections.extras?.afterSales);
+  const prefilled = Boolean(phoneDefault) && !touched;
+  const value = prefilled ? { ...stored, phone: phoneDefault } : stored;
   const [templates, setTemplates] = useState(false);
   return <DraftBody testId="after-sales">
     <p className="text-muted-foreground">상품별 A/S 안내입니다. 입력하면 전화번호와 A/S 안내가 모두 필요하고, 필요 없으면 세 칸을 비워 두세요.</p>
     <GoodsAfterSalesFields values={value} onChange={set} />
+    {prefilled ? <small className="text-xs text-muted-foreground" data-good-workspace-after-sales-prefill="">스토어 기본 A/S 연락처를 미리 채웠습니다. A/S 안내를 입력하면 이 번호와 함께 저장됩니다.</small> : null}
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2"><button className={buttonVariants({ variant: 'outline' })} data-slot="button" type="button" onClick={() => setTemplates(true)}>A/S 템플릿</button><Link className="text-sm underline underline-offset-4" href={GOODS_AFTER_SALES_TEMPLATES_PATH} target="_blank" rel="noreferrer">A/S 템플릿 관리 ↗</Link></div>
     <SectionError message={error ?? serverError} />
     {templates ? <GoodsAfterSalesTemplatePicker onClose={() => setTemplates(false)} onSelect={(template) => { set({ phone: template.phone, guide: template.guide, sellerSpecialNotes: template.sellerSpecialNotes }); setTemplates(false); }} /> : null}

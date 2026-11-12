@@ -96,7 +96,7 @@ export function Shop({ query, result, view, title, onQueryChange, paging, refres
   /* 스코프가 통째로 비면 필터·정렬을 그릴 이유가 없다. 가짜 목록 대신 안내만 남긴다. */
   if (result.total === 0) {
     return (
-      <div className={rootClass}>
+      <main className={rootClass}>
         {leadHeading}
         {wideBanner}
         <div className="wc-container">
@@ -111,12 +111,12 @@ export function Shop({ query, result, view, title, onQueryChange, paging, refres
             />
           </div>
         </div>
-      </div>
+      </main>
     );
   }
 
   return (
-    <div className={rootClass}>
+    <main className={rootClass}>
       {refreshScheduledContent ? <GoodsSalePeriodRefresh goods={result.goods} /> : null}
       {leadHeading}
       {wideBanner}
@@ -140,6 +140,6 @@ export function Shop({ query, result, view, title, onQueryChange, paging, refres
           wishlist={wishlist}
         />
       </div>
-    </div>
+    </main>
   );
 }

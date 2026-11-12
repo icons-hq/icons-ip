@@ -215,7 +215,7 @@ export function IpDetail({
   );
 
   return (
-    <div className="wc-root wc-iphall">
+    <main className="wc-root wc-iphall">
       <GoodsSalePeriodRefresh goods={goods} />
       <section
         className="wc-iphall__banner"
@@ -301,6 +301,6 @@ export function IpDetail({
           {COMMUNITY_ENABLED && <Link href={`${hrefFor('community')}?ip=${ip.id}`}>팬덤 채널</Link>}
         </nav>
       </div>
-    </div>
+    </main>
   );
 }

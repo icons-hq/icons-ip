@@ -1,7 +1,7 @@
 'use client';
 import { useId, useRef, useState } from 'react';
 import { readGoodReferenceFileAction, resolveGoodReferencesAction } from '@/app/admin/good-reference-actions';
-import { GOOD_REFERENCE_LIMIT, GOOD_REFERENCE_STATUS_REASONS, parseGoodReferenceLines, type GoodReferenceMatch } from '@/lib/admin/good-references';
+import { GOOD_REFERENCE_LIMIT, GOOD_REFERENCE_STATUS_REASONS, SYSTEM_NUMBER_COLUMN_NOTICE, parseGoodReferenceLines, type GoodReferenceMatch } from '@/lib/admin/good-references';
 import { hiddenDisplayGoodsBreakdown, type DisplayGoodVisibility } from '@/lib/admin/good-visibility';
 import { statusTone } from '@/lib/admin/status-tone';
 import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
@@ -53,13 +53,14 @@ export function GoodBulkAddPanel<T>({ options, disabled = false }: { options: Go
     if (locked) return;
     const parsed = parseGoodReferenceLines(source, typeof window === 'undefined' ? null : window.location.host);
     const lineNotes = [...notes];
-    if (parsed.headerSkipped) lineNotes.push('첫 줄은 머리글로 보고 건너뛰었습니다.');
+    if (parsed.systemNumberColumn) lineNotes.push(SYSTEM_NUMBER_COLUMN_NOTICE);
+    else if (parsed.headerSkipped) lineNotes.push('첫 줄은 머리글로 보고 건너뛰었습니다.');
     if (parsed.duplicates) lineNotes.push(`같은 값 ${count(parsed.duplicates)}줄은 한 번만 확인했습니다.`);
     if (parsed.overflow) lineNotes.push(`한 번에 ${count(GOOD_REFERENCE_LIMIT)}개까지 확인합니다. 나머지 ${count(parsed.overflow)}줄은 나눠서 넣어주세요.`);
     const invalidRows: Row[] = parsed.invalid.map((line, index) => ({ key: `invalid:${index}`, ref: line.value, label: `${line.line}번째 줄`, state: 'missing', reason: line.reason, id: null, visibility: 'missing' }));
     if (!parsed.refs.length) {
       setResult(invalidRows.length || lineNotes.length ? { rows: invalidRows, notes: lineNotes } : null);
-      setError(invalidRows.length ? '' : '상품 URL·판매자상품코드를 한 줄에 하나씩 넣어주세요.');
+      setError(invalidRows.length || parsed.systemNumberColumn ? '' : '상품 URL·판매자상품코드를 한 줄에 하나씩 넣어주세요.');
       return;
     }
     const token = ++ticket.current; setPending(true); setError(''); setMessage('');
@@ -141,7 +142,7 @@ export function GoodBulkAddPanel<T>({ options, disabled = false }: { options: Go
       {result ? <div className="flex min-w-0 flex-col gap-2" data-good-bulk-result="">
         <p className="text-sm tabular-nums" role="status">추가 가능 <strong className="font-semibold">{count(addable.length)}</strong>개{addableHidden ? ` (고객 화면 미노출 ${count(addableHidden)}개 포함)` : ''} · 추가하지 않음 {count(blocked)}개 · 지금 담을 수 있는 수 {count(Math.max(0, options.capacity))}개</p>
         {result.notes.map(note => <p className="text-xs text-muted-foreground" key={note}>{note}</p>)}
-        <ul className="flex max-h-56 flex-col overflow-auto rounded-md border">{result.rows.map(row => <li className="flex items-start gap-2 border-b px-2.5 py-1.5 text-xs last:border-b-0" data-good-bulk-row={row.state} key={row.key}>
+        <ul className="flex max-h-[28rem] flex-col overflow-auto rounded-md border">{result.rows.map(row => <li className="flex items-start gap-2 border-b px-2.5 py-1.5 text-xs last:border-b-0" data-good-bulk-row={row.state} key={row.key}>
           <AdminStatusBadge tone={statusTone('goodReference', row.state)}>{ROW_LABELS[row.state]}</AdminStatusBadge>
           <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{row.label}{row.label !== row.ref ? <small className="block text-muted-foreground">입력: {row.ref}</small> : null}{row.reason ? <small className="block text-muted-foreground">{row.reason}</small> : null}
             {row.state === 'ready' || row.state === 'overLimit' ? <DisplayGoodVisibilityNote visibility={row.visibility} /> : null}</span>

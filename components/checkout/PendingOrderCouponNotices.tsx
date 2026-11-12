@@ -26,7 +26,7 @@ export function PendingOrderCouponNotices({ coupons, surface }: { coupons: reado
   );
 }
 
-/** select 항목 꼬리표 — 진행 중인 주문이 잡은 쿠폰임을 목록에서 바로 알린다. */
+/** select 항목 꼬리표 — 진행 중인 주문이 잡은 쿠폰임을 목록에서 바로 알린다. 선택칸 폭에서 잘리지 않게 짧게 쓰고, 자세한 설명은 아래 안내 문장이 한다(T22i·QA1c S-D2-08). */
 export function pendingOrderCouponOptionSuffix(coupon: UserCouponSummary): string {
-  return couponHeldByReplaceableOrder(coupon) ? ' · 진행 중인 주문에서 사용 중' : '';
+  return couponHeldByReplaceableOrder(coupon) ? ' · 주문 진행 중' : '';
 }

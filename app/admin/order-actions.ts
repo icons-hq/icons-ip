@@ -38,6 +38,7 @@ import { shipmentMutationError } from '@/lib/admin/shipment-dispatch';
 import { enqueueOrderShippedEmails } from '@/lib/email/order-shipment-jobs.server';
 import { getShippingCarrierRegistry } from '@/lib/orders/shipment.server';
 import { createClient } from '@/lib/supabase/server';
+import { isUuid } from '@/lib/uuid';
 
 export interface AdminOrderActionState {
   errors?: AdminOrderFieldErrors & { form?: string };
@@ -530,6 +531,9 @@ export interface AdminTrackingImportPreview {
   sample: { line: number; reference: string; trackingNumber: string }[];
 }
 
+/** 같은 배송 건의 일부 줄만 운송장이 비었을 때 채운 줄의 안내(QA1c B2). 배송 건은 한꺼번에 발송되므로 일부만 등록하지 않는다. */
+const BLANK_SIBLING_TRACKING_REASON = '같은 배송 건에 운송장이 빈 줄이 있어 등록하지 않았습니다. 빈 줄까지 채워 다시 올려주세요.';
+
 const isSmartStoreReply = (parsed: TrackingWorkbookParseResult): parsed is Extract<TrackingWorkbookParseResult, { kind: 'smartstore' }> => 'kind' in parsed && parsed.kind === 'smartstore';
 const isSeowonReply = (parsed: TrackingWorkbookParseResult): parsed is SeowonTrackingParseResult => 'kind' in parsed && parsed.kind === 'seowon';
 type TrackingBatchRow = {line:number;reference:string;ok:boolean;error?:string;shipmentId?:string;orderId?:string;dispatched?:boolean;duplicate?:boolean;packedShipments?:{orderId:string;shipmentId:string}[];extraTrackingNumbers?:string[];extraTrackingsAdded?:number};
@@ -614,9 +618,48 @@ export async function previewAdminOrderTrackingImportAction(formData: FormData):
     : [...parsed.issues];
   issues.sort((a, b) => a.line - b.line);
   const skipped = blankReplyLines(parsed);
+  /* 표준 양식: 같은 배송 건에 운송장 칸을 비운 줄이 있으면 채운 줄도 등록되지 않는다. 등록 결과와 건수가 어긋나지 않게 미리 나눈다(읽기만 한다). */
+  let blockedRows: typeof rows = [];
+  if (isSmartStoreReply(parsed) && parsed.skipped.length && rows.length) {
+    const blocked = await rowsBlockedByBlankSibling(parsed, rows);
+    if (blocked.size) {
+      blockedRows = rows.filter(row => blocked.has(row.line));
+      for (let index = rows.length - 1; index >= 0; index--) if (blocked.has(rows[index].line)) rows.splice(index, 1);
+      issues.push(...blockedRows.map(row => ({ line: row.line, reference: row.reference, reason: BLANK_SIBLING_TRACKING_REASON })));
+      issues.sort((a, b) => a.line - b.line);
+    }
+  }
   if (!rows.length && !issues.length && !skipped) return { error: '등록할 운송장을 붙여넣거나 파일을 선택해주세요.' };
   if (rows.length + issues.length > TRACKING_IMPORT_ROW_LIMIT) return { error: '운송장은 한 번에 1,000줄까지 등록할 수 있습니다.' };
   return { preview: { format, ready: rows.length, skipped, issues: issues.slice(0, 20), issueCount: issues.length, sample: rows.slice(0, 5) } };
+}
+
+/**
+ * 표준 회신의 채운 줄 가운데 같은 배송 건에 빈 줄이 있는 줄의 줄 번호(읽기 전용). 상품주문번호로 배송 건을 찾지 못하면 아무 줄도 막지 않는다 —
+ * 그때의 최종 판정은 등록 때 DB 배송 건 가드다.
+ */
+async function rowsBlockedByBlankSibling(
+  parsed: Extract<TrackingWorkbookParseResult, { kind: 'smartstore' }>,
+  filled: readonly { line: number; reference: string }[],
+): Promise<Set<number>> {
+  try {
+    const references = [...new Set([...filled.map(row => row.reference), ...parsed.skipped.map(row => row.reference)])];
+    const numbers = references.filter(reference => !isUuid(reference)), ids = references.filter(isUuid);
+    const supabase = await createClient();
+    const lookups = await Promise.all([
+      numbers.length ? supabase.from('order_items').select('id,product_order_number').in('product_order_number', numbers) : { data: [], error: null },
+      ids.length ? supabase.from('order_items').select('id,product_order_number').in('id', ids) : { data: [], error: null },
+    ]);
+    if (lookups.some(result => result.error)) return new Set();
+    const items = lookups.flatMap(result => result.data ?? []) as { id: string; product_order_number: string }[];
+    const itemByReference = new Map(items.flatMap(item => [[item.product_order_number.toLowerCase(), item.id], [item.id.toLowerCase(), item.id]] as const));
+    const links = await supabase.from('order_shipment_items').select('order_item_id,shipment_id').in('order_item_id', items.map(item => item.id));
+    if (links.error || !links.data) return new Set();
+    const shipmentByItem = new Map((links.data as { order_item_id: string; shipment_id: string }[]).map(link => [link.order_item_id, link.shipment_id]));
+    const shipmentOf = (reference: string) => { const item = itemByReference.get(reference.toLowerCase()); return item ? shipmentByItem.get(item) : undefined; };
+    const blankShipments = new Set(parsed.skipped.flatMap(row => { const shipment = shipmentOf(row.reference); return shipment ? [shipment] : []; }));
+    return new Set(filled.flatMap(row => { const shipment = shipmentOf(row.reference); return shipment && blankShipments.has(shipment) ? [row.line] : []; }));
+  } catch { return new Set(); }
 }
 
 async function enqueueDispatched(deliveries: { orderId: string; shipmentId: string }[]) {
@@ -706,7 +749,7 @@ export async function bulkRegisterAdminOrderTrackingAction(
     const rows=result.data as TrackingBatchRow[];
     for(const row of rows){
       // 표준 양식에서 운송장 칸만 비워 건너뛴 줄은 배송 건 가드용으로만 보냈다. 그 줄 자체의 거절은 실패가 아니다.
-      if(!row.ok){if(!parsed.issues.some(issue=>issue.line===row.line)&&!(isSmartStoreReply(parsed)&&parsed.skipped.some(blank=>blank.line===row.line)))failed.push({line:row.line,reference:row.reference,reason:shipmentMutationError(row.error??'')});}
+      if(!row.ok){if(!parsed.issues.some(issue=>issue.line===row.line)&&!(isSmartStoreReply(parsed)&&parsed.skipped.some(blank=>blank.line===row.line)))failed.push({line:row.line,reference:row.reference,reason:isSmartStoreReply(parsed)&&parsed.skipped.length&&row.error==='invalid_tracking_input'?BLANK_SIBLING_TRACKING_REASON:shipmentMutationError(row.error??'')});}
       else if(row.duplicate)continue;
       else if(row.dispatched===false)unchanged++;
       else succeeded.push(row.reference);

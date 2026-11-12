@@ -172,7 +172,7 @@ export function cancellationPresentation(
   status: OrderDetailStatus,
   refund: OrderRefundSummary | null,
   cancellationRequest: OrderCancellationRequestSummary | null = null,
-  options: { deliveredAt?: string | null; at?: Date; eligibility?: OrderClaimEligibility | null } = {},
+  options: { deliveredAt?: string | null; at?: Date; eligibility?: OrderClaimEligibility | null; paymentMethod?: 'card' | 'bank_transfer' | null } = {},
 ): CancellationPresentation {
   if (refund?.status === 'awaiting_transfer') {
     return {
@@ -210,7 +210,7 @@ export function cancellationPresentation(
   if (status === 'pending') {
     return {
       canCancel: true,
-      heading: priorClosedRequest ? '주문 취소 재요청' : '결제 대기 주문 취소',
+      heading: priorClosedRequest ? '주문 취소 재요청' : options.paymentMethod === 'bank_transfer' ? '입금 대기 주문 취소' : '결제 대기 주문 취소',
       body: priorClosedRequest
         ? `${closedNotice} ${priorClosedRequest.decisionNote ? `${priorClosedRequest.decisionNote} ` : ''}주문 상태가 바뀌지 않았다면 다시 요청할 수 있습니다.`
         : '결제 내역이 없는 주문은 바로 취소됩니다. 결제 가능 시간이 남은 결제가 있으면 결제 결과를 확인한 뒤 취소를 마무리합니다.',
@@ -265,6 +265,8 @@ interface OrderCancellationProps {
   eligibility: OrderClaimEligibility | null;
   /** 기존 요청의 배송 시각. 직접 취소 허용 여부는 eligibility를 따른다. */
   deliveredAt: string | null;
+  /** 무통장 주문이면 입금 대기 주문 취소로 부른다(T22i). */
+  paymentMethod?: 'card' | 'bank_transfer' | null;
 }
 
 type SubmissionState =
@@ -284,12 +286,13 @@ export function OrderCancellation({
   orderId,
   status,
   refund,
+  paymentMethod,
 }: OrderCancellationProps) {
   const router = useRouter();
   const [submission, setSubmission] = useState<SubmissionState>('idle');
   const openButtonRef = useRef<HTMLButtonElement>(null);
   const shouldRestoreFocus = useRef(false);
-  const presentation = cancellationPresentation(status, refund, cancellationRequest, { deliveredAt, eligibility });
+  const presentation = cancellationPresentation(status, refund, cancellationRequest, { deliveredAt, eligibility, paymentMethod });
 
   useEffect(() => {
     if (submission !== 'idle' || !shouldRestoreFocus.current) return;

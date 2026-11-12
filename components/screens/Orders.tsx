@@ -81,7 +81,7 @@ function focusBanner(focus: CheckoutPaymentResultFocus): BannerCopy {
       body: focus.outcome === 'canceled'
         ? '결제가 끝나지 않아 이 주문은 결제 없이 취소됐어요. 이 주문의 굿즈 가운데 장바구니에 남은 것으로 다시 결제할 수 있어요.'
         : '결제가 진행되지 않았어요. 장바구니는 그대로 있으니 다시 결제해주세요. 이 주문은 자동으로 취소돼요.',
-      link: checkoutLink('다시 결제하기'),
+      link: { href: `/checkout/${focus.orderId}?retry=1`, label: '다시 결제하기' },
     };
   }
   /* 바로구매 주문(ADR-0030)은 장바구니와 무관하다 — 결제 화면의 '다시 구매하기'가 같은 굿즈·옵션으로 주문서를 다시 연다. */

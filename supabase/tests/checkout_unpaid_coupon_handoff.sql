@@ -293,6 +293,21 @@ select 1/case when :'sources_buyer'::jsonb=jsonb_build_array(jsonb_build_object(
  and public.service_list_order_retry_sources(null,array[:'old_order']::uuid[])='[]'::jsonb
  then 1 else 0 end as assert_order_retry_sources_own_unpaid_or_closed_only;
 
+-- 장바구니 주문의 다시 결제 초안도 원 주문을 기억한다(T22i). 그 초안이 이미 접수한 주문(무통장 입금 대기·결제 완료 이후·결제 확인 중)이 있으면
+-- 목록 RPC가 그 주문을 retryOrderId로 알리고 다시 결제 초안은 더 만들지 않는다(null). 결제 대기 카드 주문을 만든 초안은 다시 결제를 막지 않는다.
+select set_config('request.jwt.claim.sub','d8000000-0000-4000-8000-000000000002',true);
+insert into private.checkout_drafts(user_id,source,lines,expires_at,retry_order_id,order_id)
+values ('d8000000-0000-4000-8000-000000000002','selection',jsonb_build_array(jsonb_build_object('goodId','d8-a','variantId',:'variant_a','qty',1,'inputRevision',0,'inputValues','{}'::jsonb)),
+  clock_timestamp()+interval '1 hour',:'old_order',:'new_order');
+set local role service_role;
+select public.service_list_order_retry_sources('d8000000-0000-4000-8000-000000000002',array[:'old_order']::uuid[]) as sources_reordered \gset
+reset role;
+select 1/case when :'sources_reordered'::jsonb=jsonb_build_array(jsonb_build_object('orderId',:'old_order','source','cart','awaitingPayment',false,
+   'paymentUnresolved',false,'baseGoodId',null,'retryOrderId',:'new_order'))
+ and public.service_create_checkout_retry_draft('d8000000-0000-4000-8000-000000000002',:'old_order') is null
+ and (select count(*) from private.checkout_drafts where retry_order_id=:'old_order')=1
+ then 1 else 0 end as assert_cart_retry_remembers_reordered_order;
+
 -- ── 7. 권한 ─────────────────────────────────────────────────────────────────────────
 select 1/case when has_function_privilege('authenticated','public.get_my_unpaid_order_coupons()','execute')
  and not has_function_privilege('anon','public.get_my_unpaid_order_coupons()','execute')

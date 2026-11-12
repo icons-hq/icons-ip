@@ -106,7 +106,7 @@ describe('/shop 카테고리 전시 내비 토큰 스코프 (l4-qa-2)', () => {
     mocks.navigation = [];
     const html = await render();
 
-    expect(html.startsWith('<div class="wc-root wc-collection">')).toBe(true);
+    expect(html.startsWith('<main class="wc-root wc-collection">')).toBe(true);
     expect(html).not.toContain('<div class="wc-root"></div>');
   });
 

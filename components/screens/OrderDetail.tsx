@@ -405,6 +405,7 @@ export function OrderDetail({
               orderId={order.id}
               refund={order.refund}
               status={order.status}
+              paymentMethod={order.paymentMethod}
             />
           ) : null}
 

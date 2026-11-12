@@ -106,7 +106,7 @@ it('runs authenticated inventory, finite retention exceptions and bounded purge 
     case: { action: 'hold', caseRef: 'HTTP-CASE-4', approvalRef: 'HTTP-APPROVAL', legalBasis: 'statutory_preservation', retainUntil: new Date(Date.now() + 3600_000).toISOString(), occurredAt: new Date(Date.now() - 1000).toISOString() } };
   const held = await post(retentionRoute, '/api/admin/claim-contact/retention', heldInput); expect(held.data.state).toBe('held');
   const heldReplay = await post(retentionRoute, '/api/admin/claim-contact/retention', heldInput); expect(heldReplay.data).toEqual(held.data);
-  const purgeInput = () => ({ requestId: randomUUID(), operation: 'purge', subjectId: fixture.users[1], operationId: randomUUID(), cutoff: new Date().toISOString(), limit: 100, confirmed: true });
+  const purgeInput = () => ({ requestId: randomUUID(), operation: 'purge', subjectId: fixture.users[1], operationId: randomUUID(), cutoff: new Date(Date.now() - 1000).toISOString(), limit: 100, confirmed: true });
   const withheld = await post(retentionRoute, '/api/admin/claim-contact/retention', purgeInput()); expect(withheld.data.purgedClaimIds).not.toContain(claim(4));
   const released = await post(retentionRoute, '/api/admin/claim-contact/retention', { ...heldInput, requestId: randomUUID(), operationId: randomUUID(), expectedCaseRevision: 1, case: { ...heldInput.case, action: 'release', retainUntil: null, occurredAt: new Date().toISOString() } });
   expect(released.data.state).toBe('released'); expect(released.data.caseClosedAt).toBeNull();

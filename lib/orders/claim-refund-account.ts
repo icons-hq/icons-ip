@@ -90,6 +90,7 @@ export function claimRefundAccountError(code?: string, message?: string): ClaimR
     refund_account_gift_order: '선물 주문의 환불계좌는 선물 요청 화면에서 확인해주세요.',
     refund_account_payment_unavailable: '현재 결제 내역에서는 환불계좌를 추가할 수 없습니다. 고객지원에 문의해주세요.',
     refund_account_claim_closed: '이미 종료됐거나 환불계좌를 추가할 수 없는 요청입니다.',
+    refund_account_not_needed: '앞선 부분 취소로 결제 금액을 모두 돌려드려 송금할 환불 금액이 없어요. 환불계좌를 입력하지 않아도 됩니다.',
     refund_account_already_recorded: '환불계좌가 이미 등록되어 있습니다. 변경이 필요하면 고객지원에 문의해주세요.',
     refund_account_finance_started: '환급 처리가 시작되어 계좌를 추가할 수 없습니다. 고객지원에 문의해주세요.',
     refund_account_request_sealed: '종료한 저장 요청입니다. 최신 상태를 확인한 뒤 새로 입력해주세요.',

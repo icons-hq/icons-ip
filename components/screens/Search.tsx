@@ -154,7 +154,7 @@ export function Search({ goods, listQuery, query, snapshot, wishlist, suggestedT
   const total = goods.result.total;
 
   return (
-    <div className="wc-root wc-search-results">
+    <main className="wc-root wc-search-results">
       <GoodsSalePeriodRefresh goods={goods.result.goods} />
       <div className="wc-container">
         <div className={`wc-search-results__head${total > 0 ? ' has-results' : ''}`}>
@@ -223,6 +223,6 @@ export function Search({ goods, listQuery, query, snapshot, wishlist, suggestedT
           </div>
         ) : null}
       </div>
-    </div>
+    </main>
   );
 }
