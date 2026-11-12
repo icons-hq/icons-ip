@@ -220,26 +220,43 @@ select pg_temp.ra_assert((select t->>'returnAddress' from jsonb_array_elements(p
  and (select t->>'returnAddress' from jsonb_array_elements(private.seller_claim_collection_targets(pg_temp.ra_id('order',5))) t)='',
  'seller intake shows the product-first return addresses and flags a missing one');
 
--- 고객 회수 문서: 배송 묶음마다 회수 주소. 내부 근거·처리자는 싣지 않는다. 선물은 받는 분에게만.
+-- 고객 회수 주소: 승인 뒤 배송 묶음마다 별도 읽기 RPC가 내보낸다. 내부 근거·처리자는 싣지 않는다. 선물은 받는 분에게만.
+-- 회수 문서(read_my_claim_collection_plan)의 행 키는 승인 뒤에도 그대로다(이전 앱의 정확 키 파서가 배포 순간에 읽기 실패하지 않게).
 select pg_temp.ra_as(2);
 set local role authenticated;
 select public.read_my_claim_collection_plan(pg_temp.ra_id('claim',1),pg_temp.ra_id('user',2),pg_temp.ra_id('session',2)) as buyer_doc \gset
-select pg_temp.ra_assert((select jsonb_array_length(r->'returnBundles') from jsonb_array_elements(:'buyer_doc'::jsonb->'rows') r where r->>'shipmentId'=pg_temp.ra_id('shipment',1)::text)=2
- and (select r#>>'{returnBundles,1,returnAddress}' from jsonb_array_elements(:'buyer_doc'::jsonb->'rows') r where r->>'shipmentId'=pg_temp.ra_id('shipment',1)::text)='서울특별시 합성구 반품로 1 TEST'
- and (select r#>>'{returnBundles,1,returnPhone}' from jsonb_array_elements(:'buyer_doc'::jsonb->'rows') r where r->>'shipmentId'=pg_temp.ra_id('shipment',1)::text)='02-1234-5678'
- and (select r#>'{returnBundles,1,items}' from jsonb_array_elements(:'buyer_doc'::jsonb->'rows') r where r->>'shipmentId'=pg_temp.ra_id('shipment',1)::text)
+select pg_temp.ra_assert(not exists(select 1 from jsonb_array_elements(:'buyer_doc'::jsonb->'rows') r where r ? 'returnBundles')
+ and not exists(select 1 from jsonb_array_elements(:'buyer_doc'::jsonb->'rows') r cross join jsonb_object_keys(r) k
+   where k<>all(array['shipmentId','originName','revision','method','carrier','trackingNumber','evidence','requestedOnce','collectedAt','updatedAt','carrierLabel','reshipped','collectionWaived'])),
+ 'approved collection document keeps the pre-bundle row keys');
+select public.read_my_claim_return_bundles(pg_temp.ra_id('claim',1),pg_temp.ra_id('user',2),pg_temp.ra_id('session',2)) as buyer_bundles \gset
+select pg_temp.ra_assert((select jsonb_array_length(r->'returnBundles') from jsonb_array_elements(:'buyer_bundles'::jsonb) r where r->>'shipmentId'=pg_temp.ra_id('shipment',1)::text)=2
+ and (select r#>>'{returnBundles,1,returnAddress}' from jsonb_array_elements(:'buyer_bundles'::jsonb) r where r->>'shipmentId'=pg_temp.ra_id('shipment',1)::text)='서울특별시 합성구 반품로 1 TEST'
+ and (select r#>>'{returnBundles,1,returnPhone}' from jsonb_array_elements(:'buyer_bundles'::jsonb) r where r->>'shipmentId'=pg_temp.ra_id('shipment',1)::text)='02-1234-5678'
+ and (select r#>'{returnBundles,1,items}' from jsonb_array_elements(:'buyer_bundles'::jsonb) r where r->>'shipmentId'=pg_temp.ra_id('shipment',1)::text)
    =jsonb_build_array(jsonb_build_object('name','TEST 서울 반품 굿즈','qty',1))
- and not exists(select 1 from jsonb_array_elements(:'buyer_doc'::jsonb->'rows') r cross join jsonb_array_elements(r->'returnBundles') b
+ and not exists(select 1 from jsonb_array_elements(:'buyer_bundles'::jsonb) r cross join jsonb_array_elements(r->'returnBundles') b
    where b ?| array['evidence','collectedBy','collectorName','returnAddressId','receivedOn']),
  'buyer sees a return address per bundle without internal fields');
-select pg_temp.ra_assert(public.read_my_claim_collection_plan(pg_temp.ra_id('claim',2),pg_temp.ra_id('user',2),pg_temp.ra_id('session',2)) is null,
+select pg_temp.ra_assert(public.read_my_claim_return_bundles(pg_temp.ra_id('claim',2),pg_temp.ra_id('user',2),pg_temp.ra_id('session',2)) is null
+ and public.read_my_claim_collection_plan(pg_temp.ra_id('claim',2),pg_temp.ra_id('user',2),pg_temp.ra_id('session',2)) is null,
  'gift sender does not see the return address');
+select pg_temp.ra_error(format('select public.read_my_claim_return_bundles(%L,%L,%L)',pg_temp.ra_id('claim',1),pg_temp.ra_id('user',2),pg_temp.ra_id('session',3)),'42501');
 reset role;
 select pg_temp.ra_as(3);
 set local role authenticated;
-select pg_temp.ra_assert(public.read_my_claim_collection_plan(pg_temp.ra_id('claim',2),pg_temp.ra_id('user',3),pg_temp.ra_id('session',3))#>>'{rows,0,returnBundles,0,returnAddress}'
+select pg_temp.ra_assert(public.read_my_claim_return_bundles(pg_temp.ra_id('claim',2),pg_temp.ra_id('user',3),pg_temp.ra_id('session',3))#>>'{0,returnBundles,0,returnAddress}'
  ='서울특별시 합성구 반품로 1 TEST','gift recipient sees the return address');
 reset role;
+select pg_temp.ra_as(1);
+set local role authenticated;
+select pg_temp.ra_assert(jsonb_array_length(public.admin_read_claim_return_bundles(pg_temp.ra_id('claim',1),pg_temp.ra_id('user',1),pg_temp.ra_id('session',1)))=2,
+ 'operator reads the return bundles of the claim');
+reset role;
+select pg_temp.ra_assert(not has_function_privilege('anon','public.read_my_claim_return_bundles(uuid,uuid,uuid)','execute')
+ and not has_function_privilege('service_role','public.admin_read_claim_return_bundles(uuid,uuid,uuid)','execute')
+ and exists(select 1 from private.operator_rpc_contracts where signature='public.admin_read_claim_return_bundles(uuid,uuid,uuid)' and capability='sales.manage' and guard_kind='read'),
+ 'return bundle readers are sealed and classified');
 
 -- 승인 뒤 주소록·상품 반품지를 바꿔도 스냅샷은 그대로다.
 select pg_temp.ra_as(1);
@@ -309,5 +326,84 @@ select pg_temp.ra_assert(not exists(select 1 from public.return_addresses where 
  and exists(select 1 from public.order_claim_collection_bundles where claim_id=pg_temp.ra_id('claim',4) and return_address_snapshot='부산광역시 합성구 반품로 2 TEST')
  and exists(select 1 from public.audit_log where action='admin.return_address.deleted' and target='return_addresses:'||:'busan_id'),
  'deleting an address keeps claim snapshots and is audited');
+
+-- ---------------------------------------------------------------------------
+-- 5. 리뷰 수정: 일부 입고 뒤 회수 생략 거절 · 묶음 없이 남은 회수 행
+-- ---------------------------------------------------------------------------
+-- 주문 11·12: 같은 김포 배송 건에 A(서울 반품지)·B(출고지) — 하자 교환. 주문 13: 반품 한 묶음(묶음 행 삭제 시험).
+update public.goods set return_address_id=:'seoul_id'::uuid where id='ra-good-a';
+insert into public.orders(id,user_id,status,total,shipping_fee,address,shipped_at,delivered_at,created_at)
+ select pg_temp.ra_id('order',n),pg_temp.ra_id('user',2),'delivered',2000,0,
+  jsonb_build_object('recipientName','합성 고객','phone','010-0000-0000','postalCode','12345','address1','합성시 반품로 1','address2','101호'),
+  now()-interval '4 days',now()-interval '3 days',now()-interval '5 days' from generate_series(11,13)n;
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
+ select pg_temp.ra_id('item',item),pg_temp.ra_id('order',purchase),good,pg_temp.ra_variant(good),1,1000,name,'문구','ra-ip'
+ from (values(11,11,'ra-good-a','TEST 서울 반품 굿즈'),(12,11,'ra-good-b','TEST 출고지 반품 굿즈'),(13,12,'ra-good-a','TEST 서울 반품 굿즈'),(14,12,'ra-good-b','TEST 출고지 반품 굿즈'),
+  (15,13,'ra-good-b','TEST 출고지 반품 굿즈')) spec(item,purchase,good,name);
+insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,status,carrier,tracking_number,shipped_at,delivered_at)
+ select pg_temp.ra_id('shipment',purchase),pg_temp.ra_id('order',purchase),pg_temp.ra_id('origin',1),'TEST 김포',0,'{}','delivered','hanjin','RASALE'||lpad(purchase::text,6,'0'),
+  now()-interval '4 days',now()-interval '3 days' from generate_series(11,13)purchase;
+insert into public.order_shipment_items(order_id,shipment_id,order_item_id,qty)
+ select pg_temp.ra_id('order',purchase),pg_temp.ra_id('shipment',purchase),pg_temp.ra_id('item',item),1
+ from (values(11,11),(11,12),(12,13),(12,14),(13,15)) spec(purchase,item);
+insert into public.order_cancellation_requests(id,order_id,requested_by,reason,claim_type,stage,reason_type)
+ select pg_temp.ra_id('claim',n),pg_temp.ra_id('order',n),pg_temp.ra_id('user',2),'TEST 리뷰 수정 '||n,case when n<13 then 'exchange' else 'return' end,'requested',
+  case when n<13 then 'defect' else 'change_of_mind' end from generate_series(11,13)n;
+select pg_temp.ra_as(1);
+select public.admin_decide_order_claim(pg_temp.ra_id('claim',n),'approve',null) from generate_series(11,13)n;
+select pg_temp.ra_assert((select count(*) from public.order_claim_collection_bundles where claim_id in(pg_temp.ra_id('claim',11),pg_temp.ra_id('claim',12)))=4,'two split claims approved');
+insert into storage.objects(bucket_id,name,metadata)
+ select 'claim-evidence-private',pg_temp.ra_id('claim',n)||'/'||pg_temp.ra_id('file',n)||'.jpg',jsonb_build_object('mimetype','image/jpeg','size',2048) from generate_series(11,12)n;
+select id as seoul_bundle_11 from public.order_claim_collection_bundles where claim_id=pg_temp.ra_id('claim',11) and return_address_id=:'seoul_id'::uuid \gset
+select id as seoul_bundle_12 from public.order_claim_collection_bundles where claim_id=pg_temp.ra_id('claim',12) and return_address_id=:'seoul_id'::uuid \gset
+select id as origin_bundle_11 from public.order_claim_collection_bundles where claim_id=pg_temp.ra_id('claim',11) and return_address_id is null \gset
+set local role authenticated;
+select public.admin_register_claim_evidence_file(pg_temp.ra_id('claim',11),pg_temp.ra_id('file',11),'image/jpeg',2048,repeat('e',64))->>'id' as evidence_11 \gset
+select public.admin_register_claim_evidence_file(pg_temp.ra_id('claim',12),pg_temp.ra_id('file',12),'image/jpeg',2048,repeat('f',64))->>'id' as evidence_12 \gset
+-- 한 묶음(서울 A)만 입고된 배송 건: 배송 건 행은 아직 입고 전이지만 회수 생략은 거절한다(결정·재출고 둘 다).
+select pg_temp.ra_assert(public.admin_record_order_claim_collection_bundle(pg_temp.ra_id('claim',11),:'seoul_bundle_11','서울 반품지 A 1개 입고',pg_temp.ra_today())='collecting','claim 11 bundle A received');
+select pg_temp.ra_assert(public.admin_record_order_claim_collection_bundle(pg_temp.ra_id('claim',12),:'seoul_bundle_12','서울 반품지 A 1개 입고',pg_temp.ra_today())='collecting','claim 12 bundle A received');
+select pg_temp.ra_error(format('select public.admin_waive_order_claim_collection(%L,%L,%L::jsonb)',pg_temp.ra_id('claim',11),pg_temp.ra_id('shipment',11),
+ jsonb_build_object('reason','TEST 파손 사진으로 회수 생략 결정','evidenceFileIds',jsonb_build_array(:'evidence_11'))::text),'collection_waiver_partially_received');
+reset role;
+select pg_temp.ra_error(format('select private.record_order_claim_shipment_reshipment(%L,%L,''hanjin'',''RAPARTIAL012'',''[]'',%L::jsonb)',pg_temp.ra_id('claim',12),pg_temp.ra_id('shipment',12),
+ jsonb_build_object('reason','TEST 파손 사진으로 회수 생략 재출고','evidenceFileIds',jsonb_build_array(:'evidence_12'))::text),'collection_waiver_partially_received');
+select pg_temp.ra_assert(not exists(select 1 from public.order_claim_collection_waivers where claim_id in(pg_temp.ra_id('claim',11),pg_temp.ra_id('claim',12)))
+ and not exists(select 1 from public.order_claim_reshipments where claim_id=pg_temp.ra_id('claim',12))
+ and (select returned_since_qty from private.stock_reconcile_flows(array[pg_temp.ra_variant('ra-good-a')],now()-interval '1 hour'))>=2
+ and (select collected_at is null from public.order_claim_collections where claim_id=pg_temp.ra_id('claim',11) and shipment_id=pg_temp.ra_id('shipment',11)),
+ 'a partially received shipment keeps its returned items counted and records no waiver');
+-- 나머지 묶음까지 입고되면 회수가 끝난 배송 건이라 회수 생략은 기존 코드로 거절된다.
+select pg_temp.ra_as(1);
+set local role authenticated;
+select pg_temp.ra_assert(public.admin_record_order_claim_collection_bundle(pg_temp.ra_id('claim',11),:'origin_bundle_11','김포 출고지 반품 주소 1개 입고',pg_temp.ra_today())='collected','claim 11 fully collected');
+select pg_temp.ra_error(format('select public.admin_waive_order_claim_collection(%L,%L,%L::jsonb)',pg_temp.ra_id('claim',11),pg_temp.ra_id('shipment',11),
+ jsonb_build_object('reason','TEST 파손 사진으로 회수 생략 결정','evidenceFileIds',jsonb_build_array(:'evidence_11'))::text),'collection_waiver_not_needed');
+reset role;
+
+-- 묶음 행 없이 남은 배송 건 회수 행(FK 생성~커밋 사이 옛 본문 승인): 읽기는 기본 묶음 하나로 보이고, 회수 확인이 기본 묶음을 만든다.
+delete from public.order_claim_collection_bundles where claim_id=pg_temp.ra_id('claim',13);
+select pg_temp.ra_assert(not exists(select 1 from public.order_claim_collection_bundles where claim_id=pg_temp.ra_id('claim',13))
+ and exists(select 1 from public.order_claim_collections where claim_id=pg_temp.ra_id('claim',13)),'claim 13 has a shipment collection row without bundles');
+select pg_temp.ra_as(2);
+set local role authenticated;
+select pg_temp.ra_assert((select count(*) from jsonb_array_elements(public.read_my_claim_return_bundles(pg_temp.ra_id('claim',13),pg_temp.ra_id('user',2),pg_temp.ra_id('session',2))->0->'returnBundles') b
+  where b->>'returnAddress'='TEST 김포 출고지 반품 주소' and b->>'collectedAt' is null and b#>'{items,0,name}'='"TEST 출고지 반품 굿즈"'::jsonb)=1,
+ 'customer reads one default bundle when the bundle rows are missing');
+reset role;
+select pg_temp.ra_as(1);
+select pg_temp.ra_assert((select jsonb_array_length(c->'bundles') from jsonb_array_elements(public.admin_order_claim_detail(pg_temp.ra_id('claim',13))#>'{claim,collections}') c)=1
+ and (select (b->>'returnAddressReady')::boolean from jsonb_array_elements(public.admin_order_claim_bulk_context(array[pg_temp.ra_id('claim',13)])->0->'collections') c cross join jsonb_array_elements(c->'bundles') b),
+ 'operator reads one default bundle when the bundle rows are missing');
+set local role authenticated;
+select pg_temp.ra_assert(public.admin_record_order_claim_origin_collection(pg_temp.ra_id('claim',13),pg_temp.ra_id('shipment',13),'묶음 없이 남은 회수 행 입고',pg_temp.ra_today())='collected',
+ 'collection of a bundle-less shipment row succeeds by the shipment key');
+select pg_temp.ra_assert(public.admin_record_order_claim_origin_collection(pg_temp.ra_id('claim',13),pg_temp.ra_id('shipment',13),'묶음 없이 남은 회수 행 입고',pg_temp.ra_today())='collected',
+ 'the replay is idempotent');
+reset role;
+select pg_temp.ra_assert((select count(*) from public.order_claim_collection_bundles where claim_id=pg_temp.ra_id('claim',13) and return_address_id is null
+  and return_address_snapshot='TEST 김포 출고지 반품 주소' and collected_at is not null)=1
+ and (select collected_at is not null from public.order_claim_collections where claim_id=pg_temp.ra_id('claim',13)),
+ 'the default bundle was created from the shipment row and collected');
 
 rollback;

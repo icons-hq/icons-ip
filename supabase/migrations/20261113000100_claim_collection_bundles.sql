@@ -67,6 +67,8 @@ $$;
 revoke all on function private.shipment_return_address_summary(uuid) from public,anon,authenticated,service_role;
 
 -- 회수 묶음 읽기. 운영자(p_operator)는 근거·처리자·입고일과 주소 준비 여부까지, 고객은 반품지·품목 이름·수량·입고 여부만.
+-- 묶음 행이 없는 배송 건 행(배포 경합으로 옛 본문 승인이 묶음 없이 남긴 행)은 배송 건 행 기준 기본 묶음 하나로 보인다.
+-- 이 묶음의 id는 배송 건·클레임에서 정해지는 값이고, 묶음이 하나뿐인 배송 건은 화면이 묶음 id 대신 배송 건 키로 확인한다.
 create function private.claim_collection_bundles_json(p_claim uuid,p_shipment uuid,p_operator boolean) returns jsonb
 language sql stable security invoker set search_path='' as $$
  select coalesce(jsonb_agg(case when p_operator then jsonb_build_object(
@@ -80,9 +82,24 @@ language sql stable security invoker set search_path='' as $$
      from jsonb_array_elements(b.items_snapshot) with ordinality j),
    'collectedAt',b.collected_at) end
   order by b.return_address_id is not null,b.return_name_snapshot,b.id),'[]'::jsonb)
- from public.order_claim_collection_bundles b where b.claim_id=p_claim and b.shipment_id=p_shipment;
+ from(select r.id,r.claim_id,r.shipment_id,r.return_address_id,r.return_name_snapshot,r.return_address_snapshot,r.return_phone_snapshot,r.items_snapshot,
+   r.collected_at,r.collected_by,r.evidence,r.received_on
+  from public.order_claim_collection_bundles r where r.claim_id=p_claim and r.shipment_id=p_shipment
+  union all
+  select md5('claim-default-bundle:'||x.claim_id::text||':'||x.shipment_id::text)::uuid,x.claim_id,x.shipment_id,null,'',x.return_address_snapshot,'',x.items_snapshot,
+   x.collected_at,x.collected_by,x.evidence,x.received_on
+  from public.order_claim_collections x where x.claim_id=p_claim and x.shipment_id=p_shipment
+   and not exists(select 1 from public.order_claim_collection_bundles r where r.claim_id=x.claim_id and r.shipment_id=x.shipment_id)) b;
 $$;
 revoke all on function private.claim_collection_bundles_json(uuid,uuid,boolean) from public,anon,authenticated,service_role;
+
+-- 그 배송 건의 회수 묶음 가운데 하나라도 입고됐는가. 배송 건 행(order_claim_collections.collected_at)은 모든 묶음이 입고된 때에야
+-- 적히므로, 일부만 입고된 배송 건은 이 값으로 가린다(회수 생략 결정·회수 생략 재출고 관문).
+create function private.claim_collection_partially_received(p_claim uuid,p_shipment uuid) returns boolean
+language sql stable security invoker set search_path='' as $$
+ select exists(select 1 from public.order_claim_collection_bundles b where b.claim_id=p_claim and b.shipment_id=p_shipment and b.collected_at is not null);
+$$;
+revoke all on function private.claim_collection_partially_received(uuid,uuid) from public,anon,authenticated,service_role;
 
 -- 승인 스냅샷: 배송 건 행(지금까지와 같은 키)과 그 아래 반품지별 묶음을 함께 만든다.
 create or replace function private.prepare_claim_collections(target_claim uuid,require_address boolean default true) returns void
@@ -147,6 +164,13 @@ begin
  if not found then raise no_data_found using message='claim_collection_not_found'; end if;
  if p_bundle_id is null then
    select count(*) into bundle_count from public.order_claim_collection_bundles where claim_id=p_claim_id and shipment_id=shipment_key;
+   if bundle_count=0 then
+     -- 묶음 없이 남은 배송 건 행(배포 경합으로 옛 본문 승인이 만든 행)은 잠근 배송 건 행으로 기본 묶음 하나를 만든다(백필과 같은 값).
+     insert into public.order_claim_collection_bundles(claim_id,shipment_id,return_address_id,return_name_snapshot,return_address_snapshot,
+      return_phone_snapshot,items_snapshot) values(p_claim_id,shipment_key,null,'',collection.return_address_snapshot,'',collection.items_snapshot)
+     on conflict on constraint order_claim_collection_bundles_destination_key do nothing;
+     bundle_count:=1;
+   end if;
    if bundle_count>1 then raise check_violation using message='claim_collection_bundle_required'; end if;
    select * into bundle from public.order_claim_collection_bundles where claim_id=p_claim_id and shipment_id=shipment_key for update;
  else
@@ -248,14 +272,47 @@ select pg_temp.patch_function('private.order_claim_bulk_context_row(uuid)'::regp
  $a$and coalesce(btrim(o.return_address),'')<>''),
     'bundles',private.claim_collection_bundles_json(x.claim_id,x.shipment_id,true))$a$);
 
--- 고객·운영 회수 문서(read_my_claim_collection_plan·admin_read_claim_collection_plan): 승인 뒤 배송 묶음마다 회수 주소.
--- 키는 묶음이 있을 때만(승인 뒤), 회수 생략은 결정이 있을 때만 싣는다(이전 앱의 정확 키 파서가 승인 전 문서를 그대로 읽는다).
+-- 고객·운영 회수 문서(read_my_claim_collection_plan·admin_read_claim_collection_plan): 키는 회수 생략 결정이 있는 배송 건에만
+-- 더한다(이전 앱의 정확 키 파서가 기존 문서를 그대로 읽는다). 승인 뒤 배송 묶음마다 회수 주소(returnBundles)는 이 문서에
+-- 키를 더하지 않고 아래 별도 읽기 RPC가 내보낸다 — 백필로 승인된 모든 클레임의 문서 모양이 배포 순간에 바뀌지 않게 한다.
 select pg_temp.patch_function('private.claim_collection_document(uuid)'::regprocedure,
  $a$then jsonb_build_object('reshipped',true) else '{}'::jsonb end order by s.id)$a$,
  $a$then jsonb_build_object('reshipped',true) else '{}'::jsonb end
-  ||case when exists(select 1 from public.order_claim_collection_bundles b where b.claim_id=c.id and b.shipment_id=s.id)
-    then jsonb_build_object('returnBundles',private.claim_collection_bundles_json(c.id,s.id,false)) else '{}'::jsonb end
   ||case when x.claim_id is not null and private.claim_collection_waived(c.id,s.id) then jsonb_build_object('collectionWaived',true) else '{}'::jsonb end order by s.id)$a$);
+
+-- 회수 묶음의 회수 주소 읽기(승인 뒤 배송 건마다). 본인(선물이면 받는 분)·운영자만, 보낸 분은 null. 묶음이 생기기 전(승인 전)은 빈 배열이다.
+create function public.read_my_claim_return_bundles(p_claim uuid,p_actor uuid,p_session uuid) returns jsonb language plpgsql security definer set search_path='' as $$
+declare viewer text;begin
+ perform private.purchase_confirmation_identity(p_actor,p_session,false);
+ select case when g.recipient_id=p_actor then 'recipient' when g.sender_id=p_actor then 'sender' when g.id is null and o.user_id=p_actor then 'buyer' end
+ into viewer from public.order_cancellation_requests c join public.orders o on o.id=c.order_id left join private.gift_intents g on g.order_id=o.id where c.id=p_claim;
+ if viewer is null then raise no_data_found using message='claim_not_found';end if;
+ if viewer='sender' then return null;end if;
+ return(select coalesce(jsonb_agg(jsonb_build_object('shipmentId',x.shipment_id,'returnBundles',private.claim_collection_bundles_json(x.claim_id,x.shipment_id,false)) order by x.shipment_id),'[]'::jsonb)
+  from public.order_claim_collections x where x.claim_id=p_claim);
+end $$;
+create function public.admin_read_claim_return_bundles(p_claim uuid,p_actor uuid,p_session uuid) returns jsonb language plpgsql security definer set search_path='' as $$
+begin
+ perform private.purchase_confirmation_identity(p_actor,p_session,true);
+ return(select coalesce(jsonb_agg(jsonb_build_object('shipmentId',x.shipment_id,'returnBundles',private.claim_collection_bundles_json(x.claim_id,x.shipment_id,false)) order by x.shipment_id),'[]'::jsonb)
+  from public.order_claim_collections x where x.claim_id=p_claim);
+end $$;
+revoke all on function public.read_my_claim_return_bundles(uuid,uuid,uuid) from public,anon,authenticated,service_role;
+grant execute on function public.read_my_claim_return_bundles(uuid,uuid,uuid) to authenticated;
+revoke all on function public.admin_read_claim_return_bundles(uuid,uuid,uuid) from public,anon,authenticated,service_role;
+grant execute on function public.admin_read_claim_return_bundles(uuid,uuid,uuid) to authenticated;
+select private.register_operator_rpc_contract('public.admin_read_claim_return_bundles(uuid,uuid,uuid)'::regprocedure,'sales.manage','read',false);
+
+-- 일부만 입고된 배송 건은 회수 생략을 거절한다(회수 생략 결정·회수 생략 재출고 둘 다). 배송 건 행 입고는 기존 collection_waiver_not_needed가,
+-- 묶음 일부 입고는 collection_waiver_partially_received가 막는다 — 입고된 묶음 품목이 재고 대조 회수 수량에서 사라지지 않게 한다.
+select pg_temp.patch_function('private.record_claim_collection_waiver(public.order_cancellation_requests,uuid,text,uuid[],uuid,timestamptz)'::regprocedure,
+ $a$if target.collected_at is not null then raise check_violation using message='collection_waiver_not_needed';end if;$a$,
+ $a$if target.collected_at is not null then raise check_violation using message='collection_waiver_not_needed';end if;
+ if private.claim_collection_partially_received(p_claim.id,p_shipment_id) then raise check_violation using message='collection_waiver_partially_received';end if;$a$);
+select pg_temp.patch_function('private.record_order_claim_shipment_reshipment(uuid,uuid,text,text,jsonb,jsonb)'::regprocedure,
+ $a$if target.collected_at is not null then raise check_violation using message='collection_waiver_not_needed';end if;$a$,
+ $a$if target.collected_at is not null then raise check_violation using message='collection_waiver_not_needed';end if;
+  if private.claim_collection_partially_received(p_claim_id,p_shipment_id) then raise check_violation using message='collection_waiver_partially_received';end if;$a$);
 
 -- 재고 대조 흐름의 묶음 단위 회수 시각은 20261113001400_claim_collection_bundle_stock_flows.sql이 맡는다(배송 건 기준 통합
 -- migration 20261113120000 뒤에 적용돼야 한다).
@@ -280,7 +337,9 @@ do $$declare fn regprocedure;contract record;begin
   'private.order_claim_bulk_context_row(uuid)'::regprocedure,
   'private.claim_collection_document(uuid)'::regprocedure,
   'private.order_claim_withdrawal_blocker(public.order_cancellation_requests)'::regprocedure,
-  'private.seller_claim_collection_targets(uuid)'::regprocedure] loop
+  'private.seller_claim_collection_targets(uuid)'::regprocedure,
+  'private.record_claim_collection_waiver(public.order_cancellation_requests,uuid,text,uuid[],uuid,timestamptz)'::regprocedure,
+  'private.record_order_claim_shipment_reshipment(uuid,uuid,text,text,jsonb,jsonb)'::regprocedure] loop
   select * into contract from private.operator_rpc_contracts r where r.signature::regprocedure=fn;
   if found then perform private.register_operator_rpc_contract(fn,contract.capability,contract.guard_kind,contract.legacy_admin_only);
   elsif exists(select 1 from private.operator_internal_contracts r where r.signature::regprocedure=fn) then
