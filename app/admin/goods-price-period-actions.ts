@@ -8,7 +8,8 @@ import { unstable_rethrow } from 'next/navigation';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
 import { parseAdminGoodsPricePeriods, parseGoodsPricePeriodInput, type AdminGoodsPricePeriod } from '@/lib/admin/goods-price-periods';
-import { RANDOM_OPTION_PROBLEMS, goodsOptionSaleModeErrorMessage } from '@/lib/goods-option-sale-mode';
+import { RANDOM_OPTION_PROBLEMS } from '@/lib/goods-option-sale-mode';
+import { goodsOptionSaleModeErrorMessage } from '@/lib/admin/goods-option-sale-mode-messages';
 
 type MutationResult = { ok: true; message: string } | { ok: false; error: string };
 

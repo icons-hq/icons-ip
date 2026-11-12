@@ -16,7 +16,7 @@ const INPUT_LINKS: { label: string; description: string; href: string; adminOnly
   { label: '지역 추가 배송비', description: '제주·도서산간 지역표와 계약 추가료', href: '/admin/settings/shipping-regions', readiness: 'regions' },
   { label: '택배사', description: '계약 택배사와 배송조회 주소', href: '/admin/settings/carriers', readiness: 'carriers' },
   { label: '배송·반품 안내', description: '상품에 적용할 배송 안내 템플릿', href: '/admin/settings/shipping-notices', readiness: 'notices' },
-  { label: '상품·ERP·매입단가·KC', description: '상품을 선택해 옵션 정보와 증빙을 입력', href: '/admin/catalog/goods' },
+  { label: '상품·ERP·공급가(매입단가)·KC', description: '상품을 선택해 옵션 정보와 증빙을 입력', href: '/admin/catalog/goods' },
   { label: '카테고리·ERP 분류', description: '고객 카테고리와 ERP 분류 매핑', href: '/admin/catalog/categories' },
   { label: '쿠폰', description: '지급·사용 조건과 적용 상품', href: '/admin/sales/coupons' },
   { label: '적립금 정책', description: '적립·사용 기준과 정책 승인 근거', href: '/admin/settings/store-credits', adminOnly: true, readiness: 'storeCredits' },

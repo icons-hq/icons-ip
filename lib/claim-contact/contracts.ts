@@ -988,7 +988,7 @@ export const CLAIM_CONTACT_ERRORS = {
   // 배송 건 재출고(TKT-166·QNA-039). DB가 거절해 아무것도 저장되지 않은 경우만 확정 오류로 보인다.
   reshipment_shipment_required: errorDefinition(400, '재출고할 배송 건을 골라 다시 확인해주세요.', '22023'),
   reshipment_shipment_not_found: errorDefinition(409, '이 교환의 재출고 대상 배송 건이 아닙니다. 최신 정보를 다시 확인해주세요.', '23514', { conflict: true }),
-  reshipment_conflict: errorDefinition(409, '이 배송 건은 이미 다른 운송장이나 상품으로 재출고했습니다. 처리 이력을 확인해주세요.', '23505', { conflict: true }),
+  reshipment_conflict: errorDefinition(409, '이 배송 건은 이미 다른 운송장이나 굿즈로 재출고했습니다. 처리 이력을 확인해주세요.', '23505', { conflict: true }),
   claim_collections_incomplete: errorDefinition(409, '이 배송 건의 회수 확인이 먼저 필요합니다. 하자·오배송 교환은 회수 없이 재출고할 수 있습니다.', '23514'),
   collection_waiver_not_allowed: errorDefinition(409, '회수 없이 재출고는 하자·오배송 교환에서만 쓸 수 있습니다.', '23514'),
   collection_waiver_not_needed: errorDefinition(409, '이미 회수를 확인한 배송 건입니다. 회수 생략 없이 재출고해주세요.', '23514'),
@@ -997,7 +997,7 @@ export const CLAIM_CONTACT_ERRORS = {
   collection_waiver_evidence_required: errorDefinition(400, '회수 생략 근거 사진을 1~5장 올려주세요.', '23514'),
   invalid_collection_waiver_reason: errorDefinition(400, '회수 생략 사유를 10~500자로 적어주세요.', '23514'),
   collection_waiver_conflict: errorDefinition(409, '이 배송 건은 이미 다른 사유·사진으로 회수 생략을 기록했습니다. 처리 이력을 확인해주세요.', '23505', { conflict: true }),
-  production_incomplete: errorDefinition(409, '주문제작 상품의 교환품 제작이 끝난 뒤 재출고할 수 있습니다. 주문 상세의 주문제작 처리를 확인해주세요.', '23514'),
+  production_incomplete: errorDefinition(409, '주문제작 굿즈의 교환품 제작이 끝난 뒤 재출고할 수 있습니다. 주문 상세의 주문제작 처리를 확인해주세요.', '23514'),
 } as const;
 export type ClaimContactErrorCode = keyof typeof CLAIM_CONTACT_ERRORS;
 function errorCode(code: unknown): ClaimContactErrorCode {

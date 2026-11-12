@@ -24,6 +24,18 @@ const PUBLIC_COPY_EXCEPTIONS = [
     '상품 Q&A에 답변이 등록됐어요', '교환 상품이 재출고됐어요',
     '입고가 확인됐습니다. 교환 상품 재출고를 준비합니다.', '교환 상품을 새 운송장으로 발송했습니다.',
   ].map(text => ({ file: 'lib/notifications.ts', text, reason: '기존 DB 시스템 알림을 고객 어휘로 표시하기 위한 정확한 원문 매칭 키다.' })),
+  /* 묶음 18: 동의 문구 3개와 KC 1개만 이유를 적은 예외로 둔다. */
+  { file: 'lib/marketing-consent.ts', text: '신상품·이벤트·할인 혜택', reason: '광고성 정보 수신 동의 원문이다. 문구를 바꾸면 버전을 올리고 DB가 받는 동의 버전 목록도 함께 바꿔야 한다(마케팅 동의 notice_version).' },
+  { file: 'lib/member-activity.ts', text: '회원별 관심 상품과 방문·영상 이용', reason: '회원 활동 수집·이용 동의 원문이다. 이미 받은 동의와 같은 문구여야 하므로 어휘 정리로 바꾸지 않는다.' },
+  { file: 'lib/member-activity.ts', text: '상품·IP·분류 등의 식별번호', reason: '회원 활동 수집 항목 고지 원문이다. 동의 문구와 같은 판으로 관리한다.' },
+  { file: 'lib/goods-kc.ts', text: 'KC 인증 대상이 아닌 상품입니다.', reason: 'KC 인증 대상 여부를 알리는 안전인증 표시 문구라 표시 원문 그대로 두고 어휘 정리로 바꾸지 않는다.' },
+  /* 이름 자체가 상품이 아닌 고유명사 */
+  ...['문화상품권', '도서문화상품권', '게임문화상품권'].map(text => ({ file: 'lib/payments/toss-gateway.server.ts', text,
+    reason: '토스페이먼츠가 돌려주는 상품권 결제수단의 공식 이름이라 굿즈 어휘로 바꾸지 않는다.' })),
+  /* 공용 모듈에 도메인 로직과 함께 있는 운영자 전용 문구. 쪼개면 저장 검증 규칙이 두 곳에 갈라져 예외로 둔다. */
+  { file: 'lib/review-events.ts', text: '이벤트 대상 상품을', reason: '리뷰이벤트 등록 화면(어드민)에서만 쓰는 저장 전 검증 문구이며 같은 모듈의 저장 규칙(parseReviewEventValues)과 한 벌로 맞춘다.' },
+  ...['에서 출고하는 ICONS 상품 중', '상품·옵션', '판매자상품코드·관리코드'].map(text => ({ file: 'lib/email/stock-safety-digest.ts', text,
+    reason: '출고지 담당자와 운영자가 받는 안전재고 메일이라 어드민 운영 어휘(상품·옵션·판매자상품코드)를 쓴다. 고객에게 가지 않는다.' })),
 ] as const;
 const MAPPED_GUIDE_SOURCES = {
   'lib/admin/guide/topics/goods-sales.ts': 'topics.ts의 operatorTopic이 모든 정적 제목·본문·표를 변환한다.',
@@ -66,28 +78,23 @@ function excepted(copy: CopyLiteral, exceptions: readonly { file: string; text?:
   return exceptions.some(exception => exception.file === copy.file && (!exception.text || copy.text.includes(exception.text)));
 }
 
-const PUBLIC_SOURCES = [
-  'components/shop', 'components/orders', 'app/cart', 'app/checkout', 'app/orders', 'app/shop', 'app/my',
-  'app/help', 'components/reviews', 'app/review-events', 'components/screens/ReviewEvents.tsx', 'components/campaign', 'app/events/participation-actions.ts',
-  ...['GoodDetail', 'Cart', 'Checkout', 'CheckoutOrder', 'OrderDetail', 'Orders', 'MyPage', 'MyQuestions', 'MyReviews',
-    'MyCoupons', 'MyStoreCredits', 'Wishlist', 'Inquiries', 'Notifications', 'Home', 'CampaignLanding', 'MyGradeBenefits', 'MyAddresses', 'OnboardingAddress'].map(name => `components/screens/${name}.tsx`),
-  'components/mypage', 'components/wc/MypageShell.tsx', 'components/wc/ProductCard.tsx', 'components/shell/CartProvider.tsx',
-  'app/gifts', 'components/gifts', 'components/screens/gifts', 'components/subscriptions', 'components/screens/subscriptions',
-  'components/checkout/GoodsTransactionSummary.tsx', 'components/screens/GoodsTransactionCheckout.tsx', 'components/checkout/CheckoutAddressBook.tsx', 'components/address-book',
-  'lib/gifts.ts', 'lib/loyalty-benefits.ts', 'lib/address-book.ts', 'lib/checkout-transaction.ts', 'lib/goods-transaction-presentation.ts', 'lib/subscriptions/customer.ts', 'lib/subscriptions/model.ts',
-  ...['checkout', 'fulfillment', 'shipping', 'product-questions', 'inquiries', 'cart', 'goods-sales', 'goods-options', 'goods-claim-policy', 'orders', 'notifications'].map(name => `lib/${name}.ts`),
-];
+const ADMIN_SOURCES = ['app/admin', 'app/api/admin', 'components/admin', 'lib/admin'];
+const PUBLIC_EXCLUDED = ADMIN_SOURCES.map(path => `${path}/`);
+/* 공개 범위는 '어드민 경로 밖 전체'다. 새 화면·lib 파일이 목록 갱신 없이도 자동으로 검사된다.
+   fixture는 테스트 입력이라 화면 문구가 아니다. */
+const PUBLIC_SOURCES = ['app', 'components', 'lib'];
+const isPublicSource = (file: string) => !PUBLIC_EXCLUDED.some(prefix => file.startsWith(prefix)) && !/\.fixture\.(?:ts|tsx)$/.test(file);
 const CARD_PACK_EXCHANGE_SOURCES = ['components/campaign/ExchangePanel.tsx', 'app/events/participation-actions.ts'];
 
 describe('관리자·공개 굿즈 어휘 계약 (#503)', () => {
   it('관리자 정적 문구의 굿즈는 운영 어휘 매핑을 거친다', () => {
-    const violations = ['app/admin', 'components/admin', 'lib/admin'].flatMap(sourceFiles).flatMap(literals)
+    const violations = ADMIN_SOURCES.flatMap(sourceFiles).flatMap(literals)
       .filter(copy => /굿즈|추가\s*상품|추가\s+구성\s*상품|추가구성\s+상품/.test(copy.text.replace(/굿즈샵|굿즈 마켓/g, '')) && !copy.mapped
         && !Object.hasOwn(MAPPED_GUIDE_SOURCES, copy.file) && !excepted(copy, ADMIN_COPY_EXCEPTIONS));
     expect(violations).toEqual([]);
   });
-  it('공개 굿즈·참여 표면은 법정 고시 명칭 외에 상품이라는 별칭을 쓰지 않는다', () => {
-    const violations = PUBLIC_SOURCES.flatMap(sourceFiles).flatMap(literals)
+  it('어드민 경로 밖 전체는 이유를 적은 예외 외에 상품이라는 별칭을 쓰지 않는다', () => {
+    const violations = PUBLIC_SOURCES.flatMap(sourceFiles).filter(isPublicSource).flatMap(literals)
       .filter(copy => copy.text.includes('상품') && !excepted(copy, PUBLIC_COPY_EXCEPTIONS));
     expect(violations).toEqual([]);
   });

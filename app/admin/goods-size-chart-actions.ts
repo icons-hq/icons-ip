@@ -4,11 +4,8 @@ import { revalidatePath } from 'next/cache';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
 import { isUuid } from '@/lib/uuid';
-import {
-  GOODS_SIZE_LIMITS, GOODS_SIZE_TEMPLATES_PATH, goodsSizeChartError, parseGoodsSizeChart, parseGoodsSizeChartSnapshot,
-  parseGoodsSizeChartValues, parseGoodsSizeName, parseGoodsSizeTemplate, parseGoodsSizeTemplatePage,
-  type GoodsSizeChart, type GoodsSizeChartSnapshot, type GoodsSizeChartValues, type GoodsSizeTemplate, type GoodsSizeTemplatePage,
-} from '@/lib/goods-size-chart';
+import { GOODS_SIZE_LIMITS, GOODS_SIZE_TEMPLATES_PATH, parseGoodsSizeChart, parseGoodsSizeChartSnapshot, parseGoodsSizeChartValues, parseGoodsSizeName, parseGoodsSizeTemplate, parseGoodsSizeTemplatePage, type GoodsSizeChart, type GoodsSizeChartSnapshot, type GoodsSizeChartValues, type GoodsSizeTemplate, type GoodsSizeTemplatePage } from '@/lib/goods-size-chart';
+import { goodsSizeChartError } from '@/lib/admin/goods-size-chart-messages';
 
 export type GoodsSizeResult<T> = { ok: true; value: T } | { ok: false; error: string; uncertain?: boolean; conflict?: boolean };
 const unread = <T,>(): GoodsSizeResult<T> => ({ ok: false, error: '저장된 사이즈 안내를 불러오지 못했습니다. 다시 조회해주세요.' });

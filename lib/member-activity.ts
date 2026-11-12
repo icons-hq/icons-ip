@@ -1,5 +1,5 @@
 import { isUuid } from './uuid';
-import { analyticsPage, PAGE_LABELS, type AnalyticsPage } from './store-analytics';
+import { analyticsPage, PAGE_KINDS, type AnalyticsPage } from './store-analytics';
 import { transactionExactKeys, transactionInteger, transactionRecord, transactionInstant } from './goods-transaction-values';
 
 export const MEMBER_ACTIVITY_API = '/api/member-activity';
@@ -29,7 +29,7 @@ export function parseMemberActivityState(value: unknown): MemberActivityState | 
 }
 export function parseMemberActivityEvent(value: unknown): MemberActivityEvent | null {
   if (!transactionRecord(value) || !transactionExactKeys(value, ['eventId', 'kind', 'pageKind', 'targetId', 'assetId']) || !isUuid(value.eventId)
-    || !['visit', 'video_started', 'video_completed'].includes(String(value.kind)) || typeof value.pageKind !== 'string' || !Object.hasOwn(PAGE_LABELS, value.pageKind)
+    || !['visit', 'video_started', 'video_completed'].includes(String(value.kind)) || typeof value.pageKind !== 'string' || !(PAGE_KINDS as readonly string[]).includes(value.pageKind)
     || typeof value.targetId !== 'string' || (value.kind === 'visit' ? value.assetId !== null : !isUuid(value.assetId) || value.pageKind !== 'good')) return null;
   const path = value.pageKind === 'home' ? '/' : value.pageKind === 'shop' ? '/shop' : value.pageKind === 'stories' ? '/stories' : value.pageKind === 'events' ? '/events'
     : `/${value.pageKind === 'good' ? 'shop' : value.pageKind === 'story' ? 'stories' : value.pageKind === 'event' ? 'events' : 'ip'}/${value.targetId}`;

@@ -533,7 +533,7 @@ export function normalizeAdminGoodForm(
   if (previousId && !SLUG_PATTERN.test(previousId)) errors.id='수정 대상을 확인할 수 없습니다. 목록에서 다시 선택해주세요.';
   const code=nullableString(formData,'code')?.toUpperCase() ?? null;
   const defaultVariantCode=nullableString(formData,'defaultVariantCode')?.toUpperCase() ?? null;
-  if (code && code.length>100) errors.code='상품코드는 100자 이내로 입력해주세요.';
+  if (code && code.length>100) errors.code='판매자상품코드는 100자 이내로 입력해주세요.';
   if (defaultVariantCode && defaultVariantCode.length>120) errors.defaultVariantCode='옵션코드는 120자 이내로 입력해주세요.';
   const ipId = validIpId(readString(formData, 'ipId'), context, errors);
   const name = readString(formData, 'name');

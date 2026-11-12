@@ -60,7 +60,7 @@ export function StatsSalesHourlyTrend({ report }: { report: AdminSalesHourlyRepo
       <div className={CARD_NOTE}>{ranking === 'today' && report.completedHours === 0 ? <p>오늘과 비교일에 같은 기준으로 집계할 완료 시간 구간이 없습니다.</p> : <><p>조회 구간(KST): {currentFrom} ~ {adminSalesHourlyTime(report.cutoff)} 직전</p><p>비교 구간(KST): {comparisonFrom} ~ {adminSalesHourlyTime(report.comparisonCutoff)} 직전</p></>}<p>IP 조건: {report.ipId || '전체'} · 이 상품 순위에만 적용됩니다. 상품금액은 수량×단가−복수구매 할인이며 주문매출과 다릅니다. 순위는 현재 구간 기준이고 비교값은 같은 상품입니다.</p></div>
       <div className="px-4 pb-4">
         <ConsoleGrid caption="상품별 금액 TOP10" className="[&_table]:min-w-[69rem]" preferencesKey="stats-sales-hourly-goods" columns={[
-          { key: 'rank', label: '순위', width: '70px' }, { key: 'good', label: '상품·상품코드', width: '260px' }, { key: 'ip', label: '주문 당시 IP', width: '160px' },
+          { key: 'rank', label: '순위', width: '70px' }, { key: 'good', label: '상품·판매자상품코드', width: '260px' }, { key: 'ip', label: '주문 당시 IP', width: '160px' },
           { key: 'qty', label: '판매수량', width: '110px', align: 'end' }, { key: 'revenue', label: '상품금액', width: '150px', align: 'end' },
           { key: 'comparisonQty', label: '비교일 수량', width: '110px', align: 'end' }, { key: 'comparisonRevenue', label: '비교일 상품금액', width: '150px', align: 'end' },
         ]} rows={goods.map(row => ({ id: row.goodId, cells: [row.rank, <span className="flex flex-col" key="good">{row.name}<small className="mt-0.5 text-xs text-muted-foreground">{row.goodId}</small></span>, row.ipId, row.qty.toLocaleString('ko-KR'), krw(row.revenue), row.comparisonQty.toLocaleString('ko-KR'), krw(row.comparisonRevenue)] }))}

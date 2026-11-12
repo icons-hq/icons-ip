@@ -1,23 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import {
-  goodsOptionLimitMessage,
-  goodsOptionLimitNotices,
-  goodsOptionSaleModeErrorMessage,
-  isGoodsOptionSaleMode,
-  maskCustomerOrderItem,
-  parseGoodsOptionLimit,
-  parseGoodsOptionSaleModeState,
-  PLACE_ORDER_OPTION_LIMIT_MESSAGES,
-  PLACE_ORDER_RANDOM_OPTION_LIMIT_MESSAGE,
-  PLACE_ORDER_RANDOM_OPTION_MESSAGE,
-  parseRandomAllocationLimit,
-  RANDOM_OPTION_LABEL,
-  RANDOM_OPTION_NOTICE,
-  RANDOM_OPTION_PREORDER_NOTICE,
-  RANDOM_OPTION_PROBLEMS,
-  randomOptionAllocationNotice,
-  randomOptionNotices,
-} from './goods-option-sale-mode';
+import { goodsOptionLimitMessage, goodsOptionLimitNotices, isGoodsOptionSaleMode, maskCustomerOrderItem, parseGoodsOptionLimit, parseGoodsOptionSaleModeState, PLACE_ORDER_OPTION_LIMIT_MESSAGES, PLACE_ORDER_RANDOM_OPTION_LIMIT_MESSAGE, PLACE_ORDER_RANDOM_OPTION_MESSAGE, parseRandomAllocationLimit, RANDOM_OPTION_LABEL, RANDOM_OPTION_NOTICE, RANDOM_OPTION_PREORDER_NOTICE, RANDOM_OPTION_PROBLEMS, randomOptionAllocationNotice, randomOptionNotices } from './goods-option-sale-mode';
+import { goodsOptionSaleModeErrorMessage } from '@/lib/admin/goods-option-sale-mode-messages';
 
 describe('랜덤 판매 계약', () => {
   it('판매 방식은 select·random 두 값이다', () => {

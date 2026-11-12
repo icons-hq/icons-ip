@@ -78,7 +78,7 @@ export function CurationProductPicker({ options, goods, selectedIds, limit, onAp
 
   return <CurationEditorDialog title="전시 상품 선택" onClose={onClose}>
     <div className="flex flex-wrap items-end gap-2 bg-muted/40 px-5 py-5">
-      <label className="flex min-w-0 flex-1 flex-col gap-2 text-sm font-medium">상품명 / 상품코드<Input onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="상품명 또는 상품코드를 입력하세요" value={query} /></label>
+      <label className="flex min-w-0 flex-1 flex-col gap-2 text-sm font-medium">상품명 / 판매자상품코드<Input onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="상품명 또는 판매자상품코드를 입력하세요" value={query} /></label>
       <Button onClick={() => { setQuery(''); setPage(1); }} type="button" variant="ghost">초기화</Button>
     </div>
     <div className="px-5"><GoodUrlAddField<string> onAdd={(id) => {
@@ -103,7 +103,7 @@ export function CurationProductPicker({ options, goods, selectedIds, limit, onAp
     <div className="mx-5 overflow-hidden rounded-lg border [&>[data-slot=table-container]]:max-h-[48dvh]">
       <Table className="min-w-[620px] text-xs">
         <caption className="sr-only">전시할 상품 목록</caption>
-        <TableHeader className="sticky top-0 z-10 bg-muted"><TableRow className="hover:bg-transparent"><TableHead>선택</TableHead><TableHead>이미지</TableHead><TableHead>상품명 / 상품코드</TableHead>{reviewStatistics ? <TableHead className="text-right">평점 / 리뷰 수</TableHead> : null}<TableHead className="text-right">판매가</TableHead><TableHead>노출 상태</TableHead></TableRow></TableHeader>
+        <TableHeader className="sticky top-0 z-10 bg-muted"><TableRow className="hover:bg-transparent"><TableHead>선택</TableHead><TableHead>이미지</TableHead><TableHead>상품명 / 판매자상품코드</TableHead>{reviewStatistics ? <TableHead className="text-right">평점 / 리뷰 수</TableHead> : null}<TableHead className="text-right">판매가</TableHead><TableHead>노출 상태</TableHead></TableRow></TableHeader>
         <TableBody>{rows.map((option) => {
           const good = goodsById.get(option.id);
           const checked = selection.includes(option.id);

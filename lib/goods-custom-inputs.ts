@@ -87,10 +87,10 @@ export function goodsCustomInputValues(selection: GoodsCustomInputSelection | un
 export function goodsCustomInputProblem(config: GoodsCustomInputConfig | undefined, selection: GoodsCustomInputSelection | undefined): string | null {
   const fields = config?.enabled ? config.fields.filter(field => field.active) : [];
   if (config?.enabled && !fields.length) return '직접입력형 옵션 설정을 확인 중입니다.';
-  if (!fields.length) return selection ? '직접입력형 옵션 설정이 변경되었습니다. 상품에서 다시 확인해주세요.' : null;
+  if (!fields.length) return selection ? '직접입력형 옵션 설정이 변경되었습니다. 굿즈에서 다시 확인해주세요.' : null;
   if (!selection || selection.revision !== config?.revision || selection.fields.length !== fields.length
     || fields.some(field => !selection.fields.some(value => value.id === field.id && value.name === field.name))) {
-    return '직접입력형 옵션을 상품에서 다시 확인해주세요.';
+    return '직접입력형 옵션을 굿즈에서 다시 확인해주세요.';
   }
   return parseGoodsCustomInputSelection(selection) ? null : '직접입력형 옵션 내용을 확인해주세요.';
 }

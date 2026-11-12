@@ -237,7 +237,7 @@ export function DiscountPromotionEditorScreen({ identity, options, initial, retu
             <div className="flex flex-wrap items-center gap-2"><Button onClick={() => setPicker(true)} size="sm" type="button" variant="outline">상품 선택</Button>
               <span className="text-sm tabular-nums">선택 {goods.length.toLocaleString('ko-KR')} / {DISCOUNT_PROMOTION_GOODS_LIMIT.toLocaleString('ko-KR')}개</span>
               {goods.length ? <Button onClick={() => { setGoods([]); setDrafts({}); }} size="sm" type="button" variant="ghost">선택 비우기</Button> : null}</div>
-            <p className={NOTE}>검색으로 고르거나, 선택 창의 ‘여러 상품 한 번에 추가’에 상품 URL·상품코드를 여러 줄로 붙이거나 엑셀 한 열을 올려 담습니다.</p>
+            <p className={NOTE}>검색으로 고르거나, 선택 창의 ‘여러 상품 한 번에 추가’에 상품 URL·판매자상품코드를 여러 줄로 붙이거나 엑셀 한 열을 올려 담습니다.</p>
             {goods.length ? <ul className="flex max-h-56 flex-col overflow-auto rounded-lg border text-sm">{goods.map(good => <li className="flex items-center gap-2 border-b px-3 py-1.5 last:border-b-0" key={good.id}>
               <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{good.name}<small className="ml-1 text-xs text-muted-foreground">{good.id}</small></span>
               <Button aria-label={`${good.name} 빼기`} onClick={() => { setGoods(current => current.filter(item => item.id !== good.id)); setDrafts(current => Object.fromEntries(Object.entries(current).filter(([goodId]) => goodId !== good.id))); }} size="icon-sm" type="button" variant="ghost"><X aria-hidden="true" /></Button></li>)}</ul> : null}

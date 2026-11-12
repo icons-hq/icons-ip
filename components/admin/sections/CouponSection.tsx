@@ -21,9 +21,8 @@ import {
 } from '@/lib/admin/coupons';
 import { statusTone } from '@/lib/admin/status-tone';
 import { formatOrderDateTime } from '@/lib/orders';
-import {
-  GRADE_BENEFIT_CADENCE_LABELS, LOYALTY_GRADES, isLoyaltyGrade, loyaltyBasisSummary, loyaltyGradeLabel, type GradeBenefitCadence,
-} from '@/lib/loyalty';
+import { GRADE_BENEFIT_CADENCE_LABELS, LOYALTY_GRADES, isLoyaltyGrade, loyaltyGradeLabel, type GradeBenefitCadence } from '@/lib/loyalty';
+import { loyaltyBasisSummary } from '@/lib/admin/loyalty-basis';
 import type { ConfigurableGrade } from '@/lib/loyalty-policy';
 import { Field, FormShell, SelectField } from '../fields';
 import { useAdminLeaveGuard } from '../useAdminLeaveGuard';

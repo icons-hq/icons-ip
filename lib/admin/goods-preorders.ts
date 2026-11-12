@@ -1,6 +1,7 @@
 import { isUuid } from '@/lib/uuid';
 import { isGoodsShipDate } from '@/lib/goods-preorders';
-import { RANDOM_OPTION_PROBLEMS, goodsOptionSaleModeErrorMessage } from '@/lib/goods-option-sale-mode';
+import { RANDOM_OPTION_PROBLEMS } from '@/lib/goods-option-sale-mode';
+import { goodsOptionSaleModeErrorMessage } from '@/lib/admin/goods-option-sale-mode-messages';
 
 export type GoodsPreorderState = 'draft' | 'active' | 'stopped';
 export interface GoodsPreorderInput {

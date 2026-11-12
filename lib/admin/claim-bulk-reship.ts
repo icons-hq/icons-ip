@@ -1,4 +1,5 @@
 import type { AdminClaimBulkReshipClaim, AdminClaimBulkReshipRow } from './claim-bulk';
+import { adminGoodsCopy } from './vocabulary';
 import {
   normalizeClaimContactReshipmentRequest,
   parseClaimContactJournal,
@@ -117,7 +118,7 @@ export async function registerClaimReshipments(
         claim.rows.slice(index).forEach((rest) => report.fail(rest, CLAIM_BULK_RESHIP_AUTH_CHANGED));
         return 'auth_lost';
       }
-      if (!fresh || 'code' in fresh) { stop = fresh && 'code' in fresh ? fresh.message : CLAIM_BULK_RESHIP_PREVIOUS_FAILED; report.fail(row, stop); continue; }
+      if (!fresh || 'code' in fresh) { stop = fresh && 'code' in fresh ? adminGoodsCopy(fresh.message) : CLAIM_BULK_RESHIP_PREVIOUS_FAILED; report.fail(row, stop); continue; }
       if (!fresh.allowed || !fresh.address || !fresh.signedContext || !sameClaimContactAddress(fresh.address, context.address)) {
         stop = CLAIM_BULK_RESHIP_ADDRESS_CHANGED; report.fail(row, stop); continue;
       }
@@ -159,7 +160,7 @@ export async function registerClaimReshipments(
     if (settled && !('code' in settled) && settled.receipt?.state === 'sealed') {
       /* 저장되지 않은 것이 확정됐다. DB가 거절한 확정 오류(제작 대기·다른 회수 생략 결정 등)를 그대로 보인다. */
       forget();
-      report.fail(row, response && 'code' in response ? response.message : NOT_SAVED);
+      report.fail(row, response && 'code' in response ? adminGoodsCopy(response.message) : NOT_SAVED);
       continue;
     }
     /* 결과를 끝내 읽지 못했다. 요청번호를 남겨 상세가 [저장 결과 확인]을 띄우게 한다. */

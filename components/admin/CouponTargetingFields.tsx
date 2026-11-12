@@ -58,7 +58,7 @@ export function CouponTargetingFields({ recipientSegment, goodsScope, targetIds,
     {segment === 'targeted' ? <AdminNotice tone="info">저장 후 고객이나 세그먼트를 선택하고 발급 대상을 확인합니다. 직접 발급된 고객만 사용할 수 있으며, 코드 입력으로 새로 받을 수 없습니다.</AdminNotice> : null}
     <p className="text-xs leading-relaxed text-muted-foreground">{adminGoodsCopy("첫구매·재구매는 전액 취소 완료를 제외한 유효 굿즈 결제 이력으로 판단합니다. 발급 자격과 할인 대상 상품은 별개이며, 등급 혜택도 스토어 정책과 각 쿠폰의 중복 사용 조건을 따릅니다.")}</p>
     {scope === 'selected_goods' ? <>
-      <AdminField inputId="coupon-goods-query" label="대상 상품명·상품코드 검색" error={errors?.targetGoodIds}>
+      <AdminField inputId="coupon-goods-query" label="대상 상품명·판매자상품코드 검색" error={errors?.targetGoodIds}>
         <Input id="coupon-goods-query" type="search" maxLength={100} value={query} onChange={event => setQuery(event.target.value)} />
       </AdminField>
       <Button className="self-start" type="button" variant="outline" disabled={pending} onClick={() => search()}>상품 찾기</Button>
