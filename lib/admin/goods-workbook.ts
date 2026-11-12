@@ -361,6 +361,21 @@ const comparableCellText = (value: string) => value.replace(/\r\n?/g, '\n');
 const IGNORED_ON_IMPORT_KEYS = new Set<GoodsWorkbookKey>(['type']);
 const canonical = (values: GoodsWorkbookRow) =>
   JSON.stringify(GOODS_WORKBOOK_KEYS.filter((key) => !IGNORED_ON_IMPORT_KEYS.has(key)).map((key) => comparableCellText(values[key])));
+/**
+ * 상품에 적용되는 상품 유형(SHEET-003): 공개 중이면 저장된 유형, 초안은 대표 카테고리(없으면 가까운 상위)의 연결값(없으면 저장된 값).
+ * 내보내기의 상품 유형 열과 반입이 싣는 값이 같은 규칙이다(저장 때 DB 트리거가 같은 값으로 맞춘다).
+ */
+function goodsWorkbookAppliedType(
+  good: Record<string, unknown>,
+  categoryId: string | null,
+  typeNodes: readonly { id: string; parentId: string | null; goodType: string | null }[],
+): { applied: string; categoryType: string } {
+  const categoryType = categoryId ? categoryGoodType(typeNodes, categoryId) : '';
+  const stored = good.type == null ? '' : String(good.type);
+  return { categoryType, applied: good.published_at ? stored : categoryType || stored };
+}
+const goodsWorkbookTypeNodes = (categories: GoodsWorkbookContext['categories']) =>
+  (categories ?? []).map((category) => ({ id: category.id, parentId: category.parent_id ?? null, goodType: category.good_type ?? null }));
 /** 반입에서 상품 유형 열을 무시한다는 안내. 파일 값이 적용될 유형과 다를 때만 보인다. */
 export function goodsWorkbookTypeIgnoredWarning(fileType: string, appliedType: string): string | null {
   const value = fileType.trim();
@@ -454,7 +469,8 @@ export function exportGoodsWorkbookRows(
     ipId: str(good.ip_id),
     id: str(good.id),
     publish: good.archived_at ? '보관' : good.published_at ? '공개' : '초안',
-    type: str(good.type),
+    /* SHEET-003: 대표 카테고리에서 정해진 유형(공개 중이면 저장된 유형). 반입은 이 열을 반영하지 않는다. */
+    type: goodsWorkbookAppliedType(good, str(good.category_id) || null, goodsWorkbookTypeNodes(context.categories)).applied,
     salePrice: discounted ? str(storedCompare) : str(good.price),
     instantDiscount: discounted ? String(storedCompare! - storedPrice) : '',
     showDiscountRate: good.show_discount_rate === false ? '아니오' : '예',
@@ -598,7 +614,7 @@ export function planGoodsWorkbookImport(
   const targets = inputRows.map((row) => resolveGoodsWorkbookTarget(row, context.existing));
   const rows = targets.map((target) => target.row);
   const matchedByNumberOnly = new Set(targets.flatMap((target) => target.matchedByNumberOnly ? [target.row.row] : []));
-  const typeNodes = (context.categories ?? []).map((category) => ({ id: category.id, parentId: category.parent_id ?? null, goodType: category.good_type ?? null }));
+  const typeNodes = goodsWorkbookTypeNodes(context.categories);
   const kcOrphans = goodsKcWorkbookOrphanErrors(context.kcRows ?? [], rows.map(row => row.values.code.trim().toUpperCase()));
   if (kcOrphans.length) throw new Error(kcOrphans.join('\n'));
   const customInputOrphans = goodsCustomInputWorkbookOrphanErrors(context.customInputRows ?? [], rows.map(row => row.values.code));
@@ -783,10 +799,9 @@ export function planGoodsWorkbookImport(
      * SHEET-003(ADR-0037): 상품 유형 열은 반영하지 않는다. 초안은 대표 카테고리(없으면 가까운 상위)의 연결값이고, 연결이 없으면
      * 저장된 값을 그대로 둔다(그 초안은 공개할 수 없다). 공개 중이면 저장된 유형을 유지하고 유형이 바뀌는 카테고리 변경은 막는다.
      */
-    const categoryType = category ? categoryGoodType(typeNodes, category.id) : '';
+    const { categoryType, applied: appliedType } = goodsWorkbookAppliedType(record?.good ?? {}, category?.id ?? null, typeNodes);
     const storedType = str(record?.good.type);
     const publishedNow = Boolean(record?.good.published_at);
-    const appliedType = publishedNow ? storedType : categoryType || storedType;
     form.set('type', appliedType);
     const typeWarning = goodsWorkbookTypeIgnoredWarning(first.type, appliedType);
     if (typeWarning) group.warnings.push(typeWarning);
