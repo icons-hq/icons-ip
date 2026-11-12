@@ -75,6 +75,8 @@ const operators = [
   script('order_claim_reason_changes_concurrency.sh', 'CLAIM_REASON_TEST_SCOPE'),
   sql('order_claim_reshipments_per_origin', { admin: true }),
   sql('order_claim_collection_received_on', { admin: true }),
+  // 재고 파일 대조 흐름을 배송 건(출고지)별 회수·회수 생략 재출고로 센다(T07 × T11a·T11b 통합).
+  sql('stock_reconcile_claim_shipments', { admin: true }),
   script('order_address_concurrency.sh', 'ORDER_ADDRESS_TEST_SCOPE'),
   sql('goods_media', { admin: true, kc: true }),
   script('goods_media_concurrency.sh', 'GOODS_MEDIA_TEST_SCOPE'),
