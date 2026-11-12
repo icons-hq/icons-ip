@@ -26,7 +26,13 @@ const ALREADY_REORDERED = '이미 다시 주문했어요. 주문 내용과 결�
  * 대기면 같은 닫기를 먼저 해서(마지막 재고를 잡은 본인 주문 때문에 상세가 품절로 보이지 않게) 상세로 보내고, 이미 취소된
  * 주문이면 그냥 상세로 간다.
  */
-export function CheckoutDirectRetryButton({ orderId, goodId, orderPending }: { orderId: string; goodId: string; orderPending: boolean }) {
+export function CheckoutDirectRetryButton({ orderId, goodId, orderPending, secondary = true }: {
+  orderId: string;
+  goodId: string;
+  orderPending: boolean;
+  /** 보조 동작(굿즈 상세에서 다시 고르기)을 함께 둘지. 주문 내역 한 줄처럼 좁은 자리는 주 동작만 둔다. */
+  secondary?: boolean;
+}) {
   const router = useRouter();
   const [pending, setPending] = useState<'retry' | 'close' | null>(null);
   const [error, setError] = useState<{ text: string; orderId?: string } | null>(null);
@@ -67,7 +73,7 @@ export function CheckoutDirectRetryButton({ orderId, goodId, orderPending }: { o
       <button aria-disabled={pending ? 'true' : undefined} className="btn btn-holo" onClick={() => void run('retry')} type="button">
         {pending === 'retry' ? '주문서를 여는 중' : '다시 구매하기'}
       </button>
-      {orderPending ? (
+      {!secondary ? null : orderPending ? (
         <button aria-disabled={pending ? 'true' : undefined} className="checkout-retry-secondary" onClick={() => void run('close')} type="button">
           {pending === 'close' ? '주문을 닫는 중' : '이 주문 닫고 굿즈 상세에서 다시 고르기'}
         </button>

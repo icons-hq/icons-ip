@@ -53,6 +53,45 @@ export function pruneCartSelection(deselected: ReadonlySet<string>, lines: reado
   return kept.length === deselected.size ? deselected : new Set(kept);
 }
 
+/* 비로그인 장바구니에서 고객이 체크를 푼 줄(QA1 S-D2-17). [N개 주문하기]가 로그인 화면으로 갔다 돌아와도 그 선택을 잇는다 —
+   기기 세션 저장소에만 두고(URL·서버에 싣지 않는다) 30분 뒤에는 버린다. 로그인 뒤 합쳐진 계정 장바구니에서 같은 줄 키만 다시 푼다. */
+const GUEST_DESELECTION_KEY = 'icons.cart.deselected';
+const GUEST_DESELECTION_TTL_MS = 30 * 60 * 1000;
+
+/** 로그인 화면으로 가기 전에 체크를 푼 줄을 남긴다. 푼 줄이 없으면 지운다. 저장소가 막혀 있으면 아무것도 하지 않는다. */
+export function saveCartDeselection(storage: Pick<Storage, 'setItem' | 'removeItem'> | null, deselected: ReadonlySet<string>, now = Date.now()): void {
+  try {
+    if (!deselected.size) storage?.removeItem(GUEST_DESELECTION_KEY);
+    else storage?.setItem(GUEST_DESELECTION_KEY, JSON.stringify({ keys: [...deselected], savedAt: now }));
+  } catch {
+    /* 저장소가 막혀 있으면 로그인 뒤 전체 체크로 돌아온다(지금 동작). */
+  }
+}
+
+/** 남겨 둔 해제 줄. 오래됐거나 모양이 틀리면 null. 읽기만 한다 — 지우기는 clearCartDeselection(화면이 붙은 뒤). */
+export function readCartDeselection(storage: Pick<Storage, 'getItem'> | null, now = Date.now()): Set<string> | null {
+  try {
+    const raw = storage?.getItem(GUEST_DESELECTION_KEY);
+    if (!raw) return null;
+    const value: unknown = JSON.parse(raw);
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    const { keys, savedAt } = value as { keys?: unknown; savedAt?: unknown };
+    if (typeof savedAt !== 'number' || now < savedAt || now - savedAt > GUEST_DESELECTION_TTL_MS
+      || !Array.isArray(keys) || keys.length > 500 || keys.some((key) => typeof key !== 'string')) return null;
+    return new Set(keys as string[]);
+  } catch {
+    return null;
+  }
+}
+
+export function clearCartDeselection(storage: Pick<Storage, 'removeItem'> | null): void {
+  try {
+    storage?.removeItem(GUEST_DESELECTION_KEY);
+  } catch {
+    /* 저장소가 막혀 있으면 30분 뒤 버려진다. */
+  }
+}
+
 /** 주문 버튼의 N(SHEET-007). 기존 데스크톱 문구 규칙과 같이 줄 수가 아니라 수량 합이다. */
 export function cartSelectionQuantity(lines: readonly Pick<CartItem, 'qty'>[]): number {
   return lines.reduce((total, line) => total + line.qty, 0);

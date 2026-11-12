@@ -83,9 +83,13 @@ export async function createCartSelectionDraftAction(linesValue: unknown): Promi
 
 export type CheckoutRetryActionResult = { ok: true; href: string } | { ok: false; error: CheckoutDraftActionError };
 
+/** 다시 결제할 줄이 장바구니에 없을 때 — 장바구니가 아무 줄도 체크하지 않은 채 열리고 그 사실을 알린다. */
+const CART_RETRY_EMPTY_HREF = '/cart?retry=empty';
+
 /**
  * 결제 없이 끝난 장바구니 주문의 '다시 결제하기'(ADR-0026·0030). 그 주문의 줄 가운데 아직 장바구니에 있는 줄로
- * 선택 초안을 만들어 주문서로 보낸다 — 고르지 않았던 줄이 끼어들지 않는다. 남은 줄이 없으면 장바구니로 보낸다.
+ * 선택 초안을 만들어 주문서로 보낸다 — 고르지 않았던 줄이 끼어들지 않는다. 남은 줄이 없으면 아무 줄도 체크하지 않은
+ * 장바구니로 보낸다(QA1 S-D2-15 — 모든 줄이 체크된 장바구니로 보내지 않는다).
  */
 export async function createCartRetryDraftAction(orderIdValue: unknown): Promise<CheckoutRetryActionResult> {
   const orderId = normalizeOrderReference(orderIdValue);
@@ -98,7 +102,7 @@ export async function createCartRetryDraftAction(orderIdValue: unknown): Promise
       p_order_id: orderId,
     });
     if (error) return { ok: false, error: draftError(error.message) };
-    if (data === null) return { ok: true, href: '/cart' };
+    if (data === null) return { ok: true, href: CART_RETRY_EMPTY_HREF };
     const draft = draftResult(data);
     return draft.ok ? { ok: true, href: draft.href } : draft;
   } catch {

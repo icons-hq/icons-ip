@@ -16,8 +16,9 @@ vi.mock('@/components/orders/ClaimCollectionPlan', () => ({
 
 vi.mock('next/navigation', () => ({
   usePathname: () => '/orders/11111111-1111-4111-8111-111111111111',
-  useRouter: () => ({ refresh: () => undefined }),
+  useRouter: () => ({ refresh: () => undefined, push: () => undefined }),
 }));
+vi.mock('@/app/checkout/draft-actions', () => ({ createCartRetryDraftAction: vi.fn(), createDirectRetryDraftAction: vi.fn(), closeDirectOrderAction: vi.fn() }));
 
 const ORDER_ID = '11111111-1111-4111-8111-111111111111';
 
@@ -272,6 +273,10 @@ describe('OrderDetail 무통장 입금 대기', () => {
     const html = renderToStaticMarkup(<OrderDetail order={order({ status: 'pending', paymentMethod: 'bank_transfer', total: 23000 })} />);
 
     expect(html).toContain('입금을 기다리고 있어요');
+    /* QA1 S-D2-12: 제목이 카드 승인 확인 문구('결제 상태를 확인하고 있어요')와 같았다. */
+    expect(html).toContain('<h1 class="wc-receipt__title">입금을 기다리고 있어요</h1>');
+    expect(html).not.toContain('결제 상태를 확인하고 있어요');
+    expect(html).toContain('>입금 대기</span>');
     expect(html).toContain('23,000');
     expect(html).toContain(`href="/checkout/${ORDER_ID}"`);
   });
@@ -419,3 +424,24 @@ describe('OrderDetail digital-only deadline wording', () => {
   });
 });
 
+/* QA1 S-D2-15: 결제 없이 취소된 주문의 상세에 다시 결제 진입이 없었다. */
+describe('OrderDetail 다시 결제 진입', () => {
+  it('결제 없이 취소된 장바구니 주문은 그 주문의 줄로 다시 결제한다', () => {
+    const html = renderToStaticMarkup(<OrderDetail order={order({ status: 'canceled', payment: null })}
+      retry={{ source: 'cart', awaitingPayment: false, baseGoodId: null, retryOrderId: null }} />);
+    expect(html).toContain('결제가 끝나지 않아 결제 없이 취소된 주문이에요');
+    expect(html).toContain('이 주문의 굿즈 가운데 장바구니에 남은 것만 골라 주문서를 다시 열 수 있어요.');
+    expect(html).toContain('<button class="btn btn-holo" type="button">다시 결제하기</button>');
+  });
+
+  it('결제 없이 취소된 바로구매 주문은 같은 구성으로 다시 구매하고 굿즈 상세로도 잇는다', () => {
+    const html = renderToStaticMarkup(<OrderDetail order={order({ status: 'canceled', payment: null })}
+      retry={{ source: 'direct', awaitingPayment: false, baseGoodId: 'g13', retryOrderId: null }} />);
+    expect(html).toContain('<button class="btn btn-holo" type="button">다시 구매하기</button>');
+    expect(html).toContain('href="/shop/g13">굿즈 상세에서 다시 고르기</a>');
+  });
+
+  it('진입이 없으면 그대로다', () => {
+    expect(renderToStaticMarkup(<OrderDetail order={order({ status: 'canceled' })} />)).not.toContain('결제 없이 취소된 주문이에요');
+  });
+});

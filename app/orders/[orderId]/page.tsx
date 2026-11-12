@@ -6,7 +6,7 @@ import { OrderDetail } from '@/components/screens/OrderDetail';
 import { isOnboarded, onboardingPath } from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
 import { normalizeOrderReference } from '@/lib/checkout';
-import { loadPendingCardPaymentReading } from '@/lib/checkout.server';
+import { loadOrderRetrySources, loadPendingCardPaymentReading } from '@/lib/checkout.server';
 import { loadOrderDetail } from '@/lib/orders.server';
 import { loadOrderReviewTargets } from '@/lib/reviews.server';
 import { readCardRewardsEnabled } from '@/lib/card-rewards/gate.server';
@@ -41,6 +41,11 @@ export default async function Page({ params }: PageProps<'/orders/[orderId]'>) {
   ]);
   if (!order) notFound();
 
+  /* 결제 없이 닫힌 장바구니·바로구매 카드 주문은 여기서 다시 결제한다(QA1 S-D2-15). 출처는 보류 원장에서 읽는다. */
+  const retry = order.paymentMethod === 'card' && order.status === 'canceled' && !order.giftId
+    ? (await loadOrderRetrySources(auth.user.id, [order.id])).get(order.id.toLowerCase()) ?? null
+    : null;
+
   /* 결제 대기 카드 주문만 결제 시도 원장을 더 읽어 결제 화면과 같은 결제 국면으로 안내한다. */
   const cardPayment = await loadPendingCardPaymentReading(auth.user.id, {
     id: order.id,
@@ -62,6 +67,7 @@ export default async function Page({ params }: PageProps<'/orders/[orderId]'>) {
       reviewTargets={reviewTargets}
       claimTypeHistory={claimTypeHistory}
       claimReasonHistory={claimReasonHistory}
+      retry={retry}
     />
   );
 }

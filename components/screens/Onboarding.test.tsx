@@ -8,11 +8,12 @@ vi.mock('@/app/onboarding/actions', () => ({
   finishOnboardingAction: vi.fn(),
 }));
 vi.mock('@/lib/ip-display', () => ({ ipAccent: () => '#2DE2FF' }));
+const actionState = vi.hoisted(() => ({ value: {} as Record<string, unknown> }));
 vi.mock('react', async () => {
   const actual = await vi.importActual<typeof import('react')>('react');
   return {
     ...actual,
-    useActionState: () => [{}, vi.fn(), false],
+    useActionState: () => [actionState.value, vi.fn(), false],
   };
 });
 
@@ -178,5 +179,25 @@ describe('Onboarding kakao marketing channel', () => {
     expect(html).toContain('<input type="hidden" name="marketingKakaoOffered" value="1"/>');
     expect(html).toContain('카카오톡은 ICONS 카카오톡 채널 메시지로 보내 드려요.');
     expect(html).toContain('알림함의 마케팅 소식은 이메일·SMS·카카오톡 중 하나라도 수신에 동의하면 받아요.');
+  });
+});
+
+/* QA1 S-T02-02: 만 14세 미만 오류가 화면 위쪽 생년월일 칸에만 보여 모바일에서는 버튼 근처에 아무 변화가 없었다. */
+describe('Onboarding 오류 요약', () => {
+  it('칸 오류를 버튼 위에 모아 보이고 그 칸으로 잇는다', () => {
+    actionState.value = { errors: { birthDate: '만 14세 이상만 가입할 수 있어요.', terms: '이용약관에 동의해주세요.' } };
+    try {
+      const html = render();
+      const summary = html.slice(html.indexOf('data-onboarding-error-summary'), html.indexOf('ICONS 시작하기'));
+      expect(summary).toContain('<a href="#birth-date-error">생년월일</a>: 만 14세 이상만 가입할 수 있어요.');
+      expect(summary).toContain('<a href="#terms-error">이용약관 동의</a>: 이용약관에 동의해주세요.');
+      expect(html).toContain('id="birth-date-error"');
+    } finally {
+      actionState.value = {};
+    }
+  });
+
+  it('오류가 없으면 요약을 그리지 않는다', () => {
+    expect(render()).not.toContain('data-onboarding-error-summary');
   });
 });

@@ -2,13 +2,14 @@
 
 import { useState, useTransition, type KeyboardEvent } from 'react';
 import { claimCouponCodeAction } from '@/app/my/coupons/actions';
+import { PendingOrderCouponNotices, pendingOrderCouponOptionSuffix } from '@/components/checkout/PendingOrderCouponNotices';
 import type { CouponQuote } from '@/lib/coupon-targeting';
 import {
   couponBenefitLabel,
   couponConditionLabel,
-  couponDisplayState,
   couponErrorNeedsPendingOrder,
   couponExpiryLabel,
+  couponSelectable,
   mapCouponActionError,
 } from '@/lib/coupons';
 import type { CartCouponState } from '@/lib/coupons.server';
@@ -39,7 +40,8 @@ export function CheckoutDirectCoupon({
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const locked = pending || disabled;
   const selected = couponState.coupons.find((held) => held.id === selectedUserCouponId) ?? null;
-  const usable = couponState.coupons.filter((held) => couponDisplayState(held) === 'usable' || held.id === selectedUserCouponId);
+  /* 진행 중인(결제 대기) 주문이 잡은 쿠폰도 고를 수 있다 — 접수하는 순간 이 주문이 그 주문을 닫고 쓴다(QA1 S-D2-08). */
+  const usable = couponState.coupons.filter((held) => couponSelectable(held) || held.id === selectedUserCouponId);
   const selectable = usable.filter((held) => held.coupon.benefitKind !== 'shipping');
   const shippingCoupons = usable.length - selectable.length;
   const notice = selected && quote && quote.userCouponId === selected.id && quote.reason && !couponErrorNeedsPendingOrder(quote.reason)
@@ -82,7 +84,7 @@ export function CheckoutDirectCoupon({
           >
             <option value="">쿠폰 선택 안 함</option>
             {selectable.map((held) => (
-              <option key={held.id} value={held.id}>{held.coupon.name} · {couponBenefitLabel(held.coupon)}</option>
+              <option key={held.id} value={held.id}>{held.coupon.name} · {couponBenefitLabel(held.coupon)}{pendingOrderCouponOptionSuffix(held)}</option>
             ))}
           </select>
         </>
@@ -92,6 +94,7 @@ export function CheckoutDirectCoupon({
         <p className="wc-cart__coupon-desc">사용할 수 있는 쿠폰이 없어요. 쿠폰 코드가 있으면 아래에 등록해주세요.</p>
       )}
       {shippingCoupons > 0 ? <p className="wc-cart__coupon-desc">배송비 쿠폰 {shippingCoupons}장은 지금 주문에 쓸 수 없어요.</p> : null}
+      <PendingOrderCouponNotices coupons={selectable} surface="checkout" />
       {selected ? (
         <dl className="wc-cart__coupon-detail">
           <div><dt>혜택</dt><dd>{couponBenefitLabel(selected.coupon)}</dd></div>
