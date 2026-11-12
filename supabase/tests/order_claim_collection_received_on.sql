@@ -59,15 +59,16 @@ create function pg_temp.ro_stock(good text) returns integer language sql stable 
 
 -- 주문 1: 김포·남양주 반품(토스). 주문 2: 레거시 회수 반품(무통장). 주문 3: 김포·남양주 하자 교환(남양주 회수 생략 재출고).
 -- 주문 4~8: 환불 일괄 사실(코페이·가상계좌·결제 없음·정상 토스·승인 전). 주문 9: 회수 생략 결정이 무효가 되는 하자 교환.
--- 모든 주문은 닷새 전에 만들었다.
+-- 주문 10~12: 입고 뒤 결정하는 하자 교환(정방향 완료·사유 되돌림, 보류 대칭, 모두 회수 생략). 모든 주문은 닷새 전에 만들었다.
 insert into public.orders(id,user_id,status,total,shipping_fee,address,shipped_at,delivered_at,created_at)
  select pg_temp.ro_id('order',n),pg_temp.ro_id('user',2),'delivered',5000,0,
   jsonb_build_object('recipientName','합성 고객','phone','010-0000-0000','postalCode','12345','address1','합성시 입고일로 1','address2','101호'),
-  now()-interval '4 days',now()-interval '3 days',now()-interval '5 days' from generate_series(1,9)n;
+  now()-interval '4 days',now()-interval '3 days',now()-interval '5 days' from generate_series(1,12)n;
 insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
  select pg_temp.ro_id('item',item),pg_temp.ro_id('order',purchase),good,pg_temp.ro_default(good),1,1000,'TEST 굿즈','문구','ro-ip'
  from (values(1,1,'ro-good-1'),(2,1,'ro-good-2'),(3,2,'ro-good-1'),(5,3,'ro-good-1'),(6,3,'ro-good-2'),
-  (7,4,'ro-good-1'),(8,5,'ro-good-1'),(9,6,'ro-good-1'),(10,7,'ro-good-1'),(11,8,'ro-good-1'),(12,9,'ro-good-1'),(13,9,'ro-good-2')) spec(item,purchase,good);
+  (7,4,'ro-good-1'),(8,5,'ro-good-1'),(9,6,'ro-good-1'),(10,7,'ro-good-1'),(11,8,'ro-good-1'),(12,9,'ro-good-1'),(13,9,'ro-good-2'),
+  (14,10,'ro-good-1'),(15,10,'ro-good-2'),(16,11,'ro-good-1'),(17,11,'ro-good-2'),(18,12,'ro-good-1'),(19,12,'ro-good-2')) spec(item,purchase,good);
 insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,status,carrier,tracking_number,shipped_at,delivered_at) values
  (pg_temp.ro_id('shipment',1),pg_temp.ro_id('order',1),pg_temp.ro_id('origin',1),'TEST 김포',0,'{}','delivered','hanjin','ROSALE000001',now()-interval '4 days',now()-interval '3 days'),
  (pg_temp.ro_id('shipment',2),pg_temp.ro_id('order',1),pg_temp.ro_id('origin',2),'TEST 남양주',0,'{}','delivered','hanjin','ROSALE000002',now()-interval '4 days',now()-interval '3 days'),
@@ -76,6 +77,9 @@ insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,sh
  (pg_temp.ro_id('shipment',6),pg_temp.ro_id('order',3),pg_temp.ro_id('origin',2),'TEST 남양주',0,'{}','delivered','hanjin','ROSALE000006',now()-interval '4 days',now()-interval '3 days'),
  (pg_temp.ro_id('shipment',7),pg_temp.ro_id('order',9),pg_temp.ro_id('origin',1),'TEST 김포',0,'{}','delivered','hanjin','ROSALE000007',now()-interval '4 days',now()-interval '3 days'),
  (pg_temp.ro_id('shipment',8),pg_temp.ro_id('order',9),pg_temp.ro_id('origin',2),'TEST 남양주',0,'{}','delivered','hanjin','ROSALE000008',now()-interval '4 days',now()-interval '3 days');
+insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,status,carrier,tracking_number,shipped_at,delivered_at)
+ select pg_temp.ro_id('shipment',2*n-11+k),pg_temp.ro_id('order',n),pg_temp.ro_id('origin',k),case k when 1 then 'TEST 김포' else 'TEST 남양주' end,0,'{}','delivered','hanjin',
+  'ROSALE'||lpad((2*n-11+k)::text,6,'0'),now()-interval '4 days',now()-interval '3 days' from generate_series(10,12)n cross join generate_series(1,2)k;
 insert into public.order_shipment_items(order_id,shipment_id,order_item_id,qty) values
  (pg_temp.ro_id('order',1),pg_temp.ro_id('shipment',1),pg_temp.ro_id('item',1),1),
  (pg_temp.ro_id('order',1),pg_temp.ro_id('shipment',2),pg_temp.ro_id('item',2),1),
@@ -84,6 +88,8 @@ insert into public.order_shipment_items(order_id,shipment_id,order_item_id,qty) 
  (pg_temp.ro_id('order',3),pg_temp.ro_id('shipment',6),pg_temp.ro_id('item',6),1),
  (pg_temp.ro_id('order',9),pg_temp.ro_id('shipment',7),pg_temp.ro_id('item',12),1),
  (pg_temp.ro_id('order',9),pg_temp.ro_id('shipment',8),pg_temp.ro_id('item',13),1);
+insert into public.order_shipment_items(order_id,shipment_id,order_item_id,qty)
+ select pg_temp.ro_id('order',n),pg_temp.ro_id('shipment',2*n-11+k),pg_temp.ro_id('item',2*n-7+k),1 from generate_series(10,12)n cross join generate_series(1,2)k;
 insert into public.payments(id,user_id,purpose,ref_id,amount,status,idempotency_key,provider) values
  (pg_temp.ro_id('payment',1),pg_temp.ro_id('user',2),'order',pg_temp.ro_id('order',1),5000,'paid','ro-pay-1','toss'),
  (pg_temp.ro_id('payment',2),pg_temp.ro_id('user',2),'order',pg_temp.ro_id('order',2),5000,'paid','ro-pay-2','bank_transfer'),
@@ -93,6 +99,8 @@ insert into public.payments(id,user_id,purpose,ref_id,amount,status,idempotency_
  (pg_temp.ro_id('payment',7),pg_temp.ro_id('user',2),'order',pg_temp.ro_id('order',7),7000,'paid','ro-pay-7','nicepay'),
  (pg_temp.ro_id('payment',8),pg_temp.ro_id('user',2),'order',pg_temp.ro_id('order',8),5000,'paid','ro-pay-8','toss'),
  (pg_temp.ro_id('payment',9),pg_temp.ro_id('user',2),'order',pg_temp.ro_id('order',9),5000,'paid','ro-pay-9','toss');
+insert into public.payments(id,user_id,purpose,ref_id,amount,status,idempotency_key,provider)
+ select pg_temp.ro_id('payment',n),pg_temp.ro_id('user',2),'order',pg_temp.ro_id('order',n),5000,'paid','ro-pay-'||n,'toss' from generate_series(10,12)n;
 -- 주문 5는 토스로 승인됐지만 결제사 증빙이 가상계좌다(입금 뒤 환불계좌가 필요한 결제).
 insert into public.payment_attempts(id,provider,user_id,purpose,ref_id,amount,state,idempotency_key,provider_order_id,provider_product_code,payment_id,expires_at)
  values(pg_temp.ro_id('attempt',5),'toss',pg_temp.ro_id('user',2),'order',pg_temp.ro_id('order',5),5000,'approved','ro-attempt-5','ro-provider-order-5','ro-product',pg_temp.ro_id('payment',5),now()+interval '1 day');
@@ -104,6 +112,8 @@ insert into public.order_cancellation_requests(id,order_id,requested_by,reason,c
  (pg_temp.ro_id('claim',3),pg_temp.ro_id('order',3),pg_temp.ro_id('user',2),'TEST 김포·남양주 하자 교환','exchange','requested','defect'),
  (pg_temp.ro_id('claim',8),pg_temp.ro_id('order',8),pg_temp.ro_id('user',2),'TEST 승인 전 반품','return','requested','change_of_mind'),
  (pg_temp.ro_id('claim',9),pg_temp.ro_id('order',9),pg_temp.ro_id('user',2),'TEST 결정이 무효가 되는 하자 교환','exchange','requested','defect');
+insert into public.order_cancellation_requests(id,order_id,requested_by,reason,claim_type,stage,reason_type)
+ select pg_temp.ro_id('claim',n),pg_temp.ro_id('order',n),pg_temp.ro_id('user',2),'TEST 입고 뒤 결정하는 하자 교환 '||n,'exchange','requested','defect' from generate_series(10,12)n;
 insert into public.order_cancellation_requests(id,order_id,requested_by,reason,claim_type,stage,reason_type,collection_policy) values
  (pg_temp.ro_id('claim',2),pg_temp.ro_id('order',2),pg_temp.ro_id('user',2),'TEST 레거시 반품','return','collecting','change_of_mind','legacy');
 insert into public.order_cancellation_requests(id,order_id,requested_by,reason,claim_type,stage,reason_type,collection_policy,collected_at)
@@ -112,7 +122,7 @@ insert into public.order_cancellation_requests(id,order_id,requested_by,reason,c
 
 select set_config('request.jwt.claim.role','service_role',true);
 select set_config('request.jwt.claim.sub',pg_temp.ro_id('user',1)::text,true);
-select public.admin_decide_order_claim(pg_temp.ro_id('claim',n),'approve',null) from unnest(array[1,3,9])n;
+select public.admin_decide_order_claim(pg_temp.ro_id('claim',n),'approve',null) from unnest(array[1,3,9,10,11,12])n;
 select pg_temp.ro_assert((select count(*)=2 from public.order_claim_collections where claim_id=pg_temp.ro_id('claim',1) and received_on is null)
  and (select stage='collecting' and collection_received_on is null from public.order_cancellation_requests where id=pg_temp.ro_id('claim',1)),
  'approval opens two origin collections without a received date');
@@ -280,6 +290,83 @@ select pg_temp.ro_assert(:'reopen_again'='collected'
     and dedupe_key like 'claim:collected:2:'||pg_temp.ro_id('claim',9)::text||':%')=1
   from public.notifications where user_id=pg_temp.ro_id('user',2) and source_id=pg_temp.ro_id('claim',9)::text and dedupe_key like 'claim:collected%'),
  'the real return completes again with a recounted received date and an accurate notice');
+
+-- 정방향 완료(입고 → 결정): 김포 입고 뒤 남양주 회수 생략을 결정하면 그때 회수 완료다(입고완료·완료일=김포 입고일·알림 1건·
+-- 감사). 결정 → 입고 순서(주문 3)와 같은 완료가 된다. 같은 결정의 재전송은 아무것도 바꾸지 않는다.
+create function pg_temp.ro_waiver(n integer,f integer) returns jsonb language sql immutable as $$
+ select jsonb_build_object('reason','TEST 파손 사진으로 회수 생략 결정 '||n,'evidenceFileIds',jsonb_build_array(pg_temp.ro_id('file',f)))$$;
+create function pg_temp.ro_notices(n integer) returns bigint language sql stable as $$
+ select count(*) from public.notifications where user_id=pg_temp.ro_id('user',2) and source_id=pg_temp.ro_id('claim',n)::text and dedupe_key like 'claim:collected%'$$;
+create function pg_temp.ro_completions(n integer,cause text) returns bigint language sql stable as $$
+ select count(*) from public.audit_log where action='admin.order.claim_collection_completed' and diff->>'claimId'=pg_temp.ro_id('claim',n)::text and diff->>'cause'=cause$$;
+-- 인자 이름이 클레임 열(reason_type·reason)과 겹치면 열이 이기므로 p_ 이름을 쓴다.
+create function pg_temp.ro_reason(n integer,op integer,p_type text,p_text text) returns boolean language sql volatile as $$
+ select public.admin_change_order_claim_reason(c.id,pg_temp.ro_id('reason-op',op),c.claim_revision,pg_temp.ro_id('user',1),p_type,p_text,'TEST 고객과 통화로 확인',true,true) is not null
+ from public.order_cancellation_requests c where c.id=pg_temp.ro_id('claim',n)$$;
+insert into private.claim_evidence_files(id,claim_id,actor_id,mime_type,size_bytes,sha256,path)
+ select pg_temp.ro_id('file',f),pg_temp.ro_id('claim',n),pg_temp.ro_id('user',1),'image/png',10,repeat(f::text,64),pg_temp.ro_id('claim',n)::text||'/'||pg_temp.ro_id('file',f)::text||'.png'
+ from (values(10,3),(11,4),(12,5),(12,6)) spec(n,f);
+select public.admin_record_order_claim_origin_collection(pg_temp.ro_id('claim',10),pg_temp.ro_id('shipment',10),'TEST 김포 먼저 입고',pg_temp.ro_today()-1) as fwd_first \gset
+select (select stage from public.order_cancellation_requests where id=pg_temp.ro_id('claim',10)) as fwd_before \gset
+select public.admin_waive_order_claim_collection(pg_temp.ro_id('claim',10),pg_temp.ro_id('shipment',11),pg_temp.ro_waiver(10,3))->>'replayed' as fwd_waiver \gset
+select pg_temp.ro_assert(:'fwd_first'='collecting' and :'fwd_before'='collecting' and :'fwd_waiver'='false'
+ and (select stage='collected' and collected_at is not null and collection_received_on=pg_temp.ro_today()-1 from public.order_cancellation_requests where id=pg_temp.ro_id('claim',10))
+ and pg_temp.ro_notices(10)=1
+ and exists(select 1 from public.notifications where source_id=pg_temp.ro_id('claim',10)::text and title='반송이 필요한 굿즈가 모두 입고됐어요'
+  and dedupe_key like 'claim:collected:'||pg_temp.ro_id('claim',10)::text||':%')
+ and pg_temp.ro_completions(10,'collection_waiver_decided')=1,
+ 'a waiver decided after the other origin arrived completes the collection once');
+select collected_at::text as fwd_collected_at,claim_revision as fwd_revision from public.order_cancellation_requests where id=pg_temp.ro_id('claim',10) \gset
+select public.admin_waive_order_claim_collection(pg_temp.ro_id('claim',10),pg_temp.ro_id('shipment',11),pg_temp.ro_waiver(10,3))->>'replayed' as fwd_replay \gset
+select pg_temp.ro_assert(:'fwd_replay'='true'
+ and (select collected_at::text=:'fwd_collected_at' and stage='collected' from public.order_cancellation_requests where id=pg_temp.ro_id('claim',10))
+ and pg_temp.ro_notices(10)=1 and pg_temp.ro_completions(10,'collection_waiver_decided')=1,
+ 'replaying the waiver on a completed collection changes nothing');
+
+-- 사유 되돌림(T1): 하자 → 단순 변심이면 결정이 효력을 잃어 수거중으로 돌아가고(완료일 비움), 다시 하자로 정정하면 결정이 효력을
+-- 얻어 회수 완료 2회차(입고완료·완료일·알림·감사)가 된다.
+select pg_temp.ro_reason(10,1,'change_of_mind','TEST 단순 변심으로 정정') as fwd_cm \gset
+select pg_temp.ro_assert(:'fwd_cm'::boolean
+ and (select stage='collecting' and collected_at is null and collection_received_on is null from public.order_cancellation_requests where id=pg_temp.ro_id('claim',10))
+ and exists(select 1 from public.audit_log where action='admin.order.claim_collection_reopened' and diff->>'claimId'=pg_temp.ro_id('claim',10)::text)
+ and pg_temp.ro_completions(10,'collection_waiver_effective')=0 and pg_temp.ro_notices(10)=1,
+ 'a change-of-mind correction reopens the collection');
+select pg_temp.ro_reason(10,2,'defect','TEST 하자로 다시 정정') as fwd_defect \gset
+select pg_temp.ro_assert(:'fwd_defect'::boolean
+ and (select stage='collected' and collected_at is not null and collection_received_on=pg_temp.ro_today()-1 and reason_type='defect'
+  from public.order_cancellation_requests where id=pg_temp.ro_id('claim',10))
+ and pg_temp.ro_completions(10,'collection_waiver_effective')=1 and pg_temp.ro_notices(10)=2
+ and exists(select 1 from public.notifications where source_id=pg_temp.ro_id('claim',10)::text and title='반송이 필요한 굿즈가 모두 입고됐어요'
+  and dedupe_key like 'claim:collected:2:'||pg_temp.ro_id('claim',10)::text||':%'),
+ 'restoring the defect reason completes the collection again as round two');
+
+-- 보류 대칭: 입고완료에서 보류한 요청은 되돌림 때 보류 전 단계가 수거중이 되고, 결정이 다시 효력을 얻으면 보류 전 단계가 입고완료가
+-- 된다(보류는 그대로).
+select public.admin_record_order_claim_origin_collection(pg_temp.ro_id('claim',11),pg_temp.ro_id('shipment',12),'TEST 김포 먼저 입고',pg_temp.ro_today()-2) as held_first \gset
+select public.admin_waive_order_claim_collection(pg_temp.ro_id('claim',11),pg_temp.ro_id('shipment',13),pg_temp.ro_waiver(11,4))->>'replayed' as held_waiver \gset
+select public.admin_change_order_claim_hold(c.id,pg_temp.ro_id('hold-op',1),c.claim_revision,'exchange','hold','TEST 고객 추가 사진 확인을 기다립니다',pg_temp.ro_id('user',1)) is not null as held
+ from public.order_cancellation_requests c where c.id=pg_temp.ro_id('claim',11) \gset
+select pg_temp.ro_assert(:'held_first'='collecting' and :'held_waiver'='false' and :'held'::boolean
+ and (select stage='on_hold' and held_from='collected' and collected_at is not null from public.order_cancellation_requests where id=pg_temp.ro_id('claim',11)),
+ 'the completed collection is held');
+select pg_temp.ro_reason(11,3,'change_of_mind','TEST 단순 변심으로 정정') as held_cm \gset
+select pg_temp.ro_assert(:'held_cm'::boolean
+ and (select stage='on_hold' and held_from='collecting' and collected_at is null and collection_received_on is null from public.order_cancellation_requests where id=pg_temp.ro_id('claim',11)),
+ 'reopening a held claim moves its held-from stage back to collecting');
+select pg_temp.ro_reason(11,4,'defect','TEST 하자로 다시 정정') as held_defect \gset
+select pg_temp.ro_assert(:'held_defect'::boolean
+ and (select stage='on_hold' and held_from='collected' and collected_at is not null and collection_received_on=pg_temp.ro_today()-2
+  from public.order_cancellation_requests where id=pg_temp.ro_id('claim',11))
+ and pg_temp.ro_completions(11,'collection_waiver_effective')=1 and pg_temp.ro_notices(11)=2,
+ 'an effective waiver completes a held claim behind its hold');
+
+-- 모두 회수 생략: 두 배송 건을 모두 결정해도 실제 입고가 없으므로 회수 완료로 적지 않는다(교환은 재출고로 끝난다).
+select public.admin_waive_order_claim_collection(pg_temp.ro_id('claim',12),pg_temp.ro_id('shipment',14),pg_temp.ro_waiver(12,5))->>'replayed' as all_first \gset
+select public.admin_waive_order_claim_collection(pg_temp.ro_id('claim',12),pg_temp.ro_id('shipment',15),pg_temp.ro_waiver(12,6))->>'replayed' as all_second \gset
+select pg_temp.ro_assert(:'all_first'='false' and :'all_second'='false' and private.claim_collections_complete(pg_temp.ro_id('claim',12))
+ and (select stage='collecting' and collected_at is null and collection_received_on is null from public.order_cancellation_requests where id=pg_temp.ro_id('claim',12))
+ and pg_temp.ro_notices(12)=0 and pg_temp.ro_completions(12,'collection_waiver_decided')=0,
+ 'waiving every origin without any arrival does not record a collection');
 
 -- 입력 계약.
 select pg_temp.ro_error('select public.admin_order_claim_bulk_context(array[]::uuid[])','invalid_claim_bulk_ids');
