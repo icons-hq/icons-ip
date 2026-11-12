@@ -79,9 +79,10 @@ export const SABANGNET_TARGETS: readonly {
 }[] = [
   { key: 'ignore', label: '가져오지 않음', multiple: true },
   { key: 'name', label: '상품명' },
-  { key: 'code', label: '상품코드' },
-  { key: 'price', label: '기준 판매가' },
-  { key: 'compareAtPrice', label: '소비자가' },
+  { key: 'code', label: '판매자상품코드' },
+  // 사방넷 판매가는 고객 결제 금액이다. TAG가가 더 크면 ICONS 판매가는 TAG가, 차액은 즉시할인이 된다(상품 엑셀 v8과 같은 뜻).
+  { key: 'price', label: '판매가(고객 결제 금액)' },
+  { key: 'compareAtPrice', label: 'TAG가(할인 전 판매가)' },
   { key: 'nameEn', label: '영문 상품명' },
   { key: 'searchKeywords', label: '검색 키워드' },
   { key: 'optionTitle1', label: '옵션 축 1 이름' },
@@ -401,12 +402,15 @@ export function convertSabangnetRows(input: {
     values.ipId = (typeof brandIp === 'string' && brandIp) || input.ipId;
     if (!values.name) errors.push('상품명이 비어 있습니다.');
     const price = money(cell('price'));
-    values.price = price.text;
+    values.salePrice = price.text;
     const tag = money(cell('compareAtPrice'));
     if (tag.text && tag.value === null)
-      notes.add('TAG가를 숫자로 읽지 못해 소비자가를 비웠습니다.');
-    if (tag.value !== null && price.value !== null && tag.value > price.value)
-      values.compareAtPrice = String(tag.value);
+      notes.add('TAG가를 숫자로 읽지 못해 즉시할인 없이 가져왔습니다.');
+    // 저장값은 전과 같다(price = 사방넷 판매가, compare_at_price = TAG가). 상품 엑셀 v8 열로는 판매가 = TAG가, 즉시할인 = 차액이다.
+    if (tag.value !== null && price.value !== null && tag.value > price.value) {
+      values.salePrice = String(tag.value);
+      values.instantDiscount = String(tag.value - price.value);
+    }
     values.nameEn = cell('nameEn');
     const keywords = [...new Map(
       cell('searchKeywords').split(/[\n,]/).map((keyword) => keyword.trim()).filter(Boolean)
@@ -477,14 +481,14 @@ export function convertSabangnetRows(input: {
         if (priced) {
           name = priced[1].trim();
           extra = (priced[2] === '-' ? -1 : 1) * Number(priced[3].replace(/,/g, ''));
-          notes.add('옵션 값의 (+금액) 표기를 옵션 추가금액으로 가져왔습니다. 옵션 판매가를 확인해 주세요.');
+          notes.add('옵션 값의 (+금액) 표기를 옵션가(추가금액)로 가져왔습니다. 옵션가를 확인해 주세요.');
         }
         if (!name) continue;
         if (parsed.has(name)) {
           notes.add(`옵션 축 ${index}의 같은 값 '${name}'을 하나로 합쳤습니다.`);
           continue;
         }
-        if (extra < 0) errors.push(`옵션 값 '${name}'의 금액이 기준 판매가보다 낮습니다. ICONS 옵션 판매가는 기준 판매가 이상이어야 합니다.`);
+        if (extra < 0) errors.push(`옵션 값 '${name}'의 금액이 판매가보다 낮습니다. ICONS 옵션가는 0원 이상인 추가금액이어야 합니다.`);
         if (name.length > 80) errors.push(`옵션 값은 80자 이하로 입력해 주세요: ${name.slice(0, 20)}…`);
         parsed.set(name, Math.max(0, extra));
       }
@@ -512,7 +516,7 @@ export function convertSabangnetRows(input: {
         row.variantName = combo.map((value) => value.name).join(' / ');
       } else row.variantName = '기본 옵션';
       const extra = combo.reduce((total, value) => total + value.extra, 0);
-      row.variantPrice = price.value === null ? '' : String(price.value + extra);
+      row.optionPrice = String(extra);
       row.stockQty = '0';
       return row;
     });
@@ -528,7 +532,7 @@ export function convertSabangnetRows(input: {
   for (const [identity, rows] of identities) {
     if (rows.length < 2) continue;
     const message = identity.startsWith('code:')
-      ? `같은 자체상품코드가 여러 행에 있습니다(${rows.join(', ')}행). 행마다 다른 상품코드를 입력해 주세요.`
+      ? `같은 자체상품코드가 여러 행에 있습니다(${rows.join(', ')}행). 행마다 다른 자체상품코드를 입력해 주세요.`
       : `자체상품코드가 없고 상품명이 같은 행이 있습니다(${rows.join(', ')}행). 자체상품코드를 입력하거나 상품명을 구분해 주세요.`;
     for (const row of rows) firstRows.get(row)?.errors?.push(message);
   }

@@ -10,7 +10,7 @@ import { loadAdminGoodsVariants } from './goods-variants.server';
 import { loadAdminGoodsReadiness, parseGoodsReadiness } from './goods-readiness.server';
 import { imageBg, imageUrlFromBg, publicMediaUrl } from '@/lib/media';
 import type { Ip, Stock } from '@/lib/data';
-import { goodsListPageSize, goodsConsoleFilterValues, type AdminGoodsListData, type GoodsListFilters, type GoodsListStockCounts } from './goods-list';
+import { goodsListPageSize, goodsConsoleFilterValues, type AdminGoodsListData, type GoodsListFilters, type GoodsListSaleStateCounts, type GoodsListStockCounts } from './goods-list';
 
 export function goodsWorkspaceQuery(filters: GoodsListFilters) {
   return { p_query: filters.query, p_ip_id: filters.ipId, p_status: filters.status, p_stock: filters.stock,
@@ -18,7 +18,7 @@ export function goodsWorkspaceQuery(filters: GoodsListFilters) {
 }
 const LIST_ERROR = '상품 목록을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.';
 interface WorkspaceRow {
-  id: string; code: string; name: string; ipId: string; ipTitle: string;
+  id: string; productNo?: unknown; code: string; name: string; ipId: string; ipTitle: string;
   publishedAt: string | null; archivedAt: string | null; stock: Stock; stockQty: number;
   imagePath: string | null; categoryName: string | null;
   createdAt: string; updatedAt: string;
@@ -30,6 +30,13 @@ function parseGoodsStockCounts(value: unknown): GoodsListStockCounts | null {
   const { out_of_stock: outOfStock, low } = (value ?? {}) as Partial<Record<keyof GoodsListStockCounts, unknown>>;
   return isCount(outOfStock) && isCount(low) ? { out_of_stock: outOfStock, low } : null;
 }
+/* 판매대기·판매중지·판매종료 칸 건수(SHEET-036)도 같다. 형식이 어긋나면 칸만 '집계 없음'이다. */
+function parseGoodsSaleStateCounts(value: unknown): GoodsListSaleStateCounts | null {
+  const { scheduled, stopped, ended } = (value ?? {}) as Partial<Record<keyof GoodsListSaleStateCounts, unknown>>;
+  return isCount(scheduled) && isCount(stopped) && isCount(ended) ? { scheduled, stopped, ended } : null;
+}
+/* 상품번호는 양의 정수다. 앱이 DB보다 먼저 배포되어 값이 없으면 null로 두고 칸에는 '—'를 보인다. */
+const productNumber = (value: unknown) => Number.isSafeInteger(value) && (value as number) > 0 ? value as number : null;
 export async function loadAdminGoodsList(filters: GoodsListFilters): Promise<AdminGoodsListData> {
   const client = await createClient();
   const pageSize = goodsListPageSize(filters.pageSize);
@@ -57,10 +64,11 @@ export async function loadAdminGoodsList(filters: GoodsListFilters): Promise<Adm
   ]);
   const pageIds = (result.data.rows as WorkspaceRow[]).map(good => good.id);
   const [inline, customerVisible] = await Promise.all([loadGoodsListInlineValues(pageIds), loadGoodsListCustomerVisibility(pageIds)]);
-  return { filters, total, pageSize, counts, stockCounts: parseGoodsStockCounts(result.data.stockCounts), ips, categories, origins, checkedAt: result.data.checkedAt,
+  return { filters, total, pageSize, counts, stockCounts: parseGoodsStockCounts(result.data.stockCounts), saleStateCounts: parseGoodsSaleStateCounts(result.data.saleStateCounts),
+    ips, categories, origins, checkedAt: result.data.checkedAt,
     goods: (result.data.rows as WorkspaceRow[]).map(good => {
       const readiness = parseGoodsReadiness(good.readiness);
-      return { ...inline.get(good.id), id: good.id, code: good.code, name: good.name, ipId: good.ipId, ipTitle: good.ipTitle,
+      return { ...inline.get(good.id), id: good.id, productNo: productNumber(good.productNo), code: good.code, name: good.name, ipId: good.ipId, ipTitle: good.ipTitle,
         publishedAt: good.publishedAt, archivedAt: good.archivedAt, stock: good.stock, stockQty: good.stockQty,
         createdAt: good.createdAt, updatedAt: good.updatedAt,
         activeStockQty: good.readiness.activeStockQty, lowStockOptionCount: good.readiness.lowStockOptionCount,
@@ -71,7 +79,7 @@ export async function loadAdminGoodsList(filters: GoodsListFilters): Promise<Adm
   };
 }
 
-/* 상품번호 링크(R15)의 목적지. 고객 상세(`getCatalogGoodDetail`)와 같은 공개 조건으로 한 페이지만 읽는다.
+/* 상품 URL 링크(R15)의 목적지. 고객 상세(`getCatalogGoodDetail`)와 같은 공개 조건으로 한 페이지만 읽는다.
    읽기에 실패하면 모두 편집기 미리보기로 보낸다(고객 화면 404로 보내지 않는다). */
 async function loadGoodsListCustomerVisibility(ids: string[]) {
   const visible = new Set<string>();

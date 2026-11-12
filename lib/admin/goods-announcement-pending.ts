@@ -59,7 +59,7 @@ export function goodsAnnouncementPendingForm(value: GoodsAnnouncementPendingSave
 
 export const GOODS_ANNOUNCEMENT_PENDING_LABELS: Record<string, string> = {
   title: '공지 제목', body: '공지 내용', format: '본문 작성 방식', category: '공지 분류', device: '노출 화면',
-  enabled: '전시 여부', important: '중요 공지', allGoods: '전체 상품 적용', goodIds: '연결 상품번호',
+  enabled: '전시 여부', important: '중요 공지', allGoods: '전체 상품 적용', goodIds: '연결 상품 URL',
   usePeriod: '전시 기간 설정', startsAt: '전시 시작일시', endsAt: '전시 종료일시',
   useImportantPeriod: '중요 표시 기간 설정', importantStartsAt: '중요 표시 시작일시', importantEndsAt: '중요 표시 종료일시',
   popupIntent: '홈 팝업 처리', popupStartsAt: '홈 팝업 시작일시', popupEndsAt: '홈 팝업 종료일시',

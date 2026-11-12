@@ -80,6 +80,19 @@ describe('goods workspace server boundary', () => {
     mocks.rpc.mockResolvedValue({ data: { statusCounts: counts, stockCounts: { out_of_stock: 3, low: 0, ignored: 9 }, rows: [row], total: 1 }, error: null });
     expect((await loadAdminGoodsList(normalizeGoodsListFilters({ stock: 'low' }))).stockCounts).toEqual({ out_of_stock: 3, low: 0 });
   });
+  it('상품번호와 판매대기·판매중지·판매종료 칸 건수를 같은 응답에서 읽고, 없거나 어긋나면 칸만 비운다(S36-009·SHEET-036)', async () => {
+    mocks.rpc.mockResolvedValue({ data: { statusCounts: counts, saleStateCounts: { scheduled: 2, stopped: 1, ended: 0, ignored: 4 }, rows: [{ ...row, productNo: 1042 }, { ...row, id: 'g2', productNo: '7' }], total: 2 }, error: null });
+    const result = await loadAdminGoodsList(normalizeGoodsListFilters({}));
+    expect(result.saleStateCounts).toEqual({ scheduled: 2, stopped: 1, ended: 0 });
+    expect(result.goods.map(good => good.productNo)).toEqual([1042, null]);
+    for (const saleStateCounts of [undefined, null, { scheduled: 1, stopped: 1 }, { scheduled: -1, stopped: 0, ended: 0 }, { scheduled: '1', stopped: 0, ended: 0 }]) {
+      mocks.rpc.mockResolvedValue({ data: { statusCounts: counts, saleStateCounts, rows: [row], total: 1 }, error: null });
+      const fallback = await loadAdminGoodsList(normalizeGoodsListFilters({}));
+      expect(fallback.saleStateCounts).toBeNull();
+      expect(fallback.goods).toHaveLength(1);
+      expect(fallback.goods[0].productNo).toBeNull();
+    }
+  });
   it.each([
     ['missing (app deployed before the DB)', undefined],
     ['null', null],

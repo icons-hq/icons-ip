@@ -6,7 +6,7 @@ import { emptyGoodsKcModel, normalizeGoodsKcModels, type AdminGoodsKc, type Good
 
 export const GOODS_KC_WORKBOOK_SHEET = 'KC 검토';
 export const GOODS_KC_WORKBOOK_HEADERS = {
-  goodCode: '상품코드', modelIndex: 'KC행번호', variantCodes: '적용 옵션코드',
+  goodCode: '판매자상품코드', modelIndex: 'KC행번호', variantCodes: '적용 관리코드',
   family: 'KC 제품군', scheme: 'KC 적용제도', productCategory: '품목 분류', modelName: '모델명',
   businessRole: '사업자 구분', businessName: '사업자명', identifier: '인증·신고번호', publicNote: '고객 안내',
   basis: '적용 판단 사유', applicabilityReference: '적용판단 근거 참조', certificateReference: '인증·신고문서 참조',
@@ -14,6 +14,10 @@ export const GOODS_KC_WORKBOOK_HEADERS = {
   reviewStatus: '검토 상태 (읽기 전용)', reviewRevision: '검토 버전 (읽기 전용)',
 } as const;
 export type GoodsKcWorkbookKey = keyof typeof GOODS_KC_WORKBOOK_HEADERS;
+/** v3~v7 상품 양식의 KC 시트 열 이름. v8에서 판매자상품코드·적용 관리코드로 바뀌었고 순서·뜻은 같다. */
+export const GOODS_KC_WORKBOOK_LEGACY_HEADERS: Readonly<Record<GoodsKcWorkbookKey, string>> = {
+  ...GOODS_KC_WORKBOOK_HEADERS, goodCode: '상품코드', variantCodes: '적용 옵션코드',
+};
 export type GoodsKcWorkbookRow = Record<GoodsKcWorkbookKey, string>;
 export type GoodsKcWorkbookInputRow = { row: number; values: GoodsKcWorkbookRow };
 export type GoodsKcImportModel = Omit<GoodsKcModelInput, 'variantIds'> & { variantCodes: string[] };
@@ -54,7 +58,7 @@ export function exportGoodsKcWorkbookRows(records: readonly { goodCode: string; 
     if (!review) return [];
     return review.models.map((model, index) => {
       const mapped = modelWithCodes(model, review);
-      if (!mapped) throw new Error('저장된 KC 모델의 옵션코드를 확인하지 못했습니다. 상품과 KC 검토를 다시 확인해주세요.');
+      if (!mapped) throw new Error('저장된 KC 모델의 관리코드를 확인하지 못했습니다. 상품과 KC 검토를 다시 확인해주세요.');
       return {
         goodCode, modelIndex: String(index + 1), variantCodes: mapped.variantCodes.join('\n'),
         family: model.family ? GOODS_KC_FAMILY_LABELS[model.family] : '',
@@ -112,7 +116,7 @@ export function planGoodsKcWorkbookRows(rows: readonly GoodsKcWorkbookInputRow[]
 }): GoodsKcWorkbookPlan {
   const source = (rows ?? []).filter((row) => row.values.goodCode.trim() === context.goodCode);
   if (!context.reset && source.length === 0) return { kind: 'keep', warnings: [] };
-  if (!context.goodCode || source.length > 50) return { kind: 'error', errors: ['KC 시트는 저장된 상품코드와 모델 50행 이내가 필요합니다.'], warnings: [] };
+  if (!context.goodCode || source.length > 50) return { kind: 'error', errors: ['KC 시트는 저장된 판매자상품코드와 모델 50행 이내가 필요합니다.'], warnings: [] };
   const errors: string[] = [];
   const indices = new Set<number>();
   const parsed: { index: number; model: GoodsKcImportModel }[] = [];
@@ -126,7 +130,7 @@ export function planGoodsKcWorkbookRows(rows: readonly GoodsKcWorkbookInputRow[]
       errors.push(`${label}: 검토 상태·버전은 읽기 전용입니다. 최신 파일을 내려받아주세요.`);
     }
     const model = parseRow(row.values);
-    if (!model) errors.push(`${label}: 제품군·제도·사업자·옵션코드 또는 텍스트 형식을 확인해주세요.`);
+    if (!model) errors.push(`${label}: 제품군·제도·사업자·관리코드 또는 텍스트 형식을 확인해주세요.`);
     else {
       for (const code of model.variantCodes) {
         if (!context.variantCodes.includes(code)) errors.push(`${label}: 상품 옵션에 없는 코드 ${code}입니다. 새 상품·옵션은 코드를 먼저 저장해주세요.`);
@@ -150,5 +154,5 @@ export function planGoodsKcWorkbookRows(rows: readonly GoodsKcWorkbookInputRow[]
  * groups, so an unrecognized or missing goods code is never silently dropped. */
 export function goodsKcWorkbookOrphanErrors(rows: readonly GoodsKcWorkbookInputRow[], goodCodes: readonly string[]): string[] {
   return rows.flatMap((row) => !row.values.goodCode.trim() || !goodCodes.includes(row.values.goodCode.trim())
-    ? [`KC 검토 ${row.row}행: 상품 시트에 같은 상품코드가 필요합니다. 자동 발급할 새 코드는 초안 저장 후 다시 내려받아 연결해주세요.`] : []);
+    ? [`KC 검토 ${row.row}행: 상품 시트에 같은 판매자상품코드가 필요합니다. 자동 발급할 새 코드는 초안 저장 후 다시 내려받아 연결해주세요.`] : []);
 }

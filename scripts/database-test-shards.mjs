@@ -125,6 +125,8 @@ const catalog = [
   sql('goods_custom_input_workbook', { admin: true }),
   // 할인 프로모션 묶음(기간할인 원장 출처·중지 범위)과 전시 상품 여러 줄 조회(1014-109·112).
   sql('discount_promotions', { admin: true }),
+  // 시스템 순번 상품번호(불변·재사용 없음)와 상품 조회/수정의 번호 검색·정렬·판매대기/판매중지/판매종료 건수(S36-009·SHEET-036).
+  sql('goods_product_numbers', { admin: true }),
 ];
 
 const storefront = [

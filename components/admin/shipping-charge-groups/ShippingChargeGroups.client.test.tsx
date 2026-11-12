@@ -227,7 +227,7 @@ async function mountAssignment() { mode = 'assignment'; render(); effects(); awa
 it('상품 배정 조회는 현재 연결/전체 출고지 필터를 명시적으로 바꾸며 자동 선택하지 않는다', async () => {
   await mountAssignment(); expect(mocks.find).toHaveBeenCalledExactlyOnceWith({ originId: ids.origin, groupId: ids.group, query: '', page: 1 }, identity);
   expect(text(node())).toContain('선택 0개'); expect(button('배정 미리보기').props.disabled).toBe(true);
-  change('조회 범위', 'all'); change('상품명·상품코드·상품번호', '찾는 상품'); await submit();
+  change('조회 범위', 'all'); change('상품명·판매자상품코드·상품 URL', '찾는 상품'); await submit();
   expect(mocks.find).toHaveBeenLastCalledWith({ originId: ids.origin, groupId: null, query: '찾는 상품', page: 1 }, identity);
   expect(text(node())).toContain('선택 0개'); expect(mocks.preview).not.toHaveBeenCalled();
 });

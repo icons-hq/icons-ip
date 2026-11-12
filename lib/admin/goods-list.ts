@@ -5,16 +5,35 @@ import { GOODS_READINESS_REASONS, goodsReadinessAnchor, type AdminGoodsReadiness
 export const GOODS_LIST_PATH = '/admin/catalog/goods';
 export const GOODS_LIST_PAGE_SIZE = 20;
 export const GOODS_LIST_PAGE_SIZES = [20, 50, 100] as const;
+/**
+ * 검색 대상(S36-009·S36-X02). 상품번호는 시스템이 매기는 바뀌지 않는 숫자(goods.product_no), 상품 URL은 주소 끝의 영문 값(goods.id)이다.
+ * 'id' 값은 예전 주소 호환을 위해 그대로 두고 이름만 '상품 URL'이다.
+ */
 export const GOODS_LIST_SEARCH_FIELDS = [
-  { value: 'all', label: '전체' }, { value: 'name', label: '상품명' }, { value: 'id', label: '상품번호' },
-  { value: 'code', label: '판매자상품코드·옵션코드' }, { value: 'erp', label: 'ERP 코드·품명' }, { value: 'barcode', label: '바코드' },
+  { value: 'all', label: '전체' }, { value: 'name', label: '상품명' }, { value: 'number', label: '상품번호' }, { value: 'id', label: '상품 URL' },
+  { value: 'code', label: '판매자상품코드·관리코드' }, { value: 'erp', label: 'ERP 코드·품명' }, { value: 'barcode', label: '바코드' },
 ] as const;
+/**
+ * 검색어 칸의 안내(TKT-074). 고른 검색 대상에 맞춰 입력 칸 안내(placeholder)와 말풍선(title)을 바꾼다.
+ * 문구만 바뀌고 서버 검색 계약(field·q)은 같다. 입력 칸 안내는 1440 화면의 칸 폭(약 254px, 한글 16자 안팎)에 들도록 짧게 쓰고
+ * 자세한 설명은 말풍선·스크린리더 설명(title)에 둔다.
+ */
+export const GOODS_LIST_SEARCH_HINTS: Record<(typeof GOODS_LIST_SEARCH_FIELDS)[number]['value'], { placeholder: string; title: string }> = {
+  all: { placeholder: '상품명·번호·코드·ERP 품명·바코드',
+    title: '전체 검색은 상품명·영문명·상품번호·상품 URL·판매자상품코드·검색 키워드와 옵션의 관리코드·ERP 코드·ERP 품명·바코드에서 찾습니다. 상품번호는 숫자 전체가 같아야 찾습니다.' },
+  name: { placeholder: '상품명 또는 영문명 일부', title: '상품명이나 영문 상품명에 입력한 글자가 들어간 상품을 찾습니다.' },
+  number: { placeholder: '상품번호(쉼표로 여러 개)', title: '상품번호는 숫자 전체가 같은 상품을 찾습니다. 쉼표나 공백으로 구분해 여러 개를 한 번에 조회할 수 있습니다.' },
+  id: { placeholder: '상품 URL(쉼표로 여러 개)', title: '상품 URL은 주소 끝의 영문 값 전체가 같은 상품을 찾습니다. 쉼표나 공백으로 구분해 여러 개를 한 번에 조회할 수 있습니다.' },
+  code: { placeholder: '판매자상품코드·관리코드 일부', title: '판매자상품코드나 옵션의 관리코드에 입력한 글자가 들어간 상품을 찾습니다.' },
+  erp: { placeholder: 'ERP 코드·품명 일부', title: '옵션에 연결한 ERP 코드나 ERP 품명에 입력한 글자가 들어간 상품을 찾습니다.' },
+  barcode: { placeholder: '바코드 일부(앞자리 0 포함)', title: '옵션에 등록한 바코드에 입력한 글자가 들어간 상품을 찾습니다. 앞자리 0도 그대로 입력합니다.' },
+};
 export const GOODS_LIST_DATE_FIELDS = [
   { value: 'created', label: '상품등록일' }, { value: 'updated', label: '상품수정일' }, { value: 'published', label: '전시시작일' },
 ] as const;
 export const GOODS_LIST_SORT_OPTIONS = [
   { value: 'created_desc', label: '상품등록일순' }, { value: 'updated_desc', label: '상품수정일순' },
-  { value: 'name_asc', label: '상품명순' }, { value: 'id_asc', label: '상품번호순' },
+  { value: 'name_asc', label: '상품명순' }, { value: 'number_asc', label: '상품번호순' },
   { value: 'price_asc', label: '판매가 낮은순' }, { value: 'price_desc', label: '판매가 높은순' },
   { value: 'stock_asc', label: '재고 적은순' }, { value: 'stock_desc', label: '재고 많은순' },
 ] as const;
@@ -30,6 +49,8 @@ export const GOODS_LIST_STOCK_OPTIONS = [
 export type GoodsListSearchField = (typeof GOODS_LIST_SEARCH_FIELDS)[number]['value'];
 export type GoodsListDateField = (typeof GOODS_LIST_DATE_FIELDS)[number]['value'];
 export type GoodsListSort = (typeof GOODS_LIST_SORT_OPTIONS)[number]['value'];
+/** 예전 '상품번호순'(상품 URL 오름차순) 주소. 지금의 상품번호순으로 연다. */
+const LEGACY_GOODS_LIST_SORTS: Readonly<Record<string, GoodsListSort>> = { id_asc: 'number_asc' };
 export type GoodsListStatus = 'active' | 'all' | 'draft' | 'published' | 'archived';
 export type GoodsListStock = (typeof GOODS_LIST_STOCK_OPTIONS)[number]['value'];
 export interface GoodsListFilters {
@@ -55,7 +76,10 @@ export interface GoodsListFilters {
   salePeriod?: 'all' | 'scheduled' | 'ended';
 }
 export interface AdminGoodSummary {
+  /** 상품 URL(주소 끝의 영문 값, goods.id). */
   id: string;
+  /** 상품번호(시스템 순번, 바뀌지 않는 숫자). 서버가 아직 싣지 않으면 null이다. */
+  productNo?: number | null;
   code: string;
   name: string;
   ipId: string;
@@ -87,11 +111,16 @@ export interface AdminGoodSummary {
   /** 사용 중인 옵션 수(-1: 확인 불가). 1개일 때만 목록에서 재고수량을 바로 고친다(옵션 재고는 옵션 단위). */
   activeVariantCount?: number;
   inlineStock?: { variantId: string; stockQty: number } | null;
-  /** 고객 상세(`/shop/<id>`)가 열리는 상품(전시·미보관·판매 제한 없음·IP 공개). 아니면 상품번호가 편집기 미리보기로 간다(R15). */
+  /** 고객 상세(`/shop/<id>`)가 열리는 상품(전시·미보관·판매 제한 없음·IP 공개). 아니면 상품 URL이 편집기 미리보기로 간다(R15). */
   customerVisible?: boolean;
 }
 /** 품절 보기·소량 재고 보기 칸의 건수. 키는 판매상태 필터 값이고, 재고 조건만 뺀 같은 검색 조건에서 센다 — 숫자가 곧 그 칸을 눌렀을 때의 목록 개수다. */
 export type GoodsListStockCounts = Record<'out_of_stock' | 'low', number>;
+/**
+ * 판매대기·판매중지·판매종료 칸의 건수(SHEET-036). 판매중지는 재고 조건(stock=stopped) 축, 판매대기·판매종료는 판매기간
+ * (salePeriod) 축만 빼고 같은 검색 조건으로 센다 — 숫자가 곧 그 칸을 눌렀을 때의 목록 개수다.
+ */
+export type GoodsListSaleStateCounts = Record<'scheduled' | 'stopped' | 'ended', number>;
 export interface AdminGoodsListData {
   filters: GoodsListFilters;
   goods: AdminGoodSummary[];
@@ -100,6 +129,8 @@ export interface AdminGoodsListData {
   counts?: Record<GoodsListStatus, number>;
   /** 없으면(`null`) 건수를 읽지 못한 상태다. 목록은 그대로 보이고 칸만 '집계 없음'이 된다. */
   stockCounts?: GoodsListStockCounts | null;
+  /** 없으면(`null`) 건수를 읽지 못한 상태다. 칸은 '집계 없음'으로 두고 누르면 그대로 걸러진다. */
+  saleStateCounts?: GoodsListSaleStateCounts | null;
   origins?: { id: string; name: string; active: boolean }[];
   checkedAt?: string;
   categories?: { id: string; name: string; depth: number; archivedAt: string | null }[];
@@ -142,7 +173,8 @@ export function normalizeGoodsListFilters(values: Record<string, string | string
     dateField: GOODS_LIST_DATE_FIELDS.some(option => option.value === dateField) ? dateField as GoodsListDateField : 'created',
     from,
     to,
-    sort: GOODS_LIST_SORT_OPTIONS.some(option => option.value === sort) ? sort as GoodsListSort : 'created_desc',
+    sort: GOODS_LIST_SORT_OPTIONS.some(option => option.value === sort) ? sort as GoodsListSort
+      : Object.hasOwn(LEGACY_GOODS_LIST_SORTS, sort) ? LEGACY_GOODS_LIST_SORTS[sort] : 'created_desc',
     pageSize: goodsListPageSize(values.pageSize),
     originId: UUID_PATTERN.test(originId) ? originId.toLowerCase() : '',
     payment: ['card', 'bank', 'none'].includes(payment) ? payment as 'card' | 'bank' | 'none' : 'all',
@@ -190,7 +222,7 @@ export function goodsConsoleFilterValues(filters: GoodsListFilters) {
 export function goodEditorHref(filters: GoodsListFilters, id: string, target?: GoodsReadinessTarget): string {
   return `${goodsListHref(filters)}&${new URLSearchParams({ goodId: id })}${target ? `#${goodsReadinessAnchor(target)}` : ""}`;
 }
-/** 공개 전 상품의 상품번호 목적지: 편집기의 '공개 화면 미리보기'(`<details id="good-preview">`). */
+/** 공개 전 상품의 상품 URL 목적지: 편집기의 '공개 화면 미리보기'(`<details id="good-preview">`). */
 export function goodPreviewHref(filters: GoodsListFilters, id: string): string {
   return `${goodEditorHref(filters, id)}#good-preview`;
 }

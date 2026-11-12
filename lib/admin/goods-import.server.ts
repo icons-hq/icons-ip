@@ -98,10 +98,23 @@ export async function loadGoodsWorkbookContext(
   const names = [
     ...new Set(rows.map((row) => row.values.preset).filter(Boolean)),
   ];
+  // 반입 키(ADR-0038): 상품번호 → 판매자상품코드. 상품번호는 상품 URL로 바꿔 함께 읽는다. 번호·코드가 모두 빈 행(새 상품)의
+  // 상품 URL은 키가 아니라 '이미 쓰는 URL인지' 확인하려고 함께 읽는다. 판매자상품코드로 이미 읽는 상품은 다시 넣지 않는다(합쳐 500건 상한).
+  const numbers = [...new Set(rows.map((row) => row.values.productNo.trim()).filter((value) => /^[1-9]\d{0,15}$/.test(value)))];
+  const numbered = numbers.length
+    ? await client.from('goods').select('id,code').in('product_no', numbers)
+    : { data: [] as { id: string; code: string }[], error: null };
+  if (numbered.error) throw new Error('현재 상품·배송·고시정보를 읽지 못했습니다. 다시 시도해주세요.');
+  const codeSet = new Set(codes);
+  const targetIds = [...new Set([
+    ...ids,
+    ...(numbered.data ?? []).filter((row) => !codeSet.has(String(row.code).toUpperCase())).map((row) => String(row.id)),
+    ...rows.filter((row) => !row.values.code.trim() && !row.values.productNo.trim() && row.values.id.trim()).map((row) => row.values.id.trim()),
+  ])];
   const [records, origins, presets, auth] = await Promise.all([
     client.rpc('admin_goods_import_records', {
       target_codes: codes,
-      target_ids: ids,
+      target_ids: targetIds,
     }),
     client.from('fulfillment_origins').select('id,code,is_active'),
     names.length
@@ -223,7 +236,11 @@ export async function loadGoodsExportWorkbook(
   if (!Number.isInteger(part) || part < 1 || part > parts.length)
     throw new Error('내보내기 페이지를 다시 선택해주세요.');
   const context = await loadGoodsWorkbookContext([], parts[part - 1]);
-  const rows = context.existing.flatMap((record) =>
+  // 파일 안에서는 상품번호 순서로 쓴다(번호가 없으면 맨 뒤).
+  const existing = [...context.existing].sort((a, b) =>
+    (Number(a.good.product_no) || Number.MAX_SAFE_INTEGER) - (Number(b.good.product_no) || Number.MAX_SAFE_INTEGER)
+    || String(a.good.id).localeCompare(String(b.good.id)));
+  const rows = existing.flatMap((record) =>
     exportGoodsWorkbookRows(record, context),
   );
   if (rows.length > 500)
@@ -232,13 +249,13 @@ export async function loadGoodsExportWorkbook(
     );
   return {
     rows,
-    kcRows: exportGoodsKcWorkbookRows(context.existing.map(record => ({ goodCode: String(record.good.code), review: record.kcReview ?? null }))),
-    customInputRows: exportGoodsCustomInputWorkbookRows(context.existing.map(record => ({
+    kcRows: exportGoodsKcWorkbookRows(existing.map(record => ({ goodCode: String(record.good.code), review: record.kcReview ?? null }))),
+    customInputRows: exportGoodsCustomInputWorkbookRows(existing.map(record => ({
       goodCode: String(record.good.code), config: goodsCustomInputWorkbookConfig(record.good),
     }))),
-    afterSalesRows: exportGoodsAfterSalesWorkbookRows(context.existing.flatMap(record => record.afterSales
+    afterSalesRows: exportGoodsAfterSalesWorkbookRows(existing.flatMap(record => record.afterSales
       ? [{ goodCode: String(record.good.code), snapshot: record.afterSales }] : [])),
-    sizeRows: exportGoodsSizeWorkbookRows(context.existing.flatMap(record => record.sizeChart
+    sizeRows: exportGoodsSizeWorkbookRows(existing.flatMap(record => record.sizeChart
       ? [{ goodCode: String(record.good.code), snapshot: record.sizeChart }] : [])),
   };
 }
@@ -254,7 +271,7 @@ export function goodsImportErrorMessage(error?: string) {
   if (error?.includes('changed') || error?.includes('conflict'))
     return '미리보기 이후 상품 정보가 바뀌었습니다. 최신 파일로 다시 검증해주세요.';
   if (error?.includes('duplicate') || error?.includes('code'))
-    return '상품코드·옵션코드가 이미 사용 중이거나 형식이 올바르지 않습니다.';
+    return '판매자상품코드·관리코드가 이미 사용 중이거나 형식이 올바르지 않습니다.';
   if (error?.includes('artwork') || error?.includes('images'))
     return '이미지를 저장하지 못했습니다. URL·ZIP 파일을 확인하고 다시 올려주세요.';
   if (error?.includes('publish') || error?.includes('origin'))

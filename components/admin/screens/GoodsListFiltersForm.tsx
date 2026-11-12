@@ -5,8 +5,9 @@ import { AdminSelect } from '../console/AdminSelect';
 import { consoleDatePresets, isConsoleDateRangeActive } from '../console/date-presets';
 import { Button, buttonVariants } from '../kit/ui/button';
 import { Input } from '../kit/ui/input';
+import { GoodsListQueryField } from './GoodsListQueryField';
 import { GOODS_READINESS_REASONS } from '@/lib/admin/goods-readiness';
-import { GOODS_LIST_DATE_FIELDS, GOODS_LIST_PATH, GOODS_LIST_SEARCH_FIELDS, GOODS_LIST_STOCK_OPTIONS, goodsListHref, type AdminGoodsListData } from '@/lib/admin/goods-list';
+import { GOODS_LIST_DATE_FIELDS, GOODS_LIST_PATH, GOODS_LIST_STOCK_OPTIONS, goodsListHref, type AdminGoodsListData } from '@/lib/admin/goods-list';
 
 /*
  * 상품 조회 조건(스마트스토어 상품 조회/수정의 행 구성 그대로). 모양만 kit 카드·입력·버튼(ADR-0028)이고,
@@ -16,7 +17,6 @@ const PRESET = 'inline-flex h-7 items-center rounded-md px-2.5 text-[0.8rem] fon
 const CHOICE = 'inline-flex min-h-7 cursor-pointer items-center gap-2 text-sm';
 /* 넓은 화면에서는 버튼 자리를 뺀 나머지를 다섯 칸이 나눠 쓴다. 칸이 좁아지면 다음 줄로 내려간다. */
 const SELECT = 'w-full sm:w-40 lg:w-auto lg:max-w-44 lg:min-w-32 lg:flex-1';
-const QUERY_HINT = '상품번호는 쉼표나 공백으로 구분해 여러 개를 조회할 수 있습니다. 전체 검색에는 영문명·검색 키워드도 포함됩니다.';
 
 function SearchRow({ label, children, className = '' }: { label: ReactNode; children: ReactNode; className?: string }) {
   return <div className={`grid gap-2 border-b py-2 sm:grid-cols-[5rem_minmax(0,1fr)] sm:items-center sm:gap-4 ${className}`} data-goods-search="row">
@@ -33,13 +33,8 @@ export function GoodsListFiltersForm({ data }: { data: AdminGoodsListData }) {
     <input type="hidden" name="sort" value={filters.sort ?? 'created_desc'} />
     <input type="hidden" name="pageSize" value={data.pageSize ?? filters.pageSize ?? 20} />
     <SearchRow label={<label htmlFor="goods-list-query">검색어</label>}>
-      {/* 넓은 화면에서는 검색 대상과 입력 칸이 한 줄이다 — 첫 화면에 상품이 더 보인다. */}
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-        <fieldset className="flex flex-wrap gap-x-4 gap-y-1"><legend className="sr-only">검색 대상</legend>
-          {GOODS_LIST_SEARCH_FIELDS.map(item => <label className={CHOICE} key={item.value}><input type="radio" name="field" value={item.value} defaultChecked={(filters.field ?? 'all') === item.value} />{item.label}</label>)}
-        </fieldset>
-        <Input className="min-w-60 flex-1 basis-60 sm:max-w-xl" id="goods-list-query" type="search" name="q" maxLength={100} defaultValue={filters.query} aria-describedby="goods-list-query-hint" placeholder="상품명, 상품번호, 판매자상품코드, ERP 코드" title={QUERY_HINT} />
-      </div>
+      {/* 넓은 화면에서는 검색 대상과 입력 칸이 한 줄이다 — 첫 화면에 상품이 더 보인다. 안내는 고른 검색 대상을 따른다(TKT-074). */}
+      <GoodsListQueryField key={filters.field ?? 'all'} field={filters.field ?? 'all'} query={filters.query} />
     </SearchRow>
     {/* 자주 쓰는 조건만 첫 화면에 둔다(판매상태·카테고리 한 줄). 나머지는 아래 상세검색에 접혀 있어도 같은 폼으로 제출된다. 넓은 화면에서는 오른쪽 끝을 상세검색·초기화·검색 자리로 비워 둔다. */}
     <SearchRow className="lg:border-b-0 lg:pr-56" label={<label htmlFor="goods-list-stock">판매상태</label>}><div className="flex flex-wrap items-center gap-2">
@@ -71,8 +66,6 @@ export function GoodsListFiltersForm({ data }: { data: AdminGoodsListData }) {
       </div></div>
       </div>
     </details>
-    {/* 검색어 안내는 입력 칸의 설명(스크린리더)·말풍선과 아래 목록 안내에 있다 — 화면 줄을 차지하지 않는다. */}
-    <p className="sr-only" id="goods-list-query-hint">{QUERY_HINT}</p>
     <div className="absolute top-1.5 right-0 flex gap-2 lg:top-auto lg:bottom-full lg:mb-2"><Link className={buttonVariants({ variant: 'ghost' })} data-slot="button" href={GOODS_LIST_PATH}>초기화</Link><Button type="submit" variant="soft">검색</Button></div>
     </div>
   </form>;

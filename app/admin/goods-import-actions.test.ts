@@ -143,7 +143,7 @@ describe('goods workbook server boundary', () => {
   });
   it('새 직접입력 ID는 서버가 저장한 plan에서 한 번 만들고 준비된 미리보기를 다시 열면 유지한다', async () => {
     const actual = await vi.importActual<typeof import('@/lib/admin/goods-workbook')>('@/lib/admin/goods-workbook');
-    const values = { ...actual.emptyGoodsWorkbookRow(), code: 'TEST-NEW', name: 'TEST 상품', ipId: 'test-ip' };
+    const values = { ...actual.emptyGoodsWorkbookRow(), code: 'TEST-NEW', name: 'TEST 상품', ipId: 'test-ip', stockQty: '0' };
     const custom = { ...emptyGoodsCustomInputWorkbookRow(), goodCode: values.code, mode: '편집', enabled: '예',
       name: 'TEST 주문 문구', action: '사용', revision: '0' };
     const uploading = { id: 'batch', actor_id: 'staff', state: 'uploading', workbook_name: 'test.xlsx', has_images: false, plan: [], results: {} };
@@ -318,7 +318,7 @@ describe('사방넷 상품 양식 흐름', () => {
     expect(plan[0].target).toMatchObject({ publish: false, ip_id: 'maple', code: 'MP-1' });
     expect(plan[0].warnings).toContain(SABANGNET_KC_WARNING);
     expect(plan[0].images).toEqual([{ field: 'image_path', kind: 'url', source: 'https://img.example.com/mug.jpg' }]);
-    expect(plan[1].errors).toEqual([expect.stringContaining('이미 등록된 상품코드')]);
+    expect(plan[1].errors).toEqual([expect.stringContaining('이미 등록된 판매자상품코드')]);
     // 실패 행 파일로 ICONS 양식에 다시 올리면 기존 상품을 덮어쓰므로 그 행은 파일에 넣지 않는다.
     expect(plan[1].errors[0]).toContain('실패 행 파일에 넣지 않습니다');
     expect(plan[1].errors[0]).toContain('상품 목록에서 내보낸 엑셀');

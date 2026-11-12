@@ -118,7 +118,7 @@ export function GoodsOptionImportDialog({ context, categories, currentRows, base
         <div className="flex min-w-0 flex-col gap-2">
           <label className={FIELD_LABEL_CLASS} htmlFor="goods-option-import-field">검색 대상</label>
           <NativeSelect className="w-full" id="goods-option-import-field" value={filters.field} disabled={busy || blocked} onChange={event => setFilters(current => ({ ...current, field: event.target.value as GoodsOptionImportFilters['field'] }))}>
-            <option value="name">상품명</option><option value="code">상품코드·옵션코드</option><option value="id">상품번호</option>
+            <option value="name">상품명</option><option value="code">판매자상품코드·관리코드</option><option value="id">상품 URL</option>
           </NativeSelect>
         </div>
         <label className={`flex min-w-0 flex-col gap-2 ${FIELD_LABEL_CLASS}`}>검색어<input className={GOOD_INPUT_CLASS} data-slot="input" maxLength={100} value={filters.query} disabled={busy || blocked} onChange={event => setFilters(current => ({ ...current, query: event.target.value }))}

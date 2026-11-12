@@ -4,10 +4,10 @@ import { emptyGoodsSizeChartValues, parseGoodsSizeChartValues, type GoodsSizeCha
 export const GOODS_AFTER_SALES_WORKBOOK_SHEET = 'AS 안내';
 export const GOODS_SIZE_WORKBOOK_SHEET = '사이즈 안내';
 export const GOODS_AFTER_SALES_WORKBOOK_HEADERS = {
-  goodCode: '상품코드', mode: '변경 방식', phone: 'A/S 전화번호', guide: 'A/S 안내', sellerSpecialNotes: '판매자 특이사항', revision: '안내 버전',
+  goodCode: '판매자상품코드', mode: '변경 방식', phone: 'A/S 전화번호', guide: 'A/S 안내', sellerSpecialNotes: '판매자 특이사항', revision: '안내 버전',
 } as const;
 export const GOODS_SIZE_WORKBOOK_HEADERS = {
-  goodCode: '상품코드', mode: '변경 방식', enabled: '표시', unit: '단위', note: '표 안내', revision: '표 버전', measurement: '측정 항목',
+  goodCode: '판매자상품코드', mode: '변경 방식', enabled: '표시', unit: '단위', note: '표 안내', revision: '표 버전', measurement: '측정 항목',
   size1: '사이즈 1', size2: '사이즈 2', size3: '사이즈 3', size4: '사이즈 4', size5: '사이즈 5',
   size6: '사이즈 6', size7: '사이즈 7', size8: '사이즈 8', size9: '사이즈 9', size10: '사이즈 10',
   value1: '치수 1', value2: '치수 2', value3: '치수 3', value4: '치수 4', value5: '치수 5',
@@ -15,6 +15,13 @@ export const GOODS_SIZE_WORKBOOK_HEADERS = {
 } as const;
 export type GoodsAfterSalesWorkbookRow = Record<keyof typeof GOODS_AFTER_SALES_WORKBOOK_HEADERS, string>;
 export type GoodsSizeWorkbookRow = Record<keyof typeof GOODS_SIZE_WORKBOOK_HEADERS, string>;
+/** v7 상품 양식의 A/S·사이즈 시트 열 이름. v8에서 판매자상품코드로 바뀌었고 순서·뜻은 같다. */
+export const GOODS_AFTER_SALES_WORKBOOK_LEGACY_HEADERS: Readonly<Record<keyof typeof GOODS_AFTER_SALES_WORKBOOK_HEADERS, string>> = {
+  ...GOODS_AFTER_SALES_WORKBOOK_HEADERS, goodCode: '상품코드',
+};
+export const GOODS_SIZE_WORKBOOK_LEGACY_HEADERS: Readonly<Record<keyof typeof GOODS_SIZE_WORKBOOK_HEADERS, string>> = {
+  ...GOODS_SIZE_WORKBOOK_HEADERS, goodCode: '상품코드',
+};
 export type GuidanceInputRow<T> = { row: number; values: T; errors?: string[] };
 export type GoodsAfterSalesWorkbookInputRow = GuidanceInputRow<GoodsAfterSalesWorkbookRow>;
 export type GoodsSizeWorkbookInputRow = GuidanceInputRow<GoodsSizeWorkbookRow>;
@@ -38,7 +45,7 @@ export function planGoodsAfterSalesWorkbook(rows: readonly GoodsAfterSalesWorkbo
   const source = (rows ?? []).filter(row => code(row.values.goodCode) === code(goodCode));
   if (!source.length) return keep();
   const errors = source.flatMap(row => (row.errors ?? []).map(error => 'A/S 안내 ' + row.row + '행: ' + error));
-  if (!goodCode || source.length !== 1) return fail([...errors, 'A/S 안내는 같은 상품코드에 한 행만 입력해주세요.']);
+  if (!goodCode || source.length !== 1) return fail([...errors, 'A/S 안내는 같은 판매자상품코드에 한 행만 입력해주세요.']);
   const row = source[0].values, expectedRevision = existing?.revision ?? 0;
   errors.push(...revisionError(row.revision, expectedRevision, 'A/S 안내'));
   const mode = row.mode.trim();
@@ -64,7 +71,7 @@ export function planGoodsSizeWorkbook(rows: readonly GoodsSizeWorkbookInputRow[]
   if (!['편집', '표시 중지'].includes(mode)) errors.push('사이즈 안내의 변경 방식은 편집 또는 표시 중지입니다.');
   if (mode === '표시 중지') {
     const emptyKeys = Object.keys(GOODS_SIZE_WORKBOOK_HEADERS).filter(key => !['goodCode', 'mode', 'revision'].includes(key)) as (keyof GoodsSizeWorkbookRow)[];
-    if (source.length !== 1 || emptyKeys.some(key => first[key].trim())) errors.push('표시 중지는 한 행에 상품코드·변경 방식·표 버전만 입력해주세요. 저장된 표는 유지됩니다.');
+    if (source.length !== 1 || emptyKeys.some(key => first[key].trim())) errors.push('표시 중지는 한 행에 판매자상품코드·변경 방식·표 버전만 입력해주세요. 저장된 표는 유지됩니다.');
     if (errors.length) return fail(errors);
     if (!before.enabled) return keep();
     return { kind: 'save', change: { expectedRevision, values: { ...before, enabled: false } }, warnings: ['저장된 사이즈표를 보존하고 공개 표시를 중지합니다.'] };
@@ -105,5 +112,5 @@ export function exportGoodsSizeWorkbookRows(records: readonly { goodCode: string
 export function goodsGuidanceOrphanErrors(rows: readonly { row: number; values: { goodCode: string } }[], goodCodes: readonly string[], sheet: string): string[] {
   const codes = new Set(goodCodes.map(code));
   return rows.flatMap(row => !code(row.values.goodCode) || !codes.has(code(row.values.goodCode))
-    ? [sheet + ' ' + row.row + '행: 상품 시트에 같은 상품코드가 필요합니다. 자동코드는 초안 저장 후 다시 내려받아 연결해주세요.'] : []);
+    ? [sheet + ' ' + row.row + '행: 상품 시트에 같은 판매자상품코드가 필요합니다. 자동코드는 초안 저장 후 다시 내려받아 연결해주세요.'] : []);
 }
