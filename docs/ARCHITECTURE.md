@@ -297,7 +297,7 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 
 ## 6. 권한 모델 (RLS)
 
-판매자센터는 통합 매니저·계정 주매니저·계정 부매니저·인플루언서·대행사·물류출고관리의 6역할을 `private.operator_memberships`에 보관한다. `admin_current_operator_access()`의 현재 업무 권한을 `lib/admin/access.ts`에서 해석하고 메뉴·홈 요약·도움말 진입점·화면 로더·서버 액션에 동일하게 적용한다. 권한 조회 실패나 알 수 없는 화면은 접근을 거절한다. `profiles.role`은 운영 계정의 기본 자격으로 남지만 단독으로 접근을 허용하지 않으며, 담당업무 표시는 접근 권한을 바꾸지 않는다. [ADR-0020](./adr/0020-store-manager-capabilities.md), [운영 런북](./runbooks/operator-access.md).
+판매자센터는 통합 매니저·계정 주매니저·계정 부매니저·인플루언서·대행사·물류출고관리의 6역할을 `private.operator_memberships`에 보관한다. `admin_current_operator_access()`의 현재 업무 권한을 `lib/admin/access.ts`에서 해석하고 메뉴·홈 요약·도움말 진입점·화면 로더·서버 액션에 동일하게 적용한다. 권한 조회 실패나 알 수 없는 화면은 접근을 거절한다. `profiles.role`은 운영 계정의 기본 자격으로 남지만 단독으로 접근을 허용하지 않으며, 담당업무 표시는 접근 권한을 바꾸지 않는다. 물류출고관리는 상품 공지사항 관리와, 출고 전용 능력 `sales.dispatch`로 발주(주문)확인/발송관리·배송현황 관리의 출고지시 내려받기·운송장 회신·발송·배송완료(택배 외 배송의 인계·수령 기록 포함)만 처리하고, `sales.manage`는 이 능력을 포함한다(DB `private.has_operator_capability`·앱 `hasAdminCapability`가 같은 함의 표를 쓴다). 주문 조회 권한(`sales.read`)이 없는 출고 전용 운영자에게는 DB가 발송·배송현황 목록과 표준 출고지시 자료의 구매자·결제·금액을 비우고 그 값으로 찾기·거르기·정렬을 막는다(수령인 정보만). [ADR-0020](./adr/0020-store-manager-capabilities.md), [운영 런북](./runbooks/operator-access.md).
 
 전환 전 호환 권한은 migration 시점에 기록한 기존 운영자 ID에만 적용한다. 명시적 역할은 전환 완료 전에도 제한되고, 신규 raw staff/admin은 호환 권한을 얻지 않는다. 최초 활성화는 통합 매니저 1명과 기존 운영자 전원의 역할 또는 회수를 한 트랜잭션으로 확정한다. 통합 매니저의 일반 회수·정지·삭제는 차단하고 승계 경로를 사용한다. 기존 역할 변경 RPC의 실행 권한은 회수했다.
 
@@ -464,7 +464,7 @@ Production Auth 설정:
 - PG 정산은 `private.pg_settlement_imports`, `private.pg_settlement_pages`, `private.pg_settlement_source_keys`, `private.pg_settlement_records`에 작업·두 차례 조회·정확한 소수·완료 시점 대조 결과를 보존한다. 연결은 기본 OFF이며 [정산 런북](./runbooks/pg-settlement-reconciliation.md)을 따른다. 기존 결제 확정·환급 원장은 이 수집에서 변경하지 않는다.
 - BEST 선정과 표시 설정은 private RLS로 격리하고 `cs.manage`/`store.manage`의 현재 권한을 검사한다. CAS·원문 fingerprint·작업자/요청 키로 저장하고 원문·공개 상태·구매 무효화 시 재확인 필요로 전환한다. 공개 RPC는 유효한 결제·배송 완료와 상품/IP 공개 조건을 다시 검사하며 구매·회원 식별자·선정 사유를 제외한다. 최초 선정과 환불은 주문 advisory lock으로 직렬화한다.
 - `private.customer_reward_policy`는 기본 꺼짐인 등급별 최종 주문 적립률과 BEST 1회 보상을 관리한다. 주문 생성은 유효 정책을 견적 계약과 주문에 저장한다. BEST 선정 트리거는 당시 정책으로 작업을 적재하고, 별도 처리 RPC가 주문→적립금 계정→리뷰 잠금 순서로 기존 lot/원장을 갱신한다. 리뷰별 고유 지급 이력으로 재선정·동시 작업의 중복을 막고, 회수 설정은 미사용액 회수 및 사용액의 향후 적립 상계로 처리한다. 공개 혜택 reader는 이벤트·BEST를 리뷰당 한 건으로 합친다. [계약·검증](research/smartstore-admin/customer-rewards.md)을 따른다.
-- 발송지연 안내 상태 조회는 private 안내 원장과 `email_intents`를 읽는 `sales.manage` RPC를 사용한다. 미리보기는 제외하며 페이지 밖 결과 변경도 전체 조건의 fingerprint로 검출해 내보내기를 중단한다. 기존 전송·재시도와 배송현황 조회는 유지한다.
+- 발송지연 안내 상태 조회는 private 안내 원장과 `email_intents`를 읽는 `sales.dispatch` RPC(`sales.manage`가 포함)를 사용한다. 미리보기는 제외하며 페이지 밖 결과 변경도 전체 조건의 fingerprint로 검출해 내보내기를 중단한다. 기존 전송·재시도와 배송현황 조회는 유지한다.
 
 ### 9.1 환경 변수 · 토스·나이스페이 rollout gate와 코페이 drain 경계
 

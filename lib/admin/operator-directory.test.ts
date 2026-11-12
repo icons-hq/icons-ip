@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { canChangeOperator, canRevokeOperator, normalizeOperatorFilters, operatorDirectoryHref, parseOperatorDirectory, validateOperatorSetup, type OperatorRecord } from './operator-directory';
+import { ASSIGNABLE_MANAGER_ROLES, canChangeOperator, canRevokeOperator, normalizeOperatorFilters, operatorDirectoryHref, parseOperatorDirectory, validateOperatorSetup, type OperatorRecord } from './operator-directory';
+import { MANAGER_ROLE_LABELS } from './access';
+import { normalizeOperatorInvitationInput } from './operator-invitations';
 const actorId = '81000000-0000-4000-8000-000000000001';
 const targetId = '81000000-0000-4000-8000-000000000002';
 const row: OperatorRecord = { id: actorId, nickname: '운영자', maskedEmail: 'q***@example.test', role: 'admin', managerRole: null, membershipRevision: 0, createdAt: '2026-10-13T00:00:00Z', suspendedAt: null, duty: 'cs', dutyRevision: 1 };
@@ -40,5 +42,11 @@ describe('operator directory', () => {
     expect(canChangeOperator(actorId, 'owner', { ...target, id: actorId })).toBe(false);
     expect(canChangeOperator(actorId, 'primary', { ...target, managerRole: 'owner' })).toBe(false);
     expect(canChangeOperator(actorId, 'agency', target)).toBe(false);
+  });
+  it('매니저 초대·역할 변경에서 물류출고관리를 고를 수 있다 (1014-084)', () => {
+    expect(ASSIGNABLE_MANAGER_ROLES).toContain('logistics');
+    expect(MANAGER_ROLE_LABELS.logistics).toBe('물류출고관리');
+    expect(normalizeOperatorInvitationInput({ id: '85000000-0000-4000-8000-000000000001', email: ' Warehouse@Example.test ', name: '물류 담당', managerRole: 'logistics', duty: 'logistics' }))
+      .toEqual({ id: '85000000-0000-4000-8000-000000000001', email: 'warehouse@example.test', name: '물류 담당', managerRole: 'logistics', duty: 'logistics' });
   });
 });

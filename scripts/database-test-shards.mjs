@@ -34,6 +34,8 @@ const operators = [
   sql('operator_capability_coverage'),
   sql('operator_capability_guards'),
   sql('operator_manager_lifecycle'),
+  // 1014-084 물류출고관리의 출고 전용 권한과 다른 역할의 권한 불변.
+  sql('operator_logistics_dispatch'),
   sql('operator_email_invitations'),
   sql('operator_member_loyalty_projection'),
   sql('operator_manual_recovery_guards'),
