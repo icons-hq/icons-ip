@@ -105,7 +105,7 @@ describe('ClaimActionPanel — 반품배송비 차감', () => {
     });
     expect(html).toContain('data-claim-refund-deduction="skipped"');
     expect(html).toContain('이 결제는 결제사 부분 취소를 쓸 수 없어 차감하지 않고 결제 금액 전액을 환불합니다.');
-    expect(html).toContain('반품배송비 3,000원(편도 3,000원)는 필요하면 배송비 청구로 따로 받으세요.');
+    expect(html).toContain('반품배송비 3,000원(편도 3,000원)은 필요하면 배송비 청구로 따로 받으세요.');
     expect(html).toContain('나이스페이 전액 취소');
     expect(html).not.toContain('부분 취소)');
   });

@@ -186,7 +186,7 @@ function TimelineEntry({ entry, digital = false }: { entry: AdminOrderTimelineEn
     {entry.amount != null ? <p className={`${EVENT_TEXT} tabular-nums`}>{money(entry.amount)}{entry.provider ? ` · ${entry.provider === 'korpay' ? 'Korpay' : entry.provider === 'toss' ? 'Toss' : entry.provider === 'nicepay' ? 'NICEPAY' : '결제사'}` : ''}</p> : null}
     {status ? <p className={`${EVENT_TEXT} text-muted-foreground`}>현재 상태 · {status}</p> : null}
     {entry.shipmentId ? <p className={EVENT_TEXT}>{entry.originName ?? '배송 건'} · <ShortId value={entry.shipmentId} /></p> : null}
-    {entry.trackingNumber ? <p className={EVENT_TEXT}>운송장 · {entry.carrier} {entry.trackingNumber}</p> : null}
+    {entry.trackingNumber ? <p className={EVENT_TEXT}>운송장 · {[entry.carrierLabel ?? entry.carrier, entry.trackingNumber].filter(Boolean).join(' ')}</p> : null}
     {entry.body ? <p className={`${EVENT_TEXT} whitespace-pre-wrap`}>{entry.body}</p> : null}
     {href ? <Link className="inline-flex min-h-10 items-center text-sm underline underline-offset-4" href={href}>{entry.source === 'inquiry' ? '문의 상세 열기' : '요청 상세 열기'}</Link> : null}
   </li>;

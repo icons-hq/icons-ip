@@ -38,8 +38,10 @@ type StepState = 'done' | 'current' | 'todo' | 'optional' | 'closed';
 const STEP_CAPTION: Record<StepState, string> = { done: '완료', current: '지금 할 일', todo: '남은 단계', optional: '필요 시', closed: '종료' };
 
 /** Navigation derives only from refreshed claim evidence. It never submits or advances a claim. */
-export function ReturnClaimWorkspace({ progress, review, collection, hold, refund, exception }: {
+export function ReturnClaimWorkspace({ progress, review, collection, hold, refund, exception, attention = null }: {
   progress: ReturnClaimProgress;
+  /** 단계와 상관없이 맨 위 상태 칸에 두는 남은 일(불량 기록 필요 등). 종결된 요청에서도 접힌 단계 안에 숨지 않는다. */
+  attention?: ReactNode;
   review: ReactNode;
   collection: ReactNode;
   hold: ReactNode;
@@ -97,8 +99,9 @@ export function ReturnClaimWorkspace({ progress, review, collection, hold, refun
         <h3 className="text-base leading-snug font-medium">반품 단계별 처리</h3>
         {/* 다음 할 일은 바로 아래 단계 칸이 '지금 할 일'로 말한다. 같은 말을 또 적지 않고 화면 낭독기로만 읽는다. */}
         <p className={nextStep ? 'sr-only' : 'min-w-0 break-words text-muted-foreground'} role="status">{closed ? '요청 처리가 종료됐습니다. 기존 증빙과 환불 기록을 확인하세요.'
-          : nextStep ? `다음 확인: ${nextStep.title}` : '반품과 환불 완료 기록을 확인했습니다.'}</p>
+          : nextStep ? `다음 확인: ${nextStep.title}` : attention ? '반품과 환불은 완료됐습니다. 아래 남은 일을 처리해주세요.' : '반품과 환불 완료 기록을 확인했습니다.'}</p>
       </div>
+      {attention ? <div className="flex min-w-0 flex-col gap-2" data-claim-workspace-attention="">{attention}</div> : null}
       <nav aria-label="반품 처리 단계" className="grid grid-cols-2 gap-2 sm:grid-cols-4 print:hidden">
         {steps.map(step => {
           const state = stateOf(step.id);

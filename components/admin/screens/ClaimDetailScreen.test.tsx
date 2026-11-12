@@ -258,6 +258,30 @@ describe('ClaimDetailScreen', () => {
     expect(html).not.toContain('admin.order.bank_refund_account_viewed');
     expect(html).not.toContain('export-id-not-rendered');
   });
+  /* QA2(CS·운영 A·B): 웨이브 2 감사 action(불량 재고·자동 회수·반품배송비 차감·재고 부족 부분 취소)이 원문으로 보였다. */
+  it('웨이브 2 감사 action을 원문 대신 업무 용어로 표시한다', () => {
+    const at = NOW.toISOString();
+    const actions = [
+      'admin.order.claim_defective_stock_planned', 'order.claim_defective_stock_recorded',
+      'system.order.claim_return_pickup_requested', 'system.order.claim_return_pickup_canceled', 'admin.order.claim_return_pickup_retried',
+      'admin.order.claim_refund_deduction_decided', 'admin.order.claim_refund_deduction_confirmed', 'system.order.claim_refund_deduction_confirmed',
+      'admin.order.claim_refund_deduction_not_applied', 'system.order.claim_refund_deduction_not_applied',
+      'admin.order.partial_cancellation_started', 'admin.order.partial_cancellation_applied', 'admin.order.partial_cancellation_completed',
+      'admin.order.partial_cancellation_transferred', 'admin.order.partial_cancellation_rejected', 'admin.order.partial_cancellation_needs_review',
+      'admin.order.partial_cancellation_resolved', 'admin.order.partial_cancellation_account_viewed', 'admin.order.claim_operational_fee_recorded',
+    ];
+    const html = render({ timeline: actions.map((action) => ({ action, createdAt: at, actorName: 'cs_lead', diff: {} })) });
+    for (const action of actions) expect(html).not.toContain(action);
+    expect(html).toContain('품목별 재고 처리 선택 저장');
+    expect(html).toContain('반품 자동 회수 취소 (자동)');
+    expect(html).toContain('반품배송비 차감 결정');
+    expect(html).toContain('재고 부족 부분 취소 적용');
+  });
+  it('나이스페이 결제사는 이름으로 보인다', () => {
+    const html = render({ payment: { ...detail().payment!, provider: 'nicepay' } });
+    expect(html).toContain('나이스페이');
+    expect(html).not.toMatch(/>nicepay</);
+  });
   it('사유 정정 감사 이력을 업무 용어로 표시한다', () => {
     const html = render({ timeline: [{ action: 'admin.order.claim_reason_changed', createdAt: NOW.toISOString(), actorName: 'cs_lead', diff: {} }] });
     expect(html).toContain('교환 사유 정정');

@@ -88,6 +88,23 @@ describe('ClaimActionPanel — 품목별 재고 처리', () => {
     expect(render({ stage: 'completed', defectiveStock: stock({ pending: 0, frozen: true }) })).not.toContain('data-claim-defective-pending');
   });
 
+  it('종결된 반품의 불량 기록 필요는 접힌 환불 단계가 아니라 맨 위 상태 칸에 있다(QA2 M1)', () => {
+    const done = render({ stage: 'completed', refundCompleted: true, defectiveStock: stock({ pending: 1, frozen: true }) });
+    const attention = done.indexOf('data-claim-workspace-attention');
+    const pending = done.indexOf('data-claim-defective-pending');
+    expect(attention).toBeGreaterThan(-1);
+    expect(pending).toBeGreaterThan(attention);
+    /* 단계 칸(nav)·접힌 단계(details)보다 앞에 있다. */
+    expect(pending).toBeLessThan(done.indexOf('aria-label="반품 처리 단계"'));
+    expect(pending).toBeLessThan(done.indexOf('<details'));
+    expect(done.match(/data-claim-defective-pending/g)).toHaveLength(1);
+    expect(done).toContain('반품과 환불은 완료됐습니다. 아래 남은 일을 처리해주세요.');
+    /* 기록이 끝났으면 상태 칸은 지금 문구 그대로다. */
+    const clean = render({ stage: 'completed', refundCompleted: true, defectiveStock: stock({ pending: 0, frozen: true }) });
+    expect(clean).not.toContain('data-claim-workspace-attention');
+    expect(clean).toContain('반품과 환불 완료 기록을 확인했습니다.');
+  });
+
   it('재고가 정해진 뒤(주문 canceled·무통장 취소 확정)에는 선택 칸·저장 양식을 그리지 않는다', () => {
     const frozen = stock({ frozen: true });
     expect(render({ defectiveStock: frozen })).not.toContain('data-claim-defective-stock');

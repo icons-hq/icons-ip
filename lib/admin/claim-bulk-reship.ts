@@ -33,6 +33,8 @@ export const CLAIM_BULK_RESHIP_ADDRESS_CHANGED = '최종 주소가 처음 확인
 export const CLAIM_BULK_RESHIP_PREVIOUS_FAILED = '앞 출고지의 재출고가 끝나지 않아 보내지 않았습니다. 요청 상세에서 확인해주세요.';
 export const CLAIM_BULK_RESHIP_OUTCOME_UNKNOWN = '처리 결과를 확인하지 못했습니다. 요청 상세의 [저장 결과 확인]으로 결과를 확인해주세요.';
 export const CLAIM_BULK_RESHIP_AUTH_CHANGED = '로그인 상태가 바뀌어 남은 줄을 보내지 않았습니다. 다시 로그인한 뒤 상세에서 확인해주세요.';
+/** 불러오기 단계에서 뺀 요청(XC3): 이 탭에 결과를 확인하지 않은 재출고 작업이 남아 있다. 주소를 열지 않고 보내지도 않는다. */
+export const CLAIM_BULK_RESHIP_PENDING_EXCLUDED = '결과를 확인하지 않은 재출고 작업이 남아 있어 이 요청은 뺐습니다. 요청 상세의 [저장 결과 확인]으로 결과를 먼저 확인해주세요.';
 export const CLAIM_BULK_RESHIP_PENDING_OPERATION = '결과를 확인하지 않은 연락처·재출고 작업이 남아 있어 보내지 않았습니다. 요청 상세에서 저장 결과를 먼저 확인해주세요.';
 const INVALID_ROW = '재출고 정보를 확인하지 못했습니다. 택배사·운송장·상품을 다시 확인해주세요.';
 const JOURNAL_UNAVAILABLE = '요청번호를 보관할 수 없어 보내지 않았습니다. 브라우저 저장소를 확인해주세요.';

@@ -1,4 +1,5 @@
 import { krwAmountWords } from '@/lib/format';
+import { objectParticle, topicParticle } from '@/lib/korean-particle';
 
 /*
  * 반품배송비 차감(QNA-033, ADR-0031) — 화면이 읽는 판정·결정과 문구.
@@ -111,7 +112,23 @@ export function returnFeeDeductionSkippedNotice(deduction: ReturnFeeDeduction | 
   if (!deduction || deduction.applicable || !deduction.reason) return null;
   const base = REASON_COPY[deduction.reason];
   if (deduction.reason === 'claim_fee_invoiced') return base;
-  return `${base} 반품배송비 ${krwAmountWords(deduction.deductionAmount)}(${returnFeeDeductionBasisLabel(deduction)})는 필요하면 배송비 청구로 따로 받으세요.`;
+  const amount = krwAmountWords(deduction.deductionAmount);
+  return `${base} 반품배송비 ${amount}(${returnFeeDeductionBasisLabel(deduction)})${topicParticle(amount)} 필요하면 배송비 청구로 따로 받으세요.`;
+}
+
+/**
+ * 운영 상세의 '반품·교환 배송비'(별도 청구) 칸 안내. 차감 판정·결정이 있을 때만 쓴다(스위치가 꺼져 있고 결정이 없으면 null —
+ * 그 칸은 지금처럼 '원 주문 환불액에서는 차감하지 않습니다'라고 말한다). 차감하는 반품에서 같은 반품배송비를 이 칸으로 다시
+ * 청구하지 않도록 환불 단계의 차감과 같은 금액을 말한다(QA2 S-T12a-03).
+ */
+export function returnFeeDeductionFeePanelNote(deduction: ReturnFeeDeduction | null): string | null {
+  if (!deduction) return null;
+  if (deduction.applicable) {
+    const amount = krwAmountWords(deduction.deductionAmount);
+    return `이 반품은 반품배송비 ${amount}(${returnFeeDeductionBasisLabel(deduction)})${objectParticle(amount)} ${deduction.state === 'applied' ? '환불액에서 뺐습니다' : '환불할 때 환불액에서 뺍니다'}. 같은 반품배송비를 여기서 다시 청구하지 마세요.`;
+  }
+  if (deduction.reason === 'claim_fee_invoiced') return '이 반품은 여기서 청구한 배송비가 있어 환불액에서 반품배송비를 빼지 않습니다.';
+  return `이 반품은 환불액에서 반품배송비를 빼지 않습니다. ${deduction.reason ? REASON_COPY[deduction.reason] : ''} 반품배송비가 필요하면 여기서 청구합니다.`.replace(/\s+/g, ' ');
 }
 
 /** 일괄 환불 확인창의 행 꼬리. 예: '반품배송비 3,000원 차감'. */

@@ -103,7 +103,7 @@ function CollectionPanel({ claimId, operator = false, carriers = [], shipmentLab
       </fieldset>
       <button className="btn btn-sm" disabled={pending} type="submit">{uncertain ? '같은 요청으로 저장 결과 확인' : '회수 정보 정정 저장'}</button>
     </form> : null}
-    {operator && document?.history.length ? <details><summary>최근 정정 이력 {document.history.length}건</summary><ol>{document.history.map(item => <li key={item.id}>{formatOrderDateTime(item.createdAt)} · {COLLECTION_METHODS[item.method]} · {item.carrier} {item.trackingNumber}<br />{item.evidence}</li>)}</ol></details> : null}
+    {operator && document?.history.length ? <details><summary>최근 정정 이력 {document.history.length}건</summary><ol>{document.history.map(item => <li key={item.id}>{formatOrderDateTime(item.createdAt)} · {COLLECTION_METHODS[item.method]}{item.carrier || item.trackingNumber ? ` · ${[item.carrier ? carriers.find(c => c.code === item.carrier)?.label ?? item.carrier : null, item.trackingNumber].filter(Boolean).join(' ')}` : ''}<br />{item.evidence}</li>)}</ol></details> : null}
     {error ? <p role="alert">{error}</p> : null}{message ? <p role="status">{message}</p> : null}
   </section>;
 }

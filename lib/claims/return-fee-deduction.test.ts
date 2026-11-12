@@ -5,6 +5,7 @@ import {
   parseMyOrderRefundDeduction,
   parseReturnFeeDeduction,
   parseReturnFeeDeductionPolicy,
+  returnFeeDeductionFeePanelNote,
   returnFeeDeductionHeadline,
   returnFeeDeductionRowNote,
   returnFeeDeductionSkippedNotice,
@@ -45,10 +46,22 @@ describe('문구', () => {
 
   it('차감하지 않는 이유와 배송비 청구 안내', () => {
     const skipped = parseReturnFeeDeduction({ ...planDocument, applicable: false, reason: 'fee_exceeds_payment', refundAmount: 30000 });
-    expect(returnFeeDeductionSkippedNotice(skipped)).toBe('반품배송비가 결제 금액 이상이라 차감하지 않고 결제 금액 전액을 환불합니다. 반품배송비 3,000원(편도 3,000원)는 필요하면 배송비 청구로 따로 받으세요.');
+    expect(returnFeeDeductionSkippedNotice(skipped)).toBe('반품배송비가 결제 금액 이상이라 차감하지 않고 결제 금액 전액을 환불합니다. 반품배송비 3,000원(편도 3,000원)은 필요하면 배송비 청구로 따로 받으세요.');
     const invoiced = parseReturnFeeDeduction({ ...planDocument, applicable: false, reason: 'claim_fee_invoiced', refundAmount: 30000 });
     expect(returnFeeDeductionSkippedNotice(invoiced)).toBe('이 요청에 배송비 청구가 이미 있어 환불금에서 다시 차감하지 않습니다.');
     expect(returnFeeDeductionSkippedNotice(parseReturnFeeDeduction(planDocument))).toBeNull();
+  });
+
+  it('배송비 청구 칸은 차감 판정·결정이 있을 때만 차감 안내와 같은 말을 한다(QA2 S-T12a-03)', () => {
+    expect(returnFeeDeductionFeePanelNote(null)).toBeNull();
+    expect(returnFeeDeductionFeePanelNote(parseReturnFeeDeduction(planDocument)))
+      .toBe('이 반품은 반품배송비 3,000원(편도 3,000원)을 환불할 때 환불액에서 뺍니다. 같은 반품배송비를 여기서 다시 청구하지 마세요.');
+    expect(returnFeeDeductionFeePanelNote(parseReturnFeeDeduction({ ...planDocument, source: 'decision', state: 'applied' })))
+      .toBe('이 반품은 반품배송비 3,000원(편도 3,000원)을 환불액에서 뺐습니다. 같은 반품배송비를 여기서 다시 청구하지 마세요.');
+    expect(returnFeeDeductionFeePanelNote(parseReturnFeeDeduction({ ...planDocument, applicable: false, reason: 'claim_fee_invoiced', refundAmount: 30000 })))
+      .toBe('이 반품은 여기서 청구한 배송비가 있어 환불액에서 반품배송비를 빼지 않습니다.');
+    expect(returnFeeDeductionFeePanelNote(parseReturnFeeDeduction({ ...planDocument, applicable: false, reason: 'gift_order', refundAmount: 30000 })))
+      .toBe('이 반품은 환불액에서 반품배송비를 빼지 않습니다. 선물 주문은 결제한 분과 요청한 분이 다를 수 있어 차감하지 않고 결제 금액 전액을 환불합니다. 반품배송비가 필요하면 여기서 청구합니다.');
   });
 
   it('구매자 주문 상세 문구', () => {

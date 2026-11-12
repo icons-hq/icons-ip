@@ -17,6 +17,21 @@ describe('claim collection guidance', () => {
     expect(html).not.toContain('양식 복사'); expect(html).not.toContain('결제사 취소 접수 양식');
     expect(html).not.toContain('<form');
   });
+  /* QA2 S-T13b-03: 철회된 반품도 자동 회수 접수의 결과(수거 취소됨 · 요청 철회)를 회수 단계에 남긴다. 처리 양식은 없다. */
+  it('철회된 반품은 자동 회수 접수 결과를 읽기로 보인다', () => {
+    const pickup = { pickupId: '30000000-0000-4000-8000-000000000001', state: 'canceled' as const, carrier: 'hanjin', carrierLabel: '한진택배', trackingNumber: null,
+      requestedAt: '2026-11-12T00:00:00.000Z', attempts: 1, autoAttempts: 1, maxAttempts: 5, lastErrorCode: null, nextAttemptAt: null, inProgress: false,
+      cancelReason: 'withdrawn', canceledAt: '2026-11-12T01:00:00.000Z' };
+    const collections = [{ shipmentId: '20000000-0000-4000-8000-000000000001', originId: 'o1', originName: 'TEST 김포', returnAddress: '김포 반송지', items: [],
+      collectedAt: null, collectedBy: null, collectorName: null, evidence: null, bundles: [{ bundleId: '40000000-0000-4000-8000-000000000001', returnAddressId: null,
+        returnName: '', returnAddress: '김포 반송지', returnPhone: '', items: [], collectedAt: null, collectorName: null, evidence: null, receivedOn: null, pickup }] }];
+    const html = renderToStaticMarkup(<ClaimActionPanel {...base} claimType="return" stage="withdrawn" collections={collections} />);
+    expect(html).toContain('철회된 요청의 회수 처리는 종료됐습니다.');
+    expect(html).toContain('data-claim-withdrawn-pickups');
+    expect(html).toMatch(/TEST 김포.*수거 취소됨.*· 요청 철회/);
+    expect(html).not.toContain('<form');
+    expect(html).not.toContain('회수 다시 접수');
+  });
   it('does not report a physical collection for a pre-shipment cancellation', () => {
     const html = renderToStaticMarkup(<ClaimActionPanel {...base} />);
     expect(html).toContain('상품 회수가 필요하지 않은 취소');

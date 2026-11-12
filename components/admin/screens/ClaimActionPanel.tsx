@@ -41,6 +41,7 @@ import {
 } from '@/lib/claims/return-fee-deduction';
 import { krwAmountWords } from '@/lib/format';
 import { DEFECTIVE_STOCK_PENDING_NOTICE, type ClaimDefectiveStock } from '@/lib/admin/defective-stock';
+import { RETURN_PICKUP_CANCEL_REASON_LABELS, RETURN_PICKUP_STATE_LABELS } from '@/lib/admin/claim-return-pickup';
 import { AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
@@ -416,6 +417,25 @@ export function ClaimActionPanel({
   ) : null;
   if (stage === 'withdrawn' && claimType !== 'return') return <div className="flex flex-col gap-2"><h3 className="text-base font-medium">{panelTitle}</h3><p>요청 철회로 처리가 종료됐습니다. 주문과 결제는 유지됩니다.</p>{secondaryActions ? <div className="flex min-w-0 flex-wrap items-start gap-2 [&>section]:w-full">{secondaryActions}</div> : null}</div>;
 
+  /* 환불(재고)은 확정됐는데 불량 재고 기록만 남은 반품(QNA-035). 종결된 요청은 단계가 모두 접히므로 단계 안이 아니라 맨 위 상태 칸에 둔다
+     — 불량 재고 화면이 '반품 상세에서 [불량 기록 다시 시도]'를 안내한다(QA2 M1). */
+  const defectiveRetry = claimType === 'return' && defectiveStock && defectiveStock.pending > 0 && defectiveStock.frozen ? (
+    <form action={panelAction} className={FORM_CLASS} data-claim-defective-pending="">
+      <PanelActionField kind="defectiveRetry" />
+      <input name="claimId" type="hidden" value={claimId} />
+      <input name="claimType" type="hidden" value={claimType} />
+      <AdminNotice title="불량 기록 필요" tone="warning">{DEFECTIVE_STOCK_PENDING_NOTICE}</AdminNotice>
+      <Button className="w-fit" disabled={pending} size="sm" type="submit" variant="outline">불량 기록 다시 시도</Button>
+    </form>
+  ) : null;
+
+  /* 철회된 반품: 회수 처리는 끝났지만 자동 회수 접수가 있었으면 그 결과(수거 취소됨 · 요청 철회 등)를 남긴다(QA2 S-T13b-03). */
+  const withdrawnPickups = stage === 'withdrawn' ? collections.flatMap((collection) => {
+    const bundles = collection.bundles ?? [];
+    return bundles.flatMap((bundle, index) => bundle.pickup ? [{ key: bundle.bundleId, label: bundles.length > 1
+      ? `${collection.originName} · 반품지 ${index + 1}/${bundles.length}` : collection.originName, pickup: bundle.pickup }] : []);
+  }) : [];
+
   const originCollection = <>
     {cancellationWithoutCollection ? <p className="text-muted-foreground">상품 회수가 필요하지 않은 취소입니다.</p> : collectionPolicy === 'origin' ? <section aria-label="출고지별 회수 확인" className="flex min-w-0 flex-col gap-3">
         <h4 className={SECTION_TITLE_CLASS}>출고지별 회수 확인</h4>
@@ -565,15 +585,6 @@ export function ClaimActionPanel({
         </form>
       ) : null}
 
-      {claimType === 'return' && defectiveStock && defectiveStock.pending > 0 && defectiveStock.frozen ? (
-        <form action={panelAction} className={FORM_CLASS} data-claim-defective-pending="">
-          <PanelActionField kind="defectiveRetry" />
-          <input name="claimId" type="hidden" value={claimId} />
-          <input name="claimType" type="hidden" value={claimType} />
-          <AdminNotice title="불량 기록 필요" tone="warning">{DEFECTIVE_STOCK_PENDING_NOTICE}</AdminNotice>
-          <Button className="w-fit" disabled={pending} size="sm" type="submit" variant="outline">불량 기록 다시 시도</Button>
-        </form>
-      ) : null}
 
       {canFileRefund && !bankTransfer ? (
         <form action={panelAction} className={FORM_CLASS}>
@@ -690,7 +701,17 @@ export function ClaimActionPanel({
       {canApprove ? rejectionForm : null}
     </>}
     collection={<>{stage === 'withdrawn'
-      ? <p className="text-muted-foreground">철회된 요청의 회수 처리는 종료됐습니다.</p>
+      ? <>
+        <p className="text-muted-foreground">철회된 요청의 회수 처리는 종료됐습니다.</p>
+        {withdrawnPickups.length ? <ul aria-label="자동 회수 접수 결과" className="flex flex-col gap-1.5 text-sm" data-claim-withdrawn-pickups="">
+          {withdrawnPickups.map(({ key, label, pickup }) => <li className="flex flex-wrap items-center gap-x-2 gap-y-1" key={key}>
+            <span className="font-medium">{label}</span>
+            <AdminStatusBadge tone={statusTone('claimReturnPickup', pickup.state)}>{RETURN_PICKUP_STATE_LABELS[pickup.state]}</AdminStatusBadge>
+            {pickup.state === 'canceled' && pickup.cancelReason ? <span>· {RETURN_PICKUP_CANCEL_REASON_LABELS[pickup.cancelReason] ?? '사유 확인 필요'}</span> : null}
+            {pickup.trackingNumber ? <span className="text-muted-foreground tabular-nums">· {pickup.carrierLabel ?? pickup.carrier} 회수 운송장 {pickup.trackingNumber}</span> : null}
+          </li>)}
+        </ul> : null}
+      </>
       : <>{originCollection}{legacyCollection}</>}{returnCollectionContact}</>}
     hold={<>{holdControl}<p className="text-muted-foreground">{stage === 'withdrawn' || stage === 'rejected' || stage === 'completed'
       ? '종결된 요청은 보류하거나 보류를 해제할 수 없습니다.' : canResume
@@ -698,6 +719,7 @@ export function ClaimActionPanel({
       : '추가 확인이 필요한 경우에만 보류합니다. 보류할 사유가 없으면 다음 작업을 진행하세요.'}</p></>}
     refund={<>{stage !== 'withdrawn' ? refundControls : null}{returnRefundSummary}</>}
     exception={canReject && !canApprove ? rejectionFold : null}
+    attention={defectiveRetry}
   /></>;
 
   /* 교환은 '지금 할 일'을 맨 위에 둔다. 승인 전에는 승인이 먼저라 회수 안내를 그 아래로 내리고, 거부는 승인과 나란한 선택이 아니라 펼쳐서 쓰는 다른 길로 둔다. 보류·유형 전환·사유 정정은 필요할 때만 쓰는 일이라 한 줄로 묶는다. */
