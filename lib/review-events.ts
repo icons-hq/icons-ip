@@ -47,6 +47,12 @@ const instant = (value: unknown): value is string => typeof value === 'string' &
 const nullableInstant = (value: unknown): boolean => value === null || instant(value);
 const goodId = (value: unknown): value is string => typeof value === 'string' && /^[a-z0-9][a-z0-9-]{0,199}$/.test(value);
 const text = (value: unknown, min: number, max: number): value is string => typeof value === 'string' && [...value].length >= min && [...value].length <= max && value === value.trim() && !/[\u0000-\u001f\u007f]/.test(value);
+/**
+ * 저장된 리뷰이벤트 행 읽기용. 등록 규칙(text)과 같되 앞뒤의 JS trim 공백(NBSP·전각 공백·BOM 등)은 견딘다.
+ * 2026-11-12 전 DB 저장 검사는 btrim만 봐서 직접 RPC로 그런 문구가 저장됐을 수 있고, 그 한 행 때문에 목록 전체가 열리지 않으면 안 된다.
+ * 등록·수정 요청(parseReviewEventValues)과 문구 템플릿은 계속 text로 엄격히 본다.
+ */
+const storedText = (value: unknown, min: number, max: number): value is string => typeof value === 'string' && [...value].length <= max && text(value.trim(), min, max);
 const uniqueIds = (value: unknown, maximum: number, valid: (value: unknown) => boolean): value is string[] => Array.isArray(value) && value.length <= maximum && value.every(valid) && new Set(value).size === value.length;
 export function isReviewEventDate(value: unknown): value is string {
   if (typeof value !== 'string' || !/^20\d{2}-\d{2}-\d{2}$/.test(value)) return false;
@@ -138,7 +144,10 @@ export function parseReviewEvent(value: unknown): ReviewEvent | null {
   if (!object(value) || !isUuid(value.id) || !integer(value.number, 1) || !integer(value.revision, 1) || !instant(value.createdAt) || !instant(value.updatedAt)
     || !nullableInstant(value.archivedAt) || !nullableInstant(value.announcedAt) || !REVIEW_EVENT_STATES.includes(value.state as ReviewEventState)
     || typeof value.canEdit !== 'boolean' || ![value.entryCount, value.selectedCount, value.awardedCount, value.revokedCount].every(item => integer(item))) return null;
-  return parseReviewEventValues(value, true) ? value as unknown as ReviewEvent : null;
+  // 저장된 행은 이벤트명·내용 앞뒤의 유니코드 공백을 견딘다(storedText). 그 밖의 규칙은 등록 규칙 그대로 본다.
+  const { title, description } = value;
+  if (!storedText(title, 1, 15) || !storedText(description, 1, 30)) return null;
+  return parseReviewEventValues({ ...value, title: title.trim(), description: description.trim() }, true) ? value as unknown as ReviewEvent : null;
 }
 export function parseReviewEventSelection(value: unknown): ReviewEventSelection[] | null {
   if (!Array.isArray(value) || value.length > 1000 || new Set(value.map(item => item?.id)).size !== value.length
@@ -162,7 +171,7 @@ export function parseReviewEventWorkspace(value: unknown): ReviewEventWorkspace 
   return value as unknown as ReviewEventWorkspace;
 }
 export function parsePublicReviewEvent(value: unknown): PublicReviewEvent | null {
-  if (!object(value) || !isUuid(value.id) || !text(value.title, 1, 15) || !text(value.description, 1, 30) || !isReviewEventDate(value.startsOn) || !isReviewEventDate(value.endsOn) || !isReviewEventDate(value.announcesOn)
+  if (!object(value) || !isUuid(value.id) || !storedText(value.title, 1, 15) || !storedText(value.description, 1, 30) || !isReviewEventDate(value.startsOn) || !isReviewEventDate(value.endsOn) || !isReviewEventDate(value.announcesOn)
     || !integer(value.creditAmount, 1, 999999999999) || !integer(value.creditValidityDays, 1, 36500) || !integer(value.plannedWinners, 1, 1000)
     || !['basic', 'emphasis'].includes(String(value.bannerStyle)) || !['scheduled', 'active', 'closed', 'ready', 'announced'].includes(String(value.state))
     || !nullableInstant(value.announcedAt) || !nullableInstant(value.nextChangeAt)) return null;

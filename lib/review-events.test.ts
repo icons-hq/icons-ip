@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { newReviewEventValues, normalizeReviewEventFilters, parseReviewEventCreditPolicy, parseReviewEventSelection, parseReviewEventValues, reviewEventCreditPolicyLabel,
+import { newReviewEventValues, normalizeReviewEventFilters, parsePublicReviewEvent, parseReviewEvent, parseReviewEventCreditPolicy, parseReviewEventSelection, parseReviewEventValues, reviewEventCreditPolicyLabel,
   reviewEventCreditPolicyProblem, reviewEventError, reviewEventFieldErrors, reviewEventToday, trimReviewEventText, withReviewEventEndsOn, withReviewEventStartsOn,
   parseReviewEventTemplate, parseReviewEventTemplatePage, parseReviewEventTemplateValues, reviewEventTemplateError, reviewEventTemplateFieldErrors, reviewEventTemplateNeedsConfirm,
   trimReviewEventTemplateText, withReviewEventTemplate, REVIEW_EVENT_TEMPLATE_REPLACE_CONFIRM, REVIEW_EVENT_TEMPLATES_ADMIN_PATH, REVIEW_EVENT_TEMPLATE_UNUSABLE, reviewEventTemplateUsable } from './review-events';
@@ -23,6 +23,21 @@ describe('review event contracts', () => {
   });
   it('normalizes URL filters without negative or malformed pagination', () => {
     expect(normalizeReviewEventFilters({ page: '-1', pageSize: '999', from: '2026-10-14', to: '2026-10-13', state: 'broken' })).toMatchObject({ page: 1, pageSize: 20, from: '2026-10-14', to: '2026-10-14', state: 'all' });
+  });
+  /* 2026-11-12 전 DB 저장 검사는 btrim만 봐서 직접 RPC로 앞뒤 NBSP·전각 공백·BOM이 붙은 문구가 저장됐을 수 있다. 그 행 하나로 어드민 목록·고객 목록이 깨지지 않는다. */
+  it('reads stored events whose title or description carry Unicode whitespace at the edges, while saves stay strict', () => {
+    const values = { ...newReviewEventValues('2026-10-13'), title: '\u00A0후기 이벤트', description: '별점과 무관한 사용 후기\u3000' };
+    const stored = { id: '92000000-0000-4000-8000-000000000101', number: 1, revision: 1, createdAt: '2026-10-13T00:00:00Z', updatedAt: '2026-10-13T00:00:00Z', archivedAt: null, announcedAt: null,
+      state: 'scheduled', canEdit: true, entryCount: 0, selectedCount: 0, awardedCount: 0, revokedCount: 0, ...values };
+    expect(parseReviewEvent(stored)).toEqual(stored);
+    expect(parseReviewEvent({ ...stored, title: '\uFEFF후기 이벤트\u2028' })).not.toBeNull();
+    for (const change of [{ title: '\u00A0' }, { title: '\u00A0123456789012345' }, { description: '내용\u0007' }, { title: 7 }]) expect(parseReviewEvent({ ...stored, ...change })).toBeNull();
+    expect(parseReviewEventValues(values)).toBeNull();
+    expect(parseReviewEventValues(trimReviewEventText(values))).toEqual({ ...values, title: '후기 이벤트', description: '별점과 무관한 사용 후기' });
+    const shown = { id: stored.id, title: values.title, description: values.description, startsOn: values.startsOn, endsOn: values.endsOn, announcesOn: values.announcesOn,
+      creditAmount: 1000, creditValidityDays: 30, plannedWinners: 10, bannerStyle: 'basic', state: 'active', announcedAt: null, nextChangeAt: null };
+    expect(parsePublicReviewEvent(shown)).toEqual(shown);
+    expect(parsePublicReviewEvent({ ...shown, title: '\u3000' })).toBeNull();
   });
 });
 

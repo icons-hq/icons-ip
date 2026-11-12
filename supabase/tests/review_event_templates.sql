@@ -6,6 +6,11 @@ load 'safeupdate';
 create function pg_temp.review_template_error(q text,expected text) returns void language plpgsql as $$begin
  begin execute q;exception when others then if sqlerrm=expected or sqlstate=expected then return;end if;raise;end;
  raise exception 'Expected review event template error: %',expected;end $$;
+-- 리뷰이벤트 저장 요청 값(정책 꺼짐 상태에서 저장 검사 순서를 확인할 때 쓴다).
+create function pg_temp.review_event_values_for(p_title text,p_description text) returns jsonb language sql as $$
+ select jsonb_build_object('title',p_title,'description',p_description,'targetType','all','goodIds','[]'::jsonb,'categoryIds','[]'::jsonb,
+  'startsOn',((statement_timestamp() at time zone 'Asia/Seoul')::date+1)::text,'endsOn',((statement_timestamp() at time zone 'Asia/Seoul')::date+3)::text,
+  'announcesOn',((statement_timestamp() at time zone 'Asia/Seoul')::date+6)::text,'plannedWinners',4,'creditAmount',1000,'creditValidityDays',10,'bannerStyle','basic');$$;
 update private.operator_access_state set configured=false where id;
 delete from private.operator_memberships where true;
 insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data)
@@ -57,6 +62,18 @@ select pg_temp.review_template_error(format($q$select public.admin_save_review_e
  jsonb_build_object('title','포토리뷰 이벤트','description','사진과 함께 후기를 남겨주세요','targetType','all','goodIds','[]'::jsonb,'categoryIds','[]'::jsonb,
   'startsOn',((statement_timestamp() at time zone 'Asia/Seoul')::date+1)::text,'endsOn',((statement_timestamp() at time zone 'Asia/Seoul')::date+3)::text,
   'announcesOn',((statement_timestamp() at time zone 'Asia/Seoul')::date+6)::text,'plannedWinners',4,'creditAmount',1000,'creditValidityDays',10,'bannerStyle','basic')),'review_event_credit_policy');
+-- 리뷰이벤트 저장도 같은 기준이다(20261112200600): 직접 RPC로 앞뒤에 NBSP·전각 공백·BOM·줄 구분자가 붙은 이벤트명·내용은
+-- 정책 검사 전에 invalid_review_event로 거절하고(목록을 깨는 행이 더는 들어오지 않는다), 가운데 공백은 받아 정책 검사(꺼짐)까지 간다.
+select pg_temp.review_template_error(format($q$select public.admin_save_review_event(gen_random_uuid(),0,gen_random_uuid(),%L::jsonb)$q$,
+ pg_temp.review_event_values_for(E' 포토리뷰 이벤트','사진과 함께 후기를 남겨주세요')),'invalid_review_event');
+select pg_temp.review_template_error(format($q$select public.admin_save_review_event(gen_random_uuid(),0,gen_random_uuid(),%L::jsonb)$q$,
+ pg_temp.review_event_values_for('포토리뷰 이벤트',E'사진과 함께 후기를 남겨주세요　')),'invalid_review_event');
+select pg_temp.review_template_error(format($q$select public.admin_save_review_event(gen_random_uuid(),0,gen_random_uuid(),%L::jsonb)$q$,
+ pg_temp.review_event_values_for(E'﻿포토리뷰 이벤트','사진과 함께 후기를 남겨주세요')),'invalid_review_event');
+select pg_temp.review_template_error(format($q$select public.admin_save_review_event(gen_random_uuid(),0,gen_random_uuid(),%L::jsonb)$q$,
+ pg_temp.review_event_values_for('포토리뷰 이벤트',E'사진과 함께 후기를 남겨주세요 ')),'invalid_review_event');
+select pg_temp.review_template_error(format($q$select public.admin_save_review_event(gen_random_uuid(),0,gen_random_uuid(),%L::jsonb)$q$,
+ pg_temp.review_event_values_for(E'포토 리뷰　이벤트','사진과 함께 후기를 남겨주세요')),'review_event_credit_policy');
 
 -- 수정: 읽은 revision으로 저장하면 revision이 오르고, 감사 로그에 이전 문구가 남는다.
 select public.admin_save_review_event_template('93100000-0000-4000-8000-000000000101',1,'93100000-0000-4000-8000-000000001002','포토리뷰 이벤트','사진 한 장과 사용 후기를 남겨주세요') as updated \gset
