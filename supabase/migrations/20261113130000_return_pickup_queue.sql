@@ -499,17 +499,17 @@ grant execute on function public.get_my_order_return_pickup(uuid) to authenticat
 
 -- 8. 회수 묶음 읽기(운영 상세·일괄 사실·고객 회수 주소)에 회수 접수를 더한다. 행이 있는 묶음에만 'pickup' 키가 생긴다.
 -- 앵커 치환(재정의 최소화). 각 앵커는 정확히 한 번 나와야 한다.
-create function pg_temp.patch_function(p_function regprocedure, p_anchor text, p_replacement text) returns void language plpgsql as $$
+create or replace function pg_temp.return_pickup_patch(p_function regprocedure, p_anchor text, p_replacement text) returns void language plpgsql as $$
 declare definition text := pg_get_functiondef(p_function);
 begin
   if (length(definition) - length(replace(definition, p_anchor, ''))) / length(p_anchor) <> 1 then
     raise exception '% anchor must appear once', p_function; end if;
   execute replace(definition, p_anchor, p_replacement);
 end $$;
-select pg_temp.patch_function('private.claim_collection_bundles_json(uuid,uuid,boolean)'::regprocedure,
+select pg_temp.return_pickup_patch('private.claim_collection_bundles_json(uuid,uuid,boolean)'::regprocedure,
   $a$and coalesce(btrim(o.return_address),'')<>'')))$a$,
   $a$and coalesce(btrim(o.return_address),'')<>'')))||private.claim_return_pickup_json(b.id,true)$a$);
-select pg_temp.patch_function('private.claim_collection_bundles_json(uuid,uuid,boolean)'::regprocedure,
+select pg_temp.return_pickup_patch('private.claim_collection_bundles_json(uuid,uuid,boolean)'::regprocedure,
   $a$'collectedAt',b.collected_at) end$a$,
   $a$'collectedAt',b.collected_at)||private.claim_return_pickup_json(b.id,false) end$a$);
 
