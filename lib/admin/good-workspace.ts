@@ -18,7 +18,7 @@ export const GOOD_EDITOR_SECTIONS = [
   { key: 'category', label: '카테고리', fields: ['categoryId'] },
   { key: 'basic', label: '상품명', fields: ['name', 'ipId', 'type'] },
   { key: 'attributes', label: '상품속성', fields: ['productAttributes', 'productAttributeDraft'] },
-  { key: 'price', label: '판매가', fields: ['price', 'compareAtPrice', 'regularPrice', 'discountEnabled', 'discountValue', 'discountUnit'] },
+  { key: 'price', label: '판매가', fields: ['price', 'compareAtPrice', 'regularPrice', 'discountEnabled', 'discountValue', 'discountUnit', 'discountPeriodEnabled', 'discountStartsAt', 'discountEndsAt', 'discountPeriod', 'showDiscountRate'] },
   { key: 'variants', label: '재고수량·옵션', fields: ['variants', 'variantBaseline', 'optionUsage', 'optionAxisName0', 'optionAxisValues0', 'optionAxisName1', 'optionAxisValues1', 'optionAxisName2', 'optionAxisValues2'] },
   { key: 'period', label: '판매기간', fields: ['salePeriodEnabled', 'saleStartsAt', 'saleEndsAt', 'salePeriodRevision'] },
   { key: 'limits', label: '구매 제한', fields: ['orderQuantityLimitEnabled', 'minOrderQty', 'maxOrderQty', 'memberPurchaseLimitEnabled', 'memberLifetimeQtyLimit', GOOD_OPTION_LIMIT_ERROR_FIELD] },
@@ -28,7 +28,7 @@ export const GOOD_EDITOR_SECTIONS = [
   { key: 'shipping', label: '출고지·배송비', fields: ['originId', 'shippingFeeType', 'individualFee', 'shippingNoticeTemplate'] },
   { key: 'claims', label: '반품·교환', fields: [ 'claimReturnAllowed', 'claimExchangeAllowed', 'claimReturnFee', 'claimReturnFreeShippingFee', 'claimExchangeFee', 'claimRestrictionReason'] },
   { key: 'sale', label: '결제·판매 제한', fields: ['allowCardPayment', 'allowBankTransfer', 'saleRestriction'] },
-  { key: 'information', label: '추가 설정', fields: ['additionalCategoryIds', 'customInputs', 'customInputsExpectedRevision', 'showDiscountRate', 'badge', 'stock', 'nameEn', 'displayOrder', 'searchKeywords', 'code', 'defaultVariantCode', 'id'] },
+  { key: 'information', label: '추가 설정', fields: ['additionalCategoryIds', 'customInputs', 'customInputsExpectedRevision', 'badge', 'stock', 'nameEn', 'displayOrder', 'searchKeywords', 'code', 'defaultVariantCode', 'id'] },
 ] as const;
 export type GoodEditorSectionKey = typeof GOOD_EDITOR_SECTIONS[number]['key'];
 

@@ -1,10 +1,15 @@
+import { parseGoodsPricePeriodInput, toKstDateTimeInput } from './goods-price-periods';
+
 /**
- * 상품 편집의 판매가·할인 입력(스마트스토어식)과 저장 계약의 변환.
+ * 상품 편집의 판매가·즉시할인 입력(스마트스토어식)과 저장 계약의 변환.
  *
- * 화면은 "판매가(할인 전) + 할인"으로 입력받고, 서버·DB 계약은 그대로 둔다.
+ * 화면은 "판매가(할인 전) + 즉시할인(+ 특정기간만 할인)"으로 입력받는다(TKT-033·ADR-0040).
  * - 할인 설정안함: form `price` = 판매가, `compareAtPrice` = 빈 값
- * - 할인 설정함: form `compareAtPrice` = 판매가, `price` = 할인가
- * 고객이 결제하는 기준 금액은 `price`(할인가)이고 옵션가는 그 위에 더한다.
+ * - 할인 설정함(기간 없음): form `compareAtPrice` = 판매가, `price` = 할인가 — 지금 계약 그대로다.
+ * - 할인 설정함 + 특정기간만 할인: form `price` = 판매가, `compareAtPrice` = 빈 값이고, 서버 지시
+ *   `instantDiscountPeriod`가 판매 중인 옵션마다 같은 할인 금액의 기간 할인 행(옵션별 기간 할인 원장)을 쓴다.
+ *   기간 전·후에는 판매가, 기간 중에는 할인가로 판다.
+ * 옵션가는 저장된 기준 금액(`price`) 위에 더한다.
  */
 export type GoodsDiscountUnit = 'won' | 'percent';
 
@@ -15,10 +20,59 @@ export type GoodsPriceDraft = {
   /** 할인 입력 원문. 단위에 따라 원 또는 %. */
   discountValue: string;
   discountUnit: GoodsDiscountUnit;
+  /** 특정기간만 할인(즉시할인 기간). 꺼져 있으면 기간 없는 즉시할인이다. */
+  periodEnabled?: boolean;
+  /** 한국 시간 datetime-local 입력 원문(YYYY-MM-DDTHH:mm). */
+  periodStartsAt?: string;
+  periodEndsAt?: string;
 };
 
-/** 화면 입력 이름. 실패 복구·브라우저 복구가 입력한 그대로 되살린다. 서버는 읽지 않는다. */
-export const GOODS_PRICE_DRAFT_FIELDS = ['regularPrice', 'discountEnabled', 'discountValue', 'discountUnit'] as const;
+/** 화면 입력 이름. 실패 복구·브라우저 복구가 입력한 그대로 되살린다. 서버는 `instantDiscountPeriod` 지시만 읽는다. */
+export const GOODS_PRICE_DRAFT_FIELDS = ['regularPrice', 'discountEnabled', 'discountValue', 'discountUnit', 'discountPeriodEnabled', 'discountStartsAt', 'discountEndsAt'] as const;
+/** 서버로 보내는 즉시할인 기간 지시(JSON) 입력 이름. 화면 상태에서 만들어지므로 임시저장·복구 대상이 아니다. */
+export const INSTANT_DISCOUNT_PERIOD_FIELD = 'instantDiscountPeriod';
+
+/**
+ * 상품의 진행·예정 기간 할인 묶음(admin_goods_instant_discount_period). 상품 편집이 다룰 수 있으면 `editable`이고,
+ * 할인 프로모션이 건 할인·옵션마다 다른 금액·여러 기간·기간 없는 즉시할인과 겹침이면 `managed`(기간 할인·프로모션 화면에서 관리)다.
+ * `fingerprint`는 저장 때 되돌려 보내 그사이 다른 곳에서 걸거나 멈춘 할인을 덮지 않게 한다.
+ */
+export type GoodsInstantDiscountState = {
+  state: 'none' | 'editable' | 'managed';
+  reason: 'promotion' | 'instant' | 'mixed' | null;
+  fingerprint: string;
+  period: { amount: number; startsAt: string; endsAt: string } | null;
+  summary: { count: number; minPrice: number; maxPrice: number; startsAt: string; endsAt: string } | null;
+  promotions: { id: string; name: string }[];
+};
+/** 새 상품(저장 전)의 상태. 서버도 없는 상품을 같은 지문('none')으로 본다. */
+export const NEW_GOOD_INSTANT_DISCOUNT: GoodsInstantDiscountState = { state: 'none', reason: null, fingerprint: 'none', period: null, summary: null, promotions: [] };
+
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
+const whole = (value: unknown, min = 0) => typeof value === 'number' && Number.isSafeInteger(value) && value >= min && value <= 2147483647;
+const instantText = (value: unknown): value is string => typeof value === 'string' && Number.isFinite(Date.parse(value));
+
+/** 서버 응답 검증. 모양이 다르면 null(상품 편집은 즉시할인을 바꾸지 않고 다시 불러오게 한다). */
+export function parseGoodsInstantDiscountState(value: unknown): GoodsInstantDiscountState | null {
+  if (!isRecord(value) || !['none', 'editable', 'managed'].includes(String(value.state))
+    || !(value.reason === null || ['promotion', 'instant', 'mixed'].includes(String(value.reason)))
+    || typeof value.fingerprint !== 'string' || value.fingerprint.length < 1 || value.fingerprint.length > 64
+    || !Array.isArray(value.promotions)) return null;
+  const period = value.period ?? null;
+  if (period !== null && (!isRecord(period) || !whole(period.amount, 1) || !instantText(period.startsAt) || !instantText(period.endsAt))) return null;
+  const summary = value.summary ?? null;
+  if (summary !== null && (!isRecord(summary) || !whole(summary.count, 1) || !whole(summary.minPrice, 1) || !whole(summary.maxPrice, 1)
+    || !instantText(summary.startsAt) || !instantText(summary.endsAt))) return null;
+  const promotions: { id: string; name: string }[] = [];
+  for (const item of value.promotions) {
+    if (!isRecord(item) || typeof item.id !== 'string' || typeof item.name !== 'string' || !item.name) return null;
+    promotions.push({ id: item.id, name: item.name });
+  }
+  const state = value.state as GoodsInstantDiscountState['state'];
+  if ((state === 'editable') !== (period !== null) || (state === 'none') !== (summary === null)) return null;
+  return { state, reason: (value.reason ?? null) as GoodsInstantDiscountState['reason'], fingerprint: value.fingerprint,
+    period: period as GoodsInstantDiscountState['period'], summary: summary as GoodsInstantDiscountState['summary'], promotions };
+}
 
 export type GoodsPriceResolution = {
   /** form `price` 값 */
@@ -29,10 +83,15 @@ export type GoodsPriceResolution = {
   regularPrice: number | null;
   /** 적용되는 할인 금액(원). 할인이 없거나 잘못되면 0 */
   discountAmount: number;
-  /** 고객 결제 기준 금액(할인가 또는 판매가). 판매가 입력이 잘못되면 null */
+  /** 고객 결제 기준 금액(할인가 또는 판매가, 기간 즉시할인이면 기간 중 할인가). 판매가 입력이 잘못되면 null */
   salePrice: number | null;
+  /** 저장되는 기준 금액(`price`, 옵션가를 더하는 금액). 기간 즉시할인이면 판매가다. 판매가 입력이 잘못되면 null */
+  basePrice: number | null;
+  /** 특정기간만 할인. 서버 지시의 금액·기간(ISO). 기간이 없거나 입력이 잘못되면 null */
+  period: { amount: number; startsAt: string; endsAt: string } | null;
   regularPriceError?: string;
   discountError?: string;
+  periodError?: string;
 };
 
 const INT32_MAX = 2147483647;
@@ -66,22 +125,41 @@ export function goodsDiscountResultText(result: Pick<GoodsPriceResolution, 'regu
  * 편집을 열 때의 입력 상태. 실패·브라우저 복구로 화면 입력이 돌아오면 그 값을 그대로 쓰고,
  * 아니면 저장된 `price`·`compareAtPrice`에서 판매가·할인(원)을 되짚는다.
  */
-export function goodsPriceDraftFromValues(values: Readonly<Record<string, string | undefined>>): GoodsPriceDraft {
+export function goodsPriceDraftFromValues(values: Readonly<Record<string, string | undefined>>, instant?: GoodsInstantDiscountState | null): GoodsPriceDraft {
   if (values.regularPrice !== undefined) {
     return {
       regularPrice: values.regularPrice,
       discountEnabled: values.discountEnabled === 'true',
       discountValue: values.discountValue ?? '',
       discountUnit: values.discountUnit === 'percent' ? 'percent' : 'won',
+      periodEnabled: values.discountPeriodEnabled === 'true',
+      periodStartsAt: values.discountStartsAt ?? '',
+      periodEndsAt: values.discountEndsAt ?? '',
     };
   }
   const price = wholeWon(values.price);
   const compare = wholeWon(values.compareAtPrice);
+  const noPeriod = { periodEnabled: false, periodStartsAt: '', periodEndsAt: '' };
+  /* 상품 편집이 다루는 기간 즉시할인(진행·예정)은 판매가(할인 전) + 원 할인 + 기간으로 연다. */
+  if (instant?.state === 'editable' && instant.period && price !== null && (compare === null || compare <= price)) {
+    return { regularPrice: String(price), discountEnabled: true, discountValue: String(instant.period.amount), discountUnit: 'won',
+      periodEnabled: true, periodStartsAt: toKstDateTimeInput(instant.period.startsAt), periodEndsAt: toKstDateTimeInput(instant.period.endsAt) };
+  }
   if (price !== null && compare !== null && compare > price) {
-    return { regularPrice: String(compare), discountEnabled: true, discountValue: String(compare - price), discountUnit: 'won' };
+    return { regularPrice: String(compare), discountEnabled: true, discountValue: String(compare - price), discountUnit: 'won', ...noPeriod };
   }
   const regularPrice = (values.price ?? '').trim();
-  return { regularPrice: regularPrice === '0' ? '' : regularPrice, discountEnabled: false, discountValue: '', discountUnit: 'won' };
+  return { regularPrice: regularPrice === '0' ? '' : regularPrice, discountEnabled: false, discountValue: '', discountUnit: 'won', ...noPeriod };
+}
+
+const PERIOD_ERROR = '할인 시작·종료를 한국 시간으로 모두 입력해주세요. 종료는 시작보다 늦어야 합니다.';
+
+/** 특정기간만 할인의 기간 입력(한국 시간)을 ISO로 바꾼다. `now`보다 종료가 이르면(이미 끝난 할인) 오류다. */
+function discountPeriod(draft: GoodsPriceDraft, now: number): { startsAt: string; endsAt: string } | { error: string } {
+  const parsed = parseGoodsPricePeriodInput({ state: 'draft', discountPrice: null, startsAt: draft.periodStartsAt?.trim() || null, endsAt: draft.periodEndsAt?.trim() || null });
+  if (!parsed?.startsAt || !parsed.endsAt) return { error: PERIOD_ERROR };
+  if (Date.parse(parsed.endsAt) <= now) return { error: '할인 종료 시각이 이미 지났습니다. 종료를 지금 이후로 입력해주세요.' };
+  return { startsAt: parsed.startsAt, endsAt: parsed.endsAt };
 }
 
 function discountAmount(regular: number, draft: GoodsPriceDraft): { amount: number } | { error: string } {
@@ -103,26 +181,64 @@ function discountAmount(regular: number, draft: GoodsPriceDraft): { amount: numb
   return { amount };
 }
 
-/** 저장할 때의 변환. 잘못된 할인은 오류로 돌려주고 저장 값에는 할인을 싣지 않는다. */
-export function resolveGoodsPrice(draft: GoodsPriceDraft): GoodsPriceResolution {
+/**
+ * 저장할 때의 변환. 잘못된 할인은 오류로 돌려주고 저장 값에는 할인을 싣지 않는다.
+ * 특정기간만 할인이면 저장 값은 판매가 그대로이고(`period`가 서버 지시), 기간 입력이 잘못되면 `periodError`다.
+ */
+export function resolveGoodsPrice(draft: GoodsPriceDraft, now = Date.now()): GoodsPriceResolution {
   const regularText = draft.regularPrice.trim();
   const regular = regularText === '' ? 0 : wholeWon(regularText);
   if (regular === null) {
     return {
-      price: regularText, compareAtPrice: '', regularPrice: null, discountAmount: 0, salePrice: null,
+      price: regularText, compareAtPrice: '', regularPrice: null, discountAmount: 0, salePrice: null, basePrice: null, period: null,
       regularPriceError: '판매가는 0원 이상의 정수로 입력해주세요.',
     };
   }
   const regularValue = regularText === '' ? '' : String(regular);
-  if (!draft.discountEnabled) {
-    return { price: regularValue, compareAtPrice: '', regularPrice: regular, discountAmount: 0, salePrice: regular };
-  }
+  const plain = { price: regularValue, compareAtPrice: '', regularPrice: regular, discountAmount: 0, salePrice: regular, basePrice: regular, period: null };
+  if (!draft.discountEnabled) return plain;
   const discount = discountAmount(regular, draft);
-  if ('error' in discount) {
-    return { price: regularValue, compareAtPrice: '', regularPrice: regular, discountAmount: 0, salePrice: regular, discountError: discount.error };
-  }
+  const periodInput = draft.periodEnabled ? discountPeriod(draft, now) : null;
+  const periodError = periodInput && 'error' in periodInput ? periodInput.error : undefined;
+  if ('error' in discount) return { ...plain, discountError: discount.error, ...(periodError ? { periodError } : {}) };
   const salePrice = regular - discount.amount;
-  return { price: String(salePrice), compareAtPrice: String(regular), regularPrice: regular, discountAmount: discount.amount, salePrice };
+  if (periodInput) {
+    /* 기간 할인가는 옵션마다 같은 금액을 뺀다. 저장되는 판매가·옵션 금액은 할인 전 그대로다. */
+    if ('error' in periodInput) return { ...plain, discountAmount: discount.amount, salePrice, periodError: periodInput.error };
+    return { ...plain, discountAmount: discount.amount, salePrice, period: { amount: discount.amount, ...periodInput } };
+  }
+  return { price: String(salePrice), compareAtPrice: String(regular), regularPrice: regular, discountAmount: discount.amount, salePrice, basePrice: salePrice, period: null };
+}
+
+/**
+ * 서버로 보내는 즉시할인 기간 지시(JSON 문자열). 상품 편집이 다루지 않는 할인 상태(`managed`)이거나 상태를 모르면 빈 값을 보내
+ * 지시 없는 저장(기간 할인 원장은 건드리지 않음)이 된다. 기간이 꺼져 있으면 `none`이고, 서버는 이 상품 편집이 다루던 기간 할인을 멈춘다.
+ */
+export function instantDiscountPeriodRequest(result: GoodsPriceResolution, state: GoodsInstantDiscountState | null | undefined): string {
+  if (!state || state.state === 'managed') return '';
+  return JSON.stringify(result.period
+    ? { mode: 'period', amount: result.period.amount, startsAt: result.period.startsAt, endsAt: result.period.endsAt, expectedFingerprint: state.fingerprint }
+    : { mode: 'none', expectedFingerprint: state.fingerprint });
+}
+
+export type InstantDiscountPeriodRequest =
+  | { mode: 'none'; expectedFingerprint: string }
+  | { mode: 'period'; amount: number; startsAt: string; endsAt: string; expectedFingerprint: string };
+
+const OFFSET = /(Z|[+-]\d{2}:\d{2})$/;
+/** 서버 액션이 받는 지시 검증. 없으면 `absent`(지시 없는 저장), 모양이 다르면 null. 금액·기간 규칙은 DB가 다시 검사한다. */
+export function parseInstantDiscountPeriodRequest(raw: FormDataEntryValue | null): InstantDiscountPeriodRequest | 'absent' | null {
+  if (raw === null || raw === '') return 'absent';
+  if (typeof raw !== 'string' || raw.length > 400) return null;
+  let value: unknown;
+  try { value = JSON.parse(raw); } catch { return null; }
+  if (!isRecord(value) || typeof value.expectedFingerprint !== 'string' || value.expectedFingerprint.length < 1 || value.expectedFingerprint.length > 64) return null;
+  const keys = Object.keys(value).sort().join(',');
+  if (value.mode === 'none') return keys === 'expectedFingerprint,mode' ? { mode: 'none', expectedFingerprint: value.expectedFingerprint } : null;
+  if (value.mode !== 'period' || keys !== 'amount,endsAt,expectedFingerprint,mode,startsAt' || !whole(value.amount, 1)
+    || !instantText(value.startsAt) || !instantText(value.endsAt) || !OFFSET.test(value.startsAt) || !OFFSET.test(value.endsAt)
+    || Date.parse(value.startsAt) >= Date.parse(value.endsAt)) return null;
+  return { mode: 'period', amount: value.amount as number, startsAt: value.startsAt, endsAt: value.endsAt, expectedFingerprint: value.expectedFingerprint };
 }
 
 export type ErpSalePricePlan =

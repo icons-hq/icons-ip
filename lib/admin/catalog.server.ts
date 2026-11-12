@@ -66,6 +66,11 @@ export interface AdminGoodRecord {
   price: number;
   /** 취소선으로 표기할 정가 (#326). 할인 중일 때만 값이 있다. */
   compareAtPrice: number | null;
+  /**
+   * 진행·예정 기간 할인 묶음(TKT-033·ADR-0040). 상품 편집 로더만 싣는다 — 실으면 상태, 불러오지 못했으면 null이고
+   * 상품 편집은 null이면 즉시할인을 잠근다(지시 없는 저장).
+   */
+  instantDiscount?: import('./goods-price-editor').GoodsInstantDiscountState | null;
   showDiscountRate?: boolean;
   badge: string | null;
   stock: Stock;

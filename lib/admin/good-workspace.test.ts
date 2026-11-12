@@ -15,7 +15,10 @@ describe('상품 등록 카드와 필수 입력 안내', () => {
     expect(goodFieldSection('type').key).toBe('basic');
     expect(goodFieldSection('customInputs').key).toBe('information');
     expect(goodFieldSection('additionalCategoryIds').key).toBe('information');
-    expect(goodFieldSection('showDiscountRate').key).toBe('information');
+    /* TKT-033: 할인율 표시와 즉시할인 기간은 판매 정보 카드의 즉시할인 블록에 있다. */
+    expect(goodFieldSection('showDiscountRate').key).toBe('price');
+    expect(goodFieldSection('discountPeriod').key).toBe('price');
+    expect(goodFieldSection('discountStartsAt').key).toBe('price');
     /* 판매가 → 재고수량·옵션 → 판매기간 → 예약판매 → 구매 제한(1027T-023), KC는 고시 바로 뒤. */
     expect(orderedGoodErrors({ workspacePreorders: 'p', maxOrderQty: 'l', variants: 'v', price: 'a', originId: 'o', workspaceKc: 'k', noticeMaker: 'n', saleStartsAt: 's' }).map(([field]) => field))
       .toEqual(['price', 'variants', 'saleStartsAt', 'workspacePreorders', 'maxOrderQty', 'noticeMaker', 'workspaceKc', 'originId']);
