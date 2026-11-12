@@ -1,10 +1,20 @@
 import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { emptyGoodsKcModel, goodsKcProductNotApplicableModel, planGoodsKcProductNotApplicable, type AdminGoodsKc } from '@/lib/admin/goods-kc';
-import { GOODS_KC_NOT_APPLICABLE_ATTESTATION, GoodsKcEditor } from './GoodsKcPanel';
+import {
+  emptyGoodsKcModel, goodsKcProductNotApplicableConfirm, goodsKcProductNotApplicableModel, goodsKcSubjectModel, kcModelFromTemplate,
+  planGoodsKcProductNotApplicable, type AdminGoodsKc,
+} from '@/lib/admin/goods-kc';
+import {
+  GOODS_KC_NOT_APPLICABLE_ATTESTATION, GOODS_KC_SUBJECT_ATTESTATION, GoodsKcEditor, GoodsOtherCertificationsFields, ProductNotApplicable,
+} from './GoodsKcPanel';
 
-vi.mock('@/app/admin/goods-kc-actions', () => ({ readGoodsKcAction: vi.fn(), saveGoodsKcAction: vi.fn() }));
+vi.mock('@/app/admin/goods-kc-actions', () => ({ readGoodsKcAction: vi.fn(), saveGoodsKcAction: vi.fn(),
+  readGoodsOtherCertificationsAction: vi.fn(), saveGoodsOtherCertificationsAction: vi.fn() }));
+/* 'KC 인증 대상 여부' 라디오에서 체크된 값(없으면 null). */
+function chosen(html: string): string | null {
+  return html.match(/<input class="mt-0\.5" type="radio"[^>]*checked=""[^>]*value="([a-z_]+)"/)?.[1] ?? null;
+}
 const variant = { id: '00000000-0000-4000-8000-000000000001', code: 'OPTION-1', name: '기본 옵션', active: true };
 const draft: AdminGoodsKc = { revision: null, status: 'unreviewed', models: [], contextFingerprint: 'a'.repeat(64),
   publishedAt: null, archivedAt: null, reviewedAt: null, reviewerName: null, variants: [variant], history: [] };
@@ -26,13 +36,42 @@ describe('KC 모델 검토 화면', () => {
     expect(html).not.toContain('복사 불가 문구');
     expect(html).toContain('비공개 상품의 미검토 모델');
   });
-  it('유형 틀만 제공하고 실제 증빙 없는 최초 검토 완료는 비활성화한다', () => {
-    const html = renderToStaticMarkup(<GoodsKcEditor goodId="g1" configuration={draft} onSaved={() => {}} />);
+  /* 1007-034(ADR-0036 자가 신고): 대상 여부를 먼저 고르고, 대상 모델은 게시 항목·번호가 있어야 검토를 완료한다. 근거 참조는 묻지 않는다. */
+  it('KC 대상 여부를 고르기 전에는 입력칸을 열지 않고, 대상 모델은 게시 항목과 번호가 없으면 검토 완료를 막는다', () => {
+    const empty = renderToStaticMarkup(<GoodsKcEditor goodId="g1" configuration={draft} onSaved={() => {}} />);
+    expect(empty).toContain('<legend>KC 인증 대상 여부</legend>');
+    expect(empty.indexOf('대상 아님 · 상품 전체 KC 해당 없음')).toBeLessThan(empty.indexOf('대상 · 인증 종류와 번호 입력'));
+    expect(chosen(empty)).toBeNull();
+    expect(empty).toContain('KC 대상 여부를 고르면 입력칸이 열립니다.');
+    expect(empty).not.toContain('유형 틀로 모델 추가');
+    expect(empty).not.toContain('>해당 없음으로 검토 완료</button>');
+    /* 라디오는 상품 저장 폼에서 떼어 둔다(이름이 있어도 상품 저장에 실리지 않는다). */
+    expect(empty).toMatch(/type="radio" form="good-detached-controls" name="[^"]+"/);
+    const subject = { ...emptyGoodsKcModel(), family: 'living' as const, scheme: 'safety_confirmation' as const, variantIds: [variant.id] };
+    const html = renderToStaticMarkup(<GoodsKcEditor goodId="g1" configuration={{ ...draft, revision: 1, models: [subject] }} onSaved={() => {}} />);
+    expect(chosen(html)).toBe('subject');
     expect(html).toContain('유형 틀로 모델 추가');
     expect(html).toContain('미검토로 저장');
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*>KC 검토 완료/);
-    expect(html).toContain('원본 근거와 실제 모델');
+    expect(html).toContain('모델 1: 품목 분류·모델명·사업자 구분·사업자명을 입력해주세요.');
+    expect(html).toContain('모델 1: 인증·신고번호를 입력해주세요.');
+    expect(html).not.toContain('근거 참조를 입력해주세요');
+    expect(html).not.toContain('문서 근거를 입력해주세요');
+    expect(GOODS_KC_SUBJECT_ATTESTATION).toBe('실제 제품의 KC 표시(인증 종류·인증·신고번호)와 모델·사업자·적용 옵션이 일치함을 확인했습니다.');
+    expect(html).toContain(GOODS_KC_SUBJECT_ATTESTATION);
     expect(html).not.toContain('TEST-ONLY');
+  });
+  it('KC 대상은 근거 참조 없이 게시 항목과 인증번호만으로 검토 완료할 수 있다', () => {
+    const complete = { ...emptyGoodsKcModel(), family: 'living' as const, scheme: 'safety_confirmation' as const, productCategory: '합성 분류',
+      modelName: '합성 모델', businessRole: 'importer' as const, businessName: '합성 수입자', identifier: 'TEST-ONLY-SD-1', variantIds: [variant.id] };
+    const html = renderToStaticMarkup(<GoodsKcEditor goodId="g1" configuration={{ ...draft, revision: 1, models: [complete] }} onSaved={() => {}} />);
+    expect(html).not.toContain('검토 완료 전 확인');
+    expect(html).toContain('고객 고시 미리보기');
+    expect(html).toContain('TEST-ONLY-SD-1');
+    /* 확인 체크 칸은 열려 있고(근거가 비어도), 체크 전에는 검토 완료 버튼이 막혀 있다. */
+    expect(html).toMatch(/<input class="mt-0\.5" type="checkbox"\/><span>실제 제품의 KC 표시/);
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>KC 검토 완료/);
+    expect(html).toMatch(/내부 검토 근거 \(선택\) · 고객에게 공개되지 않습니다 · 0\/5칸 입력/);
   });
   it('기존 공개 미기록을 자동 승인하지 않고 비공개 후 검토할 수 있게 안내한다', () => {
     const html = renderToStaticMarkup(<GoodsKcEditor goodId="g1" configuration={{ ...draft, publishedAt: '2026-09-10T00:00:00Z' }} onSaved={() => {}} />);
@@ -41,25 +80,36 @@ describe('KC 모델 검토 화면', () => {
     expect(html).not.toContain('>KC 검토 완료</button>');
     expect(html).not.toContain('>미검토로 저장</button>');
   });
-  it('상단의 상품 전체 KC 해당 없음은 확인 체크 하나로 검토를 끝내는 경로를 안내한다', () => {
-    const html = renderToStaticMarkup(<GoodsKcEditor goodId="g1" configuration={{ ...draft, variants: [variant,
-      { id: '00000000-0000-4000-8000-000000000003', code: 'OPTION-3', name: '중지 옵션', active: false }] }} onSaved={() => {}} />);
-    expect(html.indexOf('상품 전체 KC 해당 없음')).toBeLessThan(html.indexOf('유형 틀로 모델 추가'));
+  it('대상 아님(상품 전체 KC 해당 없음)은 확인 체크와 완료 버튼으로 검토를 끝내고, 고른 직후에는 체크된 채로 연다', () => {
+    const variants = [variant, { id: '00000000-0000-4000-8000-000000000003', code: 'OPTION-3', name: '중지 옵션', active: false }];
+    const fresh = renderToStaticMarkup(<ProductNotApplicable variants={variants} models={[]} disabled={false} onNoteChange={() => {}} onComplete={() => {}} />);
     expect(GOODS_KC_NOT_APPLICABLE_ATTESTATION).toBe('이 상품은 KC 안전인증·안전확인·공급자적합성확인·안전기준준수 대상이 아님을 확인했습니다.');
-    expect(html).toContain(GOODS_KC_NOT_APPLICABLE_ATTESTATION);
-    expect(html).toContain('사용 중인 옵션 1개가 모두 연결');
-    expect(html).toContain('고객 안내 추가 (선택)');
-    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>해당 없음으로 검토 완료/);
-    expect(html).toContain('KC 대상 상품은 아래에서 모델별로');
+    expect(fresh).toContain(GOODS_KC_NOT_APPLICABLE_ATTESTATION);
+    expect(fresh).toContain('사용 중인 옵션 1개가 모두 연결');
+    expect(fresh).toContain('고객 안내 추가 (선택)');
+    expect(fresh).toMatch(/<button[^>]*disabled=""[^>]*>해당 없음으로 검토 완료/);
+    /* 운영자가 '대상 아님'을 방금 골랐으면 확인 체크가 켜진 채로 열려 완료 버튼 한 번이면 된다. */
+    const picked = renderToStaticMarkup(<ProductNotApplicable variants={variants} models={[]} disabled={false} initialConfirmed onNoteChange={() => {}} onComplete={() => {}} />);
+    expect(picked).toMatch(/<input class="mt-0\.5" type="checkbox" checked=""\/><span>이 상품은 KC/);
+    expect(picked).not.toMatch(/<button[^>]*disabled=""[^>]*>해당 없음으로 검토 완료/);
+    /* 저장된 미검토 해당 없음 모델은 '대상 아님'으로 열리지만 확인 체크는 운영자가 직접 한다. */
+    const loaded = renderToStaticMarkup(<GoodsKcEditor goodId="g1" configuration={{ ...draft, revision: 1, models: [goodsKcProductNotApplicableModel([variant])] }} onSaved={() => {}} />);
+    expect(chosen(loaded)).toBe('not_applicable');
+    expect(loaded).toMatch(/<input class="mt-0\.5" type="checkbox"\/><span>이 상품은 KC/);
+    expect(loaded.indexOf('<legend>상품 전체 KC 해당 없음')).toBeLessThan(loaded.indexOf('유형 틀로 모델 추가'));
   });
-  it('공개·보관 상품과 옵션이 없는 상품에서는 해당 없음 완료를 막고 기존 안내를 유지한다', () => {
+  it('공개·보관 상품은 대상 여부를 바꿀 수 없고, 옵션이 없는 상품은 해당 없음 완료를 막는다', () => {
     const published = renderToStaticMarkup(<GoodsKcEditor goodId="g1" configuration={{ ...draft, publishedAt: '2026-09-10T00:00:00Z' }} onSaved={() => {}} />);
-    expect(published).toMatch(/<fieldset[^>]*disabled=""[^>]*><legend>상품 전체 KC 해당 없음/);
+    expect(published).toMatch(/<fieldset[^>]*disabled=""[^>]*data-kc-subject-choice=""><legend>KC 인증 대상 여부/);
     expect(published).toContain('먼저 상품을 비공개');
     const archived = renderToStaticMarkup(<GoodsKcEditor goodId="g1" configuration={{ ...draft, archivedAt: '2026-09-10T00:00:00Z' }} onSaved={() => {}} />);
-    expect(archived).toMatch(/<fieldset[^>]*disabled=""[^>]*><legend>상품 전체 KC 해당 없음/);
+    expect(archived).toMatch(/<fieldset[^>]*disabled=""[^>]*data-kc-subject-choice=""><legend>KC 인증 대상 여부/);
     expect(archived).toContain('복원한 뒤 검토');
-    const empty = renderToStaticMarkup(<GoodsKcEditor goodId="g1" configuration={{ ...draft, variants: [{ ...variant, active: false }] }} onSaved={() => {}} />);
+    const publishedNotApplicable = renderToStaticMarkup(<GoodsKcEditor goodId="g1" configuration={{ ...draft, revision: 1, publishedAt: '2026-09-10T00:00:00Z',
+      models: [goodsKcProductNotApplicableModel([variant])] }} onSaved={() => {}} />);
+    expect(publishedNotApplicable).toMatch(/<fieldset[^>]*disabled=""[^>]*><legend>상품 전체 KC 해당 없음/);
+    const empty = renderToStaticMarkup(<ProductNotApplicable variants={[{ ...variant, active: false }]} models={[]} disabled={false} initialConfirmed
+      onNoteChange={() => {}} onComplete={() => {}} />);
     expect(empty).toContain('사용 중인 옵션이 없습니다');
     expect(empty).toMatch(/<button[^>]*disabled=""[^>]*>해당 없음으로 검토 완료/);
   });
@@ -105,11 +155,15 @@ describe('KC 모델 검토 화면', () => {
       reviewedAt: '2026-10-07T00:00:00Z', reviewerName: '합성 검토자', models: [subject] }} onSaved={() => {}} />);
     expect(reviewed).toContain('<p role="status">KC 검토 완료 · 합성 검토자');
     expect(reviewed).not.toContain('모델 상세 보기·고치기');
-    expect(reviewed).toContain(GOODS_KC_NOT_APPLICABLE_ATTESTATION);
+    expect(chosen(reviewed)).toBe('subject');
+    expect(reviewed).toContain(GOODS_KC_SUBJECT_ATTESTATION);
+    expect(reviewed).not.toContain(GOODS_KC_NOT_APPLICABLE_ATTESTATION);
     const unreviewed = renderToStaticMarkup(<GoodsKcEditor goodId="g1" configuration={{ ...draft, revision: 1,
       models: [goodsKcProductNotApplicableModel([variant])] }} onSaved={() => {}} />);
     expect(unreviewed).not.toContain('모델 상세 보기·고치기');
+    expect(chosen(unreviewed)).toBe('not_applicable');
     expect(unreviewed).toContain(GOODS_KC_NOT_APPLICABLE_ATTESTATION);
+    expect(unreviewed).toContain('모델 1 모델명 (선택)');
   });
   it('기본 상품 저장(성공·실패 회차)마다 KC 패널이 서버 KC 상태를 다시 읽는다', () => {
     // 상품명·유형·IP·고시정보·옵션 저장은 DB에서 KC 검토를 미검토로 되돌릴 수 있다. 패널은 회차가 바뀌면
@@ -122,13 +176,38 @@ describe('KC 모델 검토 화면', () => {
   });
   it('기존 모델 입력을 지울 때만 확인을 요구하고 사용 중인 옵션 전부를 연결한다', () => {
     const stopped = { id: '00000000-0000-4000-8000-000000000003', code: 'OPTION-3', name: '중지 옵션', active: false };
-    expect(planGoodsKcProductNotApplicable([], [variant, stopped], ' 안내 ')).toEqual({ discarded: 0, models: [{
+    expect(planGoodsKcProductNotApplicable([], [variant, stopped], ' 안내 ')).toEqual({ discarded: 0, discardedLabels: [], models: [{
       ...emptyGoodsKcModel(), family: 'other', scheme: 'not_applicable', publicNote: '안내', variantIds: [variant.id] }] });
     const same = planGoodsKcProductNotApplicable([goodsKcProductNotApplicableModel([variant])], [variant]);
     expect(same.discarded).toBe(0);
     const detailed = [{ ...emptyGoodsKcModel(), family: 'children' as const, scheme: 'safety_confirmation' as const, modelName: '입력한 모델' },
       { ...emptyGoodsKcModel(), family: 'living' as const }];
-    expect(planGoodsKcProductNotApplicable(detailed, [variant]).discarded).toBe(2);
+    const plan = planGoodsKcProductNotApplicable(detailed, [variant]);
+    expect(plan.discarded).toBe(2);
+    expect(plan.discardedLabels).toEqual(['모델 1 · 입력한 모델', '모델 2 · 생활용품']);
+    /* 확인창은 실제로 지워지는 모델을 이름으로 말한다. 저장된 상품은 검토 완료, 등록 화면은 바꾸기다. */
+    expect(goodsKcProductNotApplicableConfirm(plan, { completing: true }))
+      .toBe('입력한 KC 모델 2개(모델 1 · 입력한 모델, 모델 2 · 생활용품)를 지우고 상품 전체 KC 해당 없음으로 검토를 완료합니다. 계속할까요?');
+    expect(goodsKcProductNotApplicableConfirm(plan, { completing: false })).toContain('상품 전체 KC 해당 없음으로 바꿉니다.');
+  });
+  /* 리뷰(T16a minor 2): 운영자가 입력하지 않은 모델은 묻지 않는다. 해당 없음 틀은 지우지 않고 옵션만 다시 연결해 제품군을 지킨다. */
+  it('대상을 고를 때 생긴 빈 모델과 해당 없음 틀은 확인 없이 해당 없음으로 바꾸고 틀의 제품군·안내를 지킨다', () => {
+    const second = { id: '00000000-0000-4000-8000-00000000000B', code: 'OPTION-B', name: '파랑', active: true };
+    const blank = planGoodsKcProductNotApplicable([goodsKcSubjectModel([variant, second])], [variant, second]);
+    expect(blank.discarded).toBe(0);
+    expect(goodsKcProductNotApplicableConfirm(blank, { completing: false })).toBeNull();
+    expect(blank.models).toEqual([goodsKcProductNotApplicableModel([variant, second])]);
+    expect(planGoodsKcProductNotApplicable([emptyGoodsKcModel()], [variant]).discarded).toBe(0);
+    const template = kcModelFromTemplate('living', 'not_applicable', '합성 틀 안내')!;
+    const kept = planGoodsKcProductNotApplicable([template], [variant, second]);
+    expect(kept.discarded).toBe(0);
+    expect(kept.models).toEqual([{ ...template, variantIds: [variant.id, second.id.toLowerCase()].sort() }]);
+    expect(kept.models[0].family).toBe('living');
+    /* 입력한 대상 모델과 해당 없음 틀이 함께 있으면 틀을 지키고 대상 모델만 이름을 들어 묻는다. */
+    const subject = { ...emptyGoodsKcModel(), family: 'children' as const, scheme: 'safety_confirmation' as const, modelName: '합성 모델' };
+    const mixed = planGoodsKcProductNotApplicable([subject, template], [variant], '새 안내');
+    expect(mixed.models).toEqual([{ ...template, publicNote: '새 안내', variantIds: [variant.id] }]);
+    expect(mixed.discardedLabels).toEqual(['모델 1 · 합성 모델']);
   });
   it('해당 없음 모델 1개를 아래에서 고친 고객 안내가 위쪽 이전 입력으로 덮이지 않는다', () => {
     // 'A'로 검토한 뒤 아래 '모델 1 고객 안내'를 'B '로 고쳤고, 위쪽 칸에는 열 때의 'A'가 남아 있는 상황.
@@ -180,5 +259,37 @@ describe('KC 모델 검토 화면', () => {
     expect(evidence?.[1]).not.toContain('open=""');
     expect(evidence?.[0]).toMatch(/· 1\/\d+칸 입력<\/summary>/);
     expect(html).toContain('aria-label="모델 1 적용 판단 사유"');
+  });
+});
+
+describe('기타 인증 입력(SHEET-014)', () => {
+  it('종류·인증기관·인증번호·고객 표시를 여러 건 받고, 고객 표시를 고른 것만 미리보기에 보인다', () => {
+    const html = renderToStaticMarkup(<GoodsOtherCertificationsFields disabled={false} onChange={() => {}} entries={[
+      { kind: '방송통신기자재 적합성평가', agency: '국립전파연구원', number: 'R-R-TEST-0001', visible: true },
+      { kind: '내부 보관 인증', agency: '', number: 'INTERNAL-1', visible: false },
+    ]} />);
+    for (const label of ['기타 인증 1 인증 종류', '기타 인증 1 인증기관 (선택)', '기타 인증 1 인증번호', '기타 인증 2 고객 상세에 표시']) {
+      expect(html).toContain(`aria-label="${label}"`);
+    }
+    expect(html).toContain('<datalist');
+    expect(html).toContain('기타 인증 추가');
+    const preview = html.slice(html.indexOf('고객 상세 미리보기'));
+    expect(preview).toContain('인증번호 R-R-TEST-0001 · 인증기관 국립전파연구원');
+    expect(preview).not.toContain('INTERNAL-1');
+    /* 입력칸은 이름이 없어 상품 저장 폼에 실리지 않는다. */
+    expect(html).not.toMatch(/<input[^>]*name="/);
+  });
+  it('종류나 인증번호가 비거나 같은 인증이 두 번이면 저장 전에 알린다', () => {
+    const html = renderToStaticMarkup(<GoodsOtherCertificationsFields disabled={false} onChange={() => {}} entries={[
+      { kind: 'KS 인증', agency: '', number: '', visible: true },
+      { kind: '전파', agency: '', number: 'A-1', visible: true },
+      { kind: '전파', agency: '다른 기관', number: 'a-1', visible: false },
+    ]} />);
+    expect(html).toContain('저장 전 확인');
+    expect(html).toContain('기타 인증 1: 인증 종류와 인증번호를 입력해주세요.');
+    expect(html).toContain('기타 인증 3: 같은 인증 종류·인증번호가 이미 있습니다.');
+    const empty = renderToStaticMarkup(<GoodsOtherCertificationsFields disabled={false} onChange={() => {}} entries={[]} />);
+    expect(empty).toContain('입력한 기타 인증이 없습니다.');
+    expect(empty).not.toContain('저장 전 확인');
   });
 });

@@ -113,6 +113,8 @@ const catalog = [
   script('goods_after_sales_content_concurrency.sh', 'GOODS_AFTER_SALES_TEST_SCOPE'),
   sql('goods_size_charts', { admin: true, kc: true }),
   script('goods_size_charts_concurrency.sh', 'GOODS_SIZE_CHART_TEST_SCOPE'),
+  // 기타 인증(SHEET-014·ADR-0036). KC 고지 회귀(goods_kc_*)는 legacy 샤드의 smoke 묶음에서 돈다.
+  sql('goods_other_certifications', { kc: true }),
   // 예전 story/marketing 단계 후반부의 관리자 리포트다.
   sql('admin_customer_purchase_report', { admin: true }),
   sql('admin_sales_goods_page'),
