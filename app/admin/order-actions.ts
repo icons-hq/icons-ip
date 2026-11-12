@@ -1,9 +1,9 @@
 'use server';
 
-import { canAccessAdminScreen, hasAdminCapability } from '@/lib/admin/access';
+import { isUuid } from '@/lib/uuid';
+import { canAccessAdminScreen } from '@/lib/admin/access';
 
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
 import { normalizeAdminDispatchDelayForm } from '@/lib/admin/dispatch';
 import {
   ADMIN_CANCELLATION_RECHECK_LABELS,
@@ -19,7 +19,7 @@ import {
   parseTrackingImport,
   TRACKING_IMPORT_ROW_LIMIT,
 } from '@/lib/admin/tracking-import';
-import { getCurrentAdminAuthState } from '@/lib/auth/admin';
+import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { parseOrderEmailDedupeKey } from '@/lib/email/dedupe';
 import {
   sendOrderConfirmationEmail,
@@ -45,14 +45,9 @@ export interface AdminOrderActionState {
   confirmedOrderIds?: string[];
 }
 
-function loginPath() {
-  return `/login?next=${encodeURIComponent('/admin')}`;
-}
-
 async function requireStaffAction() {
-  const auth = await getCurrentAdminAuthState();
-  if (!auth.isConfigured || !auth.user) redirect(loginPath());
-  if (!auth.isStaff || !hasAdminCapability(auth, 'sales.manage')) {
+  const auth = await requireAdminActionAccess('/admin/sales/orders', { capability: 'sales.manage' });
+  if (!auth) {
     return { auth: null, error: { errors: { form: '관리자 권한이 필요합니다.' } } as AdminOrderActionState };
   }
   return { auth, error: null };
@@ -60,9 +55,8 @@ async function requireStaffAction() {
 
 /** 운송장 회신 등록은 출고 전용 권한(sales.dispatch, 1014-084)으로 한다. sales.manage도 이 권한을 포함한다. */
 async function requireDispatchAction() {
-  const auth = await getCurrentAdminAuthState();
-  if (!auth.isConfigured || !auth.user) redirect(loginPath());
-  if (!auth.isStaff || !hasAdminCapability(auth, 'sales.dispatch')) {
+  const auth = await requireAdminActionAccess('/admin/sales/dispatch', { capability: 'sales.dispatch' });
+  if (!auth) {
     return { auth: null, error: { errors: { form: '관리자 권한이 필요합니다.' } } as AdminOrderActionState };
   }
   return { auth, error: null };
@@ -146,7 +140,6 @@ export async function updateAdminOrderStatusAction(
   return { message: STATUS_TRANSITION_MESSAGES[normalized.value.status] };
 }
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 /* 한 번에 미는 상한. 상한이 없으면 전체선택 한 번이 수백 건의 순차 RPC가 된다. */
 const BULK_CONFIRM_LIMIT = 100;
 
@@ -184,7 +177,7 @@ export async function bulkConfirmAdminOrdersAction(
     formData.getAll('orderIds')
       .filter((value): value is string => typeof value === 'string')
       .map((value) => value.trim().toLowerCase())
-      .filter((value) => UUID_PATTERN.test(value)),
+      .filter((value) => isUuid(value)),
   )];
 
   if (!orderIds.length) return { errors: { form: '발주확인할 주문을 선택해주세요.' } };
@@ -247,7 +240,7 @@ export async function updateAdminOrderTrackingAction(
   const normalized = normalizeAdminOrderTrackingForm(formData, await getShippingCarrierRegistry());
   if (!normalized.ok) return { errors: normalized.errors };
   const shipmentId = String(formData.get('shipmentId') ?? '').trim();
-  if (shipmentId && !UUID_PATTERN.test(shipmentId)) return { errors: { form: '배송건번호를 확인해주세요.' } };
+  if (shipmentId && !isUuid(shipmentId)) return { errors: { form: '배송건번호를 확인해주세요.' } };
 
   const supabase = await createClient();
   const { error } = await supabase.rpc(shipmentId ? 'admin_update_shipment_tracking' : 'admin_update_order_tracking', {
@@ -435,7 +428,7 @@ export async function startAdminOrderCancellationAction(
     revalidatePath('/admin/sales/orders');
     return { errors: { form: staffCancellationError(error.message) } };
   }
-  if (typeof data !== 'string' || !UUID_PATTERN.test(data)) {
+  if (typeof data !== 'string' || !isUuid(data)) {
     revalidateOrderSurfaces(normalized.value.orderId);
     return { errors: { form: '전액 취소 요청을 확인하지 못했습니다. 취소 관리에서 최신 상태를 확인해주세요.' } };
   }

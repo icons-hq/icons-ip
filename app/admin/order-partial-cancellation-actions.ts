@@ -1,13 +1,13 @@
 'use server';
 
+import { isUuid } from '@/lib/uuid';
 import { revalidatePath } from 'next/cache';
-import { hasAdminCapability } from '@/lib/admin/access';
+import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import {
   orderPartialCancellationErrorMessage,
   orderPartialCancellationReconcileMessage,
   orderPartialCancellationResolutionMessage,
 } from '@/lib/admin/order-partial-cancellation';
-import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import {
   normalizeOrderPartialCancellationSelection,
   parseOrderPartialCancellationContext,
@@ -24,17 +24,15 @@ import { refundTransferExportCaller } from '@/lib/admin/list-export-refund-trans
 import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export type PartialCancellationActionResult<T> = { ok: true; value: T } | { ok: false; error: string };
 
 async function staff(capability: 'sales.manage' | 'sales.read' = 'sales.manage') {
-  const auth = await getCurrentAdminAuthState();
-  return auth.isConfigured && auth.user && auth.isStaff && hasAdminCapability(auth, capability) ? auth : null;
+  return requireAdminActionAccess('/admin/sales/orders', { capability });
 }
 
 function uuid(value: unknown): string | null {
-  return typeof value === 'string' && UUID.test(value) ? value.toLowerCase() : null;
+  return typeof value === 'string' && isUuid(value) ? value.toLowerCase() : null;
 }
 
 function refresh(orderId: string) {

@@ -1,9 +1,8 @@
 'use server';
 
+import { isUuid } from '@/lib/uuid';
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
-import { hasAdminCapability } from '@/lib/admin/access';
-import { getCurrentAdminAuthState } from '@/lib/auth/admin';
+import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
 import { ADMIN_FAQ_PATH, FAQ_ANSWER_MAX_LENGTH, FAQ_QUESTION_MAX_LENGTH, isFaqWidgetTopic } from '@/lib/faq';
 import { isInquiryCategory } from '@/lib/inquiries';
@@ -14,13 +13,10 @@ export interface FaqActionState {
   revision?: number;
   message?: string;
 }
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const FIELDS = ['id', 'category', 'question', 'answer', 'sortOrder', 'published', 'updatedAt', 'widgetTopic'] as const;
 
 async function staffAllowed() {
-  const auth = await getCurrentAdminAuthState();
-  if (!auth.isConfigured || !auth.user) redirect(`/login?next=${encodeURIComponent(ADMIN_FAQ_PATH)}`);
-  return auth.isStaff && hasAdminCapability(auth, 'cs.manage');
+  return Boolean(await requireAdminActionAccess(ADMIN_FAQ_PATH, { capability: 'cs.manage' }));
 }
 function invalidate() {
   revalidatePath(ADMIN_FAQ_PATH);
@@ -42,7 +38,7 @@ export async function saveFaqAction(previous: FaqActionState, data: FormData): P
   const errors: Record<string, string> = {};
   const question = values.question.trim();
   const answer = values.answer.trim();
-  if (values.id && !UUID.test(values.id)) errors.form = 'FAQ를 찾을 수 없습니다.';
+  if (values.id && !isUuid(values.id)) errors.form = 'FAQ를 찾을 수 없습니다.';
   if (!isInquiryCategory(values.category)) errors.category = '카테고리를 선택해주세요.';
   if (!question || question.length > FAQ_QUESTION_MAX_LENGTH) errors.question = `질문은 1~${FAQ_QUESTION_MAX_LENGTH}자로 입력해주세요.`;
   if (!answer || answer.length > FAQ_ANSWER_MAX_LENGTH) errors.answer = `답변은 1~${FAQ_ANSWER_MAX_LENGTH}자로 입력해주세요.`;
@@ -68,7 +64,7 @@ export async function deleteFaqAction(previous: FaqActionState, data: FormData):
   if (!await staffAllowed()) return { revision, errors: { form: '관리자 권한이 필요합니다.' } };
   const id = String(data.get('id') ?? '');
   const updatedAt = String(data.get('updatedAt') ?? '');
-  if (!UUID.test(id) || !updatedAt || Number.isNaN(Date.parse(updatedAt))) return { revision, errors: { form: '최신 FAQ를 다시 열어주세요.' } };
+  if (!isUuid(id) || !updatedAt || Number.isNaN(Date.parse(updatedAt))) return { revision, errors: { form: '최신 FAQ를 다시 열어주세요.' } };
   if (data.get('confirmed') !== 'true') return { revision, errors: { form: '삭제 확인을 선택해주세요.' } };
   const supabase = await createClient();
   const { error } = await supabase.rpc('admin_delete_faq_entry', { target_id: id, expected_updated_at: updatedAt });

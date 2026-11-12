@@ -1,5 +1,6 @@
 'use server';
 import { revalidatePath } from 'next/cache';
+import { revalidateGoodsSurfaces } from '@/lib/admin/revalidate-goods.server';
 import { unstable_rethrow } from 'next/navigation';
 import { randomUUID } from 'node:crypto';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
@@ -22,7 +23,7 @@ export async function saveGoodsRelationAction(input: unknown): Promise<{ saved: 
     });
     if (error) return { error: goodsRelationError(error.message), ...(!error.code && suppliedOperation ? { retrySameOperation: true } : {}) };
     savedId = parsed.id;
-    revalidatePath(GOODS_RELATIONS_PATH); revalidatePath('/shop/[goodId]', 'page');
+    revalidatePath(GOODS_RELATIONS_PATH); revalidateGoodsSurfaces();
     if (!data || data.id !== parsed.id || !Number.isSafeInteger(data.revision)) return { error: '저장 결과를 확인하지 못했습니다. 편성을 다시 열어 최신 내용을 확인해주세요.', savedId };
     const saved = await loadGoodsRelation(parsed.id);
     if (!saved || saved.revision !== data.revision) return { error: '저장은 반영됐지만 최신 내용을 확인해야 합니다. 편성을 다시 열어주세요.', savedId };

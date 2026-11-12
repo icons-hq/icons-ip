@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 import { notFound, redirect } from 'next/navigation';
 import { ClaimDetailScreen } from '@/components/admin/screens/ClaimDetailScreen';
 import {
@@ -12,7 +13,6 @@ import { orderClaimTypeForSlug } from '@/lib/orders/claims';
    (사전 조회·취소·사후 조회 각 8초 + DB). 페이지 단위 maxDuration이 액션 예산이다. */
 export const maxDuration = 60;
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export default async function AdminSalesClaimDetailPage({
   params,
@@ -25,7 +25,7 @@ export default async function AdminSalesClaimDetailPage({
   const access = await requireAdminScreenAccess(adminClaimBasePath(claimType));
 
   const claimId = rawClaimId.toLowerCase();
-  if (!UUID_PATTERN.test(claimId)) notFound();
+  if (!isUuid(claimId)) notFound();
 
   const query = await searchParams;
   /* 목록 위 팝업(?claimId=)과 같은 로더다(R8). */

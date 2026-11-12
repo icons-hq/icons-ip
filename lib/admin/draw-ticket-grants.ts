@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 /* 운영자 수동 뽑기권 발급의 순수 계층(#185).
  * 폼 정규화·행 파싱·오류 문구 매핑만 담는다. 권한과 멱등은 admin_grant_draw_tickets RPC가
  * 판단한다 — 여기 검증은 왕복을 아끼는 1차 방어일 뿐 신뢰 경계가 아니다. */
@@ -32,7 +33,6 @@ export type AdminDrawTicketGrantFormResult =
   | { ok: true; value: AdminDrawTicketGrantInput }
   | { ok: false; errors: Record<string, string> };
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function readString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -50,9 +50,9 @@ export function normalizeAdminDrawTicketGrantForm(
   const quantity = /^\d+$/.test(rawQuantity) ? Number(rawQuantity) : Number.NaN;
   const errors: Record<string, string> = {};
 
-  if (!UUID_PATTERN.test(operationId)) errors.form = '요청을 처리하지 못했습니다. 화면을 새로고침한 뒤 다시 시도해주세요.';
-  if (!UUID_PATTERN.test(profileId)) errors.profileId = '발급 대상 회원을 선택해주세요.';
-  if (!UUID_PATTERN.test(poolId)) errors.poolId = '발급할 카드풀을 선택해주세요.';
+  if (!isUuid(operationId)) errors.form = '요청을 처리하지 못했습니다. 화면을 새로고침한 뒤 다시 시도해주세요.';
+  if (!isUuid(profileId)) errors.profileId = '발급 대상 회원을 선택해주세요.';
+  if (!isUuid(poolId)) errors.poolId = '발급할 카드풀을 선택해주세요.';
   if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > DRAW_TICKET_GRANT_MAX_QUANTITY) {
     errors.quantity = `발급 수량은 1개 이상 ${DRAW_TICKET_GRANT_MAX_QUANTITY}개 이하로 입력해주세요.`;
   }
@@ -93,10 +93,10 @@ export function parseAdminDrawTicketGrantRecord(value: unknown): AdminDrawTicket
 
   if (
     !operationId
-    || !UUID_PATTERN.test(operationId)
+    || !isUuid(operationId)
     || !grantedAt
     || !recipientId
-    || !UUID_PATTERN.test(recipientId)
+    || !isUuid(recipientId)
     || !poolId
     || quantity === null
     || openedCount === null

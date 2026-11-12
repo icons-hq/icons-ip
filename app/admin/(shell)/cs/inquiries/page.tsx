@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 import { hasAdminCapability } from '@/lib/admin/access';
 import { AdminOpenInquiryBadge } from '@/components/admin/AdminOpenInquiryBadge';
 import { InquiryQueueScreen } from '@/components/admin/screens/InquiryQueueScreen';
@@ -22,7 +23,7 @@ export default async function AdminCsInquiriesPage({
   const query = await searchParams;
 
   const filters = normalizeAdminInquiryFilters(query);
-  const inquiryId = typeof query.inquiryId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(query.inquiryId)
+  const inquiryId = typeof query.inquiryId === 'string' && isUuid(query.inquiryId)
     ? query.inquiryId.toLowerCase() : null;
   const [data, detail] = await Promise.all([
     getAdminInquiryConsoleData(filters),

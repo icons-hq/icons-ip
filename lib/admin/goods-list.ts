@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 import type { Stock } from '@/lib/data';
 import { customerServiceDate } from './customer-service-list';
 import { GOODS_READINESS_REASONS, goodsReadinessAnchor, type AdminGoodsReadiness, type GoodsReadinessFilter, type GoodsReadinessTarget } from './goods-readiness';
@@ -140,7 +141,6 @@ export interface AdminGoodsListData {
   ips: { id: string; title: string; archivedAt: string | null }[];
 }
 const single = (value: string | string[] | undefined) => typeof value === 'string' ? value : '';
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export function goodsListPageSize(value: unknown): number {
   const size = typeof value === 'string' || typeof value === 'number' ? Number(value) : 0;
   return GOODS_LIST_PAGE_SIZES.some(allowed => allowed === size) ? size : GOODS_LIST_PAGE_SIZE;
@@ -165,7 +165,7 @@ export function normalizeGoodsListFilters(values: Record<string, string | string
   const restriction = single(values.restriction);
   const salePeriod = single(values.salePeriod);
   return {
-    categoryId: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(categoryId) ? categoryId.toLowerCase() : '',
+    categoryId: isUuid(categoryId) ? categoryId.toLowerCase() : '',
     readiness: ['ready', 'review_required'].includes(readiness) || Object.hasOwn(GOODS_READINESS_REASONS, readiness) ? readiness as GoodsReadinessFilter : 'all',
     query: single(values.q).trim().slice(0, 100),
     ipId: /^[a-z0-9][a-z0-9-]*$/.test(ipId) ? ipId.slice(0, 100) : '',
@@ -179,7 +179,7 @@ export function normalizeGoodsListFilters(values: Record<string, string | string
     sort: GOODS_LIST_SORT_OPTIONS.some(option => option.value === sort) ? sort as GoodsListSort
       : Object.hasOwn(LEGACY_GOODS_LIST_SORTS, sort) ? LEGACY_GOODS_LIST_SORTS[sort] : 'created_desc',
     pageSize: goodsListPageSize(values.pageSize),
-    originId: UUID_PATTERN.test(originId) ? originId.toLowerCase() : '',
+    originId: isUuid(originId) ? originId.toLowerCase() : '',
     payment: ['card', 'bank', 'none'].includes(payment) ? payment as 'card' | 'bank' | 'none' : 'all',
     saleType: ['stock', 'preorder'].includes(saleType) ? saleType as 'stock' | 'preorder' : 'all',
     image: ['with', 'without'].includes(image) ? image as 'with' | 'without' : 'all',

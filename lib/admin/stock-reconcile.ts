@@ -7,6 +7,7 @@
  * 출고 대기·회수 뒤 재고 미반영·기준 시각 뒤 출고를 더하고 기준 시각 뒤 회수를 빼서 비교한다
  * — 계산은 `admin_preview_stock_reconcile`(`private.stock_reconcile_flows`)이 소유한다.
  */
+import { isUuid } from '@/lib/uuid';
 import { boundErpTable, normalizeErpHeader, normalizeErpText, parseErpDelimitedTable } from './erp-item-import';
 
 export const STOCK_RECONCILE_PATH = '/admin/catalog/stock-reconcile';
@@ -330,7 +331,6 @@ export interface StockReconcileDocument {
 }
 export type StockReconcileSummary = Omit<StockReconcileDocument, 'items' | 'issues' | 'originId' | 'applyReason'>;
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 type JsonRecord = Record<string, unknown>;
 function record(value: unknown): JsonRecord | null {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as JsonRecord : null;
@@ -375,7 +375,7 @@ function parseItem(value: unknown): StockReconcileItem | null {
   const stockBefore = optionalCount(row.stockBefore); const appliedPendingQty = optionalCount(row.appliedPendingQty);
   const appliedShippedSinceQty = optionalCount(row.appliedShippedSinceQty); const appliedReturnedSinceQty = optionalCount(row.appliedReturnedSinceQty);
   const appliedAwaitingReturnQty = optionalCount(row.appliedAwaitingReturnQty);
-  if (!variantId || !UUID.test(variantId) || goodId === null || goodsCode === null || goodsName === null || optionName === null || optionCode === null
+  if (!variantId || !isUuid(variantId) || goodId === null || goodsCode === null || goodsName === null || optionName === null || optionCode === null
     || sourceRow === null || !matchKind || !Object.hasOwn(STOCK_MATCH_KIND_LABELS, matchKind) || fileQty === null || stockQty === null
     || pendingQty === null || shippedSinceQty === null || returnedSinceQty === null || awaitingReturnQty === null
     || adjustedSinceCount === null || adjustedSinceQty === null || difference === null || targetQty === null
@@ -421,7 +421,7 @@ function parseSummaryFields(row: JsonRecord) {
   const rowCount = int(row.rowCount, { min: 0 }); const matchedCount = int(row.matchedCount, { min: 0 });
   const issueCount = int(row.issueCount, { min: 0 }); const changedCount = int(row.changedCount, { min: 0 });
   const appliedAt = row.appliedAt === null ? null : time(row.appliedAt); const applyResult = parseApplyResult(row.applyResult);
-  if (!id || !UUID.test(id) || sourceLabel === null || !asOf || !createdAt || originName === undefined || appliedByName === undefined
+  if (!id || !isUuid(id) || sourceLabel === null || !asOf || !createdAt || originName === undefined || appliedByName === undefined
     || rowCount === null || matchedCount === null || issueCount === null || changedCount === null
     || (row.appliedAt !== null && appliedAt === null) || applyResult === undefined) return null;
   return { id, sourceLabel, asOf, createdAt, createdByName: text(row.createdByName) ?? '', originName, rowCount, matchedCount, issueCount,
@@ -434,7 +434,7 @@ export function parseStockReconcileDocument(value: unknown): StockReconcileDocum
   const summary = parseSummaryFields(row);
   const originId = row.originId === null ? null : text(row.originId);
   const applyReason = nullableText(row.applyReason);
-  if (!summary || (row.originId !== null && (!originId || !UUID.test(originId))) || applyReason === undefined) return null;
+  if (!summary || (row.originId !== null && (!originId || !isUuid(originId))) || applyReason === undefined) return null;
   const items = row.items.map(parseItem);
   const issues = row.issues.map(parseIssue);
   if (items.some((item) => !item) || issues.some((issue) => !issue)) return null;

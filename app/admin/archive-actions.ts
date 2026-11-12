@@ -3,9 +3,8 @@
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { revalidateGoodsSurfaces } from '@/lib/admin/revalidate-goods.server';
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
-import { hasAdminCapability } from '@/lib/admin/access';
-import { getCurrentAdminAuthState } from '@/lib/auth/admin';
+import { unstable_rethrow } from 'next/navigation';
+import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
 
 export type AdminCatalogArchiveKind = 'ip' | 'good' | 'card' | 'event';
@@ -38,7 +37,6 @@ const RPC_NAMES: Record<AdminCatalogArchiveOperation, Record<AdminCatalogArchive
 
 const ARCHIVE_KINDS = new Set<AdminCatalogArchiveKind>(['ip', 'good', 'card', 'event']);
 const CATALOG_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
-const CONFIG_ERROR = 'Supabase 환경변수를 설정한 뒤 카탈로그 보관 상태를 변경할 수 있습니다.';
 const RETRY_ERROR = '카탈로그 보관 상태를 변경하지 못했습니다. 다시 시도해주세요.';
 const STALE_ERROR = '카탈로그 보관 상태를 변경하지 못했습니다. 최신 상태를 확인해주세요.';
 
@@ -54,10 +52,6 @@ const RPC_GUARD_MESSAGES: ReadonlyArray<readonly [string, string]> = [
   ['event_has_open_game', '운영 중인 게임에 연결된 이벤트는 보관할 수 없습니다.'],
   ['parent_archived', '상위 IP를 먼저 복원해주세요.'],
 ];
-
-function loginPath() {
-  return `/login?next=${encodeURIComponent('/admin')}`;
-}
 
 function normalizeArchiveForm(formData: FormData):
   | { ok: true; kind: AdminCatalogArchiveKind; id: string }
@@ -118,15 +112,14 @@ async function updateAdminCatalogArchiveState(
   const normalized = normalizeArchiveForm(formData);
   if (!normalized.ok) return { errors: normalized.errors };
 
-  let auth: Awaited<ReturnType<typeof getCurrentAdminAuthState>>;
+  let access: Awaited<ReturnType<typeof requireAdminActionAccess>>;
   try {
-    auth = await getCurrentAdminAuthState();
-  } catch {
+    access = await requireAdminActionAccess('/admin', { capability: normalized.kind === 'good' ? 'catalog.manage' : 'platform.manage' });
+  } catch (error) {
+    unstable_rethrow(error);
     return { errors: { form: RETRY_ERROR } };
   }
-  if (!auth.isConfigured) return { errors: { form: CONFIG_ERROR } };
-  if (!auth.user) redirect(loginPath());
-  if (!auth.isStaff || !hasAdminCapability(auth, normalized.kind === 'good' ? 'catalog.manage' : 'platform.manage')) return { errors: { form: '관리자 권한이 필요합니다.' } };
+  if (!access) return { errors: { form: '관리자 권한이 필요합니다.' } };
 
   let error: { code?: unknown; message?: unknown } | null;
   try {

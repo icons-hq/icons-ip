@@ -1,7 +1,7 @@
 'use server';
 
 import { unstable_rethrow } from 'next/navigation';
-import { hasAdminCapability } from '@/lib/admin/access';
+import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import {
   CLAIM_EVIDENCE_BUCKET,
   CLAIM_EVIDENCE_EXTENSIONS,
@@ -9,7 +9,6 @@ import {
   isClaimEvidenceMimeType,
   type ClaimEvidenceFile,
 } from '@/lib/admin/claim-evidence';
-import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { inspectInquiryFile } from '@/lib/inquiry-file-inspection.server';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
@@ -40,8 +39,7 @@ function registrationError(message: string | undefined) {
 
 export async function uploadClaimEvidenceAction(formData: FormData): Promise<ClaimEvidenceUploadResult> {
   try {
-    const auth = await getCurrentAdminAuthState();
-    if (!auth.isConfigured || !auth.user || !auth.isStaff || !hasAdminCapability(auth, 'sales.manage')) {
+    if (!await requireAdminActionAccess('/admin/sales/claims/exchanges', { capability: 'sales.manage' })) {
       return { ok: false, error: '교환 처리 권한이 필요합니다.' };
     }
     const claimId = formData.get('claimId'), fileId = formData.get('fileId'), file = formData.get('file');

@@ -1,5 +1,6 @@
 'use server';
 import { revalidatePath } from 'next/cache';
+import { revalidateGoodsSurfaces } from '@/lib/admin/revalidate-goods.server';
 import { unstable_rethrow } from 'next/navigation';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
@@ -48,7 +49,7 @@ export async function saveGoodMediaAction(goodId: string, input: unknown, revisi
     const snapshot = !error ? parseGoodMediaSnapshot(data) : null;
     if (!snapshot || snapshot.goodId !== goodId || snapshot.revision !== revision + 1
       || ['video', 'shortclip'].some(kind => { const key = kind as 'video' | 'shortclip'; return (snapshot[key]?.id ?? null) !== (values[key]?.id ?? null) || (snapshot[key]?.title ?? null) !== (values[key]?.title ?? null); })) return unknownSave();
-    revalidatePath(GOODS_MEDIA_PATH); revalidatePath('/shop/[goodId]', 'page'); return { snapshot };
+    revalidatePath(GOODS_MEDIA_PATH); revalidateGoodsSurfaces(); return { snapshot };
   } catch (error) { unstable_rethrow(error); return unknownSave(); }
 }
 export async function saveGoodsMediaSettingsAction(input: unknown, revision: number, operationId: string): Promise<MediaSettingsSaveResult> {
@@ -60,6 +61,6 @@ export async function saveGoodsMediaSettingsAction(input: unknown, revision: num
     const known = failure(error); if (known) return known;
     const result = !error ? parseGoodsMediaSettings(data?.values) : null;
     if (!result || data.revision !== revision + 1 || result.priority !== values.priority || result.shortclips !== values.shortclips) return unknownSave();
-    revalidatePath(GOODS_MEDIA_SETTINGS_PATH); revalidatePath('/shop/[goodId]', 'page'); return { snapshot: { values: result, revision: data.revision } };
+    revalidatePath(GOODS_MEDIA_SETTINGS_PATH); revalidateGoodsSurfaces(); return { snapshot: { values: result, revision: data.revision } };
   } catch (error) { unstable_rethrow(error); return unknownSave(); }
 }

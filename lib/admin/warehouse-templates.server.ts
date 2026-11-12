@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 import 'server-only';
 import { parseShipmentPackSummary } from './shipment-packs';
 import {
@@ -191,12 +192,11 @@ export interface WarehouseTrackingParseResult {
 }
 export interface SeowonTrackingParseResult { kind: 'seowon'; rows: SeowonReplyRow[]; issues: TrackingImportParseResult['issues'] }
 export type TrackingWorkbookParseResult = TrackingImportParseResult | WarehouseTrackingParseResult | SeowonTrackingParseResult | SmartStoreTrackingParseResult;
-const ORDER_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 /**
  * 김포 회신의 주문 식별값. 지금 파일은 표시 주문번호이고, 11/12 이전에 내려받은 파일은 전체 주문 UUID다.
  * 주문번호 형식 판정은 `isCommerceNumber` 한 곳을 따른다(번호 체계가 바뀌면 그 함수만 바뀐다).
  */
-const isGimpoOrderReference = (value: string) => ORDER_UUID.test(value) || isCommerceNumber(value, 'order');
+const isGimpoOrderReference = (value: string) => isUuid(value) || isCommerceNumber(value, 'order');
 const GIMPO_NATIVE_COLUMNS = GIMPO_COLUMNS.filter(column => !('appended' in column));
 const GIMPO_REPLY_EXTRA_HEADERS = new Set<string>(['', ...GIMPO_APPENDED_HEADERS]);
 
@@ -330,7 +330,7 @@ export function trackingImportCommand(parsed: Exclude<TrackingWorkbookParseResul
     ].sort((left, right) => left.line - right.line) } };
   }
   if ('kind' in parsed) {
-    if (!ORDER_UUID.test(originId)) throw new Error('김포 원본 회신은 목록 위에서 해당 출고지를 선택한 뒤 올려주세요.');
+    if (!isUuid(originId)) throw new Error('김포 원본 회신은 목록 위에서 해당 출고지를 선택한 뒤 올려주세요.');
     return { name: 'admin_import_warehouse_tracking_batch' as const,
       args: { target_origin_id: originId, target_rows: [...parsed.rows.map(row => ({
         line: row.line, reference: row.reference, trackingNumber: row.trackingNumber,

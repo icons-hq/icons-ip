@@ -90,9 +90,15 @@ describe('shipment action boundaries', () => {
     mocks.rpc.mockResolvedValue({data:[{id:ID,ok:true,affectedIds:[ID,SECOND]}],error:null});
     expect(await completeShipmentsAction([ID])).toEqual({message:'2건을 배송완료로 변경했습니다.',failed:[]});
   });
-  it.each([null, { isConfigured: true, user: { id: 'buyer' }, isStaff: false }])('requires staff before reading export data', async (auth) => {
-    mocks.auth.mockResolvedValue(auth ?? { isConfigured: true, user: null, isStaff: false });
+  it('requires staff before reading export data', async () => {
+    mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'buyer' }, isStaff: false });
     expect(await exportShipmentsAction([ID], 'xlsx')).toMatchObject({ error: '직원 권한이 필요합니다.' });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.build).not.toHaveBeenCalled();
+  });
+  it('sends a signed-out caller to login before reading export data', async () => {
+    mocks.auth.mockResolvedValue({ isConfigured: true, user: null, isStaff: false });
+    await expect(exportShipmentsAction([ID], 'xlsx')).rejects.toMatchObject({ digest: expect.stringContaining('NEXT_REDIRECT') });
     expect(mocks.rpc).not.toHaveBeenCalled();
     expect(mocks.build).not.toHaveBeenCalled();
   });

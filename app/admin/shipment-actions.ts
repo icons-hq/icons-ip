@@ -1,7 +1,8 @@
 'use server';
+import { isUuid } from '@/lib/uuid';
 import {canAccessAdminScreen,hasAdminCapability} from '@/lib/admin/access';
 import {revalidatePath} from 'next/cache';
-import {getCurrentAdminAuthState} from '@/lib/auth/admin';
+import {requireAdminActionAccess} from '@/lib/admin/action-access.server';
 import {createClient} from '@/lib/supabase/server';
 import {buildShipmentExport} from '@/lib/admin/shipment-workbook.server';
 import {withSmartStoreLegacyAllocations} from '@/lib/admin/item-allocation.server';
@@ -18,18 +19,18 @@ import {getShippingCarrierRegistry} from '@/lib/orders/shipment.server';
 import {enqueueOrderShippedEmails} from '@/lib/email/order-shipment-jobs.server';
 import {DISPATCH_HANDOFF_METHODS,DISPATCH_METHODS,DISPATCH_REASON_MAX_LENGTH,DISPATCH_TARGET_LIMIT,dispatchDeliveryError,parseDispatchDeliveryOptions,parseDispatchDeliveryReceipt,
  type DispatchDeliveryOptions,type DispatchDeliveryReceipt,type DispatchHandoffInput,type DispatchMethod} from '@/lib/admin/dispatch-delivery';
-const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const INSTANT=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/;
-function selection(value:unknown):string[]|null {if(!Array.isArray(value)||!value.length||value.length>1000||!value.every(id=>typeof id==='string'&&UUID.test(id)))return null;return [...new Set((value as string[]).map(id=>id.toLowerCase()))];}
+function selection(value:unknown):string[]|null {if(!Array.isArray(value)||!value.length||value.length>1000||!value.every(id=>typeof id==='string'&&isUuid(id)))return null;return [...new Set((value as string[]).map(id=>id.toLowerCase()))];}
 /** 출고지시·배송완료는 출고 전용 권한(sales.dispatch, 1014-084)으로 한다. sales.manage도 이 권한을 포함한다. */
-async function staff(){const auth=await getCurrentAdminAuthState();return auth.isConfigured&&auth.user&&auth.isStaff&&hasAdminCapability(auth,'sales.dispatch')?auth:null;}
+const SHIPMENT_PATH='/admin/sales/dispatch';
+async function staff(){return requireAdminActionAccess(SHIPMENT_PATH,{capability:'sales.dispatch'});}
 /**
  * 발송처리 화면의 행 운송장·배송 방법·택배 외 일괄 인계(S36-072·S36-X04) 액션이 요구하는 능력. 물류 출고 권한(sales.dispatch, 1014-084)이고
  * sales.manage도 이 권한을 포함한다. DB는 private.dispatch_console_capability()가 같은 값을 둔다(통합 migration 20261112200000).
  * 운영 강제 배송완료는 sales.manage 그대로다.
  */
 const DISPATCH_CONSOLE_CAPABILITY='sales.dispatch' as const;
-async function dispatchStaff(){const auth=await getCurrentAdminAuthState();return auth.isConfigured&&auth.user&&auth.isStaff&&hasAdminCapability(auth,DISPATCH_CONSOLE_CAPABILITY)?auth:null;}
+async function dispatchStaff(){return requireAdminActionAccess(SHIPMENT_PATH,{capability:DISPATCH_CONSOLE_CAPABILITY});}
 function refresh(){revalidatePath('/admin/sales/dispatch');revalidatePath('/admin/sales/shipping');revalidatePath('/admin/sales/orders');revalidatePath('/orders');}
 /** 발송·인계 기록은 고객 주문 화면과 주문 상세(팝업 포함)에도 바로 보여야 한다. */
 function refreshDispatched(){refresh();revalidatePath('/orders/[orderId]','page');revalidatePath('/admin/sales/orders/[orderId]','page');}
@@ -90,7 +91,7 @@ export async function exportShipmentsAction(ids:unknown,format:'xlsx'|'csv',layo
 /** The origin batch has the same selected layout and password contract as a selected-row export. */
 export async function exportPendingOriginShipmentsAction(originId:unknown,format:'xlsx'|'csv',layout:ShipmentExportLayout='smartstore',credentials?:ExportCredentials):Promise<ExportResult>{
  const auth=await staff();if(!auth)return {error:'직원 권한이 필요합니다.'};
- if(typeof originId!=='string'||!UUID.test(originId))return {error:'출고지를 선택해주세요.'};
+ if(typeof originId!=='string'||!isUuid(originId))return {error:'출고지를 선택해주세요.'};
  const invalid=exportInputError(format,layout,credentials);if(invalid)return {error:invalid};
  const client=await createClient();
  const pending=await client.rpc('admin_origin_pending_export_ids',{target_origin_id:originId.toLowerCase()});
@@ -117,7 +118,7 @@ export async function shipmentBarcodeGapsAction(ids:unknown,layout:ShipmentExpor
  * (리뷰 M27-SHIP-2). 다음 파일의 정확한 개수는 내려받을 때 실제로 내보낸 배송 건으로 다시 세어 결과 문구에 싣는다.
  */
 export async function originBarcodeGapsAction(originId:unknown,layout:ShipmentExportLayout='warehouse'):Promise<number|null>{
- if(!await staff()||!isExportLayout(layout)||typeof originId!=='string'||!UUID.test(originId))return null;
+ if(!await staff()||!isExportLayout(layout)||typeof originId!=='string'||!isUuid(originId))return null;
  return barcodeGaps(await createClient(),{p_origin_id:originId.toLowerCase()},layout);
 }
 function isExportLayout(layout:unknown):layout is ShipmentExportLayout{return layout==='smartstore'||layout==='warehouse';}
@@ -139,7 +140,7 @@ export async function completeShipmentsAction(ids:unknown){
 export async function saveShipmentExportColumnsAction(id:string,columns:unknown,updatedAt:string){
  const auth=await staff();if(!auth||!canAccessAdminScreen(auth,null,{capability:'platform.manage',adminOnly:true}))return {error:'관리자 권한이 필요합니다.'};
  const parsed=parseShipmentExportColumns(columns);
- if(!UUID.test(id)||!parsed||!updatedAt)return {error:'모든 표준 컬럼의 헤더와 순서를 확인해주세요.'};
+ if(!isUuid(id)||!parsed||!updatedAt)return {error:'모든 표준 컬럼의 헤더와 순서를 확인해주세요.'};
  const client=await createClient();const result=await client.rpc('admin_save_origin_export_columns',{target_id:id,target_columns:parsed,expected_updated_at:updatedAt});
  if(result.error)return {error:'다른 변경이 먼저 저장됐거나 양식이 올바르지 않습니다. 최신 출고지 설정을 확인해주세요.'};
  revalidatePath('/admin/settings/origins');return {message:'출고지시 양식을 저장했습니다.',updatedAt:result.data as string};
@@ -158,7 +159,7 @@ export async function registerShipmentTrackingAction(input:unknown):Promise<Ship
  const carriers=await getShippingCarrierRegistry();const rows:{line:number;reference:string;carrier:string;trackingNumber:string}[]=[];
  for(const [index,value] of input.entries()){
   const {shipmentId,carrier,trackingNumber}=(typeof value==='object'&&value!==null?value:{}) as Record<string,unknown>;
-  if(typeof shipmentId!=='string'||!UUID.test(shipmentId)||rows.some(row=>row.reference===shipmentId.toLowerCase()))return {ok:false,error:'운송장을 등록할 배송 건을 다시 확인해주세요.'};
+  if(typeof shipmentId!=='string'||!isUuid(shipmentId)||rows.some(row=>row.reference===shipmentId.toLowerCase()))return {ok:false,error:'운송장을 등록할 배송 건을 다시 확인해주세요.'};
   const selected=typeof carrier==='string'?findShippingCarrier(carriers,carrier):null;
   if(!selected?.active)return {ok:false,error:shipmentMutationError('inactive_shipping_carrier')};
   const tracking=typeof trackingNumber==='string'?normalizeTrackingNumber(trackingNumber):'';
@@ -200,11 +201,11 @@ function dispatchRequest(input:unknown):DispatchDeliveryRequest|null{
  if(typeof input!=='object'||input===null)return null;
  const {targets,method,reason,handoff,operationId}=input as Record<string,unknown>;
  if(!Array.isArray(targets)||!targets.length||targets.length>DISPATCH_TARGET_LIMIT||!DISPATCH_METHODS.includes(method as DispatchMethod)
-  ||typeof reason!=='string'||reason.trim().length>DISPATCH_REASON_MAX_LENGTH||typeof operationId!=='string'||!UUID.test(operationId))return null;
+  ||typeof reason!=='string'||reason.trim().length>DISPATCH_REASON_MAX_LENGTH||typeof operationId!=='string'||!isUuid(operationId))return null;
  const parsed:DispatchDeliveryRequest['targets']=[];
  for(const target of targets){
   const {shipmentId,updatedAt}=(typeof target==='object'&&target!==null?target:{}) as Record<string,unknown>;
-  if(typeof shipmentId!=='string'||!UUID.test(shipmentId)||typeof updatedAt!=='string'||!INSTANT.test(updatedAt)||parsed.some(row=>row.shipmentId===shipmentId.toLowerCase()))return null;
+  if(typeof shipmentId!=='string'||!isUuid(shipmentId)||typeof updatedAt!=='string'||!INSTANT.test(updatedAt)||parsed.some(row=>row.shipmentId===shipmentId.toLowerCase()))return null;
   parsed.push({shipmentId:shipmentId.toLowerCase(),updatedAt});
  }
  let evidence:DispatchHandoffInput|null=null;

@@ -1,10 +1,10 @@
 'use server';
 
-import { canAccessAdminScreen, hasAdminCapability } from '@/lib/admin/access';
+import { canAccessAdminScreen } from '@/lib/admin/access';
 
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { revalidatePath } from 'next/cache';
-import { redirect, unstable_rethrow } from 'next/navigation';
+import { unstable_rethrow } from 'next/navigation';
 import {
   ADMIN_CLAIM_BULK_DB_ITEM_RESERVE_MS,
   ADMIN_CLAIM_BULK_PROVIDER_ITEM_RESERVE_MS,
@@ -29,7 +29,8 @@ import { recordClaimDefectiveStock } from '@/lib/admin/defective-stock.server';
 import { CLAIM_EVIDENCE_MAX_FILES, CLAIM_WAIVER_REASON_MAX, CLAIM_WAIVER_REASON_MIN, claimWaiverReasonValid, normalizeClaimWaiverReason } from '@/lib/admin/claim-evidence';
 import { ADMIN_CANCELLATION_RECHECK_LABELS } from '@/lib/admin/orders';
 import { withPreservedFormValues, type AdminFormValuesState } from '@/lib/admin/form-state';
-import { getCurrentAdminAuthState } from '@/lib/auth/admin';
+import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
+import { revalidateGoodsSurfaces } from '@/lib/admin/revalidate-goods.server';
 import {
   ORDER_CLAIM_TYPE_LABELS,
   isOrderClaimType,
@@ -163,11 +164,8 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string) {
 async function requireStaffAction(): Promise<
   { error?: AdminClaimActionState; userId?: string; canManagePayments?: boolean }
 > {
-  const auth = await getCurrentAdminAuthState();
-  if (!auth.isConfigured || !auth.user) {
-    redirect(`/login?next=${encodeURIComponent('/admin/sales/claims/cancels')}`);
-  }
-  if (!auth.isStaff || !hasAdminCapability(auth, 'sales.manage')) return { error: { error: '관리자 권한이 필요합니다.' } };
+  const auth = await requireAdminActionAccess('/admin/sales/claims/cancels', { capability: 'sales.manage' });
+  if (!auth) return { error: { error: '관리자 권한이 필요합니다.' } };
   return { userId: auth.user.id, canManagePayments: canAccessAdminScreen(auth, null, { capability: 'sales.manage', adminOnly: true }) };
 }
 
@@ -844,10 +842,8 @@ export async function recordOrderClaimReshipmentAction(
   if (error) return { error: rpcErrorMessage(error.message, RESHIP_FAILED) };
 
   revalidateClaimSurfaces(normalized.value.claimId, 'exchange');
-  revalidatePath('/shop', 'layout');
-  revalidatePath('/ip', 'layout');
+  revalidateGoodsSurfaces();
   revalidatePath('/cart');
-  revalidatePath('/checkout');
   revalidatePath('/admin/catalog/goods', 'layout');
   return { message: '교환 재출고 운송장을 등록하고 클레임을 종결했습니다.' };
 }

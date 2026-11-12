@@ -2,13 +2,11 @@
 
 import { randomUUID } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
 import {
   normalizeAdminNotificationForm,
   type AdminNotificationActionState,
 } from '@/lib/admin/notifications';
-import { hasAdminCapability } from '@/lib/admin/access';
-import { getCurrentAdminAuthState } from '@/lib/auth/admin';
+import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
 
 interface SendNotificationRow {
@@ -19,14 +17,8 @@ interface SendNotificationRow {
 const SEND_FAILED = '공지를 발송하지 못했습니다. 대상과 최신 수신자 수를 확인해주세요.';
 const SEND_RESULT_MISSING = '공지를 발송하지 못했습니다. 최신 발송 이력을 확인해주세요.';
 
-function loginPath() {
-  return `/login?next=${encodeURIComponent('/admin')}`;
-}
-
 async function requireStaffAction(): Promise<AdminNotificationActionState | null> {
-  const auth = await getCurrentAdminAuthState();
-  if (!auth.isConfigured || !auth.user) redirect(loginPath());
-  if (!auth.isStaff || !hasAdminCapability(auth, 'marketing.manage')) return { errors: { form: '관리자 권한이 필요합니다.' } };
+  if (!await requireAdminActionAccess('/admin/messaging/notifications', { capability: 'marketing.manage' })) return { errors: { form: '관리자 권한이 필요합니다.' } };
   return null;
 }
 

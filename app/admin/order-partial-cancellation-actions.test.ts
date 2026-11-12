@@ -4,8 +4,13 @@ const mocks = vi.hoisted(() => ({
   auth: vi.fn(), inspect: vi.fn(), reconcile: vi.fn(), create: vi.fn(), userRpc: vi.fn(), serviceRpc: vi.fn(), caller: vi.fn(), revalidate: vi.fn(),
 }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidate }));
-vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: mocks.auth }));
-vi.mock('@/lib/admin/access', () => ({ hasAdminCapability: () => true }));
+/* 가드 자체(미로그인 이동·권한 판정)는 action-access.test.ts가 검증한다. 여기서는 직원 세션만 흉내 낸다. */
+vi.mock('@/lib/admin/action-access.server', () => ({
+  requireAdminActionAccess: async () => {
+    const auth = await mocks.auth();
+    return auth?.isConfigured && auth.user && auth.isStaff ? auth : null;
+  },
+}));
 vi.mock('@/lib/orders/partial-cancellation-orchestrator.server', () => ({
   inspectOrderPartialCancellationResolution: mocks.inspect, reconcileOrderPartialCancellation: mocks.reconcile,
 }));

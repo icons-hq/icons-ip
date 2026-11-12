@@ -35,6 +35,7 @@ vi.mock('next/cache', () => ({
 }));
 vi.mock('next/navigation', () => ({
   redirect: (path: string) => { throw new Error(`NEXT_REDIRECT:${path}`); },
+  unstable_rethrow: (error: unknown) => { if (error instanceof Error && error.message.startsWith('NEXT_REDIRECT')) throw error; },
 }));
 
 function curationForm(entries: Record<string, string> = {}) {

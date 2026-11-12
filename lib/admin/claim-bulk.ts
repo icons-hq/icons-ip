@@ -79,7 +79,6 @@ export interface AdminClaimBulkState {
 
 const BULK_FAILED = '클레임을 처리하지 못했습니다. 최신 상태를 확인해주세요.';
 const BULK_SKIPPED = '처리 시간이 길어 처리하지 않았습니다. 다시 실행하세요.';
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 /**
  * 일괄 선택을 열어 둘 단계. 버튼 셋(승인·거부·검토중) 중 하나라도 될 수 있는 단계다.
@@ -129,7 +128,7 @@ function readClaimIds(formData: FormData): { ok: true; claimIds: string[] } | { 
   const claimIds: string[] = [];
   for (const raw of formData.getAll('claimIds')) {
     const id = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
-    if (!UUID_PATTERN.test(id)) {
+    if (!isUuid(id)) {
       return { ok: false, error: '선택한 요청을 확인하지 못했습니다. 새로고침한 뒤 다시 선택해주세요.' };
     }
     if (!claimIds.includes(id)) claimIds.push(id);
@@ -366,7 +365,6 @@ export interface AdminClaimBulkContext {
   refundBlocker: string | null;
 }
 
-const CONTEXT_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const CLAIM_TYPES = new Set<string>(['cancel', 'return', 'exchange']);
 const CLAIM_STAGES = new Set<string>(['requested', 'in_review', 'collecting', 'collected', 'on_hold', 'processing', 'needs_review', 'completed', 'rejected', 'withdrawn']);
 
@@ -382,8 +380,8 @@ export function parseAdminClaimBulkContexts(value: unknown): AdminClaimBulkConte
   if (!Array.isArray(value)) return null;
   const contexts: AdminClaimBulkContext[] = [];
   for (const row of value) {
-    if (!record(row) || typeof row.claimId !== 'string' || !CONTEXT_UUID.test(row.claimId)
-      || typeof row.orderId !== 'string' || !CONTEXT_UUID.test(row.orderId)
+    if (!record(row) || typeof row.claimId !== 'string' || !isUuid(row.claimId)
+      || typeof row.orderId !== 'string' || !isUuid(row.orderId)
       || typeof row.claimType !== 'string' || !CLAIM_TYPES.has(row.claimType)
       || typeof row.stage !== 'string' || !CLAIM_STAGES.has(row.stage)
       || !Array.isArray(row.collections)) return null;
@@ -397,13 +395,13 @@ export function parseAdminClaimBulkContexts(value: unknown): AdminClaimBulkConte
     for (const collection of row.collections) {
       const collectedAt = record(collection) ? nullableText(collection.collectedAt) : undefined;
       const receivedOn = record(collection) ? nullableText(collection.receivedOn) : undefined;
-      if (!record(collection) || typeof collection.shipmentId !== 'string' || !CONTEXT_UUID.test(collection.shipmentId)
+      if (!record(collection) || typeof collection.shipmentId !== 'string' || !isUuid(collection.shipmentId)
         || typeof collection.originName !== 'string' || collectedAt === undefined || receivedOn === undefined) return null;
       /* 묶음 키가 없는 응답(이 기능 전 DB)은 묶음 하나로 본다 — 배송 건 키로 확인한다. */
       const bundles: AdminClaimBulkCollectionBundle[] = [];
       for (const bundle of Array.isArray(collection.bundles) ? collection.bundles : []) {
         const bundleCollectedAt = record(bundle) ? nullableText(bundle.collectedAt) : undefined;
-        if (!record(bundle) || typeof bundle.bundleId !== 'string' || !CONTEXT_UUID.test(bundle.bundleId) || bundleCollectedAt === undefined
+        if (!record(bundle) || typeof bundle.bundleId !== 'string' || !isUuid(bundle.bundleId) || bundleCollectedAt === undefined
           || (bundle.returnName !== undefined && typeof bundle.returnName !== 'string')) return null;
         bundles.push({ bundleId: bundle.bundleId, returnName: typeof bundle.returnName === 'string' ? bundle.returnName : '',
           collectedAt: bundleCollectedAt, returnAddressReady: bundle.returnAddressReady === true });
@@ -611,7 +609,7 @@ function readIds(value: unknown, limit: number): { ok: true; claimIds: string[] 
   const claimIds: string[] = [];
   for (const raw of value) {
     const id = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
-    if (!UUID_PATTERN.test(id)) return { ok: false, error: '선택한 요청을 확인하지 못했습니다. 새로고침한 뒤 다시 선택해주세요.' };
+    if (!isUuid(id)) return { ok: false, error: '선택한 요청을 확인하지 못했습니다. 새로고침한 뒤 다시 선택해주세요.' };
     if (!claimIds.includes(id)) claimIds.push(id);
   }
   if (claimIds.length === 0) return { ok: false, error: '처리할 요청을 선택해주세요.' };
@@ -669,7 +667,7 @@ export function normalizeAdminClaimBulkCollectInput(input: unknown, now: Date = 
     const keys: string[] = [];
     for (const raw of value) {
       const id = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
-      if (!UUID_PATTERN.test(id) || keys.includes(id)) return null;
+      if (!isUuid(id) || keys.includes(id)) return null;
       keys.push(id);
     }
     return keys;
@@ -778,6 +776,6 @@ export const ADMIN_CLAIM_BULK_RESHIP_PARTIAL_REASON = '일부 반품지만 입�
 export function adminClaimBulkReshipRowError(input: { carrier: string; trackingNumber: string; items: readonly { variantId: string }[] }) {
   if (!input.carrier) return '택배사를 골라주세요.';
   if (!/^[A-Z0-9]{8,30}$/.test(input.trackingNumber.trim().toUpperCase())) return '운송장번호는 영문과 숫자 8~30자로 입력해주세요.';
-  if (input.items.some((item) => !UUID_PATTERN.test(item.variantId))) return '재출고할 상품을 골라주세요.';
+  if (input.items.some((item) => !isUuid(item.variantId))) return '재출고할 상품을 골라주세요.';
   return null;
 }

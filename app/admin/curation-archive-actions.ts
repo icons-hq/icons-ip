@@ -1,11 +1,10 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
-import { hasAdminCapability } from '@/lib/admin/access';
+import { unstable_rethrow } from 'next/navigation';
 import { ARCHIVED_HERO_PAGE_SIZE, parseCurationArchiveRequest, type ArchivedHeroPage } from '@/lib/admin/curation-archive';
 import type { AdminCurationActionState } from '@/lib/admin/curations';
-import { getCurrentAdminAuthState } from '@/lib/auth/admin';
+import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { normalizePublicMediaPath } from '@/lib/media';
 import { createClient } from '@/lib/supabase/server';
 
@@ -13,11 +12,7 @@ const FORBIDDEN = '현재 스토어 관리 권한을 확인해주세요.';
 const FAILED = '배너 요청을 처리하지 못했습니다. 다시 확인해주세요.';
 
 async function authorized() {
-  let auth: Awaited<ReturnType<typeof getCurrentAdminAuthState>>;
-  try { auth = await getCurrentAdminAuthState(); } catch { return false; }
-  if (!auth.isConfigured) return false;
-  if (!auth.user) redirect(`/login?next=${encodeURIComponent('/admin/display/curations')}`);
-  return auth.isStaff && hasAdminCapability(auth, 'store.manage');
+  try { return Boolean(await requireAdminActionAccess('/admin/display/curations', { capability: 'store.manage' })); } catch (error) { unstable_rethrow(error); return false; }
 }
 
 export async function readArchivedHeroBannersAction(page: number): Promise<{ page?: ArchivedHeroPage; error?: string }> {

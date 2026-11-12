@@ -1,22 +1,17 @@
 'use server';
 
 import { revalidatePath, updateTag } from 'next/cache';
-import { redirect } from 'next/navigation';
+import { unstable_rethrow } from 'next/navigation';
 import {
   normalizeAdminCurationForm,
   type AdminCurationActionState,
 } from '@/lib/admin/curations';
-import { hasAdminCapability } from '@/lib/admin/access';
-import { getCurrentAdminAuthState } from '@/lib/auth/admin';
+import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { NOTICE_STRIP_CACHE_TAG } from '@/lib/notice-strip.server';
 import { createClient } from '@/lib/supabase/server';
 
 const SAVE_ERROR = '홈 큐레이션을 저장하지 못했습니다. 다시 시도해주세요.';
 const UNCERTAIN_ERROR = '저장 결과를 확인하지 못했습니다. 입력한 내용을 유지한 채 같은 요청 결과를 확인해주세요.';
-
-function loginPath() {
-  return `/login?next=${encodeURIComponent('/admin')}`;
-}
 
 export async function upsertAdminCurationAction(
   _state: AdminCurationActionState,
@@ -25,15 +20,14 @@ export async function upsertAdminCurationAction(
   const normalized = normalizeAdminCurationForm(formData);
   if (!normalized.ok) return { errors: normalized.errors };
 
-  let auth: Awaited<ReturnType<typeof getCurrentAdminAuthState>>;
+  let access: Awaited<ReturnType<typeof requireAdminActionAccess>>;
   try {
-    auth = await getCurrentAdminAuthState();
-  } catch {
+    access = await requireAdminActionAccess('/admin', { capability: 'store.manage' });
+  } catch (error) {
+    unstable_rethrow(error);
     return { errors: { form: SAVE_ERROR } };
   }
-  if (!auth.isConfigured) return { errors: { form: SAVE_ERROR } };
-  if (!auth.user) redirect(loginPath());
-  if (!auth.isStaff || !hasAdminCapability(auth, 'store.manage')) return { errors: { form: '관리자 권한이 필요합니다.' } };
+  if (!access) return { errors: { form: '관리자 권한이 필요합니다.' } };
 
   const value = normalized.value;
   let error: unknown;

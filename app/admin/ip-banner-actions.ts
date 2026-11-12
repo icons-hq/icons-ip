@@ -1,9 +1,8 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
-import { hasAdminCapability } from '@/lib/admin/access';
-import { getCurrentAdminAuthState } from '@/lib/auth/admin';
+import { unstable_rethrow } from 'next/navigation';
+import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { isIpHallBannerImagePath } from '@/lib/ip-hall-banner';
 import { createClient } from '@/lib/supabase/server';
 
@@ -25,10 +24,6 @@ export interface AdminIpHallBannerActionState {
 const CATALOG_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 const PATH_ERROR = '검증된 IP 이미지를 업로드해주세요.';
 const SAVE_ERROR = 'IP관 배너를 저장하지 못했습니다. 다시 시도해주세요.';
-
-function loginPath() {
-  return `/login?next=${encodeURIComponent('/admin')}`;
-}
 
 function readPath(formData: FormData, key: string): string | null | false {
   const raw = formData.get(key);
@@ -65,15 +60,14 @@ export async function saveAdminIpHallBannerAction(
     };
   }
 
-  let auth: Awaited<ReturnType<typeof getCurrentAdminAuthState>>;
+  let access: Awaited<ReturnType<typeof requireAdminActionAccess>>;
   try {
-    auth = await getCurrentAdminAuthState();
-  } catch {
+    access = await requireAdminActionAccess('/admin', { capability: 'platform.manage' });
+  } catch (error) {
+    unstable_rethrow(error);
     return { errors: { form: SAVE_ERROR } };
   }
-  if (!auth.isConfigured) return { errors: { form: SAVE_ERROR } };
-  if (!auth.user) redirect(loginPath());
-  if (!auth.isStaff || !hasAdminCapability(auth, 'platform.manage')) return { errors: { form: '관리자 권한이 필요합니다.' } };
+  if (!access) return { errors: { form: '관리자 권한이 필요합니다.' } };
 
   let error: { code?: unknown; message?: unknown } | null;
   try {

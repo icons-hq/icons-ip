@@ -1,10 +1,9 @@
 'use server';
 
-import { hasAdminCapability, type AdminCapability } from '@/lib/admin/access';
+import type { AdminCapability } from '@/lib/admin/access';
 
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
-import { getCurrentAdminAuthState } from '@/lib/auth/admin';
+import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
 import { getAdminCustomerHistory } from '@/lib/admin/customer-detail.server';
 import { isCustomerId, MAX_CUSTOMER_NOTE_LENGTH, normalizeCustomerDetailFilters, type AdminCustomerDetail } from '@/lib/admin/customer-detail';
@@ -17,9 +16,8 @@ export interface CustomerHistoryState {
 const NOTE_FAILED = '메모를 저장하지 못했습니다. 입력한 메모는 유지됩니다. 다시 시도해주세요.';
 function read(data: FormData, name: string) { const value = data.get(name); return typeof value === 'string' ? value.trim() : ''; }
 async function staffError(userId: string, capability: AdminCapability) {
-  const auth = await getCurrentAdminAuthState();
-  if (!auth.isConfigured || !auth.user) redirect(`/login?next=${encodeURIComponent(isCustomerId(userId) ? `/admin/customers/${userId}` : '/admin/community/members')}`);
-  return auth.isStaff && hasAdminCapability(auth, capability) ? null : '운영자 권한이 필요합니다.';
+  const access = await requireAdminActionAccess(isCustomerId(userId) ? `/admin/customers/${userId}` : '/admin/community/members', { capability });
+  return access ? null : '운영자 권한이 필요합니다.';
 }
 
 export async function loadCustomerHistoryAction(_state: CustomerHistoryState, form: FormData): Promise<CustomerHistoryState> {

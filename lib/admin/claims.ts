@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { appendSalesListOptions, normalizeSalesListOptions, salesPage, salesParam, type SalesListOptions } from './sales-list';
 import {
@@ -313,12 +314,11 @@ export function adminClaimPreviewHref(
   return `${adminClaimHref(claimType, filters)}&claimId=${encodeURIComponent(claimId)}`;
 }
 
-const PREVIEW_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /** `?claimId=`에서 팝업으로 열 요청 id. 형식이 아니면 팝업을 열지 않는다. */
 export function adminClaimPreviewId(value: SearchParamValue): string | null {
   const candidate = singleParam(value).trim().toLowerCase();
-  return PREVIEW_ID_PATTERN.test(candidate) ? candidate : null;
+  return isUuid(candidate) ? candidate : null;
 }
 
 const BACK_PARAM_KEYS = ['stage', 'reasonType', 'from', 'to', 'query', 'page', 'field', 'dateField', 'sort', 'pageSize'] as const;
@@ -359,7 +359,6 @@ export function adminClaimOpenCount(counts: Record<OrderClaimStage, number>) {
  * 폼 정규화 — 콘솔 액션이 DB에 닿기 전에 입력을 좁힌다
  * ------------------------------------------------------------------------- */
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const TRACKING_NUMBER_PATTERN = /^[A-Z0-9]{8,30}$/;
 export const ADMIN_CLAIM_OPERATIONAL_FEE_KINDS = ['return_shipping', 'exchange_shipping', 'other'] as const;
 export type AdminClaimOperationalFeeKind = (typeof ADMIN_CLAIM_OPERATIONAL_FEE_KINDS)[number];
@@ -399,7 +398,7 @@ export function normalizeAdminClaimDecisionForm(
   const decision = readString(formData, 'decision');
   const note = readString(formData, 'note');
 
-  if (!UUID_PATTERN.test(claimId)) return { ok: false, error: '클레임을 찾을 수 없습니다.' };
+  if (!isUuid(claimId)) return { ok: false, error: '클레임을 찾을 수 없습니다.' };
   if (!(ADMIN_CLAIM_DECISIONS as readonly string[]).includes(decision)) {
     return { ok: false, error: '처리할 수 없는 결정입니다.' };
   }
@@ -435,7 +434,7 @@ export function normalizeAdminClaimRefundForm(
   const stage = readString(formData, 'stage');
   const note = readString(formData, 'note');
 
-  if (!UUID_PATTERN.test(claimId)) return { ok: false, error: '클레임을 찾을 수 없습니다.' };
+  if (!isUuid(claimId)) return { ok: false, error: '클레임을 찾을 수 없습니다.' };
   if (method !== 'pg_cancel' && method !== 'bank_transfer') {
     return { ok: false, error: '환불 수단을 선택해주세요.' };
   }
@@ -464,7 +463,7 @@ export function normalizeAdminClaimReshipmentForm(
   const carrier = readString(formData, 'carrier');
   const trackingNumber = readString(formData, 'trackingNumber').toUpperCase();
 
-  if (!UUID_PATTERN.test(claimId)) return { ok: false, error: '클레임을 찾을 수 없습니다.' };
+  if (!isUuid(claimId)) return { ok: false, error: '클레임을 찾을 수 없습니다.' };
   if (!carrier) return { ok: false, error: '택배사를 선택해주세요.' };
   if (!TRACKING_NUMBER_PATTERN.test(trackingNumber)) {
     return { ok: false, error: '운송장번호를 영문 대문자와 숫자 8~30자로 입력해주세요.' };
@@ -476,7 +475,7 @@ export function normalizeAdminClaimReshipmentForm(
     if (!key.startsWith('variant:')) continue;
     const orderItemId = key.slice(8).toLowerCase();
     const variantId = typeof value === 'string' ? value.toLowerCase() : '';
-    if (!UUID_PATTERN.test(orderItemId) || !UUID_PATTERN.test(variantId) || seen.has(orderItemId)) {
+    if (!isUuid(orderItemId) || !isUuid(variantId) || seen.has(orderItemId)) {
       return { ok: false, error: '재출고할 품목과 옵션을 확인해주세요.' };
     }
     seen.add(orderItemId); items.push({ orderItemId, variantId });
@@ -527,7 +526,7 @@ export function normalizeAdminClaimCollectionForm(
   const claimId = readString(formData, 'claimId').toLowerCase();
   const stage = readString(formData, 'stage');
 
-  if (!UUID_PATTERN.test(claimId)) return { ok: false, error: '클레임을 찾을 수 없습니다.' };
+  if (!isUuid(claimId)) return { ok: false, error: '클레임을 찾을 수 없습니다.' };
   if (stage !== 'collecting' && stage !== 'collected') {
     return { ok: false, error: '처리할 수 없는 수거 단계입니다.' };
   }
@@ -545,7 +544,7 @@ export function normalizeAdminClaimEvidenceForm(
 ): AdminClaimFormResult<{ claimId: string; evidence: string }> {
   const claimId = readString(formData, 'claimId').toLowerCase();
   const evidence = readString(formData, 'evidence');
-  if (!UUID_PATTERN.test(claimId)) return { ok: false, error: '클레임을 찾을 수 없습니다.' };
+  if (!isUuid(claimId)) return { ok: false, error: '클레임을 찾을 수 없습니다.' };
   if (!evidence || evidence.length > 500) return { ok: false, error: '확인 근거를 500자 이내로 입력해주세요.' };
   if (Array.from(evidence).some((character) => {
     const code = character.charCodeAt(0);
@@ -570,7 +569,7 @@ export function normalizeAdminClaimOperationalFeeForm(
   const note = readString(formData, 'note');
   const evidence = readString(formData, 'evidence');
   const expectedUpdatedAt = readString(formData, 'expectedUpdatedAt');
-  if (!UUID_PATTERN.test(claimId)) return { ok: false, error: '클레임을 찾을 수 없습니다.' };
+  if (!isUuid(claimId)) return { ok: false, error: '클레임을 찾을 수 없습니다.' };
   if (!expectedUpdatedAt || Number.isNaN(Date.parse(expectedUpdatedAt))) return { ok: false, error: '최신 클레임을 다시 열어주세요.' };
   if (!amountText) {
     if (kind || note || evidence) return { ok: false, error: '금액을 비우면 비용 유형·메모·근거도 비워야 합니다.' };
@@ -597,10 +596,10 @@ export function normalizeAdminClaimOriginCollectionForm(
   const normalized = normalizeAdminClaimEvidenceForm(formData);
   if (!normalized.ok) return normalized;
   const shipmentId = readString(formData, 'shipmentId').toLowerCase();
-  if (!UUID_PATTERN.test(shipmentId)) return { ok: false, error: '회수 확인할 배송 건을 선택해주세요.' };
+  if (!isUuid(shipmentId)) return { ok: false, error: '회수 확인할 배송 건을 선택해주세요.' };
   /* 회수 묶음(배송 건 × 반품지, S36-040): 반품지가 갈린 배송 건은 묶음을 골라 확인한다. 비우면 배송 건의 유일한 묶음이다. */
   const bundleId = readString(formData, 'bundleId').toLowerCase();
-  if (bundleId && !UUID_PATTERN.test(bundleId)) return { ok: false, error: '회수 확인할 반품지를 다시 선택해주세요.' };
+  if (bundleId && !isUuid(bundleId)) return { ok: false, error: '회수 확인할 반품지를 다시 선택해주세요.' };
   const receivedOn = normalizeAdminClaimReceivedOn(formData.get('receivedOn'));
   if (!receivedOn.ok) return receivedOn;
   return { ok: true, value: { ...normalized.value, shipmentId, bundleId: bundleId || null, receivedOn: receivedOn.value } };

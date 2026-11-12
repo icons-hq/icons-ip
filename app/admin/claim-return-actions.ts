@@ -1,8 +1,6 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
-import { hasAdminCapability } from '@/lib/admin/access';
 import { adminClaimBasePath } from '@/lib/admin/claims';
 import {
   mapReturnIntakeTable,
@@ -15,7 +13,7 @@ import {
 } from '@/lib/admin/claim-return-intake';
 import { readReturnIntakeFile } from '@/lib/admin/claim-return-intake.server';
 import { claimReturnPickupError, parseClaimReturnOperations } from '@/lib/admin/claim-return-pickup';
-import { getCurrentAdminAuthState } from '@/lib/auth/admin';
+import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
 import { isUuid } from '@/lib/uuid';
 
@@ -27,10 +25,7 @@ import { isUuid } from '@/lib/uuid';
 export interface ClaimReturnPickupRetryState { message?: string; error?: string }
 
 async function requireSalesManage(): Promise<string | null> {
-  const auth = await getCurrentAdminAuthState();
-  if (!auth.isConfigured || !auth.user) redirect(`/login?next=${encodeURIComponent('/admin/sales/claims/returns')}`);
-  if (!auth.isStaff || !hasAdminCapability(auth, 'sales.manage')) return '관리자 권한이 필요합니다.';
-  return null;
+  return await requireAdminActionAccess('/admin/sales/claims/returns', { capability: 'sales.manage' }) ? null : '관리자 권한이 필요합니다.';
 }
 
 function revalidateClaims(claimId?: string) {

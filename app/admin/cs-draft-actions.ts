@@ -2,21 +2,21 @@
 
 import { unstable_rethrow } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
-import { getCurrentAdminAuthState } from '@/lib/auth/admin';
-import { hasAdminCapability } from '@/lib/admin/access';
+import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
 import { isUuid } from '@/lib/uuid';
 import { isCsReplySurface } from '@/lib/admin/cs-reply-tools';
 import type { CsReplySource } from '@/lib/admin/cs-reply-sources';
 import { csReplyRpcArguments, isCsReplyRevision, parseCsReplyOperation, parseCsReplyReceipt, type CsReplyReceipt } from '@/lib/admin/cs-reply-mutations';
 
+const CS_PATH = '/admin/cs/inquiries';
 const record = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 const timestamp = (value: unknown): value is string | null => value === null || (typeof value === 'string' && Number.isFinite(Date.parse(value)));
 
 /** The revision comes from the same row snapshot as the content being reviewed. */
 export async function readCsReplySourceAction(input: unknown): Promise<{ ok: true; accountId: string; source: CsReplySource } | { ok: false; error: string }> {
-  const auth = await getCurrentAdminAuthState();
-  if (!auth.isConfigured || !auth.user || !auth.isStaff || !hasAdminCapability(auth, 'cs.manage')) return { ok: false, error: '관리자 권한이 필요합니다. 초안은 전송하지 않았습니다.' };
+  const auth = await requireAdminActionAccess(CS_PATH, { capability: 'cs.manage' });
+  if (!auth) return { ok: false, error: '관리자 권한이 필요합니다. 초안은 전송하지 않았습니다.' };
   if (!record(input) || !isUuid(input.id) || !isCsReplySurface(input.surface)) return { ok: false, error: '복구할 답변 대상을 확인해주세요.' };
   const id = input.id.toLowerCase(), surface = input.surface;
   try {
@@ -45,9 +45,9 @@ export async function readCsReplySourceAction(input: unknown): Promise<{ ok: tru
 
 /** Missing receipt is only a snapshot; the original request may still commit. */
 export async function readCsReplyOperationAction(input: unknown): Promise<{ ok: true; accountId: string; receipt: CsReplyReceipt | null } | { ok: false; error: string }> {
-  const auth = await getCurrentAdminAuthState();
+  const auth = await requireAdminActionAccess(CS_PATH, { capability: 'cs.manage' });
   const operation = parseCsReplyOperation(input);
-  if (!operation || !auth.isConfigured || !auth.user || !auth.isStaff || !hasAdminCapability(auth, 'cs.manage') || auth.user.id !== operation.accountId) {
+  if (!auth || !operation || auth.user.id !== operation.accountId) {
     return { ok: false, error: '현재 계정의 저장 요청을 확인할 수 없습니다. 화면을 새로고침해주세요.' };
   }
   try {

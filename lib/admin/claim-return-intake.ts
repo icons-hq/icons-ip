@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 import type { OrderClaimType } from '@/lib/orders/claims';
 
 /*
@@ -144,15 +145,14 @@ export interface ReturnIntakePreviewRow {
 export interface ReturnIntakeConfirmRow { rowNumber: number; outcome: string; status?: string; errorCode?: string; claimId?: string; claimType?: OrderClaimType; claimReference?: number; orderNumber?: string; returnLabel?: string; receivedOn?: string }
 export interface ReturnIntakeConfirmResult { operationId: string; recorded: number; changed: number; failed: number; skipped: number; replayed: boolean; rows: ReturnIntakeConfirmRow[] }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
 const optionalText = (value: unknown) => value === undefined || typeof value === 'string';
 const claimType = (value: unknown): value is OrderClaimType => value === 'return' || value === 'exchange' || value === 'cancel';
 
 function previewRow(value: unknown): ReturnIntakePreviewRow | null {
   if (!record(value) || !Number.isSafeInteger(value.rowNumber) || typeof value.status !== 'string'
     || !['matchedBy', 'trackingNumber', 'receivedOn', 'orderNumber', 'returnLabel', 'items'].every(key => optionalText(value[key]))
-    || (value.claimId !== undefined && (typeof value.claimId !== 'string' || !UUID.test(value.claimId)))
-    || (value.bundleId !== undefined && (typeof value.bundleId !== 'string' || !UUID.test(value.bundleId)))
+    || (value.claimId !== undefined && (typeof value.claimId !== 'string' || !isUuid(value.claimId)))
+    || (value.bundleId !== undefined && (typeof value.bundleId !== 'string' || !isUuid(value.bundleId)))
     || (value.claimType !== undefined && !claimType(value.claimType))
     || (value.claimReference !== undefined && !Number.isSafeInteger(value.claimReference))) return null;
   return value as unknown as ReturnIntakePreviewRow;
@@ -171,7 +171,7 @@ export function parseReturnIntakePreview(value: unknown): { rows: ReturnIntakePr
 }
 
 export function parseReturnIntakeConfirmResult(value: unknown): ReturnIntakeConfirmResult | null {
-  if (!record(value) || typeof value.operationId !== 'string' || !UUID.test(value.operationId) || !Array.isArray(value.rows)
+  if (!record(value) || typeof value.operationId !== 'string' || !isUuid(value.operationId) || !Array.isArray(value.rows)
     || !['recorded', 'changed', 'failed', 'skipped'].every(key => Number.isSafeInteger(value[key]))) return null;
   const rows = value.rows.filter(record).filter(row => Number.isSafeInteger(row.rowNumber) && typeof row.outcome === 'string') as unknown as ReturnIntakeConfirmRow[];
   if (rows.length !== value.rows.length) return null;
