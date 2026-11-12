@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation';
 import { hasAdminCapability } from '@/lib/admin/access';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
-import { ADMIN_FAQ_PATH, FAQ_ANSWER_MAX_LENGTH, FAQ_QUESTION_MAX_LENGTH } from '@/lib/faq';
+import { ADMIN_FAQ_PATH, FAQ_ANSWER_MAX_LENGTH, FAQ_QUESTION_MAX_LENGTH, isFaqWidgetTopic } from '@/lib/faq';
 import { isInquiryCategory } from '@/lib/inquiries';
 
 export interface FaqActionState {
@@ -15,7 +15,7 @@ export interface FaqActionState {
   message?: string;
 }
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const FIELDS = ['id', 'category', 'question', 'answer', 'sortOrder', 'published', 'updatedAt'] as const;
+const FIELDS = ['id', 'category', 'question', 'answer', 'sortOrder', 'published', 'updatedAt', 'widgetTopic'] as const;
 
 async function staffAllowed() {
   const auth = await getCurrentAdminAuthState();
@@ -31,6 +31,7 @@ function errorMessage(message: string) {
   if (message.includes('faq_conflict')) return '다른 운영자가 수정했습니다. 입력값을 복사한 뒤 새로고침해 최신 내용을 확인해주세요.';
   if (message.includes('faq_not_found')) return 'FAQ를 찾을 수 없습니다. 삭제되었을 수 있습니다.';
   if (message.includes('staff_required')) return '관리자 권한이 필요합니다.';
+  if (message.includes('invalid_faq_widget_topic')) return '상담 위젯 버튼을 다시 선택해주세요.';
   return 'FAQ를 저장하지 못했습니다. 입력값은 유지됩니다. 잠시 후 다시 시도해주세요.';
 }
 export async function saveFaqAction(previous: FaqActionState, data: FormData): Promise<FaqActionState> {
@@ -47,13 +48,16 @@ export async function saveFaqAction(previous: FaqActionState, data: FormData): P
   if (!answer || answer.length > FAQ_ANSWER_MAX_LENGTH) errors.answer = `답변은 1~${FAQ_ANSWER_MAX_LENGTH}자로 입력해주세요.`;
   if (!/^\d{1,4}$/.test(values.sortOrder)) errors.sortOrder = '순서는 0~9999 사이 정수로 입력해주세요.';
   if (values.published !== 'true' && values.published !== 'false') errors.published = '게시 상태를 선택해주세요.';
+  if (values.widgetTopic && !isFaqWidgetTopic(values.widgetTopic)) errors.widgetTopic = '상담 위젯 버튼을 다시 선택해주세요.';
   if (values.id && (!values.updatedAt || Number.isNaN(Date.parse(values.updatedAt)))) errors.form = '최신 FAQ를 다시 열어주세요.';
   if (Object.keys(errors).length) return failure(errors);
   const supabase = await createClient();
-  const { error } = await supabase.rpc('admin_save_faq_entry', {
+  /* 본문 저장과 상담 위젯 버튼 지정(0901-044)을 한 트랜잭션으로 저장한다. 버튼마다 대표는 하나라 다른 FAQ의 지정은 풀린다. */
+  const { error } = await supabase.rpc('admin_save_faq_entry_with_widget_topic', {
     target_id: values.id || null, target_category: values.category,
     target_question: question, target_answer: answer, target_sort_order: Number(values.sortOrder),
     target_published: values.published === 'true', expected_updated_at: values.updatedAt || null,
+    target_widget_topic: values.widgetTopic || null,
   });
   if (error) return failure({ form: errorMessage(error.message) });
   invalidate();

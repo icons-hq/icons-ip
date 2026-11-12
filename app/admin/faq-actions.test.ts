@@ -33,10 +33,10 @@ describe('FAQ 운영 액션', () => {
 describe('FAQ 운영 권한과 게시', () => {
   it('스태프가 공개 저장하고 관련 공개 표면을 갱신한다', async () => {
     const state = await saveFaqAction({}, form());
-    expect(mocks.rpc).toHaveBeenCalledWith('admin_save_faq_entry', {
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_save_faq_entry_with_widget_topic', {
       target_id: null, target_category: 'order', target_question: '배송은 언제 되나요?',
       target_answer: '주문 상세에서 배송 상태를 확인해주세요.', target_sort_order: 0,
-      target_published: true, expected_updated_at: null,
+      target_published: true, expected_updated_at: null, target_widget_topic: null,
     });
     expect(state.message).toContain('공개');
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/help');
@@ -61,6 +61,20 @@ describe('FAQ 운영 권한과 게시', () => {
     expect(state.values?.answer).toBe('주문 상세에서 배송 상태를 확인해주세요.');
     expect(state.revision).toBe(3);
     expect(state.message).toBeUndefined();
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+  it('상담 위젯 버튼 지정은 정해진 유형만 본문과 함께 저장한다(0901-044)', async () => {
+    await saveFaqAction({}, form({ id, updatedAt: '2026-09-08T01:00:00Z', widgetTopic: 'delivery' }));
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_save_faq_entry_with_widget_topic', expect.objectContaining({
+      target_id: id, expected_updated_at: '2026-09-08T01:00:00Z', target_widget_topic: 'delivery',
+    }));
+    mocks.rpc.mockClear(); mocks.revalidatePath.mockClear();
+    const invalid = await saveFaqAction({}, form({ widgetTopic: 'refund' }));
+    expect(invalid.errors?.widgetTopic).toContain('상담 위젯 버튼');
+    expect(invalid.values?.widgetTopic).toBe('refund');
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    mocks.rpc.mockResolvedValue({ error: { message: 'invalid_faq_widget_topic' } });
+    expect((await saveFaqAction({}, form({ widgetTopic: 'cancel' }))).errors?.form).toContain('상담 위젯 버튼');
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
   it('확인 없는 삭제는 거절하고 확인된 버전만 삭제한다', async () => {

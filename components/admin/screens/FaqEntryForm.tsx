@@ -3,7 +3,7 @@
 import { useActionState, useId, useRef } from 'react';
 import { ChevronDown, Plus, X } from 'lucide-react';
 import { deleteFaqAction, saveFaqAction, type FaqActionState } from '@/app/admin/faq-actions';
-import { FAQ_CATEGORIES, FAQ_QUESTION_MAX_LENGTH, FAQ_ANSWER_MAX_LENGTH, type FaqEntry } from '@/lib/faq';
+import { FAQ_CATEGORIES, FAQ_QUESTION_MAX_LENGTH, FAQ_ANSWER_MAX_LENGTH, FAQ_WIDGET_TOPICS, type FaqEntry } from '@/lib/faq';
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { AdminSelect } from '@/components/admin/console/AdminSelect';
 import { Button } from '@/components/admin/kit/ui/button';
@@ -39,6 +39,15 @@ export function FaqEntryForm({ entry }: { entry?: FaqEntry }) {
       </div>
       <label className={LABEL_CLASS}><span className={FIELD_LABEL_CLASS}>질문</span><Input name="question" defaultValue={value('question', entry?.question ?? '')} maxLength={FAQ_QUESTION_MAX_LENGTH} required {...fieldProps('question')} />{error('question')}</label>
       <label className={LABEL_CLASS}><span className={FIELD_LABEL_CLASS}>답변</span><Textarea className="min-h-36" name="answer" rows={6} defaultValue={value('answer', entry?.answer ?? '')} maxLength={FAQ_ANSWER_MAX_LENGTH} required {...fieldProps('answer')} />{error('answer')}</label>
+      {/* 0901-044: 고객 상담 위젯의 FAQ 위 유형 버튼이 보여 줄 대표 답변. 버튼마다 하나라 저장하면 다른 FAQ의 지정이 풀린다. */}
+      <div className={LABEL_CLASS}>
+        <label className={`${LABEL_CLASS} sm:max-w-xs`}><span className={FIELD_LABEL_CLASS}>상담 위젯 버튼</span><AdminSelect name="widgetTopic" defaultValue={value('widgetTopic', entry?.widgetTopic ?? '')} aria-describedby={`${prefix}-widgetTopic-hint${state.errors?.widgetTopic ? ` ${prefix}-widgetTopic-error` : ''}`} aria-invalid={Boolean(state.errors?.widgetTopic)}>
+          <option value="">지정 안 함</option>
+          {FAQ_WIDGET_TOPICS.map((topic) => <option key={topic.id} value={topic.id}>{topic.label}</option>)}
+        </AdminSelect></label>
+        <span className="text-xs text-muted-foreground" id={`${prefix}-widgetTopic-hint`}>고객 상담 위젯의 FAQ 위 버튼을 누르면 이 FAQ가 답으로 보입니다. 버튼마다 하나만 지정되며, 다른 FAQ에 지정돼 있었다면 이 FAQ로 바뀝니다. 공개 FAQ일 때만 고객에게 보입니다.</span>
+        {error('widgetTopic')}
+      </div>
       <p className="text-xs text-muted-foreground">작은 순서부터 먼저 표시됩니다. 공개하면 고객센터와 문의 전 제안에 바로 표시됩니다.</p>
       <Button className="self-start" type="submit">{pending ? '저장 중…' : entry ? 'FAQ 수정 저장' : 'FAQ 등록'}</Button>
     </fieldset>
