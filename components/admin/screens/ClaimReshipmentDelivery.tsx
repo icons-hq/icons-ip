@@ -2,9 +2,10 @@
 
 import { useActionState } from 'react';
 import { recordOrderClaimReshipmentDeliveryAction } from '@/app/admin/claim-actions';
-import type { AdminClaimDetail, AdminClaimReshipment } from '@/lib/admin/claims.server';
+import type { AdminClaimDetail, AdminClaimReshipment, AdminClaimReshipmentTarget } from '@/lib/admin/claims.server';
 import { claimEvidenceUrl } from '@/lib/admin/claim-evidence';
-import { adminClaimReshipmentProgress } from '@/lib/admin/claim-reshipments';
+import { adminClaimReshipmentProgress, adminClaimWaiverDecisions } from '@/lib/admin/claim-reshipments';
+import { ClaimCollectionWaiverDecision } from './ClaimCollectionWaiverDecision';
 import { adminFormRemountKey, preservedFormValues } from '@/lib/admin/form-state';
 import { adminClaimCopy } from '@/lib/admin/vocabulary';
 import { formatOrderDateTime } from '@/lib/orders';
@@ -51,10 +52,42 @@ function Tracking({ row, carriers }: { row: AdminClaimReshipment; carriers?: Shi
     : <span className="tabular-nums">{text}</span>;
 }
 
+/** 회수 생략 사유·근거 사진(운영자만 본다). 재출고한 배송 건과, 재출고 전에 회수 생략을 결정한 배송 건이 같은 모양이다. */
+function WaiverRecord({ caption, reason, evidence }: { caption: string; reason: string | null; evidence: readonly { id: string }[] }) {
+  return <div className="flex min-w-0 flex-col gap-1 rounded-md bg-muted/50 px-3 py-2" data-claim-collection-waiver-record="">
+    <p className="text-xs font-medium text-muted-foreground">{caption}</p>
+    <p className="break-words whitespace-pre-wrap">{reason}</p>
+    {evidence.length ? <p className="flex flex-wrap gap-x-3 gap-y-1">{evidence.map((file, index) => <a className="underline underline-offset-4"
+      href={claimEvidenceUrl(file.id)} key={file.id} rel="noreferrer" target="_blank">근거 사진 {index + 1}</a>)}</p> : null}
+  </div>;
+}
+
+const PRODUCTION_WAIT = '주문제작 상품의 교환품 제작이 끝나면 재출고할 수 있습니다. 제작 시작·완료는 주문 상세의 주문제작 처리에서 기록합니다.';
+
+/** 아직 재출고하지 않은 배송 건: 회수 확인·회수 생략 결정·교환품 제작 대기 중 지금 무엇을 기다리는지 보인다. */
+function PendingTarget({ claim, target, name, decide }: { claim: Claim; target: AdminClaimReshipmentTarget; name: string; decide: boolean }) {
+  const collected = target.collectionTracked ? target.collectedAt !== null : claim.stage === 'collected';
+  const waiting = target.productionPending && (collected || target.waiver !== null);
+  const guide = waiting ? PRODUCTION_WAIT
+    : target.waiver ? '회수·재배송 연락처 처리에서 회수 없이 재출고를 등록합니다.'
+      : !target.collectionTracked ? '입고 확인 뒤 회수·재배송 연락처 처리에서 재출고를 등록합니다.'
+        : target.collectedAt ? `회수 확인 ${formatOrderDateTime(target.collectedAt)} · 회수·재배송 연락처 처리에서 재출고를 등록합니다.`
+          : !claim.collectionWaiverAllowed ? '회수 확인 전입니다. 회수를 확인한 뒤 재출고합니다.'
+            : target.productionRequired ? '회수 확인 전입니다. 주문제작 상품은 교환품을 새로 만들어야 해서, 회수 없이 보내려면 아래에서 회수 생략을 먼저 기록해 제작을 시작합니다.'
+              : '회수 확인 전입니다. 하자·오배송 교환이라 회수 없이 재출고할 수도 있습니다.';
+  return <>
+    {target.waiver ? <WaiverRecord caption={`회수 생략 결정 · ${formatOrderDateTime(target.waiver.waivedAt)}${target.waiver.waivedByName ? ` · ${target.waiver.waivedByName}` : ''} · 회수 상품 재고는 복원하지 않습니다`}
+      evidence={target.waiver.evidence} reason={target.waiver.reason} /> : null}
+    <p className="text-muted-foreground">{guide}</p>
+    {decide && target.shipmentId ? <ClaimCollectionWaiverDecision claimId={claim.id} originName={name} shipmentId={target.shipmentId} /> : null}
+  </>;
+}
+
 function ShipmentReshipments({ claim, carriers }: { claim: Claim; carriers?: ShippingCarrierRegistry }) {
   const rows = claim.reshipments ?? [];
   const targets = claim.reshipmentTargets ?? [];
   const progress = adminClaimReshipmentProgress(claim);
+  const decisions = new Set(adminClaimWaiverDecisions(claim).map(target => target.shipmentId));
   const keyOf = (shipmentId: string | null) => shipmentId ?? 'order';
   /* 대상 배송 건 순서대로 그리고, 대상 목록에 없는 기록(있어서는 안 되지만)은 뒤에 붙인다. */
   const entries = [
@@ -69,31 +102,26 @@ function ShipmentReshipments({ claim, carriers }: { claim: Claim; carriers?: Shi
     <ul className="flex min-w-0 flex-col gap-3">
       {entries.map(({ key, target, row }) => {
         const name = row?.originName ?? target?.originName ?? '주문 전체';
+        const collected = target ? (target.collectionTracked ? target.collectedAt !== null : claim.stage === 'collected') : false;
+        const productionWait = !row && target !== null && target.productionPending && (collected || target.waiver !== null);
+        const state = row ? (row.deliveredAt ? 'delivered' : 'reshipped') : productionWait ? 'production' : 'pending';
         return <li className="flex min-w-0 flex-col gap-2 rounded-lg border p-3" data-claim-reshipment={key} key={key}>
           <div className="flex flex-wrap items-center gap-2">
             <strong className="font-medium">{name}</strong>
-            <AdminStatusBadge tone={statusTone('claimReshipment', row ? (row.deliveredAt ? 'delivered' : 'reshipped') : 'pending')}>
-              {row ? (row.deliveredAt ? '배송완료 확인' : '재출고됨') : '재출고 대기'}</AdminStatusBadge>
-            {row?.collectionWaived ? <AdminStatusBadge tone={statusTone('claimReshipment', 'waived')}>회수 생략</AdminStatusBadge> : null}
+            <AdminStatusBadge tone={statusTone('claimReshipment', state)}>
+              {{ delivered: '배송완료 확인', reshipped: '재출고됨', production: '제작 대기', pending: '재출고 대기' }[state]}</AdminStatusBadge>
+            {row?.collectionWaived || (!row && target?.waiver) ? <AdminStatusBadge tone={statusTone('claimReshipment', 'waived')}>회수 생략</AdminStatusBadge> : null}
           </div>
           {row ? <>
             <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5"><span className="text-muted-foreground">재출고 운송장</span><Tracking row={row} carriers={carriers} />
               <span className="text-muted-foreground">· <time dateTime={row.reshippedAt}>{formatOrderDateTime(row.reshippedAt)}</time>{row.reshippedByName ? ` · ${row.reshippedByName}` : ''}</span></p>
             {row.items.length ? <ul className="flex flex-col gap-0.5 text-muted-foreground">{row.items.map(item => <li className="break-words" key={item.orderItemId}>
               {item.name} · {item.variantName} · {item.variantCode} · {item.qty}개</li>)}</ul> : null}
-            {row.collectionWaived ? <div className="flex min-w-0 flex-col gap-1 rounded-md bg-muted/50 px-3 py-2" data-claim-collection-waiver-record="">
-              <p className="text-xs font-medium text-muted-foreground">회수 생략 사유 · 회수 상품 재고는 복원하지 않았습니다</p>
-              <p className="break-words whitespace-pre-wrap">{row.waiverReason}</p>
-              {row.waiverEvidence.length ? <p className="flex flex-wrap gap-x-3 gap-y-1">{row.waiverEvidence.map((file, index) => <a className="underline underline-offset-4"
-                href={claimEvidenceUrl(file.id)} key={file.id} rel="noreferrer" target="_blank">근거 사진 {index + 1}</a>)}</p> : null}
-            </div> : null}
+            {row.collectionWaived ? <WaiverRecord caption="회수 생략 사유 · 회수 상품 재고는 복원하지 않았습니다" evidence={row.waiverEvidence} reason={row.waiverReason} /> : null}
             {row.deliveredAt ? <p className="text-muted-foreground"><time dateTime={row.deliveredAt}>{formatOrderDateTime(row.deliveredAt)}</time>
               {row.deliveredByName ? ` · ${row.deliveredByName}` : ''} · <span className="break-words whitespace-pre-wrap text-foreground">{row.deliveryEvidence}</span></p>
               : <DeliveryForm claimId={claim.id} label={`${name} 배송완료 확인 근거`} shipmentKey={key} />}
-          </> : <p className="text-muted-foreground">{target?.collectionTracked
-            ? target.collectedAt ? `회수 확인 ${formatOrderDateTime(target.collectedAt)} · 회수·재배송 연락처 처리에서 재출고를 등록합니다.`
-              : claim.collectionWaiverAllowed ? '회수 확인 전입니다. 하자·오배송 교환이라 회수 없이 재출고할 수도 있습니다.' : '회수 확인 전입니다. 회수를 확인한 뒤 재출고합니다.'
-            : '입고 확인 뒤 회수·재배송 연락처 처리에서 재출고를 등록합니다.'}</p>}
+          </> : target ? <PendingTarget claim={claim} decide={decisions.has(target.shipmentId)} name={name} target={target} /> : null}
         </li>;
       })}
     </ul>

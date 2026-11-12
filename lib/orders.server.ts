@@ -1,5 +1,5 @@
 import 'server-only';
-import { parseOrderReshipmentHistory, parseOrderReshipmentParcels, type OrderReshipmentParcelView } from './orders/reshipment-items';
+import { orderReshipmentParcelViews, parseOrderReshipmentHistory, parseOrderReshipmentParcels, type OrderReshipmentParcelView } from './orders/reshipment-items';
 import { readGoodsCustomInputSnapshot } from '@/lib/goods-custom-inputs';
 import { loadGiftCheckoutOrder } from './gifts-order.server';
 import { loadGiftOrderDetail, loadGiftOrderList } from './gifts-order-detail.server';
@@ -20,7 +20,6 @@ import {
 import { isOrderClaimStage, isOrderClaimType } from './orders/claims';
 import { loadOrderShipments } from './orders/shipments.server';
 import { getShippingCarrierRegistry } from './orders/shipment.server';
-import { orderShipment, shippingCarrierLabel } from './orders/shipment';
 import { createClient } from '@/lib/supabase/server';
 import { attachRandomItemsToShipments, readMyOrderItems } from './orders/customer-items.server';
 
@@ -217,17 +216,17 @@ async function loadOrderReshipmentParcels(supabase: Awaited<ReturnType<typeof cr
   const parcels = error ? null : parseOrderReshipmentParcels(data);
   if (!parcels) throw new Error('order_reshipment_parcels_invalid');
   if (!parcels.length) return [];
-  const carriers = await getShippingCarrierRegistry();
-  return parcels.map((parcel) => {
-    const tracking = orderShipment(carriers, parcel.carrier, parcel.trackingNumber);
-    return { ...parcel, carrierLabel: tracking?.carrierLabel ?? shippingCarrierLabel(carriers, parcel.carrier) ?? parcel.carrier, trackingUrl: tracking?.trackingUrl ?? null };
-  });
+  return orderReshipmentParcelViews(parcels, await getShippingCarrierRegistry());
 }
 
-/** 배송 건 소포가 있는 교환은 소포 목록이 운송장을 보인다. 클레임 칸에 같은 운송장을 한 번 더 싣지 않고, 배송완료는 모든 소포가 확인된 때다. */
+/**
+ * 교환 소포가 있는 클레임은 소포 목록('교환 배송')이 운송장을 보인다. 클레임 칸에 같은 운송장을 한 번 더 싣지 않고,
+ * 배송완료는 모든 소포가 확인된 때다. 이 기능 전의 클레임 단위 재출고(한 쌍, reshipmentId null)도 소포 목록에 하나로
+ * 오므로 같은 규칙이다 — 클레임 칸과 소포 목록에 같은 택배사·운송장이 두 번 나오지 않는다.
+ */
 function claimReshipmentSummary(parcels: readonly OrderReshipmentParcelView[], claimId: string, stage: string,
   legacy: { reshipCarrier: string | null; reshipTrackingNumber: string | null; reshipDeliveredAt: string | null }) {
-  const own = parcels.filter(parcel => parcel.claimId === claimId && parcel.reshipmentId !== null);
+  const own = parcels.filter(parcel => parcel.claimId === claimId);
   if (!own.length) return legacy;
   const delivered = own.every(parcel => parcel.deliveredAt !== null);
   return {

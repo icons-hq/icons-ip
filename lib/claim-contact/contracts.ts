@@ -995,6 +995,8 @@ export const CLAIM_CONTACT_ERRORS = {
   collection_waiver_unavailable: errorDefinition(409, '출고지별 회수를 쓰지 않는 교환은 회수 없이 재출고할 수 없습니다.', '23514'),
   collection_waiver_evidence_required: errorDefinition(400, '회수 생략 근거 사진을 1~5장 올려주세요.', '23514'),
   invalid_collection_waiver_reason: errorDefinition(400, '회수 생략 사유를 10~500자로 적어주세요.', '23514'),
+  collection_waiver_conflict: errorDefinition(409, '이 배송 건은 이미 다른 사유·사진으로 회수 생략을 기록했습니다. 처리 이력을 확인해주세요.', '23505', { conflict: true }),
+  production_incomplete: errorDefinition(409, '주문제작 상품의 교환품 제작이 끝난 뒤 재출고할 수 있습니다. 주문 상세의 주문제작 처리를 확인해주세요.', '23514'),
 } as const;
 export type ClaimContactErrorCode = keyof typeof CLAIM_CONTACT_ERRORS;
 function errorCode(code: unknown): ClaimContactErrorCode {

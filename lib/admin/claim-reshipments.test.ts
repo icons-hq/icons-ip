@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { AdminClaimDetail, AdminClaimReshipment, AdminClaimReshipmentTarget } from './claims.server';
-import { adminClaimPendingReshipments, adminClaimReshipmentProgress } from './claim-reshipments';
+import { adminClaimPendingReshipments, adminClaimRemainingReshipments, adminClaimReshipmentProgress, adminClaimWaiverDecisions } from './claim-reshipments';
 
 const target = (n: number, overrides: Partial<AdminClaimReshipmentTarget> = {}): AdminClaimReshipmentTarget => ({
   shipmentId: `00000000-0000-4000-8000-00000000000${n}`, originName: n === 1 ? '김포' : '남양주', collectionTracked: true,
-  collectedAt: null, reshipped: false, orderItemIds: [`00000000-0000-4000-8000-00000000001${n}`], ...overrides,
+  collectedAt: null, reshipped: false, orderItemIds: [`00000000-0000-4000-8000-00000000001${n}`], waiver: null, productionRequired: false, productionPending: false, ...overrides,
 });
 const row = (n: number, overrides: Partial<AdminClaimReshipment> = {}): AdminClaimReshipment => ({
   id: `00000000-0000-4000-8000-00000000002${n}`, shipmentId: target(n).shipmentId, originName: target(n).originName, carrier: 'hanjin', carrierLabel: '한진택배',
@@ -27,6 +27,39 @@ describe('교환 재출고 진행(출고지별, TKT-166)', () => {
   it('이 기능 전의 클레임 단위 기록은 한 쌍으로 센다', () => {
     expect(adminClaimReshipmentProgress(claim({ stage: 'completed', reshipTrackingNumber: 'LEGACY0001', reshippedAt: '2026-10-01T00:00:00.000Z', reshipDeliveredAt: null })))
       .toEqual({ total: 1, reshipped: 1, delivered: 0, waived: 0, legacy: true });
+    /* 출고지가 둘이던 옛 교환도 기록은 클레임당 한 쌍이다 — '재출고 1/2'로 보이면 안 된다(리뷰 #4). */
+    expect(adminClaimReshipmentProgress(claim({ stage: 'completed', reshipTrackingNumber: 'LEGACY0002', reshippedAt: '2026-10-01T00:00:00.000Z',
+      reshipDeliveredAt: '2026-10-03T00:00:00.000Z', reshipmentTargets: [target(1), target(2)] })))
+      .toEqual({ total: 1, reshipped: 1, delivered: 1, waived: 0, legacy: true });
+    /* 아직 아무 데도 보내지 않은 새 교환은 대상 출고지 수가 분모다. */
+    expect(adminClaimReshipmentProgress(claim({ reshipmentTargets: [target(1), target(2)] })))
+      .toEqual({ total: 2, reshipped: 0, delivered: 0, waived: 0, legacy: false });
+  });
+  it('교환을 종결하는 재출고는 등록할 수 있는 수가 아니라 아직 보내지 않은 대상 전체로 정한다', () => {
+    /* 단순 변심 두 출고지에서 김포만 입고되면 등록할 수 있는 곳은 하나지만 남양주가 남아 종결이 아니다(리뷰 #5). */
+    const partial = claim({ reshipmentTargets: [target(1, { collectedAt: '2026-11-09T00:00:00.000Z' }), target(2)] });
+    expect(adminClaimPendingReshipments(partial)).toHaveLength(1);
+    expect(adminClaimRemainingReshipments(partial)).toBe(2);
+    expect(adminClaimRemainingReshipments(claim({ reshipmentTargets: [target(1, { reshipped: true }), target(2, { collectedAt: '2026-11-09T00:00:00.000Z' })] }))).toBe(1);
+  });
+  it('주문제작 출고지는 회수 생략을 먼저 결정하고, 교환품 제작이 끝나야 재출고 버튼이 생긴다', () => {
+    const waiver = { reason: '고객 사진으로 인쇄 불량 확인', waivedAt: '2026-11-10T00:00:00.000Z', waivedByName: null, evidence: [] };
+    const madeToOrder = target(1, { productionRequired: true, productionPending: true });
+    const defect = (targets: AdminClaimReshipmentTarget[]) => claim({ collectionWaiverAllowed: true, reshipmentTargets: targets });
+    /* 결정 전: 같은 요청의 회수 생략 버튼 대신 결정(회수 없이 제작 시작)이 먼저다. */
+    expect(adminClaimPendingReshipments(defect([madeToOrder, target(2)])).map(item => item.originName)).toEqual(['남양주']);
+    expect(adminClaimWaiverDecisions(defect([madeToOrder, target(2)])).map(item => item.originName)).toEqual(['김포']);
+    /* 결정 뒤 제작 대기: 버튼도 결정 양식도 없다. */
+    const decided = { ...madeToOrder, waiver };
+    expect(adminClaimPendingReshipments(defect([decided]))).toEqual([]);
+    expect(adminClaimWaiverDecisions(defect([decided]))).toEqual([]);
+    /* 제작 완료: 회수 없이(결정된 회수 생략) 재출고한다. */
+    expect(adminClaimPendingReshipments(defect([{ ...decided, productionPending: false }])))
+      .toMatchObject([{ originName: '김포', collected: false, waived: true, waivable: false }]);
+    /* 회수 확인한 주문제작 출고지도 제작이 끝나야 등록한다. */
+    expect(adminClaimPendingReshipments(claim({ reshipmentTargets: [{ ...madeToOrder, collectedAt: '2026-11-09T00:00:00.000Z' }] }))).toEqual([]);
+    /* 단순 변심 교환은 결정 양식이 없다. */
+    expect(adminClaimWaiverDecisions(claim({ reshipmentTargets: [madeToOrder] }))).toEqual([]);
   });
   it('회수를 확인한 배송 건만 등록할 수 있고, 하자·오배송 교환은 회수 전 배송 건을 회수 없이 보낼 수 있다', () => {
     const targets = [target(1, { collectedAt: '2026-11-09T00:00:00.000Z' }), target(2)];

@@ -243,6 +243,9 @@ export function orderClaimEffectiveStage(
  * 환불 원장과 durable claim이 열리기 전까지만 거부할 수 있다. `processing`·
  * `needs_review`를 거부하면 주문이 "취소 진행 중"인 채로 남아 완료도 취소도
  * 되지 않는다 — DB가 `claim_not_rejectable`로 막는 것과 같은 규칙이다.
+ *
+ * 교환은 한 출고지라도 재출고했으면(재출고 1/2) 거부할 수 없다. 나간 소포의 재고
+ * 차감과 배송 기록이 남기 때문이다(TKT-166·ADR-0041). DB도 같은 코드로 막는다.
  */
 const REJECTABLE_STAGES = new Set<OrderClaimStage>([
   'requested',
@@ -254,8 +257,9 @@ const REJECTABLE_STAGES = new Set<OrderClaimStage>([
 export function canRejectOrderClaim(
   stage: OrderClaimStage,
   heldFrom: OrderClaimStage | null,
+  reshipmentStarted = false,
 ) {
-  return REJECTABLE_STAGES.has(orderClaimEffectiveStage(stage, heldFrom));
+  return !reshipmentStarted && REJECTABLE_STAGES.has(orderClaimEffectiveStage(stage, heldFrom));
 }
 
 /**

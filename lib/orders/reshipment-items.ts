@@ -1,4 +1,5 @@
 import { transactionExactKeys, transactionInstant, transactionInteger, transactionRecord } from '@/lib/goods-transaction-values';
+import { orderShipment, shippingCarrierLabel, type ShippingCarrierRegistry } from '@/lib/orders/shipment';
 import { isUuid } from '@/lib/uuid';
 
 export interface OrderReshipmentItem {
@@ -87,4 +88,12 @@ export function parseOrderReshipmentParcels(value: unknown): OrderReshipmentParc
     }
   }
   return value as OrderReshipmentParcel[];
+}
+
+/** 택배사 레지스트리로 소포의 표시 이름과 배송조회 링크를 붙인다. 레지스트리에 없는 택배사는 코드 그대로·링크 없음이다. */
+export function orderReshipmentParcelViews(parcels: readonly OrderReshipmentParcel[], carriers: ShippingCarrierRegistry): OrderReshipmentParcelView[] {
+  return parcels.map((parcel) => {
+    const tracking = orderShipment(carriers, parcel.carrier, parcel.trackingNumber);
+    return { ...parcel, carrierLabel: tracking?.carrierLabel ?? shippingCarrierLabel(carriers, parcel.carrier) ?? parcel.carrier, trackingUrl: tracking?.trackingUrl ?? null };
+  });
 }

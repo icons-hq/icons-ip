@@ -44,7 +44,7 @@ import { ClaimExchangeSteps, ClaimProgressSummary } from './ClaimProgressSummary
 import { ClaimContactOperations } from '@/components/admin/ClaimContactOperations';
 import { adminPaymentCancelErrorLabel } from '@/lib/admin/payment-cancel-error';
 import { ClaimContactHistory } from '@/components/claim-contact/ClaimContactHistory';
-import { adminClaimPendingReshipments } from '@/lib/admin/claim-reshipments';
+import { adminClaimPendingReshipments, adminClaimRemainingReshipments } from '@/lib/admin/claim-reshipments';
 
 /* 어드민 클레임 상세(#252) — 템플릿 룩 kit Card(ADR-0028).
  *
@@ -95,6 +95,7 @@ const TIMELINE_LABELS: Record<string, string> = {
   'admin.order.claim_reshipped': '교환 재출고',
   'admin.order.claim_reshipment_delivered': '교환품 배송완료 확인',
   'admin.order.claim_evidence_uploaded': '회수 생략 근거 사진 등록',
+  'admin.order.claim_collection_waived': '회수 생략 결정',
   'admin.order.claim_type_changed': '반품·교환 유형 전환',
   'admin.order.claim_reason_changed': '교환 사유 정정',
   'admin.order.cancellation_approved': '청약철회 승인 (레거시 경로)',
@@ -133,7 +134,8 @@ const ROW_INLINE = 'flex flex-wrap items-center gap-2';
 /* 배송 건(출고지)별 재출고(TKT-166)는 감사 기록에 출고지와 회수 생략 여부가 함께 있다. 같은 이름의 줄이 여러 개여도 어느 출고지인지 보이게 한다. */
 function timelineLabel(entry: AdminClaimDetail['timeline'][number]) {
   const label = TIMELINE_LABELS[entry.action] ?? entry.action;
-  if (entry.action !== 'admin.order.claim_reshipped' && entry.action !== 'admin.order.claim_reshipment_delivered') return label;
+  if (entry.action !== 'admin.order.claim_reshipped' && entry.action !== 'admin.order.claim_reshipment_delivered'
+    && entry.action !== 'admin.order.claim_collection_waived') return label;
   const origin = typeof entry.diff?.originName === 'string' && entry.diff.originName ? ` · ${entry.diff.originName}` : '';
   return `${label}${origin}${entry.diff?.collectionWaived === true ? ' (회수 생략)' : ''}`;
 }
@@ -196,6 +198,7 @@ export function ClaimDetailScreen({
     {/* 재출고는 배송 건(출고지)마다 최종 주소를 확인하고 등록한다. 회수 확인 전 배송 건은 하자·오배송 교환일 때만 회수 없이 보낼 수 있다. */}
     <ClaimContactOperations actorId={actorId} orderId={claim.orderId} claimId={claim.id}
       reshipTargets={claim.collectionPolicy !== null ? adminClaimPendingReshipments(claim) : []}
+      remainingTargets={adminClaimRemainingReshipments(claim)}
       carriers={carriers} reshipItems={order?.items ?? []} />
     <ClaimContactHistory actorId={actorId} orderId={claim.orderId} claimId={claim.id} operator />
   </> : null;
@@ -421,6 +424,7 @@ export function ClaimDetailScreen({
                 returnRefundSummary={claim.claimType === 'return' ? refundSummary : undefined}
                 collections={claim.collections}
                 heldFrom={claim.heldFrom}
+                reshipmentStarted={claim.reshippedAt !== null || (claim.reshipments ?? []).length > 0}
                 orderId={claim.orderId}
                 paymentProvider={payment?.provider ?? null}
                 recordedRefundMethod={refund?.method ?? null}
