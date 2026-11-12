@@ -186,6 +186,8 @@ export interface WarehouseTrackingParseResult {
   kind: 'gimpo';
   rows: { line: number; reference: string; trackingNumber: string }[];
   issues: TrackingImportParseResult['issues'];
+  /** 운송장 칸을 비운 줄(아직 출고하지 않은 주문). 오류가 아니라 건너뛴 줄로 따로 센다(QA 라운드 1 m8). */
+  skipped: { line: number; reference: string }[];
 }
 export interface SeowonTrackingParseResult { kind: 'seowon'; rows: SeowonReplyRow[]; issues: TrackingImportParseResult['issues'] }
 export type TrackingWorkbookParseResult = TrackingImportParseResult | WarehouseTrackingParseResult | SeowonTrackingParseResult | SmartStoreTrackingParseResult;
@@ -215,6 +217,7 @@ export function parseWarehouseReply(sheet: ExcelJS.Worksheet): WarehouseTracking
     extra.add(header);
   }
   const rows: WarehouseTrackingParseResult['rows'] = [], issues: WarehouseTrackingParseResult['issues'] = [];
+  const blanks: WarehouseTrackingParseResult['skipped'] = [];
   const blocked = new Set<string>();
   for (let line = 2; line <= sheet.rowCount; line++) {
     const source = sheet.getRow(line);
@@ -225,18 +228,31 @@ export function parseWarehouseReply(sheet: ExcelJS.Worksheet): WarehouseTracking
     const reference = cells.find(cell => cell.key === 'orderNumber')!.value.trim().toLowerCase();
     const tracking = cells.find(cell => cell.key === 'trackingNumber')!.value;
     const trackingNumber = normalizeTrackingNumber(tracking.trim());
+    const blank = !tracking.trim();
     const reason = cells.find(cell => cell.error)?.error
       ?? (!isGimpoOrderReference(reference) ? '주문번호(쇼핑몰)에 ICONS 출고 파일의 전체 주문번호를 그대로 유지해주세요.' : undefined)
-      ?? (!isTrackingNumber(trackingNumber) || /[\r\n\t]/.test(tracking) ? '운송장번호는 텍스트 형식의 8~30자리 영숫자여야 합니다.' : undefined);
+      ?? (!blank && (!isTrackingNumber(trackingNumber) || /[\r\n\t]/.test(tracking)) ? '운송장번호는 텍스트 형식의 8~30자리 영숫자여야 합니다.' : undefined);
     if (reason) { issues.push({ line, reference, reason }); if (isGimpoOrderReference(reference)) blocked.add(reference); }
+    else if (blank) blanks.push({ line, reference });
     else rows.push({ line, reference, trackingNumber });
+  }
+  // 운송장 칸을 비운 주문은 아직 출고하지 않은 것으로 보고 건너뛴다. 같은 주문(한 배송 건)의 다른 줄에는 운송장이 있으면
+  // 일부만 채운 것이라 어느 쪽이 맞는지 알 수 없으므로 그 주문 전체를 등록하지 않는다(덮어쓰기·부분 발송 방지).
+  const filled = new Set(rows.map(row => row.reference));
+  const skipped: WarehouseTrackingParseResult['skipped'] = [];
+  for (const row of blanks) {
+    if (blocked.has(row.reference)) issues.push({ line: row.line, reference: row.reference, reason: '같은 주문의 다른 행에 오류가 있습니다. 해당 주문의 모든 행을 함께 고쳐주세요.' });
+    else if (filled.has(row.reference)) {
+      issues.push({ line: row.line, reference: row.reference, reason: '같은 주문의 일부 행만 운송장번호가 비어 있습니다. 한 주문의 모든 행에 같은 운송장번호를 채우거나 모두 비워 주세요.' });
+      blocked.add(row.reference);
+    } else skipped.push(row);
   }
   const valid = rows.filter(row => {
     if (!blocked.has(row.reference)) return true;
     issues.push({ line: row.line, reference: row.reference, reason: '같은 주문의 다른 행에 오류가 있습니다. 해당 주문의 모든 행을 함께 고쳐주세요.' });
     return false;
   });
-  return { kind: 'gimpo', rows: valid, issues: issues.sort((a, b) => a.line - b.line) };
+  return { kind: 'gimpo', rows: valid, issues: issues.sort((a, b) => a.line - b.line), skipped };
 }
 
 const compact = (value: string) => value.replace(/\s/g, '');
