@@ -23,6 +23,16 @@ import {
   formatReviewDate,
   reviewRatingLabel,
 } from '@/lib/reviews';
+import {
+  PURCHASE_CONFIRMATION_NOTICE,
+  REVIEW_BENEFIT_NOTE,
+  REVIEW_CONFIRMATION_ACK_LABEL,
+  REVIEW_CONFIRMATION_CREDIT_NOTE,
+  REVIEW_CONFIRMATION_FIELD,
+  REVIEW_CONFIRMATION_HEADING,
+  REVIEW_CONFIRMATION_SUBMIT_LABEL,
+  reviewConfirmationBlockMessage,
+} from '@/lib/review-purchase-confirmation';
 
 /* 리뷰 작성·수정 폼(#254).
  *
@@ -34,7 +44,11 @@ import {
  * 고장 났다고 읽는다.
  *
  * 별점은 라디오다. 별 모양 버튼을 직접 만들면 키보드 이동·포커스 표시·읽기 순서를
- * 전부 다시 구현해야 하고, 그 재구현은 대개 절반만 된다. */
+ * 전부 다시 구현해야 하고, 그 재구현은 대개 절반만 된다.
+ *
+ * 아직 구매확정하지 않은 주문의 리뷰는 등록과 함께 구매확정된다(1014-079). 등록 전에 [구매확정]
+ * 패널과 같은 안내를 보이고 확인 체크를 받는다. 구매확정할 수 없는 주문(취소·반품·교환 진행,
+ * 보류 등)은 폼 대신 그 이유를 보인다. 리뷰 없이 확정만 하는 길은 주문 상세의 [구매확정]이다. */
 
 const EMPTY_STATE: ReviewActionState = {};
 
@@ -85,6 +99,11 @@ export function ReviewComposer({
   const expired = daysLeft === null || daysLeft === 0;
   const hidden = review?.status === 'hidden';
   const blocked = expired || hidden || (isEdit ? target.editable === false : !target.writable);
+  const confirmation = target.purchaseConfirmation;
+  /* 리뷰가 이미 있으면 중복 안내가 먼저다. 확정 사유는 아직 쓸 리뷰가 남은 대상에만 보인다. */
+  const confirmationBlock = !isEdit && !review ? confirmation?.block ?? null : null;
+  const needsConfirmation = !isEdit && !blocked && confirmation?.required === true;
+  const orderHref = `/orders/${encodeURIComponent(target.orderId)}`;
 
   return (
     <MypageShell active="/my/reviews">
@@ -114,8 +133,11 @@ export function ReviewComposer({
               ? '운영 정책에 따라 비공개 처리되어 수정할 수 없습니다. 삭제는 내 리뷰에서 언제든 가능합니다.'
               : expired
                 ? target.kind === 'month' ? '내 리뷰에 표시된 한달사용 작성 기간을 확인해주세요.' : `리뷰는 배송완료 후 ${REVIEW_WINDOW_DAYS}일까지 남기거나 고칠 수 있습니다.`
-                : '이미 이 주문의 굿즈에 리뷰를 남겼거나, 배송이 아직 완료되지 않았습니다.'}
+                : confirmationBlock
+                  ? reviewConfirmationBlockMessage(confirmationBlock, confirmation?.holdReason)
+                  : '이미 이 주문의 굿즈에 리뷰를 남겼거나, 배송이 아직 완료되지 않았습니다.'}
           </span>
+          {!hidden && !expired && confirmationBlock ? <WcButton href={orderHref}>주문 상세 보기</WcButton> : null}
           <WcButton href="/my/reviews">내 리뷰로 돌아가기</WcButton>
         </div>
       ) : (
@@ -193,6 +215,23 @@ export function ReviewComposer({
             <FieldError>{state.errors?.images}</FieldError>
           </label>
 
+          {needsConfirmation ? (
+            <div aria-labelledby="review-purchase-confirmation-heading" className="wc-mypage__notice" role="group">
+              <strong id="review-purchase-confirmation-heading">{REVIEW_CONFIRMATION_HEADING}</strong>
+              <span>{PURCHASE_CONFIRMATION_NOTICE}</span>
+              <span>{REVIEW_CONFIRMATION_CREDIT_NOTE}</span>
+              {/* 기존 힌트 링크 스타일(밑줄)로 주문 상세 링크가 본문과 구별되게 한다. */}
+              <span className="wc-mypage__hint">
+                리뷰 없이 구매확정만 하려면 <Link href={orderHref}>주문 상세</Link>에서 [구매확정]을 누르세요.
+              </span>
+              <label className="wc-mypage__check">
+                <input name={REVIEW_CONFIRMATION_FIELD} required type="checkbox" value="on" />
+                {REVIEW_CONFIRMATION_ACK_LABEL}
+              </label>
+            </div>
+          ) : null}
+          <FieldError>{state.errors?.confirmation}</FieldError>
+
           <FieldError>{state.errors?.form}</FieldError>
           {state.message ? (
             <span className="wc-mypage__success" role="status">{state.message}</span>
@@ -200,14 +239,19 @@ export function ReviewComposer({
 
           <div className="wc-mypage__form-actions">
             <WcButton disabled={pending} type="submit" variant="primary">
-              {pending ? '저장 중' : isEdit ? '리뷰 수정' : '리뷰 등록'}
+              {pending ? '저장 중' : isEdit ? '리뷰 수정' : needsConfirmation ? REVIEW_CONFIRMATION_SUBMIT_LABEL : '리뷰 등록'}
             </WcButton>
             <WcButton href="/my/reviews">취소</WcButton>
           </div>
 
           <p className="wc-mypage__note">
-            등록한 리뷰는 굿즈 상세에 닉네임과 함께 공개됩니다. 리뷰 작성만으로 혜택이 지급되지는 않으며, 진행 중인 리뷰이벤트의 선정 혜택은 별도 안내를 확인해주세요.
-            개인정보나 타인을 비방하는 내용은 운영 정책에 따라 비공개 처리될 수 있습니다.
+            {/* 리뷰 등록이 구매확정을 겸하면 구매확정 적립금이 함께 지급된다. 그때 '혜택 없음'을 그대로 두면 사실과 어긋나므로
+                리뷰 작성 자체의 혜택과 구매확정 적립금을 나눠 말한다. 리뷰이벤트 선정 혜택은 배너와 같은 별도 안내다. */}
+            등록한 리뷰는 굿즈 상세에 닉네임과 함께 공개됩니다.{' '}
+            {needsConfirmation
+              ? `${REVIEW_BENEFIT_NOTE} 진행 중인 리뷰이벤트의 선정 혜택은 별도 안내를 확인해주세요.`
+              : '리뷰 작성만으로 혜택이 지급되지는 않으며, 진행 중인 리뷰이벤트의 선정 혜택은 별도 안내를 확인해주세요.'}
+            {' '}개인정보나 타인을 비방하는 내용은 운영 정책에 따라 비공개 처리될 수 있습니다.
           </p>
         </form>
       )}

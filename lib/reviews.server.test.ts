@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { loadGoodReviewSection } from './reviews.server';
+import { loadGoodReviewSection, loadMyReviewTargets } from './reviews.server';
 const mocks = vi.hoisted(() => ({ rpc: vi.fn(), sign: vi.fn(), disclosures: vi.fn() }));
 vi.mock('./supabase/config', () => ({ getSupabaseConfig: () => ({ isConfigured: true }) }));
 vi.mock('./supabase/server', () => ({ createClient: async () => ({ rpc: mocks.rpc, storage: { from: () => ({ createSignedUrl: mocks.sign }) } }) }));
@@ -21,5 +21,36 @@ describe('그룹 리뷰 서버 조회', () => {
     mocks.rpc.mockResolvedValue({ error: { message: 'unavailable' }, data: null });
     expect(await loadGoodReviewSection('converted', options)).toMatchObject({ unavailable: true, reviews: [] });
     expect(mocks.sign).not.toHaveBeenCalled();
+  });
+});
+
+/* 리뷰 등록 = 구매확정(1014-079). 작성 대상과 함께 확정 필요 여부·막힌 이유를 한 RPC로 받는다. */
+describe('내 리뷰 대상 조회', () => {
+  const row = (overrides: Record<string, unknown> = {}) => ({
+    order_id: 'a6140000-0000-4000-8000-000000000101', order_number: '2026111210000001', good_id: 'g13', good_name: '아크릴 블록', good_bg: null,
+    good_image_path: null, ordered_at: '2026-11-01T00:00:00Z', delivered_at: '2026-11-10T00:00:00Z', deadline_at: '2027-02-08T00:00:00Z',
+    writable: true, review_id: null, review_rating: null, review_body: null, review_image_paths: null, review_status: null, review_created_at: null,
+    review_edited_at: null, admin_reply: null, admin_reply_at: null, review_kind: 'ordinary', opens_at: '2026-11-10T00:00:00Z', editable: false,
+    month_reward_eligible: false, repeat_purchase: false, purchase_confirmation_required: true, purchase_confirmation_block: null,
+    purchase_confirmation_hold_reason: null, ...overrides,
+  });
+
+  it('확정 필요 여부와 막힌 이유를 함께 읽는다', async () => {
+    mocks.rpc.mockResolvedValue({ error: null, data: [row(), row({ good_id: 'g14', writable: false, purchase_confirmation_block: 'held', purchase_confirmation_hold_reason: '사진 확인 중' })] });
+    const targets = await loadMyReviewTargets({ orderId: 'a6140000-0000-4000-8000-000000000101' });
+
+    expect(mocks.rpc).toHaveBeenCalledWith('my_review_targets_v3', { target_good_id: null, target_order_id: 'a6140000-0000-4000-8000-000000000101' });
+    expect(targets[0]).toMatchObject({ writable: true, purchaseConfirmation: { required: true, block: null, holdReason: null } });
+    expect(targets[1]).toMatchObject({ writable: false, purchaseConfirmation: { required: true, block: 'held', holdReason: '사진 확인 중' } });
+  });
+
+  it('새로 생긴 막힌 이유는 일반 사유로 접고 목록은 유지한다', async () => {
+    mocks.rpc.mockResolvedValue({ error: null, data: [row({ writable: false, purchase_confirmation_block: 'future_reason' })] });
+    expect((await loadMyReviewTargets())[0].purchaseConfirmation?.block).toBe('unavailable');
+  });
+
+  it('확정 열의 형식이 어긋나면 작성 가능으로 단정하지 않고 비운다', async () => {
+    mocks.rpc.mockResolvedValue({ error: null, data: [row({ purchase_confirmation_required: null })] });
+    expect(await loadMyReviewTargets()).toEqual([]);
   });
 });
