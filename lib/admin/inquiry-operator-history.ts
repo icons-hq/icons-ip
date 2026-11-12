@@ -26,6 +26,8 @@ export interface InquiryOperatorHistoryFilters {
   page: number;
   /** 주소의 기간이 잘못됐거나 최대 기간을 넘어 최근 1개월로 바꿔 조회했는지. 화면이 안내한다. */
   rangeAdjusted?: boolean;
+  /** 기본(최근 1개월)과 다른 기간을 골라 조회했는지. 화면이 접어 둔 조회 조건을 펼쳐 둔다. */
+  periodChosen?: boolean;
 }
 
 export interface OperatorInquirySummaryRow {
@@ -90,7 +92,7 @@ export function normalizeInquiryOperatorHistoryFilters(params: Record<string, st
   const operator = single('operator').toLowerCase();
   const page = Number(single('page'));
   return { ...range, operator: isUuid(operator) ? operator : null, page: Number.isSafeInteger(page) && page > 0 && page <= 100_000 ? page : 1,
-    rangeAdjusted: !valid && Boolean(from || to) };
+    rangeAdjusted: !valid && Boolean(from || to), periodChosen: valid && (from !== fallback.from || to !== fallback.to) };
 }
 
 export function inquiryOperatorHistoryHref(filters: InquiryOperatorHistoryFilters, overrides: Partial<InquiryOperatorHistoryFilters> = {}) {

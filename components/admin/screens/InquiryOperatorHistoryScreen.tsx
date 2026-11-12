@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { ChevronDown, ListFilter } from 'lucide-react';
 import { ConsoleFilterPanel, ConsoleGrid, ConsoleListCard, ConsolePagination, type ConsoleGridColumn } from '@/components/admin/console';
 import { AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
@@ -53,10 +54,15 @@ export function InquiryOperatorHistoryScreen({ data, filters }: { data: InquiryO
       <p>고객문의 관리의 답변과 상담하기의 메시지 전송이 모두 답변으로 셉니다. 7일 동안 고객 응답이 없어 자동으로 종결된 문의는 운영자 완료에 넣지 않습니다. 첫 답변으로 담당자가 자동 지정된 것은 따로 세지 않고, 담당 변경은 담당자를 바꾼 운영자에게 셉니다.</p>
       <p>운영자 활동 기록이라 매니저 관리 권한이 있는 계정만 열 수 있고, 이 화면을 조회할 때마다 열람 기록이 남습니다. 문의 하나의 처리 이력은 고객문의 상세와 상담하기의 처리 이력에서 확인합니다.</p>
     </AdminNotice>
-    <ConsoleFilterPanel action={INQUIRY_OPERATOR_HISTORY_PATH} idPrefix="inquiry-operator-history"
-      hiddenFields={filters.operator ? { operator: filters.operator } : undefined}
-      resetHref={INQUIRY_OPERATOR_HISTORY_PATH}
-      dateRange={{ from: filters.from, to: filters.to, label: '처리 기간' }} />
+    {/* 고객문의 관리처럼 조회 조건을 접어 둔다 — 320 폭에서 두 날짜 입력이 한 줄로 카드 밖에 나가지 않게, 펼쳐도 종료일이 다음 줄로 접힌다
+        (공유 조회 조건 부품은 그대로 두고 이 화면의 줄만 감싼다). 고른 기간은 아래 집계 카드 설명에 늘 보인다. */}
+    <details className="group/search min-w-0" data-cs-search="" open={filters.periodChosen || filters.rangeAdjusted}>
+      <summary className={`${buttonVariants({ size: 'sm', variant: 'outline' })} w-fit list-none [&::-webkit-details-marker]:hidden`} data-slot="button"><ListFilter aria-hidden="true" />검색 조건 <ChevronDown aria-hidden="true" className="transition-transform group-open/search:rotate-180" /></summary>
+      <ConsoleFilterPanel action={INQUIRY_OPERATOR_HISTORY_PATH} idPrefix="inquiry-operator-history" className="mt-3 [&_[data-console-filter=period]>div>div:last-child]:flex-wrap"
+        hiddenFields={filters.operator ? { operator: filters.operator } : undefined}
+        resetHref={INQUIRY_OPERATOR_HISTORY_PATH}
+        dateRange={{ from: filters.from, to: filters.to, label: '처리 기간' }} />
+    </details>
     {filters.rangeAdjusted ? <AdminNotice role="status" tone="warning" title="조회 기간을 최근 1개월로 바꿔 조회했습니다.">
       처리 기간은 시작일이 종료일보다 늦지 않은 날짜로, 최대 1년(366일)까지 고를 수 있습니다.
     </AdminNotice> : null}

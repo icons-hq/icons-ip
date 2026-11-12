@@ -10,11 +10,13 @@ const event = (id: string, extra: Record<string, unknown> = {}) => ({ id, at: '2
 
 describe('운영자별 처리 이력 조회 조건(1014-105)', () => {
   it('기본은 오늘 포함 최근 1개월(한국 날짜)이다', () => {
-    expect(normalizeInquiryOperatorHistoryFilters({}, NOW)).toEqual({ from: '2026-10-12', to: '2026-11-12', operator: null, page: 1, rangeAdjusted: false });
+    expect(normalizeInquiryOperatorHistoryFilters({}, NOW)).toEqual({ from: '2026-10-12', to: '2026-11-12', operator: null, page: 1, rangeAdjusted: false, periodChosen: false });
+    /* 처리 목록 링크는 기본 기간도 주소에 싣는다 — 기본 기간이면 접어 둔 조회 조건을 펼치지 않는다. */
+    expect(normalizeInquiryOperatorHistoryFilters({ from: '2026-10-12', to: '2026-11-12', operator: OPERATOR }, NOW)).toMatchObject({ periodChosen: false, rangeAdjusted: false });
   });
   it('주소의 기간·운영자·페이지를 검증해 받는다', () => {
     expect(normalizeInquiryOperatorHistoryFilters({ from: '2026-01-01', to: '2026-03-31', operator: OPERATOR.toUpperCase(), page: '3' }, NOW))
-      .toEqual({ from: '2026-01-01', to: '2026-03-31', operator: OPERATOR, page: 3, rangeAdjusted: false });
+      .toEqual({ from: '2026-01-01', to: '2026-03-31', operator: OPERATOR, page: 3, rangeAdjusted: false, periodChosen: true });
     expect(normalizeInquiryOperatorHistoryFilters({ operator: 'x', page: '-1' }, NOW)).toMatchObject({ operator: null, page: 1 });
   });
   it('잘못된 날짜·뒤집힌 기간·1년(366일) 초과는 최근 1개월로 바꾸고 화면이 알리게 한다', () => {

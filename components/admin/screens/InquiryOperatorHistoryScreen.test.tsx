@@ -39,6 +39,17 @@ describe('운영자별 처리 이력 화면(1014-105)', () => {
     expect(html).toMatch(/<nav aria-label="처리 목록 페이지"/);
   });
 
+  /* 320 폭 가로 넘침(리뷰 지적): 조회 조건은 '검색 조건'으로 접어 두고, 펼쳐도 날짜 입력 줄이 접힌다(공유 조회 조건 부품은 그대로). */
+  it('조회 조건은 기본 기간이면 접어 두고, 기간을 고르거나 바꿔 조회했으면 펼쳐 둔다', () => {
+    const closed = render();
+    expect(closed).toMatch(/<details class="group\/search min-w-0" data-cs-search="">/);
+    expect(closed).toContain('검색 조건'); expect(closed).toContain('name="from"');
+    expect(closed).toContain('[&amp;_[data-console-filter=period]&gt;div&gt;div:last-child]:flex-wrap');
+    expect(render({ filters: normalizeInquiryOperatorHistoryFilters({ from: '2026-11-01', to: '2026-11-10' }, NOW) })).toMatch(/<details class="group\/search min-w-0" data-cs-search="" open="">/);
+    expect(render({ filters: normalizeInquiryOperatorHistoryFilters({ from: 'x', to: 'y' }, NOW) })).toMatch(/<details class="group\/search min-w-0" data-cs-search="" open="">/);
+    expect(render({ filters: normalizeInquiryOperatorHistoryFilters({ from: '2026-10-12', to: '2026-11-12', operator: A }, NOW) })).not.toMatch(/data-cs-search="" open=""/);
+  });
+
   it('빈 기간과 바뀐 조회 기간을 구분해 알린다', () => {
     const empty = render({ data: { ...data, operators: [] } });
     expect(empty).toContain('이 기간에 문의를 처리한 운영자가 없습니다.');
