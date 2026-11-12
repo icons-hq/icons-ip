@@ -206,6 +206,9 @@ select pg_temp.cc_assert(private.contact_retention(pg_temp.cc_id('claim',13),clo
 -- A known completed replacement's actual delivery date controls retention.
 update public.order_cancellation_requests set reshipped_at=now()-interval '43 days',completed_at=now()-interval '43 days',collected_at=now()-interval '44 days',
  reship_delivered_at=now()-interval '40 days',reship_delivered_by=pg_temp.cc_id('user',1),reship_delivery_evidence='TEST actual delivered' where id=pg_temp.cc_id('claim',7);
+-- 배송 건 재출고 기록이 진실원이다(대상 배송 건이 하나면 옛 단일 열에도 같은 확인이 적힌다).
+update public.order_claim_reshipments set reshipped_at=now()-interval '43 days',delivered_at=now()-interval '40 days',delivered_by=pg_temp.cc_id('user',1),
+ delivery_evidence='TEST actual delivered' where claim_id=pg_temp.cc_id('claim',7);
 select pg_temp.cc_assert(private.contact_retention(pg_temp.cc_id('claim',7),clock_timestamp())->>'state'='due','replacement delivery closes obligation');
 select public.service_purge_order_claim_contact_data(pg_temp.cc_id('user',2),pg_temp.cc_id('user',1),pg_temp.cc_id('session',1),pg_temp.cc_id('retention-operation',44),clock_timestamp(),100);
 select pg_temp.cc_assert((select destination is null and purged_at is not null from private.order_claim_reshipment_destinations where claim_id=pg_temp.cc_id('claim',7)),'final destination purged with operation');
