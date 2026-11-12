@@ -1,6 +1,9 @@
 -- 상품번호(ADR-0038, S36-009·S36-X02·SHEET-036): 시스템이 매기는 바뀌지 않는 숫자 상품번호를 goods에 둔다.
---   * 기존 상품은 등록 순서(created_at, 같은 시각이면 id)대로 1번부터 채운다. 새 상품은 identity 순번을 받는다.
---   * 한 번 받은 번호는 바꿀 수 없다(identity ALWAYS + 갱신 차단 트리거). 순번은 되돌리지 않으므로 지운 상품의 번호도 다시 쓰지 않는다.
+--   * 기존 상품은 등록 순서(created_at, 같은 시각이면 id)대로 1번부터 채운다. 새 상품은 private 순번에서 다음 번호를 받는다.
+--   * 번호는 새 상품을 저장할 때만 쓴다. 상품 저장(admin_upsert_good)은 수정도 INSERT … ON CONFLICT (id) DO UPDATE라, identity 기본값을 쓰면
+--     수정 저장·엑셀 수정마다 번호가 하나씩 비었다. BEFORE INSERT 트리거가 같은 상품 URL(id)의 행이 이미 있으면 그 번호를 실어 순번을 쓰지 않는다.
+--     번호가 비는 경우는 새 상품 저장이 DB에서 실패하거나 같은 상품 URL을 동시에 새로 저장하는 드문 경합뿐이다.
+--   * 한 번 받은 번호는 바꿀 수 없고(갱신 차단 트리거) 직접 넣을 수도 없다. 순번은 되돌리지 않으므로 지운 상품의 번호도 다시 쓰지 않는다.
 --   * 상품 URL(goods.id)과 판매자상품코드(goods.code)는 그대로다. 상품번호는 목록·검색·상품 엑셀의 식별자로만 더한다.
 -- 상품 조회/수정 검색(admin_search_goods_console)은
 --   * 검색 대상 '상품번호'(field=number, 쉼표·공백으로 여러 개)와 정렬 '상품번호순'(number_asc/number_desc)을 받고 행에 productNo를 싣는다.
@@ -33,17 +36,38 @@ end $backfill$;
 
 alter table public.goods alter column product_no set not null;
 alter table public.goods add constraint goods_product_no_key unique (product_no);
-alter table public.goods alter column product_no add generated always as identity;
-select setval(pg_get_serial_sequence('public.goods', 'product_no'), greatest(coalesce(max(product_no), 0), 1), coalesce(max(product_no), 0) > 0)
+-- 순번은 Data API에 드러나지 않는 private 스키마에 두고, 아래 발급 트리거(소유자 권한)만 쓴다. 기본 권한으로 붙은 사용·변경 권한을 거둔다.
+create sequence private.goods_product_no_seq as bigint minvalue 1;
+select setval('private.goods_product_no_seq', greatest(coalesce(max(product_no), 0), 1), coalesce(max(product_no), 0) > 0)
   from public.goods;
--- 순번은 상품을 저장하는 SECURITY DEFINER 함수(소유자)만 쓴다. 기본 권한으로 붙은 사용·변경 권한을 거둔다(setval로 번호를 되돌리지 못하게).
-do $sequence$ begin
-  execute format('revoke all on sequence %s from public, anon, authenticated, service_role', pg_get_serial_sequence('public.goods', 'product_no'));
-end $sequence$;
+revoke all on sequence private.goods_product_no_seq from public, anon, authenticated, service_role;
+comment on sequence private.goods_product_no_seq is '상품번호(goods.product_no) 순번. private.assign_goods_product_no 트리거만 쓴다(ADR-0038).';
 comment on column public.goods.product_no is
   '상품번호. 시스템이 등록 순서대로 매기는 바뀌지 않는 숫자(ADR-0038). 상품 URL(id)·판매자상품코드(code)와 별개이며 재사용하지 않는다.';
 
--- 2. 상품번호 불변. identity ALWAYS는 값 지정 갱신을 막지만 `set product_no = default`(새 순번)는 통과하므로 트리거로 막는다.
+-- 2. 상품번호 발급. 같은 상품 URL(id)의 행이 이미 있으면(수정 저장의 INSERT … ON CONFLICT) 그 번호를 싣고 순번을 쓰지 않는다.
+--    없으면 다음 순번을 쓴다. 값을 직접 넣을 수 없다. 다른 BEFORE INSERT 검사가 먼저 거절하면 순번을 쓰지 않도록
+--    이름을 맨 뒤(zz_)로 둔다 — 같은 시점의 트리거는 이름 순서로 돈다.
+create function private.assign_goods_product_no() returns trigger
+language plpgsql security definer set search_path = '' as $$
+declare existing_no bigint;
+begin
+  if new.product_no is not null then
+    raise exception using errcode = '22023', message = 'goods_product_no_system_assigned';
+  end if;
+  select good.product_no into existing_no from public.goods good where good.id = new.id;
+  if existing_no is not null then
+    new.product_no := existing_no;
+  else
+    new.product_no := nextval('private.goods_product_no_seq');
+  end if;
+  return new;
+end $$;
+revoke all on function private.assign_goods_product_no() from public, anon, authenticated, service_role;
+create trigger zz_goods_assign_product_no before insert on public.goods
+  for each row execute function private.assign_goods_product_no();
+
+-- 3. 상품번호 불변. 값 지정·NULL·다른 번호로 바꾸는 갱신을 모두 막는다.
 create function private.guard_goods_product_no() returns trigger
 language plpgsql security invoker set search_path = '' as $$
 begin
@@ -56,7 +80,7 @@ revoke all on function private.guard_goods_product_no() from public, anon, authe
 create trigger goods_product_no_immutable before update of product_no on public.goods
   for each row execute function private.guard_goods_product_no();
 
--- 3. 판매기간 조건(판매대기 = 시작 전, 판매종료 = 종료 시각 지남) 판정을 한곳에 둔다. 목록 필터와 건수가 같은 판정을 쓴다.
+-- 4. 판매기간 조건(판매대기 = 시작 전, 판매종료 = 종료 시각 지남) 판정을 한곳에 둔다. 목록 필터와 건수가 같은 판정을 쓴다.
 create function private.admin_goods_sale_period_matches(p_period text, p_starts_at timestamptz, p_ends_at timestamptz)
 returns boolean language sql stable set search_path = '' as $$
   select case p_period
@@ -67,7 +91,7 @@ $$;
 revoke all on function private.admin_goods_sale_period_matches(text, timestamptz, timestamptz) from public, anon, authenticated, service_role;
 grant execute on function private.admin_goods_sale_period_matches(text, timestamptz, timestamptz) to postgres;
 
--- 4. 검색 함수 앵커 치환.
+-- 5. 검색 함수 앵커 치환.
 do $patch$
 declare target record; definition text; patch record;
 begin
