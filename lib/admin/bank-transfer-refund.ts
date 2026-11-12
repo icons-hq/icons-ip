@@ -33,7 +33,8 @@ export interface BankRefundAccountView {
   bankName: string; accountNumber: string; accountHolder: string; viewedAt: string;
 }
 export interface BankRefundFailure { error: string; uncertain?: boolean; conflict?: boolean; authChanged?: boolean }
-export type BankRefundResult = { receipt: BankRefundReceipt | null } | BankRefundFailure;
+/** notice: 영수증은 성공했지만 따라붙은 불량 재고 기록이 끝나지 않았다는 경고(QNA-035). 영수증 성공은 그대로다. */
+export type BankRefundResult = { receipt: BankRefundReceipt | null; notice?: string } | BankRefundFailure;
 const recoveryKeys = ['version', 'actorId', 'sessionId', 'orderId', 'claimId', 'operationId', 'revision', 'amount', 'kind'];
 const kind = (v: unknown): v is BankRefundKind => BANK_REFUND_KINDS.includes(v as BankRefundKind);
 const nullableText = (v: unknown) => v === null || typeof v === 'string';

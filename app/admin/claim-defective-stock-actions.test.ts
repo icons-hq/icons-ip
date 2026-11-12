@@ -110,7 +110,7 @@ describe('반품 환불 확정의 품목별 재고 처리(QNA-035)', () => {
     expect(names()).toContain('admin_record_order_claim_refund');
     expect(state.message).toBeUndefined();
     expect(state.error).toContain('환불 완료와 재고 복원은 이미 확정됐습니다');
-    expect(state.error).toContain('환불은 다시 하지 마세요');
+    expect(state.error).toContain('환불은 다시 하지 말고');
   });
 
   it('잘못된 선택 값은 어떤 RPC도 부르기 전에 거절한다', async () => {
@@ -141,7 +141,7 @@ describe('불량 기록 다시 시도·선택만 저장', () => {
     results.admin_record_claim_defective_stock = { error: { message: 'defective_stock_claim_not_completed' } };
     const form = new FormData();
     form.set('claimId', CLAIM_ID);
-    expect((await retryClaimDefectiveStockAction({}, form)).error).toBe('환불이 확정된 뒤에 불량 재고를 기록할 수 있습니다.');
+    expect((await retryClaimDefectiveStockAction({}, form)).error).toBe('재고가 정해진 뒤에 불량 재고를 기록할 수 있습니다.');
   });
 
   it('선택만 저장하는 액션은 불량 품목 목록을 저장 RPC에 넘긴다', async () => {

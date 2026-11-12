@@ -8,7 +8,8 @@
 --      private.restore_order_item_supply가 재고를 복원하지 않는다 — 복원한 뒤 빼면 stock_reconcile_flows(재고 대조)가
 --      읽는 'order.option_stock_restored' 기록과 실제 재고 변화가 갈라져 이중 기록이 남는다. 처음부터 복원하지 않으면
 --      대조 쪽은 '창고를 떠나 돌아오지 않은 수량'으로 그대로 읽는다.
---   2) 기록(recorded): 환불 확정이 끝난 뒤 admin_record_claim_defective_stock이 같은 클레임의 선택을 원장에 확정한다.
+--   2) 기록(recorded): 재고가 정해진 직후(주문이 canceled — 카드는 환불 확정, 무통장은 [취소 확정]) admin_record_claim_defective_stock이
+--      같은 클레임의 선택을 원장에 확정한다.
 --      확정이 끝난 뒤 실패해도 확정은 되돌리지 않고 planned로 남아('불량 기록 필요') 같은 호출로 다시 시도한다. 멱등이다.
 --
 -- 재고는 이 원장으로 바뀌지 않는다. 재고 변경은 기존 private.change_goods_variant_stock 경로뿐이다(캐시 보호 규칙).
@@ -72,7 +73,7 @@ begin
   anchor := E'\n affected:=target.hop_count>0';
   patch := E'\n -- 반품 불량 재고(QNA-035): 불량으로 고른 품목은 판매 재고로 되돌리지 않는다. 선택 행은 기록 뒤에도 남아 재호출에도 같다.\n'
     || E' if exists(select 1 from private.claim_defective_stock d join public.order_cancellation_requests c on c.id=d.claim_id\n'
-    || E'  where d.order_item_id=item.id and c.stage not in (''rejected'',''withdrawn'')) then\n'
+    || E'  where d.order_item_id=item.id and c.claim_type=''return'' and c.stage not in (''rejected'',''withdrawn'')) then\n'
     || E'  if item.supply_source=''preorder'' then\n'
     || E'   update private.goods_preorder_reservations set state=''returned'',released_at=clock_timestamp(),released_by=auth.uid(),release_reason=reason_value where order_item_id=item.id;\n'
     || E'  end if;\n'
@@ -84,10 +85,24 @@ begin
   execute replace(definition, anchor, patch || anchor);
 end $patch$;
 
--- 선택 저장. 환불 확정(재고 복원) 전에만 부를 수 있다. 비어 있으면 모두 복원으로 되돌린다.
+-- 불량으로 고를 수 있는 품목: 창고를 떠난 실물(디지털·미출고·예약 reserved/released 제외). 재고 대조의 units 판정과 같다.
+create function private.defective_stock_item_eligible(p_item_id uuid) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select exists(
+    select 1 from public.order_items oi join public.orders o on o.id = oi.order_id
+    where oi.id = p_item_id
+      and (oi.supply_source = 'stock' or exists(select 1 from private.goods_preorder_reservations r where r.order_item_id = oi.id and r.state = 'allocated'))
+      and coalesce((select s.status <> 'canceled' and s.fulfillment_partition <> 'digital' and (s.status in ('shipping','delivered') or s.shipped_at is not null)
+          from public.order_shipment_items si join public.order_shipments s on s.id = si.shipment_id where si.order_item_id = oi.id limit 1),
+        o.shipped_at is not null));
+$$;
+revoke all on function private.defective_stock_item_eligible(uuid) from public, anon, authenticated, service_role;
+
+-- 선택 저장. 재고가 정해지기 전(환불 확정·무통장 [취소 확정] 전)에만 부를 수 있다. 비어 있으면 모두 복원으로 되돌린다.
+-- 잠금 순서는 주문 → 클레임이다(환불 확정·전환 함수와 같다).
 create function public.admin_plan_claim_defective_stock(p_claim_id uuid, p_order_item_ids uuid[])
 returns jsonb language plpgsql volatile security definer set search_path = '' as $$
-declare actor uuid; claim public.order_cancellation_requests; ids uuid[]; item record; planned_count integer;
+declare actor uuid; claim public.order_cancellation_requests; ord public.orders; ids uuid[]; item record; planned_count integer; target_order uuid;
 begin
   actor := private.require_operator_capability('sales.manage', false);
   if p_claim_id is null or p_order_item_ids is null or cardinality(p_order_item_ids) > 200 then
@@ -95,19 +110,27 @@ begin
   end if;
   ids := coalesce(array(select distinct x from unnest(p_order_item_ids) x order by x), '{}');
   if exists(select 1 from unnest(ids) x where x is null) then raise invalid_parameter_value using message = 'invalid_defective_stock_plan'; end if;
-  select * into claim from public.order_cancellation_requests where id = p_claim_id for update;
+  select c.order_id into target_order from public.order_cancellation_requests c where c.id = p_claim_id;
   if not found then raise no_data_found using message = 'claim_not_found'; end if;
-  perform 1 from public.orders where id = claim.order_id for update;
+  select * into ord from public.orders where id = target_order for update;
+  select * into claim from public.order_cancellation_requests where id = p_claim_id for update;
+  if not found or claim.order_id <> target_order then raise sqlstate 'PT409' using message = 'defective_stock_plan_conflict'; end if;
   if claim.claim_type <> 'return' then raise check_violation using message = 'defective_stock_return_only'; end if;
-  if claim.stage in ('completed','rejected','withdrawn') then
+  -- 재고가 정해진 뒤에는 선택을 바꿀 수 없다: 주문이 canceled(finalizer가 복원함)이거나 무통장 환불이 취소 확정 단계에 들어갔다.
+  if claim.stage in ('completed','rejected','withdrawn') or ord.status = 'canceled'
+    or exists(select 1 from private.bank_transfer_claim_refunds b where b.claim_id = p_claim_id or b.order_id = claim.order_id) then
     raise check_violation using message = 'defective_stock_claim_closed';
   end if;
   if exists(select 1 from unnest(ids) x where not exists(select 1 from public.order_items oi where oi.id = x and oi.order_id = claim.order_id)) then
     raise check_violation using message = 'defective_stock_item_not_in_order';
   end if;
-  -- 거절·철회된 다른 클레임의 낡은 선택은 이 품목을 막지 않는다.
+  if exists(select 1 from unnest(ids) x where not private.defective_stock_item_eligible(x)) then
+    raise check_violation using message = 'defective_stock_item_not_shipped';
+  end if;
+  -- 거절·철회됐거나 반품이 아니게 된(교환 전환) 다른 클레임의 낡은 선택은 이 품목을 막지 않는다.
   delete from private.claim_defective_stock d using public.order_cancellation_requests c
-  where c.id = d.claim_id and d.state = 'planned' and d.order_item_id = any(ids) and d.claim_id <> p_claim_id and c.stage in ('rejected','withdrawn');
+  where c.id = d.claim_id and d.state = 'planned' and d.order_item_id = any(ids) and d.claim_id <> p_claim_id
+    and (c.stage in ('rejected','withdrawn') or c.claim_type <> 'return');
   if exists(select 1 from private.claim_defective_stock d where d.order_item_id = any(ids) and d.claim_id <> p_claim_id) then
     raise unique_violation using message = 'defective_stock_item_in_other_claim';
   end if;
@@ -123,22 +146,32 @@ begin
   return jsonb_build_object('claimId', p_claim_id, 'planned', planned_count);
 end $$;
 
--- 확정 직후 기록. 클레임이 처리완료(재고 복원 단계 끝)일 때만 선택을 원장으로 확정한다. 멱등이다.
+-- 재고가 정해진 직후 기록. 반품 클레임이고 거절·철회가 아니며 주문이 canceled(재고 복원 단계가 끝남)일 때만 선택을 원장으로
+-- 확정한다. 이미 복원된 품목이 있으면 거절한다(이중 계상 방어선). 멱등이다.
 create function public.admin_record_claim_defective_stock(p_claim_id uuid)
 returns jsonb language plpgsql volatile security definer set search_path = '' as $$
-declare actor uuid; claim public.order_cancellation_requests; row_ private.claim_defective_stock; item public.order_items;
+declare actor uuid; claim public.order_cancellation_requests; ord public.orders; row_ private.claim_defective_stock; item public.order_items;
   physical record; target record; target_variant public.goods_variants; target_good public.goods;
-  recorded_now integer := 0; recorded_total integer;
+  recorded_now integer := 0; recorded_total integer; target_order uuid;
 begin
   actor := private.require_operator_capability('sales.manage', false);
   if p_claim_id is null then raise invalid_parameter_value using message = 'invalid_defective_stock_record'; end if;
-  select * into claim from public.order_cancellation_requests where id = p_claim_id for update;
+  select c.order_id into target_order from public.order_cancellation_requests c where c.id = p_claim_id;
   if not found then raise no_data_found using message = 'claim_not_found'; end if;
+  select * into ord from public.orders where id = target_order for update;
+  select * into claim from public.order_cancellation_requests where id = p_claim_id for update;
   if claim.claim_type <> 'return' then raise check_violation using message = 'defective_stock_return_only'; end if;
   if exists(select 1 from private.claim_defective_stock where claim_id = p_claim_id and state = 'planned') then
-    if claim.stage <> 'completed' then raise check_violation using message = 'defective_stock_claim_not_completed'; end if;
+    if claim.stage in ('rejected','withdrawn') or ord.status <> 'canceled' then
+      raise check_violation using message = 'defective_stock_claim_not_completed';
+    end if;
     for row_ in select * from private.claim_defective_stock where claim_id = p_claim_id and state = 'planned' order by order_item_id for update loop
       select * into item from public.order_items where id = row_.order_item_id;
+      if exists(select 1 from public.audit_log a where a.target = 'order:' || claim.order_id::text and a.action = 'order.option_stock_restored'
+          and a.diff->>'orderItemId' = item.id::text)
+        or exists(select 1 from private.group_stock_restorations g where g.order_item_id = item.id and g.cause = 'refund') then
+        raise check_violation using message = 'defective_stock_item_already_restored';
+      end if;
       select * into physical from private.order_item_physical_unit(item.id);
       select * into target from private.resolve_goods_stock_successor(physical.good_id, physical.variant_id);
       select * into target_variant from public.goods_variants where id = target.variant_id;
@@ -157,7 +190,7 @@ begin
     'pending', (select count(*) from private.claim_defective_stock where claim_id = p_claim_id and state = 'planned'));
 end $$;
 
--- 클레임별 품목과 지금의 선택. 일괄 확인창과 환불 단계가 쓴다.
+-- 클레임별 품목과 지금의 선택. 불량으로 고를 수 있는 실물 품목만 싣는다(이미 선택된 품목은 늘 싣는다).
 create function public.admin_claim_defective_items(p_claim_ids uuid[])
 returns jsonb language plpgsql stable security definer set search_path = '' as $$
 begin
@@ -166,12 +199,14 @@ begin
   return coalesce((
     select jsonb_agg(jsonb_build_object(
       'claimId', c.id,
+      'frozen', (exists(select 1 from public.orders o where o.id = c.order_id and o.status = 'canceled')
+        or exists(select 1 from private.bank_transfer_claim_refunds b where b.claim_id = c.id or b.order_id = c.order_id)),
       'pending', (select count(*) from private.claim_defective_stock d where d.claim_id = c.id and d.state = 'planned'),
       'items', (select coalesce(jsonb_agg(jsonb_build_object(
           'orderItemId', oi.id, 'name', oi.good_name_snapshot, 'variantName', oi.variant_name_snapshot, 'qty', oi.qty,
           'defective', d.id is not null, 'state', d.state) order by oi.good_id, oi.id), '[]'::jsonb)
         from public.order_items oi left join private.claim_defective_stock d on d.order_item_id = oi.id and d.claim_id = c.id
-        where oi.order_id = c.order_id)
+        where oi.order_id = c.order_id and (d.id is not null or private.defective_stock_item_eligible(oi.id)))
     ) order by c.id)
     from public.order_cancellation_requests c where c.id = any(p_claim_ids) and c.claim_type = 'return'), '[]'::jsonb);
 end $$;
@@ -198,7 +233,9 @@ begin
     'pending', coalesce((select jsonb_agg(row order by row->>'claimReference') from (
       select jsonb_build_object('claimId', c.id, 'claimReference', c.reference, 'stage', c.stage, 'qty', sum(d.qty), 'items', count(*)) as row
       from private.claim_defective_stock d join public.order_cancellation_requests c on c.id = d.claim_id
-      where d.state = 'planned' and c.stage = 'completed' group by c.id, c.reference, c.stage) waiting), '[]'::jsonb));
+      join public.orders o on o.id = c.order_id
+      where d.state = 'planned' and c.claim_type = 'return' and c.stage not in ('rejected','withdrawn') and o.status = 'canceled'
+      group by c.id, c.reference, c.stage) waiting), '[]'::jsonb));
 end $$;
 
 -- 재고 대조 화면의 참고 칸: 옵션별 불량 수량(판매 재고에 들어 있지 않다).

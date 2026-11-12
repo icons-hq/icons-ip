@@ -14,7 +14,15 @@ export const STOCK_DISPOSITION_LABELS = { restore: '판매 재고 복원', defec
 export type StockDisposition = keyof typeof STOCK_DISPOSITION_LABELS;
 
 export const DEFECTIVE_STOCK_FIELD_NOTE = '불량으로 고른 품목은 판매 재고에 넣지 않고 불량 재고 목록에 따로 기록합니다.';
-export const DEFECTIVE_STOCK_PENDING_NOTICE = '환불은 확정됐지만 불량 재고 기록이 끝나지 않았습니다. 환불은 다시 하지 말고 [불량 기록 다시 시도]만 눌러주세요.';
+export const DEFECTIVE_STOCK_PENDING_NOTICE = '환불(재고)은 확정됐지만 불량 재고 기록이 끝나지 않았습니다. 환불은 다시 하지 말고 반품 처리 권한이 있는 담당자가 [불량 기록 다시 시도]만 눌러주세요.';
+
+/** 기록 RPC 실패를 운영자 문구로 옮긴다. 원문 코드는 노출하지 않는다. */
+export function defectiveStockRecordError(message: string | null | undefined) {
+  const value = (message ?? '').toLowerCase();
+  if (value.includes('defective_stock_claim_not_completed')) return '재고가 정해진 뒤에 불량 재고를 기록할 수 있습니다.';
+  if (value.includes('defective_stock_item_already_restored')) return '이미 판매 재고로 복원된 품목이라 불량으로 기록할 수 없습니다. 재고를 확인할 담당자에게 문의해주세요.';
+  return `불량 재고를 기록하지 못했습니다. ${DEFECTIVE_STOCK_PENDING_NOTICE}`;
+}
 
 export interface ClaimDefectiveItem {
   orderItemId: string;
@@ -29,6 +37,8 @@ export interface ClaimDefectiveItem {
 
 export interface ClaimDefectiveStock {
   claimId: string;
+  /** 재고가 이미 정해졌다(주문 canceled 또는 무통장 취소 확정). 선택을 더 바꿀 수 없다. */
+  frozen: boolean;
   /** 확정은 끝났지만 아직 원장에 기록하지 못한 선택 수. */
   pending: number;
   items: ClaimDefectiveItem[];
@@ -83,6 +93,7 @@ export function parseClaimDefectiveStock(value: unknown): ClaimDefectiveStock[] 
   if (!Array.isArray(value)) return [];
   return value.filter(isRecord).map((row) => ({
     claimId: text(row.claimId),
+    frozen: row.frozen === true,
     pending: int(row.pending),
     items: (Array.isArray(row.items) ? row.items : []).filter(isRecord).map((item) => ({
       orderItemId: text(item.orderItemId),

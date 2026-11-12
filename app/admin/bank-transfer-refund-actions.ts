@@ -3,11 +3,12 @@ import { revalidatePath } from 'next/cache';
 import { unstable_rethrow } from 'next/navigation';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
+import { recordClaimDefectiveStock } from '@/lib/admin/defective-stock.server';
 import { normalizeClaimRefundAccountIdentity } from '@/lib/orders/claim-refund-account';
 import {
   bankRefundError, bankRefundReceiptMatches, normalizeBankRefundRequest,
   parseBankRefundContext, parseBankRefundReceipt, parseBankRefundRecovery,
-  type BankRefundContext, type BankRefundFailure, type BankRefundIdentity, type BankRefundResult,
+  type BankRefundContext, type BankRefundFailure, type BankRefundReceipt, type BankRefundIdentity, type BankRefundResult,
 } from '@/lib/admin/bank-transfer-refund';
 
 async function authorized(identity: BankRefundIdentity) {
@@ -16,6 +17,13 @@ async function authorized(identity: BankRefundIdentity) {
 }
 function identityArgs(identity: BankRefundIdentity) {
   return { p_order_id: identity.orderId, p_claim_id: identity.claimId, p_expected_actor_id: identity.actorId, p_expected_session_id: identity.sessionId };
+}
+/* 반품 불량 재고(QNA-035): [취소 확정]에서 finalizer가 재고를 정한 직후 선택을 원장에 기록한다. 송금 완료·복구 읽기에서도 멱등으로
+   다시 부른다. 실패해도 영수증 성공은 유지하고 경고만 붙인다. 'use server' 파일에서 export하지 않는 지역 함수다. */
+async function defectiveNotice(receipt: BankRefundReceipt): Promise<string | undefined> {
+  if (receipt.state !== 'recorded' || (receipt.kind !== 'confirm_cancellation' && receipt.kind !== 'complete_transfer')) return undefined;
+  const recorded = await recordClaimDefectiveStock(receipt.claimId);
+  return recorded.error ? `환불 처리는 기록됐습니다. ${recorded.error}` : undefined;
 }
 function refresh(orderId: string, claimId: string) {
   for (const path of ['/admin/sales/claims/refund-transfers', '/admin/sales/orders', '/admin/sales/dispatch', '/orders', `/admin/sales/orders/${orderId}`, `/orders/${orderId}`]) revalidatePath(path);
@@ -47,8 +55,9 @@ export async function recordBankRefundAction(input: unknown): Promise<BankRefund
     if (error) return bankRefundError(error.code, error.message);
     const receipt = parseBankRefundReceipt(data);
     if (!receipt || receipt.state !== 'recorded' || !bankRefundReceiptMatches(receipt, request)) return bankRefundError();
+    const notice = await defectiveNotice(receipt);
     refresh(receipt.orderId, receipt.claimId);
-    return { receipt };
+    return notice ? { receipt, notice } : { receipt };
   } catch (error) { unstable_rethrow(error); return bankRefundError(); }
 }
 export async function readBankRefundAction(input: unknown, seal = false): Promise<BankRefundResult> {
@@ -63,7 +72,8 @@ export async function readBankRefundAction(input: unknown, seal = false): Promis
     if (data === null && !seal) return { receipt: null };
     const receipt = parseBankRefundReceipt(data);
     if (!receipt || !bankRefundReceiptMatches(receipt, request)) return bankRefundError();
+    const notice = await defectiveNotice(receipt);
     refresh(receipt.orderId, receipt.claimId);
-    return { receipt };
+    return notice ? { receipt, notice } : { receipt };
   } catch (error) { unstable_rethrow(error); return bankRefundError(); }
 }

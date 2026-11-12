@@ -121,7 +121,7 @@ export async function previewOrderClaimBulkStepAction(input: unknown): Promise<A
 
     /* 반품이면 품목과 재고 처리 선택을 싣는다(QNA-035). 읽지 못하면 선택 칸 없이 지금처럼 전부 복원한다. */
     const defectiveByClaim = claimType === 'return'
-      ? new Map((await loadClaimDefectiveStock(claimIds)).map((entry) => [entry.claimId, entry.items]))
+      ? new Map((await loadClaimDefectiveStock(claimIds)).filter((entry) => !entry.frozen).map((entry) => [entry.claimId, entry.items]))
       : new Map<string, ClaimDefectiveItem[]>();
 
     const rows: AdminClaimBulkRefundRow[] = claimIds.map((claimId) => {

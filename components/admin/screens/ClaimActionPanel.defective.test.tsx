@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { adminClaimBulkRefundTotals, type AdminClaimBulkRefundRow } from '@/lib/admin/claim-bulk';
+import { adminClaimBulkDefectiveItemIds, adminClaimBulkRefundTotals, type AdminClaimBulkRefundRow } from '@/lib/admin/claim-bulk';
 import type { ClaimDefectiveStock } from '@/lib/admin/defective-stock';
 import { ClaimActionPanel, type ClaimActionPanelProps } from './ClaimActionPanel';
 import { RefundStep } from './ClaimBulkStepDialog';
@@ -39,7 +39,7 @@ function props(overrides: Partial<ClaimActionPanelProps> = {}): ClaimActionPanel
 const render = (overrides: Partial<ClaimActionPanelProps> = {}) => renderToStaticMarkup(<ClaimActionPanel {...props(overrides)} />);
 
 const stock = (overrides: Partial<ClaimDefectiveStock> = {}): ClaimDefectiveStock => ({
-  claimId: CLAIM_ID, pending: 0, items: [
+  claimId: CLAIM_ID, frozen: false, pending: 0, items: [
     { orderItemId: ITEM_A, name: '아크릴 키링', variantName: '파랑', qty: 2, defective: false, state: null },
     { orderItemId: ITEM_B, name: '엽서', variantName: null, qty: 1, defective: false, state: null },
   ], ...overrides,
@@ -79,19 +79,25 @@ describe('ClaimActionPanel — 품목별 재고 처리', () => {
   });
 
   it('이미 종결된 클레임의 확정 양식에는 선택 칸이 없고, 기록이 남았으면 다시 시도 안내를 보인다', () => {
-    const done = render({ stage: 'completed', defectiveStock: stock({ pending: 1 }) });
+    const done = render({ stage: 'completed', defectiveStock: stock({ pending: 1, frozen: true }) });
     expect(done).not.toContain('data-claim-defective-stock');
     expect(done).toContain('data-claim-defective-pending');
     expect(done).toContain('불량 기록 필요');
     expect(done).toContain('불량 기록 다시 시도');
     expect(done).toContain('환불은 다시 하지 말고');
-    expect(render({ stage: 'completed', defectiveStock: stock({ pending: 0 }) })).not.toContain('data-claim-defective-pending');
+    expect(render({ stage: 'completed', defectiveStock: stock({ pending: 0, frozen: true }) })).not.toContain('data-claim-defective-pending');
+  });
+
+  it('재고가 정해진 뒤(주문 canceled·무통장 취소 확정)에는 선택 칸·저장 양식을 그리지 않는다', () => {
+    const frozen = stock({ frozen: true });
+    expect(render({ defectiveStock: frozen })).not.toContain('data-claim-defective-stock');
+    expect(render({ bankTransfer: true, actorId: 'staff-1', paymentProvider: 'bank_transfer', defectiveStock: frozen })).not.toContain('품목별 재고 처리 저장');
   });
 
   it('무통장 환불은 확정 양식이 따로라 선택만 저장하는 양식을 보인다', () => {
     const html = render({ bankTransfer: true, actorId: 'staff-1', paymentProvider: 'bank_transfer', defectiveStock: stock() });
     expect(html).toContain('품목별 재고 처리 저장');
-    expect(html).toContain('[취소 확정]을 누를 때 재고가 복원됩니다');
+    expect(html).toContain('[취소 확정]을 누를 때 재고가 복원되고 불량 재고도 함께 기록됩니다');
   });
 });
 
@@ -110,6 +116,20 @@ describe('일괄 환불 확인창 — 품목별 재고 처리', () => {
     expect(html.match(/data-claim-bulk-stock/g)).toHaveLength(1);
     const withoutHandler = renderToStaticMarkup(<RefundStep onRun={() => undefined} preview={preview} progress={0} running={false} />);
     expect(withoutHandler).not.toContain('data-claim-bulk-stock');
+  });
+
+  it('저장된 불량 선택은 화면에 보이는 값 그대로 실행 입력이 된다(표시값=전송값)', () => {
+    const items = [
+      { orderItemId: ITEM_A, name: 'a', variantName: null, qty: 1, defective: true, state: 'planned' as const },
+      { orderItemId: ITEM_B, name: 'b', variantName: null, qty: 1, defective: false, state: null },
+    ];
+    const shown = (defective: Record<string, boolean>) => adminClaimBulkDefectiveItemIds(items, defective);
+    expect(shown({})).toEqual([ITEM_A]);
+    expect(shown({ [ITEM_A]: false, [ITEM_B]: true })).toEqual([ITEM_B]);
+    const html = renderToStaticMarkup(<RefundStep defective={{}} onDefective={() => undefined} onRun={() => undefined}
+      preview={{ step: 'refund', rows: [{ ...rows[0], items }], totals: adminClaimBulkRefundTotals([rows[0]]) }} progress={0} running={false} />);
+    expect(html).toMatch(new RegExp(`id="bulk-stock-${ITEM_A}"[^>]*>(<option[^>]*>[^<]*</option>)*`));
+    expect(html).toMatch(/<option[^>]*value="defective"[^>]*selected|<option selected=""[^>]*value="defective"/);
   });
 
   it('고른 불량 품목이 선택 상태로 보이고 처리 중에는 잠긴다', () => {

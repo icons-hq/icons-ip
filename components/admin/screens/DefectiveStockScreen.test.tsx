@@ -30,6 +30,7 @@ describe('불량 재고 화면', () => {
     const waiting = renderToStaticMarkup(<DefectiveStockScreen list={{ ...list, pending: [{ claimId: CLAIM, claimReference: 13, qty: 1, items: 1 }] }} />);
     expect(waiting).toContain('불량 기록 필요');
     expect(waiting).toContain('[불량 기록 다시 시도]');
+    expect(waiting).toContain('반품 처리 권한이 있는 담당자');
     expect(waiting).toContain(`href="/admin/sales/claims/returns/${CLAIM}"`);
   });
 });

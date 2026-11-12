@@ -191,4 +191,136 @@ reset role;
 select private.restore_order_item_supply(pg_temp.ds_id('item', 5), 'TEST 거절된 클레임의 낡은 선택');
 select 1/case when pg_temp.ds_stock(1) = 12 then 1 else 0 end as rejected_claim_choice_does_not_block_restore;
 
+
+-- 10~15. 리뷰 수정: 무통장 얼림·기록 전제, 이중 복원 방어선, 미출고 거절, 교환 전환, 교환 뒤 반품 재고 대조 ------------------------------------
+insert into public.goods(id, ip_id, name, type, price, stock, stock_qty, origin_id)
+ select 'defective-stock-good-'||n, 'defective-stock-ip', 'TEST 불량재고 상품 '||n, '문구', 10000, 'ok', 10, pg_temp.ds_id('origin', 1)
+ from generate_series(5, 10) n;
+-- 주문 5(무통장 얼림: 상품5 ×2·상품6 ×1) · 6(이중 복원 방어: 상품7) · 7(미출고: 상품8) · 8(교환 전환: 상품5 ×1) · 9(교환 뒤 반품: 상품9→상품10 ×2)
+insert into public.orders(id, user_id, status, total, shipping_fee, address, payment_method, created_at, delivered_at, shipped_at)
+ select pg_temp.ds_id('order', n), pg_temp.ds_id('user', 2), 'delivered'::public.order_status, 30000, 0,
+  '{"recipientName":"TEST 구매자","phone":"01000000000","postalCode":"12345","address1":"TEST 합성 주소"}',
+  'card'::public.order_payment_method, clock_timestamp() - interval '3 days', clock_timestamp() - interval '1 day',
+  case when n = 7 then null else clock_timestamp() - interval '2 days' end from generate_series(5, 9) n;
+insert into public.order_items(id, order_id, good_id, variant_id, good_name_snapshot, good_type_snapshot, good_ip_id_snapshot, qty, unit_price)
+ select pg_temp.ds_id('item', k.item), pg_temp.ds_id('order', k.ord), 'defective-stock-good-'||k.good, v.id, 'TEST 불량재고 상품 '||k.good, '문구', 'defective-stock-ip', k.qty, 10000
+ from (values (6, 5, 5, 2), (7, 5, 6, 1), (8, 6, 7, 1), (9, 7, 8, 1), (10, 8, 5, 1), (11, 9, 9, 2)) k(item, ord, good, qty)
+ join public.goods_variants v on v.good_id = 'defective-stock-good-'||k.good and v.is_default;
+insert into public.payments(id, user_id, provider, purpose, ref_id, amount, status, payment_key, idempotency_key, created_at)
+ select pg_temp.ds_id('payment', n), pg_temp.ds_id('user', 2), 'toss'::public.payment_provider, 'order', pg_temp.ds_id('order', n),
+  30000, 'paid'::public.payment_status, 'TEST-DS-KEY-'||n, 'defective-stock-test-'||n, clock_timestamp() - interval '3 days' from generate_series(5, 9) n;
+insert into public.order_cancellation_requests(id, order_id, requested_by, reason, reason_type, claim_type, stage, collection_policy, collected_at, requested_at)
+ select pg_temp.ds_id('claim', n), pg_temp.ds_id('order', n), pg_temp.ds_id('user', 2), 'TEST 불량 재고 검증', 'defect', 'return', 'collected', 'legacy',
+  clock_timestamp() - interval '30 minutes', clock_timestamp() - interval '2 days' from generate_series(5, 8) n;
+
+-- 10. 무통장: 취소 확정(환불 행 생김) 뒤에는 선택을 바꿀 수 없고, 주문이 canceled가 되면 클레임이 처리완료 전이어도 기록된다 ----------------
+set local role authenticated;
+select pg_temp.ds_auth(1);
+select public.admin_plan_claim_defective_stock(pg_temp.ds_id('claim', 5), array[pg_temp.ds_id('item', 6)]);
+reset role;
+insert into private.bank_transfer_claim_refunds(claim_id, order_id, payment_id, payer_id, amount, state, confirmation_operation_id, confirmed_by, confirmed_at,
+  confirmation_evidence, confirmation_note)
+ values (pg_temp.ds_id('claim', 5), pg_temp.ds_id('order', 5), pg_temp.ds_id('payment', 5), pg_temp.ds_id('user', 2), 30000, 'awaiting_transfer',
+  pg_temp.ds_id('operation', 5), pg_temp.ds_id('user', 1), clock_timestamp(), 'TEST 증빙', 'TEST 메모');
+set local role authenticated;
+select pg_temp.ds_auth(1);
+select pg_temp.ds_error(format('select public.admin_plan_claim_defective_stock(%L, ''{}'')', pg_temp.ds_id('claim', 5)), 'defective_stock_claim_closed');
+select pg_temp.ds_error(format('select public.admin_plan_claim_defective_stock(%L, array[%L]::uuid[])', pg_temp.ds_id('claim', 5), pg_temp.ds_id('item', 7)), 'defective_stock_claim_closed');
+select 1/case when (select (c->>'frozen')::boolean from jsonb_array_elements(public.admin_claim_defective_items(array[pg_temp.ds_id('claim', 5)])) c) then 1 else 0 end as bank_refund_row_freezes_the_choice;
+-- 주문이 아직 canceled가 아니면 기록하지 않는다.
+select pg_temp.ds_error(format('select public.admin_record_claim_defective_stock(%L)', pg_temp.ds_id('claim', 5)), 'defective_stock_claim_not_completed');
+reset role;
+-- [취소 확정]의 finalizer를 모사: 주문 canceled + 품목마다 복원 함수. 클레임 stage는 collected(송금 완료 전)로 둔다.
+-- finalizer가 아닌 직접 갱신이라 결제 증빙 가드를 이 문장에서만 끈다(합성 데이터).
+set local session_replication_role = replica;
+update public.orders set status = 'canceled' where id = pg_temp.ds_id('order', 5);
+set local session_replication_role = origin;
+select private.restore_order_item_supply(pg_temp.ds_id('item', 6), 'TEST 무통장 취소 확정');
+select private.restore_order_item_supply(pg_temp.ds_id('item', 7), 'TEST 무통장 취소 확정');
+select 1/case when pg_temp.ds_stock(5) = 10 and pg_temp.ds_stock(6) = 11 then 1 else 0 end as bank_cancel_confirm_skips_the_defective_item;
+set local role authenticated;
+select pg_temp.ds_auth(1);
+select 1/case when jsonb_array_length(public.admin_list_defective_stock(50)->'pending') = 1 then 1 else 0 end as bank_choice_waits_for_record_after_cancel_confirm;
+select 1/case when public.admin_record_claim_defective_stock(pg_temp.ds_id('claim', 5)) = jsonb_build_object('claimId', pg_temp.ds_id('claim', 5), 'recorded', 1, 'total', 1, 'pending', 0)
+ then 1 else 0 end as bank_defective_is_recorded_right_after_cancel_confirm;
+reset role;
+
+-- 11. 방어선: 이미 복원된 품목은 기록할 수 없다(이중 계상 거절) -----------------------------------------------------------------
+set local role authenticated;
+select pg_temp.ds_auth(1);
+select public.admin_plan_claim_defective_stock(pg_temp.ds_id('claim', 6), array[pg_temp.ds_id('item', 8)]);
+reset role;
+-- finalizer가 아닌 직접 갱신이라 결제 증빙 가드를 이 문장에서만 끈다(합성 데이터).
+set local session_replication_role = replica;
+update public.orders set status = 'canceled' where id = pg_temp.ds_id('order', 6);
+set local session_replication_role = origin;
+insert into public.audit_log(actor_id, action, target, diff) values (pg_temp.ds_id('user', 1), 'order.option_stock_restored', 'order:'||pg_temp.ds_id('order', 6),
+ jsonb_build_object('orderItemId', pg_temp.ds_id('item', 8), 'delta', 1));
+set local role authenticated;
+select pg_temp.ds_auth(1);
+select pg_temp.ds_error(format('select public.admin_record_claim_defective_stock(%L)', pg_temp.ds_id('claim', 6)), 'defective_stock_item_already_restored');
+reset role;
+
+-- 12. 출고되지 않은 품목은 선택 칸에서 빠지고 선택도 거절한다 -------------------------------------------------------------------
+set local role authenticated;
+select pg_temp.ds_auth(1);
+select pg_temp.ds_error(format('select public.admin_plan_claim_defective_stock(%L, array[%L]::uuid[])', pg_temp.ds_id('claim', 7), pg_temp.ds_id('item', 9)), 'defective_stock_item_not_shipped');
+select 1/case when jsonb_array_length(public.admin_claim_defective_items(array[pg_temp.ds_id('claim', 7)])->0->'items') = 0 then 1 else 0 end as unshipped_items_are_not_offered;
+reset role;
+
+-- 13. 반품 → 교환 전환: 낡은 선택은 복원을 막지 않고 기록 필요에도 뜨지 않으며, 같은 주문의 새 반품을 막지 않는다 -------------------------
+insert into public.order_items(id, order_id, good_id, variant_id, good_name_snapshot, good_type_snapshot, good_ip_id_snapshot, qty, unit_price)
+ select pg_temp.ds_id('item', 12), pg_temp.ds_id('order', 8), 'defective-stock-good-6', v.id, 'TEST 불량재고 상품 6', '문구', 'defective-stock-ip', 1, 10000
+ from public.goods_variants v where v.good_id = 'defective-stock-good-6' and v.is_default;
+set local role authenticated;
+select pg_temp.ds_auth(1);
+select public.admin_plan_claim_defective_stock(pg_temp.ds_id('claim', 8), array[pg_temp.ds_id('item', 10), pg_temp.ds_id('item', 12)]);
+reset role;
+update public.order_cancellation_requests set claim_type = 'exchange' where id = pg_temp.ds_id('claim', 8);
+select private.restore_order_item_supply(pg_temp.ds_id('item', 10), 'TEST 전환된 교환 클레임의 낡은 선택');
+select 1/case when pg_temp.ds_stock(5) = 11 then 1 else 0 end as converted_claim_choice_does_not_block_restore;
+update public.order_cancellation_requests set stage = 'rejected', status = 'rejected' where id = pg_temp.ds_id('claim', 8);
+insert into public.order_cancellation_requests(id, order_id, requested_by, reason, reason_type, claim_type, stage, collection_policy, collected_at, requested_at)
+ values (pg_temp.ds_id('claim', 10), pg_temp.ds_id('order', 8), pg_temp.ds_id('user', 2), 'TEST 전환 뒤 새 반품', 'defect', 'return', 'collected', 'legacy',
+  clock_timestamp() - interval '30 minutes', clock_timestamp() - interval '1 hour');
+set local role authenticated;
+select pg_temp.ds_auth(1);
+select public.admin_plan_claim_defective_stock(pg_temp.ds_id('claim', 10), array[pg_temp.ds_id('item', 10)]);
+reset role;
+select 1/case when not exists(select 1 from private.claim_defective_stock where claim_id = pg_temp.ds_id('claim', 8) and order_item_id = pg_temp.ds_id('item', 10))
+ and exists(select 1 from private.claim_defective_stock where claim_id = pg_temp.ds_id('claim', 10)) then 1 else 0 end as stale_choice_is_replaced_by_the_new_return;
+-- 남은 낡은 행(품목 12)은 복원을 막지 않고 기록 필요에도 뜨지 않는다.
+set local session_replication_role = replica;
+update public.orders set status = 'canceled' where id = pg_temp.ds_id('order', 8);
+set local session_replication_role = origin;
+select private.restore_order_item_supply(pg_temp.ds_id('item', 12), 'TEST 낡은 선택');
+select 1/case when pg_temp.ds_stock(6) = 12 then 1 else 0 end as stale_non_return_row_does_not_block_restore;
+set local role authenticated;
+select pg_temp.ds_auth(1);
+select 1/case when not exists(select 1 from jsonb_array_elements(public.admin_list_defective_stock(50)->'pending') p where p->>'claimId' = pg_temp.ds_id('claim', 8)::text)
+ then 1 else 0 end as stale_claim_is_not_pending;
+reset role;
+
+-- 14. 교환 뒤 반품: 교환 때 돌아온 V1 회수분은 반품의 불량 선택과 상관없이 '돌아온 수량'에 남는다 -----------------------------------------------
+insert into public.order_cancellation_requests(id, order_id, requested_by, reason, reason_type, claim_type, stage, collection_policy, collected_at, requested_at,
+  reshipped_at, completed_at)
+ values (pg_temp.ds_id('claim', 11), pg_temp.ds_id('order', 9), pg_temp.ds_id('user', 2), 'TEST 교환', 'defect', 'exchange', 'completed', 'legacy',
+  clock_timestamp() - interval '2 hours', clock_timestamp() - interval '1 day', clock_timestamp() - interval '90 minutes', clock_timestamp() - interval '90 minutes');
+insert into public.goods_variants(id, good_id, name, price, stock_qty, sort_order) values (pg_temp.ds_id('variant', 2), 'defective-stock-good-9', 'TEST 교환 옵션 V2', 10000, 10, 5);
+insert into public.order_claim_reshipment_items(claim_id, order_item_id, good_id, source_variant_id, variant_id, variant_name_snapshot, variant_code_snapshot, qty)
+ select pg_temp.ds_id('claim', 11), pg_temp.ds_id('item', 11), 'defective-stock-good-9', v1.id, pg_temp.ds_id('variant', 2), 'TEST 교환 옵션 V2', '', 2
+ from public.goods_variants v1 where v1.good_id = 'defective-stock-good-9' and v1.is_default;
+insert into public.order_cancellation_requests(id, order_id, requested_by, reason, reason_type, claim_type, stage, collection_policy, collected_at, requested_at)
+ values (pg_temp.ds_id('claim', 12), pg_temp.ds_id('order', 9), pg_temp.ds_id('user', 2), 'TEST 교환 뒤 반품', 'defect', 'return', 'collected', 'legacy',
+  clock_timestamp() - interval '30 minutes', clock_timestamp() - interval '1 hour');
+create function pg_temp.ds_returned(v uuid) returns bigint language sql as $$
+ select f.returned_since_qty from private.stock_reconcile_flows(array[v], clock_timestamp() - interval '3 hours') f$$;
+select 1/case when pg_temp.ds_returned((select id from public.goods_variants where good_id = 'defective-stock-good-9' and is_default)) = 2 then 1 else 0 end as before_choice_exchange_pickup_counts_on_v1;
+set local role authenticated;
+select pg_temp.ds_auth(1);
+select public.admin_plan_claim_defective_stock(pg_temp.ds_id('claim', 12), array[pg_temp.ds_id('item', 11)]);
+reset role;
+select 1/case when pg_temp.ds_returned((select id from public.goods_variants where good_id = 'defective-stock-good-9' and is_default)) = 2
+ and pg_temp.ds_returned(pg_temp.ds_id('variant', 2)) = 0 then 1 else 0 end as defective_return_keeps_exchange_pickup_on_v1_and_excludes_only_its_own;
+
 rollback;

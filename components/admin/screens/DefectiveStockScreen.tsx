@@ -20,7 +20,7 @@ export function DefectiveStockScreen({ list }: { list: DefectiveStockList }) {
     <AdminPageHeader title="불량 재고" description="반품 환불을 확정할 때 불량으로 고른 품목의 옵션별 수량입니다. 판매 재고에는 들어 있지 않습니다." />
     {list.pending.length > 0 ? <AdminNotice role="status" title="불량 기록 필요" tone="warning">
       {list.pending.map((row, index) => <span key={row.claimId}>{index > 0 ? ' · ' : ''}<Link className="underline underline-offset-4" href={adminClaimDetailHref('return', row.claimId)}>반품 {orderClaimReferenceLabel(row.claimReference)}</Link> {count(row.qty)}개</span>)}
-      {' '}— 환불은 확정됐지만 불량 기록이 끝나지 않았습니다. 반품 상세에서 [불량 기록 다시 시도]를 눌러주세요.
+      {' '}— 환불(재고)은 확정됐지만 불량 기록이 끝나지 않았습니다. 반품 처리 권한이 있는 담당자가 반품 상세에서 [불량 기록 다시 시도]를 눌러야 합니다.
     </AdminNotice> : null}
     <AdminSectionCard id="defective-stock-variants" title="옵션별 불량 수량" summary={`옵션 ${count(list.variants.length)}개 · 합계 ${count(total)}개`}>
       {list.variants.length === 0 ? <p className="text-muted-foreground">아직 기록된 불량 재고가 없습니다. 반품 환불을 확정할 때 품목을 불량으로 고르면 여기에 쌓입니다.</p>

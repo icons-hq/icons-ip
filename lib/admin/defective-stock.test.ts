@@ -33,10 +33,10 @@ describe('반품 불량 재고 읽기·양식 계약', () => {
 
   it('클레임 품목 문서를 안전하게 읽는다', () => {
     expect(parseClaimDefectiveStock('x')).toEqual([]);
-    expect(parseClaimDefectiveStock([{ claimId: 'c', pending: '1', items: [
+    expect(parseClaimDefectiveStock([{ claimId: 'c', frozen: true, pending: '1', items: [
       { orderItemId: ITEM_A, name: '키링', variantName: '', qty: 2, defective: true, state: 'planned' },
       { orderItemId: ITEM_B, name: '엽서', variantName: '파랑', qty: 1, defective: false, state: 'bogus' },
-    ] }])).toEqual([{ claimId: 'c', pending: 1, items: [
+    ] }])).toEqual([{ claimId: 'c', frozen: true, pending: 1, items: [
       { orderItemId: ITEM_A, name: '키링', variantName: null, qty: 2, defective: true, state: 'planned' },
       { orderItemId: ITEM_B, name: '엽서', variantName: '파랑', qty: 1, defective: false, state: null },
     ] }]);

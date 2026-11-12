@@ -25,6 +25,7 @@ import {
 } from '@/lib/admin/claims';
 import { loadAdminClaimDetail } from '@/lib/admin/claims.server';
 import { DEFECTIVE_STOCK_PENDING_NOTICE, readStockDispositions } from '@/lib/admin/defective-stock';
+import { recordClaimDefectiveStock } from '@/lib/admin/defective-stock.server';
 import { CLAIM_EVIDENCE_MAX_FILES, CLAIM_WAIVER_REASON_MAX, CLAIM_WAIVER_REASON_MIN, claimWaiverReasonValid, normalizeClaimWaiverReason } from '@/lib/admin/claim-evidence';
 import { ADMIN_CANCELLATION_RECHECK_LABELS } from '@/lib/admin/orders';
 import { withPreservedFormValues, type AdminFormValuesState } from '@/lib/admin/form-state';
@@ -96,7 +97,7 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string) {
   if (value.includes('defective_stock_claim_closed')) return '이미 환불이 확정된 요청이라 재고 처리를 바꿀 수 없습니다.';
   if (value.includes('defective_stock_item_in_other_claim') || value.includes('defective_stock_plan_conflict')) return '다른 반품 요청에서 이미 불량으로 고른 품목입니다. 이력을 확인해주세요.';
   if (value.includes('defective_stock_item_not_in_order') || value.includes('defective_stock_return_only')) return '이 반품 요청의 품목이 아닙니다. 화면을 새로고침한 뒤 다시 시도해주세요.';
-  if (value.includes('defective_stock_claim_not_completed')) return '환불이 확정된 뒤에 불량 재고를 기록할 수 있습니다.';
+  if (value.includes('defective_stock_item_not_shipped')) return '출고되지 않았거나 디지털인 품목은 불량으로 고를 수 없습니다. 화면을 새로고침해주세요.';
   if (value.includes('claim_collections_incomplete')) return '모든 출고지의 회수를 확인한 뒤 환불·재출고를 진행해주세요.';
   if (value.includes('origin_collection_required')) return '출고지별 회수 확인에서 각 배송 건의 입고를 기록해주세요.';
   if (value.includes('claim_return_address_required')) return '출고지 설정에 반송 주소를 등록한 뒤 다시 진행해주세요.';
@@ -761,7 +762,7 @@ export async function recordOrderClaimRefundAction(
   /* 환불 확정이 끝난 뒤 불량 선택을 원장에 기록한다(감사 RPC). 실패해도 확정은 되돌리지 않고 '불량 기록 필요'로 남는다 —
      같은 호출을 다시 시도해도 같은 클레임을 두 번 기록하지 않는다(멱등). */
   if (dispositions && dispositions.defectiveIds.length > 0) {
-    const recorded = await recordClaimDefectiveStock(supabase, normalized.value.claimId);
+    const recorded = await recordClaimDefectiveStock(normalized.value.claimId);
     revalidateClaimSurfaces(normalized.value.claimId, readClaimType(formData));
     if (recorded.error) {
       return { error: `환불 완료와 재고 복원은 이미 확정됐습니다. 불량 재고 기록만 끝나지 않았습니다 — 환불은 다시 하지 마세요. ${recorded.error}` };
@@ -770,16 +771,6 @@ export async function recordOrderClaimRefundAction(
     return done.message ? { message: `${done.message} 불량 ${recorded.recorded}개 품목은 판매 재고에 넣지 않고 불량 재고에 기록했습니다.` } : done;
   }
   return finishRefundMessage();
-}
-
-type Supabase = Awaited<ReturnType<typeof createClient>>;
-
-/** 확정이 끝난 반품 클레임의 불량 선택을 원장에 기록한다. 멱등이다. */
-async function recordClaimDefectiveStock(supabase: Supabase, claimId: string): Promise<{ recorded: number; error?: string }> {
-  const { data, error } = await supabase.rpc('admin_record_claim_defective_stock', { p_claim_id: claimId });
-  if (error) return { recorded: 0, error: rpcErrorMessage(error.message, DEFECTIVE_RECORD_FAILED) };
-  const total = data && typeof data === 'object' && 'total' in data ? Number((data as { total: unknown }).total) : 0;
-  return { recorded: Number.isFinite(total) ? total : 0 };
 }
 
 /** 환불 확정 전에 품목별 재고 처리 선택만 저장한다(무통장 환불처럼 확정이 다른 양식에서 일어나는 경로). 재고·환불에는 손대지 않는다. */
@@ -814,7 +805,7 @@ export async function retryClaimDefectiveStockAction(
   if (access.error || !access.userId) return access.error ?? { error: DEFECTIVE_RECORD_FAILED };
   const claimId = String(formData.get('claimId') ?? '').toLowerCase();
   if (!isUuid(claimId)) return { error: DEFECTIVE_RECORD_FAILED };
-  const recorded = await recordClaimDefectiveStock(await createClient(), claimId);
+  const recorded = await recordClaimDefectiveStock(claimId);
   revalidateClaimSurfaces(claimId, readClaimType(formData));
   return recorded.error
     ? { error: recorded.error }

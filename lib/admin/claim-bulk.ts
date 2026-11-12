@@ -522,6 +522,11 @@ export interface AdminClaimBulkRefundRow {
   blocker: string | null;
 }
 
+/** 확인창이 실행에 보내는 불량 품목. 화면에 보이는 값(`고른 값 ?? 저장된 선택`)과 같아야 한다 — 저장된 불량이 조용히 복원으로 바뀌지 않게. */
+export function adminClaimBulkDefectiveItemIds(items: readonly ClaimDefectiveItem[], chosen: Readonly<Record<string, boolean>>) {
+  return items.filter((item) => chosen[item.orderItemId] ?? item.defective).map((item) => item.orderItemId);
+}
+
 export interface AdminClaimBulkRefundTotals {
   count: number;
   amount: number;

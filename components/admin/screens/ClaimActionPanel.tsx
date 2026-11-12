@@ -551,7 +551,7 @@ export function ClaimActionPanel({
 
       {stage !== 'withdrawn' && bankTransfer && actorId && claimType !== 'exchange' ? <BankTransferRefund actorId={actorId} orderId={orderId} claimId={claimId} /> : null}
 
-      {bankTransfer && claimType === 'return' && defectiveStock && stage !== 'completed' && stage !== 'withdrawn' && stage !== 'rejected'
+      {bankTransfer && claimType === 'return' && defectiveStock && !defectiveStock.frozen && stage !== 'completed' && stage !== 'withdrawn' && stage !== 'rejected'
         && defectiveStock.items.some((item) => item.state !== 'recorded') ? (
         <form action={panelAction} className={FORM_CLASS}>
           <PanelActionField kind="defectivePlan" />
@@ -559,11 +559,11 @@ export function ClaimActionPanel({
           <input name="claimType" type="hidden" value={claimType} />
           <ClaimDefectiveStockChoice idPrefix="claim-bank-stock-disposition" items={defectiveStock.items} />
           <Button className="w-fit" disabled={pending} size="sm" type="submit" variant="outline">품목별 재고 처리 저장</Button>
-          <p className={HINT_CLASS}>무통장 환불은 위 [취소 확정]을 누를 때 재고가 복원됩니다. 그 전에 저장해주세요.</p>
+          <p className={HINT_CLASS}>무통장 환불은 위 [취소 확정]을 누를 때 재고가 복원되고 불량 재고도 함께 기록됩니다. 그 전에 저장해주세요.</p>
         </form>
       ) : null}
 
-      {claimType === 'return' && defectiveStock && defectiveStock.pending > 0 && stage === 'completed' ? (
+      {claimType === 'return' && defectiveStock && defectiveStock.pending > 0 && defectiveStock.frozen ? (
         <form action={panelAction} className={FORM_CLASS} data-claim-defective-pending="">
           <PanelActionField kind="defectiveRetry" />
           <input name="claimId" type="hidden" value={claimId} />
@@ -607,7 +607,7 @@ export function ClaimActionPanel({
           <input name="stage" type="hidden" value="completed" />
           <RefundMethodField fixedMethod={fixedRefundMethod} id="claim-refund-complete-method" autoCancelLabel={autoCancelLabel} cancelScope={cancelScope} />
           <SettlementNoteField id="claim-refund-complete-note" />
-          {refundFinalizationPending && claimType === 'return' && defectiveStock ? <ClaimDefectiveStockChoice idPrefix="claim-stock-disposition" items={defectiveStock.items} /> : null}
+          {refundFinalizationPending && claimType === 'return' && defectiveStock && !defectiveStock.frozen ? <ClaimDefectiveStockChoice idPrefix="claim-stock-disposition" items={defectiveStock.items} /> : null}
           {refundFinalizationPending ? (
             <AdminNotice title="확정하면 되돌릴 수 없습니다" tone="warning">
               {autoCancelLabel && partialRefund

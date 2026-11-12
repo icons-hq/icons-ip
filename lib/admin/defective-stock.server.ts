@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import {
   parseClaimDefectiveStock,
   parseDefectiveQtyByVariant,
+  defectiveStockRecordError,
   parseDefectiveStockList,
   type ClaimDefectiveStock,
   type DefectiveStockList,
@@ -20,6 +21,22 @@ export async function loadClaimDefectiveStock(claimIds: readonly string[]): Prom
     return error ? [] : parseClaimDefectiveStock(data);
   } catch {
     return [];
+  }
+}
+
+/**
+ * 재고가 정해진 반품 클레임의 불량 선택을 원장에 기록한다(감사 RPC, 멱등). 'use server' 파일 밖에 둬 서버 액션으로 노출되지 않는다.
+ * 실패해도 호출한 쪽의 확정(환불·취소 확정)은 되돌리지 않는다 — 선택은 planned로 남아 '불량 기록 필요'가 된다.
+ */
+export async function recordClaimDefectiveStock(claimId: string): Promise<{ recorded: number; error?: string }> {
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc('admin_record_claim_defective_stock', { p_claim_id: claimId });
+    if (error) return { recorded: 0, error: defectiveStockRecordError(error.message) };
+    const total = data && typeof data === 'object' && 'total' in data ? Number((data as { total: unknown }).total) : 0;
+    return { recorded: Number.isFinite(total) ? total : 0 };
+  } catch {
+    return { recorded: 0, error: defectiveStockRecordError('') };
   }
 }
 

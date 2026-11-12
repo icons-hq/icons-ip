@@ -17,6 +17,7 @@ import {
   ADMIN_CLAIM_BULK_STEP_LABELS,
   adminClaimBulkCollectTargetLabel,
   adminClaimBulkContinuation,
+  adminClaimBulkDefectiveItemIds,
   adminClaimBulkSummary,
   type AdminClaimBulkCollectRow,
   type AdminClaimBulkResult,
@@ -174,7 +175,7 @@ function ClaimBulkPreviewDialog({ claimType, onClose, previewHrefBase, session }
     /* 품목 선택 칸이 있던 행은 선택(없으면 빈 배열 = 전부 판매 재고 복원)을 함께 보낸다. */
     const items = rows.flatMap((row) => row.blocker === null && row.amount !== null ? [{
       claimId: row.claimId, expectedAmount: row.amount,
-      ...(row.items && row.items.length > 0 ? { defectiveItemIds: row.items.filter((item) => defective[item.orderItemId]).map((item) => item.orderItemId) } : {}),
+      ...(row.items && row.items.length > 0 ? { defectiveItemIds: adminClaimBulkDefectiveItemIds(row.items, defective) } : {}),
     }] : []);
     if (items.length === 0) return;
     setRunning(true);

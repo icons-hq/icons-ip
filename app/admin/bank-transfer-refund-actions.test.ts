@@ -69,7 +69,9 @@ describe('bank refund action authorization and RPC contract', () => {
   it.each(['confirm_cancellation', 'file_transfer', 'complete_transfer'] as const)('records %s only through the audited database operation', async kind => {
     mocks.rpc.mockResolvedValue({ data: { ...receipt, kind }, error: null });
     expect(await recordBankRefundAction({ ...request, kind })).toEqual({ receipt: { ...receipt, kind } });
-    expect(mocks.rpc).toHaveBeenCalledTimes(1);
+    /* 반품 불량 재고(QNA-035): 취소 확정·송금 완료 뒤에는 멱등 기록 RPC를 한 번 더 부른다. */
+    expect(mocks.rpc).toHaveBeenCalledTimes(kind === 'file_transfer' ? 1 : 2);
+    if (kind !== 'file_transfer') expect(mocks.rpc).toHaveBeenLastCalledWith('admin_record_claim_defective_stock', { p_claim_id: identity.claimId });
     expect(mocks.rpc).toHaveBeenCalledWith('admin_record_bank_transfer_refund', { ...identityArgs, p_operation_id: request.operationId,
       p_kind: kind, p_expected_revision: 7, p_expected_amount: 12000, p_occurred_at: request.occurredAt,
       p_evidence: request.evidence, p_note: request.note, p_confirmed: true });
@@ -114,7 +116,22 @@ describe('bank refund response binding and ambiguous outcomes', () => {
   it('keeps an already dispatched write uncertain if cache refresh fails', async () => {
     mocks.revalidate.mockImplementation(() => { throw new Error('refresh failed'); });
     expect(await recordBankRefundAction(request)).toMatchObject({ uncertain: true });
-    expect(mocks.rpc).toHaveBeenCalledTimes(1);
+    expect(mocks.rpc.mock.calls.filter(([name]) => name === 'admin_record_bank_transfer_refund')).toHaveLength(1);
+  });
+  it('불량 기록이 실패해도 영수증 성공은 유지하고 불량 기록 필요 경고만 붙인다', async () => {
+    mocks.rpc.mockImplementation(async (name: string) => name === 'admin_record_claim_defective_stock'
+      ? { data: null, error: { code: 'XX000', message: 'boom' } } : { data: { ...receipt, kind: 'confirm_cancellation' }, error: null });
+    const result = await recordBankRefundAction({ ...request, kind: 'confirm_cancellation' });
+    expect(result).toMatchObject({ receipt: { ...receipt, kind: 'confirm_cancellation' }, notice: expect.stringContaining('불량 재고를 기록하지 못했습니다') });
+    expect(JSON.stringify(result)).not.toContain('boom');
+  });
+  it('응답이 불확실했던 뒤의 복구 읽기도 확인한 영수증에 멱등으로 기록을 다시 시도한다', async () => {
+    mocks.rpc.mockImplementation(async (name: string) => name === 'admin_record_claim_defective_stock'
+      ? { data: { claimId: identity.claimId, recorded: 1, total: 1, pending: 0 }, error: null } : { data: { ...receipt, kind: 'confirm_cancellation' }, error: null });
+    const result = await readBankRefundAction({ ...bankRefundMetadata({ ...request, kind: 'confirm_cancellation' }) });
+    expect(result).toMatchObject({ receipt: { kind: 'confirm_cancellation' } });
+    expect(result).not.toHaveProperty('notice');
+    expect(mocks.rpc).toHaveBeenLastCalledWith('admin_record_claim_defective_stock', { p_claim_id: identity.claimId });
   });
   it('reads only metadata and distinguishes missing, sealed and recorded receipts', async () => {
     mocks.rpc.mockResolvedValue({ data: null, error: null });
