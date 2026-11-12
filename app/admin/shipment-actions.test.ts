@@ -269,6 +269,22 @@ describe('발송 대기 행 운송장·배송 방법 액션 (S36-072·S36-X04)',
   const OPERATION = '00000000-0000-4000-8000-0000000000ff';
   beforeEach(() => { mocks.carriers.mockResolvedValue(carriers); mocks.enqueue.mockResolvedValue({ queued: 1 }); });
 
+  /* 1014-084 통합: 행 운송장·배송 방법·택배 외 일괄 인계는 출고 권한(sales.dispatch)이다. 물류출고관리는 쓰고, 출고 권한이 없는 매니저는 RPC 전에 막는다. */
+  it('물류출고관리는 행 운송장·배송 방법 액션을 쓰고, 출고 권한이 없는 매니저는 RPC 전에 막는다 (1014-084)', async () => {
+    mocks.auth.mockResolvedValue({ operatorAccess: configuredOperatorAccessFixture('logistics'), isConfigured: true, user: { id: 'logistics' }, isStaff: true, role: 'staff' });
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'boom' } });
+    expect(await readDispatchDeliveryOptionsAction([ID])).toEqual({ ok: false, error: '배송 방법 정보를 불러오지 못했습니다. 잠시 후 다시 열어주세요.' });
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_dispatch_delivery_options', { p_shipment_ids: [ID] });
+    for (const role of ['deputy', 'influencer', 'agency'] as const) {
+      mocks.rpc.mockClear();
+      mocks.auth.mockResolvedValue({ operatorAccess: configuredOperatorAccessFixture(role), isConfigured: true, user: { id: role }, isStaff: true, role: 'staff' });
+      expect(await registerShipmentTrackingAction([{ shipmentId: ID, carrier: 'hanjin', trackingNumber: '123456789012' }])).toEqual({ ok: false, error: '직원 권한이 필요합니다.' });
+      expect(await readDispatchDeliveryOptionsAction([ID])).toEqual({ ok: false, error: '직원 권한이 필요합니다.' });
+      expect(await applyDispatchDeliveryAction({ targets: [{ shipmentId: ID, updatedAt: STAMP }], method: 'quick', reason: '', handoff: null, operationId: OPERATION }))
+        .toEqual({ ok: false, error: '직원 권한이 필요합니다.' });
+      expect(mocks.rpc).not.toHaveBeenCalled();
+    }
+  });
   it('행 운송장은 직원만, 사용 중 택배사·형식을 확인한 뒤 파일 회신과 같은 일괄 등록 RPC로 보낸다', async () => {
     mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'buyer' }, isStaff: false });
     expect(await registerShipmentTrackingAction([{ shipmentId: ID, carrier: 'hanjin', trackingNumber: '123456789012' }])).toEqual({ ok: false, error: '직원 권한이 필요합니다.' });

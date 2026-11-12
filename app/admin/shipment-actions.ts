@@ -24,10 +24,11 @@ function selection(value:unknown):string[]|null {if(!Array.isArray(value)||!valu
 /** 출고지시·배송완료는 출고 전용 권한(sales.dispatch, 1014-084)으로 한다. sales.manage도 이 권한을 포함한다. */
 async function staff(){const auth=await getCurrentAdminAuthState();return auth.isConfigured&&auth.user&&auth.isStaff&&hasAdminCapability(auth,'sales.dispatch')?auth:null;}
 /**
- * 발송처리 화면의 행 운송장·배송 방법·택배 외 일괄 인계(S36-072·S36-X04) 액션이 요구하는 능력. 물류 출고 권한(sales.dispatch)과
- * 통합할 때 이 한 줄만 바꾼다(DB는 private.dispatch_console_capability()가 같은 값을 둔다). 운영 강제 배송완료는 sales.manage 그대로다.
+ * 발송처리 화면의 행 운송장·배송 방법·택배 외 일괄 인계(S36-072·S36-X04) 액션이 요구하는 능력. 물류 출고 권한(sales.dispatch, 1014-084)이고
+ * sales.manage도 이 권한을 포함한다. DB는 private.dispatch_console_capability()가 같은 값을 둔다(통합 migration 20261112200000).
+ * 운영 강제 배송완료는 sales.manage 그대로다.
  */
-const DISPATCH_CONSOLE_CAPABILITY='sales.manage' as const;
+const DISPATCH_CONSOLE_CAPABILITY='sales.dispatch' as const;
 async function dispatchStaff(){const auth=await getCurrentAdminAuthState();return auth.isConfigured&&auth.user&&auth.isStaff&&hasAdminCapability(auth,DISPATCH_CONSOLE_CAPABILITY)?auth:null;}
 function refresh(){revalidatePath('/admin/sales/dispatch');revalidatePath('/admin/sales/shipping');revalidatePath('/admin/sales/orders');revalidatePath('/orders');}
 /** 발송·인계 기록은 고객 주문 화면과 주문 상세(팝업 포함)에도 바로 보여야 한다. */

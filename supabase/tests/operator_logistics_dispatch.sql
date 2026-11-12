@@ -78,9 +78,15 @@ begin
  end loop;
 end $$;
 
--- 계약: 정확히 이 22개 출고 RPC만 sales.manage에서 sales.dispatch로 옮겼다(택배 외 인계·수령 기록과 그 읽기 포함).
-create temp table ld_dispatch_contracts(signature text primary key);
-insert into ld_dispatch_contracts values
+-- 계약: 정확히 이 26개 출고 RPC만 sales.dispatch를 쓴다(택배 외 인계·수령 기록과 그 읽기 포함).
+-- 앞 22개는 T05가 sales.manage에서 옮겼고, 뒤 4개는 같은 웨이브의 새 출고 RPC를 통합 migration(20261112200000)이 맞췄다:
+-- 발송처리 화면의 배송 방법·택배 외 일괄 인계(T04), ICONS 표준 양식 바코드 경고(T03), 출고지시 전 재고 차이 경고(T07).
+-- before_capability는 통합 전 능력이다(재고 차이 경고만 sales.read였다).
+create temp table ld_dispatch_contracts(signature text primary key,before_capability text not null default 'sales.manage');
+insert into ld_dispatch_contracts(signature,before_capability) values
+ ('public.admin_dispatch_delivery_options(uuid[])','sales.manage'),('public.admin_dispatch_apply_delivery(jsonb,text,text,jsonb,uuid)','sales.manage'),
+ ('public.admin_smartstore_shipment_barcode_gaps(uuid[],uuid)','sales.manage'),('public.admin_stock_dispatch_warnings(uuid,integer)','sales.read');
+insert into ld_dispatch_contracts(signature) values
  ('public.admin_search_shipments_notice_console(text,uuid,text,date,date,integer,integer,text,text,text,text,text,text)'),
  ('public.admin_search_shipments_console(text,uuid,text,date,date,integer,integer,text,text,text,text,text)'),
  ('public.admin_shipment_pack_summaries(uuid[])'),('public.admin_shipment_production_summaries(uuid[])'),
@@ -100,17 +106,23 @@ select pg_temp.ld_assert(
  and (select array_agg(policy_name) from private.operator_policy_contracts where capability='sales.dispatch')=array['fulfillment_origins_dispatch_read'],
  'only the dispatch RPCs and the origin read policy use sales.dispatch');
 -- 기존 역할마다 모든 RPC 계약의 허용 여부가 변경 전(출고 RPC = sales.manage)과 같다.
+-- 유일한 의도된 차이: 출고지시 전 재고 차이 경고는 sales.read에서 sales.dispatch로 옮겨, sales.read만 있는 인플루언서가
+-- 더는 부르지 못한다. 그 경고를 그리는 발주·발송 화면 자체가 sales.dispatch로 열려 인플루언서는 원래 볼 수 없다.
 do $$ declare role_name text; caps text[]; effective text[]; contract record; before_capability text;
 begin
  foreach role_name in array array['owner','primary','deputy','influencer','agency'] loop
   caps:=private.operator_role_capabilities(role_name);
   effective:=caps||case when 'sales.manage'=any(caps) then array['sales.dispatch'] else array[]::text[] end;
   for contract in select c.signature,c.capability from private.operator_rpc_contracts c loop
-   before_capability:=case when exists(select 1 from ld_dispatch_contracts d where d.signature=contract.signature) then 'sales.manage' else contract.capability end;
-   if (contract.capability=any(effective)) is distinct from (before_capability=any(caps)) then
+   before_capability:=coalesce((select d.before_capability from ld_dispatch_contracts d where d.signature=contract.signature),contract.capability);
+   if (contract.capability=any(effective)) is distinct from (before_capability=any(caps))
+    and not (role_name='influencer' and contract.signature='public.admin_stock_dispatch_warnings(uuid,integer)') then
     raise exception 'role % access changed for %',role_name,contract.signature;end if;
   end loop;
  end loop;
+ if not 'sales.read'=any(private.operator_role_capabilities('influencer')) or 'sales.manage'=any(private.operator_role_capabilities('influencer'))
+  or exists(select 1 from private.operator_rpc_contracts where signature='public.admin_stock_dispatch_warnings(uuid,integer)' and capability<>'sales.dispatch') then
+  raise exception 'the only intended access change is influencer losing the dispatch-screen stock warning';end if;
 end $$;
 -- 물류출고관리가 닿는 주문·판매 RPC는 출고 RPC뿐이다. 발주확인·배송 방식 변경·취소·환불·클레임·고객·상품·목록 엑셀은 없다.
 select pg_temp.ld_assert(
@@ -219,6 +231,11 @@ select pg_temp.ld_assert(jsonb_array_length(public.admin_smartstore_shipment_exp
  and public.admin_shipment_pack_summaries(array[pg_temp.ld_id(4,1)]) ? pg_temp.ld_id(4,1)::text
  and public.admin_shipment_production_summaries(array[pg_temp.ld_id(4,1)]) ? pg_temp.ld_id(4,1)::text
  and public.admin_origin_pending_export_ids('00000000-0000-4000-8000-000000042201')->'ids' ? pg_temp.ld_id(4,1)::text,'instruction export reads');
+-- 같은 웨이브의 새 출고 읽기도 출고 권한으로 열린다(통합 migration 20261112200000): ICONS 표준 양식 바코드 경고(T03),
+-- 출고지시 전 재고 차이 경고(T07), 발송처리 화면의 배송 방법 팝업 자료(T04).
+select pg_temp.ld_assert(public.admin_smartstore_shipment_barcode_gaps(array[pg_temp.ld_id(4,1)],null)>=0
+ and jsonb_typeof(public.admin_stock_dispatch_warnings(null))='object'
+ and jsonb_array_length(public.admin_dispatch_delivery_options(array[pg_temp.ld_id(4,1)])->'shipments')=1,'same-wave dispatch reads');
 select jsonb_agg(jsonb_build_object('id',row_value->>'id','updatedAt',row_value->>'updatedAt')) as gimpo_versions
 from jsonb_array_elements(public.admin_search_shipments_notice_console('ready',p_query=>'f5d10000-0000-0004',p_field=>'shipment')->'rows') row_value
 where (row_value->>'id')::uuid in (pg_temp.ld_id(4,1),pg_temp.ld_id(4,3)) \gset
