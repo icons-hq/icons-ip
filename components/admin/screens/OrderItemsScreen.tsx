@@ -76,7 +76,7 @@ export function OrderItemsScreen({ data, canManage }: { data: AdminOrderItemData
       href: adminOrderItemsHref(filters, { status: option.value as typeof filters.status, page: 1 }) }))} />
     <SalesFilterPanel currentHref={currentHref} resetHref="/admin/sales/orders?view=items" id="order-items"
       date={{ from: filters.from, to: filters.to, field: filters.dateField ?? 'ordered', options: SALES_DATE_FIELDS }}
-      search={{ value: filters.query, field: filters.field, options: fields, placeholder: '상품주문 · 주문 · 상품명 · 옵션 · 구매자 · 송장' }}>
+      search={{ value: filters.query, field: filters.field, options: fields, placeholder: '상품주문 · 주문 · 상품명 · 옵션 · 구매자 · 송장', fitsOrderNumber: true }}>
       <SalesFilterField label="주문상태" htmlFor="order-item-status"><SalesSelect id="order-item-status" name="status" value={filters.status} options={statuses} /></SalesFilterField>
       <SalesFilterField label="결제수단" htmlFor="order-item-payment"><SalesSelect id="order-item-payment" name="paymentMethod" value={filters.paymentMethod ?? ''} options={[{ value: '', label: '전체' }, { value: 'card', label: '카드' }, { value: 'bank_transfer', label: '무통장' }]} /></SalesFilterField>
     </SalesFilterPanel>

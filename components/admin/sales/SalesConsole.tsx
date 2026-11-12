@@ -102,7 +102,14 @@ export function SalesFilterPanel({
   currentHref: string;
   id: string;
   date?: { from: string | null; to: string | null; field: string; options: readonly Option[] };
-  search: { value: string; name?: string; field?: string; options?: readonly Option[]; placeholder: string };
+  search: {
+    value: string; name?: string; field?: string; options?: readonly Option[]; placeholder: string;
+    /**
+     * 주문번호·상품주문번호 전체(20자리)를 붙여 넣는 검색칸(QA1 S-T06-02). 20자리가 잘리지 않는 폭을 보장한다 —
+     * 화면이 좁으면 조건 줄이 접혀 다음 줄로 내려간다.
+     */
+    fitsOrderNumber?: boolean;
+  };
   children?: ReactNode;
   /** 매일 쓰지 않는 조건. 접어 두어 표가 첫 화면에 들어오게 하고, 접어도 검색할 때 값이 함께 간다. */
   more?: ReactNode;
@@ -125,10 +132,12 @@ export function SalesFilterPanel({
       <SalesSelect id={`${id}-date-field`} name="dateField" value={date.field} options={date.options} />
       <SalesDateRange key={currentHref} id={id} from={date.from} to={date.to} now={now} />
     </SalesFilterField> : null}
-    <ConsoleFilterField className={`${more ? 'min-w-[min(100%,17rem)]' : 'min-w-[min(100%,20rem)]'} flex-1`} htmlFor={`${id}-query`} label="상세조건">
-      <div className="flex min-w-0 gap-2">
+    <ConsoleFilterField className={`${search.fitsOrderNumber ? search.options ? 'min-w-[min(100%,calc(20ch_+_11.25rem))]' : 'min-w-[min(100%,calc(20ch_+_3rem))]'
+      : more ? 'min-w-[min(100%,17rem)]' : 'min-w-[min(100%,20rem)]'} flex-1`} htmlFor={`${id}-query`} label="상세조건">
+      {/* 20자리 번호 칸은 숫자 20자 + 안쪽 여백·지우기 단추 폭을 지킨다. 좁은 화면에서는 검색 유형 아래로 내려간다. */}
+      <div className={search.fitsOrderNumber ? 'flex min-w-0 flex-wrap gap-2' : 'flex min-w-0 gap-2'}>
         {search.options ? <SalesSelect className="shrink-0" name="field" value={search.field} options={search.options} label="검색 유형" /> : null}
-        <Input className="min-w-0 flex-1" id={`${id}-query`} type="search" name={search.name ?? 'query'} maxLength={100}
+        <Input className={search.fitsOrderNumber ? 'min-w-[min(100%,calc(20ch_+_3rem))] flex-1' : 'min-w-0 flex-1'} id={`${id}-query`} type="search" name={search.name ?? 'query'} maxLength={100}
           defaultValue={search.value} placeholder="검색어를 입력하세요" title={more && searchHint ? searchHint : undefined} aria-describedby={searchHint ? `${id}-query-hint` : undefined} />
       </div>
       {/* 접는 조건이 있는 화면은 한 줄로 끝나도록 안내를 눈에서 감추고 입력칸 도움말로 둔다. */}

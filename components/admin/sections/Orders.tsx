@@ -853,7 +853,7 @@ function OrderFilters({ filters }: { filters: AdminOrderFilters }) {
   return (
     <SalesFilterPanel currentHref={adminOrdersHref(filters)} id="sales-orders"
       date={{ from: filters.from, to: filters.to, field: filters.dateField ?? 'ordered', options: SALES_DATE_FIELDS }}
-      search={{ value: filters.query, field: filters.field, options: ADMIN_ORDER_SEARCH_FIELDS, placeholder: '검색어 입력' }}
+      search={{ value: filters.query, field: filters.field, options: ADMIN_ORDER_SEARCH_FIELDS, placeholder: '검색어 입력', fitsOrderNumber: true }}
       moreActive={Boolean(filters.paymentMethod)}
       more={<>
         <SalesFilterField label="주문상태" htmlFor="sales-orders-status">
