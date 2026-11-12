@@ -107,6 +107,7 @@ ADULT_VERIFICATION_CANARY_USER_ID=
 - `ICONS_CATALOG_SOURCE`: 서버 전용 catalog/search source override. 값은 `mock` 또는 `supabase`만 허용한다. 비워두면 Vercel Preview는 `mock`, Supabase 환경변수가 있는 production/local은 `supabase`, Supabase 환경변수가 없으면 `mock`을 쓴다. GitHub Actions의 PR preview는 선택된 shared/isolated Supabase 자격 증명과 함께 `supabase`를 강제한다.
 - `AUTH_SIGNUP_RESEND_SECRET`: 회원가입 확인 메일 재전송 상태, 인증 `next`, 비밀번호 재설정 요청 제한 쿠키, 비밀번호 복구 증명 쿠키를 domain-separated HMAC으로 서명하는 서버 전용 secret. 긴 랜덤 값을 사용하고 `NEXT_PUBLIC_` prefix를 붙이지 않는다.
 - `SITE_URL`: secret이 아닌 서버 전용 canonical public origin이다. Production은 정확히 `https://iconsip.com`을 사용하며 토스 `successUrl`·`failUrl`, 나이스페이 `ReturnURL`, 코페이 `returnUrl` callback이 모두 이 origin 아래에서 생성된다. Preview/CI는 필요하면 각 환경의 일반 서버 origin을 둘 수 있지만 Korpay·NICEPAY 실자격 증명과 canary actor는 두지 않고 목적별 gate를 닫는다. `SITE_URL`만으로 live checkout이 열리지는 않는다.
+- `NAVER_SITE_VERIFICATION`: 선택. 네이버 서치어드바이저 소유확인 값(HTML 태그 방식의 content 값, 태그를 통째로 넣어도 content만 쓴다). 있으면 모든 화면 `<head>`에 `naver-site-verification` 메타를 내고, 없거나 모양이 다르면 내지 않는다. 빌드 때 읽으므로 값을 넣거나 바꾸면 다시 배포한다. `/robots.txt`·`/sitemap.xml`은 이 값과 무관하게 운영 배포에서 열리고(미리보기·스테이징은 전부 닫음), 규칙은 `lib/seo/search-engines.ts`다.
 - `CRON_SECRET`: production Vercel Cron이 만료된 관리자 아트워크 staging 객체를 정리할 때 쓰는 서버 전용 bearer secret. 16~128자의 URL-safe 랜덤 값을 사용하고 preview에는 필요하지 않다.
 - `SUPABASE_SEND_EMAIL_HOOK_SECRET`·`RESEND_WEBHOOK_SECRET`: #191 Hook/webhook의 raw body 서명 검증용 서버 secret이다.
 - `EMAIL_DISPATCH_HMAC_SECRET`: recipient·source·provider reference를 목적 분리 keyed HMAC으로 투영하는 32자 이상 서버 secret이다.
