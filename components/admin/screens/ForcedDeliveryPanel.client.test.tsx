@@ -46,6 +46,19 @@ it('접힌 카드에 영향(고객 앱 알림·메일 미발송·구매확정 �
   expect(html).toMatch(/<details (?:(?!open)[^>])*data-sales-disclosure=""/);
 });
 
+it('주문 상세에서 연 주문번호를 채우고 카드를 펼친 채 사유 칸으로 간다(QA1 S-T04-05)', () => {
+  mocks.fake = false;
+  const html = renderToStaticMarkup(<ForcedDeliveryPanel initialOrderNumber="20261112140010000034" />);
+  expect(html).toMatch(/<details[^>]*id="forced-delivery"[^>]*open=""/);
+  expect(html).toContain('value="20261112140010000034"');
+  expect(html).toContain('주문 상세에서 고른 주문');
+  expect(html).toMatch(/<textarea[^>]*autofocus=""[^>]*id="forced-delivery-reason"|<textarea[^>]*id="forced-delivery-reason"[^>]*autofocus=""/);
+  const plain = renderToStaticMarkup(<ForcedDeliveryPanel />);
+  expect(plain).toMatch(/<details[^>]*id="forced-delivery"/);
+  expect(plain).not.toContain('주문 상세에서 고른 주문');
+  expect(plain).not.toContain('autofocus');
+});
+
 it('사유 없이는 대상 확인도 하지 않고, 확인창은 대상·합포장 동반 주문을 보이며 확인 체크 전에는 실행하지 않는다', async () => {
   change(Input, orderNumber);
   await review();

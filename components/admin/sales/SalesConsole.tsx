@@ -62,10 +62,12 @@ export function kstDayDiff(from: number, to: number) {
  * 접히는 카드. 접힌 한 줄에 제목·상태·요약을 보이고 설명과 입력은 펼쳐서 본다 — 설정 카드가 처리할 목록을 밀어내지 않게 한다.
  * 닫아도 내용은 DOM에 남아 입력값과 양식 제출이 그대로다.
  */
-export function SalesDisclosureCard({ title, status, summary, children, openLabel = '설정 펼치기', closeLabel = '설정 접기', id }: {
+export function SalesDisclosureCard({ title, status, summary, children, openLabel = '설정 펼치기', closeLabel = '설정 접기', id, defaultOpen = false }: {
   title: string; status?: ReactNode; summary?: ReactNode; children: ReactNode; openLabel?: string; closeLabel?: string; id?: string;
+  /** 처음부터 펼친다(예: 다른 화면에서 이 카드로 바로 연 경우). 그 뒤 접고 펴기는 운영자가 한다. */
+  defaultOpen?: boolean;
 }) {
-  return <details className="group min-w-0 scroll-mt-16 rounded-xl border bg-card text-sm text-card-foreground" data-sales-disclosure="" id={id}>
+  return <details className="group min-w-0 scroll-mt-16 rounded-xl border bg-card text-sm text-card-foreground" data-sales-disclosure="" id={id} open={defaultOpen || undefined}>
     <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 rounded-xl px-4 py-3 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
       <h3 className="text-sm leading-snug font-semibold text-foreground">{title}</h3>
       {status}
