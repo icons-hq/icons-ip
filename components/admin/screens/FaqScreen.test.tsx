@@ -53,5 +53,9 @@ describe('FAQ 운영 화면', () => {
     expect(html).toMatch(/<option value="delivery" selected="">배송 언제 오나요<\/option>/);
     expect(html).toMatch(/<option value="">지정 안 함<\/option>/);
     expect(html).toContain('버튼마다 하나만 지정되며, 다른 FAQ에 지정돼 있었다면 이 FAQ로 바뀝니다.');
+    /* 지정 상태를 읽지 못하면 '지정 안 함'으로 잘못 보이지 않고 다시 불러오라고 안내한다. */
+    const failed = renderToStaticMarkup(<FaqScreen data={{ total: 0, filters: normalizeFaqFilters({}), entries: [], widgetTopics: null }} />);
+    expect(failed).toContain('버튼 지정 상태를 불러오지 못했습니다.');
+    expect(failed).not.toContain('지정 안 함 ·');
   });
 });

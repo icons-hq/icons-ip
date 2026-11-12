@@ -11,8 +11,8 @@ export interface FaqPageData {
   entries: FaqEntry[];
   total: number;
   filters: FaqFilters;
-  /** 상담 위젯 버튼마다 지정된 대표 FAQ(지정된 것만). 읽지 못하면 비운다. */
-  widgetTopics?: FaqWidgetTopicDesignation[];
+  /** 상담 위젯 버튼마다 지정된 대표 FAQ(지정된 것만). 읽지 못하면 null — '지정 안 함'으로 잘못 보이지 않게 한다. */
+  widgetTopics?: FaqWidgetTopicDesignation[] | null;
 }
 
 const FAQ_COLUMNS = 'id,category,question,answer,sort_order,is_published,updated_at,widget_topic';
@@ -61,11 +61,11 @@ export async function loadFaqWidgetTopicAnswer(topic: FaqWidgetTopic): Promise<F
   return { topic, entry: null, entries };
 }
 
-async function loadFaqWidgetTopicDesignations(supabase: Awaited<ReturnType<typeof createClient>>): Promise<FaqWidgetTopicDesignation[]> {
+async function loadFaqWidgetTopicDesignations(supabase: Awaited<ReturnType<typeof createClient>>): Promise<FaqWidgetTopicDesignation[] | null> {
   const { data, error } = await supabase.from('faq_entries').select('id,question,is_published,widget_topic')
     .not('widget_topic', 'is', null);
   /* 요약은 안내용이다. 읽지 못해도 FAQ 목록·수정은 그대로 연다. */
-  if (error) return [];
+  if (error) return null;
   return ((data ?? []) as { id: string; question: string; is_published: boolean; widget_topic: string | null }[])
     .flatMap((row) => isFaqWidgetTopic(row.widget_topic)
       ? [{ topic: row.widget_topic, id: row.id, question: row.question, published: row.is_published }] : []);
