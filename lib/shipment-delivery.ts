@@ -29,7 +29,8 @@ export type DeliveryEvidence = {
   handoffReference?: string; receiptReference?: string; recipientKind?: 'self' | 'delegate';
 };
 export type DeliveryHistory = {
-  id: string; kind: 'method_selected' | 'digital_access' | DeliveryOperation; evidence: Record<string, unknown>;
+  /** forced_delivered: 운영 강제 배송완료(1014-083) — 실제 인계·수령 확인값 대신 사유와 처리자를 남긴 기록. */
+  id: string; kind: 'method_selected' | 'digital_access' | 'forced_delivered' | DeliveryOperation; evidence: Record<string, unknown>;
   actorName: string | null; recordedAt: string;
 };
 export type AdminShipmentDelivery = {
@@ -137,7 +138,7 @@ export function parseAdminShipmentDelivery(value: unknown): AdminShipmentDeliver
   if (!summary || !policies) return null;
   const history: DeliveryHistory[] = [];
   for (const row of value.history) {
-    if (!deliveryObject(row) || !deliveryUuid(row.id) || !['method_selected', 'digital_access', ...DELIVERY_OPERATIONS].includes(String(row.kind))
+    if (!deliveryObject(row) || !deliveryUuid(row.id) || !['method_selected', 'digital_access', 'forced_delivered', ...DELIVERY_OPERATIONS].includes(String(row.kind))
       || !deliveryObject(row.evidence) || !deliveryTimestamp(row.recordedAt) || (row.actorName !== null && typeof row.actorName !== 'string')) return null;
     history.push({ id: row.id, kind: row.kind as DeliveryHistory['kind'], evidence: row.evidence,
       actorName: row.actorName as string | null, recordedAt: row.recordedAt });

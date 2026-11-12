@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { parseDeliveryPolicyInput, parseDeliveryEvidence, parseShipmentDeliverySummary, deliveryStatusLabel } from './shipment-delivery';
+import { parseAdminShipmentDelivery, parseDeliveryPolicyInput, parseDeliveryEvidence, parseShipmentDeliverySummary, deliveryStatusLabel } from './shipment-delivery';
+import { shipmentDeliveryFixture } from './shipment-delivery.fixture';
 
 const fields = {
   state: 'active', contactName: '출고 담당', contactPhone: '02-1234-5678', handoffLocation: '실제 출고지 인계 장소',
@@ -31,6 +32,14 @@ describe('delivery method contracts', () => {
     expect(parseDeliveryEvidence('pickup_receive', receipt)).toEqual(receipt);
     expect(parseDeliveryEvidence('quick_receive', { ...receipt, recipientKind: '' })).toBeNull();
     expect(parseDeliveryEvidence('pickup_receive', { ...receipt, receiptReference: '' })).toBeNull();
+  });
+  it('reads the forced delivery record (1014-083) in the method and handoff history and still refuses unknown kinds', () => {
+    const shipment = { shipmentId: '00000000-0000-4000-8000-000000000001', orderId: '00000000-0000-4000-8000-000000000002', originId: '00000000-0000-4000-8000-000000000003',
+      status: 'delivered', orderStatus: 'delivered', updatedAt: '2026-11-11T02:00:00.123456+00:00', shippingFee: 0, exportedAt: null, canSelect: false, canTransition: false,
+      preorderReady: true, summary: shipmentDeliveryFixture(), policies: [],
+      history: [{ id: '00000000-0000-4000-8000-000000000004', kind: 'forced_delivered', evidence: { reason: '시험 주문', occurredAt: '2026-11-11T02:00:00+00:00' }, actorName: '운영자', recordedAt: '2026-11-11T02:00:00.123456+00:00' }] };
+    expect(parseAdminShipmentDelivery(shipment)?.history[0]).toMatchObject({ kind: 'forced_delivered', evidence: { reason: '시험 주문' } });
+    expect(parseAdminShipmentDelivery({ ...shipment, history: [{ ...shipment.history[0], kind: 'forced_magic' }] })).toBeNull();
   });
   it('does not mislabel malformed non-parcel records as legacy parcels', () => {
     expect(parseShipmentDeliverySummary(null)).toBeNull();

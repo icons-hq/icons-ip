@@ -2,6 +2,8 @@
 import { GoodsCustomInputsSummary } from '@/components/shop/GoodsCustomInputs';
 
 import Link from 'next/link';
+import { OrderPreviewLink, OrderPreviewNewTabLink } from '@/components/admin/screens/OrderPreview';
+import { adminOrderPreviewHref } from '@/lib/admin/order-preview';
 import { startTransition, useActionState, useEffect, useRef, useState } from 'react';
 import {
   approveAdminOrderCancellationAction,
@@ -1192,8 +1194,10 @@ export function OrdersSection({ data, canManage = true }: { data: AdminOrderCons
   const rows = data.items.map((order) => {
     const request = canManage ? openCancellationRequest(order) : null;
     return {id:order.id,selectable:eligible.has(order.id),selectLabel:`주문 ${orderReferenceLabel(order.id, order.orderNumber)} 선택`,cells:[
-      <Link key="reference" className="font-medium tabular-nums underline-offset-4 hover:underline" href={adminOrderDetailHref(order.id,data.filters)} target="_blank" rel="noopener noreferrer"
-        aria-label={`주문 ${orderReferenceLabel(order.id, order.orderNumber)} 상세 열기 (새 탭)`}>{orderReferenceLabel(order.id, order.orderNumber)}</Link>,
+      /* S36-075: 주문번호는 같은 목록 위 상세 팝업을 연다(닫으면 목록·선택·스크롤 그대로). 새 탭 열기는 옆 보조 링크다. */
+      <span key="reference" className="inline-flex items-center gap-1"><OrderPreviewLink href={adminOrderPreviewHref(currentHref,order.id)}
+        label={`주문 ${orderReferenceLabel(order.id, order.orderNumber)} 상세 팝업 열기`}>{orderReferenceLabel(order.id, order.orderNumber)}</OrderPreviewLink>
+        <OrderPreviewNewTabLink href={adminOrderDetailHref(order.id,data.filters)} label={`주문 ${orderReferenceLabel(order.id, order.orderNumber)} 상세 열기 (새 탭)`}/></span>,
       <OrderStatusBadge key="status" status={order.status} title={order.status==='done'?ADMIN_VOCABULARY.settledHint:undefined} />,
       <OrderItemsCell items={order.items} key="items" />,
       formatKrwExact(order.total), order.items.reduce((qty,item)=>qty+item.qty,0),
@@ -1247,7 +1251,7 @@ export function OrdersSection({ data, canManage = true }: { data: AdminOrderCons
         <OrderViewTabs filters={data.filters} view="orders" />
         <div className="min-w-0 flex-1 basis-80">
           <SalesGuide title="주문 검색과 주문별 결제·배송·요청 내역을 확인할 수 있습니다.">
-            <p>{canManage ? '주문번호를 누르면 상세 정보를 새 탭으로 엽니다. 신규주문은 선택하여 발주확인할 수 있으며, 발송과 배송완료는 출고지별 배송건을 확인해 처리합니다.' : '주문번호를 누르면 주문과 배송 정보를 조회할 수 있습니다.'}</p>
+            <p>{canManage ? '주문번호를 누르면 목록 위에 상세 팝업이 열리고, 닫으면 목록·선택이 그대로입니다. 새 탭으로 보려면 번호 옆 아이콘을 누릅니다. 신규주문은 선택하여 발주확인할 수 있으며, 발송과 배송완료는 출고지별 배송건을 확인해 처리합니다.' : '주문번호를 누르면 주문과 배송 정보를 조회할 수 있습니다.'}</p>
           </SalesGuide>
         </div>
       </div>

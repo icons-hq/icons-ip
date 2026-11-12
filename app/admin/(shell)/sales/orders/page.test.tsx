@@ -22,9 +22,14 @@ const mocks = vi.hoisted(() => ({
   curations: vi.fn(async () => []),
   insights: vi.fn(async () => ({})),
   moderation: vi.fn(async () => ({ reports: [] })),
+  preview: vi.fn(async () => ({ kind: 'not_found' })),
 }));
 
 vi.mock('@/components/admin/sections/Orders', () => ({ OrdersSection: mocks.ordersSection }));
+vi.mock('@/lib/admin/order-preview.server', () => ({ loadAdminOrderPreview: mocks.preview }));
+/* 목록과 주문 상세 팝업(S36-075)은 Fragment의 같은 자리에 둔다 — 첫째가 목록, 둘째가 팝업(없으면 null)이다. */
+const listOf = (page: unknown) => ((page as { props: { children: unknown[] } }).props.children[0]) as { type: unknown; props: Record<string, unknown> };
+const popupOf = (page: unknown) => ((page as { props: { children: unknown[] } }).props.children[1]) as { type: unknown; key?: unknown; props: Record<string, unknown> } | null;
 vi.mock('@/components/admin/screens/OrderItemsScreen', () => ({ OrderItemsScreen: mocks.orderItemsScreen }));
 vi.mock('@/lib/admin/order-items.server', () => ({ getAdminOrderItemData: mocks.orderItems }));
 vi.mock('@/lib/admin/orders.server', () => ({ getAdminOrderRecords: mocks.orders }));
@@ -95,8 +100,9 @@ describe('AdminSalesOrdersPage', () => {
       false,
       { canManage: true },
     );
-    expect(screen.type).toBe(mocks.ordersSection);
-    expect(screen.props).toEqual({ canManage: true, data: { items: [], filters: {}, pageSize: 20, total: 0 } });
+    expect(listOf(screen).type).toBe(mocks.ordersSection);
+    expect(listOf(screen).props).toEqual({ canManage: true, data: { items: [], filters: {}, pageSize: 20, total: 0 } });
+    expect(popupOf(screen)).toBeNull();
   });
 
   it('Korpay 수동 복구 요약은 admin 세션에서만 주문 로더에 요청한다', async () => {
@@ -121,7 +127,7 @@ describe('AdminSalesOrdersPage', () => {
     Object.assign(mocks.authState, { operatorAccess: configuredOperatorAccessFixture('influencer') });
     const screen = await AdminSalesOrdersPage({ searchParams: Promise.resolve({}) });
     expect(mocks.orders).toHaveBeenLastCalledWith(expect.anything(), false, { canManage: false });
-    expect(screen.props.canManage).toBe(false);
+    expect(listOf(screen).props.canManage).toBe(false);
     mocks.orders.mockClear();
     Object.assign(mocks.authState, { operatorAccess: configuredOperatorAccessFixture('deputy') });
     await expect(AdminSalesOrdersPage({ searchParams: Promise.resolve({}) })).rejects.toThrow('NEXT_NOT_FOUND');
@@ -134,11 +140,24 @@ it('상품주문 보기는 전용 파서·로더만 사용하고 조회 전용 �
   staffSession(); Object.assign(mocks.authState, { operatorAccess: configuredOperatorAccessFixture('influencer') });
   vi.clearAllMocks();
   const screen = await AdminSalesOrdersPage({ searchParams: Promise.resolve({ view: 'items', field: 'item', query: 'id', page: '2' }) });
-  expect(screen.type).toBe(mocks.orderItemsScreen); expect(screen.props.canManage).toBe(false);
+  expect(listOf(screen).type).toBe(mocks.orderItemsScreen); expect(listOf(screen).props.canManage).toBe(false);
   expect(mocks.orderItems).toHaveBeenCalledWith(expect.objectContaining({ field: 'item', query: 'id', page: 2 }));
   expect(mocks.orders).not.toHaveBeenCalled();
   Object.assign(mocks.authState, { operatorAccess: configuredOperatorAccessFixture('deputy') });
   vi.clearAllMocks();
   await expect(AdminSalesOrdersPage({ searchParams: Promise.resolve({ view: 'items' }) })).rejects.toThrow('NEXT_NOT_FOUND');
   expect(mocks.orderItems).not.toHaveBeenCalled();
+});
+
+it('`?orderId=`가 있으면 주문 목록·상품주문 목록 위에 같은 조건으로 돌아가는 주문 상세 팝업을 둔다 (S36-075)', async () => {
+  staffSession();
+  const orderId = '50000000-0000-4000-8000-000000000001';
+  const orders = await AdminSalesOrdersPage({ searchParams: Promise.resolve({ status: 'paid', page: '2', orderId }) });
+  expect(mocks.preview).toHaveBeenCalledWith(expect.objectContaining({ user: mocks.authState.user }), orderId);
+  expect(listOf(orders).type).toBe(mocks.ordersSection);
+  expect(popupOf(orders)).toMatchObject({ key: orderId, props: { orderId, closeHref: '/admin/sales/orders?status=paid&page=2' } });
+  const items = await AdminSalesOrdersPage({ searchParams: Promise.resolve({ view: 'items', orderId }) });
+  expect(listOf(items).type).toBe(mocks.orderItemsScreen);
+  expect(popupOf(items)?.props).toMatchObject({ closeHref: '/admin/sales/orders?page=1&view=items' });
+  expect(popupOf(await AdminSalesOrdersPage({ searchParams: Promise.resolve({ orderId: 'x' }) }))).toBeNull();
 });

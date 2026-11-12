@@ -14,10 +14,11 @@ import { Label } from '@/components/admin/kit/ui/label';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
 
-const HISTORY_LABELS: Record<string, string> = { method_selected: '배송 방식 변경', quick_handoff: '퀵 인계', quick_receive: '퀵 수령 완료', pickup_receive: '방문수령 완료', direct_handoff: '직접배송 인계', direct_receive: '직접배송 수령 완료', freight_handoff: '화물배송 인계', freight_receive: '화물배송 수령 완료', none_receive: '직접전달 완료', digital_access: '디지털 파일 제공 시작' };
+const HISTORY_LABELS: Record<string, string> = { method_selected: '배송 방식 변경', quick_handoff: '퀵 인계', quick_receive: '퀵 수령 완료', pickup_receive: '방문수령 완료', direct_handoff: '직접배송 인계', direct_receive: '직접배송 수령 완료', freight_handoff: '화물배송 인계', freight_receive: '화물배송 수령 완료', none_receive: '직접전달 완료', digital_access: '디지털 파일 제공 시작', forced_delivered: '강제 배송완료' };
 const EVIDENCE_LABELS: Record<string, string> = {
   customerRequestReference: '고객 요청 근거', feeConsentReference: '기존 배송비 유지 동의', operatorName: '실제 인계·확인 담당자',
   providerName: '배송 업체·담당', providerPhone: '배송 연락처', handoffReference: '인계 참조', receiptReference: '수령 확인 근거',
+  dispatchReason: '발송처리 변경 사유', reason: '강제 배송완료 사유',
 };
 /* 배송 방식·인계 확인 카드(템플릿 룩, ADR-0028). 입력은 kit 부품이고 근거 입력 칸은 라벨 아래에 놓인다. */
 const FORM_CLASS = 'flex flex-col items-start gap-2.5';
@@ -141,7 +142,7 @@ export function ShipmentDeliveryPanel({ shipmentId, shipmentNumber, orderId, ori
           <dl className="mt-2 grid gap-2">
             {Object.entries(EVIDENCE_LABELS).filter(([field]) => typeof row.evidence[field] === 'string').map(([field, label]) => <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-3 sm:grid-cols-[8rem_minmax(0,1fr)]" key={field}><dt className="text-muted-foreground">{label}</dt>
               <dd className="min-w-0 whitespace-pre-wrap wrap-anywhere">{String(row.evidence[field])}</dd></div>)}
-            {typeof row.evidence.occurredAt === 'string' ? <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-3 sm:grid-cols-[8rem_minmax(0,1fr)]"><dt className="text-muted-foreground">실제 인계·수령 시각</dt><dd className="min-w-0">{formatOrderDateTime(row.evidence.occurredAt)}</dd></div> : null}
+            {typeof row.evidence.occurredAt === 'string' ? <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-3 sm:grid-cols-[8rem_minmax(0,1fr)]"><dt className="text-muted-foreground">{row.kind === 'forced_delivered' ? '강제 배송완료 기록 시각' : '실제 인계·수령 시각'}</dt><dd className="min-w-0">{formatOrderDateTime(row.evidence.occurredAt)}</dd></div> : null}
           </dl>
         </li>)}</ol>
       </details> : <p className="text-muted-foreground">기록된 방식 변경·인계 이력이 없습니다.</p>}
