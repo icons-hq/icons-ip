@@ -342,7 +342,8 @@ begin
  body:=case when waived then '교환 상품을 새 운송장으로 발송했어요. 주문 상세에서 운송장을 확인해주세요.'
   when completed then '교환 상품을 새 운송장으로 발송했습니다.'
   else '준비된 교환 상품을 새 운송장으로 먼저 발송했어요. 나머지 교환 상품도 준비되는 대로 보내드려요.' end;
- perform private.notify_order_claim(p_claim_id,'reshipped',title,body);
+ -- 배송 건마다 한 번씩 알린다(같은 거래에서 두 배송 건을 처리해도 알림 키가 겹치지 않게 배송 건을 키에 넣는다).
+ perform private.notify_order_claim(p_claim_id,'reshipped:'||coalesce(p_shipment_id::text,'order'),title,body);
  return case when completed then 'completed' else 'reshipped' end;
 exception when lock_not_available then raise sqlstate 'PT409' using message='goods_group_retry';
 end $$;
@@ -519,7 +520,7 @@ begin
  return 'delivered';
 end $$;
 
--- 옛 계약(배송 건 인자 없음): 배송 건 기록이 하나뿐이면 그 배송 건으로, 없으면 옛 단일 열로 받는다.
+-- 옛 계약(배송 건 인자 없음): 대상 배송 건이 하나뿐인 교환은 그 배송 건 기록으로, 배송 건 기록이 없으면 옛 단일 열로 받는다.
 create or replace function public.admin_record_order_claim_reshipment_delivery(p_claim_id uuid,p_evidence text)
 returns text language plpgsql security definer set search_path='' as $$
 declare
@@ -549,7 +550,9 @@ begin
   if not found then raise no_data_found using message='claim_not_found'; end if;
   select count(*) into recorded from public.order_claim_reshipments where claim_id=p_claim_id;
   if recorded>0 then
-    if recorded>1 then raise check_violation using message='reshipment_shipment_required'; end if;
+    if recorded>1 or (select count(*) from private.claim_reshipment_targets(p_claim_id))<>1 then
+      raise check_violation using message='reshipment_shipment_required';
+    end if;
     select shipment_id into single_shipment from public.order_claim_reshipments where claim_id=p_claim_id;
     return public.admin_record_order_claim_shipment_reshipment_delivery(p_claim_id,single_shipment,p_evidence);
   end if;
