@@ -79,6 +79,9 @@ const operators = [
   sql('stock_reconcile_claim_shipments', { admin: true }),
   // 반품배송비 차감(QNA-033·ADR-0031): 스위치 OFF 불변, 접수 때 결정, 카드 부분 취소 확인 뒤 확정 환불액, 무통장 송금액.
   sql('claim_refund_deduction'),
+  // 재고 부족 품목·수량 부분 취소(QNA-020·ADR-0032): 스위치 OFF 불변, 결제사 확인 뒤 적용, 다회 잔액 누적, 무통장 송금 대기, 출고 경합.
+  sql('order_partial_cancellation'),
+  script('order_partial_cancellation_concurrency.sh', 'PARTIAL_CANCEL_TEST_SCOPE'),
   script('order_address_concurrency.sh', 'ORDER_ADDRESS_TEST_SCOPE'),
   sql('goods_media', { admin: true, kc: true }),
   script('goods_media_concurrency.sh', 'GOODS_MEDIA_TEST_SCOPE'),

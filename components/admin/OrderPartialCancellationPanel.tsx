@@ -25,6 +25,7 @@ import {
   ORDER_PARTIAL_CANCELLATION_STATE_LABELS,
   orderPartialCancellationBlockerMessage,
   orderPartialCancellationItemBlockerLabel,
+  orderPartialCancellationPanelVisible,
 } from '@/lib/admin/order-partial-cancellation';
 import { statusTone } from '@/lib/admin/status-tone';
 import { krw } from '@/lib/format';
@@ -38,8 +39,6 @@ import {
 
 const FIELD = 'flex min-w-0 flex-col gap-1.5';
 const HINT = 'text-xs text-muted-foreground';
-/* 발송 전 주문이 아니면(이미 발송·취소 등) 기록이 없는 한 패널을 그리지 않는다 — 모든 주문 상세에 막힘 안내를 띄우지 않는다. */
-const HIDDEN_WHEN_ONLY = new Set(['order_not_partial_cancelable', 'shipment_already_dispatched', 'order_not_found']);
 
 type Draft = Record<string, number>;
 
@@ -113,7 +112,7 @@ function HistoryEntry({ orderId, record, onChanged }: { orderId: string; record:
   </li>;
 }
 
-function VisiblePanel({ orderId, context, onReload }: { orderId: string; context: OrderPartialCancellationContext; onReload: (message?: string) => void }) {
+export function OrderPartialCancellationPanelView({ orderId, context, onReload }: { orderId: string; context: OrderPartialCancellationContext; onReload: (message?: string) => void }) {
   const [draft, setDraft] = useState<Draft>({});
   const [decision, setDecision] = useState('');
   const [note, setNote] = useState('');
@@ -247,10 +246,9 @@ export function OrderPartialCancellationPanel({ orderId }: { orderId: string }) 
     void loadOrderPartialCancellationAction(orderId).then(result => { if (active && result.ok) setContext(result.value); }, () => undefined);
     return () => { active = false; };
   }, [orderId, refresh]);
-  if (!context) return null;
-  if (!context.history.length && (!context.enabled || context.blockers.every(code => HIDDEN_WHEN_ONLY.has(code)) && context.blockers.length > 0)) return null;
+  if (!context || !orderPartialCancellationPanelVisible(context)) return null;
   return <div className="flex min-w-0 flex-col gap-2">
     {message ? <AdminNotice role="status" tone="info">{message}</AdminNotice> : null}
-    <VisiblePanel context={context} key={`${orderId}:${refresh}`} onReload={next => { setMessage(next ?? null); setRefresh(value => value + 1); }} orderId={orderId} />
+    <OrderPartialCancellationPanelView context={context} key={`${orderId}:${refresh}`} onReload={next => { setMessage(next ?? null); setRefresh(value => value + 1); }} orderId={orderId} />
   </div>;
 }

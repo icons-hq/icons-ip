@@ -76,6 +76,19 @@ const RECONCILE_ERRORS: Record<string, string> = {
   not_ready: '결제사 확인을 기다리는 부분 취소가 아닙니다. 새로고침해주세요.',
 };
 
+/* 발송 전이 아닌 주문(이미 발송·취소 등)만 막는 이유. 기록이 없으면 패널을 그리지 않는다 — 모든 주문 상세에 막힘 안내를 띄우지 않는다. */
+const HIDDEN_WHEN_ONLY = new Set(['order_not_partial_cancelable', 'shipment_already_dispatched', 'order_not_found']);
+
+/**
+ * 주문 상세에 부분 취소 패널을 그릴지. 스위치가 꺼져 있고 기록이 없으면 그리지 않는다(스위치 OFF면 화면이 지금과 같다).
+ * 켜져 있어도 기록이 없고 발송 전 주문이 아니면 그리지 않는다.
+ */
+export function orderPartialCancellationPanelVisible(context: { enabled: boolean; blockers: readonly string[]; history: readonly unknown[] }) {
+  if (context.history.length > 0) return true;
+  if (!context.enabled) return false;
+  return context.blockers.length === 0 || !context.blockers.every(code => HIDDEN_WHEN_ONLY.has(code));
+}
+
 export function orderPartialCancellationBlockerMessage(code: string) {
   return ORDER_BLOCKERS[code] ?? '지금은 부분 취소할 수 없습니다. 주문 상태를 확인해주세요.';
 }
