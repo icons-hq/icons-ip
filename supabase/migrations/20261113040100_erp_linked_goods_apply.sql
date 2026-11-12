@@ -7,9 +7,12 @@
 -- * 판매가: ERP 판매가를 그 옵션의 판매 금액(할인 전)으로 맞춘다. 기본 옵션이면 상품 판매가, 다른 옵션이면 옵션가(판매가에 더하는 금액)가 바뀐다.
 --   반영은 상품 목록의 판매가 바로 수정(admin_commit_goods_bulk 'price')과 같은 기존 상품 저장 RPC(admin_save_good)를 상품마다 부른다.
 --   그래서 가격 규칙(할인 기간 가드·표시용 정가·옵션가 0원 이상·랜덤 판매 균일가·공개 상품 고시 등)과 감사 기록이 그대로 적용된다.
---   다음은 미리보기에서 건너뛰고 이유를 보인다: 할인이 진행 중이거나 예정된 상품(DB 가드 active_price_period_requires_reset과 같은 판정),
---   ERP 판매가 0원(빈 값일 수 있어 상품을 0원으로 만들지 않는다), 랜덤 판매 상품(판매가가 하나라 상품 화면에서 한 번에 바꾼다),
---   반영하면 옵션 판매가가 상품 판매가보다 낮아지거나 표시용 정가 이상이 되는 상품, 상품정보제공고시가 빈 공개 상품(상품 저장 규칙).
+--   다음은 미리보기에서 건너뛰고 이유를 보인다(오케스트레이터 판단: 할인 중 상품 판매가는 건너뛰고 이유 표시).
+--   - 기간 할인이 진행 중이거나 예정된 상품(DB 가드 active_price_period_requires_reset과 같은 판정을 상품 단위로)
+--   - 즉시할인이 설정된 상품: 상품 편집은 즉시할인을 compare_at_price=판매가(할인 전), price=할인가로 저장한다
+--     (lib/admin/goods-price-editor.ts). ERP 판매가(할인 전)를 price에 넣으면 할인이 사라지므로 바꾸지 않는다.
+--   - ERP 판매가 0원(빈 값일 수 있어 상품을 0원으로 만들지 않는다), 랜덤 판매 상품(판매가가 하나라 상품 화면에서 한 번에 바꾼다)
+--   - 반영하면 옵션 판매 금액이 상품 판매가보다 낮아지는 상품(옵션가 0원 이상), 상품정보제공고시가 빈 공개 상품(상품 저장 규칙)
 -- * 바코드: ERP 바코드가 있을 때만 그 옵션의 바코드로 맞춘다(ERP에 바코드가 없다고 상품 바코드를 지우지 않는다).
 --   바코드는 출고 파일·창고 대조 키라 이미 있던 바코드가 바뀌는 행에는 경고를 붙인다. 다른 옵션이 이미 쓰는 바코드거나
 --   같은 바코드를 두 옵션에 넣게 되면 건너뛴다. 반영은 옵션 ERP 식별자 저장 함수(private.save_goods_variant_external_identity)로 한다.
@@ -81,6 +84,8 @@ as $$
             and period.state = 'active'
             and period.ends_at > pg_catalog.statement_timestamp()
         ) then 'active_discount'
+        -- 즉시할인(표시용 정가 = 할인 전 판매가). price는 할인가라 ERP 판매가와 비교할 값이 아니다.
+        when good.compare_at_price is not null then 'instant_discount'
         -- admin_upsert_good의 고시 필수 규칙(공개 상품). 상품 저장이 거절되므로 미리 건너뛴다.
         when good.published_at is not null and (good.notice_maker is null or good.notice_origin is null
           or good.notice_material is null or good.notice_size is null or good.notice_made_on is null
@@ -95,7 +100,6 @@ as $$
   good_final as (
     select
       good.id as good_id,
-      good.compare_at_price,
       coalesce((
         select candidate.erp_price
         from price_candidates as candidate
@@ -108,7 +112,6 @@ as $$
     select
       final.good_id,
       case
-        when final.compare_at_price is not null and final.compare_at_price <= final.final_base then 'compare_at_price'
         when exists (
           select 1
           from public.goods_variants as variant
@@ -126,7 +129,10 @@ as $$
     left join good_check as checked on checked.good_id = candidate.good_id
   ),
   barcode_candidates as (
-    select linked.*
+    select
+      linked.*,
+      -- 같은 바코드를 넣게 되는 옵션 수(바코드 고유 색인과 같은 대소문자 무시).
+      pg_catalog.count(*) over (partition by lower(linked.erp_barcode)) as same_barcode_count
     from linked
     where linked.erp_barcode is not null
       and linked.erp_barcode is distinct from linked.current_barcode
@@ -135,8 +141,7 @@ as $$
     select
       candidate.*,
       case
-        when (select pg_catalog.count(*) from barcode_candidates as other
-              where lower(other.erp_barcode) = lower(candidate.erp_barcode)) > 1 then 'barcode_duplicate'
+        when candidate.same_barcode_count > 1 then 'barcode_duplicate'
         when exists (
           select 1 from private.goods_variant_external_identity as other
           where other.variant_id <> candidate.variant_id
@@ -337,19 +342,17 @@ begin
   perform 1 from private.goods_variant_external_identity where variant_id = any(v_variant_ids) order by variant_id for update;
 
   -- 잠근 뒤 같은 계산을 다시 해 고른 행이 미리보기와 같은지 본다. 하나라도 다르면 아무것도 바꾸지 않는다.
-  v_current := private.erp_linked_goods_plan(v_operation.scope_codes) -> 'rows';
+  -- 행 키로 찾을 수 있게 key → 행 객체로 묶는다(고른 행마다 전체 계획을 다시 펼치지 않는다).
+  select coalesce(pg_catalog.jsonb_object_agg(fresh.value ->> 'key', fresh.value), '{}'::jsonb) into v_current
+  from pg_catalog.jsonb_array_elements(private.erp_linked_goods_plan(v_operation.scope_codes) -> 'rows') as fresh(value);
   if exists (
     select 1
     from pg_catalog.jsonb_array_elements(v_selected) as chosen(value)
-    where not exists (
-      select 1
-      from pg_catalog.jsonb_array_elements(v_current) as fresh(value)
-      where fresh.value ->> 'key' = chosen.value ->> 'key'
-        and fresh.value -> 'goodId' = chosen.value -> 'goodId'
-        and fresh.value -> 'current' = chosen.value -> 'current'
-        and fresh.value -> 'next' = chosen.value -> 'next'
-        and fresh.value -> 'status' = chosen.value -> 'status'
-    )
+    where v_current -> (chosen.value ->> 'key') is null
+       or (v_current -> (chosen.value ->> 'key') -> 'goodId') is distinct from chosen.value -> 'goodId'
+       or (v_current -> (chosen.value ->> 'key') -> 'current') is distinct from chosen.value -> 'current'
+       or (v_current -> (chosen.value ->> 'key') -> 'next') is distinct from chosen.value -> 'next'
+       or (v_current -> (chosen.value ->> 'key') -> 'status') is distinct from chosen.value -> 'status'
   ) then
     v_receipt := pg_catalog.jsonb_build_object('state', 'rejected', 'operationId', p_operation_id, 'error', 'erp_goods_apply_changed');
     update private.erp_goods_apply_operations set receipt = v_receipt where id = p_operation_id;
@@ -369,8 +372,7 @@ begin
       join public.goods_variants as variant on variant.id = (row.value ->> 'variantId')::uuid
       where row.value ->> 'goodId' = v_good_id and row.value ->> 'field' = 'price' and variant.is_default
     ), v_good.price);
-    if (v_good.compare_at_price is not null and v_good.compare_at_price <= v_final_base)
-       or exists (
+    if exists (
          select 1
          from public.goods_variants as variant
          left join pg_catalog.jsonb_array_elements(v_selected) as row(value)
