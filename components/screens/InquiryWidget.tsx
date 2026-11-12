@@ -247,8 +247,11 @@ function InquiryWidgetDialog({ onClose }: { onClose: () => void }) {
  * 아래로 스크롤하는 동안 문의 런처를 비킨다(QA1 고객 — 모바일에서 떠 있는 [FAQ · 문의]가 요약 금액·배송비 안내를 가렸다).
  * 위로 스크롤하거나 맨 위 가까이면 다시 보인다. 숨김 모양은 990px 미만에서만 그린다(CSS) — 데스크톱은 런처가 여백에 선다.
  */
-function useLauncherTucked(): boolean {
-  const [tucked, setTucked] = useState(false);
+function useLauncherTucked(startTucked: boolean): boolean {
+  /* 장바구니는 첫 화면 아래에 요약 금액·배송비 안내와 하단 주문 바가 겹쳐 서 있다 — 런처가 처음부터 비켜 있고 위로 스크롤하면 돌아온다(T22i).
+     스크롤이 한 번이라도 판정하면(override) 그 값을 따른다. */
+  const [override, setTucked] = useState<boolean | null>(null);
+  const tucked = override ?? startTucked;
   useEffect(() => {
     let last = window.scrollY;
     let frame = 0;
@@ -273,7 +276,7 @@ function useLauncherTucked(): boolean {
 
 export function InquiryWidget() {
   const pathname = usePathname();
-  const tucked = useLauncherTucked();
+  const tucked = useLauncherTucked(pathname === '/cart' || pathname.startsWith('/cart/'));
   const [overlay, setOverlay] = useState({ pathname, open: false });
   if (overlay.pathname !== pathname) setOverlay({ pathname, open: false });
   /* /login은 전역 셸 안에서 열리지만(L3) 입력에 집중하는 흐름이라 런처를 띄우지 않는다 — 모바일에서 소셜 버튼을 가린다. */

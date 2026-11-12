@@ -19,7 +19,7 @@ import { goodsPurchaseVolumePreview } from '@/lib/goods-transaction-presentation
 import { GoodsTransactionTerms } from './GoodsTransactionTerms';
 import { FULFILLMENT_METHOD_LABELS } from '@/lib/goods-fulfillment';
 import { GiftPurchaseEntry } from '@/components/gifts/GiftPurchaseEntry';
-import { quoteGoodsSalesPrecheckoutAction } from '@/app/cart/sales-actions';
+import { quoteGoodsSalesAction } from '@/app/cart/sales-actions';
 import { createDirectCheckoutDraftAction, type CheckoutDraftActionError } from '@/app/checkout/draft-actions';
 import { onboardingPath } from '@/lib/auth/onboarding';
 import type { CartItem } from '@/lib/cart';
@@ -267,7 +267,7 @@ export function useGoodPurchase({
   useEffect(() => {
     if (!memberLimitKey || !memberLimitOptionId || !cartReady || cartMode !== 'server') return;
     let alive = true;
-    void quoteGoodsSalesPrecheckoutAction([{ goodId: good.id, variantId: memberLimitOptionId, qty: 1 }]).then((result) => {
+    void quoteGoodsSalesAction([{ goodId: good.id, variantId: memberLimitOptionId, qty: 1 }]).then((result) => {
       if (!alive) return;
       const reached = result.ok && result.quote.goods.some((entry) => entry.goodId === good.id && entry.reason === 'member_purchase_limit_exceeded');
       setMemberLimitChecked({ key: memberLimitKey, reached });
