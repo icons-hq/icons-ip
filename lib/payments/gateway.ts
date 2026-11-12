@@ -101,7 +101,24 @@ export interface PaymentRefundRequest {
    * 이 값과 대조한다.
    */
   readonly providerPaymentKey?: string;
+  /**
+   * 부분 취소(ADR-0031). 없으면 지금 계약 그대로 전액 취소다(amount는 attempt.amount와 같아야 한다).
+   * 있으면 amount가 이번에 돌려줄 금액(cancelAmount)이고, 어댑터는 취소 전 조회 잔액이 expectedBalanceBefore일 때만
+   * 취소를 발행하며 취소 뒤 조회 잔액이 expectedBalanceBefore − amount일 때만 approved를 돌려준다. 부분 취소를 받지
+   * 않는 결제(카드 부분 취소 불가·가상계좌·과세 제외 금액 등, provider 계약 전)는 돈을 움직이지 않고
+   * declined + reasonCode 'provider_partial_cancel_unavailable'이다. 같은 결제에 부분 취소를 여러 번 하면 취소마다
+   * idempotencyKey가 달라야 한다(토스는 같은 키의 첫 응답을 15일간 재생한다). providerPaymentKey가 필요하다.
+   */
+  readonly partial?: PaymentPartialRefund;
 }
+
+export interface PaymentPartialRefund {
+  /** 이번 취소 직전 결제사 잔액의 기대값(원). 첫 부분 취소는 결제 금액(attempt.amount)이다. */
+  readonly expectedBalanceBefore: number;
+}
+
+/** 부분 취소를 받지 않는 결제라 돈을 움직이지 않고 돌려준 결과의 사유 코드. */
+export const PARTIAL_CANCEL_UNAVAILABLE_REASON = 'provider_partial_cancel_unavailable';
 
 /**
  * reconcile에 덧붙이는 선택 힌트. 서명 없는 웹훅 본문처럼 신뢰할 수 없는 출처에서 올 수
@@ -113,7 +130,10 @@ export interface PaymentReconcileHint {
 }
 
 export interface RefundOutcome extends PaymentOperationOutcome {
+  /** approved일 때 이번 요청으로 돌려준 금액. 전액 취소는 결제 금액, 부분 취소는 그 취소 금액이다. */
   readonly refundedAmount?: number;
+  /** 부분 취소가 approved일 때 취소 뒤 조회로 확인한 결제사 잔액. */
+  readonly balanceAfter?: number;
 }
 
 export interface PaymentGateway {
