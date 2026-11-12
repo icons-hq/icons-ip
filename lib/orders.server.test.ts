@@ -44,6 +44,7 @@ interface QueryRecord {
 
 interface ClientOptions {
   claimEligibility?: unknown;
+  reshipmentParcels?: unknown;
   eligibilityError?: boolean;
   errors?: Partial<Record<string, string>>;
   records: QueryRecord[];
@@ -128,8 +129,8 @@ function createClient(options: ClientOptions) {
   return {
     rpc: vi.fn().mockImplementation((name: string, args?: { p_order_ids?: string[] }) => name === 'my_order_items'
       ? createQuery('order_items', options, { rpc: name, in: [['order_id', args?.p_order_ids ?? []]] })
-      : Promise.resolve(name === 'get_my_order_claim_reshipment_items'
-        ? { data: [], error: null }
+      : Promise.resolve(name === 'get_my_order_claim_reshipment_items' ? { data: [], error: null }
+        : name === 'get_my_order_claim_reshipments' ? { data: options.reshipmentParcels ?? [], error: null }
         : { data: options.claimEligibility ?? null, error: options.eligibilityError ? { message: 'unavailable' } : null })),
     from(table: string) {
       return createQuery(table, options);
@@ -498,6 +499,49 @@ describe('loadOrderDetail', () => {
       cancellationRequest: null,
     });
     expect(records.some((record) => record.table === 'refunds')).toBe(false);
+  });
+
+  it('교환 소포를 배송 건마다 조회 링크와 함께 싣고, 클레임 칸에 같은 운송장을 다시 싣지 않는다(TKT-166)', async () => {
+    const claimId = '5f0d7c11-3c1d-4b8c-9e7a-0c5d2f6b1a01';
+    const parcel = (n: number, deliveredAt: string | null, collectionWaived = false) => ({
+      claimId, reshipmentId: `5f0d7c11-3c1d-4b8c-9e7a-0c5d2f6b1a1${n}`, carrier: 'hanjin', trackingNumber: `EXCHANGE00${n}`,
+      reshippedAt: '2026-11-10T01:00:00.000Z', deliveredAt, collectionWaived,
+      items: [{ orderItemId: `5f0d7c11-3c1d-4b8c-9e7a-0c5d2f6b1a2${n}`, name: '아크릴 스탠드', variantName: '파랑', qty: 1 }],
+    });
+    const rows = (stage: string) => ({
+      orders: [{ id: orderId, user_id: userId, status: 'delivered', total: 54000, address: null, created_at: '2026-07-14T06:00:00.000Z' }],
+      order_items: [], payment_summaries: [], draw_tickets: [],
+      order_cancellation_requests: [{ id: claimId, order_id: orderId, status: stage === 'completed' ? 'completed' : 'requested', claim_type: 'exchange', stage, reference: 9,
+        requested_at: '2026-11-09T00:00:00.000Z', decided_at: null, decision_note: null, reship_carrier: null, reship_tracking_number: null, reship_delivered_at: null }],
+    });
+    mocks.client = createClient({ records: [], rows: rows('collecting'), reshipmentParcels: [parcel(1, null), parcel(2, null, true)] });
+    const open = await loadOrderDetail(userId, orderId);
+    expect(open?.reshipmentParcels).toMatchObject([
+      { trackingNumber: 'EXCHANGE001', carrierLabel: '한진택배', collectionWaived: false },
+      { trackingNumber: 'EXCHANGE002', carrierLabel: '한진택배', collectionWaived: true },
+    ]);
+    expect(open?.reshipmentParcels?.[0].trackingUrl).toContain('EXCHANGE001');
+    expect(open?.cancellationRequest).toMatchObject({ reshipCarrier: null, reshipTrackingNumber: null, reshipDeliveredAt: null });
+    mocks.client = createClient({ records: [], rows: rows('completed'), reshipmentParcels: [parcel(1, '2026-11-11T01:00:00.000Z'), parcel(2, '2026-11-12T01:00:00.000Z')] });
+    expect((await loadOrderDetail(userId, orderId))?.cancellationRequest).toMatchObject({ reshipDeliveredAt: '2026-11-12T01:00:00.000Z' });
+    mocks.client = createClient({ records: [], rows: rows('completed'), reshipmentParcels: [{ ...parcel(1, null), trackingNumber: 'bad' }] });
+    await expect(loadOrderDetail(userId, orderId)).rejects.toThrow('order_reshipment_parcels_invalid');
+  });
+
+  it('이 기능 전의 클레임 단위 재출고(한 쌍)도 소포 목록에만 싣고 클레임 칸에 다시 싣지 않는다(리뷰 #6)', async () => {
+    const claimId = '5f0d7c11-3c1d-4b8c-9e7a-0c5d2f6b1a31';
+    const legacy = { claimId, reshipmentId: null, carrier: 'hanjin', trackingNumber: 'LEGACY0001', reshippedAt: '2026-10-01T01:00:00.000Z',
+      deliveredAt: '2026-10-03T01:00:00.000Z', collectionWaived: false, items: [] };
+    mocks.client = createClient({ records: [], reshipmentParcels: [legacy], rows: {
+      orders: [{ id: orderId, user_id: userId, status: 'delivered', total: 54000, address: null, created_at: '2026-07-14T06:00:00.000Z' }],
+      order_items: [], payment_summaries: [], draw_tickets: [],
+      order_cancellation_requests: [{ id: claimId, order_id: orderId, status: 'completed', claim_type: 'exchange', stage: 'completed', reference: 3,
+        requested_at: '2026-09-29T00:00:00.000Z', decided_at: null, decision_note: null, reship_carrier: 'hanjin', reship_tracking_number: 'LEGACY0001',
+        reship_delivered_at: '2026-10-03T01:00:00.000Z' }],
+    } });
+    const detail = await loadOrderDetail(userId, orderId);
+    expect(detail?.reshipmentParcels).toMatchObject([{ trackingNumber: 'LEGACY0001', reshipmentId: null }]);
+    expect(detail?.cancellationRequest).toMatchObject({ reshipCarrier: null, reshipTrackingNumber: null, reshipDeliveredAt: '2026-10-03T01:00:00.000Z' });
   });
 
   it('returns null for a missing or other-user order without loading receipt children', async () => {

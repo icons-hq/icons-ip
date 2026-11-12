@@ -143,7 +143,7 @@ export const ADMIN_CLAIM_SEARCH_FIELDS = [
   { value: 'email', label: '구매자 이메일' },
   { value: 'recipient', label: '수취인명' },
   { value: 'item', label: '상품주문번호' },
-  { value: 'product', label: '상품번호' },
+  { value: 'product', label: '상품 URL' },
 ] as const;
 export type AdminClaimSearchField = (typeof ADMIN_CLAIM_SEARCH_FIELDS)[number]['value'];
 export const ADMIN_CLAIM_DATE_FIELDS = [
@@ -180,6 +180,8 @@ export interface AdminClaimRow {
   orderTotal: number;
   requestedAt: string;
   collectedAt: string | null;
+  /** 회수 확인 때 적은 실제 입고일(KST 날짜). 환급 기한의 기산점이다. 옛 기록은 비어 있다. */
+  collectionReceivedOn?: string | null;
   completedAt: string | null;
   refundMethod: OrderClaimRefundMethod | null;
   handlerName: string | null;
@@ -482,9 +484,46 @@ export function normalizeAdminClaimReshipmentForm(
   return { ok: true, value: { claimId, carrier, trackingNumber, items } };
 }
 
+/*
+ * 회수 확인의 실제 입고일(1027T-033 · 2026-11-12 판단). 운영자가 확인 버튼을 늦게 누른 시각을 반환일로 대신하지
+ * 않도록 입고일을 따로 받는다. KST 달력 날짜(`YYYY-MM-DD`)이고 기본은 오늘이다. 미래 날짜는 여기서, 주문일보다
+ * 이른 날짜는 DB(invalid_collection_received_on)가 거절한다. 환급 기한은 이 날부터 센다.
+ */
+const KST_DAY_FORMAT = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' });
+export const ADMIN_CLAIM_RECEIVED_ON_INVALID = '실제 입고일은 오늘이나 그 이전 날짜로 입력해주세요.';
+
+/** KST 기준 오늘(`YYYY-MM-DD`). 입고일 입력의 기본값과 상한이다. */
+export function adminClaimTodayKst(now: Date = new Date()) {
+  return KST_DAY_FORMAT.format(now);
+}
+
+/** 입고일 칸. 비어 있으면 null(DB가 오늘로 적는다)이고, 날짜가 아니거나 오늘(KST)보다 뒤면 거절한다. */
+export function normalizeAdminClaimReceivedOn(
+  value: unknown,
+  now: Date = new Date(),
+): AdminClaimFormResult<string | null> {
+  const text = typeof value === 'string' ? value.trim() : '';
+  if (!text) return { ok: true, value: null };
+  if (!validCalendarDate(text) || text > adminClaimTodayKst(now)) return { ok: false, error: ADMIN_CLAIM_RECEIVED_ON_INVALID };
+  return { ok: true, value: text };
+}
+
+/** 회수 확인 근거 글. 1~500자이고 줄바꿈·탭 밖의 제어 문자는 받지 않는다(DB invalid_collection_evidence와 같은 규칙). */
+function collectionEvidenceProblem(evidence: string) {
+  if (!evidence || evidence.length > 500) return '확인 근거를 500자 이내로 입력해주세요.';
+  if (Array.from(evidence).some((character) => {
+    const code = character.charCodeAt(0);
+    return (code < 32 && ![9, 10, 13].includes(code)) || code === 127;
+  })) return '확인 근거에 표시할 수 없는 문자가 있습니다. 내용을 확인해주세요.';
+  return null;
+}
+
+/**
+ * 레거시 회수(출고지별 회수 이전 요청)의 입고 확인. 근거는 선택이며, 레거시에는 근거 열이 없어 DB가 감사 기록에 남긴다.
+ */
 export function normalizeAdminClaimCollectionForm(
   formData: FormData,
-): AdminClaimFormResult<{ claimId: string; stage: 'collecting' | 'collected' }> {
+): AdminClaimFormResult<{ claimId: string; stage: 'collecting' | 'collected'; receivedOn: string | null; evidence: string | null }> {
   const claimId = readString(formData, 'claimId').toLowerCase();
   const stage = readString(formData, 'stage');
 
@@ -492,8 +531,13 @@ export function normalizeAdminClaimCollectionForm(
   if (stage !== 'collecting' && stage !== 'collected') {
     return { ok: false, error: '처리할 수 없는 수거 단계입니다.' };
   }
+  const receivedOn = normalizeAdminClaimReceivedOn(formData.get('receivedOn'));
+  if (!receivedOn.ok) return receivedOn;
+  const evidence = readString(formData, 'evidence');
+  const problem = evidence ? collectionEvidenceProblem(evidence) : null;
+  if (problem) return { ok: false, error: problem };
 
-  return { ok: true, value: { claimId, stage } };
+  return { ok: true, value: { claimId, stage, receivedOn: stage === 'collected' ? receivedOn.value : null, evidence: stage === 'collected' && evidence ? evidence : null } };
 }
 
 export function normalizeAdminClaimEvidenceForm(
@@ -549,10 +593,12 @@ export function normalizeAdminClaimOperationalFeeForm(
 
 export function normalizeAdminClaimOriginCollectionForm(
   formData: FormData,
-): AdminClaimFormResult<{ claimId: string; shipmentId: string; evidence: string }> {
+): AdminClaimFormResult<{ claimId: string; shipmentId: string; evidence: string; receivedOn: string | null }> {
   const normalized = normalizeAdminClaimEvidenceForm(formData);
   if (!normalized.ok) return normalized;
   const shipmentId = readString(formData, 'shipmentId').toLowerCase();
   if (!UUID_PATTERN.test(shipmentId)) return { ok: false, error: '회수 확인할 배송 건을 선택해주세요.' };
-  return { ok: true, value: { ...normalized.value, shipmentId } };
+  const receivedOn = normalizeAdminClaimReceivedOn(formData.get('receivedOn'));
+  if (!receivedOn.ok) return receivedOn;
+  return { ok: true, value: { ...normalized.value, shipmentId, receivedOn: receivedOn.value } };
 }

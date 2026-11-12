@@ -83,6 +83,19 @@ describe('claim-contact strict wire contracts', () => {
     for (const change of [{ destinationConfirmed: false }, { dispatchConfirmed: false }, { carrier: '' }, { trackingNumber: '1234567' }, { trackingNumber: 'ß12345678' }, { items: [{ ...base.items[0] }, { ...base.items[0], variantId: ids.plan }] }, { items: [{ ...base.items[0], quantity: 1 }] }]) expect(normalizeClaimContactReshipmentRequest({ ...base, ...change })).toBeNull();
   });
 
+  it('carries one origin and an optional collection waiver with a one-line reason and 1-5 evidence photos', () => {
+    const base = fixtures().ReshipmentRequest, waiver = { reason: ' 고객 사진으로\n인쇄 불량 확인 ', evidenceFileIds: [ids.item] };
+    expect(normalizeClaimContactReshipmentRequest({ ...base, shipmentId: ids.plan, collectionWaiver: waiver }))
+      .toMatchObject({ shipmentId: ids.plan, collectionWaiver: { reason: '고객 사진으로 인쇄 불량 확인', evidenceFileIds: [ids.item] } });
+    const without = (key: string) => Object.fromEntries(Object.entries(base).filter(([name]) => name !== key));
+    const withoutShipment = without('shipmentId'), withoutWaiver = without('collectionWaiver');
+    for (const value of [withoutShipment, withoutWaiver, { ...base, shipmentId: 'not-a-uuid' }, { ...base, collectionWaiver: { ...waiver, reason: '짧음' } },
+      { ...base, collectionWaiver: { ...waiver, evidenceFileIds: [] } }, { ...base, collectionWaiver: { ...waiver, evidenceFileIds: Array(6).fill(ids.item) } },
+      { ...base, collectionWaiver: { ...waiver, extra: true } }, { ...base, collectionWaiver: { ...waiver, reason: '사유\u0007제어 문자 포함입니다' } }]) {
+      expect(normalizeClaimContactReshipmentRequest(value)).toBeNull();
+    }
+  });
+
   it('distinguishes context commands and accepts a denied return reshipment view without creating authority', () => {
     const f = fixtures();
     expect(parse('ContextRequest', { ...f.ContextRequest, command: 'reshipment' })).toBeNull();

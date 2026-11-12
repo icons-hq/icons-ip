@@ -12,15 +12,17 @@ const STAGES: Record<string, string> = { requested: '접수', in_review: '확인
 export function GiftClaims({ actorId, orderId, initialContext }: { actorId: string; orderId?: string; initialContext: GiftClaimContext }) {
   const [context, setContext] = useState(initialContext), [type, setType] = useState<'return' | 'exchange'>('return'), [reason, setReason] = useState<'change_of_mind' | 'defect'>('change_of_mind');
   const [bankName, setBankName] = useState(''), [accountNumber, setAccountNumber] = useState(''), [accountHolder, setAccountHolder] = useState(''), [notice, setNotice] = useState('');
-  const lost = useCallback(() => { setContext(previous => ({ ...previous, canRequest: false, claim: null, reshipmentHistory: [] })); setBankName(''); setAccountNumber(''); setAccountHolder(''); setNotice(''); }, []);
+  const lost = useCallback(() => { setContext(previous => ({ ...previous, canRequest: false, claim: null, reshipmentHistory: [], reshipmentParcels: [] })); setBankName(''); setAccountNumber(''); setAccountHolder(''); setNotice(''); }, []);
   const request = useGiftRequest(actorId, lost), claim = context.claim;
+  /* 교환 소포(배송 건마다 하나)는 소포 목록이 운송장을 보인다. 같은 클레임의 운송장을 클레임 줄에 한 번 더 싣지 않는다. */
+  const parcels = context.reshipmentParcels ?? [], claimParcelShown = claim !== null && parcels.some(parcel => parcel.claimId === claim.id);
   useGiftUnsaved(!request.blocked && Boolean(bankName || accountNumber || accountHolder || request.pending || request.failure?.uncertain));
   return <section><h2>교환·반품 요청</h2>{!request.blocked ? <>
     <p>선물 전체를 기준으로 요청할 수 있어요. 환불금과 사용한 결제 혜택은 보낸 사람에게 돌아가요.</p>
-    <OrderReshipmentHistory receipts={context.reshipmentHistory ?? []} />
+    <OrderReshipmentHistory receipts={context.reshipmentHistory ?? []} parcels={parcels} />
     {orderId ? <OrderClaimFees actorId={actorId} orderId={orderId} /> : null}
     {claim ? <div><p>{({ cancel: '취소', return: '반품', exchange: '교환' })[claim.type]} · {STAGES[claim.stage]}</p>
-      {claim.reshipTrackingNumber ? <p>교환 굿즈 {claim.reshipCarrier} · {claim.reshipTrackingNumber}</p> : null}
+      {claim.reshipTrackingNumber && !claimParcelShown ? <p>교환 굿즈 {claim.reshipCarrier} · {claim.reshipTrackingNumber}</p> : null}
       {orderId && (claim.type === 'return' || claim.type === 'exchange') ? <><ClaimCollectionPlan actorId={actorId} claimId={claim.id} /><ClaimContactHistory key={claim.id} actorId={actorId} orderId={orderId} claimId={claim.id} /></> : null}
       {claim.canWithdraw ? <button type="button" disabled={request.locked} onClick={() => {
         if (!confirm('진행 중인 요청을 철회할까요? 주문은 유지돼요.')) return;

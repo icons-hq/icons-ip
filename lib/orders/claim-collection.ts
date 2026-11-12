@@ -3,7 +3,8 @@ import { isUuid } from '@/lib/uuid';
 export const COLLECTION_METHODS = { not_requested: '접수 후 수거 협의', seller_arranged: '판매자 별도 수거 예정', customer_sent: '구매자가 이미 발송' } as const;
 export type CollectionMethod = keyof typeof COLLECTION_METHODS;
 export type ClaimCollectionValues = { method: CollectionMethod; carrier: string | null; trackingNumber: string | null; evidence: string; confirmed: true };
-export type ClaimCollectionRow = { shipmentId: string; originName: string; revision: number; method: CollectionMethod; carrier: string | null; carrierLabel?: string | null; trackingNumber: string | null; evidence: string; requestedOnce: boolean; collectedAt: string | null; updatedAt: string | null };
+/** reshipped는 그 배송 건을 이미 재출고해 회수 정보 정정이 잠긴 행에만 온다(TKT-166). 남은 출고지는 계속 정정한다. */
+export type ClaimCollectionRow = { shipmentId: string; originName: string; revision: number; method: CollectionMethod; carrier: string | null; carrierLabel?: string | null; trackingNumber: string | null; evidence: string; requestedOnce: boolean; collectedAt: string | null; updatedAt: string | null; reshipped?: true };
 export type ClaimCollectionDocument = { claimId: string; orderId: string; claimRevision: number; editable: boolean; rows: ClaimCollectionRow[]; history: { id: string; shipmentId: string; createdAt: string; method: CollectionMethod; carrier: string | null; trackingNumber: string | null; evidence: string }[] };
 const nullableText = (v: unknown) => v === null || typeof v === 'string';
 const method = (v: unknown): v is CollectionMethod => typeof v === 'string' && Object.hasOwn(COLLECTION_METHODS, v);
@@ -18,7 +19,8 @@ export function normalizeClaimCollectionValues(v: unknown): ClaimCollectionValue
 export function parseClaimCollectionDocument(v: unknown): ClaimCollectionDocument | null {
   if (!transactionRecord(v) || !transactionExactKeys(v, ['claimId', 'orderId', 'claimRevision', 'editable', 'rows', 'history']) || !isUuid(v.claimId) || !isUuid(v.orderId)
     || !transactionInteger(v.claimRevision, 0) || typeof v.editable !== 'boolean' || !Array.isArray(v.rows) || !Array.isArray(v.history)) return null;
-  if (v.rows.some(r => !transactionRecord(r) || !transactionExactKeys(r, ['shipmentId', 'originName', 'revision', 'method', 'carrier', 'trackingNumber', 'evidence', 'requestedOnce', 'collectedAt', 'updatedAt', ...(Object.hasOwn(r, 'carrierLabel') ? ['carrierLabel'] : [])])
+  if (v.rows.some(r => !transactionRecord(r) || !transactionExactKeys(r, ['shipmentId', 'originName', 'revision', 'method', 'carrier', 'trackingNumber', 'evidence', 'requestedOnce', 'collectedAt', 'updatedAt', ...(Object.hasOwn(r, 'carrierLabel') ? ['carrierLabel'] : []), ...(Object.hasOwn(r, 'reshipped') ? ['reshipped'] : [])])
+    || (Object.hasOwn(r, 'reshipped') && r.reshipped !== true)
     || !isUuid(r.shipmentId) || !transactionInteger(r.revision, 0) || typeof r.originName !== 'string' || !method(r.method) || !nullableText(r.carrier) || !nullableText(r.trackingNumber)
     || (r.carrierLabel !== undefined && !nullableText(r.carrierLabel)) || typeof r.evidence !== 'string' || typeof r.requestedOnce !== 'boolean' || !nullableText(r.collectedAt) || !nullableText(r.updatedAt))) return null;
   if (v.history.some(r => !transactionRecord(r) || !transactionExactKeys(r, ['id', 'shipmentId', 'createdAt', 'method', 'carrier', 'trackingNumber', 'evidence']) || !isUuid(r.id) || !isUuid(r.shipmentId)

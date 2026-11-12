@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { startTransition, useActionState, useState, type ReactNode } from 'react';
 import { ADMIN_CANCELLATION_RECHECK_LABELS, adminOrderSearchHref } from '@/lib/admin/orders';
-import { adminClaimStageLabel } from '@/lib/admin/claims';
+import { adminClaimStageLabel, adminClaimTodayKst } from '@/lib/admin/claims';
 import { krw } from '@/lib/format';
 import { statusTone } from '@/lib/admin/status-tone';
 import { ADMIN_VOCABULARY as V, adminClaimCopy } from '@/lib/admin/vocabulary';
@@ -238,6 +238,8 @@ export interface ClaimActionPanelProps {
   carriers: ShippingCarrierRegistry;
   /** 보류 해제 시 돌아갈 단계. 거부 가능 여부가 여기서 갈린다. */
   heldFrom: OrderClaimStage | null;
+  /** 교환품을 한 출고지라도 재출고했는가. 그러면 거부할 수 없다(TKT-166). */
+  reshipmentStarted?: boolean;
   /** 코페이 취소 접수 양식. 접수 채널이 이메일이라 콘솔이 붙여넣을 본문을 만든다. */
   cancellationForm: string | null;
   /** 환불 원장 행이 열려 있는가. 없으면 완료를 적을 대상 자체가 없다. */
@@ -274,6 +276,7 @@ export function ClaimActionPanel({
   claimId,
   claimType,
   heldFrom,
+  reshipmentStarted = false,
   orderId,
   refundCompleted,
   refundFiled,
@@ -297,6 +300,8 @@ export function ClaimActionPanel({
   /* 목록 위 팝업(R8)에서는 결제사 취소·환불 완료 확정을 기다리는 동안 팝업이 닫히지 않게 한다. */
   useClaimPreviewBusy(pending);
   const [formCopied, setFormCopied] = useState(false);
+  /* 레거시 회수 확인의 실제 입고일 기본값·상한(KST 오늘). */
+  const [today] = useState(() => adminClaimTodayKst());
   /* 확인을 통과한 제출만 보낸다. 누른 버튼의 name·value(결정)를 함께 싣는다. */
   const submitConfirmed = (event: React.FormEvent<HTMLFormElement>) => {
     if (!confirmClaimPanelSubmit(event)) return;
@@ -309,11 +314,11 @@ export function ClaimActionPanel({
   const canReview = stage === 'requested';
   const canHold = next.includes('on_hold');
   const canResume = stage === 'on_hold';
-  const canReject = canRejectOrderClaim(stage, heldFrom);
+  const canReject = canRejectOrderClaim(stage, heldFrom, reshipmentStarted);
   const collectionReady = collectionPolicy !== null && collectionComplete;
   const cancellationWithoutCollection = claimType === 'cancel' && collectionPolicy !== null && collectionComplete && collections.length === 0;
-  const canRecordOrigin = collectionPolicy === 'origin'
-    && !collectionComplete && ['collecting', 'collected', 'processing', 'needs_review'].includes(stage);
+  const originCollectionOpen = collectionPolicy === 'origin' && ['collecting', 'collected', 'processing', 'needs_review'].includes(stage);
+  const canRecordOrigin = originCollectionOpen && !collectionComplete;
   const canCollect = collectionPolicy === 'legacy' && claimType !== 'cancel' && stage === 'collecting';
   const canFileRefund = claimType !== 'exchange'
     && collectionReady
@@ -368,7 +373,8 @@ export function ClaimActionPanel({
             : '모든 출고지의 상품과 수량을 회수 확인한 뒤 환불·재출고를 진행합니다.'}</p>
         {collections.length ? collections.map((collection) => <ClaimOriginCollection
           key={collection.shipmentId} claimId={claimId} claimType={claimType}
-          collection={collection} canRecord={canRecordOrigin} />)
+          /* 회수 생략으로 결정한 출고지는 회수가 끝난 것으로 보지만, 요청이 열려 있는 동안 늦게 도착한 입고는 기록할 수 있다(재고 변화 없음). */
+          collection={collection} canRecord={canRecordOrigin || (originCollectionOpen && collection.collectionWaived === true)} />)
           : <p className="text-muted-foreground">수거를 승인하면 출고지별 반송 주소와 상품이 표시됩니다.</p>}
       </section> : collectionPolicy === null ? <p className="text-destructive" role="alert">회수 확인 기준을 불러오지 못했습니다. 새로고침한 뒤 다시 확인해주세요.</p> : null}
   </>;
@@ -438,11 +444,20 @@ export function ClaimActionPanel({
           <input name="claimId" type="hidden" value={claimId} />
           <input name="claimType" type="hidden" value={claimType} />
           <input name="stage" type="hidden" value="collected" />
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor={`claim-legacy-received-${claimId}`}>실제 입고일</Label>
+            <Input className="w-full sm:w-44" defaultValue={today} disabled={pending} id={`claim-legacy-received-${claimId}`} max={today} name="receivedOn" required type="date" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor={`claim-legacy-evidence-${claimId}`}>회수 확인 근거 (선택)</Label>
+            <Textarea disabled={pending} id={`claim-legacy-evidence-${claimId}`} maxLength={500} name="evidence" placeholder="창고 회신 번호와 반송 상품·수량 대조 결과" rows={2} />
+            <p className={HINT_CLASS}>적은 근거는 처리 이력(감사 기록)에 남습니다.</p>
+          </div>
           <Button className="w-fit" disabled={pending} size="sm" type="submit">
             반송 {V.goods} 입고 확인
           </Button>
           <p className={HINT_CLASS}>
-            입고 확인 시점부터 환급 SLA(영업일 3일)가 시작됩니다.
+            환급 기한(영업일 3일)은 확인 버튼을 누른 때가 아니라 실제 입고일부터 셉니다.
           </p>
         </form>
       ) : null}

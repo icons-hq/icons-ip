@@ -1,6 +1,6 @@
 import { AdminListExportButton } from '@/components/admin/AdminListExportButton';
 import Link from 'next/link';
-import { adminClaimBulkSelectable } from '@/lib/admin/claim-bulk';
+import { adminClaimBulkGuideText, adminClaimBulkSelectable } from '@/lib/admin/claim-bulk';
 import {
   ADMIN_CLAIM_DATE_FIELDS,
   ADMIN_CLAIM_SEARCH_FIELDS,
@@ -89,7 +89,7 @@ export function ClaimQueueKitScreen({
   const longestWait = rows.filter((row) => isOpenOrderClaimStage(row.stage)).reduce((days, row) => Math.max(days, kstDayDiff(Date.parse(row.requestedAt), now.getTime())), 0);
 
   const kitRows: ClaimKitRow[] = rows.map((row) => {
-    const sla = orderClaimSlaState({ claimType: row.claimType, stage: row.stage, collectedAt: row.collectedAt, completedAt: row.completedAt }, now);
+    const sla = orderClaimSlaState({ claimType: row.claimType, stage: row.stage, collectedAt: row.collectedAt, completedAt: row.completedAt, collectionReceivedOn: row.collectionReceivedOn ?? null }, now);
     return {
       id: row.id,
       selectable: adminClaimBulkSelectable(claimType, row.stage),
@@ -120,8 +120,8 @@ export function ClaimQueueKitScreen({
           {collects ? <li>별도 배송비 청구는 <Link href="/admin/sales/claims/returns/fee-policy">반품·교환 배송비 정책</Link>을 설정한 뒤 각 요청 상세에서 처리합니다. <Link href="/admin/sales/claims/returns/fees">배송비 입금·반환 대기 목록</Link></li> : null}
           {canViewRefundTransfers && claimType !== 'exchange' ? <li>실제 송금이 남은 무통장 환불은 <a href={REFUND_TRANSFERS_PATH}>환불 송금 대기</a>에서 확인합니다.</li> : null}
           <li>요청번호를 누르면 목록 위에 상세가 열리고 그 자리에서 {typeLabel} 처리를 진행합니다.{collects ? ' 회수·결제사 확인이 필요한 단계는 해당 근거를 확인해야 완료할 수 있습니다.' : ''}</li>
-          <li>여러 건을 선택하면 아래에 처리 막대가 뜨고 승인·검토중·거부를 한 번에 처리합니다(최대 50건). 결제사 취소가 겹치지 않게 한 건씩 순서대로 처리하고, 건별 결과를 표로 보여 줍니다.{collects ? ' 반품·교환 전환도 처리 막대에서 고객 합의 근거를 한 번 입력해 한 번에 처리합니다. 회수 확인·재출고·환불 확정과 환불계좌를 새로 받아야 하는 무통장 건의 전환은 상세에서 한 건씩 처리합니다.' : ''}</li>
-          <li>수취인명과 번호는 입력한 내용이 포함된 요청을 찾습니다. 상품주문번호는 주문 품목, 상품번호는 등록 상품의 식별값입니다. 품목으로 찾아도 처리와 엑셀은 요청 주문 전체를 대상으로 합니다.</li>
+          <li>{adminClaimBulkGuideText(claimType)}</li>
+          <li>수취인명과 번호는 입력한 내용이 포함된 요청을 찾습니다. 상품주문번호는 주문 품목, 상품 URL은 등록 상품의 식별값입니다. 품목으로 찾아도 처리와 엑셀은 요청 주문 전체를 대상으로 합니다.</li>
         </ul>
       </SalesGuide>
       <nav aria-label="단계별 건수" className="flex min-w-0 flex-col gap-2 xl:flex-row xl:items-stretch">
@@ -169,8 +169,8 @@ export function ClaimQueueKitScreen({
         />
       </div>
       {collects ? <p className="text-muted-foreground">
-        환급 기한은 약관 제16조의 &ldquo;굿즈를 반환받은 날부터 3영업일&rdquo;입니다. 기산점은 입고
-        확인 시점이며, 회수가 없는 취소 요청에는 기산점이 없습니다. {typeLabel} 요청은 주문 단위 전액으로만
+        환급 기한은 약관 제16조의 &ldquo;굿즈를 반환받은 날부터 3영업일&rdquo;입니다. 기산점은 회수 확인 때
+        적은 실제 입고일(출고지가 여럿이면 가장 늦은 날)이며, 회수가 없는 취소 요청에는 기산점이 없습니다. {typeLabel} 요청은 주문 단위 전액으로만
         처리되고, 한 주문의 일부만 환급하는 처리는 제공하지 않습니다.
       </p> : <p className="text-muted-foreground">
         {typeLabel} 요청은 주문 단위 전액으로만 처리되고, 한 주문의 일부만 환급하는 처리는 제공하지 않습니다.

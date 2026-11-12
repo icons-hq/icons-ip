@@ -24,6 +24,7 @@ import {
   normalizeAdminClaimReshipmentForm,
 } from '@/lib/admin/claims';
 import { loadAdminClaimDetail } from '@/lib/admin/claims.server';
+import { CLAIM_EVIDENCE_MAX_FILES, CLAIM_WAIVER_REASON_MAX, CLAIM_WAIVER_REASON_MIN, claimWaiverReasonValid, normalizeClaimWaiverReason } from '@/lib/admin/claim-evidence';
 import { ADMIN_CANCELLATION_RECHECK_LABELS } from '@/lib/admin/orders';
 import { withPreservedFormValues, type AdminFormValuesState } from '@/lib/admin/form-state';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
@@ -43,6 +44,7 @@ import {
 } from '@/lib/payments/provider-capabilities';
 import { createClient } from '@/lib/supabase/server';
 import { adminPaymentCancelFailureMessage } from '@/lib/admin/payment-cancel-error';
+import { isUuid } from '@/lib/uuid';
 
 /* 어드민 클레임 콘솔 액션(#252).
  *
@@ -92,6 +94,7 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string) {
   if (value.includes('claim_collection_conflict')) return '이미 다른 근거로 회수 확인된 배송 건입니다. 이력을 확인해주세요.';
   if (value.includes('claim_collection_not_found')) return '이 클레임에 속한 회수 배송 건을 찾을 수 없습니다.';
   if (value.includes('invalid_collection_evidence')) return '회수 확인 근거를 500자 이내로 입력해주세요.';
+  if (value.includes('invalid_collection_received_on')) return '실제 입고일은 주문일부터 오늘 사이의 날짜로 입력해주세요.';
   if (value.includes('invalid_reshipment_delivery_evidence')) return '교환품 배송완료 확인 근거를 500자 이내로 입력해주세요.';
   if (value.includes('reshipment_delivery_conflict')) return '이미 기록된 배송완료 확인과 다릅니다. 담당자와 근거를 확인해주세요.';
   if (value.includes('claim_not_reshipped') || value.includes('claim_reshipment_not_dispatched')) return '재출고 운송장이 기록된 교환만 배송완료를 확인할 수 있습니다.';
@@ -109,7 +112,7 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string) {
   if (value.includes('claim_type_has_no_collection')) return '이 클레임에는 회수 확인이 필요하지 않습니다. 최신 처리 이력을 확인해주세요.';
   if (value.includes('claim_type_has_no_reshipment')) return '교환 클레임만 재출고를 기록할 수 있습니다.';
   if (value.includes('claim_not_rejectable')) {
-    return '처리에 착수한 클레임은 거부할 수 없습니다. 결제 취소를 마치거나, 사람이 판단할 일이면 보류로 남겨주세요.';
+    return '처리에 착수했거나 교환품을 재출고하기 시작한 클레임은 거부할 수 없습니다. 결제 취소나 남은 출고지 재출고를 마치거나, 사람이 판단할 일이면 보류로 남겨주세요.';
   }
   if (value.includes('claim_refund_account_missing')) {
     return '등록된 환불계좌가 없습니다. 무통장 주문은 결제한 분이 주문 상세에서 환불계좌를 등록한 뒤 다시 진행해주세요. 선물 주문은 선물 요청 화면에서 등록합니다.';
@@ -123,6 +126,15 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string) {
   if (value.includes('reshipment_variant_unavailable')) return '선택한 재출고 상품을 사용할 수 없습니다. 최신 목록에서 같은 상품의 옵션이나 같은 그룹의 상품을 선택해주세요.';
   if (value.includes('invalid reshipment items')) return '재출고할 주문 품목과 상품을 확인해주세요.';
   if (value.includes('reshipment_conflict')) return '이미 다른 운송장이나 상품으로 재출고한 교환입니다. 처리 이력을 확인해주세요.';
+  if (value.includes('reshipment_shipment_required')) return '출고지가 둘 이상인 교환은 배송 건마다 재출고·배송완료를 확인해주세요.';
+  if (value.includes('reshipment_shipment_not_found')) return '이 교환의 재출고 대상 출고지가 아닙니다. 최신 정보를 다시 확인해주세요.';
+  if (value.includes('collection_waiver_conflict')) return '이 출고지는 이미 다른 사유·사진으로 회수 생략을 기록했습니다. 처리 이력을 확인해주세요.';
+  if (value.includes('collection_waiver_not_allowed')) return '회수 생략은 하자·오배송 교환에서만 쓸 수 있습니다.';
+  if (value.includes('collection_waiver_not_needed')) return '이미 회수를 확인한 출고지입니다. 회수 생략 없이 진행해주세요.';
+  if (value.includes('collection_waiver_unavailable')) return '출고지별 회수를 쓰지 않는 교환은 회수를 생략할 수 없습니다.';
+  if (value.includes('collection_waiver_evidence_required')) return '회수 생략 근거 사진을 1~5장 올려주세요.';
+  if (value.includes('invalid_collection_waiver_reason')) return '회수 생략 사유를 10~500자로 적어주세요.';
+  if (value.includes('production_incomplete')) return '주문제작 상품의 교환품 제작이 끝난 뒤 재출고할 수 있습니다. 주문 상세의 주문제작 처리를 확인해주세요.';
   if (value.includes('insufficient_or_overflowing_stock') || value.includes('stock_aggregate_overflow')) return '재고 수량을 적용할 수 없습니다. 최신 재고와 회수 수량을 확인해주세요.';
   if (value.includes('stock_out_of_range')) return '재출고할 옵션 재고가 부족합니다. 최신 옵션 수량을 확인해주세요.';
   if (value.includes('invalid rejection reason')) return '거부 사유는 앞뒤 공백 없이 10자 이상 200자 이하로 입력해주세요.';
@@ -364,16 +376,20 @@ export async function recordOrderClaimCollectionAction(
   if (!normalized.ok) return { error: normalized.error };
 
   const supabase = await createClient();
+  /* 실제 입고일(1027T-033)은 입고 확인 때만 보낸다. 비우면 DB가 오늘로 적는다. 레거시에는 근거 열이 없어 받은 근거는
+     감사 기록에 남는다(선택). */
   const { error } = await supabase.rpc('admin_record_order_claim_collection', {
     p_claim_id: normalized.value.claimId,
     p_stage: normalized.value.stage,
+    p_received_on: normalized.value.receivedOn,
+    p_evidence: normalized.value.evidence,
   });
   if (error) return { error: rpcErrorMessage(error.message, COLLECTION_FAILED) };
 
   revalidateClaimSurfaces(normalized.value.claimId, readClaimType(formData));
   return {
     message: normalized.value.stage === 'collected'
-      ? adminGoodsCopy('반송 굿즈 입고를 확인했습니다. 실제 반환받은 날을 기준으로 환급 기한을 확인해주세요.')
+      ? adminGoodsCopy(`반송 굿즈 입고를 확인했습니다. 환급 기한은 실제 입고일(${normalized.value.receivedOn ?? '오늘'})부터 셉니다.`)
       : '수거중으로 표시했습니다.',
   };
 }
@@ -388,16 +404,18 @@ export async function recordOrderClaimOriginCollectionAction(
   const normalized = normalizeAdminClaimOriginCollectionForm(formData);
   if (!normalized.ok) return fail(normalized.error);
   const supabase = await createClient();
+  /* 실제 입고일(1027T-033)을 함께 남긴다. 비우면 DB가 오늘로 적는다. 환급 기한은 모든 출고지 중 가장 늦은 입고일부터 센다. */
   const { data, error } = await supabase.rpc('admin_record_order_claim_origin_collection', {
     p_claim_id: normalized.value.claimId,
     p_shipment_id: normalized.value.shipmentId,
     p_evidence: normalized.value.evidence,
+    p_received_on: normalized.value.receivedOn,
   });
   if (error) return fail(rpcErrorMessage(error.message, COLLECTION_FAILED));
   if (data !== 'collecting' && data !== 'collected') return fail(COLLECTION_FAILED);
   revalidateClaimSurfaces(normalized.value.claimId, readClaimType(formData));
   return { message: data === 'collected'
-    ? '모든 출고지의 회수를 확인했습니다. 다음 처리 단계와 환급 기한을 확인해주세요.'
+    ? '모든 출고지의 회수를 확인했습니다. 환급 기한은 가장 늦은 실제 입고일부터 셉니다. 다음 처리 단계를 확인해주세요.'
     : '이 출고지의 회수를 확인했습니다. 남은 출고지를 확인해주세요.' };
 }
 
@@ -439,14 +457,62 @@ export async function recordOrderClaimReshipmentDeliveryAction(
   if (access.error) return fail(access.error.error ?? failureMessage);
   const normalized = normalizeAdminClaimEvidenceForm(formData);
   if (!normalized.ok) return fail(normalized.error);
+  /* 배송 건별 재출고(TKT-166)는 송장마다 확인한다. 'order'는 배송 건 없는 옛 주문 전체 행이고,
+     값이 없으면 이 표 이전의 클레임 단위 기록(옛 단일 열)이다. */
+  const shipment = formData.get('reshipmentShipment');
+  if (shipment !== null && shipment !== 'order' && !isUuid(shipment)) return fail(failureMessage);
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc('admin_record_order_claim_reshipment_delivery', {
-    p_claim_id: normalized.value.claimId, p_evidence: normalized.value.evidence,
-  });
+  const { data, error } = shipment === null
+    ? await supabase.rpc('admin_record_order_claim_reshipment_delivery', {
+      p_claim_id: normalized.value.claimId, p_evidence: normalized.value.evidence,
+    })
+    : await supabase.rpc('admin_record_order_claim_shipment_reshipment_delivery', {
+      p_claim_id: normalized.value.claimId, p_shipment_id: shipment === 'order' ? null : shipment, p_evidence: normalized.value.evidence,
+    });
   if (error) return fail(rpcErrorMessage(error.message, failureMessage));
   if (data !== 'delivered') return fail(failureMessage);
   revalidateClaimSurfaces(normalized.value.claimId, 'exchange');
-  return { message: '교환품의 실제 배송완료를 확인했습니다. 이후 신청은 기존 신청 기한과 조건을 따릅니다.' };
+  return { message: shipment === null
+    ? '교환품의 실제 배송완료를 확인했습니다. 이후 신청은 기존 신청 기한과 조건을 따릅니다.'
+    : '이 송장의 교환품 배송완료를 확인했습니다. 모든 송장이 확인되면 이후 신청은 기존 신청 기한과 조건을 따릅니다.' };
+}
+
+/**
+ * 회수 생략을 재출고보다 먼저 결정한다(주문제작 상품이 있는 출고지, QNA-039·ADR-0041).
+ *
+ * 결정하면 그 출고지의 교환품 제작이 열리고, 제작이 끝나면 회수·재배송 연락처 처리에서 회수 확인 없이 재출고한다.
+ * 사유·근거 사진·하자 교환 여부·입고 여부는 DB(admin_waive_order_claim_collection)가 다시 검사한다.
+ */
+export async function waiveOrderClaimCollectionAction(
+  previous: AdminClaimActionState,
+  formData: FormData,
+): Promise<AdminClaimActionState> {
+  const failureMessage = '회수 생략을 기록하지 못했습니다. 최신 상태를 확인해주세요.';
+  const fail = (error: string) => withPreservedFormValues({ error }, previous, formData, { exclude: ['evidenceFileId'] });
+  const access = await requireStaffAction();
+  if (access.error) return fail(access.error.error ?? failureMessage);
+  const claimId = formData.get('claimId'), shipmentId = formData.get('shipmentId');
+  if (!isUuid(claimId) || !isUuid(shipmentId)) return fail(failureMessage);
+  if (formData.get('confirmed') !== 'on') return fail('회수 없이 교환품 제작을 시작한다는 확인에 체크해주세요.');
+  const reason = normalizeClaimWaiverReason(String(formData.get('reason') ?? ''));
+  if (!claimWaiverReasonValid(reason)) return fail(`회수 생략 사유를 ${CLAIM_WAIVER_REASON_MIN}~${CLAIM_WAIVER_REASON_MAX}자로 적어주세요.`);
+  const evidenceValues = formData.getAll('evidenceFileId');
+  const evidenceFileIds = evidenceValues.filter(isUuid);
+  if (evidenceFileIds.length !== evidenceValues.length || evidenceFileIds.length < 1 || evidenceFileIds.length > CLAIM_EVIDENCE_MAX_FILES
+    || new Set(evidenceFileIds).size !== evidenceFileIds.length) {
+    return fail(`회수 생략 근거 사진을 1~${CLAIM_EVIDENCE_MAX_FILES}장 올려주세요.`);
+  }
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc('admin_waive_order_claim_collection', {
+    p_claim_id: claimId, p_shipment_id: shipmentId, p_waiver: { reason, evidenceFileIds },
+  });
+  if (error) return fail(rpcErrorMessage(error.message, failureMessage));
+  const result = typeof data === 'object' && data !== null && !Array.isArray(data) ? data as Record<string, unknown> : null;
+  if (!result || result.claimId !== claimId || result.shipmentId !== shipmentId) return fail(failureMessage);
+  revalidateClaimSurfaces(claimId, 'exchange');
+  return { message: result.productionPending === true
+    ? '회수 생략을 기록했습니다. 주문 상세의 주문제작 처리에서 교환품 제작을 마치면 회수 없이 재출고합니다.'
+    : '회수 생략을 기록했습니다. 회수·재배송 연락처 처리에서 회수 없이 재출고합니다.' };
 }
 
 interface ManualRecoveryAttemptRow {

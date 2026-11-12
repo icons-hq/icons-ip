@@ -51,6 +51,8 @@ interface ClaimQueueRow {
   order_total: number | string;
   requested_at: string;
   collected_at: string | null;
+  /** 회수 완료일(실제 입고일, KST 날짜). 2026-11-12 이전 기록은 null이다. */
+  collection_received_on?: string | null;
   completed_at: string | null;
   refund_method: string | null;
   handler_name: string | null;
@@ -100,6 +102,7 @@ function toRow(row: ClaimQueueRow): AdminClaimRow {
     orderTotal: toNumber(row.order_total),
     requestedAt: row.requested_at,
     collectedAt: row.collected_at,
+    collectionReceivedOn: row.collection_received_on ?? null,
     completedAt: row.completed_at,
     refundMethod: (isOrderClaimRefundMethod(row.refund_method)
       ? row.refund_method
@@ -212,6 +215,54 @@ export interface AdminClaimCollection {
   collectedBy: string | null;
   collectorName: string | null;
   evidence: string | null;
+  /** 운영자가 적은 실제 입고일(KST 날짜). 2026-11-12 이전 확인은 null이다. */
+  receivedOn?: string | null;
+  /** 회수 생략(ADR-0041)으로 이미 재출고한 배송 건. 늦게 도착한 입고 확인은 재고를 바꾸지 않는다. */
+  collectionWaived?: boolean;
+}
+
+/** 배송 건 하나의 회수 생략 결정(사유·근거 사진). 하자·오배송 교환인 동안에만 회수를 대신한다(QNA-039). */
+export interface AdminClaimCollectionWaiver {
+  reason: string;
+  waivedAt: string;
+  waivedByName: string | null;
+  evidence: { id: string; mimeType: string; size: number }[];
+}
+
+/** 교환 재출고 대상 배송 건(출고지). shipmentId가 null이면 배송 건 없는 옛 주문 전체다(TKT-166). */
+export interface AdminClaimReshipmentTarget {
+  shipmentId: string | null;
+  originName: string | null;
+  /** 출고지별 회수 확인을 쓰는 배송 건인지. 아니면 클레임 단계(입고완료)가 재출고 조건이다. */
+  collectionTracked: boolean;
+  collectedAt: string | null;
+  reshipped: boolean;
+  orderItemIds: string[];
+  /** 회수 생략을 먼저 결정한 배송 건(주문제작 상품). 결정이 없으면 null이다. */
+  waiver: AdminClaimCollectionWaiver | null;
+  /** 주문제작 상품이 있어 교환품을 새로 만들어야 하는 배송 건인지. */
+  productionRequired: boolean;
+  /** 교환품 제작이 아직 끝나지 않아 재출고를 기다리는지. */
+  productionPending: boolean;
+}
+
+/** 배송 건 하나의 재출고 기록. 회수 생략이면 사유와 근거 사진이 함께 남는다(QNA-039). */
+export interface AdminClaimReshipment {
+  id: string;
+  shipmentId: string | null;
+  originName: string | null;
+  carrier: string;
+  carrierLabel: string | null;
+  trackingNumber: string;
+  reshippedAt: string;
+  reshippedByName: string | null;
+  collectionWaived: boolean;
+  waiverReason: string | null;
+  waiverEvidence: { id: string; mimeType: string; size: number }[];
+  deliveredAt: string | null;
+  deliveredByName: string | null;
+  deliveryEvidence: string | null;
+  items: { orderItemId: string; name: string; variantName: string; variantCode: string; qty: number }[];
 }
 
 export interface AdminClaimDetail {
@@ -240,6 +291,8 @@ export interface AdminClaimDetail {
     decidedAt: string | null;
     collectingAt: string | null;
     collectedAt: string | null;
+    /** 회수 완료일(실제 입고일, KST 날짜). 환급 기한은 이 날부터 센다. 옛 기록은 null이라 collectedAt을 쓴다. */
+    collectionReceivedOn?: string | null;
     collectionPolicy: 'origin' | 'legacy' | null;
     collectionComplete: boolean;
     collections: AdminClaimCollection[];
@@ -252,6 +305,11 @@ export interface AdminClaimDetail {
     reshipDeliveredByName: string | null;
     reshipDeliveryEvidence: string | null;
     reshippedItems?: { orderItemId: string; goodId?: string; originalGoodId?: string; name: string; variantId: string; variantName: string; variantCode: string; qty: number }[];
+    /** 배송 건별 재출고 대상과 기록. 이 표가 비어 있으면 옛 단일 열(reship*)이 기록이다. */
+    reshipmentTargets?: AdminClaimReshipmentTarget[];
+    reshipments?: AdminClaimReshipment[];
+    /** 하자·오배송 교환이고 출고지별 회수를 쓰면 회수 없이 재출고할 수 있다. */
+    collectionWaiverAllowed?: boolean;
     lastErrorCode: string | null;
     handlerName: string | null;
     updatedAt: string;
@@ -281,6 +339,43 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function text(value: unknown): string | null {
   return typeof value === 'string' && value.length > 0 ? value : null;
+}
+
+function evidenceFiles(value: unknown) {
+  return (Array.isArray(value) ? value : []).filter(isRecord).map((file) => ({
+    id: String(file.id ?? ''), mimeType: String(file.mimeType ?? ''), size: toNumber(file.size as number | string),
+  }));
+}
+
+function collectionWaiver(value: unknown): AdminClaimCollectionWaiver | null {
+  if (!isRecord(value) || !text(value.reason) || !text(value.waivedAt)) return null;
+  return { reason: String(value.reason), waivedAt: String(value.waivedAt), waivedByName: text(value.waivedByName), evidence: evidenceFiles(value.evidence) };
+}
+
+function reshipmentTargets(value: unknown): AdminClaimReshipmentTarget[] {
+  return (Array.isArray(value) ? value : []).filter(isRecord).map((target) => ({
+    shipmentId: text(target.shipmentId), originName: text(target.originName),
+    collectionTracked: target.collectionTracked === true, collectedAt: text(target.collectedAt), reshipped: target.reshipped === true,
+    orderItemIds: (Array.isArray(target.orderItemIds) ? target.orderItemIds : []).filter((id): id is string => typeof id === 'string'),
+    waiver: collectionWaiver(target.waiver),
+    productionRequired: target.productionRequired === true,
+    productionPending: target.productionPending === true,
+  }));
+}
+
+function reshipments(value: unknown): AdminClaimReshipment[] {
+  return (Array.isArray(value) ? value : []).filter(isRecord).map((row) => ({
+    id: String(row.id ?? ''), shipmentId: text(row.shipmentId), originName: text(row.originName),
+    carrier: String(row.carrier ?? ''), carrierLabel: text(row.carrierLabel), trackingNumber: String(row.trackingNumber ?? ''),
+    reshippedAt: String(row.reshippedAt ?? ''), reshippedByName: text(row.reshippedByName),
+    collectionWaived: row.collectionWaived === true, waiverReason: text(row.waiverReason),
+    waiverEvidence: evidenceFiles(row.waiverEvidence),
+    deliveredAt: text(row.deliveredAt), deliveredByName: text(row.deliveredByName), deliveryEvidence: text(row.deliveryEvidence),
+    items: (Array.isArray(row.items) ? row.items : []).filter(isRecord).map((item) => ({
+      orderItemId: String(item.orderItemId ?? ''), name: String(item.name ?? ''), variantName: String(item.variantName ?? ''),
+      variantCode: String(item.variantCode ?? ''), qty: toNumber(item.qty as number | string),
+    })),
+  }));
 }
 
 function nullableNumber(value: unknown): number | null {
@@ -354,6 +449,7 @@ export async function loadAdminClaimDetail(
       decidedAt: text(claim.decidedAt),
       collectingAt: text(claim.collectingAt),
       collectedAt: text(claim.collectedAt),
+      collectionReceivedOn: text(claim.collectionReceivedOn),
       collectionPolicy: claim.collectionPolicy === 'origin' || claim.collectionPolicy === 'legacy' ? claim.collectionPolicy : null,
       collectionComplete: claim.collectionComplete === true,
       collections: (Array.isArray(claim.collections) ? claim.collections : []).filter(isRecord).map((collection) => ({
@@ -364,6 +460,7 @@ export async function loadAdminClaimDetail(
         })),
         collectedAt: text(collection.collectedAt), collectedBy: text(collection.collectedBy),
         collectorName: text(collection.collectorName), evidence: text(collection.evidence),
+        receivedOn: text(collection.receivedOn), collectionWaived: collection.collectionWaived === true,
       })),
       completedAt: text(claim.completedAt),
       reshipCarrier: text(claim.reshipCarrier),
@@ -377,6 +474,9 @@ export async function loadAdminClaimDetail(
         orderItemId: String(item.orderItemId ?? ''), goodId: text(item.goodId) ?? undefined, originalGoodId: text(item.originalGoodId) ?? undefined, name: String(item.name ?? ''), variantId: String(item.variantId ?? ''),
         variantName: String(item.variantName ?? ''), variantCode: String(item.variantCode ?? ''), qty: toNumber(item.qty as number | string),
       })),
+      reshipmentTargets: reshipmentTargets(claim.reshipmentTargets),
+      reshipments: reshipments(claim.reshipments),
+      collectionWaiverAllowed: claim.collectionWaiverAllowed === true,
       lastErrorCode: text(claim.lastErrorCode),
       handlerName: text(claim.handlerName),
       updatedAt: String(claim.updatedAt ?? ''),

@@ -333,7 +333,7 @@ export function OrderDetail({
             ))}
           </div>
 
-          <OrderReshipmentHistory receipts={order.reshipmentHistory ?? []} />
+          <OrderReshipmentHistory receipts={order.reshipmentHistory ?? []} parcels={order.reshipmentParcels} />
 
           {production !== undefined ? <OrderProductionStatus document={production} /> : null}
           {downloads !== undefined ? <OrderDownloads document={downloads} /> : null}

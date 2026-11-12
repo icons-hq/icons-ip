@@ -81,6 +81,15 @@ describe('단계 전이표', () => {
     expect(canRejectOrderClaim('on_hold', 'needs_review')).toBe(false);
   });
 
+  /* 한 출고지라도 교환품을 재출고했으면(재출고 1/2) 수거중·입고완료·그 보류여도 거부할 수 없다 — 나간 소포의 재고 차감과
+     배송 기록이 남는다(TKT-166·ADR-0041). DB가 같은 claim_not_rejectable로 막는다. */
+  it('재출고가 시작된 교환은 단계와 무관하게 거부할 수 없다', () => {
+    expect(canRejectOrderClaim('collecting', null, true)).toBe(false);
+    expect(canRejectOrderClaim('collected', null, true)).toBe(false);
+    expect(canRejectOrderClaim('on_hold', 'collecting', true)).toBe(false);
+    expect(canRejectOrderClaim('collecting', null, false)).toBe(true);
+  });
+
   it('종결 단계에서는 더 갈 곳이 없다', () => {
     for (const claimType of ORDER_CLAIM_TYPES) {
       expect(orderClaimNextStages(claimType, 'completed')).toEqual([]);
@@ -152,6 +161,40 @@ describe('환급 SLA', () => {
       },
       NOW,
     )).toMatchObject({ tone: 'danger', label: '기한 초과' });
+  });
+
+  /* 1027T-033: 확인 버튼을 늦게 누른 시각이 아니라 운영자가 적은 실제 입고일이 기산점이다. */
+  it('실제 입고일이 있으면 그 날부터 3영업일째 되는 날의 끝(KST)까지다', () => {
+    // 2026-08-18(화) 입고 → 19·20·21(금) → 2026-08-21 23:59:59.999 KST. 확인은 하루 늦은 19일에 눌렀다.
+    const state = orderClaimSlaState(
+      { claimType: 'return', stage: 'collected', collectedAt: '2026-08-19T06:00:00.000Z', completedAt: null, collectionReceivedOn: '2026-08-18' },
+      NOW,
+    );
+    expect(state.dueAt).toBe('2026-08-21T14:59:59.999Z');
+    expect(state).toMatchObject({ tone: 'ok', label: '2일 남음' });
+  });
+
+  it('입고일 기한도 주말을 건너뛰고, 지나면 danger다', () => {
+    // 2026-08-14(금) 입고 → 17(월)·18(화)·19(수) → 2026-08-19 끝. NOW(20일 15:00 KST)는 지났다.
+    expect(orderClaimSlaState(
+      { claimType: 'return', stage: 'processing', collectedAt: '2026-08-14T01:00:00.000Z', completedAt: null, collectionReceivedOn: '2026-08-14' },
+      NOW,
+    )).toMatchObject({ tone: 'danger', label: '기한 초과', dueAt: '2026-08-19T14:59:59.999Z' });
+  });
+
+  /* T11a: 회수 생략 결정이 무효가 되면 단계가 수거중으로 돌아가고 확인 시각이 빈다. 남은 회수 완료일로 기한을 세지 않는다. */
+  it('입고 확인 시각이 비면 회수 완료일이 남아 있어도 입고 전이다', () => {
+    expect(orderClaimSlaState(
+      { claimType: 'return', stage: 'collecting', collectedAt: null, completedAt: null, collectionReceivedOn: '2026-08-18' },
+      NOW,
+    )).toMatchObject({ tone: 'muted', label: '입고 전', dueAt: null });
+  });
+
+  it('입고일이 형식 밖이면 옛 확인 시각으로 센다', () => {
+    expect(orderClaimSlaState(
+      { claimType: 'return', stage: 'processing', collectedAt: '2026-08-19T06:00:00.000Z', completedAt: null, collectionReceivedOn: '2026-02-30' },
+      NOW,
+    ).dueAt).toBe('2026-08-24T06:00:00.000Z');
   });
 
   /* 주말은 영업일이 아니다. 공휴일 달력은 앱에 없으므로 있는 척하지 않는다. */

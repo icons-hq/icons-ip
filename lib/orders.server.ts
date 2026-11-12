@@ -1,5 +1,5 @@
 import 'server-only';
-import { parseOrderReshipmentHistory } from './orders/reshipment-items';
+import { orderReshipmentParcelViews, parseOrderReshipmentHistory, parseOrderReshipmentParcels, type OrderReshipmentParcelView } from './orders/reshipment-items';
 import { readGoodsCustomInputSnapshot } from '@/lib/goods-custom-inputs';
 import { loadGiftCheckoutOrder } from './gifts-order.server';
 import { loadGiftOrderDetail, loadGiftOrderList } from './gifts-order-detail.server';
@@ -207,6 +207,35 @@ export async function loadOrders(userId: string, {includePending=false}:{include
   })].sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));
 }
 
+/**
+ * 교환으로 다시 보낸 소포(배송 건마다 하나, TKT-166·QNA-039). 진행 중인 교환에서 먼저 보낸 소포도 바로 보인다.
+ * 택배사 레지스트리로 표시 이름과 조회 링크를 붙인다. 이 기능 전의 교환(클레임당 한 쌍)도 소포 하나로 온다.
+ */
+async function loadOrderReshipmentParcels(supabase: Awaited<ReturnType<typeof createClient>>, orderId: string): Promise<OrderReshipmentParcelView[]> {
+  const { data, error } = await supabase.rpc('get_my_order_claim_reshipments', { p_order_id: orderId });
+  const parcels = error ? null : parseOrderReshipmentParcels(data);
+  if (!parcels) throw new Error('order_reshipment_parcels_invalid');
+  if (!parcels.length) return [];
+  return orderReshipmentParcelViews(parcels, await getShippingCarrierRegistry());
+}
+
+/**
+ * 교환 소포가 있는 클레임은 소포 목록('교환 배송')이 운송장을 보인다. 클레임 칸에 같은 운송장을 한 번 더 싣지 않고,
+ * 배송완료는 모든 소포가 확인된 때다. 이 기능 전의 클레임 단위 재출고(한 쌍, reshipmentId null)도 소포 목록에 하나로
+ * 오므로 같은 규칙이다 — 클레임 칸과 소포 목록에 같은 택배사·운송장이 두 번 나오지 않는다.
+ */
+function claimReshipmentSummary(parcels: readonly OrderReshipmentParcelView[], claimId: string, stage: string,
+  legacy: { reshipCarrier: string | null; reshipTrackingNumber: string | null; reshipDeliveredAt: string | null }) {
+  const own = parcels.filter(parcel => parcel.claimId === claimId);
+  if (!own.length) return legacy;
+  const delivered = own.every(parcel => parcel.deliveredAt !== null);
+  return {
+    reshipCarrier: null,
+    reshipTrackingNumber: null,
+    reshipDeliveredAt: stage === 'completed' && delivered ? own.map(parcel => parcel.deliveredAt!).sort().at(-1)! : null,
+  };
+}
+
 export async function loadOrderDetail(userId: string, orderId: string): Promise<OrderDetail | null> {
   const gift = await loadGiftCheckoutOrder(userId, orderId);
   if (gift.kind === 'unavailable') return null;
@@ -238,6 +267,9 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
   }
 
   const status = requireDetailStatus(orderData.status);
+  const reshipmentParcelsPromise = loadOrderReshipmentParcels(supabase, orderId);
+  /* 아래 묶음 조회와 함께 진행한다. 실패는 그 뒤 await에서 그대로 던진다(먼저 실패해도 처리되지 않은 거절로 남기지 않는다). */
+  reshipmentParcelsPromise.catch(() => undefined);
   const [itemsResult, paymentResult, ticketsResult, cancellationRequestResult, eligibilityResult, reshipmentResult] = await Promise.all([
     /* 랜덤 판매 굿즈(D5②)는 옵션명 '랜덤'·장바구니 키 옵션으로만 보인다. 배정 옵션은 고객에게 내려오지 않는다. */
     readMyOrderItems<OrderDetailItemRow>(supabase, [orderId],
@@ -272,6 +304,7 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
 
   const reshipmentHistory = reshipmentResult.error ? null : parseOrderReshipmentHistory(reshipmentResult.data);
   if (!reshipmentHistory) throw new Error('order_reshipment_history_invalid');
+  const reshipmentParcels = await reshipmentParcelsPromise;
 
   if (itemsResult.error) {
     throw new Error(`Failed to load order items: ${itemsResult.error.message}`);
@@ -363,6 +396,7 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
         }
       : null,
     reshipmentHistory,
+    reshipmentParcels,
     cancellationRequest: cancellationRequestRow && cancellationRequestStatus
       ? {
           id: cancellationRequestRow.id,
@@ -379,9 +413,11 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
           requestedAt: cancellationRequestRow.requested_at,
           decidedAt: cancellationRequestRow.decided_at,
           decisionNote: cancellationRequestRow.decision_note,
-          reshipCarrier: cancellationRequestRow.reship_carrier,
-          reshipTrackingNumber: cancellationRequestRow.reship_tracking_number,
-          reshipDeliveredAt: cancellationRequestRow.reship_delivered_at ?? null,
+          ...claimReshipmentSummary(reshipmentParcels, cancellationRequestRow.id, cancellationRequestRow.stage, {
+            reshipCarrier: cancellationRequestRow.reship_carrier,
+            reshipTrackingNumber: cancellationRequestRow.reship_tracking_number,
+            reshipDeliveredAt: cancellationRequestRow.reship_delivered_at ?? null,
+          }),
         }
       : null,
     /* 고객은 배송 건 품목의 랜덤 배정 행을 읽지 못한다 — 합친 줄을 my_order_items 의 배송 건에 붙인다. */

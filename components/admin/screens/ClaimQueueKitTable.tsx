@@ -20,22 +20,25 @@ import { Input } from '@/components/admin/kit/ui/input';
 import { Label } from '@/components/admin/kit/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/admin/kit/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/admin/kit/ui/select';
-import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/admin/kit/ui/table';
 import { useConsoleTable, type ConsoleTableState } from '@/components/admin/kit/use-console-table';
 import {
   ADMIN_CLAIM_BULK_ACTION_LABELS,
   ADMIN_CLAIM_BULK_CONVERT,
   ADMIN_CLAIM_BULK_LIMIT,
-  ADMIN_CLAIM_BULK_OUTCOME_LABELS,
+  ADMIN_CLAIM_BULK_RESHIP_LIMIT,
+  ADMIN_CLAIM_BULK_STEP_LABELS,
   adminClaimBulkConversionLabel,
   adminClaimBulkConversionTarget,
+  adminClaimBulkSteps,
   normalizeAdminClaimBulkConversionForm,
   planAdminClaimBulkSubmit,
   type AdminClaimBulkDecision,
   type AdminClaimBulkState,
+  type AdminClaimBulkStep,
 } from '@/lib/admin/claim-bulk';
 import {
   adminClaimHref,
+  adminClaimTodayKst,
   adminClaimReasonOptions,
   adminClaimRejectionPresets,
   adminClaimStageOptions,
@@ -49,7 +52,11 @@ import { ORDER_CLAIM_TYPE_LABELS, type OrderClaimType } from '@/lib/orders/claim
 import { X } from 'lucide-react';
 import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { statusTone } from '@/lib/admin/status-tone';
+import { ClaimBulkStepDialog, type ClaimBulkStepSession } from './ClaimBulkStepDialog';
+import { ClaimKitBulkResult } from './ClaimKitBulkResult';
 import { ClaimPreviewLink } from './ClaimPreviewDialog';
+
+export { ClaimKitBulkResult } from './ClaimKitBulkResult';
 
 /*
  * 취소·반품·교환 목록 — admin kit(shadcn/ui · Base UI · Dice UI data table, ADR-0028).
@@ -57,7 +64,8 @@ import { ClaimPreviewLink } from './ClaimPreviewDialog';
  *
  * 판정은 바뀌지 않는다: 조회는 서버가 `admin_search_order_claims_console`로, 처리는
  * `bulkDecideOrderClaimsAction`과 `bulkConvertClaimTypesAction`이 한 건씩 기존 단건 경로로 한다.
- * 이 파일은 화면만 바꾼다.
+ * 단계 일괄 처리(회수 확인·환불 완료 확정·재출고, 1027T-033·SHEET-049·SHEET-052)는 확인창(ClaimBulkStepDialog)이
+ * 서버가 계산한 건수·합계·제외 사유를 보이고 한 건씩 단건 경로를 태운다. 이 파일은 화면만 바꾼다.
  *
  * 목록 조건은 기존 URL 계약(`adminClaimHref`)을 그대로 쓴다. 표가 바꾼 페이지·정렬·필터는
  * `hrefFor`가 그 계약의 href로 옮기고 서버가 다시 그린다(components/admin/kit/use-console-table.ts).
@@ -321,7 +329,7 @@ function ClaimSearchBox({ field, fieldOptions, onSearch, pending, query, typeLab
       maxLength={100}
       onChange={(event) => setDraft(event.target.value)}
       onKeyDown={(event) => { if (event.key === 'Enter' && event.nativeEvent.isComposing) event.preventDefault(); }}
-      placeholder="주문번호 · 요청번호 · 구매자 · 수취인 · 상품번호"
+      placeholder="주문번호 · 요청번호 · 구매자 · 수취인 · 상품 URL"
       value={draft}
     />
     <Button disabled={pending} type="submit" variant="soft">검색</Button>
@@ -435,6 +443,9 @@ export function ClaimQueueKitTable({
   const [convertOpen, setConvertOpen] = useState(false);
   const [agreement, setAgreement] = useState('');
   const [convertConfirmed, setConvertConfirmed] = useState(false);
+  /* 단계 일괄 처리 확인창과 그 결과. 결과는 창을 닫으면 아래 결과표로 넘어온다. */
+  const [stepSession, setStepSession] = useState<ClaimBulkStepSession | null>(null);
+  const [stepResult, setStepResult] = useState<AdminClaimBulkState | null>(null);
   const typeLabel = ORDER_CLAIM_TYPE_LABELS[claimType];
   const convertFrom = claimType === 'cancel' ? null : claimType;
   const convertTo = convertFrom ? adminClaimBulkConversionTarget(convertFrom) : null;
@@ -463,6 +474,7 @@ export function ClaimQueueKitTable({
   });
 
   const [state, run, deciding] = useActionState(async (previous: AdminClaimBulkState, formData: FormData) => {
+    setStepResult(null);
     let next: AdminClaimBulkState;
     try {
       next = formData.get('decision') === ADMIN_CLAIM_BULK_CONVERT
@@ -517,6 +529,23 @@ export function ClaimQueueKitTable({
     startTransition(() => run(formData));
   }
 
+  /* 확인창을 연다. 확인할 내용(건수·출고지·금액·제외 사유)은 창이 서버에서 읽는다. 입고일 기본값은 연 날의 KST 오늘이다. */
+  function openStep(step: AdminClaimBulkStep) {
+    if (deciding || stepSession) return;
+    const limit = step === 'reship' ? ADMIN_CLAIM_BULK_RESHIP_LIMIT : ADMIN_CLAIM_BULK_LIMIT;
+    if (selectedIds.length > limit) { setClientError(`한 번에 ${limit}건까지 처리할 수 있습니다. 선택을 줄여 다시 실행해주세요.`); return; }
+    setClientError('');
+    setStepSession({ step, claimIds: [...selectedIds], today: adminClaimTodayKst() });
+  }
+
+  /* 창을 닫으면 결과를 목록 아래에 남기고, 실패·미처리 건만 선택에 남겨 다시 처리할 수 있게 한다. */
+  function closeStep(result: AdminClaimBulkState | null) {
+    setStepSession(null);
+    if (!result?.results?.length) return;
+    setStepResult(result);
+    setSelection(Object.fromEntries(result.results.filter((entry) => entry.outcome === 'failed' || entry.outcome === 'skipped').map((entry) => [entry.claimId, true])));
+  }
+
   function onSearch(field: string, query: string) {
     startSearch(() => {
       router.push(adminClaimHref(claimType, {
@@ -565,6 +594,7 @@ export function ClaimQueueKitTable({
         {[
           ADMIN_CLAIM_BULK_ACTION_LABELS.approve,
           ADMIN_CLAIM_BULK_ACTION_LABELS.review,
+          ...adminClaimBulkSteps(claimType).map((step) => ADMIN_CLAIM_BULK_STEP_LABELS[step]),
           ...(convertFrom ? [adminClaimBulkConversionLabel(convertFrom)] : []),
           ADMIN_CLAIM_BULK_ACTION_LABELS.reject,
         ].map((label) => <Button disabled key={label} size="sm" title="왼쪽 체크칸에서 요청을 고르면 화면 아래 막대에서 처리합니다" variant="outline">{label}</Button>)}
@@ -610,6 +640,13 @@ export function ClaimQueueKitTable({
           onSelect={(event) => { event.preventDefault(); decide(decision); }}
           variant={decision === 'approve' ? 'default' : 'secondary'}
         >{ADMIN_CLAIM_BULK_ACTION_LABELS[decision]}</ActionBarItem>)}
+        {/* 단계 처리(회수 확인·환불 완료 확정·재출고)는 확인창에서 건수·금액·제외 사유를 본 뒤 실행한다. */}
+        {adminClaimBulkSteps(claimType).map((step) => <ActionBarItem
+          disabled={deciding || stepSession !== null || overLimit}
+          key={step}
+          onSelect={(event) => { event.preventDefault(); openStep(step); }}
+          variant="secondary"
+        >{ADMIN_CLAIM_BULK_STEP_LABELS[step]}</ActionBarItem>)}
         {convertFrom && convertTo ? <Popover onOpenChange={(open) => { setClientError(''); setConvertOpen(open); }} open={convertOpen}>
           <PopoverTrigger render={<ActionBarItem disabled={deciding || overLimit} onSelect={(event) => event.preventDefault()} variant="secondary" />}>
             {adminClaimBulkConversionLabel(convertFrom)}
@@ -644,29 +681,7 @@ export function ClaimQueueKitTable({
 
     {overLimit ? <p className="text-sm text-destructive" role="alert">한 번에 {ADMIN_CLAIM_BULK_LIMIT}건까지 처리할 수 있습니다. 선택을 줄여주세요.</p> : null}
     {error && !rejectOpen && !convertOpen ? <p className="text-sm text-destructive" role="alert">{adminClaimCopy(error)}</p> : null}
-    <ClaimKitBulkResult previewHrefBase={currentHref} state={state} />
+    <ClaimKitBulkResult previewHrefBase={currentHref} state={stepResult ?? state} />
+    {stepSession ? <ClaimBulkStepDialog claimType={claimType} onClose={closeStep} previewHrefBase={currentHref} session={stepSession} /> : null}
   </div>;
-}
-
-/** 일괄 처리의 건별 결과표. 목록에서 빠진 요청도 남고, 요청번호는 같은 목록 위 팝업을 연다. */
-export function ClaimKitBulkResult({ previewHrefBase, state }: { previewHrefBase: string; state: AdminClaimBulkState }) {
-  if (!state.results?.length) return null;
-  return <section aria-label="일괄 처리 결과" className="flex flex-col gap-2">
-    <p className="text-sm" role="status">{state.summary}</p>
-    <div className="overflow-hidden rounded-lg border">
-      <Table>
-        <TableCaption>일괄 처리 결과</TableCaption>
-        <TableHeader><TableRow><TableHead scope="col">번호</TableHead><TableHead scope="col">결과</TableHead><TableHead scope="col">사유</TableHead></TableRow></TableHeader>
-        <TableBody>
-          {state.results.map((result) => <TableRow data-outcome={result.outcome} key={result.claimId}>
-            <TableCell>{result.reference
-              ? <ClaimPreviewLink href={`${previewHrefBase}&claimId=${result.claimId}`} label={`요청 ${result.reference} 상세 열기`}>{result.reference}</ClaimPreviewLink>
-              : <span className="text-muted-foreground">확인 불가</span>}</TableCell>
-            <TableCell>{ADMIN_CLAIM_BULK_OUTCOME_LABELS[result.outcome]}</TableCell>
-            <TableCell className="whitespace-normal">{adminClaimCopy(result.message)}</TableCell>
-          </TableRow>)}
-        </TableBody>
-      </Table>
-    </div>
-  </section>;
 }

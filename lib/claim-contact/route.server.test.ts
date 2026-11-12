@@ -62,8 +62,9 @@ describe('claim contact route boundaries', () => {
     expect(response.status).toBe(413); privateHeaders(response); expect(mocks.change).not.toHaveBeenCalled();
   });
   it('permits the real 1000-item reshipment shape within 256 KiB and still bounds streamed or declared excess', async () => {
-    const reshipment = { requestId: id(1), orderId: id(2), claimId: id(3), operationId: id(6), signedContext: `cc1.${'a'.repeat(1400)}.${'b'.repeat(43)}`,
-      carrier: '합성택배', trackingNumber: '12345678', items: Array.from({ length: 1000 }, (_, index) => ({ orderItemId: id(1000 + index), variantId: id(2000 + index) })), destinationConfirmed: true, dispatchConfirmed: true };
+    const reshipment = { requestId: id(1), orderId: id(2), claimId: id(3), operationId: id(6), signedContext: `cc1.${'a'.repeat(1400)}.${'b'.repeat(43)}`, shipmentId: id(7),
+      carrier: '합성택배', trackingNumber: '12345678', items: Array.from({ length: 1000 }, (_, index) => ({ orderItemId: id(1000 + index), variantId: id(2000 + index) })),
+      collectionWaiver: { reason: '합성 사진으로 하자를 확인했습니다', evidenceFileIds: [id(8)] }, destinationConfirmed: true, dispatchConfirmed: true };
     const body = JSON.stringify(reshipment); expect(Buffer.byteLength(body)).toBeGreaterThan(16_384); expect(Buffer.byteLength(body)).toBeLessThan(262_144);
     const accepted = await reshipmentRoute.POST(request(body)); expect(accepted.status).toBe(200); privateHeaders(accepted); expect(mocks.reshipment).toHaveBeenCalledExactlyOnceWith(reshipment);
     const streamed = await reshipmentRoute.POST(request(JSON.stringify({ ignored: 'x'.repeat(262_144) }))); expect(streamed.status).toBe(413); privateHeaders(streamed);

@@ -63,7 +63,8 @@ function CollectionPanel({ claimId, operator = false, carriers = [], shipmentLab
       <strong>{operator ? row.originName : claimCollectionRowLabel(row.shipmentId, index, rows.length, shipmentLabels)}</strong><p>{COLLECTION_METHODS[row.method]} · {row.collectedAt ? `회수 확인 ${formatOrderDateTime(row.collectedAt)}` : '회수 확인 전'}</p>
       {row.carrier ? <p>{row.carrierLabel ?? carriers.find(c => c.code === row.carrier)?.label ?? row.carrier} · {row.trackingNumber}</p> : null}
       {operator && row.evidence ? <p>{row.evidence}</p> : null}
-      {operator && document.editable ? <button className="btn btn-sm btn-ghost" disabled={pending || uncertain} type="button" onClick={() => edit(row)}>회수 정보 정정 · {row.originName}</button> : null}
+      {operator && document.editable && !row.reshipped ? <button className="btn btn-sm btn-ghost" disabled={pending || uncertain} type="button" onClick={() => edit(row)}>회수 정보 정정 · {row.originName}</button>
+        : operator && row.reshipped ? <p>이 출고지는 재출고해 회수 정보를 정정할 수 없습니다.</p> : null}
     </div>)}
     {operator && selected ? <form onSubmit={event => { event.preventDefault(); void save(); }}>
       <fieldset disabled={pending || uncertain}>
