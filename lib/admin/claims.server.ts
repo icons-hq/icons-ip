@@ -7,6 +7,7 @@ import 'server-only';
 import { readGoodsCustomInputSnapshot, type GoodsCustomInputSelection } from '@/lib/goods-custom-inputs';
 
 import { createClient } from '@/lib/supabase/server';
+import { parseReturnFeeDeduction, type ReturnFeeDeduction } from '@/lib/claims/return-fee-deduction';
 import {
   isOrderClaimReasonType,
   isOrderClaimRefundMethod,
@@ -318,6 +319,8 @@ export interface AdminClaimDetail {
   order: AdminClaimDetailOrder | null;
   payment: AdminClaimDetailPayment | null;
   refund: AdminClaimDetailRefund | null;
+  /** 반품배송비 차감(ADR-0031) — 접수 전 판정 또는 접수 때 정한 결정. 스위치가 꺼져 있고 결정이 없으면 null. */
+  refundDeduction?: ReturnFeeDeduction | null;
   cardPacks: { issued: number; consumed: number; revoked: number };
   refundAccount: {
     maskedAccount: string;
@@ -540,6 +543,7 @@ export async function loadAdminClaimDetail(
         handlerName: text(refund.handlerName),
       }
       : null,
+    refundDeduction: parseReturnFeeDeduction(data.refundDeduction),
     cardPacks: {
       issued: toNumber(packs?.issued as number | string),
       consumed: toNumber(packs?.consumed as number | string),

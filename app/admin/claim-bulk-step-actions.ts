@@ -119,7 +119,8 @@ export async function previewOrderClaimBulkStepAction(input: unknown): Promise<A
     const rows: AdminClaimBulkRefundRow[] = claimIds.map((claimId) => {
       const context = byId.get(claimId);
       if (!context) return { claimId, reference: '확인 불가', providerLabel: adminClaimBulkProviderLabel(null), amount: null, blocker: CLAIM_MISSING };
-      const base = { claimId, reference: orderClaimReferenceLabel(context.reference), providerLabel: adminClaimBulkProviderLabel(context.paymentProvider), amount: context.refundAmount };
+      const base = { claimId, reference: orderClaimReferenceLabel(context.reference), providerLabel: adminClaimBulkProviderLabel(context.paymentProvider), amount: context.refundAmount,
+        ...(context.refundDeductionAmount ? { deductionAmount: context.refundDeductionAmount } : {}) };
       if (context.claimType !== claimType) return { ...base, blocker: wrongType(claimType) };
       if (context.refundBlocker) return { ...base, blocker: adminClaimBulkRefundBlockerMessage(context.refundBlocker) };
       if (context.refundAmount === null) return { ...base, blocker: adminClaimBulkRefundBlockerMessage('payment_missing') };
