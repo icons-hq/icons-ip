@@ -260,6 +260,15 @@ exact SHA에서 성공한 `production_source_run_id`를 함께 쓴다.
    경우도 이 상태로 전환"; 입금 전이라 잔액이 없고, 웹훅 10초 예산 안에서 fresh 조회 1회를
    더 쓰지 않기 위해서다). 200이 아니거나 본문이 우리 상점·이 결제의 `CANCELED`가 아니면
    `needs_review`다.
+   - **부분 취소**(반품배송비 차감, [ADR-0031](../adr/0031-return-fee-deduction-partial-refund.md) — 스위치가
+     켜진 뒤의 단순 변심 반품만)는 `refund`의 `partial` 요청으로만 발행한다. 원장 결제 키 조회로 상점·키·주문·
+     `totalAmount`와 잔액(`balanceAmount` = 결제액, `DONE`)을 확인한 뒤에만 `cancelAmount`(= 환불액)를 실어
+     취소하고, 사후 조회 잔액이 '결제액 − 환불액'(`PARTIAL_CANCELED`)일 때만 성공이다. 멱등키는 차감 결정마다
+     `refund:{attemptId}:deduction:{requestId}`다(전액 취소 키 `refund:{attemptId}`와 섞지 않는다). 조회가
+     가상계좌·`isPartialCancelable≠true`·과세 제외 금액(`taxExemptionAmount`)이면 취소를 부르지 않고
+     `provider_partial_cancel_unavailable`로 돌려주고, 오케스트레이터가 차감을 전액 환불로 돌린 뒤 전액 취소한다.
+     잔액이 기대와 다르면(다른 취소가 끼어듦) `needs_review`(`provider_balance_mismatch`). 바인딩 이전 결제의
+     전액 취소 수렴 예외는 부분 취소에 적용하지 않는다.
 9. 상점(MID) 대조(결제 UI 바인딩이 켜졌을 때): 승인 200·재확인 조회·reconcile 조회·취소 응답·
    환불 조회의 `Payment.mId`가 키 모드의 허용 MID(라이브 `iconsi0xvd`·`iconsi8sr4`·env로 더한 MID,
    테스트는 각각 `t` 접두)가 아니거나 없으면 어떤 상태든(승인·취소·실패) 그 결제로 attempt를 닫지 않고
@@ -519,8 +528,10 @@ MID가 아니라(`ticonsi0xvd` 등 테스트 MID) `provider_merchant_mismatch`�
   없고 승인 뒤에만 발급됐는지. 확인 표면은 `/admin/sales/orders` 원장과 사용자 주문/티켓 화면이다.
 - **취소·환불**: 클레임 승인이 provider 취소를 자동 발행하고 fresh 조회로 확정되는지.
   `/admin/sales/claims/*` 큐에서 `결제확인필요`(needs_review)로 남는 건은 시스템이
-  추측 종결하지 않았다는 뜻이므로 운영자가 원장을 직접 대조한다. 부분취소는 발행하지 않으므로
-  잔여 balance가 보이면 그 자체가 이상 신호다. 취소 요청의 멱등키는 attempt에서 파생되므로
+  추측 종결하지 않았다는 뜻이므로 운영자가 원장을 직접 대조한다. 부분 취소는 반품배송비 차감
+  ([ADR-0031](../adr/0031-return-fee-deduction-partial-refund.md), 스위치를 켠 뒤의 단순 변심 반품)에서만
+  발행하므로, 그 결정이 없는 건에 잔여 balance가 보이면 그 자체가 이상 신호다(차감 건은 잔액 = 차감액이 정상).
+  켜기 전에 결제 어드민에서 상점의 부분 취소 사용 여부를 확인한다(사람 게이트). 취소 요청의 멱등키는 attempt에서 파생되므로
   같은 건을 다시 눌러도 값이 같고, 토스는 같은 멱등키에 대해 **첫 요청일로부터 15일간 첫
   응답을 그대로 재생**한다(공식문서 123). 실패한 취소는 재시도한다고 결과가 달라지지 않으니
   원인을 먼저 해소한 뒤 다시 요청한다. 오류가 났다고 멱등키만 바꿔 다시 쏘는 것은 문서가
