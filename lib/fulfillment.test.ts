@@ -94,10 +94,13 @@ it('견적 묶음의 택배사 이름은 문자열이거나 null 이다', () => 
 /* S36-038: 상세 배송 안내의 지역별 추가 배송비. 금액은 DB가 주문서 견적 함수로 정한 값 그대로다. */
 describe('good shipping region fee summary', () => {
   const listed: GoodShippingRegionFees = { state: 'listed', regions: [{ label: '제주', minFee: 3000, maxFee: 3000 }, { label: '도서산간', minFee: 5000, maxFee: 7000 }],
-    feeUnit: 'per_shipment', waivedAtFreeThreshold: false, truncated: false, nextChangeAt: null };
+    regionCount: 2, feeUnit: 'per_shipment', waivedAtFreeThreshold: false, nextChangeAt: null };
+  const none: GoodShippingRegionFees = { state: 'none', regions: [], regionCount: 0, feeUnit: null, waivedAtFreeThreshold: false, nextChangeAt: null };
   it('parses the RPC shape and rejects anything that would invent or bend an amount', () => {
     expect(parseGoodShippingRegionFees(listed)).toEqual(listed);
-    expect(parseGoodShippingRegionFees({ ...listed, state: 'none', regions: [], feeUnit: null })).toMatchObject({ state: 'none', regions: [] });
+    expect(parseGoodShippingRegionFees(none)).toEqual(none);
+    expect(parseGoodShippingRegionFees({ ...none, state: 'unresolved' })).toMatchObject({ state: 'unresolved', regions: [] });
+    expect(parseGoodShippingRegionFees({ ...listed, regionCount: 33 })).toMatchObject({ regionCount: 33 });
     for (const broken of [
       { ...listed, regions: [{ label: '제주', minFee: 0, maxFee: 3000 }] },
       { ...listed, regions: [{ label: '제주', minFee: 5000, maxFee: 3000 }] },
@@ -105,27 +108,38 @@ describe('good shipping region fee summary', () => {
       { ...listed, regions: [{ label: '제주', minFee: 3000.5, maxFee: 3000.5 }] },
       { ...listed, state: 'none' },
       { ...listed, regions: [] },
+      { ...listed, regionCount: 1 },
+      { ...listed, regionCount: '2' },
       { ...listed, feeUnit: null },
+      /* 금액을 보이는 것은 배송 묶음당 1회 정책뿐이다. */
+      { ...listed, feeUnit: 'per_good' },
       { ...listed, feeUnit: 'per_order' },
       { ...listed, nextChangeAt: 'later' },
-      { ...listed, truncated: 'no' },
+      { ...listed, waivedAtFreeThreshold: 'no' },
+      { ...none, regionCount: 3 },
       null,
     ]) expect(parseGoodShippingRegionFees(broken)).toBeNull();
   });
-  it('lists regions with their unit and keeps the plain sentence for everything that is not listed', () => {
+  it('lists regions once per shipment and keeps the plain sentence for everything that is not listed', () => {
     expect(shippingRegionFeeDescription(listed)).toBe('지역별 추가 배송비: 제주 +₩3,000 · 도서산간 +₩5,000~₩7,000(배송 묶음당 1회).');
-    expect(shippingRegionFeeDescription({ ...listed, feeUnit: 'per_good', waivedAtFreeThreshold: true }))
-      .toBe('지역별 추가 배송비: 제주 +₩3,000 · 도서산간 +₩5,000~₩7,000(굿즈당 1회, 무료배송 조건을 채우면 면제).');
-    for (const state of ['none', 'unresolved'] as const) expect(shippingRegionFeeDescription({ ...listed, state, regions: [], feeUnit: null })).toBeNull();
+    expect(shippingRegionFeeDescription({ ...listed, waivedAtFreeThreshold: true }))
+      .toBe('지역별 추가 배송비: 제주 +₩3,000 · 도서산간 +₩5,000~₩7,000(배송 묶음당 1회, 무료배송 조건을 채우면 면제).');
+    expect(shippingRegionFeeDescription({ ...listed, feeUnit: 'per_good' })).toBeNull();
+    for (const state of ['none', 'unresolved'] as const) expect(shippingRegionFeeDescription({ ...none, state })).toBeNull();
     expect(shippingRegionFeeDescription(null)).toBeNull();
     expect(shippingRegionFeeDescription(undefined)).toBeNull();
   });
-  it('shortens long region lists without dropping the fact that more regions exist', () => {
-    const many = { ...listed, regions: Array.from({ length: SHIPPING_REGION_FEE_LIST_LIMIT + 3 }, (_, index) => ({ label: `섬${index + 1}`, minFee: 1000 + index, maxFee: 1000 + index })) };
+  /* 리뷰 재현: 지역이 많아도 '외 N개 지역'은 DB가 센 실제 지역 수에서 나온다(받은 목록 길이가 아니다). */
+  it('shortens long region lists with the real region count', () => {
+    const regions = [{ label: '제주', minFee: 3000, maxFee: 3000 }, { label: '나주 도서', minFee: 5000, maxFee: 9000 },
+      ...Array.from({ length: 18 }, (_, index) => ({ label: `합성 섬 ${String(index + 1).padStart(2, '0')}`, minFee: 6001 + index, maxFee: 6001 + index }))];
+    const many = { ...listed, regions, regionCount: 33 };
     const text = shippingRegionFeeDescription(many)!;
-    expect(text).toContain(`섬${SHIPPING_REGION_FEE_LIST_LIMIT}`); expect(text).not.toContain(`섬${SHIPPING_REGION_FEE_LIST_LIMIT + 1} `);
-    expect(text).toContain('외 3개 지역');
-    expect(shippingRegionFeeDescription({ ...listed, truncated: true })).toContain('₩7,000 외 지역(');
+    expect(text.startsWith('지역별 추가 배송비: 제주 +₩3,000 · 나주 도서 +₩5,000~₩9,000 · 합성 섬 01 +₩6,001')).toBe(true);
+    expect(text).toContain(`합성 섬 0${SHIPPING_REGION_FEE_LIST_LIMIT - 2} +`);
+    expect(text).not.toContain(`합성 섬 0${SHIPPING_REGION_FEE_LIST_LIMIT - 1} +`);
+    expect(text).toContain(`외 ${33 - SHIPPING_REGION_FEE_LIST_LIMIT}개 지역(배송 묶음당 1회)`);
+    expect(shippingRegionFeeDescription({ ...listed, regionCount: 5 })).toContain('₩7,000 외 3개 지역(');
   });
   it('carries the template remote area notice through the snapshot and public policy', () => {
     const snapshot = { templateId: 't', templateVersion: 1, code: 'basic', name: '기본', shippingNotice: '배송', returnExchangeNotice: '반품', csName: 'CS', csPhone: '02', csEmail: '' };

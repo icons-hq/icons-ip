@@ -35,7 +35,8 @@ function ShippingGuide({ goods, policy }: { goods: readonly Good[]; policy?: Goo
     .filter(option => option.supply?.mode === 'preorder')
     .map(option => ({ id: option.id, label: `${good.name} · ${option.name}`, date: option.supply!.expectedShipDate })));
   /* 지역별 추가 배송비(S36-038): 이 굿즈의 출고지·택배사에 지금 적용되는 지역 정책이 있을 때만 금액을 싣는다.
-     금액은 DB가 주문서 견적 함수로 지역마다 견적한 값이고, 없으면 지금 문장을 둔다. */
+     지역명·금액은 정책 지역표 그대로이고, 이 굿즈에 붙는지·배송 묶음당 1회·면제는 DB가 주문서 견적 함수로 확인했다.
+     없거나 한 문장으로 말할 수 없으면 지금 문장을 둔다. */
   const regionalFees = shippingRegionFeeDescription(policy?.regionFees);
   return (
     <div className="wc-pdp-guide">

@@ -1,69 +1,25 @@
 -- ==========================================================================
 -- ICONS · 상품 상세 배송 안내의 지역별 추가 배송비(S36-038, 묶음 15)
 --
--- 상세 배송 안내에 '제주 +₩3,000 · 도서산간 +₩5,000'처럼 이 굿즈의 출고지·택배사에
--- 지금 적용되는 활성 지역 정책의 추가료를 싣는다. 규칙이 없으면 화면은 지금 문장을 둔다.
+-- 상세 배송 안내에 '제주 +₩3,000 · 도서산간 +₩5,000~₩7,000(배송 묶음당 1회)'처럼 이
+-- 굿즈의 출고지·현재 기본 택배사에 지금 적용되는 활성 지역 정책의 추가료를 싣는다.
+-- 규칙이 없거나 상세에서 한 문장으로 말할 수 없으면 화면은 지금 문장을 둔다.
 --
--- 금액은 새로 계산하지 않는다. 지역표의 추가료 행마다 그 행에 들어가는 주소 하나로
--- 주문서와 같은 견적 함수를 부른다 — 기존 주문 경로는 private.apply_shipping_region_quote,
--- 새 거래 런타임이 켜져 있으면 private.calculate_goods_transaction_shipping. 견적이 같은
--- 행으로 판정하고 이 굿즈에 붙인 금액(이 굿즈 1개, 무료배송 기준 전)만 싣는다. 그래서
--- 정책 상품·무료배송 상품·개별 배송비 상품의 부과 여부, 부과 단위, 택배사 불일치·정책
--- 공백, 도입 전 출고지가 주문서와 어긋나지 않는다. 무료배송 기준을 채웠을 때 면제되는지도
--- 같은 함수로 기준 금액을 한 번 더 견적해 정한다.
+-- 지역명과 금액은 그 정책 지역표의 '추가료 부과'·0원 초과 행에서 그대로 모은다(같은
+-- 지역명은 최소~최대, 실제 지역 수도 함께). 계산하거나 일부만 고르지 않는다.
+-- 이 굿즈에 추가료가 붙는지, 부과 단위, 무료배송 기준 면제는 주문서와 같은 견적 함수
+-- (private.apply_shipping_region_quote)를 대표 행 하나로 견적해 정한다 — 대표 행
+-- 금액 그대로 붙으면 다른 행도 그 행의 금액 그대로 붙는다(부과 여부·단위는 행이 아니라
+-- 굿즈 배송 유형과 정책 설정이 정한다). 무료배송 기준 금액으로 한 번 더 견적해 0원이면
+-- 면제를 함께 싣는다.
 --
--- 묶음그룹의 자체 지역표나 수령 방식 선택처럼 상세에서 한 금액으로 말할 수 없는 경우는
--- 'unresolved'를 돌려주고 화면은 지금 문장을 둔다. 공개 정보(지역명·금액·부과 단위·
--- 면제 여부·다음 정책 경계)만 싣고 정책 ID·근거 문서·우편번호 구간은 싣지 않는다.
--- 한 번에 견적하는 지역 후보는 30개까지다(넘으면 truncated).
+-- 'unresolved'(지금 문장)로 두는 경우: 새 거래 런타임이 켜져 있음(묶음그룹 지역표·수령
+-- 방식·수량 운임이 행마다 금액을 바꿀 수 있다), 부과 단위가 배송 묶음당 1회가 아님, 견적이
+-- 다른 정책·다른 행·다른 금액으로 판정함. 'none'(지금 문장): 정책이 없음·도입 전 출고지·이
+-- 굿즈에 추가료가 붙지 않음. 공개 정보(지역명·금액·지역 수·면제 여부·다음 정책 경계)만
+-- 싣고 정책 ID·근거 문서·우편번호 구간은 싣지 않는다. 지역 목록은 최소 금액순 20개까지 싣고
+-- regionCount가 실제 지역 수다.
 -- ==========================================================================
-
--- 이 굿즈 1개를 p_destination으로 주문할 때 붙는 지역 추가 배송비. null은 상세에서
--- 한 금액으로 말할 수 없는 경우다(새 거래 런타임의 차단·묶음그룹 지역표).
-create function private.good_shipping_region_probe_fee(
-  p_selected public.goods, p_owner public.goods, p_destination jsonb, p_unit_price bigint,
-  p_runtime_enabled boolean, p_at timestamptz)
-returns numeric
-language plpgsql
-stable
-security definer
-set search_path = ''
-as $function$
-declare lines jsonb; calculation jsonb; fee numeric;
-begin
-  if not p_runtime_enabled then
-    -- 기존 주문 경로(quote_goods_sales_for_address)와 같은 줄 모양. 합산 관계가 있는
-    -- 굿즈는 원상품의 정책을 따른다(기존 경로는 그 굿즈 주문을 막는다).
-    lines := jsonb_build_array(jsonb_build_object('origin_id', p_owner.origin_id, 'good_id', p_owner.id, 'qty', 1,
-      'unit_price', p_unit_price, 'fee_type', p_owner.shipping_fee_type, 'individual_fee', p_owner.individual_fee));
-    return coalesce((private.apply_shipping_region_quote(private.calculate_goods_shipping(lines), lines, p_destination, p_at)
-      #>> '{groups,0,regionalFee}')::numeric, 0);
-  end if;
-  -- 새 거래 런타임은 고른 굿즈 줄을 그대로 넘긴다 — 원상품 합산·수령 방식·수량 운임·
-  -- 묶음그룹은 계산 함수가 스스로 정한다.
-  lines := jsonb_build_array(jsonb_build_object('origin_id', p_selected.origin_id, 'good_id', p_selected.id, 'qty', 1,
-    'unit_price', p_unit_price, 'fee_type', p_selected.shipping_fee_type, 'individual_fee', p_selected.individual_fee));
-  begin
-    calculation := private.calculate_goods_transaction_shipping(lines, p_destination, '{}'::jsonb, p_at);
-  exception when others then
-    return null;
-  end;
-  if calculation->>'state' is distinct from 'calculated' or exists (
-    select 1 from jsonb_array_elements(coalesce(calculation->'rawGroups', '[]'::jsonb)) raw
-    cross join lateral jsonb_array_elements(coalesce(raw->'deliveryTerms', '[]'::jsonb)) term
-    where term #>> '{regionalSource,scope}' = 'group') then
-    return null;
-  end if;
-  select coalesce(sum((component->>'regionalFee')::numeric), 0) into fee
-  from jsonb_array_elements(calculation->'rawGroups') raw
-  cross join lateral jsonb_array_elements(coalesce(raw->'components', '[]'::jsonb)) component
-  where component->>'goodId' = p_selected.id;
-  return fee;
-end;
-$function$;
-
-revoke all on function private.good_shipping_region_probe_fee(public.goods, public.goods, jsonb, bigint, boolean, timestamptz)
-  from public, anon, authenticated, service_role;
 
 create function public.get_good_shipping_region_fees(target_good_id text)
 returns jsonb
@@ -77,21 +33,17 @@ declare
   owner public.goods;
   origin public.fulfillment_origins;
   probe_at timestamptz := statement_timestamp();
-  runtime_enabled boolean;
-  owner_lines jsonb;
-  candidate record;
+  policy private.shipping_region_policies;
+  representative record;
+  lines jsonb;
   destination jsonb;
-  region_group jsonb;
+  quote_group jsonb;
   fee numeric;
-  threshold_fee numeric;
-  probed jsonb := '[]';
-  regions jsonb;
-  fee_unit text;
   waived boolean := false;
-  waiver_checked boolean := false;
-  truncated boolean := false;
-  probes integer := 0;
+  regions jsonb;
+  region_count integer;
   next_change timestamptz;
+  result jsonb;
 begin
   -- 공개 배송 정책(get_good_shipping_policy)과 같은 공개 범위·같은 정책 상품·같은 출고지.
   select g.* into selected
@@ -103,69 +55,86 @@ begin
   select * into owner from public.goods where id = private.goods_aggregation_owner(selected.id);
   select * into origin from public.fulfillment_origins where id = owner.origin_id and is_active;
   if not found then return null; end if;
-  runtime_enabled := coalesce((select runtime.enabled from private.goods_transaction_runtime runtime where runtime.singleton), false);
-  owner_lines := jsonb_build_array(jsonb_build_object('origin_id', owner.origin_id, 'good_id', owner.id, 'qty', 1,
+
+  -- 기존 주문 경로(quote_goods_sales_for_address)와 같은 줄 모양. 합산 관계가 있는 굿즈는
+  -- 원상품의 정책을 따른다(기존 경로는 그 굿즈 주문을 막는다). 단가 0원 = 무료 기준 전.
+  lines := jsonb_build_array(jsonb_build_object('origin_id', owner.origin_id, 'good_id', owner.id, 'qty', 1,
     'unit_price', 0, 'fee_type', owner.shipping_fee_type, 'individual_fee', owner.individual_fee));
   -- 정책 시작·종료·도입 시각이 오면 상세를 다시 읽는다(주소 없는 견적이 같은 경계를 낸다).
-  next_change := (private.apply_shipping_region_quote(private.calculate_goods_shipping(owner_lines), owner_lines, null, probe_at)
+  next_change := (private.apply_shipping_region_quote(private.calculate_goods_shipping(lines), lines, null, probe_at)
     ->>'nextChangeAt')::timestamptz;
+  result := jsonb_build_object('state', 'none', 'regions', '[]'::jsonb, 'regionCount', 0, 'feeUnit', null,
+    'waivedAtFreeThreshold', false, 'nextChangeAt', next_change);
 
-  for candidate in
-    select distinct on (rule->>'regionLabel', (rule->>'amount')::numeric)
-      (rule->>'id')::uuid as rule_id, rule->>'regionLabel' as label, rule->>'postalFrom' as postal_code,
-      rule->>'addressPrefix' as address_prefix
-    from private.shipping_region_policies policy
-    cross join lateral jsonb_array_elements(policy.configuration->'rules') rule
-    where policy.origin_id = origin.id and policy.carrier_code = origin.default_carrier and policy.status = 'active'
-      and policy.starts_at <= probe_at and (policy.ends_at is null or probe_at < policy.ends_at)
-      and rule->>'disposition' = 'surcharge' and (rule->>'amount')::numeric > 0
-    order by rule->>'regionLabel', (rule->>'amount')::numeric, policy.starts_at desc, rule->>'postalFrom', rule->>'addressPrefix'
-  loop
-    if probes >= 30 then truncated := true; exit; end if;
-    probes := probes + 1;
-    -- 행의 첫 우편번호와 주소 시작문구(없으면 아무 기본주소)는 그 행에만 들어간다 —
-    -- 활성 정책은 겹치는 행을 받지 않는다. 견적이 다른 행·다른 판정을 내면 싣지 않는다.
-    destination := jsonb_build_object('postalCode', candidate.postal_code,
-      'address1', coalesce(nullif(candidate.address_prefix, ''), '주소'));
-    region_group := private.apply_shipping_region_quote(private.calculate_goods_shipping(owner_lines), owner_lines, destination, probe_at)
-      ->'groups'->0;
-    continue when region_group->>'regionStatus' is distinct from 'surcharge'
-      or (region_group->>'ruleId')::uuid is distinct from candidate.rule_id;
-    if runtime_enabled then
-      fee := private.good_shipping_region_probe_fee(selected, owner, destination, 0, true, probe_at);
-      if fee is null then
-        return jsonb_build_object('state', 'unresolved', 'regions', '[]'::jsonb, 'feeUnit', null,
-          'waivedAtFreeThreshold', false, 'truncated', false, 'nextChangeAt', next_change);
-      end if;
-    else
-      fee := coalesce((region_group->>'regionalFee')::numeric, 0);
-    end if;
-    continue when fee <= 0;
-    -- 면제 여부는 부과 규칙(굿즈·정책)에 달렸고 지역과 무관하므로 한 번만 견적한다.
-    if not waiver_checked and origin.free_threshold is not null then
-      waiver_checked := true;
-      threshold_fee := private.good_shipping_region_probe_fee(selected, owner, destination, origin.free_threshold, runtime_enabled, probe_at);
-      waived := threshold_fee is not null and threshold_fee = 0;
-    end if;
-    fee_unit := coalesce(fee_unit, region_group->>'feeUnit');
-    probed := probed || jsonb_build_array(jsonb_build_object('label', candidate.label, 'fee', fee));
-  end loop;
+  if coalesce((select runtime.enabled from private.goods_transaction_runtime runtime where runtime.singleton), false) then
+    return result || jsonb_build_object('state', 'unresolved');
+  end if;
 
-  select coalesce(jsonb_agg(jsonb_build_object('label', label, 'minFee', min_fee, 'maxFee', max_fee) order by min_fee, max_fee, label), '[]'::jsonb)
-  into regions
+  select p.* into policy
+  from private.shipping_region_policies p
+  where p.origin_id = origin.id and p.carrier_code = origin.default_carrier and p.status = 'active'
+    and p.starts_at <= probe_at and (p.ends_at is null or probe_at < p.ends_at)
+  order by p.starts_at desc, p.version desc
+  limit 1;
+  if not found then return result; end if;
+
+  -- 대표 행: 0원 초과 추가료 행 중 우편번호·주소 시작문구가 가장 앞선 행. 행의 첫 우편번호와
+  -- 주소 시작문구(없으면 아무 기본주소)는 그 행에만 들어간다 — 활성 정책은 겹치는 행을 받지 않는다.
+  select (rule->>'id')::uuid as rule_id, (rule->>'amount')::numeric as amount,
+    rule->>'postalFrom' as postal_code, rule->>'addressPrefix' as address_prefix
+  into representative
+  from jsonb_array_elements(policy.configuration->'rules') rule
+  where rule->>'disposition' = 'surcharge' and (rule->>'amount')::numeric > 0
+  order by rule->>'postalFrom', rule->>'addressPrefix'
+  limit 1;
+  if not found then return result; end if;
+  destination := jsonb_build_object('postalCode', representative.postal_code,
+    'address1', coalesce(nullif(representative.address_prefix, ''), '주소'));
+
+  quote_group := private.apply_shipping_region_quote(private.calculate_goods_shipping(lines), lines, destination, probe_at)->'groups'->0;
+  -- 도입 전 출고지는 기존 배송비로 확정한다 — 지역료가 없다.
+  if quote_group->>'regionMode' = 'legacy_base_only' then return result; end if;
+  if quote_group->>'regionStatus' is distinct from 'surcharge'
+    or (quote_group->>'policyId')::uuid is distinct from policy.id
+    or (quote_group->>'ruleId')::uuid is distinct from representative.rule_id then
+    return result || jsonb_build_object('state', 'unresolved');
+  end if;
+  fee := (quote_group->>'regionalFee')::numeric;
+  -- 이 굿즈의 배송 유형에는 지역료를 붙이지 않는 정책이다.
+  if fee = 0 then return result; end if;
+  if quote_group->>'feeUnit' is distinct from 'per_shipment' or fee is distinct from representative.amount then
+    return result || jsonb_build_object('state', 'unresolved');
+  end if;
+
+  -- 무료배송 기준 면제: 기준 금액으로 다시 견적해 0원이면 면제, 대표 행 금액 그대로면 면제 없음.
+  if origin.free_threshold is not null then
+    lines := jsonb_set(lines, '{0,unit_price}', to_jsonb(origin.free_threshold));
+    quote_group := private.apply_shipping_region_quote(private.calculate_goods_shipping(lines), lines, destination, probe_at)->'groups'->0;
+    if quote_group->>'regionStatus' is distinct from 'surcharge'
+      or (quote_group->>'ruleId')::uuid is distinct from representative.rule_id
+      or quote_group->>'regionalFee' is null
+      or (quote_group->>'regionalFee')::numeric not in (0, representative.amount) then
+      return result || jsonb_build_object('state', 'unresolved');
+    end if;
+    waived := (quote_group->>'regionalFee')::numeric = 0;
+  end if;
+
+  select count(*)::integer,
+    coalesce(jsonb_agg(jsonb_build_object('label', label, 'minFee', min_fee, 'maxFee', max_fee)
+      order by min_fee, max_fee, label) filter (where position <= 20), '[]'::jsonb)
+  into region_count, regions
   from (
-    select item->>'label' as label, min((item->>'fee')::numeric) as min_fee, max((item->>'fee')::numeric) as max_fee
-    from jsonb_array_elements(probed) item
-    group by item->>'label'
-  ) grouped;
+    select label, min_fee, max_fee, row_number() over (order by min_fee, max_fee, label) as position
+    from (
+      select rule->>'regionLabel' as label, min((rule->>'amount')::numeric) as min_fee, max((rule->>'amount')::numeric) as max_fee
+      from jsonb_array_elements(policy.configuration->'rules') rule
+      where rule->>'disposition' = 'surcharge' and (rule->>'amount')::numeric > 0
+      group by rule->>'regionLabel'
+    ) grouped
+  ) ranked;
 
-  return jsonb_build_object(
-    'state', case when jsonb_array_length(regions) > 0 then 'listed' else 'none' end,
-    'regions', regions,
-    'feeUnit', case when jsonb_array_length(regions) > 0 then fee_unit end,
-    'waivedAtFreeThreshold', jsonb_array_length(regions) > 0 and waived,
-    'truncated', truncated,
-    'nextChangeAt', next_change);
+  return result || jsonb_build_object('state', 'listed', 'regions', regions, 'regionCount', region_count,
+    'feeUnit', 'per_shipment', 'waivedAtFreeThreshold', waived);
 end;
 $function$;
 
@@ -173,6 +142,6 @@ revoke all on function public.get_good_shipping_region_fees(text) from public, a
 grant execute on function public.get_good_shipping_region_fees(text) to anon, authenticated;
 
 comment on function public.get_good_shipping_region_fees(text) is
-  '상품 상세 배송 안내의 지역별 추가 배송비 요약. 금액은 주문서 견적 함수로 지역마다 견적한 값이다.';
+  '상품 상세 배송 안내의 지역별 추가 배송비 요약. 지역명·금액은 활성 정책 지역표 그대로, 부과 여부·단위·면제는 주문서 견적 함수로 확인한다.';
 
 notify pgrst, 'reload schema';

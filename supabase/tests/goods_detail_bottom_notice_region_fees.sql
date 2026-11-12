@@ -150,9 +150,8 @@ reset role;
 select pg_temp.t19_assert(has_function_privilege('anon','public.get_good_shipping_region_fees(text)','execute')
  and has_function_privilege('authenticated','public.get_good_shipping_region_fees(text)','execute')
  and not has_function_privilege('service_role','public.get_good_shipping_region_fees(text)','execute')
- and not has_function_privilege('anon','private.good_shipping_region_probe_fee(public.goods,public.goods,jsonb,bigint,boolean,timestamptz)','execute')
- and not has_function_privilege('authenticated','private.good_shipping_region_probe_fee(public.goods,public.goods,jsonb,bigint,boolean,timestamptz)','execute'),
- 'public summary RPC and private probe grants');
+ and not exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='private' and p.proname='good_shipping_region_probe_fee'),
+ 'public summary RPC grants and no partial per-row probe helper');
 set local role anon;
 select pg_temp.t19_assert((public.get_good_shipping_region_fees('t19-policy')->>'state')='none'
  and jsonb_array_length(public.get_good_shipping_region_fees('t19-policy')->'regions')=0, 'origin without adoption lists no regional fee');
@@ -189,19 +188,20 @@ select pg_temp.t19_assert(:'fees_policy'::jsonb->>'state'='listed'
   jsonb_build_object('label','합성 주소 조건','minFee',2500,'maxFee',2500),
   jsonb_build_object('label','제주','minFee',3000,'maxFee',3000),
   jsonb_build_object('label','도서산간','minFee',5000,'maxFee',7000))
+ and (:'fees_policy'::jsonb->>'regionCount')::int=3
  and :'fees_policy'::jsonb->>'feeUnit'='per_shipment'
  and :'fees_policy'::jsonb->>'waivedAtFreeThreshold'='true'
- and :'fees_policy'::jsonb->>'truncated'='false'
  and (:'fees_policy'::jsonb->>'nextChangeAt')::timestamptz=(:'region_config'::jsonb->>'endsAt')::timestamptz,
- 'policy good lists surcharge regions only, cheapest first, with unit, waiver and the next policy boundary');
+ 'policy good lists every surcharge label from the table, cheapest first, with count, unit, waiver and the next policy boundary');
 select pg_temp.t19_assert((select array_agg(key order by key) from jsonb_object_keys(:'fees_policy'::jsonb) key)
-  =array['feeUnit','nextChangeAt','regions','state','truncated','waivedAtFreeThreshold']
+  =array['feeUnit','nextChangeAt','regionCount','regions','state','waivedAtFreeThreshold']
  and (select bool_and((select array_agg(key order by key) from jsonb_object_keys(region) key)=array['label','maxFee','minFee'])
   from jsonb_array_elements(:'fees_policy'::jsonb->'regions') region), 'minimal public projection');
 select pg_temp.t19_assert(:'fees_individual'::jsonb->'regions'=:'fees_policy'::jsonb->'regions'
+ and (:'fees_individual'::jsonb->>'regionCount')::int=3
  and :'fees_individual'::jsonb->>'waivedAtFreeThreshold'='false', 'individual fee good is charged and not waived by the free threshold');
 select pg_temp.t19_assert(:'fees_free'::jsonb->>'state'='none' and jsonb_array_length(:'fees_free'::jsonb->'regions')=0
- and :'fees_free'::jsonb->'feeUnit'='null'::jsonb, 'free shipping good is not charged under this policy');
+ and (:'fees_free'::jsonb->>'regionCount')::int=0 and :'fees_free'::jsonb->'feeUnit'='null'::jsonb, 'free shipping good is not charged under this policy');
 select pg_temp.t19_assert(:'fees_legacy'::jsonb->>'state'='none' and :'fees_legacy'::jsonb->'nextChangeAt'='null'::jsonb,
  'origin without a region policy keeps the plain sentence');
 select pg_temp.t19_assert(public.get_good_shipping_region_fees('t19-hidden') is null and public.get_good_shipping_region_fees('t19-missing') is null,
@@ -213,21 +213,58 @@ select pg_temp.t19_assert(
  and (public.quote_goods_shipping_for_address(pg_temp.t19_items('t19-policy'),pg_temp.t19_destination('40230','경상북도 합성군 합성읍 1'))#>>'{groups,0,regionalFee}')::int=7000
  and (public.quote_goods_shipping_for_address(pg_temp.t19_items('t19-policy'),pg_temp.t19_destination('54005','합성시 검증구 검증로 2'))#>>'{groups,0,regionalFee}')::int=2500
  and (public.quote_goods_sales_for_address(pg_temp.t19_items('t19-policy'),pg_temp.t19_destination('63100','제주특별자치도 합성시 합성로 1'))#>>'{shipping,groups,0,regionalFee}')::int=3000
+ and (public.quote_goods_sales_for_address(pg_temp.t19_items('t19-policy'),pg_temp.t19_destination('40230','경상북도 합성군 합성읍 1'))#>>'{shipping,groups,0,regionalFee}')::int=7000
  and (public.quote_goods_sales_for_address(pg_temp.t19_items('t19-individual'),pg_temp.t19_destination('40230','경상북도 합성군 합성읍 1'))#>>'{shipping,groups,0,regionalFee}')::int=7000
+ and (public.quote_goods_sales_for_address(pg_temp.t19_items('t19-individual'),pg_temp.t19_destination('54005','합성시 검증구 검증로 2'))#>>'{shipping,groups,0,regionalFee}')::int=2500
  and (public.quote_goods_sales_for_address(pg_temp.t19_items('t19-free'),pg_temp.t19_destination('63100','제주특별자치도 합성시 합성로 1'))#>>'{shipping,groups,0,regionalFee}')::int=0,
  'listed amounts equal the checkout quote for an address in each region');
 -- 무료배송 기준(30,000원)을 채우면 정책 굿즈의 지역 추가 배송비가 면제된다(waivedAtFreeThreshold).
-select pg_temp.t19_assert((public.quote_goods_shipping_for_address(pg_temp.t19_items('t19-policy',3),pg_temp.t19_destination('63100','제주특별자치도 합성시 합성로 1'))#>>'{groups,0,regionalFee}')::int=0
- and (public.quote_goods_shipping_for_address(pg_temp.t19_items('t19-individual',6),pg_temp.t19_destination('63100','제주특별자치도 합성시 합성로 1'))#>>'{groups,0,regionalFee}')::int=3000,
+select pg_temp.t19_assert((public.quote_goods_sales_for_address(pg_temp.t19_items('t19-policy',3),pg_temp.t19_destination('63100','제주특별자치도 합성시 합성로 1'))#>>'{shipping,groups,0,regionalFee}')::int=0
+ and (public.quote_goods_sales_for_address(pg_temp.t19_items('t19-individual',6),pg_temp.t19_destination('63100','제주특별자치도 합성시 합성로 1'))#>>'{shipping,groups,0,regionalFee}')::int=3000,
  'the waiver flag matches the checkout at the free threshold');
 reset role;
 
--- 굿즈마다 부과하는 정책은 단위를 바꿔 싣는다.
+-- 리뷰 재현 1·2: 지역명·금액 쌍이 30개를 넘어도 모든 지역을 센다. 제주를 빠뜨리거나 최저 금액을 바꾸지 않고,
+-- 같은 지역명의 5,000/9,000 두 행은 최소~최대로 묶는다. 목록은 최소 금액순 20개, regionCount는 실제 지역 수다.
+savepoint t19_many;
+update private.shipping_region_policies set configuration=jsonb_set(configuration,'{rules}',jsonb_build_array(
+  jsonb_build_object('id',gen_random_uuid(),'postalFrom','63000','postalTo','63644','addressPrefix','','regionLabel','제주','disposition','surcharge','amount',3000),
+  jsonb_build_object('id',gen_random_uuid(),'postalFrom','58800','postalTo','58810','addressPrefix','','regionLabel','나주 도서','disposition','surcharge','amount',5000),
+  jsonb_build_object('id',gen_random_uuid(),'postalFrom','58900','postalTo','58910','addressPrefix','','regionLabel','나주 도서','disposition','surcharge','amount',9000))||(
+ select jsonb_agg(jsonb_build_object('id',gen_random_uuid(),'postalFrom',(70000+n*10)::text,'postalTo',(70000+n*10+5)::text,
+  'addressPrefix','','regionLabel','합성 섬 '||lpad(n::text,2,'0'),'disposition','surcharge','amount',6000+n) order by n)
+ from generate_series(1,31) n)) where id=:'region_policy_id';
+select private.assert_shipping_region_policy_complete(configuration) from private.shipping_region_policies where id=:'region_policy_id';
+set local role anon;
+select public.get_good_shipping_region_fees('t19-policy') as fees_many \gset
+select pg_temp.t19_assert(:'fees_many'::jsonb->>'state'='listed'
+ and (:'fees_many'::jsonb->>'regionCount')::int=33
+ and jsonb_array_length(:'fees_many'::jsonb->'regions')=20
+ and :'fees_many'::jsonb->'regions'->0=jsonb_build_object('label','제주','minFee',3000,'maxFee',3000)
+ and :'fees_many'::jsonb->'regions'->1=jsonb_build_object('label','나주 도서','minFee',5000,'maxFee',9000)
+ and :'fees_many'::jsonb->'regions'->2=jsonb_build_object('label','합성 섬 01','minFee',6001,'maxFee',6001)
+ and :'fees_many'::jsonb->'regions'->19=jsonb_build_object('label','합성 섬 18','minFee',6018,'maxFee',6018)
+ and not (:'fees_many'::jsonb ? 'truncated'),
+ 'more than 30 label/amount pairs: every label counted, cheapest region kept, same label folded to min~max');
+select pg_temp.t19_assert(
+ (public.quote_goods_sales_for_address(pg_temp.t19_items('t19-policy'),pg_temp.t19_destination('63100','제주특별자치도 합성시 합성로 1'))#>>'{shipping,groups,0,regionalFee}')::int=3000
+ and (public.quote_goods_sales_for_address(pg_temp.t19_items('t19-policy'),pg_temp.t19_destination('58805','전라남도 합성군 도서면 1'))#>>'{shipping,groups,0,regionalFee}')::int=5000
+ and (public.quote_goods_sales_for_address(pg_temp.t19_items('t19-policy'),pg_temp.t19_destination('58905','전라남도 합성군 도서면 2'))#>>'{shipping,groups,0,regionalFee}')::int=9000
+ and (public.quote_goods_sales_for_address(pg_temp.t19_items('t19-policy'),pg_temp.t19_destination('70013','합성도 합성군 1'))#>>'{shipping,groups,0,regionalFee}')::int=6001
+ and (public.quote_goods_sales_for_address(pg_temp.t19_items('t19-policy'),pg_temp.t19_destination('70312','합성도 합성군 31'))#>>'{shipping,groups,0,regionalFee}')::int=6031,
+ 'many-region amounts, including the folded 5,000/9,000 rows and regions past the first 20, equal the checkout quote');
+reset role;
+rollback to savepoint t19_many;
+
+-- 굿즈마다 부과하는 정책은 배송 묶음당 1회 문장으로 말할 수 없다 — 지금 문장(unresolved).
 savepoint t19_per_good;
 update private.shipping_region_policies set configuration=configuration||'{"feeUnit":"per_good"}' where id=:'region_policy_id';
 set local role anon;
-select pg_temp.t19_assert(public.get_good_shipping_region_fees('t19-policy')->>'feeUnit'='per_good'
- and public.get_good_shipping_region_fees('t19-policy')->'regions'=:'fees_policy'::jsonb->'regions', 'per-good unit');
+select pg_temp.t19_assert(public.get_good_shipping_region_fees('t19-policy')->>'state'='unresolved'
+ and jsonb_array_length(public.get_good_shipping_region_fees('t19-policy')->'regions')=0
+ and (public.get_good_shipping_region_fees('t19-policy')->>'regionCount')::int=0
+ and (public.quote_goods_sales_for_address(pg_temp.t19_items('t19-policy')||pg_temp.t19_items('t19-individual'),
+   pg_temp.t19_destination('63100','제주특별자치도 합성시 합성로 1'))#>>'{shipping,groups,0,regionalFee}')::int=6000, 'per-good unit is unresolved');
 reset role;
 rollback to savepoint t19_per_good;
 
@@ -239,6 +276,17 @@ select pg_temp.t19_assert(public.get_good_shipping_region_fees('t19-policy')->>'
 reset role;
 rollback to savepoint t19_carrier;
 
+-- 도입 예정 출고지는 그 시각 전까지 기존 배송비로 확정한다 — 지역료가 없고 도입 시각에 다시 읽는다.
+savepoint t19_adoption;
+update private.shipping_region_adoptions set managed_from=now()+interval '2 hours' where origin_id='97190000-0000-4000-8000-000000000101';
+set local role anon;
+select pg_temp.t19_assert(public.get_good_shipping_region_fees('t19-policy')->>'state'='none'
+ and (public.get_good_shipping_region_fees('t19-policy')->>'nextChangeAt')::timestamptz=now()+interval '2 hours'
+ and (public.quote_goods_sales_for_address(pg_temp.t19_items('t19-policy'),pg_temp.t19_destination('63100','제주특별자치도 합성시 합성로 1'))#>>'{shipping,groups,0,regionalFee}')::int=0,
+ 'scheduled adoption lists nothing until it starts');
+reset role;
+rollback to savepoint t19_adoption;
+
 -- 19금 굿즈는 인증 전 세션에 상세 데이터가 없다.
 savepoint t19_adult;
 update public.goods set sale_restriction='adult' where id='t19-policy';
@@ -247,25 +295,14 @@ select pg_temp.t19_assert(public.get_good_shipping_region_fees('t19-policy') is 
 reset role;
 rollback to savepoint t19_adult;
 
--- 새 거래 런타임이 켜져 있으면 그 계산 함수의 금액을 싣는다(같은 단순 굿즈는 같은 금액).
+-- 새 거래 런타임은 묶음그룹 지역표·수령 방식·수량 운임이 행마다 금액을 바꿀 수 있어 지금 문장(unresolved)이다.
 savepoint t19_runtime;
 update private.goods_transaction_runtime set enabled=true where singleton;
 set local role anon;
-select pg_temp.t19_assert(public.get_good_shipping_region_fees('t19-policy')=:'fees_policy'::jsonb
- and public.get_good_shipping_region_fees('t19-free')->>'state'='none', 'transaction runtime yields the same summary for simple goods');
+select pg_temp.t19_assert(public.get_good_shipping_region_fees('t19-policy')->>'state'='unresolved'
+ and jsonb_array_length(public.get_good_shipping_region_fees('t19-policy')->'regions')=0
+ and public.get_good_shipping_region_fees('t19-free')->>'state'='unresolved', 'transaction runtime is unresolved');
 reset role;
 rollback to savepoint t19_runtime;
-
--- 지역 후보는 30개까지만 견적한다.
-savepoint t19_many;
-update private.shipping_region_policies set configuration=jsonb_set(configuration,'{rules}',(configuration->'rules')||(
- select jsonb_agg(jsonb_build_object('id',gen_random_uuid(),'postalFrom',lpad((70000+n*10)::text,5,'0'),'postalTo',lpad((70000+n*10+5)::text,5,'0'),
-  'addressPrefix','','regionLabel','합성 섬 '||lpad(n::text,2,'0'),'disposition','surcharge','amount',4000+n))
- from generate_series(1,32) n)) where id=:'region_policy_id';
-set local role anon;
-select pg_temp.t19_assert(public.get_good_shipping_region_fees('t19-policy')->>'truncated'='true'
- and jsonb_array_length(public.get_good_shipping_region_fees('t19-policy')->'regions') between 1 and 30, 'candidate cap');
-reset role;
-rollback to savepoint t19_many;
 
 rollback;

@@ -17,7 +17,7 @@ describe('server shipping read boundary',()=>{
   /* S36-038: 지역별 추가 배송비 요약은 같은 굿즈로 함께 읽고, 읽지 못하거나 어긋나면 금액 없이 정책만 둔다. */
   it('attaches the region fee summary only when it reads back cleanly',async()=>{
     const policy={originId:'origin',originName:'창고',baseFee:3000,freeThreshold:30000,feeType:'policy',individualFee:0};
-    const fees={state:'listed',regions:[{label:'제주',minFee:3000,maxFee:3000}],feeUnit:'per_shipment',waivedAtFreeThreshold:true,truncated:false,nextChangeAt:'2026-12-01T00:00:00Z'};
+    const fees={state:'listed',regions:[{label:'제주',minFee:3000,maxFee:3000}],regionCount:1,feeUnit:'per_shipment',waivedAtFreeThreshold:true,nextChangeAt:'2026-12-01T00:00:00Z'};
     let regionResult:unknown={data:fees,error:null};
     mocks.rpc.mockImplementation(async(name:string)=>name==='get_good_shipping_policy'?{data:policy,error:null}:regionResult);
     expect(await loadGoodShippingPolicy('good')).toEqual({...policy,regionFees:fees});

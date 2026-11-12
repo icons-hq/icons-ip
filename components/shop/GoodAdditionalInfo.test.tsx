@@ -51,11 +51,11 @@ describe('GoodAdditionalInfo', () => {
     expect(plain).toContain(plainSentence);
     expect(plain).not.toContain('지역별 추가 배송비');
     const none = renderToStaticMarkup(<GoodAdditionalInfo notice={notice} goods={[good]} shippingPolicy={{ ...policy, remoteAreaNotice: '',
-      regionFees: { state: 'none', regions: [], feeUnit: null, waivedAtFreeThreshold: false, truncated: false, nextChangeAt: null } }} />);
+      regionFees: { state: 'none', regions: [], regionCount: 0, feeUnit: null, waivedAtFreeThreshold: false, nextChangeAt: null } }} />);
     expect(none).toBe(plain);
     const listed = renderToStaticMarkup(<GoodAdditionalInfo notice={notice} goods={[good]} shippingPolicy={{ ...policy, remoteAreaNotice: '제주·도서산간은 1~2일 더 걸립니다.\n일부 섬은 배송이 제한될 수 있습니다.',
-      regionFees: { state: 'listed', regions: [{ label: '제주', minFee: 3000, maxFee: 3000 }, { label: '도서산간', minFee: 5000, maxFee: 5000 }], feeUnit: 'per_shipment',
-        waivedAtFreeThreshold: true, truncated: false, nextChangeAt: null } }} />);
+      regionFees: { state: 'listed', regions: [{ label: '제주', minFee: 3000, maxFee: 3000 }, { label: '도서산간', minFee: 5000, maxFee: 5000 }], regionCount: 2, feeUnit: 'per_shipment',
+        waivedAtFreeThreshold: true, nextChangeAt: null } }} />);
     expect(listed).toContain('<li>지역별 추가 배송비: 제주 +₩3,000 · 도서산간 +₩5,000(배송 묶음당 1회, 무료배송 조건을 채우면 면제). 최종 배송비는 주문서에서 주소를 입력한 뒤 확인합니다. 배송 가능 여부와 최종 배송비를 확인해야 주문할 수 있습니다.</li>');
     expect(listed).not.toContain(plainSentence);
     expect(listed).toContain('<li style="white-space:pre-wrap">제주·도서산간은 1~2일 더 걸립니다.\n일부 섬은 배송이 제한될 수 있습니다.</li>');
