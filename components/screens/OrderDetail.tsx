@@ -218,6 +218,7 @@ export function OrderDetail({
   retry = null,
   refundDeduction = null,
   returnFeePolicy = null,
+  returnPickup = false,
 }: {
   viewerId?: string;
   /** 결제 대기이거나 결제 없이 닫힌 장바구니·바로구매 카드 주문의 다시 결제 진입(QA1 S-D2-15). 아니면 null. */
@@ -240,6 +241,8 @@ export function OrderDetail({
   /** 반품배송비 차감 결정(ADR-0031). 결정이 없으면 null — 아무것도 그리지 않는다. */
   refundDeduction?: MyOrderRefundDeduction | null;
   returnFeePolicy?: ReturnFeeDeductionPolicy | null;
+  /** 진행 중 반품·교환이 방문 회수(반품 자동 회수 접수, QNA-032)인지. 꺼져 있으면 false — 지금 반송 안내 그대로다. */
+  returnPickup?: boolean;
 }) {
   const date = formatOrderDate(order.createdAt);
   const at = now ?? new Date();
@@ -411,6 +414,7 @@ export function OrderDetail({
               eligibility={order.claimEligibility}
               orderId={order.id}
               returnFeePolicy={returnFeePolicy}
+              returnPickup={returnPickup}
               status={order.status}
             />
           ) : null}

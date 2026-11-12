@@ -14,6 +14,8 @@ const mocks = vi.hoisted(() => ({ gate: vi.fn(), list: vi.fn(), workspace: vi.fn
 vi.mock('@/lib/admin/guard.server', () => ({ requireAdminScreenAccess: mocks.gate }));
 vi.mock('@/lib/admin/claims.server', () => ({ getAdminClaimConsoleData: mocks.list }));
 vi.mock('@/lib/admin/claim-preview.server', () => ({ loadAdminClaimWorkspace: mocks.workspace }));
+/* 반품 자동 회수 접수·반품입고 회신 칸(QNA-032·QNA-034)은 스위치가 꺼진 상태로 읽는다 — 목록은 지금과 같다. */
+vi.mock('@/lib/admin/claim-return-operations.server', () => ({ loadClaimReturnOperations: async () => ({ pickup: { enabled: false }, intake: { enabled: false } }) }));
 vi.mock('next/navigation', () => ({
   notFound: () => { throw new Error('notFound'); },
   redirect: (href: string) => { throw new Error(`redirect:${href}`); },

@@ -94,7 +94,10 @@ function ReturnGuide({ policy }: { policy?: GoodShippingPolicy | null }) {
         {policy?.returnAddress && <li>교환·반품지: {policy.returnAddress} · 주문 상세에서 교환·반품을 신청하고 승인 안내를 받은 뒤 보내주세요.</li>}
         {policy?.cs && (policy.cs.name || policy.cs.phone || policy.cs.email) && <li>고객센터: {[policy.cs.name, policy.cs.phone, policy.cs.email].filter(Boolean).join(' · ')}</li>}
         <li>굿즈를 받은 날부터 7일 이내에 청약철회를 신청할 수 있습니다.</li>
-        <li>단순 변심으로 반품하는 경우 반송비는 구매자가 부담하며 착불로 보내주세요.</li>
+        {/* 반품 자동 회수 접수(QNA-032)가 이 굿즈의 출고지에 켜져 있으면 착불 반송 대신 방문 회수를 안내한다(스위치에 묶음). */}
+        {policy?.returnPickup
+          ? <li>단순 변심으로 반품하는 경우 반송비는 구매자가 부담합니다. 교환·반품이 승인되면 택배 기사가 방문해 회수하니 굿즈를 포장해 두세요.</li>
+          : <li>단순 변심으로 반품하는 경우 반송비는 구매자가 부담하며 착불로 보내주세요.</li>}
         <li>굿즈가 파손·오배송된 경우에는 반송비를 ICONS가 부담합니다.</li>
         <li>사용·훼손해 재판매가 어려워진 굿즈는 청약철회가 제한될 수 있습니다.</li>
       </ul>

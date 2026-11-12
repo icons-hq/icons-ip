@@ -18,6 +18,7 @@ type Request = { shipmentId: string; revision: number; claimRevision: number; va
  * 회수 주소(S36-040·QNA-031): 승인 뒤 배송 묶음마다 승인 때 고정한 회수 주소. 한 배송 묶음 안에서 굿즈마다 반품지가 다르면
  * 반품지별로 나눠 보이고, 고객은 나눠 보낸다. 회수 생략 배송 건(하자·오배송 교환, ADR-0041)은 고객에게 주소 대신 반송이
  * 필요 없다고 말한다. 선물 주문은 받는 분만 이 문서를 읽는다(read_my_claim_collection_plan).
+ * 반품 자동 회수 접수(QNA-032)로 택배사에 접수된 묶음은 방문 회수와 회수 송장을 함께 보인다(접수되지 않은 묶음은 지금과 같다).
  */
 export function ClaimReturnBundles({ row, operator }: { row: ClaimCollectionRow; operator: boolean }) {
   if (row.collectionWaived && !operator) return <p data-claim-collection-waived="">회수 없이 다시 보내드려요. 이 배송 묶음의 굿즈는 반송하지 않아도 됩니다.</p>;
@@ -29,6 +30,7 @@ export function ClaimReturnBundles({ row, operator }: { row: ClaimCollectionRow;
       <small>{bundles.length > 1 ? `회수 주소 ${index + 1}/${bundles.length}` : '회수 주소'}{bundle.collectedAt ? ` · 입고 확인 ${formatOrderDateTime(bundle.collectedAt)}` : ''}</small>
       <span>{bundle.returnName ? `${bundle.returnName} · ` : ''}{bundle.returnAddress || '판매자가 회수 주소를 따로 안내합니다.'}{bundle.returnPhone ? ` · ${bundle.returnPhone}` : ''}</span>
       <small>{bundle.items.map(item => `${item.name} ${item.qty}개`).join(', ')}</small>
+      {bundle.pickup ? <small data-claim-return-pickup="">방문 회수 접수 · {bundle.pickup.carrierLabel ?? bundle.pickup.carrier} 회수 송장 {bundle.pickup.trackingNumber}</small> : null}
     </li>)}</ul> : null}
   </>;
 }
