@@ -92,7 +92,9 @@ revoke all on function private.stock_reconcile_holders() from public,anon,authen
 
 -- 옵션(지금 재고를 가진 옵션)별 실물 흐름. 위 머리말의 네 항을 돌려준다.
 -- 재고를 실제로 뺀 품목만 센다: 재고 판매 품목, 예약판매는 실물을 배정한(allocated·이후 복원된 returned) 품목.
--- 취소 배송 건·디지털 파일은 창고 실물이 아니다. 배송 건이 없으면 주문 상태·시각으로 출고 여부를 본다.
+-- 디지털 파일과 출고 전에 취소된 배송 건은 창고 실물의 흐름이 아니다. 출고 뒤 환불로 주문이 취소되면 주문 취소 트리거
+-- (private.cancel_order_shipments)가 배송 건을 취소로 바꾸되 출고 시각은 남긴다. 출고 시각이 있는 취소 배송 건은 창고를 떠난
+-- 실물이라 출고·복원·회수에 그대로 센다(아래 회수 판정 collected와 같은 기준). 배송 건이 없으면 주문 상태·시각으로 출고 여부를 본다.
 create function private.stock_reconcile_flows(p_variant_ids uuid[],p_as_of timestamptz)
 returns table(variant_id uuid,pending_qty bigint,shipped_since_qty bigint,returned_since_qty bigint,awaiting_return_qty bigint)
 language sql stable security definer set search_path='' as $$
@@ -112,7 +114,7 @@ language sql stable security definer set search_path='' as $$
     join public.orders o on o.id=oi.order_id
     left join public.order_shipment_items si on si.order_item_id=oi.id
     left join public.order_shipments s on s.id=si.shipment_id
-    where (s.id is null or (s.status<>'canceled' and s.fulfillment_partition<>'digital'))
+    where (s.id is null or (s.fulfillment_partition<>'digital' and (s.status<>'canceled' or s.shipped_at is not null)))
       and (oi.supply_source='stock' or exists(select 1 from private.goods_preorder_reservations r
         where r.order_item_id=oi.id and r.state in ('allocated','returned')))
   ), restorations as (
