@@ -23,7 +23,7 @@ export function GoodIdentifierFields({ ipId, name, code='', defaultVariantCode='
   const fields=[
     {key:'code' as const,label:ADMIN_VOCABULARY.goodsCode,placeholder:suggestion?.code,limit:100},
     {key:'defaultVariantCode' as const,label:ADMIN_VOCABULARY.optionCode,placeholder:suggestion?.defaultVariantCode,limit:120},
-    {key:'id' as const,label:'상품 URL',placeholder:suggestion?.slug,limit:64},
+    {key:'id' as const,label:ADMIN_VOCABULARY.goodsUrl,placeholder:suggestion?.slug,limit:64},
   ];
   /* AdminFormGrid와 같은 격자(ADR-0028). 라벨이 입력·도움말을 함께 감싸 누르는 자리가 넓다. */
   return <fieldset className="m-0 grid min-w-0 gap-x-6 gap-y-5 border-0 p-0 [grid-template-columns:repeat(auto-fit,minmax(min(100%,max(16rem,calc((100%-1.5rem)/2))),1fr))]" data-good-identifier-fields="">
