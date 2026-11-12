@@ -37,6 +37,7 @@ import { ClaimWithdrawal } from '@/components/orders/ClaimWithdrawal';
 import { ClaimTypeConversion } from '@/components/admin/ClaimTypeConversion';
 import { ClaimReasonChange } from '@/components/admin/ClaimReasonChange';
 import { ClaimActionPanel } from './ClaimActionPanel';
+import type { ClaimDefectiveStock } from '@/lib/admin/defective-stock';
 import { ClaimPreviewFullScreenLink } from './ClaimPreviewDialog';
 import { ClaimOperationalFeePanel } from './ClaimOperationalFeePanel';
 import { ClaimReshipmentDelivery } from './ClaimReshipmentDelivery';
@@ -183,6 +184,7 @@ export function ClaimDetailScreen({
   backHref,
   carriers,
   cancellationForm,
+  defectiveStock = null,
   detail,
   detailHref,
   embedded = false,
@@ -193,6 +195,8 @@ export function ClaimDetailScreen({
   carriers: ShippingCarrierRegistry;
   /** 코페이 취소 접수 양식. 카드 결제가 아니면 null이다. */
   cancellationForm: string | null;
+  /** 반품 품목별 재고 처리 선택(QNA-035). 반품이 아니면 null. */
+  defectiveStock?: ClaimDefectiveStock | null;
   detail: AdminClaimDetail;
   /** 팝업(embedded)에서 같은 요청을 전체 화면 상세로 여는 주소. */
   detailHref?: string;
@@ -445,6 +449,7 @@ export function ClaimDetailScreen({
                 actorId={actorId}
                 refundAmount={refund?.amount ?? refundDeduction?.refundAmount ?? order?.total ?? null}
                 refundDeduction={refundDeduction}
+                defectiveStock={defectiveStock}
                 requestSummary={exchangeRequest}
                 bankTransfer={payment?.provider === 'bank_transfer'}
                 key={claim.id}

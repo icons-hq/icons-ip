@@ -25,7 +25,7 @@ export const ADMIN_QA_ROUTES = [
   ['catalog/groups', '그룹상품 조회/수정'], ['catalog/groups/new?mode=assemble', '그룹상품 등록'],
   ['catalog/goods/import', '상품 일괄등록'], ['catalog/goods/export', '상품 엑셀 내보내기'],
   ['catalog/categories', '카테고리 관리'], ['catalog/erp-items', 'ERP 품목'], ['catalog/notice-presets', '상품정보제공고시 템플릿 관리'],
-  ['catalog/stock-reconcile', '재고 대조'],
+  ['catalog/stock-reconcile', '재고 대조'], ['catalog/defective-stock', '불량 재고'],
   ['catalog/event-templates', '이벤트 템플릿 관리'], ['catalog/category-templates', '자주 쓰는 카테고리 관리'],
   ['catalog/after-sales-templates', 'A/S 템플릿 관리'], ['catalog/size-templates', '사이즈 템플릿 관리'],
   ['catalog/announcements', '상품공지사항 관리'], ['catalog/photos', '사진 보관함'],

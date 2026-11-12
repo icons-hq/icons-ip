@@ -9,13 +9,16 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/admin/kit/ui/input';
 import { Label } from '@/components/admin/kit/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/admin/kit/ui/table';
+import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
+import { STOCK_DISPOSITION_LABELS } from '@/lib/admin/defective-stock';
 import { useAdminLeaveGuard } from '@/components/admin/useAdminLeaveGuard';
 import {
   ADMIN_CLAIM_BULK_STEP_LABELS,
   adminClaimBulkCollectTargetKey,
   adminClaimBulkCollectTargetLabel,
   adminClaimBulkContinuation,
+  adminClaimBulkDefectiveItemIds,
   adminClaimBulkSummary,
   type AdminClaimBulkCollectRow,
   type AdminClaimBulkResult,
@@ -129,6 +132,8 @@ function ClaimBulkPreviewDialog({ claimType, onClose, previewHrefBase, session }
   const [evidence, setEvidence] = useState('');
   /* 확인창에서 뺀 출고지(요청:배송 건). 기본은 남은 출고지 전부를 확인한다. */
   const [unchecked, setUnchecked] = useState<Record<string, boolean>>({});
+  /* 환불 확인창의 불량 선택(품목 id → 불량). 기본은 판매 재고 복원이다(QNA-035). */
+  const [defective, setDefective] = useState<Record<string, boolean>>({});
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState(0);
   const [inputError, setInputError] = useState('');
@@ -167,7 +172,11 @@ function ClaimBulkPreviewDialog({ claimType, onClose, previewHrefBase, session }
   }
 
   async function runRefund(rows: AdminClaimBulkRefundRow[]) {
-    const items = rows.flatMap((row) => row.blocker === null && row.amount !== null ? [{ claimId: row.claimId, expectedAmount: row.amount }] : []);
+    /* 품목 선택 칸이 있던 행은 선택(없으면 빈 배열 = 전부 판매 재고 복원)을 함께 보낸다. */
+    const items = rows.flatMap((row) => row.blocker === null && row.amount !== null ? [{
+      claimId: row.claimId, expectedAmount: row.amount,
+      ...(row.items && row.items.length > 0 ? { defectiveItemIds: adminClaimBulkDefectiveItemIds(row.items, defective) } : {}),
+    }] : []);
     if (items.length === 0) return;
     setRunning(true);
     const ran = await runClaimBulkInChunks(items, (pending) => runOrderClaimBulkRefundsAction({ claimType, items: pending }), setProgress);
@@ -207,7 +216,7 @@ function ClaimBulkPreviewDialog({ claimType, onClose, previewHrefBase, session }
           onReceivedOn={setReceivedOn} onRun={() => { void runCollect(preview.rows); }} onToggle={(key, checked) => setUnchecked((previous) => ({ ...previous, [key]: !checked }))}
           progress={progress} receivedId={receivedId} receivedOn={receivedOn} rows={preview.rows} running={running} today={session.today} unchecked={unchecked}
         />
-          : <RefundStep onRun={() => { void runRefund(preview.rows); }} progress={progress} preview={preview} running={running} />}
+          : <RefundStep defective={defective} onDefective={(id, value) => setDefective((previous) => ({ ...previous, [id]: value }))} onRun={() => { void runRefund(preview.rows); }} progress={progress} preview={preview} running={running} />}
     </DialogContent>
   </Dialog>;
 }
@@ -278,7 +287,10 @@ export function CollectStep({ evidence, evidenceId, inputError, onEvidence, onRe
   </div>;
 }
 
-export function RefundStep({ onRun, preview, progress, running }: {
+export function RefundStep({ defective = {}, onDefective, onRun, preview, progress, running }: {
+  /** 품목 id → 불량 선택(QNA-035). 선택 칸이 있는 행(반품)에서만 쓴다. */
+  defective?: Record<string, boolean>;
+  onDefective?: (orderItemId: string, defective: boolean) => void;
   onRun: () => void;
   preview: Extract<AdminClaimBulkStepPreview, { step: 'refund' }>;
   progress: number;
@@ -304,12 +316,28 @@ export function RefundStep({ onRun, preview, progress, running }: {
       <Table>
         <TableHeader><TableRow><TableHead scope="col">요청번호</TableHead><TableHead scope="col">결제</TableHead><TableHead className="text-right" scope="col">환불 금액</TableHead><TableHead scope="col">처리</TableHead></TableRow></TableHeader>
         <TableBody>
-          {rows.map((row) => <TableRow data-claim-bulk-blocked={row.blocker ? '' : undefined} key={row.claimId}>
+          {rows.flatMap((row) => [<TableRow data-claim-bulk-blocked={row.blocker ? '' : undefined} key={row.claimId}>
             <TableCell className="tabular-nums">{row.reference}</TableCell>
             <TableCell>{row.providerLabel}</TableCell>
             <TableCell className="text-right tabular-nums">{row.amount === null ? '-' : krw(row.amount)}{row.deductionAmount ? <span className="block text-xs text-muted-foreground" data-claim-bulk-refund-deduction="">{returnFeeDeductionRowNote(row.deductionAmount)}</span> : null}</TableCell>
             <TableCell className="whitespace-normal">{row.blocker ? <span className="text-muted-foreground">제외 · {adminClaimCopy(row.blocker)}</span> : '확정'}</TableCell>
-          </TableRow>)}
+          </TableRow>,
+          ...(!row.blocker && row.items && row.items.some((item) => item.state !== 'recorded') && onDefective ? [<TableRow data-claim-bulk-stock="" key={`${row.claimId}-stock`}>
+            <TableCell className="whitespace-normal bg-muted/30" colSpan={4}>
+              <fieldset className="flex min-w-0 flex-col gap-1.5">
+                <legend className="text-xs font-medium">품목별 재고 처리 · {row.reference}</legend>
+                {row.items.filter((item) => item.state !== 'recorded').map((item) => <div className="flex min-w-0 flex-wrap items-center justify-between gap-2" key={item.orderItemId}>
+                  <Label className="min-w-0 flex-1 whitespace-normal text-xs font-normal" htmlFor={`bulk-stock-${item.orderItemId}`}>{item.name}{item.variantName ? ` · ${item.variantName}` : ''} · {item.qty}개</Label>
+                  <NativeSelect className="w-full sm:w-44" disabled={running} id={`bulk-stock-${item.orderItemId}`}
+                    onChange={(event) => onDefective(item.orderItemId, event.currentTarget.value === 'defective')}
+                    value={(defective[item.orderItemId] ?? item.defective) ? 'defective' : 'restore'}>
+                    <option value="restore">{STOCK_DISPOSITION_LABELS.restore}</option>
+                    <option value="defective">{STOCK_DISPOSITION_LABELS.defective}</option>
+                  </NativeSelect>
+                </div>)}
+              </fieldset>
+            </TableCell>
+          </TableRow>] : [])])}
         </TableBody>
       </Table>
     </div>

@@ -86,6 +86,9 @@ const operators = [
   // 상품별 반품/교환지·회수 묶음(배송 건 × 반품지)·고객 회수 주소(S36-040·S36-044·QNA-031).
   sql('goods_return_addresses', { admin: true, kc: true }),
   script('goods_return_address_concurrency.sh', 'RETURN_ADDRESS_TEST_SCOPE'),
+  // 반품 불량 재고 분리(QNA-035): 불량 품목은 복원 제외·원장 기록·재고 대조 흐름 제외, 같은 클레임 동시 기록 멱등.
+  sql('claim_defective_stock'),
+  script('claim_defective_stock_concurrency.sh', 'CLAIM_DEFECTIVE_TEST_SCOPE'),
   script('order_address_concurrency.sh', 'ORDER_ADDRESS_TEST_SCOPE'),
   sql('goods_media', { admin: true, kc: true }),
   script('goods_media_concurrency.sh', 'GOODS_MEDIA_TEST_SCOPE'),

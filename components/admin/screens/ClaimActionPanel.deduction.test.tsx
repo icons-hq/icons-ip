@@ -14,6 +14,8 @@ vi.mock('@/app/admin/claim-actions', () => ({
   recordOrderClaimOriginCollectionAction: vi.fn(),
   recordOrderClaimRefundAction: vi.fn(),
   recordOrderClaimReshipmentAction: vi.fn(),
+  planClaimDefectiveStockAction: vi.fn(),
+  retryClaimDefectiveStockAction: vi.fn(),
 }));
 
 const CLAIM_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';

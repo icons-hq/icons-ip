@@ -90,12 +90,13 @@ function RefundPanel({ identity, scope }: { identity: BankRefundIdentity; scope:
   useAdminLeaveGuard({ dirty, message: '입력 중인 증빙은 보관하지 않습니다. 화면을 이동할까요?' });
 
   function clearRecovery() { try { sessionStorage.removeItem(key); } catch {} setRecovery(null); dispatched.current = null; setCanRetry(false); }
-  function accept(receipt: BankRefundReceipt, original: BankRefundRecovery) {
+  function accept(receipt: BankRefundReceipt, original: BankRefundRecovery, notice?: string) {
     if (!bankRefundReceiptMatches(receipt, original)) { setError('현재 요청과 다른 결과입니다. 이전 처리 결과를 다시 확인해주세요.'); return; }
     clearRecovery(); setDraft(empty); setAccount(null); setError(''); setNeedsRefresh(true); setReload(value => value + 1);
     setMessage(receipt.state === 'sealed' ? '이전 미처리 요청을 종료했습니다. 최신 상태를 확인한 뒤 다시 입력해주세요.'
       : receipt.kind === 'complete_transfer' ? '실제 송금 증빙을 기록하고 환불을 완료했습니다.'
         : receipt.kind === 'confirm_cancellation' ? '취소를 확정하고 재고를 복원했습니다. 환불은 송금대기로 남아 있습니다.' : '계좌 송금 접수를 기록했습니다. 실제 송금 후 완료 증빙을 남겨주세요.');
+    if (notice) setError(notice);
     router.refresh();
   }
   function fail(failure: BankRefundFailure, uncertain: boolean) {
@@ -118,7 +119,7 @@ function RefundPanel({ identity, scope }: { identity: BankRefundIdentity; scope:
       const result = await recordBankRefundAction(original);
       if (!alive.current || !scope.canApply(ticket)) return;
       if ('error' in result) fail(result, wasUncertain);
-      else if (result.receipt?.state === 'recorded') accept(result.receipt, original);
+      else if (result.receipt?.state === 'recorded') accept(result.receipt, original, result.notice);
       else setError('처리 결과를 확인하지 못했습니다. 이전 처리 결과를 먼저 확인해주세요.');
     } catch { if (alive.current && scope.canApply(ticket)) setError('처리 결과를 확인하지 못했습니다. 이전 처리 결과를 먼저 확인해주세요.'); }
     finally { busy.current = false; if (alive.current && scope.canApply(ticket)) setPending(false); }
@@ -131,7 +132,7 @@ function RefundPanel({ identity, scope }: { identity: BankRefundIdentity; scope:
       const result = await readBankRefundAction(original, seal);
       if (!alive.current || !scope.canApply(ticket)) return;
       if ('error' in result) fail(result, true);
-      else if (result.receipt) accept(result.receipt, original);
+      else if (result.receipt) accept(result.receipt, original, result.notice);
       else setMessage(dispatched.current ? '아직 처리 결과가 없습니다. 같은 내용으로 다시 요청할 수 있습니다.' : '아직 처리 결과가 없습니다. 이전 요청을 종료한 뒤 증빙을 다시 입력해주세요.');
     } catch { if (alive.current && scope.canApply(ticket)) setError('이전 처리 결과를 읽지 못했습니다. 다시 확인해주세요.'); }
     finally { busy.current = false; if (alive.current && scope.canApply(ticket)) setPending(false); }

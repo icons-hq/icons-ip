@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { loadClaimDefectiveStock } from '@/lib/admin/defective-stock.server';
 import { loadAdminClaimDetail } from '@/lib/admin/claims.server';
 import { getBusinessInfo } from '@/lib/legal/business-info.server';
 import { orderReferenceLabel } from '@/lib/orders';
@@ -21,6 +22,10 @@ export async function loadAdminClaimWorkspace(claimId: string) {
     getShippingCarrierRegistry(),
   ]);
   if (!detail) return null;
+  /* 반품 품목별 재고 처리 선택(QNA-035). 읽지 못하면 null이라 선택 칸 없이 지금처럼 전부 복원한다. */
+  const defectiveStock = detail.claim.claimType === 'return'
+    ? (await loadClaimDefectiveStock([claimId]))[0] ?? null
+    : null;
 
   const cancellationForm = detail.payment?.provider === 'korpay' && detail.order
     ? buildKorpayCancellationForm({
@@ -33,5 +38,5 @@ export async function loadAdminClaimWorkspace(claimId: string) {
     })
     : null;
 
-  return { detail, carriers, cancellationForm };
+  return { detail, carriers, cancellationForm, defectiveStock };
 }

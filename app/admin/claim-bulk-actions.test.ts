@@ -593,3 +593,70 @@ describe('재출고 표(loadOrderClaimBulkReshipmentsAction)', () => {
     expect(mocks.loadAdminClaimDetail).not.toHaveBeenCalled();
   });
 });
+
+describe('일괄 환불의 품목별 재고 처리(QNA-035)', () => {
+  const ITEM_A = 'abcdef0a-1234-4123-8123-123456789abc';
+  const ITEM_B = 'abcdef0b-1234-4123-8123-123456789abc';
+  const stock = (claimId: string) => ({ claimId, pending: 0, items: [
+    { orderItemId: ITEM_A, name: '아크릴 키링', variantName: '옵션 A', qty: 2, defective: false, state: null },
+    { orderItemId: ITEM_B, name: '엽서', variantName: null, qty: 1, defective: false, state: null },
+  ] });
+  const detail = { claim: { id: ID(1), orderId: ORDER(1), stage: 'processing', claimType: 'return' }, payment: { provider: 'toss' }, refund: { method: 'pg_cancel' } };
+
+  it('확인창은 처리할 반품 행에 품목과 선택 상태를 싣는다(제외 행에는 싣지 않는다)', async () => {
+    stepRpc(new Map([[ID(1), fact(1)], [ID(2), fact(2, { paymentProvider: 'bank_transfer', refundBlocker: 'bank_transfer' })]]),
+      (name, args) => name === 'admin_claim_defective_items' ? (args.p_claim_ids as string[]).map(stock) : null);
+    const state = await previewOrderClaimBulkStepAction({ claimType: 'return', step: 'refund', claimIds: [ID(1), ID(2)] });
+    const rows = state.preview?.step === 'refund' ? state.preview.rows : [];
+    expect(rows[0].items?.map((item) => [item.orderItemId, item.defective])).toEqual([[ITEM_A, false], [ITEM_B, false]]);
+    expect(rows[1].items).toBeUndefined();
+  });
+
+  it('취소 확인창은 품목 선택을 읽지 않는다', async () => {
+    stepRpc(new Map([[ID(1), fact(1, { claimType: 'cancel' })]]));
+    await previewOrderClaimBulkStepAction({ claimType: 'cancel', step: 'refund', claimIds: [ID(1)] });
+    expect(mocks.rpc.mock.calls.some(([name]) => name === 'admin_claim_defective_items')).toBe(false);
+  });
+
+  it('실행은 고른 불량 품목을 단건 액션과 같은 필드로 실어 선택 저장 → 확정 → 기록 순서로 처리한다', async () => {
+    const events = stepRpc(new Map([[ID(1), fact(1, { stage: 'processing', refundMethod: 'pg_cancel' })]]), (name, args) => {
+      if (name === 'admin_claim_defective_items') return [stock(ID(1))];
+      if (name === 'admin_record_order_claim_refund') return 'ok';
+      if (name === 'admin_goods_manual_recovery_attempts') return [];
+      if (name === 'admin_record_claim_defective_stock') return { claimId: args.p_claim_id, recorded: 1, total: 1, pending: 0 };
+      return null;
+    });
+    mocks.loadAdminClaimDetail.mockResolvedValue(detail);
+    mocks.reconcileOrderCancellation.mockResolvedValue({ ok: true, status: 'completed' });
+    const state = await runOrderClaimBulkRefundsAction({ claimType: 'return', items: [{ claimId: ID(1), expectedAmount: 10000, defectiveItemIds: [ITEM_A] }] });
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_plan_claim_defective_stock', { p_claim_id: ID(1), p_order_item_ids: [ITEM_A] });
+    expect(events.indexOf('admin_plan_claim_defective_stock:abcdef01')).toBeLessThan(events.indexOf('admin_begin_order_cancellation_reconcile:abcdef01'));
+    expect(events.indexOf('admin_record_claim_defective_stock:abcdef01')).toBeGreaterThan(events.indexOf('admin_record_order_claim_refund:abcdef01:completed'));
+    expect(state.results?.[0].outcome).toBe('done');
+    expect(state.results?.[0].message).toContain('불량 1개 품목은 판매 재고에 넣지 않고 불량 재고에 기록했습니다');
+  });
+
+  it('확인창 뒤 품목이 바뀌어 모르는 품목이 오면 결제사 취소를 발행하지 않는다', async () => {
+    stepRpc(new Map([[ID(1), fact(1, { stage: 'processing', refundMethod: 'pg_cancel' })]]), (name) => name === 'admin_claim_defective_items' ? [stock(ID(1))] : null);
+    const state = await runOrderClaimBulkRefundsAction({ claimType: 'return', items: [{ claimId: ID(1), expectedAmount: 10000, defectiveItemIds: ['abcdef0c-1234-4123-8123-123456789abc'] }] });
+    expect(state.results?.[0].outcome).toBe('failed');
+    expect(state.results?.[0].message).toContain('품목이 바뀌어 처리하지 않았습니다');
+    expect(mocks.reconcileOrderCancellation).not.toHaveBeenCalled();
+  });
+
+  it('선택 없이 보낸 기존 입력은 저장·기록 RPC를 부르지 않는다', async () => {
+    const events = stepRpc(new Map([[ID(1), fact(1, { stage: 'processing', refundMethod: 'pg_cancel' })]]),
+      (name) => (name === 'admin_record_order_claim_refund' ? 'ok' : name === 'admin_goods_manual_recovery_attempts' ? [] : null));
+    mocks.loadAdminClaimDetail.mockResolvedValue(detail);
+    mocks.reconcileOrderCancellation.mockResolvedValue({ ok: true, status: 'completed' });
+    await runOrderClaimBulkRefundsAction({ claimType: 'return', items: [{ claimId: ID(1), expectedAmount: 10000 }] });
+    expect(events.some((event) => event.includes('defective'))).toBe(false);
+  });
+
+  it('입력 검증: 불량 선택은 중복 없는 UUID 배열이어야 한다', async () => {
+    stepRpc(new Map([[ID(1), fact(1)]]));
+    const message = '불량으로 고른 품목을 읽지 못했습니다. 확인창을 다시 열어주세요.';
+    expect((await runOrderClaimBulkRefundsAction({ claimType: 'return', items: [{ claimId: ID(1), expectedAmount: 10000, defectiveItemIds: ['x'] }] })).error).toBe(message);
+    expect((await runOrderClaimBulkRefundsAction({ claimType: 'return', items: [{ claimId: ID(1), expectedAmount: 10000, defectiveItemIds: [ITEM_A, ITEM_A] }] })).error).toBe(message);
+  });
+});

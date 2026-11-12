@@ -9,6 +9,7 @@ import {
   type StockReconcileFileResult,
 } from '@/app/admin/stock-reconcile-actions';
 import { AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { DefectiveStockReference } from '@/components/admin/DefectiveStockReference';
 import { AdminSelect } from '@/components/admin/console/AdminSelect';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
@@ -440,6 +441,7 @@ export function StockReconcilePanel({ origins, initialSnapshot, now }: {
           : <AdminStatusBadge tone="warning">아직 반영 안 함</AdminStatusBadge>}
       </header>
       <StockReconcileResult snapshot={snapshot} showSame={showSame} onToggleSame={() => setShowSame((value) => !value)} />
+      <DefectiveStockReference items={snapshot.items.map((item) => ({ variantId: item.variantId, label: itemName(item) }))} />
       {conflicts.length ? <StockReconcileConflictNotice conflicts={conflicts} busy={busy} onRestart={reset}
         onRepreview={source && plan && !plan.blocking && plan === previewedPlan ? () => preview(true) : undefined} /> : null}
       {!snapshot.appliedAt ? expired ? <AdminNotice tone="warning">24시간이 지난 미리보기는 반영할 수 없습니다. 파일을 다시 올려 미리보기 해주세요.</AdminNotice>
