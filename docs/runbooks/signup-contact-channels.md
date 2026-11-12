@@ -8,7 +8,7 @@
 
 | 항목 | 동작 | 스위치(기본) | 사람 게이트 |
 | --- | --- | --- | --- |
-| 1014-004 가입 확인 코드 | 회원가입 뒤 같은 화면에서 메일의 6자리 확인 코드를 입력해 가입을 잇는다. 코드 확인 세션은 바로 닫고 같은 화면에서 입력한 비밀번호로 다시 로그인한 세션만 남긴다(§3). 새로 연 가입 화면은 [받은 코드 입력하기]로 재발송 없이 코드 단계를 다시 연다. 메일 링크도 그대로 동작한다 | 없음(배포 즉시) | **운영 Auth 확인 메일 템플릿에 코드 넣기**(§3) |
+| 1014-004 가입 확인 코드 | 회원가입 뒤 같은 화면에서 메일의 6자리 확인 코드를 입력해 가입을 잇는다. 코드 확인 세션은 바로 닫고 같은 화면에서 입력한 비밀번호로 다시 로그인한 세션만 남긴다(§3). 새로 연 가입 화면은 [받은 코드 입력하기]로 재발송 없이 코드 단계를 다시 연다. 메일 링크도 그대로 동작한다 | 없음(배포 즉시) | 배포 파이프라인이 앱 배포 전에 운영 Auth 확인 메일 템플릿을 코드+링크로 맞춘다(§3). 배포 뒤 실제 메일 확인만 사람이 한다 |
 | 1014-004 닉네임 자동 | 온보딩은 닉네임을 묻지 않는다. 닉네임이 없는 계정은 `fan_` + 8자 자동 닉네임을 받고 설정에서 바꾼다. 필수 입력은 생년월일·약관 2종 | 없음 | 없음 |
 | 1014-005·006 휴대폰 번호 인증 | 온보딩 마지막 단계(생년월일·약관 저장 뒤, 필수)와 설정에서 SMS 인증번호로 휴대폰 번호(해외 포함)를 확인한다. 번호를 다른 계정에 옮겨 간 회원은 주문 같은 보호 액션 전에 다시 인증한다 | `ICONS_PHONE_VERIFICATION_ENABLED` OFF | 발송사 계약(H4)·처리방침 공지 |
 | 1014-010 수단별 수신 동의 | 이메일·SMS에 카카오톡 수신 동의를 더한다 | 카카오톡 채널 스위치를 따른다 OFF | 처리방침 공지 |
@@ -82,23 +82,22 @@ ADR-0024(성인 인증)와 같은 선택을 따른다: 원문 대신 서버 비�
 화면에 "<이메일>로 받은 확인 코드가 있나요? [받은 코드 입력하기]"가 보이고, 누르면 메일을 다시 보내지 않고 코드 단계를 연다.
 코드 확인을 보내면 기억을 지우고, 실패하면 다시 기억한다. [다른 이메일로 가입하기]도 지운다.
 
-### 사람 게이트: 운영 확인 메일 템플릿
+### 운영 확인 메일 템플릿(선언 관리)
 
 운영 Supabase Auth의 "Confirm signup" 템플릿에 코드(`{{ .Token }}`)가 없으면 화면은 코드를 기다리는데 메일에는 링크만 있다.
-**앱 배포 전에** 템플릿을 바꾼다 — 새 템플릿은 코드와 링크를 함께 담아 지금 화면(링크만 안내)에서도 그대로 동작한다.
+그래서 **앱 배포 전에** 템플릿을 바꾼다 — 새 템플릿은 코드와 링크를 함께 담아 지금 화면(링크만 안내)에서도 그대로 동작한다.
 
-1. 제목·본문은 `supabase/templates/confirmation.html`과 `supabase/config.toml`의 `[auth.email.template.confirmation]`
-   (제목 `ICONS 가입 확인 코드`)과 같게 한다.
-2. 반영은 대시보드(Authentication → Email Templates → Confirm signup) 또는 Management API
-   `PATCH /v1/projects/{ref}/config/auth`의 `mailer_subjects_confirmation`·`mailer_templates_confirmation_content`다.
-   PAT는 환경변수로만 넘긴다. 반영 뒤 같은 API로 읽어 원문과 같은지 확인한다.
-3. 운영 직원 테스트 계정으로 가입 → 메일에 6자리 코드와 버튼이 함께 있는지 → 코드 입력으로 온보딩까지 가는지 본다.
-4. 선언 관리로 옮기려면 `scripts/sync-supabase-auth.mjs`에 recovery 템플릿처럼 확인 메일 템플릿 경로를 더하고
-   pipeline의 production·preview Auth sync 단계에 연결한다(이 트랙 범위 밖 — 오케스트레이터 후속).
-5. Send Email Hook(#191, 기본 OFF)을 켜기 전에는 `lib/email/auth-hook.ts`의 signup 메일에도 `email_data.token`(6자리)을
-   넣어야 한다. 지금 그 메일은 링크만 담는다.
+1. 제목·본문의 정본은 `supabase/templates/confirmation.html`과 `supabase/config.toml`의 `[auth.email.template.confirmation]`
+   (제목 `ICONS 가입 확인 코드`)이다.
+2. 반영은 `scripts/sync-supabase-auth.mjs`가 한다(`CONFIRMATION_TEMPLATE_PATH`·`CONFIRMATION_SUBJECT`). production은
+   `deploy-supabase`의 Auth sync 단계(앱 배포 job보다 먼저)에서, isolated PR preview·shared preview·staging은 각자의 Auth sync
+   단계에서 Management API `mailer_subjects_confirmation`·`mailer_templates_confirmation_content`를 맞추고 읽어 확인한다.
+   템플릿은 코드 하나·확인 링크 하나만 허용하는 검사(`isSafeConfirmationTemplate`)를 통과해야 반영된다.
+3. 사람 확인(배포 뒤): 운영 직원 테스트 계정으로 가입 → 메일에 6자리 코드와 버튼이 함께 있는지 → 코드 입력으로 온보딩까지 가는지 본다.
+4. Send Email Hook(#191, 기본 OFF)을 켜기 전에는 `lib/email/auth-hook.ts`의 signup 메일에도 6자리 코드를 넣어야 한다.
+   훅 메일은 `email_data.token`이 있으면 코드를 함께 담는다(없으면 링크만).
 
-Preview·스테이징 Auth는 기본 템플릿(링크만)이라 코드 단계는 로컬에서 시험한다(§9).
+Preview·스테이징 Auth도 같은 템플릿을 받으므로(기본 메일 발송 한도 안에서) 코드 단계를 preview에서도 시험할 수 있다.
 
 ## 4. 1014-005·006 휴대폰 번호 인증
 
@@ -270,7 +269,7 @@ Preview·스테이징 Auth는 기본 템플릿(링크만)이라 코드 단계는
 
 ## 8. 켜는 순서
 
-1. (1014-004, 지금) 운영 확인 메일 템플릿 반영(§3) → 앱 배포.
+1. (1014-004, 지금) 배포 파이프라인이 운영 확인 메일 템플릿을 반영(§3, deploy-supabase) → 앱 배포 → 운영 테스트 계정으로 메일·코드 확인.
 2. SMS 발송사 계약(H4): 발신번호 등록, 080 무료 수신거부 번호, 해외 범위. `SmsSender` 구현 PR.
 3. 카카오톡 채널 개설(H5)·콘솔 설정·지정 고객 친구 추가 쿠폰 정의·manual linking(§6).
 4. 처리방침·약관 개정 PR: §7 초안을 확정해 `pendingRevision`으로 공지하고 `CONTACT_CHANNELS_PRIVACY_EFFECTIVE_DATE`를 시행일로

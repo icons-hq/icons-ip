@@ -18,6 +18,8 @@
  *   PASSWORD_UPDATE_GUARDS  'true'면 비밀번호 변경에 현재 비밀번호·24시간 재인증을 요구한다.
  *   PASSWORD_CHANGED_TEMPLATE_PATH 선택. 비밀번호 변경 알림을 켜고 본문을 파일과 일치시킨다.
  *   PASSWORD_CHANGED_SUBJECT 위 경로를 줄 때 필수. 알림 메일 제목.
+ *   CONFIRMATION_TEMPLATE_PATH 선택. 가입 확인 메일(6자리 코드 + 확인 링크, 1014-004) 본문을 파일과 일치시키고 read-back한다.
+ *   CONFIRMATION_SUBJECT     위 경로를 줄 때 필수. 가입 확인 메일 제목.
  */
 
 import { readFile } from 'node:fs/promises';
@@ -133,6 +135,23 @@ export function isSafePasswordChangedTemplate(value) {
   return !/{{[\s\S]*?}}/.test(remaining) && !/\bhref\s*=/i.test(remaining);
 }
 
+/*
+ * 가입 확인 메일(1014-004): 가입 화면에 그대로 입력할 6자리 코드({{ .Token }}) 하나와, 가입을 시작한 브라우저에서 누를
+ * 확인 링크({{ .ConfirmationURL }}) 하나만 둔다. 링크는 지금 화면(링크만 안내)에서도 그대로 동작하므로 앱 배포 전에 반영해도 된다.
+ */
+export function isSafeConfirmationTemplate(value) {
+  const normalized = normalizedTemplate(value);
+  if (/<!--|-->|<(?:script|style|template|textarea|img|form)\b/i.test(normalized)) return false;
+
+  const token = /{{\s*\.Token\s*}}/g;
+  if ([...normalized.matchAll(token)].length !== 1) return false;
+  const confirmAnchor = /<a\s+href\s*=\s*(["']){{\s*\.ConfirmationURL\s*}}\1\s*>/g;
+  if ([...normalized.matchAll(confirmAnchor)].length !== 1) return false;
+
+  const remaining = normalized.replace(confirmAnchor, '<a>').replace(token, '');
+  return !/{{[\s\S]*?}}/.test(remaining) && !/\bhref\s*=/i.test(remaining);
+}
+
 export function isSatisfied({
   config,
   siteUrl,
@@ -142,6 +161,7 @@ export function isSatisfied({
   emailOtpExpirySeconds = null,
   enforcePasswordGuards = false,
   passwordChanged = null,
+  confirmation = null,
 }) {
   if ((config.site_url ?? '') !== siteUrl) return false;
   if ((config.uri_allow_list ?? '') !== allowList) return false;
@@ -164,6 +184,11 @@ export function isSatisfied({
       || (config.mailer_subjects_password_changed_notification ?? '') !== passwordChanged.subject
       || normalizedTemplate(config.mailer_templates_password_changed_notification_content)
         !== passwordChanged.template)
+  ) return false;
+  if (
+    confirmation !== null
+    && ((config.mailer_subjects_confirmation ?? '') !== confirmation.subject
+      || normalizedTemplate(config.mailer_templates_confirmation_content) !== confirmation.template)
   ) return false;
   if (!enforceMailer) return true;
   /* 갓 만든 프로젝트는 mailer_autoconfirm을 아예 돌려주지 않는다 — 빈 값은 통과시킨다. */
@@ -236,6 +261,22 @@ export async function syncSupabaseAuth(env = process.env, log = console.log) {
       'password changed email template must link only {{ .SiteURL }}/login?mode=reset once and use no other variables than {{ .Email }}',
     );
   }
+  const confirmationTemplatePath = env.CONFIRMATION_TEMPLATE_PATH?.trim();
+  const confirmationSubject = env.CONFIRMATION_SUBJECT?.trim();
+  if (confirmationTemplatePath && !confirmationSubject) {
+    throw new Error('CONFIRMATION_SUBJECT is required with CONFIRMATION_TEMPLATE_PATH');
+  }
+  const confirmation = confirmationTemplatePath
+    ? {
+      subject: confirmationSubject,
+      template: normalizedTemplate(await readFile(confirmationTemplatePath, 'utf8')),
+    }
+    : null;
+  if (confirmation !== null && !isSafeConfirmationTemplate(confirmation.template)) {
+    throw new Error(
+      'signup confirmation email template must show {{ .Token }} once, link only {{ .ConfirmationURL }} once and use no other variables',
+    );
+  }
 
   const config = await readConfig({ token, projectRef });
 
@@ -261,6 +302,7 @@ export async function syncSupabaseAuth(env = process.env, log = console.log) {
     emailOtpExpirySeconds,
     enforcePasswordGuards,
     passwordChanged,
+    confirmation,
   };
   if (isSatisfied({ config, ...desired })) {
     log(`Supabase Auth configuration for ${projectRef} is already up to date.`);
@@ -278,6 +320,10 @@ export async function syncSupabaseAuth(env = process.env, log = console.log) {
       mailer_notifications_password_changed_enabled: true,
       mailer_subjects_password_changed_notification: passwordChanged.subject,
       mailer_templates_password_changed_notification_content: passwordChanged.template,
+    }),
+    ...(confirmation === null ? {} : {
+      mailer_subjects_confirmation: confirmation.subject,
+      mailer_templates_confirmation_content: confirmation.template,
     }),
   };
   const response = await fetch(`${API_ROOT}/${projectRef}/config/auth`, {
@@ -313,7 +359,8 @@ export async function syncSupabaseAuth(env = process.env, log = console.log) {
     + `security_update_password_require_current_password=${final.security_update_password_require_current_password}, `
     + `security_update_password_require_reauthentication=${final.security_update_password_require_reauthentication}, `
     + `mailer_notifications_password_changed_enabled=${final.mailer_notifications_password_changed_enabled}, `
-    + `password_changed_template=${passwordChanged === null ? 'not-managed' : 'mismatch'}`,
+    + `password_changed_template=${passwordChanged === null ? 'not-managed' : 'mismatch'}, `
+    + `confirmation_template=${confirmation === null ? 'not-managed' : 'mismatch'}`,
   );
 }
 

@@ -24,13 +24,29 @@ describe('planAuthHookEmails', () => {
       sourceReference: `signup:${USER_ID}:7d5b7b1964cf5d388340a7f04f1dbb5eeb6c7b52ef8270e1737a58d0:primary`,
       recipient: 'member@example.test',
       messageKind: 'auth_signup',
-      contentRevision: 'auth_signup_v1',
+      contentRevision: 'auth_signup_v2',
     }));
-    expect(plans[0].message.subject).toBe('[ICONS] 이메일을 확인해 주세요');
+    // 1014-004: 가입 화면에 넣을 6자리 확인 코드와 같은 브라우저용 확인 링크를 함께 보낸다(운영 Auth 템플릿과 같은 구성).
+    expect(plans[0].message.subject).toBe('[ICONS] 가입 확인 코드');
+    expect(plans[0].message.html).toContain('>305805</p>');
+    expect(plans[0].message.text).toContain('확인 코드: 305805');
     expect(plans[0].message.html).toContain(
       'https://project.supabase.co/auth/v1/verify?token=7d5b7b1964cf5d388340a7f04f1dbb5eeb6c7b52ef8270e1737a58d0&amp;type=signup&amp;redirect_to=https%3A%2F%2Ficonsip.com%2Fauth%2Fcallback',
     );
     expect(plans[0].message.text).not.toContain('user_metadata');
+  });
+
+  it('keeps the link-only signup message when GoTrue sends no code', () => {
+    const [signup] = planAuthHookEmails({
+      user: { id: USER_ID, email: 'member@example.test' },
+      email_data: {
+        token: '', token_hash: 'signup_hash_without_code', token_new: '', token_hash_new: '',
+        redirect_to: 'https://iconsip.com/auth/callback', email_action_type: 'signup', site_url: 'https://iconsip.com',
+      },
+    }, { supabaseUrl: 'https://project.supabase.co' });
+    expect(signup.contentRevision).toBe('auth_signup_v1');
+    expect(signup.message.subject).toBe('[ICONS] 이메일을 확인해 주세요');
+    expect(signup.message.text).not.toContain('확인 코드');
   });
 
   it('sends recovery to the dedicated token-hash callback', () => {

