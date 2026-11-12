@@ -687,6 +687,120 @@ describe('TossPayments v2 gateway', () => {
       expect(outcome.reasonCode).toBe('provider_session_expired');
     });
 
+    /*
+     * 결정적 실패(승인 시한 초과 NOT_FOUND_PAYMENT_SESSION·표 밖 4xx) 뒤 paymentKey 조회가 그
+     * 결제를 찾았더라도 승인되지 않은 상태(READY·IN_PROGRESS·ABORTED·EXPIRED)면 404와 같은
+     * 실패 확정이다. orderId 재확인 시절에는 승인된 결제만 조회돼 이 경우가 404 → declined였다 —
+     * unknown으로 남기면 승인이 성립할 수 없는 attempt가 만료 + 45분까지 재고·쿠폰을 잡는다.
+     * 바인딩 꺼짐(지금 동작)과 켜짐에서 같다.
+     */
+    describe('결정적 실패 뒤 조회가 승인되지 않은 결제를 돌려줄 때', () => {
+      const sessionExpired = () => jsonResponse(404, {
+        code: 'NOT_FOUND_PAYMENT_SESSION',
+        message: '결제 시간이 만료되어 결제 진행 데이터가 존재하지 않습니다.',
+      });
+      const unlistedFailure = () => jsonResponse(400, {
+        code: 'SOME_NEW_CODE',
+        message: '표에 없는 새 실패 코드',
+      });
+
+      describe.each([
+        ['바인딩 꺼짐', null, 'tgsangwbzqu'],
+        ['바인딩 켜짐', ICONS_BINDING, MERCHANT_ID],
+      ] as const)('%s', (_label, merchantBinding, mId) => {
+        const keys = { merchantBinding };
+
+        it.each(['READY', 'IN_PROGRESS', 'ABORTED', 'EXPIRED'])(
+          '승인 시한 초과 뒤 조회가 %s면 declined(provider_session_expired)다',
+          async (status) => {
+            const fetchImpl = vi.fn()
+              .mockResolvedValueOnce(sessionExpired())
+              .mockResolvedValueOnce(jsonResponse(200, donePayment({ mId, status })));
+            const { gateway: tossGateway } = gateway({ ...keys, fetch: fetchImpl as unknown as typeof fetch });
+
+            const outcome = await tossGateway.confirm(await confirmInput({}, ATTEMPT, keys));
+
+            expect(fetchImpl).toHaveBeenCalledTimes(2);
+            expect(outcome.outcome).toBe('declined');
+            expect(outcome.reasonCode).toBe('provider_session_expired');
+            expect(outcome.evidence).toBeUndefined();
+          },
+        );
+
+        it.each(['READY', 'IN_PROGRESS', 'ABORTED', 'EXPIRED'])(
+          '표 밖 4xx 뒤 조회가 %s면 원 코드·결제 키를 보존한 declined(provider_declined)다',
+          async (status) => {
+            const fetchImpl = vi.fn()
+              .mockResolvedValueOnce(unlistedFailure())
+              .mockResolvedValueOnce(jsonResponse(200, donePayment({ mId, status })));
+            const { gateway: tossGateway } = gateway({ ...keys, fetch: fetchImpl as unknown as typeof fetch });
+
+            const outcome = await tossGateway.confirm(await confirmInput({}, ATTEMPT, keys));
+
+            expect(fetchImpl).toHaveBeenCalledTimes(2);
+            expect(outcome.outcome).toBe('declined');
+            expect(outcome.reasonCode).toBe('provider_declined');
+            expect(outcome.evidence).toEqual({ providerPaymentKey: PAYMENT_KEY, resultCode: 'SOME_NEW_CODE' });
+          },
+        );
+
+        it('결정적 실패 뒤라도 조회가 DONE이면 승인이다(회귀)', async () => {
+          const fetchImpl = vi.fn()
+            .mockResolvedValueOnce(unlistedFailure())
+            .mockResolvedValueOnce(jsonResponse(200, donePayment({ mId })));
+          const { gateway: tossGateway } = gateway({ ...keys, fetch: fetchImpl as unknown as typeof fetch });
+
+          const outcome = await tossGateway.confirm(await confirmInput({}, ATTEMPT, keys));
+
+          expect(outcome.outcome).toBe('approved');
+          expect(outcome.reasonCode).toBe('provider_approved_after_recheck');
+        });
+
+        it('조회 결제가 다른 주문이면 실패로 닫지 않고 needs_review다', async () => {
+          const fetchImpl = vi.fn()
+            .mockResolvedValueOnce(sessionExpired())
+            .mockResolvedValueOnce(jsonResponse(200, donePayment({
+              mId,
+              status: 'IN_PROGRESS',
+              orderId: 'O99999999999999999999999999999999',
+            })));
+          const { gateway: tossGateway } = gateway({ ...keys, fetch: fetchImpl as unknown as typeof fetch });
+
+          const outcome = await tossGateway.confirm(await confirmInput({}, ATTEMPT, keys));
+
+          expect(outcome.outcome).toBe('needs_review');
+          expect(outcome.reasonCode).toBe('provider_identity_mismatch');
+        });
+
+        it('5xx(승인이 뒤늦게 성립할 수 있는 경로) 뒤 IN_PROGRESS는 여전히 unknown이다', async () => {
+          const fetchImpl = vi.fn()
+            .mockResolvedValueOnce(jsonResponse(500, {
+              code: 'FAILED_INTERNAL_SYSTEM_PROCESSING',
+              message: '내부 시스템 처리 작업이 실패했습니다.',
+            }))
+            .mockResolvedValueOnce(jsonResponse(200, donePayment({ mId, status: 'IN_PROGRESS' })));
+          const { gateway: tossGateway } = gateway({ ...keys, fetch: fetchImpl as unknown as typeof fetch });
+
+          const outcome = await tossGateway.confirm(await confirmInput({}, ATTEMPT, keys));
+
+          expect(outcome.outcome).toBe('unknown');
+          expect(outcome.reasonCode).toBe('provider_payment_in_progress');
+        });
+      });
+
+      it('바인딩이 켜졌는데 조회 결제가 다른 상점이면 실패로 닫지 않고 상점 불일치로 격리한다', async () => {
+        const fetchImpl = vi.fn()
+          .mockResolvedValueOnce(sessionExpired())
+          .mockResolvedValueOnce(jsonResponse(200, donePayment({ mId: 'tgsangwbzqu', status: 'IN_PROGRESS' })));
+        const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+        const outcome = await tossGateway.confirm(await confirmInput());
+
+        expect(outcome.outcome).toBe('needs_review');
+        expect(outcome.reasonCode).toBe('provider_merchant_mismatch');
+      });
+    });
+
     it('이미 처리됨(ALREADY_PROCESSED_PAYMENT) 신호는 재요청 없이 조회로 실상태에 수렴한다', async () => {
       const fetchImpl = vi.fn()
         .mockResolvedValueOnce(jsonResponse(400, {

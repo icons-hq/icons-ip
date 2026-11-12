@@ -132,6 +132,20 @@ const CANCELABLE_DISALLOWED_METHODS = new Set([
   '게임문화상품권',
 ]);
 const PAYMENT_STATUS = /^[A-Z_]{2,32}$/;
+// 그 주문의 결론인 결제 상태 — 승인(DONE)·가상계좌 발급(WAITING_FOR_DEPOSIT)·취소(CANCELED·
+// PARTIAL_CANCELED). orderId 조회가 돌려주는 "승인된 결제"(/reference "승인된 결제를 orderId로
+// 조회")와 같은 범위다. READY·IN_PROGRESS·ABORTED·EXPIRED는 승인되지 않은 결제창이라 이 결제로
+// 주문의 결론을 내리지 않는다(웹훅 힌트 판정, confirm 결정적 실패 뒤 재확인).
+const ORDER_CONCLUSIVE_PAYMENT_STATUSES = new Set([
+  'DONE',
+  'WAITING_FOR_DEPOSIT',
+  'CANCELED',
+  'PARTIAL_CANCELED',
+]);
+
+function orderConclusive(payment: Record<string, unknown>) {
+  return typeof payment.status === 'string' && ORDER_CONCLUSIVE_PAYMENT_STATUSES.has(payment.status);
+}
 // 키·상점 설정이 틀렸다는 신호. 자동 종결하면 오류가 침묵하므로 needs_review로
 // 격리해 운영 관측에 태운다.
 const CONFIGURATION_CODES = new Set([
@@ -934,6 +948,15 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
    * 경로(문서 28: 승인 실패는 4xx/5xx)에서는 실패 확정(notFoundOutcome 'declined')이고,
    * 5xx·전송 실패처럼 승인이 뒤늦게 성립할 수 있는 경로에서는 unknown이다(기존 orderId 조회
    * 404 규칙과 같다).
+   *
+   * 결정적 실패 경로(notFoundOutcome 'declined' — 인증 후 승인 시한이 지난
+   * NOT_FOUND_PAYMENT_SESSION, 표 밖 4xx 코드)에서는 paymentKey 조회가 이 키·이 주문의 결제를
+   * 찾았더라도 그 상태가 주문의 결론이 아니면(READY·IN_PROGRESS·ABORTED·EXPIRED) 404와 같이
+   * 실패로 확정하고 원 사유·증거(원 코드·결제 키)를 그대로 싣는다. orderId 조회는 승인된 결제만
+   * 돌려주므로 이전(orderId 재확인)에는 이 경우가 404 → 실패 확정이었다 — 조회 수단을 바꿔도
+   * 결과가 같아야 한다. READY·IN_PROGRESS를 unknown으로 남기면 승인이 성립할 수 없는 attempt가
+   * 재정합 시한(만료 + 45분)까지 재고·쿠폰·적립금을 잡고 있게 된다. 승인(DONE)·가상계좌·취소 상태와
+   * 상점(MID)·키·주문이 어긋나는 응답은 지금처럼 settleInquiredPayment가 판정한다.
    */
   async function recheckByInquiry(
     attempt: PaymentAttempt,
@@ -968,9 +991,24 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
     if (inquiry.kind === 'http_error') {
       return baseOutcome(attempt, 'unknown', 'provider_http_error') as ConfirmOutcome;
     }
+    const payment = inquiry.payment;
+    if (
+      options.notFoundOutcome === 'declined'
+      && merchantAllowed(payment)
+      && payment.paymentKey === paymentKey
+      && payment.orderId === attempt.providerOrderId
+      && !orderConclusive(payment)
+    ) {
+      return baseOutcome(
+        attempt,
+        'declined',
+        options.notFoundReason ?? 'provider_payment_not_found',
+        options.notFoundEvidence,
+      ) as ConfirmOutcome;
+    }
     return await settleInquiredPayment(
       attempt,
-      inquiry.payment,
+      payment,
       'provider_approved_after_recheck',
       paymentKey,
     ) as ConfirmOutcome;
@@ -996,12 +1034,7 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
     return merchantAllowed(payment)
       && payment.paymentKey === hintedPaymentKey
       && payment.orderId === attempt.providerOrderId
-      && (
-        payment.status === 'DONE'
-        || payment.status === 'WAITING_FOR_DEPOSIT'
-        || payment.status === 'CANCELED'
-        || payment.status === 'PARTIAL_CANCELED'
-      );
+      && orderConclusive(payment);
   }
 
   return {
