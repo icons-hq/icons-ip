@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   emptyGoodWorkspaceFulfillment, emptyGoodWorkspaceProduction, emptyGoodWorkspaceTerms, goodWorkspaceExtraSectionFailure,
-  parseGoodWorkspaceExtraSections, prepareGoodWorkspaceExtraSections,
+  parseGoodWorkspaceExtraSections, prepareGoodWorkspaceExtraSections, pruneGoodWorkspaceExtras,
 } from './good-workspace-extra-sections';
 import { goodWorkspacePublishRejection, parseGoodWorkspaceSections, prepareGoodWorkspaceSections, EMPTY_GOOD_WORKSPACE_SECTIONS } from './good-workspace-sections';
 import { goodsOptionRowKey, initialGoodsOptionRows, type GoodsOptionRow } from './goods-option-editor';
@@ -81,6 +81,35 @@ describe('나머지 설정 제출(prepare)', () => {
     const prepared = prepareGoodWorkspaceExtraSections({ fulfillment }, rows);
     expect(prepared).toEqual({ ok: true, value: { fulfillment: { mode: 'no_delivery', methods: [{ method: 'none', feeAmount: 0, feeBasis: 'per_order', installationFee: 0 }],
       assetIds: [], publicNote: '', evidence: '직접 전달', confirmed: true } } });
+  });
+});
+
+describe('옵션이 바뀐 뒤 남은 매입단가 입력', () => {
+  const redKey = goodsOptionRowKey(red);
+  const stale = { purchaseCosts: [{ optionKey: redKey, unitCostKrw: '4000', taxBasis: 'included' as const }] };
+  const renamed: GoodsOptionRow = { ...red, name: '레드', attributes: { 색상: '레드' } };
+  const single: GoodsOptionRow = { ...initialGoodsOptionRows([], 10000)[0] };
+
+  it('옵션값을 바꾸면 옛 키의 입력은 정리되고 저장 준비가 성공한다', () => {
+    const pruned = pruneGoodWorkspaceExtras(stale, [renamed]);
+    expect(pruned?.purchaseCosts).toEqual([]);
+    expect(prepareGoodWorkspaceExtraSections(pruned, [renamed], { canManageCosts: true })).toEqual({ ok: true, value: {} });
+  });
+  it('단품에서 옵션으로 바꿔도 옛 단품 키의 입력이 막지 않는다', () => {
+    const singleKey = goodsOptionRowKey(single);
+    const costs = { purchaseCosts: [{ optionKey: singleKey, unitCostKrw: '3000', taxBasis: 'excluded' as const }] };
+    expect(pruneGoodWorkspaceExtras(costs, [red])?.purchaseCosts).toEqual([]);
+    expect(prepareGoodWorkspaceExtraSections(costs, [red], { canManageCosts: true })).toEqual({ ok: true, value: {} });
+  });
+  it('정리 전에도 prepare는 지금 행에 없는 키를 무시하고, 남은 행의 입력은 싣는다', () => {
+    const mixed = { purchaseCosts: [...stale.purchaseCosts, { optionKey: goodsOptionRowKey(saved), unitCostKrw: '5000', taxBasis: 'included' as const }] };
+    const prepared = prepareGoodWorkspaceExtraSections(mixed, [renamed, saved], { canManageCosts: true });
+    expect(prepared).toMatchObject({ ok: true, value: { purchaseCosts: [{ variant: { id: saved.id }, unitCostKrw: 5000 }] } });
+    expect(pruneGoodWorkspaceExtras(mixed, [renamed, saved])?.purchaseCosts).toHaveLength(1);
+  });
+  it('정리할 것이 없으면 같은 객체를 돌려준다', () => {
+    expect(pruneGoodWorkspaceExtras(stale, [red])).toBe(stale);
+    expect(pruneGoodWorkspaceExtras(undefined, [red])).toBeUndefined();
   });
 });
 

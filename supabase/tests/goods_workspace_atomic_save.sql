@@ -363,6 +363,9 @@ select pg_temp.workspace_payload('12000000-0000-4000-8000-000000000120',pg_temp.
 select public.admin_save_good_workspace(:'all_request'::jsonb) as all_result \gset
 -- 재시도: 같은 작업 ID·같은 요청은 영수증을 돌려주고 어떤 섹션도 다시 쓰지 않는다.
 select public.admin_save_good_workspace(:'all_request'::jsonb) as all_replay \gset
+-- 이 파일은 rollback으로 끝나 커밋 시점의 지연 제약을 한 번도 발화하지 않는다. 저장 직후 미리 발화시켜 커밋 때 터질 위반이 없음을 확인한다.
+set constraints all immediate;
+set constraints all deferred;
 reset role;
 select 1/case when :'all_result'::jsonb->>'id'='workspace-all' and (:'all_result'::jsonb->>'created')::boolean
   and (select array_agg(key order by key) from jsonb_object_keys(:'all_result'::jsonb->'sections') key)
@@ -429,6 +432,23 @@ select 1/case when (:'publish_ok'::jsonb#>>'{publish,published}')::boolean
   and (select (diff->>'publishRequested')::boolean and not (diff->>'published')::boolean from public.audit_log
     where id='12000000-0000-4000-8000-000000000131' and action='admin.good.workspace_saved')
   then 1 else 0 end as assert_publish_after_save_keeps_save_on_rejection;
+-- 랜덤 판매는 같은 요청의 정기배송·기간 할인보다 나중에 저장하므로 기존 전환 검사가 둘을 모두 보고, 섹션 접두사가 붙은 오류로 거절된다.
+set local role authenticated;
+select pg_temp.workspace_auth('00000000-0000-4000-8000-000000120002','12000000-0000-4000-9000-000000000002');
+select pg_temp.expect_error(format('select public.admin_save_good_workspace(%L::jsonb)',
+  pg_temp.workspace_payload('12000000-0000-4000-8000-000000000140',pg_temp.workspace_good('workspace-random-sub','랜덤 정기배송'),
+    jsonb_build_object('subscriptionPolicy',jsonb_build_object('enabled',true,'intervals',jsonb_build_array('month_1'),'message',''),
+      'optionSaleMode','random'))::text),
+  'goods_workspace_section_failed:optionSaleMode:random_option_subscription');
+select pg_temp.expect_error(format('select public.admin_save_good_workspace(%L::jsonb)',
+  pg_temp.workspace_payload('12000000-0000-4000-8000-000000000141',pg_temp.workspace_good('workspace-random-price','랜덤 기간 할인'),
+    jsonb_build_object('pricePeriods',jsonb_build_array(jsonb_build_object('variant',jsonb_build_object('attributes',jsonb_build_object('색상','빨강')),
+      'period',jsonb_build_object('state','active','discountPrice',9000,'startsAt',to_jsonb(now()-interval '1 hour'),'endsAt',to_jsonb(now()+interval '1 day')))),
+      'optionSaleMode','random'))::text),
+  'goods_workspace_section_failed:optionSaleMode:random_option_price_mismatch');
+reset role;
+select 1/case when not exists(select 1 from public.goods where id in ('workspace-random-sub','workspace-random-price'))
+  then 1 else 0 end as assert_random_conflicts_rejected_with_section;
 update private.goods_transaction_runtime set enabled=false where singleton;
 
 -- 접근 경계: 영수증 표는 앱 역할에 열리지 않고, 래퍼는 authenticated만 실행한다.

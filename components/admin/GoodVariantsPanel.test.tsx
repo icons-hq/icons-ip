@@ -22,6 +22,17 @@ describe('상품 옵션 확인', () => {
     for (const form of forms) expect(form).toMatch(/<button[^>]*type="submit"[^>]*>(?:사용 중지|복원)<\/button>/);
   });
 
+  it('사용 중지 옵션만 옵션코드·ERP 코드·바코드를 작게 남긴다', () => {
+    const html = renderToStaticMarkup(<GoodVariantsPanel goodId="good-1" basePrice={12000} variants={[
+      { id: 'variant-1', code: 'GOOD-1-01', goodId: 'good-1', name: '사용 중 옵션', price: 12000, stockQty: 3, erpCode: '000123', barcode: '0007', isDefault: true, archivedAt: null },
+      { id: 'variant-stopped', code: 'GOOD-1-02', goodId: 'good-1', name: '중지된 옵션', price: 13000, stockQty: 10, erpCode: 'ERP-STOP', barcode: '88001', isDefault: false, archivedAt: '2026-09-10' },
+    ]} />);
+    const stopped = html.match(/<small[^>]*data-variant-identifiers[^>]*>[\s\S]*?<\/small>/g) ?? [];
+    expect(stopped).toHaveLength(1);
+    for (const text of ['옵션코드 GOOD-1-02', 'ERP 코드 ERP-STOP', '바코드 88001']) expect(stopped[0]).toContain(text);
+    for (const text of ['GOOD-1-01', '000123', '0007']) expect(html).not.toContain(text);
+  });
+
   it('백필이 없는 상품을 빈 목록으로 숨기지 않고 알린다', () => {
     const html = renderToStaticMarkup(<GoodVariantsPanel goodId="missing" basePrice={0} variants={[]} />);
     expect(html).toContain('등록된 옵션이 없습니다.');

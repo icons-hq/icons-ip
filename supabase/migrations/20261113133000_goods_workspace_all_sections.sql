@@ -55,8 +55,9 @@ revoke all on function private.resolve_goods_workspace_variant(text,jsonb,uuid[]
 -- 2. 나머지 설정 저장. admin_save_good_workspace(새 상품의 기본 저장 직후, 같은 트랜잭션)만 부른다.
 --    섹션마다 기존 저장 RPC를 그대로 부르고, 새 상품이라 기대 버전은 지금 저장값(없으면 0)이다. 작업 ID는 섹션마다 새로 만든다
 --    — 같은 등록 요청의 재시도는 래퍼 영수증이 저장 결과를 돌려주므로 섹션 RPC에 다시 들어가지 않는다.
---    순서: 판매 방식 → 매입단가 → 기간 할인 → 추가 구성 → 사은품 → A/S → 사이즈 → 색상칩 → 복수구매 할인·배송비 → 묶음그룹 →
---    정기배송 → 수령 방식 → 제작. 서로 함께 쓸 수 없는 조합(랜덤 판매·정기배송, 예약판매·제작·디지털 등)은 각 RPC가 지금처럼 거절한다.
+--    순서: 매입단가 → 기간 할인 → 추가 구성 → 사은품 → A/S → 사이즈 → 색상칩 → 복수구매 할인·배송비 → 묶음그룹 →
+--    정기배송 → 수령 방식 → 제작 → 판매 방식. 판매 방식(랜덤 전환)을 맨 뒤에 두어, 기존 전환 검사(goods_random_option_switch_problem)가
+--    같은 요청의 정기배송·기간 할인을 모두 본다. 예약판매·제작·디지털 등 함께 쓸 수 없는 조합은 각 RPC가 지금처럼 거절한다.
 create function private.save_goods_workspace_extra_sections(p_good_id text, p_sections jsonb, p_new_variants uuid[])
 returns jsonb
 language plpgsql
@@ -85,8 +86,8 @@ begin
   end if;
   -- 로그인 세션에 묶인 저장(수령 방식·제작·묶음그룹)은 지금 요청의 세션으로 부른다. 없으면 각 RPC가 권한 오류로 거절한다.
   session_id := case when coalesce(auth.jwt()->>'session_id', '') ~ uuid_pattern then (auth.jwt()->>'session_id')::uuid end;
-  foreach section in array array['optionSaleMode','purchaseCosts','pricePeriods','additional','benefits','afterSales','sizeChart',
-    'listingColors','transactionTerms','shippingChargeGroup','subscriptionPolicy','fulfillment','production'] loop
+  foreach section in array array['purchaseCosts','pricePeriods','additional','benefits','afterSales','sizeChart',
+    'listingColors','transactionTerms','shippingChargeGroup','subscriptionPolicy','fulfillment','production','optionSaleMode'] loop
     continue when not (p_sections ? section);
     value := p_sections->section;
     begin

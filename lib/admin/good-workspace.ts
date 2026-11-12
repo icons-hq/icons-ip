@@ -2,6 +2,7 @@ import { GOODS_NOTICE_FIELDS } from '@/lib/goods-notice';
 import { GOOD_TYPES, type GoodType } from '@/lib/goods-taxonomy';
 import { categoryGoodTypeSource, type AdminCategoryNode, type CategoryGoodTypeSource } from './category';
 import type { GoodsOptionRow } from './goods-option-editor';
+import { GOOD_WORKSPACE_EXTRA_ERROR_SECTIONS } from './good-workspace-extra-sections';
 import { goodsReadinessAnchor, type AdminGoodsReadiness, type GoodsReadinessReasonCode } from './goods-readiness';
 
 /**
@@ -55,6 +56,8 @@ export function goodFieldSection(name: string) {
 const errorOrder = (field: string) => {
   if (field === 'workspaceKc') return GOOD_EDITOR_SECTIONS.findIndex((section) => section.key === 'notice') + 0.5;
   if (field === 'workspacePreorders') return GOOD_EDITOR_SECTIONS.findIndex((section) => section.key === 'period') + 0.5;
+  /* 나머지 설정(13섹션) 오류는 기본 입력 오류 뒤에 둔다. */
+  if (Object.hasOwn(GOOD_WORKSPACE_EXTRA_ERROR_SECTIONS, field)) return GOOD_EDITOR_SECTIONS.length;
   return GOOD_EDITOR_SECTIONS.indexOf(goodFieldSection(field));
 };
 

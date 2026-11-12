@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { Check, ChevronDown, ChevronRight } from 'lucide-react';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { GOOD_EDITOR_CARDS, GOOD_EDITOR_SECTIONS, goodCurrentCard, goodFieldSection, orderedGoodErrors, type GoodEditorCardKey } from '@/lib/admin/good-workspace';
+import { pruneGoodWorkspaceExtras } from '@/lib/admin/good-workspace-extra-sections';
 import { EMPTY_GOOD_WORKSPACE_SECTIONS, GOOD_WORKSPACE_ERROR_SECTIONS, type GoodWorkspaceErrorField, type GoodWorkspaceSectionsDraft } from '@/lib/admin/good-workspace-sections';
 import { initialGoodsOptionRows, type GoodsOptionRow } from '@/lib/admin/goods-option-editor';
 import type { AdminGoodsKc, GoodsKcModelInput } from '@/lib/admin/goods-kc';
@@ -77,6 +78,11 @@ export function GoodWorkspaceProvider({ completedKey = null, children }: { compl
   }, []);
   const publishOptionRows = useCallback((rows: GoodsOptionRow[]) => {
     setOptionRows((current) => JSON.stringify(current) === JSON.stringify(rows) ? current : rows);
+    /* 옵션 키가 바뀌면 사라진 옵션의 매입단가 입력은 화면에서 지울 수 없으므로 함께 정리한다. */
+    setSections((current) => {
+      const pruned = pruneGoodWorkspaceExtras(current.extras, rows);
+      return pruned === current.extras ? current : { ...current, extras: pruned };
+    });
   }, []);
   const [originId, publishOriginId] = useState('');
   const openValue = useMemo(() => ({ open, setOpen }), [open, setOpen]);
@@ -364,9 +370,12 @@ export function GoodOperationSection({ id, title, description, children, mode = 
   </details>;
 }
 
-/** 저장 뒤 이어서 설정 카드의 접이식 묶음. 기본은 접힘이고, `#good-operation-*` 링크는 조상 details를 열어 들어온다. */
-export function GoodOperationGroup({ id, title, names, children }: { id: string; title: string; names: string; children: ReactNode }) {
-  return <GoodWorkspaceDetails stateId={`good-operation-group-${id}`} className="group/operation-group min-w-0 rounded-lg border" data-good-operation-group={id}>
+/**
+ * 이어서 설정 카드의 접이식 묶음. 기본은 접힘이고, `#good-operation-*` 링크는 조상 details를 열어 들어온다.
+ * 등록 화면('상품과 함께 저장할 설정')은 `defaultOpen`으로 묶음을 펼쳐 둬 섹션 이름이 보이게 하고, 그 안 섹션은 접힌 채로 둔다.
+ */
+export function GoodOperationGroup({ id, title, names, defaultOpen = false, children }: { id: string; title: string; names: string; defaultOpen?: boolean; children: ReactNode }) {
+  return <GoodWorkspaceDetails stateId={`good-operation-group-${id}`} defaultOpen={defaultOpen} className="group/operation-group min-w-0 rounded-lg border" data-good-operation-group={id}>
     <summary className="flex min-h-11 cursor-pointer list-none items-center gap-3 rounded-lg px-3 py-2 outline-none select-none group-open/operation-group:rounded-b-none focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
       <span className="shrink-0 text-sm font-medium text-foreground">{title}</span>
       <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{names}</span>

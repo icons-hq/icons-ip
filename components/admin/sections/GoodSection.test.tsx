@@ -570,6 +570,18 @@ describe('GoodSection', () => {
     expect(hub.indexOf('id="good-operation-stock"')).toBeLessThan(hub.indexOf('data-good-operation-group="benefits"'));
   });
 
+  /* T15b 리뷰: 등록 화면은 묶음 5개를 펼쳐 두되 그 안 섹션은 접고, 저장된 상품의 이어서 설정은 모두 접힌 채로 둔다. */
+  it('등록 화면은 상품과 함께 저장할 설정 묶음을 펼치고 섹션은 접어 둔다', () => {
+    const create = renderGoodSection(null, {}, { accountId: 'operator-1' });
+    const hub = create.slice(create.indexOf('data-good-operation-hub="pending"'));
+    const groups = [...hub.matchAll(/<details[^>]*data-good-operation-group="([a-z]+)"[^>]*>/g)];
+    expect(groups).toHaveLength(4); /* 관리 묶음은 저장 뒤 항목뿐이라 등록 화면에는 4개다. */
+    for (const group of groups) expect(group[0]).toContain('open=""');
+    const sections = [...hub.matchAll(/<details id="good-operation-[a-z-]+"[^>]*data-good-operation="inline"[^>]*>/g)];
+    expect(sections.length).toBeGreaterThan(0);
+    for (const section of sections) expect(section[0]).not.toContain('open=""');
+  });
+
   /* 10/27 회의 D5② — 판매 방식(랜덤 판매) 패널은 예약판매 바로 앞에 둔다. 등록 화면에는 이름만 있다. */
   it('판매 방식 패널을 예약판매 바로 앞에 두고, 기본 입력 잠금 규칙을 다른 운영 패널과 같이 따른다', () => {
     const props = { accountId: 'operator-1' };

@@ -329,7 +329,7 @@ export function GoodSection({
           </div>
           {OPERATION_GROUPS.map((group) => {
             const visible = group.operations.filter((id) => draftPanels[id]);
-            return visible.length ? <GoodOperationGroup id={group.id} key={group.id} title={group.title} names={visible.map((id) => OPERATION[id][0]).join(' · ')}>{visible.map((id) => draftPanels[id])}</GoodOperationGroup> : null;
+            return visible.length ? <GoodOperationGroup defaultOpen id={group.id} key={group.id} title={group.title} names={visible.map((id) => OPERATION[id][0]).join(' · ')}>{visible.map((id) => draftPanels[id])}</GoodOperationGroup> : null;
           })}
           {/* 저장 뒤에만 하는 항목(재고 조정·옵션 사용·복사·보관)은 이름만 보인다. 입력은 저장 뒤 이 자리에서 한다. */}
           <div className="flex min-w-0 flex-col gap-1.5 border-t pt-3" data-good-operation-after-save="">

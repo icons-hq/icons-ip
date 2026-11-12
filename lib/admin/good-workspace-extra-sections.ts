@@ -95,6 +95,17 @@ const SECTION_FIELD: Record<GoodWorkspaceExtraKey, GoodWorkspaceExtraErrorField>
 };
 export function goodWorkspaceExtraErrorField(key: GoodWorkspaceExtraKey): GoodWorkspaceExtraErrorField { return SECTION_FIELD[key]; }
 
+/**
+ * 옵션 행이 바뀌었을 때 지금 행에 없는 옵션 키의 매입단가 입력을 정리한다. 매입단가 섹션은 지금 행만 그려서 사용자가 지울 수 없는 입력이 남기 때문이다.
+ * 정리할 것이 없으면 같은 객체를 돌려준다.
+ */
+export function pruneGoodWorkspaceExtras<T extends Partial<GoodWorkspaceExtraDraft>>(extras: T | undefined, rows: readonly GoodsOptionRow[]): T | undefined {
+  if (!extras?.purchaseCosts?.length) return extras;
+  const keys = new Set(rows.map(goodsOptionRowKey));
+  const kept = extras.purchaseCosts.filter((entry) => keys.has(entry.optionKey));
+  return kept.length === extras.purchaseCosts.length ? extras : { ...extras, purchaseCosts: kept };
+}
+
 type VariantRef = { id: string } | { attributes: Record<string, string> };
 function variantRef(row: GoodsOptionRow): VariantRef {
   return row.id && isUuid(row.id) ? { id: row.id.toLowerCase() } : { attributes: { ...row.attributes } };
@@ -166,7 +177,8 @@ export function prepareGoodWorkspaceExtraSections(extras: Partial<GoodWorkspaceE
   if (!extras) return { ok: true, value };
   const rowFor = (optionKey: string) => rows.find((row) => goodsOptionRowKey(row) === optionKey);
   if (extras.optionSaleMode === 'random') value.optionSaleMode = 'random';
-  const costs = (extras.purchaseCosts ?? []).filter((entry) => entry.unitCostKrw.trim() || entry.taxBasis);
+  /* 지금 옵션 행에 없는 키는 화면에 칸이 없어 지울 수 없으므로 무시한다(옵션값·구성이 바뀐 뒤 남은 입력). */
+  const costs = (extras.purchaseCosts ?? []).filter((entry) => (entry.unitCostKrw.trim() || entry.taxBasis) && rowFor(entry.optionKey));
   if (costs.length) {
     if (!canManageCosts) return fail('purchaseCosts', '공급가(매입단가)는 관리자 계정에서 입력합니다.');
     const entries: NonNullable<GoodWorkspaceExtraSubmission['purchaseCosts']> = [];

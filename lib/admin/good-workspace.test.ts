@@ -22,6 +22,9 @@ describe('상품 등록 카드와 필수 입력 안내', () => {
     /* 판매가 → 재고수량·옵션 → 판매기간 → 예약판매 → 구매 제한(1027T-023), KC는 고시 바로 뒤. */
     expect(orderedGoodErrors({ workspacePreorders: 'p', maxOrderQty: 'l', variants: 'v', price: 'a', originId: 'o', workspaceKc: 'k', noticeMaker: 'n', saleStartsAt: 's' }).map(([field]) => field))
       .toEqual(['price', 'variants', 'saleStartsAt', 'workspacePreorders', 'maxOrderQty', 'noticeMaker', 'workspaceKc', 'originId']);
+    /* 나머지 설정 13섹션의 오류는 기본 입력 오류 뒤에 모인다. */
+    expect(orderedGoodErrors({ workspaceCosts: 'c', workspaceOptionSaleMode: 'm', originId: 'o', price: 'a' }).map(([field]) => field))
+      .toEqual(['price', 'originId', 'workspaceCosts', 'workspaceOptionSaleMode']);
   });
 
   it('공개까지 남은 필수 입력을 세고 카드별로 나눈다(판정은 서버가 한다)', () => {

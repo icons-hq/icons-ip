@@ -14,6 +14,15 @@ import { GOOD_NUMBER_INPUT_CLASS, GOOD_TABLE_FRAME_CLASS } from './GoodEditorPar
 const HEAD_CLASS = 'px-3 text-xs font-medium whitespace-normal text-muted-foreground';
 const CELL_CLASS = 'px-3 py-2.5 align-top whitespace-normal';
 
+/** 사용 중지 옵션은 판매 정보 카드의 옵션 상세 정보 표에 없어, 식별자(옵션코드·ERP 코드·바코드)를 이 목록에 작게 남긴다. */
+function ArchivedVariantIdentifiers({ variant }: { variant: AdminGoodsVariant }) {
+  const identifiers = [['옵션코드', variant.code], ['ERP 코드', variant.erpCode], ['바코드', variant.barcode]].filter(([, value]) => value);
+  if (!variant.archivedAt || !identifiers.length) return null;
+  return <small className="mt-1 flex min-w-0 flex-col text-xs font-normal text-muted-foreground" data-variant-identifiers="">
+    {identifiers.map(([label, value]) => <span key={label} className="wrap-anywhere">{label} {value}</span>)}
+  </small>;
+}
+
 function VariantAvailabilityForm({ variant, basePrice }: { variant: AdminGoodsVariant; basePrice: number }) {
   const [state, action, pending] = useActionState(setGoodsVariantActiveAction, {});
   const [price, setPrice] = useState(String(variant.price));
@@ -43,7 +52,7 @@ export function GoodVariantsPanel({ goodId, variants, basePrice }: { goodId: str
       <div className="flex flex-col gap-1">
         <h2 id={`good-variants-${goodId}`} className="text-base leading-snug font-medium">옵션 목록</h2>
         <p className="text-sm text-muted-foreground">
-          옵션명·판매가·재고수량·사용 상태를 확인합니다. 옵션코드·ERP·바코드·안전재고는 위 판매 정보 카드의 옵션 상세 정보에서 확인·수정하며, 사용 중지와 복원은 즉시 반영되고 위 상품 폼의 수정은 별도로 저장합니다.
+          옵션명·판매가·재고수량·사용 상태를 확인합니다. 옵션코드·ERP·바코드·안전재고는 위 판매 정보 카드의 옵션 상세 정보에서 확인·수정하고(사용 중지 옵션의 코드는 이 목록에 남습니다), 사용 중지와 복원은 즉시 반영되고 위 상품 폼의 수정은 별도로 저장합니다.
         </p>
       </div>
       {selectedVariants.length ? <>
@@ -63,7 +72,8 @@ export function GoodVariantsPanel({ goodId, variants, basePrice }: { goodId: str
               <TableHead scope="col" className={`w-[24%] ${HEAD_CLASS}`}>사용 설정</TableHead>
             </TableRow></TableHeader>
             <TableBody>{selectedVariants.map((variant) => <TableRow key={variant.id} data-variant-id={variant.id}>
-              <TableCell className={`${CELL_CLASS} wrap-anywhere`}>{variant.name}{variant.isDefault && variant.name !== '기본 옵션' ? ' (기본)' : ''}</TableCell>
+              <TableCell className={`${CELL_CLASS} wrap-anywhere`}>{variant.name}{variant.isDefault && variant.name !== '기본 옵션' ? ' (기본)' : ''}
+                <ArchivedVariantIdentifiers variant={variant} /></TableCell>
               <TableCell className={`${CELL_CLASS} text-right font-medium tabular-nums`}>{variant.price.toLocaleString('ko-KR')}원</TableCell>
               <TableCell className={`${CELL_CLASS} text-right tabular-nums`}>{variant.stockQty.toLocaleString('ko-KR')}개
                 {variant.lowStockThreshold != null && variant.stockQty <= variant.lowStockThreshold && <strong className="ml-1.5 text-xs font-medium text-[var(--wc-warning)]" data-tone="warning">재고 부족</strong>}</TableCell>
