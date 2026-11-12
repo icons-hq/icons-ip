@@ -500,8 +500,8 @@ export function normalizeAdminIpForm(
 }
 
 /*
- * 정가(compareAtPrice) 검증은 상품 편집기와 상품 엑셀이 함께 쓴다. 편집기는 판매가(할인 전)·할인 칸을,
- * 엑셀은 기준 판매가·소비자가 열을 보여 주므로, 오류 문구도 운영자가 고칠 칸의 이름을 따른다.
+ * 정가(compareAtPrice) 검증은 상품 편집기와 상품 엑셀이 함께 쓴다. 엑셀 v8은 편집기와 같은 판매가·즉시할인 열이고
+ * goodsWorkbookStoredPrice가 먼저 열 이름으로 알린다. 아래 엑셀 문구는 그 뒤의 방어 검증이 같은 열 이름을 쓰게 한다(T17a·T20).
  */
 const COMPARE_AT_PRICE_COPY = {
   editor: {
@@ -509,8 +509,8 @@ const COMPARE_AT_PRICE_COPY = {
     notAbovePrice: '할인은 0원보다 크고 판매가보다 작아야 해요. 판매가와 할인을 확인해주세요.',
   },
   workbook: {
-    invalid: '소비자가는 0 이상의 정수여야 합니다.',
-    notAbovePrice: '소비자가는 기준 판매가보다 커야 합니다.',
+    invalid: '판매가와 즉시할인은 0 이상의 원 단위 정수로 입력해주세요.',
+    notAbovePrice: '즉시할인은 1원 이상, 판매가보다 작아야 합니다.',
   },
 } as const;
 export type AdminGoodFormCopy = keyof typeof COMPARE_AT_PRICE_COPY;

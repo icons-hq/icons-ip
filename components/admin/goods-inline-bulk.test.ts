@@ -37,6 +37,26 @@ describe('할인 중지 후 판매가 변경 (1027T-025)', () => {
     expect(mocks.commit).not.toHaveBeenCalled();
   });
 
+  /* TKT-033: 기간 없는 즉시할인(정가 표시) 상품도 같은 창 — 운영자가 본 판매가는 할인 전 판매가이고, 그 즉시할인도 멈출 할인으로 보인다. */
+  it('기간 없는 즉시할인 상품은 includeInstant로 멈출 할인을 읽고 할인 전 판매가로 비교하며, 멈춘 즉시할인을 다음 단계에 넘긴다', async () => {
+    const instant = { regularPrice: 12000, salePrice: 9000 };
+    mocks.preview.mockImplementationOnce(async (operationId: string, request: GoodsBulkRequest) => ready(operationId, request, good({ price: 9000, discounts: null, instantDiscount: instant })));
+    const phase = await reviewDiscountStop(identity, 'good-a', 12000, true);
+    expect(mocks.preview.mock.calls[0][1]).toEqual({ kind: 'goods', ids: ['good-a'], command: 'discount_stop', values: { includeInstant: true } });
+    expect(phase).toEqual({ step: 'ready', review: { operationId: mocks.preview.mock.calls[0][0], discounts: null, instant } });
+    /* 할인 전 판매가가 그사이 바뀌었으면 닫는다(할인가가 아니라 할인 전 판매가로 견준다). */
+    mocks.preview.mockImplementationOnce(async (operationId: string, request: GoodsBulkRequest) => ready(operationId, request, good({ price: 9000, discounts: null, instantDiscount: { regularPrice: 13000, salePrice: 9000 } })));
+    expect(await reviewDiscountStop(identity, 'good-a', 12000, true)).toEqual({ step: 'review-failed', retry: false, message: expect.stringContaining('13,000원') });
+    /* 확정하면 멈춘 즉시할인을 판매가 단계에 넘기고, 판매가 변경의 기대값은 할인 전 판매가다. */
+    vi.clearAllMocks();
+    mocks.preview.mockImplementation(async (operationId: string, request: GoodsBulkRequest) => ready(operationId, request, good({ price: 12000, nextPrice: Number(request.values.value) })));
+    mocks.commit.mockImplementation(async (operationId: string) => receipt(operationId, 'completed'));
+    const onStopped = vi.fn();
+    const step = await stopDiscountThenChangePrice(identity, 'good-a', { operationId: 'b9000000-0000-4000-8000-0000000000c1', discounts: null, instant }, 12000, 11000, onStopped);
+    expect(step).toEqual({ phase: { step: 'price', stoppedHere: true, stopped: null, stoppedInstant: instant, error: '' }, done: true });
+    expect(onStopped).toHaveBeenCalledWith({ step: 'price', stoppedHere: true, stopped: null, stoppedInstant: instant, error: '' });
+  });
+
   it('목록에서 본 기본 판매가가 바뀌었으면 비교 요청을 닫고 새로고침을 요청한다', async () => {
     mocks.preview.mockImplementationOnce(async (operationId: string, request: GoodsBulkRequest) => ready(operationId, request, good({ price: 11000, discounts })));
     const phase = await reviewDiscountStop(identity, 'good-a', 10000);

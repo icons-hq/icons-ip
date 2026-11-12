@@ -19,6 +19,8 @@ import {
   goodsWorkbookLayout,
   partitionGoodsExports,
   planGoodsWorkbookImport,
+  goodsWorkbookLiveDiscountError,
+  goodsWorkbookLiveDiscountOptionAddError,
   type GoodsImportExisting,
   type GoodsWorkbookContext,
   type GoodsWorkbookRow,
@@ -435,6 +437,56 @@ describe('goods Excel planning', () => {
     const old = await parseGoodsWorkbookWithKc(await v3Workbook([exported], GOODS_WORKBOOK_V7_VERSION));
     expect(old.rows[0]).toMatchObject({ layout: 'v7', values: { productNo: '', salePrice: '12000', instantDiscount: '2000', optionPrice: '500' } });
     expect(planGoodsWorkbookImport(old.rows, ctx)[0].kind).toBe('unchanged');
+  });
+  /* TKT-033(ADR-0040): 엑셀에는 기간 할인 열이 없다. 진행·예정 기간 할인이 있는 상품의 판매가·즉시할인·옵션가 변경은 거절하고 이유를 보인다. */
+  it('진행·예정 기간 할인이 있는 상품은 판매가·즉시할인·옵션가를 바꾸는 행을 거절하고, 그대로 두거나 다른 열만 바꾸면 반영한다', async () => {
+    const live = { count: 2, minPrice: 9000, maxPrice: 9500, startsAt: '2026-11-30T15:00:00+00:00', endsAt: '2026-12-07T15:00:00+00:00' };
+    const record = { ...existing, livePriceDiscount: live };
+    const ctx = { ...context, existing: [record] };
+    const [exported] = exportGoodsWorkbookRows(record, ctx);
+    expect(exported.instantDiscount).toBe('');
+    const plan = (patch: Partial<typeof exported>) => planGoodsWorkbookImport([{ row: 5, values: { ...exported, ...patch } }], ctx)[0];
+    expect(plan({}).kind).toBe('unchanged');
+    expect(plan({ name: '이름만 바꿈' }).kind).toBe('update');
+    for (const patch of [{ salePrice: String(Number(exported.salePrice) + 1000) }, { instantDiscount: '500' }, { optionPrice: String(Number(exported.optionPrice || 0) + 100) }]) {
+      const group = plan(patch);
+      expect({ patch, kind: group.kind, target: group.target }).toEqual({ patch, kind: 'error', target: null });
+      expect(group.errors.join()).toContain('진행 중이거나 예정된 기간 할인(2건, 2026. 12. 8. 00:00까지)이 있는 상품이라 엑셀로 판매가·즉시할인·옵션가를 바꿀 수 없습니다');
+    }
+    expect(goodsWorkbookLiveDiscountError(live)).toContain('이 상품 행은 반영하지 않으니');
+    /* 기간 할인이 없는 상품은 지금처럼 바꾼다. */
+    expect(planGoodsWorkbookImport([{ row: 5, values: { ...exported, salePrice: String(Number(exported.salePrice) + 1000) } }], { ...context, existing: [{ ...existing, livePriceDiscount: null }] })[0].kind).toBe('update');
+  });
+  it('기간 할인 행이 없는 옵션의 옵션가 변경은 반영하고, 행이 걸린 옵션은 거절하며, 옵션 추가·복원은 상품 단위로 거절한다', () => {
+    const live = { count: 1, minPrice: 9000, maxPrice: 9000, startsAt: '2026-11-30T15:00:00+00:00', endsAt: '2026-12-07T15:00:00+00:00' };
+    const bId = '00000000-0000-4000-8000-000000000002';
+    const withB = (archived: string | null = null): GoodsImportExisting => ({ ...existing, livePriceDiscount: live, livePriceVariantIds: [variantId],
+      variants: [existing.variants[0], { ...existing.variants[0], id: bId, code: 'GO-001-02', name: '빨강', attributes: { 색상: '빨강' }, is_default: false, sort_order: 1, archived_at: archived }] });
+    const record = withB();
+    const ctx = { ...context, existing: [record] };
+    type Rows = ReturnType<typeof exportGoodsWorkbookRows>;
+    const rows: Rows = exportGoodsWorkbookRows(record, ctx);
+    expect(rows).toHaveLength(2);
+    const plan = (edit: (rows: Rows) => Rows, c = ctx) => planGoodsWorkbookImport(edit(rows.map((values) => ({ ...values }))).map((values, index) => ({ row: 5 + index, values })), c)[0];
+    // 기간 행이 없는 옵션 B의 옵션가는 바꿀 수 있다(DB도 허용).
+    expect(plan((r) => { r[1].optionPrice = String(Number(r[1].optionPrice || 0) + 100); return r; }).kind).toBe('update');
+    // 기간 행이 걸린 옵션 A의 옵션가·상품 판매가는 거절한다.
+    expect(plan((r) => { r[0].optionPrice = String(Number(r[0].optionPrice || 0) + 100); return r; }).errors.join()).toContain('엑셀로 판매가·즉시할인·옵션가를 바꿀 수 없습니다');
+    expect(plan((r) => r.map((x) => ({ ...x, salePrice: String(Number(x.salePrice) + 100) }))).kind).toBe('error');
+    // 목록이 없으면(이전 응답) 모든 옵션을 막는다.
+    expect(plan((r) => { r[1].optionPrice = String(Number(r[1].optionPrice || 0) + 100); return r; }, { ...ctx, existing: [{ ...record, livePriceVariantIds: undefined }] }).kind).toBe('error');
+    // 옵션 추가: 새 코드의 옵션 행.
+    const added = plan((r) => [...r, { ...r[1], variantCode: 'GO-001-03', variantName: '파랑', axis1: '색상', value1: '파랑' }]);
+    expect(added.kind).toBe('error');
+    expect(added.errors.join()).toContain('엑셀로 옵션을 추가·복원할 수 없습니다');
+    // 옵션 복원: 보관된 옵션을 사용으로 되돌린다.
+    const archived = withB('2026-09-10T00:00:00Z');
+    const archivedCtx = { ...context, existing: [archived] };
+    // 보관된 옵션은 내보내지 않으니, 보관 전 행을 사용으로 다시 올리는 경우다.
+    const restore = planGoodsWorkbookImport(rows.map((values, index) => ({ row: 5 + index, values })), archivedCtx)[0];
+    expect(restore.kind).toBe('error');
+    expect(restore.errors.join()).toContain('엑셀로 옵션을 추가·복원할 수 없습니다');
+    expect(goodsWorkbookLiveDiscountOptionAddError(live)).toContain('상품 수정에서 바꿔 주세요');
   });
   it('상품번호 → 판매자상품코드 순서로 수정할 상품을 찾고, 서로 다른 상품을 가리키면 덮어쓰지 않는다(ADR-0038)', () => {
     const [values] = exportGoodsWorkbookRows(existing, context);

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { goodsDiscountRate, goodsDiscountResultText, goodsPriceDraftFromValues, planErpSalePrice, resolveGoodsPrice, type GoodsPriceDraft } from './goods-price-editor';
+import { NEW_GOOD_INSTANT_DISCOUNT, goodsDiscountRate, goodsDiscountResultText, goodsPriceDraftFromValues, instantDiscountPeriodRequest, parseGoodsInstantDiscountState,
+  parseInstantDiscountPeriodRequest, planErpSalePrice, resolveGoodsPrice, type GoodsInstantDiscountState, type GoodsPriceDraft } from './goods-price-editor';
 
 const draft = (changes: Partial<GoodsPriceDraft> = {}): GoodsPriceDraft => ({
   regularPrice: '10000', discountEnabled: false, discountValue: '', discountUnit: 'won', ...changes,
@@ -32,7 +33,7 @@ describe('판매가·할인 입력 변환', () => {
 
   it('할인 설정함은 판매가를 compareAtPrice로, 할인가를 price로 저장한다', () => {
     expect(resolveGoodsPrice(draft({ discountEnabled: true, discountValue: '3000' })))
-      .toEqual({ price: '7000', compareAtPrice: '10000', regularPrice: 10000, discountAmount: 3000, salePrice: 7000 });
+      .toEqual({ price: '7000', compareAtPrice: '10000', regularPrice: 10000, discountAmount: 3000, salePrice: 7000, basePrice: 7000, period: null });
   });
 
   it('% 할인은 원 단위로 내리고 소수 둘째 자리까지 받는다', () => {
@@ -66,9 +67,9 @@ describe('판매가·할인 입력 변환', () => {
 
   it('기존 상품은 compareAtPrice > price일 때 할인 설정함(차액 원)으로 연다', () => {
     expect(goodsPriceDraftFromValues({ price: '22000', compareAtPrice: '26000' }))
-      .toEqual({ regularPrice: '26000', discountEnabled: true, discountValue: '4000', discountUnit: 'won' });
+      .toEqual({ regularPrice: '26000', discountEnabled: true, discountValue: '4000', discountUnit: 'won', periodEnabled: false, periodStartsAt: '', periodEndsAt: '' });
     expect(goodsPriceDraftFromValues({ price: '22000', compareAtPrice: '' }))
-      .toEqual({ regularPrice: '22000', discountEnabled: false, discountValue: '', discountUnit: 'won' });
+      .toEqual({ regularPrice: '22000', discountEnabled: false, discountValue: '', discountUnit: 'won', periodEnabled: false, periodStartsAt: '', periodEndsAt: '' });
     expect(goodsPriceDraftFromValues({ price: '22000', compareAtPrice: '22000' })).toMatchObject({ regularPrice: '22000', discountEnabled: false });
     expect(goodsPriceDraftFromValues({ price: '0', compareAtPrice: '' })).toMatchObject({ regularPrice: '' });
   });
@@ -80,16 +81,97 @@ describe('판매가·할인 입력 변환', () => {
    */
   it('저장된 % 할인은 결과 금액이 같은 원 할인으로 다시 연다', () => {
     const reopened = goodsPriceDraftFromValues({ price: '10800', compareAtPrice: '12000' });
-    expect(reopened).toEqual({ regularPrice: '12000', discountEnabled: true, discountValue: '1200', discountUnit: 'won' });
+    expect(reopened).toMatchObject({ regularPrice: '12000', discountEnabled: true, discountValue: '1200', discountUnit: 'won', periodEnabled: false });
     expect(resolveGoodsPrice(reopened)).toMatchObject({ price: '10800', compareAtPrice: '12000', discountAmount: 1200 });
     expect(goodsPriceDraftFromValues({ price: '9000', compareAtPrice: '10000' })).toMatchObject({ discountValue: '1000', discountUnit: 'won' });
   });
 
   it('실패·브라우저 복구의 화면 입력을 저장 값보다 먼저 되살린다', () => {
     const recovered = { price: '10000', compareAtPrice: '', regularPrice: '10000', discountEnabled: 'true', discountValue: '15', discountUnit: 'percent' };
-    expect(goodsPriceDraftFromValues(recovered)).toEqual({ regularPrice: '10000', discountEnabled: true, discountValue: '15', discountUnit: 'percent' });
+    expect(goodsPriceDraftFromValues(recovered)).toEqual({ regularPrice: '10000', discountEnabled: true, discountValue: '15', discountUnit: 'percent',
+      periodEnabled: false, periodStartsAt: '', periodEndsAt: '' });
+    /* 복구된 화면 입력은 서버의 기간 할인 상태보다 먼저다(실패한 저장의 기간 입력을 그대로 되살린다). */
+    expect(goodsPriceDraftFromValues({ ...recovered, discountPeriodEnabled: 'true', discountStartsAt: '2026-12-01T00:00', discountEndsAt: '2026-12-08T00:00' }, editable))
+      .toMatchObject({ discountValue: '15', periodEnabled: true, periodStartsAt: '2026-12-01T00:00', periodEndsAt: '2026-12-08T00:00' });
     const opened = goodsPriceDraftFromValues({ price: '7000', compareAtPrice: '10000' });
     expect(resolveGoodsPrice(opened)).toMatchObject({ price: '7000', compareAtPrice: '10000' });
+  });
+});
+
+const editable: GoodsInstantDiscountState = {
+  state: 'editable', reason: null, fingerprint: 'f'.repeat(32), period: { amount: 1200, startsAt: '2026-11-30T15:00:00+00:00', endsAt: '2026-12-07T15:00:00+00:00' },
+  summary: { count: 2, minPrice: 10800, maxPrice: 12800, startsAt: '2026-11-30T15:00:00+00:00', endsAt: '2026-12-07T15:00:00+00:00' }, promotions: [],
+};
+const BEFORE_DECEMBER = Date.parse('2026-11-12T00:00:00Z');
+
+/* TKT-033(ADR-0040): 즉시할인 블록의 '특정기간만 할인'. 진실원은 옵션별 기간 할인 원장이고 저장 값(판매가)은 할인 전 그대로다. */
+describe('즉시할인 기간', () => {
+  it('즉시할인 10%·기간 12/1~12/7(한국 시간)은 판매가를 그대로 저장하고 금액·기간을 서버 지시로 보낸다', () => {
+    const result = resolveGoodsPrice(draft({ regularPrice: '12000', discountEnabled: true, discountValue: '10', discountUnit: 'percent',
+      periodEnabled: true, periodStartsAt: '2026-12-01T00:00', periodEndsAt: '2026-12-08T00:00' }), BEFORE_DECEMBER);
+    expect(result).toEqual({ price: '12000', compareAtPrice: '', regularPrice: 12000, discountAmount: 1200, salePrice: 10800, basePrice: 12000,
+      period: { amount: 1200, startsAt: '2026-11-30T15:00:00.000Z', endsAt: '2026-12-07T15:00:00.000Z' } });
+    expect(JSON.parse(instantDiscountPeriodRequest(result, NEW_GOOD_INSTANT_DISCOUNT)))
+      .toEqual({ mode: 'period', amount: 1200, startsAt: '2026-11-30T15:00:00.000Z', endsAt: '2026-12-07T15:00:00.000Z', expectedFingerprint: 'none' });
+  });
+
+  it('기간 입력이 비었거나 뒤집혔거나 이미 끝났으면 기간 오류이고 서버 지시에 기간을 싣지 않는다', () => {
+    for (const [startsAt, endsAt, message] of [['', '2026-12-08T00:00', '모두 입력'], ['2026-12-08T00:00', '2026-12-01T00:00', '모두 입력'],
+      ['2026-10-01T00:00', '2026-10-08T00:00', '이미 지났습니다'], ['2026-02-30T00:00', '2026-03-08T00:00', '모두 입력']] as const) {
+      const result = resolveGoodsPrice(draft({ discountEnabled: true, discountValue: '1000', periodEnabled: true, periodStartsAt: startsAt, periodEndsAt: endsAt }), BEFORE_DECEMBER);
+      expect(result.periodError, startsAt).toContain(message);
+      expect(result).toMatchObject({ price: '10000', compareAtPrice: '', period: null });
+    }
+    /* 할인 금액 오류와 기간 오류는 함께 보인다. */
+    expect(resolveGoodsPrice(draft({ discountEnabled: true, discountValue: '', periodEnabled: true }), BEFORE_DECEMBER)).toMatchObject({ discountError: expect.any(String), periodError: expect.any(String) });
+  });
+
+  it('기간을 끄면 지금 계약 그대로(정가 표시)이고 서버 지시는 none(이 상품 편집이 다루던 기간 할인을 멈춤)이다', () => {
+    const result = resolveGoodsPrice(draft({ discountEnabled: true, discountValue: '1000', periodEnabled: false, periodStartsAt: '2026-12-01T00:00', periodEndsAt: '2026-12-08T00:00' }));
+    expect(result).toMatchObject({ price: '9000', compareAtPrice: '10000', period: null });
+    expect(JSON.parse(instantDiscountPeriodRequest(result, editable))).toEqual({ mode: 'none', expectedFingerprint: editable.fingerprint });
+    /* 다른 곳에서 관리하는 할인(managed)·상태를 모름이면 지시를 보내지 않는다(지시 없는 저장). */
+    expect(instantDiscountPeriodRequest(result, { ...editable, state: 'managed', reason: 'promotion', period: null })).toBe('');
+    expect(instantDiscountPeriodRequest(result, null)).toBe('');
+  });
+
+  it('상품 편집이 다루는 기간 즉시할인은 판매가·원 할인·한국 시간 기간으로 다시 연다', () => {
+    const reopened = goodsPriceDraftFromValues({ price: '12000', compareAtPrice: '' }, editable);
+    expect(reopened).toEqual({ regularPrice: '12000', discountEnabled: true, discountValue: '1200', discountUnit: 'won', periodEnabled: true,
+      periodStartsAt: '2026-12-01T00:00', periodEndsAt: '2026-12-08T00:00' });
+    expect(resolveGoodsPrice(reopened, BEFORE_DECEMBER).period).toEqual({ amount: 1200, startsAt: '2026-11-30T15:00:00.000Z', endsAt: '2026-12-07T15:00:00.000Z' });
+    /* 화면은 분 단위라, 같은 분이면 저장된 시각(초·마이크로초 포함)을 그대로 보내 재저장이 원장을 바꾸지 않는다. 바꾼 시각은 입력값이다. */
+    const exact = { ...editable, period: { amount: 1200, startsAt: '2026-11-30T15:00:07.123456+00:00', endsAt: '2026-12-07T15:00:00+00:00' } };
+    const same = JSON.parse(instantDiscountPeriodRequest(resolveGoodsPrice(goodsPriceDraftFromValues({ price: '12000', compareAtPrice: '' }, exact), BEFORE_DECEMBER), exact));
+    expect(same).toMatchObject({ startsAt: '2026-11-30T15:00:07.123456+00:00', endsAt: '2026-12-07T15:00:00+00:00' });
+    const moved = JSON.parse(instantDiscountPeriodRequest(resolveGoodsPrice({ ...reopened, periodEndsAt: '2026-12-09T00:00' }, BEFORE_DECEMBER), editable));
+    expect(moved).toMatchObject({ startsAt: editable.period!.startsAt, endsAt: '2026-12-08T15:00:00.000Z' });
+    /* 다른 곳에서 관리하는 할인은 기간으로 열지 않는다. */
+    expect(goodsPriceDraftFromValues({ price: '12000', compareAtPrice: '' }, { ...editable, state: 'managed', reason: 'mixed', period: null })).toMatchObject({ discountEnabled: false, periodEnabled: false });
+  });
+
+  it('서버 상태 응답은 모양이 맞을 때만 쓴다', () => {
+    expect(parseGoodsInstantDiscountState(editable)).toEqual(editable);
+    expect(parseGoodsInstantDiscountState({ ...NEW_GOOD_INSTANT_DISCOUNT })).toEqual(NEW_GOOD_INSTANT_DISCOUNT);
+    expect(parseGoodsInstantDiscountState({ ...editable, state: 'managed', reason: 'promotion', period: null, promotions: [{ id: 'p', name: '오픈 기획전' }] }))
+      .toMatchObject({ state: 'managed', promotions: [{ id: 'p', name: '오픈 기획전' }] });
+    for (const broken of [{ ...editable, period: null }, { ...editable, state: 'none' }, { ...editable, fingerprint: '' }, { ...editable, reason: 'other' }, null, []]) {
+      expect(parseGoodsInstantDiscountState(broken)).toBeNull();
+    }
+  });
+
+  it('서버 액션은 지시가 없으면 지시 없는 저장이고, 모양이 다르면 거절한다', () => {
+    expect(parseInstantDiscountPeriodRequest(null)).toBe('absent');
+    expect(parseInstantDiscountPeriodRequest('')).toBe('absent');
+    expect(parseInstantDiscountPeriodRequest('{"mode":"none","expectedFingerprint":"none"}')).toEqual({ mode: 'none', expectedFingerprint: 'none' });
+    expect(parseInstantDiscountPeriodRequest(JSON.stringify({ mode: 'period', amount: 1200, startsAt: '2026-11-30T15:00:00.000Z', endsAt: '2026-12-07T15:00:00.000Z', expectedFingerprint: 'none' })))
+      .toMatchObject({ mode: 'period', amount: 1200 });
+    for (const broken of ['{', '{"mode":"none"}', '{"mode":"none","expectedFingerprint":"none","amount":1}',
+      JSON.stringify({ mode: 'period', amount: 0, startsAt: '2026-11-30T15:00:00Z', endsAt: '2026-12-07T15:00:00Z', expectedFingerprint: 'none' }),
+      JSON.stringify({ mode: 'period', amount: 1, startsAt: '2026-11-30T15:00:00', endsAt: '2026-12-07T15:00:00Z', expectedFingerprint: 'none' }),
+      JSON.stringify({ mode: 'period', amount: 1, startsAt: '2026-12-07T15:00:00Z', endsAt: '2026-11-30T15:00:00Z', expectedFingerprint: 'none' })]) {
+      expect(parseInstantDiscountPeriodRequest(broken), broken).toBeNull();
+    }
   });
 });
 

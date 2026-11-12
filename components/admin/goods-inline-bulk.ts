@@ -1,5 +1,5 @@
 import { commitGoodsBulkAction, previewGoodsBulkAction, readGoodsBulkAction } from '@/app/admin/goods-bulk-actions';
-import { goodsBulkError, parseGoodsBulkRequest, type GoodsBulkActiveDiscounts, type GoodsBulkCommand, type GoodsBulkGood } from '@/lib/admin/goods-bulk';
+import { goodsBulkError, parseGoodsBulkRequest, type GoodsBulkActiveDiscounts, type GoodsBulkCommand, type GoodsBulkGood, type GoodsBulkInstantDiscount } from '@/lib/admin/goods-bulk';
 import type { GoodsGroupIdentity } from '@/lib/admin/goods-groups';
 import { discountStopStaleBaseMessage, priceAfterStopStaleMessage, type DiscountStopPricePhase, type DiscountStopReview } from '@/lib/admin/goods-list-inline';
 
@@ -42,9 +42,12 @@ export async function runSingleGoodBulk(identity: GoodsGroupIdentity, goodId: st
 /** 다음 단계와, 판매가 변경의 기대값이 바뀌었으면 그 값. `done`이면 판매가까지 바뀌었다. */
 export type DiscountStopPriceStep = { phase: DiscountStopPricePhase; seenBasePrice?: number; done?: boolean };
 
-/** 멈출 할인을 읽는다(일괄 변경 '기간 할인 중지' 비교). 아무것도 바꾸지 않는다. */
-export async function reviewDiscountStop(identity: GoodsGroupIdentity, goodId: string, seenBasePrice: number): Promise<DiscountStopPricePhase> {
-  const request = parseGoodsBulkRequest({ kind: 'goods', ids: [goodId], command: 'discount_stop', values: {} });
+/**
+ * 멈출 할인을 읽는다(일괄 변경 '기간 할인 중지' 비교). 아무것도 바꾸지 않는다.
+ * `includeInstant`(기간 없는 즉시할인 상품, TKT-033)면 그 즉시할인도 멈출 할인으로 읽고, 운영자가 본 판매가는 할인 전 판매가와 비교한다.
+ */
+export async function reviewDiscountStop(identity: GoodsGroupIdentity, goodId: string, seenBasePrice: number, includeInstant = false): Promise<DiscountStopPricePhase> {
+  const request = parseGoodsBulkRequest({ kind: 'goods', ids: [goodId], command: 'discount_stop', values: includeInstant ? { includeInstant: true } : {} });
   if (!request) return { step: 'review-failed', message: '상품을 확인하지 못했습니다. 창을 닫고 새로고침해주세요.', retry: false };
   const operationId = crypto.randomUUID();
   const preview = await previewGoodsBulkAction(operationId, request, identity);
@@ -54,11 +57,13 @@ export async function reviewDiscountStop(identity: GoodsGroupIdentity, goodId: s
     return { step: 'review-failed', message: preview.error, retry: !preview.authChanged };
   }
   const row = preview.value.goods.find(item => item.id === goodId);
-  if (!row || row.price !== seenBasePrice) {
+  /* 기간 없는 즉시할인 상품의 기본 판매가는 할인 전 판매가(정가 표시)다. 멈추면 그 값이 판매가가 된다. */
+  const base = row ? row.instantDiscount?.regularPrice ?? row.price : null;
+  if (!row || base !== seenBasePrice) {
     await readGoodsBulkAction(operationId, identity, true).catch(() => null);
-    return { step: 'review-failed', message: row ? discountStopStaleBaseMessage(row.price) : '현재 상품 정보를 확인하지 못했습니다. 창을 닫고 새로고침해주세요.', retry: false };
+    return { step: 'review-failed', message: row ? discountStopStaleBaseMessage(base!) : '현재 상품 정보를 확인하지 못했습니다. 창을 닫고 새로고침해주세요.', retry: false };
   }
-  return { step: 'ready', review: { operationId, discounts: row.discounts ?? null } };
+  return { step: 'ready', review: { operationId, discounts: row.discounts ?? null, ...(row.instantDiscount ? { instant: row.instantDiscount } : {}) } };
 }
 
 /** 확인한 할인 중지를 확정하고, 확정되면 이어서 판매가를 바꾼다. `onStopped`는 할인이 멈춘 순간 창에 알린다. */
@@ -70,7 +75,7 @@ export async function stopDiscountThenChangePrice(identity: GoodsGroupIdentity, 
       : { step: 'review-failed', message: receipt.error, retry: true } };
   }
   if (receipt.value.state !== 'completed') return { phase: { step: 'review-failed', message: goodsBulkError(receipt.value.error), retry: true } };
-  const stop = { stoppedHere: true, stopped: review.discounts };
+  const stop = { stoppedHere: true, stopped: review.discounts, ...(review.instant ? { stoppedInstant: review.instant } : {}) };
   onStopped?.({ step: 'price', ...stop, error: '' });
   return changePriceAfterStop(identity, goodId, seenBasePrice, nextPrice, stop);
 }
@@ -80,21 +85,22 @@ export async function stopDiscountThenChangePrice(identity: GoodsGroupIdentity, 
  * 넘겨받은 값은 할인 중지 사실(`stoppedHere`·`stopped`)만 읽는다(단계 객체를 펼쳐 결과 단계를 덮지 않는다).
  */
 export async function changePriceAfterStop(identity: GoodsGroupIdentity, goodId: string, seenBasePrice: number, nextPrice: number,
-  stop: { stoppedHere: boolean; stopped: GoodsBulkActiveDiscounts | null }): Promise<DiscountStopPriceStep> {
+  stop: { stoppedHere: boolean; stopped: GoodsBulkActiveDiscounts | null; stoppedInstant?: GoodsBulkInstantDiscount }): Promise<DiscountStopPriceStep> {
   const { stoppedHere, stopped } = stop;
+  const instant = stop.stoppedInstant ? { stoppedInstant: stop.stoppedInstant } : {};
   let current = seenBasePrice;
   try {
     const result = await runSingleGoodBulk(identity, goodId, 'price', { mode: 'set', value: nextPrice }, row => {
       current = row.price;
       return row.price === seenBasePrice ? null : priceAfterStopStaleMessage(row.price);
     });
-    if (result.ok) return { phase: { step: 'price', stoppedHere, stopped, error: '' }, done: true };
-    if (result.operationId) return { phase: { step: 'price-uncertain', stoppedHere, stopped, operationId: result.operationId, message: result.message } };
+    if (result.ok) return { phase: { step: 'price', stoppedHere, stopped, ...instant, error: '' }, done: true };
+    if (result.operationId) return { phase: { step: 'price-uncertain', stoppedHere, stopped, ...instant, operationId: result.operationId, message: result.message } };
     /* 그사이 다른 곳에서 바뀐 기본 판매가는 창의 '현재 판매가'로 보이고 다시 시도의 기대값이 된다. */
-    return { phase: { step: 'price', stoppedHere, stopped, error: result.message }, ...(current !== seenBasePrice ? { seenBasePrice: current } : {}) };
+    return { phase: { step: 'price', stoppedHere, stopped, ...instant, error: result.message }, ...(current !== seenBasePrice ? { seenBasePrice: current } : {}) };
   } catch {
     // The preview call itself failed, so no price request exists to commit.
-    return { phase: { step: 'price', stoppedHere, stopped, error: '판매가 변경을 시작하지 못했습니다. 잠시 후 다시 시도해주세요.' } };
+    return { phase: { step: 'price', stoppedHere, stopped, ...instant, error: '판매가 변경을 시작하지 못했습니다. 잠시 후 다시 시도해주세요.' } };
   }
 }
 
@@ -106,12 +112,13 @@ export async function recoverDiscountStopPrice(identity: GoodsGroupIdentity, pha
   const { state, error } = result.value;
   if (state === 'unresolved') return { phase: { ...phase, message: '아직 완료 기록이 없습니다. 잠시 후 다시 조회해주세요.' } };
   if (phase.step === 'stop-uncertain') {
-    if (state === 'completed') return { phase: { step: 'price', stoppedHere: true, stopped: phase.review.discounts, error: '' } };
+    if (state === 'completed') return { phase: { step: 'price', stoppedHere: true, stopped: phase.review.discounts, ...(phase.review.instant ? { stoppedInstant: phase.review.instant } : {}), error: '' } };
     return { phase: { step: 'review-failed', retry: true,
       message: state === 'sealed' ? '미처리 요청을 종료했습니다. 할인과 판매가는 바뀌지 않았습니다. 멈출 할인을 다시 확인해주세요.' : goodsBulkError(error) } };
   }
-  if (state === 'completed') return { phase: { step: 'price', stoppedHere: phase.stoppedHere, stopped: phase.stopped, error: '' }, done: true };
-  return { phase: { step: 'price', stoppedHere: phase.stoppedHere, stopped: phase.stopped,
+  const keptInstant = phase.stoppedInstant ? { stoppedInstant: phase.stoppedInstant } : {};
+  if (state === 'completed') return { phase: { step: 'price', stoppedHere: phase.stoppedHere, stopped: phase.stopped, ...keptInstant, error: '' }, done: true };
+  return { phase: { step: 'price', stoppedHere: phase.stoppedHere, stopped: phase.stopped, ...keptInstant,
     error: state === 'sealed' ? '미처리 요청을 종료했습니다. 판매가는 바뀌지 않았습니다.' : goodsBulkError(error) } };
 }
 

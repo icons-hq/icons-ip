@@ -96,17 +96,18 @@ function useInlineState() {
 const INLINE_NOTE_CLASS = 'text-right text-xs font-normal whitespace-nowrap text-muted-foreground';
 
 /**
- * 판매가 칸. `discountEndsAt`(진행·예정 즉시할인의 마지막 종료 시각)이 있으면 칸 안 입력 대신 목록 화면의 '할인 중지 후 변경' 창을 연다.
+ * 판매가 칸. `discountEndsAt`(진행·예정 즉시할인의 마지막 종료 시각)이 있거나 `instantDiscount`(기간 없는 즉시할인 중, TKT-033)이면
+ * 칸 안 입력 대신 목록 화면의 '할인 중지 후 변경' 창을 연다. 기간 없는 즉시할인 상품의 `basePrice`는 할인 전 판매가(정가 표시)다.
  * 창과 그 상태는 목록 화면(GoodsInlineDialogHost)이 들고 있다 — 할인이 멈춰 목록이 다시 그려지거나 그 상품이 목록에서 빠져도 창이 남는다.
  */
-export function GoodsInlinePrice({ goodId, basePrice, display, valueText, identity, hasOptions, discountEndsAt = null, goodName = '', goodCode = null }: {
+export function GoodsInlinePrice({ goodId, basePrice, display, valueText, identity, hasOptions, discountEndsAt = null, instantDiscount = false, goodName = '', goodCode = null }: {
   goodId: string; basePrice: number; display: ReactNode; valueText?: string; identity: GoodsGroupIdentity; hasOptions: boolean;
-  discountEndsAt?: string | null; goodName?: string; goodCode?: string | null;
+  discountEndsAt?: string | null; instantDiscount?: boolean; goodName?: string; goodCode?: string | null;
 }) {
   const state = useInlineState();
   const inputId = useId();
   const dialogs = useGoodsInlineDialogs();
-  const discounted = Boolean(discountEndsAt);
+  const discounted = Boolean(discountEndsAt) || instantDiscount;
   function save(form: FormData) {
     const raw = String(form.get('price') ?? '').replaceAll(',', '').trim();
     const next = Number(raw);
@@ -132,12 +133,12 @@ export function GoodsInlinePrice({ goodId, basePrice, display, valueText, identi
       if (result.value.state === 'completed') state.router.refresh();
     });
   }
-  const discountNote = discounted ? <small className={INLINE_NOTE_CLASS}>할인 진행·예정</small> : null;
+  const discountNote = discounted ? <small className={INLINE_NOTE_CLASS}>{instantDiscount ? '즉시할인 중' : '할인 진행·예정'}</small> : null;
   /* 창을 여는 곳(목록 화면)이 없으면 할인 중인 판매가는 값과 이유만 보인다. */
   if (discounted && !dialogs) return <span className="grid justify-items-end gap-0.5">{display}{discountNote}</span>;
   /* 할인 중인 상품의 값 버튼은 칸 안 입력 대신 목록 화면의 창을 연다. */
   function setEditing(value: boolean) {
-    if (value && discounted) { dialogs?.openDiscountStop({ goodId, goodName, goodCode, basePrice, hasOptions }); return; }
+    if (value && discounted) { dialogs?.openDiscountStop({ goodId, goodName, goodCode, basePrice, hasOptions, ...(instantDiscount ? { instant: true } : {}) }); return; }
     state.setEditing(value);
   }
   return <InlineEditor fillCell label="판매가" action={discounted ? '할인 중지 후 변경' : undefined} note={discountNote}

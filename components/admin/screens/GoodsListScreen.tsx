@@ -184,10 +184,14 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
             <span className="flex w-0 min-w-0 flex-1 flex-col gap-0.5"><Link className={NAME_LINK} href={editorHref} title={good.name}>{good.name}</Link><small className="truncate text-xs font-normal text-muted-foreground" title={good.code}>{good.code}</small></span>
           </span>,
           <Link key="edit" className={buttonVariants({ variant: 'outline', size: 'xs' })} data-slot="button" href={editorHref}>수정</Link>,
-          /* 판매가 칸(A9·1027T-025): 상품 할인(정가 표시)이 없으면 바로 고친다. 진행·예정 즉시할인이 있으면 같은 칸이 '할인 중지 후 변경' 창을 연다 —
-             같은 부품이라 할인이 멈춰 목록이 새로 그려져도 창이 남는다. 상품 할인이 있으면 판매가의 뜻(정가)이 달라 상품 수정으로 보낸다. */
-          editable && inlineIdentity && typeof good.basePrice === 'number' && good.compareAtPrice == null
-            ? <GoodsInlinePrice key="price" goodId={good.id} goodName={good.name} goodCode={good.code || null} basePrice={good.basePrice} identity={inlineIdentity} hasOptions={(good.activeVariantCount ?? 0) !== 1}
+          /* 판매가 칸(A9·1027T-025·TKT-033): 할인이 없으면 바로 고친다. 진행·예정 즉시할인(기간)이나 기간 없는 즉시할인(정가 표시)이 있으면
+             같은 칸이 '할인 중지 후 변경' 창을 연다 — 같은 부품이라 할인이 멈춰 목록이 새로 그려져도 창이 남는다. 기간 없는 즉시할인 상품의
+             판매가는 할인 전 판매가(정가 표시)이고, 창이 그 즉시할인도 함께 멈춘다. */
+          editable && inlineIdentity && typeof good.basePrice === 'number'
+            ? <GoodsInlinePrice key="price" goodId={good.id} goodName={good.name} goodCode={good.code || null}
+              basePrice={good.compareAtPrice != null && good.compareAtPrice > good.basePrice ? good.compareAtPrice : good.basePrice}
+              instantDiscount={good.compareAtPrice != null && good.compareAtPrice > good.basePrice}
+              identity={inlineIdentity} hasOptions={(good.activeVariantCount ?? 0) !== 1}
               discountEndsAt={good.activeDiscountEndsAt ?? null} display={inlinePrice} valueText={priceText} />
             : editable && typeof good.basePrice === 'number' && good.compareAtPrice != null
               ? <span key="price" className="grid justify-items-end gap-0.5 whitespace-normal">{price}
@@ -233,7 +237,7 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
       <ConsolePagination page={filters.page} pageSize={pageSize} total={total} hrefForPage={page => goodsListHref(filters, page)} />
       <details className="group/help rounded-lg border bg-muted/40 px-4 py-3 text-sm" data-goods-list="help">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-medium [&::-webkit-details-marker]:hidden">목록 사용·재고수량·판매 준비 안내<ChevronDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open/help:rotate-180" /></summary>
-        <p className="mt-2 leading-relaxed text-muted-foreground">상품번호는 시스템이 등록 순서대로 매기는 바뀌지 않는 번호이고, 상품 URL은 고객 화면 주소 끝의 영문 값입니다. 상품번호·상품 URL은 쉼표나 공백으로 구분해 여러 개를 조회할 수 있고, 전체 검색에는 영문명·검색 키워드·ERP 품명·바코드도 포함됩니다. 상품번호·상품명 또는 수정 버튼을 눌러 상품 정보를 변경하고, 상품 URL을 누르면 고객 화면(공개 전 상품은 미리보기)을 엽니다.{inlineIdentity ? ' 판매가·재고수량·판매상태는 목록에서 값을 눌러 바로 고칠 수 있습니다. 옵션이 여러 개인 상품은 재고수량 칸이 옵션별 재고 창을, 즉시할인이 진행 중이거나 예정된 상품은 판매가 칸이 할인 중지 후 변경 창을 엽니다.' : ''} 표시한 수량은 예약판매 물량을 포함한 판매 가용 수량입니다. 판매상태 필터의 품절은 판매중지가 아닌 상품 중 사용 옵션의 할당 재고가 0인 상품이고, 판매중지는 수량과 관계없이 판매상태를 판매중지로 바꾼 상품입니다. 고객 화면에는 둘 다 품절로 보입니다. 소량 재고는 판매상태를 소량 재고로 지정하고 재고가 남은 상품이며, 수량으로 자동 분류하지 않습니다. 옵션별 안전재고 기준 이하 경고는 재고수량 칸에 부족 N개 옵션으로 표시되고 소량 재고 건수에는 들어가지 않습니다. 품절·소량 재고·판매중지 건수는 판매상태 조건과 페이지를, 판매대기·판매종료 건수는 판매기간 조건과 페이지를 제외한 같은 검색 조건으로 계산합니다. 설정 준비 완료는 실제 결제 성공을 보증하지 않습니다.{data.checkedAt ? <> 확인 시각: <time dateTime={data.checkedAt}>{new Date(data.checkedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}</time>.</> : null}</p>
+        <p className="mt-2 leading-relaxed text-muted-foreground">상품번호는 시스템이 등록 순서대로 매기는 바뀌지 않는 번호이고, 상품 URL은 고객 화면 주소 끝의 영문 값입니다. 상품번호·상품 URL은 쉼표나 공백으로 구분해 여러 개를 조회할 수 있고, 전체 검색에는 영문명·검색 키워드·ERP 품명·바코드도 포함됩니다. 상품번호·상품명 또는 수정 버튼을 눌러 상품 정보를 변경하고, 상품 URL을 누르면 고객 화면(공개 전 상품은 미리보기)을 엽니다.{inlineIdentity ? ' 판매가·재고수량·판매상태는 목록에서 값을 눌러 바로 고칠 수 있습니다. 옵션이 여러 개인 상품은 재고수량 칸이 옵션별 재고 창을, 즉시할인(기간 포함)이 걸려 있거나 예정된 상품은 판매가 칸이 할인 중지 후 변경 창을 엽니다.' : ''} 표시한 수량은 예약판매 물량을 포함한 판매 가용 수량입니다. 판매상태 필터의 품절은 판매중지가 아닌 상품 중 사용 옵션의 할당 재고가 0인 상품이고, 판매중지는 수량과 관계없이 판매상태를 판매중지로 바꾼 상품입니다. 고객 화면에는 둘 다 품절로 보입니다. 소량 재고는 판매상태를 소량 재고로 지정하고 재고가 남은 상품이며, 수량으로 자동 분류하지 않습니다. 옵션별 안전재고 기준 이하 경고는 재고수량 칸에 부족 N개 옵션으로 표시되고 소량 재고 건수에는 들어가지 않습니다. 품절·소량 재고·판매중지 건수는 판매상태 조건과 페이지를, 판매대기·판매종료 건수는 판매기간 조건과 페이지를 제외한 같은 검색 조건으로 계산합니다. 설정 준비 완료는 실제 결제 성공을 보증하지 않습니다.{data.checkedAt ? <> 확인 시각: <time dateTime={data.checkedAt}>{new Date(data.checkedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}</time>.</> : null}</p>
       </details>
       </div>
     </section>

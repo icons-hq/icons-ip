@@ -19,7 +19,7 @@ import { GoodsSalePeriodFields } from './GoodsSalePeriodFields';
 import type { AdminGoodsReadiness } from '@/lib/admin/goods-readiness';
 import { goodEditorValues, createGoodEditorDraft, goodEditorFingerprint, buildGoodEditorPreview, GOOD_LOCAL_DRAFT_FIELDS, GOOD_LOCAL_DRAFT_LINKED_FIELDS, type GoodNoticeDefaults } from '@/lib/admin/good-editor';
 import { goodsOptionStockMissing, goodsOptionStockTotals, inheritRandomOptionLimits, initialGoodsOptionRows, isSingleGoodsOption, restoreGoodsOptionRows, type GoodsOptionRow } from '@/lib/admin/goods-option-editor';
-import { formatWon, goodsPriceDraftFromValues, resolveGoodsPrice } from '@/lib/admin/goods-price-editor';
+import { NEW_GOOD_INSTANT_DISCOUNT, formatWon, goodsPriceDraftFromValues, resolveGoodsPrice } from '@/lib/admin/goods-price-editor';
 import { planErpCategorySuggestion, type ErpCategorySuggestion } from '@/lib/admin/goods-erp-suggestion';
 import type { ErpItemMatch } from '@/lib/admin/erp-items';
 import { preservedFormValues } from '@/lib/admin/form-state';
@@ -38,7 +38,7 @@ import type { GoodShippingPolicy } from '@/lib/fulfillment';
 import { GoodsFulfillmentFields } from './GoodsFulfillmentFields';
 import { GoodsCustomInputEditor } from './GoodsCustomInputEditor';
 import { GoodsOptionEditor } from './GoodsOptionEditor';
-import { GoodsDiscountRateField, GoodsPriceFields } from './GoodsPriceFields';
+import { GoodsPriceFields } from './GoodsPriceFields';
 import { GoodsErpCategoryNotice } from './GoodsErpCategoryNotice';
 import { GoodsPurchaseLimitFields, GoodsSalePolicyFields } from './GoodsSalePolicyFields';
 import { GoodNoticePicker } from './GoodNoticePicker';
@@ -332,7 +332,9 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
     : `옵션 ${rows.length.toLocaleString('ko-KR')}개 · 재고수량 합계 ${goodsOptionStockTotals(rows).total.toLocaleString('ko-KR')}개${stockMissing ? ` · 미입력 ${stockMissing.toLocaleString('ko-KR')}개` : ''}`;
   const [imageUrls, setImageUrls] = useState(draft.imageUrls);
   /* 판매가·할인은 화면 입력에서 저장 계약(price·compareAtPrice)을 한 번에 만든다. */
-  const [priceDraft, setPriceDraft] = useState(() => goodsPriceDraftFromValues(draft.values));
+  /* TKT-033: 저장된 상품의 진행·예정 기간 할인 상태(상품 편집이 다루는 기간 즉시할인이면 즉시할인 블록에 기간으로 연다). 불러오지 못했으면 null(즉시할인 잠금), 싣지 않았으면 undefined(기간 없이 지금 계약 그대로). */
+  const instantDiscount = selected ? selected.instantDiscount : NEW_GOOD_INSTANT_DISCOUNT;
+  const [priceDraft, setPriceDraft] = useState(() => goodsPriceDraftFromValues(draft.values, instantDiscount));
   const priceResult = resolveGoodsPrice(priceDraft);
   /* ERP 품목 선택이 비어 있는 대표 카테고리를 채울 수 있도록 대표 카테고리는 이 폼이 제어한다. */
   const [categoryId, setCategoryId] = useState(initial.categoryId);
@@ -589,11 +591,11 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
         2. 판매 정보: 판매가 → 할인 → 재고수량 → 옵션 순서는 회귀 금지(MD 피드백). 그 뒤 판매기간 → 예약판매 → 구매 제한을 접지 않고 펼쳐 둔다
         (11/11 ADM-011·1027T-021·1027T-023 결정 "둘 다 펼친 채로" — 10/27 회의 R12·R13 원안).
       */}
-      <GoodEditorSection title="판매 정보" id="good-section-price" errorCount={errorCount('price', 'variants', 'period', 'limits') + (errors.workspacePreorders ? 1 : 0)} summary={`판매가 ${priceResult.regularPrice ? formatWon(priceResult.regularPrice) : '미입력'}${priceDraft.discountEnabled ? priceResult.discountAmount > 0 && priceResult.salePrice !== null ? ` · 할인가 ${formatWon(priceResult.salePrice)}` : ' · 할인 입력 확인' : ' · 할인 없음'}${dirty ? ' · 미저장 입력' : ''}`}>
-        <GoodsPriceFields draft={priceDraft} onDraftChange={setPriceDraft} result={priceResult} errors={errors} />
+      <GoodEditorSection title="판매 정보" id="good-section-price" errorCount={errorCount('price', 'variants', 'period', 'limits') + (errors.workspacePreorders ? 1 : 0)} summary={`판매가 ${priceResult.regularPrice ? formatWon(priceResult.regularPrice) : '미입력'}${priceDraft.discountEnabled ? priceResult.discountAmount > 0 && priceResult.salePrice !== null ? ` · ${priceResult.period ? '기간 ' : ''}할인가 ${formatWon(priceResult.salePrice)}` : ' · 할인 입력 확인' : ' · 할인 없음'}${dirty ? ' · 미저장 입력' : ''}`}>
+        <GoodsPriceFields draft={priceDraft} onDraftChange={setPriceDraft} result={priceResult} errors={errors} instant={instantDiscount} showDiscountRate={initial.showDiscountRate} />
         <div className="flex min-w-0 scroll-mt-24 flex-col gap-3 border-t pt-5 outline-none" id="good-section-variants" tabIndex={-1}>
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1"><h4 className="text-sm font-medium text-foreground">재고수량 / 옵션</h4><span className="text-xs text-muted-foreground">{stockSummary}</span></div>
-          <GoodsOptionEditor structureLocked={groupOwned} onRowsChange={setRows} codePrefix={values.code || suggestedCode} rows={rows} baseline={baseline} basePrice={priceResult.salePrice ?? 0}
+          <GoodsOptionEditor structureLocked={groupOwned} onRowsChange={setRows} codePrefix={values.code || suggestedCode} rows={rows} baseline={baseline} basePrice={priceResult.basePrice ?? 0}
             priceDraft={priceDraft} error={errors.variants} axisValues={initial}
             savedCodes={{ goodCode: selected?.code ?? null, options: variants }}
             optionImport={{ accountId, target: selected ? { ...selected, variants } : null, databaseVersion: JSON.stringify([selected, variants]),
@@ -673,7 +675,6 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
           <SelectField defaultValue={initial.badge} error={errors.badge} label="상품 표시문구" name="badge"><option value="">없음</option>{GOOD_BADGES.map((badge) => <option key={badge} value={badge}>{badge}</option>)}</SelectField>
           <SelectField defaultValue={initial.stock} error={errors.stock} label="판매상태" name="stock">{Object.entries(ADMIN_STOCK_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</SelectField>
         </AdminFormGrid>
-        <GoodsDiscountRateField value={initial.showDiscountRate} error={errors.showDiscountRate} />
         <OwnedFields locked={groupOwned} fields={['additionalCategoryIds']} values={initial}><GoodAdditionalCategoryField categories={categories} primary={categoryId} value={initial.additionalCategoryIds} error={errors.additionalCategoryIds} /></OwnedFields>
         <GoodsCustomInputEditor value={values.customInputs} revision={initial.customInputsExpectedRevision ?? '0'} error={errors.customInputs} onChange={changeCustomInputs} />
         <section className="flex min-w-0 flex-col gap-5 border-t pt-5" aria-labelledby="good-search-settings-title">

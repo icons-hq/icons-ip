@@ -942,9 +942,10 @@ describe('GoodSection', () => {
     expect(card).toMatch(/할인가 <strong[^>]*>22,000원<\/strong> \(4,000원, 15% 할인\)/);
     expect(card).toContain('<input type="hidden" name="price" value="22000"/>');
     expect(card).toContain('<input type="hidden" name="compareAtPrice" value="26000"/>');
-    /* 할인율 표시는 기간 할인에도 쓰여 추가 설정으로 옮겼다. */
-    expect(card).not.toContain('고객 화면에 할인율 표시');
-    expect(html.slice(html.indexOf('id="good-section-information"'))).toContain('name="showDiscountRate"');
+    /* TKT-033: 할인율 표시는 즉시할인 블록 안(판매 정보 카드)으로 옮겼다 — '할인율 노출 여부·할인 기간'을 한 자리에서. */
+    expect(card).toContain('고객 화면에 할인율 표시');
+    expect(card).toContain('name="showDiscountRate"');
+    expect(html.slice(html.indexOf('id="good-section-information"'))).not.toContain('name="showDiscountRate"');
     for (const legacy of ['기준 판매가', '소비자가', '옵션 판매가', '추가금액']) expect(card).not.toContain(legacy);
   });
 

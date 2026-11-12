@@ -14,13 +14,17 @@ export const GOODS_BULK_SKIP_LABELS: Record<string, string> = {
   price_period_variant_inactive: '판매 중인 옵션이 없음',
   goods_bulk_price_invalid: '할인가가 1원 미만이거나 판매가 이상',
   no_active_discount: '중지할 진행·예정 할인이 없음',
+  /* TKT-033: 한 상품 한 시점 할인 하나 — 기간 없는 즉시할인(정가 표시) 상품에는 기간 할인·프로모션을 겹쳐 걸지 않는다. */
+  instant_discount_active: '기간 없는 즉시할인이 이미 있음(상품 수정의 즉시할인에서 관리)',
 };
 /** 할인 중지 비교에서 상품이 잃게 될 진행·예정 기간 할인(개별로 걸어 둔 할인 포함). */
 export interface GoodsBulkActiveDiscounts { count: number; minPrice: number; maxPrice: number; startsAt: string; endsAt: string }
+/** 상품 1개 할인 중지(includeInstant)가 함께 멈출 기간 없는 즉시할인: 판매가(할인 전)와 지금 할인가(TKT-033). */
+export interface GoodsBulkInstantDiscount { regularPrice: number; salePrice: number }
 export function goodsBulkSkipLabel(reason: string) { return GOODS_BULK_SKIP_LABELS[reason] ?? '적용할 수 없는 상품'; }
 export interface GoodsBulkSkipped { id: string; name: string; code: string | null; reason: string }
-export interface GoodsBulkRequest { kind: GoodsBulkKind; ids: string[]; command: GoodsBulkCommand; values: Record<string, string | number | null> }
-export interface GoodsBulkGood { id: string; name: string; code: string | null; price: number; nextPrice: number; priceMin: number | null; priceMax: number | null; nextMin: number | null; nextMax: number | null; published: boolean; archived: boolean; stopped: boolean; skip?: string | null; discounts?: GoodsBulkActiveDiscounts | null }
+export interface GoodsBulkRequest { kind: GoodsBulkKind; ids: string[]; command: GoodsBulkCommand; values: Record<string, string | number | boolean | null> }
+export interface GoodsBulkGood { id: string; name: string; code: string | null; price: number; nextPrice: number; priceMin: number | null; priceMax: number | null; nextMin: number | null; nextMax: number | null; published: boolean; archived: boolean; stopped: boolean; skip?: string | null; discounts?: GoodsBulkActiveDiscounts | null; instantDiscount?: GoodsBulkInstantDiscount }
 export interface GoodsBulkPreview { state: 'ready'; operationId: string; request: GoodsBulkRequest; groups: { id: string; name: string; revision: number }[]; goods: GoodsBulkGood[]; expiresAt: string }
 export interface GoodsBulkReceipt { state: 'completed' | 'rejected' | 'unresolved' | 'sealed'; operationId: string; goodsCount: number; groupsCount: number; error: string | null; skipped?: GoodsBulkSkipped[] }
 export const GOODS_BULK_LABELS: Record<GoodsBulkCommand, string> = { publish: '전시중으로 변경', unpublish: '전시 중지', start: '판매 재개', stop: '판매 중지', archive: '선택 보관', restore: '선택 복원', price: '판매가 변경', discount: '즉시할인 등록', discount_stop: '기간 할인 중지', period: '판매기간 변경', dissolve: '그룹 해제' };
@@ -36,7 +40,10 @@ export function parseGoodsBulkRequest(value: unknown): GoodsBulkRequest | null {
       || (command === 'price' ? !exact(v, ['mode', 'value']) || !['set', 'increase', 'decrease', 'percent_increase', 'percent_decrease'].includes(v.mode)
         : !exact(v, ['mode', 'value', 'startsAt', 'endsAt']) || !['amount', 'rate'].includes(v.mode))
       || ['percent_decrease', 'rate'].includes(v.mode) && v.value >= 100 || v.mode === 'percent_increase' && v.value > 1000) return null;
-  } else if (command !== 'period' && !exact(v, [])) return null;
+  } else if (command === 'discount_stop' && !exact(v, [])) {
+    /* 목록 판매가 칸의 '할인 중지 후 판매가 변경'만 상품 1개에 기간 없는 즉시할인까지 멈춘다(TKT-033). */
+    if (!exact(v, ['includeInstant']) || v.includeInstant !== true || value.kind !== 'goods' || value.ids.length !== 1) return null;
+  } else if (command !== 'period' && command !== 'discount_stop' && !exact(v, [])) return null;
   if (command === 'period' || command === 'discount') {
     if (command === 'period' && !exact(v, ['startsAt', 'endsAt'])) return null;
     const unlimited = command === 'period' && v.startsAt === null && v.endsAt === null;
@@ -51,6 +58,10 @@ function activeDiscounts(value: unknown): value is GoodsBulkActiveDiscounts {
     && instant(value.startsAt) && instant(value.endsAt) && Date.parse(String(value.startsAt)) < Date.parse(String(value.endsAt));
 }
 const money = (value: unknown) => integer(value, 0, 2_147_483_647);
+function instantDiscount(value: unknown): value is GoodsBulkInstantDiscount {
+  return record(value) && exact(value, ['regularPrice', 'salePrice']) && integer(value.regularPrice, 1, 2_147_483_647)
+    && integer(value.salePrice, 0, 2_147_483_647) && Number(value.salePrice) < Number(value.regularPrice);
+}
 export function parseGoodsBulkPreview(value: unknown, expectedId: string, request: GoodsBulkRequest): GoodsBulkPreview | null {
   if (!record(value) || !exact(value, ['state', 'operationId', 'request', 'groups', 'goods', 'expiresAt']) || value.state !== 'ready' || value.operationId !== expectedId || !isUuid(expectedId)
     || !instant(value.expiresAt) || !Array.isArray(value.groups) || value.groups.length > 100 || !Array.isArray(value.goods) || value.goods.length < 1
@@ -65,7 +76,8 @@ export function parseGoodsBulkPreview(value: unknown, expectedId: string, reques
   }
   for (const row of value.goods) {
     const keys = ['id', 'name', 'code', 'price', 'nextPrice', 'priceMin', 'priceMax', 'nextMin', 'nextMax', 'published', 'archived', 'stopped'];
-    if (!record(row) || !exact(row, [...keys, ...['skip', 'discounts'].filter(key => Object.hasOwn(row, key))])
+    if (!record(row) || !exact(row, [...keys, ...['skip', 'discounts', 'instantDiscount'].filter(key => Object.hasOwn(row, key))])
+      || Object.hasOwn(row, 'instantDiscount') && !(request.command === 'discount_stop' && request.values.includeInstant === true && instantDiscount(row.instantDiscount))
       || !(row.skip === undefined || row.skip === null || typeof row.skip === 'string' && /^[a-z][a-z0-9_]{0,100}$/.test(row.skip))
       || row.skip && request.command !== 'discount' && request.command !== 'discount_stop'
       || !(row.discounts === undefined || row.discounts === null || request.command === 'discount_stop' && activeDiscounts(row.discounts))
@@ -102,6 +114,7 @@ export function goodsBulkError(code: string | null): string {
     goods_bulk_target_limit: '한 번에 개별 상품 100개(IP 전체 적용은 1,000개)까지 변경할 수 있습니다. 대상 수를 줄여주세요.',
     goods_bulk_all_skipped: '모든 상품이 건너뛰기 대상입니다. 기간이 겹치는 할인이나 할인 금액을 확인해주세요.',
     goods_bulk_no_active_discount: '중지할 진행 중이거나 예정된 즉시할인이 없습니다.',
+    instant_discount_period_conflict: '진행 중이거나 예정된 기간 할인이 있는 상품에는 기간 없는 즉시할인을 함께 걸 수 없습니다.',
     active_price_period_requires_reset: '진행 중이거나 예정된 즉시할인이 있는 상품은 판매가를 바꿀 수 없습니다. 해당 상품의 즉시할인을 먼저 중지해주세요.',
     goods_bulk_ip_unavailable: '선택한 IP를 찾을 수 없거나 보관되었습니다. 목록을 새로고침해주세요.',
     goods_bulk_group_unavailable: '선택한 그룹이 변경되거나 해제되었습니다. 목록을 새로고침해주세요.',

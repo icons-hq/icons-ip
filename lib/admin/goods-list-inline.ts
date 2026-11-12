@@ -5,7 +5,7 @@
  * - 할인 중지 후 판매가 변경: 기존 상품 일괄 변경의 '기간 할인 중지' → '판매가 변경'을 차례로 부른다.
  *   두 번째가 실패하면 할인은 이미 멈춘 상태로 남고(되돌리지 않는다), 같은 창에서 판매가만 다시 시도한다.
  */
-import type { GoodsBulkActiveDiscounts } from './goods-bulk';
+import type { GoodsBulkActiveDiscounts, GoodsBulkInstantDiscount } from './goods-bulk';
 
 const INT32_MAX = 2_147_483_647;
 const won = (value: number) => `${value.toLocaleString('ko-KR')}원`;
@@ -133,8 +133,11 @@ export function optionStockSummary(outcomes: readonly OptionStockOutcome[]): str
 
 // ── 할인 중지 후 판매가 변경 ───────────────────────────────────────────────────────────────
 
-/** 할인 중지 비교(멈출 진행·예정 기간 할인). 비교 요청은 15분 동안 유효하고, 그사이 할인·옵션 가격이 바뀌면 확정이 거절된다. */
-export interface DiscountStopReview { operationId: string; discounts: GoodsBulkActiveDiscounts | null }
+/**
+ * 할인 중지 비교(멈출 진행·예정 기간 할인, 그리고 `instant`면 기간 없는 즉시할인 — TKT-033). 비교 요청은 15분 동안 유효하고,
+ * 그사이 할인·옵션 가격·정가 표시가 바뀌면 확정이 거절된다.
+ */
+export interface DiscountStopReview { operationId: string; discounts: GoodsBulkActiveDiscounts | null; instant?: GoodsBulkInstantDiscount }
 /**
  * 창의 단계.
  * - loading: 멈출 할인을 읽는 중
@@ -149,8 +152,8 @@ export type DiscountStopPricePhase =
   | { step: 'ready'; review: DiscountStopReview }
   | { step: 'review-failed'; message: string; retry: boolean }
   | { step: 'stop-uncertain'; review: DiscountStopReview; operationId: string; message: string }
-  | { step: 'price'; stoppedHere: boolean; stopped: GoodsBulkActiveDiscounts | null; error: string }
-  | { step: 'price-uncertain'; stoppedHere: boolean; stopped: GoodsBulkActiveDiscounts | null; operationId: string; message: string };
+  | { step: 'price'; stoppedHere: boolean; stopped: GoodsBulkActiveDiscounts | null; stoppedInstant?: GoodsBulkInstantDiscount; error: string }
+  | { step: 'price-uncertain'; stoppedHere: boolean; stopped: GoodsBulkActiveDiscounts | null; stoppedInstant?: GoodsBulkInstantDiscount; operationId: string; message: string };
 
 /** 할인이 멈춘 뒤인가. 이때부터 창을 닫으면 목록을 새로 읽어 할인 표시가 사라진 것을 보인다. */
 export function discountStopApplied(phase: DiscountStopPricePhase | null): boolean {
@@ -166,6 +169,15 @@ const KST_SHORT = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', mon
 export function discountStopSummary(discounts: GoodsBulkActiveDiscounts): string {
   const prices = discounts.minPrice === discounts.maxPrice ? won(discounts.minPrice) : `${won(discounts.minPrice)} ~ ${won(discounts.maxPrice)}`;
   return `할인 ${discounts.count.toLocaleString('ko-KR')}건 · 할인가 ${prices} · ${KST_SHORT.format(new Date(discounts.startsAt))} ~ ${KST_SHORT.format(new Date(discounts.endsAt))}`;
+}
+/** '기간 없는 즉시할인 · 할인가 9,000원(판매가 10,000원)'. 멈추면 판매가(할인 전)로 돌아간다. */
+export function instantDiscountStopSummary(instant: GoodsBulkInstantDiscount): string {
+  return `기간 없는 즉시할인 · 할인가 ${won(instant.salePrice)}(판매가 ${won(instant.regularPrice)})`;
+}
+/** 멈출(멈춘) 할인 한 줄: 기간 없는 즉시할인과 기간 할인을 함께 적는다. 둘 다 없으면 null. */
+export function discountStopLossSummary(periods: GoodsBulkActiveDiscounts | null, instant?: GoodsBulkInstantDiscount): string | null {
+  const parts = [instant ? instantDiscountStopSummary(instant) : null, periods ? discountStopSummary(periods) : null].filter(Boolean);
+  return parts.length ? parts.join(' / ') : null;
 }
 export function discountStopStaleBaseMessage(price: number) {
   return `다른 곳에서 기본 판매가가 ${won(price)}으로 바뀌었습니다. 창을 닫고 새로고침한 뒤 다시 수정해주세요.`;

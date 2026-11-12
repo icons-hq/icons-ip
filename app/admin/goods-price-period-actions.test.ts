@@ -44,6 +44,12 @@ describe('admin price-period action', () => {
       error: '랜덤 판매 상품은 판매 중인 모든 옵션의 판매가와 기간 할인이 같아야 합니다. 기간 할인은 모든 옵션에 한 번에 넣으세요.' });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
+  it('기간 없는 즉시할인이 걸린 상품의 기간 할인 활성화 거절은 이유와 관리할 곳을 알린다', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { code: '23514', message: 'instant_discount_period_conflict' } });
+    const data = form({ state: 'active', discountPrice: 8000, startsAt: '2026-09-10T12:00', endsAt: '2026-09-11T12:00' });
+    expect(await saveGoodsPricePeriodAction(data)).toMatchObject({ ok: false, error: expect.stringContaining('기간 없는 즉시할인이 걸린 상품') });
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
   it('surfaces a concurrent-revision conflict and preserves the server price', async () => {
     mocks.rpc.mockResolvedValue({ data: null, error: { code: 'PT409', message: 'price_period_changed' } });
     const data = form({ state: 'active', discountPrice: 8000, startsAt: '2026-09-10T12:00', endsAt: '2026-09-11T12:00' });

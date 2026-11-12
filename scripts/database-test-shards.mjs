@@ -148,6 +148,9 @@ const catalog = [
   sql('goods_product_numbers', { admin: true }),
   // 상품 목록 바로 수정이 차례로 부르는 기존 RPC: 할인 중지 → 판매가 변경·프로모션 원장 관계·옵션별 재고 기대값(1014-106·107·1027T-025).
   sql('goods_list_inline_discount_stop_price', { admin: true }),
+  // 즉시할인 기간(TKT-033·ADR-0040): 기간 즉시할인을 기간 할인 원장에 쓰고 기간 경계·고객 가격·체크아웃 견적·주문이 같고,
+  // 할인 프로모션·일괄 즉시할인·목록 할인 중지(기간 없는 즉시할인 포함)와 서로 덮지 않는다.
+  sql('goods_instant_discount_period', { kc: true }),
 ];
 
 const storefront = [

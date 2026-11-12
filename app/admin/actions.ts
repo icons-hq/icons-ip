@@ -1,5 +1,6 @@
 'use server';
 import { readGoodsSalePeriod } from '@/lib/admin/goods-sale-period';
+import { INSTANT_DISCOUNT_PERIOD_FIELD, parseInstantDiscountPeriodRequest } from '@/lib/admin/goods-price-editor';
 import { readGoodsAttributeSubmission } from '@/lib/admin/goods-attributes';
 
 import { readAdminGoodsCustomInputs } from '@/lib/admin/goods-custom-inputs';
@@ -434,6 +435,9 @@ async function saveAdminGood(
   if (!salePeriod.ok) return { errors: { saleStartsAt: salePeriod.error } };
   const customInputs = readAdminGoodsCustomInputs(formData);
   if (!customInputs.ok) return {errors:{customInputs:customInputs.error}};
+  /* TKT-033(ADR-0040): 즉시할인 기간 지시. 상품 편집이 다루지 않는 할인 상태면 화면이 보내지 않는다(지시 없는 저장). */
+  const instantDiscountPeriod = parseInstantDiscountPeriodRequest(formData.get(INSTANT_DISCOUNT_PERIOD_FIELD));
+  if (!instantDiscountPeriod) return { errors: { discountPeriod: '즉시할인 기간을 확인하지 못했습니다. 새로고침한 뒤 다시 저장해주세요. 입력은 유지됩니다.' } };
   const optionFields: Record<string, unknown> = {};
   let optionRows: GoodsOptionRow[] = [];
   if (formData.has('variants')) {
@@ -476,6 +480,7 @@ async function saveAdminGood(
     ...fulfillmentFields,
     ...goodSaveFields(value),
     default_variant_code: value.defaultVariantCode,
+    ...(instantDiscountPeriod === 'absent' ? {} : { instant_discount_period: instantDiscountPeriod }),
   };
   let { data, error } = workspaceSections
     ? await supabase.rpc('admin_save_good_workspace', { p_request: { operationId: workspaceOperation, good: targetGood, draft: serverDraft, sections: workspaceSections } })
@@ -510,7 +515,9 @@ async function saveAdminGood(
     if (/stock_changed|goods_options_changed|goods_variant_external_identity_changed/.test(error.message)) return { errors: { variants: '다른 작업에서 옵션이나 재고가 바뀌었습니다. 입력값은 유지됩니다. 최신 내용을 확인하고 다시 저장해주세요.' } };
     if (/goods_kc_reassessment_required|goods_kc_published_edit_requires_draft/.test(error.message)) return { errors: { form: '모델·옵션·고시정보 변경에는 KC 재검토가 필요합니다. 상품을 먼저 초안으로 전환한 뒤 수정해주세요.' } };
     if (error.message.includes('goods_kc_')) return { errors: { form: "KC 정보에서 검토를 완료한 뒤 공개해주세요. KC 대상이 아니면 '상품 전체 KC 해당 없음'으로 바로 끝낼 수 있습니다." } };
-    if (error.message.includes('active_price_period_requires_reset')) return { errors: { price: '활성 기간 할인을 중지한 뒤 판매가·할인·옵션가를 변경해주세요.' } };
+    const instantDiscountFailure = instantDiscountPeriodFailure(error.message);
+    if (instantDiscountFailure) return { errors: instantDiscountFailure };
+    if (error.message.includes('active_price_period_requires_reset')) return { errors: { price: '진행 중이거나 예정된 기간 할인(할인 프로모션 포함)이 있어 판매가·옵션가를 바꾸지 않았습니다. 그 할인을 먼저 중지해주세요.' } };
     if (/purchase_limit_not_configured|goods_order_quantity_activation|goods_member_quantity_activation/.test(error.message)) return { errors: { minOrderQty: '구매 제한을 설정하려면 최소·최대 구매수량 또는 1인 최대 구매수량을 모두 입력해주세요.' } };
     if (/invalid_goods_options/.test(error.message)) return { errors: { variants: '옵션 이름·코드·금액·재고·옵션별 구매 제한(양의 정수)을 확인해주세요.' } };
     if (/invalid_good_origin|fulfillment_origin_required|fulfillment_origin_inactive/.test(error.message)) return { errors: { originId: '공개하려면 활성 출고지를 선택해주세요.' } };
@@ -541,6 +548,18 @@ async function saveAdminGood(
 }
 
 type AdminSupabase = Awaited<ReturnType<typeof createClient>>;
+
+/** TKT-033(ADR-0040): 즉시할인 기간 저장의 DB 거절을 즉시할인 블록(기간 칸)에 붙인다. 입력은 유지된다. */
+function instantDiscountPeriodFailure(message: string): AdminFieldErrors | null {
+  if (message.includes('instant_discount_period_changed')) return { discountPeriod: '다른 곳에서 이 상품의 할인을 걸거나 멈췄습니다. 입력은 유지됩니다. 새로고침해 최신 할인을 확인한 뒤 다시 저장해주세요.' };
+  if (message.includes('instant_discount_period_managed')) return { discountPeriod: '할인 프로모션이나 기간 할인에서 관리하는 할인이 있어 즉시할인을 바꾸지 않았습니다. 그 할인을 먼저 확인해주세요.' };
+  if (message.includes('instant_discount_period_conflict')) return { discountValue: '진행 중이거나 예정된 기간 할인이 있는 상품에는 기간 없는 즉시할인을 함께 걸 수 없습니다. 특정기간만 할인으로 바꾸거나 기간 할인을 먼저 중지해주세요.' };
+  if (message.includes('instant_discount_period_ended')) return { discountPeriod: '할인 종료 시각이 이미 지났습니다. 종료를 지금 이후로 입력해주세요.' };
+  if (message.includes('instant_discount_period_price_invalid')) return { discountValue: '기간 할인 금액은 가장 낮은 옵션 판매 금액보다 작아야 합니다(옵션마다 같은 금액을 뺍니다).' };
+  if (message.includes('invalid_instant_discount_period')) return { discountPeriod: '할인 시작·종료를 한국 시간으로 모두 입력해주세요. 종료는 시작보다 늦어야 합니다.' };
+  if (message.includes('price_period_overlap')) return { discountPeriod: '같은 기간에 걸린 다른 기간 할인(끝난 할인 포함)과 겹칩니다. 시작을 지금 이후로 바꾸거나 기간을 다시 확인해주세요.' };
+  return null;
+}
 
 /**
  * SHEET-003(ADR-0037): 상품 유형은 대표 카테고리(없으면 가까운 상위)에 연결한 값이다. 저장·공개 RPC가 이 규칙으로 거절한 이유를 고른다.

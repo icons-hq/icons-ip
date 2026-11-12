@@ -653,6 +653,33 @@ describe('admin catalog actions', () => {
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/shop/best');
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/search');
   });
+  /* TKT-033(ADR-0040): 즉시할인 기간 지시는 그대로 저장 RPC에 싣고, 지시가 없으면 지금처럼 저장한다. 모양이 다르면 보내지 않는다. */
+  it('즉시할인 기간 지시를 instant_discount_period로 싣고, 없으면 싣지 않으며, 잘못된 지시는 저장하지 않는다', async () => {
+    const period = { mode: 'period', amount: 1200, startsAt: '2026-11-30T15:00:00.000Z', endsAt: '2026-12-07T15:00:00.000Z', expectedFingerprint: 'none' };
+    const form = goodForm();
+    form.set('instantDiscountPeriod', JSON.stringify(period));
+    await upsertAdminGoodAction({}, form);
+    expect(mocks.rpc).toHaveBeenLastCalledWith('admin_save_good', { target_good: expect.objectContaining({ instant_discount_period: period }) });
+    await upsertAdminGoodAction({}, goodForm());
+    expect(mocks.rpc.mock.lastCall?.[1].target_good).not.toHaveProperty('instant_discount_period');
+    mocks.rpc.mockClear();
+    const broken = goodForm();
+    broken.set('instantDiscountPeriod', '{"mode":"period","amount":0}');
+    expect(await upsertAdminGoodAction({}, broken)).toMatchObject({ errors: { discountPeriod: expect.stringContaining('즉시할인 기간을 확인하지 못했습니다') } });
+    expect(mocks.rpc).not.toHaveBeenCalledWith('admin_save_good', expect.anything());
+  });
+  it.each([
+    ['instant_discount_period_changed', 'discountPeriod', '다른 곳에서 이 상품의 할인을 걸거나 멈췄습니다'],
+    ['instant_discount_period_managed', 'discountPeriod', '할인 프로모션이나 기간 할인에서 관리하는 할인'],
+    ['instant_discount_period_conflict', 'discountValue', '기간 없는 즉시할인을 함께 걸 수 없습니다'],
+    ['instant_discount_period_ended', 'discountPeriod', '종료 시각이 이미 지났습니다'],
+    ['instant_discount_period_price_invalid', 'discountValue', '가장 낮은 옵션 판매 금액보다 작아야'],
+    ['price_period_overlap', 'discountPeriod', '다른 기간 할인(끝난 할인 포함)과 겹칩니다'],
+    ['active_price_period_requires_reset', 'price', '할인 프로모션 포함'],
+  ])('즉시할인 기간 저장 거절 %s를 %s 칸에 안내한다', async (message, field, text) => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message } });
+    expect(await upsertAdminGoodAction({}, goodForm())).toMatchObject({ errors: { [field]: expect.stringContaining(text) } });
+  });
   it.each(['category_not_leaf', 'category_archived', 'category_not_found', 'invalid_additional_categories'])('분류 경합 %s를 안내하고 추가 분류 입력을 보존한다', async (message) => {
     const form = goodForm();
     const ids = '["00000000-0000-4000-8000-000000051121"]';

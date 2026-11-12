@@ -1,4 +1,5 @@
 import 'server-only';
+import { unstable_rethrow } from 'next/navigation';
 import { loadGoodsEditorOwnership } from './goods-group-common.server';
 import { loadGoodsCategoryOptions } from './category.server';
 import { hasUsableCategoryTemplates } from './category-templates.server';
@@ -12,6 +13,7 @@ import { imageBg, imageUrlFromBg, publicMediaUrl } from '@/lib/media';
 import type { Ip, Stock } from '@/lib/data';
 import { goodsListPageSize, goodsConsoleFilterValues, type AdminGoodsListData, type GoodsListFilters, type GoodsListSaleStateCounts, type GoodsListStockCounts } from './goods-list';
 import type { GoodsListOptionStock } from './goods-list-inline';
+import { parseGoodsInstantDiscountState, type GoodsInstantDiscountState } from './goods-price-editor';
 
 export function goodsWorkspaceQuery(filters: GoodsListFilters) {
   return { p_query: filters.query, p_ip_id: filters.ipId, p_status: filters.status, p_stock: filters.stock,
@@ -135,7 +137,7 @@ async function loadGoodsListInlineValues(ids: string[]) {
 /** Editor requests one good and its options; opening the list never loads these. */
 export async function loadAdminGoodEditor(goodId?: string) {
   const supabase = await createClient();
-  const [records, ipOptions, variants, verticals, origins, categories, shippingNoticeOptions, readiness, ownership, hasCategoryTemplates] = await Promise.all([
+  const [records, ipOptions, variants, verticals, origins, categories, shippingNoticeOptions, readiness, ownership, hasCategoryTemplates, instantDiscount] = await Promise.all([
     getAdminCatalogRecords({ include: goodId ? ['goods'] : [], ...(goodId ? { goodId } : {}) }),
     loadGoodsIpOptions(),
     goodId ? loadAdminGoodsVariants(goodId) : Promise.resolve([]),
@@ -146,6 +148,7 @@ export async function loadAdminGoodEditor(goodId?: string) {
     goodId ? loadAdminGoodsReadiness(goodId) : Promise.resolve(null),
     goodId ? loadGoodsEditorOwnership(goodId) : Promise.resolve(null),
     hasUsableCategoryTemplates(),
+    goodId ? loadGoodsInstantDiscount(goodId) : Promise.resolve(null),
   ]);
   if (verticals.error) throw new Error('상품 편집 정보를 불러오지 못했습니다.');
   // The preview needs IP presentation only, so avoid the public snapshot's full
@@ -158,8 +161,24 @@ export async function loadAdminGoodEditor(goodId?: string) {
     fans: ip.fansCount, goods: 0, cards: 0, featured: ip.featured,
     tagline: ip.tagline ?? '', synopsis: ip.synopsis ?? '',
   }));
-  const goods = records.goods.map(good => ownership?.goodId === good.id && !ownership.aggregation.editable ? { ...good, ...ownership.aggregation.sharedPolicy } : good);
+  const goods = records.goods.map(good => ownership?.goodId === good.id && !ownership.aggregation.editable ? { ...good, ...ownership.aggregation.sharedPolicy } : good)
+    .map(good => good.id === goodId ? { ...good, instantDiscount } : good);
   return { ownership, records: { ...records, goods, ips: ipOptions }, variants, catalogIps, origins, categories, shippingNoticeOptions, readiness, hasCategoryTemplates };
+}
+
+/**
+ * 상품 편집이 여는 진행·예정 기간 할인 묶음(TKT-033). 읽지 못하면 null — 상품 편집은 즉시할인을 잠그고 지시 없이 저장한다
+ * (기간 할인 원장을 덮어쓰지 않는 쪽).
+ */
+export async function loadGoodsInstantDiscount(goodId: string): Promise<GoodsInstantDiscountState | null> {
+  try {
+    const client = await createClient();
+    const { data, error } = await client.rpc('admin_goods_instant_discount_period', { p_good_id: goodId });
+    return error ? null : parseGoodsInstantDiscountState(data);
+  } catch (error) {
+    unstable_rethrow(error);
+    return null;
+  }
 }
 
 /** IP presentation for product selection, without the IP operating workspace. */
