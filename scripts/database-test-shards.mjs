@@ -66,6 +66,7 @@ const operators = [
   sql('order_claim_reason_changes', { admin: true }),
   script('order_claim_reason_changes_concurrency.sh', 'CLAIM_REASON_TEST_SCOPE'),
   sql('order_claim_reshipments_per_origin', { admin: true }),
+  sql('order_claim_collection_received_on', { admin: true }),
   script('order_address_concurrency.sh', 'ORDER_ADDRESS_TEST_SCOPE'),
   sql('goods_media', { admin: true, kc: true }),
   script('goods_media_concurrency.sh', 'GOODS_MEDIA_TEST_SCOPE'),
