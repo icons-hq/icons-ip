@@ -47,7 +47,7 @@ describe('goods list screen', () => {
     expect(grid).toBeTruthy();
     expect(walk(grid!.props.children as ReactNode).some(node => node.type === GoodsInlineDialogHost)).toBe(false);
     // 모두 저장하고 닫힌 창의 결과 문구는 표 밖, 목록 위에 남는다.
-    expect(inside.some(node => node.type === GoodsInlineDialogNotice)).toBe(true);
+    expect(inside.find(node => node.type === GoodsInlineDialogNotice)?.props.listedGoodIds).toEqual([]);
     // 상품 관리 권한이 없으면 창 주인은 세션을 받지 않는다(할인 창은 열 수 없다).
     const readOnly = GoodsListScreen({ data, bulkIdentity: identity }) as Node;
     expect((Children.only(readOnly.props.children as ReactNode) as Node).props.identity).toBeUndefined();

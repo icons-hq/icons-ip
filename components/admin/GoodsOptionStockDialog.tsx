@@ -131,15 +131,20 @@ export function GoodsOptionStockDialog({ flow }: {
 }) {
   const prefix = useId();
   const formRef = useRef<HTMLFormElement>(null);
+  const focusedSettle = useRef(0);
   const { rows, target, pending, settled } = flow;
-  /* 저장 중에는 입력을 잠가 포커스가 문서로 빠진다. 창이 남으면 확인할 첫 줄(오류·다시 확인·결과 확인 필요), 없으면 첫 입력으로 돌려준다. */
+  /*
+   * 저장 중에는 입력을 잠가(fieldset disabled) 포커스가 문서로 빠진다. 저장을 마치고 잠금이 풀린 뒤(pending=false) 한 번,
+   * 확인할 첫 줄(오류·다시 확인·결과 확인 필요)의 새 수량 칸, 없으면 첫 입력으로 돌려준다. 잠긴 동안에는 포커스를 줄 수 없어 기다린다.
+   */
   useEffect(() => {
-    if (!settled) return;
+    if (!settled || pending || focusedSettle.current === settled) return;
+    focusedSettle.current = settled;
     const form = formRef.current;
-    const focus = form?.querySelector<HTMLInputElement>('tr:is([data-option-stock=invalid],[data-option-stock=recheck],[data-option-stock=uncertain]) input')
-      ?? form?.querySelector<HTMLInputElement>('input');
+    const focus = form?.querySelector<HTMLInputElement>('tr:is([data-option-stock=invalid],[data-option-stock=recheck],[data-option-stock=uncertain]) input:not([readonly])')
+      ?? form?.querySelector<HTMLInputElement>('input:not([readonly])');
     focus?.focus({ preventScroll: true });
-  }, [settled]);
+  }, [settled, pending]);
   if (!rows || !target) return null;
   return <CustomerServiceDialog title="옵션별 재고수량" busy={pending} onClose={flow.close}>
     <form ref={formRef} className="flex min-w-0 flex-col gap-4" data-option-stock-dialog="" aria-busy={pending} onSubmit={event => { event.preventDefault(); flow.save(); }}>

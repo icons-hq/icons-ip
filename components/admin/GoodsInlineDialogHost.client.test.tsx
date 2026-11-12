@@ -23,7 +23,7 @@ vi.mock('@/app/admin/goods-bulk-actions', () => ({ previewGoodsBulkAction: mocks
 vi.mock('@/app/admin/goods-list-inline-actions', () => ({ readGoodsOptionStocksAction: mocks.readOptions, adjustGoodsOptionStocksAction: mocks.adjustBatch }));
 
 import { goodsBulkError, type GoodsBulkRequest } from '@/lib/admin/goods-bulk';
-import { GoodsInlineDialogHost } from './GoodsInlineDialogHost';
+import { GoodsInlineDialogHost, goodsInlineNoticeNeedsReveal } from './GoodsInlineDialogHost';
 import { GoodsDiscountStopPriceDialog, type DiscountStopPriceFlow } from './GoodsDiscountStopPriceDialog';
 import { GoodsOptionStockDialog, type OptionStockDialogFlow } from './GoodsOptionStockDialog';
 
@@ -37,7 +37,7 @@ function render(children: ReactNode) {
   const tree = GoodsInlineDialogHost({ identity, children }) as Element;
   const parts = Children.toArray(tree.props.children as ReactNode).filter(isValidElement) as Element[];
   return {
-    value: tree.props.value as { openOptionStock: (target: unknown) => void; openDiscountStop: (target: unknown) => void; notice: string },
+    value: tree.props.value as { openOptionStock: (target: unknown) => void; openDiscountStop: (target: unknown) => void; notice: { id: number; goodId: string; text: string } | null },
     rows: parts.filter(part => part.props['data-row']),
     stock: parts.find(part => part.type === GoodsOptionStockDialog)?.props.flow as OptionStockDialogFlow,
     discount: parts.find(part => part.type === GoodsDiscountStopPriceDialog)?.props.flow as DiscountStopPriceFlow,
@@ -81,7 +81,7 @@ describe('목록 화면 수준의 창 (리뷰 21·22 — 상품이 현재 페이
     await settle();
     const view = render(null);
     expect(view.stock.rows).toBeNull();
-    expect(view.value.notice).toBe('‘상품 A’ 옵션 1개의 재고수량을 저장했습니다.');
+    expect(view.value.notice).toMatchObject({ goodId: 'good-a', text: '‘상품 A’ 옵션 1개의 재고수량을 저장했습니다.' });
   });
 
   it('할인 중지 후 판매가 변경: 할인이 멈춰 그 상품이 정렬로 다른 페이지로 가도 창이 남아 "할인은 멈췄습니다"와 다시 시도를 보인다', async () => {
@@ -102,7 +102,7 @@ describe('목록 화면 수준의 창 (리뷰 21·22 — 상품이 현재 페이
     expect(view.discount.target?.goodId).toBe('good-a');
     expect(view.discount.phase).toEqual({ step: 'price', stoppedHere: true, stopped: discounts, error: goodsBulkError('goods_bulk_busy') });
     expect(view.discount.committing).toBe(false);
-    expect(view.value.notice).toBe('');
+    expect(view.value.notice).toBeNull();
   });
 
   it('할인 중지 후 판매가 변경: 판매가 확정 응답이 끊기면 결과를 모르는 단계로 남아 닫히지 않는다', async () => {
@@ -127,6 +127,19 @@ describe('목록 화면 수준의 창 (리뷰 21·22 — 상품이 현재 페이
     await settle();
     const done = render(null);
     expect(done.discount.phase).toBeNull();
-    expect(done.value.notice).toBe('‘상품 A’ 할인을 멈추고 판매가를 12,000원으로 바꿨습니다.');
+    expect(done.value.notice).toMatchObject({ goodId: 'good-a', text: '‘상품 A’ 할인을 멈추고 판매가를 12,000원으로 바꿨습니다.' });
+  });
+});
+
+describe('결과 문구를 화면에 들이는 때 (리뷰 2차 r5 — 상품이 목록에서 빠지면 스크롤해 있어도 보이게)', () => {
+  const notice = { id: 3, goodId: 'good-a', text: '‘상품 A’ 옵션 2개의 재고수량을 저장했습니다.' };
+  it('그 상품이 지금 목록에서 빠졌을 때만, 한 결과에 한 번만 들인다', () => {
+    expect(goodsInlineNoticeNeedsReveal(notice, false, 0)).toBe(true);
+    // 상품이 목록에 남으면 창이 값 버튼으로 포커스를 돌려주므로 화면을 옮기지 않는다.
+    expect(goodsInlineNoticeNeedsReveal(notice, true, 0)).toBe(false);
+    // 이미 들인 결과는 목록이 다시 그려져도(페이지 이동 등) 다시 옮기지 않는다.
+    expect(goodsInlineNoticeNeedsReveal(notice, false, 3)).toBe(false);
+    expect(goodsInlineNoticeNeedsReveal({ ...notice, id: 4 }, false, 3)).toBe(true);
+    expect(goodsInlineNoticeNeedsReveal(null, false, 0)).toBe(false);
   });
 });

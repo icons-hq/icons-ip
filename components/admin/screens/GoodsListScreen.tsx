@@ -120,7 +120,8 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
       <p className="text-xs leading-snug text-muted-foreground" data-goods-list="stock-basis" id="goods-list-stock-basis">품절: 판매중지가 아닌 상품 중 사용 옵션 재고 0개 · 소량 재고: 판매상태를 소량 재고로 지정하고 재고가 남은 상품(수량으로 자동 분류하지 않습니다) · 판매중지: 판매상태를 판매중지로 바꾼 상품 · 판매대기·판매종료: 판매기간 시작 전·종료 후</p>
     </div>
     <GoodsListFiltersForm data={data} />
-    <GoodsInlineDialogNotice />
+    {/* 모두 저장된 창의 결과 문구. 그 상품이 이 목록에서 빠졌는지 보려고 지금 목록의 상품 URL을 넘긴다. */}
+    <GoodsInlineDialogNotice listedGoodIds={goods.map(good => good.id)} />
     {/* 넓은 화면에서는 목록 제목·정렬과 일괄 변경·조회항목 설정이 한 줄이다(표 ConsoleGrid의 뿌리를 contents로 풀어 이 줄에 참여시킨다). 폭이 모자라면 두 줄로 내려간다. */}
     <section aria-label="상품목록" className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground xl:flex-row xl:flex-wrap xl:items-center xl:gap-y-2">
       <div className="flex flex-wrap items-center gap-2 xl:flex-none">
