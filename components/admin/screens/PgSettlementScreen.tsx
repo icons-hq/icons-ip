@@ -94,7 +94,7 @@ export function PgSettlementScreen({ filters, report, connection, operationId, a
           options={[{ value: '', label: '계정을 선택해주세요' }, ...accounts.filter(account => account.mode === filters.mode).map(account => ({ value: settlementAccountKey(account), label: account.label }))]} /></SalesFilterField>
         <SalesFilterField label="조회기간" htmlFor="pg-settlement-date-field">
           <SalesSelect id="pg-settlement-date-field" name="dateField" value={filters.dateType} options={[{ value: 'paidOutDate', label: '정산 지급일' }, { value: 'soldDate', label: '정산 매출일' }]} />
-          <div className="flex items-center gap-1.5"><Input className="w-36" type="date" name="from" aria-label="조회 시작일" defaultValue={filters.startDate} required /><span aria-hidden="true" className="text-muted-foreground">~</span><Input className="w-36" type="date" name="to" aria-label="조회 종료일" defaultValue={filters.endDate} required /></div>
+          <div className="flex flex-wrap items-center gap-1.5"><Input className="w-36" type="date" name="from" aria-label="조회 시작일" defaultValue={filters.startDate} required /><span aria-hidden="true" className="text-muted-foreground">~</span><Input className="w-36" type="date" name="to" aria-label="조회 종료일" defaultValue={filters.endDate} required /></div>
           <span className={NOTE}>최대 31일</span>
         </SalesFilterField>
         <SalesFilterField label="상세조건" htmlFor="pg-settlement-query">

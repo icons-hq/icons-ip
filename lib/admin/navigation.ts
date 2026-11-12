@@ -29,22 +29,39 @@ export interface AdminScreen {
 }
 
 /*
- * 콘솔(D9, A14): 커머스와 IP·콘텐츠 운영은 각자의 레이아웃·사이드바를 가진 별도 콘솔이다.
- * URL은 그대로이고(route group은 경로에 영향이 없다) 파일 위치가 콘솔을 정한다 —
- * `app/admin/(shell)` = 커머스, `app/admin/(content)` = 콘텐츠 운영. 상단에서 전환한다.
+ * 콘솔(D9, A14 → 1014-074·075로 쇼핑·카드·게임 세 칸): 상단에서 전환하고, 칸마다 자기 사이드바 메뉴를 가진다.
+ * 쇼핑 밖 칸(카드·게임)은 새 창으로 열어 쇼핑 업무 창을 그대로 둔다.
+ * 칸은 경로가 정한다(`adminConsoleForPath`) — 메뉴 그룹의 `consoles`가 진실원이고, route group(`(shell)`·`(content)`)은 레이아웃 묶음일 뿐이다.
+ * 가까운 칸 규칙: IP·이벤트·티켓 회차·티켓 검표는 판매·결제가 따라붙는 쇼핑, 커뮤니티는 카드 전시가 있는 카드, 게임은 게임이다.
  */
-export type AdminConsoleId = 'commerce' | 'content';
-export const ADMIN_CONSOLES: { id: AdminConsoleId; label: string }[] = [
-  { id: 'commerce', label: '커머스' },
-  { id: 'content', label: '콘텐츠 운영' },
+export type AdminConsoleId = 'shopping' | 'card' | 'game';
+export interface AdminConsole {
+  id: AdminConsoleId;
+  /** 상단 전환의 이름. */
+  label: string;
+  /** 사이드바 머리·경로 첫 칸의 이름. */
+  title: string;
+  /** true면 전환 링크가 이름 붙은 새 창으로 열린다(같은 칸은 같은 창을 다시 쓴다). */
+  newWindow: boolean;
+}
+export const ADMIN_CONSOLES: readonly AdminConsole[] = [
+  { id: 'shopping', label: '쇼핑', title: '판매자센터', newWindow: false },
+  { id: 'card', label: '카드', title: '카드 운영', newWindow: true },
+  { id: 'game', label: '게임', title: '게임 운영', newWindow: true },
 ];
+export const ADMIN_ALL_CONSOLES: AdminConsoleId[] = ADMIN_CONSOLES.map((item) => item.id);
+
+/** 새 창 전환 링크의 창 이름. 이름이 같으면 브라우저가 열려 있는 그 창을 다시 쓴다. */
+export function adminConsoleWindowName(id: AdminConsoleId): string {
+  return `icons-admin-${id}`;
+}
 
 export interface AdminNavGroup {
   id: string;
   label: string;
   icon: string;
   screens: AdminScreen[];
-  /** 이 메뉴 그룹이 보이는 콘솔. 생략하면 커머스 전용이다. */
+  /** 이 메뉴 그룹이 보이는 콘솔. 생략하면 쇼핑 전용이다. */
   consoles?: AdminConsoleId[];
 }
 
@@ -106,6 +123,19 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
       { id: 'erp-items', label: 'ERP 품목', href: '/admin/catalog/erp-items', status: 'ready' },
       { id: 'related-goods', label: '연관상품 관리', href: '/admin/catalog/related-goods', status: 'ready' },
       { id: 'announcements', label: '상품공지사항 관리', href: '/admin/catalog/announcements', status: 'ready' },
+    ],
+  },
+  /* IP·이벤트·티켓 회차·검표는 상품 연결(연결 IP·IP 상세 상품 탭)과 티켓 결제·검표가 따라붙는 판매 업무라 쇼핑 칸에 둔다. */
+  {
+    id: 'content',
+    label: 'IP·이벤트·티켓',
+    icon: 'spark',
+    screens: [
+      { id: 'ips', label: 'IP', href: '/admin/catalog/ips', status: 'ready' },
+      { id: 'events', label: '이벤트', href: '/admin/catalog/events', status: 'ready' },
+      { id: 'ticket-types', label: '티켓 회차', href: '/admin/catalog/ticket-types', status: 'ready' },
+      /* 검표는 `(shell)`·`(content)` route group 밖이라 사이드바 없이 전체화면으로 뜬다. */
+      { id: 'check-in', label: '티켓 검표', href: '/admin/check-in', status: 'ready' },
     ],
   },
   {
@@ -230,38 +260,43 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
       { id: 'store-credits', label: '적립금 정책', href: '/admin/settings/store-credits', status: 'ready', adminOnly: true },
     ],
   },
+  /* 카드 칸: 카드·카드풀·뽑기권·카드팩 발급과 카드 전시가 있는 팬 활동(커뮤니티). */
   {
-    id: 'content',
-    label: 'IP·콘텐츠 운영',
-    icon: 'spark',
-    consoles: ['content'],
+    id: 'cards',
+    label: '카드 운영',
+    icon: 'card',
+    consoles: ['card'],
     screens: [
-      { id: 'ips', label: 'IP', href: '/admin/catalog/ips', status: 'ready' },
       { id: 'cards', label: '카드', href: '/admin/catalog/cards', status: 'ready' },
       { id: 'pools', label: '카드풀', href: '/admin/catalog/pools', status: 'ready' },
       { id: 'policies', label: '뽑기권 발급 정책', href: '/admin/catalog/policies', status: 'ready' },
       { id: 'grants', label: '카드팩 수동 발급', href: '/admin/catalog/grants', status: 'ready' },
-      { id: 'games', label: '게임', href: '/admin/catalog/games', status: 'ready' },
-      { id: 'events', label: '이벤트', href: '/admin/catalog/events', status: 'ready' },
-      { id: 'ticket-types', label: '티켓 회차', href: '/admin/catalog/ticket-types', status: 'ready' },
-      { id: 'moderation', label: '커뮤니티 관리', href: '/admin/community/moderation', status: 'ready' },
     ],
   },
   {
-    id: 'field',
-    label: '현장 운영',
-    icon: 'event',
-    consoles: ['content'],
+    id: 'community',
+    label: '커뮤니티',
+    icon: 'chat',
+    consoles: ['card'],
     screens: [
-      /* 검표는 `(shell)`·`(content)` route group 밖이라 사이드바 없이 전체화면으로 뜬다. */
-      { id: 'check-in', label: '티켓 검표', href: '/admin/check-in', status: 'ready' },
+      { id: 'moderation', label: '커뮤니티 관리', href: '/admin/community/moderation', status: 'ready' },
+    ],
+  },
+  /* 게임 칸. */
+  {
+    id: 'games',
+    label: '게임 운영',
+    icon: 'spark',
+    consoles: ['game'],
+    screens: [
+      { id: 'games', label: '게임', href: '/admin/catalog/games', status: 'ready' },
     ],
   },
   {
     id: 'help',
     label: '도움말',
     icon: 'spark',
-    consoles: ['commerce', 'content'],
+    consoles: ADMIN_ALL_CONSOLES,
     screens: [
       { id: 'guide', label: '사용 가이드', href: '/admin/guide', status: 'ready' },
     ],
@@ -368,14 +403,14 @@ export function legacyAdminSectionHref(value: unknown): string | null {
 }
 
 export function adminGroupConsoles(group: Pick<AdminNavGroup, 'consoles'>): AdminConsoleId[] {
-  return group.consoles ?? ['commerce'];
+  return group.consoles ?? ['shopping'];
 }
 
-/** 화면이 속한 콘솔. 두 콘솔이 공유하는 화면(도움말)과 모르는 경로는 커머스로 본다. */
+/** 화면이 속한 칸. 여러 칸이 공유하는 화면(도움말)과 모르는 경로(어드민 안 404 포함)는 쇼핑으로 본다. */
 export function adminConsoleForPath(pathname: string): AdminConsoleId {
   const group = adminGroupForPath(pathname);
-  const consoles = group ? adminGroupConsoles(group) : ['commerce'];
-  return consoles.length === 1 && consoles[0] === 'content' ? 'content' : 'commerce';
+  const consoles: AdminConsoleId[] = group ? adminGroupConsoles(group) : ['shopping'];
+  return consoles.length === 1 ? consoles[0] : 'shopping';
 }
 
 /**
@@ -394,12 +429,12 @@ export function visibleAdminNavGroups(role: string, operatorAccess?: OperatorAcc
     .filter((group) => group.screens.length > 0);
 }
 
-/** 콘솔 전환 링크의 목적지. 콘텐츠 콘솔은 볼 수 있는 첫 화면이며, 하나도 없으면 null(전환 숨김). */
+/** 콘솔 전환 링크의 목적지. 쇼핑 밖 칸은 그 칸 전용 메뉴에서 볼 수 있는 첫 화면이며, 하나도 없으면 null(전환 숨김). */
 export function adminConsoleHomeHref(consoleId: AdminConsoleId, role: string, operatorAccess?: OperatorAccess): string | null {
-  if (consoleId === 'commerce') return '/admin';
-  const screen = visibleAdminNavGroups(role, operatorAccess, 'content')
-    .filter((group) => !adminGroupConsoles(group).includes('commerce'))
+  if (consoleId === 'shopping') return '/admin';
+  const screen = visibleAdminNavGroups(role, operatorAccess, consoleId)
+    .filter((group) => adminGroupConsoles(group).length === 1)
     .flatMap((group) => group.screens)
-    .find((item) => item.status === 'ready' && item.id !== 'check-in');
+    .find((item) => item.status === 'ready');
   return screen?.href ?? null;
 }

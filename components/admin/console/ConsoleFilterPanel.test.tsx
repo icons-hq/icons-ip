@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-html-link-for-pages -- 렌더 시험용 마크업이다 */
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { ConsoleFilterActions, ConsoleFilterPanel } from './ConsoleFilterPanel';
