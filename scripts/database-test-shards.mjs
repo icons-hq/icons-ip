@@ -172,6 +172,8 @@ const storefront = [
   // 예전 story/marketing 단계의 쇼핑 스토리·마케팅·상품 상세 연출·리뷰 이벤트다.
   sql('shopping_stories', { kc: true }),
   sql('shopping_story_goods_picker', { kc: true }),
+  // QA1 MD 후속: 전시 구성 상품의 고객 화면 미노출 이유(초안·IP 초안·판매 제한·보관)와 다시 열기용 가벼운 읽기.
+  sql('goods_display_visibility', { kc: true }),
   sql('goods_relation_visual_compositions', { kc: true }),
   sql('goods_other_compositions', { admin: true, kc: true }),
   sql('story_navigation_and_home_layout'),
