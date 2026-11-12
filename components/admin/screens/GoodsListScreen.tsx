@@ -16,7 +16,7 @@ import { CustomerServiceListSelect } from './CustomerServiceListControls';
 import { GOODS_LIST_PAGE_SIZE, GOODS_LIST_PAGE_SIZES, GOODS_LIST_SORT_OPTIONS, goodsListHref, goodsListIsNarrowed, goodEditorHref, goodPreviewHref, type AdminGoodSummary, type AdminGoodsListData } from '@/lib/admin/goods-list';
 import { goodDetailHref } from '@/lib/goods-display';
 import type { GoodsGroupIdentity } from '@/lib/admin/goods-groups';
-import { GoodsInlinePrice, GoodsInlineSale, GoodsInlineStock } from '../GoodsInlineEdit';
+import { GoodsInlineOptionStock, GoodsInlinePrice, GoodsInlineSale, GoodsInlineStock } from '../GoodsInlineEdit';
 import { GoodsIpBulkDiscount } from '../GoodsIpBulkDiscount';
 import { kstDay } from '@/lib/admin/kst';
 
@@ -179,14 +179,15 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
             <span className="flex w-0 min-w-0 flex-1 flex-col gap-0.5"><Link className={NAME_LINK} href={editorHref} title={good.name}>{good.name}</Link><small className="truncate text-xs font-normal text-muted-foreground" title={good.code}>{good.code}</small></span>
           </span>,
           <Link key="edit" className={buttonVariants({ variant: 'outline', size: 'xs' })} data-slot="button" href={editorHref}>수정</Link>,
-          editable && inlineIdentity && typeof good.basePrice === 'number' && good.compareAtPrice == null && !good.activeDiscountEndsAt
-            ? <GoodsInlinePrice key="price" goodId={good.id} basePrice={good.basePrice} identity={inlineIdentity} hasOptions={(good.activeVariantCount ?? 0) !== 1}
-              display={inlinePrice} valueText={priceText} />
-            : editable && typeof good.basePrice === 'number' && (good.compareAtPrice != null || good.activeDiscountEndsAt)
+          /* 판매가 칸(A9·1027T-025): 상품 할인(정가 표시)이 없으면 바로 고친다. 진행·예정 즉시할인이 있으면 같은 칸이 '할인 중지 후 변경' 창을 연다 —
+             같은 부품이라 할인이 멈춰 목록이 새로 그려져도 창이 남는다. 상품 할인이 있으면 판매가의 뜻(정가)이 달라 상품 수정으로 보낸다. */
+          editable && inlineIdentity && typeof good.basePrice === 'number' && good.compareAtPrice == null
+            ? <GoodsInlinePrice key="price" goodId={good.id} goodName={good.name} goodCode={good.code || null} basePrice={good.basePrice} identity={inlineIdentity} hasOptions={(good.activeVariantCount ?? 0) !== 1}
+              discountEndsAt={good.activeDiscountEndsAt ?? null} display={inlinePrice} valueText={priceText} />
+            : editable && typeof good.basePrice === 'number' && good.compareAtPrice != null
               ? <span key="price" className="grid justify-items-end gap-0.5 whitespace-normal">{price}
-                {good.activeDiscountEndsAt
-                  ? <small className={SECONDARY} title={`즉시할인 진행·예정 중(~${tableDate(good.activeDiscountEndsAt)}) · 할인을 중지한 뒤 판매가를 바꿀 수 있습니다`}>할인 진행·예정</small>
-                  : <Link className={SECONDARY_LINK} href={`${goodEditorHref(filters, good.id)}#good-section-price`} title="상품 할인 중 · 판매가는 상품 수정에서 변경">상품 할인 중</Link>}</span>
+                <Link className={SECONDARY_LINK} href={`${goodEditorHref(filters, good.id)}#good-section-price`}
+                  title={good.activeDiscountEndsAt ? `상품 할인·즉시할인 진행·예정 중(~${tableDate(good.activeDiscountEndsAt)}) · 판매가는 상품 수정에서 변경` : '상품 할인 중 · 판매가는 상품 수정에서 변경'}>상품 할인 중</Link></span>
               : <span key="price">{price}</span>,
           /* 칸은 두 줄이다. 첫 줄은 주 배지(판매중·판매중지는 배지가 곧 값 버튼)와, 그 밖의 상태의 판매 값(임시저장은 아직 안 파는 상품이라 공개 시 값이라고 말한다).
              둘째 줄은 전시 여부와 준비 사유다. 사유는 하나면 바로 링크로, 여럿이면 건수 한 줄로 접는다. 판매 값의 연필은 배지 옆 자리가 모자라 뺀다(값 위에 커서를 올리면 테두리가 보인다). */
@@ -201,13 +202,17 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
               {reasons.length > 1 ? <details className="group/reasons text-[0.8rem] leading-snug" data-goods-list="reasons"><summary className="inline-flex min-h-5 cursor-pointer list-none items-center gap-1 font-medium text-warning underline-offset-4 hover:underline [&::-webkit-details-marker]:hidden"><TriangleAlert aria-hidden="true" className="size-3.5 shrink-0" />준비할 항목 {reasons.length}개<ChevronDown aria-hidden="true" className="size-3 shrink-0 transition-transform group-open/reasons:rotate-180" /></summary><div className="mt-1.5 flex flex-col gap-1">{reasons.map(reasonLink)}</div></details> : null}
             </div> : null}
           </div>,
-          /* 재고 칸도 두 줄이다. 옵션별 수정 링크는 상세 재고를 펼치면 나온다. */
+          /* 재고 칸도 두 줄이다. 옵션이 하나면 칸에서 바로, 여럿이면 칸이 옵션별 재고 창을 연다(1014-106·107). 옵션을 읽지 못한 상품만
+             상세 재고 안의 상품 수정 링크로 고친다. */
           editable && good.inlineStock
             ? <span key="qty" className={`grid justify-items-end gap-0.5 whitespace-normal${qtyEmphasis}`}><GoodsInlineStock goodId={good.id} ipId={good.ipId} variantId={good.inlineStock.variantId} stockQty={good.inlineStock.stockQty} />
               {qtyLabel !== `${good.inlineStock.stockQty.toLocaleString('ko-KR')}개` ? <small className={`${SECONDARY} font-normal`}>판매 가능 {qtyLabel}</small> : null}{lowStockBadge}{stockDetails()}</span>
-            : editable && (good.activeVariantCount ?? 0) > 1
-              ? <span key="qty" className={`grid justify-items-end gap-0.5 whitespace-normal${qtyEmphasis}`}>{qtyLabel}{lowStockBadge}{stockDetails(<Link className={`${SECONDARY_LINK} mt-2 text-left font-normal`} href={goodEditorHref(filters, good.id, 'variants')}>옵션별 재고 수정</Link>)}</span>
-              : <span key="qty" className={`grid justify-items-end gap-0.5 whitespace-normal${qtyEmphasis}`}>{qtyLabel}{lowStockBadge}{stockDetails()}</span>,
+            : editable && good.inlineOptions && good.inlineOptions.length > 1
+              ? <span key="qty" className={`grid justify-items-end gap-0.5 whitespace-normal${qtyEmphasis}`}><GoodsInlineOptionStock goodId={good.id} ipId={good.ipId} goodName={good.name} goodCode={good.code || null}
+                options={good.inlineOptions} display={qtyLabel} editorHref={goodEditorHref(filters, good.id, 'variants')} />{lowStockBadge}{stockDetails()}</span>
+              : editable && (good.activeVariantCount ?? 0) > 1
+                ? <span key="qty" className={`grid justify-items-end gap-0.5 whitespace-normal${qtyEmphasis}`}>{qtyLabel}{lowStockBadge}{stockDetails(<Link className={`${SECONDARY_LINK} mt-2 text-left font-normal`} href={goodEditorHref(filters, good.id, 'variants')}>옵션별 재고 수정</Link>)}</span>
+                : <span key="qty" className={`grid justify-items-end gap-0.5 whitespace-normal${qtyEmphasis}`}>{qtyLabel}{lowStockBadge}{stockDetails()}</span>,
           <span key="category" className={`flex flex-col gap-0.5 ${FILL_CELL}`}><span className="truncate" title={good.ipTitle}>{good.ipTitle}</span><small className={`${SECONDARY} truncate`} title={good.categoryName || undefined}>{good.categoryName || '분류 미지정'}</small></span>,
           <span key="createdAt" className="whitespace-nowrap tabular-nums">{tableDate(good.createdAt)}</span>,
           <span key="updatedAt" className="whitespace-nowrap tabular-nums">{tableDate(good.updatedAt)}</span>,
@@ -223,7 +228,7 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
       <ConsolePagination page={filters.page} pageSize={pageSize} total={total} hrefForPage={page => goodsListHref(filters, page)} />
       <details className="group/help rounded-lg border bg-muted/40 px-4 py-3 text-sm" data-goods-list="help">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-medium [&::-webkit-details-marker]:hidden">목록 사용·재고수량·판매 준비 안내<ChevronDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open/help:rotate-180" /></summary>
-        <p className="mt-2 leading-relaxed text-muted-foreground">상품번호는 시스템이 등록 순서대로 매기는 바뀌지 않는 번호이고, 상품 URL은 고객 화면 주소 끝의 영문 값입니다. 상품번호·상품 URL은 쉼표나 공백으로 구분해 여러 개를 조회할 수 있고, 전체 검색에는 영문명·검색 키워드·ERP 품명·바코드도 포함됩니다. 상품번호·상품명 또는 수정 버튼을 눌러 상품 정보를 변경하고, 상품 URL을 누르면 고객 화면(공개 전 상품은 미리보기)을 엽니다.{inlineIdentity ? ' 판매가·재고수량·판매상태는 목록에서 값을 눌러 바로 고칠 수 있습니다.' : ''} 표시한 수량은 예약판매 물량을 포함한 판매 가용 수량입니다. 판매상태 필터의 품절은 판매중지가 아닌 상품 중 사용 옵션의 할당 재고가 0인 상품이고, 판매중지는 수량과 관계없이 판매상태를 판매중지로 바꾼 상품입니다. 고객 화면에는 둘 다 품절로 보입니다. 소량 재고는 판매상태를 소량 재고로 지정하고 재고가 남은 상품이며, 수량으로 자동 분류하지 않습니다. 옵션별 안전재고 기준 이하 경고는 재고수량 칸에 부족 N개 옵션으로 표시되고 소량 재고 건수에는 들어가지 않습니다. 품절·소량 재고·판매중지 건수는 판매상태 조건과 페이지를, 판매대기·판매종료 건수는 판매기간 조건과 페이지를 제외한 같은 검색 조건으로 계산합니다. 설정 준비 완료는 실제 결제 성공을 보증하지 않습니다.{data.checkedAt ? <> 확인 시각: <time dateTime={data.checkedAt}>{new Date(data.checkedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}</time>.</> : null}</p>
+        <p className="mt-2 leading-relaxed text-muted-foreground">상품번호는 시스템이 등록 순서대로 매기는 바뀌지 않는 번호이고, 상품 URL은 고객 화면 주소 끝의 영문 값입니다. 상품번호·상품 URL은 쉼표나 공백으로 구분해 여러 개를 조회할 수 있고, 전체 검색에는 영문명·검색 키워드·ERP 품명·바코드도 포함됩니다. 상품번호·상품명 또는 수정 버튼을 눌러 상품 정보를 변경하고, 상품 URL을 누르면 고객 화면(공개 전 상품은 미리보기)을 엽니다.{inlineIdentity ? ' 판매가·재고수량·판매상태는 목록에서 값을 눌러 바로 고칠 수 있습니다. 옵션이 여러 개인 상품은 재고수량 칸이 옵션별 재고 창을, 즉시할인이 진행 중이거나 예정된 상품은 판매가 칸이 할인 중지 후 변경 창을 엽니다.' : ''} 표시한 수량은 예약판매 물량을 포함한 판매 가용 수량입니다. 판매상태 필터의 품절은 판매중지가 아닌 상품 중 사용 옵션의 할당 재고가 0인 상품이고, 판매중지는 수량과 관계없이 판매상태를 판매중지로 바꾼 상품입니다. 고객 화면에는 둘 다 품절로 보입니다. 소량 재고는 판매상태를 소량 재고로 지정하고 재고가 남은 상품이며, 수량으로 자동 분류하지 않습니다. 옵션별 안전재고 기준 이하 경고는 재고수량 칸에 부족 N개 옵션으로 표시되고 소량 재고 건수에는 들어가지 않습니다. 품절·소량 재고·판매중지 건수는 판매상태 조건과 페이지를, 판매대기·판매종료 건수는 판매기간 조건과 페이지를 제외한 같은 검색 조건으로 계산합니다. 설정 준비 완료는 실제 결제 성공을 보증하지 않습니다.{data.checkedAt ? <> 확인 시각: <time dateTime={data.checkedAt}>{new Date(data.checkedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}</time>.</> : null}</p>
       </details>
       </div>
     </section>
