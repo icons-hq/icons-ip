@@ -9,7 +9,8 @@ begin;
 --     못 찾은 행·같은 옵션 여러 행·키 충돌·다른 출고지·보관 상품을 반영하지 않고 사유로 남긴다
 --   · 차이 = 파일 − (재고수량 + 출고 대기 + 회수 뒤 재고 미반영 + 기준 시각 뒤 출고 − 기준 시각 뒤 회수)
 --     취소 주문·미배정 예약은 세지 않고, 그룹상품 교환 재출고는 출고로, 그룹상품 전환 뒤 주문은 승계 옵션으로 센다.
---     기준 시각 뒤 회수(클레임 회수·회수 기록 없는 복원)와 회수 뒤 복원 전 수량을 가른다. 기준 시각 뒤 수동 조정은 표시만 한다
+--     기준 시각 뒤 회수(클레임 회수·회수 기록 없는 복원)와 회수 뒤 복원 전 수량을 가른다. 기준 시각 뒤 수동 조정은 표시만 한다.
+--     환불로 주문이 취소돼 배송 건이 취소로 바뀌어도(실제 주문 취소 트리거) 출고 시각이 있으면 출고·회수에 남고, 출고 전 취소만 뺀다
 --   · 확정은 잠금 뒤 다시 잰 '맞춘 뒤' 재고수량이 미리보기와 같을 때만 반영한다(QA1 S-T07-01). 미리보기 뒤 주문으로
 --     맞춘 뒤 값이 바뀌거나 수동 조정이 끼면 아무것도 바꾸지 않고 바뀐 옵션(미리보기 값·지금 값·이유)을 돌려준다.
 --     같으면 반영하고 결과·감사는 반영 시점 값(반영 전 재고수량·출고 대기 등)이다. 같은 옵션은 주문으로 함께 움직여도 막지 않는다
@@ -515,6 +516,111 @@ select 1/case when :'conflict_same'::jsonb->>'status'='conflict'
  and (select stock_qty from public.goods_variants where id=:'v_same')=5
  and (select applied_at is null from private.stock_reconcile_snapshots where id=:'snap_same')
  then 1 else 0 end as assert_same_option_direct_change_rejected;
+
+-- ---------------------------------------------------------------------------
+-- 출고 뒤 환불(실제 주문 취소 트리거, PR #651 리뷰): 환불로 주문이 취소되면 private.cancel_order_shipments가 배송 건을
+-- 취소로 바꾸되 출고 시각은 남긴다. 그 실물은 창고를 떠났으므로 기준 시각 뒤 출고·회수(클레임 회수 시각, 회수 기록이
+-- 없으면 복원 시각)에 그대로 남고, 출고 전 취소만 빠진다. 위 시험들은 replica로 주문을 취소해 이 트리거를 타지 않는다.
+-- 여기서는 배송 건·클레임 준비만 직접 넣고 반품 승인·회수·환불 확정은 실제 RPC로, 주문 취소는 트리거를 그대로 탄다.
+-- 옵션마다 파일 기준 시각(2시간 전) 전에 받은 주문 1개(재고수량은 주문 때 뺐다: 10 → 9, 환불 복원으로 다시 10).
+--   A 기준 시각 뒤 출고 → 반품 승인·출고지 회수·환불: 파일 10. 나갔다 돌아와 지금 창고 10
+--   B 기준 시각 뒤 출고 → 회수 기록 없는 레거시 반품 환불: 파일 10. 복원 시각에 돌아온 것으로 본다
+--   C 기준 시각 전 출고 → 회수 기록 없는 레거시 반품 환불: 파일 9(이미 나감). 복원 시각에 돌아온 것으로 본다
+--   D 출고 전 취소: 파일 10. 창고를 떠난 적이 없다
+-- 넷 다 차이 0·맞춘 뒤 재고수량 = 지금 재고수량 10이어야 한다(취소 배송 건을 통째로 빼면 A는 +1, C는 −1로 맞춰진다).
+-- ---------------------------------------------------------------------------
+insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id) values
+ ('stock-rc-refund-a','stock-rc-ip','TEST 재고대조 출고 뒤 환불 회수','문구',10000,'ok',9,'5a0c0000-0000-4000-8000-0000000000a1'),
+ ('stock-rc-refund-b','stock-rc-ip','TEST 재고대조 출고 뒤 환불 회수 기록 없음','문구',10000,'ok',9,'5a0c0000-0000-4000-8000-0000000000a1'),
+ ('stock-rc-refund-c','stock-rc-ip','TEST 재고대조 기준 전 출고 환불','문구',10000,'ok',9,'5a0c0000-0000-4000-8000-0000000000a1'),
+ ('stock-rc-refund-d','stock-rc-ip','TEST 재고대조 출고 전 취소','문구',10000,'ok',9,'5a0c0000-0000-4000-8000-0000000000a1');
+select (select id from public.goods_variants where good_id='stock-rc-refund-a' and is_default) as v_ra,
+ (select code from public.goods_variants where good_id='stock-rc-refund-a' and is_default) as v_ra_code,
+ (select id from public.goods_variants where good_id='stock-rc-refund-b' and is_default) as v_rb,
+ (select code from public.goods_variants where good_id='stock-rc-refund-b' and is_default) as v_rb_code,
+ (select id from public.goods_variants where good_id='stock-rc-refund-c' and is_default) as v_rc,
+ (select code from public.goods_variants where good_id='stock-rc-refund-c' and is_default) as v_rc_code,
+ (select id from public.goods_variants where good_id='stock-rc-refund-d' and is_default) as v_rd,
+ (select code from public.goods_variants where good_id='stock-rc-refund-d' and is_default) as v_rd_code \gset
+-- n번 결제 주문 1개와 결제(결제키 stock-rc-pay-n). 출고 시각이 있으면 배송완료 배송 건, 없으면 준비 배송 건이다.
+create function pg_temp.refund_order_with(n integer,variant uuid,good text,shipped timestamptz)
+returns uuid language plpgsql as $$
+declare oid uuid:=('5a0c0000-0000-4001-8000-'||lpad(n::text,12,'0'))::uuid;item uuid;
+ sid uuid:=('5a0c0000-0000-4002-8000-'||lpad(n::text,12,'0'))::uuid;
+begin
+ insert into public.orders(id,user_id,status,total,address,confirmed_at,shipped_at,delivered_at)
+  values(oid,'5a0c0000-0000-4000-8000-000000000002',case when shipped is null then 'paid' else 'delivered' end::public.order_status,10000,
+   '{"recipientName":"TEST 수령인","phone":"01000000000","postalCode":"12345","address1":"합성 주소"}',
+   case when shipped is not null then now()-interval '4 hours' end,shipped,shipped);
+ insert into public.order_items(order_id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot,variant_id)
+  values(oid,good,1,10000,'TEST 재고대조','문구','stock-rc-ip',variant) returning id into item;
+ insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,status,carrier,tracking_number,
+  shipped_at,delivered_at)
+  values(sid,oid,'5a0c0000-0000-4000-8000-0000000000a1','TEST 재고대조 창고A',0,'{}',case when shipped is null then 'ready' else 'delivered' end,
+   case when shipped is not null then 'hanjin' end,case when shipped is not null then 'STOCKRC'||lpad(n::text,6,'0') end,shipped,shipped);
+ insert into public.order_shipment_items(order_id,shipment_id,order_item_id,qty) values(oid,sid,item,1);
+ insert into public.payments(user_id,provider,payment_key,purpose,ref_id,amount,status,idempotency_key)
+  values('5a0c0000-0000-4000-8000-000000000002','toss','stock-rc-pay-'||n,'order',oid,10000,'paid',gen_random_uuid());
+ return oid;
+end $$;
+select pg_temp.refund_order_with(41,:'v_ra','stock-rc-refund-a',now()-interval '1 hour') as o_ra,
+ pg_temp.refund_order_with(42,:'v_rb','stock-rc-refund-b',now()-interval '1 hour') as o_rb,
+ pg_temp.refund_order_with(43,:'v_rc','stock-rc-refund-c',now()-interval '3 hours') as o_rc,
+ pg_temp.refund_order_with(44,:'v_rd','stock-rc-refund-d',null) as o_rd \gset
+-- A: 반품 승인 → 출고지 회수 → 환불 접수 → PG 취소 근거로 확정.
+insert into public.order_cancellation_requests(id,order_id,requested_by,reason,claim_type,stage) values
+ ('5a0c0000-0000-4005-8000-000000000041',:'o_ra','5a0c0000-0000-4000-8000-000000000002','TEST 재고대조 반품','return','requested');
+set local role authenticated;
+select pg_temp.as_actor('5a0c0000-0000-4000-8000-000000000001');
+select public.admin_decide_order_claim('5a0c0000-0000-4005-8000-000000000041','approve',null);
+select public.admin_record_order_claim_origin_collection('5a0c0000-0000-4005-8000-000000000041','5a0c0000-0000-4002-8000-000000000041',
+ 'TEST 재고대조 회수 입고 확인');
+select public.admin_record_order_claim_refund('5a0c0000-0000-4005-8000-000000000041','pg_cancel','filed',null);
+reset role;
+select public.finalize_order_cancellation_with_provider_evidence(:'o_ra','TEST 반품 환불','{stock-rc-pay-41}');
+-- B·C: 출고지 회수 기록이 없는 레거시 반품(collection_policy legacy, 처리 중)의 환불 확정.
+insert into public.order_cancellation_requests(id,order_id,requested_by,reason,claim_type,stage,status,collection_policy,collection_required) values
+ ('5a0c0000-0000-4005-8000-000000000042',:'o_rb','5a0c0000-0000-4000-8000-000000000002','TEST 재고대조 레거시 반품','return','processing','processing','legacy',true),
+ ('5a0c0000-0000-4005-8000-000000000043',:'o_rc','5a0c0000-0000-4000-8000-000000000002','TEST 재고대조 레거시 반품','return','processing','processing','legacy',true);
+insert into public.order_cancellation_claims(order_id,requested_by,previous_status) values
+ (:'o_rb','5a0c0000-0000-4000-8000-000000000001','delivered'),(:'o_rc','5a0c0000-0000-4000-8000-000000000001','delivered');
+select public.finalize_order_cancellation_with_provider_evidence(:'o_rb','TEST 레거시 반품 환불','{stock-rc-pay-42}');
+select public.finalize_order_cancellation_with_provider_evidence(:'o_rc','TEST 레거시 반품 환불','{stock-rc-pay-43}');
+-- D: 출고 전 결제 취소.
+select public.finalize_order_cancellation_with_provider_evidence(:'o_rd','TEST 출고 전 취소','{stock-rc-pay-44}');
+
+-- 트리거가 실제로 돌았다: 주문·배송 건 모두 취소, 출고 시각은 A·B·C에 남고 D에는 없다. 품목마다 복원 기록 1건, 재고 10.
+select 1/case when current_setting('session_replication_role')='origin'
+ and (select count(*)=4 from public.orders o join public.order_shipments s on s.order_id=o.id
+   where o.id in(:'o_ra',:'o_rb',:'o_rc',:'o_rd') and o.status='canceled' and s.status='canceled'
+     and (s.shipped_at is not null)=(o.id<>:'o_rd'))
+ and (select count(*)=4 from public.audit_log where action='order.option_stock_restored'
+   and target in('order:'||:'o_ra','order:'||:'o_rb','order:'||:'o_rc','order:'||:'o_rd'))
+ and (select collected_at is not null from public.order_cancellation_requests where id='5a0c0000-0000-4005-8000-000000000041')
+ and (select bool_and(stock_qty=10) from public.goods_variants where id in(:'v_ra',:'v_rb',:'v_rc',:'v_rd'))
+ then 1 else 0 end as assert_refund_cancels_shipments_and_keeps_shipped_at;
+-- 출고 시각이 있는 취소 배송 건은 출고·회수(또는 복원)에 남고, 출고 전 취소는 어디에도 세지 않는다.
+select 1/case when (select pending_qty=0 and shipped_since_qty=1 and returned_since_qty=1 and awaiting_return_qty=0
+   from private.stock_reconcile_flows(array[:'v_ra'::uuid],now()-interval '2 hours'))
+ and (select pending_qty=0 and shipped_since_qty=1 and returned_since_qty=1 and awaiting_return_qty=0
+   from private.stock_reconcile_flows(array[:'v_rb'::uuid],now()-interval '2 hours'))
+ and (select pending_qty=0 and shipped_since_qty=0 and returned_since_qty=1 and awaiting_return_qty=0
+   from private.stock_reconcile_flows(array[:'v_rc'::uuid],now()-interval '2 hours'))
+ and (select pending_qty=0 and shipped_since_qty=0 and returned_since_qty=0 and awaiting_return_qty=0
+   from private.stock_reconcile_flows(array[:'v_rd'::uuid],now()-interval '2 hours'))
+ then 1 else 0 end as assert_canceled_shipped_units_stay_in_flows;
+set local role authenticated;
+select pg_temp.as_actor('5a0c0000-0000-4000-8000-000000000001');
+select public.admin_preview_stock_reconcile('5a0c0000-0000-4000-8000-0000000000a1',now()-interval '2 hours','TEST 출고 뒤 환불',jsonb_build_array(
+ jsonb_build_object('row',1,'optionCode',:'v_ra_code','qty',10),
+ jsonb_build_object('row',2,'optionCode',:'v_rb_code','qty',10),
+ jsonb_build_object('row',3,'optionCode',:'v_rc_code','qty',9),
+ jsonb_build_object('row',4,'optionCode',:'v_rd_code','qty',10))) as preview_refunds \gset
+reset role;
+select 1/case when (:'preview_refunds'::jsonb->>'matchedCount')::integer=4 and (:'preview_refunds'::jsonb->>'changedCount')::integer=0
+ and (select bool_and((i->>'difference')::integer=0 and (i->>'stockQty')::integer=10 and (i->>'targetQty')::integer=10)
+   from jsonb_array_elements(:'preview_refunds'::jsonb->'items') i)
+ then 1 else 0 end as assert_refund_preview_matches_warehouse;
 
 -- ---------------------------------------------------------------------------
 -- 안전재고 요약 메일 설정
