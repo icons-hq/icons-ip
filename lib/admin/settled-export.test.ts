@@ -124,3 +124,66 @@ describe('거래확정 v2 고정 원장', () => {
     ]) { const snapshot = settledExportV2Fixture();mutate(snapshot);expect(() => buildSettledExportModel(parseSettledExportSnapshot(snapshot))).toThrow(); }
   });
 });
+
+describe('거래확정 재고 부족 부분 취소(ADR-0032)', () => {
+  type Raw = Record<string, unknown>;
+  const cut = (item: unknown, fields: Raw) => Object.assign(item as Raw, fields);
+  const cancelC = { canceledQty: 1, activeQty: 0, partialCanceledPaidAmount: 8600, partialCanceledGrossAmount: 9000,
+    partialCanceledVolumeDiscount: 0, partialCanceledCouponDiscount: 0, partialCanceledStoreCreditDiscount: 400 };
+  it('모두 취소된 품목은 줄을 만들지 않고, 닫힌 배송 건의 배송비·착불을 뺀 남은 금액으로 대조한다', () => {
+    const snapshot = settledExportV2Fixture(); const order = snapshot.orders[0];
+    cut(order.items[2], { ...cancelC, shipmentId: null });
+    cut(order.shipments[1], { closedByPartialCancel: true });
+    cut(order, { partialRefundedAmount: 10600 });
+    const model = buildSettledExportModel(parseSettledExportSnapshot(snapshot));
+    expect(model.lines.map(line => line.itemId)).toEqual([order.items[0].id, order.items[1].id]);
+    expect(model.orders[0]).toMatchObject({ itemCount: 2, qty: 2, total: 19401, shippingFee: 3000, storeCredits: 600, detailTotal: 19401, paymentAmount: 19401,
+      detailDifference: 0, ledgerDifference: 0, shippingCollectTotal: 0, collectDifference: 0 });
+    expect(model.orders[0].issues.join(' / ')).toContain('재고 부족 부분 취소 반영');
+    expect(model.orders[0].issues).not.toContain('품목이 없는 배송 건: 배송비 배분 확인 필요');
+    expect(model.orders[0].issues).not.toContain('부분 취소 환불 합계와 취소분 배분 불일치');
+  });
+
+  it('부분 취소가 없으면 배송비 쿠폰 요약은 저장된 주문 값 그대로다(구성요소에 칸이 없어도 0으로 바뀌지 않는다)', () => {
+    const snapshot = settledExportFixture(); const order = snapshot.orders[0];
+    cut(order, { shippingCouponDiscount: 700 });
+    const model = buildSettledExportModel(parseSettledExportSnapshot(snapshot));
+    expect(model.orders[0].shippingCouponDiscount).toBe(700);
+  });
+
+  it('닫힌 배송 건이 있을 때만 배송비 쿠폰 요약에서 그 배송 건 구성요소 몫을 뺀다', () => {
+    const snapshot = settledExportV2Fixture(); const order = snapshot.orders[0];
+    const baseline = buildSettledExportModel(parseSettledExportSnapshot(snapshot)).orders[0].shippingCouponDiscount;
+    expect(baseline).toBe(order.shippingCouponDiscount ?? 0);
+    cut(order.items[2], { ...cancelC, shipmentId: null });
+    cut(order.shipments[1], { closedByPartialCancel: true });
+    cut(order, { partialRefundedAmount: 10600 });
+    const closed = (order.shippingComponents ?? []).filter(c => c.shipmentId === order.shipments[1].id).reduce((total, c) => total + (c.shippingCouponDiscount ?? 0), 0);
+    expect(buildSettledExportModel(parseSettledExportSnapshot(snapshot)).orders[0].shippingCouponDiscount).toBe(baseline - closed);
+  });
+
+  it('일부 취소된 품목은 남은 수량·남은 결제 몫이고, 끝수 차이는 숨기지 않는다', () => {
+    const snapshot = settledExportV2Fixture(); const order = snapshot.orders[0];
+    const [a, b] = order.items; a.qty = 2;
+    a.allocation = { subtotal: 20002, volumeDiscount: 1000, netSubtotal: 19002, couponDiscount: 501, storeCreditDiscount: 300, paidGoodsTotal: 18201 };
+    b.allocation = { subtotal: 10001, volumeDiscount: 1000, netSubtotal: 9001, couponDiscount: 500, storeCreditDiscount: 300, paidGoodsTotal: 8201 };
+    order.total = 40002; order.payments[0].amount = 40002;
+    cut(a, { canceledQty: 1, activeQty: 1, partialCanceledPaidAmount: 9100, partialCanceledGrossAmount: 9501,
+      partialCanceledVolumeDiscount: 500, partialCanceledCouponDiscount: 250, partialCanceledStoreCreditDiscount: 150 });
+    cut(order, { partialRefundedAmount: 9100 });
+    const model = buildSettledExportModel(parseSettledExportSnapshot(snapshot));
+    expect(model.lines[0]).toMatchObject({ qty: 1, salesAmount: 9101, beforeCouponAmount: 9501, couponAmount: 251, creditAmount: 150, volumeDiscount: 500, regularAmount: 10001 });
+    expect(model.lines[0].issues.join(' / ')).toContain('부분 취소 1개 반영(주문 수량 2개');
+    expect(model.lines[0].issues.join(' / ')).toContain('끝수 차이 -1원');
+    expect(model.orders[0]).toMatchObject({ qty: 3, total: 30902, detailTotal: 30902, paymentAmount: 30902, detailDifference: 0, ledgerDifference: 0, couponDiscount: 751 });
+  });
+
+  it('수량이 맞지 않거나 이전 계산 버전이거나 환불 합계가 빠진 부분 취소 기록은 거절한다', () => {
+    const wrongQty = settledExportV2Fixture(); cut(wrongQty.orders[0].items[2], { ...cancelC, activeQty: 1 }); cut(wrongQty.orders[0], { partialRefundedAmount: 8600 });
+    expect(() => parseSettledExportSnapshot(wrongQty)).toThrow();
+    const missingTotal = settledExportV2Fixture(); cut(missingTotal.orders[0].items[2], cancelC);
+    expect(() => parseSettledExportSnapshot(missingTotal)).toThrow();
+    const legacy = settledExportFixture(); cut(legacy.orders[0].items[2], cancelC); cut(legacy.orders[0], { partialRefundedAmount: 8600 });
+    expect(() => parseSettledExportSnapshot(legacy)).toThrow();
+  });
+});

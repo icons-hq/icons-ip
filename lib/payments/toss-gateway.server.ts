@@ -11,7 +11,7 @@ import type {
   PreparedCheckout,
   RefundOutcome,
 } from './gateway';
-import { PARTIAL_CANCEL_UNAVAILABLE_REASON } from './gateway';
+import { type PaymentBalanceInspection, PARTIAL_CANCEL_UNAVAILABLE_REASON } from './gateway';
 import {
   isTossAllowedMerchantId,
   isTossClientKey,
@@ -1252,7 +1252,29 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
     }) as RefundOutcome;
   }
 
+  /** 부분 취소 해소용 잔액 조회(ADR-0032). 취소를 발행하지 않는다. 원장 결제 키로 조회해 상점·키·주문·총액을 대조한다. */
+  async function inspectBalance(attempt: PaymentAttempt, providerPaymentKey: string): Promise<PaymentBalanceInspection> {
+    const paymentKey = validPaymentKey(providerPaymentKey);
+    if (!paymentKey) return { kind: 'mismatch' };
+    const inquiry = await inquireByPaymentKey(paymentKey);
+    // 404는 이 키의 결제가 없다는 뜻이라 대조 실패다. 일시 장애·키 설정 오류·그 밖의 비200은 조회하지 못한 것이다.
+    if (inquiry.kind !== 'ok') return { kind: inquiry.kind === 'not_found' ? 'mismatch' : 'unavailable' };
+    const payment = inquiry.payment;
+    const balance = integerAmount(payment.balanceAmount);
+    if (!merchantAllowed(payment) || payment.paymentKey !== paymentKey || payment.orderId !== attempt.providerOrderId
+      || payment.currency !== 'KRW' || integerAmount(payment.totalAmount) !== attempt.amount || balance === null || typeof payment.status !== 'string') {
+      return { kind: 'mismatch' };
+    }
+    const cancels = Array.isArray(payment.cancels) ? payment.cancels : [];
+    const last = cancels.length && plainRecord(cancels[cancels.length - 1]) ? cancels[cancels.length - 1] as Record<string, unknown> : null;
+    const cancelAmount = last ? integerAmount(last.cancelAmount) : null;
+    const transactionKey = last && safeString(last.transactionKey, 64) ? last.transactionKey : null;
+    return { kind: 'ok', status: payment.status, balanceAmount: balance,
+      lastCancel: cancelAmount !== null && transactionKey ? { cancelAmount, transactionKey } : null };
+  }
+
   return {
+    inspectBalance,
     async prepare(attempt): Promise<PreparedCheckout> {
       assertAttempt(attempt);
       const currentTime = now();

@@ -7,13 +7,14 @@ import { cn } from 'cn';
 import { formatKrwExact } from '@/components/admin/format';
 import { formatOrderDateTime, orderReferenceLabel } from '@/lib/orders';
 import { orderClaimReferenceLabel } from '@/lib/orders/claims';
-import { REFUND_TRANSFERS_PATH, refundTransfersHref, type RefundTransferPage } from '@/lib/admin/refund-transfers';
+import { REFUND_TRANSFERS_PATH, refundTransferDetailHref, refundTransferRowKey, refundTransfersHref, type RefundTransferPage } from '@/lib/admin/refund-transfers';
 import { AdminListExportButton } from '@/components/admin/AdminListExportButton';
 import { adminListExportHref } from '@/lib/admin/list-export';
 
 /* 환불 송금 대기(무통장 환불의 실제 송금이 남은 요청) — 템플릿 룩(ADR-0028). 목록은 공용 ConsoleGrid다.
  * 목록 RPC는 계좌를 싣지 않는다 — 화면에서 계좌 원문 열람과 송금 완료 기록은 요청 상세의 무통장 환불 칸에서만 한다. 그 칸으로 바로 가는 버튼을 첫 화면에 둔다.
- * 송금에 쓸 계좌는 비밀번호를 건 목록 엑셀로도 받는다(1007-047·048). 내려받을 때 서버가 요청별 계좌 열람을 기록한다. */
+ * 송금에 쓸 계좌는 비밀번호를 건 목록 엑셀로도 받는다(1007-047·048). 내려받을 때 서버가 요청별 계좌 열람을 기록한다.
+ * 무통장 주문의 재고 부족 부분 취소(ADR-0032)도 같은 줄 순서로 섞인다 — 그 송금 완료는 주문 상세의 부분 취소 기록에서 적는다. */
 
 /** 취소 확정 뒤 이 날수 이상 지난 요청을 주의로 표시한다. 약관의 환급 기한(3영업일)에 맞춘 눈금이고 처리 판정이 아니다. */
 const LONG_WAIT_DAYS = 3;
@@ -62,19 +63,22 @@ export function RefundTransfersScreen({ data, now = new Date() }: {
       </div>}>
     <ConsoleGrid caption="무통장 환불 송금 대기 목록" preferencesKey="sales-refund-transfers" columns={columns}
       emptyLabel="송금 대기 중인 무통장 환불이 없습니다." rows={data.rows.map(row => {
-        const detailHref = `/admin/sales/claims/${row.claimType === 'cancel' ? 'cancels' : 'returns'}/${row.claimId}`;
+        const processHref = refundTransferDetailHref(row);
+        const detailHref = processHref.replace(/#.*$/, '');
         const days = waitingDays(row.confirmedAt, now);
         const waiting = days === 0 ? '오늘' : `${days.toLocaleString('ko-KR')}일째`;
-        return { id: row.claimId, href: detailHref,
-          cells: [<span className="tabular-nums" key="claim">{orderClaimReferenceLabel(row.reference)}</span>,
+        const partial = row.kind === 'partial_cancellation';
+        const label = partial ? `${row.sequence}차 부분 취소` : orderClaimReferenceLabel(row.reference);
+        return { id: refundTransferRowKey(row), href: detailHref,
+          cells: [<span className="tabular-nums" key="claim">{label}</span>,
             <span className="font-semibold tabular-nums" key="amount">{formatKrwExact(row.amount)}</span>,
             row.payerName || <AdminStatusBadge key="payer" tone="warning">이름 미등록</AdminStatusBadge>,
             days >= LONG_WAIT_DAYS ? <AdminStatusBadge key="waiting" tone="warning">{waiting}</AdminStatusBadge> : <span className="tabular-nums" key="waiting">{waiting}</span>,
-            <Link aria-label={`송금 처리 · 요청 ${orderClaimReferenceLabel(row.reference)} 계좌 확인·송금 기록 열기`} className={cn(buttonVariants({ size: 'sm', variant: 'soft' }))} data-slot="button" href={`${detailHref}#claim-process`} key="action">송금 처리</Link>,
-            `${row.gift ? '선물 · ' : ''}${row.claimType === 'cancel' ? '취소' : '반품'}`,
+            <Link aria-label={partial ? `송금 처리 · 주문 ${orderReferenceLabel(row.orderId, row.orderNumber)} ${label} 계좌 확인·송금 기록 열기` : `송금 처리 · 요청 ${label} 계좌 확인·송금 기록 열기`} className={cn(buttonVariants({ size: 'sm', variant: 'soft' }))} data-slot="button" href={processHref} key="action">송금 처리</Link>,
+            `${row.gift ? '선물 · ' : ''}${partial ? '부분 취소' : row.claimType === 'cancel' ? '취소' : '반품'}`,
             <span className="tabular-nums" key="order">{orderReferenceLabel(row.orderId, row.orderNumber)}</span>,
             formatOrderDateTime(row.confirmedAt), row.filedAt ? formatOrderDateTime(row.filedAt) : <AdminStatusBadge key="filed" tone="warning">미접수</AdminStatusBadge>,
-            row.requesterName || <span className="text-muted-foreground" key="requester">이름 미등록</span>],
+            partial ? <span className="text-muted-foreground" key="requester">운영자 처리</span> : row.requesterName || <span className="text-muted-foreground" key="requester">이름 미등록</span>],
         };
       })} />
     <ConsolePagination label="환불 송금 대기 목록 페이지" page={data.page} pageSize={data.pageSize} total={data.total} hrefForPage={refundTransfersHref} />

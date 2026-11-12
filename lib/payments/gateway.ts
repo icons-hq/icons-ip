@@ -136,9 +136,19 @@ export interface RefundOutcome extends PaymentOperationOutcome {
   readonly balanceAfter?: number;
 }
 
+/**
+ * 결제사 잔액 조회(재고 부족 부분 취소의 결제확인필요 해소, ADR-0032). 돈을 움직이지 않는다. 원장 결제 키로 조회해 상점(MID)·키·
+ * 주문·총액을 대조한 뒤 지금 잔액과 마지막 취소 거래를 돌려준다. 판정(돈이 안 움직였는지·이미 취소됐는지)은 호출자가 한다.
+ */
+export type PaymentBalanceInspection =
+  | { kind: 'ok'; status: string; balanceAmount: number; lastCancel: { cancelAmount: number; transactionKey: string } | null }
+  | { kind: 'unavailable' | 'mismatch' | 'not_supported' };
+
 export interface PaymentGateway {
   prepare(attempt: PaymentAttempt): Promise<PreparedCheckout>;
   confirm(returnInput: PaymentReturnInput): Promise<ConfirmOutcome>;
   reconcile(attempt: PaymentAttempt, hint?: PaymentReconcileHint): Promise<ReconcileOutcome>;
   refund(request: PaymentRefundRequest): Promise<RefundOutcome>;
+  /** 부분 취소 해소용 잔액 조회. 지원하지 않는 결제사는 없다(호출자가 not_supported로 읽는다). */
+  inspectBalance?(attempt: PaymentAttempt, providerPaymentKey: string): Promise<PaymentBalanceInspection>;
 }

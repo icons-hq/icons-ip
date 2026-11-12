@@ -201,4 +201,48 @@ select pg_temp.rt_error(format('select public.service_record_encrypted_list_expo
  jsonb_build_object('accountExportId',pg_temp.rt_id('export',1)),repeat('a',64)),'22023');
 select pg_temp.rt_error(format('select public.service_record_encrypted_list_export(%L,%L,%L,3,3,%L)',pg_temp.rt_id('user',3),'refund-transfers','{}',repeat('a',64)),'42501');
 reset role;
+
+-- 무통장 재고 부족 부분 취소(ADR-0032)의 송금 대기도 같은 목록·같은 내려받기 번호의 계좌 열람에 합친다.
+-- 원장 행은 합성으로 바로 넣는다(시작·적용·송금 완료는 order_partial_cancellation.sql이 본다). 스위치가 꺼져 있으면 이런 행이 없다.
+insert into public.orders(id,user_id,status,total,shipping_fee,address,payment_method,created_at)
+ values(pg_temp.rt_id('order',5),pg_temp.rt_id('user',2),'confirmed',10000,0,
+ '{"recipientName":"TEST 구매자","phone":"01000000000","postalCode":"12345","address1":"TEST 합성 주소"}','bank_transfer',clock_timestamp()-interval '2 days');
+insert into public.payments(id,user_id,provider,purpose,ref_id,amount,status,payment_key,idempotency_key,created_at)
+ values(pg_temp.rt_id('payment',5),pg_temp.rt_id('user',2),'bank_transfer','order',pg_temp.rt_id('order',5),10000,'paid',
+ 'bank_transfer:'||pg_temp.rt_id('order',5),'refund-export-test-5',clock_timestamp()-interval '1 hour');
+insert into private.order_partial_cancellations(id,order_id,payment_id,provider,sequence,reason_code,customer_decision,warehouse_stop_confirmed,
+ payment_amount,balance_before,goods_refund_amount,shipping_refund_amount,refund_amount,store_credit_restore_amount,state,operation_id,created_by,
+ applied_at,filed_at,filed_by)
+ values(pg_temp.rt_id('partial',1),pg_temp.rt_id('order',5),pg_temp.rt_id('payment',5),'bank_transfer',1,'out_of_stock','TEST 고객 결정 — 품절분만 취소',false,
+ 10000,10000,5000,0,5000,0,'awaiting_transfer',pg_temp.rt_id('operation',51),pg_temp.rt_id('user',1),clock_timestamp(),clock_timestamp(),pg_temp.rt_id('user',1));
+insert into private.order_partial_cancellation_refund_accounts(partial_cancellation_id,bank_name,account_number,account_holder,masked_account,masked_holder)
+ values(pg_temp.rt_id('partial',1),'TEST 합성은행','000000005555','TEST 합성구매자','TEST 합성은행 ********5555','T*********');
+set local role authenticated;
+select pg_temp.rt_auth();
+select pg_temp.rt_assert((select (page->>'total')::integer=4 and jsonb_array_length(page->'rows')=4
+  and (select count(*)=1 from jsonb_array_elements(page->'rows') r where r@>jsonb_build_object('kind','partial_cancellation',
+   'partialCancellationId',pg_temp.rt_id('partial',1),'orderId',pg_temp.rt_id('order',5),'sequence',1,'amount',5000,'gift',false) and r->>'filedAt' is not null)
+  and (select count(*)=3 from jsonb_array_elements(page->'rows') r where r ? 'claimId')
+ from (select public.admin_list_bank_transfer_refunds_numbered(50,0) page) s),'queue merges partial cancellation transfers');
+reset role;
+create function pg_temp.rt_partial_items(order_n integer) returns jsonb language sql as $$
+ select jsonb_build_array(jsonb_build_object('partialCancellationId',pg_temp.rt_id('partial',1),'orderId',pg_temp.rt_id('order',order_n)))$$;
+set local role service_role;
+select pg_temp.rt_assert(public.service_export_order_partial_cancellation_refund_accounts(pg_temp.rt_id('user',1),pg_temp.rt_id('session',1),pg_temp.rt_id('export',12),
+ pg_temp.rt_partial_items(5))=jsonb_build_object('exportId',pg_temp.rt_id('export',12),'rows',jsonb_build_array(jsonb_build_object('partialCancellationId',pg_temp.rt_id('partial',1),
+  'status','revealed','bankName','TEST 합성은행','accountNumber','000000005555','accountHolder','TEST 합성구매자'))),'partial account revealed in the same export');
+-- 물류 매니저·짝이 틀린 주문은 거절한다.
+select pg_temp.rt_error(format('select public.service_export_order_partial_cancellation_refund_accounts(%L,%L,%L,%L)',
+ pg_temp.rt_id('user',3),pg_temp.rt_id('session',3),pg_temp.rt_id('export',13),pg_temp.rt_partial_items(5)),'42501');
+select pg_temp.rt_error(format('select public.service_export_order_partial_cancellation_refund_accounts(%L,%L,%L,%L)',
+ pg_temp.rt_id('user',1),pg_temp.rt_id('session',1),pg_temp.rt_id('export',14),pg_temp.rt_partial_items(1)),'PT409');
+reset role;
+select pg_temp.rt_assert(exists(select 1 from public.audit_log where action='admin.order.partial_cancellation_account_viewed'
+  and diff->>'partialCancellationId'=pg_temp.rt_id('partial',1)::text and diff->>'exportId'=pg_temp.rt_id('export',12)::text and diff->>'purpose'='list_export')
+ and exists(select 1 from public.audit_log where action='admin.list_export.partial_cancel_refund_accounts_revealed' and actor_id=pg_temp.rt_id('user',1)
+  and diff->>'exportId'=pg_temp.rt_id('export',12)::text and (diff->>'revealedCount')::integer=1)
+ and not exists(select 1 from public.audit_log where diff::text like '%000000005555%')
+ and not has_function_privilege('authenticated','public.service_export_order_partial_cancellation_refund_accounts(uuid,uuid,uuid,jsonb)','execute')
+ and has_function_privilege('service_role','public.service_export_order_partial_cancellation_refund_accounts(uuid,uuid,uuid,jsonb)','execute'),
+ 'partial account reveal is audited without plaintext and service-only');
 rollback;

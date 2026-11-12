@@ -11,7 +11,7 @@ import {
   refundTransfersListExportSheet,
   type RefundTransferExportAccount,
 } from './list-export-sheets';
-import type { RefundTransferRow } from './refund-transfers';
+import type { RefundTransferClaimRow } from './refund-transfers';
 import { adminListExportClaimScreenId, type AdminListExportSheet } from './list-export';
 
 const ORDER_ID = '11111111-1111-4111-8111-111111111111';
@@ -220,7 +220,7 @@ it('exports immutable volume/coupon/credit allocation while keeping COD outside 
 });
 
 describe('환불 송금 대기 목록 엑셀(1007-047·048)', () => {
-  const row = (overrides: Partial<RefundTransferRow> = {}): RefundTransferRow => ({
+  const row = (overrides: Partial<RefundTransferClaimRow> = {}): RefundTransferClaimRow => ({
     claimId: 'c0000000-0000-4000-8000-000000000001', orderId: 'd0000000-0000-4000-8000-000000000001', orderNumber: '2026110810000001',
     reference: 45, claimType: 'return', amount: 12000, confirmedAt: '2026-11-07T14:30:00Z', filedAt: null, updatedAt: '2026-11-07T14:30:00Z',
     revision: 3, gift: true, payerName: '결제자별명', requesterName: null, ...overrides,

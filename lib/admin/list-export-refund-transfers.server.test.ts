@@ -5,15 +5,15 @@ vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ auth: { g
 vi.mock('@/lib/supabase/service', () => ({ createServiceClient: () => ({ rpc: mocks.serviceRpc }) }));
 vi.mock('./refund-transfers.server', () => ({ loadRefundTransfers: mocks.loadRefundTransfers }));
 
-import { parseRefundTransferAccounts, refundTransferExportCaller, revealRefundTransferAccounts } from './list-export-refund-transfers.server';
+import { parsePartialCancellationRefundAccounts, parseRefundTransferAccounts, refundTransferExportCaller, revealRefundTransferAccounts } from './list-export-refund-transfers.server';
 import { loadAdminListExportSheet } from './list-export-data.server';
 import { AdminListExportChangedError, AdminListExportLoadError } from './list-export-errors';
 import { ExportRequestError } from './export-request.server';
 import { REFUND_TRANSFER_EXPORT_INCLUDES_ACCOUNT } from './list-export-sheets';
-import type { RefundTransferRow } from './refund-transfers';
+import type { RefundTransferClaimRow, RefundTransferRow } from './refund-transfers';
 
 const ACTOR = 'a0000000-0000-4000-8000-000000000001', SESSION = 'b0000000-0000-4000-8000-000000000001';
-const row = (index: number, overrides: Partial<RefundTransferRow> = {}): RefundTransferRow => ({
+const row = (index: number, overrides: Partial<RefundTransferClaimRow> = {}): RefundTransferClaimRow => ({
   claimId: `c0000000-0000-4000-8000-${String(index).padStart(12, '0')}`, orderId: `d0000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
   orderNumber: `202611111${String(index).padStart(7, '0')}`, reference: 40 + index, claimType: 'cancel', amount: 10000 * index,
   confirmedAt: '2026-11-08T03:00:00Z', filedAt: '2026-11-08T04:00:00Z', updatedAt: '2026-11-08T04:00:00Z', revision: 2, gift: false,
@@ -104,6 +104,27 @@ describe('환불 송금 대기 목록 시트 로더', () => {
     await expect(loadAdminListExportSheet('refund-transfers', { screen: 'refund-transfers' }, new Date(), 'a0000000-0000-4000-8000-000000000009')).rejects.toMatchObject({ status: 403 });
     expect(mocks.loadRefundTransfers).not.toHaveBeenCalled();
     expect(mocks.serviceRpc).not.toHaveBeenCalled();
+  });
+  it('무통장 부분 취소 송금 대기는 요청 계좌 열람(요약 기록) 뒤 같은 내려받기 번호로 열고, 시트에 부분 취소 행으로 싣는다', async () => {
+    const partial: RefundTransferRow = { kind: 'partial_cancellation', partialCancellationId: 'f0000000-0000-4000-8000-000000000001', orderId: row(1).orderId,
+      sequence: 2, amount: 9500, confirmedAt: '2026-11-08T05:00:00Z', filedAt: '2026-11-08T05:00:00Z', updatedAt: '2026-11-08T05:00:00Z', gift: false, payerName: '결제자1' };
+    mocks.loadRefundTransfers.mockResolvedValue({ rows: [row(1), partial], total: 2, page: 1, pageSize: 50 });
+    mocks.serviceRpc.mockImplementation(async (name: string, args: { p_export_id: string; p_claims?: { claimId: string }[]; p_items?: { partialCancellationId: string }[] }) => ({ data: {
+      exportId: args.p_export_id,
+      rows: name === 'service_export_bank_transfer_refund_accounts' ? args.p_claims!.map(claim => revealed(claim.claimId))
+        : args.p_items!.map(item => ({ partialCancellationId: item.partialCancellationId, status: 'revealed', bankName: '부분은행', accountNumber: '220-000-1111', accountHolder: '부분 예금주' })),
+    }, error: null }));
+    const sheet = await loadAdminListExportSheet('refund-transfers', { screen: 'refund-transfers' }, new Date('2026-11-11T03:00:00Z'), ACTOR);
+    expect(mocks.serviceRpc.mock.calls.map(call => call[0])).toEqual(['service_export_bank_transfer_refund_accounts', 'service_export_order_partial_cancellation_refund_accounts']);
+    expect(mocks.serviceRpc.mock.calls[0][1].p_claims).toHaveLength(1);
+    expect(mocks.serviceRpc.mock.calls[1][1]).toEqual({ p_actor_id: ACTOR, p_session_id: SESSION, p_export_id: mocks.serviceRpc.mock.calls[0][1].p_export_id,
+      p_items: [{ partialCancellationId: partial.partialCancellationId, orderId: partial.orderId }] });
+    const at = (header: string, index: number) => sheet.rows[index][sheet.columns.findIndex(column => column.header === header)];
+    expect([at('유형', 1), at('계좌번호', 1), at('송금 대기 금액', 1), at('요청자', 1)]).toEqual(['부분 취소', '220-000-1111', 9500, '운영자 처리']);
+    expect(sheet.notes.join(' ')).toContain('재고 부족 부분 취소');
+    // 부분 취소 계좌 응답이 순서·키가 다르면 파일을 만들지 않는다.
+    expect(parsePartialCancellationRefundAccounts({ exportId: 'e', rows: [{ partialCancellationId: 'other', status: 'revealed', bankName: 'a', accountNumber: 'b', accountHolder: 'c' }] }, 'e', [partial])).toBeNull();
+    expect(parsePartialCancellationRefundAccounts({ exportId: 'e', rows: [{ partialCancellationId: partial.partialCancellationId, status: 'not_filed', bankName: null, accountNumber: null, accountHolder: null }] }, 'e', [partial])).toBeNull();
   });
   it('목록 조회가 실패하면 계좌를 열지 않는다', async () => {
     mocks.loadRefundTransfers.mockRejectedValue(new Error('환불 송금 대기 목록을 불러오지 못했습니다.'));

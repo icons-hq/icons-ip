@@ -24,6 +24,21 @@ describe('상품주문별 조회 계약', () => {
     expect(parseAdminOrderItemData({ ...payload, rows: [{ ...row, itemAmount: 1999 }] }, filters)).toBeNull();
     expect(parseAdminOrderItemData({ ...payload, rows: [{ ...row, shipmentStatus: 'invented' }] }, filters)).toBeNull();
   });
+  it('재고 부족 부분 취소가 있는 품목은 취소 수량·남은 금액을 싣고, 엑셀은 그때만 취소 수량 열을 두고 남은 몫을 쓴다', () => {
+    const canceled = { ...row, canceledQty: 1, activeQty: 1, activeItemAmount: 1000, partialCanceledPaidAmount: 800 };
+    const parsed = parseAdminOrderItemData({ ...payload, rows: [canceled] }, filters)!;
+    expect(parsed.rows[0]).toMatchObject({ qty: 2, itemAmount: 2000, partialCancel: { canceledQty: 1, activeQty: 1, activeItemAmount: 1000, paidAmount: 800 } });
+    expect(parsed.rows[0]).not.toHaveProperty('canceledQty');
+    expect(parseAdminOrderItemData({ ...payload, rows: [{ ...canceled, activeQty: 2 }] }, filters)).toBeNull();
+    expect(parseAdminOrderItemData({ ...payload, rows: [{ ...canceled, activeItemAmount: 999 }] }, filters)).toBeNull();
+    expect(parseAdminOrderItemData({ ...payload, rows: [{ ...row, activeQty: 1 }] }, filters)).toBeNull();
+    const sheet = orderItemsExportSheet([{ ...parsed.rows[0], allocation: { source: 'recorded', volumeDiscount: 0, couponDiscount: 300, storeCreditDiscount: 100, paidGoodsTotal: 1600 } }], filters, parsed.fingerprint);
+    const at = (header: string) => sheet.rows[0][sheet.columns.findIndex(entry => entry.header === header)];
+    expect([at('수량'), at('취소 수량'), at('상품 금액'), at('품목 실결제액(배송비 제외)')]).toEqual([1, 1, 1000, 800]);
+    expect(sheet.notes.join(' ')).toContain('재고 부족 부분 취소');
+    const plain = orderItemsExportSheet(parseAdminOrderItemData(payload, filters)!.rows, filters, parsed.fingerprint);
+    expect(plain.columns.some(entry => entry.header === '취소 수량')).toBe(false);
+  });
   it('범위를 벗어난 페이지에서도 전체 건수·중복 제외 주문 수를 보존한다', () => {
     expect(parseAdminOrderItemData({ ...payload, rows: [] }, filters)).toMatchObject({ total: 1, orderCount: 1, qty: 2 });
     expect(parseAdminOrderItemData({ ...payload, orderCount: 2 }, filters)).toBeNull();

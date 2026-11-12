@@ -92,6 +92,9 @@ const operators = [
   // 반품 자동 회수 접수(QNA-032)·반품입고 파일 반영(QNA-034·ADR-0034): 스위치 OFF 불변, 회수 묶음별 접수 큐·재시도·취소, 파일 매칭·확정.
   sql('claim_return_pickup', { admin: true }),
   sql('claim_return_intake_import', { admin: true }),
+  // 재고 부족 품목·수량 부분 취소(QNA-020·ADR-0032): 스위치 OFF 불변, 결제사 확인 뒤 적용, 다회 잔액 누적, 무통장 송금 대기, 출고 경합.
+  sql('order_partial_cancellation'),
+  script('order_partial_cancellation_concurrency.sh', 'PARTIAL_CANCEL_TEST_SCOPE'),
   script('order_address_concurrency.sh', 'ORDER_ADDRESS_TEST_SCOPE'),
   sql('goods_media', { admin: true, kc: true }),
   script('goods_media_concurrency.sh', 'GOODS_MEDIA_TEST_SCOPE'),
