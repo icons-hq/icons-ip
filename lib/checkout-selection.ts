@@ -103,7 +103,7 @@ export function transactionIssueStockGoodIds(issues: readonly { code: string; go
 
 /** 견적이 지금 고른 줄을 옵션별 수량까지 그대로 덮는지. 다른 선택·바뀌기 전 수량의 견적으로 줄을 빼거나 체크를 풀지 않는다. */
 export function quoteCoversSelection(
-  selected: readonly Pick<CartItem, 'goodId' | 'variantId' | 'qty'>[],
+  selected: readonly Pick<CartItem, 'goodId' | 'variantId' | 'qty' | 'customInputs'>[],
   quote: { readonly lines: readonly Pick<GoodsSalesQuoteLine, 'goodId' | 'variantId' | 'qty'>[] },
 ): boolean {
   const chosen = new Map<string, number>();
