@@ -71,6 +71,8 @@ const STATUS_TONES = {
   delayNotice: { sent: 'success', partial_failed: 'warning', pending: 'info', unknown: 'warning', not_sent: 'neutral' },
   /** 지연 안내 채널별 결과 — lib/admin/order-delay-notices */
   delayNoticeChannel: { prepared: 'neutral', queued: 'info', processing: 'info', sent: 'success', failed: 'danger', unknown: 'warning', suppressed: 'neutral' },
+  /** 예약 일정 변경 안내의 SMS 결과 — lib/admin/preorder-schedule-change. 수신 동의 없음 같은 제외는 조용히 둔다 */
+  delayNoticeSms: { queued: 'info', processing: 'info', sent: 'success', failed: 'danger', unknown: 'warning', skipped: 'neutral' },
   /** 배송 안내 메일 작업 */
   shipmentEmail: { pending: 'info', processing: 'info', completed: 'success', review: 'danger' },
   /** 착불 배송비 수납 — lib/admin/shipping-collect-events */

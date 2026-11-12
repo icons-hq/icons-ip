@@ -11,6 +11,10 @@ import { isGoodsShipDate } from '@/lib/goods-preorders';
 
 export interface ShipmentPromiseChange {
   id: string; fromDate: string; toDate: string; reason: string; actorName: string | null; changedAt: string;
+  /** 일괄 변경(예약 주문 일정 일괄 변경)으로 남은 행의 일괄 변경 ID. 개별 변경은 null. */
+  bulkChangeId: string | null;
+  /** 일정은 그대로 두고 고객에게 안내만 한 행(from=to, 일괄 변경). */
+  noticeOnly: boolean;
 }
 export interface ShipmentPreorderPromise {
   shipmentId: string; orderId: string; status: 'ready' | 'shipping' | 'delivered' | 'canceled';
@@ -28,7 +32,8 @@ function parsePromise(value: unknown): ShipmentPreorderPromise | null {
   for (const row of value.changes) {
     if (!record(row) || !isUuid(row.id) || !isGoodsShipDate(row.fromDate) || !isGoodsShipDate(row.toDate)
       || typeof row.reason !== 'string' || !timestamp(row.changedAt) || (row.actorName !== null && typeof row.actorName !== 'string')) return null;
-    changes.push({ id: row.id, fromDate: row.fromDate, toDate: row.toDate, reason: row.reason, actorName: row.actorName as string | null, changedAt: row.changedAt });
+    changes.push({ id: row.id, fromDate: row.fromDate, toDate: row.toDate, reason: row.reason, actorName: row.actorName as string | null, changedAt: row.changedAt,
+      bulkChangeId: isUuid(row.bulkChangeId) ? row.bulkChangeId : null, noticeOnly: row.noticeOnly === true });
   }
   return { shipmentId: value.shipmentId, orderId: value.orderId, status: value.status as ShipmentPreorderPromise['status'],
     originalExpectedShipDate: value.originalExpectedShipDate as string | null, expectedShipDate: value.expectedShipDate as string | null,
