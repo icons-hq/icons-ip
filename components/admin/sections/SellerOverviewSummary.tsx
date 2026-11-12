@@ -83,9 +83,9 @@ export function SellerOverviewSummary({ insights, workQueue, summary, days }: {
   const stages = ['paid', 'confirmed', 'shipping', 'delivered', 'done'] as const;
   return <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6" data-admin-home="summary">
     <SummaryPanel className="md:col-span-2 xl:col-span-4" description="전체 기간의 상품 주문 상태별 건수입니다." href="/admin/sales/orders" icon={ShoppingBag} id="sales" title="판매 관리">
-      <div className="grid grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-5 sm:gap-1">{stages.map((status, index) => <Link className="flex min-w-0 items-center gap-1 rounded-md p-2 transition-colors hover:bg-muted" href={adminOrdersHref(normalizeAdminOrderFilters({ status }))} key={status} prefetch={false}>
+      <div className="grid grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-3 lg:grid-cols-5 lg:gap-1">{stages.map((status, index) => <Link className="flex min-w-0 items-center gap-1 rounded-md p-2 transition-colors hover:bg-muted" href={adminOrdersHref(normalizeAdminOrderFilters({ status }))} key={status} prefetch={false}>
         <span className="flex min-w-0 flex-1 flex-col gap-0.5"><span className="truncate text-sm text-muted-foreground">{ADMIN_ORDER_STATUS_LABELS[status]}</span><strong className="text-2xl font-semibold whitespace-nowrap tabular-nums"><OverviewDeferred fallback={<OverviewPendingValue className="h-7 w-14" />} value={insights}>{(ready) => ready ? `${(ready.pipeline.find((stage) => stage.status === status)?.count ?? 0).toLocaleString('ko-KR')}건` : <span className="text-sm font-medium text-muted-foreground">확인 필요</span>}</OverviewDeferred></strong></span>
-        {index < stages.length - 1 ? <ChevronRight aria-hidden="true" className="hidden size-4 shrink-0 text-muted-foreground/60 sm:block" /> : null}
+        {index < stages.length - 1 ? <ChevronRight aria-hidden="true" className="hidden size-4 shrink-0 text-muted-foreground/60 lg:block" /> : null}
       </Link>)}</div>
       {/* 미답변 문의는 '처리할 업무'에 있다 — 같은 건수를 두 카드에 두지 않는다(ADM-016 #29). */}
       <div className="mt-2 rounded-lg bg-muted/50 px-3 py-1">

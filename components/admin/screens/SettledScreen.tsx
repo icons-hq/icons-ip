@@ -26,7 +26,7 @@ const COLUMNS: ConsoleGridColumn[] = [
   { key: 'buyer', label: '구매자', width: '180px' },
   { key: 'deliveredAt', label: '배송완료', width: '160px' },
   { key: 'doneAt', label: '확정일', width: '160px' },
-  { key: 'claim', label: '하자 요청' },
+  { key: 'claim', label: '하자 요청', minWidth: '140px' },
   { key: 'total', label: '결제금액', align: 'end', width: '110px' },
 ];
 /* 남은 기한이 이 날수 이하인 건만 색을 입힌다 — 전 행이 같은 색이면 볼 필요 적은 정보가 화면에서 제일 튄다. */

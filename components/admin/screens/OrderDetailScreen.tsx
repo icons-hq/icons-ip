@@ -284,16 +284,17 @@ export function OrderDetailScreen({
         </TableRow></ConsoleTableHeader>
         <TableBody>{items.map((item) => <TableRow className="scroll-mt-4" key={item.id} id={`item-${item.id}`}>
           <TableCell className="align-top whitespace-normal"><div className="flex min-w-48 flex-col gap-0.5 wrap-anywhere"><strong className="font-medium">{item.name}</strong><span className={ITEM_NOTE}>{item.type}</span><GoodsCustomInputsSummary selection={item.customInputs} /></div></TableCell>
-          <TableCell className="align-top whitespace-normal">{item.variantName ? <span className="inline-flex flex-wrap items-center gap-1.5">{item.variantName} · {item.variantCode}{item.optionSaleMode === 'random' ? <AdminStatusBadge>랜덤 배정</AdminStatusBadge> : null}</span> : item.optionSaleMode === 'random' ? <AdminStatusBadge>랜덤 배정</AdminStatusBadge> : <span className="text-muted-foreground">—</span>}</TableCell>
+          <TableCell className="align-top whitespace-normal">{item.variantName ? <span className="inline-flex min-w-28 flex-wrap items-center gap-1.5">{item.variantName} · {item.variantCode}{item.optionSaleMode === 'random' ? <AdminStatusBadge>랜덤 배정</AdminStatusBadge> : null}</span> : item.optionSaleMode === 'random' ? <AdminStatusBadge>랜덤 배정</AdminStatusBadge> : <span className="text-muted-foreground">—</span>}</TableCell>
           <TableCell className={CELL_AMOUNT}>{item.qty}개</TableCell>
           <TableCell className={CELL_AMOUNT}>{money(item.unitPrice)}</TableCell>
-          <TableCell className={`${CELL_AMOUNT} whitespace-normal`}><div className="flex flex-col items-end gap-0.5"><strong className="font-semibold">{money(item.unitPrice * item.qty)}</strong><ItemAllocationSummary allocation={detail.itemAllocations?.[item.id]} discounted={orderDiscounted} unavailable={detail.itemAllocationsUnavailable} /></div></TableCell>
+          <TableCell className={`${CELL_AMOUNT} whitespace-normal`}><div className="flex min-w-24 flex-col items-end gap-0.5"><strong className="font-semibold">{money(item.unitPrice * item.qty)}</strong><ItemAllocationSummary allocation={detail.itemAllocations?.[item.id]} discounted={orderDiscounted} unavailable={detail.itemAllocationsUnavailable} /></div></TableCell>
         </TableRow>)}</TableBody>
       </Table></div> : <p className="text-muted-foreground">주문 상품 기록이 없습니다.</p>}
     </AdminSectionCard>
     {/* 기록은 조회 권한(sales.read)에도 보인다 — 처리 버튼은 DB가 알려주는 canManage로만 그린다. */}
     <OrderPartialCancellationPanel key={order.id} orderId={order.id} />
-    <div className="grid min-w-0 gap-6 md:grid-cols-2">
+    {/* 두 칸은 lg부터다 — 768에서는 사이드바 옆 본문이 좁아 값 칸이 글자 단위로 끊긴다. */}
+    <div className="grid min-w-0 gap-6 lg:grid-cols-2">
       <AdminSectionCard title="주문 정보">
         <dl className={FACTS}>
           <div className={FACT_ROW}><dt className={FACT_TERM}>현재 상태</dt><dd className={FACT_VALUE}><OrderStatusBadge status={order.status} /></dd></div>

@@ -30,7 +30,8 @@ export function MetricCard({
     <Card className="min-w-0" data-admin-metric="">
       <CardHeader>
         <CardDescription>{label}</CardDescription>
-        <CardTitle className="text-2xl leading-tight font-semibold tabular-nums [overflow-wrap:anywhere]">{value}</CardTitle>
+        {/* 좁은 카드(768 두 칸)에서는 글자를 줄여 금액이 한 줄에 들어오게 한다. 그래도 넘치는 큰 금액만 아무 데서나 줄을 바꾼다. */}
+        <CardTitle className="text-xl leading-tight font-semibold tabular-nums [overflow-wrap:anywhere] @[13rem]/card-header:text-2xl">{value}</CardTitle>
         <CardAction>
           <MetricChangeBadge change={change} changeType={changeType} title={`이전 ${comparisonDays}일 대비`} />
         </CardAction>

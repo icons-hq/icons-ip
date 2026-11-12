@@ -123,7 +123,7 @@ function SectionBody({ section, access }: { section: AdminGuideSection; access?:
                 <TableRow className="hover:bg-transparent" key={row.join('|')}>
                   {row.map((cell, index) => (
                     index === 0
-                      ? <TableHead className="h-auto py-2.5 align-top font-medium whitespace-normal break-keep" key={cell} scope="row">{cell}</TableHead>
+                      ? <TableHead className="h-auto min-w-24 py-2.5 align-top font-medium whitespace-normal break-keep" key={cell} scope="row">{cell}</TableHead>
                       : <TableCell className="py-2.5 align-top whitespace-normal" key={cell}>{cell}</TableCell>
                   ))}
                 </TableRow>

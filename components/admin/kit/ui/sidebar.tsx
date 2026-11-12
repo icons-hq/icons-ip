@@ -269,6 +269,7 @@ function SidebarTrigger({
 }: React.ComponentProps<typeof Button>) {
   const { toggleSidebar } = useSidebar()
 
+  /* 아이콘 버튼의 이름은 aria-label로만 준다. 화면 밖으로 감춘 글자(sr-only)는 버튼 경계를 넘는 글자로 측정된다(admin-visual-qa). */
   return (
     <Button
       data-sidebar="trigger"
@@ -281,9 +282,9 @@ function SidebarTrigger({
         toggleSidebar()
       }}
       {...props}
+      aria-label={props["aria-label"] ?? "사이드바 열고 닫기"}
     >
-      <PanelLeftIcon />
-      <span className="sr-only">사이드바 열고 닫기</span>
+      <PanelLeftIcon aria-hidden="true" />
     </Button>
   )
 }

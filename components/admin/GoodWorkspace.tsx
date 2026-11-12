@@ -378,7 +378,7 @@ export function GoodOperationGroup({ id, title, names, defaultOpen = false, chil
   return <GoodWorkspaceDetails stateId={`good-operation-group-${id}`} defaultOpen={defaultOpen} className="group/operation-group min-w-0 rounded-lg border" data-good-operation-group={id}>
     <summary className="flex min-h-11 cursor-pointer list-none items-center gap-3 rounded-lg px-3 py-2 outline-none select-none group-open/operation-group:rounded-b-none focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
       <span className="shrink-0 text-sm font-medium text-foreground">{title}</span>
-      <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{names}</span>
+      <span className="min-w-0 flex-1 text-xs text-muted-foreground">{names}</span>
       <ChevronDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open/operation-group:rotate-180 motion-reduce:transition-none" />
     </summary>
     <div className="flex min-w-0 flex-col gap-3 border-t p-3">{children}</div>

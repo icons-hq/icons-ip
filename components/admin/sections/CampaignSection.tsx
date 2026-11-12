@@ -328,7 +328,7 @@ function CampaignEditor({
 }
 
 const LIST_COLUMNS: ConsoleGridColumn[] = [
-  { key: 'title', label: '캠페인' },
+  { key: 'title', label: '캠페인', minWidth: '240px' },
   { key: 'status', label: '상태', width: '150px' },
   { key: 'kind', label: '종류', width: '72px' },
   { key: 'period', label: '노출 기간', width: '330px' },
