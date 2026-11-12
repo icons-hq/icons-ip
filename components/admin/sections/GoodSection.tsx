@@ -40,6 +40,7 @@ import { GoodsPricePeriodsPanel } from '../GoodsPricePeriodsPanel';
 import { GoodsPreordersPanel } from '../GoodsPreordersPanel';
 import { GoodsBenefitsPanel } from '../GoodsBenefitsPanel';
 import { GoodsAfterSalesPanel } from '../GoodsAfterSalesPanel';
+import { GoodsAfterSalesPhoneSuggestion } from '../GoodsAfterSalesFields';
 import { GoodSizeChartPanel } from '../GoodSizeChartPanel';
 import { GoodsTransactionTermsPanel } from '../GoodsTransactionTermsPanel';
 import { GoodsFulfillmentPanel } from '../GoodsFulfillmentPanel';
@@ -165,7 +166,8 @@ export function GoodSection({
       additional: <GoodOperationSection key="additional" id="additional" title={OPERATION.additional[0]} description={OPERATION.additional[1]}><GoodsAdditionalPanel goodId={selected.id} key={`additional-${selected.id}`} /></GoodOperationSection>,
       benefits: <GoodOperationSection key="benefits" id="benefits" title={OPERATION.benefits[0]} description={OPERATION.benefits[1]}><GoodsBenefitsPanel goodId={selected.id} key={`benefits-${accountId}-${selected.id}`} /></GoodOperationSection>,
       ...(ownership?.group ? {} : {
-        'after-sales': <GoodOperationSection key="after-sales" id="after-sales" title={OPERATION['after-sales'][0]} description={OPERATION['after-sales'][1]}><GoodsAfterSalesPanel goodId={selected.id} key={`after-sales-${accountId}-${selected.id}`} /></GoodOperationSection>,
+        /* ADM-004(복잡도 표 387행): 비어 있는 A/S 전화번호는 이 상품의 고시 A/S 연락처(저장값)로 미리 채운다. 저장은 안내 저장으로 따로 한다. */
+        'after-sales': <GoodsAfterSalesPhoneSuggestion.Provider key="after-sales" value={selected.notice.asContact ?? ''}><GoodOperationSection id="after-sales" title={OPERATION['after-sales'][0]} description={OPERATION['after-sales'][1]}><GoodsAfterSalesPanel goodId={selected.id} key={`after-sales-${accountId}-${selected.id}`} /></GoodOperationSection></GoodsAfterSalesPhoneSuggestion.Provider>,
         'size-chart': <GoodOperationSection key="size-chart" id="size-chart" title={OPERATION['size-chart'][0]} description={OPERATION['size-chart'][1]}><GoodSizeChartPanel goodId={selected.id} accountId={accountId} key={`size-chart-${accountId}-${selected.id}`} /></GoodOperationSection>,
       }),
       prices: <GoodOperationSection key="prices" id="prices" title={OPERATION.prices[0]} description={OPERATION.prices[1]}><GoodsPricePeriodsPanel goodId={selected.id} variants={variants} key={`prices-${selected.id}`} /></GoodOperationSection>,

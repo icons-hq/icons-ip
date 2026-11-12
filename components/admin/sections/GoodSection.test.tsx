@@ -208,20 +208,36 @@ describe('GoodSection', () => {
     expect(html).toContain('최근 저장된 상품에서 복사');
     expect(html).toContain('템플릿에서 가져오기');
   });
-  it('초안 저장 영역은 KC 검토 전에 KC 맥락을 먼저 채우는 순서와 재검토 조건을 안내한다', () => {
-    const order = '1. 기본 정보·유형·고시정보·옵션까지 입력해 초안 저장 → 2. KC 검토 → 3. 공개. KC 검토 뒤 상품명·유형·IP·고시정보(제조자·제조국·소재·크기)나 옵션 구성을 바꾸면 KC를 다시 검토합니다.';
+  /*
+   * ADM-004(복잡도 표 25·27행) — 저장 안내의 순서 문장은 등록 화면에서 한 문장이고, 저장된 초안의 "초안 저장 → KC 검토 → 공개" 순서는 판매 준비 카드
+   * (다음 할 일 · KC 검토 필요, 판매 준비 안내의 KC 재검토 문장)가 말하므로 저장 안내에서 되풀이하지 않는다.
+   */
+  it('저장 안내는 등록 화면의 KC 포함 저장·공개 순서를 한 문장으로 말하고, 저장된 초안의 순서는 판매 준비 카드에 맡긴다', () => {
     const draft = { ...good, publishedAt: null };
     const save = (html: string) => html.slice(html.indexOf('aria-label="기본 상품 저장"'));
-    expect(save(renderGoodSection(draft))).toContain(order);
-    expect(save(renderGoodSection(draft))).not.toContain('1. 초안 생성 → 2. KC 검토 → 3. 공개 요청');
-    expect(renderGoodSection(good)).not.toContain(order);
-    /* R13·D6② — 등록 화면은 KC를 기본 입력과 함께 저장하므로 순서 안내가 둘로 줄어든다. */
+    const draftHtml = renderGoodSection(draft);
+    expect(save(draftHtml)).not.toContain('초안 저장 → 2. KC 검토 → 3. 공개');
+    expect(save(draftHtml)).not.toContain('1. 초안 생성 → 2. KC 검토 → 3. 공개 요청');
+    expect(draftHtml).toContain('모델·옵션·고시정보를 수정하면 실제 상품과 검토 근거가 달라질 수 있어 초안 전환과 KC 재검토가 필요합니다.');
+    /* R13·D6② — 등록 화면은 KC를 기본 입력과 함께 저장한다. 순서·재검토 조건은 한 문장이다. */
     const create = save(renderGoodSection(null));
-    expect(create).toContain('1. 기본 정보·유형·고시정보·옵션과 KC까지 입력해 저장 → 2. 판매 준비에서 공개');
+    const sentence = 'KC까지 입력해 저장한 뒤 판매 준비에서 공개하며, KC를 검토 완료로 저장했더라도 그 뒤 상품명·유형·IP·고시정보(제조자·제조국·소재·크기)나 옵션 구성을 바꾸면 KC를 다시 검토합니다.';
+    expect(create).toContain(sentence);
+    expect(sentence.match(/다\./g)).toHaveLength(1);
     expect(create).toContain('KC·예약판매 입력을 한 번에 저장합니다. 하나라도 실패하면 아무것도 저장되지 않고 입력은 유지됩니다.');
     /* 저장 안내를 열지 않아도 다음 단계가 보인다. */
     expect(create).toContain('data-good-next-step="">다음 단계: 저장하면 화면 맨 위에 판매 준비가 열리고, 거기서 공개합니다.');
-    expect(create).not.toContain(order);
+    expect(create).not.toContain('→ 2.');
+  });
+
+  /* ADM-004(복잡도 표 168·190행) — 선택 카드인 상세설명은 요약 한 줄로 접고, 용어 도움말은 연결 IP·유형을 고르는 동안만 보인다. */
+  it('상세설명 카드는 요약 한 줄로 접혀 있고 오류가 있으면 열리며, 연결 IP·유형 도움말은 고르는 동안만 보인다', () => {
+    const create = renderGoodSection(null);
+    expect(create.match(/<details id="good-section-description"[^>]*>/)?.[0]).not.toContain('open=""');
+    expect(create).toMatch(/<textarea[^>]*name="description"/);
+    expect(renderGoodSection(null, { errors: { description: '설명 오류' } }).match(/<details id="good-section-description"[^>]*>/)?.[0]).toContain('open=""');
+    expect(create).toContain('data-good-identity-help=""');
+    expect(renderGoodSection({ ...good, publishedAt: null })).not.toContain('data-good-identity-help=""');
   });
   it('저장 후 공개가 KC에 막혀 초안으로만 저장되면 성공이 아니라 공개 보류로 알리고 KC 정보로 안내한다', () => {
     const draft = { ...good, publishedAt: null };

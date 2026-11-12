@@ -42,6 +42,8 @@ export function ModelFields({ model, index, variants, disabled, onChange, onRemo
       onChange={(event) => onChange({ ...model, [key]: event.target.value })} /></label>;
   }
   const needsNumber = model.scheme && goodsKcNeedsIdentifier(model.scheme);
+  const evidenceValues = [model.basis, ...Object.keys(GOODS_KC_EVIDENCE_LABELS).map((key) => model.evidence[key as keyof GoodsKcModelInput['evidence']])];
+  const evidenceTotal = evidenceValues.length, evidenceFilled = evidenceValues.filter((value) => value?.trim()).length;
   return <fieldset className="m-0 flex min-w-0 flex-col gap-4 rounded-lg border p-4" data-kc-model="" disabled={disabled}>
     <legend className="float-left w-full p-0 text-sm font-medium">{label}{model.modelName ? ` · ${model.modelName}` : ''}</legend>
     <div className={FIELD_GRID_CLASS}>
@@ -71,7 +73,8 @@ export function ModelFields({ model, index, variants, disabled, onChange, onRemo
     </fieldset>
     <label className={FIELD_CLASS}><span className="font-medium">고객 안내{hint}</span><textarea className={GOOD_TEXTAREA_CLASS} data-slot="textarea" aria-label={`${label} 고객 안내${hint}`} rows={2} maxLength={1000} value={model.publicNote}
       onChange={(event) => onChange({ ...model, publicNote: event.target.value })} /></label>
-    <details className={DETAILS_CLASS} open><summary className={SUMMARY_CLASS}>내부 검토 근거{hint} · 고객에게 공개되지 않습니다</summary>
+    {/* ADM-004(복잡도 표 335행): 고객에게 보이지 않는 내부 근거는 기본으로 접고, 몇 칸을 채웠는지만 요약에 보인다. 빠진 근거는 아래 '검토 완료 전 확인'이 알린다. */}
+    <details className={DETAILS_CLASS} data-kc-evidence=""><summary className={SUMMARY_CLASS}>{`내부 검토 근거${hint} · 고객에게 공개되지 않습니다 · ${evidenceFilled}/${evidenceTotal}칸 입력`}</summary>
       <div className={DETAILS_BODY_CLASS}>
         <label className={FIELD_CLASS}><span className="font-medium">적용 판단 사유</span><textarea className={GOOD_TEXTAREA_CLASS} data-slot="textarea" aria-label={`${label} 적용 판단 사유`} rows={3} maxLength={2000} value={model.basis}
           onChange={(event) => onChange({ ...model, basis: event.target.value })} /></label>

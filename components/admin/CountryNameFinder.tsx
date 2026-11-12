@@ -2,13 +2,14 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { Search } from 'lucide-react';
 import { COUNTRY_NAME_PAGE_SIZE, COUNTRY_NAME_SOURCE, countryNamePage, findCountryName } from '@/lib/admin/country-names';
 import { KOREAN_PROVINCES, KOREAN_REGION_SOURCE, findKoreanProvince, koreanOriginValue } from '@/lib/admin/korean-regions';
 import { ConsolePagination } from '@/components/admin/console/ConsolePagination';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { CustomerServiceDialog } from './screens/CustomerServiceDialog';
-import { Field } from './fields';
+import { AdminField } from './console/AdminKit';
 import { GOOD_INPUT_CLASS } from './GoodEditorParts';
 
 type CountryNameFinderProps = {
@@ -18,6 +19,8 @@ type CountryNameFinderProps = {
 const LABEL_CLASS = 'text-sm leading-snug font-medium text-foreground';
 /* 선택한 값은 결과물이라 읽기 전용이어도 흐리게 두지 않는다(점선 테두리만 읽기 전용 표시). */
 const SELECTED_VALUE_CLASS = `${GOOD_INPUT_CLASS} read-only:text-foreground`;
+/* 원산지 입력칸은 다른 고시 칸(fields.tsx Field)과 같은 모양이다 — 찾기 아이콘 버튼과 한 줄에 놓으려고 입력만 직접 그린다. */
+const ORIGIN_INPUT_CLASS = 'h-8 w-full min-w-0 flex-1 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm transition-colors outline-none placeholder:text-placeholder focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-muted disabled:text-secondary-foreground disabled:opacity-100 read-only:border-dashed read-only:bg-muted/50 read-only:text-muted-foreground aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20';
 
 /** The picker is outside the native product form, including its autosave event listeners. */
 export function CountryNamePicker(props: CountryNameFinderProps) {
@@ -110,17 +113,28 @@ export function CountryNameFinder(props: CountryNameFinderProps) {
   </CustomerServiceDialog>;
 }
 
-/** Keep the existing editable text field and write only its selected Korean name. */
+/**
+ * Keep the existing editable text field and write only its selected Korean name.
+ * ADM-004(복잡도 표 209행): 찾기는 입력칸 바로 옆 아이콘 버튼이다(입력칸 아래 글자 버튼이던 것을 줄였다). 이름은 aria-label·title로 남긴다.
+ */
 export function GoodsOriginField({ defaultValue, error, label, readOnly, required, disabled }: {
   defaultValue: string; error?: string; label: string; readOnly: boolean; required: boolean; disabled: boolean;
 }) {
   const root = useRef<HTMLDivElement>(null);
+  /* 원산지 칸은 상품 편집기·그룹 공통정보 편집 화면에 하나뿐이다. */
+  const inputId = 'goods-notice-origin';
   const [currentValue, setCurrentValue] = useState<string | null>(null), [message, setMessage] = useState('');
   const blocked = disabled || readOnly;
   function input() { return root.current?.querySelector<HTMLInputElement>('input[name="noticeOrigin"]'); }
   return <div className="flex min-w-0 flex-col gap-2" data-country-origin-field="" ref={root}>
-    <Field defaultValue={defaultValue} error={error} label={label} name="noticeOrigin" placeholder="대한민국" readOnly={readOnly} required={required} />
-    <button type="button" className={`${buttonVariants({ variant: 'outline', size: 'sm' })} self-start`} data-slot="button" disabled={blocked} onClick={() => { const field = input(); if (!blocked && field) { setCurrentValue(field.value); setMessage(''); } }}>원산지 국가·지역 찾기</button>
+    <AdminField inputId={inputId} label={label} error={error}>
+      <div className="flex min-w-0 items-center gap-1.5">
+        <input className={ORIGIN_INPUT_CLASS} data-slot="input" id={inputId} name="noticeOrigin" defaultValue={defaultValue} placeholder="대한민국" readOnly={readOnly} required={required}
+          aria-describedby={error ? `${inputId}-error` : undefined} aria-invalid={Boolean(error)} />
+        <button type="button" className={buttonVariants({ variant: 'outline', size: 'icon' })} data-slot="button" data-country-finder-open="" aria-label="원산지 국가·지역 찾기" title="원산지 국가·지역 찾기" disabled={blocked}
+          onClick={() => { const field = input(); if (!blocked && field) { setCurrentValue(field.value); setMessage(''); } }}><Search aria-hidden="true" /></button>
+      </div>
+    </AdminField>
     {message && <p className="text-xs text-muted-foreground" role="status">{message}</p>}
     {currentValue !== null && <CountryNamePicker mode="apply" currentValue={currentValue} disabled={blocked} onClose={() => setCurrentValue(null)} onApply={name => {
       const field = input();
