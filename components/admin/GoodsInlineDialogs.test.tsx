@@ -32,6 +32,19 @@ describe('할인 중지 후 판매가 변경 창 (1027T-025)', () => {
     expect(html).toContain('할인 전 기본 판매가 · 옵션 추가금 유지');
     expect(buttons(html)).toEqual(['취소', '할인 중지 후 변경']);
   });
+  /* TKT-033: 기간 없는 즉시할인(정가 표시) 상품도 같은 창 — 멈출 할인에 그 즉시할인을 적고 판매가(할인 전)로 되돌린다고 밝힌다. */
+  it('기간 없는 즉시할인 상품은 그 즉시할인도 멈출 할인으로 보이고, 멈춘 뒤에도 같은 줄로 남긴다', () => {
+    const instant = { regularPrice: 12000, salePrice: 9000 };
+    const html = discountDialog({ step: 'ready', review: { operationId: 'op', discounts: null, instant } });
+    expect(html).toContain('멈출 할인: 기간 없는 즉시할인 · 할인가 9,000원(판매가 12,000원)');
+    expect(html).toContain('기간 없는 즉시할인을 멈춰 판매가(할인 전)로 되돌리고, 할인 프로모션이 건 할인을 포함해');
+    const both = discountDialog({ step: 'ready', review: { operationId: 'op', discounts, instant } });
+    expect(both).toContain('멈출 할인: 기간 없는 즉시할인 · 할인가 9,000원(판매가 12,000원) / 할인 2건 · 할인가 8,000원 ~ 8,500원');
+    const failed = discountDialog({ step: 'price', stoppedHere: true, stopped: null, stoppedInstant: instant, error: goodsBulkError('goods_bulk_busy') });
+    expect(failed).toContain('멈춘 할인: 기간 없는 즉시할인 · 할인가 9,000원(판매가 12,000원)');
+    /* 기간 할인만 있는 상품의 문구는 그대로다. */
+    expect(discountDialog({ step: 'ready', review: { operationId: 'op', discounts } })).not.toContain('기간 없는 즉시할인');
+  });
   it('판매가 변경이 실패하면 할인이 이미 멈췄다고 밝히고 같은 창에서 판매가만 다시 시도한다(되돌리기 없음)', () => {
     const html = discountDialog({ step: 'price', stoppedHere: true, stopped: discounts, error: goodsBulkError('goods_bulk_busy') });
     expect(html).toContain('할인은 멈췄습니다. 판매가는 바뀌지 않았습니다.');

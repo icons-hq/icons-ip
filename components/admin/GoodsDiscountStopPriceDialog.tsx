@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useId, useRef, useState, useTransition } from 'react';
 import { readGoodsBulkAction } from '@/app/admin/goods-bulk-actions';
 import type { GoodsGroupIdentity } from '@/lib/admin/goods-groups';
-import { discountStopApplied, discountStopAwaitingResult, discountStopSummary, parseInlineSalePrice, type DiscountStopPricePhase } from '@/lib/admin/goods-list-inline';
+import { discountStopApplied, discountStopAwaitingResult, discountStopLossSummary, parseInlineSalePrice, type DiscountStopPricePhase } from '@/lib/admin/goods-list-inline';
 import { CustomerServiceDialog } from './screens/CustomerServiceDialog';
 import { AdminNotice } from './console/AdminKit';
 import { Button } from './kit/ui/button';
@@ -12,7 +12,7 @@ import { GOOD_NUMBER_INPUT_CLASS } from './GoodEditorParts';
 import { changePriceAfterStop, recoverDiscountStopPrice, reviewDiscountStop, stopDiscountThenChangePrice, type DiscountStopPriceStep } from './goods-inline-bulk';
 
 /*
- * 즉시할인(기간 할인)이 진행·예정인 상품의 목록 판매가 칸(1027T-025, 묶음 15 '할인 멈추고 판매가 변경').
+ * 즉시할인(기간 할인)이 진행·예정이거나 기간 없는 즉시할인(정가 표시) 중인 상품의 목록 판매가 칸(1027T-025, 묶음 15 '할인 멈추고 판매가 변경', TKT-033).
  * 칸을 누르면 이 창이 멈출 할인을 먼저 보여 주고, 확인하면 기존 '기간 할인 중지' → '판매가 변경'을 한 번에 차례로 부른다.
  * 판매가 변경이 실패하면 할인은 이미 멈춘 상태임을 밝히고 같은 창에서 판매가만 다시 시도한다(되돌리기는 없다).
  * 창과 상태는 목록 화면 수준(GoodsInlineDialogHost)에 있다 — 저장 뒤 목록이 다시 그려지며 그 상품이 현재 페이지에서 빠져도
@@ -23,8 +23,11 @@ const won = (value: number) => `${value.toLocaleString('ko-KR')}원`;
 const NOTE = 'text-sm text-muted-foreground';
 const UNEXPECTED = '처리 중 문제가 생겼습니다. 창을 닫고 새로고침한 뒤 상품의 할인과 판매가를 확인해주세요.';
 
-/** 창을 열 때 판매가 칸이 넘기는 상품 값. `basePrice`는 운영자가 목록에서 본 할인 전 기본 판매가(첫 기대값)다. */
-export interface DiscountStopTarget { goodId: string; goodName: string; goodCode: string | null; basePrice: number; hasOptions: boolean }
+/**
+ * 창을 열 때 판매가 칸이 넘기는 상품 값. `basePrice`는 운영자가 목록에서 본 할인 전 기본 판매가(첫 기대값)다.
+ * `instant`면 기간 없는 즉시할인 상품이다 — `basePrice`는 정가 표시(할인 전 판매가)이고, 그 즉시할인도 함께 멈춘다(TKT-033).
+ */
+export interface DiscountStopTarget { goodId: string; goodName: string; goodCode: string | null; basePrice: number; hasOptions: boolean; instant?: boolean }
 
 /**
  * 창의 상태와 동작. 창이 닫혀 있으면 `phase`가 null이다. `committing`은 확정·결과 조회가 서버에 가 있는 동안이다 —
@@ -62,7 +65,7 @@ export function useDiscountStopPrice({ identity, onDone }: { identity?: GoodsGro
   function load(goal: DiscountStopTarget, seen: number) {
     if (!identity) return;
     setPhase({ step: 'loading' });
-    run(async () => setPhase(await reviewDiscountStop(identity, goal.goodId, seen)),
+    run(async () => setPhase(await reviewDiscountStop(identity, goal.goodId, seen, Boolean(goal.instant))),
       () => setPhase({ step: 'review-failed', message: '멈출 할인을 확인하지 못했습니다. 다시 확인해주세요.', retry: true }), false);
   }
   return {
@@ -98,7 +101,7 @@ export function useDiscountStopPrice({ identity, onDone }: { identity?: GoodsGro
         run(async () => apply(goal, await stopDiscountThenChangePrice(identity, goal.goodId, review, seenBasePrice, next, setPhase), done),
           () => setPhase({ step: 'stop-uncertain', review, operationId: review.operationId, message: UNEXPECTED }), true);
       } else {
-        const stop = { stoppedHere: phase.stoppedHere, stopped: phase.stopped };
+        const stop = { stoppedHere: phase.stoppedHere, stopped: phase.stopped, ...(phase.stoppedInstant ? { stoppedInstant: phase.stoppedInstant } : {}) };
         const done = { price: next, stoppedHere: stop.stoppedHere };
         setSubmitted(done);
         run(async () => apply(goal, await changePriceAfterStop(identity, goal.goodId, seenBasePrice, next, stop), done),
@@ -136,15 +139,16 @@ export function GoodsDiscountStopPriceDialog({ flow }: {
   }, [committing, awaiting]);
   if (!phase || !target) return null;
   const stopped = phase.step === 'price' || phase.step === 'price-uncertain' ? phase : null;
-  const stoppedLine = stopped?.stoppedHere && stopped.stopped ? <p className="mt-1">멈춘 할인: {discountStopSummary(stopped.stopped)}</p> : null;
+  const stoppedText = stopped?.stoppedHere ? discountStopLossSummary(stopped.stopped, stopped.stoppedInstant) : null;
+  const stoppedLine = stoppedText ? <p className="mt-1">멈춘 할인: {stoppedText}</p> : null;
   return <CustomerServiceDialog title="할인 중지 후 판매가 변경" busy={pending || awaiting} onClose={flow.close}>
     <form className="flex min-w-0 flex-col gap-4" data-discount-stop-price={phase.step} aria-busy={pending}
       onSubmit={event => { event.preventDefault(); flow.submit(); }}>
       <p className="text-sm"><strong className="font-semibold">{target.goodName}</strong>{target.goodCode ? <small className="ml-1.5 text-xs text-muted-foreground">{target.goodCode}</small> : null}</p>
       {phase.step === 'loading' ? <AdminNotice tone="info" title="멈출 할인을 확인하는 중입니다." /> : null}
       {phase.step === 'ready' ? <AdminNotice tone="warning" title="할인을 멈추고 판매가를 바꿉니다.">
-        <p>멈출 할인: {phase.review.discounts ? discountStopSummary(phase.review.discounts) : '진행 중이거나 예정된 기간 할인'}</p>
-        <p className="mt-1">할인 프로모션이 건 할인을 포함해 이 상품의 진행 중이거나 예정된 기간 할인을 모두 멈춘 뒤 판매가를 바꿉니다. 멈춘 할인은 되돌리지 않으니 다시 필요하면 새로 등록하세요. 이미 끝난 할인과 기존 주문 금액은 바뀌지 않습니다.</p>
+        <p>멈출 할인: {discountStopLossSummary(phase.review.discounts, phase.review.instant) ?? '진행 중이거나 예정된 기간 할인'}</p>
+        <p className="mt-1">{phase.review.instant ? '기간 없는 즉시할인을 멈춰 판매가(할인 전)로 되돌리고, ' : ''}할인 프로모션이 건 할인을 포함해 이 상품의 진행 중이거나 예정된 기간 할인을 모두 멈춘 뒤 판매가를 바꿉니다. 멈춘 할인은 되돌리지 않으니 다시 필요하면 새로 등록하세요. 이미 끝난 할인과 기존 주문 금액은 바뀌지 않습니다.</p>
       </AdminNotice> : null}
       {phase.step === 'review-failed' ? <AdminNotice role="alert" tone="danger" title="할인과 판매가는 바뀌지 않았습니다.">
         <p>{phase.message}</p>

@@ -75,10 +75,10 @@ export function discountPromotionPhase(promotion: Pick<DiscountPromotionSummary,
 }
 
 /**
- * 규칙을 바꿔도 결과가 같은 건너뜀(기간이 겹치는 할인·판매 중인 옵션 없음·보관). 비교 표에서 그 줄의 규칙 선택을 잠근다.
+ * 규칙을 바꿔도 결과가 같은 건너뜀(기간이 겹치는 할인·판매 중인 옵션 없음·보관·기간 없는 즉시할인 중). 비교 표에서 그 줄의 규칙 선택을 잠근다.
  * 할인 제외(운영자가 고른 예외)와 할인가 범위 밖은 규칙을 바꾸면 달라지므로 열어 둔다.
  */
-const RULE_LOCKED_SKIPS = new Set(['price_period_overlap', 'price_period_variant_inactive', 'good_archived']);
+const RULE_LOCKED_SKIPS = new Set(['price_period_overlap', 'price_period_variant_inactive', 'good_archived', 'instant_discount_active']);
 export function discountPromotionRuleLocked(skip: string | null | undefined) { return Boolean(skip) && RULE_LOCKED_SKIPS.has(skip!); }
 
 const SKIP_LABELS: Record<string, string> = {

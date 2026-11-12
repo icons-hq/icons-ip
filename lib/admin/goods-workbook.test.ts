@@ -19,6 +19,7 @@ import {
   goodsWorkbookLayout,
   partitionGoodsExports,
   planGoodsWorkbookImport,
+  goodsWorkbookLiveDiscountError,
   type GoodsImportExisting,
   type GoodsWorkbookContext,
   type GoodsWorkbookRow,
@@ -435,6 +436,25 @@ describe('goods Excel planning', () => {
     const old = await parseGoodsWorkbookWithKc(await v3Workbook([exported], GOODS_WORKBOOK_V7_VERSION));
     expect(old.rows[0]).toMatchObject({ layout: 'v7', values: { productNo: '', salePrice: '12000', instantDiscount: '2000', optionPrice: '500' } });
     expect(planGoodsWorkbookImport(old.rows, ctx)[0].kind).toBe('unchanged');
+  });
+  /* TKT-033(ADR-0040): 엑셀에는 기간 할인 열이 없다. 진행·예정 기간 할인이 있는 상품의 판매가·즉시할인·옵션가 변경은 거절하고 이유를 보인다. */
+  it('진행·예정 기간 할인이 있는 상품은 판매가·즉시할인·옵션가를 바꾸는 행을 거절하고, 그대로 두거나 다른 열만 바꾸면 반영한다', async () => {
+    const live = { count: 2, minPrice: 9000, maxPrice: 9500, startsAt: '2026-11-30T15:00:00+00:00', endsAt: '2026-12-07T15:00:00+00:00' };
+    const record = { ...existing, livePriceDiscount: live };
+    const ctx = { ...context, existing: [record] };
+    const [exported] = exportGoodsWorkbookRows(record, ctx);
+    expect(exported.instantDiscount).toBe('');
+    const plan = (patch: Partial<typeof exported>) => planGoodsWorkbookImport([{ row: 5, values: { ...exported, ...patch } }], ctx)[0];
+    expect(plan({}).kind).toBe('unchanged');
+    expect(plan({ name: '이름만 바꿈' }).kind).toBe('update');
+    for (const patch of [{ salePrice: String(Number(exported.salePrice) + 1000) }, { instantDiscount: '500' }, { optionPrice: String(Number(exported.optionPrice || 0) + 100) }]) {
+      const group = plan(patch);
+      expect({ patch, kind: group.kind, target: group.target }).toEqual({ patch, kind: 'error', target: null });
+      expect(group.errors.join()).toContain('진행 중이거나 예정된 기간 할인(2건, 2026. 12. 8. 00:00까지)이 있는 상품이라 엑셀로 판매가·즉시할인·옵션가를 바꿀 수 없습니다');
+    }
+    expect(goodsWorkbookLiveDiscountError(live)).toContain('이 상품 행은 반영하지 않으니');
+    /* 기간 할인이 없는 상품은 지금처럼 바꾼다. */
+    expect(planGoodsWorkbookImport([{ row: 5, values: { ...exported, salePrice: String(Number(exported.salePrice) + 1000) } }], { ...context, existing: [{ ...existing, livePriceDiscount: null }] })[0].kind).toBe('update');
   });
   it('상품번호 → 판매자상품코드 순서로 수정할 상품을 찾고, 서로 다른 상품을 가리키면 덮어쓰지 않는다(ADR-0038)', () => {
     const [values] = exportGoodsWorkbookRows(existing, context);

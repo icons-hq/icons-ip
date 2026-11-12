@@ -247,10 +247,13 @@ export type GoodsImportVariant = {
   purchase_tax_basis?: PurchaseTaxBasis | null;
   purchase_cost_revision?: number | null;
 };
+/** 진행·예정 기간 할인 요약(admin_goods_import_records의 livePriceDiscount, TKT-033). 없으면 null. */
+export type GoodsImportLivePriceDiscount = { count: number; minPrice: number; maxPrice: number; startsAt: string; endsAt: string };
 export type GoodsImportExisting = {
   good: Record<string, unknown>;
   variants: GoodsImportVariant[];
   fingerprint: string;
+  livePriceDiscount?: GoodsImportLivePriceDiscount | null;
   kcReview?: AdminGoodsKc | null;
   afterSales?: GoodsAfterSalesSnapshot | null;
   sizeChart?: GoodsSizeChartSnapshot | null;
@@ -603,6 +606,16 @@ function resolveGoodsWorkbookTarget(row: GoodsWorkbookInputRow, existing: readon
   values.code = record ? str(record.good.code).toUpperCase() : code;
   if (record) values.productNo = str(record.good.product_no);
   return { row: { ...row, values, errors }, matchedByNumberOnly };
+}
+const KST_DATE_TIME = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
+/**
+ * TKT-033(ADR-0040): 진행·예정 기간 할인(즉시할인 기간·기간 할인·할인 프로모션)이 있는 상품은 엑셀로 판매가·즉시할인·옵션가를 바꾸지 않는다.
+ * 엑셀에는 기간 할인 열이 없어, 바꾸면 기간 할인을 조용히 지우거나 기간 없는 즉시할인을 겹쳐 걸게 된다. 거절하고 이유를 보인다.
+ */
+export function goodsWorkbookLiveDiscountError(discount: GoodsImportLivePriceDiscount): string {
+  const ends = Number.isFinite(Date.parse(discount.endsAt)) ? KST_DATE_TIME.format(new Date(discount.endsAt)) : '종료 시각 확인 필요';
+  return `진행 중이거나 예정된 기간 할인(${discount.count.toLocaleString('ko-KR')}건, ${ends}까지)이 있는 상품이라 엑셀로 판매가·즉시할인·옵션가를 바꿀 수 없습니다. `
+    + '엑셀에는 기간 할인 열이 없어 바꾸면 할인이 사라지거나 겹칩니다. 이 상품 행은 반영하지 않으니, 상품 수정이나 상품 목록에서 할인을 멈춘 뒤(또는 끝난 뒤) 바꿔 주세요.';
 }
 export function planGoodsWorkbookImport(
   inputRows: GoodsWorkbookInputRow[],
@@ -966,6 +979,15 @@ export function planGoodsWorkbookImport(
         group.warnings.push(
           `기존 옵션 ${removed.length}개가 삭제 또는 보관됩니다.`,
         );
+      if (record.livePriceDiscount) {
+        const storedCompare = record.good.compare_at_price == null ? null : Number(record.good.compare_at_price);
+        const priceChanged = stored.price !== Number(record.good.price) || stored.compareAtPrice !== storedCompare
+          || options.some((option) => {
+            const previous = active.find((variant) => variant.id === option.id);
+            return Boolean(previous) && option.isActive && previous!.price !== stored.price + option.extraPrice;
+          });
+        if (priceChanged) errors.push(goodsWorkbookLiveDiscountError(record.livePriceDiscount));
+      }
       if (
         record.good.published_at &&
         (stored.price !== Number(record.good.price) ||

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { goodsBulkError, goodsBulkShippingHref, parseGoodsBulkPreview, parseGoodsBulkReceipt, parseGoodsBulkRequest, parseGoodsBulkShippingIds, type GoodsBulkPreview, type GoodsBulkRequest } from './goods-bulk';
+import { goodsBulkError, goodsBulkShippingHref, goodsBulkSkipLabel, parseGoodsBulkPreview, parseGoodsBulkReceipt, parseGoodsBulkRequest, parseGoodsBulkShippingIds, type GoodsBulkPreview, type GoodsBulkRequest } from './goods-bulk';
 const id = 'b9000000-0000-4000-8000-000000000001';
 const request: GoodsBulkRequest = { kind: 'goods', ids: ['good-a'], command: 'price', values: { mode: 'increase', value: 100 } };
 const preview: GoodsBulkPreview = { state: 'ready', operationId: id, request, groups: [], expiresAt: '2026-10-16T14:00:00.123456Z',
@@ -61,6 +61,21 @@ describe('상품 일괄 변경 계약', () => {
       expect(parseGoodsBulkPreview({ ...preview, request: stop, goods: [{ ...goods[0], discounts: bad }, goods[1]] }, id, stop)).toBeNull();
     expect(parseGoodsBulkPreview({ ...preview, request: stop, goods: [goods[1]] }, id, stop)).toBeNull();
     expect(parseGoodsBulkPreview({ ...preview, goods: [{ ...preview.goods[0], discounts }] }, id, request)).toBeNull();
+  });
+  /* TKT-033: 목록 판매가 칸의 할인 중지는 상품 1개에 한해 기간 없는 즉시할인(정가 표시)도 멈출 할인으로 받는다. */
+  it('상품 1개 할인 중지만 includeInstant를 받고, 비교는 멈출 기간 없는 즉시할인을 싣는다', () => {
+    const single: GoodsBulkRequest = { kind: 'goods', ids: ['good-a'], command: 'discount_stop', values: { includeInstant: true } };
+    expect(parseGoodsBulkRequest(single)).toEqual(single);
+    for (const bad of [{ ...single, ids: ['good-a', 'good-b'] }, { ...single, kind: 'ip', ids: ['maple'] }, { ...single, values: { includeInstant: false } },
+      { ...single, values: { includeInstant: 'true' } }, { ...single, command: 'discount', values: { includeInstant: true } }, { ...single, command: 'stop', values: { includeInstant: true } }])
+      expect(parseGoodsBulkRequest(bad), JSON.stringify(bad)).toBeNull();
+    const row = { ...preview.goods[0], id: 'good-a', skip: null, discounts: null, instantDiscount: { regularPrice: 12000, salePrice: 9000 } };
+    expect(parseGoodsBulkPreview({ ...preview, request: single, goods: [row] }, id, single)?.goods[0].instantDiscount).toEqual({ regularPrice: 12000, salePrice: 9000 });
+    for (const bad of [{ regularPrice: 9000, salePrice: 9000 }, { regularPrice: 12000 }, { regularPrice: 12000, salePrice: 9000, extra: 1 }])
+      expect(parseGoodsBulkPreview({ ...preview, request: single, goods: [{ ...row, instantDiscount: bad }] }, id, single)).toBeNull();
+    const plainStop: GoodsBulkRequest = { ...single, values: {} };
+    expect(parseGoodsBulkPreview({ ...preview, request: plainStop, goods: [row] }, id, plainStop)).toBeNull();
+    expect(goodsBulkSkipLabel('instant_discount_active')).toContain('기간 없는 즉시할인');
   });
   it('진행 중인 즉시할인 때문에 판매가를 못 바꾸면 할인 중지를 안내한다', () => {
     expect(goodsBulkError('active_price_period_requires_reset')).toContain('즉시할인을 먼저 중지');

@@ -19,11 +19,12 @@ describe('goods list screen', () => {
     const data = { filters: normalizeGoodsListFilters({ ipId: 'maple' }), goods: [good, multi, discounted], ips: [{ id: 'maple', title: '메이플', archivedAt: null }], total: 3 };
     const html = renderToStaticMarkup(<GoodsListScreen data={data} canIssueMarketingLinks bulkIdentity={identity} />);
     for (const label of ['판매가 10,000원 바로 수정', '판매상태 공개 시 판매중 바로 수정', '재고수량 7개 바로 수정']) expect(html).toContain(`aria-label="${label}"`);
-    // 판매가 바로 수정은 편집기의 판매가와 같은 뜻일 때만: 상품 할인(정가 표시) 상품은 이유와 상품 수정 링크만 보인다.
+    // 판매가 바로 수정은 할인이 없을 때만이다. 기간 없는 즉시할인(정가 표시) 상품도 같은 칸이 '할인 중지 후 변경' 창을 연다(TKT-033).
     expect(html.match(/판매가 [^"]*바로 수정/g)).toHaveLength(1);
-    expect(html).toContain('상품 할인 중 · 판매가는 상품 수정에서 변경'); expect(html).toContain('#good-section-price');
+    expect(html).not.toContain('상품 할인 중 · 판매가는 상품 수정에서 변경');
+    expect(html).toContain('즉시할인 중</small>');
     // 진행·예정 즉시할인 상품은 같은 칸이 '할인 중지 후 변경' 창을 연다(1027T-025).
-    expect(html).toContain('aria-label="판매가 10,000원 할인 중지 후 변경"'); expect(html).toContain('할인 진행·예정');
+    expect(html.match(/aria-label="판매가 10,000원 할인 중지 후 변경"/g)).toHaveLength(2); expect(html).toContain('할인 진행·예정');
     expect(html.match(/재고수량 [^"]*바로 수정/g)).toHaveLength(2);
     // 옵션을 읽지 못한(옵션별 재고 값이 없는) 여러 옵션 상품은 상세 재고 안의 상품 수정 링크로 고친다.
     expect(html).toContain('옵션별 재고 수정');
@@ -52,7 +53,7 @@ describe('goods list screen', () => {
     const readOnly = GoodsListScreen({ data, bulkIdentity: identity }) as Node;
     expect((Children.only(readOnly.props.children as ReactNode) as Node).props.identity).toBeUndefined();
   });
-  it('옵션이 여러 개인 상품의 재고 칸은 칸 전체가 옵션별 재고 창을 열고, 상품 할인이 있으면 할인 진행 중이어도 상품 수정으로 보낸다(1014-106·1027T-025)', () => {
+  it('옵션이 여러 개인 상품의 재고 칸은 칸 전체가 옵션별 재고 창을 열고, 기간 없는 즉시할인과 진행 중 즉시할인이 함께 있어도 할인 중지 후 변경 창을 연다(1014-106·1027T-025·TKT-033)', () => {
     const identity = { actorId: 'b9000000-0000-4000-8000-000000000001', sessionId: 'b9000000-0000-4000-8000-000000000002' };
     const ready = { ...unknownGoodsReadiness(), state: 'ready' as const, publication: 'published' as const, operation: 'active' as const, availableQty: 12, reasons: [] };
     const options = [{ variantId: 'b9000000-0000-4000-8000-000000000021', name: '블루', code: 'OPT-B', stockQty: 5 }, { variantId: 'b9000000-0000-4000-8000-000000000022', name: '레드', code: 'OPT-R', stockQty: 4 },
@@ -68,9 +69,10 @@ describe('goods list screen', () => {
     expect(html).not.toContain('<dialog');
     // 옵션별 재고 창이 있으면 상세 재고 안의 상품 수정 링크는 두지 않는다(창 안에서 상품 수정으로 간다).
     expect(row('good-m')).not.toContain('#good-section-variants">옵션별 재고 수정');
-    // 상품 할인과 진행 중인 즉시할인이 함께 있으면 판매가의 뜻이 정가라 창을 열지 않고 상품 수정으로 보낸다.
-    expect(row('good-both')).not.toContain('할인 중지 후 변경');
-    expect(row('good-both')).toMatch(/title="상품 할인·즉시할인 진행·예정 중\(~2026\.11\.20\) · 판매가는 상품 수정에서 변경" href="[^"]*#good-section-price">상품 할인 중<\/a>/);
+    // 기간 없는 즉시할인과 진행 중인 즉시할인이 함께 있으면 창이 둘 다 멈춘 뒤 판매가(할인 전 판매가 기준)를 바꾼다(TKT-033 includeInstant).
+    expect(row('good-both')).toContain('aria-label="판매가 10,000원 할인 중지 후 변경"');
+    expect(row('good-both')).toContain('즉시할인 중</small>');
+    expect(row('good-both')).not.toContain('상품 할인 중</a>');
   });
   it('R11: 판매가·재고수량은 칸 전체가 바로 수정이고, 같은 칸의 보조 링크는 덮개 위에 남는다', () => {
     const identity = { actorId: 'b9000000-0000-4000-8000-000000000001', sessionId: 'b9000000-0000-4000-8000-000000000002' };
