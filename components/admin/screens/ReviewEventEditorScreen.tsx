@@ -112,7 +112,7 @@ export function ReviewEventEditorScreen({ id, workspace, targetLabels = [], quer
     const trimmed = trimReviewEventText(values);
     const errors = { ...reviewEventFieldErrors(trimmed), ...reviewEventCreditPolicyProblem(trimmed, policy) };
     setAttempted(true); setValues(trimmed); setNotice('');
-    if (Object.keys(errors).length) { setError(errors.form ?? '표시된 항목을 확인해주세요.'); showMessage(); return; }
+    if (Object.keys(errors).length) { setError(errors.form ? (Object.keys(errors).some(key => key !== 'form') ? `${errors.form} 표시된 항목도 확인해주세요.` : errors.form) : '표시된 항목을 확인해주세요.'); showMessage(); return; }
     const normalized = parseReviewEventValues(trimmed);
     if (!normalized) { setError('제목·내용·대상·기간·선정수·혜택 금액을 확인해주세요.'); showMessage(); return; }
     run({ ...request('save'), kind: 'save', values: normalized });
