@@ -41,7 +41,7 @@ export interface ReturnPickupTickResult {
   stale: number;
   /** 형식이 틀려 실패로 남긴(또는 열쇠조차 읽지 못한) 일 수. */
   invalid: number;
-  /** 회차 시간 예산이 끝나 이번에 보내지 않은 일(임대가 끝나면 DB가 다시 넘긴다). */
+  /** 회차 시간 예산이 끝나 이번에 보내지 않은 일(결과로 돌려보내 DB가 임대를 풀고 시도 횟수를 되돌린다 — 다음 회차가 다시 잡는다). */
   deferred: number;
 }
 
@@ -128,7 +128,11 @@ export async function runReturnPickupTick(options: ReturnPickupTickOptions): Pro
   }
   const worker = async () => {
     for (let item = queue.shift(); item; item = queue.shift()) {
-      if (now() - started > budgetMs) { deferred += 1; continue; }
+      if (now() - started > budgetMs) {
+        deferred += 1;
+        results.push({ pickupId: item.pickupId, leaseToken: item.leaseToken, kind: item.kind, outcome: 'deferred' });
+        continue;
+      }
       let choice = choices.get(item.provider);
       if (!choice) { choice = adapterFor(item.provider); choices.set(item.provider, choice); }
       if (!choice.configured) {

@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { NO_RETURN_PICKUP, type OrderReturnPickup } from '@/lib/orders/return-pickup';
 import {
   formatOrderDateTime,
   ORDER_WITHDRAWAL_REASON_LABELS,
@@ -94,10 +95,11 @@ export async function submitOrderClaim(
  * 단계별 구매자 안내. 유형에 따라 다음에 할 일이 다르다.
  * collectionWaived는 이 요청에서 회수 없이 다시 보낸 소포(하자·오배송 교환의 회수 생략, ADR-0041)가 있다는 뜻이다 —
  * 그 소포의 굿즈는 반송하지 않아도 된다고 함께 말한다.
- * returnPickup은 반품 자동 회수 접수(QNA-032)로 택배 기사가 방문해 회수한다는 뜻이다 — 직접 반송 대신 방문 회수를 안내한다.
+ * returnPickup은 반품 자동 회수 접수(QNA-032)로 택배 기사가 방문해 회수하는 묶음과 고객이 직접 보내는 묶음의 수다. 모두 방문 회수면 방문 회수를,
+ * 섞여 있으면 방문 회수와 함께 회수 송장이 없는 묶음의 회수 주소 발송을, 방문 회수 묶음이 없으면 지금 반송 안내를 그대로 말한다.
  */
 export function claimStageNotice(claim: OrderCancellationRequestSummary, refund: OrderRefundSummary | null = null,
-  { collectionWaived = false, returnPickup = false }: { collectionWaived?: boolean; returnPickup?: boolean } = {}): string {
+  { collectionWaived = false, returnPickup = NO_RETURN_PICKUP }: { collectionWaived?: boolean; returnPickup?: OrderReturnPickup } = {}): string {
   if (claim.claimType !== 'exchange' && refund?.status === 'awaiting_transfer') {
     return '주문 취소와 재고 복원이 끝났으며 결제자 계좌로 환불 송금을 준비하고 있습니다. 실제 송금이 확인되면 환불 완료로 표시됩니다.';
   }
@@ -109,8 +111,9 @@ export function claimStageNotice(claim: OrderCancellationRequestSummary, refund:
       return `${typeLabel} 요청을 검토하고 있습니다.`;
     case 'collecting':
       /* 회수 주소는 승인 때 굿즈마다 고정한 반품지다(S36-040). 배송 묶음별 주소는 아래 회수 정보에서 확인한다(QNA-031). */
-      return (returnPickup
+      return (returnPickup.pickupBundles > 0
         ? '요청이 승인됐습니다. 택배 기사가 방문해 굿즈를 회수합니다. 아래 회수 정보 확인에서 배송 묶음별 회수 송장을 확인하고 굿즈를 포장해 두세요.'
+          + (returnPickup.directBundles > 0 ? ' 회수 송장이 없는 묶음은 회수 정보의 회수 주소로 보내주세요.' : '')
         : '요청이 승인됐습니다. 아래 회수 정보 확인에서 배송 묶음별 회수 주소를 확인하고, 안내받은 방법으로 굿즈를 반송해주세요.')
         + (collectionWaived ? ' 회수 없이 다시 보내드린 소포의 굿즈는 반송하지 않아도 됩니다.' : '');
     case 'collected':
@@ -148,7 +151,7 @@ export function OrderClaimRequest({
   orderId,
   refund = null,
   returnFeePolicy = null,
-  returnPickup = false,
+  returnPickup = NO_RETURN_PICKUP,
   status,
 }: {
   claim: OrderCancellationRequestSummary | null;
@@ -158,8 +161,8 @@ export function OrderClaimRequest({
   orderId: string;
   refund?: OrderRefundSummary | null;
   returnFeePolicy?: { enabled: boolean; oneWayAmount: number | null } | null;
-  /** 방문 회수(반품 자동 회수 접수, QNA-032)인지. 꺼져 있으면 false — 지금 반송 안내 그대로다. */
-  returnPickup?: boolean;
+  /** 방문 회수(반품 자동 회수 접수, QNA-032)·직접 발송 묶음 수. 둘 다 0이면 지금 반송 안내 그대로다. */
+  returnPickup?: OrderReturnPickup;
   status: OrderDetailStatus;
 }) {
   const router = useRouter();

@@ -22,11 +22,13 @@ describe('방문 회수 안내 읽기', () => {
     pickup = { data: null, error: { code: 'PGRST202', message: 'missing function' } };
     expect(await loadGoodShippingPolicy('good')).toEqual(policy);
   });
-  it('주문 상세는 본인 주문 RPC가 true일 때만 방문 회수다', async () => {
-    mocks.rpc.mockResolvedValueOnce({ data: true, error: null });
-    expect(await loadMyOrderReturnPickup('order')).toBe(true);
+  it('주문 상세는 본인 주문 RPC가 준 방문 회수·직접 발송 묶음 수를 읽고, 읽지 못하면 둘 다 0이다', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: { pickupBundles: 1, directBundles: 1 }, error: null });
+    expect(await loadMyOrderReturnPickup('order')).toEqual({ pickupBundles: 1, directBundles: 1 });
     expect(mocks.rpc).toHaveBeenCalledWith('get_my_order_return_pickup', { p_order_id: 'order' });
     mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'x' } });
-    expect(await loadMyOrderReturnPickup('order')).toBe(false);
+    expect(await loadMyOrderReturnPickup('order')).toEqual({ pickupBundles: 0, directBundles: 0 });
+    mocks.rpc.mockResolvedValueOnce({ data: true, error: null }); // 이전 모양(boolean)은 읽지 않는다 — 지금 문장.
+    expect(await loadMyOrderReturnPickup('order')).toEqual({ pickupBundles: 0, directBundles: 0 });
   });
 });

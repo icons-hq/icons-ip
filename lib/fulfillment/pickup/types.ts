@@ -84,7 +84,9 @@ export type ReturnPickupResult =
   | { pickupId: string; leaseToken: string; kind: 'request'; outcome: 'requested'; trackingNumber: string; externalId?: string }
   | { pickupId: string; leaseToken: string; kind: 'request'; outcome: 'error'; errorCode: string }
   | { pickupId: string; leaseToken: string; kind: 'cancel'; outcome: 'canceled' | 'not_found' }
-  | { pickupId: string; leaseToken: string; kind: 'cancel'; outcome: 'error'; errorCode: string };
+  | { pickupId: string; leaseToken: string; kind: 'cancel'; outcome: 'error'; errorCode: string }
+  /** 회차 시간 예산이 끝나 보내지 않은 일 — DB가 임대를 풀고 이번 회차가 센 시도를 되돌린다. */
+  | { pickupId: string; leaseToken: string; kind: 'request' | 'cancel'; outcome: 'deferred' };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const ERROR_CODE = /^[a-z0-9_]{1,64}$/;

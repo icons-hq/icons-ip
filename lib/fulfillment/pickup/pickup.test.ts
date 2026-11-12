@@ -146,12 +146,17 @@ describe('회수 접수 크론 한 회차', () => {
     expect(await runReturnPickupTick({ repository: recordFails, adapterFor: () => ({ configured: true, adapter: adapter() }), openSealedAddress: opened }))
       .toMatchObject({ enabled: true, failedStages: ['record'], requested: 0 });
   });
-  it('시간 예산이 끝나면 남은 일은 보내지 않는다(임대가 끝나면 DB가 다시 넘긴다)', async () => {
+  it('시간 예산이 끝나면 남은 일은 보내지 않고 deferred 결과로 돌려보낸다', async () => {
     let clock = 0;
     const fake = adapter({ request: vi.fn(async () => { clock += 40_000; return { outcome: 'requested' as const, trackingNumber: 'FAKE01234567' }; }) });
     const repo = repository([requestItem(), requestItem({ pickupId: '33333333-3333-4333-8333-333333333333' })]);
     const result = await runReturnPickupTick({ repository: repo, adapterFor: () => ({ configured: true, adapter: fake }), openSealedAddress: opened, concurrency: 1, now: () => clock });
     expect(result).toMatchObject({ requested: 1, deferred: 1 });
+    // 보내지 못한 일은 결과로 돌려보낸다 — DB가 임대를 풀고 이번 회차가 센 시도를 되돌린다(시도만 소모하지 않게).
+    expect(repo.recorded[0]).toEqual([
+      expect.objectContaining({ pickupId: PICKUP, kind: 'request', outcome: 'requested' }),
+      { pickupId: '33333333-3333-4333-8333-333333333333', leaseToken: LEASE, kind: 'request', outcome: 'deferred' },
+    ]);
   });
 });
 

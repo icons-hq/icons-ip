@@ -8,6 +8,9 @@
 -- 5. 실패는 '자동 수거 실패'로 세고 상한까지 다시 시도한다. 운영자가 다시 접수하면 같은 멱등 키로 다시 보낸다.
 -- 6. 철회·거절·고객 직접 발송으로 필요 없어지면 접수 전은 그냥 닫고, 접수됐으면 취소를 맡긴다. 입고되면 접수는 끝난다.
 -- 7. 임대(lease)가 바뀐 결과는 받지 않는다. 회수 주소 정정(암호문)이 있으면 그 암호문을 앱에 넘긴다.
+-- 8. 고객 안내는 회수 묶음 단위다: 방문 회수 묶음 수와 직접 보낼 묶음 수(혼합 출고지), 선물은 받는 분만, 꺼진 뒤 pending·failed는 방문 회수가 아니다.
+-- 9. 요청이 나가는 사이 철회되면 접수됐다고 알리지 않고 바로 취소로 돌린다. 시간 예산이 끝난 일(deferred)은 시도 횟수를 소모하지 않는다.
+-- 10. 출고지 계약·전체 스위치를 껐다 다시 켜면 켠 시각이 새로 적혀, 꺼져 있던 동안 승인된 묶음은 접수하지 않는다. 회수 생략 배송 건은 접수하지 않는다.
 -- 합성 데이터만 쓰고 롤백한다. 택배사 API는 부르지 않는다.
 begin;
 load 'safeupdate';
@@ -73,23 +76,33 @@ insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id) val
  ('rp-good-2','rp-ip','TEST 남양주 굿즈','문구',2000,'ok',50,pg_temp.rp_id('origin',2));
 create function pg_temp.rp_default(good text) returns uuid language sql stable as $$select id from public.goods_variants where good_id=good and is_default$$;
 
--- 주문 1~9·11·12: 김포 굿즈 한 줄(반품). 주문 10: 남양주 굿즈(회수 계약 없는 출고지). 모든 주문은 닷새 전에 만들었다.
+-- 주문 1~9·11~20: 김포 굿즈 한 줄(반품). 주문 10: 남양주 굿즈(회수 계약 없는 출고지). 주문 13은 김포·남양주 두 배송 건(혼합), 주문 14는 선물,
+-- 주문 18·19는 회수 생략 하자 교환. 모든 주문은 닷새 전에 만들었다.
 insert into public.orders(id,user_id,status,total,shipping_fee,address,shipped_at,delivered_at,created_at)
  select pg_temp.rp_id('order',n),pg_temp.rp_id('user',2),'delivered',5000,0,
   jsonb_build_object('recipientName','합성 고객 '||n,'phone','010-5555-'||lpad(n::text,4,'0'),'postalCode','12345','address1','합성시 회수로 '||n,'address2','10'||n||'호'),
-  now()-interval '4 days',now()-interval '3 days',now()-interval '5 days' from generate_series(1,12)n;
+  now()-interval '4 days',now()-interval '3 days',now()-interval '5 days' from generate_series(1,20)n;
 insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
  select pg_temp.rp_id('item',n),pg_temp.rp_id('order',n),case when n=10 then 'rp-good-2' else 'rp-good-1' end,
-  pg_temp.rp_default(case when n=10 then 'rp-good-2' else 'rp-good-1' end),1,1000,'TEST 회수 굿즈 '||n,'문구','rp-ip' from generate_series(1,12)n;
+  pg_temp.rp_default(case when n=10 then 'rp-good-2' else 'rp-good-1' end),1,1000,'TEST 회수 굿즈 '||n,'문구','rp-ip' from generate_series(1,20)n;
 insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,status,carrier,tracking_number,shipped_at,delivered_at)
  select pg_temp.rp_id('shipment',n),pg_temp.rp_id('order',n),case when n=10 then pg_temp.rp_id('origin',2) else pg_temp.rp_id('origin',1) end,
   case when n=10 then 'TEST 남양주' else 'TEST 김포' end,0,'{}','delivered','hanjin','RPSALE'||lpad(n::text,6,'0'),now()-interval '4 days',now()-interval '3 days'
- from generate_series(1,12)n;
-insert into public.order_shipment_items(order_id,shipment_id,order_item_id,qty) select pg_temp.rp_id('order',n),pg_temp.rp_id('shipment',n),pg_temp.rp_id('item',n),1 from generate_series(1,12)n;
+ from generate_series(1,20)n;
+insert into public.order_shipment_items(order_id,shipment_id,order_item_id,qty) select pg_temp.rp_id('order',n),pg_temp.rp_id('shipment',n),pg_temp.rp_id('item',n),1 from generate_series(1,20)n;
 insert into public.payments(id,user_id,purpose,ref_id,amount,status,idempotency_key,provider)
- select pg_temp.rp_id('payment',n),pg_temp.rp_id('user',2),'order',pg_temp.rp_id('order',n),5000,'paid','rp-pay-'||n,'toss' from generate_series(1,12)n;
+ select pg_temp.rp_id('payment',n),pg_temp.rp_id('user',2),'order',pg_temp.rp_id('order',n),5000,'paid','rp-pay-'||n,'toss' from generate_series(1,20)n;
 insert into public.order_cancellation_requests(id,order_id,requested_by,reason,claim_type,stage,reason_type)
- select pg_temp.rp_id('claim',n),pg_temp.rp_id('order',n),pg_temp.rp_id('user',2),'TEST 회수 접수 반품 '||n,'return','requested','change_of_mind' from generate_series(1,12)n;
+ select pg_temp.rp_id('claim',n),pg_temp.rp_id('order',n),pg_temp.rp_id('user',2),'TEST 회수 접수 반품 '||n,case when n in(18,19) then 'exchange' else 'return' end,'requested',case when n in(18,19) then 'defect' else 'change_of_mind' end from generate_series(1,20)n;
+-- 주문 13의 두 번째 배송 건(남양주 — 회수 계약 없는 출고지).
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
+ values(pg_temp.rp_id('item',113),pg_temp.rp_id('order',13),'rp-good-2',pg_temp.rp_default('rp-good-2'),1,1000,'TEST 회수 굿즈 113','문구','rp-ip');
+insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,status,carrier,tracking_number,shipped_at,delivered_at)
+ values(pg_temp.rp_id('shipment',113),pg_temp.rp_id('order',13),pg_temp.rp_id('origin',2),'TEST 남양주',0,'{}','delivered','epost','RPSALE000113',now()-interval '4 days',now()-interval '3 days');
+insert into public.order_shipment_items(order_id,shipment_id,order_item_id,qty) values(pg_temp.rp_id('order',13),pg_temp.rp_id('shipment',113),pg_temp.rp_id('item',113),1);
+-- 주문 14: 선물(보낸 분 = 주문자 2, 받는 분 = 4).
+insert into private.gift_intents(id,sender_id,recipient_id,state,sender_label,recipient_label,expires_at,order_id,ordered_source_revision)
+ values(pg_temp.rp_id('gift',14),pg_temp.rp_id('user',2),pg_temp.rp_id('user',4),'ordered','TEST sender','TEST recipient',now()+interval '1 day',pg_temp.rp_id('order',14),'1:synthetic');
 
 select set_config('request.jwt.claim.role','service_role',true);
 select pg_temp.rp_as(1);
@@ -99,7 +112,7 @@ select public.admin_decide_order_claim(pg_temp.rp_id('claim',1),'approve',null);
 select public.service_return_pickup_work(10) as off_work \gset
 select pg_temp.rp_assert(:'off_work'::jsonb='{"enabled":false}'::jsonb and not exists(select 1 from private.claim_return_pickups), 'off: work does nothing');
 select pg_temp.rp_assert(public.admin_claim_return_operations()='{"pickup":{"enabled":false},"intake":{"enabled":false}}'::jsonb, 'off: operator summary is only off');
-select pg_temp.rp_assert(not public.get_good_return_pickup('rp-good-1') and not public.get_my_order_return_pickup(pg_temp.rp_id('order',1)), 'off: customer notices unchanged');
+select pg_temp.rp_assert(not public.get_good_return_pickup('rp-good-1') and (select (public.get_my_order_return_pickup(pg_temp.rp_id('order',1))->>'pickupBundles')::integer=0), 'off: customer notices unchanged');
 select pg_temp.rp_assert(
  (select array_agg(key order by key) from jsonb_object_keys(private.claim_collection_bundles_json(pg_temp.rp_id('claim',1),pg_temp.rp_id('shipment',1),true)->0) key)
   = array['bundleId','collectedAt','collectedBy','collectorName','evidence','items','receivedOn','returnAddress','returnAddressId','returnAddressReady','returnName','returnPhone']
@@ -182,9 +195,9 @@ select public.read_my_claim_return_bundles(pg_temp.rp_id('claim',2),pg_temp.rp_i
 select pg_temp.rp_assert((:'buyer_bundles'::jsonb#>'{0,returnBundles,0,pickup}')=jsonb_build_object('carrier','hanjin','carrierLabel','한진택배','trackingNumber','RPPICK0002',
   'requestedAt',(select requested_at from private.claim_return_pickups where claim_id=pg_temp.rp_id('claim',2))),
  'customer sees the pickup tracking only');
-select pg_temp.rp_assert(public.get_my_order_return_pickup(pg_temp.rp_id('order',2)), 'buyer order detail switches to the visit notice');
+select pg_temp.rp_assert(public.get_my_order_return_pickup(pg_temp.rp_id('order',2))='{"pickupBundles":1,"directBundles":0}'::jsonb, 'buyer order detail switches to the visit notice');
 select pg_temp.rp_as(4);
-select pg_temp.rp_assert(not public.get_my_order_return_pickup(pg_temp.rp_id('order',2)), 'another customer learns nothing');
+select pg_temp.rp_assert(public.get_my_order_return_pickup(pg_temp.rp_id('order',2))='{"pickupBundles":0,"directBundles":0}'::jsonb, 'another customer learns nothing');
 select pg_temp.rp_as(1);
 select pg_temp.rp_assert((select b->'pickup'->>'state'='requested' and b->'pickup'->>'trackingNumber'='RPPICK0002' and (b->'pickup'->>'inProgress')::boolean is false
  from jsonb_array_elements(private.claim_collection_bundles_json(pg_temp.rp_id('claim',2),pg_temp.rp_id('shipment',2),true)) b), 'operator bundle shows the pickup');
@@ -287,8 +300,91 @@ update public.order_cancellation_requests set stage='collecting',held_from=null,
 select pg_temp.rp_assert(exists(select 1 from jsonb_array_elements(public.service_return_pickup_work(10)->'items') i
  where (i->>'pickupId')::uuid=(select id from private.claim_return_pickups where claim_id=pg_temp.rp_id('claim',11))), 'resumed request is sent');
 
--- 다시 끄면 크론은 아무것도 하지 않는다(이미 남은 기록은 그대로).
+-- 9. 요청이 나가는 사이 철회(주문 11): 접수 요청이 임대된 채 결과를 받기 전에 고객이 철회했다. 접수됐다고 알리지 않고 바로 취소로 돌린다.
+update public.order_cancellation_requests set stage='withdrawn',withdrawn_at=clock_timestamp() where id=pg_temp.rp_id('claim',11);
+select public.service_record_return_pickup_results(jsonb_build_array(jsonb_build_object('pickupId',p.id,'leaseToken',p.lease_token,'kind','request','outcome','requested',
+ 'trackingNumber','RPPICK0011'))) from private.claim_return_pickups p where p.claim_id=pg_temp.rp_id('claim',11);
+select pg_temp.rp_assert((select state='cancel_pending' and cancel_reason='withdrawn' and tracking_number='RPPICK0011' and lease_token is null and next_attempt_at<=clock_timestamp()
+  from private.claim_return_pickups where claim_id=pg_temp.rp_id('claim',11))
+ and not exists(select 1 from public.notifications where source_id=pg_temp.rp_id('claim',11)::text and title='방문 회수가 접수됐어요')
+ and exists(select 1 from private.claim_collection_events e where e.claim_id=pg_temp.rp_id('claim',11) and e.request#>>'{values,evidence}' like '자동 회수 접수 후 즉시 취소 · %')
+ and exists(select 1 from public.audit_log where action='system.order.claim_return_pickup_requested' and diff->>'claimId'=pg_temp.rp_id('claim',11)::text and diff->>'canceledAtOnce'='withdrawn'),
+ 'a request withdrawn while in flight is canceled at once without the accepted notice');
+select pg_temp.rp_assert(exists(select 1 from jsonb_array_elements(public.service_return_pickup_work(10)->'items') i where i->>'kind'='cancel' and i->>'trackingNumber'='RPPICK0011'),
+ 'the late-withdrawn pickup goes straight to cancellation');
+-- 시간 예산이 끝나 보내지 못한 취소(deferred)는 임대를 풀고 시도 횟수를 되돌린다.
+select pg_temp.rp_assert((select cancel_attempts=1 and lease_token is not null from private.claim_return_pickups where claim_id=pg_temp.rp_id('claim',11)), 'cancel was leased and counted');
+select public.service_record_return_pickup_results(jsonb_build_array(jsonb_build_object('pickupId',p.id,'leaseToken',p.lease_token,'kind','cancel','outcome','deferred')))
+ from private.claim_return_pickups p where p.claim_id=pg_temp.rp_id('claim',11);
+select pg_temp.rp_assert((select state='cancel_pending' and cancel_attempts=0 and lease_token is null and lease_until is null from private.claim_return_pickups where claim_id=pg_temp.rp_id('claim',11)),
+ 'a deferred cancel releases the lease and gives the attempt back');
+
+-- 10. 묶음 단위 안내·선물·회수 생략·시도 되돌리기. 주문 13은 김포(계약)·남양주(계약 없음) 두 배송 건, 주문 14는 선물, 주문 18·19는 회수 생략 하자 교환.
+select public.admin_decide_order_claim(pg_temp.rp_id('claim',n),'approve',null) from unnest(array[13,14,18,19])n;
+select pg_temp.rp_as(2);
+select pg_temp.rp_assert(public.get_my_order_return_pickup(pg_temp.rp_id('order',13))='{"pickupBundles":1,"directBundles":1}'::jsonb, 'mixed origins: one visit bundle and one direct bundle');
+select pg_temp.rp_as(4);
+select pg_temp.rp_assert(public.get_my_order_return_pickup(pg_temp.rp_id('order',14))='{"pickupBundles":1,"directBundles":0}'::jsonb, 'gift: the recipient reads the order summary');
+select pg_temp.rp_as(2);
+select pg_temp.rp_assert(public.get_my_order_return_pickup(pg_temp.rp_id('order',14))='{"pickupBundles":0,"directBundles":0}'::jsonb, 'gift: the sender reads nothing');
+select pg_temp.rp_as(1);
+select public.service_return_pickup_work(20) as mixed_work \gset
+select pg_temp.rp_assert((select count(*)=1 from private.claim_return_pickups where claim_id=pg_temp.rp_id('claim',13))
+ and (select origin_id=pg_temp.rp_id('origin',1) and attempts=1 and lease_token is not null from private.claim_return_pickups where claim_id=pg_temp.rp_id('claim',13)),
+ 'mixed order queues only the contracted origin bundle');
+-- 시간 예산이 끝나 보내지 못한 접수(deferred)는 임대를 풀고 이번 회차가 센 시도를 되돌린다. 다음 회차가 다시 잡는다.
+select public.service_record_return_pickup_results(jsonb_build_array(jsonb_build_object('pickupId',p.id,'leaseToken',p.lease_token,'kind','request','outcome','deferred')))
+ from private.claim_return_pickups p where p.claim_id=pg_temp.rp_id('claim',13);
+select pg_temp.rp_assert((select state='pending' and attempts=0 and lease_token is null from private.claim_return_pickups where claim_id=pg_temp.rp_id('claim',13)), 'deferred request gives the attempt back');
+select pg_temp.rp_assert(exists(select 1 from jsonb_array_elements(public.service_return_pickup_work(20)->'items') i
+  where (i->>'pickupId')::uuid=(select id from private.claim_return_pickups where claim_id=pg_temp.rp_id('claim',13))), 'the next tick picks the deferred request up again');
+select pg_temp.rp_assert((select attempts=1 and lease_token is not null from private.claim_return_pickups where claim_id=pg_temp.rp_id('claim',13)), 'and counts that attempt once');
+select public.service_record_return_pickup_results(jsonb_build_array(jsonb_build_object('pickupId',p.id,'leaseToken',p.lease_token,'kind','request','outcome','requested',
+ 'trackingNumber','RPPICK0013'))) from private.claim_return_pickups p where p.claim_id=pg_temp.rp_id('claim',13);
+select public.service_record_return_pickup_results(jsonb_build_array(jsonb_build_object('pickupId',p.id,'leaseToken',p.lease_token,'kind','request','outcome','requested',
+ 'trackingNumber','RPPICK0019'))) from private.claim_return_pickups p where p.claim_id=pg_temp.rp_id('claim',19);
+update private.claim_return_pickups set lease_token=null,lease_until=null,attempts=0 where claim_id=pg_temp.rp_id('claim',18);
+-- 회수 생략(하자 교환): 아직 보내지 않은 접수(주문 18)는 닫고, 접수된 수거(주문 19)는 취소를 맡긴다. 안내에서도 빠진다.
+insert into public.order_claim_collection_waivers(claim_id,shipment_id,order_id,reason,evidence_file_ids,waived_by,waived_at)
+ select pg_temp.rp_id('claim',n),pg_temp.rp_id('shipment',n),pg_temp.rp_id('order',n),'TEST 하자 교환 회수 생략 결정 사유',array[gen_random_uuid()],pg_temp.rp_id('user',1),clock_timestamp()
+ from unnest(array[18,19])n;
+select public.service_return_pickup_work(20);
+select pg_temp.rp_assert((select state='canceled' and cancel_reason='waived' from private.claim_return_pickups where claim_id=pg_temp.rp_id('claim',18))
+ and (select state='cancel_pending' and cancel_reason='waived' from private.claim_return_pickups where claim_id=pg_temp.rp_id('claim',19))
+ and not exists(select 1 from private.claim_return_pickups p where p.claim_id=pg_temp.rp_id('claim',18) and p.attempts>0),
+ 'waived shipments: unsent pickups close, requested pickups go to cancellation');
+select pg_temp.rp_as(2);
+select pg_temp.rp_assert(public.get_my_order_return_pickup(pg_temp.rp_id('order',18))='{"pickupBundles":0,"directBundles":0}'::jsonb, 'waived shipments need no sending');
+select pg_temp.rp_assert(public.get_my_order_return_pickup(pg_temp.rp_id('order',13))='{"pickupBundles":1,"directBundles":1}'::jsonb, 'mixed order after the pickup is accepted');
+select pg_temp.rp_as(1);
+
+-- 11. 껐다 다시 켜기. 출고지 계약을 끈 동안 승인한 반품(주문 16)과 전체 스위치를 끈 동안 승인한 반품(주문 17)은 다시 켜도 접수하지 않는다
+--     (그동안 고객이 착불 반송을 안내받았다). 다시 켠 뒤 승인한 반품(주문 20)은 접수한다.
+update private.return_pickup_origins set enabled=false where origin_id=pg_temp.rp_id('origin',1);
+select public.admin_decide_order_claim(pg_temp.rp_id('claim',16),'approve',null);
+update private.return_pickup_origins set enabled=true where origin_id=pg_temp.rp_id('origin',1);
 update private.return_pickup_settings set pickup_enabled=false where singleton;
+select public.admin_decide_order_claim(pg_temp.rp_id('claim',17),'approve',null);
+update private.return_pickup_settings set pickup_enabled=true where singleton;
+select pg_temp.rp_assert((select origin.enabled_at>(select max(created_at) from public.order_claim_collection_bundles where claim_id=pg_temp.rp_id('claim',16))
+   and settings.pickup_enabled_at>(select max(created_at) from public.order_claim_collection_bundles where claim_id=pg_temp.rp_id('claim',17))
+  from private.return_pickup_origins origin cross join private.return_pickup_settings settings where origin.origin_id=pg_temp.rp_id('origin',1) and settings.singleton),
+ 're-enabling stamps a new enabled time');
+select pg_temp.rp_assert((public.service_return_pickup_work(20)->>'queued')::integer=0, 'nothing is queued after re-enabling');
+select pg_temp.rp_assert(not exists(select 1 from private.claim_return_pickups where claim_id in(pg_temp.rp_id('claim',16),pg_temp.rp_id('claim',17))),
+ 'bundles approved while the contract or switch was off are not queued after re-enabling');
+select public.admin_decide_order_claim(pg_temp.rp_id('claim',20),'approve',null);
+select pg_temp.rp_assert((public.service_return_pickup_work(20)->>'queued')::integer=1, 'bundles approved after re-enabling are queued');
+select pg_temp.rp_assert(exists(select 1 from private.claim_return_pickups where claim_id=pg_temp.rp_id('claim',20)), 'and the row exists');
+
+-- 다시 끄면 크론은 아무것도 하지 않는다(이미 남은 기록은 그대로). 고객 안내: 접수된 수거(requested)는 방문 회수로 남고, 접수 대기(pending)는 아니다.
+update private.return_pickup_settings set pickup_enabled=false where singleton;
+select pg_temp.rp_as(2);
+select pg_temp.rp_assert(public.get_my_order_return_pickup(pg_temp.rp_id('order',13))='{"pickupBundles":1,"directBundles":1}'::jsonb, 'off: a requested pickup is still a visit pickup');
+select pg_temp.rp_assert(public.get_my_order_return_pickup(pg_temp.rp_id('order',20))='{"pickupBundles":0,"directBundles":1}'::jsonb, 'off: a pending pickup is no longer announced as a visit');
+select pg_temp.rp_as(4);
+select pg_temp.rp_assert(public.get_my_order_return_pickup(pg_temp.rp_id('order',14))='{"pickupBundles":0,"directBundles":1}'::jsonb, 'off: a pending gift pickup is not announced either');
+select pg_temp.rp_as(1);
 select pg_temp.rp_assert(public.service_return_pickup_work(10)='{"enabled":false}'::jsonb and not public.get_good_return_pickup('rp-good-1')
  and public.admin_claim_return_operations()#>>'{pickup,enabled}'='false', 'switch off stops the queue');
 

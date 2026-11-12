@@ -56,25 +56,25 @@ update public.goods set return_address_id=pg_temp.ri_id('place',1) where id='ri-
 create function pg_temp.ri_default(good text) returns uuid language sql stable as $$select id from public.goods_variants where good_id=good and is_default$$;
 
 -- 주문 1: 자동 회수 접수 송장. 주문 2: 운영자가 기록한 수거 송장. 주문 3: 주문번호 + 연락처. 주문 4: 반품지가 갈린 배송 건(굿즈 2개).
--- 주문 5: 승인 전 반품(묶음 없음). 모든 주문은 닷새 전에 만들었다.
+-- 주문 5: 승인 전 반품(묶음 없음). 주문 6: 회수 생략 결정이 있는 하자 교환. 모든 주문은 닷새 전에 만들었다.
 insert into public.orders(id,user_id,status,total,shipping_fee,address,shipped_at,delivered_at,created_at)
  select pg_temp.ri_id('order',n),pg_temp.ri_id('user',2),'delivered',5000,0,
   jsonb_build_object('recipientName','합성 반품 고객 '||n,'phone','010-7777-'||lpad(n::text,4,'0'),'postalCode','12345','address1','합성시 입고로 '||n,'address2','20'||n||'호'),
-  now()-interval '4 days',now()-interval '3 days',now()-interval '5 days' from generate_series(1,5)n;
+  now()-interval '4 days',now()-interval '3 days',now()-interval '5 days' from generate_series(1,6)n;
 create function pg_temp.ri_number(n integer) returns text language sql stable as $$select order_number from public.orders where id=pg_temp.ri_id('order',n)$$;
 insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
- select pg_temp.ri_id('item',n),pg_temp.ri_id('order',n),'ri-good-1',pg_temp.ri_default('ri-good-1'),1,1000,'TEST 반품 굿즈 '||n,'문구','ri-ip' from generate_series(1,5)n;
+ select pg_temp.ri_id('item',n),pg_temp.ri_id('order',n),'ri-good-1',pg_temp.ri_default('ri-good-1'),1,1000,'TEST 반품 굿즈 '||n,'문구','ri-ip' from generate_series(1,6)n;
 insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
  values(pg_temp.ri_id('item',40),pg_temp.ri_id('order',4),'ri-good-2',pg_temp.ri_default('ri-good-2'),2,1000,'TEST 서울 반품 굿즈','문구','ri-ip');
 insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,status,carrier,tracking_number,shipped_at,delivered_at)
  select pg_temp.ri_id('shipment',n),pg_temp.ri_id('order',n),pg_temp.ri_id('origin',1),'TEST 남양주',0,'{}','delivered','epost','RISALE'||lpad(n::text,6,'0'),now()-interval '4 days',now()-interval '3 days'
- from generate_series(1,5)n;
-insert into public.order_shipment_items(order_id,shipment_id,order_item_id,qty) select pg_temp.ri_id('order',n),pg_temp.ri_id('shipment',n),pg_temp.ri_id('item',n),1 from generate_series(1,5)n;
+ from generate_series(1,6)n;
+insert into public.order_shipment_items(order_id,shipment_id,order_item_id,qty) select pg_temp.ri_id('order',n),pg_temp.ri_id('shipment',n),pg_temp.ri_id('item',n),1 from generate_series(1,6)n;
 insert into public.order_shipment_items(order_id,shipment_id,order_item_id,qty) values(pg_temp.ri_id('order',4),pg_temp.ri_id('shipment',4),pg_temp.ri_id('item',40),2);
 insert into public.payments(id,user_id,purpose,ref_id,amount,status,idempotency_key,provider)
- select pg_temp.ri_id('payment',n),pg_temp.ri_id('user',2),'order',pg_temp.ri_id('order',n),5000,'paid','ri-pay-'||n,'toss' from generate_series(1,5)n;
+ select pg_temp.ri_id('payment',n),pg_temp.ri_id('user',2),'order',pg_temp.ri_id('order',n),5000,'paid','ri-pay-'||n,'toss' from generate_series(1,6)n;
 insert into public.order_cancellation_requests(id,order_id,requested_by,reason,claim_type,stage,reason_type)
- select pg_temp.ri_id('claim',n),pg_temp.ri_id('order',n),pg_temp.ri_id('user',2),'TEST 반품입고 '||n,case when n=2 then 'exchange' else 'return' end,'requested','change_of_mind' from generate_series(1,5)n;
+ select pg_temp.ri_id('claim',n),pg_temp.ri_id('order',n),pg_temp.ri_id('user',2),'TEST 반품입고 '||n,case when n in(2,6) then 'exchange' else 'return' end,'requested',case when n=6 then 'defect' else 'change_of_mind' end from generate_series(1,6)n;
 
 select set_config('request.jwt.claim.role','service_role',true);
 select pg_temp.ri_as(1);
@@ -172,6 +172,20 @@ select public.admin_confirm_claim_return_intake(jsonb_build_array(jsonb_build_ob
  'receivedOn',pg_temp.ri_today()::text,'bundleId',pg_temp.ri_row(2)->'bundleId')),repeat('e',64),pg_temp.ri_id('operation',3)) as overwrite \gset
 select pg_temp.ri_assert((:'overwrite'::jsonb->>'changed')::integer=1,'already collected bundle is reported as changed');
 select pg_temp.ri_assert((select received_on=pg_temp.ri_today()-1 from public.order_claim_collection_bundles where claim_id=pg_temp.ri_id('claim',1)), 'recorded intake is not overwritten');
+
+-- 회수 생략(하자 교환, ADR-0041): 회수 생략 배송 건의 줄은 입고 후보가 아니다 — 미리보기는 'waived', 확정해도 기록하지 않는다(T11a 넘김).
+select public.admin_decide_order_claim(pg_temp.ri_id('claim',6),'approve',null);
+insert into public.order_claim_collection_waivers(claim_id,shipment_id,order_id,reason,evidence_file_ids,waived_by,waived_at)
+ values(pg_temp.ri_id('claim',6),pg_temp.ri_id('shipment',6),pg_temp.ri_id('order',6),'TEST 하자 교환 회수 생략 결정 사유',array[gen_random_uuid()],pg_temp.ri_id('user',1),clock_timestamp());
+create temp table ri_waived_rows as select jsonb_build_array(jsonb_build_object('rowNumber',2,'trackingNumber',null,'orderNumber',pg_temp.ri_number(6),'phone','01077770006',
+ 'receivedOn',pg_temp.ri_today()::text)) value;
+select public.admin_preview_claim_return_intake((select value from ri_waived_rows)) as waived_preview \gset
+select pg_temp.ri_assert(:'waived_preview'::jsonb#>>'{rows,0,status}'='waived' and :'waived_preview'::jsonb#>>'{counts,waived}'='1', 'waived shipment is not an intake candidate');
+select public.admin_confirm_claim_return_intake(jsonb_build_array((select value from ri_waived_rows)->0 || jsonb_build_object('bundleId',:'waived_preview'::jsonb#>'{rows,0,bundleId}')),
+ repeat('f',64),pg_temp.ri_id('operation',4)) as waived_confirm \gset
+select pg_temp.ri_assert((:'waived_confirm'::jsonb->>'recorded')::integer=0 and (:'waived_confirm'::jsonb->>'changed')::integer=1
+ and (select bool_and(collected_at is null) from public.order_claim_collection_bundles where claim_id=pg_temp.ri_id('claim',6))
+ and (select stage<>'collected' from public.order_cancellation_requests where id=pg_temp.ri_id('claim',6)), 'waived file row records nothing');
 
 -- 확정 입력 형식: bundleId 키가 없거나 SHA-256 형식이 틀리면 거절한다.
 select pg_temp.ri_error(format('select public.admin_confirm_claim_return_intake(%L::jsonb,%L,%L)','[{"rowNumber":2}]',repeat('a',64),gen_random_uuid()),'invalid_return_intake_rows');

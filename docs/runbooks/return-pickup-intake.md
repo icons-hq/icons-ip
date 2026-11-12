@@ -3,7 +3,7 @@
 [ADR-0034](../adr/0034-return-pickup-intake.md)의 두 기능은 **DB 스위치를 끈 채 배포**한다(`20261113130000_return_pickup_queue`, `20261113130100_claim_return_intake_import`). 꺼져 있는 동안:
 
 - `/api/cron/return-pickups`(5분마다)는 스위치를 한 번 읽고 `{ ok: true, enabled: false }`로 끝난다. 큐를 만들지 않고 택배사를 부르지 않는다.
-- 반품·교환 목록 위 "자동 수거 실패"·"반품입고 회신 업로드" 칸, 클레임 상세의 "자동 회수 접수", 고객 회수 정보의 회수 송장이 보이지 않는다. 상품 상세는 "착불로 보내주세요", 주문 상세 수거중 안내는 지금 문장 그대로다.
+- 반품·교환 목록 위 "자동 수거 실패"·"반품입고 회신 업로드" 칸, 클레임 상세의 "자동 회수 접수", 고객 회수 정보의 회수 송장이 보이지 않는다. 상품 상세는 "착불로 보내주세요", 주문 상세 수거중 안내는 지금 문장 그대로다(켠 뒤 다시 끈 경우는 아래 '끄기').
 - 미리보기·확정·재접수 RPC는 `return_pickup_disabled`·`claim_return_intake_disabled`로 거절한다.
 
 두 기능은 따로 켠다. 자동 회수 접수는 출고지마다 회수 계약을 켠다.
@@ -14,7 +14,7 @@
 
 1. 출고지별 반품 회수 계약 — 김포(한진)·남양주(우체국) 각각의 반품 회수(방문 수거) 계약, API 키, 회수 운임. 원송장 필요 여부와 멱등 키(주문 번호 중복 거절)·취소 API 지원을 확인한다.
 2. 개인정보 처리위탁 — 택배사에 고객 이름·연락처·주소를 넘긴다. 처리위탁 계약(서원 G5 포함)과 개인정보처리방침의 수탁자·위탁 업무 고지(아래 초안). 처리방침 개정 공지는 법정 문서 절차를 따른다.
-3. 배송·반품 정책 문서(`/legal/shipping`)의 "이용자가 착불로 반송합니다" 문장 개정 — 방문 회수 출고지의 반송 방법. 법정 문서 개정·공지는 사람 게이트다(앱의 상품 상세 문장은 스위치가 바꾼다).
+3. 배송·반품 정책 문서(`/legal/shipping`)의 "이용자가 착불로 반송합니다" 문장 개정 — 방문 회수 출고지의 반송 방법. 법정 문서 개정·공지는 사람 게이트다(앱의 상품 상세 문장은 스위치가 바꾼다). **스위치를 켜는 PR의 체크리스트에 법정 문서 개정·공지 완료일을 넣고, 같은 날짜를 `pickup_evidence`(아래 SQL)에 적는다** — 켜는 migration이 순서를 강제하지는 않으므로 근거 문장으로 남긴다.
 4. 그 택배사의 어댑터 구현(`lib/fulfillment/pickup/adapter.server.ts`의 `PROVIDERS`). 받은 API 문서대로 `ReturnPickupRequest`(최소 필드)를 보내고, 응답에서 회수 송장·예약 번호만 꺼낸다. 이름·연락처·주소를 로그·오류 코드·결과에 남기지 않는다. 멱등 키를 택배사 주문 번호로 보내고, 취소는 접수 응답을 못 받았어도 멱등 키로 찾아 취소한다(없으면 `not_found`).
 
 ### 반품입고 파일 반영(QNA-034)
@@ -31,12 +31,14 @@
    ```sql
    begin;
    update private.return_pickup_settings
-      set pickup_enabled = true, provider = '<서비스 이름>', pickup_evidence = '<계약·처리위탁 고지 근거>', pickup_enabled_at = clock_timestamp()
+      set pickup_enabled = true, provider = '<서비스 이름>', pickup_evidence = '<계약·처리위탁 고지 근거> · 법정 문서(/legal/shipping) 개정·공지 완료일 <YYYY-MM-DD>', pickup_enabled_at = clock_timestamp()
     where singleton and not pickup_enabled;
    insert into private.return_pickup_origins(origin_id, carrier, evidence)
    values ('<출고지 id>', '<회수 계약 택배사 코드: hanjin|epost>', '<회수 계약 근거>');
    commit;
    ```
+
+   스위치(`pickup_enabled`)나 출고지 계약(`enabled`)을 껐다가 다시 켜면 DB 트리거가 켠 시각(`pickup_enabled_at`·`enabled_at`)을 그 순간으로 새로 적는다. 꺼져 있던 동안 승인돼 고객이 이미 착불 반송을 안내받은 회수 묶음은 다시 켜도 접수하지 않는다(이중 수거 방지).
 
    자동 재시도 상한·간격은 같은 표의 `max_attempts`(기본 5, 1~20)·`retry_minutes`(기본 30, 5~1440)다. 변경은 감사 기록 `system.return_pickup.settings_changed`에 남는다.
 4. 켠 뒤 반품 하나를 승인하고 5분 안에 상세 회수 칸에 "회수 접수됨 · 회수 송장"이 보이는지, 고객 주문 상세 회수 정보에도 같은 송장이 보이는지 확인한다. 크론 응답이 503이면:
@@ -73,7 +75,15 @@
    where p.state in ('pending','failed','requested','cancel_pending','cancel_failed') order by p.updated_at;
   ```
 
-- 출고지 하나만: `update private.return_pickup_origins set enabled = false where origin_id = '<출고지 id>';`
+  끈 뒤 고객 안내: 접수된(`requested`) 수거는 실제 접수라 주문 상세가 계속 방문 회수로 안내한다. 접수 대기(`pending`)·실패(`failed`) 건은 꺼지면 방문 회수로 세지 않아 주문 상세가 다시 착불 반송 문장("회수 주소로 반송")을 보인다. 이 건들은 크론이 더 보내지 않으므로, 끄기 전에 고객에게 연락해 회수 방법을 따로 정하거나 택배사에 수동으로 접수하고 그 결과를 클레임 상세 회수 정보에 기록한다(기록하면 이후에도 접수되지 않는다). 다시 켜면 `pending`·`failed` 행은 그대로 이어서 접수하므로, 수동으로 처리한 건은 다시 켜기 전에 위 조회로 그 행을 확인해 이중 수거가 되지 않게 한다(회수 정보를 기록하면 아직 보내지 않은 `pending` 행은 닫히지만 `failed` 행은 닫히지 않는다).
+
+- 출고지 하나만: `update private.return_pickup_origins set enabled = false where origin_id = '<출고지 id>';` 다시 켜기:
+
+  ```sql
+  update private.return_pickup_origins set enabled = true where origin_id = '<출고지 id>';
+  ```
+
+  켜는 순간 `enabled_at`이 새로 적혀(트리거) 꺼져 있던 동안 승인된 회수 묶음은 접수하지 않는다. 증거 문장을 바꾸려면 같은 문장에 `evidence = '<근거>'`를 더한다.
 - 반품입고 파일 반영: `update private.return_pickup_settings set intake_enabled = false where singleton;`
 
 ## 격리 스택 시험(가짜 어댑터)

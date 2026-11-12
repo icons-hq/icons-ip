@@ -52,6 +52,7 @@ import {
 } from '@/lib/orders';
 import { isOpenOrderClaimStage } from '@/lib/orders/claims';
 import { ORDER_CLAIM_TYPE_LABELS } from '@/lib/orders/claims';
+import { NO_RETURN_PICKUP, type OrderReturnPickup } from '@/lib/orders/return-pickup';
 import type { ClaimTypeHistory } from '@/lib/orders/claim-type-conversion';
 import type { ClaimReasonHistory } from '@/lib/orders/claim-reason-change';
 import {
@@ -218,7 +219,7 @@ export function OrderDetail({
   retry = null,
   refundDeduction = null,
   returnFeePolicy = null,
-  returnPickup = false,
+  returnPickup = NO_RETURN_PICKUP,
 }: {
   viewerId?: string;
   /** 결제 대기이거나 결제 없이 닫힌 장바구니·바로구매 카드 주문의 다시 결제 진입(QA1 S-D2-15). 아니면 null. */
@@ -242,7 +243,7 @@ export function OrderDetail({
   refundDeduction?: MyOrderRefundDeduction | null;
   returnFeePolicy?: ReturnFeeDeductionPolicy | null;
   /** 진행 중 반품·교환이 방문 회수(반품 자동 회수 접수, QNA-032)인지. 꺼져 있으면 false — 지금 반송 안내 그대로다. */
-  returnPickup?: boolean;
+  returnPickup?: OrderReturnPickup;
 }) {
   const date = formatOrderDate(order.createdAt);
   const at = now ?? new Date();

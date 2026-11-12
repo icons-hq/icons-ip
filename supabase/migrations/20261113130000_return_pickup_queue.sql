@@ -76,7 +76,12 @@ language plpgsql security definer set search_path = '' as $$
 begin
   if tg_op = 'DELETE' then raise check_violation using message = 'return_pickup_settings_required'; end if;
   if tg_when = 'BEFORE' then
-    if tg_table_name = 'return_pickup_settings' then new.revision := old.revision + 1; end if;
+    if tg_table_name = 'return_pickup_settings' then
+      new.revision := old.revision + 1;
+      -- 꺼졌다 다시 켜면 켠 시각을 새로 적는다 — 꺼져 있던 동안 승인돼 고객이 이미 착불로 보냈을 수 있는 묶음을 접수하지 않는다.
+      if new.pickup_enabled and not old.pickup_enabled then new.pickup_enabled_at := clock_timestamp(); end if;
+    elsif new.enabled and not old.enabled then new.enabled_at := clock_timestamp();
+    end if;
     new.updated_at := clock_timestamp();
     return new;
   end if;
@@ -348,7 +353,7 @@ create function public.service_record_return_pickup_results(p_results jsonb) ret
 language plpgsql security definer set search_path = '' as $$
 declare settings private.return_pickup_settings; result jsonb; pickup private.claim_return_pickups; tracking text; external text; code text;
   bundle public.order_claim_collection_bundles; label text; recorded integer := 0; requested integer := 0; failed integer := 0; canceled integer := 0;
-  cancel_failed integer := 0; stale integer := 0; invalid integer := 0; system_actor constant uuid := '00000000-0000-0000-0000-000000000000';
+  cancel_failed integer := 0; stale integer := 0; invalid integer := 0; deferred integer := 0; late text; system_actor constant uuid := '00000000-0000-0000-0000-000000000000';
 begin
   if jsonb_typeof(p_results) is distinct from 'array' or jsonb_array_length(p_results) > 100 then
     raise invalid_parameter_value using message = 'invalid_return_pickup_results'; end if;
@@ -360,6 +365,15 @@ begin
     select * into pickup from private.claim_return_pickups where id = (result->>'pickupId')::uuid for update;
     if not found or pickup.lease_token is distinct from (result->>'leaseToken')::uuid
       or (result->>'kind' = 'request') <> (pickup.state in ('pending','failed')) then stale := stale + 1; continue; end if;
+    -- 회차 시간 예산이 끝나 보내지 못한 일: 한 번도 보내지 않았으니 임대를 풀고 이번 회차가 센 시도를 되돌린다(다음 회차가 다시 잡는다).
+    if result->>'outcome' = 'deferred' then
+      update private.claim_return_pickups set lease_token = null, lease_until = null, updated_at = clock_timestamp(),
+        attempts = case when result->>'kind' = 'request' then greatest(attempts - 1, retry_base) else attempts end,
+        cancel_attempts = case when result->>'kind' = 'cancel' then greatest(cancel_attempts - 1, cancel_retry_base) else cancel_attempts end
+      where id = pickup.id;
+      deferred := deferred + 1;
+      continue;
+    end if;
     code := nullif(result->>'errorCode', '');
     if code is not null and code !~ '^[a-z0-9_]{1,64}$' then code := 'upstream_error'; end if;
     if result->>'kind' = 'request' then
@@ -371,18 +385,27 @@ begin
         where id = pickup.id;
         insert into private.claim_return_pickup_attempts(pickup_id, kind, outcome) values (pickup.id, 'request', 'requested');
         select * into bundle from public.order_claim_collection_bundles where id = pickup.bundle_id;
+        -- 요청이 나가는 사이 철회·거절됐거나 회수가 필요 없어졌으면 접수됐다고 알리지 않고 바로 취소로 돌린다('collected'는 정상 종료라 다음 회차가 닫는다).
+        late := private.claim_return_pickup_block(bundle);
+        if late is not null and late <> 'collected' then
+          update private.claim_return_pickups set state = 'cancel_pending', cancel_reason = late, next_attempt_at = clock_timestamp(),
+            cancel_retry_base = cancel_attempts, updated_at = clock_timestamp() where id = pickup.id;
+        end if;
         label := coalesce(nullif(bundle.return_name_snapshot, ''), '출고지 반품 주소');
         insert into private.claim_collection_events(id, claim_id, shipment_id, actor_id, session_id, request, result)
         values (gen_random_uuid(), pickup.claim_id, pickup.shipment_id, system_actor, system_actor,
           jsonb_build_object('claimId', pickup.claim_id, 'shipmentId', pickup.shipment_id, 'bundleId', pickup.bundle_id, 'source', 'return_pickup',
             'values', jsonb_build_object('method', 'seller_arranged', 'carrier', pickup.carrier, 'trackingNumber', tracking,
-              'evidence', '자동 회수 접수 · ' || label)),
+              'evidence', case when late is not null and late <> 'collected' then '자동 회수 접수 후 즉시 취소 · ' else '자동 회수 접수 · ' end || label)),
           jsonb_build_object('pickupId', pickup.id, 'state', 'requested'));
         insert into public.audit_log(actor_id, action, target, diff) values (null, 'system.order.claim_return_pickup_requested', 'order:' || pickup.order_id,
           jsonb_build_object('claimId', pickup.claim_id, 'shipmentId', pickup.shipment_id, 'bundleId', pickup.bundle_id, 'pickupId', pickup.id,
-            'provider', pickup.provider, 'carrier', pickup.carrier, 'trackingNumber', tracking, 'attempts', pickup.attempts));
-        perform private.notify_order_claim(pickup.claim_id, 'return_pickup_requested', '방문 회수가 접수됐어요',
-          '택배 기사가 방문해 굿즈를 회수합니다. 주문 상세의 회수 정보에서 회수 송장을 확인해주세요.');
+            'provider', pickup.provider, 'carrier', pickup.carrier, 'trackingNumber', tracking, 'attempts', pickup.attempts,
+            'canceledAtOnce', case when late is not null and late <> 'collected' then late else null end));
+        if late is null then
+          perform private.notify_order_claim(pickup.claim_id, 'return_pickup_requested', '방문 회수가 접수됐어요',
+            '택배 기사가 방문해 굿즈를 회수합니다. 주문 상세의 회수 정보에서 회수 송장을 확인해주세요.');
+        end if;
         requested := requested + 1;
       else
         update private.claim_return_pickups set state = 'failed',
@@ -423,7 +446,7 @@ begin
     recorded := recorded + 1;
   end loop;
   return jsonb_build_object('recorded', recorded, 'requested', requested, 'failed', failed, 'canceled', canceled, 'cancelFailed', cancel_failed,
-    'stale', stale, 'invalid', invalid);
+    'stale', stale, 'invalid', invalid, 'deferred', deferred);
 end $$;
 revoke all on function public.service_record_return_pickup_results(jsonb) from public, anon, authenticated, service_role;
 grant execute on function public.service_record_return_pickup_results(jsonb) to service_role;
@@ -495,15 +518,27 @@ $$;
 revoke all on function public.get_good_return_pickup(text) from public, anon, authenticated, service_role;
 grant execute on function public.get_good_return_pickup(text) to anon, authenticated;
 
--- 구매자 본인 주문의 진행 중 반품·교환이 방문 회수인가: 접수 큐에 (취소되지 않은) 행이 있거나, 켜져 있고 곧 접수될 묶음이 있으면 true.
-create function public.get_my_order_return_pickup(p_order_id uuid) returns boolean
-language sql stable security definer set search_path = '' as $$
-  select exists(select 1 from public.orders o join public.order_cancellation_requests c on c.order_id = o.id
-    where o.id = p_order_id and o.user_id = (select auth.uid()) and c.claim_type in ('return','exchange')
+-- 구매자 본인 주문의 진행 중 반품·교환 회수 묶음이 몇 개는 방문 회수이고 몇 개는 고객이 직접 보내야 하는지(묶음 = 배송 건 × 반품지).
+-- 방문 회수 묶음 = 접수됐거나(requested) 접수될 예정인(pending·failed는 스위치가 켜져 있을 때만, 또는 곧 큐에 들어갈) 묶음.
+-- 직접 발송 묶음 = 아직 회수가 끝나지 않았고 회수 생략·고객 발송 기록도 없는데 방문 회수가 아닌 묶음(회수 계약이 없는 출고지 등).
+-- 선물 주문은 read_my_claim_return_bundles와 같이 받는 분이 읽고 보낸 분은 둘 다 0이다. 키는 pickupBundles·directBundles 둘뿐이다.
+create function public.get_my_order_return_pickup(p_order_id uuid) returns jsonb
+language plpgsql stable security definer set search_path = '' as $$
+declare actor uuid := (select auth.uid()); viewer text; enabled boolean; pickup_count integer; direct_count integer;
+begin
+  select case when g.recipient_id = actor then 'recipient' when g.sender_id = actor then 'sender' when g.id is null and o.user_id = actor then 'buyer' end
+  into viewer from public.orders o left join private.gift_intents g on g.order_id = o.id where o.id = p_order_id;
+  if viewer is null or viewer = 'sender' then return jsonb_build_object('pickupBundles', 0, 'directBundles', 0); end if;
+  select coalesce((select settings.pickup_enabled from private.return_pickup_settings settings where settings.singleton), false) into enabled;
+  select count(*) filter (where x.pickup), count(*) filter (where not x.pickup) into pickup_count, direct_count
+  from (select exists(select 1 from private.claim_return_pickups p where p.bundle_id = b.id
+        and (p.state = 'requested' or (enabled and p.state in ('pending','failed')))) or private.claim_return_pickup_eligible(b) as pickup
+    from public.order_cancellation_requests c join public.order_claim_collection_bundles b on b.claim_id = c.id
+    where c.order_id = p_order_id and c.claim_type in ('return','exchange')
       and (case when c.stage = 'on_hold' then c.held_from else c.stage end) = 'collecting'
-      and (exists(select 1 from private.claim_return_pickups p where p.claim_id = c.id and p.state in ('pending','failed','requested'))
-        or exists(select 1 from public.order_claim_collection_bundles b where b.claim_id = c.id and private.claim_return_pickup_eligible(b))));
-$$;
+      and private.claim_return_pickup_block(b) is null) x;
+  return jsonb_build_object('pickupBundles', coalesce(pickup_count, 0), 'directBundles', coalesce(direct_count, 0));
+end $$;
 revoke all on function public.get_my_order_return_pickup(uuid) from public, anon, authenticated, service_role;
 grant execute on function public.get_my_order_return_pickup(uuid) to authenticated;
 

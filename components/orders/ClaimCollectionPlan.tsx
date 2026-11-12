@@ -34,6 +34,10 @@ export function ClaimReturnBundles({ row, operator }: { row: ClaimCollectionRow;
     </li>)}</ul> : null}
   </>;
 }
+/** 행 상태 문구. 자동 회수 접수(QNA-032)로 방문 회수가 접수된 묶음이 있으면 '접수 후 수거 협의' 대신 '방문 회수 접수됨'이다. */
+export function collectionRowMethodLabel(row: ClaimCollectionRow): string {
+  return row.method === 'not_requested' && row.returnBundles?.some(bundle => bundle.pickup) ? '방문 회수 접수됨' : COLLECTION_METHODS[row.method];
+}
 export function ClaimCollectionPlan(props: Props) {
   return <ClaimContactSession actorId={props.actorId}>{(identity, scope) => <CollectionPanel key={`${props.claimId}:${identity.sessionId}`} {...props} identity={identity} scope={scope} />}</ClaimContactSession>;
 }
@@ -80,7 +84,7 @@ function CollectionPanel({ claimId, operator = false, carriers = [], shipmentLab
     {/* 고객에게는 출고지 이름 대신 같은 화면 배송 건 머리의 이름(택배사·R26)으로 부른다(10/14 회의 S7 · m27 CUST-2).
         회수 문서에는 출고 택배사가 없어 주문 상세가 이름표를 넘긴다. 이름표가 없으면 '배송 묶음 N'이다. */}
     {document?.rows.map((row, index, rows) => <div className="claim-collection-plan__row" key={row.shipmentId}>
-      <strong>{operator ? row.originName : claimCollectionRowLabel(row.shipmentId, index, rows.length, shipmentLabels)}</strong><p>{COLLECTION_METHODS[row.method]} · {row.collectedAt ? `회수 확인 ${formatOrderDateTime(row.collectedAt)}` : '회수 확인 전'}</p>
+      <strong>{operator ? row.originName : claimCollectionRowLabel(row.shipmentId, index, rows.length, shipmentLabels)}</strong><p>{collectionRowMethodLabel(row)} · {row.collectedAt ? `회수 확인 ${formatOrderDateTime(row.collectedAt)}` : '회수 확인 전'}</p>
       {row.carrier ? <p>{row.carrierLabel ?? carriers.find(c => c.code === row.carrier)?.label ?? row.carrier} · {row.trackingNumber}</p> : null}
       <ClaimReturnBundles row={row} operator={operator} />
       {operator && row.evidence ? <p>{row.evidence}</p> : null}
