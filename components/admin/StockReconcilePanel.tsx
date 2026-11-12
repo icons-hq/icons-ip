@@ -44,6 +44,7 @@ import {
   type StockReconcileConflict,
   type StockReconcileDocument,
   type StockReconcileItem,
+  type StockReconcilePlan,
 } from '@/lib/admin/stock-reconcile';
 import { formatOrderDateTime } from '@/lib/orders';
 
@@ -231,6 +232,8 @@ export function StockReconcilePanel({ origins, initialSnapshot, now }: {
   const [reason, setReason] = useState(initialSnapshot ? defaultStockReconcileReason(initialSnapshot.sourceLabel) : '');
   const [showSame, setShowSame] = useState(false);
   const [conflicts, setConflicts] = useState<StockReconcileConflict[]>([]);
+  /* 지금 미리보기를 만든 화면의 파일·열 짝짓기. 반영이 거절됐을 때 같은 파일로만 다시 미리보기한다(기록에서 연 미리보기·다른 파일은 다시 올린다). */
+  const [previewedPlan, setPreviewedPlan] = useState<StockReconcilePlan | null>(null);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [reading, startReading] = useTransition();
@@ -243,7 +246,7 @@ export function StockReconcilePanel({ origins, initialSnapshot, now }: {
     setSyncedId(incomingId);
     if (initialSnapshot && initialSnapshot.id !== snapshot?.id) {
       setSnapshot(initialSnapshot); setReason(defaultStockReconcileReason(initialSnapshot.sourceLabel)); setShowSame(false);
-      setSource(null); setHeaderIndex(undefined); setMapping(undefined); setConflicts([]); setError(''); setMessage('');
+      setSource(null); setHeaderIndex(undefined); setMapping(undefined); setConflicts([]); setError(''); setMessage(''); setPreviewedPlan(null);
     }
   }
 
@@ -276,25 +279,29 @@ export function StockReconcilePanel({ origins, initialSnapshot, now }: {
   };
   const reset = () => {
     setSource(null); setHeaderIndex(undefined); setMapping(undefined); setPasted(''); setError(''); setMessage(''); setConflicts([]);
-    setSnapshot(null); setReason(''); clearFile();
+    setSnapshot(null); setReason(''); setPreviewedPlan(null); clearFile();
     router.replace(STOCK_RECONCILE_PATH, { scroll: false });
   };
 
-  /** 미리보기. 반영이 거절된 뒤의 다시 미리보기(again)는 같은 파일·기준 시각으로 지금 값을 다시 재고, 입력한 반영 사유를 그대로 둔다. */
+  /**
+   * 미리보기. 반영이 거절된 뒤의 다시 미리보기(again)는 거절된 미리보기와 같은 출고지·기준 시각과 화면의 같은 파일로 지금 값을 다시 재고,
+   * 입력한 반영 사유를 그대로 둔다.
+   */
   const preview = (again = false) => {
     if (!source || !plan || plan.blocking) return;
-    const iso = kstDateTimeLocalToIso(asOf);
+    const iso = again && snapshot ? snapshot.asOf : kstDateTimeLocalToIso(asOf);
+    const origin = again && snapshot ? snapshot.originId : originId || null;
     const asOfError = stockAsOfError(iso);
     if (asOfError) { setError(asOfError); return; }
     setError(''); setMessage(''); setConflicts([]);
     startWorking(async () => {
       let result: Awaited<ReturnType<typeof previewStockReconcileAction>>;
       try {
-        result = await previewStockReconcileAction({ originId: originId || null, asOf: iso!, sourceLabel: source.label,
+        result = await previewStockReconcileAction({ originId: origin, asOf: iso!, sourceLabel: source.label,
           rows: plan.rows.map(stockReconcileRowPayload) });
       } catch { result = { ok: false, error: '미리보기 요청이 끊겼습니다. 다시 미리보기 해주세요.' }; }
       if (!result.ok) { setError(result.error); return; }
-      setSnapshot(result.snapshot); setShowSame(false);
+      setSnapshot(result.snapshot); setShowSame(false); setPreviewedPlan(plan);
       if (again) setMessage('지금 재고수량·출고 대기로 다시 미리보기했습니다. 바뀐 값을 확인한 뒤 반영해주세요.');
       else setReason(defaultStockReconcileReason(result.snapshot.sourceLabel));
       router.replace(`${STOCK_RECONCILE_PATH}?snapshot=${result.snapshot.id}`, { scroll: false });
@@ -434,7 +441,7 @@ export function StockReconcilePanel({ origins, initialSnapshot, now }: {
       </header>
       <StockReconcileResult snapshot={snapshot} showSame={showSame} onToggleSame={() => setShowSame((value) => !value)} />
       {conflicts.length ? <StockReconcileConflictNotice conflicts={conflicts} busy={busy} onRestart={reset}
-        onRepreview={source && plan && !plan.blocking ? () => preview(true) : undefined} /> : null}
+        onRepreview={source && plan && !plan.blocking && plan === previewedPlan ? () => preview(true) : undefined} /> : null}
       {!snapshot.appliedAt ? expired ? <AdminNotice tone="warning">24시간이 지난 미리보기는 반영할 수 없습니다. 파일을 다시 올려 미리보기 해주세요.</AdminNotice>
         : <div className="flex flex-col gap-3 print:hidden">
           <div className="flex max-w-[35rem] min-w-0 flex-col gap-2">
