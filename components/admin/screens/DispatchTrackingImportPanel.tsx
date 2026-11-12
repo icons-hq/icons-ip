@@ -55,7 +55,7 @@ export function DispatchTrackingImportPanel({ carriers, originId, shippingHref =
         시트 이름과 열 순서는 바꿔도 되고, 나머지 열은 그대로 두거나 지워도 됩니다. 이전에 내려받은 파일도 그대로 올릴 수 있습니다.
         한 번에 {TRACKING_IMPORT_ROW_LIMIT.toLocaleString('ko-KR')}건까지 처리합니다.
       </p>
-      <p className={NOTE}>상품주문번호는 ICONS 파일의 전체 번호를 유지해주세요. 택배 건만 등록할 수 있으며 퀵·방문수령·직접전달은 주문 상세에서 처리합니다. CSV를 Excel에서 열어 저장하면 16자리 번호가 바뀌어 등록되지 않으니, Excel로 작업할 때는 XLSX를 받아 주세요.</p>
+      <p className={NOTE}>상품주문번호는 ICONS 파일의 전체 번호를 유지해주세요. 택배 건만 등록할 수 있으며 퀵·방문수령·직접전달은 주문 상세에서 처리합니다. CSV를 Excel에서 열어 저장하면 긴 번호가 바뀌어 등록되지 않으니, Excel로 작업할 때는 XLSX를 받아 주세요.</p>
       <p className={NOTE}>기존 <strong className={STRONG}>배송건번호 · 택배사코드 · 운송장번호</strong> 세 칸 XLSX·CSV·붙여넣기도 지원합니다. 단일 배송 주문은 주문번호도 사용할 수 있습니다.</p>
       <p className={NOTE}>
         택배사코드: {activeCodes.length

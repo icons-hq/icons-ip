@@ -24,7 +24,8 @@ from generate_series(1,7) n;
 select string_agg(order_number,',' order by id) as numbers from public.orders where id::text like '51120000-0000-4000-8000-%' \gset
 select split_part(:'numbers',',',1) as number1, split_part(:'numbers',',',2) as number2, split_part(:'numbers',',',3) as number3,
  split_part(:'numbers',',',4) as number4, split_part(:'numbers',',',5) as number5, split_part(:'numbers',',',6) as number6 \gset
-select 1/case when :'number1' ~ '^[0-9]{16}$' and :'number1'<>:'number2' then 1 else 0 end as assert_orders_have_display_numbers;
+-- 주문 시각 전환(1014-116) 전후 어느 형식이든 주문번호 판정은 private.is_commerce_number 한 곳을 따른다(16·20자리 모두).
+select 1/case when private.is_commerce_number(:'number1',1::smallint) and :'number1'<>:'number2' then 1 else 0 end as assert_orders_have_display_numbers;
 
 -- 해석 함수: UUID는 그대로, 숫자는 orders.order_number와 정확히 같을 때만 주문 id다. 접두·끝자리로 넘겨짚지 않는다.
 select 1/case when private.warehouse_reply_order_id('51120000-0000-4000-8000-000000000001')='51120000-0000-4000-8000-000000000001'
