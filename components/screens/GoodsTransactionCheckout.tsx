@@ -20,7 +20,7 @@ import type { CatalogSnapshot } from '@/lib/catalog';
 import { bankTransferMethodNote, checkoutAddressErrors, type CheckoutAddress, type CheckoutPaymentMethod } from '@/lib/checkout';
 import { orderCompleteHref } from '@/lib/routes';
 import { checkoutDraftReturnHref, directCheckoutCopy, type CheckoutDraft } from '@/lib/checkout-draft';
-import { transactionIssueStockGoodIds, transactionIssuesMayBeBlockedByPendingOrder } from '@/lib/checkout-selection';
+import { pendingOrderCausesFromTransactionIssues } from '@/lib/checkout-selection';
 import { CheckoutPendingOrderRelease } from './CheckoutPendingOrderRelease';
 import { cartTransactionRequestTooLarge, parseCartTransactionInput, parseCartTransactionRecovery, transactionIssueCopy, type CartTransactionRecovery, type CheckoutDeliveryChoices } from '@/lib/checkout-transaction';
 import { krw } from '@/lib/format';
@@ -247,11 +247,13 @@ export function GoodsTransactionCheckout({ accountId, catalog, addressPrefill, p
         {quotes.loading && <p role="status">할인과 배송비를 확인하고 있어요.</p>}
         {!input && !recovery && <p role={tooLarge ? 'alert' : undefined}>{tooLarge ? cartTransactionErrorCopy.order_too_large : '수령 방식과 필요한 배송지·적립금 입력을 완료하면 최종 금액을 표시합니다.'}</p>}
         {quote?.state === 'blocked' && !recovery && <div role="alert">{quote.issues.map((issue, index) => <p key={`${issue.code}:${issue.goodId}:${index}`}>{issue.goodId ? `${names[issue.goodId] ?? '굿즈'}: ` : ''}{copyFor(transactionIssueCopy[issue.code])}</p>)}</div>}
-        {/* 결제 대기 주문이 쿠폰·구매 한도·재고를 잡고 있을 수 있다 — 실제로 찾았을 때만 알리고 고객이 확인했을 때만 닫는다(ADR-0030). */}
+        {/* 결제 대기 주문이 그 굿즈의 구매 한도·재고나 고른 쿠폰을 잡고 있을 수 있다 — 그 막힘의 원인 주문을 실제로 찾았을 때만
+            알리고 고객이 확인했을 때만 닫는다(ADR-0030). */}
         {!recovery && <CheckoutPendingOrderRelease
-          holdsBenefits={quote?.state === 'blocked' && transactionIssuesMayBeBlockedByPendingOrder(quote.issues)}
+          causes={quote?.state === 'blocked'
+            ? pendingOrderCausesFromTransactionIssues(quote.issues, input?.userCouponIds ?? (input?.userCouponId ? [input.userCouponId] : []))
+            : {}}
           onReleased={() => { quotes.refresh(); router.refresh(); }}
-          stockGoodIds={quote?.state === 'blocked' ? transactionIssueStockGoodIds(quote.issues) : []}
         />}
         {quotes.result && !quotes.result.ok && !recovery && <p role="alert">{copyFor(cartTransactionErrorCopy[quotes.result.error])}</p>}
         {quotes.result && !quotes.result.ok && quotes.result.error === 'cart_changed' && !recovery && !direct && <button type="button" onClick={() => void cart.refresh()}>장바구니 새로 불러오기</button>}

@@ -21,9 +21,11 @@ type Element = ReactElement<Record<string, unknown>>;
 const all = (node: ReactNode): Element[] => Children.toArray(node).flatMap((child) => (isValidElement<Record<string, unknown>>(child) ? [child, ...all(child.props.children as ReactNode)] : []));
 const ORDER = '00000000-0000-4000-8000-0000000000e1';
 const OTHER = '00000000-0000-4000-8000-0000000000e2';
-const unpaid = { id: ORDER, orderNumber: '2026111210000001', total: 23000, itemName: '굿즈 A', itemCount: 3, goodIds: ['g1', 'g9'], releasable: true };
+const VARIANT = '00000000-0000-4000-8000-0000000000aa';
+const unpaid = { id: ORDER, orderNumber: '2026111210000001', total: 23000, itemName: '굿즈 A', itemCount: 3, goodIds: ['g1', 'g9'], variantIds: [VARIANT],
+  userCouponIds: [], releasable: true };
 const onReleased = vi.fn();
-let props: Omit<CheckoutPendingOrderReleaseProps, 'onReleased'> = { holdsBenefits: true };
+let props: Omit<CheckoutPendingOrderReleaseProps, 'onReleased'> = { causes: { limitGoodIds: ['g1'] } };
 const render = () => { hooks.si = 0; hooks.ri = 0; hooks.effects = []; return CheckoutPendingOrderRelease({ onReleased, ...props }); };
 const html = () => renderToStaticMarkup(<>{render()}</>);
 const flush = async () => { for (let i = 0; i < 4; i++) await Promise.resolve(); };
@@ -34,7 +36,7 @@ const click = async (label: string) => { await (button(label).props.onClick as (
 beforeEach(() => {
   hooks.states = [];
   hooks.refs = [];
-  props = { holdsBenefits: true };
+  props = { causes: { limitGoodIds: ['g1'] } };
   actions.load.mockReset();
   actions.load.mockResolvedValue({ ok: true, orders: [unpaid] });
   actions.release.mockReset();
@@ -55,7 +57,7 @@ describe('CheckoutPendingOrderRelease', () => {
     /* 막힘이 없으면 읽지도 않는다. */
     hooks.states = [];
     actions.load.mockClear();
-    props = { holdsBenefits: false, stockGoodIds: [] };
+    props = { causes: {} };
     await load();
     expect(actions.load).not.toHaveBeenCalled();
     expect(actions.release).not.toHaveBeenCalled();
@@ -65,7 +67,7 @@ describe('CheckoutPendingOrderRelease', () => {
     await load();
     const markup = html();
     expect(markup).toContain('<div class="checkout-pending-release">');
-    expect(markup).toContain('결제 대기 주문 1건이 쿠폰·첫구매 혜택·구매 한도를 잡고 있을 수 있어요.');
+    expect(markup).toContain('결제 대기 주문 1건이 이 굿즈의 구매 한도를 잡고 있어요.');
     expect(markup).toContain(`<a class="checkout-pending-release__link" href="/orders/${ORDER}">결제 대기 주문 보기</a>`);
     expect(markup).toContain('<button class="wc-btn" type="button">결제 대기 주문 취소하고 계속</button>');
     /* 화면을 여는 것만으로는 아무것도 닫지 않는다. */
@@ -86,6 +88,19 @@ describe('CheckoutPendingOrderRelease', () => {
     /* 돌아가기는 확인 단계만 닫는다. */
     await click('돌아가기');
     expect(html()).not.toContain('role="alertdialog"');
+    expect(actions.release).not.toHaveBeenCalled();
+  });
+
+  /* 전체 비우기 확인과 같게 Esc로 닫는다 — 아무것도 닫지 않고 연 버튼으로 포커스를 돌려준다(포커스 효과). */
+  it('확인 단계는 Esc로 닫힌다', async () => {
+    await load();
+    await click('결제 대기 주문 취소하고 계속');
+    const dialog = all(render()).find((node) => node.props.role === 'alertdialog')!;
+    const stopPropagation = vi.fn();
+    (dialog.props.onKeyDown as (event: { key: string; stopPropagation(): void }) => void)({ key: 'Escape', stopPropagation });
+    expect(stopPropagation).toHaveBeenCalled();
+    expect(html()).not.toContain('role="alertdialog"');
+    expect(html()).toContain('결제 대기 주문 취소하고 계속');
     expect(actions.release).not.toHaveBeenCalled();
   });
 
@@ -120,13 +135,39 @@ describe('CheckoutPendingOrderRelease', () => {
   });
 
   it('재고 부족은 그 굿즈를 담은 결제 대기 주문만 원인으로 알린다', async () => {
-    props = { holdsBenefits: false, stockGoodIds: ['g5'] };
+    props = { causes: { stockGoodIds: ['g5'] } };
     await load();
     expect(html()).toBe('');
     hooks.states = [];
-    props = { holdsBenefits: false, stockGoodIds: ['g9'] };
+    props = { causes: { stockGoodIds: ['g9'] } };
     await load();
     expect(html()).toContain('결제 대기 주문 1건이 이 굿즈의 재고를 잡고 있어요.');
+  });
+
+  /* t12b(UI 재리뷰): g4의 회원 누적 한도로 막혔는데 g4와 무관한 g7 결제 대기 주문의 취소를 권했다(취소해도 g4는 그대로 막힌다). */
+  it('회원 누적 한도로 막힌 굿즈를 담지 않은 결제 대기 주문은 권하지 않는다 — 사유만 남는다', async () => {
+    actions.load.mockResolvedValue({ ok: true, orders: [{ ...unpaid, goodIds: ['g7'], variantIds: [] }] });
+    props = { causes: { limitGoodIds: ['g4'] } };
+    await load();
+    expect(html()).toBe('');
+    expect(actions.release).not.toHaveBeenCalled();
+  });
+
+  it('쿠폰 사용 처리는 그 쿠폰을 쓴 결제 대기 주문만, 첫구매 예약은 모든 결제 대기 주문을 원인으로 본다', async () => {
+    const coupon = '00000000-0000-4000-8000-0000000000c1';
+    actions.load.mockResolvedValue({ ok: true, orders: [{ ...unpaid, userCouponIds: [] }] });
+    props = { causes: { userCouponIds: [coupon] } };
+    await load();
+    expect(html()).toBe('');
+    hooks.states = [];
+    actions.load.mockResolvedValue({ ok: true, orders: [{ ...unpaid, userCouponIds: [coupon] }] });
+    await load();
+    expect(html()).toContain('결제 대기 주문 1건이 이 쿠폰을 쓰고 있어요.');
+    hooks.states = [];
+    actions.load.mockResolvedValue({ ok: true, orders: [{ ...unpaid, userCouponIds: [] }] });
+    props = { causes: { firstPurchase: true } };
+    await load();
+    expect(html()).toContain('결제 대기 주문 1건이 첫구매 혜택을 잡고 있을 수 있어요.');
   });
 
   it('결제를 확인하는 주문만 있으면 취소 버튼 없이 그 주문으로 잇는다', async () => {

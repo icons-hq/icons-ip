@@ -481,7 +481,8 @@ describe('release unpaid orders', () => {
   });
 
   it('확인창에 보일 결제 대기 주문을 로그인 사용자 것만 읽는다', async () => {
-    const row = { id: ORDER.toUpperCase(), orderNumber: '2026111210000001', total: 23000, itemName: '굿즈 A', itemCount: 2, goodIds: ['g1', 'g2'], releasable: true };
+    const row = { id: ORDER.toUpperCase(), orderNumber: '2026111210000001', total: 23000, itemName: '굿즈 A', itemCount: 2, goodIds: ['g1', 'g2'],
+      variantIds: ['00000000-0000-4000-8000-0000000000aa'], userCouponIds: [], releasable: true };
     mocks.serviceRpc.mockResolvedValue({ data: [row], error: null });
     await expect(loadUnpaidCheckoutOrdersAction()).resolves.toEqual({ ok: true, orders: [{ ...row, id: ORDER }] });
     expect(mocks.serviceRpc).toHaveBeenLastCalledWith('service_list_unpaid_checkout_orders', { p_user_id: 'user-1' });

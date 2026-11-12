@@ -17,7 +17,7 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
 }));
 vi.mock('@/app/checkout/reorder-actions', () => ({ restoreCanceledOrderToCartAction: vi.fn() }));
-vi.mock('@/app/checkout/draft-actions', () => ({ createCartRetryDraftAction: vi.fn(), createDirectRetryDraftAction: vi.fn() }));
+vi.mock('@/app/checkout/draft-actions', () => ({ createCartRetryDraftAction: vi.fn(), createDirectRetryDraftAction: vi.fn(), closeDirectOrderAction: vi.fn() }));
 /* 직전 목록 링크(목적지·문구 판정)는 ListingReturn.client.test 가 본다 — 여기서는 닫힌 주문이 그 링크를 쓰는지만 표식으로 본다. */
 vi.mock('@/components/shell/ListingReturn', () => ({
   ListingReturnLink: ({ children, className }: { children?: ReactNode; className?: string }) => (
@@ -429,7 +429,9 @@ describe('CheckoutOrder 바로구매 다시 구매(ADR-0030)', () => {
       <CheckoutOrder order={{ ...order, directGoodId: 'g2', paymentAttempt: { state: 'declined', expiresAt: '2099-08-07T06:10:00.000Z', provider: 'toss' } }} />,
     );
     expect(html).toContain('<button class="btn btn-holo" type="button">다시 구매하기</button>');
-    expect(html).toContain('<a class="checkout-retry-secondary" href="/shop/g2">굿즈 상세에서 다시 고르기</a>');
+    /* 결제 대기 중인 주문은 보조 동작도 그 주문을 먼저 닫는다 — 마지막 재고를 잡은 본인 주문 때문에 상세가 품절로 보이지 않게. */
+    expect(html).toContain('<button class="checkout-retry-secondary" type="button">이 주문 닫고 굿즈 상세에서 다시 고르기</button>');
+    expect(html).not.toContain('href="/shop/g2"');
     expect(html).toContain('같은 구성으로 주문서가 열려요');
     expect(html).not.toContain('다시 결제하기');
     expect(html).not.toContain('이 주문 취소하고 다시 주문하기');
@@ -439,7 +441,8 @@ describe('CheckoutOrder 바로구매 다시 구매(ADR-0030)', () => {
     const html = renderToStaticMarkup(<CheckoutOrder order={{ ...order, directGoodId: 'g2', status: 'canceled', expiresAt: null }} />);
     expect(html).toContain('같은 구성으로 다시 구매할 수 있어요');
     expect(html).toContain('<button class="btn btn-holo" type="button">다시 구매하기</button>');
-    expect(html).toContain('href="/shop/g2"');
+    /* 이미 결제 없이 취소된 주문은 닫을 것이 없다 — 보조 링크로 바로 굿즈 상세에 간다. */
+    expect(html).toContain('<a class="checkout-retry-secondary" href="/shop/g2">굿즈 상세에서 다시 고르기</a>');
     expect(html).not.toContain('같은 굿즈 다시 담기');
   });
 });

@@ -36,6 +36,15 @@
   text-underline-offset: 3px;
 }
 
+/* 바로구매 '이 주문 닫고 굿즈 상세에서 다시 고르기'는 주문을 닫는 버튼이지만 보조 동작이라 밑줄 글 모양을 링크와 같게 쓴다. */
+button.checkout-retry-secondary {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  cursor: pointer;
+}
+
 .checkout-pending-release .wc-btn {
   width: auto;
   height: 44px;

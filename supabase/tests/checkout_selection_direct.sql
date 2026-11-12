@@ -471,6 +471,8 @@ select 1/case when jsonb_array_length(:'unpaid_list'::jsonb)=1
  and (:'unpaid_list'::jsonb->0->>'releasable')::boolean
  and (:'unpaid_list'::jsonb->0->>'itemCount')::integer=1
  and :'unpaid_list'::jsonb->0->'goodIds'='["d2-a"]'::jsonb
+ and :'unpaid_list'::jsonb->0->'variantIds'=jsonb_build_array(:'variant_a')
+ and :'unpaid_list'::jsonb->0->'userCouponIds'='[]'::jsonb
  and :'unpaid_list'::jsonb->0->>'orderNumber'=(select order_number from public.orders where id=:'direct_order_4')
  and :'unpaid_list'::jsonb->0->>'itemName'=(select good_name_snapshot from public.order_items where order_id=:'direct_order_4')
  and (:'unpaid_list'::jsonb->0->>'total')::bigint=(select total from public.orders where id=:'direct_order_4')
@@ -541,6 +543,9 @@ select 1/case when has_function_privilege('service_role','public.place_direct_or
  and not has_function_privilege('authenticated','public.service_list_unpaid_checkout_orders(uuid)','execute')
  and has_function_privilege('service_role','public.service_retry_direct_order(uuid,uuid)','execute')
  and not has_function_privilege('authenticated','public.service_retry_direct_order(uuid,uuid)','execute')
+ and has_function_privilege('service_role','public.service_close_direct_order(uuid,uuid)','execute')
+ and not has_function_privilege('authenticated','public.service_close_direct_order(uuid,uuid)','execute')
+ and not has_function_privilege('service_role','private.close_direct_order_for_retry(uuid,uuid)','execute')
  and not has_function_privilege('service_role','private.supersede_unpaid_checkout_orders(uuid,boolean,text[],text)','execute')
  and not has_function_privilege('service_role','private.record_direct_order_hold(uuid,uuid,text,jsonb,text)','execute')
  then 1 else 0 end as assert_direct_acl;
@@ -824,7 +829,7 @@ select public.service_retry_direct_order('d2000000-0000-4000-8000-000000000002',
 select public.finalize_goods_payment_attempt(:'retry_attempt','d2000000-0000-4000-8000-000000000147','declined');
 select public.service_retry_direct_order('d2000000-0000-4000-8000-000000000003',:'retry_order') is null as retry_other_account \gset
 select public.service_retry_direct_order('d2000000-0000-4000-8000-000000000002',:'retry_order') as retry_declined \gset
--- 이미 닫힌(결제 없이 취소된) 주문도 같은 줄로 다시 만든다. 결제가 끝난 바로구매 주문(3절)은 다시 만들지 않는다.
+-- 같은 주문을 다시 누르면(두 탭·뒤로 가기) 살아 있는 그 초안을 돌려준다. 결제가 끝난 바로구매 주문(3절)은 다시 만들지 않는다.
 select public.service_retry_direct_order('d2000000-0000-4000-8000-000000000002',:'retry_order') as retry_again \gset
 select public.service_retry_direct_order('d2000000-0000-4000-8000-000000000002',:'direct_order_3') as retry_paid \gset
 select public.service_retry_direct_order('d2000000-0000-4000-8000-000000000002',:'selection_order') is null as retry_cart_order \gset
@@ -839,7 +844,8 @@ select 1/case when :'retry_confirming'::jsonb->>'result'='payment_in_progress'
  and (select source='direct' and base_good_id='d2-a' and order_id is null and jsonb_array_length(lines)=1
    and lines->0->>'goodId'='d2-a' and (lines->0->>'variantId')::uuid=:'variant_a'::uuid and (lines->0->>'qty')::integer=2
    from private.checkout_drafts where id=(:'retry_declined'::jsonb->>'draftId')::uuid)
- and :'retry_again'::jsonb->>'result'='draft' and :'retry_again'::jsonb->>'draftId'<>:'retry_declined'::jsonb->>'draftId'
+ and :'retry_again'::jsonb->>'result'='draft' and :'retry_again'::jsonb->>'draftId'=:'retry_declined'::jsonb->>'draftId'
+ and (select count(*) from private.checkout_drafts where retry_order_id=:'retry_order')=1
  and :'retry_paid'::jsonb->>'result'='not_retryable'
  and pg_temp.d2_cart('d2000000-0000-4000-8000-000000000002')=:'retry_cart_before'::jsonb
  then 1 else 0 end as assert_direct_retry_closes_unpaid_order_and_reopens_same_lines;
@@ -864,5 +870,64 @@ update public.goods set published_at=now() where id='d2-a';
 select 1/case when :'retry_unavailable'::jsonb->>'result'='unavailable' and :'retry_unavailable'::jsonb->>'baseGoodId'='d2-a'
  and (select status='canceled' from public.orders where id=:'retried_order')
  then 1 else 0 end as assert_direct_retry_unavailable_still_closes_order;
+
+-- ── 9. 결제 대기 주문의 원인 판정 재료(담긴 옵션·쓴 쿠폰)와 '이 주문 닫고 굿즈 상세에서 다시 고르기' ─────────────
+-- 화면은 막힘의 원인일 수 있는 주문만 고른다 — 목록이 담긴 옵션과 쓴 보유 쿠폰을 함께 돌려준다. 보조 동작은 같은 닫기만 하고
+-- 초안은 만들지 않는다(마지막 재고를 잡은 본인 주문 때문에 굿즈 상세가 품절로 보이지 않게, 상세로 가기 전에 닫는다).
+insert into public.coupons(code,name,discount_type,discount_value,min_subtotal,starts_at,status) values
+ ('D2R3C1K','TEST D2 원인 쿠폰','fixed',1000,0,now()-interval '1 day','active');
+select set_config('request.jwt.claim.sub','d2000000-0000-4000-8000-000000000002',true);
+set local role authenticated;
+select public.apply_cart_coupon_code('D2R3C1K') as cause_coupon \gset
+select public.clear_cart_coupon();
+reset role;
+set local role service_role;
+select public.service_create_checkout_direct_draft('d2000000-0000-4000-8000-000000000002','d2-b',jsonb_build_array(
+  jsonb_build_object('good_id','d2-b','variant_id',:'variant_b','qty',1))) as cause_draft \gset
+select public.place_direct_order('d2000000-0000-4000-8000-000000000002',:'cause_draft',:'address','d2000000-0000-4000-8000-000000000801','card',0,:'cause_coupon') as cause_order \gset
+select public.service_list_unpaid_checkout_orders('d2000000-0000-4000-8000-000000000002') as cause_list \gset
+reset role;
+select count(*) as drafts_before_close from private.checkout_drafts where user_id='d2000000-0000-4000-8000-000000000002' \gset
+set local role service_role;
+select public.service_close_direct_order('d2000000-0000-4000-8000-000000000003',:'cause_order') is null as close_other_account \gset
+select public.service_close_direct_order('d2000000-0000-4000-8000-000000000002',:'direct_order_3') as close_paid \gset
+select public.service_close_direct_order('d2000000-0000-4000-8000-000000000002',:'cause_order') as close_reselect \gset
+reset role;
+select 1/case when (select entry->'variantIds'=jsonb_build_array(:'variant_b') and entry->'userCouponIds'=jsonb_build_array(:'cause_coupon')
+   and entry->'goodIds'='["d2-b"]'::jsonb and (entry->>'releasable')::boolean
+   from jsonb_array_elements(:'cause_list'::jsonb) as entry where entry->>'id'=:'cause_order')
+ and :'close_other_account'::boolean
+ and :'close_paid'::jsonb->>'result'='not_retryable'
+ and :'close_reselect'::jsonb->>'result'='closed' and :'close_reselect'::jsonb->>'baseGoodId'='d2-b'
+ and (select status='canceled' from public.orders where id=:'cause_order')
+ and (select state='released' from private.cart_order_holds where order_id=:'cause_order')
+ and exists(select 1 from public.audit_log where action='system.order.unpaid_cart_order_closed' and target='order:'||:'cause_order'
+  and diff->>'trigger'='customer_released')
+ and (select count(*) from private.checkout_drafts where user_id='d2000000-0000-4000-8000-000000000002')=:'drafts_before_close'::bigint
+ then 1 else 0 end as assert_unpaid_list_carries_variants_and_coupons_close_for_reselect_only_closes;
+
+-- ── 10. 다시 구매하기는 주문 단위로 한 번(두 탭·뒤로 가기): 두 번 눌러도 초안 하나, 그 초안으로 접수한 뒤에는 다시 주문 불가 ─────
+set local role service_role;
+select public.service_create_checkout_direct_draft('d2000000-0000-4000-8000-000000000002','d2-c',jsonb_build_array(
+  jsonb_build_object('good_id','d2-c','variant_id',:'variant_c','qty',1))) as twice_source_draft \gset
+select public.place_direct_order('d2000000-0000-4000-8000-000000000002',:'twice_source_draft',:'address','d2000000-0000-4000-8000-000000000901','card',0,null) as twice_order \gset
+select public.prepare_goods_payment_attempt('d2000000-0000-4000-8000-000000000002',:'twice_order','toss')->>'id' as twice_attempt \gset
+reset role;
+update public.payment_attempts set state='declined' where id=:'twice_attempt';
+set local role service_role;
+select public.service_retry_direct_order('d2000000-0000-4000-8000-000000000002',:'twice_order') as twice_tab1 \gset
+select public.service_retry_direct_order('d2000000-0000-4000-8000-000000000002',:'twice_order') as twice_tab2 \gset
+select public.place_direct_order('d2000000-0000-4000-8000-000000000002',(:'twice_tab1'::jsonb->>'draftId')::uuid,:'address',
+ 'd2000000-0000-4000-8000-000000000902','bank_transfer',0,null) as twice_bank \gset
+select public.service_retry_direct_order('d2000000-0000-4000-8000-000000000002',:'twice_order') as twice_tab3 \gset
+select pg_temp.d2_expect_error(format('select public.place_direct_order(%L,%L,%L,%L,%L,0,null)','d2000000-0000-4000-8000-000000000002',
+  :'twice_tab2'::jsonb->>'draftId',:'address','d2000000-0000-4000-8000-000000000903','bank_transfer'),'checkout_draft_used');
+reset role;
+select 1/case when :'twice_tab1'::jsonb->>'result'='draft' and :'twice_tab1'::jsonb->>'draftId'=:'twice_tab2'::jsonb->>'draftId'
+ and (select count(*) from private.checkout_drafts where retry_order_id=:'twice_order')=1
+ and :'twice_tab3'::jsonb->>'result'='not_retryable' and :'twice_tab3'::jsonb->>'orderId'=:'twice_bank'
+ and (select count(*) from public.orders where user_id='d2000000-0000-4000-8000-000000000002'
+  and checkout_key in ('d2000000-0000-4000-8000-000000000902','d2000000-0000-4000-8000-000000000903'))=1
+ then 1 else 0 end as assert_direct_retry_once_per_order;
 
 rollback;
