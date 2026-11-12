@@ -45,6 +45,8 @@ describe('장바구니 선택 지면(ADR-0030)', () => {
     const hit = decls(SELECTION, '.wc-cart__line-check::before');
     /* 24 + 10 + 10 = 44 너비, 위아래로 11씩 넓혀 44 이상 높이. 오른쪽은 칸 사이(16)를 넘지 않는다. */
     expect([hit.left, hit.right, hit.top, hit.bottom]).toEqual(['-10px', '-10px', '-11px', '-11px']);
+    /* 체크박스 자체는 라벨 여백 위에 선다 — 체크박스를 직접 누르는 클릭이 여백에 가로채이지 않는다. */
+    expect(decls(SELECTION, '.wc-cart__line-check input')).toMatchObject({ position: 'relative', 'z-index': '1' });
   });
 
   it('카트 라우트가 선택 지면 스타일시트를 싣는다', () => {

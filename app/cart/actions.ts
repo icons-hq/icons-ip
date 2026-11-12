@@ -17,8 +17,8 @@ import { parseCartAdditionRequest, parseCartAdditionSnapshot } from '@/lib/cart-
 import { readCompleteIdPages } from '@/lib/supabase/complete-id-pages';
 import { adultGoodsRestrictions } from '@/lib/adult-goods';
 import { getAdultGoodsAccess } from '@/lib/adult-goods-access.server';
-import { cartLineIdentityPayload } from '@/lib/checkout-selection';
-import { loadLatestPendingCheckoutOrderId } from '@/lib/checkout.server';
+import { normalizeOrderReference } from '@/lib/checkout';
+import { cartLineIdentityPayload, parseUnpaidCheckoutOrders, type UnpaidCheckoutOrder } from '@/lib/checkout-selection';
 
 const SYNC_ERROR = '장바구니를 동기화하지 못했습니다. 다시 시도해주세요.';
 const SAVE_ERROR = '장바구니를 저장하지 못했습니다. 다시 시도해주세요.';
@@ -245,49 +245,55 @@ export async function releaseUnpaidCartOrdersAction(): Promise<{ released: numbe
   }
 }
 
-export type ReleaseUnpaidCheckoutOrdersResult =
-  | {
-      readonly ok: true;
-      /** 이번에 닫은 결제 대기 카드 주문 수. */
-      readonly released: number;
-      /** 결제 승인을 확인 중이라 닫지 않은 주문이 있다 — 확인이 끝난 뒤 다시 시도한다. */
-      readonly confirming: boolean;
-      /** 닫은 뒤에도 남은 결제 대기 주문(무통장 입금 대기 등). 화면이 그 주문으로 안내한다. */
-      readonly pendingOrderId: string | null;
-    }
-  | { readonly ok: false };
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+export type UnpaidCheckoutOrdersResult = { readonly ok: true; readonly orders: readonly UnpaidCheckoutOrder[] } | { readonly ok: false };
 
 /**
- * '진행 중인 미결제 주문 취소하고 계속'(ADR-0030). 견적이 결제 대기 주문의 쿠폰·첫구매 예약·구매 한도 때문에 막혔을 때
- * 고객이 누른 경우에만 부른다 — 주문서·장바구니를 열기만 해서는 다른 탭의 결제창을 끊지 않는다. 출처(장바구니·바로구매)와
- * 무관하게 결제를 마치지 않은 카드 주문을 ADR-0026 닫기 경로로 닫고, 결제 승인을 확인 중인 주문은 닫지 않는다.
+ * 견적이 결제 대기 주문 때문에 막혔을 수 있을 때 확인창에 보일 결제 대기 주문(ADR-0030) — 로그인 사용자 것만, 닫을 수 있는
+ * 주문과 결제 승인을 확인하는 주문을 나눠 읽는다. 읽지 못하면 ok:false — 화면은 해소 안내 없이 사유만 보인다.
  */
-export async function releaseUnpaidCheckoutOrdersAction(): Promise<ReleaseUnpaidCheckoutOrdersResult> {
+export async function loadUnpaidCheckoutOrdersAction(): Promise<UnpaidCheckoutOrdersResult> {
   const user = authenticatedCartUser(await getCurrentAuthState());
   if (!user) return { ok: false };
   try {
-    const { data, error } = await createServiceClient().rpc('release_unpaid_checkout_orders', { p_user_id: user.id });
-    if (error || !data || typeof data !== 'object' || Array.isArray(data)) return { ok: false };
-    const value = data as Record<string, unknown>;
-    const released = typeof value.released === 'number' && Number.isSafeInteger(value.released) && value.released > 0 ? value.released : 0;
-    const confirming = typeof value.confirming === 'number' && value.confirming > 0;
-    const pendingOrderId = typeof value.pendingOrderId === 'string' && UUID.test(value.pendingOrderId) ? value.pendingOrderId.toLowerCase() : null;
-    return { ok: true, released, confirming, pendingOrderId };
+    const { data, error } = await createServiceClient().rpc('service_list_unpaid_checkout_orders', { p_user_id: user.id });
+    const orders = error ? null : parseUnpaidCheckoutOrders(data);
+    return orders ? { ok: true, orders } : { ok: false };
   } catch {
     return { ok: false };
   }
 }
 
-/** 견적이 결제 대기 주문 때문에 막혔을 때 그 주문을 알린다(가장 최근의 결제 대기 주문). 읽지 못하면 null. */
-export async function loadPendingCheckoutOrderAction(): Promise<{ orderId: string | null }> {
+export type ReleaseUnpaidCheckoutOrdersResult =
+  | {
+      readonly ok: true;
+      /** 이번에 닫은 결제 대기 카드 주문 수. */
+      readonly released: number;
+      /** 결제 승인을 확인 중이거나 결과를 알 수 없어 닫지 않은 주문이 있다 — 확인이 끝난 뒤 다시 시도한다. */
+      readonly confirming: boolean;
+    }
+  | { readonly ok: false };
+
+/**
+ * '결제 대기 주문 취소하고 계속'(ADR-0030). 고객이 확인창에서 본 결제 대기 주문(orderIds)을 확인했을 때만 부른다 — 주문서·
+ * 장바구니를 열기만 해서는 다른 탭의 결제창을 끊지 않는다. 그 주문들을 출처(장바구니·바로구매)와 무관하게 ADR-0026 닫기
+ * 경로로 닫고, 결제 승인을 확인 중인 주문은 닫지 않는다. 확인창 뒤에 새로 생긴 주문은 닫지 않는다.
+ */
+export async function releaseUnpaidCheckoutOrdersAction(orderIdsValue: unknown): Promise<ReleaseUnpaidCheckoutOrdersResult> {
+  const orderIds = Array.isArray(orderIdsValue) ? orderIdsValue.map((value) => normalizeOrderReference(value)) : [];
+  if (!orderIds.length || orderIds.length > 20 || orderIds.some((orderId) => !orderId) || new Set(orderIds).size !== orderIds.length) {
+    return { ok: false };
+  }
   const user = authenticatedCartUser(await getCurrentAuthState());
-  if (!user) return { orderId: null };
+  if (!user) return { ok: false };
   try {
-    return { orderId: await loadLatestPendingCheckoutOrderId(user.id) };
+    const { data, error } = await createServiceClient().rpc('release_unpaid_checkout_orders', { p_user_id: user.id, p_order_ids: orderIds });
+    if (error || !data || typeof data !== 'object' || Array.isArray(data)) return { ok: false };
+    const value = data as Record<string, unknown>;
+    const released = typeof value.released === 'number' && Number.isSafeInteger(value.released) && value.released > 0 ? value.released : 0;
+    const confirming = typeof value.confirming === 'number' && value.confirming > 0;
+    return { ok: true, released, confirming };
   } catch {
-    return { orderId: null };
+    return { ok: false };
   }
 }
 

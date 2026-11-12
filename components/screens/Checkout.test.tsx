@@ -129,9 +129,11 @@ it.each(['coupon_first_purchase_reserved', 'coupon_first_purchase_pending'])('�
   const html = render({ paymentAvailable: true, bankTransferAvailable: true, quote: { coupon: {
     userCouponId: '00000000-0000-4000-8000-000000000099', couponCode: 'FIRST', eligibleSubtotal: 12000, discount: 0, reason,
   } } });
+  /* DB가 결제 대기 주문 때문이라고 알린 쿠폰 막힘은 진행 중인 주문 목록으로 잇는다(#540, 무통장 입금 대기 포함). */
   expect(html).toContain('href="/orders?pending=1"');
-  /* 그 주문을 알리고, 고객이 누를 때만 닫는다(ADR-0030 — 화면을 열기만 해서는 다른 탭 결제를 끊지 않는다). */
-  expect(html).toContain('진행 중인 미결제 주문 취소하고 계속');
+  /* 결제 대기 주문 취소(ADR-0030)는 그 주문을 실제로 찾았을 때만 보인다 — 정적 렌더에서는 아직 읽지 않았다. 화면을 열기만
+     해서는 다른 탭 결제를 끊지 않는다. */
+  expect(html).not.toContain('결제 대기 주문 취소하고 계속');
 });
 
 function submitButton(html: string): string {

@@ -1,0 +1,105 @@
+/* ------------------------------------------------------------------
+   결제 대기 주문 해소·바로구매 다시 구매하기 (ADR-0030)
+   장바구니·주문서의 '결제 대기 주문 취소하고 계속'은 빨간 경고 글과 나눈 회색 안내 상자다 — 사유(경고)는 그대로 빨간 글이고,
+   해소는 상자 안의 실제 버튼(wc-btn, 터치 44px)과 밑줄 링크로 고른다. 누르면 같은 상자 안에 취소될 주문을 보이는 확인
+   단계가 열린다(주문 상세 취소 확인과 같은 자리 확인 패턴).
+   ------------------------------------------------------------------ */
+
+.checkout-pending-release {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 12px 0 0;
+  padding: 14px 16px;
+  background: var(--wc-surface-grey);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--wc-ink);
+  text-align: left;
+}
+
+.checkout-pending-release p {
+  margin: 0;
+}
+
+/* 색 말고도 밑줄로 링크임을 알린다. 누르는 높이는 44px(DESIGN.md touch-target). */
+.checkout-pending-release__link,
+.checkout-retry-secondary {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  min-height: 44px;
+  color: var(--wc-ink);
+  font-size: 14px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.checkout-pending-release .wc-btn {
+  width: auto;
+  height: 44px;
+  padding: 0 16px;
+  font-size: 14px;
+}
+
+.checkout-pending-release > .wc-btn {
+  align-self: flex-start;
+}
+
+.checkout-pending-release__confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--wc-line-control);
+  background: var(--wc-surface);
+}
+
+.checkout-pending-release__confirm strong {
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.checkout-pending-release__orders {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.checkout-pending-release__orders li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 2px 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--wc-hairline);
+}
+
+.checkout-pending-release__order-number {
+  font-variant-numeric: tabular-nums;
+  color: var(--wc-ink-sub);
+}
+
+.checkout-pending-release__order-total {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.checkout-pending-release__confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.checkout-pending-release__confirm-actions .wc-btn {
+  flex: 1 1 140px;
+  margin-top: 0;
+}
+
+@media (forced-colors: active) {
+  .checkout-pending-release {
+    border: 1px solid CanvasText;
+  }
+}

@@ -25,7 +25,8 @@ import { cartItemKey } from '@/lib/cart';
 import { cartLineOption, cartOptionGood, goodAtQuotedPrice, optionLabel } from '@/lib/goods-options';
 import { goodsPurchaseReasonMessage, goodsSalesQuoteProblem, quoteLineOptionLimitMessage } from '@/lib/goods-sales';
 import { PLACE_ORDER_OPTION_LIMIT_MESSAGES, PLACE_ORDER_RANDOM_OPTION_LIMIT_MESSAGE, PLACE_ORDER_RANDOM_OPTION_MESSAGE } from '@/lib/goods-option-sale-mode';
-import { MIN_PAYABLE_TOTAL, type UserCouponSummary } from '@/lib/coupons';
+import { couponErrorNeedsPendingOrder, MIN_PAYABLE_TOTAL, type UserCouponSummary } from '@/lib/coupons';
+import { PendingOrderResolution } from '@/components/checkout/PendingOrderResolution';
 import type { CartCouponState } from '@/lib/coupons.server';
 import { normalizeStoreCreditAmount } from '@/lib/store-credits';
 import { goodsShipDateLabel } from '@/lib/goods-preorders';
@@ -283,6 +284,11 @@ export function Checkout({
   const unavailable = lines.some(({ good, qty,customInputs }) => (
     !good || Boolean(goodsCustomInputProblem(good.customInputs,customInputs)) || good.stock === 'soldout' || good.stockQty < qty
   ));
+  /* 재고가 모자란 굿즈 — 본인 결제 대기 주문이 그 재고를 잡고 있으면 해소 안내 대상이다(ADR-0030). */
+  const stockGoodIds = [...new Set([
+    ...lines.flatMap(({ good, goodId, qty }) => (good && (good.stock === 'soldout' || good.stockQty < qty) ? [goodId] : [])),
+    ...(shipping.sales?.lines ?? []).flatMap((line) => (!line.available && line.supply && line.supply.availableQty < line.qty ? [line.goodId] : [])),
+  ])];
   /*
    * 한 굿즈라도 무통장을 막았으면 주문 전체가 막힌다 — 주문 단위로 선점 창이
    * 정해지므로 품목별로 다른 기한을 줄 수 없다. 서버도 place_order에서 같은
@@ -583,8 +589,9 @@ export function Checkout({
           {shipping.loading ? <p role="status">현재 가격과 배송비를 확인하고 있어요.</p> : null}
           {shipping.error ? <div role="alert"><p>{shipping.error}</p><button type="button" onClick={shipping.refresh}>가격·배송비 다시 확인</button></div> : null}
           {purchaseProblem ? <p className="checkout-error" role="alert">{copyFor(purchaseProblem)}
+            {/* 첫구매 예약처럼 DB가 결제 대기 주문 때문이라고 알린 쿠폰 막힘은 그 주문 목록으로 잇는다(#540, 무통장 입금 대기 포함). */}
+            {couponErrorNeedsPendingOrder(shipping.sales?.coupon?.reason) ? <PendingOrderResolution /> : null}
             {direct && !quoteMayBeBlockedByPendingOrder(shipping.sales ?? { goods: [], lines: [] }) ? <> <Link href={draftReturnHref}>굿즈로 돌아가기</Link></> : null}
-            {shipping.sales && quoteMayBeBlockedByPendingOrder(shipping.sales) ? <CheckoutPendingOrderRelease onReleased={retryAfterRelease} /> : null}
           </p> : null}
           {couponSelectionChanged ? <p className="checkout-error" role="alert">다른 화면에서 선택한 쿠폰이 변경되었습니다. <button type="button" onClick={() => router.refresh()}>현재 쿠폰 다시 확인</button></p> : null}
 
@@ -633,9 +640,16 @@ export function Checkout({
           {unavailable && <p className="checkout-error" role="alert">{copyFor(STOCK_CHANGED_COPY)}
             {draft ? <> <Link href={draftReturnHref}>{direct ? '굿즈로 돌아가기' : '장바구니로 돌아가기'}</Link></> : null}</p>}
           {!methodAvailable && <p className="checkout-error" role="alert">선택한 결제수단을 지금은 쓸 수 없어요. 다른 수단을 골라주세요.</p>}
-          {submitError && <p className="checkout-error" role="alert">{submitError}{pendingOrder ? <CheckoutPendingOrderRelease onReleased={retryAfterRelease} /> : null}
+          {submitError && <p className="checkout-error" role="alert">{submitError}{pendingOrder ? <PendingOrderResolution /> : null}
             {blockingOrderId ? <> <Link href={`/orders/${encodeURIComponent(blockingOrderId)}`}>주문 보기</Link></> : null}
             {draftReturnNeeded ? <> <Link href={draftReturnHref}>{draft?.source === 'direct' ? '굿즈로 돌아가기' : '장바구니로 돌아가기'}</Link></> : null}</p>}
+          {/* 결제 대기 주문(다른 탭의 바로구매·장바구니 주문)이 쿠폰·구매 한도·재고를 잡고 있을 수 있다 — 주문서를 열기만 해서는 그
+              결제를 끊지 않으므로 실제로 찾았을 때만 그 주문을 알리고, 고객이 확인했을 때만 닫는다(ADR-0030). 경고 글과 나눈 상자다. */}
+          <CheckoutPendingOrderRelease
+            holdsBenefits={pendingOrder || Boolean(shipping.sales && quoteMayBeBlockedByPendingOrder(shipping.sales))}
+            onReleased={retryAfterRelease}
+            stockGoodIds={stockGoodIds}
+          />
           <button className="btn btn-holo checkout-submit" disabled={submitting || cartPending || couponPending || unavailable || !methodAvailable || !shippingReady || !shipping.sales || Boolean(purchaseProblem) || !creditReady || couponSelectionChanged || draftStale || Boolean(blockingOrderId)}>
             {submitting
               ? '재고를 확인하는 중'

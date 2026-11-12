@@ -15,10 +15,12 @@
 -- 4. 닫기 범위: 새 주문은 출처와 무관하게 이전 미결제 점유를 모두 닫는다. 장바구니·장바구니 주문서 진입 때의
 --    release는 지금처럼 장바구니 출처만 닫는다(장바구니를 열기만 해도 다른 탭의 바로구매 결제창이 끊기지 않게).
 --    바로구매 주문서 진입은 아무것도 닫지 않는다(보기만으로 다른 탭 결제를 끊지 않게). 견적이 결제 대기 주문의 쿠폰·
---    첫구매 예약·구매 한도 때문에 막히면 화면이 그 주문을 알리고, 고객이 '진행 중인 미결제 주문 취소하고 계속'을
---    눌렀을 때만 release_unpaid_checkout_orders가 출처와 무관하게 닫는다(결제 승인 확인 중이면 닫지 않는다).
--- 5. 다시 결제: 바로구매 주문의 보류는 장바구니를 남긴 주문이 아니다 — 결제 화면은 '장바구니에서 다시 결제' 대신
---    그 상품 상세로 보낸다(service_get_order_cart_retention이 출처와 상품을 함께 돌려준다).
+--    첫구매 예약·구매 한도·재고 때문에 막히면 화면이 결제 대기 주문(service_list_unpaid_checkout_orders)을 확인창에
+--    보이고, 고객이 '결제 대기 주문 취소하고 계속'을 확인했을 때만 release_unpaid_checkout_orders가 그 주문들을 출처와
+--    무관하게 닫는다(결제 승인 확인 중이면 닫지 않는다).
+-- 5. 다시 구매: 바로구매 주문의 보류는 장바구니를 남긴 주문이 아니다 — 결제가 승인 전에 끝나면 결제 화면의 '다시
+--    구매하기'(service_retry_direct_order)가 그 주문을 닫고 같은 줄로 바로구매 초안을 다시 만들어 주문서로 보낸다
+--    (service_get_order_cart_retention이 출처와 상품을 함께 돌려준다 — 보조 링크는 그 상품 상세).
 -- ============================================================================
 
 -- ── 보류: 바로구매 출처 ───────────────────────────────────────────────────────────
@@ -171,12 +173,45 @@ $$;
 revoke all on function private.supersede_unpaid_cart_orders(uuid, boolean) from public, anon, authenticated, service_role;
 grant execute on function private.supersede_unpaid_cart_orders(uuid, boolean) to postgres;
 
--- 고객이 '진행 중인 미결제 주문 취소하고 계속'을 눌렀을 때만 부른다(서버가 로그인 사용자로만 부른다 — 주문서·장바구니를
--- 열기만 해서는 다른 탭의 결제창을 끊지 않는다). 견적이 결제 대기 주문의 쿠폰·첫구매 예약·구매 한도 때문에 막혔을 때,
--- 출처와 무관하게 결제를 마치지 않은 카드 주문을 ADR-0026 닫기 경로로 닫는다. 결제 승인을 확인 중인 주문은 닫지 않고
--- confirming으로 알린다(새 주문의 checkout_payment_in_progress 거절과 같은 판단). 무통장 입금 대기 주문은 닫지 않으므로
--- 남은 결제 대기 주문(pendingOrderId)을 함께 돌려줘 화면이 그 주문으로 안내한다.
-create function public.release_unpaid_checkout_orders(p_user_id uuid)
+-- 고객이 '결제 대기 주문 취소하고 계속'을 누르기 전에 확인창에 보일 주문(ADR-0030). 이 계정의 결제를 마치지 않은 카드
+-- 주문(보류가 남은 주문, 출처 무관) 가운데 닫을 수 있는 주문(releasable — 결제 승인 확인·결과 불명·결제 진행·처리 중인
+-- 취소가 없다, close_unpaid_cart_order가 closed로 끝나는 조건)과 결제를 확인하고 있어 닫지 않는 주문을 나눠, 주문번호·
+-- 첫 굿즈 이름·품목 수·금액·담긴 굿즈와 함께 최근 것부터 돌려준다. 무통장 입금 대기는 보류가 없어 여기 없다.
+create function public.service_list_unpaid_checkout_orders(p_user_id uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
+      'id', unpaid.id, 'orderNumber', unpaid.order_number, 'total', unpaid.total, 'createdAt', unpaid.created_at,
+      'itemName', unpaid.item_name, 'itemCount', unpaid.item_count, 'goodIds', unpaid.good_ids, 'releasable', unpaid.releasable)
+    order by unpaid.created_at desc, unpaid.id desc), '[]'::jsonb)
+  from (
+    select o.id, o.order_number, o.total, o.created_at,
+      (select item.good_name_snapshot from public.order_items as item where item.order_id = o.id
+        order by item.product_order_number nulls last, item.id limit 1) as item_name,
+      (select pg_catalog.count(*)::integer from public.order_items as item where item.order_id = o.id) as item_count,
+      (select coalesce(pg_catalog.jsonb_agg(distinct item.good_id), '[]'::jsonb) from public.order_items as item where item.order_id = o.id) as good_ids,
+      not private.checkout_draft_order_payment_unresolved(o.id) as releasable
+    from private.cart_order_holds as hold
+    join public.orders as o on o.id = hold.order_id
+    where p_user_id is not null and hold.user_id = p_user_id and hold.state = 'awaiting_payment'
+      and o.user_id = p_user_id and o.status = 'pending' and o.payment_method = 'card'
+    order by o.created_at desc, o.id desc
+    limit 20
+  ) as unpaid;
+$$;
+revoke all on function public.service_list_unpaid_checkout_orders(uuid) from public, anon, authenticated, service_role;
+grant execute on function public.service_list_unpaid_checkout_orders(uuid) to service_role;
+
+-- 고객이 확인창에서 본 결제 대기 주문을 확인한 뒤에만 부른다(서버가 로그인 사용자로만 부른다 — 주문서·장바구니를 열기만
+-- 해서는 다른 탭의 결제창을 끊지 않는다). 견적이 결제 대기 주문의 쿠폰·첫구매 예약·구매 한도·재고 때문에 막혔을 때 고객이
+-- 고른 주문(p_order_ids — 확인창에 보인 주문, 출처 무관)만 ADR-0026 닫기 경로로 닫는다. 확인창 뒤에 새로 생긴 주문은 닫지
+-- 않는다. 잠금 순서는 supersede와 같다(계정 advisory → 대상 주문 행 → account-action). 결제 승인을 확인 중이거나 결과를
+-- 알 수 없는 주문은 닫지 않고 confirming으로 센다(새 주문의 checkout_payment_in_progress 거절과 같은 판단).
+create function public.release_unpaid_checkout_orders(p_user_id uuid, p_order_ids uuid[])
 returns jsonb
 language plpgsql
 volatile
@@ -184,35 +219,43 @@ security definer
 set search_path = ''
 as $$
 declare
+  r record;
+  v_result text;
   v_released integer := 0;
-  v_confirming integer;
-  v_pending uuid;
+  v_confirming integer := 0;
 begin
-  if p_user_id is null then
+  if p_user_id is null or p_order_ids is null or pg_catalog.cardinality(p_order_ids) not between 1 and 20
+    or pg_catalog.array_position(p_order_ids, null) is not null then
     raise invalid_parameter_value using message = 'cart_order_supersede_invalid';
   end if;
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(p_user_id::text, 0));
-  if exists (
-    select 1 from private.cart_order_holds as hold
-    where hold.user_id = p_user_id and hold.state = 'awaiting_payment'
-  ) then
-    v_released := private.supersede_unpaid_checkout_orders(p_user_id, false, null, 'customer_released');
-  end if;
-  select count(*) into v_confirming
-  from private.cart_order_holds as hold
-  join public.payment_attempts as attempt on attempt.purpose = 'order' and attempt.ref_id = hold.order_id
-  where hold.user_id = p_user_id and hold.state = 'awaiting_payment'
-    and attempt.state = 'confirming' and attempt.claim_expires_at > pg_catalog.clock_timestamp();
-  select o.id into v_pending
+  perform 1
   from public.orders as o
-  where o.user_id = p_user_id and o.status = 'pending' and o.checkout_key is not null
-  order by o.created_at desc, o.id desc
-  limit 1;
-  return pg_catalog.jsonb_build_object('released', v_released, 'confirming', v_confirming, 'pendingOrderId', v_pending);
+  join private.cart_order_holds as hold on hold.order_id = o.id
+  where hold.user_id = p_user_id and hold.state = 'awaiting_payment' and o.id = any (p_order_ids)
+  order by o.id
+  for update of o;
+  if found then
+    perform private.lock_account_action_subject(p_user_id);
+    for r in
+      select hold.order_id
+      from private.cart_order_holds as hold
+      where hold.user_id = p_user_id and hold.state = 'awaiting_payment' and hold.order_id = any (p_order_ids)
+      order by hold.created_at, hold.order_id
+    loop
+      v_result := private.close_unpaid_cart_order(r.order_id, '고객이 진행 중인 미결제 주문을 취소하고 주문을 계속함', 'customer_released');
+      if v_result = 'closed' then
+        v_released := v_released + 1;
+      elsif v_result in ('payment_confirming', 'unresolved') then
+        v_confirming := v_confirming + 1;
+      end if;
+    end loop;
+  end if;
+  return pg_catalog.jsonb_build_object('released', v_released, 'confirming', v_confirming);
 end;
 $$;
-revoke all on function public.release_unpaid_checkout_orders(uuid) from public, anon, authenticated, service_role;
-grant execute on function public.release_unpaid_checkout_orders(uuid) to service_role;
+revoke all on function public.release_unpaid_checkout_orders(uuid, uuid[]) from public, anon, authenticated, service_role;
+grant execute on function public.release_unpaid_checkout_orders(uuid, uuid[]) to service_role;
 
 -- 결제 화면의 '다시 결제' 판단. 장바구니 출처는 지금 모양 그대로, 바로구매는 출처와 상품 상세 굿즈를 더한다.
 create or replace function public.service_get_order_cart_retention(p_user_id uuid, p_order_id uuid)
@@ -313,6 +356,68 @@ end;
 $$;
 revoke all on function public.service_create_checkout_direct_draft(uuid, text, jsonb) from public, anon, authenticated, service_role;
 grant execute on function public.service_create_checkout_direct_draft(uuid, text, jsonb) to service_role;
+
+-- 바로구매 결제가 승인 전에 끝난 주문의 '다시 구매하기'(ADR-0030 확정 동작 8). 그 주문을 ADR-0026 닫기 경로로 닫아
+-- 재고·쿠폰·적립금·첫구매 예약·구매 한도를 돌려준 뒤, 같은 줄(옵션·수량·추가 구성·직접입력값)로 바로구매 초안을 다시
+-- 만든다 — 고객은 굿즈 상세에서 다시 고르지 않고 주문서로 간다(장바구니는 읽지도 바꾸지도 않는다). 본인 결제 대기 주문이
+-- 그 굿즈 재고를 잡고 있어 상세가 품절로 보이던 문제도 함께 풀린다. 잠금 순서는 supersede와 같다(계정 advisory → 주문 행 →
+-- account-action — close_unpaid_cart_order가 주문 행부터 잠근다).
+-- 반환: {"result":"draft","draftId"} | {"result":"payment_in_progress"}(결제 승인 확인 중·결과 불명 — 닫지 않는다)
+--      | {"result":"not_retryable"}(결제가 끝났거나 아직 결제할 수 있는 주문이 아니다) | {"result":"unavailable","baseGoodId",
+--      "reason"}(닫았지만 지금 같은 줄로 초안을 만들 수 없다 — 굿즈 상세에서 다시 고른다). 이 계정의 바로구매 주문이 아니면 null.
+create function public.service_retry_direct_order(p_user_id uuid, p_order_id uuid)
+returns jsonb
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+declare
+  v_hold private.cart_order_holds%rowtype;
+  v_result text;
+  v_status public.order_status;
+  v_lines jsonb;
+  v_draft uuid;
+begin
+  if p_user_id is null or p_order_id is null then
+    raise invalid_parameter_value using message = 'invalid_checkout_retry';
+  end if;
+  perform private.assert_active_user(p_user_id);
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(p_user_id::text, 0));
+  select hold.* into v_hold from private.cart_order_holds as hold
+  where hold.order_id = p_order_id and hold.user_id = p_user_id and hold.source in ('direct_checkout', 'direct_transaction');
+  if not found then
+    return null;
+  end if;
+  if v_hold.state = 'awaiting_payment' then
+    v_result := private.close_unpaid_cart_order(p_order_id, '고객이 진행 중인 미결제 주문을 취소하고 주문을 계속함', 'customer_released');
+    if v_result in ('payment_confirming', 'unresolved') then
+      return pg_catalog.jsonb_build_object('result', 'payment_in_progress');
+    end if;
+  end if;
+  select o.status into v_status from public.orders as o where o.id = p_order_id;
+  if v_status = 'pending' and private.checkout_draft_order_payment_unresolved(p_order_id) then
+    return pg_catalog.jsonb_build_object('result', 'payment_in_progress');
+  end if;
+  if v_status is distinct from 'canceled' then
+    return pg_catalog.jsonb_build_object('result', 'not_retryable');
+  end if;
+  select pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object('good_id', line ->> 'goodId', 'variant_id', line ->> 'variantId',
+      'qty', (line ->> 'qty')::integer, 'input_revision', coalesce((line ->> 'inputRevision')::integer, 0),
+      'input_values', coalesce(line -> 'inputValues', '{}'::jsonb)) order by position)
+    into v_lines
+  from pg_catalog.jsonb_array_elements(v_hold.lines) with ordinality as entries(line, position);
+  -- 닫기는 남기고 초안만 되돌린다 — 지금 같은 줄을 살 수 없으면(판매 중지·옵션 정리·직접입력 설정 변경·성인 인증) 굿즈 상세로.
+  begin
+    v_draft := public.service_create_checkout_direct_draft(p_user_id, v_hold.base_good_id, v_lines);
+  exception when check_violation or invalid_parameter_value then
+    return pg_catalog.jsonb_build_object('result', 'unavailable', 'baseGoodId', v_hold.base_good_id, 'reason', sqlerrm);
+  end;
+  return pg_catalog.jsonb_build_object('result', 'draft', 'draftId', v_draft);
+end;
+$$;
+revoke all on function public.service_retry_direct_order(uuid, uuid) from public, anon, authenticated, service_role;
+grant execute on function public.service_retry_direct_order(uuid, uuid) to service_role;
 
 -- ── 바로구매 주문서 견적: 주문서에서 고른 쿠폰 ─────────────────────────────────────
 create function public.quote_goods_sales_for_address_with_coupon(items jsonb, destination jsonb, p_user_coupon_id uuid)

@@ -6,7 +6,7 @@ import type { CartCouponState } from '@/lib/coupons.server';
 import type { Good } from '@/lib/data';
 import type { AddressShippingQuote } from '@/lib/shipping-regions';
 import type { CouponQuote } from '@/lib/coupon-targeting';
-import type { GoodsSalesPrecheckoutQuote, GoodsSalesQuoteLine } from '@/lib/goods-sales';
+import type { GoodsSalesPrecheckoutQuote, GoodsSalesQuoteGood, GoodsSalesQuoteLine } from '@/lib/goods-sales';
 import { goodsSalesPrecheckoutQuote } from '@/test/fixtures/goods-sales-precheckout';
 import CartLoading from '@/app/cart/loading';
 import { Cart } from './Cart';
@@ -20,6 +20,8 @@ const mocks = vi.hoisted(() => ({
   quotePrices: new Map<string, number>(),
   quotePeriods: new Map<string, Pick<GoodsSalesQuoteLine, 'regularPrice' | 'pricePeriodId' | 'startsAt' | 'endsAt'>>(),
   quoteLineExtras: new Map<string, Partial<GoodsSalesQuoteLine>>(),
+  /* 굿즈 단위 구매 조건(주문당 최소·최대, 회원 누적 한도). 견적은 고른 줄의 굿즈만 돌려준다. */
+  quoteGoods: new Map<string, Partial<GoodsSalesQuoteGood>>(),
   coupon: null as CouponQuote | null,
   precheckout: null as GoodsSalesPrecheckoutQuote | null,
   precheckoutError: null as string | null,
@@ -37,7 +39,10 @@ vi.mock('@/components/shop/useShippingQuote', () => ({
     calculatedAt:'2026-09-10T00:00:00Z', shipping:mocks.quote,
     subtotal:quoted.reduce((sum,item)=>sum+(mocks.quotePrices.get(item.variantId) ?? goods.find(good=>good.id===item.goodId)?.price??0)*item.qty,0),
     lines:quoted.map(item=>({...item,regularPrice:mocks.quotePrices.get(item.variantId) ?? goods.find(good=>good.id===item.goodId)?.price??0,effectivePrice:mocks.quotePrices.get(item.variantId) ?? goods.find(good=>good.id===item.goodId)?.price??0,pricePeriodId:null,startsAt:null,endsAt:null,...mocks.quotePeriods.get(item.variantId),available:true,...mocks.quoteLineExtras.get(item.variantId)})),
-    goods:[],paymentMethods:{card:true,bankTransfer:true},
+    goods:[...new Set(quoted.map(item=>item.goodId))].filter(goodId=>mocks.quoteGoods.has(goodId)).map(goodId=>({goodId,
+      qty:quoted.filter(item=>item.goodId===goodId).reduce((sum,item)=>sum+item.qty,0),orderQuantityLimitEnabled:false,minOrderQty:null,maxOrderQty:null,
+      memberPurchaseLimitEnabled:false,memberLifetimeQtyLimit:null,memberReservedQty:null,memberRemainingQty:null,reason:null,...mocks.quoteGoods.get(goodId)})),
+    paymentMethods:{card:true,bankTransfer:true},
     coupon:mocks.coupon,
     } : null,loading:enabled && !mocks.quote,error:null,refresh:vi.fn()};
   },
@@ -54,7 +59,7 @@ const gimpoGroup: AddressShippingQuote['groups'][number] = {originId:'gimpo',ori
 const defaultQuote: AddressShippingQuote = {totalFee:3000,groups:[gimpoGroup],checkoutAllowed:true,finalTotalFee:3000,destination:null,nextChangeAt:null};
 mocks.quote = defaultQuote;
 beforeEach(() => {
-  mocks.quote = defaultQuote; mocks.legacyItems = []; mocks.ready = true; mocks.quotePrices.clear(); mocks.quotePeriods.clear(); mocks.quoteLineExtras.clear(); mocks.coupon = null;
+  mocks.quote = defaultQuote; mocks.legacyItems = []; mocks.ready = true; mocks.quotePrices.clear(); mocks.quotePeriods.clear(); mocks.quoteLineExtras.clear(); mocks.quoteGoods.clear(); mocks.coupon = null;
   mocks.precheckout = null; mocks.precheckoutError = null; mocks.legacyEnabled = false; mocks.precheckoutEnabled = false;
 });
 
@@ -337,9 +342,11 @@ describe('Cart 쿠폰 슬롯 (S7)', () => {
       [{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }],
       { selectedUserCouponId: fix5k.id, coupons: [fix5k] },
     );
+    /* DB가 결제 대기 주문 때문이라고 알린 쿠폰 막힘은 진행 중인 주문 목록으로 잇는다(#540, 무통장 입금 대기 포함). */
     expect(html).toContain('href="/orders?pending=1"');
-    /* 그 주문을 알리고, 고객이 누를 때만 닫는다(ADR-0030 — 화면을 열기만 해서는 다른 탭 결제를 끊지 않는다). */
-    expect(html).toContain('진행 중인 미결제 주문 취소하고 계속');
+    /* 결제 대기 주문 취소(ADR-0030)는 그 주문을 실제로 찾았을 때만 보인다 — 정적 렌더에서는 아직 읽지 않았다. 화면을 열기만
+       해서는 다른 탭 결제를 끊지 않는다. */
+    expect(html).not.toContain('결제 대기 주문 취소하고 계속');
     expect(checkoutEnabled(html)).toBe(false);
   });
 
@@ -409,16 +416,39 @@ describe('Cart 랜덤 판매·옵션별 구매 제한 품목 줄', () => {
   });
 
   /* 견적이 판정한 불가 줄은 체크된 채 남아 전체 주문을 막지 않는다 — 선택에서 빼고 사유를 줄에 보인다(ADR-0030 확정 동작 2). */
-  it('견적이 옵션 한도 위반을 알리면 그 줄을 선택에서 빼고 품목 줄에 확정 카피를 보인다', () => {
+  /* 구매 조건은 이번 선택의 수량 문제다 — 줄을 비활성으로 빼지 않고 체크만 풀어 사유를 보인다. 다시 고르면 다시 견적한다. */
+  it('견적이 옵션 한도 위반을 알리면 그 줄의 체크만 풀고 품목 줄에 확정 카피를 보인다', () => {
     mocks.quoteLineExtras.set(BLUE_VARIANT, { optionLimit: { orderMaxQty: 2, memberMaxQty: 3, memberReservedQty: 2, memberRemainingQty: 1,
       reason: 'option_member_limit_exceeded' } });
     const html = render([{ goodId: 'g16', variantId: BLUE_VARIANT, qty: 2 }]);
     expect(html).toContain('&#x27;파랑&#x27;은 1인당 3개까지 구매할 수 있습니다.');
-    expect(html).toContain('주문할 수 없는 굿즈 1개는 주문에서 빠져요');
-    expect(html).toMatch(/<input aria-label="아크릴 키링[^"]*선택" disabled="" type="checkbox"\/>/);
-    /* 1인 누적 한도는 결제 대기 주문이 잡고 있을 수 있다 — 그 주문을 알리고 고객이 누를 때만 닫는다. */
-    expect(html).toContain('진행 중인 미결제 주문 취소하고 계속');
+    expect(html).toContain('구매 조건에 맞지 않는 굿즈 1개는 체크를 풀었어요');
+    expect(html).not.toContain('주문할 수 없는 굿즈');
+    expect(html).toMatch(/<input aria-label="아크릴 키링[^"]*선택" type="checkbox"\/>/);
     expect(checkoutEnabled(html)).toBe(false);
+  });
+
+  it('굿즈 주문당 최대 수량을 넘으면 그 굿즈 줄의 체크만 풀고, 다른 굿즈는 주문할 수 있다', () => {
+    mocks.quoteGoods.set('g13', { orderQuantityLimitEnabled: true, minOrderQty: 1, maxOrderQty: 2, reason: 'order_quantity_above_maximum' });
+    const html = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 3 }, { goodId: 'g16', variantId: BLUE_VARIANT, qty: 1 }]);
+    expect(html).toContain('주문당 최대 2개까지 구매할 수 있어요. 옵션을 합해 2개 이하로 골라주세요.');
+    expect(html).toMatch(/<input aria-label="홍실 아크릴 블록[^"]*선택" type="checkbox"\/>/);
+    expect(html).toMatch(/<input aria-label="아크릴 키링[^"]*선택" type="checkbox" checked=""\/>/);
+    expect(html).not.toContain('주문할 수 없는 굿즈');
+    /* 낡은 막힘 문구가 남지 않는다 — 남은 고른 줄만 견적한다. */
+    expect(mocks.quotedItems.map((item) => item.goodId)).toEqual(['g16']);
+    expect(checkoutEnabled(html)).toBe(true);
+    expect(html).toContain('1개 주문하기');
+  });
+
+  it('회원 누적 한도에 도달했으면 수량 조정을 권하지 않는다', () => {
+    mocks.quoteGoods.set('g13', { memberPurchaseLimitEnabled: true, memberLifetimeQtyLimit: 3, memberReservedQty: 3, memberRemainingQty: 0,
+      reason: 'member_purchase_limit_exceeded' });
+    const html = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }]);
+    expect(html).toContain('회원 누적 구매 한도(3개)에 도달했어요.');
+    expect(html).not.toContain('수량을 줄');
+    /* 결제 대기 주문을 실제로 찾기 전에는 해소 안내를 그리지 않는다 — 사유만 보인다. */
+    expect(html).not.toContain('결제 대기 주문 취소하고 계속');
   });
 
   it('화면을 연 뒤 재고가 줄어든 줄은 빼고 나머지 줄로 주문할 수 있다', () => {
@@ -426,6 +456,7 @@ describe('Cart 랜덤 판매·옵션별 구매 제한 품목 줄', () => {
       startsAt: null, endsAt: null, expectedShipDate: null, calculatedAt: '2026-09-10T00:00:00Z', nextChangeAt: null } });
     const html = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }, { goodId: 'g16', variantId: BLUE_VARIANT, qty: 2 }]);
     expect(html).toContain('재고가 1개만 남아 이번 주문에서 빠졌어요. 수량을 줄이면 다시 고를 수 있어요.');
+    expect(html).toContain('주문할 수 없는 굿즈 1개는 주문에서 빠져요. 수량을 줄이면 다시 고를 수 있어요.');
     /* 막힘 판정은 남은 고른 줄로만 한다 — 남은 줄(g13)은 주문할 수 있다. */
     expect(html).not.toContain('현재 판매 상태나 재고가 변경된 굿즈가 있어요');
     expect(mocks.quotedItems.map((item) => item.goodId)).toEqual(['g13']);

@@ -18,7 +18,8 @@
 }
 
 /* 누르는 영역은 44×44(DESIGN.md touch-target). 칸(24)은 그대로 두고 라벨의 보이지 않는 여백을 바깥 여백·칸 사이(16)로
-   넓힌다 — 오른쪽은 10px만 넓혀 썸네일(목적지 링크)과 겹치지 않는다. */
+   넓힌다 — 오른쪽은 10px만 넓혀 썸네일(목적지 링크)과 겹치지 않는다. 체크박스 자체는 그 여백 위에 올려, 체크박스를 직접
+   누르는 클릭(보조기술·자동화 포함)은 라벨의 여백이 아니라 입력에 닿는다. 여백을 누르면 라벨이 같은 입력을 바꾼다. */
 .wc-cart__line-check::before {
   content: '';
   position: absolute;
@@ -26,6 +27,11 @@
   right: -10px;
   bottom: -11px;
   left: -10px;
+}
+
+.wc-cart__line-check input {
+  position: relative;
+  z-index: 1;
 }
 
 .wc-cart__line-check input,

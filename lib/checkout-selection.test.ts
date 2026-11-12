@@ -5,10 +5,17 @@ import {
   cartOrderButtonLabel,
   cartSelectionQuantity,
   pruneCartSelection,
+  cartGoodSignature,
+  goodsLimitNoteMessage,
+  parseUnpaidCheckoutOrders,
   quoteCoversSelection,
-  quoteExcludedLines,
   quoteExclusionKey,
+  quoteLimitNotes,
   quoteMayBeBlockedByPendingOrder,
+  quoteUnavailableLines,
+  relevantUnpaidCheckoutOrders,
+  transactionIssueStockGoodIds,
+  unpaidCheckoutOrderSummary,
   selectedCartLines,
   toggleAllCartLines,
   toggleCartLineSelection,
@@ -86,37 +93,116 @@ describe('결제 대기 주문이 원인일 수 있는 견적 막힘', () => {
   });
 });
 
-/* 견적이 판정한 불가 줄은 선택에서 빼고 사유를 줄에 보인다(ADR-0030 확정 동작 2 — 전체 주문을 막지 않는다). */
-describe('견적이 판정한 주문할 수 없는 줄', () => {
+/* 견적이 판정한 줄 단위 불가는 선택에서 빼고 사유를 줄에 보인다(ADR-0030 확정 동작 2 — 전체 주문을 막지 않는다). 구매 수량
+   조건은 줄을 빼지 않고 체크만 풀어 사유를 보인다(UI 재리뷰 — 다시 고르면 다시 견적한다). */
+describe('견적이 판정한 주문할 수 없는 줄·구매 조건', () => {
   const VA = '00000000-0000-4000-8000-00000000000a';
   const VB = '00000000-0000-4000-8000-00000000000b';
+  const VC = '00000000-0000-4000-8000-00000000000c';
   const base = { regularPrice: 1000, effectivePrice: 1000, pricePeriodId: null, startsAt: null, endsAt: null };
-  const good = (goodId: string, reason: string | null = null) => ({ goodId, qty: 1, orderQuantityLimitEnabled: false, minOrderQty: null, maxOrderQty: null,
-    memberPurchaseLimitEnabled: false, memberLifetimeQtyLimit: null, memberReservedQty: null, memberRemainingQty: null, reason } as never);
+  const supply = (availableQty: number) => ({ mode: 'stock', availableQty, policyId: null, policyRevision: null, state: 'stock', startsAt: null, endsAt: null,
+    expectedShipDate: null, calculatedAt: '2026-11-12T00:00:00Z', nextChangeAt: null });
+  const good = (goodId: string, extra: Record<string, unknown> = {}) => ({ goodId, qty: 1, orderQuantityLimitEnabled: false, minOrderQty: null, maxOrderQty: null,
+    memberPurchaseLimitEnabled: false, memberLifetimeQtyLimit: null, memberReservedQty: null, memberRemainingQty: null, reason: null, ...extra } as never);
   const a = { goodId: 'a', variantId: VA, qty: 2 };
   const b = { goodId: 'b', variantId: VB, qty: 1 };
   const name = () => '옵션';
+
   it('품절·재고 부족 줄은 사유와 함께 빼고, 키에 수량을 넣어 수량을 바꾸면 다시 판정한다', () => {
-    const quote = { lines: [{ ...base, goodId: 'a', variantId: VA, qty: 2, available: false,
-      supply: { mode: 'stock', availableQty: 1, policyId: null, policyRevision: null, state: 'stock', startsAt: null, endsAt: null, expectedShipDate: null,
-        calculatedAt: '2026-11-12T00:00:00Z', nextChangeAt: null } }, { ...base, goodId: 'b', variantId: VB, qty: 1, available: true }] as never,
-      goods: [good('a'), good('b')] };
-    const excluded = quoteExcludedLines([a, b], quote, name);
-    expect([...excluded.keys()]).toEqual([quoteExclusionKey(a)]);
+    const quote = { lines: [{ ...base, goodId: 'a', variantId: VA, qty: 2, available: false, supply: supply(1) },
+      { ...base, goodId: 'b', variantId: VB, qty: 1, available: false, supply: supply(0) }] as never };
+    const excluded = quoteUnavailableLines([a, b], quote);
+    expect(excluded.get(quoteExclusionKey(a))).toMatchObject({ reducible: true, stockShort: true });
     expect(excluded.get(quoteExclusionKey(a))?.message).toContain('재고가 1개만 남아');
+    /* 남은 재고가 없으면 수량 조정을 권하지 않는다. */
+    expect(excluded.get(quoteExclusionKey(b))).toMatchObject({ reducible: false, stockShort: true, message: '판매 상태나 재고가 바뀌어 이번 주문에서 빠졌어요.' });
     expect(quoteExclusionKey({ ...a, qty: 1 })).not.toBe(quoteExclusionKey(a));
   });
-  it('굿즈 사유는 그 굿즈의 고른 줄을 모두 빼고, 회원 누적 한도는 결제 대기 주문이 원인일 수 있다고 표시한다', () => {
-    const quote = { lines: [{ ...base, goodId: 'a', variantId: VA, qty: 2, available: true }, { ...base, goodId: 'b', variantId: VB, qty: 1, available: true }] as never,
-      goods: [good('a', 'member_purchase_limit_exceeded'), good('b', 'order_quantity_above_maximum')] };
-    const excluded = quoteExcludedLines([a, b], quote, name);
-    expect(excluded.get(quoteExclusionKey(a))).toMatchObject({ pendingOrderMayBlock: true });
-    expect(excluded.get(quoteExclusionKey(b))).toMatchObject({ pendingOrderMayBlock: false });
+
+  it('굿즈 사유는 그 굿즈의 고른 줄 모두에 체크 해제 사유를 달고, 회원 누적 한도는 결제 대기 주문이 원인일 수 있다고 표시한다', () => {
+    const a2 = { goodId: 'a', variantId: VC, qty: 1 };
+    const quote = { lines: [{ ...base, goodId: 'a', variantId: VA, qty: 2, available: true }, { ...base, goodId: 'a', variantId: VC, qty: 1, available: true },
+      { ...base, goodId: 'b', variantId: VB, qty: 1, available: true }] as never,
+      goods: [good('a', { qty: 3, orderQuantityLimitEnabled: true, minOrderQty: 1, maxOrderQty: 2, reason: 'order_quantity_above_maximum' }),
+        good('b', { memberPurchaseLimitEnabled: true, memberLifetimeQtyLimit: 3, memberReservedQty: 3, memberRemainingQty: 0, reason: 'member_purchase_limit_exceeded' })] };
+    const notes = quoteLimitNotes([a, a2, b], quote, name);
+    expect([...notes.get('a')!.lines.keys()]).toEqual([cartLineKey(a), cartLineKey(a2)]);
+    expect(notes.get('a')).toMatchObject({ pendingOrderMayBlock: false });
+    expect(notes.get('a')!.lines.get(cartLineKey(a))).toBe('주문당 최대 2개까지 구매할 수 있어요. 옵션을 합해 2개 이하로 골라주세요.');
+    expect(notes.get('b')).toMatchObject({ pendingOrderMayBlock: true });
+    /* 줄 단위 불가는 구매 조건이 아니다 — 비활성 제외(quoteUnavailableLines)가 맡는다. */
+    expect(quoteUnavailableLines([a, a2, b], quote).size).toBe(0);
   });
-  it('다른 선택의 견적으로는 줄을 빼지 않는다', () => {
+
+  it('옵션 한도 사유는 그 옵션 줄에만 단다', () => {
+    const quote = { lines: [{ ...base, goodId: 'a', variantId: VA, qty: 2, available: true,
+      optionLimit: { orderMaxQty: 1, memberMaxQty: null, memberReservedQty: null, memberRemainingQty: null, reason: 'option_order_limit_exceeded' } },
+    { ...base, goodId: 'a', variantId: VC, qty: 1, available: true }] as never, goods: [good('a', { qty: 3 })] };
+    const notes = quoteLimitNotes([a, { goodId: 'a', variantId: VC, qty: 1 }], quote, name);
+    expect([...notes.get('a')!.lines.keys()]).toEqual([cartLineKey(a)]);
+    expect(notes.get('a')).toMatchObject({ pendingOrderMayBlock: false });
+  });
+
+  it('구매 조건 안내는 한도 수치로 말하고, 남은 한도가 없으면 수량 조정을 권하지 않는다', () => {
+    expect(goodsLimitNoteMessage(good('a', { minOrderQty: 3, reason: 'order_quantity_below_minimum' }))).toBe('최소 3개부터 구매할 수 있어요. 옵션을 합해 3개 이상 골라주세요.');
+    expect(goodsLimitNoteMessage(good('a', { memberLifetimeQtyLimit: 5, memberRemainingQty: 2, reason: 'member_purchase_limit_exceeded' })))
+      .toBe('회원 누적 구매 한도로 2개까지 더 구매할 수 있어요. 수량을 줄여 골라주세요.');
+    const reached = goodsLimitNoteMessage(good('a', { memberLifetimeQtyLimit: 5, memberRemainingQty: 0, reason: 'member_purchase_limit_exceeded' }));
+    expect(reached).toContain('회원 누적 구매 한도(5개)에 도달했어요.');
+    expect(reached).not.toContain('수량을');
+    expect(goodsLimitNoteMessage(good('a'))).toBeNull();
+  });
+
+  it('굿즈 줄 집합의 서명은 체크·해제·삭제·수량 변경에 바뀌고 다른 굿즈의 변경에는 그대로다', () => {
+    const a2 = { goodId: 'a', variantId: VC, qty: 1 };
+    const off = new Set([cartLineKey(a), cartLineKey(a2)]);
+    const sign = (items: typeof a[], keys: ReadonlySet<string>) => cartGoodSignature(items.map((item) => (
+      { goodId: item.goodId, key: cartLineKey(item), qty: item.qty, checked: !keys.has(cartLineKey(item)) })), 'a');
+    const signature = sign([a, a2, b], off);
+    expect(sign([a, a2, { ...b, qty: 3 }], off)).toBe(signature);
+    expect(sign([a, a2, b], new Set([cartLineKey(a2)]))).not.toBe(signature);
+    expect(sign([a, b], off)).not.toBe(signature);
+    expect(sign([{ ...a, qty: 1 }, a2, b], off)).not.toBe(signature);
+  });
+
+  it('다른 선택·바뀌기 전 수량의 견적으로는 줄을 빼지 않는다', () => {
     const quote = { lines: [{ ...base, goodId: 'a', variantId: VA, qty: 2, available: true }] as never, goods: [] };
     expect(quoteCoversSelection([a], quote)).toBe(true);
+    expect(quoteCoversSelection([{ ...a, qty: 3 }], quote)).toBe(false);
     expect(quoteCoversSelection([a, b], quote)).toBe(false);
     expect(quoteCoversSelection([], quote)).toBe(false);
+    /* 같은 옵션의 직접입력 줄은 수량을 합해 견적 줄 하나와 맞춘다. */
+    expect(quoteCoversSelection([{ ...a, qty: 1 }, { ...a, qty: 1, customInputs: { revision: 1, fields: [] } }], quote)).toBe(true);
+  });
+
+  it('거래 런타임의 지금 주문할 수 없는 굿즈를 모은다', () => {
+    expect(transactionIssueStockGoodIds([{ code: 'goods_unavailable', goodId: 'a' }, { code: 'goods_unavailable', goodId: 'a' },
+      { code: 'purchase_limit', goodId: 'b' }, { code: 'goods_unavailable', goodId: null }])).toEqual(['a']);
+  });
+});
+
+/* '결제 대기 주문 취소하고 계속'의 확인창(ADR-0030): 결제 대기 주문을 실제로 찾았을 때만, 원인일 수 있는 주문만 보인다. */
+describe('결제 대기 주문 확인창', () => {
+  const ORDER = '00000000-0000-4000-8000-0000000000e1';
+  const row = { id: ORDER.toUpperCase(), orderNumber: '2026111210000001', total: 23000, itemName: '굿즈 A', itemCount: 3, goodIds: ['a', 'b'], releasable: true };
+  it('목록 모양이 하나라도 틀리면 믿지 않는다', () => {
+    expect(parseUnpaidCheckoutOrders([row])).toEqual([{ ...row, id: ORDER }]);
+    expect(parseUnpaidCheckoutOrders([])).toEqual([]);
+    for (const broken of [{ ...row, id: 'x' }, { ...row, total: '23000' }, { ...row, goodIds: [1] }, { ...row, releasable: 'yes' }, null]) {
+      expect(parseUnpaidCheckoutOrders([broken])).toBeNull();
+    }
+    expect(parseUnpaidCheckoutOrders({})).toBeNull();
+  });
+  it('혜택·한도 막힘은 모든 결제 대기 주문, 재고 부족은 그 굿즈를 담은 주문만 원인으로 본다', () => {
+    const [order] = parseUnpaidCheckoutOrders([row])!;
+    const other = { ...order, id: '00000000-0000-4000-8000-0000000000e2', goodIds: ['c'] };
+    expect(relevantUnpaidCheckoutOrders([order, other], { holdsBenefits: true, stockGoodIds: [] })).toEqual([order, other]);
+    expect(relevantUnpaidCheckoutOrders([order, other], { holdsBenefits: false, stockGoodIds: ['c'] })).toEqual([other]);
+    expect(relevantUnpaidCheckoutOrders([order, other], { holdsBenefits: false, stockGoodIds: [] })).toEqual([]);
+  });
+  it('주문 요약은 첫 굿즈와 나머지 품목 수다', () => {
+    expect(unpaidCheckoutOrderSummary({ itemName: '굿즈 A', itemCount: 3 })).toBe('굿즈 A 외 2건');
+    expect(unpaidCheckoutOrderSummary({ itemName: '굿즈 A', itemCount: 1 })).toBe('굿즈 A');
+    expect(unpaidCheckoutOrderSummary({ itemName: null, itemCount: 1 })).toBe('굿즈');
   });
 });
