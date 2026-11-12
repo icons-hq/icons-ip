@@ -36,11 +36,15 @@ export interface ShipmentConsoleRow {
  /** 착불 배송비와 착불 수납 정보(읽기 전용). 착불이 없으면 null이다. 출고 전용 운영자에게도 보인다(2026-11-12 "착불 금액은 보이게"). */
  collect?:import('./shipment-collect').ShipmentCollectSummary|null;
  production?:import('@/lib/order-production').ShipmentProductionSummary;
+ /** 배송현황만: 추가 운송장(QNA-019)과 스위치가 켜진 때의 자동 배송완료 표시(QNA-028). */
+ trackingSummary?:import('./shipment-tracking').ShipmentTrackingSummary;
 }
 export interface ShipmentConsoleData {
  surface:ShipmentConsoleSurface;filters:ShipmentConsoleFilters;rows:ShipmentConsoleRow[];total:number;pageSize:number;
  counts:Record<ShipmentConsoleTab,number>;carriers:ShippingCarrierRegistry;origins:ShipmentConsoleOrigin[];
  delayNoticeFingerprint?:string;
+ /** 배송현황만: 택배 추적 자동 배송완료 스위치(DB). 꺼져 있으면 추적 관련 표시를 하나도 그리지 않는다. */
+ autoDelivery?:boolean;
 }
 export interface ShipmentExportData {shipments:{id:string;shipmentNumber?:string|null;orderNumber?:string|null;updatedAt:string;originId:string;originName:string;shippingFee:number;shippingCollectFee?:number;pack?:import('./shipment-packs').ShipmentPackSummary|null;isGift?:boolean;collector?:import('@/lib/goods-transaction').GoodsTransactionCollector|null;template:string;columns:ShipmentExportColumn[];lines:import('./shipment-workbook').ShipmentExportLine[]}[]}
 /** 양식·사용 여부는 출고지별 내려받기 버튼의 표시 기준입니다. 기본 택배사는 행 운송장 칸이 미리 고릅니다. */
@@ -87,6 +91,15 @@ export function shipmentMutationError(code:string):string{
   shipment_price_allocation_missing:'주문 당시 금액 배분 기록을 확인하지 못했습니다. 주문 상세를 확인해주세요.',
   conflicting_shipment_tracking:'같은 주문에 서로 다른 운송장이 있습니다. 해당 주문의 모든 행을 함께 확인해주세요.',
   shipment_tracking_conflict:'이미 다른 운송장으로 발송된 배송 건입니다. 회신 파일로 덮어쓰지 않습니다. 정정은 주문 통합검색의 운송장 수정에서 해주세요.',
+  // 배송 건 추가 운송장(QNA-019)
+  tracking_number_in_use:'다른 배송 건에 등록된 운송장번호입니다. 회신 파일이나 입력한 번호를 확인해주세요.',
+  extra_tracking_reason_required:'추가 운송장을 더하거나 지우는 사유를 입력해주세요(500자 이내).',
+  extra_tracking_is_representative:'대표 운송장과 같은 번호입니다. 다른 상자의 운송장번호를 입력해주세요.',
+  extra_tracking_duplicate:'이미 붙어 있는 추가 운송장입니다.',
+  extra_tracking_limit:'추가 운송장은 배송 건마다 19개까지 붙일 수 있습니다.',
+  extra_tracking_not_found:'이미 지워진 추가 운송장입니다. 화면을 새로고침해주세요.',
+  extra_tracking_operation_conflict:'같은 요청이 다른 내용으로 처리되었습니다. 화면을 새로고침한 뒤 다시 시도해주세요.',
+  invalid_extra_tracking:'추가 운송장 요청을 확인해주세요. 화면을 새로고침한 뒤 다시 시도해주세요.',
  };
  if(warehouseErrors[code])return warehouseErrors[code];
  if(code.startsWith('production_'))return productionError(undefined,code);

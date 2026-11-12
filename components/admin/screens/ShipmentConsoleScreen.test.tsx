@@ -7,6 +7,7 @@ vi.mock('next/navigation',()=>({useRouter:()=>({refresh:vi.fn()}),usePathname:()
 vi.mock('@/app/admin/order-actions',()=>({bulkConfirmAdminOrdersAction:vi.fn(),bulkRegisterAdminOrderTrackingAction:vi.fn(),saveAdminOrderDispatchDelayAction:vi.fn()}));
 vi.mock('@/app/admin/shipment-actions',()=>({completeShipmentsAction:vi.fn(),exportShipmentsAction:vi.fn(),exportPendingOriginShipmentsAction:vi.fn()}));
 vi.mock('@/app/admin/dispatch-delivery-actions',()=>({readDispatchShipmentDeliveryAction:vi.fn(),recordDispatchShipmentDeliveryAction:vi.fn()}));
+vi.mock('@/app/admin/shipment-tracking-actions',()=>({addShipmentExtraTrackingAction:vi.fn(),removeShipmentExtraTrackingAction:vi.fn()}));
 const base:ShipmentConsoleData={surface:'dispatch',filters:{tab:'ready',originId:null,query:'',from:null,to:null,page:1},rows:[],total:2,pageSize:100,counts:{new:0,ready:2,delayed:0,transit:0,delivered:0},carriers:[{code:'hanjin',label:'한진택배',active:true,trackingUrlTemplate:'https://example.test/{trackingNumber}'}],origins:[{id:'one',name:'김포',template:'wms_csv',active:true},{id:'two',name:'남양주',template:'seowon_xlsx',active:true},{id:'three',name:'중지된 창고',template:'standard',active:false}]};
 const row={id:'60000000-0000-4000-8000-000000000001',orderId:'50000000-0000-4000-8000-000000000001',originId:'one',originName:'김포',status:'ready' as const,createdAt:'2026-09-08T00:00:00Z',confirmedAt:'2026-09-08T01:00:00Z',buyerName:'구매자',recipientName:'받는 분',total:30000,paymentMethod:'card',shippingFee:3000,carrier:null,trackingNumber:null,shippedAt:null,deliveredAt:null,exportedAt:null,updatedAt:'2026-09-08T00:00:00Z',delayReason:null,expectedShipDate:null,items:[{id:'item-1',name:'상품',variantName:'파랑',qty:2}]};
 describe('배송 건 콘솔',()=>{
@@ -369,4 +370,35 @@ describe('물류 출고 권한 화면 숨김 (T05 통합용 props)',()=>{
   expect(html).toMatch(/aria-haspopup="dialog"[^>]*>방문수령 인계·수령 확인<\/button>/);expect(html).toContain('주문제작 0/1건 완료');
   expect(html).toContain('디지털 파일 제공 이력은 주문 상세에서 합니다.');
  });
+
+});
+describe('배송현황 추가 운송장·택배 추적 표시 (QNA-019·QNA-028)',()=>{
+  const shipped={...row,status:'shipping' as const,carrier:'hanjin',trackingNumber:'123456789012',shippedAt:'2026-11-10T00:00:00Z',delivery:{method:'parcel' as const,providerName:null,canIssueReceipt:false,policy:null}};
+  const delivered={...shipped,id:'60000000-0000-4000-8000-000000000002',status:'delivered' as const,deliveredAt:'2026-11-11T00:00:00Z'};
+  const extra={id:'00000000-0000-4000-8000-0000000000e1',carrier:'hanjin',trackingNumber:'223456789012',source:'warehouse_reply' as const,createdAt:'2026-11-10T01:00:00Z'};
+  const shipping=(rows:ShipmentConsoleData['rows'],autoDelivery?:boolean,tab:'transit'|'delivered'='transit')=>renderToStaticMarkup(<ShipmentConsoleScreen now={new Date('2026-11-12T00:00:00Z')}
+   data={{...base,surface:'shipping',filters:{...base.filters,tab},rows,...(autoDelivery===undefined?{}:{autoDelivery})}}/>);
+  const TRACKING_COPY=['자동 확인','수동 처리','택배 추적','자동 배송완료 보류','도착 '];
+  it('추가 운송장은 조회 링크로 대표 운송장 아래에 보이고 관리 팝업 입구가 생긴다',()=>{
+   const html=shipping([{...shipped,trackingSummary:{extraTrackings:[extra],deliveredBy:null,tracking:null}}],false);
+   expect(html).toMatch(/href="https:\/\/example.test\/223456789012"[^>]*>추가 한진택배 223456789012<\/a>/);
+   expect(html).toMatch(/aria-haspopup="dialog"[^>]*>추가 운송장 1개 관리<\/button>/);
+   expect(shipping([{...shipped,trackingSummary:{extraTrackings:[],deliveredBy:null,tracking:null}}],false)).toMatch(/>추가 운송장 더하기<\/button>/);
+  });
+  it('스위치가 꺼져 있으면 자동·수동 구분과 추적 진행을 하나도 그리지 않는다',()=>{
+   const off=shipping([{...shipped,trackingSummary:{extraTrackings:[],deliveredBy:null,tracking:null}},{...delivered,trackingSummary:{extraTrackings:[],deliveredBy:null,tracking:null}}],false);
+   for(const copy of TRACKING_COPY)expect(off).not.toContain(copy);
+   // 추적 표시는 스위치를 따른다 — 값이 실려 와도 꺼져 있으면 그리지 않는다.
+   const leaked=shipping([{...shipped,trackingSummary:{extraTrackings:[],deliveredBy:'manual',tracking:{total:1,delivered:0,latestStatus:'in_transit',latestAt:null,held:true}}}],false);
+   expect(leaked).toBe(shipping([{...shipped,trackingSummary:{extraTrackings:[],deliveredBy:null,tracking:null}}],false));
+   // 추가 운송장 요약이 없던 행(발주·발송 목록·옛 응답)은 이 칸이 종전 그대로다(일괄 등록 안내의 서원 회신 설명은 행 밖이다).
+   const plain=shipping([shipped]).replace(/<section[^>]*aria-label="엑셀 일괄 운송장 등록"[\s\S]*?<\/section>/,'');
+   for(const copy of [...TRACKING_COPY,'추가 운송장'])expect(plain).not.toContain(copy);
+  });
+  it('켜져 있으면 배송완료 건에 자동 확인·수동 처리를, 배송 중 건에 추적 진행과 보류를 보인다',()=>{
+   const transit=shipping([{...shipped,trackingSummary:{extraTrackings:[extra],deliveredBy:null,tracking:{total:2,delivered:1,latestStatus:'out_for_delivery',latestAt:'2026-11-11T03:00:00Z',held:true}}}],true);
+   expect(transit).toContain('택배 추적 배송 출발 · 도착 1/2');expect(transit).toContain('자동 배송완료 보류');expect(transit).toContain('택배 추적이 켜져 있습니다');
+   const done=shipping([{...delivered,trackingSummary:{extraTrackings:[],deliveredBy:'tracking',tracking:null}},{...delivered,id:'60000000-0000-4000-8000-000000000003',trackingSummary:{extraTrackings:[],deliveredBy:'manual',tracking:null}}],true,'delivered');
+   expect(done).toContain('자동 확인 · 택배 추적');expect(done).toContain('수동 처리');
+  });
 });

@@ -73,3 +73,31 @@ describe('origin names on customer and admin shipment displays', () => {
     expect(html).not.toContain(shipmentFixture().id);
   });
 });
+
+describe('배송 건 추가(연결) 운송장 (QNA-019)', () => {
+  const extra = { id: '00000000-0000-4000-8000-0000000000e1', carrier: 'hanjin', carrierLabel: '한진택배', trackingNumber: '223456789012', trackingUrl: 'https://carrier.example.test/track?no=223456789012' };
+  it('고객·어드민 모두 대표 운송장 아래에 나눠 보낸 상자의 운송장과 조회 링크를 보인다', () => {
+    for (const admin of [false, true]) {
+      const html = renderToStaticMarkup(<ShipmentDetails admin={admin} shipments={[shipmentFixture({ extraTrackings: [extra, { ...extra, id: '00000000-0000-4000-8000-0000000000e2', trackingNumber: '323456789012', trackingUrl: null }] })]} />);
+      expect(html).toContain('<dt>추가 운송장</dt>');
+      expect(html).toMatch(/href="https:\/\/carrier\.example\.test\/track\?no=223456789012"[^>]*>한진택배 223456789012<\/a>/);
+      expect(html).toContain('<span>한진택배 323456789012</span>');
+      expect(html).toContain('나눠 보낸 상자 · 번호를 누르면 배송조회</small>');
+      expect(html).toContain(admin ? 'class="flex flex-col items-start"' : 'class="wc-shipment-extra-trackings"');
+      expect(html.indexOf('운송장번호')).toBeLessThan(html.indexOf('추가 운송장'));
+    }
+  });
+  it('조회 링크가 없는 번호만 있으면 누르라는 안내를 붙이지 않는다', () => {
+    const html = renderToStaticMarkup(<ShipmentDetails shipments={[shipmentFixture({ extraTrackings: [{ ...extra, trackingUrl: null }] })]} />);
+    expect(html).toContain('<small>나눠 보낸 상자</small>');
+    expect(html).not.toContain('<a aria-label="한진택배 223456789012');
+  });
+  it('추가 운송장이 없으면 배송 칸이 종전과 같다', () => {
+    const html = renderToStaticMarkup(<ShipmentDetails shipments={[shipmentFixture()]} />);
+    expect(html).not.toContain('추가 운송장');
+    expect(renderToStaticMarkup(<ShipmentDetails shipments={[shipmentFixture({ extraTrackings: undefined })]} />)).toBe(html);
+  });
+  it('택배가 아닌 배송 건에는 추가 운송장 칸이 없다', () => {
+    expect(renderToStaticMarkup(<ShipmentDetails shipments={[shipmentFixture({ delivery: shipmentDeliveryFixture(), extraTrackings: [extra] })]} />)).not.toContain('추가 운송장');
+  });
+});
