@@ -325,6 +325,8 @@ export function trackingImportCommand(parsed: Exclude<TrackingWorkbookParseResul
     return { name: 'admin_import_item_tracking_batch' as const, args: { target_rows: [
       ...parsed.rows.map(row => ({ line: row.line, reference: row.reference, carrier: row.carrier, trackingNumber: row.trackingNumber })),
       ...parsed.issues.map(issue => ({ line: issue.line, reference: issue.reference, carrier: '', trackingNumber: '' })),
+      // 운송장 칸만 비운 줄도 빈 값으로 보내 같은 배송 건의 채운 줄이 일부만 발송되지 않게 DB 배송 건 가드가 막는다.
+      ...(parsed.rows.length ? parsed.skipped.map(blank => ({ line: blank.line, reference: blank.reference, carrier: '', trackingNumber: '' })) : []),
     ].sort((left, right) => left.line - right.line) } };
   }
   if ('kind' in parsed) {

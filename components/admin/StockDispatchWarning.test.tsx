@@ -24,6 +24,12 @@ describe('출고지시 전 재고 경고', () => {
     expect(html).toContain('href="/admin/catalog/stock-reconcile"');
   });
 
+  it('창고 예상 수량이 0 아래여도 0으로 보이고 부족 수는 그대로다', () => {
+    const html = renderToStaticMarkup(<StockDispatchWarning data={{ ...base, warnings: [{ ...warning, kind: 'shortage', pendingQty: 6, expectedQty: -1, shortageQty: 7 }] }} />);
+    expect(html).toContain('출고 대기 6개 · 창고 예상 0개(부족 7)');
+    expect(html).not.toContain('-1개');
+  });
+
   it('차이는 주의 상자, 대조 기록만 없으면 안내 상자다', () => {
     const mismatch = renderToStaticMarkup(<StockDispatchWarning data={{ ...base, warnings: [{ ...warning, kind: 'mismatch', difference: 3, shortageQty: 0 }] }} />);
     expect(mismatch).toContain('data-admin-notice="warning"');

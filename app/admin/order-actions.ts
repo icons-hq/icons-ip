@@ -535,6 +535,7 @@ export interface AdminTrackingImportPreview {
   sample: { line: number; reference: string; trackingNumber: string }[];
 }
 
+const isSmartStoreReply = (parsed: TrackingWorkbookParseResult): parsed is Extract<TrackingWorkbookParseResult, { kind: 'smartstore' }> => 'kind' in parsed && parsed.kind === 'smartstore';
 const isSeowonReply = (parsed: TrackingWorkbookParseResult): parsed is SeowonTrackingParseResult => 'kind' in parsed && parsed.kind === 'seowon';
 type TrackingBatchRow = {line:number;reference:string;ok:boolean;error?:string;shipmentId?:string;orderId?:string;dispatched?:boolean;duplicate?:boolean;packedShipments?:{orderId:string;shipmentId:string}[]};
 type ReplyTemplate = 'wms_csv' | 'seowon_xlsx';
@@ -594,7 +595,7 @@ async function readTrackingImport(formData: FormData): Promise<{ parsed: Trackin
   } catch(error) { return {error:error instanceof Error?error.message:'운송장 파일을 읽지 못했습니다.'}; }
 }
 
-const blankReplyLines = (parsed: TrackingWorkbookParseResult) => 'kind' in parsed && parsed.kind === 'gimpo' ? parsed.skipped.length : 0;
+const blankReplyLines = (parsed: TrackingWorkbookParseResult) => 'kind' in parsed && (parsed.kind === 'gimpo' || parsed.kind === 'smartstore') ? parsed.skipped.length : 0;
 
 /**
  * 등록 전 확인(QA 라운드 1 m2): 잘못 고른 파일이 바로 등록되지 않도록, 올린 회신을 읽기만 해서 알아본 양식·등록할 줄·건너뛸 줄·
@@ -703,7 +704,8 @@ export async function bulkRegisterAdminOrderTrackingAction(
     if(result.error||!Array.isArray(result.data)||result.data.length!==command.args.target_rows.length)return {errors:{form:'등록 결과를 확인하지 못했습니다. 최신 배송 상태를 확인하고 같은 파일로 다시 시도해주세요.'}};
     const rows=result.data as TrackingBatchRow[];
     for(const row of rows){
-      if(!row.ok){if(!parsed.issues.some(issue=>issue.line===row.line))failed.push({line:row.line,reference:row.reference,reason:shipmentMutationError(row.error??'')});}
+      // 표준 양식에서 운송장 칸만 비워 건너뛴 줄은 배송 건 가드용으로만 보냈다. 그 줄 자체의 거절은 실패가 아니다.
+      if(!row.ok){if(!parsed.issues.some(issue=>issue.line===row.line)&&!(isSmartStoreReply(parsed)&&parsed.skipped.some(blank=>blank.line===row.line)))failed.push({line:row.line,reference:row.reference,reason:shipmentMutationError(row.error??'')});}
       else if(row.duplicate)continue;
       else if(row.dispatched===false)unchanged++;
       else succeeded.push(row.reference);
