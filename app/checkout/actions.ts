@@ -36,7 +36,10 @@ type PlaceOrderActionError =
 
 export type PlaceOrderActionResult =
   | { ok: true; orderId: string }
-  /** `orderId`: `checkout_draft_used`일 때 이 주문서로 이미 접수·결제한 원 주문(ADR-0030). 화면이 그 주문으로 안내한다. */
+  /**
+   * `orderId`: `checkout_draft_used`면 이 주문서로 이미 접수·결제한 원 주문, `checkout_payment_in_progress`면 결제 승인을
+   * 확인하고 있는 주문(ADR-0030). 화면이 그 주문으로 안내하고 결제 버튼을 잠근다.
+   */
   | { ok: false; error: PlaceOrderActionError; pendingOrder?: boolean; orderId?: string };
 
 export interface PrepareGoodsPaymentActionState {
@@ -170,7 +173,7 @@ export async function placeOrderAction(
   }
 
   let data: unknown;
-  let error: { message: string } | null;
+  let error: { message: string; details?: string | null } | null;
   try {
     const service = createServiceClient();
     const result = await service.rpc('place_order_with_cart_snapshot', {
@@ -188,13 +191,26 @@ export async function placeOrderAction(
     return { ok: false, error: 'unavailable' };
   }
 
-  if (error) return { ok: false, error: mapPlaceOrderError(error.message),
-    ...(couponErrorNeedsPendingOrder(error.message) ? { pendingOrder: true } : {}) };
+  if (error) {
+    const code = mapPlaceOrderError(error.message);
+    return { ok: false, error: code, ...blockingOrder(code, error),
+      ...(couponErrorNeedsPendingOrder(error.message) ? { pendingOrder: true } : {}) };
+  }
 
   const orderId = normalizeOrderReference(data);
   if (!orderId) return { ok: false, error: 'unavailable' };
   await bindStoreAnalyticsOrder(orderId, auth.user.id);
   return { ok: true, orderId };
+}
+
+/**
+ * 주문을 막은 주문(DB detail = 주문 id): 같은 주문서의 재제출이면 이미 접수·결제한 원 주문(checkout_draft_used), 결제 승인을
+ * 확인하는 주문이 있으면 그 주문(checkout_payment_in_progress, ADR-0026·0030). 모양이 틀리면 주문 없이 안내만 한다.
+ */
+function blockingOrder(code: PlaceOrderErrorCode, error: { details?: string | null }): { orderId: string } | Record<string, never> {
+  if (code !== 'checkout_draft_used' && code !== 'checkout_payment_in_progress') return {};
+  const orderId = normalizeOrderReference(error.details ?? null);
+  return orderId ? { orderId } : {};
 }
 
 async function placeDraftOrder(
@@ -271,9 +287,8 @@ async function placeDraftOrder(
 
   if (error) {
     const code = mapPlaceOrderError(error.message);
-    /* 같은 주문서의 재제출(다른 탭·뒤로 가기): DB detail이 원 주문 id다. 모양이 틀리면 원 주문 없이 안내만 한다. */
-    const usedOrderId = code === 'checkout_draft_used' ? normalizeOrderReference(error.details ?? null) : null;
-    return { ok: false, error: code, ...(usedOrderId ? { orderId: usedOrderId } : {}),
+    /* 같은 주문서의 재제출(다른 탭·뒤로 가기)·결제 확인 중인 주문: DB detail이 그 주문 id다. */
+    return { ok: false, error: code, ...blockingOrder(code, error),
       ...(couponErrorNeedsPendingOrder(error.message) ? { pendingOrder: true } : {}) };
   }
 

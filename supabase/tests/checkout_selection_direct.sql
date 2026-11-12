@@ -618,7 +618,9 @@ select 1/case when has_function_privilege('service_role','public.place_direct_go
  and has_function_privilege('service_role','public.quote_direct_goods_transaction_combined(uuid,uuid,jsonb,jsonb,uuid[],bigint)','execute')
  and has_function_privilege('service_role','public.resume_direct_goods_transaction(uuid,uuid,uuid,uuid,public.order_payment_method,boolean)','execute')
  and not has_function_privilege('authenticated','public.resume_direct_goods_transaction(uuid,uuid,uuid,uuid,public.order_payment_method,boolean)','execute')
- and not has_function_privilege('service_role','private.direct_goods_transaction_selection(uuid,uuid)','execute')
+ and not has_function_privilege('service_role','private.direct_goods_transaction_selection(uuid,uuid,boolean)','execute')
+ and not has_function_privilege('service_role','private.checkout_draft_for_order(uuid,uuid,text,boolean)','execute')
+ and not has_function_privilege('service_role','private.checkout_draft_order_payment_unresolved(uuid)','execute')
  then 1 else 0 end as assert_transaction_direct_acl;
 update private.goods_transaction_runtime set enabled=false where singleton;
 
@@ -699,5 +701,76 @@ select 1/case when :'tx_used_retry'='checkout_draft_used|'||:'tx_used_order'
  and not exists(select 1 from public.orders where checkout_key='d2000000-0000-4000-8000-000000000510')
  then 1 else 0 end as assert_tx_bank_direct_draft_orders_once;
 update private.goods_transaction_runtime set enabled=false where singleton;
+
+-- ── 7. 결제가 아직 확정되지 않은 이전 주문(승인 확인 중·리스가 지난 confirming)의 주문서 재제출(완료 기준 5) ──────────
+-- 같은 초안을 새 키로 다시 내면 supersede가 그 주문을 떼어 내고(detach) 하나 더 만들 수 있었다. 이제 초안의 이전 주문 행을
+-- 먼저 잠그고 결제 미확정이면 PT409 checkout_payment_in_progress(detail = 그 주문)로 거절한다 — 주문은 하나, 보류는 그대로다.
+set local role service_role;
+select public.service_create_checkout_direct_draft('d2000000-0000-4000-8000-000000000002','d2-a',jsonb_build_array(
+  jsonb_build_object('good_id','d2-a','variant_id',:'variant_a','qty',1))) as confirming_draft \gset
+select public.place_direct_order('d2000000-0000-4000-8000-000000000002',:'confirming_draft',:'address','d2000000-0000-4000-8000-000000000601','card',0,null) as confirming_order \gset
+select public.prepare_goods_payment_attempt('d2000000-0000-4000-8000-000000000002',:'confirming_order','toss')->>'id' as confirming_attempt_2 \gset
+select public.bind_goods_payment_callback_nonce(:'confirming_attempt_2',repeat('f',64));
+reset role;
+select provider_order_id as confirming_provider_2 from public.payment_attempts where id=:'confirming_attempt_2' \gset
+set local role service_role;
+select public.claim_goods_payment_attempt('toss',:'confirming_provider_2',repeat('f',64),'d2000000-0000-4000-8000-000000000145');
+reset role;
+-- 승인 API 호출 중 리스(10분)가 지났다고 흉내 낸다 — 상태는 confirming 그대로다.
+update public.payment_attempts set claim_expires_at=clock_timestamp()-interval '1 second' where id=:'confirming_attempt_2';
+set local role service_role;
+select pg_temp.d2_error_detail(format('select public.place_direct_order(%L,%L,%L,%L,%L,0,null)','d2000000-0000-4000-8000-000000000002',:'confirming_draft',:'address',
+  'd2000000-0000-4000-8000-000000000602','bank_transfer')) as confirming_retry \gset
+reset role;
+select 1/case when :'confirming_retry'='checkout_payment_in_progress|'||:'confirming_order'
+ and not exists(select 1 from public.orders where checkout_key='d2000000-0000-4000-8000-000000000602')
+ and (select status='pending' from public.orders where id=:'confirming_order')
+ and (select state='awaiting_payment' from private.cart_order_holds where order_id=:'confirming_order')
+ and (select order_id=:'confirming_order'::uuid from private.checkout_drafts where id=:'confirming_draft')
+ then 1 else 0 end as assert_unresolved_payment_draft_resubmit_rejected_without_detach;
+-- 결과 불명(unknown)도 같다. 거래 런타임 바로구매는 견적부터(잠그지 않고) 같은 판정으로 막고, 주문도 막는다.
+update public.payment_attempts set state='unknown',claim_token=null,claim_expires_at=null where id=:'confirming_attempt_2';
+update private.goods_transaction_runtime set enabled=true where singleton;
+set local role service_role;
+select pg_temp.d2_expect_error(format('select public.place_direct_order(%L,%L,%L,%L,%L,0,null)','d2000000-0000-4000-8000-000000000002',:'confirming_draft',:'address',
+  'd2000000-0000-4000-8000-000000000603','card'),'checkout_payment_in_progress');
+select pg_temp.d2_expect_error(format('select public.quote_direct_goods_transaction(%L,%L,%L,%L,null,0)','d2000000-0000-4000-8000-000000000002',:'confirming_draft',:'address','{}'),
+  'checkout_payment_in_progress');
+select pg_temp.d2_expect_error(format('select public.place_direct_goods_transaction(%L,%L,%L,%L,%L,%L)','d2000000-0000-4000-8000-000000000002',:'confirming_draft',:'address',
+  'd2000000-0000-4000-8000-0000000000ff','d2000000-0000-4000-8000-000000000604','bank_transfer'),'checkout_payment_in_progress');
+reset role;
+update private.goods_transaction_runtime set enabled=false where singleton;
+-- 장바구니 선택 초안도 같다(승인 확인 중인 선택 주문을 같은 주문서로 다시 내기).
+set local role authenticated;
+select set_config('request.jwt.claim.sub','d2000000-0000-4000-8000-000000000002',true);
+select public.set_cart_item_quantity('d2-b',:'variant_b',1);
+reset role;
+select pg_temp.d2_lines('d2000000-0000-4000-8000-000000000002',array['d2-b']) as confirming_lines \gset
+set local role service_role;
+select public.service_create_checkout_selection_draft('d2000000-0000-4000-8000-000000000002',:'confirming_lines') as confirming_selection_draft \gset
+select public.place_order_with_cart_selection('d2000000-0000-4000-8000-000000000002',:'confirming_selection_draft',:'address',
+ 'd2000000-0000-4000-8000-000000000605','card',0,null) as confirming_selection_order \gset
+select public.prepare_goods_payment_attempt('d2000000-0000-4000-8000-000000000002',:'confirming_selection_order','toss')->>'id' as confirming_selection_attempt \gset
+reset role;
+update public.payment_attempts set state='needs_review' where id=:'confirming_selection_attempt';
+set local role service_role;
+select pg_temp.d2_error_detail(format('select public.place_order_with_cart_selection(%L,%L,%L,%L,%L,0,null)','d2000000-0000-4000-8000-000000000002',
+  :'confirming_selection_draft',:'address','d2000000-0000-4000-8000-000000000606','card')) as confirming_selection_retry \gset
+reset role;
+select 1/case when :'confirming_selection_retry'='checkout_payment_in_progress|'||:'confirming_selection_order'
+ and not exists(select 1 from public.orders where checkout_key='d2000000-0000-4000-8000-000000000606')
+ and (select state='awaiting_payment' from private.cart_order_holds where order_id=:'confirming_selection_order')
+ then 1 else 0 end as assert_unresolved_selection_draft_resubmit_rejected;
+-- 다른 주문의 승인 확인 중(supersede가 거절)도 그 주문을 detail로 알린다 — 주문서가 그 주문으로 안내한다.
+update public.payment_attempts set state='confirming',claim_token='d2000000-0000-4000-8000-000000000146',claim_expires_at=clock_timestamp()+interval '5 minutes'
+ where id=:'confirming_selection_attempt';
+set local role service_role;
+select public.service_create_checkout_direct_draft('d2000000-0000-4000-8000-000000000002','d2-c',jsonb_build_array(
+  jsonb_build_object('good_id','d2-c','variant_id',:'variant_c','qty',1))) as other_draft \gset
+select pg_temp.d2_error_detail(format('select public.place_direct_order(%L,%L,%L,%L,%L,0,null)','d2000000-0000-4000-8000-000000000002',:'other_draft',:'address',
+  'd2000000-0000-4000-8000-000000000607','card')) as other_confirming \gset
+reset role;
+select 1/case when :'other_confirming'='checkout_payment_in_progress|'||:'confirming_selection_order'
+ then 1 else 0 end as assert_supersede_names_confirming_order;
 
 rollback;

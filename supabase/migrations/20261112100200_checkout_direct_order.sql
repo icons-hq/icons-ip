@@ -133,7 +133,8 @@ begin
     if v_result = 'closed' then
       v_closed := v_closed + 1;
     elsif v_result = 'payment_confirming' and p_new_order then
-      raise sqlstate 'PT409' using message = 'checkout_payment_in_progress';
+      -- detail = 승인 확인 중인 주문. 주문서가 '결제 확인 중인 주문이 있어요'와 그 주문으로 안내한다.
+      raise sqlstate 'PT409' using message = 'checkout_payment_in_progress', detail = r.order_id::text;
     elsif v_result = 'unresolved' and p_new_order then
       update private.cart_order_holds
       set state = 'released', settled_at = pg_catalog.clock_timestamp(), release_reason = 'detached'
@@ -362,9 +363,10 @@ begin
   if exists (select 1 from public.orders where user_id = p_user_id and checkout_key = p_checkout_key) then
     return public.place_order_with_store_credits(p_user_id, p_address, p_checkout_key, p_payment_method, p_store_credit_amount, p_user_coupon_id);
   end if;
-  -- 이 초안으로 만든 주문이 이미 무통장 접수·결제 완료면 새 키의 재제출(다른 탭·뒤로 가기)을 PT409로 거절한다.
-  -- 카드 미결제 주문이면 아래 supersede가 그 주문을 닫고 새 주문을 만든다.
-  v_draft := private.checkout_draft_for_order(p_user_id, p_draft_id, 'direct');
+  -- 이 초안으로 만든 주문을 먼저 잠근 뒤, 이미 무통장 접수·결제 완료면 새 키의 재제출(다른 탭·뒤로 가기)을 PT409
+  -- checkout_draft_used로, 결제가 아직 확정되지 않았으면(승인 확인 중·결과 불명) PT409 checkout_payment_in_progress로
+  -- 거절한다. 승인 전에 끝난 카드 미결제 주문이면 아래 supersede가 그 주문을 닫고 새 주문을 만든다.
+  v_draft := private.checkout_draft_for_order(p_user_id, p_draft_id, 'direct', true);
   -- 배송비 쿠폰은 legacy 주문서가 받지 않는다(장바구니 쿠폰 선택과 같은 거절).
   if p_user_coupon_id is not null and exists (
     select 1 from public.user_coupons as held join public.coupons as c on c.code = held.coupon_code

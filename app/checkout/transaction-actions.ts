@@ -19,7 +19,10 @@ import { isClosedCheckoutDraft } from '@/lib/checkout-draft';
 export type CartTransactionError = 'invalid_request' | 'order_too_large' | 'auth_changed' | 'account_unavailable' | 'checkout_unavailable' | 'payment_unavailable' | 'cart_changed' | 'coupon_changed' | 'quote_changed' | 'checkout_conflict' | 'payment_in_progress'
   /** 바로구매 초안(ADR-0030)이 만료됐거나 이 계정의 것이 아니다. */
   | 'draft_expired'
-  /** 같은 주문서로 이미 무통장 접수·결제한 주문이 있다(다른 탭·뒤로 가기, ADR-0030). `orderId`가 그 주문이다. */
+  /**
+   * 같은 주문서로 이미 무통장 접수·결제한 주문이 있다(다른 탭·뒤로 가기, ADR-0030). `orderId`가 그 주문이다.
+   * `payment_in_progress`도 `orderId`(결제 승인을 확인하고 있는 주문)를 함께 준다.
+   */
   | 'draft_used' | 'unavailable';
 export type CartTransactionQuoteResult = { ok: true; quote: GoodsTransactionQuote; offers: GoodsTransactionOffer[] } | { ok: false; error: CartTransactionError; orderId?: string };
 export type CartTransactionPlaceResult = { ok: true; orderId: string } | { ok: false; error: CartTransactionError; uncertain: boolean; orderId?: string };
@@ -48,9 +51,13 @@ function rpcError(message: string): CartTransactionError {
   if (message.includes('transaction_payment_method_unavailable') || message.includes('transaction_new_payment_disabled')) return 'payment_unavailable';
   return 'unavailable';
 }
-/** 같은 주문서 재제출 거절(checkout_draft_used)의 원 주문. DB detail이 주문 id다. */
+/**
+ * 주문을 막은 주문: 같은 주문서 재제출 거절(checkout_draft_used)의 원 주문, 결제 승인을 확인하는 주문
+ * (checkout_payment_in_progress). DB detail이 주문 id다.
+ */
 function usedOrder(error: { message: string; details?: string | null }): { orderId: string } | Record<string, never> {
-  const orderId = rpcError(error.message) === 'draft_used' ? normalizeOrderReference(error.details ?? null) : null;
+  const code = rpcError(error.message);
+  const orderId = code === 'draft_used' || code === 'payment_in_progress' ? normalizeOrderReference(error.details ?? null) : null;
   return orderId ? { orderId } : {};
 }
 function quoteFitsCart(quote: GoodsTransactionQuote, input: CartTransactionInput) {

@@ -137,3 +137,17 @@ it('같은 주문서로 이미 주문했으면 원 주문 보기를 보이고 �
   await submit(); await flush();
   expect(mocks.place).toHaveBeenCalledTimes(1);
 });
+/* 그 주문의 결제 승인을 확인하고 있으면 새 주문을 만들지 않는다 — '결제 확인 중인 주문이 있어요'와 그 주문으로 잇고 결제를 잠근다. */
+it('결제 확인 중인 주문이 있으면 그 주문 보기를 보이고 결제를 잠근다', async () => {
+  const draftId = '00000000-0000-4000-8000-0000000000d1';
+  const confirming = '00000000-0000-4000-8000-0000000000e2';
+  props = { ...props, draft: { id: draftId, source: 'direct', baseGoodId: 'transaction-good', expiresAt: '2099-01-01T00:00:00Z', stale: false, usedOrderId: null, lines: transactionInput.items } };
+  for (const effect of hooks.effects) effect.cleanup?.(); resetHooks(); render(); effects(); authenticate(); await flush();
+  mocks.place.mockResolvedValueOnce({ ok: false, error: 'payment_in_progress', uncertain: false, orderId: confirming });
+  await submit(); await flush();
+  expect(text(render())).toContain('결제 확인 중인 주문이 있어요');
+  expect(all(render()).some(node => node.props.href === `/orders/${confirming}`)).toBe(true);
+  expect(button('결제하기').props.disabled).toBe(true);
+  await submit(); await flush();
+  expect(mocks.place).toHaveBeenCalledTimes(1);
+});

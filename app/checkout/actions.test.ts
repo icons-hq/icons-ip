@@ -490,6 +490,17 @@ describe('placeOrderAction — 주문서 초안', () => {
       .resolves.toEqual({ ok: false, error: 'checkout_draft_used' });
   });
 
+  /* 이 주문서로 만든 주문(또는 닫을 수 없는 다른 주문)의 결제 승인을 확인하고 있으면 DB가 그 주문 id(detail)와 함께 거절한다 —
+     주문서는 그 주문으로 안내하고 결제 버튼을 잠근다(같은 주문서로 두 번 청구되지 않게). */
+  it('결제 확인 중인 주문이 있으면 그 주문을 돌려준다', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'checkout_payment_in_progress', details: orderId } });
+    await expect(placeOrderActionRaw(address, checkoutKey, 'card', 0, null, undefined, draftId))
+      .resolves.toEqual({ ok: false, error: 'checkout_payment_in_progress', orderId });
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'checkout_payment_in_progress', details: null } });
+    await expect(placeOrderActionRaw(address, checkoutKey, 'card', 0, null, undefined, draftId))
+      .resolves.toEqual({ ok: false, error: 'checkout_payment_in_progress' });
+  });
+
   it('만료된 주문서는 RPC에 닿지 않고, 이미 주문했으면 원 주문으로 안내한다', async () => {
     mocks.loadDraft.mockResolvedValue({ id: draftId, source: 'direct', baseGoodId: 'g2', closed: 'expired', usedOrderId: orderId });
     await expect(placeOrderActionRaw(address, checkoutKey, 'card', 0, null, undefined, draftId))

@@ -308,4 +308,39 @@ assert sql(f"select count(*) from public.cart_items where user_id='{buyer}' and 
 assert sql(f"select count(*) from public.cart_items where user_id='{buyer}' and good_id='retained-a';") == '1'
 sql('drop trigger aaa_test_cart_draft_used_pause on public.order_items;drop function private.test_cart_draft_used_pause();')
 print('PASS two tabs submit the same selection draft by bank transfer; one order consumes selected line once; second rejected as used; no deadlock', flush=True)
-print(json.dumps({'cases': 9, 'database': database, 'sourceDatabaseWrites': 0}, ensure_ascii=False), flush=True)
+
+# 10. 같은 주문서의 첫 카드 주문 결제 확정(finalize)이 진행 중일 때 같은 초안을 새 키로 다시 낸다. 재제출은 초안의 이전 주문
+#     행에서 기다렸다가(사용자 advisory → 주문 → account-action, finalize와 같은 방향이라 교착 없음) 결제 완료를 보고
+#     checkout_draft_used로 거절된다. 두 번째 주문은 없고 초안은 원 주문을 그대로 가리킨다.
+cart_before = cart()
+finalize_draft = sql('begin;' + service(f"select public.service_create_checkout_direct_draft('{buyer}','retained-a',{direct_lines});") + 'commit;').splitlines()[-1]
+paid_first = sql('begin;' + service(f"select public.place_direct_order('{buyer}','{finalize_draft}',{literal(address)},'dd270000-0000-4000-8000-000000000016','card',0,null);") + 'commit;').splitlines()[-1]
+paid_attempt = claimed_attempt(paid_first, '3', 'dd270000-0000-4000-8000-000000000103')
+finalizer = start('draft-finalize', service(f"select public.finalize_goods_payment_attempt('{paid_attempt}','dd270000-0000-4000-8000-000000000103','approved',null,'TEST-RETAINED-CONC-10');")
+                  + 'select pg_sleep(1.5);')
+wait_state('draft-finalize', 'Timeout', finalizer)
+resubmit = start('draft-resubmit', service(f"select public.place_direct_order('{buyer}','{finalize_draft}',{literal(address)},'dd270000-0000-4000-8000-000000000017','bank_transfer',0,null);"))
+wait_state('draft-resubmit', 'Lock', resubmit)
+assert 'approved' in finish(finalizer)
+finish(resubmit, 'checkout_draft_used')
+assert sql(f"select count(*) from public.orders where user_id='{buyer}' and checkout_key='dd270000-0000-4000-8000-000000000017';") == '0'
+assert sql(f"select status from public.orders where id='{paid_first}';") == 'paid'
+assert sql(f"select order_id from private.checkout_drafts where id='{finalize_draft}';") == paid_first
+assert cart() == cart_before
+print('PASS same draft resubmitted while the first payment finalizes waits on that order and is rejected as used; one order; no deadlock', flush=True)
+
+# 11. 첫 주문의 결제가 승인 확인 중인데 리스(10분)가 지났다(승인 API가 늦거나 서버가 결과를 잃음). 같은 초안의 재제출은
+#     그 주문을 떼어 내고(detach) 새 주문을 만들지 않고 checkout_payment_in_progress(원 주문)로 거절된다.
+lease_draft = sql('begin;' + service(f"select public.service_create_checkout_direct_draft('{buyer}','retained-a',{direct_lines});") + 'commit;').splitlines()[-1]
+confirming_first = sql('begin;' + service(f"select public.place_direct_order('{buyer}','{lease_draft}',{literal(address)},'dd270000-0000-4000-8000-000000000018','card',0,null);") + 'commit;').splitlines()[-1]
+confirming_attempt = claimed_attempt(confirming_first, '4', 'dd270000-0000-4000-8000-000000000104')
+sql(f"update public.payment_attempts set claim_expires_at=clock_timestamp()-interval '1 second' where id='{confirming_attempt}';")
+lease_resubmit = start('draft-expired-lease', service(f"select public.place_direct_order('{buyer}','{lease_draft}',{literal(address)},'dd270000-0000-4000-8000-000000000019','card',0,null);"))
+rejected = lease_resubmit.communicate(timeout=30)
+if not lease_resubmit.returncode or 'checkout_payment_in_progress' not in rejected[1] or confirming_first not in rejected[1]:
+    raise RuntimeError(f'Expected checkout_payment_in_progress with the first order: {rejected}')
+assert sql(f"select count(*) from public.orders where user_id='{buyer}' and checkout_key='dd270000-0000-4000-8000-000000000019';") == '0'
+assert sql(f"select o.status||':'||h.state from public.orders o join private.cart_order_holds h on h.order_id=o.id where o.id='{confirming_first}';") == 'pending:awaiting_payment'
+assert sql(f"select order_id from private.checkout_drafts where id='{lease_draft}';") == confirming_first
+print('PASS same draft resubmitted while the first payment is confirming past its lease is rejected without detaching; one order', flush=True)
+print(json.dumps({'cases': 11, 'database': database, 'sourceDatabaseWrites': 0}, ensure_ascii=False), flush=True)

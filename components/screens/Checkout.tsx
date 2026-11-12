@@ -86,7 +86,8 @@ export const checkoutActionErrorCopy = {
   preorder_policy_not_configured: '굿즈의 예약 조건을 확인 중입니다. 잠시 후 다시 시도해주세요.',
   shipping_region_unresolved: '배송지의 배송 가능 여부와 배송비가 변경되었습니다. 배송지와 최신 배송비를 다시 확인해주세요.',
   payment_below_minimum: BELOW_MINIMUM_PAYMENT_COPY,
-  checkout_payment_in_progress: '앞서 결제한 주문의 승인 결과를 확인하고 있어요. 확인이 끝난 뒤 다시 시도해주세요.',
+  /* 결제 승인을 확인하고 있는 주문이 있다(ADR-0026·0030). 그 주문(detail)으로 안내하고 결제 버튼을 잠근다. */
+  checkout_payment_in_progress: '결제 확인 중인 주문이 있어요. 그 주문의 결제 결과를 확인한 뒤 다시 시도해주세요.',
   checkout_draft_expired: '주문서를 연 지 오래되어 다시 열어야 해요. 장바구니에서 다시 주문해주세요.',
   /* 같은 주문서(초안)로 이미 무통장 접수·결제한 주문이 있다 — 다른 탭·뒤로 가기의 재제출(ADR-0030). */
   checkout_draft_used: '이미 주문한 주문서예요. 주문 내용과 결제·입금 상태를 확인해주세요.',
@@ -217,8 +218,9 @@ export function Checkout({
   const [pendingOrder, setPendingOrder] = useState(false);
   /* 초안 주문이 장바구니 변경·초안 만료로 거절되면 고른 화면(장바구니·상품 상세)으로 돌아가는 링크를 붙인다. */
   const [draftReturnNeeded, setDraftReturnNeeded] = useState(false);
-  /* 같은 주문서로 이미 접수·결제한 주문(ADR-0030). 있으면 그 주문으로 안내하고 다시 주문하지 않는다. */
-  const [usedOrderId, setUsedOrderId] = useState<string | null>(null);
+  /* 주문을 막은 주문(ADR-0030): 같은 주문서로 이미 접수·결제한 주문이거나 결제 승인을 확인하고 있는 주문. 있으면 그 주문으로
+     안내하고 결제 버튼을 잠근다 — 같은 주문서로 두 번 청구되지 않게. */
+  const [blockingOrderId, setBlockingOrderId] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<CheckoutAddressErrors>({});
   /* 카드 게이트가 닫혀 있으면 열려 있는 무통장으로 시작한다 — 고를 수 없는
      라디오가 선택된 채 뜨지 않게. 두 게이트 prop은 서버가 내려주는 고정값이다. */
@@ -350,7 +352,7 @@ export function Checkout({
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (submitting || cartPending || couponPending || mode !== 'server' || unavailable || !methodAvailable || !shippingReady || !shipping.sales || purchaseProblem || !creditReady || couponSelectionChanged || draftStale || usedOrderId) return;
+    if (submitting || cartPending || couponPending || mode !== 'server' || unavailable || !methodAvailable || !shippingReady || !shipping.sales || purchaseProblem || !creditReady || couponSelectionChanged || draftStale || blockingOrderId) return;
 
     const nextFieldErrors = checkoutAddressErrors(address);
     if (Object.keys(nextFieldErrors).length > 0) {
@@ -385,7 +387,7 @@ export function Checkout({
           : direct && result.error === 'checkout_draft_expired' ? DIRECT_DRAFT_EXPIRED_COPY
             : copyFor(actionErrors[result.error]));
       setDraftReturnNeeded(Boolean(draft) && DRAFT_RETURN_ERRORS.has(result.error));
-      if (result.error === 'checkout_draft_used') setUsedOrderId(result.orderId ?? null);
+      if (result.error === 'checkout_draft_used' || result.error === 'checkout_payment_in_progress') setBlockingOrderId(result.orderId ?? null);
       setPendingOrder(result.pendingOrder === true);
       shipping.refresh();
       credits.refresh();
@@ -632,9 +634,9 @@ export function Checkout({
             {draft ? <> <Link href={draftReturnHref}>{direct ? '굿즈로 돌아가기' : '장바구니로 돌아가기'}</Link></> : null}</p>}
           {!methodAvailable && <p className="checkout-error" role="alert">선택한 결제수단을 지금은 쓸 수 없어요. 다른 수단을 골라주세요.</p>}
           {submitError && <p className="checkout-error" role="alert">{submitError}{pendingOrder ? <CheckoutPendingOrderRelease onReleased={retryAfterRelease} /> : null}
-            {usedOrderId ? <> <Link href={`/orders/${encodeURIComponent(usedOrderId)}`}>주문 보기</Link></> : null}
+            {blockingOrderId ? <> <Link href={`/orders/${encodeURIComponent(blockingOrderId)}`}>주문 보기</Link></> : null}
             {draftReturnNeeded ? <> <Link href={draftReturnHref}>{draft?.source === 'direct' ? '굿즈로 돌아가기' : '장바구니로 돌아가기'}</Link></> : null}</p>}
-          <button className="btn btn-holo checkout-submit" disabled={submitting || cartPending || couponPending || unavailable || !methodAvailable || !shippingReady || !shipping.sales || Boolean(purchaseProblem) || !creditReady || couponSelectionChanged || draftStale || Boolean(usedOrderId)}>
+          <button className="btn btn-holo checkout-submit" disabled={submitting || cartPending || couponPending || unavailable || !methodAvailable || !shippingReady || !shipping.sales || Boolean(purchaseProblem) || !creditReady || couponSelectionChanged || draftStale || Boolean(blockingOrderId)}>
             {submitting
               ? '재고를 확인하는 중'
               : selectedPaymentMethod === 'bank_transfer' ? '주문하고 입금 안내 받기' : '결제하기'}

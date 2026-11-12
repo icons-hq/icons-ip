@@ -283,13 +283,42 @@ $$;
 revoke all on function private.checkout_draft_order_settled(uuid) from public, anon, authenticated, service_role;
 grant execute on function private.checkout_draft_order_settled(uuid) to postgres;
 
+-- 초안으로 만든 주문의 결제가 아직 확정되지 않았는지: 승인 확인 중(리스가 지났어도)·결과 불명·검토·승인 기록이 있거나
+-- 결제 원장이 진행 중이거나, 승인된 결제의 취소가 처리 중이다(close_unpaid_cart_order의 unresolved·payment_confirming과
+-- 같은 판단). 이 주문을 새 주문이 떼어 내고(detach) 하나 더 만들면 같은 주문서로 두 번 청구될 수 있다.
+create function private.checkout_draft_order_payment_unresolved(p_order_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1 from public.payment_attempts as attempt
+    where attempt.purpose = 'order' and attempt.ref_id = p_order_id
+      and attempt.state in ('confirming', 'unknown', 'needs_review', 'approved')
+  ) or exists (
+    select 1 from public.payments as payment
+    where payment.purpose = 'order' and payment.ref_id = p_order_id and payment.status in ('pending', 'paid')
+  ) or exists (
+    select 1 from public.order_cancellation_requests as request
+    where request.order_id = p_order_id and request.status in ('processing', 'needs_review')
+  );
+$$;
+revoke all on function private.checkout_draft_order_payment_unresolved(uuid) from public, anon, authenticated, service_role;
+grant execute on function private.checkout_draft_order_payment_unresolved(uuid) to postgres;
+
 -- 주문 진입점의 초안 확인(계정 advisory 안에서 부른다 — 같은 초안의 두 탭 제출은 이 잠금에서 차례로 온다).
--- 이 초안으로 만든 주문이 이미 접수·결제됐으면 PT409 checkout_draft_used(detail = 그 주문 id, 화면이 원 주문으로
--- 안내한다), 초안이 없거나 만료됐으면 PT409 checkout_draft_expired.
-create function private.checkout_draft_for_order(p_user_id uuid, p_draft_id uuid, p_source text)
+-- 이 초안으로 만든 이전 주문이 있으면 그 주문 행을 먼저 잠근다(p_lock — 계정 advisory → 주문 → account-action, supersede·
+-- finalizer와 같은 방향). 그래서 결제 확정이 진행 중이면 그 트랜잭션이 끝난 뒤의 상태로 판정한다. 그 주문이 무통장 접수·결제
+-- 완료 이후면 PT409 checkout_draft_used, 결제가 아직 확정되지 않았으면(승인 확인 중·리스가 지난 confirming·결과 불명 등)
+-- PT409 checkout_payment_in_progress로 거절한다(detail = 그 주문 id, 화면이 그 주문으로 안내한다). 이렇게 해야 같은 초안에서
+-- supersede가 그 주문을 떼어 내고 새 주문을 만들지 못하고, 정산된 이전 주문의 order_id도 덮이지 않는다. 초안이 없거나
+-- 만료됐으면 PT409 checkout_draft_expired. 견적(p_lock = false)은 잠그지 않고 지금 확정된 상태로 같은 판정을 한다.
+create function private.checkout_draft_for_order(p_user_id uuid, p_draft_id uuid, p_source text, p_lock boolean)
 returns private.checkout_drafts
 language plpgsql
-stable
+volatile
 security definer
 set search_path = ''
 as $$
@@ -301,8 +330,16 @@ begin
   if not found then
     raise sqlstate 'PT409' using message = 'checkout_draft_expired';
   end if;
-  if v_draft.order_id is not null and private.checkout_draft_order_settled(v_draft.order_id) then
-    raise sqlstate 'PT409' using message = 'checkout_draft_used', detail = v_draft.order_id::text;
+  if v_draft.order_id is not null then
+    if p_lock then
+      perform 1 from public.orders as o where o.id = v_draft.order_id for update;
+    end if;
+    if private.checkout_draft_order_settled(v_draft.order_id) then
+      raise sqlstate 'PT409' using message = 'checkout_draft_used', detail = v_draft.order_id::text;
+    end if;
+    if private.checkout_draft_order_payment_unresolved(v_draft.order_id) then
+      raise sqlstate 'PT409' using message = 'checkout_payment_in_progress', detail = v_draft.order_id::text;
+    end if;
   end if;
   if v_draft.scrubbed_at is not null or v_draft.expires_at <= pg_catalog.clock_timestamp() then
     raise sqlstate 'PT409' using message = 'checkout_draft_expired';
@@ -310,8 +347,8 @@ begin
   return v_draft;
 end;
 $$;
-revoke all on function private.checkout_draft_for_order(uuid, uuid, text) from public, anon, authenticated, service_role;
-grant execute on function private.checkout_draft_for_order(uuid, uuid, text) to postgres;
+revoke all on function private.checkout_draft_for_order(uuid, uuid, text, boolean) from public, anon, authenticated, service_role;
+grant execute on function private.checkout_draft_for_order(uuid, uuid, text, boolean) to postgres;
 
 -- 장바구니 화면이 체크한 줄로 선택 주문 초안을 만든다(서버가 로그인 사용자로만 부른다). 줄은 화면이 본
 -- 장바구니 줄(굿즈·옵션·수량·직접입력값)과 정확히 같아야 한다 — 다른 탭에서 바뀌었으면 PT409다.
@@ -515,8 +552,9 @@ begin
   if exists (select 1 from public.orders where user_id = p_user_id and checkout_key = p_checkout_key) then
     return public.place_order_with_store_credits(p_user_id, p_address, p_checkout_key, p_payment_method, p_store_credit_amount, p_expected_user_coupon_id);
   end if;
-  -- 이 초안으로 만든 주문이 이미 무통장 접수·결제 완료면 새 키의 재제출(다른 탭·뒤로 가기)을 PT409로 거절한다.
-  v_draft := private.checkout_draft_for_order(p_user_id, p_draft_id, 'selection');
+  -- 이 초안으로 만든 주문을 먼저 잠근 뒤, 이미 무통장 접수·결제 완료면 새 키의 재제출(다른 탭·뒤로 가기)을 PT409
+  -- checkout_draft_used로, 결제가 아직 확정되지 않았으면 PT409 checkout_payment_in_progress로 거절한다.
+  v_draft := private.checkout_draft_for_order(p_user_id, p_draft_id, 'selection', true);
   -- 이전 미결제 주문의 재고·쿠폰·적립금·구매 한도를 먼저 돌려준다(ADR-0026, 출처 무관).
   perform private.supersede_unpaid_cart_orders(p_user_id, true);
   -- 주문 → account-action → 장바구니 순서. 새 주문 INSERT의 계정 fence도 같은 키를 다시 잡는다.

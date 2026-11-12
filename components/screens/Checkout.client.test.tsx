@@ -123,4 +123,19 @@ describe('Checkout 이미 주문한 주문서', () => {
     await submit();
     expect(mocks.place).toHaveBeenCalledTimes(1);
   });
+
+  /* 그 주문의 결제 승인을 확인하고 있으면(리스가 지난 confirming 포함) 다시 내도 새 주문을 만들지 않는다 — 그 주문으로 잇는다. */
+  it('결제 확인 중인 주문이 있으면 그 주문 보기를 보이고 결제 버튼을 잠근다', async () => {
+    props = { ...props, draft: { id: '00000000-0000-4000-8000-0000000000d1', source: 'selection', baseGoodId: null, expiresAt: '2099-01-01T00:00:00Z',
+      stale: false, usedOrderId: null, lines: [{ goodId: 'g13', variantId: VARIANT, qty: 1 }] } };
+    mocks.place.mockResolvedValueOnce({ ok: false, error: 'checkout_payment_in_progress', orderId: ORDER });
+    await submit();
+    const tree = all(render());
+    expect(tree.some((node) => node.props.href === `/orders/${ORDER}`)).toBe(true);
+    expect(tree.some((node) => node.props.role === 'alert'
+      && Children.toArray(node.props.children as ReactNode).some((child) => typeof child === 'string' && child.includes('결제 확인 중인 주문이 있어요')))).toBe(true);
+    expect(submitButton().props.disabled).toBe(true);
+    await submit();
+    expect(mocks.place).toHaveBeenCalledTimes(1);
+  });
 });

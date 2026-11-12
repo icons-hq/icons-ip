@@ -91,25 +91,26 @@ revoke all on function private.lock_goods_transaction_source(uuid, jsonb) from p
 grant execute on function private.lock_goods_transaction_source(uuid, jsonb) to postgres;
 
 -- 바로구매 초안 → 거래 런타임 선택(초안 줄 그대로). 만료·다른 계정·장바구니 선택 초안은 PT409 checkout_draft_expired,
--- 이 초안으로 만든 주문이 이미 무통장 접수·결제 완료면 PT409 checkout_draft_used(legacy 바로구매와 같은 규칙).
-create function private.direct_goods_transaction_selection(p_actor uuid, p_draft_id uuid)
+-- 이 초안으로 만든 주문이 이미 무통장 접수·결제 완료면 PT409 checkout_draft_used, 그 주문의 결제가 아직 확정되지 않았으면
+-- PT409 checkout_payment_in_progress(legacy 바로구매와 같은 규칙). 주문(p_lock)은 그 이전 주문 행을 먼저 잠근다.
+create function private.direct_goods_transaction_selection(p_actor uuid, p_draft_id uuid, p_lock boolean)
 returns jsonb
 language plpgsql
-stable
+volatile
 security definer
 set search_path = ''
 as $$
 declare v_draft private.checkout_drafts%rowtype;
 begin
-  v_draft := private.checkout_draft_for_order(p_actor, p_draft_id, 'direct');
+  v_draft := private.checkout_draft_for_order(p_actor, p_draft_id, 'direct', p_lock);
   return private.normalize_goods_transaction_selection((
     select jsonb_agg(jsonb_build_object('goodId', line ->> 'goodId', 'variantId', line ->> 'variantId', 'qty', (line ->> 'qty')::integer,
       'inputRevision', (line ->> 'inputRevision')::integer, 'inputValues', line -> 'inputValues'))
     from jsonb_array_elements(v_draft.lines) as line));
 end;
 $$;
-revoke all on function private.direct_goods_transaction_selection(uuid, uuid) from public, anon, authenticated, service_role;
-grant execute on function private.direct_goods_transaction_selection(uuid, uuid) to postgres;
+revoke all on function private.direct_goods_transaction_selection(uuid, uuid, boolean) from public, anon, authenticated, service_role;
+grant execute on function private.direct_goods_transaction_selection(uuid, uuid, boolean) to postgres;
 
 create function private.goods_direct_transaction_source(p_actor uuid, p_selection jsonb)
 returns jsonb
@@ -133,7 +134,7 @@ as $$
 declare selection jsonb; source jsonb;
 begin
   if p_user_id is null or p_draft_id is null then raise invalid_parameter_value using message = 'invalid_transaction_actor'; end if;
-  selection := private.direct_goods_transaction_selection(p_user_id, p_draft_id);
+  selection := private.direct_goods_transaction_selection(p_user_id, p_draft_id, false);
   source := private.goods_direct_transaction_source(p_user_id, selection);
   return private.quote_goods_transaction(p_user_id, source, selection, p_address, p_delivery_choices, p_user_coupon_id, p_store_credit_amount);
 end;
@@ -151,7 +152,7 @@ as $$
 declare selection jsonb; source jsonb;
 begin
   if p_user_id is null or p_draft_id is null then raise invalid_parameter_value using message = 'invalid_transaction_actor'; end if;
-  selection := private.direct_goods_transaction_selection(p_user_id, p_draft_id);
+  selection := private.direct_goods_transaction_selection(p_user_id, p_draft_id, false);
   source := private.goods_direct_transaction_source(p_user_id, selection);
   perform private.lock_goods_transaction_source(p_user_id, source);
   return private.quote_goods_transaction_combined(p_user_id, source, selection, p_address, p_delivery_choices, p_user_coupon_ids, p_store_credit_amount);
@@ -181,7 +182,7 @@ begin
       jsonb_build_object('kind', existing.source_kind, 'id', existing.source_id, 'revision', existing.source_revision),
       p_quote_id, p_checkout_key, p_payment_method) ->> 'orderId')::uuid;
   end if;
-  selection := private.direct_goods_transaction_selection(p_user_id, p_draft_id);
+  selection := private.direct_goods_transaction_selection(p_user_id, p_draft_id, true);
   source := private.goods_direct_transaction_source(p_user_id, selection);
   select draft.base_good_id, draft.lines into base_good, draft_lines from private.checkout_drafts as draft where draft.id = p_draft_id;
   -- 이전 미결제 주문(장바구니·바로구매 모두)의 재고·쿠폰·적립금·첫구매 예약·구매 한도를 먼저 돌려준다(ADR-0026·0030).

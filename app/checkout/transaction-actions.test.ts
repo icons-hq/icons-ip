@@ -145,4 +145,13 @@ it('같은 주문서로 이미 접수·결제한 주문이 있으면 견적·주
   mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: 'PT409', message: 'checkout_draft_used', details: usedOrder } });
   expect(await placeCartTransactionAction({ ...placeInput, draftId })).toEqual({ ok: false, error: 'draft_used', uncertain: false, orderId: usedOrder });
 });
+/* 그 주문의 결제 승인을 확인하고 있으면(리스가 지난 confirming 포함) 새 주문을 만들지 않고 그 주문을 알린다. */
+it('결제 확인 중인 주문이 있으면 견적·주문 모두 그 주문을 알린다', async () => {
+  const draftId = '00000000-0000-4000-8000-0000000000d1';
+  const confirming = '00000000-0000-4000-8000-0000000000e2';
+  mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: 'PT409', message: 'checkout_payment_in_progress', details: confirming } });
+  expect(await quoteCartTransactionAction({ ...transactionInput, draftId })).toEqual({ ok: false, error: 'payment_in_progress', orderId: confirming });
+  mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: 'PT409', message: 'checkout_payment_in_progress', details: confirming } });
+  expect(await placeCartTransactionAction({ ...placeInput, draftId })).toEqual({ ok: false, error: 'payment_in_progress', uncertain: false, orderId: confirming });
+});
 
