@@ -62,9 +62,14 @@ export function createAttemptAwarePaymentGateway(provider: PaymentCheckoutProvid
       if (await bindingFor(input.attempt)) return billingOutcome(input.attempt, 'needs_review', 'billing_callback_not_supported');
       return dependencies.legacy.confirm(input);
     },
-    async reconcile(attempt) {
+    async reconcile(attempt, hint) {
       const binding = await bindingFor(attempt);
-      if (!binding) return dependencies.legacy.reconcile(attempt);
+      // 일반 결제는 웹훅 paymentKey 힌트(서명 없는 본문 — 조회 대상을 좁힐 뿐 판정 근거가 아니다)를
+      // legacy gateway에 그대로 넘긴다. 힌트가 없으면 인자 개수를 바꾸지 않는다. billing 조회는
+      // binding의 결제 키로 하므로 힌트를 쓰지 않는다.
+      if (!binding) {
+        return hint ? dependencies.legacy.reconcile(attempt, hint) : dependencies.legacy.reconcile(attempt);
+      }
       const billing = dependencies.recurring(binding); const input = bound(attempt, binding);
       if (!billing) return billingOutcome(attempt, 'needs_review', 'billing_profile_unavailable');
       if (!input) return billingOutcome(attempt, 'needs_review', 'billing_not_dispatched');
