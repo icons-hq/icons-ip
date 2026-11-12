@@ -14,6 +14,7 @@ import {
 import { PRIVACY_ADDRESS_BOOK_REVISION, kstToday, koreanLegalDate } from './privacy-address-book-revision';
 import {
   SHIPPING_BUNDLE_WORDING_REVISION,
+  type ShippingBundleWordingRevision,
   shippingBundleWordingRevisionAnnounced,
   shippingBundleWordingRevisionInEffect,
 } from './shipping-bundle-wording-revision';
@@ -28,11 +29,13 @@ function shiftDay(date: string, days: number): string {
 
 /* '출고지' 표기 예약 개정(1027T-010)은 날짜(KST)로 상태가 갈린다 — 공지 전날·공지일·시행 전날·시행일을 개정 상수에서 파생해
    고정한다(병합 때 날짜를 옮겨도 시험이 따라온다). LEGAL_DOCUMENTS(오늘 날짜)는 어느 상태든 성립해야 하는 검사에만 쓴다. */
-const { announcedDate: BUNDLE_ANNOUNCED, effectiveDate: BUNDLE_EFFECTIVE } = SHIPPING_BUNDLE_WORDING_REVISION;
-const BEFORE_BUNDLE = createLegalDocuments(BUSINESS_INFO, shiftDay(BUNDLE_ANNOUNCED, -1));
-const DURING_BUNDLE = createLegalDocuments(BUSINESS_INFO, BUNDLE_ANNOUNCED);
-const LAST_NOTICE_DAY = createLegalDocuments(BUSINESS_INFO, shiftDay(BUNDLE_EFFECTIVE, -1));
-const AFTER_BUNDLE = createLegalDocuments(BUSINESS_INFO, BUNDLE_EFFECTIVE);
+/* 운영 상수(SHIPPING_BUNDLE_WORDING_REVISION)는 배포 직전에 날짜가 커밋되므로 시험은 주입한 날짜로 세 상태를 고정한다. */
+const BUNDLE_REVISION: ShippingBundleWordingRevision = { announcedDate: '2026-11-20', effectiveDate: '2026-11-27' };
+const { announcedDate: BUNDLE_ANNOUNCED, effectiveDate: BUNDLE_EFFECTIVE } = BUNDLE_REVISION;
+const BEFORE_BUNDLE = createLegalDocuments(BUSINESS_INFO, shiftDay(BUNDLE_ANNOUNCED, -1), BUNDLE_REVISION);
+const DURING_BUNDLE = createLegalDocuments(BUSINESS_INFO, BUNDLE_ANNOUNCED, BUNDLE_REVISION);
+const LAST_NOTICE_DAY = createLegalDocuments(BUSINESS_INFO, shiftDay(BUNDLE_EFFECTIVE, -1), BUNDLE_REVISION);
+const AFTER_BUNDLE = createLegalDocuments(BUSINESS_INFO, BUNDLE_EFFECTIVE, BUNDLE_REVISION);
 
 const documents = [
   ...LEGAL_DOCUMENT_SLUGS.map((slug) => LEGAL_DOCUMENTS[slug]),
@@ -203,15 +206,39 @@ describe('법정 문서 레지스트리', () => {
   });
 
   it("'출고지' 표기 개정의 공지·시행은 한국 시간 날짜로 가른다", () => {
-    expect(shippingBundleWordingRevisionAnnounced(shiftDay(BUNDLE_ANNOUNCED, -1))).toBe(false);
-    expect(shippingBundleWordingRevisionAnnounced(BUNDLE_ANNOUNCED)).toBe(true);
-    expect(shippingBundleWordingRevisionAnnounced(shiftDay(BUNDLE_EFFECTIVE, -1))).toBe(true);
-    expect(shippingBundleWordingRevisionAnnounced(BUNDLE_EFFECTIVE)).toBe(false);
-    expect(shippingBundleWordingRevisionInEffect(shiftDay(BUNDLE_EFFECTIVE, -1))).toBe(false);
-    expect(shippingBundleWordingRevisionInEffect(BUNDLE_EFFECTIVE)).toBe(true);
+    expect(shippingBundleWordingRevisionAnnounced(shiftDay(BUNDLE_ANNOUNCED, -1), BUNDLE_REVISION)).toBe(false);
+    expect(shippingBundleWordingRevisionAnnounced(BUNDLE_ANNOUNCED, BUNDLE_REVISION)).toBe(true);
+    expect(shippingBundleWordingRevisionAnnounced(shiftDay(BUNDLE_EFFECTIVE, -1), BUNDLE_REVISION)).toBe(true);
+    expect(shippingBundleWordingRevisionAnnounced(BUNDLE_EFFECTIVE, BUNDLE_REVISION)).toBe(false);
+    expect(shippingBundleWordingRevisionInEffect(shiftDay(BUNDLE_EFFECTIVE, -1), BUNDLE_REVISION)).toBe(false);
+    expect(shippingBundleWordingRevisionInEffect(BUNDLE_EFFECTIVE, BUNDLE_REVISION)).toBe(true);
     /* 시행일 0시(KST)는 전날 15:00 UTC다. */
     expect(kstToday(new Date(`${shiftDay(BUNDLE_EFFECTIVE, -1)}T14:59:59Z`))).toBe(shiftDay(BUNDLE_EFFECTIVE, -1));
     expect(kstToday(new Date(`${shiftDay(BUNDLE_EFFECTIVE, -1)}T15:00:00Z`))).toBe(BUNDLE_EFFECTIVE);
+  });
+
+  /* 예약 없음(null)이 기본이다 — 공지·개정이 모두 꺼져 어느 날짜에도 현행 본문 그대로다. 운영 날짜는 배포 직전에 커밋한다. */
+  it("'출고지' 표기 개정 예약이 없으면(null) 어느 날짜에도 공지·개정 없이 현행 본문 그대로다", () => {
+    expect(shippingBundleWordingRevisionAnnounced('2026-12-31', null)).toBe(false);
+    expect(shippingBundleWordingRevisionInEffect('2099-01-01', null)).toBe(false);
+    for (const today of ['2026-11-20', '2026-12-31', '2099-01-01']) {
+      const set = createLegalDocuments(BUSINESS_INFO, today, null);
+      for (const slug of ['terms', 'shipping'] as const) {
+        expect(set[slug].pendingRevision, `${slug} ${today}`).toBeUndefined();
+        expect(set[slug].previousVersion, `${slug} ${today}`).toBeUndefined();
+        expect(set[slug].revisionChanges, `${slug} ${today}`).toBeUndefined();
+        expect(set[slug], `${slug} ${today}`).toEqual(BEFORE_BUNDLE[slug]);
+        expect(plainText(set[slug])).toContain('출고지별');
+      }
+    }
+  });
+
+  it('운영 상수에 날짜가 들어 있으면 시행일은 공지일 + 7일 이상이고 최초 판 뒤다', () => {
+    if (SHIPPING_BUNDLE_WORDING_REVISION === null) return;
+    const { announcedDate, effectiveDate } = SHIPPING_BUNDLE_WORDING_REVISION;
+    const days = (Date.parse(`${effectiveDate}T00:00:00+09:00`) - Date.parse(`${announcedDate}T00:00:00+09:00`)) / 86_400_000;
+    expect(days).toBeGreaterThanOrEqual(7);
+    expect(announcedDate >= LEGAL_EFFECTIVE_DATES.terms).toBe(true);
   });
 
   it('오픈 전에 없던 과거 결제·개정 이력을 본문에 남기지 않는다', () => {

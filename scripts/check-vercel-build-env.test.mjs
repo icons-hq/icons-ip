@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { validateVercelBuildEnvironment } from './check-vercel-build-env.mjs';
+import { validateLegalRevisionDates, validateVercelBuildEnvironment } from './check-vercel-build-env.mjs';
 
 const baseEnvironment = {
   VERCEL_ENV: 'preview',
@@ -536,5 +536,41 @@ describe('validateVercelBuildEnvironment', () => {
       expect(() => validateVercelBuildEnvironment({ ...baseEnvironment, NICEPAY_ORDER_CANARY_USER_ID: canary }))
         .toThrow('Invalid Vercel preview NICEPAY_ORDER_CANARY_USER_ID: canary users are production-only');
     });
+  });
+});
+
+describe('legal revision date guard', () => {
+  const source = (announced, effective) => `export const SHIPPING_BUNDLE_WORDING_REVISION = {\n  announcedDate: '${announced}',\n  effectiveDate: '${effective}',\n};`;
+  const nullSource = 'export const SHIPPING_BUNDLE_WORDING_REVISION: ShippingBundleWordingRevision | null = null;';
+  // 2026-11-12 23:00 KST = 14:00 UTC
+  const now = new Date('2026-11-12T14:00:00Z');
+
+  it('does nothing while no revision is reserved (null)', () => {
+    expect(() => validateLegalRevisionDates(nullSource, now)).not.toThrow();
+  });
+
+  it('accepts an announcedDate equal to or after today (KST)', () => {
+    expect(() => validateLegalRevisionDates(source('2026-11-12', '2026-11-19'), now)).not.toThrow();
+    expect(() => validateLegalRevisionDates(source('2026-11-13', '2026-11-20'), now)).not.toThrow();
+  });
+
+  it('fails when announcedDate is before today in KST (date rolls over at 15:00 UTC)', () => {
+    expect(() => validateLegalRevisionDates(source('2026-11-12', '2026-11-19'), new Date('2026-11-12T15:00:00Z')))
+      .toThrow(/Stale legal revision announcedDate/);
+    expect(() => validateLegalRevisionDates(source('2026-11-11', '2026-11-18'), now)).toThrow(/Stale legal revision/);
+  });
+
+  it('fails when the notice period is shorter than 7 days', () => {
+    expect(() => validateLegalRevisionDates(source('2026-11-12', '2026-11-18'), now)).toThrow(/at least 7 days/);
+  });
+
+  it('runs only for production builds and reads the real source by default', () => {
+    expect(() => validateVercelBuildEnvironment(productionEnvironment(), {
+      now, revisionSource: source('2026-11-01', '2026-11-08'),
+    })).toThrow(/Stale legal revision/);
+    expect(() => validateVercelBuildEnvironment(baseEnvironment, {
+      now, revisionSource: source('2026-11-01', '2026-11-08'),
+    })).not.toThrow();
+    expect(validateVercelBuildEnvironment(productionEnvironment()).checked).toBe(true);
   });
 });

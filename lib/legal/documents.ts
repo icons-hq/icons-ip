@@ -10,6 +10,7 @@ import { DEMOGRAPHIC_NOTICE } from '../customer-demographics';
 import { kstToday } from './privacy-address-book-revision';
 import {
   SHIPPING_BUNDLE_WORDING_REVISION,
+  type ShippingBundleWordingRevision,
   shippingBundleWordingRevisionAnnounced,
   shippingBundleWordingRevisionInEffect,
 } from './shipping-bundle-wording-revision';
@@ -150,8 +151,13 @@ function replaceInArticles(articles: LegalArticle[], from: string, to: string): 
 }
 
 /** 예약 개정을 날짜(KST)에 맞춰 문서에 얹는다 — 공지 기간에는 사전 공지만, 시행일부터는 이전 판 보존 + 바뀐 본문. */
-function applyShippingBundleWordingRevision(document: LegalDocument, slug: 'terms' | 'shipping', today: string): void {
-  if (shippingBundleWordingRevisionInEffect(today)) {
+function applyShippingBundleWordingRevision(
+  document: LegalDocument,
+  slug: 'terms' | 'shipping',
+  today: string,
+  revision: ShippingBundleWordingRevision | null,
+): void {
+  if (revision && shippingBundleWordingRevisionInEffect(today, revision)) {
     let articles = document.articles;
     for (const edit of SHIPPING_BUNDLE_WORDING_EDITS) {
       if (edit.slug !== slug) continue;
@@ -161,12 +167,12 @@ function applyShippingBundleWordingRevision(document: LegalDocument, slug: 'term
     }
     document.previousVersion = { effectiveDate: document.effectiveDate, articles: document.articles };
     document.articles = articles;
-    document.effectiveDate = SHIPPING_BUNDLE_WORDING_REVISION.effectiveDate;
+    document.effectiveDate = revision.effectiveDate;
     document.revisionChanges = SHIPPING_BUNDLE_WORDING_CHANGES[slug];
-  } else if (shippingBundleWordingRevisionAnnounced(today)) {
+  } else if (revision && shippingBundleWordingRevisionAnnounced(today, revision)) {
     document.pendingRevision = {
-      announcedDate: SHIPPING_BUNDLE_WORDING_REVISION.announcedDate,
-      effectiveDate: SHIPPING_BUNDLE_WORDING_REVISION.effectiveDate,
+      announcedDate: revision.announcedDate,
+      effectiveDate: revision.effectiveDate,
       heading: '배송 단위 표기(배송 묶음) 통일에 따른 개정 예정 안내',
       changes: SHIPPING_BUNDLE_WORDING_CHANGES[slug],
     };
@@ -174,7 +180,11 @@ function applyShippingBundleWordingRevision(document: LegalDocument, slug: 'term
 }
 
 /** today(KST `YYYY-MM-DD`)는 예약 개정의 공지·시행 여부만 가른다 — 테스트는 날짜를 넘겨 각 상태를 고정한다. */
-export function createLegalDocuments(businessInfo:BusinessInfo=BUSINESS_INFO, today: string = kstToday()) {
+export function createLegalDocuments(
+  businessInfo:BusinessInfo=BUSINESS_INFO,
+  today: string = kstToday(),
+  shippingBundleRevision: ShippingBundleWordingRevision | null = SHIPPING_BUNDLE_WORDING_REVISION,
+) {
 /* 문의처 문장은 푸터와 같은 사업자 정보에서 파생된다.
  * 연락처가 채워지면 본문에 그 값이 그대로 드러나고, 비어 있는 동안에는
  * 존재하지 않는 창구를 가리키는 대신 그 사실과 실제로 열려 있는 경로를 안내한다(#87). */
@@ -831,8 +841,8 @@ const shipping: LegalDocument = {
   ],
 };
 
-applyShippingBundleWordingRevision(terms, 'terms', today);
-applyShippingBundleWordingRevision(shipping, 'shipping', today);
+applyShippingBundleWordingRevision(terms, 'terms', today, shippingBundleRevision);
+applyShippingBundleWordingRevision(shipping, 'shipping', today, shippingBundleRevision);
 
 return {terms,privacy,shipping};
 }

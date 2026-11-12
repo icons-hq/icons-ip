@@ -1,4 +1,5 @@
-import { pathToFileURL } from 'node:url';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import {
   isKorpayMerchantId,
@@ -31,6 +32,39 @@ const TOSS_CANARY_NAMES = [
 // 나이스페이는 판매 제한 굿즈 주문 전용이다 — 티켓 gate는 없다(runtime-gateway.ts).
 const NICEPAY_CREDENTIAL_NAMES = ['NICEPAY_MID', 'NICEPAY_MERCHANT_KEY'];
 
+const SHIPPING_BUNDLE_REVISION_FILE = fileURLToPath(
+  new URL('../lib/legal/shipping-bundle-wording-revision.ts', import.meta.url),
+);
+
+function kstDate(now) {
+  return new Date(now.getTime() + 9 * 3_600_000).toISOString().slice(0, 10);
+}
+
+/*
+ * 약관·배송 정책 '출고지' 표기 개정(1027T-010)의 공지일은 실제 운영 배포일(KST)이어야 한다. 날짜가 들어 있는데 공지일이
+ * 오늘보다 이르면 사전 공지 시작일이 사실과 달라지거나 이미 시행 중인 채 나가므로 production 빌드를 멈춘다.
+ * 날짜가 null(예약 없음)이면 아무것도 하지 않는다. 소스는 TS 파일이라 상수 두 줄을 문자열로 읽는다.
+ */
+export function validateLegalRevisionDates(source, now = new Date()) {
+  const announced = /announcedDate:\s*'(\d{4}-\d{2}-\d{2})'/.exec(source)?.[1];
+  const effective = /effectiveDate:\s*'(\d{4}-\d{2}-\d{2})'/.exec(source)?.[1];
+  if (!announced && !effective) return;
+  if (!announced || !effective) {
+    throw new Error('Invalid legal revision dates: announcedDate and effectiveDate must be set together');
+  }
+  const today = kstDate(now);
+  if (announced < today) {
+    throw new Error(
+      `Stale legal revision announcedDate ${announced}: it must equal the production deploy date (today ${today} KST)`
+      + ' - update lib/legal/shipping-bundle-wording-revision.ts before deploying',
+    );
+  }
+  const days = (Date.parse(`${effective}T00:00:00+09:00`) - Date.parse(`${announced}T00:00:00+09:00`)) / 86_400_000;
+  if (!(days >= 7)) {
+    throw new Error(`Invalid legal revision dates: effectiveDate ${effective} must be at least 7 days after announcedDate ${announced}`);
+  }
+}
+
 function isPresent(value) {
   return typeof value === 'string' && value.trim().length > 0;
 }
@@ -43,7 +77,7 @@ function parseBooleanGate(environment, target, name) {
   throw new Error(`Invalid Vercel ${target} ${name}: use true, false, or leave unset`);
 }
 
-export function validateVercelBuildEnvironment(environment) {
+export function validateVercelBuildEnvironment(environment, options = {}) {
   const stagingVerified = validateStagingBuildEnvironment(environment);
   const target = environment.VERCEL_ENV;
   if (!VERCEL_TARGETS.has(target)) return { checked: false };
@@ -60,6 +94,12 @@ export function validateVercelBuildEnvironment(environment) {
       'KORPAY_MID',
       'KORPAY_KEY',
       'SITE_URL',
+    );
+  }
+  if (target === 'production') {
+    validateLegalRevisionDates(
+      options.revisionSource ?? readFileSync(SHIPPING_BUNDLE_REVISION_FILE, 'utf8'),
+      options.now,
     );
   }
   const missing = required.filter((name) => !isPresent(environment[name]));

@@ -2,10 +2,15 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { LegalDocumentScreen } from '@/components/screens/LegalDocument';
 import { LEGAL_DOCUMENTS, LEGAL_DOCUMENT_SLUGS } from '@/lib/legal/documents';
-import { SHIPPING_BUNDLE_WORDING_REVISION } from '@/lib/legal/shipping-bundle-wording-revision';
 import Page, { generateMetadata, generateStaticParams } from './page';
 
 vi.mock('@/lib/legal/business-info.server', async () => { const {BUSINESS_INFO}=await import('@/lib/legal/business-info'); return {getBusinessInfo:async()=>BUSINESS_INFO}; });
+
+/* 운영 상수는 배포 직전에 날짜가 커밋된다(기본 null). 라우트 시험은 주입한 날짜로 세 상태를 고정한다. */
+vi.mock('@/lib/legal/shipping-bundle-wording-revision', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/legal/shipping-bundle-wording-revision')>()),
+  SHIPPING_BUNDLE_WORDING_REVISION: { announcedDate: '2026-11-20', effectiveDate: '2026-11-27' },
+}));
 
 vi.mock('next/navigation', () => ({
   notFound: () => {
@@ -83,7 +88,8 @@ describe('/legal/[document] 라우트', () => {
   /* '출고지' 표기 예약 개정(1027T-010)은 요청 시각(KST)으로 상태가 갈린다 — 라우트는 요청마다 오늘 날짜로 문서를 만든다.
      시계를 공지 전날·공지일·시행일 정오(KST)에 세워 세 상태를 고정한다. */
   describe("'출고지' 표기 개정 렌더", () => {
-    const { announcedDate, effectiveDate } = SHIPPING_BUNDLE_WORDING_REVISION;
+    const announcedDate = '2026-11-20';
+    const effectiveDate = '2026-11-27';
     const noonKst = (date: string, days = 0) => {
       const at = new Date(`${date}T03:00:00Z`);
       at.setUTCDate(at.getUTCDate() + days);
