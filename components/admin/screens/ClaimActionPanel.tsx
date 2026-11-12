@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { startTransition, useActionState, useState, type ReactNode } from 'react';
 import { ADMIN_CANCELLATION_RECHECK_LABELS, adminOrderSearchHref } from '@/lib/admin/orders';
-import { adminClaimStageLabel } from '@/lib/admin/claims';
+import { adminClaimStageLabel, adminClaimTodayKst } from '@/lib/admin/claims';
 import { krw } from '@/lib/format';
 import { statusTone } from '@/lib/admin/status-tone';
 import { ADMIN_VOCABULARY as V, adminClaimCopy } from '@/lib/admin/vocabulary';
@@ -297,6 +297,8 @@ export function ClaimActionPanel({
   /* 목록 위 팝업(R8)에서는 결제사 취소·환불 완료 확정을 기다리는 동안 팝업이 닫히지 않게 한다. */
   useClaimPreviewBusy(pending);
   const [formCopied, setFormCopied] = useState(false);
+  /* 레거시 회수 확인의 실제 입고일 기본값·상한(KST 오늘). */
+  const [today] = useState(() => adminClaimTodayKst());
   /* 확인을 통과한 제출만 보낸다. 누른 버튼의 name·value(결정)를 함께 싣는다. */
   const submitConfirmed = (event: React.FormEvent<HTMLFormElement>) => {
     if (!confirmClaimPanelSubmit(event)) return;
@@ -438,11 +440,15 @@ export function ClaimActionPanel({
           <input name="claimId" type="hidden" value={claimId} />
           <input name="claimType" type="hidden" value={claimType} />
           <input name="stage" type="hidden" value="collected" />
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor={`claim-legacy-received-${claimId}`}>실제 입고일</Label>
+            <Input className="w-full sm:w-44" defaultValue={today} disabled={pending} id={`claim-legacy-received-${claimId}`} max={today} name="receivedOn" required type="date" />
+          </div>
           <Button className="w-fit" disabled={pending} size="sm" type="submit">
             반송 {V.goods} 입고 확인
           </Button>
           <p className={HINT_CLASS}>
-            입고 확인 시점부터 환급 SLA(영업일 3일)가 시작됩니다.
+            환급 기한(영업일 3일)은 확인 버튼을 누른 때가 아니라 실제 입고일부터 셉니다.
           </p>
         </form>
       ) : null}

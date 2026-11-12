@@ -51,6 +51,9 @@ import { ADMIN_CLAIM_BULK_ACTION_LABELS, ADMIN_CLAIM_BULK_CONVERT, adminClaimBul
 import { ADMIN_CLAIM_DATE_FIELDS, ADMIN_CLAIM_SEARCH_FIELDS, type AdminClaimFilters } from '@/lib/admin/claims';
 import type { OrderClaimType } from '@/lib/orders/claims';
 import { ClaimKitBulkResult, ClaimQueueKitTable, type ClaimKitRow } from './ClaimQueueKitTable';
+import { ClaimBulkStepDialog } from './ClaimBulkStepDialog';
+import { ADMIN_CLAIM_BULK_STEP_LABELS } from '@/lib/admin/claim-bulk';
+import { adminClaimTodayKst } from '@/lib/admin/claims';
 
 const A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -299,7 +302,7 @@ it('체크 전에는 표 위에 흐린 처리 버튼을 보이고, 체크하면 
   const idle = () => all(render()).find((element) => (element.props as Record<string, unknown>)['data-claims-bulk-idle'] === '');
   expect(idle()).toBeTruthy();
   const buttons = all(idle()!.props.children as ReactNode).filter((element) => element.type === Button);
-  expect(buttons.map((button) => button.props.disabled)).toEqual([true, true, true]);
+  expect(buttons.map((button) => button.props.disabled)).toEqual([true, true, true, true]);
   select([A]);
   expect(idle()).toBeUndefined();
 });
@@ -310,7 +313,48 @@ it('체크 전 흐린 버튼에 반품·교환 목록은 전환을 함께 보이
     const idle = all(render(claimType)).find((element) => (element.props as Record<string, unknown>)['data-claims-bulk-idle'] === '');
     return all(idle!.props.children as ReactNode).filter((element) => element.type === Button).map((button) => button.props.children);
   };
-  expect(labels('return')).toEqual(['선택 건 승인', '선택 건 검토중', '선택 건 교환 전환', '선택 건 거부']);
-  expect(labels('exchange')).toEqual(['선택 건 승인', '선택 건 검토중', '선택 건 반품 전환', '선택 건 거부']);
-  expect(labels('cancel')).toEqual(['선택 건 승인', '선택 건 검토중', '선택 건 거부']);
+  /* 1027T-033: 단계 처리(회수 확인·환불 완료 확정·재출고)가 승인·검토중 다음, 전환·거부 앞에 같은 순서로 보인다. */
+  expect(labels('return')).toEqual(['선택 건 승인', '선택 건 검토중', '선택 건 회수 확인', '선택 건 환불 완료 확정', '선택 건 교환 전환', '선택 건 거부']);
+  expect(labels('exchange')).toEqual(['선택 건 승인', '선택 건 검토중', '선택 건 회수 확인', '선택 건 재출고', '선택 건 반품 전환', '선택 건 거부']);
+  expect(labels('cancel')).toEqual(['선택 건 승인', '선택 건 검토중', '선택 건 환불 완료 확정', '선택 건 거부']);
+});
+
+/* 1027T-033·SHEET-049·SHEET-052: 단계 버튼은 확인창을 열고, 창을 닫으면 결과를 목록 아래로 넘긴다. */
+it('단계 버튼은 고른 건과 KST 오늘로 확인창을 열고, 이미 열려 있으면 다시 열지 않는다', () => {
+  select([A, B, C]);
+  const step = all(render()).find((element) => element.type === ActionBarItem && element.props.children === ADMIN_CLAIM_BULK_STEP_LABELS.refund);
+  (step?.props.onSelect as (event: unknown) => void)({ preventDefault: () => undefined });
+  const dialog = all(render()).find((element) => element.type === ClaimBulkStepDialog);
+  /* 처리할 수 없는 행(C)은 선택에 들어가도 보내지 않는다. */
+  expect(dialog?.props.session).toEqual({ step: 'refund', claimIds: [A, B], today: adminClaimTodayKst() });
+  expect(dialog?.props.claimType).toBe('cancel');
+  const again = all(render()).find((element) => element.type === ActionBarItem && element.props.children === ADMIN_CLAIM_BULK_STEP_LABELS.refund);
+  expect(again?.props.disabled).toBe(true);
+});
+
+it('확인창을 닫으면 결과표로 넘기고 실패·미처리 건만 선택에 남긴다', () => {
+  select([A, B]);
+  const step = all(render()).find((element) => element.type === ActionBarItem && element.props.children === ADMIN_CLAIM_BULK_STEP_LABELS.refund);
+  (step?.props.onSelect as (event: unknown) => void)({ preventDefault: () => undefined });
+  const dialog = all(render()).find((element) => element.type === ClaimBulkStepDialog);
+  const result = {
+    summary: '처리됨 1건 · 실패 1건',
+    results: [
+      { claimId: A, reference: 'C00001', outcome: 'done' as const, message: '토스 전액 취소를 확인하고 환불 완료를 기록했습니다.' },
+      { claimId: B, reference: 'C00002', outcome: 'failed' as const, message: '확인한 금액과 지금 환불 금액이 달라 처리하지 않았습니다.' },
+    ],
+  };
+  (dialog?.props.onClose as (value: unknown) => void)(result);
+  expect(all(render()).find((element) => element.type === ClaimBulkStepDialog)).toBeUndefined();
+  expect(all(render()).find((element) => element.type === ClaimKitBulkResult)?.props.state).toEqual(result);
+  expect(selected()).toEqual([B]);
+});
+
+it('단계 확인창을 그냥 닫으면 선택과 결과를 바꾸지 않는다', () => {
+  select([A, B]);
+  const step = all(render()).find((element) => element.type === ActionBarItem && element.props.children === ADMIN_CLAIM_BULK_STEP_LABELS.refund);
+  (step?.props.onSelect as (event: unknown) => void)({ preventDefault: () => undefined });
+  (all(render()).find((element) => element.type === ClaimBulkStepDialog)?.props.onClose as (value: unknown) => void)(null);
+  expect(selected()).toEqual([A, B]);
+  expect(all(render()).find((element) => element.type === ClaimKitBulkResult)?.props.state).toEqual({});
 });

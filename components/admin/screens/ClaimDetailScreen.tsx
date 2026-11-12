@@ -184,6 +184,8 @@ export function ClaimDetailScreen({
       stage: claim.stage,
       collectedAt: claim.collectedAt,
       completedAt: claim.completedAt,
+      /* 환급 기한은 운영자가 적은 실제 입고일부터 센다(1027T-033). 옛 기록은 입고 확인 시각이다. */
+      collectionReceivedOn: claim.collectionReceivedOn ?? null,
     },
     now,
   );

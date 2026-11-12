@@ -236,7 +236,7 @@ function selectValue(html: string, label: string) {
 }
 
 describe('ClaimQueueKitScreen — 반품·교환 목록', () => {
-  it.each([['recipient', '수취인명'], ['item', '상품주문번호'], ['product', '상품번호']] as const)('%s 상세조건과 전체 주문 처리 경계를 표시한다', (field, label) => {
+  it.each([['recipient', '수취인명'], ['item', '상품주문번호'], ['product', '상품 URL']] as const)('%s 상세조건과 전체 주문 처리 경계를 표시한다', (field, label) => {
     const source = returns(); source.filters = { ...source.filters, field, query: '번호_%', page: 2 };
     const html = renderToStaticMarkup(<ClaimQueueKitScreen data={source} now={RETURN_NOW} />);
     expect(selectValue(html, '검색 항목')).toBe(label);
@@ -342,13 +342,17 @@ describe('ClaimQueueKitScreen — 반품·교환 목록', () => {
 
   /* R8 · D8: 선택 → 건별 순차 처리 → 결과표. 처리 단계가 끝난 건은 고를 수 없다(처리 막대는 kit ActionBar라 선택 뒤에만 뜬다). */
   it('처리할 수 있는 단계의 행만 고르고, 처리할 수 없는 행의 선택 칸은 잠긴다', () => {
-    const html = renderToStaticMarkup(<ClaimQueueKitScreen data={returns()} now={RETURN_NOW} />);
+    /* 처리중 반품(C00012)은 환불 완료 확정(1027T-033) 대상이라 고를 수 있고, 종결된 요청은 잠긴다. */
+    const base = returns();
+    const closed = { ...base.rows[0], id: '33333333-3333-4333-8333-333333333333', reference: 13, stage: 'completed' as const };
+    const html = renderToStaticMarkup(<ClaimQueueKitScreen data={returns({ rows: [...base.rows, closed], total: 3 })} now={RETURN_NOW} />);
     const checkbox = (label: string) => html.match(new RegExp(`<span[^>]*aria-label="${label}"[^>]*>`))?.[0] ?? '';
     expect(checkbox('요청 C00011 선택')).not.toBe('');
     expect(checkbox('요청 C00011 선택')).not.toContain('aria-disabled="true"');
-    expect(checkbox('요청 C00012 선택')).toContain('aria-disabled="true"');
+    expect(checkbox('요청 C00012 선택')).not.toContain('aria-disabled="true"');
+    expect(checkbox('요청 C00013 선택')).toContain('aria-disabled="true"');
     expect(html).toContain('aria-label="이 페이지에서 처리할 수 있는 요청 모두 선택"');
-    expect(html).toContain('승인·검토중·거부를 한 번에 처리합니다(최대 50건)');
+    expect(html).toContain('승인·검토중·거부와 회수 확인·환불 완료 확정을 한 번에 처리합니다(최대 50건)');
   });
 
   it('반품·교환 메뉴설명은 배송비 정책·대기 목록과 상세에서 한 건씩 하는 처리를 안내한다', () => {
@@ -356,7 +360,8 @@ describe('ClaimQueueKitScreen — 반품·교환 목록', () => {
     expect(html).toContain('href="/admin/sales/claims/returns/fee-policy"');
     expect(html).toContain('href="/admin/sales/claims/returns/fees"');
     expect(html).toContain('반품·교환 전환도 처리 막대에서 고객 합의 근거를 한 번 입력해 한 번에 처리합니다.');
-    expect(html).toContain('회수 확인·재출고·환불 확정과 환불계좌를 새로 받아야 하는 무통장 건의 전환은 상세에서 한 건씩 처리합니다.');
+    expect(html).toContain('회수 없이 재출고와 환불계좌를 새로 받아야 하는 무통장 건의 전환은 상세에서 한 건씩 처리합니다.');
+    expect(html).toContain('무통장·가상계좌·코페이 결제처럼 결제사 취소로 끝낼 수 없는 건은 사유와 함께 뺍니다.');
     expect(html).toContain('환불 송금 대기');
     /* 교환에는 환불이 없어 송금 대기 안내를 하지 않는다. 취소에는 배송비 청구가 없다. */
     const exchange = renderToStaticMarkup(<ClaimQueueKitScreen canViewRefundTransfers data={returns({ claimType: 'exchange', rows: [], total: 0 })} now={RETURN_NOW} />);
