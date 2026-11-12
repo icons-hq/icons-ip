@@ -111,6 +111,27 @@ it('외부 잠금 중 프로그램 제출과 서버 초안 임시저장을 막�
   await (save.props.onClick as () => Promise<void>)(); expect(mocks.saveServer).not.toHaveBeenCalled(); expect(h.reads).not.toHaveBeenCalled();
 });
 
+/*
+ * TKT-094 — 공개 중 잠긴 칸(changedGoodLockedFields)을 바꿔 저장하면 저장 전 검사가 막는다. 제출 기본 동작을 멈추고 자동복구의 제출 기록
+ * (onSubmitCapture → 서버 액션)을 시작하지 않으므로 서버 호출이 없다. 잠기지 않은 칸만 바꾸면 그대로 제출한다.
+ */
+it('공개 중 잠긴 칸을 바꾼 저장은 서버 호출 없이 막고 그 칸에 초안 전환 안내를 붙인다', () => {
+  vi.stubGlobal('document', Object.assign(new EventTarget(), { getElementById: () => null, querySelector: () => null }));
+  const published = { ...good, publishedAt: '2026-11-01T00:00:00Z', firstPublishedAt: '2026-11-01T00:00:00Z' };
+  const h = setup(false, false, published); h.initialize();
+  const submit = (tree: Element[]) => { const preventDefault = vi.fn(); (tree.find(node => node.type === 'form')!.props.onSubmitCapture as (event: unknown) => void)({ currentTarget: h.form, preventDefault }); return preventDefault; };
+  h.entries.set('name', '바꾼 상품명'); h.entries.set('noticeOrigin', '일본');
+  const blocked = submit(h.render());
+  expect(blocked).toHaveBeenCalledOnce(); expect(mocks.submit).not.toHaveBeenCalled();
+  expect(h.render().find(node => node.type === GoodWorkspaceErrors)!.props.errors).toMatchObject({
+    name: '상품명 항목은 공개 중에 잠겨 있습니다. 초안으로 전환 후 수정해주세요.',
+    noticeOrigin: '제조국 항목은 공개 중에 잠겨 있습니다. 초안으로 전환 후 수정해주세요.',
+  });
+  h.entries.set('name', good.name); h.entries.set('noticeOrigin', good.notice.origin!); h.entries.set('description', '잠기지 않은 상세설명 수정');
+  const allowed = submit(h.render());
+  expect(allowed).not.toHaveBeenCalled(); expect(mocks.submit).toHaveBeenCalledOnce();
+});
+
 /* 10/27 회의 R19 — 업로드 진행·안내 같은 상태 변화마다 상세 HTML 정리와 공개 미리보기를 다시 만들지 않는다. */
 it('입력이 그대로면 다시 그려도 상세 HTML 정리·미리보기를 다시 계산하지 않고, 같은 이미지 알림은 상태를 바꾸지 않는다', () => {
   const htmlGood = { ...good, descriptionFormat: 'html' as const, description: '<p>저장된 본문</p>' };

@@ -171,4 +171,14 @@ describe('KC 모델 검토 화면', () => {
     expect(html).not.toContain('모델명 (선택)');
     expect(html).not.toContain('고객 고시 미리보기');
   });
+  /* ADM-004(복잡도 표 335행): 고객에게 보이지 않는 내부 근거는 기본으로 접고 채운 칸 수를 요약에 보인다. 입력칸은 그대로 DOM에 있다. */
+  it('내부 검토 근거는 접힌 채로 채운 칸 수를 보이고 입력칸은 그대로다', () => {
+    const model = { ...emptyGoodsKcModel(), family: 'children' as const, scheme: 'safety_confirmation' as const, basis: '합성 판단 사유', variantIds: [variant.id] };
+    const html = renderToStaticMarkup(<GoodsKcEditor goodId="g1" configuration={{ ...draft, revision: 1, models: [model] }} onSaved={() => {}} />);
+    const evidence = html.match(/<details([^>]*)><summary[^>]*>내부 검토 근거[^<]*<\/summary>/);
+    expect(evidence?.[1]).toContain('data-kc-evidence=""');
+    expect(evidence?.[1]).not.toContain('open=""');
+    expect(evidence?.[0]).toMatch(/· 1\/\d+칸 입력<\/summary>/);
+    expect(html).toContain('aria-label="모델 1 적용 판단 사유"');
+  });
 });

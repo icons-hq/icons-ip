@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GOOD_EDITOR_CARDS, GOOD_EDITOR_SECTIONS, goodCurrentCard, goodErrorsByCard, goodFieldSection, goodKcContextChanged, goodPublishRequirements, goodReadinessAction, goodReadinessPlan, goodReadinessReasonAnchor, goodRemainingByCard, goodSaleSettingsState, goodTypeSuggestion, orderedGoodErrors } from './good-workspace';
+import { GOOD_EDITOR_CARDS, GOOD_EDITOR_SECTIONS, GOOD_PUBLISHED_LOCKS, changedGoodLockedFields, goodCurrentCard, goodErrorsByCard, goodFieldSection, goodKcContextChanged, goodPublishRequirements, goodReadinessAction, goodReadinessPlan, goodReadinessReasonAnchor, goodRemainingByCard, goodSaleSettingsState, goodTypeSuggestion, orderedGoodErrors } from './good-workspace';
 import { GOODS_READINESS_REASONS, unknownGoodsReadiness, type AdminGoodsReadiness, type GoodsReadinessReasonCode } from './goods-readiness';
 
 const values = { name: '상품', ipId: 'ip', type: '키링', imagePath: 'path', originId: 'origin', noticeMaker: 'a', noticeOrigin: 'b', noticeMaterial: 'c', noticeSize: 'd', noticeMadeOn: 'e', noticeAsManager: 'f', noticeAsContact: 'g' };
@@ -16,9 +16,9 @@ describe('상품 등록 카드와 필수 입력 안내', () => {
     expect(goodFieldSection('customInputs').key).toBe('information');
     expect(goodFieldSection('additionalCategoryIds').key).toBe('information');
     expect(goodFieldSection('showDiscountRate').key).toBe('information');
-    /* 판매가 → 재고수량·옵션 다음에 판매기간·구매 제한, KC는 고시 바로 뒤. */
-    expect(orderedGoodErrors({ workspacePreorders: 'p', maxOrderQty: 'l', variants: 'v', price: 'a', originId: 'o', workspaceKc: 'k', noticeMaker: 'n' }).map(([field]) => field))
-      .toEqual(['price', 'variants', 'maxOrderQty', 'noticeMaker', 'workspaceKc', 'originId', 'workspacePreorders']);
+    /* 판매가 → 재고수량·옵션 → 판매기간 → 예약판매 → 구매 제한(1027T-023), KC는 고시 바로 뒤. */
+    expect(orderedGoodErrors({ workspacePreorders: 'p', maxOrderQty: 'l', variants: 'v', price: 'a', originId: 'o', workspaceKc: 'k', noticeMaker: 'n', saleStartsAt: 's' }).map(([field]) => field))
+      .toEqual(['price', 'variants', 'saleStartsAt', 'workspacePreorders', 'maxOrderQty', 'noticeMaker', 'workspaceKc', 'originId']);
   });
 
   it('공개까지 남은 필수 입력을 세고 카드별로 나눈다(판정은 서버가 한다)', () => {
@@ -44,8 +44,24 @@ describe('상품 등록 카드와 필수 입력 안내', () => {
   it('저장에 실패한 칸을 카드별로 세고 카드에 속하지 않는 오류는 세지 않는다', () => {
     expect(goodErrorsByCard({})).toEqual({});
     expect(goodErrorsByCard({ name: 'n', ipId: undefined, categoryId: 'c', regularPrice: 'p', maxOrderQty: 'l', originId: 'o', badge: 'b', form: '폼 오류' })).toEqual({ basic: 2, sales: 2, delivery: 1, additional: 1 });
-    /* 등록 화면 KC는 고시 카드 안의 입력이고, 예약판매는 카드 밖 이어서 설정에 있다. */
-    expect(goodErrorsByCard({ workspaceKc: 'k', noticeMaker: 'n', workspacePreorders: 'p' })).toEqual({ notice: 2 });
+    /* 등록 화면 KC는 고시 카드, 예약판매는 판매 정보 카드 안의 입력이다(1027T-023). */
+    expect(goodErrorsByCard({ workspaceKc: 'k', noticeMaker: 'n', workspacePreorders: 'p' })).toEqual({ notice: 2, sales: 1 });
+  });
+
+  /* TKT-094 — 공개 중 잠금 칸의 저장 전 검사. 이 검사가 막으면 서버에 보내지 않는다(GoodEditor.capture.client.test). */
+  it('공개 중 잠긴 7칸이 바뀌면 칸마다 초안 전환 안내를 돌려주고, 앞뒤 공백과 잠기지 않은 칸은 무시한다', () => {
+    const saved = { name: '상품', type: '키링', ipId: 'ip', noticeMaker: 'a', noticeOrigin: 'b', noticeMaterial: 'c', noticeSize: 'd', noticeMadeOn: '2026-11', price: '1000' };
+    expect(changedGoodLockedFields(saved, { ...saved })).toEqual([]);
+    expect(changedGoodLockedFields(saved, { ...saved, name: ' 상품 ', noticeMadeOn: '2026-12', price: '2000' })).toEqual([]);
+    expect(changedGoodLockedFields(saved, { ...saved, name: '바꾼 상품', noticeOrigin: '일본' })).toEqual([
+      ['name', '상품명 항목은 공개 중에 잠겨 있습니다. 초안으로 전환 후 수정해주세요.'],
+      ['noticeOrigin', '제조국 항목은 공개 중에 잠겨 있습니다. 초안으로 전환 후 수정해주세요.'],
+    ]);
+    /* 빠진 칸은 빈 값으로 비교한다 — 저장값이 있는데 제출에서 사라지면 바뀐 것이다. */
+    const withoutIp: Record<string, string> = { ...saved };
+    delete withoutIp.ipId;
+    expect(changedGoodLockedFields(saved, withoutIp).map(([field]) => field)).toEqual(['ipId']);
+    expect(Object.keys(GOOD_PUBLISHED_LOCKS)).toEqual(['name', 'type', 'ipId', 'noticeMaker', 'noticeOrigin', 'noticeMaterial', 'noticeSize']);
   });
 
   it('지금 보는 카드는 읽는 선을 지난 마지막 카드다', () => {

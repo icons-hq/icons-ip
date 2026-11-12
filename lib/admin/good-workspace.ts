@@ -50,10 +50,10 @@ export function goodFieldSection(name: string) {
   return GOOD_EDITOR_SECTIONS.find((section) => (section.fields as readonly string[]).includes(name)) ?? GOOD_EDITOR_SECTIONS[0];
 }
 
-/* 등록 화면 원자 저장 섹션의 오류: KC는 고시 카드 안이라 고시 바로 뒤, 예약판매는 기본 입력 뒤의 이어서 설정 카드에 있다. */
+/* 등록 화면 원자 저장 섹션의 오류: KC는 고시 카드 안이라 고시 바로 뒤, 예약판매는 판매 정보 카드의 판매기간 바로 뒤(1027T-023)다. */
 const errorOrder = (field: string) => {
   if (field === 'workspaceKc') return GOOD_EDITOR_SECTIONS.findIndex((section) => section.key === 'notice') + 0.5;
-  if (field === 'workspacePreorders') return GOOD_EDITOR_SECTIONS.length;
+  if (field === 'workspacePreorders') return GOOD_EDITOR_SECTIONS.findIndex((section) => section.key === 'period') + 0.5;
   return GOOD_EDITOR_SECTIONS.indexOf(goodFieldSection(field));
 };
 
@@ -94,12 +94,16 @@ export function goodRemainingByCard(requirements: readonly GoodPublishRequiremen
   return remaining;
 }
 
-/** 저장에 실패한 칸을 카드별로 센다. 섹션 이동 띠의 빨간 표시는 이 값에서만 나온다. 등록 화면 KC 입력은 고시 카드 안에 있어 그 카드로 센다. */
+/**
+ * 저장에 실패한 칸을 카드별로 센다. 섹션 이동 띠의 빨간 표시는 이 값에서만 나온다. 등록 화면 KC 입력은 고시 카드, 예약판매 입력은
+ * 판매 정보 카드 안에 있어 그 카드로 센다.
+ */
 export function goodErrorsByCard(errors: Record<string, string | undefined>): Partial<Record<GoodEditorCardKey, number>> {
   const result: Partial<Record<GoodEditorCardKey, number>> = {};
   for (const card of GOOD_EDITOR_CARDS) {
     const fields = GOOD_EDITOR_SECTIONS.filter((section) => (card.sections as readonly string[]).includes(section.key)).flatMap((section) => section.fields as readonly string[]);
-    const count = fields.filter((field) => errors[field]).length + (card.key === 'notice' && errors.workspaceKc ? 1 : 0);
+    const count = fields.filter((field) => errors[field]).length + (card.key === 'notice' && errors.workspaceKc ? 1 : 0)
+      + (card.key === 'sales' && errors.workspacePreorders ? 1 : 0);
     if (count) result[card.key] = count;
   }
   return result;

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { GOODS_READINESS_REASONS, type AdminGoodsReadiness } from '@/lib/admin/goods-readiness';
-import { GoodPublishControls } from './GoodPublishControls';
+import { GOOD_DRAFT_SWITCH_NOTICE, GoodDraftSwitch, GoodPublishControls } from './GoodPublishControls';
 const kcRequired: AdminGoodsReadiness = { state: 'blocked', checkedAt: '2026-11-09T06:20:51.000Z', publication: 'draft', operation: 'active', availableQty: 40, publicReview: 'required', saleSettings: 'blocked', reviewRequired: true,
   reasons: [{ code: 'draft', ...GOODS_READINESS_REASONS.draft, kind: 'blocking' }, { code: 'kc_required', ...GOODS_READINESS_REASONS.kc_required, kind: 'review' }] };
 const ready: AdminGoodsReadiness = { ...kcRequired, publicReview: 'current', reasons: [kcRequired.reasons[0]] };
@@ -51,5 +51,22 @@ describe('상품 게시 상태 화면', () => {
     const html = renderToStaticMarkup(<GoodPublishControls id="g1" publishedAt={null} archivedAt={null} readiness={null}/>);
     expect(publishButton(html)).not.toBe(''); expect(publishButton(html)).not.toContain('bg-primary');
     expect(html).toContain('id="good-operation-publish"');
+  });
+  /* ADM-004(복잡도 표 303행): 게시 전환은 저장된 내용의 게시 상태만 바꾼다는 뜻을 접힌 안내에 남긴다. */
+  it('판매 준비 안내는 게시 전환이 저장된 내용의 게시 상태만 바꾼다고 말한다', () => {
+    const html = renderToStaticMarkup(<GoodPublishControls id="g1" publishedAt={null} archivedAt={null} readiness={ready}/>);
+    expect(html).toContain('공개·초안 전환은 저장된 내용의 게시 상태만 바꿉니다. 저장하지 않은 입력은 함께 저장되지 않고 화면에 그대로 남습니다.');
+  });
+});
+
+/* TKT-009(11/11 결정): 잠금 안내 버튼 → 확인창 1회 → 바로 초안 전환. 확인창은 누를 때만 열리고 폼을 제출하지 않는 버튼이다. */
+describe('초안으로 전환 후 수정', () => {
+  it('버튼 하나이고 닫힌 확인창은 그리지 않으며, 확인창 안내는 판매 중단 영향과 KC 재검토를 말한다', () => {
+    const html = renderToStaticMarkup(<GoodDraftSwitch id="g1" />);
+    expect(html).toMatch(/<button[^>]*type="button"[^>]*data-good-draft-switch=""[^>]*>초안으로 전환 후 수정<\/button>/);
+    expect(html).not.toContain('초안으로 전환할까요?');
+    expect(html).not.toContain('<form');
+    expect(renderToStaticMarkup(<GoodDraftSwitch id="g1" disabled />)).toMatch(/<button[^>]*disabled=""[^>]*>초안으로 전환 후 수정<\/button>/);
+    for (const text of ['고객 화면에서 내려갑니다', '새 주문을 받지 않습니다', '기존 주문과 결제·취소 처리는 유지됩니다', 'KC를 다시 검토해야']) expect(GOOD_DRAFT_SWITCH_NOTICE).toContain(text);
   });
 });
