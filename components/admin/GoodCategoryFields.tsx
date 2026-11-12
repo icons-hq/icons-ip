@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import Link from 'next/link';
-import { CATEGORY_PATH, categoryPath, type AdminCategoryNode } from '@/lib/admin/category';
+import { CATEGORY_PATH, categoryGoodType, categoryPath, type AdminCategoryNode } from '@/lib/admin/category';
 import { usableTemplateCategory } from '@/lib/admin/category-templates';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
@@ -83,7 +83,7 @@ export function GoodCategoryField({ categories, primary, onPrimaryChange, error 
           {open ? <div className="absolute inset-x-0 top-full z-10 mt-1 overflow-hidden rounded-lg bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10" data-good-category-list="" onMouseDown={(event) => event.preventDefault()}>
             <p className="border-b px-3 py-1.5 text-xs text-muted-foreground tabular-nums" role="status">{searching ? '검색 결과' : '전체'} {results.length.toLocaleString('ko-KR')}개{results.length > RESULT_LIMIT ? ` · 앞의 ${RESULT_LIMIT}개를 표시합니다. 검색어를 더 입력해주세요.` : ''}</p>
             {visible.length ? <ul aria-label="카테고리 목록" className="relative m-0 flex max-h-72 list-none flex-col overflow-y-auto overscroll-contain p-0 [scrollbar-width:thin]" id={LISTBOX_ID} ref={listRef} role="listbox">{visible.map((category, index) => <li aria-checked={primary === category.id} aria-selected={index === active} className="flex min-h-11 shrink-0 cursor-pointer flex-col items-start justify-center gap-0.5 border-b px-3 py-2 text-left text-sm wrap-anywhere text-foreground last:border-b-0 aria-checked:font-medium aria-checked:text-primary-soft-foreground aria-selected:bg-muted" id={optionId(index)} key={category.id} onClick={() => choose(category.id)} onMouseMove={() => { if (index !== active) setActive(index); }} role="option">
-              <span>{categoryPath(categories, category.id).join(' > ')}</span><small className="text-xs font-normal text-muted-foreground">{category.code}</small>
+              <span>{categoryPath(categories, category.id).join(' > ')}</span><small className="text-xs font-normal text-muted-foreground">{category.code} · 상품 유형 {categoryGoodType(categories, category.id) || '연결 없음'}</small>
             </li>)}</ul> : <p className="px-3 py-2 text-sm text-muted-foreground">일치하는 카테고리가 없습니다.</p>}
           </div> : null}
         </div>
@@ -104,7 +104,8 @@ export function GoodCategoryField({ categories, primary, onPrimaryChange, error 
       if (!template.usable || !usableTemplateCategory(categories, template.categoryId)) { setTemplateError('현재 사용할 수 없는 카테고리입니다. 최신 카테고리를 확인해주세요.'); setTemplatePicker(false); return; }
       choose(template.categoryId); setTemplatePicker(false);
     }} /> : null}
-    <span className="text-xs text-muted-foreground" id="good-category-hint">비워도 판매할 수 있습니다.{selectedArchived ? ' 보관된 카테고리는 선택 해제해야 바뀝니다.' : ''}</span>
+    {/* SHEET-003(ADR-0037): 상품 유형은 대표 카테고리(없으면 가까운 상위)에 연결한 값이라 공개하려면 연결된 카테고리가 필요하다. */}
+    <span className="text-xs text-muted-foreground" id="good-category-hint">상품 유형은 이 카테고리(없으면 가까운 상위)에 연결한 값으로 정해지고, 상품 유형이 연결된 카테고리여야 공개할 수 있습니다.{selectedArchived ? ' 보관된 카테고리는 선택 해제해야 바뀝니다.' : ''}</span>
     {error ? <span className="text-sm text-destructive" role="alert">{error}</span> : null}
   </div>;
 }

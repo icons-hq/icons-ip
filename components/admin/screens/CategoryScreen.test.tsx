@@ -12,13 +12,25 @@ const categories = [{
 }];
 
 describe('CategoryScreen', () => {
+  /* SHEET-003(ADR-0037): 카테고리 추가·수정에 상품 유형 연결 칸이 있고, 지금 적용 유형(상위 연결 포함)과 이름 기준 추천을 보인다. */
+  it('카테고리 추가·수정 화면에 상품 유형 연결 칸과 지금 적용되는 유형을 보인다', () => {
+    const typed = [{ ...categories[0], goodType: '피규어' }, { ...categories[1], name: '키링 모음', goodType: null }];
+    const html = renderToStaticMarkup(<CategoryScreen data={{ categories: typed, mappings: [], migrations: [], activation: { customerEnabled: false, erpEnabled: false, customerEvidence: null, erpEvidence: null, updatedAt: null } }} />);
+    expect(html.match(/<select[^>]*name="goodType"/g)?.length).toBe(2);
+    expect(html).toContain('<option value="">연결 안 함 · 상위 카테고리를 따름</option>');
+    expect(html).toContain('<option value="피규어" selected="">피규어</option>');
+    expect(html).toContain('지금 이 카테고리 상품의 유형은 <strong class="font-medium text-foreground">피규어</strong>입니다');
+    expect(html).toContain('data-category-good-type="">· 피규어</span>');
+    expect(html).toContain('초안 상품의 유형이 바로 바뀌고 KC를 다시 검토해야 공개할 수 있습니다');
+  });
+
   it('exposes tree, activation gates, ERP evidence and legacy type coexistence', () => {
     const html = renderToStaticMarkup(<CategoryScreen data={{ categories, mappings: [], migrations: [], activation: { customerEnabled: false, erpEnabled: false, customerEvidence: null, erpEvidence: null, updatedAt: null } }} legacyTypes={['문구', '키링']} />);
     expect(html).toContain('고객 카테고리');
     expect(html).toContain('최대 4단계');
     expect(html).toContain('실제 ERP 코드·품명');
     expect(html).toContain('>미분류</option>');
-    expect(html).toContain('비워도 기존 유형과 전체 상품 판매는 유지됩니다.');
+    expect(html).toContain('비우거나 연결 없는 카테고리면 새로 공개할 수 없고 공개 중인 상품은 유형이 같은 카테고리로만 옮깁니다.');
     expect(html).toContain('기존 유형 이관 메모');
     expect(html).toContain('키링');
   });

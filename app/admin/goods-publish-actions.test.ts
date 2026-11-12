@@ -33,6 +33,13 @@ describe('상품 게시 상태 액션', () => {
     expect(JSON.stringify(result)).not.toContain('private diagnostic');
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
+  /* SHEET-003(ADR-0037): 대표 카테고리에 상품 유형 연결이 없거나 저장된 유형이 다르면 공개하지 않는다. */
+  it('카테고리 상품 유형 규칙으로 차단된 경우 이유를 알려준다', async () => {
+    mocks.rpc.mockResolvedValue({ error: { message: 'goods_type_category_required' } });
+    expect((await setAdminGoodPublishedAction({}, form(true))).error).toContain('상품 유형이 연결되어 있어야 공개할 수 있습니다');
+    mocks.rpc.mockResolvedValue({ error: { message: 'goods_type_category_changed' } });
+    expect((await setAdminGoodPublishedAction({}, form(true))).error).toContain('KC를 다시 검토한 뒤 공개');
+  });
   it('KC 미검토로 차단된 경우 검토할 작업을 알려준다', async () => {
     mocks.rpc.mockResolvedValue({ error: { message: 'goods_kc_review_required private diagnostic' } });
     const result = await setAdminGoodPublishedAction({}, form(true));

@@ -48,7 +48,7 @@ export function GoodNoticePicker({ onApply, readOnly=false, copyKcTemplate=true,
   const shown = suggestion && suggestion.type === suggestType && !readOnly ? suggestion : null;
   return <div className="flex min-w-0 flex-col gap-3" data-good-notice-picker="">
     {shown ? <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 rounded-lg bg-primary-soft px-3 py-2 text-sm text-primary-soft-foreground" data-good-notice-suggestion="">
-      <span className="min-w-0">‘{shown.type}’ 유형에 맞는 템플릿이 있습니다.</span>
+      <span className="min-w-0">카테고리 상품 유형 ‘{shown.type}’에 맞는 템플릿이 있습니다.</span>
       <Button type="button" variant="outline" size="sm" onClick={() => apply(shown.preset)}>{shown.preset.name} 적용</Button>
     </div> : null}
     <div className="flex min-w-0 flex-wrap items-center gap-2">

@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { AdminGoodRecord } from '@/lib/admin/catalog.server';
+import type { AdminCategoryNode } from '@/lib/admin/category';
 import { GOODS_READINESS_REASONS, type AdminGoodsReadiness, type GoodsReadinessReasonCode } from '@/lib/admin/goods-readiness';
 import type { Ip } from '@/lib/data';
 import { GOODS_HTML_MAX_LENGTH, sanitizeGoodsDescription } from '@/lib/goods-description';
@@ -72,8 +73,15 @@ const hwasan: Ip = {
   synopsis: '화산강림 세계관',
 };
 
+/* SHEET-003(ADR-0037): 상품 유형은 대표 카테고리(없으면 가까운 상위)의 연결값이다. 시험 상품은 '아크릴'이 연결된 카테고리에 있다. */
+const acrylicCategory: AdminCategoryNode = { id: '33333333-3333-4333-8333-333333333333', code: 'acrylic', name: '아크릴 굿즈', parentId: null, depth: 1,
+  sortOrder: 0, archivedAt: null, updatedAt: '', childCount: 0, assignedGoodCount: 1, goodType: '아크릴' };
+const unlinkedCategory: AdminCategoryNode = { ...acrylicCategory, id: '33333333-3333-4333-8333-333333333334', code: 'unlinked', name: '연결 없는 분류', goodType: null };
+const dollCategory: AdminCategoryNode = { ...acrylicCategory, id: '33333333-3333-4333-8333-333333333335', code: 'doll', name: '인형 분류', goodType: '인형' };
+
 const good: AdminGoodRecord = {
   id: 'g100',
+  categoryId: acrylicCategory.id,
   code: 'HW-0100',
   publishedAt: '2026-09-08',
   firstPublishedAt: '2026-09-08T00:00:00Z',
@@ -109,7 +117,7 @@ const good: AdminGoodRecord = {
 function renderGoodSection(
   selected: AdminGoodRecord | null,
   state: Parameters<typeof GoodSection>[0]['state'] = {},
-  options: Pick<Parameters<typeof GoodSection>[0],'initialQuery'|'initialIpId'|'variants'|'canSearchErp'|'ownership'|'accountId'|'cloneOperationId'|'canManageCosts'|'canManageMedia'|'readiness'> = {},
+  options: Pick<Parameters<typeof GoodSection>[0],'initialQuery'|'initialIpId'|'variants'|'canSearchErp'|'ownership'|'accountId'|'cloneOperationId'|'canManageCosts'|'canManageMedia'|'readiness'|'categories'> = {},
 ) {
   return renderToStaticMarkup(
     <GoodsKcTemplateProvider selectionKey={selected ? `good:${selected.id}` : 'create:any'}>
@@ -124,6 +132,7 @@ function renderGoodSection(
       selected={selected}
       variants={selected ? [{ id: '11111111-1111-4111-8111-111111111111', goodId: selected.id, name: '기본 옵션', code: 'HW-0100-01', price: selected.price, stockQty: selected.stockQty, isDefault: true, archivedAt: null }] : []}
       state={state}
+      categories={[acrylicCategory, unlinkedCategory, dollCategory]}
       {...options}
     /></GoodsKcTemplateProvider>,
   );
@@ -174,10 +183,12 @@ describe('GoodSection', () => {
     for (const name of ['name', 'noticeMaker', 'noticeOrigin', 'noticeMaterial', 'noticeSize']) {
       expect(html.match(new RegExp(`<input[^>]*name="${name}"[^>]*>`))?.[0]).toContain('readOnly');
     }
-    for (const name of ['ipId', 'type']) {
-      expect(html.match(new RegExp(`<select[^>]*name="${name}"[^>]*>`))?.[0]).toContain('disabled');
-      expect(html).toMatch(new RegExp(`<input[^>]*type="hidden"[^>]*name="${name}"`));
-    }
+    expect(html.match(/<select[^>]*name="ipId"[^>]*>/)?.[0]).toContain('disabled');
+    expect(html).toMatch(/<input[^>]*type="hidden"[^>]*name="ipId"/);
+    /* 상품 유형은 입력칸이 없고(SHEET-003), 공개 중에는 저장된 유형을 그대로 제출한다. */
+    expect(html).not.toMatch(/<select[^>]*name="type"/);
+    expect(html).toContain('<input type="hidden" name="type" value="아크릴"/>');
+    expect(html).toMatch(/data-good-type-derived="published"[^>]*>[^]*?아크릴 · 공개 중 잠금/);
     expect(html).toContain('초안으로 전환 후 수정');
   });
 
@@ -847,7 +858,7 @@ describe('GoodSection', () => {
     const create = renderGoodSection(null);
     expect(create).not.toContain('aria-label="필수"');
     expect(create).not.toContain('필수항목');
-    for (const label of ['상품명 (필수)', '연결 IP (필수)', '상품 유형 (필수)', '판매가 (필수)', '재고수량 (필수)', '대표이미지 (필수)', '출고지 (필수)', ...GOODS_NOTICE_FIELDS.map((field) => `${field.label} (필수)`)]) expect(create).toContain(label);
+    for (const label of ['상품명 (필수)', '연결 IP (필수)', '판매가 (필수)', '재고수량 (필수)', '대표이미지 (필수)', '출고지 (필수)', ...GOODS_NOTICE_FIELDS.map((field) => `${field.label} (필수)`)]) expect(create).toContain(label);
   });
 
   /* 10/27 회의 R21(D9①) — 그룹상품 등록은 메뉴·탭에서 숨기고 라우트만 유지한다. */
@@ -959,14 +970,40 @@ describe('GoodSection', () => {
     expect(nav.match(/<a /g)).toHaveLength(7);
   });
 
-  /* #326 — 유형·배지는 자유 입력이 아니라 표준 값 select 다(DB CHECK 와 같은 목록). */
-  it('offers the standard type and badge options plus a compare-at price field', () => {
+  /* #326 — 배지는 자유 입력이 아니라 표준 값 select 다. 상품 유형(SHEET-003)은 입력칸 없이 대표 카테고리의 연결값을 읽기 전용으로 보인다. */
+  it('offers the standard badge options plus a compare-at price field and no type input', () => {
     const html = renderGoodSection(null);
 
     expect(html).toContain('name="compareAtPrice"');
-    for (const type of GOOD_TYPES) expect(html).toContain(`<option value="${type}">`);
     for (const badge of GOOD_BADGES) expect(html).toContain(`<option value="${badge}">`);
     expect(html).toContain('없음');
+    expect(html).not.toMatch(/<select[^>]*name="type"/);
+    for (const type of GOOD_TYPES) expect(html).not.toContain(`<option value="${type}">`);
+    expect(html).toMatch(/data-good-type-derived="no-category"[^>]*>[^]*?대표 카테고리를 고르면 정해집니다/);
+    expect(html).toContain('<input type="hidden" name="type" value=""/>');
+  });
+
+  /*
+   * SHEET-003 완료 기준 — '피규어'처럼 상품 유형이 연결된 카테고리를 고른 상품은 기본 정보에 "상품 유형: X(카테고리에서)"가 읽기 전용이고
+   * 입력칸이 없다. 연결 없는 카테고리 상품은 공개할 수 없다는 이유가 보이고, 공개 중 상품의 불일치는 경고만 한다.
+   */
+  it('상품 유형을 대표 카테고리에서 읽기 전용으로 보이고, 연결이 없거나 다르면 이유를 보인다', () => {
+    const draft = { ...good, publishedAt: null, firstPublishedAt: null, type: '' };
+    const linked = renderGoodSection(draft);
+    expect(linked).toMatch(/<dt[^>]*>상품 유형<\/dt><dd[^>]*>아크릴\(카테고리에서\)<\/dd>/);
+    expect(linked).toContain('<input type="hidden" name="type" value="아크릴"/>');
+    expect(linked).not.toMatch(/<(?:select|input)(?![^>]*type="hidden")[^>]*name="type"/);
+    const unlinked = renderGoodSection({ ...draft, categoryId: unlinkedCategory.id });
+    expect(unlinked).toMatch(/data-good-type-derived="unlinked"/);
+    expect(unlinked).toContain('이 카테고리(또는 상위)에 상품 유형이 연결되어 있지 않아 공개할 수 없습니다.');
+    expect(unlinked).toContain('href="/admin/catalog/categories"');
+    /* 공개 중 상품: 다른 칸 저장은 막지 않고 저장된 유형을 유지하며 경고만 한다. */
+    const published = renderGoodSection({ ...good, categoryId: dollCategory.id });
+    expect(published).toContain('data-good-type-mismatch="different"');
+    expect(published).toContain('카테고리 상품 유형(인형)이 저장된 유형(아크릴)과 다릅니다');
+    expect(published).toContain('<input type="hidden" name="type" value="아크릴"/>');
+    expect(renderGoodSection({ ...good, categoryId: unlinkedCategory.id })).toContain('data-good-type-mismatch="missing"');
+    expect(renderGoodSection(good)).not.toContain('data-good-type-mismatch');
   });
 
   it('previews the selected record values before any edit', () => {

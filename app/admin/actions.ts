@@ -49,7 +49,7 @@ import type { AdminCapability } from '@/lib/admin/access';
 import { loadGoodsIpOptions } from '@/lib/admin/goods-list.server';
 import { createClient } from '@/lib/supabase/server';
 import { RANDOM_OPTION_PROBLEMS, goodsOptionSaleModeErrorMessage } from '@/lib/goods-option-sale-mode';
-import { GOOD_OPTION_LIMIT_ERROR_FIELD } from '@/lib/admin/good-workspace';
+import { GOOD_OPTION_LIMIT_ERROR_FIELD, GOOD_TYPE_CATEGORY_MESSAGES } from '@/lib/admin/good-workspace';
 
 /*
  * `values`·`attempt` 는 실패한 제출을 폼이 되살리기 위한 값이다(lib/admin/form-state.ts).
@@ -467,6 +467,8 @@ async function saveAdminGood(
     if (/goods_custom_inputs_changed/.test(error.message)) return { errors:{customInputs:'다른 작업에서 직접입력형 옵션 설정이 바뀌었습니다. 입력값은 유지됩니다. 새로고침 후 설정을 확인해주세요.'} };
     if (/invalid_goods_custom_input/.test(error.message)) return { errors:{customInputs:'직접입력형 옵션명과 사용여부를 확인해주세요.'} };
     if (/category_not_leaf|category_archived|category_not_found|invalid_good_category|invalid_additional_categories/.test(error.message)) return { errors: { form: '카테고리가 변경되었거나 연결할 수 없는 상태입니다. 대표·추가 분류의 활성 말단을 확인해주세요. 입력값은 유지됩니다.' } };
+    const typeFailure = goodTypeCategoryFailure(error.message);
+    if (typeFailure) return { errors: { categoryId: `${typeFailure} 입력값은 유지됩니다.` } };
     if (/goods_description_/.test(error.message)) return { errors: { description: '상세페이지 형식과 정리 후 길이, 업로드한 HTML 이미지 20장 제한을 확인해주세요. 입력한 원문은 유지됩니다.' } };
     const randomOptionFailure = randomOptionSaleModeFailure(error.message);
     if (randomOptionFailure) return randomOptionFailure;
@@ -504,6 +506,16 @@ async function saveAdminGood(
 }
 
 type AdminSupabase = Awaited<ReturnType<typeof createClient>>;
+
+/**
+ * SHEET-003(ADR-0037): 상품 유형은 대표 카테고리(없으면 가까운 상위)에 연결한 값이다. 저장·공개 RPC가 이 규칙으로 거절한 이유를 고른다.
+ */
+function goodTypeCategoryFailure(message: string): string | null {
+  if (message.includes('goods_type_category_locked')) return GOOD_TYPE_CATEGORY_MESSAGES.locked;
+  if (message.includes('goods_type_category_required')) return GOOD_TYPE_CATEGORY_MESSAGES.required;
+  if (message.includes('goods_type_category_changed')) return GOOD_TYPE_CATEGORY_MESSAGES.changed;
+  return null;
+}
 
 function saveGoodWithServerDraft(supabase: AdminSupabase, targetGood: Record<string, unknown>, draft: GoodsDraftIdentity | null) {
   return draft ? supabase.rpc('admin_save_good_from_draft', { target_good: targetGood, p_draft_id: draft.id, p_draft_revision: draft.revision })

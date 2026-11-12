@@ -5,7 +5,9 @@ export const GOODS_READINESS_REASONS = {
   stopped: { label: '운영자가 판매 중지', detail: '기본 정보의 운영 상태를 확인하세요. 실제 할당 재고와 별개입니다.', target: 'basic' },
   ip_unpublished: { label: '연결 IP 비공개', detail: '연결 IP의 게시 상태를 확인하세요.', target: 'ip' },
   ip_archived: { label: '연결 IP 보관', detail: '연결 IP를 복원하거나 다른 IP 연결을 검토하세요.', target: 'ip' },
-  type_missing: { label: '상품 유형 미입력', detail: '공개에 필요한 상품 유형을 선택하세요.', target: 'basic' },
+  /* SHEET-003(ADR-0037): 상품 유형은 대표 카테고리(없으면 가까운 상위)에 연결한 값이다. 초안은 지금 연결값으로 판정한다. */
+  type_missing: { label: '카테고리에 상품 유형 연결 필요', detail: '상품 유형은 대표 카테고리(없으면 가까운 상위 카테고리)에 연결한 값입니다. 상품 유형이 연결된 카테고리를 고르거나 카테고리 관리에서 연결하세요.', target: 'basic' },
+  type_category_mismatch: { label: '카테고리 상품 유형과 다름', detail: '저장된 상품 유형이 대표 카테고리에 연결된 유형과 다릅니다. 공개 중에는 저장된 유형을 유지하고, 초안은 저장하면 카테고리 유형으로 바뀌어 KC를 다시 검토해야 공개할 수 있습니다.', target: 'basic' },
   image_missing: { label: '대표 이미지 미입력', detail: '대표 이미지를 등록하고 기본 상품 정보를 저장하세요.', target: 'basic' },
   notice_missing: { label: '고시정보 미입력', detail: '상품정보제공고시의 필수 항목을 확인하세요.', target: 'notice' },
   no_active_options: { label: '사용 중인 옵션 없음', detail: '기존 옵션과 KC 검토 범위를 확인하고 필요한 옵션을 사용하세요.', target: 'variants' },

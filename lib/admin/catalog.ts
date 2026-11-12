@@ -497,6 +497,9 @@ const COMPARE_AT_PRICE_COPY = {
 } as const;
 export type AdminGoodFormCopy = keyof typeof COMPARE_AT_PRICE_COPY;
 
+/** SHEET-003(ADR-0037): 공개하려는 상품의 대표 카테고리 경로에 상품 유형 연결이 없을 때의 안내(상품 편집·엑셀 공통). */
+export const GOOD_TYPE_PUBLISH_REQUIRED = '대표 카테고리(또는 상위 카테고리)에 상품 유형이 연결되어 있어야 공개할 수 있습니다. 카테고리 관리에서 상품 유형을 연결해주세요.';
+
 export function normalizeAdminGoodForm(
   formData: FormData,
   context: AdminCatalogContext,
@@ -561,7 +564,8 @@ export function normalizeAdminGoodForm(
   const galleryPaths = readGoodsGalleryPaths(formData, errors);
 
   if (!name) errors.name = adminGoodsCopy('굿즈 이름을 입력해주세요.');
-  if (requiresCompleteNotice && !type) errors.type = '상품 유형을 선택해주세요.';
+  /* SHEET-003(ADR-0037): 상품 유형은 입력칸이 없고 대표 카테고리의 연결값이다(폼은 파생값을 싣는다). 서버·DB가 다시 정하고 공개를 판정한다. */
+  if (publish && !type) errors.categoryId = GOOD_TYPE_PUBLISH_REQUIRED;
   if (publish && !nullableString(formData, 'imagePath')) errors.imagePath = '대표 이미지를 업로드한 뒤 공개해주세요.';
   if (!STOCK_VALUES.has(stock)) errors.stock = '재고 상태를 선택해주세요.';
   /* 정가가 판매가 이하면 0%·음수 할인율이 나온다. RPC 도 goods_compare_at_price_invalid

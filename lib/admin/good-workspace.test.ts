@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GOOD_EDITOR_CARDS, GOOD_EDITOR_SECTIONS, GOOD_PUBLISHED_LOCKS, changedGoodLockedFields, goodCurrentCard, goodErrorsByCard, goodFieldSection, goodKcContextChanged, goodPublishRequirements, goodReadinessAction, goodReadinessPlan, goodReadinessReasonAnchor, goodRemainingByCard, goodSaleSettingsState, goodTypeSuggestion, orderedGoodErrors } from './good-workspace';
+import { GOOD_EDITOR_CARDS, GOOD_EDITOR_SECTIONS, GOOD_PUBLISHED_LOCKS, changedGoodLockedFields, goodCurrentCard, goodErrorsByCard, goodFieldSection, goodKcContextChanged, goodPublishRequirements, goodReadinessAction, goodReadinessPlan, goodReadinessReasonAnchor, goodRemainingByCard, goodSaleSettingsState, goodTypeFromCategory, goodTypeSuggestion, GOOD_TYPE_CATEGORY_MESSAGES, orderedGoodErrors } from './good-workspace';
 import { GOODS_READINESS_REASONS, unknownGoodsReadiness, type AdminGoodsReadiness, type GoodsReadinessReasonCode } from './goods-readiness';
 
 const values = { name: '상품', ipId: 'ip', type: '키링', imagePath: 'path', originId: 'origin', noticeMaker: 'a', noticeOrigin: 'b', noticeMaterial: 'c', noticeSize: 'd', noticeMadeOn: 'e', noticeAsManager: 'f', noticeAsContact: 'g' };
@@ -137,5 +137,40 @@ describe('상품 등록 카드와 필수 입력 안내', () => {
     expect(goodTypeSuggestion(['지류', '스티커·엽서'])).toBe('문구');
     expect(goodTypeSuggestion(['리빙', '컵·텀블러'])).toBeNull();
     expect(goodTypeSuggestion([])).toBeNull();
+  });
+});
+
+/* SHEET-003(ADR-0037): 상품 유형 = 대표 카테고리(없으면 가까운 상위)의 연결값. 화면 판정이고 저장·공개 판정은 서버가 한다. */
+describe('상품 유형을 대표 카테고리에서 파생', () => {
+  const categories = [
+    { id: 'root', parentId: null, goodType: '피규어' },
+    { id: 'leaf', parentId: 'root', goodType: null },
+    { id: 'doll', parentId: 'root', goodType: '인형' },
+    { id: 'none', parentId: null, goodType: null },
+  ];
+  it('초안은 연결값을 싣고, 연결이 없으면 저장된 값을 그대로 둔다(공개는 막힌다)', () => {
+    expect(goodTypeFromCategory({ categories, categoryId: 'leaf', initialCategoryId: 'leaf', storedType: '문구', published: false }))
+      .toEqual({ category: { type: '피규어', categoryId: 'root', inherited: true }, submitted: '피규어', categoryChangeProblem: null, publishedMismatch: null });
+    expect(goodTypeFromCategory({ categories, categoryId: 'none', initialCategoryId: 'none', storedType: '문구', published: false }).submitted).toBe('문구');
+    expect(goodTypeFromCategory({ categories, categoryId: '', initialCategoryId: '', storedType: '', published: false }).submitted).toBe('');
+  });
+  it('공개 중이면 저장된 유형을 유지하고, 유형이 바뀌는 카테고리 변경은 막고, 그대로면 경고만 한다', () => {
+    const published = { categories, initialCategoryId: 'leaf', storedType: '피규어', published: true };
+    expect(goodTypeFromCategory({ ...published, categoryId: 'leaf' })).toMatchObject({ submitted: '피규어', categoryChangeProblem: null, publishedMismatch: null });
+    expect(goodTypeFromCategory({ ...published, categoryId: 'root' })).toMatchObject({ submitted: '피규어', categoryChangeProblem: null });
+    expect(goodTypeFromCategory({ ...published, categoryId: 'doll' }).categoryChangeProblem).toBe(GOOD_TYPE_CATEGORY_MESSAGES.locked);
+    expect(goodTypeFromCategory({ ...published, categoryId: 'none' }).categoryChangeProblem).toBe(GOOD_TYPE_CATEGORY_MESSAGES.required);
+    expect(goodTypeFromCategory({ ...published, categoryId: '' }).categoryChangeProblem).toBe(GOOD_TYPE_CATEGORY_MESSAGES.required);
+    expect(goodTypeFromCategory({ ...published, initialCategoryId: 'doll', categoryId: 'doll' })).toMatchObject({ submitted: '피규어', categoryChangeProblem: null, publishedMismatch: 'different' });
+    expect(goodTypeFromCategory({ ...published, initialCategoryId: 'none', categoryId: 'none' }).publishedMismatch).toBe('missing');
+  });
+  it('판매 준비 사유는 카테고리 칸으로 안내하고, 초안의 유형 불일치는 공개를 막는 항목이다', () => {
+    expect(goodReadinessReasonAnchor({ code: 'type_missing', target: 'basic' })).toBe('good-section-category');
+    expect(goodReadinessReasonAnchor({ code: 'type_category_mismatch', target: 'basic' })).toBe('good-section-category');
+    expect(goodReadinessAction('type_missing')).toBe('카테고리 상품 유형 확인하기');
+    expect(GOODS_READINESS_REASONS.type_missing.label).toBe('카테고리에 상품 유형 연결 필요');
+    const reason = (code: GoodsReadinessReasonCode) => ({ code, ...GOODS_READINESS_REASONS[code], kind: 'blocking' as const });
+    const readiness: AdminGoodsReadiness = { ...unknownGoodsReadiness(), state: 'blocked', publication: 'draft', reasons: [reason('draft'), reason('type_category_mismatch')] };
+    expect(goodReadinessPlan(readiness).publish).toBeNull();
   });
 });

@@ -45,6 +45,22 @@ describe('admin category actions', () => {
     expect(mocks.updateTag).toHaveBeenCalledWith(STOREFRONT_MEGA_MENU_CACHE_TAG);
   });
 
+  /* SHEET-003(ADR-0037): 카테고리 추가·수정에 상품 유형 연결 칸이 있다. 칸 없이 온 요청(이전 화면)은 저장된 연결을 그대로 둔다(null). */
+  it('상품 유형 연결을 함께 저장하고, 목록 밖 값은 RPC 전에 거절한다', async () => {
+    await saveAdminCategoryAction({}, form({ code: 'figure', name: '피규어', goodType: '피규어' }));
+    expect(mocks.rpc).toHaveBeenLastCalledWith('admin_upsert_category', expect.objectContaining({ target_code: 'figure', target_good_type: '피규어' }));
+    await saveAdminCategoryAction({}, form({ code: 'figure', name: '피규어', goodType: '' }));
+    expect(mocks.rpc).toHaveBeenLastCalledWith('admin_upsert_category', expect.objectContaining({ target_good_type: '' }));
+    await saveAdminCategoryAction({}, form({ code: 'figure', name: '피규어' }));
+    expect(mocks.rpc).toHaveBeenLastCalledWith('admin_upsert_category', expect.objectContaining({ target_good_type: null }));
+    mocks.rpc.mockClear();
+    const invalid = await saveAdminCategoryAction({}, form({ code: 'figure', name: '피규어', goodType: '포스터' }));
+    expect(invalid).toMatchObject({ errors: { goodType: '상품 유형은 정해진 분류 중에서 고르거나 연결 안 함으로 두세요.' } });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'invalid_category_good_type' } });
+    expect(await saveAdminCategoryAction({}, form({ code: 'figure', name: '피규어', goodType: '기타' }))).toMatchObject({ errors: { form: '상품 유형은 정해진 분류 중에서 고르거나 연결 안 함으로 두세요.' } });
+  });
+
   it('does not enable ERP without real evidence', async () => {
     const result = await setAdminCategoryActivationAction({}, form({ erpEnabled: 'on' }));
     expect(result).toMatchObject({ errors: { form: 'ERP 실제 분류와 검증 근거를 입력해주세요.' } });
