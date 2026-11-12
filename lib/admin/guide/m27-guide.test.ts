@@ -300,7 +300,7 @@ describe('m27 가이드 — 상품 등록·목록·카테고리·랜덤 판매(R
 describe('m27 가이드 — 메뉴·배송정보·출고 파일(R21~R23·R26·R27)', () => {
   it('시작하기의 메뉴 목록이 커머스 콘솔 사이드바 대분류와 같다(R21)', () => {
     const labels = ADMIN_NAV_GROUPS
-      .filter((group) => (group.consoles ?? ['commerce']).includes('commerce') && !['home', 'help'].includes(group.id))
+      .filter((group) => (group.consoles ?? ['shopping']).includes('shopping') && !['home', 'help'].includes(group.id))
       .map((group) => group.label);
     expect(labels).toEqual(expect.arrayContaining(['상품관리', '배송관리', '템플릿 관리']));
     expect(guide('getting-started')).toContain(`메뉴는 ${labels.join(', ')}로 나뉩니다.`);

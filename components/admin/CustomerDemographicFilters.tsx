@@ -1,4 +1,6 @@
 'use client';
+
+/* eslint-disable @next/next/no-html-link-for-pages -- 초기화는 전체 새로고침으로 폼 상태까지 되돌린다. 어드민 없는 주소 catch-all(app/admin/(shell)/[...missing])이 생긴 뒤로 규칙이 /admin 아래 <a>를 모두 페이지 이동으로 본다 */
 import { useId, useState } from 'react';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { CONSOLE_FILTER_CARD_CLASS, ConsoleFilterActions } from '@/components/admin/console/ConsoleFilterPanel';

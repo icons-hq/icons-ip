@@ -37,7 +37,7 @@ export function StatsRangeTabs({ base, filters, now = new Date(), exportDisabled
           aria-current={!filters.from && days === filters.days ? 'true' : undefined}
           className={STATS_SEGMENT_LINK}
           href={adminStatsHref(base, { ...filters, days, from: null, to: null })}>최근 {days}일</Link>)}</nav>
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           <Input aria-label="조회 시작일" className="w-36" defaultValue={dates.from} name="from" required type="date" />
           <span aria-hidden="true" className="text-muted-foreground">~</span>
           <Input aria-label="조회 종료일" className="w-36" defaultValue={dates.to} name="to" required type="date" />

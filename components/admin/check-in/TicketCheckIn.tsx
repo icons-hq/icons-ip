@@ -319,7 +319,7 @@ export function TicketCheckIn() {
             <h1 className="text-2xl leading-tight font-semibold tracking-tight text-foreground sm:text-3xl">현장 티켓 검표</h1>
             <p className="text-sm text-muted-foreground">QR을 스캔하거나 현장 스캐너로 코드를 입력하세요.</p>
           </div>
-          <Link className={`${buttonVariants({ size: 'lg', variant: 'outline' })} h-11 w-full sm:w-auto`} data-slot="button" href="/admin">관리자 홈</Link>
+          <Link className={`${buttonVariants({ size: 'lg', variant: 'outline' })} h-11 w-full sm:w-auto`} data-slot="button" href="/admin">판매자센터 홈</Link>
         </header>
 
         <section aria-atomic="true" aria-live="polite" role="status">

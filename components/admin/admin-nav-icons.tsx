@@ -1,8 +1,9 @@
 import {
   Building2,
-  CalendarCheck,
   ChartColumn,
   CircleHelp,
+  Gamepad2,
+  Layers,
   House,
   LayoutGrid,
   LayoutTemplate,
@@ -38,7 +39,9 @@ export function AdminNavGroupIcon({ groupId }: { groupId: string }) {
     case 'templates': return <LayoutTemplate />;
     case 'seller': return <Building2 />;
     case 'content': return <Sparkles />;
-    case 'field': return <CalendarCheck />;
+    case 'cards': return <Layers />;
+    case 'community': return <MessagesSquare />;
+    case 'games': return <Gamepad2 />;
     case 'help': return <CircleHelp />;
     default: return <LayoutGrid />;
   }

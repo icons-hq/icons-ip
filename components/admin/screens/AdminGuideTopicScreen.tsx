@@ -15,7 +15,7 @@ import type {
   AdminGuideScreenLink,
   AdminGuideSection,
 } from '@/lib/admin/guide/types';
-import { adminGroupForPath, adminScreenForPath } from '@/lib/admin/navigation';
+import { ADMIN_CONSOLES, adminConsoleForPath, adminConsoleWindowName, adminGroupForPath, adminScreenForPath } from '@/lib/admin/navigation';
 import { canAccessAdminScreen, type AdminAccessSource } from '@/lib/admin/access';
 import { AdminGuideToc } from './AdminGuideToc';
 
@@ -54,9 +54,12 @@ function screenChipLabel(href: string): string {
 
 function ScreenChip({ screen, access }: { screen: AdminGuideScreenLink; access?: AdminAccessSource }) {
   if (access !== undefined && !canAccessAdminScreen(access, adminScreenForPath(screen.href))) return null;
+  /* 카드·게임 칸의 화면은 헤더 전환과 같은 이름의 새 창으로 연다(1014-075). */
+  const targetConsole = ADMIN_CONSOLES.find((item) => item.id === adminConsoleForPath(screen.href));
+  const target = targetConsole?.newWindow ? adminConsoleWindowName(targetConsole.id) : undefined;
   return (
-    <Link className="group/chip inline-flex min-h-9 max-w-full flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border bg-background px-3 py-1.5 text-left text-sm font-medium transition-colors hover:bg-muted" data-guide="screen-chip" href={screen.href}>
-      <span className="min-w-0">{screenChipLabel(screen.href)}</span>
+    <Link target={target} className="group/chip inline-flex min-h-9 max-w-full flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border bg-background px-3 py-1.5 text-left text-sm font-medium transition-colors hover:bg-muted" data-guide="screen-chip" href={screen.href}>
+      <span className="min-w-0">{screenChipLabel(screen.href)}{target ? <span className="sr-only"> (새 창)</span> : null}</span>
       {screen.note && <span className="min-w-0 rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">{screen.note}</span>}
       <ArrowRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-hover/chip:translate-x-0.5 group-hover/chip:text-foreground" />
     </Link>

@@ -160,7 +160,7 @@ export function CurationSection({
     else setView(next);
   }
 
-  return <section aria-label="홈 전시 편집기" className="flex min-w-0 flex-col overflow-hidden rounded-xl border bg-card text-sm text-card-foreground" data-admin-store-editor="" data-full-preview={fullPreview}>
+  return <section aria-label="홈 전시 편집기" className="flex min-w-0 flex-col overflow-clip rounded-xl border bg-card text-sm text-card-foreground" data-admin-store-editor="" data-full-preview={fullPreview}>
     <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-b px-4 py-3 sm:px-5 print:hidden">
       <AdminPageHeading title="홈 전시 관리" />
       <div aria-label="미리보기 기기" className={`${SEGMENTED} order-last w-full sm:order-none sm:w-auto`} role="group">
@@ -179,8 +179,8 @@ export function CurationSection({
     </nav></div> : null}
     {savedMessage && view === 'content' ? <p className="border-b bg-muted/40 px-4 py-2.5 text-sm text-success sm:px-5" role="status">{savedMessage}</p> : null}
     {layoutSavedMessage && view === 'layout' ? <p className="border-b bg-muted/40 px-4 py-2.5 text-sm text-success sm:px-5" role="status">{layoutSavedMessage}</p> : null}
-    {view === 'content' ? <div className={`grid grid-cols-1 xl:h-[max(700px,calc(100dvh-250px))] print:block print:h-auto${fullPreview ? '' : ' md:grid-cols-[210px_minmax(0,1fr)] xl:grid-cols-[210px_minmax(320px,400px)_minmax(250px,1fr)]'}`}>
-      <aside className={`${fullPreview ? 'hidden' : 'flex'} min-h-0 min-w-0 flex-col border-b md:border-r md:border-b-0 print:hidden`} aria-label="홈 구성 목록">
+    {view === 'content' ? <div className={`grid grid-cols-1 print:block${fullPreview ? '' : ' md:grid-cols-[210px_minmax(0,1fr)] xl:grid-cols-[210px_minmax(320px,400px)_minmax(250px,1fr)]'}`}>
+      <aside className={`${fullPreview ? 'hidden' : 'flex'} min-h-0 min-w-0 flex-col border-b md:border-r md:border-b-0 xl:sticky xl:top-14 xl:max-h-[calc(100dvh-4.5rem)] xl:self-start xl:border-r-0 print:hidden`} aria-label="홈 구성 목록">
         <div className="flex items-baseline justify-between gap-2 px-4 pt-5 pb-2"><h3 className="text-base font-medium">스토어 홈</h3><span className="text-xs text-muted-foreground tabular-nums">{records.length}개 구성</span></div>
         <p className="px-4 text-xs text-muted-foreground">프로모션 배너 {heroCount} / {HOME_HERO_LIMIT}개 · 비노출 포함</p>
         <p className="px-4 pt-1 text-xs text-muted-foreground">자유상품 {freeProductCount} / {HOME_FREE_PRODUCT_LIMIT}개 · 모자이크·비노출·종료 포함</p>
@@ -358,7 +358,7 @@ function CurationForm({
   }
 
   return <>
-    <form action={action} className={`${fullPreview ? 'hidden' : 'flex'} h-[780px] min-h-0 min-w-0 flex-col xl:h-auto xl:border-r print:h-auto print:border-0`} aria-label="홈 구성 편집" onReset={(event) => event.preventDefault()} onSubmit={(event) => {
+    <form action={action} className={`${fullPreview ? 'hidden' : 'flex'} h-[780px] min-h-0 min-w-0 flex-col xl:h-auto xl:border-x print:h-auto print:border-0`} aria-label="홈 구성 편집" onReset={(event) => event.preventDefault()} onSubmit={(event) => {
       event.preventDefault();
       const formData = fixedRequest.current ?? new FormData(event.currentTarget);
       startTransition(() => action(formData));
@@ -368,7 +368,7 @@ function CurationForm({
       <input name="originalTitle" type="hidden" value={selected?.kind === 'hero' ? selected.title : ''} />
       <input name="originalSubtitle" type="hidden" value={selected?.kind === 'hero' && typeof selected.payload?.subtitle === 'string' ? encodeURIComponent(selected.payload.subtitle) : ''} />
       <header className={PANEL_HEADER}><h3 className="text-base font-medium">{CURATION_KIND_LABELS[kind]} {selected ? '관리' : '추가'}{selected ? null : <small className="ml-2 text-xs font-normal text-muted-foreground">기존 구성은 왼쪽 목록에서 고릅니다</small>}</h3><p className={HELP}>{KIND_HELP[kind]}</p></header>
-      <fieldset disabled={pending || state.uncertain || state.conflict} className="min-h-0 min-w-0 flex-1 overflow-y-auto print:overflow-visible">
+      <fieldset disabled={pending || state.uncertain || state.conflict} className="min-h-0 min-w-0 flex-1 overflow-y-auto xl:overflow-visible print:overflow-visible">
         <section className={FORM_SECTION}>
           <h4 className={SECTION_TITLE}>기본 설정</h4>
           <CurationSelect error={state.errors?.kind} label="홈에 보일 영역" name="kind" onChange={(event) => {
@@ -555,7 +555,7 @@ function CurationForm({
           disabled={pending || Boolean(state.uncertain) || Boolean(state.conflict)} onDeleted={onDeleted} /> : null}
         <Link className={`${buttonVariants({ size: 'sm', variant: 'outline' })} justify-self-center`} data-slot="button" href="/admin/messaging/notifications">인앱 공지 발송 화면으로<ArrowUpRight aria-hidden="true" /></Link></footer>
     </form>
-    <aside className={`flex h-[780px] min-h-0 min-w-0 flex-col border-t bg-muted/40 xl:h-auto print:hidden${fullPreview ? ' border-t-0' : ' md:col-span-2 xl:col-span-1 xl:border-t-0'}`} aria-label="스토어 미리보기">
+    <aside className={`flex h-[780px] min-h-0 min-w-0 flex-col border-t bg-muted/40 xl:sticky xl:top-14 xl:h-[calc(100dvh-4.5rem)] xl:self-start print:hidden${fullPreview ? ' border-t-0' : ' md:col-span-2 xl:col-span-1 xl:border-t-0'}`} aria-label="스토어 미리보기">
       <header className="flex items-center gap-3 border-b bg-background px-4 py-3"><h3 className="text-sm font-medium whitespace-nowrap">미리보기</h3><NativeSelect aria-label="미리보기 범위" className="min-w-0 max-w-[180px] flex-1" onChange={(event) => setPreviewScope(event.target.value as 'draft' | 'public')} size="sm" value={previewScope}><option value="draft">편집 중인 구성</option><option value="public">현재 공개 홈</option></NativeSelect><span className="ml-auto text-xs text-muted-foreground tabular-nums">{device === 'mobile' ? '390px' : '1212px'}</span></header>
       {previewScope === 'draft' ? <div className="grid gap-1.5 border-b bg-background px-4 py-3 text-xs text-muted-foreground [&_strong]:font-medium [&_strong]:text-warning"><span>편집 중인 내용입니다. 적용하면 노출 설정에 따라 반영됩니다.</span>{!values.enabled ? <strong>현재 비노출로 설정되어 있습니다.</strong> : null}{draft.missingGoodIds.length && showManualProducts ? <strong data-display-hidden-goods="">{hiddenDisplayGoodsNotice(draft.missingGoodIds.map((goodId) => ({ name: names.get(goodId) ?? goodId, visibility: visibilityOf(goodId) })))} 미리보기에도 보이지 않습니다.</strong> : null}{kind === 'benefit' && !preview.cardRewardsEnabled && isCardRewardDestination(values.linkPath) ? <strong>카드 리워드가 중지되어 카드팩·게임으로 가는 이 혜택 타일은 노출되지 않습니다. 다른 화면으로 가는 혜택 타일은 그대로 보입니다.</strong> : null}
         {kind === 'collection_banner' && !preview.cardRewardsEnabled && values.linkPath && isCardRewardDestination(values.linkPath) ? <strong>카드 리워드가 중지되어 카드팩·게임으로 가는 이 컬렉션 배너는 노출되지 않습니다. 배너가 없으면 컬렉션은 지금처럼 시작합니다.</strong> : null}

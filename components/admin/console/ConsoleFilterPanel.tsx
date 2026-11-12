@@ -195,7 +195,7 @@ export function ConsoleFilterPanel({
                   );
                 })}
               </div>
-              <div className="flex items-center gap-1.5">
+              <div className="flex flex-wrap items-center gap-1.5">
                 <label className="sr-only" htmlFor={`${idPrefix}-from`}>시작일</label>
                 <Input className="w-36" defaultValue={dateRange.from ?? ''} id={`${idPrefix}-from`} name={fromName} type="date" />
                 <span aria-hidden="true" className="text-muted-foreground">~</span>

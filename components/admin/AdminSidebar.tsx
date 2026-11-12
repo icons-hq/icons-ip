@@ -2,10 +2,11 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentProps, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentProps, type KeyboardEvent, type ReactNode } from 'react';
 import { ArrowLeft, ChevronRight, Search, Star, X } from 'lucide-react';
 import { MANAGER_ROLE_LABELS, type OperatorAccess } from '@/lib/admin/access';
 import {
+  ADMIN_CONSOLES,
   adminGroupForPath,
   adminScreenForPath,
   visibleAdminNavGroups,
@@ -60,6 +61,39 @@ export const ADMIN_NAVIGATION_ID = 'admin-navigation';
 
 function isScreenActive(screen: AdminScreen, pathname: string): boolean {
   return adminScreenForPath(pathname)?.id === screen.id;
+}
+
+/*
+ * 메뉴 키보드(ADM-016 #1·#16). 메뉴 링크는 Tab 정지 하나씩이고, 즐겨찾기 별은 Tab 순서에서 빼 대신 방향키로 닿는다:
+ * 검색 상자에서 ↓ = 첫 메뉴, 메뉴 위에서 ↑↓ = 이전·다음 메뉴(첫 메뉴에서 ↑ = 검색 상자), → = 그 메뉴의 즐겨찾기 별, 별에서 ← 또는 Esc = 메뉴로.
+ * 보이는 링크만 고른다 — 접힌 그룹의 링크는 hidden이라 클라이언트 사각형이 없다.
+ */
+function visibleMenuLinks(root: ParentNode, matchesOnly = false): HTMLElement[] {
+  const selector = matchesOnly ? '[data-admin-nav-group]:not([data-admin-nav-group="favorites"]) a[data-admin-nav-screen]' : 'a[data-admin-nav-screen]';
+  return Array.from(root.querySelectorAll<HTMLElement>(selector)).filter((link) => link.getClientRects().length > 0);
+}
+
+function focusMenuItem(element: HTMLElement | null | undefined, event: KeyboardEvent): boolean {
+  if (!element) return false;
+  event.preventDefault();
+  element.focus();
+  return true;
+}
+
+function handleMenuKeyDown(event: KeyboardEvent<HTMLElement>, searchInput: HTMLInputElement | null) {
+  if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+  const target = event.target as HTMLElement;
+  const link = target.closest<HTMLElement>('a[data-admin-nav-screen]');
+  const star = target.closest<HTMLElement>('button[data-admin-nav-favorite]');
+  const row = (link ?? star)?.closest('li');
+  const owner = link ?? row?.querySelector<HTMLElement>('a[data-admin-nav-screen]') ?? null;
+  if (!owner) return;
+  const links = visibleMenuLinks(event.currentTarget);
+  const index = links.indexOf(owner);
+  if (event.key === 'ArrowDown') focusMenuItem(links[index + 1], event);
+  else if (event.key === 'ArrowUp') focusMenuItem(links[index - 1] ?? (searchInput && searchInput.getClientRects().length > 0 ? searchInput : null), event);
+  else if (link && event.key === 'ArrowRight') focusMenuItem(row?.querySelector<HTMLElement>('button[data-admin-nav-favorite]'), event);
+  else if (star && (event.key === 'ArrowLeft' || event.key === 'Escape')) focusMenuItem(owner, event);
 }
 
 function useAdminNavigationStore(accountId: string, saved: SavedAdminNavigation | null | undefined, currentGroupId: string | null) {
@@ -239,6 +273,7 @@ function FavoriteToggle({ favorite, label, onToggle, screenId, className }: {
       className={className}
       data-admin-nav-favorite={screenId}
       onClick={onToggle}
+      tabIndex={-1}
       title={favorite ? '즐겨찾기 해제' : '즐겨찾기 추가'}
       type="button"
     >
@@ -247,7 +282,7 @@ function FavoriteToggle({ favorite, label, onToggle, screenId, className }: {
   );
 }
 
-const SUB_FAVORITE_CLASS = 'absolute top-1 right-1 flex size-5 items-center justify-center rounded-md text-sidebar-foreground/60 opacity-0 outline-hidden ring-sidebar-ring transition-opacity hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:opacity-100 focus-visible:ring-2 group-focus-within/menu-sub-item:opacity-100 group-hover/menu-sub-item:opacity-100 aria-pressed:text-sidebar-foreground aria-pressed:opacity-100 max-md:opacity-100 [&>svg]:size-3.5';
+const SUB_FAVORITE_CLASS = 'absolute top-0.5 right-1 flex size-6 items-center justify-center rounded-md text-sidebar-foreground/60 opacity-0 outline-hidden ring-sidebar-ring transition-opacity hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:opacity-100 focus-visible:ring-2 group-focus-within/menu-sub-item:opacity-100 group-hover/menu-sub-item:opacity-100 aria-pressed:text-sidebar-foreground aria-pressed:opacity-100 max-md:opacity-100 [&>svg]:size-3.5';
 
 /** 맨 위 항목(홈·즐겨찾기 사본·사이트로 돌아가기)처럼 그룹 없이 바로 서는 메뉴 한 줄. */
 function TopLevelItem({ active, current, favorite, favoriteCopy = false, group, iconRail, onToggleFavorite, screen }: {
@@ -281,9 +316,11 @@ function TopLevelItem({ active, current, favorite, favoriteCopy = false, group, 
       <SidebarMenuAction
         aria-label={favorite ? `${screen.label} 즐겨찾기 해제` : `${screen.label} 즐겨찾기 추가`}
         aria-pressed={favorite}
+        className="w-6 peer-data-[size=default]/menu-button:top-1"
         data-admin-nav-favorite={screen.id}
         onClick={() => onToggleFavorite(screen.id)}
         showOnHover={!favorite}
+        tabIndex={-1}
         title={favorite ? '즐겨찾기 해제' : '즐겨찾기 추가'}
         type="button"
       >
@@ -299,7 +336,7 @@ export function AdminSidebar({
   initialNavigation,
   role,
   operatorAccess,
-  console: consoleId = 'commerce',
+  console: consoleId = 'shopping',
   homeHref = '/admin',
 }: {
   /** 현재 콘솔. 사이드바는 이 콘솔의 메뉴만 보여 주고, 즐겨찾기는 콘솔을 가리지 않는다. */
@@ -317,9 +354,11 @@ export function AdminSidebar({
   const pathname = currentPath ?? basePathname;
   const { isMobile, openMobile, state: sidebarState } = useSidebar();
   const iconRail = sidebarState === 'collapsed' && !isMobile;
+  const consoleTitle = ADMIN_CONSOLES.find((item) => item.id === consoleId)?.title ?? '판매자센터';
   const groups = useMemo(() => visibleAdminNavGroups(role, operatorAccess, consoleId), [role, operatorAccess, consoleId]);
   const allGroups = useMemo(() => visibleAdminNavGroups(role, operatorAccess), [role, operatorAccess]);
   const [query, setQuery] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
   /* 검색 중에 임시로 접은 그룹. 저장하지 않고 검색어가 바뀌면 사라진다. */
   const [searchClosedGroupIds, setSearchClosedGroupIds] = useState<string[]>([]);
   const normalizedQuery = adminMenuQuery(query);
@@ -426,7 +465,7 @@ export function AdminSidebar({
       <SidebarGroup>
         {/* 긴 목록을 내려도 모두 접기가 손에 닿게 메뉴 영역 위에 붙인다. */}
         <SidebarGroupLabel className={iconRail ? 'justify-between' : 'sticky top-0 z-10 justify-between rounded-none bg-sidebar'} data-admin-nav-sticky-label={iconRail ? undefined : ''}>
-          <span>{consoleId === 'content' ? '콘텐츠 운영' : '판매자센터'}</span>
+          <span>{consoleTitle}</span>
           {searching ? null : (
             <Button
               className="-mr-1 h-6 px-1.5 text-xs font-normal text-sidebar-foreground/70 group-data-[collapsible=icon]:hidden hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
@@ -479,17 +518,17 @@ export function AdminSidebar({
       {/* 사이드바 전체가 탐색 랜드마크다(모든 콘텐츠가 랜드마크 안에 있도록 — axe region). */}
       {/* 펼치는 동안 사이드바 폭이 커지는 사이 글자가 세로로 쌓이지 않게, 내용 폭을 처음부터 다 펼친 폭으로 고정하고 바깥에서 자른다. */}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <nav aria-label={consoleId === 'content' ? '콘텐츠 운영 사이드바' : '판매자센터 사이드바'} className="flex min-h-0 flex-1 flex-col group-data-[state=expanded]:w-[calc(var(--sidebar-width)-1rem)]">
+      <nav aria-label={`${consoleTitle} 사이드바`} className="flex min-h-0 flex-1 flex-col group-data-[state=expanded]:w-[calc(var(--sidebar-width)-1rem)]">
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
-              render={<NavLink aria-label={consoleId === 'content' ? 'ICONS 콘텐츠 운영 홈' : 'ICONS 판매자센터 홈'} href={homeHref} />}
+              render={<NavLink aria-label={`ICONS ${consoleTitle} 홈`} href={homeHref} />}
               size="lg"
             >
               <span aria-hidden="true" className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-[10px] font-bold tracking-tight text-sidebar-primary-foreground">ICONS</span>
               <span className="grid flex-1 text-left leading-tight">
-                <span className="truncate font-semibold">{consoleId === 'content' ? 'ICONS 콘텐츠 운영' : 'ICONS 판매자센터'}</span>
+                <span className="truncate font-semibold">ICONS {consoleTitle}</span>
                 <span className="truncate text-xs text-sidebar-foreground/70">{roleCaption}</span>
               </span>
             </SidebarMenuButton>
@@ -502,7 +541,18 @@ export function AdminSidebar({
             aria-label="어드민 메뉴 검색"
             className="pr-7 pl-8 [&::-webkit-search-cancel-button]:hidden"
             onChange={(event) => changeQuery(event.target.value)}
+            onKeyDown={(event) => {
+              /* ↓ = 첫 메뉴(검색 중이면 첫 검색 결과), Enter = 첫 검색 결과 열기, Esc = 검색어 지우기. 한글 조합 중 Enter는 건드리지 않는다. */
+              if (event.nativeEvent.isComposing) return;
+              const menu = document.getElementById(ADMIN_NAVIGATION_ID);
+              if (event.key === 'ArrowDown' && menu) focusMenuItem(visibleMenuLinks(menu, searching)[0], event);
+              else if (event.key === 'Enter' && searching && menu) {
+                const first = visibleMenuLinks(menu, true)[0];
+                if (first) { event.preventDefault(); first.click(); }
+              } else if (event.key === 'Escape' && query) { event.preventDefault(); changeQuery(''); }
+            }}
             placeholder="메뉴 검색"
+            ref={searchInputRef}
             type="search"
             value={query}
           />
@@ -520,7 +570,8 @@ export function AdminSidebar({
       </SidebarHeader>
       {/* 스크롤바가 생겨도 줄이 밀리지 않게 자리를 늘 잡아 둔다(아이콘 막대는 스크롤이 없어 자리도 두지 않는다). 포커스는 붙어 있는 줄 아래에 멈춘다. */}
       <SidebarContent className="scroll-pt-8 [scrollbar-gutter:stable] group-data-[collapsible=icon]:[scrollbar-gutter:auto]" {...menuScroll.scrollerProps}>
-        <nav aria-label={consoleId === 'content' ? '콘텐츠 운영 메뉴' : '관리자 메뉴'} className="flex min-w-0 flex-col" id={ADMIN_NAVIGATION_ID}>
+        <nav aria-label={consoleId === 'shopping' ? '관리자 메뉴' : `${consoleTitle} 메뉴`} className="flex min-w-0 flex-col" id={ADMIN_NAVIGATION_ID} onKeyDown={(event) => handleMenuKeyDown(event, searchInputRef.current)}>
+          <p className="sr-only">메뉴에서 위·아래 화살표로 항목을 옮기고, 오른쪽 화살표로 즐겨찾기 별로 이동합니다.</p>
           <p className="sr-only" aria-live="polite">현재 위치 · {activeGroup?.label ?? '어드민'}{activeScreen ? ` / ${activeScreen.label}` : ''}</p>
           {homeGroup ? (
             <SidebarGroup className="pb-0">

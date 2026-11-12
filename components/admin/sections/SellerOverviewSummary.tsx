@@ -87,9 +87,9 @@ export function SellerOverviewSummary({ insights, workQueue, summary, days }: {
         <span className="flex min-w-0 flex-1 flex-col gap-0.5"><span className="truncate text-sm text-muted-foreground">{ADMIN_ORDER_STATUS_LABELS[status]}</span><strong className="text-2xl font-semibold whitespace-nowrap tabular-nums"><OverviewDeferred fallback={<OverviewPendingValue className="h-7 w-14" />} value={insights}>{(ready) => ready ? `${(ready.pipeline.find((stage) => stage.status === status)?.count ?? 0).toLocaleString('ko-KR')}건` : <span className="text-sm font-medium text-muted-foreground">확인 필요</span>}</OverviewDeferred></strong></span>
         {index < stages.length - 1 ? <ChevronRight aria-hidden="true" className="hidden size-4 shrink-0 text-muted-foreground/60 sm:block" /> : null}
       </Link>)}</div>
-      <div className="mt-2 grid grid-cols-1 gap-x-6 rounded-lg bg-muted/50 px-3 py-1 sm:grid-cols-2">
+      {/* 미응답 문의는 '처리할 업무'에 있다 — 같은 건수를 두 카드에 두지 않는다(ADM-016 #29). */}
+      <div className="mt-2 rounded-lg bg-muted/50 px-3 py-1">
         <CountLink href={queueHref('ready')} label="발송 대기" value={queueValue('ready')} />
-        <CountLink href={queueHref('inquiries')} label="미응답 문의" value={queueValue('inquiries')} />
       </div>
       <SummaryNote>판매 단계는 주문 수, 발송 대기는 출고지별 배송 건 수입니다. 전체 기간 기준입니다.</SummaryNote>
     </SummaryPanel>

@@ -40,7 +40,6 @@ export default async function AdminShellLayout({ children }: { children: ReactNo
     <AdminShell
       initialNavigation={parseAdminNavigationCookie(shellCookies.navigationCookie)}
       sidebarDefaultOpen={shellCookies.sidebarDefaultOpen}
-      console="commerce"
       admin={admin}
     >
       {children}
