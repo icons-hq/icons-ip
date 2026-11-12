@@ -1,7 +1,7 @@
 import { isUuid } from '@/lib/uuid';
 import { isCommerceNumber } from '@/lib/commerce-number';
 import { transactionExactKeys, transactionInteger, transactionRecord } from '@/lib/goods-transaction-values';
-/** collectFee는 묶음 착불 배송비다. 주문 조회 권한이 없는 출고 전용 운영자에게는 비어 온다(1014-084 수령인 정보만). */
+/** collectFee는 묶음 착불 배송비다. 출고 전용 운영자에게도 보인다(2026-11-12 "착불 금액은 보이게"). 비운 응답(null)도 받아 '-'로 그린다. */
 export interface ShipmentPackSummary { id: string; revision: number; count: number; shipmentIds: string[]; collectFee: number | null; canRelease: boolean }
 export interface ShipmentPackRow { orderNumber?: string; shipmentNumber?: string; id: string; orderId: string; originName: string; buyerName: string; recipientName: string | null; status: string; exportedAt: string | null; updatedAt: string; shippingFee: number; collectFee: number; ready: boolean; pack: ShipmentPackSummary | null }
 export interface ShipmentPackDocument { version: string; canCreate: boolean; rows: ShipmentPackRow[] }

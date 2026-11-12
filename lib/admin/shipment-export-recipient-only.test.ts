@@ -24,15 +24,22 @@ const references = (lines: ShipmentExportData['shipments'][number]['lines']) => 
   itemId: smartstore.itemId, address1: smartstore.address1, address2: smartstore.address2 } }));
 
 describe('recipient-only standard export (1014-084 수령인 정보만)', () => {
-  it('blanks buyer, payment and every amount in all shipments and lines, never only some rows', () => {
+  it('blanks buyer, payment, item amounts and the prepaid shipping fee in all shipments and lines, never only some rows', () => {
     const blanked = recipientOnlyShipmentExport(data);
     for (const shipment of blanked.shipments) {
       expect(shipment.shippingFee).toBeNull();
-      expect(shipment.shippingCollectFee).toBeNull();
-      if (shipment.pack) expect(shipment.pack.collectFee).toBeNull();
       for (const row of shipment.lines) if (row.smartstore) for (const field of RECIPIENT_ONLY_DETAIL_FIELDS) expect(row.smartstore[field], field).toBeNull();
     }
     expect(blanked.shipments[0].lines.map(row => row.smartstore?.itemTotal)).toEqual([null, null]);
+  });
+  /* 사용자 결정(2026-11-12) "착불 금액은 보이게": 창고가 수령인에게 받을 착불 배송비·합포장 착불 합계·착불 수납 정보는 그대로 둔다. */
+  it('keeps the collect-on-delivery fee, pack collect total and collector terms for the warehouse', () => {
+    const collector = { name: '한진 착불', method: '현장 수납', instructions: '착불 금액을 받습니다', refundContact: '02-000-0000' };
+    const withCollector = { shipments: data.shipments.map(shipment => ({ ...shipment, collector })) } as unknown as ShipmentExportData;
+    const blanked = recipientOnlyShipmentExport(withCollector);
+    expect(blanked.shipments.map(shipment => shipment.shippingCollectFee)).toEqual([0, 4000]);
+    expect(blanked.shipments[0].pack?.collectFee).toBe(4000);
+    expect(blanked.shipments.map(shipment => shipment.collector)).toEqual([collector, collector]);
   });
   it('keeps recipient, address, goods, quantity, references and handling flags exactly', () => {
     const blanked = recipientOnlyShipmentExport(data);

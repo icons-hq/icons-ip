@@ -164,7 +164,7 @@ select pg_temp.ld_id(2,n),pg_temp.ld_id(4,n),pg_temp.ld_id(3,n),1 from generate_
 
 -- C. 물류출고관리의 출고 흐름.
 -- 사용자 결정(2026-11-11) "수령인 정보만": 주문 조회 권한이 있는 주매니저의 목록·표준 양식 자료는 지금과 같고,
--- 물류출고관리에게는 구매자·주문 총액·결제수단·결제일·품목 금액·배송비가 비어 온다.
+-- 물류출고관리에게는 구매자·주문 총액·결제수단·결제일·품목 금액·선결제 배송비가 비어 온다(착불 배송비·착불 수납 정보는 보인다, 2026-11-12 결정).
 set local role authenticated;
 select pg_temp.ld_as(2);
 select public.admin_search_shipments_notice_console('ready',p_query=>'합성수령인1',p_field=>'recipient') as manager_ready \gset
@@ -219,7 +219,11 @@ select pg_temp.ld_assert(:'logistics_export'::jsonb#>'{shipments,0,lines,0,smart
  "productPrice":null,"optionPrice":null,"itemTotal":null,"itemDiscount":null,"sellerDiscount":null,"regionalShippingFee":null,"shippingDiscount":null}'::jsonb
  and :'logistics_export'::jsonb#>>'{shipments,0,lines,0,recipient}'='합성수령인1'
  and :'logistics_export'::jsonb#>>'{shipments,0,lines,0,smartstore,orderNumber}'=:'manager_export'::jsonb#>>'{shipments,0,lines,0,smartstore,orderNumber}'
- and (:'logistics_export'::jsonb#>'{shipments,0,lines,0}')-'smartstore'=(:'manager_export'::jsonb#>'{shipments,0,lines,0}')-'smartstore',
+ and (:'logistics_export'::jsonb#>'{shipments,0,lines,0}')-'smartstore'=(:'manager_export'::jsonb#>'{shipments,0,lines,0}')-'smartstore'
+ -- 배송 건의 착불 배송비·착불 수납 정보는 DB가 비우지 않는다(사용자 결정 2026-11-12 "착불 금액은 보이게"). 선결제 배송비는 표준 양식 파일에서 앱이 비운다.
+ and :'logistics_export'::jsonb#>'{shipments,0,shippingCollectFee}' is not null
+ and :'logistics_export'::jsonb#>'{shipments,0,shippingCollectFee}'=:'manager_export'::jsonb#>'{shipments,0,shippingCollectFee}'
+ and (:'logistics_export'::jsonb#>'{shipments,0,collector}') is not distinct from (:'manager_export'::jsonb#>'{shipments,0,collector}'),
  'standard export detail blanks buyer, payment and item amounts for dispatch-only operators');
 -- 발주확인은 하지 못하고, 발주확인 전 주문은 내보내지 못한다.
 select pg_temp.ld_error(format('select public.admin_update_order_status(%L,%L,null,null)',pg_temp.ld_id(2,2),'confirmed'),'42501');
@@ -389,7 +393,8 @@ select pg_temp.ld_assert(public.admin_current_operator_access()->>'managerRole'=
  and public.has_operator_capability('sales.dispatch') and not public.has_operator_capability('sales.manage'),'invited logistics manager receives dispatch-only access');
 reset role;
 
--- F. 합포장 요약의 묶음 착불 배송비도 물류출고관리에게는 비어 온다. 주매니저에게는 그대로다.
+-- F. 합포장 요약의 묶음 착불 합계는 물류출고관리에게도 그대로 온다(사용자 결정 2026-11-12 "착불 금액은 보이게",
+--    통합 migration 20261112200100). 창고가 수령인에게 받을 금액이라 출고에 필요한 정보다.
 update public.order_shipments set shipping_collect_fee=4000 where id=pg_temp.ld_id(4,3);
 insert into private.shipment_packs(id,created_by) values(pg_temp.ld_id(10,1),pg_temp.ld_id(1,2));
 insert into private.shipment_pack_members(pack_id,shipment_id,identity_digest)
@@ -400,8 +405,7 @@ select public.admin_shipment_pack_summaries(array[pg_temp.ld_id(4,1),pg_temp.ld_
 select pg_temp.ld_as(6);
 select public.admin_shipment_pack_summaries(array[pg_temp.ld_id(4,1),pg_temp.ld_id(4,4)]) as logistics_packs \gset
 select pg_temp.ld_assert((:'manager_packs'::jsonb#>>array[pg_temp.ld_id(4,1)::text,'collectFee'])='4000'
- and :'logistics_packs'::jsonb#>array[pg_temp.ld_id(4,1)::text,'collectFee']='null'::jsonb
- and (:'logistics_packs'::jsonb#>array[pg_temp.ld_id(4,1)::text])-'collectFee'=(:'manager_packs'::jsonb#>array[pg_temp.ld_id(4,1)::text])-'collectFee'
- and :'logistics_packs'::jsonb->pg_temp.ld_id(4,4)::text='null'::jsonb,'pack collect fee is blank for dispatch-only operators');
-reset role;
+ and (:'logistics_packs'::jsonb#>>array[pg_temp.ld_id(4,1)::text,'collectFee'])='4000'
+ and :'logistics_packs'::jsonb=:'manager_packs'::jsonb
+ and :'logistics_packs'::jsonb->pg_temp.ld_id(4,4)::text='null'::jsonb,'pack collect total is visible to dispatch-only operators');reset role;
 rollback;

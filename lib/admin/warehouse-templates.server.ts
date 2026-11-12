@@ -61,7 +61,8 @@ export function assertWarehouseExportShipments(shipments: Shipments) {
   for (const shipment of shipments) {
     if (shipment.pack && (!parseShipmentPackSummary(shipment.pack) || !shipment.pack.shipmentIds.includes(shipment.id) || shipment.pack.shipmentIds.some(id => !shipments.some(member => member.id === id && member.pack?.id === shipment.pack?.id)))) throw new Error('합포장의 모든 배송 건을 선택해주세요.');
     if (shipment.isGift !== undefined && typeof shipment.isGift !== 'boolean'
-      // 금액을 비운 응답(null, 물류 출고 권한 결정 대기)은 착불 없음으로 보고 거절하지 않는다. 숫자가 잘못됐으면 거절한다.
+      // 착불 금액이 비어 온 응답(null)은 착불 없음으로 보고 거절하지 않는다. 숫자가 잘못됐으면 거절한다.
+      // (물류 출고 권한도 2026-11-12 결정으로 착불 금액을 받으므로 지금 앱이 null을 보내는 경로는 없다.)
       || shipment.shippingCollectFee != null && (!Number.isSafeInteger(shipment.shippingCollectFee) || shipment.shippingCollectFee < 0)
       || (shipment.shippingCollectFee ?? 0) > 0 && !validCollector(shipment.collector)
       || shipment.isGift && shipment.lines.some(line => !line.recipient.trim() || !line.address.trim() || !/^\d{5}$/.test(line.postalCode) || !/^[0-9]{8,15}$/.test(line.phone))) {

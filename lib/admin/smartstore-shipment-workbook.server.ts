@@ -22,8 +22,9 @@ function money(value: number | null | undefined): number | null {
 }
 
 /*
- * 금액·결제 칸을 비운 응답(null)도 받는다. 물류 출고 권한(1014-084)이 내려받는 파일에서 구매자·결제·금액 열을 비울지는
- * 결정 전이라, 지금은 값이 null이면 그 칸을 빈칸으로 둘 뿐 다른 칸은 그대로 만든다. 숫자가 왔는데 잘못된 값이면 여전히 거절한다.
+ * 금액·결제 칸을 비운 응답(null)도 받는다. 물류 출고 권한(1014-084 "수령인 정보만")이 내려받는 파일은 구매자·결제·품목 금액·
+ * 선결제 배송비가 null로 오고(착불 배송비·착불 수납 정보는 2026-11-12 결정으로 남는다), 값이 null이면 그 칸을 빈칸으로 둘 뿐
+ * 다른 칸은 그대로 만든다. 숫자가 왔는데 잘못된 값이면 여전히 거절한다.
  */
 function detail(line: ShipmentExportLine): SmartStoreShipmentDetail {
   const value = line.smartstore;
@@ -42,13 +43,18 @@ function detail(line: ShipmentExportLine): SmartStoreShipmentDetail {
 
 function standardRow(shipment: Shipment, line: ShipmentExportLine, index: number): ListExportCellValue[] {
   const saved = detail(line);
-  // 배송비를 비운 응답(null)은 배송비 열을 모두 빈칸으로 둔다. 값이 없는(undefined) 응답은 종전처럼 거절한다.
+  // 선결제 배송비를 비운 응답(null, 물류 출고 권한의 "수령인 정보만")은 배송비 금액 열을 모두 빈칸으로 둔다. 값이 없는(undefined) 응답은
+  // 종전처럼 거절한다. 착불 배송비는 비우지 않으므로(2026-11-12 "착불 금액은 보이게") 착불이 있으면 배송비 형태만 '착불'로 적는다 —
+  // 선결제 여부(선결제/착불)는 선결제 배송비를 드러내므로 적지 않고, 착불 금액·수납 방법은 배송 운영 안내 시트에 있다.
   const blankShipping = (shipment.shippingFee as number | null) === null;
+  const collectValue = shipment.shippingCollectFee as number | null | undefined;
   const paidShipping = blankShipping ? null : money(shipment.shippingFee);
-  const collectShipping = blankShipping ? null : money(shipment.shippingCollectFee ?? 0);
+  const collectShipping = blankShipping && collectValue === null ? null : money(collectValue ?? 0);
   if (!blankShipping && (paidShipping === null || collectShipping === null)) throw new Error('배송비 정보를 확인해주세요.');
   const shipping = paidShipping === null || collectShipping === null ? null : paidShipping + collectShipping;
   if (shipping !== null && !Number.isSafeInteger(shipping)) throw new Error('배송비 정보를 확인해주세요.');
+  const chargeLabel = paidShipping !== null && collectShipping !== null ? shippingChargeLabel(paidShipping, collectShipping)
+    : blankShipping && (collectShipping ?? 0) > 0 ? '착불' : null;
   const firstRow = index === 0;
   /** 배송 건 단위 금액은 첫 행에 한 번만 쓴다. 비운 값(null)은 모든 행이 빈칸이다. */
   const shipmentAmount = (amount: number | null | undefined) => blankShipping || amount === null ? null : firstRow ? money(amount) : 0;
@@ -62,7 +68,7 @@ function standardRow(shipment: Shipment, line: ShipmentExportLine, index: number
     '상품별 할인액': money(saved.itemDiscount), '품목 실결제액(배송비 제외)': money(saved.itemTotal),
     결제일: iconsStandardDateText(saved.paidAt), 결제수단: listExportPaymentMethodLabel(saved.paymentMethod),
     주문일시: iconsStandardDateText(saved.orderedAt), 발주확인일: iconsStandardDateText(saved.confirmedAt), '발송 예정일': iconsStandardDateText(saved.expectedShipDate),
-    '배송비 형태': paidShipping === null || collectShipping === null ? null : shippingChargeLabel(paidShipping, collectShipping),
+    '배송비 형태': chargeLabel,
     '배송비 합계': shipping === null ? null : firstRow ? shipping : 0,
     '제주/도서 추가배송비': shipmentAmount(saved.regionalShippingFee),
     '배송비 할인액': shipmentAmount(saved.shippingDiscount),

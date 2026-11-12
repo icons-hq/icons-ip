@@ -111,7 +111,7 @@ describe('ICONS 표준 양식 출고지시', () => {
     expect(info.get('안내')!.join(' ')).toContain('바코드·ERP 품명');
   });
 
-  it('금액·결제 칸을 비운 응답(null)도 빈칸으로 만들고 다른 칸은 그대로 둔다(물류 출고 권한 결정 대기)', async () => {
+  it('금액·결제 칸을 비운 응답(null)도 빈칸으로 만들고 다른 칸은 그대로 둔다(물류 출고 권한 수령인 정보만)', async () => {
     const blankDetail = { ...detail, paymentMethod: null, paidAt: null, itemDiscount: null, sellerDiscount: null, itemTotal: null,
       regionalShippingFee: null, shippingDiscount: null } as unknown as SmartStoreShipmentDetail;
     const blank = { ...shipment, shippingFee: null, shippingCollectFee: null,
@@ -128,6 +128,28 @@ describe('ICONS 표준 양식 출고지시', () => {
     // 비운 값(null)이 아니라 잘못된 숫자는 여전히 거절한다.
     await expect(buildShipmentExport({ shipments: [{ ...shipment, shippingFee: -1 }] }, 'xlsx', 'smartstore')).rejects.toThrow('금액');
     await expect(buildShipmentExport({ shipments: [{ ...shipment, lines: [{ ...line, unitPrice: 0.5 }] }] }, 'xlsx', 'smartstore')).rejects.toThrow('상품주문 정보');
+  });
+
+  /* 1014-084 사용자 결정(2026-11-12) "착불 금액은 보이게": 물류 계정 파일은 선결제 배송비만 비우고 착불은 남긴다.
+     본 시트는 배송비 금액 칸을 비운 채 배송비 형태만 '착불'로 적고, 착불 금액·합포장 착불 합계·수납 방법은 배송 운영 안내 시트에 나온다. */
+  it('선결제 배송비만 비운 응답은 배송비 형태를 착불로 적고 금액 칸은 비우며, 배송 운영 안내에 착불 금액·수납 방법을 싣는다', async () => {
+    const collector = { name: '한진 착불', method: '현장 수납', instructions: '수령 시 착불 배송비를 받습니다', refundContact: '1588-0000' };
+    const blankDetail = { ...detail, paymentMethod: null, paidAt: null, itemDiscount: null, sellerDiscount: null, itemTotal: null,
+      regionalShippingFee: null, shippingDiscount: null } as unknown as SmartStoreShipmentDetail;
+    const collect = { ...shipment, shippingFee: null, shippingCollectFee: 4000, collector, lines: [{ ...line, unitPrice: null, smartstore: blankDetail }] };
+    const workbook = await load((await buildShipmentExport({ shipments: [collect] } as unknown as ShipmentExportData, 'xlsx', 'smartstore')).bytes);
+    const sheet = workbook.worksheets[0];
+    expect(value(sheet, '배송비 형태').value).toBe('착불');
+    for (const header of ['배송비 합계', '제주/도서 추가배송비', '배송비 할인액']) expect(value(sheet, header).value, header).toBeNull();
+    const guide = workbook.getWorksheet('배송 운영 안내')!;
+    const headers = (guide.getRow(1).values as unknown[]).slice(1).map(String);
+    const cell = (header: string) => guide.getRow(2).getCell(headers.indexOf(header) + 1).value;
+    expect(cell('선불 배송비') ?? '').toBe('');
+    expect(cell('계약상 착불 배송비')).toBe(4000);
+    expect([cell('착불 수납 주체'), cell('수납 방법'), cell('고객 안내'), cell('착불 환급 문의')]).toEqual([collector.name, collector.method, collector.instructions, collector.refundContact]);
+    // 착불이 없는 배송 건은 선결제 여부를 드러내지 않도록 배송비 형태도 비운다.
+    const prepaidOnly = await load((await buildShipmentExport({ shipments: [{ ...collect, shippingCollectFee: 0, collector: null }] } as unknown as ShipmentExportData, 'xlsx', 'smartstore')).bytes);
+    expect(value(prepaidOnly.worksheets[0], '배송비 형태').value).toBeNull();
   });
 
   it('주문번호·상품주문번호 칸은 새 번호 체계(20자리)도 잘리지 않는 텍스트 칸이다', async () => {

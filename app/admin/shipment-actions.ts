@@ -48,8 +48,9 @@ async function exportShipments(client:Client,keys:string[],format:'xlsx'|'csv',l
  let data=result.data as ShipmentExportData;
  // 버전 1 할인 주문의 품목 금액은 거래확정 엑셀과 같은 공통 배분으로 채운다(10/14 회의 A5).
  // 1014-084 사용자 결정 "수령인 정보만": 주문 조회 권한(sales.read)이 없는 출고 전용 운영자의 ICONS 표준 양식은 구매자·결제·금액 칸을
- // 모든 줄에서 비운다. DB가 줄의 구매자·결제·품목 금액을 비워 보내고 여기서 배송비까지 비우므로 금액 배분도 읽지 않는다(일부 줄만 채우지 않게).
- // 창고 고유 양식(김포 21열·서원)은 그대로다. 통합: T03 빌더의 null 금액 타입과 합치면 아래 cast를 지운다.
+ // 모든 줄에서 비운다. DB가 줄의 구매자·결제·품목 금액을 비워 보내고 여기서 선결제 배송비까지 비우므로 금액 배분도 읽지 않는다(일부 줄만 채우지 않게).
+ // 착불 배송비·합포장 착불 합계·착불 수납 정보는 남긴다(2026-11-12 "착불 금액은 보이게"). 창고 고유 양식(김포 21열·서원)은 그대로다.
+ // ShipmentExportData는 주문 조회 권한자의 계약(금액 숫자)이라 비운 사본은 cast로 넘기고, 표준 양식 빌더가 null 칸을 빈칸으로 그린다.
  if(layout==='smartstore'){
   if(readsOrderAmounts){try{data=await withSmartStoreLegacyAllocations(data,client);}catch{return {error:'주문 당시 금액 배분을 확인하지 못했습니다. 잠시 후 다시 내려받아 주세요.'};}}
   else data=recipientOnlyShipmentExport(data) as unknown as ShipmentExportData;

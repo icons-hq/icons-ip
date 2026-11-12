@@ -39,7 +39,8 @@ describe('shipment action boundaries', () => {
       expect(mocks.rpc).not.toHaveBeenCalled();
     }
   });
-  it('수령인 정보만: 출고 전용 운영자의 표준 양식은 구매자·결제·금액을 모든 줄에서 비우고 금액 배분을 읽지 않는다 (1014-084)', async () => {
+  /* 2026-11-12 사용자 결정 "착불 금액은 보이게": 선결제 배송비는 비우고 착불 배송비·합포장 착불 합계는 남긴다. */
+  it('수령인 정보만: 출고 전용 운영자의 표준 양식은 구매자·결제·금액·선결제 배송비를 모든 줄에서 비우고 착불은 남기며 금액 배분을 읽지 않는다 (1014-084)', async () => {
     const detail = { itemId: SECOND, buyerName: '구매자', buyerId: ID, paidAt: STAMP, paymentMethod: 'card', productPrice: null, optionPrice: null,
       itemTotal: null, itemDiscount: 300, sellerDiscount: 300, regionalShippingFee: 3000, shippingDiscount: 500, orderNumber: '2026111110000001' };
     const exported = { shipments: [{ id: ID, updatedAt: STAMP, shippingFee: 3000, shippingCollectFee: 4000,
@@ -50,7 +51,7 @@ describe('shipment action boundaries', () => {
     expect(await exportShipmentsAction([ID], 'xlsx', 'smartstore', credentials)).toMatchObject({ file: { encryption: 'ECMA-376-Agile' } });
     expect(mocks.rpc.mock.calls.map(([name]) => name)).not.toContain('admin_order_item_allocation_inputs');
     const built = mocks.build.mock.calls[0][0] as typeof exported;
-    expect(built.shipments[0]).toMatchObject({ id: ID, shippingFee: null, shippingCollectFee: null, pack: { collectFee: null, count: 2 } });
+    expect(built.shipments[0]).toMatchObject({ id: ID, shippingFee: null, shippingCollectFee: 4000, pack: { collectFee: 4000, count: 2 } });
     for (const line of built.shipments[0].lines) {
       expect(line.recipient).toBe('수령인');
       expect(line.smartstore).toMatchObject({ orderNumber: '2026111110000001', buyerName: null, buyerId: null, paidAt: null, paymentMethod: null,
