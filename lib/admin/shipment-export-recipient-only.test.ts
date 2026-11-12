@@ -19,7 +19,8 @@ const data: ShipmentExportData = { shipments: [
   { id: 'b', updatedAt: 'x', originId: 'o', originName: '김포', shippingFee: 0, shippingCollectFee: 4000, template: 'standard', columns: [],
     pack: null, lines: [{ ...line(3), smartstore: undefined }] },
 ] };
-const references = (lines: ShipmentExportData['shipments'][number]['lines']) => lines.map(({ smartstore, ...rest }) => ({ rest, smartstore: smartstore && {
+/* 줄 단가(김포 21열의 주문금액/수량)는 금액이라 비우고, 나머지 줄 값은 그대로다. */
+const references = (lines: ShipmentExportData['shipments'][number]['lines']) => lines.map(({ smartstore, ...rest }) => ({ rest: { ...rest, unitPrice: 'compared separately' }, smartstore: smartstore && {
   orderNumber: smartstore.orderNumber, productOrderNumber: smartstore.productOrderNumber, shipmentNumber: smartstore.shipmentNumber,
   itemId: smartstore.itemId, address1: smartstore.address1, address2: smartstore.address2 } }));
 
@@ -31,6 +32,12 @@ describe('recipient-only standard export (1014-084 수령인 정보만)', () => 
       for (const row of shipment.lines) if (row.smartstore) for (const field of RECIPIENT_ONLY_DETAIL_FIELDS) expect(row.smartstore[field], field).toBeNull();
     }
     expect(blanked.shipments[0].lines.map(row => row.smartstore?.itemTotal)).toEqual([null, null]);
+    // 김포 21열의 주문금액/수량은 줄 단가다. 물류에게는 단가를 비우고 수량은 남긴다(QA 라운드 1 M2).
+    expect(blanked.shipments.flatMap(shipment => shipment.lines.map(row => [row.unitPrice, row.qty]))).toEqual([[null, 1], [null, 2], [null, 3]]);
+  });
+  it('is idempotent so the builder can blank the same data again', () => {
+    const once = recipientOnlyShipmentExport(data);
+    expect(recipientOnlyShipmentExport(once)).toEqual(once);
   });
   /* 사용자 결정(2026-11-12) "착불 금액은 보이게": 창고가 수령인에게 받을 착불 배송비·합포장 착불 합계·착불 수납 정보는 그대로 둔다. */
   it('keeps the collect-on-delivery fee, pack collect total and collector terms for the warehouse', () => {
