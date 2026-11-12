@@ -109,8 +109,9 @@ export async function previewStockReconcileAction(input: StockReconcilePreviewIn
 export type StockReconcileApplyResult = { ok: true; outcome: StockReconcileApplyOutcome } | { ok: false; error: string };
 
 /**
- * 미리보기에서 바뀌는 옵션을 한 번에 반영한다. 미리보기 뒤 재고 조정이 끼어 차이가 달라졌으면 아무것도 바꾸지 않고
- * 달라진 옵션을 돌려준다. 응답이 끊겨 다시 눌러도 같은 사유면 처음 결과가 돌아온다.
+ * 미리보기에서 바뀌는 옵션을 한 번에 반영한다. DB가 잠금 뒤 다시 잰 맞춘 뒤 재고수량이 미리보기와 다르거나(미리보기 뒤 주문·출고 등)
+ * 재고 조정이 끼어 차이가 달라졌으면 아무것도 바꾸지 않고 바뀐 옵션(미리보기 값·지금 값·이유)을 돌려준다(QA1 S-T07-01).
+ * 응답이 끊겨 다시 눌러도 같은 사유면 처음 결과가 돌아온다.
  */
 export async function applyStockReconcileAction(input: { snapshotId: string; expectedChanges: number; reason: string }): Promise<StockReconcileApplyResult> {
   try {

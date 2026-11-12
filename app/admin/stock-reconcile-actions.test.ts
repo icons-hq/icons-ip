@@ -75,8 +75,10 @@ describe('재고 파일 대조 액션', () => {
     expect(mocks.rpc).toHaveBeenCalledWith('admin_apply_stock_reconcile', { p_snapshot_id: snapshotId, p_expected_changes: 1, p_reason: '서원 대조' });
     expect(mocks.revalidate).toHaveBeenCalledWith('/admin/catalog/goods');
     mocks.rpc.mockResolvedValueOnce({ data: { status: 'conflict', conflicts: [{ variantId: 'v', goodsName: '키링', optionName: '기본 옵션', optionCode: 'G1-01',
-      previewDifference: 1, currentDifference: 2, reason: 'changed' }] }, error: null });
-    expect(await applyStockReconcileAction({ snapshotId, expectedChanges: 1, reason: '서원 대조' })).toMatchObject({ ok: true, outcome: { status: 'conflict' } });
+      previewStockQty: 10, currentStockQty: 9, previewPendingQty: 0, currentPendingQty: 1, previewTargetQty: 7, currentTargetQty: 6,
+      previewDifference: -3, currentDifference: -3, reason: 'pending_changed' }] }, error: null });
+    expect(await applyStockReconcileAction({ snapshotId, expectedChanges: 1, reason: '서원 대조' })).toMatchObject({ ok: true,
+      outcome: { status: 'conflict', conflicts: [{ previewTargetQty: 7, currentTargetQty: 6, reason: 'pending_changed' }] } });
     mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: 'PT409', message: 'stock_reconcile_already_applied' } });
     expect(await applyStockReconcileAction({ snapshotId, expectedChanges: 1, reason: '다른 사유' })).toMatchObject({ ok: false, error: expect.stringContaining('이미 반영한') });
   });
