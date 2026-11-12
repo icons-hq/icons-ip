@@ -11,6 +11,8 @@
 5. **안내 결과 새로고침**으로 주문별 두 채널 결과를 확인한다. 페이지를 떠난 뒤에는 지연 탭의 **고객 지연 안내 이력·결과**에서 최근 30개 안내·미리보기를 다시 연다. 지연 주문이 목록에서 사라져도 이력은 남는다.
 6. 재시도 가능 표시가 있는 경우 **실패한 이메일만 재시도**한다. 이미 발행한 앱 알림과 공급자가 접수한 이메일은 재발송하지 않는다. 미리보기 저장 응답이 유실되면 **같은 미리보기 접수 확인**을 사용한다.
 
+상품 편집의 예약판매 영역에서 예약 상품의 발송 예정일을 일괄로 바꾸며 보내는 안내([예약판매 runbook](./goods-preorders.md) '상품 단위 일정 일괄 변경·안내', QNA-040)도 이 원장을 쓴다. 그 안내는 `kind='preorder_schedule'`이고 약속일이 지나기 전·결제 대기 주문에도 보낼 수 있으며, 위 1~3단계 대신 일정 변경과 같은 트랜잭션에서 요청된다. 이력·결과 새로고침·실패한 이메일 재시도는 이 화면에서도 같다. 지연 탭의 '지연 안내 결과' 열과 발송지연 안내여부 필터(`shipment_delay_notice_summary`)는 발송 지연 안내(`kind='dispatch_delay'`)만 센다 — 일정 변경 안내 뒤 새 약속일이 다시 지나면 그 배송 건은 '미발송'으로 보인다.
+
 예약 재고 미할당·퀵·방문수령 배송 건도 지연 안내 대상으로 선택할 수 있다. 기존 출고지시 내보내기 적격성은 유지하므로 고객 안내 선택만으로 출고가 가능해지지 않는다. 일부 출고 주문은 선택한 미발송 배송 건만 안내에 표시한다. 결제 대기·발송 완료·취소·처리 중인 클레임은 대상이 아니다.
 
 ## 결과 읽기
@@ -39,6 +41,15 @@
 - Preview·CI에는 실 provider key와 고객 자료를 넣지 않는다. 검증은 합성 주문·계정과 `RESEND_API_ENDPOINT`의 로컬 fake HTTP provider만 사용한다. gate 변경도 격리된 테스트 DB에서만 한다.
 - 실제 활성화 전 승인된 발신자·provider/webhook 설정, 보존·접근·파기 운영 절차, HMAC 키 유지 정책을 확인한다. HMAC 값의 임의 회전은 기존 source/recipient/provider digest와 멱등 fence를 끊으므로 기존 dispatcher의 키 회전 제한을 그대로 따른다.
 
+## SMS(예약 일정 변경 안내)
+
+예약 일정 변경 안내만 SMS를 함께 보낼 수 있다(발송 지연 안내는 지금처럼 앱 알림·이메일). 회원 SMS 알림 seam(`sendMemberSms`, [가입·연락 수단 runbook](./signup-contact-channels.md) §5)의 첫 생산자다.
+
+- 켜는 조건은 둘 다다: DB 설정 `private.order_delay_notice_delivery_control.sms_enabled`(기본 `false`, 공개 RPC 없음 — 별도 승인된 운영 변경)와 앱의 SMS 알림 스위치(`ICONS_SMS_NOTIFICATIONS_ENABLED`·발송사·처리방침 시행일). 확정 때 둘 다 켜져 있어야 대상마다 `private.order_delay_notice_sms_jobs` 한 줄이 생긴다. 하나라도 꺼져 있으면 화면에 SMS가 나오지 않고 대기열도 없다.
+- `GET /api/cron/order-delay-sms`(매분, `CRON_SECRET`)가 최대 25건을 꺼낸다. 꺼낼 때 DB가 대상 변경(배송 건 출고·일정 재변경)과 SMS 수신 동의(`customer_marketing_consents`의 sms)를 다시 보고, 보낼 때 seam이 인증된 휴대폰 번호를 확인한다. 거래 안내라 '(광고)'를 붙이지 않는다. 앱 스위치가 꺼져 있으면 cron은 DB를 읽지 않는다.
+- SMS 발송사에는 멱등 키가 없어 대상마다 한 번만 시도한다. 처리 중 결과를 잃은 작업(10분 lease 만료)은 다시 보내지 않고 결과 불명(`lease_expired`)으로 둔다. 하루 지난 대기 작업은 보내지 않는다(`expired`). 실패한 SMS 재시도는 없다.
+- 기록에는 대상·상태·사유·시각만 남고 번호·본문은 남기지 않는다(본문은 안내 대상 행의 고객 문구). 감사는 `system.order.delay_notice_sms_result`.
+
 ## 저장·멱등·재시도 계약
 
 `private.order_delay_notices`가 전용 고객 문구·예정일·행위자·요청 UUID를, `private.order_delay_notice_targets`가 주문당 실제 구매자·이메일·배송 건·읽은 버전·채널 결과·작업 lease를 고정한다. 고객은 기존 본인 `notifications`만 읽는다. staff도 전용 RPC로만 미리보기·결과를 읽고 요청한다. 사용자 입력 수신 주소로 대상을 바꾸는 경로는 없다.
@@ -56,4 +67,5 @@
 - `supabase/tests/order_delay_notices.sql`: 주문당 수신자·내부 메모 분리, 요청 replay, 권한, lease, failed only retry, 변경된 이메일과 부적격 주문 거절.
 - `supabase/tests/order_delay_notice_recovery.sql`: 전용 gate 격리, 공급자 접수·응답 유실, 수신자 변경 후 제외/불명, 24시간 만료와 재시도 제한.
 - `supabase/tests/order_delay_notices_concurrency.sh`: 격리된 테스트 DB에서 동시 요청·동시 worker·오래된 claim 결과 거절.
+- `supabase/tests/goods_preorder_schedule_bulk.sql`: 예약 일정 변경 안내(`kind='preorder_schedule'`)의 대상 변경 판정, 지연 탭 안내 결과에서 제외, SMS 대기열·수신 동의·lease 만료·설정 꺼짐.
 - `app/admin/order-delay-actions.test.ts`, `lib/email/order-delay-jobs.server.test.ts`, cron route 및 배송 콘솔 테스트: 권한·불완전 응답·설정 미완료·로컬 fake provider 계약·이메일 재시도·기존 출고 선택 보존.
