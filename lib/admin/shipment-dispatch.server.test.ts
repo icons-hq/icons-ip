@@ -93,6 +93,20 @@ describe('shipment console query boundary', () => {
     mocks.rpc.mockResolvedValueOnce({ data: { delayNoticeFingerprint: fingerprint, rows: [{ id: 'shipment', delivery: { method: 'pickup', policy: null } }], total: 1, counts }, error: null }).mockResolvedValueOnce({data:{shipment:null},error:null}).mockResolvedValueOnce({data:{shipment:{count:0,completed:0,ready:true,dueAt:null}},error:null}).mockResolvedValueOnce({data:{shipment:null},error:null});
     await expect(getShipmentConsoleData(normalizeShipmentFilters({}, 'dispatch'), 'dispatch')).rejects.toThrow('배송 방식을 확인하지 못했습니다');
   });
+  /* QA2 물류: 재고 부족 부분 취소가 결제사 확인 중인 주문의 배송 건은 발송 대기 행에 표시한다. 배송 건 id만 읽고, 읽지 못해도 목록은 그대로다. */
+  it('발송 대기 행에 부분 취소 진행 중 배송 건을 표시하되 읽지 못하면 표시만 없이 목록을 보인다', async () => {
+    const delivery = shipmentDeliveryFixture();
+    const rows = { data: { delayNoticeFingerprint: fingerprint, rows: [{ id: 'held', delayNotice: notice, delivery }, { id: 'free', delayNotice: notice, delivery }], total: 2, counts }, error: null };
+    const packs = { data: { held: null, free: null }, error: null };
+    const production = { data: { held: { count: 0, completed: 0, ready: true, dueAt: null }, free: { count: 0, completed: 0, ready: true, dueAt: null } }, error: null };
+    const collects = { data: { held: null, free: null }, error: null };
+    mocks.rpc.mockResolvedValueOnce(rows).mockResolvedValueOnce(packs).mockResolvedValueOnce(production).mockResolvedValueOnce(collects).mockResolvedValueOnce({ data: ['held'], error: null });
+    const data = await getShipmentConsoleData(normalizeShipmentFilters({}, 'dispatch'), 'dispatch');
+    expect(mocks.rpc).toHaveBeenLastCalledWith('admin_shipment_partial_cancel_flags', { p_ids: ['held', 'free'] });
+    expect(data.rows.map(row => row.partialCancelInProgress)).toEqual([true, undefined]);
+    mocks.rpc.mockResolvedValueOnce(rows).mockResolvedValueOnce(packs).mockResolvedValueOnce(production).mockResolvedValueOnce(collects).mockResolvedValueOnce({ data: null, error: { message: 'private' } });
+    expect((await getShipmentConsoleData(normalizeShipmentFilters({}, 'dispatch'), 'dispatch')).rows.map(row => row.partialCancelInProgress)).toEqual([undefined, undefined]);
+  });
   /* 2026-11-12 "착불 금액은 보이게": 배송 건별 착불 배송비·수납 정보를 화면에도 붙인다(출고 전용 운영자 포함, 읽기 전용). */
   it('attaches the per-shipment collect fee and collection terms read with the same row ids', async () => {
     const delivery = shipmentDeliveryFixture();

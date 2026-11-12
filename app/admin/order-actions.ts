@@ -643,19 +643,13 @@ async function rowsBlockedByBlankSibling(
 ): Promise<Set<number>> {
   try {
     const references = [...new Set([...filled.map(row => row.reference), ...parsed.skipped.map(row => row.reference)])];
-    const numbers = references.filter(reference => !isUuid(reference)), ids = references.filter(isUuid);
+    // 권한은 호출한 쪽(requireDispatchAction)이 이미 확인했고, 읽기는 출고 권한(sales.dispatch)으로 열리는 RPC가 맡는다.
+    // 사용자 세션으로 order_items를 직접 읽으면 RLS(sales.read)에 막혀 물류 계정은 0행을 받는다. 돌려받는 것은 상품주문번호·배송 건 id뿐이다.
     const supabase = await createClient();
-    const lookups = await Promise.all([
-      numbers.length ? supabase.from('order_items').select('id,product_order_number').in('product_order_number', numbers) : { data: [], error: null },
-      ids.length ? supabase.from('order_items').select('id,product_order_number').in('id', ids) : { data: [], error: null },
-    ]);
-    if (lookups.some(result => result.error)) return new Set();
-    const items = lookups.flatMap(result => result.data ?? []) as { id: string; product_order_number: string }[];
-    const itemByReference = new Map(items.flatMap(item => [[item.product_order_number.toLowerCase(), item.id], [item.id.toLowerCase(), item.id]] as const));
-    const links = await supabase.from('order_shipment_items').select('order_item_id,shipment_id').in('order_item_id', items.map(item => item.id));
-    if (links.error || !links.data) return new Set();
-    const shipmentByItem = new Map((links.data as { order_item_id: string; shipment_id: string }[]).map(link => [link.order_item_id, link.shipment_id]));
-    const shipmentOf = (reference: string) => { const item = itemByReference.get(reference.toLowerCase()); return item ? shipmentByItem.get(item) : undefined; };
+    const linked = await supabase.rpc('admin_tracking_reply_shipment_links', { p_references: references });
+    if (linked.error || !Array.isArray(linked.data)) return new Set();
+    const shipmentByReference = new Map((linked.data as { reference: string; shipmentId: string }[]).map(link => [link.reference.toLowerCase(), link.shipmentId]));
+    const shipmentOf = (reference: string) => { return shipmentByReference.get(reference.toLowerCase()); };
     const blankShipments = new Set(parsed.skipped.flatMap(row => { const shipment = shipmentOf(row.reference); return shipment ? [shipment] : []; }));
     return new Set(filled.flatMap(row => { const shipment = shipmentOf(row.reference); return shipment && blankShipments.has(shipment) ? [row.line] : []; }));
   } catch { return new Set(); }

@@ -82,6 +82,7 @@ end $$;
 -- 앞 22개는 T05가 sales.manage에서 옮겼고, 다음 4개는 같은 웨이브의 새 출고 RPC를 통합 migration(20261112200000)이 맞췄다:
 -- 발송처리 화면의 배송 방법·택배 외 일괄 인계(T04), ICONS 표준 양식 바코드 경고(T03), 출고지시 전 재고 차이 경고(T07).
 -- 1개는 발송·배송현황 화면의 착불 요약(20261112200400, 2026-11-12 "착불 금액은 보이게")이다.
+-- QA 라운드 2 묶음 C: 표준 회신 등록 전 확인의 상품주문번호→배송 건 읽기 1개(admin_tracking_reply_shipment_links)가 더해진다.
 -- 마지막 3개는 웨이브 2 T13a(QNA-019·QNA-028)의 새 출고 RPC다: 배송 건 추가 운송장 추가·삭제(운송장 정정과 같은 권한)와
 -- 배송현황의 추가 운송장·자동 배송완료 표시 읽기. 착불 요약·T13a RPC는 새 RPC라 이전 능력은 없지만, 판정 비교는 출고 RPC와 같게 sales.manage로 둔다.
 -- before_capability는 통합 전 능력이다(재고 차이 경고만 sales.read였다).
@@ -104,7 +105,8 @@ insert into ld_dispatch_contracts(signature) values
  ('public.admin_import_item_tracking_batch(jsonb)'),('public.admin_import_shipment_tracking(text,text,text)'),
  ('public.admin_update_shipment_status(uuid,text,text,text)'),('public.admin_update_shipment_tracking(uuid,text,text)'),
  ('public.admin_complete_shipments(uuid[])'),('public.admin_enqueue_shipment_emails(jsonb)'),
- ('public.admin_read_shipment_delivery(uuid)'),('public.admin_record_shipment_delivery(uuid,text,jsonb,text,timestamp with time zone,uuid)');
+ ('public.admin_read_shipment_delivery(uuid)'),('public.admin_record_shipment_delivery(uuid,text,jsonb,text,timestamp with time zone,uuid)'),
+ ('public.admin_tracking_reply_shipment_links(text[])'),('public.admin_shipment_partial_cancel_flags(uuid[])');
 select pg_temp.ld_assert(
  (select array_agg(signature order by signature) from private.operator_rpc_contracts where capability='sales.dispatch')
   =(select array_agg(signature order by signature) from ld_dispatch_contracts)
@@ -280,6 +282,23 @@ set local role authenticated;
 select pg_temp.ld_as(6);
 select public.admin_import_item_tracking_batch(jsonb_build_array(jsonb_build_object('line',1,'reference',:'item_number','carrier','hanjin','trackingNumber','LD100000003'))) as reply_three \gset
 select pg_temp.ld_assert(:'reply_three'::jsonb#>>'{0,ok}'='true','ICONS standard reply dispatches by product order number');
+-- QA 라운드 2 묶음 C: 표준 회신 등록 전 확인이 쓰는 상품주문번호·줄 id → 배송 건 읽기. 물류 계정은 order_items를 직접 못 읽어도(sales.read 없음)
+-- 이 RPC로 같은 결과를 받고, 주매니저도 같다. 구매자·권한 없는 역할은 거절되고, 돌려주는 값은 배송 건 id뿐이다.
+select (public.admin_tracking_reply_shipment_links(array[:'item_number',pg_temp.ld_id(3,2)::text,'no-such-number'])) as links_logistics \gset
+select pg_temp.ld_assert(jsonb_array_length(:'links_logistics'::jsonb)=2
+ and :'links_logistics'::jsonb @> jsonb_build_array(jsonb_build_object('reference',lower(:'item_number'),'shipmentId',pg_temp.ld_id(4,3)::text),
+   jsonb_build_object('reference',pg_temp.ld_id(3,2)::text,'shipmentId',pg_temp.ld_id(4,2)::text))
+ and not exists(select 1 from jsonb_array_elements(:'links_logistics'::jsonb) e where (select count(*) from jsonb_object_keys(e))<>2),
+ 'logistics account reads reply shipment links without sales.read');
+select pg_temp.ld_assert(not exists(select 1 from public.order_items where id=pg_temp.ld_id(3,2)),'logistics account still cannot read order_items directly');
+select pg_temp.ld_as(2);
+select (public.admin_tracking_reply_shipment_links(array[:'item_number'])) as links_primary \gset
+select pg_temp.ld_assert(:'links_primary'::jsonb=jsonb_build_array(jsonb_build_object('reference',lower(:'item_number'),'shipmentId',pg_temp.ld_id(4,3)::text)),'primary manager reads the same links');
+select pg_temp.ld_as(3);
+select pg_temp.ld_error(format('select public.admin_tracking_reply_shipment_links(array[%L])',:'item_number'),'42501');
+select pg_temp.ld_as(9);
+select pg_temp.ld_error(format('select public.admin_tracking_reply_shipment_links(array[%L])',:'item_number'),'42501');
+select pg_temp.ld_as(6);
 select public.admin_import_seowon_tracking_batch('00000000-0000-4000-8000-000000042202',
  jsonb_build_array(jsonb_build_object('line',1,'reference',pg_temp.ld_id(4,4)::text,'carrier','epost','trackingNumber','LD100000004'))) as reply_four \gset
 select pg_temp.ld_assert(:'reply_four'::jsonb#>>'{0,ok}'='true','seowon reply dispatches');
@@ -463,5 +482,25 @@ select pg_temp.ld_error('select public.admin_shipment_collect_summaries(array[]:
 -- 출고 권한이 없는 역할(부매니저)은 읽지 못한다.
 select pg_temp.ld_as(3);
 select pg_temp.ld_error(format('select public.admin_shipment_collect_summaries(array[%L]::uuid[])',pg_temp.ld_id(4,3)),'42501');
+reset role;
+-- QA 라운드 2 묶음 C: 발송 대기 행의 '부분 취소 진행 중' 표시 읽기(admin_shipment_partial_cancel_flags). 재고 부족 부분 취소가 결제사 확인 중인
+-- 주문의 배송 건 id만 돌려준다(금액·구매자 없음). 처리 중 행은 FK 없이 합성한다.
+set local session_replication_role=replica;
+insert into private.order_partial_cancellations(order_id,payment_id,provider,sequence,reason_code,customer_decision,warehouse_stop_confirmed,payment_amount,balance_before,
+ goods_refund_amount,shipping_refund_amount,refund_amount,state,operation_id,created_by)
+values(pg_temp.ld_id(2,2),'f5d10000-0000-0009-8000-000000000001','toss',1,'out_of_stock','고객과 합의한 합성 부분 취소',true,1000,1000,1000,0,1000,'processing',
+ 'f5d10000-0000-0009-8000-000000000002',pg_temp.ld_id(1,2));
+set local session_replication_role=origin;
+set local role authenticated;
+select pg_temp.ld_as(6);
+select pg_temp.ld_assert(public.admin_shipment_partial_cancel_flags(array[pg_temp.ld_id(4,1),pg_temp.ld_id(4,2),pg_temp.ld_id(4,3)])=jsonb_build_array(pg_temp.ld_id(4,2)::text),
+ 'logistics account sees which shipments are held by a partial cancellation, ids only');
+select pg_temp.ld_as(2);
+select pg_temp.ld_assert(public.admin_shipment_partial_cancel_flags(array[pg_temp.ld_id(4,1),pg_temp.ld_id(4,2)])=jsonb_build_array(pg_temp.ld_id(4,2)::text),'primary manager sees the same flags');
+select pg_temp.ld_assert(public.admin_shipment_partial_cancel_flags(array[pg_temp.ld_id(4,1)])='[]'::jsonb,'shipments of other orders are not flagged');
+select pg_temp.ld_as(3);
+select pg_temp.ld_error(format('select public.admin_shipment_partial_cancel_flags(array[%L]::uuid[])',pg_temp.ld_id(4,2)),'42501');
+select pg_temp.ld_as(9);
+select pg_temp.ld_error(format('select public.admin_shipment_partial_cancel_flags(array[%L]::uuid[])',pg_temp.ld_id(4,2)),'42501');
 reset role;
 rollback;

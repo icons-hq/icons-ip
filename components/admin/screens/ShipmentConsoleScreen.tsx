@@ -30,8 +30,7 @@ import {SalesFilterField,SalesFilterPanel,SalesGuide,SalesResultsHeader,SalesSel
 import {SHIPMENT_DELAY_NOTICE_OPTIONS,shipmentDelayNoticeLabel} from '@/lib/admin/shipment-delay-notice';
 import {ORDER_DELAY_STATUS_LABELS} from '@/lib/admin/order-delay-notices';
 import {ShipmentExtraTrackingsButton} from '@/components/admin/ShipmentExtraTrackingsPanel';
-import {SHIPMENT_DELIVERED_BY_LABELS,type ShipmentTrackingSummary} from '@/lib/admin/shipment-tracking';
-import {TRACKING_EVENT_STATUS_LABELS} from '@/lib/fulfillment/tracking/types';
+import {SHIPMENT_DELIVERED_BY_LABELS,trackingProgressLabel,type ShipmentTrackingSummary} from '@/lib/admin/shipment-tracking';
 import {ChevronDown,Info,PackageCheck,TimerOff,Truck} from 'lucide-react';
 import type {ReactNode} from 'react';
 /* 발주확인·발송관리와 배송현황 — 템플릿 룩(ADR-0028). 조회 조건·처리 단계·열 구성·처리 순서는 그대로이고 셀 보조 줄은 유틸리티다. */
@@ -70,11 +69,11 @@ function TrackingExtras({summary,carriers,autoDelivery}:{summary:ShipmentTrackin
   {summary.extraTrackings.map(extra=>{const shown=orderShipment(carriers,extra.carrier,extra.trackingNumber);const label=`추가 ${shown?.carrierLabel??extra.carrier} ${extra.trackingNumber}`;
    return shown?<a key={extra.id} className={`${CELL_LINK} text-xs tabular-nums whitespace-nowrap`} href={shown.trackingUrl} target="_blank" rel="noreferrer noopener">{label}</a>:<span key={extra.id} className={`${CELL_NOTE} tabular-nums whitespace-nowrap`}>{label}</span>;})}
   {autoDelivery&&summary.deliveredBy?<AdminStatusBadge tone={statusTone('shipmentDeliveredBy',summary.deliveredBy)}>{SHIPMENT_DELIVERED_BY_LABELS[summary.deliveredBy]}</AdminStatusBadge>:null}
-  {progress?<small className={`${CELL_NOTE} tabular-nums`} data-tracking-progress="">{`택배 추적 ${progress.latestStatus?TRACKING_EVENT_STATUS_LABELS[progress.latestStatus]:'기록 없음'} · 도착 ${progress.delivered}/${progress.total}`}</small>:null}
+  {progress?<small className={`${CELL_NOTE} tabular-nums`} data-tracking-progress="">{trackingProgressLabel(progress)}</small>:null}
   {progress?.held?<AdminStatusBadge tone="warning">자동 배송완료 보류</AdminStatusBadge>:null}
  </>;
 }
-export function ShipmentConsoleScreen({data,registeredCount,actorId,summaryAside,now=new Date(),canManageSales=true,canReadOrders=true,stockShortage=null}:{data:ShipmentConsoleData;registeredCount?:number|null;actorId?:string;
+export function ShipmentConsoleScreen({data,registeredCount,registeredExtraCount,actorId,summaryAside,now=new Date(),canManageSales=true,canReadOrders=true,stockShortage=null}:{data:ShipmentConsoleData;registeredCount?:number|null;registeredExtraCount?:number|null;actorId?:string;
  /** 단계 이름 줄 오른쪽에 둘 상태 표시(자동 발주확인 켜짐·꺼짐). */
  summaryAside?:ReactNode;
  /** 판매 관리 권한. 없으면(물류 출고 권한) 발주확인·합포장 관리·고객 지연 안내(결과 열·이력 포함)·지연 메모 열·목록 엑셀을 숨긴다. 출고·운송장·발송·배송완료는 그대로다. */
@@ -134,7 +133,7 @@ export function ShipmentConsoleScreen({data,registeredCount,actorId,summaryAside
      택배 외 건은 이 칸의 인계·수령 확인으로 처리하므로 따로 안내하지 않는다(QA 라운드 1 m7). */
   const trackingInput=!rowTracking||!parcel?null:row.status==='ready'&&shipmentConsoleSelectable(row,'ready')
    ?<ShipmentConsoleRowTracking carriers={activeCarriers} defaultCarrier={origins.find(origin=>origin.id===row.originId)?.defaultCarrier??null} reference={reference} shipmentId={row.id}/>
-   :<span className={CELL_NOTE}>운송장은 예약 재고 할당·제작 완료 뒤 입력합니다.</span>;
+   :<span className={CELL_NOTE}>{row.partialCancelInProgress?'운송장은 부분 취소 처리가 끝난 뒤 입력합니다.':'운송장은 예약 재고 할당·제작 완료 뒤 입력합니다.'}</span>;
   /* 발송처리 화면이나 주문 상세에서 고객이 고른 방식과 다르게 바꾼 건을 표시한다(QA 라운드 1 m3). */
   const customerMethod=row.delivery?.customerMethod;
   const methodNote=customerMethod&&row.delivery&&customerMethod!==row.delivery.method?<small className={CELL_NOTE} data-method-changed="">고객 선택 {DELIVERY_METHOD_LABELS[customerMethod]}에서 변경</small>:null;
@@ -170,7 +169,7 @@ export function ShipmentConsoleScreen({data,registeredCount,actorId,summaryAside
      :<span className={CELL_NOTE}>{row.delivery?.method==='digital'?'디지털 파일 제공 이력':`${methodLabel} 인계·수령 확인`}은 주문 상세에서 합니다.</span>}</div>:
     isDispatch?<div key="export" className={CELL_STACK}>{delayDays!==null?<AdminStatusBadge tone="danger">발송 지연 · {delayDays}일째</AdminStatusBadge>:null}
       {filters.tab==='new'?<span className={waitingDays>=LONG_WAIT_DAYS?'text-xs font-semibold text-warning tabular-nums':CELL_NOTE}>{waitingDays?`${waitingDays}일째 대기`:'오늘 주문'}</span>:<AdminStatusBadge tone={row.exportedAt?'success':'neutral'}>{row.exportedAt?'출고지시 전달':'내보내기 전'}</AdminStatusBadge>}
-      {row.preorderReady===false?<AdminStatusBadge tone="warning">예약 재고 할당 필요</AdminStatusBadge>:null}{row.production&&row.production.count>0?<p>{canReadOrders?<Link className={CELL_LINK} href={detailHref}>주문제작 {row.production.completed}/{row.production.count}건 완료{row.production.ready?'':' · 제작 완료 전 발송 불가'}</Link>:<span>주문제작 {row.production.completed}/{row.production.count}건 완료{row.production.ready?'':' · 제작 완료 전 발송 불가'}</span>}</p>:null}
+      {row.preorderReady===false?<AdminStatusBadge tone="warning">예약 재고 할당 필요</AdminStatusBadge>:null}{row.partialCancelInProgress?<AdminStatusBadge tone="warning">부분 취소 진행 중 · 출고 불가</AdminStatusBadge>:null}{row.production&&row.production.count>0?<p>{canReadOrders?<Link className={CELL_LINK} href={detailHref}>주문제작 {row.production.completed}/{row.production.count}건 완료{row.production.ready?'':' · 제작 완료 전 발송 불가'}</Link>:<span>주문제작 {row.production.completed}/{row.production.count}건 완료{row.production.ready?'':' · 제작 완료 전 발송 불가'}</span>}</p>:null}
       {trackingInput}</div>:
     <div key="tracking" className={CELL_STACK}>{transitDays>=LONG_TRANSIT_DAYS?<AdminStatusBadge tone="warning">{transitDays}일째 배송 중</AdminStatusBadge>:<AdminStatusBadge tone={statusTone('shipment',row.status)}>{shipmentStatusLabel(row.status)}</AdminStatusBadge>}{tracking?<a className={`${CELL_LINK} tabular-nums whitespace-nowrap`} href={tracking.trackingUrl} target="_blank" rel="noreferrer noopener">{tracking.carrierLabel} {tracking.trackingNumber}</a>:<AdminStatusBadge tone="warning">운송장 확인 필요</AdminStatusBadge>}
      {row.trackingSummary?<TrackingExtras summary={row.trackingSummary} carriers={carriers} autoDelivery={data.autoDelivery===true}/>:null}
@@ -200,7 +199,7 @@ export function ShipmentConsoleScreen({data,registeredCount,actorId,summaryAside
   </SalesGuide>
   <SalesStatusSummary aside={summaryAside} label="배송 처리 단계 · 배송 건 기준" items={SHIPMENT_CONSOLE_TABS[surface].map(tab=>({active:tab.id===filters.tab,label:tab.label,count:data.counts[tab.id],urgent:tab.id==='delayed'&&data.counts.delayed>0,tone:tab.id==='new'?'warning' as const:undefined,icon:tab.id==='transit'?Truck:tab.id==='delivered'?PackageCheck:undefined,href:shipmentConsoleHref(surface,filters,{tab:tab.id,page:1})}))}
    extra={longTransit===null?undefined:<AdminCountCard count={longTransit} icon={TimerOff} label={`${LONG_TRANSIT_DAYS}일 이상 배송`} tone="warning" unit={data.total>rows.length?'건 (이 페이지)':'건'}/>}/>
-  {!isDispatch&&registeredCount?<AdminNotice role="status" tone="success">운송장 {registeredCount.toLocaleString('ko-KR')}건을 등록했습니다. 배송 메일은 대기열에서 처리됩니다.</AdminNotice>:null}
+  {!isDispatch&&registeredCount?<AdminNotice role="status" tone="success">운송장 {registeredCount.toLocaleString('ko-KR')}건을 등록했습니다.{registeredExtraCount?` 분리배송 추가 운송장 ${registeredExtraCount.toLocaleString('ko-KR')}개를 함께 저장했습니다.`:''} 배송 메일은 대기열에서 처리됩니다.</AdminNotice>:null}
   <SalesFilterPanel currentHref={currentHref} id={`sales-${surface}`}
    hiddenFieldExclusions={['delayNotice']}
    date={{from:filters.from,to:filters.to,field:filters.dateField??'ordered',options:SALES_DATE_FIELDS.filter(option=>option.value!=='settled'&&(canReadOrders||option.value!=='paid'))}}

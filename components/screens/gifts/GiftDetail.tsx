@@ -15,10 +15,18 @@ import { giftInvitationUrl, giftStateLabel, type GiftDetail as GiftDetailValue }
 import type { GoodsTransactionQuote } from '@/lib/goods-transaction';
 import { transactionIssueCopy } from '@/lib/checkout-transaction';
 import { routes } from '@/lib/routes';
+import { ShipmentExtraTrackings } from '@/components/shop/ShipmentDetails';
+import { orderShipment, type ShippingCarrierRegistry } from '@/lib/orders/shipment';
 import { krw, krwAmountWords } from '@/lib/format';
 
+/** 받는 분 화면의 대표 운송장 — 택배사 코드 대신 이름을 보이고, 조회 링크가 있으면 번호에 건다(일반 주문 상세와 같은 레지스트리 해석). */
+function GiftTrackingLine({ carriers, carrier, trackingNumber }: { carriers: ShippingCarrierRegistry; carrier: string | null; trackingNumber: string }) {
+  const found = orderShipment(carriers, carrier, trackingNumber);
+  const label = found?.carrierLabel ?? carrier ?? '택배사 미등록';
+  return <p>{label} · {found?.trackingUrl ? <a aria-label={`${label} ${trackingNumber} 배송조회`} href={found.trackingUrl} rel="noreferrer" target="_blank">{trackingNumber}</a> : trackingNumber}</p>;
+}
 function newGiftToken() { const bytes = crypto.getRandomValues(new Uint8Array(32)); return btoa(String.fromCharCode(...bytes)).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', ''); }
-export function GiftDetail({ actorId, initialGift, coupons, initialClaimContext }: { actorId: string; initialGift: GiftDetailValue; coupons: readonly UserCouponSummary[] | null; initialClaimContext: GiftClaimContext | null }) {
+export function GiftDetail({ actorId, initialGift, coupons, initialClaimContext, carriers = [] }: { actorId: string; initialGift: GiftDetailValue; coupons: readonly UserCouponSummary[] | null; initialClaimContext: GiftClaimContext | null; carriers?: ShippingCarrierRegistry }) {
   const router = useRouter(), [gift, setGift] = useState(initialGift), [address, setAddress] = useState(initialGift.address ?? { ...EMPTY_GIFT_ADDRESS });
   const [link, setLink] = useState<string | null>(null), [copyStatus, setCopyStatus] = useState(''), [quote, setQuote] = useState<GoodsTransactionQuote | null>(null);
   const [couponId, setCouponId] = useState(''), [credit, setCredit] = useState('0'), [paymentMethod, setPaymentMethod] = useState<CheckoutPaymentMethod>('card');
@@ -77,8 +85,8 @@ export function GiftDetail({ actorId, initialGift, coupons, initialClaimContext 
       {receipt ? <section><h2>주문 진행</h2><p>{({ pending: '결제 대기', paid: '결제 완료', confirmed: '굿즈 준비', shipping: '배송 중', delivered: '배송 완료', done: '주문 완료', canceled: '취소' } as Record<string, string>)[receipt.status]}</p>
         {gift.party === 'sender' ? <><p>결제금액 {krw(receipt.total ?? 0)}</p><Link href={receipt.status === 'pending' ? `/checkout/${receipt.id}` : `/orders/${receipt.id}`}>{receipt.status === 'pending' ? '결제 이어가기' : '결제·취소 내역 확인'}</Link></> : <p>취소·반품으로 발생한 환불금은 보낸 사람에게 돌아가요.</p>}
         {gift.isRecipient && gift.address ? <address>{gift.address.recipientName} · {gift.address.phone}<br />({gift.address.postalCode}) {gift.address.address1} {gift.address.address2}<br />{gift.address.deliveryNote}</address> : null}
-        <ul>{gift.shipments.map(shipment => <li key={shipment.id}>{({ ready: '배송 준비', shipping: '배송 중', delivered: '배송 완료', canceled: '취소' })[shipment.status]}{shipment.expectedShipDate ? ` · 발송 예정 ${shipment.expectedShipDate}` : ''}{gift.isRecipient && shipment.trackingNumber ? <p>{shipment.carrier} · {shipment.trackingNumber}</p> : null}
-          {gift.isRecipient && shipment.extraTrackings?.length ? <p>추가 운송장(나눠 보낸 상자) {shipment.extraTrackings.map(extra => `${extra.carrier} · ${extra.trackingNumber}`).join(', ')}</p> : null}</li>)}</ul>
+        <ul>{gift.shipments.map(shipment => <li key={shipment.id}>{({ ready: '배송 준비', shipping: '배송 중', delivered: '배송 완료', canceled: '취소' })[shipment.status]}{shipment.expectedShipDate ? ` · 발송 예정 ${shipment.expectedShipDate}` : ''}{gift.isRecipient && shipment.trackingNumber ? <GiftTrackingLine carriers={carriers} carrier={shipment.carrier} trackingNumber={shipment.trackingNumber} /> : null}
+          {gift.isRecipient && shipment.extraTrackings?.length ? <dl><ShipmentExtraTrackings extraTrackings={shipment.extraTrackings.map((extra, index) => { const found = orderShipment(carriers, extra.carrier, extra.trackingNumber); return { id: `${shipment.id}:${index}`, carrier: extra.carrier, carrierLabel: found?.carrierLabel ?? extra.carrier, trackingNumber: extra.trackingNumber, trackingUrl: found?.trackingUrl ?? null }; })} /></dl> : null}</li>)}</ul>
       </section> : null}
       {initialClaimContext ? <GiftClaims actorId={actorId} orderId={receipt?.id} initialContext={initialClaimContext} /> : null}
       {['awaiting_acceptance', 'accepted'].includes(gift.state) ? <section><h2>선물 관리</h2><button type="button" disabled={request.locked} onClick={() => {

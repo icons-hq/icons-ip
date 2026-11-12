@@ -25,6 +25,13 @@ beforeEach(() => {
 });
 
 describe('shipment action boundaries', () => {
+  it('부분 취소·취소 요청이 진행 중인 주문의 출고지시 거절은 그 이유를 말한다 (QA2 물류)', async () => {
+    mocks.auth.mockResolvedValue({ operatorAccess: configuredOperatorAccessFixture('logistics'), isConfigured: true, user: { id: 'logistics' }, isStaff: true, role: 'staff' });
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'order cancellation in progress' } });
+    const result = await exportShipmentsAction([ID], 'xlsx', 'warehouse');
+    expect(result).toEqual({ error: expect.stringContaining('재고 부족 부분 취소') });
+    expect((result as { error: string }).error).not.toContain('발송 대기 상태와 취소 요청을 확인해주세요');
+  });
   it('물류출고관리는 출고지시를 내려받고 배송완료하며, 출고 권한이 없는 매니저는 RPC 전에 막는다 (1014-084)', async () => {
     mocks.auth.mockResolvedValue({ operatorAccess: configuredOperatorAccessFixture('logistics'), isConfigured: true, user: { id: 'logistics' }, isStaff: true, role: 'staff' });
     expect(await exportShipmentsAction([ID], 'xlsx', 'warehouse')).toMatchObject({ message: '1건의 출고지시를 내려받았습니다.' });

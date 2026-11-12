@@ -247,18 +247,44 @@ function InquiryWidgetDialog({ onClose }: { onClose: () => void }) {
  * 아래로 스크롤하는 동안 문의 런처를 비킨다(QA1 고객 — 모바일에서 떠 있는 [FAQ · 문의]가 요약 금액·배송비 안내를 가렸다).
  * 위로 스크롤하거나 맨 위 가까이면 다시 보인다. 숨김 모양은 990px 미만에서만 그린다(CSS) — 데스크톱은 런처가 여백에 선다.
  */
+/** 런처 사각형이 가리면 안 되는 영역(요약 금액 등) 가운데 하나라도 겹치는지. 순수 함수라 화면 없이 시험한다. */
+export function launcherCoversAvoidZone(
+  launcher: { left: number; top: number; right: number; bottom: number },
+  zones: readonly { left: number; top: number; right: number; bottom: number }[],
+): boolean {
+  return zones.some(zone => zone.right > launcher.left && zone.left < launcher.right && zone.bottom > launcher.top && zone.top < launcher.bottom);
+}
+
+/** 런처가 서는 자리(고정 위치) 기준 사각형. transform으로 숨기는 동안에도 값이 흔들리지 않도록 계산한 위치와 offset 크기만 쓴다. */
+function launcherFixedRect(button: HTMLElement) {
+  const bottom = Number.parseFloat(window.getComputedStyle(button).bottom) || 0;
+  const right = Number.parseFloat(window.getComputedStyle(button).right) || 0;
+  const bottomEdge = window.innerHeight - bottom;
+  const rightEdge = window.innerWidth - right;
+  return { left: rightEdge - button.offsetWidth, top: bottomEdge - button.offsetHeight, right: rightEdge, bottom: bottomEdge };
+}
+
 function useLauncherTucked(startTucked: boolean): boolean {
   /* 장바구니는 첫 화면 아래에 요약 금액·배송비 안내와 하단 주문 바가 겹쳐 서 있다 — 런처가 처음부터 비켜 있고 위로 스크롤하면 돌아온다(T22i).
      스크롤이 한 번이라도 판정하면(override) 그 값을 따른다. */
   const [override, setTucked] = useState<boolean | null>(null);
-  const tucked = override ?? startTucked;
+  /* 위로 스크롤해 돌아오는 런처가 요약 금액을 가리지 않게(QA2 고객 S-W1m-03): 화면에 `data-inquiry-avoid` 영역(장바구니·주문서 요약)이
+     런처 자리와 겹치는 동안은 스크롤 방향과 상관없이 비켜 둔다. */
+  const [covering, setCovering] = useState(false);
+  const tucked = covering || (override ?? startTucked);
   useEffect(() => {
     let last = window.scrollY;
     let frame = 0;
+    const measure = () => {
+      const button = document.querySelector<HTMLElement>('.wc-inquiry-widget__launcher');
+      const zones = [...document.querySelectorAll<HTMLElement>('[data-inquiry-avoid]')].map(element => element.getBoundingClientRect());
+      setCovering(Boolean(button) && zones.length > 0 && launcherCoversAvoidZone(launcherFixedRect(button!), zones));
+    };
     const onScroll = () => {
       if (frame) return;
       frame = window.requestAnimationFrame(() => {
         frame = 0;
+        measure();
         const y = window.scrollY;
         if (Math.abs(y - last) < 8) return;
         setTucked(y > last && y > 120);
@@ -266,8 +292,15 @@ function useLauncherTucked(startTucked: boolean): boolean {
       });
     };
     window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+    /* 요약 영역은 화면이 그려진 뒤(견적·장바구니를 읽은 뒤)에 생긴다 — 새로 붙거나 떨어지면 다시 잰다. */
+    const observer = new MutationObserver(onScroll);
+    observer.observe(document.body, { childList: true, subtree: true });
+    onScroll();
     return () => {
+      observer.disconnect();
       window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
       if (frame) window.cancelAnimationFrame(frame);
     };
   }, []);

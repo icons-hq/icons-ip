@@ -25,6 +25,7 @@ import { cartItemKey } from '@/lib/cart';
 import { cartLineOption, cartOptionGood, goodAtQuotedPrice, optionLabel } from '@/lib/goods-options';
 import { GOODS_LINE_UNAVAILABLE_MESSAGE, goodsPurchaseReasonMessage, goodsSalesQuoteProblem, quoteLineOptionLimitMessage } from '@/lib/goods-sales';
 import { goodsSalePeriodOrderNotice } from '@/lib/goods-sale-period';
+import { QuoteUnavailableRefresh } from '@/components/shop/QuoteUnavailableRefresh';
 import { GoodsSalePeriodRefresh } from '@/components/shop/GoodsSalePeriodRefresh';
 import { PLACE_ORDER_OPTION_LIMIT_MESSAGES, PLACE_ORDER_RANDOM_OPTION_LIMIT_MESSAGE, PLACE_ORDER_RANDOM_OPTION_MESSAGE } from '@/lib/goods-option-sale-mode';
 import { couponErrorNeedsPendingOrder, MIN_PAYABLE_TOTAL, type UserCouponSummary } from '@/lib/coupons';
@@ -291,6 +292,10 @@ export function Checkout({
   ));
   /* 판매기간이 끝났거나 시작 전인 굿즈는 공통 '재고 변경' 안내 대신 그 굿즈와 이유를 말한다(QA1 S-D2-11). 주문은 지금처럼 잠긴다. */
   const salePeriodNotice = goodsSalePeriodOrderNotice(lines.flatMap(({ good }) => (good ? [good] : [])), direct ? 'direct' : 'cart');
+  /* 주문서가 스스로 재견적해 줄이 주문 불가가 됐는데 카탈로그의 판매기간은 옛 값이면(운영자가 종료 시각을 앞당긴 경우 등) 서버 속성을 한 번 다시 읽어
+     위 안내를 띄운다. 일반 '재고 변경' 문구는 그 안내가 없을 때만 남는다(QA2 S-W1m-02). */
+  const quoteUnavailableSignature = salePeriodNotice ? null
+    : [...new Set((shipping.sales?.lines ?? []).filter((line) => !line.available).map((line) => line.goodId))].sort().join(',') || null;
   /* 결제 대기 주문 해소 안내(ADR-0030)의 원인 조건 — 그 굿즈(옵션)를 담은 주문(재고·회원 누적 한도), 그 쿠폰을 쓴 주문(쿠폰 사용),
      첫구매 예약만 모든 결제 대기 주문(견적 사유·주문 생성의 첫구매 거절). 재고가 모자란 굿즈는 본인 결제 대기 주문이 잡고 있을 수 있다. */
   const stockGoodIds = [...new Set([
@@ -475,6 +480,7 @@ export function Checkout({
     <main className="wc-root wc-receipt checkout-page">
       {/* 주문서를 연 채 판매기간이 끝나거나 시작되면 카탈로그를 다시 읽어 그 굿즈를 바로 알린다(QA1 S-D2-11, 장바구니와 같은 경계). */}
       <GoodsSalePeriodRefresh goods={lines.flatMap((line) => (line.good ? [line.good] : []))} />
+      <QuoteUnavailableRefresh signature={quoteUnavailableSignature} />
       <header className="wc-receipt__head">
         <div className="wrap">
           <h1 className="wc-receipt__title">배송지와 결제 금액을 확인해주세요</h1>
@@ -540,7 +546,7 @@ export function Checkout({
           </div>
         </section>
 
-        <aside className="checkout-summary card" aria-label="최종 주문 요약">
+        <aside className="checkout-summary card" aria-label="최종 주문 요약" data-inquiry-avoid="">
           <div className="checkout-section-heading checkout-section-heading--compact">
             <span className="checkout-step mono">02</span>
             <h2>주문 확인</h2>

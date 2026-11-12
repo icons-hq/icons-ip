@@ -8,6 +8,7 @@ import { SHIPMENT_EXTRA_TRACKING_REASON_LIMIT } from '@/lib/admin/shipment-track
 import { createClient } from '@/lib/supabase/server';
 import { isSelectableShippingCarrier, isTrackingNumber, normalizeTrackingNumber } from '@/lib/orders/shipment';
 import { getShippingCarrierRegistry } from '@/lib/orders/shipment.server';
+import { objectParticle } from '@/lib/korean-particle';
 import { isUuid } from '@/lib/uuid';
 
 /*
@@ -49,7 +50,7 @@ export async function addShipmentExtraTrackingAction(form: FormData): Promise<Sh
       return { ok: false, error: '추가 운송장 저장 결과를 확인하지 못했습니다. 화면을 새로고침해주세요.' };
     }
     refresh();
-    return { ok: true, message: `추가 운송장 ${trackingNumber}을(를) 붙였습니다. 고객 주문 상세에도 보입니다.` };
+    return { ok: true, message: `추가 운송장 ${trackingNumber}${objectParticle(trackingNumber)} 붙였습니다. 고객 주문 상세에도 보입니다.` };
   } catch (error) {
     unstable_rethrow(error);
     return { ok: false, error: '추가 운송장 저장 결과를 확인하지 못했습니다. 같은 내용으로 다시 시도하거나 새로고침해주세요.' };
