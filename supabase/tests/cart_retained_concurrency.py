@@ -63,7 +63,8 @@ def finish(process, expected_error=None):
 
 
 def cart():
-    return sql(f"select jsonb_agg(jsonb_build_object('good_id',good_id,'variant_id',variant_id,'qty',qty,'input_revision',input_revision,'input_values',input_values)) from public.cart_items where user_id='{buyer}';")
+    # 같음 비교(assert cart() == cart_before)는 원소 순서까지 본다 — 실행 계획(seq scan·인덱스 스캔)과 무관하게 정렬한다.
+    return sql(f"select jsonb_agg(jsonb_build_object('good_id',good_id,'variant_id',variant_id,'qty',qty,'input_revision',input_revision,'input_values',input_values) order by good_id,variant_id,input_key) from public.cart_items where user_id='{buyer}';")
 
 
 def as_buyer(statement):
@@ -223,7 +224,7 @@ sql("""create function private.test_cart_selection_order_pause() returns trigger
 create trigger aaa_test_cart_selection_pause before insert on public.order_items for each row execute function private.test_cart_selection_order_pause();""")
 sql('begin;' + as_buyer(f"select public.set_cart_item_quantity('retained-a','{variant}',0);select public.set_cart_item_quantity('retained-a','{variant}',1);"
     f"select public.set_cart_item_quantity('retained-c','{variant_c}',1);") + 'commit;')
-selected = sql(f"select jsonb_agg(jsonb_build_object('good_id',good_id,'variant_id',variant_id,'qty',qty,'input_revision',input_revision,'input_values',input_values)) from public.cart_items where user_id='{buyer}' and good_id='retained-a';")
+selected = sql(f"select jsonb_agg(jsonb_build_object('good_id',good_id,'variant_id',variant_id,'qty',qty,'input_revision',input_revision,'input_values',input_values) order by good_id,variant_id,input_key) from public.cart_items where user_id='{buyer}' and good_id='retained-a';")
 draft = sql('begin;' + service(f"select public.service_create_checkout_selection_draft('{buyer}',{literal(selected)});") + 'commit;').splitlines()[-1]
 holder = start('selection-hold', 'select pg_advisory_xact_lock(2710053);select pg_sleep(1.5);')
 wait_state('selection-hold', 'Timeout', holder)
@@ -297,7 +298,7 @@ two_tab_bank('draft-direct', place.format(buyer, bank_draft, literal(address), '
 assert cart() == cart_before
 print('PASS two tabs submit the same direct draft by bank transfer; one order; second rejected as used; cart untouched; no deadlock', flush=True)
 
-selected_c = sql(f"select jsonb_agg(jsonb_build_object('good_id',good_id,'variant_id',variant_id,'qty',qty,'input_revision',input_revision,'input_values',input_values)) from public.cart_items where user_id='{buyer}' and good_id='retained-c';")
+selected_c = sql(f"select jsonb_agg(jsonb_build_object('good_id',good_id,'variant_id',variant_id,'qty',qty,'input_revision',input_revision,'input_values',input_values) order by good_id,variant_id,input_key) from public.cart_items where user_id='{buyer}' and good_id='retained-c';")
 selection_draft = sql('begin;' + service(f"select public.service_create_checkout_selection_draft('{buyer}',{literal(selected_c)});") + 'commit;').splitlines()[-1]
 place = "select public.place_order_with_cart_selection('{0}','{1}',{2},'{3}','bank_transfer',0,null);"
 selection_bank = two_tab_bank('draft-selection', place.format(buyer, selection_draft, literal(address), 'dd270000-0000-4000-8000-000000000014'),

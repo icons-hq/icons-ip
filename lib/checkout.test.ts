@@ -3,6 +3,7 @@ import {
   bankTransferMethodNote,
   cartRetentionKeepsCart,
   directRetryGoodId,
+  directRetryReorderId,
   checkoutAddressErrors,
   checkoutDeadlineTimeLabel,
   checkoutEffectivePaymentStatus,
@@ -510,6 +511,17 @@ describe('바로구매 주문(ADR-0030)', () => {
     /* 장바구니 보류의 모양은 그대로다. */
     expect(directRetryGoodId({ state: 'awaiting_payment', releaseReason: null })).toBeNull();
     expect(cartRetentionKeepsCart({ state: 'awaiting_payment', releaseReason: null })).toBe(true);
+  });
+
+  /* 두 탭 다시 구매(UI 재리뷰 4): 다시 구매 초안이 이미 접수·결제(확인 중) 주문을 만들었으면 서버가 그 주문(retryOrderId)을 알린다. */
+  it('보류 원장: 다시 구매로 이미 만든 주문은 바로구매 보류에서만 읽는다', () => {
+    const reordered = '00000000-0000-4000-8000-0000000000e9';
+    const retention = { state: 'released', releaseReason: 'superseded', source: 'direct', baseGoodId: 'g2', retryOrderId: reordered.toUpperCase() };
+    expect(directRetryReorderId(retention)).toBe(reordered);
+    expect(directRetryReorderId({ ...retention, retryOrderId: null })).toBeNull();
+    expect(directRetryReorderId({ ...retention, retryOrderId: 'x' })).toBeNull();
+    expect(directRetryReorderId({ state: 'released', releaseReason: 'superseded', retryOrderId: reordered })).toBeNull();
+    expect(directRetryReorderId(null)).toBeNull();
   });
 
   it('주문서 초안 만료는 별도 사유로 안내한다', () => {

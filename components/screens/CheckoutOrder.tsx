@@ -82,6 +82,12 @@ export function preparedGoodsCheckoutUsable(
   );
 }
 
+/* 다시 구매로 이미 주문한 바로구매 주문의 결제 화면. 같은 실패 주문으로 두 번 주문하지 않게 다시 구매하기를 감춘다. */
+const DIRECT_REORDERED_COPY = {
+  title: '이미 다시 주문했어요',
+  body: '이 주문은 결제 없이 취소됐고 같은 구성으로 다시 주문했어요. 다시 주문한 주문에서 결제·입금 상태를 확인해주세요.',
+};
+
 export function CheckoutOrder({
   order,
   bankTransferAccount = null,
@@ -205,9 +211,17 @@ export function CheckoutOrder({
     reorderCanceled,
     reorderRequested,
   });
-  const statusCopy = order.giftId && (activeClosure || state === 'closed') && baseStatusCopy
-    ? { ...baseStatusCopy, body: '선물함에서 이 선물의 주문 상태와 취소 요청을 확인해주세요. 새 선물은 받는 분의 수락과 배송지 확인을 다시 거쳐야 합니다.' }
-    : baseStatusCopy;
+  /* 이 바로구매 주문의 다시 구매로 이미 만든 주문(무통장 접수·결제 완료·결제 확인 중, 서버 판정). 처음 그릴 때부터 그 주문으로
+     잇고 다시 구매하기·이 주문 닫기를 감춘다 — 다른 탭에서 다시 구매한 뒤 이 화면을 새로 그려도 같다(ADR-0030). */
+  const reorderedOrderId = reorderMode === 'retry_direct' ? order.directRetryOrderId ?? null : null;
+  const statusCopy = reorderedOrderId
+    ? DIRECT_REORDERED_COPY
+    : order.giftId && (activeClosure || state === 'closed') && baseStatusCopy
+      ? { ...baseStatusCopy, body: '선물함에서 이 선물의 주문 상태와 취소 요청을 확인해주세요. 새 선물은 받는 분의 수락과 배송지 확인을 다시 거쳐야 합니다.' }
+      : baseStatusCopy;
+  const directRetry = order.directGoodId ? (reorderedOrderId
+    ? <Link className="btn btn-holo" href={`/orders/${encodeURIComponent(reorderedOrderId)}`}>다시 주문한 주문 보기</Link>
+    : <CheckoutDirectRetryButton goodId={order.directGoodId} orderId={order.id} orderPending={order.status === 'pending'} />) : null;
   const giftReturn = order.giftId ? <Link className="btn btn-holo" href={`/gifts/${encodeURIComponent(order.giftId)}`}>선물함에서 확인하기</Link> : null;
   const markReorderCanceled = () => setReorderCanceled(true);
   const markReorderRequested = () => setReorderRequested(true);
@@ -296,8 +310,8 @@ export function CheckoutOrder({
                 <CheckoutRetryButton orderId={order.id} />
               ) : reorderMode === 'retry_direct' && order.directGoodId ? (
                 /* 바로구매 주문(ADR-0030 확정 동작 8)은 장바구니와 무관하다 — '다시 구매하기'가 이 주문을 결제 없이 닫고 같은 구성으로
-                   바로구매 주문서를 다시 연다. 구성을 바꾸려면 보조 링크로 굿즈 상세에 간다. */
-                <CheckoutDirectRetryButton goodId={order.directGoodId} orderId={order.id} orderPending={order.status === 'pending'} />
+                   바로구매 주문서를 다시 연다. 구성을 바꾸려면 보조 동작으로 굿즈 상세에 간다. 이미 다시 주문했으면 그 주문으로 잇는다. */
+                directRetry
               ) : reorderMode && reorderMode !== 'retry_direct' && (
                 <ReorderAction
                   mode={reorderMode}
@@ -348,9 +362,7 @@ export function CheckoutOrder({
               {state === 'closed' && reorderMode === 'retry_from_cart' && (order.status === 'canceled'
                 ? <Link className="btn btn-holo" href="/cart">장바구니 보기</Link>
                 : <CheckoutRetryButton orderId={order.id} />)}
-              {state === 'closed' && reorderMode === 'retry_direct' && order.directGoodId && (
-                <CheckoutDirectRetryButton goodId={order.directGoodId} orderId={order.id} orderPending={order.status === 'pending'} />
-              )}
+              {state === 'closed' && reorderMode === 'retry_direct' && directRetry}
               {state === 'closed' && reorderMode && reorderMode !== 'retry_from_cart' && reorderMode !== 'retry_direct' && (
                 <ReorderAction
                   mode={reorderMode}

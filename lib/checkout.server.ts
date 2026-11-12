@@ -14,6 +14,7 @@ import { loadMyAddressBook } from './address-book.server';
 import {
   cartRetentionKeepsCart,
   directRetryGoodId,
+  directRetryReorderId,
   checkoutEffectivePaymentStatus,
   checkoutPaymentResultOutcome,
   normalizeCheckoutAddress,
@@ -121,6 +122,8 @@ export interface CheckoutOrderSnapshot {
   cartRetained?: boolean;
   /** 결제를 기다리거나 결제 없이 닫힌 카드 바로구매 주문(ADR-0030)이면 그 상품 상세 굿즈. 결제 화면이 그리로 다시 보낸다. */
   directGoodId?: string | null;
+  /** 이 바로구매 주문의 다시 구매로 이미 만든 주문(무통장 접수·결제 완료·결제 확인 중). 결제 화면이 그 주문으로 잇는다. */
+  directRetryOrderId?: string | null;
   /** 결제 완료(paid) 원장이 만들어진 시각. 결제 전·무통장 입금 전이면 null. */
   paidAt?: string | null;
   items: CheckoutOrderItem[];
@@ -159,15 +162,17 @@ async function loadOrderCartRetained(userId: string, orderId: string): Promise<b
  * 같은 보류 원장으로 본 다시 결제 단서(ADR-0026·0030): 장바구니를 남긴 주문인지, 바로구매 주문이면 그 상품 상세 굿즈.
  * 읽지 못하면 둘 다 없음 — 다시 담기 경로가 원래대로 남는다.
  */
-async function loadOrderCheckoutRetention(userId: string, orderId: string): Promise<{ cartRetained: boolean; directGoodId: string | null }> {
+async function loadOrderCheckoutRetention(userId: string, orderId: string): Promise<{ cartRetained: boolean; directGoodId: string | null; directRetryOrderId: string | null }> {
   try {
     const { data, error } = await createServiceClient().rpc('service_get_order_cart_retention', {
       p_user_id: userId,
       p_order_id: orderId,
     });
-    return error ? { cartRetained: false, directGoodId: null } : { cartRetained: cartRetentionKeepsCart(data), directGoodId: directRetryGoodId(data) };
+    return error
+      ? { cartRetained: false, directGoodId: null, directRetryOrderId: null }
+      : { cartRetained: cartRetentionKeepsCart(data), directGoodId: directRetryGoodId(data), directRetryOrderId: directRetryReorderId(data) };
   } catch {
-    return { cartRetained: false, directGoodId: null };
+    return { cartRetained: false, directGoodId: null, directRetryOrderId: null };
   }
 }
 

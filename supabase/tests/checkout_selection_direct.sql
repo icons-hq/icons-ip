@@ -381,7 +381,7 @@ select 1/case when (:'direct_view'::jsonb->>'source')='direct' and (:'direct_vie
  and (select user_coupon_id=:'cart3_coupon'::uuid from public.cart_coupon_selections where user_id='d2000000-0000-4000-8000-000000000002')
  and (select state='awaiting_payment' and source='direct_checkout' and base_good_id='d2-a' and jsonb_array_length(lines)=2
   from private.cart_order_holds where order_id=:'direct_order')
- and :'direct_retention'::jsonb='{"state":"awaiting_payment","releaseReason":null,"source":"direct","baseGoodId":"d2-a"}'::jsonb
+ and :'direct_retention'::jsonb='{"state":"awaiting_payment","releaseReason":null,"source":"direct","baseGoodId":"d2-a","retryOrderId":null}'::jsonb
  then 1 else 0 end as assert_direct_orders_only_that_good_with_its_qty_and_keeps_cart_and_cart_coupon;
 -- 장바구니 화면 복귀는 바로구매 결제창을 끊지 않는다(장바구니 출처만 닫는다). 바로구매 주문서 진입은 모두 닫는다.
 set local role service_role;
@@ -917,15 +917,23 @@ update public.payment_attempts set state='declined' where id=:'twice_attempt';
 set local role service_role;
 select public.service_retry_direct_order('d2000000-0000-4000-8000-000000000002',:'twice_order') as twice_tab1 \gset
 select public.service_retry_direct_order('d2000000-0000-4000-8000-000000000002',:'twice_order') as twice_tab2 \gset
+-- 다시 구매 초안만 있고 아직 주문이 없으면 결제 화면은 다시 구매하기를 그대로 둔다.
+select public.service_get_order_cart_retention('d2000000-0000-4000-8000-000000000002',:'twice_order') as twice_retention_before \gset
 select public.place_direct_order('d2000000-0000-4000-8000-000000000002',(:'twice_tab1'::jsonb->>'draftId')::uuid,:'address',
  'd2000000-0000-4000-8000-000000000902','bank_transfer',0,null) as twice_bank \gset
 select public.service_retry_direct_order('d2000000-0000-4000-8000-000000000002',:'twice_order') as twice_tab3 \gset
+-- 그 초안으로 접수한 뒤에는 결제 화면이 처음부터 '이미 다시 주문했어요'(retryOrderId)로 그린다. 다른 계정은 읽지 못한다.
+select public.service_get_order_cart_retention('d2000000-0000-4000-8000-000000000002',:'twice_order') as twice_retention_after \gset
+select public.service_get_order_cart_retention('d2000000-0000-4000-8000-000000000003',:'twice_order') is null as twice_retention_other \gset
 select pg_temp.d2_expect_error(format('select public.place_direct_order(%L,%L,%L,%L,%L,0,null)','d2000000-0000-4000-8000-000000000002',
   :'twice_tab2'::jsonb->>'draftId',:'address','d2000000-0000-4000-8000-000000000903','bank_transfer'),'checkout_draft_used');
 reset role;
 select 1/case when :'twice_tab1'::jsonb->>'result'='draft' and :'twice_tab1'::jsonb->>'draftId'=:'twice_tab2'::jsonb->>'draftId'
  and (select count(*) from private.checkout_drafts where retry_order_id=:'twice_order')=1
  and :'twice_tab3'::jsonb->>'result'='not_retryable' and :'twice_tab3'::jsonb->>'orderId'=:'twice_bank'
+ and :'twice_retention_before'::jsonb ? 'retryOrderId' and :'twice_retention_before'::jsonb->>'retryOrderId' is null
+ and :'twice_retention_after'::jsonb->>'retryOrderId'=:'twice_bank' and :'twice_retention_after'::jsonb->>'baseGoodId'='d2-c'
+ and :'twice_retention_other'::boolean
  and (select count(*) from public.orders where user_id='d2000000-0000-4000-8000-000000000002'
   and checkout_key in ('d2000000-0000-4000-8000-000000000902','d2000000-0000-4000-8000-000000000903'))=1
  then 1 else 0 end as assert_direct_retry_once_per_order;

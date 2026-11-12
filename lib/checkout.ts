@@ -128,6 +128,18 @@ export function directRetryGoodId(value: unknown): string | null {
   return state === 'awaiting_payment' || (state === 'released' && releaseReason !== 'detached') ? baseGoodId : null;
 }
 
+const RETRY_ORDER_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * 바로구매 주문의 다시 구매로 이미 만든 주문(ADR-0030) — 다시 구매 초안이 무통장 접수·결제 완료·결제 확인 중인 주문을 만들었으면
+ * 그 주문. 결제 화면이 처음 그릴 때부터 '이미 다시 주문했어요'와 그 주문으로 잇고 다시 구매하기를 감춘다. 아니면 null.
+ */
+export function directRetryReorderId(value: unknown): string | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const { source, retryOrderId } = value as { source?: unknown; retryOrderId?: unknown };
+  return source === 'direct' && typeof retryOrderId === 'string' && RETRY_ORDER_ID.test(retryOrderId) ? retryOrderId.toLowerCase() : null;
+}
+
 /**
  * 보류 원장의 상태로 본 "결제 없이 장바구니를 남긴 주문"인지(ADR-0026). 바로구매 보류(ADR-0030)는 장바구니를 읽지도
  * 바꾸지도 않은 주문이라 해당하지 않는다. 결제를 기다리는 보류와 결제 없이
