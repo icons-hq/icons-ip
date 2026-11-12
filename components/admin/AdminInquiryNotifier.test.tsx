@@ -178,7 +178,7 @@ describe('브라우저 권한 요청 (R2)', () => {
     expect(INQUIRY_NOTIFICATION_SETTINGS_TITLE).toBe('새 1:1 문의·상품 문의 PC 알림');
     expect(view({})).toContain(`aria-label="${INQUIRY_NOTIFICATION_SETTINGS_TITLE}"`);
     expect(view({})).toContain('켜면 새 1:1 문의와 상품 문의가 올 때 PC 알림을 띄웁니다.');
-    expect(view({ support: 'granted', enabled: true })).toContain('새 1:1 문의와 상품 문의를 PC 알림으로 알려 드리고, 탭 제목 앞에 미답변 1:1 문의 수를 표시합니다. 상품 문의는 1분마다 확인합니다.');
+    expect(view({ support: 'granted', enabled: true })).toContain('새 1:1 문의와 상품 문의를 PC 알림으로 알려 드리고, 탭 제목 앞에 미답변 1:1 문의 수를 표시합니다. 상품 문의는 30초마다 확인합니다.');
     expect(view({ support: 'denied' })).toContain(INQUIRY_NOTIFICATION_DENIED);
     const unsupported = view({ support: 'unsupported' });
     expect(unsupported).toContain('이 브라우저는 알림을 지원하지 않습니다');
@@ -358,31 +358,37 @@ describe('상품 문의 PC 알림 (1027T-002)', () => {
     const notify = vi.fn(); const notifyQuestion = vi.fn();
     const pages = [...(options.pages ?? [[OLD_Q], [NEW_Q]])];
     const loadQuestions = vi.fn<(cursor: string | null) => Promise<(typeof NEW_Q)[]>>(async () => pages.shift() ?? []);
+    const loadInquiries = vi.fn(async () => []);
     const stop = startInquiryNotifier({
-      realtime: test.client, loadOpenCount: async () => 0, loadSince: async () => [], notify, onCount: vi.fn(), claim: () => true,
+      realtime: test.client, loadOpenCount: async () => 0, loadSince: loadInquiries, notify, onCount: vi.fn(), claim: () => true,
       leader: (onLead) => { if (options.leader !== false) onLead(); return () => {}; },
       ...(options.withQuestions === false ? {} : { questions: { loadSince: loadQuestions, notify: notifyQuestion, claim: options.claim ?? (() => true) } }),
     });
-    return { test, notify, notifyQuestion, loadQuestions, stop };
+    return { test, notify, notifyQuestion, loadQuestions, loadInquiries, stop };
   }
 
-  it('리더 탭은 처음 확인을 기준점으로만 쓰고, 1분 확인에서 새로 등록된 상품 문의를 한 번 알린다', async () => {
+  /* 상품 문의는 Realtime이 없어 이 확인이 유일한 경로다. '1분 안에'를 지키려고 30초마다 확인하고, 1:1 문의의 60초 보완 확인은 그대로다. */
+  it('리더 탭은 처음 확인을 기준점으로만 쓰고, 30초 확인에서 새로 등록된 상품 문의를 한 번 알린다(1:1 문의 60초 확인과 별도)', async () => {
     vi.useFakeTimers();
     const run = questionEngine({ pages: [[OLD_Q], [NEW_Q], [NEW_Q]] });
     await settle();
     expect(run.loadQuestions).toHaveBeenCalledWith(null);
+    expect(run.loadInquiries).toHaveBeenCalledTimes(1);
     expect(run.notifyQuestion).not.toHaveBeenCalled();
-    vi.advanceTimersByTime(60_000); await settle();
+    vi.advanceTimersByTime(30_000); await settle();
     expect(run.loadQuestions).toHaveBeenLastCalledWith(OLD_Q.createdAt);
     expect(run.notifyQuestion).toHaveBeenCalledOnce();
     expect(run.notifyQuestion).toHaveBeenCalledWith(expect.objectContaining({ id: NEW_Q.id, goodName: NEW_Q.goodName, body: NEW_Q.body, secret: false }));
-    vi.advanceTimersByTime(60_000); await settle();
+    expect(run.loadInquiries).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(30_000); await settle();
     expect(run.loadQuestions).toHaveBeenLastCalledWith(NEW_Q.createdAt);
     expect(run.notifyQuestion).toHaveBeenCalledOnce();
+    expect(run.loadInquiries).toHaveBeenCalledTimes(2);
     expect(run.notify).not.toHaveBeenCalled();
     run.stop();
     vi.advanceTimersByTime(120_000); await settle();
     expect(run.loadQuestions).toHaveBeenCalledTimes(3);
+    expect(run.loadInquiries).toHaveBeenCalledTimes(2);
   });
 
   it('리더가 아닌 탭은 상품 문의를 확인하지 않고, 다른 탭이 알림 차례를 가져가면 알리지 않는다', async () => {
@@ -394,7 +400,7 @@ describe('상품 문의 PC 알림 (1027T-002)', () => {
     follower.stop();
     const claimed = questionEngine({ claim: () => false });
     await settle();
-    vi.advanceTimersByTime(60_000); await settle();
+    vi.advanceTimersByTime(30_000); await settle();
     expect(claimed.loadQuestions).toHaveBeenCalledTimes(2);
     expect(claimed.notifyQuestion).not.toHaveBeenCalled();
     claimed.stop();

@@ -6,7 +6,7 @@ migration 파일 경로는 [배포 매핑](../../supabase/manifests/admin-rollou
 
 ## 상품 문의 PC 알림 (1027T-002, 2026-11-12)
 
-같은 켜기 설정(업무 도구 알림의 "새 1:1 문의·상품 문의 PC 알림")과 같은 리더 탭(Web Locks)이 새 상품 문의(`product_questions`)도 알린다. `product_questions`는 `supabase_realtime` 발행 대상이 아니므로 publication을 넓히지 않고 리더 탭의 1분 따라잡기로만 확인한다. 리더는 `product_questions`를 `created_at` 기준점 이후 오래된 순 20건씩 읽고(첫 확인은 최근 1건을 기준점으로만 쓴다), 기준점(`icons:admin:product-question-notifier-cursor:v1:<계정>`, 5분 신선도)과 탭 간 알림 차례(`icons:admin:product-question-notified:v1:<계정>`)는 1:1 문의와 따로 저장한다. 읽기는 운영자의 브라우저 세션과 기존 RLS(`product_questions_read`·`product_questions_secret_read`, cs.manage)를 그대로 쓴다. 알림 본문은 상품명과 공개 질문 앞 60자이고, 비밀글은 본문 대신 "비밀글"만 싣는다. 알림을 누르면 `/admin/cs/qna?page=1&query=<id>&field=id&detail=<id>`로 그 상품 문의 상세를 연다. 탭 제목의 (N)은 지금처럼 미답변 1:1 문의 수다. 탭을 모두 닫으면 오지 않는다(Web Push 아님).
+같은 켜기 설정(업무 도구 알림의 "새 1:1 문의·상품 문의 PC 알림")과 같은 리더 탭(Web Locks)이 새 상품 문의(`product_questions`)도 알린다. `product_questions`는 `supabase_realtime` 발행 대상이 아니므로 publication을 넓히지 않고 리더 탭이 30초마다 따라잡기로만 확인한다(1:1 문의의 60초 보완 확인과 별도 주기 — 이것이 유일한 경로라 "1분 안에"를 지키려는 여유). 리더는 `product_questions`를 `created_at` 기준점 이후 오래된 순 20건씩 읽고(첫 확인은 최근 1건을 기준점으로만 쓴다), 기준점(`icons:admin:product-question-notifier-cursor:v1:<계정>`, 5분 신선도)과 탭 간 알림 차례(`icons:admin:product-question-notified:v1:<계정>`)는 1:1 문의와 따로 저장한다. 읽기는 운영자의 브라우저 세션과 기존 RLS(`product_questions_read`·`product_questions_secret_read`, cs.manage)를 그대로 쓴다. 알림 본문은 상품명과 공개 질문 앞 60자이고, 비밀글은 본문 대신 "비밀글"만 싣는다. 알림을 누르면 `/admin/cs/qna?page=1&query=<id>&field=id&detail=<id>`로 그 상품 문의 상세를 연다. 탭 제목의 (N)은 지금처럼 미답변 1:1 문의 수다. 탭을 모두 닫으면 오지 않는다(Web Push 아님).
 
 ## 상담 위젯 유형 버튼 (0901-044, 2026-11-12)
 

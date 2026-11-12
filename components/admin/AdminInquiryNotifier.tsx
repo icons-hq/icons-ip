@@ -24,7 +24,7 @@ import { Button } from '@/components/admin/kit/ui/button';
  *   Notification tag(문의 id)로 같은 문의는 한 번만 알린다.
  * - 알림을 누르면 그 탭이 앞으로 오고 문의 상세(/admin/cs/inquiries/<id>)로 이동한다.
  * - 상품 문의(굿즈 Q&A, product_questions)도 같은 켜기 설정·같은 리더 탭이 알린다. Realtime 발행 대상이 아니라
- *   1분 따라잡기로만 확인한다(기준점·5분 신선도·탭 간 알림 차례는 1:1 문의와 따로 둔다). 알림 본문은 상품명과
+ *   30초마다 따라잡기로만 확인한다(기준점·5분 신선도·탭 간 알림 차례는 1:1 문의와 따로 둔다). 알림 본문은 상품명과
  *   질문 앞부분이고, 비밀글은 본문 대신 '비밀글'만 싣는다. 누르면 문의 관리에서 그 상품 문의 상세가 열린다
  *   (/admin/cs/qna?query=<id>&field=id&detail=<id>). Q&A 화면 권한(cs.manage)이 1:1 문의와 같아 마운트 조건은 그대로다.
  * - 켜져 있는 동안 모든 탭의 제목 앞에 미답변 1:1 문의 수 `(N)`을 붙인다. Next 메타데이터가 이동 때 제목을
@@ -47,6 +47,9 @@ const QUESTION_CLAIM_PREFIX = 'icons:admin:product-question-notified:v1:';
 const QUESTION_CURSOR_PREFIX = 'icons:admin:product-question-notifier-cursor:v1:';
 const CHANGE_EVENT = 'icons:admin:inquiry-notifications:change';
 const CATCH_UP_MS = 60_000;
+/* 상품 문의는 Realtime이 없어 이 확인이 유일한 경로다. '1분 안에' 알리려고 타이머 오차·조회 시간을 넉넉히 둔다
+   (배경 탭이 오래 숨겨지면 브라우저가 타이머를 1분 간격으로 묶을 수 있다). */
+const QUESTION_CATCH_UP_MS = 30_000;
 const COUNT_DEBOUNCE_MS = 1_000;
 const CURSOR_FRESH_MS = 5 * 60_000;
 
@@ -230,7 +233,7 @@ export function writeInquiryNotifierCursor(accountId: string, cursor: string, st
   writeCursor(CURSOR_PREFIX, accountId, cursor, storage, now);
 }
 
-/** 상품 문의 등록 시각 기준점. 규칙(1분 갱신·5분 신선도)은 1:1 문의와 같고 값만 따로 둔다. */
+/** 상품 문의 등록 시각 기준점. 리더가 30초마다 갱신하고 5분 신선도는 1:1 문의와 같으며 값만 따로 둔다. */
 export function readProductQuestionNotifierCursor(accountId: string, storage: StorageLike | null = browserStorage(), now = Date.now()): string | null {
   return readCursor(QUESTION_CURSOR_PREFIX, accountId, storage, now);
 }
@@ -301,7 +304,7 @@ export function startInquiryNotifier(options: {
   /** 탭 간 공유 기준점. 새 리더는 여기서부터 확인하고, 리더는 확인할 때마다 갱신한다. */
   cursor?: NotifierCursor;
   /**
-   * 상품 문의(1027T-002). Realtime이 없어 리더 탭의 1분 따라잡기로만 확인한다. 기준점·알림 차례는 1:1 문의와 따로다.
+   * 상품 문의(1027T-002). Realtime이 없어 리더 탭이 30초마다 따라잡기로만 확인한다. 기준점·알림 차례는 1:1 문의와 따로다.
    * 없으면 1:1 문의만 알린다(기존 동작 그대로).
    */
   questions?: {
@@ -334,7 +337,6 @@ export function startInquiryNotifier(options: {
       questionSeen.add(question.id);
       if (questions.claim(question.id)) questions.notify(question);
     }, live) : null;
-  const catchUp = () => { void inquiryCatchUp(); if (questionCatchUp) void questionCatchUp(); };
   const stopRealtime = observeInquiryChanges(options.realtime, {
     onChange: (change) => {
       if (change.kind !== 'thread') return;
@@ -343,12 +345,13 @@ export function startInquiryNotifier(options: {
     },
     onReady: () => { refreshCount(); void inquiryCatchUp(); },
   });
-  const interval = setInterval(() => { refreshCount(); catchUp(); }, CATCH_UP_MS);
-  const stopLeading = options.leader(() => { leading = true; catchUp(); });
+  const interval = setInterval(() => { refreshCount(); void inquiryCatchUp(); }, CATCH_UP_MS);
+  const questionInterval = questionCatchUp ? setInterval(() => { void questionCatchUp(); }, QUESTION_CATCH_UP_MS) : undefined;
+  const stopLeading = options.leader(() => { leading = true; void inquiryCatchUp(); if (questionCatchUp) void questionCatchUp(); });
   refreshCount();
   return () => {
     active = false; leading = false;
-    clearInterval(interval); clearTimeout(countTimer);
+    clearInterval(interval); clearInterval(questionInterval); clearTimeout(countTimer);
     stopRealtime(); stopLeading();
   };
 }
@@ -446,7 +449,7 @@ export function InquiryNotificationSettingsView({ support, enabled, message, bus
   const on = enabled && support === 'granted';
   const status = support === 'unsupported' ? INQUIRY_NOTIFICATION_UNSUPPORTED
     : support === 'denied' ? INQUIRY_NOTIFICATION_DENIED
-    : on ? '켜짐 · 이 기기의 이 계정에서 커머스 콘솔 탭이 하나라도 열려 있으면 새 1:1 문의와 상품 문의를 PC 알림으로 알려 드리고, 탭 제목 앞에 미답변 1:1 문의 수를 표시합니다. 상품 문의는 1분마다 확인합니다. 탭을 모두 닫으면 알림이 오지 않습니다.'
+    : on ? '켜짐 · 이 기기의 이 계정에서 커머스 콘솔 탭이 하나라도 열려 있으면 새 1:1 문의와 상품 문의를 PC 알림으로 알려 드리고, 탭 제목 앞에 미답변 1:1 문의 수를 표시합니다. 상품 문의는 30초마다 확인합니다. 탭을 모두 닫으면 알림이 오지 않습니다.'
     : '꺼짐 · 켜면 새 1:1 문의와 상품 문의가 올 때 PC 알림을 띄웁니다. 알림을 누르면 그 문의가 열립니다.';
   return <section className="flex flex-col gap-2 rounded-lg border bg-muted/40 p-3" aria-label={INQUIRY_NOTIFICATION_SETTINGS_TITLE}>
     <h3 className="text-sm font-medium text-foreground">{INQUIRY_NOTIFICATION_SETTINGS_TITLE}</h3>
