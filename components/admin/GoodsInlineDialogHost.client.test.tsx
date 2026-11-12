@@ -22,6 +22,7 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: mocks.refresh }
 vi.mock('@/app/admin/goods-bulk-actions', () => ({ previewGoodsBulkAction: mocks.preview, commitGoodsBulkAction: mocks.commit, readGoodsBulkAction: mocks.read }));
 vi.mock('@/app/admin/goods-list-inline-actions', () => ({ readGoodsOptionStocksAction: mocks.readOptions, adjustGoodsOptionStocksAction: mocks.adjustBatch }));
 
+import { setAdminConfirmHandler } from '@/lib/admin/confirm';
 import { goodsBulkError, type GoodsBulkRequest } from '@/lib/admin/goods-bulk';
 import { GoodsInlineDialogHost, goodsInlineNoticeNeedsReveal } from './GoodsInlineDialogHost';
 import { GoodsDiscountStopPriceDialog, type DiscountStopPriceFlow } from './GoodsDiscountStopPriceDialog';
@@ -43,9 +44,12 @@ function render(children: ReactNode) {
     discount: parts.find(part => part.type === GoodsDiscountStopPriceDialog)?.props.flow as DiscountStopPriceFlow,
   };
 }
-async function settle() { while (hooks.tasks.length) await hooks.tasks.shift(); }
+/* 판매가 변경은 실행 전에 확인창(이전 → 새 판매가)을 거친다. 확인이 끝난 뒤에 작업이 시작되므로 한 박자 기다린다. */
+const confirmations: { title?: string; message: string }[] = [];
+async function settle() { await new Promise(resolve => setTimeout(resolve, 0)); while (hooks.tasks.length) { await hooks.tasks.shift(); await new Promise(resolve => setTimeout(resolve, 0)); } }
 
 beforeEach(() => {
+  confirmations.length = 0; setAdminConfirmHandler(async request => { confirmations.push(request); return true; });
   vi.clearAllMocks(); hooks.states = []; hooks.refs = []; hooks.tasks = [];
   vi.stubGlobal('crypto', { randomUUID: (() => { let n = 0; return () => `b9000000-0000-4000-8000-${String(++n).padStart(12, '0')}`; })() });
 });
@@ -98,6 +102,9 @@ describe('목록 화면 수준의 창 (리뷰 21·22 — 상품이 현재 페이
     render(row).discount.setInput('12000');
     render(row).discount.submit();
     await settle();
+    /* QA2: 이전 판매가 → 새 판매가를 확인받은 뒤에만 실행한다. */
+    expect(confirmations).toHaveLength(1);
+    expect(confirmations[0].message).toContain('10,000원에서 12,000원');
     const view = render(null);
     expect(view.discount.target?.goodId).toBe('good-a');
     expect(view.discount.phase).toEqual({ step: 'price', stoppedHere: true, stopped: discounts, error: goodsBulkError('goods_bulk_busy') });
