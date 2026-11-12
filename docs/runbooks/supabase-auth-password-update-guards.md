@@ -99,6 +99,14 @@ GoTrue v2.192.0 `internal/api/user.go` 기준이다. 현재 비밀번호 검사�
   영향이 없었다. auth 스키마에 트리거를 두는 결정이라 별도로 다룬다.
 - **otp 세션 토큰.** recovery·magic link 세션은 현재 비밀번호를 면제받는다. 앱은 magic link 로그인을 쓰지
   않고, recovery 세션은 메일함 소유를 증명한 결과라 이미 비밀번호를 바꿀 권한이 있다.
+  가입 확인 코드(`verifyOtp(type=email)`, 1014-004)도 세션을 `otp`로 기록해 같은 면제를 받는다 — 이 세션은 가입한
+  사람이 아니라 메일함을 가진 사람이 만들 수 있고, 계정에는 가입 폼의 비밀번호가 이미 있다. 그래서 앱은 이 세션을
+  수용하지 않는다: 코드 확인 직후 `signOut({ scope: 'local' })`로 서버에서 끊고(실패하면 응답의 `sb-*-auth-token`
+  쿠키를 지운다), 같은 화면에서 입력한 비밀번호로 다시 로그인해 AMR이 `password`뿐인 세션만 브라우저에 준다
+  (`app/login/actions.ts` `verifySignupCodeAction`, 판정 `lib/auth/session-amr.ts`). 비밀번호가 화면에 없으면(새로고침)
+  세션 없이 로그인 화면으로 보낸다. 2026-11-11 로컬 격리 스택 실측: 가입 토큰 `POST /verify`(type `email`) 세션은
+  `otp`, 그 세션을 `logout?scope=local`로 끊은 뒤 같은 토큰의 `PUT /auth/v1/user`는 403 `session_not_found`,
+  비밀번호 재로그인 세션은 `password`였다([런북](signup-contact-channels.md) §3).
 - **admin API.** service role 경로는 가드와 알림을 모두 우회한다. service role은 서버 신뢰 경계 안에서만
   쓴다는 기존 규칙이 경계다.
 - **메일 한도.** 재설정을 마칠 때마다 알림 메일이 한 통 늘어 운영 `rate_limit_email_sent`(30통/시간)를

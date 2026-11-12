@@ -14,6 +14,7 @@ import {
   passwordUpdateErrorMessage,
   postAuthenticationPath,
   safeNextPath,
+  signupConfirmedLoginPath,
   updatePasswordPath,
   updatePasswordSessionReadyPath,
   type ProfileForOnboarding,
@@ -248,6 +249,15 @@ describe('password reset paths and messages', () => {
     expect(updatePasswordSessionReadyPath('//evil.example')).toBe('/update-password?session_ready=1');
     expect(passwordResetSuccessLoginPath('https://evil.example')).toBe('/login?password_reset=success');
   });
+
+  /* 가입 확인 코드로 이메일 확인은 끝났지만 비밀번호 로그인 세션을 만들지 못했을 때(새로고침 등, 리뷰 F1). */
+  it('builds the signup-confirmed sign-in route with a normalized next path', () => {
+    expect(signupConfirmedLoginPath('/community?sort=hot')).toBe(
+      '/login?mode=signin&signup_confirmed=1&next=%2Fcommunity%3Fsort%3Dhot',
+    );
+    expect(signupConfirmedLoginPath()).toBe('/login?mode=signin&signup_confirmed=1');
+    expect(signupConfirmedLoginPath('https://evil.example')).toBe('/login?mode=signin&signup_confirmed=1');
+  });
 });
 
 describe('passwordUpdateErrorMessage', () => {
@@ -276,5 +286,19 @@ describe('authSignUpErrorMessage', () => {
 
   it('explains email send rate limits without exposing account existence', () => {
     expect(authSignUpErrorMessage({ code: 'over_email_send_rate_limit' })).toContain('확인 메일 요청이 너무 많습니다');
+  });
+});
+
+describe('isOnboarded phone re-verification', () => {
+  const complete = {
+    email: 'fan@icons.gg', nickname: 'fan', birth_date: '2000-01-01',
+    consents: { terms: true, privacy: true }, onboarded_at: '2026-07-01T00:00:00.000Z',
+  };
+
+  /* 번호를 다른 계정에 옮겨 간 회원은 다시 인증할 때까지 보호 액션 전에 온보딩(인증 단계)으로 간다. */
+  it('treats a member needing phone re-verification as not onboarded', () => {
+    expect(isOnboarded(complete)).toBe(true);
+    expect(isOnboarded({ ...complete, phone_reverification_required: false })).toBe(true);
+    expect(isOnboarded({ ...complete, phone_reverification_required: true })).toBe(false);
   });
 });

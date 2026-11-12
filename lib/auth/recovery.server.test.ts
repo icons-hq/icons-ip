@@ -59,6 +59,14 @@ describe('signed auth-next cookie', () => {
     )).toBeNull();
   });
 
+  /* 리뷰 F10 — 설정의 카카오 계정 연결도 같은 10분 서명 쿠키로 콜백 결과를 설정 화면에 돌려보낸다. */
+  it('round-trips the kakao link purpose with the ten-minute lifetime', () => {
+    const value = signedAuthNextCookieValue('/settings', 'link', NOW, SECRET);
+
+    expect(authNextStateFromCookie(value, NOW, SECRET)).toEqual({ issuedAt: NOW, next: '/settings', purpose: 'link' });
+    expect(authNextStateFromCookie(value, NOW + AUTH_NEXT_SIGNUP_MAX_AGE_SECONDS * 1000, SECRET)).toBeNull();
+  });
+
   it('normalizes unsafe next paths before signing', () => {
     const value = signedAuthNextCookieValue('https://evil.example', 'signup', NOW, SECRET);
 

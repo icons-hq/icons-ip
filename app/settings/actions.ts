@@ -23,7 +23,15 @@ import {
   rejectProfileAvatarClaim,
   updateProfileIdentity,
 } from '@/lib/profile.server';
-import { marketingConsentResultMessage, readMarketingChannelChoices } from '@/lib/marketing-consent';
+import { kakaoChannelRewardNotice, type KakaoRewardOutcome } from '@/lib/kakao/account-link';
+import { kakaoChannelConfig } from '@/lib/kakao/channel-config.server';
+import { syncKakaoChannelFriendReward } from '@/lib/kakao/channel-reward.server';
+import {
+  MARKETING_KAKAO_OFFERED_FIELD,
+  marketingChannelChoices,
+  marketingConsentResultMessage,
+  readMarketingChannelChoices,
+} from '@/lib/marketing-consent';
 import { saveMyMarketingConsents } from '@/lib/marketing-consent.server';
 import { createClient } from '@/lib/supabase/server';
 import { cleanupFencedGoodsAccount } from '@/lib/account-goods-cleanup.server';
@@ -356,12 +364,13 @@ export async function updateProfileAction(
 }
 
 /* 수단별(이메일·SMS) 마케팅 정보 수신 동의(10/14 회의 S4). 원장 기록·동의/철회 시각·파생값
-   consents.marketing 갱신은 RPC가 한 트랜잭션으로 한다 — terms·privacy는 건드리지 않는다. */
+   consents.marketing 갱신은 RPC가 한 트랜잭션으로 한다 — terms·privacy는 건드리지 않는다.
+   카카오톡 줄(1014-010)은 화면이 그렸을 때만 읽고, 카카오톡 채널 스위치가 꺼져 있으면 철회만 받는다. */
 export async function updateMarketingConsentAction(
   _state: SettingsActionState,
   formData: FormData,
 ): Promise<SettingsActionState> {
-  const choices = readMarketingChannelChoices(formData);
+  const choices = readMarketingChannelChoices(formData, { kakaoChannelOn: kakaoChannelConfig() !== null });
 
   const required = await requireSettingsAuth();
   if (!required.ok) return required.state;
@@ -371,5 +380,28 @@ export async function updateMarketingConsentAction(
   if (!result.ok) return { errors: { form: '설정을 저장하지 못했습니다. 다시 시도해주세요.' } };
 
   revalidatePath(SETTINGS_PATH);
-  return { message: marketingConsentResultMessage(choices, new Date()) };
+  /* 카카오톡 줄을 그린 저장은 고른 값과 저장된 값이 다를 수 있다(스위치 OFF면 새 카카오톡 동의를 버린다). 처리 결과
+     고지는 저장 뒤 DB 상태로 만든다(리뷰 F8). 응답 모양이 다르면 고른 값으로 알린다. */
+  const kakaoOffered = formData.get(MARKETING_KAKAO_OFFERED_FIELD) === '1';
+  const saved = kakaoOffered && result.state ? marketingChannelChoices(result.state, { withKakao: true }) : choices;
+  return { message: marketingConsentResultMessage(saved, new Date()) };
+}
+
+/*
+ * 설정의 [친구 추가 쿠폰 받기](1014-014, 리뷰 F10). 카카오 계정을 연결한 회원이면 가입 수단과 무관하게, 카카오 채널 관계
+ * 조회 API로 친구 추가를 다시 확인한 뒤 회원·채널당 한 번 쿠폰을 발급한다(DB 멱등, 지정 고객 발급 쿠폰만).
+ * 카카오톡 채널 스위치가 꺼져 있으면 아무것도 하지 않는다.
+ */
+export async function checkKakaoChannelRewardAction(): Promise<SettingsActionState> {
+  if (!kakaoChannelConfig()) return kakaoChannelRewardState('disabled');
+
+  const required = await requireSettingsAuth();
+  if (!required.ok) return required.state;
+
+  return kakaoChannelRewardState(await syncKakaoChannelFriendReward({ userId: required.user.id, via: 'settings' }));
+}
+
+function kakaoChannelRewardState(outcome: KakaoRewardOutcome): SettingsActionState {
+  const notice = kakaoChannelRewardNotice(outcome);
+  return 'error' in notice ? { errors: { form: notice.error } } : { message: notice.message };
 }

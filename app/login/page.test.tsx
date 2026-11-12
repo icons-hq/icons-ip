@@ -70,6 +70,18 @@ describe('/login page', () => {
     });
   });
 
+  it('tells a member who confirmed signup with the code to sign in with the password', async () => {
+    renderToStaticMarkup(await Page({
+      searchParams: Promise.resolve({ mode: 'signin', signup_confirmed: '1', next: '/orders' }),
+    }));
+
+    expect(mocks.loginProps).toMatchObject({
+      initialMode: 'signin',
+      initialMessage: '가입 확인을 마쳤어요. 가입한 이메일과 비밀번호로 로그인해주세요.',
+      next: '/orders',
+    });
+  });
+
   it('keeps existing signup parsing and normalizes unsafe next values', async () => {
     renderToStaticMarkup(await Page({
       searchParams: Promise.resolve({

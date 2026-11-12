@@ -4,8 +4,11 @@ import { isOnboarded, safeNextPath } from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
 import { getCatalogSnapshot } from '@/lib/catalog';
 import { getFollowedIpIdsForUser } from '@/lib/ip-follow.server';
-import { marketingChannelChoices } from '@/lib/marketing-consent';
+import { kakaoChannelConfig } from '@/lib/kakao/channel-config.server';
+import { MARKETING_CHANNELS, MARKETING_CHANNELS_WITH_KAKAO, marketingChannelChoices, marketingKakaoVisible } from '@/lib/marketing-consent';
 import { readMyMarketingConsentState } from '@/lib/marketing-consent.server';
+import { phoneVerificationConfig, phoneVerificationView, readMyVerifiedPhone } from '@/lib/sms/phone-verification.server';
+import { createClient } from '@/lib/supabase/server';
 
 type PageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -26,11 +29,16 @@ export default async function Page({ searchParams }: PageProps) {
 
   if (auth.user && isOnboarded(auth.profile, auth.user.email)) redirect(next);
 
-  const [catalog, followedIpIds, marketingConsent] = await Promise.all([
+  /* 휴대폰 번호 인증은 스위치가 켜졌을 때만 읽는다 — 꺼져 있으면 DB도 화면도 예전과 같다(1014-005·006). */
+  const phoneConfig = auth.user ? phoneVerificationConfig() : null;
+  const [catalog, followedIpIds, marketingConsent, verifiedPhone] = await Promise.all([
     getCatalogSnapshot(),
     auth.user ? getFollowedIpIdsForUser(auth.user.id) : Promise.resolve(new Set<string>()),
     auth.user ? readMyMarketingConsentState() : Promise.resolve(null),
+    phoneConfig ? createClient().then(readMyVerifiedPhone) : Promise.resolve(null),
   ]);
+  /* 카카오톡 수신 동의 줄은 카카오톡 채널 스위치가 켜졌거나 이미 동의한 회원에게만 그린다(1014-010). */
+  const withKakao = marketingKakaoVisible(kakaoChannelConfig() !== null, marketingConsent);
   const recommendedIps = catalog.ips.slice(0, 5).map((ip) => ({
     bg: ip.bg,
     color: ip.v.color,
@@ -47,10 +55,14 @@ export default async function Page({ searchParams }: PageProps) {
       email={auth.profile?.email ?? auth.user?.email ?? ''}
       followedIpIds={[...followedIpIds]}
       genderEligible={!auth.profile || auth.profile.role === 'user'}
-      initialMarketing={marketingChannelChoices(marketingConsent)}
+      initialMarketing={marketingChannelChoices(marketingConsent, { withKakao })}
       isConfigured={auth.isConfigured}
+      marketingChannels={withKakao ? MARKETING_CHANNELS_WITH_KAKAO : MARKETING_CHANNELS}
       next={next}
-      nickname={auth.profile?.nickname ?? ''}
+      /* 스위치가 켜졌고 1단계(생년월일·약관 동의)를 이미 저장했으면 휴대폰 인증 단계부터 연다. */
+      phoneStep={Boolean(phoneConfig) && Boolean(auth.profile?.birth_date)
+        && auth.profile?.consents?.terms === true && auth.profile?.consents?.privacy === true}
+      phoneVerification={phoneConfig ? phoneVerificationView(phoneConfig, verifiedPhone) : undefined}
       recommendedIps={recommendedIps}
     />
   );
