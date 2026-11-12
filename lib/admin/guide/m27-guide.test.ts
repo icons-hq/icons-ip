@@ -52,9 +52,9 @@ describe('m27 가이드 — 고객문의·상담·리뷰(R1~R6)', () => {
     expect(text).not.toContain('사이드바 메뉴 옆 배지');
   });
 
-  it('새 1:1 문의 PC 알림을 켜고 끄는 법이 업무 도구의 실제 버튼 이름과 같다(R2)', () => {
+  it('새 1:1 문의·상품 문의 PC 알림을 켜고 끄는 법이 업무 도구의 실제 버튼 이름과 같다(R2·1027T-002)', () => {
     const notifier = repoFile('components/admin/AdminInquiryNotifier.tsx');
-    for (const label of ['새 1:1 문의 PC 알림', '문의 알림 받기', '문의 알림 끄기']) {
+    for (const label of ['새 1:1 문의·상품 문의 PC 알림', '문의 알림 받기', '문의 알림 끄기']) {
       expect(notifier).toContain(label);
       expect(text).toContain(label);
     }

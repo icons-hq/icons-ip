@@ -6,10 +6,11 @@ import { observeInquiryChanges, type InquiryRealtimeClient } from '@/lib/inquiry
 import { createClient } from '@/lib/supabase/client';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { startAdminNavigation } from '@/lib/admin/navigation-pending';
+import { adminProductQuestionHref, DEFAULT_ADMIN_PRODUCT_QUESTION_FILTERS, productQuestionBodyPreview } from '@/lib/admin/product-questions';
 import { Button } from '@/components/admin/kit/ui/button';
 
 /*
- * 새 1:1 문의 PC 브라우저 알림(R2, 10/27 회의 D2①).
+ * 새 1:1 문의·상품 문의 PC 브라우저 알림(R2, 10/27 회의 D2① · 1027T-002 "현행+상품 Q&A 알림").
  *
  * - 커머스 콘솔에서 cs.manage 운영자에게만 셸이 상시 마운트한다(화면마다 다시 마운트되는 children 밖).
  *   운영자가 업무 도구 '알림'에서 '문의 알림 받기'를 눌러 브라우저 권한을 허용해야 켜진다.
@@ -22,6 +23,10 @@ import { Button } from '@/components/admin/kit/ui/button';
  * - 중복 방지: Web Locks로 한 탭만 리더(알림 담당)가 되고, 탭 간 '알림 차례' 기록(localStorage)과
  *   Notification tag(문의 id)로 같은 문의는 한 번만 알린다.
  * - 알림을 누르면 그 탭이 앞으로 오고 문의 상세(/admin/cs/inquiries/<id>)로 이동한다.
+ * - 상품 문의(굿즈 Q&A, product_questions)도 같은 켜기 설정·같은 리더 탭이 알린다. Realtime 발행 대상이 아니라
+ *   1분 따라잡기로만 확인한다(기준점·5분 신선도·탭 간 알림 차례는 1:1 문의와 따로 둔다). 알림 본문은 상품명과
+ *   질문 앞부분이고, 비밀글은 본문 대신 '비밀글'만 싣는다. 누르면 문의 관리에서 그 상품 문의 상세가 열린다
+ *   (/admin/cs/qna?query=<id>&field=id&detail=<id>). Q&A 화면 권한(cs.manage)이 1:1 문의와 같아 마운트 조건은 그대로다.
  * - 켜져 있는 동안 모든 탭의 제목 앞에 미답변 1:1 문의 수 `(N)`을 붙인다. Next 메타데이터가 이동 때 제목을
  *   다시 쓰므로 pathname 변경과 <title> 변경을 감지해 다시 붙인다.
  * - 권한 거부·미지원 브라우저는 안내만 한다. 알림은 포커스를 빼앗지 않아 입력·IME를 방해하지 않는다.
@@ -30,12 +35,16 @@ import { Button } from '@/components/admin/kit/ui/button';
  */
 
 export const INQUIRY_NOTIFICATION_TITLE = '새 1:1 문의';
+export const PRODUCT_QUESTION_NOTIFICATION_TITLE = '새 상품 문의';
+export const INQUIRY_NOTIFICATION_SETTINGS_TITLE = '새 1:1 문의·상품 문의 PC 알림';
 export const INQUIRY_NOTIFICATION_DENIED = '브라우저에서 알림이 차단되어 있습니다. 주소창의 사이트 설정에서 알림을 허용하세요.';
 const INQUIRY_NOTIFICATION_ENABLED = '문의 알림을 켰습니다.';
 const INQUIRY_NOTIFICATION_UNSUPPORTED = '이 브라우저는 알림을 지원하지 않습니다. 크롬·엣지·사파리 최신 버전에서 켜 주세요.';
 const PREFERENCE_PREFIX = 'icons:admin:inquiry-notifications:v1:';
 const CLAIM_PREFIX = 'icons:admin:inquiry-notified:v1:';
 const CURSOR_PREFIX = 'icons:admin:inquiry-notifier-cursor:v1:';
+const QUESTION_CLAIM_PREFIX = 'icons:admin:product-question-notified:v1:';
+const QUESTION_CURSOR_PREFIX = 'icons:admin:product-question-notifier-cursor:v1:';
 const CHANGE_EVENT = 'icons:admin:inquiry-notifications:change';
 const CATCH_UP_MS = 60_000;
 const COUNT_DEBOUNCE_MS = 1_000;
@@ -46,6 +55,7 @@ export type NotificationLike = Pick<typeof Notification, 'permission' | 'request
   & (new (title: string, options?: NotificationOptions) => Pick<Notification, 'close' | 'onclick'>);
 export type InquiryNotificationSupport = 'unsupported' | NotificationPermission;
 export interface NewInquiry { id: string; title: string }
+export interface NewProductQuestion { id: string; goodName: string | null; body: string; secret: boolean }
 
 function browserStorage(): StorageLike | null {
   try { return typeof window === 'undefined' ? null : window.localStorage; } catch { return null; }
@@ -118,44 +128,87 @@ export async function enableInquiryNotifications(accountId: string, notification
   return setInquiryNotificationsEnabled(accountId, true, storage) ? 'granted' : 'storage_unavailable';
 }
 
-/** 새 문의 OS 알림. 누르면 onOpen 후 닫는다. 생성자가 막혀 띄우지 못하면 false. */
-export function showInquiryNotification(inquiry: NewInquiry, onOpen: () => void,
-  notification: NotificationLike | undefined = browserNotification()): boolean {
+/** OS 알림 하나. 누르면 onOpen 후 닫는다. 생성자가 막혀 띄우지 못하면 false. */
+function showNotification(title: string, options: { body: string; tag: string }, onOpen: () => void,
+  notification: NotificationLike | undefined): boolean {
   if (!notification) return false;
   try {
-    const shown = new notification(INQUIRY_NOTIFICATION_TITLE, { body: inquiry.title, tag: `icons-inquiry:${inquiry.id}` });
+    const shown = new notification(title, options);
     shown.onclick = () => { onOpen(); shown.close(); };
     return true;
   } catch { return false; }
 }
 
-/** 알림을 누르면 이 탭을 앞으로 가져와 문의 상세로 옮긴다. 링크가 아닌 이동이라 대기 표시를 직접 건다. */
-export function openNotifiedInquiry(inquiryId: string, push: (href: string) => void, focus: () => void = () => window.focus()) {
-  const href = `/admin/cs/inquiries/${inquiryId}`;
+/** 새 문의 OS 알림. 누르면 onOpen 후 닫는다. 생성자가 막혀 띄우지 못하면 false. */
+export function showInquiryNotification(inquiry: NewInquiry, onOpen: () => void,
+  notification: NotificationLike | undefined = browserNotification()): boolean {
+  return showNotification(INQUIRY_NOTIFICATION_TITLE, { body: inquiry.title, tag: `icons-inquiry:${inquiry.id}` }, onOpen, notification);
+}
+
+/** 상품 문의 알림 본문. 공개 질문은 상품 상세에 이미 공개된 글이라 앞부분을 싣고, 비밀글은 본문을 싣지 않는다. */
+export function productQuestionNotificationBody(question: NewProductQuestion): string {
+  const text = question.secret ? '비밀글' : productQuestionBodyPreview(question.body, 60) || '상품 문의가 등록되었습니다.';
+  const goodName = question.goodName?.trim();
+  return goodName ? `${goodName} · ${text}` : text;
+}
+
+/** 새 상품 문의 OS 알림. 1:1 문의와 tag를 나눠 같은 id끼리만 OS에서 합친다. */
+export function showProductQuestionNotification(question: NewProductQuestion, onOpen: () => void,
+  notification: NotificationLike | undefined = browserNotification()): boolean {
+  return showNotification(PRODUCT_QUESTION_NOTIFICATION_TITLE,
+    { body: productQuestionNotificationBody(question), tag: `icons-product-question:${question.id}` }, onOpen, notification);
+}
+
+/** 알림을 누르면 이 탭을 앞으로 가져와 그 화면으로 옮긴다. 링크가 아닌 이동이라 대기 표시를 직접 건다. */
+function openNotifiedHref(href: string, push: (href: string) => void, focus: () => void) {
   focus();
   startAdminNavigation(href);
   push(href);
 }
 
-/** 같은 문의는 계정의 모든 탭을 통틀어 한 번만 알린다. 기록을 못 읽으면 알린다(누락보다 중복이 낫다, tag가 OS에서 합친다). */
-export function claimInquiryNotification(accountId: string, inquiryId: string, storage: StorageLike | null = browserStorage()): boolean {
+/** 알림을 누르면 이 탭을 앞으로 가져와 문의 상세로 옮긴다. 링크가 아닌 이동이라 대기 표시를 직접 건다. */
+export function openNotifiedInquiry(inquiryId: string, push: (href: string) => void, focus: () => void = () => window.focus()) {
+  openNotifiedHref(`/admin/cs/inquiries/${inquiryId}`, push, focus);
+}
+
+/** 문의 관리(상품 문의)에서 그 문의 하나만 문의번호로 찾아 상세를 연 채로 보인다. */
+export function productQuestionNotificationHref(questionId: string): string {
+  const list = adminProductQuestionHref(DEFAULT_ADMIN_PRODUCT_QUESTION_FILTERS, { query: questionId, field: 'id' });
+  return `${list}&detail=${encodeURIComponent(questionId)}`;
+}
+
+export function openNotifiedProductQuestion(questionId: string, push: (href: string) => void, focus: () => void = () => window.focus()) {
+  openNotifiedHref(productQuestionNotificationHref(questionId), push, focus);
+}
+
+/** 같은 건은 계정의 모든 탭을 통틀어 한 번만 알린다. 기록을 못 읽으면 알린다(누락보다 중복이 낫다, tag가 OS에서 합친다). */
+function claimNotification(prefix: string, accountId: string, id: string, storage: StorageLike | null): boolean {
   if (!storage) return true;
-  const key = `${CLAIM_PREFIX}${accountId}`;
+  const key = `${prefix}${accountId}`;
   let ids: string[] = [];
   try {
     const parsed: unknown = JSON.parse(storage.getItem(key) ?? '[]');
     ids = Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === 'string') : [];
   } catch { ids = []; }
-  if (ids.includes(inquiryId)) return false;
-  try { storage.setItem(key, JSON.stringify([...ids, inquiryId].slice(-100))); } catch { /* tag still dedupes. */ }
+  if (ids.includes(id)) return false;
+  try { storage.setItem(key, JSON.stringify([...ids, id].slice(-100))); } catch { /* tag still dedupes. */ }
   return true;
 }
 
-/** 리더가 마지막으로 확인한 접수 시각. 리더가 1분마다 다시 쓰므로 5분 넘게 묵은 값은 살아 있는 리더가 없었다는 뜻이다. */
-export function readInquiryNotifierCursor(accountId: string, storage: StorageLike | null = browserStorage(), now = Date.now()): string | null {
+/** 같은 문의는 계정의 모든 탭을 통틀어 한 번만 알린다. 기록을 못 읽으면 알린다(누락보다 중복이 낫다, tag가 OS에서 합친다). */
+export function claimInquiryNotification(accountId: string, inquiryId: string, storage: StorageLike | null = browserStorage()): boolean {
+  return claimNotification(CLAIM_PREFIX, accountId, inquiryId, storage);
+}
+
+/** 상품 문의의 알림 차례. 1:1 문의 기록과 따로 둬 한쪽이 많아도 다른 쪽 기록을 밀어내지 않는다. */
+export function claimProductQuestionNotification(accountId: string, questionId: string, storage: StorageLike | null = browserStorage()): boolean {
+  return claimNotification(QUESTION_CLAIM_PREFIX, accountId, questionId, storage);
+}
+
+function readCursor(prefix: string, accountId: string, storage: StorageLike | null, now: number): string | null {
   if (!accountId || !storage) return null;
   try {
-    const parsed: unknown = JSON.parse(storage.getItem(`${CURSOR_PREFIX}${accountId}`) ?? 'null');
+    const parsed: unknown = JSON.parse(storage.getItem(`${prefix}${accountId}`) ?? 'null');
     if (!parsed || typeof parsed !== 'object') return null;
     const { cursor, savedAt } = parsed as { cursor?: unknown; savedAt?: unknown };
     if (typeof cursor !== 'string' || !cursor || typeof savedAt !== 'number') return null;
@@ -163,9 +216,27 @@ export function readInquiryNotifierCursor(accountId: string, storage: StorageLik
   } catch { return null; }
 }
 
-export function writeInquiryNotifierCursor(accountId: string, cursor: string, storage: StorageLike | null = browserStorage(), now = Date.now()): void {
+function writeCursor(prefix: string, accountId: string, cursor: string, storage: StorageLike | null, now: number): void {
   if (!accountId || !storage) return;
-  try { storage.setItem(`${CURSOR_PREFIX}${accountId}`, JSON.stringify({ cursor, savedAt: now })); } catch { /* This tab still keeps its own cursor. */ }
+  try { storage.setItem(`${prefix}${accountId}`, JSON.stringify({ cursor, savedAt: now })); } catch { /* This tab still keeps its own cursor. */ }
+}
+
+/** 리더가 마지막으로 확인한 접수 시각. 리더가 1분마다 다시 쓰므로 5분 넘게 묵은 값은 살아 있는 리더가 없었다는 뜻이다. */
+export function readInquiryNotifierCursor(accountId: string, storage: StorageLike | null = browserStorage(), now = Date.now()): string | null {
+  return readCursor(CURSOR_PREFIX, accountId, storage, now);
+}
+
+export function writeInquiryNotifierCursor(accountId: string, cursor: string, storage: StorageLike | null = browserStorage(), now = Date.now()): void {
+  writeCursor(CURSOR_PREFIX, accountId, cursor, storage, now);
+}
+
+/** 상품 문의 등록 시각 기준점. 규칙(1분 갱신·5분 신선도)은 1:1 문의와 같고 값만 따로 둔다. */
+export function readProductQuestionNotifierCursor(accountId: string, storage: StorageLike | null = browserStorage(), now = Date.now()): string | null {
+  return readCursor(QUESTION_CURSOR_PREFIX, accountId, storage, now);
+}
+
+export function writeProductQuestionNotifierCursor(accountId: string, cursor: string, storage: StorageLike | null = browserStorage(), now = Date.now()): void {
+  writeCursor(QUESTION_CURSOR_PREFIX, accountId, cursor, storage, now);
 }
 
 export function titleWithInquiryCount(title: string, count: number | null): string {
@@ -184,6 +255,40 @@ export function acquireInquiryNotifierLeadership(accountId: string, onLead: () =
   return () => { controller.abort(); release?.(); };
 }
 
+type NotifierCursor = { read: () => string | null; write: (cursor: string) => void };
+
+/*
+ * 리더 탭의 따라잡기 한 갈래. 기준점이 없으면(공유 기준점도 5분 넘게 묵었으면) 가장 최근 1건을 기준점으로 삼아
+ * 알리지 않고, 그 뒤로는 기준점 이후 건을 오래된 순으로 알리며 기준점을 옮긴다. 1:1 문의와 상품 문의가 한 벌씩 쓴다.
+ */
+function catchUpSource<T extends { id: string; createdAt: string }>(source: {
+  loadSince: (cursor: string | null) => Promise<T[] | null>;
+  cursor?: NotifierCursor;
+}, seen: Set<string>, announce: (row: T) => void, live: () => boolean): () => Promise<void> {
+  let baseline = false, checking = false;
+  let cursor: string | null = null;
+  return async () => {
+    if (!live() || checking) return;
+    checking = true;
+    try {
+      if (!baseline) {
+        const shared = source.cursor?.read() ?? null;
+        if (shared) { cursor = shared; baseline = true; }
+      }
+      const rows = await source.loadSince(baseline ? cursor : null);
+      if (!live() || !rows) return;
+      if (!baseline) {
+        rows.forEach((row) => seen.add(row.id));
+        cursor = rows.at(-1)?.createdAt ?? new Date().toISOString();
+        baseline = true;
+      } else {
+        for (const row of rows) { announce(row); cursor = row.createdAt; }
+      }
+      if (cursor) source.cursor?.write(cursor);
+    } catch { /* The next interval retries. */ } finally { checking = false; }
+  };
+}
+
 export function startInquiryNotifier(options: {
   realtime: InquiryRealtimeClient;
   loadOpenCount: () => Promise<number | null>;
@@ -194,11 +299,21 @@ export function startInquiryNotifier(options: {
   claim: (inquiryId: string) => boolean;
   leader: (onLead: () => void) => () => void;
   /** 탭 간 공유 기준점. 새 리더는 여기서부터 확인하고, 리더는 확인할 때마다 갱신한다. */
-  cursor?: { read: () => string | null; write: (cursor: string) => void };
+  cursor?: NotifierCursor;
+  /**
+   * 상품 문의(1027T-002). Realtime이 없어 리더 탭의 1분 따라잡기로만 확인한다. 기준점·알림 차례는 1:1 문의와 따로다.
+   * 없으면 1:1 문의만 알린다(기존 동작 그대로).
+   */
+  questions?: {
+    loadSince: (cursor: string | null) => Promise<(NewProductQuestion & { createdAt: string })[] | null>;
+    notify: (question: NewProductQuestion) => void;
+    claim: (questionId: string) => boolean;
+    cursor?: NotifierCursor;
+  };
 }): () => void {
-  let active = true, leading = false, baseline = false, checking = false;
-  let cursor: string | null = null;
+  let active = true, leading = false;
   let countTimer: ReturnType<typeof setTimeout> | undefined;
+  const live = () => active && leading;
   const seen = new Set<string>();
   const refreshCount = () => { void options.loadOpenCount().then((count) => { if (active) options.onCount(count); }, () => {}); };
   const scheduleCount = () => {
@@ -206,40 +321,30 @@ export function startInquiryNotifier(options: {
     countTimer = setTimeout(() => { countTimer = undefined; refreshCount(); }, COUNT_DEBOUNCE_MS);
   };
   const announce = (inquiry: NewInquiry) => {
-    if (!active || !leading || seen.has(inquiry.id)) return;
+    if (!live() || seen.has(inquiry.id)) return;
     seen.add(inquiry.id);
     if (options.claim(inquiry.id)) options.notify(inquiry);
   };
-  const catchUp = async () => {
-    if (!active || !leading || checking) return;
-    checking = true;
-    try {
-      if (!baseline) {
-        const shared = options.cursor?.read() ?? null;
-        if (shared) { cursor = shared; baseline = true; }
-      }
-      const rows = await options.loadSince(baseline ? cursor : null);
-      if (!active || !leading || !rows) return;
-      if (!baseline) {
-        rows.forEach((row) => seen.add(row.id));
-        cursor = rows.at(-1)?.createdAt ?? new Date().toISOString();
-        baseline = true;
-      } else {
-        for (const row of rows) { announce(row); cursor = row.createdAt; }
-      }
-      if (cursor) options.cursor?.write(cursor);
-    } catch { /* The next interval retries. */ } finally { checking = false; }
-  };
+  const inquiryCatchUp = catchUpSource({ loadSince: options.loadSince, cursor: options.cursor }, seen, announce, live);
+  const questions = options.questions;
+  const questionSeen = new Set<string>();
+  const questionCatchUp = questions ? catchUpSource({ loadSince: questions.loadSince, cursor: questions.cursor }, questionSeen,
+    (question: NewProductQuestion) => {
+      if (!live() || questionSeen.has(question.id)) return;
+      questionSeen.add(question.id);
+      if (questions.claim(question.id)) questions.notify(question);
+    }, live) : null;
+  const catchUp = () => { void inquiryCatchUp(); if (questionCatchUp) void questionCatchUp(); };
   const stopRealtime = observeInquiryChanges(options.realtime, {
     onChange: (change) => {
       if (change.kind !== 'thread') return;
       scheduleCount();
       if (change.event === 'INSERT') announce({ id: change.inquiryId, title: change.title?.trim() || '고객문의가 접수되었습니다.' });
     },
-    onReady: () => { refreshCount(); void catchUp(); },
+    onReady: () => { refreshCount(); void inquiryCatchUp(); },
   });
-  const interval = setInterval(() => { refreshCount(); void catchUp(); }, CATCH_UP_MS);
-  const stopLeading = options.leader(() => { leading = true; void catchUp(); });
+  const interval = setInterval(() => { refreshCount(); catchUp(); }, CATCH_UP_MS);
+  const stopLeading = options.leader(() => { leading = true; catchUp(); });
   refreshCount();
   return () => {
     active = false; leading = false;
@@ -282,8 +387,39 @@ function useNotifierEffect(accountId: string, enabled: boolean, onCount: (count:
       claim: (inquiryId) => claimInquiryNotification(accountId, inquiryId),
       cursor: { read: () => readInquiryNotifierCursor(accountId), write: (value) => writeInquiryNotifierCursor(accountId, value) },
       leader: (onLead) => acquireInquiryNotifierLeadership(accountId, onLead),
+      questions: {
+        /* cs.manage 운영자는 RLS로 비밀글까지 읽는다. 알림 본문에는 상품명과 공개 질문 앞부분만 쓴다. */
+        loadSince: async (cursor) => {
+          const query = client.from('product_questions').select('id,body,is_secret,created_at,goods(name)');
+          const { data, error } = cursor
+            ? await query.gt('created_at', cursor).order('created_at', { ascending: true }).limit(20)
+            : await query.order('created_at', { ascending: false }).limit(1);
+          if (error || !Array.isArray(data)) return null;
+          return parseProductQuestionRows(data);
+        },
+        notify: (question) => {
+          if (!showProductQuestionNotification(question, () => openNotifiedProductQuestion(question.id, (href) => router.push(href)))) {
+            markInquiryNotificationsUnsupported(accountId);
+          }
+        },
+        claim: (questionId) => claimProductQuestionNotification(accountId, questionId),
+        cursor: { read: () => readProductQuestionNotifierCursor(accountId), write: (value) => writeProductQuestionNotifierCursor(accountId, value) },
+      },
     });
   }, [accountId, enabled, onCount, router]);
+}
+
+/** product_questions 행(상품명은 goods 관계)을 알림 입력으로 좁힌다. 모양이 다른 행은 버린다. */
+export function parseProductQuestionRows(rows: unknown[]): (NewProductQuestion & { createdAt: string })[] {
+  return rows.flatMap((value) => {
+    if (!value || typeof value !== 'object') return [];
+    const row = value as { id?: unknown; body?: unknown; is_secret?: unknown; created_at?: unknown; goods?: unknown };
+    if (typeof row.id !== 'string' || typeof row.body !== 'string' || typeof row.created_at !== 'string') return [];
+    const good = (Array.isArray(row.goods) ? row.goods[0] : row.goods) as { name?: unknown } | null | undefined;
+    /* 비밀글 여부를 읽지 못하면 비밀글로 본다(본문을 알림에 싣지 않는 쪽). */
+    return [{ id: row.id, body: row.body, secret: row.is_secret !== false, createdAt: row.created_at,
+      goodName: typeof good?.name === 'string' ? good.name : null }];
+  });
 }
 
 /** 커머스 콘솔 셸에 상시 마운트한다. 화면은 그리지 않는다(켜고 끄기는 업무 도구 '알림'의 설정). */
@@ -310,10 +446,10 @@ export function InquiryNotificationSettingsView({ support, enabled, message, bus
   const on = enabled && support === 'granted';
   const status = support === 'unsupported' ? INQUIRY_NOTIFICATION_UNSUPPORTED
     : support === 'denied' ? INQUIRY_NOTIFICATION_DENIED
-    : on ? '켜짐 · 이 기기의 이 계정에서 커머스 콘솔 탭이 하나라도 열려 있으면 새 1:1 문의를 PC 알림으로 알려 드리고, 탭 제목 앞에 미답변 수를 표시합니다. 탭을 모두 닫으면 알림이 오지 않습니다.'
-    : '꺼짐 · 켜면 새 1:1 문의가 올 때 PC 알림을 띄웁니다. 알림을 누르면 그 문의가 열립니다.';
-  return <section className="flex flex-col gap-2 rounded-lg border bg-muted/40 p-3" aria-label="새 1:1 문의 PC 알림">
-    <h3 className="text-sm font-medium text-foreground">새 1:1 문의 PC 알림</h3>
+    : on ? '켜짐 · 이 기기의 이 계정에서 커머스 콘솔 탭이 하나라도 열려 있으면 새 1:1 문의와 상품 문의를 PC 알림으로 알려 드리고, 탭 제목 앞에 미답변 1:1 문의 수를 표시합니다. 상품 문의는 1분마다 확인합니다. 탭을 모두 닫으면 알림이 오지 않습니다.'
+    : '꺼짐 · 켜면 새 1:1 문의와 상품 문의가 올 때 PC 알림을 띄웁니다. 알림을 누르면 그 문의가 열립니다.';
+  return <section className="flex flex-col gap-2 rounded-lg border bg-muted/40 p-3" aria-label={INQUIRY_NOTIFICATION_SETTINGS_TITLE}>
+    <h3 className="text-sm font-medium text-foreground">{INQUIRY_NOTIFICATION_SETTINGS_TITLE}</h3>
     <p className="text-xs leading-relaxed text-muted-foreground" role="status">{status}</p>
     {message && message !== status ? <p className="text-xs leading-relaxed text-muted-foreground" role="status">{message}</p> : null}
     <div className="flex gap-2">{on
