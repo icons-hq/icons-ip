@@ -117,3 +117,17 @@ it('혜택 등록 링크에 해당 등급을 전달한다', () => {
   expect(hrefs).toContain('/admin/sales/coupons/new?grade=gold');
   expect(hrefs).toContain('/admin/sales/coupons/new?grade=platinum');
 });
+/* QA1 MD: SILVER 줄은 쿠폰 줄(코드·상태·지급 방식)이 길어 '+ 혜택 쿠폰 등록'이 아래로 밀렸다 — 쿠폰이 있든 없든 모든 줄에서 같은 자리(오른쪽 위)에 둔다. */
+it('혜택 쿠폰 칸은 줄을 바꾸지 않고 등록 링크를 늘 오른쪽 위에 둔다', () => {
+  const withCoupon = { ...data, coupons: [{ code: 'QA-SILVER-MONTHLY', name: '실버 월간 3천원', grade: 'silver' as const, status: 'active', cadence: 'monthly' as const }] };
+  const cells = nodes(render(withCoupon)).filter(node => node.props['data-grade-coupon-cell'] !== undefined);
+  expect(cells).toHaveLength(3);
+  for (const cell of cells) {
+    expect(cell.props.className).toContain('justify-between');
+    expect(cell.props.className).not.toContain('flex-wrap');
+    const [list, link] = Children.toArray(cell.props.children as ReactNode) as Element[];
+    expect(String(list.props.className)).toContain('flex-1');
+    expect(String(link.props.className)).toContain('shrink-0');
+    expect(String(link.props.href)).toMatch(/^\/admin\/sales\/coupons\/new\?grade=/);
+  }
+});
