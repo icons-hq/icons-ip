@@ -7,6 +7,10 @@ export type GoodsOptionRow = {
   code: string;
   attributes: Record<string, string>;
   extraPrice: number;
+  /**
+   * 재고수량. 아직 입력하지 않은 새 재고 칸은 NaN이다(0901-015 — 새 상품·새 옵션은 빈 칸으로 시작하고, 0은 직접 입력해야 한다).
+   * 제출 JSON에서는 null이 되고, 서버 정규화(parseGoodsOptionRows)가 저장을 막는다.
+   */
   stockQty: number;
   expectedStockQty?: number;
   lowStockThreshold?: number | null;
@@ -30,7 +34,40 @@ export const GOODS_OPTION_AXIS_LIMIT = 3;
 export const GOODS_OPTION_ROW_LIMIT = 100;
 type Result = { ok: true; rows: GoodsOptionRow[] } | { ok: false; error: string };
 const INVALID = '옵션명·관리코드·ERP 식별자·옵션가·재고수량·안전재고·사용여부·옵션별 구매 제한(1 이상의 정수)을 확인해주세요. 옵션은 1~100개까지 저장할 수 있습니다.';
+/** 0901-015: 재고수량 칸을 비운 채로는 저장하지 않는다. 재고가 없으면 0을 직접 입력한다. 화면 검증과 서버 정규화가 같은 문구를 쓴다. */
+export const GOODS_OPTION_STOCK_REQUIRED = '재고수량을 입력해주세요. 재고가 없으면 0을 입력합니다.';
 const signature = (attributes: Record<string, string>) => JSON.stringify(Object.entries(attributes).sort(([a], [b]) => a.localeCompare(b)));
+
+/**
+ * 다른 상품 옵션 불러오기(goods-option-import)는 저장할 수 있는 옵션 행끼리 비교한다. 비운 재고 칸은 비교하는 동안만 0으로 본다.
+ * 적용 결과(`emptyNewGoodsOptionStock`)에서는 새로 더한 옵션과 원래 비어 있던 옵션의 재고 칸을 다시 비운다 — 0은 직접 입력해야 한다(0901-015).
+ */
+export function goodsOptionRowsForImport(rows: readonly GoodsOptionRow[]): GoodsOptionRow[] {
+  return rows.map((row) => Number.isFinite(row.stockQty) ? row : { ...row, stockQty: 0 });
+}
+export function emptyNewGoodsOptionStock(next: readonly GoodsOptionRow[], previous: readonly GoodsOptionRow[]): GoodsOptionRow[] {
+  const known = new Map(previous.map((row) => [goodsOptionRowKey(row), row]));
+  return next.map((row) => {
+    const before = known.get(goodsOptionRowKey(row));
+    return row.stockQty === 0 && (!before || !Number.isFinite(before.stockQty)) ? { ...row, stockQty: Number.NaN } : row;
+  });
+}
+
+/** 비어 있는(입력하지 않은) 재고 칸 수. 0은 입력한 값이다. */
+export function goodsOptionStockMissing(rows: readonly Pick<GoodsOptionRow, 'stockQty'>[]): number {
+  return rows.filter((row) => !Number.isFinite(row.stockQty)).length;
+}
+
+/** 서버에 온 옵션 행 JSON에서 재고를 비운 첫 행의 안내. 옵션이 여럿이면 어느 옵션인지 밝힌다. */
+function stockRequiredError(rows: readonly unknown[]): string | null {
+  const index = rows.findIndex((row) => Boolean(row) && typeof row === 'object' && ((row as { stockQty?: unknown }).stockQty === null || (row as { stockQty?: unknown }).stockQty === undefined));
+  if (index < 0) return null;
+  const row = rows[index] as { name?: unknown; attributes?: unknown };
+  const single = rows.length === 1 && (!row.attributes || typeof row.attributes !== 'object' || !Object.keys(row.attributes).length);
+  if (single) return GOODS_OPTION_STOCK_REQUIRED;
+  const name = typeof row.name === 'string' ? row.name.trim() : '';
+  return `옵션 ${index + 1}${name ? `(${name})` : ''}: ${GOODS_OPTION_STOCK_REQUIRED}`;
+}
 export function generateGoodsOptionRows(axes: GoodsOptionAxis[], previous: GoodsOptionRow[]): Result {
   if (axes.length < 1 || axes.length > GOODS_OPTION_AXIS_LIMIT) return { ok: false, error: `옵션명은 1~${GOODS_OPTION_AXIS_LIMIT}개 입력해주세요.` };
   const normalized = axes.map((axis) => ({ name: axis.name.trim(), values: [...new Set(axis.values.split(/[,\n]/).map((value) => value.trim()).filter(Boolean))] }));
@@ -39,8 +76,9 @@ export function generateGoodsOptionRows(axes: GoodsOptionAxis[], previous: Goods
   if (normalized.reduce((count, axis) => count * axis.values.length, 1) > GOODS_OPTION_ROW_LIMIT) return { ok: false, error: `옵션은 최대 ${GOODS_OPTION_ROW_LIMIT}개까지 만들 수 있습니다. 옵션값을 줄여주세요.` };
   let combinations: Record<string, string>[] = [{}];
   for (const axis of normalized) combinations = combinations.flatMap((values) => axis.values.map((value) => ({ ...values, [axis.name]: value })));
+  /* 새 조합의 재고 칸은 비워 둔다(0901-015). 이미 있던 조합은 입력값을 그대로 둔다. */
   return { ok: true, rows: combinations.map((attributes) => previous.find((row) => signature(row.attributes) === signature(attributes))
-    ?? { name: Object.values(attributes).join(' / '), code: '', attributes, extraPrice: 0, stockQty: 0 }) };
+    ?? { name: Object.values(attributes).join(' / '), code: '', attributes, extraPrice: 0, stockQty: Number.NaN }) };
 }
 export function initialGoodsOptionRows(variants: (AdminGoodsVariant & GoodsVariantPurchaseLimits)[], basePrice: number): GoodsOptionRow[] {
   const rows = variants.filter((variant) => !variant.archivedAt || variant.isDefault)
@@ -52,13 +90,17 @@ export function initialGoodsOptionRows(variants: (AdminGoodsVariant & GoodsVaria
     externalUpdatedAt: variant.externalUpdatedAt ?? null,
     ...Object.fromEntries(GOODS_OPTION_LIMIT_KEYS.filter((key) => variant[key] !== undefined).map((key) => [key, variant[key]])),
   }));
-  return rows.length ? rows : [{ name: '기본 옵션', code: '', attributes: {}, extraPrice: 0, stockQty: 0,
+  /* 새 상품의 기본 옵션 재고 칸은 빈 값으로 시작한다(0901-015). */
+  return rows.length ? rows : [{ name: '기본 옵션', code: '', attributes: {}, extraPrice: 0, stockQty: Number.NaN,
     erpCode: null, erpName: null, barcode: null, externalUpdatedAt: null }];
 }
 export function parseGoodsOptionRows(raw: string, basePrice: number): Result {
   try {
     const rows: unknown = JSON.parse(raw);
     if (!Array.isArray(rows) || rows.length < 1 || rows.length > GOODS_OPTION_ROW_LIMIT) throw new Error();
+    /* 0901-015 서버 정규화: 비운 재고 칸은 0으로 바꾸지 않고 저장을 막는다. */
+    const missingStock = stockRequiredError(rows);
+    if (missingStock) return { ok: false, error: missingStock };
     const ids = new Set<string>(); const combinations = new Set<string>(); const codes = new Set<string>();
     for (const row of rows) {
       if (!row || typeof row !== 'object' || typeof row.name !== 'string' || !row.name.trim() || row.name.length > 200
@@ -86,19 +128,24 @@ export function parseGoodsOptionRows(raw: string, basePrice: number): Result {
   } catch { return { ok: false, error: INVALID }; }
 }
 
-/** Rendering a failed submission must preserve editable invalid values too. SQL/action validation remains strict. */
+/**
+ * Rendering a failed submission must preserve editable invalid values too. SQL/action validation remains strict.
+ * 비운 재고 칸(JSON null)은 다시 빈 칸(NaN)으로 되살린다 — 실패·자동복구·임시저장 뒤에도 0으로 바뀌지 않는다(0901-015).
+ */
 export function restoreGoodsOptionRows(raw?: string): GoodsOptionRow[] | null {
   if (!raw) return null;
   try {
     const rows: unknown = JSON.parse(raw);
     return Array.isArray(rows) && rows.length > 0 && rows.length <= 100 && rows.every((row) => row && typeof row === 'object'
       && typeof row.name === 'string' && typeof row.code === 'string' && typeof row.extraPrice === 'number'
-      && typeof row.stockQty === 'number' && row.attributes && typeof row.attributes === 'object' && !Array.isArray(row.attributes)
+      && (typeof row.stockQty === 'number' || row.stockQty === null) && row.attributes && typeof row.attributes === 'object' && !Array.isArray(row.attributes)
       && GOODS_OPTION_LIMIT_KEYS.every((key) => row[key] === undefined || row[key] === null || typeof row[key] === 'number')
       && validExternalText(row.erpCode, GOODS_VARIANT_EXTERNAL_IDENTITY_LIMITS.erpCode)
       && validExternalText(row.erpName, GOODS_VARIANT_EXTERNAL_IDENTITY_LIMITS.erpName)
       && validExternalText(row.barcode, GOODS_VARIANT_EXTERNAL_IDENTITY_LIMITS.barcode)
-      && validExternalUpdatedAt(row.externalUpdatedAt)) ? rows : null;
+      && validExternalUpdatedAt(row.externalUpdatedAt))
+      ? rows.map((row: GoodsOptionRow | (Omit<GoodsOptionRow, 'stockQty'> & { stockQty: null })) => row.stockQty === null ? { ...row, stockQty: Number.NaN } : row as GoodsOptionRow)
+      : null;
   } catch { return null; }
 }
 
@@ -252,6 +299,18 @@ export function goodsOptionCollapseNotice(rows: readonly GoodsOptionRow[]): stri
     + (first?.isActive === false ? ' 첫 옵션은 사용 중지 상태라 사용으로 바꿉니다. 판매를 멈추려면 기본 정보의 운영 상태를 판매 중지로 바꿔주세요.' : '')
     + (removed ? ` 나머지 옵션 ${removed}개는 옵션목록에서 빠지고, 주문·장바구니에 쓰인 옵션은 저장할 때 삭제 대신 보관됩니다.` : '')
     + ' 계속할까요?';
+}
+
+/**
+ * 1007-045(11/11 결정 "빈 칸 자동"): ERP 품목을 고를 때 판매가 칸이 비어 있으면 그 품목의 ERP 판매가를 판매가에 넣는다.
+ * 0원을 직접 입력한 칸은 값으로 보고 건드리지 않는다 — 값이 있으면 지금처럼 [ERP 판매가 적용] 버튼만 둔다.
+ * 옵션이 여럿이면 판매가는 옵션가의 기준이라 그 옵션에 옵션가가 없을 때만 채운다. ERP 판매가가 0원이면 0원 판매가 되지 않게 채우지 않는다.
+ */
+export function shouldAutoFillErpSalePrice({ salePrice, regularPrice, single, extraPrice }: {
+  salePrice: number | null | undefined; regularPrice: string | undefined; single: boolean; extraPrice: number;
+}): boolean {
+  return typeof salePrice === 'number' && Number.isSafeInteger(salePrice) && salePrice > 0
+    && (regularPrice ?? '').trim() === '' && (single || extraPrice === 0);
 }
 
 /** ERP 품목을 명시적으로 고르면 품명·품번을 덮어쓰고, 비어 있는 바코드만 채운다. */

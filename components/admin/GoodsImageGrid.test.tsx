@@ -6,12 +6,13 @@ vi.mock('@/lib/admin/artwork-upload.client', () => ({ uploadAdminArtwork: vi.fn(
 
 const path = (name: string) => `public-media/catalog/good/${name}.webp`;
 
-function render(paths: string[], errors: Record<string, string> = {}) {
+function render(paths: string[], errors: Record<string, string> = {}, mainRemovable = false) {
   return renderToStaticMarkup(<GoodsImageGrid
     errors={errors}
     initialPaths={paths.map((name) => name && path(name))}
     initialUrls={paths.map((name) => name && `https://cdn.example/${name}.webp`)}
     onPreviewChange={() => undefined}
+    mainRemovable={mainRemovable}
   />);
 }
 
@@ -51,6 +52,28 @@ describe('상품 이미지 썸네일 그리드', () => {
     expect(html).toContain('aria-label="추가 이미지 2 순서 바꾸기 손잡이 (끌거나 ←·→ 키)"');
     expect(html).not.toContain('aria-label="대표 이미지 순서 바꾸기');
     expect(html).toMatch(/<button aria-keyshortcuts="ArrowLeft ArrowRight" aria-label="추가 이미지 1 순서 바꾸기 손잡이[^"]*" class="[^"]*" data-image-handle="" type="button"><svg aria-hidden="true"/);
+  });
+
+  /* 1007-055(11/11 결정): 초안 상품은 저장된 대표 이미지도 ×로 지운다. 공개 중이면 대표 이미지가 공개 조건이라 교체만 한다. */
+  it('초안 상품은 저장된 대표 이미지에도 ×가 있고, 공개 중인 상품은 교체만 한다고 알린다', () => {
+    const draft = render(['main', 'a', '', '', ''], {}, true);
+    expect(draft).toMatch(/<button aria-label="대표 이미지 삭제"[^>]*data-image-remove=""/);
+    expect(draft).toContain('aria-label="추가 이미지 1 삭제"');
+    expect(draft).not.toContain('공개 중 교체만');
+    const published = render(['main', 'a', '', '', '']);
+    expect(published).not.toContain('aria-label="대표 이미지 삭제"');
+    expect(published).toContain('공개 필수 · 공개 중 교체만');
+    /* 대표 이미지가 없으면 지울 것이 없다. */
+    expect(render(['', 'a', '', '', ''], {}, true)).not.toContain('aria-label="대표 이미지 삭제"');
+  });
+
+  /* ADM-004(복잡도 표 160행): 조작 안내는 접어 두고, 비율·파일 규격 안내는 입력 설명으로 계속 보인다. */
+  it('이미지 조작 안내는 접힌 도움말이고 비율·규격 안내는 펼쳐 둔다', () => {
+    const html = render(['main', 'a', '', '', '']);
+    const guide = html.match(/<details[^>]*data-good-image-guide=""[^>]*>/)?.[0] ?? '';
+    expect(guide).not.toBe('');
+    expect(guide).not.toContain('open=""');
+    expect(html.indexOf('data-good-image-guide')).toBeGreaterThan(html.indexOf('id="goods-image-upload-guidance"'));
   });
 
   /* 리뷰 재현: 추가 이미지는 끌기 때문에 무엇이 상세의 어디에 나오는지 안내한다 — 상세페이지 HTML 본문과 헷갈리지 않게. */

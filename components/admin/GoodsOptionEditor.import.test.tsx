@@ -28,7 +28,10 @@ it('불러온 행·세 축·옵션 사용 상태를 같이 바꾸고 전체 초�
   const apply = dialog.props.onApply as (plan: GoodsOptionImportPlan, fingerprint: string) => boolean;
   expect(apply(planned.plan, 'stale')).toBe(false); expect(applied).not.toHaveBeenCalled();
   expect(apply(planned.plan, dialog.props.fingerprint as string)).toBe(true);
-  expect(rows[0]).toMatchObject({ attributes: { 색상: '빨강', 크기: 'M', 포장: '기본' }, stockQty: 0 }); expect(applied).toHaveBeenCalledOnce();
+  expect(rows[0]).toMatchObject({ attributes: { 색상: '빨강', 크기: 'M', 포장: '기본' } }); expect(applied).toHaveBeenCalledOnce();
+  /* 0901-015: 불러온 새 옵션의 재고 칸은 0을 미리 채우지 않고 비운다. 재고를 입력해야 저장된다. */
+  expect(Number.isNaN(rows[0].stockQty)).toBe(true);
+  expect(text(render())).toContain('새 옵션 1개는 재고수량을 입력한 뒤 상품을 저장해야 반영됩니다.');
   const tree = render(), inputs = nodes(tree).find(node => Array.isArray(node.props.axes))!;
   expect(inputs.props.axes).toEqual([{ name: '색상', values: '빨강' }, { name: '크기', values: 'M' }, { name: '포장', values: '기본' }]);
   expect(nodes(tree).find(node => node.type === 'input' && node.props.name === 'optionUsage' && node.props.value === 'on')!.props.checked).toBe(true);

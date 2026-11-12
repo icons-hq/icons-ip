@@ -123,7 +123,9 @@ export function buildGoodEditorPreview({ values, imageUrls, selected, catalogIps
       cs: { name: notice.csName, phone: notice.csPhone, email: notice.csEmail } } : {}),
   } : null;
   const ip = catalogIps.find(ip => ip.id === values.ipId) ?? null;
-  const preview = buildGoodPreview({ fallbackBg: selected?.bg ?? null, imageUrls, ip, stockQty: selected?.stockQty ?? 0, values, kcDisclosures:selected?.kcDisclosures });
+  /* S36-051: 랜덤 판매 상품은 공개 상세처럼 옵션을 '랜덤' 한 줄로 접고 랜덤 안내를 보인다. 판매 방식은 저장된 값이다(별도 저장 패널). */
+  const preview = buildGoodPreview({ fallbackBg: selected?.bg ?? null, imageUrls, ip, stockQty: selected?.stockQty ?? 0, values, kcDisclosures:selected?.kcDisclosures,
+    optionSaleMode: selected?.optionSaleMode === 'random' ? 'random' : 'select' });
   const basePrice = preview.good.catalogPrice ?? preview.good.price;
   const compare = Number(values.compareAtPrice);
   const compareAtPrice = Number.isInteger(compare) && compare > basePrice ? compare : null;

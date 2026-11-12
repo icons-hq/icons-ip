@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { Ip } from '@/lib/data';
 import { buildGoodPreview, goodFormValues } from './good-preview';
 import { parseGoodsKcDisclosures } from '@/lib/goods-kc';
+import { goodOptionPurchaseNotices } from '@/lib/goods-options';
+import { RANDOM_OPTION_LABEL, RANDOM_OPTION_NOTICE } from '@/lib/goods-option-sale-mode';
 
 const ip: Ip = {
   id: 'hong-sil-quest',
@@ -61,6 +63,31 @@ describe('어드민 굿즈 미리보기', () => {
       { name: '빨강 / M', price: 1000, stockQty: 3, isDefault: false },
     ] });
   });
+  /* S36-051 — 미리보기는 공개 상세와 같다: 랜덤 판매 상품은 판매 중인 옵션을 '랜덤' 한 줄(풀 합계)로 접고 랜덤 안내를 보인다. */
+  it('랜덤 판매 상품은 공개 상세처럼 옵션을 랜덤 한 줄로 접고 같은 옵션 배정 상한 안내까지 같게 보인다', () => {
+    const variants = JSON.stringify([
+      { name: '기훈', code: 'K', attributes: { 종류: '기훈' }, extraPrice: 0, stockQty: 2, orderMaxQty: 1, memberMaxQty: 2 },
+      { name: '홍실', code: 'H', attributes: { 종류: '홍실' }, extraPrice: 0, stockQty: 3, orderMaxQty: 1, memberMaxQty: 2 },
+      { name: '무영', code: 'M', attributes: { 종류: '무영' }, extraPrice: 0, stockQty: 9, isActive: false, orderMaxQty: 1, memberMaxQty: 2 },
+    ]);
+    const input = { values: { ...values, price: '15000', variants }, imageUrls: {}, ip, fallbackBg: null, stockQty: 0 };
+    const random = buildGoodPreview({ ...input, optionSaleMode: 'random' });
+    expect(random.good.optionSaleMode).toBe('random');
+    expect(random.good.options).toEqual([expect.objectContaining({ name: RANDOM_OPTION_LABEL, price: 15000, stockQty: 5, isDefault: true, attributes: {}, randomAllocationLimit: { orderMaxQty: 1, memberMaxQty: 2 } })]);
+    expect(random.good.stockQty).toBe(5);
+    expect(goodOptionPurchaseNotices(random.good, random.good.options![0])).toEqual([RANDOM_OPTION_NOTICE, '같은 옵션은 한 번에 1개, 1인당 2개까지 배정됩니다.']);
+    /* 일반 판매는 지금처럼 옵션 행을 그대로 보인다. */
+    const select = buildGoodPreview({ ...input, optionSaleMode: 'select' });
+    expect(select.good.optionSaleMode).toBeUndefined();
+    expect(select.good.options?.map((option) => option.name)).toEqual(['기훈', '홍실']);
+  });
+
+  /* 0901-015 — 비운 재고 칸(NaN)은 미리보기에서 0개(품절)로 본다. */
+  it('비운 재고 칸은 미리보기 재고를 깨지 않고 0개로 센다', () => {
+    const preview = buildGoodPreview({ values: { ...values, variants: JSON.stringify([{ name: '기본 옵션', code: '', attributes: {}, extraPrice: 0, stockQty: null }]) }, imageUrls: {}, ip, fallbackBg: null, stockQty: 7 });
+    expect(preview.good).toMatchObject({ stockQty: 0, stock: 'soldout' });
+  });
+
   /* #184 — 저장된 값이 아니라 지금 폼에 들어 있는 값을 그린다. */
   it('폼 값과 업로드 전 이미지를 공개 화면 모양으로 옮긴다', () => {
     const preview = buildGoodPreview({

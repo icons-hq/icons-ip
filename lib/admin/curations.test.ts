@@ -363,7 +363,8 @@ describe('admin curation form normalization', () => {
     });
   });
 
-  it('BEST 탭은 슬롯과 상품 ID 를 둘 다 요구한다', () => {
+  /* 1007-054: 오류 문구는 그 칸의 화면 라벨('상품 모음 위치')로 말한다 — '슬롯'은 운영자에게 생소한 말이다. */
+  it('BEST 탭은 상품 모음 위치와 상품 ID 를 둘 다 요구한다', () => {
     expect(normalizeAdminCurationForm(curationForm({
       kind: 'best_tab',
       imagePath: '',
@@ -372,7 +373,7 @@ describe('admin curation form normalization', () => {
     }))).toEqual({
       ok: false,
       errors: {
-        slot: '탭 슬롯을 선택해주세요.',
+        slot: '상품 모음 위치를 선택해주세요.',
         goodIds: '상품 ID 를 1개 이상 등록해주세요.',
       },
     });
