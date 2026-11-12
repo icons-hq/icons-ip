@@ -57,6 +57,26 @@ describe('ReviewComposer — 리뷰 등록 = 구매확정 (1014-079)', () => {
     expect(html).not.toContain('confirmPurchase');
     expect(html).toContain('리뷰 등록');
     expect(html).not.toContain('리뷰 등록하고 구매확정');
+    /* 확정을 겸하지 않는 등록은 리뷰 작성만으로 주는 혜택이 정말 없다. */
+    expect(html).toContain('리뷰 작성만으로 혜택이 지급되지는 않으며');
+  });
+
+  /* 확정을 겸하는 등록은 구매확정 적립금이 함께 지급된다. 같은 화면의 리뷰이벤트 배너('선정 시 적립금')와도
+     어긋나지 않게, 리뷰 작성 자체의 혜택·구매확정 적립금·이벤트 선정 혜택을 나눠 말한다. */
+  it('확정을 겸하면 혜택 문장이 구매확정 적립금을 따로 말하고 이벤트 배너와 어긋나지 않는다', () => {
+    const event = {
+      id: 'event-1', title: 'TEST 리뷰 이벤트', description: 'TEST 이벤트 내용', creditAmount: 3000, plannedWinners: 10,
+      startsOn: '2026-11-01', endsOn: '2026-11-30', announcesOn: '2026-12-05', bannerStyle: 'basic',
+    } as unknown as import('@/lib/review-events').PublicReviewEvent;
+    const reviewEvents = { rows: [{ goodId: 'g13', event }], nextChangeAt: null } as unknown as import('@/lib/review-events').GoodsReviewEvents;
+    const html = renderToStaticMarkup(<ReviewComposer mode="create" now={NOW} reviewEvents={reviewEvents}
+      target={target({ purchaseConfirmation: { required: true, block: null, holdReason: null } })} />);
+
+    expect(html).toContain('선정 시 적립금');
+    expect(html).toContain('구매확정 적립금은 리뷰 등록 여부·내용과 관계없이 같은 기준으로 지급됩니다.');
+    expect(html).toContain('리뷰 작성 자체에 대한 혜택은 없습니다. 구매확정 적립금은 리뷰 없이 [구매확정]이나 자동 구매확정으로도 똑같이 지급됩니다.');
+    expect(html).not.toContain('리뷰 작성만으로 혜택이 지급되지는 않으며');
+    expect(html).not.toMatch(/(?<!구매확정 )적립금은 리뷰 내용과 관계없이/);
   });
 
   /* 반품 진행 중 주문은 구매확정할 수 없어 리뷰도 막는다. 폼을 숨기는 대신 이유를 말한다. */

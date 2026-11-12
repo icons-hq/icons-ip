@@ -9,7 +9,10 @@ import { isUuid } from './uuid';
 /** [구매확정] 패널(components/orders/PurchaseConfirmationPanel.tsx)과 같은 안내 문장 — 패널 문장이 바뀌면 테스트가 알린다. */
 export const PURCHASE_CONFIRMATION_NOTICE = '구매확정 시 주문 당시 정책에 따라 적립금을 지급합니다. 구매확정 이후에도 반품·교환은 별도 신청 자격과 기한을 적용합니다.';
 export const REVIEW_CONFIRMATION_HEADING = '리뷰를 등록하면 구매확정됩니다';
-export const REVIEW_CONFIRMATION_CREDIT_NOTE = '적립금은 리뷰 내용과 관계없이 구매확정에 따라 지급됩니다.';
+/** 어떤 적립금인지 한정한다. 리뷰이벤트 선정 적립금(배너)과 섞이지 않게 '구매확정 적립금'으로만 말한다. */
+export const REVIEW_CONFIRMATION_CREDIT_NOTE = '구매확정 적립금은 리뷰 등록 여부·내용과 관계없이 같은 기준으로 지급됩니다.';
+/** 리뷰 등록이 구매확정을 겸할 때의 혜택 고지. 리뷰 작성 자체의 혜택은 없고, 구매확정 적립금은 리뷰 없이도 같다. */
+export const REVIEW_BENEFIT_NOTE = '리뷰 작성 자체에 대한 혜택은 없습니다. 구매확정 적립금은 리뷰 없이 [구매확정]이나 자동 구매확정으로도 똑같이 지급됩니다.';
 export const REVIEW_CONFIRMATION_ACK_LABEL = '받은 굿즈와 구매확정 내용을 확인했습니다.';
 export const REVIEW_CONFIRMATION_SUBMIT_LABEL = '리뷰 등록하고 구매확정';
 /** 리뷰 목록의 작성 가능 카드에 붙는 한 줄. */

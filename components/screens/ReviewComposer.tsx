@@ -25,6 +25,7 @@ import {
 } from '@/lib/reviews';
 import {
   PURCHASE_CONFIRMATION_NOTICE,
+  REVIEW_BENEFIT_NOTE,
   REVIEW_CONFIRMATION_ACK_LABEL,
   REVIEW_CONFIRMATION_CREDIT_NOTE,
   REVIEW_CONFIRMATION_FIELD,
@@ -218,9 +219,10 @@ export function ReviewComposer({
             <div aria-labelledby="review-purchase-confirmation-heading" className="wc-mypage__notice" role="group">
               <strong id="review-purchase-confirmation-heading">{REVIEW_CONFIRMATION_HEADING}</strong>
               <span>{PURCHASE_CONFIRMATION_NOTICE}</span>
-              <span>
-                {REVIEW_CONFIRMATION_CREDIT_NOTE} 리뷰 없이 구매확정만 하려면{' '}
-                <Link href={orderHref}>주문 상세</Link>에서 [구매확정]을 누르세요.
+              <span>{REVIEW_CONFIRMATION_CREDIT_NOTE}</span>
+              {/* 기존 힌트 링크 스타일(밑줄)로 주문 상세 링크가 본문과 구별되게 한다. */}
+              <span className="wc-mypage__hint">
+                리뷰 없이 구매확정만 하려면 <Link href={orderHref}>주문 상세</Link>에서 [구매확정]을 누르세요.
               </span>
               <label className="wc-mypage__check">
                 <input name={REVIEW_CONFIRMATION_FIELD} required type="checkbox" value="on" />
@@ -243,8 +245,13 @@ export function ReviewComposer({
           </div>
 
           <p className="wc-mypage__note">
-            등록한 리뷰는 굿즈 상세에 닉네임과 함께 공개됩니다. 리뷰 작성만으로 혜택이 지급되지는 않으며, 진행 중인 리뷰이벤트의 선정 혜택은 별도 안내를 확인해주세요.
-            개인정보나 타인을 비방하는 내용은 운영 정책에 따라 비공개 처리될 수 있습니다.
+            {/* 리뷰 등록이 구매확정을 겸하면 구매확정 적립금이 함께 지급된다. 그때 '혜택 없음'을 그대로 두면 사실과 어긋나므로
+                리뷰 작성 자체의 혜택과 구매확정 적립금을 나눠 말한다. 리뷰이벤트 선정 혜택은 배너와 같은 별도 안내다. */}
+            등록한 리뷰는 굿즈 상세에 닉네임과 함께 공개됩니다.{' '}
+            {needsConfirmation
+              ? `${REVIEW_BENEFIT_NOTE} 진행 중인 리뷰이벤트의 선정 혜택은 별도 안내를 확인해주세요.`
+              : '리뷰 작성만으로 혜택이 지급되지는 않으며, 진행 중인 리뷰이벤트의 선정 혜택은 별도 안내를 확인해주세요.'}
+            {' '}개인정보나 타인을 비방하는 내용은 운영 정책에 따라 비공개 처리될 수 있습니다.
           </p>
         </form>
       )}

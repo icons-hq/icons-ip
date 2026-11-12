@@ -15,7 +15,7 @@ import { ReviewDeleteButton } from './ReviewDeleteButton';
 import { ReviewEventBanner } from '@/components/reviews/ReviewEventBanner';
 import { ScheduledHomeRefresh } from '@/components/home/ScheduledHomeRefresh';
 import type { GoodsReviewEvents, MyReviewEventEntry, PublicReviewEvent } from '@/lib/review-events';
-import { REVIEW_CONFIRMATION_LIST_HINT, reviewConfirmationBlockMessage } from '@/lib/review-purchase-confirmation';
+import { REVIEW_BENEFIT_NOTE, REVIEW_CONFIRMATION_LIST_HINT, reviewConfirmationBlockMessage } from '@/lib/review-purchase-confirmation';
 
 /* 내 리뷰(#254).
  *
@@ -193,7 +193,7 @@ export function MyReviews({
       </div>
       <p className="wc-mypage__lede">
         배송이 완료된 굿즈에 별점과 후기를 남길 수 있습니다. 일반 리뷰는 주문·굿즈당 한 번, 배송완료 후 {REVIEW_WINDOW_DAYS}일까지입니다. 한달사용 리뷰는 별도로 안내된 기간에 한 번 작성할 수 있습니다.
-        리뷰 작성만으로 혜택이 지급되지는 않으며, 진행 중인 리뷰이벤트의 선정 혜택은 별도 안내를 확인해주세요.
+        아직 구매확정하지 않은 주문은 리뷰를 등록하면 함께 구매확정됩니다. {REVIEW_BENEFIT_NOTE} 진행 중인 리뷰이벤트의 선정 혜택은 별도 안내를 확인해주세요.
       </p>
       {reviewEvents?.nextChangeAt ? <ScheduledHomeRefresh at={reviewEvents.nextChangeAt} /> : null}
       {reviewEvents?.unavailable || eventEntries?.unavailable ? <p className="wc-mypage__hint" role="status">리뷰이벤트 응모·혜택 상태를 불러오지 못했습니다. 잠시 후 다시 확인해주세요.</p> : null}
