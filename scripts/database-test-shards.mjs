@@ -129,6 +129,7 @@ const storefront = [
   sql('cs_reply_read_transaction_mode', { admin: true }),
   script('cs_single_reply_concurrency.sh', 'CS_SINGLE_REPLY_TEST_SCOPE'),
   sql('product_question_secret'),
+  sql('faq_widget_topics'),
   run(
     'inquiry_satisfaction_regression.py',
     `python3 -B supabase/tests/inquiry_satisfaction_regression.py --container ${databaseContainer} --scope ci --output-dir output/inquiry-satisfaction-regression`,

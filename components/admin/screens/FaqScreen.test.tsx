@@ -36,4 +36,22 @@ describe('FAQ 운영 화면', () => {
     /* 등록·수정·삭제는 각자의 폼을 제출한다(kit Button은 type을 주지 않으면 button이 된다). */
     for (const label of ['FAQ 등록', 'FAQ 수정 저장', '삭제 확정']) expect(html).toMatch(new RegExp(`<button(?=[^>]*type="submit")[^>]*>${label}</button>`));
   });
+
+  /* 0901-044: 고객 상담 위젯의 FAQ 위 유형 버튼이 보여 줄 대표 답변을 FAQ마다 지정하고, 화면 머리에서 지금 상태를 본다. */
+  it('상담 위젯 버튼 답변을 요약하고 FAQ마다 버튼을 지정한다', () => {
+    const entry = { id: 'faq-1', category: 'order', question: '배송은 언제 오나요?', answer: '주문 상세', sortOrder: 0, published: true, updatedAt: '2026-11-12T00:00:00Z', widgetTopic: 'delivery' } as const;
+    const html = renderToStaticMarkup(<FaqScreen data={{ total: 1, filters: normalizeFaqFilters({}), entries: [entry],
+      widgetTopics: [{ topic: 'delivery', id: 'faq-1', question: '배송은 언제 오나요?', published: true }, { topic: 'return', id: 'faq-9', question: '교환 초안', published: false }] }} />);
+    const summary = html.slice(html.indexOf('data-faq-widget-topics'), html.indexOf('</section>', html.indexOf('data-faq-widget-topics')));
+    expect(summary).toContain('상담 위젯 버튼 답변');
+    expect(summary).toMatch(/<dt[^>]*>배송 언제 오나요<\/dt><dd[^>]*><span[^>]*>배송은 언제 오나요\?<\/span><\/dd>/);
+    expect(summary).toMatch(/<dt[^>]*>취소<\/dt><dd[^>]*><span[^>]*>지정 안 함 · 취소\/반품\/교환 카테고리의 공개 FAQ 목록<\/span><\/dd>/);
+    expect(summary).toMatch(/교환 초안<\/span><span[^>]*data-tone="neutral"[^>]*>비공개 · 목록이 대신 보임/);
+    expect(html.indexOf('상담 위젯 버튼 답변')).toBeLessThan(html.indexOf('action="/admin/cs/faq"'));
+    expect(html).toMatch(/<strong[^>]*>배송은 언제 오나요\?<\/strong><span[^>]*data-faq-widget-topic="delivery"[^>]*>위젯 버튼 · 배송 언제 오나요<\/span>/);
+    expect(html).toContain('name="widgetTopic"');
+    expect(html).toMatch(/<option value="delivery" selected="">배송 언제 오나요<\/option>/);
+    expect(html).toMatch(/<option value="">지정 안 함<\/option>/);
+    expect(html).toContain('버튼마다 하나만 지정되며, 다른 FAQ에 지정돼 있었다면 이 FAQ로 바뀝니다.');
+  });
 });

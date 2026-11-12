@@ -12,7 +12,7 @@ import { OverlayPortal } from '@/components/shell/OverlayPortal';
 import { useOverlayA11y } from '@/components/shell/useOverlayA11y';
 import { WcButton } from '@/components/wc/WcButton';
 import { isStandaloneShellPath } from '@/lib/routes';
-import type { FaqEntry } from '@/lib/faq';
+import { FAQ_WIDGET_TOPICS, type FaqEntry, type FaqWidgetTopic, type FaqWidgetTopicAnswer } from '@/lib/faq';
 import { formatInquiryDateTime, INQUIRY_CATEGORIES, INQUIRY_IMAGE_ACCEPT, INQUIRY_STATUS_LABELS, MAX_INQUIRY_BODY_LENGTH,
   MAX_INQUIRY_IMAGES, MAX_INQUIRY_TITLE_LENGTH, type InquiryCategory } from '@/lib/inquiries';
 import type { InquiryListItem, InquiryThreadView } from '@/lib/inquiries.server';
@@ -24,6 +24,67 @@ import { FaqSuggestionList } from './FaqSuggestions';
 const EMPTY: InquiryActionState = {};
 type WidgetView = 'faq' | 'list' | 'new' | 'thread';
 interface WidgetData { userId: string; inquiries?: InquiryListItem[]; inquiry?: InquiryThreadView; error?: string }
+
+/*
+ * 버튼형 자주 묻는 질문(0901-044). FAQ 위 유형 버튼을 누르면 운영자가 FAQ 관리에서 지정한 대표 답을 바로 보이고,
+ * 지정이 없으면 그 유형 카테고리의 공개 FAQ 목록을 보인다. 답변 문구는 운영 FAQ가 정본이고, 아래 기본 안내는
+ * 공개 FAQ가 하나도 없을 때만 쓴다. 내 주문 배송 조회 바로가기는 로그인 고객에게만 열고, 비로그인은 로그인 안내다.
+ */
+const WIDGET_TOPIC_DEFAULT_ANSWERS: Record<FaqWidgetTopic, string> = {
+  delivery: '주문한 굿즈의 배송 상태는 내 주문에서 확인할 수 있습니다.',
+  cancel: '주문 취소는 내 주문의 주문 상세에서 요청할 수 있습니다.',
+  return: '교환·반품은 내 주문의 주문 상세에서 요청할 수 있습니다.',
+};
+const ORDERS_HREF = '/orders';
+const ORDERS_LOGIN_HREF = `/login?next=${encodeURIComponent(ORDERS_HREF)}`;
+
+export function WidgetFaqTopicAnswer({ topic, answer, error, signedIn, onNavigate }: {
+  topic: FaqWidgetTopic; answer?: FaqWidgetTopicAnswer; error?: string; signedIn: boolean; onNavigate: () => void;
+}) {
+  return <div className="wc-inquiry-widget__topic-answer" data-topic={topic}>
+    {/* 바깥 영역이 aria-live라 안쪽 문구에는 role을 겹치지 않는다. */}
+    {error ? <p>{error}</p>
+      : !answer ? <p>답변을 불러오는 중입니다.</p>
+        : answer.entry ? <><h4>{answer.entry.question}</h4><p className="wc-inquiry-widget__topic-text">{answer.entry.answer}</p></>
+          : answer.entries.length ? <FaqSuggestionList entries={answer.entries} />
+            : <p className="wc-inquiry-widget__topic-text">{WIDGET_TOPIC_DEFAULT_ANSWERS[topic]}</p>}
+    {signedIn
+      ? <Link className="wc-inquiry-widget__topic-link" href={ORDERS_HREF} onClick={onNavigate}>내 주문 배송 조회</Link>
+      : <p className="wc-inquiry-widget__topic-login">내 주문 배송 조회는 로그인 후 이용할 수 있습니다. <Link href={ORDERS_LOGIN_HREF} onClick={onNavigate}>로그인하고 배송 조회</Link></p>}
+  </div>;
+}
+
+export function WidgetFaqTopics({ signedIn, onNavigate, initialTopic = null }: { signedIn: boolean; onNavigate: () => void; initialTopic?: FaqWidgetTopic | null }) {
+  const [topic, setTopic] = useState<FaqWidgetTopic | null>(initialTopic);
+  const [result, setResult] = useState<{ topic: FaqWidgetTopic; answer?: FaqWidgetTopicAnswer; error?: string }>();
+  useEffect(() => {
+    if (!topic) return;
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const response = await fetch(`/api/help?topic=${topic}`, { signal: controller.signal });
+        if (!response.ok) throw new Error('faq_topic_unavailable');
+        const answer = await response.json() as FaqWidgetTopicAnswer;
+        if (!controller.signal.aborted) setResult({ topic, answer });
+      } catch {
+        if (!controller.signal.aborted) setResult({ topic, error: '답변을 불러오지 못했습니다. 아래 FAQ 검색이나 문의를 이용해주세요.' });
+      }
+    })();
+    return () => controller.abort();
+  }, [topic]);
+  const current = topic && result?.topic === topic ? result : undefined;
+  return <section className="wc-inquiry-widget__topics" aria-labelledby="inquiry-widget-topics-title">
+    <h3 id="inquiry-widget-topics-title">자주 찾는 문의</h3>
+    <div className="wc-inquiry-widget__topic-buttons" role="group" aria-labelledby="inquiry-widget-topics-title">
+      {FAQ_WIDGET_TOPICS.map((entry) => <button key={entry.id} type="button" aria-pressed={topic === entry.id}
+        aria-controls={topic === entry.id ? 'inquiry-widget-topic-answer' : undefined}
+        onClick={() => setTopic((value) => value === entry.id ? null : entry.id)}>{entry.label}</button>)}
+    </div>
+    <div id="inquiry-widget-topic-answer" aria-live="polite">
+      {topic ? <WidgetFaqTopicAnswer topic={topic} answer={current?.answer} error={current?.error} signedIn={signedIn} onNavigate={onNavigate} /> : null}
+    </div>
+  </section>;
+}
 
 function WidgetFaq() {
   const [query, setQuery] = useState('');
@@ -153,7 +214,7 @@ export function InquiryWidgetPanel({ userId, onClose, clientFactory = createClie
           <button type="button" onClick={() => setView('new')} aria-pressed={view === 'new'}>새 문의</button></> : null}
       </nav>
       <div className="wc-inquiry-widget__content">
-        {view === 'faq' ? <WidgetFaq /> : null}
+        {view === 'faq' ? <><WidgetFaqTopics signedIn={Boolean(userId)} onNavigate={onClose} /><WidgetFaq /></> : null}
         {!userId ? <div className="wc-inquiry-widget__login"><p>개인 문의와 답변은 로그인 후 확인할 수 있습니다.</p><WcButton href="/login?next=%2Fmy%2Finquiries" onClick={onClose}>로그인하고 문의하기</WcButton></div> : null}
         {userId && view === 'new' ? <WidgetInquiryComposer onCreated={onCreated} /> : null}
         {userId && ['list', 'thread'].includes(view) ? <>
