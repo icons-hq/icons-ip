@@ -388,6 +388,12 @@ select private.goods_instant_discount_period_patch('public.admin_goods_import_re
     $replacement$then public.admin_get_goods_size_chart(entry.value#>>'{good,id}') else null end,
       'livePriceDiscount', private.goods_instant_discount_schedule(entry.value#>>'{good,id}')->'summary')$replacement$)));
 
+-- 3-7. 개인 서버 임시저장: 즉시할인 블록의 기간 입력(복구용 화면 값)도 저장한다(이미지·소유자·CAS 규칙은 그대로).
+select private.goods_instant_discount_period_patch('public.admin_save_goods_draft(uuid,jsonb,integer)'::regprocedure, jsonb_build_array(
+  jsonb_build_array(
+    $anchor$'regularPrice','discountEnabled','discountValue','discountUnit',$anchor$,
+    $replacement$'regularPrice','discountEnabled','discountValue','discountUnit','discountPeriodEnabled','discountStartsAt','discountEndsAt',$replacement$)));
+
 drop function private.goods_instant_discount_period_patch(regprocedure, jsonb);
 
 -- 앵커 치환은 create or replace라 소유자·권한이 그대로다. 봉인과 계약 지문을 다시 적는다.
@@ -401,6 +407,9 @@ revoke all on function public.admin_preview_discount_promotion(uuid,jsonb,uuid,u
 grant execute on function public.admin_preview_discount_promotion(uuid,jsonb,uuid,uuid) to authenticated;
 revoke all on function public.admin_goods_import_records(text[],text[]) from public, anon, authenticated, service_role;
 grant execute on function public.admin_goods_import_records(text[],text[]) to authenticated;
+revoke all on function public.admin_save_goods_draft(uuid,jsonb,integer) from public, anon, authenticated, service_role;
+grant execute on function public.admin_save_goods_draft(uuid,jsonb,integer) to authenticated;
+select private.register_operator_rpc_contract('public.admin_save_goods_draft(uuid,jsonb,integer)'::regprocedure, 'catalog.manage', 'write', false);
 select private.register_operator_internal_contract('private.goods_bulk_validate(jsonb)'::regprocedure);
 select private.register_operator_internal_contract('private.goods_bulk_price_fingerprint(text)'::regprocedure);
 select private.register_operator_rpc_contract('public.admin_preview_goods_bulk(uuid,jsonb,uuid,uuid)'::regprocedure, 'catalog.manage', 'write', false);

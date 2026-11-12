@@ -266,7 +266,14 @@ select pg_temp.idp_assert(pg_temp.idp_bulk_commit(6)->>'error'='goods_bulk_chang
 select pg_temp.idp_assert((select record->'livePriceDiscount'->>'count'='4' from public.admin_goods_import_records('{}',array['idp-live']) record)
  and (select record->'livePriceDiscount'='null'::jsonb from public.admin_goods_import_records('{}',array['idp-main']) record),'import records carry the live period summary');
 
+-- 10. 개인 서버 임시저장은 즉시할인 블록의 기간 입력(복구용 화면 값)도 받는다.
+select pg_temp.idp_assert((public.admin_save_goods_draft('b9400000-0000-4000-8000-000000000040',jsonb_build_object('name','TEST 즉시할인 기간 임시저장',
+ 'regularPrice','12000','discountEnabled','true','discountValue','10','discountUnit','percent','discountPeriodEnabled','true',
+ 'discountStartsAt','2026-12-01T00:00','discountEndsAt','2026-12-08T00:00'),0)) is not null,'server draft keeps the period inputs');
+
 reset role;
+select pg_temp.idp_assert((select form_values->>'discountStartsAt'='2026-12-01T00:00' from public.admin_goods_drafts where id='b9400000-0000-4000-8000-000000000040'),
+ 'draft stores the period input as typed');
 select pg_temp.idp_assert(not has_function_privilege('anon','public.admin_goods_instant_discount_period(text)','execute')
  and not has_function_privilege('service_role','public.admin_goods_instant_discount_period(text)','execute')
  and not has_function_privilege('authenticated','private.goods_instant_discount_schedule(text)','execute')
