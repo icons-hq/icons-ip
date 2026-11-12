@@ -343,4 +343,82 @@ assert sql(f"select count(*) from public.orders where user_id='{buyer}' and chec
 assert sql(f"select o.status||':'||h.state from public.orders o join private.cart_order_holds h on h.order_id=o.id where o.id='{confirming_first}';") == 'pending:awaiting_payment'
 assert sql(f"select order_id from private.checkout_drafts where id='{lease_draft}';") == confirming_first
 print('PASS same draft resubmitted while the first payment is confirming past its lease is rejected without detaching; one order', flush=True)
-print(json.dumps({'cases': 11, 'database': database, 'sourceDatabaseWrites': 0}, ensure_ascii=False), flush=True)
+
+# 12·13. 바로구매 '다시 구매하기'(service_retry_direct_order)는 계정 advisory → 주문 → account-action → profiles 순서로 잠근다.
+#     정지 계정 확인이 profiles를 먼저 잡으면(FOR SHARE) 다른 탭의 새 주문이 그 주문을 닫을 때(12)나 그 주문의 결제 확정(13)의
+#     등급 재계산(profiles FOR UPDATE)과 교착한다 — 트리거가 교착을 삼키면 등급 재계산이 조용히 빠진다(stderr WARNING). 멈춤
+#     트리거로 보류 해제·결제 확정 직전에 세워 두고 다시 구매하기를 끼워 넣는다. finish()가 stderr의 'deadlock detected'를 잡는다.
+pause = 7101056
+sql(f"""create table private.test_retry_pause_targets(order_id uuid primary key);
+create function private.test_retry_pause_hold() returns trigger language plpgsql as $$begin
+ if old.state='awaiting_payment' and new.state='released' and exists(select 1 from private.test_retry_pause_targets t where t.order_id=old.order_id) then
+  perform pg_advisory_xact_lock({pause}); end if; return new; end$$;
+create function private.test_retry_pause_paid() returns trigger language plpgsql as $$begin
+ if old.status='pending' and new.status='paid' and exists(select 1 from private.test_retry_pause_targets t where t.order_id=old.id) then
+  perform pg_advisory_xact_lock({pause}); end if; return new; end$$;
+create trigger aaa_test_retry_pause_hold before update on private.cart_order_holds for each row execute function private.test_retry_pause_hold();
+create trigger aaa_test_retry_pause_paid before update of status on public.orders for each row execute function private.test_retry_pause_paid();""")
+
+
+def direct_order(key):
+    draft = sql('begin;' + service(f"select public.service_create_checkout_direct_draft('{buyer}','retained-a',{direct_lines});") + 'commit;').splitlines()[-1]
+    return sql('begin;' + service(f"select public.place_direct_order('{buyer}','{draft}',{literal(address)},'{key}','card',0,null);") + 'commit;').splitlines()[-1]
+
+
+window_order = direct_order('dd270000-0000-4000-8000-000000000020')
+sql('begin;' + service(f"select public.prepare_goods_payment_attempt('{buyer}','{window_order}','toss');") + 'commit;')
+sql(f"insert into private.test_retry_pause_targets values('{window_order}');")
+superseding_draft = sql('begin;' + service(f"select public.service_create_checkout_direct_draft('{buyer}','retained-a',{direct_lines});") + 'commit;').splitlines()[-1]
+gate = start('retry-pause-hold', f'select pg_advisory_xact_lock({pause});select pg_sleep(1.5);')
+wait_state('retry-pause-hold', 'Timeout', gate)
+superseder = start('retry-superseder', service(f"select public.place_direct_order('{buyer}','{superseding_draft}',{literal(address)},'dd270000-0000-4000-8000-000000000021','card',0,null);"))
+wait_state('retry-superseder', 'Lock', superseder)
+retry = start('retry-behind-superseder', service(f"select public.service_retry_direct_order('{buyer}','{window_order}');"))
+wait_state('retry-behind-superseder', 'Lock', retry)
+finish(gate)
+finish(superseder)
+retried = json.loads(finish(retry).splitlines()[-1])
+assert sql(f"select status from public.orders where id='{window_order}';") == 'canceled'
+assert retried['result'] == 'draft', retried
+sql('delete from private.test_retry_pause_targets;')
+print('PASS 다시 구매하기 behind a superseding new order waits on the account advisory; no deadlock; loyalty recalculation not skipped', flush=True)
+
+finalizing_order = direct_order('dd270000-0000-4000-8000-000000000022')
+finalizing_attempt = claimed_attempt(finalizing_order, '5', 'dd270000-0000-4000-8000-000000000105')
+sql(f"insert into private.test_retry_pause_targets values('{finalizing_order}');")
+gate = start('retry-pause-paid', f'select pg_advisory_xact_lock({pause});select pg_sleep(1.5);')
+wait_state('retry-pause-paid', 'Timeout', gate)
+finalizer = start('retry-finalize', service(f"select public.finalize_goods_payment_attempt('{finalizing_attempt}','dd270000-0000-4000-8000-000000000105','approved',null,'TEST-RETAINED-CONC-13');"))
+wait_state('retry-finalize', 'Lock', finalizer)
+retry = start('retry-finalizing', service(f"select public.service_retry_direct_order('{buyer}','{finalizing_order}');"))
+wait_state('retry-finalizing', 'Lock', retry)
+finish(gate)
+assert 'approved' in finish(finalizer)
+retried = json.loads(finish(retry).splitlines()[-1])
+assert retried['result'] == 'not_retryable', retried
+assert sql(f"select status from public.orders where id='{finalizing_order}';") == 'paid'
+sql('delete from private.test_retry_pause_targets;')
+print('PASS 다시 구매하기 of an order whose payment is finalizing waits on that order row and reports not_retryable; no deadlock', flush=True)
+sql('drop trigger aaa_test_retry_pause_hold on private.cart_order_holds;drop trigger aaa_test_retry_pause_paid on public.orders;'
+    'drop function private.test_retry_pause_hold();drop function private.test_retry_pause_paid();drop table private.test_retry_pause_targets;')
+
+# 14. 같은 실패 주문의 '다시 구매하기'를 두 탭이 동시에 누른다. 두 호출은 계정 advisory에서 차례로 오고, 둘째는 첫째가 만든
+#     초안을 돌려받는다 — 다시 구매 초안은 원 주문당 하나다(두 번 주문되지 않게).
+declined_order = direct_order('dd270000-0000-4000-8000-000000000023')
+sql('begin;' + service(f"select public.prepare_goods_payment_attempt('{buyer}','{declined_order}','toss');") + 'commit;')
+sql(f"update public.payment_attempts set state='declined' where purpose='order' and ref_id='{declined_order}';")
+gate = start('retry-tabs-gate', f"select pg_advisory_xact_lock(hashtextextended('{buyer}',0));select pg_sleep(1.5);")
+wait_state('retry-tabs-gate', 'Timeout', gate)
+tab_one = start('retry-tab-1', service(f"select public.service_retry_direct_order('{buyer}','{declined_order}');"))
+wait_state('retry-tab-1', 'Lock', tab_one)
+tab_two = start('retry-tab-2', service(f"select public.service_retry_direct_order('{buyer}','{declined_order}');"))
+wait_state('retry-tab-2', 'Lock', tab_two)
+finish(gate)
+first_retry = json.loads(finish(tab_one).splitlines()[-1])
+second_retry = json.loads(finish(tab_two).splitlines()[-1])
+assert first_retry['result'] == second_retry['result'] == 'draft', (first_retry, second_retry)
+assert first_retry['draftId'] == second_retry['draftId']
+assert sql(f"select count(*) from private.checkout_drafts where retry_order_id='{declined_order}';") == '1'
+assert sql(f"select status from public.orders where id='{declined_order}';") == 'canceled'
+print('PASS two tabs press 다시 구매하기 for the same order at once; one retry draft; no deadlock', flush=True)
+print(json.dumps({'cases': 14, 'database': database, 'sourceDatabaseWrites': 0}, ensure_ascii=False), flush=True)
