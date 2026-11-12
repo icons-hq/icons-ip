@@ -94,6 +94,8 @@ const catalog = [
   sql('category_display_tree', { admin: true, kc: true }),
   sql('category_display_menu', { admin: true, kc: true }),
   script('category_display_concurrency.sh', 'CATEGORY_DISPLAY_TEST_SCOPE'),
+  // 상품 유형 = 대표 카테고리(없으면 가까운 상위)의 연결값(SHEET-003·ADR-0037). 합성 대표 이미지를 시스템 입력으로 넣어 postgres로 돈다.
+  sql('goods_type_from_category', { kc: true }),
   sql('admin_body_templates', { admin: true }),
   script('admin_body_templates_concurrency.sh', 'BODY_TEMPLATE_TEST_SCOPE'),
   script('review_best_concurrency.sh', 'REVIEW_BEST_TEST_SCOPE'),

@@ -37,6 +37,9 @@ insert into public.goods_variants(id,good_id,name,attributes,price,is_default) v
  ('00000000-0000-4000-8000-000000100711','kc-na-good','합성 파랑','{"색상":"파랑"}',1000,false),
  ('00000000-0000-4000-8000-000000100712','kc-na-good','합성 중지','{"색상":"중지"}',1000,false);
 update public.goods_variants set archived_at=now() where id='00000000-0000-4000-8000-000000100712';
+-- SHEET-003(ADR-0037): 공개는 대표 카테고리의 상품 유형 연결을 본다. KC 판정을 보려고 같은 유형이 연결된 합성 카테고리에 붙인다(유형은 그대로).
+select pg_temp.link_goods_type_category_fixture('kc-na-good');
+select pg_temp.link_goods_type_category_fixture('kc-na-other-good');
 select id as na_default from public.goods_variants where good_id='kc-na-good' and is_default \gset
 select id as na_other from public.goods_variants where good_id='kc-na-other-good' and is_default \gset
 
@@ -141,6 +144,7 @@ insert into public.goods(id,ip_id,name,type,price,image_path,origin_id,notice_ma
  ('kc-sd-good','kc-na-tests','합성 자가 신고 상품','문구',1000,'public-media/kc-na-test.webp','00000000-0000-4000-8000-000000100730',
  '합성 제조자','합성 국가','합성 소재','합성 크기','2026-11','합성 CS','02-000');
 select id as sd_default from public.goods_variants where good_id='kc-sd-good' and is_default \gset
+select pg_temp.link_goods_type_category_fixture('kc-sd-good');
 set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000100701',true);
 select public.admin_read_goods_kc('kc-sd-good') as sd_unset \gset
