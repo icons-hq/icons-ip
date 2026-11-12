@@ -8,6 +8,7 @@ export const GOODS_READINESS_REASONS = {
   /* SHEET-003(ADR-0037): 상품 유형은 대표 카테고리(없으면 가까운 상위)에 연결한 값이다. 초안은 지금 연결값으로 판정한다. */
   type_missing: { label: '카테고리에 상품 유형 연결 필요', detail: '상품 유형은 대표 카테고리(없으면 가까운 상위 카테고리)에 연결한 값입니다. 상품 유형이 연결된 카테고리를 고르거나 카테고리 관리에서 연결하세요.', target: 'basic' },
   type_category_mismatch: { label: '카테고리 상품 유형과 다름', detail: '저장된 상품 유형이 대표 카테고리에 연결된 유형과 다릅니다. 공개 중에는 저장된 유형을 유지하고, 초안은 저장하면 카테고리 유형으로 바뀌어 KC를 다시 검토해야 공개할 수 있습니다.', target: 'basic' },
+  type_no_category: { label: '대표 카테고리 없음', detail: '공개 중인 상품에 대표 카테고리가 없습니다. 저장된 상품 유형이 연결된 카테고리를 대표로 고르면 공개를 유지한 채 맞출 수 있습니다.', target: 'basic' },
   image_missing: { label: '대표 이미지 미입력', detail: '대표 이미지를 등록하고 기본 상품 정보를 저장하세요.', target: 'basic' },
   notice_missing: { label: '고시정보 미입력', detail: '상품정보제공고시의 필수 항목을 확인하세요.', target: 'notice' },
   no_active_options: { label: '사용 중인 옵션 없음', detail: '기존 옵션과 KC 검토 범위를 확인하고 필요한 옵션을 사용하세요.', target: 'variants' },

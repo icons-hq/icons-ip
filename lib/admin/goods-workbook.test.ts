@@ -694,7 +694,14 @@ describe('상품 유형 열(SHEET-003·ADR-0037)', () => {
     const [stale] = exportGoodsWorkbookRows(mismatched, mismatchCtx);
     expect(planGoodsWorkbookImport([{ row: 5, values: { ...stale, stockQty: '9' } }], mismatchCtx)[0]).toMatchObject({ kind: 'update', target: { type: '피규어' } });
     expect(planGoodsWorkbookImport([{ row: 5, values: { ...stale, publish: '초안' } }], mismatchCtx)[0].warnings)
-      .toContain('초안으로 되돌리면 상품 유형이 카테고리 유형 ‘인형’으로 바뀌고 KC를 다시 검토해야 공개할 수 있습니다.');
+      .toContain('초안으로 바뀌며 상품 유형이 ‘인형’로 바뀌고 KC를 다시 검토해야 공개할 수 있습니다.');
+    // 공개 상품이 초안으로 바뀌면서 유형이 다른 카테고리로 옮기는 행은 막지 않고 경고한다(DB는 먼저 초안으로 바꾼 뒤 이동을 허용한다).
+    const toDraft = planGoodsWorkbookImport([{ row: 5, values: { ...exported, categoryCode: 'doll-leaf', publish: '초안' } }], withRecord)[0];
+    expect(toDraft.errors).toEqual([]);
+    expect(toDraft.warnings).toContain('초안으로 바뀌며 상품 유형이 ‘인형’로 바뀌고 KC를 다시 검토해야 공개할 수 있습니다.');
+    // 공개를 유지하는 행은 여전히 막는다.
+    expect(planGoodsWorkbookImport([{ row: 5, values: { ...exported, categoryCode: 'doll-leaf', publish: '공개' } }], withRecord)[0].errors)
+      .toContain(GOOD_TYPE_CATEGORY_MESSAGES.locked);
   });
   it('내보내기의 유형 열은 대표 카테고리에서 정해진 유형이다(공개 중이면 저장된 유형)', () => {
     const draft: GoodsImportExisting = { ...existing, good: { ...existing.good, published_at: null, first_published_at: null, type: '문구', category_id: leaf } };

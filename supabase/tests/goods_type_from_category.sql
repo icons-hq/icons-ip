@@ -298,6 +298,57 @@ select 1/case when (select good_type from public.catalog_categories where id=(:'
 select pg_temp.gt_expect_error(format('select public.admin_upsert_category(%L,%L,%L,%L,null,5,%L,%L)','00000000-0000-4000-8000-000000160311',
  :'created'::jsonb->>'id','gt-created','합성 새 카테고리 이름',(select updated_at from public.catalog_categories where id=(:'created'::jsonb->>'id')::uuid),'포스터'),
  'invalid_category_good_type','22023');
+-- --------------------------------------------------------------------------
+-- 등록 화면 원자 저장(admin_save_good_workspace): 화면이 확인한 유형(good.type)과 저장 뒤 파생된 유형이 다르면
+-- KC를 '검토 완료'로 두지 않고 PT409 goods_type_category_changed로 전체를 거절한다(아무것도 저장하지 않는다).
+-- --------------------------------------------------------------------------
+reset role;
+select set_config('request.jwt.claim.sub','',true);
+insert into public.catalog_categories(id,code,name,parent_id,depth,sort_order,good_type)
+ values('00000000-0000-4000-8000-000000160320','gt-ws','합성 인형 저장 검증',null,1,9,'인형');
+insert into public.goods(id,ip_id,name,type,price,image_path,origin_id,category_id,notice_maker,notice_origin,notice_material,
+ notice_size,notice_made_on,notice_as_manager,notice_as_contact)
+ values('gt-ws-good','goods-type-tests','합성 gt-ws-good','인형',1000,'public-media/goods-type-test.webp','00000000-0000-4000-8000-000000160030',
+  '00000000-0000-4000-8000-000000160320','합성 제조자','합성 국가','합성 소재','합성 크기','2026-11','합성 CS','02-000');
+set local role authenticated;
+select set_config('request.jwt.claim.sub','98160000-0000-4000-8000-000000000001',true);
+create function pg_temp.gt_workspace_request(op uuid,shown_type text) returns jsonb language sql as $$
+  select jsonb_build_object('operationId',op,
+    'good',(pg_temp.gt_payload('gt-ws-good')||jsonb_build_object('type',shown_type,'name','합성 저장 이름 '||shown_type)),
+    'sections',jsonb_build_object('kc',jsonb_build_object('status','reviewed','attested',true,
+      'expectedRevision',case when (public.admin_read_goods_kc('gt-ws-good')->>'revision')::integer>0
+        then public.admin_read_goods_kc('gt-ws-good')->'revision' else 'null'::jsonb end,
+      'expectedContextFingerprint',public.admin_read_goods_kc('gt-ws-good')->'contextFingerprint',
+      'models',jsonb_build_array(jsonb_build_object('family','other','scheme','not_applicable',
+        'productCategory','','modelName','','businessRole','','businessName','','identifier','','publicNote','',
+        'variantRefs',(select jsonb_agg(jsonb_build_object('id',id::text)) from public.goods_variants where good_id='gt-ws-good' and archived_at is null),
+        'basis','','evidence',jsonb_build_object('applicability','','certificate','','testReport','','declaration',''))))));
+$$;
+select pg_temp.gt_expect_error(format('select public.admin_save_good_workspace(%L::jsonb)',
+ pg_temp.gt_workspace_request('00000000-0000-4000-8000-000000160901','피규어')::text),'goods_type_category_changed','PT409');
+select 1/case when (select name from public.goods where id='gt-ws-good')='합성 gt-ws-good'
+ and public.admin_read_goods_kc('gt-ws-good')->>'status'='unreviewed'
+ then 1 else 0 end as workspace_type_mismatch_rejects_everything;
+select public.admin_save_good_workspace(pg_temp.gt_workspace_request('00000000-0000-4000-8000-000000160902','인형')) is not null as gt_ws_saved;
+select 1/case when (select name from public.goods where id='gt-ws-good')='합성 저장 이름 인형'
+ and (select type from public.goods where id='gt-ws-good')='인형'
+ and public.admin_read_goods_kc('gt-ws-good')->>'status'='reviewed'
+ then 1 else 0 end as workspace_same_type_saves_reviewed_kc;
+
+-- 대표 카테고리가 아예 없는 공개 상품은 연결 안내(type_category_mismatch)가 아니라 type_no_category(검토 사유)로 알린다.
+reset role;
+set local session_replication_role = replica;
+update public.goods set category_id=null where id='gt-inherit-good';
+set local session_replication_role = origin;
+set local role authenticated;
+select set_config('request.jwt.claim.sub','98160000-0000-4000-8000-000000000001',true);
+select 1/case when public.admin_read_goods_readiness('gt-inherit-good')->'reasonCodes' ? 'type_no_category'
+ and not (public.admin_read_goods_readiness('gt-inherit-good')->'reasonCodes' ? 'type_category_mismatch')
+ and not (public.admin_read_goods_readiness('gt-inherit-good')->'blockingCodes' ? 'type_no_category')
+ and public.admin_read_goods_readiness('gt-inherit-good')->>'state'='review_required'
+ and (public.admin_search_goods_workspace(p_query=>'합성 gt-',p_readiness=>'type_no_category')->>'total')::integer>=1
+ then 1 else 0 end as published_without_category_has_own_review_reason;
+
 -- 상품 관리 권한이 없는 운영자(물류)는 연결을 바꾸지 못한다.
 select set_config('request.jwt.claim.sub','98160000-0000-4000-8000-000000000002',true);
 select pg_temp.gt_expect_error(format('select public.admin_upsert_category(%L,%L,%L,%L,null,5,%L,%L)','00000000-0000-4000-8000-000000160312',

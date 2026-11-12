@@ -206,6 +206,8 @@ describe('등록 화면 원자 저장 섹션', () => {
     expect(goodWorkspaceSectionFailure('goods_kc_review_incomplete')?.workspaceKc).not.toContain('증빙');
     expect(goodWorkspaceSectionFailure('preorder_admin_required')?.workspacePreorders).toContain('관리자');
     expect(goodWorkspaceSectionFailure('goods_kc_review_changed')?.workspaceKc).toContain('KC');
+    expect(goodWorkspaceSectionFailure('goods_type_category_changed')?.workspaceKc)
+      .toBe('카테고리에 연결된 상품 유형이 바뀌었습니다. 새로고침한 뒤 KC를 다시 확인해주세요.');
     expect(goodWorkspaceSectionFailure('goods_compare_at_price_invalid')).toBeNull();
   });
 });

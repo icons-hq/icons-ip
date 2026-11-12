@@ -427,7 +427,7 @@ select private.goods_type_from_category_patch('private.admin_goods_readiness(pub
   jsonb_build_array(
     $anchor$kc_current boolean; kc_legacy boolean; notice_complete boolean; unknown_read boolean := false;$anchor$,
     $patched$kc_current boolean; kc_legacy boolean; notice_complete boolean; unknown_read boolean := false;
-  category_type text; type_review boolean := false;$patched$),
+  category_type text; type_review boolean := false; type_no_category boolean := false;$patched$),
   jsonb_build_array(
     $anchor$  if nullif(btrim(p_good.type),'') is null then blockers:=array_append(blockers,'type_missing'); end if;$anchor$,
     $patched$  -- SHEET-003(ADR-0037): 상품 유형은 대표 카테고리(없으면 가까운 상위)의 연결값이다.
@@ -435,19 +435,37 @@ select private.goods_type_from_category_patch('private.admin_goods_readiness(pub
   if p_good.published_at is null then
     if category_type='' then blockers:=array_append(blockers,'type_missing');
     elsif category_type is distinct from p_good.type then blockers:=array_append(blockers,'type_category_mismatch'); end if;
-  elsif category_type is distinct from p_good.type then type_review:=true; end if;$patched$),
+  elsif category_type is distinct from p_good.type then
+    -- 대표 카테고리가 아예 없는 공개 상품은 '연결 안내'가 아니라 '대표 카테고리 지정'이 할 일이다.
+    type_review:=true; type_no_category:=p_good.category_id is null;
+  end if;$patched$),
   jsonb_build_array(
     $anchor$  reasons:=blockers;
 $anchor$,
     $patched$  reasons:=blockers;
-  if type_review then reasons:=array_append(reasons,'type_category_mismatch'); end if;
+  if type_review then reasons:=array_append(reasons,case when type_no_category then 'type_no_category' else 'type_category_mismatch' end); end if;
 $patched$)));
 
 -- 7-5. 상품 목록의 판매 준비 필터가 새 사유를 받는다.
 select private.goods_type_from_category_patch('private.admin_goods_workspace_matches(text,text,text,text,uuid,text)'::regprocedure, jsonb_build_array(
   jsonb_build_array(
     $anchor$'type_missing','image_missing'$anchor$,
-    $patched$'type_missing','type_category_mismatch','image_missing'$patched$)));
+    $patched$'type_missing','type_category_mismatch','type_no_category','image_missing'$patched$)));
+
+-- 7-6. 등록 화면 원자 저장: KC를 함께 저장하는 요청은 화면이 확인한 유형(good.type)과 저장 뒤 파생된 유형이 같아야 한다.
+--      화면은 열 때 읽은 카테고리 연결값으로 유형을 보여 주는데, 그 사이 연결이 바뀌면 운영자가 확인한 유형과 다른 유형으로
+--      KC가 '검토 완료'가 된다. 그룹이 아닌 초안만 대상이고, 어긋나면 아무것도 저장하지 않고 전체를 거절한다.
+select private.goods_type_from_category_patch('public.admin_save_good_workspace(jsonb)'::regprocedure, jsonb_build_array(
+  jsonb_build_array(
+    $anchor$    select coalesce(array_agg(id),'{}') into new_variants from public.goods_variants$anchor$,
+    $patched$    if kc is not null and good->>'type' is not null and exists(
+      select 1 from public.goods as saved_good
+      where saved_good.id=saved_id and saved_good.published_at is null
+        and saved_good.type is distinct from good->>'type'
+        and not exists(select 1 from private.goods_group_members as member where member.good_id=saved_good.id)) then
+      raise sqlstate 'PT409' using message='goods_type_category_changed';
+    end if;
+    select coalesce(array_agg(id),'{}') into new_variants from public.goods_variants$patched$)));
 
 drop function private.goods_type_from_category_patch(regprocedure, jsonb);
 
@@ -458,6 +476,10 @@ revoke all on function private.admin_assign_good_category_before_additional(uuid
   from public, anon, authenticated, service_role;
 revoke all on function private.admin_goods_readiness(public.goods) from public, anon, authenticated, service_role;
 revoke all on function private.admin_goods_workspace_matches(text,text,text,text,uuid,text) from public, anon, authenticated, service_role;
+revoke all on function public.admin_save_good_workspace(jsonb) from public, anon, authenticated, service_role;
+grant execute on function public.admin_save_good_workspace(jsonb) to authenticated;
+-- 앵커 치환한 원자 저장의 본문 지문을 다시 적는다(분류는 기존 행 그대로).
+select private.register_operator_rpc_contract('public.admin_save_good_workspace(jsonb)'::regprocedure,'catalog.manage','write',false);
 
 -- --------------------------------------------------------------------------
 -- 8. 초기값 결과 요약(배포 로그). 목록은 supabase/tests/goods_type_from_category.sql 맨 위 읽기 쿼리로 본다.

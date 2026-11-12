@@ -163,7 +163,7 @@ export interface GoodTypeFromCategory {
   /** 공개 중 상품의 대표 카테고리를 상품 유형이 다른(연결 없음 포함) 카테고리로 바꾸려 할 때의 안내. 저장을 막는다. */
   categoryChangeProblem: string | null;
   /** 공개 중 상품이 지금 카테고리의 유형과 다를 때(연결 없음 포함). 저장은 막지 않고 경고만 한다. */
-  publishedMismatch: 'missing' | 'different' | null;
+  publishedMismatch: 'missing' | 'no-category' | 'different' | null;
 }
 
 /** SHEET-003(ADR-0037): 상품 유형 = 대표 카테고리(없으면 가까운 상위)의 연결값. 화면 판정이고 저장·공개 판정은 서버가 한다. */
@@ -179,7 +179,7 @@ export function goodTypeFromCategory({ categories, categoryId, initialCategoryId
     category,
     submitted: storedType,
     categoryChangeProblem: moved && differs ? (category.type ? GOOD_TYPE_CATEGORY_MESSAGES.locked : GOOD_TYPE_CATEGORY_MESSAGES.required) : null,
-    publishedMismatch: !moved && differs ? (category.type ? 'different' : 'missing') : null,
+    publishedMismatch: !moved && differs ? (category.type ? 'different' : categoryId ? 'missing' : 'no-category') : null,
   };
 }
 
@@ -201,12 +201,12 @@ type GoodReadinessReason = AdminGoodsReadiness['reasons'][number];
 
 /** 판매 준비 링크의 도착지. 사유 표의 대상은 공용 판정(goods-readiness)이고, 입력이 옮겨 간 두 항목만 새 자리로 보낸다. */
 export function goodReadinessReasonAnchor(reason: Pick<GoodReadinessReason, 'code' | 'target'>): string {
-  if (reason.code === 'type_missing' || reason.code === 'type_category_mismatch') return 'good-section-category';
+  if (reason.code === 'type_missing' || reason.code === 'type_category_mismatch' || reason.code === 'type_no_category') return 'good-section-category';
   return reason.code === 'stopped' ? 'good-section-information' : reason.code === 'image_missing' ? 'good-section-images' : goodsReadinessAnchor(reason.target);
 }
 
 const GOOD_READINESS_ACTIONS: Partial<Record<GoodsReadinessReasonCode, string>> = {
-  kc_required: 'KC 검토하기', kc_legacy_unrecorded: 'KC 정보 확인하기', type_missing: '카테고리 상품 유형 확인하기', type_category_mismatch: '카테고리 상품 유형 확인하기', image_missing: '대표 이미지 등록하기', notice_missing: '고시정보 입력하기',
+  kc_required: 'KC 검토하기', kc_legacy_unrecorded: 'KC 정보 확인하기', type_missing: '카테고리 상품 유형 확인하기', type_category_mismatch: '카테고리 상품 유형 확인하기', type_no_category: '대표 카테고리 고르기', image_missing: '대표 이미지 등록하기', notice_missing: '고시정보 입력하기',
   no_active_options: '옵션 확인하기', stock_unavailable: '재고 확인하기', shipping_unavailable: '출고지 확인하기', payment_disabled: '결제수단 확인하기', restricted_sale: '판매 제한 확인하기',
   ip_unpublished: '연결 IP 확인하기', ip_archived: '연결 IP 확인하기', stopped: '판매상태 확인하기',
 };

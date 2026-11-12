@@ -564,10 +564,12 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
           {/* SHEET-003(ADR-0037): 상품 유형은 입력하지 않는다. 대표 카테고리의 연결값(공개 중이면 저장된 유형)을 싣고, 서버가 같은 규칙으로 다시 정한다. */}
           <input type="hidden" name="type" value={submittedType} />
         </AdminFormGrid></div>
-        {typeState.publishedMismatch && !groupOwned ? <div data-good-type-mismatch={typeState.publishedMismatch}><AdminNotice tone="warning" title={typeState.publishedMismatch === 'missing' ? '대표 카테고리에 상품 유형이 연결되어 있지 않습니다' : `카테고리 상품 유형(${typeState.category.type})이 저장된 유형(${storedType})과 다릅니다`}>
-          공개 중에는 저장된 유형 ‘{storedType}’을 유지하고 다른 입력은 그대로 저장됩니다. {typeState.publishedMismatch === 'missing'
-            ? '초안으로 전환한 뒤 다시 공개하려면 카테고리 관리에서 이 카테고리(또는 상위)에 상품 유형을 연결해야 합니다.'
-            : `초안으로 전환하면 ‘${typeState.category.type}’으로 바뀌고 KC를 다시 검토해야 공개할 수 있습니다.`}
+        {typeState.publishedMismatch && !groupOwned ? <div data-good-type-mismatch={typeState.publishedMismatch}><AdminNotice tone="warning" title={typeState.publishedMismatch === 'no-category' ? '대표 카테고리가 없습니다' : typeState.publishedMismatch === 'missing' ? '대표 카테고리에 상품 유형이 연결되어 있지 않습니다' : `카테고리 상품 유형(${typeState.category.type})이 저장된 유형(${storedType})과 다릅니다`}>
+          {typeState.publishedMismatch === 'no-category'
+            ? `저장된 유형(‘${storedType}’)이 연결된 카테고리를 대표로 고르면 공개를 유지한 채 맞출 수 있습니다. 다른 입력은 그대로 저장됩니다.`
+            : <>공개 중에는 저장된 유형 ‘{storedType}’을 유지하고 다른 입력은 그대로 저장됩니다. {typeState.publishedMismatch === 'missing'
+              ? '초안으로 전환한 뒤 다시 공개하려면 카테고리 관리에서 이 카테고리(또는 상위)에 상품 유형을 연결해야 합니다.'
+              : `초안으로 전환하면 ‘${typeState.category.type}’으로 바뀌고 KC를 다시 검토해야 공개할 수 있습니다.`}</>}
         </AdminNotice></div> : null}
         {/*
           ADM-004(복잡도 표 190행): 용어 도움말은 고르는 동안(연결 IP·유형이 비어 있을 때)만 보인다. 입력칸이 아니라 안내 문구라 ADM-004 "복잡함 줄이기"

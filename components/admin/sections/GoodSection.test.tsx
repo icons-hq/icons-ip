@@ -1004,6 +1004,12 @@ describe('GoodSection', () => {
     expect(published).toContain('<input type="hidden" name="type" value="아크릴"/>');
     expect(renderGoodSection({ ...good, categoryId: unlinkedCategory.id })).toContain('data-good-type-mismatch="missing"');
     expect(renderGoodSection(good)).not.toContain('data-good-type-mismatch');
+    /* 대표 카테고리가 아예 없는 공개 상품: 연결 안내가 아니라 대표 카테고리를 고르라고 안내한다. */
+    const noCategory = renderGoodSection({ ...good, categoryId: '' });
+    expect(noCategory).toContain('data-good-type-mismatch="no-category"');
+    expect(noCategory).toContain('대표 카테고리가 없습니다');
+    expect(noCategory).toContain('연결된 카테고리를 대표로 고르면 공개를 유지한 채 맞출 수 있습니다');
+    expect(noCategory).not.toContain('카테고리 관리에서 이 카테고리');
   });
 
   it('previews the selected record values before any edit', () => {

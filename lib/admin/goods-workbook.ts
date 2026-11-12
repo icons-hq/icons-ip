@@ -805,11 +805,12 @@ export function planGoodsWorkbookImport(
     form.set('type', appliedType);
     const typeWarning = goodsWorkbookTypeIgnoredWarning(first.type, appliedType);
     if (typeWarning) group.warnings.push(typeWarning);
-    if (publishedNow && (category?.id ?? null) !== (str(record?.good.category_id) || null) && categoryType !== storedType)
+    // 공개를 유지하는 행만 막는다. 초안으로 바꾸는 행은 DB(admin_save_good publish:false)가 먼저 초안으로 바꾼 뒤 카테고리 이동을 허용한다.
+    if (publishedNow && first.publish === '공개' && (category?.id ?? null) !== (str(record?.good.category_id) || null) && categoryType !== storedType)
       errors.push(categoryType ? GOOD_TYPE_CATEGORY_MESSAGES.locked : GOOD_TYPE_CATEGORY_MESSAGES.required);
     else if (first.publish === '공개' && !publishedNow && !categoryType) errors.push(GOOD_TYPE_PUBLISH_REQUIRED);
     else if (publishedNow && first.publish !== '공개' && categoryType && categoryType !== storedType)
-      group.warnings.push(`초안으로 되돌리면 상품 유형이 카테고리 유형 ‘${categoryType}’으로 바뀌고 KC를 다시 검토해야 공개할 수 있습니다.`);
+      group.warnings.push(`초안으로 바뀌며 상품 유형이 ‘${categoryType}’로 바뀌고 KC를 다시 검토해야 공개할 수 있습니다.`);
     const additionalIds: string[] = [];
     for (const code of new Set(first.additionalCategoryCodes.split(/[\n,]+/).map(code => code.trim()).filter(Boolean))) {
       const additional = context.categories?.find(category => category.code === code);

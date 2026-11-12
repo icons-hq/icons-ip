@@ -163,10 +163,14 @@ describe('상품 유형을 대표 카테고리에서 파생', () => {
     expect(goodTypeFromCategory({ ...published, categoryId: '' }).categoryChangeProblem).toBe(GOOD_TYPE_CATEGORY_MESSAGES.required);
     expect(goodTypeFromCategory({ ...published, initialCategoryId: 'doll', categoryId: 'doll' })).toMatchObject({ submitted: '피규어', categoryChangeProblem: null, publishedMismatch: 'different' });
     expect(goodTypeFromCategory({ ...published, initialCategoryId: 'none', categoryId: 'none' }).publishedMismatch).toBe('missing');
+    expect(goodTypeFromCategory({ ...published, initialCategoryId: '', categoryId: '' }).publishedMismatch).toBe('no-category');
   });
   it('판매 준비 사유는 카테고리 칸으로 안내하고, 초안의 유형 불일치는 공개를 막는 항목이다', () => {
     expect(goodReadinessReasonAnchor({ code: 'type_missing', target: 'basic' })).toBe('good-section-category');
     expect(goodReadinessReasonAnchor({ code: 'type_category_mismatch', target: 'basic' })).toBe('good-section-category');
+    expect(goodReadinessReasonAnchor({ code: 'type_no_category', target: 'basic' })).toBe('good-section-category');
+    expect(GOODS_READINESS_REASONS.type_no_category.label).toBe('대표 카테고리 없음');
+    expect(GOODS_READINESS_REASONS.type_no_category.detail).toContain('대표로 고르면 공개를 유지한 채');
     expect(goodReadinessAction('type_missing')).toBe('카테고리 상품 유형 확인하기');
     expect(GOODS_READINESS_REASONS.type_missing.label).toBe('카테고리에 상품 유형 연결 필요');
     const reason = (code: GoodsReadinessReasonCode) => ({ code, ...GOODS_READINESS_REASONS[code], kind: 'blocking' as const });
