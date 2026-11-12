@@ -18,13 +18,14 @@ const FAQ_ROW_GRID = 'items-center gap-x-4 sm:grid-cols-[5.5rem_minmax(0,1fr)_4.
 
 /*
  * 상담 위젯 버튼 답변 요약(0901-044). 고객 상담 위젯의 FAQ 위 유형 버튼마다 지금 무엇이 답으로 보이는지 한눈에 본다.
- * 지정은 FAQ를 열어 '상담 위젯 버튼'에서 한다. 지정이 없거나 비공개면 위젯은 연결 카테고리의 공개 FAQ 목록을 보인다.
+ * 지정은 FAQ를 열어 '상담 위젯 버튼'에서 한다. 지정이 없거나 비공개면 위젯은 연결 카테고리에서 질문에 버튼 낱말이 든
+ * 공개 FAQ를 먼저, 그런 FAQ가 없으면 그 카테고리의 공개 FAQ 목록을 보인다(lib/faq.server.ts).
  */
 function FaqWidgetTopicSummary({ designations }: { designations: FaqWidgetTopicDesignation[] | null }) {
   return <section aria-labelledby="admin-faq-widget-topics" className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground" data-faq-widget-topics="">
     <div className="flex flex-col gap-1">
       <h2 className="text-sm font-semibold" id="admin-faq-widget-topics">상담 위젯 버튼 답변</h2>
-      <p className="text-xs text-muted-foreground">고객 상담 위젯의 FAQ 위 버튼을 누르면 지정한 FAQ가 답으로 보입니다. 지정하지 않았거나 비공개면 연결 카테고리의 공개 FAQ 목록이 대신 보입니다. 지정은 FAQ를 열어 상담 위젯 버튼에서 합니다.</p>
+      <p className="text-xs text-muted-foreground">고객 상담 위젯의 FAQ 위 버튼을 누르면 지정한 FAQ가 답으로 보입니다. 지정하지 않았거나 비공개면 연결 카테고리에서 질문에 버튼 낱말이 든 공개 FAQ가, 그런 FAQ가 없으면 그 카테고리의 공개 FAQ 목록이 대신 보입니다. 지정은 FAQ를 열어 상담 위젯 버튼에서 합니다.</p>
     </div>
     {designations === null ? <p className="text-sm text-muted-foreground" role="status">버튼 지정 상태를 불러오지 못했습니다. 새로고침해 주세요.</p> : <dl className="grid gap-2 text-sm sm:grid-cols-[9rem_minmax(0,1fr)]">
       {FAQ_WIDGET_TOPICS.map((topic) => {
@@ -33,7 +34,7 @@ function FaqWidgetTopicSummary({ designations }: { designations: FaqWidgetTopicD
           <dt className="font-medium">{topic.label}</dt>
           <dd className="flex min-w-0 flex-wrap items-center gap-1.5">{designated
             ? <><span className="wrap-anywhere">{designated.question}</span>{designated.published ? null : <AdminStatusBadge tone={statusTone('publication', 'draft')}>비공개 · 목록이 대신 보임</AdminStatusBadge>}</>
-            : <span className="text-muted-foreground">지정 안 함 · {adminGoodsCopy(inquiryCategoryLabel(topic.category))} 카테고리의 공개 FAQ 목록</span>}</dd>
+            : <span className="text-muted-foreground">지정 안 함 · {adminGoodsCopy(inquiryCategoryLabel(topic.category))} 카테고리에서 질문에 {topic.keywords.map((keyword) => `"${keyword}"`).join('·')} 낱말이 든 공개 FAQ(없으면 카테고리 공개 FAQ 목록)</span>}</dd>
         </div>;
       })}
     </dl>}

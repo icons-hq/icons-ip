@@ -27,7 +27,7 @@ interface WidgetData { userId: string; inquiries?: InquiryListItem[]; inquiry?: 
 
 /*
  * 버튼형 자주 묻는 질문(0901-044). FAQ 위 유형 버튼을 누르면 운영자가 FAQ 관리에서 지정한 대표 답을 바로 보이고,
- * 지정이 없으면 그 유형 카테고리의 공개 FAQ 목록을 보인다. 답변 문구는 운영 FAQ가 정본이고, 아래 기본 안내는
+ * 지정이 없으면 서버가 고른 목록(질문에 버튼 낱말이 든 공개 FAQ, 없으면 그 카테고리의 공개 FAQ)을 보인다. 답변 문구는 운영 FAQ가 정본이고, 아래 기본 안내는
  * 공개 FAQ가 하나도 없을 때만 쓴다. 내 주문 배송 조회 바로가기는 로그인 고객에게만 열고, 비로그인은 로그인 안내다.
  */
 const WIDGET_TOPIC_DEFAULT_ANSWERS: Record<FaqWidgetTopic, string> = {

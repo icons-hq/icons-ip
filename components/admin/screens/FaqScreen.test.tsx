@@ -45,7 +45,10 @@ describe('FAQ 운영 화면', () => {
     const summary = html.slice(html.indexOf('data-faq-widget-topics'), html.indexOf('</section>', html.indexOf('data-faq-widget-topics')));
     expect(summary).toContain('상담 위젯 버튼 답변');
     expect(summary).toMatch(/<dt[^>]*>배송 언제 오나요<\/dt><dd[^>]*><span[^>]*>배송은 언제 오나요\?<\/span><\/dd>/);
-    expect(summary).toMatch(/<dt[^>]*>취소<\/dt><dd[^>]*><span[^>]*>지정 안 함 · 취소\/반품\/교환 카테고리의 공개 FAQ 목록<\/span><\/dd>/);
+    expect(summary).toMatch(/<dt[^>]*>취소<\/dt><dd[^>]*><span[^>]*>지정 안 함 · 취소\/반품\/교환 카테고리에서 질문에 &quot;취소&quot; 낱말이 든 공개 FAQ\(없으면 카테고리 공개 FAQ 목록\)<\/span><\/dd>/);
+    const undesignated = renderToStaticMarkup(<FaqScreen data={{ total: 0, filters: normalizeFaqFilters({}), entries: [], widgetTopics: [] }} />);
+    expect(undesignated).toMatch(/<dt[^>]*>교환\/반품<\/dt><dd[^>]*><span[^>]*>지정 안 함 · 취소\/반품\/교환 카테고리에서 질문에 &quot;교환&quot;·&quot;반품&quot; 낱말이 든 공개 FAQ/);
+    expect(undesignated).toMatch(/<dt[^>]*>배송 언제 오나요<\/dt><dd[^>]*><span[^>]*>지정 안 함 · 주문\/배송 카테고리에서 질문에 &quot;배송&quot; 낱말이 든 공개 FAQ/);
     expect(summary).toMatch(/교환 초안<\/span><span[^>]*data-tone="neutral"[^>]*>비공개 · 목록이 대신 보임/);
     expect(html.indexOf('상담 위젯 버튼 답변')).toBeLessThan(html.indexOf('action="/admin/cs/faq"'));
     expect(html).toMatch(/<strong[^>]*>배송은 언제 오나요\?<\/strong><span[^>]*data-faq-widget-topic="delivery"[^>]*>위젯 버튼 · 배송 언제 오나요<\/span>/);

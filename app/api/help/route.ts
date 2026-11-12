@@ -4,7 +4,7 @@ import { loadFaqWidgetTopicAnswer, loadPublishedFaq } from '@/lib/faq.server';
 
 export async function GET(request: NextRequest) {
   const headers = { 'Cache-Control': 'no-store' };
-  /* 상담 위젯의 유형 버튼(0901-044): 대표 FAQ 또는 그 유형 카테고리의 공개 FAQ 목록. */
+  /* 상담 위젯의 유형 버튼(0901-044): 대표 FAQ, 없으면 질문에 버튼 낱말이 든 공개 FAQ, 그것도 없으면 카테고리 공개 FAQ 목록. */
   const topic = request.nextUrl.searchParams.get('topic');
   if (topic !== null) {
     if (!isFaqWidgetTopic(topic)) return NextResponse.json({ error: '알 수 없는 문의 유형입니다.' }, { status: 400, headers });

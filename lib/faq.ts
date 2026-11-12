@@ -8,23 +8,31 @@ export const FAQ_ANSWER_MAX_LENGTH = 6000;
 
 /*
  * 상담 위젯의 '버튼형 자주 묻는 질문'(0901-044). FAQ 위 유형 버튼을 누르면 운영자가 FAQ 관리에서 그 버튼에
- * 지정한 대표 FAQ를 보이고, 지정이 없거나 비공개면 연결된 카테고리의 공개 FAQ 목록을 보인다.
- * 답변 문구의 정본은 운영 FAQ다. 버튼 이름과 카테고리 연결만 코드가 정한다(DB 값은 faq_entries.widget_topic).
+ * 지정한 대표 FAQ를 보인다. 지정이 없거나 비공개면 연결된 카테고리의 공개 FAQ 중 질문에 그 버튼의 낱말이 든 것을
+ * 표시 순서대로 먼저 보이고, 하나도 없을 때만 그 카테고리의 공개 FAQ 목록을 보인다. 취소와 교환/반품은 같은
+ * 카테고리(취소/반품/교환)라 낱말로 갈라야 '교환/반품'을 눌렀을 때 취소 FAQ가 먼저 나오지 않는다.
+ * 답변 문구의 정본은 운영 FAQ다. 버튼 이름·카테고리·낱말만 코드가 정한다(DB 값은 faq_entries.widget_topic).
  */
 export const FAQ_WIDGET_TOPICS = [
-  { id: 'delivery', label: '배송 언제 오나요', category: 'order' },
-  { id: 'cancel', label: '취소', category: 'claim' },
-  { id: 'return', label: '교환/반품', category: 'claim' },
-] as const satisfies readonly { id: string; label: string; category: InquiryCategory }[];
+  { id: 'delivery', label: '배송 언제 오나요', category: 'order', keywords: ['배송'] },
+  { id: 'cancel', label: '취소', category: 'claim', keywords: ['취소'] },
+  { id: 'return', label: '교환/반품', category: 'claim', keywords: ['교환', '반품'] },
+] as const satisfies readonly { id: string; label: string; category: InquiryCategory; keywords: readonly string[] }[];
 export type FaqWidgetTopic = (typeof FAQ_WIDGET_TOPICS)[number]['id'];
-/** 대표 FAQ가 없을 때 버튼 아래에 보일 카테고리 공개 FAQ 수. */
+/** 대표 FAQ가 없을 때 버튼 아래에 보일 공개 FAQ 수. */
 export const FAQ_WIDGET_TOPIC_LIST_SIZE = 5;
+/** 낱말 후보를 찾을 때 공개 FAQ 검색에서 받는 최대 수(검색 RPC 상한과 같다). */
+export const FAQ_WIDGET_TOPIC_SEARCH_LIMIT = 50;
 
 export function isFaqWidgetTopic(value: unknown): value is FaqWidgetTopic {
   return typeof value === 'string' && FAQ_WIDGET_TOPICS.some((topic) => topic.id === value);
 }
 export function faqWidgetTopic(id: FaqWidgetTopic) {
   return FAQ_WIDGET_TOPICS.find((topic) => topic.id === id)!;
+}
+/** 질문(답변이 아니라)에 그 버튼의 낱말이 들었는지. 공개 FAQ 검색은 답변까지 보므로 이것으로 다시 거른다. */
+export function faqQuestionMatchesWidgetTopic(question: string, topic: FaqWidgetTopic): boolean {
+  return faqWidgetTopic(topic).keywords.some((keyword) => question.includes(keyword));
 }
 
 export interface FaqEntry {
@@ -39,7 +47,7 @@ export interface FaqEntry {
   widgetTopic?: FaqWidgetTopic | null;
 }
 
-/** `/api/help?topic=`의 응답. 대표 FAQ가 있으면 entry, 없으면 카테고리 공개 FAQ 목록(entries). */
+/** `/api/help?topic=`의 응답. 대표 FAQ가 있으면 entry, 없으면 낱말이 든 공개 FAQ 또는 카테고리 공개 FAQ 목록(entries). */
 export interface FaqWidgetTopicAnswer {
   topic: FaqWidgetTopic;
   entry: FaqEntry | null;

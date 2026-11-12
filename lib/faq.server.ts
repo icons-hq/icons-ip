@@ -2,7 +2,7 @@ import 'server-only';
 
 import { createClient } from '@/lib/supabase/server';
 import {
-  FAQ_PAGE_SIZE, FAQ_WIDGET_TOPIC_LIST_SIZE, faqWidgetTopic, isFaqWidgetTopic,
+  FAQ_PAGE_SIZE, FAQ_WIDGET_TOPIC_LIST_SIZE, FAQ_WIDGET_TOPIC_SEARCH_LIMIT, faqQuestionMatchesWidgetTopic, faqWidgetTopic, isFaqWidgetTopic,
   type FaqEntry, type FaqFilters, type FaqWidgetTopic, type FaqWidgetTopicAnswer, type FaqWidgetTopicDesignation,
 } from '@/lib/faq';
 import { isInquiryCategory } from '@/lib/inquiries';
@@ -44,8 +44,11 @@ export async function loadPublishedFaq(filters: FaqFilters, limit = FAQ_PAGE_SIZ
 }
 
 /**
- * 상담 위젯 유형 버튼의 답(0901-044). 운영자가 지정한 공개 대표 FAQ가 있으면 그것 하나, 없으면(지정 안 함·비공개)
- * 그 버튼에 연결된 카테고리의 공개 FAQ 목록이다. 직원이 위젯을 열어도 비공개 FAQ는 보이지 않게 공개 조건을 명시한다.
+ * 상담 위젯 유형 버튼의 답(0901-044). 운영자가 지정한 공개 대표 FAQ가 있으면 그것 하나다. 없으면(지정 안 함·비공개)
+ * ① 연결 카테고리의 공개 FAQ 중 질문에 그 버튼의 낱말이 든 것을 표시 순서대로, ② 그것도 없으면 그 카테고리의 공개
+ * FAQ 목록이다(공개 FAQ가 하나도 없으면 위젯이 기본 안내를 보인다). ①은 기존 공개 검색 RPC로 후보를 받되, 검색은
+ * 답변까지 보므로 질문에 낱말이 든 것만 다시 거른다 — 답변에 '반품'이 나오는 취소 FAQ가 교환/반품에 섞이지 않는다.
+ * 직원이 위젯을 열어도 비공개 FAQ는 보이지 않게 공개 조건을 명시한다.
  */
 export async function loadFaqWidgetTopicAnswer(topic: FaqWidgetTopic): Promise<FaqWidgetTopicAnswer> {
   const supabase = await createClient();
@@ -54,8 +57,17 @@ export async function loadFaqWidgetTopicAnswer(topic: FaqWidgetTopic): Promise<F
   if (error) throw new Error(`Failed to load FAQ widget topic: ${error.message}`);
   const designated = (data ?? []) as FaqRow[];
   if (designated[0]) return { topic, entry: faqEntry(designated[0]), entries: [] };
+  const { category, keywords } = faqWidgetTopic(topic);
+  const candidates = await loadPublishedFaq(
+    { query: keywords.join(' '), category, status: 'all', page: 1 },
+    FAQ_WIDGET_TOPIC_SEARCH_LIMIT,
+  );
+  const matched = candidates.entries
+    .filter((entry) => faqQuestionMatchesWidgetTopic(entry.question, topic))
+    .slice(0, FAQ_WIDGET_TOPIC_LIST_SIZE);
+  if (matched.length) return { topic, entry: null, entries: matched };
   const { entries } = await loadPublishedFaq(
-    { query: '', category: faqWidgetTopic(topic).category, status: 'all', page: 1 },
+    { query: '', category, status: 'all', page: 1 },
     FAQ_WIDGET_TOPIC_LIST_SIZE,
   );
   return { topic, entry: null, entries };
