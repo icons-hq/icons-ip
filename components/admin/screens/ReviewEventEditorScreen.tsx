@@ -2,7 +2,7 @@
 'use client';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { archiveReviewEventAction, publishReviewEventAction, revokeReviewEventAwardAction, saveReviewEventAction, selectReviewEventEntriesAction } from '@/app/admin/review-event-actions';
 import { REVIEW_EVENTS_ADMIN_PATH, REVIEW_EVENTS_PATH, REVIEW_EVENT_CREDIT_POLICY_OFF, isReviewEventDate, newReviewEventValues, parseReviewEventValues, reviewEventCreditPolicyLabel, reviewEventCreditPolicyProblem, reviewEventDayOffset, reviewEventFieldErrors,
   reviewEventToday, reviewEventStateLabel, reviewEventProblemLabel, trimReviewEventText, withReviewEventEndsOn, withReviewEventStartsOn,
@@ -27,6 +27,26 @@ const HELP_CLASS = 'text-sm leading-relaxed text-muted-foreground';
 const TEXT_LINK_CLASS = 'font-medium text-foreground underline underline-offset-4 hover:text-muted-foreground';
 
 type Request = { operationId: string; revision: number } & ({ kind: 'save'; values: ReviewEventValues } | { kind: 'archive'; archived: boolean } | { kind: 'select'; entries: ReviewEventSelection[]; reason: string } | { kind: 'publish' } | { kind: 'revoke'; entryId: string; reason: string });
+/** 저장값은 한국 시각 날짜(YYYY-MM-DD)다. 목록 화면과 같은 표기로 보인다. */
+const eventDate = (value: string) => `${value.replaceAll('-', '. ')}.`;
+const REASON_CLASS = 'text-sm leading-relaxed text-muted-foreground';
+/*
+ * 1027T-026·027: 누를 수 없는 버튼 옆에 그 이유를 적는다(이유 문장은 aria-describedby로 버튼에 잇는다).
+ * 판정은 버튼의 disabled 조건과 같은 값이다 — 상태(scheduled·active·closed·ready)는 서버가 준 값 그대로 읽는다.
+ */
+function publishBlockedReason(event: ReviewEventWorkspace['event'], dirtySelection: boolean, dirtyTerms: boolean): string | null {
+  if (event.state === 'scheduled' || event.state === 'active') return `응모 기간(종료일 ${eventDate(event.endsOn)})이 끝나고 발표일(${eventDate(event.announcesOn)})이 되면 확정할 수 있습니다.`;
+  if (event.state === 'closed') return `발표일(${eventDate(event.announcesOn)})부터 확정할 수 있습니다.`;
+  if (dirtyTerms) return '수정 중인 이벤트 조건을 먼저 저장해주세요.';
+  if (dirtySelection) return '바꾼 선정을 먼저 저장해주세요. 저장한 선정으로 발표·지급합니다.';
+  return null;
+}
+function selectionLockedReason(event: ReviewEventWorkspace['event']): string | null {
+  if (event.state === 'scheduled' || event.state === 'active') return `응모 기간이 끝난 뒤(종료일 ${eventDate(event.endsOn)} 다음 날부터) 당첨자를 선정할 수 있습니다.`;
+  if (event.announcedAt) return '발표를 마친 이벤트라 선정을 바꿀 수 없습니다.';
+  if (event.archivedAt) return '보관한 이벤트라 선정할 수 없습니다.';
+  return null;
+}
 /*
  * R6(10/27 회의): 등록이 막히는 이유를 저장 전에 보인다.
  * - 상단에 적립금 정책 상태(cs.manage로 읽는 admin_review_event_credit_policy, 상세는 같은 값을 workspace로 받는다).
@@ -46,8 +66,22 @@ export function ReviewEventEditorScreen({ id, workspace, targetLabels = [], quer
   const [attempted, setAttempted] = useState(false);
   /* SHEET-017: 문구 템플릿 팝업(불러오기·현재 문구 저장). 템플릿 저장은 적립금 정책과 무관하다. */
   const [templateDialog, setTemplateDialog] = useState<'pick' | 'save' | null>(null);
+  /*
+   * 1027T-026·027: 저장·선정·발표 버튼은 화면 아래에 있고 결과 문장은 맨 위에 있다. 누른 사람이 아래에 머물면 막힌 이유도
+   * 결과도 보이지 않아 버튼이 안 눌리는 것처럼 보였다 — 결과가 나올 때마다 그 문장으로 화면과 포커스를 옮긴다.
+   */
+  const [messageTick, setMessageTick] = useState(0), messageRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const node = messageRef.current;
+    if (!messageTick || !node?.childElementCount) return;
+    node.scrollIntoView({ block: 'center' }); node.focus({ preventScroll: true });
+  }, [messageTick]);
+  const showMessage = () => setMessageTick(tick => tick + 1);
   const blocked = pending || !!retry, editable = !saved || saved.canEdit, canSelect = !!saved && ['closed', 'ready'].includes(saved.state), selectedAmount = selected.length * values.creditAmount;
   const policy = creditPolicy === undefined ? workspace?.creditPolicy ?? null : creditPolicy;
+  const selectionLocked = workspace && saved && !canSelect ? selectionLockedReason(saved) : null;
+  const selectReason = selected.length > 1000 ? '한 번에 1,000명까지 선정할 수 있습니다. 선택을 줄여주세요.' : reason.trim().length < 2 ? '선정 사유를 2자 이상 입력하면 저장할 수 있습니다.' : null;
+  const publishReason = saved ? publishBlockedReason(saved, dirtySelection, dirtyTerms) : null;
   const fieldErrors: ReviewEventFieldErrors = editable ? { ...(attempted ? reviewEventFieldErrors(trimReviewEventText(values)) : {}), ...reviewEventCreditPolicyProblem(values, policy) } : {};
   const invalid = (name: ReviewEventField) => fieldErrors[name] ? { 'aria-invalid': true as const, 'aria-describedby': `review-event-${name}-error` } : {};
   const fieldError = (name: ReviewEventField) => fieldErrors[name] ? <small className="text-xs text-destructive" id={`review-event-${name}-error`}>{fieldErrors[name]}</small> : null;
@@ -59,18 +93,20 @@ export function ReviewEventEditorScreen({ id, workspace, targetLabels = [], quer
       : input.kind === 'select' ? await selectReviewEventEntriesAction(id, input.revision, input.operationId, input.entries, input.reason)
       : input.kind === 'publish' ? await publishReviewEventAction(id, input.revision, input.operationId)
       : await revokeReviewEventAwardAction(input.entryId, input.operationId, input.reason);
-    if ('error' in result) { setError(result.error); setRetry(result.uncertain ? input : null); return; }
+    if ('error' in result) { setError(result.error); setRetry(result.uncertain ? input : null); showMessage(); return; }
     setRetry(null); setSaved(result.event); if (input.kind === 'save') { setValues(result.event); setDirtyTerms(false); } if (input.kind === 'select') setDirtySelection(false);
     setNotice(input.kind === 'publish' ? '발표와 적립금 지급을 저장 후 다시 확인했습니다.' : input.kind === 'revoke' ? '선정 혜택 회수를 저장 후 다시 확인했습니다.' : '저장한 내용을 다시 확인했습니다.');
+    /* 새 이벤트는 상세 화면으로 옮겨 가며 맨 위에서 시작한다. 상세 화면에서 한 일만 결과 문장으로 옮긴다. */
+    if (workspace) showMessage();
     if (!workspace) router.replace(`${REVIEW_EVENTS_ADMIN_PATH}/${id}`); router.refresh();
   }); }
   function save() {
     const trimmed = trimReviewEventText(values);
     const errors = { ...reviewEventFieldErrors(trimmed), ...reviewEventCreditPolicyProblem(trimmed, policy) };
     setAttempted(true); setValues(trimmed); setNotice('');
-    if (Object.keys(errors).length) { setError(errors.form ?? '표시된 항목을 확인해주세요.'); return; }
+    if (Object.keys(errors).length) { setError(errors.form ?? '표시된 항목을 확인해주세요.'); showMessage(); return; }
     const normalized = parseReviewEventValues(trimmed);
-    if (!normalized) { setError('제목·내용·대상·기간·선정수·혜택 금액을 확인해주세요.'); return; }
+    if (!normalized) { setError('제목·내용·대상·기간·선정수·혜택 금액을 확인해주세요.'); showMessage(); return; }
     run({ ...request('save'), kind: 'save', values: normalized });
   }
   /** 불러오기는 이벤트명·내용만 바꾼다. 작성 중인 문구가 있고 다르면 먼저 묻는다(답변 템플릿과 같은 바꾸기 동작). */
@@ -99,8 +135,11 @@ export function ReviewEventEditorScreen({ id, workspace, targetLabels = [], quer
         {policy && !policy.enabled && editable ? REVIEW_EVENT_CREDIT_POLICY_OFF : null}
       </AdminNotice> : <p className="text-xs text-muted-foreground">{policyLabel}</p>}
     </div>
-    {error ? <AdminNotice tone="danger"><span className="[&_a]:underline [&_a]:underline-offset-4" role="alert">{error} {saved ? <a href={detailPath} target="_blank" rel="noopener noreferrer">최신 내용 별도 창에서 확인</a> : null}</span></AdminNotice> : null}{notice ? <p className="text-sm text-success" role="status">{notice}</p> : null}
-    {retry ? <button type="button" disabled={pending} className={`${buttonVariants()} self-start`} data-slot="button" onClick={() => run(retry)}>같은 요청으로 저장 결과 확인</button> : null}
+    {/* 결과 문장 자리. 아래쪽 버튼을 누른 뒤에도 보이도록 결과가 나오면 이 자리로 화면과 포커스를 옮긴다(showMessage). */}
+    <div className="flex flex-col gap-2 outline-none empty:hidden" data-review-event-message="" ref={messageRef} tabIndex={-1}>
+      {error ? <AdminNotice tone="danger"><span className="[&_a]:underline [&_a]:underline-offset-4" role="alert">{error} {saved ? <a href={detailPath} target="_blank" rel="noopener noreferrer">최신 내용 별도 창에서 확인</a> : null}</span></AdminNotice> : null}{notice ? <p className="text-sm text-success" role="status">{notice}</p> : null}
+      {retry ? <button type="button" disabled={pending} className={`${buttonVariants()} self-start`} data-slot="button" onClick={() => run(retry)}>같은 요청으로 저장 결과 확인</button> : null}
+    </div>
     {!editable ? <AdminNotice tone="neutral">시작한 이벤트의 조건은 수정할 수 없습니다.</AdminNotice> : null}
     {/* 잠긴 칸은 입력 칸 테두리를 흐리게 해 고칠 수 있는 칸처럼 보이지 않게 한다. */}
     <fieldset className="flex min-w-0 flex-col gap-4 [&_input:disabled]:border-border [&_select:disabled]:border-border" disabled={blocked || !editable}>
@@ -127,15 +166,17 @@ export function ReviewEventEditorScreen({ id, workspace, targetLabels = [], quer
       </section>
     </fieldset>
     <section className={PANEL_CLASS}><h2 className={PANEL_TITLE_CLASS}>상품 상세 배너 미리보기</h2><div className="[&_[data-style=emphasis]_b]:text-inherit [&_[data-style=emphasis]_strong]:text-inherit"><ReviewEventBanner preview event={{ ...values, id, state: 'active', announcedAt: null, nextChangeAt: null }} /></div><p className={HELP_CLASS}>상품 상세·리뷰 작성·작성 가능한 리뷰 목록에는 진행 중인 이벤트를 안내합니다. 공개 이벤트 목록은 시작 3일 전부터 발표 예정일 1년 후까지 제공됩니다.</p></section>
-    <div className="flex flex-wrap items-center gap-2">{editable ? <button type="button" className={buttonVariants()} data-slot="button" disabled={blocked} onClick={save}>이벤트 저장</button> : null}{saved?.canEdit ? <button type="button" className={buttonVariants({ variant: 'outline' })} data-slot="button" disabled={blocked || dirtyTerms} onClick={() => { if (window.confirm(saved.archivedAt ? '이 이벤트를 다시 공개 일정에 포함할까요?' : '시작 전 이벤트를 보관할까요? 공개 화면에서 제외됩니다.')) run({ ...request('archive'), kind: 'archive', archived: !saved.archivedAt }); }}>{saved.archivedAt ? '보관 해제' : '이벤트 보관'}</button> : null}{saved && saved.state !== 'archived' ? <Link className={buttonVariants({ variant: 'ghost' })} data-slot="button" href={`${REVIEW_EVENTS_PATH}/${id}`} target="_blank">공개 화면 확인 ↗</Link> : null}</div>
+    <div className="flex flex-col gap-1.5"><div className="flex flex-wrap items-center gap-2">{editable ? <button type="button" className={buttonVariants()} data-slot="button" disabled={blocked} onClick={save}>이벤트 저장</button> : null}{saved?.canEdit ? <button type="button" className={buttonVariants({ variant: 'outline' })} data-slot="button" aria-describedby={dirtyTerms ? 'review-event-archive-reason' : undefined} disabled={blocked || dirtyTerms} onClick={() => { if (window.confirm(saved.archivedAt ? '이 이벤트를 다시 공개 일정에 포함할까요?' : '시작 전 이벤트를 보관할까요? 공개 화면에서 제외됩니다.')) run({ ...request('archive'), kind: 'archive', archived: !saved.archivedAt }); }}>{saved.archivedAt ? '보관 해제' : '이벤트 보관'}</button> : null}{saved && saved.state !== 'archived' ? <Link className={buttonVariants({ variant: 'ghost' })} data-slot="button" href={`${REVIEW_EVENTS_PATH}/${id}`} target="_blank">공개 화면 확인 ↗</Link> : null}</div>
+      {saved?.canEdit && dirtyTerms ? <p className={REASON_CLASS} id="review-event-archive-reason">조건을 고치는 중에는 {saved.archivedAt ? '보관을 해제할' : '보관할'} 수 없습니다. 먼저 이벤트를 저장해주세요.</p> : null}</div>
     {workspace && saved ? <section className={`${PANEL_CLASS} scroll-mt-16`} id="review-event-selection"><h2 className={PANEL_TITLE_CLASS}>응모 및 당첨자 선정</h2><p className="text-sm text-muted-foreground tabular-nums">응모 {saved.entryCount}건 · 저장된 선정 {saved.selectedCount}명 · 지급 {saved.awardedCount}명 · 회수 {saved.revokedCount}명</p>
+      {selectionLocked ? <p className={REASON_CLASS} id="review-event-selection-reason">{selectionLocked}</p> : null}
       <form method="get"><fieldset className="flex min-w-0 flex-wrap items-end gap-3 disabled:opacity-60" disabled={blocked || dirtySelection}><label className="flex min-w-[min(100%,14rem)] flex-1 flex-col gap-1.5"><span className={FIELD_LABEL_CLASS}>리뷰·고객·상품 검색</span><input className={KIT_INPUT_CLASS} data-slot="input" name="q" defaultValue={query} maxLength={100} /></label><label className={`${LABEL_CLASS} w-40`}><span className={FIELD_LABEL_CLASS}>응모 상태</span><AdminSelect name="filter" defaultValue={filter}><option value="all">전체</option><option value="eligible">선정 가능</option><option value="selected">선정됨</option><option value="awarded">지급 완료</option><option value="revoked">회수됨</option><option value="unavailable">선정 불가</option></AdminSelect></label><button className={buttonVariants({ variant: 'soft' })} data-slot="button" type="submit">검색</button></fieldset></form>
-      {dirtySelection ? <p className={HELP_CLASS}>변경한 선정을 저장하면 다른 페이지로 이동할 수 있습니다.</p> : null}
+      {dirtySelection ? <p className={HELP_CLASS}>변경한 선정을 저장하면 검색하거나 다른 페이지로 이동할 수 있습니다.</p> : null}
       <ReviewEventExportButton entries total={workspace.total} disabled={blocked || dirtySelection || dirtyTerms} href={reviewEventExportHref({ mode: 'entries', eventId: id, query: query.trim(), filter: Object.hasOwn(REVIEW_EVENT_ENTRY_FILTERS, filter) ? filter as keyof typeof REVIEW_EVENT_ENTRY_FILTERS : 'all' })} />
-      <div className="flex flex-col gap-3">{workspace.rows.map(entry => <article key={entry.id} className="flex min-w-0 flex-col gap-2 rounded-lg border p-4 text-sm wrap-anywhere"><header className="flex flex-wrap items-center justify-between gap-3"><label className="flex items-center gap-2 font-medium"><input type="checkbox" aria-label={`${entry.nickname} 리뷰 선정`} checked={selected.some(item => item.id === entry.id)} disabled={blocked || !canSelect || !!entry.grantedAt || !selected.some(item => item.id === entry.id) && !!entry.problem} onChange={event => select(entry, event.target.checked)} />@{entry.nickname}</label><span className="text-xs text-muted-foreground">{entry.rating ?? '-'}점 · {entry.goodName}</span></header><p className="leading-relaxed whitespace-pre-wrap">{entry.body ?? '삭제된 리뷰입니다.'}</p>{entry.imageUrls?.length ? <div className="flex flex-wrap gap-2.5">{entry.imageUrls.map(url => <img alt="응모 리뷰 사진" className="size-25 rounded-md border object-cover" src={url} key={url} loading="lazy" />)}</div> : null}<small className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground"><AdminStatusBadge tone={entry.revokedAt ? 'neutral' : entry.grantedAt ? 'success' : entry.problem ? 'warning' : 'neutral'}>{entry.revokedAt ? '회수 완료' : entry.grantedAt ? '지급 완료' : reviewEventProblemLabel(entry.problem)}</AdminStatusBadge>{entry.selectionChanged ? <span className="text-warning">선정 후 리뷰가 수정되었습니다. 체크 해제 후 다시 선정·저장하세요.</span> : null}</small>{entry.selectionReason ? <small className="text-xs text-muted-foreground">선정 사유: {entry.selectionReason}</small> : null}{entry.grantedAt ? <p className="text-xs tabular-nums">지급 {new Date(entry.grantedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })} · {entry.creditAmount.toLocaleString('ko-KR')}원{entry.revokedAt ? <><br />회수: {entry.revokeReason}</> : <> · 유효기한 {entry.expiresAt ? new Date(entry.expiresAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '-'}</>}</p> : null}{entry.grantedAt && !entry.revokedAt && workspace.canPay ? <button type="button" className={buttonVariants({ size: 'sm', variant: 'outline', className: `self-start ${ROW_DANGER_BUTTON_CLASS}` })} data-slot="button" disabled={blocked} onClick={() => { const note = window.prompt('혜택 회수 사유를 입력하세요. 이미 사용한 금액은 차감 예정액으로 기록됩니다. (2~500자)'); if (note !== null) run({ ...request('revoke'), kind: 'revoke', entryId: entry.id, reason: note }); }}>선정 혜택 회수</button> : null}</article>)}</div>
+      <div className="flex flex-col gap-3">{workspace.rows.map(entry => <article key={entry.id} className="flex min-w-0 flex-col gap-2 rounded-lg border p-4 text-sm wrap-anywhere"><header className="flex flex-wrap items-center justify-between gap-3"><label className="flex items-center gap-2 font-medium"><input type="checkbox" aria-label={`${entry.nickname} 리뷰 선정`} aria-describedby={selectionLocked ? 'review-event-selection-reason' : undefined} checked={selected.some(item => item.id === entry.id)} disabled={blocked || !canSelect || !!entry.grantedAt || !selected.some(item => item.id === entry.id) && !!entry.problem} onChange={event => select(entry, event.target.checked)} />@{entry.nickname}</label><span className="text-xs text-muted-foreground">{entry.rating ?? '-'}점 · {entry.goodName}</span></header><p className="leading-relaxed whitespace-pre-wrap">{entry.body ?? '삭제된 리뷰입니다.'}</p>{entry.imageUrls?.length ? <div className="flex flex-wrap gap-2.5">{entry.imageUrls.map(url => <img alt="응모 리뷰 사진" className="size-25 rounded-md border object-cover" src={url} key={url} loading="lazy" />)}</div> : null}<small className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground"><AdminStatusBadge tone={entry.revokedAt ? 'neutral' : entry.grantedAt ? 'success' : entry.problem ? 'warning' : 'neutral'}>{entry.revokedAt ? '회수 완료' : entry.grantedAt ? '지급 완료' : reviewEventProblemLabel(entry.problem)}</AdminStatusBadge>{entry.selectionChanged ? <span className="text-warning">선정 후 리뷰가 수정되었습니다. 체크 해제 후 다시 선정·저장하세요.</span> : null}</small>{entry.selectionReason ? <small className="text-xs text-muted-foreground">선정 사유: {entry.selectionReason}</small> : null}{entry.grantedAt ? <p className="text-xs tabular-nums">지급 {new Date(entry.grantedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })} · {entry.creditAmount.toLocaleString('ko-KR')}원{entry.revokedAt ? <><br />회수: {entry.revokeReason}</> : <> · 유효기한 {entry.expiresAt ? new Date(entry.expiresAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '-'}</>}</p> : null}{entry.grantedAt && !entry.revokedAt && workspace.canPay ? <button type="button" className={buttonVariants({ size: 'sm', variant: 'outline', className: `self-start ${ROW_DANGER_BUTTON_CLASS}` })} data-slot="button" disabled={blocked} onClick={() => { const note = window.prompt('혜택 회수 사유를 입력하세요. 이미 사용한 금액은 차감 예정액으로 기록됩니다. (2~500자)'); if (note !== null) run({ ...request('revoke'), kind: 'revoke', entryId: entry.id, reason: note }); }}>선정 혜택 회수</button> : null}</article>)}</div>
       {!workspace.rows.length ? <p className="py-6 text-center text-sm text-muted-foreground">조건에 맞는 응모 리뷰가 없습니다.</p> : null}{!dirtySelection ? <ConsolePagination page={workspace.page} pageSize={50} total={workspace.total} hrefForPage={page => `${detailPath}?${new URLSearchParams({ q: query, filter, page: String(page) })}`} /> : null}
-      {canSelect ? <div className="flex flex-col items-start gap-3 border-t pt-4"><p className="text-sm">현재 선택 <strong className="font-semibold text-foreground tabular-nums">{selected.length}명 · {selectedAmount.toLocaleString('ko-KR')}원</strong></p><label className={`${LABEL_CLASS} w-full`}><span className={FIELD_LABEL_CLASS}>선정 사유</span><textarea className={`${KIT_TEXTAREA_CLASS} min-h-20`} data-slot="textarea" value={reason} disabled={blocked} onChange={event => setReason(event.target.value)} maxLength={500} placeholder="별점과 무관한 선정 기준과 사유를 2자 이상 작성하세요" /></label><button type="button" className={buttonVariants({ variant: 'soft' })} data-slot="button" disabled={blocked || selected.length > 1000 || reason.trim().length < 2} onClick={() => run({ ...request('select'), kind: 'select', entries: selected, reason })}>선정 저장</button><p className={HELP_CLASS}>선정 저장은 발표나 지급을 하지 않습니다. 고객당 리뷰 하나만 선정할 수 있습니다.</p></div> : null}
-      {!saved.announcedAt && !saved.archivedAt ? <div className="flex scroll-mt-16 flex-col items-start gap-3 border-t pt-4" id="review-event-publish"><h3 className="text-base font-semibold text-foreground">당첨자 발표 및 적립금 지급</h3><p className="text-sm">저장된 {saved.selectedCount}명에게 총 {(saved.selectedCount * saved.creditAmount).toLocaleString('ko-KR')}원을 지급합니다. 발표와 전체 지급은 함께 처리됩니다.</p>{!workspace.canPay ? <AdminNotice tone="warning">현재 계정에는 혜택 지급 권한이 없습니다.</AdminNotice> : !workspace.creditPolicy.enabled ? <AdminNotice tone="warning">적립금 정책이 비활성 상태입니다.</AdminNotice> : null}<button type="button" className={buttonVariants()} data-slot="button" disabled={blocked || dirtySelection || dirtyTerms || !workspace.canPay || !workspace.creditPolicy.enabled || saved.state !== 'ready'} onClick={() => { if (window.confirm(saved.selectedCount ? `저장된 ${saved.selectedCount}명에게 총 ${(saved.selectedCount * saved.creditAmount).toLocaleString('ko-KR')}원 지급과 당첨자 공개를 확정할까요?` : '선정된 고객이 0명입니다. 당첨자 없음으로 발표를 확정할까요?')) run({ ...request('publish'), kind: 'publish' }); }}>발표 및 지급 확정</button><p className={HELP_CLASS}>리뷰 삭제·비공개·구매 취소·반품 완료 시 이 이벤트에서 지급한 혜택을 회수합니다. 이미 사용된 금액은 이후 적립금에서 차감되며, 현금 결제액은 바뀌지 않습니다.</p></div> : null}
+      {canSelect ? <div className="flex flex-col items-start gap-3 border-t pt-4"><p className="text-sm">현재 선택 <strong className="font-semibold text-foreground tabular-nums">{selected.length}명 · {selectedAmount.toLocaleString('ko-KR')}원</strong></p><label className={`${LABEL_CLASS} w-full`}><span className={FIELD_LABEL_CLASS}>선정 사유</span><textarea className={`${KIT_TEXTAREA_CLASS} min-h-20`} data-slot="textarea" value={reason} disabled={blocked} onChange={event => setReason(event.target.value)} maxLength={500} placeholder="별점과 무관한 선정 기준과 사유를 2자 이상 작성하세요" /></label><button type="button" className={buttonVariants({ variant: 'soft' })} data-slot="button" aria-describedby={selectReason ? 'review-event-select-reason' : undefined} disabled={blocked || !!selectReason} onClick={() => run({ ...request('select'), kind: 'select', entries: selected, reason })}>선정 저장</button>{selectReason ? <p className={REASON_CLASS} id="review-event-select-reason">{selectReason}</p> : null}<p className={HELP_CLASS}>선정 저장은 발표나 지급을 하지 않습니다. 고객당 리뷰 하나만 선정할 수 있습니다.</p></div> : null}
+      {!saved.announcedAt && !saved.archivedAt ? <div className="flex scroll-mt-16 flex-col items-start gap-3 border-t pt-4" id="review-event-publish"><h3 className="text-base font-semibold text-foreground">당첨자 발표 및 적립금 지급</h3><p className="text-sm">저장된 {saved.selectedCount}명에게 총 {(saved.selectedCount * saved.creditAmount).toLocaleString('ko-KR')}원을 지급합니다. 발표와 전체 지급은 함께 처리됩니다.</p>{!workspace.canPay ? <AdminNotice tone="warning"><span id="review-event-publish-permission">현재 계정에는 혜택 지급 권한이 없습니다. 지급 권한이 있는 운영자가 확정해야 합니다.</span></AdminNotice> : !workspace.creditPolicy.enabled ? <AdminNotice tone="warning"><span className="[&_a]:underline [&_a]:underline-offset-4" id="review-event-publish-permission">적립금 정책이 꺼져 있어 발표·지급을 확정할 수 없습니다. 판매자 정보 &gt; 적립금 정책(관리자)에서 켠 뒤 확정하세요.{policyHref ? <> <Link href={policyHref}>적립금 정책 설정</Link></> : null}</span></AdminNotice> : null}{publishReason ? <p className={REASON_CLASS} id="review-event-publish-reason">{publishReason}</p> : null}<button type="button" className={buttonVariants()} data-slot="button" aria-describedby={[!workspace.canPay || !workspace.creditPolicy.enabled ? 'review-event-publish-permission' : '', publishReason ? 'review-event-publish-reason' : ''].filter(Boolean).join(' ') || undefined} disabled={blocked || dirtySelection || dirtyTerms || !workspace.canPay || !workspace.creditPolicy.enabled || saved.state !== 'ready'} onClick={() => { if (window.confirm(saved.selectedCount ? `저장된 ${saved.selectedCount}명에게 총 ${(saved.selectedCount * saved.creditAmount).toLocaleString('ko-KR')}원 지급과 당첨자 공개를 확정할까요?` : '선정된 고객이 0명입니다. 당첨자 없음으로 발표를 확정할까요?')) run({ ...request('publish'), kind: 'publish' }); }}>발표 및 지급 확정</button><p className={HELP_CLASS}>리뷰 삭제·비공개·구매 취소·반품 완료 시 이 이벤트에서 지급한 혜택을 회수합니다. 이미 사용된 금액은 이후 적립금에서 차감되며, 현금 결제액은 바뀌지 않습니다.</p></div> : null}
     </section> : null}
     {/* 팝업은 잠기는 fieldset 밖에 둔다 — 안에 두면 이벤트 입력이 잠길 때 템플릿 입력까지 잠긴다. */}
     {templateDialog === 'pick' ? <ReviewEventTemplatePicker onClose={() => setTemplateDialog(null)} onSelect={applyTemplate} /> : null}

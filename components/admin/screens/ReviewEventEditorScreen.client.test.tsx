@@ -5,7 +5,9 @@ import { newReviewEventValues, reviewEventDayOffset, REVIEW_EVENT_CREDIT_POLICY_
 
 type TemplatePickerProps = { onSelect: (template: { title: string; description: string }) => void; onClose: () => void };
 type TemplateEditorProps = { initial?: { title: string; description: string }; onSaved: () => void; onClose: () => void };
+type MessageNode = { childElementCount: number; scrollIntoView: (options: unknown) => void; focus: (options: unknown) => void };
 const mocks = vi.hoisted(() => ({ states: [] as unknown[], index: 0, save: vi.fn(), replace: vi.fn(), refresh: vi.fn(),
+  ref: { current: null as MessageNode | null }, effects: [] as { effect: () => void; deps: unknown[] }[],
   TemplatePicker: vi.fn<(props: TemplatePickerProps) => null>(() => null),
   TemplateEditor: vi.fn<(props: TemplateEditorProps) => null>(() => null) }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ replace: mocks.replace, refresh: mocks.refresh }) }));
@@ -23,6 +25,9 @@ vi.mock('react', async () => {
       return [mocks.states[index], (next: unknown) => { mocks.states[index] = typeof next === 'function' ? next(mocks.states[index]) : next; }];
     },
     useTransition: () => [false, (callback: () => void) => { callback(); }],
+    /* 결과 문장 자리 하나만 ref·effect를 쓴다. 렌더마다 effect를 모아 두고 테스트가 직접 실행한다. */
+    useRef: () => mocks.ref,
+    useEffect: (effect: () => void, deps: unknown[]) => { mocks.effects.push({ effect, deps }); },
   };
 });
 
@@ -52,7 +57,7 @@ function save() {
 }
 
 beforeEach(() => {
-  mocks.states = []; mocks.index = 0; vi.clearAllMocks();
+  mocks.states = []; mocks.index = 0; mocks.ref.current = null; mocks.effects = []; vi.clearAllMocks();
   props = { id: ID, workspace: null, creditPolicy: ON, policyHref: null };
 });
 
@@ -191,5 +196,82 @@ describe('ReviewEventEditorScreen wording templates (SHEET-017)', () => {
     const event = { ...newReviewEventValues(), id: ID, number: 7, title: '가을 포토리뷰', description: '후기', revision: 1, createdAt: '2026-10-01T00:00:00Z', updatedAt: '2026-10-01T00:00:00Z', archivedAt: null, announcedAt: null, state: 'active', canEdit: false, entryCount: 0, selectedCount: 0, awardedCount: 0, revokedCount: 0 } as const;
     props = { ...props, workspace: { event, total: 0, page: 1, pageSize: 50, canPay: true, creditPolicy: ON, selected: [], rows: [] }, creditPolicy: undefined };
     expect(html()).not.toContain('템플릿 불러오기');
+  });
+});
+
+/* 1027T-026·027: 아래쪽 버튼을 누른 사람이 결과와 막힌 이유를 보고, 누를 수 없는 버튼은 그 이유를 옆에 적는다. */
+describe('ReviewEventEditorScreen disabled reasons (1027T-026·027)', () => {
+  const base = { ...newReviewEventValues('2026-11-12'), id: ID, number: 7, title: '가을 포토리뷰', description: '사진 후기', revision: 1, createdAt: '2026-10-01T00:00:00Z', updatedAt: '2026-10-01T00:00:00Z', archivedAt: null, announcedAt: null, canEdit: false, entryCount: 0, selectedCount: 0, awardedCount: 0, revokedCount: 0 };
+  function detail(state: 'scheduled' | 'active' | 'closed' | 'ready', options: { canPay?: boolean; policy?: ReviewEventCreditPolicy; canEdit?: boolean } = {}) {
+    const event = { ...base, state, canEdit: options.canEdit ?? false };
+    props = { ...props, workspace: { event, total: 0, page: 1, pageSize: 50, canPay: options.canPay ?? true, creditPolicy: options.policy ?? ON, selected: [], rows: [] }, creditPolicy: undefined };
+    mocks.states = [];
+  }
+  const button = (label: string) => nodes(render()).find(node => node.type === 'button' && text(node.props.children as ReactNode) === label);
+
+  it('moves the screen and focus to the result line whenever a save is refused, not on first render', () => {
+    const node = { childElementCount: 1, scrollIntoView: vi.fn(), focus: vi.fn() };
+    mocks.ref.current = node;
+    render(); mocks.effects.forEach(({ effect }) => effect());
+    expect(node.scrollIntoView).not.toHaveBeenCalled();
+
+    props = { ...props, creditPolicy: OFF };
+    change('이벤트명', '후기 이벤트'); change('내용', '별점과 무관한 후기');
+    save(); save();
+    mocks.effects = []; render();
+    const [{ effect, deps }] = mocks.effects;
+    expect(deps).toEqual([2]);
+    effect();
+    expect(node.scrollIntoView).toHaveBeenCalledWith({ block: 'center' });
+    expect(node.focus).toHaveBeenCalledWith({ preventScroll: true });
+    expect(html()).toMatch(/data-review-event-message=""[^>]*tabindex="-1"[^>]*>.*role="alert">/s);
+  });
+
+  it('says why publishing is locked before the announcement date and ties it to the button', () => {
+    detail('scheduled');
+    const publish = button('발표 및 지급 확정')!;
+    expect(publish.props.disabled).toBe(true);
+    expect(publish.props['aria-describedby']).toBe('review-event-publish-reason');
+    expect(html()).toContain('응모 기간(종료일 2026. 11. 20.)이 끝나고 발표일(2026. 11. 23.)이 되면 확정할 수 있습니다.');
+    expect(html()).toContain('응모 기간이 끝난 뒤(종료일 2026. 11. 20. 다음 날부터) 당첨자를 선정할 수 있습니다.');
+
+    detail('closed');
+    expect(html()).toContain('발표일(2026. 11. 23.)부터 확정할 수 있습니다.');
+    expect(html()).not.toContain('id="review-event-selection-reason"');
+
+    detail('ready');
+    expect(button('발표 및 지급 확정')!.props.disabled).toBe(false);
+    expect(html()).not.toContain('id="review-event-publish-reason"');
+  });
+
+  it('names the permission and the policy path when they block publishing', () => {
+    detail('ready', { canPay: false });
+    expect(button('발표 및 지급 확정')!.props['aria-describedby']).toBe('review-event-publish-permission');
+    expect(html()).toContain('현재 계정에는 혜택 지급 권한이 없습니다. 지급 권한이 있는 운영자가 확정해야 합니다.');
+
+    detail('ready', { policy: OFF });
+    props = { ...props, policyHref: '/admin/settings/store-credits' };
+    const markup = html();
+    expect(markup).toContain('적립금 정책이 꺼져 있어 발표·지급을 확정할 수 없습니다. 판매자 정보 &gt; 적립금 정책(관리자)에서 켠 뒤 확정하세요.');
+    expect(markup).toMatch(/id="review-event-publish-permission"[^>]*>.*href="\/admin\/settings\/store-credits"/s);
+  });
+
+  it('explains the selection save and the archive lock instead of leaving the buttons dead', () => {
+    detail('closed');
+    const selectSave = button('선정 저장')!;
+    expect(selectSave.props.disabled).toBe(true);
+    expect(selectSave.props['aria-describedby']).toBe('review-event-select-reason');
+    expect(html()).toContain('선정 사유를 2자 이상 입력하면 저장할 수 있습니다.');
+    const reason = nodes(render()).find(node => node.type === 'textarea')!;
+    (reason.props.onChange as (event: unknown) => void)({ target: { value: '사진이 자세함' } });
+    expect(button('선정 저장')!.props.disabled).toBe(false);
+    expect(html()).not.toContain('선정 사유를 2자 이상 입력하면');
+
+    detail('scheduled', { canEdit: true });
+    expect(button('이벤트 보관')!.props.disabled).toBe(false);
+    change('내용', '사진 후기 남기기');
+    expect(button('이벤트 보관')!.props.disabled).toBe(true);
+    expect(button('이벤트 보관')!.props['aria-describedby']).toBe('review-event-archive-reason');
+    expect(html()).toContain('조건을 고치는 중에는 보관할 수 없습니다. 먼저 이벤트를 저장해주세요.');
   });
 });
