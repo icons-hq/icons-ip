@@ -6,10 +6,9 @@ do $$begin
   if to_regclass('private.operator_legacy_fixture_control') is not null then
     raise exception 'Run IP draft deletion tests without the legacy fixture helper';
   end if;
-  if (select configured from private.operator_access_state where id) then
-    raise exception 'Run IP draft deletion tests in an unconfigured isolated test database';
-  end if;
 end $$;
+-- Legacy (unconfigured) authority is part of this contract; pin it for this rolled-back transaction only.
+update private.operator_access_state set configured = false where id;
 select set_config('request.jwt.claim.sub', '', true);
 
 create function pg_temp.t17c_id(n integer) returns uuid language sql immutable as $$
