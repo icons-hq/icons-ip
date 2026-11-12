@@ -1,5 +1,5 @@
 import type { GoodsNoticeInfo } from '@/lib/goods-notice';
-import { conjunctionParticle, subjectParticle } from '@/lib/korean-particle';
+import { conjunctionParticle, objectParticle, subjectParticle } from '@/lib/korean-particle';
 import {
   GOOD_TYPE_PUBLISH_REQUIRED,
   normalizeAdminGoodForm,
@@ -835,6 +835,18 @@ export function planGoodsWorkbookImport(
     else if (first.publish === '공개' && !publishedNow && !categoryType) errors.push(GOOD_TYPE_PUBLISH_REQUIRED);
     else if (publishedNow && first.publish !== '공개' && categoryType && categoryType !== storedType)
       group.warnings.push(`초안으로 바뀌며 상품 유형이 ‘${categoryType}’${resultParticle(categoryType)} 바뀌고 KC를 다시 검토해야 공개할 수 있습니다.`);
+    /*
+     * 공개를 유지하는 행이 상품명·IP·고시의 제조사·원산지·재질·크기를 바꾸면 DB(KC 가드 goods_kc_reassessment_required)가 적용 때 거절한다.
+     * 검증은 통과시키고 적용에서 원인 없이 실패하지 않도록 같은 판정을 미리보기에서 한다.
+     */
+    if (record && publishedNow && first.publish === '공개') {
+      const changed = ([
+        ['상품명', first.name, record.good.name], ['IP', first.ipId, record.good.ip_id],
+        ['제조사', first.noticeMaker, record.good.notice_maker], ['원산지', first.noticeOrigin, record.good.notice_origin],
+        ['재질', first.noticeMaterial, record.good.notice_material], ['크기', first.noticeSize, record.good.notice_size],
+      ] as const).filter(([, next, previous]) => str(next).trim() !== str(previous).trim()).map(([label]) => label);
+      if (changed.length) errors.push(`공개 상품의 ${changed.join('·')}${objectParticle(changed.at(-1)!)} 바꾸면 KC 재검토가 필요해 저장되지 않습니다. 게시 상태를 초안으로 바꿔 함께 올리거나, 상품을 먼저 초안으로 전환한 뒤 바꿔 주세요.`);
+    }
     const additionalIds: string[] = [];
     for (const code of new Set(first.additionalCategoryCodes.split(/[\n,]+/).map(code => code.trim()).filter(Boolean))) {
       const additional = context.categories?.find(category => category.code === code);
