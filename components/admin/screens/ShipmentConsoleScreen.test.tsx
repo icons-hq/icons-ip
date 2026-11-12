@@ -126,7 +126,7 @@ describe('배송 건 콘솔',()=>{
  it('재고 부족 부분 취소가 진행 중인 배송 건은 발송 대기 행에 표시하고 선택을 막되 주문 확인은 유지한다(QA2)',()=>{
   const held={...row,partialCancelInProgress:true};
   const ready=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[held]}}/>);
-  expect(ready).toContain('부분 취소 진행 중');expect(ready).not.toContain(`aria-label="배송 건 ${row.id.slice(-8).toUpperCase()} 선택"`);
+  expect(ready).toContain('부분 취소 진행 중');expect(ready).toContain('부분 취소 처리가 끝난 뒤');expect(ready).not.toContain('예약 재고 할당·제작 완료 뒤');expect(ready).not.toContain(`aria-label="배송 건 ${row.id.slice(-8).toUpperCase()} 선택"`);
   expect(renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[row]}}/>)).not.toContain('부분 취소 진행 중');
   const incoming=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,filters:{...base.filters,tab:'new'},rows:[held]}}/>);
   expect(incoming).toContain(`aria-label="배송 건 ${row.id.slice(-8).toUpperCase()} 선택"`);

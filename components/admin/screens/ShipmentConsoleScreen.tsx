@@ -133,7 +133,7 @@ export function ShipmentConsoleScreen({data,registeredCount,registeredExtraCount
      택배 외 건은 이 칸의 인계·수령 확인으로 처리하므로 따로 안내하지 않는다(QA 라운드 1 m7). */
   const trackingInput=!rowTracking||!parcel?null:row.status==='ready'&&shipmentConsoleSelectable(row,'ready')
    ?<ShipmentConsoleRowTracking carriers={activeCarriers} defaultCarrier={origins.find(origin=>origin.id===row.originId)?.defaultCarrier??null} reference={reference} shipmentId={row.id}/>
-   :<span className={CELL_NOTE}>운송장은 예약 재고 할당·제작 완료 뒤 입력합니다.</span>;
+   :<span className={CELL_NOTE}>{row.partialCancelInProgress?'운송장은 부분 취소 처리가 끝난 뒤 입력합니다.':'운송장은 예약 재고 할당·제작 완료 뒤 입력합니다.'}</span>;
   /* 발송처리 화면이나 주문 상세에서 고객이 고른 방식과 다르게 바꾼 건을 표시한다(QA 라운드 1 m3). */
   const customerMethod=row.delivery?.customerMethod;
   const methodNote=customerMethod&&row.delivery&&customerMethod!==row.delivery.method?<small className={CELL_NOTE} data-method-changed="">고객 선택 {DELIVERY_METHOD_LABELS[customerMethod]}에서 변경</small>:null;
