@@ -4,11 +4,17 @@ const mocks = vi.hoisted(() => ({
   auth: vi.fn(), inspect: vi.fn(), reconcile: vi.fn(), create: vi.fn(), userRpc: vi.fn(), serviceRpc: vi.fn(), caller: vi.fn(), revalidate: vi.fn(),
 }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidate }));
-/* 가드 자체(미로그인 이동·권한 판정)는 action-access.test.ts가 검증한다. 여기서는 직원 세션만 흉내 낸다. */
+/*
+ * 가드 자체(미로그인 이동·권한 판정)는 action-access.server.test.ts가 검증한다. 여기서는 직원 세션과 capability 구분만 흉내 낸다:
+ * 세션의 capabilities에 요청한 capability가 없으면 거절하고, sales.manage는 sales.read를 포함한다(운영자 권한 모델과 같다).
+ */
 vi.mock('@/lib/admin/action-access.server', () => ({
-  requireAdminActionAccess: async () => {
+  requireAdminActionAccess: async (_path: string, options: { capability?: string } = {}) => {
     const auth = await mocks.auth();
-    return auth?.isConfigured && auth.user && auth.isStaff ? auth : null;
+    if (!(auth?.isConfigured && auth.user && auth.isStaff)) return null;
+    const have = new Set<string>(auth.capabilities ?? ['sales.manage']);
+    if (have.has('sales.manage')) have.add('sales.read');
+    return !options.capability || have.has(options.capability) ? auth : null;
   },
 }));
 vi.mock('@/lib/orders/partial-cancellation-orchestrator.server', () => ({
@@ -17,7 +23,7 @@ vi.mock('@/lib/orders/partial-cancellation-orchestrator.server', () => ({
 vi.mock('@/lib/admin/list-export-refund-transfers.server', () => ({ refundTransferExportCaller: mocks.caller }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: mocks.create }));
 vi.mock('@/lib/supabase/service', () => ({ createServiceClient: () => ({ rpc: mocks.serviceRpc }) }));
-import { resolveOrderPartialCancellationAction } from './order-partial-cancellation-actions';
+import { loadOrderPartialCancellationAction, resolveOrderPartialCancellationAction, startOrderPartialCancellationAction } from './order-partial-cancellation-actions';
 
 const ids = {
   orderId: 'b1910000-0000-4000-8000-000000000001', partialCancellationId: 'b1910000-0000-4000-8000-000000000002',
@@ -85,5 +91,23 @@ describe('결제확인필요 해소 서버 액션', () => {
     mocks.serviceRpc.mockResolvedValue({ data: null, error: { code: '42501', message: 'bank_refund_permission_required' } });
     const result = await resolveOrderPartialCancellationAction(input);
     expect(result).toEqual({ ok: false, error: '송금 담당 권한(관리자 로그인 세션)이 필요합니다.' });
+  });
+
+  it('조회 전용(sales.read) 사용자는 처리 액션이 거절되고 읽기만 허용된다', async () => {
+    mocks.auth.mockResolvedValue({ isConfigured: true, isStaff: true, user: { id: ids.actor }, capabilities: ['sales.read'] });
+    mocks.inspect.mockResolvedValue({ ok: true, resolution: 'not_moved', observedBalance: 40000 });
+    expect(await resolveOrderPartialCancellationAction(input)).toEqual({ ok: false, error: '관리자 권한이 필요합니다.' });
+    expect(await startOrderPartialCancellationAction({ orderId: ids.orderId } as never)).toEqual({ ok: false, error: '관리자 권한이 필요합니다.' });
+    expect(mocks.inspect).not.toHaveBeenCalled();
+    expect(mocks.serviceRpc).not.toHaveBeenCalled();
+    mocks.userRpc.mockResolvedValue({ data: null, error: { message: 'x' } });
+    await loadOrderPartialCancellationAction(ids.orderId);
+    expect(mocks.userRpc).toHaveBeenCalledWith('admin_order_partial_cancellation_context', { p_order_id: ids.orderId });
+  });
+
+  it('capability가 없는 사용자는 읽기도 거절된다', async () => {
+    mocks.auth.mockResolvedValue({ isConfigured: true, isStaff: true, user: { id: ids.actor }, capabilities: ['cs.manage'] });
+    expect(await loadOrderPartialCancellationAction(ids.orderId)).toEqual({ ok: false, error: '관리자 권한이 필요합니다.' });
+    expect(mocks.userRpc).not.toHaveBeenCalled();
   });
 });

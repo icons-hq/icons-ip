@@ -14,6 +14,14 @@ describe('admin action access', () => {
     await expect(requireAdminActionAccess('/admin/catalog/goods?goodId=g1'))
       .rejects.toThrow('NEXT_REDIRECT:/login?next=%2Fadmin%2Fcatalog%2Fgoods%3FgoodId%3Dg1');
   });
+  it.each([true, false])('백그라운드 읽기 옵션은 미로그인에서 이동 대신 거절 결과를 돌려준다 (configured=%s)', async isConfigured => {
+    mocks.auth.mockResolvedValue({ isConfigured, user: null, role: null, isStaff: false });
+    expect(await requireAdminActionAccess('/admin', { onUnauthenticated: 'error' })).toBeNull();
+  });
+  it('백그라운드 읽기 옵션도 로그인한 사용자의 권한 판정은 그대로 한다', async () => {
+    expect(await requireAdminActionAccess('/admin', { onUnauthenticated: 'error', adminOnly: true })).toBeNull();
+    expect(await requireAdminActionAccess('/admin', { onUnauthenticated: 'error' })).toEqual(staff);
+  });
   it('일반 회원과 정지된 운영자는 폼 오류를 만들 수 있는 거절 결과를 받는다', async () => {
     for (const role of ['user', 'staff', 'admin']) {
       mocks.auth.mockResolvedValue({ ...staff, role, isStaff: false });

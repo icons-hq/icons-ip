@@ -15,7 +15,7 @@ const timestamp = (value: unknown): value is string | null => value === null || 
 
 /** The revision comes from the same row snapshot as the content being reviewed. */
 export async function readCsReplySourceAction(input: unknown): Promise<{ ok: true; accountId: string; source: CsReplySource } | { ok: false; error: string }> {
-  const auth = await requireAdminActionAccess(CS_PATH, { capability: 'cs.manage' });
+  const auth = await requireAdminActionAccess(CS_PATH, { capability: 'cs.manage', onUnauthenticated: 'error' });
   if (!auth) return { ok: false, error: '관리자 권한이 필요합니다. 초안은 전송하지 않았습니다.' };
   if (!record(input) || !isUuid(input.id) || !isCsReplySurface(input.surface)) return { ok: false, error: '복구할 답변 대상을 확인해주세요.' };
   const id = input.id.toLowerCase(), surface = input.surface;
@@ -45,7 +45,7 @@ export async function readCsReplySourceAction(input: unknown): Promise<{ ok: tru
 
 /** Missing receipt is only a snapshot; the original request may still commit. */
 export async function readCsReplyOperationAction(input: unknown): Promise<{ ok: true; accountId: string; receipt: CsReplyReceipt | null } | { ok: false; error: string }> {
-  const auth = await requireAdminActionAccess(CS_PATH, { capability: 'cs.manage' });
+  const auth = await requireAdminActionAccess(CS_PATH, { capability: 'cs.manage', onUnauthenticated: 'error' });
   const operation = parseCsReplyOperation(input);
   if (!auth || !operation || auth.user.id !== operation.accountId) {
     return { ok: false, error: '현재 계정의 저장 요청을 확인할 수 없습니다. 화면을 새로고침해주세요.' };

@@ -2,6 +2,8 @@
 
 # dependencies
 /node_modules
+# 하위 패키지·어드민 등 어느 깊이의 node_modules(vitest 캐시 포함)도 커밋하지 않는다
+node_modules/
 /.pnp
 .pnp.*
 .yarn/*

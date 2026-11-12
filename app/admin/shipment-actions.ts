@@ -24,6 +24,8 @@ function selection(value:unknown):string[]|null {if(!Array.isArray(value)||!valu
 /** 출고지시·배송완료는 출고 전용 권한(sales.dispatch, 1014-084)으로 한다. sales.manage도 이 권한을 포함한다. */
 const SHIPMENT_PATH='/admin/sales/dispatch';
 async function staff(){return requireAdminActionAccess(SHIPMENT_PATH,{capability:'sales.dispatch'});}
+/** 화면이 백그라운드로 부르는 읽기 전용 경고용. 세션이 끝나도 로그인으로 옮기지 않고 거절(null)만 돌려준다. */
+async function backgroundStaff(){return requireAdminActionAccess(SHIPMENT_PATH,{capability:'sales.dispatch',onUnauthenticated:'error'});}
 /**
  * 발송처리 화면의 행 운송장·배송 방법·택배 외 일괄 인계(S36-072·S36-X04) 액션이 요구하는 능력. 물류 출고 권한(sales.dispatch, 1014-084)이고
  * sales.manage도 이 권한을 포함한다. DB는 private.dispatch_console_capability()가 같은 값을 둔다(통합 migration 20261112200000).
@@ -109,7 +111,7 @@ export async function exportPendingOriginShipmentsAction(originId:unknown,format
  * 경고는 출고를 막지 않으므로 권한·입력·조회 실패는 숫자 대신 null로 돌려 경고만 생략한다.
  */
 export async function shipmentBarcodeGapsAction(ids:unknown,layout:ShipmentExportLayout='warehouse'):Promise<number|null>{
- if(!await staff()||!isExportLayout(layout))return null;const keys=selection(ids);if(!keys)return null;
+ if(!await backgroundStaff()||!isExportLayout(layout))return null;const keys=selection(ids);if(!keys)return null;
  return barcodeGaps(await createClient(),keys,layout);
 }
 /**
@@ -118,7 +120,7 @@ export async function shipmentBarcodeGapsAction(ids:unknown,layout:ShipmentExpor
  * (리뷰 M27-SHIP-2). 다음 파일의 정확한 개수는 내려받을 때 실제로 내보낸 배송 건으로 다시 세어 결과 문구에 싣는다.
  */
 export async function originBarcodeGapsAction(originId:unknown,layout:ShipmentExportLayout='warehouse'):Promise<number|null>{
- if(!await staff()||!isExportLayout(layout)||typeof originId!=='string'||!isUuid(originId))return null;
+ if(!await backgroundStaff()||!isExportLayout(layout)||typeof originId!=='string'||!isUuid(originId))return null;
  return barcodeGaps(await createClient(),{p_origin_id:originId.toLowerCase()},layout);
 }
 function isExportLayout(layout:unknown):layout is ShipmentExportLayout{return layout==='smartstore'||layout==='warehouse';}
