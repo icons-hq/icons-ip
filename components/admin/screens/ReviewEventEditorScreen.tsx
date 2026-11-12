@@ -132,7 +132,8 @@ export function ReviewEventEditorScreen({ id, workspace, targetLabels = [], quer
     {/* 정책은 입력을 막을 때만 주의로 보인다. 켜져 있는데 조건을 고칠 수도 없으면 이 화면의 일이 아니라 한 줄로 물러난다. */}
     <div role="group" aria-label="적립금 정책 상태">
       {editable || !policy?.enabled ? <AdminNotice title={policyLabel} tone={policy?.enabled ? 'neutral' : 'warning'}>
-        {policy && !policy.enabled && editable ? REVIEW_EVENT_CREDIT_POLICY_OFF : null}
+        {/* 저장을 눌러 같은 문장이 아래 오류로 나오면 여기서는 빼서 한 번만 보인다(제목 '적립금 정책: 꺼짐'은 남는다). */}
+        {policy && !policy.enabled && editable && error !== REVIEW_EVENT_CREDIT_POLICY_OFF ? REVIEW_EVENT_CREDIT_POLICY_OFF : null}
       </AdminNotice> : <p className="text-xs text-muted-foreground">{policyLabel}</p>}
     </div>
     {/* 결과 문장 자리. 아래쪽 버튼을 누른 뒤에도 보이도록 결과가 나오면 이 자리로 화면과 포커스를 옮긴다(showMessage). */}

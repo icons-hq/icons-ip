@@ -227,6 +227,19 @@ describe('ReviewEventEditorScreen disabled reasons (1027T-026·027)', () => {
     expect(html()).toMatch(/data-review-event-message=""[^>]*tabindex="-1"[^>]*>.*role="alert">/s);
   });
 
+  /* ③: 정책 꺼짐으로 저장을 막으면 위 주의 안내와 아래 오류가 같은 문장을 두 번 말했다. 오류가 나오면 주의 안내는 제목만 남긴다. */
+  it('says the policy-off sentence once after a refused save', () => {
+    props = { ...props, creditPolicy: OFF };
+    const count = (markup: string) => markup.split(OFF_HTML).length - 1;
+    expect(count(html())).toBe(1);
+    change('이벤트명', '후기 이벤트'); change('내용', '별점과 무관한 후기');
+    save();
+    const markup = html();
+    expect(count(markup)).toBe(1);
+    expect(markup).toContain(`role="alert">${OFF_HTML}`);
+    expect(markup).toContain('적립금 정책: 꺼짐');
+  });
+
   it('says why publishing is locked before the announcement date and ties it to the button', () => {
     detail('scheduled');
     const publish = button('발표 및 지급 확정')!;
