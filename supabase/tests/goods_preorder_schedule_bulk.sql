@@ -2,8 +2,11 @@
 -- 상품 단위 예약 일정 일괄 변경·안내(QNA-040, 20261113004500).
 -- 이 스모크가 DB 안에 고정하는 것:
 --   · 권한: 미리보기·확정·결과·목록은 sales.manage 운영자만, SMS 작업은 service role만, 새 원장 표는 직접 읽기 불가
---   · 대상 = 상품(옵션 선택 판매는 고른 옵션)의 미출고 예약 배송 건. 출고지시·발송·취소·취소 처리 중·같은 날짜·
---     다른 예약 상품 때문에 앞당겨야 하는 묶음 배송 건은 사유와 함께 제외, 개별 변경 건은 표시하고 포함, 결제 대기도 포함
+--   · 대상 = 상품(옵션 선택 판매는 고른 옵션)의 미출고 예약 배송 건. 출고지시·발송·취소·취소 처리 중·같은 날짜(마지막이 일괄 변경)·
+--     다른 예약 상품 때문에 앞당겨야 하는 묶음 배송 건은 사유와 함께 제외, 개별 변경 건은 표시하고 포함(새 날짜와 같으면 '안내만'),
+--     결제 대기도 포함
+--   · 접수 중 예약 조건: 확정 때 교체(남은 물량·기간을 이어받은 새 버전) 또는 그대로 둔다는 확인이 필요, 접수 종료일보다 이른 날짜는 교체 불가
+--   · 지연 탭 이력·읽기에 안내 종류와 일괄 변경 ID
 --   · 이메일 발송 설정이 꺼져 있으면 일정도 바꾸지 않는다. 미리보기 지문이 달라지면 거절한다
 --   · 확정은 배송 건 일정·변경 이력(일괄 변경 ID)·주문 감사·안내 대상(구매자·선물 받는 분)·앱 알림·이메일 대기를 한 번에 만들고,
 --     같은 요청 UUID 재전송은 처음 결과를 돌려준다(이중 안내 없음). 다른 내용의 같은 UUID는 거절한다
@@ -33,9 +36,9 @@ select 1/case when
   has_function_privilege('authenticated','public.admin_preview_goods_preorder_schedule_change(text,uuid,date)','execute')
   and not has_function_privilege('anon','public.admin_preview_goods_preorder_schedule_change(text,uuid,date)','execute')
   and not has_function_privilege('service_role','public.admin_preview_goods_preorder_schedule_change(text,uuid,date)','execute')
-  and has_function_privilege('authenticated','public.admin_apply_goods_preorder_schedule_change(uuid,text,uuid,date,text,text,text,text,uuid[],boolean)','execute')
-  and not has_function_privilege('anon','public.admin_apply_goods_preorder_schedule_change(uuid,text,uuid,date,text,text,text,text,uuid[],boolean)','execute')
-  and not has_function_privilege('service_role','public.admin_apply_goods_preorder_schedule_change(uuid,text,uuid,date,text,text,text,text,uuid[],boolean)','execute')
+  and has_function_privilege('authenticated','public.admin_apply_goods_preorder_schedule_change(uuid,text,uuid,date,text,text,text,text,uuid[],boolean,text)','execute')
+  and not has_function_privilege('anon','public.admin_apply_goods_preorder_schedule_change(uuid,text,uuid,date,text,text,text,text,uuid[],boolean,text)','execute')
+  and not has_function_privilege('service_role','public.admin_apply_goods_preorder_schedule_change(uuid,text,uuid,date,text,text,text,text,uuid[],boolean,text)','execute')
   and has_function_privilege('authenticated','public.admin_read_goods_preorder_schedule_change(uuid)','execute')
   and not has_function_privilege('anon','public.admin_read_goods_preorder_schedule_change(uuid)','execute')
   and has_function_privilege('authenticated','public.admin_list_goods_preorder_schedule_changes(text)','execute')
@@ -51,7 +54,7 @@ select 1/case when
   and not has_table_privilege('authenticated','private.order_delay_notice_sms_jobs','select')
   and (select count(*) from private.operator_rpc_contracts where signature in (
     'public.admin_preview_goods_preorder_schedule_change(text,uuid,date)',
-    'public.admin_apply_goods_preorder_schedule_change(uuid,text,uuid,date,text,text,text,text,uuid[],boolean)',
+    'public.admin_apply_goods_preorder_schedule_change(uuid,text,uuid,date,text,text,text,text,uuid[],boolean,text)',
     'public.admin_read_goods_preorder_schedule_change(uuid)',
     'public.admin_list_goods_preorder_schedule_changes(text)') and capability='sales.manage')=4
   and (select sms_enabled=false from private.order_delay_notice_delivery_control where singleton)
@@ -174,11 +177,16 @@ select pg_temp.ps_item(11,1,'ps-main',:'main_b',2,:'d0'::date+20); select pg_tem
 -- 12 이메일 없는 구매자 · 메인 A
 select pg_temp.ps_order(12,7,'paid');
 select pg_temp.ps_item(12,1,'ps-main',:'main_a',1,:'d0'::date+10); select pg_temp.ps_promise(12);
+-- 14 메인 A · 운영자가 배송 건을 새 날짜(d0+15)로 이미 개별 변경 — 고객은 모른다(안내만 대상)
+select pg_temp.ps_order(14,5,'paid');
+select pg_temp.ps_item(14,1,'ps-main',:'main_a',1,:'d0'::date+10); select pg_temp.ps_promise(14);
+insert into private.order_shipment_promise_changes(shipment_id,from_date,to_date,reason,actor_id) values(pg_temp.ps_id('shipment',14),:'d0'::date+10,:'d0'::date+15,'TEST 개별 변경',pg_temp.ps_id('user',1));
+update public.order_shipments set expected_ship_date=:'d0'::date+15 where id=pg_temp.ps_id('shipment',14);
 -- 다른 상품만 든 주문(대상 아님)
 select pg_temp.ps_order(13,5,'paid');
 select pg_temp.ps_item(13,1,'ps-other',:'other_v',3,:'d0'::date+30); select pg_temp.ps_promise(13);
 
-create temp table ps_money as select id,total,status from public.orders where id in (select pg_temp.ps_id('order',n) from generate_series(1,13) n);
+create temp table ps_money as select id,total,status from public.orders where id in (select pg_temp.ps_id('order',n) from generate_series(1,14) n);
 grant select on ps_money to authenticated;
 
 -- ---------------------------------------------------------------------------
@@ -203,9 +211,9 @@ select pg_temp.expect_error(format('select public.admin_preview_goods_preorder_s
 select public.admin_preview_goods_preorder_schedule_change('ps-main',null,:'d0'::date+15) as preview \gset
 create temp table ps_preview_targets as select value from jsonb_array_elements(:'preview'::jsonb->'targets') value;
 create temp table ps_preview_excluded as select value from jsonb_array_elements(:'preview'::jsonb->'excluded') value;
-select 1/case when (:'preview'::jsonb->>'targetShipments')::int=7 and (:'preview'::jsonb->>'targetOrders')::int=7
+select 1/case when (:'preview'::jsonb->>'targetShipments')::int=8 and (:'preview'::jsonb->>'targetOrders')::int=8
  and (select array_agg((value->>'shipmentId')::uuid order by value->>'shipmentId') from ps_preview_targets)
-  =(select array_agg(pg_temp.ps_id('shipment',n) order by pg_temp.ps_id('shipment',n)::text) from unnest(array[1,2,8,9,10,11,12]) n)
+  =(select array_agg(pg_temp.ps_id('shipment',n) order by pg_temp.ps_id('shipment',n)::text) from unnest(array[1,2,8,9,10,11,12,14]) n)
  and (select value->>'reason' from ps_preview_excluded where value->>'shipmentId'=pg_temp.ps_id('shipment',3)::text)='exported'
  and (select value->>'reason' from ps_preview_excluded where value->>'shipmentId'=pg_temp.ps_id('shipment',4)::text)='shipped'
  and (select value->>'reason' from ps_preview_excluded where value->>'shipmentId'=pg_temp.ps_id('shipment',5)::text)='cancellation_in_progress'
@@ -222,17 +230,25 @@ select 1/case when (select (value->>'individuallyChanged')::boolean and value->>
  and (select value->>'orderStatus'='pending' and value->>'paymentMethod'='bank_transfer' from ps_preview_targets where value->>'shipmentId'=pg_temp.ps_id('shipment',9)::text)
  and (select value->>'currentDate'=(:'d0'::date+20)::text and value->>'newDate'=(:'d0'::date+15)::text from ps_preview_targets where value->>'shipmentId'=pg_temp.ps_id('shipment',11)::text)
  and (select count(*) from ps_preview_targets where not (value->>'individuallyChanged')::boolean)=6
+ and (select (value->>'noticeOnly')::boolean and (value->>'individuallyChanged')::boolean and value->>'currentDate'=value->>'newDate'
+   and value->>'knownDate'=(:'d0'::date+10)::text from ps_preview_targets where value->>'shipmentId'=pg_temp.ps_id('shipment',14)::text)
+ and (select count(*) from ps_preview_targets where (value->>'noticeOnly')::boolean)=1
  and :'preview' not like '%@example.test%' and :'preview' not like '%예약일정고객%'
  and (:'preview'::jsonb->>'emailEnabled')::boolean=false and (:'preview'::jsonb->>'smsEnabled')::boolean=false
  and (:'preview'::jsonb->>'randomSale')::boolean=false and :'preview'::jsonb->>'fingerprint' ~ '^[0-9a-f]{32}$'
- and jsonb_array_length(:'preview'::jsonb->'acceptingPolicies')=2
+ and jsonb_array_length(:'preview'::jsonb->'openPolicies')=2 and :'preview'::jsonb->>'policyBlockReason' is null
+ and (:'preview'::jsonb->>'canReplacePolicies')::boolean and (:'preview'::jsonb->>'limit')::int=3000
+ and (select bool_and((policy->>'remainingQty')::int=100) from jsonb_array_elements(:'preview'::jsonb->'openPolicies') policy)
  then 1 else 0 end as assert_flags_minimal_customer_data_and_open_policies;
 -- 옵션 선택 판매는 옵션 하나로 좁힐 수 있다. 다른 옵션의 품목은 '다른 예약 상품'처럼 묶음 상한이 된다.
 select public.admin_preview_goods_preorder_schedule_change('ps-main',:'main_b',:'d0'::date+25) as variant_preview \gset
 select 1/case when (:'variant_preview'::jsonb->>'targetShipments')::int=1
  and :'variant_preview'::jsonb#>>'{targets,0,shipmentId}'=pg_temp.ps_id('shipment',11)::text
  and :'variant_preview'::jsonb->>'variantName'='늦은 옵션'
- and jsonb_array_length(:'variant_preview'::jsonb->'acceptingPolicies')=1 then 1 else 0 end as assert_variant_scope;
+ and jsonb_array_length(:'variant_preview'::jsonb->'openPolicies')=1 then 1 else 0 end as assert_variant_scope;
+-- 접수 종료일보다 이른 새 날짜로는 접수 중 조건을 교체할 수 없다(활성화 규칙). 확인하고 그대로 두는 것만 가능하다.
+select public.admin_preview_goods_preorder_schedule_change('ps-main',null,:'d0'::date+1) as early_preview \gset
+select 1/case when :'early_preview'::jsonb->>'policyBlockReason'='before_sale_end' then 1 else 0 end as assert_policy_block_before_sale_end;
 -- 랜덤 판매 상품은 옵션 하나만 바꿀 수 없다.
 reset role;
 set local session_replication_role=replica;
@@ -270,9 +286,31 @@ select pg_temp.expect_error(format('select public.admin_apply_goods_preorder_sch
 select pg_temp.expect_error(format('select public.admin_apply_goods_preorder_schedule_change(%L,%L,null,%L,%L,%L,%L,%L,%L::uuid[])',
  pg_temp.ps_id('request',1),'ps-main',(:'d0'::date+15)::text,'사유','제목','본문',:'preview'::jsonb->>'fingerprint',
  array[pg_temp.ps_id('shipment',3)]::text),'invalid_preorder_schedule_change');
+-- 접수 중 조건이 있으면 교체·확인 중 하나를 골라야 하고, 접수 종료일보다 이른 날짜는 교체할 수 없다.
+select pg_temp.expect_error(format('select public.admin_apply_goods_preorder_schedule_change(%L,%L,null,%L,%L,%L,%L,%L,%L::uuid[])',
+ pg_temp.ps_id('request',1),'ps-main',(:'d0'::date+15)::text,'사유','제목','본문',:'preview'::jsonb->>'fingerprint','{}'),'preorder_schedule_policy_decision_required');
+select pg_temp.expect_error(format('select public.admin_apply_goods_preorder_schedule_change(%L,%L,null,%L,%L,%L,%L,%L,%L::uuid[],false,%L)',
+ pg_temp.ps_id('request',1),'ps-main',(:'d0'::date+15)::text,'사유','제목','본문',:'preview'::jsonb->>'fingerprint','{}','both'),'invalid_preorder_schedule_change');
+select pg_temp.expect_error(format('select public.admin_apply_goods_preorder_schedule_change(%L,%L,null,%L,%L,%L,%L,%L,%L::uuid[],false,%L)',
+ pg_temp.ps_id('request',1),'ps-main',(:'d0'::date+1)::text,'사유','제목','본문',:'early_preview'::jsonb->>'fingerprint','{}','replace'),'preorder_schedule_policy_not_replaceable');
 reset role;
 select 1/case when not exists(select 1 from private.goods_preorder_schedule_changes)
- and not exists(select 1 from private.order_delay_notices where kind='preorder_schedule') then 1 else 0 end as assert_rejections_leave_no_ledger;
+ and not exists(select 1 from private.order_delay_notices where kind='preorder_schedule')
+ and (select count(*) from private.goods_preorder_policies where id in (pg_temp.ps_id('policy',1),pg_temp.ps_id('policy',2)) and state='active')=2
+ then 1 else 0 end as assert_rejections_leave_no_ledger;
+-- 레거시 직원(활성화 권한 없음)은 교체를 고를 수 없고 미리보기도 그렇게 알린다.
+insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
+ values(pg_temp.ps_id('user',8),'authenticated','authenticated','preorder-schedule-8@example.test',now(),'{}','{}',now(),now());
+update public.profiles set role='staff' where id=pg_temp.ps_id('user',8);
+insert into private.operator_legacy_cohort(profile_id,legacy_role) values(pg_temp.ps_id('user',8),'staff');
+update private.operator_access_state set configured=false where id;
+set local role authenticated;
+select pg_temp.as_actor(pg_temp.ps_id('user',8));
+select 1/case when not (public.admin_preview_goods_preorder_schedule_change('ps-main',null,:'d0'::date+15)->>'canReplacePolicies')::boolean
+ then 1 else 0 end as assert_legacy_staff_cannot_replace_policies;
+select pg_temp.expect_error(format('select public.admin_apply_goods_preorder_schedule_change(%L,%L,null,%L,%L,%L,%L,%L,%L::uuid[],false,%L)',
+ pg_temp.ps_id('request',97),'ps-main',(:'d0'::date+15)::text,'사유','제목','본문',:'preview'::jsonb->>'fingerprint','{}','replace'),'preorder_admin_required');
+reset role;
 
 -- ---------------------------------------------------------------------------
 -- 확정: 개별 변경 건(2)은 운영자가 뺀다. SMS 요청이 있어도 DB 설정이 꺼져 있으면 대기열이 없다.
@@ -280,21 +318,24 @@ select 1/case when not exists(select 1 from private.goods_preorder_schedule_chan
 set local role authenticated;
 select pg_temp.as_actor(pg_temp.ps_id('user',1));
 select public.admin_apply_goods_preorder_schedule_change(pg_temp.ps_id('request',1),'ps-main',null,:'d0'::date+15,' TEST 공급 지연 ',
- '예약 발송 일정 변경 안내',' 입고가 늦어져 발송 예정일을 바꿉니다. ',:'preview'::jsonb->>'fingerprint',array[pg_temp.ps_id('shipment',2)],true) as applied \gset
+ '예약 발송 일정 변경 안내',' 입고가 늦어져 발송 예정일을 바꿉니다. ',:'preview'::jsonb->>'fingerprint',array[pg_temp.ps_id('shipment',2)],true,'replace') as applied \gset
 select public.admin_apply_goods_preorder_schedule_change(pg_temp.ps_id('request',1),'ps-main',null,:'d0'::date+15,'TEST 공급 지연',
- '예약 발송 일정 변경 안내','입고가 늦어져 발송 예정일을 바꿉니다.',:'preview'::jsonb->>'fingerprint',array[pg_temp.ps_id('shipment',2),pg_temp.ps_id('shipment',2)],true) as replayed \gset
-select pg_temp.expect_error(format('select public.admin_apply_goods_preorder_schedule_change(%L,%L,null,%L,%L,%L,%L,%L,%L::uuid[],true)',
+ '예약 발송 일정 변경 안내','입고가 늦어져 발송 예정일을 바꿉니다.',:'preview'::jsonb->>'fingerprint',array[pg_temp.ps_id('shipment',2),pg_temp.ps_id('shipment',2)],true,'replace') as replayed \gset
+select pg_temp.expect_error(format('select public.admin_apply_goods_preorder_schedule_change(%L,%L,null,%L,%L,%L,%L,%L,%L::uuid[],true,%L)',
  pg_temp.ps_id('request',1),'ps-main',(:'d0'::date+15)::text,'TEST 공급 지연','예약 발송 일정 변경 안내','다른 본문',:'preview'::jsonb->>'fingerprint',
- array[pg_temp.ps_id('shipment',2)]::text),'preorder_schedule_idempotency_conflict');
+ array[pg_temp.ps_id('shipment',2)]::text,'replace'),'preorder_schedule_idempotency_conflict');
 select 1/case when :'applied'::jsonb=:'replayed'::jsonb
- and (:'applied'::jsonb->>'shipmentCount')::int=6 and (:'applied'::jsonb->>'orderCount')::int=6 and (:'applied'::jsonb->>'excludedCount')::int=1
+ and (:'applied'::jsonb->>'shipmentCount')::int=7 and (:'applied'::jsonb->>'orderCount')::int=7 and (:'applied'::jsonb->>'excludedCount')::int=1
+ and :'applied'::jsonb->>'policyAction'='replaced' and jsonb_array_length(:'applied'::jsonb->'policies')=2
  and (:'applied'::jsonb->>'smsQueued')::boolean=false and :'applied'::jsonb->>'requestedAt' is not null
- and jsonb_array_length(:'applied'::jsonb->'targets')=7
+ and jsonb_array_length(:'applied'::jsonb->'targets')=8
  and (select count(*) from jsonb_array_elements(:'applied'::jsonb->'targets') t where t->>'audience'='recipient')=1
  and (select bool_and(t->>'inAppStatus'='sent') from jsonb_array_elements(:'applied'::jsonb->'targets') t)
  and (select t->>'emailStatus'='suppressed' and not (t->>'hasEmail')::boolean and t->>'errorCode'='recipient_missing'
    from jsonb_array_elements(:'applied'::jsonb->'targets') t where t->>'orderId'=pg_temp.ps_id('order',12)::text)
- and (select count(*) from jsonb_array_elements(:'applied'::jsonb->'targets') t where t->>'emailStatus'='queued')=6
+ and (select count(*) from jsonb_array_elements(:'applied'::jsonb->'targets') t where t->>'emailStatus'='queued')=7
+ and (select (t#>>'{shipments,0,noticeOnly}')::boolean and t#>>'{shipments,0,fromDate}'=t#>>'{shipments,0,toDate}'
+   from jsonb_array_elements(:'applied'::jsonb->'targets') t where t->>'orderId'=pg_temp.ps_id('order',14)::text)
  and (select t#>>'{shipments,0,fromDate}'=(:'d0'::date+12)::text and t#>>'{shipments,0,toDate}'=(:'d0'::date+15)::text
    from jsonb_array_elements(:'applied'::jsonb->'targets') t where t->>'orderId'=pg_temp.ps_id('order',8)::text)
  and :'applied' not like '%@example.test%' and :'applied'::jsonb->>'reason'='TEST 공급 지연'
@@ -305,32 +346,37 @@ update public.profiles set role='staff' where id=pg_temp.ps_id('user',2);
 update private.operator_memberships set manager_role='primary' where profile_id=pg_temp.ps_id('user',2);
 set local role authenticated;
 select pg_temp.as_actor(pg_temp.ps_id('user',2));
-select pg_temp.expect_error(format('select public.admin_apply_goods_preorder_schedule_change(%L,%L,null,%L,%L,%L,%L,%L,%L::uuid[],true)',
+select pg_temp.expect_error(format('select public.admin_apply_goods_preorder_schedule_change(%L,%L,null,%L,%L,%L,%L,%L,%L::uuid[],true,%L)',
  pg_temp.ps_id('request',1),'ps-main',(:'d0'::date+15)::text,'TEST 공급 지연','예약 발송 일정 변경 안내','입고가 늦어져 발송 예정일을 바꿉니다.',
- :'preview'::jsonb->>'fingerprint',array[pg_temp.ps_id('shipment',2)]::text),'preorder_schedule_idempotency_conflict');
+ :'preview'::jsonb->>'fingerprint',array[pg_temp.ps_id('shipment',2)]::text,'replace'),'preorder_schedule_idempotency_conflict');
 reset role;
 update private.operator_memberships set manager_role='deputy' where profile_id=pg_temp.ps_id('user',2);
 
 -- 원장: 배송 건 일정·이력·감사·안내 대상·앱 알림
 select (:'applied'::jsonb->>'noticeId')::uuid as notice_id \gset
 select 1/case when (select array_agg(id order by id) from public.order_shipments where expected_ship_date=:'d0'::date+15
-   and id in (select pg_temp.ps_id('shipment',n) from generate_series(1,13) n))
-  =(select array_agg(pg_temp.ps_id('shipment',n) order by pg_temp.ps_id('shipment',n)) from unnest(array[1,8,9,10,11,12]) n)
+   and id in (select pg_temp.ps_id('shipment',n) from generate_series(1,14) n))
+  =(select array_agg(pg_temp.ps_id('shipment',n) order by pg_temp.ps_id('shipment',n)) from unnest(array[1,8,9,10,11,12,14]) n)
  and (select expected_ship_date from public.order_shipments where id=pg_temp.ps_id('shipment',2))=:'d0'::date+12
  and (select expected_ship_date from public.order_shipments where id=pg_temp.ps_id('shipment',7))=:'d0'::date+30
  and (select original_expected_ship_date from public.order_shipments where id=pg_temp.ps_id('shipment',1))=:'d0'::date+10
  and (select count(*) from private.order_shipment_promise_changes where bulk_change_id=pg_temp.ps_id('request',1) and reason='TEST 공급 지연'
-   and actor_id=pg_temp.ps_id('user',1))=6
+   and actor_id=pg_temp.ps_id('user',1))=7
+ and (select from_date=:'d0'::date+15 and to_date=:'d0'::date+15 from private.order_shipment_promise_changes
+   where bulk_change_id=pg_temp.ps_id('request',1) and shipment_id=pg_temp.ps_id('shipment',14))
  and (select from_date=:'d0'::date+20 and to_date=:'d0'::date+15 from private.order_shipment_promise_changes
    where bulk_change_id=pg_temp.ps_id('request',1) and shipment_id=pg_temp.ps_id('shipment',11))
  and (select count(*) from public.audit_log where action='admin.shipment.preorder_promise_changed' and diff->>'trigger'='goods_preorder_bulk'
-   and diff->>'bulkChangeId'=pg_temp.ps_id('request',1)::text and diff->>'noticeId'=:'notice_id' and actor_id=pg_temp.ps_id('user',1))=6
+   and diff->>'bulkChangeId'=pg_temp.ps_id('request',1)::text and diff->>'noticeId'=:'notice_id' and actor_id=pg_temp.ps_id('user',1))=7
  and exists(select 1 from public.audit_log where action='admin.good.preorder_schedule_changed' and target='goods:ps-main'
-   and diff->>'changeId'=pg_temp.ps_id('request',1)::text and (diff->>'shipments')::int=6 and (diff->>'excluded')::int=1)
- and (select kind='preorder_schedule' and expected_ship_date=:'d0'::date+15 and requested_at is not null and cardinality(shipment_ids)=6
+   and diff->>'changeId'=pg_temp.ps_id('request',1)::text and (diff->>'shipments')::int=7 and (diff->>'noticeOnly')::int=1 and (diff->>'excluded')::int=1
+   and diff->>'policyAction'='replaced')
+ and (select kind='preorder_schedule' and expected_ship_date=:'d0'::date+15 and requested_at is not null and cardinality(shipment_ids)=7
    from private.order_delay_notices where id=:'notice_id')
  and (select count(*) from public.notifications where source_type='order_delay_notice' and type='announcement'
-   and source_id in (select id::text from private.order_delay_notice_targets where notice_id=:'notice_id'))=7
+   and source_id in (select id::text from private.order_delay_notice_targets where notice_id=:'notice_id'))=8
+ and (select n.body from public.notifications n join private.order_delay_notice_targets t on t.id::text=n.source_id
+   where t.notice_id=:'notice_id' and t.order_id=pg_temp.ps_id('order',14)) like '%발송 예정일: '||(:'d0'::date+10)::text||' → '||(:'d0'::date+15)::text||'%'
  and exists(select 1 from public.notifications n join private.order_delay_notice_targets t on t.id::text=n.source_id
    where t.notice_id=:'notice_id' and t.audience='recipient' and n.user_id=pg_temp.ps_id('user',6) and n.link_path='/gifts')
  and (select n.body from public.notifications n join private.order_delay_notice_targets t on t.id::text=n.source_id
@@ -338,13 +384,31 @@ select 1/case when (select array_agg(id order by id) from public.order_shipments
    like '입고가 늦어져 발송 예정일을 바꿉니다.'||E'\n\n'||'발송 예정일: '||(:'d0'::date+10)::text||' → '||(:'d0'::date+15)::text||E'\n'||'안내 대상 배송 건: %'
  and (select array_agg(id order by id) from ps_money)=(select array_agg(o.id order by o.id) from public.orders o join ps_money m on m.id=o.id and m.total=o.total and m.status=o.status)
  then 1 else 0 end as assert_ledger_history_audit_and_inbox;
+-- 접수 중 조건은 남은 물량·접수 기간을 이어받은 새 날짜 버전으로 바뀌고 옛 버전은 중지된다.
+select 1/case when (select count(*) from private.goods_preorder_policies where id in (pg_temp.ps_id('policy',1),pg_temp.ps_id('policy',2)) and state='stopped')=2
+ and (select bool_and(policy.state='active' and policy.expected_ship_date=:'d0'::date+15 and policy.capacity_qty=100
+    and policy.starts_at=old.starts_at and policy.ends_at=old.ends_at and policy.approval_reference like 'TEST-ONLY 승인%발송 예정일 변경%TEST 공급 지연')
+   from public.goods_variants v join private.goods_preorder_policies policy on policy.id=v.preorder_policy_id
+   join private.goods_preorder_policies old on old.variant_id=v.id and old.id in (pg_temp.ps_id('policy',1),pg_temp.ps_id('policy',2))
+   where v.good_id='ps-main')
+ and (select count(*) from public.audit_log where action='admin.good.preorder_saved' and target='goods:ps-main')=4
+ then 1 else 0 end as assert_open_policies_replaced_with_new_date;
+-- 지연 탭 이력·읽기에 안내 종류와 일괄 변경 ID가 실린다(지연 탭은 일정 변경 안내를 이메일 없는 일괄 결과로 연다).
+set local role authenticated;
+select pg_temp.as_actor(pg_temp.ps_id('user',1));
+select 1/case when (select row->>'kind'='preorder_schedule' and row->>'scheduleChangeId'=pg_temp.ps_id('request',1)::text
+   from jsonb_array_elements(public.admin_list_order_delay_notices(null)) row where row->>'id'=:'notice_id')
+ and public.admin_get_order_delay_notice(:'notice_id')->>'kind'='preorder_schedule'
+ then 1 else 0 end as assert_delay_history_carries_kind;
+reset role;
 
 -- 같은 날짜로 다시 미리보면 이미 바꾼 건은 '같은 날짜', 개별 변경 건(2)은 여전히 대상이다. 재확정이 이중 안내를 만들지 않는다.
 set local role authenticated;
 select pg_temp.as_actor(pg_temp.ps_id('user',1));
 select public.admin_preview_goods_preorder_schedule_change('ps-main',null,:'d0'::date+15) as again \gset
 select 1/case when (:'again'::jsonb->>'targetShipments')::int=1 and :'again'::jsonb#>>'{targets,0,shipmentId}'=pg_temp.ps_id('shipment',2)::text
- and (:'again'::jsonb#>>'{targets,0,individuallyChanged}')::boolean and (:'again'::jsonb#>>'{excludedCounts,unchanged}')::int=7
+ and (:'again'::jsonb#>>'{targets,0,individuallyChanged}')::boolean and (:'again'::jsonb#>>'{excludedCounts,unchanged}')::int=8
+ and jsonb_array_length(:'again'::jsonb->'openPolicies')=0
  and jsonb_array_length(public.admin_list_goods_preorder_schedule_changes('ps-main'))=1
  and public.admin_list_goods_preorder_schedule_changes('ps-main')#>>'{0,id}'=pg_temp.ps_id('request',1)::text
  and public.admin_read_goods_preorder_schedule_change(pg_temp.ps_id('request',1))=:'applied'::jsonb
@@ -377,10 +441,13 @@ set local role authenticated;
 select pg_temp.as_actor(pg_temp.ps_id('user',1));
 select public.admin_preview_goods_preorder_schedule_change('ps-main',null,:'d0'::date+18) as sms_preview \gset
 select public.admin_apply_goods_preorder_schedule_change(pg_temp.ps_id('request',2),'ps-main',null,:'d0'::date+18,'TEST 추가 지연',
- '예약 발송 일정 변경 안내','다시 한 번 일정이 바뀌었습니다.',:'sms_preview'::jsonb->>'fingerprint','{}'::uuid[],true) as sms_applied \gset
+ '예약 발송 일정 변경 안내','다시 한 번 일정이 바뀌었습니다.',:'sms_preview'::jsonb->>'fingerprint','{}'::uuid[],true,'acknowledge') as sms_applied \gset
 reset role;
 select (:'sms_applied'::jsonb->>'noticeId')::uuid as sms_notice \gset
 select 1/case when (:'sms_applied'::jsonb->>'smsQueued')::boolean
+ and :'sms_applied'::jsonb->>'policyAction'='acknowledged'
+ and (select count(*) from public.goods_variants v join private.goods_preorder_policies policy on policy.id=v.preorder_policy_id
+   where v.good_id='ps-main' and policy.state='active' and policy.expected_ship_date=:'d0'::date+15)=2
  and (select count(*) from private.order_delay_notice_sms_jobs j join private.order_delay_notice_targets t on t.id=j.target_id
    where t.notice_id=:'sms_notice' and j.status='queued')=(select count(*) from private.order_delay_notice_targets where notice_id=:'sms_notice')
  and (select bool_and(t->>'smsStatus'='queued') from jsonb_array_elements(:'sms_applied'::jsonb->'targets') t)

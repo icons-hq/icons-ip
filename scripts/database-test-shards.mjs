@@ -100,6 +100,8 @@ const catalog = [
   sql('shipment_delay_notice_filter', { admin: true }),
   // 상품 단위 예약 일정 일괄 변경·안내(QNA-040) — 같은 지연 안내 원장·지연 탭 안내 결과 요약 뒤.
   sql('goods_preorder_schedule_bulk'),
+  // 접수 중 예약 조건 교체와 주문 접수의 잠금 순서(일회용 복제 DB 두 세션).
+  script('goods_preorder_schedule_concurrency.sh', 'PREORDER_SCHEDULE_TEST_SCOPE'),
   sql('admin_review_sorting', { admin: true }),
   run(
     'review_helpful_regression.py',

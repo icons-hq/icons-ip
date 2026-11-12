@@ -4,9 +4,12 @@
 -- 이 migration 뒤의 규칙:
 --  · 대상 = 그 상품의 예약 품목이 든 미출고 배송 건 전부. 옵션 선택 판매는 옵션 하나로 좁힐 수 있고(기본은 상품 전체),
 --    랜덤 판매는 옵션마다 일정이 다르면 배정 옵션이 드러나므로 언제나 상품 전체다(ADR-0027).
---    출고지시·발송·취소된 건, 취소 처리 중인 주문, 이미 같은 날짜인 건은 바꾸지 않고 미리보기에 제외 사유를 보인다.
---    다른 예약 상품과 함께 묶인 배송 건은 그 상품들의 주문 당시 예정일보다 앞당기지 않고, 앞당겨야 하면 제외한다.
---    운영자가 배송 건마다 바꾼 건(개별 변경)은 표시하고 기본 포함한다 — 화면에서 뺄 수 있다.
+--    출고지시·발송·취소된 건, 취소 처리 중인 주문, 이미 같은 날짜인 건(마지막 변경이 일괄 변경이거나 변경 이력이 없음)은 바꾸지 않고
+--    미리보기에 제외 사유를 보인다. 다른 예약 상품과 함께 묶인 배송 건은 앞당기는 변경이면 제외하고, 늦출 때는 그 상품의 주문 당시
+--    예정일 이상으로 바꾼다. 운영자가 배송 건마다 바꾼 건(개별 변경, 고객에게 알리지 않음)은 표시하고 기본 포함한다 — 새 날짜와 같으면
+--    일정은 그대로 두고 '안내만' 한다(고객이 마지막으로 안내받은 날짜 → 지금 날짜). 한 번에 3,000개 배송 건까지다.
+--  · 접수 중인 예약 조건의 날짜가 새 날짜와 다르면 확정 때 교체(활성화 권한, 남은 물량·접수 기간을 이어받은 새 버전, 랜덤 판매는
+--    모든 옵션)하거나 교체하지 않는다는 확인을 받는다. 교체는 같은 트랜잭션에서 기존 예약 조건 RPC로 한다.
 --  · 확정(admin_apply_goods_preorder_schedule_change)은 요청 UUID 하나로 멱등이다. 같은 요청을 다시 보내면 처음 결과를 돌려주고
 --    일정·알림을 다시 만들지 않는다. 미리보기 뒤 대상이 바뀌면(새 주문·배송 건 변경·다른 일괄 변경) 미리보기 지문이 달라져 거절한다.
 --  · 배송 건마다 일정 변경 이력(order_shipment_promise_changes.bulk_change_id)과 주문 감사 기록을, 주문마다 지연 안내 원장의 대상 행
@@ -15,7 +18,8 @@
 --  · SMS는 DB 설정(order_delay_notice_delivery_control.sms_enabled)과 앱의 SMS 알림 스위치가 모두 켜졌을 때만 대기열에 넣고,
 --    보낼 때 대상 변경·SMS 수신 동의를 다시 확인한다(인증된 번호는 SMS 알림 seam이 확인한다). 둘 다 기본 꺼짐이다.
 --    SMS 발송사에는 멱등 키가 없어 한 대상에 한 번만 시도하고, 결과를 모르면 다시 보내지 않는다.
---  · 지연 탭의 '지연 안내 결과'는 발송 지연 안내만 센다. 일정 변경 안내는 지연 안내 이력에는 함께 남는다.
+--  · 지연 탭의 '지연 안내 결과'는 발송 지연 안내만 센다. 일정 변경 안내는 지연 안내 이력에 함께 남고(종류·일괄 변경 ID를 돌려준다),
+--    지연 탭에서 열면 이메일 없는 일괄 결과 문서로 본다.
 begin;
 
 -- 1) 지연 안내 원장에 안내 종류를 더한다. 일정 변경 안내는 상품의 예약 배송 건 전체를 한 번에 담는다.
@@ -23,7 +27,7 @@ alter table private.order_delay_notices add column kind text not null default 'd
 alter table private.order_delay_notices add constraint order_delay_notices_kind_check check (kind in ('dispatch_delay','preorder_schedule'));
 alter table private.order_delay_notices drop constraint order_delay_notices_shipment_ids_check;
 alter table private.order_delay_notices add constraint order_delay_notices_shipment_ids_check
-  check (cardinality(shipment_ids)>=1 and cardinality(shipment_ids)<=case when kind='preorder_schedule' then 2000 else 100 end);
+  check (cardinality(shipment_ids)>=1 and cardinality(shipment_ids)<=case when kind='preorder_schedule' then 3000 else 100 end);
 
 -- 2) SMS 함께 보내기 DB 설정(기본 꺼짐). 앱 SMS 알림 스위치만으로는 켜지지 않는다.
 alter table private.order_delay_notice_delivery_control add column sms_enabled boolean not null default false;
@@ -40,9 +44,12 @@ create table private.goods_preorder_schedule_changes (
   request_digest text not null check (request_digest ~ '^[0-9a-f]{32}$'),
   preview_fingerprint text not null check (preview_fingerprint ~ '^[0-9a-f]{32}$'),
   excluded_shipment_ids uuid[] not null default '{}',
-  shipment_count integer not null check (shipment_count between 1 and 2000),
-  order_count integer not null check (order_count between 1 and 2000),
+  shipment_count integer not null check (shipment_count between 1 and 3000),
+  order_count integer not null check (order_count between 1 and 3000),
   sms_queued boolean not null default false,
+  -- 접수 중 예약 조건: replaced(새 날짜 새 버전으로 교체) · acknowledged(교체하지 않음을 확인) · null(해당 없음). policies는 그때의 조건 목록.
+  policy_action text check (policy_action in ('replaced','acknowledged')),
+  policies jsonb not null default '[]'::jsonb check (jsonb_typeof(policies)='array'),
   created_at timestamptz not null default clock_timestamp()
 );
 create index goods_preorder_schedule_changes_good on private.goods_preorder_schedule_changes(good_id,created_at desc,id);
@@ -53,6 +60,10 @@ revoke all on private.goods_preorder_schedule_changes from public,anon,authentic
 alter table private.order_shipment_promise_changes add column bulk_change_id uuid
   references private.goods_preorder_schedule_changes(id) on delete restrict;
 create index order_shipment_promise_changes_bulk on private.order_shipment_promise_changes(bulk_change_id) where bulk_change_id is not null;
+-- 일괄 변경이 '안내만' 한 배송 건(개별 변경을 처음 알림)은 같은 날짜로 남긴다. 개별 변경의 이전·새 날짜는 계속 달라야 한다.
+alter table private.order_shipment_promise_changes drop constraint order_shipment_promise_changes_check;
+alter table private.order_shipment_promise_changes add constraint order_shipment_promise_changes_check
+  check (from_date<>to_date or bulk_change_id is not null);
 
 -- 4) 일정 변경 안내의 SMS 대기열(대상 행마다 한 번). 본문·번호는 남기지 않는다 — 본문은 안내 대상 행의 고객 문구다.
 create table private.order_delay_notice_sms_jobs (
@@ -132,8 +143,39 @@ end $$;
 alter function private.goods_preorder_schedule_scope(text,uuid,date) owner to postgres;
 revoke all on function private.goods_preorder_schedule_scope(text,uuid,date) from public,anon,authenticated,service_role;
 
--- 7) 대상·제외 계획. 미리보기와 확정(잠근 뒤)이 같은 계산을 쓴다. 지문은 대상 배송 건·버전·새 날짜로 만든다.
+-- 7) 접수 중(또는 접수 예정)인 예약 조건 중 새 날짜와 다른 것. 이 조건으로 들어오는 새 주문은 옛 날짜로 약속되므로 확정 때
+--    새 날짜로 교체하거나(활성화 권한) 그대로 둔다는 확인이 필요하다. 남은 물량이 없는 옵션 조건은 새 주문을 받지 않아 빠진다.
+--    교체할 수 없는 경우: 새 날짜가 접수 종료일보다 이르다(활성화 규칙), 랜덤 판매 옵션 중 접수 중지·소진·다른 일정 옵션이 있다.
+create function private.goods_preorder_schedule_open_policies(p_good_id text,p_variant_id uuid,p_to_date date)
+returns jsonb language sql stable security definer set search_path='' as $$
+ with selected as (
+  select v.id variant_id,v.name variant_name,v.sort_order,policy.id policy_id,policy.revision,policy.state,policy.starts_at,policy.ends_at,
+   policy.expected_ship_date,private.goods_preorder_remaining(policy.id) remaining
+  from public.goods_variants v join private.goods_preorder_policies policy on policy.id=v.preorder_policy_id
+  where v.good_id=p_good_id and v.archived_at is null and (p_variant_id is null or v.id=p_variant_id)
+ ), open as (
+  select * from selected where state='active' and ends_at>statement_timestamp() and expected_ship_date<>p_to_date and coalesce(remaining,0)>0
+ )
+ select jsonb_build_object(
+  'policies',coalesce((select jsonb_agg(jsonb_build_object('variantId',o.variant_id,'variantName',o.variant_name,'policyId',o.policy_id,
+    'revision',o.revision,'expectedShipDate',o.expected_ship_date,'startsAt',o.starts_at,'endsAt',o.ends_at,'remainingQty',o.remaining)
+    order by o.sort_order,o.variant_id) from open o),'[]'::jsonb),
+  'blockReason',case
+   when not exists(select 1 from open) then null
+   when exists(select 1 from open where p_to_date<(ends_at at time zone 'Asia/Seoul')::date) then 'before_sale_end'
+   when (select option_sale_mode from public.goods where id=p_good_id)='random'
+    and (exists(select 1 from selected where variant_id not in (select variant_id from open))
+     or exists(select 1 from public.goods_variants v where v.good_id=p_good_id and v.archived_at is null and v.preorder_policy_id is null))
+    then 'random_option_state'
+  end)
+$$;
+alter function private.goods_preorder_schedule_open_policies(text,uuid,date) owner to postgres;
+revoke all on function private.goods_preorder_schedule_open_policies(text,uuid,date) from public,anon,authenticated,service_role;
+
+-- 8) 대상·제외 계획. 미리보기와 확정(잠근 뒤)이 같은 계산을 쓴다. 지문은 대상 배송 건·버전·새 날짜와 접수 중 조건(버전)으로 만든다.
 --    버전은 세션 시간대와 무관하게 마이크로초 정수로 쓴다.
+--    knownDate = 고객이 마지막으로 안내받은 날짜(마지막 일괄 변경의 날짜, 없으면 주문 당시 날짜). 개별 변경은 고객에게 알리지 않는다.
+--    새 날짜와 지금 날짜가 같아도 마지막 변경이 개별 변경이고 고객이 아는 날짜와 다르면 '안내만' 대상(noticeOnly)으로 기본 포함한다.
 create function private.goods_preorder_schedule_plan(p_good_id text,p_variant_id uuid,p_to_date date)
 returns jsonb language sql stable security definer set search_path='' as $$
  with scoped as (
@@ -151,29 +193,37 @@ returns jsonb language sql stable security definer set search_path='' as $$
      join public.order_items other on other.order_id=other_link.order_id and other.id=other_link.order_item_id
      where other_link.shipment_id=s.id and other.supply_source='preorder'
       and not (other.good_id=p_good_id and (p_variant_id is null or other.variant_id=p_variant_id))) other_bound,
-   (select change.bulk_change_id is null from private.order_shipment_promise_changes change where change.shipment_id=s.id
-     order by change.created_at desc,change.id desc limit 1) individually_changed,
+   coalesce((select change.bulk_change_id is null from private.order_shipment_promise_changes change where change.shipment_id=s.id
+     order by change.created_at desc,change.id desc limit 1),false) individually_changed,
+   coalesce((select change.to_date from private.order_shipment_promise_changes change where change.shipment_id=s.id and change.bulk_change_id is not null
+     order by change.created_at desc,change.id desc limit 1),s.original_expected_ship_date) known_date,
    exists(select 1 from public.order_cancellation_requests c where c.order_id=o.id and c.status in ('requested','processing','needs_review'))
     or exists(select 1 from public.order_cancellation_claims c where c.order_id=o.id) cancellation
   from scoped join public.order_shipments s on s.id=scoped.shipment_id join public.orders o on o.id=s.order_id
- ), planned as (
+ ), dated as (
   select b.*,greatest(p_to_date,b.other_bound) new_date,
-   case
-    when b.order_status='canceled' or b.shipment_status='canceled' then 'canceled'
-    when b.shipment_status in ('shipping','delivered') then 'shipped'
-    when b.exported_at is not null then 'exported'
-    when b.cancellation then 'cancellation_in_progress'
-    when b.order_status not in ('pending','paid','confirmed','shipping') or b.original_date is null then 'not_open'
-    when greatest(p_to_date,b.other_bound)=b.current_date_value then 'unchanged'
-    when b.other_bound is not null and greatest(p_to_date,b.other_bound)<b.current_date_value then 'other_preorder'
-   end reason
+   greatest(p_to_date,b.other_bound)=b.current_date_value and b.individually_changed and b.current_date_value<>b.known_date notice_only
   from base b
+ ), planned as (
+  select d.*,
+   case
+    when d.order_status='canceled' or d.shipment_status='canceled' then 'canceled'
+    when d.shipment_status in ('shipping','delivered') then 'shipped'
+    when d.exported_at is not null then 'exported'
+    when d.cancellation then 'cancellation_in_progress'
+    when d.order_status not in ('pending','paid','confirmed','shipping') or d.original_date is null then 'not_open'
+    when d.new_date=d.current_date_value and not d.notice_only then 'unchanged'
+    when d.other_bound is not null and d.new_date<d.current_date_value then 'other_preorder'
+   end reason
+  from dated d
+ ), policies as (
+  select private.goods_preorder_schedule_open_policies(p_good_id,p_variant_id,p_to_date) value
  )
  select jsonb_build_object(
   'targets',coalesce((select jsonb_agg(jsonb_build_object('shipmentId',p.shipment_id,'orderId',p.order_id,'orderNumber',p.order_number,
     'shipmentLabel',p.shipment_label,'originName',p.origin_name,'orderStatus',p.order_status,'paymentMethod',p.payment_method,
-    'currentDate',p.current_date_value,'originalDate',p.original_date,'newDate',p.new_date,
-    'individuallyChanged',coalesce(p.individually_changed,false),'otherPreorder',p.other_bound is not null,'version',p.version)
+    'currentDate',p.current_date_value,'originalDate',p.original_date,'knownDate',p.known_date,'newDate',p.new_date,
+    'noticeOnly',p.notice_only,'individuallyChanged',p.individually_changed,'otherPreorder',p.other_bound is not null,'version',p.version)
     order by p.order_number,p.shipment_label,p.shipment_id) from planned p where p.reason is null),'[]'::jsonb),
   'excluded',coalesce((select jsonb_agg(row_value order by sort_key) from (
     select jsonb_build_object('shipmentId',p.shipment_id,'orderId',p.order_id,'orderNumber',p.order_number,'shipmentLabel',p.shipment_label,
@@ -188,20 +238,23 @@ returns jsonb language sql stable security definer set search_path='' as $$
   'excludedTotal',(select count(*) from planned p where p.reason is not null),
   'targetShipments',(select count(*) from planned p where p.reason is null),
   'targetOrders',(select count(distinct p.order_id) from planned p where p.reason is null),
-  'fingerprint',md5(coalesce((select string_agg(p.shipment_id::text||':'||p.version::text||':'||p.new_date::text,',' order by p.shipment_id)
-    from planned p where p.reason is null),''))
+  'openPolicies',(select value->'policies' from policies),
+  'policyBlockReason',(select value->>'blockReason' from policies),
+  'fingerprint',md5(coalesce((select string_agg(p.shipment_id::text||':'||p.version::text||':'||p.new_date::text||':'||p.notice_only::text,',' order by p.shipment_id)
+    from planned p where p.reason is null),'')||'|'||coalesce((select string_agg(policy->>'policyId'||':'||(policy->>'revision'),',' order by policy->>'policyId')
+    from policies,jsonb_array_elements(policies.value->'policies') policy),''))
  )
 $$;
 alter function private.goods_preorder_schedule_plan(text,uuid,date) owner to postgres;
 revoke all on function private.goods_preorder_schedule_plan(text,uuid,date) from public,anon,authenticated,service_role;
 
--- 8) 일괄 변경 결과 문서. 고객 이메일·연락처는 싣지 않는다(이메일이 있는지만).
+-- 9) 일괄 변경 결과 문서. 고객 이메일·연락처는 싣지 않는다(이메일이 있는지만). 안내만 한 배송 건은 이전·새 날짜가 같다.
 create function private.goods_preorder_schedule_change_document(p_change_id uuid)
 returns jsonb language sql stable security definer set search_path='' as $$
  with changed as (
   select s.order_id,jsonb_agg(jsonb_build_object('shipmentId',pc.shipment_id,
     'label',coalesce(s.shipment_number,upper(right(s.id::text,8))),'originName',s.origin_name_snapshot,
-    'fromDate',pc.from_date,'toDate',pc.to_date) order by pc.shipment_id) shipments
+    'fromDate',pc.from_date,'toDate',pc.to_date,'noticeOnly',pc.from_date=pc.to_date) order by pc.shipment_id) shipments
   from private.order_shipment_promise_changes pc join public.order_shipments s on s.id=pc.shipment_id
   where pc.bulk_change_id=p_change_id group by s.order_id
  )
@@ -210,6 +263,7 @@ returns jsonb language sql stable security definer set search_path='' as $$
   'createdAt',c.created_at,'noticeId',c.notice_id,'requestedAt',n.requested_at,
   'emailEnabled',coalesce((select control.enabled from private.order_delay_notice_delivery_control control where control.singleton),false),
   'smsQueued',c.sms_queued,'shipmentCount',c.shipment_count,'orderCount',c.order_count,'excludedCount',cardinality(c.excluded_shipment_ids),
+  'policyAction',c.policy_action,'policies',c.policies,
   'targets',coalesce((select jsonb_agg(jsonb_build_object('id',t.id,'orderId',t.order_id,'orderNumber',o.order_number,'audience',t.audience,
     'hasEmail',t.recipient_email is not null,'shipments',coalesce(changed.shipments,'[]'::jsonb),'inAppStatus',t.in_app_status,
     'emailStatus',case when i.state in ('accepted','sent','delivered','delayed') then 'sent'
@@ -234,23 +288,20 @@ $$;
 alter function private.goods_preorder_schedule_change_document(uuid) owner to postgres;
 revoke all on function private.goods_preorder_schedule_change_document(uuid) from public,anon,authenticated,service_role;
 
--- 9) 미리보기. 아무것도 바꾸지 않는다. 대상·제외 사유·접수 중인 예약 조건(새 주문은 그 날짜로 안내)·채널 준비 상태를 돌려준다.
+-- 10) 미리보기. 아무것도 바꾸지 않는다. 대상·제외 사유·접수 중인 예약 조건(교체 가능 여부)·채널 준비 상태를 돌려준다.
 create function public.admin_preview_goods_preorder_schedule_change(p_good_id text,p_variant_id uuid,p_expected_ship_date date)
 returns jsonb language plpgsql stable security definer set search_path='' as $$
-declare good public.goods; plan jsonb;
+declare actor uuid:=(select auth.uid()); good public.goods; plan jsonb;
 begin
   if not public.has_operator_capability('sales.manage',false) then raise insufficient_privilege using message='operator_capability_required'; end if;
-  if (select auth.uid()) is null then raise insufficient_privilege using message='staff required'; end if;
+  if actor is null then raise insufficient_privilege using message='staff required'; end if;
   good:=private.goods_preorder_schedule_scope(p_good_id,p_variant_id,p_expected_ship_date);
   plan:=private.goods_preorder_schedule_plan(good.id,p_variant_id,p_expected_ship_date);
   return plan||jsonb_build_object('goodId',good.id,'goodName',good.name,'randomSale',good.option_sale_mode='random',
    'variantId',p_variant_id,'variantName',(select name from public.goods_variants where id=p_variant_id),
-   'expectedShipDate',p_expected_ship_date,'limit',2000,
-   'acceptingPolicies',coalesce((select jsonb_agg(jsonb_build_object('variantId',v.id,'variantName',v.name,
-      'expectedShipDate',policy.expected_ship_date,'startsAt',policy.starts_at,'endsAt',policy.ends_at) order by v.sort_order,v.id)
-    from public.goods_variants v join private.goods_preorder_policies policy on policy.id=v.preorder_policy_id
-    where v.good_id=good.id and (p_variant_id is null or v.id=p_variant_id) and v.archived_at is null
-     and policy.state='active' and policy.ends_at>statement_timestamp() and policy.expected_ship_date<>p_expected_ship_date),'[]'::jsonb),
+   'variantCount',(select count(*) from public.goods_variants where good_id=good.id and archived_at is null),
+   'expectedShipDate',p_expected_ship_date,'limit',3000,
+   'canReplacePolicies',private.has_operator_capability(actor,'platform.manage',true) and private.has_operator_capability(actor,'catalog.manage',false),
    'emailEnabled',coalesce((select enabled from private.order_delay_notice_delivery_control where singleton),false),
    'smsEnabled',coalesce((select sms_enabled from private.order_delay_notice_delivery_control where singleton),false));
 end $$;
@@ -258,14 +309,20 @@ alter function public.admin_preview_goods_preorder_schedule_change(text,uuid,dat
 revoke all on function public.admin_preview_goods_preorder_schedule_change(text,uuid,date) from public,anon,authenticated,service_role;
 grant execute on function public.admin_preview_goods_preorder_schedule_change(text,uuid,date) to authenticated;
 
--- 10) 확정. 미리보기에서 본 대상 그대로(운영자가 뺀 배송 건 제외) 일정을 바꾸고 같은 트랜잭션에서 앱 알림·이메일을 요청한다.
+-- 11) 확정. 미리보기에서 본 대상 그대로(운영자가 뺀 배송 건 제외) 일정을 바꾸고 같은 트랜잭션에서 앱 알림·이메일을 요청한다.
+--     접수 중 조건이 있으면 p_policy_mode가 필요하다: 'replace'(활성화 권한 — 남은 물량·접수 기간을 이어받은 새 버전으로 교체,
+--     랜덤 판매는 모든 옵션) 또는 'acknowledge'(교체하지 않음을 확인, 감사에 남김).
+--     잠금 순서: 요청 → 상품(일괄) → 주문 → 구매자 → 배송 건 → 지연 메모 → (교체 시) 상품 행·옵션 행 → 예약 조건.
+--     주문 접수(place_order)도 주문 → 구매자 → 상품·옵션 순이라 교착이 없고, 교체 때는 상품·옵션을 잠근 뒤 다시 계산해
+--     그 사이 들어온 주문이 있으면 지문이 달라져 거절한다(옛 날짜로 남는 주문이 없다).
 create function public.admin_apply_goods_preorder_schedule_change(p_request_id uuid,p_good_id text,p_variant_id uuid,
   p_expected_ship_date date,p_reason text,p_customer_title text,p_customer_body text,p_preview_fingerprint text,
-  p_excluded_shipments uuid[] default '{}'::uuid[],p_sms_requested boolean default false)
+  p_excluded_shipments uuid[] default '{}'::uuid[],p_sms_requested boolean default false,p_policy_mode text default null)
 returns jsonb language plpgsql security definer set search_path='' as $$
 declare actor uuid:=(select auth.uid()); existing private.goods_preorder_schedule_changes%rowtype; good public.goods;
-  excluded uuid[]; digest text; plan jsonb; targets jsonb; target_ids uuid[]; order_ids uuid[];
+  excluded uuid[]; digest text; plan jsonb; targets jsonb; target_ids uuid[]; order_ids uuid[]; open_policies jsonb;
   notice uuid:=extensions.gen_random_uuid(); changed_at timestamptz:=clock_timestamp(); sms boolean; order_total integer;
+  policy_action text; policy_record jsonb:='[]'::jsonb; policy jsonb; v_reference text;
   g record; v_labels text[]; v_message text; v_date_line text; v_snapshot jsonb; v_buyer uuid; v_email text; v_buyer_name text;
 begin
   perform private.require_operator_capability('sales.manage',false);
@@ -274,11 +331,12 @@ begin
    or p_reason is null or length(btrim(p_reason)) not between 1 and 2000
    or p_customer_title is null or length(btrim(p_customer_title)) not between 1 and 80 or p_customer_title ~ '[[:cntrl:]]'
    or p_customer_body is null or length(btrim(p_customer_body)) not between 1 and 350
-   or cardinality(coalesce(p_excluded_shipments,'{}'::uuid[]))>2000 or array_position(coalesce(p_excluded_shipments,'{}'::uuid[]),null) is not null
+   or cardinality(coalesce(p_excluded_shipments,'{}'::uuid[]))>50000 or array_position(coalesce(p_excluded_shipments,'{}'::uuid[]),null) is not null
+   or (p_policy_mode is not null and p_policy_mode not in ('replace','acknowledge'))
   then raise invalid_parameter_value using message='invalid_preorder_schedule_change'; end if;
   select coalesce(array_agg(distinct x order by x),'{}'::uuid[]) into excluded from unnest(coalesce(p_excluded_shipments,'{}'::uuid[])) x;
   digest:=md5(jsonb_build_array(p_good_id,p_variant_id,p_expected_ship_date,btrim(p_reason),btrim(p_customer_title),btrim(p_customer_body),
-   p_preview_fingerprint,to_jsonb(excluded),coalesce(p_sms_requested,false))::text);
+   p_preview_fingerprint,to_jsonb(excluded),coalesce(p_sms_requested,false),p_policy_mode)::text);
   perform pg_advisory_xact_lock(hashtextextended('goods_preorder_schedule_change:'||p_request_id::text,0));
   select * into existing from private.goods_preorder_schedule_changes where id=p_request_id;
   if found then
@@ -291,8 +349,11 @@ begin
   if not coalesce((select enabled from private.order_delay_notice_delivery_control where singleton),false) then
     raise check_violation using message='delay_notice_delivery_disabled';
   end if;
+  if p_policy_mode='replace' and not (private.has_operator_capability(actor,'platform.manage',true)
+    and private.has_operator_capability(actor,'catalog.manage',false)) then
+    raise insufficient_privilege using message='preorder_admin_required';
+  end if;
   perform pg_advisory_xact_lock(hashtextextended('goods_preorder_schedule_good:'||good.id,0));
-  -- 잠글 주문·배송 건을 정한 뒤 지연 안내와 같은 순서(주문 → 구매자 → 배송 건 → 지연 메모)로 잠그고 다시 계산한다.
   plan:=private.goods_preorder_schedule_plan(good.id,p_variant_id,p_expected_ship_date);
   select array_agg(distinct (value->>'orderId')::uuid),array_agg((value->>'shipmentId')::uuid)
    into order_ids,target_ids from jsonb_array_elements(plan->'targets') value;
@@ -301,6 +362,10 @@ begin
   perform 1 from public.profiles where id in (select user_id from public.orders where id=any(order_ids)) order by id for share;
   perform 1 from public.order_shipments where id=any(target_ids) order by id for update;
   perform 1 from public.order_dispatch_delays where order_id=any(order_ids) order by order_id for share;
+  if p_policy_mode='replace' then
+    perform 1 from public.goods where id=good.id for update;
+    perform 1 from public.goods_variants where good_id=good.id order by id for update;
+  end if;
   plan:=private.goods_preorder_schedule_plan(good.id,p_variant_id,p_expected_ship_date);
   if plan->>'fingerprint' is distinct from p_preview_fingerprint then raise sqlstate 'PT409' using message='preorder_schedule_stale'; end if;
   if exists(select 1 from unnest(excluded) x where not exists(select 1 from jsonb_array_elements(plan->'targets') value
@@ -308,31 +373,67 @@ begin
   select coalesce(jsonb_agg(value order by value->>'shipmentId'),'[]'::jsonb) into targets from jsonb_array_elements(plan->'targets') value
    where not ((value->>'shipmentId')::uuid=any(excluded));
   if jsonb_array_length(targets)=0 then raise check_violation using message='preorder_schedule_no_targets'; end if;
-  if jsonb_array_length(targets)>2000 then raise check_violation using message='preorder_schedule_too_many'; end if;
+  if jsonb_array_length(targets)>3000 then raise check_violation using message='preorder_schedule_too_many'; end if;
   select array_agg((value->>'shipmentId')::uuid order by (value->>'shipmentId')::uuid),count(distinct value->>'orderId')
    into target_ids,order_total from jsonb_array_elements(targets) value;
   sms:=coalesce(p_sms_requested,false) and coalesce((select sms_enabled from private.order_delay_notice_delivery_control where singleton),false);
 
+  -- 접수 중 예약 조건: 새 날짜로 교체하거나 그대로 둔다는 확인이 있어야 한다.
+  open_policies:=coalesce(plan->'openPolicies','[]'::jsonb);
+  if jsonb_array_length(open_policies)>0 then
+    if p_policy_mode is null then raise check_violation using message='preorder_schedule_policy_decision_required'; end if;
+    policy_action:=case p_policy_mode when 'replace' then 'replaced' else 'acknowledged' end;
+    if p_policy_mode='replace' then
+      if plan->>'policyBlockReason' is not null then raise check_violation using message='preorder_schedule_policy_not_replaceable'; end if;
+      v_reference:=left(coalesce((select approval_reference from private.goods_preorder_policies where id=(open_policies->0->>'policyId')::uuid),'')
+        ||E'\n'||'발송 예정일 변경 '||to_char(p_expected_ship_date,'YYYY-MM-DD')||'(예약 주문 일괄 변경): '||btrim(p_reason),2000);
+      if good.option_sale_mode='random' then
+        perform public.admin_save_random_goods_preorders(good.id,'stopped',null,(select jsonb_agg(jsonb_build_object('variantId',p->>'variantId',
+          'policyId',p->>'policyId','expectedRevision',(p->>'revision')::integer)) from jsonb_array_elements(open_policies) p));
+        perform public.admin_save_random_goods_preorders(good.id,'active',jsonb_build_object('startsAt',open_policies->0->'startsAt',
+          'endsAt',open_policies->0->'endsAt','expectedShipDate',p_expected_ship_date::text,'approvalReference',v_reference),
+          (select jsonb_agg(jsonb_build_object('variantId',p->>'variantId','policyId',null,'expectedRevision',null,
+            'capacityQty',(p->>'remainingQty')::integer)) from jsonb_array_elements(open_policies) p));
+      else
+        for policy in select value from jsonb_array_elements(open_policies) loop
+          perform public.admin_save_goods_preorder(good.id,(policy->>'variantId')::uuid,(policy->>'policyId')::uuid,
+            '{"state":"stopped"}'::jsonb,(policy->>'revision')::integer);
+          perform public.admin_save_goods_preorder(good.id,(policy->>'variantId')::uuid,null,jsonb_build_object('state','active',
+            'capacityQty',(policy->>'remainingQty')::integer,'startsAt',policy->'startsAt','endsAt',policy->'endsAt',
+            'expectedShipDate',p_expected_ship_date::text,'approvalReference',left(coalesce((select approval_reference
+              from private.goods_preorder_policies where id=(policy->>'policyId')::uuid),'')||E'\n'||'발송 예정일 변경 '
+              ||to_char(p_expected_ship_date,'YYYY-MM-DD')||'(예약 주문 일괄 변경): '||btrim(p_reason),2000)),null);
+        end loop;
+      end if;
+      select coalesce(jsonb_agg(p||jsonb_build_object('newPolicyId',(select v.preorder_policy_id from public.goods_variants v
+        where v.id=(p->>'variantId')::uuid),'newExpectedShipDate',p_expected_ship_date)),'[]'::jsonb)
+       into policy_record from jsonb_array_elements(open_policies) p;
+    else
+      policy_record:=open_policies;
+    end if;
+  end if;
+
   insert into private.order_delay_notices(id,kind,actor_id,shipment_ids,title,customer_body,expected_ship_date)
    values(notice,'preorder_schedule',actor,target_ids,btrim(p_customer_title),btrim(p_customer_body),p_expected_ship_date);
   insert into private.goods_preorder_schedule_changes(id,good_id,variant_id,to_date,reason,actor_id,notice_id,request_digest,
-   preview_fingerprint,excluded_shipment_ids,shipment_count,order_count,sms_queued,created_at)
+   preview_fingerprint,excluded_shipment_ids,shipment_count,order_count,sms_queued,policy_action,policies,created_at)
    values(p_request_id,good.id,p_variant_id,p_expected_ship_date,btrim(p_reason),actor,notice,digest,p_preview_fingerprint,excluded,
-    cardinality(target_ids),order_total,sms,changed_at);
+    cardinality(target_ids),order_total,sms,policy_action,policy_record,changed_at);
+  -- 배송 건마다 이력: 바꾼 건은 지금 → 새 날짜, 안내만 한 건(개별 변경을 처음 알림)은 같은 날짜로 남겨 다음 일괄에서 다시 알리지 않는다.
   insert into private.order_shipment_promise_changes(shipment_id,from_date,to_date,reason,actor_id,created_at,bulk_change_id)
    select (value->>'shipmentId')::uuid,(value->>'currentDate')::date,(value->>'newDate')::date,btrim(p_reason),actor,changed_at,p_request_id
    from jsonb_array_elements(targets) value;
   update public.order_shipments s set expected_ship_date=(value->>'newDate')::date,updated_at=changed_at
-   from jsonb_array_elements(targets) value where s.id=(value->>'shipmentId')::uuid;
+   from jsonb_array_elements(targets) value where s.id=(value->>'shipmentId')::uuid and value->>'newDate'<>value->>'currentDate';
   insert into public.audit_log(actor_id,action,target,diff)
    select actor,'admin.shipment.preorder_promise_changed','order:'||(value->>'orderId'),jsonb_build_object('shipmentId',value->>'shipmentId',
     'originalDate',value->>'originalDate','fromDate',value->>'currentDate','toDate',value->>'newDate','reason',btrim(p_reason),
-    'goodId',good.id,'bulkChangeId',p_request_id,'noticeId',notice,'trigger','goods_preorder_bulk')
+    'noticeOnly',(value->>'noticeOnly')::boolean,'goodId',good.id,'bulkChangeId',p_request_id,'noticeId',notice,'trigger','goods_preorder_bulk')
    from jsonb_array_elements(targets) value order by value->>'orderId',value->>'shipmentId';
 
-  -- 주문마다 구매자(선물 주문은 받는 분도) 안내 대상을 만든다. 문구는 지연 안내처럼 고객 입력 + 날짜 + 배송 건이다.
+  -- 주문마다 구매자(선물 주문은 받는 분도) 안내 대상을 만든다. 날짜 줄의 이전 날짜는 고객이 마지막으로 안내받은 날짜다.
   for g in select (value->>'orderId')::uuid order_id,array_agg((value->>'shipmentId')::uuid order by (value->>'shipmentId')::uuid) shipment_ids,
-    array_agg(distinct (value->>'currentDate')::date) from_dates,array_agg(distinct (value->>'newDate')::date) to_dates
+    array_agg(distinct (value->>'knownDate')::date) from_dates,array_agg(distinct (value->>'newDate')::date) to_dates
    from jsonb_array_elements(targets) value group by 1 order by 1 loop
    v_snapshot:=private.preorder_schedule_notice_snapshot(g.order_id,g.shipment_ids);
    if v_snapshot is null then raise sqlstate 'PT409' using message='preorder_schedule_stale'; end if;
@@ -367,15 +468,16 @@ begin
   end if;
   insert into public.audit_log(actor_id,action,target,diff) values(actor,'admin.good.preorder_schedule_changed','goods:'||good.id,
    jsonb_build_object('changeId',p_request_id,'noticeId',notice,'variantId',p_variant_id,'toDate',p_expected_ship_date,
-    'shipments',cardinality(target_ids),'orders',order_total,'excluded',cardinality(excluded),'sms',sms));
+    'shipments',cardinality(target_ids),'noticeOnly',(select count(*) from jsonb_array_elements(targets) value where (value->>'noticeOnly')::boolean),
+    'orders',order_total,'excluded',cardinality(excluded),'sms',sms,'policyAction',policy_action,'policies',policy_record));
   return private.goods_preorder_schedule_change_document(p_request_id);
 end $$;
-alter function public.admin_apply_goods_preorder_schedule_change(uuid,text,uuid,date,text,text,text,text,uuid[],boolean) owner to postgres;
-revoke all on function public.admin_apply_goods_preorder_schedule_change(uuid,text,uuid,date,text,text,text,text,uuid[],boolean)
+alter function public.admin_apply_goods_preorder_schedule_change(uuid,text,uuid,date,text,text,text,text,uuid[],boolean,text) owner to postgres;
+revoke all on function public.admin_apply_goods_preorder_schedule_change(uuid,text,uuid,date,text,text,text,text,uuid[],boolean,text)
  from public,anon,authenticated,service_role;
-grant execute on function public.admin_apply_goods_preorder_schedule_change(uuid,text,uuid,date,text,text,text,text,uuid[],boolean) to authenticated;
+grant execute on function public.admin_apply_goods_preorder_schedule_change(uuid,text,uuid,date,text,text,text,text,uuid[],boolean,text) to authenticated;
 
--- 11) 결과 다시 읽기와 상품의 최근 일괄 변경 목록(화면을 떠난 뒤 결과·재시도로 돌아온다).
+-- 12) 결과 다시 읽기와 상품의 최근 일괄 변경 목록(화면을 떠난 뒤 결과·재시도로 돌아온다).
 create function public.admin_read_goods_preorder_schedule_change(p_change_id uuid)
 returns jsonb language plpgsql stable security definer set search_path='' as $$
 declare result jsonb;
@@ -405,7 +507,7 @@ alter function public.admin_list_goods_preorder_schedule_changes(text) owner to 
 revoke all on function public.admin_list_goods_preorder_schedule_changes(text) from public,anon,authenticated,service_role;
 grant execute on function public.admin_list_goods_preorder_schedule_changes(text) to authenticated;
 
--- 12) SMS 작업(service role 전용, cron). 보내기 전에 설정·대상 변경·SMS 수신 동의를 다시 확인한다.
+-- 13) SMS 작업(service role 전용, cron). 보내기 전에 설정·대상 변경·SMS 수신 동의를 다시 확인한다.
 create function public.claim_order_delay_sms_jobs(batch_limit integer default 25)
 returns jsonb language plpgsql security definer set search_path='' as $$
 declare result jsonb; enabled boolean;
@@ -472,20 +574,37 @@ alter function public.finish_order_delay_sms_job(uuid,uuid,text,text) owner to p
 revoke all on function public.finish_order_delay_sms_job(uuid,uuid,text,text) from public,anon,authenticated,service_role;
 grant execute on function public.finish_order_delay_sms_job(uuid,uuid,text,text) to service_role;
 
--- 13) 운영자 계약: 새 화면 RPC 4개를 등록하고, 본문을 바꾼 지연 안내 결과 요약의 내부 계약 지문을 다시 남긴다.
+-- 14) 지연 탭 이력·읽기에 안내 종류를 싣는다. 일정 변경 안내는 지연 탭에서 일괄 결과 문서(이메일 없음)로 열도록 일괄 변경 ID도 준다(앵커 1곳씩).
+do $patch$
+declare definition text:=pg_get_functiondef('public.admin_list_order_delay_notices(uuid)'::regprocedure);
+  anchor text:='''requestedAt'',n.requested_at) order by n.created_at desc';
+begin
+  if (length(definition)-length(replace(definition,anchor,'')))/length(anchor)<>1 then raise exception 'delay_notice_list_anchor_changed'; end if;
+  execute replace(definition,anchor,'''requestedAt'',n.requested_at,''kind'',n.kind,''scheduleChangeId'',(select c.id from private.goods_preorder_schedule_changes c where c.notice_id=n.id)) order by n.created_at desc');
+end $patch$;
+do $patch$
+declare definition text:=pg_get_functiondef('public.admin_get_order_delay_notice(uuid)'::regprocedure);
+  anchor text:='''createdAt'',n.created_at,''expiresAt'',n.expires_at,''requestedAt'',n.requested_at,';
+begin
+  if (length(definition)-length(replace(definition,anchor,'')))/length(anchor)<>1 then raise exception 'delay_notice_get_anchor_changed'; end if;
+  execute replace(definition,anchor,anchor||'''kind'',n.kind,');
+end $patch$;
+
+-- 15) 운영자 계약: 새 화면 RPC 4개를 등록하고, 본문을 바꾼 지연 안내 함수들의 계약 지문을 다시 남긴다.
 select private.register_operator_rpc_contract('public.admin_preview_goods_preorder_schedule_change(text,uuid,date)'::regprocedure,'sales.manage','read',false);
-select private.register_operator_rpc_contract('public.admin_apply_goods_preorder_schedule_change(uuid,text,uuid,date,text,text,text,text,uuid[],boolean)'::regprocedure,'sales.manage','write',false);
+select private.register_operator_rpc_contract('public.admin_apply_goods_preorder_schedule_change(uuid,text,uuid,date,text,text,text,text,uuid[],boolean,text)'::regprocedure,'sales.manage','write',false);
 select private.register_operator_rpc_contract('public.admin_read_goods_preorder_schedule_change(uuid)'::regprocedure,'sales.manage','read',false);
 select private.register_operator_rpc_contract('public.admin_list_goods_preorder_schedule_changes(text)'::regprocedure,'sales.manage','read',false);
 do $$declare signature text;fn regprocedure;contract record;registered boolean;begin
- foreach signature in array ARRAY['private.shipment_delay_notice_summary(uuid)','private.order_delay_notice_target_current(uuid)'] loop
+ foreach signature in array ARRAY['private.shipment_delay_notice_summary(uuid)','private.order_delay_notice_target_current(uuid)',
+  'public.admin_list_order_delay_notices(uuid)','public.admin_get_order_delay_notice(uuid)'] loop
   fn:=signature::regprocedure;registered:=false;
   select * into contract from private.operator_rpc_contracts r where r.signature::regprocedure=fn;
   if found then perform private.register_operator_rpc_contract(fn,contract.capability,contract.guard_kind,contract.legacy_admin_only);registered:=true; end if;
   if exists(select 1 from private.operator_internal_contracts r where r.signature::regprocedure=fn) then
    perform private.register_operator_internal_contract(fn);registered:=true;
   end if;
-  if signature='private.shipment_delay_notice_summary(uuid)' and not registered then raise exception 'operational_rpc_contract_missing: %',signature; end if;
+  if signature<>'private.order_delay_notice_target_current(uuid)' and not registered then raise exception 'operational_rpc_contract_missing: %',signature; end if;
  end loop;
 end $$;
 
