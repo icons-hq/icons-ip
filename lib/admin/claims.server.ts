@@ -219,6 +219,22 @@ export interface AdminClaimCollection {
   receivedOn?: string | null;
   /** 회수 생략(ADR-0041)으로 이미 재출고한 배송 건. 늦게 도착한 입고 확인은 재고를 바꾸지 않는다. */
   collectionWaived?: boolean;
+  /** 회수 묶음(배송 건 × 반품지, S36-040). 승인 때 상품 우선으로 고정한 회수 주소마다 입고를 따로 확인한다. */
+  bundles?: AdminClaimCollectionBundle[];
+}
+
+/** 회수 묶음 하나. returnAddressId가 null이면 출고지 반품 주소를 쓰는 묶음이다(이름·연락처 없음). */
+export interface AdminClaimCollectionBundle {
+  bundleId: string;
+  returnAddressId: string | null;
+  returnName: string;
+  returnAddress: string;
+  returnPhone: string;
+  items: { orderItemId: string; name: string; qty: number }[];
+  collectedAt: string | null;
+  collectorName: string | null;
+  evidence: string | null;
+  receivedOn: string | null;
 }
 
 /** 배송 건 하나의 회수 생략 결정(사유·근거 사진). 하자·오배송 교환인 동안에만 회수를 대신한다(QNA-039). */
@@ -461,6 +477,14 @@ export async function loadAdminClaimDetail(
         collectedAt: text(collection.collectedAt), collectedBy: text(collection.collectedBy),
         collectorName: text(collection.collectorName), evidence: text(collection.evidence),
         receivedOn: text(collection.receivedOn), collectionWaived: collection.collectionWaived === true,
+        bundles: (Array.isArray(collection.bundles) ? collection.bundles : []).filter(isRecord).map((bundle) => ({
+          bundleId: String(bundle.bundleId ?? ''), returnAddressId: text(bundle.returnAddressId),
+          returnName: String(bundle.returnName ?? ''), returnAddress: String(bundle.returnAddress ?? ''), returnPhone: String(bundle.returnPhone ?? ''),
+          items: (Array.isArray(bundle.items) ? bundle.items : []).filter(isRecord).map((item) => ({
+            orderItemId: String(item.orderItemId ?? ''), name: String(item.name ?? ''), qty: toNumber(item.qty as number | string),
+          })),
+          collectedAt: text(bundle.collectedAt), collectorName: text(bundle.collectorName), evidence: text(bundle.evidence), receivedOn: text(bundle.receivedOn),
+        })),
       })),
       completedAt: text(claim.completedAt),
       reshipCarrier: text(claim.reshipCarrier),

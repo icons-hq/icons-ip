@@ -112,6 +112,26 @@ const receiptActions = [
   },
 ];
 
+/* 회수 묶음(배송 건 × 반품지, S36-040): 반품지가 갈린 배송 건은 묶음 키 RPC로, 아니면 배송 건 키 RPC로 확인한다. */
+describe('recordOrderClaimOriginCollectionAction 회수 묶음', () => {
+  const BUNDLE_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+  it('묶음 키가 있으면 묶음 RPC를 부르고 반품지 문구로 답한다', async () => {
+    mocks.rpc.mockResolvedValue({ data: 'collecting', error: null });
+    const form = receiptForm('return');
+    form.set('bundleId', BUNDLE_ID.toUpperCase());
+    const state = await recordOrderClaimOriginCollectionAction({}, form);
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_record_order_claim_collection_bundle', expect.objectContaining({ p_bundle_id: BUNDLE_ID, p_received_on: null }));
+    expect(state).toEqual({ message: '이 반품지의 회수를 확인했습니다. 남은 반품지·출고지를 확인해주세요.' });
+  });
+  it('묶음 키 없이 반품지가 갈린 배송 건을 확인하면 묶음을 고르라고 한다', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'claim_collection_bundle_required' } });
+    const form = receiptForm('return');
+    const state = await recordOrderClaimOriginCollectionAction({ attempt: 3 }, form);
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_record_order_claim_origin_collection', expect.anything());
+    expectPreservedFailure(state, form, '반품지가 둘 이상인 배송 건입니다. 반품지별 회수 확인에서 도착한 곳을 골라 확인해주세요.');
+  });
+});
+
 describe.each(receiptActions)('$name', (contract) => {
   it('동시에 처리 상태가 바뀌어 거절되어도 입력 원문과 식별자를 보존한다', async () => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: contract.rejectedState } });
@@ -129,7 +149,7 @@ describe.each(receiptActions)('$name', (contract) => {
 
     const state = await contract.action({ attempt: 3 }, form);
 
-    expectPreservedFailure(state, form, '출고지 설정에 반송 주소를 등록한 뒤 다시 진행해주세요.');
+    expectPreservedFailure(state, form, '회수 주소가 없는 상품이 있습니다. 상품의 반품/교환지를 고르거나 출고지 설정에 반품 주소를 등록한 뒤 다시 진행해주세요.');
   });
 
   it('알 수 없는 RPC 오류의 결제사 상세 정보는 반환하지 않는다', async () => {

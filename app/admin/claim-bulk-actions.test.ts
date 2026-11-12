@@ -484,7 +484,20 @@ describe('일괄 회수 확인(runOrderClaimBulkCollectionsAction)', () => {
     stepRpc(new Map([[ID(1), fact(1, { stage: 'collecting', collections: [collection(1), collection(2)] })]]), (name, args) => (
       name === 'admin_record_order_claim_origin_collection' && args.p_shipment_id === SHIP(2) ? { data: null, error: { message: 'claim_return_address_required' } } : 'collecting'));
     const state = await runOrderClaimBulkCollectionsAction({ claimType: 'return', receivedOn: '2026-11-10', evidence: '대조 완료', items: [{ claimId: ID(1), shipmentIds: [SHIP(1), SHIP(2)] }] });
-    expect(state.results?.[0]).toMatchObject({ outcome: 'failed', message: 'TEST 김포 회수는 확인했습니다. TEST 남양주: 출고지 설정에 반송 주소를 등록한 뒤 다시 진행해주세요.' });
+    expect(state.results?.[0]).toMatchObject({ outcome: 'failed', message: 'TEST 김포 회수는 확인했습니다. TEST 남양주: 회수 주소가 없는 상품이 있습니다. 상품의 반품/교환지를 고르거나 출고지 설정에 반품 주소를 등록한 뒤 다시 진행해주세요.' });
+  });
+
+  /* S36-040: 반품지가 갈린 배송 건은 확인창에서 고른 회수 묶음만 묶음 키 RPC로 확인한다. */
+  it('반품지가 갈린 배송 건은 고른 회수 묶음만 묶음 키로 확인한다', async () => {
+    const bundles = [{ bundleId: SHIP(81), returnName: '', collectedAt: null, returnAddressReady: true },
+      { bundleId: SHIP(82), returnName: '서울 반품지', collectedAt: null, returnAddressReady: true }];
+    stepRpc(new Map([[ID(1), fact(1, { stage: 'collecting', collections: [collection(1, { bundles })] })]]), () => 'collecting');
+    const state = await runOrderClaimBulkCollectionsAction({ claimType: 'return', receivedOn: '2026-11-10', evidence: '서울 반품지 대조',
+      items: [{ claimId: ID(1), shipmentIds: [], bundleIds: [SHIP(82)] }] });
+    expect(mocks.rpc.mock.calls.filter(([name]) => name !== 'admin_order_claim_bulk_context')).toEqual([
+      ['admin_record_order_claim_collection_bundle', { p_claim_id: ID(1), p_bundle_id: SHIP(82), p_evidence: '서울 반품지 대조', p_received_on: '2026-11-10' }],
+    ]);
+    expect(state.results?.[0]).toMatchObject({ outcome: 'done', message: 'TEST 김포 · 서울 반품지 회수를 확인했습니다(실제 입고일 2026-11-10). 남은 출고지 1곳은 따로 확인해주세요.' });
   });
 
   it('미래 입고일·빈 근거·취소 목록은 RPC 전에 거절한다', async () => {

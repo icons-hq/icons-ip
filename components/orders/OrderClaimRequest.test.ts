@@ -140,6 +140,16 @@ describe('claimStageNotice', () => {
     expect(claimStageNotice(claim({ stage: 'collecting' }))).toContain('반송해주세요');
   });
 
+  /* S36-040·QNA-031: 승인 뒤 회수 주소는 배송 묶음별이다. 회수 없이 다시 보낸 소포(ADR-0041)가 있으면 그 굿즈는 반송하지 않아도 된다. */
+  it('수거 중 안내는 배송 묶음별 회수 주소를 가리키고 회수 생략 소포를 함께 말한다', () => {
+    const plain = claimStageNotice(claim({ claimType: 'exchange', stage: 'collecting' }));
+    expect(plain).toBe('요청이 승인됐습니다. 아래 회수 정보 확인에서 배송 묶음별 회수 주소를 확인하고, 안내받은 방법으로 굿즈를 반송해주세요.');
+    expect(claimStageNotice(claim({ claimType: 'exchange', stage: 'collecting' }), null, { collectionWaived: true }))
+      .toBe(`${plain} 회수 없이 다시 보내드린 소포의 굿즈는 반송하지 않아도 됩니다.`);
+    /* 다른 단계는 회수 생략과 무관하다. */
+    expect(claimStageNotice(claim({ stage: 'collected' }), null, { collectionWaived: true })).toBe(claimStageNotice(claim({ stage: 'collected' })));
+  });
+
   it('입고 확인 뒤 안내가 유형에 따라 갈린다', () => {
     expect(claimStageNotice(claim({ stage: 'collected' }))).toContain('3일 이내에 환급');
     expect(claimStageNotice(claim({ claimType: 'exchange', stage: 'collected' })))

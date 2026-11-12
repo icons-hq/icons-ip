@@ -90,8 +90,13 @@ export async function submitOrderClaim(
     : false;
 }
 
-/** 단계별 구매자 안내. 유형에 따라 다음에 할 일이 다르다. */
-export function claimStageNotice(claim: OrderCancellationRequestSummary, refund: OrderRefundSummary | null = null): string {
+/**
+ * 단계별 구매자 안내. 유형에 따라 다음에 할 일이 다르다.
+ * collectionWaived는 이 요청에서 회수 없이 다시 보낸 소포(하자·오배송 교환의 회수 생략, ADR-0041)가 있다는 뜻이다 —
+ * 그 소포의 굿즈는 반송하지 않아도 된다고 함께 말한다.
+ */
+export function claimStageNotice(claim: OrderCancellationRequestSummary, refund: OrderRefundSummary | null = null,
+  { collectionWaived = false }: { collectionWaived?: boolean } = {}): string {
   if (claim.claimType !== 'exchange' && refund?.status === 'awaiting_transfer') {
     return '주문 취소와 재고 복원이 끝났으며 결제자 계좌로 환불 송금을 준비하고 있습니다. 실제 송금이 확인되면 환불 완료로 표시됩니다.';
   }
@@ -102,7 +107,9 @@ export function claimStageNotice(claim: OrderCancellationRequestSummary, refund:
     case 'in_review':
       return `${typeLabel} 요청을 검토하고 있습니다.`;
     case 'collecting':
-      return '요청이 승인됐습니다. 안내받은 방법으로 굿즈를 반송해주세요.';
+      /* 회수 주소는 승인 때 굿즈마다 고정한 반품지다(S36-040). 배송 묶음별 주소는 아래 회수 정보에서 확인한다(QNA-031). */
+      return '요청이 승인됐습니다. 아래 회수 정보 확인에서 배송 묶음별 회수 주소를 확인하고, 안내받은 방법으로 굿즈를 반송해주세요.'
+        + (collectionWaived ? ' 회수 없이 다시 보내드린 소포의 굿즈는 반송하지 않아도 됩니다.' : '');
     case 'collected':
       return claim.claimType === 'exchange'
         ? '반송하신 굿즈가 입고됐습니다. 교환 굿즈 재출고를 준비하고 있습니다.'
@@ -133,12 +140,15 @@ type SubmissionState = 'idle' | 'form' | 'submitting' | 'done' | 'expired' | 'bl
 
 export function OrderClaimRequest({
   claim,
+  collectionWaived = false,
   eligibility,
   orderId,
   refund = null,
   status,
 }: {
   claim: OrderCancellationRequestSummary | null;
+  /** 이 요청에 회수 없이 다시 보낸 소포가 있는지(주문 상세 '교환 배송'의 소포에서 센다). */
+  collectionWaived?: boolean;
   eligibility: OrderClaimEligibility | null;
   orderId: string;
   refund?: OrderRefundSummary | null;
@@ -243,7 +253,7 @@ export function OrderClaimRequest({
         </dl>
       ) : null}
 
-      {claim ? <p className="order-cancellation-body">{claimStageNotice(claim, refund)}</p> : null}
+      {claim ? <p className="order-cancellation-body">{claimStageNotice(claim, refund, { collectionWaived })}</p> : null}
 
       {canRequest ? (
         submission === 'form' ? (

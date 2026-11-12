@@ -194,7 +194,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     screens: [
       { id: 'fulfillment-origins', label: '배송정보 관리', href: '/admin/settings/origins', status: 'ready' },
       /* 상품별 반품/교환지(S36-040): 상품이 고르는 주소록. 비운 상품은 출고지 반품 주소를 쓴다. */
-      { id: 'return-addresses', label: '반품/교환지 관리', href: '/admin/settings/return-addresses', status: 'ready', keywords: ['반품지', '교환지', '회수 주소', '반품 주소'] },
+      { id: 'return-addresses', label: '반품/교환지 관리', href: '/admin/settings/return-addresses', status: 'ready', keywords: ['반품지', '교환지', '회수 주소'] },
       /* 재고 대조(1007-009·011·QNA-014): 창고(출고지) 재고 파일과 안전재고 메일. 상품관리 그룹은 사이드바 8개 상한이 차 있어 창고 업무와 함께 둔다. */
       { id: 'stock-reconcile', label: '재고 대조', href: '/admin/catalog/stock-reconcile', status: 'ready', keywords: ['안전재고', 'ERP 재고', '창고 재고'] },
       { id: 'shipping-regions', label: '지역별 추가배송비 관리', href: '/admin/settings/shipping-regions', status: 'ready' },

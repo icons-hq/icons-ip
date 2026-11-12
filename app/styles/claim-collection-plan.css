@@ -9,3 +9,7 @@
 .claim-collection-plan .claim-collection-plan__check { display: flex; align-items: start; gap: 8px; }
 .claim-collection-plan__check input { margin-top: 4px; width: auto; flex: 0 0 auto; }
 .claim-collection-plan li { margin-block: 8px; overflow-wrap: anywhere; }
+/* 회수 묶음(배송 건 × 반품지): 승인 뒤 배송 묶음마다 보내는 곳. 한 묶음이 둘 이상의 반품지로 갈리면 나눠 보낸다. */
+.claim-collection-plan__bundles { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.claim-collection-plan__bundles > li { margin: 0; padding: 8px 10px; background: var(--wc-surface-grey); display: grid; gap: 2px; }
+.claim-collection-plan__bundles small { color: var(--wc-ink-tertiary); }

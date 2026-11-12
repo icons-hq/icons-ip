@@ -38,7 +38,7 @@ function ReturnAddressForm({ entry, canEdit }: { entry?: ReturnAddress; canEdit:
     <AdminFormGrid>{(Object.keys(RETURN_ADDRESS_FIELD_LABELS) as ReturnAddressField[]).map((field) => {
       const inputId = `return-address-${key}-${field}`;
       const hint = field === 'name' ? '상품 등록에서 고를 때 보이는 이름입니다. 예: 서울 반품지'
-        : field === 'address' ? '고객이 반품·교환 굿즈를 보내는 주소입니다. 상품 상세와 승인 뒤 고객 반품 안내에 보입니다.'
+        : field === 'address' ? '고객이 반품·교환 상품을 보내는 주소입니다. 상품 상세와 승인 뒤 고객 반품 안내에 보입니다.'
           : '반품 송장의 받는 분 연락처입니다. 승인 뒤 고객 반품 안내에 보입니다.';
       return <div className={field === 'address' ? 'col-span-full min-w-0' : 'min-w-0'} key={field}>
         <AdminField label={RETURN_ADDRESS_FIELD_LABELS[field]} inputId={inputId} hint={hint} error={state.errors?.[field]}>

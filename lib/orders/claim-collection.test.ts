@@ -20,4 +20,18 @@ describe('claim collection corrections', () => {
   expect(parseClaimCollectionDocument(doc)?.rows.map(item => item.reshipped ?? false)).toEqual([false, true]);
   expect(parseClaimCollectionDocument({ ...doc, rows: [{ ...row, reshipped: false }] })).toBeNull();
  });
+ /* 회수 묶음(S36-040·QNA-031): 승인 뒤 배송 건마다 반품지별 회수 주소가 오고, 회수 생략 배송 건은 true로만 온다. 내부 필드는 받지 않는다. */
+ it('accepts return bundles and the collection waiver only in their exact shape', () => {
+  const row = { shipmentId: '00000000-0000-4000-8000-000000000003', originName: 'TEST 김포', revision: 0, method: 'not_requested', carrier: null, trackingNumber: null,
+   evidence: '', requestedOnce: true, collectedAt: null, updatedAt: null };
+  const bundle = { bundleId: '00000000-0000-4000-8000-000000000010', returnName: '서울 반품지', returnAddress: '서울특별시 합성구 반품로 1', returnPhone: '02-1234-5678',
+   items: [{ name: 'TEST 굿즈', qty: 1 }], collectedAt: null };
+  const doc = { claimId: '00000000-0000-4000-8000-000000000001', orderId: '00000000-0000-4000-8000-000000000002', claimRevision: 3, editable: true,
+   rows: [{ ...row, returnBundles: [bundle, { ...bundle, bundleId: '00000000-0000-4000-8000-000000000011', returnName: '', returnPhone: '' }] }, { ...row, shipmentId: '00000000-0000-4000-8000-000000000004', collectionWaived: true }], history: [] };
+  expect(parseClaimCollectionDocument(doc)?.rows.map(item => [item.returnBundles?.length ?? 0, item.collectionWaived ?? false])).toEqual([[2, false], [0, true]]);
+  for (const bad of [{ returnBundles: [] }, { returnBundles: [{ ...bundle, evidence: '내부 근거' }] }, { returnBundles: [{ ...bundle, items: [] }] },
+   { returnBundles: [{ ...bundle, items: [{ name: 'x', qty: 0 }] }] }, { returnBundles: [{ ...bundle, bundleId: 'not-a-uuid' }] }, { collectionWaived: false }]) {
+   expect(parseClaimCollectionDocument({ ...doc, rows: [{ ...row, ...bad }] })).toBeNull();
+  }
+ });
 });

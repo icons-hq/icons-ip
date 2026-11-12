@@ -32,7 +32,15 @@ describe('출고지별 회수 확인 입력', () => {
   it('정확한 클레임·배송 건과 회수 확인 근거를 받는다', () => {
     expect(normalizeAdminClaimOriginCollectionForm(formData({ claimId: CLAIM_ID, shipmentId,
       evidence: '  창고 회신 R-001: 상품 2개 수량 대조 완료  ' }))).toEqual({ ok: true,
-      value: { claimId: CLAIM_ID, shipmentId, evidence: '창고 회신 R-001: 상품 2개 수량 대조 완료', receivedOn: null } });
+      value: { claimId: CLAIM_ID, shipmentId, bundleId: null, evidence: '창고 회신 R-001: 상품 2개 수량 대조 완료', receivedOn: null } });
+  });
+  /* S36-040: 반품지가 갈린 배송 건은 회수 묶음을 골라 확인한다. 형식 밖 묶음 키는 받지 않는다. */
+  it('회수 묶음 키는 선택이고 UUID만 받는다', () => {
+    const bundleId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+    expect(normalizeAdminClaimOriginCollectionForm(formData({ claimId: CLAIM_ID, shipmentId, bundleId: bundleId.toUpperCase(), evidence: '서울 반품지 입고' })))
+      .toMatchObject({ ok: true, value: { shipmentId, bundleId } });
+    expect(normalizeAdminClaimOriginCollectionForm(formData({ claimId: CLAIM_ID, shipmentId, bundleId: 'seoul', evidence: '서울 반품지 입고' })))
+      .toEqual({ ok: false, error: '회수 확인할 반품지를 다시 선택해주세요.' });
   });
   /* 1027T-033: 실제 입고일은 KST 달력 날짜이고, 비우면 DB가 오늘로 적는다. 미래·형식 밖 날짜는 받지 않는다. */
   it('실제 입고일을 날짜로 받고 미래·형식 밖 값은 거절한다', () => {
@@ -58,7 +66,7 @@ describe('출고지별 회수 확인 입력', () => {
   it('여러 줄로 적은 근거를 보존하고 표시할 수 없는 제어문자는 거절한다', () => {
     const evidence = '창고 회신 R-001\n상품 A\t2개 대조 완료';
     expect(normalizeAdminClaimOriginCollectionForm(formData({ claimId: CLAIM_ID, shipmentId, evidence })))
-      .toEqual({ ok: true, value: { claimId: CLAIM_ID, shipmentId, evidence, receivedOn: null } });
+      .toEqual({ ok: true, value: { claimId: CLAIM_ID, shipmentId, bundleId: null, evidence, receivedOn: null } });
     expect(normalizeAdminClaimOriginCollectionForm(formData({ claimId: CLAIM_ID, shipmentId, evidence: `근거${String.fromCharCode(1)}` })).ok).toBe(false);
   });
 });
