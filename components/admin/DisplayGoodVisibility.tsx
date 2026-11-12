@@ -8,7 +8,7 @@ import { statusTone } from '@/lib/admin/status-tone';
  */
 export function DisplayGoodVisibilityNote({ visibility, compact = false }: { visibility: DisplayGoodVisibility; compact?: boolean }) {
   if (visibility === 'public') return null;
-  const badge = <AdminStatusBadge tone={statusTone('goodReference', 'hidden')}>{DISPLAY_GOOD_VISIBILITY_LABELS[visibility]}</AdminStatusBadge>;
+  const badge = <AdminStatusBadge tone={statusTone('goodReference', 'notVisible')}>{DISPLAY_GOOD_VISIBILITY_LABELS[visibility]}</AdminStatusBadge>;
   /* 칩처럼 좁은 자리는 배지만 붙이고(문장은 그 목록 아래 한 줄로), 목록 줄에서는 배지와 이유 문장을 함께 둔다. */
   if (compact) return <span className="ml-1.5 inline-flex align-middle" data-good-visibility={visibility} title={DISPLAY_GOOD_VISIBILITY_NOTES[visibility]}>{badge}</span>;
   return <span className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] leading-snug text-muted-foreground" data-good-visibility={visibility}>
