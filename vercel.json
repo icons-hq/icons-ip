@@ -21,6 +21,10 @@
       "schedule": "* * * * *"
     },
     {
+      "path": "/api/cron/order-delay-sms",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/cron/marketing-messages",
       "schedule": "* * * * *"
     },
