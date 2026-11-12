@@ -20,7 +20,8 @@ export function CouponRowActions({ coupon, onEdit, copyHref, issueHref, onStatus
   const dialog = useRef<HTMLDialogElement>(null);
   const [state, action, pending] = useActionState(async (previous: AdminCouponActionState, formData: FormData) => {
     const result = await setAdminCouponStatusAction(previous, formData);
-    if (result.message) onStatusChanged?.(`${coupon.name}(${coupon.code}) ${result.message}`);
+    /* 모달 확인 창이 열려 있으면 바깥이 잠겨(inert) 결과 문장으로 포커스를 옮길 수 없다 — 먼저 닫고 알린다. */
+    if (result.message) { dialog.current?.close(); onStatusChanged?.(`${coupon.name}(${coupon.code}) ${result.message}`); }
     return result;
   }, {} as AdminCouponActionState);
   const stopped = coupon.status === 'archived';
