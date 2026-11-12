@@ -7,7 +7,12 @@ export type ClaimCollectionValues = { method: CollectionMethod; carrier: string 
  * 회수 묶음 하나(배송 건 × 반품지, S36-040·QNA-031). 승인 때 상품 우선으로 고정한 회수 주소다 — 이름·연락처는 주소록
  * 반품지에만 있고, 출고지 반품 주소를 쓰는 묶음은 빈 문자열이다. 고객 문서에는 내부 근거·처리자를 싣지 않는다.
  */
-export type ClaimReturnBundle = { bundleId: string; returnName: string; returnAddress: string; returnPhone: string; items: { name: string; qty: number }[]; collectedAt: string | null };
+export type ClaimReturnBundle = { bundleId: string; returnName: string; returnAddress: string; returnPhone: string; items: { name: string; qty: number }[]; collectedAt: string | null; pickup?: ClaimReturnPickup };
+/**
+ * 반품 자동 회수 접수(QNA-032·ADR-0034)로 택배사에 접수된 회수 묶음의 회수 송장. 접수된 묶음에만 온다 — 스위치를 켠 적 없으면 키가 없어
+ * 지금 문서와 같다.
+ */
+export type ClaimReturnPickup = { carrier: string; carrierLabel: string | null; trackingNumber: string; requestedAt: string };
 /**
  * reshipped는 그 배송 건을 이미 재출고해 회수 정보 정정이 잠긴 행에만 온다(TKT-166). 남은 출고지는 계속 정정한다.
  * collectionWaived는 회수 생략 결정이 있는 배송 건에만 온다. returnBundles는 DB의 회수 문서 행에 없다 — 별도 읽기 RPC
@@ -17,8 +22,11 @@ export type ClaimReturnBundle = { bundleId: string; returnName: string; returnAd
 export type ClaimCollectionRow = { shipmentId: string; originName: string; revision: number; method: CollectionMethod; carrier: string | null; carrierLabel?: string | null; trackingNumber: string | null; evidence: string; requestedOnce: boolean; collectedAt: string | null; updatedAt: string | null; reshipped?: true; returnBundles?: ClaimReturnBundle[]; collectionWaived?: true };
 export type ClaimCollectionDocument = { claimId: string; orderId: string; claimRevision: number; editable: boolean; rows: ClaimCollectionRow[]; history: { id: string; shipmentId: string; createdAt: string; method: CollectionMethod; carrier: string | null; trackingNumber: string | null; evidence: string }[] };
 const nullableText = (v: unknown) => v === null || typeof v === 'string';
+const returnPickup = (v: unknown): v is ClaimReturnPickup => transactionRecord(v) && transactionExactKeys(v, ['carrier', 'carrierLabel', 'trackingNumber', 'requestedAt'])
+  && typeof v.carrier === 'string' && nullableText(v.carrierLabel) && typeof v.trackingNumber === 'string' && typeof v.requestedAt === 'string';
 const returnBundle = (v: unknown): v is ClaimReturnBundle => transactionRecord(v)
-  && transactionExactKeys(v, ['bundleId', 'returnName', 'returnAddress', 'returnPhone', 'items', 'collectedAt']) && isUuid(v.bundleId)
+  && transactionExactKeys(v, ['bundleId', 'returnName', 'returnAddress', 'returnPhone', 'items', 'collectedAt', ...(Object.hasOwn(v, 'pickup') ? ['pickup'] : [])]) && isUuid(v.bundleId)
+  && (!Object.hasOwn(v, 'pickup') || returnPickup(v.pickup))
   && typeof v.returnName === 'string' && typeof v.returnAddress === 'string' && typeof v.returnPhone === 'string' && nullableText(v.collectedAt)
   && Array.isArray(v.items) && v.items.length > 0 && v.items.every(item => transactionRecord(item) && transactionExactKeys(item, ['name', 'qty'])
     && typeof item.name === 'string' && transactionInteger(item.qty, 1));

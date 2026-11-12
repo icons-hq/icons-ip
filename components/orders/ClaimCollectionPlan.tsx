@@ -18,6 +18,7 @@ type Request = { shipmentId: string; revision: number; claimRevision: number; va
  * 회수 주소(S36-040·QNA-031): 승인 뒤 배송 묶음마다 승인 때 고정한 회수 주소. 한 배송 묶음 안에서 굿즈마다 반품지가 다르면
  * 반품지별로 나눠 보이고, 고객은 나눠 보낸다. 회수 생략 배송 건(하자·오배송 교환, ADR-0041)은 고객에게 주소 대신 반송이
  * 필요 없다고 말한다. 선물 주문은 받는 분만 이 문서를 읽는다(read_my_claim_collection_plan).
+ * 반품 자동 회수 접수(QNA-032)로 택배사에 접수된 묶음은 방문 회수와 회수 송장을 함께 보인다(접수되지 않은 묶음은 지금과 같다).
  */
 export function ClaimReturnBundles({ row, operator }: { row: ClaimCollectionRow; operator: boolean }) {
   if (row.collectionWaived && !operator) return <p data-claim-collection-waived="">회수 없이 다시 보내드려요. 이 배송 묶음의 굿즈는 반송하지 않아도 됩니다.</p>;
@@ -29,8 +30,13 @@ export function ClaimReturnBundles({ row, operator }: { row: ClaimCollectionRow;
       <small>{bundles.length > 1 ? `회수 주소 ${index + 1}/${bundles.length}` : '회수 주소'}{bundle.collectedAt ? ` · 입고 확인 ${formatOrderDateTime(bundle.collectedAt)}` : ''}</small>
       <span>{bundle.returnName ? `${bundle.returnName} · ` : ''}{bundle.returnAddress || '판매자가 회수 주소를 따로 안내합니다.'}{bundle.returnPhone ? ` · ${bundle.returnPhone}` : ''}</span>
       <small>{bundle.items.map(item => `${item.name} ${item.qty}개`).join(', ')}</small>
+      {bundle.pickup ? <small data-claim-return-pickup="">방문 회수 접수 · {bundle.pickup.carrierLabel ?? bundle.pickup.carrier} 회수 송장 {bundle.pickup.trackingNumber}</small> : null}
     </li>)}</ul> : null}
   </>;
+}
+/** 행 상태 문구. 자동 회수 접수(QNA-032)로 방문 회수가 접수된 묶음이 있으면 '접수 후 수거 협의' 대신 '방문 회수 접수됨'이다. */
+export function collectionRowMethodLabel(row: ClaimCollectionRow): string {
+  return row.method === 'not_requested' && row.returnBundles?.some(bundle => bundle.pickup) ? '방문 회수 접수됨' : COLLECTION_METHODS[row.method];
 }
 export function ClaimCollectionPlan(props: Props) {
   return <ClaimContactSession actorId={props.actorId}>{(identity, scope) => <CollectionPanel key={`${props.claimId}:${identity.sessionId}`} {...props} identity={identity} scope={scope} />}</ClaimContactSession>;
@@ -78,7 +84,7 @@ function CollectionPanel({ claimId, operator = false, carriers = [], shipmentLab
     {/* 고객에게는 출고지 이름 대신 같은 화면 배송 건 머리의 이름(택배사·R26)으로 부른다(10/14 회의 S7 · m27 CUST-2).
         회수 문서에는 출고 택배사가 없어 주문 상세가 이름표를 넘긴다. 이름표가 없으면 '배송 묶음 N'이다. */}
     {document?.rows.map((row, index, rows) => <div className="claim-collection-plan__row" key={row.shipmentId}>
-      <strong>{operator ? row.originName : claimCollectionRowLabel(row.shipmentId, index, rows.length, shipmentLabels)}</strong><p>{COLLECTION_METHODS[row.method]} · {row.collectedAt ? `회수 확인 ${formatOrderDateTime(row.collectedAt)}` : '회수 확인 전'}</p>
+      <strong>{operator ? row.originName : claimCollectionRowLabel(row.shipmentId, index, rows.length, shipmentLabels)}</strong><p>{collectionRowMethodLabel(row)} · {row.collectedAt ? `회수 확인 ${formatOrderDateTime(row.collectedAt)}` : '회수 확인 전'}</p>
       {row.carrier ? <p>{row.carrierLabel ?? carriers.find(c => c.code === row.carrier)?.label ?? row.carrier} · {row.trackingNumber}</p> : null}
       <ClaimReturnBundles row={row} operator={operator} />
       {operator && row.evidence ? <p>{row.evidence}</p> : null}

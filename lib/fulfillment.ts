@@ -40,6 +40,8 @@ export interface GoodShippingPolicy {
   remoteAreaNotice?: string;
   cs?: { name: string; phone: string; email: string };
   regionFees?: GoodShippingRegionFees;
+  /** 반품 자동 회수 접수(QNA-032)가 이 굿즈의 출고지에 켜져 있다 — 반송 안내를 방문 회수 안내로 바꾼다. 꺼져 있으면 키가 없다. */
+  returnPickup?: true;
 }
 export interface ShippingQuoteGroup {
   originId: string; originCode: string; originName: string; policySubtotal: number;

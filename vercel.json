@@ -59,6 +59,10 @@
     {
       "path": "/api/cron/delivery-tracking",
       "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/cron/return-pickups",
+      "schedule": "*/5 * * * *"
     }
   ],
   "git": {

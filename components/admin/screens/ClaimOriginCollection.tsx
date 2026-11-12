@@ -2,6 +2,8 @@
 
 import { useActionState, useId, useState } from 'react';
 import { recordOrderClaimOriginCollectionAction } from '@/app/admin/claim-actions';
+import { retryClaimReturnPickupAction } from '@/app/admin/claim-return-actions';
+import { RETURN_PICKUP_CANCEL_REASON_LABELS, RETURN_PICKUP_STATE_LABELS, returnPickupErrorLabel, returnPickupRetryable, type AdminReturnPickup } from '@/lib/admin/claim-return-pickup';
 import type { AdminClaimCollection, AdminClaimCollectionBundle } from '@/lib/admin/claims.server';
 import { adminClaimTodayKst } from '@/lib/admin/claims';
 import { adminClaimCopy } from '@/lib/admin/vocabulary';
@@ -23,6 +25,7 @@ import { useClaimPreviewBusy } from './ClaimPreviewDialog';
  * 동안 늦게 도착한 입고를 확인할 수 있고, 재고는 바뀌지 않는다(재출고는 결정대로 회수품을 복원하지 않는다).
  * 회수 묶음(S36-040): 한 배송 건 안에서 상품별 반품지가 갈리면 반품지마다 묶음이 나뉘고, 묶음마다 입고를 확인한다. 배송 건의
  * 모든 묶음이 입고돼야 그 배송 건이 회수 완료다. 묶음이 하나면 지금까지처럼 배송 건 하나로 확인한다.
+ * 반품 자동 회수 접수(QNA-032): 스위치를 켠 뒤 접수 큐에 들어간 묶음에만 접수 상태·회수 송장이 보이고, 자동 수거 실패는 다시 접수한다.
  */
 export function ClaimOriginCollection({ claimId, claimType, collection, canRecord }: {
   claimId: string;
@@ -52,6 +55,7 @@ export function ClaimOriginCollection({ claimId, claimType, collection, canRecor
         </p>
         <ReturnDestination address={bundle.returnAddress} phone={bundle.returnPhone} />
         <ItemList items={bundle.items} />
+        {bundle.pickup ? <ReturnPickupStatus bundleId={bundle.bundleId} canRetry={canRecord} claimId={claimId} pickup={bundle.pickup} /> : null}
         {bundle.collectedAt ? <CollectedRecord collectedAt={bundle.collectedAt} collectorName={bundle.collectorName} evidence={bundle.evidence} receivedOn={bundle.receivedOn} />
           : canRecord ? <CollectionRecordForm bundle={bundle} claimId={claimId} claimType={claimType} label={bundle.returnName || '출고지 반품 주소'} shipmentId={collection.shipmentId} waived={waived} /> : null}
       </div>)}
@@ -59,6 +63,7 @@ export function ClaimOriginCollection({ claimId, claimType, collection, canRecor
     </> : <>
       <ReturnDestination address={collection.returnAddress} name={single?.returnName} phone={single?.returnPhone} />
       <ItemList items={collection.items} />
+      {single?.pickup ? <ReturnPickupStatus bundleId={single.bundleId} canRetry={canRecord} claimId={claimId} pickup={single.pickup} /> : null}
       {collection.collectedAt ? <>
         <CollectedRecord collectedAt={collection.collectedAt} collectorName={collection.collectorName} evidence={collection.evidence} receivedOn={collection.receivedOn} />
         {waived ? <p className="text-xs text-muted-foreground">회수 생략으로 결정한 뒤 늦게 도착한 입고입니다. 재고는 바뀌지 않았습니다.</p> : null}
@@ -73,6 +78,34 @@ function ReturnDestination({ address, name, phone }: { address: string; name?: s
     <p className="break-words whitespace-pre-wrap">{address
       ? [name, address, phone].filter(Boolean).join(' · ')
       : '상품의 반품/교환지를 고르거나 출고지 설정에서 반품 주소를 등록해주세요.'}</p>
+  </div>;
+}
+
+/* 회수 묶음 하나의 자동 회수 접수. 접수되면 회수 송장, 실패하면 이유·자동 재시도와 [다시 접수], 취소되면 그 이유를 보인다. */
+function ReturnPickupStatus({ bundleId, canRetry, claimId, pickup }: { bundleId: string; canRetry: boolean; claimId: string; pickup: AdminReturnPickup }) {
+  const [state, action, pending] = useActionState(retryClaimReturnPickupAction, {});
+  useClaimPreviewBusy(pending);
+  const failed = pickup.state === 'failed' || pickup.state === 'cancel_failed';
+  return <div className="flex min-w-0 flex-col gap-1" data-claim-return-pickup={pickup.state}>
+    <p className="flex flex-wrap items-center gap-2">
+      <span className="text-xs text-muted-foreground">자동 회수 접수</span>
+      <AdminStatusBadge tone={statusTone('claimReturnPickup', pickup.state)}>{RETURN_PICKUP_STATE_LABELS[pickup.state]}</AdminStatusBadge>
+      {pickup.trackingNumber ? <span className="tabular-nums">{pickup.carrierLabel ?? pickup.carrier} · 회수 송장 {pickup.trackingNumber}</span> : null}
+    </p>
+    {pickup.requestedAt ? <p className="text-xs text-muted-foreground">접수 {formatOrderDateTime(pickup.requestedAt)}</p> : null}
+    {failed ? <p className="text-xs text-destructive">
+      {returnPickupErrorLabel(pickup.lastErrorCode) ?? '택배사가 받지 않았습니다'} · 자동 시도 {pickup.autoAttempts}/{pickup.maxAttempts}회
+      {pickup.nextAttemptAt ? ` · 다음 자동 시도 ${formatOrderDateTime(pickup.nextAttemptAt)}` : ' · 자동 재시도 끝'}
+    </p> : null}
+    {pickup.state === 'canceled' && pickup.cancelReason ? <p className="text-xs text-muted-foreground">수거 취소 · {RETURN_PICKUP_CANCEL_REASON_LABELS[pickup.cancelReason] ?? pickup.cancelReason}</p> : null}
+    {pickup.inProgress ? <p className="text-xs text-muted-foreground">택배사에 보내는 중입니다.</p> : null}
+    {canRetry && returnPickupRetryable(pickup) ? <form action={action}>
+      <input type="hidden" name="claimId" value={claimId} />
+      <input type="hidden" name="bundleId" value={bundleId} />
+      <Button className="w-fit" disabled={pending} size="sm" type="submit" variant="outline">{pickup.state === 'cancel_failed' ? '수거 취소 다시 요청' : '회수 다시 접수'}</Button>
+    </form> : null}
+    {state.error ? <p className="text-destructive" role="alert">{state.error}</p> : null}
+    {state.message ? <p className="text-muted-foreground" role="status">{state.message}</p> : null}
   </div>;
 }
 

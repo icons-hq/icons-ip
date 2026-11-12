@@ -1,4 +1,5 @@
 import { loadAdminOrderTransactions } from '@/lib/order-transactions.server';
+import { parseAdminReturnPickup, type AdminReturnPickup } from '@/lib/admin/claim-return-pickup';
 import type { GoodsTransactionDisplay } from '@/lib/goods-transaction';
 import { isUuid } from '@/lib/uuid';
 import type { ShipmentRecord } from '@/lib/orders/shipments';
@@ -236,6 +237,8 @@ export interface AdminClaimCollectionBundle {
   collectorName: string | null;
   evidence: string | null;
   receivedOn: string | null;
+  /** 반품 자동 회수 접수(QNA-032). 스위치를 켠 뒤 접수 큐에 들어간 묶음에만 있다. */
+  pickup?: AdminReturnPickup | null;
 }
 
 /** 배송 건 하나의 회수 생략 결정(사유·근거 사진). 하자·오배송 교환인 동안에만 회수를 대신한다(QNA-039). */
@@ -487,6 +490,7 @@ export async function loadAdminClaimDetail(
             orderItemId: String(item.orderItemId ?? ''), name: String(item.name ?? ''), qty: toNumber(item.qty as number | string),
           })),
           collectedAt: text(bundle.collectedAt), collectorName: text(bundle.collectorName), evidence: text(bundle.evidence), receivedOn: text(bundle.receivedOn),
+          ...(bundle.pickup === undefined ? {} : { pickup: parseAdminReturnPickup(bundle.pickup) }),
         })),
       })),
       completedAt: text(claim.completedAt),
