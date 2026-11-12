@@ -945,6 +945,40 @@
   white-space: nowrap;
 }
 
+/* 1014-047 — 컬러형 헤더(스토어 설정 headerStyle=color)에서는 패널도 헤더 색을 이어 받아 로고 행과 한 덩어리가 된다.
+   흰 패널이면 색 있는 로고 행과 두 줄로 갈리고, 헤더 글자색을 받은 뒤로·검색 버튼이 흰 바탕에 묻힌다(어두운 색은 흰 글자).
+   입력 칸(회색)·추천 칩은 자기 바탕을 그대로 쓴다. 기본형 헤더는 로고 행·패널이 이미 같은 흰 바탕이라 바꾸지 않는다. */
+.wc-chrome .wc-header[data-store-header="color"] .wc-search {
+  border-top-color: transparent;
+  background: var(--store-theme);
+  color: var(--store-theme-ink);
+}
+
+.wc-chrome .wc-header[data-store-header="color"] .wc-search .wc-search__chips-label {
+  color: var(--store-theme-ink);
+}
+
+/* 추천 칩의 틴트는 반투명이라 색 바탕 위에서는 어두워져 글자가 묻힌다 — 흰 바탕에 얹은 기본 모양 그대로 칠한다. */
+.wc-chrome .wc-header[data-store-header="color"] .wc-search .wc-search__chip {
+  background: linear-gradient(var(--wc-accent-tint), var(--wc-accent-tint)), var(--wc-surface);
+}
+
+/* 경험 화면 안의 '사업자 정보·약관' 링크가 푸터로 보낸 포커스(components/shell/site-footer-jump.ts) — 컨테이너 자체에는 링을 그리지 않는다. */
+.wc-footer:focus-visible {
+  outline: none;
+}
+
+/* 컬러형 헤더의 포커스 링 — 기본 링(#5B74FF)은 테마 색 15종 중 14종에서 3:1 미만이라(WCAG 1.4.11·2.4.7) 색 바탕 위의 머리말 행과
+   검색 패널 안에서는 헤더 글자색(대비가 보장된 짝)으로 그린다. 기본형 헤더는 흰 바탕이라 기본 링 그대로다. */
+.wc-chrome .wc-header[data-store-header="color"] :is(.wc-header__bar, .wc-gnb-wrap, .wc-search) :focus-visible {
+  outline-color: var(--store-theme-ink);
+}
+
+/* 메가메뉴 패널은 테마 색이 아니라 흰 바탕이다 — 어두운 프리셋(글자색 흰색)에서 헤더 글자색 링이 흰 바탕 위 흰색이 되지 않게 기본 링으로 되돌린다. */
+.wc-chrome .wc-header[data-store-header="color"] .wc-mega :focus-visible {
+  outline-color: var(--wc-focus);
+}
+
 @media (max-width: 989px) {
   /* MC-04 — 모바일 칩은 한 줄로 두고 가로로 넘긴다. 여러 줄로 접히면 패널이 본문을 한 뼘 더 가린다. */
   .wc-search .wc-search__chips {
@@ -1006,12 +1040,19 @@
     white-space: nowrap;
   }
 
+  /* z-index: 뒤로 버튼은 마크업에서 입력 칸보다 앞이라 같은 층이면 칸에 덮여 포커스가 보이지 않는다(1014-047 확인 중 실측). */
   .wc-search .wc-search__aux:focus {
     position: absolute;
     top: 50%;
     right: calc(var(--wc-gutter) + 8px);
+    z-index: 1;
     background: var(--wc-surface);
     transform: translateY(-50%);
+  }
+
+  /* 포커스로 드러난 버튼은 칸 안 흰 바탕 위라 컬러형 헤더에서도 잉크색이다(헤더 글자색을 받지 않는다). */
+  .wc-chrome .wc-header[data-store-header="color"] .wc-search .wc-search__aux:focus {
+    color: var(--wc-ink);
   }
 }
 
@@ -1727,6 +1768,11 @@
 @media (max-width: 989px) {
   .wc-footer {
     padding-bottom: max(122px, calc(var(--wc-store-analytics-clearance, 0px) + 16px));
+  }
+
+  /* 캠페인·게임(독립 경험)에는 탭바가 없다 — 탭바 몫을 열지 않고 데스크톱과 같은 바닥을 쓴다(1014-X36). */
+  .wc-footer.wc-footer--standalone {
+    padding-bottom: max(60px, calc(var(--wc-store-analytics-clearance, 0px) + 16px));
   }
 
   /* 줄이 바뀔 때 첫 링크 앞에 구분선과 들여쓰기가 남지 않게 간격으로 구분한다. */

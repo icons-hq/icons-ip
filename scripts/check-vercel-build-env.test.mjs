@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   formatVercelBuildReadback,
+  validateLegalRevisionDates,
   validateVercelBuildEnvironment,
 } from './check-vercel-build-env.mjs';
 
@@ -796,5 +797,43 @@ describe('validateVercelBuildEnvironment', () => {
       expect(() => validateVercelBuildEnvironment({ ...baseEnvironment, NICEPAY_ORDER_CANARY_USER_ID: canary }))
         .toThrow('Invalid Vercel preview NICEPAY_ORDER_CANARY_USER_ID: canary users are production-only');
     });
+  });
+});
+
+describe('legal revision date guard', () => {
+  const source = (announced, effective) => JSON.stringify({ announcedDate: announced, effectiveDate: effective });
+  const nullSource = source(null, null);
+
+  it('does nothing while no revision is reserved (both null)', () => {
+    expect(() => validateLegalRevisionDates(nullSource)).not.toThrow();
+  });
+
+  it('accepts valid dates on any build day - the dates stay in code after the effective date', () => {
+    expect(() => validateLegalRevisionDates(source('2026-11-20', '2026-11-27'))).not.toThrow();
+    for (const now of ['2026-11-20', '2026-11-21', '2026-11-30', '2027-03-01']) {
+      expect(() => validateVercelBuildEnvironment(productionEnvironment(), {
+        now: new Date(`${now}T03:00:00Z`), revisionSource: source('2026-11-20', '2026-11-27'),
+      }), now).not.toThrow();
+    }
+  });
+
+  it('fails when only one date is set or a date is malformed', () => {
+    expect(() => validateLegalRevisionDates(source('2026-11-20', null))).toThrow(/null or both YYYY/);
+    expect(() => validateLegalRevisionDates(source(null, '2026-11-27'))).toThrow(/null or both YYYY/);
+    expect(() => validateLegalRevisionDates(source('2026-11-2', '2026-11-27'))).toThrow(/null or both YYYY/);
+    expect(() => validateLegalRevisionDates(source('2026-02-30', '2026-11-27'))).toThrow(/null or both YYYY/);
+    expect(() => validateLegalRevisionDates('{ not json')).toThrow(/not valid JSON/);
+  });
+
+  it('fails when the notice period is shorter than 7 days or precedes the first edition', () => {
+    expect(() => validateLegalRevisionDates(source('2026-11-20', '2026-11-26'))).toThrow(/at least 7 days/);
+    expect(() => validateLegalRevisionDates(source('2026-11-01', '2026-11-08'))).toThrow(/before the first edition/);
+  });
+
+  it('runs only for production builds and reads the real file by default', () => {
+    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { revisionSource: source('2026-11-20', '2026-11-26') }))
+      .toThrow(/at least 7 days/);
+    expect(() => validateVercelBuildEnvironment(baseEnvironment, { revisionSource: source('2026-11-20', '2026-11-26') })).not.toThrow();
+    expect(validateVercelBuildEnvironment(productionEnvironment()).checked).toBe(true);
   });
 });

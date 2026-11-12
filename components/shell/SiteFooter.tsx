@@ -10,10 +10,12 @@ import {
   FOOTER_DEMO_ITEMS,
   FOOTER_DISCOVER_ITEMS,
   FOOTER_PRIMARY_ITEMS,
+  hidesSiteFooter,
   hrefFor,
   isStandaloneShellPath,
 } from '@/lib/routes';
 import { BusinessInfo } from './BusinessInfo';
+import { SITE_FOOTER_ID } from './site-footer-jump';
 import { useCardRewardsEnabled } from './CardRewardAvailability';
 import { useCommunityStaffPreviewVisible, useSecondaryMarketDemoVisible } from './StaffPreviewAvailability';
 import { StoreBrandFooterDetails, StoreBrandLogo } from './StoreBranding';
@@ -41,8 +43,11 @@ export function SiteFooter({businessInfo=BUSINESS_INFO,branding=DEFAULT_STOREFRO
   const cardRewardsEnabled = useCardRewardsEnabled();
   const demoVisible = useSecondaryMarketDemoVisible();
   const communityPreviewVisible = useCommunityStaffPreviewVisible();
-  // 숨김 범위는 Nav와 같다 — 게임은 자기완결 번들, 어드민은 자체 작업대, 초대·비밀번호 변경·정지 안내는 집중형 셸을 사용한다.
-  if (isStandaloneShellPath(pathname)) return null;
+  // 숨김 범위는 Nav보다 좁다 — 초대·비밀번호 변경·정지 안내(집중형 셸)와 어드민(자체 작업대)만 비운다. 캠페인·게임은
+  // 내비·문의 위젯이 없는 독립 경험이어도 사업자 정보·법정 고지 푸터는 그 아래에 둔다(1014-X36, lib/routes.ts hidesSiteFooter).
+  if (hidesSiteFooter(pathname)) return null;
+  /* 독립 경험에는 모바일 탭바가 없다 — 탭바 몫으로 여는 모바일 바닥을 쓰지 않는다(wc-chrome.css .wc-footer--standalone). */
+  const standalone = isStandaloneShellPath(pathname);
 
   /* 카드 리워드가 꺼진 배포에서는 카드팩 진입점을 노출하지 않는다. */
   const discoverItems = FOOTER_DISCOVER_ITEMS.filter((item) => cardRewardsEnabled || item.id !== 'packs');
@@ -51,7 +56,7 @@ export function SiteFooter({businessInfo=BUSINESS_INFO,branding=DEFAULT_STOREFRO
   const promises = ['공식 라이선스', ...(cardRewardsEnabled ? ['무상 카드 리워드'] : []), '결제사 승인 확인 후 주문 확정'];
 
   return (
-    <footer className="wc-root wc-footer">
+    <footer className={standalone ? 'wc-root wc-footer wc-footer--standalone' : 'wc-root wc-footer'} id={SITE_FOOTER_ID} tabIndex={-1}>
       <div className="wc-footer__inner">
         <p className="wc-footer__logo wc-footer__logo--mobile"><Link aria-label={`${branding.displayName} 홈`} href="/"><StoreBrandLogo branding={branding} /></Link></p>
         <nav aria-label="회사·정책" className="wc-footer__primary">

@@ -26,17 +26,25 @@
   user-select: none;
 }
 
+/* 로딩·비로그인 안내는 플레이 화면과 달리 휠·터치 스크롤을 쓰지 않는다 — 높이를 가두지 않고(min-height) 문서 스크롤에
+   맡겨, 그 아래 사업자 정보·법정 고지 푸터에 휠·터치로 닿는다(1014-X36). 플레이 화면(.game)은 조이스틱·버튼이 터치를
+   쓰므로 그대로 두고 HUD 의 '사업자 정보·약관' 링크(.legalLink)가 푸터로 보낸다. */
+.loading,
+.accessGate {
+  height: auto;
+  min-height: 100svh;
+  overflow: visible;
+  overscroll-behavior: auto;
+  touch-action: auto;
+}
+
 .accessGate {
   display: grid;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior-y: contain;
   place-content: safe center;
   justify-items: center;
   gap: 12px;
   padding: 28px;
   text-align: center;
-  touch-action: pan-y;
 }
 
 .accessGate h1,
@@ -167,6 +175,29 @@
   font-family: var(--hyosan-font-utility);
   font-size: 18px;
   letter-spacing: 0.02em;
+}
+
+.legalLink {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  margin-top: 8px;
+  color: rgba(238, 245, 241, 0.72);
+  font-size: 11px;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+
+.legalLink:hover {
+  color: #eef5f1;
+}
+
+.legalLink:focus-visible {
+  outline: 2px solid var(--hyosan-focus);
+  outline-offset: 3px;
 }
 
 .roomState {

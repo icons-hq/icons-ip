@@ -482,7 +482,11 @@ export function Checkout({
             <div>
               <h2 id="shipping-title">배송지</h2>
               <p>{prefillNotice ?? '수령에 필요한 정보만 주문에 안전하게 저장합니다.'}</p>
-              <p>원화(KRW) 결제·국내 배송만 제공합니다. 국내 배송대행지 주소도 사용할 수 있으며, 이후 해외 운송은 고객이 별도로 진행합니다.</p>
+              {/* 1014-020 '너무 정보가 많아요' — 법정 고지가 아닌 설명은 한 줄 요약만 보이고 펼쳐 읽는다. */}
+              <details className="checkout-note">
+                <summary>국내 배송·원화 결제만 제공해요</summary>
+                <p>원화(KRW) 결제·국내 배송만 제공합니다. 국내 배송대행지 주소도 사용할 수 있으며, 이후 해외 운송은 고객이 별도로 진행합니다.</p>
+              </details>
             </div>
           </div>
 
@@ -582,7 +586,10 @@ export function Checkout({
               ? !shippingReady ? `보유 ${krw(credits.quote.available)} · 사용 한도는 배송지 확인 후 안내합니다.`
                 : `보유 ${krw(credits.quote.available)} · 이 주문에서 최대 ${krw(credits.quote.maxUse)} 사용 가능${credits.quote.minUse ? ` · 최소 ${krw(credits.quote.minUse)}` : ''}`
               : '현재 적립금 사용을 준비 중입니다.'}</p> : <p id="checkout-credit-note">적립금 잔액과 이 주문의 사용 조건을 확인합니다.</p>}
-            <p className="money-caption">1원 단위로 굿즈 금액에 사용합니다. 배송비는 제외하며 쿠폰 적용 뒤 남은 금액에 적용됩니다.</p>
+            <details className="checkout-note">
+              <summary>적립금 사용 기준</summary>
+              <p>1원 단위로 굿즈 금액에 사용합니다. 배송비는 제외하며 쿠폰 적용 뒤 남은 금액에 적용됩니다.</p>
+            </details>
             {credits.loading ? <p role="status">적립금 사용 조건을 확인하고 있어요.</p> : null}
             {credits.error ? <p role="alert">{credits.error} <button type="button" onClick={credits.refresh}>다시 조회</button></p> : null}
             {creditProblem ? <p className="checkout-error" role="alert">{creditProblem}</p> : null}
@@ -638,9 +645,11 @@ export function Checkout({
               </span>
             </label>
           </fieldset>
-          <p className="money-caption" id="checkout-method-note">
-            결제수단은 주문을 만들 때 고정됩니다. 바꾸려면 주문을 취소하고 다시 만들어야 해요.
-          </p>
+          {/* 결제수단 칸(aria-describedby)은 접힌 안내도 설명으로 읽는다. 펼쳐 볼 수 있게 접기만 한다(1014-020). */}
+          <details className="checkout-note">
+            <summary>결제수단 변경 안내</summary>
+            <p id="checkout-method-note">결제수단은 주문을 만들 때 고정됩니다. 바꾸려면 주문을 취소하고 다시 만들어야 해요.</p>
+          </details>
 
           {unavailable && <p className="checkout-error" role="alert">{copyFor(STOCK_CHANGED_COPY)}
             {draft ? <> <Link href={draftReturnHref}>{direct ? '굿즈로 돌아가기' : '장바구니로 돌아가기'}</Link></> : null}</p>}

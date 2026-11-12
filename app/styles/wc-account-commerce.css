@@ -3345,6 +3345,51 @@ button.wc-settings__link-row[aria-disabled="true"] strong {
   color: var(--wc-ink-tertiary);
 }
 
+/* 주문서 보조 안내 접기(1014-020 '너무 정보가 많아요') — 국내 배송·적립금 기준·결제수단 변경 같은 설명만 한 줄 요약으로
+   접고, 주문 내용·결제 금액·결제 버튼 안내·오류는 접지 않는다. 요약 줄은 money-caption 과 같은 글자에 밑줄·삼각형만 더한다. */
+.wc-receipt .checkout-note {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt .checkout-note > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  list-style: none;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.wc-receipt .checkout-note > summary::-webkit-details-marker {
+  display: none;
+}
+
+.wc-receipt .checkout-note > summary::after {
+  content: '';
+  flex: none;
+  border-top: 4px solid currentColor;
+  border-right: 4px solid transparent;
+  border-left: 4px solid transparent;
+  transition: transform var(--wc-duration-default);
+}
+
+.wc-receipt .checkout-note[open] > summary::after {
+  transform: rotate(180deg);
+}
+
+.wc-receipt .checkout-note > p {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--wc-ink-tertiary);
+}
+
 .wc-receipt .checkout-submit {
   width: 100%;
   margin-top: 14px;

@@ -45,6 +45,10 @@
   color: var(--ink);
   padding: 60px 24px;
   overflow: hidden;
+  /* 화면에 고정된 '스킵 →'(.openingSkip)을 오프닝 상자 밖에서는 그리지도 누르지도 않게 자른다. 오프닝 아래에 사이트 푸터가
+     붙은 뒤(1014-X36) 끝까지 스크롤하면 고정 버튼이 푸터 위에 떠 보였다. 상자 안에서는 그대로 고정이라 오프닝 내용을 스크롤해도
+     오른쪽 위에 남는다. overflow 와 달리 clip-path 는 고정 위치 자손도 자른다. */
+  clip-path: inset(0);
 }
 
 /* 레터박스 — 영화 프레임 */
@@ -3258,6 +3262,10 @@ div.bannerCard { cursor: default; }
 .presentationUtility a span { color: #74827b; margin: 0 8px; }
 .presentationUtility button { border: 1px solid rgb(255 255 255 / 20%); padding: 7px 13px; background: rgb(9 14 15 / 68%); border-radius: 999px; color: #d6d2c7; font: inherit; font-size: 11px; cursor: pointer; }
 .presentationUtility button:hover { border-color: var(--fire); color: var(--fire); }
+.presentationUtility .utilityActions { display: flex; align-items: center; gap: 8px; }
+/* 안쪽 스크롤러가 휠·터치를 가져가는 본 화면에서 페이지 푸터(사업자 정보·약관)로 가는 길 — 1014-X36. 브랜드 링크 서식과 구분한다. */
+.presentationUtility a.utilityFooterLink { display: inline-flex; align-items: center; min-height: 32px; padding: 0 4px; font-size: 11px; font-weight: 600; letter-spacing: 0; color: #d6d2c7; text-decoration: underline; text-underline-offset: 3px; }
+.presentationUtility a.utilityFooterLink:hover { color: var(--fire); }
 .bootScreen { height: 100%; display: grid; align-content: center; justify-items: center; gap: 16px; color: var(--dim); }
 .bootScreen span { font-size: 13px; letter-spacing: .25em; color: var(--fire); }
 .bootScreen p { font-size: 15px; }
@@ -3466,7 +3474,8 @@ div.bannerCard { cursor: default; }
 .openingReset { top: auto; bottom: 16px; right: 24px; font-size: 12px; z-index: 8; }
 @media (max-width: 640px) { .openingReset { bottom: 12px; right: 18px; } }
 
-/* 영상과 대화 전체에서 즉시 팝업으로 진입한다. */
+/* 영상과 대화 전체에서 즉시 팝업으로 진입한다. 화면 고정이지만 오프닝 상자(.opening clip-path) 밖에서는 잘린다 —
+   페이지를 내려 오프닝을 지나면 아래 사이트 푸터 위에 남지 않는다. */
 .openingSkip {
   position: fixed;
   top: max(72px, env(safe-area-inset-top));

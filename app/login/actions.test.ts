@@ -34,6 +34,7 @@ const mocks = vi.hoisted(() => ({
   linkIdentity: vi.fn(),
   getProfileForUser: vi.fn(),
   cookieDeletes: [] as string[],
+  createClientOptions: [] as unknown[],
 }));
 
 vi.mock('@/lib/supabase/config', () => ({
@@ -41,7 +42,7 @@ vi.mock('@/lib/supabase/config', () => ({
 }));
 
 vi.mock('@/lib/supabase/server', () => ({
-  createClient: () => ({
+  createClient: (options?: unknown) => (mocks.createClientOptions.push(options), {
     auth: {
       signUp: mocks.signUp,
       signInWithOAuth: mocks.signInWithOAuth,
@@ -230,6 +231,60 @@ describe('signInWithSocialAction', () => {
       errors: { form: '현재 해당 소셜 로그인을 사용할 수 없습니다. 잠시 후 다시 시도해주세요.' },
     });
     expect(mocks.signInWithOAuth).not.toHaveBeenCalled();
+  });
+
+  /* SHEET-005 '로그인 상태 유지'는 소셜 로그인에도 적용한다(오케스트레이터 결정 11/12). 화면이 숨은 칸(keepSignedIn=1|0)으로
+     체크 상태를 보내고, 끄면 '유지하지 않음' 표시를 세션 쿠키로 남긴다 — 콜백(lib/auth/callback.server.ts)이 그 표시로 세션 쿠키를
+     브라우저 세션 쿠키로 쓴다. PKCE 확인값 쿠키를 쓰는 이 요청의 클라이언트도 같은 선택이다. */
+  describe("'로그인 상태 유지'", () => {
+    function keepForm(keep: '1' | '0' | null) {
+      const data = socialFormData('google');
+      if (keep !== null) data.set('keepSignedIn', keep);
+      return data;
+    }
+
+    beforeEach(() => {
+      mocks.cookieDeletes.length = 0;
+      mocks.createClientOptions.length = 0;
+    });
+
+    it('끄고(keepSignedIn=0) 소셜 버튼을 누르면 세션 표시를 남기고 이 요청을 세션 쿠키로 쓴다', async () => {
+      await expect(signInWithSocialAction({}, keepForm('0'))).rejects.toThrow('NEXT_REDIRECT:https://accounts.google.com');
+
+      expect(mocks.createClientOptions).toEqual([{ sessionOnly: true }]);
+      const marker = latestCookieSet('icons_auth_session_only');
+      expect(marker).toEqual({ name: 'icons_auth_session_only', value: '1', options: { path: '/', sameSite: 'lax', httpOnly: false, secure: true } });
+      expect(marker?.options).not.toHaveProperty('maxAge');
+      /* 표시는 OAuth 이동 직전, 서명된 next 쿠키와 함께 남는다. */
+      expect(latestCookieSet(AUTH_NEXT_COOKIE_NAME)).toBeDefined();
+    });
+
+    it('켜 둔 채(keepSignedIn=1) 누르면 지금처럼 유지하고 이전 세션 표시를 걷는다', async () => {
+      mocks.cookies.set('icons_auth_session_only', '1');
+
+      await expect(signInWithSocialAction({}, keepForm('1'))).rejects.toThrow('NEXT_REDIRECT:https://accounts.google.com');
+
+      expect(mocks.createClientOptions).toEqual([{ sessionOnly: false }]);
+      expect(mocks.cookieDeletes).toEqual(['icons_auth_session_only']);
+      expect(latestCookieSet('icons_auth_session_only')).toBeUndefined();
+    });
+
+    it('값이 없는 호출은 기본값(유지)이다 — 표시를 남기지 않는다', async () => {
+      await expect(signInWithSocialAction({}, keepForm(null))).rejects.toThrow('NEXT_REDIRECT:https://accounts.google.com');
+
+      expect(mocks.createClientOptions).toEqual([{ sessionOnly: false }]);
+      expect(latestCookieSet('icons_auth_session_only')).toBeUndefined();
+    });
+
+    it('OAuth 를 시작하지 못하면 표시를 바꾸지 않는다', async () => {
+      mocks.cookies.set('icons_auth_session_only', '1');
+      mocks.signInWithOAuth.mockResolvedValueOnce({ data: { url: null }, error: { code: 'provider_disabled' } });
+
+      await signInWithSocialAction({}, keepForm('1'));
+
+      expect(mocks.cookieDeletes).toEqual([]);
+      expect(latestCookieSet('icons_auth_session_only')).toBeUndefined();
+    });
   });
 });
 
@@ -614,6 +669,22 @@ describe('sign-out actions', () => {
   it('keeps public logout on the shared home destination', async () => {
     await expect(signOutAction()).rejects.toThrow('NEXT_REDIRECT:/');
     expect(mocks.signOut).toHaveBeenCalledWith({ scope: 'local' });
+  });
+
+  /* SHEET-005 — 세션이 끝나면 '로그인 상태 유지'를 끈 표시도 걷는다. 로그아웃이 실패하면 세션이 남으므로 표시도 남긴다. */
+  it("clears the '로그인 상태 유지' marker only after the local session actually ends", async () => {
+    mocks.cookies.set('icons_auth_session_only', '1');
+    mocks.cookieDeletes.length = 0;
+    mocks.signOut.mockResolvedValueOnce({ error: { code: 'network_error', message: 'private detail' } });
+    const data = new FormData();
+    data.set('next', '/admin');
+
+    await adminSignOutAction({}, data);
+    expect(mocks.cookies.get('icons_auth_session_only')).toBe('1');
+
+    await expect(signOutAction()).rejects.toThrow('NEXT_REDIRECT:/');
+    expect(mocks.cookieDeletes).toEqual(['icons_auth_session_only']);
+    expect(mocks.cookies.has('icons_auth_session_only')).toBe(false);
   });
 });
 

@@ -178,12 +178,20 @@ export function isAuthShellPath(pathname: string): boolean {
     || pathname === '/account-suspended';
 }
 
-/** 공용 내비게이션·푸터·문의 위젯을 함께 비우는 독립 경험 경계. */
+/** 공용 내비게이션·문의 위젯을 함께 비우는 독립 경험 경계. 푸터는 이보다 좁은 hidesSiteFooter가 정한다. */
 export function isStandaloneShellPath(pathname: string): boolean {
   return isAuthShellPath(pathname)
     || pathname === '/games' || pathname.startsWith('/games/')
     || pathname === '/admin' || pathname.startsWith('/admin/')
     || pathname === AOUAD_POPUP_PATH || pathname.startsWith(`${AOUAD_POPUP_PATH}/`);
+}
+
+/** 전역 푸터(사업자 정보·법정 고지 링크)를 비우는 경로 — 인증 집중 셸(초대 수락·비밀번호 변경·이용 정지 안내)과 어드민뿐이다.
+    10/14 회의 1014-X36 결정 "인증 화면 빼고 전부": 캠페인(`/ip/aouad`)·게임(`/games`)은 공용 내비·문의 위젯을 비우는 독립
+    경험이어도 통신판매업자 신원 정보와 약관 링크는 모든 고객 화면 하단에 둔다. 어드민은 고객 화면이 아니다(자체 작업대). */
+export function hidesSiteFooter(pathname: string): boolean {
+  return isAuthShellPath(pathname)
+    || pathname === '/admin' || pathname.startsWith('/admin/');
 }
 
 /* 제목 있는 링크 묶음 — 메가메뉴와 모바일 시트가 같은 모양을 공유한다. */

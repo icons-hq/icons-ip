@@ -1,4 +1,5 @@
-import { pathToFileURL } from 'node:url';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import {
   isKorpayMerchantId,
@@ -40,6 +41,45 @@ const TOSS_CANARY_NAMES = [
 // 나이스페이는 판매 제한 굿즈 주문 전용이다 — 티켓 gate는 없다(runtime-gateway.ts).
 const NICEPAY_CREDENTIAL_NAMES = ['NICEPAY_MID', 'NICEPAY_MERCHANT_KEY'];
 
+const SHIPPING_BUNDLE_REVISION_FILE = fileURLToPath(
+  new URL('../lib/legal/shipping-bundle-wording-revision.json', import.meta.url),
+);
+
+/*
+ * 약관·배송 정책 '출고지' 표기 개정(1027T-010)의 날짜 파일(lib/legal/shipping-bundle-wording-revision.json)은 앱과 이 가드가 같은
+ * 값을 읽는다. 개정 날짜는 시행 뒤에도 남으므로 '공지일이 오늘보다 이르다'는 이유로 막지 않는다 — 늘 참이어야 하는 것만 본다:
+ * 둘 다 null(예약 없음)이거나 둘 다 YYYY-MM-DD 이고, 시행일 >= 공지일 + 7일, 공지일 >= 법정 문서 최초 판(2026-11-06).
+ * '공지일 = 실제 운영 배포일'은 런북 절차(배포 직전 날짜 커밋)로 지킨다. 해석할 수 없으면 실패한다.
+ */
+const LEGAL_FIRST_EDITION = '2026-11-06';
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+function isRealDate(value) {
+  return DATE_PATTERN.test(value) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
+}
+
+export function validateLegalRevisionDates(source) {
+  let parsed;
+  try {
+    parsed = JSON.parse(source);
+  } catch {
+    throw new Error('Invalid legal revision dates: shipping-bundle-wording-revision.json is not valid JSON');
+  }
+  const announced = parsed?.announcedDate;
+  const effective = parsed?.effectiveDate;
+  if (announced === null && effective === null) return;
+  if (typeof announced !== 'string' || typeof effective !== 'string' || !isRealDate(announced) || !isRealDate(effective)) {
+    throw new Error('Invalid legal revision dates: announcedDate and effectiveDate must both be null or both YYYY-MM-DD');
+  }
+  if (announced < LEGAL_FIRST_EDITION) {
+    throw new Error(`Invalid legal revision dates: announcedDate ${announced} is before the first edition ${LEGAL_FIRST_EDITION}`);
+  }
+  const days = (Date.parse(`${effective}T00:00:00+09:00`) - Date.parse(`${announced}T00:00:00+09:00`)) / 86_400_000;
+  if (!(days >= 7)) {
+    throw new Error(`Invalid legal revision dates: effectiveDate ${effective} must be at least 7 days after announcedDate ${announced}`);
+  }
+}
+
 function isPresent(value) {
   return typeof value === 'string' && value.trim().length > 0;
 }
@@ -52,7 +92,7 @@ function parseBooleanGate(environment, target, name) {
   throw new Error(`Invalid Vercel ${target} ${name}: use true, false, or leave unset`);
 }
 
-export function validateVercelBuildEnvironment(environment) {
+export function validateVercelBuildEnvironment(environment, options = {}) {
   const stagingVerified = validateStagingBuildEnvironment(environment);
   const target = environment.VERCEL_ENV;
   if (!VERCEL_TARGETS.has(target)) return { checked: false };
@@ -70,6 +110,9 @@ export function validateVercelBuildEnvironment(environment) {
       'KORPAY_KEY',
       'SITE_URL',
     );
+  }
+  if (target === 'production') {
+    validateLegalRevisionDates(options.revisionSource ?? readFileSync(SHIPPING_BUNDLE_REVISION_FILE, 'utf8'));
   }
   const missing = required.filter((name) => !isPresent(environment[name]));
 

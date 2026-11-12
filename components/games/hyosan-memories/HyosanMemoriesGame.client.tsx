@@ -22,6 +22,7 @@ import {
   recoverFromHyosanBootFailure,
   scheduleHyosanPhaserDestroy,
 } from './boot-watchdog';
+import { SITE_FOOTER_HREF, jumpToSiteFooter } from '@/components/shell/site-footer-jump';
 import styles from './HyosanMemories.module.css';
 
 const INITIAL_HUD: HyosanHudState = {
@@ -255,6 +256,8 @@ export default function HyosanMemoriesGame() {
             </div>
           </div>
           <strong className={styles.waveCount}>잔존 {hud.remaining.toString().padStart(2, '0')} / {hud.total}</strong>
+          {/* 플레이 화면은 터치·휠이 조작에 쓰여 페이지 푸터에 닿을 수 없다 — 사업자 정보·약관은 이 링크로 푸터까지 내린다(1014-X36). */}
+          <a className={styles.legalLink} href={SITE_FOOTER_HREF} onClick={jumpToSiteFooter}>사업자 정보·약관</a>
         </section>
 
         <section

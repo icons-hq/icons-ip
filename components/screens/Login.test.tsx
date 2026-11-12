@@ -9,6 +9,7 @@ import {
   savePendingSignupEmail,
   SAVED_LOGIN_EMAIL_KEY,
   SignupCodeStep,
+  socialKeepSignedInValue,
 } from './Login';
 
 const mocks = vi.hoisted(() => ({
@@ -186,10 +187,15 @@ describe('Login', () => {
   });
 });
 
+/* 체크박스 라벨 하나(<label>…<span>이름</span></label>)를 잘라 낸다 — 로그인 행에는 체크가 둘이다. */
+function checkboxLabel(html: string, name: string): string {
+  return html.match(new RegExp(`<label>(?:(?!</label>).)*<span>${name}</span></label>`))?.[0] ?? '';
+}
+
 /* R29(MD-0004): 로그인 화면(어드민도 같은 /login)에 '이메일 저장'. 이 기기 localStorage 에만 두고,
-   세션은 이미 @supabase/ssr 기본 쿠키(400일)로 유지된다. */
+   세션 유지는 옆의 '로그인 상태 유지'(SHEET-005)가 정한다. */
 describe('Login 이메일 저장', () => {
-  const checkbox = (html: string) => html.match(/<input[^>]*type="checkbox"[^>]*>/)?.[0] ?? '';
+  const checkbox = (html: string) => checkboxLabel(html, '이메일 저장').match(/<input[^>]*>/)?.[0] ?? '';
   const emailInput = (html: string) => html.match(/<input[^>]*name="email"[^>]*>/)?.[0] ?? '';
 
   it('로그인 모드에만 체크박스를 두고, 저장된 이메일이 없으면 비워 둔다', () => {
@@ -207,6 +213,42 @@ describe('Login 이메일 저장', () => {
     const html = render();
     expect(emailInput(html)).toContain('value="fan@example.test"');
     expect(checkbox(html)).toContain('checked=""');
+  });
+
+  /* SHEET-005 — '로그인 상태 유지'는 기본 체크(지금처럼 유지)이고 폼에 keepSignedIn=1 로 실린다. 끄면 세션 쿠키 로그인이다. */
+  it("로그인 모드에만 '로그인 상태 유지'를 기본 체크로 두고 폼 값(keepSignedIn=1)으로 보낸다", () => {
+    const keep = checkboxLabel(render(), '로그인 상태 유지');
+    expect(keep).toContain('type="checkbox"');
+    expect(keep).toContain('name="keepSignedIn"');
+    expect(keep).toContain('value="1"');
+    expect(keep).toContain('checked=""');
+    /* 이메일 저장과 같은 행, 그 앞에 둔다. */
+    const html = render();
+    expect(html.indexOf('로그인 상태 유지')).toBeLessThan(html.indexOf('이메일 저장'));
+    expect(html.slice(html.indexOf('wc-auth__agree-row'), html.indexOf('이메일 저장'))).toContain('로그인 상태 유지');
+    expect(render({ initialMode: 'signup' })).not.toContain('로그인 상태 유지');
+    expect(render({ initialMode: 'reset' })).not.toContain('로그인 상태 유지');
+  });
+
+  /* 같은 화면의 소셜 로그인도 이 선택을 따른다(오케스트레이터 결정 11/12) — 소셜 폼이 체크 상태를 숨은 칸으로 함께 보낸다.
+     가입 화면에는 체크 칸이 없어 기본값(유지)을 보낸다. */
+  it('소셜 로그인 폼이 로그인 상태 유지 선택을 숨은 칸(keepSignedIn)으로 함께 보낸다', () => {
+    for (const mode of ['signin', 'signup'] as const) {
+      const html = render({ initialMode: mode });
+      const start = html.indexOf('wc-auth__social-row');
+      expect(start, mode).toBeGreaterThan(-1);
+      const social = html.slice(start, html.indexOf('</form>', start));
+      expect(social, mode).toMatch(/<input type="hidden" name="keepSignedIn" value="1"\/>/);
+    }
+  });
+
+  /* 로그인 모드에서 체크를 끈 뒤 [이메일 회원가입]으로 넘어가도 컴포넌트 상태(keepSignedIn=false)가 남는다 — 가입 화면엔 체크 칸이 없으니
+     소셜 가입 숨은 칸은 늘 '1'이어야 한다. */
+  it('소셜 숨은 칸은 가입 모드에서 체크 상태와 무관하게 늘 1이고, 로그인 모드에서만 체크를 따른다', () => {
+    expect(socialKeepSignedInValue(false, true)).toBe('1');
+    expect(socialKeepSignedInValue(false, false)).toBe('0');
+    expect(socialKeepSignedInValue(true, false)).toBe('1');
+    expect(socialKeepSignedInValue(true, true)).toBe('1');
   });
 
   describe('저장소', () => {
