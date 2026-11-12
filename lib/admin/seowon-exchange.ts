@@ -111,23 +111,31 @@ export interface SeowonReplyRow extends RowIdentity {
 export interface SeowonReplyCandidate {
   id: string; shipmentNumber?: string | null; orderId: string; status: 'ready' | 'shipping' | 'delivered';
   trackingNumber: string | null; lines: SeowonLine[];
+  /** 이미 붙은 추가(연결) 운송장(QNA-019). 같은 회신을 다시 올렸는지 볼 때 대표 운송장과 함께 본다. */
+  extraTrackingNumbers?: readonly string[];
   /** 마지막으로 서원 원형 양식으로 내보낼 때 기록한 이름 접미사와 그 내보내기 묶음. 기록 전 배송 건은 없다. */
   seowonLabel?: { batch: string; suffix: string } | null;
   /** 운영자가 묶은 합포장. 구성 배송 건은 같은 송장으로 함께 등록해야 한다. */
   pack?: { id: string; shipmentIds: string[] } | null;
 }
 export interface SeowonReplyMatch {
-  /** 발송처리할 배송 건마다 하나. `line`은 그 배송 건의 첫 회신 줄이다. */
-  commands: { line: number; shipmentId: string; shipmentNumber?: string; orderId: string; trackingNumber: string; lines: number[] }[];
+  /**
+   * 발송처리할 배송 건마다 하나. `line`은 그 배송 건의 첫 회신 줄이다. 분리배송으로 줄마다 송장번호가 다르면 가장 앞 줄의 번호가
+   * 대표(`trackingNumber`)이고 나머지는 나온 순서대로 `extraTrackingNumbers`다(추가 운송장이 없으면 키가 없다).
+   */
+  commands: { line: number; shipmentId: string; shipmentNumber?: string; orderId: string; trackingNumber: string; extraTrackingNumbers?: string[]; lines: number[] }[];
   /** 같은 송장번호로 이미 발송된 배송 건(같은 회신을 다시 올린 경우). 아무것도 바꾸지 않는다. */
   unchanged: { shipmentId: string; lines: number[] }[];
   issues: { line: number; reference: string; reason: string }[];
 }
 
+/** 한 배송 건이 받을 수 있는 운송장 수(대표 1 + 추가 19). DB(`private.reply_extra_tracking_numbers`)와 같은 상한이다. */
+export const SEOWON_REPLY_TRACKING_LIMIT = 20;
+
 export const SEOWON_REPLY_REASONS = {
   notFound: '출고지시 파일과 일치하는 발송 대기 배송 건이 없습니다. 내려받은 파일의 전화번호·주소·품목명·수량은 그대로 두고 송장번호만 채워주세요.',
   splitIdentical: '받는 분과 품목이 같은 배송 건이 여러 개라 회신 줄만으로 나눌 수 없습니다. 주문 통합검색에서 배송 건별로 등록해주세요.',
-  conflictInFile: '같은 배송 건의 줄에 서로 다른 송장번호가 있습니다. 나눠 보낸 경우 대표 송장번호 하나로 맞춰 다시 올려주세요.',
+  tooManyTrackings: `같은 배송 건의 줄에 서로 다른 송장번호가 ${SEOWON_REPLY_TRACKING_LIMIT}개를 넘습니다. 회신 파일의 송장번호를 확인해주세요.`,
   blockedSibling: '같은 배송 건의 다른 줄에 오류가 있습니다. 해당 배송 건의 모든 줄을 함께 고쳐주세요.',
   partial: '이 배송 건의 품목 가운데 회신에 없는 줄이 있습니다. 모두 출고했다면 내려받은 줄을 빠짐없이 올리고, 일부만 출고했다면 주문 통합검색에서 처리해주세요.',
   alreadyShipped: '이미 다른 운송장으로 발송된 배송 건입니다. 회신 파일로 덮어쓰지 않습니다. 정정은 주문 통합검색의 운송장 수정에서 해주세요.',
@@ -146,6 +154,10 @@ function countKeys(rows: readonly RowIdentity[]) {
   return counts;
 }
 function add(map: Map<string, Set<string>>, key: string, id: string) { map.set(key, (map.get(key) ?? new Set()).add(id)); }
+
+/** 이미 발송된 배송 건이 이 송장번호를 대표 또는 추가 운송장으로 갖고 있는가(같은 회신 재등록 판정). */
+const hasTracking = (candidate: SeowonReplyCandidate, trackingNumber: string) =>
+  candidate.trackingNumber === trackingNumber || (candidate.extraTrackingNumbers ?? []).includes(trackingNumber);
 
 const compactName = (value: string) => squash(value).replace(/\s/g, '');
 /** 회신 받는분성명에서 이 배송 건의 기본 이름 뒤에 붙은 접미사. 이름이 맞지 않으면 null(판단 불가)이다. */
@@ -203,8 +215,9 @@ function splitBySuffix(ids: readonly string[], rows: readonly SeowonReplyRow[], 
  * 넘겨짚지 않는다. 먼저 같은 송장으로 이미 발송된 건인지(같은 회신을 다시 올림) 보고, 그다음 발송
  * 대기 건을 찾는다. 같은 내용의 발송 대기 건이 여럿이면 그 줄이 회신에 모두 있고 송장이 하나일 때
  * (합포장·합배송) 함께 등록하고, 송장이 따로 나왔으면 받는분성명 접미사로 가른다.
- * `usedTracking`은 기간과 관계없이 이미 다른 배송 건에 쓰인 송장번호다 — 예전 회신을 다시 올려도
- * 같은 내용의 새 주문이 옛 송장으로 발송되지 않는다.
+ * `usedTracking`은 기간과 관계없이 이미 다른 배송 건에 쓰인 송장번호(대표·추가 운송장)다 — 예전 회신을 다시 올려도
+ * 같은 내용의 새 주문이 옛 송장으로 발송되지 않는다. 한 배송 건의 줄에 송장번호가 여럿이면(분리배송 연결 송장, QNA-019)
+ * 거절하지 않고 대표 + 추가 운송장으로 등록한다.
  */
 export function matchSeowonReply(
   rows: readonly SeowonReplyRow[], candidates: readonly SeowonReplyCandidate[],
@@ -229,14 +242,14 @@ export function matchSeowonReply(
       if (!id || !candidate) { issue(row, row.error ?? SEOWON_REPLY_REASONS.notFound, row.shipmentNumber); continue; }
       if (!seowonExportRows(candidate.lines).some(exported => seowonRowKey(exported) === key)) { issue(row, row.error ?? SEOWON_REPLY_REASONS.numberMismatch, row.shipmentNumber); continue; }
       if (candidate.status !== 'ready') {
-        if (!row.error && candidate.trackingNumber === row.trackingNumber) resend(id, row);
+        if (!row.error && hasTracking(candidate, row.trackingNumber)) resend(id, row);
         else issue(row, row.error ?? SEOWON_REPLY_REASONS.alreadyShipped, row.shipmentNumber);
         continue;
       }
       assign(id, row); continue;
     }
     const shippedIds = [...(shipped.get(key) ?? [])];
-    const sameWaybill = row.error ? [] : shippedIds.filter(id => byId.get(id)!.trackingNumber === row.trackingNumber);
+    const sameWaybill = row.error ? [] : shippedIds.filter(id => hasTracking(byId.get(id)!, row.trackingNumber));
     if (sameWaybill.length) { for (const id of sameWaybill) resend(id, row); continue; }
     const readyIds = [...(ready.get(key) ?? [])].sort();
     if (readyIds.length === 1) {
@@ -270,20 +283,22 @@ export function matchSeowonReply(
   for (const [id, matched] of assigned) {
     const lines = [...new Set(matched.map(row => row.line))].sort((a, b) => a - b);
     if (matched.some(row => row.error)) { for (const row of matched) issue(row, row.error ?? SEOWON_REPLY_REASONS.blockedSibling, shortId(id)); continue; }
-    const tracking = new Set(matched.map(row => row.trackingNumber));
-    if (tracking.size !== 1) { for (const row of matched) issue(row, SEOWON_REPLY_REASONS.conflictInFile, shortId(id)); continue; }
+    // 분리배송(QNA-019): 한 배송 건의 줄에 송장번호가 여럿이면 가장 앞 줄의 번호가 대표, 나머지는 나온 순서대로 추가 운송장이다.
+    const [trackingNumber, ...extraTrackingNumbers] = [...new Set([...matched].sort((a, b) => a.line - b.line).map(row => row.trackingNumber))];
+    if (extraTrackingNumbers.length >= SEOWON_REPLY_TRACKING_LIMIT) { for (const row of matched) issue(row, SEOWON_REPLY_REASONS.tooManyTrackings, shortId(id)); continue; }
     // 배송 건은 송장 하나로 통째로 발송처리된다. 회신에 빠진 품목 줄이 있으면 일부 출고일 수 있어 멈춘다.
     // 같은 내용의 품목 줄이 여럿일 수 있으므로 줄의 개수로 비교한다.
     const replied = countKeys([...new Map(matched.map(row => [row.line, row])).values()]);
     if ([...countKeys(seowonExportRows(byId.get(id)!.lines))].some(([key, count]) => (replied.get(key) ?? 0) < count)) {
       for (const row of matched) issue(row, SEOWON_REPLY_REASONS.partial, shortId(id)); continue;
     }
-    const trackingNumber = [...tracking][0];
-    if ([...(inUse.get(trackingNumber) ?? [])].some(shipmentId => shipmentId !== id)) {
+    // 대표·추가 운송장 모두 다른 배송 건이 이미 쓰는 번호면 붙이지 않는다(다른 고객의 상자 번호가 붙지 않게).
+    if ([trackingNumber, ...extraTrackingNumbers].some(number => [...(inUse.get(number) ?? [])].some(shipmentId => shipmentId !== id))) {
       for (const row of matched) issue(row, SEOWON_REPLY_REASONS.trackingInUse, shortId(id)); continue;
     }
     const shipmentNumber = byId.get(id)!.shipmentNumber;
-    commands.push({ line: lines[0], shipmentId: id, ...(shipmentNumber ? { shipmentNumber } : {}), orderId: byId.get(id)!.orderId, trackingNumber, lines });
+    commands.push({ line: lines[0], shipmentId: id, ...(shipmentNumber ? { shipmentNumber } : {}), orderId: byId.get(id)!.orderId, trackingNumber,
+      ...(extraTrackingNumbers.length ? { extraTrackingNumbers } : {}), lines });
   }
   // 합포장은 구성 배송 건 모두가 같은 송장으로 함께 등록돼야 한다. 빠지거나 송장이 갈린 묶음은 그 묶음만 멈춘다
   // (DB 일괄 등록이 합포장 전체를 요구해 파일 전체가 실패하지 않게 한다).
@@ -295,10 +310,11 @@ export function matchSeowonReply(
     return true;
   });
   const packed = commands.filter(command => !unpacked.includes(command));
-  // 한 송장(한 상자)은 받는 분 한 명에게 간다. 받는 분이 다른 배송 건에 같은 새 송장번호가 붙으면 모두 멈춘다.
+  // 한 송장(한 상자)은 받는 분 한 명에게 간다. 받는 분이 다른 배송 건에 같은 새 송장번호(대표·추가)가 붙으면 모두 멈춘다.
+  const waybills = (command: (typeof packed)[number]) => [command.trackingNumber, ...(command.extraTrackingNumbers ?? [])];
   const recipientsByWaybill = new Map<string, Set<string>>();
-  for (const command of packed) add(recipientsByWaybill, command.trackingNumber, recipientKey(byId.get(command.shipmentId)!.lines[0]));
-  const crossed = packed.filter(command => recipientsByWaybill.get(command.trackingNumber)!.size > 1);
+  for (const command of packed) for (const number of waybills(command)) add(recipientsByWaybill, number, recipientKey(byId.get(command.shipmentId)!.lines[0]));
+  const crossed = packed.filter(command => waybills(command).some(number => recipientsByWaybill.get(number)!.size > 1));
   for (const command of crossed) for (const row of assigned.get(command.shipmentId)!) issue(row, SEOWON_REPLY_REASONS.trackingSharedAcrossRecipients, shortId(command.shipmentId));
   return {
     commands: packed.filter(command => !crossed.includes(command)).sort((a, b) => a.line - b.line),

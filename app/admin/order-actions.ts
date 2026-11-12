@@ -515,11 +515,13 @@ export interface AdminTrackingImportState {
     failed: AdminTrackingImportFailure[];
     /** 같은 운송장으로 이미 발송된 배송 건 수(같은 회신을 다시 올린 경우). 아무것도 바꾸지 않았다. */
     unchanged?: number;
+    /** 서원 회신에서 대표 운송장과 함께 저장한 분리배송 추가 운송장 수(QNA-019). 없으면 키가 없다. */
+    extraTrackings?: number;
   };
 }
 
 const isSeowonReply = (parsed: TrackingWorkbookParseResult): parsed is SeowonTrackingParseResult => 'kind' in parsed && parsed.kind === 'seowon';
-type TrackingBatchRow = {line:number;reference:string;ok:boolean;error?:string;shipmentId?:string;orderId?:string;dispatched?:boolean;duplicate?:boolean;packedShipments?:{orderId:string;shipmentId:string}[]};
+type TrackingBatchRow = {line:number;reference:string;ok:boolean;error?:string;shipmentId?:string;orderId?:string;dispatched?:boolean;duplicate?:boolean;packedShipments?:{orderId:string;shipmentId:string}[];extraTrackingNumbers?:string[]};
 type ReplyTemplate = 'wms_csv' | 'seowon_xlsx';
 const REPLY_TEMPLATE_LABEL: Record<ReplyTemplate, string> = { wms_csv: '김포 WMS 21열', seowon_xlsx: '남양주(서원) 송장양식' };
 
@@ -537,15 +539,16 @@ async function resolveReplyOrigin(supabase: Awaited<ReturnType<typeof createClie
     : `${REPLY_TEMPLATE_LABEL[template]} 양식을 쓰는 사용 중인 출고지가 없습니다. 출고지 설정을 확인해주세요.`);
 }
 
-function trackingImportResult(succeeded: string[], failed: AdminTrackingImportFailure[], unchanged: number, queueWarning: boolean): AdminTrackingImportState {
+function trackingImportResult(succeeded: string[], failed: AdminTrackingImportFailure[], unchanged: number, queueWarning: boolean, extraTrackings = 0): AdminTrackingImportState {
   failed.sort((a,b)=>a.line-b.line);
-  const report={failed,succeeded,...(unchanged?{unchanged}:{})};
+  const report={failed,succeeded,...(unchanged?{unchanged}:{}),...(extraTrackings?{extraTrackings}:{})};
+  const extras=extraTrackings?` 분리배송 추가 운송장 ${extraTrackings}개를 함께 저장했습니다.`:'';
   const skipped=unchanged?` 같은 운송장으로 이미 발송된 ${unchanged}건은 그대로 두었습니다.`:'';
   if(!succeeded.length){
     if(unchanged&&!failed.length)return {message:`새로 등록할 운송장이 없습니다.${skipped}`,report};
     return {errors:{form:`${failed.length}건을 등록하지 못했습니다. 행별 사유를 확인해주세요.${skipped}`},report};
   }
-  return {message:`${succeeded.length}건의 운송장을 등록했습니다.${skipped}${failed.length?` 실패 ${failed.length}건은 행별 사유를 확인해주세요.`:''}${queueWarning?' 배송 메일 대기열 확인이 필요합니다. 발송 이력에서 확인해주세요.':''}`,report,...(queueWarning?{queueWarning:true}:{})};
+  return {message:`${succeeded.length}건의 운송장을 등록했습니다.${extras}${skipped}${failed.length?` 실패 ${failed.length}건은 행별 사유를 확인해주세요.`:''}${queueWarning?' 배송 메일 대기열 확인이 필요합니다. 발송 이력에서 확인해주세요.':''}`,report,...(queueWarning?{queueWarning:true}:{})};
 }
 
 async function enqueueDispatched(deliveries: { orderId: string; shipmentId: string }[]) {
@@ -575,12 +578,14 @@ async function registerSeowonReply(parsed: SeowonTrackingParseResult, requestedO
   if(candidates.truncated)return {errors:{form:'대조할 배송 건이 너무 많아 등록하지 않았습니다. 회신 파일을 나눠 올려주세요.'}};
   const match=matchSeowonReply(parsed.rows,candidates.shipments,candidates.usedTracking);
   const failed:AdminTrackingImportFailure[]=[...match.issues];const succeeded:string[]=[];
-  let queueWarning=false;let unchanged=match.unchanged.length;
+  let queueWarning=false;let unchanged=match.unchanged.length;let extraTrackings=0;
   if(match.commands.length){
+    // 분리배송 연결 송장(QNA-019)은 대표 운송장과 같은 행에 추가 운송장으로 실어 DB가 같은 트랜잭션에서 붙인다.
     const result=await supabase.rpc('admin_import_seowon_tracking_batch',{target_origin_id:origin.id,target_rows:match.commands.map(command=>({
       line:command.line,reference:command.shipmentId,carrier:candidates.defaultCarrier,trackingNumber:command.trackingNumber,
+      ...(command.extraTrackingNumbers?.length?{extraTrackingNumbers:command.extraTrackingNumbers}:{}),
     }))});
-    if(result.error?.message&&/^(warehouse_|shipment_pack_|production_|inactive_shipping_carrier$|invalid_tracking_)/.test(result.error.message))
+    if(result.error?.message&&/^(warehouse_|shipment_pack_|production_|inactive_shipping_carrier$|invalid_tracking_|tracking_number_in_use$|shipment_tracking_conflict$)/.test(result.error.message))
       return {errors:{form:shipmentMutationError(result.error.message)}};
     if(result.error||!Array.isArray(result.data)||result.data.length!==match.commands.length)return {errors:{form:'등록 결과를 확인하지 못했습니다. 최신 배송 상태를 확인하고 같은 파일로 다시 시도해주세요.'}};
     // 합배송한 배송 건들은 같은 첫 줄을 공유하므로 결과는 줄이 아니라 배송 건으로 찾는다.
@@ -588,14 +593,14 @@ async function registerSeowonReply(parsed: SeowonTrackingParseResult, requestedO
     const deliveries:{orderId:string;shipmentId:string}[]=[];
     for(const command of match.commands){
       const outcome=outcomes.get(command.shipmentId),reference=commerceReferenceLabel(command.shipmentId,command.shipmentNumber);
-      if(outcome?.ok&&outcome.dispatched!==false){succeeded.push(reference);deliveries.push(...(outcome.packedShipments??[{orderId:command.orderId,shipmentId:command.shipmentId}]));}
+      if(outcome?.ok&&outcome.dispatched!==false){succeeded.push(reference);extraTrackings+=outcome.extraTrackingNumbers?.length??0;deliveries.push(...(outcome.packedShipments??[{orderId:command.orderId,shipmentId:command.shipmentId}]));}
       else if(outcome?.ok)unchanged++; // 다른 운영자가 같은 회신을 먼저 등록했다.
       else for(const line of command.lines)failed.push({line,reference,reason:shipmentMutationError(outcome?.error??'')});
     }
     queueWarning=await enqueueDispatched([...new Map(deliveries.map(row=>[row.shipmentId,row])).values()]);
     revalidateOrderSurfaces();
   }
-  return trackingImportResult(succeeded,failed,unchanged,queueWarning);
+  return trackingImportResult(succeeded,failed,unchanged,queueWarning,extraTrackings);
 }
 
 /** The DB batch keeps per-row failures and commits each valid shipment once. */
