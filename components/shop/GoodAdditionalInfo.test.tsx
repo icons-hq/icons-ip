@@ -61,5 +61,10 @@ describe('GoodAdditionalInfo', () => {
     expect(listed).toContain('<li style="white-space:pre-wrap">제주·도서산간은 1~2일 더 걸립니다.\n일부 섬은 배송이 제한될 수 있습니다.</li>');
     /* 고객 화면은 출고지 이름을 말하지 않는다. */
     expect(listed).not.toContain('김포');
+    /* 굿즈마다 부과하는 정책은 같은 금액에 단위를 굿즈당으로 밝힌다. */
+    const perGood = renderToStaticMarkup(<GoodAdditionalInfo notice={notice} goods={[good]} shippingPolicy={{ ...policy,
+      regionFees: { state: 'listed', regions: [{ label: '제주', minFee: 3000, maxFee: 3000 }], regionCount: 1, feeUnit: 'per_good', waivedAtFreeThreshold: false, nextChangeAt: null } }} />);
+    expect(perGood).toContain('<li>지역별 추가 배송비: 제주 +₩3,000(굿즈당 1회). 최종 배송비는 주문서에서 주소를 입력한 뒤 확인합니다.');
+    expect(perGood).not.toContain('배송 묶음당 1회');
   });
 });

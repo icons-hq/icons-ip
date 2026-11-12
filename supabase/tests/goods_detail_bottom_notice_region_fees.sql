@@ -256,15 +256,34 @@ select pg_temp.t19_assert(
 reset role;
 rollback to savepoint t19_many;
 
--- 굿즈마다 부과하는 정책은 배송 묶음당 1회 문장으로 말할 수 없다 — 지금 문장(unresolved).
+-- 굿즈마다 부과하는 정책도 대표 행 견적으로 그 행 금액이 그대로 확인되므로 같은 금액을 싣고 단위를 굿즈당으로 밝힌다.
 savepoint t19_per_good;
 update private.shipping_region_policies set configuration=configuration||'{"feeUnit":"per_good"}' where id=:'region_policy_id';
 set local role anon;
-select pg_temp.t19_assert(public.get_good_shipping_region_fees('t19-policy')->>'state'='unresolved'
- and jsonb_array_length(public.get_good_shipping_region_fees('t19-policy')->'regions')=0
- and (public.get_good_shipping_region_fees('t19-policy')->>'regionCount')::int=0
+select public.get_good_shipping_region_fees('t19-policy') as fees_per_good \gset
+select pg_temp.t19_assert(:'fees_per_good'::jsonb->>'state'='listed'
+ and :'fees_per_good'::jsonb->'regions'=:'fees_policy'::jsonb->'regions'
+ and (:'fees_per_good'::jsonb->>'regionCount')::int=3
+ and :'fees_per_good'::jsonb->>'feeUnit'='per_good'
+ and :'fees_per_good'::jsonb->>'waivedAtFreeThreshold'='true'
+ and public.get_good_shipping_region_fees('t19-individual')->>'feeUnit'='per_good'
+ and public.get_good_shipping_region_fees('t19-individual')->'regions'=:'fees_policy'::jsonb->'regions'
+ and public.get_good_shipping_region_fees('t19-individual')->>'waivedAtFreeThreshold'='false'
+ and public.get_good_shipping_region_fees('t19-free')->>'state'='none',
+ 'per-good unit lists the same table amounts and names the unit');
+-- 주문서 견적: 굿즈 1개는 그 행 금액, 대상 굿즈 2개면 2배, 무료 기준을 채운 정책 굿즈는 빠지고 개별 배송비 굿즈만 남는다.
+select pg_temp.t19_assert(
+ (public.quote_goods_sales_for_address(pg_temp.t19_items('t19-policy'),pg_temp.t19_destination('63100','제주특별자치도 합성시 합성로 1'))#>>'{shipping,groups,0,regionalFee}')::int=3000
+ and (public.quote_goods_sales_for_address(pg_temp.t19_items('t19-individual'),pg_temp.t19_destination('40230','경상북도 합성군 합성읍 1'))#>>'{shipping,groups,0,regionalFee}')::int=7000
+ and (public.quote_goods_sales_for_address(pg_temp.t19_items('t19-individual'),pg_temp.t19_destination('54005','합성시 검증구 검증로 2'))#>>'{shipping,groups,0,regionalFee}')::int=2500
  and (public.quote_goods_sales_for_address(pg_temp.t19_items('t19-policy')||pg_temp.t19_items('t19-individual'),
-   pg_temp.t19_destination('63100','제주특별자치도 합성시 합성로 1'))#>>'{shipping,groups,0,regionalFee}')::int=6000, 'per-good unit is unresolved');
+   pg_temp.t19_destination('63100','제주특별자치도 합성시 합성로 1'))#>>'{shipping,groups,0,regionalFee}')::int=6000
+ and (public.quote_goods_sales_for_address(pg_temp.t19_items('t19-policy')||pg_temp.t19_items('t19-individual'),
+   pg_temp.t19_destination('40230','경상북도 합성군 합성읍 1'))#>>'{shipping,groups,0,regionalFee}')::int=14000
+ and (public.quote_goods_sales_for_address(pg_temp.t19_items('t19-policy',3)||pg_temp.t19_items('t19-individual'),
+   pg_temp.t19_destination('63100','제주특별자치도 합성시 합성로 1'))#>>'{shipping,groups,0,regionalFee}')::int=3000
+ and (public.quote_goods_sales_for_address(pg_temp.t19_items('t19-policy',3),pg_temp.t19_destination('63100','제주특별자치도 합성시 합성로 1'))#>>'{shipping,groups,0,regionalFee}')::int=0,
+ 'per-good amounts equal the checkout quote: one good is the row amount, two goods double it, the waiver matches');
 reset role;
 rollback to savepoint t19_per_good;
 

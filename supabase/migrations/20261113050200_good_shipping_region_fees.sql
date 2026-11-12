@@ -3,21 +3,23 @@
 --
 -- 상세 배송 안내에 '제주 +₩3,000 · 도서산간 +₩5,000~₩7,000(배송 묶음당 1회)'처럼 이
 -- 굿즈의 출고지·현재 기본 택배사에 지금 적용되는 활성 지역 정책의 추가료를 싣는다.
--- 규칙이 없거나 상세에서 한 문장으로 말할 수 없으면 화면은 지금 문장을 둔다.
+-- 굿즈마다 부과하는 정책은 단위를 '굿즈당 1회'로 밝힌다(feeUnit). 규칙이 없거나 상세에서
+-- 한 문장으로 말할 수 없으면 화면은 지금 문장을 둔다.
 --
 -- 지역명과 금액은 그 정책 지역표의 '추가료 부과'·0원 초과 행에서 그대로 모은다(같은
 -- 지역명은 최소~최대, 실제 지역 수도 함께). 계산하거나 일부만 고르지 않는다.
 -- 이 굿즈에 추가료가 붙는지, 부과 단위, 무료배송 기준 면제는 주문서와 같은 견적 함수
 -- (private.apply_shipping_region_quote)를 대표 행 하나로 견적해 정한다 — 대표 행
 -- 금액 그대로 붙으면 다른 행도 그 행의 금액 그대로 붙는다(부과 여부·단위는 행이 아니라
--- 굿즈 배송 유형과 정책 설정이 정한다). 무료배송 기준 금액으로 한 번 더 견적해 0원이면
--- 면제를 함께 싣는다.
+-- 굿즈 배송 유형과 정책 설정이 정한다). 굿즈 1개 견적은 배송 건당·굿즈당 모두 그 행 금액이고,
+-- 굿즈당은 대상 굿즈 수만큼 곱해진다. 무료배송 기준 금액으로 한 번 더 견적해 0원이면 면제를
+-- 함께 싣는다.
 --
 -- 'unresolved'(지금 문장)로 두는 경우: 새 거래 런타임이 켜져 있음(묶음그룹 지역표·수령
--- 방식·수량 운임이 행마다 금액을 바꿀 수 있다), 부과 단위가 배송 묶음당 1회가 아님, 견적이
--- 다른 정책·다른 행·다른 금액으로 판정함. 'none'(지금 문장): 정책이 없음·도입 전 출고지·이
--- 굿즈에 추가료가 붙지 않음. 공개 정보(지역명·금액·지역 수·면제 여부·다음 정책 경계)만
--- 싣고 정책 ID·근거 문서·우편번호 구간은 싣지 않는다. 지역 목록은 최소 금액순 20개까지 싣고
+-- 방식·수량 운임이 행마다 금액을 바꿀 수 있다), 부과 단위를 모름, 견적이 다른 정책·다른 행·
+-- 다른 금액으로 판정함. 'none'(지금 문장): 정책이 없음·도입 전 출고지·이 굿즈에 추가료가
+-- 붙지 않음. 공개 정보(지역명·금액·지역 수·부과 단위·면제 여부·다음 정책 경계)만 싣고 정책
+-- ID·근거 문서·우편번호 구간은 싣지 않는다. 지역 목록은 최소 금액순 20개까지 싣고
 -- regionCount가 실제 지역 수다.
 -- ==========================================================================
 
@@ -39,6 +41,7 @@ declare
   destination jsonb;
   quote_group jsonb;
   fee numeric;
+  fee_unit text;
   waived boolean := false;
   regions jsonb;
   region_count integer;
@@ -102,7 +105,9 @@ begin
   fee := (quote_group->>'regionalFee')::numeric;
   -- 이 굿즈의 배송 유형에는 지역료를 붙이지 않는 정책이다.
   if fee = 0 then return result; end if;
-  if quote_group->>'feeUnit' is distinct from 'per_shipment' or fee is distinct from representative.amount then
+  -- 굿즈 1개 견적은 배송 건당(최대 1회)·굿즈당(대상 굿즈 수만큼) 모두 그 행 금액이다. 단위는 화면이 밝힌다.
+  fee_unit := quote_group->>'feeUnit';
+  if fee_unit is null or fee_unit not in ('per_shipment', 'per_good') or fee is distinct from representative.amount then
     return result || jsonb_build_object('state', 'unresolved');
   end if;
 
@@ -134,7 +139,7 @@ begin
   ) ranked;
 
   return result || jsonb_build_object('state', 'listed', 'regions', regions, 'regionCount', region_count,
-    'feeUnit', 'per_shipment', 'waivedAtFreeThreshold', waived);
+    'feeUnit', fee_unit, 'waivedAtFreeThreshold', waived);
 end;
 $function$;
 

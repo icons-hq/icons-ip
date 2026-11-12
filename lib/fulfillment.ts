@@ -16,7 +16,7 @@ export interface GoodShippingRegionFee { label: string; minFee: number; maxFee: 
 /**
  * `get_good_shipping_region_fees`(S36-038) — 지역명·금액은 지금 적용 중인 지역 정책 지역표의 추가료 행 그대로이고,
  * 이 굿즈에 붙는지·부과 단위·무료 기준 면제는 주문서 견적 함수로 확인한 값이다. listed 일 때만 금액을 보이고
- * none(규칙 없음·도입 전·이 굿즈에 붙지 않음)·unresolved(배송 묶음당 1회가 아님·새 거래 런타임·판정 불확실)는 지금 문장을 둔다.
+ * none(규칙 없음·도입 전·이 굿즈에 붙지 않음)·unresolved(새 거래 런타임·부과 단위 모름·판정 불확실)는 지금 문장을 둔다.
  */
 export interface GoodShippingRegionFees {
   state: 'listed' | 'none' | 'unresolved';
@@ -24,7 +24,7 @@ export interface GoodShippingRegionFees {
   regions: GoodShippingRegionFee[];
   /** 지역표의 실제 지역명 수 — regions보다 많으면 화면이 '외 N개 지역'으로 줄인다. */
   regionCount: number;
-  /** listed 이면 언제나 배송 묶음당 1회(per_shipment)다. */
+  /** listed 이면 배송 묶음당 1회(per_shipment) 또는 굿즈당 1회(per_good)다 — 화면이 단위를 밝힌다. */
   feeUnit: ShippingRegionFeeUnit | null;
   /** 무료배송 기준을 채우면 이 굿즈의 지역 추가 배송비가 면제되는가(같은 견적 함수로 기준 금액을 견적한 결과). */
   waivedAtFreeThreshold: boolean;
@@ -117,8 +117,8 @@ export function parseGoodShippingRegionFees(value: unknown): GoodShippingRegionF
       || !amount(row.minFee) || !amount(row.maxFee) || row.minFee < 1 || row.minFee > row.maxFee) return null;
     regions.push({ label: row.label, minFee: row.minFee, maxFee: row.maxFee });
   }
-  /* 금액을 보이는 것은 배송 묶음당 1회 정책뿐이다 — 다른 단위가 listed로 오면 믿지 않는다. */
-  if (value.state === 'listed' ? !regions.length || value.feeUnit !== 'per_shipment' : regions.length > 0 || value.regionCount !== 0) return null;
+  /* listed는 단위를 알아야 금액을 말할 수 있다 — 단위 없이 오면 믿지 않는다. */
+  if (value.state === 'listed' ? !regions.length || value.feeUnit === null : regions.length > 0 || value.regionCount !== 0) return null;
   return { state: value.state as GoodShippingRegionFees['state'], regions, regionCount: Number(value.regionCount),
     feeUnit: value.feeUnit as ShippingRegionFeeUnit | null, waivedAtFreeThreshold: value.waivedAtFreeThreshold, nextChangeAt: value.nextChangeAt as string | null };
 }
@@ -126,12 +126,12 @@ export function parseGoodShippingRegionFees(value: unknown): GoodShippingRegionF
 export const SHIPPING_REGION_FEE_LIST_LIMIT = 8;
 /** 상세 배송 안내의 지역별 추가 배송비 문장 — 'listed'가 아니면 null(지금 문장을 둔다). 지역명·금액은 정책 지역표 그대로다. */
 export function shippingRegionFeeDescription(fees: GoodShippingRegionFees | null | undefined): string | null {
-  if (!fees || fees.state !== 'listed' || !fees.regions.length || fees.feeUnit !== 'per_shipment') return null;
+  if (!fees || fees.state !== 'listed' || !fees.regions.length || !fees.feeUnit) return null;
   const shown = fees.regions.slice(0, SHIPPING_REGION_FEE_LIST_LIMIT)
     .map(region => `${region.label} +${krw(region.minFee)}${region.maxFee > region.minFee ? `~${krw(region.maxFee)}` : ''}`);
   const rest = Math.max(fees.regionCount, fees.regions.length) - shown.length;
   const more = rest > 0 ? ` 외 ${rest.toLocaleString('ko-KR')}개 지역` : '';
-  const notes = ['배송 묶음당 1회', ...(fees.waivedAtFreeThreshold ? ['무료배송 조건을 채우면 면제'] : [])];
+  const notes = [fees.feeUnit === 'per_good' ? '굿즈당 1회' : '배송 묶음당 1회', ...(fees.waivedAtFreeThreshold ? ['무료배송 조건을 채우면 면제'] : [])];
   return `지역별 추가 배송비: ${shown.join(' · ')}${more}(${notes.join(', ')}).`;
 }
 export function parseShippingQuoteItems(value: unknown): ShippingQuoteItem[] | null {
