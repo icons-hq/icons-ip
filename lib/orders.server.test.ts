@@ -154,7 +154,7 @@ describe('loadOrders', () => {
       {id:orderId,user_id:userId,status:'pending',total:10000,created_at:'2026-09-28T00:00:00Z'},
       {id:'other',user_id:'other-user',status:'pending',total:10000,created_at:'2026-09-28T00:00:00Z'},
     ],order_items:[]}});
-    const retry = { source: 'cart', awaitingPayment: true, baseGoodId: null, retryOrderId: null };
+    const retry = { source: 'cart', awaitingPayment: true, paymentUnresolved: false, baseGoodId: null, retryOrderId: null };
     mocks.retrySources.mockResolvedValue(new Map([[orderId, retry]]));
     expect(await loadOrders(userId,{includePending:true})).toMatchObject([{id:orderId,status:'pending',retry}]);
     expect(await loadOrders(userId)).toMatchObject([{id:orderId,status:'pending',paymentMethod:'card',retry}]);

@@ -148,6 +148,8 @@ export function directRetryReorderId(value: unknown): string | null {
 export interface OrderRetrySource {
   readonly source: 'cart' | 'direct';
   readonly awaitingPayment: boolean;
+  /** 결제 대기 주문의 결제 승인이 아직 확정되지 않았는지(승인 확인 중·결과 불명·승인 뒤 취소 환불 진행 중). 참이면 다시 결제·취소를 권하지 않는다. */
+  readonly paymentUnresolved: boolean;
   readonly baseGoodId: string | null;
   readonly retryOrderId: string | null;
 }
@@ -158,13 +160,14 @@ export function parseOrderRetrySources(value: unknown): Map<string, OrderRetrySo
   if (!Array.isArray(value)) return sources;
   for (const row of value) {
     if (typeof row !== 'object' || row === null || Array.isArray(row)) continue;
-    const { orderId, source, awaitingPayment, baseGoodId, retryOrderId } = row as Record<string, unknown>;
+    const { orderId, source, awaitingPayment, paymentUnresolved, baseGoodId, retryOrderId } = row as Record<string, unknown>;
     if (typeof orderId !== 'string' || !RETRY_ORDER_ID.test(orderId) || (source !== 'cart' && source !== 'direct') || typeof awaitingPayment !== 'boolean') continue;
     const goodId = typeof baseGoodId === 'string' && baseGoodId.trim() ? baseGoodId.trim() : null;
     if (source === 'direct' && !goodId) continue;
     sources.set(orderId.toLowerCase(), {
       source,
       awaitingPayment,
+      paymentUnresolved: awaitingPayment && paymentUnresolved === true,
       baseGoodId: source === 'direct' ? goodId : null,
       retryOrderId: source === 'direct' && typeof retryOrderId === 'string' && RETRY_ORDER_ID.test(retryOrderId) ? retryOrderId.toLowerCase() : null,
     });
@@ -459,7 +462,9 @@ export function checkoutReorderMode(
      거절) 결제 기한이 지난 주문이면 주문서에서 새로 결제한다. 바로구매 주문(ADR-0030)은 같은 조건에서
      그 상품 상세로 보내 다시 구매하게 한다 — 새 주문이 이 주문을 닫는다. */
   const retryMode = order.cartRetained ? 'retry_from_cart' : order.directGoodId ? 'retry_direct' : null;
-  if (retryMode) {
+  /* 결제가 잡혔다가 환불된 취소 주문(승인과 취소가 겹친 주문)은 '결제 없이' 닫힌 주문이 아니다 — 다시 결제 진입 대신 일반 취소 안내로 간다. */
+  const paidThenCanceled = order.status === 'canceled' && order.paymentStatus !== null;
+  if (retryMode && !paidThenCanceled) {
     if (order.status === 'canceled') return retryMode;
     if (
       order.status !== 'pending'

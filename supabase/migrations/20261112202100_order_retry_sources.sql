@@ -9,6 +9,8 @@
 -- public.service_list_order_retry_sources(user, order_ids): 이 계정 카드 주문 가운데 결제 대기(보류 awaiting_payment)이거나 결제
 -- 없이 닫힌(보류 released — 떼어 낸 detached 제외, 주문 canceled) 장바구니·바로구매 주문의 출처·상품 상세 굿즈·이미 다시 구매한
 -- 주문(retryOrderId, service_get_order_cart_retention과 같은 판정). 결제한 주문(보류 consumed)·보류 없는 주문은 돌려주지 않는다.
+-- 닫힌 주문 가운데 결제가 승인됐다가 환불된 주문(결제 승인과 취소가 겹친 경우)은 뺀다. paymentUnresolved는 결제 대기 주문의 결제
+-- 승인이 아직 확정되지 않았는지(승인 확인 중·결과 불명·승인 뒤 취소 환불 진행 중)로, 참이면 화면이 다시 결제·취소를 권하지 않는다.
 -- service role 전용, 본인 주문만, 한 번에 500건까지.
 -- ============================================================================
 
@@ -23,6 +25,7 @@ as $$
       'orderId', hold.order_id,
       'source', case when hold.source in ('direct_checkout', 'direct_transaction') then 'direct' else 'cart' end,
       'awaitingPayment', hold.state = 'awaiting_payment',
+      'paymentUnresolved', hold.state = 'awaiting_payment' and private.checkout_draft_order_payment_unresolved(hold.order_id),
       'baseGoodId', case when hold.source in ('direct_checkout', 'direct_transaction') then hold.base_good_id end,
       'retryOrderId', case when hold.source in ('direct_checkout', 'direct_transaction') then (
         select draft.order_id from private.checkout_drafts as draft
@@ -35,7 +38,13 @@ as $$
     and hold.user_id = p_user_id and o.user_id = p_user_id and hold.order_id = any (p_order_ids)
     and o.payment_method = 'card'
     and ((hold.state = 'awaiting_payment' and o.status = 'pending')
-      or (hold.state = 'released' and hold.release_reason is distinct from 'detached' and o.status = 'canceled'));
+      or (hold.state = 'released' and hold.release_reason is distinct from 'detached' and o.status = 'canceled'
+        /* settle_cart_order_hold는 결제 여부와 무관하게 pending→canceled 보류를 released로 바꾼다. 결제가 승인됐다가 취소로 환불된
+           주문(payments paid·refunded, 시도 approved)은 '결제 없이 닫힌' 주문이 아니다 — checkout_draft_order_settled와 같은 판정. */
+        and not private.checkout_draft_order_settled(hold.order_id)
+        and not exists (
+          select 1 from public.payment_attempts as attempt
+          where attempt.purpose = 'order' and attempt.ref_id = hold.order_id and attempt.state = 'approved')));
 $$;
 revoke all on function public.service_list_order_retry_sources(uuid, uuid[]) from public, anon, authenticated, service_role;
 grant execute on function public.service_list_order_retry_sources(uuid, uuid[]) to service_role;

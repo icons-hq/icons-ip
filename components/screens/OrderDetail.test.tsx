@@ -428,7 +428,7 @@ describe('OrderDetail digital-only deadline wording', () => {
 describe('OrderDetail 다시 결제 진입', () => {
   it('결제 없이 취소된 장바구니 주문은 그 주문의 줄로 다시 결제한다', () => {
     const html = renderToStaticMarkup(<OrderDetail order={order({ status: 'canceled', payment: null })}
-      retry={{ source: 'cart', awaitingPayment: false, baseGoodId: null, retryOrderId: null }} />);
+      retry={{ source: 'cart', awaitingPayment: false, paymentUnresolved: false, baseGoodId: null, retryOrderId: null }} />);
     expect(html).toContain('결제가 끝나지 않아 결제 없이 취소된 주문이에요');
     expect(html).toContain('이 주문의 굿즈 가운데 장바구니에 남은 것만 골라 주문서를 다시 열 수 있어요.');
     expect(html).toContain('<button class="btn btn-holo" type="button">다시 결제하기</button>');
@@ -436,7 +436,7 @@ describe('OrderDetail 다시 결제 진입', () => {
 
   it('결제 없이 취소된 바로구매 주문은 같은 구성으로 다시 구매하고 굿즈 상세로도 잇는다', () => {
     const html = renderToStaticMarkup(<OrderDetail order={order({ status: 'canceled', payment: null })}
-      retry={{ source: 'direct', awaitingPayment: false, baseGoodId: 'g13', retryOrderId: null }} />);
+      retry={{ source: 'direct', awaitingPayment: false, paymentUnresolved: false, baseGoodId: 'g13', retryOrderId: null }} />);
     expect(html).toContain('<button class="btn btn-holo" type="button">다시 구매하기</button>');
     expect(html).toContain('href="/shop/g13">굿즈 상세에서 다시 고르기</a>');
   });

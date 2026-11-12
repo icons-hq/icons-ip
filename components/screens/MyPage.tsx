@@ -12,7 +12,7 @@ import { krw } from '@/lib/format';
 import { goodDisplayBadges } from '@/lib/goods-taxonomy';
 import { ipEn } from '@/lib/ip-display';
 import { DASHBOARD_ORDER_STEPS, type MypageDashboard } from '@/lib/mypage-dashboard';
-import { formatOrderDate, orderStatusMeta } from '@/lib/orders';
+import { customerOrderStatusMeta, formatOrderDate, orderStatusMeta } from '@/lib/orders';
 import { hrefFor } from '@/lib/routes';
 
 interface MyPageProps {
@@ -147,7 +147,7 @@ function OrdersBlock({ orders }: { orders: MypageDashboard['orders'] }) {
                   <Link className="wc-mydash__order" href={`/orders/${order.id}`}>
                     <time dateTime={order.createdAt}>{formatOrderDate(order.createdAt)}</time>
                     <span className="wc-mydash__order-name">{order.itemLabel}</span>
-                    <span className="wc-mydash__order-status">{orderStatusMeta(order.status).label}</span>
+                    <span className="wc-mydash__order-status">{customerOrderStatusMeta(order.status, order.paymentMethod).label}</span>
                     <strong className="wc-mydash__order-total">{krw(order.total)}</strong>
                   </Link>
                 </li>

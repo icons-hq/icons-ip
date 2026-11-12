@@ -13,6 +13,14 @@ import type { OrderRetrySource } from '@/lib/checkout';
  */
 export function OrderRetryActions({ orderId, retry, layout }: { orderId: string; retry: OrderRetrySource; layout: 'list' | 'detail' }) {
   const id = encodeURIComponent(orderId);
+  if (retry.awaitingPayment && retry.paymentUnresolved) {
+    /* 결제 승인 확인 중·결과 불명·승인 뒤 취소 환불 진행 중 — 주문 상세와 같이 결제 화면의 상태 보기 하나만 둔다. */
+    return (
+      <div className="order-retry-actions">
+        <Link className="btn btn-ghost btn-sm" href={`/checkout/${id}`}>결제 상태 보기</Link>
+      </div>
+    );
+  }
   if (retry.awaitingPayment) {
     return (
       <div className="order-retry-actions">
