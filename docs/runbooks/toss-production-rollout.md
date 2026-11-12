@@ -121,8 +121,9 @@ paymentKey, transactionKey, 승인번호, 원문 응답, 키 fingerprint는 문�
   결제내역·웹훅에 남지 않고, 결제 UI 바인딩이 켜져 있으면 MID가 달라 전부 `needs_review`가 된다 —
   계정 키로 교체한다.
 - **결제 UI `ICONS`를 결제 어드민에 만들고 나서 env로 묶는다(사람 단계).** 순서는 ① 결제 어드민
-  ([상점관리자 > 결제 UI 설정](https://dashboard.tosspayments.com/payment-widget-service/)) 상단의
-  테스트/라이브 모드를 고르고 **UI 추가하기** → 이용서비스는 **일반결제(국내 일반결제)만** 선택 →
+  ([상점관리자 > 결제 UI 설정](https://dashboard.tosspayments.com/payment-widget-service/))에서
+  테스트/라이브 모드를 고르고(테스트 모드 결제 UI의 MID는 `t` 접두로 보인다 — 2026-10-12 실측)
+  **UI 추가하기** → 이용서비스는 **일반결제(국내 일반결제)만** 선택 →
   MID 선택 화면에서 **`iconsi0xvd`**(테스트 모드에서는 **`ticonsi0xvd`**) → 베리언트 키 **`ICONS`** 입력 →
   설정하기(`/guides/v2/payment-widget/admin` "새로운 결제 UI 추가하기") ② 그 UI의 디자인 및 기능 > 기능 >
   결제수단에서 **카드·간편결제만** 노출하고, 커스텀 결제수단(영문 포함)·외화결제 이용서비스·해외카드 MID
