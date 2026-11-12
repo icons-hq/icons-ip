@@ -12,6 +12,7 @@ import {
   parseStockReconcileApplyOutcome,
   parseStockReconcileDocument,
   stockAsOfError,
+  stockReconcileDisplayItem,
   stockReconcileErrorMessage,
   stockReconcileRowPayload,
   stockReconcileRowState,
@@ -136,12 +137,41 @@ describe('재고 파일 대조 — 문서', () => {
     expect(stockReconcileShortage({ stockQty: 10, difference: -14 })).toBe(4);
   });
 
-  it('반영 결과: 적용·충돌', () => {
+  it('반영 결과: 적용·충돌(미리보기 값·지금 값·이유)', () => {
     expect(parseStockReconcileApplyOutcome({ status: 'applied', replayed: false, snapshot: document })?.status).toBe('applied');
-    expect(parseStockReconcileApplyOutcome({ status: 'conflict', conflicts: [{ variantId: 'v', goodsName: '키링', optionName: '핑크', optionCode: 'G1-01',
-      previewDifference: 1, currentDifference: 3, reason: 'changed' }] })).toMatchObject({ status: 'conflict', conflicts: [{ currentDifference: 3 }] });
-    expect(parseStockReconcileApplyOutcome({ status: 'conflict', conflicts: [{ variantId: 'v', previewDifference: 1, currentDifference: 3, reason: 'other' }] })).toBeNull();
+    const conflict = { variantId: 'v', goodsName: '키링', optionName: '핑크', optionCode: 'G1-01', previewStockQty: 10, currentStockQty: 9,
+      previewPendingQty: 0, currentPendingQty: 1, previewTargetQty: 7, currentTargetQty: 6, previewDifference: -3, currentDifference: -3, reason: 'pending_changed' };
+    expect(parseStockReconcileApplyOutcome({ status: 'conflict', conflicts: [conflict] })).toEqual({ status: 'conflict', conflicts: [conflict] });
+    for (const reason of ['stock_changed', 'pending_and_stock_changed', 'goods_archived', 'option_stopped']) {
+      expect(parseStockReconcileApplyOutcome({ status: 'conflict', conflicts: [{ ...conflict, reason }] })?.status).toBe('conflict');
+    }
+    // 옛 이유(changed)·지금 값이 빠진 모양·음수 재고는 읽지 않는다.
+    expect(parseStockReconcileApplyOutcome({ status: 'conflict', conflicts: [{ ...conflict, reason: 'changed' }] })).toBeNull();
+    const withoutCurrent: Record<string, unknown> = { ...conflict };
+    delete withoutCurrent.currentTargetQty;
+    expect(parseStockReconcileApplyOutcome({ status: 'conflict', conflicts: [withoutCurrent] })).toBeNull();
+    expect(parseStockReconcileApplyOutcome({ status: 'conflict', conflicts: [{ ...conflict, currentStockQty: -1 }] })).toBeNull();
     expect(parseStockReconcileApplyOutcome({ status: 'applied', snapshot: document })).toBeNull();
+  });
+
+  it('반영한 기록은 반영 시점 값으로 결과 표를 그린다', () => {
+    const applied = { ...document.items[0], fileQty: 9, stockQty: 10, pendingQty: 2, shippedSinceQty: 0, targetQty: 7, difference: -3, appliedDelta: -3, stockAfter: 7,
+      stockBefore: 10, appliedPendingQty: 0, appliedShippedSinceQty: 2, appliedReturnedSinceQty: 0, appliedAwaitingReturnQty: 0 };
+    const parsed = parseStockReconcileDocument({ ...document, appliedAt: '2031-05-01T00:10:00+00:00', items: [applied] });
+    expect(parsed?.items[0]).toMatchObject({ stockBefore: 10, appliedPendingQty: 0, appliedShippedSinceQty: 2 });
+    expect(stockReconcileDisplayItem(parsed!.items[0], true)).toMatchObject({ stockQty: 10, pendingQty: 0, shippedSinceQty: 2, targetQty: 7 });
+    // 반영 전 미리보기·옛 기록(반영 시점 값 없음)은 그대로다.
+    expect(stockReconcileDisplayItem(parsed!.items[0], false)).toMatchObject({ pendingQty: 2, shippedSinceQty: 0 });
+    const preview = parseStockReconcileDocument(document)!.items[0];
+    expect(preview).toMatchObject({ stockBefore: null, appliedPendingQty: null });
+    expect(stockReconcileDisplayItem(preview, true)).toBe(preview);
+    // 반영할 것이 없던 옵션은 반영 뒤에도 반영 전 재고수량 그대로다(주문으로 함께 움직인 값).
+    const same = { ...document.items[0], stockQty: 4, targetQty: 4, difference: 0, stockBefore: 3, appliedPendingQty: 1, appliedShippedSinceQty: 0,
+      appliedReturnedSinceQty: 0, appliedAwaitingReturnQty: 0 };
+    expect(stockReconcileDisplayItem(parseStockReconcileDocument({ ...document, items: [same] })!.items[0], true)).toMatchObject({ stockQty: 3, targetQty: 3, pendingQty: 1 });
+    // 반영 시점 값은 다섯 칸이 함께 있어야 한다.
+    expect(parseStockReconcileDocument({ ...document, items: [{ ...applied, appliedPendingQty: null }] })).toBeNull();
+    expect(parseStockReconcileDocument({ ...document, items: [{ ...applied, stockBefore: -1 }] })).toBeNull();
   });
 
   it('출고 전 경고 문서', () => {

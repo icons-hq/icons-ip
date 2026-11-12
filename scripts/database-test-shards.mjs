@@ -158,6 +158,8 @@ const storefront = [
   sql('auto_order_confirmation'),
   script('auto_order_confirmation_concurrency.sh', 'AUTO_ORDER_CONFIRM_TEST_SCOPE'),
   sql('stock_reconcile_safety_digest'),
+  // QA1 S-T07-01: 재고 대조 반영과 같은 옵션 주문의 재고 차감이 겹칠 때(주문 먼저 → 거절, 반영 먼저 → 주문이 반영 값에서 뺌).
+  script('stock_reconcile_apply_concurrency.sh', 'STOCK_RECONCILE_RACE_TEST_SCOPE'),
   sql('staging_test_delivery'),
   sql('dispatch_console_delivery'),
   sql('forced_order_delivery'),
