@@ -134,7 +134,7 @@ export function MyCoupons({ coupons, checkoutRules }: { coupons: UserCouponSumma
       <div className="wc-coupon-guide">
         <p>쿠폰 안내</p>
         <ul>
-          <li>회원 등급 혜택 쿠폰은 승급 시 자동 지급돼요.</li>
+          <li>회원 등급 혜택 쿠폰은 승급할 때나 매월 1일에 자동 지급돼요.</li>
           <li>{whereLine}</li>
           <li>{targetLine}</li>
         </ul>
