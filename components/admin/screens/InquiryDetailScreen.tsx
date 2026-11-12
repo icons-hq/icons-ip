@@ -282,7 +282,7 @@ export function InquiryDetailScreen({
           <InquirySatisfactionContext result={detail.satisfaction} />
           {/* 주문 조회 권한이 없는 상담 역할(부매니저·대행사)도 이 문의 고객의 구매이력(금액·상태)을 본다(1014-103). 열람은 DB가 감사한다. */}
           {canReadOrders ? <CustomerHistoryPanel key={buyer.id} userId={buyer.id} canReadClaims={canManageSales} />
-            : <div className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground"><InquiryPurchaseHistoryPanel key={inquiry.id} inquiryId={inquiry.id} canOpenOrders={false} title="구매이력" /></div>}
+            : <div className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground"><InquiryPurchaseHistoryPanel key={inquiry.id} inquiryId={inquiry.id} canOpenOrders={false} title="구매이력" showLinkedOrder /></div>}
         </aside>
       </div>
     </div>

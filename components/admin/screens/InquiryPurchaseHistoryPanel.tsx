@@ -24,10 +24,11 @@ function orderStatusLabel(status: string) {
  * 주문 조회 권한이 없는 역할은 주문 화면을 열 수 없다.
  *
  * `initialHistory`를 주면 버튼 없이 첫 페이지를 바로 보여 준다(상담하기, A7). 주지 않으면 [구매이력 불러오기]로 연다(고객문의 상세).
- * 페이지 이동은 같은 서버 액션과 같은 권한 검사를 쓴다.
+ * 페이지 이동은 같은 서버 액션과 같은 권한 검사를 쓴다. `showLinkedOrder`는 연결 주문 카드가 없는 화면(주문 조회 권한이 없는
+ * 고객문의 상세)에서 그 문의의 연결 주문 요약을 목록 위에 보인다 — 상담하기는 카드 머리에 따로 보인다.
  */
-export function InquiryPurchaseHistoryPanel({ inquiryId, initialHistory, canOpenOrders, title = '전체 구매이력' }: {
-  inquiryId: string; initialHistory?: InquiryPurchaseHistory | null; canOpenOrders: boolean; title?: string;
+export function InquiryPurchaseHistoryPanel({ inquiryId, initialHistory, canOpenOrders, title = '전체 구매이력', showLinkedOrder = false }: {
+  inquiryId: string; initialHistory?: InquiryPurchaseHistory | null; canOpenOrders: boolean; title?: string; showLinkedOrder?: boolean;
 }) {
   const [state, action, pending] = useActionState(loadInquiryPurchaseHistoryAction, initialHistory?.inquiryId === inquiryId ? { history: initialHistory } : EMPTY);
   const listId = useId();
@@ -42,6 +43,8 @@ export function InquiryPurchaseHistoryPanel({ inquiryId, initialHistory, canOpen
     {state.error ? <p className="bg-transparent text-sm text-destructive" role="alert">{state.error}</p> : null}
     <div className="flex min-w-0 flex-col gap-3" id={listId}>
       {pending ? <p className="text-sm text-muted-foreground" role="status">구매이력을 불러오는 중입니다.</p> : null}
+      {history && showLinkedOrder ? history.linkedOrder ? <InquiryLinkedOrderSummary order={history.linkedOrder} canOpenOrders={canOpenOrders} />
+        : <p className="text-sm text-muted-foreground">연결된 주문이 없습니다.</p> : null}
       {history ? <>
         {history.items.length ? <ul className="flex flex-col divide-y" data-inquiry-purchase-history="">{history.items.map(order => <li className="flex min-w-0 flex-col items-start gap-1.5 py-3 text-sm wrap-anywhere first:pt-0 last:pb-0" key={order.id}>
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
