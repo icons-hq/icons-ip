@@ -25,6 +25,8 @@ export interface ConsoleGridColumn {
   sortable?: boolean;
   /** 고정 폭. `<col>`에 그대로 들어간다. 예: `'120px'`, `'12%'`. */
   width?: string;
+  /** 폭을 정하지 않은 열(남은 폭을 쓰는 열)의 최소 폭. 좁은 화면에서 글자가 한두 자씩 끊기지 않고 표가 가로로 스크롤된다. */
+  minWidth?: string;
   /** 조회항목 설정에서도 항상 표시한다. 첫 번째 식별 열은 자동으로 필수다. */
   required?: boolean;
   defaultVisible?: boolean;
@@ -254,7 +256,7 @@ export function ConsoleGrid({
               data-align={column.align ?? 'start'}
               data-frozen={displayIndex < frozenCount || undefined}
               data-slot="table-head"
-              style={{ ...frozenStyle(displayIndex + (selectable ? 1 : 0)), ...(column.width ? { minWidth: column.width } : null) }}
+              style={{ ...frozenStyle(displayIndex + (selectable ? 1 : 0)), ...(column.width ?? column.minWidth ? { minWidth: column.width ?? column.minWidth } : null) }}
               key={column.key}
               scope="col"
             >

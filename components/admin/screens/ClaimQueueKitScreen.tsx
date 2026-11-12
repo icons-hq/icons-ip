@@ -59,12 +59,13 @@ const NEXT_ACTION_STAGES: Record<OrderClaimType, OrderClaimStage[]> = {
   return: ['needs_review', 'requested', 'collected'],
   exchange: ['needs_review', 'requested', 'collected'],
 };
-/* 끝난 단계는 처리할 일이 아니라서 건수 카드로 세우지 않는다. 카드 줄 끝의 조용한 칸 하나에 이름과 건수로 모아 진행 단계 카드가 한 줄에 서고 표가 그만큼 올라온다. */
+/* 768(사이드바 옆 본문)에서는 세 칸으로 둬 단계 이름이 말줄임으로 사라지지 않게 한다.
+   끝난 단계는 처리할 일이 아니라서 건수 카드로 세우지 않는다. 카드 줄 끝의 조용한 칸 하나에 이름과 건수로 모아 진행 단계 카드가 한 줄에 서고 표가 그만큼 올라온다. */
 const CLOSED_STAGES: OrderClaimStage[] = ['completed', 'rejected'];
 const STAGE_GRID_CLASS: Record<OrderClaimType, string> = {
-  cancel: 'grid min-w-0 flex-1 grid-cols-2 gap-2 sm:grid-cols-5',
-  return: 'grid min-w-0 flex-1 grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7',
-  exchange: 'grid min-w-0 flex-1 grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7',
+  cancel: 'grid min-w-0 flex-1 grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5',
+  return: 'grid min-w-0 flex-1 grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7',
+  exchange: 'grid min-w-0 flex-1 grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7',
 };
 
 export function ClaimQueueKitScreen({

@@ -64,6 +64,7 @@ function DialogContent({
         {showCloseButton && (
           <DialogPrimitive.Close
             data-slot="dialog-close"
+            aria-label="닫기"
             render={
               <Button
                 variant="ghost"
@@ -72,9 +73,8 @@ function DialogContent({
               />
             }
           >
-            <XIcon
+            <XIcon aria-hidden="true"
             />
-            <span className="sr-only">닫기</span>
           </DialogPrimitive.Close>
         )}
       </DialogPrimitive.Popup>

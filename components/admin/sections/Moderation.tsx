@@ -157,7 +157,7 @@ export function ModerationSection({ reports }: { reports: AdminReportRecord[] })
   return (
     <div className="flex min-w-0 flex-col gap-4">
       {reports.length ? <div className="flex flex-col gap-1.5" data-report-summary="">
-        <div aria-label="신고 상태별 건수" className="grid grid-cols-2 gap-2 sm:grid-cols-5" role="group">
+        <div aria-label="신고 상태별 건수" className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5" role="group">
           <ReportFilterCard active={filter === 'all'} count={reports.length} icon={Inbox} label="전체" onSelect={() => setFilter('all')} quiet />
           {reportStatuses.map((status) => <ReportFilterCard active={filter === status} count={countOf(status)} key={status} label={ADMIN_REPORT_STATUS_LABELS[status]} onSelect={() => setFilter(status)} tone={csChipTone('report', status)} />)}
         </div>

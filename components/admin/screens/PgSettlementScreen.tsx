@@ -104,7 +104,7 @@ export function PgSettlementScreen({ filters, report, connection, operationId, a
         </SalesFilterField>
         <SalesFilterField label="자료 구분" htmlFor="pg-settlement-mode">
           <SalesSelect id="pg-settlement-mode" name="mode" value={filters.mode} options={[{ value: 'live', label: '실거래 자료' }, { value: 'test', label: '테스트 자료' }]} />
-          <label className="flex items-center gap-2">통화<Input className="w-20" name="currency" aria-label="통화 코드" maxLength={3} pattern="[A-Z]{3}|" defaultValue={filters.currency} placeholder="전체" /></label>
+          <label className="flex items-center gap-2">통화<Input className="w-28" name="currency" aria-label="통화 코드" maxLength={3} pattern="[A-Z]{3}|" defaultValue={filters.currency} placeholder="전체" /></label>
           <SalesSelect name="pageSize" label="목록 수" value={String(filters.pageSize)} options={[20, 50, 100].map(size => ({ value: String(size), label: `${size}개씩 보기` }))} />
         </SalesFilterField>
         {/* 조회 버튼을 입력과 같은 줄 끝에 둔다 — 버튼만의 줄이 처리할 목록을 한 줄씩 밀어낸다. */}

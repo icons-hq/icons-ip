@@ -138,7 +138,7 @@ export const AdminSelect = forwardRef<HTMLSelectElement, AdminSelectProps>(funct
   const describedBy = [ariaDescribedBy, clipped ? hintId : undefined].filter(Boolean).join(' ') || undefined;
 
   return (
-    /* kit NativeSelect와 같은 폭 규칙: 감싸개는 기본 내용 폭(w-fit), 화면이 폭을 주면 셀렉트가 그 폭을 채운다. */
+    /* kit NativeSelect와 같은 폭 규칙: 감싸개는 기본 내용 폭(w-fit), 화면이 폭을 주면 셀렉트가 그 폭을 채운다. 최소 6rem은 '전체' 같은 짧은 값도 표시 칸이 남는 폭이다(admin-visual-qa 입력칸 폭). */
     <span
       className={cn('block w-fit max-w-full min-w-0', wrapperClassName)}
       data-admin-select=""
@@ -146,7 +146,7 @@ export const AdminSelect = forwardRef<HTMLSelectElement, AdminSelectProps>(funct
     >
       <select
         {...selectProps}
-        className={cn('w-full', selectProps.className)}
+        className={cn('w-full min-w-24', selectProps.className)}
         aria-describedby={describedBy}
         data-admin-select-measured={measured ? 'true' : undefined}
         onChange={handleChange}

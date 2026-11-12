@@ -11,6 +11,7 @@ import { statusTone } from '@/lib/admin/status-tone';
 import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
+import { AdminSelect } from '@/components/admin/console/AdminSelect';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
 import { CurationPreview, type CurationPreviewDevice } from '@/components/admin/curation/CurationPreview';
 import { CurationEditorDialog, CurationProductPicker } from '@/components/admin/curation/CurationProductPicker';
@@ -239,7 +240,8 @@ function CurationInput({ label, error, ...props }: InputHTMLAttributes<HTMLInput
 }
 function CurationSelect({ label, error, children, ...props }: Omit<SelectHTMLAttributes<HTMLSelectElement>, 'size'> & { label: string; error?: string; children: ReactNode }) {
   const id = useId();
-  return <AdminField error={error} inputId={id} label={label}><NativeSelect {...props} aria-describedby={error ? `${id}-error` : undefined} aria-invalid={Boolean(error)} className="w-full" id={id}>{children}</NativeSelect></AdminField>;
+  /* 긴 이동 화면 이름(IP명·주소)이 잘리면 AdminSelect가 선택값 전체를 칸 바로 아래에 보여 준다. */
+  return <AdminField error={error} inputId={id} label={label}><AdminSelect {...props} aria-describedby={error ? `${id}-error` : undefined} aria-invalid={Boolean(error)} id={id} wrapperClassName="w-full">{children}</AdminSelect></AdminField>;
 }
 
 function CurationCountedText({ name, label, value, onChange, limit, error, multiline = false, required = false }: {

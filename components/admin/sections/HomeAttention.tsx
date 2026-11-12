@@ -25,8 +25,17 @@ const REVIEW_TABS = [
   { value: 'unansweredReviews', label: '미답글', more: '/admin/cs/reviews?reply=without&status=visible' },
 ] as const;
 
-/* 목록 한 줄. 문의·리뷰 팝업 트리거(QnaActionPanel·ReviewActionPanel의 button)도 링크와 같은 한 줄 글자로 맞춘다. */
-const ROW_TARGET = 'min-w-0 [&>a]:block [&>a]:truncate [&>a]:text-sm [&>a]:underline-offset-4 [&>a]:hover:underline [&>button]:block [&>button]:w-full [&>button]:truncate [&>button]:text-left [&>button]:text-sm [&>button]:underline-offset-4 [&>button]:hover:underline';
+/*
+ * 목록 한 줄. 링크는 말줄임으로 한 줄을 지킨다. 문의·리뷰 팝업 트리거(QnaActionPanel·ReviewActionPanel의 button)는
+ * 버튼 글자가 잘리지 않게 앞부분만(TRIGGER_PREVIEW) 보여 주고 좁은 화면에서는 줄을 바꾼다 — 전체 본문은 팝업에서 본다.
+ */
+const ROW_TARGET = 'min-w-0 [&>a]:block [&>a]:truncate [&>a]:text-sm [&>a]:underline-offset-4 [&>a]:hover:underline [&>button]:block [&>button]:h-auto [&>button]:w-full [&>button]:py-0.5 [&>button]:text-left [&>button]:text-sm [&>button]:break-words [&>button]:whitespace-normal [&>button]:underline-offset-4 [&>button]:hover:underline';
+const TRIGGER_PREVIEW = 24;
+/** 트리거에 보일 본문 앞부분. 공백을 한 칸으로 줄이고, 길면 글자 단위로 잘라 말줄임표를 붙인다. */
+function triggerPreview(text: string): string {
+  const characters = [...text.replace(/\s+/g, ' ').trim()];
+  return characters.length > TRIGGER_PREVIEW ? `${characters.slice(0, TRIGGER_PREVIEW).join('').trimEnd()}…` : characters.join('');
+}
 /* kit Tabs는 data-horizontal 변형에 기대지만 Base UI는 data-orientation만 단다 — 세로 쌓기·목록 높이를 여기서 직접 준다. */
 const TABS = 'flex-1 flex-col gap-3';
 /* 탭의 건수는 확인할 것이 있을 때만 주의색(낮은 평점은 위험색)이다 — 0건·집계 실패는 조용히 둔다. */
@@ -69,7 +78,7 @@ export function HomeAttention({ data }: { data: AdminHomeAttention }) {
     return <ul className="flex min-h-48 flex-col divide-y">
       {tab === 'unreadChats' ? data.unreadChats?.rows.map(row => <li className="py-2.5 first:pt-0" key={row.id}><div className={ROW_TARGET}><Link href={inquiryChatHref(UNREAD_CHAT_FILTERS, {}, row.id)} prefetch={false}>{row.preview || '첨부 파일'}</Link><Meta>{row.buyerName} · {formatOrderDateTime(row.lastMessageAt)} · 읽지 않은 메시지 {row.unreadCount}개</Meta></div></li>)
         : tab === 'inquiries' ? data.inquiries?.rows.map(row => <li className="py-2.5 first:pt-0" key={row.id}><div className={ROW_TARGET}><Link href={adminInquiryDetailHref(row.id, normalizeAdminInquiryFilters({ status: 'open' }))} prefetch={false}>{row.title}</Link><Meta>{row.buyerName} · {formatOrderDateTime(row.createdAt)}</Meta></div></li>)
-          : data.questions?.rows.map(row => <li className="py-2.5 first:pt-0" key={row.id}><div className={ROW_TARGET}><QnaActionPanel question={row} triggerLabel={row.body} /><Meta>{row.authorName} · {formatOrderDateTime(row.createdAt)}</Meta></div></li>)}
+          : data.questions?.rows.map(row => <li className="py-2.5 first:pt-0" key={row.id}><div className={ROW_TARGET}><QnaActionPanel question={row} triggerLabel={triggerPreview(row.body)} /><Meta>{row.authorName} · {formatOrderDateTime(row.createdAt)}</Meta></div></li>)}
     </ul>;
   };
 
@@ -79,7 +88,7 @@ export function HomeAttention({ data }: { data: AdminHomeAttention }) {
     if (!reviews.total) return <EmptyRows>확인 필요한 리뷰가 없습니다.</EmptyRows>;
     return <ul className="flex min-h-48 flex-col divide-y">{reviews.rows.map(row => <li className="flex items-start gap-3 py-2.5 first:pt-0" key={row.id}>
       <Star aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-muted-foreground/60" />
-      <div className={`flex-1 ${ROW_TARGET}`}><ReviewActionPanel review={row} triggerLabel={row.body} /><Meta><span className="font-medium text-foreground tabular-nums">{row.rating}점</span> · {row.authorName} · {formatOrderDateTime(row.createdAt)}</Meta></div>
+      <div className={`flex-1 ${ROW_TARGET}`}><ReviewActionPanel review={row} triggerLabel={triggerPreview(row.body)} /><Meta><span className="font-medium text-foreground tabular-nums">{row.rating}점</span> · {row.authorName} · {formatOrderDateTime(row.createdAt)}</Meta></div>
     </li>)}</ul>;
   };
 

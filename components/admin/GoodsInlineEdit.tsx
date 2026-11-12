@@ -29,11 +29,12 @@ import { useGoodsInlineDialogs } from './GoodsInlineDialogHost';
 export { runSingleGoodBulk } from './goods-inline-bulk';
 
 /*
- * 값 버튼(R11). 칸 폭을 채우고, 오른쪽 정렬 칸(ConsoleGrid의 td[data-align=end])에서는 값을 오른쪽에 둔다.
+ * 값 버튼(R11). 칸 폭을 채우고, 오른쪽 정렬 칸(ConsoleGrid의 td[data-align=end])에서는 값을 오른쪽에 두고 여백·간격을 줄여
+ * 금액과 연필이 버튼 안에 들어오게 한다(넘치면 오른쪽 정렬이라 글자가 버튼 왼쪽 밖으로 나간다).
  * `fillCell`이면 버튼의 ::after 덮개가 칸 전체를 덮는다 — 감싼 칸(td)을 기준 상자로 세우는 것은
  * 감싸개의 `[td:has(&)]:relative`다(표 부품을 고치지 않고 이 칸에만). 인쇄에서는 덮개를 걷는다.
  */
-const INLINE_VALUE_CLASS = 'group/inline flex w-full min-w-0 cursor-pointer items-center justify-start gap-1.5 rounded-md border border-dashed border-transparent bg-transparent px-1.5 py-0.5 text-left text-inherit transition-colors outline-none hover:border-input hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 in-data-[align=end]:justify-end';
+const INLINE_VALUE_CLASS = 'group/inline flex w-full min-w-0 cursor-pointer items-center justify-start gap-1.5 rounded-md border border-dashed border-transparent bg-transparent px-1.5 py-0.5 text-left text-inherit transition-colors outline-none hover:border-input hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 in-data-[align=end]:justify-end in-data-[align=end]:gap-1 in-data-[align=end]:px-1';
 const INLINE_FILL_CLASS = 'after:absolute after:inset-0 print:after:hidden';
 /* 전체 수정은 '수정' 버튼 하나로 충분해 연필은 값에 커서·포커스가 닿을 때만 보인다(터치 기기는 커서가 없어 항상 보인다). */
 const INLINE_PENCIL_CLASS = 'size-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover/inline:opacity-100 group-focus-visible/inline:opacity-100 pointer-coarse:opacity-100';
