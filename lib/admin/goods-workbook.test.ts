@@ -698,11 +698,11 @@ describe('상품 유형 열(SHEET-003·ADR-0037)', () => {
   });
   it('내보내기의 유형 열은 대표 카테고리에서 정해진 유형이다(공개 중이면 저장된 유형)', () => {
     const draft: GoodsImportExisting = { ...existing, good: { ...existing.good, published_at: null, first_published_at: null, type: '문구', category_id: leaf } };
-    expect(exportGoodsWorkbookRows(draft, { ...ctx, existing: [draft] })[0].type).toBe('피규어');
+    expect(exportGoodsWorkbookRows(draft, ctx)[0].type).toBe('피규어');
     const unlinked: GoodsImportExisting = { ...draft, good: { ...draft.good, category_id: none } };
-    expect(exportGoodsWorkbookRows(unlinked, { ...ctx, existing: [unlinked] })[0].type).toBe('문구');
+    expect(exportGoodsWorkbookRows(unlinked, ctx)[0].type).toBe('문구');
     const published: GoodsImportExisting = { ...existing, good: { ...existing.good, type: '문구', category_id: leaf } };
-    expect(exportGoodsWorkbookRows(published, { ...ctx, existing: [published] })[0].type).toBe('문구');
+    expect(exportGoodsWorkbookRows(published, ctx)[0].type).toBe('문구');
   });
   it('같은 상품의 여러 옵션 행에서 유형 열이 달라도 오류로 보지 않는다', () => {
     const rows = [row({ categoryCode: 'figure-leaf', variantName: 'A', variantCode: '', type: '문구' }), row({ categoryCode: 'figure-leaf', variantName: 'B', variantCode: '', type: '' }, 6)];
