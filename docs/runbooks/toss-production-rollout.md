@@ -229,8 +229,11 @@ exact SHA에서 성공한 `production_source_run_id`를 함께 쓴다.
    (`REJECT_CARD_PAYMENT` 포함)는 조회 없이 `declined`다. confirm이 모호하면(타임아웃·5xx·
    `ALREADY_PROCESSED_PAYMENT`·표 밖 4xx) 즉시 실패로 단정하지 않고 콜백 paymentKey로
    `GET /v1/payments/{paymentKey}`(주문서형 시크릿 키에 명시된 조회, 공식문서 122)를 불러 실상태를
-   확인해 분기한다 — 응답이 그 키·이 주문이 아니면 `needs_review`, 표 밖 4xx 뒤 404는 실패
-   확정(`declined`, 원 코드를 `resultCode`로 보존), 5xx 뒤 404는 `unknown`, `ABORTED`·`EXPIRED`는
+   확인해 분기한다 — 응답이 그 키·이 주문이 아니면 `needs_review`, 결정적 실패(인증 후 승인 시한이
+   지난 `NOT_FOUND_PAYMENT_SESSION`·표 밖 4xx) 뒤에는 404뿐 아니라 그 결제가 승인되지 않은 상태
+   (`READY`·`IN_PROGRESS`·`ABORTED`·`EXPIRED`)여도 실패 확정(`declined`, 원 사유와 원 코드·결제 키를
+   증거 `resultCode`·`providerPaymentKey`로 보존 — orderId 재확인 시절의 404와 같은 결과), 5xx·타임아웃 뒤
+   404·`READY`·`IN_PROGRESS`는 `unknown`(승인이 뒤늦게 성립할 수 있다), 그 경로의 `ABORTED`·`EXPIRED`는
    `declined`다. 승인 200이 `WAITING_FOR_DEPOSIT`(가상계좌)이면 즉시 전액 취소한 뒤 `declined`로
    닫고, 취소가 성립하지 않으면 `needs_review`다 — 이 격리는 입금 전까지 유효하고, 입금 뒤
    `DONE`은 코드가 `approved`를 막아 `needs_review`에 남긴다(환불은 `refundReceiveAccount`가
@@ -450,8 +453,8 @@ MID가 아니라(`ticonsi0xvd` 등 테스트 MID) `provider_merchant_mismatch`�
    - **MID 바인딩 이전 결제**(결제 UI `DEFAULT`·MID `tgsangwbzqu`로 승인된 2026-10-06 심사 창 주문
      등)는 바인딩(`TOSS_WIDGET_VARIANT_KEY`)을 켠 배포에서 사전 조회가 `provider_merchant_mismatch`로
      격리한다(바인딩 전이면 MID를 대조하지 않으므로 운영자 전액 취소가 그대로 닫힌다 — 바인딩을 켜기
-     전에 정리해도 된다). 취소 API를 부르지 않으므로 주문은
-     결제확인필요(`provider_cancel_failed`)에 남는다. 결제 어드민 **테스트 모드**에서 그 결제를 전액
+     전에 정리해도 된다). 취소 API를 부르지 않으므로 주문은 결제확인필요에 남고 결제사 확인 오류는
+     `provider_merchant_mismatch`(화면 "ICONS 상점의 결제가 아닙니다")다. 결제 어드민 **테스트 모드**에서 그 결제를 전액
      취소한 뒤 같은 주문 패널의 **상태 다시 확인**(또는 클레임 상세의 **환불 완료 확정**)을 누른다.
      원장 paymentKey 조회가 같은 결제(키·주문)의 전액 취소를 확인하면 MID와 무관하게 환불 완료로
      닫힌다(운영 노트).
@@ -613,8 +616,9 @@ MID가 아니라(`ticonsi0xvd` 등 테스트 MID) `provider_merchant_mismatch`�
 - **MID 바인딩 이전 테스트 결제의 취소**: 결제 UI 바인딩(`TOSS_WIDGET_VARIANT_KEY`)을 켜기 전에 `DEFAULT`
   결제 UI(MID `tgsangwbzqu`)로 승인된 테스트 결제(2026-10-06 심사 창 주문 등)는 바인딩을 켠 뒤 운영자
   전액 취소·고객 취소·클레임 승인이 사전 조회에서 `merchant_mismatch`로 격리된다(`needs_review`, 취소
-  API 미호출). 바인딩을 켜기 전이면 MID를 대조하지 않으므로 이 절차 없이 운영자 전액 취소로 닫힌다. 주문은 `결제확인필요`
-  (`provider_cancel_failed`)에 남는다. 결제 어드민 **테스트 모드**에서 그 결제를 전액 취소한 뒤 주문
+  API 미호출). 바인딩을 켜기 전이면 MID를 대조하지 않으므로 이 절차 없이 운영자 전액 취소로 닫힌다. 주문은 `결제확인필요`에
+  남고 결제사 확인 오류는 `provider_merchant_mismatch`(화면 "ICONS 상점의 결제가 아닙니다")다 — 오케스트레이터가
+  게이트웨이의 `provider_*` 사유를 그대로 보존한다. 결제 어드민 **테스트 모드**에서 그 결제를 전액 취소한 뒤 주문
   패널의 **상태 다시 확인**(또는 클레임 상세의 **환불 완료 확정**)을 다시 누른다. 원장
   `payments.payment_key`로 조회한 응답이 그 키·그 주문의 전액 취소(잔액 0)면 어댑터가 MID와 무관하게
   `approved`(`provider_already_fully_canceled`)로 수렴하고, 주문 취소·재고 복원·환불 원장이 함께
