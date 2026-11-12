@@ -167,7 +167,7 @@ const STATUS_TONES = {
   /** 설정 항목(출고지·배송비 묶음그룹·템플릿 등)의 사용 상태 */
   setting: { active: 'success', inactive: 'neutral', archived: 'neutral' },
   /** 지역 추가 배송비 정책 버전. 중단은 신규 주문 차단과 이어져 확인이 필요하다(초안과 다른 색이다). */
-  regionPolicy: { draft: 'neutral', active: 'success', retired: 'warning' },
+  regionPolicy: { draft: 'neutral', scheduled: 'info', active: 'success', retired: 'warning' },
   /** 적립금 일괄 지급 작업 */
   creditBatch: { prepared: 'warning', invalid: 'warning', completed: 'success', failed: 'danger' },
 } as const satisfies Record<string, Record<string, AdminTone>>;

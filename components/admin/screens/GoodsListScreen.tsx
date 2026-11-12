@@ -141,9 +141,9 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
            긴 영문이 많은 상품 URL은 맨 뒤로 뺐고(앞부분은 읽히는 폭), 상세 재고는 재고수량 칸 안에 접어 둔다. 상품명은 숨길 수 없다. */
         columns={[
         { key: 'productNo', label: '상품번호', width: '72px' },
-        { key: 'name', label: '상품명 · 판매자상품코드', width: '192px', required: true }, { key: 'edit', label: '수정', width: '56px' }, { key: 'price', label: '판매가', align: 'end', width: '96px' },
-        { key: 'readiness', label: '전시상태 · 판매 준비', width: '184px' }, { key: 'qty', label: '재고수량', align: 'end', width: '84px' },
-        { key: 'ip', label: 'IP · 카테고리', width: '92px' }, { key: 'createdAt', label: '상품등록일', width: '92px' }, { key: 'updatedAt', label: '상품수정일', width: '92px' }, { key: 'goodId', label: '상품 URL', width: '88px' },
+        { key: 'name', label: '상품명 · 판매자상품코드', width: '192px', required: true }, { key: 'edit', label: '수정', width: '56px' }, { key: 'price', label: '판매가', align: 'end', width: '112px' },
+        { key: 'readiness', label: '전시상태 · 판매 준비', width: '176px' }, { key: 'qty', label: '재고수량', align: 'end', width: '84px' },
+        { key: 'ip', label: 'IP · 카테고리', width: '92px' }, { key: 'createdAt', label: '상품등록일', width: '93px' }, { key: 'updatedAt', label: '상품수정일', width: '93px' }, { key: 'goodId', label: '상품 URL', width: '88px' },
       ]} rows={goods.map(good => {
         const readiness = good.readiness ?? unknownGoodsReadiness();
         const editable = Boolean(inlineIdentity) && !good.archivedAt;
