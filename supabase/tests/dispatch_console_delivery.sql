@@ -156,6 +156,19 @@ select 1/case when (select status='shipping' and delivery_method='quick' and del
  and exists(select 1 from public.audit_log where target='order:d15a0000-0000-4001-8000-000000000001' and action='admin.shipment.delivery_evidence_recorded'
   and diff->>'kind'='quick_handoff')
  then 1 else 0 end as assert_quick_dispatched_without_money_change;
+-- QA 라운드 1 m3·m4: 배송 방식 요약이 고객이 고른 방식과 마지막 방식 변경의 출처를 싣는다(발송처리 화면 = 판매자).
+-- 주문 상세의 고객 요청 경로(고객 요청 근거가 있는 변경 기록)는 'customer', 변경 기록이 없으면 null이다.
+select 1/case when private.shipment_delivery_summary(:'quick_shipment')->>'method'='quick'
+ and private.shipment_delivery_summary(:'quick_shipment')->>'customerMethod'='parcel'
+ and private.shipment_delivery_summary(:'quick_shipment')->>'changedBy'='store'
+ and private.shipment_delivery_summary(:'exported_shipment')->>'customerMethod'='parcel'
+ and private.shipment_delivery_summary(:'exported_shipment')->'changedBy'='null'::jsonb
+ then 1 else 0 end as assert_summary_change_source;
+insert into private.shipment_delivery_operations(id,shipment_id,kind,actor_id,request_digest,evidence)
+values(gen_random_uuid(),:'stale_shipment','method_selected','d15a0000-0000-4000-8000-000000000001','\x00',
+ jsonb_build_object('fromMethod','parcel','toMethod','parcel','customerRequestReference','TEST 고객 요청 근거','feeConsentReference','TEST 배송비 동의'));
+select 1/case when private.shipment_delivery_summary(:'stale_shipment')->>'changedBy'='customer' then 1 else 0 end as assert_summary_customer_change;
+delete from private.shipment_delivery_operations where shipment_id=:'stale_shipment' and evidence ? 'customerRequestReference';
 
 -- 결제완료(발주확인 전) 주문은 방법만 바꾸고 인계는 막는다. 방문수령은 인계 없이 적용만 한다.
 select pg_temp.as_actor('d15a0000-0000-4000-8000-000000000001');

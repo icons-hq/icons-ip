@@ -21,8 +21,14 @@ export type DeliveryPolicySnapshot = Omit<DeliveryPolicyInput, 'state' | 'approv
   version: 1 | 2; policyId: string; revision: number; feeRule: 'order_fee_unchanged' | 'checkout_prepaid';
   confirmationRule: 'recipient_code';
 };
+/** 마지막 배송 방식 변경의 출처. store = 발송처리 화면에서 판매자(운영자)가, customer = 주문 상세의 고객 요청 경로로 바꿨다. */
+export type DeliveryChangeSource = 'store' | 'customer';
 export type ShipmentDeliverySummary = {
   method: DeliveryMethod; policy: DeliveryPolicySnapshot | null; providerName: string | null; canIssueReceipt: boolean;
+  /** 고객이 주문서에서 고른 방식(fulfillment_partition). 옛 응답에는 없다. 지금 방식과 다르면 주문 뒤 바뀐 건이다. */
+  customerMethod?: DeliveryMethod;
+  /** 마지막 방식 변경의 출처. 변경 기록이 없거나 알 수 없으면 없다(QA 라운드 1 m4). */
+  changedBy?: DeliveryChangeSource;
 };
 export type DeliveryEvidence = {
   occurredAt: string; operatorName: string; providerName?: string; providerPhone?: string;
@@ -42,6 +48,16 @@ export type AdminShipmentDelivery = {
 export const DELIVERY_POLICY_TEXT_FIELDS = ['contactName', 'contactPhone', 'handoffLocation', 'handoffInstructions',
   'appointmentInstructions', 'completionInstructions', 'cancellationInstructions', 'approvalReference'] as const;
 export const DELIVERY_METHOD_LABELS = FULFILLMENT_METHOD_LABELS;
+/**
+ * 배송 건 안내의 배송비 문구(고객 주문 화면·주문 상세 공용). 주문 뒤 방식을 바꾼 건(feeRule order_fee_unchanged)은 누가 바꿨는지에 맞게 쓴다 —
+ * 발송처리 화면에서 판매자가 바꾼 건을 '고객 요청으로'라고 하지 않는다(QA 라운드 1 m4). 출처를 모르면 주체 없이 쓴다.
+ */
+export function deliveryFeeRuleNote(policy: Pick<DeliveryPolicySnapshot, 'feeRule'>, changedBy?: DeliveryChangeSource): string {
+  if (policy.feeRule === 'checkout_prepaid') return '주문서에서 선택한 방식과 선결제 비용을 기준으로 제공합니다.';
+  if (changedBy === 'customer') return '고객 요청으로 배송 방식을 변경했으며 주문 당시 배송비를 유지합니다.';
+  if (changedBy === 'store') return '판매자가 배송 방식을 변경했으며 주문 당시 배송비를 유지합니다.';
+  return '주문 후 배송 방식이 변경되었으며 주문 당시 배송비를 유지합니다.';
+}
 export const deliveryUuid = isUuid;
 export function deliveryObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -89,9 +105,17 @@ export function parseAdminDeliveryPolicies(value: unknown): AdminDeliveryPolicy[
   return output;
 }
 
+/** 방식 변경 표시용 보조 값. 모르는 값은 버린다(요약 전체를 깨지 않는다). */
+function deliveryChange(value: Record<string, unknown>): Pick<ShipmentDeliverySummary, 'customerMethod' | 'changedBy'> {
+  return {
+    ...(FULFILLMENT_METHODS.includes(value.customerMethod as FulfillmentMethod) ? { customerMethod: value.customerMethod as DeliveryMethod } : {}),
+    ...(value.changedBy === 'store' || value.changedBy === 'customer' ? { changedBy: value.changedBy } : {}),
+  };
+}
+
 export function parseShipmentDeliverySummary(value: unknown): ShipmentDeliverySummary | null {
   if (!deliveryObject(value) || !FULFILLMENT_METHODS.includes(value.method as FulfillmentMethod)) return null;
-  if (value.method === 'parcel' || value.method === 'digital') return { method: value.method, policy: null, providerName: null, canIssueReceipt: false };
+  if (value.method === 'parcel' || value.method === 'digital') return { method: value.method, policy: null, providerName: null, canIssueReceipt: false, ...deliveryChange(value) };
   const policy = value.policy;
   if (!deliveryObject(policy) || ![1, 2].includes(Number(policy.version)) || !deliveryUuid(policy.policyId) || !positive(policy.revision)
     || policy.feeRule !== (policy.version === 1 ? 'order_fee_unchanged' : 'checkout_prepaid') || policy.confirmationRule !== 'recipient_code'
@@ -103,7 +127,7 @@ export function parseShipmentDeliverySummary(value: unknown): ShipmentDeliverySu
   }
   return { method: value.method as DeliveryMethod, providerName: value.providerName as string | null ?? null, canIssueReceipt: value.canIssueReceipt,
     policy: { ...fields, version: policy.version, policyId: policy.policyId, revision: policy.revision, allowDelegate: policy.allowDelegate,
-      feeRule: policy.feeRule, confirmationRule: 'recipient_code' } as DeliveryPolicySnapshot };
+      feeRule: policy.feeRule, confirmationRule: 'recipient_code' } as DeliveryPolicySnapshot, ...deliveryChange(value) };
 }
 
 export function parseDeliveryEvidence(kind: unknown, value: unknown): DeliveryEvidence | null {
