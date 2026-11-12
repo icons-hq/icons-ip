@@ -109,13 +109,29 @@ select inquiry_purchase_test.actor(1);
 select inquiry_purchase_test.error($q$select public.admin_inquiry_purchase_history(inquiry_purchase_test.id(401),1)$q$,'42501');
 reset role;
 
--- 감사: 첫 열람과 다른 페이지는 남고, 10분 안 같은 페이지 재조회(상담 화면 다시 그리기)는 겹쳐 남기지 않는다.
+-- 감사: 첫 열람과 다른 페이지는 남고, 10분 안에 같은 페이지의 똑같은 목록을 다시 읽으면(상담 화면 다시 그리기) 겹쳐 남기지 않는다.
 select inquiry_purchase_test.ok((select count(*) from public.audit_log where action='admin.inquiry.purchase_history_viewed'
   and target='inquiries:'||inquiry_purchase_test.id(401) and actor_id=inquiry_purchase_test.id(3))=2,'deputy views of pages 1 and 2 are audited once each');
 select inquiry_purchase_test.ok((select diff->>'customerId'=inquiry_purchase_test.id(1)::text and (diff->>'total')::int=23
   and jsonb_array_length(diff->'orderIds')=20 and diff->'orderIds'->>0=inquiry_purchase_test.id(123)::text
+  and diff->>'linkedOrderId'=inquiry_purchase_test.id(101)::text
   from public.audit_log where action='admin.inquiry.purchase_history_viewed' and target='inquiries:'||inquiry_purchase_test.id(401)
-    and actor_id=inquiry_purchase_test.id(3) and diff->>'page'='1'),'audit names the inquiry, customer, operator and shown orders');
+    and actor_id=inquiry_purchase_test.id(3) and diff->>'page'='1'),'audit names the inquiry, customer, operator, shown orders and linked order');
+select inquiry_purchase_test.ok((select diff->'linkedOrderId'='null'::jsonb from public.audit_log where action='admin.inquiry.purchase_history_viewed'
+  and target='inquiries:'||inquiry_purchase_test.id(403) and actor_id=inquiry_purchase_test.id(3)),'an inquiry without a linked order records none');
+-- 같은 10분 안이라도 보여 준 목록이 바뀌면(고객의 새 주문) 새 열람으로 남긴다.
+insert into public.orders(id,user_id,status,total,address,created_at)
+  values(inquiry_purchase_test.id(124),inquiry_purchase_test.id(1),'paid',24000,'{}','2026-09-03T00:00:00Z');
+set local role authenticated;
+select inquiry_purchase_test.actor(3);
+select (public.admin_inquiry_purchase_history(inquiry_purchase_test.id(401),1)#>>'{items,0,id}')=inquiry_purchase_test.id(124)::text as new_order_shown;
+select public.admin_inquiry_purchase_history(inquiry_purchase_test.id(401),1) is not null as same_list_redraw;
+reset role;
+select inquiry_purchase_test.ok((select count(*) from public.audit_log where action='admin.inquiry.purchase_history_viewed'
+  and target='inquiries:'||inquiry_purchase_test.id(401) and actor_id=inquiry_purchase_test.id(3) and diff->>'page'='1')=2
+  and exists(select 1 from public.audit_log where action='admin.inquiry.purchase_history_viewed' and target='inquiries:'||inquiry_purchase_test.id(401)
+    and actor_id=inquiry_purchase_test.id(3) and diff->>'page'='1' and diff->'orderIds'->>0=inquiry_purchase_test.id(124)::text and (diff->>'total')::int=24),
+  'a changed list inside the window is audited again; redrawing the same list is not');
 select inquiry_purchase_test.ok((select count(distinct actor_id) from public.audit_log where action='admin.inquiry.purchase_history_viewed'
   and target='inquiries:'||inquiry_purchase_test.id(401))=4,'each viewing operator has its own audit');
 select inquiry_purchase_test.ok(not exists(select 1 from public.audit_log where action='admin.inquiry.purchase_history_viewed'
@@ -127,7 +143,7 @@ select inquiry_purchase_test.actor(3);
 select public.admin_inquiry_purchase_history(inquiry_purchase_test.id(401),1) is not null as reread_after_window;
 reset role;
 select inquiry_purchase_test.ok((select count(*) from public.audit_log where action='admin.inquiry.purchase_history_viewed'
-  and target='inquiries:'||inquiry_purchase_test.id(401) and actor_id=inquiry_purchase_test.id(3) and diff->>'page'='1')=2,'a view after the 10 minute window is audited again');
+  and target='inquiries:'||inquiry_purchase_test.id(401) and actor_id=inquiry_purchase_test.id(3) and diff->>'page'='1')=3,'a view after the 10 minute window is audited again');
 select inquiry_purchase_test.ok((select capability='cs.manage' and guard_kind='read' and not legacy_admin_only from private.operator_rpc_contracts
   where signature='public.admin_inquiry_purchase_history(uuid,integer)'),'registered operator RPC contract');
 rollback;

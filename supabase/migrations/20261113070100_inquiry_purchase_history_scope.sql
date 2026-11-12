@@ -9,9 +9,10 @@
 -- 돌려주는 값은 주문 목록(주문번호·상태·결제 금액·대표 상품·품목 수·주문 시각)과 그 문의에 연결된 주문 요약뿐이다.
 -- 배송지·연락처·결제수단·클레임은 싣지 않는다. 연결 주문은 그 고객의 주문일 때만 싣는다.
 --
--- 감사: admin.inquiry.purchase_history_viewed(target inquiries:<문의>, diff에 고객·페이지·건수·보여 준 주문 번호).
--- 상담 화면은 새 메시지·재연결마다 화면을 다시 그리므로, 같은 운영자가 같은 문의의 같은 페이지를 10분 안에 다시 읽으면
--- 기록을 겹쳐 남기지 않는다(첫 열람과 다른 페이지 열람은 늘 남는다).
+-- 감사: admin.inquiry.purchase_history_viewed(target inquiries:<문의>, diff에 고객·페이지·건수·보여 준 주문 ID 목록·연결 주문 ID).
+-- 상담 화면은 새 메시지·재연결마다 화면을 다시 그리므로, 같은 운영자가 같은 문의의 같은 페이지에서 10분 안에 똑같은 목록
+-- (보여 준 주문 ID 목록과 연결 주문이 모두 같음)을 다시 읽을 때만 기록을 겹쳐 남기지 않는다. 첫 열람, 다른 페이지, 그사이 새 주문이나
+-- 바뀐 연결 주문으로 보여 준 내용이 달라진 열람은 늘 남는다.
 -- 감사 기록을 쓰므로 VOLATILE이다(PostgREST가 STABLE 함수를 읽기 전용 트랜잭션으로 부르기 때문).
 create function public.admin_inquiry_purchase_history(target_inquiry_id uuid, target_page integer default 1)
 returns jsonb language plpgsql volatile security definer set search_path='' as $$
@@ -70,10 +71,13 @@ begin
       and a.actor_id = actor
       and a.created_at > clock_timestamp() - interval '10 minutes'
       and a.diff->>'page' = page::text
+      and a.diff->'orderIds' = to_jsonb(shown)
+      and a.diff->>'linkedOrderId' is not distinct from (linked->>'id')
   ) then
     insert into public.audit_log(actor_id, action, target, diff)
     values (actor, 'admin.inquiry.purchase_history_viewed', 'inquiries:' || thread.id::text,
-      jsonb_build_object('customerId', thread.user_id, 'page', page, 'total', total, 'orderIds', to_jsonb(shown)));
+      jsonb_build_object('customerId', thread.user_id, 'page', page, 'total', total, 'orderIds', to_jsonb(shown),
+        'linkedOrderId', linked->'id'));
   end if;
 
   return jsonb_build_object('inquiryId', thread.id, 'customerId', thread.user_id, 'linkedOrder', linked,
