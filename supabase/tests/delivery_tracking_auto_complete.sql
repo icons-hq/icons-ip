@@ -1,8 +1,8 @@
 \set ON_ERROR_STOP on
 -- QNA-028 택배 추적 자동 배송완료. 스위치(private.delivery_tracking_settings)가 꺼져 있으면 조회 대상·이벤트·배송완료가 모두 막히고
--- 화면 표시도 비어 있다. 켜면 모든 운송장(대표 + 추가)의 기준 시각(대표=발송, 추가=붙은 시각과 발송 중 늦은 쪽) 이후 최근 이벤트가
+-- 화면 표시도 비어 있다. 켜면 모든 운송장(대표 + 추가)의 기준 시각(coalesce(출고지시 전달 시각, 발주확인 시각, 발송 등록 시각)) 이후 최근 이벤트가
 -- 배달완료인 택배 배송 건만 배송완료로 바꾸고, 배송완료 시각은 가장 늦은 도착 시각이다(지금보다 늦으면 지금).
--- 기준 시각 이전 이력(번호 재사용·오기)은 근거가 아니다. 틀린 이벤트는 그 운송장만 조회 오류로 남기고 나머지는 계속 기록한다.
+-- 발주확인·출고지시 이전 이력(번호 재사용·오기)은 근거가 아니고, 회신 등록이 배달보다 늦거나 배달 뒤 추가 운송장을 붙여도 정상 배달 이벤트는 근거다. 틀린 이벤트는 그 운송장만 조회 오류로 남기고 나머지는 계속 기록한다.
 -- 합성 계정·주문만 쓰고 끝에서 모두 되돌린다.
 begin;
 do $$ begin
@@ -28,7 +28,7 @@ create function pg_temp.dt_event(carrier text,tracking text,event_key text,statu
 $$;
 
 -- 계정: 1 주매니저, 2 구매자. 주문 1~6·9는 발주확인·배송 중 택배(1 대표+추가, 2 대표만, 3 발송 전 옛 배달완료 이력, 4 미래 시각 도착,
--- 5 배달완료 뒤 반송, 6 다른 배송 건이 아직 준비 중인 주문, 9 발송 뒤 늦게 붙인 추가 운송장), 7은 운영자 배송완료, 8은 전이가 거절되는 건(보류).
+-- 5 배달완료 뒤 반송, 6 다른 배송 건이 아직 준비 중인 주문, 9 회신 등록이 배달보다 늦고 배달 뒤에 추가 운송장을 붙인 건), 7은 운영자 배송완료, 8은 전이가 거절되는 건(보류).
 -- 배송 건 9는 주문 6의 다른 출고지 배송 건(발송 전), 배송 건 10은 주문 9의 배송 건이다.
 insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
 select pg_temp.dt_id(1,n),'authenticated','authenticated','delivery-tracking-'||n||'@example.test',now(),'{}','{}',now(),now()
@@ -59,10 +59,11 @@ select pg_temp.dt_assert(bool_and((value->>'ok')::boolean),'fixture dispatch') f
  (select jsonb_agg(jsonb_build_object('line',n,'reference',pg_temp.dt_id(4,n)::text,'carrier','hanjin','trackingNumber','DT'||lpad(n::text,8,'0'))) from (select generate_series(1,8) n union all select 10) numbers)));
 select public.admin_add_shipment_extra_tracking(pg_temp.dt_id(4,1),'hanjin','DT10000001','분리배송 연결 송장',pg_temp.dt_id(5,1));
 reset role;
--- 발송 시각을 이틀 전으로 맞춘다. 주문 1의 추가 운송장은 회신 때 함께 붙은 것처럼 발송 1분 뒤에 붙인 것으로 둔다.
+-- 발송 시각을 이틀 전으로 맞춘다(출고지시도 이틀 전). 주문 1의 추가 운송장은 회신 때 함께 붙은 것처럼 발송 1분 뒤에 붙인 것으로 둔다.
 update public.order_shipments set shipped_at=now()-interval '2 days' where id in (select pg_temp.dt_id(4,n) from generate_series(1,10) n) and status='shipping';
 update public.order_shipment_extra_trackings set created_at=now()-interval '2 days'+interval '1 minute' where shipment_id=pg_temp.dt_id(4,1);
--- 주문 9: 발송 뒤 지금 운영자가 붙인 추가 운송장(기준 시각 = 지금).
+-- 배송 건 10(r7): 회신 등록이 실제 배달보다 늦다(발송 등록 = 1시간 전, 출고지시 = 이틀 전). 추가 운송장도 배달 뒤 지금 붙인다.
+update public.order_shipments set shipped_at=now()-interval '1 hour' where id=pg_temp.dt_id(4,10);
 set local role authenticated;
 select set_config('request.jwt.claim.sub',pg_temp.dt_id(1,1)::text,true);
 select public.admin_add_shipment_extra_tracking(pg_temp.dt_id(4,10),'hanjin','DT10000009','김포 분리배송 추가',pg_temp.dt_id(5,2));
@@ -133,13 +134,15 @@ select pg_temp.dt_assert((select last_outcome||':'||last_error_code from private
  and (select payload from private.shipment_tracking_events where event_key='big')='{"truncated":true}'::jsonb,'invalid tracking recorded as poll error, oversized raw truncated');
 
 -- E. 이벤트 기록: 대표만 배달완료인 주문 1은 그대로, 주문 2는 배송완료. 같은 이벤트는 한 번만, 모르는 운송장은 무시한다.
--- 주문 3은 발송(이틀 전)보다 이른 '배달완료' 이력뿐이다(번호 재사용·오기). 주문 9의 추가 운송장은 붙기 전 '배달완료'뿐이다.
+-- 주문 3은 출고지시(이틀 전)·발주확인(사흘 전)보다 이른 '배달완료' 이력뿐이다(번호 재사용·오기; 출고지시와 발주확인 사이도 근거 아님).
+-- 주문 9(배송 건 10)는 발송 등록(1시간 전)보다 이르지만 출고지시 뒤인 정상 배달 이벤트라 대표·추가 모두 근거다.
 set local role service_role;
 select public.service_record_delivery_tracking('fake',jsonb_build_array(
  pg_temp.dt_event('hanjin','DT00000001','d1','delivered',now()-interval '6 hours'),
  pg_temp.dt_event('hanjin','DT10000001','t1','in_transit',now()-interval '20 hours'),
  pg_temp.dt_event('hanjin','DT00000002','d2','delivered',now()-interval '3 hours'),
  pg_temp.dt_event('hanjin','DT00000003','d3','delivered',now()-interval '42 days'),
+ pg_temp.dt_event('hanjin','DT00000003','d3mid','delivered',now()-interval '60 hours'),
  pg_temp.dt_event('hanjin','DT00000004','d4','delivered',now()+interval '30 minutes'),
  pg_temp.dt_event('hanjin','DT00000005','d5','delivered',now()-interval '4 hours'),
  pg_temp.dt_event('hanjin','DT00000006','d6','delivered',now()-interval '4 hours'),
@@ -148,7 +151,7 @@ select public.service_record_delivery_tracking('fake',jsonb_build_array(
  pg_temp.dt_event('hanjin','DT10000009','d10x','delivered',now()-interval '3 hours'),
  pg_temp.dt_event('hanjin','DT99999999','x','delivered',now()),
  jsonb_build_object('carrier','hanjin','trackingNumber','DT00000007','outcome','error','errorCode','rate_limited'))) as recorded \gset
-select pg_temp.dt_assert(:'recorded'::jsonb='{"recorded":10,"duplicates":0,"ignored":1,"invalid":0}'::jsonb,'events recorded once, unknown ignored');
+select pg_temp.dt_assert(:'recorded'::jsonb='{"recorded":11,"duplicates":0,"ignored":1,"invalid":0}'::jsonb,'events recorded once, unknown ignored');
 select pg_temp.dt_assert(public.service_record_delivery_tracking('fake',jsonb_build_array(pg_temp.dt_event('hanjin','DT00000002','d2','delivered',now()-interval '3 hours')))
  ='{"recorded":0,"duplicates":1,"ignored":0,"invalid":0}'::jsonb,'duplicate event');
 -- 주문 5: 배달완료 뒤 반송 이벤트가 오면 최근 이벤트가 배달완료가 아니라 바꾸지 않는다.
@@ -156,7 +159,7 @@ select public.service_record_delivery_tracking('fake',jsonb_build_array(pg_temp.
 reset role;
 select pg_temp.dt_assert((select last_outcome||':'||last_error_code||':'||consecutive_failures from private.shipment_tracking_polls where tracking_number='DT00000007')='error:rate_limited:1'
  and (select last_outcome||':'||coalesce(last_error_code,'')||':'||consecutive_failures from private.shipment_tracking_polls where tracking_number='DT00000005')='ok::0'
- and (select count(*) from private.shipment_tracking_events where provider='fake' and tracking_number like 'DT%')=12,'poll state and raw events');
+ and (select count(*) from private.shipment_tracking_events where provider='fake' and tracking_number like 'DT%')=13,'poll state and raw events');
 -- 운영자가 주문 7을 배송완료로 처리한다(수동).
 set local role authenticated;
 select set_config('request.jwt.claim.sub',pg_temp.dt_id(1,1)::text,true);
@@ -167,7 +170,7 @@ set local role service_role;
 select public.service_complete_tracked_deliveries(50) as run_one \gset
 reset role;
 select pg_temp.dt_assert((select array_agg(value->>'shipmentId' order by value->>'shipmentId') from jsonb_array_elements(:'run_one'::jsonb->'completed'))
- =array[pg_temp.dt_id(4,2)::text,pg_temp.dt_id(4,4)::text,pg_temp.dt_id(4,6)::text]
+ =array[pg_temp.dt_id(4,2)::text,pg_temp.dt_id(4,4)::text,pg_temp.dt_id(4,6)::text,pg_temp.dt_id(4,10)::text]
  and (select array_agg(value->>'shipmentId') from jsonb_array_elements(:'run_one'::jsonb->'held'))=array[pg_temp.dt_id(4,8)::text]
  and :'run_one'::jsonb->>'skipped'='0',
  'only fully delivered shipments complete, blocked ones are held');
@@ -177,9 +180,12 @@ select pg_temp.dt_assert((select status from public.order_shipments where id=pg_
  and (select status from public.order_shipments where id=pg_temp.dt_id(4,6))='delivered'
  and (select status from public.orders where id=pg_temp.dt_id(2,6))='shipping'
  and (select status from public.order_shipments where id=pg_temp.dt_id(4,8))='shipping'
- and (select status from public.order_shipments where id=pg_temp.dt_id(4,10))='shipping'
+ and (select status from public.order_shipments where id=pg_temp.dt_id(4,10))='delivered'
  and (select state||':'||attempts from private.shipment_auto_deliveries where shipment_id=pg_temp.dt_id(4,8))='held:1',
- 'partial trackings, pre-dispatch history, pre-attach extra history, returned parcels and blocked orders stay');
+ 'partial trackings, pre-baseline history, returned parcels and blocked orders stay; reply-lag shipment completes');
+-- r7: 회신 등록(발송 1시간 전)보다 이른 배달도 근거라 배송완료 시각은 가장 늦은 도착이되 등록 시각 밑으로 내려가지 않는다.
+select pg_temp.dt_assert((select abs(extract(epoch from delivered_at-(now()-interval '1 hour')))<1 from public.order_shipments where id=pg_temp.dt_id(4,10))
+ and (select jsonb_array_length(basis) from private.shipment_auto_deliveries where shipment_id=pg_temp.dt_id(4,10))=2,'reply-lag delivery counted with both trackings');
 -- 배송완료 시각: 도착 시각 그대로(2), 미래면 처리 시각(4). 주문 배송완료·구매확정 기한이 그 시각을 따른다.
 select pg_temp.dt_assert((select abs(extract(epoch from delivered_at-(now()-interval '3 hours')))<1 from public.order_shipments where id=pg_temp.dt_id(4,2))
  and (select delivered_at<=clock_timestamp() and delivered_at>now()-interval '1 minute' from public.order_shipments where id=pg_temp.dt_id(4,4))
@@ -189,39 +195,39 @@ select pg_temp.dt_assert((select abs(extract(epoch from delivered_at-(now()-inte
 select pg_temp.dt_assert((select count(*) from public.audit_log where action='system.shipment.tracking_delivered' and actor_id is null
  and target in ('order:'||pg_temp.dt_id(2,2),'order:'||pg_temp.dt_id(2,4),'order:'||pg_temp.dt_id(2,6)))=3
  and (select basis->0->>'trackingNumber' from private.shipment_auto_deliveries where shipment_id=pg_temp.dt_id(4,2))='DT00000002','auto delivery audit and basis');
--- 발송 전 이력만 있는 운송장은 계속 조회 대상이다(조회 간격만 지나면).
+-- 발주확인·출고지시 이전 이력만 있는 운송장은 계속 조회 대상이다(조회 간격만 지나면). 배달 확인된 배송 건 10의 번호는 더 조회하지 않는다.
 delete from private.shipment_tracking_polls where tracking_number in ('DT00000003','DT10000009');
 set local role service_role;
 select public.service_delivery_tracking_targets(200)->'targets' as still_polled \gset
 reset role;
-select pg_temp.dt_assert(:'still_polled'::jsonb@>'[{"carrier":"hanjin","trackingNumber":"DT00000003"},{"carrier":"hanjin","trackingNumber":"DT10000009"}]'::jsonb,
- 'pre-dispatch and pre-attach history keeps the tracking polled');
+select pg_temp.dt_assert(:'still_polled'::jsonb@>'[{"carrier":"hanjin","trackingNumber":"DT00000003"}]'::jsonb
+ and not :'still_polled'::jsonb@>'[{"carrier":"hanjin","trackingNumber":"DT10000009"}]'::jsonb,
+ 'pre-baseline history keeps the tracking polled');
 
--- F. 기준 시각 이후 도착이 오면 바뀐다: 주문 1은 추가 운송장까지 도착해 늦은 쪽 시각, 주문 3은 새 배달완료 시각, 주문 9는 붙인 뒤 도착.
+-- F. 기준 시각 이후 도착이 오면 바뀐다: 주문 1은 추가 운송장까지 도착해 늦은 쪽 시각, 주문 3은 새 배달완료 시각.
 set local role service_role;
 select public.service_record_delivery_tracking('fake',jsonb_build_array(pg_temp.dt_event('hanjin','DT10000001','d1x','delivered',now()-interval '90 minutes'),
- pg_temp.dt_event('hanjin','DT00000003','d3new','delivered',now()-interval '1 hour'),
- pg_temp.dt_event('hanjin','DT10000009','d10y','delivered',now()+interval '1 minute')));
+ pg_temp.dt_event('hanjin','DT00000003','d3new','delivered',now()-interval '1 hour')));
 select public.service_complete_tracked_deliveries(50) as run_two \gset
 select pg_temp.dt_assert((select array_agg(value->>'shipmentId' order by value->>'shipmentId') from jsonb_array_elements(:'run_two'::jsonb->'completed'))
- =array[pg_temp.dt_id(4,1)::text,pg_temp.dt_id(4,3)::text,pg_temp.dt_id(4,10)::text]
+ =array[pg_temp.dt_id(4,1)::text,pg_temp.dt_id(4,3)::text]
  and :'run_two'::jsonb->'held'='[]'::jsonb,'second run completes after post-dispatch arrivals only (held one waits)');
 select pg_temp.dt_assert(public.service_complete_tracked_deliveries(50)->'completed'='[]'::jsonb,'idempotent run');
 reset role;
 select pg_temp.dt_assert((select abs(extract(epoch from delivered_at-(now()-interval '90 minutes')))<1 from public.order_shipments where id=pg_temp.dt_id(4,1))
  and (select jsonb_array_length(basis) from private.shipment_auto_deliveries where shipment_id=pg_temp.dt_id(4,1))=2
- and (select abs(extract(epoch from delivered_at-(now()-interval '1 hour')))<1 from public.order_shipments where id=pg_temp.dt_id(4,3))
- and (select delivered_at>now()-interval '1 minute' and delivered_at<=clock_timestamp() from public.order_shipments where id=pg_temp.dt_id(4,10)),
+ and (select abs(extract(epoch from delivered_at-(now()-interval '1 hour')))<1 from public.order_shipments where id=pg_temp.dt_id(4,3)),
  'latest post-baseline arrival wins');
 
 -- G. 배송현황 표시: 자동·수동 구분과 추적 진행(도착 수)을 기준 시각 이후 이벤트로 싣는다.
 set local role authenticated;
 select set_config('request.jwt.claim.sub',pg_temp.dt_id(1,1)::text,true);
-select public.admin_shipment_tracking_summaries(array[pg_temp.dt_id(4,1),pg_temp.dt_id(4,5),pg_temp.dt_id(4,7),pg_temp.dt_id(4,8)]) as shown \gset
+select public.admin_shipment_tracking_summaries(array[pg_temp.dt_id(4,1),pg_temp.dt_id(4,5),pg_temp.dt_id(4,7),pg_temp.dt_id(4,8),pg_temp.dt_id(4,10)]) as shown \gset
 select pg_temp.dt_assert(:'shown'::jsonb->>'autoDelivery'='true'
  and :'shown'::jsonb#>>array['shipments',pg_temp.dt_id(4,1)::text,'deliveredBy']='tracking'
  and :'shown'::jsonb#>>array['shipments',pg_temp.dt_id(4,7)::text,'deliveredBy']='manual'
  and :'shown'::jsonb#>array['shipments',pg_temp.dt_id(4,5)::text,'tracking']@>'{"total":1,"delivered":0,"latestStatus":"returned","held":false}'::jsonb
+ and :'shown'::jsonb#>>array['shipments',pg_temp.dt_id(4,10)::text,'deliveredBy']='tracking'
  and :'shown'::jsonb#>array['shipments',pg_temp.dt_id(4,8)::text,'tracking']@>'{"total":1,"delivered":1,"held":true}'::jsonb,'summaries with tracking switch');
 reset role;
 

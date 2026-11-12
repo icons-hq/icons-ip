@@ -98,16 +98,20 @@ revoke all on table private.shipment_auto_deliveries from public, anon, authenti
 -- 5. 공용 판정
 -- 배송 건의 지금 운송장(대표 + 추가, 같은 번호는 하나)과 운송장마다의 기준 시각. 기준 시각보다 이른 이벤트는 그 배송 건의 근거로 쓰지
 -- 않는다 — 택배사가 다시 쓰는 번호나 잘못 적은 번호의 옛 '배달완료' 이력이 방금 발송한 배송 건을 배송완료로 만들어 청약철회·자동
--- 구매확정 기산을 앞당기지 않게 한다(④). 대표 운송장은 발송 시각, 추가 운송장은 붙은 시각과 발송 시각 중 늦은 쪽이다. 같은 번호가
--- 대표·추가에 함께 있으면 늦은 기준을 쓴다. 발송 시각이 없는 배송 건은 운송장이 없는 것으로 본다.
+-- 구매확정 기산을 앞당기지 않게 한다(④). shipped_at은 실제 발송이 아니라 운영자가 회신을 등록한 시각이라 회신이 배달보다 늦거나
+-- 배달 뒤 추가 운송장을 붙여도 정상 배달 이벤트가 빠지지 않도록, 기준은 대표·추가 모두 물리적으로 확실한 하한
+-- coalesce(배송 건 출고지시 전달 시각 exported_at, 주문 발주확인 시각 confirmed_at, shipped_at)이다. 발주확인 이전 이벤트는 근거가
+-- 아니다. 같은 번호가 대표·추가에 함께 있어도 기준은 같다. 발송 시각이 없는 배송 건은 운송장이 없는 것으로 본다.
 create function private.shipment_current_trackings(p_shipment uuid) returns table(carrier text, tracking_number text, since timestamptz)
 language sql stable security definer set search_path = '' as $$
   select t.carrier, t.tracking_number, max(t.since) from (
-    select s.carrier, s.tracking_number, s.shipped_at as since from public.order_shipments s
+    select s.carrier, s.tracking_number, coalesce(s.exported_at, o.confirmed_at, s.shipped_at) as since from public.order_shipments s
+      join public.orders o on o.id = s.order_id
       where s.id = p_shipment and s.carrier is not null and s.tracking_number is not null and s.shipped_at is not null
     union all
-    select x.carrier, x.tracking_number, greatest(s.shipped_at, x.created_at) from public.order_shipment_extra_trackings x
+    select x.carrier, x.tracking_number, coalesce(s.exported_at, o.confirmed_at, s.shipped_at) from public.order_shipment_extra_trackings x
       join public.order_shipments s on s.id = x.shipment_id
+      join public.orders o on o.id = s.order_id
       where x.shipment_id = p_shipment and s.shipped_at is not null
   ) t group by t.carrier, t.tracking_number;
 $$;
@@ -290,7 +294,7 @@ begin
         cross join lateral private.shipment_current_trackings(member_id) tracking) t
       cross join lateral private.tracking_latest_event(t.carrier, t.tracking_number, t.since) e;
       for member in select s.* from public.order_shipments s where s.id = any(scope) order by s.id loop
-        -- 가장 늦은 도착 시각(모든 근거가 기준 시각 = 발송 이후다). 추적 시계가 앞서도 지금을 넘지 않는다(청약철회·자동 구매확정 기산).
+        -- 가장 늦은 도착 시각(모든 근거가 기준 시각 = 출고지시·발주확인 이후다. 회신 등록이 늦어도 배송완료 시각은 등록 시각 밑으로 내리지 않는다). 추적 시계가 앞서도 지금을 넘지 않는다(청약철회·자동 구매확정 기산).
         delivered_value := least(greatest(latest_at, member.shipped_at), clock_timestamp());
         update public.order_shipments set status = 'delivered', delivered_at = delivered_value, updated_at = clock_timestamp() where id = member.id;
         insert into private.shipment_auto_deliveries(shipment_id, state, delivered_at, provider, basis, attempts, last_error, updated_at)
