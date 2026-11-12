@@ -47,6 +47,8 @@ export function DispatchTrackingImportPanel({ carriers, originId, shippingHref =
     async (previous: AdminTrackingImportState, data: FormData) => {
       if (selectedFile) data.set('file', selectedFile);
       const result = await bulkRegisterAdminOrderTrackingAction(previous, data);
+      // 제출 뒤 양식(비밀번호 칸)이 비워지므로, 다시 올리려면 확인부터 다시 한다.
+      setPreview(null);
       // 운송장 칸을 비워 건너뛴 줄이 있으면 그 사실을 이 자리에서 보이도록 배송현황으로 넘어가지 않는다.
       if (result.report?.succeeded.length && !result.report.failed.length && !result.report.skipped && !result.errors?.form && !result.queueWarning) {
         const [path, query] = shippingHref.split('?');
