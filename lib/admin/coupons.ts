@@ -7,6 +7,22 @@ import { readCouponIssueSchedule, type CouponIssueSchedule } from './coupon-sche
 
 export const ADMIN_COUPON_LIST_PATH = '/admin/sales/coupons';
 export const ADMIN_COUPON_PAGE_SIZE = 20;
+/**
+ * 새 혜택을 저장하고 다른 화면(수정·발급)으로 옮겨 갈 때 붙이는 한 번용 표시(1027T-026). 목록 조회 키가 아니라
+ * 필터·화면 key에 들지 않고, 받은 화면이 '저장했습니다'를 보인 뒤 주소에서 지운다(새로고침에 다시 뜨지 않게).
+ */
+export const ADMIN_COUPON_SAVED_PARAM = 'saved';
+export function withAdminCouponSavedFlag(href: string) {
+  const url = new URL(href, 'https://admin.invalid');
+  url.searchParams.set(ADMIN_COUPON_SAVED_PARAM, '1');
+  return `${url.pathname}?${url.searchParams}`;
+}
+export function withoutAdminCouponSavedFlag(href: string) {
+  const url = new URL(href, 'https://admin.invalid');
+  url.searchParams.delete(ADMIN_COUPON_SAVED_PARAM);
+  const query = url.searchParams.toString();
+  return query ? `${url.pathname}?${query}` : url.pathname;
+}
 export const COUPON_PHASES = [{ value: 'all', label: '전체' }, { value: 'scheduled', label: '대기중' }, { value: 'live', label: '적용중' }, { value: 'ended', label: '완료' }, { value: 'stopped', label: '중지' }] as const;
 export const COUPON_SORTS = [{ value: 'created_desc', label: '등록일 최신순' }, { value: 'name_asc', label: '혜택 이름순' }, { value: 'starts_desc', label: '사용 시작일순' }, { value: 'ends_asc', label: '종료일 가까운순' }] as const;
 export const COUPON_SEGMENTS = [{ value: 'all', label: '전체 고객' }, { value: 'first_purchase', label: '첫구매 고객' }, { value: 'repeat_purchase', label: '재구매 고객' }] as const;
