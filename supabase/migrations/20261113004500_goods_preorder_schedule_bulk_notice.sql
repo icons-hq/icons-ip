@@ -590,14 +590,23 @@ begin
   execute replace(definition,anchor,anchor||'''kind'',n.kind,');
 end $patch$;
 
--- 15) 운영자 계약: 새 화면 RPC 4개를 등록하고, 본문을 바꾼 지연 안내 함수들의 계약 지문을 다시 남긴다.
+-- 15) 배송 건 일정 변경 이력에 일괄 변경 ID와 '안내만'(일정 그대로, 고객에게 알린 기록) 표시를 싣는다(앵커 1곳).
+do $patch$
+declare definition text:=pg_get_functiondef('public.admin_list_shipment_promise_changes(uuid)'::regprocedure);
+  anchor text:='''changedAt'',change.created_at)';
+begin
+  if (length(definition)-length(replace(definition,anchor,'')))/length(anchor)<>1 then raise exception 'shipment_promise_changes_anchor_changed'; end if;
+  execute replace(definition,anchor,'''changedAt'',change.created_at,''bulkChangeId'',change.bulk_change_id,''noticeOnly'',(change.from_date=change.to_date and change.bulk_change_id is not null))');
+end $patch$;
+
+-- 16) 운영자 계약: 새 화면 RPC 4개를 등록하고, 본문을 바꾼 지연 안내 함수들의 계약 지문을 다시 남긴다.
 select private.register_operator_rpc_contract('public.admin_preview_goods_preorder_schedule_change(text,uuid,date)'::regprocedure,'sales.manage','read',false);
 select private.register_operator_rpc_contract('public.admin_apply_goods_preorder_schedule_change(uuid,text,uuid,date,text,text,text,text,uuid[],boolean,text)'::regprocedure,'sales.manage','write',false);
 select private.register_operator_rpc_contract('public.admin_read_goods_preorder_schedule_change(uuid)'::regprocedure,'sales.manage','read',false);
 select private.register_operator_rpc_contract('public.admin_list_goods_preorder_schedule_changes(text)'::regprocedure,'sales.manage','read',false);
 do $$declare signature text;fn regprocedure;contract record;registered boolean;begin
  foreach signature in array ARRAY['private.shipment_delay_notice_summary(uuid)','private.order_delay_notice_target_current(uuid)',
-  'public.admin_list_order_delay_notices(uuid)','public.admin_get_order_delay_notice(uuid)'] loop
+  'public.admin_list_order_delay_notices(uuid)','public.admin_get_order_delay_notice(uuid)','public.admin_list_shipment_promise_changes(uuid)'] loop
   fn:=signature::regprocedure;registered:=false;
   select * into contract from private.operator_rpc_contracts r where r.signature::regprocedure=fn;
   if found then perform private.register_operator_rpc_contract(fn,contract.capability,contract.guard_kind,contract.legacy_admin_only);registered:=true; end if;

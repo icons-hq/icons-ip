@@ -352,6 +352,18 @@ select pg_temp.expect_error(format('select public.admin_apply_goods_preorder_sch
 reset role;
 update private.operator_memberships set manager_role='deputy' where profile_id=pg_temp.ps_id('user',2);
 
+-- 배송 건 일정 변경 이력 읽기: 일괄 변경 ID와 '안내만' 여부(일정 그대로 안내한 행만 true)
+set local role authenticated;
+select pg_temp.as_actor(pg_temp.ps_id('user',1));
+select 1/case when true
+ and (select (c->>'noticeOnly')::boolean and c->>'bulkChangeId'=pg_temp.ps_id('request',1)::text and c->>'fromDate'=c->>'toDate'
+   from jsonb_array_elements(public.admin_list_shipment_promise_changes(pg_temp.ps_id('shipment',14))) c where c->>'bulkChangeId' is not null)
+ and (select not (c->>'noticeOnly')::boolean and c->>'bulkChangeId'=pg_temp.ps_id('request',1)::text
+   from jsonb_array_elements(public.admin_list_shipment_promise_changes(pg_temp.ps_id('shipment',11))) c where c->>'bulkChangeId' is not null)
+ and (select not (c->>'noticeOnly')::boolean and c->>'bulkChangeId' is null
+   from jsonb_array_elements(public.admin_list_shipment_promise_changes(pg_temp.ps_id('shipment',14))) c where c->>'bulkChangeId' is null)
+ then 1 else 0 end as assert_promise_changes_expose_bulk_and_notice_only;
+reset role;
 -- 원장: 배송 건 일정·이력·감사·안내 대상·앱 알림
 select (:'applied'::jsonb->>'noticeId')::uuid as notice_id \gset
 select 1/case when (select array_agg(id order by id) from public.order_shipments where expected_ship_date=:'d0'::date+15

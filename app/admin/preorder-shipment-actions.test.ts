@@ -34,3 +34,17 @@ describe('shipment promise changes', () => {
     expect(mocks.revalidate).not.toHaveBeenCalled();
   });
 });
+
+describe('shipment promise change rows', () => {
+  const ids = { shipmentId: '11111111-1111-4111-8111-111111111111', orderId: '22222222-2222-4222-8222-222222222222' };
+  const bulk = '33333333-3333-4333-8333-333333333333';
+  const row = (extra: object) => ({ id: '44444444-4444-4444-8444-444444444444', fromDate: '2099-10-15', toDate: '2099-10-15', reason: 'r', actorName: null, changedAt: '2099-09-01T00:00:00Z', ...extra });
+  const read = async (changes: object[]) => {
+    mocks.rpc.mockResolvedValue({ data: { ...ids, status: 'ready', originalExpectedShipDate: '2099-10-01', expectedShipDate: '2099-10-15', updatedAt: '2099-09-01T00:00:00Z', changes }, error: null });
+    return readShipmentPreorderPromiseAction(ids.shipmentId, ids.orderId);
+  };
+  it('reads bulkChangeId and noticeOnly, and tolerates rows from a database without them', async () => {
+    const result = await read([row({ bulkChangeId: bulk, noticeOnly: true }), row({})]);
+    expect(result).toMatchObject({ ok: true, promise: { changes: [{ bulkChangeId: bulk, noticeOnly: true }, { bulkChangeId: null, noticeOnly: false }] } });
+  });
+});
