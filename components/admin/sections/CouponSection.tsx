@@ -153,6 +153,7 @@ function CouponEditor({
     setStepError(''); setStep(2);
     requestAnimationFrame(() => form.current?.querySelector<HTMLInputElement>('[name="code"]')?.focus());
   }
+  function toTargets() { setStep(1); form.current?.scrollIntoView({ block: 'start' }); }
 
   return (
     <form
@@ -167,9 +168,12 @@ function CouponEditor({
       <input name="expectedRevision" type="hidden" value={value('expectedRevision', selected?.termsRevision)} />
       <fieldset disabled={pending} className="flex min-w-0 flex-col">
         <legend className="sr-only">쿠폰 정보</legend>
-      {!selected ? <ol aria-label="혜택 등록 단계" className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b px-4 py-3 text-sm sm:px-6" data-coupon-steps="">
-        {['대상 설정', '할인·발급 조건'].map((label, index) => <li aria-current={step === index + 1 ? 'step' : undefined} className="group/step flex items-center gap-2 text-muted-foreground aria-[current=step]:font-semibold aria-[current=step]:text-primary-soft-foreground" key={label}>
-          <span aria-hidden="true" className="grid size-5 place-items-center rounded-full bg-muted text-xs tabular-nums group-aria-[current=step]/step:bg-primary group-aria-[current=step]/step:text-primary-foreground">{index + 1}</span>{label}
+      {/* 1027T-027: 단계 표시는 누르면 그 단계로 간다. '할인·발급 조건'은 [다음]과 같은 확인을 거쳐 펼치고, '대상 설정'은 [대상 설정으로]와 같다. */}
+      {!selected ? <ol aria-label="혜택 등록 단계" className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b px-2.5 py-2 text-sm sm:px-4.5" data-coupon-steps="">
+        {['대상 설정', '할인·발급 조건'].map((label, index) => <li aria-current={step === index + 1 ? 'step' : undefined} className="group/step flex" key={label}>
+          <Button className="h-auto gap-2 px-1.5 py-1 font-normal text-muted-foreground group-aria-[current=step]/step:font-semibold group-aria-[current=step]/step:text-primary-soft-foreground" onClick={index === 0 ? toTargets : next} size="sm" variant="ghost">
+            <span aria-hidden="true" className="grid size-5 place-items-center rounded-full bg-muted text-xs tabular-nums group-aria-[current=step]/step:bg-primary group-aria-[current=step]/step:text-primary-foreground">{index + 1}</span>{label}
+          </Button>
         </li>)}
       </ol> : null}
       <div className="p-4 sm:p-6"><div className="max-w-xl"><AdminFormGrid>
@@ -294,7 +298,7 @@ function CouponEditor({
         <Button type="button" disabled={pending} onClick={next}>다음: 할인·발급 조건<ArrowRight aria-hidden="true" /></Button>
         <Button type="button" variant="outline" disabled={pending} onClick={onCancel}>취소</Button>
       </div> : <div className="flex flex-wrap items-start justify-center gap-3 border-t p-4 sm:p-5">
-        {!selected ? <Button type="button" variant="outline" disabled={pending} onClick={() => { setStep(1); form.current?.scrollIntoView({ block: 'start' }); }}><ArrowLeft aria-hidden="true" />대상 설정으로</Button> : null}
+        {!selected ? <Button type="button" variant="outline" disabled={pending} onClick={toTargets}><ArrowLeft aria-hidden="true" />대상 설정으로</Button> : null}
         <FormShell pending={pending} state={state} />
       </div>}
     </form>
