@@ -202,7 +202,7 @@ select pg_temp.ro_assert(:'legacy'='collected'
 
 -- 주문 1의 회수 완료 알림은 "모두 입고"다(회수 생략 배송 건 없음).
 select pg_temp.ro_assert((select count(*)=1 from public.notifications where user_id=pg_temp.ro_id('user',2) and source_id=pg_temp.ro_id('claim',1)::text
-  and title='반송한 굿즈가 모두 입고됐어요' and body='모든 출고지의 입고가 확인되어 후속 처리를 준비합니다.'),'plain completion says every origin arrived');
+  and title='반송한 굿즈가 모두 입고됐어요' and body='반송한 굿즈의 입고가 모두 확인되어 후속 처리를 준비합니다.'),'plain completion says every origin arrived');
 
 -- 하자 교환: 남양주는 회수 생략을 결정만 하고(결정 표, ADR-0041) 아직 재출고하지 않았다. 재출고 행이 없어도 회수
 -- 생략으로 보고, 일괄 회수 확인 사실에서 빠지며, 김포 입고로 회수가 끝나도 "반송한 굿즈가 모두 입고"라고 알리지 않는다.
@@ -286,7 +286,7 @@ select pg_temp.ro_assert(:'reopen_again'='collected'
   where x->>'collectedAt' is not null and x->>'collectionWaived'='false')
  and (select count(*)=2
    and count(*) filter(where title='반송이 필요한 굿즈가 모두 입고됐어요' and dedupe_key like 'claim:collected:'||pg_temp.ro_id('claim',9)::text||':%')=1
-   and count(*) filter(where title='반송한 굿즈가 모두 입고됐어요' and body='모든 출고지의 입고가 확인되어 후속 처리를 준비합니다.'
+   and count(*) filter(where title='반송한 굿즈가 모두 입고됐어요' and body='반송한 굿즈의 입고가 모두 확인되어 후속 처리를 준비합니다.'
     and dedupe_key like 'claim:collected:2:'||pg_temp.ro_id('claim',9)::text||':%')=1
   from public.notifications where user_id=pg_temp.ro_id('user',2) and source_id=pg_temp.ro_id('claim',9)::text and dedupe_key like 'claim:collected%'),
  'the real return completes again with a recounted received date and an accurate notice');
