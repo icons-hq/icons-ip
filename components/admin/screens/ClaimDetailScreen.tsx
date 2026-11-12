@@ -96,6 +96,7 @@ const TIMELINE_LABELS: Record<string, string> = {
   'admin.order.claim_reshipment_delivered': '교환품 배송완료 확인',
   'admin.order.claim_evidence_uploaded': '회수 생략 근거 사진 등록',
   'admin.order.claim_collection_waived': '회수 생략 결정',
+  'admin.order.claim_collection_reopened': '회수 생략 무효로 수거중 복귀',
   'admin.order.claim_type_changed': '반품·교환 유형 전환',
   'admin.order.claim_reason_changed': '교환 사유 정정',
   'admin.order.cancellation_approved': '청약철회 승인 (레거시 경로)',

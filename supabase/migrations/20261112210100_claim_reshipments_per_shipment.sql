@@ -25,7 +25,10 @@
 --   admin_waive_order_claim_collection으로 결정해 교환품 제작을 연 뒤 제작이 끝나면 재출고한다(제작 완료 뒤 재출고
 --   원칙 유지). 결정한 배송 건은 회수가 끝난 것으로 본다(claim_collections_complete).
 -- * 교환품 제작은 배송 건 단위다: 그 배송 건 입고(또는 회수 생략 결정) 때 작업을 만들고 시작·완료를 열며,
---   재출고 때는 그 배송 건의 주문제작 품목만 제작 완료를 본다.
+--   재출고 때는 그 배송 건의 주문제작 품목만 제작 완료를 본다. 클레임이 바뀔 때마다(반품→교환 전환 포함) 준비된
+--   품목의 작업을 확인해 만들고, 이 migration 전에 입고돼 진행 중인 교환은 한 번 백필한다.
+-- * 반품 전환·사유 정정으로 회수 생략 결정이 효력을 잃으면, 입고되지 않은 결정 배송 건이 있는 '입고완료' 클레임을
+--   '수거중'으로 되돌리고 회수 완료 시각을 비운다(감사 기록).
 -- * 한 배송 건이라도 재출고한 교환은 거부할 수 없고(보류에서의 거부 포함), 회수 정보 정정은 재출고한 배송 건만 잠근다.
 -- * 진입점: 재출고는 최종 주소 확인(10분 결속)을 거치는 service_record_order_claim_shipment_reshipment가 배송
 --   건마다 받는다. 옛 service_record_order_claim_reshipment_v2·admin_record_order_claim_reshipment·
@@ -191,6 +194,25 @@ returns void language sql volatile set search_path='' as $$
  insert into private.order_production_jobs(order_id,order_item_id,claim_id,terms,basis_at,due_at)
  select i.order_id,i.id,p_claim,i.production_terms_snapshot,p_basis,private.production_deadline(p_basis,i.production_terms_snapshot)
  from public.order_items i where i.id=any(p_items) and i.production_terms_snapshot is not null order by i.id
+ on conflict do nothing;
+$$;
+
+-- 교환품 제작을 시작할 수 있게 된 주문제작 품목(그 품목이 담긴 배송 건이 모두 입고됐거나 회수 생략으로 결정됨)의 제작 작업을 만든다.
+-- 기준 시각은 그 품목이 준비된 때다: 배송 건마다 입고·결정 중 이른 시각, 품목이 여러 배송 건에 걸치면 가장 늦은 배송 건.
+-- 반품 중에 입고된 뒤 교환으로 바뀐 클레임, 이 migration 전에 입고돼 진행 중인 교환도 같은 규칙으로 작업이 생긴다. 이미 있으면 그대로다.
+create function private.ensure_claim_ready_production_jobs(p_claim uuid)
+returns void language sql volatile set search_path='' as $$
+ insert into private.order_production_jobs(order_id,order_item_id,claim_id,terms,basis_at,due_at)
+ select i.order_id,i.id,c.id,i.production_terms_snapshot,ready.at,private.production_deadline(ready.at,i.production_terms_snapshot)
+ from public.order_cancellation_requests c
+ join public.order_items i on i.order_id=c.order_id and i.production_terms_snapshot is not null
+ cross join lateral(select count(*) n,max(least(coalesce(x.collected_at,'infinity'::timestamptz),
+   coalesce((select w.waived_at from public.order_claim_collection_waivers w where w.claim_id=x.claim_id and w.shipment_id=x.shipment_id
+    and private.claim_collection_waived(x.claim_id,x.shipment_id)),'infinity'::timestamptz))) at
+  from public.order_claim_collections x cross join lateral jsonb_array_elements(x.items_snapshot) j
+  where x.claim_id=c.id and (j->>'orderItemId')::uuid=i.id) ready
+ where c.id=p_claim and c.claim_type='exchange' and c.stage in('collecting','collected') and ready.n>0 and ready.at<'infinity'::timestamptz
+ order by i.id
  on conflict do nothing;
 $$;
 
@@ -1075,6 +1097,49 @@ end $$;
 create trigger production_claim_collection_changed after update of collected_at on public.order_claim_collections
  for each row execute function private.production_claim_collection_changed();
 
+-- 클레임이 바뀔 때마다(반품→교환 전환, 회수 생략 결정, 재출고, 사유 정정, 보류 해제) 준비된 주문제작 품목의 교환품 제작 작업을
+-- 연다. 반품 중에 입고된 배송 건이 교환으로 바뀌었거나 남은 배송 건을 회수 생략해 클레임이 입고완료가 되지 않아도, 화면이
+-- '제작 대기'인데 시작할 작업이 없는 막다른 길이 생기지 않는다. 행이 바뀐 뒤(AFTER) 보므로 새 유형·사유로 판정한다.
+create function private.production_claim_ready_jobs() returns trigger language plpgsql security definer set search_path='' as $$
+begin
+ if new.claim_type='exchange' and new.stage in('collecting','collected') then perform private.ensure_claim_ready_production_jobs(new.id);end if;
+ return null;
+end $$;
+create trigger production_claim_ready_jobs after update on public.order_cancellation_requests
+ for each row execute function private.production_claim_ready_jobs();
+
+-- 회수 생략 결정은 하자·오배송 교환인 동안에만 회수를 대신한다. 반품 전환·사유 정정으로 결정이 효력을 잃었는데 그 배송 건이 실제로
+-- 입고되지 않았으면, 결정 덕에 '입고완료'가 된 클레임을 '수거중'으로 되돌리고 회수 완료 시각을 비운다(감사 기록). 고객 화면의
+-- '모두 입고' 안내와 환급 기한이 실제 반환 전부터 흐르지 않게 한다. 실제 입고 기록·결정 기록은 그대로 둔다. 단계 투영
+-- (trg_order_cancellation_requests_stage_projection)보다 먼저 돌도록 이름이 claims_로 시작한다.
+create function private.reopen_ineffective_collection_waivers() returns trigger language plpgsql security definer set search_path='' as $$
+declare pending uuid[];
+begin
+ if old.claim_type='exchange' and old.reason_type='defect' and not(new.claim_type='exchange' and new.reason_type='defect')
+  and(new.stage='collected' or new.stage='on_hold' and new.held_from='collected') then
+  select array_agg(x.shipment_id order by x.shipment_id) into pending
+  from public.order_claim_collection_waivers w join public.order_claim_collections x on x.claim_id=w.claim_id and x.shipment_id=w.shipment_id
+  where w.claim_id=new.id and x.collected_at is null;
+  if pending is not null then
+   if new.stage='collected' then new.stage:='collecting';else new.held_from:='collecting';end if;
+   new.collected_at:=null;
+   insert into public.audit_log(actor_id,action,target,diff) values((select auth.uid()),'admin.order.claim_collection_reopened','order:'||new.order_id::text,
+    jsonb_build_object('claimId',new.id,'claimType',new.claim_type,'reasonType',new.reason_type,'from','collected','to','collecting',
+     'shipmentIds',to_jsonb(pending),'cause','collection_waiver_ineffective'));
+  end if;
+ end if;
+ return new;
+end $$;
+create trigger claims_collection_waiver_reopen before update of claim_type,reason_type on public.order_cancellation_requests
+ for each row execute function private.reopen_ineffective_collection_waivers();
+
+-- 이 migration 전에 입고돼 진행 중인 교환의 주문제작 품목에 교환품 제작 작업을 만든다(멱등, 이미 있으면 그대로).
+do $backfill$declare target uuid;begin
+ for target in select id from public.order_cancellation_requests where claim_type='exchange' and stage in('collecting','collected') order by id loop
+  perform private.ensure_claim_ready_production_jobs(target);
+ end loop;
+end $backfill$;
+
 -- 선물 받은 분에게 배송 건 재출고 소포(운송장)를 싣는다. 정확한 키를 요구하는 옛 앱 파서가 배포 틈에 기존 선물을 읽지
 -- 못하는 일이 없게 배송 건 재출고 기록이 있을 때만 싣고, 옛 한 쌍 재출고는 claim.reship*로 그대로 보인다.
 do $patch$
@@ -1102,6 +1167,9 @@ revoke all on function private.ensure_claim_production_jobs(uuid,uuid[],timestam
 revoke all on function private.claim_production_ready(uuid,uuid) from public,anon,authenticated,service_role;
 revoke all on function private.record_claim_collection_waiver(public.order_cancellation_requests,uuid,text,uuid[],uuid,timestamptz) from public,anon,authenticated,service_role;
 revoke all on function private.production_claim_collection_changed() from public,anon,authenticated,service_role;
+revoke all on function private.ensure_claim_ready_production_jobs(uuid) from public,anon,authenticated,service_role;
+revoke all on function private.production_claim_ready_jobs() from public,anon,authenticated,service_role;
+revoke all on function private.reopen_ineffective_collection_waivers() from public,anon,authenticated,service_role;
 revoke all on function public.admin_waive_order_claim_collection(uuid,uuid,jsonb) from public,anon,authenticated,service_role;
 grant execute on function public.admin_waive_order_claim_collection(uuid,uuid,jsonb) to authenticated;
 revoke all on function private.record_order_claim_shipment_reshipment(uuid,uuid,text,text,jsonb,jsonb) from public,anon,authenticated,service_role;

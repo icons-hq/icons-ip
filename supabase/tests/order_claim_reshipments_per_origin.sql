@@ -34,7 +34,8 @@ select pg_temp.po_assert(
  and not exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='private'
   and p.proname in('record_order_claim_shipment_reshipment','claim_reshipment_targets','claim_reshipment_delivery_pending','claim_reshipment_selections_match',
    'claim_reshipment_records_json','claim_reshipment_targets_json','order_claim_reshipment_parcels','claim_collection_waiver_values','claim_collection_waived',
-   'ensure_claim_production_jobs','claim_production_ready','record_claim_collection_waiver','production_claim_collection_changed')
+   'ensure_claim_production_jobs','claim_production_ready','record_claim_collection_waiver','production_claim_collection_changed',
+   'ensure_claim_ready_production_jobs','production_claim_ready_jobs','reopen_ineffective_collection_waivers')
   and(has_function_privilege('anon',p.oid,'execute') or has_function_privilege('authenticated',p.oid,'execute') or has_function_privilege('service_role',p.oid,'execute')))
  and not has_table_privilege('authenticated','public.order_claim_collection_waivers','select')
  and not has_table_privilege('anon','public.order_claim_collection_waivers','select')
@@ -414,6 +415,130 @@ select pg_temp.po_assert((select stage='collecting' from public.order_cancellati
 select public.admin_decide_order_claim(pg_temp.po_id('claim',5),'reject','TEST 단순 변심 교환 거부 확인');
 select pg_temp.po_assert((select bool_and(state='canceled') from private.order_production_jobs where claim_id=pg_temp.po_id('claim',5)),
  'rejecting before any reshipment cancels the replacement production');
+
+-- 교환품 제작의 막다른 길과 회수 생략 결정이 효력을 잃는 전환(리뷰 2차 minor).
+-- 주문 6: 반품 중 김포 주문제작 입고 → 교환 전환(T3). 주문 7: 이 migration 전에 입고된 진행 중 교환(백필).
+-- 주문 8: 회수 생략 결정 뒤 반품 전환(T2). 주문 9: 회수 생략 결정 뒤 사유 정정(T1). 모두 김포 주문제작 1개 + 남양주 일반 1개.
+insert into public.orders(id,user_id,status,total,shipping_fee,address,shipped_at,delivered_at)
+ select pg_temp.po_id('order',n),pg_temp.po_id('user',2),'delivered',3000,0,
+  jsonb_build_object('recipientName','합성 고객','phone','010-0000-0000','postalCode','12345','address1','합성시 출고지로 1','address2','101호'),
+  now()-interval '12 days',now()-interval '2 days' from generate_series(6,9)n;
+insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
+ select pg_temp.po_id('item',n*10+1),pg_temp.po_id('order',n),'po-good-1',pg_temp.po_default('po-good-1'),1,1000,'TEST 김포 주문제작','문구','po-ip' from generate_series(6,9)n
+ union all select pg_temp.po_id('item',n*10+2),pg_temp.po_id('order',n),'po-good-2',pg_temp.po_default('po-good-2'),1,2000,'TEST 남양주 굿즈','문구','po-ip' from generate_series(6,9)n;
+set session_replication_role=replica;
+update public.order_items set production_terms_snapshot='{"leadDays":3,"dayBasis":"calendar"}' where id in(select pg_temp.po_id('item',n*10+1) from generate_series(6,9)n);
+insert into private.order_production_jobs(order_id,order_item_id,terms,state,basis_at,due_at,started_at,completed_at)
+ select pg_temp.po_id('order',n),pg_temp.po_id('item',n*10+1),'{"leadDays":3,"dayBasis":"calendar"}','completed',now()-interval '12 days',now()-interval '9 days',now()-interval '11 days',now()-interval '10 days'
+ from generate_series(6,9)n;
+insert into public.payments(id,user_id,purpose,ref_id,provider,amount,status,idempotency_key)
+ select pg_temp.po_id('payment',n),pg_temp.po_id('user',2),'order',pg_temp.po_id('order',n),'toss',3000,'paid','per-origin-paid-'||n from generate_series(6,9)n;
+insert into public.payment_attempts(id,provider,user_id,purpose,ref_id,amount,state,idempotency_key,provider_order_id,provider_product_code,payment_id,expires_at)
+ select pg_temp.po_id('attempt',n),'toss',pg_temp.po_id('user',2),'order',pg_temp.po_id('order',n),3000,'approved','per-origin-attempt-'||n,'per-origin-provider-'||n,'per-origin-code-'||n,
+  pg_temp.po_id('payment',n),now()+interval '1 hour' from generate_series(6,9)n;
+insert into private.payment_provider_evidence(payment_attempt_id,evidence_kind,approved_at) select pg_temp.po_id('attempt',n),'confirm',now() from generate_series(6,9)n;
+set session_replication_role=origin;
+insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,status,carrier,tracking_number,shipped_at,delivered_at)
+ select pg_temp.po_id('shipment',n*10+1),pg_temp.po_id('order',n),pg_temp.po_id('origin',1),'TEST 김포',0,'{}'::jsonb,'delivered','hanjin','POSALE0000'||n||'1',now()-interval '3 days',now()-interval '2 days' from generate_series(6,9)n
+ union all select pg_temp.po_id('shipment',n*10+2),pg_temp.po_id('order',n),pg_temp.po_id('origin',2),'TEST 남양주',0,'{}'::jsonb,'delivered','hanjin','POSALE0000'||n||'2',now()-interval '3 days',now()-interval '2 days' from generate_series(6,9)n;
+insert into public.order_shipment_items(order_id,shipment_id,order_item_id,qty)
+ select pg_temp.po_id('order',n),pg_temp.po_id('shipment',n*10+k),pg_temp.po_id('item',n*10+k),1 from generate_series(6,9)n cross join generate_series(1,2)k;
+insert into public.order_cancellation_requests(id,order_id,requested_by,reason,claim_type,stage,reason_type) values
+ (pg_temp.po_id('claim',6),pg_temp.po_id('order',6),pg_temp.po_id('user',2),'TEST 주문제작 인쇄 불량 반품','return','requested','defect'),
+ (pg_temp.po_id('claim',7),pg_temp.po_id('order',7),pg_temp.po_id('user',2),'TEST 주문제작 단순 변심 교환','exchange','requested','change_of_mind'),
+ (pg_temp.po_id('claim',8),pg_temp.po_id('order',8),pg_temp.po_id('user',2),'TEST 주문제작 인쇄 불량 교환','exchange','requested','defect'),
+ (pg_temp.po_id('claim',9),pg_temp.po_id('order',9),pg_temp.po_id('user',2),'TEST 주문제작 인쇄 불량 교환','exchange','requested','defect');
+select public.admin_decide_order_claim(pg_temp.po_id('claim',n),'approve',null) from generate_series(6,9)n;
+insert into storage.objects(bucket_id,name,metadata)
+ select 'claim-evidence-private',pg_temp.po_id('claim',n)||'/'||pg_temp.po_id('file',n)||'.jpg',jsonb_build_object('mimetype','image/jpeg','size',2048) from unnest(array[6,8,9])n;
+select count(public.admin_register_claim_evidence_file(pg_temp.po_id('claim',n),pg_temp.po_id('file',n),'image/jpeg',2048,repeat('c',64))) as late_evidence from unnest(array[8,9])n \gset
+create function pg_temp.po_late_waiver(n integer) returns jsonb language sql immutable as $$
+ select jsonb_build_object('reason','TEST 고객 사진으로 인쇄 불량 확인','evidenceFileIds',jsonb_build_array(pg_temp.po_id('file',n)))$$;
+create function pg_temp.po_can_start(n integer) returns boolean language sql stable as $$
+ select coalesce((select (j->>'canStart')::boolean from jsonb_array_elements(private.order_production_document(pg_temp.po_id('order',n),true)->'jobs') j
+  where j->>'claimId'=pg_temp.po_id('claim',n)::text and j->>'itemId'=pg_temp.po_id('item',n*10+1)::text),false)$$;
+create function pg_temp.po_late_production(n integer,kind text,op integer) returns text language sql volatile as $$
+ select public.admin_change_order_production(j.id,kind,j.revision,pg_temp.po_id('production-op',op),pg_temp.po_id('user',1),pg_temp.po_id('session',1),'TEST 교환품 재제작 '||kind)->>'state'
+ from private.order_production_jobs j where j.claim_id=pg_temp.po_id('claim',n) and j.order_item_id=pg_temp.po_id('item',n*10+1)$$;
+select pg_temp.po_assert(:late_evidence=2 and (select bool_and(stage='collecting') from public.order_cancellation_requests where id in(select pg_temp.po_id('claim',n) from generate_series(6,9)n)),
+ 'late made-to-order fixtures are collecting');
+
+-- T3: 반품 중에 입고된 김포 주문제작은 교환 전환 때 그 입고 시각 기준 교환품 제작 작업이 생기고, 남양주를 회수 없이 보낸 뒤에도
+-- 제작을 마치면 재출고된다(클레임이 입고완료가 되지 않아도 막히지 않는다).
+select public.admin_record_order_claim_origin_collection(pg_temp.po_id('claim',6),pg_temp.po_id('shipment',61),'TEST 김포 주문제작 입고(반품 중)');
+select pg_temp.po_assert(not exists(select 1 from private.order_production_jobs where claim_id=pg_temp.po_id('claim',6)),'a return claim opens no replacement production');
+select public.admin_convert_order_claim_type(pg_temp.po_id('claim',6),pg_temp.po_id('conv-op',6),c.claim_revision,'exchange','TEST 고객 요청으로 교환 전환',true,null) is not null as t3_converted
+ from public.order_cancellation_requests c where c.id=pg_temp.po_id('claim',6) \gset
+select pg_temp.po_assert(:'t3_converted'::boolean
+ and (select claim_type='exchange' and stage='collecting' from public.order_cancellation_requests where id=pg_temp.po_id('claim',6))
+ and (select count(*)=1 and bool_and(state='pending' and order_item_id=pg_temp.po_id('item',61)
+   and basis_at=(select collected_at from public.order_claim_collections where claim_id=pg_temp.po_id('claim',6) and shipment_id=pg_temp.po_id('shipment',61)))
+  from private.order_production_jobs where claim_id=pg_temp.po_id('claim',6))
+ and pg_temp.po_can_start(6),'converting to exchange opens production for the origin collected during the return');
+-- 근거 사진은 교환 클레임에만 올린다 — 교환으로 바뀐 뒤 등록한다.
+select public.admin_register_claim_evidence_file(pg_temp.po_id('claim',6),pg_temp.po_id('file',6),'image/jpeg',2048,repeat('c',64))->>'id' as t3_evidence \gset
+select pg_temp.po_reship(6,pg_temp.po_id('shipment',62),61,pg_temp.po_fresh(6),'POCONV000062','[]',pg_temp.po_late_waiver(6))->>'state' as t3_waived \gset
+select set_config('request.jwt.claims',jsonb_build_object('sub',pg_temp.po_id('user',1),'role','authenticated','session_id',pg_temp.po_id('session',1))::text,true);
+select pg_temp.po_late_production(6,'start',61) as t3_started \gset
+select pg_temp.po_late_production(6,'complete',62) as t3_completed \gset
+select set_config('request.jwt.claims','',true);
+select pg_temp.po_reship(6,pg_temp.po_id('shipment',61),62,pg_temp.po_fresh(6),'POCONV000061')->>'state' as t3_gimpo \gset
+select pg_temp.po_assert(:'t3_waived'='saved' and :'t3_started'='started' and :'t3_completed'='completed' and :'t3_gimpo'='saved'
+ and (select stage='completed' from public.order_cancellation_requests where id=pg_temp.po_id('claim',6)),
+ 'the converted exchange finishes after its replacement production');
+
+-- 백필: 이 migration 전에 입고돼(제작 작업 없이) 진행 중인 교환도 같은 함수가 입고 시각 기준 작업을 만든다. 다시 불러도 하나다.
+set session_replication_role=replica;
+update public.order_claim_collections set collected_at=now()-interval '1 day',collected_by=pg_temp.po_id('user',1),evidence='TEST 이전 입고'
+ where claim_id=pg_temp.po_id('claim',7) and shipment_id=pg_temp.po_id('shipment',71);
+set session_replication_role=origin;
+select pg_temp.po_assert(not exists(select 1 from private.order_production_jobs where claim_id=pg_temp.po_id('claim',7)),'a pre-migration collection has no replacement job');
+select private.ensure_claim_ready_production_jobs(pg_temp.po_id('claim',7));
+select private.ensure_claim_ready_production_jobs(pg_temp.po_id('claim',7));
+select pg_temp.po_assert((select count(*)=1 and bool_and(order_item_id=pg_temp.po_id('item',71) and state='pending'
+   and basis_at=(select collected_at from public.order_claim_collections where claim_id=pg_temp.po_id('claim',7) and shipment_id=pg_temp.po_id('shipment',71)))
+  from private.order_production_jobs where claim_id=pg_temp.po_id('claim',7)) and pg_temp.po_can_start(7),
+ 'backfill opens production for an origin collected before this migration, once');
+
+-- T2: 김포 회수 생략 결정 뒤 남양주 입고로 입고완료가 된 교환을 반품으로 바꾸면, 김포는 다시 회수가 필요하므로 수거중으로 되돌리고
+-- 회수 완료 시각을 비운다(감사 기록). 남양주 입고 기록과 결정 기록은 그대로다.
+select public.admin_waive_order_claim_collection(pg_temp.po_id('claim',8),pg_temp.po_id('shipment',81),pg_temp.po_late_waiver(8))->>'productionPending' as t2_pending \gset
+select public.admin_record_order_claim_origin_collection(pg_temp.po_id('claim',8),pg_temp.po_id('shipment',82),'TEST 남양주 입고');
+select pg_temp.po_assert(:'t2_pending'::boolean and (select stage='collected' and collected_at is not null from public.order_cancellation_requests where id=pg_temp.po_id('claim',8)),
+ 'a waiver plus the other origin completes the collection');
+select public.admin_convert_order_claim_type(pg_temp.po_id('claim',8),pg_temp.po_id('conv-op',8),c.claim_revision,'return','TEST 고객 요청으로 반품 전환',true,null) is not null as t2_converted
+ from public.order_cancellation_requests c where c.id=pg_temp.po_id('claim',8) \gset
+select pg_temp.po_assert(:'t2_converted'::boolean
+ and (select claim_type='return' and stage='collecting' and status='requested' and collected_at is null from public.order_cancellation_requests where id=pg_temp.po_id('claim',8))
+ and not private.claim_collections_complete(pg_temp.po_id('claim',8))
+ and (select collected_at is not null from public.order_claim_collections where claim_id=pg_temp.po_id('claim',8) and shipment_id=pg_temp.po_id('shipment',82))
+ and exists(select 1 from public.order_claim_collection_waivers where claim_id=pg_temp.po_id('claim',8) and shipment_id=pg_temp.po_id('shipment',81))
+ and (select bool_and(state='canceled') from private.order_production_jobs where claim_id=pg_temp.po_id('claim',8))
+ and (select diff->'shipmentIds'=jsonb_build_array(pg_temp.po_id('shipment',81)) and diff->>'cause'='collection_waiver_ineffective'
+  from public.audit_log where action='admin.order.claim_collection_reopened' and diff->>'claimId'=pg_temp.po_id('claim',8)::text),
+ 'converting a waived exchange to a return reopens the collection');
+select pg_temp.po_error(format('select public.admin_record_order_claim_refund(%L,''pg_cancel'',''filed'',null)',pg_temp.po_id('claim',8)),'claim_collections_incomplete');
+select public.admin_record_order_claim_origin_collection(pg_temp.po_id('claim',8),pg_temp.po_id('shipment',81),'TEST 김포 실제 반송 입고');
+select pg_temp.po_assert((select stage='collected' and collected_at is not null from public.order_cancellation_requests where id=pg_temp.po_id('claim',8)),
+ 'the real return of the waived origin completes the return collection again');
+
+-- T1: 결정 뒤 사유를 단순 변심으로 정정하면 결정이 효력을 잃어 수거중으로 되돌아가고 김포는 회수가 먼저다. 하자로 되돌리면 결정이 다시 효력이 있다.
+select public.admin_waive_order_claim_collection(pg_temp.po_id('claim',9),pg_temp.po_id('shipment',91),pg_temp.po_late_waiver(9))->>'productionPending' as t1_pending \gset
+select public.admin_record_order_claim_origin_collection(pg_temp.po_id('claim',9),pg_temp.po_id('shipment',92),'TEST 남양주 입고');
+select pg_temp.po_assert(:'t1_pending'::boolean and pg_temp.po_can_start(9) and (select stage='collected' from public.order_cancellation_requests where id=pg_temp.po_id('claim',9)),
+ 'the waived made-to-order origin can start production');
+select public.admin_change_order_claim_reason(pg_temp.po_id('claim',9),pg_temp.po_id('reason-op',9),c.claim_revision,pg_temp.po_id('user',1),'change_of_mind',
+ 'TEST 단순 변심으로 정정','TEST 고객과 통화로 확인',true,true) is not null as t1_changed from public.order_cancellation_requests c where c.id=pg_temp.po_id('claim',9) \gset
+select pg_temp.po_assert(:'t1_changed'::boolean
+ and (select reason_type='change_of_mind' and stage='collecting' and collected_at is null from public.order_cancellation_requests where id=pg_temp.po_id('claim',9))
+ and not private.claim_collection_waived(pg_temp.po_id('claim',9),pg_temp.po_id('shipment',91)) and not pg_temp.po_can_start(9)
+ and exists(select 1 from public.audit_log where action='admin.order.claim_collection_reopened' and diff->>'claimId'=pg_temp.po_id('claim',9)::text),
+ 'a reason change that voids the waiver reopens the collection and closes production');
+select pg_temp.po_error(format('select pg_temp.po_reship(9,%L,91,%L::jsonb,%L)',pg_temp.po_id('shipment',91),pg_temp.po_fresh(9)::text,'POREASON0091'),'claim_collections_incomplete');
+select public.admin_change_order_claim_reason(pg_temp.po_id('claim',9),pg_temp.po_id('reason-op',10),c.claim_revision,pg_temp.po_id('user',1),'defect',
+ 'TEST 하자로 다시 정정','TEST 고객과 다시 통화',true,true) is not null as t1_back from public.order_cancellation_requests c where c.id=pg_temp.po_id('claim',9) \gset
+select pg_temp.po_assert(:'t1_back'::boolean and private.claim_collection_waived(pg_temp.po_id('claim',9),pg_temp.po_id('shipment',91)) and pg_temp.po_can_start(9),
+ 'restoring the defect reason makes the waiver count again');
 
 -- 선물 받은 분은 배송 건 재출고 소포(운송장)를 받는다. 보낸 분과 옛 한 쌍 재출고만 있는 선물에는 새 키를 싣지 않는다.
 set session_replication_role=replica;

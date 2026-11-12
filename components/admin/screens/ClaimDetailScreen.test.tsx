@@ -407,7 +407,9 @@ describe('ClaimDetailScreen', () => {
     const waiver = { reason: '고객 사진으로 인쇄 불량 확인', waivedAt: NOW.toISOString(), waivedByName: 'cs_lead', evidence: [{ id: '00000000-0000-4000-8000-0000000000e1', mimeType: 'image/jpeg', size: 2048 }] };
     const decided = { ...claim, reshipmentTargets: [{ ...claim.reshipmentTargets[0], waiver }, claim.reshipmentTargets[1]] };
     const waiting = renderToStaticMarkup(<ClaimDetailScreen backHref="/admin/sales/claims/exchanges" carriers={CARRIERS} cancellationForm={null}
-      detail={{ ...base, claim: decided, payment: null, timeline: [{ action: 'admin.order.claim_collection_waived', createdAt: NOW.toISOString(), actorName: 'cs_lead', diff: { originName: '김포' } }] }} now={NOW} />);
+      detail={{ ...base, claim: decided, payment: null, timeline: [{ action: 'admin.order.claim_collection_waived', createdAt: NOW.toISOString(), actorName: 'cs_lead', diff: { originName: '김포' } },
+        { action: 'admin.order.claim_collection_reopened', createdAt: NOW.toISOString(), actorName: 'cs_lead', diff: { cause: 'collection_waiver_ineffective' } }] }} now={NOW} />);
+    expect(waiting).toContain('회수 생략 무효로 수거중 복귀');
     expect(waiting).not.toContain('data-claim-waiver-decision'); expect(waiting).toContain('제작 대기');
     expect(waiting).toContain('주문제작 상품의 교환품 제작이 끝나면 재출고할 수 있습니다'); expect(waiting).toContain('회수 생략 결정 ·');
     expect(waiting).toContain('href="/api/admin/claim-evidence/00000000-0000-4000-8000-0000000000e1"'); expect(waiting).toContain('회수 생략 결정 · 김포');
