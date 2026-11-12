@@ -258,31 +258,31 @@ create function private.order_partial_cancellation_blockers(p_order_id uuid) ret
 language plpgsql stable security definer set search_path = '' as $$
 declare purchase public.orders; pay public.payments; payment_count integer; blockers text[] := array[]::text[];
 begin
-  if not private.order_partial_cancel_enabled() then blockers := blockers || 'partial_cancel_disabled'; end if;
+  if not private.order_partial_cancel_enabled() then blockers := array_append(blockers, 'partial_cancel_disabled'); end if;
   select * into purchase from public.orders where id = p_order_id;
-  if not found then return blockers || 'order_not_found'; end if;
+  if not found then return array_append(blockers, 'order_not_found'); end if;
   if purchase.status not in ('paid', 'confirmed') or purchase.shipped_at is not null or purchase.delivered_at is not null or purchase.done_at is not null then
-    blockers := blockers || 'order_not_partial_cancelable';
+    blockers := array_append(blockers, 'order_not_partial_cancelable');
   end if;
   if exists(select 1 from public.order_shipments s where s.order_id = p_order_id
       and (s.status not in ('ready', 'canceled') or s.shipped_at is not null or s.delivered_at is not null)) then
-    blockers := blockers || 'shipment_already_dispatched';
+    blockers := array_append(blockers, 'shipment_already_dispatched');
   end if;
   if exists(select 1 from public.order_cancellation_requests r where r.order_id = p_order_id and r.status in ('requested', 'processing', 'needs_review'))
     or exists(select 1 from public.order_cancellation_claims c where c.order_id = p_order_id) then
-    blockers := blockers || 'order_claim_in_progress';
+    blockers := array_append(blockers, 'order_claim_in_progress');
   end if;
-  if private.order_partial_cancel_in_flight(p_order_id) then blockers := blockers || 'partial_cancel_in_progress'; end if;
+  if private.order_partial_cancel_in_flight(p_order_id) then blockers := array_append(blockers, 'partial_cancel_in_progress'); end if;
   if exists(select 1 from public.payment_attempts a where a.purpose = 'order' and a.ref_id = p_order_id
       and a.state in ('prepared', 'confirming', 'unknown', 'needs_review')) then
-    blockers := blockers || 'payment_reconciliation_required';
+    blockers := array_append(blockers, 'payment_reconciliation_required');
   end if;
-  if purchase.calculation_version is distinct from 2 then blockers := blockers || 'legacy_order'; end if;
-  if exists(select 1 from private.gift_intents g where g.order_id = p_order_id) then blockers := blockers || 'gift_order'; end if;
+  if purchase.calculation_version is distinct from 2 then blockers := array_append(blockers, 'legacy_order'); end if;
+  if exists(select 1 from private.gift_intents g where g.order_id = p_order_id) then blockers := array_append(blockers, 'gift_order'); end if;
   select count(*) into payment_count from public.payments p where p.purpose = 'order' and p.ref_id = p_order_id and p.status <> 'failed';
   pay := private.order_partial_cancellation_payment(p_order_id);
   if payment_count <> 1 or pay.id is null or pay.status <> 'paid' or pay.amount <= 0 or pay.amount <> purchase.total then
-    blockers := blockers || 'payment_unavailable';
+    blockers := array_append(blockers, 'payment_unavailable');
   elsif pay.provider not in ('toss', 'bank_transfer')
     or pay.provider = 'toss' and nullif(btrim(pay.payment_key), '') is null
     -- 정기배송(billing) 결제는 결제사 부분 취소 계약이 없다.
@@ -292,7 +292,7 @@ begin
     or pay.provider = 'toss' and exists(select 1 from public.payment_attempts a
       join private.payment_provider_evidence e on e.payment_attempt_id = a.id
       where a.purpose = 'order' and a.ref_id = p_order_id and (e.payment_method = '가상계좌' or e.result_code = 'DONE_virtual_account')) then
-    blockers := blockers || 'partial_cancel_unsupported';
+    blockers := array_append(blockers, 'partial_cancel_unsupported');
   end if;
   return blockers;
 end $$;
@@ -509,13 +509,13 @@ declare head private.order_partial_cancellations; purchase public.orders; label 
 begin
   select * into head from private.order_partial_cancellations where id = p_id;
   select * into purchase from public.orders where id = head.order_id;
-  label := left(coalesce(private.partial_cancellation_items_label(p_id), '일부 상품'), 200);
+  label := left(coalesce(private.partial_cancellation_items_label(p_id), '일부 굿즈'), 200);
   if p_event = 'applied' then
     title := '주문 일부가 취소됐어요';
     body := format('재고가 부족해 %s를 취소했습니다. %s', label,
       case when head.provider = 'bank_transfer'
-        then format('환불 %s은 등록하신 환불계좌로 송금해 드립니다. 나머지 상품은 그대로 보내드립니다.', private.format_krw(head.refund_amount))
-        else format('%s을 결제사에서 부분 취소했습니다(카드사 처리에 영업일 기준 3~4일). 나머지 상품은 그대로 보내드립니다.', private.format_krw(head.refund_amount)) end);
+        then format('환불 %s은 등록하신 환불계좌로 송금해 드립니다. 나머지 굿즈는 그대로 보내드립니다.', private.format_krw(head.refund_amount))
+        else format('%s을 결제사에서 부분 취소했습니다(카드사 처리에 영업일 기준 3~4일). 나머지 굿즈는 그대로 보내드립니다.', private.format_krw(head.refund_amount)) end);
   elsif p_event = 'transferred' then
     title := '부분 취소 환불을 송금했어요';
     body := format('취소한 %s의 환불 %s을 환불계좌로 송금했습니다.', label, private.format_krw(head.refund_amount));

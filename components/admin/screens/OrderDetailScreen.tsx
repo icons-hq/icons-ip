@@ -31,6 +31,7 @@ import { DELIVERY_METHOD_LABELS } from '@/lib/shipment-delivery';
 import { SellerClaimIntakeButton } from './SellerClaimIntakeForm';
 import { OrderAddressButton } from './OrderAddressEditor';
 import { ShippingCollectPanel } from '@/components/admin/ShippingCollectPanel';
+import { OrderPartialCancellationPanel } from '@/components/admin/OrderPartialCancellationPanel';
 
 const SOURCE_LABELS: Record<AdminOrderTimelineSource, string> = {
   order: '주문', payment: '결제', refund: '환불', status: '상태 변경', shipment: '배송·송장',
@@ -282,6 +283,7 @@ export function OrderDetailScreen({
         </TableRow>)}</TableBody>
       </Table></div> : <p className="text-muted-foreground">주문 상품 기록이 없습니다.</p>}
     </AdminSectionCard>
+    {canManage ? <OrderPartialCancellationPanel key={order.id} orderId={order.id} /> : null}
     <div className="grid min-w-0 gap-6 md:grid-cols-2">
       <AdminSectionCard title="주문 정보">
         <dl className={FACTS}>

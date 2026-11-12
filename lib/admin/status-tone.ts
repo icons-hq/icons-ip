@@ -84,6 +84,8 @@ const STATUS_TONES = {
   /** 교환 재출고 배송 건(출고지)별 — lib/admin/claim-reshipments. 회수 생략은 회수품 재고 복원이 없어 확인할 일로 띄우고,
    *  주문제작 교환품 제작 대기는 재출고 전에 끝낼 일이라 같은 경고 색이다 */
   claimReshipment: { pending: 'neutral', production: 'warning', reshipped: 'info', delivered: 'success', waived: 'warning' },
+  /** 재고 부족 부분 취소 — lib/orders/partial-cancellation(ADR-0032). 결제확인필요는 출고를 막고 있어 위험색, 송금 대기는 우리가 보낼 돈이다 */
+  partialCancellation: { processing: 'info', needs_review: 'danger', rejected: 'neutral', completed: 'success', awaiting_transfer: 'warning' },
   // [cs]
   /** 상담하기 대화 상태 — lib/admin/inquiry-chat CHAT_STATUS_OPTIONS. 답변 뒤 대화가 이어지는 '진행중'은 진행 색이고, 고객문의의 '답변 완료'와 뜻이 달라 별도 줄이다 */
   inquiryChat: { open: 'warning', answered: 'info', closed: 'neutral' },

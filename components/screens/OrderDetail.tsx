@@ -17,6 +17,8 @@ import { OrderCancellation } from '@/components/orders/OrderCancellation';
 import { OrderReshipmentHistory } from '@/components/orders/OrderReshipmentHistory';
 import { OrderClaimRequest } from '@/components/orders/OrderClaimRequest';
 import { OrderRefundDeduction } from '@/components/orders/OrderRefundDeduction';
+import { OrderPartialCancellations } from '@/components/orders/OrderPartialCancellations';
+import type { OrderPartialCancellationRecord } from '@/lib/orders/partial-cancellation';
 import type { MyOrderRefundDeduction, ReturnFeeDeductionPolicy } from '@/lib/claims/return-fee-deduction';
 import { PurchaseConfirmationPanel } from '@/components/orders/PurchaseConfirmationPanel';
 import { newInquiryHref } from '@/lib/inquiries';
@@ -215,6 +217,7 @@ export function OrderDetail({
   claimReasonHistory = [],
   refundDeduction = null,
   returnFeePolicy = null,
+  partialCancellations = [],
 }: {
   viewerId?: string;
   /**
@@ -235,6 +238,8 @@ export function OrderDetail({
   /** 반품배송비 차감 결정(ADR-0031). 결정이 없으면 null — 아무것도 그리지 않는다. */
   refundDeduction?: MyOrderRefundDeduction | null;
   returnFeePolicy?: ReturnFeeDeductionPolicy | null;
+  /** 적용된 재고 부족 부분 취소(ADR-0032). 없으면 아무것도 그리지 않는다. */
+  partialCancellations?: readonly OrderPartialCancellationRecord[];
 }) {
   const date = formatOrderDate(order.createdAt);
   const at = now ?? new Date();
@@ -390,6 +395,7 @@ export function OrderDetail({
           {viewerId && hasPhysicalItems && claimRequest && (claimRequest.claimType === 'return' || claimRequest.claimType === 'exchange')
             ? <><ClaimCollectionPlan actorId={viewerId} claimId={claimRequest.id} shipmentLabels={customerShipmentGroupLabels(order.shipments)} /><ClaimContactHistory key={`contact:${claimRequest.id}`} actorId={viewerId} orderId={order.id} claimId={claimRequest.id} /></> : null}
           <OrderRefundDeduction deduction={refundDeduction} />
+          <OrderPartialCancellations records={partialCancellations} />
           {viewerId ? <OrderClaimFees actorId={viewerId} orderId={order.id} /> : null}
           {claimTypeHistory === null ? <p role="status">반품·교환 유형 변경 이력을 읽지 못했습니다. 잠시 후 새로고침해주세요.</p> : claimTypeHistory.length ? <section className="order-claim-type-history" aria-label="반품·교환 유형 변경 이력">
             <h3>요청 유형 변경 이력</h3><ol>{claimTypeHistory.map(row => <li key={row.id}><time dateTime={row.createdAt}>{formatOrderDateTime(row.createdAt)}</time> · {ORDER_CLAIM_TYPE_LABELS[row.fromType]} → {ORDER_CLAIM_TYPE_LABELS[row.toType]} · 고객 합의 확인</li>)}</ol>
