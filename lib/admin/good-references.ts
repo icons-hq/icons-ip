@@ -20,18 +20,29 @@ export interface GoodReferenceLines {
   overflow: number;
   /** 첫 줄을 머리글로 보고 건너뛰었는지. */
   headerSkipped: boolean;
+  /** 첫 줄이 시스템 상품번호 머리글이라 그 열의 값을 조회하지 않았는지(T22i). 번호는 상품 URL·판매자상품코드가 아니다. */
+  systemNumberColumn: boolean;
 }
 
 const HEADER = /^(?:판매자\s*)?상품\s*(?:코드|번호|url|주소|id)$|^(?:url|code|id|good[_ ]?id|상품코드|상품번호)$/i;
 /** 엑셀 첫 줄의 머리글(상품코드·판매자상품코드·상품번호·상품 URL 등). 조회 값으로 쓰지 않는다. */
 export function isGoodReferenceHeader(value: string) { return HEADER.test(value.trim()); }
 
+/**
+ * 시스템이 매기는 '상품번호' 머리글(ADR-0038). 상품 엑셀 v8의 첫 열이라 파일의 첫 열을 그대로 읽으면 번호를 상품 URL·판매자상품코드로
+ * 찾다가 모두 '찾을 수 없음'이 된다. 이 열은 읽지 않고 이유를 알린다.
+ */
+export function isSystemProductNumberHeader(value: string) { return /^상품\s*번호$/.test(value.trim()); }
+/** 상품 URL·판매자상품코드 머리글(상품번호 제외). 여러 열 파일에서 읽을 열을 고른다. */
+export function isGoodReferenceKeyHeader(value: string) { return isGoodReferenceHeader(value) && !isSystemProductNumberHeader(value); }
+export const SYSTEM_NUMBER_COLUMN_NOTICE = "'상품번호'는 시스템이 매기는 번호라 이 칸에서는 찾지 않습니다. '판매자상품코드' 또는 '상품 URL' 열을 올리거나 붙여넣어 주세요.";
+
 function looksLikeUrl(value: string) { return value.includes('/') || /^https?:/i.test(value) || /iconsip\.com/i.test(value); }
 
 /** 붙여 넣은 글(또는 엑셀 한 열의 칸들)을 조회 값으로 나눈다. */
 export function parseGoodReferenceLines(text: string, currentHost?: string | null): GoodReferenceLines {
   const refs: string[] = [], seen = new Set<string>(), invalid: GoodReferenceInvalidLine[] = [];
-  let duplicates = 0, overflow = 0, headerSkipped = false, firstValue = true;
+  let duplicates = 0, overflow = 0, headerSkipped = false, firstValue = true, systemNumberColumn = false;
   const lines = text.replace(/\r\n?/g, '\n').split('\n');
   lines.forEach((raw, index) => {
     /* 엑셀 여러 열 복사는 탭으로 갈린다 — 첫 칸만 읽는다. 쉼표·세미콜론으로 이어 붙인 값은 각각 읽는다. */
@@ -41,8 +52,10 @@ export function parseGoodReferenceLines(text: string, currentHost?: string | nul
     for (const value of values) {
       if (firstValue) {
         firstValue = false;
+        if (isSystemProductNumberHeader(value)) { systemNumberColumn = true; headerSkipped = true; return; }
         if (isGoodReferenceHeader(value)) { headerSkipped = true; continue; }
       }
+      if (systemNumberColumn) continue;
       let ref = value;
       if (looksLikeUrl(value)) {
         const parsed = parseGoodUrl(value, currentHost);
@@ -57,7 +70,7 @@ export function parseGoodReferenceLines(text: string, currentHost?: string | nul
       seen.add(ref); refs.push(ref);
     }
   });
-  return { refs, invalid, duplicates, overflow, headerSkipped };
+  return { refs, invalid, duplicates, overflow, headerSkipped, systemNumberColumn };
 }
 
 export interface GoodReferenceMatch {

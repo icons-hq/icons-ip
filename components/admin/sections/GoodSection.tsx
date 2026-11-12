@@ -46,7 +46,7 @@ import { GoodsPricePeriodsPanel } from '../GoodsPricePeriodsPanel';
 import { GoodsPreordersPanel } from '../GoodsPreordersPanel';
 import { GoodsBenefitsPanel } from '../GoodsBenefitsPanel';
 import { GoodsAfterSalesPanel } from '../GoodsAfterSalesPanel';
-import { GoodsAfterSalesPhoneSuggestion } from '../GoodsAfterSalesFields';
+import { GoodsAfterSalesPhoneSuggestion, afterSalesPhoneSuggestion } from '../GoodsAfterSalesFields';
 import { GoodSizeChartPanel } from '../GoodSizeChartPanel';
 import { GoodsTransactionTermsPanel } from '../GoodsTransactionTermsPanel';
 import { GoodsFulfillmentPanel } from '../GoodsFulfillmentPanel';
@@ -225,7 +225,7 @@ export function GoodSection({
     } : {}),
     'listing-colors': inline('listing-colors', <GoodWorkspaceListingColorsSection serverError={state.errors?.workspaceListingColors} />),
     ...(ownership?.group ? {} : {
-      'after-sales': inline('after-sales', <GoodWorkspaceAfterSalesSection serverError={state.errors?.workspaceAfterSales} />),
+      'after-sales': inline('after-sales', <GoodWorkspaceAfterSalesSection phoneDefault={afterSalesPhoneSuggestion(noticeDefaults?.asContact)} serverError={state.errors?.workspaceAfterSales} />),
       'size-chart': inline('size-chart', <GoodWorkspaceSizeChartSection serverError={state.errors?.workspaceSizeChart} />),
     }),
     ...(canManageCosts ? { costs: inline('costs', <GoodWorkspacePurchaseCostsSection serverError={state.errors?.workspaceCosts} />) } : {}),
