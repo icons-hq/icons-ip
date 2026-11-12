@@ -146,6 +146,13 @@ $a$ if lifecycle.state='completed' then update private.claim_refund_deductions s
  if lifecycle.state='completed' then update public.payments set status='refunded' where id=payment.id and status<>'refunded';end if;$a$
 ]);
 
+-- 송금 대기 증빙 판정(주문 취소 전이 가드가 읽는다)도 송금액 기준이다.
+select private.t12a_patch_function('private.bank_transfer_refund_pending_evidence_valid(uuid,uuid)'::regprocedure, array[
+$a$and payment.amount=lifecycle.amount and purchase.total=lifecycle.amount and lifecycle.amount>0$a$,
+$a$and payment.amount-private.claim_refund_active_deduction(payment.id)=lifecycle.amount
+   and purchase.total-private.claim_refund_active_deduction(payment.id)=lifecycle.amount and lifecycle.amount>0$a$
+]);
+
 select private.t12a_patch_function('private.bank_transfer_refund_blocker(public.order_cancellation_requests,public.orders,text)'::regprocedure, array[
 $a$or refund.amount<>payment.amount$a$,
 $a$or refund.amount<>payment.amount-private.claim_refund_active_deduction(payment.id)$a$,
@@ -291,6 +298,7 @@ do $$declare fn regprocedure; contract record; begin
     'public.complete_order_cancellation_request(uuid,text[],uuid)'::regprocedure,
     'private.finalize_bank_transfer_claim_refund(uuid,text)'::regprocedure,
     'private.bank_transfer_refund_blocker(public.order_cancellation_requests,public.orders,text)'::regprocedure,
+    'private.bank_transfer_refund_pending_evidence_valid(uuid,uuid)'::regprocedure,
     'public.admin_record_bank_transfer_refund(uuid,uuid,uuid,text,integer,integer,timestamp with time zone,text,text,boolean,uuid,uuid)'::regprocedure,
     'public.admin_bank_transfer_refund_context(uuid,uuid,uuid,uuid)'::regprocedure,
     'private.order_claim_bulk_context_row(uuid)'::regprocedure,

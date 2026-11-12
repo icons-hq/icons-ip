@@ -282,15 +282,15 @@ begin
     then format('최초 무료배송이라 왕복 반품배송비 %s', private.format_krw(d.deduction_amount))
     else format('반품배송비 %s', private.format_krw(d.deduction_amount)) end;
   if p_event = 'filed_bank_transfer' then
-    return format('단순 변심 반품이라 %s를 뺀 %s을 등록하신 환불계좌로 송금하도록 접수했습니다.', reason, private.format_krw(d.refund_amount));
+    return format('단순 변심 반품이라 %s을 뺀 %s을 등록하신 환불계좌로 송금하도록 접수했습니다.', reason, private.format_krw(d.refund_amount));
   elsif p_event = 'filed' then
-    return format('환불 절차를 시작했습니다. 단순 변심 반품이라 결제 금액 %s에서 %s를 뺀 %s을 환불합니다. 결제사 취소가 확인되면 다시 알려드립니다.',
+    return format('환불 절차를 시작했습니다. 단순 변심 반품이라 결제 금액 %s에서 %s을 뺀 %s을 환불합니다. 결제사 취소가 확인되면 다시 알려드립니다.',
       private.format_krw(d.payment_amount), reason, private.format_krw(d.refund_amount));
   elsif p_event = 'provider_completed' and d.state = 'applied' then
-    return format('결제 금액 %s 가운데 %s를 뺀 %s을 결제사에서 취소했습니다. 카드 부분 취소는 카드사 처리에 영업일 기준 3~4일이 걸릴 수 있습니다.',
+    return format('결제 금액 %s 가운데 %s을 뺀 %s을 결제사에서 취소했습니다. 카드 부분 취소는 카드사 처리에 영업일 기준 3~4일이 걸릴 수 있습니다.',
       private.format_krw(d.payment_amount), reason, private.format_krw(d.refund_amount));
   elsif p_event = 'completed' and d.state = 'applied' then
-    return format('%s를 뺀 %s의 환급 처리가 완료됐습니다. 결제수단에 따라 반영 시점이 다를 수 있습니다.', reason, private.format_krw(d.refund_amount));
+    return format('%s을 뺀 %s의 환급 처리가 완료됐습니다. 결제수단에 따라 반영 시점이 다를 수 있습니다.', reason, private.format_krw(d.refund_amount));
   end if;
   return null;
 end $$;

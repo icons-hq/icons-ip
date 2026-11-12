@@ -77,6 +77,8 @@ const operators = [
   sql('order_claim_collection_received_on', { admin: true }),
   // 재고 파일 대조 흐름을 배송 건(출고지)별 회수·회수 생략 재출고로 센다(T07 × T11a·T11b 통합).
   sql('stock_reconcile_claim_shipments', { admin: true }),
+  // 반품배송비 차감(QNA-033·ADR-0031): 스위치 OFF 불변, 접수 때 결정, 카드 부분 취소 확인 뒤 확정 환불액, 무통장 송금액.
+  sql('claim_refund_deduction'),
   script('order_address_concurrency.sh', 'ORDER_ADDRESS_TEST_SCOPE'),
   sql('goods_media', { admin: true, kc: true }),
   script('goods_media_concurrency.sh', 'GOODS_MEDIA_TEST_SCOPE'),
