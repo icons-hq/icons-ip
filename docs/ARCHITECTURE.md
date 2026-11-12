@@ -207,7 +207,8 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 - `payment_summaries` — `payments` owner/staff RLS를 따르는 security-invoker 안전 조회 표면. provider 비밀·멱등 키·raw를 노출하지 않는다.
 - `refunds` (id, payment_id, amount, reason, status)
 - `order_cancellation_requests` (id, order_id, requested_by, status, decision, collection_policy `legacy|origin`, collection_required, provider 상태 코드, 시각) — 사용자 요청과 운영 결정의 durable 원장. `operational_fee_kind/amount/note/evidence/confirmed_by/confirmed_at`은 CS가 확인한 반품·교환 비용의 nullable 운영 증거이며, 0원과 미확인을 구분한다. 이 기록은 결제·환불액·클레임 접수 상태를 바꾸지 않는다. 회수 정책 전환은 기존 금융 결과나 완료 사실을 덮어쓰지 않는다.
-- `order_claim_collections` (claim_id, shipment_id, origin_id, origin_name_snapshot, return_address_snapshot, items_snapshot, collected_at/by, evidence) — 주문 전체 클레임의 출고지별 회수 근거. 승인 시 반송 주소·품목·수량을 보존하고 staff RPC로 각 입고를 기록한다. 필요한 수량의 전체 회수 전에는 금융·재고·재출고 종결을 막는다([ADR-0017](./adr/0017-order-claim-intake-and-origin-collections.md)).
+- `order_claim_collections` (claim_id, shipment_id, origin_id, origin_name_snapshot, return_address_snapshot, items_snapshot, collected_at/by, evidence) — 주문 전체 클레임의 출고지별 회수 근거. 승인 시 반송 주소·품목·수량을 보존하고 staff RPC로 각 입고를 기록한다. 필요한 수량의 전체 회수 전에는 금융·재고 종결을 막는다([ADR-0017](./adr/0017-order-claim-intake-and-origin-collections.md)).
+- `order_claim_reshipments` (claim_id, shipment_id, carrier, tracking_number, reshipped_at/by, collection_waived·waiver_reason·waiver_evidence_file_ids, delivered_at/by/evidence) — 교환 재출고를 배송 건(출고지)마다 기록한다. 그 배송 건의 회수 뒤에(하자·오배송 교환은 사유·근거 사진을 남긴 회수 생략으로도) 재출고하고, 모든 배송 건이 재출고되면 교환을 종결한다. 회수 생략은 회수품 재고를 복원하지 않는다. 근거 사진은 비공개 버킷과 `private.claim_evidence_files`에 둔다. 옛 클레임 단위 열(reship_*)은 지난 기록 읽기 호환이다([ADR-0041](./adr/0041-claim-reshipments-per-origin.md)).
 
 ### 5.5 티케팅 (P3)
 - `ticket_types` (id, event_id, name, price, capacity, sold) — 회차/종류. 공개 읽기, staff 쓰기는 audited RPC만 허용
