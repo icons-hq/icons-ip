@@ -9,7 +9,7 @@ import { formatOrderDateTime } from '@/lib/orders';
 import type { GoodsGroupIdentity } from '@/lib/admin/goods-groups';
 import { useClaimPreviewBusy } from '@/components/orders/claim-preview-busy';
 import '@/app/styles/purchase-confirmation.css';
-export function PurchaseConfirmationPanel({ orderId, actorId, admin = false }: { orderId: string; actorId: string; admin?: boolean }) {
+export function PurchaseConfirmationPanel({ orderId, actorId, admin = false, claimOpen = false }: { orderId: string; actorId: string; admin?: boolean; /** 진행 중인 취소·반품·교환이 있으면 자동 구매확정은 보류된다(DB 배치가 건너뜀) — 예정 시각을 말하지 않는다. */ claimOpen?: boolean }) {
   const [value, setValue] = useState<PurchaseConfirmation | null>(null), [identity, setIdentity] = useState<GoodsGroupIdentity | null>(null);
   const [message, setMessage] = useState(''), [blocked, setBlocked] = useState(false), [pending, setPending] = useState(false), [uncertain, setUncertain] = useState(false);
   useClaimPreviewBusy(pending); /* 목록 위 주문 상세 팝업(S36-075)에서 기다리는 동안 팝업이 닫히지 않게 알린다. 팝업 밖에서는 아무 일도 하지 않는다. */
@@ -58,7 +58,7 @@ export function PurchaseConfirmationPanel({ orderId, actorId, admin = false }: {
     <p>구매확정 시 주문 당시 정책에 따라 적립금을 지급합니다. 구매확정 이후에도 반품·교환은 별도 신청 자격과 기한을 적용합니다.</p>
     {!value ? <p role="status">{message || '구매확정 상태를 확인하고 있습니다.'}</p> : <>
       <dl><div><dt>확정 상태</dt><dd>{value.status === 'done' ? `${value.confirmationKind === 'buyer' ? '구매자 직접 확정' : value.confirmationKind === 'automatic' ? '자동 확정' : '거래확정'} · ${value.confirmedAt ? formatOrderDateTime(value.confirmedAt) : '시각 미기록'}` : value.status === 'canceled' ? '주문 취소' : value.held ? `보류 · ${value.holdReason}` : '미확정'}</dd></div>
-        {value.status === 'delivered' ? <div><dt>자동 확정</dt><dd>{value.automaticActive && value.autoDueAt ? `${formatOrderDateTime(value.autoDueAt)} 예정${value.held ? ' · 보류 해제 전까지 중지' : ''}` : '자동 확정 꺼짐 또는 적용 대상 아님'}</dd></div> : null}
+        {value.status === 'delivered' && !claimOpen ? <div><dt>자동 확정</dt><dd>{value.automaticActive && value.autoDueAt ? `${formatOrderDateTime(value.autoDueAt)} 예정${value.held ? ' · 보류 해제 전까지 중지' : ''}` : '자동 확정 꺼짐 또는 적용 대상 아님'}</dd></div> : null}
         {value.requestedAt ? <div><dt>구매확정 요청</dt><dd>{formatOrderDateTime(value.requestedAt)} · 인앱 알림</dd></div> : null}</dl>
       {admin && value.status === 'delivered' ? <>
         <label>고객에게 표시할 보류 사유<textarea value={note} onChange={e => setNote(e.target.value)} disabled={disabled} maxLength={500} rows={2} /></label>

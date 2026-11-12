@@ -171,7 +171,7 @@ describe('/legal/[document] 라우트', () => {
     const document = LEGAL_DOCUMENTS.privacy;
     const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ document: 'privacy' }) }));
 
-    expect(html).toContain('<div class="wc-root wc-document"><article class="wc-document__page">');
+    expect(html).toContain('<main class="wc-root wc-document"><article class="wc-document__page">');
     expect(html).toContain(`<h1 class="wc-document__title">${document.title}</h1>`);
     expect(html).toContain(`<p class="wc-document__effective">시행일 ${document.effectiveDate}</p>`);
     expect(html).toContain(`<h2 class="wc-document__heading">${document.articles[0]!.heading}</h2>`);

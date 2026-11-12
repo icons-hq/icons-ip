@@ -15,3 +15,13 @@ export function parseOrderReturnPickup(value: unknown): OrderReturnPickup | null
   if (keys.length !== 2 || !keys.includes('pickupBundles') || !keys.includes('directBundles')) return null;
   return count(record.pickupBundles) && count(record.directBundles) ? { pickupBundles: record.pickupBundles, directBundles: record.directBundles } : null;
 }
+
+/**
+ * 수거중 안내의 방문 회수 문장(T13b). 방문 회수 묶음이 없으면 null — 호출한 화면이 지금 반송 안내를 그대로 쓴다.
+ * 주문 상세와 선물 받는 분 화면이 같은 문장을 쓴다.
+ */
+export function returnPickupCollectingNotice(returnPickup: OrderReturnPickup): string | null {
+  if (returnPickup.pickupBundles <= 0) return null;
+  return '요청이 승인됐습니다. 택배 기사가 방문해 굿즈를 회수합니다. 아래 회수 정보 확인에서 배송 묶음별 회수 송장을 확인하고 굿즈를 포장해 두세요.'
+    + (returnPickup.directBundles > 0 ? ' 회수 송장이 없는 묶음은 회수 정보의 회수 주소로 보내주세요.' : '');
+}

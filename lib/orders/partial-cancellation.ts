@@ -349,3 +349,15 @@ export function orderPartialCancellationSummary(record: Pick<OrderPartialCancell
   const credit = record.storeCreditRestoreAmount > 0 ? ` · 적립금 ${won(record.storeCreditRestoreAmount)} 되돌림` : '';
   return `${orderPartialCancellationItemsLabel(record.items)} 취소 · 환불 ${won(record.refundAmount)}${shipping}${credit}`;
 }
+
+/** 주문 품목별 부분 취소된 수량 합계(고객 주문 상세가 남은 수량을 말하는 근거). 적용된 건만 서버가 돌려준다. */
+export function partialCanceledQtyByItem(records: readonly Pick<OrderPartialCancellationRecord, 'items'>[]): Map<string, number> {
+  const canceled = new Map<string, number>();
+  for (const record of records) for (const item of record.items) canceled.set(item.orderItemId, (canceled.get(item.orderItemId) ?? 0) + item.qty);
+  return canceled;
+}
+
+/** 부분 취소로 돌려준(돌려줄) 결제 금액 합계. 적립금 되돌림은 결제 금액이 아니라서 뺀다. */
+export function partialCancellationRefundTotal(records: readonly Pick<OrderPartialCancellationRecord, 'refundAmount'>[]): number {
+  return records.reduce((sum, record) => sum + record.refundAmount, 0);
+}

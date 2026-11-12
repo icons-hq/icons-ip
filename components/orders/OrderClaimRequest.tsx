@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { NO_RETURN_PICKUP, type OrderReturnPickup } from '@/lib/orders/return-pickup';
+import { NO_RETURN_PICKUP, returnPickupCollectingNotice, type OrderReturnPickup } from '@/lib/orders/return-pickup';
 import {
   formatOrderDateTime,
   ORDER_WITHDRAWAL_REASON_LABELS,
@@ -111,10 +111,8 @@ export function claimStageNotice(claim: OrderCancellationRequestSummary, refund:
       return `${typeLabel} 요청을 검토하고 있습니다.`;
     case 'collecting':
       /* 회수 주소는 승인 때 굿즈마다 고정한 반품지다(S36-040). 배송 묶음별 주소는 아래 회수 정보에서 확인한다(QNA-031). */
-      return (returnPickup.pickupBundles > 0
-        ? '요청이 승인됐습니다. 택배 기사가 방문해 굿즈를 회수합니다. 아래 회수 정보 확인에서 배송 묶음별 회수 송장을 확인하고 굿즈를 포장해 두세요.'
-          + (returnPickup.directBundles > 0 ? ' 회수 송장이 없는 묶음은 회수 정보의 회수 주소로 보내주세요.' : '')
-        : '요청이 승인됐습니다. 아래 회수 정보 확인에서 배송 묶음별 회수 주소를 확인하고, 안내받은 방법으로 굿즈를 반송해주세요.')
+      return (returnPickupCollectingNotice(returnPickup)
+        ?? '요청이 승인됐습니다. 아래 회수 정보 확인에서 배송 묶음별 회수 주소를 확인하고, 안내받은 방법으로 굿즈를 반송해주세요.')
         + (collectionWaived ? ' 회수 없이 다시 보내드린 소포의 굿즈는 반송하지 않아도 됩니다.' : '');
     case 'collected':
       return claim.claimType === 'exchange'
@@ -400,7 +398,8 @@ export function OrderClaimRequest({
             )}
           </div>
         )
-      ) : (
+      ) : activeClaim || awaitingTransfer ? null : (
+        /* 진행 중인 클레임이 있으면 위 진행 상태·안내가 이미 그 사실을 말한다 — '이미 처리 중인 클레임이 있습니다'를 접수 직후 실패처럼 한 번 더 말하지 않는다(QA2). */
         <p className="order-cancellation-body">
           {blockedReason ?? '반품·교환은 배송이 완료된 뒤에 신청할 수 있습니다.'}
         </p>

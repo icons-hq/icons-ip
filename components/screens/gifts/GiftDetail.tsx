@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { closeGiftAction, issueGiftLinkAction, placeGiftAction, quoteGiftAction, reloadGiftAction, updateGiftAddressAction } from '@/app/gifts/actions';
 import { GiftClaims } from '@/components/gifts/GiftClaims';
 import type { GiftClaimContext } from '@/lib/gift-claims';
+import { NO_RETURN_PICKUP, type OrderReturnPickup } from '@/lib/orders/return-pickup';
 import { MypageShell } from '@/components/wc/MypageShell';
 import { EMPTY_GIFT_ADDRESS, GiftAddressFields, GiftItems, GiftRequestFeedback } from '@/components/gifts/GiftParts';
 import { useGiftRequest, useGiftUnsaved } from '@/components/gifts/useGiftRequest';
@@ -18,7 +19,7 @@ import { routes } from '@/lib/routes';
 import { krw, krwAmountWords } from '@/lib/format';
 
 function newGiftToken() { const bytes = crypto.getRandomValues(new Uint8Array(32)); return btoa(String.fromCharCode(...bytes)).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', ''); }
-export function GiftDetail({ actorId, initialGift, coupons, initialClaimContext }: { actorId: string; initialGift: GiftDetailValue; coupons: readonly UserCouponSummary[] | null; initialClaimContext: GiftClaimContext | null }) {
+export function GiftDetail({ actorId, initialGift, coupons, initialClaimContext, returnPickup = NO_RETURN_PICKUP }: { actorId: string; initialGift: GiftDetailValue; coupons: readonly UserCouponSummary[] | null; initialClaimContext: GiftClaimContext | null; returnPickup?: OrderReturnPickup }) {
   const router = useRouter(), [gift, setGift] = useState(initialGift), [address, setAddress] = useState(initialGift.address ?? { ...EMPTY_GIFT_ADDRESS });
   const [link, setLink] = useState<string | null>(null), [copyStatus, setCopyStatus] = useState(''), [quote, setQuote] = useState<GoodsTransactionQuote | null>(null);
   const [couponId, setCouponId] = useState(''), [credit, setCredit] = useState('0'), [paymentMethod, setPaymentMethod] = useState<CheckoutPaymentMethod>('card');
@@ -80,7 +81,7 @@ export function GiftDetail({ actorId, initialGift, coupons, initialClaimContext 
         <ul>{gift.shipments.map(shipment => <li key={shipment.id}>{({ ready: '배송 준비', shipping: '배송 중', delivered: '배송 완료', canceled: '취소' })[shipment.status]}{shipment.expectedShipDate ? ` · 발송 예정 ${shipment.expectedShipDate}` : ''}{gift.isRecipient && shipment.trackingNumber ? <p>{shipment.carrier} · {shipment.trackingNumber}</p> : null}
           {gift.isRecipient && shipment.extraTrackings?.length ? <p>추가 운송장(나눠 보낸 상자) {shipment.extraTrackings.map(extra => `${extra.carrier} · ${extra.trackingNumber}`).join(', ')}</p> : null}</li>)}</ul>
       </section> : null}
-      {initialClaimContext ? <GiftClaims actorId={actorId} orderId={receipt?.id} initialContext={initialClaimContext} /> : null}
+      {initialClaimContext ? <GiftClaims actorId={actorId} orderId={receipt?.id} initialContext={initialClaimContext} returnPickup={returnPickup} /> : null}
       {['awaiting_acceptance', 'accepted'].includes(gift.state) ? <section><h2>선물 관리</h2><button type="button" disabled={request.locked} onClick={() => {
         if (!confirm('이 선물을 취소할까요? 아직 결제된 금액은 없어요.')) return;
         const operationId = crypto.randomUUID(), revision = gift.revision;

@@ -21,7 +21,11 @@ export function OrderPartialCancellations({ records }: { records: readonly Order
           <li data-order-partial-cancellation={record.state} key={record.id}>
             <strong>{orderPartialCancellationSummary(record)}</strong>
             <span> · {status(record)}</span>
-            {record.appliedAt ? <> · <time dateTime={record.appliedAt}>{formatOrderDateTime(record.appliedAt)}</time></> : null}
+            {(() => {
+              /* '송금 완료'는 송금한 시각을, 나머지는 부분 취소를 적용한 시각을 말한다(QA2: 송금 완료 옆에 적용 시각이 나왔다). */
+              const at = record.provider === 'bank_transfer' && record.state === 'completed' ? record.transferredAt ?? record.completedAt ?? record.appliedAt : record.appliedAt;
+              return at ? <> · <time dateTime={at}>{formatOrderDateTime(at)}</time></> : null;
+            })()}
           </li>
         ))}
       </ol>
