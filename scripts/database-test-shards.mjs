@@ -114,6 +114,8 @@ const catalog = [
   sql('admin_benefit_issuances'),
   sql('admin_encrypted_export_audit', { admin: true }),
   sql('goods_custom_input_workbook', { admin: true }),
+  // IP 내부 ID 자동 발급·미사용 초안 삭제(ADR-0039)다.
+  sql('ip_draft_delete'),
 ];
 
 const storefront = [
