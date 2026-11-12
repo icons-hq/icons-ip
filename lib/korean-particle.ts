@@ -33,3 +33,15 @@ export function topicParticle(word: string): '은' | '는' | '은(는)' {
   const final = hasFinalConsonant(word);
   return final === null ? '은(는)' : final ? '은' : '는';
 }
+
+/** 방향·결과 조사 로/으로. 받침이 없거나 ㄹ 받침이면 '로', 그 밖의 받침은 '으로', 판정할 수 없으면 '(으)로'. */
+export function resultParticle(word: string): '로' | '으로' | '(으)로' {
+  const final = hasFinalConsonant(word);
+  if (final === null) return '(으)로';
+  if (!final) return '로';
+  const last = [...word.trim().replace(TRAILING_SYMBOLS, '')].at(-1)!;
+  const code = last.codePointAt(0)!;
+  /* 한글 종성 ㄹ은 인덱스 8. 숫자 7(칠)·8(팔)도 ㄹ 받침이라 '로'. */
+  const rieul = code >= HANGUL_FIRST && code <= HANGUL_LAST ? (code - HANGUL_FIRST) % 28 === 8 : last === '7' || last === '8';
+  return rieul ? '로' : '으로';
+}

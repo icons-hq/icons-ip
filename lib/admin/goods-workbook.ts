@@ -17,6 +17,7 @@ import { goodsCustomInputWorkbookConfig, goodsCustomInputWorkbookOrphanErrors, p
   type GoodsCustomInputWorkbookInputRow } from './goods-custom-input-workbook';
 import type { GoodsAfterSalesSnapshot } from '@/lib/goods-after-sales';
 import type { GoodsSizeChartSnapshot } from '@/lib/goods-size-chart';
+import { resultParticle } from '@/lib/korean-particle';
 import { goodsGuidanceOrphanErrors, planGoodsAfterSalesWorkbook, planGoodsSizeWorkbook,
   GOODS_AFTER_SALES_WORKBOOK_SHEET, GOODS_SIZE_WORKBOOK_SHEET,
   type GoodsAfterSalesWorkbookInputRow, type GoodsSizeWorkbookInputRow, type GoodsImportGuidance } from './goods-guidance-workbook';
@@ -810,7 +811,7 @@ export function planGoodsWorkbookImport(
       errors.push(categoryType ? GOOD_TYPE_CATEGORY_MESSAGES.locked : GOOD_TYPE_CATEGORY_MESSAGES.required);
     else if (first.publish === '공개' && !publishedNow && !categoryType) errors.push(GOOD_TYPE_PUBLISH_REQUIRED);
     else if (publishedNow && first.publish !== '공개' && categoryType && categoryType !== storedType)
-      group.warnings.push(`초안으로 바뀌며 상품 유형이 ‘${categoryType}’로 바뀌고 KC를 다시 검토해야 공개할 수 있습니다.`);
+      group.warnings.push(`초안으로 바뀌며 상품 유형이 ‘${categoryType}’${resultParticle(categoryType)} 바뀌고 KC를 다시 검토해야 공개할 수 있습니다.`);
     const additionalIds: string[] = [];
     for (const code of new Set(first.additionalCategoryCodes.split(/[\n,]+/).map(code => code.trim()).filter(Boolean))) {
       const additional = context.categories?.find(category => category.code === code);
