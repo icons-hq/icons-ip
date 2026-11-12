@@ -194,7 +194,7 @@ export function OrderPartialCancellationPanelView({ orderId, context, onReload }
         ? ` (${orderPartialCancellationV1AllocationIssueMessage(context.v1Allocation?.issue)})` : null}
     </AdminNotice> : null}
     {open ? <form className="flex min-w-0 flex-col gap-3" onSubmit={event => { event.preventDefault(); void preview(); }}>
-      {context.calculationVersion === 1 ? <p className={HINT}>버전 1 주문은 첫 부분 취소 때 금액 배분을 확정합니다.</p> : null}
+      {context.calculationVersion === 1 ? <p className={HINT}>{context.v1Allocation?.frozen ? '확정된 상품별 금액 배분으로 계산합니다.' : '이 주문은 첫 부분 취소를 확정할 때 상품별 금액 배분을 확정합니다.'}</p> : null}
       <ul className="flex flex-col gap-2">{context.items.map(item => {
         const blocked = orderPartialCancellationItemBlockerLabel(item.blocker);
         const value = draft[item.orderItemId] ?? 0;

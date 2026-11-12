@@ -23,8 +23,8 @@ const ORDER_BLOCKERS: Record<string, string> = {
   payment_unavailable: '결제 기록이 한 건의 결제완료가 아니라 부분 취소할 수 없습니다.',
   partial_cancel_unsupported: '이 결제는 결제사 부분 취소를 받지 않아 품목 부분 취소를 진행할 수 없습니다(나이스페이·코페이·토스 가상계좌·정기배송). 전액 환불로 돌리지 않습니다. 고객과 다시 상의해 운영자 전액 취소 여부를 정해주세요.',
   legacy_order: '금액 배분 기록이 없는 이전 주문이라 품목별 환불액을 정할 수 없습니다.',
-  partial_cancel_v1_allocation_mismatch: '결제 금액이 상품·쿠폰·적립금·배송비 기록과 맞지 않아 상품별 환불액을 확정할 수 없습니다. 부분 취소하지 않고 개발 담당에게 대조를 요청해주세요.',
-  partial_cancel_v1_allocation_unavailable: '주문 당시 쿠폰·할인 기록으로 상품별 금액 배분을 확정할 수 없는 주문이라 부분 취소할 수 없습니다. 고객과 다시 상의해 운영자 전액 취소 여부를 정해주세요.',
+  partial_cancel_v1_allocation_mismatch: '결제 금액이 상품·쿠폰·적립금·배송비 기록과 맞지 않아 상품별 환불액을 확정할 수 없습니다. 부분 취소하지 않고 개발 담당에게 대조를 요청해주세요. 이 주문은 재고 부족 부분 취소 대신 운영자 전액 취소로 처리합니다.',
+  partial_cancel_v1_allocation_unavailable: '주문 당시 쿠폰·할인 기록으로 상품별 금액 배분을 확정할 수 없는 주문이라 부분 취소할 수 없습니다. 고객과 다시 상의해 운영자 전액 취소 여부를 정해주세요. 이 주문은 재고 부족 부분 취소 대신 운영자 전액 취소로 처리합니다.',
 };
 
 /** 버전 1 주문의 배분을 확정할 수 없는 자세한 이유(문맥 v1Allocation.issue). */
@@ -32,7 +32,7 @@ const V1_ALLOCATION_ISSUES: Record<string, string> = {
   amount_mismatch: '상품 결제 몫과 배송비의 합이 결제 금액과 다릅니다.',
   shipping_snapshot_mismatch: '배송 건 배송비가 주문 당시 배송비 기록과 다릅니다.',
   coupon_amount_mismatch: '쿠폰 할인 금액이 주문 당시 쿠폰 기록과 다릅니다.',
-  coupon_target_mismatch: '쿠폰 대상 상품 금액 합계가 주문 당시 기록과 다릅니다.',
+  coupon_target_mismatch: '주문 뒤 상품 분류·통합이 바뀌어 쿠폰 대상을 다시 가릴 수 없습니다.',
   credit_mismatch: '사용 적립금을 상품 금액에 나눌 수 없습니다.',
   coupon_unrecorded: '주문 당시 쿠폰 대상·금액 기록이 없습니다.',
   unsupported_discount: '이전 주문에 없는 할인(복수구매·배송비 쿠폰)이 기록돼 있습니다.',

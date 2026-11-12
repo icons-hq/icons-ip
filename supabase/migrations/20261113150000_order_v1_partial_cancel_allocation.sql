@@ -237,7 +237,7 @@ create function private.order_v1_allocation_blocker(p_issue text) returns text
 language sql immutable set search_path = '' as $$
   select case
     when p_issue is null or p_issue in ('payment_unavailable', 'not_v1', 'order_not_found') then null
-    when p_issue in ('coupon_amount_mismatch', 'coupon_target_mismatch', 'credit_mismatch', 'shipping_snapshot_mismatch', 'amount_mismatch')
+    when p_issue in ('coupon_amount_mismatch', 'credit_mismatch', 'shipping_snapshot_mismatch', 'amount_mismatch')
       then 'partial_cancel_v1_allocation_mismatch'
     else 'partial_cancel_v1_allocation_unavailable' end;
 $$;

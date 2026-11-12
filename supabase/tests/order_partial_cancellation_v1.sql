@@ -7,6 +7,7 @@
 --  3. 토스 다회 부분 취소(배송 건 닫힘·적립금 몫·출고 파일 남은 몫) 뒤 운영자 전액 취소 remainder — 합 = 결제액. PG 대사.
 --  4. 무통장 버전 1: 시작 때 적용·송금 대기, 두 번째도 같은 원장, 취소 확정의 송금액이 남은 잔액 — 합 = 결제액.
 --  5. 막힘: 결제액·배송비·쿠폰 기록이 맞지 않는 주문은 partial_cancel_v1_allocation_mismatch / unavailable로 막고 원장을 만들지 않는다.
+--     쿠폰 대상 범위(IP·카테고리·하위 분류)는 대상 품목만 나누고, 대상 분류가 보관되면 unavailable로 막는다(5b).
 --  6. 부분 취소가 없는 버전 1 주문의 기존 경로(출고 파일·배분 입력·환불 금액·전액 취소)는 이 변경 전과 같다.
 --  7. 거래확정 수집·배분 입력은 얼린 원장을 버전 2와 같은 모양으로 싣는다. seam·권한.
 begin;
@@ -72,8 +73,9 @@ begin
  from public.order_items i where i.order_id = pg_temp.pv_id('order', n);
  if coupon_code is not null then
   -- 한 사람은 같은 쿠폰을 한 번만 받으므로 주문마다 같은 조건의 쿠폰을 따로 둔다.
-  insert into public.coupons(code, name, discount_type, discount_value, starts_at, goods_scope, target_good_ids)
-  select c.code||'-'||n, c.name, c.discount_type, c.discount_value, c.starts_at, c.goods_scope, c.target_good_ids from public.coupons c where c.code = coupon_code;
+  insert into public.coupons(code, name, discount_type, discount_value, starts_at, goods_scope, target_good_ids, target_category_ids, target_ip_ids)
+  select c.code||'-'||n, c.name, c.discount_type, c.discount_value, c.starts_at, c.goods_scope, c.target_good_ids, c.target_category_ids, c.target_ip_ids
+  from public.coupons c where c.code = coupon_code;
   select jsonb_build_object('revision', c.terms_revision, 'goodsScope', c.goods_scope, 'targetGoodIds', to_jsonb(c.target_good_ids), 'discountType', c.discount_type,
     'discountValue', c.discount_value, 'eligibleSubtotal', coalesce(eligible, 35000)) into terms from public.coupons c where c.code = coupon_code||'-'||n;
   insert into public.user_coupons(id, coupon_code, user_id, issued_source, issued_at, status, used_at, used_order_id)
@@ -144,6 +146,25 @@ update public.payments set amount = amount - 36000 where id = pg_temp.pv_id('pay
 update public.payment_attempts set amount = amount - 36000 where id = pg_temp.pv_id('attempt', 12);
 -- 13: 주문 쿠폰 할인(1,500원)과 주문 당시 쿠폰 기록(1,000원)이 다른 주문(결제액은 주문 할인과 맞는다).
 update public.coupon_redemptions set discount_amount = 1000 where order_id = pg_temp.pv_id('order', 13);
+-- 14: IP 쿠폰(C는 다른 IP) 1,500원 + 적립금 1,000원. 15·16: 카테고리 쿠폰(A·B는 대상 분류의 하위 분류 상품) 1,500원 + 적립금 1,000원. 17: 카테고리 대상 기록이 배열이 아닌 주문.
+insert into public.ips(id, title, vertical_key) values ('partial-cancel-v1-ip2', 'TEST 버전1 부분취소 다른 IP', 'character');
+insert into public.catalog_categories(id, code, name, parent_id, depth) values
+ (pg_temp.pv_id('category', 1), 'pcv1-root', 'TEST 버전1 쿠폰 대상 분류', null, 1),
+ (pg_temp.pv_id('category', 2), 'pcv1-child', 'TEST 버전1 쿠폰 대상 하위 분류', pg_temp.pv_id('category', 1), 2);
+update public.goods set category_id = pg_temp.pv_id('category', 2) where id in ('partial-cancel-v1-a', 'partial-cancel-v1-b');
+insert into public.coupons(code, name, discount_type, discount_value, starts_at, goods_scope, target_ip_ids)
+ values ('PCV1-IP', 'TEST 버전1 IP 쿠폰', 'fixed', 1500, '2026-01-01', 'selected_ips', array['partial-cancel-v1-ip']);
+insert into public.coupons(code, name, discount_type, discount_value, starts_at, goods_scope, target_category_ids)
+ values ('PCV1-CAT', 'TEST 버전1 분류 쿠폰', 'fixed', 1500, '2026-01-01', 'selected_categories', array[pg_temp.pv_id('category', 1)]);
+select pg_temp.pv_order(14, 'toss', 'PCV1-IP', 1500, 30000, 1000, terms_override => jsonb_build_object('revision', 1, 'goodsScope', 'selected_ips',
+  'targetGoodIds', '[]'::jsonb, 'targetIpIds', jsonb_build_array('partial-cancel-v1-ip'), 'discountType', 'fixed', 'discountValue', 1500)),
+ pg_temp.pv_order(15, 'toss', 'PCV1-CAT', 1500, 30000, 1000, terms_override => jsonb_build_object('revision', 1, 'goodsScope', 'selected_categories',
+  'targetGoodIds', '[]'::jsonb, 'targetCategoryIds', jsonb_build_array(pg_temp.pv_id('category', 1)), 'discountType', 'fixed', 'discountValue', 1500)),
+ pg_temp.pv_order(16, 'toss', 'PCV1-CAT', 1500, 30000, 1000, terms_override => jsonb_build_object('revision', 1, 'goodsScope', 'selected_categories',
+  'targetGoodIds', '[]'::jsonb, 'targetCategoryIds', jsonb_build_array(pg_temp.pv_id('category', 1)), 'discountType', 'fixed', 'discountValue', 1500)),
+ pg_temp.pv_order(17, 'toss', 'PCV1-CAT', 1500, 30000, 1000, terms_override => jsonb_build_object('revision', 1, 'goodsScope', 'selected_categories',
+  'targetGoodIds', '[]'::jsonb, 'targetCategoryIds', to_jsonb('not-an-array'::text), 'discountType', 'fixed', 'discountValue', 1500));
+update public.order_items set good_ip_id_snapshot = 'partial-cancel-v1-ip2' where id = pg_temp.pv_id('item-c', 14);
 update private.return_fee_deduction_settings set partial_cancel_enabled = true, partial_cancel_evidence = 'TEST 버전1 부분 취소 시험',
  partial_cancel_enabled_at = clock_timestamp() where singleton;
 -- END FIXTURE
@@ -315,7 +336,7 @@ select pg_temp.pv_auth();
 select pg_temp.pv_assert((select jsonb_object_agg(n, jsonb_build_array(c->'blockers', c#>'{v1Allocation,issue}'))
   from unnest(array[5, 6, 7, 8, 9, 11, 12, 13]) n cross join lateral (select public.admin_order_partial_cancellation_context(pg_temp.pv_id('order', n)) c) s)
  = '{"5": [["partial_cancel_v1_allocation_mismatch"], "amount_mismatch"], "6": [["partial_cancel_v1_allocation_mismatch"], "shipping_snapshot_mismatch"],
-     "7": [["partial_cancel_v1_allocation_mismatch"], "coupon_target_mismatch"], "8": [["partial_cancel_v1_allocation_unavailable"], "coupon_unrecorded"],
+     "7": [["partial_cancel_v1_allocation_unavailable"], "coupon_target_mismatch"], "8": [["partial_cancel_v1_allocation_unavailable"], "coupon_unrecorded"],
      "9": [["partial_cancel_v1_allocation_unavailable"], "unsupported_discount"], "11": [["partial_cancel_v1_allocation_unavailable"], "unsupported_discount"],
      "12": [["partial_cancel_v1_allocation_mismatch"], "credit_mismatch"], "13": [["partial_cancel_v1_allocation_mismatch"], "coupon_amount_mismatch"]}'::jsonb,
  'v1_unallocatable_orders_blocked_with_reason');
@@ -333,6 +354,23 @@ select pg_temp.pv_error(format('select private.freeze_order_v1_allocation(%L, %L
  'partial_cancel_v1_allocation_mismatch');
 -- 원장이 없는 버전 1 주문의 배송 건은 seam이 배분을 확정할 수 없으면 거절한다(0원으로 환불하지 않는다).
 select pg_temp.pv_error(format('select private.order_shipment_prepaid_fee(%L)', pg_temp.pv_id('shipment-1', 5)), 'partial_cancel_v1_allocation_unavailable');
+
+-- 5b. 쿠폰 대상 범위: IP·카테고리(하위 분류 상품 포함) 쿠폰은 대상 품목 금액 비례로 나눈다(주문 3과 같은 모양). 대상 분류를 보관하면 대상을 다시 가릴 수 없어
+--     배분을 확정할 수 없음(unavailable)으로 막는다. 대상 기록이 깨진 쿠폰은 기록 없음(unavailable)이다.
+select pg_temp.pv_assert(pg_temp.pv_derived(14) = '{"a": [20000, 1000, 567, 18433], "b": [10000, 500, 284, 9216], "c": [5000, 0, 149, 4851]}'
+ and private.order_v1_allocation_derive(pg_temp.pv_id('order', 14))->>'ruleVersion' = 'v1-a5-largest-remainder-1', 'v1_ip_coupon_targets_ip_items');
+select pg_temp.pv_assert(pg_temp.pv_derived(15) = '{"a": [20000, 1000, 567, 18433], "b": [10000, 500, 284, 9216], "c": [5000, 0, 149, 4851]}',
+ 'v1_category_coupon_includes_descendant_goods');
+update public.catalog_categories set archived_at = clock_timestamp() where id = pg_temp.pv_id('category', 1);
+select pg_temp.pv_assert(private.order_v1_allocation_derive(pg_temp.pv_id('order', 16))->>'issue' = 'coupon_target_mismatch'
+ and private.order_v1_allocation_blockers(pg_temp.pv_id('order', 16)) = array['partial_cancel_v1_allocation_unavailable']
+ and private.order_v1_allocation_derive(pg_temp.pv_id('order', 17))->>'issue' = 'coupon_unrecorded'
+ and private.order_v1_allocation_blockers(pg_temp.pv_id('order', 17)) = array['partial_cancel_v1_allocation_unavailable'], 'v1_archived_target_category_blocks_unavailable');
+set local role authenticated;
+select pg_temp.pv_auth();
+select pg_temp.pv_error($$select pg_temp.pv_start('a:1@16', 160, 9000)$$, 'partial_cancel_v1_allocation_unavailable');
+reset role;
+select pg_temp.pv_assert(pg_temp.pv_heads(16) = 0 and pg_temp.pv_heads(17) = 0, 'v1_archived_category_order_has_no_ledger');
 
 -- 6. 부분 취소가 없는 버전 1 주문(2·10)의 기존 경로는 그대로다 --------------------------------------------------------------
 set local role authenticated;
