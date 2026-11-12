@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 export type AdminNotificationScope = 'all' | 'ip_followers';
 
 export interface AdminNotificationFormValue {
@@ -73,7 +74,6 @@ export interface AdminNotificationHistoryRow {
   sent_at: string;
 }
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const IP_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 
 function readString(formData: FormData, key: string) {
@@ -123,7 +123,7 @@ export function normalizeAdminNotificationForm(
   const title = readString(formData, 'title');
   const body = readString(formData, 'body');
 
-  if (!UUID_PATTERN.test(operationId)) {
+  if (!isUuid(operationId)) {
     errors.operationId = '올바른 발송 요청 ID가 필요합니다.';
   }
   if (!scope) {
@@ -170,7 +170,7 @@ export function adminNotificationHistoryFromRow(
   const scope = requireScope(row.scope);
   requireAudienceTarget(scope, row.ip_id);
 
-  if (!UUID_PATTERN.test(row.operation_id)) {
+  if (!isUuid(row.operation_id)) {
     throw new Error('Invalid admin notification operation ID');
   }
 

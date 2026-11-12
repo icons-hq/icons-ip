@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 import type { AdminGoodsVariant } from './goods-variants';
 import type { ErpItemMatch } from './erp-items';
 import { GOODS_VARIANT_EXTERNAL_IDENTITY_LIMITS } from './variant-external-identity';
@@ -118,7 +119,7 @@ export function parseGoodsOptionRows(raw: string, basePrice: number): Result {
         || !row.attributes || typeof row.attributes !== 'object' || Array.isArray(row.attributes)) throw new Error();
       const attributes = Object.entries(row.attributes);
       if (attributes.length > GOODS_OPTION_AXIS_LIMIT || attributes.some(([key, value]) => !key.trim() || key.length > 40 || typeof value !== 'string' || !value.trim() || value.length > 80)) throw new Error();
-      if (row.id && (!/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(row.id) || ids.has(row.id) || !Number.isSafeInteger(row.expectedStockQty) || row.expectedStockQty < 0)) throw new Error();
+      if (row.id && (!isUuid(row.id) || ids.has(row.id) || !Number.isSafeInteger(row.expectedStockQty) || row.expectedStockQty < 0)) throw new Error();
       if (row.id) ids.add(row.id);
       const combo = signature(row.attributes);
       if (combinations.has(combo) || (row.code && codes.has(row.code.toUpperCase()))) throw new Error();

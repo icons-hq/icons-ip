@@ -20,6 +20,12 @@ import { adjustStoreCreditAction, saveStoreCreditPolicyAction } from './store-cr
 import { saveInquiryAutoRepliesAction } from './store-settings-actions';
 import { saveGoodsNoticePresetAction } from './goods-notice-preset-actions';
 import { setAdminGoodPublishedAction } from './goods-publish-actions';
+import { decideOrderClaimAction } from './claim-actions';
+import { updateAdminOrderStatusAction } from './order-actions';
+import { confirmBankTransferDepositAction } from './unpaid-actions';
+import { findPurchaseRestrictionCustomerAction } from './purchase-restriction-actions';
+import { saveFaqAction } from './faq-actions';
+import { addOrderNoteAction } from './order-note-actions';
 
 const mocks = vi.hoisted(() => ({ auth: vi.fn(), client: vi.fn() }));
 vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: mocks.auth }));
@@ -63,6 +69,11 @@ const cases: { name: string; path: string; run: () => Promise<unknown> }[] = [
   { name: '문의 자동 안내', path: '/admin/settings/store', run: () => saveInquiryAutoRepliesAction({}, form()) },
   { name: '고시 프리셋', path: '/admin/catalog/notice-presets', run: () => saveGoodsNoticePresetAction({}, form()) },
   { name: '상품 게시', path: goodsPath, run: () => setAdminGoodPublishedAction({}, form()) },
+  { name: '주문 상태 변경', path: '/admin/sales/orders', run: () => updateAdminOrderStatusAction({}, form()) },
+  { name: '무통장 입금 확인', path: '/admin/sales/unpaid', run: () => confirmBankTransferDepositAction({}, form()) },
+  { name: '판매방해 고객 조회', path: '/admin/sales/purchase-restrictions', run: () => findPurchaseRestrictionCustomerAction({}, form()) },
+  { name: 'FAQ 저장', path: '/admin/cs/faq', run: () => saveFaqAction({}, form()) },
+  { name: '주문 메모', path: '/admin/sales/orders', run: () => addOrderNoteAction({}, form()) },
 ];
 beforeEach(() => vi.clearAllMocks());
 
@@ -77,6 +88,13 @@ describe('최근 영업 운영 액션의 공통 접근 계약 (#504)', () => {
     const result = await run() as { error?: string; errors?: { form?: string } };
     expect(result.error ?? result.errors?.form).toEqual(expect.any(String));
     expect(mocks.auth).toHaveBeenCalledOnce();
+    expect(mocks.client).not.toHaveBeenCalled();
+  });
+  it('클레임 결정은 미로그인이면 로그인으로, 비운영자는 DB에 닿지 않고 오류를 받는다', async () => {
+    mocks.auth.mockResolvedValue({ isConfigured: true, user: null, role: null, isStaff: false });
+    await expect(decideOrderClaimAction({}, form())).rejects.toMatchObject({ digest: expect.stringContaining(`/login?next=${encodeURIComponent('/admin/sales/claims/cancels')}`) });
+    mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'buyer' }, role: 'user', isStaff: false });
+    expect(await decideOrderClaimAction({}, form())).toEqual({ error: '관리자 권한이 필요합니다.' });
     expect(mocks.client).not.toHaveBeenCalled();
   });
 });

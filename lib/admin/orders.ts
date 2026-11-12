@@ -239,7 +239,6 @@ export type AdminOrderFormResult<T> =
 type SearchParamValue = string | string[] | undefined;
 type AdminOrderSearchParams = Record<string, SearchParamValue>;
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 const ORDER_STATUS_SET = new Set<string>(ADMIN_ORDER_STATUSES);
 const SEARCH_FIELDS = new Set<string>(ADMIN_ORDER_SEARCH_FIELDS.map((field) => field.value));
@@ -276,7 +275,7 @@ function normalizedDate(value: SearchParamValue) {
 
 function normalizedUuid(value: SearchParamValue) {
   const candidate = singleParam(value).trim();
-  return UUID_PATTERN.test(candidate) ? candidate.toLowerCase() : null;
+  return isUuid(candidate) ? candidate.toLowerCase() : null;
 }
 
 function readFormString(formData: FormData, key: string) {
@@ -360,7 +359,7 @@ export function normalizeAdminOrderStatusForm(
   const status = readFormString(formData, 'status');
   const errors: AdminOrderFieldErrors = {};
 
-  if (!UUID_PATTERN.test(orderId)) errors.orderId = '주문을 찾을 수 없습니다.';
+  if (!isUuid(orderId)) errors.orderId = '주문을 찾을 수 없습니다.';
   if (!SHIPPING_STATUS_SET.has(status)) errors.status = '허용된 주문 상태를 선택해주세요.';
   if (Object.keys(errors).length) return { ok: false, errors };
 
@@ -400,7 +399,7 @@ export function normalizeAdminOrderTrackingForm(
   const orderId = readFormString(formData, 'orderId').toLowerCase();
   const tracking = readTrackingInput(formData, carriers);
   const errors: AdminOrderFieldErrors = {
-    ...(UUID_PATTERN.test(orderId) ? {} : { orderId: '주문을 찾을 수 없습니다.' }),
+    ...(isUuid(orderId) ? {} : { orderId: '주문을 찾을 수 없습니다.' }),
     ...(tracking.ok ? {} : tracking.errors),
   };
   if (Object.keys(errors).length) return { ok: false, errors };
@@ -430,7 +429,7 @@ export function normalizeAdminCancellationDecisionForm(
 ): AdminOrderFormResult<{ requestId: string; reason?: string }> {
   const requestId = readFormString(formData, 'requestId').toLowerCase();
   const errors: AdminOrderFieldErrors = {};
-  if (!UUID_PATTERN.test(requestId)) errors.requestId = '청약철회 요청을 찾을 수 없습니다.';
+  if (!isUuid(requestId)) errors.requestId = '청약철회 요청을 찾을 수 없습니다.';
 
   if (decision === 'reject') {
     const reason = readFormString(formData, 'reason');
@@ -517,7 +516,7 @@ export function normalizeAdminStaffCancellationForm(
   const reasonCode = readFormString(formData, 'reasonCode');
   const note = readFormString(formData, 'note');
   const errors: AdminOrderFieldErrors = {};
-  if (!UUID_PATTERN.test(orderId)) errors.orderId = '주문을 찾을 수 없습니다.';
+  if (!isUuid(orderId)) errors.orderId = '주문을 찾을 수 없습니다.';
   if (!STAFF_CANCELLATION_REASON_SET.has(reasonCode)) errors.reasonCode = '취소 사유를 선택해주세요.';
   if (note.length > ADMIN_STAFF_CANCELLATION_NOTE_LIMIT) {
     errors.note = `메모는 ${ADMIN_STAFF_CANCELLATION_NOTE_LIMIT}자 이내로 입력해주세요.`;
@@ -549,10 +548,10 @@ export function normalizeAdminGoodsManualRecoveryForm(
   const attestation = readFormString(formData, 'operatorAttestation');
   const errors: AdminOrderFieldErrors = {};
 
-  if (!UUID_PATTERN.test(attemptId)) {
+  if (!isUuid(attemptId)) {
     errors.attemptId = '결제 시도를 찾을 수 없습니다.';
   }
-  if (!UUID_PATTERN.test(requestId)) {
+  if (!isUuid(requestId)) {
     errors.requestId = '청약철회 요청을 찾을 수 없습니다.';
   }
   if (attestation !== 'provider_cancel_confirmed') {

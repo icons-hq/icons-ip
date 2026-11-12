@@ -1,7 +1,6 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
 import {
   normalizeAdminMemberDetailForm,
   normalizeAdminMemberLoyaltyForm,
@@ -11,8 +10,7 @@ import {
   type AdminMemberSummary,
 } from '@/lib/admin/members';
 import { getAdminMemberDetail, getAdminMemberSummaries } from '@/lib/admin/members.server';
-import { hasAdminCapability } from '@/lib/admin/access';
-import { getCurrentAdminAuthState } from '@/lib/auth/admin';
+import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
 
 export interface AdminMemberSearchActionState {
@@ -32,9 +30,7 @@ export interface AdminMemberMutationActionState {
 }
 
 async function requireStaffAction(): Promise<AdminMemberMutationActionState | null> {
-  const auth = await getCurrentAdminAuthState();
-  if (!auth.isConfigured || !auth.user) redirect(`/login?next=${encodeURIComponent('/admin')}`);
-  if (!auth.isStaff || !hasAdminCapability(auth, 'platform.manage')) return { errors: { form: '관리자 권한이 필요합니다.' } };
+  if (!await requireAdminActionAccess('/admin/community/members', { capability: 'platform.manage' })) return { errors: { form: '관리자 권한이 필요합니다.' } };
   return null;
 }
 

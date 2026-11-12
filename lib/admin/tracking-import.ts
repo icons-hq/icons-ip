@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 import { isCommerceNumber } from '@/lib/commerce-number';
 import {
   findShippingCarrier,
@@ -32,7 +33,6 @@ export interface TrackingImportParseResult {
   issues: TrackingImportIssue[];
 }
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const REFERENCE_PATTERN = /^[0-9A-F]{8}$/;
 
 /** 헤더 줄로 인정하는 첫 칸. 운영자가 헤더를 지우고 붙여넣어도 동작해야 한다. */
@@ -102,12 +102,12 @@ export function parseTrackingImport(
       return;
     }
 
-    const isUuid = UUID_PATTERN.test(reference);
-    const normalizedReference = isUuid
+    const referenceIsUuid: boolean = isUuid(reference);
+    const normalizedReference = referenceIsUuid
       ? reference.toLowerCase()
       : reference.replace(/[\s-]/g, '').toUpperCase();
 
-    if (!isUuid && !REFERENCE_PATTERN.test(normalizedReference) && !isCommerceNumber(normalizedReference, 'order') && !isCommerceNumber(normalizedReference, 'shipment')) {
+    if (!referenceIsUuid && !REFERENCE_PATTERN.test(normalizedReference) && !isCommerceNumber(normalizedReference, 'order') && !isCommerceNumber(normalizedReference, 'shipment')) {
       issues.push({
         line,
         reference,
@@ -157,8 +157,8 @@ export function parseTrackingImport(
     seen.set(normalizedReference, line);
     rows.push({
       line,
-      reference: isUuid ? reference : normalizedReference,
-      referenceId: isUuid ? normalizedReference : null,
+      reference: referenceIsUuid ? reference : normalizedReference,
+      referenceId: referenceIsUuid ? normalizedReference : null,
       carrier: carrier.code,
       trackingNumber,
     });

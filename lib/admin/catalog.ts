@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { readGoodsClaimPolicy } from './goods-claim-policy';
 import type { GoodClaimPolicy } from '@/lib/goods-claim-policy';
@@ -188,7 +189,6 @@ export type AdminFormResult<T> =
   | { ok: false; errors: AdminFieldErrors };
 
 const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const INTEGER_PATTERN = /^-?\d+$/;
 const INT32_MIN = -2147483648;
 const INT32_MAX = 2147483647;
@@ -257,14 +257,14 @@ function readSlug(formData: FormData, key: string, errors: AdminFieldErrors, req
 
 function readUuid(formData: FormData, key: string, errors: AdminFieldErrors, message: string) {
   const value = readString(formData, key).toLowerCase();
-  if (!UUID_PATTERN.test(value)) errors[key] = message;
+  if (!isUuid(value)) errors[key] = message;
   return value;
 }
 
 function readNullableUuid(formData: FormData, key: string, errors: AdminFieldErrors, message: string) {
   const value = readString(formData, key).toLowerCase();
   if (!value) return null;
-  if (!UUID_PATTERN.test(value)) errors[key] = message;
+  if (!isUuid(value)) errors[key] = message;
   return value;
 }
 
@@ -641,10 +641,10 @@ export function normalizeAdminStockAdjustmentForm(
   const deltaRaw = readString(formData, 'delta');
   const reason = readString(formData, 'reason');
 
-  if (!UUID_PATTERN.test(adjustmentId)) {
+  if (!isUuid(adjustmentId)) {
     errors.adjustmentId = '유효한 재고 조정 요청이 아닙니다.';
   }
-  if (!UUID_PATTERN.test(variantId)) errors.variantId = '재고를 조정할 옵션을 선택해주세요.';
+  if (!isUuid(variantId)) errors.variantId = '재고를 조정할 옵션을 선택해주세요.';
 
   const expectedStockQty = Number(expectedStockQtyRaw);
   if (

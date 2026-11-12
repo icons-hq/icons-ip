@@ -1,9 +1,8 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
-import { hasAdminCapability } from '@/lib/admin/access';
-import { getCurrentAdminAuthState } from '@/lib/auth/admin';
+import { unstable_rethrow } from 'next/navigation';
+import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
 
 /*
@@ -24,7 +23,6 @@ export interface AdminIpPublishActionState {
 }
 
 const CATALOG_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
-const CONFIG_ERROR = 'Supabase 환경변수를 설정한 뒤 IP 게시 상태를 변경할 수 있습니다.';
 const RETRY_ERROR = 'IP 게시 상태를 변경하지 못했습니다. 다시 시도해주세요.';
 const STALE_ERROR = 'IP 게시 상태를 변경하지 못했습니다. 최신 상태를 확인해주세요.';
 
@@ -33,10 +31,6 @@ const RPC_GUARD_MESSAGES: ReadonlyArray<readonly [string, string]> = [
   ['catalog_item_archived', '보관된 IP는 게시 상태를 바꿀 수 없습니다. 먼저 복원해주세요.'],
   ['ip_publish_incomplete', 'IP 이름을 채운 뒤 공개해주세요.'],
 ];
-
-function loginPath() {
-  return `/login?next=${encodeURIComponent('/admin')}`;
-}
 
 function normalizePublishForm(formData: FormData):
   | { ok: true; id: string }
@@ -103,15 +97,14 @@ async function updateAdminIpPublishState(
   const normalized = normalizePublishForm(formData);
   if (!normalized.ok) return { errors: normalized.errors };
 
-  let auth: Awaited<ReturnType<typeof getCurrentAdminAuthState>>;
+  let access: Awaited<ReturnType<typeof requireAdminActionAccess>>;
   try {
-    auth = await getCurrentAdminAuthState();
-  } catch {
+    access = await requireAdminActionAccess('/admin', { capability: 'platform.manage' });
+  } catch (error) {
+    unstable_rethrow(error);
     return { errors: { form: RETRY_ERROR } };
   }
-  if (!auth.isConfigured) return { errors: { form: CONFIG_ERROR } };
-  if (!auth.user) redirect(loginPath());
-  if (!auth.isStaff || !hasAdminCapability(auth, 'platform.manage')) return { errors: { form: '관리자 권한이 필요합니다.' } };
+  if (!access) return { errors: { form: '관리자 권한이 필요합니다.' } };
 
   let data: unknown;
   let error: { code?: unknown; message?: unknown } | null;

@@ -1,9 +1,8 @@
 'use server';
 
+import { isUuid } from '@/lib/uuid';
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
-import { hasAdminCapability } from '@/lib/admin/access';
-import { getCurrentAdminAuthState } from '@/lib/auth/admin';
+import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { sendInquiryAnsweredEmail } from '@/lib/email/transactional.server';
 import {
   buildInquiryUploadPath,
@@ -51,11 +50,8 @@ interface AnswerRow {
 }
 
 async function requireStaffAction(): Promise<{ error?: AdminInquiryActionState; userId?: string }> {
-  const auth = await getCurrentAdminAuthState();
-  if (!auth.isConfigured || !auth.user) {
-    redirect(`/login?next=${encodeURIComponent('/admin/cs/inquiries')}`);
-  }
-  if (!auth.isStaff || !hasAdminCapability(auth, 'cs.manage')) return { error: { errors: { form: '관리자 권한이 필요합니다.' } } };
+  const auth = await requireAdminActionAccess('/admin/cs/inquiries', { capability: 'cs.manage' });
+  if (!auth) return { error: { errors: { form: '관리자 권한이 필요합니다.' } } };
   return { userId: auth.user.id };
 }
 
@@ -182,7 +178,6 @@ export async function closeInquiryAction(
   return { message: '문의를 종결했습니다.' };
 }
 
-const INQUIRY_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function reassignInquiryAction(
   _state: AdminInquiryActionState,
@@ -193,7 +188,7 @@ export async function reassignInquiryAction(
   const inquiryId = readString(formData, 'inquiryId');
   const assigneeId = readString(formData, 'assigneeId');
   const reason = readString(formData, 'reason');
-  if (!INQUIRY_UUID.test(inquiryId) || (assigneeId && !INQUIRY_UUID.test(assigneeId))) {
+  if (!isUuid(inquiryId) || (assigneeId && !isUuid(assigneeId))) {
     return { errors: { form: '문의와 담당자를 다시 확인해주세요.' } };
   }
   if (!reason || reason.length > 500) {
@@ -224,7 +219,7 @@ export async function addInquiryInternalNoteAction(
   if (access.error) return access.error;
   const inquiryId = readString(formData, 'inquiryId');
   const body = readString(formData, 'body');
-  if (!INQUIRY_UUID.test(inquiryId)) return { errors: { form: '문의를 찾을 수 없습니다.' } };
+  if (!isUuid(inquiryId)) return { errors: { form: '문의를 찾을 수 없습니다.' } };
   if (!body || body.length > MAX_INQUIRY_BODY_LENGTH) {
     return { errors: { body: `내부 메모를 ${MAX_INQUIRY_BODY_LENGTH}자 이내로 입력해주세요.` } };
   }

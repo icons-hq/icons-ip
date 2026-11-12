@@ -36,6 +36,9 @@ vi.mock('next/navigation', () => ({
   redirect: (path: string) => {
     throw new Error(`NEXT_REDIRECT:${path}`);
   },
+  unstable_rethrow: (error: unknown) => {
+    if (error instanceof Error && error.message.startsWith('NEXT_REDIRECT')) throw error;
+  },
 }));
 
 function archiveForm(kind = 'ip', id = RECORD_ID) {
@@ -122,14 +125,12 @@ describe('admin catalog archive actions', () => {
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 
-  it('returns a configuration error without redirecting or creating a client', async () => {
+  it('redirects to login when Supabase is not configured and never creates a client', async () => {
     mocks.adminState = { isConfigured: false, user: null, role: null, isStaff: false };
 
-    await expect(archiveAdminCatalogRecordAction({}, archiveForm())).resolves.toEqual({
-      errors: {
-        form: 'Supabase 환경변수를 설정한 뒤 카탈로그 보관 상태를 변경할 수 있습니다.',
-      },
-    });
+    await expect(archiveAdminCatalogRecordAction({}, archiveForm())).rejects.toThrow(
+      'NEXT_REDIRECT:/login?next=%2Fadmin',
+    );
     expect(mocks.createClient).not.toHaveBeenCalled();
   });
 

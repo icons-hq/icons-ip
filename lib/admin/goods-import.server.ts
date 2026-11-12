@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 import { canAccessAdminScreen } from '@/lib/admin/access';
 import 'server-only';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
@@ -70,7 +71,7 @@ export async function loadGoodsImportBatch(
   id: string,
   actorId: string,
 ): Promise<GoodsImportBatch> {
-  if (!/^[0-9a-f-]{36}$/i.test(id))
+  if (!isUuid(id))
     throw new Error('업로드 작업을 찾을 수 없습니다.');
   const client = await createClient();
   const { data, error } = await client

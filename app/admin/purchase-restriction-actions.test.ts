@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { findPurchaseRestrictionCustomerAction, registerPurchaseRestrictionAction, releasePurchaseRestrictionAction } from './purchase-restriction-actions';
 const mocks = vi.hoisted(() => ({ gate:vi.fn(),rpc:vi.fn(),revalidate:vi.fn() }));
-vi.mock('@/lib/admin/guard.server', () => ({ requireAdminScreenAccess: mocks.gate }));
+vi.mock('@/lib/admin/action-access.server', () => ({ requireAdminActionAccess: mocks.gate }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: () => ({ rpc:mocks.rpc }) }));
 vi.mock('next/cache', () => ({ revalidatePath:mocks.revalidate }));
 const id = '11111111-1111-4111-8111-111111111111';
@@ -13,8 +13,11 @@ function form(extra: Record<string,string> = {}) {
 describe('purchase restriction actions', () => {
   beforeEach(() => { vi.clearAllMocks();mocks.gate.mockResolvedValue({});mocks.rpc.mockResolvedValue({ data:{id,changed:true},error:null }); });
   it('guards every read and write before accessing the database', async () => {
-    mocks.gate.mockRejectedValue(new Error('forbidden'));
-    for (const action of [findPurchaseRestrictionCustomerAction, registerPurchaseRestrictionAction, releasePurchaseRestrictionAction]) await expect(action({},form())).rejects.toThrow('forbidden');
+    mocks.gate.mockResolvedValue(null);
+    for (const action of [findPurchaseRestrictionCustomerAction, registerPurchaseRestrictionAction, releasePurchaseRestrictionAction]) expect(await action({},form())).toEqual({ error: '구매제한을 관리할 권한이 없습니다.' });
+    mocks.gate.mockRejectedValue(new Error('NEXT_REDIRECT'));
+    for (const action of [findPurchaseRestrictionCustomerAction, registerPurchaseRestrictionAction, releasePurchaseRestrictionAction]) await expect(action({},form())).rejects.toThrow('NEXT_REDIRECT');
+    expect(mocks.gate).toHaveBeenCalledWith('/admin/sales/purchase-restrictions', { capability: 'sales.restrictions' });
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
   it('validates registration scope and evidence before dispatching the mutation', async () => {

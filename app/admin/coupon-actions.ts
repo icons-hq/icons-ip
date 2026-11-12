@@ -1,13 +1,12 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { redirect, unstable_rethrow } from 'next/navigation';
+import { unstable_rethrow } from 'next/navigation';
 import {
   normalizeAdminCouponForm,
 } from '@/lib/admin/coupons';
 import { withPreservedFormValues, type AdminFormValuesState } from '@/lib/admin/form-state';
-import { hasAdminCapability } from '@/lib/admin/access';
-import { getCurrentAdminAuthState } from '@/lib/auth/admin';
+import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
 
 /* 쿠폰 콘솔 저장 액션 (S7 #329).
@@ -22,9 +21,7 @@ export interface AdminCouponActionState extends AdminFormValuesState {
 }
 
 async function requireStaffAction(): Promise<AdminCouponActionState | null> {
-  const auth = await getCurrentAdminAuthState();
-  if (!auth.isConfigured || !auth.user) redirect(`/login?next=${encodeURIComponent('/admin')}`);
-  if (!auth.isStaff || !hasAdminCapability(auth, 'marketing.manage')) return { errors: { form: '관리자 권한이 필요합니다.' } };
+  if (!await requireAdminActionAccess('/admin/sales/coupons', { capability: 'marketing.manage' })) return { errors: { form: '관리자 권한이 필요합니다.' } };
   return null;
 }
 

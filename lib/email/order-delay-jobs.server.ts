@@ -28,16 +28,8 @@ export interface OrderDelayEmailOutcome {
 export interface OrderDelayEmailRepository {
   claim(): Promise<OrderDelayEmailJob[]>;
   /** Revalidates the frozen target immediately before dispatch and binds the durable intent. */
-  bindIntent(
-    id: string,
-    claimToken: string,
-    intentId: string,
-  ): Promise<boolean>;
-  finish(
-    id: string,
-    claimToken: string,
-    outcome: OrderDelayEmailOutcome,
-  ): Promise<boolean>;
+  bindIntent(id: string, claimToken: string, intentId: string): Promise<boolean>;
+  finish(id: string, claimToken: string, outcome: OrderDelayEmailOutcome): Promise<boolean>;
 }
 
 function outcome(result: DispatchOutcome): OrderDelayEmailOutcome {
@@ -53,8 +45,7 @@ function outcome(result: DispatchOutcome): OrderDelayEmailOutcome {
       errorCode: 'provider_rejected',
       retryable: false,
     };
-  if (['accepted', 'sent', 'delivered', 'delayed'].includes(result.state))
-    return { status: 'sent', errorCode: null, retryable: false };
+  if (['accepted', 'sent', 'delivered', 'delayed'].includes(result.state)) return { status: 'sent', errorCode: null, retryable: false };
   if (result.kind === 'skipped' && result.reason === 'disabled')
     return {
       status: 'failed',
@@ -86,36 +77,28 @@ function repositoryFromEnvironment(): OrderDelayEmailRepository {
   const service = createServiceClient();
   return {
     async claim() {
-      const { data, error } = await service.rpc(
-        'claim_order_delay_email_jobs',
-        { batch_limit: 25 },
-      );
-      if (error || !Array.isArray(data) || data.length > 25)
-        throw new Error('delay_email_claim_failed');
+      const { data, error } = await service.rpc('claim_order_delay_email_jobs', { batch_limit: 25 });
+      if (error || !Array.isArray(data) || data.length > 25) throw new Error('delay_email_claim_failed');
       return data as OrderDelayEmailJob[];
     },
     async bindIntent(id, claimToken, intentId) {
-      const { data, error } = await service.rpc(
-        'bind_order_delay_email_intent',
-        { target_id: id, target_claim: claimToken, target_intent: intentId },
-      );
-      if (error || typeof data !== 'boolean')
-        throw new Error('delay_email_bind_failed');
+      const { data, error } = await service.rpc('bind_order_delay_email_intent', {
+        target_id: id,
+        target_claim: claimToken,
+        target_intent: intentId,
+      });
+      if (error || typeof data !== 'boolean') throw new Error('delay_email_bind_failed');
       return data;
     },
     async finish(id, claimToken, result) {
-      const { data, error } = await service.rpc(
-        'finish_order_delay_email_job',
-        {
-          target_id: id,
-          target_claim: claimToken,
-          target_status: result.status,
-          target_error: result.errorCode,
-          target_retryable: result.retryable,
-        },
-      );
-      if (error || typeof data !== 'boolean')
-        throw new Error('delay_email_finish_failed');
+      const { data, error } = await service.rpc('finish_order_delay_email_job', {
+        target_id: id,
+        target_claim: claimToken,
+        target_status: result.status,
+        target_error: result.errorCode,
+        target_retryable: result.retryable,
+      });
+      if (error || typeof data !== 'boolean') throw new Error('delay_email_finish_failed');
       return data;
     },
   };
@@ -162,13 +145,7 @@ export async function processOrderDelayEmails(
               messageKind: 'order_delay_notice',
               contentRevision: 'order_delay_v1',
             });
-            if (
-              !(await dependencies.repository.bindIntent(
-                job.id,
-                job.claimToken,
-                intent.intentId,
-              ))
-            ) {
+            if (!(await dependencies.repository.bindIntent(job.id, job.claimToken, intent.intentId))) {
               result.stale++;
               return;
             }
@@ -194,14 +171,7 @@ export async function processOrderDelayEmails(
           };
         }
         try {
-          if (
-            await dependencies.repository.finish(
-              job.id,
-              job.claimToken,
-              delivery,
-            )
-          )
-            result[delivery.status]++;
+          if (await dependencies.repository.finish(job.id, job.claimToken, delivery)) result[delivery.status]++;
           else result.stale++;
         } catch {
           result.stale++;

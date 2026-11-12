@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 import {productionError} from '@/lib/order-production';
 import {FULFILLMENT_METHODS,type FulfillmentMethod} from '@/lib/goods-fulfillment';
 import {shipmentPackError} from './shipment-packs';
@@ -49,7 +50,6 @@ export interface ShipmentConsoleData {
 export interface ShipmentExportData {shipments:{id:string;shipmentNumber?:string|null;orderNumber?:string|null;updatedAt:string;originId:string;originName:string;shippingFee:number;shippingCollectFee?:number;pack?:import('./shipment-packs').ShipmentPackSummary|null;isGift?:boolean;collector?:import('@/lib/goods-transaction').GoodsTransactionCollector|null;template:string;columns:ShipmentExportColumn[];lines:import('./shipment-workbook').ShipmentExportLine[]}[]}
 /** 양식·사용 여부는 출고지별 내려받기 버튼의 표시 기준입니다. 기본 택배사는 행 운송장 칸이 미리 고릅니다. */
 export interface ShipmentConsoleOrigin {id:string;name:string;template?:string;active?:boolean;defaultCarrier?:string|null}
-const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const one=(value:string|string[]|undefined)=>typeof value==='string'?value.trim():'';
 function date(value:string){if(!/^\d{4}-\d{2}-\d{2}$/.test(value))return null;const d=new Date(value+'T00:00:00Z');return !Number.isNaN(d.valueOf())&&d.toISOString().slice(0,10)===value?value:null;}
 export function normalizeShipmentFilters(params:Record<string,string|string[]|undefined>,surface:ShipmentConsoleSurface):ShipmentConsoleFilters{
@@ -64,7 +64,7 @@ export function normalizeShipmentFilters(params:Record<string,string|string[]|un
  ...(field!=='all'&&SHIPMENT_SEARCH_FIELDS.some(item=>item.value===field)?{field:field as ShipmentConsoleFilters['field']}:{}),
  ...(FULFILLMENT_METHODS.includes(method as FulfillmentMethod)?{method:method as FulfillmentMethod}:{}),
  ...(['card','bank_transfer'].includes(paymentMethod)?{paymentMethod:paymentMethod as ShipmentConsoleFilters['paymentMethod']}:{}),
- tab:tabs.some(t=>t.id===tab)?tab as ShipmentConsoleTab:tabs[0].id,originId:UUID.test(originId)?originId.toLowerCase():null,
+ tab:tabs.some(t=>t.id===tab)?tab as ShipmentConsoleTab:tabs[0].id,originId:isUuid(originId)?originId.toLowerCase():null,
  query:query.length<=100?query:'',from,to,page:salesPage(params.page,listOptions.pageSize??SHIPMENT_CONSOLE_PAGE_SIZE)};
 }
 export function shipmentConsoleHref(surface:ShipmentConsoleSurface,filters:ShipmentConsoleFilters,overrides:Partial<ShipmentConsoleFilters>={}){

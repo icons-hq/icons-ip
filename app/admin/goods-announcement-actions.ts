@@ -1,5 +1,6 @@
 'use server';
 import { revalidatePath } from 'next/cache';
+import { revalidateGoodsSurfaces } from '@/lib/admin/revalidate-goods.server';
 import { unstable_rethrow } from 'next/navigation';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
@@ -11,7 +12,7 @@ export interface GoodsAnnouncementActionState { errors?: Record<string, string>;
 async function readSavedAnnouncement(previous: GoodsAnnouncementActionState, id: string, result: unknown): Promise<GoodsAnnouncementActionState> {
   if (!result || typeof result !== 'object' || !('id' in result) || result.id !== id || !('revision' in result)
     || !Number.isSafeInteger(result.revision) || Number(result.revision) < 1) return { saved: previous.saved, outcome: 'unknown', errors: { form: '저장 결과를 확인하지 못했습니다. 같은 요청의 결과를 다시 확인해주세요.' } };
-  revalidatePath(GOODS_ANNOUNCEMENTS_PATH); revalidatePath('/shop/[goodId]', 'page'); revalidatePath('/');
+  revalidatePath(GOODS_ANNOUNCEMENTS_PATH); revalidateGoodsSurfaces();
   const saved = await loadGoodsAnnouncement(id);
   if (!saved) return { saved: previous.saved, savedId: id, outcome: 'saved', reloadRequired: true, message: '저장이 확인됐습니다. 최신 공지를 다시 열어주세요.' };
   return { saved, savedId: id, outcome: 'saved', message: saved.revision === result.revision

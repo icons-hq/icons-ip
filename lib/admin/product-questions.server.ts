@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 import 'server-only';
 
 import { createClient } from '@/lib/supabase/server';
@@ -74,7 +75,7 @@ function questionListQuery(
   if (filters.query) {
     if (filters.field === 'goodId') base = base.eq('good_id', filters.query);
     else if (filters.field === 'id') {
-      const id = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(filters.query)
+      const id = isUuid(filters.query)
         ? filters.query : '00000000-0000-0000-0000-000000000000';
       base = base.eq('id', id);
     } else {

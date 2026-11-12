@@ -1,14 +1,13 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
 import {
   normalizeAdminCampaignForm,
   normalizeAdminCoinExchangeOfferForm,
 } from '@/lib/admin/campaigns';
-import { getCurrentAdminAuthState } from '@/lib/auth/admin';
+import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
-import { hasAdminCapability, type AdminCapability } from '@/lib/admin/access';
+import type { AdminCapability } from '@/lib/admin/access';
 
 /* 캠페인·카드팩 교환처 저장 액션 (S8 #330).
  *
@@ -27,9 +26,7 @@ const CAMPAIGN_SAVE_FAILED = '캠페인을 저장하지 못했습니다. 다시 
 const OFFER_SAVE_FAILED = '교환처를 저장하지 못했습니다. 다시 시도해주세요.';
 
 async function requireStaffAction(capability: AdminCapability): Promise<AdminCampaignActionState | null> {
-  const auth = await getCurrentAdminAuthState();
-  if (!auth.isConfigured || !auth.user) redirect(`/login?next=${encodeURIComponent(CAMPAIGNS_PATH)}`);
-  if (!auth.isStaff || !hasAdminCapability(auth, capability)) return { errors: { form: '관리자 권한이 필요합니다.' } };
+  if (!await requireAdminActionAccess(CAMPAIGNS_PATH, { capability })) return { errors: { form: '관리자 권한이 필요합니다.' } };
   return null;
 }
 

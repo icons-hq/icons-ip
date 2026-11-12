@@ -1,12 +1,5 @@
 import { isUuid } from '@/lib/uuid';
-export type OrderDelayChannelStatus =
-  | 'prepared'
-  | 'queued'
-  | 'processing'
-  | 'sent'
-  | 'failed'
-  | 'unknown'
-  | 'suppressed';
+export type OrderDelayChannelStatus = 'prepared' | 'queued' | 'processing' | 'sent' | 'failed' | 'unknown' | 'suppressed';
 export interface OrderDelayNoticeTarget {
   orderNumber?: string;
   audience?: 'payer' | 'recipient';
@@ -59,10 +52,7 @@ export interface OrderDelayNoticeActionResult {
   emailConfigured?: boolean;
   error?: string;
 }
-export const ORDER_DELAY_STATUS_LABELS: Record<
-  OrderDelayChannelStatus,
-  string
-> = {
+export const ORDER_DELAY_STATUS_LABELS: Record<OrderDelayChannelStatus, string> = {
   prepared: '미요청',
   queued: '발송 대기',
   processing: '처리 중',
@@ -72,27 +62,19 @@ export const ORDER_DELAY_STATUS_LABELS: Record<
   suppressed: '발송 제외',
 };
 export const ORDER_DELAY_ERROR_LABELS: Record<string, string> = {
-  provider_not_configured:
-    '이메일 공급자 또는 발송 서명 설정이 준비되지 않았습니다.',
+  provider_not_configured: '이메일 공급자 또는 발송 서명 설정이 준비되지 않았습니다.',
   delivery_disabled: '지연 안내 이메일 발송 설정이 꺼져 있습니다.',
   recipient_missing: '수신자 이메일이 없거나 형식이 올바르지 않습니다.',
-  target_changed:
-    '주문·배송·수신자 또는 예정일이 변경되어 재확인이 필요합니다.',
+  target_changed: '주문·배송·수신자 또는 예정일이 변경되어 재확인이 필요합니다.',
   delivery_in_progress: '기존 요청 결과를 확인하고 있습니다.',
-  delivery_outcome_unknown:
-    '같은 발송 요청으로 접수 결과를 확인합니다. 새 메시지를 발송하지 마세요.',
-  delivery_needs_review:
-    '중복 발송 방지를 위해 자동 처리를 멈췄습니다. 공급자 발송 이력을 확인해주세요.',
-  provider_retryable:
-    '이메일 공급자가 요청을 처리하지 못했습니다. 실패 건을 재시도할 수 있습니다.',
-  provider_rejected:
-    '이메일 공급자가 발송 실패 또는 반송을 기록했습니다. 수신 상태를 확인해주세요.',
+  delivery_outcome_unknown: '같은 발송 요청으로 접수 결과를 확인합니다. 새 메시지를 발송하지 마세요.',
+  delivery_needs_review: '중복 발송 방지를 위해 자동 처리를 멈췄습니다. 공급자 발송 이력을 확인해주세요.',
+  provider_retryable: '이메일 공급자가 요청을 처리하지 못했습니다. 실패 건을 재시도할 수 있습니다.',
+  provider_rejected: '이메일 공급자가 발송 실패 또는 반송을 기록했습니다. 수신 상태를 확인해주세요.',
   provider_suppressed: '이메일 공급자가 해당 수신자 발송을 제외했습니다.',
 };
-const object = (value: unknown): value is Record<string, unknown> =>
-  Boolean(value) && typeof value === 'object' && !Array.isArray(value);
-const optionalString = (value: unknown) =>
-  value === null || typeof value === 'string';
+const object = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+const optionalString = (value: unknown) => value === null || typeof value === 'string';
 
 /**
  * 한 안내의 최대 대상 행: 발송 지연 안내는 배송 건 100개(주문당 구매자·선물 받는 분 2행). 같은 원장의 예약 일정 일괄 변경 안내는
@@ -131,13 +113,9 @@ export function parseOrderDelayNotice(value: unknown): OrderDelayNotice | null {
         optionalString(target.recipientEmail) &&
         Array.isArray(target.shipmentIds) &&
         target.shipmentIds.length > 0 &&
-        target.shipmentIds.every(
-          (id: unknown) => typeof id === 'string' && isUuid(id),
-        ) &&
+        target.shipmentIds.every((id: unknown) => typeof id === 'string' && isUuid(id)) &&
         Array.isArray(target.shipmentLabels) &&
-        target.shipmentLabels.every(
-          (label: unknown) => typeof label === 'string',
-        ) &&
+        target.shipmentLabels.every((label: unknown) => typeof label === 'string') &&
         typeof target.messageBody === 'string' &&
         ['prepared', 'sent'].includes(String(target.inAppStatus)) &&
         Object.hasOwn(ORDER_DELAY_STATUS_LABELS, String(target.emailStatus)) &&
@@ -153,21 +131,14 @@ export function parseOrderDelayNotice(value: unknown): OrderDelayNotice | null {
 
 export function orderDelayNoticeError(code: string): string {
   const errors: Record<string, string> = {
-    delay_notice_stale:
-      '미리보기 이후 주문·배송·구매자 또는 지연 정보가 바뀌었습니다. 목록에서 다시 선택해 새 미리보기를 만들어주세요.',
-    delay_notice_ineligible:
-      '현재 지연 중인 미발송 배송 건만 선택할 수 있습니다. 취소·클레임 상태도 확인해주세요.',
-    delay_notice_expired:
-      '미리보기 유효 시간이 지났습니다. 새 미리보기를 만들어주세요.',
+    delay_notice_stale: '미리보기 이후 주문·배송·구매자 또는 지연 정보가 바뀌었습니다. 목록에서 다시 선택해 새 미리보기를 만들어주세요.',
+    delay_notice_ineligible: '현재 지연 중인 미발송 배송 건만 선택할 수 있습니다. 취소·클레임 상태도 확인해주세요.',
+    delay_notice_expired: '미리보기 유효 시간이 지났습니다. 새 미리보기를 만들어주세요.',
     delay_notice_not_found: '안내 기록을 찾을 수 없습니다.',
-    delay_notice_idempotency_conflict:
-      '같은 요청의 내용이 변경되었습니다. 새 미리보기를 만들어주세요.',
+    delay_notice_idempotency_conflict: '같은 요청의 내용이 변경되었습니다. 새 미리보기를 만들어주세요.',
     delay_notice_delivery_disabled: ORDER_DELAY_ERROR_LABELS.delivery_disabled,
     invalid_delay_notice: '배송 건과 고객 문구·예정일을 확인해주세요.',
     delay_notice_preorder_schedule: '예약 일정 일괄 변경 안내는 이력의 일괄 결과에서 확인합니다.',
   };
-  return (
-    errors[code] ??
-    '처리 결과를 확인하지 못했습니다. 같은 안내의 결과를 새로고침한 뒤 다시 시도해주세요.'
-  );
+  return errors[code] ?? '처리 결과를 확인하지 못했습니다. 같은 안내의 결과를 새로고침한 뒤 다시 시도해주세요.';
 }

@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 /** Shipping delay remains an operational order note, independent of shipment state. */
 export const ADMIN_DISPATCH_DELAY_DAYS = 3;
 
@@ -23,7 +24,6 @@ function validCalendarDate(value: string) {
     && date.getUTCDate() === day;
 }
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 /** DB의 order_dispatch_delays_reason_check와 같은 상한이다. */
 export const ADMIN_DISPATCH_DELAY_REASON_MAX = 500;
 
@@ -51,7 +51,7 @@ export function normalizeAdminDispatchDelayForm(formData: FormData): AdminDispat
   const rawDate = String(formData.get('expectedShipDate') ?? '').trim();
   const errors: Record<string, string> = {};
 
-  if (!UUID_PATTERN.test(orderId)) errors.orderId = '주문을 찾을 수 없습니다.';
+  if (!isUuid(orderId)) errors.orderId = '주문을 찾을 수 없습니다.';
   if (rawReason.length > ADMIN_DISPATCH_DELAY_REASON_MAX) {
     errors.reason = `지연 사유는 ${ADMIN_DISPATCH_DELAY_REASON_MAX}자까지 입력할 수 있습니다.`;
   }
