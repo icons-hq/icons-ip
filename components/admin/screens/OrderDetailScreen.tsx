@@ -74,7 +74,11 @@ const ACTION_LABELS: Record<string, string> = {
 /** 같은 감사 action이라도 시스템이 남긴 기록은 출처(trigger)로 구분한다. */
 const TRIGGER_LABELS: Record<string, Record<string, string>> = {
   'admin.order.status_updated': { auto_order_confirmation: '자동 발주확인 (시스템)' },
+  /* 고객이 주문서·장바구니의 '결제 대기 주문 취소하고 계속'을 눌러 닫은 주문(ADR-0030). 재주문·장바구니 복귀의 자동 정리와 나눈다. */
+  'system.order.unpaid_cart_order_closed': { customer_released: '고객이 진행 중인 미결제 주문을 취소하고 주문을 계속함' },
 };
+/** 고객이 직접 눌러 시스템이 처리한 기록(감사 action은 system.*이다). 취소 주체를 구매자로 적는다. */
+const CUSTOMER_TRIGGERS = new Set(['customer_released']);
 const STATUS_LABELS: Record<string, string> = {
   pending: '대기', paid: '결제완료', failed: '실패', canceled: '취소', refunded: '환불',
   partial_refunded: '부분 환불', requested: '접수', done: '완료', completed: '완료',
@@ -133,6 +137,7 @@ function canceledEntry(timeline: AdminOrderTimelineEntry[]) {
 }
 function cancelActor(entry: AdminOrderTimelineEntry) {
   if (entry.actorName) return entry.actorName;
+  if (entry.trigger && CUSTOMER_TRIGGERS.has(entry.trigger)) return '구매자';
   if (entry.action.startsWith('system.')) return '시스템 자동 처리';
   if (entry.action.startsWith('order.')) return '구매자';
   return null;
