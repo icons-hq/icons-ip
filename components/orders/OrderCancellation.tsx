@@ -335,7 +335,7 @@ export function OrderCancellation({
   }
 
   return (
-    <section className="order-cancellation" aria-labelledby="order-cancellation-heading">
+    <section className="order-cancellation" id="order-cancellation" aria-labelledby="order-cancellation-heading">
       <div className="order-cancellation-heading">
         <span className="checkout-step mono">CANCELLATION</span>
         <h2 id="order-cancellation-heading">{presentation.heading}</h2>

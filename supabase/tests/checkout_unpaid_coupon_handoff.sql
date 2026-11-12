@@ -1,5 +1,6 @@
 \set ON_ERROR_STOP on
--- Prepend goods_kc_fixture.sql. 결제 대기 주문이 잡은 쿠폰을 새 주문에서 고른다(QA1 S-D2-08, ADR-0030 '보류와 이전 미결제 닫기').
+-- Prepend goods_kc_fixture.sql. 결제 대기 주문이 잡은 쿠폰을 새 주문에서 고른다(QA1 S-D2-08, ADR-0030 '보류와 이전 미결제 닫기'),
+-- 주문 내역·상세의 다시 결제 진입 출처(QA1 S-D2-15).
 -- 견적·장바구니 쿠폰 선택은 다음 새 주문이 닫을 결제 대기 카드 주문의 쿠폰·첫구매 예약을 닫힌 것으로 보고, 주문 생성은 그 주문을
 -- 실제로 닫은 뒤 쿠폰을 쓴다. 결제 승인을 확인 중이거나 결과를 알 수 없는 주문의 쿠폰은 지금처럼 막는다.
 -- Every amount/address/provider key is synthetic and rolled back.
@@ -233,7 +234,26 @@ select 1/case when (select status='canceled' from public.orders where id=:'fresh
  and (:'fresh_bank_quote'::jsonb->'coupon'->>'reason')='coupon_first_purchase_pending'
  then 1 else 0 end as assert_bank_pending_still_blocks_first_purchase;
 
--- ── 6. 권한 ─────────────────────────────────────────────────────────────────────────
+-- ── 6. 주문 내역·주문 상세의 다시 결제 진입 출처(QA1 S-D2-15, service_list_order_retry_sources) ─────────────────────────
+set local role service_role;
+select public.service_list_order_retry_sources('d8000000-0000-4000-8000-000000000002',array[:'old_order',:'new_order']::uuid[]) as sources_buyer \gset
+select public.service_list_order_retry_sources('d8000000-0000-4000-8000-000000000003',array[:'plain_order']::uuid[]) as sources_declined \gset
+select public.service_list_order_retry_sources('d8000000-0000-4000-8000-000000000004',array[:'fresh_card_order',:'fresh_bank_order']::uuid[]) as sources_fresh \gset
+select public.service_list_order_retry_sources('d8000000-0000-4000-8000-000000000002',array[:'plain_order']::uuid[]) as sources_other \gset
+reset role;
+select 1/case when :'sources_buyer'::jsonb=jsonb_build_array(jsonb_build_object('orderId',:'old_order','source','cart','awaitingPayment',false,
+   'baseGoodId',null,'retryOrderId',null))
+ -- 승인 거절로 결제 대기인 바로구매 주문: 다시 결제 진입(결제 화면)으로 잇는다.
+ and :'sources_declined'::jsonb=jsonb_build_array(jsonb_build_object('orderId',:'plain_order','source','direct','awaitingPayment',true,
+   'baseGoodId','d8-b','retryOrderId',null))
+ -- 새 주문이 닫은 바로구매 카드 주문만 — 무통장 입금 대기 주문은 보류가 없어 진입이 없다.
+ and :'sources_fresh'::jsonb=jsonb_build_array(jsonb_build_object('orderId',:'fresh_card_order','source','direct','awaitingPayment',false,
+   'baseGoodId','d8-b','retryOrderId',null))
+ and :'sources_other'::jsonb='[]'::jsonb
+ and public.service_list_order_retry_sources(null,array[:'old_order']::uuid[])='[]'::jsonb
+ then 1 else 0 end as assert_order_retry_sources_own_unpaid_or_closed_only;
+
+-- ── 7. 권한 ─────────────────────────────────────────────────────────────────────────
 select 1/case when has_function_privilege('authenticated','public.get_my_unpaid_order_coupons()','execute')
  and not has_function_privilege('anon','public.get_my_unpaid_order_coupons()','execute')
  and not has_function_privilege('service_role','public.get_my_unpaid_order_coupons()','execute')
@@ -241,5 +261,8 @@ select 1/case when has_function_privilege('authenticated','public.get_my_unpaid_
  and not has_function_privilege('service_role','private.unpaid_order_replaceable(uuid,uuid)','execute')
  and not has_function_privilege('authenticated','private.evaluate_coupon_target_lines_at(uuid,uuid,jsonb,uuid,timestamptz,boolean)','execute')
  and not has_function_privilege('service_role','private.evaluate_coupon_target_lines_at(uuid,uuid,jsonb,uuid,timestamptz,boolean)','execute')
+ and has_function_privilege('service_role','public.service_list_order_retry_sources(uuid,uuid[])','execute')
+ and not has_function_privilege('authenticated','public.service_list_order_retry_sources(uuid,uuid[])','execute')
+ and not has_function_privilege('anon','public.service_list_order_retry_sources(uuid,uuid[])','execute')
  then 1 else 0 end as assert_unpaid_coupon_handoff_acl;
 rollback;

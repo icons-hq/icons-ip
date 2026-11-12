@@ -359,9 +359,9 @@ export function CheckoutOrder({
                 </>
               )}
               {state === 'closed' && giftReturn}
-              {state === 'closed' && reorderMode === 'retry_from_cart' && (order.status === 'canceled'
-                ? <Link className="btn btn-holo" href="/cart">장바구니 보기</Link>
-                : <CheckoutRetryButton orderId={order.id} />)}
+              {/* 결제 없이 취소된 장바구니 주문도 그 주문의 줄 가운데 장바구니에 남은 것만 고른 주문서로 간다(QA1 S-D2-15) — 모든 줄이
+                  체크된 장바구니로 보내지 않는다. 남은 줄이 없으면 아무 줄도 체크하지 않은 장바구니로 간다. */}
+              {state === 'closed' && reorderMode === 'retry_from_cart' && <CheckoutRetryButton orderId={order.id} />}
               {state === 'closed' && reorderMode === 'retry_direct' && directRetry}
               {state === 'closed' && reorderMode && reorderMode !== 'retry_from_cart' && reorderMode !== 'retry_direct' && (
                 <ReorderAction

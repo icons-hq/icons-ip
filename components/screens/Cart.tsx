@@ -32,9 +32,9 @@ import { goodsSaleUnavailableLabel } from '@/lib/goods-sale-period';
 import { ADULT_GOOD_LABEL } from '@/lib/adult-goods';
 import { adultVerificationHref } from '@/lib/identity/adult-verification-routes';
 import {
-  cartGoodSignature, cartLineKey, cartOrderButtonLabel, cartSelectionQuantity, mergePendingOrderCauses, pendingOrderCausesFromQuote, pruneCartSelection,
-  quoteCoversSelection, quoteExclusionKey, quoteLimitNotes, quoteUnavailableLines, selectedCartLines, toggleAllCartLines, toggleCartLineSelection,
-  type CartLineCheckState, type QuoteLimitNote, type QuoteLineExclusion,
+  cartGoodSignature, cartLineKey, cartOrderButtonLabel, cartSelectionQuantity, clearCartDeselection, mergePendingOrderCauses, pendingOrderCausesFromQuote,
+  pruneCartSelection, quoteCoversSelection, quoteExclusionKey, quoteLimitNotes, quoteUnavailableLines, readCartDeselection, saveCartDeselection,
+  selectedCartLines, toggleAllCartLines, toggleCartLineSelection, type CartLineCheckState, type QuoteLimitNote, type QuoteLineExclusion,
 } from '@/lib/checkout-selection';
 import { CheckoutPendingOrderRelease } from './CheckoutPendingOrderRelease';
 import { PendingOrderResolution } from '@/components/checkout/PendingOrderResolution';
@@ -78,6 +78,15 @@ const CART_ORDER_ERRORS: Record<Exclude<CheckoutDraftActionError, 'auth_required
 
 /* 랜덤 전환 전에 담은 줄의 안내. 이 줄의 수량을 바꾸면 DB가 키 줄로 합쳐 화면이 갑자기 바뀌므로 다시 담기 하나만 둔다. */
 const RANDOM_REFOLD_NOTICE = '판매 방식이 바뀌기 전에 담은 줄이에요. 다시 담으면 랜덤 한 줄로 합쳐집니다.';
+
+/* 비로그인 장바구니의 해제 줄을 로그인 화면 너머로 잇는 기기 세션 저장소(QA1 S-D2-17). 서버 렌더·막힌 저장소는 null. */
+function sessionStore(): Storage | null {
+  try {
+    return typeof window === 'undefined' ? null : window.sessionStorage;
+  } catch {
+    return null;
+  }
+}
 
 const NO_EXCLUSIONS: ReadonlyMap<string, QuoteLineExclusion> = new Map();
 const NO_LIMIT_NOTES: ReadonlyMap<string, QuoteLimitNote> = new Map();
@@ -267,18 +276,29 @@ export function Cart({
   couponState,
   transactionMode = 'legacy',
   giftAvailable = false,
+  retryEmpty = false,
 }: {
   catalog: Pick<CatalogSnapshot, 'goods' | 'ips'>;
   couponState: CartCouponState;
   transactionMode?: 'legacy' | 'transaction' | 'unavailable';
   giftAvailable?: boolean;
+  /** 결제 없이 끝난 장바구니 주문의 '다시 결제하기'가 그 주문의 줄을 장바구니에서 찾지 못했다(QA1 S-D2-15) — 아무 줄도 체크하지 않는다. */
+  retryEmpty?: boolean;
 }) {
   const { error, items, mode, pending, ready, legacyItems = [], removeLegacyItem, refresh, removeLines } = useCart();
   const router = useRouter();
   const transactionActive = transactionMode === 'transaction';
-  /* 선택은 고객이 체크를 푼 줄만 기억한다 — 들어오면 전체 체크, 새로 동기화된 줄도 체크된 채다(ADR-0030). */
-  const [deselectedState, setDeselected] = useState<ReadonlySet<string>>(() => new Set());
+  /* 선택은 고객이 체크를 푼 줄만 기억한다 — 들어오면 전체 체크, 새로 동기화된 줄도 체크된 채다(ADR-0030). 비로그인 장바구니에서
+     풀어 둔 줄은 로그인 화면을 다녀와도 그대로 푼다(QA1 S-D2-17, 기기 세션 저장소 — 장바구니 줄은 로그인 전 렌더에 그리지 않는다). */
+  const [deselectedState, setDeselected] = useState<ReadonlySet<string>>(() => readCartDeselection(sessionStore()) ?? new Set());
+  useEffect(() => clearCartDeselection(sessionStore()), []);
   const deselected = pruneCartSelection(deselectedState, items);
+  /* 다시 결제할 줄이 장바구니에 없으면 모든 줄을 풀어 둔 채 연다 — 고르지 않은 줄을 체크된 채 주문서로 보내지 않는다. */
+  const [deselectAllPending, setDeselectAllPending] = useState(retryEmpty);
+  if (deselectAllPending && ready) {
+    setDeselectAllPending(false);
+    setDeselected(new Set(items.map(cartLineKey)));
+  }
   const [confirmingClear, setConfirmingClear] = useState(false);
   /* 전체 비우기 확인(alertdialog): 열면 포커스를 안으로(취소) 옮기고, 닫으면 연 버튼으로 돌려준다. */
   const clearTriggerRef = useRef<HTMLButtonElement>(null);
@@ -436,6 +456,11 @@ export function Cart({
   const couponSelectionChanged = !transactionActive && Boolean(shipping.sales && (shipping.sales.coupon?.userCouponId ?? null) !== couponState.selectedUserCouponId);
   const canCheckout = transactionMode !== 'unavailable' && selectedItems.length > 0 && !pending && !ordering && Boolean(sales) && !purchaseProblem
     && (transactionActive || shippingCanContinue && !couponSelectionChanged);
+  /* 주문 버튼이 꺼진 이유 한 줄 — 모바일 하단 고정 바는 요약 아래의 사유가 화면 밖에 있어 바 안에도 보인다(QA1 S-D2-06). */
+  const checkoutBlockedReason = canCheckout || ordering || pending || !ready ? null
+    : purchaseProblem
+      ?? (couponSelectionChanged ? '다른 화면에서 쿠폰 선택이 바뀌었어요. 쿠폰을 다시 확인해주세요.' : null)
+      ?? (selectedItems.length === 0 && selectableLines.length > 0 ? '주문할 굿즈를 골라주세요.' : null);
 
   const lineSelection = (line: CartLine): CartLineSelection => ({
     checked: !deselected.has(cartLineKey(line)),
@@ -452,10 +477,13 @@ export function Cart({
     productQuote.refresh();
     router.refresh();
   };
+  /* 고른 줄을 지운 뒤에는 남은 줄을 다시 체크한다 — 지우지 않은 줄을 고객이 하나씩 다시 고르지 않게(QA1 S-D2-04). 지우지 못하면 그대로다. */
   const removeSelected = () => {
     if (!selectedLines.length) return;
     setConfirmingClear(false);
-    void removeLines(selectedLines);
+    void removeLines(selectedLines).then((removed) => {
+      if (removed) setDeselected(new Set());
+    });
   };
   const clearAll = () => {
     setConfirmingClear(false);
@@ -466,6 +494,7 @@ export function Cart({
   const startCheckout = async () => {
     if (!canCheckout) return;
     if (mode !== 'server') {
+      saveCartDeselection(sessionStore(), deselected);
       router.push(`/login?next=${encodeURIComponent('/cart')}`);
       return;
     }
@@ -478,7 +507,10 @@ export function Cart({
         router.push(result.href);
         return;
       }
-      if (result.error === 'auth_required') router.push(`/login?next=${encodeURIComponent('/cart')}`);
+      if (result.error === 'auth_required') {
+        saveCartDeselection(sessionStore(), deselected);
+        router.push(`/login?next=${encodeURIComponent('/cart')}`);
+      }
       else if (result.error === 'onboarding_required') router.push(`/onboarding?next=${encodeURIComponent('/cart')}`);
       else {
         if (result.error === 'cart_changed') await refresh();
@@ -509,6 +541,9 @@ export function Cart({
         ) : null}
 
         {error ? <p className="wc-cart__error" role="alert">{error}</p> : null}
+        {retryEmpty && ready ? (
+          <p className="wc-cart__retry-note" role="status">이 주문의 굿즈가 장바구니에 남아 있지 않아요. 주문할 굿즈를 골라 다시 주문해주세요.</p>
+        ) : null}
         {legacyItems.length > 0 ? <section aria-label="이전 장바구니 확인">
           <p>이전 장바구니를 현재 옵션에 연결하고 있습니다. 확인하지 못한 항목은 그대로 보관합니다.</p>
           <ul>{legacyItems.map((item) => <li key={item.goodId}>
@@ -663,6 +698,7 @@ export function Cart({
                   'N개 주문하기'(N = 고른 줄의 수량 합, SHEET-007)이고 금액은 위 요약 표가 보인다. 고른 줄로 주문서 초안을 만든 뒤
                   주문서로 간다(ADR-0030). */}
               <div className="wc-cart__cta-bar">
+                {checkoutBlockedReason ? <p className="wc-cart__cta-reason">{checkoutBlockedReason}</p> : null}
                 <WcButton
                   ariaDisabled={ordering}
                   className="wc-cart__checkout"

@@ -114,6 +114,26 @@
   gap: 8px;
 }
 
+/* 파운데이션 `.wc-btn + .wc-btn { margin-top: 7px }`(세로로 쌓는 버튼)이 가로 줄의 두 번째 버튼을 7px 내렸다(QA1 S-D2-04). */
+.wc-cart__clear-actions > .wc-btn + .wc-btn {
+  margin-top: 0;
+}
+
+/* 다시 결제할 줄이 장바구니에 남아 있지 않을 때(QA1 S-D2-15) — 아무 줄도 체크하지 않은 채 연 이유. */
+.wc-cart__retry-note {
+  margin: 12px 0 0;
+  padding: 12px 16px;
+  background: var(--wc-surface-grey);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--wc-ink);
+}
+
+/* 주문 버튼이 꺼진 이유 — 데스크톱은 바로 위 요약에 같은 사유가 보이므로 그리지 않고, 모바일 하단 고정 바 안에서만 보인다(QA1 S-D2-06). */
+.wc-cart__cta-reason {
+  display: none;
+}
+
 /* 선택 주문 안내(선택한 굿즈만 주문, 나머지는 장바구니에 남음). */
 .wc-cart__selection-note {
   margin: 12px 0 0;
@@ -133,6 +153,25 @@
 
   .wc-cart__select-action {
     min-height: 32px;
+  }
+}
+
+@media (max-width: 989px) {
+  .wc-cart__cta-reason {
+    display: block;
+    margin: 0 0 8px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--wc-danger);
+  }
+
+  /* 사유 줄(약 26px)만큼 커진 바 위로 문의 런처·푸터 여백을 올린다(바 93 → 119). :has() 안을 두 클래스로 둬 바 기본 규칙(wc-catalog)보다 앞선다. */
+  #root:has(.wc-cart__cta-bar .wc-cart__cta-reason) .wc-inquiry-widget__launcher {
+    bottom: calc(135px + env(safe-area-inset-bottom));
+  }
+
+  #root:has(.wc-cart__cta-bar .wc-cart__cta-reason) ~ .wc-footer {
+    padding-bottom: max(calc(199px + env(safe-area-inset-bottom)), calc(var(--wc-store-analytics-clearance, 0px) + 42px));
   }
 }
 

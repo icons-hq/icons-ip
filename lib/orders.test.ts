@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  customerOrderStatusMeta,
   formatOrderDate,
   isOrderDetailStatus,
   isVisibleOrderStatus,
@@ -88,3 +89,11 @@ describe('orderClaimProgressLabel', () => {
   });
 });
 
+/* QA1 S-D2-12·S-D2-15·S-T06-01: 결제를 마치지 않은 주문은 결제수단으로 말한다. */
+describe('customerOrderStatusMeta', () => {
+  it('카드는 결제 대기, 무통장은 입금 대기와 그 제목이다', () => {
+    expect(customerOrderStatusMeta('pending', 'card')).toMatchObject({ label: '결제 대기', tone: 'pending' });
+    expect(customerOrderStatusMeta('pending', 'bank_transfer')).toMatchObject({ label: '입금 대기', title: '입금을 기다리고 있어요' });
+    expect(customerOrderStatusMeta('paid', 'bank_transfer')).toBe(orderStatusMeta('paid'));
+  });
+});

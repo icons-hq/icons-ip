@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  clearCartDeselection,
+  readCartDeselection,
+  saveCartDeselection,
   cartLineIdentityPayload,
   cartLineKey,
   cartOrderButtonLabel,
@@ -247,5 +250,33 @@ describe('결제 대기 주문 확인창', () => {
     expect(unpaidCheckoutOrderSummary({ itemName: '굿즈 A', itemCount: 3 })).toBe('굿즈 A 외 2건');
     expect(unpaidCheckoutOrderSummary({ itemName: '굿즈 A', itemCount: 1 })).toBe('굿즈 A');
     expect(unpaidCheckoutOrderSummary({ itemName: null, itemCount: 1 })).toBe('굿즈');
+  });
+});
+
+/* QA1 S-D2-17: 비로그인 때 푼 줄이 로그인 뒤 다시 체크됐다. */
+describe('비로그인 장바구니 해제 줄 잇기', () => {
+  function memoryStorage() {
+    const values = new Map<string, string>();
+    return { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => { values.set(key, value); }, removeItem: (key: string) => { values.delete(key); } };
+  }
+  it('로그인 화면으로 가기 전에 남긴 줄을 30분 안에만 돌려준다', () => {
+    const storage = memoryStorage();
+    saveCartDeselection(storage, new Set(['b1|v1|']), 1_000);
+    expect(readCartDeselection(storage, 1_000 + 29 * 60_000)).toEqual(new Set(['b1|v1|']));
+    expect(readCartDeselection(storage, 1_000 + 31 * 60_000)).toBeNull();
+    clearCartDeselection(storage);
+    expect(readCartDeselection(storage, 1_000)).toBeNull();
+  });
+  it('푼 줄이 없으면 지우고, 막힌 저장소·틀린 값은 무시한다', () => {
+    const storage = memoryStorage();
+    saveCartDeselection(storage, new Set(['x']), 0);
+    saveCartDeselection(storage, new Set(), 0);
+    expect(readCartDeselection(storage, 0)).toBeNull();
+    storage.setItem('icons.cart.deselected', '{"keys":[1],"savedAt":0}');
+    expect(readCartDeselection(storage, 0)).toBeNull();
+    const blocked = { getItem: () => { throw new Error('blocked'); }, setItem: () => { throw new Error('blocked'); }, removeItem: () => { throw new Error('blocked'); } };
+    expect(() => saveCartDeselection(blocked, new Set(['x']))).not.toThrow();
+    expect(readCartDeselection(blocked)).toBeNull();
+    expect(readCartDeselection(null)).toBeNull();
   });
 });

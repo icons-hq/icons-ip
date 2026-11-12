@@ -414,10 +414,14 @@ describe('CheckoutOrder 한 번에 결제(S8)·장바구니 유지(D3)', () => {
     expect(html).not.toContain('이 주문 취소하고 다시 주문하기');
   });
 
-  it('장바구니가 남은 주문이 결제 없이 취소됐으면 다시 담지 않고 장바구니로 잇는다', () => {
+  /* QA1 S-D2-15: '장바구니 보기'는 모든 줄이 체크된 장바구니로 보냈다 — 그 주문의 줄 가운데 장바구니에 남은 것만 고른 주문서로 간다. */
+  it('장바구니가 남은 주문이 결제 없이 취소됐으면 그 주문의 줄로 다시 결제한다', () => {
     const html = renderToStaticMarkup(<CheckoutOrder order={{ ...order, cartRetained: true, status: 'canceled', expiresAt: null }} />);
     expect(html).toContain('결제 없이 취소된 주문이에요');
-    expect(html).toContain('href="/cart"');
+    expect(html).toContain('이 주문의 굿즈 가운데 장바구니에 남은 것으로 다시 결제할 수 있어요.');
+    expect(html).toContain('<button class="btn btn-holo" type="button">다시 결제하기</button>');
+    expect(html).not.toContain('href="/cart"');
+    expect(html).not.toContain('장바구니 보기');
     expect(html).not.toContain('같은 굿즈 다시 담기');
   });
 });
