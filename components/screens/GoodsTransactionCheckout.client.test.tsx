@@ -151,3 +151,16 @@ it('결제 확인 중인 주문이 있으면 그 주문 보기를 보이고 결�
   await submit(); await flush();
   expect(mocks.place).toHaveBeenCalledTimes(1);
 });
+/* 한 주문에 같은 쿠폰 정의는 1장(20261112200700): 매월 등급 혜택으로 같은 쿠폰을 두 장 가져도 다른 칸에서 같은 정의를 고르지 못한다. */
+it('쿠폰 중복 사용이 켜져도 같은 쿠폰 정의의 두 번째 장은 다른 칸에서 고를 수 없다', async () => {
+  const coupon = { code: 'GRADE-SILVER', name: '실버 등급 쿠폰', discountType: 'fixed' as const, discountValue: 1000, maxDiscountAmount: null, minSubtotal: 0, endsAt: null, gradeBenefit: 'silver', benefitKind: 'goods' as const, stackable: true };
+  const held = (id: string, code = coupon.code) => ({ id, status: 'active' as const, issuedAt: '2026-10-01T00:00:00Z', expiresAt: null, usedAt: null, coupon: { ...coupon, code } });
+  const first = '00000000-0000-4000-8000-0000000000c1', second = '00000000-0000-4000-8000-0000000000c2', other = '00000000-0000-4000-8000-0000000000c3';
+  props = { ...props, userCouponId: null, coupons: [held(first), held(second), held(other, 'WELCOME-1000')], couponPolicy: { revision: 1, stackingEnabled: true, maxGoodsCoupons: 2, shippingEnabled: false } };
+  for (const effect of hooks.effects) effect.cleanup?.(); resetHooks(); render(); effects(); authenticate(); await flush();
+  const select = (label: string) => all(render()).find(node => node.type === 'select' && node.props['aria-label'] === label)!;
+  (select('굿즈 쿠폰 1').props.onChange as (event: { target: { value: string } }) => void)({ target: { value: first } });
+  const options = all(select('굿즈 쿠폰 2').props.children as ReactNode).filter(node => node.type === 'option' && node.props.value);
+  expect(Object.fromEntries(options.map(option => [option.props.value as string, Boolean(option.props.disabled)]))).toEqual({ [first]: true, [second]: true, [other]: false });
+  expect(text(render())).toContain('같은 쿠폰을 여러 장 가지고 있어도 한 주문에는 1장만 씁니다.');
+});

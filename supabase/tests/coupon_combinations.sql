@@ -125,6 +125,31 @@ select 1/case when :'full_shipping'::jsonb#>>'{display,totals,shippingCouponDisc
 select public.quote_cart_goods_transaction_combined('c7160854-0000-4000-8000-000000000002',:'expected_cart',:'address',:'choices',array['c7160854-0000-4008-8000-000000000005','c7160854-0000-4008-8000-000000000002']::uuid[],0) as exclusive \gset
 select 1/case when :'exclusive'::jsonb#>>'{issues,0,code}'='coupon_unavailable' then 1 else 0 end as exclusive_coupon_cannot_stack;
 reset role;
+-- 한 주문에 같은 쿠폰 정의는 1장(20261112200700). 매월 등급 혜택으로 같은 정의를 두 장 가져도(보유는 여러 장) 한 주문에 함께 쓰지 못하고,
+-- 한 장씩은 다른 쿠폰과 쓸 수 있다. 원장도 같은 주문·같은 정의의 두 번째 적용 행을 유일 색인으로 거절한다(legacy·거래 런타임 공통).
+savepoint same_definition;
+insert into public.user_coupons(id,coupon_code,user_id,issued_source,usable_from,grade_benefit_month)
+ values('c7160854-0000-4008-8000-000000000006','COMBO-GOODS-3000','c7160854-0000-4000-8000-000000000002','grade_benefit',now()-interval '1 day','2026-11-01');
+set local role service_role;
+select public.quote_cart_goods_transaction_combined('c7160854-0000-4000-8000-000000000002',:'expected_cart',:'address',:'choices',array['c7160854-0000-4008-8000-000000000001','c7160854-0000-4008-8000-000000000006']::uuid[],0) as same_definition \gset
+select 1/case when :'same_definition'::jsonb#>>'{issues,0,code}'='coupon_unavailable' then 1 else 0 end as same_definition_cannot_stack;
+select public.quote_cart_goods_transaction_combined('c7160854-0000-4000-8000-000000000002',:'expected_cart',:'address',:'choices',array['c7160854-0000-4008-8000-000000000006','c7160854-0000-4008-8000-000000000002']::uuid[],0) as other_copy \gset
+select 1/case when jsonb_array_length(:'other_copy'::jsonb#>'{display,coupons}')=2 and :'other_copy'::jsonb#>>'{display,totals,couponDiscountTotal}'='5200' then 1 else 0 end as each_copy_usable_once;
+select public.place_cart_goods_transaction('c7160854-0000-4000-8000-000000000002',:'expected_cart',:'address',(:'other_copy'::jsonb->>'quoteId')::uuid,gen_random_uuid(),'card') as copy_order \gset
+reset role;
+select 1/case when (select count(*) from public.coupon_redemptions where order_id=:'copy_order' and status='applied')=2 then 1 else 0 end as copy_order_redeemed_two_definitions;
+do $$ declare r public.coupon_redemptions; begin
+ select * into strict r from public.coupon_redemptions where order_id=(select o.id from public.orders o join public.coupon_redemptions x on x.order_id=o.id
+  where x.user_coupon_id='c7160854-0000-4008-8000-000000000006' and x.status='applied') and coupon_code='COMBO-GOODS-3000' and status='applied';
+ r.id:=gen_random_uuid(); r.user_coupon_id:='c7160854-0000-4008-8000-000000000001'; r.application_index:=6;
+ begin
+  insert into public.coupon_redemptions select r.*;
+  raise exception 'a second redemption of the same coupon definition in one order was accepted';
+ exception when unique_violation then
+  if sqlerrm not like '%coupon_redemptions_applied_order_definition%' then raise; end if;
+ end;
+end $$;
+rollback to same_definition;
 -- Both first-purchase coupons share one reservation for the same order.
 savepoint first_purchase_combined;
 update public.coupons set recipient_segment='first_purchase' where code in('COMBO-GOODS-3000','COMBO-GOODS-10');
