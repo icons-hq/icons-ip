@@ -111,28 +111,45 @@ export type DirectRetryActionError =
   | 'onboarding_required'
   | 'account_suspended'
   | 'invalid_request'
-  /** 그 주문의 결제 승인을 확인하고 있다 — 닫지 않았다. */
+  /** 그 주문(또는 다시 구매로 만든 주문)의 결제 승인을 확인하고 있다 — 닫지 않았다. */
   | 'payment_in_progress'
-  /** 결제가 끝났거나 바로구매 주문이 아니다 — 다시 만들지 않는다. */
+  /** 결제가 끝났거나, 이미 다시 구매로 접수·결제한 주문이 있거나, 바로구매 주문이 아니다 — 다시 만들지 않는다. */
   | 'not_retryable'
   /** 주문은 닫았지만 지금 같은 구성으로 주문서를 열 수 없다(판매 중지·옵션 정리·직접입력 설정 변경·성인 인증). */
   | 'lines_unavailable'
   | 'unavailable';
 
-export type DirectRetryActionResult = { ok: true; href: string } | { ok: false; error: DirectRetryActionError };
+/** `orderId`: 이미 다시 구매로 접수·결제한 주문(not_retryable)이나 결제를 확인하고 있는 주문(payment_in_progress). 화면이 그 주문으로 잇는다. */
+export type DirectRetryActionResult = { ok: true; href: string } | { ok: false; error: DirectRetryActionError; orderId?: string };
+
+async function directRetryOwner(): Promise<{ userId: string } | { error: DirectRetryActionError }> {
+  const owner = await draftOwner();
+  if ('error' in owner) {
+    return { error: owner.error === 'auth_required' || owner.error === 'onboarding_required' || owner.error === 'account_suspended' ? owner.error : 'unavailable' };
+  }
+  return owner;
+}
+
+function directRetryError(value: Record<string, unknown>): DirectRetryActionResult | null {
+  const orderId = normalizeOrderReference(value.orderId ?? null);
+  const order = orderId ? { orderId } : {};
+  if (value.result === 'payment_in_progress') return { ok: false, error: 'payment_in_progress', ...order };
+  if (value.result === 'not_retryable') return { ok: false, error: 'not_retryable', ...order };
+  if (value.result === 'unavailable') return { ok: false, error: 'lines_unavailable' };
+  return null;
+}
 
 /**
  * 바로구매 결제가 승인 전에 끝난 주문(거절·시간 경과)의 '다시 구매하기'(ADR-0030 확정 동작 8). 그 주문을 ADR-0026 닫기 경로로
  * 닫고(재고·쿠폰·적립금·구매 한도를 돌려준다) 같은 줄로 바로구매 초안을 다시 만들어 주문서로 보낸다 — 굿즈 상세에서 다시
- * 고르지 않는다. 결제 승인을 확인 중이면 닫지 않는다. 소유자는 로그인 세션에서 정한다.
+ * 고르지 않는다. 같은 주문의 다시 구매는 한 번이다: 두 탭·뒤로 가기의 재호출은 같은 초안을, 그 초안으로 이미 접수·결제했으면
+ * 그 주문을 돌려준다. 결제 승인을 확인 중이면 닫지 않는다. 소유자는 로그인 세션에서 정한다.
  */
 export async function createDirectRetryDraftAction(orderIdValue: unknown): Promise<DirectRetryActionResult> {
   const orderId = normalizeOrderReference(orderIdValue);
   if (!orderId) return { ok: false, error: 'invalid_request' };
-  const owner = await draftOwner();
-  if ('error' in owner) {
-    return { ok: false, error: owner.error === 'auth_required' || owner.error === 'onboarding_required' || owner.error === 'account_suspended' ? owner.error : 'unavailable' };
-  }
+  const owner = await directRetryOwner();
+  if ('error' in owner) return { ok: false, error: owner.error };
   try {
     const { data, error } = await createServiceClient().rpc('service_retry_direct_order', { p_user_id: owner.userId, p_order_id: orderId });
     if (error) return { ok: false, error: draftError(error.message) === 'account_suspended' ? 'account_suspended' : 'unavailable' };
@@ -143,10 +160,31 @@ export async function createDirectRetryDraftAction(orderIdValue: unknown): Promi
       const draft = draftResult(value.draftId);
       return draft.ok ? { ok: true, href: draft.href } : { ok: false, error: 'unavailable' };
     }
-    if (value.result === 'payment_in_progress') return { ok: false, error: 'payment_in_progress' };
-    if (value.result === 'not_retryable') return { ok: false, error: 'not_retryable' };
-    if (value.result === 'unavailable') return { ok: false, error: 'lines_unavailable' };
+    return directRetryError(value) ?? { ok: false, error: 'unavailable' };
+  } catch {
     return { ok: false, error: 'unavailable' };
+  }
+}
+
+/**
+ * '이 주문 닫고 굿즈 상세에서 다시 고르기'(ADR-0030). 다시 구매하기와 같은 닫기만 하고 그 굿즈 상세로 보낸다 — 마지막 재고를 잡은
+ * 본인 결제 대기 주문 때문에 상세가 품절로 보이지 않게 상세로 가기 전에 닫는다. 결제 승인을 확인 중이면 닫지 않는다.
+ */
+export async function closeDirectOrderAction(orderIdValue: unknown): Promise<DirectRetryActionResult> {
+  const orderId = normalizeOrderReference(orderIdValue);
+  if (!orderId) return { ok: false, error: 'invalid_request' };
+  const owner = await directRetryOwner();
+  if ('error' in owner) return { ok: false, error: owner.error };
+  try {
+    const { data, error } = await createServiceClient().rpc('service_close_direct_order', { p_user_id: owner.userId, p_order_id: orderId });
+    if (error) return { ok: false, error: draftError(error.message) === 'account_suspended' ? 'account_suspended' : 'unavailable' };
+    if (data === null) return { ok: false, error: 'not_retryable' };
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return { ok: false, error: 'unavailable' };
+    const value = data as Record<string, unknown>;
+    if (value.result === 'closed' && typeof value.baseGoodId === 'string' && value.baseGoodId.trim()) {
+      return { ok: true, href: `/shop/${encodeURIComponent(value.baseGoodId.trim())}` };
+    }
+    return directRetryError(value) ?? { ok: false, error: 'unavailable' };
   } catch {
     return { ok: false, error: 'unavailable' };
   }
