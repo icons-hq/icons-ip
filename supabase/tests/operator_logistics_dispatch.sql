@@ -78,14 +78,18 @@ begin
  end loop;
 end $$;
 
--- 계약: 정확히 이 26개 출고 RPC만 sales.dispatch를 쓴다(택배 외 인계·수령 기록과 그 읽기 포함).
--- 앞 22개는 T05가 sales.manage에서 옮겼고, 뒤 4개는 같은 웨이브의 새 출고 RPC를 통합 migration(20261112200000)이 맞췄다:
+-- 계약: 정확히 이 29개 출고 RPC만 sales.dispatch를 쓴다(택배 외 인계·수령 기록과 그 읽기 포함).
+-- 앞 22개는 T05가 sales.manage에서 옮겼고, 다음 4개는 같은 웨이브의 새 출고 RPC를 통합 migration(20261112200000)이 맞췄다:
 -- 발송처리 화면의 배송 방법·택배 외 일괄 인계(T04), ICONS 표준 양식 바코드 경고(T03), 출고지시 전 재고 차이 경고(T07).
+-- 마지막 3개는 웨이브 2 T13a(QNA-019·QNA-028)의 새 출고 RPC다: 배송 건 추가 운송장 추가·삭제(운송장 정정과 같은 권한)와
+-- 배송현황의 추가 운송장·자동 배송완료 표시 읽기. 새 RPC라 이전 능력은 없지만, 판정 비교는 출고 RPC와 같게 sales.manage로 둔다.
 -- before_capability는 통합 전 능력이다(재고 차이 경고만 sales.read였다).
 create temp table ld_dispatch_contracts(signature text primary key,before_capability text not null default 'sales.manage');
 insert into ld_dispatch_contracts(signature,before_capability) values
  ('public.admin_dispatch_delivery_options(uuid[])','sales.manage'),('public.admin_dispatch_apply_delivery(jsonb,text,text,jsonb,uuid)','sales.manage'),
- ('public.admin_smartstore_shipment_barcode_gaps(uuid[],uuid)','sales.manage'),('public.admin_stock_dispatch_warnings(uuid,integer)','sales.read');
+ ('public.admin_smartstore_shipment_barcode_gaps(uuid[],uuid)','sales.manage'),('public.admin_stock_dispatch_warnings(uuid,integer)','sales.read'),
+ ('public.admin_add_shipment_extra_tracking(uuid,text,text,text,uuid)','sales.manage'),('public.admin_remove_shipment_extra_tracking(uuid,text,uuid)','sales.manage'),
+ ('public.admin_shipment_tracking_summaries(uuid[])','sales.manage');
 insert into ld_dispatch_contracts(signature) values
  ('public.admin_search_shipments_notice_console(text,uuid,text,date,date,integer,integer,text,text,text,text,text,text)'),
  ('public.admin_search_shipments_console(text,uuid,text,date,date,integer,integer,text,text,text,text,text)'),

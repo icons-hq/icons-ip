@@ -55,6 +55,9 @@ const operators = [
   ),
   sql('smartstore_shipment_workbook'),
   sql('warehouse_reply_order_numbers'),
+  // QNA-019 배송 건 추가 운송장(서원 회신 대표+추가, 운영자 추가·삭제)과 QNA-028 택배 추적 자동 배송완료(스위치 기본 꺼짐).
+  sql('order_shipment_extra_trackings'),
+  sql('delivery_tracking_auto_complete'),
   sql('admin_seller_cancel_intake'),
   sql('purchase_restriction_bulk_release'),
   sql('admin_order_item_console', { kc: true }),
