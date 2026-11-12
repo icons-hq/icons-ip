@@ -38,7 +38,6 @@ import { shipmentMutationError } from '@/lib/admin/shipment-dispatch';
 import { enqueueOrderShippedEmails } from '@/lib/email/order-shipment-jobs.server';
 import { getShippingCarrierRegistry } from '@/lib/orders/shipment.server';
 import { createClient } from '@/lib/supabase/server';
-import { isUuid } from '@/lib/uuid';
 
 export interface AdminOrderActionState {
   errors?: AdminOrderFieldErrors & { form?: string };
