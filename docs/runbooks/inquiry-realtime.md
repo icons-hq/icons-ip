@@ -2,7 +2,7 @@
 
 migration 파일 경로는 [배포 매핑](../../supabase/manifests/admin-rollout-migration-map.json)을 반영했다. 아래 과거 검증·적용 기록은 당시 원본 DRAFT 기준이며 이번 운영 배포의 성공을 뜻하지 않는다.
 
-#432의 실시간 표면은 기존 문의 원장과 서버 액션을 사용한다. 고객 위젯은 FAQ를 먼저 보여주고 로그인한 고객에게 내 문의·새 문의를 제공한다. `/my/inquiries/[inquiryId]`와 어드민 문의 목록·상세, `/admin/cs/chat` 상담하기 화면도 변경을 구독한다. 커머스 콘솔의 새 1:1 문의·상품 문의 PC 알림과 탭 제목 미답변 수(`components/admin/AdminInquiryNotifier.tsx`)도 같은 구독을 쓴다. 위젯 오버레이는 `OverlayPortal`로 `body` 아래에 렌더한다.
+#432의 실시간 표면은 기존 문의 원장과 서버 액션을 사용한다. 고객 위젯은 FAQ를 먼저 보여주고 로그인한 고객에게 내 문의·새 문의를 제공한다. `/my/inquiries/[inquiryId]`와 어드민 문의 목록·상세, `/admin/cs/chat` 상담하기 화면도 변경을 구독한다. 커머스 콘솔의 새 1:1 문의 PC 알림과 탭 제목 미답변 수(`components/admin/AdminInquiryNotifier.tsx`)도 같은 구독을 쓴다(상품 문의 알림은 아래 절의 30초 확인). 위젯 오버레이는 `OverlayPortal`로 `body` 아래에 렌더한다.
 
 ## 상품 문의 PC 알림 (1027T-002, 2026-11-12)
 
@@ -10,7 +10,7 @@ migration 파일 경로는 [배포 매핑](../../supabase/manifests/admin-rollou
 
 ## 상담 위젯 유형 버튼 (0901-044, 2026-11-12)
 
-위젯 FAQ 화면 맨 위에 "배송 언제 오나요"·"취소"·"교환/반품" 버튼을 둔다. 누르면 `/api/help?topic=delivery|cancel|return`이 운영자가 FAQ 관리에서 그 버튼에 지정한 공개 FAQ(`faq_entries.widget_topic`, 버튼마다 하나)를 돌려주고, 지정이 없거나 비공개면 연결 카테고리(주문/배송·취소/반품/교환)의 공개 FAQ 5개를 돌려준다. 공개 FAQ가 하나도 없을 때만 위젯의 기본 안내 문구를 보인다. 답 아래에는 로그인 고객에게 "내 주문 배송 조회"(`/orders`), 비로그인 고객에게 로그인 안내(`/login?next=%2Forders`)를 보인다. 지정 저장은 `admin_save_faq_entry_with_widget_topic`(cs.manage, 본문 저장은 기존 `admin_save_faq_entry` 재사용, 지정 변경은 `faq.widget_topic` 감사, 밀려난 FAQ는 `updated_at`을 올려 열린 폼의 덮어쓰기를 막음)이 한 트랜잭션으로 한다. 답변 문구 확정은 CS 운영값이다.
+위젯 FAQ 화면 맨 위에 "배송 언제 오나요"·"취소"·"교환/반품" 버튼을 둔다. 누르면 `/api/help?topic=delivery|cancel|return`이 운영자가 FAQ 관리에서 그 버튼에 지정한 공개 FAQ(`faq_entries.widget_topic`, 버튼마다 하나)를 돌려주고, 지정이 없거나 비공개면 연결 카테고리(주문/배송·취소/반품/교환)의 공개 FAQ 중 질문에 버튼 낱말(배송 / 취소 / 교환·반품)이 든 것을 표시 순서대로 최대 5개 돌려주고, 그런 FAQ가 없을 때만 그 카테고리의 공개 FAQ 5개를 돌려준다. 낱말 후보는 기존 공개 검색 RPC(`search_faq_entries`, 질문+답변 검색)로 받아 질문에 낱말이 든 것만 다시 거른다 — 취소와 교환/반품은 같은 카테고리라 이렇게 갈라야 서로의 FAQ가 섞이지 않는다. 공개 FAQ가 하나도 없을 때만 위젯의 기본 안내 문구를 보인다. 답 아래에는 로그인 고객에게 "내 주문 배송 조회"(`/orders`), 비로그인 고객에게 로그인 안내(`/login?next=%2Forders`)를 보인다. 지정 저장은 `admin_save_faq_entry_with_widget_topic`(cs.manage, 본문 저장은 기존 `admin_save_faq_entry` 재사용, 지정 변경은 `faq.widget_topic` 감사, 밀려난 FAQ는 `updated_at`을 올려 열린 폼의 덮어쓰기를 막음)이 한 트랜잭션으로 한다. 답변 문구 확정은 CS 운영값이다.
 
 ## 데이터와 권한
 
