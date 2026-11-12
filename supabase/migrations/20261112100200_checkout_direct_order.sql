@@ -14,7 +14,9 @@
 --    예약·1인 한도·재고)를 닫는 색인이다. 장바구니 효과는 없다(결제 확정 정산은 줄을 건너뛰고 쿠폰 선택만 정리).
 -- 4. 닫기 범위: 새 주문은 출처와 무관하게 이전 미결제 점유를 모두 닫는다. 장바구니·장바구니 주문서 진입 때의
 --    release는 지금처럼 장바구니 출처만 닫는다(장바구니를 열기만 해도 다른 탭의 바로구매 결제창이 끊기지 않게).
---    바로구매 주문서 진입 때는 모든 출처를 닫는다(다시 사려는 상품을 이전 바로구매가 잡고 있어 견적이 막히지 않게).
+--    바로구매 주문서 진입은 아무것도 닫지 않는다(보기만으로 다른 탭 결제를 끊지 않게). 견적이 결제 대기 주문의 쿠폰·
+--    첫구매 예약·구매 한도 때문에 막히면 화면이 그 주문을 알리고, 고객이 '진행 중인 미결제 주문 취소하고 계속'을
+--    눌렀을 때만 release_unpaid_checkout_orders가 출처와 무관하게 닫는다(결제 승인 확인 중이면 닫지 않는다).
 -- 5. 다시 결제: 바로구매 주문의 보류는 장바구니를 남긴 주문이 아니다 — 결제 화면은 '장바구니에서 다시 결제' 대신
 --    그 상품 상세로 보낸다(service_get_order_cart_retention이 출처와 상품을 함께 돌려준다).
 -- ============================================================================
@@ -101,14 +103,14 @@ declare
   v_reason text;
 begin
   if p_user_id is null or p_new_order is null
-    or p_trigger is null or p_trigger not in ('new_cart_order', 'returned_to_cart', 'new_direct_order', 'returned_to_checkout') then
+    or p_trigger is null or p_trigger not in ('new_cart_order', 'returned_to_cart', 'new_direct_order', 'customer_released') then
     raise invalid_parameter_value using message = 'cart_order_supersede_invalid';
   end if;
   v_reason := case p_trigger
     when 'new_cart_order' then '같은 장바구니로 새 주문을 만들어 결제 대기 주문 자동 취소'
     when 'returned_to_cart' then '장바구니로 돌아와 결제 대기 주문 자동 취소'
     when 'new_direct_order' then '바로구매로 새 주문을 만들어 결제 대기 주문 자동 취소'
-    else '주문서로 돌아와 결제 대기 주문 자동 취소' end;
+    else '고객이 진행 중인 미결제 주문을 취소하고 주문을 계속함' end;
   perform 1
   from public.orders as o
   join private.cart_order_holds as hold on hold.order_id = o.id
@@ -168,26 +170,44 @@ $$;
 revoke all on function private.supersede_unpaid_cart_orders(uuid, boolean) from public, anon, authenticated, service_role;
 grant execute on function private.supersede_unpaid_cart_orders(uuid, boolean) to postgres;
 
--- 바로구매 주문서 진입: 모든 출처의 미결제 점유를 닫는다(서버가 로그인 사용자로만 부른다). 닫힌 주문 수를 돌려준다.
+-- 고객이 '진행 중인 미결제 주문 취소하고 계속'을 눌렀을 때만 부른다(서버가 로그인 사용자로만 부른다 — 주문서·장바구니를
+-- 열기만 해서는 다른 탭의 결제창을 끊지 않는다). 견적이 결제 대기 주문의 쿠폰·첫구매 예약·구매 한도 때문에 막혔을 때,
+-- 출처와 무관하게 결제를 마치지 않은 카드 주문을 ADR-0026 닫기 경로로 닫는다. 결제 승인을 확인 중인 주문은 닫지 않고
+-- confirming으로 알린다(새 주문의 checkout_payment_in_progress 거절과 같은 판단). 무통장 입금 대기 주문은 닫지 않으므로
+-- 남은 결제 대기 주문(pendingOrderId)을 함께 돌려줘 화면이 그 주문으로 안내한다.
 create function public.release_unpaid_checkout_orders(p_user_id uuid)
-returns integer
+returns jsonb
 language plpgsql
 volatile
 security definer
 set search_path = ''
 as $$
+declare
+  v_released integer := 0;
+  v_confirming integer;
+  v_pending uuid;
 begin
   if p_user_id is null then
     raise invalid_parameter_value using message = 'cart_order_supersede_invalid';
   end if;
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(p_user_id::text, 0));
-  if not exists (
+  if exists (
     select 1 from private.cart_order_holds as hold
     where hold.user_id = p_user_id and hold.state = 'awaiting_payment'
   ) then
-    return 0;
+    v_released := private.supersede_unpaid_checkout_orders(p_user_id, false, null, 'customer_released');
   end if;
-  return private.supersede_unpaid_checkout_orders(p_user_id, false, null, 'returned_to_checkout');
+  select count(*) into v_confirming
+  from private.cart_order_holds as hold
+  join public.payment_attempts as attempt on attempt.purpose = 'order' and attempt.ref_id = hold.order_id
+  where hold.user_id = p_user_id and hold.state = 'awaiting_payment'
+    and attempt.state = 'confirming' and attempt.claim_expires_at > pg_catalog.clock_timestamp();
+  select o.id into v_pending
+  from public.orders as o
+  where o.user_id = p_user_id and o.status = 'pending' and o.checkout_key is not null
+  order by o.created_at desc, o.id desc
+  limit 1;
+  return pg_catalog.jsonb_build_object('released', v_released, 'confirming', v_confirming, 'pendingOrderId', v_pending);
 end;
 $$;
 revoke all on function public.release_unpaid_checkout_orders(uuid) from public, anon, authenticated, service_role;

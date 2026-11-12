@@ -5,9 +5,11 @@ import {
   cartOrderButtonLabel,
   cartSelectionQuantity,
   pruneCartSelection,
+  quoteMayBeBlockedByPendingOrder,
   selectedCartLines,
   toggleAllCartLines,
   toggleCartLineSelection,
+  transactionIssuesMayBeBlockedByPendingOrder,
 } from './checkout-selection';
 
 const A = { goodId: 'a', variantId: '00000000-0000-4000-8000-00000000000a', qty: 1 };
@@ -55,5 +57,28 @@ describe('장바구니 선택(ADR-0030 · 1014-031)', () => {
     expect(cartLineIdentityPayload(A)).toEqual({ good_id: 'a', variant_id: A.variantId, input_revision: 0, input_values: {} });
     expect(cartLineIdentityPayload(engraved('하나'))).toEqual({ good_id: 'e', variant_id: '00000000-0000-4000-8000-00000000000e',
       input_revision: 1, input_values: { '00000000-0000-4000-8000-0000000000f1': '하나' } });
+  });
+});
+
+/* 결제 대기 주문이 잡은 쿠폰·첫구매 예약·1인 누적 한도는 화면이 그 주문을 알리고 고객이 누를 때만 닫는다(ADR-0030). */
+describe('결제 대기 주문이 원인일 수 있는 견적 막힘', () => {
+  const clear = { coupon: null, goods: [{ reason: null }], lines: [{ optionLimit: { reason: null } }] };
+  it('쿠폰 사용 처리·첫구매 예약·회원 누적 한도면 안내한다', () => {
+    for (const reason of ['coupon_first_purchase_reserved', 'coupon_first_purchase_pending', 'coupon_already_used']) {
+      expect(quoteMayBeBlockedByPendingOrder({ ...clear, coupon: { reason } })).toBe(true);
+    }
+    expect(quoteMayBeBlockedByPendingOrder({ ...clear, goods: [{ reason: 'member_purchase_limit_exceeded' }] })).toBe(true);
+    expect(quoteMayBeBlockedByPendingOrder({ ...clear, lines: [{ optionLimit: { reason: 'option_member_limit_exceeded' } }] })).toBe(true);
+  });
+  it('결제 대기 주문과 무관한 막힘은 안내하지 않는다', () => {
+    expect(quoteMayBeBlockedByPendingOrder(clear)).toBe(false);
+    expect(quoteMayBeBlockedByPendingOrder({ ...clear, coupon: { reason: 'coupon_min_subtotal' } })).toBe(false);
+    expect(quoteMayBeBlockedByPendingOrder({ ...clear, goods: [{ reason: 'order_quantity_above_maximum' }] })).toBe(false);
+    expect(quoteMayBeBlockedByPendingOrder({ ...clear, lines: [{ optionLimit: { reason: 'option_order_limit_exceeded' } }] })).toBe(false);
+  });
+  it('거래 런타임 견적은 구매 한도·쿠폰 막힘만 안내한다', () => {
+    expect(transactionIssuesMayBeBlockedByPendingOrder([{ code: 'purchase_limit' }])).toBe(true);
+    expect(transactionIssuesMayBeBlockedByPendingOrder([{ code: 'coupon_unavailable' }])).toBe(true);
+    expect(transactionIssuesMayBeBlockedByPendingOrder([{ code: 'goods_unavailable' }, { code: 'address_required' }])).toBe(false);
   });
 });

@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { PendingOrderResolution } from '@/components/checkout/PendingOrderResolution';
 import { useRouter } from 'next/navigation';
 import { useMemo, useRef, useState, type FormEvent } from 'react';
 import { placeOrderAction } from '@/app/checkout/actions';
@@ -26,7 +25,7 @@ import { cartItemKey } from '@/lib/cart';
 import { cartLineOption, cartOptionGood, goodAtQuotedPrice, optionLabel } from '@/lib/goods-options';
 import { goodsPurchaseReasonMessage, goodsSalesQuoteProblem, quoteLineOptionLimitMessage } from '@/lib/goods-sales';
 import { PLACE_ORDER_OPTION_LIMIT_MESSAGES, PLACE_ORDER_RANDOM_OPTION_LIMIT_MESSAGE, PLACE_ORDER_RANDOM_OPTION_MESSAGE } from '@/lib/goods-option-sale-mode';
-import { couponErrorNeedsPendingOrder, MIN_PAYABLE_TOTAL, type UserCouponSummary } from '@/lib/coupons';
+import { MIN_PAYABLE_TOTAL, type UserCouponSummary } from '@/lib/coupons';
 import type { CartCouponState } from '@/lib/coupons.server';
 import { normalizeStoreCreditAmount } from '@/lib/store-credits';
 import { goodsShipDateLabel } from '@/lib/goods-preorders';
@@ -42,6 +41,8 @@ import { orderCompleteHref } from '@/lib/routes';
 import { checkoutDraftReturnHref, type CheckoutDraft } from '@/lib/checkout-draft';
 import { useDirectCheckoutQuote, useDraftStoreCreditQuote } from './CheckoutDraftQuotes';
 import { CheckoutDirectCoupon } from './CheckoutDirectCoupon';
+import { CheckoutPendingOrderRelease } from './CheckoutPendingOrderRelease';
+import { quoteMayBeBlockedByPendingOrder } from '@/lib/checkout-selection';
 
 /* 결제 대기 주문의 최소 결제 금액. DB 트리거(orders_korpay_minimum_amount)가 같은 값으로
    막는다 — 쿠폰·적립금은 그 아래로 깎지 않으므로 굿즈 금액+배송비가 기준이다. */
@@ -193,8 +194,9 @@ export function Checkout({
   const direct = draft?.source === 'direct';
   const draftReturnHref = checkoutDraftReturnHref(draft);
   /* 결제를 마치지 않은 이전 주문이 쿠폰·적립금·구매 한도를 잡고 있으면 먼저 닫는다(ADR-0026). 장바구니 주문서는 장바구니
-     출처만, 바로구매 주문서는 출처와 무관하게 닫는다 — 다시 사려는 굿즈를 이전 바로구매가 잡고 있지 않게(ADR-0030). */
-  const released = useReleaseUnpaidCartOrders(direct ? 'checkout' : 'cart');
+     출처만 닫고, 바로구매 주문서는 아무것도 닫지 않는다 — 보기만으로 다른 탭의 결제를 끊지 않는다. 견적이 그 주문 때문에
+     막히면 아래 안내가 그 주문을 알리고 고객이 누를 때만 닫는다(ADR-0030). */
+  const released = useReleaseUnpaidCartOrders(direct ? 'none' : 'cart');
   /* 바로구매 쿠폰은 이 주문서에서 따로 고른다 — 장바구니 쿠폰 선택은 바꾸지 않는다. */
   const [directCouponId, setDirectCouponId] = useState<string | null>(null);
   const checkoutKey = useRef<string | null>(null);
@@ -327,6 +329,14 @@ export function Checkout({
 
   /* 선택 주문 초안을 만든 뒤 다른 탭에서 고른 줄이 바뀌었다 — 주문하면 DB가 PT409로 거절하므로 먼저 막는다. */
   const draftStale = draft?.stale === true;
+  /* 고객이 결제 대기 주문을 취소했으면 견적·적립금·쿠폰 상태를 다시 읽는다. */
+  const retryAfterRelease = () => {
+    setSubmitError(null);
+    setPendingOrder(false);
+    shipping.refresh();
+    credits.refresh();
+    router.refresh();
+  };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -561,7 +571,7 @@ export function Checkout({
           {shipping.loading ? <p role="status">현재 가격과 배송비를 확인하고 있어요.</p> : null}
           {shipping.error ? <div role="alert"><p>{shipping.error}</p><button type="button" onClick={shipping.refresh}>가격·배송비 다시 확인</button></div> : null}
           {purchaseProblem ? <p className="checkout-error" role="alert">{purchaseProblem}
-            {couponErrorNeedsPendingOrder(shipping.sales?.coupon?.reason) ? <PendingOrderResolution /> : null}
+            {shipping.sales && quoteMayBeBlockedByPendingOrder(shipping.sales) ? <CheckoutPendingOrderRelease onReleased={retryAfterRelease} /> : null}
           </p> : null}
           {couponSelectionChanged ? <p className="checkout-error" role="alert">다른 화면에서 선택한 쿠폰이 변경되었습니다. <button type="button" onClick={() => router.refresh()}>현재 쿠폰 다시 확인</button></p> : null}
 
@@ -609,7 +619,7 @@ export function Checkout({
 
           {unavailable && <p className="checkout-error" role="alert">재고가 변경된 굿즈가 있어요. 장바구니에서 수량을 확인해주세요.</p>}
           {!methodAvailable && <p className="checkout-error" role="alert">선택한 결제수단을 지금은 쓸 수 없어요. 다른 수단을 골라주세요.</p>}
-          {submitError && <p className="checkout-error" role="alert">{submitError}{pendingOrder ? <PendingOrderResolution /> : null}
+          {submitError && <p className="checkout-error" role="alert">{submitError}{pendingOrder ? <CheckoutPendingOrderRelease onReleased={retryAfterRelease} /> : null}
             {usedOrderId ? <> <Link href={`/orders/${encodeURIComponent(usedOrderId)}`}>주문 보기</Link></> : null}
             {draftReturnNeeded ? <> <Link href={draftReturnHref}>{draft?.source === 'direct' ? '굿즈로 돌아가기' : '장바구니로 돌아가기'}</Link></> : null}</p>}
           <button className="btn btn-holo checkout-submit" disabled={submitting || cartPending || couponPending || unavailable || !methodAvailable || !shippingReady || !shipping.sales || Boolean(purchaseProblem) || !creditReady || couponSelectionChanged || draftStale || Boolean(usedOrderId)}>

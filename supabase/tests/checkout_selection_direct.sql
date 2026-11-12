@@ -451,19 +451,50 @@ select 1/case when (select status='pending' and payment_method='bank_transfer' f
  and not exists(select 1 from public.cart_coupon_selections where user_id='d2000000-0000-4000-8000-000000000002')
  and not exists(select 1 from private.cart_order_holds where order_id=:'direct_bank_order')
  then 1 else 0 end as assert_bank_transfer_direct_keeps_cart_and_releases_same_cart_coupon;
--- 바로구매 주문서 진입은 모든 출처의 미결제 점유를 닫는다(카드 바로구매 하나를 만들어 확인한다).
+-- 주문서·장바구니를 열기만 해서는 바로구매 결제를 끊지 않는다. 견적이 결제 대기 주문 때문에 막혀 고객이 '진행 중인
+-- 미결제 주문 취소하고 계속'을 누를 때만 출처와 무관하게 카드 미결제 주문을 닫는다. 무통장 입금 대기는 닫지 않고 알린다.
 set local role service_role;
 select public.service_create_checkout_direct_draft('d2000000-0000-4000-8000-000000000002','d2-a',jsonb_build_array(
   jsonb_build_object('good_id','d2-a','variant_id',:'variant_a','qty',1))) as direct_draft_4 \gset
 select public.place_direct_order('d2000000-0000-4000-8000-000000000002',:'direct_draft_4',:'address','d2000000-0000-4000-8000-000000000207','card',0,null) as direct_order_4 \gset
-select 1/case when public.release_unpaid_checkout_orders('d2000000-0000-4000-8000-000000000002')=1
- and public.release_unpaid_checkout_orders('d2000000-0000-4000-8000-000000000002')=0 then 1 else 0 end as assert_direct_checkout_entry_releases_all_sources;
+-- 장바구니 진입의 닫기(장바구니 출처만)는 바로구매 주문을 닫지 않는다.
+select 1/case when public.release_unpaid_cart_orders('d2000000-0000-4000-8000-000000000002')=0 then 1 else 0 end as assert_cart_entry_keeps_direct_payment;
+select public.release_unpaid_checkout_orders('d2000000-0000-4000-8000-000000000002') as customer_release \gset
+select public.release_unpaid_checkout_orders('d2000000-0000-4000-8000-000000000002') as customer_release_again \gset
 reset role;
+select 1/case when (:'customer_release'::jsonb->>'released')::integer=1 and (:'customer_release'::jsonb->>'confirming')::integer=0
+ and (:'customer_release_again'::jsonb->>'released')::integer=0
+ -- 남은 결제 대기 주문은 무통장 입금 대기(direct_bank_order)다 — 닫지 않고 화면이 그 주문으로 안내한다.
+ and :'customer_release_again'::jsonb->>'pendingOrderId' is not null
+ and (select status='pending' and payment_method='bank_transfer' from public.orders where id=(:'customer_release_again'::jsonb->>'pendingOrderId')::uuid)
+ then 1 else 0 end as assert_customer_release_closes_all_unpaid_card_sources;
 select 1/case when (select status='canceled' from public.orders where id=:'direct_order_4')
  and exists(select 1 from public.audit_log where action='system.order.unpaid_cart_order_closed' and target='order:'||:'direct_order_4'
-  and diff->>'trigger'='returned_to_checkout')
+  and diff->>'trigger'='customer_released')
  and (select status='pending' from public.orders where id=:'direct_bank_order')
- then 1 else 0 end as assert_checkout_release_closes_card_holds_only;
+ then 1 else 0 end as assert_customer_release_closes_card_holds_only;
+-- 결제 승인을 확인 중인 주문은 닫지 않고 confirming으로 알린다(새 주문의 checkout_payment_in_progress와 같은 판단).
+set local role service_role;
+select public.service_create_checkout_direct_draft('d2000000-0000-4000-8000-000000000002','d2-a',jsonb_build_array(
+  jsonb_build_object('good_id','d2-a','variant_id',:'variant_a','qty',1))) as direct_draft_5 \gset
+select public.place_direct_order('d2000000-0000-4000-8000-000000000002',:'direct_draft_5',:'address','d2000000-0000-4000-8000-000000000209','card',0,null) as direct_order_5 \gset
+select public.prepare_goods_payment_attempt('d2000000-0000-4000-8000-000000000002',:'direct_order_5','toss')->>'id' as confirming_attempt \gset
+select public.bind_goods_payment_callback_nonce(:'confirming_attempt',repeat('e',64));
+reset role;
+select provider_order_id as confirming_provider from public.payment_attempts where id=:'confirming_attempt' \gset
+set local role service_role;
+select public.claim_goods_payment_attempt('toss',:'confirming_provider',repeat('e',64),'d2000000-0000-4000-8000-000000000144');
+select public.release_unpaid_checkout_orders('d2000000-0000-4000-8000-000000000002') as confirming_release \gset
+reset role;
+select 1/case when (:'confirming_release'::jsonb->>'released')::integer=0 and (:'confirming_release'::jsonb->>'confirming')::integer=1
+ and (select status='pending' from public.orders where id=:'direct_order_5')
+ then 1 else 0 end as assert_customer_release_refuses_confirming_payment;
+set local role service_role;
+select public.finalize_goods_payment_attempt(:'confirming_attempt','d2000000-0000-4000-8000-000000000144','declined');
+select public.release_unpaid_checkout_orders('d2000000-0000-4000-8000-000000000002') as declined_release \gset
+reset role;
+select 1/case when (:'declined_release'::jsonb->>'released')::integer=1 and (select status='canceled' from public.orders where id=:'direct_order_5')
+ then 1 else 0 end as assert_customer_release_closes_declined_payment;
 -- 만료된 바로구매 초안은 주문되지 않는다. 다른 계정은 남의 초안으로 주문할 수 없다.
 set local role service_role;
 select pg_temp.d2_expect_error(format('select public.place_direct_order(%L,%L,%L,%L,%L,0,null)','d2000000-0000-4000-8000-000000000003',:'direct_draft_4',:'address',

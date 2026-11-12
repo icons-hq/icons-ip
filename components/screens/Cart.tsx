@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { PendingOrderResolution } from '@/components/checkout/PendingOrderResolution';
 import { useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
 import { createCartSelectionDraftAction, type CheckoutDraftActionError } from '@/app/checkout/draft-actions';
@@ -15,7 +14,6 @@ import { QuantityStepper } from '@/components/wc/QuantityStepper';
 import { WcButton } from '@/components/wc/WcButton';
 import type { CatalogSnapshot } from '@/lib/catalog';
 import { goodsImageBackground } from '@/lib/goods-image';
-import { couponErrorNeedsPendingOrder } from '@/lib/coupons';
 import type { CartCouponState } from '@/lib/coupons.server';
 import type { Good, Ip } from '@/lib/data';
 import { krw } from '@/lib/format';
@@ -33,7 +31,8 @@ import { GoodsSalePeriodRefresh } from '@/components/shop/GoodsSalePeriodRefresh
 import { goodsSaleUnavailableLabel } from '@/lib/goods-sale-period';
 import { ADULT_GOOD_LABEL } from '@/lib/adult-goods';
 import { adultVerificationHref } from '@/lib/identity/adult-verification-routes';
-import { cartLineKey, cartOrderButtonLabel, cartSelectionQuantity, pruneCartSelection, selectedCartLines, toggleAllCartLines, toggleCartLineSelection } from '@/lib/checkout-selection';
+import { cartLineKey, cartOrderButtonLabel, cartSelectionQuantity, pruneCartSelection, quoteMayBeBlockedByPendingOrder, selectedCartLines, toggleAllCartLines, toggleCartLineSelection } from '@/lib/checkout-selection';
+import { CheckoutPendingOrderRelease } from './CheckoutPendingOrderRelease';
 
 interface CartLine {
   goodId: string;
@@ -482,7 +481,9 @@ export function Cart({
               {productQuote.loading ? <p role="status">{transactionActive ? '현재 가격과 구매 조건을 확인하고 있어요.' : '현재 가격과 배송비를 확인하고 있어요.'}</p> : null}
               {productQuote.error ? <div role="alert"><p>{productQuote.error}</p><button type="button" onClick={productQuote.refresh}>{transactionActive ? '가격·구매 조건 다시 확인' : '가격·배송비 다시 확인'}</button></div> : null}
               {purchaseProblem ? <p className="wc-cart__error" role="alert">{purchaseProblem}
-                {!transactionActive && couponErrorNeedsPendingOrder(shipping.sales?.coupon?.reason) ? <PendingOrderResolution /> : null}
+                {/* 결제 대기 주문(다른 탭의 바로구매 등)이 쿠폰·한도를 잡고 있을 수 있다 — 장바구니를 열기만 해서는 그 결제를
+                    끊지 않으므로 그 주문을 알리고, 고객이 누를 때만 닫는다(ADR-0030). */}
+                {sales && quoteMayBeBlockedByPendingOrder(sales) ? <CheckoutPendingOrderRelease onReleased={() => { productQuote.refresh(); router.refresh(); }} /> : null}
               </p> : null}
               {sales?.goods.filter(good => good.memberRemainingQty !== null).map(good => <p key={good.goodId}>
                 {catalog.goods.find(item => item.id === good.goodId)?.name} · 회원 추가 구매 가능 {good.memberRemainingQty}개

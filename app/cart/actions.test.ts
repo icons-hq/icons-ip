@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const VARIANT_ID = '00000000-0000-4000-8000-000000000001';
 import type { CurrentAuthState } from '@/lib/auth/server';
-import { addCartSelectionAction, deleteCartItemAction, releaseUnpaidCartOrdersAction, releaseUnpaidCheckoutOrdersAction, removeCartLinesAction, setCartItemQuantityAction, syncCartAction } from './actions';
+import { addCartSelectionAction, deleteCartItemAction, loadPendingCheckoutOrderAction, releaseUnpaidCartOrdersAction, releaseUnpaidCheckoutOrdersAction, removeCartLinesAction, setCartItemQuantityAction, syncCartAction } from './actions';
 
 const mocks = vi.hoisted(() => ({
   auth: { isConfigured: true, user: null, profile: null, isStaff: false } as CurrentAuthState,
@@ -37,6 +37,8 @@ const mocks = vi.hoisted(() => ({
   serviceRpc: vi.fn(),
 }));
 vi.mock('@/lib/supabase/service', () => ({ createServiceClient: () => ({ rpc: mocks.serviceRpc }) }));
+const pending = vi.hoisted(() => ({ load: vi.fn() }));
+vi.mock('@/lib/checkout.server', () => ({ loadLatestPendingCheckoutOrderId: pending.load }));
 
 vi.mock('@/lib/adult-goods-access.server', () => ({ getAdultGoodsAccess: async () => mocks.adultGoods }));
 vi.mock('@/lib/auth/server', () => ({
@@ -438,28 +440,51 @@ describe('cart Server Actions', () => {
   });
 });
 
-/* 미결제 주문 닫기(ADR-0026·0030): 장바구니·장바구니 주문서는 장바구니 출처만, 바로구매 주문서는 출처와 무관하게 닫는다. */
+/* 미결제 주문 닫기(ADR-0026·0030): 장바구니·장바구니 주문서 진입은 장바구니 출처만 닫는다. 출처와 무관한 닫기는 견적이
+   결제 대기 주문 때문에 막혀 고객이 '진행 중인 미결제 주문 취소하고 계속'을 누를 때만이다. */
 describe('release unpaid orders', () => {
+  const ORDER = '00000000-0000-4000-8000-0000000000e1';
   beforeEach(() => {
     mocks.auth = onboardedAuth();
     mocks.serviceRpc.mockReset();
     mocks.serviceRpc.mockResolvedValue({ data: 1, error: null });
+    pending.load.mockReset();
   });
 
-  it('장바구니 복귀는 장바구니 출처 닫기를, 바로구매 주문서는 모든 출처 닫기를 로그인 사용자로 부른다', async () => {
+  it('장바구니 복귀는 장바구니 출처 닫기를 로그인 사용자로 부른다', async () => {
     await expect(releaseUnpaidCartOrdersAction()).resolves.toEqual({ released: 1 });
     expect(mocks.serviceRpc).toHaveBeenLastCalledWith('release_unpaid_cart_orders', { p_user_id: 'user-1' });
-    await expect(releaseUnpaidCheckoutOrdersAction()).resolves.toEqual({ released: 1 });
-    expect(mocks.serviceRpc).toHaveBeenLastCalledWith('release_unpaid_checkout_orders', { p_user_id: 'user-1' });
   });
 
-  it('로그인 전이거나 실패하면 아무것도 닫지 않은 것으로 답한다', async () => {
+  it('고객이 누른 닫기는 모든 출처를 닫고, 확인 중인 결제와 남은 결제 대기 주문을 알린다', async () => {
+    mocks.serviceRpc.mockResolvedValue({ data: { released: 2, confirming: 0, pendingOrderId: ORDER.toUpperCase() }, error: null });
+    await expect(releaseUnpaidCheckoutOrdersAction()).resolves.toEqual({ ok: true, released: 2, confirming: false, pendingOrderId: ORDER });
+    expect(mocks.serviceRpc).toHaveBeenLastCalledWith('release_unpaid_checkout_orders', { p_user_id: 'user-1' });
+    mocks.serviceRpc.mockResolvedValue({ data: { released: 0, confirming: 1, pendingOrderId: 'x' }, error: null });
+    await expect(releaseUnpaidCheckoutOrdersAction()).resolves.toEqual({ ok: true, released: 0, confirming: true, pendingOrderId: null });
+  });
+
+  it('로그인 전이거나 실패하면 닫지 못한 것으로 답한다', async () => {
     mocks.serviceRpc.mockResolvedValue({ data: null, error: { message: 'boom' } });
-    await expect(releaseUnpaidCheckoutOrdersAction()).resolves.toEqual({ released: 0 });
+    await expect(releaseUnpaidCheckoutOrdersAction()).resolves.toEqual({ ok: false });
+    mocks.serviceRpc.mockResolvedValue({ data: 3, error: null });
+    await expect(releaseUnpaidCheckoutOrdersAction()).resolves.toEqual({ ok: false });
     mocks.auth = { isConfigured: true, user: null, profile: null, isStaff: false };
     mocks.serviceRpc.mockClear();
-    await expect(releaseUnpaidCheckoutOrdersAction()).resolves.toEqual({ released: 0 });
+    await expect(releaseUnpaidCheckoutOrdersAction()).resolves.toEqual({ ok: false });
     expect(mocks.serviceRpc).not.toHaveBeenCalled();
+  });
+
+  it('막힌 견적의 원인이 될 결제 대기 주문을 로그인 사용자 것만 읽는다', async () => {
+    pending.load.mockResolvedValue(ORDER);
+    await expect(loadPendingCheckoutOrderAction()).resolves.toEqual({ orderId: ORDER });
+    expect(pending.load).toHaveBeenCalledWith('user-1');
+    pending.load.mockRejectedValue(new Error('boom'));
+    await expect(loadPendingCheckoutOrderAction()).resolves.toEqual({ orderId: null });
+    mocks.auth = { isConfigured: true, user: null, profile: null, isStaff: false };
+    pending.load.mockClear();
+    await expect(loadPendingCheckoutOrderAction()).resolves.toEqual({ orderId: null });
+    expect(pending.load).not.toHaveBeenCalled();
   });
 });
 

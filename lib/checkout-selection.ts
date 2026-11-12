@@ -1,4 +1,5 @@
 import { cartItemKey, type CartItem } from './cart';
+import { couponErrorNeedsPendingOrder } from './coupons';
 import { goodsCustomInputValues } from './goods-custom-inputs';
 
 /*
@@ -67,4 +68,28 @@ export function cartLineIdentityPayload(line: CartLineIdentity) {
     input_revision: line.customInputs?.revision ?? 0,
     input_values: goodsCustomInputValues(line.customInputs),
   };
+}
+
+/** 견적의 막힘 가운데 결제 대기 주문이 원인일 수 있는 사유만 본다(쿠폰·첫구매 예약·1인 누적 한도). */
+export interface PendingOrderQuoteSignals {
+  coupon?: { reason: string | null } | null;
+  goods: readonly { reason: string | null }[];
+  lines: readonly { optionLimit?: { reason: string | null } }[];
+}
+
+/**
+ * 견적이 결제를 마치지 않은 주문 때문에 막혔을 수 있는지(ADR-0030). 결제 대기 주문은 쿠폰(사용 처리)·첫구매 예약·회원
+ * 누적 구매 한도를 잡는다. 주문서·장바구니를 열기만 해서는 다른 탭의 결제를 끊지 않으므로, 이때 화면이 그 주문을 알리고
+ * 고객이 누를 때만 닫는다(CheckoutPendingOrderRelease).
+ */
+export function quoteMayBeBlockedByPendingOrder(quote: PendingOrderQuoteSignals): boolean {
+  const couponReason = quote.coupon?.reason ?? null;
+  return couponErrorNeedsPendingOrder(couponReason) || couponReason === 'coupon_already_used'
+    || quote.goods.some((good) => good.reason === 'member_purchase_limit_exceeded')
+    || quote.lines.some((line) => line.optionLimit?.reason === 'option_member_limit_exceeded');
+}
+
+/** 거래 런타임 견적의 막힘 가운데 결제 대기 주문이 원인일 수 있는 사유(구매 한도·쿠폰). */
+export function transactionIssuesMayBeBlockedByPendingOrder(issues: readonly { code: string }[]): boolean {
+  return issues.some((issue) => issue.code === 'purchase_limit' || issue.code === 'coupon_unavailable');
 }

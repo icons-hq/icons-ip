@@ -20,6 +20,8 @@ import type { CatalogSnapshot } from '@/lib/catalog';
 import { bankTransferMethodNote, checkoutAddressErrors, type CheckoutAddress, type CheckoutPaymentMethod } from '@/lib/checkout';
 import { orderCompleteHref } from '@/lib/routes';
 import { checkoutDraftReturnHref, type CheckoutDraft } from '@/lib/checkout-draft';
+import { transactionIssuesMayBeBlockedByPendingOrder } from '@/lib/checkout-selection';
+import { CheckoutPendingOrderRelease } from './CheckoutPendingOrderRelease';
 import { cartTransactionRequestTooLarge, parseCartTransactionInput, parseCartTransactionRecovery, transactionIssueCopy, type CartTransactionRecovery, type CheckoutDeliveryChoices } from '@/lib/checkout-transaction';
 import { krw } from '@/lib/format';
 import type { GoodsTransactionDisplay } from '@/lib/goods-transaction';
@@ -61,9 +63,9 @@ export function GoodsTransactionCheckout({ accountId, catalog, addressPrefill, p
   const direct = draft?.source === 'direct';
   /* 주문할 줄: 초안이 있으면 그 줄, 없으면 장바구니 전체다(ADR-0030). */
   const orderItems = draft ? draft.lines : cart.items;
-  /* 결제를 마치지 않은 이전 주문이 쿠폰·적립금·구매 한도를 잡고 있으면 견적 전에 닫는다(ADR-0026). 바로구매 주문서는
-     출처와 무관하게, 장바구니 주문서는 장바구니 출처만 닫는다(ADR-0030). */
-  const released = useReleaseUnpaidCartOrders(direct ? 'checkout' : 'cart');
+  /* 결제를 마치지 않은 이전 주문이 쿠폰·적립금·구매 한도를 잡고 있으면 견적 전에 닫는다(ADR-0026). 장바구니 주문서는
+     장바구니 출처만 닫고, 바로구매 주문서는 아무것도 닫지 않는다 — 견적이 그 주문 때문에 막히면 고객이 누를 때만 닫는다(ADR-0030). */
+  const released = useReleaseUnpaidCartOrders(direct ? 'none' : 'cart');
   const [address, setAddress] = useState<CheckoutAddress>(addressPrefill.address ?? { recipientName: '', phone: '', postalCode: '', address1: '', address2: '', deliveryNote: '' });
   /* 바로구매 쿠폰은 이 주문서에서 따로 고른다 — 장바구니 쿠폰 선택을 이어받지 않는다. */
   const [selectedCoupons, setSelectedCoupons] = useState<string[]>(userCouponId && !direct ? [userCouponId] : []), [shippingCoupon, setShippingCoupon] = useState('');
@@ -240,7 +242,8 @@ export function GoodsTransactionCheckout({ accountId, catalog, addressPrefill, p
         {display && <GoodsTransactionSummary display={display} names={names} />}
         {quotes.loading && <p role="status">할인과 배송비를 확인하고 있어요.</p>}
         {!input && !recovery && <p role={tooLarge ? 'alert' : undefined}>{tooLarge ? cartTransactionErrorCopy.order_too_large : '수령 방식과 필요한 배송지·적립금 입력을 완료하면 최종 금액을 표시합니다.'}</p>}
-        {quote?.state === 'blocked' && !recovery && <div role="alert">{quote.issues.map((issue, index) => <p key={`${issue.code}:${issue.goodId}:${index}`}>{issue.goodId ? `${names[issue.goodId] ?? '굿즈'}: ` : ''}{transactionIssueCopy[issue.code]}</p>)}</div>}
+        {quote?.state === 'blocked' && !recovery && <div role="alert">{quote.issues.map((issue, index) => <p key={`${issue.code}:${issue.goodId}:${index}`}>{issue.goodId ? `${names[issue.goodId] ?? '굿즈'}: ` : ''}{transactionIssueCopy[issue.code]}</p>)}
+          {transactionIssuesMayBeBlockedByPendingOrder(quote.issues) ? <p><CheckoutPendingOrderRelease onReleased={() => { quotes.refresh(); router.refresh(); }} /></p> : null}</div>}
         {quotes.result && !quotes.result.ok && !recovery && <p role="alert">{cartTransactionErrorCopy[quotes.result.error]}</p>}
         {quotes.result && !quotes.result.ok && quotes.result.error === 'cart_changed' && !recovery && <button type="button" onClick={() => void cart.refresh()}>장바구니 새로 불러오기</button>}
         {quotes.result && !quotes.result.ok && quotes.result.error === 'coupon_changed' && !recovery && <button type="button" onClick={() => router.refresh()}>현재 쿠폰 다시 확인</button>}

@@ -130,7 +130,8 @@ it.each(['coupon_first_purchase_reserved', 'coupon_first_purchase_pending'])('�
     userCouponId: '00000000-0000-4000-8000-000000000099', couponCode: 'FIRST', eligibleSubtotal: 12000, discount: 0, reason,
   } } });
   expect(html).toContain('href="/orders?pending=1"');
-  expect(html).toContain('진행 중인 주문 확인');
+  /* 그 주문을 알리고, 고객이 누를 때만 닫는다(ADR-0030 — 화면을 열기만 해서는 다른 탭 결제를 끊지 않는다). */
+  expect(html).toContain('진행 중인 미결제 주문 취소하고 계속');
 });
 
 function submitButton(html: string): string {
