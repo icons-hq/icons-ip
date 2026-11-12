@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState, useTransition, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, useTransition, type FormEvent } from 'react';
 import { unstable_rethrow, useRouter } from 'next/navigation';
 import { setErpCategoryMappingAction, setErpCategoryMappingsAction, type ErpCategoryMappingResult, type ErpCategoryMappingsResult } from '@/app/admin/erp-item-actions';
 import type { AdminCategoryErpMapping, AdminCategoryNode } from '@/lib/admin/category';
@@ -21,6 +21,7 @@ import { Button } from './kit/ui/button';
 import { Input } from './kit/ui/input';
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from './kit/ui/table';
 import { useAdminLeaveGuard } from './useAdminLeaveGuard';
+import { useErpItemsWorkspace } from './ErpItemsWorkspace';
 
 /* 선택지는 칸을 열 때만 그려 행이 늘어도 가볍다. 한 번에 저장할 수 있는 만큼만 보여 '전체 선택'이 보이는 행만 고르게 한다. */
 const VISIBLE_LIMIT = ERP_CATEGORY_MAPPING_BATCH_LIMIT;
@@ -153,6 +154,20 @@ export function ErpCategoryMappingPanel({ rows, categories, categoryErpMappings 
   const [unlinkedOnly, setUnlinkedOnly] = useState(false);
   /* 표 안쪽을 내린 채 찾으면 결과 앞줄이 스크롤 위로 가려진다. 조건이 바뀌면 처음부터 보이게 한다. */
   const tableScroller = useRef<HTMLDivElement>(null);
+  /* 1027T-016: 반입 결과의 '미연결 분류 N건 — 연결하기'가 이 표를 연결 필요만 보이게 열고 그 자리로 옮긴다. */
+  const workspace = useErpItemsWorkspace();
+  useEffect(() => {
+    if (!workspace) return undefined;
+    workspace.registerUnlinked(() => {
+      setQuery('');
+      setUnlinkedOnly(true);
+      tableScroller.current?.scrollTo({ top: 0 });
+      const section = document.getElementById('erp-category-mapping');
+      section?.scrollIntoView({ block: 'start' });
+      section?.focus({ preventScroll: true });
+    });
+    return () => workspace.registerUnlinked(null);
+  }, [workspace]);
   /* 저장하지 않고 고른 값(ERP 분류 → 카테고리). 표에 하나만 두어 행이 검색으로 잠시 빠져도 남고, 떠날 때 행 수와 상관없이 한 번만 묻는다. */
   const [drafts, setDrafts] = useState<ReadonlyMap<string, string>>(() => new Map());
   /* 위쪽 품목 표의 페이지 넘김·검색은 쿼리만 바꿔 이 표의 입력이 그대로 남는다.

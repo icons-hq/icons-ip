@@ -1,4 +1,4 @@
-const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
+const { configuredOperatorAccessFixture, legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({ auth: vi.fn(), client: vi.fn(), rpc: vi.fn(), range: vi.fn(), revalidate: vi.fn() }));
@@ -11,8 +11,10 @@ vi.mock('next/navigation', () => ({
 }));
 
 import {
+  commitErpLinkedGoodsAction,
   deleteErpItemsAction,
   importErpItemsAction,
+  previewErpLinkedGoodsAction,
   readErpItemFileAction,
   searchErpItemsAction,
   setErpCategoryMappingAction,
@@ -20,6 +22,9 @@ import {
 } from './erp-item-actions';
 
 const staff = { isConfigured: true, user: { id: 'staff', email: null }, role: 'staff', isStaff: true, operatorAccess: legacyOperatorAccessFixture() };
+/* 1027T-016: 부매니저(MD)는 상품 관리 권한으로 ERP 품목을 읽고 반입한다. 삭제 권한(platform.manage)은 없다. */
+const deputy = { isConfigured: true, user: { id: 'deputy', email: null }, role: 'staff', isStaff: true, operatorAccess: configuredOperatorAccessFixture('deputy') };
+const logistics = { isConfigured: true, user: { id: 'logistics', email: null }, role: 'staff', isStaff: true, operatorAccess: configuredOperatorAccessFixture('logistics') };
 const member = { isConfigured: true, user: { id: 'member', email: null }, role: 'user', isStaff: false };
 const signedOut = { isConfigured: true, user: null, role: null, isStaff: false };
 const CATEGORY_ID = '00000000-0000-4000-8000-000000071111';
@@ -270,12 +275,114 @@ describe('ERP 품목 삭제', () => {
 
   it('권한·결과 형식·연결 오류를 안내 문구로 바꾼다', async () => {
     mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: '42501', message: 'staff_required' } });
-    expect(await deleteErpItemsAction(['A'])).toEqual({ ok: false, error: 'ERP 품목은 운영자만 관리할 수 있습니다.' });
+    expect(await deleteErpItemsAction(['A'])).toEqual({ ok: false, error: 'ERP 품목 삭제는 계정 주매니저·통합 매니저만 할 수 있습니다.' });
     mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: 'P0001', message: 'private' } });
     expect(await deleteErpItemsAction(['A'])).toEqual({ ok: false, error: 'ERP 품목을 지우지 못했습니다. 다시 시도해주세요.' });
     mocks.rpc.mockResolvedValueOnce({ data: { deleted: 'x' }, error: null });
     expect(await deleteErpItemsAction(['A'])).toEqual({ ok: false, error: '삭제 결과를 확인하지 못했습니다. 목록을 새로고침해 확인해주세요.' });
     mocks.rpc.mockRejectedValueOnce(new Error('socket'));
     expect(await deleteErpItemsAction(['A'])).toEqual({ ok: false, error: 'ERP 품목을 지우지 못했습니다. 다시 시도해주세요.' });
+  });
+});
+
+describe('MD 반입 권한(1027T-016)', () => {
+  it('부매니저는 제안 검색·반입·분류 연결을 하고, 품목 삭제는 DB에 닿기 전에 막힌다', async () => {
+    mocks.auth.mockResolvedValue(deputy);
+    mocks.rpc.mockResolvedValueOnce({ data: [], error: null });
+    expect(await searchErpItemsAction('키링')).toEqual({ ok: true, items: [] });
+    mocks.rpc.mockResolvedValueOnce({ data: { inserted: 1, updated: 0, unchanged: 0, rejected: [] }, error: null });
+    expect(await importErpItemsAction([{ row: 2, code: '000123', name: '아크릴 키링' }])).toMatchObject({ ok: true, inserted: 1 });
+    mocks.rpc.mockResolvedValueOnce({ data: { changed: true }, error: null });
+    expect(await setErpCategoryMappingAction({ erpCategory: '문구 > 키링', categoryId: CATEGORY_ID })).toMatchObject({ ok: true, changed: true });
+    mocks.rpc.mockClear();
+    expect(await deleteErpItemsAction(['000123'])).toEqual({ ok: false, error: 'ERP 품목 삭제는 계정 주매니저·통합 매니저만 할 수 있습니다.' });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('상품 관리 권한이 없는 물류출고관리는 읽기·반입·비교를 못 한다', async () => {
+    mocks.auth.mockResolvedValue(logistics);
+    expect(await searchErpItemsAction('키링')).toEqual({ ok: false, error: 'ERP 품목은 운영자만 관리할 수 있습니다.' });
+    expect(await importErpItemsAction([{ row: 2, code: '000123', name: '아크릴 키링' }])).toEqual({ ok: false, error: 'ERP 품목은 운영자만 관리할 수 있습니다.' });
+    expect(await previewErpLinkedGoodsAction(null)).toEqual({ ok: false, error: 'ERP 품목은 운영자만 관리할 수 있습니다.' });
+    expect(mocks.client).not.toHaveBeenCalled();
+  });
+});
+
+const VARIANT = '00000000-0000-4000-8000-000000071201';
+const OPERATION = '00000000-0000-4000-8000-000000071301';
+const previewRow = (field: 'price' | 'barcode', extra: Record<string, unknown> = {}) => ({
+  key: `${VARIANT}:${field}`, field, goodId: 'erp-good', goodName: '아크릴 키링', goodCode: 'G-1', published: true,
+  variantId: VARIANT, optionName: '기본 옵션', isDefault: true, erpCode: '000123', erpName: '아크릴 키링',
+  current: field === 'price' ? 10000 : null, next: field === 'price' ? 11000 : '8801234567890',
+  status: 'apply', reason: null, warning: null, ...extra,
+});
+const previewData = (rows: unknown[] = [previewRow('price'), previewRow('barcode')]) => ({
+  operationId: OPERATION, expiresAt: '2026-11-13T01:15:00Z', scopeCount: 2, linked: 3, total: rows.length, truncated: false, rows,
+});
+
+describe('연결 상품 반영 미리보기(1027T-X04)', () => {
+  it('방금 반입한 ERP 코드만 중복 없이 보내고, 새 operation id로 미리보기를 받는다', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: previewData(), error: null });
+    const result = await previewErpLinkedGoodsAction(['000123', 'K-2', '000123']);
+    expect(result).toMatchObject({ ok: true, preview: { operationId: OPERATION, linked: 3, total: 2 } });
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_preview_erp_linked_goods', { p_operation_id: expect.stringMatching(/^[0-9a-f-]{36}$/), p_codes: ['000123', 'K-2'] });
+    mocks.rpc.mockResolvedValueOnce({ data: previewData([]), error: null });
+    expect(await previewErpLinkedGoodsAction(null)).toMatchObject({ ok: true, preview: { total: 0, rows: [] } });
+    expect(mocks.rpc).toHaveBeenLastCalledWith('admin_preview_erp_linked_goods', expect.objectContaining({ p_codes: null }));
+  });
+
+  it('잘못된 범위·권한·결과 형식은 비교 실패로 알린다', async () => {
+    for (const value of [[], [''], [42], ['A'.repeat(121)], Array.from({ length: 5001 }, (_, index) => `C${index}`)]) {
+      expect(await previewErpLinkedGoodsAction(value)).toMatchObject({ ok: false, error: expect.stringContaining('비교할 ERP 품목') });
+    }
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: '42501', message: 'operator_capability_required' } });
+    expect(await previewErpLinkedGoodsAction(null)).toEqual({ ok: false, error: 'ERP 품목은 운영자만 관리할 수 있습니다.' });
+    /* 건너뛰는 행인데 사유가 없으면 형식이 깨진 결과다. 반영 버튼을 열지 않는다. */
+    mocks.rpc.mockResolvedValueOnce({ data: previewData([previewRow('price', { status: 'skip', reason: null })]), error: null });
+    expect(await previewErpLinkedGoodsAction(null)).toEqual({ ok: false, error: '연결 상품과 비교하지 못했습니다. 다시 시도해주세요.' });
+    mocks.rpc.mockRejectedValueOnce(new Error('socket'));
+    expect(await previewErpLinkedGoodsAction(null)).toEqual({ ok: false, error: '연결 상품과 비교하지 못했습니다. 다시 시도해주세요.' });
+  });
+});
+
+describe('연결 상품 반영 확정(1027T-X04)', () => {
+  it('고른 행 키만 보내고, 반영했으면 ERP 화면과 상품 화면을 다시 그린다', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: { state: 'completed', operationId: OPERATION, applied: { price: 1, barcode: 1, goods: 1 }, failed: [] }, error: null });
+    const result = await commitErpLinkedGoodsAction({ operationId: OPERATION, keys: [`${VARIANT}:price`, `${VARIANT}:barcode`, `${VARIANT}:price`] });
+    expect(result).toEqual({ ok: true, receipt: expect.objectContaining({ state: 'completed' }), message: '상품 1개에 판매가 1건·바코드 1건을 반영했습니다.' });
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_commit_erp_linked_goods', { p_operation_id: OPERATION, p_keys: [`${VARIANT}:price`, `${VARIANT}:barcode`] });
+    expect(mocks.revalidate).toHaveBeenCalledWith('/admin/catalog/erp-items');
+    expect(mocks.revalidate).toHaveBeenCalledWith('/admin/catalog/goods');
+  });
+
+  it('바뀐 미리보기·막힌 상품·일부만 고른 판매가를 운영자 문구로 알린다', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: { state: 'rejected', operationId: OPERATION, error: 'erp_goods_apply_changed' }, error: null });
+    expect(await commitErpLinkedGoodsAction({ operationId: OPERATION, keys: [`${VARIANT}:price`] })).toMatchObject({
+      ok: true, message: '미리보기 뒤 상품이나 ERP 값이 바뀌어 아무것도 반영하지 않았습니다. 다시 비교해주세요.' });
+    expect(mocks.revalidate).not.toHaveBeenCalled();
+    mocks.rpc.mockResolvedValueOnce({ data: { state: 'completed', operationId: OPERATION, applied: { price: 0, barcode: 0, goods: 0 },
+      failed: [{ key: `${VARIANT}:price`, field: 'price', goodId: 'erp-good', goodName: '아크릴 키링', optionName: '기본 옵션', error: 'goods_notice_required' }] }, error: null });
+    expect(await commitErpLinkedGoodsAction({ operationId: OPERATION, keys: [`${VARIANT}:price`] })).toMatchObject({
+      ok: true, message: '1건은 상품 저장 규칙에 막혀 반영하지 못했습니다. 아래 사유를 확인해주세요.' });
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: '23514', message: 'erp_goods_apply_partial_price', details: '아크릴 키링' } });
+    expect(await commitErpLinkedGoodsAction({ operationId: OPERATION, keys: [`${VARIANT}:price`] })).toEqual({
+      ok: false, error: '같은 상품(‘아크릴 키링’)의 판매가 행을 일부만 고르면 옵션 판매 금액이 상품 판매가보다 낮아집니다. 그 상품의 판매가 행을 함께 고르거나 함께 빼 주세요.' });
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: 'PT409', message: 'erp_goods_apply_busy' } });
+    expect(await commitErpLinkedGoodsAction({ operationId: OPERATION, keys: [`${VARIANT}:price`] })).toEqual({ ok: false, error: '다른 작업이 같은 상품을 저장하고 있습니다. 잠시 뒤 다시 반영해주세요.' });
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: '42501', message: 'erp_goods_apply_unavailable' } });
+    expect(await commitErpLinkedGoodsAction({ operationId: OPERATION, keys: [`${VARIANT}:price`] })).toEqual({ ok: false, error: '이 미리보기를 찾을 수 없습니다. 다시 비교해주세요.' });
+  });
+
+  it('잘못된 operation·키는 DB에 닿지 않고, 결과를 못 받으면 같은 미리보기로 다시 반영하라고 한다', async () => {
+    for (const input of [{ operationId: 'nope', keys: [`${VARIANT}:price`] }, { operationId: OPERATION, keys: [] }, { operationId: OPERATION, keys: ['x:price'] },
+      { operationId: OPERATION, keys: [`${VARIANT}:stock`] },
+      { operationId: OPERATION, keys: Array.from({ length: 501 }, (_, index) => `00000000-0000-4000-8000-${String(index).padStart(12, '0')}:price`) }]) {
+      expect(await commitErpLinkedGoodsAction(input)).toEqual({ ok: false, error: '반영할 행을 다시 골라주세요.' });
+    }
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    mocks.rpc.mockRejectedValueOnce(new Error('socket'));
+    expect(await commitErpLinkedGoodsAction({ operationId: OPERATION, keys: [`${VARIANT}:price`] })).toEqual({
+      ok: false, error: '반영 결과를 확인하지 못했습니다. 같은 미리보기에서 다시 반영하면 이미 반영한 행은 다시 바꾸지 않습니다.' });
   });
 });

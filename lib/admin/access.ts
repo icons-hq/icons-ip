@@ -66,7 +66,7 @@ const SCREEN_CAPABILITIES: Record<string, AdminCapability> = {
   'fulfillment-origins': 'catalog.manage', 'shipping-settings-templates': 'catalog.manage',
   'stock-reconcile': 'catalog.manage',
   'shipping-notice-templates': 'catalog.manage', 'notice-presets': 'catalog.manage', categories: 'catalog.manage',
-  'erp-items': 'platform.manage', announcements: 'catalog.announcements', 'goods-photos': 'catalog.manage', 'goods-event-templates': 'catalog.manage', 'category-templates': 'catalog.manage', 'goods-after-sales-templates': 'catalog.manage', 'size-templates': 'catalog.manage',
+  'erp-items': 'catalog.manage', announcements: 'catalog.announcements', 'goods-photos': 'catalog.manage', 'goods-event-templates': 'catalog.manage', 'category-templates': 'catalog.manage', 'goods-after-sales-templates': 'catalog.manage', 'size-templates': 'catalog.manage',
   'related-goods': 'catalog.manage', 'goods-attributes': 'platform.manage', 'shipping-regions': 'catalog.manage',
   'shipping-carriers': 'catalog.manage', orders: 'sales.read', gifts: 'sales.read', subscriptions: 'sales.read', unpaid: 'sales.manage',
   /* 발주확인·발송관리와 배송현황은 출고 전용 능력으로 연다(1014-084). 화면 안의 발주확인·합포장·지연 안내·목록 엑셀은 서버 동작과 RPC가 sales.manage를 따로 확인한다. */

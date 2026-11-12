@@ -1,6 +1,6 @@
 # 매니저 권한은 현재 DB의 업무 능력으로 판정한다
 
-- Status: accepted (2026-10-13), 보완 (2026-11-11 — 물류출고관리의 출고 전용 능력)
+- Status: accepted (2026-10-13), 보완 (2026-11-11 — 물류출고관리의 출고 전용 능력), 보완 (2026-11-12 — 상담 중 고객 구매이력·문의 자동 안내 저장·운영자별 처리 이력, ERP 품목 반입은 상품 관리 능력)
 - 관련: [ADR-0014](./0014-admin-console-redesign.md), [ARCHITECTURE](../ARCHITECTURE.md)
 
 판매자센터는 통합 매니저·계정 주매니저·계정 부매니저·인플루언서·대행사·물류출고관리의 6역할을 사용한다. 기존 `profiles.role`의 `user/staff/admin`과 담당업무 표시는 이 권한을 대신하지 않는다. 메뉴, 화면 로더, 서버 액션, 직접 RPC, 테이블·Storage 정책은 같은 업무 능력을 기준으로 제한하며, JWT에 저장된 과거 권한을 최종 판단에 사용하지 않는다.
@@ -34,3 +34,11 @@
 문의 자동 안내는 그 탭을 여는 운영자(`store.manage`)가 켜고 끄고 문구를 저장한다. 같은 저장 함수의 사업자·CS 연락처·무통장 계좌는 지금처럼 `seller.manage`(호환 단계 admin)다. 저장 감사(`admin.store_settings.updated`, 변경 전후)는 그대로다.
 
 같은 날 사용자는 담당자 처리 히스토리(원장 1014-105)로 "운영자별 처리 이력"을 골랐다. 운영자별 집계·처리 목록은 운영자 활동 기록이라 매니저 관리 권한(`operators.manage` — 통합·주매니저, 호환 단계 admin)으로만 열고 열람마다 감사한다(`admin.operator.inquiry_history_viewed`). 좁히지 않으려고 문의 하나의 처리 이력(담당 지정·변경·답변·완료 — 누가·언제)은 그 문의를 여는 운영자(`cs.manage`) 누구나 본다. 둘 다 이미 남는 감사 기록(답변·완료·담당 변경)을 원본으로 쓰며 새 기록 표를 두지 않는다. 7일 무응답 자동 종결은 실행자가 없어 운영자 완료로 세지 않는다.
+
+## 보완 (2026-11-12): ERP 품목 반입은 상품 관리 능력
+
+처음 결정은 ERP 품목 화면을 다른 플랫폼 설정처럼 `platform.manage`(통합·주매니저)에만 열었다. 10/27 회의에서 MD가 "ERP 품목 이렇게 복사 붙여넣기 하는 데"를 직접 쓰겠다고 했고(1027T-016), 2026-11-11 사용자는 "미연결 안내+MD 권한"을 골랐다. 부매니저(MD)는 `platform.manage`가 없어 화면을 열 수 없었다.
+
+ERP 품목 화면 읽기(목록·ERP 분류 목록·옵션 ERP 품명 제안 검색)·붙여넣기 반입·ERP 분류 연결은 상품 관리 능력 `catalog.manage`로 연다(migration `20261113040000`). RPC 6개(`admin_import_erp_items`·`admin_search_erp_items`·`admin_list_erp_items`·`admin_list_erp_categories`·`admin_set_erp_category_mapping`·`admin_set_erp_category_mappings`)의 능력 검사와 표 읽기 정책 3개(`erp_items`·`erp_category_mappings`·`catalog_category_erp_mappings`)를 같은 능력으로 바꾸고 운영자 계약 지문을 다시 적었다. 반입한 값을 같은 ERP 코드의 상품 옵션(연결 상품)에 반영하는 미리보기·확정 RPC(`admin_preview_erp_linked_goods`·`admin_commit_erp_linked_goods`, migration `20261113040100`)도 상품 편집과 같은 `catalog.manage`다. 확정은 기존 상품 저장 RPC와 옵션 ERP 식별자 저장 함수를 그대로 불러 가격·바코드 규칙과 감사 기록이 상품 편집과 같다.
+
+`catalog.manage`를 가진 인플루언서·대행사에게도 열리지만, 그 역할은 이미 상품 화면에서 판매가·옵션·바코드를 직접 고칠 수 있어 권한이 넓어지지 않는다. 반입 품목 삭제(`admin_delete_erp_items`)는 요청 범위 밖이고 지운 품목이 옵션 제안에서 사라지므로 `platform.manage`에 남겼다(화면은 삭제 칸을 그 능력이 있을 때만 그린다). ERP 전용 능력을 새로 만드는 방법은 DB를 먼저 올리는 배포 사이에 옛 앱이 낯선 능력 이름 때문에 권한 응답 전체를 거절하고 역할 목록을 바꿔야 해서 택하지 않았다.

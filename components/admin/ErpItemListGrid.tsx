@@ -13,11 +13,13 @@ function deleteConfirmation(count: number) {
 /**
  * 반입된 ERP 품목 목록. 잘못 반입했거나 단종된 품목을 골라 확인 후 지운다.
  * 선택은 지금 페이지의 행만 보낸다 — 다른 페이지에서 고른 품목이 보이지 않는 채로 지워지지 않게 한다.
+ * 삭제는 플랫폼 관리 권한(platform.manage)에만 있다. 반입만 하는 MD(catalog.manage)에게는 선택 칸을 그리지 않는다(1027T-016).
  */
-export function ErpItemListGrid({ columns, rows, emptyLabel }: {
+export function ErpItemListGrid({ columns, rows, emptyLabel, canDelete = true }: {
   columns: ConsoleGridColumn[];
   rows: ConsoleGridRow[];
   emptyLabel: string;
+  canDelete?: boolean;
 }) {
   const router = useRouter();
   const [selected, setSelected] = useState<string[]>([]);
@@ -28,7 +30,7 @@ export function ErpItemListGrid({ columns, rows, emptyLabel }: {
 
   const remove = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!ids.length || pending) return;
+    if (!canDelete || !ids.length || pending) return;
     if (!window.confirm(deleteConfirmation(ids.length))) return;
     const codes = [...ids];
     setStatus(null);
@@ -48,15 +50,15 @@ export function ErpItemListGrid({ columns, rows, emptyLabel }: {
       columns={columns}
       rows={rows}
       emptyLabel={emptyLabel}
-      selectable={rows.length > 0}
-      selectedIds={ids}
+      selectable={canDelete && rows.length > 0}
+      selectedIds={canDelete ? ids : []}
       onSelectionChange={setSelected}
     >
-      <ConsoleBulkActionBar
+      {canDelete ? <ConsoleBulkActionBar
         label="선택한 ERP 품목"
         selectedCount={ids.length}
         actions={[{ label: pending ? '지우는 중' : '선택 삭제', name: 'delete', variant: 'danger', disabled: pending }]}
-      />
+      /> : null}
     </ConsoleGrid>
     <p aria-live="polite" className={`text-sm empty:sr-only ${status?.tone === 'error' ? 'text-destructive' : 'text-success'}`}>{status?.text ?? ''}</p>
   </form>;

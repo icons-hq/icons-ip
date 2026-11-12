@@ -45,6 +45,8 @@ const operators = [
   sql('readable_order_numbers'),
   sql('order_number_time'),
   sql('erp_read'),
+  // MD(catalog.manage) ERP 품목 반입 권한과 연결 상품 판매가·바코드 반영(1027T-016·1027T-X04).
+  sql('erp_linked_goods_apply', { kc: true }),
   run(
     'erp_read_concurrency.py',
     `ERP_READ_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=${databaseContainer} PGDATABASE=postgres python3 supabase/tests/erp_read_concurrency.py`,
