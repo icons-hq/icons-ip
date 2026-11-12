@@ -299,7 +299,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
   }
   const draftSaved = Boolean(localSaveMessage?.ok);
   const [missingAttributes, setMissingAttributes] = useState<readonly string[]>([]);
-  const collectedErrors: Record<string, string | undefined> = draftSaved ? {} : { ...state.errors, ...clientErrors };
+  const collectedErrors: Record<string, string | undefined> = draftSaved ? {} : { /* 가장 최근 저장 시도가 브라우저 검증에서 멈췄다면 지난 서버 오류는 이미 고친 것이다(요약에 남기지 않는다). */ ...(Object.keys(clientErrors).length ? {} : state.errors), ...clientErrors };
   /* 빠졌던 필수 상품속성을 채우면 다음 저장을 기다리지 않고 오류를 지운다. */
   const errors = collectedErrors.productAttributes?.includes('필수 상품속성') && !missingAttributes.length ? { ...collectedErrors, productAttributes: undefined } : collectedErrors;
   /* 방금 공개했는지. 공개 버튼은 저장 폼 밖이라 저장 막대의 지난 저장 안내가 남는다. */

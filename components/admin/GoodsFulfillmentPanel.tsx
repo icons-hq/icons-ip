@@ -11,7 +11,7 @@ import { GOOD_INPUT_CLASS, GOOD_NOTE_CLASS, GOOD_NUMBER_INPUT_CLASS } from './Go
 const FIELD_LABEL_CLASS = 'flex min-w-0 flex-col gap-2 text-sm font-medium text-foreground';
 const CHECK_LABEL_CLASS = 'flex cursor-pointer items-start gap-2 text-sm [&>input]:mt-0.5';
 const shippingMethods = ['parcel', 'quick', 'pickup', 'direct', 'freight'] as const;
-const draftOf = (s: GoodsFulfillmentSettings) => ({ mode: s.mode, methods: shippingMethods.map(method => { const terms = s.methods.find(m => m.method === method); return { method, enabled: Boolean(terms), amount: terms?.feeAmount?.toString() ?? '0', basis: terms?.feeBasis ?? 'per_order', installation: terms?.installationFee.toString() ?? '0' }; }), files: s.files, publicNote: s.publicNote, evidence: '', confirmed: false });
+const draftOf = (s: GoodsFulfillmentSettings) => ({ mode: s.mode, methods: shippingMethods.map(method => { const terms = s.methods.find(m => m.method === method); return { method, enabled: Boolean(terms), amount: terms?.feeAmount?.toString() ?? '0', basis: terms?.feeBasis ?? 'per_order', installation: terms?.installationFee.toString() ?? '0' }; }), files: s.files, publicNote: s.publicNote, evidence: s.evidence ?? '', confirmed: false });
 type Draft = ReturnType<typeof draftOf>;
 /**
  * 수령 방식·제공 파일 입력(저장된 상품 패널과 등록 화면의 '상품과 함께 저장'이 같이 쓴다 — T15b). 파일 전송·검증과 저장은 부르는 쪽이 한다.
