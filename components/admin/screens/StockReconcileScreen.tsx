@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { AdminNotice, AdminPageHeader, AdminSectionCard, AdminStatusBadge } from '@/components/admin/console/AdminKit';
-import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/admin/kit/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/admin/kit/ui/table';
 import { StockReconcilePanel, type StockReconcileOrigin } from '@/components/admin/StockReconcilePanel';
 import { StockSafetyDigestPanel } from '@/components/admin/StockSafetyDigestPanel';
 import { STOCK_RECONCILE_PATH, type StockReconcileDocument, type StockReconcileSummary } from '@/lib/admin/stock-reconcile';
@@ -11,8 +11,8 @@ const count = (value: number) => value.toLocaleString('ko-KR');
 
 function HistoryTable({ history }: { history: StockReconcileSummary[] }) {
   if (!history.length) return <p className="text-muted-foreground">아직 대조한 파일이 없습니다.</p>;
-  return <div className="min-w-0 overflow-x-auto rounded-lg border">
-    <table className="w-full min-w-[760px] text-sm" data-slot="table">
+  return <div className="min-w-0 rounded-lg border">
+    <Table className="min-w-[760px]" stickyHeader>
       <caption className="sr-only">최근 재고 파일 대조 20건</caption>
       <TableHeader><TableRow>
         <TableHead scope="col">미리보기</TableHead><TableHead scope="col">파일</TableHead><TableHead scope="col">출고지</TableHead>
@@ -31,7 +31,7 @@ function HistoryTable({ history }: { history: StockReconcileSummary[] }) {
           ? <><AdminStatusBadge tone="success">반영함</AdminStatusBadge><span className="block text-xs text-muted-foreground tabular-nums">{formatOrderDateTime(row.appliedAt)}{row.appliedByName ? ` · ${row.appliedByName}` : ''}</span></>
           : <AdminStatusBadge tone="neutral">미리보기만</AdminStatusBadge>}</TableCell>
       </TableRow>)}</TableBody>
-    </table>
+    </Table>
   </div>;
 }
 

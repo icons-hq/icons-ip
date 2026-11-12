@@ -13,7 +13,7 @@ describe('판매 목록 조회 계약 연결', () => {
     const filters = normalizeAdminClaimFilters({ field, query: '  CODE_%  ', dateField: 'paid', page: '2', stage: 'collected', reasonType: 'defect' });
     await getAdminClaimConsoleData('exchange', filters);
     const shared = { p_claim_type: 'exchange', p_field: field, p_query: 'CODE_%', p_date_field: 'paid', p_reason_type: 'defect' };
-    expect(mocks.rpc).toHaveBeenCalledWith('admin_search_order_claims_console', expect.objectContaining({ ...shared, p_stage: 'collected', p_offset: 20 }));
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_search_order_claims_console', expect.objectContaining({ ...shared, p_stage: 'collected', p_offset: 50 }));
     expect(mocks.rpc).toHaveBeenCalledWith('admin_order_claim_stage_counts_console', expect.objectContaining(shared));
   });
 
@@ -21,7 +21,7 @@ describe('판매 목록 조회 계약 연결', () => {
     const filters = normalizeAdminClaimFilters({ dateField: 'paid', from: '2026-10-02', to: '2026-10-02', sort: 'oldest', page: '2' });
     await getAdminClaimConsoleData('return', filters);
     expect(mocks.rpc).toHaveBeenCalledWith('admin_search_order_claims_console', expect.objectContaining({
-      p_date_field: 'paid', p_from: '2026-10-02', p_to: '2026-10-02', p_sort: 'oldest', p_limit: 20, p_offset: 20,
+      p_date_field: 'paid', p_from: '2026-10-02', p_to: '2026-10-02', p_sort: 'oldest', p_limit: 50, p_offset: 50,
     }));
     expect(mocks.rpc).toHaveBeenCalledWith('admin_order_claim_stage_counts_console', expect.objectContaining({
       p_date_field: 'paid', p_from: '2026-10-02', p_to: '2026-10-02', p_claim_type: 'return',

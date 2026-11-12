@@ -30,7 +30,7 @@ import {
   type OrderCancellationRequestStatus,
 } from './orders';
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 50;
 const ORDER_STATUS_SET = new Set<string>(ADMIN_ORDER_STATUSES);
 const REQUEST_STATUS_SET = new Set<string>(ORDER_CANCELLATION_REQUEST_STATUSES);
 const ATTEMPT_STATE_SET = new Set<string>(GOODS_PAYMENT_ATTEMPT_STATES);

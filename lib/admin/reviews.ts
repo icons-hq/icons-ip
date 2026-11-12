@@ -21,7 +21,7 @@ import {
  * 값으로 좁히는 일뿐이다 — 그대로 RPC에 넘기면 어드민 화면이 임의 입력의 통로가 된다.
  */
 
-export const ADMIN_REVIEW_PAGE_SIZE = 20;
+export const ADMIN_REVIEW_PAGE_SIZE = 50;
 
 export type AdminReviewStatusFilter = ReviewStatus | 'all';
 export type AdminReviewRatingFilter = 'all' | '1' | '2' | '3' | '4' | '5';

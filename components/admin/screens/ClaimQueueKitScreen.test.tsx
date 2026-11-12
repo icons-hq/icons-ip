@@ -71,7 +71,7 @@ describe('ClaimQueueKitScreen (admin kit)', () => {
   /* 사람 눈 판정: 검색은 위 줄, 조건은 아래 줄이라 조건을 바꾼 뒤 검색을 눌러야 하는지 몰랐다. */
   it('사유·처리상태·기간은 바로 적용된다고 목록 머리에서 말한다', () => {
     const html = renderToStaticMarkup(<ClaimQueueKitScreen data={data()} now={NOW} />);
-    expect(html).toContain('사유·처리상태·기간은 고르면 바로 적용되고, 검색 버튼은 검색어에만 씁니다.');
+    expect(html).toContain('검색어·사유·처리상태·기간을 고른 뒤 검색을 눌러야 조회됩니다.');
     expect(html.indexOf('고르면 바로 적용')).toBeLessThan(html.indexOf('data-claim-next-action'));
   });
 
@@ -168,7 +168,7 @@ describe('kit 표 상태 ↔ 기존 URL 계약', () => {
 
   it('필터를 지우면 전체, 정렬 기본값은 URL에서 빠진다', () => {
     const filters = normalizeAdminClaimFilters({ stage: 'requested', sort: 'oldest' }, 'cancel');
-    const state = claimKitStateFor(filters, 20);
+    const state = claimKitStateFor(filters, 50);
     const next = claimKitFiltersFor(filters, { ...state, columnFilters: [], sorting: [{ id: 'requested', desc: true }] });
     expect(adminClaimHref('cancel', next)).toBe('/admin/sales/claims/cancels?stage=all&page=1');
   });
@@ -390,8 +390,8 @@ describe('ClaimQueueKitScreen — 반품·교환 목록', () => {
     expect(html).toContain('조건에 맞는 교환 요청이 없습니다.');
     expect(html).toContain('aria-label="교환 요청 목록"');
     expect(html).toContain('aria-label="교환 요청 검색"');
-    /* 검색은 양식 제출이다(kit 버튼은 type을 주지 않으면 button이다). */
-    expect(html).toMatch(/<form[^>]*aria-label="교환 요청 검색"[^>]*>(?:(?!<\/form>)[\s\S])*<button[^>]*type="submit"[^>]*>검색<\/button>/);
+    /* 조건(검색·필터·기간)은 [검색] 양식 제출로만 적용된다(kit 버튼은 type을 주지 않으면 button이다). */
+    expect(html).toMatch(/<form[^>]*aria-label="교환 요청 조회 조건"[^>]*>(?:(?!<\/form>)[\s\S])*<button[^>]*type="submit"[^>]*>검색<\/button>/);
   });
 });
 

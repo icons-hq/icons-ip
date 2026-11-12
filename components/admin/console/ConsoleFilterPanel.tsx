@@ -3,12 +3,11 @@ import type { ReactNode } from 'react';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { AdminSelect } from './AdminSelect';
+import { ConsoleDateRangeFields } from './ConsoleDateRangeFields';
 import {
   CONSOLE_DATE_PRESET_IDS,
   consoleDatePresets,
-  isConsoleDateRangeActive,
   type ConsoleDatePresetId,
-  type ConsoleDateRange,
 } from './date-presets';
 
 /** 셀렉트 한 칸의 선택지. */
@@ -30,11 +29,6 @@ export interface ConsoleDateRangeFilter {
   label?: string;
   /** 노출할 프리셋과 순서. 기본 `['today', 'week', 'month', 'quarter']`. */
   presets?: readonly ConsoleDatePresetId[];
-  /**
-   * 프리셋 링크 href 생성기. 주지 않으면 `action` + `hiddenFields` + 현재 상태·검색 값에
-   * 프리셋 기간과 `page=1`을 얹은 기본 href를 만든다.
-   */
-  presetHref?: (range: ConsoleDateRange, preset: ConsoleDatePresetId) => string;
 }
 
 export interface ConsoleStatusFilter {
@@ -106,8 +100,8 @@ function buildHref(
 /**
  * 콘솔 목록 화면 상단의 필터 패널.
  *
- * 필터 값은 GET 폼과 URL이 소유한다. 검색은 폼 제출로, 기간 프리셋과 초기화는 링크 이동으로
- * 처리한다. 선택값 잘림 안내만 클라이언트에서 측정하며, 서버 컴포넌트 안에 그대로 놓을 수 있다.
+ * 필터 값은 GET 폼과 URL이 소유한다. 조회는 [검색] 폼 제출로만 일어난다(기간 빠른 선택은 날짜 칸만 채운다).
+ * 초기화는 링크 이동이다. 선택값 잘림 안내만 클라이언트에서 측정하며, 서버 컴포넌트 안에 그대로 놓을 수 있다.
  * 필터 조건이 URL에 남아 딥링크·새로고침·뒤로가기가 유지된다.
  *
  * @example
@@ -137,18 +131,6 @@ export function ConsoleFilterPanel({
   const fromName = dateRange?.fromName ?? 'from';
   const toName = dateRange?.toName ?? 'to';
 
-  /* 프리셋 링크는 기간만 바꾸고 나머지 조건은 유지한다. 다만 page는 1로 되돌린다 —
-     기간을 좁힌 뒤 5페이지에 남아 있으면 결과가 비어 보인다. */
-  const presetHref = dateRange?.presetHref
-    ?? ((range: ConsoleDateRange) => buildHref(action, hiddenFields, {
-      [statusName]: statusFilter?.value,
-      [searchFieldName]: search?.fieldValue,
-      [searchName]: search?.value,
-      [fromName]: range.from,
-      [toName]: range.to,
-      page: '1',
-    }));
-
   const presets = dateRange
     ? consoleDatePresets(dateRange.presets ?? CONSOLE_DATE_PRESET_IDS, now)
     : [];
@@ -160,7 +142,6 @@ export function ConsoleFilterPanel({
    * 모양만 kit 부품(Input · 버튼)과 유틸리티로 그린다. 화면 고유 CSS가 닿지 않게 옛 클래스 이름을 쓰지 않는다 —
    * 화면이 children으로 더하는 조건도 `ConsoleFilterField`로 같은 칸 모양을 쓴다.
    */
-  const presetBase = 'inline-flex h-7 items-center rounded-md px-2.5 text-[0.8rem] font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground aria-[current=true]:bg-background aria-[current=true]:text-primary-soft-foreground aria-[current=true]:shadow-sm';
   return (
     <form
       action={action}
@@ -175,35 +156,16 @@ export function ConsoleFilterPanel({
       {/* 칸은 위 기준으로 맞춘다 — 도움말 줄이 붙은 칸도 라벨·입력 줄이 이웃 칸과 같은 높이에 선다. */}
       <div className={CONSOLE_FILTER_FIELDS_CLASS}>
         {dateRange ? (
-          <div className="flex min-w-0 flex-col gap-1.5" data-console-filter="period">
-            <span className="text-sm leading-none font-medium" id={periodLabelId}>
-              {dateRange.label ?? '조회기간'}
-            </span>
-            <div className="flex flex-wrap items-center gap-2">
-              <div aria-labelledby={periodLabelId} className="inline-flex rounded-lg bg-muted p-0.5" role="group">
-                {presets.map((preset) => {
-                  const active = isConsoleDateRangeActive(preset.range, dateRange);
-                  return (
-                    <Link
-                      aria-current={active ? 'true' : undefined}
-                      className={presetBase}
-                      href={presetHref(preset.range, preset.id)}
-                      key={preset.id}
-                    >
-                      {preset.label}
-                    </Link>
-                  );
-                })}
-              </div>
-              <div className="flex items-center gap-1.5">
-                <label className="sr-only" htmlFor={`${idPrefix}-from`}>시작일</label>
-                <Input className="w-36" defaultValue={dateRange.from ?? ''} id={`${idPrefix}-from`} name={fromName} type="date" />
-                <span aria-hidden="true" className="text-muted-foreground">~</span>
-                <label className="sr-only" htmlFor={`${idPrefix}-to`}>종료일</label>
-                <Input className="w-36" defaultValue={dateRange.to ?? ''} id={`${idPrefix}-to`} name={toName} type="date" />
-              </div>
-            </div>
-          </div>
+          <ConsoleDateRangeFields
+            from={dateRange.from ?? null}
+            fromName={fromName}
+            idPrefix={idPrefix}
+            label={dateRange.label ?? '조회기간'}
+            labelId={periodLabelId}
+            presets={presets}
+            to={dateRange.to ?? null}
+            toName={toName}
+          />
         ) : null}
 
         {statusFilter ? (

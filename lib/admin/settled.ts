@@ -32,7 +32,7 @@ export interface AdminSettledConsoleData {
   total: number;
 }
 
-export const ADMIN_SETTLED_PAGE_SIZE = 20;
+export const ADMIN_SETTLED_PAGE_SIZE = 50;
 
 export interface AdminDefectClaimWindow {
   /** 하자 클레임 마감 시각. 공급 기록이 없으면 `null`. */

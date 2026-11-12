@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { AdminNotice, AdminPageHeader, AdminSectionCard, AdminStatusBadge } from '@/components/admin/console/AdminKit';
-import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/admin/kit/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/admin/kit/ui/table';
 import { adminClaimDetailHref } from '@/lib/admin/claims';
 import type { DefectiveStockList } from '@/lib/admin/defective-stock';
 import { orderClaimReferenceLabel } from '@/lib/orders/claims';
@@ -24,8 +24,8 @@ export function DefectiveStockScreen({ list }: { list: DefectiveStockList }) {
     </AdminNotice> : null}
     <AdminSectionCard id="defective-stock-variants" title="옵션별 불량 수량" summary={`옵션 ${count(list.variants.length)}개 · 합계 ${count(total)}개`}>
       {list.variants.length === 0 ? <p className="text-muted-foreground">아직 기록된 불량 재고가 없습니다. 반품 환불을 확정할 때 품목을 불량으로 고르면 여기에 쌓입니다.</p>
-        : <div className="min-w-0 overflow-x-auto rounded-lg border">
-          <table className="w-full min-w-[640px] text-sm" data-slot="table">
+        : <div className="min-w-0 rounded-lg border">
+          <Table className="min-w-[640px]" stickyHeader>
             <caption className="sr-only">옵션별 불량 수량</caption>
             <TableHeader><TableRow>
               <TableHead scope="col">상품</TableHead><TableHead scope="col">옵션</TableHead>
@@ -39,13 +39,13 @@ export function DefectiveStockScreen({ list }: { list: DefectiveStockList }) {
               <TableCell className="text-right tabular-nums">{count(row.entries)}건</TableCell>
               <TableCell className="whitespace-nowrap tabular-nums">{row.lastRecordedAt ? formatOrderDateTime(row.lastRecordedAt) : '-'}</TableCell>
             </TableRow>)}</TableBody>
-          </table>
+          </Table>
         </div>}
     </AdminSectionCard>
     <AdminSectionCard id="defective-stock-entries" title="최근 기록" summary="근거 반품 요청과 기록한 담당자입니다.">
       {list.entries.length === 0 ? <p className="text-muted-foreground">기록이 없습니다.</p>
-        : <div className="min-w-0 overflow-x-auto rounded-lg border">
-          <table className="w-full min-w-[760px] text-sm" data-slot="table">
+        : <div className="min-w-0 rounded-lg border">
+          <Table className="min-w-[760px]" stickyHeader>
             <caption className="sr-only">불량 재고 최근 기록</caption>
             <TableHeader><TableRow>
               <TableHead scope="col">기록 시각</TableHead><TableHead scope="col">상품·옵션</TableHead>
@@ -58,7 +58,7 @@ export function DefectiveStockScreen({ list }: { list: DefectiveStockList }) {
               <TableCell><Link className="underline underline-offset-4" href={adminClaimDetailHref('return', row.claimId)}>{orderClaimReferenceLabel(row.claimReference)}</Link></TableCell>
               <TableCell>{row.recordedByName || '-'}</TableCell>
             </TableRow>)}</TableBody>
-          </table>
+          </Table>
         </div>}
     </AdminSectionCard>
   </div>;

@@ -17,7 +17,7 @@ import {
  * 동료에게 링크로 넘길 수 있어야 하고, 새로고침으로 조건이 날아가면 안 된다.
  */
 
-export const ADMIN_INQUIRY_PAGE_SIZE = 20;
+export const ADMIN_INQUIRY_PAGE_SIZE = 50;
 
 /** 기본 상태 필터는 미답변이다. 큐 화면의 존재 이유가 "지금 답할 것"이기 때문이다. */
 export const DEFAULT_ADMIN_INQUIRY_STATUS: AdminInquiryStatusFilter = 'open';

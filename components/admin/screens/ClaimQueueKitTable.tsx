@@ -14,7 +14,9 @@ import { KitDatePresets } from '@/components/admin/kit/date-presets';
 import { ConsoleTableSettings, type ConsoleTableSettingsColumn } from '@/components/admin/kit/console-table-settings';
 import type { DataTableFeatures } from '@/components/admin/kit/lib/data-table-features';
 import { ActionBar, ActionBarClose, ActionBarGroup, ActionBarItem, ActionBarSelection, ActionBarSeparator } from '@/components/admin/kit/ui/action-bar';
-import { Button } from '@/components/admin/kit/ui/button';
+import Link from 'next/link';
+import { ConsoleFilterActions, CONSOLE_FILTER_CARD_CLASS } from '@/components/admin/console/ConsoleFilterPanel';
+import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
 import { Checkbox } from '@/components/admin/kit/ui/checkbox';
 import { Input } from '@/components/admin/kit/ui/input';
 import { Label } from '@/components/admin/kit/ui/label';
@@ -37,6 +39,7 @@ import {
   type AdminClaimBulkStep,
 } from '@/lib/admin/claim-bulk';
 import {
+  ADMIN_CLAIM_PAGE_SIZE,
   adminClaimHref,
   adminClaimTodayKst,
   adminClaimReasonOptions,
@@ -151,7 +154,7 @@ export function claimKitFiltersFor(filters: AdminClaimFilters, next: ConsoleTabl
     ...filters,
     from,
     page: next.pagination.pageIndex + 1,
-    pageSize: next.pagination.pageSize === 20 ? undefined : next.pagination.pageSize,
+    pageSize: next.pagination.pageSize === ADMIN_CLAIM_PAGE_SIZE ? undefined : next.pagination.pageSize,
     reasonType: (first('reason') ?? 'all') as AdminClaimReasonFilter,
     sort: sortFor(next.sorting),
     stage: (first('stage') ?? 'all') as AdminClaimStageFilter,
@@ -297,26 +300,21 @@ const PREFERENCE_COLUMNS_BY_TYPE: Record<OrderClaimType, readonly ConsoleTableSe
 };
 
 /**
+ * 검색 항목·검색어 입력. 값은 위 조회 조건 폼이 들고 있고 [검색]을 눌러야 조회된다(ADM-016 #13).
  * 검색어는 조합이 끝난 뒤에만 확정한다. Dice UI의 텍스트 필터는 입력할 때마다 값을 올려 보내
  * (조합 중인 한글도) URL·서버 재조회로 이어지므로 쓰지 않는다. Enter의 조합 확정 키는 검색을 보내지 않는다.
  */
-function ClaimSearchBox({ field, fieldOptions, onSearch, pending, query, typeLabel }: {
+function ClaimSearchFields({ field, fieldOptions, onField, onQuery, query, typeLabel }: {
   field: string;
   fieldOptions: readonly Option[];
-  onSearch: (field: string, query: string) => void;
-  pending: boolean;
+  onField: (value: string) => void;
+  onQuery: (value: string) => void;
   query: string;
   typeLabel: string;
 }) {
   const inputId = useId();
-  const [draft, setDraft] = useState(query);
-  const [draftField, setDraftField] = useState(field);
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    onSearch(draftField, draft.trim());
-  }
-  return <form aria-label={`${typeLabel} 요청 검색`} className="flex flex-wrap items-center gap-2" onSubmit={submit} role="search">
-    <Select items={fieldOptions} onValueChange={(value) => { if (typeof value === 'string') setDraftField(value); }} value={draftField}>
+  return <div aria-label={`${typeLabel} 요청 검색`} className="flex min-w-0 flex-wrap items-center gap-2" role="search">
+    <Select items={fieldOptions} onValueChange={(value) => { if (typeof value === 'string') onField(value); }} value={field}>
       <SelectTrigger aria-label="검색 항목" className="w-36"><SelectValue /></SelectTrigger>
       <SelectContent>
         {fieldOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
@@ -327,13 +325,12 @@ function ClaimSearchBox({ field, fieldOptions, onSearch, pending, query, typeLab
       className="w-full sm:w-72"
       id={inputId}
       maxLength={100}
-      onChange={(event) => setDraft(event.target.value)}
+      onChange={(event) => onQuery(event.target.value)}
       onKeyDown={(event) => { if (event.key === 'Enter' && event.nativeEvent.isComposing) event.preventDefault(); }}
       placeholder="주문번호 · 요청번호 · 구매자 · 수취인 · 상품 URL"
-      value={draft}
+      value={query}
     />
-    <Button disabled={pending} type="submit" variant="soft">검색</Button>
-  </form>;
+  </div>;
 }
 
 const CUSTOM_REASON = '__custom';
@@ -436,6 +433,10 @@ export function ClaimQueueKitTable({
 }) {
   const router = useRouter();
   const [searching, startSearch] = useTransition();
+  /* 조회 조건 초안(검색 항목·검색어·기간 기준). 열 필터 초안은 표 훅이 들고 있다. [검색]을 눌러야 모두 함께 적용된다. */
+  const [draftField, setDraftField] = useState<string>(filters.field ?? 'all');
+  const [draftQuery, setDraftQuery] = useState(filters.query);
+  const [draftDateField, setDraftDateField] = useState<string>(filters.dateField ?? 'requested');
   const [selection, setSelection] = useState<RowSelectionState>({});
   const [note, setNote] = useState('');
   const [clientError, setClientError] = useState('');
@@ -449,8 +450,9 @@ export function ClaimQueueKitTable({
   const typeLabel = ORDER_CLAIM_TYPE_LABELS[claimType];
   const convertFrom = claimType === 'cancel' ? null : claimType;
   const convertTo = convertFrom ? adminClaimBulkConversionTarget(convertFrom) : null;
-  const dateField = filters.dateField ?? 'requested';
-  const dateLabel = dateFieldOptions.find((option) => option.value === dateField)?.label ?? '요청일';
+  /* 열 머리글·필터 이름은 적용된 기간 기준을 따른다(초안이 아니라 지금 보이는 목록의 기준). */
+  const appliedDateField = filters.dateField ?? 'requested';
+  const dateLabel = dateFieldOptions.find((option) => option.value === appliedDateField)?.label ?? '요청일';
   /*
    * 열 정의는 유형·기간 기준이 바뀔 때만 새로 만든다. flexRender는 셀 함수를 컴포넌트로 그리므로 열이 새로
    * 만들어지면 모든 셀이 다시 마운트되고, 상세 팝업을 연 요청번호 링크도 교체돼 닫은 뒤 포커스를 돌려줄 곳이
@@ -459,9 +461,10 @@ export function ClaimQueueKitTable({
   const columns = useMemo(() => buildColumns(claimType, dateLabel), [claimType, dateLabel]);
   const currentHref = adminClaimHref(claimType, filters);
 
-  const { pending, preferences, savePreferences, table } = useConsoleTable({
+  const { draftColumnFilters, pending, preferences, savePreferences, table } = useConsoleTable({
     columns,
     data: rows,
+    deferColumnFilters: true,
     enableRowSelection: (row) => row.original.selectable,
     getRowId: (row) => row.id,
     hrefFor: (next) => adminClaimHref(claimType, claimKitFiltersFor(filters, next)),
@@ -546,80 +549,81 @@ export function ClaimQueueKitTable({
     setSelection(Object.fromEntries(result.results.filter((entry) => entry.outcome === 'failed' || entry.outcome === 'skipped').map((entry) => [entry.claimId, true])));
   }
 
-  function onSearch(field: string, query: string) {
+  /* 서버가 그린 조건이 바뀌면(조회·초기화·뒤로 가기·페이지 이동) 초안도 그 조건으로 되돌린다. */
+  const [seenHref, setSeenHref] = useState(currentHref);
+  if (seenHref !== currentHref) {
+    setSeenHref(currentHref);
+    setDraftField(filters.field ?? 'all');
+    setDraftQuery(filters.query);
+    setDraftDateField(filters.dateField ?? 'requested');
+  }
+
+  /* [검색]: 검색 항목·검색어·기간 기준·열 필터 초안을 한 번에 적용한다. URL 계약(adminClaimHref)은 그대로다. */
+  function applyConditions(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const applied = claimKitFiltersFor(filters, { ...claimKitStateFor(filters, pageSize), columnFilters: draftColumnFilters, pagination: { pageIndex: 0, pageSize } });
     startSearch(() => {
       router.push(adminClaimHref(claimType, {
-        ...filters,
-        field: field === 'all' ? undefined : field as AdminClaimFilters['field'],
+        ...applied,
+        dateField: draftDateField === 'requested' ? undefined : draftDateField as AdminClaimFilters['dateField'],
+        field: draftField === 'all' ? undefined : draftField as AdminClaimFilters['field'],
         page: 1,
-        query,
+        query: draftQuery.trim(),
       }), { scroll: false });
     });
   }
 
-  function onDateField(value: string) {
-    startSearch(() => {
-      router.push(adminClaimHref(claimType, {
-        ...filters,
-        dateField: value === 'requested' ? undefined : value as AdminClaimFilters['dateField'],
-        page: 1,
-      }), { scroll: false });
-    });
-  }
-
-  /* 기간 프리셋은 기간 기준(요청일 등)을 그대로 두고 기간만 바꾼다. 기존 화면의 프리셋과 같은 KST 기간이다. */
+  /* 기간 빠른 선택은 기간 기준(요청일 등)을 그대로 두고 기간 초안만 채운다. 기존 화면의 프리셋과 같은 KST 기간이다. */
+  const draftRange = draftColumnFilters.find((filter) => filter.id === 'requested')?.value;
+  const draftFrom = Array.isArray(draftRange) ? msToDay(draftRange[0]) : null;
+  const draftTo = Array.isArray(draftRange) ? msToDay(draftRange[1]) : null;
   function onDatePreset(range: ConsoleDateRange) {
-    startSearch(() => {
-      router.push(adminClaimHref(claimType, { ...filters, from: range.from, page: 1, to: range.to }), { scroll: false });
-    });
+    table.getColumn('requested')?.setFilterValue([dayToMs(range.from), dayToMs(range.to)]);
   }
 
   const error = clientError || state.error;
   const busy = pending || searching;
 
   return <div className="flex min-w-0 flex-col gap-3" data-admin-kit="claims-table" data-pending={busy ? 'true' : undefined}>
-    <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-      <ClaimSearchBox
-        field={filters.field ?? 'all'}
-        fieldOptions={searchFieldOptions}
-        key={`${filters.field ?? 'all'}:${filters.query}`}
-        onSearch={onSearch}
-        pending={busy}
-        query={filters.query}
-        typeLabel={typeLabel}
-      />
-      {/* 처리 막대는 체크하면 화면 아래에 뜬다. 체크 전에는 같은 버튼을 흐리게 보여 어디서 처리하는지 알린다(발주 화면의 '선택 주문 0건'과 같은 약속). */}
-      {selectedIds.length === 0 ? <div aria-label="일괄 처리(요청을 체크하면 쓸 수 있습니다)" className="flex flex-wrap items-center gap-1.5" data-claims-bulk-idle="" role="group">
-        <span className="text-xs text-muted-foreground">0건 선택</span>
-        {[
-          ADMIN_CLAIM_BULK_ACTION_LABELS.approve,
-          ADMIN_CLAIM_BULK_ACTION_LABELS.review,
-          ...adminClaimBulkSteps(claimType).map((step) => ADMIN_CLAIM_BULK_STEP_LABELS[step]),
-          ...(convertFrom ? [adminClaimBulkConversionLabel(convertFrom)] : []),
-          ADMIN_CLAIM_BULK_ACTION_LABELS.reject,
-        ].map((label) => <Button disabled key={label} size="sm" title="왼쪽 체크칸에서 요청을 고르면 화면 아래 막대에서 처리합니다" variant="outline">{label}</Button>)}
-      </div> : null}
-    </div>
-    <DataTable
-      aria-label={`${typeLabel} 요청 목록`}
-      emptyLabel={`조건에 맞는 ${typeLabel} 요청이 없습니다.`}
-      pagination={<DataTablePagination pageSizeOptions={PAGE_SIZE_OPTIONS} table={table} />}
-      table={table}
-    >
+    <form aria-label={`${typeLabel} 요청 조회 조건`} className={CONSOLE_FILTER_CARD_CLASS} data-console-filters="" onSubmit={applyConditions}>
+      <ClaimSearchFields field={draftField} fieldOptions={searchFieldOptions} onField={setDraftField} onQuery={setDraftQuery} query={draftQuery} typeLabel={typeLabel} />
       <DataTableToolbar
+        className="p-0"
         filtersEnd={<>
-          <Select items={dateFieldOptions} onValueChange={(value) => { if (typeof value === 'string') onDateField(value); }} value={dateField}>
+          <Select items={dateFieldOptions} onValueChange={(value) => { if (typeof value === 'string') setDraftDateField(value); }} value={draftDateField}>
             <SelectTrigger aria-label="기간 기준" className="w-32"><SelectValue /></SelectTrigger>
             <SelectContent>
               {dateFieldOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
             </SelectContent>
           </Select>
-          <KitDatePresets disabled={busy} from={filters.from} onSelect={onDatePreset} to={filters.to} />
+          <KitDatePresets disabled={busy} from={draftFrom} onSelect={onDatePreset} to={draftTo} />
         </>}
+        hideReset
         table={table}
         viewOptions={<ConsoleTableSettings columns={PREFERENCE_COLUMNS_BY_TYPE[claimType]} onSave={savePreferences} preferences={preferences} />}
       />
-    </DataTable>
+      <ConsoleFilterActions>
+        <Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={adminClaimHref(claimType, { ...filters, dateField: undefined, field: undefined, from: null, page: 1, query: '', reasonType: 'all', stage: 'all', to: null })}>초기화</Link>
+        <Button disabled={busy} type="submit" variant="soft">검색</Button>
+      </ConsoleFilterActions>
+    </form>
+    {/* 처리 막대는 체크하면 화면 아래에 뜬다. 체크 전에는 같은 버튼을 흐리게 보여 어디서 처리하는지 알린다(발주 화면의 '선택 주문 0건'과 같은 약속). */}
+    {selectedIds.length === 0 ? <div aria-label="일괄 처리(요청을 체크하면 쓸 수 있습니다)" className="flex flex-wrap items-center gap-1.5" data-claims-bulk-idle="" role="group">
+      <span className="text-xs text-muted-foreground">0건 선택</span>
+      {[
+        ADMIN_CLAIM_BULK_ACTION_LABELS.approve,
+        ADMIN_CLAIM_BULK_ACTION_LABELS.review,
+        ...adminClaimBulkSteps(claimType).map((step) => ADMIN_CLAIM_BULK_STEP_LABELS[step]),
+        ...(convertFrom ? [adminClaimBulkConversionLabel(convertFrom)] : []),
+        ADMIN_CLAIM_BULK_ACTION_LABELS.reject,
+      ].map((label) => <Button disabled key={label} size="sm" title="왼쪽 체크칸에서 요청을 고르면 화면 아래 막대에서 처리합니다" variant="outline">{label}</Button>)}
+    </div> : null}
+    <DataTable
+      aria-label={`${typeLabel} 요청 목록`}
+      emptyLabel={`조건에 맞는 ${typeLabel} 요청이 없습니다.`}
+      pagination={<DataTablePagination pageSizeOptions={PAGE_SIZE_OPTIONS} table={table} />}
+      table={table}
+    />
 
     <ActionBar
       aria-label="선택 건 일괄 처리"

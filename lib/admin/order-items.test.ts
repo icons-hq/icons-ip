@@ -3,7 +3,7 @@ import { adminOrderItemsHref, normalizeAdminOrderItemFilters, orderViewHref, par
 import { orderItemsExportSheet } from './order-items-export';
 import { adminOrderBackHref, adminOrderDetailHrefFromBack } from './orders';
 
-const filters = normalizeAdminOrderItemFilters({ view: 'items', field: 'item', query: '품목', page: '3', status: 'paid', pageSize: '50' });
+const filters = normalizeAdminOrderItemFilters({ view: 'items', field: 'item', query: '품목', page: '3', status: 'paid', pageSize: '100' });
 const row = { id: '1fe5f1e8-19a4-ef34-ccc6-4742e7d9fad3', orderId: '76b3ad83-aaaf-855f-d07e-7c7d0143da59', userId: '378dae74-b218-5c2f-80ff-27af804b736b',
   buyerName: '합성 구매자', recipientName: '합성 수취인', status: 'paid', createdAt: '2026-09-01T14:59:59Z', goodId: 'good', goodName: '주문 당시 이름',
   variantName: '선택 옵션', variantCode: 'CODE', customInputs: null, qty: 2, unitPrice: 1000, itemAmount: 2000, shipmentId: null,
@@ -11,7 +11,7 @@ const row = { id: '1fe5f1e8-19a4-ef34-ccc6-4742e7d9fad3', orderId: '76b3ad83-aaa
 const payload = { rows: [row], total: 1, orderCount: 1, qty: 2, fingerprint: 'a'.repeat(32), counts: { pending: 0, paid: 1, confirmed: 0, shipping: 0, delivered: 0, done: 0, canceled: 0 } };
 describe('상품주문별 조회 계약', () => {
   it('품목 검색·목록 설정·페이지를 URL에 보존하고 주문 보기로 이동할 때 품목 검색을 비운다', () => {
-    expect(filters).toMatchObject({ field: 'item', query: '품목', page: 3, pageSize: 50, orderId: null });
+    expect(filters).toMatchObject({ field: 'item', query: '품목', page: 3, pageSize: 100, orderId: null });
     const href = new URL(adminOrderItemsHref(filters), 'https://example.test');
     expect(href.searchParams.get('view')).toBe('items'); expect(href.searchParams.get('field')).toBe('item'); expect(href.searchParams.get('page')).toBe('3');
     const orderHref = new URL(orderViewHref(filters, 'orders'), 'https://example.test');

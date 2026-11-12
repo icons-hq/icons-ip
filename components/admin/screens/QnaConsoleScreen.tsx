@@ -133,7 +133,6 @@ export function QnaConsoleScreen({ data, now = new Date(), initialDetail, accoun
                   from: filters.from,
                   to: filters.to,
                   label: '문의등록일',
-                  presetHref: (range) => adminProductQuestionHref(filters, { ...range, page: 1 }),
                 }}
                 hiddenFields={{ pageSize: String(pageSize), sort: filters.sort ?? 'recent' }}
                 now={now}
