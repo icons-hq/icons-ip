@@ -413,7 +413,7 @@ describe('Checkout 배송 묶음 이름', () => {
 describe('Checkout 주문서 초안', () => {
   const VARIANT = '00000000-0000-4000-8000-000000000001';
   const draftOf = (overrides: Partial<CheckoutDraft> = {}): CheckoutDraft => ({ id: '00000000-0000-4000-8000-0000000000d1', source: 'selection',
-    baseGoodId: null, expiresAt: '2026-11-12T10:00:00Z', stale: false, lines: [{ goodId: 'g13', variantId: VARIANT, qty: 2 }], ...overrides });
+    baseGoodId: null, expiresAt: '2026-11-12T10:00:00Z', stale: false, usedOrderId: null, lines: [{ goodId: 'g13', variantId: VARIANT, qty: 2 }], ...overrides });
   function renderDraft(draft: CheckoutDraft) {
     /* 계정 장바구니에는 고르지 않은 피규어도 있다. */
     mocks.items = [{ goodId: 'g13', variantId: VARIANT, qty: 2 }, { goodId: 'g14', variantId: VARIANT, qty: 1 }];

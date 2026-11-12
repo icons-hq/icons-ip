@@ -24,7 +24,7 @@ import { couponErrorNeedsPendingOrder } from '@/lib/coupons';
 import { normalizeCartItems } from '@/lib/cart';
 import { bindStoreAnalyticsOrder } from '@/lib/store-analytics.server';
 import { goodsCustomInputValues } from '@/lib/goods-custom-inputs';
-import { normalizeCheckoutDraftId } from '@/lib/checkout-draft';
+import { isClosedCheckoutDraft, normalizeCheckoutDraftId } from '@/lib/checkout-draft';
 import { loadCheckoutDraft } from '@/lib/checkout-draft.server';
 
 type PlaceOrderActionError =
@@ -36,7 +36,8 @@ type PlaceOrderActionError =
 
 export type PlaceOrderActionResult =
   | { ok: true; orderId: string }
-  | { ok: false; error: PlaceOrderActionError; pendingOrder?: boolean };
+  /** `orderId`: `checkout_draft_used`일 때 이 주문서로 이미 접수·결제한 원 주문(ADR-0030). 화면이 그 주문으로 안내한다. */
+  | { ok: false; error: PlaceOrderActionError; pendingOrder?: boolean; orderId?: string };
 
 export interface PrepareGoodsPaymentActionState {
   readonly prepared?: PreparedCheckout;
@@ -222,6 +223,11 @@ async function placeDraftOrder(
   const draft = await loadCheckoutDraft(auth.user.id, draftId);
   if (draft === 'error') return { ok: false, error: 'unavailable' };
   if (!draft) return { ok: false, error: 'checkout_draft_expired' };
+  /* 만료된 주문서는 줄이 없다. 이미 주문한 주문서면 원 주문으로, 아니면 고른 화면으로 돌려보낸다. 살아 있는 주문서는
+     이미 주문했어도 DB에 맡긴다 — 같은 checkout key의 재요청은 원래 주문을 돌려줘야 한다(멱등). */
+  if (isClosedCheckoutDraft(draft)) {
+    return draft.usedOrderId ? { ok: false, error: 'checkout_draft_used', orderId: draft.usedOrderId } : { ok: false, error: 'checkout_draft_expired' };
+  }
 
   // 카드 gate는 초안 줄로 파생한 provider의 것이다 — 19금 굿즈가 섞이면 나이스페이다. 장바구니 전체가 아니다.
   let available: boolean;
@@ -235,7 +241,7 @@ async function placeDraftOrder(
   if (!available) return { ok: false, error: 'payment_unavailable' };
 
   let data: unknown;
-  let error: { message: string } | null;
+  let error: { message: string; details?: string | null } | null;
   try {
     const service = createServiceClient();
     const result = draft.source === 'direct'
@@ -263,8 +269,13 @@ async function placeDraftOrder(
     return { ok: false, error: 'unavailable' };
   }
 
-  if (error) return { ok: false, error: mapPlaceOrderError(error.message),
-    ...(couponErrorNeedsPendingOrder(error.message) ? { pendingOrder: true } : {}) };
+  if (error) {
+    const code = mapPlaceOrderError(error.message);
+    /* 같은 주문서의 재제출(다른 탭·뒤로 가기): DB detail이 원 주문 id다. 모양이 틀리면 원 주문 없이 안내만 한다. */
+    const usedOrderId = code === 'checkout_draft_used' ? normalizeOrderReference(error.details ?? null) : null;
+    return { ok: false, error: code, ...(usedOrderId ? { orderId: usedOrderId } : {}),
+      ...(couponErrorNeedsPendingOrder(error.message) ? { pendingOrder: true } : {}) };
+  }
 
   const orderId = normalizeOrderReference(data);
   if (!orderId) return { ok: false, error: 'unavailable' };

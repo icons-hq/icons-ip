@@ -131,5 +131,18 @@ it('바로구매 초안이 만료됐으면 따로 알리고, 복구는 새 결�
   drafts.load.mockResolvedValueOnce(null);
   await resumeCartTransactionAction({ ...transactionRecovery, draftId });
   expect(mocks.rpc).toHaveBeenLastCalledWith('resume_direct_goods_transaction', expect.objectContaining({ p_allow_new: false }));
+  /* 만료돼 줄이 지워진 주문서도 새 결제를 열지 않는다(같은 키의 원래 주문만 돌려받는다). */
+  drafts.load.mockResolvedValueOnce({ id: draftId, source: 'direct', baseGoodId: 'transaction-good', closed: 'expired', usedOrderId: null });
+  await resumeCartTransactionAction({ ...transactionRecovery, draftId });
+  expect(mocks.rpc).toHaveBeenLastCalledWith('resume_direct_goods_transaction', expect.objectContaining({ p_allow_new: false }));
+});
+/* 다른 탭·뒤로 가기로 같은 바로구매 주문서를 새 키로 다시 내면 DB가 원 주문 id(detail)와 함께 거절한다(완료 기준 5). */
+it('같은 주문서로 이미 접수·결제한 주문이 있으면 견적·주문 모두 원 주문을 알린다', async () => {
+  const draftId = '00000000-0000-4000-8000-0000000000d1';
+  const usedOrder = '00000000-0000-4000-8000-0000000000e1';
+  mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: 'PT409', message: 'checkout_draft_used', details: usedOrder } });
+  expect(await quoteCartTransactionAction({ ...transactionInput, draftId })).toEqual({ ok: false, error: 'draft_used', orderId: usedOrder });
+  mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: 'PT409', message: 'checkout_draft_used', details: usedOrder } });
+  expect(await placeCartTransactionAction({ ...placeInput, draftId })).toEqual({ ok: false, error: 'draft_used', uncertain: false, orderId: usedOrder });
 });
 

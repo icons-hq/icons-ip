@@ -127,6 +127,30 @@ describe('/checkout page — 주문서 초안', () => {
     expect(mocks.checkout).not.toHaveBeenCalled();
   });
 
+  /* 만료돼도 본인 주문서면 출처가 남는다 — 바로구매 주문서는 장바구니가 아니라 그 굿즈 상세로 돌려보낸다. */
+  it('만료된 바로구매 주문서는 굿즈로 돌아가기를 안내한다', async () => {
+    mocks.draft = { id: draftId, source: 'direct', baseGoodId: 'g2', closed: 'expired', usedOrderId: null };
+    const html = renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ draft: draftId }) }));
+    expect(html).toContain('주문서를 다시 열어주세요');
+    expect(html).toContain('href="/shop/g2"');
+    expect(html).toContain('굿즈로 돌아가기');
+    expect(html).not.toContain('href="/cart"');
+    expect(mocks.checkout).not.toHaveBeenCalled();
+  });
+
+  /* 같은 주문서로 이미 무통장 접수·결제했으면(다른 탭·뒤로 가기) 주문서 대신 원 주문으로 안내한다(완료 기준 5). */
+  it('이미 주문한 주문서는 주문서를 다시 그리지 않고 원 주문으로 잇는다', async () => {
+    const orderId = '00000000-0000-4000-8000-0000000000e1';
+    for (const value of [{ ...draft, usedOrderId: orderId }, { id: draftId, source: 'direct', baseGoodId: 'g2', closed: 'expired', usedOrderId: orderId }]) {
+      mocks.checkout.mockClear();
+      mocks.draft = value;
+      const html = renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ draft: draftId }) }));
+      expect(html).toContain('이미 주문한 주문서예요');
+      expect(html).toContain(`href="/orders/${orderId}"`);
+      expect(mocks.checkout).not.toHaveBeenCalled();
+    }
+  });
+
   it('로그인 전이면 초안 주문서로 돌아오게 로그인으로 보낸다', async () => {
     mocks.auth = { isConfigured: true, user: null, profile: null, isStaff: false } as unknown as CurrentAuthState;
     await expect(Page({ searchParams: Promise.resolve({ draft: draftId }) })).rejects.toThrow(

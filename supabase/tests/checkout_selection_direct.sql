@@ -6,6 +6,12 @@ create function pg_temp.d2_expect_error(statement text,expected text) returns vo
  begin execute statement;exception when others then if position(expected in sqlerrm)>0 then return;end if;raise;end;
  raise exception 'Expected error: %',expected;
 end $$;
+-- 거절 메시지와 detail(같은 주문서 재제출이면 원 주문 id)을 함께 돌려준다.
+create function pg_temp.d2_error_detail(statement text) returns text language plpgsql as $$
+declare v_detail text;begin
+ begin execute statement;exception when others then get stacked diagnostics v_detail=pg_exception_detail;return sqlerrm||'|'||coalesce(v_detail,'');end;
+ raise exception 'Expected an error: %',statement;
+end $$;
 create function pg_temp.d2_cart(p_user uuid) returns jsonb language sql as $$
  select coalesce(jsonb_agg(jsonb_build_object('good_id',good_id,'variant_id',variant_id,'qty',qty,'input_revision',input_revision,'input_values',input_values)
   order by good_id,variant_id,input_key),'[]') from public.cart_items where user_id=p_user $$;
@@ -228,15 +234,25 @@ select 1/case when (select status='pending' and payment_method='bank_transfer' f
   and input_values->>'d2000000-0000-4000-8000-000000000061'='TEST 두 번째 각인')
  and (select count(*)=2 from public.cart_items where user_id='d2000000-0000-4000-8000-000000000002')
  then 1 else 0 end as assert_bank_transfer_selection_consumes_only_selected_lines;
--- 초안은 만료되면 쓸 수 없고 읽히지도 않는다. 만료 정리 함수는 서버 신뢰 경계만 부른다.
+-- 초안은 만료되면 쓸 수 없다. 본인 초안이면 출처만 읽히고(줄 없음, closed = expired) 다른 계정에는 없다.
+-- 만료 정리 함수(서버 신뢰 경계만 부른다)는 줄(직접입력값)을 지워 흔적만 남기고, 흔적도 보관 기간 뒤 지운다.
 update private.checkout_drafts set created_at=clock_timestamp()-interval '2 hours',expires_at=clock_timestamp()-interval '1 minute' where id=:'over_limit_draft';
 set local role service_role;
 select pg_temp.d2_expect_error(format('select public.place_order_with_cart_selection(%L,%L,%L,%L,%L,0,null)',
   'd2000000-0000-4000-8000-000000000002',:'over_limit_draft',:'address','d2000000-0000-4000-8000-000000000105','bank_transfer'),'checkout_draft_expired');
-select 1/case when public.service_get_checkout_draft('d2000000-0000-4000-8000-000000000002',:'over_limit_draft') is null
- and public.purge_expired_checkout_drafts(10)>=1 then 1 else 0 end as assert_expired_draft_unusable_and_purged;
+select public.service_get_checkout_draft('d2000000-0000-4000-8000-000000000002',:'over_limit_draft') as expired_view \gset
+select 1/case when :'expired_view'::jsonb->>'closed'='expired' and :'expired_view'::jsonb->>'source'='selection'
+ and jsonb_array_length(:'expired_view'::jsonb->'lines')=0 and not (:'expired_view'::jsonb->>'stale')::boolean
+ and public.service_get_checkout_draft('d2000000-0000-4000-8000-000000000003',:'over_limit_draft') is null
+ and public.purge_expired_checkout_drafts(10)>=1 then 1 else 0 end as assert_expired_draft_closed_and_purged;
 reset role;
-select 1/case when not exists(select 1 from private.checkout_drafts where id=:'over_limit_draft') then 1 else 0 end as assert_expired_draft_row_deleted;
+select 1/case when (select lines='[]'::jsonb and scrubbed_at is not null from private.checkout_drafts where id=:'over_limit_draft')
+ then 1 else 0 end as assert_expired_draft_lines_scrubbed;
+update private.checkout_drafts set created_at=clock_timestamp()-interval '9 days',expires_at=clock_timestamp()-interval '8 days' where id=:'over_limit_draft';
+set local role service_role;
+select 1/case when public.purge_expired_checkout_drafts(10)>=1 then 1 else 0 end as assert_trace_purge_counts;
+reset role;
+select 1/case when not exists(select 1 from private.checkout_drafts where id=:'over_limit_draft') then 1 else 0 end as assert_expired_trace_deleted_after_retention;
 -- 옛 진입점(장바구니 전체 스냅샷)은 그대로다: 초안 설정 없이 부르면 장바구니 전체가 주문된다.
 select pg_temp.d2_cart('d2000000-0000-4000-8000-000000000002') as whole_cart \gset
 set local role service_role;
@@ -573,6 +589,84 @@ select 1/case when has_function_privilege('service_role','public.place_direct_go
  and not has_function_privilege('authenticated','public.resume_direct_goods_transaction(uuid,uuid,uuid,uuid,public.order_payment_method,boolean)','execute')
  and not has_function_privilege('service_role','private.direct_goods_transaction_selection(uuid,uuid)','execute')
  then 1 else 0 end as assert_transaction_direct_acl;
+update private.goods_transaction_runtime set enabled=false where singleton;
+
+-- ── 6. 같은 주문서(초안)의 재제출(완료 기준 5): 무통장 접수·결제 완료 뒤에는 새 키로 다시 내도 PT409 checkout_draft_used ──────
+-- 다른 탭·뒤로 가기로 같은 주문서를 새 checkout key로 다시 내면 원 주문으로 안내한다(detail = 원 주문 id). 같은 키는 지금처럼
+-- 원래 주문이고, 카드 미결제 주문이면 지금처럼 새 주문이 그 주문을 닫는다(supersede).
+select set_config('request.jwt.claim.sub','d2000000-0000-4000-8000-000000000002',true);
+set local role authenticated;
+select public.clear_cart_coupon();
+reset role;
+-- (가) 바로구매 무통장: 두 번째 제출(새 키)은 결제수단과 무관하게 거절, 주문은 1건이다.
+set local role service_role;
+select public.service_create_checkout_direct_draft('d2000000-0000-4000-8000-000000000002','d2-a',jsonb_build_array(
+  jsonb_build_object('good_id','d2-a','variant_id',:'variant_a','qty',1))) as used_bank_draft \gset
+select public.place_direct_order('d2000000-0000-4000-8000-000000000002',:'used_bank_draft',:'address','d2000000-0000-4000-8000-000000000501','bank_transfer',0,null) as used_bank_order \gset
+select pg_temp.d2_error_detail(format('select public.place_direct_order(%L,%L,%L,%L,%L,0,null)','d2000000-0000-4000-8000-000000000002',:'used_bank_draft',:'address',
+  'd2000000-0000-4000-8000-000000000502','bank_transfer')) as used_bank_retry \gset
+select pg_temp.d2_expect_error(format('select public.place_direct_order(%L,%L,%L,%L,%L,0,null)','d2000000-0000-4000-8000-000000000002',:'used_bank_draft',:'address',
+  'd2000000-0000-4000-8000-000000000503','card'),'checkout_draft_used');
+select 1/case when public.place_direct_order('d2000000-0000-4000-8000-000000000002',:'used_bank_draft',:'address','d2000000-0000-4000-8000-000000000501','bank_transfer',0,null)=:'used_bank_order'::uuid
+ then 1 else 0 end as assert_used_direct_draft_same_key_replays;
+select public.service_get_checkout_draft('d2000000-0000-4000-8000-000000000002',:'used_bank_draft') as used_bank_view \gset
+reset role;
+select 1/case when :'used_bank_retry'='checkout_draft_used|'||:'used_bank_order'
+ and (select count(*) from public.orders where user_id='d2000000-0000-4000-8000-000000000002'
+  and checkout_key in ('d2000000-0000-4000-8000-000000000501','d2000000-0000-4000-8000-000000000502','d2000000-0000-4000-8000-000000000503'))=1
+ and (select status='pending' and payment_method='bank_transfer' from public.orders where id=:'used_bank_order')
+ and :'used_bank_view'::jsonb->>'usedOrderId'=:'used_bank_order' and :'used_bank_view'::jsonb->>'closed' is null
+ and (select order_id=:'used_bank_order'::uuid from private.checkout_drafts where id=:'used_bank_draft')
+ then 1 else 0 end as assert_two_tab_bank_direct_draft_orders_once;
+-- (나) 바로구매 카드 결제 완료 뒤(3절 direct_order_3) 같은 주문서 재제출도 거절한다.
+set local role service_role;
+select pg_temp.d2_expect_error(format('select public.place_direct_order(%L,%L,%L,%L,%L,0,null)','d2000000-0000-4000-8000-000000000002',:'direct_draft_3',:'address',
+  'd2000000-0000-4000-8000-000000000504','card'),'checkout_draft_used');
+reset role;
+select 1/case when (select status='paid' from public.orders where id=:'direct_order_3')
+ and not exists(select 1 from public.orders where checkout_key='d2000000-0000-4000-8000-000000000504')
+ then 1 else 0 end as assert_paid_direct_draft_resubmit_rejected;
+-- (다) 장바구니 선택 초안도 같다: 결제 완료(2절 selection_order)·무통장 접수(2절 bank_selection_order) 뒤 재제출은 거절.
+set local role service_role;
+select pg_temp.d2_error_detail(format('select public.place_order_with_cart_selection(%L,%L,%L,%L,%L,0,null)','d2000000-0000-4000-8000-000000000002',:'selection_draft',:'address',
+  'd2000000-0000-4000-8000-000000000505','card')) as used_selection_retry \gset
+select pg_temp.d2_expect_error(format('select public.place_order_with_cart_selection(%L,%L,%L,%L,%L,0,null)','d2000000-0000-4000-8000-000000000002',:'bank_draft',:'address',
+  'd2000000-0000-4000-8000-000000000506','bank_transfer'),'checkout_draft_used');
+select public.service_get_checkout_draft('d2000000-0000-4000-8000-000000000002',:'bank_draft') as used_selection_view \gset
+reset role;
+select 1/case when :'used_selection_retry'='checkout_draft_used|'||:'selection_order'
+ and :'used_selection_view'::jsonb->>'usedOrderId'=:'bank_selection_order'
+ and not exists(select 1 from public.orders where checkout_key in ('d2000000-0000-4000-8000-000000000505','d2000000-0000-4000-8000-000000000506'))
+ then 1 else 0 end as assert_used_selection_draft_resubmit_rejected;
+-- (라) 카드 미결제 주문은 지금처럼: 같은 주문서를 새 키로 다시 내면 이전 주문을 닫고 새 주문이 그 초안의 주문이 된다.
+set local role service_role;
+select public.service_create_checkout_direct_draft('d2000000-0000-4000-8000-000000000002','d2-b',jsonb_build_array(
+  jsonb_build_object('good_id','d2-b','variant_id',:'variant_b','qty',1))) as unpaid_draft \gset
+select public.place_direct_order('d2000000-0000-4000-8000-000000000002',:'unpaid_draft',:'address','d2000000-0000-4000-8000-000000000507','card',0,null) as unpaid_order_1 \gset
+select public.place_direct_order('d2000000-0000-4000-8000-000000000002',:'unpaid_draft',:'address','d2000000-0000-4000-8000-000000000508','card',0,null) as unpaid_order_2 \gset
+reset role;
+select 1/case when (select status='canceled' from public.orders where id=:'unpaid_order_1')
+ and (select status='pending' from public.orders where id=:'unpaid_order_2')
+ and (select order_id=:'unpaid_order_2'::uuid from private.checkout_drafts where id=:'unpaid_draft')
+ then 1 else 0 end as assert_unpaid_card_draft_resubmit_supersedes;
+-- (마) 거래 런타임 바로구매도 같다: 무통장 접수 뒤 같은 초안은 견적부터 거절, 결제 완료 뒤 재주문도 거절.
+update private.goods_transaction_runtime set enabled=true where singleton;
+set local role service_role;
+select public.service_create_checkout_direct_draft('d2000000-0000-4000-8000-000000000002','d2-a',jsonb_build_array(
+  jsonb_build_object('good_id','d2-a','variant_id',:'variant_a','qty',1))) as tx_used_draft \gset
+select public.quote_direct_goods_transaction('d2000000-0000-4000-8000-000000000002',:'tx_used_draft',:'address','{}',null,0) as tx_used_quote \gset
+select public.place_direct_goods_transaction('d2000000-0000-4000-8000-000000000002',:'tx_used_draft',:'address',(:'tx_used_quote'::jsonb->>'quoteId')::uuid,
+ 'd2000000-0000-4000-8000-000000000509','bank_transfer') as tx_used_order \gset
+select pg_temp.d2_expect_error(format('select public.quote_direct_goods_transaction(%L,%L,%L,%L,null,0)','d2000000-0000-4000-8000-000000000002',:'tx_used_draft',:'address','{}'),'checkout_draft_used');
+select pg_temp.d2_error_detail(format('select public.place_direct_goods_transaction(%L,%L,%L,%L,%L,%L)','d2000000-0000-4000-8000-000000000002',:'tx_used_draft',:'address',
+  (:'tx_used_quote'::jsonb->>'quoteId'),'d2000000-0000-4000-8000-000000000510','bank_transfer')) as tx_used_retry \gset
+select 1/case when public.place_direct_goods_transaction('d2000000-0000-4000-8000-000000000002',:'tx_used_draft',:'address',(:'tx_used_quote'::jsonb->>'quoteId')::uuid,
+ 'd2000000-0000-4000-8000-000000000509','bank_transfer')=:'tx_used_order'::uuid then 1 else 0 end as assert_tx_used_draft_same_key_replays;
+reset role;
+select 1/case when :'tx_used_retry'='checkout_draft_used|'||:'tx_used_order'
+ and (select status='pending' and payment_method='bank_transfer' from public.orders where id=:'tx_used_order')
+ and not exists(select 1 from public.orders where checkout_key='d2000000-0000-4000-8000-000000000510')
+ then 1 else 0 end as assert_tx_bank_direct_draft_orders_once;
 update private.goods_transaction_runtime set enabled=false where singleton;
 
 rollback;

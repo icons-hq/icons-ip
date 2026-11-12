@@ -12,7 +12,7 @@ import { loadCartCouponState } from '@/lib/coupons.server';
 import { bankTransferCheckoutEnabled } from '@/lib/payments/bank-transfer.server';
 import { goodsCheckoutPaymentsEnabled } from '@/lib/payments/goods-checkout-availability';
 import { deriveGoodsCartProvider, deriveUserCartProvider } from '@/lib/payments/goods-sale-restriction.server';
-import { checkoutDraftHref, checkoutDraftReturnHref, normalizeCheckoutDraftId, type CheckoutDraft } from '@/lib/checkout-draft';
+import { checkoutDraftHref, checkoutDraftReturnHref, isClosedCheckoutDraft, normalizeCheckoutDraftId, type CheckoutDraft } from '@/lib/checkout-draft';
 import { loadCheckoutDraft } from '@/lib/checkout-draft.server';
 import { loadGoodsTransactionRuntimeMode } from '@/lib/checkout-transaction.server';
 import { GoodsTransactionCheckout } from '@/components/screens/GoodsTransactionCheckout';
@@ -27,13 +27,33 @@ interface PageProps {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
 
-function DraftUnavailable({ draft, error }: { draft: Pick<CheckoutDraft, 'source' | 'baseGoodId'> | null; error: boolean }) {
+type DraftOrigin = Pick<CheckoutDraft, 'source' | 'baseGoodId'>;
+
+/* 주문서를 열 수 없을 때. 본인 주문서면(만료돼도 출처가 남는다) 고른 화면으로 — 바로구매는 굿즈 상세로 돌려보낸다. */
+function DraftUnavailable({ draft, error }: { draft: DraftOrigin | null; error: boolean }) {
   return (
     <main className="wc-root wc-receipt checkout-page">
       <div className="wrap checkout-empty card">
         <h1>{error ? '주문서를 불러오지 못했어요' : '주문서를 다시 열어주세요'}</h1>
-        <p>{error ? '잠시 후 다시 시도해주세요.' : '주문서를 연 지 오래되었거나 이 계정의 주문서가 아니에요. 고른 화면에서 다시 주문해주세요.'}</p>
+        <p>{error ? '잠시 후 다시 시도해주세요.'
+          : draft ? '주문서를 연 지 오래되어 다시 열어야 해요. 고른 화면에서 다시 주문해주세요.'
+            : '주문서를 연 지 오래되었거나 이 계정의 주문서가 아니에요. 고른 화면에서 다시 주문해주세요.'}</p>
         <Link className="btn btn-holo" href={checkoutDraftReturnHref(draft)}>{draft?.source === 'direct' ? '굿즈로 돌아가기' : '장바구니로 돌아가기'}</Link>
+        {draft ? null : <Link className="btn btn-ghost" href="/shop">굿즈 둘러보기</Link>}
+      </div>
+    </main>
+  );
+}
+
+/* 이 주문서로 이미 무통장 접수·결제한 주문이 있다(다른 탭·뒤로 가기). 같은 주문서로 다시 주문하지 않고 원 주문으로 잇는다. */
+function DraftUsed({ draft, orderId }: { draft: DraftOrigin; orderId: string }) {
+  return (
+    <main className="wc-root wc-receipt checkout-page">
+      <div className="wrap checkout-empty card">
+        <h1>이미 주문한 주문서예요</h1>
+        <p>이 주문서로 만든 주문이 있어요. 주문 내용과 결제·입금 상태를 확인해주세요.</p>
+        <Link className="btn btn-holo" href={`/orders/${encodeURIComponent(orderId)}`}>주문 보기</Link>
+        <Link className="btn btn-ghost" href={checkoutDraftReturnHref(draft)}>{draft.source === 'direct' ? '굿즈로 돌아가기' : '장바구니로 돌아가기'}</Link>
       </div>
     </main>
   );
@@ -56,9 +76,12 @@ export default async function Page({ searchParams }: PageProps) {
     ? rawFailCode
     : null;
 
-  const draft = draftId ? await loadCheckoutDraft(auth.user.id, draftId) : null;
-  if (draft === 'error') return <DraftUnavailable draft={null} error />;
-  if (draftRequested && !draft) return <DraftUnavailable draft={null} error={false} />;
+  const draftView = draftId ? await loadCheckoutDraft(auth.user.id, draftId) : null;
+  if (draftView === 'error') return <DraftUnavailable draft={null} error />;
+  if (draftRequested && !draftView) return <DraftUnavailable draft={null} error={false} />;
+  if (draftView?.usedOrderId) return <DraftUsed draft={draftView} orderId={draftView.usedOrderId} />;
+  if (draftView && isClosedCheckoutDraft(draftView)) return <DraftUnavailable draft={draftView} error={false} />;
+  const draft = draftView;
 
   const [catalog, addressPrefill, resumeOrderId, couponState, transactionMode, couponPolicy] = await Promise.all([
     getAdultGoodsAccess().then(adultGoods => getCatalogSnapshot({ adultGoods })),

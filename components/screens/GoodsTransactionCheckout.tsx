@@ -39,6 +39,7 @@ export const cartTransactionErrorCopy: Record<CartTransactionError, string> = {
   checkout_conflict: '이미 요청한 주문을 확인해주세요. 같은 요청으로 다른 주문을 만들 수 없어요.', unavailable: '주문을 확인하지 못했어요. 잠시 후 다시 시도해주세요.',
   payment_in_progress: '앞서 결제한 주문의 승인 결과를 확인하고 있어요. 확인이 끝난 뒤 다시 시도해주세요.',
   draft_expired: '주문서를 연 지 오래되어 다시 열어야 해요. 굿즈 상세에서 다시 구매해주세요.',
+  draft_used: '이미 주문한 주문서예요. 주문 내용과 결제·입금 상태를 확인해주세요.',
 };
 
 interface Props {
@@ -72,6 +73,8 @@ export function GoodsTransactionCheckout({ accountId, catalog, addressPrefill, p
   const [session, setSession] = useState<string | null>(null), [authBlocked, setAuthBlocked] = useState(false);
   const [recovery, setRecovery] = useState<CartTransactionRecovery | null>(null), [frozen, setFrozen] = useState<{ display: GoodsTransactionDisplay; items: CartItem[] } | null>(null);
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
+  /* 같은 주문서로 이미 접수·결제한 주문(ADR-0030). 있으면 그 주문으로 안내하고 다시 주문하지 않는다. */
+  const [usedOrderId, setUsedOrderId] = useState<string | null>(null);
   const lane = useRef(false), epoch = useRef(0), storageKey = `icons.cart-order-recovery.v1:${accountId}`;
   const names = useMemo(() => Object.fromEntries(catalog.goods.map(good => [good.id, good.name])), [catalog.goods]);
   useEffect(() => {
@@ -130,7 +133,9 @@ export function GoodsTransactionCheckout({ accountId, catalog, addressPrefill, p
   const visibleItems = recovery ? frozen?.items ?? [] : orderItems;
   const selectable = { card: paymentAvailable && currentDisplay?.paymentMethods.card === true, bank_transfer: bankTransferAvailable && currentDisplay?.paymentMethods.bankTransfer === true };
   const effectiveMethod = selectable[method] ? method : selectable.card ? 'card' : selectable.bank_transfer ? 'bank_transfer' : method;
-  const canSubmit = Boolean(session && !authBlocked && input && quote?.state === 'quoted' && selectable[effectiveMethod] && !cart.pending && !busy && !recovery);
+  const quotedUsedOrder = quotes.result && !quotes.result.ok && quotes.result.error === 'draft_used' ? quotes.result.orderId ?? null : null;
+  const usedOrder = usedOrderId ?? quotedUsedOrder;
+  const canSubmit = Boolean(session && !authBlocked && input && quote?.state === 'quoted' && selectable[effectiveMethod] && !cart.pending && !busy && !recovery && !usedOrder);
   const addressErrors = needsAddress ? checkoutAddressErrors(address) : {};
   /* 미리 채운 배송지를 그대로 두는 동안만 출처를 안내한다(S6a — 두 주문서 모두 사실대로). */
   const prefillNotice = addressPrefill.address && sameCheckoutDestination(addressPrefill.address, address) ? checkoutAddressPrefillNotice(addressPrefill.source) : null;
@@ -156,6 +161,7 @@ export function GoodsTransactionCheckout({ accountId, catalog, addressPrefill, p
     if (result.uncertain) setError('주문 생성 결과를 확인 중이에요. 아래 버튼으로 같은 주문을 다시 확인해주세요.');
     else {
       remember(null); setFrozen(null); setError(cartTransactionErrorCopy[result.error]); quotes.refresh();
+      if (result.error === 'draft_used') setUsedOrderId(result.orderId ?? null);
       if (result.error === 'cart_changed') await cart.refresh();
     }
   }
@@ -251,7 +257,9 @@ export function GoodsTransactionCheckout({ accountId, catalog, addressPrefill, p
           <button className="btn btn-holo checkout-submit" disabled={!canSubmit}>{busy ? '주문 확인 중' : effectiveMethod === 'bank_transfer' ? '주문하고 입금 안내 받기' : '결제하기'}</button>
         </>}
         {recovery && <section aria-label="주문 요청 복구"><p>앞서 요청한 주문을 확인한 뒤 진행해주세요.</p><button type="button" className="btn btn-holo" disabled={busy} onClick={() => void resume()}>{busy ? '같은 주문 확인 중' : '같은 주문 다시 확인'}</button><Link href="/orders?pending=1">진행 중인 주문 보기</Link></section>}
-        {error && <p className="checkout-error" role="alert">{error}</p>}<Link href={checkoutDraftReturnHref(draft)}>{direct ? '굿즈로 돌아가기' : '장바구니 확인'}</Link>
+        {error && <p className="checkout-error" role="alert">{error}</p>}
+        {usedOrder && <Link className="btn btn-holo" href={`/orders/${encodeURIComponent(usedOrder)}`}>주문 보기</Link>}
+        <Link href={checkoutDraftReturnHref(draft)}>{direct ? '굿즈로 돌아가기' : '장바구니 확인'}</Link>
       </aside>
     </form>
   </main>;

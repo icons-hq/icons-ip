@@ -515,6 +515,8 @@ describe('바로구매 주문(ADR-0030)', () => {
   it('주문서 초안 만료는 별도 사유로 안내한다', () => {
     expect(mapPlaceOrderError('checkout_draft_expired')).toBe('checkout_draft_expired');
     expect(mapPlaceOrderError('checkout_draft_unavailable')).toBe('checkout_draft_expired');
+    /* 같은 주문서로 이미 접수·결제한 주문이 있다(재제출) — 만료와 나눠 원 주문으로 안내한다. */
+    expect(mapPlaceOrderError('checkout_draft_used')).toBe('checkout_draft_used');
   });
 });
 

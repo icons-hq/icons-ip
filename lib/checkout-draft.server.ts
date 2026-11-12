@@ -1,5 +1,5 @@
 import 'server-only';
-import { parseCheckoutDraft, type CheckoutDraft, type CheckoutDraftCoupon } from './checkout-draft';
+import { parseCheckoutDraftView, type CheckoutDraft, type CheckoutDraftCoupon, type ClosedCheckoutDraft } from './checkout-draft';
 import type { ShippingQuoteItem } from './fulfillment';
 import type { ShippingDestination } from './shipping-regions';
 import { parseStoreCreditCheckoutQuote, type StoreCreditCheckoutQuote } from './store-credits';
@@ -30,15 +30,16 @@ export async function loadDraftStoreCreditCheckout(
 }
 
 /**
- * 로그인 사용자의 주문서 초안(ADR-0030). 다른 계정·만료 초안은 DB가 null로 답한다. 읽기 자체가 실패하면
- * 'error' — 주문서는 "다시 시도"를 안내하고, 장바구니 전체로 조용히 바꿔 주문하지 않는다.
+ * 로그인 사용자의 주문서 초안(ADR-0030). 다른 계정·지워진 초안은 DB가 null로 답하고, 만료된 본인 초안은 출처만 남은
+ * ClosedCheckoutDraft다. 읽기 자체가 실패하면 'error' — 주문서는 "다시 시도"를 안내하고, 장바구니 전체로 조용히 바꿔
+ * 주문하지 않는다.
  */
-export async function loadCheckoutDraft(userId: string, draftId: string): Promise<CheckoutDraft | null | 'error'> {
+export async function loadCheckoutDraft(userId: string, draftId: string): Promise<CheckoutDraft | ClosedCheckoutDraft | null | 'error'> {
   try {
     const { data, error } = await createServiceClient().rpc('service_get_checkout_draft', { p_user_id: userId, p_draft_id: draftId });
     if (error) return 'error';
     if (data === null) return null;
-    return parseCheckoutDraft(data) ?? 'error';
+    return parseCheckoutDraftView(data) ?? 'error';
   } catch {
     return 'error';
   }

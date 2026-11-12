@@ -6,7 +6,9 @@
 --
 -- 1. 주문서 초안(private.checkout_drafts): 장바구니 화면이 고른 줄(selection)이나 상품 상세의 바로구매 선택
 --    (direct, 다음 migration)을 서버에 둔다. 직접입력값(각인 문구 등)을 URL에 싣지 않고, 새로고침·다른 탭에서도
---    같은 주문서를 보이며, 소유·만료를 서버가 판정한다. 만료 행은 cron이 지운다.
+--    같은 주문서를 보이며, 소유·만료를 서버가 판정한다. 만료 행은 cron이 줄을 지우고 흔적(출처·상품 상세·주문
+--    연결)만 남겼다가 보관 기간이 지나면 지운다. 초안은 마지막으로 만든 주문(order_id)을 기억한다 — 그 주문이 무통장
+--    접수·결제 완료면 같은 초안의 재제출(다른 탭·뒤로 가기)을 PT409 checkout_draft_used로 거절한다(중복 주문 방지).
 -- 2. 주문 줄 원본(private.checkout_source_lines): legacy 주문 코어(place_order_before_shipments)가 장바구니를
 --    직접 읽던 다섯 곳(굿즈 잠금·커서·굿즈별 수량 합·쿠폰 선택·래퍼의 그룹상품 판정)을 원본 함수로 모은다.
 --    트랜잭션 로컬 설정 icons.checkout_draft가 비어 있으면 지금처럼 장바구니 전체다 — 옛 진입점
@@ -25,18 +27,26 @@ create table private.checkout_drafts (
   user_id uuid not null references auth.users(id) on delete cascade,
   source text not null check (source in ('selection', 'direct')),
   base_good_id text,
-  lines jsonb not null check (jsonb_typeof(lines) = 'array' and jsonb_array_length(lines) between 1 and 19239),
+  lines jsonb not null check (jsonb_typeof(lines) = 'array' and jsonb_array_length(lines) <= 19239),
   user_coupon_id uuid,
+  -- 이 초안으로 만든 마지막 주문. 그 주문이 무통장 접수·결제 완료 이후면 같은 초안으로 새 주문을 받지 않는다
+  -- (다른 탭·뒤로 가기의 같은 주문서 재제출, checkout_draft_used). 카드 미결제 주문이면 새 주문이 그 주문을 닫는다.
+  order_id uuid references public.orders(id) on delete set null,
   created_at timestamptz not null default clock_timestamp(),
   expires_at timestamptz not null,
+  -- 만료 뒤 줄(직접입력값 포함)을 지운 시각. 출처·상품 상세·주문 연결만 흔적으로 남겨, 만료된 주문서가
+  -- '굿즈로 돌아가기'·'이미 주문한 주문서'를 안내하게 한다. 흔적도 보관 기간이 지나면 지운다.
+  scrubbed_at timestamptz,
   check ((source = 'direct') = (base_good_id is not null)),
   check (source = 'direct' or user_coupon_id is null),
-  check (expires_at > created_at)
+  check (expires_at > created_at),
+  check ((scrubbed_at is null) = (jsonb_array_length(lines) >= 1))
 );
 comment on table private.checkout_drafts is
-  '주문서 초안(ADR-0030): 장바구니 선택 줄(selection)·바로구매 선택(direct). 직접입력값을 URL에 싣지 않으려고 서버에 둔다. 만료 행은 cron이 지운다.';
+  '주문서 초안(ADR-0030): 장바구니 선택 줄(selection)·바로구매 선택(direct). 직접입력값을 URL에 싣지 않으려고 서버에 둔다. 만료 행은 cron이 줄을 지우고 흔적만 남긴 뒤 보관 기간이 지나면 지운다.';
 create index checkout_drafts_user_idx on private.checkout_drafts (user_id, created_at);
 create index checkout_drafts_expiry_idx on private.checkout_drafts (expires_at);
+create index checkout_drafts_order_idx on private.checkout_drafts (order_id) where order_id is not null;
 alter table private.checkout_drafts enable row level security;
 revoke all on table private.checkout_drafts from public, anon, authenticated, service_role;
 
@@ -214,7 +224,18 @@ as $$ select interval '60 minutes' $$;
 revoke all on function private.checkout_draft_ttl() from public, anon, authenticated, service_role;
 grant execute on function private.checkout_draft_ttl() to postgres;
 
--- 같은 계정의 만료 초안을 지우고, 살아 있는 초안이 너무 많으면 오래된 것부터 지운다(개인정보 최소 보관).
+-- 만료 초안의 흔적(줄을 지운 행) 보관 기간. 며칠 뒤 다시 연 주문서 탭도 출처에 맞게 안내한다.
+create function private.checkout_draft_trace_ttl()
+returns interval
+language sql
+immutable
+set search_path = ''
+as $$ select interval '7 days' $$;
+revoke all on function private.checkout_draft_trace_ttl() from public, anon, authenticated, service_role;
+grant execute on function private.checkout_draft_trace_ttl() to postgres;
+
+-- 같은 계정의 만료 초안은 줄(직접입력값)을 지우고 흔적만 남긴다. 오래된 흔적과, 너무 많은 초안은 오래된 것부터
+-- 지운다(개인정보 최소 보관).
 create function private.trim_checkout_drafts(p_user_id uuid)
 returns void
 language plpgsql
@@ -223,8 +244,11 @@ security definer
 set search_path = ''
 as $$
 begin
+  update private.checkout_drafts as draft
+  set lines = '[]'::jsonb, scrubbed_at = pg_catalog.clock_timestamp()
+  where draft.user_id = p_user_id and draft.expires_at <= pg_catalog.clock_timestamp() and draft.scrubbed_at is null;
   delete from private.checkout_drafts as draft
-  where draft.user_id = p_user_id and draft.expires_at <= pg_catalog.clock_timestamp();
+  where draft.user_id = p_user_id and draft.expires_at <= pg_catalog.clock_timestamp() - private.checkout_draft_trace_ttl();
   delete from private.checkout_drafts as draft
   where draft.id in (
     select live.id from private.checkout_drafts as live
@@ -236,6 +260,58 @@ end;
 $$;
 revoke all on function private.trim_checkout_drafts(uuid) from public, anon, authenticated, service_role;
 grant execute on function private.trim_checkout_drafts(uuid) to postgres;
+
+-- 초안으로 만든 주문이 그 초안을 다 썼는지: 무통장 접수(입금 대기)이거나 결제 완료 이후다(그 뒤 취소·환불된 결제
+-- 포함). 카드 미결제 주문은 아니다 — 같은 초안의 새 주문이 그 주문을 닫는다(ADR-0026 supersede).
+create function private.checkout_draft_order_settled(p_order_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1 from public.orders as o
+    where o.id = p_order_id
+      and ((o.status = 'pending' and o.payment_method = 'bank_transfer')
+        or o.status in ('paid', 'confirmed', 'shipping', 'delivered', 'done')
+        or exists (
+          select 1 from public.payments as payment
+          where payment.purpose = 'order' and payment.ref_id = o.id and payment.status in ('paid', 'refunded')))
+  );
+$$;
+revoke all on function private.checkout_draft_order_settled(uuid) from public, anon, authenticated, service_role;
+grant execute on function private.checkout_draft_order_settled(uuid) to postgres;
+
+-- 주문 진입점의 초안 확인(계정 advisory 안에서 부른다 — 같은 초안의 두 탭 제출은 이 잠금에서 차례로 온다).
+-- 이 초안으로 만든 주문이 이미 접수·결제됐으면 PT409 checkout_draft_used(detail = 그 주문 id, 화면이 원 주문으로
+-- 안내한다), 초안이 없거나 만료됐으면 PT409 checkout_draft_expired.
+create function private.checkout_draft_for_order(p_user_id uuid, p_draft_id uuid, p_source text)
+returns private.checkout_drafts
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_draft private.checkout_drafts%rowtype;
+begin
+  select draft.* into v_draft from private.checkout_drafts as draft
+  where draft.id = p_draft_id and draft.user_id = p_user_id and draft.source = p_source;
+  if not found then
+    raise sqlstate 'PT409' using message = 'checkout_draft_expired';
+  end if;
+  if v_draft.order_id is not null and private.checkout_draft_order_settled(v_draft.order_id) then
+    raise sqlstate 'PT409' using message = 'checkout_draft_used', detail = v_draft.order_id::text;
+  end if;
+  if v_draft.scrubbed_at is not null or v_draft.expires_at <= pg_catalog.clock_timestamp() then
+    raise sqlstate 'PT409' using message = 'checkout_draft_expired';
+  end if;
+  return v_draft;
+end;
+$$;
+revoke all on function private.checkout_draft_for_order(uuid, uuid, text) from public, anon, authenticated, service_role;
+grant execute on function private.checkout_draft_for_order(uuid, uuid, text) to postgres;
 
 -- 장바구니 화면이 체크한 줄로 선택 주문 초안을 만든다(서버가 로그인 사용자로만 부른다). 줄은 화면이 본
 -- 장바구니 줄(굿즈·옵션·수량·직접입력값)과 정확히 같아야 한다 — 다른 탭에서 바뀌었으면 PT409다.
@@ -293,7 +369,9 @@ $$;
 revoke all on function public.service_create_checkout_selection_draft(uuid, jsonb) from public, anon, authenticated, service_role;
 grant execute on function public.service_create_checkout_selection_draft(uuid, jsonb) to service_role;
 
--- 주문서가 초안을 읽는다. 다른 계정·만료 초안은 null이다. 선택 초안은 지금 장바구니와 달라졌는지(stale)도 알린다.
+-- 주문서가 초안을 읽는다. 다른 계정의 초안·지워진 초안은 null이다. 본인 초안이면 만료됐어도 출처·상품 상세·
+-- 이미 주문한 주문(usedOrderId)을 돌려준다(closed = 'expired', 줄 없음) — 바로구매 주문서가 '굿즈로 돌아가기'를,
+-- 다 쓴 주문서가 원 주문을 안내한다. 선택 초안은 지금 장바구니와 달라졌는지(stale)도 알린다.
 create function public.service_get_checkout_draft(p_user_id uuid, p_draft_id uuid)
 returns jsonb
 language sql
@@ -306,10 +384,12 @@ as $$
     'source', draft.source,
     'baseGoodId', draft.base_good_id,
     'expiresAt', draft.expires_at,
-    'lines', (select coalesce(jsonb_agg(jsonb_build_object('goodId', line ->> 'goodId', 'variantId', line ->> 'variantId',
+    'closed', case when state.live then null else 'expired' end,
+    'usedOrderId', case when draft.order_id is not null and private.checkout_draft_order_settled(draft.order_id) then draft.order_id end,
+    'lines', case when state.live then (select coalesce(jsonb_agg(jsonb_build_object('goodId', line ->> 'goodId', 'variantId', line ->> 'variantId',
         'qty', (line ->> 'qty')::integer, 'customInputs', line -> 'inputSnapshot') order by position), '[]'::jsonb)
-      from jsonb_array_elements(draft.lines) with ordinality as entries(line, position)),
-    'stale', draft.source = 'selection' and exists (
+      from jsonb_array_elements(draft.lines) with ordinality as entries(line, position)) else '[]'::jsonb end,
+    'stale', state.live and draft.source = 'selection' and exists (
       select 1 from jsonb_array_elements(draft.lines) as line
       where not exists (
         select 1 from public.cart_items as cart
@@ -318,7 +398,8 @@ as $$
           and cart.qty = (line ->> 'qty')::integer and cart.input_revision = (line ->> 'inputRevision')::integer
           and cart.input_values = line -> 'inputValues')))
   from private.checkout_drafts as draft
-  where draft.id = p_draft_id and draft.user_id = p_user_id and draft.expires_at > statement_timestamp();
+  cross join lateral (select draft.scrubbed_at is null and draft.expires_at > statement_timestamp() as live) as state
+  where draft.id = p_draft_id and draft.user_id = p_user_id;
 $$;
 revoke all on function public.service_get_checkout_draft(uuid, uuid) from public, anon, authenticated, service_role;
 grant execute on function public.service_get_checkout_draft(uuid, uuid) to service_role;
@@ -377,21 +458,34 @@ volatile
 security definer
 set search_path = ''
 as $$
-declare deleted integer;
+declare scrubbed integer; deleted integer;
 begin
   if p_limit is null or p_limit not between 1 and 10000 then
     raise invalid_parameter_value using message = 'invalid_checkout_draft_cleanup_limit';
   end if;
+  -- 만료 초안의 줄(직접입력값)을 지우고 흔적만 남긴다.
   with expired as (
     select draft.id from private.checkout_drafts as draft
-    where draft.expires_at <= pg_catalog.clock_timestamp()
+    where draft.expires_at <= pg_catalog.clock_timestamp() and draft.scrubbed_at is null
     order by draft.expires_at, draft.id
     for update skip locked
     limit p_limit
   )
-  delete from private.checkout_drafts as draft using expired where draft.id = expired.id;
+  update private.checkout_drafts as draft
+  set lines = '[]'::jsonb, scrubbed_at = pg_catalog.clock_timestamp()
+  from expired where draft.id = expired.id;
+  get diagnostics scrubbed = row_count;
+  -- 보관 기간이 지난 흔적을 지운다.
+  with traces as (
+    select draft.id from private.checkout_drafts as draft
+    where draft.expires_at <= pg_catalog.clock_timestamp() - private.checkout_draft_trace_ttl()
+    order by draft.expires_at, draft.id
+    for update skip locked
+    limit p_limit
+  )
+  delete from private.checkout_drafts as draft using traces where draft.id = traces.id;
   get diagnostics deleted = row_count;
-  return deleted;
+  return scrubbed + deleted;
 end;
 $$;
 revoke all on function public.purge_expired_checkout_drafts(integer) from public, anon, authenticated, service_role;
@@ -421,12 +515,8 @@ begin
   if exists (select 1 from public.orders where user_id = p_user_id and checkout_key = p_checkout_key) then
     return public.place_order_with_store_credits(p_user_id, p_address, p_checkout_key, p_payment_method, p_store_credit_amount, p_expected_user_coupon_id);
   end if;
-  select draft.* into v_draft from private.checkout_drafts as draft
-  where draft.id = p_draft_id and draft.user_id = p_user_id and draft.source = 'selection'
-    and draft.expires_at > pg_catalog.clock_timestamp();
-  if not found then
-    raise sqlstate 'PT409' using message = 'checkout_draft_expired';
-  end if;
+  -- 이 초안으로 만든 주문이 이미 무통장 접수·결제 완료면 새 키의 재제출(다른 탭·뒤로 가기)을 PT409로 거절한다.
+  v_draft := private.checkout_draft_for_order(p_user_id, p_draft_id, 'selection');
   -- 이전 미결제 주문의 재고·쿠폰·적립금·구매 한도를 먼저 돌려준다(ADR-0026, 출처 무관).
   perform private.supersede_unpaid_cart_orders(p_user_id, true);
   -- 주문 → account-action → 장바구니 순서. 새 주문 INSERT의 계정 fence도 같은 키를 다시 잡는다.
@@ -457,6 +547,7 @@ begin
   placed := public.place_order_with_store_credits(p_user_id, p_address, p_checkout_key, p_payment_method, p_store_credit_amount, p_expected_user_coupon_id);
   perform set_config('icons.checkout_draft', '', true);
   perform set_config('icons.cart_order_retention', '', true);
+  update private.checkout_drafts set order_id = placed where id = p_draft_id;
   -- 카드는 결제 확정 때 장바구니에서 뺀다(ADR-0026). 보류 줄 = 고른 줄이라 고르지 않은 줄은 결제 뒤에도 남는다.
   if p_payment_method = 'card' then
     perform private.record_checkout_order_hold(placed, p_user_id, 'legacy_checkout', v_hold_lines);

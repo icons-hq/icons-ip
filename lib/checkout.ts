@@ -46,6 +46,11 @@ export type PlaceOrderErrorCode =
   | 'checkout_payment_in_progress'
   /** 주문서 초안(ADR-0030)이 만료됐거나 이 계정의 것이 아니다(DB `checkout_draft_expired`·`checkout_draft_unavailable`). 만든 주문은 없다. */
   | 'checkout_draft_expired'
+  /**
+   * 이 주문서로 만든 주문이 이미 무통장 접수·결제됐다(DB `checkout_draft_used`, detail = 원 주문 id). 다른 탭·뒤로 가기의
+   * 같은 주문서 재제출이라 새 주문을 만들지 않았다 — 원 주문으로 안내한다.
+   */
+  | 'checkout_draft_used'
   | 'unavailable';
 
 /** 주문서에서 고르는 결제수단. DB `public.order_payment_method`와 같은 값. */
@@ -268,6 +273,8 @@ export function mapPlaceOrderError(message: unknown): PlaceOrderErrorCode {
      새 주문을 받지 않는다 — 확인이 끝나면 다시 주문할 수 있다. */
   if (normalized.includes('checkout_payment_in_progress')) return 'checkout_payment_in_progress';
   if (/cart_snapshot_changed/.test(normalized)) return 'cart_changed';
+  /* 같은 주문서로 이미 접수·결제한 주문이 있다(다른 탭·뒤로 가기 재제출). 만료보다 먼저 나눈다. */
+  if (normalized.includes('checkout_draft_used')) return 'checkout_draft_used';
   /* 주문서 초안(ADR-0030)의 시간이 지났거나 이 계정의 초안이 아니다. 장바구니·상품 상세에서 다시 연다. */
   if (/checkout_draft_(?:expired|unavailable)/.test(normalized)) return 'checkout_draft_expired';
   if (/goods_custom_inputs|invalid_goods_custom_inputs/.test(normalized)) return 'goods_custom_inputs_changed';

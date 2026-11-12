@@ -261,4 +261,51 @@ assert sql(f"select source from private.cart_order_holds where order_id='{second
 assert cart() == cart_before
 sql('drop trigger aaa_test_cart_selection_pause on public.order_items;drop function private.test_cart_selection_order_pause();')
 print('PASS two-tab direct orders serialize; second supersedes first; cart untouched; no deadlock', flush=True)
-print(json.dumps({'cases': 7, 'database': database, 'sourceDatabaseWrites': 0}, ensure_ascii=False), flush=True)
+
+# 8·9. 두 탭이 같은 주문서(초안)를 새 checkout key로 무통장 동시 제출한다(완료 기준 5). 첫 탭이 품목을 쓰는 동안 둘째 탭은
+#      사용자 advisory에서 기다렸다가, 첫 주문이 무통장으로 접수됐으므로 checkout_draft_used(원 주문 id)로 거절된다.
+sql("""create function private.test_cart_draft_used_pause() returns trigger language plpgsql as $$begin
+ if exists(select 1 from public.orders where id=new.order_id and checkout_key in ('dd270000-0000-4000-8000-000000000012'::uuid,'dd270000-0000-4000-8000-000000000014'::uuid)) then
+  perform pg_advisory_xact_lock(2710054);end if;
+ return new;end$$;
+create trigger aaa_test_cart_draft_used_pause before insert on public.order_items for each row execute function private.test_cart_draft_used_pause();""")
+
+
+def two_tab_bank(label, place_first, place_second, first_key, second_key):
+    holder = start(f'{label}-hold', 'select pg_advisory_xact_lock(2710054);select pg_sleep(1.5);')
+    wait_state(f'{label}-hold', 'Timeout', holder)
+    first_tab = start(f'{label}-first', service(place_first))
+    wait_state(f'{label}-first', 'Lock', first_tab)
+    second_tab = start(f'{label}-second', service(place_second))
+    wait_state(f'{label}-second', 'Lock', second_tab)
+    finish(holder)
+    placed = finish(first_tab).strip().splitlines()[-1]
+    rejected = second_tab.communicate(timeout=30)
+    if 'deadlock detected' in rejected[1] or not second_tab.returncode or 'checkout_draft_used' not in rejected[1] or placed not in rejected[1]:
+        raise RuntimeError(f'Expected checkout_draft_used with the first order: {rejected}')
+    assert sql(f"select count(*) from public.orders where user_id='{buyer}' and checkout_key in ('{first_key}','{second_key}');") == '1'
+    assert sql(f"select status||':'||payment_method from public.orders where id='{placed}';") == 'pending:bank_transfer'
+    return placed
+
+
+cart_before = cart()
+bank_draft = sql('begin;' + service(f"select public.service_create_checkout_direct_draft('{buyer}','retained-a',{direct_lines});") + 'commit;').splitlines()[-1]
+place = "select public.place_direct_order('{0}','{1}',{2},'{3}','bank_transfer',0,null);"
+two_tab_bank('draft-direct', place.format(buyer, bank_draft, literal(address), 'dd270000-0000-4000-8000-000000000012'),
+             place.format(buyer, bank_draft, literal(address), 'dd270000-0000-4000-8000-000000000013'),
+             'dd270000-0000-4000-8000-000000000012', 'dd270000-0000-4000-8000-000000000013')
+assert cart() == cart_before
+print('PASS two tabs submit the same direct draft by bank transfer; one order; second rejected as used; cart untouched; no deadlock', flush=True)
+
+selected_c = sql(f"select jsonb_agg(jsonb_build_object('good_id',good_id,'variant_id',variant_id,'qty',qty,'input_revision',input_revision,'input_values',input_values)) from public.cart_items where user_id='{buyer}' and good_id='retained-c';")
+selection_draft = sql('begin;' + service(f"select public.service_create_checkout_selection_draft('{buyer}',{literal(selected_c)});") + 'commit;').splitlines()[-1]
+place = "select public.place_order_with_cart_selection('{0}','{1}',{2},'{3}','bank_transfer',0,null);"
+selection_bank = two_tab_bank('draft-selection', place.format(buyer, selection_draft, literal(address), 'dd270000-0000-4000-8000-000000000014'),
+                              place.format(buyer, selection_draft, literal(address), 'dd270000-0000-4000-8000-000000000015'),
+                              'dd270000-0000-4000-8000-000000000014', 'dd270000-0000-4000-8000-000000000015')
+assert sql(f"select string_agg(good_id||':'||qty,',' order by good_id) from public.order_items where order_id='{selection_bank}';") == 'retained-c:2'
+assert sql(f"select count(*) from public.cart_items where user_id='{buyer}' and good_id='retained-c';") == '0'
+assert sql(f"select count(*) from public.cart_items where user_id='{buyer}' and good_id='retained-a';") == '1'
+sql('drop trigger aaa_test_cart_draft_used_pause on public.order_items;drop function private.test_cart_draft_used_pause();')
+print('PASS two tabs submit the same selection draft by bank transfer; one order consumes selected line once; second rejected as used; no deadlock', flush=True)
+print(json.dumps({'cases': 9, 'database': database, 'sourceDatabaseWrites': 0}, ensure_ascii=False), flush=True)

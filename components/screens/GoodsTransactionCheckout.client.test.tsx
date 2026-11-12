@@ -112,7 +112,7 @@ it('주소록 배송지를 고르면 폼을 채우고 배송 메모는 두며, �
 /* 주문서 초안(ADR-0030): 바로구매는 장바구니가 아니라 초안 줄로, 초안 id를 실어 견적·주문하고 장바구니 쿠폰을 이어받지 않는다. */
 it('바로구매 초안이면 장바구니가 아니라 초안 줄을 주문하고, 복구 식별자에 초안 id를 더한다', async () => {
   const draftId = '00000000-0000-4000-8000-0000000000d1';
-  props = { ...props, draft: { id: draftId, source: 'direct', baseGoodId: 'transaction-good', expiresAt: '2099-01-01T00:00:00Z', stale: false, lines: transactionInput.items } };
+  props = { ...props, draft: { id: draftId, source: 'direct', baseGoodId: 'transaction-good', expiresAt: '2099-01-01T00:00:00Z', stale: false, usedOrderId: null, lines: transactionInput.items } };
   /* 장바구니에는 다른 굿즈가 들어 있다 — 주문서는 그것을 보지 않는다. */
   mocks.cart = { ...(mocks.cart as object), items: [{ ...transactionInput.items[0], goodId: 'other-good', qty: 9 }] };
   for (const effect of hooks.effects) effect.cleanup?.(); resetHooks(); render(); effects(); authenticate(); await flush();

@@ -342,12 +342,9 @@ begin
   if exists (select 1 from public.orders where user_id = p_user_id and checkout_key = p_checkout_key) then
     return public.place_order_with_store_credits(p_user_id, p_address, p_checkout_key, p_payment_method, p_store_credit_amount, p_user_coupon_id);
   end if;
-  select draft.* into v_draft from private.checkout_drafts as draft
-  where draft.id = p_draft_id and draft.user_id = p_user_id and draft.source = 'direct'
-    and draft.expires_at > pg_catalog.clock_timestamp();
-  if not found then
-    raise sqlstate 'PT409' using message = 'checkout_draft_expired';
-  end if;
+  -- 이 초안으로 만든 주문이 이미 무통장 접수·결제 완료면 새 키의 재제출(다른 탭·뒤로 가기)을 PT409로 거절한다.
+  -- 카드 미결제 주문이면 아래 supersede가 그 주문을 닫고 새 주문을 만든다.
+  v_draft := private.checkout_draft_for_order(p_user_id, p_draft_id, 'direct');
   -- 배송비 쿠폰은 legacy 주문서가 받지 않는다(장바구니 쿠폰 선택과 같은 거절).
   if p_user_coupon_id is not null and exists (
     select 1 from public.user_coupons as held join public.coupons as c on c.code = held.coupon_code
@@ -365,6 +362,7 @@ begin
   placed := public.place_order_with_store_credits(p_user_id, p_address, p_checkout_key, p_payment_method, p_store_credit_amount);
   perform set_config('icons.checkout_draft', '', true);
   perform set_config('icons.cart_order_retention', '', true);
+  update private.checkout_drafts set order_id = placed where id = p_draft_id;
   if p_payment_method = 'card' then
     perform private.record_direct_order_hold(placed, p_user_id, 'direct_checkout', v_draft.lines, v_draft.base_good_id);
   end if;

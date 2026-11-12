@@ -90,7 +90,8 @@ $$;
 revoke all on function private.lock_goods_transaction_source(uuid, jsonb) from public, anon, authenticated, service_role;
 grant execute on function private.lock_goods_transaction_source(uuid, jsonb) to postgres;
 
--- 바로구매 초안 → 거래 런타임 선택(초안 줄 그대로). 만료·다른 계정·장바구니 선택 초안은 PT409.
+-- 바로구매 초안 → 거래 런타임 선택(초안 줄 그대로). 만료·다른 계정·장바구니 선택 초안은 PT409 checkout_draft_expired,
+-- 이 초안으로 만든 주문이 이미 무통장 접수·결제 완료면 PT409 checkout_draft_used(legacy 바로구매와 같은 규칙).
 create function private.direct_goods_transaction_selection(p_actor uuid, p_draft_id uuid)
 returns jsonb
 language plpgsql
@@ -98,17 +99,13 @@ stable
 security definer
 set search_path = ''
 as $$
-declare v_lines jsonb;
+declare v_draft private.checkout_drafts%rowtype;
 begin
-  select draft.lines into v_lines from private.checkout_drafts as draft
-  where draft.id = p_draft_id and draft.user_id = p_actor and draft.source = 'direct' and draft.expires_at > pg_catalog.clock_timestamp();
-  if not found then
-    raise sqlstate 'PT409' using message = 'checkout_draft_expired';
-  end if;
+  v_draft := private.checkout_draft_for_order(p_actor, p_draft_id, 'direct');
   return private.normalize_goods_transaction_selection((
     select jsonb_agg(jsonb_build_object('goodId', line ->> 'goodId', 'variantId', line ->> 'variantId', 'qty', (line ->> 'qty')::integer,
       'inputRevision', (line ->> 'inputRevision')::integer, 'inputValues', line -> 'inputValues'))
-    from jsonb_array_elements(v_lines) as line));
+    from jsonb_array_elements(v_draft.lines) as line));
 end;
 $$;
 revoke all on function private.direct_goods_transaction_selection(uuid, uuid) from public, anon, authenticated, service_role;
@@ -191,6 +188,8 @@ begin
   perform private.supersede_unpaid_checkout_orders(p_user_id, true, null, 'new_direct_order');
   perform private.lock_goods_transaction_source(p_user_id, source);
   result := private.place_goods_transaction(p_user_id, source, selection, p_address, p_quote_id, p_checkout_key, p_payment_method);
+  -- 같은 초안의 재제출을 막는 연결(무통장 접수·결제 완료 뒤에는 checkout_draft_used).
+  update private.checkout_drafts set order_id = result where id = p_draft_id;
   if p_payment_method = 'bank_transfer' then
     -- 무통장은 접수 = 주문 완료다. 장바구니 줄은 건드리지 않고, 이 주문이 쓴 쿠폰의 장바구니 선택만 해제한다.
     delete from public.cart_coupon_selections as selection_row
