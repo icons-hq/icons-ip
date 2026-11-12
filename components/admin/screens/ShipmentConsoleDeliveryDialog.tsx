@@ -31,7 +31,9 @@ export interface DispatchTargetSummary { recipient: string | null; items: string
 const NOTE = 'text-xs text-muted-foreground';
 const kstNow = () => new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 16);
 
-export function ShipmentConsoleDeliveryDialog({ shipmentIds, mode, onClose, onDone, summaries = {} }: {
+export function ShipmentConsoleDeliveryDialog({ shipmentIds, mode, onClose, onDone, summaries = {}, canReadOrders = true }: {
+  /** 주문 조회 권한. 없으면 주문 상세를 열 수 없어 방문수령 안내가 목록 행의 인계·수령 확인을 가리킨다. */
+  canReadOrders?: boolean;
   shipmentIds: string[];
   mode: ShipmentDeliveryDialogMode;
   /** 배송 건 id별 수령인·상품. 목록 밖(다른 페이지) 건은 없을 수 있다. */
@@ -113,7 +115,7 @@ export function ShipmentConsoleDeliveryDialog({ shipmentIds, mode, onClose, onDo
         : loaded.error ? <AdminNotice role="alert" tone="danger">{loaded.error}</AdminNotice>
         : receipt ? <DispatchReceipt options={options!} receipt={receipt} /> : options ? <>
           <p className={NOTE}>{mode === 'dispatch'
-            ? '고른 배송 건에 택배 외 방법을 한 번에 적용하고, 퀵·직접배송·화물배송은 실제 인계(발송)까지 기록합니다. 방문수령은 방법만 적용하고 고객이 방문해 수령 확인값을 제시할 때 주문 상세에서 완료합니다.'
+            ? `고른 배송 건에 택배 외 방법을 한 번에 적용하고, 퀵·직접배송·화물배송은 실제 인계(발송)까지 기록합니다. 방문수령은 방법만 적용하고 고객이 방문해 수령 확인값을 제시할 때 ${canReadOrders ? '주문 상세에서' : "발송관리 행의 '인계·수령 확인'에서"} 완료합니다.`
             : '그 출고지에서 운영 조건이 켜진 방법만 고를 수 있습니다. 출고지시를 전달했거나 운송장을 등록한 건은 바꾸지 않습니다.'} 배송비·결제 금액은 바뀌지 않습니다.</p>
           {methods.length ? <div className={FIELD}>
             <Label htmlFor={`${fieldId}-method`}>배송 방법</Label>
@@ -149,7 +151,7 @@ export function ShipmentConsoleDeliveryDialog({ shipmentIds, mode, onClose, onDo
           {needsReason || (mode === 'method' && applying.length) ? <label className={FIELD}>
             <span className="font-medium">{needsReason ? '고객이 고른 방법과 다른 이유 (필수)' : '사유 (선택)'}</span>
             <Textarea disabled={pending} maxLength={DISPATCH_REASON_MAX_LENGTH} onChange={(event) => setReason(event.target.value)} required={needsReason} rows={2} value={reason} />
-            <span className={NOTE}>고객 요청 경로·확인한 근거 등 실제 사실만 적습니다. 주문 상세의 방식·인계 이력과 감사 기록에 남습니다.</span>
+            <span className={NOTE}>고객 요청 경로·확인한 근거 등 실제 사실만 적습니다. {canReadOrders ? '주문 상세의 방식·인계 이력과 ' : '인계 이력과 '}감사 기록에 남습니다.</span>
           </label> : null}
           {withHandoff ? <fieldset className="m-0 flex min-w-0 flex-col gap-2.5 border-0 p-0" disabled={pending}>
             <legend className="mb-1 font-medium">실제 인계 근거</legend>

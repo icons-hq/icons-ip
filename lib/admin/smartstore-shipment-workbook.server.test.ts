@@ -173,6 +173,19 @@ describe('ICONS 표준 양식 출고지시', () => {
     expect(book.getWorksheet('내려받기 정보')!.getCell('B3').value).toBe('김포, 남양주');
   });
 
+  it('내려받기 정보의 비택배 안내는 주문 조회 권한이 없는 물류 계정에게 발송관리 행을 가리킨다(QA 라운드 1b)', async () => {
+    const info = async (recipientOnly: boolean) => {
+      const book = await load((await buildShipmentExport({ shipments: [shipment] }, 'xlsx', 'smartstore', undefined, { recipientOnly })).bytes);
+      const lines: string[] = [];
+      book.getWorksheet('내려받기 정보')!.eachRow(row => { lines.push(String(row.getCell(2).value)); });
+      return lines.join('\n');
+    };
+    expect(await info(false)).toContain('주문 상세의 인계·수령 확인에서 처리합니다');
+    const logistics = await info(true);
+    expect(logistics).toContain('발주·발송 관리 목록의 인계·수령 확인에서 처리합니다');
+    expect(logistics).not.toContain('주문 상세');
+  });
+
   it('선물·착불·합포장이 있으면 배송 운영 안내를 내려받기 정보 앞에 두고 회신도 그대로 읽는다', async () => {
     const gift = { ...shipment, isGift: true };
     const book = await load((await buildShipmentExport({ shipments: [gift] }, 'xlsx', 'smartstore')).bytes);

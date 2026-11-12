@@ -10,6 +10,11 @@ vi.mock('@/app/admin/dispatch-delivery-actions',()=>({readDispatchShipmentDelive
 const base:ShipmentConsoleData={surface:'dispatch',filters:{tab:'ready',originId:null,query:'',from:null,to:null,page:1},rows:[],total:2,pageSize:100,counts:{new:0,ready:2,delayed:0,transit:0,delivered:0},carriers:[{code:'hanjin',label:'한진택배',active:true,trackingUrlTemplate:'https://example.test/{trackingNumber}'}],origins:[{id:'one',name:'김포',template:'wms_csv',active:true},{id:'two',name:'남양주',template:'seowon_xlsx',active:true},{id:'three',name:'중지된 창고',template:'standard',active:false}]};
 const row={id:'60000000-0000-4000-8000-000000000001',orderId:'50000000-0000-4000-8000-000000000001',originId:'one',originName:'김포',status:'ready' as const,createdAt:'2026-09-08T00:00:00Z',confirmedAt:'2026-09-08T01:00:00Z',buyerName:'구매자',recipientName:'받는 분',total:30000,paymentMethod:'card',shippingFee:3000,carrier:null,trackingNumber:null,shippedAt:null,deliveredAt:null,exportedAt:null,updatedAt:'2026-09-08T00:00:00Z',delayReason:null,expectedShipDate:null,items:[{id:'item-1',name:'상품',variantName:'파랑',qty:2}]};
 describe('배송 건 콘솔',()=>{
+ it('물류 계정(판매 관리 권한 없음)의 신규주문 탭에는 발주확인을 못 하는 이유를 한 줄 알린다(QA 라운드 1b)',()=>{
+  const newTab={...base,filters:{...base.filters,tab:'new' as const},rows:[]};
+  expect(renderToStaticMarkup(<ShipmentConsoleScreen canManageSales={false} canReadOrders={false} data={newTab}/>)).toContain('발주확인은 계정 주매니저가 합니다. 물류 계정은 발송 대기부터 처리합니다.');
+  expect(renderToStaticMarkup(<ShipmentConsoleScreen data={newTab}/>)).not.toContain('발주확인은 계정 주매니저가 합니다');
+ });
  it('주문 조회 권한이 없는 출고 전용 운영자에게는 구매자·결제·금액 조건과 주문 상세 링크 없이 택배 외 인계 팝업을 둔다 (1014-084 수령인 정보만)',()=>{
   const rows=[{...row,buyerName:null as unknown as string,total:null as unknown as number,paymentMethod:null as unknown as string,shippingFee:null as unknown as number,production:{count:1,completed:1,ready:true}},
    {...row,id:'60000000-0000-4000-8000-000000000002',delivery:shipmentDeliveryFixture({method:'quick'})}] as ShipmentConsoleData['rows'];

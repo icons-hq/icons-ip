@@ -62,7 +62,7 @@ export async function buildShipmentExport(data:ShipmentExportData,format:'xlsx'|
  if(reader.recipientOnly)data=recipientOnlyShipmentExport(data) as unknown as ShipmentExportData;
  if(layout==='smartstore'){
   if(data.shipments.reduce((count,shipment)=>count+shipment.lines.length,0)>TRACKING_IMPORT_ROW_LIMIT)throw new Error('ICONS 표준 양식은 품목 1,000줄까지 만들 수 있습니다. 배송 건을 나눠서 내보내주세요.');
-  const file=await buildSmartStoreShipmentExport(data,format,now);
+  const file=await buildSmartStoreShipmentExport(data,format,now,{recipientOnly:reader.recipientOnly});
   return {...file,extension:file.extension as ShipmentExportFile['extension'],name:`icons-출고지시-${stamp}.${file.extension}`};
  }
  const groups=new Map<string,Shipments>();

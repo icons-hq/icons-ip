@@ -28,6 +28,20 @@ function hasFinalConsonant(word: string): boolean | null {
   return null;
 }
 
+/** 방향·수단 조사 로/으로. 받침이 없거나 ㄹ 받침이면 '로', 그 밖의 받침은 '으로', 판정할 수 없으면 '(으)로'. */
+export function directionParticle(word: string): '로' | '으로' | '(으)로' {
+  const final = hasFinalConsonant(word);
+  if (final === null) return '(으)로';
+  if (!final) return '로';
+  let text = word.trim();
+  for (let match = TRAILING_GROUP.exec(text); match; match = TRAILING_GROUP.exec(text)) text = match[1];
+  const last = [...text.replace(TRAILING_SYMBOLS, '')].at(-1)!;
+  const code = last.codePointAt(0)!;
+  /* ㄹ 받침(종성 index 8)은 '로'. 숫자는 8 팔만 ㄹ 받침. */
+  if (code >= HANGUL_FIRST && code <= HANGUL_LAST) return (code - HANGUL_FIRST) % 28 === 8 ? '로' : '으로';
+  return last === '8' ? '로' : '으로';
+}
+
 /** 주제 조사 은/는. 판정할 수 없으면 '은(는)'. */
 export function topicParticle(word: string): '은' | '는' | '은(는)' {
   const final = hasFinalConsonant(word);

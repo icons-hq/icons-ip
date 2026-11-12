@@ -19,6 +19,7 @@ import {AdminNotice} from '@/components/admin/console/AdminKit';
 import {Button} from '@/components/admin/kit/ui/button';
 import {Input} from '@/components/admin/kit/ui/input';
 import {Label} from '@/components/admin/kit/ui/label';
+import {directionParticle} from '@/lib/korean-particle';
 import {NativeSelect} from '@/components/admin/kit/ui/native-select';
 /* 배송 건 처리 막대·출고지시 팝업(템플릿 룩, ADR-0028). 처리 순서·확인·양식 선택 계약은 그대로다. */
 const WORKBAR='flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2 print:hidden';
@@ -43,13 +44,15 @@ function layoutLabel(layout:ShipmentExportLayout,seowonOnly:boolean){
 function defaultExportLayout(origins:readonly ShipmentConsoleOrigin[],originIds:readonly string[]):ShipmentExportLayout{
  return originIds.length>0&&originIds.every(id=>origins.find(origin=>origin.id===id)?.template==='seowon_xlsx')?'warehouse':'smartstore';
 }
-export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,readyHref,actorId,origins=[],originId=null,methodFilter=null,dispatchActions=false,canManageSales=true,workbarNote=null,stockShortage=null}:{actorId?:string;rows:ShipmentConsoleRow[];columns:ConsoleGridColumn[];gridRows:ConsoleGridRow[];tab:ShipmentConsoleTab;currentHref:string;readyHref:string;origins?:ShipmentConsoleOrigin[];originId?:string|null;
+export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,readyHref,actorId,origins=[],originId=null,methodFilter=null,dispatchActions=false,canManageSales=true,canReadOrders=true,workbarNote=null,stockShortage=null}:{actorId?:string;rows:ShipmentConsoleRow[];columns:ConsoleGridColumn[];gridRows:ConsoleGridRow[];tab:ShipmentConsoleTab;currentHref:string;readyHref:string;origins?:ShipmentConsoleOrigin[];originId?:string|null;
  /** 목록의 배송방법 필터. 택배 외 한 방법만 모아 보면 그 건도 일괄 발송처리용으로 고른다. */
  methodFilter?:FulfillmentMethod|null;
  /** 발주·발송 화면: 행 운송장 칸·배송 방법·택배 외 발송처리(S36-072·S36-X04)를 연다. */
  dispatchActions?:boolean;
  /** 판매 관리 권한. 없으면(물류 출고 권한) 발주확인·합포장 관리·고객 지연 안내(이력 포함)를 숨긴다. 출고지시·운송장·발송·배송완료는 그대로다. */
  canManageSales?:boolean;
+ /** 주문 조회 권한. 없으면(물류 출고 권한) 주문 상세를 열 수 없어 안내 문구가 발송관리 행의 인계·수령 확인을 가리킨다. */
+ canReadOrders?:boolean;
  /** 작업 막대 끝에 둘 안내(택배가 섞인 발송 대기 목록의 택배 외 건 필터 안내). 막대가 없는 목록이면 안내만 담은 막대를 그린다. */
  workbarNote?:ReactNode;
  /** 창고 재고보다 출고할 주문이 많은 옵션. 있으면 출고지시를 내려받는 확인 단계에서 다시 알린다(막지는 않는다). */
@@ -250,7 +253,7 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
     if(invalid||typeof password!=='string'||typeof passwordConfirmation!=='string'){setError(invalid??EXPORT_PASSWORD_HINT);return;}
     run('export',{password,passwordConfirmation});
    }}>
-    <p>{exportRequest.kind==='selection'?`선택한 ${exportRequest.ids.length}개 배송 건`:`${exportRequest.origin.name}의 아직 전달하지 않은 발송 대기 건`}을 {exportNeedsPassword?'ICONS 표준 양식':layoutLabel(exportRequest.layout,exportRequest.kind==='origin'?exportRequest.origin.template==='seowon_xlsx':exportRequest.ids.every(id=>originTemplate(rows.find(row=>row.id===id)?.originId??'')==='seowon_xlsx'))}{exportRequest.format==='csv'?' CSV':''}로 내려받습니다.</p>
+    <p>{exportRequest.kind==='selection'?`선택한 ${exportRequest.ids.length}개 배송 건`:`${exportRequest.origin.name}의 아직 전달하지 않은 발송 대기 건`}을 {(()=>{const label=exportNeedsPassword?'ICONS 표준 양식':layoutLabel(exportRequest.layout,exportRequest.kind==='origin'?exportRequest.origin.template==='seowon_xlsx':exportRequest.ids.every(id=>originTemplate(rows.find(row=>row.id===id)?.originId??'')==='seowon_xlsx'));return exportRequest.format==='csv'?`${label} CSV로`:`${label}${directionParticle(label)}`;})()} 내려받습니다.</p>
     {/* 1007-011·QA 라운드 1 m9: 페이지 맨 위 재고 경고는 행으로 내려가면 보이지 않는다. 파일을 받기 직전에 다시 알리고, 받을지는 운영자가 정한다. */}
     {stockShortage?<AdminNotice role="alert" tone="danger" title={`창고 재고보다 출고할 주문이 많은 옵션 ${stockShortage.count.toLocaleString('ko-KR')}개`}>
      <p>{stockShortage.names.join(', ')}{stockShortage.count>stockShortage.names.length?` 외 ${(stockShortage.count-stockShortage.names.length).toLocaleString('ko-KR')}개`:''}</p>
@@ -269,6 +272,6 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
     </div>
    </form>
   </CustomerServiceDialog>:null}
-  {deliveryDialog?<ShipmentConsoleDeliveryDialog key={`${deliveryDialog.mode}:${deliveryDialog.ids.join(',')}`} mode={deliveryDialog.mode} onClose={()=>setDeliveryDialog(null)} onDone={report} shipmentIds={deliveryDialog.ids} summaries={targetSummaries}/>:null}
+  {deliveryDialog?<ShipmentConsoleDeliveryDialog key={`${deliveryDialog.mode}:${deliveryDialog.ids.join(',')}`} mode={deliveryDialog.mode} onClose={()=>setDeliveryDialog(null)} onDone={report} canReadOrders={canReadOrders} shipmentIds={deliveryDialog.ids} summaries={targetSummaries}/>:null}
  </div></ShipmentConsoleActionsContext.Provider>;
 }
