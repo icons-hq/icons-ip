@@ -327,6 +327,9 @@ select pg_temp.ld_as(6);
 select public.admin_read_shipment_delivery(pg_temp.ld_id(4,5)) as logistics_view \gset
 select pg_temp.ld_assert(:'logistics_view'::jsonb->'policies'='[]'::jsonb and :'logistics_view'::jsonb->'shippingFee'='null'::jsonb
  and not (:'logistics_view'::jsonb#>'{history,0,evidence}' ?| array['customerRequestReference','feeConsentReference'])
+ -- 방식 변경 이력의 선결제 배송비·주문 총액도 비운다(통합 migration 20261112200200, 수령인 정보만).
+ and not (:'logistics_view'::jsonb#>'{history,0,evidence}' ?| array['shippingFee','orderTotal'])
+ and (:'manager_view'::jsonb#>'{history,0,evidence}' ?& array['shippingFee','orderTotal'])
  and :'logistics_view'::jsonb#>>'{history,0,evidence,toMethod}'='quick'
  and :'logistics_view'::jsonb#>>'{summary,method}'='quick' and :'logistics_view'::jsonb#>>'{summary,policy,handoffLocation}'='합성 인계 장소'
  and (:'logistics_view'::jsonb->>'canTransition')::boolean,'dispatch-only operators read handoff conditions without method-change material');
