@@ -116,13 +116,49 @@ export function goodsKcEditorRefresh(previous: AdminGoodsKc, next: AdminGoodsKc,
 export function goodsKcProductNotApplicableNote(models: readonly GoodsKcModelInput[], draftNote = ''): string {
   return goodsKcSoleNotApplicable(models) ? models[0].publicNote : draftNote;
 }
-/** Plan for the one-click action. `discarded` counts current model rows that the
- * replacement would erase; the editor confirms before discarding any input.
- * Rows are compared in saved form, so trimming or option order alone is no loss. */
-export function planGoodsKcProductNotApplicable(models: readonly GoodsKcModelInput[], variants: readonly GoodsKcVariant[], draftNote = '') {
-  const next = [goodsKcProductNotApplicableModel(variants, goodsKcProductNotApplicableNote(models, draftNote))];
-  const current = normalizeGoodsKcModels(models) ?? models;
-  return { models: next, discarded: models.length && JSON.stringify(current) !== JSON.stringify(next) ? models.length : 0 };
+/** 운영자가 고르거나 적은 값이 있는 모델인가. 옵션 연결만 있는 빈 모델('대상'을 고를 때·모델 추가로 생긴 모델)은
+ * 지워도 잃는 입력이 없다. */
+export function goodsKcModelHasInput(model: GoodsKcModelInput): boolean {
+  return Boolean(model.family || model.scheme || model.businessRole
+    || [model.productCategory, model.modelName, model.businessName, model.identifier, model.publicNote, model.basis,
+      ...Object.values(model.evidence)].some((value) => value.trim()));
+}
+/** 확인창에 적을 모델 이름: '모델 N · 모델명'(모델명이 없으면 제도나 제품군). */
+export function goodsKcModelLabel(model: GoodsKcModelInput, index: number): string {
+  const detail = model.modelName.trim() || (model.scheme ? GOODS_KC_SCHEME_LABELS[model.scheme] : model.family ? GOODS_KC_FAMILY_LABELS[model.family] : '');
+  return `모델 ${index + 1}${detail ? ` · ${detail}` : ''}`;
+}
+export interface GoodsKcProductNotApplicablePlan {
+  models: GoodsKcModelInput[];
+  /** 바꾸면서 지워지는, 입력이 있는 모델 수와 이름. 0이면 확인 없이 바꾼다. */
+  discarded: number;
+  discardedLabels: string[];
+}
+/** Plan for the one-click action ("상품 전체 KC 해당 없음"). If exactly one not-applicable
+ * model exists (one-click result, a notice-preset KC template, or a model the MD switched to
+ * 해당 없음) it is kept with its family, note and optional fields, and only its options are
+ * re-linked to every active option. Otherwise one new 그 외·해당 없음 model replaces the list.
+ * `discarded` counts only replaced models that carry input, so a blank model created by
+ * '대상' or 'KC 모델 추가' never asks for confirmation. */
+export function planGoodsKcProductNotApplicable(models: readonly GoodsKcModelInput[], variants: readonly GoodsKcVariant[], draftNote = ''): GoodsKcProductNotApplicablePlan {
+  const linked = goodsKcProductNotApplicableModel(variants).variantIds;
+  const notApplicable = models.filter((model) => model.scheme === 'not_applicable');
+  const kept = notApplicable.length === 1 ? notApplicable[0] : null;
+  let next: GoodsKcModelInput;
+  if (kept) {
+    const normalized = normalizeGoodsKcModels([kept])?.[0] ?? kept;
+    /* 해당 없음 1개뿐이면 고객 안내 칸이 그 모델의 안내를 직접 고친다. 다른 모델과 함께면 따로 적은 안내가 있을 때만 그것을 쓴다. */
+    const note = goodsKcSoleNotApplicable(models) ? normalized.publicNote : (draftNote.trim() || normalized.publicNote);
+    next = { ...normalized, publicNote: note.trim(), variantIds: linked };
+  } else next = goodsKcProductNotApplicableModel(variants, goodsKcProductNotApplicableNote(models, draftNote));
+  const removed = models.flatMap((model, index) => model !== kept && goodsKcModelHasInput(model) ? [goodsKcModelLabel(model, index)] : []);
+  return { models: [next], discarded: removed.length, discardedLabels: removed };
+}
+/** 해당 없음으로 바꾸기 전 확인 문구. 지워지는 입력이 없으면 null(묻지 않는다). */
+export function goodsKcProductNotApplicableConfirm(plan: GoodsKcProductNotApplicablePlan, { completing }: { completing: boolean }): string | null {
+  if (!plan.discarded) return null;
+  const names = plan.discardedLabels.slice(0, 3).join(', ') + (plan.discardedLabels.length > 3 ? ` 외 ${plan.discardedLabels.length - 3}개` : '');
+  return `입력한 KC 모델 ${plan.discarded}개(${names})를 지우고 상품 전체 KC 해당 없음으로 ${completing ? '검토를 완료합니다' : '바꿉니다'}. 계속할까요?`;
 }
 
 /** Copy after "저장 후 공개" was refused only for KC and the same input was saved

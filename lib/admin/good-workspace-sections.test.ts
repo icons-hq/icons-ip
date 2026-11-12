@@ -46,12 +46,39 @@ describe('등록 화면 원자 저장 섹션', () => {
       values: { state: 'draft', capacityQty: 5, startsAt: '2026-11-01T01:00:00.000Z', endsAt: '2026-11-10T09:00:00.000Z', expectedShipDate: '2026-11-20', approvalReference: '승인 문서 A-1' } });
   });
 
-  it('확인 체크 없는 KC 입력은 미검토로 보내고, 체크했는데 연결이 빠지면 저장하지 않는다', () => {
-    const partial = { ...emptyGoodsKcModel(), family: 'other' as const, scheme: 'not_applicable' as const, variantIds: [SAVED] };
+  it('확인 체크 없는 KC 입력은 미검토로 보내고, 체크했는데 대상 모델의 연결이 빠지면 저장하지 않는다', () => {
+    const partial = { ...emptyGoodsKcModel(), family: 'living' as const, scheme: 'safety_confirmation' as const, productCategory: '합성 분류',
+      modelName: '합성 모델', businessRole: 'importer' as const, businessName: '합성 수입자', identifier: 'TEST-1', variantIds: [SAVED] };
     const unreviewed = prepareGoodWorkspaceSections({ kc: { models: [partial], attested: false }, preorders: [] }, rows, false);
     expect(unreviewed).toMatchObject({ ok: true, value: { kc: { status: 'unreviewed', attested: false } } });
     const missing = prepareGoodWorkspaceSections({ kc: { models: [partial], attested: true }, preorders: [] }, rows, false);
     expect(missing).toMatchObject({ ok: false, field: 'workspaceKc', error: expect.stringContaining('파랑') });
+  });
+
+  /* 리뷰(T16a minor 1): '대상 아님' 칸에는 옵션 연결 칸이 없다. 확인 체크를 풀고 옵션을 바꿔도 제출 때 현재 옵션으로 다시 연결해 저장된다. */
+  it('대상 아님에서 확인 체크를 풀고 옵션을 바꿔도 저장할 때 현재 사용 옵션 전체로 다시 연결한다', () => {
+    const before: GoodsOptionRow[] = [{ name: '기본', code: '', attributes: {}, extraPrice: 0, stockQty: 1 }];
+    const chosen = goodsKcProductNotApplicableModel(goodWorkspaceKcVariants(before));
+    /* 체크를 푼 뒤 옵션을 빨강·파랑으로 바꿨다. 화면 id가 바뀌어 처음 연결한 옵션은 더 이상 목록에 없다. */
+    const after: GoodsOptionRow[] = [
+      { name: '빨강', code: '', attributes: { 색상: '빨강' }, extraPrice: 0, stockQty: 1 },
+      { name: '파랑', code: '', attributes: { 색상: '파랑' }, extraPrice: 0, stockQty: 1 },
+    ];
+    const prepared = prepareGoodWorkspaceSections({ ...EMPTY_GOOD_WORKSPACE_SECTIONS, kc: { models: [chosen], attested: false, productNotApplicable: true } }, after, false);
+    if (!prepared.ok) throw new Error(prepared.error);
+    expect(prepared.value.kc).toMatchObject({ status: 'unreviewed', attested: false });
+    /* 연결 순서는 옵션 id 정렬을 따른다. */
+    expect(prepared.value.kc?.models[0].variantRefs).toHaveLength(2);
+    expect(prepared.value.kc?.models[0].variantRefs).toEqual(expect.arrayContaining([{ attributes: { 색상: '빨강' } }, { attributes: { 색상: '파랑' } }]));
+    /* 체크한 채여도 같다(검토 완료로 저장). */
+    const attested = prepareGoodWorkspaceSections({ ...EMPTY_GOOD_WORKSPACE_SECTIONS, kc: { models: [chosen], attested: true, productNotApplicable: true } }, after, false);
+    expect(attested).toMatchObject({ ok: true, value: { kc: { status: 'reviewed' } } });
+    /* 프리셋의 해당 없음 틀은 제품군·안내를 지킨 채 옵션만 연결된다. */
+    const template = goodWorkspaceKcWithTemplate(EMPTY_GOOD_WORKSPACE_SECTIONS.kc, { family: 'living', scheme: 'not_applicable', publicNote: '합성 틀 안내' })!;
+    const fromTemplate = prepareGoodWorkspaceSections({ ...EMPTY_GOOD_WORKSPACE_SECTIONS, kc: template }, after, false);
+    if (!fromTemplate.ok) throw new Error(fromTemplate.error);
+    expect(fromTemplate.value.kc?.models[0]).toMatchObject({ family: 'living', scheme: 'not_applicable', publicNote: '합성 틀 안내' });
+    expect(fromTemplate.value.kc?.models[0].variantRefs).toEqual(expect.arrayContaining([{ attributes: { 색상: '빨강' } }, { attributes: { 색상: '파랑' } }]));
   });
 
   /* 해당 없음은 체크 한 번으로 끝난다. 체크 뒤 옵션을 바꿔도 사람이 다시 체크할 필요 없이 제출 때 현재 옵션에 연결한다. */
@@ -94,7 +121,8 @@ describe('등록 화면 원자 저장 섹션', () => {
   /* 리뷰 T3a-1 — 사용 중지 새 옵션도 KC 모델 연결·예약 초안 대상으로 고를 수 있다. 화면은 옵션값 조합으로 보내고 DB가 이번 저장이 만든 옵션으로 해석한다. */
   it('사용 중지 새 옵션은 옵션값 조합 참조로 KC·예약 초안에 싣는다', () => {
     const inactive: GoodsOptionRow[] = [rows[0], { ...rows[1], isActive: false }];
-    const model = { ...emptyGoodsKcModel(), family: 'other' as const, scheme: 'not_applicable' as const, variantIds: goodWorkspaceKcVariants(inactive).map((variant) => variant.id) };
+    /* 대상 모델은 옵션을 직접 고른다(상품 전체 해당 없음은 사용 옵션 전체로 다시 맞추므로 대상 모델로 확인한다). */
+    const model = { ...emptyGoodsKcModel(), family: 'living' as const, scheme: 'safety_confirmation' as const, variantIds: goodWorkspaceKcVariants(inactive).map((variant) => variant.id) };
     const prepared = prepareGoodWorkspaceSections({ kc: { models: [model], attested: false }, preorders: [preorder] }, inactive, false);
     if (!prepared.ok) throw new Error(prepared.error);
     expect(prepared.value.kc?.models[0].variantRefs).toEqual([{ id: SAVED }, { attributes: { 색상: '파랑' } }]);
@@ -136,9 +164,11 @@ describe('등록 화면 원자 저장 섹션', () => {
       attested: false, productNotApplicable: true });
     const prepared = prepareGoodWorkspaceSections({ ...EMPTY_GOOD_WORKSPACE_SECTIONS, kc: filled! }, rows, false);
     if (!prepared.ok) throw new Error(prepared.error);
-    /* 확인 체크가 없으므로 미검토 초안이고, 틀은 옵션·번호·근거를 채우지 않는다. */
+    /* 확인 체크가 없으므로 미검토 초안이고, 틀은 번호·근거를 채우지 않는다. 상품 전체 해당 없음이라 연결 옵션만 제출 때 사용 옵션 전체로 맞춘다. */
     expect(prepared.value.kc).toMatchObject({ status: 'unreviewed', attested: false,
-      models: [{ family: 'living', scheme: 'not_applicable', publicNote: '합성 해당 없음 안내', identifier: '', modelName: '', basis: '', variantRefs: [] }] });
+      models: [{ family: 'living', scheme: 'not_applicable', publicNote: '합성 해당 없음 안내', identifier: '', modelName: '', basis: '' }] });
+    expect(prepared.value.kc?.models[0].variantRefs).toEqual(expect.arrayContaining([{ id: SAVED }, { attributes: { 색상: '파랑' } }]));
+    expect(prepared.value.kc?.models[0].variantRefs).toHaveLength(2);
     /* 원클릭 해당 없음 위에 KC 대상 틀을 고르면 대상 모델로 바뀌고 확인 체크가 풀린다. */
     const oneClick = { models: [goodsKcProductNotApplicableModel(goodWorkspaceKcVariants(rows))], attested: true, productNotApplicable: true };
     expect(goodWorkspaceKcWithTemplate(oneClick, { family: 'children', scheme: 'safety_confirmation', publicNote: '' }))

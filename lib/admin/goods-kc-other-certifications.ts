@@ -98,12 +98,24 @@ export function parseAdminGoodsOtherCertifications(value: unknown): AdminGoodsOt
     updatedAt: value.updatedAt, updatedByName: value.updatedByName as string | null };
 }
 
-/** RPC 오류 → 화면 안내. 알 수 없는 오류는 일반 안내로 둔다. */
+/** RPC 오류 → 화면 안내. 알 수 없는 오류는 일반 안내로 둔다. 다음 할 일은 부르는 화면이 붙인다(등록 화면·저장된 상품 패널이 다르다). */
 export function goodsOtherCertificationsSaveError(message: string): string {
-  if (message.includes('goods_other_certifications_changed')) return '다른 작업에서 기타 인증이 바뀌었습니다. 입력은 유지됩니다. 저장된 정보를 다시 불러와 확인해주세요.';
+  if (message.includes('goods_other_certifications_changed')) return '다른 작업에서 기타 인증이 바뀌었습니다.';
   if (message.includes('goods_other_certification_incomplete')) return '기타 인증마다 인증 종류와 인증번호를 입력해주세요.';
   if (message.includes('goods_other_certification_duplicate')) return '같은 인증 종류·인증번호가 두 번 들어 있습니다. 하나만 남겨주세요.';
   if (message.includes('invalid_goods_other_certifications')) return `기타 인증은 최대 ${MAX_GOODS_OTHER_CERTIFICATIONS}건, 각 칸 ${GOODS_OTHER_CERTIFICATION_TEXT_LIMIT}자까지 한 줄로 입력해주세요.`;
   if (message.includes('catalog_item_archived')) return '보관된 상품은 복원한 뒤 기타 인증을 수정할 수 있습니다.';
-  return '기타 인증을 저장하지 못했습니다. 입력은 유지되므로 다시 시도해주세요.';
+  return '기타 인증을 저장하지 못했습니다. 다시 시도해주세요.';
+}
+
+export const GOODS_OTHER_CERTIFICATIONS_RELOAD_LABEL = '저장된 기타 인증 다시 불러오기';
+
+/**
+ * 저장된 상품 패널의 버전 충돌 안내. 서버 액션이 최신 저장값을 다시 읽어 함께 돌려주므로 화면은 입력을 그대로 두고 버전만 바꾼다.
+ * 그래서 다시 저장하면 최신 값을 덮어쓰고, 최신 값으로 바꾸려면 다시 불러오기를 누른다 — 안내와 실제 동작이 같다.
+ */
+export function goodsOtherCertificationsConflictMessage(latest: AdminGoodsOtherCertifications): string {
+  const kinds = latest.entries.map((entry) => entry.kind);
+  const summary = kinds.length ? `${latest.entries.length}건: ${kinds.slice(0, 3).join(' · ')}${kinds.length > 3 ? ` 외 ${kinds.length - 3}건` : ''}` : '없음';
+  return `다른 작업에서 기타 인증이 바뀌었습니다(최신 저장 ${summary}). 입력은 그대로 두었습니다. 이대로 다시 저장하면 최신 저장값을 덮어쓰고, 최신 저장값으로 바꾸려면 '${GOODS_OTHER_CERTIFICATIONS_RELOAD_LABEL}'를 누르세요.`;
 }

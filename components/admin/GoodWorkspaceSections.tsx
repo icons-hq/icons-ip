@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import { GoodsKcDisclosure } from '@/components/shop/GoodsKcDisclosure';
 import {
   MAX_GOODS_KC_MODELS, emptyGoodsKcModel, goodsKcChoice, goodsKcReviewProblems, goodsKcSoleNotApplicable, goodsKcSubjectModel,
-  planGoodsKcProductNotApplicable, publicGoodsKcDisclosures, type GoodsKcChoice, type GoodsKcModelInput,
+  goodsKcProductNotApplicableConfirm, planGoodsKcProductNotApplicable, publicGoodsKcDisclosures, type GoodsKcChoice, type GoodsKcModelInput,
 } from '@/lib/admin/goods-kc';
 import { goodWorkspaceKcVariants, type GoodWorkspaceKcDraft, type GoodWorkspacePreorderDraft } from '@/lib/admin/good-workspace-sections';
 import { goodsOptionRowKey } from '@/lib/admin/goods-option-editor';
@@ -44,9 +44,11 @@ export function GoodWorkspaceKcCard({ serverError, disabled = false }: { serverE
   const change = (next: GoodsKcModelInput[]) => setKc({ models: next, attested: false });
   function choose(next: GoodsKcChoice) {
     if (next === 'not_applicable') {
-      /* 고르는 순간 상품 전체 해당 없음을 확인한 것으로 체크한다(아래 체크를 풀면 미검토로 저장). 입력한 대상 모델이 있으면 지우기 전에 묻는다. */
+      /* 고르는 순간 상품 전체 해당 없음을 확인한 것으로 체크한다(아래 체크를 풀면 미검토로 저장). 해당 없음 모델(프리셋 틀 포함)은 지키고,
+         입력이 있는 대상 모델을 지울 때만 그 모델을 들어 묻는다('대상'을 고를 때 생긴 빈 모델은 묻지 않는다). */
       const plan = planGoodsKcProductNotApplicable(models, variants);
-      if (plan.discarded && !window.confirm(`입력한 KC 모델 ${plan.discarded}개를 지우고 상품 전체 KC 해당 없음으로 바꿉니다. 계속할까요?`)) return;
+      const confirm = goodsKcProductNotApplicableConfirm(plan, { completing: false });
+      if (confirm && !window.confirm(confirm)) return;
       setKc({ models: plan.models, attested: true, productNotApplicable: true });
     } else if (!models.length || goodsKcSoleNotApplicable(models)) setKc({ models: [goodsKcSubjectModel(variants)], attested: false });
   }

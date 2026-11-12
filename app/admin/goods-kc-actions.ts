@@ -7,7 +7,7 @@ import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
 import { parseAdminGoodsKc, parseGoodsKcSaveInput, type AdminGoodsKc } from '@/lib/admin/goods-kc';
 import {
-  goodsOtherCertificationsSaveError, parseAdminGoodsOtherCertifications, parseGoodsOtherCertificationsSaveInput,
+  goodsOtherCertificationsConflictMessage, goodsOtherCertificationsSaveError, parseAdminGoodsOtherCertifications, parseGoodsOtherCertificationsSaveInput,
   type AdminGoodsOtherCertifications,
 } from '@/lib/admin/goods-kc-other-certifications';
 
@@ -90,10 +90,13 @@ export async function readGoodsOtherCertificationsAction(goodIdValue: unknown): 
   }
 }
 
-/** 기타 인증 저장. 버전이 다르면 서버가 거절하고, 고객 표시 목록은 DB가 노출 항목으로 다시 만든다. */
+/** 버전 충돌로 거절됐을 때 최신 저장값. 화면은 입력을 지킨 채 이 버전으로 다시 저장할 수 있다. */
+type OtherCertificationsConflict = { ok: false; error: string; conflict: true; latest: AdminGoodsOtherCertifications };
+
+/** 기타 인증 저장. 버전이 다르면 서버가 거절하고(최신 저장값을 다시 읽어 함께 돌려준다), 고객 표시 목록은 DB가 노출 항목으로 다시 만든다. */
 export async function saveGoodsOtherCertificationsAction(goodIdValue: unknown, inputValue: unknown): Promise<{
   ok: true; message: string; configuration: AdminGoodsOtherCertifications;
-} | Failure> {
+} | OtherCertificationsConflict | Failure> {
   try {
     const auth = await requireAdminActionAccess('/admin/catalog/goods');
     if (!auth) return { ok: false, error: OTHER_STAFF_REQUIRED };
@@ -104,9 +107,15 @@ export async function saveGoodsOtherCertificationsAction(goodIdValue: unknown, i
     const { data, error } = await client.rpc('admin_save_goods_other_certifications', {
       p_good_id: id, p_entries: input.entries, p_expected_revision: input.expectedRevision,
     });
-    if (error) return { ok: false, error: goodsOtherCertificationsSaveError(error.message) };
+    if (error) {
+      if (!error.message.includes('goods_other_certifications_changed')) return { ok: false, error: goodsOtherCertificationsSaveError(error.message) };
+      const latestRead = await client.rpc('admin_read_goods_other_certifications', { p_good_id: id });
+      const latest = latestRead.error ? null : parseAdminGoodsOtherCertifications(latestRead.data);
+      return latest ? { ok: false, error: goodsOtherCertificationsConflictMessage(latest), conflict: true, latest }
+        : { ok: false, error: '다른 작업에서 기타 인증이 바뀌었습니다. 입력은 그대로 두었으니 저장된 기타 인증 다시 불러오기로 최신 값을 확인해주세요.' };
+    }
     const configuration = data && typeof data.changed === 'boolean' ? parseAdminGoodsOtherCertifications(data.configuration) : null;
-    if (!configuration) return { ok: false, error: '기타 인증 저장 결과를 확인하지 못했습니다. 저장된 정보를 다시 불러와주세요.' };
+    if (!configuration) return { ok: false, error: '기타 인증 저장 결과를 확인하지 못했습니다. 저장된 기타 인증 다시 불러오기로 확인해주세요.' };
     if (data.changed) revalidateGoodsSurfaces();
     const visible = configuration.entries.filter((entry) => entry.visible).length;
     return { ok: true, configuration, message: data.changed

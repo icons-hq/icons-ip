@@ -121,8 +121,9 @@ export function prepareGoodWorkspaceSections(draft: GoodWorkspaceSectionsDraft, 
   let kc: GoodWorkspaceSectionsSubmission['kc'] = null;
   if (draft.kc.models.length || draft.kc.attested) {
     const variants = goodWorkspaceKcVariants(rows);
-    /* 등록 화면의 해당 없음은 체크 한 번으로 끝난다. 체크 뒤 옵션을 바꿀 수 있으니 연결 옵션은 제출 시점의 옵션으로 다시 맞춘다. */
-    const models = draft.kc.productNotApplicable && draft.kc.attested && goodsKcSoleNotApplicable(draft.kc.models) ? planGoodsKcProductNotApplicable(draft.kc.models, variants).models : draft.kc.models;
+    /* 등록 화면의 해당 없음(해당 없음 모델 1개)은 '대상 아님' 칸으로만 보이고 옵션 연결 칸이 없다. 확인 체크와 무관하게 연결 옵션은
+       제출 시점의 사용 옵션 전체로 다시 맞추고, 제품군·고객 안내 등 나머지 값은 그대로 둔다(체크를 푼 뒤 옵션을 바꿔도 저장된다). */
+    const models = goodsKcSoleNotApplicable(draft.kc.models) ? planGoodsKcProductNotApplicable(draft.kc.models, variants).models : draft.kc.models;
     if (draft.kc.attested) {
       const problems = goodsKcReviewProblems(models, variants);
       if (problems.length) return { ok: false, field: 'workspaceKc', error: `KC 검토 완료 전 확인: ${problems[0]}` };

@@ -109,9 +109,22 @@ describe('기타 인증 조회·저장 서버 경계(SHEET-014)', () => {
     expect(await saveGoodsOtherCertificationsAction('g1', { entries, expectedRevision: null, actorId: 'someone' })).toMatchObject({ ok: false });
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
-  it('버전 충돌·모호한 성공은 입력을 지키는 안내로 돌려준다', async () => {
-    mocks.rpc.mockResolvedValue({ data: null, error: { code: 'PT409', message: 'goods_other_certifications_changed' } });
-    expect(await saveGoodsOtherCertificationsAction('g1', { entries, expectedRevision: 1 })).toMatchObject({ ok: false, error: expect.stringContaining('다시 불러와') });
+  /* 리뷰(T16a minor 3): 충돌이면 최신 저장값을 다시 읽어 함께 돌려줘 화면이 입력을 지킨 채 그 버전으로 다시 저장할 수 있다. */
+  it('버전 충돌이면 최신 저장값을 함께 돌려주고, 다시 읽지 못하면 다시 불러오기를 안내한다', async () => {
+    const latest = { ...saved, revision: 3, entries: [entries[1]] };
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: 'PT409', message: 'goods_other_certifications_changed' } })
+      .mockResolvedValueOnce({ data: latest, error: null });
+    const result = await saveGoodsOtherCertificationsAction('g1', { entries, expectedRevision: 1 });
+    expect(result).toMatchObject({ ok: false, conflict: true, latest, error: expect.stringContaining('최신 저장 1건: 내부 보관 인증') });
+    expect(mocks.rpc).toHaveBeenNthCalledWith(2, 'admin_read_goods_other_certifications', { p_good_id: 'g1' });
+    mocks.rpc.mockReset();
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: 'PT409', message: 'goods_other_certifications_changed' } })
+      .mockResolvedValueOnce({ data: null, error: { message: 'temporary' } });
+    const unread = await saveGoodsOtherCertificationsAction('g1', { entries, expectedRevision: 1 });
+    expect(unread).toMatchObject({ ok: false, error: expect.stringContaining('저장된 기타 인증 다시 불러오기') });
+    expect(unread).not.toHaveProperty('latest');
+  });
+  it('모호한 성공은 성공으로 꾸미지 않는다', async () => {
     mocks.rpc.mockResolvedValue({ data: { changed: true }, error: null });
     expect(await saveGoodsOtherCertificationsAction('g1', { entries, expectedRevision: 1 })).toMatchObject({ ok: false, error: expect.stringContaining('결과를 확인하지 못했습니다') });
     expect(mocks.revalidate).not.toHaveBeenCalled();

@@ -1,7 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { emptyGoodsKcModel, goodsKcProductNotApplicableModel, planGoodsKcProductNotApplicable, type AdminGoodsKc } from '@/lib/admin/goods-kc';
+import {
+  emptyGoodsKcModel, goodsKcProductNotApplicableConfirm, goodsKcProductNotApplicableModel, goodsKcSubjectModel, kcModelFromTemplate,
+  planGoodsKcProductNotApplicable, type AdminGoodsKc,
+} from '@/lib/admin/goods-kc';
 import {
   GOODS_KC_NOT_APPLICABLE_ATTESTATION, GOODS_KC_SUBJECT_ATTESTATION, GoodsKcEditor, GoodsOtherCertificationsFields, ProductNotApplicable,
 } from './GoodsKcPanel';
@@ -173,13 +176,38 @@ describe('KC 모델 검토 화면', () => {
   });
   it('기존 모델 입력을 지울 때만 확인을 요구하고 사용 중인 옵션 전부를 연결한다', () => {
     const stopped = { id: '00000000-0000-4000-8000-000000000003', code: 'OPTION-3', name: '중지 옵션', active: false };
-    expect(planGoodsKcProductNotApplicable([], [variant, stopped], ' 안내 ')).toEqual({ discarded: 0, models: [{
+    expect(planGoodsKcProductNotApplicable([], [variant, stopped], ' 안내 ')).toEqual({ discarded: 0, discardedLabels: [], models: [{
       ...emptyGoodsKcModel(), family: 'other', scheme: 'not_applicable', publicNote: '안내', variantIds: [variant.id] }] });
     const same = planGoodsKcProductNotApplicable([goodsKcProductNotApplicableModel([variant])], [variant]);
     expect(same.discarded).toBe(0);
     const detailed = [{ ...emptyGoodsKcModel(), family: 'children' as const, scheme: 'safety_confirmation' as const, modelName: '입력한 모델' },
       { ...emptyGoodsKcModel(), family: 'living' as const }];
-    expect(planGoodsKcProductNotApplicable(detailed, [variant]).discarded).toBe(2);
+    const plan = planGoodsKcProductNotApplicable(detailed, [variant]);
+    expect(plan.discarded).toBe(2);
+    expect(plan.discardedLabels).toEqual(['모델 1 · 입력한 모델', '모델 2 · 생활용품']);
+    /* 확인창은 실제로 지워지는 모델을 이름으로 말한다. 저장된 상품은 검토 완료, 등록 화면은 바꾸기다. */
+    expect(goodsKcProductNotApplicableConfirm(plan, { completing: true }))
+      .toBe('입력한 KC 모델 2개(모델 1 · 입력한 모델, 모델 2 · 생활용품)를 지우고 상품 전체 KC 해당 없음으로 검토를 완료합니다. 계속할까요?');
+    expect(goodsKcProductNotApplicableConfirm(plan, { completing: false })).toContain('상품 전체 KC 해당 없음으로 바꿉니다.');
+  });
+  /* 리뷰(T16a minor 2): 운영자가 입력하지 않은 모델은 묻지 않는다. 해당 없음 틀은 지우지 않고 옵션만 다시 연결해 제품군을 지킨다. */
+  it('대상을 고를 때 생긴 빈 모델과 해당 없음 틀은 확인 없이 해당 없음으로 바꾸고 틀의 제품군·안내를 지킨다', () => {
+    const second = { id: '00000000-0000-4000-8000-00000000000B', code: 'OPTION-B', name: '파랑', active: true };
+    const blank = planGoodsKcProductNotApplicable([goodsKcSubjectModel([variant, second])], [variant, second]);
+    expect(blank.discarded).toBe(0);
+    expect(goodsKcProductNotApplicableConfirm(blank, { completing: false })).toBeNull();
+    expect(blank.models).toEqual([goodsKcProductNotApplicableModel([variant, second])]);
+    expect(planGoodsKcProductNotApplicable([emptyGoodsKcModel()], [variant]).discarded).toBe(0);
+    const template = kcModelFromTemplate('living', 'not_applicable', '합성 틀 안내')!;
+    const kept = planGoodsKcProductNotApplicable([template], [variant, second]);
+    expect(kept.discarded).toBe(0);
+    expect(kept.models).toEqual([{ ...template, variantIds: [variant.id, second.id.toLowerCase()].sort() }]);
+    expect(kept.models[0].family).toBe('living');
+    /* 입력한 대상 모델과 해당 없음 틀이 함께 있으면 틀을 지키고 대상 모델만 이름을 들어 묻는다. */
+    const subject = { ...emptyGoodsKcModel(), family: 'children' as const, scheme: 'safety_confirmation' as const, modelName: '합성 모델' };
+    const mixed = planGoodsKcProductNotApplicable([subject, template], [variant], '새 안내');
+    expect(mixed.models).toEqual([{ ...template, publicNote: '새 안내', variantIds: [variant.id] }]);
+    expect(mixed.discardedLabels).toEqual(['모델 1 · 합성 모델']);
   });
   it('해당 없음 모델 1개를 아래에서 고친 고객 안내가 위쪽 이전 입력으로 덮이지 않는다', () => {
     // 'A'로 검토한 뒤 아래 '모델 1 고객 안내'를 'B '로 고쳤고, 위쪽 칸에는 열 때의 'A'가 남아 있는 상황.

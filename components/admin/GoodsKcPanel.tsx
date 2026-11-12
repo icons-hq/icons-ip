@@ -8,13 +8,14 @@ import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { Label } from '@/components/admin/kit/ui/label';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import {
-  GOODS_KC_EVIDENCE_LABELS, MAX_GOODS_KC_MODELS, emptyGoodsKcModel, goodsKcChoice, goodsKcReviewProblems, goodsKcSubjectModel, planGoodsKcProductNotApplicable,
+  GOODS_KC_EVIDENCE_LABELS, MAX_GOODS_KC_MODELS, emptyGoodsKcModel, goodsKcChoice, goodsKcProductNotApplicableConfirm, goodsKcReviewProblems, goodsKcSubjectModel,
+  planGoodsKcProductNotApplicable,
   goodsKcEditorRefresh, goodsKcProductNotApplicableNote, goodsKcSoleNotApplicable, publicGoodsKcDisclosures, kcModelFromTemplate,
   type AdminGoodsKc, type GoodsKcChoice, type GoodsKcModelInput, type GoodsKcVariant,
 } from '@/lib/admin/goods-kc';
 import {
-  MAX_GOODS_OTHER_CERTIFICATIONS, emptyGoodsOtherCertification, goodsOtherCertificationProblems, publicGoodsOtherCertifications,
-  type AdminGoodsOtherCertifications, type GoodsOtherCertificationInput,
+  GOODS_OTHER_CERTIFICATIONS_RELOAD_LABEL, MAX_GOODS_OTHER_CERTIFICATIONS, emptyGoodsOtherCertification, goodsOtherCertificationProblems,
+  publicGoodsOtherCertifications, type AdminGoodsOtherCertifications, type GoodsOtherCertificationInput,
 } from '@/lib/admin/goods-kc-other-certifications';
 import {
   GOODS_KC_BUSINESS_LABELS, GOODS_KC_FAMILY_LABELS, GOODS_KC_SCHEME_LABELS, GOODS_OTHER_CERTIFICATION_KIND_SUGGESTIONS,
@@ -146,8 +147,10 @@ export function ProductNotApplicable({ variants, models, disabled, onNoteChange,
   const sole = goodsKcSoleNotApplicable(models);
   const note = goodsKcProductNotApplicableNote(models, draftNote);
   function complete() {
+    /* 해당 없음 모델 1개(프리셋 틀 포함)는 제품군·안내를 지킨 채 옵션만 다시 연결한다. 입력이 있는 다른 모델을 지울 때만 이름을 들어 묻는다. */
     const plan = planGoodsKcProductNotApplicable(models, variants, draftNote);
-    if (plan.discarded && !window.confirm(`입력한 KC 모델 ${plan.discarded}개를 지우고 상품 전체 해당 없음으로 검토를 완료합니다. 계속할까요?`)) return;
+    const confirm = goodsKcProductNotApplicableConfirm(plan, { completing: !checkOnly });
+    if (confirm && !window.confirm(confirm)) return;
     onComplete(plan.models);
   }
   /* legend 문구 바로 앞을 시험이 대조한다 — legend 모양은 fieldset의 자식 선택 유틸리티로 입힌다. */
@@ -428,9 +431,19 @@ export function GoodsOtherCertificationsPanel({ goodId }: { goodId: string }) {
       try {
         const result = await saveGoodsOtherCertificationsAction(goodId, { entries, expectedRevision: configuration.revision });
         if (result.ok) { setState({ configuration: result.configuration, entries: null, error: null }); setNotice(result.message); }
+        /* 버전 충돌: 서버가 함께 돌려준 최신 저장값으로 버전만 바꾸고 입력은 그대로 둔다. 다시 저장하면 최신 값을 덮어쓰고,
+           최신 값으로 바꾸려면 아래 다시 불러오기를 누른다(안내 문구가 이 두 길을 그대로 말한다). */
+        else if ('latest' in result) setState((current) => ({ ...current, configuration: result.latest, entries: current.entries ?? entries, error: result.error }));
         else setState((current) => ({ ...current, error: result.error }));
       } catch { setState((current) => ({ ...current, error: '기타 인증을 저장하지 못했습니다. 입력은 유지되므로 다시 시도해주세요.' })); }
     });
+  }
+  /* 저장된 값으로 다시 시작한다. 저장하지 않은 입력이 있으면 지우기 전에 묻는다. */
+  function reloadSaved() {
+    if (dirty && !window.confirm('저장하지 않은 기타 인증 입력을 지우고 저장된 값으로 바꿉니다. 계속할까요?')) return;
+    setNotice(null);
+    setState({ configuration: null, entries: null, error: null });
+    setReload((value) => value + 1);
   }
   return <div className="flex min-w-0 flex-col gap-3 border-t pt-4" data-kc-other-panel="">
     <div className="flex flex-col gap-1"><h3 className="text-sm font-medium">기타 인증 <span className="font-normal text-muted-foreground">· 별도 저장</span></h3>
@@ -438,12 +451,13 @@ export function GoodsOtherCertificationsPanel({ goodId }: { goodId: string }) {
     {notice ? <p className={`${GOOD_NOTE_CLASS} font-medium text-[var(--wc-success)]`} role="status">{notice}</p> : null}
     {!configuration ? (state.error ? <div className="flex flex-col items-start gap-2"><p className="text-sm text-destructive" role="alert">{state.error}</p>
       <button type="button" className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" disabled={pending}
-        onClick={() => { setState((current) => ({ ...current, error: null })); setReload((value) => value + 1); }}>다시 불러오기</button></div>
+        onClick={() => { setState((current) => ({ ...current, error: null })); setReload((value) => value + 1); }}>{GOODS_OTHER_CERTIFICATIONS_RELOAD_LABEL}</button></div>
       : <p className="text-sm text-muted-foreground" role="status">기타 인증을 불러오는 중입니다…</p>) : <>
       <GoodsOtherCertificationsFields entries={entries} disabled={pending} onChange={(next) => { setNotice(null); setState((current) => ({ ...current, entries: next, error: null })); }} />
       {configuration.updatedAt ? <small className="text-xs text-muted-foreground">마지막 저장 · {configuration.updatedByName ?? '운영자'} · {new Date(configuration.updatedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}</small> : null}
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" className={buttonVariants({ variant: dirty ? 'default' : 'outline' })} data-slot="button" disabled={pending || !dirty || problems.length > 0} onClick={save}>{pending ? '저장 중…' : '기타 인증 저장'}</button>
+        <button type="button" className={buttonVariants({ variant: 'outline' })} data-slot="button" disabled={pending} onClick={reloadSaved}>{GOODS_OTHER_CERTIFICATIONS_RELOAD_LABEL}</button>
         {dirty ? <span className="text-sm text-muted-foreground">저장하지 않은 기타 인증이 있습니다.</span> : null}
       </div>
       {state.error ? <p className="text-sm text-destructive" role="alert">{state.error}</p> : null}

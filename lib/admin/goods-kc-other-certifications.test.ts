@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  emptyGoodsOtherCertification, goodsOtherCertificationProblems, goodsOtherCertificationsSaveError, normalizeGoodsOtherCertifications,
-  parseAdminGoodsOtherCertifications, parseGoodsOtherCertificationsSaveInput, publicGoodsOtherCertifications,
+  GOODS_OTHER_CERTIFICATIONS_RELOAD_LABEL, emptyGoodsOtherCertification, goodsOtherCertificationProblems, goodsOtherCertificationsConflictMessage,
+  goodsOtherCertificationsSaveError, normalizeGoodsOtherCertifications, parseAdminGoodsOtherCertifications, parseGoodsOtherCertificationsSaveInput,
+  publicGoodsOtherCertifications,
 } from './goods-kc-other-certifications';
 import { goodsOtherCertificationRow, parseGoodsOtherCertificationDisclosures } from '@/lib/goods-kc';
 
@@ -75,8 +76,17 @@ describe('기타 인증 서버 응답·저장 요청', () => {
     expect(parseGoodsOtherCertificationsSaveInput({ entries: [radio], expectedRevision: 1.5 })).toBeNull();
     expect(parseGoodsOtherCertificationsSaveInput({ entries: [radio], expectedRevision: null, actor: 'x' })).toBeNull();
   });
+  /* 리뷰(T16a minor 3): 충돌 안내는 실제로 할 수 있는 두 길(그대로 다시 저장해 덮어쓰기·다시 불러오기)만 말한다. */
+  it('버전 충돌 안내는 최신 저장값을 요약하고 다시 저장·다시 불러오기를 말한다', () => {
+    const message = goodsOtherCertificationsConflictMessage(configuration);
+    expect(message).toContain('최신 저장 2건: 방송통신기자재 적합성평가 · 내부 보관 인증');
+    expect(message).toContain('입력은 그대로 두었습니다');
+    expect(message).toContain('다시 저장하면 최신 저장값을 덮어쓰고');
+    expect(message).toContain(`'${GOODS_OTHER_CERTIFICATIONS_RELOAD_LABEL}'`);
+    expect(goodsOtherCertificationsConflictMessage({ ...configuration, entries: [] })).toContain('최신 저장 없음');
+  });
   it('저장 오류를 운영자 문장으로 바꾼다', () => {
-    expect(goodsOtherCertificationsSaveError('goods_other_certifications_changed')).toContain('다른 작업에서 기타 인증이 바뀌었습니다');
+    expect(goodsOtherCertificationsSaveError('goods_other_certifications_changed')).toBe('다른 작업에서 기타 인증이 바뀌었습니다.');
     expect(goodsOtherCertificationsSaveError('goods_other_certification_incomplete')).toContain('인증 종류와 인증번호');
     expect(goodsOtherCertificationsSaveError('goods_other_certification_duplicate')).toContain('두 번');
     expect(goodsOtherCertificationsSaveError('catalog_item_archived')).toContain('복원');
