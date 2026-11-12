@@ -228,4 +228,23 @@ describe('NotificationSection', () => {
     expect(hooks.setters[1]).toHaveBeenCalledWith('');
     expect(hooks.setters[4]).toHaveBeenCalledWith(false);
   });
+
+  /* 1027T-026: 잠긴 [발송 내용 확인] 옆에 지금 무엇을 채워야 눌리는지 적는다. 대상 문제는 위 주의 안내가 맡는다. */
+  it('발송 내용 확인을 누를 수 없는 이유를 버튼에 잇는다', () => {
+    const render = () => renderToStaticMarkup(<NotificationSection data={data} operationId="11111111-1111-4111-8111-111111111111" />);
+    const sendButton = (html: string) => html.match(/<button[^>]*>(?:(?!<\/button>).)*발송 내용 확인<\/button>/s)?.[0] ?? '';
+
+    const empty = render();
+    expect(sendButton(empty)).toContain('disabled=""');
+    expect(sendButton(empty)).toContain('aria-describedby="notification-send-reason"');
+    expect(empty).toContain('id="notification-send-reason">제목과 본문을 입력하면 발송 내용을 확인할 수 있습니다.</p>');
+
+    setComposerState({ body: '본'.repeat(501), title: '제목' });
+    expect(render()).toContain('제목은 120자, 본문은 500자까지 입력할 수 있습니다.');
+
+    setComposerState({ body: '본문', title: '제목' });
+    const ready = render();
+    expect(sendButton(ready)).not.toContain('disabled=""');
+    expect(ready).not.toContain('notification-send-reason');
+  });
 });

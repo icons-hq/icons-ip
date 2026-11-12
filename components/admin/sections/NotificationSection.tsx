@@ -85,6 +85,10 @@ export function NotificationSection({
     && body.trim().length > 0
     && bodyLength <= 500;
   const canSend = Boolean(audience?.canSend && contentValid && !pending);
+  /* 1027T-026: [발송 내용 확인]을 누를 수 없는 이유를 버튼 옆에 적는다. 대상 문제는 위 주의 안내가 맡는다. */
+  const contentReason = !audience?.canSend || pending || contentValid ? null
+    : titleLength > 120 || bodyLength > 500 ? '제목은 120자, 본문은 500자까지 입력할 수 있습니다.'
+    : '제목과 본문을 입력하면 발송 내용을 확인할 수 있습니다.';
 
   const resetConfirmation = () => setConfirmed(false);
 
@@ -257,14 +261,17 @@ export function NotificationSection({
               </div>
             </div>
           ) : (
-            <Button
-              className="self-start"
-              disabled={!canSend}
-              onClick={() => setConfirmed(true)}
-              type="button"
-            >
-              <Check aria-hidden="true" /> {pending ? '발송 처리 중' : '발송 내용 확인'}
-            </Button>
+            <div className="flex flex-col items-start gap-1.5">
+              <Button
+                aria-describedby={contentReason ? 'notification-send-reason' : undefined}
+                disabled={!canSend}
+                onClick={() => setConfirmed(true)}
+                type="button"
+              >
+                <Check aria-hidden="true" /> {pending ? '발송 처리 중' : '발송 내용 확인'}
+              </Button>
+              {contentReason ? <p className="text-sm text-muted-foreground" id="notification-send-reason">{contentReason}</p> : null}
+            </div>
           )}
         </form>
 
