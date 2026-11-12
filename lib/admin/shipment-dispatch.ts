@@ -34,11 +34,15 @@ export interface ShipmentConsoleRow {
  delayNotice?:ShipmentDelayNoticeSummary;
  pack?:import('./shipment-packs').ShipmentPackSummary|null;
  production?:import('@/lib/order-production').ShipmentProductionSummary;
+ /** 배송현황만: 추가 운송장(QNA-019)과 스위치가 켜진 때의 자동 배송완료 표시(QNA-028). */
+ trackingSummary?:import('./shipment-tracking').ShipmentTrackingSummary;
 }
 export interface ShipmentConsoleData {
  surface:ShipmentConsoleSurface;filters:ShipmentConsoleFilters;rows:ShipmentConsoleRow[];total:number;pageSize:number;
  counts:Record<ShipmentConsoleTab,number>;carriers:ShippingCarrierRegistry;origins:ShipmentConsoleOrigin[];
  delayNoticeFingerprint?:string;
+ /** 배송현황만: 택배 추적 자동 배송완료 스위치(DB). 꺼져 있으면 추적 관련 표시를 하나도 그리지 않는다. */
+ autoDelivery?:boolean;
 }
 export interface ShipmentExportData {shipments:{id:string;shipmentNumber?:string|null;orderNumber?:string|null;updatedAt:string;originId:string;originName:string;shippingFee:number;shippingCollectFee?:number;pack?:import('./shipment-packs').ShipmentPackSummary|null;isGift?:boolean;collector?:import('@/lib/goods-transaction').GoodsTransactionCollector|null;template:string;columns:ShipmentExportColumn[];lines:import('./shipment-workbook').ShipmentExportLine[]}[]}
 /** 양식·사용 여부는 출고지별 내려받기 버튼의 표시 기준입니다. 기본 택배사는 행 운송장 칸이 미리 고릅니다. */

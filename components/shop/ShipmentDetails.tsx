@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { formatOrderDateTime } from '@/lib/orders';
 import { krw } from '@/lib/format';
@@ -48,6 +49,14 @@ export function ShipmentDetails({ shipments, items = [], admin = false, transact
       {shipment.delivery === undefined || shipment.delivery?.method === 'parcel' ? <>
         <div><dt>택배사</dt><dd>{shipment.carrierLabel ?? (shipment.status === 'ready' ? '발송 준비 중' : '미등록')}</dd></div>
         <div><dt>운송장번호</dt><dd>{shipment.trackingNumber ?? '미등록'}</dd></div>
+        {/* 부피가 큰 상품을 여러 상자로 나눠 보내면 대표 운송장 말고 추가 운송장이 붙는다(QNA-019). 상자마다 조회 링크를 둔다. */}
+        {shipment.extraTrackings?.length ? <div data-shipment-extra-trackings="">
+          <dt>추가 운송장 · 나눠 보낸 상자</dt>
+          <dd>{shipment.extraTrackings.map((extra, position) => <Fragment key={extra.id}>{position ? <br /> : null}
+            {extra.trackingUrl ? <a aria-label={`${extra.carrierLabel} ${extra.trackingNumber} 배송조회`} href={extra.trackingUrl} rel="noreferrer" target="_blank">{extra.carrierLabel} {extra.trackingNumber}</a>
+              : `${extra.carrierLabel} ${extra.trackingNumber}`}
+          </Fragment>)}</dd>
+        </div> : null}
       </> : null}
       {shipment.shippedAt && shipment.delivery?.method !== 'digital' ? <div><dt>발송일시</dt><dd><time dateTime={shipment.shippedAt}>{formatOrderDateTime(shipment.shippedAt)}</time></dd></div> : null}
       {shipment.deliveredAt ? <div><dt>{shipment.delivery?.method === 'digital' ? '파일 제공 시작일시' : '배송 완료일시'}</dt><dd><time dateTime={shipment.deliveredAt}>{formatOrderDateTime(shipment.deliveredAt)}</time></dd></div> : null}

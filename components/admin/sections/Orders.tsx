@@ -79,6 +79,7 @@ import { Label } from '@/components/admin/kit/ui/label';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
 import { adminPaymentCancelErrorCopy } from '@/lib/admin/payment-cancel-error';
+import { ShipmentExtraTrackingsPanel } from '@/components/admin/ShipmentExtraTrackingsPanel';
 import { Ban, BadgeCheck, ChevronDown, ClipboardCheck, Hourglass, ListChecks, PackageCheck, Truck, type LucideIcon } from 'lucide-react';
 
 /*
@@ -1081,6 +1082,12 @@ function OrderDetail({
           <section className="flex min-w-0 flex-col gap-2 rounded-lg border p-3" key={shipment.id} aria-label={`${shipment.originName} 운송장 수정`}>
             <h4 className="text-sm font-medium text-foreground">{shipment.originName} · {commerceReferenceLabel(shipment.id, shipment.shipmentNumber)}</h4>
             <UpdateTrackingForm carriers={carriers} orderId={order.id} shipmentId={shipment.id} shipment={orderShipment(carriers,shipment.carrier,shipment.trackingNumber)} />
+            {/* 여러 상자로 나눠 보낸 배송 건의 추가 운송장(QNA-019). 대표 운송장 정정은 위 양식, 다른 상자 번호는 여기서 더하고 지운다. */}
+            {shipment.trackingNumber ? <details className="group rounded-lg border px-3 py-2" open={Boolean(shipment.extraTrackings?.length)}>
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-medium [&::-webkit-details-marker]:hidden">추가 운송장{shipment.extraTrackings?.length ? ` ${shipment.extraTrackings.length}개` : ''}<ChevronDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" /></summary>
+              <div className="mt-2"><ShipmentExtraTrackingsPanel shipmentId={shipment.id} reference={commerceReferenceLabel(shipment.id, shipment.shipmentNumber)} carriers={carriers}
+                defaultCarrier={shipment.carrier} extras={shipment.extraTrackings ?? []} /></div>
+            </details> : null}
           </section>
         )) : null}
         {order.shipments.filter(shipment=>!isParcelShipment(shipment)).map(shipment=>(

@@ -6,6 +6,7 @@ import {getShippingCarrierRegistry} from '@/lib/orders/shipment.server';
 import {SHIPMENT_CONSOLE_PAGE_SIZE,type ShipmentConsoleData,type ShipmentConsoleFilters,type ShipmentConsoleSurface} from './shipment-dispatch';
 import {deliveryObject,parseShipmentDeliverySummary} from '@/lib/shipment-delivery';
 import {parseShipmentDelayNotice} from './shipment-delay-notice';
+import {parseShipmentTrackingSummaries} from './shipment-tracking';
 /** 화면 목록 수와 출력 페이지 크기를 같은 필터·정렬로 적용한다. RPC 상한은 1,000건이다. */
 export async function getShipmentConsoleData(filters:ShipmentConsoleFilters,surface:ShipmentConsoleSurface,options:{pageSize?:number}={}):Promise<ShipmentConsoleData>{
  const client=await createClient();const pageSize=Math.min(Math.max(Math.trunc(options.pageSize??filters.pageSize??SHIPMENT_CONSOLE_PAGE_SIZE)||SHIPMENT_CONSOLE_PAGE_SIZE,1),1000);
@@ -21,6 +22,10 @@ export async function getShipmentConsoleData(filters:ShipmentConsoleFilters,surf
  const [packing,production]=ids.length?await Promise.all([client.rpc('admin_shipment_pack_summaries',{p_ids:ids}),client.rpc('admin_shipment_production_summaries',{p_ids:ids})]):[{data:{},error:null},{data:{},error:null}];
  if(production.error||!deliveryObject(production.data))throw new Error('제작 현황을 확인하지 못했습니다.');
  if(packing.error||!deliveryObject(packing.data))throw new Error('합포장 정보를 확인하지 못했습니다.');
+ // 배송현황만 추가 운송장·자동 배송완료 표시를 읽는다(발주·발송 목록은 발송 전 건이라 추가 운송장이 없다).
+ const trackingResult=surface==='shipping'&&ids.length?await client.rpc('admin_shipment_tracking_summaries',{p_ids:ids}):null;
+ const tracking=trackingResult?parseShipmentTrackingSummaries(trackingResult.data,ids):null;
+ if(trackingResult&&(trackingResult.error||!tracking))throw new Error('운송장 정보를 확인하지 못했습니다. 목록을 새로고침해주세요.');
  const rows=result.data.rows.map((row:unknown)=>{
   if(!deliveryObject(row))throw new Error('배송 건 목록을 불러오지 못했습니다.');
   const rawPack=packing.data[row.id as string];const pack=rawPack===null?null:parseShipmentPackSummary(rawPack);
@@ -29,12 +34,12 @@ export async function getShipmentConsoleData(filters:ShipmentConsoleFilters,surf
   if(!productionSummary)throw new Error('제작 현황을 확인하지 못했습니다.');
   const delivery=parseShipmentDeliverySummary(row.delivery);
   if(!delivery)throw new Error('배송 방식을 확인하지 못했습니다. 목록을 새로고침해주세요.');
-  if(surface!=='dispatch')return {...row,delivery,pack,production:productionSummary};
+  if(surface!=='dispatch')return {...row,delivery,pack,production:productionSummary,...(tracking?{trackingSummary:tracking.shipments[row.id as string]}:{})};
   const delayNotice=parseShipmentDelayNotice(row.delayNotice);
   if(!delayNotice)throw new Error('지연 안내 상태를 확인하지 못했습니다. 목록을 새로고침해주세요.');
   return {...row,delivery,delayNotice,pack,production:productionSummary};
  });
  const originRows=(origins.data??[]) as {id:string;name:string;export_template?:string;is_active?:boolean;default_carrier?:string|null}[];
- return {...result.data,rows,surface,filters,pageSize,carriers,
+ return {...result.data,rows,surface,filters,pageSize,carriers,...(tracking?{autoDelivery:tracking.autoDelivery}:{}),
   origins:originRows.map(origin=>({id:origin.id,name:origin.name,template:origin.export_template,active:origin.is_active,defaultCarrier:origin.default_carrier??null}))} as ShipmentConsoleData;
 }

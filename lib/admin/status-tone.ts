@@ -73,6 +73,10 @@ const STATUS_TONES = {
   delayNoticeChannel: { prepared: 'neutral', queued: 'info', processing: 'info', sent: 'success', failed: 'danger', unknown: 'warning', suppressed: 'neutral' },
   /** 배송 안내 메일 작업 */
   shipmentEmail: { pending: 'info', processing: 'info', completed: 'success', review: 'danger' },
+  /** 배송완료 근거 — lib/admin/shipment-tracking(QNA-028). 택배 추적 스위치가 켜진 때만 보인다. 수동 처리는 평상 상태라 조용히 둔다 */
+  shipmentDeliveredBy: { tracking: 'success', manual: 'neutral' },
+  /** 택배 추적 최근 상태 — lib/fulfillment/tracking TRACKING_EVENT_STATUSES. 반송·배송 이상만 확인을 부른다 */
+  trackingEvent: { accepted: 'info', in_transit: 'info', out_for_delivery: 'info', delivered: 'success', exception: 'danger', returned: 'danger', unknown: 'neutral' },
   /** 착불 배송비 수납 — lib/admin/shipping-collect-events */
   shippingCollect: { planned: 'info', collected: 'success', void: 'neutral', refund_review: 'warning', refunded: 'neutral', mismatch: 'danger' },
   /** 주문제작 — lib/order-production */
