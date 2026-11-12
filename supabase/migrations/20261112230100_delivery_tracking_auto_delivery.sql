@@ -9,10 +9,14 @@
 -- 오케스트레이터 판단(④ 고객에게 불리하지 않게):
 --  * 택배 배송 건만 자동 처리한다(퀵·방문수령 등 택배 외는 지금처럼 인계·수령 확인).
 --  * 운송장이 여럿인 배송 건(대표 + 추가 운송장)은 모든 운송장의 최근 이벤트가 배달완료일 때만 배송완료로 바꾸고,
---    배송완료 시각은 가장 늦은 도착 시각이다(청약철회·자동 구매확정 기산). 발송 시각보다 이르면 발송 시각, 지금보다 늦으면 지금이다.
+--    배송완료 시각은 가장 늦은 도착 시각이다(청약철회·자동 구매확정 기산). 지금보다 늦으면 지금이다.
+--  * 발송 시각(추가 운송장은 붙은 시각) 이전 이벤트는 근거로 쓰지 않는다 — 택배사가 다시 쓰는 번호·잘못 적은 번호의 옛 이력이
+--    방금 발송한 배송 건을 배송완료로 만들지 않게 한다. 그런 배송 건은 계속 조회하고, 오지 않으면 지금처럼 사람이 처리한다.
 --  * 합포장은 운영 배송완료와 같이 묶음 전체를 함께 옮긴다(묶음의 모든 운송장이 도착해야 한다).
 --  * 원본 이벤트를 저장하고(private, 근거), 자동으로 바꾼 배송 건은 따로 기록해 배송현황에서 '자동'·'수동'을 가른다.
 --  * 수동 '선택 배송완료'는 지금 그대로다. 자동으로 바꿀 수 없는 건(취소·반품 진행 등)은 보류로 남기고 6시간 뒤 다시 본다.
+--  * 자동 처리는 어떤 잠금도 기다리지 않는다(운영자 처리와 같은 전역 순서 + skip locked) — 운영자 일괄 처리와 교착하지 않는다.
+--  * 추적 서비스가 준 이벤트 하나가 틀려도 그 운송장만 조회 오류로 남기고 회차의 나머지 기록·판정은 계속한다.
 begin;
 
 -- 1. 스위치(한 행). 켤 때는 추적 서비스 이름(앱 DELIVERY_TRACKING_PROVIDER와 같아야 한다)과 켠 시각이 필요하다.
@@ -92,36 +96,44 @@ alter table private.shipment_auto_deliveries enable row level security;
 revoke all on table private.shipment_auto_deliveries from public, anon, authenticated, service_role;
 
 -- 5. 공용 판정
--- 배송 건의 지금 운송장(대표 + 추가, 같은 번호는 하나).
-create function private.shipment_current_trackings(p_shipment uuid) returns table(carrier text, tracking_number text)
+-- 배송 건의 지금 운송장(대표 + 추가, 같은 번호는 하나)과 운송장마다의 기준 시각. 기준 시각보다 이른 이벤트는 그 배송 건의 근거로 쓰지
+-- 않는다 — 택배사가 다시 쓰는 번호나 잘못 적은 번호의 옛 '배달완료' 이력이 방금 발송한 배송 건을 배송완료로 만들어 청약철회·자동
+-- 구매확정 기산을 앞당기지 않게 한다(④). 대표 운송장은 발송 시각, 추가 운송장은 붙은 시각과 발송 시각 중 늦은 쪽이다. 같은 번호가
+-- 대표·추가에 함께 있으면 늦은 기준을 쓴다. 발송 시각이 없는 배송 건은 운송장이 없는 것으로 본다.
+create function private.shipment_current_trackings(p_shipment uuid) returns table(carrier text, tracking_number text, since timestamptz)
 language sql stable security definer set search_path = '' as $$
-  select s.carrier, s.tracking_number from public.order_shipments s
-    where s.id = p_shipment and s.carrier is not null and s.tracking_number is not null
-  union
-  select x.carrier, x.tracking_number from public.order_shipment_extra_trackings x where x.shipment_id = p_shipment;
+  select t.carrier, t.tracking_number, max(t.since) from (
+    select s.carrier, s.tracking_number, s.shipped_at as since from public.order_shipments s
+      where s.id = p_shipment and s.carrier is not null and s.tracking_number is not null and s.shipped_at is not null
+    union all
+    select x.carrier, x.tracking_number, greatest(s.shipped_at, x.created_at) from public.order_shipment_extra_trackings x
+      join public.order_shipments s on s.id = x.shipment_id
+      where x.shipment_id = p_shipment and s.shipped_at is not null
+  ) t group by t.carrier, t.tracking_number;
 $$;
 revoke all on function private.shipment_current_trackings(uuid) from public, anon, authenticated, service_role;
 
--- 운송장의 가장 최근 이벤트(발생 시각 → 받은 시각 순).
-create function private.tracking_latest_event(p_carrier text, p_tracking text) returns private.shipment_tracking_events
+-- 운송장의 기준 시각 이후 가장 최근 이벤트(발생 시각 → 받은 시각 순). 없으면 모든 칸이 null인 행이다.
+create function private.tracking_latest_event(p_carrier text, p_tracking text, p_since timestamptz) returns private.shipment_tracking_events
 language sql stable security definer set search_path = '' as $$
-  select e.* from private.shipment_tracking_events e where e.carrier = p_carrier and e.tracking_number = p_tracking
+  select e.* from private.shipment_tracking_events e
+  where e.carrier = p_carrier and e.tracking_number = p_tracking and e.occurred_at >= p_since
   order by e.occurred_at desc, e.received_at desc, e.id desc limit 1;
 $$;
-revoke all on function private.tracking_latest_event(text, text) from public, anon, authenticated, service_role;
+revoke all on function private.tracking_latest_event(text, text, timestamptz) from public, anon, authenticated, service_role;
 
--- 배송 건의 모든 운송장이 배달완료(최근 이벤트 기준)인가. 운송장이 없으면 아니다.
+-- 배송 건의 모든 운송장이 기준 시각 이후 최근 이벤트로 배달완료인가. 운송장이 없으면 아니다.
 create function private.shipment_trackings_delivered(p_shipment uuid) returns boolean
 language sql stable security definer set search_path = '' as $$
   select exists(select 1 from private.shipment_current_trackings(p_shipment))
     and not exists(select 1 from private.shipment_current_trackings(p_shipment) t
-      where (private.tracking_latest_event(t.carrier, t.tracking_number)).status is distinct from 'delivered');
+      where (private.tracking_latest_event(t.carrier, t.tracking_number, t.since)).status is distinct from 'delivered');
 $$;
 revoke all on function private.shipment_trackings_delivered(uuid) from public, anon, authenticated, service_role;
 
 -- 6. 서비스 경로(service_role 전용 — 추적 cron만 부른다)
 -- 이번 회차에 조회할 운송장. 꺼져 있으면 아무것도 고르지 않는다. 최근 30일 안에 발송한 배송 중 택배 건의 운송장 가운데
--- 아직 배달완료가 아니고 조회 간격이 지난 것을, 오래 조회하지 않은 것부터 고른다.
+-- 기준 시각 이후 아직 배달완료가 아니고 조회 간격이 지난 것을, 오래 조회하지 않은 것부터 고른다.
 create function public.service_delivery_tracking_targets(p_limit integer) returns jsonb
 language plpgsql stable security definer set search_path = '' as $$
 declare settings private.delivery_tracking_settings;
@@ -138,7 +150,7 @@ begin
       left join private.shipment_tracking_polls poll on poll.carrier = tracking.carrier and poll.tracking_number = tracking.tracking_number
       where s.status = 'shipping' and s.delivery_method = 'parcel' and o.status <> 'canceled' and s.shipped_at >= now() - interval '30 days'
         and (poll.last_polled_at is null or poll.last_polled_at < now() - make_interval(mins => settings.poll_interval_minutes))
-        and (private.tracking_latest_event(tracking.carrier, tracking.tracking_number)).status is distinct from 'delivered'
+        and (private.tracking_latest_event(tracking.carrier, tracking.tracking_number, tracking.since)).status is distinct from 'delivered'
       group by tracking.carrier, tracking.tracking_number
       order by max(poll.last_polled_at) nulls first, min(s.shipped_at), tracking.carrier, tracking.tracking_number
       limit p_limit
@@ -146,12 +158,15 @@ begin
 end $$;
 
 -- 조회 결과를 남긴다. results: [{carrier, trackingNumber, outcome: ok|not_found|error, errorCode?, events: [...]}].
--- 이벤트: {eventKey, status, occurredAt, description?, location?, raw{}}. 지금 배송 건에 붙어 있지 않은 운송장은 무시한다.
--- 형식이 틀린 값이 하나라도 있으면 아무것도 남기지 않는다(어댑터가 정규화한 값만 받는다).
+-- 이벤트: {eventKey, status, occurredAt, description?, location?, raw{}}. 지금 배송 건에 붙어 있지 않은 운송장은 무시한다(ignored).
+-- 한 운송장의 결과나 이벤트 하나라도 형식이 틀리면(하루 넘게 미래인 시각 포함) 그 운송장의 이벤트는 남기지 않고 조회 오류
+-- (invalid_event)로 기록한다 — 나쁜 이벤트 하나가 회차 전체의 기록·판정을 막지 않는다. 운송장을 알아볼 수 없는 결과는 세기만 한다.
+-- 원본이 8KB를 넘으면 원본 대신 잘렸다는 표시만 남긴다. 결과 목록 자체가 틀린 모양이면(배열 아님·200개 초과) 거절한다.
 create function public.service_record_delivery_tracking(p_provider text, p_results jsonb) returns jsonb
 language plpgsql security definer set search_path = '' as $$
 declare settings private.delivery_tracking_settings; result jsonb; event jsonb; carrier_value text; tracking_value text;
-  outcome_value text; error_value text; occurred timestamptz; recorded integer := 0; duplicates integer := 0; ignored integer := 0;
+  outcome_value text; error_value text; occurred timestamptz; valid boolean; payload_value jsonb;
+  recorded integer := 0; duplicates integer := 0; ignored integer := 0; invalid integer := 0;
 begin
   select * into settings from private.delivery_tracking_settings where singleton;
   if not found or not settings.auto_delivery_enabled then raise check_violation using message = 'delivery_tracking_disabled'; end if;
@@ -160,82 +175,123 @@ begin
     raise invalid_parameter_value using message = 'invalid_delivery_tracking_results'; end if;
   for result in select value from jsonb_array_elements(p_results) loop
     if jsonb_typeof(result) is distinct from 'object' or jsonb_typeof(result->'carrier') is distinct from 'string'
-      or jsonb_typeof(result->'trackingNumber') is distinct from 'string' or coalesce(result->>'outcome', '') not in ('ok','not_found','error')
-      or (result ? 'events' and (jsonb_typeof(result->'events') <> 'array' or jsonb_array_length(result->'events') > 100)) then
-      raise invalid_parameter_value using message = 'invalid_delivery_tracking_results'; end if;
+      or jsonb_typeof(result->'trackingNumber') is distinct from 'string' then invalid := invalid + 1; continue; end if;
     carrier_value := result->>'carrier';
     tracking_value := private.normalize_tracking_number(result->>'trackingNumber');
-    outcome_value := result->>'outcome';
-    error_value := case when outcome_value = 'error' then coalesce(nullif(result->>'errorCode', ''), 'upstream_error') end;
-    if tracking_value is null or tracking_value !~ '^[A-Z0-9]{8,30}$' or (error_value is not null and error_value !~ '^[a-z0-9_]{1,64}$') then
-      raise invalid_parameter_value using message = 'invalid_delivery_tracking_results'; end if;
+    if tracking_value is null or tracking_value !~ '^[A-Z0-9]{8,30}$' then invalid := invalid + 1; continue; end if;
     if not exists(select 1 from public.order_shipments s where s.carrier = carrier_value and s.tracking_number = tracking_value and s.delivery_method = 'parcel')
       and not exists(select 1 from public.order_shipment_extra_trackings x where x.carrier = carrier_value and x.tracking_number = tracking_value) then
       ignored := ignored + 1; continue;
     end if;
-    for event in select value from jsonb_array_elements(coalesce(result->'events', '[]'::jsonb)) loop
-      if jsonb_typeof(event) is distinct from 'object' or jsonb_typeof(event->'eventKey') is distinct from 'string'
-        or coalesce(event->>'status', '') not in ('accepted','in_transit','out_for_delivery','delivered','exception','returned','unknown')
-        or jsonb_typeof(event->'occurredAt') is distinct from 'string' or jsonb_typeof(event->'raw') is distinct from 'object' then
-        raise invalid_parameter_value using message = 'invalid_delivery_tracking_event'; end if;
-      begin occurred := (event->>'occurredAt')::timestamptz;
-      exception when others then raise invalid_parameter_value using message = 'invalid_delivery_tracking_event'; end;
-      -- 추적 서비스 시계가 앞서도 미래 시각을 그대로 받지 않는다(배송완료 시각은 지금을 넘지 않게 따로 자른다).
-      if occurred > now() + interval '1 day' then raise invalid_parameter_value using message = 'invalid_delivery_tracking_event'; end if;
-      insert into private.shipment_tracking_events(provider, carrier, tracking_number, event_key, status, occurred_at, description, location, payload)
-      values (p_provider, carrier_value, tracking_value, event->>'eventKey', event->>'status', occurred,
-        nullif(left(event->>'description', 200), ''), nullif(left(event->>'location', 100), ''), event->'raw')
-      on conflict (provider, carrier, tracking_number, event_key) do nothing;
-      if found then recorded := recorded + 1; else duplicates := duplicates + 1; end if;
-    end loop;
+    outcome_value := result->>'outcome';
+    error_value := null;
+    valid := coalesce(outcome_value, '') in ('ok','not_found','error')
+      and (not (result ? 'events') or (jsonb_typeof(result->'events') = 'array' and jsonb_array_length(result->'events') <= 100));
+    if valid and outcome_value = 'error' then
+      error_value := coalesce(nullif(result->>'errorCode', ''), 'upstream_error');
+      if error_value !~ '^[a-z0-9_]{1,64}$' then error_value := 'upstream_error'; end if;
+    end if;
+    if valid then
+      for event in select value from jsonb_array_elements(coalesce(result->'events', '[]'::jsonb)) loop
+        if jsonb_typeof(event) is distinct from 'object' or jsonb_typeof(event->'eventKey') is distinct from 'string'
+          or char_length(event->>'eventKey') not between 1 and 200
+          or coalesce(event->>'status', '') not in ('accepted','in_transit','out_for_delivery','delivered','exception','returned','unknown')
+          or jsonb_typeof(event->'occurredAt') is distinct from 'string' or jsonb_typeof(event->'raw') is distinct from 'object' then
+          valid := false; exit;
+        end if;
+        begin occurred := (event->>'occurredAt')::timestamptz;
+        exception when others then valid := false;
+        end;
+        -- 추적 서비스 시계가 하루 넘게 앞선 시각은 받지 않는다(배송완료 시각은 지금을 넘지 않게 따로 자른다).
+        if not valid or occurred > now() + interval '1 day' then valid := false; exit; end if;
+      end loop;
+    end if;
+    if not valid then
+      invalid := invalid + 1; outcome_value := 'error'; error_value := 'invalid_event';
+    else
+      for event in select value from jsonb_array_elements(coalesce(result->'events', '[]'::jsonb)) loop
+        payload_value := case when octet_length((event->'raw')::text) <= 8192 then event->'raw' else '{"truncated": true}'::jsonb end;
+        insert into private.shipment_tracking_events(provider, carrier, tracking_number, event_key, status, occurred_at, description, location, payload)
+        values (p_provider, carrier_value, tracking_value, event->>'eventKey', event->>'status', (event->>'occurredAt')::timestamptz,
+          nullif(left(event->>'description', 200), ''), nullif(left(event->>'location', 100), ''), payload_value)
+        on conflict (provider, carrier, tracking_number, event_key) do nothing;
+        if found then recorded := recorded + 1; else duplicates := duplicates + 1; end if;
+      end loop;
+    end if;
     insert into private.shipment_tracking_polls(carrier, tracking_number, last_polled_at, last_outcome, last_error_code, consecutive_failures)
     values (carrier_value, tracking_value, now(), outcome_value, error_value, case when outcome_value = 'error' then 1 else 0 end)
     on conflict (carrier, tracking_number) do update set last_polled_at = excluded.last_polled_at, last_outcome = excluded.last_outcome,
       last_error_code = excluded.last_error_code,
       consecutive_failures = case when excluded.last_outcome = 'error' then private.shipment_tracking_polls.consecutive_failures + 1 else 0 end;
   end loop;
-  return jsonb_build_object('recorded', recorded, 'duplicates', duplicates, 'ignored', ignored);
+  return jsonb_build_object('recorded', recorded, 'duplicates', duplicates, 'ignored', ignored, 'invalid', invalid);
 end $$;
 
--- 모든 운송장이 배달완료인 배송 중 택배 건을 배송완료로 바꾼다. 운영 배송완료(admin_update_shipment_status)와 같은 전이 규칙이다:
--- 발주확인 이후 주문, 배송 중 → 배송완료, 택배만, 합포장은 묶음 전체. 배송 건마다 저장점을 두어 한 건의 실패가 다른 건을 막지 않는다.
+-- 모든 운송장이 기준 시각 이후 배달완료인 배송 중 택배 건을 배송완료로 바꾼다. 운영 배송완료(admin_update_shipment_status)와 같은 전이
+-- 규칙이다: 발주확인 이후 주문, 배송 중 → 배송완료, 택배만, 합포장은 묶음 전체.
+-- 잠금: 이번 회차 후보(합포장 묶음 포함)의 주문을 id 순으로, 그다음 배송 건을 id 순으로 — 운영자 일괄 처리(lock_shipment_pack_scope)와
+-- 같은 전역 순서로 — 기다리지 않고(skip locked) 잡히는 것만 잡는다. 이 회차는 어떤 잠금도 기다리지 않으므로 운영자 일괄 배송완료·운송장
+-- 일괄 등록과 교착이 생기지 않고, 잡지 못한 묶음은 보류 없이 다음 회차에 다시 본다. 묶음마다 저장점을 두어 한 건의 실패가 다른 건을 막지 않는다.
 create function public.service_complete_tracked_deliveries(p_limit integer) returns jsonb
 language plpgsql security definer set search_path = '' as $$
-declare settings private.delivery_tracking_settings; candidate uuid; scope uuid[]; processed uuid[] := '{}'::uuid[];
-  latest_at timestamptz; basis_value jsonb; member record; completed jsonb := '[]'::jsonb; held jsonb := '[]'::jsonb; delivered_value timestamptz;
+declare settings private.delivery_tracking_settings; candidates uuid[]; scopes jsonb := '{}'::jsonb; candidate uuid; scope uuid[];
+  scope_ids uuid[] := '{}'::uuid[]; locked_orders uuid[] := '{}'::uuid[]; locked_shipments uuid[] := '{}'::uuid[]; locked record;
+  processed uuid[] := '{}'::uuid[]; latest_at timestamptz; basis_value jsonb; member record; delivered_value timestamptz;
+  completed jsonb := '[]'::jsonb; held jsonb := '[]'::jsonb; skipped integer := 0;
 begin
   if p_limit is null or p_limit not between 1 and 200 then raise invalid_parameter_value using message = 'invalid_delivery_tracking_limit'; end if;
   select * into settings from private.delivery_tracking_settings where singleton;
-  if not found or not settings.auto_delivery_enabled then return jsonb_build_object('enabled', false, 'completed', '[]'::jsonb, 'held', '[]'::jsonb); end if;
-  -- 운영자 처리·다른 작업과 겹친 배송 건은 3초 넘게 기다리지 않고 다음 회차에 다시 본다(cron 시간 안에 끝나게).
+  if not found or not settings.auto_delivery_enabled then
+    return jsonb_build_object('enabled', false, 'completed', '[]'::jsonb, 'held', '[]'::jsonb, 'skipped', 0); end if;
+  -- 잡은 뒤 트리거 등이 다른 잠금을 오래 기다리지 않게 한다(그 묶음은 다음 회차에).
   perform set_config('lock_timeout', '3s', true);
-  for candidate in
-    select s.id from public.order_shipments s join public.orders o on o.id = s.order_id
-    where s.status = 'shipping' and s.delivery_method = 'parcel' and s.tracking_number is not null
+  -- 1) 후보는 잠그지 않고 발송 순으로 고른다.
+  select coalesce(array_agg(c.id order by c.shipped_at, c.id), '{}'::uuid[]) into candidates from (
+    select s.id, s.shipped_at from public.order_shipments s join public.orders o on o.id = s.order_id
+    where s.status = 'shipping' and s.delivery_method = 'parcel' and s.tracking_number is not null and s.shipped_at is not null
       and o.status in ('confirmed','shipping','delivered')
       and not exists(select 1 from private.shipment_auto_deliveries a where a.shipment_id = s.id and a.state = 'held' and a.updated_at > now() - interval '6 hours')
       and private.shipment_trackings_delivered(s.id)
-    order by s.shipped_at, s.id limit p_limit
-  loop
+    order by s.shipped_at, s.id limit p_limit) c;
+  -- 2) 후보마다 합포장 묶음(잠근 뒤 바뀌었는지 다시 본다).
+  foreach candidate in array candidates loop
+    scope := private.shipment_pack_scope(array[candidate]);
+    scopes := scopes || jsonb_build_object(candidate::text, to_jsonb(scope));
+    scope_ids := scope_ids || scope;
+  end loop;
+  -- 3) 전역 순서(주문 id → 배송 건 id)로, 기다리지 않고 잡을 수 있는 것만 잡는다.
+  for locked in select o.id from public.orders o
+    where o.id in (select s.order_id from public.order_shipments s where s.id = any(scope_ids)) order by o.id for update skip locked loop
+    locked_orders := locked_orders || locked.id;
+  end loop;
+  for locked in select s.id from public.order_shipments s where s.id = any(scope_ids) and s.order_id = any(locked_orders)
+    order by s.id for update skip locked loop
+    locked_shipments := locked_shipments || locked.id;
+  end loop;
+  -- 4) 묶음별로 다시 보고 바꾼다.
+  foreach candidate in array candidates loop
     if candidate = any(processed) then continue; end if;
+    scope := array(select value::uuid from jsonb_array_elements_text(scopes->(candidate::text)) value);
+    processed := processed || scope;
+    if not (scope <@ locked_shipments) then skipped := skipped + 1; continue; end if;
     begin
-      scope := private.lock_shipment_pack_scope(array[candidate]);
-      processed := processed || scope;
-      -- 잠근 뒤 다시 본다. 묶음의 다른 배송 건이 아직 도착 전이면 이번에는 넘긴다(보류 아님).
-      if exists(select 1 from public.order_shipments s join public.orders o on o.id = s.order_id where s.id = any(scope)
-          and (s.status <> 'shipping' or s.delivery_method <> 'parcel' or s.tracking_number is null or o.status not in ('confirmed','shipping','delivered')))
+      -- 잡은 뒤 다시 본다. 묶음이 바뀌었거나, 묶음의 다른 배송 건이 아직이거나, 상태가 바뀌었으면 이번에는 넘긴다(보류 아님).
+      if private.shipment_pack_scope(array[candidate]) is distinct from scope
+        or exists(select 1 from public.order_shipments s join public.orders o on o.id = s.order_id where s.id = any(scope)
+          and (s.status <> 'shipping' or s.delivery_method <> 'parcel' or s.tracking_number is null or s.shipped_at is null
+            or o.status not in ('confirmed','shipping','delivered')))
         or exists(select 1 from unnest(scope) member_id where not private.shipment_trackings_delivered(member_id)) then
-        continue;
+        skipped := skipped + 1; continue;
       end if;
       select max(e.occurred_at), jsonb_agg(jsonb_build_object('shipmentId', t.shipment_id, 'carrier', t.carrier, 'trackingNumber', t.tracking_number,
-          'eventId', e.id, 'provider', e.provider, 'occurredAt', e.occurred_at) order by t.shipment_id, t.carrier, t.tracking_number)
+          'eventId', e.id, 'provider', e.provider, 'occurredAt', e.occurred_at, 'since', t.since) order by t.shipment_id, t.carrier, t.tracking_number)
         into latest_at, basis_value
-      from (select member_id shipment_id, tracking.carrier, tracking.tracking_number from unnest(scope) member_id
+      from (select member_id shipment_id, tracking.carrier, tracking.tracking_number, tracking.since from unnest(scope) member_id
         cross join lateral private.shipment_current_trackings(member_id) tracking) t
-      cross join lateral private.tracking_latest_event(t.carrier, t.tracking_number) e;
+      cross join lateral private.tracking_latest_event(t.carrier, t.tracking_number, t.since) e;
       for member in select s.* from public.order_shipments s where s.id = any(scope) order by s.id loop
-        -- 고객에게 불리하지 않게: 발송 시각보다 이르면 발송 시각, 지금보다 늦으면 지금(청약철회·자동 구매확정 기산).
-        delivered_value := least(greatest(latest_at, coalesce(member.shipped_at, latest_at)), clock_timestamp());
+        -- 가장 늦은 도착 시각(모든 근거가 기준 시각 = 발송 이후다). 추적 시계가 앞서도 지금을 넘지 않는다(청약철회·자동 구매확정 기산).
+        delivered_value := least(greatest(latest_at, member.shipped_at), clock_timestamp());
         update public.order_shipments set status = 'delivered', delivered_at = delivered_value, updated_at = clock_timestamp() where id = member.id;
         insert into private.shipment_auto_deliveries(shipment_id, state, delivered_at, provider, basis, attempts, last_error, updated_at)
         values (member.id, 'completed', delivered_value, settings.provider, coalesce((select jsonb_agg(entry) from jsonb_array_elements(basis_value) entry
@@ -249,8 +305,8 @@ begin
         completed := completed || jsonb_build_array(jsonb_build_object('shipmentId', member.id, 'orderId', member.order_id, 'deliveredAt', delivered_value));
       end loop;
     exception when lock_not_available or deadlock_detected then
-      -- 잠금이 겹친 건은 보류로 남기지 않는다(다음 회차에 그대로 다시 본다).
-      null;
+      -- 트리거가 다른 잠금을 기다리다 넘은 건은 보류로 남기지 않는다(다음 회차에 그대로 다시 본다).
+      skipped := skipped + 1;
     when others then
       -- 바꾸지 못한 이유(취소·반품 진행, 묶음 변경 등)를 남기고 6시간 뒤 다시 본다. 운영자는 배송현황에서 수동으로 처리할 수 있다.
       insert into private.shipment_auto_deliveries(shipment_id, state, attempts, last_error, updated_at)
@@ -261,7 +317,7 @@ begin
       held := held || jsonb_build_array(jsonb_build_object('shipmentId', candidate, 'error', left(sqlerrm, 200)));
     end;
   end loop;
-  return jsonb_build_object('enabled', true, 'completed', completed, 'held', held);
+  return jsonb_build_object('enabled', true, 'completed', completed, 'held', held, 'skipped', skipped);
 end $$;
 
 revoke all on function public.service_delivery_tracking_targets(integer) from public, anon, authenticated, service_role;
@@ -272,6 +328,7 @@ grant execute on function public.service_record_delivery_tracking(text, jsonb) t
 grant execute on function public.service_complete_tracked_deliveries(integer) to service_role;
 
 -- 7. 배송현황 표시. 추가 운송장은 늘, 자동·수동 구분과 추적 진행은 스위치가 켜진 때만 싣는다(꺼져 있으면 화면이 그대로다).
+-- 추적 진행은 판정과 같은 기준 시각 이후 이벤트만 센다.
 create function public.admin_shipment_tracking_summaries(p_ids uuid[]) returns jsonb
 language plpgsql stable security definer set search_path = '' as $$
 declare enabled boolean;
@@ -293,7 +350,7 @@ begin
           'latestStatus', (array_agg(latest.status order by latest.occurred_at desc nulls last))[1],
           'latestAt', max(latest.occurred_at),
           'held', exists(select 1 from private.shipment_auto_deliveries a where a.shipment_id = s.id and a.state = 'held'))
-        from private.shipment_current_trackings(s.id) t cross join lateral private.tracking_latest_event(t.carrier, t.tracking_number) latest) end))
+        from private.shipment_current_trackings(s.id) t cross join lateral private.tracking_latest_event(t.carrier, t.tracking_number, t.since) latest) end))
     from public.order_shipments s where s.id = any(p_ids)), '{}'::jsonb));
 end $$;
 revoke all on function public.admin_shipment_tracking_summaries(uuid[]) from public, anon, authenticated, service_role;

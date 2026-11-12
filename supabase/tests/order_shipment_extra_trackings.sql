@@ -168,11 +168,26 @@ select pg_temp.xt_assert(not exists(select 1 from public.order_shipment_extra_tr
 select pg_temp.xt_as(1);
 select pg_temp.xt_assert((select count(*) from public.order_shipment_extra_trackings)>=1,'order reader reads extras');
 
--- F. 검색: 배송현황·주문 통합검색의 운송장번호 칸이 추가 운송장도 찾는다.
+-- F. 검색: 배송현황·주문 통합검색·상품주문별 조회의 운송장번호(또는 전체) 칸이 추가 운송장도 찾는다.
 select pg_temp.xt_assert((public.admin_search_shipments_console('transit',p_query=>'XT10000002',p_field=>'tracking')#>>'{rows,0,id}')=pg_temp.xt_id(4,1)::text
  and (public.admin_search_shipments_console('transit',p_query=>'xt1000-0002')->>'total')='1'
  and (select count(*) from public.admin_search_orders_console(p_query=>'XT10000002',p_field=>'tracking'))=1
- and (select id from public.admin_search_orders_console(p_query=>'XT10000002',p_field=>'tracking'))=pg_temp.xt_id(2,1),'search finds extra tracking');
+ and (select id from public.admin_search_orders_console(p_query=>'XT10000002',p_field=>'tracking'))=pg_temp.xt_id(2,1)
+ and (select array_agg(id) from public.admin_search_orders_console(p_query=>'xt1000-0002',p_field=>'all'))=array[pg_temp.xt_id(2,1)]
+ and (public.admin_sales_order_counts(p_query=>'XT10000002',p_field=>'tracking')->>'shipping')='1'
+ and (public.admin_search_order_items_console(p_query=>'XT10000002',p_field=>'tracking')->>'total')='1'
+ and (public.admin_search_order_items_console(p_query=>'xt1000-0002',p_field=>'all')#>>'{rows,0,orderId}')=pg_temp.xt_id(2,1)::text,
+ 'search finds extra tracking');
+-- 다른 항목 검색은 추가 운송장을 보지 않는다: 연락처·수취인·상품·주문번호로 추가 운송장 번호를 찾아도 아무것도 나오지 않는다.
+select pg_temp.xt_assert(not exists(select 1 from public.admin_search_orders_console(p_query=>'10000002',p_field=>'phone'))
+ and not exists(select 1 from public.admin_search_orders_console(p_query=>'XT10000002',p_field=>'recipient'))
+ and not exists(select 1 from public.admin_search_orders_console(p_query=>'XT10000002',p_field=>'product'))
+ and not exists(select 1 from public.admin_search_orders_console(p_query=>'XT10000002',p_field=>'order'))
+ and (select sum(value::integer) from jsonb_each_text(public.admin_sales_order_counts(p_query=>'10000002',p_field=>'phone')))=0
+ and (select sum(value::integer) from jsonb_each_text(public.admin_sales_order_counts(p_query=>'XT10000002',p_field=>'recipient')))=0
+ and (public.admin_search_order_items_console(p_query=>'10000002',p_field=>'phone')->>'total')='0'
+ and (public.admin_search_order_items_console(p_query=>'XT10000002',p_field=>'product')->>'total')='0',
+ 'other search fields never match extra trackings');
 
 -- G. 배송현황 표시 읽기: 추가 운송장은 늘 싣고, 자동 배송완료 표시는 스위치가 꺼져 있으면 비운다.
 select public.admin_shipment_tracking_summaries(array[pg_temp.xt_id(4,1),pg_temp.xt_id(4,2)]) as summaries \gset
@@ -196,4 +211,41 @@ select pg_temp.xt_assert(private.attach_reply_extra_trackings(
  jsonb_build_array(jsonb_build_object('line',4,'reference',pg_temp.xt_id(4,4)::text,'carrier','epost','trackingNumber','XT40000001','extraTrackingNumbers',jsonb_build_array('XT40000002'))),
  jsonb_build_array(jsonb_build_object('line',4,'reference',pg_temp.xt_id(4,4)::text,'ok',false,'error','shipment_not_exported')))->0->>'extraTrackingsAdded' is null
  and not exists(select 1 from public.order_shipment_extra_trackings where shipment_id=pg_temp.xt_id(4,4)),'failed rows attach nothing');
+
+-- I. 한 회신에서 여러 개를 붙여도 표시 순서는 회신에 나온 순서다(같은 트랜잭션이라도 행마다 시각이 다르다).
+set local role authenticated;
+select pg_temp.xt_as(2);
+select public.admin_import_seowon_tracking_batch('00000000-0000-4000-8000-000000042202',jsonb_build_array(
+ jsonb_build_object('line',4,'reference',pg_temp.xt_id(4,4)::text,'carrier','epost','trackingNumber','XT40000001',
+  'extraTrackingNumbers',jsonb_build_array('XT40000009','XT40000005','XT40000002','XT40000007')))) as reply_order \gset
+select pg_temp.xt_assert(:'reply_order'::jsonb#>>'{0,extraTrackingsAdded}'='4'
+ and :'reply_order'::jsonb#>'{0,extraTrackingNumbers}'='["XT40000009","XT40000005","XT40000002","XT40000007"]'::jsonb
+ and (select jsonb_agg(value->>'trackingNumber') from jsonb_array_elements(public.admin_shipment_tracking_summaries(array[pg_temp.xt_id(4,4)])
+  #>array['shipments',pg_temp.xt_id(4,4)::text,'extraTrackings']))='["XT40000009","XT40000005","XT40000002","XT40000007"]'::jsonb,'display order follows the reply');
+reset role;
+select pg_temp.xt_assert(private.shipment_extra_tracking_numbers(pg_temp.xt_id(4,4))='["XT40000009","XT40000005","XT40000002","XT40000007"]'::jsonb
+ and (select count(distinct created_at) from public.order_shipment_extra_trackings where shipment_id=pg_temp.xt_id(4,4))=4,'extras keep distinct times');
+
+-- J. 선물 주문: 상자를 받는 수령인 화면(선물 상세)에만 추가 운송장을 싣는다. 보내는 분 화면과 주문 본인의 직접 읽기는 지금처럼
+-- 운송장을 보지 않고(배송지 비공개 선물), 추가 운송장이 없는 배송 건은 키 자체가 없다(이 변경 전 앱이 읽는 모양 그대로).
+-- 주문 2(구매자 5 → 수령인 4, 대표 XT20000001 + 추가 XT20000003)와 주문 3(구매자 4 → 수령인 5, 추가 운송장 없음).
+insert into private.gift_intents(id,sender_id,recipient_id,state,sender_label,expires_at,accepted_at,order_id,ordered_source_revision) values
+ (pg_temp.xt_id(6,1),pg_temp.xt_id(1,5),pg_temp.xt_id(1,4),'ordered','보내는 분',now()+interval '1 day',now(),pg_temp.xt_id(2,2),'extra-tracking-gift'),
+ (pg_temp.xt_id(6,2),pg_temp.xt_id(1,4),pg_temp.xt_id(1,5),'ordered','보내는 분',now()+interval '1 day',now(),pg_temp.xt_id(2,3),'extra-tracking-gift');
+insert into private.order_delivery_private_snapshots(order_id,gift_id,recipient_id,address,gift_address_revision,source_revision,shipping_evidence) values
+ (pg_temp.xt_id(2,2),pg_temp.xt_id(6,1),pg_temp.xt_id(1,4),'{}',1,'extra-tracking-gift','{}'),
+ (pg_temp.xt_id(2,3),pg_temp.xt_id(6,2),pg_temp.xt_id(1,5),'{}',1,'extra-tracking-gift','{}');
+select pg_temp.xt_assert(private.gift_detail(pg_temp.xt_id(1,4),pg_temp.xt_id(6,1))#>'{shipments,0}'@>
+  '{"trackingNumber":"XT20000001","extraTrackings":[{"carrier":"epost","trackingNumber":"XT20000003"}]}'::jsonb
+ and not (private.gift_detail(pg_temp.xt_id(1,5),pg_temp.xt_id(6,1))#>'{shipments,0}' ? 'extraTrackings')
+ and private.gift_detail(pg_temp.xt_id(1,5),pg_temp.xt_id(6,1))#>'{shipments,0,trackingNumber}'='null'::jsonb
+ and not (private.gift_detail(pg_temp.xt_id(1,5),pg_temp.xt_id(6,2))#>'{shipments,0}' ? 'extraTrackings')
+ and private.gift_detail(pg_temp.xt_id(1,5),pg_temp.xt_id(6,2))#>>'{shipments,0,trackingNumber}'='XT30000001','gift recipient alone sees extras');
+set local role authenticated;
+select pg_temp.xt_as(5);
+select pg_temp.xt_assert(not exists(select 1 from public.order_shipment_extra_trackings),'gift sender cannot read extras directly');
+select pg_temp.xt_as(4);
+select pg_temp.xt_assert((select array_agg(tracking_number order by tracking_number) from public.order_shipment_extra_trackings)
+ =array['XT10000002','XT40000002','XT40000005','XT40000007','XT40000009'],'gift recipient reads only own orders directly');
+reset role;
 rollback;

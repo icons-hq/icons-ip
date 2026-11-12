@@ -21,7 +21,8 @@ create table public.order_shipment_extra_trackings (
   tracking_number text not null check (tracking_number ~ '^[A-Z0-9]{8,30}$'),
   source text not null check (source in ('warehouse_reply','operator')),
   created_by uuid references public.profiles(id) on delete set null,
-  created_at timestamptz not null default now(),
+  -- 한 트랜잭션에서 여러 개를 붙여도 나온 순서가 남게 문장 시각이 아니라 실제 시각을 쓴다(표시 순서 = created_at, id).
+  created_at timestamptz not null default clock_timestamp(),
   constraint order_shipment_extra_trackings_shipment_fkey foreign key (order_id, shipment_id)
     references public.order_shipments(order_id, id) on delete cascade,
   constraint order_shipment_extra_trackings_unique unique (shipment_id, carrier, tracking_number)
@@ -54,7 +55,7 @@ create table private.order_shipment_tracking_changes (
   reason text check (reason is null or char_length(reason) between 1 and 500),
   actor_id uuid references public.profiles(id) on delete set null,
   operation_id uuid unique,
-  created_at timestamptz not null default now(),
+  created_at timestamptz not null default clock_timestamp(),
   check (source = 'warehouse_reply' or (reason is not null and operation_id is not null))
 );
 create index order_shipment_tracking_changes_shipment_idx on private.order_shipment_tracking_changes(shipment_id, created_at);
@@ -87,6 +88,14 @@ language sql stable security definer set search_path = '' as $$
   from public.order_shipment_extra_trackings x where x.shipment_id = p_shipment;
 $$;
 revoke all on function private.shipment_extra_tracking_numbers(uuid) from public, anon, authenticated, service_role;
+
+-- 배송 건의 추가 운송장 택배사·번호(등록 순). 선물 수령인 화면(private.gift_detail)이 쓴다.
+create function private.shipment_extra_tracking_pairs(p_shipment uuid) returns jsonb
+language sql stable security definer set search_path = '' as $$
+  select coalesce(jsonb_agg(jsonb_build_object('carrier', x.carrier, 'trackingNumber', x.tracking_number) order by x.created_at, x.id), '[]'::jsonb)
+  from public.order_shipment_extra_trackings x where x.shipment_id = p_shipment;
+$$;
+revoke all on function private.shipment_extra_tracking_pairs(uuid) from public, anon, authenticated, service_role;
 
 -- 회신 행의 extraTrackingNumbers(선택)를 정규화한다. 대표와 같거나 겹치는 번호, 형식 오류, 19개 초과(대표 포함 20개)는 거절한다.
 create function private.reply_extra_tracking_numbers(p_extras jsonb, p_representative text) returns text[]
@@ -274,12 +283,26 @@ begin
       $r$or (p_field in ('all','tracking') and position(nullif(regexp_replace(lower(needle),'[[:space:]-]','','g'),'') in lower(coalesce(s.tracking_number,'')))>0)
       or (p_field in ('all','tracking') and exists(select 1 from public.order_shipment_extra_trackings extra where extra.shipment_id=s.id
         and position(nullif(regexp_replace(lower(needle),'[[:space:]-]','','g'),'') in lower(extra.tracking_number))>0))$r$),
-    -- 주문 통합검색(주문·상품주문 공용 판정): 운송장번호 칸이 추가 운송장도 찾는다.
+    -- 주문 통합검색·탭 건수·거래확정 검색 엑셀의 공용 판정: 운송장번호(또는 전체) 검색이 추가 운송장도 찾는다. 다른 검색 항목(연락처·
+    -- 수취인·상품 등)은 추가 운송장을 보지 않도록 자기 검색 항목 조건으로 묶은 별도 항을 대표 운송장 항 뒤에 더한다.
     (6, 'private.admin_sales_order_matches(public.orders,date,date,text,text,text,text)',
       $a$and position(nullif(regexp_replace(lower(p_query),'[[:space:]-]','','g'),'') in lower(coalesce(s.tracking_number,'')))>0))$a$,
-      $r$and position(nullif(regexp_replace(lower(p_query),'[[:space:]-]','','g'),'') in lower(coalesce(s.tracking_number,'')))>0)
-     or exists(select 1 from public.order_shipment_extra_trackings extra where extra.order_id=(p_order).id
-       and position(nullif(regexp_replace(lower(p_query),'[[:space:]-]','','g'),'') in lower(extra.tracking_number))>0))$r$)
+      $r$and position(nullif(regexp_replace(lower(p_query),'[[:space:]-]','','g'),'') in lower(coalesce(s.tracking_number,'')))>0))
+   or (p_field in ('all','tracking') and exists(select 1 from public.order_shipment_extra_trackings extra where extra.order_id=(p_order).id
+     and position(nullif(regexp_replace(lower(p_query),'[[:space:]-]','','g'),'') in lower(extra.tracking_number))>0))$r$),
+    -- 상품주문별 조회: 운송장번호(또는 전체) 검색이 그 품목 배송 건의 추가 운송장도 찾는다.
+    (7, 'public.admin_search_order_items_console(text,date,date,text,integer,integer,text,text,text,text)',
+      $a$or (p_field in ('all','tracking') and strpos(lower(coalesce(shipment.tracking_number,'')),nullif(regexp_replace(lower(needle),'[[:space:]-]','','g'),''))>0)$a$,
+      $r$or (p_field in ('all','tracking') and strpos(lower(coalesce(shipment.tracking_number,'')),nullif(regexp_replace(lower(needle),'[[:space:]-]','','g'),''))>0)
+    or (p_field in ('all','tracking') and shipment.id is not null and exists(select 1 from public.order_shipment_extra_trackings extra where extra.shipment_id=shipment.id
+      and strpos(lower(extra.tracking_number),nullif(regexp_replace(lower(needle),'[[:space:]-]','','g'),''))>0))$r$),
+    -- 선물 수령인 화면: 상자를 받는 수령인에게만 추가 운송장을 싣는다(보내는 분·주문 본인 화면은 지금처럼 운송장이 없다).
+    -- 추가 운송장이 있는 배송 건에만 키를 더해, 이 변경 전 앱이 읽는 모양은 추가 운송장이 생기기 전까지 그대로다.
+    (8, 'private.gift_detail(uuid,uuid)',
+      $a$'trackingNumber',case when gift.recipient_id=p_actor then s.tracking_number else null end)$a$,
+      $r$'trackingNumber',case when gift.recipient_id=p_actor then s.tracking_number else null end)
+   ||case when gift.recipient_id=p_actor and exists(select 1 from public.order_shipment_extra_trackings x where x.shipment_id=s.id)
+     then jsonb_build_object('extraTrackings',private.shipment_extra_tracking_pairs(s.id)) else '{}'::jsonb end$r$)
   ) as target(step, signature, anchor, replacement) order by step
   loop
     body := pg_get_functiondef(item.signature::regprocedure);
@@ -299,7 +322,8 @@ declare
 begin
   foreach signature in array array[
     'public.admin_origin_tracking_candidates(uuid,text[],text[])',
-    'public.admin_import_seowon_tracking_batch(uuid,jsonb)'
+    'public.admin_import_seowon_tracking_batch(uuid,jsonb)',
+    'public.admin_search_order_items_console(text,date,date,text,integer,integer,text,text,text,text)'
   ] loop
     fn := signature::regprocedure;
     select * into contract from private.operator_rpc_contracts r where r.signature::regprocedure = fn;
@@ -308,7 +332,8 @@ begin
   end loop;
   foreach signature in array array[
     'private.admin_search_shipments_console_before_custom_inputs(text,uuid,text,date,date,integer,integer,text,text,text,text,text)',
-    'private.admin_sales_order_matches(public.orders,date,date,text,text,text,text)'
+    'private.admin_sales_order_matches(public.orders,date,date,text,text,text,text)',
+    'private.gift_detail(uuid,uuid)'
   ] loop
     fn := signature::regprocedure;
     if not exists(select 1 from private.operator_internal_contracts r where r.signature::regprocedure = fn) then
