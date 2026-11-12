@@ -62,7 +62,7 @@ function identityRpcError(error: { code?: unknown; message?: unknown }) {
   const descriptor = `${code} ${message}`;
 
   if (descriptor.includes('ip_public_slug_taken') || descriptor.includes('public_slug_taken')) {
-    return '이미 사용 중인 공개 URL입니다. 다른 슬러그를 입력해주세요.';
+    return '이미 사용 중인 공개 URL입니다. 다른 주소를 입력해주세요.';
   }
   if (descriptor.includes('ip_public_slug_conflict') || descriptor.includes('public_slug_conflict')) return STALE_ERROR;
   if (descriptor.includes('catalog_not_found') || descriptor.includes('ip_not_found')) {

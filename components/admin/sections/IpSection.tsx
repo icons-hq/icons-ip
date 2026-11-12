@@ -33,7 +33,7 @@ import type { AdminIpDeleteReadiness } from '@/lib/admin/ip-delete';
 import { IP_PUBLIC_SLUG_MAX_LENGTH } from '@/lib/ip-identity';
 
 const IP_NEW_IDENTITY_HINT = `공개 URL은 고객이 여는 주소(/ip/공개 URL)입니다. 영문 소문자·숫자·하이픈으로 ${IP_PUBLIC_SLUG_MAX_LENGTH}자까지 씁니다. 내부 ID는 처음 저장할 때 이 주소로 자동 발급되고 바꿀 수 없습니다.`;
-const IP_EXISTING_IDENTITY_HINT = '내부 ID는 시스템이 발급한 참조 번호라 바꿀 수 없습니다. 공개 URL은 이 화면 아래의 공개 URL에서 바꿉니다.';
+const IP_EXISTING_IDENTITY_HINT = '내부 ID는 상품·카드·주문이 가리키는 참조 번호라 바꿀 수 없습니다. 공개 URL은 이 화면 아래의 공개 URL에서 바꿉니다.';
 
 const LOCAL_DRAFT_FIELDS = ['publicSlug', 'title', 'sub', 'verticalKey', 'tagline', 'glyph', 'synopsis', 'imagePath'] as const;
 const EMPTY_BANNER_STATE: AdminIpHallBannerActionState = {};

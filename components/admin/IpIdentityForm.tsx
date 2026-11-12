@@ -32,7 +32,7 @@ export function IpIdentityForm({ identity }: { identity: AdminIpIdentity }) {
   return (
     <section className={SECTION_CARD}>
       <SectionHeading
-        description={<>내부 ID <code className={CODE}>{identity.internalId}</code>는 시스템이 발급해 바뀌지 않습니다. 공개 URL을 바꾸면 이전 주소는 별칭으로 계속 연결되고 다른 IP가 다시 쓸 수 없습니다.</>}
+        description={<>내부 ID <code className={CODE}>{identity.internalId}</code>는 상품·카드·주문이 가리키는 번호라 바뀌지 않습니다. 공개 URL을 바꾸면 이전 주소는 별칭으로 계속 연결되고 다른 IP가 다시 쓸 수 없습니다.</>}
         title="공개 URL"
       />
       <form action={formAction} className="flex flex-col gap-4" key={formKey}>
