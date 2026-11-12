@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createCartSelectionDraftAction, type CheckoutDraftActionError } from '@/app/checkout/draft-actions';
 import { CouponPicker } from '@/components/checkout/CouponPicker';
 import { CartEmptyState } from '@/components/cart/CartEmptyState';
@@ -18,7 +18,7 @@ import type { CartCouponState } from '@/lib/coupons.server';
 import type { Good, Ip } from '@/lib/data';
 import { krw } from '@/lib/format';
 import { GoodsCustomInputsSummary } from '@/components/shop/GoodsCustomInputs';
-import { goodsCustomInputProblem, type GoodsCustomInputSelection } from '@/lib/goods-custom-inputs';
+import { goodsCustomInputProblem, goodsCustomInputSummary, type GoodsCustomInputSelection } from '@/lib/goods-custom-inputs';
 import { cartItemKey, type CartItem } from '@/lib/cart';
 import { cartLineOption, cartOptionGood, goodAtQuotedPrice, optionLabel, randomCartLineFold, type CartQuantityStep } from '@/lib/goods-options';
 import { goodsSalesQuoteProblem, quoteLineOptionLimitMessage } from '@/lib/goods-sales';
@@ -101,7 +101,14 @@ interface CartLineSelection {
   onChange: (checked: boolean) => void;
 }
 
-/* 줄 선택 체크박스(ADR-0030 · 1014-031). 접근 이름은 굿즈 이름이고, 고를 수 없는 줄은 비활성으로 남겨 이유는 상태 문구가 말한다. */
+/* 같은 굿즈의 옵션·직접입력 줄을 화면 읽기 프로그램이 구별하도록 체크박스 이름에 옵션과 직접입력 요약을 더한다. */
+function cartLineCheckLabel(name: string, optionName?: string | null, customInputs?: GoodsCustomInputSelection): string {
+  const inputs = goodsCustomInputSummary(customInputs).replaceAll('\n', ' / ');
+  return [name, optionName, inputs].filter(Boolean).join(' · ');
+}
+
+/* 줄 선택 체크박스(ADR-0030 · 1014-031). 접근 이름은 굿즈 이름·옵션·직접입력 요약이고, 고를 수 없는 줄은 비활성으로 남겨
+   이유는 상태 문구가 말한다. */
 function CartLineCheck({ label, selection }: { label: string; selection: CartLineSelection }) {
   const { pending } = useCart();
   return (
@@ -153,7 +160,7 @@ function CartLineRow({ line, selection }: { line: CartLine; selection: CartLineS
   if (!good) {
     return (
       <li className="wc-cart__line wc-cart__line--selectable wc-cart__line--unavailable">
-        <CartLineCheck label={`판매 종료된 굿즈 ${goodId}`} selection={selection} />
+        <CartLineCheck label={cartLineCheckLabel(`판매 종료된 굿즈 ${goodId}`, null, customInputs)} selection={selection} />
         <span aria-hidden className="wc-cart__line-media" />
         <div className="wc-cart__line-info">
           <p className="wc-cart__line-name">판매 종료된 굿즈 ({goodId})</p>
@@ -181,7 +188,7 @@ function CartLineRow({ line, selection }: { line: CartLine; selection: CartLineS
 
   return (
     <li className={`wc-cart__line wc-cart__line--selectable${isUnavailable(line) || line.excludedReason ? ' wc-cart__line--unavailable' : ''}`}>
-      <CartLineCheck label={good.name} selection={selection} />
+      <CartLineCheck label={cartLineCheckLabel(good.name, optionName, customInputs)} selection={selection} />
       {/* 바로 옆 이름 링크와 목적지가 같다 — 접근성 트리에서는 숨긴다(ProductCard 와 같은 규칙). */}
       <Link
         aria-hidden
@@ -261,10 +268,21 @@ export function Cart({
   const [deselectedState, setDeselected] = useState<ReadonlySet<string>>(() => new Set());
   const deselected = pruneCartSelection(deselectedState, items);
   const [confirmingClear, setConfirmingClear] = useState(false);
+  /* 전체 비우기 확인(alertdialog): 열면 포커스를 안으로(취소) 옮기고, 닫으면 연 버튼으로 돌려준다. */
+  const clearTriggerRef = useRef<HTMLButtonElement>(null);
+  const clearCancelRef = useRef<HTMLButtonElement>(null);
+  const clearWasOpen = useRef(false);
+  useEffect(() => {
+    if (confirmingClear) clearCancelRef.current?.focus();
+    else if (clearWasOpen.current) clearTriggerRef.current?.focus();
+    clearWasOpen.current = confirmingClear;
+  }, [confirmingClear]);
   const [ordering, setOrdering] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
   /* 결제를 마치지 않은 이전 주문이 쿠폰·구매 한도를 잡고 있으면 견적 전에 닫는다(ADR-0026). */
   const released = useReleaseUnpaidCartOrders();
+  /* 견적이 알려 준 배송 묶음(출고지)별 이름(택배사). 줄을 모두 해제해도 묶음 머리를 같은 이름으로 유지한다. */
+  const [carrierLabels, setCarrierLabels] = useState<ReadonlyMap<string, string | null>>(() => new Map());
 
   /* 고를 수 있는지는 카탈로그 판매 상태로 먼저 정한다. 화면을 연 뒤의 품절·판매기간 종료·구매 한도는 견적이 알리므로,
      견적이 '주문할 수 없다'고 판정한 줄도 선택에서 빼고 사유를 줄에 보인다(ADR-0030 확정 동작 2 — 전체 주문을 막지 않는다).
@@ -336,6 +354,18 @@ export function Cart({
   ), 0);
   /* 주문할 수 없는 줄은 선택에서 빠질 뿐 나머지 주문을 막지 않는다(ADR-0030). */
   const unavailableCount = lines.length - selectableLines.length;
+  /* 배송 묶음 머리·순서는 카탈로그(굿즈의 출고지, 장바구니 줄 순서)로 정한다 — 고른 줄의 견적은 고르지 않은 묶음을 모르므로,
+     줄을 해제해도 그 묶음 머리가 사라지거나 줄이 묶음 밖으로 흩어지지 않게 한다. 묶음 이름(택배사)은 견적이 알려 준 값을
+     기억해 쓴다. 거래 런타임 장바구니는 배송 묶음을 주문서에서 계산하므로 묶지 않는다. */
+  const quoteGroups = useMemo(() => new Map((shipping.quote?.groups ?? []).map((group) => [group.originId, group])), [shipping.quote]);
+  if ([...quoteGroups.values()].some((group) => carrierLabels.get(group.originId) !== (group.carrierLabel ?? null))) {
+    setCarrierLabels(new Map([...carrierLabels, ...[...quoteGroups.values()].map((group) => [group.originId, group.carrierLabel ?? null] as const)]));
+  }
+  const displayGroups = transactionActive ? [] : [...new Set(lines.flatMap((line) => (line.good?.originId ? [line.good.originId] : [])))]
+    .map((originId) => {
+      const quote = quoteGroups.get(originId) ?? null;
+      return { originId, carrierLabel: quote ? quote.carrierLabel ?? null : carrierLabels.get(originId) ?? null, quote };
+    });
   /* 견적이 회원 누적 한도로 뺀 줄은 결제 대기 주문이 원인일 수 있다 — 그 주문을 알리고 고객이 누를 때만 닫는다. */
   const excludedByPendingOrder = items.some((item) => exclusions.get(quoteExclusionKey(item))?.pendingOrderMayBlock === true);
   /* 표시용 예상치다. 실제 청구액은 place_order가 같은 정책으로 다시 계산한다. */
@@ -447,6 +477,7 @@ export function Cart({
                     className="wc-cart__select-action"
                     disabled={pending}
                     onClick={() => setConfirmingClear((open) => !open)}
+                    ref={clearTriggerRef}
                     type="button"
                   >
                     전체 비우기
@@ -454,26 +485,28 @@ export function Cart({
                 </div>
               </div>
               {confirmingClear ? (
-                <div aria-labelledby="cart-clear-title" className="wc-cart__clear-confirm" role="alertdialog">
-                  <p id="cart-clear-title">{`장바구니의 굿즈 ${lines.length}개를 모두 삭제할까요?`}</p>
+                <div aria-labelledby="cart-clear-title" className="wc-cart__clear-confirm" role="alertdialog"
+                  onKeyDown={(event) => { if (event.key === 'Escape') { event.stopPropagation(); setConfirmingClear(false); } }}>
+                  {/* 개수는 주문 버튼·장바구니 배지와 같은 수량 단위다. */}
+                  <p id="cart-clear-title">{`장바구니의 굿즈 ${cartSelectionQuantity(lines)}개를 모두 삭제할까요?`}</p>
                   <div className="wc-cart__clear-actions">
-                    <button className="wc-btn" disabled={pending} onClick={() => setConfirmingClear(false)} type="button">취소</button>
+                    <button className="wc-btn" disabled={pending} onClick={() => setConfirmingClear(false)} ref={clearCancelRef} type="button">취소</button>
                     <button className="wc-btn primary" disabled={pending} onClick={clearAll} type="button">전체 비우기</button>
                   </div>
                 </div>
               ) : null}
               {shipping.quote && shippingGroupsNotice(shipping.quote.groups) ? <p className="wc-cart__summary-note">{shippingGroupsNotice(shipping.quote.groups)}</p> : null}
-              {shipping.quote?.groups.map((group, index, groups) => (
+              {displayGroups.map((group, index, groups) => (
                 <section className="wc-shipping-group" key={group.originId} aria-label={`${shippingGroupLabel(groups, index)} 굿즈`}>
                   <h2>{shippingGroupLabel(groups, index)}</h2>
                   <ul className="wc-cart__list">
                     {lines.filter(line => line.good?.originId === group.originId).map(line => <CartLineRow key={cartItemKey(line.goodId, line.variantId,line.customInputs)} line={line} selection={lineSelection(line)} />)}
                   </ul>
-                  {!transactionActive && <ShippingGroupSummary group={group} />}
+                  {group.quote ? <ShippingGroupSummary group={group.quote} /> : null}
                 </section>
               ))}
               <ul className="wc-cart__list">
-                {lines.filter(line => !shipping.quote?.groups.some(group => line.good?.originId === group.originId))
+                {lines.filter(line => !displayGroups.some(group => line.good?.originId === group.originId))
                   .map(line => <CartLineRow key={cartItemKey(line.goodId, line.variantId,line.customInputs)} line={line} selection={lineSelection(line)} />)}
               </ul>
             </div>

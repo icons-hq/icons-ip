@@ -107,3 +107,32 @@ export function parseCheckoutDraft(value: unknown): CheckoutDraft | null {
 export function checkoutDraftReturnHref(draft: Pick<CheckoutDraft, 'source' | 'baseGoodId'> | null | undefined): string {
   return draft?.source === 'direct' && draft.baseGoodId ? `/shop/${encodeURIComponent(draft.baseGoodId)}` : '/cart';
 }
+
+/*
+ * 바로구매 주문서(ADR-0030)의 안내는 장바구니가 아니라 그 굿즈 상세로 돌려보낸다 — 바로구매는 장바구니를 거치지 않는다.
+ * 주문서·거래 런타임의 공용 오류 문구 가운데 장바구니를 가리키는 끝 문장을 굿즈 상세(쿠폰은 이 주문서)로 바꾼다.
+ */
+const DIRECT_COPY_REWRITES: readonly (readonly [string, string])[] = [
+  ['장바구니에서 쿠폰을 확인해주세요.', '이 주문서에서 쿠폰을 다시 골라주세요.'],
+  ['선택한 쿠폰이 변경되었어요. 장바구니에서 다시 확인해주세요.', '선택한 쿠폰이 변경되었어요. 이 주문서에서 쿠폰을 다시 골라주세요.'],
+  ['장바구니에서 수량을 다시 확인해주세요.', '굿즈 상세에서 수량을 다시 골라주세요.'],
+  ['장바구니에서 수량을 확인해주세요.', '굿즈 상세에서 수량을 다시 골라주세요.'],
+  ['장바구니에서 수량을 줄여 다시 시도해주세요.', '굿즈 상세에서 수량을 줄여 다시 골라주세요.'],
+  ['장바구니에서 내용을 다시 확인해주세요.', '굿즈 상세에서 내용을 다시 골라주세요.'],
+  ['장바구니에서 빼고 다시 시도해주세요.', '굿즈 상세에서 다시 골라주세요.'],
+  ['장바구니에서 다시 확인해주세요.', '굿즈 상세에서 다시 골라주세요.'],
+  ['장바구니를 확인해주세요.', '굿즈 상세에서 다시 골라주세요.'],
+  ['장바구니가 비어 있어요.', '주문할 굿즈가 없어요. 굿즈 상세에서 다시 골라주세요.'],
+  ['장바구니가 변경되었어요. 최신 품목과 수량을 확인해주세요.', '주문 조건이 바뀌었어요. 굿즈 상세에서 다시 골라주세요.'],
+  ['장바구니가 변경되었습니다. 새로 불러온 전체 굿즈와 수량을 확인한 뒤 다시 주문해주세요.', '주문 조건이 바뀌었어요. 굿즈 상세에서 다시 골라주세요.'],
+  ['장바구니에서 다시 주문해주세요.', '굿즈 상세에서 다시 구매해주세요.'],
+  ['장바구니 품목을 나누어 주문해주세요.', '굿즈 상세에서 수량을 줄여 다시 골라주세요.'],
+  ['굿즈를 더 담아주세요.', '굿즈 상세에서 수량을 다시 골라주세요.'],
+];
+
+export function directCheckoutCopy(message: string): string {
+  for (const [from, to] of DIRECT_COPY_REWRITES) {
+    if (message.includes(from)) return message.replace(from, to);
+  }
+  return message;
+}

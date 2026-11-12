@@ -37,6 +37,16 @@ describe('장바구니 선택 지면(ADR-0030)', () => {
     expect(decls(SELECTION, '.wc-cart__select-action:disabled').color).toBe('var(--wc-ink-disabled)');
   });
 
+  /* DESIGN.md touch-target 44 — 모바일 선택 바 단추·전체 선택·줄 체크의 누르는 영역. 데스크톱(990+)은 32로 줄인다. */
+  it('모바일 선택 바와 줄 체크는 44px 누르는 영역을 가진다', () => {
+    expect(decls(SELECTION, '.wc-cart__select-action')['min-height']).toBe('44px');
+    expect(decls(SELECTION, '.wc-cart__select-all')['min-height']).toBe('44px');
+    expect(decls(SELECTION, '.wc-cart__select-action', '(min-width: 990px)')['min-height']).toBe('32px');
+    const hit = decls(SELECTION, '.wc-cart__line-check::before');
+    /* 24 + 10 + 10 = 44 너비, 위아래로 11씩 넓혀 44 이상 높이. 오른쪽은 칸 사이(16)를 넘지 않는다. */
+    expect([hit.left, hit.right, hit.top, hit.bottom]).toEqual(['-10px', '-10px', '-11px', '-11px']);
+  });
+
   it('카트 라우트가 선택 지면 스타일시트를 싣는다', () => {
     expect(read('../../app/cart/layout.tsx')).toContain("import '@/app/styles/wc-cart-selection.css';");
   });

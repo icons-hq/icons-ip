@@ -717,7 +717,8 @@ export function GoodPurchasePanel({ otherPurchases, purchase }: { otherPurchases
       </div>
       {good.transactionOffer?.fulfillment ? <div className="wc-buy-panel__state"><p>제공 방식: {good.transactionOffer.fulfillment.methods.map(m => FULFILLMENT_METHOD_LABELS[m.method]).join(' · ')}</p>
         <p>{good.transactionOffer.fulfillment.publicNote}</p>{good.transactionOffer.fulfillment.mode === 'digital' ? <p>결제한 계정에서 구매한 파일을 받습니다. 파일 제공 후 취소 요청은 담당자가 검토합니다. 디지털 굿즈의 선물하기는 제공하지 않습니다.</p> : null}</div> : null}
-      {good.transactionOffer ? <p className="wc-buy-panel__state">현재 선택한 굿즈 기준입니다. 장바구니 수량·쿠폰·적립금·배송비를 반영한 결제 금액은 주문서에서 확인해주세요.</p> : null}
+      {/* 두 버튼의 주문 범위가 다르다(ADR-0030): 구매하기는 이 굿즈만, 장바구니는 담아 둔 굿즈와 함께 골라 주문한다. */}
+      {good.transactionOffer ? <p className="wc-buy-panel__state">현재 선택한 굿즈 기준이에요. &lsquo;구매하기&rsquo;는 이 굿즈만 주문하고, &lsquo;장바구니&rsquo;에 담으면 담아 둔 다른 굿즈와 함께 골라 주문할 수 있어요. 쿠폰·적립금·배송비를 반영한 결제 금액은 주문서에서 확인해주세요.</p> : null}
       {cta.kind === 'unavailable' ? <WcButton disabled variant="primary">{cta.label}</WcButton> : cta.kind === 'restock' ? (
         <RestockCta disabled={disabled} goodId={good.id} initialRequested={cta.requested} onStaleState={stale.onStale} optionName={cta.optionName} variantId={cta.variantId} />
       ) : (

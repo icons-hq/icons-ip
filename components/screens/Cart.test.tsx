@@ -594,6 +594,14 @@ describe('Cart 목록 행 (CT-04)', () => {
 });
 
 
+/* 같은 굿즈의 옵션·직접입력 줄을 화면 읽기 프로그램이 구별하도록 체크박스 이름에 옵션·직접입력 요약을 더한다(ADR-0030). */
+describe('Cart 줄 체크박스 이름', () => {
+  it('굿즈 이름에 옵션과 직접입력 요약을 더한다', () => {
+    const html = render([{ goodId: 'g16', variantId: BLUE_VARIANT, qty: 1 }]);
+    expect(html).toContain('aria-label="아크릴 키링 · 파랑 선택"');
+  });
+});
+
 describe('origin quote and option lines', () => {
   it('keeps each origin fee and free-shipping remainder separate', () => {
     mocks.items=[{goodId:'g13',variantId:DEFAULT_VARIANT,qty:1},{goodId:'g14',variantId:SOLD_VARIANT,qty:1}];
@@ -614,6 +622,18 @@ describe('origin quote and option lines', () => {
     expect(one).not.toContain('배송비가 각각 계산됩니다');
     mocks.quote={...defaultQuote,groups:[{...gimpoGroup,carrierLabel:'한진택배'}]};
     expect(render([{goodId:'g13',variantId:DEFAULT_VARIANT,qty:1}])).toContain('<h2>한진택배 배송</h2>');
+  });
+  /* 배송 묶음 머리·순서는 카탈로그(굿즈의 출고지·줄 순서)로 정한다 — 고른 줄의 견적에 없는 묶음(해제한 줄)도 머리를 유지한다. */
+  it('견적에 없는 묶음도 카탈로그 출고지로 머리를 두고 줄을 그 묶음 안에 둔다', () => {
+    mocks.items=[{goodId:'g13',variantId:DEFAULT_VARIANT,qty:1},{goodId:'g14',variantId:SOLD_VARIANT,qty:1}];
+    mocks.quote={...defaultQuote,groups:[{...gimpoGroup,carrierLabel:'한진택배'}]};
+    const html=renderToStaticMarkup(<Cart catalog={{goods:[goods[0],{...goods[1],stock:'ok',stockQty:5,originId:'namyangju',options:goods[1].options!.map(option=>({...option,stockQty:5}))}],ips:[]}} couponState={emptyCouponState} />);
+    expect(html).toContain('<h2>한진택배 배송</h2>');
+    expect(html).toContain('<h2>택배 배송</h2>');
+    expect(html.indexOf('<h2>한진택배 배송</h2>')).toBeLessThan(html.indexOf('<h2>택배 배송</h2>'));
+    /* 견적에 없는 묶음의 줄은 묶음 밖 목록으로 흩어지지 않는다. */
+    const second = html.slice(html.indexOf('<h2>택배 배송</h2>'));
+    expect(second.indexOf('품절된 키링')).toBeLessThan(second.indexOf('</section>'));
   });
   it('blocks checkout while the current cart has no server quote', () => {
     mocks.quote=null;

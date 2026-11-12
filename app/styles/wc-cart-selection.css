@@ -10,10 +10,22 @@
 }
 
 .wc-cart__line-check {
+  position: relative;
   display: flex;
   align-items: flex-start;
   justify-content: center;
   padding-top: 2px;
+}
+
+/* 누르는 영역은 44×44(DESIGN.md touch-target). 칸(24)은 그대로 두고 라벨의 보이지 않는 여백을 바깥 여백·칸 사이(16)로
+   넓힌다 — 오른쪽은 10px만 넓혀 썸네일(목적지 링크)과 겹치지 않는다. */
+.wc-cart__line-check::before {
+  content: '';
+  position: absolute;
+  top: -11px;
+  right: -10px;
+  bottom: -11px;
+  left: -10px;
 }
 
 .wc-cart__line-check input,
@@ -45,6 +57,7 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  min-height: 44px;
   font-size: 14px;
   font-weight: 400;
   line-height: 1.5;
@@ -58,8 +71,9 @@
   gap: 8px;
 }
 
+/* 모바일 터치 영역 44px(DESIGN.md touch-target). 데스크톱(990+)은 포인터라 32px로 줄인다. */
 .wc-cart__select-action {
-  min-height: 32px;
+  min-height: 44px;
   padding: 0 12px;
   border: 1px solid var(--wc-line-control);
   background: var(--wc-surface);
@@ -105,6 +119,14 @@
 @media (min-width: 990px) {
   .wc-cart__line.wc-cart__line--selectable {
     grid-template-columns: 24px 64px minmax(0, 1fr);
+  }
+
+  .wc-cart__select-all {
+    min-height: 32px;
+  }
+
+  .wc-cart__select-action {
+    min-height: 32px;
   }
 }
 

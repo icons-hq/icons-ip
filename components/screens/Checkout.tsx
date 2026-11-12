@@ -38,7 +38,7 @@ import { ShippingGroupSummary } from '@/components/shop/ShippingGroupSummary';
 import { shippingGroupLabel, shippingGroupsNotice } from '@/lib/fulfillment';
 import { parseShippingDestination } from '@/lib/shipping-regions';
 import { orderCompleteHref } from '@/lib/routes';
-import { checkoutDraftReturnHref, type CheckoutDraft } from '@/lib/checkout-draft';
+import { checkoutDraftReturnHref, directCheckoutCopy, type CheckoutDraft } from '@/lib/checkout-draft';
 import { useDirectCheckoutQuote, useDraftStoreCreditQuote } from './CheckoutDraftQuotes';
 import { CheckoutDirectCoupon } from './CheckoutDirectCoupon';
 import { CheckoutPendingOrderRelease } from './CheckoutPendingOrderRelease';
@@ -48,7 +48,8 @@ import { quoteMayBeBlockedByPendingOrder } from '@/lib/checkout-selection';
    막는다 — 쿠폰·적립금은 그 아래로 깎지 않으므로 굿즈 금액+배송비가 기준이다. */
 const BELOW_MINIMUM_PAYMENT_COPY = `결제 금액이 최소 결제 금액(${krw(MIN_PAYABLE_TOTAL)})보다 적어 주문할 수 없어요. 굿즈를 더 담아주세요.`;
 
-const actionErrors = {
+/** 주문 생성 거절 안내(장바구니 주문서 기준). 바로구매 주문서는 directCheckoutCopy로 굿즈 상세를 가리키게 바꾼다. */
+export const checkoutActionErrorCopy = {
   account_suspended: '정지된 계정은 새 주문을 만들 수 없어요.',
   goods_custom_inputs_changed: '직접 입력 옵션 설정이 변경되었습니다. 장바구니에서 내용을 다시 확인해주세요.',
   cart_changed: '장바구니가 변경되었습니다. 새로 불러온 전체 굿즈와 수량을 확인한 뒤 다시 주문해주세요.',
@@ -91,10 +92,17 @@ const actionErrors = {
   checkout_draft_used: '이미 주문한 주문서예요. 주문 내용과 결제·입금 상태를 확인해주세요.',
   unavailable: '주문을 만들지 못했어요. 잠시 후 다시 시도해주세요.',
 } as const;
+const actionErrors = checkoutActionErrorCopy;
 
 /* 주문서 초안(ADR-0030)에서만 쓰는 안내. 선택 주문은 장바구니에서 고른 줄, 바로구매는 상품 상세에서 고른 굿즈다. */
 const SELECTION_CART_CHANGED_COPY = '장바구니에서 고른 굿즈의 수량이나 구성이 바뀌었어요. 장바구니에서 다시 골라 주문해주세요.';
 const DIRECT_DRAFT_EXPIRED_COPY = '주문서를 연 지 오래되어 다시 열어야 해요. 굿즈 상세에서 다시 구매해주세요.';
+/* 고른 화면(장바구니·굿즈 상세)에서 다시 고르면 풀리는 거절. 초안 주문서는 그 화면으로 돌아가는 링크를 붙인다. */
+const DRAFT_RETURN_ERRORS = new Set<string>(['cart_changed', 'checkout_draft_expired', 'goods_custom_inputs_changed', 'restricted_good_blocked',
+  'empty_cart', 'out_of_stock', 'goods_sale_not_open', 'preorder_sale_not_open', 'preorder_capacity_exceeded', 'option_order_limit_exceeded',
+  'option_member_limit_exceeded', 'random_option_unavailable', 'random_option_limit_exceeded', 'member_purchase_limit_exceeded',
+  'order_quantity_above_maximum', 'order_quantity_below_minimum', 'adult_verification_required']);
+const STOCK_CHANGED_COPY = '재고가 변경된 굿즈가 있어요. 장바구니에서 수량을 확인해주세요.';
 
 interface CheckoutProps {
   catalog: Pick<CatalogSnapshot, 'goods' | 'ips'>;
@@ -193,6 +201,8 @@ export function Checkout({
   const items = draft ? draft.lines : cartItems;
   const direct = draft?.source === 'direct';
   const draftReturnHref = checkoutDraftReturnHref(draft);
+  /* 바로구매 주문서의 안내는 장바구니가 아니라 굿즈 상세로 돌려보낸다(ADR-0030 — 바로구매는 장바구니를 거치지 않는다). */
+  const copyFor = (message: string) => (direct ? directCheckoutCopy(message) : message);
   /* 결제를 마치지 않은 이전 주문이 쿠폰·적립금·구매 한도를 잡고 있으면 먼저 닫는다(ADR-0026). 장바구니 주문서는 장바구니
      출처만 닫고, 바로구매 주문서는 아무것도 닫지 않는다 — 보기만으로 다른 탭의 결제를 끊지 않는다. 견적이 그 주문 때문에
      막히면 아래 안내가 그 주문을 알리고 고객이 누를 때만 닫는다(ADR-0030). */
@@ -371,10 +381,10 @@ export function Checkout({
     if (!result.ok) {
       if(result.error==='cart_changed') await refresh();
       setSubmitError(result.pendingOrder ? '진행 중인 다른 주문을 완료하거나 취소한 뒤 다시 시도해주세요.'
-        : draft && result.error === 'cart_changed' ? SELECTION_CART_CHANGED_COPY
-          : draft?.source === 'direct' && result.error === 'checkout_draft_expired' ? DIRECT_DRAFT_EXPIRED_COPY
-            : actionErrors[result.error]);
-      setDraftReturnNeeded(Boolean(draft) && (result.error === 'cart_changed' || result.error === 'checkout_draft_expired'));
+        : draft?.source === 'selection' && result.error === 'cart_changed' ? SELECTION_CART_CHANGED_COPY
+          : direct && result.error === 'checkout_draft_expired' ? DIRECT_DRAFT_EXPIRED_COPY
+            : copyFor(actionErrors[result.error]));
+      setDraftReturnNeeded(Boolean(draft) && DRAFT_RETURN_ERRORS.has(result.error));
       if (result.error === 'checkout_draft_used') setUsedOrderId(result.orderId ?? null);
       setPendingOrder(result.pendingOrder === true);
       shipping.refresh();
@@ -570,7 +580,8 @@ export function Checkout({
           {shipping.quote?.groups.map((group, index, groups) => <section className="wc-shipping-group" key={group.originId}><h3>{shippingGroupLabel(groups, index)}</h3><ShippingGroupSummary group={group} /></section>)}
           {shipping.loading ? <p role="status">현재 가격과 배송비를 확인하고 있어요.</p> : null}
           {shipping.error ? <div role="alert"><p>{shipping.error}</p><button type="button" onClick={shipping.refresh}>가격·배송비 다시 확인</button></div> : null}
-          {purchaseProblem ? <p className="checkout-error" role="alert">{purchaseProblem}
+          {purchaseProblem ? <p className="checkout-error" role="alert">{copyFor(purchaseProblem)}
+            {direct && !quoteMayBeBlockedByPendingOrder(shipping.sales ?? { goods: [], lines: [] }) ? <> <Link href={draftReturnHref}>굿즈로 돌아가기</Link></> : null}
             {shipping.sales && quoteMayBeBlockedByPendingOrder(shipping.sales) ? <CheckoutPendingOrderRelease onReleased={retryAfterRelease} /> : null}
           </p> : null}
           {couponSelectionChanged ? <p className="checkout-error" role="alert">다른 화면에서 선택한 쿠폰이 변경되었습니다. <button type="button" onClick={() => router.refresh()}>현재 쿠폰 다시 확인</button></p> : null}
@@ -617,7 +628,8 @@ export function Checkout({
             결제수단은 주문을 만들 때 고정됩니다. 바꾸려면 주문을 취소하고 다시 만들어야 해요.
           </p>
 
-          {unavailable && <p className="checkout-error" role="alert">재고가 변경된 굿즈가 있어요. 장바구니에서 수량을 확인해주세요.</p>}
+          {unavailable && <p className="checkout-error" role="alert">{copyFor(STOCK_CHANGED_COPY)}
+            {draft ? <> <Link href={draftReturnHref}>{direct ? '굿즈로 돌아가기' : '장바구니로 돌아가기'}</Link></> : null}</p>}
           {!methodAvailable && <p className="checkout-error" role="alert">선택한 결제수단을 지금은 쓸 수 없어요. 다른 수단을 골라주세요.</p>}
           {submitError && <p className="checkout-error" role="alert">{submitError}{pendingOrder ? <CheckoutPendingOrderRelease onReleased={retryAfterRelease} /> : null}
             {usedOrderId ? <> <Link href={`/orders/${encodeURIComponent(usedOrderId)}`}>주문 보기</Link></> : null}

@@ -19,7 +19,7 @@ import { cartItemKey, type CartItem } from '@/lib/cart';
 import type { CatalogSnapshot } from '@/lib/catalog';
 import { bankTransferMethodNote, checkoutAddressErrors, type CheckoutAddress, type CheckoutPaymentMethod } from '@/lib/checkout';
 import { orderCompleteHref } from '@/lib/routes';
-import { checkoutDraftReturnHref, type CheckoutDraft } from '@/lib/checkout-draft';
+import { checkoutDraftReturnHref, directCheckoutCopy, type CheckoutDraft } from '@/lib/checkout-draft';
 import { transactionIssuesMayBeBlockedByPendingOrder } from '@/lib/checkout-selection';
 import { CheckoutPendingOrderRelease } from './CheckoutPendingOrderRelease';
 import { cartTransactionRequestTooLarge, parseCartTransactionInput, parseCartTransactionRecovery, transactionIssueCopy, type CartTransactionRecovery, type CheckoutDeliveryChoices } from '@/lib/checkout-transaction';
@@ -61,6 +61,8 @@ interface Props {
 export function GoodsTransactionCheckout({ accountId, catalog, addressPrefill, paymentAvailable, bankTransferAvailable, resumeOrderId, userCouponId, coupons = [], couponPolicy, paymentFailCode, draft = null }: Props) {
   const router = useRouter(), cart = useCart();
   const direct = draft?.source === 'direct';
+  /* 바로구매 주문서의 안내는 장바구니가 아니라 굿즈 상세(쿠폰은 이 주문서)로 돌려보낸다(ADR-0030). */
+  const copyFor = (message: string) => (direct ? directCheckoutCopy(message) : message);
   /* 주문할 줄: 초안이 있으면 그 줄, 없으면 장바구니 전체다(ADR-0030). */
   const orderItems = draft ? draft.lines : cart.items;
   /* 결제를 마치지 않은 이전 주문이 쿠폰·적립금·구매 한도를 잡고 있으면 견적 전에 닫는다(ADR-0026). 장바구니 주문서는
@@ -162,7 +164,7 @@ export function GoodsTransactionCheckout({ accountId, catalog, addressPrefill, p
     }
     if (result.uncertain) setError('주문 생성 결과를 확인 중이에요. 아래 버튼으로 같은 주문을 다시 확인해주세요.');
     else {
-      remember(null); setFrozen(null); setError(cartTransactionErrorCopy[result.error]); quotes.refresh();
+      remember(null); setFrozen(null); setError(copyFor(cartTransactionErrorCopy[result.error])); quotes.refresh();
       if (result.error === 'draft_used') setUsedOrderId(result.orderId ?? null);
       if (result.error === 'cart_changed') await cart.refresh();
     }
@@ -242,10 +244,10 @@ export function GoodsTransactionCheckout({ accountId, catalog, addressPrefill, p
         {display && <GoodsTransactionSummary display={display} names={names} />}
         {quotes.loading && <p role="status">할인과 배송비를 확인하고 있어요.</p>}
         {!input && !recovery && <p role={tooLarge ? 'alert' : undefined}>{tooLarge ? cartTransactionErrorCopy.order_too_large : '수령 방식과 필요한 배송지·적립금 입력을 완료하면 최종 금액을 표시합니다.'}</p>}
-        {quote?.state === 'blocked' && !recovery && <div role="alert">{quote.issues.map((issue, index) => <p key={`${issue.code}:${issue.goodId}:${index}`}>{issue.goodId ? `${names[issue.goodId] ?? '굿즈'}: ` : ''}{transactionIssueCopy[issue.code]}</p>)}
+        {quote?.state === 'blocked' && !recovery && <div role="alert">{quote.issues.map((issue, index) => <p key={`${issue.code}:${issue.goodId}:${index}`}>{issue.goodId ? `${names[issue.goodId] ?? '굿즈'}: ` : ''}{copyFor(transactionIssueCopy[issue.code])}</p>)}
           {transactionIssuesMayBeBlockedByPendingOrder(quote.issues) ? <p><CheckoutPendingOrderRelease onReleased={() => { quotes.refresh(); router.refresh(); }} /></p> : null}</div>}
-        {quotes.result && !quotes.result.ok && !recovery && <p role="alert">{cartTransactionErrorCopy[quotes.result.error]}</p>}
-        {quotes.result && !quotes.result.ok && quotes.result.error === 'cart_changed' && !recovery && <button type="button" onClick={() => void cart.refresh()}>장바구니 새로 불러오기</button>}
+        {quotes.result && !quotes.result.ok && !recovery && <p role="alert">{copyFor(cartTransactionErrorCopy[quotes.result.error])}</p>}
+        {quotes.result && !quotes.result.ok && quotes.result.error === 'cart_changed' && !recovery && !direct && <button type="button" onClick={() => void cart.refresh()}>장바구니 새로 불러오기</button>}
         {quotes.result && !quotes.result.ok && quotes.result.error === 'coupon_changed' && !recovery && <button type="button" onClick={() => router.refresh()}>현재 쿠폰 다시 확인</button>}
         {!recovery && <>
           {/* legacy 주문서와 같은 결제수단 선택지 마크업·스타일을 쓴다 — 사유 문구가 선택지 이름과 붙지 않게(10/14 S26). */}
