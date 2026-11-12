@@ -99,7 +99,6 @@ export function InquiryChatScreen({ accountId, filters, data, detail, chatContex
           {/* details는 flex 상자가 되지 못하는 브라우저가 있어 카드 모양만 입히고 안쪽 간격은 div가 맡는다. */}
           <details className="group min-w-0 rounded-xl border bg-card p-4 text-sm text-card-foreground"><summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-medium text-foreground [&::-webkit-details-marker]:hidden">담당자 관리<ChevronDown aria-hidden="true" className="size-4 text-muted-foreground transition-transform group-open:rotate-180" /></summary><div className="mt-3"><InquiryAssignmentPanel key={detail.inquiry.id} framed={false} inquiryId={detail.inquiry.id}
             assigneeId={detail.inquiry.assigneeId} assigneeName={detail.inquiry.assigneeName} staffOptions={detail.staffOptions} /></div></details>
-          {detail.history ? <details className="group min-w-0 rounded-xl border bg-card p-4 text-sm text-card-foreground" data-inquiry-history-card=""><summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-medium text-foreground [&::-webkit-details-marker]:hidden">처리 이력<ChevronDown aria-hidden="true" className="size-4 text-muted-foreground transition-transform group-open:rotate-180" /></summary><div className="mt-3"><InquiryProcessingHistoryList result={detail.history} /></div></details> : null}
           <section className={CHAT_CONTEXT_CARD_CLASS}><h2 className="text-sm font-medium text-foreground">구매이력</h2>
             {linkedOrder ? <InquiryLinkedOrderSummary order={linkedOrder} canOpenOrders={canReadOrders} />
               : linkedKnown ? <p className="text-sm text-muted-foreground">연결된 주문이 없습니다.</p> : null}
@@ -114,6 +113,8 @@ export function InquiryChatScreen({ accountId, filters, data, detail, chatContex
               {chatContext.previousCount > 20 ? <p className="text-xs text-muted-foreground">최근 20개 대화를 표시합니다. 전체 {chatContext.previousCount}개</p> : null}</> : <p className="text-sm text-muted-foreground">총 {detail.buyer.inquiryCount}건 · 진행 중 {detail.buyer.openInquiryCount}건</p>}
             {canViewCustomer ? <Link className={`${TEXT_LINK_CLASS} text-sm`} href={`/admin/customers/${detail.buyer.id}?tab=inquiries`}>고객 상세 보기</Link> : null}
           </section>
+          {/* 처리 이력(1014-105)은 참고 기록이라 구매이력·이전 대화 아래에 접어 둔다. */}
+          {detail.history ? <details className="group min-w-0 rounded-xl border bg-card p-4 text-sm text-card-foreground" data-inquiry-history-card=""><summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-medium text-foreground [&::-webkit-details-marker]:hidden">처리 이력<ChevronDown aria-hidden="true" className="size-4 text-muted-foreground transition-transform group-open:rotate-180" /></summary><div className="mt-3"><InquiryProcessingHistoryList result={detail.history} /></div></details> : null}
           <div className={CHAT_CONTEXT_CARD_CLASS}><InquiryInternalNotesPanel key={`${accountId}:${detail.inquiry.id}`} framed={false} accountId={accountId} inquiryId={detail.inquiry.id} notes={detail.notes} /></div>
         </aside> : null}
       </div>
