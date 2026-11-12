@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { scheduleChange, scheduleIds, schedulePreview } from '@/lib/admin/preorder-schedule-change.fixture';
 import type { AdminGoodsVariant } from '@/lib/admin/goods-variants';
-import { GoodsPreorderSchedulePanel, PreorderScheduleResultView, PreorderSchedulePreviewStep } from './GoodsPreorderSchedulePanel';
+import { GoodsPreorderSchedulePanel, PreorderScheduleResultView, PreorderSchedulePreviewStep, openPolicySummary } from './GoodsPreorderSchedulePanel';
 
 vi.mock('@/app/admin/preorder-schedule-actions', () => ({
   applyPreorderScheduleChangeAction: vi.fn(), listPreorderScheduleChangesAction: vi.fn(), previewPreorderScheduleChangeAction: vi.fn(),
@@ -62,6 +62,14 @@ describe('예약 일정 일괄 변경 미리보기', () => {
     expect(preview({ smsEnabled: true })).not.toContain('SMS');
     expect(preview({}, { smsAvailable: true })).not.toContain('SMS');
     expect(preview({ smsEnabled: true }, { smsAvailable: true })).toContain('SMS 수신에 동의한 고객에게는 같은 안내를 문자로도 한 번 보냅니다.');
+  });
+});
+
+describe('접수 중인 예약 조건 안내', () => {
+  it('날짜별로 묶고 옵션 이름은 셋까지 보인다', () => {
+    const policy = (variantName: string, expectedShipDate = '2026-12-02') => ({ variantName, expectedShipDate });
+    expect(openPolicySummary([policy('A'), policy('B'), policy('C'), policy('D'), policy('E'), policy('늦은 옵션', '2026-12-16')]))
+      .toBe('A·B·C 외 2개 2026년 12월 2일 · 늦은 옵션 2026년 12월 16일');
   });
 });
 

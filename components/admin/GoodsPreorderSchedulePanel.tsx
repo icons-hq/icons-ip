@@ -37,6 +37,13 @@ const FIELD = 'flex w-full min-w-0 flex-col gap-1.5 text-sm [&>span]:font-medium
 const dateLabel = (date: string) => `${date.slice(0, 4)}년 ${Number(date.slice(5, 7))}월 ${Number(date.slice(8, 10))}일`;
 const page = <T,>(rows: readonly T[], number: number) => rows.slice((number - 1) * PAGE_SIZE, number * PAGE_SIZE);
 const paymentLabel = (status: string, method: string) => status === 'pending' ? method === 'bank_transfer' ? '입금 대기' : '결제 대기' : null;
+/** 접수 중인 예약 조건을 날짜별로 묶는다. 랜덤 판매처럼 옵션이 많아도 한 줄로 읽히게 날짜마다 옵션 이름은 셋까지 보인다. */
+export function openPolicySummary(policies: readonly { variantName: string; expectedShipDate: string }[]): string {
+  const byDate = new Map<string, string[]>();
+  for (const policy of policies) byDate.set(policy.expectedShipDate, [...(byDate.get(policy.expectedShipDate) ?? []), policy.variantName]);
+  return [...byDate.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, names]) =>
+    `${names.slice(0, 3).join('·')}${names.length > 3 ? ` 외 ${names.length - 3}개` : ''} ${dateLabel(date)}`).join(' · ');
+}
 
 type Step =
   | { kind: 'form' }
@@ -103,7 +110,7 @@ export function PreorderSchedulePreviewStep({ preview, emailConfigured, smsAvail
     </div>
     {!emailReady ? <AdminNotice role="status" tone="danger">{!preview.emailEnabled ? '지연 안내 이메일 발송 설정이 꺼져 있습니다.' : '이메일 공급자 또는 발송 서명 설정이 준비되지 않았습니다.'} 두 채널이 준비되어야 일정 변경과 안내를 진행할 수 있습니다.</AdminNotice> : null}
     {preview.acceptingPolicies.length ? <AdminNotice tone="warning" title="접수 중인 예약 조건은 바뀌지 않습니다">
-      {preview.acceptingPolicies.map((policy) => `${policy.variantName} ${dateLabel(policy.expectedShipDate)}`).join(' · ')} — 이후 새 주문은 이 날짜로 안내됩니다. 새 주문도 바꾸려면 새 예약 접수를 중지하고 새 발송 예정일로 예약 조건을 등록해주세요.
+      {openPolicySummary(preview.acceptingPolicies)} — 이후 새 주문은 이 날짜로 안내됩니다. 새 주문도 바꾸려면 새 예약 접수를 중지하고 새 발송 예정일로 예약 조건을 등록해주세요.
     </AdminNotice> : null}
     {individual ? <AdminNotice tone="info">운영자가 주문 상세에서 따로 바꾼 배송 건 {individual.toLocaleString('ko-KR')}건이 포함되어 있습니다(표의 &lsquo;개별 변경&rsquo;). 그 날짜를 지키려면 선택을 해제하세요.</AdminNotice> : null}
     {mixed ? <AdminNotice tone="info">다른 예약 상품과 함께 보내는 배송 건은 그 상품의 주문 당시 예정일보다 앞당기지 않습니다. 새 예정일이 더 늦으면 그 날짜로 바꿉니다.</AdminNotice> : null}
