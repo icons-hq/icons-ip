@@ -106,6 +106,52 @@ export async function createCartRetryDraftAction(orderIdValue: unknown): Promise
   }
 }
 
+export type DirectRetryActionError =
+  | 'auth_required'
+  | 'onboarding_required'
+  | 'account_suspended'
+  | 'invalid_request'
+  /** 그 주문의 결제 승인을 확인하고 있다 — 닫지 않았다. */
+  | 'payment_in_progress'
+  /** 결제가 끝났거나 바로구매 주문이 아니다 — 다시 만들지 않는다. */
+  | 'not_retryable'
+  /** 주문은 닫았지만 지금 같은 구성으로 주문서를 열 수 없다(판매 중지·옵션 정리·직접입력 설정 변경·성인 인증). */
+  | 'lines_unavailable'
+  | 'unavailable';
+
+export type DirectRetryActionResult = { ok: true; href: string } | { ok: false; error: DirectRetryActionError };
+
+/**
+ * 바로구매 결제가 승인 전에 끝난 주문(거절·시간 경과)의 '다시 구매하기'(ADR-0030 확정 동작 8). 그 주문을 ADR-0026 닫기 경로로
+ * 닫고(재고·쿠폰·적립금·구매 한도를 돌려준다) 같은 줄로 바로구매 초안을 다시 만들어 주문서로 보낸다 — 굿즈 상세에서 다시
+ * 고르지 않는다. 결제 승인을 확인 중이면 닫지 않는다. 소유자는 로그인 세션에서 정한다.
+ */
+export async function createDirectRetryDraftAction(orderIdValue: unknown): Promise<DirectRetryActionResult> {
+  const orderId = normalizeOrderReference(orderIdValue);
+  if (!orderId) return { ok: false, error: 'invalid_request' };
+  const owner = await draftOwner();
+  if ('error' in owner) {
+    return { ok: false, error: owner.error === 'auth_required' || owner.error === 'onboarding_required' || owner.error === 'account_suspended' ? owner.error : 'unavailable' };
+  }
+  try {
+    const { data, error } = await createServiceClient().rpc('service_retry_direct_order', { p_user_id: owner.userId, p_order_id: orderId });
+    if (error) return { ok: false, error: draftError(error.message) === 'account_suspended' ? 'account_suspended' : 'unavailable' };
+    if (data === null) return { ok: false, error: 'not_retryable' };
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return { ok: false, error: 'unavailable' };
+    const value = data as Record<string, unknown>;
+    if (value.result === 'draft') {
+      const draft = draftResult(value.draftId);
+      return draft.ok ? { ok: true, href: draft.href } : { ok: false, error: 'unavailable' };
+    }
+    if (value.result === 'payment_in_progress') return { ok: false, error: 'payment_in_progress' };
+    if (value.result === 'not_retryable') return { ok: false, error: 'not_retryable' };
+    if (value.result === 'unavailable') return { ok: false, error: 'lines_unavailable' };
+    return { ok: false, error: 'unavailable' };
+  } catch {
+    return { ok: false, error: 'unavailable' };
+  }
+}
+
 /**
  * 상품 상세·위시의 [구매하기](1014-033·037·039). 고른 옵션·수량·추가 구성·직접입력값만 바로구매 초안으로 만든다 —
  * 장바구니를 읽지도 바꾸지도 않는다. 추가 구성·19금 본품·옵션 소속은 DB가 담기와 같은 규칙으로 다시 판정한다.

@@ -11,6 +11,7 @@ import {
   type PrepareGoodsPaymentActionState,
 } from '@/app/checkout/actions';
 import { ReorderAction } from '@/components/checkout/ReorderAction';
+import { CheckoutDirectRetryButton } from './CheckoutDirectRetryButton';
 import { CheckoutRetryButton } from './CheckoutRetryButton';
 import { ListingReturnLink } from '@/components/shell/ListingReturn';
 import { PreparedCheckoutAction } from '@/components/payments/PreparedCheckoutAction';
@@ -294,8 +295,9 @@ export function CheckoutOrder({
               {reorderMode === 'retry_from_cart' ? (
                 <CheckoutRetryButton orderId={order.id} />
               ) : reorderMode === 'retry_direct' && order.directGoodId ? (
-                /* 바로구매 주문(ADR-0030)은 장바구니와 무관하다 — 그 상품 상세에서 다시 구매하면 새 주문이 이 주문을 닫는다. */
-                <Link className="btn btn-holo" href={`/shop/${encodeURIComponent(order.directGoodId)}`}>다시 구매하기</Link>
+                /* 바로구매 주문(ADR-0030 확정 동작 8)은 장바구니와 무관하다 — '다시 구매하기'가 이 주문을 결제 없이 닫고 같은 구성으로
+                   바로구매 주문서를 다시 연다. 구성을 바꾸려면 보조 링크로 굿즈 상세에 간다. */
+                <CheckoutDirectRetryButton goodId={order.directGoodId} orderId={order.id} />
               ) : reorderMode && reorderMode !== 'retry_direct' && (
                 <ReorderAction
                   mode={reorderMode}
@@ -347,7 +349,7 @@ export function CheckoutOrder({
                 ? <Link className="btn btn-holo" href="/cart">장바구니 보기</Link>
                 : <CheckoutRetryButton orderId={order.id} />)}
               {state === 'closed' && reorderMode === 'retry_direct' && order.directGoodId && (
-                <Link className="btn btn-holo" href={`/shop/${encodeURIComponent(order.directGoodId)}`}>다시 구매하기</Link>
+                <CheckoutDirectRetryButton goodId={order.directGoodId} orderId={order.id} />
               )}
               {state === 'closed' && reorderMode && reorderMode !== 'retry_from_cart' && reorderMode !== 'retry_direct' && (
                 <ReorderAction

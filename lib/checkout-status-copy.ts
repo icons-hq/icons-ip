@@ -39,12 +39,13 @@ export function closedPaymentCopy(
       ? { title: '결제가 완료되지 않았어요', body: `결제가 승인되지 않았어요.${retryCharge} 장바구니는 그대로 있으니 다시 결제해주세요. 이 주문은 자동으로 취소돼요.` }
       : { title: '결제 가능 시간이 지났어요', body: `결제 화면을 연 뒤 유효 시간이 지났어요.${retryCharge} 장바구니는 그대로 있으니 다시 결제해주세요. 이 주문은 자동으로 취소돼요.` };
   }
-  /* 바로구매 주문(ADR-0030)은 장바구니와 무관하다 — 상품 상세에서 다시 구매하면 새 주문이 이 주문을 결제 없이 닫는다. */
+  /* 바로구매 주문(ADR-0030 확정 동작 8)은 장바구니와 무관하다 — '다시 구매하기'가 이 주문을 결제 없이 닫고 같은 구성으로
+     바로구매 주문서를 다시 연다. */
   if (reorderMode === 'retry_direct' && closure !== 'cancellation_requested') {
     const retryCharge = provider === 'toss' ? ' 결제는 진행되지 않았고 청구된 금액은 없어요.' : '';
     return closure === 'not_approved'
-      ? { title: '결제가 완료되지 않았어요', body: `결제가 승인되지 않았어요.${retryCharge} 굿즈 상세에서 다시 구매해주세요. 이 주문은 자동으로 취소돼요.` }
-      : { title: '결제 가능 시간이 지났어요', body: `결제 화면을 연 뒤 유효 시간이 지났어요.${retryCharge} 굿즈 상세에서 다시 구매해주세요. 이 주문은 자동으로 취소돼요.` };
+      ? { title: '결제가 완료되지 않았어요', body: `결제가 승인되지 않았어요.${retryCharge} 다시 구매하면 이 주문은 결제 없이 취소되고 같은 구성으로 주문서가 열려요.` }
+      : { title: '결제 가능 시간이 지났어요', body: `결제 화면을 연 뒤 유효 시간이 지났어요.${retryCharge} 다시 구매하면 이 주문은 결제 없이 취소되고 같은 구성으로 주문서가 열려요.` };
   }
   if (closure === 'not_approved') {
     return {
@@ -117,7 +118,7 @@ function cardDeadlinePassedCopy(reorderMode: CheckoutReorderMode | null): Status
     return { title: '결제 가능한 시간이 지났어요', body: '이 주문으로는 더 이상 결제할 수 없어요. 장바구니는 그대로 있으니 다시 결제해주세요. 이 주문은 자동으로 취소돼요.' };
   }
   if (reorderMode === 'retry_direct') {
-    return { title: '결제 가능한 시간이 지났어요', body: '이 주문으로는 더 이상 결제할 수 없어요. 굿즈 상세에서 다시 구매해주세요. 이 주문은 자동으로 취소돼요.' };
+    return { title: '결제 가능한 시간이 지났어요', body: '이 주문으로는 더 이상 결제할 수 없어요. 다시 구매하면 이 주문은 결제 없이 취소되고 같은 구성으로 주문서가 열려요.' };
   }
   /* 즉시 취소할 수 없는 주문(시도를 확인하지 못함 등)은 결제 기한 뒤 만료 sweep이 닫는다. */
   return reorderMode
@@ -174,7 +175,7 @@ export function checkoutStatusCopy({
       return reorderMode === 'retry_from_cart'
         ? { title: '결제 없이 취소된 주문이에요', body: '결제가 끝나지 않아 이 주문은 결제 없이 취소됐어요. 장바구니에서 다시 주문할 수 있어요.' }
         : reorderMode === 'retry_direct'
-          ? { title: '결제 없이 취소된 주문이에요', body: '결제가 끝나지 않아 이 주문은 결제 없이 취소됐어요. 굿즈 상세에서 다시 구매할 수 있어요.' }
+          ? { title: '결제 없이 취소된 주문이에요', body: '결제가 끝나지 않아 이 주문은 결제 없이 취소됐어요. 같은 구성으로 다시 구매할 수 있어요.' }
           : { title: '취소된 주문이에요', body: '이 주문은 취소됐어요. 같은 굿즈를 다시 담아 새로 주문할 수 있어요.' };
     }
     return cardDeadlinePassedCopy(reorderMode);
@@ -206,11 +207,12 @@ export function orderDetailCardPaymentNotice(
 ): OrderDetailCardPaymentNotice {
   const checkoutHref = `/checkout/${orderId}`;
   /* 장바구니 주문의 다시 결제는 결제 화면의 [다시 결제하기]가 그 주문의 줄로 주문서를 연다(ADR-0030 — 장바구니에서 고르지
-     않은 줄이 끼지 않게, 장바구니 전체 주문서로 바로 보내지 않는다). 바로구매는 그 상품 상세로 보낸다. */
+     않은 줄이 끼지 않게, 장바구니 전체 주문서로 바로 보내지 않는다). 바로구매는 결제 화면의 [다시 구매하기]가 이 주문을 닫고
+     같은 구성으로 바로구매 주문서를 연다. */
   const reorderBanner = (title: string, mode: CheckoutReorderMode | null) => mode === 'retry_from_cart'
     ? { title, body: '장바구니에 굿즈가 그대로 있어요. 결제 화면에서 같은 굿즈로 다시 결제할 수 있어요.', link: { href: checkoutHref, label: '다시 결제하기' } }
     : mode === 'retry_direct' && reading?.directGoodId
-      ? { title, body: '장바구니는 바뀌지 않았어요. 굿즈 상세에서 다시 구매할 수 있어요.', link: { href: `/shop/${encodeURIComponent(reading.directGoodId)}`, label: '다시 구매하기' } }
+      ? { title, body: '장바구니는 바뀌지 않았어요. 결제 화면에서 같은 구성으로 다시 구매할 수 있어요.', link: { href: checkoutHref, label: '다시 구매하기' } }
       : {
           title,
           body: '결제 화면에서 이 주문을 취소하고 같은 굿즈로 다시 주문할 수 있어요.',
