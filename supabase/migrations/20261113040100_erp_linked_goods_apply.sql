@@ -5,12 +5,14 @@
 -- 연결 상품: 옵션의 ERP 코드(private.goods_variant_external_identity.erp_code)가 반입한 ERP 품목 코드와 같은
 -- 판매 중인(보관하지 않은) 상품의 사용 중인 옵션이다. 미리보기는 값이 다른 행만 보인다. 한 행은 옵션 하나의 판매가 또는 바코드다.
 -- * 판매가: ERP 판매가를 그 옵션의 판매 금액(할인 전)으로 맞춘다. 기본 옵션이면 상품 판매가, 다른 옵션이면 옵션가(판매가에 더하는 금액)가 바뀐다.
---   반영은 상품 목록의 판매가 바로 수정(admin_commit_goods_bulk 'price')과 같은 기존 상품 저장 RPC(admin_save_good)를 상품마다 부른다.
+--   반영은 기존 상품 저장 RPC(admin_save_good — 상품 편집 저장과 상품 목록 판매가 바로 수정이 쓰는 RPC)를 상품마다 부른다.
+--   옵션 행은 상품 편집 저장과 같이 사용 중인 옵션과 사용 중지된 기본 옵션을 기본 옵션부터 싣는다(기본 옵션 유지).
 --   그래서 가격 규칙(할인 기간 가드·표시용 정가·옵션가 0원 이상·랜덤 판매 균일가·공개 상품 고시 등)과 감사 기록이 그대로 적용된다.
 --   다음은 미리보기에서 건너뛰고 이유를 보인다(오케스트레이터 판단: 할인 중 상품 판매가는 건너뛰고 이유 표시).
 --   - 기간 할인이 진행 중이거나 예정된 상품(DB 가드 active_price_period_requires_reset과 같은 판정을 상품 단위로)
---   - 즉시할인이 설정된 상품: 상품 편집은 즉시할인을 compare_at_price=판매가(할인 전), price=할인가로 저장한다
---     (lib/admin/goods-price-editor.ts). ERP 판매가(할인 전)를 price에 넣으면 할인이 사라지므로 바꾸지 않는다.
+--   - 상품 할인(할인가)이 설정된 상품: 상품 편집은 할인을 compare_at_price=판매가(할인 전), price=할인가로 저장한다
+--     (lib/admin/goods-price-editor.ts). ERP 판매가(할인 전)는 compare_at_price+옵션가와 견주고, 다를 때만 건너뜀 행을 보인다
+--     (price에 넣으면 할인이 사라지고 할인가·할인율이 함께 바뀌므로 상품 화면에서 바꾼다).
 --   - ERP 판매가 0원(빈 값일 수 있어 상품을 0원으로 만들지 않는다), 랜덤 판매 상품(판매가가 하나라 상품 화면에서 한 번에 바꾼다)
 --   - 반영하면 옵션 판매 금액이 상품 판매가보다 낮아지는 상품(옵션가 0원 이상), 상품정보제공고시가 빈 공개 상품(상품 저장 규칙)
 -- * 바코드: ERP 바코드가 있을 때만 그 옵션의 바코드로 맞춘다(ERP에 바코드가 없다고 상품 바코드를 지우지 않는다).
@@ -56,7 +58,12 @@ as $$
       ident.barcode as current_barcode,
       variant.good_id,
       variant.name as option_name,
-      variant.price as current_price,
+      -- ERP 판매가와 견줄 이 옵션의 할인 전 판매 금액. 상품 할인(할인가) 상품은 price가 할인가라
+      -- 표시용 정가(할인 전 판매가)에 옵션가(옵션 price − 상품 price)를 더한 값이다(lib/admin/goods-price-editor.ts).
+      case
+        when good.compare_at_price is null then variant.price::bigint
+        else greatest(good.compare_at_price::bigint + variant.price::bigint - good.price::bigint, 0)
+      end as current_price,
       variant.is_default,
       variant.sort_order,
       good.name as good_name,
@@ -84,7 +91,8 @@ as $$
             and period.state = 'active'
             and period.ends_at > pg_catalog.statement_timestamp()
         ) then 'active_discount'
-        -- 즉시할인(표시용 정가 = 할인 전 판매가). price는 할인가라 ERP 판매가와 비교할 값이 아니다.
+        -- 상품 할인(표시용 정가 = 할인 전 판매가)이 설정된 상품. 할인 전 금액이 ERP 판매가와 다를 때만 이 행이 생기고,
+        -- 판매가를 바꾸면 할인가·할인율이 함께 달라지므로 상품 화면에서 바꾼다.
         when good.compare_at_price is not null then 'instant_discount'
         -- admin_upsert_good의 고시 필수 규칙(공개 상품). 상품 저장이 거절되므로 미리 건너뛴다.
         when good.published_at is not null and (good.notice_maker is null or good.notice_origin is null
@@ -97,6 +105,7 @@ as $$
       and linked.erp_price is distinct from linked.current_price
   ),
   -- 같은 상품의 반영 가능한 판매가 행을 모두 반영한 뒤의 상품 판매가(기본 옵션)와 옵션별 판매 금액으로 상품 단위 규칙을 본다.
+  -- 저장에 싣는 옵션(사용 중인 옵션 + 사용 중지된 기본 옵션, 상품 편집 저장과 같은 행)의 옵션가가 0원 이상이어야 한다.
   good_final as (
     select
       good.id as good_id,
@@ -117,7 +126,7 @@ as $$
           from public.goods_variants as variant
           left join price_candidates as candidate on candidate.variant_id = variant.id and candidate.early_reason is null
           where variant.good_id = final.good_id
-            and variant.archived_at is null
+            and (variant.archived_at is null or variant.is_default)
             and coalesce(candidate.erp_price, variant.price) < final.final_base
         ) then 'option_price_order'
       end as group_reason
@@ -378,7 +387,7 @@ begin
          left join pg_catalog.jsonb_array_elements(v_selected) as row(value)
            on row.value ->> 'field' = 'price' and (row.value ->> 'variantId')::uuid = variant.id
          where variant.good_id = v_good_id
-           and variant.archived_at is null
+           and (variant.archived_at is null or variant.is_default)
            and coalesce((row.value ->> 'next')::integer, variant.price) < v_final_base
        ) then
       raise check_violation using message = 'erp_goods_apply_partial_price', detail = v_good.name;
@@ -388,7 +397,10 @@ begin
   foreach v_good_id in array v_good_ids loop
     select * into v_good from public.goods where id = v_good_id;
 
-    -- 판매가: 상품 목록의 판매가 바로 수정과 같은 상품 저장 RPC를 부른다. 고르지 않은 옵션의 판매 금액은 그대로 둔다.
+    -- 판매가: 상품 목록의 판매가 바로 수정과 같은 상품 저장 RPC(admin_save_good)를 부른다. 고르지 않은 옵션의 판매 금액은 그대로 둔다.
+    -- 옵션 행은 상품 편집 저장과 같다(lib/admin/goods-option-editor.ts initialGoodsOptionRows: 사용 중인 옵션 + 사용 중지된 기본 옵션,
+    -- 기본 옵션이 첫 행). private.save_goods_options는 첫 행을 기본 옵션으로 정하므로, 사용 중지된 기본 옵션을 isActive=false로
+    -- 첫 행에 실어 기본 옵션이 다른 옵션으로 바뀌지 않게 한다. 그 밖의 사용 중지 옵션은 싣지 않아 그대로 남는다.
     if exists (select 1 from pg_catalog.jsonb_array_elements(v_selected) as row(value)
                where row.value ->> 'goodId' = v_good_id and row.value ->> 'field' = 'price') then
       v_final_base := coalesce((
@@ -400,14 +412,14 @@ begin
       select pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
           'id', variant.id, 'name', variant.name, 'attributes', variant.attributes, 'code', variant.code,
           'extraPrice', coalesce((chosen.value ->> 'next')::integer, variant.price) - v_final_base,
-          'stockQty', variant.stock_qty, 'expectedStockQty', variant.stock_qty, 'isActive', true,
+          'stockQty', variant.stock_qty, 'expectedStockQty', variant.stock_qty, 'isActive', variant.archived_at is null,
           'lowStockThreshold', variant.low_stock_threshold)
         order by variant.is_default desc, variant.sort_order, variant.id)
       into v_options
       from public.goods_variants as variant
       left join pg_catalog.jsonb_array_elements(v_selected) as chosen(value)
         on chosen.value ->> 'field' = 'price' and (chosen.value ->> 'variantId')::uuid = variant.id
-      where variant.good_id = v_good_id and variant.archived_at is null;
+      where variant.good_id = v_good_id and (variant.archived_at is null or variant.is_default);
       select coalesce(pg_catalog.jsonb_agg(variant.id::text order by variant.id), '[]'::jsonb) into v_baseline
       from public.goods_variants as variant
       where variant.good_id = v_good_id and variant.archived_at is null;

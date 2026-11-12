@@ -27,8 +27,9 @@ $$;
 create function pg_temp.ea_variant(p_good text,p_default boolean) returns uuid language sql as $$
  select id from public.goods_variants where good_id=p_good and is_default=p_default and archived_at is null order by sort_order,id limit 1;
 $$;
+-- 옵션 이름으로 찾는다(사용 중지된 옵션 포함 — 합성 상품마다 이름이 하나뿐이다).
 create function pg_temp.ea_option(p_good text,p_name text) returns uuid language sql as $$
- select id from public.goods_variants where good_id=p_good and name=p_name and archived_at is null;
+ select id from public.goods_variants where good_id=p_good and name=p_name;
 $$;
 create function pg_temp.ea_row(p_preview jsonb,p_key text) returns jsonb language sql as $$
  select value from jsonb_array_elements(p_preview->'rows') where value->>'key'=p_key;
@@ -91,12 +92,15 @@ select pg_temp.ea_assert((public.admin_import_erp_items('[
   {"code":"EA-U2","name":"같은 바코드 2","barcode":"8807180000077"},
   {"code":"EA-F","name":"저장 거절","sale_price":21000},
   {"code":"EA-I","name":"즉시할인","sale_price":12000},
+  {"code":"EA-I2","name":"즉시할인 추가","sale_price":13000},
+  {"code":"EA-VD","name":"기본 중지","sale_price":10000},
+  {"code":"EA-VA","name":"기본 중지 추가","sale_price":11000},
   {"code":"EA-N","name":"연결 없음","sale_price":5000,"barcode":"8807180000055"}
-]'::jsonb)->>'inserted')::int=14,'MD imports ERP items');
-select pg_temp.ea_assert((public.admin_list_erp_items('EA-',0,50)->>'total')::int=14,'MD lists ERP items');
+]'::jsonb)->>'inserted')::int=17,'MD imports ERP items');
+select pg_temp.ea_assert((public.admin_list_erp_items('EA-',0,50)->>'total')::int=17,'MD lists ERP items');
 select pg_temp.ea_assert(exists(select 1 from public.admin_list_erp_categories() where erp_category='ERP검증 > 키링'),'MD lists ERP categories');
 select pg_temp.ea_assert((select count(*)=2 from public.admin_search_erp_items('EA-B',8)),'MD searches ERP items for option names');
-select pg_temp.ea_assert((select count(*)=14 from public.erp_items where code like 'EA-%'),'MD reads the ERP item table through RLS');
+select pg_temp.ea_assert((select count(*)=17 from public.erp_items where code like 'EA-%'),'MD reads the ERP item table through RLS');
 select pg_temp.ea_error($q$select public.admin_delete_erp_items(array['EA-N'])$q$,'42501');
 
 -- 물류출고관리·구매자는 반입·미리보기를 못 한다.
@@ -133,7 +137,22 @@ select public.admin_save_good('{"id":"erp-linked-f","ip_id":"erp-linked-ip","nam
  "variants":[{"name":"기본 옵션","attributes":{},"extraPrice":0,"stockQty":3,"erpCode":"EA-F","erpName":"저장 거절"}]}');
 -- 즉시할인: 상품 편집은 판매가(할인 전)를 표시용 정가에, 할인가를 price에 저장한다(lib/admin/goods-price-editor.ts).
 select public.admin_save_good('{"id":"erp-linked-i","ip_id":"erp-linked-ip","name":"TEST 즉시할인","price":9000,"compare_at_price":12000,"variant_baseline":[],
- "variants":[{"name":"기본 옵션","attributes":{},"extraPrice":0,"stockQty":3,"erpCode":"EA-I","erpName":"즉시할인"}]}');
+ "variants":[{"name":"기본","attributes":{"판":"기본"},"extraPrice":0,"stockQty":3,"erpCode":"EA-I","erpName":"즉시할인"},
+  {"name":"추가","attributes":{"판":"추가"},"extraPrice":1000,"stockQty":3,"erpCode":"EA-I2","erpName":"즉시할인 추가"}]}');
+select public.admin_save_good('{"id":"erp-linked-v","ip_id":"erp-linked-ip","name":"TEST 기본 중지","price":10000,"variant_baseline":[],
+ "variants":[{"name":"기본","attributes":{"색":"빨강"},"extraPrice":0,"stockQty":3,"erpCode":"EA-VD","erpName":"기본 중지"},
+  {"name":"추가","attributes":{"색":"파랑"},"extraPrice":0,"stockQty":4,"erpCode":"EA-VA","erpName":"기본 중지 추가"}]}');
+-- 첫(기본) 옵션만 사용 중지한다(상품 편집이 사용 중지된 기본 옵션을 첫 행으로 보내 기본 옵션이 그대로다).
+do $$ declare g public.goods; d uuid:=pg_temp.ea_option('erp-linked-v','기본'); a uuid:=pg_temp.ea_option('erp-linked-v','추가');
+begin
+ select * into g from public.goods where id='erp-linked-v';
+ perform public.admin_save_good(to_jsonb(g)||jsonb_build_object('previous_id',g.id,'publish',null,'custom_inputs_expected_revision',g.custom_inputs_revision,
+  'variant_baseline',(select jsonb_agg(id::text order by id) from public.goods_variants where good_id=g.id and archived_at is null),
+  'variants',jsonb_build_array(
+   jsonb_build_object('id',d,'name','기본','attributes',jsonb_build_object('색','빨강'),'extraPrice',0,'stockQty',3,'expectedStockQty',3,'isActive',false),
+   jsonb_build_object('id',a,'name','추가','attributes',jsonb_build_object('색','파랑'),'extraPrice',0,'stockQty',4,'expectedStockQty',4,'isActive',true))));
+ perform pg_temp.ea_assert((select is_default and archived_at is not null from public.goods_variants where id=d),'fixture: stopped default option');
+end $$;
 -- 진행 예정 할인(상품 단위로 판매가를 건너뛴다).
 select public.admin_save_goods_price_period('erp-linked-c',pg_temp.ea_variant('erp-linked-c',true),null,
  jsonb_build_object('state','active','discountPrice',14000,'startsAt',now()+interval '1 day','endsAt',now()+interval '2 days'),null);
@@ -143,7 +162,7 @@ set local role authenticated;
 select pg_temp.ea_as(2);
 
 -- B. 미리보기: 값이 다른 연결 옵션만, 건너뛰는 행은 이유와 함께. 상품은 바뀌지 않는다.
-do $$ declare preview jsonb; codes text[]:=array['EA-A','EA-B1','EA-B2','EA-C','EA-D1','EA-D2','EA-Z','EA-R','EA-T','EA-U1','EA-U2','EA-F','EA-I','EA-N'];
+do $$ declare preview jsonb; codes text[]:=array['EA-A','EA-B1','EA-B2','EA-C','EA-D1','EA-D2','EA-Z','EA-R','EA-T','EA-U1','EA-U2','EA-F','EA-I','EA-I2','EA-N'];
  a uuid:=pg_temp.ea_variant('erp-linked-a',true); b1 uuid:=pg_temp.ea_variant('erp-linked-b',true); b2 uuid:=pg_temp.ea_variant('erp-linked-b',false);
  d1 uuid:=pg_temp.ea_variant('erp-linked-d',true); d2 uuid:=pg_temp.ea_variant('erp-linked-d',false);
  t uuid:=pg_temp.ea_option('erp-linked-t','기본');
@@ -151,8 +170,8 @@ do $$ declare preview jsonb; codes text[]:=array['EA-A','EA-B1','EA-B2','EA-C','
  u2 uuid:=pg_temp.ea_option('erp-linked-t','같은2');
 begin
  preview:=public.admin_preview_erp_linked_goods(pg_temp.ea_id(100),codes);
- perform pg_temp.ea_assert((preview->>'linked')::int=13,'thirteen linked options are compared (EA-N has no option)');
- perform pg_temp.ea_assert((preview->>'scopeCount')::int=14 and preview->>'truncated'='false','scope and size');
+ perform pg_temp.ea_assert((preview->>'linked')::int=14,'fourteen linked options are compared (EA-N has no option)');
+ perform pg_temp.ea_assert((preview->>'scopeCount')::int=15 and preview->>'truncated'='false','scope and size');
  perform pg_temp.ea_assert(pg_temp.ea_row(preview,a||':price') @> jsonb_build_object('status','apply','current',10000,'next',11000,'goodId','erp-linked-a','isDefault',true),
   'single option price differs');
  perform pg_temp.ea_assert(pg_temp.ea_row(preview,a||':barcode') @> '{"status":"apply","current":null,"next":"8807180000011","warning":null}'::jsonb,
@@ -162,9 +181,9 @@ begin
  perform pg_temp.ea_assert(pg_temp.ea_row(preview,b1||':barcode') is null,'ERP without a barcode never clears the option barcode');
  perform pg_temp.ea_assert(pg_temp.ea_row(preview,pg_temp.ea_variant('erp-linked-c',true)||':price') @> '{"status":"skip","reason":"active_discount"}'::jsonb,
   'upcoming discount skips the price');
- -- 즉시할인 상품의 price는 할인가라 ERP 판매가(할인 전)를 넣으면 할인이 사라진다. 건너뛴다.
- perform pg_temp.ea_assert(pg_temp.ea_row(preview,pg_temp.ea_variant('erp-linked-i',true)||':price') @> '{"status":"skip","reason":"instant_discount","current":9000,"next":12000}'::jsonb,
-  'instant discount skips the price');
+ -- 즉시할인 상품의 price는 할인가다. ERP 판매가(할인 전)는 표시용 정가(+옵션가)와 견주고, 같으면 행이 없다.
+ perform pg_temp.ea_assert(pg_temp.ea_row(preview,pg_temp.ea_variant('erp-linked-i',true)||':price') is null
+  and pg_temp.ea_row(preview,pg_temp.ea_variant('erp-linked-i',false)||':price') is null,'instant discount compares the pre-discount price');
  perform pg_temp.ea_assert(pg_temp.ea_row(preview,d1||':price') is null
   and pg_temp.ea_row(preview,d2||':price') @> '{"status":"skip","reason":"option_price_order","current":11000,"next":9000}'::jsonb,
   'option price below the product price is skipped');
@@ -288,6 +307,33 @@ set local role authenticated;
 select pg_temp.ea_as(2);
 select pg_temp.ea_assert(pg_temp.ea_row(public.admin_preview_erp_linked_goods(pg_temp.ea_id(106),array['EA-C']),
  pg_temp.ea_variant('erp-linked-c',true)||':price') @> '{"status":"apply","next":16000}'::jsonb,'stopped discount no longer skips');
+
+-- H. 기본 옵션이 사용 중지된 상품: 다른 옵션의 판매가를 반영해도 기본 옵션·상품 판매가가 그대로다.
+do $$ declare preview jsonb; receipt jsonb; d uuid:=pg_temp.ea_option('erp-linked-v','기본'); a uuid:=pg_temp.ea_option('erp-linked-v','추가');
+begin
+ preview:=public.admin_preview_erp_linked_goods(pg_temp.ea_id(108),array['EA-VD','EA-VA']);
+ perform pg_temp.ea_assert((preview->>'linked')::int=1 and (preview->>'total')::int=1
+  and pg_temp.ea_row(preview,a||':price') @> '{"status":"apply","current":10000,"next":11000}'::jsonb,'stopped default is not compared, the other option is');
+ receipt:=public.admin_commit_erp_linked_goods(pg_temp.ea_id(108),array[a||':price']);
+ perform pg_temp.ea_assert(receipt @> '{"state":"completed","applied":{"price":1}}'::jsonb and jsonb_array_length(receipt->'failed')=0,'applied: '||receipt::text);
+ perform pg_temp.ea_assert((select is_default and archived_at is not null and price=10000 from public.goods_variants where id=d)
+  and (select not is_default and archived_at is null and price=11000 from public.goods_variants where id=a)
+  and (select price=10000 from public.goods where id='erp-linked-v'),'stopped default option stays the default, product price unchanged');
+end $$;
+-- 사용 중지된 기본 옵션도 저장에 실리므로 그 옵션가가 0원 아래가 되는 반영은 건너뛴다.
+reset role;
+update public.goods_variants set price=9000 where id=pg_temp.ea_option('erp-linked-v','기본');
+set local role authenticated;
+select pg_temp.ea_as(2);
+select public.admin_import_erp_items('[{"code":"EA-VA","name":"기본 중지 추가","sale_price":12000}]'::jsonb);
+select pg_temp.ea_assert(pg_temp.ea_row(public.admin_preview_erp_linked_goods(pg_temp.ea_id(109),array['EA-VA']),pg_temp.ea_option('erp-linked-v','추가')||':price')
+ @> '{"status":"skip","reason":"option_price_order","current":11000,"next":12000}'::jsonb,'stopped default below the product price blocks the save');
+
+-- I. 상품 할인(할인가) 상품은 할인 전 금액(표시용 정가+옵션가)이 ERP 판매가와 다를 때만 건너뜀 행이 생긴다.
+select public.admin_import_erp_items('[{"code":"EA-I2","name":"즉시할인 추가","sale_price":14000}]'::jsonb);
+select pg_temp.ea_assert(pg_temp.ea_row(public.admin_preview_erp_linked_goods(pg_temp.ea_id(110),array['EA-I','EA-I2']),pg_temp.ea_variant('erp-linked-i',false)||':price')
+ @> '{"status":"skip","reason":"instant_discount","current":13000,"next":14000}'::jsonb
+ and (public.admin_preview_erp_linked_goods(pg_temp.ea_id(110),null)->>'total')::int>=1,'instant discount difference is skipped with the pre-discount price');
 
 reset role;
 rollback;
