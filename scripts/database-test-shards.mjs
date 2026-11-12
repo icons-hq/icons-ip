@@ -129,6 +129,8 @@ const catalog = [
   sql('discount_promotions', { admin: true }),
   // 시스템 순번 상품번호(불변·재사용 없음)와 상품 조회/수정의 번호 검색·정렬·판매대기/판매중지/판매종료 건수(S36-009·SHEET-036).
   sql('goods_product_numbers', { admin: true }),
+  // 상품 목록 바로 수정이 차례로 부르는 기존 RPC: 할인 중지 → 판매가 변경·프로모션 원장 관계·옵션별 재고 기대값(1014-106·107·1027T-025).
+  sql('goods_list_inline_discount_stop_price', { admin: true }),
 ];
 
 const storefront = [

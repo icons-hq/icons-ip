@@ -1,6 +1,7 @@
 import type { Stock } from '@/lib/data';
 import { customerServiceDate } from './customer-service-list';
 import { GOODS_READINESS_REASONS, goodsReadinessAnchor, type AdminGoodsReadiness, type GoodsReadinessFilter, type GoodsReadinessTarget } from './goods-readiness';
+import type { GoodsListOptionStock } from './goods-list-inline';
 
 export const GOODS_LIST_PATH = '/admin/catalog/goods';
 export const GOODS_LIST_PAGE_SIZE = 20;
@@ -106,11 +107,13 @@ export interface AdminGoodSummary {
   basePrice?: number;
   /** 상품 할인(정가 표시). 있으면 편집기의 판매가는 이 값이라 목록에서 바로 고치지 않는다. */
   compareAtPrice?: number | null;
-  /** 진행·예정 즉시할인의 마지막 종료 시각. 있으면 옵션가 보호 때문에 판매가를 바꿀 수 없다. */
+  /** 진행·예정 즉시할인의 마지막 종료 시각. 있으면 옵션가 보호 때문에 판매가를 바로 바꾸지 못하고 '할인 중지 후 변경' 창으로 연다. */
   activeDiscountEndsAt?: string | null;
-  /** 사용 중인 옵션 수(-1: 확인 불가). 1개일 때만 목록에서 재고수량을 바로 고친다(옵션 재고는 옵션 단위). */
+  /** 사용 중인 옵션 수(-1: 확인 불가). 1개면 재고수량 칸에서 바로, 여럿이면 옵션별 재고 창에서 옵션마다 고친다(옵션 재고는 옵션 단위). */
   activeVariantCount?: number;
   inlineStock?: { variantId: string; stockQty: number } | null;
+  /** 사용 옵션이 둘 이상인 상품의 옵션별 실재고(옵션 순서대로). 옵션별 재고 창의 '현재' 값이자 저장 기대값이다. */
+  inlineOptions?: GoodsListOptionStock[] | null;
   /** 고객 상세(`/shop/<id>`)가 열리는 상품(전시·미보관·판매 제한 없음·IP 공개). 아니면 상품 URL이 편집기 미리보기로 간다(R15). */
   customerVisible?: boolean;
 }

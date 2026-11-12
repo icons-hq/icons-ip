@@ -7,40 +7,26 @@ import { adjustAdminStockAction } from '@/app/admin/actions';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { GOOD_NUMBER_INPUT_CLASS } from './GoodEditorParts';
-import { commitGoodsBulkAction, previewGoodsBulkAction, readGoodsBulkAction } from '@/app/admin/goods-bulk-actions';
-import { goodsBulkError, parseGoodsBulkRequest, type GoodsBulkCommand, type GoodsBulkGood } from '@/lib/admin/goods-bulk';
+import { readGoodsBulkAction } from '@/app/admin/goods-bulk-actions';
+import { goodsBulkError } from '@/lib/admin/goods-bulk';
 import type { GoodsGroupIdentity } from '@/lib/admin/goods-groups';
+import type { GoodsListOptionStock } from '@/lib/admin/goods-list-inline';
+import { runSingleGoodBulk } from './goods-inline-bulk';
+import { useGoodsInlineDialogs } from './GoodsInlineDialogHost';
 
 /*
  * 상품 목록에서 바로 수정(A9). 새 쓰기 경로를 만들지 않는다.
  * - 판매가·판매상태: 일괄 변경 RPC(미리보기 → 확정)를 상품 1개로 재사용한다. 미리보기의 현재 값이
  *   목록을 열 때 본 값과 다르면 확정하지 않고 요청을 종료한다(다른 사람의 수정 덮어쓰기 방지).
  *   미리보기와 확정 사이의 변경은 기존 지문 비교가, 감사는 기존 일괄 변경 기록이 맡는다.
+ *   즉시할인(기간 할인)이 진행·예정인 상품은 판매가 칸이 '할인 중지 후 변경' 창을 연다 — 기존 '기간 할인 중지' →
+ *   '판매가 변경'을 차례로 부르고, 판매가가 실패하면 할인이 이미 멈췄다고 밝힌 뒤 같은 창에서 다시 시도한다(1027T-025).
  * - 재고수량: 기존 실재고 조정(admin_adjust_stock)을 쓴다. 본 수량을 기대값으로 보내므로
- *   그사이 판매·조정이 있으면 거절된다. 옵션이 여럿이면 옵션 단위라 상품 편집으로 보낸다.
+ *   그사이 판매·조정이 있으면 거절된다. 옵션이 여럿이면 옵션별 재고 창에서 옵션마다 같은 조정을 부른다(1014-106·107).
+ * 두 창은 칸 안이 아니라 목록 화면 수준(GoodsInlineDialogHost)에서 열린다. 칸은 값 버튼과 창에 넘길 상품 값만 갖는다.
  */
 
-type BulkOutcome = { ok: true } | { ok: false; message: string; operationId?: string };
-
-export async function runSingleGoodBulk(identity: GoodsGroupIdentity, goodId: string, command: GoodsBulkCommand,
-  values: Record<string, string | number | null>, staleMessage: (row: GoodsBulkGood) => string | null): Promise<BulkOutcome> {
-  const request = parseGoodsBulkRequest({ kind: 'goods', ids: [goodId], command, values });
-  if (!request) return { ok: false, message: '입력값을 확인해주세요.' };
-  const operationId = crypto.randomUUID();
-  const preview = await previewGoodsBulkAction(operationId, request, identity);
-  if ('error' in preview) return { ok: false, message: preview.error };
-  const row = preview.value.goods.find(item => item.id === goodId);
-  const stale = row ? staleMessage(row) : '현재 상품 정보를 확인하지 못했습니다.';
-  if (stale) {
-    // Close the reviewed request so it can never be committed later.
-    await readGoodsBulkAction(operationId, identity, true).catch(() => null);
-    return { ok: false, message: stale };
-  }
-  const receipt = await commitGoodsBulkAction(operationId, identity);
-  if ('error' in receipt) return { ok: false, message: receipt.error, ...(receipt.uncertain ? { operationId } : {}) };
-  if (receipt.value.state === 'completed') return { ok: true };
-  return { ok: false, message: goodsBulkError(receipt.value.error) };
-}
+export { runSingleGoodBulk } from './goods-inline-bulk';
 
 /*
  * 값 버튼(R11). 칸 폭을 채우고, 오른쪽 정렬 칸(ConsoleGrid의 td[data-align=end])에서는 값을 오른쪽에 둔다.
@@ -59,10 +45,12 @@ const INLINE_INPUT_CLASS = `${GOOD_NUMBER_INPUT_CLASS} h-7 w-28 max-md:w-full`;
  * `fillCell`: 그 칸의 주 내용이면 셀 어디를 눌러도 수정이 열린다(R11). 다른 링크와 한 칸을 쓰면 그 줄만 채운다.
  * `compact`: 한 칸에 여러 줄이 쌓일 때 값 버튼 높이를 줄여 표 줄 높이를 지킨다.
  * `valueText`: 값 버튼에 보이는 글자. 접근 가능한 이름에 넣어 음성 명령으로도 누를 수 있게 한다(글자 `display`면 주지 않아도 된다).
+ * `action`: 값 버튼이 하는 일(접근 가능한 이름의 끝). 칸 안 입력 대신 창을 여는 값 버튼은 그 창의 이름을 쓴다.
+ * `note`: 값 아래 보조 줄(예: 할인 진행·예정). 덮개 아래라 눌러도 같은 수정이 열린다.
  */
-export function InlineEditor({ label, display, valueText, children, onSubmit, pending, error, recovery, onRecover, editing, setEditing, fillCell = false, compact = false }: {
+export function InlineEditor({ label, display, valueText, children, onSubmit, pending, error, recovery, onRecover, editing, setEditing, fillCell = false, compact = false, action = '바로 수정', note }: {
   label: string; display: ReactNode; valueText?: string; children: ReactNode; onSubmit: (form: FormData) => void; pending: boolean; error: string;
-  recovery: boolean; onRecover: () => void; editing: boolean; setEditing: (value: boolean) => void; fillCell?: boolean; compact?: boolean;
+  recovery: boolean; onRecover: () => void; editing: boolean; setEditing: (value: boolean) => void; fillCell?: boolean; compact?: boolean; action?: string; note?: ReactNode;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const errorId = useId();
@@ -79,7 +67,8 @@ export function InlineEditor({ label, display, valueText, children, onSubmit, pe
   const valueClass = `${INLINE_VALUE_CLASS} ${compact ? 'min-h-6' : 'min-h-8'}${fillCell ? ` ${INLINE_FILL_CLASS}` : ''}`;
   const shownValue = valueText ?? (typeof display === 'string' ? display : '');
   if (!editing) return <span className={`grid w-full min-w-0 justify-items-stretch gap-1${fillCell ? ' [td:has(&)]:relative' : ''}`} data-inline-edit={fillCell ? 'cell' : 'value'}>
-    <button type="button" ref={valueRef} className={valueClass} aria-label={`${label}${shownValue ? ` ${shownValue}` : ''} 바로 수정`} onClick={() => setEditing(true)}>{display}<Pencil aria-hidden="true" className={INLINE_PENCIL_CLASS} /></button>
+    <button type="button" ref={valueRef} className={valueClass} aria-label={`${label}${shownValue ? ` ${shownValue}` : ''} ${action}`} onClick={() => setEditing(true)}>{display}<Pencil aria-hidden="true" className={INLINE_PENCIL_CLASS} /></button>
+    {note}
     {error ? <small role="alert" className="text-xs text-destructive">{error}</small> : null}
     {recovery ? <button type="button" className={`${buttonVariants({ variant: 'outline', size: 'xs' })} ${INLINE_ABOVE_FILL_CLASS} justify-self-start in-data-[align=end]:justify-self-end`} data-slot="button" disabled={pending} onClick={onRecover}>처리 결과 조회</button> : null}
   </span>;
@@ -103,11 +92,21 @@ function useInlineState() {
   return { router, editing, setEditing: (value: boolean) => { setEditing(value); if (value) setError(''); }, error, setError, recovery, setRecovery, pending, start };
 }
 
-export function GoodsInlinePrice({ goodId, basePrice, display, valueText, identity, hasOptions }: {
+/** 할인 진행·예정·옵션별 재고처럼 값 아래 붙는 한 줄. 좁은 칸에서도 한 줄로 칸 오른쪽에 맞추고, 칸의 강조 굵기를 물려받지 않는다. */
+const INLINE_NOTE_CLASS = 'text-right text-xs font-normal whitespace-nowrap text-muted-foreground';
+
+/**
+ * 판매가 칸. `discountEndsAt`(진행·예정 즉시할인의 마지막 종료 시각)이 있으면 칸 안 입력 대신 목록 화면의 '할인 중지 후 변경' 창을 연다.
+ * 창과 그 상태는 목록 화면(GoodsInlineDialogHost)이 들고 있다 — 할인이 멈춰 목록이 다시 그려지거나 그 상품이 목록에서 빠져도 창이 남는다.
+ */
+export function GoodsInlinePrice({ goodId, basePrice, display, valueText, identity, hasOptions, discountEndsAt = null, goodName = '', goodCode = null }: {
   goodId: string; basePrice: number; display: ReactNode; valueText?: string; identity: GoodsGroupIdentity; hasOptions: boolean;
+  discountEndsAt?: string | null; goodName?: string; goodCode?: string | null;
 }) {
   const state = useInlineState();
   const inputId = useId();
+  const dialogs = useGoodsInlineDialogs();
+  const discounted = Boolean(discountEndsAt);
   function save(form: FormData) {
     const raw = String(form.get('price') ?? '').replaceAll(',', '').trim();
     const next = Number(raw);
@@ -133,7 +132,16 @@ export function GoodsInlinePrice({ goodId, basePrice, display, valueText, identi
       if (result.value.state === 'completed') state.router.refresh();
     });
   }
-  return <InlineEditor fillCell label="판매가" display={display} valueText={valueText} onSubmit={save} pending={state.pending} error={state.error} recovery={Boolean(state.recovery)} onRecover={recover} editing={state.editing} setEditing={state.setEditing}>
+  const discountNote = discounted ? <small className={INLINE_NOTE_CLASS}>할인 진행·예정</small> : null;
+  /* 창을 여는 곳(목록 화면)이 없으면 할인 중인 판매가는 값과 이유만 보인다. */
+  if (discounted && !dialogs) return <span className="grid justify-items-end gap-0.5">{display}{discountNote}</span>;
+  /* 할인 중인 상품의 값 버튼은 칸 안 입력 대신 목록 화면의 창을 연다. */
+  function setEditing(value: boolean) {
+    if (value && discounted) { dialogs?.openDiscountStop({ goodId, goodName, goodCode, basePrice, hasOptions }); return; }
+    state.setEditing(value);
+  }
+  return <InlineEditor fillCell label="판매가" action={discounted ? '할인 중지 후 변경' : undefined} note={discountNote}
+    display={display} valueText={valueText} onSubmit={save} pending={state.pending} error={state.error} recovery={Boolean(state.recovery)} onRecover={recover} editing={state.editing && !discounted} setEditing={setEditing}>
     <label htmlFor={inputId} className="sr-only">기본 판매가 (원)</label>
     <input id={inputId} name="price" inputMode="numeric" defaultValue={basePrice} autoFocus className={INLINE_INPUT_CLASS} data-slot="input" />
     <small className="text-xs text-muted-foreground">{hasOptions ? '기본 판매가 · 옵션 추가금 유지' : '판매가'}</small>
@@ -205,5 +213,23 @@ export function GoodsInlineStock({ goodId, ipId, variantId, stockQty }: {
     <label htmlFor={inputId} className="sr-only">재고수량 (개)</label>
     <input id={inputId} name="stockQty" inputMode="numeric" defaultValue={stockQty} autoFocus className={INLINE_INPUT_CLASS} data-slot="input" />
     <small className="text-xs text-muted-foreground">실재고 조정 기록이 남습니다.</small>
+  </InlineEditor>;
+}
+
+/**
+ * 옵션이 여러 개인 상품의 재고수량 칸(1014-106·107). 칸 어디를 눌러도 목록 화면의 옵션별 재고 창이 열리고, 옵션마다 현재·새 수량·사유를
+ * 넣어 같은 실재고 조정을 옵션별로 부른다. `display`는 목록의 판매 가능 수량이고, 창은 옵션별 실재고(`options`, 창의 첫 기대값)를 고친다.
+ */
+export function GoodsInlineOptionStock({ goodId, ipId, goodName, goodCode, options, display, editorHref }: {
+  goodId: string; ipId: string; goodName: string; goodCode: string | null; options: GoodsListOptionStock[]; display: string; editorHref: string;
+}) {
+  const dialogs = useGoodsInlineDialogs();
+  const note = <small className={INLINE_NOTE_CLASS}>옵션별 재고</small>;
+  /* 창을 여는 곳(목록 화면)이 없으면 수량만 보인다. */
+  if (!dialogs) return <span className="grid justify-items-end gap-0.5">{display}{note}</span>;
+  return <InlineEditor fillCell label="재고수량" action="옵션별 재고 수정" display={display} note={note}
+    onSubmit={() => undefined} pending={false} error="" recovery={false} onRecover={() => undefined} editing={false}
+    setEditing={value => { if (value) dialogs.openOptionStock({ goodId, ipId, goodName, goodCode, editorHref, options }); }}>
+    {null}
   </InlineEditor>;
 }
