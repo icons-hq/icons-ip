@@ -12,7 +12,7 @@ import {
   type OrderWithdrawalReasonType,
 } from '@/lib/orders';
 import {
-  ORDER_CLAIM_INTAKE_NOTICES,
+  orderClaimIntakeNotice,
   ORDER_CLAIM_STAGE_LABELS,
   ORDER_CLAIM_TYPE_LABELS,
   isOpenOrderClaimStage,
@@ -136,12 +136,14 @@ export function OrderClaimRequest({
   eligibility,
   orderId,
   refund = null,
+  returnFeePolicy = null,
   status,
 }: {
   claim: OrderCancellationRequestSummary | null;
   eligibility: OrderClaimEligibility | null;
   orderId: string;
   refund?: OrderRefundSummary | null;
+  returnFeePolicy?: { enabled: boolean; oneWayAmount: number | null } | null;
   status: OrderDetailStatus;
 }) {
   const router = useRouter();
@@ -263,7 +265,7 @@ export function OrderClaimRequest({
                 </label>
               ))}
             </fieldset>
-            <p className="money-caption">{ORDER_CLAIM_INTAKE_NOTICES[claimType]}</p>
+            <p className="money-caption">{orderClaimIntakeNotice(claimType, returnFeePolicy)}</p>
 
             <fieldset className="order-cancellation-reason">
               <legend>신청 사유</legend>

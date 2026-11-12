@@ -7,9 +7,11 @@ import type {
   PaymentGateway,
   PaymentOperationOutcome,
   PaymentProviderEvidence,
+  PaymentRefundRequest,
   PreparedCheckout,
   RefundOutcome,
 } from './gateway';
+import { PARTIAL_CANCEL_UNAVAILABLE_REASON } from './gateway';
 import {
   isTossAllowedMerchantId,
   isTossClientKey,
@@ -417,8 +419,9 @@ function merchantMismatchOutcome(
 }
 
 /**
- * 조회한 Payment가 이 attempt의 전액 취소 상태인지. 부분취소는 발행하지 않는
- * 계약이므로 PARTIAL_CANCELED·잔여 balance는 전액 취소로 인정하지 않는다.
+ * 조회한 Payment가 이 attempt의 전액 취소 상태인지. 전액 취소 경로(부분 취소 요청이 아닌 refund·재정합)는
+ * PARTIAL_CANCELED·잔여 balance를 전액 취소로 인정하지 않는다 — 부분 취소는 refund의 partial 요청만 발행하고
+ * 그 결과는 잔액 기대값으로 따로 판정한다(ADR-0031).
  */
 function paymentFullyCanceled(payment: Record<string, unknown>, attempt: PaymentAttempt) {
   return payment.status === 'CANCELED'
@@ -458,6 +461,27 @@ function canceledEvidence(payment: Record<string, unknown>): PaymentProviderEvid
     resultCode: 'CANCELED',
     ...(canceledAt ? { approvedAt: canceledAt } : {}),
   };
+}
+
+/** 부분 취소를 확인한 조회 응답의 증거 — 마지막 취소 거래 키와 지금 상태(PARTIAL_CANCELED·CANCELED)를 싣는다. */
+function partialCanceledEvidence(payment: Record<string, unknown>): PaymentProviderEvidence {
+  return { ...canceledEvidence(payment), resultCode: paymentStatusLabel(payment) };
+}
+
+/**
+ * 결제사가 이 결제의 부분 취소를 받는지(취소 가이드 /guides/v2/cancel-payment, Payment 객체 /reference).
+ * 입금 전 가상계좌는 부분 취소를 할 수 없고, 결제사가 `isPartialCancelable`을 true로 싣지 않은 결제·과세 제외 금액
+ * (`taxExemptionAmount`)이 있는 결제는 전액만 취소한다. 확인하지 못한 값은 받지 않는 쪽으로 읽는다 — 돈을 움직이기
+ * 전의 판정이라 그 결과는 전액 환불(차감 없음)이다. null이면 부분 취소 가능, 아니면 그 이유 표지.
+ */
+function partialCancelBlocker(payment: Record<string, unknown>): string | null {
+  if (isVirtualAccountPayment(payment)) return 'virtual_account';
+  if (payment.isPartialCancelable !== true) return 'partial_cancel_not_allowed';
+  const taxExemption = payment.taxExemptionAmount === undefined || payment.taxExemptionAmount === null
+    ? 0
+    : integerAmount(payment.taxExemptionAmount);
+  if (taxExemption !== 0) return 'tax_exemption_amount';
+  return null;
 }
 
 function approvedEvidence(payment: Record<string, unknown>): PaymentProviderEvidence {
@@ -1037,6 +1061,197 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
       && orderConclusive(payment);
   }
 
+  /**
+   * 부분 취소(ADR-0031 반품배송비 차감, T12b 품목·수량 부분 취소의 기반). 전액 취소 경로와 판정 규칙이 달라 따로 둔다 —
+   * 전액 취소는 '잔액 0·CANCELED'가 성공이지만, 부분 취소는 '잔액 = 취소 전 기대 잔액 − 취소 금액'이 성공이다.
+   *
+   * 규율은 전액 취소와 같다: 취소 응답 본문을 믿지 않고 원장 결제 키로 조회한 응답만 판정에 쓴다. 상점(MID)·키·주문·
+   * 총액이 어긋나면 돈을 움직이지 않고 격리한다. 전액 취소의 '바인딩 이전 결제 수렴' 예외(다른 MID의 같은 결제가 이미
+   * 전액 취소된 경우)는 부분 취소에 넓히지 않는다 — 잔액이 남는 결제를 다른 상점 원장으로 닫지 않기 위해서다.
+   *
+   * 취소 전 조회:
+   *  - 잔액이 기대 잔액 − 취소 금액이고 상태가 맞으면 이미 이 취소가 반영된 것이다(재시도) — 다시 취소하지 않고 approved.
+   *  - 잔액이 기대 잔액이고 결제사가 부분 취소를 받지 않으면 declined(provider_partial_cancel_unavailable). 돈은 움직이지 않았다.
+   *  - 잔액이 기대 잔액이면 cancelAmount를 실어 취소한다. 멱등키는 호출자가 취소마다 다르게 준다.
+   *  - 그 밖(잔액·상태가 기대와 다름 — 다른 취소가 끼어들었거나 이미 전액 취소)은 needs_review(provider_balance_mismatch).
+   */
+  async function refundPartially(request: PaymentRefundRequest): Promise<RefundOutcome> {
+    const attempt = request.attempt;
+    const expectedBefore = request.partial?.expectedBalanceBefore;
+    const amount = request.amount;
+    const ledgerPaymentKey = request.providerPaymentKey;
+    if (
+      typeof expectedBefore !== 'number'
+      || !Number.isSafeInteger(expectedBefore)
+      || expectedBefore <= 0
+      || expectedBefore > attempt.amount
+      || !Number.isSafeInteger(amount)
+      || amount <= 0
+      || amount > expectedBefore
+      || !safeString(request.reason, 200)
+      || !IDEMPOTENCY_KEY.test(request.idempotencyKey)
+      || validPaymentKey(ledgerPaymentKey) === undefined
+    ) {
+      return baseOutcome(attempt, 'needs_review', 'provider_refund_request_invalid') as RefundOutcome;
+    }
+    const paymentKey = ledgerPaymentKey as string;
+    const expectedAfter = expectedBefore - amount;
+    const statusBefore = expectedBefore === attempt.amount ? 'DONE' : 'PARTIAL_CANCELED';
+    const statusAfter = expectedAfter === 0 ? 'CANCELED' : 'PARTIAL_CANCELED';
+
+    type PartialInquiry =
+      | {
+        readonly kind: 'applied' | 'unchanged' | 'balance_mismatch' | 'merchant_mismatch' | 'identity_mismatch';
+        readonly payment: Record<string, unknown>;
+      }
+      | { readonly kind: 'unavailable'; readonly payment: Record<string, unknown>; readonly blocker: string }
+      | { readonly kind: 'not_found' | 'ambiguous' }
+      | { readonly kind: 'configuration_error'; readonly code: string };
+
+    async function inquirePartial(): Promise<PartialInquiry> {
+      const inquiry = await inquireByPaymentKey(paymentKey);
+      if (inquiry.kind === 'unavailable' || inquiry.kind === 'http_error') return { kind: 'ambiguous' };
+      if (inquiry.kind === 'not_found') return { kind: 'not_found' };
+      if (inquiry.kind === 'configuration_error') return { kind: 'configuration_error', code: inquiry.code };
+      const payment = inquiry.payment;
+      if (!merchantAllowed(payment)) return { kind: 'merchant_mismatch', payment };
+      if (
+        payment.paymentKey !== paymentKey
+        || payment.orderId !== attempt.providerOrderId
+        || payment.currency !== 'KRW'
+        || integerAmount(payment.totalAmount) !== attempt.amount
+      ) {
+        return { kind: 'identity_mismatch', payment };
+      }
+      const balance = integerAmount(payment.balanceAmount);
+      if (balance === expectedAfter && payment.status === statusAfter) return { kind: 'applied', payment };
+      if (balance === expectedBefore && payment.status === statusBefore) {
+        const blocker = partialCancelBlocker(payment);
+        return blocker === null ? { kind: 'unchanged', payment } : { kind: 'unavailable', payment, blocker };
+      }
+      return { kind: 'balance_mismatch', payment };
+    }
+
+    function settled(payment: Record<string, unknown>, reasonCode: string): RefundOutcome {
+      return {
+        ...baseOutcome(attempt, 'approved', reasonCode, partialCanceledEvidence(payment)),
+        refundedAmount: amount,
+        balanceAfter: expectedAfter,
+      } as RefundOutcome;
+    }
+
+    function balanceMismatch(payment: Record<string, unknown>): RefundOutcome {
+      return baseOutcome(attempt, 'needs_review', 'provider_balance_mismatch', {
+        providerPaymentKey: paymentKey,
+        resultCode: `${paymentStatusLabel(payment)}_balance_mismatch`,
+      }) as RefundOutcome;
+    }
+
+    function identityMismatch(payment: Record<string, unknown>): RefundOutcome {
+      return baseOutcome(attempt, 'needs_review', 'provider_identity_mismatch', {
+        providerPaymentKey: paymentKey,
+        resultCode: `${paymentStatusLabel(payment)}_identity_mismatch`,
+      }) as RefundOutcome;
+    }
+
+    const before = await inquirePartial();
+    if (before.kind === 'ambiguous') return baseOutcome(attempt, 'unknown', 'provider_unavailable') as RefundOutcome;
+    if (before.kind === 'not_found') {
+      return baseOutcome(attempt, 'needs_review', 'provider_payment_not_found') as RefundOutcome;
+    }
+    if (before.kind === 'configuration_error') {
+      return baseOutcome(attempt, 'needs_review', 'provider_configuration_error', {
+        resultCode: before.code,
+      }) as RefundOutcome;
+    }
+    if (before.kind === 'merchant_mismatch') {
+      return merchantMismatchOutcome(attempt, before.payment, paymentKey) as RefundOutcome;
+    }
+    if (before.kind === 'identity_mismatch') return identityMismatch(before.payment);
+    if (before.kind === 'applied') return settled(before.payment, 'provider_already_partially_canceled');
+    if (before.kind === 'balance_mismatch') return balanceMismatch(before.payment);
+    if (before.kind === 'unavailable') {
+      // 결제사가 부분 취소를 받지 않는다 — 취소 API를 부르지 않는다. 호출자가 전액 환불로 돌릴지 정한다.
+      return baseOutcome(attempt, 'declined', PARTIAL_CANCEL_UNAVAILABLE_REASON, {
+        providerPaymentKey: paymentKey,
+        resultCode: before.blocker,
+      }) as RefundOutcome;
+    }
+
+    let cancelSucceeded = false;
+    // 결제사가 이 결제의 부분 환불을 받지 않는다고 거절했다(NOT_ALLOWED_PARTIAL_REFUND). 조회가 잔액 그대로를
+    // 확인하면 돈이 움직이지 않은 것이라 '부분 취소 불가'로 돌려준다 — 호출자가 전액 환불로 돌린다.
+    let partialRefundRejected = false;
+    try {
+      const cancelResult = await providerRequest(
+        `/v1/payments/${encodeURIComponent(paymentKey)}/cancel`,
+        {
+          method: 'POST',
+          timeoutMs: requestTimeoutMs,
+          idempotencyKey: request.idempotencyKey,
+          // cancelAmount = 이번에 돌려줄 금액(결제 취소 API /reference#결제-취소). 값이 없으면 전액 취소다.
+          body: { cancelReason: request.reason, cancelAmount: amount },
+        },
+      );
+      const code = errorCode(cancelResult.payload);
+      if (cancelResult.status === 200) {
+        cancelSucceeded = true;
+      } else if (code === 'NOT_ALLOWED_PARTIAL_REFUND') {
+        partialRefundRejected = true;
+      } else if (code !== null && CANCEL_REJECTED_CODES.has(code)) {
+        return baseOutcome(attempt, 'needs_review', 'provider_cancel_rejected', {
+          providerPaymentKey: paymentKey,
+          resultCode: code,
+        }) as RefundOutcome;
+      } else if (code !== null && CONFIGURATION_CODES.has(code)) {
+        return baseOutcome(attempt, 'needs_review', 'provider_configuration_error', {
+          providerPaymentKey: paymentKey,
+          resultCode: code,
+        }) as RefundOutcome;
+      }
+      // 409·5xx·미지 코드는 fresh 조회가 판정한다.
+    } catch {
+      // 타임아웃·네트워크 실패 — 취소가 성립했을 수 있으므로 조회로 확인한다.
+    }
+
+    const after = await inquirePartial();
+    if (after.kind === 'applied') return settled(after.payment, 'provider_partial_cancel_confirmed');
+    if (partialRefundRejected && (after.kind === 'unchanged' || after.kind === 'unavailable')) {
+      return baseOutcome(attempt, 'declined', PARTIAL_CANCEL_UNAVAILABLE_REASON, {
+        providerPaymentKey: paymentKey,
+        resultCode: 'NOT_ALLOWED_PARTIAL_REFUND',
+      }) as RefundOutcome;
+    }
+    if (after.kind === 'unchanged' || after.kind === 'unavailable') {
+      // 취소 API가 200을 줬는데 잔액이 그대로면 provider 상태가 어긋난 것이다 — 자동 종결하지 않는다.
+      return baseOutcome(
+        attempt,
+        cancelSucceeded ? 'needs_review' : 'unknown',
+        cancelSucceeded ? 'provider_cancellation_incomplete' : 'provider_cancel_ambiguous',
+        { providerPaymentKey: paymentKey },
+      ) as RefundOutcome;
+    }
+    if (after.kind === 'balance_mismatch') return balanceMismatch(after.payment);
+    if (after.kind === 'merchant_mismatch') {
+      return merchantMismatchOutcome(attempt, after.payment, paymentKey) as RefundOutcome;
+    }
+    if (after.kind === 'identity_mismatch') return identityMismatch(after.payment);
+    if (after.kind === 'not_found') {
+      return baseOutcome(attempt, 'needs_review', 'provider_payment_not_found', {
+        providerPaymentKey: paymentKey,
+      }) as RefundOutcome;
+    }
+    if (after.kind === 'configuration_error') {
+      return baseOutcome(attempt, 'needs_review', 'provider_configuration_error', {
+        providerPaymentKey: paymentKey,
+        resultCode: after.code,
+      }) as RefundOutcome;
+    }
+    return baseOutcome(attempt, 'unknown', 'provider_unavailable', {
+      providerPaymentKey: paymentKey,
+    }) as RefundOutcome;
+  }
+
   return {
     async prepare(attempt): Promise<PreparedCheckout> {
       assertAttempt(attempt);
@@ -1303,8 +1518,10 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
 
     async refund(request): Promise<RefundOutcome> {
       assertAttempt(request.attempt);
+      // 부분 취소는 요청이 명시할 때만이다(ADR-0031) — 판정 규칙이 달라 따로 처리한다.
+      if (request.partial !== undefined) return refundPartially(request);
       const attempt = request.attempt;
-      // 부분취소는 발행하지 않는다 — 법적 고지 문구(전액 환불)와 일치.
+      // 부분 취소 요청이 아닌 refund는 전액 취소다 — 금액이 결제 금액과 다르면 취소를 발행하지 않는다.
       if (request.amount !== attempt.amount) {
         return baseOutcome(
           attempt,

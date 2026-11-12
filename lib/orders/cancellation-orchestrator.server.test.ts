@@ -322,12 +322,16 @@ describe('reconcileOrderCancellation', () => {
     expect(rpcCalls.map(([name]) => name)).toEqual([
       'assert_order_cancellation_reconciliation_allowed',
       'reconcile_expired_prepared_goods_cancellation',
+      // 반품배송비 차감 결정 읽기(ADR-0031). 결정이 없으면 null이고 아래 결제사 호출은 그대로 전액 취소다.
+      'service_order_claim_refund_deduction',
       'service_get_payment_gateway_binding',
       'complete_order_cancellation_request',
     ]);
     for (const [name, args] of rpcCalls) {
       if (name === 'service_get_payment_gateway_binding') {
         expect(args).not.toHaveProperty('p_actor_id');
+      } else if (name === 'service_order_claim_refund_deduction') {
+        expect(args).toEqual({ p_request_id: REQUEST_ID });
       } else expect(args.p_actor_id).toBeNull();
     }
   });

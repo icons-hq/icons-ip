@@ -17,6 +17,7 @@ import type { AdminClaimDetail } from '@/lib/admin/claims.server';
 import { adminClaimStageLabel } from '@/lib/admin/claims';
 import { ADMIN_WITHDRAWAL_RETURN_SHIPPING_LABELS, adminOrderSearchHref } from '@/lib/admin/orders';
 import { krw } from '@/lib/format';
+import { returnFeeDeductionBasisLabel } from '@/lib/claims/return-fee-deduction';
 import { statusTone } from '@/lib/admin/status-tone';
 import {
   formatOrderDateTime,
@@ -203,6 +204,8 @@ export function ClaimDetailScreen({
   now?: Date;
 }) {
   const { cardPacks, claim, order, payment, refund, refundAccount, timeline } = detail;
+  /* 반품배송비 차감(ADR-0031). 스위치가 꺼져 있고 결정이 없으면 null — 아래 화면은 지금 그대로다. */
+  const refundDeduction = detail.refundDeduction ?? null;
   const typeLabel = ORDER_CLAIM_TYPE_LABELS[claim.claimType];
   const sla = orderClaimSlaState(
     {
@@ -272,6 +275,11 @@ export function ClaimDetailScreen({
             label="접수 · 완료"
             value={`${refund.filedAt ? formatOrderDateTime(refund.filedAt) : '-'} · ${refund.completedAt ? formatOrderDateTime(refund.completedAt) : '-'}`}
           />
+          {refundDeduction?.source === 'decision' ? (
+            <Row label="반품배송비" value={refundDeduction.applicable
+              ? `${krw(refundDeduction.deductionAmount)} 차감 · ${returnFeeDeductionBasisLabel(refundDeduction)}`
+              : '차감 없음 · 결제사 부분 취소 불가로 전액 환불'} />
+          ) : null}
           {refund.settlementNote ? (
             <Row label="상계 메모" value={refund.settlementNote} />
           ) : null}
@@ -435,7 +443,8 @@ export function ClaimDetailScreen({
             <CardContent className="flex min-w-0 flex-col gap-4">
               <ClaimActionPanel
                 actorId={actorId}
-                refundAmount={refund?.amount ?? order?.total ?? null}
+                refundAmount={refund?.amount ?? refundDeduction?.refundAmount ?? order?.total ?? null}
+                refundDeduction={refundDeduction}
                 requestSummary={exchangeRequest}
                 bankTransfer={payment?.provider === 'bank_transfer'}
                 key={claim.id}

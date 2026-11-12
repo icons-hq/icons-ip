@@ -17,6 +17,8 @@ const COPY: Record<string, PaymentCancelErrorCopy> = {
   provider_identity_mismatch: { label: '결제 정보가 일치하지 않습니다', next: HAND_OVER },
   provider_configuration_error: { label: '결제 연결 설정에 문제가 있습니다', next: HAND_OVER },
   provider_mismatch: { label: '결제 정보가 일치하지 않습니다', next: HAND_OVER },
+  // 반품배송비 차감 부분 취소(ADR-0031): 결제사 잔액이 이 취소 전·후의 기대값과 다르다 — 다른 취소가 끼어들었을 수 있다.
+  provider_balance_mismatch: { label: '결제사 잔액이 예상과 다릅니다', next: `결제사 관리자에서 이 결제의 취소 내역을 확인해주세요. ${HAND_OVER}` },
 };
 
 const UNKNOWN: PaymentCancelErrorCopy = { label: '결제사 확인에 실패했습니다', next: '가이드의 취소·반품·교환 관리에서 코드별 조치를 확인해주세요.' };

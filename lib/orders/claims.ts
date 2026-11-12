@@ -519,3 +519,21 @@ export const ORDER_CLAIM_INTAKE_NOTICES: Record<OrderClaimType, string> = {
   return: '배송 중부터 주문 전체 반품을 직접 신청할 수 있습니다. 일부 굿즈만 반품하는 처리는 제공하지 않습니다. 실물 상품은 안내된 배송 묶음별 반송지에서 전체 회수를 확인하며, 디지털 상품은 제공 이력과 요청 사유를 검토합니다. 승인된 환불은 최초 선결제 배송비를 포함한 결제금액 전액으로 처리합니다. 환급 기한은 반환받은 날부터 영업일 기준 3일 이내이며 담당자의 확인이 늦어져도 연장되지 않습니다.',
   exchange: '배송 중부터 주문 전체 교환을 직접 신청할 수 있습니다. 안내된 배송 묶음별 반송지에서 모든 굿즈의 회수를 확인한 뒤 같은 굿즈를 다시 보내드립니다. 결제는 유지되고 카드팩도 회수하지 않습니다.',
 };
+
+/**
+ * 접수 안내. 반품배송비 차감(ADR-0031)이 꺼져 있으면 위 문구 그대로다. 켜져 있으면 반품 안내의 '전액' 문장을
+ * 단순 변심 반품의 차감 규칙(편도, 최초 무료배송이면 왕복, 하자·오배송은 차감 없음)으로 바꾼다.
+ */
+export function orderClaimIntakeNotice(
+  claimType: OrderClaimType,
+  deduction: { enabled: boolean; oneWayAmount: number | null } | null = null,
+): string {
+  const notice = ORDER_CLAIM_INTAKE_NOTICES[claimType];
+  if (claimType !== 'return' || !deduction?.enabled || !deduction.oneWayAmount) return notice;
+  const oneWay = `${deduction.oneWayAmount.toLocaleString('ko-KR')}원`;
+  const roundTrip = `${(deduction.oneWayAmount * 2).toLocaleString('ko-KR')}원`;
+  return notice.replace(
+    '승인된 환불은 최초 선결제 배송비를 포함한 결제금액 전액으로 처리합니다.',
+    `승인된 환불은 최초 선결제 배송비를 포함한 결제금액으로 처리하며, 단순 변심 반품은 반품배송비 ${oneWay}(최초 무료배송 주문은 왕복 ${roundTrip})을 빼고 환불합니다. 굿즈 하자·오배송은 빼지 않습니다. 결제 수단이 부분 취소를 지원하지 않으면 전액 환불하고 반품배송비는 따로 안내합니다.`,
+  );
+}

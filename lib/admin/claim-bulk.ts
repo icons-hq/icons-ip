@@ -346,8 +346,10 @@ export interface AdminClaimBulkContext {
   collectionRequired: boolean;
   collections: AdminClaimBulkCollection[];
   paymentProvider: string | null;
-  /** 결제사에 취소를 발행할 금액(환불 원장 금액, 원장이 없으면 결제 금액). 결제가 없으면 null이다. */
+  /** 결제사에 취소를 발행할 금액(환불 원장 금액, 원장이 없으면 결제 금액 − 반품배송비 차감 판정). 결제가 없으면 null이다. */
   refundAmount: number | null;
+  /** 반품배송비 차감액(ADR-0031). 차감하지 않으면 null — 확인창은 지금 그대로다. */
+  refundDeductionAmount?: number | null;
   /** 환불 일괄에서 뺄 사유 코드. null이면 결제사 취소로 확정할 수 있다. */
   refundBlocker: string | null;
 }
@@ -390,7 +392,13 @@ export function parseAdminClaimBulkContexts(value: unknown): AdminClaimBulkConte
         waived: collection.waived === true, returnAddressReady: collection.returnAddressReady === true,
       });
     }
+    const deduction = record(row.refundDeduction) && row.refundDeduction.applicable === true
+      && typeof row.refundDeduction.deductionAmount === 'number' && Number.isSafeInteger(row.refundDeduction.deductionAmount)
+      && row.refundDeduction.deductionAmount > 0
+      ? row.refundDeduction.deductionAmount
+      : null;
     contexts.push({
+      ...(deduction !== null ? { refundDeductionAmount: deduction } : {}),
       claimId: row.claimId,
       reference,
       orderId: row.orderId,
@@ -504,6 +512,8 @@ export interface AdminClaimBulkRefundRow {
   reference: string;
   providerLabel: string;
   amount: number | null;
+  /** 반품배송비 차감액(ADR-0031). 금액(amount)은 이미 뺀 값이다. */
+  deductionAmount?: number | null;
   /** null이면 처리, 아니면 결과표에 남길 제외 사유. */
   blocker: string | null;
 }

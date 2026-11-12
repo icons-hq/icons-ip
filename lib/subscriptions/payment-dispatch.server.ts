@@ -2,7 +2,7 @@ import 'server-only';
 
 import { createHash } from 'node:crypto';
 import { isUuid } from '../uuid';
-import type { PaymentAttempt, PaymentGateway, PaymentRefundRequest } from '../payments/gateway';
+import { PARTIAL_CANCEL_UNAVAILABLE_REASON, type PaymentAttempt, type PaymentGateway, type PaymentRefundRequest } from '../payments/gateway';
 import type { PaymentCheckoutProvider } from '../payments/runtime-gateway';
 import type { GoodsReconciliationFinalizer } from '../payments/goods-checkout.server';
 import { billingProfilesFromEnvironment, type BillingProfileRegistry } from './billing-profiles.server';
@@ -78,6 +78,8 @@ export function createAttemptAwarePaymentGateway(provider: PaymentCheckoutProvid
     async refund(request) {
       const binding = await bindingFor(request.attempt);
       if (!binding) return dependencies.legacy.refund(request);
+      // 정기배송(billing) 결제는 부분 취소 계약이 없다(ADR-0031). 돈을 움직이지 않고 '부분 취소 불가'로 돌려 호출자가 전액 환불로 가게 한다.
+      if (request.partial) return billingOutcome(request.attempt, 'declined', PARTIAL_CANCEL_UNAVAILABLE_REASON);
       const billing = dependencies.recurring(binding); const input = bound(request.attempt, binding);
       if (!billing) return billingOutcome(request.attempt, 'needs_review', 'billing_profile_unavailable');
       if (!input) return billingOutcome(request.attempt, 'needs_review', 'billing_not_dispatched');

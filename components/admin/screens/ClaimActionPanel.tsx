@@ -31,6 +31,13 @@ import {
 } from '@/lib/orders/claims';
 import type { ShippingCarrierRegistry } from '@/lib/orders/shipment';
 import type { AdminClaimCollection, AdminClaimReshipItem } from '@/lib/admin/claims.server';
+import {
+  returnFeeDeductionBasisLabel,
+  returnFeeDeductionHeadline,
+  returnFeeDeductionSkippedNotice,
+  type ReturnFeeDeduction,
+} from '@/lib/claims/return-fee-deduction';
+import { krwAmountWords } from '@/lib/format';
 import { AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
@@ -150,8 +157,16 @@ export function claimCancelApprovalConfirmation(paymentProvider: string | null) 
  * 환불 완료 기록 확인 문구. 아직 종결되지 않은 클레임은 정합화(토스·나이스페이면 전액 취소
  * 발행)가 먼저 돈다. autoCancelLabel은 취소 API로 자동 취소되는 결제사 이름이고, 아니면 null이다.
  */
-export function claimRefundCompletionConfirmation(finalizationPending: boolean, autoCancelLabel: string | null) {
+export function claimRefundCompletionConfirmation(
+  finalizationPending: boolean,
+  autoCancelLabel: string | null,
+  /** 반품배송비를 뺀 부분 취소(ADR-0031). 없으면 지금 문구 그대로다. */
+  partialRefund: { refundAmount: number; deductionAmount: number } | null = null,
+) {
   if (!finalizationPending) return '환불 완료를 원장에 기록할까요?';
+  if (autoCancelLabel && partialRefund) {
+    return `${autoCancelLabel} 결제에서 반품배송비 ${krwAmountWords(partialRefund.deductionAmount)}을 뺀 ${krwAmountWords(partialRefund.refundAmount)}을 부분 취소하고 주문 취소·재고 복원·카드팩 회수를 확정할까요? 되돌릴 수 없습니다.`;
+  }
   return autoCancelLabel
     ? `${autoCancelLabel} 결제 전액을 취소하고 주문 취소·재고 복원·카드팩 회수를 확정할까요? 되돌릴 수 없습니다.`
     : '결제사 원장에서 전액 취소를 확인했나요? 확정하면 주문 취소·재고 복원·카드팩 회수가 진행되고 되돌릴 수 없습니다.';
@@ -188,10 +203,13 @@ function RefundMethodField({
   fixedMethod,
   id,
   autoCancelLabel,
+  cancelScope = '전액 취소',
 }: {
   fixedMethod: OrderClaimRefundMethod | null;
   id: string;
   autoCancelLabel: string | null;
+  /** 결제사 취소의 범위. 반품배송비를 빼는 반품은 '부분 취소'다(ADR-0031). */
+  cancelScope?: '전액 취소' | '부분 취소';
 }) {
   if (fixedMethod) {
     return (
@@ -199,7 +217,7 @@ function RefundMethodField({
         <input name="method" type="hidden" value={fixedMethod} />
         <span className="text-muted-foreground">환불 수단 · </span>
         {fixedMethod === 'pg_cancel' && autoCancelLabel
-          ? `결제사 취소 (${autoCancelLabel} 전액 취소)`
+          ? `결제사 취소 (${autoCancelLabel} ${cancelScope})`
           : ORDER_CLAIM_REFUND_METHOD_LABELS[fixedMethod]}
       </p>
     );
@@ -257,8 +275,10 @@ export interface ClaimActionPanelProps {
   returnCollectionContact?: ReactNode;
   returnRefundSummary?: ReactNode;
   collections: AdminClaimCollection[];
-  /** 돈이 나가는 버튼 옆에 적는 금액. 환불 원장 금액, 없으면 주문 금액이다. 표시 전용이다. */
+  /** 돈이 나가는 버튼 옆에 적는 금액. 환불 원장 금액, 없으면 차감 판정의 환불액, 그것도 없으면 주문 금액이다. 표시 전용이다. */
   refundAmount?: number | null;
+  /** 반품배송비 차감 판정·결정(ADR-0031). 스위치가 꺼져 있고 결정이 없으면 null — 패널은 지금 그대로다. */
+  refundDeduction?: ReturnFeeDeduction | null;
   /** 처리 제목 바로 아래에 둘 요청 요약(교환이 무엇으로 바꾸려는지). */
   requestSummary?: ReactNode;
   /** 교환: 처리 제목 아래의 단계 표시. */
@@ -291,6 +311,7 @@ export function ClaimActionPanel({
   returnCollectionContact,
   returnRefundSummary,
   refundAmount = null,
+  refundDeduction = null,
   requestSummary = null,
   exchangeSteps = null,
   exchangeShipping = null,
@@ -361,6 +382,27 @@ export function ClaimActionPanel({
   const fixedRefundMethod = recordedRefundMethod ?? orderClaimRefundMethodForProvider(paymentProvider);
   const panelTitle = `${ORDER_CLAIM_TYPE_LABELS[claimType]} 처리`;
   const amountAtStake = refundAmount === null ? null : krw(refundAmount);
+  /* 반품배송비를 빼고 결제사 부분 취소로 돌려주는 반품(ADR-0031). 판정·결정이 없으면 지금처럼 전액 취소다. */
+  const returnDeduction = claimType === 'return' ? refundDeduction : null;
+  const partialRefund = returnDeduction?.applicable && returnDeduction.refundAmount !== null && autoCancelLabel
+    ? { refundAmount: returnDeduction.refundAmount, deductionAmount: returnDeduction.deductionAmount }
+    : null;
+  const cancelScope = partialRefund ? '부분 취소' : '전액 취소';
+  const deductionHeadline = returnFeeDeductionHeadline(returnDeduction);
+  const deductionSkipped = returnFeeDeductionSkippedNotice(returnDeduction);
+  const deductionNotice = returnDeduction && (deductionHeadline || deductionSkipped) && stage !== 'completed' ? (
+    deductionHeadline ? (
+      <div data-claim-refund-deduction="deduct"><AdminNotice title={deductionHeadline} tone="info">
+        {`단순 변심 반품이라 결제 금액 ${krwAmountWords(returnDeduction.paymentAmount ?? 0)}에서 반품배송비(${returnFeeDeductionBasisLabel(returnDeduction)})를 빼고 환불합니다.`}
+        {returnDeduction.source === 'plan' ? ' 환불 접수를 기록할 때 이 금액으로 정해집니다.' : ''}
+        {autoCancelLabel
+          ? ` [환불 완료 확정]을 누르면 ${autoCancelLabel} 부분 취소로 환불액만 취소합니다. 결제사가 이 결제의 부분 취소를 받지 않으면 전액 환불하고, 반품배송비는 배송비 청구로 따로 받습니다.`
+          : ''}
+      </AdminNotice></div>
+    ) : (
+      <div data-claim-refund-deduction="skipped"><AdminNotice tone="warning">{deductionSkipped}</AdminNotice></div>
+    )
+  ) : null;
   if (stage === 'withdrawn' && claimType !== 'return') return <div className="flex flex-col gap-2"><h3 className="text-base font-medium">{panelTitle}</h3><p>요청 철회로 처리가 종료됐습니다. 주문과 결제는 유지됩니다.</p>{secondaryActions ? <div className="flex min-w-0 flex-wrap items-start gap-2 [&>section]:w-full">{secondaryActions}</div> : null}</div>;
 
   const originCollection = <>
@@ -464,6 +506,7 @@ export function ClaimActionPanel({
   </>;
 
   const refundControls = <>
+    {deductionNotice}
     {cancellationForm && collectionReady ? (
         <section aria-labelledby="claim-cancellation-form-heading" className="flex min-w-0 flex-col gap-2">
           <h4 className={SECTION_TITLE_CLASS} id="claim-cancellation-form-heading">
@@ -506,14 +549,14 @@ export function ClaimActionPanel({
           <input name="claimType" type="hidden" value={claimType} />
           <input name="orderId" type="hidden" value={orderId} />
           <input name="stage" type="hidden" value="filed" />
-          <RefundMethodField fixedMethod={fixedRefundMethod} id="claim-refund-method" autoCancelLabel={autoCancelLabel} />
+          <RefundMethodField fixedMethod={fixedRefundMethod} id="claim-refund-method" autoCancelLabel={autoCancelLabel} cancelScope={cancelScope} />
           <SettlementNoteField id="claim-refund-note" placeholder="예: 정산 완료분이라 코페이 상계 처리" />
           <Button className="w-fit" disabled={pending} size="sm" type="submit" variant={refundFiled ? 'outline' : 'default'}>
             {refundFiled ? '환불 접수 정보 갱신' : '환불 접수 완료로 기록'}
           </Button>
           {autoCancelLabel ? (
             <p className={HINT_CLASS}>
-              접수만 원장에 기록합니다. {autoCancelLabel} 전액 취소는 아래 [환불 완료 확정]을 누를 때 발행됩니다.
+              접수만 원장에 기록합니다. {autoCancelLabel} {cancelScope}는 아래 [환불 완료 확정]을 누를 때 발행됩니다.
             </p>
           ) : null}
         </form>
@@ -523,7 +566,7 @@ export function ClaimActionPanel({
         <form
           action={ignoreUnconfirmedClaimSubmit}
           className={FORM_CLASS}
-          data-confirm={claimRefundCompletionConfirmation(refundFinalizationPending, autoCancelLabel)}
+          data-confirm={claimRefundCompletionConfirmation(refundFinalizationPending, autoCancelLabel, partialRefund)}
           onSubmit={submitConfirmed}
         >
           <PanelActionField kind="refund" />
@@ -531,11 +574,13 @@ export function ClaimActionPanel({
           <input name="claimType" type="hidden" value={claimType} />
           <input name="orderId" type="hidden" value={orderId} />
           <input name="stage" type="hidden" value="completed" />
-          <RefundMethodField fixedMethod={fixedRefundMethod} id="claim-refund-complete-method" autoCancelLabel={autoCancelLabel} />
+          <RefundMethodField fixedMethod={fixedRefundMethod} id="claim-refund-complete-method" autoCancelLabel={autoCancelLabel} cancelScope={cancelScope} />
           <SettlementNoteField id="claim-refund-complete-note" />
           {refundFinalizationPending ? (
             <AdminNotice title="확정하면 되돌릴 수 없습니다" tone="warning">
-              {autoCancelLabel
+              {autoCancelLabel && partialRefund
+                ? `누르면 ${autoCancelLabel} 결제에서 반품배송비 ${krwAmountWords(partialRefund.deductionAmount)}을 뺀 ${krwAmountWords(partialRefund.refundAmount)}만 부분 취소하고 결제사 잔액을 조회로 확인합니다. 이미 취소된 금액이면 확인만 합니다. 확인되지 않으면 주문과 재고는 그대로 두고 결제확인필요로 남습니다.`
+                : autoCancelLabel
                 ? `누르면 ${autoCancelLabel} 결제 전액을 취소하고 결제사에 결과를 확인합니다. 이미 취소된 결제면 확인만 합니다. 확인되지 않으면 주문과 재고는 그대로 두고 결제확인필요로 남습니다.`
                 : '결제사 원장에서 전액 취소를 확인한 뒤 눌러주세요. 확인되지 않으면 주문과 재고는 그대로 유지됩니다.'}
             </AdminNotice>
@@ -546,7 +591,7 @@ export function ClaimActionPanel({
               {!refundFinalizationPending
                 ? '환불 완료를 원장에 기록'
                 : autoCancelLabel
-                  ? `환불 완료 확정 (${autoCancelLabel} 전액 취소)`
+                  ? `환불 완료 확정 (${autoCancelLabel} ${cancelScope})`
                   : '환불 완료 확정 (재고 복원 · 카드팩 회수 포함)'}
             </Button>
           </div>
@@ -601,7 +646,8 @@ export function ClaimActionPanel({
     <ReturnClaimWorkspace
     progress={{ stage, heldFrom, collectionPolicy, collectionComplete, collectedAt,
       collectionCount: collections.length, collectedCount: collections.filter(item => item.collectedAt !== null).length,
-      refundLedgerOpen, refundFiled, refundCompleted }}
+      refundLedgerOpen, refundFiled, refundCompleted,
+      ...(returnDeduction?.applicable ? { refundDeductionAmount: returnDeduction.deductionAmount } : {}) }}
     review={<>
       <p>주문 전체의 상품·금액과 반품 사유를 먼저 확인해주세요.</p>
       <div className="flex flex-wrap gap-3"><a className="underline underline-offset-4" href="#claim-order">주문정보 보기</a><a className="underline underline-offset-4" href="#claim-request">요청·처리이력 보기</a></div>

@@ -25,6 +25,7 @@ import {
 } from '@/lib/admin/claim-bulk';
 import { adminClaimCopy } from '@/lib/admin/vocabulary';
 import { krw } from '@/lib/format';
+import { returnFeeDeductionRowNote } from '@/lib/claims/return-fee-deduction';
 import type { OrderClaimType } from '@/lib/orders/claims';
 import { ClaimBulkReshipDialog } from './ClaimBulkReshipDialog';
 import { ClaimKitBulkResult } from './ClaimKitBulkResult';
@@ -285,11 +286,14 @@ export function RefundStep({ onRun, preview, progress, running }: {
 }) {
   const { rows, totals } = preview;
   const excluded = rows.filter((row) => row.blocker !== null);
+  /* 반품배송비 차감(ADR-0031): 환불 금액은 서버가 이미 뺀 값이다. 차감하는 행이 있을 때만 안내를 더한다. */
+  const deducted = rows.some((row) => row.blocker === null && Boolean(row.deductionAmount));
   return <div className="flex min-w-0 flex-col gap-4" data-claim-bulk-refund="">
     <AdminNotice title="확정하면 되돌릴 수 없습니다" tone="warning">
       토스·나이스페이 결제는 한 건씩 순서대로 결제사 전액 취소를 발행하고 결제사 조회로 확인합니다. 확인되면 주문 취소·재고
       복원·카드팩 회수와 환불 완료 기록이 함께 끝납니다. 입고완료 건은 환불 접수를 먼저 기록합니다. 일부가 실패해도 이미 취소된
       건은 되돌리지 않고 건별 결과로 보여 줍니다.
+      {deducted ? ' 단순 변심 반품은 반품배송비를 뺀 환불 금액만 부분 취소합니다. 결제사가 그 결제의 부분 취소를 받지 않으면 전액 환불하고 반품배송비는 배송비 청구로 따로 받습니다.' : null}
     </AdminNotice>
     <div className="flex flex-col gap-1 rounded-lg border bg-muted/40 px-3 py-2.5" data-claim-bulk-refund-total="">
       <p className="text-sm">처리 <strong className="tabular-nums">{totals.count}건</strong> · 환불 합계 <strong className="text-base tabular-nums">{krw(totals.amount)}</strong></p>
@@ -303,7 +307,7 @@ export function RefundStep({ onRun, preview, progress, running }: {
           {rows.map((row) => <TableRow data-claim-bulk-blocked={row.blocker ? '' : undefined} key={row.claimId}>
             <TableCell className="tabular-nums">{row.reference}</TableCell>
             <TableCell>{row.providerLabel}</TableCell>
-            <TableCell className="text-right tabular-nums">{row.amount === null ? '-' : krw(row.amount)}</TableCell>
+            <TableCell className="text-right tabular-nums">{row.amount === null ? '-' : krw(row.amount)}{row.deductionAmount ? <span className="block text-xs text-muted-foreground" data-claim-bulk-refund-deduction="">{returnFeeDeductionRowNote(row.deductionAmount)}</span> : null}</TableCell>
             <TableCell className="whitespace-normal">{row.blocker ? <span className="text-muted-foreground">제외 · {adminClaimCopy(row.blocker)}</span> : '확정'}</TableCell>
           </TableRow>)}
         </TableBody>

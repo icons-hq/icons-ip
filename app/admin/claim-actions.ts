@@ -45,6 +45,7 @@ import {
 import { createClient } from '@/lib/supabase/server';
 import { adminPaymentCancelFailureMessage } from '@/lib/admin/payment-cancel-error';
 import { isUuid } from '@/lib/uuid';
+import { krwAmountWords } from '@/lib/format';
 
 /* 어드민 클레임 콘솔 액션(#252).
  *
@@ -624,6 +625,12 @@ export async function recordOrderClaimRefundAction(
   const cancelLabel = providerCancelsAutomatically(paymentProvider)
     ? automatedCancelProviderLabel(paymentProvider)
     : null;
+  /* 반품배송비 차감(ADR-0031). 판정·결정이 없으면 null이고 아래 문구는 지금 그대로다. 금액은 DB가 정한다 —
+     여기서는 운영자에게 알릴 문구만 고른다. */
+  const deduction = current.claim.claimType === 'return' && current.refundDeduction?.applicable
+    && current.refundDeduction.refundAmount !== null
+    ? current.refundDeduction
+    : null;
 
   if (normalized.value.stage === 'completed') {
     const orderId = String(formData.get('orderId') ?? '');
@@ -674,13 +681,21 @@ export async function recordOrderClaimRefundAction(
        보이면 운영자가 같은 돈을 다른 수단으로 다시 돌려준다. 끝난 일을 먼저 말한다. */
     return {
       error: finalizationRan
-        ? `${cancelLabel ? `${cancelLabel} 전액 취소와 ` : ''}주문 취소·재고 복원·카드팩 회수는 이미 완료됐습니다. 환불 원장 기록만 실패했습니다 — 다시 환불하지 마세요. ${reason}`
+        ? `${cancelLabel ? `${cancelLabel} ${deduction ? '취소' : '전액 취소'}와 ` : ''}주문 취소·재고 복원·카드팩 회수는 이미 완료됐습니다. 환불 원장 기록만 실패했습니다 — 다시 환불하지 마세요. ${reason}`
         : reason,
     };
   }
 
   revalidateClaimSurfaces(normalized.value.claimId, readClaimType(formData));
   if (normalized.value.stage === 'filed') {
+    if (deduction) {
+      const amounts = `반품배송비 ${krwAmountWords(deduction.deductionAmount)}을 뺀 ${krwAmountWords(deduction.refundAmount ?? 0)}`;
+      return {
+        message: cancelLabel
+          ? `환불 접수를 기록했습니다. ${amounts}을 환불합니다. ${cancelLabel} 부분 취소는 [환불 완료 확정]을 누를 때 발행됩니다.`
+          : `환불 접수를 기록했습니다. ${amounts}을 환불합니다.`,
+      };
+    }
     return {
       message: cancelLabel
         ? `환불 접수를 기록했습니다. ${cancelLabel} 전액 취소는 [환불 완료 확정]을 누를 때 발행됩니다.`
@@ -691,6 +706,27 @@ export async function recordOrderClaimRefundAction(
      일어나지 않은 일을 보고하면 운영자가 그 주문을 다시 확인할 근거를 잃는다. */
   if (!finalizationRan) {
     return { message: '환불 완료를 원장에 기록했습니다. 주문 취소와 재고 복원은 이미 확정된 상태였습니다.' };
+  }
+  if (deduction && cancelLabel) {
+    /* 결제사가 부분 취소를 받지 않으면 정합화가 전액 환불로 돌렸을 수 있다 — 방금 확정된 결정을 다시 읽어 일어난 일만 말한다. */
+    let settled: Awaited<ReturnType<typeof loadAdminClaimDetail>> = null;
+    try {
+      settled = await loadAdminClaimDetail(normalized.value.claimId);
+    } catch {
+      settled = null;
+    }
+    const after = settled?.refundDeduction;
+    if (after?.state === 'applied' && after.refundAmount !== null) {
+      return {
+        message: `${cancelLabel} 부분 취소(반품배송비 ${krwAmountWords(after.deductionAmount)}을 뺀 ${krwAmountWords(after.refundAmount)})를 확인하고 환불 완료를 기록했습니다. 재고 복원과 카드팩 회수가 함께 확정됐습니다.`,
+      };
+    }
+    if (after?.state === 'not_applied') {
+      return {
+        message: `결제사가 이 결제의 부분 취소를 받지 않아 ${cancelLabel} 전액 취소로 환불 완료를 기록했습니다. 반품배송비는 필요하면 배송비 청구로 따로 받으세요. 재고 복원과 카드팩 회수가 함께 확정됐습니다.`,
+      };
+    }
+    return { message: '결제사 취소를 확인하고 환불 완료를 기록했습니다. 환불 금액은 처리 화면에서 확인해주세요. 재고 복원과 카드팩 회수가 함께 확정됐습니다.' };
   }
   return {
     message: cancelLabel
