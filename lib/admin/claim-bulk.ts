@@ -425,7 +425,7 @@ export interface AdminClaimBulkCollectPlan {
 
 /* 출고지별 회수 확인 RPC가 받는 단계와 같다(admin_record_order_claim_origin_collection). */
 const ORIGIN_COLLECTABLE_STAGES = new Set<OrderClaimStage>(['collecting', 'collected', 'processing', 'needs_review']);
-export const ADMIN_CLAIM_BULK_WAIVED_ORIGIN_REASON = '회수 없이 재출고한 출고지입니다. 늦게 도착했으면 상세에서 입고를 확인해주세요(재고는 바뀌지 않습니다).';
+export const ADMIN_CLAIM_BULK_WAIVED_ORIGIN_REASON = '회수 생략으로 결정한 출고지입니다. 늦게 도착했으면 요청이 열려 있는 동안 상세에서 입고를 확인해주세요(재고는 바뀌지 않습니다).';
 export const ADMIN_CLAIM_BULK_RETURN_ADDRESS_REASON = '출고지 설정에 반송 주소가 없습니다. 등록한 뒤 확인해주세요.';
 
 function collectBlocked(reason: string): AdminClaimBulkCollectPlan {
@@ -671,6 +671,8 @@ export interface AdminClaimBulkReshipRow {
   /** 배송 건(출고지). null이면 배송 건 없는 옛 주문 전체다. */
   shipmentId: string | null;
   originName: string | null;
+  /** 회수 생략을 이미 결정한 배송 건. 재출고는 그 결정대로 회수품 재고를 복원하지 않는다(요청에 사유·사진을 다시 싣지 않는다). */
+  waived: boolean;
   items: AdminClaimBulkReshipItem[];
 }
 
@@ -694,6 +696,9 @@ export type AdminClaimBulkReshipLoad =
   | { error: string; actorId?: undefined };
 
 export const ADMIN_CLAIM_BULK_RESHIP_WAIVER_REASON = '회수 확인 전 출고지입니다. 하자·오배송의 회수 없이 재출고는 근거 사진이 필요해 상세에서 처리합니다.';
+export const ADMIN_CLAIM_BULK_RESHIP_DECISION_REASON = '주문제작 상품이 있는 회수 확인 전 출고지입니다. 상세에서 회수 생략을 먼저 결정해 교환품 제작을 시작합니다.';
+export const ADMIN_CLAIM_BULK_RESHIP_PRODUCTION_REASON = '교환품 제작이 끝나지 않은 출고지입니다. 주문제작 처리에서 제작을 마친 뒤 재출고합니다.';
+export const ADMIN_CLAIM_BULK_RESHIP_COLLECTION_REASON = '회수 확인 전 출고지입니다. 회수를 확인한 뒤 재출고합니다.';
 
 /** 한 줄의 재출고 입력. 화면이 보내기 전에 확인하고, 형식은 DB가 다시 본다. */
 export function adminClaimBulkReshipRowError(input: { carrier: string; trackingNumber: string; items: readonly { variantId: string }[] }) {

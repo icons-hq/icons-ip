@@ -376,11 +376,13 @@ export async function recordOrderClaimCollectionAction(
   if (!normalized.ok) return { error: normalized.error };
 
   const supabase = await createClient();
-  /* 실제 입고일(1027T-033)은 입고 확인 때만 보낸다. 비우면 DB가 오늘로 적는다. */
+  /* 실제 입고일(1027T-033)은 입고 확인 때만 보낸다. 비우면 DB가 오늘로 적는다. 레거시에는 근거 열이 없어 받은 근거는
+     감사 기록에 남는다(선택). */
   const { error } = await supabase.rpc('admin_record_order_claim_collection', {
     p_claim_id: normalized.value.claimId,
     p_stage: normalized.value.stage,
     p_received_on: normalized.value.receivedOn,
+    p_evidence: normalized.value.evidence,
   });
   if (error) return { error: rpcErrorMessage(error.message, COLLECTION_FAILED) };
 

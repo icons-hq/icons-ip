@@ -2,6 +2,7 @@ import { legacyOperatorAccessFixture } from '@/lib/admin/access.test-fixtures';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   decideOrderClaimAction,
+  recordOrderClaimCollectionAction,
   recordOrderClaimOriginCollectionAction,
   recordOrderClaimReshipmentDeliveryAction,
   waiveOrderClaimCollectionAction,
@@ -272,6 +273,18 @@ describe('회수 확인 성공', () => {
     const state = await recordOrderClaimOriginCollectionAction({}, future);
     expect(state.error).toBe('실제 입고일은 오늘이나 그 이전 날짜로 입력해주세요.');
     expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('레거시 회수 입고 확인은 실제 입고일과 선택 근거를 함께 보낸다(근거는 감사 기록에 남는다)', async () => {
+    mocks.rpc.mockResolvedValue({ data: 'collected', error: null });
+    const form = new FormData();
+    form.set('claimId', CLAIM_ID); form.set('claimType', 'return'); form.set('stage', 'collected');
+    form.set('receivedOn', '2026-01-02'); form.set('evidence', ' 창고 회신 R-9 대조 ');
+    const state = await recordOrderClaimCollectionAction({}, form);
+    expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith('admin_record_order_claim_collection', {
+      p_claim_id: CLAIM_ID, p_stage: 'collected', p_received_on: '2026-01-02', p_evidence: '창고 회신 R-9 대조',
+    });
+    expect(state.message).toContain('실제 입고일(2026-01-02)');
   });
 
   it('DB가 주문일 이전 입고일을 거절하면 운영자 문구로 옮긴다', async () => {

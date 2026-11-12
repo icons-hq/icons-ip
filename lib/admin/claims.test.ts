@@ -330,6 +330,16 @@ describe('콘솔 폼 정규화', () => {
     )).toMatchObject({ ok: true, value: { stage: 'collected' } });
   });
 
+  /* 레거시 회수 확인(T11b 리뷰 minor 4): 근거는 선택이고, 있으면 출고지별 회수 근거와 같은 규칙으로 좁혀 감사 기록에 남긴다. */
+  it('레거시 회수 입고 확인은 선택 근거를 다듬어 받고, 길거나 표시할 수 없는 문자는 거절한다', () => {
+    expect(normalizeAdminClaimCollectionForm(formData({ claimId: CLAIM_ID, stage: 'collected', receivedOn: '2026-01-02', evidence: ' 창고 회신 R-9 대조 ' })))
+      .toEqual({ ok: true, value: { claimId: CLAIM_ID, stage: 'collected', receivedOn: '2026-01-02', evidence: '창고 회신 R-9 대조' } });
+    expect(normalizeAdminClaimCollectionForm(formData({ claimId: CLAIM_ID, stage: 'collected' })))
+      .toEqual({ ok: true, value: { claimId: CLAIM_ID, stage: 'collected', receivedOn: null, evidence: null } });
+    expect(normalizeAdminClaimCollectionForm(formData({ claimId: CLAIM_ID, stage: 'collected', evidence: '가'.repeat(501) })).ok).toBe(false);
+    expect(normalizeAdminClaimCollectionForm(formData({ claimId: CLAIM_ID, stage: 'collected', evidence: `근거${String.fromCharCode(1)}` })).ok).toBe(false);
+  });
+
   it('클레임 id가 uuid가 아니면 거절한다', () => {
     expect(normalizeAdminClaimDecisionForm(
       formData({ claimId: 'not-a-uuid', decision: 'approve' }),

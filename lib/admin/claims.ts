@@ -508,9 +508,22 @@ export function normalizeAdminClaimReceivedOn(
   return { ok: true, value: text };
 }
 
+/** 회수 확인 근거 글. 1~500자이고 줄바꿈·탭 밖의 제어 문자는 받지 않는다(DB invalid_collection_evidence와 같은 규칙). */
+function collectionEvidenceProblem(evidence: string) {
+  if (!evidence || evidence.length > 500) return '확인 근거를 500자 이내로 입력해주세요.';
+  if (Array.from(evidence).some((character) => {
+    const code = character.charCodeAt(0);
+    return (code < 32 && ![9, 10, 13].includes(code)) || code === 127;
+  })) return '확인 근거에 표시할 수 없는 문자가 있습니다. 내용을 확인해주세요.';
+  return null;
+}
+
+/**
+ * 레거시 회수(출고지별 회수 이전 요청)의 입고 확인. 근거는 선택이며, 레거시에는 근거 열이 없어 DB가 감사 기록에 남긴다.
+ */
 export function normalizeAdminClaimCollectionForm(
   formData: FormData,
-): AdminClaimFormResult<{ claimId: string; stage: 'collecting' | 'collected'; receivedOn: string | null }> {
+): AdminClaimFormResult<{ claimId: string; stage: 'collecting' | 'collected'; receivedOn: string | null; evidence: string | null }> {
   const claimId = readString(formData, 'claimId').toLowerCase();
   const stage = readString(formData, 'stage');
 
@@ -520,8 +533,11 @@ export function normalizeAdminClaimCollectionForm(
   }
   const receivedOn = normalizeAdminClaimReceivedOn(formData.get('receivedOn'));
   if (!receivedOn.ok) return receivedOn;
+  const evidence = readString(formData, 'evidence');
+  const problem = evidence ? collectionEvidenceProblem(evidence) : null;
+  if (problem) return { ok: false, error: problem };
 
-  return { ok: true, value: { claimId, stage, receivedOn: stage === 'collected' ? receivedOn.value : null } };
+  return { ok: true, value: { claimId, stage, receivedOn: stage === 'collected' ? receivedOn.value : null, evidence: stage === 'collected' && evidence ? evidence : null } };
 }
 
 export function normalizeAdminClaimEvidenceForm(

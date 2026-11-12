@@ -324,7 +324,9 @@ export function orderClaimSlaState(
   if (input.claimType === 'exchange') {
     return { label: '재출고 대기', tone: 'muted', dueAt: null };
   }
-  if (!input.collectedAt && !input.collectionReceivedOn) {
+  /* 회수 완료(입고 확인 시각)가 기산의 전제다. 회수 생략 결정이 무효가 돼 단계가 수거중으로 돌아가 확인 시각이 비면
+     남은 회수 완료일이 있어도 기한을 세지 않는다. */
+  if (!input.collectedAt) {
     return {
       label: input.claimType === 'cancel' ? '회수 없음' : '입고 전',
       tone: 'muted',
@@ -334,7 +336,7 @@ export function orderClaimSlaState(
 
   let due: Date | null = input.collectionReceivedOn ? orderClaimRefundDueAt(input.collectionReceivedOn) : null;
   if (!due) {
-    const collected = new Date(input.collectedAt ?? '');
+    const collected = new Date(input.collectedAt);
     if (Number.isNaN(collected.getTime())) {
       return { label: '입고 전', tone: 'muted', dueAt: null };
     }

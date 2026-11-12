@@ -5,6 +5,9 @@ import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import {
   ADMIN_CLAIM_BULK_DB_ITEM_RESERVE_MS,
   ADMIN_CLAIM_BULK_REFUND_ITEM_RESERVE_MS,
+  ADMIN_CLAIM_BULK_RESHIP_COLLECTION_REASON,
+  ADMIN_CLAIM_BULK_RESHIP_DECISION_REASON,
+  ADMIN_CLAIM_BULK_RESHIP_PRODUCTION_REASON,
   ADMIN_CLAIM_BULK_RESHIP_WAIVER_REASON,
   adminClaimBulkCollectPlan,
   adminClaimBulkCollectTargetLabel,
@@ -25,7 +28,7 @@ import {
   type AdminClaimBulkState,
   type AdminClaimBulkStepPreviewState,
 } from '@/lib/admin/claim-bulk';
-import { adminClaimPendingReshipments } from '@/lib/admin/claim-reshipments';
+import { adminClaimPendingReshipments, adminClaimWaiverDecisions } from '@/lib/admin/claim-reshipments';
 import { adminClaimBasePath } from '@/lib/admin/claims';
 import { loadAdminClaimDetail } from '@/lib/admin/claims.server';
 import { krw } from '@/lib/format';
@@ -156,7 +159,8 @@ export async function runOrderClaimBulkCollectionsAction(input: unknown): Promis
       if (plan.blocker) return { ok: false, excluded: true, message: plan.blocker };
 
       if (context.collectionPolicy === 'legacy') {
-        const state = await recordOrderClaimCollectionAction({}, form({ claimId: item.claimId, claimType, stage: 'collected', receivedOn }));
+        /* 레거시 회수에는 근거 열이 없어 공통 근거를 감사 기록에 남긴다(같은 단건 경로). */
+        const state = await recordOrderClaimCollectionAction({}, form({ claimId: item.claimId, claimType, stage: 'collected', receivedOn, evidence }));
         return state.error ? { ok: false, message: state.error } : { ok: true, message: `입고를 확인했습니다(실제 입고일 ${receivedOn}).` };
       }
 
@@ -259,12 +263,26 @@ export async function loadOrderClaimBulkReshipmentsAction(input: unknown): Promi
       if (!detail) { excluded.push({ claimId, reference: null, reason: CLAIM_MISSING }); continue; }
       const reference = orderClaimReferenceLabel(detail.claim.reference);
       if (detail.claim.claimType !== 'exchange') { excluded.push({ claimId, reference, reason: wrongType('exchange') }); continue; }
+      /* 재출고할 수 있는 배송 건은 상세와 같은 판정(adminClaimPendingReshipments)이다: 회수를 확인했거나 회수 생략을
+         결정한 배송 건. 결정이 아직 없는 회수 생략(사진 필요)·주문제작의 회수 생략 결정·교환품 제작 대기는 사유와 함께 뺀다. */
       const pending = detail.claim.collectionPolicy !== null ? adminClaimPendingReshipments(detail.claim) : [];
-      const skipped = pending.filter((target) => !target.collected)
-        .map((target) => ({ originName: target.originName ?? '주문 전체', reason: ADMIN_CLAIM_BULK_RESHIP_WAIVER_REASON }));
-      const rows = pending.filter((target) => target.collected).map((target) => ({
+      const pendingKeys = new Set(pending.map((target) => target.shipmentId ?? 'order'));
+      const decisionKeys = new Set(adminClaimWaiverDecisions(detail.claim).map((target) => target.shipmentId ?? 'order'));
+      const skipped = [
+        ...pending.filter((target) => !target.collected && !target.waived)
+          .map((target) => ({ originName: target.originName ?? '주문 전체', reason: ADMIN_CLAIM_BULK_RESHIP_WAIVER_REASON })),
+        ...(detail.claim.collectionPolicy !== null ? (detail.claim.reshipmentTargets ?? []) : [])
+          .filter((target) => !target.reshipped && !pendingKeys.has(target.shipmentId ?? 'order'))
+          .map((target) => ({
+            originName: target.originName ?? '주문 전체',
+            reason: decisionKeys.has(target.shipmentId ?? 'order') ? ADMIN_CLAIM_BULK_RESHIP_DECISION_REASON
+              : target.productionPending ? ADMIN_CLAIM_BULK_RESHIP_PRODUCTION_REASON : ADMIN_CLAIM_BULK_RESHIP_COLLECTION_REASON,
+          })),
+      ];
+      const rows = pending.filter((target) => target.collected || target.waived).map((target) => ({
         shipmentId: target.shipmentId,
         originName: target.originName,
+        waived: target.waived,
         items: (detail.order?.items ?? []).filter((item) => target.orderItemIds.includes(item.id)).map((item) => ({
           orderItemId: item.id,
           name: item.name,
@@ -280,7 +298,7 @@ export async function loadOrderClaimBulkReshipmentsAction(input: unknown): Promi
       if (rows.length === 0) {
         excluded.push({
           claimId, reference,
-          reason: skipped.length > 0 ? ADMIN_CLAIM_BULK_RESHIP_WAIVER_REASON
+          reason: skipped.length > 0 ? skipped.map((entry) => `${entry.originName}: ${entry.reason}`).join(' ')
             : detail.claim.stage === 'completed' ? '이미 재출고로 종결된 교환입니다.'
               : '재출고할 수 있는 단계가 아닙니다. 승인과 회수 확인 뒤에 재출고합니다.',
         });

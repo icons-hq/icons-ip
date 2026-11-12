@@ -18,20 +18,20 @@ import {
   adminClaimBulkReshipRowError,
   adminClaimBulkSummary,
   type AdminClaimBulkResult,
-  type AdminClaimBulkReshipClaim,
   type AdminClaimBulkReshipLoad,
   type AdminClaimBulkReshipRow,
   type AdminClaimBulkState,
 } from '@/lib/admin/claim-bulk';
 import { adminClaimCopy } from '@/lib/admin/vocabulary';
-import { fetchClaimContactContext, readOrSealClaimContactOperation, recordClaimReshipmentV2 } from '@/lib/claim-contact/client';
 import {
-  normalizeClaimContactReshipmentRequest,
-  parseClaimContactJournal,
-  type Address,
-  type ClaimContactJournal,
-  type OperationReceipt,
-} from '@/lib/claim-contact/contracts';
+  CLAIM_BULK_RESHIP_AUTH_CHANGED,
+  CLAIM_BULK_RESHIP_EXPIRED,
+  registerClaimReshipments,
+  reshipRowKey,
+  type ClaimBulkReshipContext,
+  type ClaimBulkReshipDraft,
+} from '@/lib/admin/claim-bulk-reship';
+import { fetchClaimContactContext, readOrSealClaimContactOperation, recordClaimReshipmentV2 } from '@/lib/claim-contact/client';
 import { ClaimKitBulkResult } from './ClaimKitBulkResult';
 
 /*
@@ -45,52 +45,24 @@ import { ClaimKitBulkResult } from './ClaimKitBulkResult';
  *
  * 요청번호(작업 id)는 상세 화면과 같은 탭 저장소 키에 남긴다. 응답을 잃으면 같은 작업 id로 결과를 읽고, 저장되지 않았으면
  * 그 작업을 종료(seal)한다 — 늦게 도착한 요청이 다른 재출고와 겹치지 않는다. 결과를 끝내 읽지 못하면 요청번호를 남겨
- * 두고, 그 요청의 상세가 [저장 결과 확인]을 띄운다. 회수 생략(하자·오배송, 근거 사진)은 상세에서만 한다.
+ * 두고, 그 요청의 상세가 [저장 결과 확인]을 띄운다. 회수 생략(하자·오배송, 근거 사진)의 결정은 상세에서만 한다 — 결정한
+ * 배송 건은 이 표에서 재출고할 수 있고 DB가 그 결정대로 회수품 재고를 복원하지 않는다. 요청별 처리 순서와 실패 처리는
+ * lib/admin/claim-bulk-reship.ts(시험으로 고정)에 있고, 이 화면은 주소 확인·입력·결과만 다룬다.
  *
  * 주소는 개인정보라 화면 상태에만 두고, 탭을 가리거나 처리가 끝나면 지운다(상세 화면과 같은 규칙).
  */
 
-type ReadyContext = {
-  status: 'ready';
-  address: Address;
-  signedContext: string;
-  expiresAt: string;
-  claimRevision: number;
-  claimType: 'return' | 'exchange';
-};
+type ReadyContext = { status: 'ready' } & ClaimBulkReshipContext;
 type ContextState = { status: 'loading' } | ReadyContext | { status: 'unavailable'; message: string };
-type RowDraft = { carrier: string; trackingNumber: string; items: Record<string, string> };
+type RowDraft = ClaimBulkReshipDraft;
 
 const LOAD_LOST = '재출고할 요청을 불러오지 못했습니다. 창을 닫고 다시 실행해주세요.';
-const EXPIRED = '최종 주소를 확인한 지 10분이 지났습니다. 주소를 다시 불러와 확인해주세요.';
-const ADDRESS_CHANGED = '최종 주소가 처음 확인한 것과 달라 보내지 않았습니다. 요청 상세에서 다시 확인해주세요.';
-const PREVIOUS_FAILED = '앞 출고지의 재출고가 끝나지 않아 보내지 않았습니다. 요청 상세에서 확인해주세요.';
-const OUTCOME_UNKNOWN = '처리 결과를 확인하지 못했습니다. 요청 상세의 [저장 결과 확인]으로 결과를 확인해주세요.';
-const AUTH_CHANGED = '로그인 상태가 바뀌어 남은 줄을 보내지 않았습니다. 다시 로그인한 뒤 상세에서 확인해주세요.';
 const NOT_CONFIRMED = '최종 주소를 확인하지 않은 요청입니다.';
-const PENDING_OPERATION = '결과를 확인하지 않은 연락처·재출고 작업이 남아 있어 보내지 않았습니다. 요청 상세에서 저장 결과를 먼저 확인해주세요.';
 const RUNNING_LEAVE = '재출고를 등록하는 중입니다. 이동하면 남은 줄은 보내지 않습니다. 이동할까요?';
 const PRIVATE_LEAVE = '불러온 최종 주소는 보관하지 않습니다. 이동할까요?';
 
-export function reshipRowKey(claimId: string, shipmentId: string | null) {
-  return `${claimId}:${shipmentId ?? 'order'}`;
-}
-
 function originLabel(row: AdminClaimBulkReshipRow) {
   return row.originName ?? '주문 전체';
-}
-
-/** 다음 배송 건을 보내기 전에 다시 받은 최종 주소가 처음 확인한 주소와 같은가. */
-export function sameClaimContactAddress(a: Address, b: Address) {
-  return a.recipientName === b.recipientName && a.phone === b.phone && a.postalCode.trim() === b.postalCode.trim()
-    && a.address1.trim() === b.address1.trim() && a.address2 === b.address2;
-}
-
-function receiptMatches(receipt: OperationReceipt, journal: ClaimContactJournal) {
-  return receipt.state === 'saved' && receipt.operationId === journal.operationId && receipt.actorId === journal.actorId
-    && receipt.sessionId === journal.sessionId && receipt.orderId === journal.orderId && receipt.claimId === journal.claimId
-    && receipt.command === 'reshipment' && receipt.target === 'reshipment'
-    && receipt.expectedClaimType === journal.expectedClaimType && receipt.expectedClaimRevision === journal.expectedClaimRevision;
 }
 
 function initialDrafts(load: Extract<AdminClaimBulkReshipLoad, { actorId: string }>): Record<string, RowDraft> {
@@ -199,7 +171,7 @@ function ReshipTable({ identity, load, onDone, onRunning, scope }: {
     if (nextExpiry === null || phase === 'running') return;
     const timer = window.setTimeout(() => {
       setContexts((current) => Object.fromEntries(Object.entries(current).map(([claimId, context]) => [claimId,
-        context.status === 'ready' && Date.parse(context.expiresAt) <= Date.now() ? { status: 'unavailable', message: EXPIRED } : context])));
+        context.status === 'ready' && Date.parse(context.expiresAt) <= Date.now() ? { status: 'unavailable', message: CLAIM_BULK_RESHIP_EXPIRED } : context])));
       setDestinationConfirmed(false);
     }, Math.max(0, nextExpiry - Date.now()));
     return () => window.clearTimeout(timer);
@@ -258,11 +230,27 @@ function ReshipTable({ identity, load, onDone, onRunning, scope }: {
       const fail = (row: AdminClaimBulkReshipRow, message: string, outcome: AdminClaimBulkResult['outcome'] = 'failed') => {
         results.push({ claimId: claim.claimId, reference: claim.reference, scope: originLabel(row), outcome, message });
       };
-      if (authLost) { claim.rows.forEach((row) => fail(row, AUTH_CHANGED)); continue; }
+      if (authLost) { claim.rows.forEach((row) => fail(row, CLAIM_BULK_RESHIP_AUTH_CHANGED)); continue; }
       if (context?.status !== 'ready') { claim.rows.forEach((row) => fail(row, context?.status === 'unavailable' ? context.message : NOT_CONFIRMED, 'excluded')); continue; }
-      const outcome = await registerClaim(claim, context, ticket, fail, (row, message) => {
-        results.push({ claimId: claim.claimId, reference: claim.reference, scope: originLabel(row), outcome: 'done', message });
-        setProgress((count) => count + 1);
+      const outcome = await registerClaimReshipments({ claim, context, drafts, identity }, {
+        fetchContext: (target) => fetchClaimContactContext({ requestId: crypto.randomUUID(), orderId: target.orderId, claimId: target.claimId, target: 'reshipment', command: 'reshipment' }, { expectedIdentity: identity }),
+        record: (request) => recordClaimReshipmentV2(request, { expectedIdentity: identity }),
+        readOrSeal: (request) => readOrSealClaimContactOperation(request, { expectedIdentity: identity }),
+        canApply: () => scope.canApply(ticket),
+        now: () => Date.now(),
+        newId: () => crypto.randomUUID(),
+        journalKey: (target) => claimContactJournalKey(identity, target.orderId, target.claimId),
+        storage: {
+          get: (key) => sessionStorage.getItem(key),
+          set: (key, value) => sessionStorage.setItem(key, value),
+          remove: (key) => sessionStorage.removeItem(key),
+        },
+      }, {
+        fail,
+        succeed: (row, message) => {
+          results.push({ claimId: claim.claimId, reference: claim.reference, scope: originLabel(row), outcome: 'done', message });
+          setProgress((count) => count + 1);
+        },
       });
       if (outcome === 'auth_lost') authLost = true;
     }
@@ -276,78 +264,6 @@ function ReshipTable({ identity, load, onDone, onRunning, scope }: {
     setPhase('idle');
     onDone({ summary: adminClaimBulkSummary(ordered.map((entry) => entry.outcome)), results: ordered });
     router.refresh();
-  }
-
-  /** 한 요청의 배송 건을 순서대로 보낸다. 실패하면 그 요청의 남은 배송 건은 보내지 않는다. */
-  async function registerClaim(
-    claim: AdminClaimBulkReshipClaim,
-    context: ReadyContext,
-    ticket: NonNullable<ReturnType<ClaimContactScope['capture']>>,
-    fail: (row: AdminClaimBulkReshipRow, message: string) => void,
-    succeed: (row: AdminClaimBulkReshipRow, message: string) => void,
-  ): Promise<'ok' | 'stopped' | 'auth_lost'> {
-    let signedContext = context.signedContext;
-    let claimRevision = context.claimRevision;
-    let claimType = context.claimType;
-    let stop: string | null = null;
-    /* 상세에서 결과를 아직 확인하지 않은 연락처 작업이 있으면 그 요청은 보내지 않는다(요청번호를 덮어쓰지 않는다). */
-    let pendingJournal: string | null = null;
-    try { pendingJournal = sessionStorage.getItem(claimContactJournalKey(identity, claim.orderId, claim.claimId)); }
-    catch { pendingJournal = 'unavailable'; }
-    if (pendingJournal !== null) stop = PENDING_OPERATION;
-    for (const [index, row] of claim.rows.entries()) {
-      if (stop) { fail(row, stop); continue; }
-      if (Date.parse(context.expiresAt) <= Date.now()) { stop = EXPIRED; fail(row, EXPIRED); continue; }
-      if (index > 0) {
-        /* 앞 재출고로 요청 버전이 바뀌었다. 최종 주소를 다시 받아 처음 확인한 주소와 같을 때만 이어서 보낸다. */
-        const fresh = await fetchClaimContactContext({ requestId: crypto.randomUUID(), orderId: claim.orderId, claimId: claim.claimId, target: 'reshipment', command: 'reshipment' }, { expectedIdentity: identity }).catch(() => null);
-        if (!scope.canApply(ticket)) { fail(row, AUTH_CHANGED); claim.rows.slice(index + 1).forEach((rest) => fail(rest, AUTH_CHANGED)); return 'auth_lost'; }
-        if (!fresh || 'code' in fresh) { stop = fresh && 'code' in fresh ? fresh.message : PREVIOUS_FAILED; fail(row, stop); continue; }
-        if (!fresh.allowed || !fresh.address || !fresh.signedContext || !sameClaimContactAddress(fresh.address, context.address)) { stop = ADDRESS_CHANGED; fail(row, stop); continue; }
-        signedContext = fresh.signedContext; claimRevision = fresh.claimRevision; claimType = fresh.claimType;
-      }
-      const draft = drafts[reshipRowKey(claim.claimId, row.shipmentId)];
-      const operationId = crypto.randomUUID();
-      const request = normalizeClaimContactReshipmentRequest({
-        requestId: crypto.randomUUID(), orderId: claim.orderId, claimId: claim.claimId, operationId, signedContext,
-        shipmentId: row.shipmentId, carrier: draft.carrier, trackingNumber: draft.trackingNumber,
-        items: row.items.map((item) => ({ orderItemId: item.orderItemId, variantId: draft.items[item.orderItemId] })),
-        collectionWaiver: null, destinationConfirmed: true, dispatchConfirmed: true,
-      });
-      const journal = parseClaimContactJournal({ operationId, orderId: claim.orderId, claimId: claim.claimId, command: 'reshipment', target: 'reshipment',
-        expectedClaimType: claimType, expectedClaimRevision: claimRevision, actorId: identity.actorId, sessionId: identity.sessionId, startedAt: new Date().toISOString() });
-      if (!request || !journal) { stop = PREVIOUS_FAILED; fail(row, '재출고 정보를 확인하지 못했습니다. 택배사·운송장·상품을 다시 확인해주세요.'); continue; }
-      const journalKey = claimContactJournalKey(identity, claim.orderId, claim.claimId);
-      try { sessionStorage.setItem(journalKey, JSON.stringify(journal)); }
-      catch { stop = PREVIOUS_FAILED; fail(row, '요청번호를 보관할 수 없어 보내지 않았습니다. 브라우저 저장소를 확인해주세요.'); continue; }
-      const forget = () => { try { sessionStorage.removeItem(journalKey); } catch { /* 남은 요청번호는 상세가 결과를 읽어 정리한다. */ } };
-
-      const response = await recordClaimReshipmentV2(request, { expectedIdentity: identity }).catch(() => null);
-      if (!scope.canApply(ticket)) { fail(row, OUTCOME_UNKNOWN); claim.rows.slice(index + 1).forEach((rest) => fail(rest, AUTH_CHANGED)); return 'auth_lost'; }
-      if (response && !('code' in response) && response.receipt && receiptMatches(response.receipt, journal)) {
-        forget();
-        succeed(row, `재출고를 등록했습니다(${draft.trackingNumber.trim().toUpperCase()}).`);
-        continue;
-      }
-      /* 실패·불확실: 같은 작업 id로 결과를 읽고, 저장되지 않았으면 그 작업을 종료한다. 늦게 도착한 요청이 다시 기록되지 않는다. */
-      const settled = await readOrSealClaimContactOperation({ requestId: crypto.randomUUID(), sealIfAbsent: true, orderId: claim.orderId, claimId: claim.claimId,
-        operationId, command: 'reshipment', target: 'reshipment', expectedClaimType: claimType, expectedClaimRevision: claimRevision }, { expectedIdentity: identity }).catch(() => null);
-      if (settled && !('code' in settled) && settled.receipt && receiptMatches(settled.receipt, journal)) {
-        forget();
-        succeed(row, `재출고를 등록했습니다(${draft.trackingNumber.trim().toUpperCase()}).`);
-        continue;
-      }
-      if (settled && !('code' in settled) && settled.receipt?.state === 'sealed') {
-        forget();
-        stop = PREVIOUS_FAILED;
-        fail(row, response && 'code' in response ? response.message : '재출고를 등록하지 못했습니다. 요청 상세에서 확인해주세요.');
-        continue;
-      }
-      /* 결과를 끝내 읽지 못했다. 요청번호를 남겨 상세가 [저장 결과 확인]을 띄우게 한다. */
-      stop = PREVIOUS_FAILED;
-      fail(row, OUTCOME_UNKNOWN);
-    }
-    return stop ? 'stopped' : 'ok';
   }
 
   const busy = phase !== 'idle';
@@ -374,6 +290,7 @@ function ReshipTable({ identity, load, onDone, onRunning, scope }: {
           return <div className="grid min-w-0 gap-3 border-t pt-3 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)]" data-claim-bulk-reship-row={key} key={key}>
             <div className="flex min-w-0 flex-col gap-2">
               <p className="font-medium">{originLabel(row)}</p>
+              {row.waived ? <p className="text-xs text-muted-foreground" data-claim-bulk-reship-waived="">회수 생략으로 결정한 출고지입니다. 회수 상품 재고는 복원하지 않고 보낸 상품 재고만 줄어듭니다.</p> : null}
               {row.items.map((item) => <label className="flex min-w-0 flex-col gap-1" key={item.orderItemId}>
                 <span className="text-xs text-muted-foreground">{item.name}{item.variantName ? ` · ${item.variantName}` : ''} · {item.qty}개 재출고 상품</span>
                 <NativeSelect className="w-full" disabled={busy} onChange={(event) => patch(key, { items: { ...draft.items, [item.orderItemId]: event.target.value } })} value={draft.items[item.orderItemId] ?? ''}>

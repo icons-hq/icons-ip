@@ -317,8 +317,8 @@ export function ClaimActionPanel({
   const canReject = canRejectOrderClaim(stage, heldFrom, reshipmentStarted);
   const collectionReady = collectionPolicy !== null && collectionComplete;
   const cancellationWithoutCollection = claimType === 'cancel' && collectionPolicy !== null && collectionComplete && collections.length === 0;
-  const canRecordOrigin = collectionPolicy === 'origin'
-    && !collectionComplete && ['collecting', 'collected', 'processing', 'needs_review'].includes(stage);
+  const originCollectionOpen = collectionPolicy === 'origin' && ['collecting', 'collected', 'processing', 'needs_review'].includes(stage);
+  const canRecordOrigin = originCollectionOpen && !collectionComplete;
   const canCollect = collectionPolicy === 'legacy' && claimType !== 'cancel' && stage === 'collecting';
   const canFileRefund = claimType !== 'exchange'
     && collectionReady
@@ -373,7 +373,8 @@ export function ClaimActionPanel({
             : '모든 출고지의 상품과 수량을 회수 확인한 뒤 환불·재출고를 진행합니다.'}</p>
         {collections.length ? collections.map((collection) => <ClaimOriginCollection
           key={collection.shipmentId} claimId={claimId} claimType={claimType}
-          collection={collection} canRecord={canRecordOrigin} />)
+          /* 회수 생략으로 결정한 출고지는 회수가 끝난 것으로 보지만, 요청이 열려 있는 동안 늦게 도착한 입고는 기록할 수 있다(재고 변화 없음). */
+          collection={collection} canRecord={canRecordOrigin || (originCollectionOpen && collection.collectionWaived === true)} />)
           : <p className="text-muted-foreground">수거를 승인하면 출고지별 반송 주소와 상품이 표시됩니다.</p>}
       </section> : collectionPolicy === null ? <p className="text-destructive" role="alert">회수 확인 기준을 불러오지 못했습니다. 새로고침한 뒤 다시 확인해주세요.</p> : null}
   </>;
@@ -446,6 +447,11 @@ export function ClaimActionPanel({
           <div className="flex flex-col gap-1.5">
             <Label htmlFor={`claim-legacy-received-${claimId}`}>실제 입고일</Label>
             <Input className="w-full sm:w-44" defaultValue={today} disabled={pending} id={`claim-legacy-received-${claimId}`} max={today} name="receivedOn" required type="date" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor={`claim-legacy-evidence-${claimId}`}>회수 확인 근거 (선택)</Label>
+            <Textarea disabled={pending} id={`claim-legacy-evidence-${claimId}`} maxLength={500} name="evidence" placeholder="창고 회신 번호와 반송 상품·수량 대조 결과" rows={2} />
+            <p className={HINT_CLASS}>적은 근거는 처리 이력(감사 기록)에 남습니다.</p>
           </div>
           <Button className="w-fit" disabled={pending} size="sm" type="submit">
             반송 {V.goods} 입고 확인

@@ -7,6 +7,7 @@ import { adminClaimTodayKst } from '@/lib/admin/claims';
 import { adminClaimCopy } from '@/lib/admin/vocabulary';
 import { adminFormRemountKey, preservedFormValues } from '@/lib/admin/form-state';
 import { formatOrderDateTime } from '@/lib/orders';
+import { statusTone } from '@/lib/admin/status-tone';
 import type { OrderClaimType } from '@/lib/orders/claims';
 import { AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { Button } from '@/components/admin/kit/ui/button';
@@ -18,7 +19,8 @@ import { useClaimPreviewBusy } from './ClaimPreviewDialog';
 /*
  * 출고지(배송 건) 하나의 회수 확인. 근거와 함께 실제 입고일(기본 오늘, 미래 불가)을 받는다 — 확인 버튼을 늦게 누른
  * 시각을 반환일로 대신하지 않고, 환급 기한은 모든 출고지 가운데 가장 늦은 입고일부터 센다(1027T-033).
- * 회수 생략으로 이미 재출고한 배송 건(ADR-0041)은 '회수 생략'으로 보이고, 늦게 도착해 확인해도 재고는 바뀌지 않는다.
+ * 회수 생략을 결정한 배송 건(ADR-0041 — 진실원은 결정 표, 재출고 전 결정 포함)은 '회수 생략'으로 보인다. 요청이 열려 있는
+ * 동안 늦게 도착한 입고를 확인할 수 있고, 재고는 바뀌지 않는다(재출고는 결정대로 회수품을 복원하지 않는다).
  */
 export function ClaimOriginCollection({ claimId, claimType, collection, canRecord }: {
   claimId: string;
@@ -36,7 +38,7 @@ export function ClaimOriginCollection({ claimId, claimType, collection, canRecor
   const waived = collection.collectionWaived === true;
   const badge = collection.collectedAt
     ? <AdminStatusBadge tone="success">회수 확인 완료</AdminStatusBadge>
-    : waived ? <AdminStatusBadge tone="neutral">회수 생략 · 재출고됨</AdminStatusBadge>
+    : waived ? <AdminStatusBadge tone={statusTone('claimReshipment', 'waived')}>회수 생략</AdminStatusBadge>
       : <AdminStatusBadge tone="warning">회수 대기</AdminStatusBadge>;
   /* 처리 칸 안의 또 다른 상자로 그리지 않는다 — 출고지 사이는 구분선과 여백으로 나눈다. */
   return <section className="flex min-w-0 flex-col gap-2 border-t pt-3 text-sm" aria-label={`${collection.originName} 회수 현황`} data-claim-origin-collection="" data-collection-waived={waived ? '' : undefined}>
@@ -54,12 +56,12 @@ export function ClaimOriginCollection({ claimId, claimType, collection, canRecor
         확인 {formatOrderDateTime(collection.collectedAt)}{collection.collectorName ? ` · ${collection.collectorName}` : ''}
       </p>
       <p className="break-words whitespace-pre-wrap">{collection.evidence}</p>
-      {waived ? <p className="text-xs text-muted-foreground">회수 없이 재출고한 뒤 늦게 도착한 입고입니다. 재고는 바뀌지 않았습니다.</p> : null}
+      {waived ? <p className="text-xs text-muted-foreground">회수 생략으로 결정한 뒤 늦게 도착한 입고입니다. 재고는 바뀌지 않았습니다.</p> : null}
     </> : canRecord ? <form action={action} className="flex min-w-0 flex-col gap-3" key={adminFormRemountKey(state, { claimId, shipmentId: collection.shipmentId })}>
       <input type="hidden" name="claimId" value={claimId} />
       <input type="hidden" name="claimType" value={claimType} />
       <input type="hidden" name="shipmentId" value={collection.shipmentId} />
-      {waived ? <AdminNotice tone="info">회수 없이 이미 재출고한 출고지입니다. 상품이 늦게 도착했을 때만 입고를 확인하세요. 재고는 바뀌지 않으니, 다시 팔 수 있으면 재고 조정에서 반영해주세요.</AdminNotice> : null}
+      {waived ? <AdminNotice tone="info">회수 생략으로 결정한 출고지입니다. 상품이 늦게 도착했을 때만 입고를 확인하세요. 재고는 바뀌지 않으니, 다시 팔 수 있으면 재고 조정에서 반영해주세요.</AdminNotice> : null}
       <div className="flex flex-col gap-1.5">
         <Label htmlFor={receivedId}>실제 입고일</Label>
         <Input className="w-full sm:w-44" defaultValue={restored?.claimId === claimId && typeof restored.receivedOn === 'string' ? restored.receivedOn : today}

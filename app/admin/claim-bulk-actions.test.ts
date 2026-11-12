@@ -347,7 +347,7 @@ describe('단계 일괄 확인창(previewOrderClaimBulkStepAction)', () => {
     const state = await previewOrderClaimBulkStepAction({ claimType: 'exchange', step: 'collect', claimIds: [ID(2)] });
     const [row] = state.preview?.step === 'collect' ? state.preview.rows : [];
     expect(row.targets).toEqual([{ shipmentId: SHIP(3), originName: 'TEST 김포' }]);
-    expect(row.skipped).toEqual([{ originName: 'TEST 남양주', reason: expect.stringContaining('회수 없이 재출고한 출고지') }]);
+    expect(row.skipped).toEqual([{ originName: 'TEST 남양주', reason: expect.stringContaining('회수 생략으로 결정한 출고지') }]);
   });
 
   it('환불 완료 확정은 결제사 취소로 끝낼 건만 세어 합계를 내고, 무통장·가상계좌·코페이는 사유와 함께 뺀다', async () => {
@@ -471,7 +471,8 @@ describe('일괄 회수 확인(runOrderClaimBulkCollectionsAction)', () => {
     });
     expect(mocks.rpc.mock.calls.filter(([name]) => name !== 'admin_order_claim_bulk_context')).toEqual([
       ['admin_record_order_claim_origin_collection', { p_claim_id: ID(1), p_shipment_id: SHIP(1), p_evidence: '창고 회신 R-1 대조', p_received_on: '2026-11-10' }],
-      ['admin_record_order_claim_collection', { p_claim_id: ID(2), p_stage: 'collected', p_received_on: '2026-11-10' }],
+      /* 레거시 회수에는 근거 열이 없어 공통 근거를 감사 기록으로 넘긴다(T11b 리뷰 minor 4). */
+      ['admin_record_order_claim_collection', { p_claim_id: ID(2), p_stage: 'collected', p_received_on: '2026-11-10', p_evidence: '창고 회신 R-1 대조' }],
     ]);
     expect(state.results?.map((result) => [result.reference, result.outcome, result.message])).toEqual([
       ['C00001', 'done', 'TEST 김포 회수를 확인했습니다(실제 입고일 2026-11-10). 남은 출고지 1곳은 따로 확인해주세요.'],
@@ -505,13 +506,21 @@ describe('재출고 표(loadOrderClaimBulkReshipmentsAction)', () => {
     ]);
     const item = (n: number) => ({ id: `0000000${n}-0000-4000-8000-000000000000`, name: `굿즈 ${n}`, qty: 1, variantName: '기본', currentVariantId: `variant-${n}`,
       options: [{ id: `variant-${n}`, name: '기본', code: `SKU-${n}`, stockQty: 3, goodName: `굿즈 ${n}` }] });
+    const target = (overrides: Record<string, unknown> = {}) => ({ waiver: null, productionRequired: false, productionPending: false, ...overrides });
     mocks.loadAdminClaimDetail.mockImplementation(async (id: string) => id === ID(1) ? {
       claim: { id: ID(1), reference: 1, orderId: ORDER(1), claimType: 'exchange', stage: 'collecting', collectionPolicy: 'origin', reshipTrackingNumber: null, collectionWaiverAllowed: true,
         reshipmentTargets: [
-          { shipmentId: SHIP(1), originName: 'TEST 김포', collectionTracked: true, collectedAt: '2026-11-11T00:00:00Z', reshipped: false, orderItemIds: [item(1).id] },
-          { shipmentId: SHIP(2), originName: 'TEST 남양주', collectionTracked: true, collectedAt: null, reshipped: false, orderItemIds: [item(2).id] },
+          { shipmentId: SHIP(1), originName: 'TEST 김포', collectionTracked: true, collectedAt: '2026-11-11T00:00:00Z', reshipped: false, orderItemIds: [item(1).id], ...target() },
+          { shipmentId: SHIP(2), originName: 'TEST 남양주', collectionTracked: true, collectedAt: null, reshipped: false, orderItemIds: [item(2).id], ...target() },
+          /* 회수 생략을 이미 결정한 배송 건은 회수 확인 없이 재출고 줄로 연다(T11a 결정 표). */
+          { shipmentId: SHIP(3), originName: 'TEST 부천', collectionTracked: true, collectedAt: null, reshipped: false, orderItemIds: [item(3).id],
+            ...target({ waiver: { reason: 'TEST 인쇄 불량 사진', waivedAt: '2026-11-11T00:00:00Z', waivedByName: null, evidence: [] } }) },
+          /* 주문제작: 회수 생략 결정 전이면 상세에서 결정, 결정·회수 뒤에도 제작 중이면 기다린다. */
+          { shipmentId: SHIP(4), originName: 'TEST 파주', collectionTracked: true, collectedAt: null, reshipped: false, orderItemIds: [item(4).id], ...target({ productionRequired: true }) },
+          { shipmentId: SHIP(5), originName: 'TEST 이천', collectionTracked: true, collectedAt: '2026-11-11T00:00:00Z', reshipped: false, orderItemIds: [item(5).id],
+            ...target({ productionRequired: true, productionPending: true }) },
         ] },
-      order: { items: [item(1), item(2)] },
+      order: { items: [item(1), item(2), item(3), item(4), item(5)] },
     } : id === ID(2) ? {
       claim: { id: ID(2), reference: 2, orderId: ORDER(2), claimType: 'exchange', stage: 'completed', collectionPolicy: 'origin', reshipTrackingNumber: 'DONE00000001', reshipmentTargets: [] },
       order: { items: [] },
@@ -522,9 +531,16 @@ describe('재출고 표(loadOrderClaimBulkReshipmentsAction)', () => {
     expect(load.carriers).toEqual([{ code: 'hanjin', label: '한진택배' }]);
     expect(load.claims).toEqual([{
       claimId: ID(1), orderId: ORDER(1), reference: 'C00001',
-      rows: [{ shipmentId: SHIP(1), originName: 'TEST 김포', items: [{ orderItemId: item(1).id, name: '굿즈 1', variantName: '기본', qty: 1, currentVariantId: 'variant-1',
-        options: [{ id: 'variant-1', label: '굿즈 1 · 기본 · SKU-1 · 재고 3개' }] }] }],
-      skipped: [{ originName: 'TEST 남양주', reason: expect.stringContaining('회수 확인 전 출고지') }],
+      rows: [
+        { shipmentId: SHIP(1), originName: 'TEST 김포', waived: false, items: [{ orderItemId: item(1).id, name: '굿즈 1', variantName: '기본', qty: 1, currentVariantId: 'variant-1',
+          options: [{ id: 'variant-1', label: '굿즈 1 · 기본 · SKU-1 · 재고 3개' }] }] },
+        { shipmentId: SHIP(3), originName: 'TEST 부천', waived: true, items: [expect.objectContaining({ orderItemId: item(3).id })] },
+      ],
+      skipped: [
+        { originName: 'TEST 남양주', reason: expect.stringContaining('회수 없이 재출고는 근거 사진이 필요해 상세에서') },
+        { originName: 'TEST 파주', reason: expect.stringContaining('상세에서 회수 생략을 먼저 결정') },
+        { originName: 'TEST 이천', reason: expect.stringContaining('교환품 제작이 끝나지 않은 출고지') },
+      ],
     }]);
     expect(load.excluded).toEqual([
       { claimId: ID(2), reference: 'C00002', reason: '이미 재출고로 종결된 교환입니다.' },

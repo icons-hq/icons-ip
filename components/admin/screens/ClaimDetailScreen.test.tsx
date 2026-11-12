@@ -370,6 +370,17 @@ describe('ClaimDetailScreen', () => {
     expect(render()).toContain('id="claim-refund" tabindex="-1"');
   });
 
+  /* 1027T-033·T11b 리뷰: 레거시 회수도 환급 기한은 실제 입고일부터 센다 — 진행 요약은 입고일과 확인 시각을 나눠 보인다. */
+  it('레거시 회수 진행 요약은 실제 입고일과 확인 시각을 나눠 보인다', () => {
+    const base = detail();
+    const legacy = { ...base.claim, collectionPolicy: 'legacy' as const, collections: [], collectedAt: '2026-09-08T04:00:00Z' };
+    const withDate = renderToStaticMarkup(<ClaimProgressSummary claim={{ ...legacy, collectionReceivedOn: '2026-09-07' }} refund={null} />);
+    expect(withDate).toContain('실제 입고일 2026-09-07 · 확인 ');
+    const older = renderToStaticMarkup(<ClaimProgressSummary claim={{ ...legacy, collectionReceivedOn: null }} refund={null} />);
+    expect(older).toContain('입고 ');
+    expect(older).not.toContain('실제 입고일');
+  });
+
   it('교환 재출고와 실제 배송완료 기록을 분리한다', () => {
     const claim = { ...detail().claim, claimType: 'exchange' as const, stage: 'completed' as const, reshippedAt: NOW.toISOString() };
     const pending = renderToStaticMarkup(<ClaimProgressSummary claim={claim} refund={null} />);

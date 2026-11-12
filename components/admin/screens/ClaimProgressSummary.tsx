@@ -57,7 +57,10 @@ export function ClaimProgressSummary({ claim, refund }: Props) {
     } else {
       // The legacy completion flag bypasses the newer origin gate. Only the receipt proves collection.
       collection.value = claim.collectedAt ? '회수 확인 완료' : '회수 미확인';
-      collection.detail = claim.collectedAt ? `입고 ${formatOrderDateTime(claim.collectedAt)}` : '입고 확인 기록 없음';
+      /* 환급 기한은 실제 입고일부터 센다(1027T-033). 입고일이 있으면 확인 시각과 나눠 보인다(출고지별 회수 칸과 같은 형식). */
+      collection.detail = !claim.collectedAt ? '입고 확인 기록 없음'
+        : claim.collectionReceivedOn ? `실제 입고일 ${claim.collectionReceivedOn} · 확인 ${formatOrderDateTime(claim.collectedAt)}`
+          : `입고 ${formatOrderDateTime(claim.collectedAt)}`;
     }
   }
 

@@ -328,7 +328,7 @@ describe('adminClaimBulkCollectPlan', () => {
 
   it('남은 출고지가 없거나 회수 단계가 아니면 요청 전체를 뺀다', () => {
     expect(adminClaimBulkCollectPlan(context({ collections: [origin(1, { collectedAt: '2026-11-10T00:00:00Z' })] })).blocker).toBe('모든 출고지의 회수 확인이 이미 끝났습니다.');
-    expect(adminClaimBulkCollectPlan(context({ collections: [origin(3, { waived: true })] })).blocker).toContain('회수 없이 재출고한 출고지');
+    expect(adminClaimBulkCollectPlan(context({ collections: [origin(3, { waived: true })] })).blocker).toContain('회수 생략으로 결정한 출고지');
     expect(adminClaimBulkCollectPlan(context({ claimType: 'cancel' })).blocker).toBe('취소 요청에는 회수 확인이 없습니다.');
     expect(adminClaimBulkCollectPlan(context({ stage: 'on_hold' })).blocker).toContain('보류 중');
     expect(adminClaimBulkCollectPlan(context({ stage: 'in_review' })).blocker).toContain('승인 전');

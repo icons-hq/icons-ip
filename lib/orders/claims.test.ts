@@ -182,6 +182,14 @@ describe('환급 SLA', () => {
     )).toMatchObject({ tone: 'danger', label: '기한 초과', dueAt: '2026-08-19T14:59:59.999Z' });
   });
 
+  /* T11a: 회수 생략 결정이 무효가 되면 단계가 수거중으로 돌아가고 확인 시각이 빈다. 남은 회수 완료일로 기한을 세지 않는다. */
+  it('입고 확인 시각이 비면 회수 완료일이 남아 있어도 입고 전이다', () => {
+    expect(orderClaimSlaState(
+      { claimType: 'return', stage: 'collecting', collectedAt: null, completedAt: null, collectionReceivedOn: '2026-08-18' },
+      NOW,
+    )).toMatchObject({ tone: 'muted', label: '입고 전', dueAt: null });
+  });
+
   it('입고일이 형식 밖이면 옛 확인 시각으로 센다', () => {
     expect(orderClaimSlaState(
       { claimType: 'return', stage: 'processing', collectedAt: '2026-08-19T06:00:00.000Z', completedAt: null, collectionReceivedOn: '2026-02-30' },
