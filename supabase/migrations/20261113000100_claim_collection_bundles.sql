@@ -257,12 +257,8 @@ select pg_temp.patch_function('private.claim_collection_document(uuid)'::regproc
     then jsonb_build_object('returnBundles',private.claim_collection_bundles_json(c.id,s.id,false)) else '{}'::jsonb end
   ||case when x.claim_id is not null and private.claim_collection_waived(c.id,s.id) then jsonb_build_object('collectionWaived',true) else '{}'::jsonb end order by s.id)$a$);
 
--- 재고 대조 흐름: 회수한 품목은 그 품목이 든 묶음의 입고 시각에 돌아온다(배송 건이 반품지별로 갈려 따로 도착해도).
-select pg_temp.patch_function('private.stock_reconcile_flows(uuid[],timestamptz)'::regprocedure,
- $a$from public.order_claim_collections x
-    join public.order_cancellation_requests c on c.id=x.claim_id$a$,
- $a$from public.order_claim_collection_bundles x
-    join public.order_cancellation_requests c on c.id=x.claim_id$a$);
+-- 재고 대조 흐름의 묶음 단위 회수 시각은 20261113001400_claim_collection_bundle_stock_flows.sql이 맡는다(배송 건 기준 통합
+-- migration 20261113120000 뒤에 적용돼야 한다).
 
 -- 철회 차단: 묶음 하나라도 입고되면 회수가 시작된 것이다(배송 건 행은 모든 묶음이 입고된 뒤에야 적힌다).
 select pg_temp.patch_function('private.order_claim_withdrawal_blocker(public.order_cancellation_requests)'::regprocedure,
@@ -283,7 +279,6 @@ do $$declare fn regprocedure;contract record;begin
   'private.claim_collection_records(uuid)'::regprocedure,
   'private.order_claim_bulk_context_row(uuid)'::regprocedure,
   'private.claim_collection_document(uuid)'::regprocedure,
-  'private.stock_reconcile_flows(uuid[],timestamptz)'::regprocedure,
   'private.order_claim_withdrawal_blocker(public.order_cancellation_requests)'::regprocedure,
   'private.seller_claim_collection_targets(uuid)'::regprocedure] loop
   select * into contract from private.operator_rpc_contracts r where r.signature::regprocedure=fn;
