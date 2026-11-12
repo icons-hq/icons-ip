@@ -18,11 +18,20 @@ function gift(party: 'sender' | 'recipient', shipment: Partial<GiftValue['shipme
 
 /* QNA-019: 나눠 보낸 상자의 추가 운송장은 상자를 받는 수령인에게만 보인다. */
 describe('선물 상세의 추가 운송장', () => {
-  it('수령인은 대표 운송장 아래에 추가 운송장을 본다', () => {
+  const carriers = [{ code: 'hanjin', label: '한진택배', active: true, trackingUrlTemplate: 'https://example.test/{trackingNumber}' }, { code: 'epost', label: '우체국택배', active: true, trackingUrlTemplate: 'https://post.example.test/{trackingNumber}' }];
+  it('수령인은 대표 운송장 아래에 추가 운송장을 택배사 이름과 조회 링크로 본다(QA2)', () => {
+    const html = renderToStaticMarkup(<GiftDetail actorId={actorId} coupons={[]} initialClaimContext={null} carriers={carriers} initialGift={gift('recipient', { carrier: 'hanjin', trackingNumber: '123456789012',
+      extraTrackings: [{ carrier: 'epost', trackingNumber: '223456789012' }, { carrier: 'hanjin', trackingNumber: '323456789012' }] })} />);
+    expect(html).toMatch(/한진택배 · <a[^>]*href="https:\/\/example.test\/123456789012"[^>]*>123456789012<\/a>/);
+    expect(html).toMatch(/href="https:\/\/post.example.test\/223456789012"[^>]*>우체국택배 223456789012<\/a>/);
+    expect(html).toMatch(/href="https:\/\/example.test\/323456789012"[^>]*>한진택배 323456789012<\/a>/);
+    expect(html).toContain('추가 운송장');expect(html).toContain('나눠 보낸 상자 · 번호를 누르면 배송조회');
+    expect(html).not.toContain('epost');
+  });
+  it('택배사 목록을 모르면 코드 그대로 두되 링크는 만들지 않는다', () => {
     const html = renderToStaticMarkup(<GiftDetail actorId={actorId} coupons={[]} initialClaimContext={null} initialGift={gift('recipient', { carrier: 'hanjin', trackingNumber: '123456789012',
-      extraTrackings: [{ carrier: 'hanjin', trackingNumber: '223456789012' }, { carrier: 'hanjin', trackingNumber: '323456789012' }] })} />);
-    expect(html).toContain('hanjin · 123456789012');
-    expect(html).toContain('추가 운송장(나눠 보낸 상자) hanjin · 223456789012, hanjin · 323456789012');
+      extraTrackings: [{ carrier: 'hanjin', trackingNumber: '223456789012' }] })} />);
+    expect(html).toContain('hanjin · 123456789012');expect(html).toContain('hanjin 223456789012');expect(html).not.toContain('배송조회');
   });
   it('추가 운송장이 없으면 종전과 같고, 보내는 분에게는 운송장이 없다', () => {
     expect(renderToStaticMarkup(<GiftDetail actorId={actorId} coupons={[]} initialClaimContext={null} initialGift={gift('recipient', { carrier: 'hanjin', trackingNumber: '123456789012' })} />))

@@ -139,3 +139,34 @@ describe('Checkout 이미 주문한 주문서', () => {
     expect(mocks.place).toHaveBeenCalledTimes(1);
   });
 });
+
+/* QA2 S-W1m-02: 주문서가 스스로 재견적해 버튼을 끄는 경로에서도 판매기간 안내 한 줄이 나오고 일반 '재고 변경' 문구는 같이 뜨지 않는다. */
+describe('Checkout 재견적으로 주문 불가가 된 줄의 판매기간 안내', () => {
+  const ended = { state: 'ended' as const, startsAt: null, endsAt: '2026-09-09T00:00:00Z', calculatedAt: '2026-09-10T00:00:00Z', nextChangeAt: null };
+  const unavailableSales = () => {
+    const sales = mocks.sales as AddressGoodsSalesQuote;
+    mocks.sales = { ...sales, lines: sales.lines.map((line) => ({ ...line, available: false })) };
+  };
+  const alertText = (node: ReactNode): string => Children.toArray(node).map((part) => (typeof part === 'string' ? part : isValidElement<Record<string, unknown>>(part) ? alertText(part.props.children as ReactNode) : '')).join('');
+  const alerts = () => all(render()).filter((node) => node.props.role === 'alert').map((node) => alertText(node.props.children as ReactNode)).join('\n');
+  it('카탈로그가 아직 옛 값이면 서버 속성을 한 번 다시 읽도록 불가 줄 조합을 알린다', async () => {
+    const { QuoteUnavailableRefresh } = await import('@/components/shop/QuoteUnavailableRefresh');
+    unavailableSales();
+    expect(all(render()).find((node) => node.type === QuoteUnavailableRefresh)!.props.signature).toBe('g13');
+    expect(submitButton().props.disabled).toBe(true);
+  });
+  it('카탈로그에 판매기간 종료가 반영되면 굿즈 이름 한 줄만 보이고 재고 변경·일반 불가 문구는 없다', () => {
+    unavailableSales();
+    props = { ...props, catalog: { goods: [{ ...good, salePeriod: ended }], ips: [] } };
+    const text = alerts();
+    expect(text).toContain('판매기간이 끝난 굿즈가 있어요: 홍실 아크릴 블록');
+    expect(text).not.toContain('재고가 변경된');
+    expect(text).not.toContain('현재 판매 상태나 재고가 변경된');
+  });
+  it('판매기간 안내가 이미 있으면 다시 읽지 않는다', async () => {
+    const { QuoteUnavailableRefresh } = await import('@/components/shop/QuoteUnavailableRefresh');
+    unavailableSales();
+    props = { ...props, catalog: { goods: [{ ...good, salePeriod: ended }], ips: [] } };
+    expect(all(render()).find((node) => node.type === QuoteUnavailableRefresh)!.props.signature).toBeNull();
+  });
+});

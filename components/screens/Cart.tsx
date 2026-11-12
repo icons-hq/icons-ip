@@ -616,7 +616,7 @@ export function Cart({
               </ul>
             </div>
 
-            <aside aria-label="주문 요약" className="wc-cart__aside">
+            <aside aria-label="주문 요약" className="wc-cart__aside" data-inquiry-avoid="">
               <table className="wc-cart__summary">
                 <tbody>
                   <tr>

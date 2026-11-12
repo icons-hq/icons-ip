@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { InquiryWidget, InquiryWidgetPanel, WidgetFaqTopicAnswer, WidgetFaqTopics, WidgetInquiryConversation } from './InquiryWidget';
+import { InquiryWidget, InquiryWidgetPanel, launcherCoversAvoidZone, WidgetFaqTopicAnswer, WidgetFaqTopics, WidgetInquiryConversation } from './InquiryWidget';
 import { InquiryThread } from './InquiryThread';
 import type { InquiryThreadView } from '@/lib/inquiries.server';
 vi.mock('@/app/my/inquiries/actions', () => ({ createWidgetInquiryAction: vi.fn(), replyToInquiryAction: vi.fn() }));
@@ -110,5 +110,16 @@ describe('FAQ 먼저 여는 상담 위젯', () => {
     expect(html).toContain('자동 안내');
     expect(html).toContain('답변 대기');
     expect(html).toContain('href="https://iconsip.com/help"');
+  });
+});
+
+describe('런처와 요약 금액 영역 겹침 (QA2 S-W1m-03)', () => {
+  const launcher = { left: 250, top: 540, right: 360, bottom: 588 };
+  it('요약 금액 영역이 런처 자리와 겹치면 true, 위·아래·왼쪽으로 떨어져 있으면 false', () => {
+    expect(launcherCoversAvoidZone(launcher, [{ left: 16, top: 500, right: 360, bottom: 600 }])).toBe(true);
+    expect(launcherCoversAvoidZone(launcher, [{ left: 16, top: 100, right: 360, bottom: 539 }])).toBe(false);
+    expect(launcherCoversAvoidZone(launcher, [{ left: 16, top: 589, right: 360, bottom: 700 }])).toBe(false);
+    expect(launcherCoversAvoidZone(launcher, [{ left: 16, top: 500, right: 249, bottom: 600 }])).toBe(false);
+    expect(launcherCoversAvoidZone(launcher, [])).toBe(false);
   });
 });
