@@ -201,7 +201,7 @@ end $$;
 -- 발주확인 이후 주문, 배송 중 → 배송완료, 택배만, 합포장은 묶음 전체. 배송 건마다 저장점을 두어 한 건의 실패가 다른 건을 막지 않는다.
 create function public.service_complete_tracked_deliveries(p_limit integer) returns jsonb
 language plpgsql security definer set search_path = '' as $$
-declare settings private.delivery_tracking_settings; candidate uuid; scope uuid[]; processed uuid[] := '{}';
+declare settings private.delivery_tracking_settings; candidate uuid; scope uuid[]; processed uuid[] := '{}'::uuid[];
   latest_at timestamptz; basis_value jsonb; member record; completed jsonb := '[]'::jsonb; held jsonb := '[]'::jsonb; delivered_value timestamptz;
 begin
   if p_limit is null or p_limit not between 1 and 200 then raise invalid_parameter_value using message = 'invalid_delivery_tracking_limit'; end if;

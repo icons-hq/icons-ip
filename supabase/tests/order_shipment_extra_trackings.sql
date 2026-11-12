@@ -69,7 +69,7 @@ select pg_temp.xt_as(2);
 select public.admin_import_seowon_tracking_batch('00000000-0000-4000-8000-000000042202',jsonb_build_array(
  jsonb_build_object('line',2,'reference',pg_temp.xt_id(4,1)::text,'carrier','epost','trackingNumber','XT10000001','extraTrackingNumbers',jsonb_build_array('xt-1000-0002')))) as reply_one \gset
 select pg_temp.xt_assert(:'reply_one'::jsonb#>>'{0,ok}'='true' and :'reply_one'::jsonb#>>'{0,dispatched}'='true'
- and :'reply_one'::jsonb#>'{0,extraTrackingNumbers}'='["XT10000002"]'::jsonb,'seowon reply stores representative and extra');
+ and :'reply_one'::jsonb#>'{0,extraTrackingNumbers}'='["XT10000002"]'::jsonb and :'reply_one'::jsonb#>>'{0,extraTrackingsAdded}'='1','seowon reply stores representative and extra');
 reset role;
 select pg_temp.xt_assert((select status||':'||tracking_number from public.order_shipments where id=pg_temp.xt_id(4,1))='shipping:XT10000001'
  and (select array_agg(carrier||':'||tracking_number||':'||source) from public.order_shipment_extra_trackings where shipment_id=pg_temp.xt_id(4,1))=array['epost:XT10000002:warehouse_reply']
@@ -83,7 +83,8 @@ set local role authenticated;
 select pg_temp.xt_as(1);
 select public.admin_import_seowon_tracking_batch('00000000-0000-4000-8000-000000042202',jsonb_build_array(
  jsonb_build_object('line',2,'reference',pg_temp.xt_id(4,1)::text,'carrier','epost','trackingNumber','XT10000001','extraTrackingNumbers',jsonb_build_array('XT10000002')))) as reply_again \gset
-select pg_temp.xt_assert(:'reply_again'::jsonb#>>'{0,ok}'='true' and :'reply_again'::jsonb#>>'{0,dispatched}'='false','same reply is unchanged');
+select pg_temp.xt_assert(:'reply_again'::jsonb#>>'{0,ok}'='true' and :'reply_again'::jsonb#>>'{0,dispatched}'='false'
+ and :'reply_again'::jsonb#>>'{0,extraTrackingsAdded}'='0','same reply is unchanged');
 select pg_temp.xt_error(format('select public.admin_import_seowon_tracking_batch(%L,%L::jsonb)','00000000-0000-4000-8000-000000042202',
  jsonb_build_array(jsonb_build_object('line',2,'reference',pg_temp.xt_id(4,1)::text,'carrier','epost','trackingNumber','XT10000001','extraTrackingNumbers',jsonb_build_array('XT10000009')))),
  'shipment_tracking_conflict');
@@ -181,4 +182,18 @@ select pg_temp.xt_assert(:'summaries'::jsonb->>'autoDelivery'='false'
  and :'summaries'::jsonb#>array['shipments',pg_temp.xt_id(4,1)::text,'deliveredBy']='null'::jsonb
  and :'summaries'::jsonb#>array['shipments',pg_temp.xt_id(4,1)::text,'tracking']='null'::jsonb,'summaries without tracking switch');
 reset role;
+
+-- H. 합포장의 다른 구성원 행이 묶음을 먼저 발송해 이 행이 '그대로'(dispatched=false)로 끝나도, 반입 전 검사를 통과한 이번 회신의
+-- 추가 운송장은 이 배송 건에 붙는다(반입 함수 안쪽 단계 직접 확인).
+select private.attach_reply_extra_trackings(
+ jsonb_build_array(jsonb_build_object('line',3,'reference',pg_temp.xt_id(4,2)::text,'carrier','epost','trackingNumber','XT20000001','extraTrackingNumbers',jsonb_build_array('XT20000003'))),
+ jsonb_build_array(jsonb_build_object('line',3,'reference',pg_temp.xt_id(4,2)::text,'ok',true,'dispatched',false,'shipmentId',pg_temp.xt_id(4,2)::text))) as sibling \gset
+select pg_temp.xt_assert(:'sibling'::jsonb#>>'{0,extraTrackingsAdded}'='1'
+ and (select array_agg(tracking_number) from public.order_shipment_extra_trackings where shipment_id=pg_temp.xt_id(4,2))=array['XT20000003'],
+ 'pack sibling rows attach their extras too');
+-- 실패한 행에는 붙이지 않는다.
+select pg_temp.xt_assert(private.attach_reply_extra_trackings(
+ jsonb_build_array(jsonb_build_object('line',4,'reference',pg_temp.xt_id(4,4)::text,'carrier','epost','trackingNumber','XT40000001','extraTrackingNumbers',jsonb_build_array('XT40000002'))),
+ jsonb_build_array(jsonb_build_object('line',4,'reference',pg_temp.xt_id(4,4)::text,'ok',false,'error','shipment_not_exported')))->0->>'extraTrackingsAdded' is null
+ and not exists(select 1 from public.order_shipment_extra_trackings where shipment_id=pg_temp.xt_id(4,4)),'failed rows attach nothing');
 rollback;

@@ -5,6 +5,8 @@ import { loadAdminOrderDeliveries } from '@/lib/order-delivery.server';
 import { loadAdminOrderTransactions } from '@/lib/order-transactions.server';
 import { parseRegionalShippingSnapshot } from '@/lib/shipping-regions';
 import { loadOrderItemAllocationsForScreen } from './item-allocation.server';
+import { shipmentExtraTrackings, type ShipmentExtraTrackingRow } from '@/lib/orders/shipments';
+import { getShippingCarrierRegistry } from '@/lib/orders/shipment.server';
 
 export async function getAdminOrderDetail(orderId: string, canManage = true): Promise<AdminOrderDetail | null> {
   const supabase = await createClient();
@@ -17,11 +19,20 @@ export async function getAdminOrderDetail(orderId: string, canManage = true): Pr
   const emailJobs=((jobs??[]) as {shipment_id:string;status:AdminShipmentEmailJob['status'];attempts:number;last_error_code:string|null;updated_at:string}[])
     .map(job=>({shipmentId:job.shipment_id,status:job.status,attempts:job.attempts,lastErrorCode:job.last_error_code,updatedAt:job.updated_at}));
   const detail = data as AdminOrderDetail;
+  /* 여러 상자로 나눠 보낸 배송 건의 추가 운송장(QNA-019). 주문 조회 운영자의 RLS 읽기이며, 운송장이 있는 배송 건이 있을 때만 읽는다. */
+  const tracked = detail.shipments.some(shipment => shipment.trackingNumber);
+  const extraResult = tracked ? await supabase.from('order_shipment_extra_trackings').select('id,shipment_id,carrier,tracking_number,created_at').eq('order_id', orderId) : { data: [], error: null };
+  if (extraResult.error) throw new Error('추가 운송장을 불러오지 못했습니다.');
+  const extraRows = (extraResult.data ?? []) as (ShipmentExtraTrackingRow & { shipment_id: string })[];
+  const carriers = extraRows.length ? await getShippingCarrierRegistry() : [];
   const [deliveries, transactions, allocations] = await Promise.all([loadAdminOrderDeliveries([orderId]), loadAdminOrderTransactions([orderId]), loadOrderItemAllocationsForScreen([orderId])]);
   const delivery = deliveries.get(orderId), transaction = transactions.get(orderId)?.display;
   if (!delivery || transaction && (transaction.totals.onlineTotal !== detail.order.total || transaction.lines.length !== detail.items.length
     || transaction.lines.some(line => !detail.items.some(item => item.id === line.lineId && item.variantId === line.variantId && item.qty === line.qty && item.unitPrice === line.unitPrice)))) throw new Error('주문 배송·금액 원장을 확인하지 못했습니다.');
-  return { ...detail, items: detail.items.map(item => ({ ...item, optionSaleMode: adminOrderItemOptionSaleMode(item.optionSaleMode) })), shipments: detail.shipments.map(shipment => ({ ...shipment, regionalShipping: parseRegionalShippingSnapshot(shipment.regionalShipping) })), order: { ...detail.order, ...(delivery.orderNumber ? { orderNumber: delivery.orderNumber } : {}), address: delivery.address ?? {}, isGift: delivery.isGift, ...(delivery.addressNeedsReview ? { addressNeedsReview: true } : {}), ...(transaction ? { transaction } : {}) }, emailJobs,
+  return { ...detail, items: detail.items.map(item => ({ ...item, optionSaleMode: adminOrderItemOptionSaleMode(item.optionSaleMode) })), shipments: detail.shipments.map(shipment => {
+    const extraTrackings = shipmentExtraTrackings(extraRows.filter(row => row.shipment_id === shipment.id), carriers, shipment);
+    return { ...shipment, regionalShipping: parseRegionalShippingSnapshot(shipment.regionalShipping), ...(extraTrackings.length ? { extraTrackings } : {}) };
+  }), order: { ...detail.order, ...(delivery.orderNumber ? { orderNumber: delivery.orderNumber } : {}), address: delivery.address ?? {}, isGift: delivery.isGift, ...(delivery.addressNeedsReview ? { addressNeedsReview: true } : {}), ...(transaction ? { transaction } : {}) }, emailJobs,
     itemAllocations: Object.fromEntries([...allocations ?? []].map(([itemId, loaded]) => [itemId, loaded.allocation])),
     ...(allocations ? {} : { itemAllocationsUnavailable: true as const }),
     timeline: canManage ? detail.timeline : detail.timeline.filter(entry => ['order', 'shipment'].includes(entry.source)) };

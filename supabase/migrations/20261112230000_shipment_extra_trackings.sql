@@ -91,7 +91,7 @@ revoke all on function private.shipment_extra_tracking_numbers(uuid) from public
 -- 회신 행의 extraTrackingNumbers(선택)를 정규화한다. 대표와 같거나 겹치는 번호, 형식 오류, 19개 초과(대표 포함 20개)는 거절한다.
 create function private.reply_extra_tracking_numbers(p_extras jsonb, p_representative text) returns text[]
 language plpgsql immutable set search_path = '' as $$
-declare value jsonb; normalized text; result text[] := '{}';
+declare value jsonb; normalized text; result text[] := '{}'::text[];
 begin
   if p_extras is null or p_extras = 'null'::jsonb then return result; end if;
   if jsonb_typeof(p_extras) <> 'array' or jsonb_array_length(p_extras) > 19 then
@@ -130,12 +130,14 @@ begin
 end $$;
 revoke all on function private.assert_reply_extra_trackings(jsonb) from public, anon, authenticated, service_role;
 
--- 반입이 끝난 행에 추가 운송장을 붙이고 결과 행에 extraTrackingNumbers를 싣는다. 이번 반입으로 발송한 배송 건만 저장한다
--- (같은 회신을 다시 올린 행은 위 검사에서 이미 붙어 있음을 확인했다). 결과 행 수·순서는 그대로다.
+-- 반입이 끝난 행에 추가 운송장을 붙이고 결과 행에 extraTrackingNumbers를 싣는다. 성공한 행이면 모두 붙인다 — 합포장의 다른
+-- 구성원 행이 먼저 묶음 전체를 발송해 이 행이 '그대로'(dispatched=false)로 끝나도 이 배송 건의 추가 운송장은 이번 회신의 것이다.
+-- 반입 전 검사가 발송 대기 건은 다른 배송 건 번호가 아님을, 이미 발송된 건은 같은 번호가 이미 붙어 있음을 확인했으므로
+-- 이미 발송된 건에는 새로 붙는 번호가 없다(덮어쓰거나 더하지 않는다). 결과 행 수·순서는 그대로다.
 create function private.attach_reply_extra_trackings(p_rows jsonb, p_results jsonb) returns jsonb
 language plpgsql security definer set search_path = '' as $$
 declare outcome jsonb; input jsonb; shipment public.order_shipments; extras text[]; number text; output jsonb := '[]'::jsonb;
-  actor uuid := (select auth.uid());
+  actor uuid := (select auth.uid()); added integer;
 begin
   if jsonb_typeof(p_results) is distinct from 'array' then return p_results; end if;
   for outcome in select value from jsonb_array_elements(p_results) loop
@@ -143,21 +145,21 @@ begin
     if outcome->>'ok' = 'true' and input is not null and input ? 'extraTrackingNumbers' then
       select * into strict shipment from public.order_shipments where id = (input->>'reference')::uuid;
       extras := private.reply_extra_tracking_numbers(input->'extraTrackingNumbers', shipment.tracking_number);
-      if coalesce((outcome->>'dispatched')::boolean, false) then
-        foreach number in array extras loop
-          insert into public.order_shipment_extra_trackings(order_id, shipment_id, carrier, tracking_number, source, created_by)
-          values (shipment.order_id, shipment.id, shipment.carrier, number, 'warehouse_reply', actor)
-          on conflict (shipment_id, carrier, tracking_number) do nothing;
-          if found then
-            insert into private.order_shipment_tracking_changes(order_id, shipment_id, action, carrier, tracking_number, source, actor_id)
-            values (shipment.order_id, shipment.id, 'added', shipment.carrier, number, 'warehouse_reply', actor);
-            insert into public.audit_log(actor_id, action, target, diff) values (actor, 'admin.shipment.extra_tracking_added', 'order:' || shipment.order_id,
-              jsonb_build_object('shipmentId', shipment.id, 'originName', shipment.origin_name_snapshot, 'carrier', shipment.carrier,
-                'trackingNumber', number, 'source', 'warehouse_reply'));
-          end if;
-        end loop;
-      end if;
-      outcome := outcome || jsonb_build_object('extraTrackingNumbers', to_jsonb(extras));
+      added := 0;
+      foreach number in array extras loop
+        insert into public.order_shipment_extra_trackings(order_id, shipment_id, carrier, tracking_number, source, created_by)
+        values (shipment.order_id, shipment.id, shipment.carrier, number, 'warehouse_reply', actor)
+        on conflict (shipment_id, carrier, tracking_number) do nothing;
+        if found then
+          added := added + 1;
+          insert into private.order_shipment_tracking_changes(order_id, shipment_id, action, carrier, tracking_number, source, actor_id)
+          values (shipment.order_id, shipment.id, 'added', shipment.carrier, number, 'warehouse_reply', actor);
+          insert into public.audit_log(actor_id, action, target, diff) values (actor, 'admin.shipment.extra_tracking_added', 'order:' || shipment.order_id,
+            jsonb_build_object('shipmentId', shipment.id, 'originName', shipment.origin_name_snapshot, 'carrier', shipment.carrier,
+              'trackingNumber', number, 'source', 'warehouse_reply'));
+        end if;
+      end loop;
+      outcome := outcome || jsonb_build_object('extraTrackingNumbers', to_jsonb(extras), 'extraTrackingsAdded', added);
     end if;
     output := output || jsonb_build_array(outcome);
   end loop;

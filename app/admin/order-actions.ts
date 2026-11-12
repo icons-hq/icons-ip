@@ -521,7 +521,7 @@ export interface AdminTrackingImportState {
 }
 
 const isSeowonReply = (parsed: TrackingWorkbookParseResult): parsed is SeowonTrackingParseResult => 'kind' in parsed && parsed.kind === 'seowon';
-type TrackingBatchRow = {line:number;reference:string;ok:boolean;error?:string;shipmentId?:string;orderId?:string;dispatched?:boolean;duplicate?:boolean;packedShipments?:{orderId:string;shipmentId:string}[];extraTrackingNumbers?:string[]};
+type TrackingBatchRow = {line:number;reference:string;ok:boolean;error?:string;shipmentId?:string;orderId?:string;dispatched?:boolean;duplicate?:boolean;packedShipments?:{orderId:string;shipmentId:string}[];extraTrackingNumbers?:string[];extraTrackingsAdded?:number};
 type ReplyTemplate = 'wms_csv' | 'seowon_xlsx';
 const REPLY_TEMPLATE_LABEL: Record<ReplyTemplate, string> = { wms_csv: '김포 WMS 21열', seowon_xlsx: '남양주(서원) 송장양식' };
 
@@ -593,7 +593,9 @@ async function registerSeowonReply(parsed: SeowonTrackingParseResult, requestedO
     const deliveries:{orderId:string;shipmentId:string}[]=[];
     for(const command of match.commands){
       const outcome=outcomes.get(command.shipmentId),reference=commerceReferenceLabel(command.shipmentId,command.shipmentNumber);
-      if(outcome?.ok&&outcome.dispatched!==false){succeeded.push(reference);extraTrackings+=outcome.extraTrackingNumbers?.length??0;deliveries.push(...(outcome.packedShipments??[{orderId:command.orderId,shipmentId:command.shipmentId}]));}
+      // 실제로 새로 붙은 추가 운송장 수(합포장 구성원이 묶음으로 먼저 발송돼 '그대로'로 끝난 행도 이번 회신의 번호를 붙인다).
+      if(outcome?.ok&&Number.isSafeInteger(outcome.extraTrackingsAdded))extraTrackings+=outcome.extraTrackingsAdded!;
+      if(outcome?.ok&&outcome.dispatched!==false){succeeded.push(reference);deliveries.push(...(outcome.packedShipments??[{orderId:command.orderId,shipmentId:command.shipmentId}]));}
       else if(outcome?.ok)unchanged++; // 다른 운영자가 같은 회신을 먼저 등록했다.
       else for(const line of command.lines)failed.push({line,reference,reason:shipmentMutationError(outcome?.error??'')});
     }

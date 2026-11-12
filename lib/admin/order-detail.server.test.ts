@@ -4,6 +4,7 @@ const mocks=vi.hoisted(()=>({rpc:vi.fn(),from:vi.fn(),select:vi.fn(),eq:vi.fn()}
 vi.mock('@/lib/order-delivery.server',()=>({loadAdminOrderDeliveries:async(ids:string[])=>new Map(ids.map(id=>[id,{orderId:id,address:null,isGift:false}]))}));
 vi.mock('@/lib/order-transactions.server',()=>({loadAdminOrderTransactions:async(ids:string[])=>new Map(ids.map(id=>[id,null]))}));
 vi.mock('@/lib/supabase/server',()=>({createClient:()=>({rpc:mocks.rpc,from:mocks.from})}));
+vi.mock('@/lib/orders/shipment.server',()=>({getShippingCarrierRegistry:async()=>[{code:'hanjin',label:'한진택배',active:true,trackingUrlTemplate:'https://example.test/{trackingNumber}'}]}));
 beforeEach(()=>{
  vi.clearAllMocks();
  mocks.rpc.mockResolvedValue({data:{order:{id:'order'},items:[],shipments:[],timeline:[]},error:null});
@@ -60,4 +61,17 @@ it('품목 배분 조회가 실패하면 나눌 수 없는 주문과 구분해 �
  mocks.rpc.mockImplementation(async(name:string)=>name==='admin_order_item_allocation_inputs'?{data:[],error:null}:detail);
  const loaded=await getAdminOrderDetail('10000000-0000-4000-8000-000000002714');
  expect(loaded).not.toHaveProperty('itemAllocationsUnavailable');expect(loaded?.itemAllocations).toEqual({});
+});
+
+it('운송장이 있는 배송 건의 추가 운송장을 주문 상세 배송 칸에 싣는다(QNA-019)', async () => {
+ const shipment={id:'shipment',carrier:'hanjin',trackingNumber:'123456789012',regionalShipping:null};
+ mocks.rpc.mockImplementation(async(name:string)=>name==='admin_order_item_allocation_inputs'?{data:[],error:null}:{data:{order:{id:'order'},items:[],shipments:[shipment,{...shipment,id:'other',trackingNumber:'923456789012'}],timeline:[]},error:null});
+ mocks.from.mockImplementation((table:string)=>table==='order_shipment_extra_trackings'
+  ?{select:()=>({eq:async()=>({data:[{id:'x1',shipment_id:'shipment',carrier:'hanjin',tracking_number:'223456789012',created_at:'2026-11-12T01:00:00Z'}],error:null})})}
+  :{select:mocks.select});
+ const result=await getAdminOrderDetail('order');
+ expect(result?.shipments[0].extraTrackings).toEqual([{id:'x1',carrier:'hanjin',carrierLabel:'한진택배',trackingNumber:'223456789012',trackingUrl:expect.stringContaining('223456789012')}]);
+ expect(result?.shipments[1]).not.toHaveProperty('extraTrackings');
+ mocks.from.mockImplementation((table:string)=>table==='order_shipment_extra_trackings'?{select:()=>({eq:async()=>({data:null,error:{message:'private'}})})}:{select:mocks.select});
+ await expect(getAdminOrderDetail('order')).rejects.toThrow('추가 운송장을 불러오지 못했습니다.');
 });

@@ -225,7 +225,7 @@ describe('bulk tracking action', () => {
   it('서원 회신의 같은 배송 건 다른 송장번호는 거절하지 않고 대표 + 추가 운송장으로 보낸다(QNA-019)', async () => {
     mocks.rpc.mockImplementation(async (name: string, args: { target_rows?: { line: number; reference: string; extraTrackingNumbers?: string[] }[] }) => name === 'admin_origin_tracking_candidates'
       ? { error: null, data: { defaultCarrier: 'epost', truncated: false, shipments: [seowonCandidate()], usedTracking: [] } }
-      : { error: null, data: args.target_rows!.map(row => ({ ...row, ok: true, dispatched: true, orderId: seowonOrder, shipmentId: seowonShipment })) });
+      : { error: null, data: args.target_rows!.map(row => ({ ...row, ok: true, dispatched: true, orderId: seowonOrder, shipmentId: seowonShipment, extraTrackingsAdded: row.extraTrackingNumbers?.length ?? 0 })) });
     const result = await bulkRegisterAdminOrderTrackingAction({}, await seowonForm([
       seowonRow('합성 키링_빨강', 2, '6012345678901'), seowonRow('합성 엽서_', 1, '6012345678902'),
     ]));
