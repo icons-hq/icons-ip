@@ -963,6 +963,11 @@
   background: linear-gradient(var(--wc-accent-tint), var(--wc-accent-tint)), var(--wc-surface);
 }
 
+/* 경험 화면 안의 '사업자 정보·약관' 링크가 푸터로 보낸 포커스(components/shell/site-footer-jump.ts) — 컨테이너 자체에는 링을 그리지 않는다. */
+.wc-footer:focus-visible {
+  outline: none;
+}
+
 /* 컬러형 헤더의 포커스 링 — 기본 링(#5B74FF)은 테마 색 15종 중 14종에서 3:1 미만이라(WCAG 1.4.11·2.4.7) 색 바탕 위의 머리말 행과
    검색 패널 안에서는 헤더 글자색(대비가 보장된 짝)으로 그린다. 기본형 헤더는 흰 바탕이라 기본 링 그대로다. */
 .wc-chrome .wc-header[data-store-header="color"] :is(.wc-header__bar, .wc-gnb-wrap, .wc-search) :focus-visible {

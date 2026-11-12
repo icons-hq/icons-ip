@@ -15,6 +15,7 @@ import {
   isStandaloneShellPath,
 } from '@/lib/routes';
 import { BusinessInfo } from './BusinessInfo';
+import { SITE_FOOTER_ID } from './site-footer-jump';
 import { useCardRewardsEnabled } from './CardRewardAvailability';
 import { useCommunityStaffPreviewVisible, useSecondaryMarketDemoVisible } from './StaffPreviewAvailability';
 import { StoreBrandFooterDetails, StoreBrandLogo } from './StoreBranding';
@@ -55,7 +56,7 @@ export function SiteFooter({businessInfo=BUSINESS_INFO,branding=DEFAULT_STOREFRO
   const promises = ['공식 라이선스', ...(cardRewardsEnabled ? ['무상 카드 리워드'] : []), '결제사 승인 확인 후 주문 확정'];
 
   return (
-    <footer className={standalone ? 'wc-root wc-footer wc-footer--standalone' : 'wc-root wc-footer'}>
+    <footer className={standalone ? 'wc-root wc-footer wc-footer--standalone' : 'wc-root wc-footer'} id={SITE_FOOTER_ID} tabIndex={-1}>
       <div className="wc-footer__inner">
         <p className="wc-footer__logo wc-footer__logo--mobile"><Link aria-label={`${branding.displayName} 홈`} href="/"><StoreBrandLogo branding={branding} /></Link></p>
         <nav aria-label="회사·정책" className="wc-footer__primary">

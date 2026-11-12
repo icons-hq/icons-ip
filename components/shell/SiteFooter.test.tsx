@@ -74,7 +74,7 @@ describe('SiteFooter 법정 고지 링크', () => {
     mocks.pathname = pathname;
     const html = render();
 
-    expect(html).toContain('<footer class="wc-root wc-footer wc-footer--standalone">');
+    expect(html).toContain('<footer class="wc-root wc-footer wc-footer--standalone" id="site-footer" tabindex="-1">');
     expect(html).toContain(`${BUSINESS_INFO.companyName} 사업자 정보`);
     for (const href of ['/legal/terms', '/legal/privacy', '/legal/shipping']) expect(html).toContain(`href="${href}"`);
   });
@@ -88,7 +88,7 @@ describe('SiteFooter 법정 고지 링크', () => {
   it('공용 크롬이 있는 화면의 푸터는 독립 경험 표시 없이 그린다', () => {
     for (const pathname of ['/', '/shop', '/login', '/legal/terms']) {
       mocks.pathname = pathname;
-      expect(render(), pathname).toContain('<footer class="wc-root wc-footer">');
+      expect(render(), pathname).toContain('<footer class="wc-root wc-footer" id="site-footer" tabindex="-1">');
     }
   });
 

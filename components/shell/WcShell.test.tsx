@@ -88,7 +88,7 @@ describe('White Catalog 전역 셸', () => {
     for (const pathname of ['/games/roulette', '/games/hyosan-memories', '/ip/aouad']) {
       mocks.pathname = pathname;
       const html = renderToStaticMarkup(<SiteFooter />);
-      expect(html, pathname).toContain('<footer class="wc-root wc-footer wc-footer--standalone">');
+      expect(html, pathname).toContain('<footer class="wc-root wc-footer wc-footer--standalone" id="site-footer" tabindex="-1">');
       expect(html, pathname).toContain('href="/legal/terms"');
     }
   });
