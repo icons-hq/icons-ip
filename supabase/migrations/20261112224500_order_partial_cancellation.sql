@@ -639,8 +639,9 @@ revoke all on function private.order_partial_cancellation_json(uuid, boolean) fr
 
 -- 10. 운영자 RPC.
 -- 10-1. 주문 상세 패널. 스위치가 꺼져 있고 기록이 없으면 {enabled:false, history:[]} — 화면은 아무것도 그리지 않는다.
+-- 운영자 능력 검사가 행 잠금을 쓰므로 PostgREST 읽기 전용 트랜잭션에 걸리지 않게 VOLATILE이다(cs_reply_read_transaction_mode).
 create function public.admin_order_partial_cancellation_context(p_order_id uuid) returns jsonb
-language plpgsql stable security definer set search_path = '' as $$
+language plpgsql security definer set search_path = '' as $$
 declare enabled boolean; blockers text[]; history jsonb; pay public.payments; items jsonb;
 begin
   perform private.require_operator_capability('sales.manage', false);
@@ -672,7 +673,7 @@ grant execute on function public.admin_order_partial_cancellation_context(uuid) 
 
 -- 10-2. 확인창 미리보기(읽기 전용). 시작과 같은 계산이다.
 create function public.admin_preview_order_partial_cancellation(p_order_id uuid, p_items jsonb) returns jsonb
-language plpgsql stable security definer set search_path = '' as $$
+language plpgsql security definer set search_path = '' as $$
 begin
   perform private.require_operator_capability('sales.manage', false);
   return private.order_partial_cancellation_plan(p_order_id, p_items);

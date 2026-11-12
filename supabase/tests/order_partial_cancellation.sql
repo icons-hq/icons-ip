@@ -266,6 +266,7 @@ select pg_temp.pc_assert(pg_temp.pc_stock('partial-cancel-a') = 14
  and private.claim_refund_active_deduction(pg_temp.pc_id('payment', 3)) = 9500
  and not private.order_partial_cancel_in_flight(pg_temp.pc_id('order', 3)), 'bank_transfer_awaiting_transfer');
 select private.assert_order_dispatch_allowed(pg_temp.pc_id('order', 3));
+select pg_temp.pc_assert(private.account_deletion_blockers(pg_temp.pc_id('user', 2)) @> '[{"code": "active_order_refund", "count": 1}]', 'awaiting_transfer_blocks_account_deletion');
 set local role authenticated;
 select pg_temp.pc_auth();
 select pg_temp.pc_assert(public.admin_view_order_partial_cancellation_refund_account((pg_temp.pc_head(4)).id)
@@ -276,6 +277,7 @@ select pg_temp.pc_assert(public.admin_record_order_partial_cancellation_transfer
 select pg_temp.pc_error(format('select public.admin_record_order_partial_cancellation_transfer(%L, %L, %L, %L)', (pg_temp.pc_head(4)).id, 'TEST 다른 증빙', 'TEST 다른 메모', pg_temp.pc_id('transfer', 2)), 'partial_cancel_transfer_already_recorded');
 select pg_temp.pc_error(format('select public.admin_view_order_partial_cancellation_refund_account(%L)', (pg_temp.pc_head(4)).id), 'partial_cancel_not_awaiting_transfer');
 reset role;
+select pg_temp.pc_assert(not (private.account_deletion_blockers(pg_temp.pc_id('user', 2)) @> '[{"code": "active_order_refund"}]'), 'transfer_completion_releases_deletion_blocker');
 select pg_temp.pc_assert((select state = 'completed' and transferred_by = pg_temp.pc_id('user', 1) from private.order_partial_cancellations where id = (pg_temp.pc_head(4)).id)
  and (select purge_after > now() from private.order_partial_cancellation_refund_accounts where partial_cancellation_id = (pg_temp.pc_head(4)).id)
  and exists(select 1 from public.audit_log where action = 'admin.order.partial_cancellation_account_viewed' and diff->>'partialCancellationId' = (pg_temp.pc_head(4)).id::text)
@@ -347,7 +349,10 @@ select pg_temp.pc_assert(not has_function_privilege('anon', 'public.admin_start_
  and has_function_privilege('service_role', 'public.service_complete_order_partial_cancellation(uuid,bigint,text,text,uuid)', 'execute')
  and has_function_privilege('authenticated', 'public.get_my_order_partial_cancellations(uuid)', 'execute')
  and not has_function_privilege('anon', 'public.get_my_order_partial_cancellations(uuid)', 'execute')
- and not has_table_privilege('authenticated', 'private.order_partial_cancellations', 'select'), 'grants_sealed');
+ and not has_table_privilege('authenticated', 'private.order_partial_cancellations', 'select')
+ -- 운영자 능력 검사가 행 잠금을 쓰므로 PostgREST 읽기 전용 트랜잭션에 걸리지 않게 읽기 RPC도 VOLATILE이다.
+ and (select bool_and(provolatile = 'v') from pg_proc where oid in ('public.admin_order_partial_cancellation_context(uuid)'::regprocedure,
+   'public.admin_preview_order_partial_cancellation(uuid,jsonb)'::regprocedure)), 'grants_sealed');
 set local role authenticated;
 select pg_temp.pc_auth(3);
 select pg_temp.pc_error($$select pg_temp.pc_start('b:1@6', 9, 10000)$$, '42501');

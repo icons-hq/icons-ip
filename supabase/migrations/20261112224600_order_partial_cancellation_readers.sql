@@ -10,6 +10,7 @@
 --  * 반품배송비 차감(ADR-0031)은 남은 잔액을 기준으로 판정·차감한다.
 --  * PG 정산 대사는 부분 취소 거래키를 그 부분 취소 금액과 맞춘다. 매출 보고·스토어 분석은 부분 취소 금액·수량을 뺀다.
 --    적립 기준액은 취소된 굿즈 금액을 뺀다. 무통장 부분 취소 환불계좌는 클레임 환불계좌와 같은 일정으로 지운다.
+--  * 결제사 확인·송금을 기다리는 부분 취소 환불은 계정 삭제를 막는 미결 환불이다.
 begin;
 
 create function private.t12b_patch_function(p_function regprocedure, p_pairs text[]) returns void
@@ -291,6 +292,20 @@ $a$  get diagnostics v_count = row_count;
   return v_count;$a$
 ]);
 
+-- 10. 계정 삭제: 결제사 확인을 기다리거나 송금을 기다리는 부분 취소 환불은 미결 환불이다(ADR-0010의 미결 환불 차단과 같다).
+select private.t12b_patch_function('private.account_deletion_blockers(uuid)'::regprocedure, array[
+$a$      and refund.status in ('requested', 'failed', 'awaiting_transfer')
+  ),$a$,
+$a$      and refund.status in ('requested', 'failed', 'awaiting_transfer')
+    union all
+    select head.id::text as blocker_ref, payment.purpose
+    from private.order_partial_cancellations as head
+    join public.payments as payment on payment.id = head.payment_id
+    where payment.user_id = p_user_id
+      and head.state in ('processing', 'needs_review', 'awaiting_transfer')
+  ),$a$
+]);
+
 -- 재정의한 함수의 등록된 계약을 새 본문·ACL로 다시 적는다(분류는 기존 행 그대로).
 do $$declare fn regprocedure; contract record; begin
   foreach fn in array array[
@@ -322,7 +337,8 @@ do $$declare fn regprocedure; contract record; begin
     'public.admin_sales_report(timestamp with time zone,timestamp with time zone,text)'::regprocedure,
     'private.store_analytics_paid_orders(timestamp with time zone,timestamp with time zone)'::regprocedure,
     'private.store_credit_order_transition()'::regprocedure,
-    'public.purge_expired_claim_refund_accounts()'::regprocedure] loop
+    'public.purge_expired_claim_refund_accounts()'::regprocedure,
+    'private.account_deletion_blockers(uuid)'::regprocedure] loop
     select * into contract from private.operator_rpc_contracts r where r.signature::regprocedure = fn;
     if found then perform private.register_operator_rpc_contract(fn, contract.capability, contract.guard_kind, contract.legacy_admin_only);
     elsif exists(select 1 from private.operator_internal_contracts r where r.signature::regprocedure = fn) then
