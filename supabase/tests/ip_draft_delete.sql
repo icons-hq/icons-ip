@@ -48,7 +48,8 @@ select pg_temp.t17c_assert(bool_and(not has_function_privilege(role_name, signat
 from unnest(array[
   'private.ip_delete_readiness(text)',
   'private.record_ip_public_history()',
-  'private.default_ip_public_slug()'
+  'private.default_ip_public_slug()',
+  'private.lock_coupon_target_ips()'
 ]) as signature
 cross join unnest(array['anon', 'authenticated', 'service_role']) as role_name;
 select pg_temp.t17c_assert(bool_and(not has_table_privilege(role_name, table_name, 'select,insert,update,delete')), 'private tables sealed')
@@ -67,6 +68,11 @@ where contract.body_md5 = md5(proc.prosrc)
 select pg_temp.t17c_assert(exists (
   select 1 from pg_trigger where tgrelid = 'public.ips'::regclass and tgname = 'ips_record_public_history' and not tgisinternal
 ), 'public history trigger');
+select pg_temp.t17c_assert(exists (
+  select 1 from pg_trigger
+  where tgrelid = 'public.coupons'::regclass and tgname = 'coupons_lock_target_ips' and not tgisinternal
+    and pg_get_triggerdef(oid) like '%BEFORE INSERT OR UPDATE OF target_ip_ids ON public.coupons FOR EACH ROW%'
+), 'coupon target lock trigger');
 -- Every IP that is public right now already carries public history (backfill + trigger).
 select pg_temp.t17c_assert(not exists (
   select 1 from public.ips as ip
@@ -260,6 +266,27 @@ select pg_temp.t17c_assert(count(*) = 6, 'blocked IPs are untouched')
 from public.ips where id in ('t17c-goods', 't17c-linked', 't17c-coupon', 't17c-follow', 't17c-once', 't17c-archived');
 select pg_temp.t17c_assert(count(*) = 2, 'only the two successful deletions were audited')
 from public.audit_log where action = 'catalog.ip.deleted' and target like 'ips:t17c-%';
+
+-- ---------------------------------------------------------------------------
+-- 5. 쿠폰 대상 IP: 이번 쓰기로 추가되는 대상은 지금 있는 IP여야 한다(삭제와의 경합은 *_concurrency.sh가 고정한다).
+-- ---------------------------------------------------------------------------
+select pg_temp.t17c_expect($q$insert into public.coupons(code, name, discount_type, discount_value, goods_scope, target_ip_ids)
+  values ('T17C-GONE-COUPON', '지운 IP 쿠폰', 'fixed', 1000, 'selected_ips', array['t17c-alpha'])$q$, 'coupon_target_ip_unavailable');
+select pg_temp.t17c_expect($q$update public.coupons set target_ip_ids = array['t17c-coupon', 't17c-alpha-2'] where code = 'T17C-IP-COUPON'$q$,
+  'coupon_target_ip_unavailable');
+update public.coupons set target_ip_ids = array['t17c-coupon', 't17c-goods'] where code = 'T17C-IP-COUPON';
+-- A definition may keep a target it already had, even one that no longer exists (legacy rows); only new targets are checked.
+insert into public.verticals(key, label, color) values ('t17c-test-2', 'T17c 테스트 2', '#222222') on conflict (key) do nothing;
+insert into public.ips(id, title, vertical_key) values ('t17c-dangling', '사라질 IP', 't17c-test-2');
+insert into public.coupons(code, name, discount_type, discount_value, goods_scope, target_ip_ids)
+values ('T17C-DANGLING', '옛 대상 쿠폰', 'fixed', 1000, 'selected_ips', array['t17c-dangling']);
+delete from public.ips where id = 't17c-dangling';
+update public.coupons set target_ip_ids = target_ip_ids, name = '옛 대상 유지' where code = 'T17C-DANGLING';
+update public.coupons set target_ip_ids = array['t17c-dangling', 't17c-goods'] where code = 'T17C-DANGLING';
+select pg_temp.t17c_expect($q$update public.coupons set target_ip_ids = array['t17c-dangling', 't17c-goods', 't17c-alpha'] where code = 'T17C-DANGLING'$q$,
+  'coupon_target_ip_unavailable');
+select pg_temp.t17c_assert(target_ip_ids = array['t17c-dangling', 't17c-goods'] and name = '옛 대상 유지', 'kept targets survive, added ones are checked')
+from public.coupons where code = 'T17C-DANGLING';
 
 -- A direct (service) publish also records public history.
 set local role service_role;

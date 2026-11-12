@@ -8,8 +8,9 @@
 -- 2. 퇴역 ID — private.retired_ip_ids. 지운 초안의 내부 ID는 다시 발급하지 않는다. 감사·분석·쿠폰처럼 FK 없이
 --    IP ID를 담은 기록이 새 IP를 가리키는 일이 없게 한다. 공개 URL은 공개된 적이 없으므로 다시 쓸 수 있다.
 -- 3. public.admin_create_ip — 새 IP는 사람이 이름·공개 URL만 넣고, 내부 ID는 시스템이 공개 URL로 만든다.
---    공개 URL·이전 URL·다른 IP의 내부 ID와 겹치는 공개 URL은 거절하고(ip_public_slug_taken), 내부 ID가
---    기존 ID·공개 URL·이전 URL·퇴역 ID와 겹치면 -2·-3을 붙인다. 이후 내부 ID는 바뀌지 않는다.
+--    다른 IP의 공개 URL·이전 URL·내부 ID와 같은 공개 URL은 거절한다(ip_public_slug_taken). 그래서 내부 ID에
+--    -2·-3이 붙는 것은 공개 URL이 지운 IP의 내부 ID(퇴역 ID)와 같을 때뿐이다(다음 번호도 기존 ID·공개 URL·
+--    이전 URL·퇴역 ID를 피한다). 이후 내부 ID는 바뀌지 않는다.
 --    admin_upsert_ip의 신규 등록 경로(ID 직접 지정)는 기존 스크립트·테스트 호환용으로 남기되, 퇴역 ID는
 --    삽입 트리거가 막는다(catalog_id_retired). 어드민 화면은 admin_create_ip만 쓴다.
 -- 4. admin_update_ip_identity — 다른 IP의 내부 ID와 같은 공개 URL도 거절한다(링크 정규화가 ID와 공개
@@ -21,6 +22,10 @@
 --    삭제 행 스냅샷·이전 URL·판단 근거를 감사 기록(catalog.ip.deleted)으로 남기고 ID를 퇴역시킨다.
 --    공개된 적 없는 초안의 이전 URL 별칭은 공개 경로로 쓰인 적이 없어(익명 RLS·공개 해석기 모두 공개 IP만
 --    본다) IP와 함께 지운다.
+-- 6. 쿠폰 대상 IP — 쿠폰 저장 RPC는 대상 IP를 잠그지 않고 읽어(웨이브 1 T09가 고친 함수라 재정의하지 않는다),
+--    삭제와 겹치면 지운 IP를 가리키는 쿠폰이 남을 수 있었다. coupons의 새 트리거가 이번 쓰기로 추가되는 대상
+--    IP 행을 ID 순서로 FOR KEY SHARE 잠그고 모두 있는지 다시 확인한다. 삭제의 FOR UPDATE와 충돌하므로 어느
+--    순서로 겹쳐도 한쪽이 다른 쪽의 커밋을 기다린 뒤 거절된다(coupon_target_ip_unavailable / ip_has_references).
 begin;
 
 -- 1. 공개 이력 원장 ---------------------------------------------------------------------------------
@@ -514,6 +519,52 @@ end;
 $$;
 revoke all on function public.admin_delete_draft_ip(text) from public, anon, authenticated, service_role;
 grant execute on function public.admin_delete_draft_ip(text) to authenticated;
+
+-- 8. 쿠폰 대상 IP 잠금 ---------------------------------------------------------------------------------
+-- 이번 쓰기로 추가되는 대상만 본다 — 기존 정의는 이미 가리키던 IP(보관 IP 포함)를 그대로 둘 수 있다(쿠폰 RPC와 같은 규칙).
+create function private.lock_coupon_target_ips()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  previous_ids text[] := '{}';
+  added_ids text[];
+  locked_count integer;
+begin
+  if tg_op = 'UPDATE' then
+    previous_ids := coalesce(old.target_ip_ids, '{}');
+  end if;
+  select coalesce(pg_catalog.array_agg(distinct target.id order by target.id), '{}')
+    into added_ids
+  from pg_catalog.unnest(coalesce(new.target_ip_ids, '{}')) as target(id)
+  where not target.id = any(previous_ids);
+  if pg_catalog.cardinality(added_ids) = 0 then
+    return new;
+  end if;
+
+  -- FOR KEY SHARE in ID order: an IP deletion (FOR UPDATE) either waits for this coupon to commit
+  -- and then counts it as a reference, or commits first so that this write no longer finds the IP.
+  select pg_catalog.count(*) into locked_count
+  from (
+    select ip.id
+    from public.ips as ip
+    where ip.id = any(added_ids)
+    order by ip.id
+    for key share of ip
+  ) as kept;
+  if locked_count <> pg_catalog.cardinality(added_ids) then
+    raise check_violation using message = 'coupon_target_ip_unavailable';
+  end if;
+  return new;
+end;
+$$;
+revoke all on function private.lock_coupon_target_ips() from public, anon, authenticated, service_role;
+
+create trigger coupons_lock_target_ips
+before insert or update of target_ip_ids on public.coupons
+for each row execute function private.lock_coupon_target_ips();
 
 -- 운영자 RPC 계약(본문·실행 메타데이터 지문)은 권한을 정리한 뒤 등록한다.
 select private.register_operator_rpc_contract('public.admin_update_ip_identity(text,text,text)'::regprocedure, 'platform.manage', 'write', false);
