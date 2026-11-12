@@ -544,7 +544,10 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
         </AdminFormGrid></div>
         {suggestedType ? <p className="flex min-w-0 flex-wrap items-center gap-2 text-sm text-muted-foreground" data-good-type-suggestion="">카테고리 기준 추천 유형 <button className={buttonVariants({ variant: 'soft', size: 'sm' })} data-slot="button" onClick={() => applySuggestedType(suggestedType)} type="button">{suggestedType} 선택</button></p>
           : categoryId && !values.type && !locked && !groupOwned ? <p className="text-xs text-muted-foreground">맞는 유형이 없으면 ‘기타’를 고릅니다.</p> : null}
-        {/* ADM-004(복잡도 표 190행): 용어 도움말은 고르는 동안(연결 IP·유형이 비어 있을 때)만 보인다. */}
+        {/*
+          ADM-004(복잡도 표 190행): 용어 도움말은 고르는 동안(연결 IP·유형이 비어 있을 때)만 보인다. 입력칸이 아니라 안내 문구라 ADM-004 "복잡함 줄이기"
+          지시 범위다 — 묶음 10의 "펼친 채로" 원칙은 입력 섹션 대상이라 여기에 걸리지 않는다(오케스트레이터 판단, T15a 리뷰).
+        */}
         {!locked && !groupOwned && (!values.ipId || !values.type) ? <p className="-mt-2 text-xs text-muted-foreground" data-good-identity-help="">연결 IP는 브랜드·작품, 카테고리는 쇼핑 분류, 유형은 상품의 형태입니다.</p> : null}
         {canSearchErp && values.ipId && <a className="w-fit text-sm underline underline-offset-4" href={`/admin/catalog/ips/${encodeURIComponent(values.ipId)}`} target="_blank" rel="noreferrer">연결 IP의 공개 상태 확인 (새 탭)</a>}
         <div className="min-w-0 scroll-mt-24 outline-none" id="good-section-attributes" tabIndex={-1}>
@@ -580,14 +583,14 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
 
       {/* 3. 상품이미지: 썸네일 그리드·클릭 교체·X 삭제·드래그 정렬·추가 이미지 9장은 그대로 둔다. */}
       <GoodEditorSection title="상품이미지" id="good-section-images" requirement="대표이미지 (필수) · 추가이미지 (선택)" summary={`대표이미지 ${values.imagePath ? '등록됨' : '미등록'} · 추가이미지 ${Array.from({ length: GOODS_GALLERY_MAX }, (_, i) => values[`galleryPath${i}`]).filter(Boolean).length}장`} errorCount={errorCount('images')}>
-        <GoodsImageGrid accountId={accountId} recordId={selected?.id ?? 'new'} editingDisabled={pending || draftBusy || Boolean(selected?.archivedAt)} mainRemovable={!locked && !selected?.archivedAt} errors={errors} initialPaths={GOODS_IMAGE_FIELD_NAMES.map((name) => initial[name])} initialUrls={GOODS_IMAGE_FIELD_NAMES.map((name) => imageUrls[name])} onPreviewChange={setImageUrl} />
+        <GoodsImageGrid accountId={accountId} recordId={selected?.id ?? 'new'} editingDisabled={pending || draftBusy || Boolean(selected?.archivedAt)} publication={selected?.archivedAt ? 'archived' : locked ? 'published' : 'draft'} errors={errors} initialPaths={GOODS_IMAGE_FIELD_NAMES.map((name) => initial[name])} initialUrls={GOODS_IMAGE_FIELD_NAMES.map((name) => imageUrls[name])} onPreviewChange={setImageUrl} />
       </GoodEditorSection>
 
       {/*
-        4. 상세설명: 공개 조건이 아닌 선택 카드라 접어 두고 요약 한 줄을 보인다(ADM-004 복잡도 표 168행, 11/11 "필수는 펼침·선택은 요약으로 접음").
-        열면 형식 선택과 입력이 한 겹으로 바로 보인다. 오류가 있거나 이동 띠에서 오면 열리고, 저장 전 확인할 HTML 안내가 있으면 처음부터 열어 둔다.
+        4. 상세설명: 카드 안 접힘 없이 형식 선택과 입력을 바로 둔다(요약 한 줄은 카드 머리에). 입력 섹션은 펼친 채로 둔다 — 11/11 묶음 10 결정
+        "둘 다 펼친 채로 … 남은 등록 화면 정리(ADM-004)도 이 원칙"에 따라 복잡도 표 168행의 처리안(카드 기본 접힘)은 채택하지 않는다.
       */}
-      <GoodEditorSection title="상세설명" id="good-section-description" defaultOpen={descriptionWarnings.length > 0} summary={htmlDescription && descriptionCheck ? `상세페이지 HTML · 원문 ${rawDescriptionLength.toLocaleString('ko-KR')}자 · 정리 후 ${descriptionCheck.html.length.toLocaleString('ko-KR')}자` : values.description ? `일반 텍스트 · ${rawDescriptionLength.toLocaleString('ko-KR')}자` : '입력 안 함'} errorCount={errorCount('description')}>
+      <GoodEditorSection title="상세설명" id="good-section-description" summary={htmlDescription && descriptionCheck ? `상세페이지 HTML · 원문 ${rawDescriptionLength.toLocaleString('ko-KR')}자 · 정리 후 ${descriptionCheck.html.length.toLocaleString('ko-KR')}자` : values.description ? `일반 텍스트 · ${rawDescriptionLength.toLocaleString('ko-KR')}자` : '입력 안 함'} errorCount={errorCount('description')}>
         <OwnedFields locked={groupOwned} fields={['description','descriptionFormat']} values={initial}>
           <SelectField defaultValue={initial.descriptionFormat} error={errors.descriptionFormat} label="상세 설명 형식" name="descriptionFormat"><option value="plain">일반 텍스트</option><option value="html">HTML 문서 (상세페이지 소스)</option></SelectField>
           <div className="flex min-w-0 flex-col gap-3 rounded-lg border p-4" data-good-html-tools="" hidden={!htmlDescription}>

@@ -230,14 +230,19 @@ describe('GoodSection', () => {
     expect(create).not.toContain('→ 2.');
   });
 
-  /* ADM-004(복잡도 표 168·190행) — 선택 카드인 상세설명은 요약 한 줄로 접고, 용어 도움말은 연결 IP·유형을 고르는 동안만 보인다. */
-  it('상세설명 카드는 요약 한 줄로 접혀 있고 오류가 있으면 열리며, 연결 IP·유형 도움말은 고르는 동안만 보인다', () => {
+  /*
+   * 11/11 묶음 10 결정 "둘 다 펼친 채로 … 남은 등록 화면 정리(ADM-004)도 이 원칙" — 입력 섹션인 상세설명 카드는 펼친 채로 두고 요약 한 줄만 머리에
+   * 보인다(복잡도 표 168행의 '카드 기본 접힘' 처리안은 채택하지 않음). 용어 도움말(190행)은 입력칸이 아닌 안내 문구라 고르는 동안만 보인다.
+   */
+  it('상세설명 카드는 등록·수정 화면 모두 펼쳐져 있고 요약 한 줄을 머리에 두며, 연결 IP·유형 도움말은 고르는 동안만 보인다', () => {
     const create = renderGoodSection(null);
-    expect(create.match(/<details id="good-section-description"[^>]*>/)?.[0]).not.toContain('open=""');
+    const saved = renderGoodSection({ ...good, publishedAt: null });
+    for (const markup of [create, saved]) expect(markup.match(/<details id="good-section-description"[^>]*>/)?.[0]).toContain('open=""');
     expect(create).toMatch(/<textarea[^>]*name="description"/);
-    expect(renderGoodSection(null, { errors: { description: '설명 오류' } }).match(/<details id="good-section-description"[^>]*>/)?.[0]).toContain('open=""');
+    expect(create).toMatch(/data-good-section-summary="">입력 안 함<\/span>/);
+    expect(saved).toMatch(/data-good-section-summary="">일반 텍스트 · \d+자<\/span>/);
     expect(create).toContain('data-good-identity-help=""');
-    expect(renderGoodSection({ ...good, publishedAt: null })).not.toContain('data-good-identity-help=""');
+    expect(saved).not.toContain('data-good-identity-help=""');
   });
   it('저장 후 공개가 KC에 막혀 초안으로만 저장되면 성공이 아니라 공개 보류로 알리고 KC 정보로 안내한다', () => {
     const draft = { ...good, publishedAt: null };
@@ -665,6 +670,13 @@ describe('GoodSection', () => {
     expect(html).not.toContain('현재 실재고');
     expect(html).not.toContain('name="delta"');
     expect(html.match(/<form/g)).toHaveLength(3);
+    /* T15a 리뷰: 보관 상품의 대표 이미지는 공개 중 문구가 아니라 보관 상태 문구다(편집기가 게시 상태를 그리드에 넘긴다). */
+    const withImage = renderGoodSection({ ...archived, imagePath: 'public-media/catalog/good/11111111-1111-4111-8111-111111111111.webp', imageUrl: 'https://cdn.example/main.webp' });
+    expect(withImage).toContain('data-good-main-image-note="archived">보관 상품 · 복원 뒤 수정<');
+    expect(withImage).not.toContain('공개 중 교체만');
+    const publishedWithImage = renderGoodSection({ ...good, imagePath: 'public-media/catalog/good/11111111-1111-4111-8111-111111111111.webp', imageUrl: 'https://cdn.example/main.webp' });
+    expect(publishedWithImage).toContain('data-good-main-image-note="published">공개 필수 · 공개 중 교체만<');
+    expect(renderGoodSection({ ...good, publishedAt: null })).toContain('data-good-main-image-note="draft">공개 필수<');
   });
 
   /* #171 — 고시정보는 라벨 붙은 고정 입력이다. 자유 텍스트 한 칸이 아니다. */
@@ -748,7 +760,7 @@ describe('GoodSection', () => {
     expect(textarea).not.toContain('maxLength');
     expect(html).toContain(`상세페이지 HTML (정리된 코드 포함 최대 ${GOODS_HTML_MAX_LENGTH.toLocaleString('ko-KR')}자)`);
     expect(html).toContain(`원문이 ${description.length.toLocaleString('ko-KR')}자로 최대 ${GOODS_HTML_MAX_LENGTH.toLocaleString('ko-KR')}자를 넘어 저장할 수 없습니다.`);
-    /* 접힌 상세설명 카드(ADM-004)도 저장 전 확인할 안내가 있으면 처음부터 열어 둔다. */
+    /* 상세설명 카드는 펼친 채로라 저장 전 확인 안내가 바로 보인다(묶음 10 "펼친 채로"). */
     expect(html.match(/<details id="good-section-description"[^>]*>/)?.[0]).toContain('open=""');
     expect(renderGoodSection(good).match(/<textarea[^>]*name="description"[^>]*>/)?.[0]).toContain('maxLength="2000"');
   });
