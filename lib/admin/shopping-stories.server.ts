@@ -7,6 +7,7 @@ import { SHOPPING_STORY_IMAGE_PATTERN, type ShoppingStorySectionInput } from '@/
 import { SHOPPING_STORY_STATE_LABELS, type AdminShoppingStory, type AdminShoppingStoryList, type AdminShoppingStoryRow,
   type ShoppingStoryFilters, type ShoppingStoryGoodOption } from './shopping-stories';
 import { DEFAULT_STORY_GOOD_FILTERS, type StoryGoodCandidates, type StoryGoodFilters } from './shopping-story-picker';
+import { parseGoodVisibility } from './good-visibility';
 
 const record = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 const instant = (value: unknown): value is string => typeof value === 'string' && Number.isFinite(Date.parse(value));
@@ -30,9 +31,12 @@ export function parseShoppingStoryGoods(value: unknown): ShoppingStoryGoodOption
   for (const row of value) {
     const good = parseShoppingStoryGood(row);
     if (!good || !record(row) || ids.has(good.id) || typeof row.code !== 'string' || typeof row.archived !== 'boolean' || typeof row.published !== 'boolean') return null;
+    /* 이유(visibility)는 공개 여부와 어긋나지 않을 때만 믿는다 — 어긋나거나 모르는 값이면 이유 없이 둔다. */
+    const visibility = parseGoodVisibility(row.visibility);
     ids.add(good.id);
     rows.push({ ...good, code: row.code, imageUrl: row.imagePath ? publicMediaUrl(row.imagePath as string) : imageUrlFromBg(good.imageBackground),
-      archived: row.archived, published: row.published });
+      archived: row.archived, published: row.published,
+      ...(visibility && (visibility === 'public') === row.published ? { visibility } : {}) });
   }
   return rows;
 }

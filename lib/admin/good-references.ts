@@ -1,5 +1,6 @@
 import type { StoryGoodCandidate } from './shopping-story-picker';
 import { parseGoodUrl } from './good-url';
+import type { DisplayGoodVisibility } from './good-visibility';
 
 /*
  * 전시 상품 선택기의 '여러 줄 붙여넣기'와 '엑셀로 추가(한 열)'(1014-112). 한 줄(엑셀 한 칸)에 상품 URL·판매자상품코드·상품번호
@@ -70,6 +71,8 @@ export interface GoodReferenceMatch {
   archived: boolean;
   /** 고객 화면에 공개 중(상품·IP 공개, 보관·판매 제한 아님). */
   published: boolean;
+  /** 고객 화면에 보이는지와 보이지 않는 이유(초안·IP 초안·성인(19금)·보관됨 등). 찾지 못한 값은 missing이다. */
+  visibility: DisplayGoodVisibility;
   /** 보관하지 않은 상품의 관련상품 찾기 검색 행. 선택기는 검색 결과와 같은 값으로 담는다. */
   candidate: StoryGoodCandidate | null;
 }

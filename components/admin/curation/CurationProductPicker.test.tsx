@@ -1,5 +1,12 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+/* 공개 홈 목록에 없는 행의 이유는 그 쪽 줄만 가볍게 읽는다 — 정적 렌더에서는 받은 뒤의 값을 바로 준다. */
+vi.mock('@/components/admin/useGoodReferenceInfo', () => ({
+  useGoodReferenceInfo: (ids: readonly string[]) => {
+    const reasons: Record<string, string> = { d1: 'draft', i1: 'ip_draft', r1: 'restricted' };
+    return { info: new Map(ids.filter(id => id in reasons).map(id => [id, { name: null, code: null, visibility: reasons[id] }])), remember: () => undefined };
+  },
+}));
 import type { HomeGoodsCard } from '@/lib/home-catalog';
 import type { HomeReviewStatistic } from '@/lib/home-ranking';
 import { CurationProductPicker } from './CurationProductPicker';
@@ -54,5 +61,21 @@ describe('CurationProductPicker URL 추가', () => {
     expect(html).toContain('또는 엑셀로 추가(한 열)');
     expect(html).toMatch(/<input[^>]*accept=".xlsx,.csv,.tsv,.txt"[^>]*type="file"/);
     expect(html).toMatch(/<button[^>]*type="button"[^>]*>상품 확인<\/button>/);
+  });
+});
+
+/* QA1 MD 후속: 노출 상태 칸도 결과 줄·담은 목록과 같은 이유(초안·IP 초안·성인(19금))로 부른다 — '비노출'과 섞지 않는다. */
+describe('CurationProductPicker 노출 상태', () => {
+  it('공개 홈 목록의 상품은 노출 중·품절, 나머지는 이유 배지(모르면 고객 화면 미노출)로 보인다', () => {
+    const html = renderToStaticMarkup(<CurationProductPicker goods={[card('m1'), card('s1', { soldOut: true })]} limit={4} onApply={() => undefined} onClose={() => undefined}
+      options={[{ id: 'm1', title: '공개 상품', archivedAt: null }, { id: 's1', title: '품절 상품', archivedAt: null }, { id: 'd1', title: '초안 상품', archivedAt: null },
+        { id: 'i1', title: 'IP 준비 상품', archivedAt: null }, { id: 'r1', title: '19금 상품', archivedAt: null }, { id: 'u1', title: '이유 모름', archivedAt: null }]} selectedIds={[]} />);
+    expect(rowOf(html, 'm1')).toContain('>노출 중</span>');
+    expect(rowOf(html, 's1')).toContain('>품절</span>');
+    expect(rowOf(html, 'd1')).toMatch(/data-good-visibility="draft"[^>]*>.*초안<\/span>/);
+    expect(rowOf(html, 'i1')).toContain('IP 초안</span>');
+    expect(rowOf(html, 'r1')).toContain('성인(19금)</span>');
+    expect(rowOf(html, 'u1')).toContain('고객 화면 미노출</span>');
+    expect(html).not.toMatch(/비노출|비공개/);
   });
 });

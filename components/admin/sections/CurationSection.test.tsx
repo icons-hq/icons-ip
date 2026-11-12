@@ -22,6 +22,13 @@ vi.mock('react', async () => ({
 vi.mock('@/app/admin/curation-actions', () => ({ upsertAdminCurationAction: mocks.action }));
 vi.mock('@/components/ui/Icon', () => ({ Icon: () => null }));
 vi.mock('../../../lib/admin/artwork-upload.client', () => ({ uploadAdminArtwork: vi.fn() }));
+/* 공개 홈 목록에 없는 상품의 이유는 가벼운 읽기로 받는다 — 정적 렌더에서는 받은 뒤의 값을 바로 준다. */
+vi.mock('../useGoodReferenceInfo', () => ({
+  useGoodReferenceInfo: (ids: readonly string[]) => {
+    const reasons: Record<string, string> = { 'draft-good': 'draft', 'ip-good': 'ip_draft' };
+    return { info: new Map(ids.filter(id => id in reasons).map(id => [id, { name: null, code: null, visibility: reasons[id] }])), remember: () => undefined };
+  },
+}));
 
 const record: AdminCurationRecord = {
   id: '11111111-1111-4111-8111-111111111111', kind: 'hero', ipId: null, title: '여름 신작',
@@ -181,6 +188,27 @@ describe('CurationSection', () => {
     expect(html).toContain('type="hidden" name="goodIds" value="g13, gone"');
     expect(html).toContain('value="popular" selected=""');
     expect(html).not.toContain('data-artwork-kind="curation"');
+  });
+
+  /* QA1 MD major·후속: 고객 화면에 안 보이는 상품도 담을 수 있지만, 담은 목록과 미리보기 위에 그 이유(초안·IP 초안·보관됨·찾을 수 없음)를 이름과 함께 보인다. */
+  it('공개 홈에 없는 상품을 목록에 이유 배지로 표시하고 미리보기 위에 빠지는 이유를 이름과 함께 알린다', () => {
+    const options = [...goodOptions, { id: 'draft-good', title: 'QA 초안 상품', archivedAt: null }, { id: 'ip-good', title: 'QA IP 준비 상품', archivedAt: null }];
+    const html = renderToStaticMarkup(<CurationSection
+      draftActiveFrom="2026-07-15T03:04:05.000Z" draftId="22222222-2222-4222-8222-222222222222"
+      eventOptions={[]} goodOptions={options} ipOptions={[]} onSelect={mocks.onSelect} operationId="33333333-3333-4333-8333-333333333333"
+      preview={{ curation: { hero: null, announcement: null, featuredIpIds: [], heroSlides: [], editorPicks: [], goodsBands: [], categoryBestTabs: [], popularTabs: [], benefitTiles: [] } as never,
+        noticeStrip: null, goods: [{ id: 'g13', name: '홍실 아크릴 블록', brand: null, price: 12000, badge: null, imageBg: '#eee', href: '/shop/g13', soldOut: false }], cardRewardsEnabled: false }}
+      records={[]} selected={{ ...record, kind: 'best_tab', slot: 'popular', payload: { good_ids: ['g13', 'draft-good', 'ip-good', 'archived-good', 'gone'] } }}
+    />);
+    const row = (goodId: string) => html.match(new RegExp(`<li[^>]*>(?:(?!</li>).)*<small[^>]*>${goodId}</small>(?:(?!</li>).)*</li>`))?.[0] ?? '';
+    expect(row('g13')).not.toContain('data-good-visibility');
+    expect(row('draft-good')).toMatch(/data-good-visibility="draft"[^>]*>.*초안<\/span>공개 전까지 고객 화면에 보이지 않습니다\./);
+    expect(row('ip-good')).toMatch(/IP 초안<\/span>IP 공개 전까지 고객 화면에 보이지 않습니다\./);
+    expect(row('archived-good')).toMatch(/보관됨<\/span>보관된 상품이라 고객 화면에 보이지 않습니다\./);
+    expect(row('gone')).toMatch(/찾을 수 없음<\/span>찾을 수 없는 상품이라 고객 화면에 보이지 않습니다\./);
+    expect(html).toContain('초안 상품 1개(QA 초안 상품)는 공개 전까지 고객 화면에 보이지 않습니다. IP가 공개 전인 상품 1개(QA IP 준비 상품)는 IP 공개 전까지 고객 화면에 보이지 않습니다. 보관된 상품 1개(보관 상품)는 고객 화면에 보이지 않습니다. 찾을 수 없는 상품 1개(gone)는 고객 화면에 보이지 않습니다. 미리보기에도 보이지 않습니다.');
+    expect(html).toContain('초안 등 고객 화면에 보이지 않는 상품도 담을 수 있지만 공개 홈에는 보이지 않습니다(목록에 이유 표시).');
+    expect(html).not.toContain('비공개');
   });
 
   it('검증 실패를 표시하면서 편집 값과 업로드된 경로를 유지한다', () => {

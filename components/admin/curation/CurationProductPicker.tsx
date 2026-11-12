@@ -9,6 +9,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import type { AdminCurationTargetRecord } from '@/lib/admin/curation-targets';
 import { GOOD_URL_ERRORS } from '@/lib/admin/good-url';
 import { GoodUrlAddField } from '@/components/admin/GoodUrlAddField';
+import { DisplayGoodVisibilityBadge } from '@/components/admin/DisplayGoodVisibility';
+import { useGoodReferenceInfo } from '@/components/admin/useGoodReferenceInfo';
+import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { statusTone } from '@/lib/admin/status-tone';
+import type { DisplayGoodVisibility } from '@/lib/admin/good-visibility';
 import type { HomeGoodsCard } from '@/lib/home-catalog';
 import { imageUrlFromBg } from '@/lib/media';
 import { krw } from '@/lib/format';
@@ -62,6 +67,14 @@ export function CurationProductPicker({ options, goods, selectedIds, limit, onAp
   const pageCount = Math.max(1, Math.ceil(matches.length / 20));
   const currentPage = Math.min(page, pageCount);
   const rows = matches.slice((currentPage - 1) * 20, currentPage * 20);
+  /* 공개 홈 상품 목록에 없는 행은 고객 화면에 보이지 않는 이유(초안·IP 초안·성인(19금))를 이 쪽 줄만 가볍게 읽어 보인다(QA1 MD).
+     읽기 전이나 이유가 공개인데 홈 목록에 없으면 '고객 화면 미노출'이다. */
+  const reasons = useGoodReferenceInfo(rows.filter((option) => !goodsById.has(option.id)).map((option) => option.id));
+  const visibilityOf = (goodId: string): DisplayGoodVisibility => {
+    if (goodsById.has(goodId)) return 'public';
+    const reason = reasons.info.get(goodId)?.visibility;
+    return reason && reason !== 'public' ? reason : 'hidden';
+  };
 
   return <CurationEditorDialog title="전시 상품 선택" onClose={onClose}>
     <div className="flex flex-wrap items-end gap-2 bg-muted/40 px-5 py-5">
@@ -76,12 +89,12 @@ export function CurationProductPicker({ options, goods, selectedIds, limit, onAp
       setSelection((current) => current.includes(id) ? current : [...current, id]);
       return { ok: true, message: `'${option.title}' 상품을 선택했습니다. 선택 완료를 눌러 반영해주세요.` };
     }} bulk={{
-      /* 검색 목록과 같은 후보(보관 제외)에 있는 상품만 담는다. */
+      /* 검색 목록과 같은 후보(보관 제외)에 있는 상품만 담는다. 공개 여부는 아래 표의 노출 상태와 같은 기준(공개 홈 상품 목록)으로 표시한다. */
       capacity: limit - selection.length,
       classify: (match) => {
         if (!options.some((candidate) => candidate.id === match.id && !candidate.archivedAt)) return { ok: false, reason: '이 목록에서 고를 수 없는 상품입니다.' };
         if (selection.includes(match.id)) return { ok: false, reason: GOOD_URL_ERRORS.exists };
-        return { ok: true, id: match.id, item: match.id };
+        return { ok: true, id: match.id, item: match.id, visibility: goodsById.has(match.id) ? 'public' : match.visibility !== 'public' ? match.visibility : 'hidden' };
       },
       onAdd: (ids) => setSelection((current) => [...current, ...ids.filter((id) => !current.includes(id))].slice(0, limit)),
       appliedHint: '선택 완료를 눌러 반영해주세요.',
@@ -105,7 +118,7 @@ export function CurationProductPicker({ options, goods, selectedIds, limit, onAp
             <TableCell className="whitespace-normal"><strong className="block font-medium [overflow-wrap:anywhere]">{option.title}</strong><span className="block text-[11px] text-muted-foreground">{option.id}</span></TableCell>
             {reviewStatistics ? <TableCell className="text-right tabular-nums">{ratingsById.get(option.id)?.average.toFixed(2) ?? '—'} / {ratingsById.get(option.id)?.count ?? 0}개</TableCell> : null}
             <TableCell className="text-right tabular-nums">{good ? krw(good.price) : '—'}</TableCell>
-            <TableCell>{good ? good.soldOut ? '품절' : '노출 중' : '비노출'}</TableCell>
+            <TableCell>{good ? <AdminStatusBadge tone={good.soldOut ? statusTone('stock', 'soldout') : statusTone('display', 'active')}>{good.soldOut ? '품절' : '노출 중'}</AdminStatusBadge> : (() => { const visibility = visibilityOf(option.id); return visibility === 'public' ? null : <DisplayGoodVisibilityBadge visibility={visibility} />; })()}</TableCell>
           </TableRow>;
         })}</TableBody>
       </Table>

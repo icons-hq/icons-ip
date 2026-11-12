@@ -1,7 +1,7 @@
 import { isValidElement, type ReactElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-const hooks = vi.hoisted(() => ({ state: [] as unknown[], index: 0, mock: false }));
+const hooks = vi.hoisted(() => ({ state: [] as unknown[], index: 0, mock: false, refs: [] as { current: unknown }[], refIndex: 0, effects: [] as { effect: () => void | (() => void); deps?: unknown[] }[] }));
 vi.mock('react', async () => {
   const actual = await vi.importActual<typeof import('react')>('react');
   return { ...actual,
@@ -11,16 +11,19 @@ vi.mock('react', async () => {
       if (!(index in hooks.state)) hooks.state[index] = typeof initial === 'function' ? (initial as () => unknown)() : initial;
       return [hooks.state[index], (next: unknown) => { hooks.state[index] = typeof next === 'function' ? (next as (value: unknown) => unknown)(hooks.state[index]) : next; }];
     },
+    useRef: (initial: unknown) => hooks.mock ? (hooks.refs[hooks.refIndex++] ??= { current: initial }) : actual.useRef(initial),
+    useCallback: <T,>(callback: T, deps: unknown[]) => hooks.mock ? callback : actual.useCallback(callback as never, deps),
+    useEffect: (effect: () => void | (() => void), deps?: unknown[]) => { if (hooks.mock) hooks.effects.push({ effect, deps }); else actual.useEffect(effect, deps); },
   };
 });
-import { REVIEW_EXAMPLE_VIEWPORTS, ReviewDisplayExamplePanel, ReviewExampleFrameContent } from './ReviewDisplayExamplePanel';
+import { REVIEW_EXAMPLE_VIEWPORTS, ReviewDisplayExamplePanel, ReviewExampleFrameContent, resetReviewExampleScroll } from './ReviewDisplayExamplePanel';
 import { Button } from './kit/ui/button';
 
 type Element = ReactElement<{ children?: ReactNode; onClick?: () => void; 'aria-pressed'?: boolean }>;
 function all(node: ReactNode): Element[] { return Array.isArray(node) ? node.flatMap(all) : isValidElement(node) ? [node as Element, ...all((node.props as { children?: ReactNode }).children)] : []; }
 function text(node: ReactNode): string { return Array.isArray(node) ? node.map(text).join('') : isValidElement(node) ? text((node.props as { children?: ReactNode }).children) : typeof node === 'string' || typeof node === 'number' ? String(node) : ''; }
 
-beforeEach(() => { hooks.state = []; hooks.index = 0; hooks.mock = false; });
+beforeEach(() => { hooks.state = []; hooks.index = 0; hooks.mock = false; hooks.refs = []; hooks.refIndex = 0; hooks.effects = []; });
 
 /* SHEET-027: 예시 안쪽은 아무것도 누르거나 보낼 수 없다 — 합성 리뷰로 신고·도움이 돼요·이동이 일어나면 안 된다. */
 describe('ReviewExampleFrameContent', () => {
@@ -61,5 +64,33 @@ describe('ReviewDisplayExamplePanel', () => {
     expect(all(screen).find(item => item.type === Button && text(item.props.children) === 'PC')!.props['aria-pressed']).toBe(true);
     expect(text(screen)).toContain(`화면 폭 ${REVIEW_EXAMPLE_VIEWPORTS.desktop}px`);
     expect(REVIEW_EXAMPLE_VIEWPORTS).toEqual({ mobile: 390, desktop: 1212 });
+  });
+
+  /* QA1 MD: 모바일 예시를 내려 본 뒤 PC로 바꾸면 같은 iframe의 스크롤 위치가 남아 목록 끝에서 열렸다 — 바꿀 때마다 예시 맨 위(①)부터 보인다. */
+  it('scrolls the example back to the top whenever the device changes', () => {
+    const scrollTo = vi.fn();
+    resetReviewExampleScroll({ contentWindow: { scrollTo } as unknown as Window });
+    expect(scrollTo).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'instant' });
+    expect(() => resetReviewExampleScroll(null)).not.toThrow();
+    expect(() => resetReviewExampleScroll({ contentWindow: null })).not.toThrow();
+
+    hooks.mock = true;
+    const panel = ReviewDisplayExamplePanel({ children: null, defaultOpen: true });
+    const frame = all(panel).find(item => typeof item.type === 'function' && item.type.name === 'ReviewExampleFrame')!;
+    hooks.state = [];
+    const draw = (device: 'mobile' | 'desktop') => {
+      hooks.index = 0; hooks.refIndex = 0; hooks.effects = [];
+      (frame.type as (props: Record<string, unknown>) => ReactNode)({ ...frame.props, device });
+      return hooks.effects.find(item => item.deps?.length === 1)!;
+    };
+    const mobile = draw('mobile');
+    expect(mobile.deps).toEqual(['mobile']);
+    hooks.refs[0].current = { contentWindow: { scrollTo } };
+    scrollTo.mockClear();
+    const desktop = draw('desktop');
+    expect(desktop.deps).toEqual(['desktop']);
+    desktop.effect();
+    expect(scrollTo).toHaveBeenCalledOnce();
+    expect(scrollTo).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'instant' });
   });
 });
