@@ -17,10 +17,11 @@
 --   재출고 행의 collection_waived는 사본이다). 결정한 배송 건의 늦은 입고 확인은 클레임이 열려 있는 동안 막지 않는다.
 --   재고는 바꾸지 않는다(재출고는 결정대로 회수품을 복원하지 않는다). 운영 상세는 그 배송 건을 collectionWaived로
 --   표시하고, 목록 일괄 회수 확인은 그 배송 건을 고르지 않는다. 결정한 배송 건이 아직 돌아오지 않았으면 회수 완료
---   알림은 "모두 입고"가 아니라 일부는 회수 없이 다시 보내드린다고 말한다.
--- * 클레임의 회수 완료일(collection_received_on)은 회수가 처음 끝날 때마다 확인된 출고지 행에서 다시 센다. 회수 생략
---   결정이 무효가 돼 단계가 수거중으로 돌아가(collected_at이 빈다) 다시 완료되면 새 완료일로 바뀐다. 앱의 환급 기한은
---   collected_at이 있을 때만 센다.
+--   알림은 "반송한 굿즈가 모두 입고"가 아니라 "반송이 필요한 굿즈가 모두 입고"이고 일부는 회수 없이 다시 보내드린다고 말한다.
+-- * 클레임의 회수 완료일(collection_received_on)은 회수가 처음 끝날 때마다 확인된 출고지 행에서 다시 센다. 반품 전환·사유
+--   정정으로 회수 생략 결정이 효력을 잃어 입고완료가 수거중으로 돌아가면(private.reopen_ineffective_collection_waivers,
+--   collected_at을 비운다) 회수 완료일도 함께 비우고, 실제 입고로 다시 완료되면 새 완료일을 적고 회수 완료 알림을 다시
+--   보낸다(중복 방지 키에 되돌림 회차를 담는다). 앱의 환급 기한은 collected_at이 있을 때만 센다.
 -- * 레거시 회수 확인은 회수 근거 열이 없어, 함께 받은 근거(선택, 1~500자)를 감사 기록에 남긴다.
 -- * 목록(admin_search_order_claims_console)과 운영 상세(admin_order_claim_detail)가 입고일을 함께 돌려준다.
 begin;
@@ -50,7 +51,7 @@ create function public.admin_record_order_claim_origin_collection(p_claim_id uui
  set search_path to ''
 as $function$
 declare actor uuid:=(select auth.uid());claim public.order_cancellation_requests;collection public.order_claim_collections;order_key uuid;address_value text;
- order_day date;today date:=(clock_timestamp() at time zone 'Asia/Seoul')::date;received date;
+ order_day date;today date:=(clock_timestamp() at time zone 'Asia/Seoul')::date;received date;completion_event text;
 begin
   perform private.require_operator_capability('sales.manage',false);
 
@@ -84,21 +85,27 @@ begin
  insert into public.audit_log(actor_id,action,target,diff) values(actor,'admin.order.claim_origin_collected','order:'||order_key::text,
   jsonb_build_object('claimId',p_claim_id,'shipmentId',p_shipment_id,'originId',collection.origin_id,'items',collection.items_snapshot,'returnAddress',address_value,'evidence',p_evidence,
    'receivedOn',received,'collectionWaived',private.claim_collection_waived(p_claim_id,p_shipment_id)));
- -- 회수 완료는 처음 한 번만 적고 알린다. 회수 생략 배송 건은 회수가 끝난 것으로 보므로(ADR-0041) 그 배송 건이
- -- 늦게 도착해 확인돼도 완료일·단계·알림을 다시 만들지 않는다.
+ -- 회수 완료는 회수가 끝날 때 한 번 적고 알린다. 회수 생략 배송 건은 회수가 끝난 것으로 보므로(ADR-0041) 그 배송 건이
+ -- 늦게 도착해 확인돼도 완료일·단계·알림을 다시 만들지 않는다. 회수 생략 결정이 효력을 잃어 수거중으로 돌아간 클레임
+ -- (감사 admin.order.claim_collection_reopened)은 실제 입고로 다시 끝날 때 새 회차로 다시 적고 알린다.
  if claim.collected_at is null and private.claim_collections_complete(p_claim_id) then
-   -- 회수 완료일은 지금 확인된 출고지 행에서 다시 센다. 회수 생략 결정이 무효가 돼 단계가 수거중으로 돌아갔다가 다시
-   -- 완료되는 경우에도 이전 완료일이 남지 않는다.
+   -- 회수 완료일은 지금 확인된 출고지 행에서 다시 센다. 되돌림 뒤 다시 완료되는 경우에도 이전 완료일이 남지 않는다.
    update public.order_cancellation_requests set collected_at=clock_timestamp(),
      collection_received_on=private.claim_collection_received_on(p_claim_id),
      stage=case when stage='collecting' then 'collected' else stage end,updated_at=clock_timestamp() where id=p_claim_id returning * into claim;
-   -- 회수 없이 다시 보낸 배송 건이 아직 돌아오지 않았으면 "모두 입고"라고 알리지 않는다(일괄 회수 확인도 같은 경로다).
-   -- 진실원은 결정 표다(재출고 전에 결정만 한 배송 건 포함).
+   -- 알림 중복 방지 키는 회차를 담는다(첫 회차는 예전 키 그대로). 되돌림 뒤 실제로 모두 돌아온 때의 안내가 앞 회차의
+   -- 안내에 막히지 않는다.
+   select case when count(*)=0 then 'collected' else 'collected:'||(count(*)+1) end into completion_event
+   from public.audit_log a where a.target='order:'||order_key::text and a.action='admin.order.claim_collection_reopened'
+    and a.diff->>'claimId'=p_claim_id::text;
+   -- 효력 있는 회수 생략 결정의 배송 건이 아직 돌아오지 않았으면 "반송한 굿즈가 모두 입고"라고 알리지 않는다(일괄 회수
+   -- 확인도 같은 경로다). 진실원은 결정 표다(재출고 전에 결정만 한 배송 건 포함).
    if exists(select 1 from public.order_claim_collections x
      where x.claim_id=p_claim_id and x.collected_at is null and private.claim_collection_waived(x.claim_id,x.shipment_id)) then
-     perform private.notify_order_claim(p_claim_id,'collected','반송한 굿즈의 입고가 확인됐어요','반송하신 굿즈의 입고가 확인되어 후속 처리를 준비합니다. 일부 상품은 회수 없이 다시 보내드려요.');
+     perform private.notify_order_claim(p_claim_id,completion_event,'반송이 필요한 굿즈가 모두 입고됐어요',
+       '반송이 필요한 굿즈의 입고가 모두 확인되어 후속 처리를 준비합니다. 일부 상품은 회수 없이 다시 보내드려요.');
    else
-     perform private.notify_order_claim(p_claim_id,'collected','반송한 굿즈가 모두 입고됐어요','모든 출고지의 입고가 확인되어 후속 처리를 준비합니다.');
+     perform private.notify_order_claim(p_claim_id,completion_event,'반송한 굿즈가 모두 입고됐어요','모든 출고지의 입고가 확인되어 후속 처리를 준비합니다.');
    end if;
  end if;
  return case when private.claim_collections_complete(p_claim_id) then 'collected' else 'collecting' end;
@@ -268,6 +275,17 @@ begin
  execute replace(definition,anchor,replacement);
 end $patch$;
 
+-- 회수 생략 결정이 효력을 잃어 입고완료를 수거중으로 되돌릴 때(ADR-0041) 클레임의 회수 완료일도 비운다. 실제 입고로 다시
+-- 완료되면 회수 확인이 확인된 출고지 행에서 다시 센다. 다른 트랙의 트리거 함수라 앵커 치환으로 한 줄만 더한다.
+do $patch$
+declare definition text:=pg_get_functiondef('private.reopen_ineffective_collection_waivers()'::regprocedure);
+ anchor text:=$a$new.collected_at:=null;$a$;
+ replacement text:=$a$new.collected_at:=null;new.collection_received_on:=null;$a$;
+begin
+ if (length(definition)-length(replace(definition,anchor,'')))/length(anchor)<>1 then raise exception 'reopen_ineffective_collection_waivers anchor must appear once';end if;
+ execute replace(definition,anchor,replacement);
+end $patch$;
+
 -- ---------------------------------------------------------------------------
 -- 5. 목록: 회수 완료일 열을 더한다(표시 열만 더하는 얇은 바깥 함수라 다시 만든다)
 -- ---------------------------------------------------------------------------
@@ -296,6 +314,7 @@ as $function$
 -- ---------------------------------------------------------------------------
 revoke all on function private.claim_collection_received_on(uuid) from public,anon,authenticated,service_role;
 revoke all on function private.claim_collection_records(uuid) from public,anon,authenticated,service_role;
+revoke all on function private.reopen_ineffective_collection_waivers() from public,anon,authenticated,service_role;
 revoke all on function public.admin_record_order_claim_origin_collection(uuid,uuid,text,date) from public,anon,authenticated,service_role;
 grant execute on function public.admin_record_order_claim_origin_collection(uuid,uuid,text,date) to authenticated;
 revoke all on function public.admin_record_order_claim_origin_collection(uuid,uuid,text) from public,anon,authenticated,service_role;
@@ -317,6 +336,7 @@ do $$declare fn regprocedure;contract record;begin
   'public.admin_record_order_claim_origin_collection(uuid,uuid,text)'::regprocedure,
   'public.admin_record_order_claim_collection(uuid,text)'::regprocedure,
   'private.claim_collection_records(uuid)'::regprocedure,
+  'private.reopen_ineffective_collection_waivers()'::regprocedure,
   'public.admin_order_claim_detail(uuid)'::regprocedure] loop
   select * into contract from private.operator_rpc_contracts r where r.signature::regprocedure=fn;
   if found then perform private.register_operator_rpc_contract(fn,contract.capability,contract.guard_kind,contract.legacy_admin_only);

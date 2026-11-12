@@ -1,10 +1,11 @@
 \set ON_ERROR_STOP on
 -- 회수 확인의 실제 입고일과 단계 일괄 처리가 읽는 클레임 사실(1027T-033·SHEET-049·SHEET-052).
 -- 회수 생략의 진실원은 결정 표다(private.claim_collection_waived). 결정만 하고 아직 재출고하지 않은 배송 건도 회수
--- 생략으로 보고, 그 배송 건이 돌아오지 않았으면 회수 완료 알림은 "모두 입고"가 아니다.
+-- 생략으로 보고, 그 배송 건이 돌아오지 않았으면 회수 완료 알림은 "반송한 굿즈가 모두 입고"가 아니라 "반송이 필요한 굿즈가 모두 입고"다.
 -- 출고지별 회수는 배송 건마다 입고일을 받고(기본 오늘, 미래·주문일 이전 거절), 모두 회수되면 가장 늦은 입고일이
 -- 클레임의 회수 완료일이 된다. 환급 기한은 그 날부터 센다. 일괄 처리 사실(admin_order_claim_bulk_context)은
 -- 무통장·가상계좌·코페이·결제 없음·회수 미완료를 환불 일괄에서 빼는 사유와 서버가 계산한 환불 금액을 돌려준다.
+-- 회수 생략 결정이 효력을 잃어 입고완료가 수거중으로 돌아가면 회수 완료일도 비고, 실제 입고로 다시 끝나면 다시 센다.
 -- 합성 데이터만 쓰고 롤백한다. 결제사 API는 부르지 않는다.
 begin;
 load 'safeupdate';
@@ -30,7 +31,7 @@ select pg_temp.ro_assert(
  and has_function_privilege('authenticated','public.admin_search_order_claims_console(text,text,text,date,date,text,integer,integer,text,text,text)','execute')
  and not has_function_privilege('anon','public.admin_search_order_claims_console(text,text,text,date,date,text,integer,integer,text,text,text)','execute')
  and not exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='private'
-  and p.proname in('claim_collection_received_on','order_claim_bulk_context_row','claim_collection_records')
+  and p.proname in('claim_collection_received_on','order_claim_bulk_context_row','claim_collection_records','reopen_ineffective_collection_waivers')
   and(has_function_privilege('anon',p.oid,'execute') or has_function_privilege('authenticated',p.oid,'execute') or has_function_privilege('service_role',p.oid,'execute')))
  and exists(select 1 from private.operator_rpc_contracts where signature='public.admin_order_claim_bulk_context(uuid[])' and capability='sales.manage' and guard_kind='read')
  and exists(select 1 from private.operator_rpc_contracts where signature='public.admin_record_order_claim_origin_collection(uuid,uuid,text,date)' and guard_kind='write')
@@ -194,7 +195,7 @@ select pg_temp.ro_assert((select count(*)=1 from public.notifications where user
   and title='반송한 굿즈가 모두 입고됐어요' and body='모든 출고지의 입고가 확인되어 후속 처리를 준비합니다.'),'plain completion says every origin arrived');
 
 -- 하자 교환: 남양주는 회수 생략을 결정만 하고(결정 표, ADR-0041) 아직 재출고하지 않았다. 재출고 행이 없어도 회수
--- 생략으로 보고, 일괄 회수 확인 사실에서 빠지며, 김포 입고로 회수가 끝나도 "모두 입고"라고 알리지 않는다.
+-- 생략으로 보고, 일괄 회수 확인 사실에서 빠지며, 김포 입고로 회수가 끝나도 "반송한 굿즈가 모두 입고"라고 알리지 않는다.
 insert into private.claim_evidence_files(id,claim_id,actor_id,mime_type,size_bytes,sha256,path)
  values(pg_temp.ro_id('file',1),pg_temp.ro_id('claim',3),pg_temp.ro_id('user',1),'image/png',10,repeat('a',64),pg_temp.ro_id('claim',3)::text||'/'||pg_temp.ro_id('file',1)::text||'.png');
 select public.admin_waive_order_claim_collection(pg_temp.ro_id('claim',3),pg_temp.ro_id('shipment',6),
@@ -212,9 +213,10 @@ select pg_temp.ro_assert(:'waiver_replayed'='false'
 select public.admin_record_order_claim_origin_collection(pg_temp.ro_id('claim',3),pg_temp.ro_id('shipment',5),'TEST 김포 입고 확인',pg_temp.ro_today()-1) as gimpo_exchange \gset
 select pg_temp.ro_assert(:'gimpo_exchange'='collected'
  and (select stage='collected' and collected_at is not null and collection_received_on=pg_temp.ro_today()-1 from public.order_cancellation_requests where id=pg_temp.ro_id('claim',3))
- and (select count(*)=1 from public.notifications n where n.user_id=pg_temp.ro_id('user',2) and n.title='반송한 굿즈의 입고가 확인됐어요'
-  and n.body='반송하신 굿즈의 입고가 확인되어 후속 처리를 준비합니다. 일부 상품은 회수 없이 다시 보내드려요.' and n.source_id=pg_temp.ro_id('claim',3)::text)
- and (select count(*)=1 from public.notifications where user_id=pg_temp.ro_id('user',2) and source_id=pg_temp.ro_id('claim',3)::text and title like '반송한 굿즈%'),
+ and (select count(*)=1 from public.notifications n where n.user_id=pg_temp.ro_id('user',2) and n.title='반송이 필요한 굿즈가 모두 입고됐어요'
+  and n.body='반송이 필요한 굿즈의 입고가 모두 확인되어 후속 처리를 준비합니다. 일부 상품은 회수 없이 다시 보내드려요.' and n.source_id=pg_temp.ro_id('claim',3)::text)
+ and (select count(*)=1 from public.notifications where user_id=pg_temp.ro_id('user',2) and source_id=pg_temp.ro_id('claim',3)::text and dedupe_key like 'claim:collected%')
+ and not exists(select 1 from public.notifications where user_id=pg_temp.ro_id('user',2) and source_id=pg_temp.ro_id('claim',3)::text and title='반송한 굿즈가 모두 입고됐어요'),
  'completion with a waived origin tells the customer that part was resent without return');
 
 -- 회수 생략 배송 건이 늦게 도착하면 기록은 남기되(옛 3인자 경로 = 입고일 오늘) 재고·단계·회수 완료일·알림은 그대로다.
@@ -223,7 +225,7 @@ select public.admin_record_order_claim_origin_collection(pg_temp.ro_id('claim',3
 select pg_temp.ro_assert(:'late'='collected' and pg_temp.ro_stock('ro-good-2')=:'stock_before'::integer
  and (select collected_at is not null and received_on=pg_temp.ro_today() from public.order_claim_collections where claim_id=pg_temp.ro_id('claim',3) and shipment_id=pg_temp.ro_id('shipment',6))
  and (select stage='collected' and collection_received_on=pg_temp.ro_today()-1 from public.order_cancellation_requests where id=pg_temp.ro_id('claim',3))
- and (select count(*)=1 from public.notifications where user_id=pg_temp.ro_id('user',2) and source_id=pg_temp.ro_id('claim',3)::text and title like '반송한 굿즈%')
+ and (select count(*)=1 from public.notifications where user_id=pg_temp.ro_id('user',2) and source_id=pg_temp.ro_id('claim',3)::text and dedupe_key like 'claim:collected%')
  and (select diff->>'collectionWaived'='true' from public.audit_log where action='admin.order.claim_origin_collected' and diff->>'shipmentId'=pg_temp.ro_id('shipment',6)::text)
  and (select count(*)=1 from jsonb_array_elements(public.admin_order_claim_detail(pg_temp.ro_id('claim',3))#>'{claim,collections}') x where x->>'collectionWaived'='true'),
  'late arrival of a waived origin is recorded without stock, stage or notification change');
@@ -235,31 +237,49 @@ select pg_temp.ro_assert(not private.claim_collection_waived(pg_temp.ro_id('clai
   where x->>'originName'='TEST 남양주'),
  'bulk facts follow the decision truth source when the claim stops being a defect exchange');
 
--- 회수 생략 결정이 무효가 되면(사유 변경·유형 전환) 아직 돌아오지 않은 배송 건 때문에 단계가 수거중으로 돌아가고 확인
--- 시각(collected_at)이 빈다(T11a). 그 배송 건이 돌아와 회수가 다시 끝나면 회수 완료일은 지금 확인된 출고지 행에서 다시
--- 센다 — 앞선 완료일(이틀 전)을 그대로 두면 환급 기한이 실제보다 이르게 잡힌다. 되돌림은 같은 결과를 직접 써서 흉내 낸다.
+-- 회수 생략 결정이 효력을 잃으면(반품 전환, T11a 트리거 private.reopen_ineffective_collection_waivers) 아직 돌아오지 않은
+-- 배송 건 때문에 입고완료가 수거중으로 돌아가고 확인 시각과 회수 완료일이 함께 빈다(환급 기한이 실제 반환 전부터 흐르지
+-- 않는다). 그 배송 건이 실제로 돌아와 회수가 다시 끝나면 회수 완료일은 확인된 출고지 행에서 다시 세고(앞선 이틀 전이 아니다),
+-- 회수 완료 알림은 실제 상태("반송한 굿즈가 모두 입고")로 2회차 키로 다시 간다.
 insert into private.claim_evidence_files(id,claim_id,actor_id,mime_type,size_bytes,sha256,path)
  values(pg_temp.ro_id('file',2),pg_temp.ro_id('claim',9),pg_temp.ro_id('user',1),'image/png',10,repeat('b',64),pg_temp.ro_id('claim',9)::text||'/'||pg_temp.ro_id('file',2)::text||'.png');
 select public.admin_waive_order_claim_collection(pg_temp.ro_id('claim',9),pg_temp.ro_id('shipment',8),
- jsonb_build_object('reason','TEST 파손 사진으로 회수 생략 결정','evidenceFileIds',jsonb_build_array(pg_temp.ro_id('file',2))))->>'replayed' as revert_waiver \gset
-select public.admin_record_order_claim_origin_collection(pg_temp.ro_id('claim',9),pg_temp.ro_id('shipment',7),'TEST 김포 입고 확인',pg_temp.ro_today()-2) as revert_first \gset
-select pg_temp.ro_assert(:'revert_waiver'='false' and :'revert_first'='collected'
- and (select stage='collected' and collected_at is not null and collection_received_on=pg_temp.ro_today()-2 from public.order_cancellation_requests where id=pg_temp.ro_id('claim',9)),
+ jsonb_build_object('reason','TEST 파손 사진으로 회수 생략 결정','evidenceFileIds',jsonb_build_array(pg_temp.ro_id('file',2))))->>'replayed' as reopen_waiver \gset
+select public.admin_record_order_claim_origin_collection(pg_temp.ro_id('claim',9),pg_temp.ro_id('shipment',7),'TEST 김포 입고 확인',pg_temp.ro_today()-2) as reopen_first \gset
+select pg_temp.ro_assert(:'reopen_waiver'='false' and :'reopen_first'='collected'
+ and (select stage='collected' and collected_at is not null and collection_received_on=pg_temp.ro_today()-2 from public.order_cancellation_requests where id=pg_temp.ro_id('claim',9))
+ and (select count(*)=1 from public.notifications where user_id=pg_temp.ro_id('user',2) and source_id=pg_temp.ro_id('claim',9)::text
+  and title='반송이 필요한 굿즈가 모두 입고됐어요' and dedupe_key like 'claim:collected:'||pg_temp.ro_id('claim',9)::text||':%'),
  'a waived origin lets the other origin complete the claim');
-update public.order_cancellation_requests set reason_type='change_of_mind',stage='collecting',collected_at=null where id=pg_temp.ro_id('claim',9);
-select pg_temp.ro_assert(not private.claim_collection_waived(pg_temp.ro_id('claim',9),pg_temp.ro_id('shipment',8))
- and not private.claim_collections_complete(pg_temp.ro_id('claim',9))
- and (select (x->>'collectionComplete')::boolean is false
-   and (select count(*)=1 from jsonb_array_elements(x->'collections') y where y->>'collectedAt' is null and not (y->>'waived')::boolean)
-  from jsonb_array_elements(public.admin_order_claim_bulk_context(array[pg_temp.ro_id('claim',9)])) x),
- 'an invalid decision reopens the waived origin for collection');
-select public.admin_record_order_claim_origin_collection(pg_temp.ro_id('claim',9),pg_temp.ro_id('shipment',8),'TEST 남양주 실제 입고',pg_temp.ro_today()) as revert_again \gset
-select pg_temp.ro_assert(:'revert_again'='collected'
+select public.admin_convert_order_claim_type(pg_temp.ro_id('claim',9),pg_temp.ro_id('conv-op',9),c.claim_revision,'return','TEST 고객 요청으로 반품 전환',true,null) is not null as reopen_converted
+ from public.order_cancellation_requests c where c.id=pg_temp.ro_id('claim',9) \gset
+select public.admin_order_claim_bulk_context(array[pg_temp.ro_id('claim',9)])->0 as reopened \gset
+select pg_temp.ro_assert(:'reopen_converted'::boolean
+ and (select claim_type='return' and stage='collecting' and collected_at is null and collection_received_on is null
+  from public.order_cancellation_requests where id=pg_temp.ro_id('claim',9))
+ and exists(select 1 from public.audit_log where action='admin.order.claim_collection_reopened' and diff->>'claimId'=pg_temp.ro_id('claim',9)::text)
+ and not private.claim_collection_waived(pg_temp.ro_id('claim',9),pg_temp.ro_id('shipment',8))
+ and (:'reopened'::jsonb)->>'refundBlocker'='claim_collections_incomplete' and (:'reopened'::jsonb)->'collectionReceivedOn'='null'::jsonb
+ and (:'reopened'::jsonb)->'collectedAt'='null'::jsonb and not ((:'reopened'::jsonb)->>'collectionComplete')::boolean
+ and (select count(*)=1 from jsonb_array_elements((:'reopened'::jsonb)->'collections') y where y->>'collectedAt' is null and not (y->>'waived')::boolean)
+ and public.admin_order_claim_detail(pg_temp.ro_id('claim',9))#>'{claim,collectionReceivedOn}'='null'::jsonb,
+ 'an ineffective waiver reopens the collection and clears the received date');
+-- 되돌림 뒤 실제 입고는 회수 완료 2회차다. 중복 방지 키에 회차가 들어가(claim:collected:2:<id>:<updated_at>) 같은
+-- 트랜잭션(같은 updated_at)이어도 앞 회차 안내에 막히지 않는다.
+select public.admin_record_order_claim_origin_collection(pg_temp.ro_id('claim',9),pg_temp.ro_id('shipment',8),'TEST 남양주 실제 입고',pg_temp.ro_today()) as reopen_again \gset
+select public.admin_order_claim_bulk_context(array[pg_temp.ro_id('claim',9)])->0 as recollected \gset
+select pg_temp.ro_assert(:'reopen_again'='collected'
  and (select stage='collected' and collected_at is not null and collection_received_on=pg_temp.ro_today() from public.order_cancellation_requests where id=pg_temp.ro_id('claim',9))
  and public.admin_order_claim_detail(pg_temp.ro_id('claim',9))#>>'{claim,collectionReceivedOn}'=pg_temp.ro_today()::text
+ and (:'recollected'::jsonb)->'refundBlocker'='null'::jsonb and (:'recollected'::jsonb)->>'collectionReceivedOn'=pg_temp.ro_today()::text
  and (select count(*)=2 from jsonb_array_elements(public.admin_order_claim_detail(pg_temp.ro_id('claim',9))#>'{claim,collections}') x
-  where x->>'collectedAt' is not null and x->>'collectionWaived'='false'),
- 'the second completion recounts the received date from the collected origins');
+  where x->>'collectedAt' is not null and x->>'collectionWaived'='false')
+ and (select count(*)=2
+   and count(*) filter(where title='반송이 필요한 굿즈가 모두 입고됐어요' and dedupe_key like 'claim:collected:'||pg_temp.ro_id('claim',9)::text||':%')=1
+   and count(*) filter(where title='반송한 굿즈가 모두 입고됐어요' and body='모든 출고지의 입고가 확인되어 후속 처리를 준비합니다.'
+    and dedupe_key like 'claim:collected:2:'||pg_temp.ro_id('claim',9)::text||':%')=1
+  from public.notifications where user_id=pg_temp.ro_id('user',2) and source_id=pg_temp.ro_id('claim',9)::text and dedupe_key like 'claim:collected%'),
+ 'the real return completes again with a recounted received date and an accurate notice');
 
 -- 입력 계약.
 select pg_temp.ro_error('select public.admin_order_claim_bulk_context(array[]::uuid[])','invalid_claim_bulk_ids');
