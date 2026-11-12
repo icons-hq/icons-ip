@@ -57,13 +57,21 @@ end $$;
 -- This refuses to delete a review containing evidence outside the test prefix.
 create or replace function pg_temp.cleanup_goods_kc_fixture(p_good_id text) returns void
 language plpgsql security definer set search_path='' as $$
-declare fixture_actor uuid:=('47c47700'||left(md5(p_good_id),24))::uuid;
+declare fixture_actor uuid:=('47c47700'||left(md5(p_good_id),24))::uuid; fixture_category uuid;
 begin
   if exists(select 1 from private.goods_kc_review_events event cross join lateral jsonb_array_elements(event.snapshot->'models') model
     where event.good_id=p_good_id and coalesce(model#>>'{evidence,applicability}','') not like 'TEST-ONLY:%') then
     raise exception 'Refusing to remove non-synthetic KC evidence';
   end if;
   update public.goods set published_at=null where id=p_good_id;
+  -- link_goods_type_category_fixture가 붙인 합성 유형 카테고리도 걷는다. 커밋하는 경합 시험이 남기면 뒤 시험이 세는
+  -- 공개 카테고리 수가 바뀐다(레거시 스모크 sales_category_hierarchy). 다른 상품이 아직 쓰면 그대로 둔다.
+  select category_id into fixture_category from public.goods where id=p_good_id;
+  if fixture_category is not null and left(fixture_category::text,8)='47c47701' then
+    update public.goods set category_id=null where id=p_good_id;
+    delete from public.catalog_categories c where c.id=fixture_category
+      and not exists(select 1 from public.goods g where g.category_id=c.id);
+  end if;
   delete from private.goods_kc_review_events where good_id=p_good_id;
   delete from private.goods_kc_reviews where good_id=p_good_id;
   delete from public.audit_log where target='goods:'||p_good_id and action in ('admin.good.kc_saved','admin.good.kc_invalidated');
