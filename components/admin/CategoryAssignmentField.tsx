@@ -19,19 +19,18 @@ const METHOD_CLASS = 'inline-flex h-7 items-center rounded-md px-3 text-sm font-
 export type CategorySearchNode = AdminCategoryNode & { erpNames?: readonly string[] };
 
 const searchText = (value: string) => value.normalize('NFKC').toLocaleLowerCase('ko-KR');
-const searchWords = (query: string) => searchText(query).trim().split(/\s+/).filter(Boolean);
-const compactPath = (value: string) => value.replace(/\s*>\s*/g, '>');
+/* 검색어는 공백과 경로 구분자 `>`로 나눈다. ERP 분류는 `문구>키링`처럼 붙여 쓰므로 `문구 > 키링` 경로와 같은 낱말이 된다. */
+const searchWords = (query: string) => searchText(query).trim().split(/[\s>]+/).filter(Boolean);
 
 /**
  * 카테고리 찾기 검색. 카테고리 경로·코드에 더해 연결된 ERP 분류 이름으로도 찾는다(SHEET-042).
- * ERP 분류는 `문구>키링`처럼 붙여 쓰기도 하므로 `>` 앞뒤 공백을 지운 모양도 함께 본다.
+ * 검색어의 낱말이 모두 경로·코드·ERP 분류 이름 어딘가에 있어야 한다.
  */
 export function searchAssignableCategories(categories: CategorySearchNode[], query: string) {
   const words = searchWords(query);
   if (!words.length) return [];
   return categories.filter(category => usableTemplateCategory(categories, category.id)).filter(category => {
-    const erpNames = (category.erpNames ?? []).flatMap(name => [name, compactPath(name)]);
-    const label = searchText(`${categoryPath(categories, category.id).join(' ')} ${category.code} ${erpNames.join(' ')}`);
+    const label = searchText(`${categoryPath(categories, category.id).join(' ')} ${category.code} ${(category.erpNames ?? []).join(' ')}`);
     return words.every(word => label.includes(word));
   });
 }
@@ -42,7 +41,7 @@ export function categoryErpMatch(categories: CategorySearchNode[], category: Cat
   if (!words.length || !category.erpNames?.length) return null;
   const own = searchText(`${categoryPath(categories, category.id).join(' ')} ${category.code}`);
   if (words.every(word => own.includes(word))) return null;
-  return category.erpNames.find(name => words.some(word => searchText(`${name} ${compactPath(name)}`).includes(word))) ?? null;
+  return category.erpNames.find(name => words.some(word => searchText(name).includes(word))) ?? null;
 }
 
 /**

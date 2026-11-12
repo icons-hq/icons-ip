@@ -50,6 +50,11 @@ it('카테고리 검색은 연결된 ERP 분류명으로도 찾고, 그 근거�
   expect(searchAssignableCategories(source, '굿즈>아크릴').map(row => row.id)).toEqual(['keyring']);
   expect(searchAssignableCategories(source, 'erp-kr').map(row => row.id)).toEqual(['keyring']);
   expect(searchAssignableCategories(source, '문구').map(row => row.id)).toEqual(['keyring', 'pen']);
+  /* ERP 분류처럼 '>'로 붙여 쓴 경로도 카테고리 경로(문구 > 키링)와 같은 낱말로 나눠 찾는다. */
+  expect(searchAssignableCategories(source, '문구>키링').map(row => row.id)).toEqual(['keyring']);
+  expect(searchAssignableCategories(source, '문구 > 키링').map(row => row.id)).toEqual(['keyring']);
+  expect(searchAssignableCategories(source, '문구 키링').map(row => row.id)).toEqual(['keyring']);
+  expect(searchAssignableCategories(source, '>')).toEqual([]);
   expect(categoryErpMatch(source, source[1], '아크릴')).toBe('굿즈 > 아크릴 키링');
   /* 카테고리 경로로 찾은 결과에는 ERP 근거를 덧붙이지 않는다. */
   expect(categoryErpMatch(source, source[1], '키링')).toBeNull();

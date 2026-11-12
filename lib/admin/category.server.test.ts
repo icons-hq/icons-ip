@@ -27,8 +27,15 @@ beforeEach(() => {
       if (table === 'goods_type_category_migrations') return query([]);
       if (table === 'category_activation_control') return query({ id: 'catalog', customer_enabled: true, erp_enabled: false, evidence: { customer: { source: 'sheet', reference: 'CAT-01', verifiedAt: '2026-09-10T00:00:00Z' } }, updated_at: '2026-09-10T00:00:00Z' });
       if (table === 'goods_additional_categories') return query([{ good_id: 'g2', category_id: 'c2' }]);
-      if (table === 'erp_category_mappings') return query([{ erp_category: '굿즈 > 문구', category_id: 'c2' }, { erp_category: '문구', category_id: 'c2' }]);
       return query([{ id: 'g1', category_id: 'c2' }]);
+    },
+    /* ERP 품목 화면 연결 표와 같은 목록: 직접 연결, 자동 연결(fallback), 연결 없음. */
+    rpc(name: string) {
+      return query(name === 'admin_list_erp_categories' ? [
+        { erp_category: '굿즈 > 문구', item_count: 2, category_id: 'c2', updated_at: '2026-11-10T00:00:00Z', fallback_category_id: null },
+        { erp_category: '생활>문구', item_count: 1, category_id: null, updated_at: null, fallback_category_id: 'c2' },
+        { erp_category: '미연결', item_count: 1, category_id: null, updated_at: null, fallback_category_id: null },
+      ] : []);
     },
   });
 });
@@ -52,9 +59,13 @@ describe('admin category loader', () => {
 it('goods category options carry linked ERP category names for search, and stay usable when they cannot be read', async () => {
   const options = await loadGoodsCategoryOptions();
   expect(options[0]).not.toHaveProperty('erpNames');
-  expect(options[1]).toMatchObject({ id: 'c2', childCount: 0, erpNames: ['굿즈 > 문구', '문구', 'ERP-01'] });
+  /* 직접 연결·자동 연결(같은 경로)된 ERP 분류와 카테고리 ERP 분류 매핑의 이름·코드. 연결 없는 분류는 싣지 않는다. */
+  expect(options[1]).toMatchObject({ id: 'c2', childCount: 0, erpNames: ['굿즈 > 문구', '생활>문구', '문구', 'ERP-01'] });
   const client = await mocks.createClient();
-  mocks.createClient.mockResolvedValue({ from: (table: string) => table === 'catalog_categories' ? client.from(table) : query(null, { message: 'permission denied' }) });
+  mocks.createClient.mockResolvedValue({
+    from: (table: string) => table === 'catalog_categories' ? client.from(table) : query(null, { message: 'permission denied' }),
+    rpc: () => query(null, { message: 'operator_capability_required' }),
+  });
   const withoutErp = await loadGoodsCategoryOptions();
   expect(withoutErp.map(category => category.id)).toEqual(['c1', 'c2']);
   expect(withoutErp.some(category => 'erpNames' in category)).toBe(false);

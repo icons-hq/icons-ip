@@ -89,7 +89,7 @@ beforeEach(() => {
 
 describe('연결 상품 반영 패널', () => {
   it('전체 품목과 비교하면 값이 다른 행만 보이고, 반영할 수 있는 행은 미리 고르며 건너뛰는 행은 이유를 보인다', async () => {
-    expect(text(render())).toContain('할인 중인 상품(기간 할인 진행·예정, 즉시할인)은 건너뜁니다.');
+    expect(text(render())).toContain('할인 중인 상품(기간 할인 진행·예정, 상품 할인가 설정)은 건너뜁니다.');
     button(render(), '전체 품목과 비교').props.onClick?.();
     await settle();
     expect(hooks.preview).toHaveBeenCalledWith(null);

@@ -141,7 +141,7 @@ export function ErpLinkedGoodsPanel() {
   return <div className="flex min-w-0 flex-col gap-3" data-erp-items="linked-goods">
     <p className={HINT}>
       옵션에 같은 ERP 코드를 넣은 상품(연결 상품)의 판매가·바코드가 반입한 ERP 값과 다르면 미리보기로 보여 주고, 고른 행만 반영합니다.
-      판매가는 그 옵션의 할인 전 판매 금액으로 맞춥니다(기본 옵션이면 상품 판매가, 다른 옵션이면 옵션가). 할인 중인 상품(기간 할인 진행·예정, 즉시할인)은 건너뜁니다.
+      판매가는 그 옵션의 할인 전 판매 금액으로 맞춥니다(기본 옵션이면 상품 판매가, 다른 옵션이면 옵션가). 할인 중인 상품(기간 할인 진행·예정, 상품 할인가 설정)은 건너뜁니다.
       ERP에 바코드가 없으면 상품 바코드를 지우지 않습니다. 붙여넣어 반입하면 방금 반입한 품목과 자동으로 비교합니다.
     </p>
     <div className="flex flex-wrap items-center gap-2 print:hidden">

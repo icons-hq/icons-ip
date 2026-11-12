@@ -10,5 +10,5 @@ export default async function Page({ searchParams }: {
   /* 화면은 상품 관리 권한(catalog.manage)으로 열고, 품목 삭제는 플랫폼 관리 권한이 있을 때만 그린다(1027T-016). */
   const auth = await requireAdminScreenAccess(ERP_ITEMS_PATH);
   const data = await loadErpItemsWorkspace(normalizeErpItemFilters(await searchParams));
-  return <ErpItemsScreen data={data} canDelete={hasAdminCapability(auth, 'platform.manage')} />;
+  return <ErpItemsScreen data={data} canManagePlatform={hasAdminCapability(auth, 'platform.manage')} />;
 }

@@ -78,9 +78,9 @@ export const ERP_LINKED_GOODS_FIELD_LABELS: Record<ErpLinkedGoodsField, string> 
 export const ERP_LINKED_GOODS_SKIP_LABELS: Record<ErpLinkedGoodsSkipReason, string> = {
   zero_price: 'ERP 판매가가 0원이라 반영하지 않습니다. 빈 값일 수 있어 상품을 0원으로 바꾸지 않습니다.',
   random_option: '랜덤 판매 상품은 모든 옵션의 판매가가 같아야 해서 상품 화면에서 한 번에 바꿉니다.',
-  active_discount: '기간 할인이 진행 중이거나 예정된 상품이라 판매가를 바꿀 수 없습니다. 할인을 중지한 뒤 다시 비교해주세요.',
+  active_discount: '기간 할인(일괄 즉시할인·할인 프로모션 포함)이 진행 중이거나 예정된 상품이라 판매가를 바꿀 수 없습니다. 할인을 중지한 뒤 다시 비교해주세요.',
   notice_required: '상품정보제공고시가 빈 공개 상품이라 저장할 수 없습니다. 상품 화면에서 고시를 채운 뒤 다시 비교해주세요.',
-  instant_discount: '즉시할인이 설정된 상품이라 판매가를 바꾸지 않습니다. 상품 화면에서 판매가와 할인을 함께 확인해주세요.',
+  instant_discount: '상품 할인(할인가)이 설정된 상품이라 판매가를 바꾸지 않습니다. 할인 전 판매가가 ERP 판매가와 다르니 상품 수정의 판매가와 할인을 함께 확인해주세요.',
   option_price_order: '반영하면 옵션 판매 금액이 상품 판매가(기본 옵션)보다 낮아집니다. 상품 화면에서 판매가부터 맞춰주세요.',
   barcode_taken: '다른 옵션이 이미 쓰는 바코드라 넣을 수 없습니다.',
   barcode_duplicate: '같은 바코드를 두 옵션에 넣게 되어 반영하지 않습니다. ERP 품목의 바코드를 확인해주세요.',
@@ -88,7 +88,7 @@ export const ERP_LINKED_GOODS_SKIP_LABELS: Record<ErpLinkedGoodsSkipReason, stri
 
 export const ERP_LINKED_GOODS_SKIP_SHORT_LABELS: Record<ErpLinkedGoodsSkipReason, string> = {
   zero_price: 'ERP 0원', random_option: '랜덤 판매', active_discount: '기간 할인 중', notice_required: '고시 없음',
-  instant_discount: '즉시할인 중', option_price_order: '옵션가 순서', barcode_taken: '쓰는 바코드', barcode_duplicate: '바코드 겹침',
+  instant_discount: '상품 할인 중', option_price_order: '옵션가 순서', barcode_taken: '쓰는 바코드', barcode_duplicate: '바코드 겹침',
 };
 
 export const ERP_LINKED_GOODS_BARCODE_WARNING = '출고 파일·창고 대조에 쓰는 바코드가 바뀝니다. 창고에 등록된 바코드와 같은지 확인해주세요.';

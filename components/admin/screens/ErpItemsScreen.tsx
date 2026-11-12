@@ -36,9 +36,11 @@ const COLUMNS: ConsoleGridColumn[] = [
 
 /**
  * ERP 품목(1027T-016·1027T-X04·SHEET-042). 상품 관리 권한(catalog.manage)이면 MD도 읽고 반입하고 분류를 연결한다.
- * 품목 삭제는 플랫폼 관리 권한(platform.manage)에만 보인다(`canDelete`, 서버 액션·RPC도 같은 권한을 따로 확인한다).
+ * 플랫폼 관리 권한(platform.manage, `canManagePlatform`)이 있을 때만 품목 삭제와 카테고리 관리의 ERP 분류 매핑 안내를 보인다
+ * (삭제는 서버 액션·RPC도 같은 권한을 따로 확인하고, 그 매핑 카드는 카테고리 관리에서 같은 권한일 때만 그려진다).
  */
-export function ErpItemsScreen({ data, canDelete = false }: { data: ErpItemsWorkspaceData; canDelete?: boolean }) {
+export function ErpItemsScreen({ data, canManagePlatform = false }: { data: ErpItemsWorkspaceData; canManagePlatform?: boolean }) {
+  const canDelete = canManagePlatform;
   const { filters, page, categories } = data;
   const categoryLabel = (id: string | null) => {
     if (!id) return <span className="text-muted-foreground">연결 없음</span>;
@@ -108,7 +110,9 @@ export function ErpItemsScreen({ data, canDelete = false }: { data: ErpItemsWork
       summary="ERP 분류마다 마지막 단계 고객 카테고리를 하나 연결합니다. 연결은 나중에 바꿀 수 있고, 상품 화면에서 제안된 카테고리도 MD가 바꿀 수 있습니다."
     >
       <ErpCategoryMappingPanel rows={data.erpCategories} categories={categories} categoryErpMappings={data.categoryErpMappings} />
-      <p className="text-sm text-muted-foreground"><Link className="text-foreground underline underline-offset-4" href={CATEGORY_PATH}>카테고리 관리</Link>에서 마지막 단계 카테고리를 만들거나 보관합니다. 카테고리마다 ERP 코드·품명을 적어 CSV로 내보내는 일도 카테고리 관리의 <Link className="text-foreground underline underline-offset-4" href={`${CATEGORY_PATH}#category-erp-mapping`}>ERP 분류 매핑</Link>에서 합니다.</p>
+      <p className="text-sm text-muted-foreground"><Link className="text-foreground underline underline-offset-4" href={CATEGORY_PATH}>카테고리 관리</Link>에서 마지막 단계 카테고리를 만들거나 보관합니다. {canManagePlatform
+        ? <>카테고리마다 ERP 코드·품명을 적어 CSV로 내보내는 일도 카테고리 관리의 <Link className="text-foreground underline underline-offset-4" href={`${CATEGORY_PATH}#category-erp-mapping`}>ERP 분류 매핑</Link>에서 합니다.</>
+        : '카테고리마다 ERP 코드·품명을 적는 카테고리 관리의 ERP 분류 매핑과 CSV 내보내기는 계정 주매니저·통합 매니저가 합니다.'}</p>
     </AdminSectionCard>
   </ErpItemsWorkspace></section>;
 }
