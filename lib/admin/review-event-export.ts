@@ -1,5 +1,6 @@
 import { isUuid } from '@/lib/uuid';
-import { normalizeReviewEventFilters, parseReviewEvent, reviewEventProblemLabel, reviewEventStateLabel, type ReviewEvent, type ReviewEventFilters } from '@/lib/review-events';
+import { normalizeReviewEventFilters, parseReviewEvent, reviewEventStateLabel, type ReviewEvent, type ReviewEventFilters } from '@/lib/review-events';
+import { reviewEventProblemLabel } from '@/lib/admin/review-event-messages';
 import { kstDateTimeText, listExportPeriodLabel, type ListExportColumn, type ListExportCellValue } from './list-export';
 
 export const REVIEW_EVENT_EXPORT_PATH = '/api/admin/review-events/export';

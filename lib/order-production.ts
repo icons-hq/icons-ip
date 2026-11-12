@@ -43,7 +43,7 @@ export function parseOrderProduction(v: unknown): OrderProduction | null {
 }
 export function productionLeadLabel(terms: ProductionTerms) { return `${terms.leadDays}${terms.dayBasis === 'calendar' ? '일' : '영업일(토·일·설정 휴무일 제외)'}`; }
 export function productionError(code?: string, message?: string) {
- const known: Record<string, string> = { production_changed: '제작 정보가 변경됐습니다. 최신 상태를 확인해주세요.', production_terms_changed: '주문제작 조건이 바뀌었습니다. 주문서를 다시 확인해주세요.', production_preorder_conflict: '예약판매를 일반 재고 판매로 전환한 뒤 주문제작을 설정해주세요.', production_incomplete: '제작 완료를 확인한 뒤 출고지시·발송·교환 재출고를 진행해주세요.', production_transition_unavailable: '결제·취소 요청·현재 제작 단계를 확인해주세요.', production_requires_transaction: '이 상품은 새 주문서에서 주문제작 조건을 확인한 뒤 구매할 수 있습니다.' };
+ const known: Record<string, string> = { production_changed: '제작 정보가 변경됐습니다. 최신 상태를 확인해주세요.', production_terms_changed: '주문제작 조건이 바뀌었습니다. 주문서를 다시 확인해주세요.', production_preorder_conflict: '예약판매를 일반 재고 판매로 전환한 뒤 주문제작을 설정해주세요.', production_incomplete: '제작 완료를 확인한 뒤 출고지시·발송·교환 재출고를 진행해주세요.', production_transition_unavailable: '결제·취소 요청·현재 제작 단계를 확인해주세요.', production_requires_transaction: '이 굿즈는 새 주문서에서 주문제작 조건을 확인한 뒤 구매할 수 있습니다.' };
  return known[message ?? ''] ?? (code === 'PT409' ? '다른 작업으로 상태가 바뀌었습니다. 최신 상태를 확인해주세요.' : code === '42501' ? '현재 계정과 로그인 상태로 처리할 수 없습니다.' : code === '22023' ? '기간·휴무일·처리 근거를 확인해주세요.' : '처리 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.');
 }
 

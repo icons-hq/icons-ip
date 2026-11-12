@@ -1,5 +1,7 @@
 import { kstDay } from './kst';
-import { CHANNEL_LABELS, SOURCE_LABELS, PAGE_LABELS, type AnalyticsChannel, type AnalyticsSource, type AnalyticsPage } from '@/lib/store-analytics';
+import { CHANNEL_LABELS, SOURCE_LABELS, type AnalyticsChannel, type AnalyticsSource, type AnalyticsPage } from '@/lib/store-analytics';
+/** 운영자 통계 화면의 페이지 유형 이름(운영 어휘 '상품'). 공용 모듈은 종류 식별자만 가진다. */
+const PAGE_LABELS: Record<AnalyticsPage['kind'], string> = {home:'스토어 홈',shop:'상품 목록',good:'상품 상세',stories:'쇼핑스토리 목록',story:'쇼핑스토리',ip:'IP',events:'이벤트 목록',event:'이벤트 상세'};
 export const TRAFFIC_DIMENSIONS = { channel: '유입 경로', page: '페이지 유형', good: '상품', ip: 'IP', category: '카테고리', link: '마케팅 링크' } as const;
 export type TrafficDimension = keyof typeof TRAFFIC_DIMENSIONS;
 export type TrafficMetric = 'pageViews'|'productViews'|'sessions'|'linkLandings'|'orders'|'convertedSessions'|'conversionRate'|'grossAmount'|'refundAmount'|'netAmount';

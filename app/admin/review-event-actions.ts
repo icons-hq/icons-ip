@@ -4,8 +4,8 @@ import { unstable_rethrow } from 'next/navigation';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
 import { isUuid } from '@/lib/uuid';
-import { parseReviewEvent, parseReviewEventSelection, parseReviewEventTemplate, parseReviewEventTemplatePage, parseReviewEventTemplateValues, parseReviewEventValues, reviewEventError, reviewEventTemplateError,
-  trimReviewEventTemplateText, REVIEW_EVENTS_ADMIN_PATH, REVIEW_EVENTS_PATH, type ReviewEvent, type ReviewEventTemplate, type ReviewEventTemplatePage } from '@/lib/review-events';
+import { parseReviewEvent, parseReviewEventSelection, parseReviewEventTemplate, parseReviewEventTemplatePage, parseReviewEventTemplateValues, parseReviewEventValues, reviewEventTemplateError, trimReviewEventTemplateText, REVIEW_EVENTS_ADMIN_PATH, REVIEW_EVENTS_PATH, type ReviewEvent, type ReviewEventTemplate, type ReviewEventTemplatePage } from '@/lib/review-events';
+import { reviewEventError } from '@/lib/admin/review-event-messages';
 
 export type ReviewEventActionResult = { event: ReviewEvent } | { error: string; uncertain?: boolean };
 /** SHEET-017 문구 템플릿 결과. conflict는 다른 운영자가 먼저 바꾼 경우, uncertain은 같은 요청으로 다시 확인할 경우다. */

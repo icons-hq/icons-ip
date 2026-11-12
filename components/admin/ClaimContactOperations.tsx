@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { useRouter } from 'next/navigation';
+import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { ClaimContactSession, CLAIM_CONTACT_JOURNAL_PREFIX, type ClaimContactIdentity, type ClaimContactScope } from '@/components/claim-contact/ClaimContactSession';
 import { changeClaimContact, fetchClaimContactContext, readOrSealClaimContactOperation, recordClaimReshipmentV2 } from '@/lib/claim-contact/client';
 import { claimContactError, normalizeClaimContactChangeRequest, normalizeClaimContactReshipmentRequest, parseClaimContactJournal,
@@ -113,7 +114,7 @@ export function ClaimContactOperationPanel({ identity, scope, orderId, claimId, 
   }
   function end() { busy.current = false; controller.current = null; if (alive.current) setPending(false); }
   function fail(failure: ErrorResponse) {
-    setError(failure.message);
+    setError(adminGoodsCopy(failure.message));
     if (failure.authChanged) { clearPrivate(); scope.authenticate(null, null); }
     else if (failure.recoveryOnly && !failure.uncertain) clearPrivate();
     // A late error cannot prove the original request did not commit. Keep its

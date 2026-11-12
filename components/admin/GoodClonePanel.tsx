@@ -55,7 +55,7 @@ export function GoodClonePanel({
       <div className="flex flex-col gap-1">
         <h2 id={`good-clone-${goodId}`} className="text-base leading-snug font-medium">상품 복사</h2>
         <p className="text-sm text-muted-foreground">
-          {goodName || goodId} · {goodCode || '자체 상품코드 확인 중'}을 새 초안으로 복사합니다. 원본 주문·재고·외부 식별자는 연결하지 않습니다.
+          {goodName || goodId} · {goodCode || '판매자상품코드 확인 중'}을 새 초안으로 복사합니다. 원본 주문·재고·외부 식별자는 연결하지 않습니다.
         </p>
       </div>
       <form
@@ -67,7 +67,7 @@ export function GoodClonePanel({
         <input name="sourceGoodId" type="hidden" value={goodId} />
         <div className="grid min-w-0 gap-4 md:grid-cols-3">
           <label className={FIELD_CLASS}><span className="font-medium">새 상품 URL (선택)</span><input className={GOOD_INPUT_CLASS} data-slot="input" defaultValue={value('newId')} disabled={pending || completed} name="newId" placeholder="비우면 자동 생성" /></label>
-          <label className={FIELD_CLASS}><span className="font-medium">새 상품코드 (선택)</span><input className={GOOD_INPUT_CLASS} data-slot="input" defaultValue={value('newCode')} disabled={pending || completed} name="newCode" placeholder="비우면 자동 생성" /></label>
+          <label className={FIELD_CLASS}><span className="font-medium">새 판매자상품코드 (선택)</span><input className={GOOD_INPUT_CLASS} data-slot="input" defaultValue={value('newCode')} disabled={pending || completed} name="newCode" placeholder="비우면 자동 생성" /></label>
           <label className={FIELD_CLASS}><span className="font-medium">새 상품 이름 (선택)</span><input className={GOOD_INPUT_CLASS} data-slot="input" defaultValue={value('newName')} disabled={pending || completed} name="newName" placeholder="비우면 원본 이름에 복사본을 붙입니다" /></label>
         </div>
         <div className={`${GOOD_NOTE_CLASS} flex flex-col gap-1.5`}>

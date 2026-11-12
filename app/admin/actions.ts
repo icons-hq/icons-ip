@@ -49,7 +49,8 @@ import { sendRestockAlertEmails } from '@/lib/email/transactional.server';
 import type { AdminCapability } from '@/lib/admin/access';
 import { loadGoodsIpOptions } from '@/lib/admin/goods-list.server';
 import { createClient } from '@/lib/supabase/server';
-import { RANDOM_OPTION_PROBLEMS, goodsOptionSaleModeErrorMessage } from '@/lib/goods-option-sale-mode';
+import { RANDOM_OPTION_PROBLEMS } from '@/lib/goods-option-sale-mode';
+import { goodsOptionSaleModeErrorMessage } from '@/lib/admin/goods-option-sale-mode-messages';
 import { IP_PUBLIC_SLUG_ERROR_MESSAGES } from '@/lib/ip-identity';
 import { GOOD_OPTION_LIMIT_ERROR_FIELD, GOOD_TYPE_CATEGORY_MESSAGES } from '@/lib/admin/good-workspace';
 
@@ -526,7 +527,7 @@ async function saveAdminGood(
     if (/invalid_good_origin|fulfillment_origin_required|fulfillment_origin_inactive/.test(error.message)) return { errors: { originId: '공개하려면 활성 출고지를 선택해주세요.' } };
     if (/invalid_good_shipping|invalid_individual_fee/.test(error.message)) return { errors: { shippingFeeType: '배송비 유형과 금액을 확인해주세요.' } };
     if (error.message.includes('goods_publish_incomplete')) return { errors: { form: '상품 유형·대표 이미지·상품정보제공고시와 옵션을 채운 뒤 공개해주세요.' } };
-    if (error.message.includes('goods_code_key')) return { errors: { code: '이미 사용 중인 상품코드입니다.' } };
+    if (error.message.includes('goods_code_key')) return { errors: { code: '이미 사용 중인 판매자상품코드입니다.' } };
     if (error.message.includes('goods_variants_code_key')) return { errors: { [formData.has('variants') ? 'variants' : 'defaultVariantCode']: '이미 사용 중인 옵션코드입니다.' } };
     const erpIdentityError = erpIdentityTakenFailure(error, optionRows, formData.has('variants') ? 'variants' : 'form');
     if (erpIdentityError) return erpIdentityError;

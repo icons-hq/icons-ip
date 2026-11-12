@@ -144,7 +144,7 @@ const GoodPreviewContent = memo(function GoodPreviewContent({ detail, ip, shippi
           KC 표는 마지막으로 저장해 검토를 완료한 자료만 표시합니다. 모델 관련 기본 정보·옵션을 저장해 검토가 무효화되면 KC를 다시 검토해야 합니다.
         </p>
         <div className="flex min-w-0 flex-col gap-2">
-          <span className="text-xs font-medium text-muted-foreground">굿즈샵 목록 카드</span>
+          <span className="text-xs font-medium text-muted-foreground">고객 화면 목록 카드</span>
           {/* wc 토큰은 .wc-root 스코프 안에서만 산다 — 어드민 표면에서도 같은 래퍼가 필요하다. */}
           <div className="wc-root" style={{ maxWidth: 280 }}>
             <ProductCard

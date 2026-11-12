@@ -194,7 +194,7 @@ export function couponValidityLabel(userCoupon: UserCouponSummary): string {
    서버가 모르는 메시지는 일반 실패로 접는다. */
 const COUPON_ACTION_MESSAGES: Record<string, string> = {
   coupon_designated_recipient_required: '지정 고객에게 직접 발급하는 쿠폰이에요. 발급되면 쿠폰함에서 확인할 수 있어요.',
-  coupon_category_changed: '상품 카테고리가 변경되고 있어요. 주문서를 새로고침한 뒤 할인 금액을 확인해주세요.',
+  coupon_category_changed: '굿즈 카테고리가 변경되고 있어요. 주문서를 새로고침한 뒤 할인 금액을 확인해주세요.',
   coupon_checkout_required: '배송비 쿠폰은 주문서에서 받을 방식과 배송지를 확인한 뒤 선택해주세요.',
   coupon_not_found: '쿠폰 코드를 찾을 수 없어요. 다시 확인해주세요.',
   coupon_not_started: '아직 사용 기간이 시작되지 않은 쿠폰이에요.',

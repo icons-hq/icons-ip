@@ -20,7 +20,7 @@ const number = (v: unknown): v is number => Number.isSafeInteger(v) && Number(v)
 const nullableString = (v: unknown): v is string | null => v === null || typeof v === 'string';
 const instant = (v: unknown): v is string => typeof v === 'string' && Number.isFinite(Date.parse(v));
 const failure = () => new Error('카테고리 전시를 불러오지 못했습니다. 다시 시도해주세요.');
-export class CategoryDisplayStaleError extends Error { constructor() { super('전시 상품이 변경되었습니다. 목록을 새로 불러와주세요.'); } }
+export class CategoryDisplayStaleError extends Error { constructor() { super('전시 굿즈가 변경되었습니다. 목록을 새로 불러와주세요.'); } }
 
 /** The DTO is explicitly projected by SQL, then mapped through the catalog's
  * exact option price, stock, custom-input and purchase-constraint normalizer. */

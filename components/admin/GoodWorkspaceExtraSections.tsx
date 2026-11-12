@@ -173,7 +173,7 @@ export function GoodWorkspaceAdditionalSection({ serverError }: { serverError?: 
     <p className="text-muted-foreground">{adminGoodsCopy('상세 화면에서 함께 고를 상품을 연결합니다. 각 상품은 자체 옵션 가격과 수량으로 구매하며, 품절·판매 중지 상품은 구매 화면에 표시하지 않습니다.')}</p>
     <form className="flex min-w-0 flex-wrap items-end gap-2" onSubmit={search}>
       <label className="flex min-w-0 flex-[1_1_12.5rem] flex-col gap-1.5 text-sm font-medium text-foreground">추가할 상품 검색
-        <input className={GOOD_INPUT_CLASS} data-slot="input" value={query} onChange={(event) => setQuery(event.target.value)} maxLength={100} required disabled={pending} placeholder="상품명 또는 상품코드" />
+        <input className={GOOD_INPUT_CLASS} data-slot="input" value={query} onChange={(event) => setQuery(event.target.value)} maxLength={100} required disabled={pending} placeholder="상품명 또는 판매자상품코드" />
       </label>
       <Button type="submit" variant="outline" disabled={pending}>{pending ? '처리 중…' : '검색'}</Button>
     </form>

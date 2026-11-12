@@ -46,7 +46,7 @@ export function StatsRangeTabs({ base, filters, now = new Date(), exportDisabled
       <StatsFilterRow label="조회기준">
         {screen !== 'claims' ? <StatsFilterControl htmlFor={`${idPrefix}-bucket`} label="단위"><NativeSelect defaultValue={filters.bucket ?? 'day'} id={`${idPrefix}-bucket`} name="bucket"><option value="day">일별</option><option value="week">주별</option><option value="month">월별</option></NativeSelect></StatsFilterControl> : null}
         <StatsFilterControl htmlFor={`${idPrefix}-compare`} label="비교"><NativeSelect defaultValue={comparisonMode} id={`${idPrefix}-compare`} name="compare"><option value="none">비교 없음</option><option value="previous">직전 동일 기간</option><option value="year">전년 동일 날짜</option></NativeSelect></StatsFilterControl>
-        {screen === 'sales' ? <StatsFilterControl htmlFor={`${idPrefix}-ip`} label="IP 필터 (상품 순위)"><Input className="w-40" defaultValue={filters.ipId} id={`${idPrefix}-ip`} maxLength={64} name="ip" placeholder="IP 코드" /></StatsFilterControl> : null}
+        {screen === 'sales' ? <StatsFilterControl htmlFor={`${idPrefix}-ip`} label="IP 필터 (상품 순위)"><Input className="w-40" defaultValue={filters.ipId} id={`${idPrefix}-ip`} maxLength={64} name="ip" placeholder="IP 공개 URL" /></StatsFilterControl> : null}
       </StatsFilterRow>
       {/* 조회 카드 바닥 줄(콘솔 조회 카드와 같다): 왼쪽에 집계 기준·내보내기, 오른쪽에 [초기화][조회]. */}
       <ConsoleFilterActions start={<>

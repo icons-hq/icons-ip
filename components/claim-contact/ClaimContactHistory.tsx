@@ -1,13 +1,14 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { ADMIN_VOCABULARY } from '@/lib/admin/vocabulary';
 import { fetchAdminClaimContactHistory, fetchMyClaimContactHistory } from '@/lib/claim-contact/client';
 import type { Address, ChangedField, HistoryEntry, HistoryResponse, TargetView } from '@/lib/claim-contact/contracts';
 import { formatOrderDateTime } from '@/lib/orders';
 import { ClaimContactSession, type ClaimContactIdentity, type ClaimContactScope } from './ClaimContactSession';
 
 const FIELD_LABELS: Record<ChangedField, string> = { recipientName: '수령인', phone: '연락처', address2: '상세주소', postalCode: '우편번호', address1: '기본 주소' };
-const targetLabel = (target: 'collection' | 'reshipment', operator: boolean) => target === 'collection' ? '수거 연락처' : `교환 ${operator ? '상품' : '굿즈'} 수령 연락처`;
+const targetLabel = (target: 'collection' | 'reshipment', operator: boolean) => target === 'collection' ? '수거 연락처' : `교환 ${operator ? ADMIN_VOCABULARY.goods : '굿즈'} 수령 연락처`;
 function unavailableCopy(value: Pick<TargetView, 'piiState' | 'unavailableReason'>): string {
   if (value.piiState === 'purged') return '연락처 정보가 삭제되어 변경 사실만 확인할 수 있습니다.';
   if (value.piiState === 'restricted') return '이 계정에는 연락처가 공개되지 않습니다.';

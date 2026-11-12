@@ -23,12 +23,8 @@ import { Button } from '@/components/admin/kit/ui/button';
 import { statusTone } from '@/lib/admin/status-tone';
 import { Input } from '@/components/admin/kit/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableRow } from '@/components/admin/kit/ui/table';
-import {
-  LOYALTY_GRADES,
-  isLoyaltyGrade,
-  loyaltyBasisSummary,
-  loyaltyGradeLabel,
-} from '@/lib/loyalty';
+import { LOYALTY_GRADES, isLoyaltyGrade, loyaltyGradeLabel } from '@/lib/loyalty';
+import { loyaltyBasisSummary } from '@/lib/admin/loyalty-basis';
 import { ErrorText, InlineNotice, SelectField, TextArea } from '../fields';
 import { CONSOLE_FILTER_CARD_CLASS, CONSOLE_FILTER_FIELDS_CLASS, ConsoleFilterActions, ConsoleFilterField } from '../console/ConsoleFilterPanel';
 import { CONSOLE_TABLE_FRAME_CLASS, ConsoleListCard, ConsoleTableHeader } from '../console/ConsoleListCard';

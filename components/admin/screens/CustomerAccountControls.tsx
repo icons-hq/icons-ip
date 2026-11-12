@@ -7,7 +7,8 @@ import { AdminSelect } from '@/components/admin/console/AdminSelect';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
 import { canModerateAdminMember, type AdminMemberDetail, type AdminMemberRole } from '@/lib/admin/members';
-import { isLoyaltyGrade, LOYALTY_GRADES, loyaltyBasisSummary, loyaltyGradeLabel } from '@/lib/loyalty';
+import { isLoyaltyGrade, LOYALTY_GRADES, loyaltyGradeLabel } from '@/lib/loyalty';
+import { loyaltyBasisSummary } from '@/lib/admin/loyalty-basis';
 import { DISCLOSURE_SUMMARY_CLASS } from './cs-kit-classes';
 
 const EMPTY: AdminMemberMutationActionState = {};

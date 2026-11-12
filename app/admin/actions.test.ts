@@ -1176,7 +1176,7 @@ describe('admin catalog actions', () => {
   });
 
   it.each([
-    ['duplicate key violates goods_code_key','code','이미 사용 중인 상품코드입니다.'],
+    ['duplicate key violates goods_code_key','code','이미 사용 중인 판매자상품코드입니다.'],
     ['duplicate key violates goods_variants_code_key','defaultVariantCode','이미 사용 중인 옵션코드입니다.'],
     ['goods_slug_locked','id','한 번 공개한 상품의 URL은 변경할 수 없습니다.'],
   ])('maps identifier rejection %s to its form field',async(message,field,copy)=>{

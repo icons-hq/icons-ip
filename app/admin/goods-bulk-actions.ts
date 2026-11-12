@@ -8,7 +8,8 @@ import { revalidateGoodsSurfaces } from '@/lib/admin/revalidate-goods.server';
 import { parseGoodsGroupIdentity, type GoodsGroupIdentity, type GoodsGroupResult } from '@/lib/admin/goods-groups';
 import { goodsBulkError, parseGoodsBulkPreview, parseGoodsBulkReceipt, parseGoodsBulkRequest, type GoodsBulkPreview, type GoodsBulkReceipt } from '@/lib/admin/goods-bulk';
 import { transactionExactKeys, transactionRecord } from '@/lib/goods-transaction-values';
-import { RANDOM_OPTION_PROBLEMS, goodsOptionSaleModeErrorMessage } from '@/lib/goods-option-sale-mode';
+import { RANDOM_OPTION_PROBLEMS } from '@/lib/goods-option-sale-mode';
+import { goodsOptionSaleModeErrorMessage } from '@/lib/admin/goods-option-sale-mode-messages';
 
 async function access(value: unknown) {
   const identity = transactionRecord(value) && transactionExactKeys(value, ['actorId', 'sessionId']) ? parseGoodsGroupIdentity(value) : null;

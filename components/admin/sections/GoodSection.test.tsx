@@ -939,7 +939,7 @@ describe('GoodSection', () => {
     const html = renderGoodSection(good);
 
     expect(html).toContain('공개 화면 미리보기');
-    expect(html).toContain('굿즈샵 목록 카드');
+    expect(html).toContain('고객 화면 목록 카드');
     expect(html).toContain('상품 상세페이지');
     /* wc 토큰은 .wc-root 스코프 안에서만 산다 — 어드민 캔버스를 밝게 바꾸지 않는다. */
     expect(html).toContain('wc-root');

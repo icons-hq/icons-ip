@@ -11,7 +11,7 @@ export const REVIEW_BEST_LABELS: Record<ReviewBestStatus, string> = { selected: 
 export const REVIEW_BEST_PROBLEM_LABELS: Record<ReviewBestProblem, string> = {
   review_deleted: '작성자가 삭제한 리뷰입니다.', review_hidden: '블라인드된 리뷰입니다.',
   purchase_ineligible: '현재 구매 내역이 선정 조건을 충족하지 않습니다.', customer_unavailable: '작성자 계정을 확인할 수 없습니다.',
-  good_unavailable: '현재 공개되지 않은 상품의 리뷰입니다.', review_changed: '선정 후 리뷰가 변경되었습니다. 내용을 확인하고 다시 선정해주세요.',
+  good_unavailable: '현재 공개되지 않은 굿즈의 리뷰입니다.', review_changed: '선정 후 리뷰가 변경되었습니다. 내용을 확인하고 다시 선정해주세요.',
   purchase_changed: '선정 후 구매 내역이 변경되었습니다. 내역을 확인하고 다시 선정해주세요.',
 };
 export interface ReviewBestState {

@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import {
-  GRADE_BENEFIT_CADENCE_LABELS, GRADE_BENEFIT_CADENCES, isGradeBenefitCadence, isLoyaltyGrade, LOYALTY_GRADES, LOYALTY_WINDOW_DAYS,
-  loyaltyBasisSummary, loyaltyGradeLabel,
-} from './loyalty';
+import { GRADE_BENEFIT_CADENCE_LABELS, GRADE_BENEFIT_CADENCES, isGradeBenefitCadence, isLoyaltyGrade, LOYALTY_GRADES, LOYALTY_WINDOW_DAYS, loyaltyGradeLabel } from './loyalty';
+import { loyaltyBasisSummary } from '@/lib/admin/loyalty-basis';
 describe('grade benefit cadence', () => {
   it('matches the DB check values and labels both cadences', () => {
     expect(GRADE_BENEFIT_CADENCES).toEqual(['upgrade', 'monthly']);

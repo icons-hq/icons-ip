@@ -2,7 +2,8 @@ import type { AdminFieldErrors } from '@/lib/admin/catalog';
 import { kstDateTimeToIso } from '@/lib/admin/kst';
 import { customerServiceDate } from './customer-service-list';
 import { isGradeBenefitCadence, LOYALTY_GRADES, type GradeBenefitCadence } from '@/lib/loyalty';
-import { parseCouponTargeting, type CouponTargetCategory, type CouponTargetGood, type CouponTargetIp, type CouponTargeting } from '@/lib/coupon-targeting';
+import { type CouponTargetCategory, type CouponTargetGood, type CouponTargetIp, type CouponTargeting } from '@/lib/coupon-targeting';
+import { parseCouponTargeting } from '@/lib/admin/coupon-targeting-form';
 import { readCouponIssueSchedule, type CouponIssueSchedule } from './coupon-schedule';
 
 export const ADMIN_COUPON_LIST_PATH = '/admin/sales/coupons';

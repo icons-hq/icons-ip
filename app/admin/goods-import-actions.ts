@@ -38,7 +38,8 @@ import {
   validateSabangnetTargets,
   type SabangnetTarget,
 } from '@/lib/admin/sabangnet-goods-format';
-import { RANDOM_OPTION_PROBLEMS, goodsOptionSaleModeErrorMessage } from '@/lib/goods-option-sale-mode';
+import { RANDOM_OPTION_PROBLEMS } from '@/lib/goods-option-sale-mode';
+import { goodsOptionSaleModeErrorMessage } from '@/lib/admin/goods-option-sale-mode-messages';
 
 async function requireStaff() {
   const auth = await requireAdminActionAccess(GOODS_IMPORT_PATH);

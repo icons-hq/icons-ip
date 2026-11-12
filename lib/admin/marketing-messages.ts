@@ -17,7 +17,7 @@ export interface MarketingCampaign { id:string;reference:number;name:string;revi
 export interface MarketingValues { name:string;segmentId:string;segmentRevision:number;content:MarketingContent;schedule:MarketingSchedule;exclusion:MarketingExclusion;copyFrom?:string }
 export interface MarketingFilters {query:string;state:'all'|'draft'|MarketingRunState;page:number;start:string;end:string}
 export interface MarketingList {rows:MarketingCampaign[];total:number;page:number;pageSize:20;filters:MarketingFilters}
-export interface MarketingProduct {id:string;name:string;imageUrl:string|null;price:number;compareAtPrice?:number|null;priceMax?:number}
+export interface MarketingProduct {id:string;name:string;imageUrl:string|null;price:number;compareAtPrice?:number|null;priceMax?:number;/** 굿즈의 할인율 표시 설정. 끄면 판매가만 보인다(생략하면 표시). */showDiscountRate?:boolean}
 export interface MarketingProductOptions extends SegmentOptions {products:MarketingProduct[]}
 export interface MyMarketingMessage {id:string;registeredAt:string;content:MarketingContent;goodIds:string[];goods:MarketingProduct[];coupon?:MarketingCoupon|null}
 const chars=(value:string)=>[...value].length;

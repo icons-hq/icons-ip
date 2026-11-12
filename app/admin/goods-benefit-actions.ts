@@ -3,7 +3,8 @@ import { revalidatePath } from 'next/cache';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
 import { isUuid } from '@/lib/uuid';
-import { GOODS_EVENT_TEMPLATES_PATH, goodsBenefitsError, parseGoodsBenefitSnapshot, parseGoodsBenefitValues, parseGoodsEventTemplate, parseGoodsEventTemplatePage, type GoodsBenefitSnapshot, type GoodsBenefitValues, type GoodsEventTemplate, type GoodsEventTemplatePage } from '@/lib/goods-benefits';
+import { GOODS_EVENT_TEMPLATES_PATH, parseGoodsBenefitSnapshot, parseGoodsBenefitValues, parseGoodsEventTemplate, parseGoodsEventTemplatePage, type GoodsBenefitSnapshot, type GoodsBenefitValues, type GoodsEventTemplate, type GoodsEventTemplatePage } from '@/lib/goods-benefits';
+import { goodsBenefitsError } from '@/lib/admin/goods-benefits-messages';
 
 export type GoodsBenefitsResult<T> = { ok: true; value: T } | { ok: false; error: string; uncertain?: boolean; conflict?: boolean };
 const unread = <T,>(): GoodsBenefitsResult<T> => ({ ok: false, error: '저장된 내용을 불러오지 못했습니다. 다시 조회해주세요.' });

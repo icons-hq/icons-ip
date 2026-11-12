@@ -19,7 +19,7 @@ export function StatsSalesHourlyControls({ filters, report, error }: { filters: 
     <form action={ADMIN_SALES_HOURLY_PATH} className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground" key={adminSalesHourlyHref(filters)} method="get">
       <StatsFilterRow label="조회조건">
         <StatsFilterControl htmlFor="admin-sales-hourly-compare" label="비교일"><Input className="w-40" defaultValue={filters.comparisonDate ?? report?.comparisonDate ?? ''} id="admin-sales-hourly-compare" max={yesterday} name="compareDate" type="date" /></StatsFilterControl>
-        <StatsFilterControl htmlFor="admin-sales-hourly-ip" label="IP 필터 (상품 TOP10)"><Input className="w-40" defaultValue={filters.ipId} id="admin-sales-hourly-ip" maxLength={64} name="ip" placeholder="IP 코드" /></StatsFilterControl>
+        <StatsFilterControl htmlFor="admin-sales-hourly-ip" label="IP 필터 (상품 TOP10)"><Input className="w-40" defaultValue={filters.ipId} id="admin-sales-hourly-ip" maxLength={64} name="ip" placeholder="IP 공개 URL" /></StatsFilterControl>
       </StatsFilterRow>
       <StatsFilterRow label="오늘 현황">
         <button className={buttonVariants({ variant: 'soft' })} data-slot="button" type="submit"><RefreshCw aria-hidden="true" />조회·갱신</button>

@@ -41,11 +41,11 @@ const CLAIM_REASONS: Record<OrderClaimType, Partial<Record<OrderWithdrawalReason
   },
   return: {
     change_of_mind: '단순 변심 반품',
-    defect: '상품 하자·오배송 반품',
+    defect: '굿즈 하자·오배송 반품',
   },
   exchange: {
     change_of_mind: '단순 변심 교환',
-    defect: '상품 하자·오배송 교환',
+    defect: '굿즈 하자·오배송 교환',
   },
 };
 
