@@ -447,6 +447,100 @@ $a$  where lifecycle.state='awaiting_transfer'
   order by 1,2 limit p_limit offset p_offset$a$
 ]);
 
+-- 12. 무통장: 부분 취소들이 결제액을 모두 돌려준 뒤(남은 잔액 0원)의 전체 취소.
+--   송금할 돈이 없으므로 송금 대기 원장(금액 > 0)을 만들지 않고, 환불 0원으로 확정해 같은 한 번에 닫는다(재고·카드팩은 남은 몫만 되돌린다).
+--   토스 경로의 `remaining = 0 && 부분 환불 > 0` 분기와 같은 조건이다.
+create function private.bank_transfer_zero_refund_payment(p_order_id uuid) returns uuid
+language sql stable security definer set search_path = '' as $$
+  select p.id from public.payments p
+  where p.purpose = 'order' and p.ref_id = p_order_id and p.provider = 'bank_transfer' and p.status in ('paid', 'refunded')
+    and p.amount > 0 and p.amount = private.payment_partial_refunded_amount(p.id)
+    and (select count(*) from public.payments x where x.purpose = 'order' and x.ref_id = p_order_id and x.status <> 'failed') = 1;
+$$;
+revoke all on function private.bank_transfer_zero_refund_payment(uuid) from public, anon, authenticated, service_role;
+
+create function private.finalize_bank_transfer_zero_refund(p_order_id uuid, p_reason text) returns void
+language plpgsql volatile security definer set search_path = '' as $$
+declare purchase public.orders; payment public.payments; item record; claim_id uuid;
+begin
+  select * into purchase from public.orders where id = p_order_id for update;
+  perform id from public.order_shipments where order_id = p_order_id order by id for update;
+  perform id from public.payments where purpose = 'order' and ref_id = p_order_id order by id for update;
+  select * into payment from public.payments where id = private.bank_transfer_zero_refund_payment(p_order_id);
+  if purchase.id is null or payment.id is null or purchase.payment_method is distinct from 'bank_transfer'
+    or payment.user_id is distinct from purchase.user_id or purchase.status not in ('paid', 'confirmed', 'shipping', 'delivered', 'done', 'canceled') then
+    raise check_violation using message = 'bank_refund_payment_unavailable';
+  end if;
+  select r.cancellation_request_id into claim_id from public.refunds r where r.payment_id = payment.id;
+  if claim_id is null then raise check_violation using message = 'bank_refund_operator_evidence_required'; end if;
+  perform private.assert_claim_collections_complete(claim_id);
+  if not exists(select 1 from public.order_cancellation_claims where order_id = p_order_id) and purchase.status <> 'canceled' then
+    raise check_violation using message = 'bank_refund_approval_required';
+  end if;
+  if purchase.status <> 'canceled' then
+    for item in select id from public.order_items where order_id = p_order_id order by good_id, id loop
+      perform private.restore_order_item_supply(item.id, p_reason);
+    end loop;
+    perform id from public.draw_tickets where source = 'order_paid' and source_id = p_order_id and consumed_at is null and revoked_at is null order by id for update;
+    update public.draw_tickets set revoked_at = clock_timestamp() where source = 'order_paid' and source_id = p_order_id and consumed_at is null and revoked_at is null;
+  end if;
+  insert into public.refunds(payment_id, amount, reason, status, cancellation_request_id, method)
+  values (payment.id, 0, p_reason, 'done', claim_id, 'bank_transfer')
+  on conflict (payment_id) do update set amount = 0, status = 'done', method = 'bank_transfer', cancellation_request_id = excluded.cancellation_request_id;
+  if payment.status <> 'refunded' then update public.payments set status = 'refunded' where id = payment.id; end if;
+  if purchase.status <> 'canceled' then update public.orders set status = 'canceled', expires_at = null where id = p_order_id; end if;
+  delete from public.order_cancellation_claims where order_id = p_order_id;
+end $$;
+revoke all on function private.finalize_bank_transfer_zero_refund(uuid, text) from public, anon, authenticated, service_role;
+
+-- 송금 대기 원장이 없는 확정(0원)은 finalizer가 위 함수로 보낸다.
+select private.t12b_patch_function('private.finalize_bank_transfer_claim_refund(uuid,text)'::regprocedure, array[
+$a$ if not found or purchase.payment_method is distinct from 'bank_transfer' or purchase.total-private.claim_refund_active_deduction(lifecycle.payment_id)<>lifecycle.amount then$a$,
+$a$ if not found and private.bank_transfer_zero_refund_payment(p_order_id) is not null then
+  perform private.finalize_bank_transfer_zero_refund(p_order_id,p_reason);
+  return;
+ end if;
+ if not found or purchase.payment_method is distinct from 'bank_transfer' or purchase.total-private.claim_refund_active_deduction(lifecycle.payment_id)<>lifecycle.amount then$a$
+]);
+
+-- 환불 원장: 0원 환불은 송금 증빙 없이 done이 된다(부분 취소들이 이미 모두 돌려준 결제만).
+select private.t12b_patch_function('private.guard_bank_transfer_refund_ledger()'::regprocedure, array[
+$a$or new.status='done' and lifecycle.state is distinct from 'completed'$a$,
+$a$or new.status='done' and lifecycle.state is distinct from 'completed' and not(new.amount=0 and lifecycle.claim_id is null and private.bank_transfer_zero_refund_payment(payment.ref_id)=payment.id)$a$
+]);
+
+-- 환불 접수 기록: 0원 확정은 송금 증빙 대신 부분 취소 환불 합계가 결제액과 같다는 사실로 완료를 기록한다.
+select private.t12b_patch_function('public.admin_record_order_claim_refund(uuid,text,text,text)'::regprocedure, array[
+$a$if p_stage='completed' and not exists(select 1 from private.bank_transfer_claim_refunds where claim_id=p_claim_id and state='completed') then$a$,
+$a$if p_stage='completed' and not exists(select 1 from private.bank_transfer_claim_refunds where claim_id=p_claim_id and state='completed')
+      and private.bank_transfer_zero_refund_payment(v_claim.order_id) is null then$a$
+]);
+
+-- 취소 확정: 남은 잔액이 0원이면 송금 대기를 열지 않고 환불 0원으로 확정해 클레임까지 닫는다.
+select private.t12b_patch_function('public.admin_record_bank_transfer_refund(uuid,uuid,uuid,text,integer,integer,timestamp with time zone,text,text,boolean,uuid,uuid)'::regprocedure, array[
+$a$ elsif p_kind='confirm_cancellation' then
+  insert into private.bank_transfer_claim_refunds(claim_id,order_id,payment_id,payer_id,amount,state,confirmation_operation_id,
+   confirmed_by,confirmed_at,confirmation_evidence,confirmation_note)
+  values(claim.id,purchase.id,payment.id,purchase.user_id,payment.amount-private.claim_refund_active_deduction(payment.id),'awaiting_transfer',p_operation_id,
+   p_expected_actor_id,p_occurred_at,p_evidence,p_note);
+  perform public.finalize_order_cancellation_with_provider_evidence(purchase.id,claim.reason,array[]::text[]);$a$,
+$a$ elsif p_kind='confirm_cancellation' and private.bank_transfer_zero_refund_payment(purchase.id)=payment.id then
+  -- 앞선 부분 취소들이 결제액을 모두 돌려줬다(남은 잔액 0원). 송금할 돈이 없으므로 송금 대기 없이 환불 0원으로 확정하고 클레임을 닫는다.
+  if claim.status<>'processing' then update public.order_cancellation_requests set stage='processing',last_error_code=null where id=claim.id;end if;
+  perform public.complete_order_cancellation_request(claim.id,array[payment.payment_key],p_expected_actor_id);
+  perform public.admin_record_order_claim_refund(claim.id,'bank_transfer','completed',p_note);
+ elsif p_kind='confirm_cancellation' then
+  insert into private.bank_transfer_claim_refunds(claim_id,order_id,payment_id,payer_id,amount,state,confirmation_operation_id,
+   confirmed_by,confirmed_at,confirmation_evidence,confirmation_note)
+  values(claim.id,purchase.id,payment.id,purchase.user_id,payment.amount-private.claim_refund_active_deduction(payment.id),'awaiting_transfer',p_operation_id,
+   p_expected_actor_id,p_occurred_at,p_evidence,p_note);
+  perform public.finalize_order_cancellation_with_provider_evidence(purchase.id,claim.reason,array[]::text[]);$a$,
+$a$ if p_kind<>'complete_transfer' then
+  update public.order_cancellation_requests set stage='processing',last_error_code=null,updated_at=happened where id=claim.id;$a$,
+$a$ if p_kind<>'complete_transfer' then
+  update public.order_cancellation_requests set stage='processing',last_error_code=null,updated_at=happened where id=claim.id and status<>'completed';$a$
+]);
+
 -- 재정의한 함수의 등록된 계약을 새 본문·ACL로 다시 적는다(분류는 기존 행 그대로).
 do $$declare fn regprocedure; contract record; begin
   foreach fn in array array[
@@ -492,7 +586,11 @@ do $$declare fn regprocedure; contract record; begin
     'private.customer_segment_members(jsonb,timestamp with time zone)'::regprocedure,
     'private.collect_settled_export_for_search(date,date,text,text,text)'::regprocedure,
     'public.admin_search_order_items_console(text,date,date,text,integer,integer,text,text,text,text)'::regprocedure,
-    'public.admin_list_bank_transfer_refunds_numbered(integer,integer)'::regprocedure] loop
+    'public.admin_list_bank_transfer_refunds_numbered(integer,integer)'::regprocedure,
+    'private.finalize_bank_transfer_claim_refund(uuid,text)'::regprocedure,
+    'private.guard_bank_transfer_refund_ledger()'::regprocedure,
+    'public.admin_record_order_claim_refund(uuid,text,text,text)'::regprocedure,
+    'public.admin_record_bank_transfer_refund(uuid,uuid,uuid,text,integer,integer,timestamp with time zone,text,text,boolean,uuid,uuid)'::regprocedure] loop
     select * into contract from private.operator_rpc_contracts r where r.signature::regprocedure = fn;
     if found then perform private.register_operator_rpc_contract(fn, contract.capability, contract.guard_kind, contract.legacy_admin_only);
     elsif exists(select 1 from private.operator_internal_contracts r where r.signature::regprocedure = fn) then

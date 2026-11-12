@@ -224,8 +224,8 @@ export function parseOrderPartialCancellationRecord(value: unknown): OrderPartia
       note: optionalText(row.note),
       warehouseStopConfirmed: row.warehouseStopConfirmed === true,
       lastErrorCode: optionalText(row.lastErrorCode),
-      balanceBefore: amount(row.balanceBefore),
-      paymentAmount: amount(row.paymentAmount),
+      balanceBefore: row.balanceBefore === undefined ? 0 : amount(row.balanceBefore),
+      paymentAmount: row.paymentAmount === undefined ? 0 : amount(row.paymentAmount),
       createdBy: optionalText(row.createdBy),
       transferEvidence: optionalText(row.transferEvidence),
       transferNote: optionalText(row.transferNote),
@@ -233,7 +233,7 @@ export function parseOrderPartialCancellationRecord(value: unknown): OrderPartia
       resolution: resolution(row.resolution),
       resolutionReason: optionalText(row.resolutionReason),
       resolvedAt: optionalText(row.resolvedAt),
-      closedShipments: array(row.closedShipments).map(parseClosedShipment),
+      closedShipments: row.closedShipments === undefined ? [] : array(row.closedShipments).map(parseClosedShipment),
       refundAccount: account ? { maskedAccount: text(account.maskedAccount), maskedHolder: text(account.maskedHolder), purged: account.purged === true } : null,
     };
   }

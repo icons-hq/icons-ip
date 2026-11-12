@@ -20,7 +20,9 @@ import {
   inspectOrderPartialCancellationResolution,
   reconcileOrderPartialCancellation,
 } from '@/lib/orders/partial-cancellation-orchestrator.server';
+import { refundTransferExportCaller } from '@/lib/admin/list-export-refund-transfers.server';
 import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/service';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -180,7 +182,8 @@ export async function retryOrderPartialCancellationAction(input: { orderId: unkn
  * 돈이 움직이지 않았으면 진행하지 않음으로, 이미 취소됐으면 그 거래 키로 적용한다. 운영자는 해소 방법을 고르지 않는다(사유만 적는다).
  */
 export async function resolveOrderPartialCancellationAction(input: { orderId: unknown; partialCancellationId: unknown; reason: unknown }): Promise<PartialCancellationActionResult<string>> {
-  if (!await staff()) return { ok: false, error: '관리자 권한이 필요합니다.' };
+  const auth = await staff();
+  if (!auth?.user) return { ok: false, error: '관리자 권한이 필요합니다.' };
   const orderId = uuid(input.orderId);
   const id = uuid(input.partialCancellationId);
   const reason = typeof input.reason === 'string' ? input.reason.trim() : '';
@@ -193,12 +196,21 @@ export async function resolveOrderPartialCancellationAction(input: { orderId: un
     evidence = { ok: false, code: 'local_state_unavailable' };
   }
   if (!evidence.ok) return { ok: false, error: orderPartialCancellationResolutionMessage(evidence.code) };
-  const { error } = await (await createClient()).rpc('admin_resolve_order_partial_cancellation', {
+  // 해소 RPC는 service_role 전용이다: 방법·잔액·거래 키는 위 결제사 조회가 정한 값뿐이고, 운영자 신원(사용자·세션)은 서버가 증명해 넘긴다.
+  let caller: Awaited<ReturnType<typeof refundTransferExportCaller>>;
+  try {
+    caller = await refundTransferExportCaller(await createClient(), auth.user.id);
+  } catch {
+    return { ok: false, error: orderPartialCancellationErrorMessage('refund_account_auth_changed') };
+  }
+  const { error } = await createServiceClient().rpc('service_resolve_order_partial_cancellation', {
     p_id: id,
     p_resolution: evidence.resolution,
     p_reason: reason,
     p_provider_transaction_key: evidence.resolution === 'already_canceled' ? evidence.transactionKey : null,
     p_observed_balance: evidence.observedBalance,
+    p_actor_id: caller.actorId,
+    p_session_id: caller.sessionId,
   });
   refresh(orderId);
   if (error) return { ok: false, error: orderPartialCancellationErrorMessage(error.message) };

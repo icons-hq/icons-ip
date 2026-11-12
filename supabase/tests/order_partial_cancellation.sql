@@ -666,14 +666,29 @@ select pg_temp.pc_start('c:1@21', 33, 8000);
 reset role;
 select public.service_mark_order_partial_cancellation_needs_review((pg_temp.pc_head(32)).id, 'provider_unavailable', pg_temp.pc_id('user', 1));
 select public.service_mark_order_partial_cancellation_needs_review((pg_temp.pc_head(33)).id, 'local_finalize_failed', pg_temp.pc_id('user', 1));
+-- 해소 RPC는 서비스 전용이다(서버가 결제사를 조회해 정한 값만 받는다). authenticated는 레거시 관리자여도 직접 부르지 못한다.
+reset role;
+select (pg_temp.pc_head(32)).id as h32, (pg_temp.pc_head(33)).id as h33 \gset
 set local role authenticated;
 select pg_temp.pc_auth(3);
-select pg_temp.pc_error(format('select public.admin_resolve_order_partial_cancellation(%L, %L, %L, null, 40000)', (pg_temp.pc_head(32)).id, 'not_moved', 'TEST 잔액 그대로 확인'), '42501');
+select pg_temp.pc_error(format('select public.service_resolve_order_partial_cancellation(%L, %L, %L, null, 40000, %L, %L)', :'h32', 'not_moved', 'TEST 잔액 그대로 확인', pg_temp.pc_id('user', 1), pg_temp.pc_id('session', 1)), '42501');
 select pg_temp.pc_auth();
-select pg_temp.pc_error(format('select public.admin_resolve_order_partial_cancellation(%L, %L, %L, null, 40000)', (pg_temp.pc_head(32)).id, 'not_moved', 'TEST'), 'partial_cancel_resolution_reason_required');
-select pg_temp.pc_error(format('select public.admin_resolve_order_partial_cancellation(%L, %L, %L, null, 30500)', (pg_temp.pc_head(32)).id, 'not_moved', 'TEST 잔액 그대로 확인'), 'partial_cancel_resolution_evidence_mismatch');
-select pg_temp.pc_error(format('select public.admin_resolve_order_partial_cancellation(%L, %L, %L, %L, 40000)', (pg_temp.pc_head(32)).id, 'already_canceled', 'TEST 취소 확인', 'TEST-PC-TX-32'), 'partial_cancel_resolution_evidence_mismatch');
-select pg_temp.pc_assert(public.admin_resolve_order_partial_cancellation((pg_temp.pc_head(32)).id, 'not_moved', 'TEST 결제사 잔액이 시작 때 그대로', null, 40000)
+select pg_temp.pc_error(format('select public.service_resolve_order_partial_cancellation(%L, %L, %L, null, 40000, %L, %L)', :'h32', 'not_moved', 'TEST 우회 시험', pg_temp.pc_id('user', 1), pg_temp.pc_id('session', 1)), '42501');
+select pg_temp.pc_error(format('select public.service_resolve_order_partial_cancellation(%L, %L, %L, %L, 30500, %L, %L)', :'h32', 'already_canceled', 'TEST 우회 시험', 'FABRICATED-TX-KEY', pg_temp.pc_id('user', 1), pg_temp.pc_id('session', 1)), '42501');
+select pg_temp.pc_error(format('select public.admin_resolve_order_partial_cancellation(%L, %L, %L, null, 40000)', :'h32', 'not_moved', 'TEST 옛 이름'), '42883');
+reset role;
+select pg_temp.pc_assert((select state = 'needs_review' and resolution is null from private.order_partial_cancellations where id = :'h32'), 'direct_resolve_changes_nothing');
+set local role service_role;
+-- 신원 판정: 운영자가 아닌 사용자, 다른 사람의 세션, 없는 세션, 세션 없음은 모두 거절한다.
+select pg_temp.pc_error(format('select public.service_resolve_order_partial_cancellation(%L, %L, %L, null, 40000, %L, %L)', :'h32', 'not_moved', 'TEST 잔액 그대로 확인', pg_temp.pc_id('user', 3), pg_temp.pc_id('session', 3)), '42501');
+select pg_temp.pc_error(format('select public.service_resolve_order_partial_cancellation(%L, %L, %L, null, 40000, %L, %L)', :'h32', 'not_moved', 'TEST 잔액 그대로 확인', pg_temp.pc_id('user', 1), pg_temp.pc_id('session', 3)), '42501');
+select pg_temp.pc_error(format('select public.service_resolve_order_partial_cancellation(%L, %L, %L, null, 40000, %L, %L)', :'h32', 'not_moved', 'TEST 잔액 그대로 확인', pg_temp.pc_id('user', 1), pg_temp.pc_id('session', 99)), '42501');
+select pg_temp.pc_error(format('select public.service_resolve_order_partial_cancellation(%L, %L, %L, null, 40000, %L, null)', :'h32', 'not_moved', 'TEST 잔액 그대로 확인', pg_temp.pc_id('user', 1)), '42501');
+select pg_temp.pc_error(format('select public.service_resolve_order_partial_cancellation(%L, %L, %L, null, 40000, null, %L)', :'h32', 'not_moved', 'TEST 잔액 그대로 확인', pg_temp.pc_id('session', 1)), '42501');
+select pg_temp.pc_error(format('select public.service_resolve_order_partial_cancellation(%L, %L, %L, null, 40000, %L, %L)', :'h32', 'not_moved', 'TEST', pg_temp.pc_id('user', 1), pg_temp.pc_id('session', 1)), 'partial_cancel_resolution_reason_required');
+select pg_temp.pc_error(format('select public.service_resolve_order_partial_cancellation(%L, %L, %L, null, 30500, %L, %L)', :'h32', 'not_moved', 'TEST 잔액 그대로 확인', pg_temp.pc_id('user', 1), pg_temp.pc_id('session', 1)), 'partial_cancel_resolution_evidence_mismatch');
+select pg_temp.pc_error(format('select public.service_resolve_order_partial_cancellation(%L, %L, %L, %L, 40000, %L, %L)', :'h32', 'already_canceled', 'TEST 취소 확인', 'TEST-PC-TX-32', pg_temp.pc_id('user', 1), pg_temp.pc_id('session', 1)), 'partial_cancel_resolution_evidence_mismatch');
+select pg_temp.pc_assert(public.service_resolve_order_partial_cancellation(:'h32', 'not_moved', 'TEST 결제사 잔액이 시작 때 그대로', null, 40000, pg_temp.pc_id('user', 1), pg_temp.pc_id('session', 1))
  @> '{"state": "rejected", "followedSuccessor": false}', 'resolve_not_moved_rejects');
 reset role;
 select pg_temp.pc_assert((select state = 'rejected' and applied_at is null and resolution = 'not_moved' and resolved_by = pg_temp.pc_id('user', 1)
@@ -690,11 +705,10 @@ insert into private.goods_group_operations(operation_id, actor_id, session_id, c
 insert into private.goods_stock_successors(source_variant_id, source_good_id, target_variant_id, target_good_id, operation_id, moved_qty, actor_id)
  values (pg_temp.pc_variant('partial-cancel-c'), 'partial-cancel-c', pg_temp.pc_variant('partial-cancel-d'), 'partial-cancel-d', pg_temp.pc_id('goods-op', 1), 0, pg_temp.pc_id('user', 1));
 select pg_temp.pc_stock('partial-cancel-c') as c21_before, pg_temp.pc_stock('partial-cancel-d') as d21_before \gset
-set local role authenticated;
-select pg_temp.pc_auth();
-select pg_temp.pc_assert(public.admin_resolve_order_partial_cancellation((pg_temp.pc_head(33)).id, 'already_canceled', 'TEST 상점관리자에서 취소 거래 확인', 'TEST-PC-TX-33', 32000)
+set local role service_role;
+select pg_temp.pc_assert(public.service_resolve_order_partial_cancellation(:'h33', 'already_canceled', 'TEST 상점관리자에서 취소 거래 확인', 'TEST-PC-TX-33', 32000, pg_temp.pc_id('user', 1), pg_temp.pc_id('session', 1))
  @> '{"state": "completed", "followedSuccessor": true}', 'resolve_already_canceled_applies');
-select pg_temp.pc_error(format('select public.admin_resolve_order_partial_cancellation(%L, %L, %L, %L, 32000)', (pg_temp.pc_head(33)).id, 'already_canceled', 'TEST 다시 해소', 'TEST-PC-TX-33'), 'partial_cancel_not_needs_review');
+select pg_temp.pc_error(format('select public.service_resolve_order_partial_cancellation(%L, %L, %L, %L, 32000, %L, %L)', :'h33', 'already_canceled', 'TEST 다시 해소', 'TEST-PC-TX-33', pg_temp.pc_id('user', 1), pg_temp.pc_id('session', 1)), 'partial_cancel_not_needs_review');
 reset role;
 select pg_temp.pc_assert((select state = 'completed' and provider_transaction_key = 'TEST-PC-TX-33' and resolution = 'already_canceled'
    from private.order_partial_cancellations where id = (pg_temp.pc_head(33)).id)
@@ -708,6 +722,35 @@ set local role authenticated;
 select pg_temp.pc_auth();
 select pg_temp.pc_assert((select context->'history'->0 @> '{"state": "rejected", "resolution": "not_moved"}'
   from (select public.admin_order_partial_cancellation_context(pg_temp.pc_id('order', 22)) context) s), 'context_shows_resolution');
+reset role;
+
+-- 9-12b. 기록 읽기 범위: sales.read(influencer)는 고객 결정 요약까지, sales.manage(레거시 코호트 staff)는 운영 메모·처리자까지,
+--   송금 증빙·메모·계좌(마스킹 포함)·해소 사유는 레거시 관리자(여기서는 configured primary)만 본다.
+insert into auth.users(id, aud, role, email, email_confirmed_at, raw_app_meta_data, raw_user_meta_data)
+ select pg_temp.pc_id('user', n), 'authenticated', 'authenticated', 'partial-cancel-'||n||'@example.test', clock_timestamp(), '{}', '{}' from generate_series(4, 5) n;
+insert into auth.sessions(id, user_id, created_at, updated_at, not_after)
+ select pg_temp.pc_id('session', n), pg_temp.pc_id('user', n), clock_timestamp(), clock_timestamp(), clock_timestamp() + interval '1 hour' from generate_series(4, 5) n;
+update public.profiles set role = 'staff', nickname = 'TEST 열람자 '||right(id::text, 6) where id in (pg_temp.pc_id('user', 4), pg_temp.pc_id('user', 5));
+insert into private.operator_memberships(profile_id, manager_role) values (pg_temp.pc_id('user', 4), 'influencer');
+insert into private.operator_legacy_cohort(profile_id, legacy_role) values (pg_temp.pc_id('user', 5), 'staff');
+create function pg_temp.pc_history(actor integer, ord integer) returns jsonb language plpgsql as $$
+begin
+ perform pg_temp.pc_auth(actor);
+ return (public.admin_order_partial_cancellation_context(pg_temp.pc_id('order', 22)))->'history'->ord;
+end $$;
+grant execute on function pg_temp.pc_history(integer, integer) to authenticated;
+set local role authenticated;
+select pg_temp.pc_assert((select h ? 'customerDecision' and h->>'state' = 'rejected'
+   and not (h ?| array['note', 'createdBy', 'lastErrorCode', 'balanceBefore', 'paymentAmount', 'closedShipments', 'transferEvidence', 'transferNote',
+     'refundAccount', 'resolution', 'resolutionReason', 'filedAt', 'resolvedAt'])
+  from (select pg_temp.pc_history(4, 0) h) s), 'sales_read_sees_customer_decision_only');
+select pg_temp.pc_assert((select h ? 'createdBy' and h ? 'note' and h ? 'closedShipments' and h->>'resolution' = 'not_moved'
+   and not (h ?| array['transferEvidence', 'transferNote', 'refundAccount', 'resolutionReason'])
+  from (select pg_temp.pc_history(5, 0) h) s), 'sales_manage_without_legacy_hides_finance_fields');
+select pg_temp.pc_assert((select h->>'createdBy' like 'TEST 부분취소 %' and h ?& array['transferEvidence', 'transferNote', 'refundAccount']
+   and h->>'resolutionReason' = 'TEST 결제사 잔액이 시작 때 그대로'
+  from (select pg_temp.pc_history(1, 0) h) s), 'legacy_admin_sees_finance_fields');
+select pg_temp.pc_auth();
 reset role;
 
 -- 9-13. ③·④ 4절 반품(주문 2)의 일괄 처리 문맥 환불 예정액, 차감 결정, 결제사가 부분 취소를 받지 않아 전액 환불로 돌릴 때의 금액은 모두 남은 잔액 기준이다.
@@ -726,6 +769,74 @@ select pg_temp.pc_assert((select amount = 22500 from public.refunds where paymen
    and (diff->>'refundAmount')::bigint = 22500), 'deduction_fallback_refunds_remaining_balance');
 update private.return_fee_deduction_settings set enabled = false where singleton;
 
+-- 9-14. 무통장: 부분 취소들이 결제액을 모두 돌려준 뒤(남은 잔액 0원) 전체 취소는 송금 대기 원장 없이 환불 0원으로 닫는다.
+--   주문 25: A와 전액 할인 B가 한 배송 건. A를 부분 취소하면 송금 대기 19,000원이 생기고 잔액은 0원이 된다.
+create function pg_temp.pc_order_ab(n integer, provider text, version integer default 2, a_coupon bigint default 1000, b_coupon bigint default 0,
+  ship_fee bigint default 3000, initial text default 'confirmed') returns void language plpgsql as $$
+declare credit bigint := case when n = 8 then 2000 else 0 end;
+  total bigint := (20000 - a_coupon - credit) + (10000 - b_coupon) + ship_fee;
+begin
+ insert into public.orders(id, user_id, status, total, shipping_fee, discount_total, store_credit_total, calculation_version, address,
+   payment_method, created_at, confirmed_at)
+ values (pg_temp.pc_id('order', n), pg_temp.pc_id('user', 2), initial::public.order_status, total, ship_fee, a_coupon + b_coupon, credit, 1,
+   '{"recipientName":"TEST 수령인","phone":"01000000000","postalCode":"12345","address1":"TEST 합성 주소"}',
+   (case when provider = 'bank_transfer' then 'bank_transfer' else 'card' end)::public.order_payment_method,
+   case when n = 2 then '2031-04-01T03:00:00Z'::timestamptz else '2031-03-01T03:00:00Z'::timestamptz end,
+   case when initial = 'confirmed' then clock_timestamp() - interval '1 hour' end);
+ insert into public.order_items(id, order_id, good_id, variant_id, qty, unit_price, good_name_snapshot, good_type_snapshot, good_ip_id_snapshot)
+ select pg_temp.pc_id('item-'||g.id, n), pg_temp.pc_id('order', n), g.id, v.id, case when g.id = 'partial-cancel-a' then 2 else 1 end, g.price,
+   g.name, '문구', 'partial-cancel-ip'
+ from public.goods g join public.goods_variants v on v.good_id = g.id and v.is_default where g.id in ('partial-cancel-a','partial-cancel-b');
+ if version = 2 then
+  -- 버전 2 주문은 거래 계약 묶음이 있어야 품목을 넣을 수 있다. 합성 주문은 품목을 넣은 뒤 버전을 올린다(배분 원장만 쓴다).
+  update public.orders set calculation_version = 2 where id = pg_temp.pc_id('order', n);
+  insert into private.order_price_allocations(order_item_id, order_id, calculation_version, subtotal, volume_discount, net_subtotal, coupon_discount, store_credit_discount, paid_goods_total)
+  values (pg_temp.pc_id('item-partial-cancel-a', n), pg_temp.pc_id('order', n), 2, 20000, 0, 20000, a_coupon, credit, 20000 - a_coupon - credit),
+   (pg_temp.pc_id('item-partial-cancel-b', n), pg_temp.pc_id('order', n), 2, 10000, 0, 10000, b_coupon, 0, 10000 - b_coupon);
+ end if;
+ insert into public.order_shipments(id, order_id, origin_id, origin_name_snapshot, shipping_fee, shipping_fee_snapshot)
+ select pg_temp.pc_id('shipment-'||o, n), pg_temp.pc_id('order', n), pg_temp.pc_id('origin', o), 'TEST 부분취소 출고지 '||o, ship_fee, '{}' from generate_series(1, 1) o;
+ insert into public.order_shipment_items(order_id, shipment_id, order_item_id, qty)
+ select i.order_id, pg_temp.pc_id('shipment-1', n), i.id, i.qty
+ from public.order_items i where i.order_id = pg_temp.pc_id('order', n);
+ insert into public.payments(id, user_id, provider, purpose, ref_id, amount, status, payment_key, idempotency_key, created_at)
+ values (pg_temp.pc_id('payment', n), pg_temp.pc_id('user', 2), provider::public.payment_provider, 'order', pg_temp.pc_id('order', n), total, 'paid',
+   case when provider = 'bank_transfer' then 'bank_transfer:'||pg_temp.pc_id('order', n) else 'TEST-PC-KEY-'||n end, 'partial-cancel-payment-'||n, clock_timestamp() - interval '2 hours');
+ insert into public.payment_attempts(id, provider, user_id, purpose, ref_id, amount, currency, state, idempotency_key, provider_order_id, provider_product_code, payment_id, expires_at)
+ values (pg_temp.pc_id('attempt', n), provider::public.payment_provider, pg_temp.pc_id('user', 2), 'order', pg_temp.pc_id('order', n), total, 'KRW', 'approved',
+   'partial-cancel-attempt-'||n, 'TEST-PC-ORDER-'||n, 'TEST-PC-PRODUCT-'||n, pg_temp.pc_id('payment', n), clock_timestamp() + interval '1 hour');
+end $$;
+select pg_temp.pc_order_ab(25, 'bank_transfer', 2, 1000, 10000, 0, 'paid');
+set local role authenticated;
+select pg_temp.pc_auth();
+select pg_temp.pc_start('a:2@25', 90, 19000, account => '{"bankName":"TEST 합성은행","accountNumber":"000000001234","accountHolder":"TEST 구매자"}');
+reset role;
+insert into public.order_cancellation_requests(id, order_id, requested_by, reason, claim_type, stage, collection_policy, requested_at)
+ values (pg_temp.pc_id('claim', 25), pg_temp.pc_id('order', 25), pg_temp.pc_id('user', 2), 'TEST 무통장 전액 취소', 'cancel', 'processing', 'origin', clock_timestamp() - interval '40 minutes');
+insert into public.order_cancellation_claims(order_id, requested_by, previous_status) values (pg_temp.pc_id('order', 25), pg_temp.pc_id('user', 2), 'paid');
+insert into public.refunds(payment_id, amount, status, cancellation_request_id) values (pg_temp.pc_id('payment', 25), 0, 'requested', pg_temp.pc_id('claim', 25));
+insert into private.claim_refund_accounts(claim_id, bank_name, account_number, account_holder, masked_account, masked_holder)
+ values (pg_temp.pc_id('claim', 25), 'TEST 합성은행', '000000001234', 'TEST 합성구매자', 'TEST 합성은행 ********1234', 'T*********');
+select pg_temp.pc_assert(private.bank_transfer_zero_refund_payment(pg_temp.pc_id('order', 25)) = pg_temp.pc_id('payment', 25)
+ and private.bank_transfer_zero_refund_payment(pg_temp.pc_id('order', 3)) is null and private.bank_transfer_zero_refund_payment(pg_temp.pc_id('order', 1)) is null,
+ 'zero_refund_only_when_partials_returned_everything');
+select claim_revision as zero_rev from public.order_cancellation_requests where id = pg_temp.pc_id('claim', 25) \gset
+select pg_temp.pc_stock('partial-cancel-a') as a25_before, pg_temp.pc_stock('partial-cancel-b') as b25_before \gset
+set local role authenticated;
+select pg_temp.pc_auth();
+select pg_temp.pc_assert(public.admin_record_bank_transfer_refund(pg_temp.pc_id('order', 25), pg_temp.pc_id('claim', 25), pg_temp.pc_id('operation', 91), 'confirm_cancellation',
+  :zero_rev, 19000, clock_timestamp(), 'TEST 증빙', 'TEST-ONLY 합성 0원 환불. 실제 송금 없음.', true, pg_temp.pc_id('user', 1), pg_temp.pc_id('session', 1)) @> '{"state": "recorded"}',
+ 'zero_remaining_bank_cancel_confirms');
+reset role;
+select pg_temp.pc_assert((select status = 'canceled' from public.orders where id = pg_temp.pc_id('order', 25))
+ and (select status = 'refunded' from public.payments where id = pg_temp.pc_id('payment', 25))
+ and (select amount = 0 and status = 'done' and method = 'bank_transfer' from public.refunds where payment_id = pg_temp.pc_id('payment', 25))
+ and (select status = 'completed' from public.order_cancellation_requests where id = pg_temp.pc_id('claim', 25))
+ and not exists(select 1 from private.bank_transfer_claim_refunds where order_id = pg_temp.pc_id('order', 25))
+ and not exists(select 1 from public.order_cancellation_claims where order_id = pg_temp.pc_id('order', 25))
+ and pg_temp.pc_stock('partial-cancel-a') = :a25_before and pg_temp.pc_stock('partial-cancel-b') = :b25_before + 1
+ and private.payment_partial_refunded_amount(pg_temp.pc_id('payment', 25)) = 19000, 'zero_remaining_bank_cancel_closes_without_transfer_ledger');
+
 -- 8. 원장 불변·권한 ---------------------------------------------------------------------------------------------------------
 select pg_temp.pc_error(format('update private.order_partial_cancellations set refund_amount = 1 where id = %L', (pg_temp.pc_head(1)).id), 'partial_cancellation_immutable');
 select pg_temp.pc_error(format('delete from private.order_partial_cancellations where id = %L', (pg_temp.pc_head(1)).id), 'partial_cancellation_immutable');
@@ -734,6 +845,9 @@ select pg_temp.pc_assert(not has_function_privilege('anon', 'public.admin_start_
  and not has_function_privilege('service_role', 'public.admin_start_order_partial_cancellation(uuid,jsonb,text,text,boolean,bigint,uuid,jsonb)', 'execute')
  and not has_function_privilege('authenticated', 'public.service_complete_order_partial_cancellation(uuid,bigint,text,text,uuid)', 'execute')
  and has_function_privilege('service_role', 'public.service_complete_order_partial_cancellation(uuid,bigint,text,text,uuid)', 'execute')
+ and not has_function_privilege('authenticated', 'public.service_resolve_order_partial_cancellation(uuid,text,text,text,bigint,uuid,uuid)', 'execute')
+ and not has_function_privilege('anon', 'public.service_resolve_order_partial_cancellation(uuid,text,text,text,bigint,uuid,uuid)', 'execute')
+ and has_function_privilege('service_role', 'public.service_resolve_order_partial_cancellation(uuid,text,text,text,bigint,uuid,uuid)', 'execute')
  and has_function_privilege('authenticated', 'public.get_my_order_partial_cancellations(uuid)', 'execute')
  and not has_function_privilege('anon', 'public.get_my_order_partial_cancellations(uuid)', 'execute')
  and not has_table_privilege('authenticated', 'private.order_partial_cancellations', 'select')

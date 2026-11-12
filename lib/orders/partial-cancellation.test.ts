@@ -35,6 +35,10 @@ describe('부분 취소 응답 좁히기', () => {
     expect(staff.staff).toMatchObject({ customerDecision: '통화 결정', warehouseStopConfirmed: true, closedShipments: [{ shippingFeeRefund: 3_000 }],
       resolution: 'not_moved', resolutionReason: '결제사 잔액 그대로' });
     expect(() => parseOrderPartialCancellationRecords([{ ...record, customerDecision: '통화 결정', closedShipments: [], resolution: 'forced' }])).toThrow();
+    // 주문 조회 권한(sales.read)만 있으면 고객 결정 요약만 오고, 나머지 운영 필드는 비어 있는 값으로 읽는다.
+    const [readOnly] = parseOrderPartialCancellationRecords([{ ...record, customerDecision: '통화 결정' }]);
+    expect(readOnly.staff).toMatchObject({ customerDecision: '통화 결정', note: null, createdBy: null, transferEvidence: null, resolutionReason: null,
+      refundAccount: null, closedShipments: [], balanceBefore: 0, paymentAmount: 0 });
   });
 
   it('금액 합이 맞지 않거나 상태가 모르는 값이면 거절한다', () => {

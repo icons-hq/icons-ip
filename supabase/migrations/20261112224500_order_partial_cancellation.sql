@@ -638,33 +638,36 @@ end $$;
 revoke all on function private.apply_order_partial_cancellation(uuid, uuid, text, boolean) from public, anon, authenticated, service_role;
 
 -- 9. 화면이 읽는 모양.
-create function private.order_partial_cancellation_json(p_id uuid, p_staff boolean) returns jsonb
+-- p_level: customer(구매자) < read(주문 조회 sales.read: 고객 결정 요약까지) < manage(sales.manage: 운영 메모·처리자·상태 코드·배송 건)
+--   < legacy(레거시 관리자 + sales.manage: 송금 증빙·메모·계좌(마스킹)·해소 사유). 높은 단계는 낮은 단계를 모두 싣는다.
+create function private.order_partial_cancellation_json(p_id uuid, p_level text) returns jsonb
 language sql stable security definer set search_path = '' as $$
   select jsonb_build_object('id', head.id, 'sequence', head.sequence, 'state', head.state, 'provider', head.provider,
     'refundAmount', head.refund_amount, 'goodsRefundAmount', head.goods_refund_amount, 'shippingRefundAmount', head.shipping_refund_amount,
     'storeCreditRestoreAmount', head.store_credit_restore_amount, 'createdAt', head.created_at, 'appliedAt', head.applied_at,
     'completedAt', head.completed_at, 'transferredAt', head.transferred_at,
     'items', coalesce((select jsonb_agg(jsonb_build_object('orderItemId', line.order_item_id, 'goodName', item.good_name_snapshot,
-        'variantName', case when not p_staff and item.option_sale_mode_snapshot = 'random' then null else item.variant_name_snapshot end,
+        'variantName', case when p_level in ('customer', 'read') and item.option_sale_mode_snapshot = 'random' then null else item.variant_name_snapshot end,
         'qty', line.qty, 'goodsRefundAmount', line.goods_refund_amount) order by item.good_name_snapshot, item.id)
       from private.order_partial_cancellation_items line join public.order_items item on item.id = line.order_item_id
       where line.partial_cancellation_id = head.id), '[]'::jsonb),
     'closedShipmentCount', (select count(*) from private.order_partial_cancellation_shipments c where c.partial_cancellation_id = head.id))
-  || case when p_staff then jsonb_build_object('customerDecision', head.customer_decision, 'note', head.note,
+  || case when p_level in ('read', 'manage', 'legacy') then jsonb_build_object('customerDecision', head.customer_decision) else '{}'::jsonb end
+  || case when p_level in ('manage', 'legacy') then jsonb_build_object('note', head.note,
       'warehouseStopConfirmed', head.warehouse_stop_confirmed, 'lastErrorCode', head.last_error_code, 'balanceBefore', head.balance_before,
       'paymentAmount', head.payment_amount, 'createdBy', (select nickname from public.profiles where id = head.created_by),
-      'transferEvidence', head.transfer_evidence, 'transferNote', head.transfer_note, 'filedAt', head.filed_at,
-      'resolution', head.resolution, 'resolutionReason', head.resolution_reason, 'resolvedAt', head.resolved_at,
+      'filedAt', head.filed_at, 'resolution', head.resolution, 'resolvedAt', head.resolved_at,
       'closedShipments', coalesce((select jsonb_agg(jsonb_build_object('shipmentId', s.id, 'shipmentNumber', s.shipment_number,
           'originName', s.origin_name_snapshot, 'shippingFeeRefund', c.shipping_fee_refund) order by s.shipment_number)
         from private.order_partial_cancellation_shipments c join public.order_shipments s on s.id = c.shipment_id
-        where c.partial_cancellation_id = head.id), '[]'::jsonb),
+        where c.partial_cancellation_id = head.id), '[]'::jsonb)) else '{}'::jsonb end
+  || case when p_level = 'legacy' then jsonb_build_object('transferEvidence', head.transfer_evidence, 'transferNote', head.transfer_note,
+      'resolutionReason', head.resolution_reason,
       'refundAccount', (select jsonb_build_object('maskedAccount', a.masked_account, 'maskedHolder', a.masked_holder, 'purged', a.purged_at is not null)
-        from private.order_partial_cancellation_refund_accounts a where a.partial_cancellation_id = head.id))
-    else '{}'::jsonb end
+        from private.order_partial_cancellation_refund_accounts a where a.partial_cancellation_id = head.id)) else '{}'::jsonb end
   from private.order_partial_cancellations head where head.id = p_id;
 $$;
-revoke all on function private.order_partial_cancellation_json(uuid, boolean) from public, anon, authenticated, service_role;
+revoke all on function private.order_partial_cancellation_json(uuid, text) from public, anon, authenticated, service_role;
 
 -- 10. 운영자 RPC.
 -- 10-1. 주문 상세 패널. 스위치가 꺼져 있고 기록이 없으면 {enabled:false, history:[]} — 화면은 아무것도 그리지 않는다.
@@ -672,12 +675,14 @@ revoke all on function private.order_partial_cancellation_json(uuid, boolean) fr
 -- 기록 읽기는 주문 조회 권한(sales.read)이면 열린다(상담 운영자도 일부 취소 사실을 본다). 시작·해소·송금 같은 처리는 sales.manage다.
 create function public.admin_order_partial_cancellation_context(p_order_id uuid) returns jsonb
 language plpgsql security definer set search_path = '' as $$
-declare enabled boolean; blockers text[]; history jsonb; pay public.payments; items jsonb; can_manage boolean;
+declare enabled boolean; blockers text[]; history jsonb; pay public.payments; items jsonb; can_manage boolean; level text;
 begin
   perform private.require_operator_capability('sales.read', false);
   can_manage := public.has_operator_capability('sales.manage', false);
+  -- sales.read는 고객 결정 요약까지, 처리 권한(sales.manage)은 운영 메모·처리자까지, 송금 증빙·계좌·해소 사유는 레거시 관리자만(T03·ADR-0010).
+  level := case when public.has_operator_capability('sales.manage', true) then 'legacy' when can_manage then 'manage' else 'read' end;
   enabled := private.order_partial_cancel_enabled();
-  select coalesce(jsonb_agg(private.order_partial_cancellation_json(head.id, true) order by head.sequence), '[]'::jsonb) into history
+  select coalesce(jsonb_agg(private.order_partial_cancellation_json(head.id, level) order by head.sequence), '[]'::jsonb) into history
   from private.order_partial_cancellations head where head.order_id = p_order_id;
   if not enabled then
     return jsonb_build_object('enabled', false, 'canManage', can_manage, 'blockers', jsonb_build_array('partial_cancel_disabled'), 'history', history);
@@ -980,18 +985,24 @@ revoke all on function public.service_order_payment_partial_refunds(uuid) from p
 grant execute on function public.service_order_payment_partial_refunds(uuid) to service_role;
 
 -- 11-2. 결제확인필요 해소(결제 담당 = sales.manage + 레거시 관리자, 로그인 세션, 사유 필수, 감사 기록).
+--  서비스 전용이다: 해소 방법·관측 잔액·거래 키는 서버가 결제사를 조회해(inspectOrderPartialCancellationResolution) 정한 값이고,
+--  브라우저 세션이 PostgREST로 직접 부르면 결제사 조회 없이 '적용 강제'나 '진행하지 않음'을 만들 수 있어 authenticated에는 열지 않는다.
+--  운영자 신원(p_actor_id·p_session_id)은 서버가 증명하고 DB가 service_export_* 와 같은 판정(세션·프로필·sales.manage 레거시)으로 다시 확인한다.
 --  not_moved: 서버가 결제사 조회로 잔액이 시작 때 잔액 그대로임(돈이 움직이지 않음)을 확인했다 → 진행하지 않음(rejected).
 --  already_canceled: 결제사 조회로 잔액이 '시작 때 잔액 − 환불액'이고 그 취소 거래 키를 확인했다 → 그 키로 적용을 강제한다.
 --    재고 승계(상품 통합)가 그 사이 바뀌어 수량 단위 복원이 막혔으면 승계를 따라 지금의 실물 옵션에 복원한다.
-create function public.admin_resolve_order_partial_cancellation(p_id uuid, p_resolution text, p_reason text, p_provider_transaction_key text,
-  p_observed_balance bigint) returns jsonb
+create function public.service_resolve_order_partial_cancellation(p_id uuid, p_resolution text, p_reason text, p_provider_transaction_key text,
+  p_observed_balance bigint, p_actor_id uuid, p_session_id uuid) returns jsonb
 language plpgsql security definer set search_path = '' as $$
-declare v_actor uuid := (select auth.uid()); v_session uuid; head private.order_partial_cancellations; pay public.payments;
+declare v_actor uuid := p_actor_id; head private.order_partial_cancellations; pay public.payments; buyer uuid;
   reason text := nullif(btrim(coalesce(p_reason, '')), ''); topology boolean := false;
 begin
-  begin v_session := (auth.jwt()->>'session_id')::uuid;
-  exception when invalid_text_representation then raise insufficient_privilege using message = 'bank_refund_permission_required'; end;
-  perform private.require_bank_transfer_refund_identity(v_actor, v_session);
+  if v_actor is null or p_session_id is null
+    or not exists(select 1 from auth.sessions where id = p_session_id and user_id = v_actor and (not_after is null or not_after > statement_timestamp()))
+    or not exists(select 1 from public.profiles where id = v_actor) then
+    raise insufficient_privilege using message = 'refund_account_auth_changed';
+  end if;
+  if not private.has_operator_capability(v_actor, 'sales.manage', true) then raise insufficient_privilege using message = 'bank_refund_permission_required'; end if;
   if p_resolution is null or p_resolution not in ('not_moved', 'already_canceled') then
     raise invalid_parameter_value using message = 'invalid_partial_cancel_resolution';
   end if;
@@ -1000,6 +1011,11 @@ begin
   end if;
   select * into head from private.order_partial_cancellations where id = p_id;
   if not found then raise no_data_found using message = 'partial_cancellation_not_found'; end if;
+  select o.user_id into buyer from public.orders o where o.id = head.order_id;
+  perform private.lock_operator_subjects(array[v_actor, buyer]);
+  perform private.require_actor_operator_capability(v_actor, 'sales.manage', true);
+  perform id from auth.sessions where id = p_session_id and user_id = v_actor and (not_after is null or not_after > clock_timestamp()) for share;
+  if not found then raise insufficient_privilege using message = 'refund_account_auth_changed'; end if;
   perform 1 from public.orders where id = head.order_id for update;
   perform s.id from public.order_shipments s where s.order_id = head.order_id order by s.id for update;
   select * into pay from public.payments where id = head.payment_id for update;
@@ -1030,8 +1046,9 @@ begin
       'providerTransactionKey', p_provider_transaction_key, 'followedSuccessor', topology, 'previousCode', head.last_error_code));
   return jsonb_build_object('id', p_id, 'state', case when p_resolution = 'not_moved' then 'rejected' else 'completed' end, 'followedSuccessor', topology);
 end $$;
-revoke all on function public.admin_resolve_order_partial_cancellation(uuid, text, text, text, bigint) from public, anon, authenticated, service_role;
-grant execute on function public.admin_resolve_order_partial_cancellation(uuid, text, text, text, bigint) to authenticated;
+revoke all on function public.service_resolve_order_partial_cancellation(uuid, text, text, text, bigint, uuid, uuid) from public, anon, authenticated, service_role;
+grant execute on function public.service_resolve_order_partial_cancellation(uuid, text, text, text, bigint, uuid, uuid) to service_role;
+
 
 -- 11-3. 환불 송금 대기 엑셀(T03)의 무통장 부분 취소 계좌 원문. 서버가 증명한 운영자·세션으로 클레임 계좌 반출(service_export_bank_
 --   transfer_refund_accounts)과 같은 판정을 하고, 같은 반출 번호(p_export_id)로 줄마다 열람 감사를 남긴다(원문은 남기지 않는다).
@@ -1130,7 +1147,7 @@ revoke all on function private.order_item_partial_cancel_console_fields(uuid) fr
 -- 12. 구매자 주문 상세. 본인 주문의 적용된 부분 취소만(결제사 확인 전·진행하지 않은 건은 보이지 않는다).
 create function public.get_my_order_partial_cancellations(p_order_id uuid) returns jsonb
 language sql stable security definer set search_path = '' as $$
-  select coalesce(jsonb_agg(private.order_partial_cancellation_json(head.id, false) order by head.sequence), '[]'::jsonb)
+  select coalesce(jsonb_agg(private.order_partial_cancellation_json(head.id, 'customer') order by head.sequence), '[]'::jsonb)
   from private.order_partial_cancellations head join public.orders o on o.id = head.order_id
   where head.order_id = p_order_id and head.applied_at is not null and auth.uid() is not null and o.user_id = auth.uid();
 $$;
@@ -1145,7 +1162,7 @@ select private.register_operator_rpc_contract('public.admin_view_order_partial_c
 select private.register_operator_rpc_contract('public.service_complete_order_partial_cancellation(uuid,bigint,text,text,uuid)'::regprocedure, 'sales.manage', 'service_finish', false);
 select private.register_operator_rpc_contract('public.service_reject_order_partial_cancellation(uuid,text,uuid)'::regprocedure, 'sales.manage', 'service_finish', false);
 select private.register_operator_rpc_contract('public.service_mark_order_partial_cancellation_needs_review(uuid,text,uuid)'::regprocedure, 'sales.manage', 'service_finish', false);
-select private.register_operator_rpc_contract('public.admin_resolve_order_partial_cancellation(uuid,text,text,text,bigint)'::regprocedure, 'sales.manage', 'write', true);
+select private.register_operator_rpc_contract('public.service_resolve_order_partial_cancellation(uuid,text,text,text,bigint,uuid,uuid)'::regprocedure, 'sales.manage', 'service_finish', true);
 select private.register_operator_rpc_contract('public.service_export_order_partial_cancellation_refund_accounts(uuid,uuid,uuid,jsonb)'::regprocedure, 'sales.manage', 'service_start', true);
 
 commit;

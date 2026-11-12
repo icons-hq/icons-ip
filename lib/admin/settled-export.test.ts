@@ -144,6 +144,24 @@ describe('거래확정 재고 부족 부분 취소(ADR-0032)', () => {
     expect(model.orders[0].issues).not.toContain('부분 취소 환불 합계와 취소분 배분 불일치');
   });
 
+  it('부분 취소가 없으면 배송비 쿠폰 요약은 저장된 주문 값 그대로다(구성요소에 칸이 없어도 0으로 바뀌지 않는다)', () => {
+    const snapshot = settledExportFixture(); const order = snapshot.orders[0];
+    cut(order, { shippingCouponDiscount: 700 });
+    const model = buildSettledExportModel(parseSettledExportSnapshot(snapshot));
+    expect(model.orders[0].shippingCouponDiscount).toBe(700);
+  });
+
+  it('닫힌 배송 건이 있을 때만 배송비 쿠폰 요약에서 그 배송 건 구성요소 몫을 뺀다', () => {
+    const snapshot = settledExportV2Fixture(); const order = snapshot.orders[0];
+    const baseline = buildSettledExportModel(parseSettledExportSnapshot(snapshot)).orders[0].shippingCouponDiscount;
+    expect(baseline).toBe(order.shippingCouponDiscount ?? 0);
+    cut(order.items[2], { ...cancelC, shipmentId: null });
+    cut(order.shipments[1], { closedByPartialCancel: true });
+    cut(order, { partialRefundedAmount: 10600 });
+    const closed = (order.shippingComponents ?? []).filter(c => c.shipmentId === order.shipments[1].id).reduce((total, c) => total + (c.shippingCouponDiscount ?? 0), 0);
+    expect(buildSettledExportModel(parseSettledExportSnapshot(snapshot)).orders[0].shippingCouponDiscount).toBe(baseline - closed);
+  });
+
   it('일부 취소된 품목은 남은 수량·남은 결제 몫이고, 끝수 차이는 숨기지 않는다', () => {
     const snapshot = settledExportV2Fixture(); const order = snapshot.orders[0];
     const [a, b] = order.items; a.qty = 2;
