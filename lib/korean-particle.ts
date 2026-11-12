@@ -33,3 +33,9 @@ export function topicParticle(word: string): '은' | '는' | '은(는)' {
   const final = hasFinalConsonant(word);
   return final === null ? '은(는)' : final ? '은' : '는';
 }
+
+/** 목적 조사 을/를. 판정할 수 없으면 '을(를)'. */
+export function objectParticle(word: string): '을' | '를' | '을(를)' {
+  const final = hasFinalConsonant(word);
+  return final === null ? '을(를)' : final ? '을' : '를';
+}

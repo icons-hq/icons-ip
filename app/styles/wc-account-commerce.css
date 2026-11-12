@@ -173,6 +173,51 @@
   color: var(--wc-success);
 }
 
+/* 버튼 위 오류 요약의 한 줄(온보딩, QA1 S-T02-02) — 그 칸으로 가는 밑줄 링크를 둔다. */
+.wc-auth__alert-line {
+  margin: 0;
+}
+
+.wc-auth__alert-line + .wc-auth__alert-line {
+  margin-top: 4px;
+}
+
+.wc-auth__alert-line a {
+  color: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* 가입 확인 코드 이어 하기(QA1 S-T02-02) — 새로고침 뒤 가입 폼 위에서 먼저 보이는 회색 상자. 이메일은 칸 안에서 줄을 바꾼다. */
+.wc-auth__resume {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 20px;
+  padding: 16px;
+  background: var(--wc-surface-grey);
+}
+
+.wc-auth__resume-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--wc-ink);
+}
+
+.wc-auth__resume-body {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--wc-ink-sub);
+  overflow-wrap: anywhere;
+}
+
+.wc-auth__resume-body strong {
+  color: var(--wc-ink);
+}
+
 /* 잉크 60px CTA (R-05: 448×60·18/700·r2). wc-btn(h50·r4) 위에 지면이 재조율한다. */
 .wc-auth .wc-btn {
   height: 60px;
@@ -3335,6 +3380,30 @@ button.wc-settings__link-row[aria-disabled="true"] strong {
   font-size: 12.5px;
   line-height: 1.5;
   color: var(--wc-ink-tertiary);
+}
+
+/* 적립금 사용 칸(QA1 고객 — '사용 금액 (원)'·준비 중 안내가 주변 안내보다 크게 그려졌다). 쿠폰 칸과 같은 위계: 라벨 12/600,
+   안내 13/400 보조 글자, 입력 40. */
+.wc-receipt .checkout-credit {
+  gap: 6px;
+}
+
+.wc-receipt .checkout-credit__label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--wc-ink-sub);
+}
+
+.wc-receipt .checkout-credit input {
+  height: 40px;
+  font-size: 14px;
+}
+
+.wc-receipt .checkout-credit__note {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--wc-ink-sub);
 }
 
 .wc-receipt .money-caption {

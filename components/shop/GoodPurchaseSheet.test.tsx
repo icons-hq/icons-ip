@@ -99,3 +99,16 @@ describe('GoodPurchaseSheet', () => {
     expect(html).toMatch(/<div aria-hidden="true" class="wc-pdp-sheet__dim"><\/div>/);
   });
 });
+
+/* QA1 S-D2-16: 위시의 시트가 PC에서 바닥에 붙은 모바일형으로 열려 아래쪽이 잘렸다 — 넓은 화면은 가운데 대화상자(CSS)다. */
+describe('GoodPurchaseSheet 위시(anyWidth)', () => {
+  it('인라인 위치 대신 넓은 화면용 수정자 클래스를 단다', () => {
+    const sheet = renderToStaticMarkup(<GoodPurchaseSheet anyWidth onClose={vi.fn()} purchase={controller} />);
+    expect(sheet).toContain('class="wc-pdp-sheet__dim wc-pdp-sheet__dim--any-width"');
+    expect(sheet).toContain('class="wc-pdp-sheet wc-pdp-sheet--any-width"');
+    expect(sheet.match(/<div[^>]*role="dialog"[^>]*>/)?.[0]).not.toContain('style=');
+    expect(sheet.match(/<div aria-hidden="true"[^>]*>/)?.[0]).not.toContain('style=');
+    const detail = renderToStaticMarkup(<GoodPurchaseSheet onClose={vi.fn()} purchase={controller} />);
+    expect(detail).not.toContain('any-width');
+  });
+});

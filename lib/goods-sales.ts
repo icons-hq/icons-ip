@@ -193,8 +193,11 @@ export function goodsPurchaseReasonMessage(reason: GoodsPurchaseReason): string 
   return messages[reason];
 }
 
+/** 견적 줄 가운데 지금 살 수 없는 줄이 있을 때의 공통 안내. 화면이 어떤 굿즈의 판매기간 때문인지 알면 그 안내로 바꾼다(QA1 S-D2-11). */
+export const GOODS_LINE_UNAVAILABLE_MESSAGE = '현재 판매 상태나 재고가 변경된 굿즈가 있어요. 수량을 다시 확인해주세요.';
+
 export function goodsSalesQuoteProblem(quote: GoodsSalesConditions & { coupon?: CouponQuote | null }): string | null {
-  if (quote.lines.some((line) => !line.available)) return '현재 판매 상태나 재고가 변경된 굿즈가 있어요. 수량을 다시 확인해주세요.';
+  if (quote.lines.some((line) => !line.available)) return GOODS_LINE_UNAVAILABLE_MESSAGE;
   const reason = quote.goods.find((good) => good.reason)?.reason;
   if (reason) return goodsPurchaseReasonMessage(reason);
   /* 옵션별 구매 제한(D7②) — 어느 옵션인지는 품목 줄(quoteLineOptionLimitMessage)이 말한다. */

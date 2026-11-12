@@ -183,15 +183,44 @@ function InquiryWidgetDialog({ onClose }: { onClose: () => void }) {
   return <InquiryWidgetPanel key={userId ?? 'anonymous'} userId={userId} onClose={onClose} />;
 }
 
+/*
+ * 아래로 스크롤하는 동안 문의 런처를 비킨다(QA1 고객 — 모바일에서 떠 있는 [FAQ · 문의]가 요약 금액·배송비 안내를 가렸다).
+ * 위로 스크롤하거나 맨 위 가까이면 다시 보인다. 숨김 모양은 990px 미만에서만 그린다(CSS) — 데스크톱은 런처가 여백에 선다.
+ */
+function useLauncherTucked(): boolean {
+  const [tucked, setTucked] = useState(false);
+  useEffect(() => {
+    let last = window.scrollY;
+    let frame = 0;
+    const onScroll = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        const y = window.scrollY;
+        if (Math.abs(y - last) < 8) return;
+        setTucked(y > last && y > 120);
+        last = y;
+      });
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+  }, []);
+  return tucked;
+}
+
 export function InquiryWidget() {
   const pathname = usePathname();
+  const tucked = useLauncherTucked();
   const [overlay, setOverlay] = useState({ pathname, open: false });
   if (overlay.pathname !== pathname) setOverlay({ pathname, open: false });
   /* /login은 전역 셸 안에서 열리지만(L3) 입력에 집중하는 흐름이라 런처를 띄우지 않는다 — 모바일에서 소셜 버튼을 가린다. */
   if (isStandaloneShellPath(pathname) || pathname === '/login') return null;
   const open = overlay.pathname === pathname && overlay.open;
   return <div className="wc-root wc-inquiry-widget">
-    <button className="wc-inquiry-widget__launcher" type="button" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOverlay({ pathname, open: true })}>FAQ · 문의</button>
+    <button className="wc-inquiry-widget__launcher" data-tucked={tucked && !open ? 'true' : undefined} type="button" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOverlay({ pathname, open: true })}>FAQ · 문의</button>
     {open ? <OverlayPortal><InquiryWidgetDialog onClose={() => setOverlay({ pathname, open: false })} /></OverlayPortal> : null}
   </div>;
 }
