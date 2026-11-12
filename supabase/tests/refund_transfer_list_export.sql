@@ -112,6 +112,20 @@ select pg_temp.rt_assert((select count(*) from private.bank_transfer_refund_acco
    and diff=jsonb_build_object('claimCount',3,'revealedCount',1) from public.audit_log where id=pg_temp.rt_id('export',1))
  and not exists(select 1 from public.audit_log where diff::text like '%00000000123%'),
  'per-claim view audit and one export summary without plaintext');
+-- 요청 상세 타임라인(QA1 S-T03-04, 20261112204100)에 그 요청의 계좌 열람(엑셀)이 열람자·시각·경로(목적)와 함께 보인다.
+-- 계좌 원문은 싣지 않고, 계좌를 내주지 않은 요청에는 열람 기록이 없다.
+set local role authenticated;
+select pg_temp.rt_auth();
+select public.admin_order_claim_detail(pg_temp.rt_id('claim',1)) as claim_one_detail \gset
+select public.admin_order_claim_detail(pg_temp.rt_id('claim',2)) as claim_two_detail \gset
+reset role;
+select pg_temp.rt_assert((select count(*)=1 from jsonb_array_elements(:'claim_one_detail'::jsonb->'timeline') e
+   where e->>'action'='admin.order.bank_refund_account_viewed' and e#>>'{diff,purpose}'='list_export' and e->>'createdAt' is not null
+    and e->>'actorName'=(select nickname from public.profiles where id=pg_temp.rt_id('user',1)))
+ and not exists(select 1 from jsonb_array_elements(:'claim_two_detail'::jsonb->'timeline') e where e->>'action'='admin.order.bank_refund_account_viewed')
+ and position('00000000123' in (:'claim_one_detail'::jsonb->'timeline')::text)=0
+ and position('TEST 합성구매자' in (:'claim_one_detail'::jsonb->'timeline')::text)=0,
+ 'claim timeline shows the account view without account plaintext');
 
 set local role service_role;
 -- 같은 exportId로 다시 열지 못한다(평문을 다시 돌려주지 않는다).
