@@ -585,9 +585,9 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
 
       {/*
         4. 상세설명: 공개 조건이 아닌 선택 카드라 접어 두고 요약 한 줄을 보인다(ADM-004 복잡도 표 168행, 11/11 "필수는 펼침·선택은 요약으로 접음").
-        열면 형식 선택과 입력이 한 겹으로 바로 보인다. 오류가 있거나 이동 띠에서 오면 열린다.
+        열면 형식 선택과 입력이 한 겹으로 바로 보인다. 오류가 있거나 이동 띠에서 오면 열리고, 저장 전 확인할 HTML 안내가 있으면 처음부터 열어 둔다.
       */}
-      <GoodEditorSection title="상세설명" id="good-section-description" defaultOpen={false} summary={htmlDescription && descriptionCheck ? `상세페이지 HTML · 원문 ${rawDescriptionLength.toLocaleString('ko-KR')}자 · 정리 후 ${descriptionCheck.html.length.toLocaleString('ko-KR')}자` : values.description ? `일반 텍스트 · ${rawDescriptionLength.toLocaleString('ko-KR')}자` : '입력 안 함'} errorCount={errorCount('description')}>
+      <GoodEditorSection title="상세설명" id="good-section-description" defaultOpen={descriptionWarnings.length > 0} summary={htmlDescription && descriptionCheck ? `상세페이지 HTML · 원문 ${rawDescriptionLength.toLocaleString('ko-KR')}자 · 정리 후 ${descriptionCheck.html.length.toLocaleString('ko-KR')}자` : values.description ? `일반 텍스트 · ${rawDescriptionLength.toLocaleString('ko-KR')}자` : '입력 안 함'} errorCount={errorCount('description')}>
         <OwnedFields locked={groupOwned} fields={['description','descriptionFormat']} values={initial}>
           <SelectField defaultValue={initial.descriptionFormat} error={errors.descriptionFormat} label="상세 설명 형식" name="descriptionFormat"><option value="plain">일반 텍스트</option><option value="html">HTML 문서 (상세페이지 소스)</option></SelectField>
           <div className="flex min-w-0 flex-col gap-3 rounded-lg border p-4" data-good-html-tools="" hidden={!htmlDescription}>

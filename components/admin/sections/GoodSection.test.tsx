@@ -748,6 +748,8 @@ describe('GoodSection', () => {
     expect(textarea).not.toContain('maxLength');
     expect(html).toContain(`상세페이지 HTML (정리된 코드 포함 최대 ${GOODS_HTML_MAX_LENGTH.toLocaleString('ko-KR')}자)`);
     expect(html).toContain(`원문이 ${description.length.toLocaleString('ko-KR')}자로 최대 ${GOODS_HTML_MAX_LENGTH.toLocaleString('ko-KR')}자를 넘어 저장할 수 없습니다.`);
+    /* 접힌 상세설명 카드(ADM-004)도 저장 전 확인할 안내가 있으면 처음부터 열어 둔다. */
+    expect(html.match(/<details id="good-section-description"[^>]*>/)?.[0]).toContain('open=""');
     expect(renderGoodSection(good).match(/<textarea[^>]*name="description"[^>]*>/)?.[0]).toContain('maxLength="2000"');
   });
 
