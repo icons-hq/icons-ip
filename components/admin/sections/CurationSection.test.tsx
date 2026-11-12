@@ -183,6 +183,25 @@ describe('CurationSection', () => {
     expect(html).not.toContain('data-artwork-kind="curation"');
   });
 
+  /* QA1 MD major: 공개 전 상품도 담을 수 있지만, 담은 목록과 미리보기 위에 비공개(공개 전까지 고객 화면에 보이지 않음)를 이름과 함께 보인다. */
+  it('공개 홈에 없는 상품을 목록에 비공개·보관됨·찾을 수 없음으로 표시하고 미리보기 위에 빠지는 이유를 이름과 함께 알린다', () => {
+    const options = [...goodOptions, { id: 'draft-good', title: 'QA 비공개 굿즈', archivedAt: null }];
+    const html = renderToStaticMarkup(<CurationSection
+      draftActiveFrom="2026-07-15T03:04:05.000Z" draftId="22222222-2222-4222-8222-222222222222"
+      eventOptions={[]} goodOptions={options} ipOptions={[]} onSelect={mocks.onSelect} operationId="33333333-3333-4333-8333-333333333333"
+      preview={{ curation: { hero: null, announcement: null, featuredIpIds: [], heroSlides: [], editorPicks: [], goodsBands: [], categoryBestTabs: [], popularTabs: [], benefitTiles: [] } as never,
+        noticeStrip: null, goods: [{ id: 'g13', name: '홍실 아크릴 블록', brand: null, price: 12000, badge: null, imageBg: '#eee', href: '/shop/g13', soldOut: false }], cardRewardsEnabled: false }}
+      records={[]} selected={{ ...record, kind: 'best_tab', slot: 'popular', payload: { good_ids: ['g13', 'draft-good', 'archived-good', 'gone'] } }}
+    />);
+    const row = (goodId: string) => html.match(new RegExp(`<li[^>]*>(?:(?!</li>).)*<small[^>]*>${goodId}</small>(?:(?!</li>).)*</li>`))?.[0] ?? '';
+    expect(row('g13')).not.toContain('data-good-visibility');
+    expect(row('draft-good')).toMatch(/data-good-visibility="unpublished"[^>]*>.*비공개<\/span>공개 전까지 고객 화면에 보이지 않습니다\./);
+    expect(row('archived-good')).toContain('보관된 상품이라 고객 화면에 보이지 않습니다.');
+    expect(row('gone')).toContain('찾을 수 없는 상품이라 고객 화면에 보이지 않습니다.');
+    expect(html).toContain('비공개 상품 1개(QA 비공개 굿즈)는 공개 전까지 고객 화면에 보이지 않습니다. 보관된 상품 1개(보관 상품)는 고객 화면에 보이지 않습니다. 찾을 수 없는 상품 1개(gone)는 고객 화면에 보이지 않습니다. 미리보기에도 보이지 않습니다.');
+    expect(html).toContain('비공개 상품도 담을 수 있지만 공개 전까지 공개 홈에 보이지 않습니다.');
+  });
+
   it('검증 실패를 표시하면서 편집 값과 업로드된 경로를 유지한다', () => {
     mocks.state = { errors: { title: '제목을 확인해주세요.', imagePath: '이미지를 확인해주세요.' } };
     const html = renderSection();

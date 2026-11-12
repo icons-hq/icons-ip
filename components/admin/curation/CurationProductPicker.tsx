@@ -76,12 +76,12 @@ export function CurationProductPicker({ options, goods, selectedIds, limit, onAp
       setSelection((current) => current.includes(id) ? current : [...current, id]);
       return { ok: true, message: `'${option.title}' 상품을 선택했습니다. 선택 완료를 눌러 반영해주세요.` };
     }} bulk={{
-      /* 검색 목록과 같은 후보(보관 제외)에 있는 상품만 담는다. */
+      /* 검색 목록과 같은 후보(보관 제외)에 있는 상품만 담는다. 공개 여부는 아래 표의 노출 상태와 같은 기준(공개 홈 상품 목록)으로 표시한다. */
       capacity: limit - selection.length,
       classify: (match) => {
         if (!options.some((candidate) => candidate.id === match.id && !candidate.archivedAt)) return { ok: false, reason: '이 목록에서 고를 수 없는 상품입니다.' };
         if (selection.includes(match.id)) return { ok: false, reason: GOOD_URL_ERRORS.exists };
-        return { ok: true, id: match.id, item: match.id };
+        return { ok: true, id: match.id, item: match.id, unpublished: !goodsById.has(match.id) };
       },
       onAdd: (ids) => setSelection((current) => [...current, ...ids.filter((id) => !current.includes(id))].slice(0, limit)),
       appliedHint: '선택 완료를 눌러 반영해주세요.',

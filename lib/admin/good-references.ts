@@ -79,3 +79,51 @@ export const GOOD_REFERENCE_STATUS_REASONS = {
   ambiguous: '상품번호와 판매자상품코드가 서로 다른 상품을 가리킵니다. 상품 URL로 넣어주세요.',
   archived: '보관된 상품(또는 보관된 IP의 상품)이라 고를 수 없습니다.',
 } as const;
+
+/*
+ * 전시 구성(홈 전시·카테고리 전시·쇼핑스토리·캠페인 상품 묶음)에 담았거나 담을 상품이 고객 화면에 보이는지(QA1 MD).
+ * 공개 전 상품을 미리 담아 두는 것은 막지 않는다 — 대신 결과 줄·담은 목록·미리보기에 보이지 않는 이유를 늘 같은 말로 적는다.
+ * 공개 판정은 관련상품 찾기·여러 줄 추가와 같다(상품·IP 공개, 보관·판매 제한 아님).
+ */
+export type DisplayGoodVisibility = 'public' | 'unpublished' | 'archived' | 'missing';
+export const DISPLAY_GOOD_VISIBILITY_LABELS: Record<Exclude<DisplayGoodVisibility, 'public'>, string> = {
+  unpublished: '비공개', archived: '보관됨', missing: '찾을 수 없음',
+};
+export const DISPLAY_GOOD_VISIBILITY_NOTES: Record<Exclude<DisplayGoodVisibility, 'public'>, string> = {
+  unpublished: '공개 전까지 고객 화면에 보이지 않습니다.',
+  archived: '보관된 상품이라 고객 화면에 보이지 않습니다.',
+  missing: '찾을 수 없는 상품이라 고객 화면에 보이지 않습니다.',
+};
+/** 저장된 전시 구성의 상품 한 개(이름은 조회 전이면 null). */
+export interface DisplayGoodInfo { name: string | null; code: string | null; visibility: DisplayGoodVisibility }
+
+export function displayGoodVisibility(good: { archived: boolean; published: boolean } | null | undefined): DisplayGoodVisibility {
+  if (!good) return 'missing';
+  return good.archived ? 'archived' : good.published ? 'public' : 'unpublished';
+}
+
+/**
+ * 저장된 상품번호를 조회한 결과를 전시 목록 표시로 바꾼다. 상품번호가 그대로 맞은 결과만 믿는다 —
+ * 같은 값이 다른 상품의 판매자상품코드로 맞거나(지워진 상품) 둘이 엇갈리면 이름을 지어내지 않는다.
+ */
+export function displayGoodInfoOf(match: GoodReferenceMatch): DisplayGoodInfo | null {
+  if (match.status === 'ambiguous') return null;
+  if (match.status === 'not_found' || match.id !== match.ref || !match.name) return { name: null, code: null, visibility: 'missing' };
+  return { name: match.name, code: match.code, visibility: displayGoodVisibility(match) };
+}
+
+function namesOf(goods: readonly { name: string }[]) {
+  const shown = goods.slice(0, 3).map(good => good.name).join(', ');
+  return goods.length > 3 ? `${shown} 외 ${(goods.length - 3).toLocaleString('ko-KR')}개` : shown;
+}
+/** 담은 상품 중 고객 화면에 보이지 않는 상품을 한 문단으로 알린다(미리보기·목록 위). 모두 보이면 null. */
+export function hiddenDisplayGoodsNotice(goods: readonly { name: string; visibility: DisplayGoodVisibility }[]): string | null {
+  const of = (visibility: DisplayGoodVisibility) => goods.filter(good => good.visibility === visibility);
+  const unpublished = of('unpublished'), archived = of('archived'), missing = of('missing');
+  const parts = [
+    unpublished.length ? `비공개 상품 ${unpublished.length.toLocaleString('ko-KR')}개(${namesOf(unpublished)})는 공개 전까지 고객 화면에 보이지 않습니다.` : '',
+    archived.length ? `보관된 상품 ${archived.length.toLocaleString('ko-KR')}개(${namesOf(archived)})는 고객 화면에 보이지 않습니다.` : '',
+    missing.length ? `찾을 수 없는 상품 ${missing.length.toLocaleString('ko-KR')}개(${namesOf(missing)})는 고객 화면에 보이지 않습니다.` : '',
+  ].filter(Boolean);
+  return parts.length ? parts.join(' ') : null;
+}

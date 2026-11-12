@@ -10,10 +10,13 @@ import { CategoryDisplayGoodsPicker } from '../CategoryDisplayGoodsPicker';
 import { CategoryDisplayArtwork } from '../CategoryDisplayArtwork';
 import { CategoryDisplayPreview } from '../CategoryDisplayPreview';
 import { CategoryDisplayTree } from '../CategoryDisplayTree';
+import { DisplayGoodVisibilityNote } from '../DisplayGoodVisibility';
 import { useAdminLeaveGuard } from '../useAdminLeaveGuard';
+import { useGoodReferenceInfo } from '../useGoodReferenceInfo';
 import { previewCategoryDisplayAction, reloadCategoryDisplayAction, saveCategoryDisplayAction, type CategoryDisplaySaveResult } from '@/app/admin/category-display-actions';
 import { parseCategoryDisplayValues, type CategoryDisplayDirectory, type CategoryDisplayPage, type CategoryDisplaySnapshot, type CategoryDisplayValues } from '@/lib/category-display';
 import type { StoryGoodCandidate } from '@/lib/admin/shopping-story-picker';
+import { hiddenDisplayGoodsNotice, type DisplayGoodInfo } from '@/lib/admin/good-references';
 import type { ShopListQuery } from '@/lib/shop-catalog';
 import { categoryDisplayHref } from '@/lib/routes';
 import { createClient } from '@/lib/supabase/client';
@@ -28,14 +31,15 @@ const CHECK = 'flex w-fit items-center gap-2 text-sm';
 const HELP = 'text-xs leading-relaxed text-muted-foreground [overflow-wrap:anywhere]';
 const FIELDSET = 'grid min-w-0 gap-3';
 const SEGMENT = 'h-7 rounded-md px-2.5 text-[0.8rem] text-muted-foreground hover:bg-transparent hover:text-foreground aria-pressed:bg-background aria-pressed:text-primary-soft-foreground aria-pressed:shadow-sm';
-function SelectedGoods({ ids, names, disabled, onChange }: { ids: string[]; names: Map<string, string>; disabled: boolean; onChange: (ids: string[]) => void }) {
+/* 다시 열어도 상품번호만 보이지 않게 저장된 상품의 이름·판매자상품코드·공개 여부를 불러와 보인다(QA1 MD). 확인 전이면 상품번호로 보인다. */
+function SelectedGoods({ ids, info, disabled, onChange }: { ids: string[]; info: ReadonlyMap<string, DisplayGoodInfo>; disabled: boolean; onChange: (ids: string[]) => void }) {
   const [page, setPage] = useState(1), currentPage = Math.min(page, Math.max(1, Math.ceil(ids.length / 20)));
   function move(index: number, delta: number) { const next = [...ids], target = index + delta; if (target < 0 || target >= ids.length) return; [next[index], next[target]] = [next[target], next[index]]; onChange(next); }
   return <><ol className="flex list-decimal flex-col pl-6 text-sm marker:text-xs marker:text-muted-foreground" start={(currentPage - 1) * 20 + 1}>{ids.slice((currentPage - 1) * 20, currentPage * 20).map((id, offset) => {
-    const index = (currentPage - 1) * 20 + offset;
-    return <li className="border-b py-2" key={id}><span className="mb-1.5 block [overflow-wrap:anywhere]">{names.get(id) ?? id}<small className="block text-xs text-muted-foreground">{names.has(id) ? id : '저장된 상품'}</small></span><div className="flex flex-wrap items-center gap-1">
-      <Button type="button" aria-label={`${names.get(id) ?? id} 위로`} disabled={disabled || index === 0} onClick={() => move(index, -1)} size="icon-sm" variant="outline"><ArrowUp aria-hidden="true" /></Button>
-      <Button type="button" aria-label={`${names.get(id) ?? id} 아래로`} disabled={disabled || index === ids.length - 1} onClick={() => move(index, 1)} size="icon-sm" variant="outline"><ArrowDown aria-hidden="true" /></Button>
+    const index = (currentPage - 1) * 20 + offset, good = info.get(id), name = good?.name ?? id;
+    return <li className="border-b py-2" data-display-good={id} key={id}><span className="mb-1.5 block [overflow-wrap:anywhere]">{name}<small className="block text-xs text-muted-foreground">{good?.name ? good.code ? `${good.code} · ${id}` : id : '저장된 상품'}</small>{good ? <DisplayGoodVisibilityNote visibility={good.visibility} /> : null}</span><div className="flex flex-wrap items-center gap-1">
+      <Button type="button" aria-label={`${name} 위로`} disabled={disabled || index === 0} onClick={() => move(index, -1)} size="icon-sm" variant="outline"><ArrowUp aria-hidden="true" /></Button>
+      <Button type="button" aria-label={`${name} 아래로`} disabled={disabled || index === ids.length - 1} onClick={() => move(index, 1)} size="icon-sm" variant="outline"><ArrowDown aria-hidden="true" /></Button>
       <Button type="button" disabled={disabled} onClick={() => onChange(ids.filter(value => value !== id))} size="sm" variant="ghost">해제</Button>
     </div></li>;
   })}</ol>{ids.length > 20 ? <ConsolePagination label="연결한 상품 페이지" page={currentPage} pageSize={20} total={ids.length} unit="개" onPageChange={setPage} /> : null}</>;
@@ -50,12 +54,18 @@ export function CategoryDisplayScreen({ directory, initial, actorId, sessionId }
   </section>;
 }
 function CategoryDisplayEditor({ directory, initial, actorId, sessionId }: { directory: CategoryDisplayDirectory; initial: CategoryDisplaySnapshot; actorId: string; sessionId: string | null }) {
-  const [stored, setStored] = useState(initial), [values, setValues] = useState(initial.values), [names, setNames] = useState(new Map<string, string>());
+  const [stored, setStored] = useState(initial), [values, setValues] = useState(initial.values);
   const [picker, setPicker] = useState<Slot | null>(null), [pending, setPending] = useState(false), [uncertain, setUncertain] = useState(false), [conflict, setConflict] = useState(false), [blocked, setBlocked] = useState(false);
   const [busy, setBusy] = useState({ pc: false, mobile: false }), [message, setMessage] = useState(''), [error, setError] = useState(false);
   const [preview, setPreview] = useState<CategoryDisplayPage | null>(null), [previewBusy, setPreviewBusy] = useState(false), [previewMessage, setPreviewMessage] = useState(''), [mobile, setMobile] = useState(true);
   const request = useRef<{ values: CategoryDisplayValues; revision: number; id: string } | null>(null), alive = useRef(true), blockedRef = useRef(false), previewTicket = useRef(0);
   const dirty = JSON.stringify(values) !== JSON.stringify(stored.values), locked = pending || uncertain || conflict || blocked;
+  /* 개별상품 연결·추천상품·동영상에 고른 상품. 카테고리 연결 방식이어도 보존된 선택은 그대로 둔다. */
+  const linkedIds = [...values.goodIds, ...values.recommendations.goodIds, ...(values.video.goodId ? [values.video.goodId] : [])];
+  const goods = useGoodReferenceInfo(linkedIds);
+  /* 미리보기는 공개 상품만 그린다 — 지금 공개될 목록에 넣은 상품 중 빠지는 것을 이름과 이유로 미리 알린다. */
+  const shownIds = [...new Set([...(values.mode === 'manual' ? values.goodIds : []), ...(values.recommendations.enabled ? values.recommendations.goodIds : []), ...(values.video.enabled && values.video.goodId ? [values.video.goodId] : [])])];
+  const hiddenNotice = hiddenDisplayGoodsNotice(shownIds.flatMap(id => { const good = goods.info.get(id); return good && good.visibility !== 'public' ? [{ name: good.name ?? id, visibility: good.visibility }] : []; }));
   useEffect(() => {
     alive.current = true;
     const subscription = createClient().auth.onAuthStateChange((_event, session) => {
@@ -68,7 +78,7 @@ function CategoryDisplayEditor({ directory, initial, actorId, sessionId }: { dir
   function banner<K extends keyof CategoryDisplayValues['banner']>(key: K, value: CategoryDisplayValues['banner'][K]) { if (!locked && !blockedRef.current) setValues(current => ({ ...current, banner: { ...current.banner, [key]: value } })); }
   function choose(ids: string[], rows: StoryGoodCandidate[]) {
     if (locked) return;
-    setNames(current => new Map([...current, ...rows.map(row => [row.id, row.name] as const)]));
+    goods.remember(rows);
     if (picker === 'main') change('goodIds', ids);
     if (picker === 'recommend') change('recommendations', { ...values.recommendations, goodIds: ids });
     if (picker === 'video') change('video', { ...values.video, goodId: ids[0] ?? null });
@@ -119,7 +129,7 @@ function CategoryDisplayEditor({ directory, initial, actorId, sessionId }: { dir
         <label className={FIELD}>상품 연결 방식<NativeSelect className="w-full" value={values.mode} onChange={event => change('mode', event.target.value as CategoryDisplayValues['mode'])}><option value="categories">카테고리 단위로 연결</option><option value="manual">개별상품 단위로 연결</option></NativeSelect></label>
         {values.mode === 'categories' ? <fieldset className="grid max-h-[300px] min-w-0 gap-2 overflow-y-auto rounded-lg border p-3"><legend className="float-left mb-1 w-full text-sm font-medium">연결할 상품분류 · 최대 10개</legend>{directory.sourceCategories.map(category => <label className={CHECK} key={category.id}><input type="checkbox" checked={values.categoryIds.includes(category.id)} disabled={!values.categoryIds.includes(category.id) && values.categoryIds.length >= 10}
           onChange={() => change('categoryIds', values.categoryIds.includes(category.id) ? values.categoryIds.filter(id => id !== category.id) : [...values.categoryIds, category.id])} />{category.name}</label>)}</fieldset>
-          : <><p className="text-sm tabular-nums">선택 {values.goodIds.length.toLocaleString()} / 1,000개</p><Button className="self-start" type="button" onClick={() => setPicker('main')} size="sm" variant="outline">상품 선택</Button><SelectedGoods ids={values.goodIds} names={names} disabled={locked} onChange={ids => change('goodIds', ids)} /></>}
+          : <><p className="text-sm tabular-nums">선택 {values.goodIds.length.toLocaleString()} / 1,000개</p><Button className="self-start" type="button" onClick={() => setPicker('main')} size="sm" variant="outline">상품 선택</Button><SelectedGoods ids={values.goodIds} info={goods.info} disabled={locked} onChange={ids => change('goodIds', ids)} /></>}
       </fieldset></AdminSectionCard>
       <AdminSectionCard title="상단 배너"><fieldset className={FIELDSET} disabled={locked}><label className={CHECK}><input type="checkbox" checked={values.banner.enabled} onChange={event => banner('enabled', event.target.checked)} /> 배너 표시</label>
         <CategoryDisplayArtwork label="PC 배너 이미지" actorId={actorId} path={values.banner.imagePath} disabled={locked} onChange={path => banner('imagePath', path)} onBusy={pc => setBusy(current => ({ ...current, pc }))} />
@@ -134,13 +144,13 @@ function CategoryDisplayEditor({ directory, initial, actorId, sessionId }: { dir
       </fieldset></AdminSectionCard>
       <AdminSectionCard title="상단 동영상"><fieldset className={FIELDSET} disabled={locked}><label className={CHECK}><input type="checkbox" checked={values.video.enabled} onChange={event => change('video', { ...values.video, enabled: event.target.checked })} /> 동영상 표시</label>
         <p className={HELP}>선택한 공개 상품의 현재 동영상을 표시합니다. 상품에서 영상을 교체하거나 해제하면 여기도 함께 반영됩니다. 현재 영상이 없으면 동영상 영역이 표시되지 않습니다.</p>
-        <Button className="self-start" type="button" onClick={() => setPicker('video')} size="sm" variant="outline">상품 선택</Button>{values.video.goodId ? <SelectedGoods ids={[values.video.goodId]} names={names} disabled={locked} onChange={ids => change('video', { ...values.video, goodId: ids[0] ?? null })} /> : null}
+        <Button className="self-start" type="button" onClick={() => setPicker('video')} size="sm" variant="outline">상품 선택</Button>{values.video.goodId ? <SelectedGoods ids={[values.video.goodId]} info={goods.info} disabled={locked} onChange={ids => change('video', { ...values.video, goodId: ids[0] ?? null })} /> : null}
       </fieldset></AdminSectionCard>
       <AdminSectionCard title="상단 추천상품"><fieldset className={FIELDSET} disabled={locked}><label className={CHECK}><input type="checkbox" checked={values.recommendations.enabled} onChange={event => change('recommendations', { ...values.recommendations, enabled: event.target.checked })} /> 추천상품 표시</label>
         <label className={FIELD}>제목 · 15자<input className={INPUT} data-slot="input" value={values.recommendations.title} maxLength={30} onChange={event => change('recommendations', { ...values.recommendations, title: event.target.value })} /></label>
         <label className={FIELD}>표시 개수<NativeSelect className="w-full" value={values.recommendations.itemCount} onChange={event => change('recommendations', { ...values.recommendations, itemCount: Number(event.target.value) })}>{Array.from({ length: 10 }, (_, index) => index + 3).map(count => <option key={count} value={count}>{count}개</option>)}</NativeSelect></label>
         <p className="text-sm tabular-nums">후보 {values.recommendations.goodIds.length} / 100개</p><Button className="self-start" type="button" onClick={() => setPicker('recommend')} size="sm" variant="outline">추천상품 선택</Button>
-        <SelectedGoods ids={values.recommendations.goodIds} names={names} disabled={locked} onChange={goodIds => change('recommendations', { ...values.recommendations, goodIds })} />
+        <SelectedGoods ids={values.recommendations.goodIds} info={goods.info} disabled={locked} onChange={goodIds => change('recommendations', { ...values.recommendations, goodIds })} />
       </fieldset></AdminSectionCard>
       <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-card p-4 print:hidden">{message ? <p className={`w-full text-sm ${error ? 'text-destructive' : 'text-success'}`} role={error ? 'alert' : 'status'}>{message}</p> : null}
         <Button type="submit" disabled={pending || blocked || conflict || busy.pc || busy.mobile}>{pending ? '저장 중…' : uncertain ? '같은 요청 결과 확인' : '이 카테고리 전시 적용하기'}</Button>
@@ -149,6 +159,7 @@ function CategoryDisplayEditor({ directory, initial, actorId, sessionId }: { dir
       </div>
     </form><aside className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-sm"><h2 className="text-base font-medium">저장 전 미리보기</h2><p className="text-muted-foreground">현재 공개 가능한 상품의 첫 20개를 확인합니다. 입력을 바꾼 뒤 미리보기를 갱신해주세요.</p>
       <div className="flex flex-wrap items-center gap-2 print:hidden"><Button type="button" disabled={blocked || previewBusy || busy.pc || busy.mobile} onClick={() => { void showPreview(); }} size="sm" variant="soft"><RefreshCw aria-hidden="true" />{previewBusy ? '불러오는 중…' : '미리보기 갱신'}</Button><div className="inline-flex items-center rounded-lg bg-muted p-0.5"><Button type="button" aria-pressed={mobile} className={SEGMENT} onClick={() => setMobile(true)} size="sm" variant="ghost">모바일</Button><Button type="button" aria-pressed={!mobile} className={SEGMENT} onClick={() => setMobile(false)} size="sm" variant="ghost">PC</Button></div></div>
+      {hiddenNotice ? <AdminNotice tone="warning"><span data-display-hidden-goods="">{hiddenNotice} 미리보기에도 보이지 않습니다.</span></AdminNotice> : null}
       {previewMessage ? <p className="text-muted-foreground" role="status">{previewMessage}</p> : null}{preview ? <CategoryDisplayPreview page={preview} mobile={mobile} onQueryChange={query => { void showPreview(query); }} /> : null}
     </aside></div>
     {picker ? <CategoryDisplayGoodsPicker key={picker} selected={picker === 'main' ? values.goodIds : picker === 'recommend' ? values.recommendations.goodIds : values.video.goodId ? [values.video.goodId] : []}
