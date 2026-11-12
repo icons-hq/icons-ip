@@ -26,7 +26,8 @@ function managedNotice(instant: GoodsInstantDiscountState | null) {
     : instant.reason === 'instant'
       ? '기간 없는 즉시할인과 기간 할인이 함께 걸려 있습니다. 아래 이어서 설정의 기간 할인에서 기간 할인을 먼저 중지해주세요.'
       : '옵션마다 금액이나 기간이 다른 기간 할인입니다. 아래 이어서 설정의 기간 할인에서 관리합니다.';
-  return { title: `진행 중이거나 예정된 기간 할인 ${summary?.count.toLocaleString('ko-KR') ?? ''}건이 있습니다`, body: `${range ? `${range}. ` : ''}${source} 그 할인이 끝나거나 중지되기 전에는 즉시할인을 바꿀 수 없습니다.` };
+  const uncovered = instant.uncovered ? `할인이 걸리지 않은 옵션이 있습니다(${instant.uncovered.toLocaleString('ko-KR')}개). 그 옵션은 기간 중에도 판매가로 팔립니다. ` : '';
+  return { title: `진행 중이거나 예정된 기간 할인 ${summary?.count.toLocaleString('ko-KR') ?? ''}건이 있습니다`, body: `${range ? `${range}. ` : ''}${uncovered}${source} 그 할인이 끝나거나 중지되기 전에는 즉시할인을 바꿀 수 없습니다.` };
 }
 
 /**

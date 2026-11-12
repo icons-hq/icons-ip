@@ -44,6 +44,8 @@ export type GoodsInstantDiscountState = {
   period: { amount: number; startsAt: string; endsAt: string } | null;
   summary: { count: number; minPrice: number; maxPrice: number; startsAt: string; endsAt: string } | null;
   promotions: { id: string; name: string }[];
+  /** 판매 중인 옵션 가운데 진행·예정 기간 할인 행이 없는 옵션 수. 없거나 0이면 모든 옵션에 행이 있다. */
+  uncovered?: number;
 };
 /** 새 상품(저장 전)의 상태. 서버도 없는 상품을 같은 지문('none')으로 본다. */
 export const NEW_GOOD_INSTANT_DISCOUNT: GoodsInstantDiscountState = { state: 'none', reason: null, fingerprint: 'none', period: null, summary: null, promotions: [] };
@@ -71,7 +73,8 @@ export function parseGoodsInstantDiscountState(value: unknown): GoodsInstantDisc
   const state = value.state as GoodsInstantDiscountState['state'];
   if ((state === 'editable') !== (period !== null) || (state === 'none') !== (summary === null)) return null;
   return { state, reason: (value.reason ?? null) as GoodsInstantDiscountState['reason'], fingerprint: value.fingerprint,
-    period: period as GoodsInstantDiscountState['period'], summary: summary as GoodsInstantDiscountState['summary'], promotions };
+    period: period as GoodsInstantDiscountState['period'], summary: summary as GoodsInstantDiscountState['summary'], promotions,
+    ...(whole(value.uncovered, 1) ? { uncovered: value.uncovered as number } : {}) };
 }
 
 export type GoodsPriceResolution = {

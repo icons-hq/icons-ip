@@ -65,6 +65,7 @@ as $$
       when j.promotion_rows > 0 then 'promotion'
       when coalesce(j.instant_active, false) then 'instant'
       else 'mixed' end,
+    'uncovered', case when j.live_count = 0 then 0 else j.uncovered end,
     'fingerprint', case when j.live_count = 0 then 'none' else pg_catalog.md5((
       select pg_catalog.string_agg(l.id::text || ':' || l.revision::text, ',' order by l.id) from live l)) end,
     'period', case when j.state = 'editable' then pg_catalog.jsonb_build_object(
@@ -381,18 +382,31 @@ select private.goods_instant_discount_period_patch('public.admin_preview_discoun
     $replacement$    elsif g.archived_at is not null then skip:='good_archived';
     elsif g.compare_at_price is not null and g.compare_at_price>g.price then skip:='instant_discount_active';$replacement$)));
 
--- 3-6. 상품 엑셀 반입 기록: 진행·예정 기간 할인 요약을 싣는다(기간 할인 상품의 판매가·즉시할인·옵션가 변경을 미리보기에서 거절).
+-- 3-6. 상품 엑셀 반입 기록: 진행·예정 기간 할인 요약과 기간 행이 걸린 옵션 id를 싣는다(판매가·즉시할인 변경은 상품 단위로, 옵션가 변경은 그 옵션만, 옵션 추가·복원은 상품 단위로 미리보기에서 거절).
 select private.goods_instant_discount_period_patch('public.admin_goods_import_records(text[],text[])'::regprocedure, jsonb_build_array(
   jsonb_build_array(
     $anchor$then public.admin_get_goods_size_chart(entry.value#>>'{good,id}') else null end)$anchor$,
     $replacement$then public.admin_get_goods_size_chart(entry.value#>>'{good,id}') else null end,
-      'livePriceDiscount', private.goods_instant_discount_schedule(entry.value#>>'{good,id}')->'summary')$replacement$)));
+      'livePriceDiscount', private.goods_instant_discount_schedule(entry.value#>>'{good,id}')->'summary',
+      'livePriceVariantIds', coalesce((select pg_catalog.jsonb_agg(distinct p.variant_id)
+        from private.goods_variant_price_periods p
+        where p.good_id = entry.value#>>'{good,id}' and p.state = 'active' and p.ends_at > pg_catalog.statement_timestamp()), '[]'::jsonb))$replacement$)));
 
 -- 3-7. 개인 서버 임시저장: 즉시할인 블록의 기간 입력(복구용 화면 값)도 저장한다(이미지·소유자·CAS 규칙은 그대로).
 select private.goods_instant_discount_period_patch('public.admin_save_goods_draft(uuid,jsonb,integer)'::regprocedure, jsonb_build_array(
   jsonb_build_array(
     $anchor$'regularPrice','discountEnabled','discountValue','discountUnit',$anchor$,
     $replacement$'regularPrice','discountEnabled','discountValue','discountUnit','discountPeriodEnabled','discountStartsAt','discountEndsAt',$replacement$)));
+
+-- 3-8. 기간 할인 패널: 기간 없는 즉시할인(정가 표시)이 걸린 상품에는 기간 할인을 새로 활성화하지 못한다(한 상품 한 시점 할인 하나, 반대 방향).
+-- 이 상품 편집(T20)은 정가 표시를 비운 뒤 기간 행을 쓰므로 영향이 없다.
+select private.goods_instant_discount_period_patch('public.admin_save_goods_price_period(text,uuid,uuid,jsonb,integer)'::regprocedure, jsonb_build_array(
+  jsonb_build_array(
+    $anchor$  perform 1 from public.goods where id=p_good_id for update;$anchor$,
+    $replacement$  perform 1 from public.goods where id=p_good_id for update;
+  if next_state='active' and exists(select 1 from public.goods g where g.id=p_good_id and g.compare_at_price>g.price) then
+    raise check_violation using message='instant_discount_period_conflict';
+  end if;$replacement$)));
 
 drop function private.goods_instant_discount_period_patch(regprocedure, jsonb);
 
@@ -407,8 +421,11 @@ revoke all on function public.admin_preview_discount_promotion(uuid,jsonb,uuid,u
 grant execute on function public.admin_preview_discount_promotion(uuid,jsonb,uuid,uuid) to authenticated;
 revoke all on function public.admin_goods_import_records(text[],text[]) from public, anon, authenticated, service_role;
 grant execute on function public.admin_goods_import_records(text[],text[]) to authenticated;
+revoke all on function public.admin_save_goods_price_period(text,uuid,uuid,jsonb,integer) from public, anon, authenticated, service_role;
+grant execute on function public.admin_save_goods_price_period(text,uuid,uuid,jsonb,integer) to authenticated;
 revoke all on function public.admin_save_goods_draft(uuid,jsonb,integer) from public, anon, authenticated, service_role;
 grant execute on function public.admin_save_goods_draft(uuid,jsonb,integer) to authenticated;
+select private.register_operator_rpc_contract('public.admin_save_goods_price_period(text,uuid,uuid,jsonb,integer)'::regprocedure, 'catalog.manage', 'write', false);
 select private.register_operator_rpc_contract('public.admin_save_goods_draft(uuid,jsonb,integer)'::regprocedure, 'catalog.manage', 'write', false);
 select private.register_operator_internal_contract('private.goods_bulk_validate(jsonb)'::regprocedure);
 select private.register_operator_internal_contract('private.goods_bulk_price_fingerprint(text)'::regprocedure);

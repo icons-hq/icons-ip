@@ -80,6 +80,13 @@ describe('판매가·할인 입력', () => {
     expect(render({}, null)).toContain('data-good-instant-discount-managed="unknown"');
   });
 
+  it('할인 행이 없는 판매 중 옵션이 있으면 잠금 안내가 그 사실을 말한다', () => {
+    const mixed: GoodsInstantDiscountState = { state: 'managed', reason: 'mixed', fingerprint: 'abc', period: null, uncovered: 1,
+      summary: { count: 1, minPrice: 9000, maxPrice: 9000, startsAt: '2026-12-01T00:00:00+00:00', endsAt: '2026-12-03T00:00:00+00:00' }, promotions: [] };
+    expect(render({ discountEnabled: false }, mixed).replace(/<[^>]+>/g, '')).toContain('할인이 걸리지 않은 옵션이 있습니다(1개)');
+    expect(render({ discountEnabled: false }, { ...mixed, uncovered: undefined }).replace(/<[^>]+>/g, '')).not.toContain('할인이 걸리지 않은 옵션');
+  });
+
   /* 2026-10-07 QA: 10%로 저장한 할인을 다시 열면 1,200원으로 보여, 판매가를 바꿔도 할인율이 따라가지 않는 것을 몰랐다. */
   it('할인 칸 도움말은 저장 후 다시 열면 원 단위로 표시되고 판매가를 바꾸면 할인을 다시 확인하라고 안내한다', () => {
     const html = render({ discountEnabled: true, discountValue: '10', discountUnit: 'percent' });

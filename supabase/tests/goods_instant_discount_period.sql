@@ -7,7 +7,8 @@
 -- 3. 할인 프로모션(T08)과 서로 덮지 않는다: 프로모션 할인이 있는 상품은 상품 편집이 다루지 않고(managed), 상품 편집의 기간 할인과
 --    겹치는 프로모션 상품은 건너뛰고 이유를 남긴다. 기간 없는 즉시할인 상품은 일괄 즉시할인·프로모션이 건너뛴다(한 상품 할인 하나).
 -- 4. 목록 '할인 중지 후 판매가 변경'(T17b)은 상품 편집의 기간 할인을 멈추고, includeInstant면 기간 없는 즉시할인도 멈춘다.
--- 5. 엑셀 반입 기록은 진행·예정 기간 할인 요약을 싣는다.
+-- 5. 엑셀 반입 기록은 진행·예정 기간 할인 요약과 기간 행이 걸린 옵션 id를 싣는다.
+-- 6. 기간 없는 즉시할인 상품에는 기간 할인 패널이 기간 할인을 새로 활성화하지 못한다(한 상품 한 시점 할인 하나).
 begin;
 create function pg_temp.idp_assert(p_ok boolean,p_message text) returns void language plpgsql as $$
 begin if p_ok is distinct from true then raise exception '%',p_message;end if;end $$;
@@ -270,6 +271,41 @@ select pg_temp.idp_assert((select record->'livePriceDiscount'->>'count'='4' from
 select pg_temp.idp_assert((public.admin_save_goods_draft('b9400000-0000-4000-8000-000000000040',jsonb_build_object('name','TEST 즉시할인 기간 임시저장',
  'regularPrice','12000','discountEnabled','true','discountValue','10','discountUnit','percent','discountPeriodEnabled','true',
  'discountStartsAt','2026-12-01T00:00','discountEndsAt','2026-12-08T00:00'),0)) is not null,'server draft keeps the period inputs');
+
+-- 11. 리뷰 보완: 한 상품 한 시점 할인 하나(반대 방향)·엑셀 옵션 범위·편집기 안내 ------------------------------------------------
+select set_config('request.jwt.claim.sub','b9400000-0000-4000-8000-000000000001',true);
+select set_config('request.jwt.claims','{"sub":"b9400000-0000-4000-8000-000000000001","session_id":"b9400000-0000-4000-8000-000000000011","role":"authenticated"}',true);
+set local role authenticated;
+-- 11-1. 기간 없는 즉시할인 상품에는 기간 할인 패널이 기간 할인을 새로 활성화하지 못한다(초안·중지는 가능).
+select public.admin_save_good(pg_temp.idp_payload('idp-rv-instant',9000,10000,null,0));
+reset role;
+select v.id as rv_variant from public.goods_variants v where v.good_id='idp-rv-instant' and v.is_default \gset
+set local role authenticated;
+select pg_temp.idp_error(format($q$select public.admin_save_goods_price_period('idp-rv-instant',%L,null,
+ jsonb_build_object('state','active','discountPrice',8000,'startsAt',pg_temp.idp_at(interval '-1 hour'),'endsAt',pg_temp.idp_at(interval '1 day')),null)$q$,:'rv_variant'),'instant_discount_period_conflict');
+select public.admin_save_goods_price_period('idp-rv-instant',:'rv_variant',null,jsonb_build_object('state','draft','discountPrice',8000),null) is not null as draft_ok \gset
+select pg_temp.idp_assert(:'draft_ok','a draft period is still allowed next to a no-period instant discount');
+reset role;
+select pg_temp.idp_assert((select count(*)=0 from private.goods_variant_price_periods where good_id='idp-rv-instant' and state='active'),'the rejected activation wrote nothing');
+set local role authenticated;
+-- 이 상품 편집의 전환(정가 표시를 비운 뒤 기간 행을 쓴다)은 영향이 없다.
+select public.admin_save_good(pg_temp.idp_payload('idp-rv-instant',10000,null,pg_temp.idp_period('idp-rv-instant',1000,interval '-1 hour',interval '1 day')))->'instantDiscountPeriod'->>'state' as rv_state \gset
+select pg_temp.idp_assert(:'rv_state'='editable','the editor transition from a no-period instant discount still works');
+
+-- 11-2. 엑셀 반입 기록은 기간 행이 걸린 옵션 id만 싣고, 편집기 상태는 할인이 걸리지 않은 옵션 수를 싣는다.
+select public.admin_save_good(pg_temp.idp_payload('idp-rv-opt',10000,null,null,2000));
+reset role;
+select v.id as rv_a from public.goods_variants v where v.good_id='idp-rv-opt' and v.is_default \gset
+set local role authenticated;
+select public.admin_save_goods_price_period('idp-rv-opt',:'rv_a',null,
+ jsonb_build_object('state','active','discountPrice',9000,'startsAt',pg_temp.idp_at(interval '1 day'),'endsAt',pg_temp.idp_at(interval '2 days')),null);
+select pg_temp.idp_assert((select record->'livePriceVariantIds'=jsonb_build_array(:'rv_a'::uuid) and record->'livePriceDiscount' is not null
+   from public.admin_goods_import_records('{}',array['idp-rv-opt']) record),'import record lists only the option with a period row');
+select pg_temp.idp_assert((select record->'livePriceVariantIds'='[]'::jsonb and record->'livePriceDiscount'='null'::jsonb
+   from public.admin_goods_import_records('{}',array['idp-main']) record),'no live rows, no option ids');
+select pg_temp.idp_assert(public.admin_goods_instant_discount_period('idp-rv-opt')->>'state'='managed'
+ and (public.admin_goods_instant_discount_period('idp-rv-opt')->>'uncovered')::int=1,'managed state reports the option without a discount row');
+select pg_temp.idp_assert((public.admin_goods_instant_discount_period('idp-rv-instant')->>'uncovered')::int=0,'fully covered good reports none uncovered');
 
 reset role;
 select pg_temp.idp_assert((select form_values->>'discountStartsAt'='2026-12-01T00:00' from public.admin_goods_drafts where id='b9400000-0000-4000-8000-000000000040'),

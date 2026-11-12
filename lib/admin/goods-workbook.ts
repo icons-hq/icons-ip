@@ -254,6 +254,8 @@ export type GoodsImportExisting = {
   variants: GoodsImportVariant[];
   fingerprint: string;
   livePriceDiscount?: GoodsImportLivePriceDiscount | null;
+  /** 진행·예정 기간 할인 행이 걸린 옵션 id(admin_goods_import_records의 livePriceVariantIds). 없으면 상품의 모든 옵션으로 본다. */
+  livePriceVariantIds?: string[] | null;
   kcReview?: AdminGoodsKc | null;
   afterSales?: GoodsAfterSalesSnapshot | null;
   sizeChart?: GoodsSizeChartSnapshot | null;
@@ -616,6 +618,11 @@ export function goodsWorkbookLiveDiscountError(discount: GoodsImportLivePriceDis
   const ends = Number.isFinite(Date.parse(discount.endsAt)) ? KST_DATE_TIME.format(new Date(discount.endsAt)) : '종료 시각 확인 필요';
   return `진행 중이거나 예정된 기간 할인(${discount.count.toLocaleString('ko-KR')}건, ${ends}까지)이 있는 상품이라 엑셀로 판매가·즉시할인·옵션가를 바꿀 수 없습니다. `
     + '엑셀에는 기간 할인 열이 없어 바꾸면 할인이 사라지거나 겹칩니다. 이 상품 행은 반영하지 않으니, 상품 수정이나 상품 목록에서 할인을 멈춘 뒤(또는 끝난 뒤) 바꿔 주세요.';
+}
+export function goodsWorkbookLiveDiscountOptionAddError(discount: GoodsImportLivePriceDiscount): string {
+  const ends = Number.isFinite(Date.parse(discount.endsAt)) ? KST_DATE_TIME.format(new Date(discount.endsAt)) : '종료 시각 확인 필요';
+  return `진행 중이거나 예정된 기간 할인(${discount.count.toLocaleString('ko-KR')}건, ${ends}까지)이 있는 상품이라 엑셀로 옵션을 추가·복원할 수 없습니다. `
+    + '새 옵션은 기간 중에도 할인 없이 팔리게 됩니다. 이 상품 행은 반영하지 않으니, 상품 수정에서 바꿔 주세요.';
 }
 export function planGoodsWorkbookImport(
   inputRows: GoodsWorkbookInputRow[],
@@ -981,12 +988,20 @@ export function planGoodsWorkbookImport(
         );
       if (record.livePriceDiscount) {
         const storedCompare = record.good.compare_at_price == null ? null : Number(record.good.compare_at_price);
+        // 판매가·즉시할인은 상품 단위로 거절한다. 옵션가는 기간 할인 행이 걸린 옵션만 거절한다(행이 없는 옵션의 옵션가 변경은 DB도 허용한다).
+        // 목록을 싣지 않은 이전 응답은 안전한 쪽(모든 옵션)으로 본다.
+        const liveVariantIds = record.livePriceVariantIds ? new Set(record.livePriceVariantIds) : null;
         const priceChanged = stored.price !== Number(record.good.price) || stored.compareAtPrice !== storedCompare
           || options.some((option) => {
             const previous = active.find((variant) => variant.id === option.id);
-            return Boolean(previous) && option.isActive && previous!.price !== stored.price + option.extraPrice;
+            return Boolean(previous) && option.isActive && (!liveVariantIds || liveVariantIds.has(previous!.id))
+              && previous!.price !== stored.price + option.extraPrice;
           });
         if (priceChanged) errors.push(goodsWorkbookLiveDiscountError(record.livePriceDiscount));
+        // 기간 할인은 판매 중인 옵션마다 행이 있어야 같은 묶음으로 열린다. 엑셀로 옵션을 추가·복원하면 새 옵션이 기간 중에도 할인 없이 팔리고
+        // 상품 수정의 즉시할인이 잠기므로 같은 이유로 거절한다.
+        const optionAdded = options.some((option) => option.isActive && !active.some((variant) => variant.id === option.id));
+        if (optionAdded) errors.push(goodsWorkbookLiveDiscountOptionAddError(record.livePriceDiscount));
       }
       if (
         record.good.published_at &&
