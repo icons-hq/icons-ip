@@ -69,6 +69,7 @@ export function ShippingNoticeTemplatesScreen({ data }: { data: ShippingNoticeTe
             <AdminSectionCard title="고객 공개 미리보기">
               <dl className="grid gap-3">
                 <div className="flex flex-col gap-0.5"><dt className="text-xs text-muted-foreground">배송 안내</dt><dd className="whitespace-pre-wrap [overflow-wrap:anywhere]">{template.shippingNotice || '아직 입력되지 않았습니다.'}</dd></div>
+                <div className="flex flex-col gap-0.5"><dt className="text-xs text-muted-foreground">도서산간 안내</dt><dd className="whitespace-pre-wrap [overflow-wrap:anywhere]">{template.remoteAreaNotice || '입력하지 않았습니다(선택).'}</dd></div>
                 <div className="flex flex-col gap-0.5"><dt className="text-xs text-muted-foreground">교환·반품 안내</dt><dd className="whitespace-pre-wrap [overflow-wrap:anywhere]">{template.returnExchangeNotice || '아직 입력되지 않았습니다.'}</dd></div>
                 <div className="flex flex-col gap-0.5"><dt className="text-xs text-muted-foreground">고객센터</dt><dd>{[template.csName, template.csPhone, template.csEmail].filter(Boolean).join(' · ') || '아직 입력되지 않았습니다.'}</dd></div>
               </dl>

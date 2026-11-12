@@ -22,6 +22,8 @@ export interface ShippingNoticeTemplate {
   name: string;
   shippingNotice: string;
   returnExchangeNotice: string;
+  /** 제주·도서산간 고객 안내(선택, S36-038). 금액은 지역별 추가배송비 정책이 정한다. */
+  remoteAreaNotice: string;
   csName: string;
   csPhone: string;
   csEmail: string;
@@ -61,6 +63,7 @@ export interface ShippingNoticeTemplateInput {
   name: string;
   shipping_notice: string;
   return_exchange_notice: string;
+  remote_area_notice: string;
   cs_name: string;
   cs_phone: string;
   cs_email: string;
@@ -105,6 +108,7 @@ export function parseShippingNoticeTemplateInput(input: Record<string, string>):
     name: (input.name ?? '').trim(),
     shipping_notice: (input.shippingNotice ?? '').trim(),
     return_exchange_notice: (input.returnExchangeNotice ?? '').trim(),
+    remote_area_notice: (input.remoteAreaNotice ?? '').trim(),
     cs_name: (input.csName ?? '').trim(),
     cs_phone: (input.csPhone ?? '').trim(),
     cs_email: (input.csEmail ?? '').trim(),
@@ -124,6 +128,9 @@ export function parseShippingNoticeTemplateInput(input: Record<string, string>):
   }
   if (value.return_exchange_notice.length > SHIPPING_NOTICE_TEMPLATE_NOTICE_MAX || hasDisallowedShippingNoticeControl(value.return_exchange_notice)) {
     errors.returnExchangeNotice = `교환·반품 안내는 ${SHIPPING_NOTICE_TEMPLATE_NOTICE_MAX}자 이내로 입력해주세요.`;
+  }
+  if (value.remote_area_notice.length > SHIPPING_NOTICE_TEMPLATE_NOTICE_MAX || hasDisallowedShippingNoticeControl(value.remote_area_notice)) {
+    errors.remoteAreaNotice = `도서산간 안내는 ${SHIPPING_NOTICE_TEMPLATE_NOTICE_MAX}자 이내로 입력해주세요.`;
   }
   if (value.cs_name.length > SHIPPING_NOTICE_TEMPLATE_CS_NAME_MAX || hasDisallowedShippingNoticeControl(value.cs_name)) {
     errors.csName = `고객센터 이름은 ${SHIPPING_NOTICE_TEMPLATE_CS_NAME_MAX}자 이내로 입력해주세요.`;

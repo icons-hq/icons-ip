@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { useLayoutEffect, useRef, useState, useTransition, type ReactNode } from 'react';
 import { resolveGoodsAnnouncementSaveAction, saveGoodsAnnouncementAction, type GoodsAnnouncementActionState } from '@/app/admin/goods-announcement-actions';
-import { announcementKstInput, GOODS_ANNOUNCEMENT_CATEGORIES, GOODS_ANNOUNCEMENT_DEVICES, GOODS_ANNOUNCEMENT_GOOD_LIMIT, GOODS_ANNOUNCEMENTS_PATH, type GoodsAnnouncement } from '@/lib/admin/goods-announcements';
+import { announcementKstInput, GOODS_ANNOUNCEMENT_CATEGORIES, GOODS_ANNOUNCEMENT_DEVICES, GOODS_ANNOUNCEMENT_GOOD_LIMIT, GOODS_ANNOUNCEMENT_PLACEMENTS, GOODS_ANNOUNCEMENTS_PATH, type GoodsAnnouncement } from '@/lib/admin/goods-announcements';
 import { sanitizeGoodsDescription } from '@/lib/goods-description';
 import { GoodsDescription } from '@/components/shop/GoodsDescription';
 import { createGoodsAnnouncementPendingSave, goodsAnnouncementPendingForm, goodsAnnouncementPendingDisplayValue, GOODS_ANNOUNCEMENT_PENDING_LABELS,
@@ -34,7 +34,8 @@ function EditorFields({ announcement, action, pending, state, backHref, uncertai
 }) {
   const [title, setTitle] = useState(announcement.title); const [body, setBody] = useState(announcement.body);
   const [format, setFormat] = useState(announcement.format); const [category, setCategory] = useState(announcement.category);
-  const [device, setDevice] = useState(announcement.device); const [enabled, setEnabled] = useState(announcement.enabled);
+  const [device, setDevice] = useState(announcement.device); const [placement, setPlacement] = useState(announcement.placement);
+  const [enabled, setEnabled] = useState(announcement.enabled);
   const [important, setImportant] = useState(announcement.important); const [allGoods, setAllGoods] = useState(announcement.allGoods);
   const [goods, setGoods] = useState(announcement.goods); const [picker, setPicker] = useState(false); const [preview, setPreview] = useState(false);
   const [usePeriod, setUsePeriod] = useState(Boolean(announcement.startsAt || announcement.endsAt));
@@ -66,6 +67,9 @@ function EditorFields({ announcement, action, pending, state, backHref, uncertai
         {warnings.map(warning => <p className={NOTE} key={warning}>{warning}</p>)}
       </Field>
       <Field label="노출 화면" htmlFor="announcement-device" error={errors.device}><AdminSelect id="announcement-device" name="device" value={device} onChange={event => setDevice(event.target.value as typeof device)} wrapperClassName="w-full sm:w-80">{GOODS_ANNOUNCEMENT_DEVICES.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</AdminSelect></Field>
+      <Field label="노출 위치" error={errors.placement}><div className={INLINE} role="radiogroup" aria-label="노출 위치">{GOODS_ANNOUNCEMENT_PLACEMENTS.map(item => <label className={CHOICE} key={item.value}><input type="radio" name="placement" value={item.value} checked={placement === item.value} onChange={() => setPlacement(item.value)} />{item.label}</label>)}</div>
+        <p className={NOTE}>상세 상단은 상품 상세의 탭 위 공지 영역에, 상세 하단은 상세정보 탭의 상세설명 바로 아래에 표시합니다. 전 상품 공통 교환·반품·배송 안내처럼 상세 끝에 둘 내용은 상세 하단을 고릅니다. 홈 팝업에는 영향을 주지 않습니다.</p>
+      </Field>
       <Field label="중요 공지" error={errors.importantPeriod || errors.importantStartsAt || errors.importantEndsAt}>
         <label className={CHOICE}><input checked={important} type="checkbox" onChange={event => setImportant(event.target.checked)} />중요 공지로 표시</label>
         <label className={CHOICE}><input checked={useImportantPeriod} type="checkbox" onChange={event => setUseImportantPeriod(event.target.checked)} />중요 표시 기간 설정</label>

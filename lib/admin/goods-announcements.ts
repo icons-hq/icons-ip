@@ -12,14 +12,17 @@ export const GOODS_ANNOUNCEMENT_CATEGORIES = [
 ] as const;
 export const GOODS_ANNOUNCEMENT_DEVICES = [{ value: 'all', label: 'PC·모바일' }, { value: 'pc', label: 'PC' }, { value: 'mobile', label: '모바일' }] as const;
 export const GOODS_ANNOUNCEMENT_STATES = [{ value: 'waiting', label: '전시대기' }, { value: 'shown', label: '전시중' }, { value: 'stopped', label: '전시중지' }] as const;
+/** 상품 상세 노출 위치(1027T-005). 상단 = 하부 탭 위 '굿즈 공지사항', 하단 = 상세정보 탭의 상세설명 바로 아래. */
+export const GOODS_ANNOUNCEMENT_PLACEMENTS = [{ value: 'top', label: '상세 상단' }, { value: 'bottom', label: '상세 하단' }] as const;
 export type GoodsAnnouncementCategory = typeof GOODS_ANNOUNCEMENT_CATEGORIES[number]['value'];
 export type GoodsAnnouncementDevice = typeof GOODS_ANNOUNCEMENT_DEVICES[number]['value'];
+export type GoodsAnnouncementPlacement = typeof GOODS_ANNOUNCEMENT_PLACEMENTS[number]['value'];
 export type GoodsAnnouncementDisplayState = typeof GOODS_ANNOUNCEMENT_STATES[number]['value'];
 export interface GoodsAnnouncementGood { id: string; name: string; code: string; archived: boolean }
 export interface GoodsAnnouncementPopupSelection { selected: boolean; revision: number; startsAt: string | null; endsAt: string | null }
 export interface GoodsAnnouncement {
   id: string; reference: number | null; title: string; body: string; format: 'plain' | 'html'; category: GoodsAnnouncementCategory;
-  device: GoodsAnnouncementDevice; enabled: boolean; important: boolean; allGoods: boolean;
+  device: GoodsAnnouncementDevice; placement: GoodsAnnouncementPlacement; enabled: boolean; important: boolean; allGoods: boolean;
   startsAt: string | null; endsAt: string | null; importantStartsAt: string | null; importantEndsAt: string | null;
   popup: GoodsAnnouncementPopupSelection;
   revision: number; createdAt: string | null; updatedAt: string | null; goods: GoodsAnnouncementGood[];
@@ -28,14 +31,19 @@ export interface GoodsAnnouncementListRow extends Omit<GoodsAnnouncement, 'body'
 export interface GoodsAnnouncementFilters { query: string; field: 'title' | 'reference'; category: 'all' | GoodsAnnouncementCategory; state: 'all' | GoodsAnnouncementDisplayState; from: string; to: string; page: number; pageSize: 20 | 50 | 100 }
 export interface GoodsAnnouncementListData { rows: GoodsAnnouncementListRow[]; total: number; filters: GoodsAnnouncementFilters }
 export interface GoodsAnnouncementCandidates { rows: GoodsAnnouncementGood[]; total: number; page: number; pageSize: number }
-export interface PublicGoodsAnnouncement { id: string; title: string; body: string; format: 'plain' | 'html'; category: GoodsAnnouncementCategory; device: GoodsAnnouncementDevice; important: boolean }
+export interface PublicGoodsAnnouncement { id: string; title: string; body: string; format: 'plain' | 'html'; category: GoodsAnnouncementCategory; device: GoodsAnnouncementDevice; placement: GoodsAnnouncementPlacement; important: boolean }
 export interface GoodAnnouncementsData { items: PublicGoodsAnnouncement[]; nextChangeAt: string | null; unavailable?: boolean }
 export function blankGoodsAnnouncement(id: string): GoodsAnnouncement {
-  return { id, reference: null, title: '', body: '', format: 'plain', category: 'general', device: 'all', enabled: false, important: false, allGoods: true,
+  return { id, reference: null, title: '', body: '', format: 'plain', category: 'general', device: 'all', placement: 'top', enabled: false, important: false, allGoods: true,
     startsAt: null, endsAt: null, importantStartsAt: null, importantEndsAt: null,
     popup: { selected: false, revision: 0, startsAt: null, endsAt: null }, revision: 0, createdAt: null, updatedAt: null, goods: [] };
 }
 const string = (value: unknown) => typeof value === 'string' ? value : '';
+/** 위치를 싣지 않는 응답(배포 전 DB)은 기존 공지와 같은 상단이다. 그 밖의 값은 받지 않는다(null). */
+export function goodsAnnouncementPlacement(value: unknown): GoodsAnnouncementPlacement | null {
+  if (value === undefined) return 'top';
+  return GOODS_ANNOUNCEMENT_PLACEMENTS.find(item => item.value === value)?.value ?? null;
+}
 const inOptions = <T extends string>(value: string, options: readonly { value: T }[], fallback: T): T => options.some(item => item.value === value) ? value as T : fallback;
 export function normalizeGoodsAnnouncementFilters(params: Record<string, string | string[] | undefined>): GoodsAnnouncementFilters {
   const from = customerServiceDate(params.from) ?? ''; let to = customerServiceDate(params.to) ?? '';
@@ -72,11 +80,14 @@ export function parseGoodsAnnouncementInput(form: FormData) {
   const value = (key: string) => string(form.get(key)).trim(); const errors: Record<string, string> = {};
   const id = value('id'); const revision = Number(value('revision')); const title = value('title');
   const format = value('format'); const category = value('category'); const device = value('device');
+  /* 위치 칸이 없는 요청(이 칸 이전에 보관된 미확인 저장)은 위치를 보내지 않아 서버가 저장된 위치를 지킨다. */
+  const placement = form.has('placement') ? value('placement') : null;
   if (!isUuid(id) || !/^\d+$/.test(value('revision')) || !Number.isSafeInteger(revision) || revision < 0) errors.form = '최신 공지 화면을 다시 열어주세요.';
   if (!title || title.length > 50) errors.title = '공지 제목은 1~50자로 입력해주세요.';
   if (!['plain', 'html'].includes(format)) errors.format = '본문 작성 방식을 선택해주세요.';
   if (!GOODS_ANNOUNCEMENT_CATEGORIES.some(item => item.value === category)) errors.category = '공지 분류를 선택해주세요.';
   if (!GOODS_ANNOUNCEMENT_DEVICES.some(item => item.value === device)) errors.device = '노출 화면을 선택해주세요.';
+  if (placement !== null && !GOODS_ANNOUNCEMENT_PLACEMENTS.some(item => item.value === placement)) errors.placement = '노출 위치를 선택해주세요.';
   const rawBody = value('body');
   const cleaned = format === 'html' && rawBody.length <= 30000 ? sanitizeGoodsDescription(rawBody, { imagePaths: [] }) : null;
   const body = cleaned?.html ?? rawBody;
@@ -110,6 +121,7 @@ export function parseGoodsAnnouncementInput(form: FormData) {
   return Object.keys(errors).length ? { ok: false as const, errors } : { ok: true as const, id, revision,
     popupIntent: popupIntent as 'preserve' | 'set' | 'clear', popupRevision,
     value: { title, body, format: format as 'plain' | 'html', category: category as GoodsAnnouncementCategory, device: device as GoodsAnnouncementDevice,
+      ...(placement !== null ? { placement: placement as GoodsAnnouncementPlacement } : {}),
       enabled: value('enabled') === 'true', important: value('important') === 'true', allGoods, goodIds, startsAt, endsAt,
       importantStartsAt, importantEndsAt, popupStartsAt, popupEndsAt }, warnings: cleaned?.warnings ?? [] };
 }

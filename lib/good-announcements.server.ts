@@ -2,7 +2,7 @@ import 'server-only';
 import { createClient } from '@/lib/supabase/server';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { isUuid } from '@/lib/uuid';
-import { GOODS_ANNOUNCEMENT_CATEGORIES, GOODS_ANNOUNCEMENT_DEVICES, type GoodAnnouncementsData } from './admin/goods-announcements';
+import { GOODS_ANNOUNCEMENT_CATEGORIES, GOODS_ANNOUNCEMENT_DEVICES, goodsAnnouncementPlacement, type GoodAnnouncementsData, type PublicGoodsAnnouncement } from './admin/goods-announcements';
 
 export async function loadGoodAnnouncements(goodId: string): Promise<GoodAnnouncementsData> {
   if (!getSupabaseConfig().isConfigured) return { items: [], nextChangeAt: null };
@@ -11,8 +11,10 @@ export async function loadGoodAnnouncements(goodId: string): Promise<GoodAnnounc
     if (error || !data || !Array.isArray(data.items) || data.items.some((item: Record<string, unknown>) => !item || !isUuid(item.id)
       || typeof item.title !== 'string' || typeof item.body !== 'string' || !['plain', 'html'].includes(String(item.format))
       || !GOODS_ANNOUNCEMENT_CATEGORIES.some(category => category.value === item.category)
-      || !GOODS_ANNOUNCEMENT_DEVICES.some(device => device.value === item.device) || typeof item.important !== 'boolean')
+      || !GOODS_ANNOUNCEMENT_DEVICES.some(device => device.value === item.device) || typeof item.important !== 'boolean'
+      || goodsAnnouncementPlacement(item.placement) === null)
       || (data.nextChangeAt !== null && (typeof data.nextChangeAt !== 'string' || !Number.isFinite(Date.parse(data.nextChangeAt))))) throw new Error('invalid announcement data');
-    return { items: data.items, nextChangeAt: data.nextChangeAt };
+    return { items: (data.items as Record<string, unknown>[]).map(item => ({ ...item, placement: goodsAnnouncementPlacement(item.placement) }) as PublicGoodsAnnouncement),
+      nextChangeAt: data.nextChangeAt };
   } catch { return { items: [], nextChangeAt: null, unavailable: true }; }
 }

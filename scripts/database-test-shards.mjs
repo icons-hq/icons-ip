@@ -137,6 +137,7 @@ const storefront = [
   sql('store_profile_image', { admin: true }),
   sql('goods_announcement_period_popup', { admin: true, kc: true }),
   script('goods_announcement_period_popup_concurrency.sh', 'GOODS_ANNOUNCEMENT_POPUP_TEST_SCOPE'),
+  sql('goods_detail_bottom_notice_region_fees', { admin: true, kc: true }),
   sql('cs_single_reply_cas', { admin: true }),
   sql('cs_reply_read_transaction_mode', { admin: true }),
   script('cs_single_reply_concurrency.sh', 'CS_SINGLE_REPLY_TEST_SCOPE'),

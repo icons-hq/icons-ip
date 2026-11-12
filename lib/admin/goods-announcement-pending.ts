@@ -1,5 +1,5 @@
 import { isUuid } from '@/lib/uuid';
-import { GOODS_ANNOUNCEMENT_CATEGORIES, GOODS_ANNOUNCEMENT_DEVICES } from './goods-announcements';
+import { GOODS_ANNOUNCEMENT_CATEGORIES, GOODS_ANNOUNCEMENT_DEVICES, GOODS_ANNOUNCEMENT_PLACEMENTS } from './goods-announcements';
 
 /** Only the submitted operator-authored fields are retained, never auth tokens or fetched records. */
 export interface GoodsAnnouncementPendingSave {
@@ -8,12 +8,14 @@ export interface GoodsAnnouncementPendingSave {
   operationId: string;
   entries: [string, string][];
 }
+/* placement is optional: operations stored before the field existed omit it, and the
+ * server then keeps the notice's saved position. */
 /** This workspace contains submitted operations only; time cannot confirm a save outcome. */
 export const retainGoodsAnnouncementPendingSave = () => true;
 
 const FIELD_LIMITS: Record<string, number> = {
   accountId: 36, id: 36, operationId: 36, revision: 16, popupRevision: 16,
-  title: 50, body: 30000, format: 5, category: 8, device: 6,
+  title: 50, body: 30000, format: 5, category: 8, device: 6, placement: 6,
   enabled: 5, important: 5, allGoods: 5, usePeriod: 5, useImportantPeriod: 5,
   popupIntent: 8, goodIds: 65000,
   startsAt: 16, endsAt: 16, importantStartsAt: 16, importantEndsAt: 16, popupStartsAt: 16, popupEndsAt: 16,
@@ -58,7 +60,7 @@ export function goodsAnnouncementPendingForm(value: GoodsAnnouncementPendingSave
 }
 
 export const GOODS_ANNOUNCEMENT_PENDING_LABELS: Record<string, string> = {
-  title: '공지 제목', body: '공지 내용', format: '본문 작성 방식', category: '공지 분류', device: '노출 화면',
+  title: '공지 제목', body: '공지 내용', format: '본문 작성 방식', category: '공지 분류', device: '노출 화면', placement: '노출 위치',
   enabled: '전시 여부', important: '중요 공지', allGoods: '전체 상품 적용', goodIds: '연결 상품번호',
   usePeriod: '전시 기간 설정', startsAt: '전시 시작일시', endsAt: '전시 종료일시',
   useImportantPeriod: '중요 표시 기간 설정', importantStartsAt: '중요 표시 시작일시', importantEndsAt: '중요 표시 종료일시',
@@ -69,6 +71,7 @@ export function goodsAnnouncementPendingDisplayValue(field: string, value: strin
   if (!value) return '(비어 있음)';
   if (field === 'category') return GOODS_ANNOUNCEMENT_CATEGORIES.find(item => item.value === value)?.label ?? value;
   if (field === 'device') return GOODS_ANNOUNCEMENT_DEVICES.find(item => item.value === value)?.label ?? value;
+  if (field === 'placement') return GOODS_ANNOUNCEMENT_PLACEMENTS.find(item => item.value === value)?.label ?? value;
   if (field === 'format') return ({ plain: '직접 입력', html: 'HTML' } as Record<string, string>)[value] ?? value;
   if (field === 'popupIntent') return ({ preserve: '현재 팝업 설정 유지', set: '이 공지로 팝업 변경', clear: '이 공지의 팝업 해제' } as Record<string, string>)[value] ?? value;
   if (field === 'enabled') return ({ true: '전시', false: '전시중지' } as Record<string, string>)[value] ?? value;

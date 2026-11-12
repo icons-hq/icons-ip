@@ -2,7 +2,7 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import type { Good } from '@/lib/data';
 import { krw } from '@/lib/format';
-import { shippingPolicyDescription, type GoodShippingPolicy } from '@/lib/fulfillment';
+import { shippingPolicyDescription, shippingRegionFeeDescription, type GoodShippingPolicy } from '@/lib/fulfillment';
 import { goodsShipDateLabel } from '@/lib/goods-preorders';
 import { goodsQuantityDeliveryLabel } from '@/lib/goods-transaction-presentation';
 import { BUSINESS_INFO, businessInfoRows, type BusinessInfo } from '@/lib/legal/business-info';
@@ -34,6 +34,10 @@ function ShippingGuide({ goods, policy }: { goods: readonly Good[]; policy?: Goo
   const preorders = goods.flatMap(good => (good.options ?? [])
     .filter(option => option.supply?.mode === 'preorder')
     .map(option => ({ id: option.id, label: `${good.name} · ${option.name}`, date: option.supply!.expectedShipDate })));
+  /* 지역별 추가 배송비(S36-038): 이 굿즈의 출고지·택배사에 지금 적용되는 지역 정책이 있을 때만 금액을 싣는다.
+     지역명·금액은 정책 지역표 그대로이고, 이 굿즈에 붙는지·부과 단위(배송 묶음당·굿즈당 1회)·면제는 DB가 주문서 견적 함수로 확인했다.
+     없거나 한 문장으로 말할 수 없으면 지금 문장을 둔다. */
+  const regionalFees = shippingRegionFeeDescription(policy?.regionFees);
   return (
     <div className="wc-pdp-guide">
       <ul className="wc-pdp-guide__list">
@@ -51,7 +55,10 @@ function ShippingGuide({ goods, policy }: { goods: readonly Good[]; policy?: Goo
           {preorders.map(option => <li key={option.id}>{option.label}: {goodsShipDateLabel(option.date)}</li>)}
           <li>일반 판매 옵션만 주문한 경우에는 기본 배송 정책을 따릅니다. 예약 공급 일정이 바뀌면 주문 상세에서 변경된 예정일을 확인할 수 있습니다.</li>
         </> : <li>대금을 먼저 지급하는 선지급 주문이므로, 결제가 확정된 날부터 3영업일 이내에 배송에 필요한 조치를 취합니다. 무통장 입금 주문은 입금이 확인된 날이 결제 확정일입니다. 공급 절차가 늦어지면 그 진행 상황을 알립니다.</li>}
-        <li>배송지에 따른 추가 배송비는 주문서에서 주소를 입력한 뒤 확인합니다. 배송 가능 여부와 최종 배송비를 확인해야 주문할 수 있습니다.</li>
+        {regionalFees
+          ? <li>{regionalFees} 최종 배송비는 주문서에서 주소를 입력한 뒤 확인합니다. 배송 가능 여부와 최종 배송비를 확인해야 주문할 수 있습니다.</li>
+          : <li>배송지에 따른 추가 배송비는 주문서에서 주소를 입력한 뒤 확인합니다. 배송 가능 여부와 최종 배송비를 확인해야 주문할 수 있습니다.</li>}
+        {policy?.remoteAreaNotice && <li style={{ whiteSpace: 'pre-wrap' }}>{policy.remoteAreaNotice}</li>}
         <li>원화(KRW)로 결제하며 대한민국 주소로 배송합니다. 국내 배송대행지를 이용할 수 있고, 이후 해외 운송은 고객이 배송대행사에 별도로 신청합니다.</li>
       </ul>
     </div>

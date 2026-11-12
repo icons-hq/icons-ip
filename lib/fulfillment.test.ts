@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { claimCollectionRowLabel, customerShipmentGroupLabels, parseGoodShippingPolicy, parseShippingNoticeSnapshot, parseShippingQuote, parseShippingQuoteItems, shipmentGroupLabel, shippingGroupLabel, shippingGroupsNotice, shippingPolicyDescription } from './fulfillment';
+import { claimCollectionRowLabel, customerShipmentGroupLabels, parseGoodShippingPolicy, parseGoodShippingRegionFees, parseShippingNoticeSnapshot, parseShippingQuote, parseShippingQuoteItems, SHIPPING_REGION_FEE_LIST_LIMIT, shipmentGroupLabel, shippingGroupLabel, shippingGroupsNotice, shippingPolicyDescription, shippingRegionFeeDescription, type GoodShippingRegionFees } from './fulfillment';
 
 describe('shipping quote contract', () => {
   it('accepts server groups and rejects inconsistent or missing totals', () => {
@@ -89,4 +89,70 @@ it('견적 묶음의 택배사 이름은 문자열이거나 null 이다', () => 
   expect(parseShippingQuote({totalFee:3000,groups:[{...group,carrierLabel:null}]})?.groups[0].carrierLabel).toBeNull();
   expect(parseShippingQuote({totalFee:3000,groups:[group]})).not.toBeNull();
   expect(parseShippingQuote({totalFee:3000,groups:[{...group,carrierLabel:42}]})).toBeNull();
+});
+
+/* S36-038: 상세 배송 안내의 지역별 추가 배송비. 금액은 DB가 주문서 견적 함수로 정한 값 그대로다. */
+describe('good shipping region fee summary', () => {
+  const listed: GoodShippingRegionFees = { state: 'listed', regions: [{ label: '제주', minFee: 3000, maxFee: 3000 }, { label: '도서산간', minFee: 5000, maxFee: 7000 }],
+    regionCount: 2, feeUnit: 'per_shipment', waivedAtFreeThreshold: false, nextChangeAt: null };
+  const none: GoodShippingRegionFees = { state: 'none', regions: [], regionCount: 0, feeUnit: null, waivedAtFreeThreshold: false, nextChangeAt: null };
+  it('parses the RPC shape and rejects anything that would invent or bend an amount', () => {
+    expect(parseGoodShippingRegionFees(listed)).toEqual(listed);
+    expect(parseGoodShippingRegionFees(none)).toEqual(none);
+    expect(parseGoodShippingRegionFees({ ...none, state: 'unresolved' })).toMatchObject({ state: 'unresolved', regions: [] });
+    expect(parseGoodShippingRegionFees({ ...listed, regionCount: 33 })).toMatchObject({ regionCount: 33 });
+    /* 굿즈마다 부과하는 정책도 대표 행 견적으로 그 행 금액이 확인되므로 단위를 밝혀 싣는다. */
+    expect(parseGoodShippingRegionFees({ ...listed, feeUnit: 'per_good' })).toEqual({ ...listed, feeUnit: 'per_good' });
+    for (const broken of [
+      { ...listed, regions: [{ label: '제주', minFee: 0, maxFee: 3000 }] },
+      { ...listed, regions: [{ label: '제주', minFee: 5000, maxFee: 3000 }] },
+      { ...listed, regions: [{ label: ' ', minFee: 3000, maxFee: 3000 }] },
+      { ...listed, regions: [{ label: '제주', minFee: 3000.5, maxFee: 3000.5 }] },
+      { ...listed, state: 'none' },
+      { ...listed, regions: [] },
+      { ...listed, regionCount: 1 },
+      { ...listed, regionCount: '2' },
+      /* 단위를 모르면 금액을 말하지 않는다. */
+      { ...listed, feeUnit: null },
+      { ...listed, feeUnit: 'per_order' },
+      { ...listed, nextChangeAt: 'later' },
+      { ...listed, waivedAtFreeThreshold: 'no' },
+      { ...none, regionCount: 3 },
+      null,
+    ]) expect(parseGoodShippingRegionFees(broken)).toBeNull();
+  });
+  it('lists regions with their charging unit and keeps the plain sentence for everything that is not listed', () => {
+    expect(shippingRegionFeeDescription(listed)).toBe('지역별 추가 배송비: 제주 +₩3,000 · 도서산간 +₩5,000~₩7,000(배송 묶음당 1회).');
+    expect(shippingRegionFeeDescription({ ...listed, waivedAtFreeThreshold: true }))
+      .toBe('지역별 추가 배송비: 제주 +₩3,000 · 도서산간 +₩5,000~₩7,000(배송 묶음당 1회, 무료배송 조건을 채우면 면제).');
+    expect(shippingRegionFeeDescription({ ...listed, feeUnit: 'per_good' }))
+      .toBe('지역별 추가 배송비: 제주 +₩3,000 · 도서산간 +₩5,000~₩7,000(굿즈당 1회).');
+    expect(shippingRegionFeeDescription({ ...listed, feeUnit: 'per_good', waivedAtFreeThreshold: true }))
+      .toBe('지역별 추가 배송비: 제주 +₩3,000 · 도서산간 +₩5,000~₩7,000(굿즈당 1회, 무료배송 조건을 채우면 면제).');
+    expect(shippingRegionFeeDescription({ ...listed, feeUnit: null })).toBeNull();
+    for (const state of ['none', 'unresolved'] as const) expect(shippingRegionFeeDescription({ ...none, state })).toBeNull();
+    expect(shippingRegionFeeDescription(null)).toBeNull();
+    expect(shippingRegionFeeDescription(undefined)).toBeNull();
+  });
+  /* 리뷰 재현: 지역이 많아도 '외 N개 지역'은 DB가 센 실제 지역 수에서 나온다(받은 목록 길이가 아니다). */
+  it('shortens long region lists with the real region count', () => {
+    const regions = [{ label: '제주', minFee: 3000, maxFee: 3000 }, { label: '나주 도서', minFee: 5000, maxFee: 9000 },
+      ...Array.from({ length: 18 }, (_, index) => ({ label: `합성 섬 ${String(index + 1).padStart(2, '0')}`, minFee: 6001 + index, maxFee: 6001 + index }))];
+    const many = { ...listed, regions, regionCount: 33 };
+    const text = shippingRegionFeeDescription(many)!;
+    expect(text.startsWith('지역별 추가 배송비: 제주 +₩3,000 · 나주 도서 +₩5,000~₩9,000 · 합성 섬 01 +₩6,001')).toBe(true);
+    expect(text).toContain(`합성 섬 0${SHIPPING_REGION_FEE_LIST_LIMIT - 2} +`);
+    expect(text).not.toContain(`합성 섬 0${SHIPPING_REGION_FEE_LIST_LIMIT - 1} +`);
+    expect(text).toContain(`외 ${33 - SHIPPING_REGION_FEE_LIST_LIMIT}개 지역(배송 묶음당 1회)`);
+    expect(shippingRegionFeeDescription({ ...listed, regionCount: 5 })).toContain('₩7,000 외 3개 지역(');
+  });
+  it('carries the template remote area notice through the snapshot and public policy', () => {
+    const snapshot = { templateId: 't', templateVersion: 1, code: 'basic', name: '기본', shippingNotice: '배송', returnExchangeNotice: '반품', csName: 'CS', csPhone: '02', csEmail: '' };
+    expect(parseShippingNoticeSnapshot(snapshot)).not.toHaveProperty('remoteAreaNotice');
+    expect(parseShippingNoticeSnapshot({ ...snapshot, remoteAreaNotice: '제주 1~2일 추가' })).toMatchObject({ remoteAreaNotice: '제주 1~2일 추가' });
+    expect(parseShippingNoticeSnapshot({ ...snapshot, remoteAreaNotice: 1 })).toBeNull();
+    const policy = { originId: 'origin', originName: '김포', baseFee: 3000, freeThreshold: null, feeType: 'policy', individualFee: 0 };
+    expect(parseGoodShippingPolicy({ ...policy, remoteAreaNotice: '제주 1~2일 추가' })).toMatchObject({ remoteAreaNotice: '제주 1~2일 추가' });
+    expect(parseGoodShippingPolicy({ ...policy, remoteAreaNotice: null })).toBeNull();
+  });
 });
