@@ -837,6 +837,38 @@ select pg_temp.pc_assert((select status = 'canceled' from public.orders where id
  and pg_temp.pc_stock('partial-cancel-a') = :a25_before and pg_temp.pc_stock('partial-cancel-b') = :b25_before + 1
  and private.payment_partial_refunded_amount(pg_temp.pc_id('payment', 25)) = 19000, 'zero_remaining_bank_cancel_closes_without_transfer_ledger');
 
+-- 9-14b. T22i(개인정보): 같은 잔액 0원 전체 취소는 클레임 환불계좌 없이 확정된다. 송금할 돈이 없으므로 계좌를 요구하지 않고,
+--   고객 환불계좌 칸도 열지 않는다(refund_account_not_needed). 주문 26은 주문 25와 같고 환불계좌 행만 없다.
+select pg_temp.pc_order_ab(26, 'bank_transfer', 2, 1000, 10000, 0, 'paid');
+set local role authenticated;
+select pg_temp.pc_auth();
+select pg_temp.pc_start('a:2@26', 92, 19000, account => '{"bankName":"TEST 합성은행","accountNumber":"000000001234","accountHolder":"TEST 구매자"}');
+reset role;
+insert into public.order_cancellation_requests(id, order_id, requested_by, reason, claim_type, stage, collection_policy, requested_at)
+ values (pg_temp.pc_id('claim', 26), pg_temp.pc_id('order', 26), pg_temp.pc_id('user', 2), 'TEST 무통장 전액 취소(계좌 없음)', 'cancel', 'processing', 'origin', clock_timestamp() - interval '40 minutes');
+insert into public.order_cancellation_claims(order_id, requested_by, previous_status) values (pg_temp.pc_id('order', 26), pg_temp.pc_id('user', 2), 'paid');
+insert into public.refunds(payment_id, amount, status, cancellation_request_id) values (pg_temp.pc_id('payment', 26), 0, 'requested', pg_temp.pc_id('claim', 26));
+select pg_temp.pc_assert(not exists(select 1 from private.claim_refund_accounts where claim_id = pg_temp.pc_id('claim', 26))
+ and private.bank_transfer_zero_refund_payment(pg_temp.pc_id('order', 26)) = pg_temp.pc_id('payment', 26), 'zero_remaining_without_claim_account_setup');
+select pg_temp.pc_assert(private.bank_transfer_refund_blocker(
+   (select c from public.order_cancellation_requests c where c.id = pg_temp.pc_id('claim', 26)),
+   (select o from public.orders o where o.id = pg_temp.pc_id('order', 26)), 'confirm_cancellation') is distinct from 'claim_refund_account_missing'
+ and private.order_claim_refund_account_blocker(
+   (select c from public.order_cancellation_requests c where c.id = pg_temp.pc_id('claim', 26)),
+   (select o from public.orders o where o.id = pg_temp.pc_id('order', 26))) = 'refund_account_not_needed', 'zero_remaining_blockers_do_not_require_account');
+select claim_revision as zero_rev26 from public.order_cancellation_requests where id = pg_temp.pc_id('claim', 26) \gset
+set local role authenticated;
+select pg_temp.pc_auth();
+select pg_temp.pc_assert(public.admin_record_bank_transfer_refund(pg_temp.pc_id('order', 26), pg_temp.pc_id('claim', 26), pg_temp.pc_id('operation', 93), 'confirm_cancellation',
+  :zero_rev26, 19000, clock_timestamp(), 'TEST 증빙', 'TEST-ONLY 합성 0원 환불. 계좌 없음.', true, pg_temp.pc_id('user', 1), pg_temp.pc_id('session', 1)) @> '{"state": "recorded"}',
+ 'zero_remaining_bank_cancel_confirms_without_account');
+reset role;
+select pg_temp.pc_assert((select status = 'canceled' from public.orders where id = pg_temp.pc_id('order', 26))
+ and (select status = 'refunded' from public.payments where id = pg_temp.pc_id('payment', 26))
+ and (select amount = 0 and status = 'done' from public.refunds where payment_id = pg_temp.pc_id('payment', 26))
+ and (select status = 'completed' from public.order_cancellation_requests where id = pg_temp.pc_id('claim', 26))
+ and not exists(select 1 from private.claim_refund_accounts where claim_id = pg_temp.pc_id('claim', 26)), 'zero_remaining_bank_cancel_closes_without_claim_account');
+
 -- 8. 원장 불변·권한 ---------------------------------------------------------------------------------------------------------
 select pg_temp.pc_error(format('update private.order_partial_cancellations set refund_amount = 1 where id = %L', (pg_temp.pc_head(1)).id), 'partial_cancellation_immutable');
 select pg_temp.pc_error(format('delete from private.order_partial_cancellations where id = %L', (pg_temp.pc_head(1)).id), 'partial_cancellation_immutable');

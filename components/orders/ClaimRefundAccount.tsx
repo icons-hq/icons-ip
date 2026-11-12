@@ -104,7 +104,7 @@ function RefundAccountForm({ identity, scope }: { identity: ClaimRefundAccountId
 
   return <section className="order-detail-inquiry col" aria-label="환불계좌 확인" style={{ alignItems: 'stretch', gap: 12 }}>
     <h3 style={{ margin: 0 }}>환불계좌 확인</h3>
-    <p>무통장으로 결제한 주문의 환불계좌를 등록해주세요. 계좌 등록만으로 환급이 완료되지는 않습니다.</p>
+    {context?.blocker === 'refund_account_not_needed' ? null : <p>무통장으로 결제한 주문의 환불계좌를 등록해주세요. 계좌 등록만으로 환급이 완료되지는 않습니다.</p>}
     {context?.maskedAccount ? <p>등록된 계좌: {context.maskedAccount} · {context.maskedHolder}</p> : null}
     {!context && !error ? <p role="status">현재 요청 상태를 확인하고 있습니다.</p> : null}
     {context && !context.allowed && !context.maskedAccount ? <p>{claimRefundAccountError(undefined, context.blocker ?? undefined).error}</p> : null}
