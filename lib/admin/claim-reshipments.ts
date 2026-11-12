@@ -57,6 +57,15 @@ function reshipmentOpen(claim: Claim) {
   return claim.claimType === 'exchange' && (claim.stage === 'collecting' || claim.stage === 'collected') && !claim.reshipTrackingNumber;
 }
 
+/**
+ * 반품지가 갈린 배송 건에서 묶음 일부만 입고된 상태(배송 건 행은 모든 묶음이 입고돼야 입고 처리된다). 입고된 묶음의 품목이 이미
+ * 돌아왔으므로 회수 생략(결정·재출고)은 DB가 collection_waiver_partially_received로 거절한다 — 화면도 그 선택지를 열지 않는다.
+ */
+export function adminClaimShipmentPartiallyReceived(claim: Claim, shipmentId: string | null) {
+  const collection = shipmentId ? (claim.collections ?? []).find(row => row.shipmentId === shipmentId) : undefined;
+  return Boolean(collection && collection.collectedAt === null && (collection.bundles ?? []).some(bundle => bundle.collectedAt !== null));
+}
+
 function targetCollected(claim: Claim, target: NonNullable<Claim['reshipmentTargets']>[number]) {
   return target.collectionTracked ? target.collectedAt !== null : claim.stage === 'collected';
 }
@@ -66,7 +75,8 @@ export function adminClaimPendingReshipments(claim: Claim): AdminClaimPendingRes
   return (claim.reshipmentTargets ?? []).filter(target => !target.reshipped).flatMap((target) => {
     const collected = targetCollected(claim, target);
     const waived = target.waiver !== null;
-    const waivable = target.collectionTracked && !collected && !waived && claim.collectionWaiverAllowed === true && !target.productionRequired;
+    const waivable = target.collectionTracked && !collected && !waived && claim.collectionWaiverAllowed === true && !target.productionRequired
+      && !adminClaimShipmentPartiallyReceived(claim, target.shipmentId);
     if ((collected || waived) && target.productionPending) return [];
     return collected || waived || waivable
       ? [{ shipmentId: target.shipmentId, originName: target.originName, collected, waivable, waived, orderItemIds: target.orderItemIds }]
@@ -86,5 +96,5 @@ export function adminClaimRemainingReshipments(claim: Claim) {
 export function adminClaimWaiverDecisions(claim: Claim) {
   if (!reshipmentOpen(claim) || claim.collectionWaiverAllowed !== true) return [];
   return (claim.reshipmentTargets ?? []).filter(target => !target.reshipped && target.collectionTracked && target.shipmentId !== null
-    && !targetCollected(claim, target) && target.waiver === null && target.productionRequired);
+    && !targetCollected(claim, target) && target.waiver === null && target.productionRequired && !adminClaimShipmentPartiallyReceived(claim, target.shipmentId));
 }

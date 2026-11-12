@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AdminClaimDetail, AdminClaimReshipment, AdminClaimReshipmentTarget } from './claims.server';
-import { adminClaimPendingReshipments, adminClaimRemainingReshipments, adminClaimReshipmentProgress, adminClaimWaiverDecisions } from './claim-reshipments';
+import { adminClaimPendingReshipments, adminClaimRemainingReshipments, adminClaimReshipmentProgress, adminClaimShipmentPartiallyReceived, adminClaimWaiverDecisions } from './claim-reshipments';
 
 const target = (n: number, overrides: Partial<AdminClaimReshipmentTarget> = {}): AdminClaimReshipmentTarget => ({
   shipmentId: `00000000-0000-4000-8000-00000000000${n}`, originName: n === 1 ? '김포' : '남양주', collectionTracked: true,
@@ -41,6 +41,22 @@ describe('교환 재출고 진행(출고지별, TKT-166)', () => {
     expect(adminClaimPendingReshipments(partial)).toHaveLength(1);
     expect(adminClaimRemainingReshipments(partial)).toBe(2);
     expect(adminClaimRemainingReshipments(claim({ reshipmentTargets: [target(1, { reshipped: true }), target(2, { collectedAt: '2026-11-09T00:00:00.000Z' })] }))).toBe(1);
+  });
+  it('반품지가 갈린 배송 건은 묶음 일부가 입고됐으면 회수 생략(재출고·결정)을 열지 않는다', () => {
+    const bundle = (collectedAt: string | null) => ({ bundleId: '00000000-0000-4000-8000-0000000000b1', returnAddressId: null, returnName: '', returnAddress: '주소', returnPhone: '', items: [], collectedAt, collectorName: null, evidence: null, receivedOn: null });
+    const collection = (bundles: ReturnType<typeof bundle>[]) => ({ shipmentId: target(1).shipmentId as string, originId: 'o', originName: '김포', returnAddress: '', items: [], collectedAt: null, collectedBy: null, collectorName: null, evidence: null, bundles });
+    const open = (bundles: ReturnType<typeof bundle>[], overrides: Partial<AdminClaimReshipmentTarget> = {}) =>
+      claim({ collectionWaiverAllowed: true, collections: [collection(bundles)], reshipmentTargets: [target(1, overrides)] });
+    const partial = open([bundle('2026-11-12T00:00:00.000Z'), bundle(null)]);
+    expect(adminClaimShipmentPartiallyReceived(partial, target(1).shipmentId)).toBe(true);
+    expect(adminClaimPendingReshipments(partial)).toEqual([]);
+    const madeToOrder = open([bundle('2026-11-12T00:00:00.000Z'), bundle(null)], { productionRequired: true, productionPending: true });
+    expect(adminClaimWaiverDecisions(madeToOrder)).toEqual([]);
+    /* 아무 묶음도 입고되지 않았으면 그대로 회수 생략을 연다. */
+    const none = open([bundle(null), bundle(null)]);
+    expect(adminClaimShipmentPartiallyReceived(none, target(1).shipmentId)).toBe(false);
+    expect(adminClaimPendingReshipments(none)).toMatchObject([{ waivable: true }]);
+    expect(adminClaimShipmentPartiallyReceived(none, null)).toBe(false);
   });
   it('주문제작 출고지는 회수 생략을 먼저 결정하고, 교환품 제작이 끝나야 재출고 버튼이 생긴다', () => {
     const waiver = { reason: '고객 사진으로 인쇄 불량 확인', waivedAt: '2026-11-10T00:00:00.000Z', waivedByName: null, evidence: [] };

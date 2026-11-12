@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeClaimCollectionValues, parseClaimCollectionDocument } from './claim-collection';
+import { normalizeClaimCollectionValues, parseClaimCollectionDocument, parseClaimReturnBundles, withClaimReturnBundles } from './claim-collection';
 const values = { method: 'customer_sent', carrier: 'hanjin', trackingNumber: ' claim123456 ', evidence: ' TEST 택배 확인 ', confirmed: true };
 describe('claim collection corrections', () => {
  it('normalizes real carrier metadata and requires paired tracking and explicit evidence', () => {
@@ -33,5 +33,21 @@ describe('claim collection corrections', () => {
    { returnBundles: [{ ...bundle, items: [{ name: 'x', qty: 0 }] }] }, { returnBundles: [{ ...bundle, bundleId: 'not-a-uuid' }] }, { collectionWaived: false }]) {
    expect(parseClaimCollectionDocument({ ...doc, rows: [{ ...row, ...bad }] })).toBeNull();
   }
+ });
+ /* 배포 창 호환: 승인 뒤 회수 문서의 행 키는 이전 앱의 정확 키 파서가 아는 집합 그대로이고(returnBundles 없음), 회수 주소는 별도 응답으로 합친다. */
+ it('keeps the approved collection document row keys readable by the previous exact-key parser and merges bundles from a separate response', () => {
+  const previousRowKeys = ['shipmentId', 'originName', 'revision', 'method', 'carrier', 'trackingNumber', 'evidence', 'requestedOnce', 'collectedAt', 'updatedAt'];
+  const row = { shipmentId: '00000000-0000-4000-8000-000000000003', originName: 'TEST 김포', revision: 0, method: 'not_requested', carrier: null, trackingNumber: null,
+   evidence: '', requestedOnce: true, collectedAt: null, updatedAt: null, carrierLabel: null };
+  const doc = { claimId: '00000000-0000-4000-8000-000000000001', orderId: '00000000-0000-4000-8000-000000000002', claimRevision: 3, editable: true, rows: [row], history: [] };
+  const parsed = parseClaimCollectionDocument(doc);
+  expect(parsed?.rows.every(item => Object.keys(item).every(key => [...previousRowKeys, 'carrierLabel'].includes(key)))).toBe(true);
+  const bundle = { bundleId: '00000000-0000-4000-8000-000000000010', returnName: '서울 반품지', returnAddress: '서울특별시 합성구 반품로 1', returnPhone: '02-1234-5678', items: [{ name: 'TEST 굿즈', qty: 1 }], collectedAt: null };
+  const payload = parseClaimReturnBundles([{ shipmentId: row.shipmentId, returnBundles: [bundle] }, { shipmentId: '00000000-0000-4000-8000-000000000004', returnBundles: [] }]);
+  expect(payload?.get(row.shipmentId)).toEqual([bundle]);
+  expect(withClaimReturnBundles(parsed!, payload!).rows[0].returnBundles).toEqual([bundle]);
+  expect(withClaimReturnBundles(parsed!, new Map()).rows[0]).not.toHaveProperty('returnBundles');
+  for (const bad of [null, {}, [{ shipmentId: 'x', returnBundles: [] }], [{ shipmentId: row.shipmentId }], [{ shipmentId: row.shipmentId, returnBundles: [{ ...bundle, evidence: '내부 근거' }] }],
+   [{ shipmentId: row.shipmentId, returnBundles: [], extra: 1 }], [{ shipmentId: row.shipmentId, returnBundles: [] }, { shipmentId: row.shipmentId, returnBundles: [] }]]) expect(parseClaimReturnBundles(bad)).toBeNull();
  });
 });

@@ -10,7 +10,9 @@ export type ClaimCollectionValues = { method: CollectionMethod; carrier: string 
 export type ClaimReturnBundle = { bundleId: string; returnName: string; returnAddress: string; returnPhone: string; items: { name: string; qty: number }[]; collectedAt: string | null };
 /**
  * reshipped는 그 배송 건을 이미 재출고해 회수 정보 정정이 잠긴 행에만 온다(TKT-166). 남은 출고지는 계속 정정한다.
- * returnBundles는 승인 뒤(회수 묶음이 생긴 뒤)에만, collectionWaived는 회수 생략 결정이 있는 배송 건에만 온다.
+ * collectionWaived는 회수 생략 결정이 있는 배송 건에만 온다. returnBundles는 DB의 회수 문서 행에 없다 — 별도 읽기 RPC
+ * (read_my_claim_return_bundles·admin_read_claim_return_bundles)의 응답을 서버 액션이 행에 합쳐 화면에 넘긴다.
+ * 문서에 키를 더하면 배포 순간 이전 앱의 정확 키 파서가 승인된 모든 클레임의 회수 정보를 읽지 못하기 때문이다.
  */
 export type ClaimCollectionRow = { shipmentId: string; originName: string; revision: number; method: CollectionMethod; carrier: string | null; carrierLabel?: string | null; trackingNumber: string | null; evidence: string; requestedOnce: boolean; collectedAt: string | null; updatedAt: string | null; reshipped?: true; returnBundles?: ClaimReturnBundle[]; collectionWaived?: true };
 export type ClaimCollectionDocument = { claimId: string; orderId: string; claimRevision: number; editable: boolean; rows: ClaimCollectionRow[]; history: { id: string; shipmentId: string; createdAt: string; method: CollectionMethod; carrier: string | null; trackingNumber: string | null; evidence: string }[] };
@@ -41,6 +43,21 @@ export function parseClaimCollectionDocument(v: unknown): ClaimCollectionDocumen
   if (v.history.some(r => !transactionRecord(r) || !transactionExactKeys(r, ['id', 'shipmentId', 'createdAt', 'method', 'carrier', 'trackingNumber', 'evidence']) || !isUuid(r.id) || !isUuid(r.shipmentId)
     || typeof r.createdAt !== 'string' || !method(r.method) || !nullableText(r.carrier) || !nullableText(r.trackingNumber) || typeof r.evidence !== 'string')) return null;
   return v as ClaimCollectionDocument;
+}
+/** 회수 주소 읽기 RPC 응답: 배송 건마다 [{ shipmentId, returnBundles }]. 묶음이 없는 배송 건은 빈 배열이다. */
+export function parseClaimReturnBundles(v: unknown): Map<string, ClaimReturnBundle[]> | null {
+  if (!Array.isArray(v)) return null;
+  const result = new Map<string, ClaimReturnBundle[]>();
+  for (const entry of v) {
+    if (!transactionRecord(entry) || !transactionExactKeys(entry, ['shipmentId', 'returnBundles']) || !isUuid(entry.shipmentId)
+      || !Array.isArray(entry.returnBundles) || !entry.returnBundles.every(returnBundle) || result.has(entry.shipmentId)) return null;
+    result.set(entry.shipmentId, entry.returnBundles);
+  }
+  return result;
+}
+/** 회수 문서(행 키 불변)에 회수 주소를 합친다. 묶음이 없는 행은 키를 더하지 않는다. */
+export function withClaimReturnBundles(document: ClaimCollectionDocument, bundles: Map<string, ClaimReturnBundle[]>): ClaimCollectionDocument {
+  return { ...document, rows: document.rows.map(row => { const found = bundles.get(row.shipmentId); return found?.length ? { ...row, returnBundles: found } : row; }) };
 }
 export function claimCollectionError(code?: string, message?: string) {
   if (code === '42501') return '로그인 계정과 회수 정보 관리 권한을 다시 확인해주세요.';

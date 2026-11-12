@@ -423,6 +423,8 @@ describe('waiveOrderClaimCollectionAction', () => {
     expect((await waiveOrderClaimCollectionAction({}, waiverForm())).error).toBe('이 출고지는 이미 다른 사유·사진으로 회수 생략을 기록했습니다. 처리 이력을 확인해주세요.');
     mocks.rpc.mockResolvedValue({ data: null, error: { message: 'collection_waiver_not_needed' } });
     expect((await waiveOrderClaimCollectionAction({}, waiverForm())).error).toBe('이미 회수를 확인한 출고지입니다. 회수 생략 없이 진행해주세요.');
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'collection_waiver_partially_received' } });
+    expect((await waiveOrderClaimCollectionAction({}, waiverForm())).error).toBe('이 출고지의 일부 반품지에서 이미 입고가 확인되어 회수 생략을 할 수 없습니다. 남은 반품지의 입고를 기다리거나 일부 입고 처리 절차를 따르세요.');
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 });

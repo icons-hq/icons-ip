@@ -431,6 +431,20 @@ describe('ClaimDetailScreen', () => {
     expect(waiting).not.toContain('김포 재출고 등록');
   });
 
+  it('묶음 일부가 입고된 출고지는 회수 생략 결정 칸을 숨기고 그 이유를 한 줄로 보인다', () => {
+    const gimpo = '00000000-0000-4000-8000-0000000000d1';
+    const base = detail();
+    const bundle = (collectedAt: string | null, n: number) => ({ bundleId: `00000000-0000-4000-8000-0000000000b${n}`, returnAddressId: null, returnName: '', returnAddress: '주소', returnPhone: '', items: [], collectedAt, collectorName: null, evidence: null, receivedOn: null });
+    const claim = { ...base.claim, claimType: 'exchange' as const, stage: 'collecting' as const, reasonType: 'defect' as const, collectionPolicy: 'origin' as const,
+      collectionComplete: false, reshippedAt: null, collectionWaiverAllowed: true, reshipments: [],
+      collections: [{ shipmentId: gimpo, originId: 'o1', originName: '김포', returnAddress: '', items: [], collectedAt: null, collectedBy: null, collectorName: null, evidence: null, bundles: [bundle(NOW.toISOString(), 1), bundle(null, 2)] }],
+      reshipmentTargets: [{ shipmentId: gimpo, originName: '김포', collectionTracked: true, collectedAt: null, reshipped: false, orderItemIds: [], waiver: null, productionRequired: true, productionPending: true }] };
+    const html = renderToStaticMarkup(<ClaimDetailScreen backHref="/admin/sales/claims/exchanges" carriers={CARRIERS} cancellationForm={null}
+      detail={{ ...base, claim, payment: null, timeline: [] }} now={NOW} />);
+    expect(html).not.toContain('data-claim-waiver-decision');
+    expect(html).toContain('이 출고지의 일부 반품지에서 이미 입고가 확인되어 회수 생략을 할 수 없습니다');
+  });
+
   it('김포·남양주 교환은 출고지마다 재출고 칸을 두고 한 곳만 보내면 재출고 1/2로 남긴다(TKT-166·QNA-039)', () => {
     const gimpo = '00000000-0000-4000-8000-0000000000a1', namyangju = '00000000-0000-4000-8000-0000000000a2';
     const row = { id: '00000000-0000-4000-8000-0000000000b1', shipmentId: gimpo, originName: '김포', carrier: 'hanjin', carrierLabel: '한진택배', trackingNumber: 'GIMPO0000001',
