@@ -7,10 +7,12 @@ import { readPurchaseConfirmationAction, changePurchaseConfirmationAction } from
 import { CONFIRMATION_EVENT_LABELS, type PurchaseConfirmation } from '@/lib/purchase-confirmation';
 import { formatOrderDateTime } from '@/lib/orders';
 import type { GoodsGroupIdentity } from '@/lib/admin/goods-groups';
+import { useClaimPreviewBusy } from '@/components/orders/claim-preview-busy';
 import '@/app/styles/purchase-confirmation.css';
 export function PurchaseConfirmationPanel({ orderId, actorId, admin = false }: { orderId: string; actorId: string; admin?: boolean }) {
   const [value, setValue] = useState<PurchaseConfirmation | null>(null), [identity, setIdentity] = useState<GoodsGroupIdentity | null>(null);
   const [message, setMessage] = useState(''), [blocked, setBlocked] = useState(false), [pending, setPending] = useState(false), [uncertain, setUncertain] = useState(false);
+  useClaimPreviewBusy(pending); /* 목록 위 주문 상세 팝업(S36-075)에서 기다리는 동안 팝업이 닫히지 않게 알린다. 팝업 밖에서는 아무 일도 하지 않는다. */
   const [note, setNote] = useState(''), [ack, setAck] = useState(false), alive = useRef(true), identityRef = useRef<GoodsGroupIdentity | null>(null), busy = useRef(false);
   const router = useRouter();
   useEffect(() => {

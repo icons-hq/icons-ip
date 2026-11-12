@@ -4,6 +4,8 @@ const hooks = vi.hoisted(() => ({ state: [] as unknown[], index: 0, refs: [] as 
 const mocks = vi.hoisted(() => ({ save: vi.fn(), read: vi.fn(), load: vi.fn(), refresh: vi.fn(), close: vi.fn() }));
 vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>('react'), useEffect: () => {}, useRef: (initial: unknown) => { const index = hooks.refIndex++; hooks.refs[index] ??= { current: initial }; return hooks.refs[index]; },
   useState: (initial: unknown) => { const index = hooks.index++; if (!(index in hooks.state)) hooks.state[index] = initial; return [hooks.state[index], (next: unknown) => { hooks.state[index] = typeof next === 'function' ? next(hooks.state[index]) : next; }]; } }));
+/* 목록 위 주문 상세 팝업의 대기 신호(useClaimPreviewBusy)는 실제 렌더러 없이 부르는 이 시험에서 아무 일도 하지 않는다. */
+vi.mock('@/components/orders/claim-preview-busy', () => ({ useClaimPreviewBusy: () => {} }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: mocks.refresh }) }));
 vi.mock('@/app/admin/order-address-actions', () => ({ changeOrderAddressAction: mocks.save, readOrderAddressChangeAction: mocks.read, loadOrderAddressContextAction: mocks.load }));
 import { OrderAddressEditor } from './OrderAddressEditor';

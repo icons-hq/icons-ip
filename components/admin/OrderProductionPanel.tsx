@@ -12,6 +12,7 @@ import { Input } from '@/components/admin/kit/ui/input';
 import { Label } from '@/components/admin/kit/ui/label';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { SellerClaimIntakeButton } from './screens/SellerClaimIntakeForm';
+import { useClaimPreviewBusy } from '@/components/orders/claim-preview-busy';
 /* 주문 상세의 주문제작 처리 카드 — kit 부품과 유틸리티로 그린다(ADR-0028). 상품 화면의 주문제작 설정(GoodsProductionPanel)은 따로다. */
 /* 날짜는 목록·상세와 같은 표기다. */
 const time = formatOrderDateTime;
@@ -22,6 +23,7 @@ export function OrderProductionPanel(props: Props) {
 }
 function Panel({ initial, identity, scope, canManage }: Props & { identity: ClaimContactIdentity; scope: ClaimContactScope }) {
  const [document, setDocument] = useState(initial), [jobId, setJobId] = useState(''), [evidence, setEvidence] = useState(''), [confirmed, setConfirmed] = useState(false), [pending, setPending] = useState(false), [uncertain, setUncertain] = useState(false), [message, setMessage] = useState('');
+ useClaimPreviewBusy(pending); /* 목록 위 주문 상세 팝업(S36-075)에서 기다리는 동안 팝업이 닫히지 않게 알린다. 팝업 밖에서는 아무 일도 하지 않는다. */
  const fieldId = useId(), router = useRouter(), busy = useRef(false), alive = useRef(true), dispatched = useRef<{ jobId: string; kind: 'start' | 'complete'; revision: number; operation: string; evidence: string } | null>(null);
  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
  const selected = document?.jobs.find(j => j.id === jobId), kind = selected?.canStart ? 'start' : selected?.canComplete ? 'complete' : null;

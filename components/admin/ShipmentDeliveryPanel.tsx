@@ -13,6 +13,7 @@ import { Input } from '@/components/admin/kit/ui/input';
 import { Label } from '@/components/admin/kit/ui/label';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
+import { useClaimPreviewBusy } from '@/components/orders/claim-preview-busy';
 
 const HISTORY_LABELS: Record<string, string> = { method_selected: '배송 방식 변경', quick_handoff: '퀵 인계', quick_receive: '퀵 수령 완료', pickup_receive: '방문수령 완료', direct_handoff: '직접배송 인계', direct_receive: '직접배송 수령 완료', freight_handoff: '화물배송 인계', freight_receive: '화물배송 수령 완료', none_receive: '직접전달 완료', digital_access: '디지털 파일 제공 시작', forced_delivered: '강제 배송완료' };
 const EVIDENCE_LABELS: Record<string, string> = {
@@ -32,6 +33,7 @@ function MethodSelection({ shipment, onSaved }: { shipment: AdminShipmentDeliver
   const [method, setMethod] = useState<DeliveryMethod>(shipment.summary.method);
   const [policyId, setPolicyId] = useState(shipment.summary.policy?.policyId ?? '');
   const [pending, startTransition] = useTransition(); const [error, setError] = useState<string | null>(null);
+  useClaimPreviewBusy(pending); /* 목록 위 주문 상세 팝업(S36-075)에서 기다리는 동안 팝업이 닫히지 않게 알린다. 팝업 밖에서는 아무 일도 하지 않는다. */
   const requestId = useRef<string | null>(null); const busy = useRef(false); const fieldId = useId();
   const policies = shipment.policies.filter((policy) => policy.method === method && policy.state === 'active');
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -72,6 +74,7 @@ function HandoffForm({ shipment, onSaved }: { shipment: AdminShipmentDelivery; o
   const method = shipment.summary.method;
   const kind = (method === 'pickup' || method === 'none' ? `${method}_receive` : `${method}_${shipment.status === 'ready' ? 'handoff' : 'receive'}`) as DeliveryOperation;
   const [occurredAt, setOccurredAt] = useState(''); const [error, setError] = useState<string | null>(null); const [pending, startTransition] = useTransition();
+  useClaimPreviewBusy(pending); /* 목록 위 주문 상세 팝업(S36-075)에서 기다리는 동안 팝업이 닫히지 않게 알린다. 팝업 밖에서는 아무 일도 하지 않는다. */
   const requestId = useRef<string | null>(null); const busy = useRef(false); const fieldId = useId();
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (busy.current) return;

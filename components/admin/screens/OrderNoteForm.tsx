@@ -6,10 +6,12 @@ import { MAX_ORDER_NOTE_LENGTH } from '@/lib/admin/order-detail';
 import { AdminField } from '@/components/admin/console/AdminKit';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
+import { useClaimPreviewBusy } from '@/components/orders/claim-preview-busy';
 
 const EMPTY_STATE: AdminOrderNoteState = {};
 export function OrderNoteForm({ orderId, initialOperationId }: { orderId: string; initialOperationId: string }) {
   const [state, action, pending] = useActionState(addOrderNoteAction, EMPTY_STATE);
+  useClaimPreviewBusy(pending); /* 목록 위 주문 상세 팝업(S36-075)에서 기다리는 동안 팝업이 닫히지 않게 알린다. 팝업 밖에서는 아무 일도 하지 않는다. */
   const [body, setBody] = useState('');
   const [operationId, setOperationId] = useState(initialOperationId);
   const [clearedKey, setClearedKey] = useState<string | null>(null);

@@ -6,6 +6,8 @@ import { parseSellerClaimInput, type SellerClaimInput } from '@/lib/admin/seller
 const hooks=vi.hoisted(()=>({refs:[] as {current:unknown}[],refIndex:0,state:[] as unknown[],stateIndex:0}));
 const mocks=vi.hoisted(()=>({submit:vi.fn(),read:vi.fn(),refresh:vi.fn(),close:vi.fn()}));
 vi.mock('react',async()=>{const actual=await vi.importActual<typeof import('react')>('react');return {...actual,useEffect:()=>undefined,useRef:(initial:unknown)=>{const index=hooks.refIndex++;hooks.refs[index]??={current:initial};return hooks.refs[index];},useState:(initial:unknown)=>{const index=hooks.stateIndex++;if(!(index in hooks.state))hooks.state[index]=typeof initial==='function'?(initial as ()=>unknown)():initial;return [hooks.state[index],(next:unknown)=>{hooks.state[index]=typeof next==='function'?(next as (value:unknown)=>unknown)(hooks.state[index]):next;}];}};});
+/* 목록 위 주문 상세 팝업의 대기 신호(useClaimPreviewBusy)는 실제 렌더러 없이 부르는 이 시험에서 아무 일도 하지 않는다. */
+vi.mock('@/components/orders/claim-preview-busy', () => ({ useClaimPreviewBusy: () => {} }));
 vi.mock('next/navigation',()=>({useRouter:()=>({refresh:mocks.refresh})}));
 vi.mock('@/app/admin/seller-claim-intake-actions',()=>({loadSellerClaimContextAction:vi.fn(),readSellerClaimIntakeAction:mocks.read,submitSellerClaimIntakeAction:mocks.submit}));
 type Element=ReactElement<{children?:ReactNode;id?:string;disabled?:boolean;onClick?:()=>void;onSubmit?:(event:unknown)=>void;onChange?:(event:unknown)=>void}>;
