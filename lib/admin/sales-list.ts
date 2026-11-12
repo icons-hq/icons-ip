@@ -41,7 +41,7 @@ export function salesPage(value: string | string[] | undefined, pageSize: number
 }
 export function normalizeSalesListOptions(
   params: SearchParams,
-  defaultPageSize = 20,
+  defaultPageSize = 50,
   defaultSort: SalesListSort = 'newest',
   pageSizes: readonly number[] = SALES_PAGE_SIZES,
 ): SalesListOptions {

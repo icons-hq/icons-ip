@@ -158,11 +158,6 @@ export function InquiryQueueScreen({
             dateRange={{
               from: filters.from,
               label: '접수일',
-              presetHref: (range) => adminInquiryHref(filters, {
-                from: range.from,
-                page: 1,
-                to: range.to,
-              }),
               to: filters.to,
             }}
             now={now}

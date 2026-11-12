@@ -2,7 +2,7 @@ export const CUSTOMER_SERVICE_PAGE_SIZES = [20, 50, 100] as const;
 
 export function customerServicePageSize(value: unknown): number {
   const size = typeof value === 'string' || typeof value === 'number' ? Number(value) : 0;
-  return CUSTOMER_SERVICE_PAGE_SIZES.some((allowed) => allowed === size) ? size : 20;
+  return CUSTOMER_SERVICE_PAGE_SIZES.some((allowed) => allowed === size) ? size : 50;
 }
 
 export function customerServiceDate(value: unknown): string | null {

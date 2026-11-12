@@ -14,7 +14,7 @@
 
 import { customerServiceDate, customerServicePageSize } from './customer-service-list';
 
-export const ADMIN_PRODUCT_QUESTION_PAGE_SIZE = 20;
+export const ADMIN_PRODUCT_QUESTION_PAGE_SIZE = 50;
 export type AdminProductQuestionSearchField = 'body' | 'good' | 'goodId' | 'id';
 export const ADMIN_PRODUCT_QUESTION_SEARCH_FIELDS = [
   { value: 'body', label: '문의 내용' },

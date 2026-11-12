@@ -28,7 +28,7 @@ export function GoodsAnnouncementsScreen({ data }: { data: GoodsAnnouncementList
   const { rows, total, filters } = data; const href = goodsAnnouncementHref(filters);
   return <section className="flex min-w-0 flex-col gap-4" data-admin-screen="goods-announcements">
     <AdminPageHeader title="상품공지사항 관리" description="공지 저장은 고객 알림을 발송하지 않습니다. 전시중인 공지도 상품과 IP가 공개되어 있고 노출 화면·적용 상품 조건이 맞을 때 표시됩니다." actions={<Link className={buttonVariants()} data-slot="button" href={`${href}&create=1`}><Plus aria-hidden="true" />상품공지사항 등록</Link>} />
-    <ConsoleFilterPanel action={GOODS_ANNOUNCEMENTS_PATH} hiddenFields={{ pageSize: String(filters.pageSize) }} dateRange={{ label: '공지등록일', from: filters.from, to: filters.to, presetHref: range => goodsAnnouncementHref({ ...filters, ...range }, 1) }}
+    <ConsoleFilterPanel action={GOODS_ANNOUNCEMENTS_PATH} hiddenFields={{ pageSize: String(filters.pageSize) }} dateRange={{ label: '공지등록일', from: filters.from, to: filters.to }}
       statusFilter={{ label: '전시상태', name: 'state', value: filters.state, options: [{ value: 'all', label: '전체' }, ...GOODS_ANNOUNCEMENT_STATES] }}
       search={{ label: '검색어', name: 'q', value: filters.query, fieldName: 'field', fieldValue: filters.field, fields: [{ value: 'title', label: '공지 제목' }, { value: 'reference', label: '공지번호' }] }} resetHref={GOODS_ANNOUNCEMENTS_PATH}>
       <ConsoleFilterField htmlFor="announcement-filter-category" label="공지 분류"><AdminSelect id="announcement-filter-category" name="category" defaultValue={filters.category} wrapperClassName="w-40"><option value="all">전체</option>{GOODS_ANNOUNCEMENT_CATEGORIES.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</AdminSelect></ConsoleFilterField>

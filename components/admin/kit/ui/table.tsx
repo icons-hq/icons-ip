@@ -3,18 +3,52 @@
 import * as React from "react"
 import { cn } from "cn"
 
-function Table({ className, ...props }: React.ComponentProps<"table">) {
+import {
+  StickyTableHead,
+  useClonedHeadHtml,
+  useStickyTableHead,
+} from "@/components/admin/console/StickyTableHead"
+
+function Table({
+  className,
+  stickyHeader = false,
+  ...props
+}: React.ComponentProps<"table"> & {
+  /** ICONS: 긴 목록을 내릴 때 머리글을 상단 막대 아래에 고정한다(복제 머리글 — 머리글이 글자뿐인 표만). */
+  stickyHeader?: boolean
+}) {
+  const tableRef = React.useRef<HTMLTableElement>(null)
+  const regionRef = React.useRef<HTMLDivElement>(null)
+  const { cloneScrollRef, metrics } = useStickyTableHead(
+    regionRef,
+    tableRef,
+    stickyHeader
+  )
+  const headHtml = useClonedHeadHtml(tableRef, stickyHeader)
   return (
-    <div
-      data-slot="table-container"
-      className="relative w-full overflow-x-auto"
-    >
-      <table
-        data-slot="table"
-        className={cn("w-full caption-bottom text-sm", className)}
-        {...props}
-      />
-    </div>
+    <>
+      {stickyHeader ? (
+        <StickyTableHead
+          cloneScrollRef={cloneScrollRef}
+          headHtml={headHtml}
+          metrics={metrics}
+          scrollRef={regionRef}
+          tableClassName={cn("w-full caption-bottom text-sm", className)}
+        />
+      ) : null}
+      <div
+        data-slot="table-container"
+        className="relative w-full overflow-x-auto"
+        ref={regionRef}
+      >
+        <table
+          data-slot="table"
+          className={cn("w-full caption-bottom text-sm", className)}
+          ref={tableRef}
+          {...props}
+        />
+      </div>
+    </>
   )
 }
 

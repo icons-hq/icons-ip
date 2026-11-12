@@ -35,7 +35,8 @@ export function DataTableColumnHeader<TData extends RowData, TValue>({
   className,
   ...props
 }: DataTableColumnHeaderProps<TData, TValue>) {
-  if (!column.getCanSort() && !column.getCanHide()) {
+  /* ICONS: 정렬이 없는 열은 글자만 둔다 — '열 숨기기'만 있는 머리글 버튼은 Tab 정지만 늘린다(ADM-016 #35). 열 표시는 조회항목 설정에서 한다. */
+  if (!column.getCanSort()) {
     return <div className={cn(className)}>{label}</div>;
   }
 

@@ -1276,6 +1276,26 @@ export function OrdersSection({ data, canManage = true }: { data: AdminOrderCons
           </AdminNotice>
         </section>
       ) : null}
+      {/* 주문 상세·처리는 목록 위에 연다(ADM-016 #30) — 주문을 누르면 표 아래 패널로 점프하지 않고 그 자리에서 이어 본다. 클레임 목록과 같다. */}
+      {selected ? <details id="sales-order-detail" className="group scroll-mt-4 rounded-xl border bg-card text-card-foreground" open={Boolean(data.filters.orderId)} key={selected.id}>
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 font-medium [&::-webkit-details-marker]:hidden">주문 {orderReferenceLabel(selected.id, selected.orderNumber)} {canManage ? '상세·처리' : '상세 보기'}<ChevronDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" /></summary>
+        <OrderDetail cancellation={cancellation} carriers={data.carriers} filters={data.filters} order={selected} canManage={canManage} />
+      </details> : data.filters.orderId ? (
+        <AdminNotice role="status" tone="warning">
+          <div className="flex flex-col items-start gap-2">
+            <p>선택한 주문은 현재 목록에 없습니다.</p>
+            <Link
+              className={LINK_BUTTON}
+              data-slot="button"
+              href={adminOrderDetailHref(data.filters.orderId, data.filters)}
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              지정한 주문 상세 열기 (새 탭)
+            </Link>
+          </div>
+        </AdminNotice>
+      ) : null}
       <div className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground" data-sales-results="">
         <SalesResultsHeader currentHref={currentHref} total={data.total} pageSize={data.pageSize} sort={data.filters.sort??'newest'}>
           <AdminListExportButton href={adminListExportHref('orders', currentHref)} total={data.total} />
@@ -1296,25 +1316,6 @@ export function OrdersSection({ data, canManage = true }: { data: AdminOrderCons
         <ConsolePagination label="주문 목록 페이지" page={data.filters.page} pageSize={data.pageSize} total={data.total}
           hrefForPage={page=>adminOrdersHref(data.filters,{page,orderId:null})}/>
       </div>
-        {selected ? <details id="sales-order-detail" className="group scroll-mt-4 rounded-xl border bg-card text-card-foreground" open={Boolean(data.filters.orderId)} key={selected.id}>
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 font-medium [&::-webkit-details-marker]:hidden">주문 {orderReferenceLabel(selected.id, selected.orderNumber)} {canManage ? '상세·처리' : '상세 보기'}<ChevronDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" /></summary>
-          <OrderDetail cancellation={cancellation} carriers={data.carriers} filters={data.filters} order={selected} canManage={canManage} />
-        </details> : data.filters.orderId ? (
-          <AdminNotice role="status" tone="warning">
-            <div className="flex flex-col items-start gap-2">
-              <p>선택한 주문은 현재 목록에 없습니다.</p>
-              <Link
-                className={LINK_BUTTON}
-                data-slot="button"
-                href={adminOrderDetailHref(data.filters.orderId, data.filters)}
-                rel="noopener noreferrer"
-                target="_blank"
-              >
-                지정한 주문 상세 열기 (새 탭)
-              </Link>
-            </div>
-          </AdminNotice>
-        ) : null}
     </section>
   );
 }

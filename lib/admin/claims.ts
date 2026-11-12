@@ -31,7 +31,7 @@ import {
  * 동료에게 링크로 넘길 수 있어야 한다.
  */
 
-export const ADMIN_CLAIM_PAGE_SIZE = 20;
+export const ADMIN_CLAIM_PAGE_SIZE = 50;
 
 export type AdminClaimStageFilter = OrderClaimStage | 'all' | 'open';
 /**

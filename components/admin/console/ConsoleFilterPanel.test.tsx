@@ -36,30 +36,9 @@ describe('ConsoleFilterPanel', () => {
     expect(html).toContain('1주');
     expect(html).toContain('1개월');
     expect(html).toContain('3개월');
-    /* 1주 = 오늘 포함 7일 */
-    expect(html).toContain('from=2026-08-12');
-    /* 3개월 */
-    expect(html).toContain('from=2026-05-18');
-    expect(html).toContain('to=2026-08-18');
-  });
-
-  /* 기간을 좁힌 뒤에도 5페이지에 남아 있으면 결과가 비어 보인다. */
-  it('프리셋 링크는 현재 조건을 유지하되 페이지를 1로 되돌린다', () => {
-    const html = renderToStaticMarkup(
-      <ConsoleFilterPanel
-        action="/admin/orders"
-        dateRange={{ from: null, to: null }}
-        hiddenFields={{ tab: 'delivery' }}
-        now={NOW}
-        search={{ fields: SEARCH_FIELDS, fieldValue: 'buyer', value: '아이콘' }}
-        statusFilter={{ options: STATUSES, value: 'paid' }}
-      />,
-    );
-
-    expect(html).toContain('tab=delivery');
-    expect(html).toContain('status=paid');
-    expect(html).toContain('searchField=buyer');
-    expect(html).toContain('page=1');
+    /* 빠른 선택은 링크가 아니라 날짜 칸을 채우는 버튼이다 — [검색]을 눌러야 조회한다(ADM-016 #13). */
+    expect(html).not.toContain('from=2026-08-12');
+    expect(html).toMatch(/<button[^>]*aria-pressed="false"[^>]*type="button"[^>]*>1주</);
   });
 
   it('현재 값과 정확히 일치하는 프리셋만 활성으로 표시한다', () => {
@@ -71,25 +50,8 @@ describe('ConsoleFilterPanel', () => {
       />,
     );
 
-    expect(html.match(/aria-current="true"/g)).toHaveLength(1);
-    expect(html).toMatch(/aria-current="true"[^>]*>1주</);
-  });
-
-  it('프리셋 href 생성기를 콘솔이 직접 넘길 수 있다', () => {
-    const html = renderToStaticMarkup(
-      <ConsoleFilterPanel
-        action="/admin/claims"
-        dateRange={{
-          from: null,
-          presetHref: (range, preset) => `/admin/claims/${preset}?s=${range.from}`,
-          presets: ['today'],
-          to: null,
-        }}
-        now={NOW}
-      />,
-    );
-
-    expect(html).toContain('href="/admin/claims/today?s=2026-08-18"');
+    expect(html.match(/aria-pressed="true"/g)).toHaveLength(1);
+    expect(html).toMatch(/aria-pressed="true"[^>]*>1주</);
   });
 
   it('직접 입력 날짜 칸에 현재 값을 채우고 name을 바꿀 수 있다', () => {

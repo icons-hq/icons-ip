@@ -41,7 +41,7 @@ vi.mock('@/app/admin/claim-type-conversion-actions', () => ({ bulkConvertClaimTy
 vi.mock('@/components/admin/kit/use-console-table', () => ({
   useConsoleTable: (options: Record<string, unknown>) => {
     hooks.table = options;
-    return { pending: false, preferences: { order: [], hidden: [], frozen: 0 }, savePreferences: () => undefined, table: {} };
+    return { draftColumnFilters: [], pending: false, preferences: { order: [], hidden: [], frozen: 0 }, savePreferences: () => undefined, table: {} };
   },
 }));
 

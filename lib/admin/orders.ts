@@ -292,7 +292,7 @@ export function normalizeAdminOrderFilters(searchParams: AdminOrderSearchParams)
   }
 
   const listOptions = normalizeSalesListOptions(searchParams);
-  const page = salesPage(searchParams.page, listOptions.pageSize ?? 20);
+  const page = salesPage(searchParams.page, listOptions.pageSize ?? 50);
   const rawQuery = singleParam(searchParams.query).trim();
   const query = rawQuery.length <= 100 ? rawQuery : '';
   const rawField = singleParam(searchParams.field);

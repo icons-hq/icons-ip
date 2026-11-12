@@ -216,8 +216,8 @@ describe('getAdminOrderRecords', () => {
     expect(rpc).toHaveBeenCalledWith('admin_search_orders_console', {
       p_field: 'all',
       p_from: '2026-07-01',
-      p_limit: 20,
-      p_offset: 20,
+      p_limit: 50,
+      p_offset: 50,
       p_query: 'fan@example.test',
       p_status: 'paid',
       p_to: '2026-07-14',
@@ -225,7 +225,7 @@ describe('getAdminOrderRecords', () => {
     });
     expect(result).toMatchObject({
       filters,
-      pageSize: 20,
+      pageSize: 50,
       total: 27,
       items: [{
         id: ORDER_ID,
@@ -284,7 +284,7 @@ describe('getAdminOrderRecords', () => {
       }],
       filters: { ...filters, page: 1 },
       items: [],
-      pageSize: 20,
+      pageSize: 50,
       total: 0,
       counts: { pending: 0, paid: 0, confirmed: 0, shipping: 0, delivered: 0, done: 0, canceled: 0 },
     });

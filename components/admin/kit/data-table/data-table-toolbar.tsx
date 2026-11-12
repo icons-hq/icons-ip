@@ -37,6 +37,8 @@ interface DataTableToolbarProps<
   filtersEnd?: React.ReactNode;
   /** ICONS: 열 표시 팝오버 대신 둘 열 설정 — 순서·틀고정까지 다루는 조회항목 설정(ConsoleTableSettings). */
   viewOptions?: React.ReactNode;
+  /** ICONS: 열 필터가 초안일 때(조회는 [검색]) 툴바 안 초기화 버튼을 감춘다 — 초기화는 조회 조건 카드의 몫이다. */
+  hideReset?: boolean;
 }
 
 export function DataTableToolbar<TData extends RowData>({
@@ -44,6 +46,7 @@ export function DataTableToolbar<TData extends RowData>({
   children,
   className,
   filtersEnd,
+  hideReset = false,
   viewOptions,
   ...props
 }: DataTableToolbarProps<TData>) {
@@ -76,7 +79,7 @@ export function DataTableToolbar<TData extends RowData>({
           selector={(filters) => filters.length > 0}
         >
           {(isFiltered) =>
-            isFiltered && (
+            isFiltered && !hideReset && (
               <Button
                 aria-label="필터 초기화"
                 variant="outline"

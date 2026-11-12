@@ -14,6 +14,7 @@ import {
 import { cn } from "cn";
 import * as React from "react";
 
+import { StickyTableHead, useStickyTableHead } from "@/components/admin/console/StickyTableHead"
 import { useHorizontalOverflow } from "@/components/admin/console/useHorizontalOverflow"
 import type { DataTableFeatures } from "@/components/admin/kit/lib/data-table-features";
 
@@ -65,8 +66,8 @@ export function DataTable<TData extends RowData>({
       {...props}
     >
       {children}
-      {/* ICONS: 크기 질의 컨테이너 — 빈 목록 문구가 보이는 폭(100cqw)에 가운데 선다. */}
-      <div className="@container isolate overflow-hidden rounded-md border">
+      {/* ICONS: 크기 질의 컨테이너는 가로 스크롤 영역에 둔다(DataTableLayout) — 고정 머리글(position: fixed)이 컨테이너 안에 갇히지 않는다. */}
+      <div className="isolate overflow-hidden rounded-md border">
         <DataTableLayout
           table={table}
           aria-label={ariaLabel}
@@ -103,15 +104,27 @@ function DataTableLayout<TData extends RowData>({
      클래스에 region·tabIndex·안쪽 포커스 링만 더한다(바깥 테두리 상자가 overflow-hidden이라 링을 안쪽에 그린다). */
   const regionLabel = props["aria-label"] ? `${props["aria-label"]} 가로 스크롤` : undefined;
   const { ref: overflowRef, more: overflowMore } = useHorizontalOverflow<HTMLDivElement>();
+  const tableRef = React.useRef<HTMLTableElement>(null);
+  /* ICONS: 머리글 고정(ADM-009) — 복제 머리글을 상단 막대 아래에 얹는다. */
+  const { cloneScrollRef, metrics } = useStickyTableHead(overflowRef, tableRef);
   return (
     <table.Subscribe selector={selectLayoutState}>
       {() => (
         <div className="relative w-full">
         {overflowMore ? <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 z-30 w-10 bg-gradient-to-l from-foreground/10 to-transparent print:hidden" data-console-grid-more="" /> : null}
+        <StickyTableHead
+          cloneScrollRef={cloneScrollRef}
+          metrics={metrics}
+          scrollRef={overflowRef}
+          tableClassName="w-full table-fixed caption-bottom text-sm"
+          tableStyle={getColumnSizingStyle(table)}
+        >
+          <DataTableHeaderRows table={table} />
+        </StickyTableHead>
         <div
           aria-label={regionLabel}
           aria-labelledby={regionLabel ? undefined : props["aria-labelledby"]}
-          className="relative w-full overflow-x-auto outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
+          className="@container relative w-full overflow-x-auto outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
           data-slot="table-container"
           ref={overflowRef}
           role="region"
@@ -120,6 +133,7 @@ function DataTableLayout<TData extends RowData>({
           <table
             className="w-full table-fixed caption-bottom text-sm"
             data-slot="table"
+            ref={tableRef}
             style={getColumnSizingStyle(table)}
             {...props}
           >
@@ -140,22 +154,31 @@ function DataTableHeader<TData extends RowData>({
   table,
 }: DataTableHeaderProps<TData>) {
   return (
+    <TableHeader>
+      <DataTableHeaderRows table={table} />
+    </TableHeader>
+  );
+}
+
+/* ICONS: 머리글 행만 — 진짜 머리글과 고정용 복제 머리글이 같은 행을 그린다. */
+function DataTableHeaderRows<TData extends RowData>({
+  table,
+}: DataTableHeaderProps<TData>) {
+  return (
     <table.Subscribe selector={selectHeaderState}>
-      {() => (
-        <TableHeader>
-          {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow key={headerGroup.id} className="group/row">
-              {headerGroup.headers.map((header) => (
-                <DataTableHeadCell
-                  key={header.id}
-                  header={header}
-                  pinned={header.column.getIsPinned()}
-                />
-              ))}
-            </TableRow>
-          ))}
-        </TableHeader>
-      )}
+      {() =>
+        table.getHeaderGroups().map((headerGroup) => (
+          <TableRow key={headerGroup.id} className="group/row">
+            {headerGroup.headers.map((header) => (
+              <DataTableHeadCell
+                key={header.id}
+                header={header}
+                pinned={header.column.getIsPinned()}
+              />
+            ))}
+          </TableRow>
+        ))
+      }
     </table.Subscribe>
   );
 }

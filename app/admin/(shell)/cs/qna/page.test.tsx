@@ -80,13 +80,13 @@ describe('AdminCsQnaPage', () => {
       searchParams: Promise.resolve({ page: '2', status: 'unanswered' }),
     });
 
-    expect(mocks.questions).toHaveBeenCalledWith({ page: 2, status: 'unanswered', field:'body',from:null,to:null,query:'',sort:'recent',pageSize:20 });
+    expect(mocks.questions).toHaveBeenCalledWith({ page: 2, status: 'unanswered', field:'body',from:null,to:null,query:'',sort:'recent',pageSize:50 });
   });
 
   it('모르는 상태는 전체로 접어 넘긴다', async () => {
     await AdminCsQnaPage({ searchParams: Promise.resolve({ status: 'deleted' }) });
 
-    expect(mocks.questions).toHaveBeenCalledWith({ page: 1, status: 'all', field:'body',from:null,to:null,query:'',sort:'recent',pageSize:20 });
+    expect(mocks.questions).toHaveBeenCalledWith({ page: 1, status: 'all', field:'body',from:null,to:null,query:'',sort:'recent',pageSize:50 });
   });
 
   it('다른 화면의 로더는 부르지 않는다', async () => {

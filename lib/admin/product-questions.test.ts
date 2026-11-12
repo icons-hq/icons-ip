@@ -11,11 +11,11 @@ import {
 
 describe('normalizeAdminProductQuestionFilters', () => {
   it('날짜와 목록수를 검증하고 검색·정렬을 목록 링크에 보존한다', () => {
-    const filters = normalizeAdminProductQuestionFilters({ from: '2026-02-30', to: '2026-10-12', pageSize: '50', field: 'good', query: ' 키링 ', sort: 'oldest', page: '3' });
-    expect(filters).toMatchObject({ from: null, to: '2026-10-12', pageSize: 50, field: 'good', query: '키링', sort: 'oldest', page: 3 });
+    const filters = normalizeAdminProductQuestionFilters({ from: '2026-02-30', to: '2026-10-12', pageSize: '100', field: 'good', query: ' 키링 ', sort: 'oldest', page: '3' });
+    expect(filters).toMatchObject({ from: null, to: '2026-10-12', pageSize: 100, field: 'good', query: '키링', sort: 'oldest', page: 3 });
     const url = new URL(adminProductQuestionHref(filters), 'https://example.test');
-    expect(Object.fromEntries(url.searchParams)).toEqual({ page: '3', to: '2026-10-12', pageSize: '50', field: 'good', query: '키링', sort: 'oldest' });
-    expect(normalizeAdminProductQuestionFilters({ from: '2026-10-12', to: '2026-10-01', pageSize: '500' })).toMatchObject({ from: null, to: null, pageSize: 20 });
+    expect(Object.fromEntries(url.searchParams)).toEqual({ page: '3', to: '2026-10-12', pageSize: '100', field: 'good', query: '키링', sort: 'oldest' });
+    expect(normalizeAdminProductQuestionFilters({ from: '2026-10-12', to: '2026-10-01', pageSize: '500' })).toMatchObject({ from: null, to: null, pageSize: 50 });
   });
   it('빈 쿼리는 전체·1페이지다', () => {
     expect(normalizeAdminProductQuestionFilters({})).toEqual(DEFAULT_ADMIN_PRODUCT_QUESTION_FILTERS);

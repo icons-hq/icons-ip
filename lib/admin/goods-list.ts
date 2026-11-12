@@ -5,7 +5,7 @@ import { GOODS_READINESS_REASONS, goodsReadinessAnchor, type AdminGoodsReadiness
 import type { GoodsListOptionStock } from './goods-list-inline';
 
 export const GOODS_LIST_PATH = '/admin/catalog/goods';
-export const GOODS_LIST_PAGE_SIZE = 20;
+export const GOODS_LIST_PAGE_SIZE = 50;
 export const GOODS_LIST_PAGE_SIZES = [20, 50, 100] as const;
 /**
  * 검색 대상(S36-009·S36-X02). 상품번호는 시스템이 매기는 바뀌지 않는 숫자(goods.product_no), 상품 URL은 주소 끝의 영문 값(goods.id)이다.
