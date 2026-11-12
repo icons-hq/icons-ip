@@ -54,7 +54,7 @@ it('카테고리·IP 검색 결과도 고른 항목은 "선택됨", 100개 상�
   expect(picked).toContain('aria-label="굿즈 &gt; 키링 선택됨"');
   expect(picked).toContain('disabled=""');
 
-  hooks.preset = new Map([[0, Array.from({ length: 100 }, (_, index) => ({ id: `ip-${index}`, title: `IP ${index}`, blocked: false }))], [2, { ok: true, items: [{ id: 'ip-new', title: '새 IP', blocked: false }], total: 1, page: 1, pageSize: 20 }]]);
+  hooks.preset = new Map<number, unknown>([[0, Array.from({ length: 100 }, (_, index) => ({ id: `ip-${index}`, title: `IP ${index}`, blocked: false }))], [2, { ok: true, items: [{ id: 'ip-new', title: '새 IP', blocked: false }], total: 1, page: 1, pageSize: 20 }]]);
   hooks.index = 0;
   const ip = renderToStaticMarkup(<CouponIpPicker active targetIds="[]" ips={[]} />);
   expect(ip).toContain('IP는 100개까지 고를 수 있습니다.');
