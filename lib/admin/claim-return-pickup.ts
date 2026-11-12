@@ -35,7 +35,7 @@ export function returnPickupErrorLabel(code: string | null | undefined): string 
 
 export const RETURN_PICKUP_CANCEL_REASON_LABELS: Record<string, string> = {
   withdrawn: '요청 철회', rejected: '요청 거절', completed: '요청 종결', not_required: '회수 불필요', waived: '회수 생략',
-  customer_sent: '고객 직접 발송', collected: '입고 확인',
+  customer_sent: '고객 직접 발송', manual: '수거 방법 별도 기록', collected: '입고 확인',
 };
 
 /** 운영 상세의 회수 묶음 하나의 회수 접수. */

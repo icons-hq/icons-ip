@@ -128,7 +128,7 @@ create table private.claim_return_pickups (
   external_id text check (external_id is null or external_id ~ '^[\x21-\x7e]{1,100}$'),
   requested_at timestamptz,
   last_error_code text check (last_error_code is null or last_error_code ~ '^[a-z0-9_]{1,64}$'),
-  cancel_reason text check (cancel_reason is null or cancel_reason in ('withdrawn','rejected','completed','not_required','waived','customer_sent','collected')),
+  cancel_reason text check (cancel_reason is null or cancel_reason in ('withdrawn','rejected','completed','not_required','waived','customer_sent','manual','collected')),
   canceled_at timestamptz,
   created_at timestamptz not null default clock_timestamp(),
   updated_at timestamptz not null default clock_timestamp(),
@@ -295,6 +295,13 @@ begin
     order by p.id for update skip locked loop
     select * into bundle from public.order_claim_collection_bundles where id = pickup.bundle_id;
     reason := private.claim_return_pickup_block(bundle);
+    -- 아직 한 번도 보내지 않은 접수는, 그 사이 운영자·판매자가 회수 방법을 따로 기록했으면 보내지 않고 닫는다(이중 수거 방지).
+    if reason is null and pickup.attempts = 0 and pickup.state = 'pending'
+      and (exists(select 1 from private.claim_collection_plans plan where plan.claim_id = pickup.claim_id and plan.shipment_id = pickup.shipment_id and plan.requested_once)
+        or exists(select 1 from private.seller_order_claim_intakes intake cross join lateral jsonb_array_elements(intake.payload->'collections') item
+          where intake.claim_id = pickup.claim_id and item->>'shipmentId' = pickup.shipment_id::text and coalesce(item->>'method', 'not_requested') <> 'not_requested')) then
+      reason := 'manual';
+    end if;
     continue when reason is null;
     if reason = 'collected' and pickup.state = 'requested' then
       update private.claim_return_pickups set state = 'collected', next_attempt_at = null, lease_token = null, lease_until = null, updated_at = now_at
@@ -313,6 +320,9 @@ begin
   for pickup in select p.* from private.claim_return_pickups p
     where p.state in ('pending','failed','cancel_pending','cancel_failed') and p.next_attempt_at is not null and p.next_attempt_at <= now_at
       and (p.lease_until is null or p.lease_until < now_at)
+      -- 접수는 수거중 단계에서만 보낸다(보류·처리중 등은 단계가 돌아올 때까지 기다린다). 취소는 단계와 관계없이 보낸다.
+      and (p.state in ('cancel_pending','cancel_failed')
+        or exists(select 1 from public.order_cancellation_requests c where c.id = p.claim_id and c.stage = 'collecting'))
     order by p.next_attempt_at, p.id limit p_limit for update skip locked loop
     token := gen_random_uuid();
     if pickup.state in ('pending','failed') then
@@ -395,7 +405,7 @@ begin
             jsonb_build_object('claimId', pickup.claim_id, 'shipmentId', pickup.shipment_id, 'bundleId', pickup.bundle_id, 'source', 'return_pickup',
               'values', jsonb_build_object('method', 'seller_arranged', 'carrier', pickup.carrier, 'trackingNumber', pickup.tracking_number,
                 'evidence', '자동 회수 취소 · ' || case pickup.cancel_reason when 'withdrawn' then '요청 철회' when 'rejected' then '요청 거절'
-                  when 'completed' then '요청 종결' when 'waived' then '회수 생략' when 'customer_sent' then '고객 직접 발송' else '회수 불필요' end)),
+                  when 'completed' then '요청 종결' when 'waived' then '회수 생략' when 'customer_sent' then '고객 직접 발송' when 'manual' then '수거 방법 별도 기록' else '회수 불필요' end)),
             jsonb_build_object('pickupId', pickup.id, 'state', 'canceled'));
         end if;
         insert into public.audit_log(actor_id, action, target, diff) values (null, 'system.order.claim_return_pickup_canceled', 'order:' || pickup.order_id,
