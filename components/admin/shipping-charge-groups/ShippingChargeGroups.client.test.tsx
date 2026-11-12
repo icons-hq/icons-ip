@@ -158,6 +158,19 @@ it('그룹 선택은 같은 출고지의 활성 그룹만 보이며 기본 그�
   expect(all(node()).filter(item => item.type === 'li')).toHaveLength(1); expect(mocks.change).not.toHaveBeenCalled();
   click('선택'); expect(mocks.change).toHaveBeenCalledExactlyOnceWith(ids.group, { ...group, isDefault: true });
 });
+it('QA2: 저장 충돌 뒤 같은 그룹도 최신 버전으로 다시 고를 수 있다(저장해 둔 버전이 낡았을 때만)', async () => {
+  mode = 'field'; const { group } = chargeAdminFixtures();
+  fieldProps = { ...fieldProps, value: group.id, selectedGroup: { ...group, revision: group.revision - 1 } };
+  mocks.list.mockResolvedValueOnce({ data: { ...listData(), groups: [group] } }); render(); effects(); click('배송비 묶음그룹 선택'); await flush();
+  expect(button('최신 버전으로 다시 선택').props.disabled).toBeFalsy();
+  click('최신 버전으로 다시 선택'); expect(mocks.change).toHaveBeenCalledExactlyOnceWith(group.id, group);
+});
+it('QA2: 이미 최신 버전으로 고른 그룹은 선택됨으로 잠긴다', async () => {
+  mode = 'field'; const { group } = chargeAdminFixtures();
+  fieldProps = { ...fieldProps, value: group.id, selectedGroup: group };
+  mocks.list.mockResolvedValueOnce({ data: { ...listData(), groups: [group] } }); render(); effects(); click('배송비 묶음그룹 선택'); await flush();
+  expect(button('선택됨').props.disabled).toBe(true);
+});
 it('읽기 전용 자식 필드는 선택·해제·이름 조회로 쓰기를 유도하지 않는다', async () => {
   mode = 'field'; fieldProps = { ...fieldProps, value: ids.group, selectedGroup: chargeAdminFixtures().group, readOnly: true, ownerGoodId: 'owner' };
   render(); effects(); await flush(); expect(all(node()).filter(item => item.type === 'button')).toHaveLength(0); expect(mocks.list).not.toHaveBeenCalled(); expect(mocks.change).not.toHaveBeenCalled();
