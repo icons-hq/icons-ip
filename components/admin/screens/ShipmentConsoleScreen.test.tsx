@@ -22,6 +22,22 @@ describe('배송 건 콘솔',()=>{
   const dispatch=renderToStaticMarkup(<ShipmentConsoleScreen canReadOrders={false} data={{...base,rows}}/>);
   expect(dispatch).toMatch(/aria-haspopup="dialog"[^>]*>퀵 인계·수령 확인<\/button>/);expect(dispatch).toContain('<span>주문제작 1/1건 완료</span>');
  });
+ /* 2026-11-12 "착불 금액은 보이게": 착불 배송비·합포장 착불 합계·착불 수납 정보는 파일뿐 아니라 이 화면에서도 읽기 전용으로 보인다. */
+ it.each([false,true])('발송·배송현황 행에 착불 배송비·합포장 착불 합계·착불 수납 정보를 읽기 전용으로 보인다 (주문 조회 권한 %s)',canReadOrders=>{
+  const collector={name:'한진택배',method:'수령 시 기사에게 현금',refundContact:'고객센터 1588-0000',instructions:'착불 배송비는 상품 수령 때 지급합니다.'};
+  const pack={id:'70000000-0000-4000-8000-0000000000aa',revision:1,count:2,shipmentIds:['60000000-0000-4000-8000-000000000001','60000000-0000-4000-8000-000000000002'],collectFee:8000,canRelease:true};
+  const rows=[{...row,pack,collect:{collectFee:4000,collector}},{...row,id:'60000000-0000-4000-8000-000000000002',pack,collect:{collectFee:4000,collector:null}},
+   {...row,id:'60000000-0000-4000-8000-000000000003',collect:null}] as ShipmentConsoleData['rows'];
+  for(const surface of ['dispatch','shipping'] as const){
+   const html=renderToStaticMarkup(<ShipmentConsoleScreen actorId="10000000-0000-4000-8000-000000000001" canManageSales={false} canReadOrders={canReadOrders} data={{...base,surface,filters:{...base.filters,tab:surface==='dispatch'?'ready':'transit'},rows}}/>);
+   expect(html.match(/착불 배송비 ₩4,000/g)).toHaveLength(2);expect(html.match(/합포장 착불 합계 ₩8,000/g)).toHaveLength(2);
+   for(const text of ['착불 수납 주체','한진택배','수납 방법','수령 시 기사에게 현금','고객 안내','착불 배송비는 상품 수령 때 지급합니다.','착불 환급 문의','고객센터 1588-0000']) expect(html).toContain(text);
+   expect(html).toContain('이 주문에는 착불 수납 정보 기록이 없습니다.');expect(html.match(/data-shipment-collect=""/g)).toHaveLength(2);
+   // 읽기 전용: 합포장 만들기·해제(합포장 관리)는 판매 관리 권한에만 있다.
+   expect(html).not.toContain('>합포장 관리</button>');
+  }
+  expect(renderToStaticMarkup(<ShipmentConsoleScreen actorId="10000000-0000-4000-8000-000000000001" canReadOrders={canReadOrders} data={{...base,rows}}/>)).toContain('>합포장 관리</button>');
+ });
  it('주문 조회 권한이 있는 주매니저 화면은 지금과 같다 (1014-084)',()=>{
   const data={...base,rows:[row,{...row,id:'60000000-0000-4000-8000-000000000002',delivery:shipmentDeliveryFixture({method:'quick'})}]} as ShipmentConsoleData;
   const html=renderToStaticMarkup(<ShipmentConsoleScreen data={data}/>);

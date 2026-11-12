@@ -18,6 +18,8 @@ import {orderShipment} from '@/lib/orders/shipment';
 import {shipmentStatusLabel} from '@/lib/orders/shipments';
 import {DELIVERY_METHOD_LABELS,deliveryStatusLabel} from '@/lib/shipment-delivery';
 import {ShipmentConsoleGrid} from './ShipmentConsoleGrid';
+import {ShipmentCollectNote} from './ShipmentCollectNote';
+import {krw} from '@/lib/format';
 import {DispatchTrackingImportPanel} from './DispatchTrackingImportPanel';
 import {DispatchDelayNoteForm} from './DispatchDelayNoteForm';
 import {AdminListExportButton} from '@/components/admin/AdminListExportButton';
@@ -118,7 +120,10 @@ export function ShipmentConsoleScreen({data,registeredCount,actorId,summaryAside
     href={adminOrderPreviewHref(currentHref,row.orderId)}
     label={`주문 ${orderReferenceLabel(row.orderId, row.orderNumber)} 상세 팝업 열기`}
    >주문 {orderReferenceLabel(row.orderId, row.orderNumber)}</OrderPreviewLink>:<small className={`${CELL_NOTE} tabular-nums whitespace-nowrap`}>주문 {orderReferenceLabel(row.orderId, row.orderNumber)}</small>}
-    {canReadOrders?<OrderPreviewNewTabLink href={detailHref} label={`주문 ${orderReferenceLabel(row.orderId, row.orderNumber)} 상세 열기 (새 탭)`}/>:null}</span>{row.pack?<AdminStatusBadge tone="neutral">합포장 {row.pack.id.slice(-8).toUpperCase()} · {row.pack.count}건</AdminStatusBadge>:null}</div>,
+    {canReadOrders?<OrderPreviewNewTabLink href={detailHref} label={`주문 ${orderReferenceLabel(row.orderId, row.orderNumber)} 상세 열기 (새 탭)`}/>:null}</span>{row.pack?<AdminStatusBadge tone="neutral">합포장 {row.pack.id.slice(-8).toUpperCase()} · {row.pack.count}건</AdminStatusBadge>:null}
+    {/* 착불은 읽기 전용으로 모든 출고 담당에게 보인다(2026-11-12 "착불 금액은 보이게"). 합포장 만들기·해제는 판매 관리 권한의 합포장 관리에서 한다. */}
+    {row.pack?.collectFee?<small className={`${CELL_NOTE} tabular-nums`}>합포장 착불 합계 {krw(row.pack.collectFee)}</small>:null}
+    {row.collect?<ShipmentCollectNote collect={row.collect}/>:null}</div>,
    /* 출고 전 대조에 쓰는 칸이라 품목·옵션·수량을 줄이지 않는다(10/14 회의 요청). 긴 이름은 잘지 않고 줄을 바꾸며, 수량은 첫 줄 오른쪽에 둔다. */
    <ul key="items" className="flex min-w-44 flex-col gap-1">{row.items.map(item=><li key={item.id}><span className="flex min-w-0 items-baseline gap-1"><span className="min-w-0 flex-1 wrap-anywhere">{item.name}{item.variantName?` · ${item.variantName}`:''}</span><span className="shrink-0 whitespace-nowrap">× {item.qty}</span></span><GoodsCustomInputsSummary selection={item.customInputs} /></li>)}</ul>,
    <span key="origin" className={`${CELL_ONE_LINE} max-w-12`} title={row.originName}>{row.originName}</span>,...(canReadOrders?[<span key="buyer" className={`${CELL_ONE_LINE} max-w-16`} title={row.buyerName}>{row.buyerName}</span>]:[]),<span key="recipient" className={`${CELL_ONE_LINE} max-w-18`} title={row.recipientName||undefined}>{row.recipientName||'미기록'}</span>,

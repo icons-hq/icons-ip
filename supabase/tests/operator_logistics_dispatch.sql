@@ -78,10 +78,11 @@ begin
  end loop;
 end $$;
 
--- 계약: 정확히 이 26개 출고 RPC만 sales.dispatch를 쓴다(택배 외 인계·수령 기록과 그 읽기 포함).
--- 앞 22개는 T05가 sales.manage에서 옮겼고, 뒤 4개는 같은 웨이브의 새 출고 RPC를 통합 migration(20261112200000)이 맞췄다:
+-- 계약: 정확히 이 27개 출고 RPC만 sales.dispatch를 쓴다(택배 외 인계·수령 기록과 그 읽기 포함).
+-- 앞 22개는 T05가 sales.manage에서 옮겼고, 4개는 같은 웨이브의 새 출고 RPC를 통합 migration(20261112200000)이 맞췄다:
 -- 발송처리 화면의 배송 방법·택배 외 일괄 인계(T04), ICONS 표준 양식 바코드 경고(T03), 출고지시 전 재고 차이 경고(T07).
--- before_capability는 통합 전 능력이다(재고 차이 경고만 sales.read였다).
+-- 마지막 1개는 발송·배송현황 화면의 착불 요약(20261112200400, 2026-11-12 "착불 금액은 보이게")이다.
+-- before_capability는 통합 전 능력이다(재고 차이 경고만 sales.read였고, 새 착불 요약은 출고 RPC와 같이 sales.manage 기준으로 본다).
 create temp table ld_dispatch_contracts(signature text primary key,before_capability text not null default 'sales.manage');
 insert into ld_dispatch_contracts(signature,before_capability) values
  ('public.admin_dispatch_delivery_options(uuid[])','sales.manage'),('public.admin_dispatch_apply_delivery(jsonb,text,text,jsonb,uuid)','sales.manage'),
@@ -90,6 +91,7 @@ insert into ld_dispatch_contracts(signature) values
  ('public.admin_search_shipments_notice_console(text,uuid,text,date,date,integer,integer,text,text,text,text,text,text)'),
  ('public.admin_search_shipments_console(text,uuid,text,date,date,integer,integer,text,text,text,text,text)'),
  ('public.admin_shipment_pack_summaries(uuid[])'),('public.admin_shipment_production_summaries(uuid[])'),
+ ('public.admin_shipment_collect_summaries(uuid[])'),
  ('public.admin_smartstore_shipment_export(uuid[])'),('public.admin_shipment_export(uuid[])'),
  ('public.admin_mark_shipments_exported(jsonb)'),('public.admin_mark_seowon_shipments_exported(jsonb,uuid,jsonb)'),
  ('public.admin_origin_pending_export_ids(uuid)'),('public.admin_shipment_barcode_gaps(uuid[],uuid)'),
@@ -411,4 +413,35 @@ select pg_temp.ld_assert((:'manager_packs'::jsonb#>>array[pg_temp.ld_id(4,1)::te
  and (:'logistics_packs'::jsonb#>>array[pg_temp.ld_id(4,1)::text,'collectFee'])='4000'
  and :'logistics_packs'::jsonb=:'manager_packs'::jsonb
  and :'logistics_packs'::jsonb->pg_temp.ld_id(4,4)::text='null'::jsonb,'pack collect total is visible to dispatch-only operators');reset role;
+
+-- G. 발송·배송현황 화면의 착불 요약(20261112200400): 배송 건별 착불 배송비와 착불 수납 정보도 물류출고관리에게 주매니저와 같게 온다
+--    (사용자 결정 2026-11-12 "착불 금액은 보이게"는 화면에도 적용). 출처는 출고지시 파일과 같다(배송 건 착불 배송비, 주문 영수증의
+--    그 출고지 묶음 collector). 착불이 없으면 null, 선결제 배송비는 담지 않는다. 읽기 전용이고 합포장 관리는 sales.manage 그대로다.
+insert into private.order_goods_transactions(order_id,actor_id,source_kind,source_id,source_revision,quote_id,checkout_key,request_digest,request_salt,original_receipt)
+values(pg_temp.ld_id(2,3),pg_temp.ld_id(1,9),'cart',pg_temp.ld_id(11,1),'synthetic',pg_temp.ld_id(11,2),pg_temp.ld_id(11,3),'synthetic',pg_temp.ld_id(11,4),
+ jsonb_build_object('display',jsonb_build_object('shipping',jsonb_build_array(
+  jsonb_build_object('originId','00000000-0000-4000-8000-000000042202','collector',jsonb_build_object('name','다른 출고지 수납','method','다른 방법','refundContact','다른 문의처','instructions','다른 안내')),
+  jsonb_build_object('originId','00000000-0000-4000-8000-000000042201','collector',jsonb_build_object('name','합성 택배사','method','수령 시 기사에게 현금',
+   'refundContact','합성 고객센터','instructions','착불 배송비는 수령 때 지급합니다.'))))));
+insert into private.order_goods_transactions(order_id,actor_id,source_kind,source_id,source_revision,quote_id,checkout_key,request_digest,request_salt,original_receipt)
+values(pg_temp.ld_id(2,4),pg_temp.ld_id(1,9),'cart',pg_temp.ld_id(11,5),'synthetic',pg_temp.ld_id(11,6),pg_temp.ld_id(11,7),'synthetic',pg_temp.ld_id(11,8),'{"display":{"shipping":{}}}');
+update public.order_shipments set shipping_collect_fee=2500 where id=pg_temp.ld_id(4,4);
+set local role authenticated;
+select pg_temp.ld_as(2);
+select public.admin_shipment_collect_summaries(array[pg_temp.ld_id(4,1),pg_temp.ld_id(4,3),pg_temp.ld_id(4,4)]) as manager_collect \gset
+select pg_temp.ld_as(6);
+select public.admin_shipment_collect_summaries(array[pg_temp.ld_id(4,1),pg_temp.ld_id(4,3),pg_temp.ld_id(4,4)]) as logistics_collect \gset
+select pg_temp.ld_assert(:'logistics_collect'::jsonb=:'manager_collect'::jsonb
+ and :'logistics_collect'::jsonb->pg_temp.ld_id(4,1)::text='null'::jsonb
+ and :'logistics_collect'::jsonb->pg_temp.ld_id(4,3)::text=jsonb_build_object('collectFee',4000,'collector',jsonb_build_object('name','합성 택배사',
+   'method','수령 시 기사에게 현금','refundContact','합성 고객센터','instructions','착불 배송비는 수령 때 지급합니다.'))
+ -- 영수증 모양이 배열이 아니면 금액만 보이고 수납 정보는 null이다(목록을 깨지 않는다).
+ and :'logistics_collect'::jsonb->pg_temp.ld_id(4,4)::text='{"collectFee":2500,"collector":null}'::jsonb
+ and not (:'logistics_collect'::jsonb)::text ~ '"(shippingFee|total|buyerName|paymentMethod)"',
+ 'per-shipment collect fee and collection terms are visible on the dispatch screen to dispatch-only operators');
+select pg_temp.ld_error('select public.admin_shipment_collect_summaries(array[]::uuid[])','22023');
+-- 출고 권한이 없는 역할(부매니저)은 읽지 못한다.
+select pg_temp.ld_as(3);
+select pg_temp.ld_error(format('select public.admin_shipment_collect_summaries(array[%L]::uuid[])',pg_temp.ld_id(4,3)),'42501');
+reset role;
 rollback;

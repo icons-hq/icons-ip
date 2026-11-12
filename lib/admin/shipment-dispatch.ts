@@ -33,6 +33,8 @@ export interface ShipmentConsoleRow {
  originalExpectedShipDate?:string|null;preorderReady?:boolean;delivery?:ShipmentDeliverySummary|null;
  delayNotice?:ShipmentDelayNoticeSummary;
  pack?:import('./shipment-packs').ShipmentPackSummary|null;
+ /** 착불 배송비와 착불 수납 정보(읽기 전용). 착불이 없으면 null이다. 출고 전용 운영자에게도 보인다(2026-11-12 "착불 금액은 보이게"). */
+ collect?:import('./shipment-collect').ShipmentCollectSummary|null;
  production?:import('@/lib/order-production').ShipmentProductionSummary;
 }
 export interface ShipmentConsoleData {
