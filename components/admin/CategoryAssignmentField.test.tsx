@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, it } from 'vitest';
-import { CategoryAssignmentField, createPrimaryChangeAnnouncer, searchAssignableCategories } from './CategoryAssignmentField';
+import { CategoryAssignmentField, categoryErpMatch, createPrimaryChangeAnnouncer, searchAssignableCategories } from './CategoryAssignmentField';
 import { CategoryTemplatesAvailableProvider } from './CategoryTemplatesAvailability';
 const categories = [
   { id: 'primary', name: '문구', code: 'paper', parentId: null, depth: 1, childCount: 0, sortOrder: 0, archivedAt: null, updatedAt: '', assignedGoodCount: 1 },
@@ -37,6 +37,31 @@ it('카테고리 검색은 이름·상위 경로·코드를 함께 찾고 말단
   expect(searchAssignableCategories(source, 'ＮＯＴＥ－Ａ').map(row => row.id)).toEqual(['note']);
   expect(searchAssignableCategories(source, '문구').map(row => row.id)).toEqual(['note', 'pen']);
   expect(searchAssignableCategories(source, '   ')).toEqual([]);
+});
+
+/* SHEET-042(사용자 결정 2026-11-11 묶음 13): ERP 품목 메뉴에서 분류를 연결해 두면 카테고리 찾기에 ERP 분류명을 쳐도 그 카테고리가 나온다. */
+it('카테고리 검색은 연결된 ERP 분류명으로도 찾고, 그 근거를 결과에 함께 보인다', () => {
+  const source = [
+    { ...categories[0], id: 'root', name: '문구', code: 'stationery', childCount: 2 },
+    { ...categories[0], id: 'keyring', name: '키링', code: 'kr-1', parentId: 'root', depth: 2, erpNames: ['굿즈 > 아크릴 키링', 'ERP-KR'] },
+    { ...categories[0], id: 'pen', name: '펜', code: 'pen-b', parentId: 'root', depth: 2 },
+  ];
+  expect(searchAssignableCategories(source, '아크릴').map(row => row.id)).toEqual(['keyring']);
+  expect(searchAssignableCategories(source, '굿즈>아크릴').map(row => row.id)).toEqual(['keyring']);
+  expect(searchAssignableCategories(source, 'erp-kr').map(row => row.id)).toEqual(['keyring']);
+  expect(searchAssignableCategories(source, '문구').map(row => row.id)).toEqual(['keyring', 'pen']);
+  expect(categoryErpMatch(source, source[1], '아크릴')).toBe('굿즈 > 아크릴 키링');
+  /* 카테고리 경로로 찾은 결과에는 ERP 근거를 덧붙이지 않는다. */
+  expect(categoryErpMatch(source, source[1], '키링')).toBeNull();
+  expect(categoryErpMatch(source, source[2], '아크릴')).toBeNull();
+});
+
+it('ERP 분류 이름을 실은 카테고리가 있을 때만 검색 칸이 ERP 분류명을 말한다', () => {
+  expect(renderToStaticMarkup(<CategoryAssignmentField categories={categories} value="" />)).toContain('placeholder="카테고리명 또는 코드 입력"');
+  const withErp = [{ ...categories[0], erpNames: ['문구 > 노트'] }, categories[1]];
+  const html = renderToStaticMarkup(<CategoryAssignmentField categories={withErp} value="" />);
+  expect(html).toContain('placeholder="카테고리명·코드 또는 ERP 분류명 입력"');
+  expect(html).toContain('카테고리명·코드나 연결된 ERP 분류명을 입력하거나 카테고리명 선택을 이용해주세요.');
 });
 
 it('검색·선택 진입을 제공하면서 폼의 대표 카테고리 값은 보존한다', () => {

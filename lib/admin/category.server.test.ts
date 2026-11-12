@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { loadAdminCategoryExportRows, loadAdminCategoryWorkspace } from './category.server';
+import { loadAdminCategoryExportRows, loadAdminCategoryWorkspace, loadGoodsCategoryOptions } from './category.server';
 
 const mocks = vi.hoisted(() => ({ createClient: vi.fn() }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: mocks.createClient }));
@@ -27,6 +27,7 @@ beforeEach(() => {
       if (table === 'goods_type_category_migrations') return query([]);
       if (table === 'category_activation_control') return query({ id: 'catalog', customer_enabled: true, erp_enabled: false, evidence: { customer: { source: 'sheet', reference: 'CAT-01', verifiedAt: '2026-09-10T00:00:00Z' } }, updated_at: '2026-09-10T00:00:00Z' });
       if (table === 'goods_additional_categories') return query([{ good_id: 'g2', category_id: 'c2' }]);
+      if (table === 'erp_category_mappings') return query([{ erp_category: '굿즈 > 문구', category_id: 'c2' }, { erp_category: '문구', category_id: 'c2' }]);
       return query([{ id: 'g1', category_id: 'c2' }]);
     },
   });
@@ -45,6 +46,18 @@ describe('admin category loader', () => {
     expect(rows[0]).toMatchObject({ path: '생활', erpCode: '미설정' });
     expect(rows[1]).toMatchObject({ path: '생활 > 문구', erpCode: 'ERP-01', assignedGoods: 2 });
   });
+});
+
+/* SHEET-042: 상품·그룹 편집의 카테고리 찾기가 ERP 분류명으로도 찾도록, 연결된 ERP 분류 이름만 싣는다. */
+it('goods category options carry linked ERP category names for search, and stay usable when they cannot be read', async () => {
+  const options = await loadGoodsCategoryOptions();
+  expect(options[0]).not.toHaveProperty('erpNames');
+  expect(options[1]).toMatchObject({ id: 'c2', childCount: 0, erpNames: ['굿즈 > 문구', '문구', 'ERP-01'] });
+  const client = await mocks.createClient();
+  mocks.createClient.mockResolvedValue({ from: (table: string) => table === 'catalog_categories' ? client.from(table) : query(null, { message: 'permission denied' }) });
+  const withoutErp = await loadGoodsCategoryOptions();
+  expect(withoutErp.map(category => category.id)).toEqual(['c1', 'c2']);
+  expect(withoutErp.some(category => 'erpNames' in category)).toBe(false);
 });
 
 it('basic category workspace skips ERP, migration, and activation reads altogether', async () => {
