@@ -195,6 +195,42 @@ set local role authenticated;
 select pg_temp.promo_assert(public.admin_get_discount_promotion('b9200000-0000-4000-8000-0000000000e1')->'discounts'='{"active":0,"ended":1,"disabled":0}'::jsonb,
  'promotion detail still reads ended, not stopped');
 
+-- 5c. 그룹상품 전환(20261112200500): 옵션을 새 상품으로 나눌 때 복사한 기간 할인도 프로모션 출처를 지켜, 묶음 중지가 전환된 상품의
+--     할인까지 끈다(1014-109·110 묶음 단위 중지). 원상품에서 나간 옵션의 원래 행은 전환이 끄고 출처는 그대로다.
+reset role;
+insert into public.ips(id,title,vertical_key) values('promo-ip-group','TEST 프로모션 그룹 IP','character');
+insert into public.goods(id,ip_id,name,type,price,stock,stock_qty) values('promo-h','promo-ip-group','TEST 프로모션 H 그룹 전환','문구',10000,'ok',4);
+insert into public.goods_variants(id,good_id,name,attributes,price,stock_qty,sort_order,is_default)
+values('b9200000-0000-4000-8000-0000000000c2','promo-h','파랑','{"색상":"파랑"}',12000,3,1,false);
+select id as h_first_variant from public.goods_variants where good_id='promo-h' and is_default \gset
+set local role authenticated;
+select pg_temp.promo_preview(9,pg_temp.promo_request('{"kind":"goods","ids":["promo-h"]}','{"mode":"rate","value":10}','[]','TEST 그룹 전환 10%')) as group_promo_preview \gset
+select pg_temp.promo_assert((pg_temp.promo_commit(9)->>'periodCount')::int=2,'the promotion discounts both options before the conversion');
+select jsonb_build_object('sourceGoodId','promo-h','name','TEST 프로모션 H 그룹','optionNames',jsonb_build_array('색상'),
+ 'selections',jsonb_build_array(jsonb_build_object('variantId',:'h_first_variant','values',jsonb_build_array('빨강')),
+  jsonb_build_object('variantId','b9200000-0000-4000-8000-0000000000c2','values',jsonb_build_array('파랑')))) as group_request \gset
+select public.admin_preview_goods_group_conversion(:'group_request','b9200000-0000-4000-8000-000000000001','b9200000-0000-4000-8000-000000000011') as group_preview \gset
+select pg_temp.promo_assert(:'group_preview'::jsonb->>'state'='ready','group conversion preview is ready');
+select public.admin_confirm_goods_group_conversion((:'group_preview'::jsonb->>'previewId')::uuid,'b9200000-0000-4000-8000-0000000000c5',
+ 'b9200000-0000-4000-8000-000000000001','b9200000-0000-4000-8000-000000000011') as group_receipt \gset
+reset role;
+select :'group_receipt'::jsonb#>>'{group,members,1,goodId}' as h_new_good \gset
+select pg_temp.promo_assert((select count(*)=1 and bool_and(promotion_id=md5('promo-test:9')::uuid and state='active' and regular_price=12000 and discount_price=10800)
+  from private.goods_variant_price_periods where good_id=:'h_new_good')
+ and (select state='disabled' and promotion_id=md5('promo-test:9')::uuid from private.goods_variant_price_periods where variant_id='b9200000-0000-4000-8000-0000000000c2'),
+ 'the copied discount keeps its promotion source and the moved option''s original row is disabled with its source');
+set local role authenticated;
+select pg_temp.promo_assert(public.admin_get_discount_promotion(md5('promo-test:9')::uuid)->'discounts'='{"active":2,"ended":0,"disabled":1}'::jsonb,
+ 'the promotion summary counts the converted product''s discount');
+select pg_temp.promo_stop(9,9) as group_stop \gset
+select pg_temp.promo_assert((:'group_stop'::jsonb->>'disabledCount')::int=2 and (:'group_stop'::jsonb->>'goodsCount')::int=2,
+ 'the bundle stop reaches the converted product');
+reset role;
+select pg_temp.promo_assert(not exists(select 1 from private.goods_variant_price_periods where promotion_id=md5('promo-test:9')::uuid and state='active')
+ and (select effective_price=12000 from private.resolve_goods_variant_price((select id from public.goods_variants where good_id=:'h_new_good' and archived_at is null),now()+interval '2 days')),
+ 'no discount of the stopped promotion survives on the converted product');
+set local role authenticated;
+
 -- 6. 입력 검증.
 select pg_temp.promo_error($q$select pg_temp.promo_preview(7,'{"name":"x"}')$q$,'discount_promotion_invalid');
 select pg_temp.promo_error($q$select pg_temp.promo_preview(7,pg_temp.promo_request('{"kind":"goods","ids":["promo-a"]}','{"mode":"rate","value":100}'))$q$,'discount_promotion_invalid');
