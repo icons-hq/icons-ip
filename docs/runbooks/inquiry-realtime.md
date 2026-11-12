@@ -61,7 +61,7 @@ node supabase/tests/inquiry_realtime_delivery.mjs
 - `20261020085531_inquiry_file_filename_contract.sql`: 다운로드 파일명과 검증된 MIME의 확장자 일치 제약.
 - `20261020085532_inquiry_file_session_lock_order.sql`: 권한 회수와 같은 계정 작업→프로필 잠금 순서로 세션검사 교착 방지.
 
-추가 SQL 회귀는 격리 DB에서 `supabase/tests/inquiry_chat_console.sql`을 실행한다. 실제 역할로 필터/정렬/페이지, 읽음 분리, 미표시 메시지 보존, 태그 멱등/제한/감사, 접근 권한과 최소 ACL을 확인하고 합성 fixture를 전부 롤백한다. 브라우저에서는 합성 고객 새 문의→운영자 실시간 수신/읽음→사진·문구 답변→고객 실시간 수신→담당자/메모/태그→상담완료와 새로고침 후 저장 상태를 확인한다. 태그 전송을 실패시켜 입력 보존과 재시도도 확인한다.
+추가 SQL 회귀는 `supabase/tests/inquiry_chat_console.sql`이다(CI DB 검증의 storefront 샤드에서 돌고, 로컬은 격리 DB에서 실행한다). 실제 역할로 필터/정렬/페이지, 읽음 분리, 미표시 메시지 보존, 태그 멱등/제한/감사, 접근 권한과 최소 ACL을 확인하고 합성 fixture를 전부 롤백한다. 브라우저에서는 합성 고객 새 문의→운영자 실시간 수신/읽음→사진·문구 답변→고객 실시간 수신→담당자/메모/태그→상담완료와 새로고침 후 저장 상태를 확인한다. 태그 전송을 실패시켜 입력 보존과 재시도도 확인한다.
 
 ### 상담 사진·파일 보관함
 
