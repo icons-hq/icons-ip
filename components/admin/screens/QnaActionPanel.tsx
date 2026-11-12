@@ -54,7 +54,7 @@ export function QnaActionPanel({ question, triggerLabel, accountId = '', inline 
       <div className="flex min-w-0 flex-col gap-5 text-sm">
         <dl className={RECORD_META_CLASS}>
           <div className={RECORD_META_ITEM_CLASS}><dt>상품</dt><dd><Link className={RECORD_LINK_CLASS} href={goodQuestionsHref(question.goodId)}>{question.goodName}</Link></dd></div>
-          <div className={RECORD_META_ITEM_CLASS}><dt>상품번호</dt><dd className="tabular-nums">{question.goodId}</dd></div>
+          <div className={RECORD_META_ITEM_CLASS}><dt>상품 URL</dt><dd className="tabular-nums">{question.goodId}</dd></div>
           <div className={RECORD_META_ITEM_CLASS}><dt>작성자</dt><dd>@{question.authorName}</dd></div>
           <div className={RECORD_META_ITEM_CLASS}><dt>작성일</dt><dd className="tabular-nums">{formatAdminProductQuestionDateTime(question.createdAt)}</dd></div>
           <div className={RECORD_META_ITEM_CLASS}><dt>노출 상태</dt><dd className="flex flex-wrap items-center gap-1.5"><AdminStatusBadge tone={statusTone('questionVisibility', hidden ? 'hidden' : 'visible')}>{hidden ? '비노출' : '공개'}</AdminStatusBadge>{question.secret ? <AdminStatusBadge data-secret-badge="" tone="neutral">비밀글</AdminStatusBadge> : null}</dd></div>

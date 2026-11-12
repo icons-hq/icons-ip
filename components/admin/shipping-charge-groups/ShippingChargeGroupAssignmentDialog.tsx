@@ -124,7 +124,7 @@ export function ShippingChargeGroupAssignmentDialog({ group, identity, scope, ca
       {!preview ? <>
         <form className="grid min-w-0 grid-cols-1 items-end gap-3 rounded-lg border bg-muted/40 p-3 sm:grid-cols-[minmax(10rem,1fr)_minmax(14rem,2fr)_auto]" onSubmit={event => { event.preventDefault(); void search({ originId: group.originId, groupId: onlyAssigned ? group.id : null, query: query.trim(), page: 1 }); }}>
           <label className={FIELD_LABEL}>조회 범위<NativeSelect className="w-full" value={onlyAssigned ? 'assigned' : 'all'} disabled={locked} onChange={event => setOnlyAssigned(event.target.value === 'assigned')}><option value="assigned">현재 그룹에 연결된 상품</option><option value="all">같은 출고지의 전체 상품</option></NativeSelect></label>
-          <label className={FIELD_LABEL}>상품명·상품코드·상품번호<Input value={query} maxLength={100} disabled={locked} onChange={event => setQuery(event.target.value)} /></label>
+          <label className={FIELD_LABEL}>상품명·판매자상품코드·상품 URL<Input value={query} maxLength={100} disabled={locked} onChange={event => setQuery(event.target.value)} /></label>
           <Button disabled={locked} type="submit" variant="soft"><Search aria-hidden="true" />상품 조회</Button>
         </form>
         <p className={NOTE}>선택 {selected.length}개 / 최대 {SHIPPING_CHARGE_GROUP_GOOD_LIMIT}개 · 조회 {rows?.total.toLocaleString('ko-KR') ?? '—'}개 · 선택은 조회 범위를 바꾸어도 유지됩니다.</p>

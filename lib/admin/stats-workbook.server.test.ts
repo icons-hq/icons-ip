@@ -16,7 +16,7 @@ describe('통계 엑셀', () => {
     expect(book.getWorksheet('매출 추이')?.getCell('C3').value).toBe(0);
     expect(book.getWorksheet('상품 전체')?.getCell('B2').value).toBe('0000123');
     expect(book.getWorksheet('상품 전체')?.getCell('C2').type).toBe(ExcelJS.ValueType.String);
-    expect(book.getWorksheet('상품 전체')?.getRow(1).values).toEqual([, '순위', '상품번호', '상품명', 'IP', '수량', '금액']);
+    expect(book.getWorksheet('상품 전체')?.getRow(1).values).toEqual([, '순위', '상품 URL', '상품명', 'IP', '수량', '금액']);
     expect(book.getWorksheet('매출 추이')?.getCell('C1').font).toMatchObject({ name: '맑은 고딕', size: 10, bold: true }); expect(book.getWorksheet('매출 추이')?.getCell('C2').numFmt).toBe('#,##0');
     expect(book.getWorksheet('매출 추이')?.getRow(1).height).toBe(22); expect(book.worksheets.at(-1)?.name).toBe('내려받기 정보');
     expect(book.getWorksheet('비교 매출 추이')?.getCell('A2').value).toBe('2026-09-29');

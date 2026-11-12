@@ -72,7 +72,7 @@ export function parseGoodsRelationInput(input: unknown): { ok: true; id: string;
   if (!Array.isArray(value.goodIds) || value.goodIds.length < 2 || value.goodIds.length > maximum
     || value.goodIds.some(id => typeof id !== 'string' || !/^[a-z0-9][a-z0-9-]*$/.test(id))
     || new Set(value.goodIds).size !== value.goodIds.length || !value.goodIds.includes(value.representativeGoodId)) return { ok: false, error: `대표 상품을 포함해 서로 다른 상품을 2~${maximum}개 선택해주세요.` };
-  if (kind === 'other_composition' && value.goodIds.some(id => id.length > 120)) return { ok: false, error: '다른 구성 상품의 상품번호를 확인해주세요.' };
+  if (kind === 'other_composition' && value.goodIds.some(id => id.length > 120)) return { ok: false, error: '다른 구성 상품의 상품 URL을 확인해주세요.' };
   const visual = parseGoodsRelationVisual(value.visual, value.goodIds as string[]);
   if (visual === false || kind === 'codi' && !visual || (kind === 'similar' || kind === 'other_composition') && visual) return { ok: false, error: '이미지 업로드·대체 설명·상품 태그 위치를 확인해주세요. 코디는 이미지가 필요하고 유사상품·다른 구성은 목록형만 지원합니다.' };
   const compositionLabels = kind === 'other_composition' ? parseCompositionLabels(value.compositionLabels ?? [], value.goodIds as string[]) : undefined;

@@ -34,7 +34,7 @@ export function GoodsRelationProductPicker({ value, limit, onApply, onClose }: {
   }
   return <CustomerServiceDialog title="연관상품 찾기" onClose={onClose} wide>
     <div className="flex min-w-0 flex-col gap-4">
-      <div className="flex flex-col gap-2"><label className="text-sm font-medium" htmlFor="relation-good-query">상품명·상품코드·상품번호</label><div className="flex gap-2"><Input className="min-w-0 flex-1" id="relation-good-query" maxLength={100} value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); void search(1); } }} /><Button type="button" disabled={pending} onClick={() => { void search(1); }} variant="soft">검색</Button></div></div>
+      <div className="flex flex-col gap-2"><label className="text-sm font-medium" htmlFor="relation-good-query">상품명·판매자상품코드·상품 URL</label><div className="flex gap-2"><Input className="min-w-0 flex-1" id="relation-good-query" maxLength={100} value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); void search(1); } }} /><Button type="button" disabled={pending} onClick={() => { void search(1); }} variant="soft">검색</Button></div></div>
       <GoodUrlAddField disabled={pending} onAdd={async id => {
         if (selected.some(item => item.id === id)) return { ok: false, message: GOOD_URL_ERRORS.exists };
         if (selected.length >= limit) return { ok: false, message: `대표 상품을 포함해 최대 ${limit}개까지 선택할 수 있습니다.` };

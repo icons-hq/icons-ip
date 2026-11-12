@@ -16,7 +16,7 @@ export async function resolveGoodReferencesAction(refs: unknown): Promise<GoodRe
     if (!await requireAdminActionAccess('/admin', { capability: 'catalog.read' })) return { ok: false, error: ACCESS_DENIED };
     if (!Array.isArray(refs) || refs.length < 1 || refs.length > GOOD_REFERENCE_LIMIT
       || refs.some(ref => typeof ref !== 'string' || ref !== ref.trim() || !ref || [...ref].length > GOOD_REFERENCE_MAX_LENGTH)
-      || new Set(refs).size !== refs.length) return { ok: false, error: '조회할 상품 URL·상품코드를 확인해주세요.' };
+      || new Set(refs).size !== refs.length) return { ok: false, error: '조회할 상품 URL·판매자상품코드를 확인해주세요.' };
     const { resolveGoodReferences } = await import('@/lib/admin/good-references.server');
     return { ok: true, matches: await resolveGoodReferences(refs as string[]) };
   } catch (error) {
@@ -34,7 +34,7 @@ export async function readGoodReferenceFileAction(formData: FormData): Promise<G
     if (!(file instanceof File) || file.size === 0) return { ok: false, error: '읽을 파일을 선택해주세요.' };
     if (/\.xls$/i.test(file.name)) return { ok: false, error: 'XLS 파일은 엑셀에서 XLSX로 다시 저장하거나, 열을 복사해 붙여넣어 주세요.' };
     if (!/\.(xlsx|csv|tsv|txt)$/i.test(file.name)) return { ok: false, error: 'XLSX 또는 CSV 파일을 올려주세요.' };
-    if (file.size > ERP_ITEM_FILE_BYTES_LIMIT) return { ok: false, error: '파일은 900KB 이하로 올려주세요. 상품코드·URL 한 열만 남겨 저장해주세요.' };
+    if (file.size > ERP_ITEM_FILE_BYTES_LIMIT) return { ok: false, error: '파일은 900KB 이하로 올려주세요. 판매자상품코드·상품 URL 한 열만 남겨 저장해주세요.' };
     const { readErpItemFile } = await import('@/lib/admin/erp-item-file.server');
     const read = await readErpItemFile(file.name, Buffer.from(await file.arrayBuffer()));
     const width = Math.max(0, ...read.table.map(row => row.length));

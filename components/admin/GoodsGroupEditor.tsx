@@ -160,7 +160,7 @@ export function GoodsGroupEditor({ initial, newGroupId, actorId, sessionId, titl
       {comparison ? <AdminSectionCard title="저장 전 확인"><p className="text-sm">{comparison.name} · {comparison.members.length}개 판매옵션</p><ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
         <li>이름은 그룹상품명과 옵션값을 합쳐 저장합니다. 구성 상품 전체가 미공개로 바뀌고 KC 재검토가 필요합니다.</li>
         <li>제외할 상품 {removed.length}개는 개별 상품으로 남습니다. 상품을 합치거나 재고를 옮기지 않습니다.</li><li>공통 상품정보가 서로 같은 상품만 연결할 수 있습니다.</li><li>기존 합산 할인·배송비·구매한도는 그대로 적용됩니다.</li></ul>
-        <GroupTable label="저장할 판매옵션"><TableHeader><TableRow><TableHead>상품번호</TableHead><TableHead>저장할 상품명</TableHead></TableRow></TableHeader><TableBody>{comparison.members.map(row => <TableRow key={row.goodId}><TableCell>{row.goodId}</TableCell><TableCell className="whitespace-normal">{comparison.name} {row.values.join(' / ')}</TableCell></TableRow>)}</TableBody></GroupTable>
+        <GroupTable label="저장할 판매옵션"><TableHeader><TableRow><TableHead>상품 URL</TableHead><TableHead>저장할 상품명</TableHead></TableRow></TableHeader><TableBody>{comparison.members.map(row => <TableRow key={row.goodId}><TableCell>{row.goodId}</TableCell><TableCell className="whitespace-normal">{comparison.name} {row.values.join(' / ')}</TableCell></TableRow>)}</TableBody></GroupTable>
         <label className={CHECK}><input type="checkbox" checked={approved} disabled={locked} onChange={event => setApproved(event.target.checked)} /> 변경 내용과 미공개·KC 재검토를 확인했습니다.</label>
         <Button className="self-start" type="button" disabled={locked || !approved} onClick={save}>이 구성으로 저장</Button></AdminSectionCard> : null}
       {stored && !stored.archivedAt ? <AdminSectionCard title="그룹 연결 해제"><p className="text-sm">그룹 연결을 모두 해제합니다. 개별 상품의 번호·가격·재고와 기존 합산 조건은 유지됩니다.</p>

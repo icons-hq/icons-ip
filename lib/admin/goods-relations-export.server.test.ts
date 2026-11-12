@@ -71,7 +71,7 @@ describe('연관상품 XLSX 원문 검증', () => {
     expect(members.getCell('D3').value).toBe('대표'); expect(members.getCell('H3').value).toBe('불가');
     expect(info.getCell('B3').value).toBe(filters.query); expect(info.getCell('B4').value).toBe('함께 사면 좋은 상품');
     expect(info.getCell('B11').value).toContain('단일 DB 스냅샷은 아닙니다');
-    expect(grouping.getRow(1).values).toEqual([, '편성 ID', '노출 제목', '유형', '전시상태', '전시 사용', '대표 상품번호', '대표 상품코드', '대표 상품명', '구성 상품수', '공개 상품수', '시작일시', '종료일시', '등록일시', '수정일시', '편성 버전']);
+    expect(grouping.getRow(1).values).toEqual([, '편성 ID', '노출 제목', '유형', '전시상태', '전시 사용', '대표 상품 URL', '대표 판매자상품코드', '대표 상품명', '구성 상품수', '공개 상품수', '시작일시', '종료일시', '등록일시', '수정일시', '편성 버전']);
     expect(grouping.getCell('A1').font).toMatchObject({ name: '맑은 고딕', size: 10, bold: true }); expect(grouping.getCell('A1').fill).toMatchObject({ fgColor: { argb: 'FFEFF2F0' } });
   });
   it('최대 2,000편성/20,000구성 행을 파일로 다시 읽어 끝 행까지 확인한다', async () => {

@@ -15,7 +15,7 @@ export function orderItemsExportSheet(rows: AdminOrderItemRow[], filters: AdminO
     columns: [
       { header: '상품주문번호', kind: 'code', width: 22 }, { header: '주문번호', kind: 'code', width: 22 },
       { header: '주문 상태', kind: 'text', width: 12 }, { header: '주문일시', kind: 'text', width: 17 },
-      { header: '상품번호', kind: 'code', width: 28 }, { header: '상품명', kind: 'text', width: 36 },
+      { header: '상품 URL', kind: 'code', width: 28 }, { header: '상품명', kind: 'text', width: 36 },
       { header: '옵션', kind: 'text', width: 20 }, { header: '옵션코드', kind: 'code', width: 18 },
       { header: '직접 입력 옵션', kind: 'text', width: 36 }, { header: '수량', kind: 'count', width: 8 },
       { header: '판매가', kind: 'amount', width: 12 }, { header: '상품 금액', kind: 'amount', width: 12 },
