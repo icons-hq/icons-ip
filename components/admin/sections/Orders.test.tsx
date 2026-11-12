@@ -736,7 +736,8 @@ describe('OrdersSection', () => {
 
     expect(html).toContain('123456789012');
     expect(html).toContain('운송장 수정');
-    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>운송장 수정</);
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>운송장 저장</);
+    expect(html).toMatch(/<details[^>]*data-tracking-edit=""><summary[^>]*>운송장 수정<svg/);
     expect(html).toContain('data-confirm="운송장번호를 수정할까요? 변경 이력이 감사 로그에 남습니다."');
   });
 

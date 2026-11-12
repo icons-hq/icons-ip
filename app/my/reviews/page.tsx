@@ -13,12 +13,13 @@ export const metadata: Metadata = {
 };
 
 /* 리뷰 읽기는 공개지만 "내 리뷰"는 내 주문 목록이다 — 진입 자체에 로그인이 필요하다. */
-export default async function Page() {
+export default async function Page({ searchParams }: PageProps<'/my/reviews'>) {
+  const registered = (await searchParams).registered === '1';
   const auth = await getCurrentAuthState();
   if (!auth.user) redirect(`/login?next=${encodeURIComponent('/my/reviews')}`);
   if (!isOnboarded(auth.profile, auth.user.email)) redirect(onboardingPath('/my/reviews'));
 
   const targets = await loadMyReviewTargets();
   const [events, entries] = await Promise.all([loadGoodsReviewEvents(targets.filter(target => target.writable).map(target => target.goodId)), loadMyReviewEventEntries(targets.flatMap(target => target.review ? [target.review.id] : []))]);
-  return <MyReviews targets={targets} reviewEvents={events} eventEntries={entries} />;
+  return <MyReviews registered={registered} targets={targets} reviewEvents={events} eventEntries={entries} />;
 }

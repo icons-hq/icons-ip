@@ -19,7 +19,7 @@ import { OrderReshipmentHistory } from '@/components/orders/OrderReshipmentHisto
 import { OrderClaimRequest } from '@/components/orders/OrderClaimRequest';
 import { OrderRefundDeduction } from '@/components/orders/OrderRefundDeduction';
 import { OrderPartialCancellations } from '@/components/orders/OrderPartialCancellations';
-import type { OrderPartialCancellationRecord } from '@/lib/orders/partial-cancellation';
+import { partialCanceledQtyByItem, partialCancellationRefundTotal, type OrderPartialCancellationRecord } from '@/lib/orders/partial-cancellation';
 import type { MyOrderRefundDeduction, ReturnFeeDeductionPolicy } from '@/lib/claims/return-fee-deduction';
 import { PurchaseConfirmationPanel } from '@/components/orders/PurchaseConfirmationPanel';
 import { newInquiryHref } from '@/lib/inquiries';
@@ -252,6 +252,12 @@ export function OrderDetail({
 }) {
   const date = formatOrderDate(order.createdAt);
   const at = now ?? new Date();
+  /* 부분 취소(재고 부족) 뒤에는 주문 품목 수량이 원 수량 그대로다 — 고객에게는 남은 수량을 말하고 취소된 몫을 따로 적는다. */
+  const canceledQtyByItem = partialCanceledQtyByItem(partialCancellations);
+  const remainingItems = order.items.map(item => ({ ...item, canceledQty: Math.min(item.qty, canceledQtyByItem.get(item.id) ?? 0) }))
+    .map(item => ({ ...item, qty: item.qty - item.canceledQty }));
+  const partialRefundTotal = partialCancellationRefundTotal(partialCancellations);
+  const paidAmount = order.transaction?.totals.onlineTotal ?? order.total;
   const hasPhysicalItems = order.items.some(item => order.transaction?.lines.find(line => line.lineId === item.id)?.fulfillment?.mode !== 'digital' && !downloads?.items.some(file => file.itemId === item.id));
   const digitalOnly = order.items.length > 0 && !hasPhysicalItems;
   /* 결제를 마치지 않은 주문은 결제수단으로 말한다 — 무통장은 '입금 대기'·'입금을 기다리고 있어요'(QA1 S-D2-12). 진행 중인 취소
@@ -362,7 +368,7 @@ export function OrderDetail({
           </div>
 
           <div className="order-detail-items">
-            {order.items.map((item) => (
+            {remainingItems.map((item) => (
               <article className="order-detail-item" key={item.id}>
                 <div className="order-detail-item-copy">
                   <span>{item.type}</span>
@@ -370,7 +376,7 @@ export function OrderDetail({
                   {item.variantName ? <p>{item.variantName}</p> : null}<GoodsCustomInputsSummary selection={item.customInputs} />
                 </div>
                 <dl className="order-detail-item-numbers">
-                  <div><dt>수량</dt><dd>{item.qty}개</dd></div>
+                  <div><dt>수량</dt><dd>{item.qty}개{item.canceledQty > 0 ? <small data-order-item-canceled={item.canceledQty}> · {item.canceledQty}개 취소됨</small> : null}</dd></div>
                   <div><dt>단가</dt><dd>{krw(item.unitPrice)}</dd></div>
                 </dl>
                 {/* 수량이 1이면 줄 합계가 단가와 같은 금액이라 두 번 말하지 않는다(10/14 회의 S21). */}
@@ -412,7 +418,7 @@ export function OrderDetail({
           {/* 진행 중인 취소가 있으면 반품·교환 패널을 그리지 않는다. 어차피 접수할
               수 없고(주문당 활성 클레임 1건), 그리면 취소 클레임의 상태를 다시
               말하게 된다. 취소가 끝나거나 거절된 뒤에는 다시 연다. */}
-          {viewerId && ['delivered', 'done'].includes(order.status) ? <PurchaseConfirmationPanel key={order.id} orderId={order.id} actorId={viewerId} /> : null}
+          {viewerId && ['delivered', 'done'].includes(order.status) ? <PurchaseConfirmationPanel key={order.id} orderId={order.id} actorId={viewerId} claimOpen={Boolean(claimRequest && isOpenOrderClaimStage(claimRequest.stage))} /> : null}
           {!activeCancelClaim ? (
             <OrderClaimRequest
               claim={isCancelClaim ? null : claimRequest}
@@ -478,6 +484,10 @@ export function OrderDetail({
             <div><dt>배송비</dt><dd>{shippingFeeLabel(order.shippingFee)}</dd></div>
             <div className="checkout-total"><dt>총 결제 금액</dt><dd>{krw(order.total)}</dd></div>
           </dl>}
+          {partialRefundTotal > 0 ? <dl className="checkout-totals" data-order-partial-refund-summary="">
+            <div><dt>부분 취소 환불 합계</dt><dd>−{krw(partialRefundTotal)}</dd></div>
+            <div className="checkout-total"><dt>남은 결제 금액</dt><dd>{krw(Math.max(0, paidAmount - partialRefundTotal))}</dd></div>
+          </dl> : null}
 
           <section className="order-receipt-section" aria-labelledby="shipping-address-heading">
             <h3 id="shipping-address-heading">배송지</h3>
@@ -492,7 +502,7 @@ export function OrderDetail({
             )}
           </section>
 
-          <ShipmentDetails shipments={order.shipments} items={order.items} transactionShipping={order.transaction?.shipping} />
+          <ShipmentDetails shipments={order.shipments} items={remainingItems} transactionShipping={order.transaction?.shipping} />
 
           <section className="order-receipt-section" aria-labelledby="payment-summary-heading">
             <h3 id="payment-summary-heading">결제 정보</h3>

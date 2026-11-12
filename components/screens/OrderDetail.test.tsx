@@ -477,3 +477,41 @@ describe('OrderDetail 다시 결제 진입', () => {
     expect(renderToStaticMarkup(<OrderDetail order={order({ status: 'canceled' })} />)).not.toContain('결제 없이 취소된 주문이에요');
   });
 });
+
+describe('OrderDetail 부분 취소 뒤 표시(QA2)', () => {
+  const partial = {
+    id: 'cccccccc-0000-4000-8000-000000000001', sequence: 1, state: 'completed' as const, provider: 'toss' as const, refundAmount: 9_500, goodsRefundAmount: 9_500,
+    shippingRefundAmount: 0, storeCreditRestoreAmount: 0, createdAt: '2026-11-12T05:00:00Z', appliedAt: '2026-11-12T05:00:05Z',
+    completedAt: '2026-11-12T05:00:05Z', transferredAt: null, closedShipmentCount: 0,
+    items: [{ orderItemId: 'item-1', goodName: '홍실 아크릴 블록', variantName: null, qty: 1, goodsRefundAmount: 9_500 }],
+  };
+  const twoQty = order({ items: [{ id: 'item-1', variantId: '00000000-0000-4000-8000-000000000001', goodId: 'g13', name: '홍실 아크릴 블록', type: '아크릴 블록', qty: 2, unitPrice: 13_500 }] });
+
+  it('굿즈 줄과 배송 묶음 카드는 남은 수량을 말하고 취소된 수량을 적는다', () => {
+    const html = renderToStaticMarkup(<OrderDetail order={twoQty} partialCancellations={[partial]} />);
+    expect(html).toContain('<dd>1개<small data-order-item-canceled="1"> · 1개 취소됨</small></dd>');
+    expect(html).toContain('홍실 아크릴 블록 × 1 (1개 취소됨)');
+    expect(html).not.toContain('× 2');
+  });
+
+  it('결제 금액 칸에 부분 취소 환불 합계와 남은 결제 금액을 보인다', () => {
+    const html = renderToStaticMarkup(<OrderDetail order={twoQty} partialCancellations={[partial]} />);
+    expect(html).toContain('부분 취소 환불 합계');
+    expect(html).toContain('−₩9,500');
+    expect(html).toContain('남은 결제 금액');
+    expect(html).toContain('₩20,500');
+  });
+
+  it('부분 취소가 없으면 두 줄도 취소 표시도 없다', () => {
+    const html = renderToStaticMarkup(<OrderDetail order={twoQty} />);
+    expect(html).not.toContain('부분 취소 환불 합계');
+    expect(html).not.toContain('취소됨');
+  });
+
+  it("'송금 완료' 줄은 부분 취소 적용 시각이 아니라 송금 완료 시각을 쓴다", () => {
+    const html = renderToStaticMarkup(<OrderDetail order={twoQty} partialCancellations={[{ ...partial, provider: 'bank_transfer', completedAt: '2026-11-13T01:00:00Z', transferredAt: '2026-11-13T02:30:00Z' }]} />);
+    expect(html).toContain('환불계좌로 송금 완료');
+    expect(html).toContain('dateTime="2026-11-13T02:30:00Z"');
+    expect(html).not.toContain('dateTime="2026-11-12T05:00:05Z"');
+  });
+});

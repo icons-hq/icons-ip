@@ -21,8 +21,8 @@ function decls(selector: string, media: string | null = null): Record<string, st
 }
 
 describe('검색 오버레이 한 덩어리 배경', () => {
-  it('기본형 헤더는 지금처럼 흰 패널이다(로고 행과 같은 바탕)', () => {
-    expect(decls('.wc-search')).toMatchObject({ background: 'var(--wc-surface)', 'border-top': '1px solid var(--wc-hairline-soft)' });
+  it('기본형 헤더는 지금처럼 흰 패널이고 위에 보이는 선이 없다(로고 행과 같은 바탕)', () => {
+    expect(decls('.wc-search')).toMatchObject({ background: 'var(--wc-surface)', 'border-top': '1px solid transparent' });
   });
 
   it('컬러형 헤더는 패널이 헤더 색·글자색을 이어 받고 경계선을 지운다', () => {

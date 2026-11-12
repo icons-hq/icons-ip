@@ -3495,3 +3495,13 @@ div.bannerCard { cursor: default; }
 .openingSkip:disabled { opacity: .7; cursor: wait; }
 .openingSkip:hover { background: #202423; }
 .openingSkip:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+/* 360×560 같은 좁고 낮은 화면에서는 대사 열이 위로 밀려 올라와 큰 스킵 버튼이 대사 끝을 가렸다(QA2). 버튼을 작게·위로 붙여 대사 영역을 비운다. */
+@media (max-width: 400px), (max-height: 600px) {
+  .openingSkip {
+    top: max(52px, env(safe-area-inset-top));
+    right: max(12px, env(safe-area-inset-right));
+    min-height: 36px;
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+}

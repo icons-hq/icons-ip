@@ -6,10 +6,11 @@ import { OrderClaimFees } from '@/components/orders/ClaimFeePanel';
 import { useCallback, useState } from 'react';
 import { reloadGiftClaimAction, requestGiftClaimAction, setGiftRefundAccountAction, withdrawGiftClaimAction } from '@/app/gifts/claim-actions';
 import type { GiftClaimContext } from '@/lib/gift-claims';
+import { NO_RETURN_PICKUP, returnPickupCollectingNotice, type OrderReturnPickup } from '@/lib/orders/return-pickup';
 import { GiftRequestFeedback } from './GiftParts';
 import { useGiftRequest, useGiftUnsaved } from './useGiftRequest';
 const STAGES: Record<string, string> = { requested: '접수', in_review: '확인 중', collecting: '수거 중', collected: '입고 완료', on_hold: '보류', processing: '처리 중', needs_review: '확인 필요', completed: '완료', rejected: '반려', withdrawn: '철회' };
-export function GiftClaims({ actorId, orderId, initialContext }: { actorId: string; orderId?: string; initialContext: GiftClaimContext }) {
+export function GiftClaims({ actorId, orderId, initialContext, returnPickup = NO_RETURN_PICKUP }: { actorId: string; orderId?: string; initialContext: GiftClaimContext; returnPickup?: OrderReturnPickup }) {
   const [context, setContext] = useState(initialContext), [type, setType] = useState<'return' | 'exchange'>('return'), [reason, setReason] = useState<'change_of_mind' | 'defect'>('change_of_mind');
   const [bankName, setBankName] = useState(''), [accountNumber, setAccountNumber] = useState(''), [accountHolder, setAccountHolder] = useState(''), [notice, setNotice] = useState('');
   const lost = useCallback(() => { setContext(previous => ({ ...previous, canRequest: false, claim: null, reshipmentHistory: [], reshipmentParcels: [] })); setBankName(''); setAccountNumber(''); setAccountHolder(''); setNotice(''); }, []);
@@ -22,6 +23,7 @@ export function GiftClaims({ actorId, orderId, initialContext }: { actorId: stri
     <OrderReshipmentHistory receipts={context.reshipmentHistory ?? []} parcels={parcels} />
     {orderId ? <OrderClaimFees actorId={actorId} orderId={orderId} /> : null}
     {claim ? <div><p>{({ cancel: '취소', return: '반품', exchange: '교환' })[claim.type]} · {STAGES[claim.stage]}</p>
+      {claim.stage === 'collecting' && context.isRecipient && returnPickupCollectingNotice(returnPickup) ? <p data-gift-return-pickup-notice="">{returnPickupCollectingNotice(returnPickup)}</p> : null}
       {claim.reshipTrackingNumber && !claimParcelShown ? <p>교환 굿즈 {claim.reshipCarrier} · {claim.reshipTrackingNumber}</p> : null}
       {orderId && (claim.type === 'return' || claim.type === 'exchange') ? <><ClaimCollectionPlan actorId={actorId} claimId={claim.id} /><ClaimContactHistory key={claim.id} actorId={actorId} orderId={orderId} claimId={claim.id} /></> : null}
       {claim.canWithdraw ? <button type="button" disabled={request.locked} onClick={() => {

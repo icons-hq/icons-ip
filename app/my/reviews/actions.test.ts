@@ -78,7 +78,7 @@ beforeEach(() => {
 
 describe('createReviewAction', () => {
   it('자격 판정을 RPC에 맡기고 값만 넘긴다', async () => {
-    await expect(createReviewAction({}, createForm())).rejects.toThrow('NEXT_REDIRECT:/my/reviews');
+    await expect(createReviewAction({}, createForm())).rejects.toThrow('NEXT_REDIRECT:/my/reviews?registered=1');
 
     expect(mocks.rpc).toHaveBeenCalledWith('create_good_review_v3', {
       target_kind: 'ordinary',
@@ -95,7 +95,7 @@ describe('createReviewAction', () => {
 
   /* 리뷰 등록은 구매확정을 겸한다(1014-079). 체크는 안내를 본 기록일 뿐이고 확정할지는 DB가 정한다. */
   it('구매확정 안내 확인 체크를 함께 넘긴다', async () => {
-    await expect(createReviewAction({}, createForm({ confirmPurchase: 'on' }))).rejects.toThrow('NEXT_REDIRECT:/my/reviews');
+    await expect(createReviewAction({}, createForm({ confirmPurchase: 'on' }))).rejects.toThrow('NEXT_REDIRECT:/my/reviews?registered=1');
 
     expect(mocks.rpc.mock.calls[0][1]).toMatchObject({ p_acknowledged: true, p_actor: USER_ID, p_session: SESSION_ID });
   });
@@ -130,7 +130,7 @@ describe('createReviewAction', () => {
   it('리뷰와 함께 구매확정했으면 주문·적립금 화면도 새로 그린다', async () => {
     mocks.rpc.mockResolvedValue({ data: { reviewId: REVIEW_ID, purchaseConfirmed: true }, error: null });
 
-    await expect(createReviewAction({}, createForm({ confirmPurchase: 'on' }))).rejects.toThrow('NEXT_REDIRECT:/my/reviews');
+    await expect(createReviewAction({}, createForm({ confirmPurchase: 'on' }))).rejects.toThrow('NEXT_REDIRECT:/my/reviews?registered=1');
     const paths = mocks.revalidatePath.mock.calls.map(([path]) => path);
     expect(paths).toEqual(expect.arrayContaining(['/my/reviews', `/orders/${ORDER_ID}`, `/admin/sales/orders/${ORDER_ID}`, '/admin/sales/settled', '/my/store-credits']));
   });
@@ -138,7 +138,7 @@ describe('createReviewAction', () => {
   it('이미 확정된 주문의 리뷰는 주문 화면을 건드리지 않는다', async () => {
     mocks.rpc.mockResolvedValue({ data: { reviewId: REVIEW_ID, purchaseConfirmed: false }, error: null });
 
-    await expect(createReviewAction({}, createForm())).rejects.toThrow('NEXT_REDIRECT:/my/reviews');
+    await expect(createReviewAction({}, createForm())).rejects.toThrow('NEXT_REDIRECT:/my/reviews?registered=1');
     const paths = mocks.revalidatePath.mock.calls.map(([path]) => path);
     expect(paths).toContain('/my/reviews');
     expect(paths).not.toContain(`/orders/${ORDER_ID}`);

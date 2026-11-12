@@ -139,12 +139,13 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
         emptyLabel={counts?.all === 0 && !goodsListIsNarrowed(filters) ? '아직 등록한 상품이 없습니다. 위의 상품 등록을 눌러 첫 상품을 등록해주세요.' : '검색 조건에 맞는 상품이 없습니다.'}
         /* 1440 화면에서 끝 열까지 들어오는 폭이다. 첫 열은 시스템 순번 상품번호(S36-009)이고 수정 화면으로 간다.
            긴 영문이 많은 상품 URL은 맨 뒤로 뺐고(앞부분은 읽히는 폭), 상세 재고는 재고수량 칸 안에 접어 둔다. 상품명은 숨길 수 없다.
-           판매가 칸은 여섯 자리 금액(999,000원)과 수정 연필이 값 버튼 안에 들어오는 폭이다(admin-visual-qa 글자 잘림). */
+           판매가 칸은 금액(1,234,567원까지)과 수정 연필이 값 버튼 안에 들어오는 폭이다(admin-visual-qa 글자 잘림). 그만큼 전시상태 칸을
+           줄이고 날짜 칸은 실측 최소 폭(93px)으로 둬 1440 화면에서 표가 가로로 넘치지 않는다(T22g·QA2 수정 A2 통합). */
         columns={[
         { key: 'productNo', label: '상품번호', width: '72px' },
-        { key: 'name', label: '상품명 · 판매자상품코드', width: '184px', required: true }, { key: 'edit', label: '수정', width: '56px' }, { key: 'price', label: '판매가', align: 'end', width: '112px' },
-        { key: 'readiness', label: '전시상태 · 판매 준비', width: '184px' }, { key: 'qty', label: '재고수량', align: 'end', width: '84px' },
-        { key: 'ip', label: 'IP · 카테고리', width: '92px' }, { key: 'createdAt', label: '상품등록일', width: '92px' }, { key: 'updatedAt', label: '상품수정일', width: '92px' }, { key: 'goodId', label: '상품 URL', width: '88px' },
+        { key: 'name', label: '상품명 · 판매자상품코드', width: '192px', required: true }, { key: 'edit', label: '수정', width: '56px' }, { key: 'price', label: '판매가', align: 'end', width: '112px' },
+        { key: 'readiness', label: '전시상태 · 판매 준비', width: '176px' }, { key: 'qty', label: '재고수량', align: 'end', width: '84px' },
+        { key: 'ip', label: 'IP · 카테고리', width: '92px' }, { key: 'createdAt', label: '상품등록일', width: '93px' }, { key: 'updatedAt', label: '상품수정일', width: '93px' }, { key: 'goodId', label: '상품 URL', width: '88px' },
       ]} rows={goods.map(good => {
         const readiness = good.readiness ?? unknownGoodsReadiness();
         const editable = Boolean(inlineIdentity) && !good.archivedAt;

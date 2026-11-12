@@ -197,7 +197,8 @@ export async function createReviewAction(
   if (parseReviewCreateResult(data)?.purchaseConfirmed !== false) {
     for (const path of [`/orders/${orderId}`, `/admin/sales/orders/${orderId}`, '/admin/sales/settled', '/my/store-credits']) revalidatePath(path);
   }
-  redirect(REVIEWS_PATH);
+  /* 등록 뒤 목록으로 보낼 때 완료를 알린다 — 일회성 쿼리로 목록 화면이 한 줄 안내를 그린다(QA2: 등록 완료 알림 없음). */
+  redirect(`${REVIEWS_PATH}?registered=1`);
 }
 
 export async function updateReviewAction(

@@ -37,6 +37,18 @@ export function shippingRegionPolicyInEffect(policy: Pick<ShippingRegionPolicy, 
   return Date.parse(policy.startsAt) <= now && (!policy.endsAt || now < Date.parse(policy.endsAt));
 }
 
+/** 활성으로 확정했지만 적용 시작 전인 정책 — 화면은 '활성'이 아니라 '예정'이라고 말한다(아직 견적에 쓰이지 않는다). */
+export function shippingRegionPolicyScheduled(policy: Pick<ShippingRegionPolicy, 'status' | 'startsAt'>, now: number): boolean {
+  return policy.status === 'active' && Boolean(policy.startsAt) && Date.parse(policy.startsAt!) > now;
+}
+
+/** DB 겹침 판정(`tstzrange(starts_at, ends_at, '[)')` &&)과 같은 기간 겹침. 시작·끝이 비면 무한이다. */
+export function shippingRegionPeriodsOverlap(a: Pick<ShippingRegionPolicyInput, 'startsAt' | 'endsAt'>, b: Pick<ShippingRegionPolicyInput, 'startsAt' | 'endsAt'>): boolean {
+  const start = (value: string | null) => value ? Date.parse(value) : -Infinity;
+  const end = (value: string | null) => value ? Date.parse(value) : Infinity;
+  return start(a.startsAt) < end(b.endsAt) && start(b.startsAt) < end(a.endsAt);
+}
+
 export function shippingRegionExpiryWarnings(policies: ShippingRegionExpiryPolicy[], now: number): ShippingRegionExpiryWarning[] {
   const latest = new Map<string, ShippingRegionExpiryPolicy>();
   const upcoming: ShippingRegionExpiryPolicy[] = [];

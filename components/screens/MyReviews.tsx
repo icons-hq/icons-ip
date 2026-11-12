@@ -175,7 +175,10 @@ export function MyReviews({
   now = new Date(),
   reviewEvents,
   eventEntries,
+  registered = false,
 }: {
+  /** 리뷰를 막 등록하고 돌아온 화면이면 완료 안내를 보인다. */
+  registered?: boolean;
   targets: MyReviewTarget[];
   /** 기한 계산 기준 시각. 테스트 주입용. */
   now?: Date;
@@ -191,6 +194,7 @@ export function MyReviews({
       <div className="wc-mypage__headbar">
         <h1 className="wc-mypage__headbar-title">내 리뷰</h1>
       </div>
+      {registered ? <p className="wc-mypage__success" role="status">리뷰를 등록했습니다. 아래 &apos;작성한 리뷰&apos;에서 확인할 수 있어요.</p> : null}
       <p className="wc-mypage__lede">
         배송이 완료된 굿즈에 별점과 후기를 남길 수 있습니다. 일반 리뷰는 주문·굿즈당 한 번, 배송완료 후 {REVIEW_WINDOW_DAYS}일까지입니다. 한달사용 리뷰는 별도로 안내된 기간에 한 번 작성할 수 있습니다.
         아직 구매확정하지 않은 주문은 리뷰를 등록하면 함께 구매확정됩니다. {REVIEW_BENEFIT_NOTE} 진행 중인 리뷰이벤트의 선정 혜택은 별도 안내를 확인해주세요.

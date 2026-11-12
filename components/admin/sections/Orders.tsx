@@ -555,7 +555,7 @@ function UpdateTrackingForm({
         shipment={shipment}
       />
       <Button disabled={pending} size="sm" type="submit" variant="outline">
-        {pending ? '저장 중' : '운송장 수정'}
+        {pending ? '저장 중' : '운송장 저장'}
       </Button>
       <ActionFeedback state={state} />
     </form>
@@ -1089,7 +1089,11 @@ function OrderDetail({
         {hasShipped ? order.shipments.filter(shipment=>isParcelShipment(shipment)&&(shipment.status==='shipping'||shipment.status==='delivered')).map(shipment=>(
           <section className="flex min-w-0 flex-col gap-2 rounded-lg border p-3" key={shipment.id} aria-label={`${shipment.originName} 운송장 수정`}>
             <h4 className="text-sm font-medium text-foreground">{shipment.originName} · {commerceReferenceLabel(shipment.id, shipment.shipmentNumber)}</h4>
-            <UpdateTrackingForm carriers={carriers} orderId={order.id} shipmentId={shipment.id} shipment={orderShipment(carriers,shipment.carrier,shipment.trackingNumber)} />
+            {/* 먼저 펼쳐서 입력하게 한다 — 저장 버튼만 누르면 값을 바꾸지 않고 수정 확인창이 뜨던 실행 버튼을 펼침으로 바꾼다(다른 인라인 버튼과 같은 패턴). */}
+            <details className="group rounded-lg border px-3 py-2" data-tracking-edit="">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-medium [&::-webkit-details-marker]:hidden">운송장 수정<ChevronDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" /></summary>
+              <div className="mt-2"><UpdateTrackingForm carriers={carriers} orderId={order.id} shipmentId={shipment.id} shipment={orderShipment(carriers,shipment.carrier,shipment.trackingNumber)} /></div>
+            </details>
             {/* 여러 상자로 나눠 보낸 배송 건의 추가 운송장(QNA-019). 대표 운송장 정정은 위 양식, 다른 상자 번호는 여기서 더하고 지운다. */}
             {shipment.trackingNumber ? <details className="group rounded-lg border px-3 py-2" open={Boolean(shipment.extraTrackings?.length)}>
               <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-medium [&::-webkit-details-marker]:hidden">추가 운송장{shipment.extraTrackings?.length ? ` ${shipment.extraTrackings.length}개` : ''}<ChevronDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" /></summary>

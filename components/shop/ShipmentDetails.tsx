@@ -23,7 +23,7 @@ export function ShipmentExtraTrackings({ extraTrackings, admin = false }: { extr
 
 export function ShipmentDetails({ shipments, items = [], admin = false, transactionShipping }: {
   shipments: readonly ShipmentRecord[];
-  items?: readonly { id: string; goodId?: string; name: string; qty: number; variantName?: string | null; supplySource?: 'stock' | 'preorder'; preorderExpectedShipDate?: string | null }[];
+  items?: readonly { id: string; goodId?: string; name: string; qty: number; canceledQty?: number; variantName?: string | null; supplySource?: 'stock' | 'preorder'; preorderExpectedShipDate?: string | null }[];
   admin?: boolean;
   transactionShipping?: readonly GoodsTransactionShippingGroup[];
 }) {
@@ -75,7 +75,7 @@ export function ShipmentDetails({ shipments, items = [], admin = false, transact
       <small className="muted">{deliveryFeeRuleNote(shipment.delivery.policy, shipment.delivery.changedBy)}</small>
       {!admin && shipment.delivery.canIssueReceipt ? <ShipmentReceiptConfirmation key={`${shipment.id}:${shipment.delivery.policy.policyId}`} shipmentId={shipment.id} /> : null}
     </div> : null}
-    {items.some(item => shipment.orderItemIds.includes(item.id)) ? <ul>{items.filter(item => shipment.orderItemIds.includes(item.id)).map(item => <li key={item.id}>{item.name}{item.variantName ? ` · ${item.variantName}` : ''} × {item.qty}
+    {items.some(item => shipment.orderItemIds.includes(item.id)) ? <ul>{items.filter(item => shipment.orderItemIds.includes(item.id)).map(item => <li key={item.id}>{item.name}{item.variantName ? ` · ${item.variantName}` : ''} × {item.qty}{item.canceledQty ? ` (${item.canceledQty}개 취소됨)` : ''}
       {item.supplySource === 'preorder' ? ` · 예약판매 (${goodsShipDateLabel(item.preorderExpectedShipDate)})` : ''}</li>)}</ul> : null}
     {shipment.trackingUrl && (shipment.delivery === undefined || shipment.delivery?.method === 'parcel') ? <a className={admin ? 'admin-order-detail__link' : 'btn btn-ghost order-tracking-link'} href={shipment.trackingUrl} rel="noreferrer" target="_blank">{admin || shipments.length > 1 ? `${groupName} 배송조회` : '배송조회'}</a> : null}
   </section>; })}</div>;
