@@ -132,9 +132,10 @@ describe('재고 부족 부분 취소 패널', () => {
     expect(mismatch).not.toContain('취소 내용 확인');
     const unavailable = view(context({ calculationVersion: 1, v1Allocation: { frozen: false, issue: 'coupon_unrecorded' },
       blockers: ['partial_cancel_v1_allocation_unavailable'] }));
-    expect(unavailable).toContain('상품별 금액 배분을 확정할 수 없는 주문');
+    expect(unavailable).toContain('주문 당시 기록만으로는 상품별 금액 배분을 확정할 수 없어');
     expect(unavailable).toContain('주문 당시 쿠폰 대상·금액 기록이 없습니다.');
-    expect(unavailable).toContain('운영자 전액 취소로 처리합니다');
+    expect(unavailable.indexOf('쿠폰 대상·금액 기록이 없습니다.')).toBeLessThan(unavailable.indexOf('운영자 전액 취소로 처리해주세요'));
+    expect(unavailable.match(/운영자 전액 취소/g)).toHaveLength(1);
     expect(unavailable).not.toContain('굿즈');
   });
 

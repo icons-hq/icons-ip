@@ -304,7 +304,8 @@ function ReshipTable({ identity, load, onDone, onRunning, scope }: {
           : context?.status === 'loading' ? <p className="text-muted-foreground" role="status">최종 주소를 불러오는 중입니다…</p>
             : context?.status === 'unavailable' ? <p className="text-destructive">{adminClaimCopy(context.message)}</p>
               : <p className="text-muted-foreground">최종 주소를 불러오면 여기에 보입니다.</p>}</div>
-        {claim.rows.map((row) => {
+        {/* 결과를 알 수 없는 작업이 있어 이 표에서 뺀 요청은 사유만 보이고 입력칸을 그리지 않는다(등록해도 '제외'로 끝난다). */}
+        {context?.status === 'unavailable' && context.pendingOperation ? null : claim.rows.map((row) => {
           const key = reshipRowKey(claim.claimId, row.shipmentId);
           const draft = drafts[key];
           return <div className="grid min-w-0 gap-3 border-t pt-3 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)]" data-claim-bulk-reship-row={key} key={key}>

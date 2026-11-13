@@ -92,6 +92,17 @@ describe('ClaimActionPanel — 반품배송비 차감', () => {
       .toBe('토스 결제 전액을 취소하고 주문 취소·재고 복원·카드팩 회수를 확정할까요? 되돌릴 수 없습니다.');
   });
 
+  it('이미 부분 취소한 주문의 환불 완료 확정은 남은 결제 금액을 말한다', () => {
+    const html = render({ refundAmount: 30500, paidAmount: 37300, stage: 'processing', refundLedgerOpen: true, refundFiled: true });
+    expect(html).toContain('환불 완료 확정 (토스 남은 금액 취소)');
+    expect(html).toContain('남은 결제 금액 30,500원을 취소하고');
+    expect(html).not.toContain('결제 전액을 취소하고');
+    expect(claimRefundCompletionConfirmation(true, '토스', null, 30500))
+      .toBe('토스 결제에서 이미 취소한 금액을 뺀 남은 결제 금액 30,500원을 취소하고 주문 취소·재고 복원·카드팩 회수를 확정할까요? 되돌릴 수 없습니다.');
+    const full = render({ refundAmount: 37300, paidAmount: 37300, stage: 'processing', refundLedgerOpen: true, refundFiled: true });
+    expect(full).toContain('환불 완료 확정 (토스 전액 취소)');
+  });
+
   it('최초 무료배송은 왕복 근거를 보인다', () => {
     const html = render({ refundDeduction: { ...plan, basis: 'round_trip', deductionAmount: 6000, refundAmount: 24000 } });
     expect(html).toContain('반품배송비 6,000원 차감, 환불 24,000원');
