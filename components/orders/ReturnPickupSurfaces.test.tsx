@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock('@/app/orders/claim-collection-actions', () => ({ readClaimCollectionAction: vi.fn(), saveClaimCollectionAction: vi.fn() }));
-import { ClaimReturnBundles, collectionRowMethodLabel } from './ClaimCollectionPlan';
+import { ClaimReturnBundles, collectionHistoryMethodLabel, collectionRowMethodLabel } from './ClaimCollectionPlan';
 import { claimStageNotice } from './OrderClaimRequest';
 import { GoodAdditionalInfo } from '@/components/shop/GoodAdditionalInfo';
 import { parseOrderReturnPickup } from '@/lib/orders/return-pickup';
@@ -30,6 +30,13 @@ describe('고객 회수 정보의 회수 송장', () => {
     expect(collectionRowMethodLabel({ ...row, returnBundles: [bundle] })).toBe('접수 후 수거 협의');
     expect(collectionRowMethodLabel({ ...row, returnBundles: [bundle, { ...bundle, pickup }] })).toBe('방문 회수 접수됨');
     expect(collectionRowMethodLabel({ ...row, method: 'customer_sent', returnBundles: [{ ...bundle, pickup }] })).toBe('구매자가 이미 발송');
+  });
+  it('자동 회수가 취소된 행과 이력은 방문 회수 접수·취소로 말한다', () => {
+    const history = [{ id: 'h1', shipmentId: row.shipmentId, createdAt: '2026-11-12T05:00:00Z', method: 'seller_arranged' as const, carrier: 'hanjin', trackingNumber: 'FAKE0123456789', evidence: '자동 회수 취소 · 요청 철회' }];
+    expect(collectionRowMethodLabel({ ...row, returnBundles: [bundle] }, history)).toBe('방문 회수 취소됨');
+    expect(collectionHistoryMethodLabel(history[0])).toBe('방문 회수 취소됨');
+    expect(collectionHistoryMethodLabel({ ...history[0], evidence: '자동 회수 접수 · 한진택배' })).toBe('방문 회수 접수됨');
+    expect(collectionHistoryMethodLabel({ ...history[0], evidence: '택배사 확인' })).toBe('판매자 별도 수거 예정');
   });
   it('회수 주소 읽기는 접수된 묶음의 pickup 키를 받고, 모양이 틀리면 읽지 않는다', () => {
     const shipmentId = row.shipmentId;

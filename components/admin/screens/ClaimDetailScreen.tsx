@@ -473,6 +473,7 @@ export function ClaimDetailScreen({
               <ClaimActionPanel
                 actorId={actorId}
                 refundAmount={refund?.amount ?? refundDeduction?.refundAmount ?? order?.total ?? null}
+                paidAmount={payment?.amount ?? null}
                 refundDeduction={refundDeduction}
                 defectiveStock={defectiveStock}
                 requestSummary={exchangeRequest}

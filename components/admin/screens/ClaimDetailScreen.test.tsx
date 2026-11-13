@@ -322,7 +322,7 @@ describe('ClaimDetailScreen', () => {
   it('토스 결제의 환불 접수는 접수만 기록하고 취소는 완료 확정에서 나간다고 알린다', () => {
     const html = render({ payment: tossPayment, refund: { ...detail().refund!, method: null, filedAt: null } });
     expect(html).toContain('환불 접수 완료로 기록');
-    expect(html).toContain('토스 전액 취소는 아래 [환불 완료 확정]을 누를 때 발행됩니다.');
+    expect(html).toContain('토스 전액 취소는 아래 [환불 완료 확정]을 누를 때 요청됩니다.');
     expect(html).not.toContain('<option value="bank_transfer"');
   });
 

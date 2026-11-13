@@ -141,6 +141,10 @@ export function OrderPartialCancellationPanelView({ orderId, context, onReload }
   const [warehouseStop, setWarehouseStop] = useState(false);
   const [bank, setBank] = useState({ bankName: '', accountNumber: '', accountHolder: '' });
   const [plan, setPlan] = useState<OrderPartialCancellationPlan | null>(null);
+  /* 확인창이 닫히는 동안(퇴장 애니메이션)에도 마지막 내용을 그대로 보여 제목 금액이 비는 깜박임을 없앤다. */
+  const [lastPlan, setLastPlan] = useState<OrderPartialCancellationPlan | null>(null);
+  if (plan && plan !== lastPlan) setLastPlan(plan);
+  const shown = plan ?? lastPlan;
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const operationId = useRef<string | null>(null);
@@ -189,9 +193,10 @@ export function OrderPartialCancellationPanelView({ orderId, context, onReload }
     </div>
     {context.enabled && context.canManage && context.gift ? <AdminNotice role="status" tone="info">선물 주문입니다. 환불은 결제한 분에게 돌아가고, 고객 결정은 결제한 분의 결정으로 기록합니다.</AdminNotice> : null}
     {context.enabled && context.canManage && context.blockers.length ? <AdminNotice role="status" tone="warning">
-      {orderPartialCancellationBlockerMessage(context.blockers[0])}
-      {context.blockers[0]?.startsWith('partial_cancel_v1_allocation_') && orderPartialCancellationV1AllocationIssueMessage(context.v1Allocation?.issue)
-        ? ` (${orderPartialCancellationV1AllocationIssueMessage(context.v1Allocation?.issue)})` : null}
+      {orderPartialCancellationBlockerMessage(
+        context.blockers[0],
+        context.blockers[0]?.startsWith('partial_cancel_v1_allocation_') ? orderPartialCancellationV1AllocationIssueMessage(context.v1Allocation?.issue) : null,
+      )}
     </AdminNotice> : null}
     {open ? <form className="flex min-w-0 flex-col gap-3" onSubmit={event => { event.preventDefault(); void preview(); }}>
       {context.calculationVersion === 1 ? <p className={HINT}>{context.v1Allocation?.frozen ? '확정된 상품별 금액 배분으로 계산합니다.' : '이 주문은 첫 부분 취소를 확정할 때 상품별 금액 배분을 확정합니다.'}</p> : null}
@@ -238,27 +243,27 @@ export function OrderPartialCancellationPanelView({ orderId, context, onReload }
     <AlertDialog onOpenChange={next => { if (!next && !pending) setPlan(null); }} open={plan !== null}>
       <AlertDialogContent className="data-[size=default]:sm:max-w-lg">
         <AlertDialogHeader>
-          <AlertDialogTitle>{plan?.refundAmount === 0 ? '이 상품만 취소할까요? (환불 0원)' : `이 상품만 취소하고 ${plan ? krw(plan.refundAmount) : ''}을 환불할까요?`}</AlertDialogTitle>
-          <AlertDialogDescription>되돌릴 수 없습니다. {plan?.refundAmount === 0 ? '고른 상품의 결제 배분액이 0원(전액 할인)이라 결제사를 부르지 않고 바로 재고를 되돌리고 배송 건에서 뺍니다.' : plan?.provider === 'bank_transfer' ? '확정하면 바로 재고를 되돌리고 배송 건에서 빼며, 환불은 송금 대기로 남습니다.' : '확정하면 토스에서 이 금액만 부분 취소하고, 결제사 확인 뒤 재고를 되돌리고 배송 건에서 뺍니다. 결제사가 부분 취소를 받지 않는 결제면 아무것도 바꾸지 않습니다.'}</AlertDialogDescription>
+          <AlertDialogTitle>{shown?.refundAmount === 0 ? '이 상품만 취소할까요? (환불 0원)' : `이 상품만 취소하고 ${shown ? krw(shown.refundAmount) : ''}을 환불할까요?`}</AlertDialogTitle>
+          <AlertDialogDescription>되돌릴 수 없습니다. {shown?.refundAmount === 0 ? '고른 상품의 결제 배분액이 0원(전액 할인)이라 결제사를 부르지 않고 바로 재고를 되돌리고 배송 건에서 뺍니다.' : shown?.provider === 'bank_transfer' ? '확정하면 바로 재고를 되돌리고 배송 건에서 빼며, 환불은 송금 대기로 남습니다.' : '확정하면 토스에서 이 금액만 부분 취소하고, 결제사 확인 뒤 재고를 되돌리고 배송 건에서 뺍니다. 결제사가 부분 취소를 받지 않는 결제면 아무것도 바꾸지 않습니다.'}</AlertDialogDescription>
         </AlertDialogHeader>
-        {plan ? <div className="flex flex-col gap-2 text-sm">
-          <ul className="flex flex-col gap-1">{plan.lines.map(line => <li className="flex flex-wrap justify-between gap-2" key={line.orderItemId}>
+        {shown ? <div className="flex flex-col gap-2 text-sm">
+          <ul className="flex flex-col gap-1">{shown.lines.map(line => <li className="flex flex-wrap justify-between gap-2" key={line.orderItemId}>
             <span className="wrap-anywhere">{line.goodName}{line.variantName ? ` · ${line.variantName}` : ''} {line.qty}개 취소 (남는 수량 {line.remainingQtyAfter}개)</span>
             <span className="tabular-nums">{krw(line.goodsRefundAmount)}</span>
           </li>)}</ul>
-          {plan.closedShipments.map(shipment => <p className="flex flex-wrap justify-between gap-2" key={shipment.shipmentId}>
+          {shown.closedShipments.map(shipment => <p className="flex flex-wrap justify-between gap-2" key={shipment.shipmentId}>
             <span>배송비 함께 환불 · {shipment.originName} {shipment.shipmentNumber ?? ''} (남는 상품 없음)</span><span className="tabular-nums">{krw(shipment.shippingFeeRefund)}</span>
           </p>)}
-          <p className="flex justify-between gap-2 border-t pt-2 font-semibold"><span>환불액</span><span className="tabular-nums">{krw(plan.refundAmount)}</span></p>
-          <p className="text-muted-foreground">결제 {krw(plan.paymentAmount)} · 환불 전 남은 금액 {krw(plan.balanceBefore)} → 환불 뒤 {krw(plan.balanceAfter)}{plan.storeCreditRestoreAmount > 0 ? ` · 적립금 ${krw(plan.storeCreditRestoreAmount)}은 적립금으로 되돌림` : ''}</p>
-          {plan.balanceAfter === 0 && plan.refundAmount > 0 ? <p className="text-muted-foreground">이 취소로 남은 결제 금액이 0원이 됩니다. 남은 상품은 그대로 출고합니다.</p> : null}
-          <p className="text-muted-foreground">남은 주문의 쿠폰 조건은 다시 판정하지 않습니다.{plan.warehouseStopRequired ? ' 출고지시가 나간 배송 건이라 창고 출고 중단 확인이 필요합니다.' : ''}</p>
+          <p className="flex justify-between gap-2 border-t pt-2 font-semibold"><span>환불액</span><span className="tabular-nums">{krw(shown.refundAmount)}</span></p>
+          <p className="text-muted-foreground">결제 {krw(shown.paymentAmount)} · 환불 전 남은 금액 {krw(shown.balanceBefore)} → 환불 뒤 {krw(shown.balanceAfter)}{shown.storeCreditRestoreAmount > 0 ? ` · 적립금 ${krw(shown.storeCreditRestoreAmount)}은 적립금으로 되돌림` : ''}</p>
+          {shown.balanceAfter === 0 && shown.refundAmount > 0 ? <p className="text-muted-foreground">이 취소로 남은 결제 금액이 0원이 됩니다. 남은 상품은 그대로 출고합니다.</p> : null}
+          <p className="text-muted-foreground">남은 주문의 쿠폰 조건은 다시 판정하지 않습니다.{shown.warehouseStopRequired ? ' 출고지시가 나간 배송 건이라 창고 출고 중단 확인이 필요합니다.' : ''}</p>
           {needsAccount && !bankReady ? <p className="text-destructive" role="alert">무통장 주문은 환불받을 계좌(은행·계좌번호·예금주)를 모두 입력해야 확정할 수 있습니다.</p> : null}
         </div> : null}
         {error ? <p className="text-destructive" role="alert">{error}</p> : null}
         <AlertDialogFooter>
           <AlertDialogCancel disabled={pending}>닫기</AlertDialogCancel>
-          <Button disabled={pending || (needsAccount && !bankReady)} onClick={() => void start()} type="button" variant="danger">{pending ? '처리 중…' : plan?.refundAmount === 0 ? '부분 취소 확정 (환불 0원)' : plan?.provider === 'bank_transfer' ? '부분 취소 확정 (송금 대기)' : '부분 취소 확정 (토스 부분 취소)'}</Button>
+          <Button disabled={pending || (needsAccount && !bankReady)} onClick={() => void start()} type="button" variant="danger">{pending ? '처리 중…' : shown?.refundAmount === 0 ? '부분 취소 확정 (환불 0원)' : shown?.provider === 'bank_transfer' ? '부분 취소 확정 (송금 대기)' : '부분 취소 확정 (토스 부분 취소)'}</Button>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

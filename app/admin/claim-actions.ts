@@ -258,7 +258,7 @@ async function issueApprovedClaimCancellation(
   }
   return {
     message: providerCancelsAutomatically(provider)
-      ? `취소를 승인하고 ${automatedCancelProviderLabel(provider)} 전액 취소까지 확인했습니다. 주문 취소·재고 복원·카드팩 회수와 환불 원장 기록이 함께 끝났습니다.`
+      ? `취소를 승인하고 ${automatedCancelProviderLabel(provider)} 전액 취소까지 확인했습니다. 주문 취소·재고 복원·카드팩 회수와 환불 기록이 함께 끝났습니다.`
       : '취소를 승인하고 주문 취소를 마쳤습니다. 결제 전 주문이라 결제사 취소는 없었습니다.',
   };
 }
@@ -725,7 +725,7 @@ export async function recordOrderClaimRefundAction(
        보이면 운영자가 같은 돈을 다른 수단으로 다시 돌려준다. 끝난 일을 먼저 말한다. */
     return {
       error: finalizationRan
-        ? `${cancelLabel ? `${cancelLabel} ${deduction ? '취소' : '전액 취소'}와 ` : ''}주문 취소·재고 복원·카드팩 회수는 이미 완료됐습니다. 환불 원장 기록만 실패했습니다 — 다시 환불하지 마세요. ${reason}`
+        ? `${cancelLabel ? `${cancelLabel} ${deduction ? '취소' : '전액 취소'}와 ` : ''}주문 취소·재고 복원·카드팩 회수는 이미 완료됐습니다. 환불 기록만 실패했습니다 — 다시 환불하지 마세요. ${reason}`
         : reason,
     };
   }

@@ -174,7 +174,7 @@ describe('upsertAdminCampaignAction', () => {
 
     const state = await upsertAdminCampaignAction({}, campaignForm());
 
-    expect(state.errors?.sections).toBe('쿠폰 섹션의 코드가 쿠폰 관리에 등록되어 있지 않아요.');
+    expect(state.errors?.sections).toBe('쿠폰 섹션의 코드가 혜택으로 등록되어 있지 않아요.');
   });
 
   it('저장 성공은 이벤트 허브와 상세를 다시 그리게 한다', async () => {

@@ -100,7 +100,7 @@ export function adminClaimBulkConfirmation(
 ) {
   if (decision === 'approve') {
     return claimType === 'cancel'
-      ? `선택한 ${count}건의 취소를 승인할까요? 한 건씩 순서대로 처리하며, 토스 결제는 승인하는 즉시 토스 전액 취소를 발행합니다. 되돌릴 수 없습니다.`
+      ? `선택한 ${count}건의 취소를 승인할까요? 한 건씩 순서대로 처리하며, 토스 결제는 승인하는 즉시 토스 전액 취소를 요청합니다. 되돌릴 수 없습니다.`
       : `선택한 ${count}건을 승인하고 수거를 시작할까요?`;
   }
   if (decision === 'reject') return `선택한 ${count}건을 거부할까요? 입력한 거부 사유가 구매자에게 전달됩니다.`;

@@ -1,3 +1,6 @@
+'use client';
+
+import { useEffect, useRef } from 'react';
 import { ADMIN_CLAIM_BULK_OUTCOME_LABELS, type AdminClaimBulkState } from '@/lib/admin/claim-bulk';
 import { adminClaimCopy } from '@/lib/admin/vocabulary';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/admin/kit/ui/table';
@@ -8,8 +11,18 @@ import { ClaimPreviewLink } from './ClaimPreviewDialog';
  * 요청번호는 같은 목록 위 팝업을 연다. 재출고처럼 한 요청을 출고지마다 처리하면 번호 옆에 출고지를 적는다.
  */
 export function ClaimKitBulkResult({ previewHrefBase, state }: { previewHrefBase: string; state: AdminClaimBulkState }) {
+  const section = useRef<HTMLElement>(null);
+  const hasResults = Boolean(state.results?.length);
+  /* 같은 내용이 다시 그려질 때는 건드리지 않도록 결과 내용으로 알아본다. */
+  const signature = `${state.summary}|${(state.results ?? []).map((result) => `${result.claimId}:${result.scope ?? ''}:${result.outcome}`).join(',')}`;
+  /* 목록을 스크롤해 아래 행을 고른 뒤 처리하면 결과표가 화면 위쪽 밖에 생긴다 — 결과가 나오면 그 자리로 가서 읽게 한다. */
+  useEffect(() => {
+    if (!hasResults) return;
+    section.current?.scrollIntoView({ block: 'nearest' });
+    section.current?.focus({ preventScroll: true });
+  }, [hasResults, signature]);
   if (!state.results?.length) return null;
-  return <section aria-label="일괄 처리 결과" className="flex flex-col gap-2">
+  return <section aria-label="일괄 처리 결과" className="flex flex-col gap-2 outline-none" ref={section} tabIndex={-1}>
     <p className="text-sm" role="status">{state.summary}</p>
     <div className="overflow-hidden rounded-lg border">
       <Table>

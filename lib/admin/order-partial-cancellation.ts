@@ -24,7 +24,12 @@ const ORDER_BLOCKERS: Record<string, string> = {
   partial_cancel_unsupported: '이 결제는 결제사 부분 취소를 받지 않아 품목 부분 취소를 진행할 수 없습니다(나이스페이·코페이·토스 가상계좌·정기배송). 전액 환불로 돌리지 않습니다. 고객과 다시 상의해 운영자 전액 취소 여부를 정해주세요.',
   legacy_order: '금액 배분 기록이 없는 이전 주문이라 품목별 환불액을 정할 수 없습니다.',
   partial_cancel_v1_allocation_mismatch: '결제 금액이 상품·쿠폰·적립금·배송비 기록과 맞지 않아 상품별 환불액을 확정할 수 없습니다. 부분 취소하지 않고 개발 담당에게 대조를 요청해주세요. 이 주문은 재고 부족 부분 취소 대신 운영자 전액 취소로 처리합니다.',
-  partial_cancel_v1_allocation_unavailable: '주문 당시 쿠폰·할인 기록으로 상품별 금액 배분을 확정할 수 없는 주문이라 부분 취소할 수 없습니다. 고객과 다시 상의해 운영자 전액 취소 여부를 정해주세요. 이 주문은 재고 부족 부분 취소 대신 운영자 전액 취소로 처리합니다.',
+  partial_cancel_v1_allocation_unavailable: '주문 당시 기록만으로는 상품별 금액 배분을 확정할 수 없어 부분 취소할 수 없습니다.',
+};
+
+/** 원인 문장 뒤(자세한 이유가 있으면 그 뒤)에 한 번만 붙는 대안. */
+const BLOCKER_ALTERNATIVES: Record<string, string> = {
+  partial_cancel_v1_allocation_unavailable: '고객과 다시 상의해 재고 부족 부분 취소 대신 운영자 전액 취소로 처리해주세요.',
 };
 
 /** 버전 1 주문의 배분을 확정할 수 없는 자세한 이유(문맥 v1Allocation.issue). */
@@ -122,8 +127,11 @@ export function orderPartialCancellationPanelVisible(context: { enabled: boolean
   return context.blockers.length === 0 || !context.blockers.every(code => HIDDEN_WHEN_ONLY.has(code));
 }
 
-export function orderPartialCancellationBlockerMessage(code: string) {
-  return ORDER_BLOCKERS[code] ?? '지금은 부분 취소할 수 없습니다. 주문 상태를 확인해주세요.';
+/** 막힘 문구: 원인 → (자세한 이유) → 대안 한 번. 자세한 이유는 버전 1 배분 불가 막힘에서만 쓴다. */
+export function orderPartialCancellationBlockerMessage(code: string, detail?: string | null) {
+  const base = ORDER_BLOCKERS[code];
+  if (!base) return '지금은 부분 취소할 수 없습니다. 주문 상태를 확인해주세요.';
+  return [base, detail ? `(${detail})` : null, BLOCKER_ALTERNATIVES[code] ?? null].filter(Boolean).join(' ');
 }
 
 /** 버전 1 주문의 배분 확정 불가 이유(코드 → 운영 문구). 모르는 코드는 null. */
@@ -139,7 +147,7 @@ export function orderPartialCancellationItemBlockerLabel(code: string | null) {
 export function orderPartialCancellationErrorMessage(message: string | null | undefined) {
   const value = (message ?? '').trim();
   if (START_ERRORS[value]) return START_ERRORS[value];
-  if (ORDER_BLOCKERS[value]) return ORDER_BLOCKERS[value];
+  if (ORDER_BLOCKERS[value]) return orderPartialCancellationBlockerMessage(value);
   if (value.startsWith('partial_cancel_item_')) {
     const label = ITEM_BLOCKERS[value.slice('partial_cancel_item_'.length)];
     if (label) return `고를 수 없는 상품이 있습니다(${label}). 새로고침해주세요.`;
