@@ -21,6 +21,8 @@ export interface ShippingNoticeTemplateActionState extends AdminFormValuesState 
   errors?: Record<string, string>;
   message?: string;
   updatedAt?: string;
+  /** 새 초안을 만든 저장일 때만: 목록에서 바로 찾아 활성화할 수 있게 id·이름을 돌려준다. */
+  created?: { id: string; name: string };
 }
 
 const SAVE_FAILED = '배송 안내 템플릿을 저장하지 못했습니다. 입력값은 유지됩니다. 잠시 후 다시 시도해주세요.';
@@ -99,6 +101,7 @@ export async function saveShippingNoticeTemplateAction(
       attempt,
       message: '배송 안내 템플릿을 저장했습니다. 필수 안내와 확인 근거를 확인한 뒤 활성화해주세요.',
       updatedAt: typeof saved?.updatedAt === 'string' ? saved.updatedAt : undefined,
+      ...(!values.id && typeof saved?.id === 'string' && isUuid(saved.id) ? { created: { id: saved.id, name: parsed.value.name } } : {}),
     };
   } catch {
     return fail({ form: SAVE_FAILED });

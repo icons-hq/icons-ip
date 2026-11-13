@@ -135,14 +135,14 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
           칸 전체가 클릭 영역인 체크박스 열은 내용이 절대배치라 최소 폭을 준다. 데이터 칸의 좌우 여백은 8px로 줄여 그만큼 긴 값에 나눠 주고, 칸을 덮는 값 버튼은 덮개가 칸 전체를 받으므로 낮춰 줄 높이를 지킨다.
           넓은 화면의 도구 줄: 뿌리를 contents로 풀어 작업 막대 줄(조회항목 설정을 직접 품은 div)이 목록 제목 옆으로 오고, 표는 다음 줄 전체를 쓴다.
           '한 번에 최대 100개'는 일괄 변경 팝업에서도 말하므로 이 줄에서는 스크린리더에만 남긴다. 선택하면 생기는 '선택 해제' 자리는 조회항목 설정을 잠시 비켜 만든다 — 체크 순간 줄이 두 단이 되어 표가 밀리지 않게. */}
-      <MarketingLinksGoodsGrid key={`${goodsListHref(filters)}:${bulkIdentity?.actorId}:${bulkIdentity?.sessionId}`} canIssue={canIssueMarketingLinks} bulkIdentity={bulkIdentity} caption="상품 목록" preferencesKey="catalog-goods" className="[&_table]:min-w-[1088px] [&_thead_th:first-child]:min-w-10 [&_td[data-align]]:px-2 [&_th[data-align]]:px-2 [&_[data-inline-edit=cell]_button]:min-h-6 xl:contents xl:[&>.relative]:w-full xl:[&>div:has(>[data-admin-kit=table-settings])]:flex-auto xl:[&_[data-goods-bulk]>div>small]:sr-only xl:[&_[data-admin-kit=table-settings]_button]:h-7 xl:[&_[data-admin-kit=table-settings]_button]:text-[0.8rem] xl:max-2xl:[&:has(tr[data-state=selected])_[data-admin-kit=table-settings]]:hidden"
+      <MarketingLinksGoodsGrid key={`${goodsListHref(filters)}:${bulkIdentity?.actorId}:${bulkIdentity?.sessionId}`} canIssue={canIssueMarketingLinks} bulkIdentity={bulkIdentity} caption="상품 목록" preferencesKey="catalog-goods" className="[&_table]:min-w-[1090px] [&_thead_th:first-child]:min-w-10 [&_td[data-align]]:px-2 [&_th[data-align]]:px-2 [&_[data-inline-edit=cell]_button]:min-h-6 xl:contents xl:[&>.relative]:w-full xl:[&>div:has(>[data-admin-kit=table-settings])]:flex-auto xl:[&_[data-goods-bulk]>div>small]:sr-only xl:[&_[data-admin-kit=table-settings]_button]:h-7 xl:[&_[data-admin-kit=table-settings]_button]:text-[0.8rem] xl:max-2xl:[&:has(tr[data-state=selected])_[data-admin-kit=table-settings]]:hidden"
         emptyLabel={counts?.all === 0 && !goodsListIsNarrowed(filters) ? '아직 등록한 상품이 없습니다. 위의 상품 등록을 눌러 첫 상품을 등록해주세요.' : '검색 조건에 맞는 상품이 없습니다.'}
         /* 1440 화면에서 끝 열까지 들어오는 폭이다. 첫 열은 시스템 순번 상품번호(S36-009)이고 수정 화면으로 간다.
            긴 영문이 많은 상품 URL은 맨 뒤로 뺐고(앞부분은 읽히는 폭), 상세 재고는 재고수량 칸 안에 접어 둔다. 상품명은 숨길 수 없다.
            판매가 칸은 금액(1,234,567원까지)과 수정 연필이 값 버튼 안에 들어오는 폭이다(admin-visual-qa 글자 잘림). 그만큼 전시상태 칸을
            줄이고 날짜 칸은 실측 최소 폭(93px)으로 둬 1440 화면에서 표가 가로로 넘치지 않는다(T22g·QA2 수정 A2 통합). */
         columns={[
-        { key: 'productNo', label: '상품번호', width: '72px' },
+        { key: 'productNo', label: '상품번호', width: '64px' },
         { key: 'name', label: '상품명 · 판매자상품코드', width: '192px', required: true }, { key: 'edit', label: '수정', width: '56px' }, { key: 'price', label: '판매가', align: 'end', width: '112px' },
         { key: 'readiness', label: '전시상태 · 판매 준비', width: '176px' }, { key: 'qty', label: '재고수량', align: 'end', width: '84px' },
         { key: 'ip', label: 'IP · 카테고리', width: '92px' }, { key: 'createdAt', label: '상품등록일', width: '93px' }, { key: 'updatedAt', label: '상품수정일', width: '93px' }, { key: 'goodId', label: '상품 URL', width: '88px' },
@@ -216,7 +216,7 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
           /* 재고 칸도 두 줄이다. 옵션이 하나면 칸에서 바로, 여럿이면 칸이 옵션별 재고 창을 연다(1014-106·107). 옵션을 읽지 못한 상품만
              상세 재고 안의 상품 수정 링크로 고친다. */
           editable && good.inlineStock
-            ? <span key="qty" className={`grid justify-items-end gap-0.5 whitespace-normal${qtyEmphasis}`}><GoodsInlineStock goodId={good.id} ipId={good.ipId} variantId={good.inlineStock.variantId} stockQty={good.inlineStock.stockQty} />
+            ? <span key="qty" className={`grid justify-items-end gap-0.5 whitespace-normal${qtyEmphasis}`}><GoodsInlineStock goodId={good.id} ipId={good.ipId} variantId={good.inlineStock.variantId} stockQty={good.inlineStock.stockQty} goodName={good.name} />
               {qtyLabel !== `${good.inlineStock.stockQty.toLocaleString('ko-KR')}개` ? <small className={`${SECONDARY} font-normal`}>판매 가능 {qtyLabel}</small> : null}{lowStockBadge}{stockDetails()}</span>
             : editable && good.inlineOptions && good.inlineOptions.length > 1
               ? <span key="qty" className={`grid justify-items-end gap-0.5 whitespace-normal${qtyEmphasis}`}><GoodsInlineOptionStock goodId={good.id} ipId={good.ipId} goodName={good.name} goodCode={good.code || null}

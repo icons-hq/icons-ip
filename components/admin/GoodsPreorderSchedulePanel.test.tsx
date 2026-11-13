@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { differingTarget, noticeOnlyTarget, scheduleChange, scheduleIds, schedulePreview } from '@/lib/admin/preorder-schedule-change.fixture';
 import type { AdminGoodsVariant } from '@/lib/admin/goods-variants';
-import { GoodsPreorderSchedulePanel, PreorderScheduleResultView, PreorderSchedulePreviewStep, openPolicySummary } from './GoodsPreorderSchedulePanel';
+import { GoodsPreorderSchedulePanel, PREORDER_SCHEDULE_POLICY_ACK_OWN, PreorderScheduleResultView, PreorderSchedulePreviewStep, openPolicySummary } from './GoodsPreorderSchedulePanel';
 
 vi.mock('@/app/admin/preorder-schedule-actions', () => ({
   applyPreorderScheduleChangeAction: vi.fn(), listPreorderScheduleChangesAction: vi.fn(), previewPreorderScheduleChangeAction: vi.fn(),
@@ -143,6 +143,26 @@ describe('예약 일정 일괄 변경 결과', () => {
       .toContain('접수 중이던 예약 조건(기본 옵션 2026년 12월 2일)을 2026년 12월 9일 새 버전으로 바꿨습니다.');
     expect(renderToStaticMarkup(<PreorderScheduleResultView change={scheduleChange({ policyAction: 'acknowledged', policies })} />))
       .toContain('접수 중인 예약 조건(기본 옵션 2026년 12월 2일)은 바꾸지 않았습니다.');
+  });
+  it('미리보기에서 온 결과는 조건상 제외한 배송 건과 선택을 해제한 건을 합쳐 같은 기준으로 센다(QA2b)', () => {
+    const context = { excludedTotal: 4, canReplacePolicies: true, policyBlocked: false };
+    const html = renderToStaticMarkup(<PreorderScheduleResultView change={scheduleChange()} context={context} />);
+    expect(html).toContain('바꾸지 않은 배송 건은 5건입니다 (조건상 제외 4건 · 선택 해제 1건).');
+    expect(html).not.toContain('제외한 배송 건');
+    /* 이력에서 연 결과는 선택을 해제한 건만 안다. */
+    expect(renderToStaticMarkup(<PreorderScheduleResultView change={scheduleChange()} />)).toContain('바꾸지 않은 배송 건은 1건입니다 (확정 때 선택을 해제한 배송 건).');
+  });
+  it('접수 중 조건을 못 바꾼 결과 안내는 보는 사람(주매니저 본인인지)에 맞는다(QA2b)', () => {
+    const policies = [{ variantName: '기본 옵션', expectedShipDate: '2026-12-02' }];
+    const change = scheduleChange({ policyAction: 'acknowledged', policies });
+    const own = renderToStaticMarkup(<PreorderScheduleResultView change={change} context={{ excludedTotal: 0, canReplacePolicies: true, policyBlocked: true }} />);
+    expect(own).toContain(PREORDER_SCHEDULE_POLICY_ACK_OWN);
+    expect(own).not.toContain('계정 주매니저·통합 매니저가 새 날짜로 바꿔야');
+    expect(renderToStaticMarkup(<PreorderScheduleResultView change={change} context={{ excludedTotal: 0, canReplacePolicies: false, policyBlocked: true }} />)).toContain('계정 주매니저·통합 매니저가 새 날짜로 바꿔야');
+  });
+  it('대상이 0건인 미리보기는 같은 뜻 문장을 한 번만 말한다(QA2b)', () => {
+    const html = preview({ targets: [], targetShipments: 0, targetOrders: 0 });
+    expect(html.match(/바꿀 (미출고 )?예약 배송 건이 없습니다/g)).toHaveLength(1);
   });
   it('SMS 결과가 있을 때만 SMS 열을 그린다', () => {
     const change = scheduleChange();

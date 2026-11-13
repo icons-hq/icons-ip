@@ -1,6 +1,7 @@
 'use client';
 
-import { useActionState, useId } from 'react';
+import { useRouter } from 'next/navigation';
+import { useActionState, useEffect, useId } from 'react';
 import {
   activateShippingNoticeTemplateAction,
   applyShippingNoticeTemplateAction,
@@ -8,7 +9,7 @@ import {
   type ShippingNoticeTemplateActionState,
 } from '@/app/admin/shipping-notice-template-actions';
 import { AdminField, AdminFormGrid, AdminNotice } from '@/components/admin/console/AdminKit';
-import { useAdminCreateDialogBusy } from '@/components/admin/console/AdminCreateDialogButton';
+import { useAdminCreateDialogBusy, useAdminCreateDialogClose } from '@/components/admin/console/AdminCreateDialogButton';
 import {
   SHIPPING_NOTICE_TEMPLATE_CODE_MAX,
   SHIPPING_NOTICE_TEMPLATE_CS_EMAIL_MAX,
@@ -18,6 +19,8 @@ import {
   SHIPPING_NOTICE_TEMPLATE_NAME_MAX,
   SHIPPING_NOTICE_TEMPLATE_NOTICE_MAX,
   SHIPPING_NOTICE_TEMPLATE_VERSION_DEFAULT,
+  SHIPPING_NOTICE_TEMPLATES_PATH,
+  shippingNoticeTemplateAnchor,
   type ShippingNoticeTemplate,
 } from '@/lib/admin/shipping-notice-templates';
 import type { ShippingNoticeTemplateImpactGood } from '@/lib/admin/shipping-notice-templates';
@@ -27,10 +30,22 @@ import { Input } from '@/components/admin/kit/ui/input';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
 const EMPTY_STATE: ShippingNoticeTemplateActionState = {};
 
+/** 새 초안 저장이 성공하면 등록 팝업을 닫고, 방금 만든 초안이 열린 목록으로 이동해 바로 활성화할 수 있게 한다(QA2b). 성공했을 때만 그린다. */
+function CreatedDraftRedirect({ created, close }: { created: { id: string; name: string }; close: () => void }) {
+  const router = useRouter();
+  useEffect(() => {
+    close();
+    router.replace(`${SHIPPING_NOTICE_TEMPLATES_PATH}?${new URLSearchParams({ q: created.name, focus: created.id })}#${shippingNoticeTemplateAnchor(created.id)}`);
+  }, [created, close, router]);
+  return null;
+}
+
 export function ShippingNoticeTemplateForm({ template }: { template?: ShippingNoticeTemplate }) {
   const [state, action, pending] = useActionState(saveShippingNoticeTemplateAction, EMPTY_STATE);
   /* 등록 팝업 안에서 저장을 기다리는 동안 팝업을 닫지 못하게 한다(목록 안 수정 폼에서는 아무 일도 하지 않는다). */
   useAdminCreateDialogBusy(pending);
+  const closeDialog = useAdminCreateDialogClose();
+  const created = state.created;
   const prefix = useId();
   const value = (name: string, fallback: string) => state.values?.[name] ?? fallback;
   const locked = template?.status === 'active';
@@ -41,6 +56,7 @@ export function ShippingNoticeTemplateForm({ template }: { template?: ShippingNo
     'aria-describedby': state.errors?.[name] ? `${prefix}-${name}-error` : undefined,
   });
   return <form action={action} className="flex min-w-0 flex-col gap-3">
+    {created && closeDialog ? <CreatedDraftRedirect created={created} close={closeDialog} /> : null}
     {/* 결과 안내는 폼 맨 위에 둔다. 등록 팝업은 저장 뒤 칸이 비워지고 열린 채 남으므로 맨 아래 문장은 첫 화면 밖이다(QA2). */}
     {state.errors?.form ? <AdminNotice role="alert" tone="danger">{state.errors.form}</AdminNotice> : null}
     {state.message ? <AdminNotice role="status" tone="success">{state.message}</AdminNotice> : null}

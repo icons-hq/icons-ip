@@ -301,7 +301,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
   const [missingAttributes, setMissingAttributes] = useState<readonly string[]>([]);
   const collectedErrors: Record<string, string | undefined> = draftSaved ? {} : { /* 가장 최근 저장 시도가 브라우저 검증에서 멈췄다면 지난 서버 오류는 이미 고친 것이다(요약에 남기지 않는다). */ ...(Object.keys(clientErrors).length ? {} : state.errors), ...clientErrors };
   /* 빠졌던 필수 상품속성을 채우면 다음 저장을 기다리지 않고 오류를 지운다. */
-  const errors = collectedErrors.productAttributes?.includes('필수 상품속성') && !missingAttributes.length ? { ...collectedErrors, productAttributes: undefined } : collectedErrors;
+  const attributesCleared = collectedErrors.productAttributes?.includes('필수 상품속성') && !missingAttributes.length ? { ...collectedErrors, productAttributes: undefined } : collectedErrors;
   /* 방금 공개했는지. 공개 버튼은 저장 폼 밖이라 저장 막대의 지난 저장 안내가 남는다. */
   const publishedNow = Boolean(selected?.publishedAt);
   const [publishedBefore, setPublishedBefore] = useState(publishedNow);
@@ -355,6 +355,8 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
    */
   const storedType = selected?.type ?? '';
   const typeState = goodTypeFromCategory({ categories, categoryId, initialCategoryId: initial.categoryId, storedType, published: locked });
+  /* 지난 저장이 '이 유형으로 옮길 수 없다'로 실패했어도 지금 고른 카테고리가 더는 그 문제가 아니면 칸 아래뿐 아니라 상단 요약·탭 배지에서도 그 오류를 뺀다(QA2b). */
+  const errors = typeMoveMessage(attributesCleared.categoryId) && !typeState.categoryChangeProblem ? { ...attributesCleared, categoryId: undefined } : attributesCleared;
   /* 폼이 싣는 유형: 공개 중·그룹 상품은 저장된 유형, 초안은 카테고리 연결값(없으면 저장된 값). goodTypeFromCategory.submitted와 같은 규칙이다. */
   const categoryType = categoryGoodType(categories, categoryId);
   const submittedType = groupOwned || locked ? storedType : categoryType || storedType;
