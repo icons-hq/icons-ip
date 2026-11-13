@@ -133,6 +133,12 @@ describe('submitOrderClaim', () => {
 });
 
 describe('claimStageNotice', () => {
+  it('선물 보낸 분에게는 보이지 않는 회수 정보 확인·반송을 안내하지 않는다(QA2b 기록 1)', () => {
+    const text = claimStageNotice(claim({ claimType: 'return', stage: 'collecting' }), null, { giftSender: true });
+    expect(text).toContain('받는 분의 주소와 회수 송장은 개인정보라');
+    expect(text).not.toContain('회수 정보 확인'); expect(text).not.toContain('반송해주세요');
+    expect(claimStageNotice(claim({ claimType: 'return', stage: 'collecting' }), null)).toContain('회수 정보 확인');
+  });
   /* status는 레거시 투영이라 수거 중인 반품도 requested로 보인다. 안내가 stage에서
      나오지 않으면 이미 반송한 구매자가 "아직 접수만 됐다"고 읽는다. */
   it('수거 중과 접수를 구분해 안내한다', () => {
