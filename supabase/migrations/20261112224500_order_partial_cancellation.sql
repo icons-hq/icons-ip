@@ -561,7 +561,7 @@ revoke all on function private.notify_order_partial_cancellation(uuid, text) fro
 create function private.apply_order_partial_cancellation(p_id uuid, p_actor uuid, p_next_state text, p_follow_successor boolean default false) returns void
 language plpgsql security definer set search_path = '' as $$
 declare head private.order_partial_cancellations; purchase public.orders; line record; ship_id uuid; obligation private.shipping_collect_obligations;
-  policy record; remaining numeric;
+  policy record; remaining numeric; active_targets integer;
 begin
   select * into head from private.order_partial_cancellations where id = p_id for update;
   if not found then raise no_data_found using message = 'partial_cancellation_not_found'; end if;
@@ -610,14 +610,18 @@ begin
   if head.store_credit_restore_amount > 0 then
     perform private.restore_order_store_credit_portion(head.order_id, purchase.user_id, head.store_credit_restore_amount);
   end if;
-  -- 카드팩: 남은 수량의 대상 금액이 그 정책의 최소 금액에 못 미치면 열지 않은 카드팩을 회수한다(열어 본 것은 그대로).
+  -- 카드팩: 지급 조건(대상 품목이 있고 대상 금액 >= 최소 금액)의 거울이다. 정책 범위에 살아 있는 수량이 남은 대상 품목이 없거나
+  -- 남은 수량의 대상 금액이 최소 금액에 못 미치면 열지 않은 카드팩을 회수한다(열어 본 것은 그대로). 최소 금액이 0원인 정책도
+  -- 대상 품목이 모두 취소되면 회수한다(PR #652 리뷰).
   for policy in select distinct rp.id, rp.target_ip_id, rp.target_good_id, rp.min_amount
     from public.draw_tickets t join public.reward_policies rp on rp.id = t.reward_policy_id
     where t.source = 'order_paid' and t.source_id = head.order_id and t.consumed_at is null and t.revoked_at is null loop
-    select coalesce(sum(private.order_item_active_qty(i.id)::numeric * i.unit_price), 0) into remaining
+    select coalesce(sum(private.order_item_active_qty(i.id)::numeric * i.unit_price), 0),
+      count(*) filter (where private.order_item_active_qty(i.id) > 0)
+      into remaining, active_targets
     from public.order_items i where i.order_id = head.order_id and i.good_ip_id_snapshot = policy.target_ip_id
       and (policy.target_good_id is null or i.good_id = policy.target_good_id);
-    if remaining < policy.min_amount then
+    if active_targets = 0 or remaining < policy.min_amount then
       perform t.id from public.draw_tickets t where t.source = 'order_paid' and t.source_id = head.order_id
         and t.reward_policy_id = policy.id and t.consumed_at is null and t.revoked_at is null order by t.id for update;
       update public.draw_tickets set revoked_at = now() where source = 'order_paid' and source_id = head.order_id

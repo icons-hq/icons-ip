@@ -890,6 +890,51 @@ select pg_temp.pc_assert((select status = 'canceled' from public.orders where id
  and (select status = 'completed' from public.order_cancellation_requests where id = pg_temp.pc_id('claim', 26))
  and not exists(select 1 from private.claim_refund_accounts where claim_id = pg_temp.pc_id('claim', 26)), 'zero_remaining_bank_cancel_closes_without_claim_account');
 
+-- 9-15. 카드팩 회수(PR #652 리뷰): 지급 조건(대상 품목이 있고 대상 금액 >= 최소 금액)의 거울이다. 정책 범위에 살아 있는 수량이 남은
+--   대상 품목이 없거나 남은 대상 금액이 최소 금액보다 작으면 열지 않은 카드팩만 회수하고, 열어 본 카드팩은 그대로 둔다.
+--   정책 1: B 대상·최소 0원, 정책 2: A 대상·최소 10,000원, 정책 3: A 대상·최소 20,000원(기존 사례). C는 9-12에서 재고가 D로 승계돼 쓰지 않는다.
+--   (a) 주문 27: B를 모두 부분 취소(A·C는 남아 주문이 열려 있음) → 정책 1의 열지 않은 카드팩만 회수, 연 카드팩·정책 2는 그대로.
+--   (b) 주문 28: A 2개 중 1개 취소(남은 A 10,000원 >= 10,000원) → 정책 2는 회수하지 않고, B가 남은 정책 1도 그대로.
+--   (c) 주문 29: A 1개 취소(남은 A 10,000원 < 20,000원) → 정책 3의 열지 않은 카드팩 회수, 연 카드팩은 그대로.
+update private.card_reward_control set enabled = true where singleton;
+insert into public.card_pools(id, ip_id, name, active_from)
+ values (pg_temp.pc_id('pool', 1), 'partial-cancel-ip', 'TEST 부분취소 카드풀', clock_timestamp() - interval '1 day');
+insert into public.cards(id, ip_id, name, no, rarity, pool_id)
+ values ('partial-cancel-card', 'partial-cancel-ip', 'TEST 부분취소 카드', '001', 'N', pg_temp.pc_id('pool', 1));
+insert into public.pool_odds(pool_id, rarity, probability)
+ select pg_temp.pc_id('pool', 1), r, case when r = 'N' then 1 else 0 end from unnest(enum_range(null::public.rarity)) r;
+insert into public.reward_policies(id, pool_id, trigger, target_ip_id, target_good_id, min_amount, tickets_per_grant, active, active_from) values
+ (pg_temp.pc_id('policy', 1), pg_temp.pc_id('pool', 1), 'order_paid', 'partial-cancel-ip', 'partial-cancel-b', 0, 1, true, clock_timestamp() - interval '1 day'),
+ (pg_temp.pc_id('policy', 2), pg_temp.pc_id('pool', 1), 'order_paid', 'partial-cancel-ip', 'partial-cancel-a', 10000, 1, true, clock_timestamp() - interval '1 day'),
+ (pg_temp.pc_id('policy', 3), pg_temp.pc_id('pool', 1), 'order_paid', 'partial-cancel-ip', 'partial-cancel-a', 20000, 1, true, clock_timestamp() - interval '1 day');
+select pg_temp.pc_order(n, 'toss') from unnest(array[27, 28, 29]) n;
+-- 결제 때 지급된 모양 그대로의 합성 카드팩: (주문, 순번, 정책, 열어 봤는지).
+insert into public.draw_tickets(id, user_id, pool_id, source, source_id, ordinal, reward_policy_id, consumed_at)
+select pg_temp.pc_id('ticket-'||o, k), pg_temp.pc_id('user', 2), pg_temp.pc_id('pool', 1), 'order_paid', pg_temp.pc_id('order', o), k,
+  pg_temp.pc_id('policy', p), case when opened then clock_timestamp() - interval '10 minutes' end
+from (values (27, 1, 1, false), (27, 2, 1, true), (27, 3, 2, false), (28, 1, 1, false), (28, 2, 2, false), (29, 1, 3, false), (29, 2, 3, true)) t(o, k, p, opened);
+select pg_temp.pc_assert((select count(*) from public.draw_tickets where source = 'order_paid'
+   and source_id in (pg_temp.pc_id('order', 27), pg_temp.pc_id('order', 28), pg_temp.pc_id('order', 29))) = 7, 'card_pack_fixture_issued');
+create function pg_temp.pc_ticket(o integer, k integer) returns text language sql as $$
+ select case when revoked_at is not null then 'revoked' when consumed_at is not null then 'opened' else 'held' end
+ from public.draw_tickets where id = pg_temp.pc_id('ticket-'||o, k)$$;
+set local role authenticated;
+select pg_temp.pc_auth();
+select pg_temp.pc_start('b:1@27', 101, 10000);
+select pg_temp.pc_start('a:1@28', 102, 9500);
+select pg_temp.pc_start('a:1@29', 103, 9500);
+reset role;
+select pg_temp.pc_assert(pg_temp.pc_complete(101, 10000, 27) = 'completed' and pg_temp.pc_complete(102, 9500, 28) = 'completed'
+ and pg_temp.pc_complete(103, 9500, 29) = 'completed', 'card_pack_orders_partially_canceled');
+select pg_temp.pc_assert(private.order_item_active_qty(pg_temp.pc_id('item-partial-cancel-b', 27)) = 0
+ and (select status = 'confirmed' from public.orders where id = pg_temp.pc_id('order', 27))
+ and pg_temp.pc_ticket(27, 1) = 'revoked' and pg_temp.pc_ticket(27, 2) = 'opened' and pg_temp.pc_ticket(27, 3) = 'held',
+ 'zero_min_policy_revokes_unopened_pack_when_all_targets_canceled');
+select pg_temp.pc_assert(private.order_item_active_qty(pg_temp.pc_id('item-partial-cancel-a', 28)) = 1
+ and pg_temp.pc_ticket(28, 1) = 'held' and pg_temp.pc_ticket(28, 2) = 'held', 'remaining_target_at_or_above_min_keeps_pack');
+select pg_temp.pc_assert(pg_temp.pc_ticket(29, 1) = 'revoked' and pg_temp.pc_ticket(29, 2) = 'opened', 'remaining_below_min_revokes_unopened_pack');
+update private.card_reward_control set enabled = false where singleton;
+
 -- 8. 원장 불변·권한 ---------------------------------------------------------------------------------------------------------
 select pg_temp.pc_error(format('update private.order_partial_cancellations set refund_amount = 1 where id = %L', (pg_temp.pc_head(1)).id), 'partial_cancellation_immutable');
 select pg_temp.pc_error(format('delete from private.order_partial_cancellations where id = %L', (pg_temp.pc_head(1)).id), 'partial_cancellation_immutable');
